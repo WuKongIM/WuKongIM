@@ -96,9 +96,6 @@ export function ClusterMonitorPage() {
       {state.kind === "ready" && state.response.status === "prometheus_unavailable" ? (
         <ClusterMonitorSourceState kind="unavailable" message={sourceError} />
       ) : null}
-      {state.kind === "ready" && state.response.status === "partial" ? (
-        <ClusterMonitorPartialWarning message={sourceError} />
-      ) : null}
       {model ? (
         <>
           {model.snapshot.length > 0 ? <ClusterMonitorSnapshotStrip entries={model.snapshot} /> : null}
@@ -124,9 +121,8 @@ function buildClusterRealtimeMonitorModel(
   timeRange: ClusterMonitorTimeRange,
   isPaused: boolean,
 ): PreviewClusterMonitorModel {
-  const includeUnavailable = response.status === "partial"
   const cards = response.cards.flatMap((card) => {
-    const mapped = mapClusterRealtimeCard(card, includeUnavailable)
+    const mapped = mapClusterRealtimeCard(card)
     return mapped ? [mapped] : []
   })
 
@@ -143,20 +139,25 @@ function buildClusterRealtimeMonitorModel(
   }
 }
 
-function mapClusterRealtimeCard(card: ClusterRealtimeMonitorCard, includeUnavailable: boolean): ClusterMonitorMetricCard | null {
+function mapClusterRealtimeCard(card: ClusterRealtimeMonitorCard): ClusterMonitorMetricCard | null {
   if (!isClusterMonitorMetricKey(card.key)) return null
-  if (!card.available && !includeUnavailable) return null
 
   const config = clusterMonitorMetricConfig[card.key]
   const stage = normalizeStage(card.stage, config.stage)
   const tone = normalizeTone(card.tone, config.tone)
-  const unit = card.unit ?? ""
-  const value = card.available ? formatApiValue(card, config.precision) : "-"
-  const stats = card.available ? mapClusterStats(card.stats, unit, config.precision) : unavailableStats(card.error)
+  const rawUnit = card.unit ?? ""
+  const rawSeries = clusterCardSeries(card)
+  const rawStats = clusterCardStats(card)
+  const displayScale = clusterDisplayScale(card)
+  const unit = displayScale.unit
+  const series = card.available ? scaleClusterSeries(rawSeries, displayScale.factor) : []
+  const value = card.available ? formatApiValue(scaleClusterValue(card, displayScale.factor), config.precision) : "-"
+  const stats = card.available ? mapClusterStats(rawStats, rawUnit, unit, config.precision, displayScale.factor) : unavailableStats(card.error)
 
   return {
     key: card.key,
     titleId: config.titleId,
+    helpId: config.helpId,
     stage,
     stageLabelId: clusterMonitorStageLabelIds[stage],
     statusId: card.available ? clusterMonitorStatusByTone[tone] : "clusterMonitor.status.unavailable",
@@ -165,7 +166,7 @@ function mapClusterRealtimeCard(card: ClusterRealtimeMonitorCard, includeUnavail
     value,
     available: card.available,
     error: card.error,
-    series: card.available ? card.series : [],
+    series,
     stats,
     chartColor: config.chartColor,
   }
@@ -184,15 +185,18 @@ function mapClusterRealtimeSnapshot(entry: ApiSnapshotEntry): ClusterMonitorSnap
   }
 }
 
-function mapClusterStats(stats: ApiStat[], cardUnit: string, precision: number) {
+function mapClusterStats(stats: ApiStat[], rawCardUnit: string, displayCardUnit: string, precision: number, displayFactor: number) {
   return stats.flatMap((stat) => {
     const labelId = clusterMonitorStatLabelIds[stat.key]
     if (!labelId) return []
+    const rawUnit = stat.unit ?? rawCardUnit
+    const displayUnit = isByteRateUnit(rawUnit) ? displayCardUnit : rawUnit
+    const value = isByteRateUnit(rawUnit) ? scaleClusterStat(stat, displayFactor) : stat
 
     return [
       {
         labelId,
-        value: formatApiStatValue(stat, stat.unit ?? cardUnit, precision),
+        value: formatApiStatValue(value, displayUnit, precision),
       },
     ]
   })
@@ -250,6 +254,69 @@ function appendClusterUnit(value: string, unit: string) {
   return `${value} ${unit}`
 }
 
+type ClusterDisplayScale = {
+  factor: number
+  unit: string
+}
+
+function clusterDisplayScale(card: ClusterRealtimeMonitorCard): ClusterDisplayScale {
+  const unit = card.unit ?? ""
+  if (!isByteRateUnit(unit)) return { factor: 1, unit }
+
+  const currentValue = Math.abs(card.value ?? 0)
+  if (currentValue > 0) return byteRateScale(currentValue)
+
+  let maxValue = currentValue
+  for (const point of clusterCardSeries(card)) {
+    maxValue = Math.max(maxValue, Math.abs(point.value))
+  }
+  for (const stat of clusterCardStats(card)) {
+    if (typeof stat.value === "number" && isByteRateUnit(stat.unit ?? unit)) {
+      maxValue = Math.max(maxValue, Math.abs(stat.value))
+    }
+  }
+  return byteRateScale(maxValue)
+}
+
+function byteRateScale(value: number): ClusterDisplayScale {
+  const units = ["B/s", "KB/s", "MB/s", "GB/s", "TB/s"]
+  let factor = 1
+  let unitIndex = 0
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024
+    factor *= 1024
+    unitIndex += 1
+  }
+  return { factor, unit: units[unitIndex] }
+}
+
+function isByteRateUnit(unit: string) {
+  return unit === "B/s"
+}
+
+function clusterCardSeries(card: ClusterRealtimeMonitorCard) {
+  return Array.isArray(card.series) ? card.series : []
+}
+
+function clusterCardStats(card: ClusterRealtimeMonitorCard) {
+  return Array.isArray(card.stats) ? card.stats : []
+}
+
+function scaleClusterValue<T extends { value?: number; text?: string; unit?: string }>(value: T, factor: number): T {
+  if (factor === 1 || typeof value.value !== "number" || value.text) return value
+  return { ...value, value: value.value / factor }
+}
+
+function scaleClusterStat(stat: ApiStat, factor: number): ApiStat {
+  if (factor === 1 || typeof stat.value !== "number" || stat.text) return stat
+  return { ...stat, value: stat.value / factor }
+}
+
+function scaleClusterSeries(series: ClusterRealtimeMonitorCard["series"], factor: number) {
+  if (factor === 1) return series
+  return series.map((point) => ({ ...point, value: point.value / factor }))
+}
+
 function getSourceError(response: ClusterRealtimeMonitorResponse) {
   return response.sources.prometheus.error || response.sources.control_snapshot.error
 }
@@ -260,17 +327,6 @@ function ClusterMonitorLoadingState() {
   return (
     <section className="rounded-lg border border-border/80 bg-card/82 px-4 py-4 text-sm text-muted-foreground" role="status">
       {intl.formatMessage({ id: "clusterMonitor.prometheus.loading" })}
-    </section>
-  )
-}
-
-function ClusterMonitorPartialWarning({ message }: { message?: string }) {
-  const intl = useIntl()
-
-  return (
-    <section className="rounded-lg border border-warning/30 bg-warning/8 px-4 py-3 text-sm text-warning" role="status">
-      <p className="font-medium">{intl.formatMessage({ id: "clusterMonitor.prometheus.partialTitle" })}</p>
-      {message ? <p className="mt-1 text-xs opacity-90">{message}</p> : null}
     </section>
   )
 }

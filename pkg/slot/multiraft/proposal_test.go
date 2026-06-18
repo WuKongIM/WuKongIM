@@ -75,6 +75,32 @@ func TestProposeObservesWaitSubStages(t *testing.T) {
 	requireProposalStage(t, observer.events, "meta_create_slot_mark_applied", "ok")
 }
 
+func TestProposeReportsCompletedProposalToObserver(t *testing.T) {
+	observer := &slotProposalObserver{}
+	rt := newStartedRuntimeWithObserver(t, observer)
+	slotID := openSingleNodeLeader(t, rt, 1011)
+
+	fut, err := rt.Propose(context.Background(), slotID, proposalString("set observed-proposal=1"))
+	if err != nil {
+		t.Fatalf("Propose() error = %v", err)
+	}
+	if _, err := fut.Wait(context.Background()); err != nil {
+		t.Fatalf("Wait() error = %v", err)
+	}
+
+	observer.mu.Lock()
+	defer observer.mu.Unlock()
+	if len(observer.proposals) != 1 {
+		t.Fatalf("proposal observations = %#v, want one", observer.proposals)
+	}
+	if got := observer.proposals[0].slotID; got != slotID {
+		t.Fatalf("proposal slot = %d, want %d", got, slotID)
+	}
+	if observer.proposals[0].duration <= 0 {
+		t.Fatalf("proposal duration = %v, want > 0", observer.proposals[0].duration)
+	}
+}
+
 func TestReadyPipelinePersistsBeforeApply(t *testing.T) {
 	rt := newStartedRuntime(t)
 	slotID := openSingleNodeLeader(t, rt, 11)
@@ -751,4 +777,30 @@ func requireProposalStage(t *testing.T, events []proposalStageEvent, stage strin
 		}
 	}
 	t.Fatalf("proposal stage %s/%s not observed in %#v", stage, result, events)
+}
+
+type slotProposalObserver struct {
+	mu        sync.Mutex
+	proposals []slotProposalObservation
+}
+
+type slotProposalObservation struct {
+	slotID   SlotID
+	duration time.Duration
+}
+
+func (o *slotProposalObserver) SetSchedulerWorkers(int) {}
+
+func (o *slotProposalObserver) SetSchedulerInflight(int) {}
+
+func (o *slotProposalObserver) SetSchedulerState(SchedulerStateEvent) {}
+
+func (o *slotProposalObserver) ObserveSchedulerAdmission(string) {}
+
+func (o *slotProposalObserver) ObserveSchedulerTask(string, time.Duration) {}
+
+func (o *slotProposalObserver) ObserveSlotProposal(slotID SlotID, d time.Duration) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.proposals = append(o.proposals, slotProposalObservation{slotID: slotID, duration: d})
 }

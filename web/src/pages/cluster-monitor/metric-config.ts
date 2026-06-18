@@ -2,6 +2,7 @@ import type { ClusterMonitorMetricKey, ClusterMonitorStage, ClusterMonitorTone }
 
 type ClusterMonitorMetricConfig = {
   titleId: string
+  helpId: string
   chartColor: string
   precision: number
   stage: ClusterMonitorStage
@@ -11,6 +12,7 @@ type ClusterMonitorMetricConfig = {
 export const clusterMonitorMetricConfig: Record<ClusterMonitorMetricKey, ClusterMonitorMetricConfig> = {
   controllerProposeRate: {
     titleId: "clusterMonitor.metrics.controllerProposeRate",
+    helpId: "clusterMonitor.help.controllerProposeRate",
     chartColor: "#2563eb",
     precision: 1,
     stage: "controlPlane",
@@ -18,6 +20,7 @@ export const clusterMonitorMetricConfig: Record<ClusterMonitorMetricKey, Cluster
   },
   controllerApplyGap: {
     titleId: "clusterMonitor.metrics.controllerApplyGap",
+    helpId: "clusterMonitor.help.controllerApplyGap",
     chartColor: "#1d4ed8",
     precision: 0,
     stage: "controlPlane",
@@ -25,34 +28,55 @@ export const clusterMonitorMetricConfig: Record<ClusterMonitorMetricKey, Cluster
   },
   slotLeaderStability: {
     titleId: "clusterMonitor.metrics.slotLeaderStability",
+    helpId: "clusterMonitor.help.slotLeaderStability",
     chartColor: "#0f766e",
     precision: 2,
     stage: "slotReplication",
     tone: "normal",
   },
-  slotReplicaLagP99: {
-    titleId: "clusterMonitor.metrics.slotReplicaLagP99",
+  slotProposeRate: {
+    titleId: "clusterMonitor.metrics.slotProposeRate",
+    helpId: "clusterMonitor.help.slotProposeRate",
     chartColor: "#0891b2",
+    precision: 1,
+    stage: "slotReplication",
+    tone: "normal",
+  },
+  slotApplyGap: {
+    titleId: "clusterMonitor.metrics.slotApplyGap",
+    helpId: "clusterMonitor.help.slotApplyGap",
+    chartColor: "#ca8a04",
+    precision: 0,
+    stage: "slotReplication",
+    tone: "warning",
+  },
+  slotLatencyP99: {
+    titleId: "clusterMonitor.metrics.slotLatencyP99",
+    helpId: "clusterMonitor.help.slotLatencyP99",
+    chartColor: "#16a34a",
     precision: 1,
     stage: "slotReplication",
     tone: "warning",
   },
-  channelISRHealth: {
-    titleId: "clusterMonitor.metrics.channelISRHealth",
-    chartColor: "#16a34a",
-    precision: 2,
-    stage: "channelReplication",
-    tone: "normal",
-  },
   channelAppendLatencyP99: {
     titleId: "clusterMonitor.metrics.channelAppendLatencyP99",
+    helpId: "clusterMonitor.help.channelAppendLatencyP99",
     chartColor: "#22c55e",
     precision: 1,
     stage: "channelReplication",
     tone: "normal",
   },
+  activeChannels: {
+    titleId: "clusterMonitor.metrics.activeChannels",
+    helpId: "clusterMonitor.help.activeChannels",
+    chartColor: "#0d9488",
+    precision: 0,
+    stage: "channelReplication",
+    tone: "normal",
+  },
   internalTraffic: {
     titleId: "clusterMonitor.metrics.internalTraffic",
+    helpId: "clusterMonitor.help.internalTraffic",
     chartColor: "#4f46e5",
     precision: 1,
     stage: "internalNetwork",
@@ -60,6 +84,7 @@ export const clusterMonitorMetricConfig: Record<ClusterMonitorMetricKey, Cluster
   },
   rpcSuccessRate: {
     titleId: "clusterMonitor.metrics.rpcSuccessRate",
+    helpId: "clusterMonitor.help.rpcSuccessRate",
     chartColor: "#0284c7",
     precision: 2,
     stage: "internalNetwork",
@@ -67,6 +92,7 @@ export const clusterMonitorMetricConfig: Record<ClusterMonitorMetricKey, Cluster
   },
   rpcLatencyP95: {
     titleId: "clusterMonitor.metrics.rpcLatencyP95",
+    helpId: "clusterMonitor.help.rpcLatencyP95",
     chartColor: "#7c3aed",
     precision: 1,
     stage: "internalNetwork",
@@ -74,6 +100,7 @@ export const clusterMonitorMetricConfig: Record<ClusterMonitorMetricKey, Cluster
   },
   workqueuePressure: {
     titleId: "clusterMonitor.metrics.workqueuePressure",
+    helpId: "clusterMonitor.help.workqueuePressure",
     chartColor: "#d97706",
     precision: 1,
     stage: "runtimePressure",
@@ -81,17 +108,11 @@ export const clusterMonitorMetricConfig: Record<ClusterMonitorMetricKey, Cluster
   },
   storageWriteP99: {
     titleId: "clusterMonitor.metrics.storageWriteP99",
+    helpId: "clusterMonitor.help.storageWriteP99",
     chartColor: "#db2777",
     precision: 1,
     stage: "runtimePressure",
     tone: "warning",
-  },
-  incidentRate: {
-    titleId: "clusterMonitor.metrics.incidentRate",
-    chartColor: "#dc2626",
-    precision: 2,
-    stage: "incidentClosure",
-    tone: "critical",
   },
 }
 
@@ -115,7 +136,6 @@ export const clusterMonitorSnapshotLabelIds: Record<string, string> = {
   nodesAlive: "clusterMonitor.snapshot.nodesAlive",
   slotsReady: "clusterMonitor.snapshot.slotsReady",
   controllerApplyGap: "clusterMonitor.snapshot.controllerApplyGap",
-  channelISRAnomalies: "clusterMonitor.snapshot.channelISRAnomalies",
   rpcErrorRate: "clusterMonitor.snapshot.rpcErrorRate",
   queuePressure: "clusterMonitor.snapshot.queuePressure",
   storageWriteP99: "clusterMonitor.snapshot.storageWriteP99",
@@ -124,6 +144,7 @@ export const clusterMonitorSnapshotLabelIds: Record<string, string> = {
 export const clusterMonitorStatLabelIds: Record<string, string> = {
   avg: "clusterMonitor.stat.avg",
   peak: "clusterMonitor.stat.peak",
+  latest: "clusterMonitor.stat.latest",
   rejected: "clusterMonitor.stat.rejected",
   p95Gap: "clusterMonitor.stat.p95Gap",
   maxGap: "clusterMonitor.stat.maxGap",

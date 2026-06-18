@@ -288,6 +288,28 @@ func TestStepObservesQueueDepthAndEnqueueLatency(t *testing.T) {
 	require.Equal(t, []string{"ok"}, observer.results)
 }
 
+func TestUpdateStatusObservesApplyState(t *testing.T) {
+	observer := &stepObserver{}
+	cluster := newRaftTestCluster(t, []uint64{1})
+	node := cluster.nodes[0]
+	node.service.cfg.Observer = observer
+	cluster.start(t)
+	leader := cluster.waitForLeader(t)
+
+	require.NoError(t, leader.service.Propose(context.Background(), testInitCommand("wk-apply-state", cluster.peers)))
+	require.Eventually(t, func() bool {
+		observer.mu.Lock()
+		defer observer.mu.Unlock()
+		return len(observer.applyStates) > 0
+	}, 2*time.Second, 10*time.Millisecond)
+
+	observer.mu.Lock()
+	defer observer.mu.Unlock()
+	last := observer.applyStates[len(observer.applyStates)-1]
+	require.GreaterOrEqual(t, last.commit, last.applied)
+	require.Greater(t, last.commit, uint64(0))
+}
+
 func TestMemoryRaftTransportSendDoesNotBlockWhenPeerStepQueueFull(t *testing.T) {
 	transport := newMemoryRaftTransport()
 	stopCh := make(chan struct{})
@@ -458,18 +480,36 @@ type memoryRaftTransport struct {
 }
 
 type stepObserver struct {
+	mu       sync.Mutex
 	depth    int
 	capacity int
 	results  []string
+
+	applyStates []applyStateSample
+}
+
+type applyStateSample struct {
+	commit  uint64
+	applied uint64
 }
 
 func (o *stepObserver) SetStepQueueDepth(depth int, capacity int) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
 	o.depth = depth
 	o.capacity = capacity
 }
 
 func (o *stepObserver) ObserveStepEnqueue(result string, _ time.Duration) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
 	o.results = append(o.results, result)
+}
+
+func (o *stepObserver) SetApplyState(commitIndex, appliedIndex uint64) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.applyStates = append(o.applyStates, applyStateSample{commit: commitIndex, applied: appliedIndex})
 }
 
 func newMemoryRaftTransport() *memoryRaftTransport {

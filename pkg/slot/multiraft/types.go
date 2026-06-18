@@ -35,6 +35,16 @@ type SchedulerObserver interface {
 	ObserveSchedulerTask(task string, d time.Duration)
 }
 
+// ProposalObserver receives completed Slot proposal latency observations.
+type ProposalObserver interface {
+	ObserveSlotProposal(slotID SlotID, d time.Duration)
+}
+
+// ApplyStateObserver receives committed/applied index snapshots for Slot Raft groups.
+type ApplyStateObserver interface {
+	SetSlotApplyState(slotID SlotID, commitIndex, appliedIndex uint64)
+}
+
 // SchedulerStateEvent reports aggregate Slot scheduler queue state.
 type SchedulerStateEvent struct {
 	// Depth is the number of runnable Slot IDs queued in the dispatch channel.

@@ -741,6 +741,27 @@ func (o slotMetricsObserver) ObserveSchedulerTask(task string, d time.Duration) 
 	o.metrics.RuntimePressure.ObserveTaskDuration("slot", "scheduler", task, "ok", d)
 }
 
+func (o slotMetricsObserver) ObserveSlotProposal(slotID multiraft.SlotID, d time.Duration) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.Slot.ObserveProposal(uint32(slotID), d)
+}
+
+func (o slotMetricsObserver) SetSlotApplyState(slotID multiraft.SlotID, commitIndex, appliedIndex uint64) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.Slot.SetApplyGap(uint32(slotID), slotApplyGap(commitIndex, appliedIndex))
+}
+
+func slotApplyGap(commitIndex, appliedIndex uint64) uint64 {
+	if commitIndex <= appliedIndex {
+		return 0
+	}
+	return commitIndex - appliedIndex
+}
+
 func (o *transportV2MetricsObserver) ObserveTransport(event transportv2.Event) {
 	if o.metrics == nil {
 		return
@@ -773,6 +794,7 @@ func (o *transportV2MetricsObserver) ObserveTransport(event transportv2.Event) {
 	case "service_task":
 		queue := transportV2ServiceEventLabel(event)
 		o.metrics.RuntimePressure.ObserveTaskDuration("transportv2", "service", queue, event.Result, event.Duration)
+		o.metrics.Transport.ObserveRPC(queue, transportV2RPCResultLabel(event.Result), event.Duration)
 	case "service_inflight":
 		pool := transportV2ServiceEventLabel(event)
 		if event.Capacity > 0 {
@@ -844,6 +866,20 @@ func (o controllerRaftMetricsObserver) ObserveStepEnqueue(result string, d time.
 		return
 	}
 	o.metrics.Controller.ObserveControllerRaftStepEnqueue(result, d)
+}
+
+func (o controllerRaftMetricsObserver) SetApplyState(commitIndex, appliedIndex uint64) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.Controller.SetApplyGap(controllerApplyGap(commitIndex, appliedIndex))
+}
+
+func controllerApplyGap(commitIndex, appliedIndex uint64) uint64 {
+	if commitIndex <= appliedIndex {
+		return 0
+	}
+	return commitIndex - appliedIndex
 }
 
 func (o storageCommitMetricsObserver) SetCommitCoordinatorQueueDepth(depth int) {
@@ -1154,6 +1190,13 @@ func transportV2ServiceEventLabel(event transportv2.Event) string {
 
 func transportV2ServiceQueueLabel(serviceID uint16) string {
 	return "service_" + strconv.Itoa(int(serviceID))
+}
+
+func transportV2RPCResultLabel(result string) string {
+	if result == "" {
+		return "ok"
+	}
+	return result
 }
 
 func transportV2PriorityLabel(priority transportv2.Priority) string {
@@ -1493,6 +1536,24 @@ func (o multiSlotObserver) ObserveSchedulerTask(task string, d time.Duration) {
 	}
 }
 
+func (o multiSlotObserver) ObserveSlotProposal(slotID multiraft.SlotID, d time.Duration) {
+	for _, observer := range o {
+		proposalObserver, ok := observer.(multiraft.ProposalObserver)
+		if ok {
+			proposalObserver.ObserveSlotProposal(slotID, d)
+		}
+	}
+}
+
+func (o multiSlotObserver) SetSlotApplyState(slotID multiraft.SlotID, commitIndex, appliedIndex uint64) {
+	for _, observer := range o {
+		applyObserver, ok := observer.(multiraft.ApplyStateObserver)
+		if ok {
+			applyObserver.SetSlotApplyState(slotID, commitIndex, appliedIndex)
+		}
+	}
+}
+
 func (o multiTransportV2Observer) ObserveTransport(event transportv2.Event) {
 	for _, observer := range o {
 		if observer != nil {
@@ -1510,6 +1571,15 @@ func (o multiControllerRaftObserver) SetStepQueueDepth(depth int, capacity int) 
 func (o multiControllerRaftObserver) ObserveStepEnqueue(result string, d time.Duration) {
 	for _, observer := range o {
 		observer.ObserveStepEnqueue(result, d)
+	}
+}
+
+func (o multiControllerRaftObserver) SetApplyState(commitIndex, appliedIndex uint64) {
+	for _, observer := range o {
+		applyObserver, ok := observer.(cv2raft.ApplyStateObserver)
+		if ok {
+			applyObserver.SetApplyState(commitIndex, appliedIndex)
+		}
 	}
 }
 
@@ -1748,8 +1818,11 @@ var _ worker.AntsPoolObserver = channelV2MetricsObserver{}
 var _ clusterv2channels.MetaCacheObserver = channelV2MetricsObserver{}
 var _ clusterv2channels.AppendStageObserver = channelV2MetricsObserver{}
 var _ multiraft.SchedulerObserver = slotMetricsObserver{}
+var _ multiraft.ProposalObserver = slotMetricsObserver{}
+var _ multiraft.ApplyStateObserver = slotMetricsObserver{}
 var _ transportv2.Observer = (*transportV2MetricsObserver)(nil)
 var _ cv2raft.Observer = controllerRaftMetricsObserver{}
+var _ cv2raft.ApplyStateObserver = controllerRaftMetricsObserver{}
 var _ reactor.Observer = multiChannelV2Observer{}
 var _ reactor.MailboxPressureObserver = multiChannelV2Observer{}
 var _ worker.AntsPoolObserver = multiChannelV2Observer{}
@@ -1770,7 +1843,10 @@ var _ worker.TaskObserver = multiChannelV2Observer{}
 var _ clusterv2channels.MetaCacheObserver = multiChannelV2Observer{}
 var _ clusterv2channels.AppendStageObserver = multiChannelV2Observer{}
 var _ multiraft.SchedulerObserver = multiSlotObserver{}
+var _ multiraft.ProposalObserver = multiSlotObserver{}
+var _ multiraft.ApplyStateObserver = multiSlotObserver{}
 var _ cv2raft.Observer = multiControllerRaftObserver{}
+var _ cv2raft.ApplyStateObserver = multiControllerRaftObserver{}
 var _ messagedb.CommitCoordinatorObserver = storageCommitMetricsObserver{}
 var _ messagedb.CommitCoordinatorQueueObserver = storageCommitMetricsObserver{}
 var _ messagedb.CommitCoordinatorRequestObserver = storageCommitMetricsObserver{}

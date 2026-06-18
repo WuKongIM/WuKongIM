@@ -87,6 +87,8 @@ func TestRuntimePressureAdapterMapsGatewayChannelSlotTransportAndDB(t *testing.T
 	slotObserver.SetSchedulerState(multiraft.SchedulerStateEvent{Depth: 1, Capacity: 1024, Pending: 2, Queued: 3, Processing: 1, Dirty: 1})
 	slotObserver.ObserveSchedulerAdmission("dirty")
 	slotObserver.ObserveSchedulerTask("process_slot", time.Millisecond)
+	slotObserver.ObserveSlotProposal(7, 2*time.Millisecond)
+	slotObserver.SetSlotApplyState(7, 11, 8)
 
 	transportObserver := transportV2MetricsObserver{metrics: reg}
 	transportObserver.ObserveTransport(transportv2.Event{
@@ -99,10 +101,11 @@ func TestRuntimePressureAdapterMapsGatewayChannelSlotTransportAndDB(t *testing.T
 		Result:        "ok",
 	})
 	transportObserver.ObserveTransport(transportv2.Event{
-		Name:      "service_task",
-		ServiceID: 9,
-		Result:    "ok",
-		Duration:  time.Millisecond,
+		Name:         "service_task",
+		ServiceID:    9,
+		ServiceAlias: "slot runtime report",
+		Result:       "ok",
+		Duration:     time.Millisecond,
 	})
 	transportObserver.ObserveTransport(transportv2.Event{
 		Name:         "service_inflight",
@@ -201,6 +204,20 @@ func TestRuntimePressureAdapterMapsGatewayChannelSlotTransportAndDB(t *testing.T
 	if got := slotScheduler.GetGauge().GetValue(); got != 3 {
 		t.Fatalf("slot scheduler depth = %v, want 3", got)
 	}
+	slotProposals := requireAppMetricFamily(t, families, "wukongim_slot_proposals_total")
+	slotSevenProposal := findAppMetricByLabels(t, slotProposals, map[string]string{
+		"slot_id": "7",
+	})
+	if got := slotSevenProposal.GetCounter().GetValue(); got != 1 {
+		t.Fatalf("slot proposals = %v, want 1", got)
+	}
+	slotApplyGap := requireAppMetricFamily(t, families, "wukongim_slot_apply_gap")
+	slotSevenGap := findAppMetricByLabels(t, slotApplyGap, map[string]string{
+		"slot_id": "7",
+	})
+	if got := slotSevenGap.GetGauge().GetValue(); got != 3 {
+		t.Fatalf("slot apply gap = %v, want 3", got)
+	}
 	transportScheduler := findAppMetricByLabels(t, queueDepth, map[string]string{
 		"component": "transportv2",
 		"pool":      "scheduler",
@@ -223,6 +240,21 @@ func TestRuntimePressureAdapterMapsGatewayChannelSlotTransportAndDB(t *testing.T
 	})
 	if got := receivedRPCResponse.GetCounter().GetValue(); got != 72 {
 		t.Fatalf("transport received bytes = %v, want 72", got)
+	}
+	rpcTotal := requireAppMetricFamily(t, families, "wukongim_transport_rpc_total")
+	slotRuntimeRPC := findAppMetricByLabels(t, rpcTotal, map[string]string{
+		"service": "slot runtime report",
+		"result":  "ok",
+	})
+	if got := slotRuntimeRPC.GetCounter().GetValue(); got != 1 {
+		t.Fatalf("transport service rpc total = %v, want 1", got)
+	}
+	rpcDuration := requireAppMetricFamily(t, families, "wukongim_transport_rpc_duration_seconds")
+	slotRuntimeDuration := findAppMetricByLabels(t, rpcDuration, map[string]string{
+		"service": "slot runtime report",
+	})
+	if got := slotRuntimeDuration.GetHistogram().GetSampleCount(); got != 1 {
+		t.Fatalf("transport service rpc duration count = %v, want 1", got)
 	}
 	dbCommitQueue := findAppMetricByLabels(t, queueDepth, map[string]string{
 		"component": "db",
@@ -407,6 +439,34 @@ func TestStorageCommitMetricsObserverUsesConfiguredWorkers(t *testing.T) {
 	})
 	if got := dbCommitWorkers.GetGauge().GetValue(); got != 4 {
 		t.Fatalf("db message commit workers = %v, want 4", got)
+	}
+}
+
+func TestControllerRaftMetricsObserverMapsApplyGap(t *testing.T) {
+	reg := obsmetrics.New(1, "n1")
+	observer := controllerRaftMetricsObserver{metrics: reg}
+
+	observer.SetApplyState(15, 12)
+
+	families, err := reg.Gather()
+	if err != nil {
+		t.Fatalf("Gather() error = %v", err)
+	}
+	applyGap := requireAppMetricFamily(t, families, "wukongim_controller_apply_gap")
+	gapMetric := findAppMetricByLabels(t, applyGap, nil)
+	if got := gapMetric.GetGauge().GetValue(); got != 3 {
+		t.Fatalf("controller apply gap = %v, want 3", got)
+	}
+
+	observer.SetApplyState(11, 12)
+	families, err = reg.Gather()
+	if err != nil {
+		t.Fatalf("Gather() error after no gap = %v", err)
+	}
+	applyGap = requireAppMetricFamily(t, families, "wukongim_controller_apply_gap")
+	gapMetric = findAppMetricByLabels(t, applyGap, nil)
+	if got := gapMetric.GetGauge().GetValue(); got != 0 {
+		t.Fatalf("controller apply gap after applied catches up = %v, want 0", got)
 	}
 }
 

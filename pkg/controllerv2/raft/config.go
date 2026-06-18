@@ -47,6 +47,11 @@ type Observer interface {
 	ObserveStepEnqueue(result string, d time.Duration)
 }
 
+// ApplyStateObserver receives volatile commit/applied progress for monitoring.
+type ApplyStateObserver interface {
+	SetApplyState(commitIndex, appliedIndex uint64)
+}
+
 type stateMachine interface {
 	Load(context.Context) error
 	Reset()

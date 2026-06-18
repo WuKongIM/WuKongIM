@@ -37,7 +37,7 @@ func (r *Runtime) OpenSlot(ctx context.Context, opts SlotOptions) error {
 		return err
 	}
 
-	g, err := newSlot(ctx, r.opts.NodeID, r.opts.Logger, r.opts.Raft, opts)
+	g, err := newSlot(ctx, r.opts.NodeID, r.opts.Logger, r.opts.Raft, opts, r.opts.Observer)
 	if err != nil {
 		return err
 	}
@@ -60,7 +60,7 @@ func (r *Runtime) BootstrapSlot(ctx context.Context, req BootstrapSlotRequest) e
 		return err
 	}
 
-	g, err := newSlot(ctx, r.opts.NodeID, r.opts.Logger, r.opts.Raft, req.Slot)
+	g, err := newSlot(ctx, r.opts.NodeID, r.opts.Logger, r.opts.Raft, req.Slot, r.opts.Observer)
 	if err != nil {
 		return err
 	}

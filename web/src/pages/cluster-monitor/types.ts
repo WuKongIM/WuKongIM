@@ -14,15 +14,16 @@ export type ClusterMonitorMetricKey =
   | "controllerProposeRate"
   | "controllerApplyGap"
   | "slotLeaderStability"
-  | "slotReplicaLagP99"
-  | "channelISRHealth"
+  | "slotProposeRate"
+  | "slotApplyGap"
+  | "slotLatencyP99"
   | "channelAppendLatencyP99"
+  | "activeChannels"
   | "internalTraffic"
   | "rpcSuccessRate"
   | "rpcLatencyP95"
   | "workqueuePressure"
   | "storageWriteP99"
-  | "incidentRate"
 
 export type ClusterMonitorPoint = {
   timestamp: number
@@ -37,6 +38,7 @@ export type ClusterMonitorStat = {
 export type ClusterMonitorMetricCard = {
   key: ClusterMonitorMetricKey
   titleId: string
+  helpId: string
   stage: ClusterMonitorStage
   stageLabelId: string
   statusId: string

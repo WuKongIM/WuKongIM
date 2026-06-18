@@ -20,6 +20,7 @@ type slot struct {
 	logger             wklog.Logger
 	storage            Storage
 	stateMachine       StateMachine
+	observer           SchedulerObserver
 	status             Status
 	storageView        *storageAdapter
 	closed             bool
@@ -97,7 +98,7 @@ type logCompactionResponse struct {
 	err    error
 }
 
-func newSlot(ctx context.Context, nodeID NodeID, logger wklog.Logger, raftOpts RaftOptions, opts SlotOptions) (*slot, error) {
+func newSlot(ctx context.Context, nodeID NodeID, logger wklog.Logger, raftOpts RaftOptions, opts SlotOptions, observer SchedulerObserver) (*slot, error) {
 	state, snapshot, memory, err := newStorageAdapter(opts.Storage).load(ctx)
 	if err != nil {
 		return nil, err
@@ -127,6 +128,7 @@ func newSlot(ctx context.Context, nodeID NodeID, logger wklog.Logger, raftOpts R
 		id:           opts.ID,
 		storage:      opts.Storage,
 		stateMachine: opts.StateMachine,
+		observer:     observer,
 		status: Status{
 			SlotID:       opts.ID,
 			NodeID:       nodeID,
@@ -701,6 +703,9 @@ func (g *slot) applyBasicStatusLocked(st raft.BasicStatus) {
 	g.status.CommitIndex = st.Commit
 	g.status.AppliedIndex = st.Applied
 	g.status.Role = mapRole(st.RaftState)
+	if observer, ok := g.observer.(ApplyStateObserver); ok && observer != nil {
+		observer.SetSlotApplyState(g.id, st.Commit, st.Applied)
+	}
 	if prevRole == RoleLeader && g.status.Role != RoleLeader {
 		g.failLeadershipDependentLocked(ErrNotLeader)
 	}
@@ -922,14 +927,19 @@ func (g *slot) trackReadyEntries(entries []raftpb.Entry) {
 
 func (g *slot) resolveProposal(index, term uint64, result Result, err error) {
 	g.mu.Lock()
-	defer g.mu.Unlock()
 
 	pending, ok := g.pendingProposals[index]
 	if !ok || pending.term != term {
+		g.mu.Unlock()
 		return
 	}
 	delete(g.pendingProposals, index)
-	pending.future.resolve(result, err)
+	fut := pending.future
+	if fut != nil {
+		fut.resolve(result, err)
+	}
+	g.mu.Unlock()
+	g.observeSlotProposal(fut)
 }
 
 func (g *slot) failPending(err error) {
@@ -989,6 +999,17 @@ func (g *slot) resolveConfig(index, term uint64, result Result, err error) {
 	}
 	delete(g.pendingConfigs, index)
 	pending.future.resolve(result, err)
+}
+
+func (g *slot) observeSlotProposal(fut *future) {
+	if g == nil || fut == nil || fut.createdAt.IsZero() {
+		return
+	}
+	observer, ok := g.observer.(ProposalObserver)
+	if !ok || observer == nil {
+		return
+	}
+	observer.ObserveSlotProposal(g.id, time.Since(fut.createdAt))
 }
 
 func wrapMessages(slotID SlotID, messages []raftpb.Message) []Envelope {

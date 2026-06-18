@@ -146,7 +146,7 @@ func TestRuntimeRefreshesVotersAfterConfigChange(t *testing.T) {
 }
 
 func TestRuntimeDoesNotDoubleRefreshAfterReady(t *testing.T) {
-	g, err := newSlot(context.Background(), 1, nil, RaftOptions{ElectionTick: 10, HeartbeatTick: 1}, newInternalSlotOptions(110))
+	g, err := newSlot(context.Background(), 1, nil, RaftOptions{ElectionTick: 10, HeartbeatTick: 1}, newInternalSlotOptions(110), nil)
 	if err != nil {
 		t.Fatalf("newSlot() error = %v", err)
 	}
@@ -520,6 +520,14 @@ func newStartedRuntime(t *testing.T) *Runtime {
 }
 
 func newStartedRuntimeWithTick(t *testing.T, tickInterval time.Duration) *Runtime {
+	return newStartedRuntimeWithOptions(t, tickInterval, nil)
+}
+
+func newStartedRuntimeWithObserver(t *testing.T, observer SchedulerObserver) *Runtime {
+	return newStartedRuntimeWithOptions(t, 10*time.Millisecond, observer)
+}
+
+func newStartedRuntimeWithOptions(t *testing.T, tickInterval time.Duration, observer SchedulerObserver) *Runtime {
 	t.Helper()
 
 	rt, err := New(Options{
@@ -527,6 +535,7 @@ func newStartedRuntimeWithTick(t *testing.T, tickInterval time.Duration) *Runtim
 		TickInterval: tickInterval,
 		Workers:      1,
 		Transport:    &internalFakeTransport{},
+		Observer:     observer,
 		Raft: RaftOptions{
 			ElectionTick:  10,
 			HeartbeatTick: 1,

@@ -2,6 +2,7 @@ import { render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { beforeEach, expect, test, vi } from "vitest"
 
+import { TooltipProvider } from "@/components/ui/tooltip"
 import { resetLocale } from "@/i18n/locale-store"
 import { I18nProvider } from "@/i18n/provider"
 import { getClusterRealtimeMonitor } from "@/lib/manager-api"
@@ -19,7 +20,9 @@ vi.mock("@/lib/manager-api", async () => {
 function renderClusterMonitorPage() {
   return render(
     <I18nProvider>
-      <ClusterMonitorPage />
+      <TooltipProvider>
+        <ClusterMonitorPage />
+      </TooltipProvider>
     </I18nProvider>,
   )
 }
@@ -125,6 +128,66 @@ function partialClusterMonitorResponse(): ClusterRealtimeMonitorResponse {
   }
 }
 
+function largeTrafficClusterMonitorResponse(): ClusterRealtimeMonitorResponse {
+  return {
+    ...readyClusterMonitorResponse(),
+    snapshot: [],
+    cards: [
+      {
+        key: "internalTraffic",
+        source: "prometheus" as const,
+        stage: "internalNetwork",
+        tone: "normal" as const,
+        unit: "B/s",
+        value: 398006.3,
+        available: true,
+        error: "",
+        series: [
+          { timestamp: 1781767200000, value: 293371.6 },
+          { timestamp: 1781767220000, value: 398006.3 },
+        ],
+        stats: [
+          { key: "avg", value: 293371.6 },
+          { key: "peak", value: 398006.3 },
+        ],
+      },
+    ],
+  }
+}
+
+function largeTrafficClusterMonitorResponseWithoutStats(): ClusterRealtimeMonitorResponse {
+  const response = largeTrafficClusterMonitorResponse()
+  delete (response.cards[0] as unknown as Record<string, unknown>).stats
+  return response
+}
+
+function burstyTrafficClusterMonitorResponse(): ClusterRealtimeMonitorResponse {
+  return {
+    ...readyClusterMonitorResponse(),
+    snapshot: [],
+    cards: [
+      {
+        key: "internalTraffic",
+        source: "prometheus" as const,
+        stage: "internalNetwork",
+        tone: "normal" as const,
+        unit: "B/s",
+        value: 4_358_584.201439876,
+        available: true,
+        error: "",
+        series: [
+          { timestamp: 1781767200000, value: 4_200_000_000 },
+          { timestamp: 1781767220000, value: 4_358_584.201439876 },
+        ],
+        stats: [
+          { key: "avg", value: 4_058_584.201439876 },
+          { key: "peak", value: 4_358_584.201439876 },
+        ],
+      },
+    ],
+  }
+}
+
 function disabledClusterMonitorResponse(): ClusterRealtimeMonitorResponse {
   return {
     status: "prometheus_disabled" as const,
@@ -189,21 +252,71 @@ test("renders cluster monitor cards from realtime API data", async () => {
   expect(getClusterRealtimeMonitor).toHaveBeenCalledWith({ window: "15m" })
 })
 
+test("shows metric explanations from card help buttons", async () => {
+  const user = userEvent.setup()
+  vi.mocked(getClusterRealtimeMonitor).mockResolvedValueOnce(readyClusterMonitorResponse())
+  renderClusterMonitorPage()
+
+  expect(await screen.findByRole("button", { name: "Explain Controller Propose Rate" })).toBeInTheDocument()
+  expect(screen.getByRole("button", { name: "Explain RPC Success Rate" })).toBeInTheDocument()
+
+  await user.click(screen.getByRole("button", { name: "Explain Controller Propose Rate" }))
+
+  expect(await screen.findAllByText("Rate of control-plane decisions proposed by the controller.")).not.toHaveLength(0)
+})
+
 test("keeps known unavailable cards visible during partial responses", async () => {
   vi.mocked(getClusterRealtimeMonitor).mockResolvedValueOnce(partialClusterMonitorResponse())
   renderClusterMonitorPage()
 
-  expect(await screen.findByText("Cluster monitor data is partially available")).toBeInTheDocument()
-  expect(screen.getByText("query timed out for apply gap")).toBeInTheDocument()
-
   const cards = await screen.findAllByTestId("cluster-monitor-metric-card")
   expect(cards).toHaveLength(2)
+  expect(screen.queryByText("Cluster monitor data is partially available")).not.toBeInTheDocument()
+  expect(screen.queryByText("query timed out for apply gap")).not.toBeInTheDocument()
   expect(within(cards[1]).getByText("Controller Apply Gap")).toBeInTheDocument()
   expect(within(cards[1]).getByText("Metric unavailable")).toBeInTheDocument()
   expect(within(cards[1]).getByText("No series data")).toBeInTheDocument()
   expect(within(cards[1]).queryByTestId("cluster-monitor-chart")).not.toBeInTheDocument()
   expect(within(cards[1]).getByText("prometheus series unavailable")).toBeInTheDocument()
   expect(screen.queryByText("unknownMetric")).not.toBeInTheDocument()
+})
+
+test("formats large internal traffic byte rates", async () => {
+  vi.mocked(getClusterRealtimeMonitor).mockResolvedValueOnce(largeTrafficClusterMonitorResponse())
+  renderClusterMonitorPage()
+
+  const card = await screen.findByTestId("cluster-monitor-metric-card")
+  expect(within(card).getByText("Internal Traffic")).toBeInTheDocument()
+  expect(within(card).getByText("388.7")).toBeInTheDocument()
+  expect(within(card).getAllByText("KB/s").length).toBeGreaterThan(0)
+  expect(within(card).getByText("286.5 KB/s")).toBeInTheDocument()
+  expect(within(card).getByText("388.7 KB/s")).toBeInTheDocument()
+  expect(within(card).queryByText("398,006.3")).not.toBeInTheDocument()
+})
+
+test("keeps internal traffic unit readable when an old burst is larger than the current value", async () => {
+  vi.mocked(getClusterRealtimeMonitor).mockResolvedValueOnce(burstyTrafficClusterMonitorResponse())
+  renderClusterMonitorPage()
+
+  const card = await screen.findByTestId("cluster-monitor-metric-card")
+  expect(within(card).getByText("Internal Traffic")).toBeInTheDocument()
+  expect(within(card).getByText("4.2")).toBeInTheDocument()
+  expect(within(card).getAllByText("MB/s").length).toBeGreaterThan(0)
+  expect(within(card).getByText("3.9 MB/s")).toBeInTheDocument()
+  expect(within(card).getByText("4.2 MB/s")).toBeInTheDocument()
+  expect(within(card).queryByText("0.0")).not.toBeInTheDocument()
+  expect(within(card).queryByText("GB/s")).not.toBeInTheDocument()
+})
+
+test("keeps rendering when cluster cards omit stats", async () => {
+  vi.mocked(getClusterRealtimeMonitor).mockResolvedValueOnce(largeTrafficClusterMonitorResponseWithoutStats())
+  renderClusterMonitorPage()
+
+  const card = await screen.findByTestId("cluster-monitor-metric-card")
+  expect(within(card).getByText("Internal Traffic")).toBeInTheDocument()
+  expect(within(card).getByText("388.7")).toBeInTheDocument()
+  expect(within(card).getByText("KB/s")).toBeInTheDocument()
+  expect(within(card).queryByText("Avg")).not.toBeInTheDocument()
 })
 
 test("shows prometheus setup guidance when cluster realtime monitor is disabled", async () => {

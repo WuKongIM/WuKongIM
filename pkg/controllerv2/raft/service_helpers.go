@@ -93,6 +93,18 @@ func (s *Service) updateStatus(rawNode *etcdraft.RawNode, err error) {
 	}
 	s.status = st
 	s.statusMu.Unlock()
+	s.observeApplyState(status.Commit, status.Applied)
+}
+
+func (s *Service) observeApplyState(commitIndex, appliedIndex uint64) {
+	if s.cfg.Observer == nil {
+		return
+	}
+	observer, ok := s.cfg.Observer.(ApplyStateObserver)
+	if !ok {
+		return
+	}
+	observer.SetApplyState(commitIndex, appliedIndex)
 }
 
 func shouldBootstrap(startup runStartupState) bool {

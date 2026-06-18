@@ -56,10 +56,6 @@ func TestManagerClusterMonitorProviderMapsPrometheusAndControlSnapshot(t *testin
 			t.Fatalf("query = %q, want wukongim metric", query)
 		}
 		queries = append(queries, query)
-		if strings.Contains(query, "wukongim_channelv2_isr_anomaly_channels") {
-			_, _ = w.Write([]byte(`{"status":"success","data":{"resultType":"matrix","result":[{"metric":{},"values":[[1781767200,"105"],[1781767220,"108"]]}]}}`))
-			return
-		}
 		_, _ = w.Write([]byte(`{"status":"success","data":{"resultType":"matrix","result":[{"metric":{},"values":[[1781767200,"12.5"],[1781767220,"15"]]}]}}`))
 	}))
 	defer server.Close()
@@ -85,22 +81,29 @@ func TestManagerClusterMonitorProviderMapsPrometheusAndControlSnapshot(t *testin
 	if calls.Load() != int64(len(managerClusterMonitorMetricDefinitions())) {
 		t.Fatalf("prometheus calls = %d, want %d", calls.Load(), len(managerClusterMonitorMetricDefinitions()))
 	}
-	if len(queries) < 8 || !strings.Contains(queries[6], "wukongim_transport_sent_bytes_total[1m]") || !strings.Contains(queries[6], "wukongim_transport_received_bytes_total[1m]") {
-		t.Fatalf("internalTraffic query = %q, want two rate windows filled", queries[6])
+	if len(queries) < 10 || !strings.Contains(queries[8], "wukongim_transport_sent_bytes_total[1m]") || !strings.Contains(queries[8], "wukongim_transport_received_bytes_total[1m]") {
+		t.Fatalf("internalTraffic query = %q, want two rate windows filled", queries[8])
+	}
+	if len(queries) < 8 || !strings.Contains(queries[7], "wukongim_channelv2_active_runtimes") || !strings.Contains(queries[7], "vector(0)") {
+		t.Fatalf("activeChannels query = %q, want active runtime zero fallback", queries[7])
+	}
+	if len(queries) < 6 || !strings.Contains(queries[3], "wukongim_slot_proposals_total[1m]") || !strings.Contains(queries[4], "wukongim_slot_apply_gap") || !strings.Contains(queries[5], "wukongim_slot_apply_duration_seconds_bucket[1m]") {
+		t.Fatalf("slot metric queries = %#v, want propose rate, apply gap, and latency p99", queries[3:6])
 	}
 	wantKeys := []string{
 		"controllerProposeRate",
 		"controllerApplyGap",
 		"slotLeaderStability",
-		"slotReplicaLagP99",
-		"channelISRHealth",
+		"slotProposeRate",
+		"slotApplyGap",
+		"slotLatencyP99",
 		"channelAppendLatencyP99",
+		"activeChannels",
 		"internalTraffic",
 		"rpcSuccessRate",
 		"rpcLatencyP95",
 		"workqueuePressure",
 		"storageWriteP99",
-		"incidentRate",
 	}
 	if len(resp.Cards) != len(wantKeys) {
 		t.Fatalf("cards = %d, want %d", len(resp.Cards), len(wantKeys))
@@ -116,9 +119,9 @@ func TestManagerClusterMonitorProviderMapsPrometheusAndControlSnapshot(t *testin
 	if resp.Cards[0].Stage != accessmanager.ClusterRealtimeMonitorStageControlPlane || resp.Cards[0].Value != 15 {
 		t.Fatalf("first card = %#v, want control-plane latest value 15", resp.Cards[0])
 	}
-	isrCard := resp.Cards[4]
-	if isrCard.Key != "channelISRHealth" || isrCard.Value != 0 || isrCard.Unit != "%" {
-		t.Fatalf("channelISRHealth card = %#v, want clamped health value 0 with percent unit", isrCard)
+	activeCard := resp.Cards[7]
+	if activeCard.Key != "activeChannels" || activeCard.Value != 15 || activeCard.Unit != "" {
+		t.Fatalf("activeChannels card = %#v, want active channel count 15", activeCard)
 	}
 	if !resp.Sources.ControlSnapshot.Enabled {
 		t.Fatalf("ControlSnapshot.Enabled = false, want true")
@@ -126,7 +129,6 @@ func TestManagerClusterMonitorProviderMapsPrometheusAndControlSnapshot(t *testin
 	requireClusterSnapshotValue(t, resp.Snapshot, "nodesAlive", 2, accessmanager.ClusterRealtimeMonitorSourceControlSnapshot)
 	requireClusterSnapshotValueWithUnit(t, resp.Snapshot, "slotsReady", (1.0/3.0)*100, "%", accessmanager.ClusterRealtimeMonitorSourceControlSnapshot)
 	requireClusterSnapshotValue(t, resp.Snapshot, "controllerApplyGap", 15, accessmanager.ClusterRealtimeMonitorSourcePrometheus)
-	requireClusterSnapshotValueWithUnit(t, resp.Snapshot, "channelISRAnomalies", 108, "", accessmanager.ClusterRealtimeMonitorSourcePrometheus)
 	requireClusterSnapshotValue(t, resp.Snapshot, "rpcErrorRate", 85, accessmanager.ClusterRealtimeMonitorSourcePrometheus)
 	requireClusterSnapshotValue(t, resp.Snapshot, "queuePressure", 15, accessmanager.ClusterRealtimeMonitorSourcePrometheus)
 	requireClusterSnapshotValue(t, resp.Snapshot, "storageWriteP99", 15, accessmanager.ClusterRealtimeMonitorSourcePrometheus)
@@ -175,38 +177,6 @@ func TestManagerClusterMonitorProviderReturnsPartialForMissingMetric(t *testing.
 	}
 	if unavailable != 1 {
 		t.Fatalf("unavailable cards = %d, want 1; cards=%#v", unavailable, resp.Cards)
-	}
-}
-
-func TestManagerClusterMonitorProviderOmitsIncidentTopReasonUntilTopKExists(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(`{"status":"success","data":{"resultType":"matrix","result":[{"metric":{},"values":[[1781767200,"1"],[1781767220,"2"]]}]}}`))
-	}))
-	defer server.Close()
-	provider := newManagerClusterPrometheusMonitorProvider(managerClusterPrometheusMonitorOptions{
-		Enabled: true,
-		BaseURL: server.URL,
-		Client:  server.Client(),
-		Now:     func() time.Time { return time.Unix(1781767240, 0).UTC() },
-		Control: managerClusterControlReaderFake{},
-	})
-
-	resp, err := provider.ClusterRealtimeMonitor(context.Background(), accessmanager.ClusterRealtimeMonitorQuery{
-		Window: 15 * time.Minute,
-		Step:   20 * time.Second,
-	})
-
-	if err != nil {
-		t.Fatalf("ClusterRealtimeMonitor() error = %v", err)
-	}
-	incident := resp.Cards[len(resp.Cards)-1]
-	if incident.Key != "incidentRate" {
-		t.Fatalf("last card key = %q, want incidentRate", incident.Key)
-	}
-	for _, stat := range incident.Stats {
-		if stat.Key == "topReason" {
-			t.Fatalf("incident stats = %#v, want no synthetic topReason", incident.Stats)
-		}
 	}
 }
 

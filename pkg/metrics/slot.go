@@ -10,6 +10,7 @@ import (
 type SlotMetrics struct {
 	proposalsTotal  *prometheus.CounterVec
 	applyDuration   *prometheus.HistogramVec
+	applyGap        *prometheus.GaugeVec
 	leaderElections prometheus.Counter
 	replicaLag      *prometheus.GaugeVec
 }
@@ -27,6 +28,11 @@ func newSlotMetrics(registry prometheus.Registerer, labels prometheus.Labels) *S
 			ConstLabels: labels,
 			Buckets:     gatewayFrameDurationBuckets,
 		}, []string{"slot_id"}),
+		applyGap: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name:        "wukongim_slot_apply_gap",
+			Help:        "Slot committed-to-applied Raft log gap.",
+			ConstLabels: labels,
+		}, []string{"slot_id"}),
 		leaderElections: prometheus.NewCounter(prometheus.CounterOpts{
 			Name:        "wukongim_slot_leader_elections_total",
 			Help:        "Total number of observed slot leader changes.",
@@ -42,6 +48,7 @@ func newSlotMetrics(registry prometheus.Registerer, labels prometheus.Labels) *S
 	registry.MustRegister(
 		m.proposalsTotal,
 		m.applyDuration,
+		m.applyGap,
 		m.leaderElections,
 		m.replicaLag,
 	)
@@ -63,6 +70,14 @@ func (m *SlotMetrics) ObserveLeaderChange(_ uint32) {
 		return
 	}
 	m.leaderElections.Inc()
+}
+
+// SetApplyGap records the committed-to-applied Raft log gap for one Slot.
+func (m *SlotMetrics) SetApplyGap(slotID uint32, gap uint64) {
+	if m == nil {
+		return
+	}
+	m.applyGap.WithLabelValues(strconv.FormatUint(uint64(slotID), 10)).Set(float64(gap))
 }
 
 // SetReplicaLag records the current lag for one bounded Slot replica.

@@ -1,6 +1,13 @@
-import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
+import { useState } from "react"
+import { CircleHelp } from "lucide-react"
 import { useIntl } from "react-intl"
+import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 
+import {
+  Tooltip as HelpTooltip,
+  TooltipContent as HelpTooltipContent,
+  TooltipTrigger as HelpTooltipTrigger,
+} from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 
 import type { ClusterMonitorMetricCard as ClusterMonitorMetricCardModel, ClusterMonitorTone } from "../types"
@@ -30,6 +37,7 @@ const toneStyles: Record<ClusterMonitorTone, { dot: string; badge: string }> = {
 
 export function ClusterMonitorMetricCard({ card }: ClusterMonitorMetricCardProps) {
   const intl = useIntl()
+  const title = intl.formatMessage({ id: card.titleId })
   const hasSeries = card.available !== false && card.series.length > 0
   const chartData = card.series.map((point) => ({
     time: new Intl.DateTimeFormat(intl.locale, { hour: "2-digit", minute: "2-digit" }).format(new Date(point.timestamp)),
@@ -45,7 +53,10 @@ export function ClusterMonitorMetricCard({ card }: ClusterMonitorMetricCardProps
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h2 className="text-sm font-semibold text-foreground">{intl.formatMessage({ id: card.titleId })}</h2>
+          <div className="flex min-w-0 items-center gap-1.5">
+            <h2 className="truncate text-sm font-semibold text-foreground">{title}</h2>
+            <MetricHelpButton description={intl.formatMessage({ id: card.helpId })} label={title} />
+          </div>
           <p className="mt-1 text-xs text-muted-foreground">{intl.formatMessage({ id: card.stageLabelId })}</p>
         </div>
         <span className={cn("inline-flex shrink-0 items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-medium", styles.badge)}>
@@ -77,15 +88,20 @@ export function ClusterMonitorMetricCard({ card }: ClusterMonitorMetricCardProps
                 tickLine={false}
                 tickMargin={8}
               />
-              <YAxis axisLine={false} domain={["dataMin", "dataMax"]} fontSize={10} tickLine={false} width={36} />
+              <YAxis
+                axisLine={false}
+                domain={["dataMin", "dataMax"]}
+                fontSize={10}
+                tickFormatter={formatClusterChartAxisValue}
+                tickLine={false}
+                width={44}
+              />
               <Tooltip
                 content={({ active, payload }) => {
                   if (!active || !payload?.length) return null
                   return (
                     <div className="rounded-md border border-border bg-background px-2.5 py-2 text-xs shadow-md">
-                      <p className="font-medium text-foreground">
-                        {payload[0].value as number} {card.unit}
-                      </p>
+                      <p className="font-medium text-foreground">{formatClusterChartValue(payload[0].value, card.unit)}</p>
                       <p className="text-muted-foreground">{payload[0].payload.time}</p>
                     </div>
                   )
@@ -118,4 +134,79 @@ export function ClusterMonitorMetricCard({ card }: ClusterMonitorMetricCardProps
       </dl>
     </article>
   )
+}
+
+function MetricHelpButton({ description, label }: { description: string; label: string }) {
+  const intl = useIntl()
+  const [open, setOpen] = useState(false)
+
+  return (
+    <HelpTooltip onOpenChange={setOpen} open={open}>
+      <HelpTooltipTrigger asChild>
+        <button
+          aria-expanded={open}
+          aria-label={intl.formatMessage({ id: "clusterMonitor.help.aria" }, { label })}
+          className="inline-flex size-5 shrink-0 items-center justify-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+          onClick={(event) => {
+            event.preventDefault()
+            setOpen(true)
+          }}
+          type="button"
+        >
+          <CircleHelp aria-hidden="true" className="size-3.5" />
+        </button>
+      </HelpTooltipTrigger>
+      <HelpTooltipContent className="max-w-72 text-left leading-5" side="top" sideOffset={6}>
+        {description}
+      </HelpTooltipContent>
+    </HelpTooltip>
+  )
+}
+
+export function formatClusterChartValue(value: unknown, unit: string) {
+  const numeric = normalizeChartNumber(value)
+  if (numeric === null) return "-"
+  return appendClusterChartUnit(formatClusterChartNumber(numeric, unit), unit)
+}
+
+function formatClusterChartAxisValue(value: unknown) {
+  const numeric = normalizeChartNumber(value)
+  if (numeric === null) return "-"
+  return formatClusterChartNumber(numeric, "")
+}
+
+function normalizeChartNumber(value: unknown) {
+  const numeric = typeof value === "number" ? value : Number(value)
+  return Number.isFinite(numeric) ? numeric : null
+}
+
+function formatClusterChartNumber(value: number, unit: string) {
+  const maximumFractionDigits = clusterChartFractionDigits(value, unit)
+  return value.toLocaleString("en-US", {
+    maximumFractionDigits,
+    minimumFractionDigits: 0,
+  })
+}
+
+function clusterChartFractionDigits(value: number, unit: string) {
+  if (Number.isInteger(value)) return 0
+  const abs = Math.abs(value)
+  if (isClusterChartByteRateUnit(unit)) {
+    if (abs > 0 && abs < 0.01) return 3
+    if (abs > 0 && abs < 1) return 2
+    return 1
+  }
+  if (unit === "%") return 2
+  if (abs > 0 && abs < 1) return 2
+  return 1
+}
+
+function appendClusterChartUnit(value: string, unit: string) {
+  if (!unit) return value
+  if (unit === "%" || unit === "x" || unit.startsWith("/")) return `${value}${unit}`
+  return `${value} ${unit}`
+}
+
+function isClusterChartByteRateUnit(unit: string) {
+  return unit === "B/s" || unit === "KB/s" || unit === "MB/s" || unit === "GB/s" || unit === "TB/s"
 }

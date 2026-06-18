@@ -9,22 +9,22 @@ test("builds the cluster runtime monitor cards in troubleshooting order", () => 
     "controllerProposeRate",
     "controllerApplyGap",
     "slotLeaderStability",
-    "slotReplicaLagP99",
-    "channelISRHealth",
+    "slotProposeRate",
+    "slotApplyGap",
+    "slotLatencyP99",
     "channelAppendLatencyP99",
+    "activeChannels",
     "internalTraffic",
     "rpcSuccessRate",
     "rpcLatencyP95",
     "workqueuePressure",
     "storageWriteP99",
-    "incidentRate",
   ])
   expect(model.scopeLabelId).toBe("clusterMonitor.scope.global")
   expect(model.snapshot.map((entry) => entry.labelId)).toEqual([
     "clusterMonitor.snapshot.nodesAlive",
     "clusterMonitor.snapshot.slotsReady",
     "clusterMonitor.snapshot.controllerApplyGap",
-    "clusterMonitor.snapshot.channelISRAnomalies",
     "clusterMonitor.snapshot.rpcErrorRate",
     "clusterMonitor.snapshot.queuePressure",
     "clusterMonitor.snapshot.storageWriteP99",
@@ -36,7 +36,7 @@ test("builds deterministic preview data with chart series and stats", () => {
   const second = buildPreviewClusterMonitorModel("30m", false)
 
   expect(second).toEqual(first)
-  expect(first.cards).toHaveLength(12)
+  expect(first.cards).toHaveLength(13)
   expect(first.cards[0].series.length).toBeGreaterThan(20)
   expect(first.cards[0].stats).toHaveLength(3)
 })
@@ -49,16 +49,16 @@ test("uses fixed preview details for cluster-specific operational stats", () => 
     labelId: "clusterMonitor.stat.slowNodes",
     value: "1",
   })
-  expect(cardsByKey.get("channelISRHealth")?.stats).toContainEqual({
-    labelId: "clusterMonitor.stat.affectedChannels",
-    value: "14",
+  expect(cardsByKey.get("activeChannels")?.stats).toContainEqual({
+    labelId: "clusterMonitor.stat.peak",
+    value: expect.any(String),
+  })
+  expect(cardsByKey.get("slotApplyGap")?.stats).toContainEqual({
+    labelId: "clusterMonitor.stat.maxGap",
+    value: expect.any(String),
   })
   expect(cardsByKey.get("rpcSuccessRate")?.stats).toContainEqual({
     labelId: "clusterMonitor.stat.timeouts",
     value: "9",
-  })
-  expect(cardsByKey.get("incidentRate")?.stats).toContainEqual({
-    labelId: "clusterMonitor.stat.topReason",
-    value: "rpc_timeout",
   })
 })

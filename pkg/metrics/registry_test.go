@@ -554,6 +554,7 @@ func TestSlotAndTransportMetricsTrackProposalsLeaderChangesAndRPCs(t *testing.T)
 
 	reg.Slot.ObserveProposal(3, 12*time.Millisecond)
 	reg.Slot.ObserveLeaderChange(3)
+	reg.Slot.SetApplyGap(3, 4)
 	reg.Slot.SetReplicaLag(1, 2, 150*time.Millisecond)
 	reg.Transport.ObserveRPC("controller_list_nodes", "ok", 7*time.Millisecond)
 	reg.Transport.ObserveRPC("controller_list_nodes", "err", 9*time.Millisecond)
@@ -583,6 +584,15 @@ func TestSlotAndTransportMetricsTrackProposalsLeaderChangesAndRPCs(t *testing.T)
 		"node_name": "node-9",
 	})
 	require.Equal(t, float64(1), leaderChanges.GetMetric()[0].GetCounter().GetValue())
+
+	applyGap := requireMetricFamily(t, families, "wukongim_slot_apply_gap")
+	require.Len(t, applyGap.GetMetric(), 1)
+	requireMetricLabels(t, applyGap.GetMetric()[0], map[string]string{
+		"node_id":   "9",
+		"node_name": "node-9",
+		"slot_id":   "3",
+	})
+	require.Equal(t, float64(4), applyGap.GetMetric()[0].GetGauge().GetValue())
 
 	replicaLag := requireMetricFamily(t, families, "wukongim_slot_replica_lag_seconds")
 	require.NotEmpty(t, replicaLag.GetHelp())
