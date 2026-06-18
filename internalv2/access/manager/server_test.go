@@ -492,6 +492,128 @@ func TestManagerRuntimeWorkqueuesRequiresNodeReadPermission(t *testing.T) {
 	}
 }
 
+func TestManagerRealtimeMonitorReturnsPrometheusPayload(t *testing.T) {
+	generatedAt := time.Date(2026, 6, 18, 10, 0, 0, 0, time.UTC)
+	provider := &managerMonitorStub{response: RealtimeMonitorResponse{
+		Status:        RealtimeMonitorStatusReady,
+		GeneratedAt:   generatedAt,
+		WindowSeconds: 900,
+		StepSeconds:   20,
+		Scope: RealtimeMonitorScope{
+			View:     RealtimeMonitorScopePrometheus,
+			NodeID:   1,
+			NodeName: "node-1",
+		},
+		Sources: RealtimeMonitorSources{
+			Prometheus: RealtimeMonitorPrometheusSource{
+				Enabled: true,
+				BaseURL: "http://127.0.0.1:9090",
+				QueryMS: 18,
+			},
+		},
+		Snapshot: []RealtimeMonitorSnapshotEntry{{
+			Key:       "send",
+			MetricKey: "sendRate",
+			Value:     12.5,
+			Unit:      "msg/s",
+			Tone:      RealtimeMonitorToneNormal,
+		}},
+		Cards: []RealtimeMonitorCard{{
+			Key:       "sendRate",
+			Stage:     RealtimeMonitorStageSendEntry,
+			Tone:      RealtimeMonitorToneNormal,
+			Unit:      "msg/s",
+			Value:     12.5,
+			Available: true,
+			Series: []RealtimeMonitorPoint{{
+				Timestamp: 1781767200000,
+				Value:     12.5,
+			}},
+			Stats: []RealtimeMonitorStat{{
+				Key:   "avg",
+				Value: 12.5,
+			}},
+		}},
+	}}
+	srv := New(Options{Monitor: provider})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/manager/monitor/realtime?window=15m&step=20s", nil)
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	if provider.query.Window != 15*time.Minute || provider.query.Step != 20*time.Second {
+		t.Fatalf("provider query = %#v, want 15m/20s", provider.query)
+	}
+	if !jsonEqual(rec.Body.String(), `{
+		"status":"ready",
+		"generated_at":"2026-06-18T10:00:00Z",
+		"window_seconds":900,
+		"step_seconds":20,
+		"scope":{"view":"prometheus","node_id":1,"node_name":"node-1"},
+		"sources":{"prometheus":{"enabled":true,"base_url":"http://127.0.0.1:9090","query_ms":18,"error":""}},
+		"snapshot":[{"key":"send","metric_key":"sendRate","value":12.5,"unit":"msg/s","tone":"normal"}],
+		"cards":[{"key":"sendRate","stage":"sendEntry","tone":"normal","unit":"msg/s","value":12.5,"series":[{"timestamp":1781767200000,"value":12.5}],"stats":[{"key":"avg","value":12.5}],"available":true,"error":""}]
+	}`) {
+		t.Fatalf("body = %s", rec.Body.String())
+	}
+}
+
+func TestManagerRealtimeMonitorRejectsInvalidQuery(t *testing.T) {
+	tests := []struct {
+		name string
+		url  string
+		want string
+	}{
+		{name: "invalid window", url: "/manager/monitor/realtime?window=soon", want: "window invalid"},
+		{name: "unsupported window", url: "/manager/monitor/realtime?window=2h", want: "window invalid"},
+		{name: "invalid step", url: "/manager/monitor/realtime?step=soon", want: "step invalid"},
+		{name: "too small step", url: "/manager/monitor/realtime?step=1s", want: "step invalid"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := New(Options{Monitor: &managerMonitorStub{}})
+
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodGet, tt.url, nil)
+
+			srv.Engine().ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusBadRequest {
+				t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusBadRequest, rec.Body.String())
+			}
+			if !jsonEqual(rec.Body.String(), `{"error":"invalid_request","message":"`+tt.want+`"}`) {
+				t.Fatalf("body = %s", rec.Body.String())
+			}
+		})
+	}
+}
+
+func TestManagerRealtimeMonitorRequiresNodeReadPermission(t *testing.T) {
+	srv := New(Options{
+		Auth: testAuthConfig([]UserConfig{{
+			Username: "viewer",
+			Password: "secret",
+			Permissions: []PermissionConfig{{
+				Resource: "cluster.slot",
+				Actions:  []string{"r"},
+			}},
+		}}),
+		Monitor: &managerMonitorStub{},
+	})
+
+	denied := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/manager/monitor/realtime", nil)
+	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "viewer"))
+	srv.Engine().ServeHTTP(denied, req)
+	if denied.Code != http.StatusForbidden {
+		t.Fatalf("denied status = %d, want %d", denied.Code, http.StatusForbidden)
+	}
+}
+
 func TestManagerSlotsReturnsReadOnlyInventory(t *testing.T) {
 	reportedAt := time.Date(2026, 6, 16, 11, 0, 0, 0, time.UTC)
 	var gotOpts managementusecase.ListSlotsOptions
@@ -957,12 +1079,26 @@ type managerTopStub struct {
 	query    accessapi.TopSnapshotQuery
 }
 
+type managerMonitorStub struct {
+	response RealtimeMonitorResponse
+	err      error
+	query    RealtimeMonitorQuery
+}
+
 func (s *managerTopStub) SnapshotTop(_ context.Context, query accessapi.TopSnapshotQuery) (accessapi.TopSnapshot, error) {
 	s.query = query
 	if s.err != nil {
 		return accessapi.TopSnapshot{}, s.err
 	}
 	return s.snapshot, nil
+}
+
+func (s *managerMonitorStub) RealtimeMonitor(_ context.Context, query RealtimeMonitorQuery) (RealtimeMonitorResponse, error) {
+	s.query = query
+	if s.err != nil {
+		return RealtimeMonitorResponse{}, s.err
+	}
+	return s.response, nil
 }
 
 func (s managerNodesStub) ListNodes(context.Context) (managementusecase.NodeList, error) {

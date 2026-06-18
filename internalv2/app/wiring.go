@@ -677,10 +677,28 @@ func (a *App) wireManager() {
 				Users:     managerUserConfigs(a.cfg.Manager.Users),
 			},
 			Management: a.newManagerManagement(),
+			Monitor:    a.newManagerMonitorProvider(),
 			Top:        a.topProvider,
 			Logger:     a.logger.Named("access.manager"),
 		})
 	}
+}
+
+func (a *App) newManagerMonitorProvider() accessmanager.RealtimeMonitorProvider {
+	prometheusBaseURL := ""
+	if listenAddr := strings.TrimSpace(a.cfg.Observability.Prometheus.ListenAddr); listenAddr != "" {
+		prometheusBaseURL = "http://" + listenAddr
+	}
+	nodeID := a.cfg.NodeID
+	if nodeID == 0 {
+		nodeID = a.cfg.Cluster.NodeID
+	}
+	return newManagerPrometheusMonitorProvider(managerPrometheusMonitorOptions{
+		Enabled:  a.cfg.Observability.MetricsEnabled && a.cfg.Observability.Prometheus.Enabled,
+		BaseURL:  prometheusBaseURL,
+		NodeID:   nodeID,
+		NodeName: fmt.Sprintf("node-%d", nodeID),
+	})
 }
 
 func (a *App) newManagerManagement() accessmanager.Management {

@@ -17,6 +17,7 @@ export type MonitorMetricKey =
   | "offlineEnqueueRate"
   | "retryQueueDepth"
   | "pathErrorRate"
+  | "activeConnections"
 
 export type MonitorPoint = {
   timestamp: number

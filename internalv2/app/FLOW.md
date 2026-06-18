@@ -47,6 +47,8 @@ New(Config)
        Prometheus runtime that writes prometheus.yml under the configured
        Prometheus data dir, extracts the embedded Prometheus binary when no
        external binary path is configured, and scrapes the node API /metrics endpoint
+     Manager realtime monitor queries use this configured Prometheus HTTP API.
+     They do not use the top collector or in-process dashboard ring buffers.
   -> when Observability.Diagnostics.Enabled=true:
        create a bounded node-local diagnostics store, runtime tracking rules,
        sampler, and sendtrace sink; install the process-wide sendtrace sink
@@ -148,7 +150,9 @@ New(Config)
      an optional management retention port and return unavailable when that
      port is not configured; when `Top.APIEnabled` creates a top collector,
      attach the local top provider so `/manager/runtime/workqueues` can expose
-     local runtime pressure
+     local runtime pressure; attach a Prometheus monitor provider so
+     `/manager/monitor/realtime` can expose business monitor card series and
+     explicit disabled/unavailable source states
   -> create pkg/gateway.Gateway with WKProto CONNECT authentication only when listeners are configured
 ```
 

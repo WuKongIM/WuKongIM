@@ -31,7 +31,7 @@ export function MonitorToolbar({
     minute: "2-digit",
     second: "2-digit",
   }).format(new Date(generatedAt))
-  const pauseLabel = intl.formatMessage({ id: isPaused ? "monitor.controls.resumeLivePreview" : "monitor.controls.pauseLivePreview" })
+  const pauseLabel = intl.formatMessage({ id: isPaused ? "monitor.controls.resumeLiveMonitor" : "monitor.controls.pauseLiveMonitor" })
 
   return (
     <section className="flex flex-col gap-3 rounded-lg border border-border/80 bg-card/80 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.035)] lg:flex-row lg:items-center lg:justify-between">

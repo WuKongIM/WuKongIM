@@ -289,42 +289,60 @@ export type ManagerNetworkEvent = {
   message: string
 }
 
-export type ManagerMonitorMetricPoint = {
-  at: string
+export type RealtimeMonitorStatus = "ready" | "partial" | "prometheus_disabled" | "prometheus_unavailable"
+
+export type RealtimeMonitorTone = "normal" | "warning" | "critical"
+
+export type RealtimeMonitorPoint = {
+  timestamp: number
   value: number
 }
 
-export type ManagerMonitorMetricSeries = {
+export type RealtimeMonitorStat = {
   key: string
-  unit: string
-  latest: number
-  peak: number
-  avg: number
-  points: ManagerMonitorMetricPoint[]
+  value: number
 }
 
-export type ManagerMonitorMetricsResponse = {
+export type RealtimeMonitorCard = {
+  key: string
+  stage: string
+  tone: RealtimeMonitorTone
+  unit: string
+  value: number
+  series: RealtimeMonitorPoint[]
+  stats: RealtimeMonitorStat[]
+  available: boolean
+  error: string
+}
+
+export type RealtimeMonitorSnapshotEntry = {
+  key: string
+  metric_key: string
+  value: number
+  unit?: string
+  tone: RealtimeMonitorTone
+}
+
+export type RealtimeMonitorResponse = {
+  status: RealtimeMonitorStatus
   generated_at: string
   window_seconds: number
   step_seconds: number
-  points: number
   scope: {
-    view: string
-    local_node_id: number
+    view: "prometheus"
     node_id?: number
+    node_name?: string
   }
-  capabilities: {
-    node_filter: boolean
+  sources: {
+    prometheus: {
+      enabled: boolean
+      base_url: string
+      query_ms: number
+      error: string
+    }
   }
-  nodes: ManagerMonitorNode[]
-  metrics: Record<string, ManagerMonitorMetricSeries>
-}
-
-export type ManagerMonitorNode = {
-  node_id: number
-  name: string
-  is_local: boolean
-  available: boolean
+  snapshot: RealtimeMonitorSnapshotEntry[]
+  cards: RealtimeMonitorCard[]
 }
 
 export type ManagerNode = {

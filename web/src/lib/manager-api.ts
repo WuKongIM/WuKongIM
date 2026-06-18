@@ -40,7 +40,6 @@ import type {
   ManagerMessagesResponse,
   ManagerRecentConversationsResponse,
   ManagerRuntimeWorkqueuesResponse,
-  ManagerMonitorMetricsResponse,
   ManagerNetworkSummaryResponse,
   ManagerNodeOnboardingCandidatesResponse,
   ManagerNodeOnboardingJob,
@@ -81,6 +80,7 @@ import type {
   RecoverSlotInput,
   ResetUserTokenInput,
   ResetUserTokenResponse,
+  RealtimeMonitorResponse,
   TransferSlotLeaderInput,
   CreateNodeOnboardingPlanInput,
   CreateNodeScaleInPlanInput,
@@ -496,13 +496,12 @@ export function getNetworkSummary() {
   return jsonManagerFetch<ManagerNetworkSummaryResponse>("/manager/network/summary")
 }
 
-export function getMonitorMetrics(params?: { window?: string; step?: string; nodeId?: string }) {
+export function getRealtimeMonitor(params?: { window?: string; step?: string }) {
   const search = new URLSearchParams()
   if (params?.window) search.set("window", params.window)
   if (params?.step) search.set("step", params.step)
-  if (params?.nodeId && params.nodeId !== "all") search.set("node_id", params.nodeId)
   const query = search.toString()
-  return jsonManagerFetch<ManagerMonitorMetricsResponse>(`/manager/monitor/metrics${query ? `?${query}` : ""}`)
+  return jsonManagerFetch<RealtimeMonitorResponse>(`/manager/monitor/realtime${query ? `?${query}` : ""}`)
 }
 
 export function getNodes() {

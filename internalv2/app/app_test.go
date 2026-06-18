@@ -302,6 +302,57 @@ func TestManagerServerReceivesTopProviderWhenConfigured(t *testing.T) {
 	}
 }
 
+func TestManagerServerReceivesPrometheusMonitorProviderWhenConfigured(t *testing.T) {
+	app, err := newTestApp(t, Config{
+		API: APIConfig{ListenAddr: "127.0.0.1:18080"},
+		Manager: ManagerConfig{
+			ListenAddr: ":0",
+			AuthOn:     true,
+			JWTSecret:  "manager-secret",
+			JWTIssuer:  "wukongim-manager",
+			JWTExpire:  time.Hour,
+			Users: []ManagerUserConfig{{
+				Username: "admin",
+				Password: "secret",
+				Permissions: []ManagerPermissionConfig{{
+					Resource: "cluster.node",
+					Actions:  []string{"r"},
+				}},
+			}},
+		},
+		Observability: ObservabilityConfig{
+			MetricsEnabled: true,
+			Prometheus: PrometheusConfig{
+				Enabled:    true,
+				ListenAddr: "127.0.0.1:9090",
+			},
+		},
+	}, WithCluster(&fakeManagerCluster{nodeID: 1}), WithGateway(nil))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	srv, ok := app.manager.(*accessmanager.Server)
+	if !ok {
+		t.Fatalf("manager = %T, want *accessmanager.Server", app.manager)
+	}
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/manager/monitor/realtime", nil)
+	req.Header.Set("Authorization", "Bearer "+mustIssueManagerTokenForAppTest(t, srv, "admin"))
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("monitor status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), accessmanager.RealtimeMonitorStatusPrometheusDisabled) {
+		t.Fatalf("monitor body = %s, want configured prometheus provider", rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), `"enabled":true`) {
+		t.Fatalf("monitor body = %s, want prometheus source enabled", rec.Body.String())
+	}
+}
+
 func TestManagerServerListsNodesFromClusterSnapshot(t *testing.T) {
 	cluster := &fakeManagerCluster{
 		nodeID: 2,

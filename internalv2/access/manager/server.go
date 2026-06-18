@@ -108,6 +108,8 @@ type Options struct {
 	Auth AuthConfig
 	// Management provides manager read usecases.
 	Management Management
+	// Monitor provides Prometheus-backed realtime monitor snapshots.
+	Monitor RealtimeMonitorProvider
 	// Top provides local runtime pressure snapshots for read-only runtime views.
 	Top accessapi.TopSnapshotProvider
 	// Logger is the logger used by the manager server.
@@ -123,6 +125,7 @@ type Server struct {
 	listenAddr string
 	addr       string
 	management Management
+	monitor    RealtimeMonitorProvider
 	top        accessapi.TopSnapshotProvider
 	auth       authState
 	logger     wklog.Logger
@@ -143,6 +146,7 @@ func New(opts Options) *Server {
 		engine:     engine,
 		listenAddr: strings.TrimSpace(opts.ListenAddr),
 		management: opts.Management,
+		monitor:    opts.Monitor,
 		top:        opts.Top,
 		auth:       newAuthState(opts.Auth),
 		logger:     opts.Logger,
@@ -238,6 +242,7 @@ func (s *Server) registerRoutes() {
 	}
 	nodes.GET("/nodes", s.handleNodes)
 	nodes.GET("/runtime/workqueues", s.handleRuntimeWorkqueues)
+	nodes.GET("/monitor/realtime", s.handleRealtimeMonitor)
 
 	slots := s.engine.Group("/manager")
 	if s.auth.enabled() {
