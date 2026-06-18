@@ -34,7 +34,7 @@ type CardSpec = {
   stats: [StatSpec, StatSpec, StatSpec]
 }
 
-type DynamicStatKind = "avg" | "peak" | "latest" | "total" | "p50" | "p95" | "peakP99"
+type DynamicStatKind = "avg" | "peak" | "latest" | "p50" | "p95" | "peakP99"
 
 type StatSpec = {
   labelId: string
@@ -71,7 +71,7 @@ const cardSpecs: CardSpec[] = [
     stats: [
       { labelId: "monitor.stat.avg", kind: "avg" },
       { labelId: "monitor.stat.peak", kind: "peak" },
-      { labelId: "monitor.stat.total5m", kind: "total" },
+      { labelId: "monitor.stat.total5m", value: "372k" },
     ],
   },
   {
@@ -170,7 +170,7 @@ const cardSpecs: CardSpec[] = [
     stats: [
       { labelId: "monitor.stat.avg", kind: "avg" },
       { labelId: "monitor.stat.peak", kind: "peak" },
-      { labelId: "monitor.stat.affectedChannels", value: "18" },
+      { labelId: "monitor.stat.total5m", value: "356k" },
     ],
   },
   {
@@ -301,7 +301,6 @@ function percentile(values: number[], ratio: number) {
 function dynamicStatValue(kind: DynamicStatKind, values: number[]) {
   if (kind === "avg") return values.reduce((sum, value) => sum + value, 0) / values.length
   if (kind === "peak" || kind === "peakP99") return Math.max(...values)
-  if (kind === "total") return values.reduce((sum, value) => sum + value, 0)
   if (kind === "p50") return percentile(values, 0.5)
   if (kind === "p95") return percentile(values, 0.95)
   return values.at(-1) ?? 0

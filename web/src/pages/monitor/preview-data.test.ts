@@ -61,3 +61,19 @@ test("uses explicit special stat values for non-generic monitor details", () => 
     value: "timeout",
   })
 })
+
+test("uses fixed preview totals independent of selected chart range", () => {
+  const fifteenMinute = buildPreviewMonitorModel("15m", false)
+  const oneHour = buildPreviewMonitorModel("1h", false)
+  const sendStats15m = fifteenMinute.cards.find((card) => card.key === "sendRate")?.stats
+  const sendStats1h = oneHour.cards.find((card) => card.key === "sendRate")?.stats
+
+  expect(sendStats15m).toContainEqual({
+    labelId: "monitor.stat.total5m",
+    value: "372k",
+  })
+  expect(sendStats1h).toContainEqual({
+    labelId: "monitor.stat.total5m",
+    value: "372k",
+  })
+})

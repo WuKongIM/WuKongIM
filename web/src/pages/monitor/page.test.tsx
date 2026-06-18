@@ -52,4 +52,7 @@ test("updates selected time range and pause state from the toolbar", async () =>
 
   await user.click(screen.getByRole("button", { name: "Pause live preview" }))
   expect(screen.getByRole("button", { name: "Resume live preview" })).toBeInTheDocument()
+
+  await user.click(screen.getByRole("button", { name: "Resume live preview" }))
+  expect(screen.getByRole("button", { name: "Pause live preview" })).toBeInTheDocument()
 })
