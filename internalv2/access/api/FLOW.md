@@ -153,7 +153,11 @@ to canonical channel IDs before calling the usecase, and returns the legacy
 array response with `recents` when requested. Canonical person-channel IDs in
 conversation rows and recent messages are converted back to the peer UID for
 the requesting user. If the composition root does not provide a conversation
-usecase, the route fails closed with the compatible JSON error envelope.
+usecase, the route fails closed with the compatible JSON error envelope. The
+adapter records one low-cardinality sync observation for each request path,
+including invalid JSON, invalid `last_msg_seqs`, missing usecase, usecase
+errors, and successful responses. Observation labels never include UID, channel
+ID, device, message ID, or error text.
 `/conversations/clearUnread`, `/conversations/setUnread`, and
 `/conversations/delete` preserve the legacy mutation envelopes. The adapter
 validates only request shape, normalizes personal peer IDs to canonical

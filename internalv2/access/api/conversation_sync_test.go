@@ -2,9 +2,11 @@ package api
 
 import (
 	"bytes"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	runtimechannelid "github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
 	conversationusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/conversation"
@@ -117,4 +119,131 @@ func TestConversationSyncRejectsInvalidLegacyLastMsgSeqs(t *testing.T) {
 	if !jsonEqual(rec.Body.String(), `{"msg":"invalid last_msg_seqs","status":400}`) {
 		t.Fatalf("body = %q, want invalid last_msg_seqs error", rec.Body.String())
 	}
+}
+
+func TestConversationSyncObserverRecordsShapeAndLatency(t *testing.T) {
+	conversations := &recordingConversationUsecase{
+		syncResult: conversationusecase.SyncResult{
+			Conversations: []conversationusecase.SyncConversation{{
+				ChannelID:   "g1",
+				ChannelType: frame.ChannelTypeGroup,
+				LastMsgSeq:  3,
+			}},
+			OverlayItems:       2,
+			RecentLoadDuration: 3 * time.Millisecond,
+		},
+	}
+	observer := &recordingConversationSyncObserver{}
+	srv := New(Options{Conversations: conversations, ConversationSyncObserver: observer})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/conversation/sync", bytes.NewBufferString(`{
+		"uid":"u1",
+		"last_msg_seqs":"g1:2:3|g2:2:4",
+		"msg_count":1,
+		"only_unread":1
+	}`))
+	req.Header.Set("Content-Type", "application/json")
+
+	srv.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s, want 200", rec.Code, rec.Body.String())
+	}
+	if len(observer.events) != 1 {
+		t.Fatalf("events = %#v, want one event", observer.events)
+	}
+	got := observer.events[0]
+	if got.Result != "ok" {
+		t.Fatalf("Result = %q, want ok", got.Result)
+	}
+	if !got.OnlyUnread {
+		t.Fatalf("OnlyUnread = false, want true")
+	}
+	if !got.WithRecents {
+		t.Fatalf("WithRecents = false, want true")
+	}
+	if got.ReturnedItems != 1 {
+		t.Fatalf("ReturnedItems = %d, want 1", got.ReturnedItems)
+	}
+	if got.OverlayItems != 2 {
+		t.Fatalf("OverlayItems = %d, want 2", got.OverlayItems)
+	}
+	if got.RecentLoadDuration != 3*time.Millisecond {
+		t.Fatalf("RecentLoadDuration = %v, want 3ms", got.RecentLoadDuration)
+	}
+	if got.Duration <= 0 {
+		t.Fatalf("Duration = %v, want positive duration", got.Duration)
+	}
+}
+
+func TestConversationSyncObserverRecordsFailures(t *testing.T) {
+	tests := []struct {
+		name          string
+		body          string
+		conversations ConversationUsecase
+		wantResult    string
+	}{
+		{
+			name:          "invalid json",
+			body:          `{`,
+			conversations: &recordingConversationUsecase{},
+			wantResult:    "invalid_request",
+		},
+		{
+			name:          "missing uid",
+			body:          `{}`,
+			conversations: &recordingConversationUsecase{},
+			wantResult:    "invalid_request",
+		},
+		{
+			name:       "missing usecase",
+			body:       `{"uid":"u1"}`,
+			wantResult: "not_configured",
+		},
+		{
+			name:          "parse last msg seqs",
+			body:          `{"uid":"u1","last_msg_seqs":"bad"}`,
+			conversations: &recordingConversationUsecase{},
+			wantResult:    "parse_last_msg_seqs_error",
+		},
+		{
+			name:          "usecase error",
+			body:          `{"uid":"u1"}`,
+			conversations: &recordingConversationUsecase{syncErr: errors.New("sync failed")},
+			wantResult:    "error",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			observer := &recordingConversationSyncObserver{}
+			srv := New(Options{Conversations: tt.conversations, ConversationSyncObserver: observer})
+
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodPost, "/conversation/sync", bytes.NewBufferString(tt.body))
+			req.Header.Set("Content-Type", "application/json")
+
+			srv.Handler().ServeHTTP(rec, req)
+
+			if len(observer.events) != 1 {
+				t.Fatalf("events = %#v, want one event", observer.events)
+			}
+			got := observer.events[0]
+			if got.Result != tt.wantResult {
+				t.Fatalf("Result = %q, want %q", got.Result, tt.wantResult)
+			}
+			if got.Duration <= 0 {
+				t.Fatalf("Duration = %v, want positive duration", got.Duration)
+			}
+		})
+	}
+}
+
+type recordingConversationSyncObserver struct {
+	events []ConversationSyncObservation
+}
+
+func (r *recordingConversationSyncObserver) ObserveConversationSync(event ConversationSyncObservation) {
+	r.events = append(r.events, event)
 }

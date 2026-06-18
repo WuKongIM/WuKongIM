@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	runtimechannelid "github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
 	conversationusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/conversation"
@@ -36,21 +37,28 @@ type legacyConversationResponse struct {
 }
 
 func (s *Server) handleConversationSync(c *gin.Context) {
+	start := time.Now()
 	var req syncConversationRequest
 	if !bindJSON(c, &req) {
+		s.observeConversationSync(ConversationSyncObservation{Result: "invalid_request", Duration: time.Since(start)})
 		return
 	}
+	onlyUnread := req.OnlyUnread == 1
+	withRecents := req.MsgCount > 0
 	if req.UID == "" {
 		writeJSONError(c, "invalid request")
+		s.observeConversationSync(ConversationSyncObservation{Result: "invalid_request", Duration: time.Since(start), OnlyUnread: onlyUnread, WithRecents: withRecents})
 		return
 	}
 	if s == nil || s.conversations == nil {
 		writeJSONError(c, "conversation usecase not configured")
+		s.observeConversationSync(ConversationSyncObservation{Result: "not_configured", Duration: time.Since(start), OnlyUnread: onlyUnread, WithRecents: withRecents})
 		return
 	}
 	lastMsgSeqs, err := parseLegacyLastMsgSeqs(req.UID, req.LastMsgSeqs)
 	if err != nil {
 		writeJSONError(c, "invalid last_msg_seqs")
+		s.observeConversationSync(ConversationSyncObservation{Result: "parse_last_msg_seqs_error", Duration: time.Since(start), OnlyUnread: onlyUnread, WithRecents: withRecents})
 		return
 	}
 	result, err := s.conversations.Sync(c.Request.Context(), conversationusecase.SyncQuery{
@@ -58,19 +66,42 @@ func (s *Server) handleConversationSync(c *gin.Context) {
 		Version:             req.Version,
 		LastMsgSeqs:         lastMsgSeqs,
 		MsgCount:            req.MsgCount,
-		OnlyUnread:          req.OnlyUnread == 1,
+		OnlyUnread:          onlyUnread,
 		ExcludeChannelTypes: append([]uint8(nil), req.ExcludeChannelTypes...),
 		Limit:               req.Limit,
 	})
 	if err != nil {
 		writeJSONError(c, err.Error())
+		s.observeConversationSync(ConversationSyncObservation{Result: "error", Duration: time.Since(start), OnlyUnread: onlyUnread, WithRecents: withRecents})
 		return
 	}
 	resp := make([]legacyConversationResponse, 0, len(result.Conversations))
 	for _, item := range result.Conversations {
 		resp = append(resp, newLegacyConversationResponse(req.UID, item))
 	}
+	s.observeConversationSync(ConversationSyncObservation{
+		Result:             "ok",
+		Duration:           time.Since(start),
+		OnlyUnread:         onlyUnread,
+		WithRecents:        withRecents,
+		ReturnedItems:      len(result.Conversations),
+		OverlayItems:       result.OverlayItems,
+		RecentLoadDuration: result.RecentLoadDuration,
+	})
 	c.JSON(http.StatusOK, resp)
+}
+
+func (s *Server) observeConversationSync(event ConversationSyncObservation) {
+	if s == nil || s.conversationSyncObserver == nil {
+		return
+	}
+	if event.Result == "" {
+		event.Result = "error"
+	}
+	if event.Duration <= 0 {
+		event.Duration = time.Nanosecond
+	}
+	s.conversationSyncObserver.ObserveConversationSync(event)
 }
 
 func parseLegacyLastMsgSeqs(uid, raw string) (map[conversationusecase.ConversationKey]uint64, error) {

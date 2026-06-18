@@ -3,17 +3,19 @@ package conversation
 import (
 	"context"
 	"sort"
+	"time"
 
 	runtimechannelid "github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
 type syncCandidate struct {
-	key           ConversationKey
-	state         metadb.UserConversationState
-	hasState      bool
-	clientLastSeq uint64
-	overlay       bool
+	key              ConversationKey
+	state            metadb.UserConversationState
+	hasState         bool
+	clientLastSeq    uint64
+	overlay          bool
+	overlayCandidate bool
 }
 
 type syncConversationView struct {
@@ -41,6 +43,7 @@ func (a *App) Sync(ctx context.Context, query SyncQuery) (SyncResult, error) {
 	if err := a.addSyncOverlayCandidates(ctx, query, candidates); err != nil {
 		return SyncResult{}, err
 	}
+	overlayItems := countSyncOverlayCandidates(candidates)
 
 	keys := filterSyncCandidateKeys(candidates, query.ExcludeChannelTypes)
 	latestByKey, err := a.loadSyncLatestMessages(ctx, keys)
@@ -65,13 +68,23 @@ func (a *App) Sync(ctx context.Context, query SyncQuery) (SyncResult, error) {
 	if len(views) > limit {
 		views = views[:limit]
 	}
+	var recentLoadDuration time.Duration
 	if query.MsgCount > 0 {
+		recentLoadStart := time.Now()
 		if err := a.assignSyncRecents(ctx, views, query.MsgCount); err != nil {
 			return SyncResult{}, err
 		}
+		recentLoadDuration = time.Since(recentLoadStart)
+		if recentLoadDuration <= 0 {
+			recentLoadDuration = time.Nanosecond
+		}
 	}
 
-	result := SyncResult{Conversations: make([]SyncConversation, 0, len(views))}
+	result := SyncResult{
+		Conversations:      make([]SyncConversation, 0, len(views)),
+		OverlayItems:       overlayItems,
+		RecentLoadDuration: recentLoadDuration,
+	}
 	for _, view := range views {
 		result.Conversations = append(result.Conversations, view.conversation)
 	}
@@ -96,7 +109,11 @@ func addSyncActiveCandidates(states []metadb.UserConversationState, candidates m
 
 func (a *App) addSyncOverlayCandidates(ctx context.Context, query SyncQuery, candidates map[ConversationKey]*syncCandidate) error {
 	for key, lastSeq := range query.LastMsgSeqs {
-		candidate := ensureSyncCandidate(candidates, key)
+		candidate, exists := candidates[key]
+		if !exists {
+			candidate = ensureSyncCandidate(candidates, key)
+			candidate.overlayCandidate = true
+		}
 		candidate.clientLastSeq = lastSeq
 		if candidate.hasState {
 			candidate.overlay = false
@@ -120,6 +137,16 @@ func (a *App) addSyncOverlayCandidates(ctx context.Context, query SyncQuery, can
 		candidate.overlay = true
 	}
 	return nil
+}
+
+func countSyncOverlayCandidates(candidates map[ConversationKey]*syncCandidate) int {
+	count := 0
+	for _, candidate := range candidates {
+		if candidate != nil && candidate.overlayCandidate {
+			count++
+		}
+	}
+	return count
 }
 
 func (a *App) loadSyncLatestMessages(ctx context.Context, keys []ConversationKey) (map[ConversationKey]LastMessage, error) {
