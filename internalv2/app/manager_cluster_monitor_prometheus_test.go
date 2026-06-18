@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"errors"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -56,7 +57,7 @@ func TestManagerClusterMonitorProviderMapsPrometheusAndControlSnapshot(t *testin
 		}
 		queries = append(queries, query)
 		if strings.Contains(query, "wukongim_channelv2_isr_anomaly_channels") {
-			_, _ = w.Write([]byte(`{"status":"success","data":{"resultType":"matrix","result":[{"metric":{},"values":[[1781767200,"90"],[1781767220,"92"]]}]}}`))
+			_, _ = w.Write([]byte(`{"status":"success","data":{"resultType":"matrix","result":[{"metric":{},"values":[[1781767200,"105"],[1781767220,"108"]]}]}}`))
 			return
 		}
 		_, _ = w.Write([]byte(`{"status":"success","data":{"resultType":"matrix","result":[{"metric":{},"values":[[1781767200,"12.5"],[1781767220,"15"]]}]}}`))
@@ -116,16 +117,16 @@ func TestManagerClusterMonitorProviderMapsPrometheusAndControlSnapshot(t *testin
 		t.Fatalf("first card = %#v, want control-plane latest value 15", resp.Cards[0])
 	}
 	isrCard := resp.Cards[4]
-	if isrCard.Key != "channelISRHealth" || isrCard.Value != 92 || isrCard.Unit != "%" {
-		t.Fatalf("channelISRHealth card = %#v, want health value 92 with percent unit", isrCard)
+	if isrCard.Key != "channelISRHealth" || isrCard.Value != 0 || isrCard.Unit != "%" {
+		t.Fatalf("channelISRHealth card = %#v, want clamped health value 0 with percent unit", isrCard)
 	}
 	if !resp.Sources.ControlSnapshot.Enabled {
 		t.Fatalf("ControlSnapshot.Enabled = false, want true")
 	}
 	requireClusterSnapshotValue(t, resp.Snapshot, "nodesAlive", 2, accessmanager.ClusterRealtimeMonitorSourceControlSnapshot)
-	requireClusterSnapshotValue(t, resp.Snapshot, "slotsReady", 1, accessmanager.ClusterRealtimeMonitorSourceControlSnapshot)
+	requireClusterSnapshotValueWithUnit(t, resp.Snapshot, "slotsReady", (1.0/3.0)*100, "%", accessmanager.ClusterRealtimeMonitorSourceControlSnapshot)
 	requireClusterSnapshotValue(t, resp.Snapshot, "controllerApplyGap", 15, accessmanager.ClusterRealtimeMonitorSourcePrometheus)
-	requireClusterSnapshotValueWithUnit(t, resp.Snapshot, "channelISRAnomalies", 8, "", accessmanager.ClusterRealtimeMonitorSourcePrometheus)
+	requireClusterSnapshotValueWithUnit(t, resp.Snapshot, "channelISRAnomalies", 108, "", accessmanager.ClusterRealtimeMonitorSourcePrometheus)
 	requireClusterSnapshotValue(t, resp.Snapshot, "rpcErrorRate", 85, accessmanager.ClusterRealtimeMonitorSourcePrometheus)
 	requireClusterSnapshotValue(t, resp.Snapshot, "queuePressure", 15, accessmanager.ClusterRealtimeMonitorSourcePrometheus)
 	requireClusterSnapshotValue(t, resp.Snapshot, "storageWriteP99", 15, accessmanager.ClusterRealtimeMonitorSourcePrometheus)
@@ -177,7 +178,7 @@ func TestManagerClusterMonitorProviderReturnsPartialForMissingMetric(t *testing.
 	}
 }
 
-func TestManagerClusterMonitorProviderKeepsTextOnlyIncidentStat(t *testing.T) {
+func TestManagerClusterMonitorProviderOmitsIncidentTopReasonUntilTopKExists(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`{"status":"success","data":{"resultType":"matrix","result":[{"metric":{},"values":[[1781767200,"1"],[1781767220,"2"]]}]}}`))
 	}))
@@ -202,17 +203,10 @@ func TestManagerClusterMonitorProviderKeepsTextOnlyIncidentStat(t *testing.T) {
 	if incident.Key != "incidentRate" {
 		t.Fatalf("last card key = %q, want incidentRate", incident.Key)
 	}
-	var found bool
 	for _, stat := range incident.Stats {
-		if stat.Key == "topReason" && stat.Value == nil && stat.Text != "" {
-			found = true
+		if stat.Key == "topReason" {
+			t.Fatalf("incident stats = %#v, want no synthetic topReason", incident.Stats)
 		}
-		if stat.Key == "topReason" && stat.Value != nil {
-			t.Fatalf("topReason stat = %#v, want Value nil", stat)
-		}
-	}
-	if !found {
-		t.Fatalf("incident stats = %#v, want text-only topReason", incident.Stats)
 	}
 }
 
@@ -279,7 +273,7 @@ func requireClusterSnapshotValueWithUnit(t *testing.T, snapshot []accessmanager.
 	t.Helper()
 	for _, item := range snapshot {
 		if item.Key == key {
-			if item.Value != want || item.Unit != unit || item.Source != source {
+			if math.Abs(item.Value-want) > 1e-9 || item.Unit != unit || item.Source != source {
 				t.Fatalf("snapshot[%s] = %#v, want value %v unit %q source %s", key, item, want, unit, source)
 			}
 			return

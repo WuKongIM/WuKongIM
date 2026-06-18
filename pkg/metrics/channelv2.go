@@ -220,10 +220,6 @@ func newChannelV2Metrics(registry prometheus.Registerer, labels prometheus.Label
 		m.rpcPullTotal,
 	)
 
-	for _, reason := range channelV2ISRAnomalyReasons {
-		m.isrAnomalyChannels.WithLabelValues(reason).Set(0)
-	}
-
 	return m
 }
 

@@ -157,6 +157,17 @@ func TestGatewayMetricsTrackConnectionAndTraffic(t *testing.T) {
 	}).GetCounter().GetValue())
 }
 
+func TestClusterMonitorGaugesStayAbsentUntilObserved(t *testing.T) {
+	reg := New(1, "node-1")
+
+	families, err := reg.Gather()
+	require.NoError(t, err)
+
+	requireNoMetricFamily(t, families, "wukongim_controller_apply_gap")
+	requireNoMetricFamily(t, families, "wukongim_slot_replica_lag_seconds")
+	requireNoMetricFamily(t, families, "wukongim_channelv2_isr_anomaly_channels")
+}
+
 func TestChannelMetricsTrackAppendFetchAndActiveChannels(t *testing.T) {
 	reg := New(7, "node-7")
 
@@ -793,6 +804,7 @@ func TestControllerMetricsTrackDecisionStateAndTaskCounts(t *testing.T) {
 	requireMetricLabels(t, applyGap.GetMetric()[0], map[string]string{
 		"node_id":   "11",
 		"node_name": "node-11",
+		"state":     "current",
 	})
 	require.Equal(t, float64(7), applyGap.GetMetric()[0].GetGauge().GetValue())
 }
