@@ -722,16 +722,27 @@ func TestManagerClusterRealtimeMonitorRejectsInvalidQuery(t *testing.T) {
 }
 
 func TestManagerClusterRealtimeMonitorRequiresNodeReadPermission(t *testing.T) {
+	provider := &managerClusterMonitorStub{}
 	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "viewer",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.slot",
-				Actions:  []string{"r"},
-			}},
-		}}),
-		ClusterMonitor: &managerClusterMonitorStub{},
+		Auth: testAuthConfig([]UserConfig{
+			{
+				Username: "viewer",
+				Password: "secret",
+				Permissions: []PermissionConfig{{
+					Resource: "cluster.slot",
+					Actions:  []string{"r"},
+				}},
+			},
+			{
+				Username: "node-reader",
+				Password: "secret",
+				Permissions: []PermissionConfig{{
+					Resource: "cluster.node",
+					Actions:  []string{"r"},
+				}},
+			},
+		}),
+		ClusterMonitor: provider,
 	})
 
 	missing := httptest.NewRecorder()
@@ -746,6 +757,17 @@ func TestManagerClusterRealtimeMonitorRequiresNodeReadPermission(t *testing.T) {
 	srv.Engine().ServeHTTP(forbidden, req)
 	if forbidden.Code != http.StatusForbidden {
 		t.Fatalf("forbidden status = %d, want %d", forbidden.Code, http.StatusForbidden)
+	}
+
+	allowed := httptest.NewRecorder()
+	allowedReq := httptest.NewRequest(http.MethodGet, "/manager/cluster-monitor/realtime", nil)
+	allowedReq.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "node-reader"))
+	srv.Engine().ServeHTTP(allowed, allowedReq)
+	if allowed.Code != http.StatusOK {
+		t.Fatalf("allowed status = %d, want %d; body=%s", allowed.Code, http.StatusOK, allowed.Body.String())
+	}
+	if provider.query.Window != 15*time.Minute || provider.query.Step != 20*time.Second {
+		t.Fatalf("allowed provider query = %#v, want default 15m window and 20s step", provider.query)
 	}
 }
 
