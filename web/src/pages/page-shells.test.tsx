@@ -23,7 +23,6 @@ const getNodeOnboardingCandidatesMock = vi.fn()
 const getNodeOnboardingJobsMock = vi.fn()
 const getNetworkSummaryMock = vi.fn()
 const getDashboardMetricsMock = vi.fn()
-const getMonitorMetricsMock = vi.fn()
 const getDiagnosticsTraceMock = vi.fn()
 const getDiagnosticsMessageMock = vi.fn()
 const getDiagnosticsEventsMock = vi.fn()
@@ -62,7 +61,6 @@ vi.mock("@/lib/manager-api", async (importOriginal) => {
     getNodeOnboardingJobs: (...args: unknown[]) => getNodeOnboardingJobsMock(...args),
     getNetworkSummary: (...args: unknown[]) => getNetworkSummaryMock(...args),
     getDashboardMetrics: (...args: unknown[]) => getDashboardMetricsMock(...args),
-    getMonitorMetrics: (...args: unknown[]) => getMonitorMetricsMock(...args),
     getDiagnosticsTrace: (...args: unknown[]) => getDiagnosticsTraceMock(...args),
     getDiagnosticsMessage: (...args: unknown[]) => getDiagnosticsMessageMock(...args),
     getDiagnosticsEvents: (...args: unknown[]) => getDiagnosticsEventsMock(...args),
@@ -95,7 +93,6 @@ beforeEach(() => {
   getNodeOnboardingJobsMock.mockReset()
   getNetworkSummaryMock.mockReset()
   getDashboardMetricsMock.mockReset()
-  getMonitorMetricsMock.mockReset()
   getDiagnosticsTraceMock.mockReset()
   getDiagnosticsMessageMock.mockReset()
   getDiagnosticsEventsMock.mockReset()
@@ -336,25 +333,6 @@ beforeEach(() => {
       fan_out_rate: dashboardMetricSeries(3.4),
     },
   })
-  getMonitorMetricsMock.mockResolvedValue({
-    generated_at: "2026-05-15T08:30:00Z",
-    window_seconds: 10,
-    step_seconds: 5,
-    points: 2,
-    scope: { view: "local_node", local_node_id: 1 },
-    capabilities: { node_filter: false },
-    nodes: [{ node_id: 1, name: "node-1", is_local: true, available: true }],
-    metrics: {
-      send_rate: {
-        key: "send_rate",
-        unit: "msg/s",
-        latest: 8,
-        peak: 8,
-        avg: 6,
-        points: [{ at: "2026-05-15T08:29:55Z", value: 8 }],
-      },
-    },
-  })
 
   useAuthStore.setState({
     status: "authenticated",
@@ -370,7 +348,7 @@ beforeEach(() => {
 it.each([
   ["/cluster/dashboard", "Cluster Dashboard", "Internal Link Trends"],
   ["/business/dashboard", "Business Dashboard", "Business Message Trends"],
-  ["/business/monitor", "Live Monitor", "Message Flow"],
+  ["/business/monitor", "Live Monitor", "Global business message path health trends."],
   ["/cluster/nodes", "Nodes", "127.0.0.1:7000"],
   ["/cluster/slots", "Slots", "Slot 9"],
   ["/cluster/channels", "Channel Cluster", "No manager data is available for this view yet."],
@@ -410,7 +388,7 @@ it.each([
   ["/cluster/topology", "CLUSTER / TOPOLOGY"],
   ["/cluster/diagnostics", "CLUSTER / DIAGNOSTICS"],
   ["/business/dashboard", "BUSINESS / DASHBOARD"],
-  ["/business/monitor", "BUSINESS / MONITOR"],
+  ["/business/monitor", "UI Preview"],
   ["/business/users", "BUSINESS / USERS"],
   ["/business/channels", "BUSINESS / CHANNELS"],
   ["/business/messages", "BUSINESS / MESSAGES"],
@@ -434,7 +412,7 @@ it.each([
 it.each([
   ["/cluster/dashboard", "集群仪表盘", "内部链路趋势"],
   ["/business/dashboard", "业务仪表盘", "业务消息趋势"],
-  ["/business/monitor", "实时监控", "消息流量"],
+  ["/business/monitor", "实时监控", "全局业务消息路径健康趋势。"],
   ["/cluster/nodes", "节点", "127.0.0.1:7000"],
   ["/cluster/slots", "槽位", "槽位 9"],
   ["/cluster/channels", "频道集群", "当前视图还没有可用的管理面数据。"],

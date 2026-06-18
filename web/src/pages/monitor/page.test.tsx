@@ -1,16 +1,9 @@
 import { render, screen, within } from "@testing-library/react"
-import { beforeEach, expect, test, vi } from "vitest"
+import { beforeEach, expect, test } from "vitest"
 
 import { resetLocale } from "@/i18n/locale-store"
 import { I18nProvider } from "@/i18n/provider"
 import { MonitorPage } from "@/pages/monitor/page"
-
-const getMonitorMetricsMock = vi.fn()
-
-vi.mock("@/lib/manager-api", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/manager-api")>()
-  return { ...actual, getMonitorMetrics: (...args: unknown[]) => getMonitorMetricsMock(...args) }
-})
 
 function renderMonitorPage() {
   return render(
@@ -23,16 +16,14 @@ function renderMonitorPage() {
 beforeEach(() => {
   localStorage.clear()
   resetLocale()
-  getMonitorMetricsMock.mockReset()
 })
 
-test("renders the local preview business monitor card wall without fetching metrics", () => {
+test("renders the local preview business monitor card wall", () => {
   renderMonitorPage()
 
   expect(screen.getByRole("heading", { name: "Live Monitor" })).toBeInTheDocument()
   expect(screen.getByText("UI Preview")).toBeInTheDocument()
   expect(screen.getByText("Global business message path health trends.")).toBeInTheDocument()
-  expect(getMonitorMetricsMock).not.toHaveBeenCalled()
 
   const cards = screen.getAllByTestId("monitor-metric-card")
   expect(cards).toHaveLength(12)
