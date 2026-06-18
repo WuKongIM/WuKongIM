@@ -1334,6 +1334,84 @@ func TestConversationMetricsTrackListShapeAndLatency(t *testing.T) {
 	requireNoMetricFamily(t, families, "wukongim_conversation_list_last_message_hits")
 }
 
+func TestConversationMetricsTrackSyncShapeAndLatency(t *testing.T) {
+	reg := New(11, "node-11")
+
+	reg.Conversation.ObserveSync("ok", true, true, 25*time.Millisecond, 3, 2, 4*time.Millisecond)
+	reg.Conversation.ObserveSync("unexpected-database-label", false, false, -time.Second, -1, -2, 0)
+
+	families, err := reg.Gather()
+	require.NoError(t, err)
+
+	total := requireMetricFamily(t, families, "wukongim_conversation_sync_total")
+	require.Equal(t, float64(1), findMetricByLabels(t, total, map[string]string{
+		"node_id":      "11",
+		"node_name":    "node-11",
+		"result":       "ok",
+		"only_unread":  "true",
+		"with_recents": "true",
+	}).GetCounter().GetValue())
+	require.Equal(t, float64(1), findMetricByLabels(t, total, map[string]string{
+		"node_id":      "11",
+		"node_name":    "node-11",
+		"result":       "error",
+		"only_unread":  "false",
+		"with_recents": "false",
+	}).GetCounter().GetValue())
+
+	duration := requireMetricFamily(t, families, "wukongim_conversation_sync_duration_seconds")
+	require.Equal(t, uint64(1), findMetricByLabels(t, duration, map[string]string{
+		"node_id":      "11",
+		"node_name":    "node-11",
+		"result":       "ok",
+		"only_unread":  "true",
+		"with_recents": "true",
+	}).GetHistogram().GetSampleCount())
+	require.Equal(t, float64(0), findMetricByLabels(t, duration, map[string]string{
+		"node_id":      "11",
+		"node_name":    "node-11",
+		"result":       "error",
+		"only_unread":  "false",
+		"with_recents": "false",
+	}).GetHistogram().GetSampleSum())
+
+	returned := requireMetricFamily(t, families, "wukongim_conversation_sync_returned_items")
+	require.Equal(t, float64(3), findMetricByLabels(t, returned, map[string]string{
+		"node_id":      "11",
+		"node_name":    "node-11",
+		"result":       "ok",
+		"only_unread":  "true",
+		"with_recents": "true",
+	}).GetHistogram().GetSampleSum())
+
+	overlay := requireMetricFamily(t, families, "wukongim_conversation_sync_overlay_items")
+	require.Equal(t, float64(2), findMetricByLabels(t, overlay, map[string]string{
+		"node_id":      "11",
+		"node_name":    "node-11",
+		"result":       "ok",
+		"only_unread":  "true",
+		"with_recents": "true",
+	}).GetHistogram().GetSampleSum())
+
+	recentLoad := requireMetricFamily(t, families, "wukongim_conversation_sync_recent_load_duration_seconds")
+	require.Equal(t, uint64(1), findMetricByLabels(t, recentLoad, map[string]string{
+		"node_id":     "11",
+		"node_name":   "node-11",
+		"result":      "ok",
+		"only_unread": "true",
+	}).GetHistogram().GetSampleCount())
+
+	for _, family := range []*dto.MetricFamily{total, duration, returned, overlay, recentLoad} {
+		for _, metric := range family.GetMetric() {
+			requireNoMetricLabel(t, metric, "uid")
+			requireNoMetricLabel(t, metric, "channel_id")
+			requireNoMetricLabel(t, metric, "channelID")
+			requireNoMetricLabel(t, metric, "device_id")
+			requireNoMetricLabel(t, metric, "client_msg_no")
+		}
+	}
+}
+
 func TestConversationMetricsTrackAuthorityCountersAndLowCardinalityLabels(t *testing.T) {
 	reg := New(11, "node-11")
 
