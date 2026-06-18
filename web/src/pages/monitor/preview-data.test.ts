@@ -39,3 +39,25 @@ test("builds deterministic 30m preview data with rich series and stats", () => {
   expect(first.cards[0].series.length).toBeGreaterThan(20)
   expect(first.cards[0].stats).toHaveLength(3)
 })
+
+test("uses explicit special stat values for non-generic monitor details", () => {
+  const model = buildPreviewMonitorModel("15m", false)
+  const cardsByKey = new Map(model.cards.map((card) => [card.key, card]))
+
+  expect(cardsByKey.get("sendSuccessRate")?.stats).toContainEqual({
+    labelId: "monitor.stat.topError",
+    value: "auth_expired",
+  })
+  expect(cardsByKey.get("pendingCommitBacklog")?.stats).toContainEqual({
+    labelId: "monitor.stat.oldestWait",
+    value: "4.8s",
+  })
+  expect(cardsByKey.get("retryQueueDepth")?.stats).toContainEqual({
+    labelId: "monitor.stat.retrySuccess",
+    value: "97.8%",
+  })
+  expect(cardsByKey.get("pathErrorRate")?.stats).toContainEqual({
+    labelId: "monitor.stat.topReason",
+    value: "timeout",
+  })
+})

@@ -49,6 +49,7 @@ export function MonitorToolbar({
           {ranges.map((range) => (
             <button
               aria-label={`${range} time range`}
+              aria-pressed={timeRange === range}
               className={cn(
                 "h-6 rounded-md px-2.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
                 timeRange === range && "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground",

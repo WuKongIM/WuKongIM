@@ -1,4 +1,5 @@
 import { render, screen, within } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
 import { beforeEach, expect, test } from "vitest"
 
 import { resetLocale } from "@/i18n/locale-store"
@@ -40,4 +41,15 @@ test("renders the local preview business monitor card wall", () => {
   for (const label of ["5m time range", "15m time range", "30m time range", "1h time range", "Pause live preview"]) {
     expect(screen.getByRole("button", { name: label })).toBeInTheDocument()
   }
+})
+
+test("updates selected time range and pause state from the toolbar", async () => {
+  const user = userEvent.setup()
+  renderMonitorPage()
+
+  await user.click(screen.getByRole("button", { name: "30m time range" }))
+  expect(screen.getByRole("button", { name: "30m time range" })).toHaveAttribute("aria-pressed", "true")
+
+  await user.click(screen.getByRole("button", { name: "Pause live preview" }))
+  expect(screen.getByRole("button", { name: "Resume live preview" })).toBeInTheDocument()
 })

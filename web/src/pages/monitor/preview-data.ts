@@ -31,7 +31,15 @@ type CardSpec = {
   drift?: number
   pulse?: number
   precision?: number
-  stats: [string, string, string]
+  stats: [StatSpec, StatSpec, StatSpec]
+}
+
+type DynamicStatKind = "avg" | "peak" | "latest" | "total" | "p50" | "p95" | "peakP99"
+
+type StatSpec = {
+  labelId: string
+  kind?: DynamicStatKind
+  value?: string
 }
 
 const stageLabelIds: Record<MonitorStage, string> = {
@@ -60,7 +68,11 @@ const cardSpecs: CardSpec[] = [
     base: 1240,
     amplitude: 130,
     pulse: 165,
-    stats: ["monitor.stat.avg", "monitor.stat.peak", "monitor.stat.total5m"],
+    stats: [
+      { labelId: "monitor.stat.avg", kind: "avg" },
+      { labelId: "monitor.stat.peak", kind: "peak" },
+      { labelId: "monitor.stat.total5m", kind: "total" },
+    ],
   },
   {
     key: "sendSuccessRate",
@@ -72,7 +84,11 @@ const cardSpecs: CardSpec[] = [
     base: 99.72,
     amplitude: 0.08,
     precision: 2,
-    stats: ["monitor.stat.avg", "monitor.stat.failed", "monitor.stat.topError"],
+    stats: [
+      { labelId: "monitor.stat.avg", kind: "avg" },
+      { labelId: "monitor.stat.failed", value: "41" },
+      { labelId: "monitor.stat.topError", value: "auth_expired" },
+    ],
   },
   {
     key: "entryLatencyP99",
@@ -85,7 +101,11 @@ const cardSpecs: CardSpec[] = [
     amplitude: 7,
     pulse: 18,
     precision: 1,
-    stats: ["monitor.stat.p50", "monitor.stat.p95", "monitor.stat.peakP99"],
+    stats: [
+      { labelId: "monitor.stat.p50", kind: "p50" },
+      { labelId: "monitor.stat.p95", kind: "p95" },
+      { labelId: "monitor.stat.peakP99", kind: "peakP99" },
+    ],
   },
   {
     key: "commitRate",
@@ -97,7 +117,11 @@ const cardSpecs: CardSpec[] = [
     base: 1215,
     amplitude: 105,
     pulse: 128,
-    stats: ["monitor.stat.avg", "monitor.stat.peak", "monitor.stat.batches"],
+    stats: [
+      { labelId: "monitor.stat.avg", kind: "avg" },
+      { labelId: "monitor.stat.peak", kind: "peak" },
+      { labelId: "monitor.stat.batches", value: "362" },
+    ],
   },
   {
     key: "commitLatencyP99",
@@ -110,7 +134,11 @@ const cardSpecs: CardSpec[] = [
     amplitude: 4.5,
     pulse: 9,
     precision: 1,
-    stats: ["monitor.stat.p50", "monitor.stat.p95", "monitor.stat.slowCommits"],
+    stats: [
+      { labelId: "monitor.stat.p50", kind: "p50" },
+      { labelId: "monitor.stat.p95", kind: "p95" },
+      { labelId: "monitor.stat.slowCommits", value: "7" },
+    ],
   },
   {
     key: "pendingCommitBacklog",
@@ -123,7 +151,11 @@ const cardSpecs: CardSpec[] = [
     amplitude: 24,
     drift: 0.7,
     pulse: 44,
-    stats: ["monitor.stat.avg", "monitor.stat.peakQueue", "monitor.stat.oldestWait"],
+    stats: [
+      { labelId: "monitor.stat.avg", kind: "avg" },
+      { labelId: "monitor.stat.peakQueue", kind: "peak" },
+      { labelId: "monitor.stat.oldestWait", value: "4.8s" },
+    ],
   },
   {
     key: "deliveryRate",
@@ -135,7 +167,11 @@ const cardSpecs: CardSpec[] = [
     base: 1186,
     amplitude: 112,
     pulse: 104,
-    stats: ["monitor.stat.avg", "monitor.stat.peak", "monitor.stat.affectedChannels"],
+    stats: [
+      { labelId: "monitor.stat.avg", kind: "avg" },
+      { labelId: "monitor.stat.peak", kind: "peak" },
+      { labelId: "monitor.stat.affectedChannels", value: "18" },
+    ],
   },
   {
     key: "deliveryLatencyP99",
@@ -148,7 +184,11 @@ const cardSpecs: CardSpec[] = [
     amplitude: 8,
     pulse: 24,
     precision: 1,
-    stats: ["monitor.stat.p50", "monitor.stat.p95", "monitor.stat.timeouts"],
+    stats: [
+      { labelId: "monitor.stat.p50", kind: "p50" },
+      { labelId: "monitor.stat.p95", kind: "p95" },
+      { labelId: "monitor.stat.timeouts", value: "23" },
+    ],
   },
   {
     key: "fanOutRatio",
@@ -160,7 +200,11 @@ const cardSpecs: CardSpec[] = [
     base: 2.8,
     amplitude: 0.35,
     precision: 2,
-    stats: ["monitor.stat.avg", "monitor.stat.peak", "monitor.stat.activeChannels"],
+    stats: [
+      { labelId: "monitor.stat.avg", kind: "avg" },
+      { labelId: "monitor.stat.peak", kind: "peak" },
+      { labelId: "monitor.stat.activeChannels", value: "2,148" },
+    ],
   },
   {
     key: "offlineEnqueueRate",
@@ -172,7 +216,11 @@ const cardSpecs: CardSpec[] = [
     base: 148,
     amplitude: 28,
     pulse: 56,
-    stats: ["monitor.stat.avg", "monitor.stat.peak", "monitor.stat.offlineUsers"],
+    stats: [
+      { labelId: "monitor.stat.avg", kind: "avg" },
+      { labelId: "monitor.stat.peak", kind: "peak" },
+      { labelId: "monitor.stat.offlineUsers", value: "6,420" },
+    ],
   },
   {
     key: "retryQueueDepth",
@@ -185,7 +233,11 @@ const cardSpecs: CardSpec[] = [
     amplitude: 36,
     drift: 1.1,
     pulse: 68,
-    stats: ["monitor.stat.avg", "monitor.stat.peakQueue", "monitor.stat.retrySuccess"],
+    stats: [
+      { labelId: "monitor.stat.avg", kind: "avg" },
+      { labelId: "monitor.stat.peakQueue", kind: "peak" },
+      { labelId: "monitor.stat.retrySuccess", value: "97.8%" },
+    ],
   },
   {
     key: "pathErrorRate",
@@ -198,7 +250,11 @@ const cardSpecs: CardSpec[] = [
     amplitude: 0.08,
     pulse: 0.22,
     precision: 2,
-    stats: ["monitor.stat.topReason", "monitor.stat.protocolErrors", "monitor.stat.rateLimited"],
+    stats: [
+      { labelId: "monitor.stat.topReason", value: "timeout" },
+      { labelId: "monitor.stat.protocolErrors", value: "14" },
+      { labelId: "monitor.stat.rateLimited", value: "8" },
+    ],
   },
 ]
 
@@ -230,19 +286,44 @@ function formatValue(value: number, precision = 0) {
   })
 }
 
+function appendUnit(value: string, unit: string) {
+  if (!unit) return value
+  if (unit === "%" || unit === "x") return `${value}${unit}`
+  return `${value} ${unit}`
+}
+
+function percentile(values: number[], ratio: number) {
+  const sorted = [...values].sort((a, b) => a - b)
+  const index = Math.min(sorted.length - 1, Math.max(0, Math.ceil(sorted.length * ratio) - 1))
+  return sorted[index] ?? 0
+}
+
+function dynamicStatValue(kind: DynamicStatKind, values: number[]) {
+  if (kind === "avg") return values.reduce((sum, value) => sum + value, 0) / values.length
+  if (kind === "peak" || kind === "peakP99") return Math.max(...values)
+  if (kind === "total") return values.reduce((sum, value) => sum + value, 0)
+  if (kind === "p50") return percentile(values, 0.5)
+  if (kind === "p95") return percentile(values, 0.95)
+  return values.at(-1) ?? 0
+}
+
 function buildStats(spec: CardSpec, series: MonitorPoint[]) {
   const values = series.map((point) => point.value)
-  const avg = values.reduce((sum, value) => sum + value, 0) / values.length
-  const peak = Math.max(...values)
   const precision = spec.precision ?? 0
 
-  return spec.stats.map((labelId, index) => {
-    const value = index === 0 ? avg : index === 1 ? peak : values.at(-1) ?? 0
-    const suffix = spec.unit ? ` ${spec.unit}` : ""
+  return spec.stats.map((stat) => {
+    if (stat.value !== undefined) {
+      return {
+        labelId: stat.labelId,
+        value: stat.value,
+      }
+    }
+
+    const value = dynamicStatValue(stat.kind ?? "latest", values)
 
     return {
-      labelId,
-      value: `${formatValue(value, precision)}${suffix}`,
+      labelId: stat.labelId,
+      value: appendUnit(formatValue(value, precision), spec.unit),
     }
   })
 }
