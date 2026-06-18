@@ -130,7 +130,7 @@ test("renders the cluster live monitor route", async () => {
   )
 
   expect(await screen.findByRole("heading", { name: "Live Monitor" })).toBeInTheDocument()
-  expect(screen.getByText("UI Preview")).toBeInTheDocument()
+  expect(screen.queryByText("UI Preview")).not.toBeInTheDocument()
 })
 
 test("preserves controller log search params when redirecting to diagnostics", async () => {
