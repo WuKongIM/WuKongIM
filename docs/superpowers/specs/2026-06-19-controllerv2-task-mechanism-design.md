@@ -25,13 +25,17 @@ the same mechanism instead of adding one-off manager HTTP actions.
 
 `pkg/controllerv2` already has the durable pieces needed for a task mechanism:
 
-- `state.ReconcileTask` with `TaskID`, `SlotID`, `Kind`, `Step`, `TargetNode`,
-  `TargetPeers`, `ConfigEpoch`, `Attempt`, `Status`, and `LastError`.
+- `state.ReconcileTask` with `TaskID`, `SlotID`, `Kind`, `Step`,
+  `SourceNode`, `TargetNode`, `TargetPeers`, `ConfigEpoch`, `Attempt`,
+  `Status`, and `LastError`.
 - Controller Raft commands for `upsert_slot_assignment_and_task`,
   `complete_task`, and `fail_task`.
 - FSM validation that allows only one active task per Slot.
 - A bootstrap planner that creates bootstrap assignments and tasks.
-- `pkg/clusterv2/control` exposes active tasks through control snapshots.
+- `pkg/clusterv2/control` exposes active tasks through control snapshots, but
+  the current DTO only carries a subset of task fields.
+- `pkg/clusterv2/control.ReportSlots` is currently a best-effort no-op, so
+  runtime Slot observations cannot be assumed to exist in Controller state.
 
 The missing piece is the execution and observation loop:
 
@@ -39,9 +43,12 @@ The missing piece is the execution and observation loop:
 Planner -> durable task -> node executor -> task result command -> observed convergence
 ```
 
+The first implementation must therefore add the lifecycle surface, not just an
+executor goroutine.
+
 ## Architecture
 
-The task mechanism is split into five responsibilities.
+The task mechanism is split into six responsibilities.
 
 ### 1. Observation
 
@@ -68,9 +75,29 @@ Runtime observation is read outside the durable state file:
 Runtime observation is an input to planning and task completion checks. It must
 not become a high-frequency replicated data model.
 
+For the first bootstrap lifecycle, `pkg/clusterv2` should own a narrow runtime
+observation provider used by executors and convergence checks. The provider can
+read local Slot status and, when needed, routed peer status, but it must return
+explicit "missing" or error states instead of fabricating runtime truth.
+
+Bootstrap completion must be based on concrete Slot runtime observation:
+
+- observed current voters match the durable assignment peer set
+- a non-zero Slot Raft leader is known
+- the observed Slot has quorum
+- the observation is fresh enough for the local read path, or was read
+  synchronously from the runtime
+- status read errors or missing observations do not complete the task
+
+Manager display fallbacks are not valid completion evidence. In particular,
+the desired-peer fallback used by the migrated Slot list must never be reused
+to prove bootstrap convergence.
+
 ### 2. Planner
 
-Only the Controller leader creates task commands.
+Only ControllerV2 planning and validation logic emits durable task commands.
+Manager APIs may later submit an operator intent to the Controller leader, but
+they must not construct `state.ReconcileTask` records directly.
 
 A planner compares durable state plus runtime observation and returns at most
 one command per tick. The first version should keep the existing bootstrap
@@ -105,6 +132,14 @@ A task is a durable intent, not proof that work has happened.
 The state model should continue enforcing only one active task per physical
 Slot.
 
+`TaskID` must be globally unique for each task creation and should never be
+reused after completion. Result commands still need explicit guard fields
+because uniqueness alone does not protect retries from stale, delayed results.
+The deterministic bootstrap ID shape is acceptable only while physical Slot
+bootstrap is a one-shot task. Any task kind that can be recreated after
+completion must include a creation sequence, revision, or equivalent generation
+in its `TaskID`.
+
 ### 4. Executor
 
 Each `wukongimv2` node watches the local control snapshot and independently
@@ -131,8 +166,78 @@ Task results are written through Controller Raft commands:
 - `fail_task` records `LastError`, increments `Attempt`, and keeps the task
   visible.
 
-Obsolete results should be no-ops. If another node already completed the task,
-a late `complete_task` or `fail_task` must not recreate or corrupt state.
+The result writer must be a public task-result facade, not ad hoc construction
+of `pkg/controllerv2/command` payloads from manager or `internalv2` packages.
+The boundary should look like:
+
+```text
+task executor
+  -> pkg/clusterv2/control task-result facade
+  -> pkg/controllerv2 root runtime facade
+  -> Controller Raft proposal path
+  -> FSM task-result apply
+```
+
+This keeps production integration aligned with the existing package boundary:
+`pkg/clusterv2` depends on the root `pkg/controllerv2` facade, while
+`pkg/controllerv2` remains independent of `pkg/clusterv2`.
+
+The result writer must route results to the current Controller leader. A data
+node or Controller mirror should be able to submit a task result through the
+same facade; if the local node is not the Controller leader, the integration
+layer routes or forwards the proposal instead of silently dropping it.
+
+The facade contract must define whether a successful call means "applied by
+Controller Raft" or only "accepted for forwarding." The first implementation
+should prefer waiting for apply when possible. If a routed path can only confirm
+forwarding, executors must treat the outcome as uncertain and rely on
+idempotent retry plus fenced task results.
+
+Before wiring executors, `TaskResult` must be extended with fencing fields:
+
+- `TaskID`
+- `SlotID`
+- `TaskKind`
+- `ConfigEpoch`
+- `Attempt`
+- `FinishedAt`
+- optional bounded failure text
+
+Apply semantics should be:
+
+- missing task: obsolete no-op
+- missing required identifiers: reject as invalid input
+- guard mismatch on slot, task kind, config epoch, or attempt: obsolete no-op
+- matching `complete_task`: remove the active task
+- matching `fail_task`: mark failed, increment `Attempt`, and store bounded
+  `LastError`
+
+The guard mismatch rule is important for retries. A delayed success result from
+attempt `0` must not complete a task that already failed and moved to attempt
+`1`.
+
+### 6. Task Read Model
+
+Manager and executors should consume task state through
+`pkg/clusterv2/control.Snapshot`, not by importing ControllerV2 subpackages.
+
+The first implementation must extend `pkg/clusterv2/control.ReconcileTask` and
+`SnapshotFromControllerV2` so the control snapshot carries the full active-task
+read model needed by manager and executors:
+
+- `Step`
+- `SourceNode`
+- `TargetNode`
+- `TargetPeers`
+- `ConfigEpoch`
+- `Attempt`
+- `Status`
+- `LastError`
+
+`internalv2/usecase/management` should continue reading through
+`ControlSnapshotReader.LocalControlSnapshot`. It should not read
+`pkg/controllerv2/state.ClusterState` directly just to recover missing task
+fields.
 
 ## Lifecycle
 
@@ -161,6 +266,13 @@ Task status means:
 For the first implementation, `pending` plus `failed` is enough if the executor
 is idempotent and bounded. `running` can be added later when the UI needs live
 attempt ownership.
+
+Bootstrap failures must not become a permanent planner dead-end. In the first
+phase, a failed bootstrap task remains active and retryable. The bootstrap
+executor should retry failed tasks conservatively with a bounded per-attempt
+timeout and a coarse retry interval. The failed state remains visible between
+attempts so operators can inspect `LastError`, and cluster readiness should not
+claim success until the task completes.
 
 ## Example 1: Bootstrap Slot
 
@@ -203,13 +315,18 @@ ReconcileTask{
 }
 ```
 
+This deterministic `TaskID` is valid only because initial physical Slot
+bootstrap is one-shot. Future task kinds that can be recreated after completion
+must include a generation in the task identity.
+
 Each peer reconciles local Slot runtime from the assignment. The executor then
 checks runtime observation. Once the Slot has the desired peers, a leader, and
 quorum, an eligible node proposes `complete_task`.
 
 If the Slot cannot be opened or quorum never forms before the bounded attempt
 expires, the executor proposes `fail_task` with a concise error. The failed task
-stays visible so the manager UI can show the problem.
+stays visible so the manager UI can show the problem, but the bootstrap
+executor can retry it later using the next fenced attempt.
 
 ## Example 2: Future Manual Slot Leader Transfer
 
@@ -225,9 +342,9 @@ Move Slot 9 leader from node 1 to node 2.
 Future flow:
 
 ```text
-manager API creates a durable task request
-  -> Controller validates Slot 9 and target node 2
-  -> Controller writes leader_transfer task
+manager API submits a leader-transfer intent
+  -> Controller leader validates Slot 9 and target node 2
+  -> Controller planning/validation writes leader_transfer task
   -> current Slot Raft leader executes TransferLeadership
   -> executor waits for observed leader == 2
   -> complete_task removes the task
@@ -301,17 +418,18 @@ runtime action.
 Failures should be explicit and bounded:
 
 - Invalid task input is rejected before it enters Controller Raft.
-- Stale task results become no-ops.
+- Stale task results become no-ops through the task-result guard fields.
 - Execution errors write `fail_task` with bounded `LastError`.
 - Runtime observation gaps defer work or fail closed.
-- Retrying should be controlled by task kind, attempt count, and optional
-  cooldown.
+- Retrying is controlled by task kind, attempt count, and executor rate limits.
 
 The first implementation can keep retry policy simple:
 
-- failed tasks stay visible
-- automatic retry is off or very conservative
-- manual retry can be added later as a Controller command or manager action
+- failed bootstrap tasks stay visible
+- failed bootstrap tasks remain retryable by the executor
+- retry is conservative enough to avoid hot Raft write loops
+- operator retry, pause, or cancellation controls can be added later as
+  Controller commands or manager actions
 
 ## Testing Strategy
 
@@ -320,8 +438,14 @@ Unit tests should cover:
 - state validation for supported task kinds
 - planner output for bootstrap tasks
 - FSM apply behavior for complete and failed tasks
-- idempotent obsolete result handling
+- task-result fencing for stale attempts, stale epochs, and missing tasks
+- result writer routing from Controller leader, Controller follower, and mirror
+  or data nodes
+- `pkg/clusterv2/control` snapshot mapping for the full task read model
 - executor ownership selection for bootstrap tasks
+- bootstrap observation missing or stale fails closed
+- failed bootstrap task retry semantics
+- restart idempotence when an executor sees the same task after process restart
 - no direct manager Slot leader transfer route in this phase
 
 Integration or e2e tests should be added only when the task executor reaches a
@@ -335,8 +459,7 @@ The design intentionally leaves these as follow-up work:
 - `leader_transfer` task kind
 - `repair` task kind
 - `rebalance` task kind
-- task retry command
-- task cancellation command
+- operator retry, pause, or cancellation commands
 - task history or terminal retention
 - batch task planning for node drain
 
@@ -347,6 +470,15 @@ manager-only action paths.
 
 - `controllerv2` has a documented generic task lifecycle.
 - Bootstrap tasks can complete or fail through Controller Raft result commands.
+- Task result commands are proposed through a public facade and fenced by task
+  identity, Slot, kind, config epoch, and attempt.
+- Stale task results cannot complete or fail a newer attempt.
+- Failed bootstrap tasks are visible and retryable without blocking the planner
+  forever.
+- Bootstrap completion uses real runtime observation, not manager display
+  fallbacks.
+- `pkg/clusterv2/control` exposes the full active-task read model needed by
+  manager and executors.
 - Manager read models can display active task state.
 - The design does not expose Slot leader transfer as a direct manager action.
 - Future Slot leader transfer can be implemented as a new task kind without
