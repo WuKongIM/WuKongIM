@@ -181,6 +181,52 @@ func TestStateSyncClientCallsRemoteEndpoint(t *testing.T) {
 	}
 }
 
+func TestTaskClientCallsRemoteHandler(t *testing.T) {
+	network := clusternet.NewLocalNetwork()
+	applier := &recordingTaskApplier{}
+	network.Register(1, clusternet.RPCControlTaskResult, NewTaskHandler(applier))
+
+	client := NewTaskClient(network)
+	err := client.SubmitTask(context.Background(), 1, TaskRequest{
+		Action: TaskActionComplete,
+		Result: cv2.TaskResult{
+			TaskID:      "slot-1-bootstrap-1",
+			SlotID:      1,
+			TaskKind:    cv2.TaskKindBootstrap,
+			ConfigEpoch: 1,
+			Attempt:     0,
+		},
+	})
+
+	if err != nil {
+		t.Fatalf("SubmitTask() error = %v", err)
+	}
+	if len(applier.completed) != 1 || applier.completed[0].TaskID != "slot-1-bootstrap-1" {
+		t.Fatalf("completed = %#v", applier.completed)
+	}
+}
+
+type recordingTaskApplier struct {
+	completed []TaskResult
+	failed    []TaskResult
+	progress  []TaskProgress
+}
+
+func (a *recordingTaskApplier) CompleteTask(ctx context.Context, result TaskResult) error {
+	a.completed = append(a.completed, result)
+	return nil
+}
+
+func (a *recordingTaskApplier) FailTask(ctx context.Context, result TaskResult) error {
+	a.failed = append(a.failed, result)
+	return nil
+}
+
+func (a *recordingTaskApplier) ReportTaskProgress(ctx context.Context, progress TaskProgress) error {
+	a.progress = append(a.progress, progress)
+	return nil
+}
+
 type recordingRaftStepper struct {
 	mu       sync.Mutex
 	once     sync.Once

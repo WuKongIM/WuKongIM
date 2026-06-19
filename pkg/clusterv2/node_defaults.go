@@ -34,6 +34,7 @@ func (n *Node) ensureDefaultRuntime() (bool, error) {
 			RaftTransport:    control.NewRaftTransport(n.transportClient),
 			RaftObserver:     n.cfg.Control.RaftObserver,
 			SyncPeers:        control.NewStaticPeerPicker(n.transportClient, runtimeVoters(n.cfg.Control.Voters)),
+			TaskClient:       control.NewTaskClient(n.transportClient),
 		})
 		if err != nil {
 			return false, err
@@ -41,6 +42,7 @@ func (n *Node) ensureDefaultRuntime() (bool, error) {
 		if n.cfg.Control.Role == ControlRoleVoter && n.transportServer != nil {
 			n.transportServer.Register(clusternet.RPCControlRaft, control.NewRaftHandler(runtime))
 			n.transportServer.Register(clusternet.RPCControlStateSync, control.NewStateSyncHandler(runtime))
+			n.transportServer.Register(clusternet.RPCControlTaskResult, control.NewTaskHandler(runtime))
 		}
 		n.control = runtime
 		n.defaultControl = true

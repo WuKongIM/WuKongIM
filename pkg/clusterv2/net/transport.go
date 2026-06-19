@@ -227,7 +227,7 @@ func servicePriority(serviceID uint8) transportv2.Priority {
 	case RPCChannelPull, RPCChannelPullBatch:
 		return transportv2.PriorityBulk
 	case RPCChannelAck, RPCChannelPullHint, RPCChannelPullHintBatch, RPCChannelNotify,
-		RPCSlotForwardPropose, RPCControlStateSync, RPCControlReportNode, RPCControlReportSlots:
+		RPCSlotForwardPropose, RPCControlStateSync, RPCControlReportNode, RPCControlReportSlots, RPCControlTaskResult:
 		return transportv2.PriorityControl
 	default:
 		return transportv2.PriorityRPC

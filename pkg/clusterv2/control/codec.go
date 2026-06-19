@@ -14,6 +14,7 @@ const (
 	controlKindRaftBatch uint8 = 1 + iota
 	controlKindStateSyncRequest
 	controlKindStateSyncResponse
+	controlKindTaskRequest
 )
 
 // EncodeRaftBatch encodes ControllerV2 Raft messages for clusterv2 RPC.
@@ -83,4 +84,49 @@ func DecodeStateSyncResponse(data []byte) (cv2.GetStateResponse, error) {
 		return cv2.GetStateResponse{}, err
 	}
 	return resp, nil
+}
+
+// TaskAction selects which task write the remote Controller should apply.
+type TaskAction string
+
+const (
+	// TaskActionComplete submits a global task completion.
+	TaskActionComplete TaskAction = "complete"
+	// TaskActionFail submits a global task failure.
+	TaskActionFail TaskAction = "fail"
+	// TaskActionProgress submits one participant progress report.
+	TaskActionProgress TaskAction = "progress"
+)
+
+// TaskRequest carries one ControllerV2 task result or progress write.
+type TaskRequest struct {
+	// Action selects which payload should be applied.
+	Action TaskAction `json:"action"`
+	// Result carries complete/fail task result payloads.
+	Result cv2.TaskResult `json:"result,omitempty"`
+	// Progress carries participant progress payloads.
+	Progress cv2.TaskProgress `json:"progress,omitempty"`
+}
+
+// EncodeTaskRequest encodes one task write request.
+func EncodeTaskRequest(req TaskRequest) ([]byte, error) {
+	payload, err := json.Marshal(req)
+	if err != nil {
+		return nil, err
+	}
+	out := clusternet.PutHeader(nil, controlRPCVersion, controlKindTaskRequest)
+	return append(out, payload...), nil
+}
+
+// DecodeTaskRequest decodes one task write request.
+func DecodeTaskRequest(data []byte) (TaskRequest, error) {
+	payload, err := clusternet.CheckHeader(data, controlRPCVersion, controlKindTaskRequest)
+	if err != nil {
+		return TaskRequest{}, err
+	}
+	var req TaskRequest
+	if err := json.Unmarshal(payload, &req); err != nil {
+		return TaskRequest{}, err
+	}
+	return req, nil
 }

@@ -136,6 +136,56 @@ func NewStateSyncHandler(endpoint cv2.Endpoint) clusternet.Handler {
 	})
 }
 
+// TaskApplier applies ControllerV2 task writes.
+type TaskApplier interface {
+	// CompleteTask submits a fenced global task completion result.
+	CompleteTask(context.Context, TaskResult) error
+	// FailTask submits a fenced global task failure result.
+	FailTask(context.Context, TaskResult) error
+	// ReportTaskProgress submits one participant's fenced progress report.
+	ReportTaskProgress(context.Context, TaskProgress) error
+}
+
+// TaskClient forwards ControllerV2 task writes to a remote node.
+type TaskClient struct {
+	caller clusternet.Caller
+}
+
+// NewTaskClient creates a task write RPC client.
+func NewTaskClient(caller clusternet.Caller) *TaskClient {
+	return &TaskClient{caller: caller}
+}
+
+// SubmitTask sends one task write request to nodeID.
+func (c *TaskClient) SubmitTask(ctx context.Context, nodeID uint64, req TaskRequest) error {
+	payload, err := EncodeTaskRequest(req)
+	if err != nil {
+		return err
+	}
+	_, err = clusternet.CallOwnedPayload(ctx, c.caller, nodeID, clusternet.RPCControlTaskResult, payload)
+	return err
+}
+
+// NewTaskHandler creates an RPC handler for ControllerV2 task writes.
+func NewTaskHandler(applier TaskApplier) clusternet.Handler {
+	return clusternet.HandlerFunc(func(ctx context.Context, payload []byte) ([]byte, error) {
+		req, err := DecodeTaskRequest(payload)
+		if err != nil {
+			return nil, err
+		}
+		switch req.Action {
+		case TaskActionComplete:
+			return nil, applier.CompleteTask(ctx, req.Result)
+		case TaskActionFail:
+			return nil, applier.FailTask(ctx, req.Result)
+		case TaskActionProgress:
+			return nil, applier.ReportTaskProgress(ctx, req.Progress)
+		default:
+			return nil, fmt.Errorf("control task: unknown action %q", req.Action)
+		}
+	})
+}
+
 // StaticPeerPicker resolves a fixed ControllerV2 voter set to clusterv2 sync endpoints.
 type StaticPeerPicker struct {
 	endpoints map[uint64]cv2.Endpoint

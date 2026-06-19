@@ -30,6 +30,8 @@ const (
 	RPCChannelAppendBatch
 	// RPCControlRaft carries ControllerV2 Raft protocol messages.
 	RPCControlRaft
+	// RPCControlTaskResult serves ControllerV2 task result and progress writes.
+	RPCControlTaskResult
 	// RPCPresenceAuthority serves internalv2 UID connection authority requests.
 	RPCPresenceAuthority
 	// RPCPresenceOwner serves internalv2 owner-node connection actions.
@@ -90,6 +92,8 @@ func transportServiceAlias(serviceID uint8) string {
 		return "channel append batch"
 	case RPCControlRaft:
 		return "controller raft"
+	case RPCControlTaskResult:
+		return "controller task result"
 	case RPCPresenceAuthority:
 		return "presence authority"
 	case RPCPresenceOwner:

@@ -1,6 +1,7 @@
 package control
 
 import (
+	"reflect"
 	"testing"
 
 	cv2 "github.com/WuKongIM/WuKongIM/pkg/controllerv2"
@@ -47,6 +48,33 @@ func TestControlSyncCodecRoundTrip(t *testing.T) {
 	}
 	if decoded.LeaderID != resp.LeaderID || decoded.Revision != resp.Revision || decoded.Checksum != resp.Checksum || string(decoded.Payload) != string(resp.Payload) {
 		t.Fatalf("DecodeStateSyncResponse() = %#v, want %#v", decoded, resp)
+	}
+}
+
+func TestControlTaskRequestCodecRoundTrip(t *testing.T) {
+	req := TaskRequest{
+		Action: TaskActionProgress,
+		Progress: cv2.TaskProgress{
+			TaskID:             "slot-1-bootstrap-1",
+			SlotID:             1,
+			TaskKind:           cv2.TaskKindBootstrap,
+			ConfigEpoch:        1,
+			TaskAttempt:        0,
+			ParticipantNodeID:  2,
+			ParticipantAttempt: 0,
+			Status:             cv2.TaskParticipantStatusDone,
+		},
+	}
+	payload, err := EncodeTaskRequest(req)
+	if err != nil {
+		t.Fatalf("EncodeTaskRequest() error = %v", err)
+	}
+	got, err := DecodeTaskRequest(payload)
+	if err != nil {
+		t.Fatalf("DecodeTaskRequest() error = %v", err)
+	}
+	if !reflect.DeepEqual(got, req) {
+		t.Fatalf("DecodeTaskRequest() = %#v, want %#v", got, req)
 	}
 }
 

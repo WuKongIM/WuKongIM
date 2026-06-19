@@ -29,6 +29,7 @@ func rpcServiceIDsForTest() map[string]uint8 {
 		"channel_append":          RPCChannelAppend,
 		"channel_append_batch":    RPCChannelAppendBatch,
 		"control_raft":            RPCControlRaft,
+		"control_task_result":     RPCControlTaskResult,
 		"presence_authority":      RPCPresenceAuthority,
 		"presence_owner":          RPCPresenceOwner,
 		"delivery_push":           RPCDeliveryPush,

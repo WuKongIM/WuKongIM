@@ -2,6 +2,7 @@ package control
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -60,14 +61,17 @@ type RuntimeConfig struct {
 	SyncClient *cv2.SyncClient
 	// SyncPeers resolves ControllerV2 state sync endpoints for mirror nodes.
 	SyncPeers cv2.PeerPicker
+	// TaskClient forwards task result commands to the current Controller leader.
+	TaskClient *TaskClient
 	// Now returns timestamps used for ControllerV2 commands.
 	Now func() time.Time
 }
 
 // Runtime adapts the root ControllerV2 runtime facade to control.Controller.
 type Runtime struct {
-	cfg     RuntimeConfig
-	backend *cv2.Runtime
+	cfg        RuntimeConfig
+	backend    *cv2.Runtime
+	taskClient *TaskClient
 
 	mu       sync.RWMutex
 	snapshot Snapshot
@@ -100,7 +104,7 @@ func NewRuntime(cfg RuntimeConfig) (*Runtime, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Runtime{cfg: cfg, backend: backend, watch: make(chan SnapshotEvent, 16)}, nil
+	return &Runtime{cfg: cfg, backend: backend, taskClient: cfg.TaskClient, watch: make(chan SnapshotEvent, 16)}, nil
 }
 
 // Start starts the local ControllerV2 runtime.
@@ -213,7 +217,11 @@ func (r *Runtime) CompleteTask(ctx context.Context, result TaskResult) error {
 	if r == nil || r.backend == nil {
 		return cv2.ErrNotStarted
 	}
-	return r.backend.CompleteTask(ctx, result)
+	err := r.backend.CompleteTask(ctx, result)
+	if shouldForwardTaskWrite(err) {
+		return r.forwardTaskRequest(ctx, TaskRequest{Action: TaskActionComplete, Result: result})
+	}
+	return err
 }
 
 // FailTask submits a fenced global task failure result.
@@ -224,7 +232,11 @@ func (r *Runtime) FailTask(ctx context.Context, result TaskResult) error {
 	if r == nil || r.backend == nil {
 		return cv2.ErrNotStarted
 	}
-	return r.backend.FailTask(ctx, result)
+	err := r.backend.FailTask(ctx, result)
+	if shouldForwardTaskWrite(err) {
+		return r.forwardTaskRequest(ctx, TaskRequest{Action: TaskActionFail, Result: result})
+	}
+	return err
 }
 
 // ReportTaskProgress submits one participant's fenced progress report.
@@ -235,7 +247,26 @@ func (r *Runtime) ReportTaskProgress(ctx context.Context, progress TaskProgress)
 	if r == nil || r.backend == nil {
 		return cv2.ErrNotStarted
 	}
-	return r.backend.ReportTaskProgress(ctx, progress)
+	err := r.backend.ReportTaskProgress(ctx, progress)
+	if shouldForwardTaskWrite(err) {
+		return r.forwardTaskRequest(ctx, TaskRequest{Action: TaskActionProgress, Progress: progress})
+	}
+	return err
+}
+
+func shouldForwardTaskWrite(err error) bool {
+	return errors.Is(err, cv2.ErrNotLeader) || errors.Is(err, cv2.ErrNotStarted)
+}
+
+func (r *Runtime) forwardTaskRequest(ctx context.Context, req TaskRequest) error {
+	if r == nil || r.taskClient == nil {
+		return cv2.ErrNotLeader
+	}
+	leaderID := r.LeaderID()
+	if leaderID == 0 || leaderID == r.cfg.NodeID {
+		return cv2.ErrNotLeader
+	}
+	return r.taskClient.SubmitTask(ctx, leaderID, req)
 }
 
 func (r *Runtime) startWatchLoop() {
