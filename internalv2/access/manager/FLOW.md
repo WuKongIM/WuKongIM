@@ -97,8 +97,9 @@ the HTTP response layer.
 view, including `node_id` filtering. It reads the same control snapshot through
 `internalv2/usecase/management` and, when available, returns the selected node's
 local Slot Raft role plus commit/applied watermarks in `node_log` for the web
-status and log-height columns. Slot detail and operation routes remain
-unmigrated.
+status and log-height columns. The response may include active task summaries
+and participant progress for display only. Slot task mutation routes remain
+outside this phase. Slot detail and operation routes remain unmigrated.
 
 `/manager/controller/logs` and `/manager/slots/:slot_id/logs` expose
 newest-first distributed Raft log pages for the selected node. They parse

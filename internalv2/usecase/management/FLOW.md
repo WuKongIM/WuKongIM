@@ -58,8 +58,11 @@ positive `node_id` is selected and the Slot Raft operator is wired, the usecase
 also performs a best-effort node-local or routed peer status read for each
 returned Slot and attaches the selected node's Raft role plus commit/applied
 watermarks. Status read misses are omitted from the row rather than failing the
-inventory response. Slot detail, rebalance, recovery, leader-transfer, and
-add/remove operation routes are outside this migration step.
+inventory response. Active task summaries are derived from the same clusterv2
+control snapshot and attached to the matching Slot row. The usecase does not
+read ControllerV2 state directly and does not expose task mutation routes. Slot
+detail, rebalance, recovery, leader-transfer, and add/remove operation routes
+are outside this migration step.
 
 ## Distributed Log Flow
 

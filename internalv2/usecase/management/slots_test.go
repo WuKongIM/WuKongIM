@@ -119,6 +119,51 @@ func TestListSlotsIncludesSelectedNodeRaftStatus(t *testing.T) {
 	}
 }
 
+func TestListSlotsIncludesActiveTaskProgress(t *testing.T) {
+	app := New(Options{
+		Cluster: fakeNodeSnapshotReader{
+			snapshot: control.Snapshot{
+				Revision:  1,
+				Nodes:     []control.Node{{NodeID: 1, Addr: "n1", Roles: []control.Role{control.RoleData}, Status: control.NodeAlive}},
+				Slots:     []control.SlotAssignment{{SlotID: 1, DesiredPeers: []uint64{1}, ConfigEpoch: 1, PreferredLeader: 1}},
+				HashSlots: control.HashSlotTable{Revision: 1, Count: 1, Ranges: []control.HashSlotRange{{From: 0, To: 0, SlotID: 1}}},
+				Tasks: []control.ReconcileTask{{
+					TaskID:           "slot-1-bootstrap-1",
+					SlotID:           1,
+					Kind:             control.TaskKindBootstrap,
+					Step:             control.TaskStepCreateSlot,
+					TargetNode:       1,
+					TargetPeers:      []uint64{1},
+					CompletionPolicy: control.TaskCompletionPolicyAllTargetPeers,
+					ParticipantProgress: []control.TaskParticipantProgress{
+						{NodeID: 1, Status: control.TaskParticipantStatusPending},
+					},
+					ConfigEpoch: 1,
+					Status:      control.TaskStatusPending,
+				}},
+			},
+		},
+	})
+
+	items, err := app.ListSlots(context.Background(), ListSlotsOptions{})
+
+	if err != nil {
+		t.Fatalf("ListSlots() error = %v", err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("slots len = %d, want 1", len(items))
+	}
+	if items[0].Task == nil {
+		t.Fatalf("Task = nil, want active task summary")
+	}
+	if items[0].Task.TaskID != "slot-1-bootstrap-1" || items[0].Task.CompletionPolicy != "all_target_peers" {
+		t.Fatalf("Task = %#v, want bootstrap task summary", items[0].Task)
+	}
+	if len(items[0].Task.Participants) != 1 || items[0].Task.Participants[0].NodeID != 1 {
+		t.Fatalf("Participants = %#v, want node 1 participant", items[0].Task.Participants)
+	}
+}
+
 func TestListSlotsFiltersByNode(t *testing.T) {
 	app := New(Options{
 		Cluster: fakeNodeSnapshotReader{

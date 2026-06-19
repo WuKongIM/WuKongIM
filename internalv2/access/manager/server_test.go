@@ -937,6 +937,20 @@ func TestManagerSlotsReturnsReadOnlyInventory(t *testing.T) {
 					PreferredLeader: 1,
 					ConfigEpoch:     7,
 				},
+				Task: &managementusecase.SlotTask{
+					TaskID:           "slot-9-bootstrap-7",
+					Kind:             "bootstrap",
+					Step:             "create_slot",
+					Status:           "pending",
+					TargetNode:       1,
+					TargetPeers:      []uint64{1, 2},
+					CompletionPolicy: "all_target_peers",
+					ConfigEpoch:      7,
+					Participants: []managementusecase.SlotTaskParticipant{
+						{NodeID: 1, Status: "done"},
+						{NodeID: 2, Attempt: 1, Status: "failed", LastError: "open failed"},
+					},
+				},
 				Runtime: managementusecase.SlotRuntime{
 					CurrentPeers:        []uint64{1, 2},
 					CurrentVoters:       []uint64{1, 2},
@@ -988,6 +1002,27 @@ func TestManagerSlotsReturnsReadOnlyInventory(t *testing.T) {
 				"preferred_leader_id": 1,
 				"config_epoch": 7,
 				"balance_version": 0
+			},
+			"task": {
+				"task_id": "slot-9-bootstrap-7",
+				"kind": "bootstrap",
+				"step": "create_slot",
+				"status": "pending",
+				"target_node": 1,
+				"target_peers": [1, 2],
+				"completion_policy": "all_target_peers",
+				"config_epoch": 7,
+				"attempt": 0,
+				"participants": [{
+					"node_id": 1,
+					"attempt": 0,
+					"status": "done"
+				}, {
+					"node_id": 2,
+					"attempt": 1,
+					"status": "failed",
+					"last_error": "open failed"
+				}]
 			},
 			"runtime": {
 				"current_peers": [1, 2],

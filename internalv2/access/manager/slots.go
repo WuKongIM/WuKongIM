@@ -27,6 +27,8 @@ type SlotDTO struct {
 	State SlotStateDTO `json:"state"`
 	// Assignment contains the desired slot placement view.
 	Assignment SlotAssignmentDTO `json:"assignment"`
+	// Task contains the active task summary for this Slot, when any.
+	Task *SlotTaskDTO `json:"task,omitempty"`
 	// Runtime contains the best available slot runtime view.
 	Runtime SlotRuntimeDTO `json:"runtime"`
 	// NodeLog contains the selected node's local log watermark when requested.
@@ -81,6 +83,46 @@ type SlotRuntimeDTO struct {
 	ObservedConfigEpoch uint64 `json:"observed_config_epoch"`
 	// LastReportAt is the latest runtime observation timestamp.
 	LastReportAt time.Time `json:"last_report_at"`
+}
+
+// SlotTaskDTO contains one active Slot task summary.
+type SlotTaskDTO struct {
+	// TaskID is the durable task identity.
+	TaskID string `json:"task_id"`
+	// Kind is the reconcile workflow kind.
+	Kind string `json:"kind"`
+	// Step is the current workflow step.
+	Step string `json:"step"`
+	// Status is the task state.
+	Status string `json:"status"`
+	// SourceNode is the optional source node for move-like tasks.
+	SourceNode uint64 `json:"source_node,omitempty"`
+	// TargetNode is the primary task target when set.
+	TargetNode uint64 `json:"target_node,omitempty"`
+	// TargetPeers are the peers expected to participate.
+	TargetPeers []uint64 `json:"target_peers,omitempty"`
+	// CompletionPolicy describes how participant progress gates completion.
+	CompletionPolicy string `json:"completion_policy"`
+	// ConfigEpoch ties the task to a Slot assignment epoch.
+	ConfigEpoch uint64 `json:"config_epoch,omitempty"`
+	// Attempt is the global task attempt.
+	Attempt uint32 `json:"attempt"`
+	// LastError is the latest task-level error.
+	LastError string `json:"last_error,omitempty"`
+	// Participants contains per-node task progress.
+	Participants []SlotTaskParticipantDTO `json:"participants,omitempty"`
+}
+
+// SlotTaskParticipantDTO contains one task participant progress summary.
+type SlotTaskParticipantDTO struct {
+	// NodeID is the participant node identity.
+	NodeID uint64 `json:"node_id"`
+	// Attempt is the participant-local attempt.
+	Attempt uint32 `json:"attempt"`
+	// Status is the participant progress state.
+	Status string `json:"status"`
+	// LastError is the latest participant-level error.
+	LastError string `json:"last_error,omitempty"`
 }
 
 // SlotNodeLogDTO contains one selected node's local slot log watermark.
@@ -155,6 +197,7 @@ func slotDTO(item managementusecase.Slot) SlotDTO {
 			ConfigEpoch:       item.Assignment.ConfigEpoch,
 			BalanceVersion:    item.Assignment.BalanceVersion,
 		},
+		Task: slotTaskDTO(item.Task),
 		Runtime: SlotRuntimeDTO{
 			CurrentPeers:        append([]uint64(nil), item.Runtime.CurrentPeers...),
 			CurrentVoters:       append([]uint64(nil), item.Runtime.CurrentVoters...),
@@ -165,6 +208,35 @@ func slotDTO(item managementusecase.Slot) SlotDTO {
 			LastReportAt:        item.Runtime.LastReportAt,
 		},
 		NodeLog: slotNodeLogDTO(item.NodeLog),
+	}
+}
+
+func slotTaskDTO(item *managementusecase.SlotTask) *SlotTaskDTO {
+	if item == nil {
+		return nil
+	}
+	participants := make([]SlotTaskParticipantDTO, 0, len(item.Participants))
+	for _, participant := range item.Participants {
+		participants = append(participants, SlotTaskParticipantDTO{
+			NodeID:    participant.NodeID,
+			Attempt:   participant.Attempt,
+			Status:    participant.Status,
+			LastError: participant.LastError,
+		})
+	}
+	return &SlotTaskDTO{
+		TaskID:           item.TaskID,
+		Kind:             item.Kind,
+		Step:             item.Step,
+		Status:           item.Status,
+		SourceNode:       item.SourceNode,
+		TargetNode:       item.TargetNode,
+		TargetPeers:      append([]uint64(nil), item.TargetPeers...),
+		CompletionPolicy: item.CompletionPolicy,
+		ConfigEpoch:      item.ConfigEpoch,
+		Attempt:          item.Attempt,
+		LastError:        item.LastError,
+		Participants:     participants,
 	}
 }
 

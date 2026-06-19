@@ -22,6 +22,8 @@ type Slot struct {
 	Runtime SlotRuntime
 	// NodeLog contains the selected node's local Raft log watermark when requested.
 	NodeLog *SlotNodeLogStatus
+	// Task contains the active task summary for this Slot, when any.
+	Task *SlotTask
 }
 
 // SlotHashSlots contains the current logical hash-slot ownership for one physical slot.
@@ -80,6 +82,46 @@ type SlotRuntime struct {
 	LastReportAt time.Time
 }
 
+// SlotTask is the manager-facing active task summary for one Slot.
+type SlotTask struct {
+	// TaskID is the durable task identity.
+	TaskID string
+	// Kind is the reconcile workflow kind.
+	Kind string
+	// Step is the current workflow step.
+	Step string
+	// Status is the task state.
+	Status string
+	// SourceNode is the optional source node for move-like tasks.
+	SourceNode uint64
+	// TargetNode is the primary task target when set.
+	TargetNode uint64
+	// TargetPeers are the peers expected to participate.
+	TargetPeers []uint64
+	// CompletionPolicy describes how participant progress gates completion.
+	CompletionPolicy string
+	// ConfigEpoch ties the task to a Slot assignment epoch.
+	ConfigEpoch uint64
+	// Attempt is the global task attempt.
+	Attempt uint32
+	// LastError is the latest task-level error.
+	LastError string
+	// Participants contains per-node task progress.
+	Participants []SlotTaskParticipant
+}
+
+// SlotTaskParticipant is one node's task progress summary.
+type SlotTaskParticipant struct {
+	// NodeID is the participant node identity.
+	NodeID uint64
+	// Attempt is the participant-local attempt.
+	Attempt uint32
+	// Status is the participant progress state.
+	Status string
+	// LastError is the latest participant-level error.
+	LastError string
+}
+
 // SlotNodeLogStatus is one node's local Raft log watermark for a slot.
 type SlotNodeLogStatus struct {
 	// NodeID is the node that reported the local log watermark.
@@ -104,9 +146,19 @@ func (a *App) ListSlots(ctx context.Context, opts ListSlotsOptions) ([]Slot, err
 		return nil, err
 	}
 	generatedAt := a.now()
+	tasksBySlot := make(map[uint32]*SlotTask, len(snapshot.Tasks))
+	for _, task := range snapshot.Tasks {
+		if task.SlotID == 0 {
+			continue
+		}
+		if _, exists := tasksBySlot[task.SlotID]; exists {
+			continue
+		}
+		tasksBySlot[task.SlotID] = slotTaskFromControl(task)
+	}
 	slots := make([]Slot, 0, len(snapshot.Slots))
 	for _, assignment := range snapshot.Slots {
-		slot := slotFromControlAssignment(assignment, snapshot.HashSlots, generatedAt)
+		slot := slotFromControlAssignment(assignment, snapshot.HashSlots, generatedAt, tasksBySlot[assignment.SlotID])
 		if opts.NodeID != 0 && !containsUint64(slot.Assignment.DesiredPeers, opts.NodeID) {
 			continue
 		}
@@ -119,11 +171,12 @@ func (a *App) ListSlots(ctx context.Context, opts ListSlotsOptions) ([]Slot, err
 	return slots, nil
 }
 
-func slotFromControlAssignment(assignment control.SlotAssignment, hashSlots control.HashSlotTable, generatedAt time.Time) Slot {
+func slotFromControlAssignment(assignment control.SlotAssignment, hashSlots control.HashSlotTable, generatedAt time.Time, task *SlotTask) Slot {
 	runtime, hasRuntime := runtimeFromControlAssignment(assignment, generatedAt)
 	return Slot{
 		SlotID:    assignment.SlotID,
 		HashSlots: slotHashSlotsFromControlTable(hashSlots, assignment.SlotID),
+		Task:      task,
 		State: SlotState{
 			Quorum:      managerSlotQuorumState(hasRuntime, runtime.HasQuorum),
 			Sync:        managerSlotSyncState(hasRuntime),
@@ -135,6 +188,32 @@ func slotFromControlAssignment(assignment control.SlotAssignment, hashSlots cont
 			ConfigEpoch:     assignment.ConfigEpoch,
 		},
 		Runtime: runtime,
+	}
+}
+
+func slotTaskFromControl(task control.ReconcileTask) *SlotTask {
+	participants := make([]SlotTaskParticipant, 0, len(task.ParticipantProgress))
+	for _, item := range task.ParticipantProgress {
+		participants = append(participants, SlotTaskParticipant{
+			NodeID:    item.NodeID,
+			Attempt:   item.Attempt,
+			Status:    string(item.Status),
+			LastError: item.LastError,
+		})
+	}
+	return &SlotTask{
+		TaskID:           task.TaskID,
+		Kind:             string(task.Kind),
+		Step:             string(task.Step),
+		Status:           string(task.Status),
+		SourceNode:       task.SourceNode,
+		TargetNode:       task.TargetNode,
+		TargetPeers:      append([]uint64(nil), task.TargetPeers...),
+		CompletionPolicy: string(task.CompletionPolicy),
+		ConfigEpoch:      task.ConfigEpoch,
+		Attempt:          task.Attempt,
+		LastError:        task.LastError,
+		Participants:     participants,
 	}
 }
 
