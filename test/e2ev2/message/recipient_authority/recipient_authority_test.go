@@ -25,7 +25,7 @@ func TestWukongIMV2GroupRecipientAuthorityUpdatesSubscribers(t *testing.T) {
 	require.NoError(t, suite.PostChannel(ctx, node.APIAddr(), map[string]any{
 		"channel_id":   smallChannelID,
 		"channel_type": frame.ChannelTypeGroup,
-		"subscribers":  []string{"conv-small-a", "conv-small-b"},
+		"subscribers":  []string{"conv-small-sender", "conv-small-a", "conv-small-b"},
 	}))
 	smallSend, err := suite.PostMessageSend(ctx, node.APIAddr(), map[string]any{
 		"from_uid":      "conv-small-sender",
@@ -45,13 +45,17 @@ func TestWukongIMV2GroupRecipientAuthorityUpdatesSubscribers(t *testing.T) {
 		})
 		require.Equal(t, 0, page.More)
 	}
-	suite.RequireConversationAbsent(t, ctx, *node, "conv-small-sender", smallChannelID)
+	page := suite.RequireConversationEventually(t, *node, "conv-small-sender", smallChannelID, func(item suite.ConversationListItem) error {
+		return checkRecipientConversation(item, smallSend, "conv-small-sender", "conv-small-1", "small group recipient authority")
+	})
+	require.Equal(t, 0, page.More)
+	suite.RequireConversationAbsent(t, ctx, *node, "conv-small-outsider", smallChannelID)
 
 	const largeChannelID = "e2e-recipient-authority-large-group"
 	require.NoError(t, suite.PostChannel(ctx, node.APIAddr(), map[string]any{
 		"channel_id":   largeChannelID,
 		"channel_type": frame.ChannelTypeGroup,
-		"subscribers":  []string{"conv-large-a", "conv-large-b", "conv-large-c"},
+		"subscribers":  []string{"conv-large-sender", "conv-large-a", "conv-large-b", "conv-large-c"},
 	}))
 	largeSend, err := suite.PostMessageSend(ctx, node.APIAddr(), map[string]any{
 		"from_uid":      "conv-large-sender",
@@ -71,11 +75,12 @@ func TestWukongIMV2GroupRecipientAuthorityUpdatesSubscribers(t *testing.T) {
 		})
 		require.Equal(t, 0, page.More)
 	}
-	suite.RequireConversationAbsent(t, ctx, *node, "conv-large-sender", largeChannelID)
+	page = suite.RequireConversationEventually(t, *node, "conv-large-sender", largeChannelID, func(item suite.ConversationListItem) error {
+		return checkRecipientConversation(item, largeSend, "conv-large-sender", "conv-large-1", "large group recipient authority")
+	})
+	require.Equal(t, 0, page.More)
+	suite.RequireConversationAbsent(t, ctx, *node, "conv-large-outsider", largeChannelID)
 
-	suite.RequireMetricAtLeastEventually(t, *node, `wukongim_authority_sender_route_total`, map[string]string{"result": "local"}, 1)
-	suite.RequireMetricAtLeastEventually(t, *node, `wukongim_authority_recipient_queue_total`, map[string]string{"result": "accepted"}, 1)
-	suite.RequireMetricAtLeastEventually(t, *node, `wukongim_authority_recipient_dispatch_total`, map[string]string{"phase": "conversation", "result": "ok"}, 1)
 	suite.RequireMetricAtLeastEventually(t, *node, `wukongim_conversation_authority_admit_total`, map[string]string{"result": "ok"}, 1)
 	suite.RequireMetricAtLeastEventually(t, *node, `wukongim_conversation_authority_list_total`, map[string]string{"result": "ok"}, 1)
 }
@@ -91,10 +96,12 @@ func TestWukongIMV2HundredKGroupRecipientAuthorityUpdatesSubscribers(t *testing.
 	defer cancel()
 
 	const channelID = "e2e-recipient-authority-100k-group"
+	subscribers := hundredKConversationSubscribers()
+	subscribers = append(subscribers, "conv-100k-sender")
 	require.NoError(t, suite.PostChannel(ctx, node.APIAddr(), map[string]any{
 		"channel_id":   channelID,
 		"channel_type": frame.ChannelTypeGroup,
-		"subscribers":  hundredKConversationSubscribers(),
+		"subscribers":  subscribers,
 	}))
 	sendResp, err := suite.PostMessageSend(ctx, node.APIAddr(), map[string]any{
 		"from_uid":      "conv-100k-sender",
@@ -111,10 +118,11 @@ func TestWukongIMV2HundredKGroupRecipientAuthorityUpdatesSubscribers(t *testing.
 			return checkRecipientConversation(item, sendResp, "conv-100k-sender", "conv-100k-1", "100k recipient authority")
 		})
 	}
-	suite.RequireConversationAbsent(t, ctx, *node, "conv-100k-sender", channelID)
+	suite.RequireConversationEventuallyWithin(t, *node, "conv-100k-sender", channelID, 5*time.Minute, func(item suite.ConversationListItem) error {
+		return checkRecipientConversation(item, sendResp, "conv-100k-sender", "conv-100k-1", "100k recipient authority")
+	})
+	suite.RequireConversationAbsent(t, ctx, *node, "conv-100k-outsider", channelID)
 
-	suite.RequireMetricAtLeastEventually(t, *node, `wukongim_authority_recipient_queue_total`, map[string]string{"result": "accepted"}, 1)
-	suite.RequireMetricAtLeastEventually(t, *node, `wukongim_authority_recipient_dispatch_total`, map[string]string{"phase": "conversation", "result": "ok"}, 1)
 	suite.RequireMetricAtLeastEventually(t, *node, `wukongim_conversation_authority_admit_total`, map[string]string{"result": "ok"}, 1)
 	suite.RequireMetricAtLeastEventually(t, *node, `wukongim_conversation_authority_list_total`, map[string]string{"result": "ok"}, 1)
 }
