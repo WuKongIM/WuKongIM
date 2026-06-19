@@ -14,6 +14,7 @@ type PortSet struct {
 	ClusterAddr string
 	GatewayAddr string
 	APIAddr     string
+	ManagerAddr string
 }
 
 // ReserveLoopbackPorts reserves distinct loopback listener addresses for one node.
@@ -24,6 +25,7 @@ func ReserveLoopbackPorts(t *testing.T) PortSet {
 		ClusterAddr: reserveLoopbackAddr(t),
 		GatewayAddr: reserveLoopbackAddr(t),
 		APIAddr:     reserveLoopbackAddr(t),
+		ManagerAddr: reserveLoopbackAddr(t),
 	}
 }
 

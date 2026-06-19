@@ -21,6 +21,7 @@ type NodeSpec struct {
 	ClusterAddr string
 	GatewayAddr string
 	APIAddr     string
+	ManagerAddr string
 	LogDir      string
 	// ConfigOverrides appends or replaces rendered WK_* config keys for one node.
 	ConfigOverrides map[string]string
@@ -56,6 +57,9 @@ func RenderClusterConfig(local NodeSpec, nodes []NodeSpec) string {
 		{key: "WK_METRICS_ENABLE", value: "true"},
 		{key: "WK_GATEWAY_LISTENERS", value: renderGatewayListeners(local.GatewayAddr)},
 		{key: "WK_GATEWAY_SEND_TIMEOUT", value: "5s"},
+	}
+	if local.ManagerAddr != "" {
+		lines = append(lines, configLine{key: "WK_MANAGER_LISTEN_ADDR", value: local.ManagerAddr})
 	}
 	if len(nodes) > 1 {
 		lines = append(lines,

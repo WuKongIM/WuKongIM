@@ -26,8 +26,24 @@ func TestStartThreeNodeClusterWritesWukongIMV2StaticConfigs(t *testing.T) {
 		require.Contains(t, string(cfg), "WK_CLUSTER_INITIAL_SLOT_COUNT=3\n")
 		require.Contains(t, string(cfg), "WK_CLUSTER_HASH_SLOT_COUNT=16\n")
 		require.Contains(t, string(cfg), "WK_CLUSTER_SLOT_REPLICA_N=3\n")
+		require.NotContains(t, string(cfg), "WK_MANAGER_LISTEN_ADDR")
+		require.Empty(t, node.Spec.ManagerAddr)
 		require.Contains(t, string(cfg), "WK_LOG_DIR="+node.Spec.LogDir)
 		require.Contains(t, node.Spec.Env, "WK_NODE_ID="+nodeIDString(node.Spec.ID))
+	}
+}
+
+func TestStartThreeNodeClusterWritesManagerConfigWhenEnabled(t *testing.T) {
+	t.Setenv("WK_E2EV2_BINARY", writeFakeNodeBinary(t))
+
+	cluster := New(t).StartThreeNodeCluster(WithManagerHTTP())
+
+	require.Len(t, cluster.Nodes, 3)
+	for _, node := range cluster.Nodes {
+		require.NotEmpty(t, node.Spec.ManagerAddr)
+		cfg, err := os.ReadFile(node.Spec.ConfigPath)
+		require.NoError(t, err)
+		require.Contains(t, string(cfg), "WK_MANAGER_LISTEN_ADDR="+node.Spec.ManagerAddr)
 	}
 }
 

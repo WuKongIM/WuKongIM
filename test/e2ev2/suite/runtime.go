@@ -57,6 +57,7 @@ func (f optionFunc) apply(options *suiteOptions) {
 type suiteOptions struct {
 	workspaceRootDir    string
 	nodeLogRootDir      string
+	managerHTTP         bool
 	nodeConfigOverrides map[uint64]map[string]string
 	nodeEnv             map[uint64][]string
 }
@@ -72,6 +73,13 @@ func WithWorkspaceRootDir(rootDir string) Option {
 func WithNodeLogRootDir(rootDir string) Option {
 	return optionFunc(func(options *suiteOptions) {
 		options.nodeLogRootDir = strings.TrimSpace(rootDir)
+	})
+}
+
+// WithManagerHTTP enables the public manager HTTP listener for started nodes.
+func WithManagerHTTP() Option {
+	return optionFunc(func(options *suiteOptions) {
+		options.managerHTTP = true
 	})
 }
 
@@ -274,6 +282,11 @@ func (n StartedNode) APIAddr() string {
 	return n.Spec.APIAddr
 }
 
+// ManagerAddr returns the public manager HTTP listen address for the started node.
+func (n StartedNode) ManagerAddr() string {
+	return n.Spec.ManagerAddr
+}
+
 // GatewayAddr returns the public WKProto listen address for the started node.
 func (n StartedNode) GatewayAddr() string {
 	return n.Spec.GatewayAddr
@@ -300,6 +313,10 @@ func (n *StartedNode) Stop() error {
 }
 
 func buildNodeSpec(nodeID uint64, ports PortSet, workspace Workspace, options suiteOptions) NodeSpec {
+	managerAddr := ""
+	if options.managerHTTP {
+		managerAddr = ports.ManagerAddr
+	}
 	return NodeSpec{
 		ID:              nodeID,
 		Name:            "node-" + strconv.FormatUint(nodeID, 10),
@@ -311,6 +328,7 @@ func buildNodeSpec(nodeID uint64, ports PortSet, workspace Workspace, options su
 		ClusterAddr:     ports.ClusterAddr,
 		GatewayAddr:     ports.GatewayAddr,
 		APIAddr:         ports.APIAddr,
+		ManagerAddr:     managerAddr,
 		LogDir:          workspace.NodeLogDir(nodeID),
 		ConfigOverrides: cloneConfigOverrides(options.nodeConfigOverrides[nodeID]),
 		Env:             cloneEnv(options.nodeEnv[nodeID]),

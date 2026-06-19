@@ -35,6 +35,23 @@ func TestPostConversationListDecodesPublicResponse(t *testing.T) {
 	require.Equal(t, []byte("hello"), page.Conversations[0].LastMessage.Payload)
 }
 
+func TestGetJSONDecodesPublicResponse(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, http.MethodGet, r.Method)
+		require.Equal(t, "/manager/slots", r.URL.Path)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"total":1}`))
+	}))
+	defer server.Close()
+
+	var out struct {
+		Total int `json:"total"`
+	}
+	_, err := GetJSON(context.Background(), server.URL+"/manager/slots", &out)
+	require.NoError(t, err)
+	require.Equal(t, 1, out.Total)
+}
+
 func TestParseMetricSampleMatchesLabels(t *testing.T) {
 	name, labels, value, ok := parseMetricSample(`wukongim_authority_recipient_dispatch_total{phase="conversation",result="ok"} 3`)
 

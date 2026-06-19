@@ -37,9 +37,9 @@ func TestRenderSingleNodeConfigUsesWukongIMV2Keys(t *testing.T) {
 
 func TestRenderThreeNodeConfigUsesStaticClusterMembership(t *testing.T) {
 	nodes := []NodeSpec{
-		{ID: 1, DataDir: "/tmp/node-1/data", ClusterAddr: "127.0.0.1:11001", GatewayAddr: "127.0.0.1:12001", APIAddr: "127.0.0.1:13001"},
-		{ID: 2, DataDir: "/tmp/node-2/data", ClusterAddr: "127.0.0.1:11002", GatewayAddr: "127.0.0.1:12002", APIAddr: "127.0.0.1:13002"},
-		{ID: 3, DataDir: "/tmp/node-3/data", ClusterAddr: "127.0.0.1:11003", GatewayAddr: "127.0.0.1:12003", APIAddr: "127.0.0.1:13003"},
+		{ID: 1, DataDir: "/tmp/node-1/data", ClusterAddr: "127.0.0.1:11001", GatewayAddr: "127.0.0.1:12001", APIAddr: "127.0.0.1:13001", ManagerAddr: "127.0.0.1:14001"},
+		{ID: 2, DataDir: "/tmp/node-2/data", ClusterAddr: "127.0.0.1:11002", GatewayAddr: "127.0.0.1:12002", APIAddr: "127.0.0.1:13002", ManagerAddr: "127.0.0.1:14002"},
+		{ID: 3, DataDir: "/tmp/node-3/data", ClusterAddr: "127.0.0.1:11003", GatewayAddr: "127.0.0.1:12003", APIAddr: "127.0.0.1:13003", ManagerAddr: "127.0.0.1:14003"},
 	}
 
 	cfg := RenderClusterConfig(nodes[1], nodes)
@@ -50,6 +50,7 @@ func TestRenderThreeNodeConfigUsesStaticClusterMembership(t *testing.T) {
 	require.Contains(t, cfg, "WK_CLUSTER_INITIAL_SLOT_COUNT=3\n")
 	require.Contains(t, cfg, "WK_CLUSTER_HASH_SLOT_COUNT=16\n")
 	require.Contains(t, cfg, "WK_CLUSTER_SLOT_REPLICA_N=3\n")
+	require.Contains(t, cfg, "WK_MANAGER_LISTEN_ADDR=127.0.0.1:14002\n")
 }
 
 func TestRenderClusterConfigAppliesOverridesDeterministically(t *testing.T) {

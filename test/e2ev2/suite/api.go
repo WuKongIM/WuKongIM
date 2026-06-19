@@ -80,6 +80,32 @@ func PostJSON(ctx context.Context, url string, body any, out any) ([]byte, error
 	return respBody, nil
 }
 
+// GetJSON fetches one JSON response from a public HTTP URL.
+func GetJSON(ctx context.Context, url string, out any) ([]byte, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode/100 != 2 {
+		return nil, fmt.Errorf("GET %s returned %d: %s", url, resp.StatusCode, strings.TrimSpace(string(respBody)))
+	}
+	if out != nil {
+		if err := json.Unmarshal(respBody, out); err != nil {
+			return nil, fmt.Errorf("decode GET %s: %w body=%s", url, err, strings.TrimSpace(string(respBody)))
+		}
+	}
+	return respBody, nil
+}
+
 // PostChannel upserts a legacy-compatible channel through the public v2 HTTP API.
 func PostChannel(ctx context.Context, apiAddr string, body map[string]any) error {
 	_, err := PostJSON(ctx, "http://"+apiAddr+"/channel", body, nil)
