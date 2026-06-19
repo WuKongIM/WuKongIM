@@ -105,6 +105,8 @@ type SlotRaftStatus struct {
 	CommitIndex uint64
 	// AppliedIndex is the queried node's local applied index watermark.
 	AppliedIndex uint64
+	// CurrentVoters is the current Slot Raft voter set observed by the runtime.
+	CurrentVoters []uint64
 }
 
 // SlotRaftCompactionResult describes one node-local Slot Raft compaction attempt.
@@ -398,14 +400,23 @@ func slotRaftStatusFromRuntime(nodeID uint64, slotID uint32, status multiraft.St
 		slotID = uint32(status.SlotID)
 	}
 	return SlotRaftStatus{
-		NodeID:       nodeID,
-		SlotID:       slotID,
-		LeaderID:     uint64(status.LeaderID),
-		Role:         slotRaftRoleName(status.Role),
-		Term:         status.Term,
-		CommitIndex:  status.CommitIndex,
-		AppliedIndex: status.AppliedIndex,
+		NodeID:        nodeID,
+		SlotID:        slotID,
+		LeaderID:      uint64(status.LeaderID),
+		Role:          slotRaftRoleName(status.Role),
+		Term:          status.Term,
+		CommitIndex:   status.CommitIndex,
+		AppliedIndex:  status.AppliedIndex,
+		CurrentVoters: slotRaftVotersFromRuntime(status.CurrentVoters),
 	}
+}
+
+func slotRaftVotersFromRuntime(voters []multiraft.NodeID) []uint64 {
+	out := make([]uint64, 0, len(voters))
+	for _, voter := range voters {
+		out = append(out, uint64(voter))
+	}
+	return out
 }
 
 func slotRaftRoleName(role multiraft.Role) string {

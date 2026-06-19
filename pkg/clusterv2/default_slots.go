@@ -78,12 +78,19 @@ func (n *Node) ensureDefaultSlots() error {
 	})
 	n.slots = slots.NewReconciler(n.cfg.NodeID, manager)
 	if n.tasks == nil && n.control != nil {
-		n.tasks = tasks.NewBootstrapExecutor(tasks.BootstrapExecutorConfig{
-			LocalNode: n.cfg.NodeID,
-			Slots:     manager,
-			Status:    runtime,
-			Writer:    n.control,
-		})
+		n.tasks = tasks.NewCompositeExecutor(
+			tasks.NewBootstrapExecutor(tasks.BootstrapExecutorConfig{
+				LocalNode: n.cfg.NodeID,
+				Slots:     manager,
+				Status:    runtime,
+				Writer:    n.control,
+			}),
+			tasks.NewLeaderTransferExecutor(tasks.LeaderTransferExecutorConfig{
+				LocalNode: n.cfg.NodeID,
+				Runtime:   runtime,
+				Writer:    n.control,
+			}),
+		)
 	}
 	n.defaultSlotRuntime = runtime
 	n.registerDefaultSlotHandlers(runtime)

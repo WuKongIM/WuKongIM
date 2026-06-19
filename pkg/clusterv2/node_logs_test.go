@@ -207,6 +207,20 @@ func TestLocalCompactSlotRaftLogUsesDefaultSlotRuntime(t *testing.T) {
 	}
 }
 
+func TestSlotRaftStatusFromRuntimeIncludesCurrentVoters(t *testing.T) {
+	got := slotRaftStatusFromRuntime(2, 9, multiraft.Status{
+		SlotID:        9,
+		NodeID:        2,
+		LeaderID:      1,
+		Role:          multiraft.RoleFollower,
+		CurrentVoters: []multiraft.NodeID{1, 2, 3},
+	})
+
+	if !equalUint64s(got.CurrentVoters, []uint64{1, 2, 3}) {
+		t.Fatalf("CurrentVoters = %v, want [1 2 3]", got.CurrentVoters)
+	}
+}
+
 type controllerLogReaderStub struct {
 	*control.StaticController
 	opts control.ControllerLogEntriesOptions

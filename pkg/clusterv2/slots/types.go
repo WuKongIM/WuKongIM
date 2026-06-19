@@ -46,6 +46,8 @@ type Runtime interface {
 	Propose(context.Context, multiraft.SlotID, []byte) (multiraft.Future, error)
 	// Status returns the latest local Slot status.
 	Status(multiraft.SlotID) (multiraft.Status, error)
+	// TransferLeadership asks Slot Raft to transfer leadership to target.
+	TransferLeadership(context.Context, multiraft.SlotID, multiraft.NodeID) error
 	// Step delivers a remote Raft message to a local Slot runtime.
 	Step(context.Context, multiraft.Envelope) error
 	// CloseSlot closes a local Slot runtime.

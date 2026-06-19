@@ -34,6 +34,11 @@ func (a *Adapter) Status(slotID multiraft.SlotID) (multiraft.Status, error) {
 	return a.runtime.Status(slotID)
 }
 
+// TransferLeadership asks Slot Raft to transfer leadership to target.
+func (a *Adapter) TransferLeadership(ctx context.Context, slotID multiraft.SlotID, target multiraft.NodeID) error {
+	return a.runtime.TransferLeadership(ctx, slotID, target)
+}
+
 // Step delivers a remote Raft message.
 func (a *Adapter) Step(ctx context.Context, env multiraft.Envelope) error {
 	return a.runtime.Step(ctx, env)

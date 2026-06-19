@@ -114,6 +114,9 @@ func (r *fakeRuntime) Status(slotID multiraft.SlotID) (multiraft.Status, error) 
 	}
 	return st, nil
 }
+func (r *fakeRuntime) TransferLeadership(context.Context, multiraft.SlotID, multiraft.NodeID) error {
+	return nil
+}
 func (r *fakeRuntime) Step(context.Context, multiraft.Envelope) error    { return nil }
 func (r *fakeRuntime) CloseSlot(context.Context, multiraft.SlotID) error { return nil }
 
