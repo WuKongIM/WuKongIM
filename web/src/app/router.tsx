@@ -24,6 +24,7 @@ import { TopologyPage } from "@/pages/topology/page"
 import { UsersPage } from "@/pages/users/page"
 import { WebhooksPage } from "@/pages/settings/webhooks/page"
 import { WorkqueuesPage } from "@/pages/workqueues/page"
+import { defaultAppPath } from "@/lib/navigation"
 
 function RedirectWithSearch({ tab, to }: { tab?: string; to: string }) {
   const location = useLocation()
@@ -52,7 +53,7 @@ export const routes: RouteObject[] = [
       </ProtectedRoute>
     ),
     children: [
-      { index: true, element: <Navigate replace to="/cluster/dashboard" /> },
+      { index: true, element: <Navigate replace to={defaultAppPath} /> },
       // Cluster operations
       { path: "cluster/dashboard", element: <ClusterDashboardPage /> },
       { path: "cluster/monitor", element: <ClusterMonitorPage /> },

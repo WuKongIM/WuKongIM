@@ -30,6 +30,19 @@ describe("navigationSections", () => {
     expect(getActiveNavigationSection("/business/conversations")?.id).toBe("business")
   })
 
+  test("omits dashboard entries from visible section menus", () => {
+    const clusterSection = navigationSections.find((section) => section.id === "cluster")
+    const businessSection = navigationSections.find((section) => section.id === "business")
+
+    expect(clusterSection?.href).toBe("/cluster/monitor")
+    expect(clusterSection?.items.map((item) => item.href)).not.toContain("/cluster/dashboard")
+    expect(clusterSection?.items[0]?.href).toBe("/cluster/monitor")
+
+    expect(businessSection?.href).toBe("/business/monitor")
+    expect(businessSection?.items.map((item) => item.href)).not.toContain("/business/dashboard")
+    expect(businessSection?.items[0]?.href).toBe("/business/monitor")
+  })
+
   test("exposes metadata and path label message ids for page headers", () => {
     expect(pageMetadata.get("/cluster/dashboard")?.titleMessageId).toBe("nav.clusterDashboard.title")
     expect(pageMetadata.get("/cluster/dashboard")?.pathLabelMessageId).toBe("nav.path.cluster.dashboard")

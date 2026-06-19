@@ -4387,6 +4387,7 @@ type fakeManagerCluster struct {
 	registeredHandlers    map[uint8]clusterv2.NodeRPCHandler
 	controllerLogs        clusterv2.ControllerLogEntries
 	slotLogs              clusterv2.SlotLogEntries
+	slotRaftStatus        clusterv2.SlotRaftStatus
 	controllerRaftStatus  clusterv2.ControllerRaftStatus
 	controllerRaftCompact clusterv2.ControllerRaftCompactionResult
 	slotRaftCompact       clusterv2.SlotRaftCompactionResult
@@ -4417,6 +4418,10 @@ func (f *fakeManagerCluster) LocalControllerLogEntries(context.Context, clusterv
 
 func (f *fakeManagerCluster) LocalSlotLogEntries(context.Context, uint32, clusterv2.LogEntriesOptions) (clusterv2.SlotLogEntries, error) {
 	return f.slotLogs, nil
+}
+
+func (f *fakeManagerCluster) LocalSlotRaftStatus(context.Context, uint32) (clusterv2.SlotRaftStatus, error) {
+	return f.slotRaftStatus, nil
 }
 
 func (f *fakeManagerCluster) LocalControllerRaftStatus(context.Context) (clusterv2.ControllerRaftStatus, error) {

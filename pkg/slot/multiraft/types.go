@@ -119,6 +119,13 @@ type Transport interface {
 	Send(ctx context.Context, batch []Envelope) error
 }
 
+// ReadyMessagePayloadOwner marks transports that consume or encode Ready
+// message payload bytes before Send returns.
+type ReadyMessagePayloadOwner interface {
+	// OwnsReadyMessagePayloads reports whether Send synchronously owns payload bytes.
+	OwnsReadyMessagePayloads() bool
+}
+
 type Storage interface {
 	InitialState(ctx context.Context) (BootstrapState, error)
 	Entries(ctx context.Context, lo, hi, maxSize uint64) ([]raftpb.Entry, error)

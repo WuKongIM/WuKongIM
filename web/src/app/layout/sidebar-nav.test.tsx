@@ -98,7 +98,7 @@ test("renders Chinese navigation labels and cluster context", async () => {
 })
 
 
-test("shows cluster dashboard first in the cluster section", async () => {
+test("omits the cluster dashboard menu item from the cluster section", async () => {
   const router = createMemoryRouter(routes, { initialEntries: ["/cluster/dashboard"] })
 
   render(
@@ -109,10 +109,11 @@ test("shows cluster dashboard first in the cluster section", async () => {
 
   const nav = await screen.findByRole("navigation", { name: "Primary navigation" })
   const links = within(nav).getAllByRole("link").map((link) => link.textContent)
-  expect(links.slice(0, 3)).toEqual(["Dashboard", "Live Monitor", "Nodes"])
+  expect(links).not.toContain("Dashboard")
+  expect(links.slice(0, 2)).toEqual(["Live Monitor", "Nodes"])
 })
 
-test("shows business dashboard and live monitor first in the business section", async () => {
+test("omits the business dashboard menu item from the business section", async () => {
   const router = createMemoryRouter(routes, { initialEntries: ["/business/dashboard"] })
 
   render(
@@ -123,7 +124,8 @@ test("shows business dashboard and live monitor first in the business section", 
 
   const nav = await screen.findByRole("navigation", { name: "Primary navigation" })
   const links = within(nav).getAllByRole("link").map((link) => link.textContent)
-  expect(links.slice(0, 3)).toEqual(["Dashboard", "Live Monitor", "Connections"])
+  expect(links).not.toContain("Dashboard")
+  expect(links.slice(0, 2)).toEqual(["Live Monitor", "Connections"])
 })
 
 test("moves connections from the system section into business management", async () => {

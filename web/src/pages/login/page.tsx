@@ -6,6 +6,7 @@ import { useAuthStore } from "@/auth/auth-store"
 import { LocaleSwitcher } from "@/components/i18n/locale-switcher"
 import { Button } from "@/components/ui/button"
 import { ManagerApiError } from "@/lib/manager-api"
+import { defaultAppPath } from "@/lib/navigation"
 
 function getLoginErrorMessage(intl: ReturnType<typeof useIntl>, error: unknown) {
   if (error instanceof ManagerApiError) {
@@ -39,7 +40,7 @@ export function LoginPage() {
 
     try {
       await login({ username, password })
-      navigate("/dashboard", { replace: true })
+      navigate(defaultAppPath, { replace: true })
     } catch (error) {
       setErrorMessage(getLoginErrorMessage(intl, error))
     } finally {

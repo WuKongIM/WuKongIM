@@ -52,6 +52,7 @@ const slotRow = {
     observed_config_epoch: 7,
     last_report_at: "2026-04-23T08:00:00Z",
   },
+  node_log: { node_id: 1, leader_id: 2, role: "follower", commit_index: 93, applied_index: 91 },
 }
 
 const nodeRow = {
@@ -181,6 +182,9 @@ test("renders the slot list tab from the tab search param", async () => {
 
   expect(screen.getByRole("tab", { name: "List" })).toHaveAttribute("aria-selected", "true")
   expect(await screen.findByText("Slot 9")).toBeInTheDocument()
+  expect(screen.getByRole("columnheader", { name: "Status" })).toBeInTheDocument()
+  expect(screen.getByText("follower")).toBeInTheDocument()
+  expect(screen.getByText("commit 93 / applied 91")).toBeInTheDocument()
 })
 
 test("renders slot distributed logs from the logs tab", async () => {
@@ -320,7 +324,7 @@ test("defaults to the local node filter and shows selected-node log height", asy
     total: 1,
     items: [{
       ...slotRow,
-      node_log: { node_id: 2, leader_id: 2, commit_index: 93, applied_index: 91 },
+      node_log: { node_id: 2, leader_id: 2, role: "leader", commit_index: 93, applied_index: 91 },
     }],
   })
 

@@ -74,6 +74,51 @@ func TestListSlotsBuildsReadOnlySlotInventory(t *testing.T) {
 	}
 }
 
+func TestListSlotsIncludesSelectedNodeRaftStatus(t *testing.T) {
+	generatedAt := time.Date(2026, 6, 16, 11, 0, 0, 0, time.UTC)
+	slotRaft := &fakeSlotRaftStatusReader{
+		statuses: map[slotRaftStatusKey]SlotNodeLogStatus{
+			{nodeID: 1, slotID: 9}: {
+				NodeID:       1,
+				LeaderID:     1,
+				Role:         "leader",
+				CommitIndex:  93,
+				AppliedIndex: 91,
+			},
+		},
+	}
+	app := New(Options{
+		Cluster: fakeNodeSnapshotReader{
+			snapshot: control.Snapshot{
+				Slots: []control.SlotAssignment{
+					{SlotID: 9, DesiredPeers: []uint64{1, 2}, ConfigEpoch: 7, PreferredLeader: 1},
+				},
+			},
+		},
+		SlotRaft: slotRaft,
+		Now:      func() time.Time { return generatedAt },
+	})
+
+	got, err := app.ListSlots(context.Background(), ListSlotsOptions{NodeID: 1})
+	if err != nil {
+		t.Fatalf("ListSlots() error = %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("slots len = %d, want 1: %#v", len(got), got)
+	}
+
+	nodeLog := got[0].NodeLog
+	if nodeLog == nil {
+		t.Fatalf("NodeLog = nil, want selected node Raft status")
+	}
+	if nodeLog.NodeID != 1 || nodeLog.LeaderID != 1 || nodeLog.Role != "leader" || nodeLog.CommitIndex != 93 || nodeLog.AppliedIndex != 91 {
+		t.Fatalf("NodeLog = %#v, want node 1 leader role with commit/applied watermarks", nodeLog)
+	}
+	if slotRaft.requests != 1 {
+		t.Fatalf("slot raft status requests = %d, want 1", slotRaft.requests)
+	}
+}
+
 func TestListSlotsFiltersByNode(t *testing.T) {
 	app := New(Options{
 		Cluster: fakeNodeSnapshotReader{
@@ -101,6 +146,25 @@ func TestListSlotsFiltersByNode(t *testing.T) {
 	if len(empty) != 0 {
 		t.Fatalf("filtered node 3 slots = %#v, want empty", empty)
 	}
+}
+
+type slotRaftStatusKey struct {
+	nodeID uint64
+	slotID uint32
+}
+
+type fakeSlotRaftStatusReader struct {
+	statuses map[slotRaftStatusKey]SlotNodeLogStatus
+	requests int
+}
+
+func (f *fakeSlotRaftStatusReader) SlotRaftStatus(_ context.Context, nodeID uint64, slotID uint32) (SlotNodeLogStatus, error) {
+	f.requests++
+	return f.statuses[slotRaftStatusKey{nodeID: nodeID, slotID: slotID}], nil
+}
+
+func (f *fakeSlotRaftStatusReader) CompactSlotRaftLog(_ context.Context, nodeID uint64, slotID uint32) (SlotRaftCompactionResult, error) {
+	return SlotRaftCompactionResult{NodeID: nodeID, SlotID: slotID}, nil
 }
 
 func TestListSlotsReturnsClusterSnapshotError(t *testing.T) {

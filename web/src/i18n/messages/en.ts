@@ -887,6 +887,7 @@ export const enMessages: AppMessages = {
   "slots.table.desiredPeerSet": "Desired peer set",
   "slots.table.currentPeerSet": "Current peer set",
   "slots.table.leader": "Leader",
+  "slots.table.status": "Status",
   "slots.table.logHeight": "Log height",
   "slots.table.actions": "Actions",
   "slots.detailDescriptionValue": "Leader {id}",

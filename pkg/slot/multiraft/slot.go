@@ -339,7 +339,7 @@ func (g *slot) processReady(ctx context.Context, transport Transport) (bool, boo
 	g.trackReadyEntries(ready.Entries)
 
 	if len(ready.Messages) > 0 {
-		g.transportBuf = wrapMessagesInto(g.transportBuf[:0], g.id, ready.Messages)
+		g.transportBuf = wrapMessagesIntoForTransport(g.transportBuf[:0], g.id, ready.Messages, transport)
 		_ = transport.Send(ctx, g.transportBuf)
 	}
 
@@ -1030,17 +1030,30 @@ func wrapMessages(slotID SlotID, messages []raftpb.Message) []Envelope {
 }
 
 func wrapMessagesInto(dst []Envelope, slotID SlotID, messages []raftpb.Message) []Envelope {
+	return wrapMessagesIntoWithPayloadMode(dst, slotID, messages, true)
+}
+
+func wrapMessagesIntoForTransport(dst []Envelope, slotID SlotID, messages []raftpb.Message, transport Transport) []Envelope {
+	return wrapMessagesIntoWithPayloadMode(dst, slotID, messages, !transportOwnsReadyMessagePayloads(transport))
+}
+
+func transportOwnsReadyMessagePayloads(transport Transport) bool {
+	owner, ok := transport.(ReadyMessagePayloadOwner)
+	return ok && owner.OwnsReadyMessagePayloads()
+}
+
+func wrapMessagesIntoWithPayloadMode(dst []Envelope, slotID SlotID, messages []raftpb.Message, clonePayloads bool) []Envelope {
 	out := dst[:0]
 	for _, msg := range messages {
 		out = append(out, Envelope{
 			SlotID:  slotID,
-			Message: cloneMessage(msg),
+			Message: cloneMessage(msg, clonePayloads),
 		})
 	}
 	return out
 }
 
-func cloneMessage(msg raftpb.Message) raftpb.Message {
+func cloneMessage(msg raftpb.Message, clonePayloads bool) raftpb.Message {
 	cloned := msg
 	if len(msg.Context) > 0 {
 		cloned.Context = append([]byte(nil), msg.Context...)
@@ -1048,33 +1061,33 @@ func cloneMessage(msg raftpb.Message) raftpb.Message {
 	if len(msg.Entries) > 0 {
 		cloned.Entries = make([]raftpb.Entry, len(msg.Entries))
 		for i, entry := range msg.Entries {
-			cloned.Entries[i] = cloneEntry(entry)
+			cloned.Entries[i] = cloneEntry(entry, clonePayloads)
 		}
 	}
 	if msg.Snapshot != nil {
-		snap := cloneSnapshot(*msg.Snapshot)
+		snap := cloneSnapshot(*msg.Snapshot, clonePayloads)
 		cloned.Snapshot = &snap
 	}
 	if len(msg.Responses) > 0 {
 		cloned.Responses = make([]raftpb.Message, len(msg.Responses))
 		for i, response := range msg.Responses {
-			cloned.Responses[i] = cloneMessage(response)
+			cloned.Responses[i] = cloneMessage(response, clonePayloads)
 		}
 	}
 	return cloned
 }
 
-func cloneEntry(entry raftpb.Entry) raftpb.Entry {
+func cloneEntry(entry raftpb.Entry, clonePayloads bool) raftpb.Entry {
 	cloned := entry
-	if len(entry.Data) > 0 {
+	if clonePayloads && len(entry.Data) > 0 {
 		cloned.Data = append([]byte(nil), entry.Data...)
 	}
 	return cloned
 }
 
-func cloneSnapshot(snapshot raftpb.Snapshot) raftpb.Snapshot {
+func cloneSnapshot(snapshot raftpb.Snapshot, clonePayloads bool) raftpb.Snapshot {
 	cloned := snapshot
-	if len(snapshot.Data) > 0 {
+	if clonePayloads && len(snapshot.Data) > 0 {
 		cloned.Data = append([]byte(nil), snapshot.Data...)
 	}
 	cloned.Metadata.ConfState = cloneConfState(snapshot.Metadata.ConfState)

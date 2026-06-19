@@ -729,7 +729,7 @@ func (t *clusterTransport) Send(ctx context.Context, batch []Envelope) error {
 		}
 		env := Envelope{
 			SlotID:  env.SlotID,
-			Message: cloneMessage(env.Message),
+			Message: cloneMessage(env.Message, true),
 		}
 		go func(env Envelope) {
 			defer t.network.wg.Done()

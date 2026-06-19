@@ -30,6 +30,11 @@ func (a *Adapter) HandleManagerSlotRaftRPC(ctx context.Context, payload []byte) 
 		return encodeManagerSlotRaftResponse(managerSlotRaftRPCResponse{Status: rpcStatusRejected})
 	}
 	switch req.Op {
+	case managerSlotRaftOpStatus:
+		status, err := a.managerSlotRaft.SlotRaftStatus(ctx, req.NodeID, req.SlotID)
+		rpcStatus := managerSlotRaftRPCStatusForError(err)
+		a.logManagerSlotRaftError(req, rpcStatus, err)
+		return encodeManagerSlotRaftResponse(managerSlotRaftRPCResponse{Status: rpcStatus, Raft: status})
 	case managerSlotRaftOpCompact:
 		result, err := a.managerSlotRaft.CompactSlotRaftLog(ctx, req.NodeID, req.SlotID)
 		status := managerSlotRaftRPCStatusForError(err)
@@ -44,6 +49,33 @@ func (a *Adapter) HandleManagerSlotRaftRPC(ctx context.Context, payload []byte) 
 		)
 		return nil, err
 	}
+}
+
+// GetManagerSlotRaftStatus reads one node's local Slot Raft status.
+func (c *Client) GetManagerSlotRaftStatus(ctx context.Context, nodeID uint64, slotID uint32) (managementusecase.SlotNodeLogStatus, error) {
+	if c == nil || c.node == nil {
+		return managementusecase.SlotNodeLogStatus{}, fmt.Errorf("internalv2/access/node: manager slot raft rpc client not configured")
+	}
+	body, err := encodeManagerSlotRaftRequest(managerSlotRaftRPCRequest{
+		Op:     managerSlotRaftOpStatus,
+		NodeID: nodeID,
+		SlotID: slotID,
+	})
+	if err != nil {
+		return managementusecase.SlotNodeLogStatus{}, err
+	}
+	respBody, err := c.node.CallRPC(ctx, nodeID, ManagerSlotRaftRPCServiceID, body)
+	if err != nil {
+		return managementusecase.SlotNodeLogStatus{}, err
+	}
+	resp, err := decodeManagerSlotRaftResponse(respBody)
+	if err != nil {
+		return managementusecase.SlotNodeLogStatus{}, err
+	}
+	if err := managerSlotRaftRPCErrorForStatus(resp.Status); err != nil {
+		return managementusecase.SlotNodeLogStatus{}, err
+	}
+	return resp.Raft, nil
 }
 
 // CompactManagerSlotRaftLog forces one node's local Slot Raft compaction.

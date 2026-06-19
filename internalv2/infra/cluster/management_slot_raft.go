@@ -14,6 +14,8 @@ type ManagementSlotRaftNode interface {
 	NodeID() uint64
 	// CallRPC invokes one typed node RPC service on a peer node.
 	CallRPC(context.Context, uint64, uint8, []byte) ([]byte, error)
+	// LocalSlotRaftStatus reads this node's local Slot Raft status.
+	LocalSlotRaftStatus(context.Context, uint32) (clusterv2.SlotRaftStatus, error)
 	// LocalCompactSlotRaftLog forces this node's local Slot Raft compaction.
 	LocalCompactSlotRaftLog(context.Context, uint32) (clusterv2.SlotRaftCompactionResult, error)
 }
@@ -32,6 +34,21 @@ func NewManagementSlotRaftOperator(node ManagementSlotRaftNode) *ManagementSlotR
 	}
 }
 
+// SlotRaftStatus reads one node's local Slot Raft status.
+func (o *ManagementSlotRaftOperator) SlotRaftStatus(ctx context.Context, nodeID uint64, slotID uint32) (managementusecase.SlotNodeLogStatus, error) {
+	if o == nil || o.node == nil || o.remote == nil {
+		return managementusecase.SlotNodeLogStatus{}, managementusecase.ErrSlotRaftOperatorUnavailable
+	}
+	if nodeID == o.node.NodeID() {
+		status, err := o.node.LocalSlotRaftStatus(ctx, slotID)
+		if err != nil {
+			return managementusecase.SlotNodeLogStatus{}, err
+		}
+		return slotRaftStatusFromCluster(status), nil
+	}
+	return o.remote.GetManagerSlotRaftStatus(ctx, nodeID, slotID)
+}
+
 // CompactSlotRaftLog forces one node's local Slot Raft compaction.
 func (o *ManagementSlotRaftOperator) CompactSlotRaftLog(ctx context.Context, nodeID uint64, slotID uint32) (managementusecase.SlotRaftCompactionResult, error) {
 	if o == nil || o.node == nil || o.remote == nil {
@@ -45,6 +62,16 @@ func (o *ManagementSlotRaftOperator) CompactSlotRaftLog(ctx context.Context, nod
 		return slotRaftCompactionFromCluster(result), nil
 	}
 	return o.remote.CompactManagerSlotRaftLog(ctx, nodeID, slotID)
+}
+
+func slotRaftStatusFromCluster(status clusterv2.SlotRaftStatus) managementusecase.SlotNodeLogStatus {
+	return managementusecase.SlotNodeLogStatus{
+		NodeID:       status.NodeID,
+		LeaderID:     status.LeaderID,
+		Role:         status.Role,
+		CommitIndex:  status.CommitIndex,
+		AppliedIndex: status.AppliedIndex,
+	}
 }
 
 func slotRaftCompactionFromCluster(result clusterv2.SlotRaftCompactionResult) managementusecase.SlotRaftCompactionResult {

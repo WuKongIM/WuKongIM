@@ -418,7 +418,7 @@ func TestWrapMessagesIntoReusesDestinationSlice(t *testing.T) {
 	}
 }
 
-func TestWrapMessagesIntoStillClonesRaftMessagePayloads(t *testing.T) {
+func TestWrapMessagesIntoClonesLargePayloadsByDefault(t *testing.T) {
 	msgs := []raftpb.Message{{
 		Type:    raftpb.MsgApp,
 		From:    1,
@@ -462,6 +462,55 @@ func TestWrapMessagesIntoStillClonesRaftMessagePayloads(t *testing.T) {
 		t.Fatalf("Snapshot.Metadata.ConfState.Voters[0] = %d", got.Snapshot.Metadata.ConfState.Voters[0])
 	}
 }
+
+func TestWrapMessagesIntoSharesLargePayloadsForOwningTransport(t *testing.T) {
+	msgs := []raftpb.Message{{
+		Type:    raftpb.MsgApp,
+		From:    1,
+		To:      2,
+		Context: []byte("ctx"),
+		Entries: []raftpb.Entry{{
+			Index: 1,
+			Term:  1,
+			Data:  []byte("entry"),
+		}},
+		Snapshot: &raftpb.Snapshot{
+			Data: []byte("snap"),
+			Metadata: raftpb.SnapshotMetadata{
+				Index: 1,
+				Term:  1,
+				ConfState: raftpb.ConfState{
+					Voters: []uint64{1, 2, 3},
+				},
+			},
+		},
+	}}
+
+	batch := wrapMessagesIntoForTransport(nil, 42, msgs, owningPayloadTransport{})
+
+	msgs[0].Context[0] = 'x'
+	msgs[0].Snapshot.Metadata.ConfState.Voters[0] = 99
+
+	got := batch[0].Message
+	if string(got.Context) != "ctx" {
+		t.Fatalf("Context = %q", got.Context)
+	}
+	if len(got.Entries) != 1 || &got.Entries[0].Data[0] != &msgs[0].Entries[0].Data[0] {
+		t.Fatalf("Entries[0].Data was cloned for owning transport")
+	}
+	if got.Snapshot == nil || &got.Snapshot.Data[0] != &msgs[0].Snapshot.Data[0] {
+		t.Fatalf("Snapshot.Data was cloned for owning transport")
+	}
+	if got.Snapshot.Metadata.ConfState.Voters[0] != 1 {
+		t.Fatalf("Snapshot.Metadata.ConfState.Voters[0] = %d", got.Snapshot.Metadata.ConfState.Voters[0])
+	}
+}
+
+type owningPayloadTransport struct{}
+
+func (owningPayloadTransport) Send(context.Context, []Envelope) error { return nil }
+
+func (owningPayloadTransport) OwnsReadyMessagePayloads() bool { return true }
 
 func TestRequestDrainHelperMovesQueuedMessagesIntoReusableWorkSlice(t *testing.T) {
 	g := newTestSlotForDrain()

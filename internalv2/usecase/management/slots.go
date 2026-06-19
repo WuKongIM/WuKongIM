@@ -86,6 +86,8 @@ type SlotNodeLogStatus struct {
 	NodeID uint64
 	// LeaderID is the slot Raft leader known by the reporting node.
 	LeaderID uint64
+	// Role is the reporting node's local Raft role for this slot.
+	Role string
 	// CommitIndex is the highest committed Raft log index known by the reporting node.
 	CommitIndex uint64
 	// AppliedIndex is the highest Raft log index applied by the reporting node.
@@ -107,6 +109,9 @@ func (a *App) ListSlots(ctx context.Context, opts ListSlotsOptions) ([]Slot, err
 		slot := slotFromControlAssignment(assignment, snapshot.HashSlots, generatedAt)
 		if opts.NodeID != 0 && !containsUint64(slot.Assignment.DesiredPeers, opts.NodeID) {
 			continue
+		}
+		if opts.NodeID != 0 {
+			slot.NodeLog = a.slotNodeLogStatus(ctx, opts.NodeID, slot.SlotID)
 		}
 		slots = append(slots, slot)
 	}
@@ -188,6 +193,23 @@ func managerSlotSyncState(hasRuntime bool) string {
 		return "unreported"
 	}
 	return "matched"
+}
+
+func (a *App) slotNodeLogStatus(ctx context.Context, nodeID uint64, slotID uint32) *SlotNodeLogStatus {
+	if a == nil || a.slotRaft == nil {
+		return nil
+	}
+	status, err := a.slotRaft.SlotRaftStatus(ctx, nodeID, slotID)
+	if err != nil {
+		return nil
+	}
+	if status.NodeID == 0 {
+		status.NodeID = nodeID
+	}
+	if status.Role == "" {
+		status.Role = "unknown"
+	}
+	return &status
 }
 
 func containsUint64(items []uint64, want uint64) bool {

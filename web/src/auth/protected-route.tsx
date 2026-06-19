@@ -2,6 +2,7 @@ import type { ReactNode } from "react"
 import { Navigate } from "react-router-dom"
 
 import { useAuthStore } from "@/auth/auth-store"
+import { defaultAppPath } from "@/lib/navigation"
 
 type RouteGateProps = {
   children: ReactNode
@@ -31,7 +32,7 @@ export function PublicOnlyRoute({ children }: RouteGateProps) {
   }
 
   if (status === "authenticated") {
-    return <Navigate replace to="/cluster/dashboard" />
+    return <Navigate replace to={defaultAppPath} />
   }
 
   return <>{children}</>

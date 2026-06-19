@@ -95,7 +95,9 @@ the HTTP response layer.
 
 `/manager/slots` preserves the legacy list response shape for the web Slot list
 view, including `node_id` filtering. It reads the same control snapshot through
-`internalv2/usecase/management`; Slot detail and operation routes remain
+`internalv2/usecase/management` and, when available, returns the selected node's
+local Slot Raft role plus commit/applied watermarks in `node_log` for the web
+status and log-height columns. Slot detail and operation routes remain
 unmigrated.
 
 `/manager/controller/logs` and `/manager/slots/:slot_id/logs` expose
@@ -106,10 +108,11 @@ summaries only for inspection; the routes do not mutate Controller or Slot
 state.
 
 `/manager/nodes/:node_id/slots/:slot_id/compact` is the explicit Slot Raft
-operator action paired with the read-only Slot log page. It validates the
-selected node and physical Slot at the HTTP boundary, delegates local/remote
-execution to the management usecase, and returns one per-node/slot result with
-success, skip, or error state; it does not fan out across Slot replicas.
+operator action paired with the read-only Slot log page and list-row Slot Raft
+status reads. It validates the selected node and physical Slot at the HTTP
+boundary, delegates local/remote execution to the management usecase, and
+returns one per-node/slot result with success, skip, or error state; it does
+not fan out across Slot replicas.
 
 `/manager/nodes/:node_id/controller-raft` exposes the selected node's
 Controller Raft role, commit/apply watermarks, durable log/snapshot watermarks,

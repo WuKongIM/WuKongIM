@@ -38,6 +38,17 @@ func TestNetworkSlotTransportUsesOwnedSenderWhenAvailable(t *testing.T) {
 	}
 }
 
+func TestNetworkSlotTransportOwnsReadyMessagePayloads(t *testing.T) {
+	var transport any = networkSlotTransport{}
+	owner, ok := transport.(multiraft.ReadyMessagePayloadOwner)
+	if !ok {
+		t.Fatal("networkSlotTransport must declare synchronous payload ownership")
+	}
+	if !owner.OwnsReadyMessagePayloads() {
+		t.Fatal("networkSlotTransport should own Ready message payloads")
+	}
+}
+
 func TestEncodeSlotRaftBatchUsesBinaryFraming(t *testing.T) {
 	data := bytes.Repeat([]byte("x"), 1024)
 	payload, err := encodeSlotRaftBatch([]multiraft.Envelope{

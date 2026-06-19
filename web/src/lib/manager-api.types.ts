@@ -638,6 +638,7 @@ export type ManagerSlotHashSlots = {
 export type ManagerSlotNodeLog = {
   node_id: number
   leader_id: number
+  role: string
   commit_index: number
   applied_index: number
 }

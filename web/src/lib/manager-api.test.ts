@@ -885,7 +885,7 @@ describe("manager api client", () => {
           observed_config_epoch: 7,
           last_report_at: "2026-04-23T08:00:00Z",
         },
-        node_log: { node_id: 2, leader_id: 2, commit_index: 93, applied_index: 91 },
+        node_log: { node_id: 2, leader_id: 2, role: "leader", commit_index: 93, applied_index: 91 },
       }],
     }
     fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(slotsResponse), { status: 200 }))

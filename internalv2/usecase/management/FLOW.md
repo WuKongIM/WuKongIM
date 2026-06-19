@@ -52,11 +52,14 @@ manager HTTP handler
 
 The Slot projection derives physical Slot assignments, preferred leaders,
 config epochs, and logical hash-slot ownership from the local clusterv2 control
-snapshot. Until a migrated Slot runtime observation source exists, the list
-uses desired peers as the best available display runtime so the web Slot list
-can render quorum, sync, leader, and voter columns. Slot detail, rebalance,
-recovery, leader-transfer, and add/remove operation routes are outside this
-migration step.
+snapshot. The list uses desired peers as the fallback display runtime so the
+web Slot list can always render quorum, sync, leader, and voter columns. When a
+positive `node_id` is selected and the Slot Raft operator is wired, the usecase
+also performs a best-effort node-local or routed peer status read for each
+returned Slot and attaches the selected node's Raft role plus commit/applied
+watermarks. Status read misses are omitted from the row rather than failing the
+inventory response. Slot detail, rebalance, recovery, leader-transfer, and
+add/remove operation routes are outside this migration step.
 
 ## Distributed Log Flow
 
@@ -81,14 +84,15 @@ manager HTTP handler
   -> management.App.CompactSlotRaftLog
   -> SlotRaftOperator
   -> local clusterv2 node operation or node RPC routed peer operation
-  -> one node-local Slot Raft compaction result
+  -> one node-local Slot Raft status or compaction result
 ```
 
-The node-scoped method validates positive `node_id` and `slot_id` values and
-delegates local-or-remote selection to the `SlotRaftOperator` port. It returns a
-single node/Slot result that preserves success, skip reason, and per-target
-error text. The usecase does not fan out to Slot replicas and does not turn
-manual compaction into a replicated Raft command.
+The node-scoped methods validate positive `node_id` and `slot_id` values and
+delegate local-or-remote selection to the `SlotRaftOperator` port. Status reads
+return the selected node's local Slot Raft role plus commit/applied watermarks.
+Compaction returns a single node/Slot result that preserves success, skip
+reason, and per-target error text. The usecase does not fan out to Slot
+replicas and does not turn manual compaction into a replicated Raft command.
 
 ## Controller Raft Management Flow
 

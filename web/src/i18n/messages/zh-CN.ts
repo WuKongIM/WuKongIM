@@ -885,6 +885,7 @@ export const zhCNMessages: AppMessages = {
   "slots.table.desiredPeerSet": "期望副本集",
   "slots.table.currentPeerSet": "当前副本集",
   "slots.table.leader": "Leader",
+  "slots.table.status": "状态",
   "slots.table.logHeight": "日志高度",
   "slots.table.actions": "操作",
   "slots.detailDescriptionValue": "Leader {id}",

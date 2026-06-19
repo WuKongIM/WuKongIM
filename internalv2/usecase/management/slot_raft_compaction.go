@@ -8,8 +8,10 @@ import (
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
-// SlotRaftOperator exposes node-local Slot Raft compaction operations.
+// SlotRaftOperator exposes node-local Slot Raft status and compaction operations.
 type SlotRaftOperator interface {
+	// SlotRaftStatus returns one node's local Slot Raft status.
+	SlotRaftStatus(context.Context, uint64, uint32) (SlotNodeLogStatus, error)
 	// CompactSlotRaftLog forces one node's local Slot Raft log compaction.
 	CompactSlotRaftLog(context.Context, uint64, uint32) (SlotRaftCompactionResult, error)
 }

@@ -36,20 +36,14 @@ export type NavigationSection = {
   items: NavigationItem[]
 }
 
+export const defaultAppPath = "/cluster/monitor"
+
 export const navigationSections: NavigationSection[] = [
   {
     id: "cluster",
-    href: "/cluster/dashboard",
+    href: defaultAppPath,
     titleMessageId: "nav.section.cluster",
     items: [
-      {
-        href: "/cluster/dashboard",
-        titleMessageId: "nav.clusterDashboard.title",
-        descriptionMessageId: "nav.clusterDashboard.description",
-        pathLabelMessageId: "nav.path.cluster.dashboard",
-        icon: LayoutDashboard,
-        aliases: ["/dashboard"],
-      },
       {
         href: "/cluster/monitor",
         titleMessageId: "nav.clusterMonitor.title",
@@ -124,16 +118,9 @@ export const navigationSections: NavigationSection[] = [
   },
   {
     id: "business",
-    href: "/business/dashboard",
+    href: "/business/monitor",
     titleMessageId: "nav.section.business",
     items: [
-      {
-        href: "/business/dashboard",
-        titleMessageId: "nav.businessDashboard.title",
-        descriptionMessageId: "nav.businessDashboard.description",
-        pathLabelMessageId: "nav.path.business.dashboard",
-        icon: LayoutDashboard,
-      },
       {
         href: "/business/monitor",
         titleMessageId: "nav.monitor.title",
@@ -227,8 +214,26 @@ export const navigationSections: NavigationSection[] = [
 
 export const navigationItems = navigationSections.flatMap((section) => section.items)
 
+const pageOnlyNavigationItems: NavigationItem[] = [
+  {
+    href: "/cluster/dashboard",
+    titleMessageId: "nav.clusterDashboard.title",
+    descriptionMessageId: "nav.clusterDashboard.description",
+    pathLabelMessageId: "nav.path.cluster.dashboard",
+    icon: LayoutDashboard,
+    aliases: ["/dashboard"],
+  },
+  {
+    href: "/business/dashboard",
+    titleMessageId: "nav.businessDashboard.title",
+    descriptionMessageId: "nav.businessDashboard.description",
+    pathLabelMessageId: "nav.path.business.dashboard",
+    icon: LayoutDashboard,
+  },
+]
+
 export const pageMetadata = new Map(
-  navigationItems.map((item) => [item.href, item] as const),
+  [...navigationItems, ...pageOnlyNavigationItems].map((item) => [item.href, item] as const),
 )
 
 export const legacyRouteRedirects: Record<string, string> = {
@@ -265,12 +270,30 @@ function matchesItem(pathname: string, item: NavigationItem) {
 }
 
 export function getActiveNavigationItem(pathname: string) {
-  return navigationItems.find((item) => matchesItem(pathname, item)) ?? pageMetadata.get("/cluster/dashboard")
+  return (
+    navigationItems.find((item) => matchesItem(pathname, item)) ??
+    pageOnlyNavigationItems.find((item) => matchesItem(pathname, item)) ??
+    pageMetadata.get("/cluster/monitor")
+  )
 }
 
 export function getActiveNavigationSection(pathname: string) {
-  const activeItem = getActiveNavigationItem(pathname)
-  return navigationSections.find((section) => section.items.some((item) => item.href === activeItem?.href)) ?? navigationSections[0]
+  const activeItem = navigationItems.find((item) => matchesItem(pathname, item))
+  if (activeItem) {
+    return navigationSections.find((section) => section.items.some((item) => item.href === activeItem.href)) ?? navigationSections[0]
+  }
+
+  if (pathname === "/dashboard" || pathname.startsWith("/cluster/")) {
+    return navigationSections.find((section) => section.id === "cluster") ?? navigationSections[0]
+  }
+  if (pathname.startsWith("/business/")) {
+    return navigationSections.find((section) => section.id === "business") ?? navigationSections[0]
+  }
+  if (pathname.startsWith("/system/")) {
+    return navigationSections.find((section) => section.id === "system") ?? navigationSections[0]
+  }
+
+  return navigationSections[0]
 }
 
 // Compatibility for older imports while the shell is being migrated.

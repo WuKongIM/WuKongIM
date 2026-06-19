@@ -93,6 +93,10 @@ type fakeSlotRaftOperator struct {
 	errors  map[slotRaftCompactTarget]error
 }
 
+func (f *fakeSlotRaftOperator) SlotRaftStatus(_ context.Context, nodeID uint64, slotID uint32) (SlotNodeLogStatus, error) {
+	return SlotNodeLogStatus{NodeID: nodeID, LeaderID: uint64(slotID)}, nil
+}
+
 func (f *fakeSlotRaftOperator) CompactSlotRaftLog(_ context.Context, nodeID uint64, slotID uint32) (SlotRaftCompactionResult, error) {
 	target := slotRaftCompactTarget{nodeID: nodeID, slotID: slotID}
 	f.called = append(f.called, target)

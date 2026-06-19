@@ -35,7 +35,7 @@ test("redirects anonymous /dashboard visits to /login", async () => {
   expect(await screen.findByRole("heading", { name: /sign in/i })).toBeInTheDocument()
 })
 
-test("redirects authenticated /login visits to the cluster dashboard", async () => {
+test("redirects authenticated /login visits to the cluster live monitor", async () => {
   useAuthStore.setState(authenticatedState())
 
   const router = createMemoryRouter(routes, { initialEntries: ["/login"] })
@@ -46,8 +46,8 @@ test("redirects authenticated /login visits to the cluster dashboard", async () 
     </AppProviders>,
   )
 
-  expect(await screen.findByRole("heading", { name: "Cluster Dashboard" })).toBeInTheDocument()
-  expect(router.state.location.pathname).toBe("/cluster/dashboard")
+  expect(await screen.findByRole("heading", { name: "Live Monitor" })).toBeInTheDocument()
+  expect(router.state.location.pathname).toBe("/cluster/monitor")
 })
 
 test("renders the app shell for authenticated routes", async () => {
@@ -81,7 +81,7 @@ test("renders the shell for redesigned cluster routes", async () => {
 })
 
 test.each([
-  ["/", "/cluster/dashboard"],
+  ["/", "/cluster/monitor"],
   ["/dashboard", "/cluster/dashboard"],
   ["/monitor", "/business/monitor"],
   ["/nodes", "/cluster/nodes"],

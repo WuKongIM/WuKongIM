@@ -12,7 +12,10 @@ var (
 	managerSlotRaftResponseMagic = [...]byte{'W', 'K', 'V', 's', 1}
 )
 
-const managerSlotRaftOpCompact = "compact"
+const (
+	managerSlotRaftOpStatus  = "status"
+	managerSlotRaftOpCompact = "compact"
+)
 
 type managerSlotRaftRPCRequest struct {
 	Op     string `json:"op"`
@@ -22,6 +25,7 @@ type managerSlotRaftRPCRequest struct {
 
 type managerSlotRaftRPCResponse struct {
 	Status     string                                     `json:"status"`
+	Raft       managementusecase.SlotNodeLogStatus        `json:"raft"`
 	Compaction managementusecase.SlotRaftCompactionResult `json:"compaction"`
 }
 

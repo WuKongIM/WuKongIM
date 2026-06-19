@@ -25,7 +25,7 @@ beforeEach(() => {
   loginManagerMock.mockReset()
 })
 
-test("submits credentials and redirects to the cluster dashboard on success", async () => {
+test("submits credentials and redirects to the cluster live monitor on success", async () => {
   loginManagerMock.mockResolvedValue({
     username: "admin",
     tokenType: "Bearer",
@@ -47,8 +47,8 @@ test("submits credentials and redirects to the cluster dashboard on success", as
   await user.type(screen.getByLabelText(/password/i), "secret")
   await user.click(screen.getByRole("button", { name: /sign in/i }))
 
-  expect(await screen.findByRole("heading", { name: "Cluster Dashboard" })).toBeInTheDocument()
-  expect(router.state.location.pathname).toBe("/cluster/dashboard")
+  expect(await screen.findByRole("heading", { name: "Live Monitor" })).toBeInTheDocument()
+  expect(router.state.location.pathname).toBe("/cluster/monitor")
   expect(useAuthStore.getState().accessToken).toBe("token-1")
   expect(localStorage.getItem("wukongim_manager_auth")).toContain("token-1")
 })
@@ -127,8 +127,8 @@ test("shows a loading state while the login request is in flight", async () => {
     permissions: [],
   })
 
-  expect(await screen.findByRole("heading", { name: "Cluster Dashboard" })).toBeInTheDocument()
-  expect(router.state.location.pathname).toBe("/cluster/dashboard")
+  expect(await screen.findByRole("heading", { name: "Live Monitor" })).toBeInTheDocument()
+  expect(router.state.location.pathname).toBe("/cluster/monitor")
 })
 
 test("switches the login page copy without navigating away", async () => {

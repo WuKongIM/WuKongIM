@@ -13,7 +13,7 @@ mutations to UID-owned conversation rows plus channel-owned committed message
 logs, adapts read-only manager message pages to committed ChannelV2 reads, and
 routes manager connection reads over clusterv2 node RPC, routes manager
 distributed log reads to node-local clusterv2 log storage or peer RPC, routes
-manager Slot Raft compaction operations to the selected node-local clusterv2
+manager Slot Raft status and compaction operations to the selected node-local clusterv2
 operation or peer RPC, routes manager Controller Raft operations to node-local
 clusterv2 operations or peer RPC, routes ordinary application log reads to the
 selected node's app-owned local reader or peer RPC, routes manager DB Inspect
@@ -160,17 +160,17 @@ response shaping stay above this package.
 
 ```text
 management.SlotRaftOperator
-  -> local node_id: clusterv2.LocalCompactSlotRaftLog(slot_id)
+  -> local node_id: clusterv2.LocalSlotRaftStatus(slot_id) or LocalCompactSlotRaftLog(slot_id)
   -> remote node_id: access/node Manager Slot Raft RPC client
   -> clusterv2 CallRPC(target node, RPCManagerSlotRaft)
   -> target node access/node Manager Slot Raft RPC handler
-  -> target node clusterv2 local Slot Raft compaction
+  -> target node clusterv2 local Slot Raft status or compaction
 ```
 
 `ManagementSlotRaftOperator` only chooses local versus remote execution for the
 requested node and Slot. HTTP parsing, permission checks, and response summary
-shaping stay above this layer; actual snapshot/log compaction stays in
-`pkg/clusterv2` and `pkg/slot/multiraft`.
+shaping stay above this layer; actual Raft role/watermark reads and
+snapshot/log compaction stay in `pkg/clusterv2` and `pkg/slot/multiraft`.
 
 ## Management Application Log Flow
 

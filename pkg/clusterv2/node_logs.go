@@ -89,6 +89,24 @@ type SlotLogEntries struct {
 	Items []LogEntry
 }
 
+// SlotRaftStatus is one node's local Slot Raft status snapshot.
+type SlotRaftStatus struct {
+	// NodeID is the node whose local Slot Raft status was read.
+	NodeID uint64
+	// SlotID is the physical Slot identifier.
+	SlotID uint32
+	// LeaderID is the best-known Slot Raft leader.
+	LeaderID uint64
+	// Role is this node's local Raft role for the Slot.
+	Role string
+	// Term is the local Raft term.
+	Term uint64
+	// CommitIndex is the queried node's local committed index watermark.
+	CommitIndex uint64
+	// AppliedIndex is the queried node's local applied index watermark.
+	AppliedIndex uint64
+}
+
 // SlotRaftCompactionResult describes one node-local Slot Raft compaction attempt.
 type SlotRaftCompactionResult struct {
 	// NodeID is the node that handled the local Slot Raft compaction attempt.
@@ -171,6 +189,27 @@ func (n *Node) LocalCompactControllerRaftLog(ctx context.Context) (ControllerRaf
 		return ControllerRaftCompactionResult{}, ErrNotStarted
 	}
 	return operator.CompactControllerRaftLog(ctx)
+}
+
+// LocalSlotRaftStatus returns this node's local Slot Raft status.
+func (n *Node) LocalSlotRaftStatus(ctx context.Context, slotID uint32) (SlotRaftStatus, error) {
+	if err := ctxErr(ctx); err != nil {
+		return SlotRaftStatus{}, err
+	}
+	if slotID == 0 {
+		return SlotRaftStatus{}, ErrSlotNotFound
+	}
+	if err := n.ensureForeground(); err != nil {
+		return SlotRaftStatus{}, err
+	}
+	if n.defaultSlotRuntime == nil {
+		return SlotRaftStatus{}, ErrNotStarted
+	}
+	status, err := n.defaultSlotRuntime.Status(multiraft.SlotID(slotID))
+	if err != nil {
+		return SlotRaftStatus{}, mapSlotLogRuntimeError(err)
+	}
+	return slotRaftStatusFromRuntime(n.NodeID(), slotID, status), nil
 }
 
 // LocalSlotLogEntries returns one page from this node's local Slot Raft log.
@@ -348,6 +387,37 @@ func slotRaftCompactionResultFromRuntime(result multiraft.LogCompactionResult) S
 		AfterSnapshotIndex:  result.AfterSnapshotIndex,
 		Compacted:           result.Compacted,
 		SkippedReason:       result.SkippedReason,
+	}
+}
+
+func slotRaftStatusFromRuntime(nodeID uint64, slotID uint32, status multiraft.Status) SlotRaftStatus {
+	if nodeID == 0 {
+		nodeID = uint64(status.NodeID)
+	}
+	if slotID == 0 {
+		slotID = uint32(status.SlotID)
+	}
+	return SlotRaftStatus{
+		NodeID:       nodeID,
+		SlotID:       slotID,
+		LeaderID:     uint64(status.LeaderID),
+		Role:         slotRaftRoleName(status.Role),
+		Term:         status.Term,
+		CommitIndex:  status.CommitIndex,
+		AppliedIndex: status.AppliedIndex,
+	}
+}
+
+func slotRaftRoleName(role multiraft.Role) string {
+	switch role {
+	case multiraft.RoleLeader:
+		return "leader"
+	case multiraft.RoleCandidate:
+		return "candidate"
+	case multiraft.RoleFollower:
+		return "follower"
+	default:
+		return "unknown"
 	}
 }
 

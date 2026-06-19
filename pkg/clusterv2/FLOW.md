@@ -223,7 +223,10 @@ Multi-Raft runtime so composition roots can tune local Slot Raft snapshot
 compaction without changing proposal or apply semantics. Slot Raft transport
 batches use a versioned binary frame that carries raw `raftpb.Message` bytes
 instead of JSON encoding, avoiding base64 expansion on the metadata replication
-path.
+path. The default Slot Raft transport declares `ReadyMessagePayloadOwner`
+because it synchronously encodes the batch before `Send` returns, so
+`pkg/slot/multiraft` can avoid deep-copying large entry and snapshot payloads on
+this production path.
 
 ## Distributed Log Inspection Flow
 

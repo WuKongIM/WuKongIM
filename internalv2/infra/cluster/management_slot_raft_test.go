@@ -35,6 +35,33 @@ func TestManagementSlotRaftOperatorUsesLocalCompact(t *testing.T) {
 	}
 }
 
+func TestManagementSlotRaftOperatorUsesLocalStatus(t *testing.T) {
+	node := &fakeManagementSlotRaftNode{
+		nodeID: 1,
+		status: clusterv2.SlotRaftStatus{
+			NodeID:       1,
+			SlotID:       9,
+			LeaderID:     1,
+			Role:         "leader",
+			CommitIndex:  93,
+			AppliedIndex: 91,
+		},
+	}
+	operator := NewManagementSlotRaftOperator(node)
+
+	got, err := operator.SlotRaftStatus(context.Background(), 1, 9)
+	if err != nil {
+		t.Fatalf("SlotRaftStatus() error = %v", err)
+	}
+
+	if got.NodeID != 1 || got.LeaderID != 1 || got.Role != "leader" || got.CommitIndex != 93 || got.AppliedIndex != 91 {
+		t.Fatalf("status = %#v, want local leader status with watermarks", got)
+	}
+	if node.localStatusSlotID != 9 || node.calledServiceID != 0 {
+		t.Fatalf("local status slot=%d service=%d, want local slot 9 without remote rpc", node.localStatusSlotID, node.calledServiceID)
+	}
+}
+
 func TestManagementSlotRaftOperatorRoutesRemoteCompact(t *testing.T) {
 	service := &fakeRemoteSlotRaftService{
 		result: managementusecase.SlotRaftCompactionResult{
@@ -68,13 +95,48 @@ func TestManagementSlotRaftOperatorRoutesRemoteCompact(t *testing.T) {
 	}
 }
 
+func TestManagementSlotRaftOperatorRoutesRemoteStatus(t *testing.T) {
+	service := &fakeRemoteSlotRaftService{
+		status: managementusecase.SlotNodeLogStatus{
+			NodeID:       2,
+			LeaderID:     1,
+			Role:         "follower",
+			CommitIndex:  93,
+			AppliedIndex: 91,
+		},
+	}
+	adapter := accessnode.New(accessnode.Options{ManagerSlotRaft: service})
+	node := &fakeManagementSlotRaftNode{
+		nodeID:  1,
+		handler: adapter.HandleManagerSlotRaftRPC,
+	}
+	operator := NewManagementSlotRaftOperator(node)
+
+	got, err := operator.SlotRaftStatus(context.Background(), 2, 9)
+	if err != nil {
+		t.Fatalf("SlotRaftStatus() error = %v", err)
+	}
+
+	if got.NodeID != 2 || got.LeaderID != 1 || got.Role != "follower" || got.CommitIndex != 93 || got.AppliedIndex != 91 {
+		t.Fatalf("status = %#v, want remote follower status with watermarks", got)
+	}
+	if service.nodeID != 2 || service.slotID != 9 {
+		t.Fatalf("remote status target = node:%d slot:%d, want 2/9", service.nodeID, service.slotID)
+	}
+	if node.calledNodeID != 2 || node.calledServiceID != accessnode.ManagerSlotRaftRPCServiceID {
+		t.Fatalf("rpc target = node:%d service:%d, want node 2 service %d", node.calledNodeID, node.calledServiceID, accessnode.ManagerSlotRaftRPCServiceID)
+	}
+}
+
 type fakeManagementSlotRaftNode struct {
-	nodeID          uint64
-	calledNodeID    uint64
-	calledServiceID uint8
-	handler         func(context.Context, []byte) ([]byte, error)
-	localSlotID     uint32
-	compact         clusterv2.SlotRaftCompactionResult
+	nodeID            uint64
+	calledNodeID      uint64
+	calledServiceID   uint8
+	handler           func(context.Context, []byte) ([]byte, error)
+	localSlotID       uint32
+	localStatusSlotID uint32
+	status            clusterv2.SlotRaftStatus
+	compact           clusterv2.SlotRaftCompactionResult
 }
 
 func (f *fakeManagementSlotRaftNode) NodeID() uint64 { return f.nodeID }
@@ -85,6 +147,11 @@ func (f *fakeManagementSlotRaftNode) CallRPC(ctx context.Context, nodeID uint64,
 	return f.handler(ctx, payload)
 }
 
+func (f *fakeManagementSlotRaftNode) LocalSlotRaftStatus(_ context.Context, slotID uint32) (clusterv2.SlotRaftStatus, error) {
+	f.localStatusSlotID = slotID
+	return f.status, nil
+}
+
 func (f *fakeManagementSlotRaftNode) LocalCompactSlotRaftLog(_ context.Context, slotID uint32) (clusterv2.SlotRaftCompactionResult, error) {
 	f.localSlotID = slotID
 	return f.compact, nil
@@ -93,7 +160,14 @@ func (f *fakeManagementSlotRaftNode) LocalCompactSlotRaftLog(_ context.Context, 
 type fakeRemoteSlotRaftService struct {
 	nodeID uint64
 	slotID uint32
+	status managementusecase.SlotNodeLogStatus
 	result managementusecase.SlotRaftCompactionResult
+}
+
+func (f *fakeRemoteSlotRaftService) SlotRaftStatus(_ context.Context, nodeID uint64, slotID uint32) (managementusecase.SlotNodeLogStatus, error) {
+	f.nodeID = nodeID
+	f.slotID = slotID
+	return f.status, nil
 }
 
 func (f *fakeRemoteSlotRaftService) CompactSlotRaftLog(_ context.Context, nodeID uint64, slotID uint32) (managementusecase.SlotRaftCompactionResult, error) {

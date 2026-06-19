@@ -109,6 +109,8 @@ type networkSlotTransport struct {
 	sender clusternet.Sender
 }
 
+func (networkSlotTransport) OwnsReadyMessagePayloads() bool { return true }
+
 func (t networkSlotTransport) Send(ctx context.Context, batch []multiraft.Envelope) error {
 	if t.sender == nil {
 		return nil

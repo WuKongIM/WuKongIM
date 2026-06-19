@@ -946,6 +946,13 @@ func TestManagerSlotsReturnsReadOnlyInventory(t *testing.T) {
 					ObservedConfigEpoch: 7,
 					LastReportAt:        reportedAt,
 				},
+				NodeLog: &managementusecase.SlotNodeLogStatus{
+					NodeID:       2,
+					LeaderID:     1,
+					Role:         "follower",
+					CommitIndex:  93,
+					AppliedIndex: 91,
+				},
 			}},
 		},
 	})
@@ -990,6 +997,13 @@ func TestManagerSlotsReturnsReadOnlyInventory(t *testing.T) {
 				"has_quorum": true,
 				"observed_config_epoch": 7,
 				"last_report_at": "2026-06-16T11:00:00Z"
+			},
+			"node_log": {
+				"node_id": 2,
+				"leader_id": 1,
+				"role": "follower",
+				"commit_index": 93,
+				"applied_index": 91
 			}
 		}]
 	}`) {

@@ -96,6 +96,7 @@ type ManagerControllerRaftOperator interface {
 
 // ManagerSlotRaftOperator handles node-local manager Slot Raft operations.
 type ManagerSlotRaftOperator interface {
+	SlotRaftStatus(context.Context, uint64, uint32) (managementusecase.SlotNodeLogStatus, error)
 	CompactSlotRaftLog(context.Context, uint64, uint32) (managementusecase.SlotRaftCompactionResult, error)
 }
 

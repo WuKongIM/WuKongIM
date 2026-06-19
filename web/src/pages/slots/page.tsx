@@ -139,6 +139,10 @@ function formatNodeLog(intl: IntlShape, slot: ManagerSlotsResponse["items"][numb
   )
 }
 
+function nodeRaftStatus(slot: ManagerSlotsResponse["items"][number]) {
+  return slot.node_log?.role || "unknown"
+}
+
 function sortedHashSlotItems(ownership: ManagerSlotHashSlots) {
   const items = Array.isArray(ownership.items) ? ownership.items : []
   return Array.from(new Set(items)).sort((left, right) => left - right)
@@ -578,6 +582,7 @@ export function SlotClusterListPanel() {
                       <th className="px-3 py-3">{intl.formatMessage({ id: "slots.table.desiredPeerSet" })}</th>
                       <th className="px-3 py-3">{intl.formatMessage({ id: "slots.table.currentPeerSet" })}</th>
                       <th className="px-3 py-3">{intl.formatMessage({ id: "slots.table.leader" })}</th>
+                      <th className="px-3 py-3">{intl.formatMessage({ id: "slots.table.status" })}</th>
                       <th className="px-3 py-3">{intl.formatMessage({ id: "slots.table.logHeight" })}</th>
                       <th className="px-3 py-3">{intl.formatMessage({ id: "slots.table.actions" })}</th>
                     </tr>
@@ -604,6 +609,9 @@ export function SlotClusterListPanel() {
                           {formatNodeList(slot.runtime.current_peers)}
                         </td>
                         <td className="px-3 py-3 text-sm text-muted-foreground">{slot.runtime.leader_id}</td>
+                        <td className="px-3 py-3 text-sm text-foreground">
+                          <StatusBadge value={nodeRaftStatus(slot)} />
+                        </td>
                         <td className="px-3 py-3 text-sm text-muted-foreground">{formatNodeLog(intl, slot)}</td>
                         <td className="px-3 py-3 text-sm text-foreground">
                           <Button
