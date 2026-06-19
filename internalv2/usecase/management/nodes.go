@@ -72,6 +72,8 @@ type Options struct {
 	RemoteConnections RemoteConnectionReader
 	// Logs reads node-local distributed Raft log pages.
 	Logs LogReader
+	// SlotRaft runs node-local Slot Raft compaction operations.
+	SlotRaft SlotRaftOperator
 	// ControllerRaft runs node-local Controller Raft status and compaction operations.
 	ControllerRaft ControllerRaftOperator
 	// ApplicationLogs reads selected-node ordinary application log pages.
@@ -103,6 +105,7 @@ type App struct {
 	connections            ConnectionReader
 	remoteConnections      RemoteConnectionReader
 	logs                   LogReader
+	slotRaft               SlotRaftOperator
 	controllerRaft         ControllerRaftOperator
 	applicationLogs        ApplicationLogReader
 	dbInspect              DBInspectReader
@@ -134,6 +137,7 @@ func New(opts Options) *App {
 		connections:            opts.Connections,
 		remoteConnections:      opts.RemoteConnections,
 		logs:                   opts.Logs,
+		slotRaft:               opts.SlotRaft,
 		controllerRaft:         opts.ControllerRaft,
 		applicationLogs:        opts.ApplicationLogs,
 		dbInspect:              opts.DBInspect,

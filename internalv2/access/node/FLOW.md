@@ -195,6 +195,23 @@ Controller voters and does not decide which HTTP request should target a remote
 node. Cluster-wide manual compaction is assembled above this package by the
 management usecase.
 
+## Manager Slot Raft RPC
+
+```text
+remote manager slot-raft operator
+  -> encode W K V S 1 request
+  -> clusterv2 RPCManagerSlotRaft
+  -> Adapter.HandleManagerSlotRaftRPC
+  -> Management Slot Raft operator port
+  -> encode W K V s 1 response
+```
+
+Manager Slot Raft RPC transports one explicit node-local Slot compaction
+attempt to the selected node. The server calls only the configured management
+Slot Raft operator; it does not fan out across Slot replicas, inspect log
+payloads, or decide which HTTP request should target a remote node. Per-target
+summary shaping is assembled above this package by the management usecase.
+
 ## Manager Channel RPC
 
 ```text

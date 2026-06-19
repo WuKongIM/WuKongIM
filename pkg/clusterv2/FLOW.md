@@ -42,7 +42,10 @@ read its own local Controller or Slot Raft log page, and manager channel list
 pages use it to ask a selected peer to scan its local Slot metadata pages.
 Internalv2 manager Controller Raft status and manual compaction use the same
 surface for node-scoped operations; clusterv2 exposes only the selected node's
-local operation and does not fan out or interpret manager policy. The
+local operation and does not fan out or interpret manager policy. Internalv2
+manager Slot Raft manual compaction uses the same node-scoped surface through
+`Node.LocalCompactSlotRaftLog`, which delegates only to the selected node's
+local Slot Multi-Raft runtime. The
 default transport-backed
 typed RPC client uses a larger per-priority write queue than the generic
 transport default so short foreground RPC fanout bursts are absorbed before

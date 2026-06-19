@@ -152,6 +152,61 @@ func TestLocalSlotLogEntriesReadsDefaultSlotRaftDB(t *testing.T) {
 	}
 }
 
+func TestLocalCompactSlotRaftLogUsesDefaultSlotRuntime(t *testing.T) {
+	ctx := context.Background()
+	db, err := raftlog.Open(t.TempDir(), raftlog.Options{})
+	if err != nil {
+		t.Fatalf("raftlog.Open() error = %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	storage := db.ForSlot(9)
+	hs := raftpb.HardState{Term: 2, Vote: 2, Commit: 3}
+	entries := []raftpb.Entry{
+		{Index: 1, Term: 1, Type: raftpb.EntryNormal},
+		{Index: 2, Term: 2, Type: raftpb.EntryNormal, Data: multiraftPayloadWithCreatedAt(7, 1781754611123, metafsm.EncodeNoopCommand())},
+		{Index: 3, Term: 2, Type: raftpb.EntryNormal, Data: multiraftPayloadWithCreatedAt(7, 1781754611124, metafsm.EncodeNoopCommand())},
+	}
+	if err := storage.Save(ctx, multiraft.PersistentState{HardState: &hs, Entries: entries}); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+	if err := storage.MarkApplied(ctx, 2); err != nil {
+		t.Fatalf("MarkApplied() error = %v", err)
+	}
+	runtime, err := multiraft.New(multiraft.Options{
+		NodeID:       2,
+		TickInterval: time.Hour,
+		Workers:      1,
+		Transport:    noopSlotTransport{},
+		Raft: multiraft.RaftOptions{
+			ElectionTick:  defaultSlotElectionTick,
+			HeartbeatTick: defaultSlotHeartbeatTick,
+			LogCompaction: multiraft.LogCompactionConfig{Enabled: true, TriggerEntries: 1, CheckInterval: time.Nanosecond},
+		},
+	})
+	if err != nil {
+		t.Fatalf("multiraft.New() error = %v", err)
+	}
+	t.Cleanup(func() { _ = runtime.Close() })
+	if err := runtime.OpenSlot(ctx, multiraft.SlotOptions{ID: 9, Storage: storage, StateMachine: noopSlotStateMachine{}}); err != nil {
+		t.Fatalf("OpenSlot() error = %v", err)
+	}
+	node, err := New(Config{NodeID: 2, ListenAddr: "127.0.0.1:0", DataDir: t.TempDir()})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	node.defaultSlotRuntime = runtime
+	node.started.Store(true)
+
+	got, err := node.LocalCompactSlotRaftLog(ctx, 9)
+	if err != nil {
+		t.Fatalf("LocalCompactSlotRaftLog() error = %v", err)
+	}
+
+	if got.NodeID != 2 || got.SlotID != 9 || got.AppliedIndex != 2 || got.AfterSnapshotIndex != 2 || !got.Compacted {
+		t.Fatalf("compaction = %#v, want node 2 slot 9 compacted through applied 2", got)
+	}
+}
+
 type controllerLogReaderStub struct {
 	*control.StaticController
 	opts control.ControllerLogEntriesOptions

@@ -374,6 +374,17 @@ func (a *App) wireManagerControllerRaftRPC() {
 	registrar.RegisterRPC(accessnode.ManagerControllerRaftRPCServiceID, nodeRPCHandlerFunc(adapter.HandleManagerControllerRaftRPC))
 }
 
+func (a *App) wireManagerSlotRaftRPC() {
+	node, hasNode := a.cluster.(clusterinfra.ManagementSlotRaftNode)
+	registrar, hasRegistrar := a.cluster.(nodeRPCRegistrar)
+	if !hasNode || !hasRegistrar {
+		return
+	}
+	operator := clusterinfra.NewManagementSlotRaftOperator(node)
+	adapter := accessnode.New(accessnode.Options{ManagerSlotRaft: operator, Logger: a.logger.Named("node")})
+	registrar.RegisterRPC(accessnode.ManagerSlotRaftRPCServiceID, nodeRPCHandlerFunc(adapter.HandleManagerSlotRaftRPC))
+}
+
 func (a *App) wireManagerAppLogRPC() {
 	registrar, hasRegistrar := a.cluster.(nodeRPCRegistrar)
 	if !hasRegistrar {
@@ -807,6 +818,9 @@ func (a *App) newManagerManagement() accessmanager.Management {
 		}
 		if raftNode, ok := a.cluster.(clusterinfra.ManagementControllerRaftNode); ok {
 			opts.ControllerRaft = clusterinfra.NewManagementControllerRaftOperator(raftNode)
+		}
+		if slotRaftNode, ok := a.cluster.(clusterinfra.ManagementSlotRaftNode); ok {
+			opts.SlotRaft = clusterinfra.NewManagementSlotRaftOperator(slotRaftNode)
 		}
 		return managementusecase.New(opts)
 	}

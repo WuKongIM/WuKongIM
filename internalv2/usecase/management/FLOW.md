@@ -5,7 +5,8 @@
 `internalv2/usecase/management` builds entry-independent read models for the
 new manager API. It currently owns the node list, Slot list, business channel
 list, channel runtime metadata list, Controller/Slot distributed log pages,
-Controller Raft status and explicit compaction orchestration, recent
+Controller Raft status and explicit compaction orchestration, Slot Raft
+explicit compaction orchestration, recent
 conversation list, channel message list, message retention adapter
 contract, local-or-remote connection list/detail projection, DB Inspect,
 diagnostics trace/message/event query orchestration and tracking-rule fan-out,
@@ -16,7 +17,9 @@ projections/actions used by `GET /manager/nodes`,
 `GET /manager/slots/:slot_id/logs`,
 `GET /manager/nodes/:node_id/controller-raft`,
 `POST /manager/nodes/:node_id/controller-raft/compact`,
-`POST /manager/controller-raft/compact`, `GET /manager/conversations`, `GET /manager/messages`,
+`POST /manager/controller-raft/compact`,
+`POST /manager/nodes/:node_id/slots/:slot_id/compact`,
+`GET /manager/conversations`, `GET /manager/messages`,
 `POST /manager/messages/retention`, `/manager/connections*`,
 `/manager/db/inspect*`, `/manager/diagnostics*`, `/manager/users*`, and
 `/manager/system-users*`.
@@ -70,6 +73,22 @@ bounds, then delegates log storage selection to the `LogReader` port.
 Controller and Slot log entries are read-only inspection summaries: the usecase
 does not decode Raft payloads itself and does not expose any replay, truncation,
 or mutation operation.
+
+## Slot Raft Management Flow
+
+```text
+manager HTTP handler
+  -> management.App.CompactSlotRaftLog
+  -> SlotRaftOperator
+  -> local clusterv2 node operation or node RPC routed peer operation
+  -> one node-local Slot Raft compaction result
+```
+
+The node-scoped method validates positive `node_id` and `slot_id` values and
+delegates local-or-remote selection to the `SlotRaftOperator` port. It returns a
+single node/Slot result that preserves success, skip reason, and per-target
+error text. The usecase does not fan out to Slot replicas and does not turn
+manual compaction into a replicated Raft command.
 
 ## Controller Raft Management Flow
 

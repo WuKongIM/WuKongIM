@@ -1330,6 +1330,7 @@ type managerNodesStub struct {
 	controllerRaftStatus              managementusecase.ControllerRaftStatus
 	controllerRaftCompactResult       managementusecase.ControllerRaftCompactionResult
 	controllerRaftCompactSummary      managementusecase.ControllerRaftCompactionSummary
+	slotRaftCompactSummary            managementusecase.SlotRaftCompactionSummary
 	diagnosticsResponse               managementusecase.DiagnosticsQueryResponse
 	diagnosticsTrackingCreateResponse managementusecase.DiagnosticsTrackingMutationResponse
 	diagnosticsTrackingListResponse   managementusecase.DiagnosticsTrackingListResponse
@@ -1350,6 +1351,8 @@ type managerNodesStub struct {
 	controllerLogEntriesReqSink       *managementusecase.ListControllerLogEntriesRequest
 	controllerRaftStatusNodeSink      *uint64
 	controllerRaftCompactNodeSink     *uint64
+	slotRaftCompactNodeSink           *uint64
+	slotRaftCompactSlotSink           *uint32
 	diagnosticsReqSink                *managementusecase.DiagnosticsQueryRequest
 	diagnosticsTrackingCreateReqSink  *managementusecase.DiagnosticsTrackingCreateRequest
 	diagnosticsTrackingDeleteRuleSink *string
@@ -1372,6 +1375,7 @@ type managerNodesStub struct {
 	controllerRaftStatusErr           error
 	controllerRaftCompactErr          error
 	controllerRaftCompactAllErr       error
+	slotRaftCompactErr                error
 	diagnosticsErr                    error
 	diagnosticsTrackingCreateErr      error
 	diagnosticsTrackingListErr        error
@@ -1479,6 +1483,16 @@ func (s managerNodesStub) CompactControllerRaftLog(_ context.Context, nodeID uin
 
 func (s managerNodesStub) CompactControllerRaftLogs(context.Context) (managementusecase.ControllerRaftCompactionSummary, error) {
 	return s.controllerRaftCompactSummary, s.controllerRaftCompactAllErr
+}
+
+func (s managerNodesStub) CompactSlotRaftLog(_ context.Context, nodeID uint64, slotID uint32) (managementusecase.SlotRaftCompactionSummary, error) {
+	if s.slotRaftCompactNodeSink != nil {
+		*s.slotRaftCompactNodeSink = nodeID
+	}
+	if s.slotRaftCompactSlotSink != nil {
+		*s.slotRaftCompactSlotSink = slotID
+	}
+	return s.slotRaftCompactSummary, s.slotRaftCompactErr
 }
 
 func (s managerNodesStub) QueryDiagnostics(_ context.Context, req managementusecase.DiagnosticsQueryRequest) (managementusecase.DiagnosticsQueryResponse, error) {

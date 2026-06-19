@@ -66,6 +66,8 @@ type Management interface {
 	CompactControllerRaftLog(ctx context.Context, nodeID uint64) (managementusecase.ControllerRaftCompactionResult, error)
 	// CompactControllerRaftLogs fans out Controller Raft log compaction to Controller voter nodes.
 	CompactControllerRaftLogs(ctx context.Context) (managementusecase.ControllerRaftCompactionSummary, error)
+	// CompactSlotRaftLog forces one node-local Slot Raft log compaction attempt.
+	CompactSlotRaftLog(ctx context.Context, nodeID uint64, slotID uint32) (managementusecase.SlotRaftCompactionSummary, error)
 	// QueryDiagnostics returns a manager-facing diagnostics aggregate query result.
 	QueryDiagnostics(ctx context.Context, req managementusecase.DiagnosticsQueryRequest) (managementusecase.DiagnosticsQueryResponse, error)
 	// CreateDiagnosticsTrackingRule installs a temporary diagnostics tracking rule.
@@ -269,6 +271,12 @@ func (s *Server) registerRoutes() {
 	}
 	slots.GET("/slots", s.handleSlots)
 	slots.GET("/slots/:slot_id/logs", s.handleSlotLogs)
+
+	slotWrites := s.engine.Group("/manager")
+	if s.auth.enabled() {
+		slotWrites.Use(s.requirePermission("cluster.slot", "w"))
+	}
+	slotWrites.POST("/nodes/:node_id/slots/:slot_id/compact", s.handleCompactSlotRaftLog)
 
 	controllerLogs := s.engine.Group("/manager")
 	if s.auth.enabled() {

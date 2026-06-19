@@ -165,6 +165,7 @@ func New(cfg Config, opts ...Option) (*App, error) {
 	app.wireManagerConnectionRPC()
 	app.wireManagerLogRPC()
 	app.wireManagerControllerRaftRPC()
+	app.wireManagerSlotRaftRPC()
 	app.wireManagerAppLogRPC()
 	app.wireManagerChannelRPC()
 	app.wireManagerDBInspectRPC()

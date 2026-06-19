@@ -13,19 +13,22 @@ mutations to UID-owned conversation rows plus channel-owned committed message
 logs, adapts read-only manager message pages to committed ChannelV2 reads, and
 routes manager connection reads over clusterv2 node RPC, routes manager
 distributed log reads to node-local clusterv2 log storage or peer RPC, routes
-ordinary application log reads to the selected node's app-owned local reader or
-peer RPC, routes manager DB Inspect reads to node-local inspect readers or peer
-RPC, routes manager diagnostics reads and tracking-rule mutations to the
-selected node's internalv2 diagnostics store or peer RPC, and adapts
-presence/delivery ports to clusterv2 routing and node RPC.
+manager Slot Raft compaction operations to the selected node-local clusterv2
+operation or peer RPC, routes manager Controller Raft operations to node-local
+clusterv2 operations or peer RPC, routes ordinary application log reads to the
+selected node's app-owned local reader or peer RPC, routes manager DB Inspect
+reads to node-local inspect readers or peer RPC, routes manager diagnostics
+reads and tracking-rule mutations to the selected node's internalv2 diagnostics
+store or peer RPC, and adapts presence/delivery ports to clusterv2 routing and
+node RPC.
 
 ## Management Snapshot Flow
 
 `ManagementSnapshotReader` adapts `pkg/clusterv2.Node` control snapshots to the
 internalv2 management usecase. It only exposes local control snapshot reads and
 the local node ID for read-only manager node and Slot list rendering;
-lifecycle, scale-in, onboarding, Slot operations, and other manager write
-operations stay unmigrated.
+lifecycle, scale-in, onboarding, and Slot operations other than explicit
+node-local Raft compaction stay unmigrated.
 
 ## Management Channel List Flow
 
@@ -152,6 +155,22 @@ summaries across the infra boundary. It only chooses local versus remote
 execution for the requested `node_id`; log pagination, Raft payload decoding,
 and storage watermarks live in `pkg/clusterv2`, while HTTP parsing and manager
 response shaping stay above this package.
+
+## Management Slot Raft Flow
+
+```text
+management.SlotRaftOperator
+  -> local node_id: clusterv2.LocalCompactSlotRaftLog(slot_id)
+  -> remote node_id: access/node Manager Slot Raft RPC client
+  -> clusterv2 CallRPC(target node, RPCManagerSlotRaft)
+  -> target node access/node Manager Slot Raft RPC handler
+  -> target node clusterv2 local Slot Raft compaction
+```
+
+`ManagementSlotRaftOperator` only chooses local versus remote execution for the
+requested node and Slot. HTTP parsing, permission checks, and response summary
+shaping stay above this layer; actual snapshot/log compaction stays in
+`pkg/clusterv2` and `pkg/slot/multiraft`.
 
 ## Management Application Log Flow
 

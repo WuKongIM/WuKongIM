@@ -94,6 +94,11 @@ type ManagerControllerRaftOperator interface {
 	CompactControllerRaftLog(context.Context, uint64) (managementusecase.ControllerRaftCompactionResult, error)
 }
 
+// ManagerSlotRaftOperator handles node-local manager Slot Raft operations.
+type ManagerSlotRaftOperator interface {
+	CompactSlotRaftLog(context.Context, uint64, uint32) (managementusecase.SlotRaftCompactionResult, error)
+}
+
 // ManagerChannelReader handles node-local manager channel list requests.
 type ManagerChannelReader interface {
 	ListBusinessChannels(context.Context, managementusecase.ListBusinessChannelsRequest) (managementusecase.ListBusinessChannelsResponse, error)
@@ -136,6 +141,8 @@ type Options struct {
 	ManagerLogs ManagerLogReader
 	// ManagerControllerRaft handles node-local manager Controller Raft operations.
 	ManagerControllerRaft ManagerControllerRaftOperator
+	// ManagerSlotRaft handles node-local manager Slot Raft operations.
+	ManagerSlotRaft ManagerSlotRaftOperator
 	// ManagerChannels handles node-local manager channel list requests.
 	ManagerChannels ManagerChannelReader
 	// ManagerDBInspect handles node-local manager DB inspect requests.
@@ -166,6 +173,8 @@ type Adapter struct {
 	managerLogs ManagerLogReader
 	// managerControllerRaft runs node-local Controller Raft status and compaction operations.
 	managerControllerRaft ManagerControllerRaftOperator
+	// managerSlotRaft runs node-local Slot Raft compaction operations.
+	managerSlotRaft ManagerSlotRaftOperator
 	// managerChannels reads node-local channel metadata for manager pages.
 	managerChannels ManagerChannelReader
 	// managerDBInspect reads node-local DB inspect results for manager pages.
@@ -192,6 +201,7 @@ func New(opts Options) *Adapter {
 		managerConnections:    opts.ManagerConnections,
 		managerLogs:           opts.ManagerLogs,
 		managerControllerRaft: opts.ManagerControllerRaft,
+		managerSlotRaft:       opts.ManagerSlotRaft,
 		managerChannels:       opts.ManagerChannels,
 		managerDBInspect:      opts.ManagerDBInspect,
 		managerAppLogs:        opts.ManagerAppLogs,

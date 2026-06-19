@@ -483,6 +483,72 @@ func TestNewRegistersManagerControllerRaftRPCWhenClusterSupportsOperations(t *te
 	}
 }
 
+func TestNewRegistersManagerSlotRaftRPCWhenClusterSupportsOperations(t *testing.T) {
+	cluster := &fakeManagerCluster{nodeID: 1}
+
+	_, err := newTestApp(t, Config{}, WithCluster(cluster), WithGateway(nil))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	if _, ok := cluster.registeredHandlers[accessnode.ManagerSlotRaftRPCServiceID]; !ok {
+		t.Fatalf("manager slot raft rpc handler not registered")
+	}
+}
+
+func TestManagerServerCompactsSlotRaftFromClusterOperator(t *testing.T) {
+	cluster := &fakeManagerCluster{
+		nodeID: 1,
+		slotRaftCompact: clusterv2.SlotRaftCompactionResult{
+			NodeID:             1,
+			SlotID:             9,
+			AppliedIndex:       50,
+			Compacted:          true,
+			AfterSnapshotIndex: 50,
+		},
+	}
+	app, err := newTestApp(t, Config{
+		Manager: ManagerConfig{
+			ListenAddr: "127.0.0.1:0",
+			AuthOn:     true,
+			JWTSecret:  "test-secret",
+			JWTIssuer:  "wukongim-manager",
+			JWTExpire:  time.Hour,
+			Users: []ManagerUserConfig{{
+				Username: "admin",
+				Password: "secret",
+				Permissions: []ManagerPermissionConfig{{
+					Resource: "cluster.slot",
+					Actions:  []string{"w"},
+				}},
+			}},
+		},
+	}, WithCluster(cluster), WithGateway(nil))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	srv, ok := app.manager.(*accessmanager.Server)
+	if !ok {
+		t.Fatalf("manager = %T, want *accessmanager.Server", app.manager)
+	}
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/manager/nodes/1/slots/9/compact", nil)
+	req.Header.Set("Authorization", "Bearer "+mustIssueManagerTokenForAppTest(t, srv, "admin"))
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	if cluster.slotRaftCompactSlotID != 9 {
+		t.Fatalf("compact slot id = %d, want 9", cluster.slotRaftCompactSlotID)
+	}
+	if !strings.Contains(rec.Body.String(), `"slot_id":9`) || !strings.Contains(rec.Body.String(), `"compacted":true`) {
+		t.Fatalf("body = %s, want compacted slot 9 result", rec.Body.String())
+	}
+}
+
 func TestManagerServerReadsControllerRaftStatusFromClusterOperator(t *testing.T) {
 	cluster := &fakeManagerCluster{
 		nodeID: 1,
@@ -4320,6 +4386,8 @@ type fakeManagerCluster struct {
 	slotLogs              clusterv2.SlotLogEntries
 	controllerRaftStatus  clusterv2.ControllerRaftStatus
 	controllerRaftCompact clusterv2.ControllerRaftCompactionResult
+	slotRaftCompact       clusterv2.SlotRaftCompactionResult
+	slotRaftCompactSlotID uint32
 }
 
 type fakeManagerDeviceKey struct {
@@ -4354,6 +4422,11 @@ func (f *fakeManagerCluster) LocalControllerRaftStatus(context.Context) (cluster
 
 func (f *fakeManagerCluster) LocalCompactControllerRaftLog(context.Context) (clusterv2.ControllerRaftCompactionResult, error) {
 	return f.controllerRaftCompact, nil
+}
+
+func (f *fakeManagerCluster) LocalCompactSlotRaftLog(_ context.Context, slotID uint32) (clusterv2.SlotRaftCompactionResult, error) {
+	f.slotRaftCompactSlotID = slotID
+	return f.slotRaftCompact, nil
 }
 
 func (f *fakeManagerCluster) LocalControlSnapshot(context.Context) (control.Snapshot, error) {

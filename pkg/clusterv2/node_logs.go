@@ -89,6 +89,24 @@ type SlotLogEntries struct {
 	Items []LogEntry
 }
 
+// SlotRaftCompactionResult describes one node-local Slot Raft compaction attempt.
+type SlotRaftCompactionResult struct {
+	// NodeID is the node that handled the local Slot Raft compaction attempt.
+	NodeID uint64
+	// SlotID is the physical Slot whose local Raft log was compacted.
+	SlotID uint32
+	// AppliedIndex is the local applied index used as the compaction target.
+	AppliedIndex uint64
+	// BeforeSnapshotIndex is the persisted snapshot index before the attempt.
+	BeforeSnapshotIndex uint64
+	// AfterSnapshotIndex is the persisted snapshot index after the attempt.
+	AfterSnapshotIndex uint64
+	// Compacted reports whether the attempt created a new snapshot and compacted entries.
+	Compacted bool
+	// SkippedReason explains why no new snapshot was created when Compacted is false.
+	SkippedReason string
+}
+
 type controllerLogReader interface {
 	ControllerLogEntries(context.Context, control.ControllerLogEntriesOptions) (control.ControllerLogEntries, error)
 }
@@ -195,6 +213,34 @@ func (n *Node) LocalSlotLogEntries(ctx context.Context, slotID uint32, opts LogE
 	return page, nil
 }
 
+// LocalCompactSlotRaftLog forces this node's local Slot Raft log compaction.
+func (n *Node) LocalCompactSlotRaftLog(ctx context.Context, slotID uint32) (SlotRaftCompactionResult, error) {
+	if err := ctxErr(ctx); err != nil {
+		return SlotRaftCompactionResult{}, err
+	}
+	if slotID == 0 {
+		return SlotRaftCompactionResult{}, ErrSlotNotFound
+	}
+	if err := n.ensureForeground(); err != nil {
+		return SlotRaftCompactionResult{}, err
+	}
+	if n.defaultSlotRuntime == nil {
+		return SlotRaftCompactionResult{}, ErrNotStarted
+	}
+	result, err := n.defaultSlotRuntime.CompactLog(ctx, multiraft.SlotID(slotID))
+	if err != nil {
+		return SlotRaftCompactionResult{}, mapSlotLogRuntimeError(err)
+	}
+	out := slotRaftCompactionResultFromRuntime(result)
+	if out.NodeID == 0 {
+		out.NodeID = n.NodeID()
+	}
+	if out.SlotID == 0 {
+		out.SlotID = slotID
+	}
+	return out, nil
+}
+
 type slotLogStorage interface {
 	FirstIndex(context.Context) (uint64, error)
 	LastIndex(context.Context) (uint64, error)
@@ -291,6 +337,18 @@ func slotLogEntriesFromRaft(entries []raftpb.Entry) []LogEntry {
 		out = append(out, item)
 	}
 	return out
+}
+
+func slotRaftCompactionResultFromRuntime(result multiraft.LogCompactionResult) SlotRaftCompactionResult {
+	return SlotRaftCompactionResult{
+		NodeID:              uint64(result.NodeID),
+		SlotID:              uint32(result.SlotID),
+		AppliedIndex:        result.AppliedIndex,
+		BeforeSnapshotIndex: result.BeforeSnapshotIndex,
+		AfterSnapshotIndex:  result.AfterSnapshotIndex,
+		Compacted:           result.Compacted,
+		SkippedReason:       result.SkippedReason,
+	}
 }
 
 func inspectSlotLogEntryPayload(item *LogEntry, entry raftpb.Entry) {

@@ -27,7 +27,7 @@ New(Config)
   -> create a root logger from Config.Log unless a test/harness override is supplied
   -> create metrics registry when Observability.MetricsEnabled=true and attach
      runtime observers for metrics/logging
-     (gateway runtime pressure, Slot scheduler/proposal/apply-gap pressure, ControllerV2 Raft step queue/apply gap, TransportV2 service RPC totals/latency, ChannelV2 append/replication/PullHint/runtime pressure stages, message DB grouped commit pressure, and delivery fanout)
+     (gateway runtime pressure, Slot scheduler/proposal/apply-gap/leader-election pressure, ControllerV2 Raft step queue/apply gap, TransportV2 service RPC totals/latency, ChannelV2 append/replication/PullHint/runtime pressure stages, message DB grouped commit pressure, and delivery fanout)
      plus direct ants/v2 pool occupancy gauges for instrumented runtime pools
      plus conversation list request latency/page-shape metrics, conversation
      authority admit/list/cache-pressure/handoff counters, conversation active
@@ -97,6 +97,9 @@ New(Config)
   -> register the manager Controller Raft RPC handler when node RPC and local
      Controller Raft operations are available, exposing this node's Controller
      Raft status and local compaction attempt to peer manager operators
+  -> register the manager Slot Raft RPC handler when node RPC and local Slot
+     Raft operations are available, exposing this node's selected local Slot
+     compaction attempt to peer manager operators
   -> create the app-owned ordinary application log reader from `Log.Dir`;
      register the manager app-log RPC handler when node RPC is available so
      peer manager readers can inspect this node's fixed application log sources
@@ -155,7 +158,9 @@ New(Config)
      remote `node_id` connection reads route through the manager connection
      node RPC reader, remote channel list reads route through the manager
      channel RPC reader, Controller/Slot log pages route through the manager
-     log reader, ordinary application log sources and pages use the app-owned
+     log reader, node-scoped Controller and Slot Raft compaction operations
+     route through their manager operator adapters, ordinary application log
+     sources and pages use the app-owned
      local reader for the local node and route peer `node_id` reads through the
      manager app-log RPC reader, DB Inspect reads use the local app inspect reader for empty or
      local `node_id` and route non-local `node_id` through the manager DB

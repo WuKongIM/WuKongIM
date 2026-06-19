@@ -17,6 +17,7 @@ GET  /manager/monitor/realtime (Prometheus-backed business realtime monitor card
 GET  /manager/cluster-monitor/realtime (Prometheus/control-snapshot cluster operations monitor cards; requires cluster.node:r when Auth.On=true)
 GET  /manager/runtime/workqueues (local-node runtime pressure; requires cluster.node:r when Auth.On=true)
 GET  /manager/slots   (read-only Slot list; requires cluster.slot:r when Auth.On=true)
+POST /manager/nodes/:node_id/slots/:slot_id/compact (manual node-local Slot Raft compaction; requires cluster.slot:w when Auth.On=true)
 GET  /manager/controller/logs (Controller distributed log page; requires cluster.controller:r when Auth.On=true)
 GET  /manager/nodes/:node_id/controller-raft (node-local Controller Raft status; requires cluster.controller:r when Auth.On=true)
 POST /manager/nodes/:node_id/controller-raft/compact (manual node-local Controller Raft compaction; requires cluster.controller:w when Auth.On=true)
@@ -103,6 +104,12 @@ newest-first distributed Raft log pages for the selected node. They parse
 selection to `internalv2/usecase/management`, and return decoded payload
 summaries only for inspection; the routes do not mutate Controller or Slot
 state.
+
+`/manager/nodes/:node_id/slots/:slot_id/compact` is the explicit Slot Raft
+operator action paired with the read-only Slot log page. It validates the
+selected node and physical Slot at the HTTP boundary, delegates local/remote
+execution to the management usecase, and returns one per-node/slot result with
+success, skip, or error state; it does not fan out across Slot replicas.
 
 `/manager/nodes/:node_id/controller-raft` exposes the selected node's
 Controller Raft role, commit/apply watermarks, durable log/snapshot watermarks,
