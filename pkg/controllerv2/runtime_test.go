@@ -350,6 +350,21 @@ func TestRuntimeRequestSlotLeaderTransfer(t *testing.T) {
 		t.Fatalf("state after transfer request = %#v", st)
 	}
 
+	sameRevisionDupe, err := runtime.RequestSlotLeaderTransfer(ctx, SlotLeaderTransferRequest{
+		SlotID:        1,
+		SourceNode:    1,
+		TargetNode:    2,
+		TargetPeers:   []uint64{1, 2},
+		ConfigEpoch:   7,
+		StateRevision: ready.Revision,
+	})
+	if err != nil {
+		t.Fatalf("RequestSlotLeaderTransfer(same revision duplicate) error = %v", err)
+	}
+	if sameRevisionDupe.Created || sameRevisionDupe.Task == nil || sameRevisionDupe.Task.TaskID != wantTaskID {
+		t.Fatalf("RequestSlotLeaderTransfer(same revision duplicate) = %#v, want existing task no-op", sameRevisionDupe)
+	}
+
 	dupe, err := runtime.RequestSlotLeaderTransfer(ctx, SlotLeaderTransferRequest{
 		SlotID:        1,
 		SourceNode:    1,

@@ -55,6 +55,13 @@ func (r *Runtime) RequestSlotLeaderTransfer(ctx context.Context, req SlotLeaderT
 		ConfigEpoch:      req.ConfigEpoch,
 		Status:           state.TaskStatusPending,
 	}
+	st, err := r.LocalState(ctx)
+	if err != nil {
+		return SlotLeaderTransferResult{}, err
+	}
+	if existing, ok := equivalentActiveLeaderTransferTask(st, assignment, task); ok {
+		return SlotLeaderTransferResult{Created: false, Task: (*ReconcileTask)(&existing)}, nil
+	}
 	if err := r.proposeTaskCommand(ctx, command.Command{
 		Kind:             command.KindUpsertSlotAssignmentAndTask,
 		ExpectedRevision: &expectedRevision,
@@ -63,7 +70,7 @@ func (r *Runtime) RequestSlotLeaderTransfer(ctx context.Context, req SlotLeaderT
 	}); err != nil {
 		return SlotLeaderTransferResult{}, err
 	}
-	st, err := r.LocalState(ctx)
+	st, err = r.LocalState(ctx)
 	if err != nil {
 		return SlotLeaderTransferResult{}, err
 	}

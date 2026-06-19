@@ -100,6 +100,7 @@ func TestManagerSlotLeaderTransferMapsErrors(t *testing.T) {
 		{name: "conflict", err: managementusecase.ErrSlotLeaderTransferConflict, status: http.StatusConflict, code: "conflict"},
 		{name: "writer unavailable", err: managementusecase.ErrSlotLeaderTransferUnavailable, status: http.StatusServiceUnavailable, code: "service_unavailable"},
 		{name: "runtime unavailable", err: managementusecase.ErrSlotRuntimeStatusUnavailable, status: http.StatusServiceUnavailable, code: "service_unavailable"},
+		{name: "slot raft operator unavailable", err: managementusecase.ErrSlotRaftOperatorUnavailable, status: http.StatusServiceUnavailable, code: "service_unavailable"},
 		{name: "not leader", err: clusterv2.ErrNotLeader, status: http.StatusServiceUnavailable, code: "service_unavailable"},
 	}
 	for _, tt := range tests {

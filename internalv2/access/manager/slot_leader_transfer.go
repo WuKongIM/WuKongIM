@@ -89,6 +89,7 @@ func writeSlotLeaderTransferError(c *gin.Context, err error) {
 		jsonError(c, http.StatusConflict, "conflict", "conflict")
 	case errors.Is(err, managementusecase.ErrSlotLeaderTransferUnavailable),
 		errors.Is(err, managementusecase.ErrSlotRuntimeStatusUnavailable),
+		errors.Is(err, managementusecase.ErrSlotRaftOperatorUnavailable),
 		errors.Is(err, clusterv2.ErrSlotNotFound),
 		errors.Is(err, clusterv2.ErrNotStarted),
 		errors.Is(err, clusterv2.ErrNotLeader),
