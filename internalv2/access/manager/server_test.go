@@ -1380,6 +1380,7 @@ type managerNodesStub struct {
 	controllerRaftCompactResult       managementusecase.ControllerRaftCompactionResult
 	controllerRaftCompactSummary      managementusecase.ControllerRaftCompactionSummary
 	slotRaftCompactSummary            managementusecase.SlotRaftCompactionSummary
+	slotLeaderTransferResponse        managementusecase.SlotLeaderTransferResponse
 	diagnosticsResponse               managementusecase.DiagnosticsQueryResponse
 	diagnosticsTrackingCreateResponse managementusecase.DiagnosticsTrackingMutationResponse
 	diagnosticsTrackingListResponse   managementusecase.DiagnosticsTrackingListResponse
@@ -1402,6 +1403,7 @@ type managerNodesStub struct {
 	controllerRaftCompactNodeSink     *uint64
 	slotRaftCompactNodeSink           *uint64
 	slotRaftCompactSlotSink           *uint32
+	slotLeaderTransferReqSink         *managementusecase.SlotLeaderTransferRequest
 	diagnosticsReqSink                *managementusecase.DiagnosticsQueryRequest
 	diagnosticsTrackingCreateReqSink  *managementusecase.DiagnosticsTrackingCreateRequest
 	diagnosticsTrackingDeleteRuleSink *string
@@ -1425,6 +1427,7 @@ type managerNodesStub struct {
 	controllerRaftCompactErr          error
 	controllerRaftCompactAllErr       error
 	slotRaftCompactErr                error
+	slotLeaderTransferErr             error
 	diagnosticsErr                    error
 	diagnosticsTrackingCreateErr      error
 	diagnosticsTrackingListErr        error
@@ -1542,6 +1545,13 @@ func (s managerNodesStub) CompactSlotRaftLog(_ context.Context, nodeID uint64, s
 		*s.slotRaftCompactSlotSink = slotID
 	}
 	return s.slotRaftCompactSummary, s.slotRaftCompactErr
+}
+
+func (s managerNodesStub) RequestSlotLeaderTransfer(_ context.Context, req managementusecase.SlotLeaderTransferRequest) (managementusecase.SlotLeaderTransferResponse, error) {
+	if s.slotLeaderTransferReqSink != nil {
+		*s.slotLeaderTransferReqSink = req
+	}
+	return s.slotLeaderTransferResponse, s.slotLeaderTransferErr
 }
 
 func (s managerNodesStub) QueryDiagnostics(_ context.Context, req managementusecase.DiagnosticsQueryRequest) (managementusecase.DiagnosticsQueryResponse, error) {

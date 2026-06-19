@@ -17,6 +17,7 @@ GET  /manager/monitor/realtime (Prometheus-backed business realtime monitor card
 GET  /manager/cluster-monitor/realtime (Prometheus/control-snapshot cluster operations monitor cards; requires cluster.node:r when Auth.On=true)
 GET  /manager/runtime/workqueues (local-node runtime pressure; requires cluster.node:r when Auth.On=true)
 GET  /manager/slots   (read-only Slot list; requires cluster.slot:r when Auth.On=true)
+POST /manager/slots/:slot_id/leader-transfer (Controller-backed Slot leader-transfer intent; requires cluster.slot:w when Auth.On=true)
 POST /manager/nodes/:node_id/slots/:slot_id/compact (manual node-local Slot Raft compaction; requires cluster.slot:w when Auth.On=true)
 GET  /manager/controller/logs (Controller distributed log page; requires cluster.controller:r when Auth.On=true)
 GET  /manager/nodes/:node_id/controller-raft (node-local Controller Raft status; requires cluster.controller:r when Auth.On=true)
@@ -98,8 +99,11 @@ view, including `node_id` filtering. It reads the same control snapshot through
 `internalv2/usecase/management` and, when available, returns the selected node's
 local Slot Raft role plus commit/applied watermarks in `node_log` for the web
 status and log-height columns. The response may include active task summaries
-and participant progress for display only. Slot task mutation routes remain
-outside this phase. Slot detail and operation routes remain unmigrated.
+and participant progress for display only. `/manager/slots/:slot_id/leader-transfer`
+parses a `target_node`, delegates snapshot/runtime validation to
+`internalv2/usecase/management`, returns `202 Accepted` when a new Controller
+task is created, and returns `200 OK` for no-op already-leader or existing-task
+responses. Slot detail and other operation routes remain unmigrated.
 
 `/manager/controller/logs` and `/manager/slots/:slot_id/logs` expose
 newest-first distributed Raft log pages for the selected node. They parse

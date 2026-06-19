@@ -74,6 +74,10 @@ type Options struct {
 	Logs LogReader
 	// SlotRaft runs node-local Slot Raft compaction operations.
 	SlotRaft SlotRaftOperator
+	// LeaderTransfer submits Controller-backed Slot leader transfer intents.
+	LeaderTransfer SlotLeaderTransferWriter
+	// SlotRuntimeStatus reads the live Slot Raft status used to validate transfers.
+	SlotRuntimeStatus SlotRuntimeStatusReader
 	// ControllerRaft runs node-local Controller Raft status and compaction operations.
 	ControllerRaft ControllerRaftOperator
 	// ApplicationLogs reads selected-node ordinary application log pages.
@@ -106,6 +110,8 @@ type App struct {
 	remoteConnections      RemoteConnectionReader
 	logs                   LogReader
 	slotRaft               SlotRaftOperator
+	leaderTransfer         SlotLeaderTransferWriter
+	slotRuntimeStatus      SlotRuntimeStatusReader
 	controllerRaft         ControllerRaftOperator
 	applicationLogs        ApplicationLogReader
 	dbInspect              DBInspectReader
@@ -138,6 +144,8 @@ func New(opts Options) *App {
 		remoteConnections:      opts.RemoteConnections,
 		logs:                   opts.Logs,
 		slotRaft:               opts.SlotRaft,
+		leaderTransfer:         opts.LeaderTransfer,
+		slotRuntimeStatus:      opts.SlotRuntimeStatus,
 		controllerRaft:         opts.ControllerRaft,
 		applicationLogs:        opts.ApplicationLogs,
 		dbInspect:              opts.DBInspect,

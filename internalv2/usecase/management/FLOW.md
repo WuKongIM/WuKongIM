@@ -6,13 +6,15 @@
 new manager API. It currently owns the node list, Slot list, business channel
 list, channel runtime metadata list, Controller/Slot distributed log pages,
 Controller Raft status and explicit compaction orchestration, Slot Raft
-explicit compaction orchestration, recent
-conversation list, channel message list, message retention adapter
-contract, local-or-remote connection list/detail projection, DB Inspect,
+explicit compaction orchestration, Slot leader-transfer intent
+validation/submission, recent conversation list, channel message list,
+message retention adapter contract, local-or-remote connection list/detail
+projection, DB Inspect,
 diagnostics trace/message/event query orchestration and tracking-rule fan-out,
 node-local diagnostics orchestration, user management, and system UID
 projections/actions used by `GET /manager/nodes`,
-`GET /manager/slots`, `GET /manager/channels`,
+`GET /manager/slots`, `POST /manager/slots/:slot_id/leader-transfer`,
+`GET /manager/channels`,
 `GET /manager/channel-runtime-meta`, `GET /manager/controller/logs`,
 `GET /manager/slots/:slot_id/logs`,
 `GET /manager/nodes/:node_id/controller-raft`,
@@ -59,10 +61,31 @@ also performs a best-effort node-local or routed peer status read for each
 returned Slot and attaches the selected node's Raft role plus commit/applied
 watermarks. Status read misses are omitted from the row rather than failing the
 inventory response. Active task summaries are derived from the same clusterv2
-control snapshot and attached to the matching Slot row. The usecase does not
-read ControllerV2 state directly and does not expose task mutation routes. Slot
-detail, rebalance, recovery, leader-transfer, and add/remove operation routes
-are outside this migration step.
+control snapshot and attached to the matching Slot row. Slot leader-transfer
+requests use the same control snapshot plus a live Slot runtime status reader
+to validate the current leader, voter quorum, desired peers, and target-node
+health before submitting a Controller-backed task intent. The usecase does not
+read ControllerV2 state directly and only exposes this narrow task mutation
+route; Slot detail, rebalance, recovery, and add/remove operation routes are
+outside this migration step.
+
+## Slot Leader Transfer Flow
+
+```text
+manager HTTP handler
+  -> management.App.RequestSlotLeaderTransfer
+  -> ControlSnapshotReader.LocalControlSnapshot
+  -> SlotRuntimeStatusReader.SlotRuntimeStatus
+  -> SlotLeaderTransferWriter.RequestSlotLeaderTransfer
+  -> clusterv2 control leader-transfer task intent
+```
+
+The usecase rejects invalid IDs, missing Slot assignments, existing conflicting
+tasks, targets outside desired peers, unavailable or non-data target nodes, and
+runtime voter sets that cannot prove quorum. Already-leader and same-task
+requests are no-ops and do not require the writer port to be wired. New task
+creation is delegated to the writer port with source leader, target leader,
+target peers, config epoch, and observed control-state revision.
 
 ## Distributed Log Flow
 
