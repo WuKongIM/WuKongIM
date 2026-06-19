@@ -99,6 +99,19 @@ func TestRuntimeProbeProposeWithoutRaftReturnsNotStarted(t *testing.T) {
 	}
 }
 
+func TestRuntimeTaskWritersWithoutBackendReturnNotStarted(t *testing.T) {
+	var runtime Runtime
+	if err := runtime.ReportTaskProgress(context.Background(), TaskProgress{TaskID: "bootstrap-1"}); !errors.Is(err, cv2.ErrNotStarted) {
+		t.Fatalf("ReportTaskProgress() error = %v, want ErrNotStarted", err)
+	}
+	if err := runtime.CompleteTask(context.Background(), TaskResult{TaskID: "bootstrap-1"}); !errors.Is(err, cv2.ErrNotStarted) {
+		t.Fatalf("CompleteTask() error = %v, want ErrNotStarted", err)
+	}
+	if err := runtime.FailTask(context.Background(), TaskResult{TaskID: "bootstrap-1"}); !errors.Is(err, cv2.ErrNotStarted) {
+		t.Fatalf("FailTask() error = %v, want ErrNotStarted", err)
+	}
+}
+
 func TestRuntimeRestartReusesExistingState(t *testing.T) {
 	dir := t.TempDir()
 	cfg := RuntimeConfig{

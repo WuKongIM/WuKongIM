@@ -27,6 +27,13 @@ func TestControllerV2SnapshotMapping(t *testing.T) {
 	if len(snap.Tasks) != 1 || snap.Tasks[0].Kind != TaskKindBootstrap {
 		t.Fatalf("tasks = %#v, want bootstrap task", snap.Tasks)
 	}
+	task := snap.Tasks[0]
+	if task.Step != TaskStepCreateSlot || task.SourceNode != 4 || task.Status != TaskStatusFailed || task.Attempt != 1 || task.LastError != "quorum missing" {
+		t.Fatalf("mapped task = %#v, want full task read model", task)
+	}
+	if task.CompletionPolicy != TaskCompletionPolicyAllTargetPeers || len(task.ParticipantProgress) != 3 || task.ParticipantProgress[2].LastError != "open failed" {
+		t.Fatalf("mapped participant progress = %#v", task.ParticipantProgress)
+	}
 }
 
 func TestControllerV2SnapshotMappingRejectsInvalidState(t *testing.T) {
@@ -83,7 +90,25 @@ func controllerV2State() cv2.ClusterState {
 		},
 		Slots:     []cv2.SlotAssignment{{SlotID: 1, DesiredPeers: []uint64{1, 2, 3}, ConfigEpoch: 2, PreferredLeader: 1}},
 		HashSlots: cv2.HashSlotTable{Version: cv2.CurrentHashSlotTableVersion, SlotCount: 4, Ranges: []cv2.HashSlotRange{{From: 0, To: 3, SlotID: 1}}},
-		Tasks:     []cv2.ReconcileTask{{TaskID: "bootstrap-1", SlotID: 1, Kind: cv2.TaskKindBootstrap, Step: cv2.TaskStepCreateSlot, TargetNode: 1, TargetPeers: []uint64{1, 2, 3}, ConfigEpoch: 2, Status: cv2.TaskStatusPending}},
+		Tasks: []cv2.ReconcileTask{{
+			TaskID:           "bootstrap-1",
+			SlotID:           1,
+			Kind:             cv2.TaskKindBootstrap,
+			Step:             cv2.TaskStepCreateSlot,
+			SourceNode:       4,
+			TargetNode:       1,
+			TargetPeers:      []uint64{1, 2, 3},
+			CompletionPolicy: cv2.TaskCompletionPolicyAllTargetPeers,
+			ParticipantProgress: []cv2.TaskParticipantProgress{
+				{NodeID: 1, Status: cv2.TaskParticipantStatusDone},
+				{NodeID: 2, Status: cv2.TaskParticipantStatusPending},
+				{NodeID: 3, Status: cv2.TaskParticipantStatusFailed, Attempt: 1, LastError: "open failed"},
+			},
+			ConfigEpoch: 2,
+			Attempt:     1,
+			Status:      cv2.TaskStatusFailed,
+			LastError:   "quorum missing",
+		}},
 	}
 }
 

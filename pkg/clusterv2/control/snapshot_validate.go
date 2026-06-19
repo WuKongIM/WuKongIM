@@ -53,11 +53,14 @@ func (s Snapshot) Validate() error {
 		return err
 	}
 	for _, task := range s.Tasks {
-		if task.TaskID == "" || task.SlotID == 0 {
+		if task.TaskID == "" || task.SlotID == 0 || task.Kind == "" || task.Step == "" || task.Status == "" {
 			return fmt.Errorf("control snapshot: invalid task")
 		}
 		if _, ok := seenSlots[task.SlotID]; !ok {
 			return fmt.Errorf("control snapshot: task %q references unknown slot %d", task.TaskID, task.SlotID)
+		}
+		if task.CompletionPolicy == TaskCompletionPolicyAllTargetPeers && len(task.ParticipantProgress) != len(task.TargetPeers) {
+			return fmt.Errorf("control snapshot: task %q progress does not match target peers", task.TaskID)
 		}
 	}
 	return nil

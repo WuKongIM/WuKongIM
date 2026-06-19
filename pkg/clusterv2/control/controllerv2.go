@@ -56,7 +56,21 @@ func SnapshotFromControllerV2(st cv2.ClusterState) (Snapshot, error) {
 		snap.HashSlots.Ranges = append(snap.HashSlots.Ranges, HashSlotRange{From: r.From, To: r.To, SlotID: r.SlotID})
 	}
 	for _, task := range st.Tasks {
-		snap.Tasks = append(snap.Tasks, ReconcileTask{TaskID: task.TaskID, SlotID: task.SlotID, Kind: TaskKind(task.Kind), TargetNode: task.TargetNode, TargetPeers: append([]uint64(nil), task.TargetPeers...), ConfigEpoch: task.ConfigEpoch})
+		snap.Tasks = append(snap.Tasks, ReconcileTask{
+			TaskID:              task.TaskID,
+			SlotID:              task.SlotID,
+			Kind:                TaskKind(task.Kind),
+			Step:                TaskStep(task.Step),
+			SourceNode:          task.SourceNode,
+			TargetNode:          task.TargetNode,
+			TargetPeers:         append([]uint64(nil), task.TargetPeers...),
+			CompletionPolicy:    TaskCompletionPolicy(task.CompletionPolicy),
+			ParticipantProgress: mapControllerV2ParticipantProgress(task.ParticipantProgress),
+			ConfigEpoch:         task.ConfigEpoch,
+			Attempt:             task.Attempt,
+			Status:              TaskStatus(task.Status),
+			LastError:           task.LastError,
+		})
 	}
 	if err := snap.Validate(); err != nil {
 		return Snapshot{}, err
@@ -140,6 +154,30 @@ func (a *ControllerV2Adapter) ReportSlots(ctx context.Context, report SlotRuntim
 	return ctxErr(ctx)
 }
 
+// CompleteTask is unsupported on the read-only ControllerV2 snapshot adapter.
+func (a *ControllerV2Adapter) CompleteTask(ctx context.Context, result TaskResult) error {
+	if err := ctxErr(ctx); err != nil {
+		return err
+	}
+	return fmt.Errorf("control: controllerv2 adapter cannot write task results")
+}
+
+// FailTask is unsupported on the read-only ControllerV2 snapshot adapter.
+func (a *ControllerV2Adapter) FailTask(ctx context.Context, result TaskResult) error {
+	if err := ctxErr(ctx); err != nil {
+		return err
+	}
+	return fmt.Errorf("control: controllerv2 adapter cannot write task results")
+}
+
+// ReportTaskProgress is unsupported on the read-only ControllerV2 snapshot adapter.
+func (a *ControllerV2Adapter) ReportTaskProgress(ctx context.Context, progress TaskProgress) error {
+	if err := ctxErr(ctx); err != nil {
+		return err
+	}
+	return fmt.Errorf("control: controllerv2 adapter cannot write task progress")
+}
+
 // Watch returns snapshot update events.
 func (a *ControllerV2Adapter) Watch() <-chan SnapshotEvent { return a.watch }
 
@@ -167,6 +205,19 @@ func mapControllerV2Status(status cv2.NodeStatus) NodeStatus {
 	default:
 		return NodeDown
 	}
+}
+
+func mapControllerV2ParticipantProgress(in []cv2.TaskParticipantProgress) []TaskParticipantProgress {
+	out := make([]TaskParticipantProgress, 0, len(in))
+	for _, progress := range in {
+		out = append(out, TaskParticipantProgress{
+			NodeID:    progress.NodeID,
+			Attempt:   progress.Attempt,
+			Status:    TaskParticipantStatus(progress.Status),
+			LastError: progress.LastError,
+		})
+	}
+	return out
 }
 
 var _ Controller = (*ControllerV2Adapter)(nil)

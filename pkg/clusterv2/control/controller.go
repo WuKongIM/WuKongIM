@@ -1,6 +1,10 @@
 package control
 
-import "context"
+import (
+	"context"
+
+	cv2 "github.com/WuKongIM/WuKongIM/pkg/controllerv2"
+)
 
 // Controller provides local access to clusterv2 control state.
 type Controller interface {
@@ -16,6 +20,12 @@ type Controller interface {
 	ReportNode(context.Context, NodeReport) error
 	// ReportSlots reports low-frequency local Slot runtime state.
 	ReportSlots(context.Context, SlotRuntimeReport) error
+	// CompleteTask submits a fenced global task completion result.
+	CompleteTask(context.Context, TaskResult) error
+	// FailTask submits a fenced global task failure result.
+	FailTask(context.Context, TaskResult) error
+	// ReportTaskProgress submits one participant's fenced progress report.
+	ReportTaskProgress(context.Context, TaskProgress) error
 	// Watch returns snapshot update events.
 	Watch() <-chan SnapshotEvent
 }
@@ -31,6 +41,13 @@ type SnapshotEvent struct {
 	// Snapshot is the new control snapshot.
 	Snapshot Snapshot
 }
+
+type (
+	// TaskResult describes the result of a data-plane reconcile task attempt.
+	TaskResult = cv2.TaskResult
+	// TaskProgress describes one participant's local progress for a barrier task.
+	TaskProgress = cv2.TaskProgress
+)
 
 // NodeReport contains low-frequency node status reported to the control adapter.
 type NodeReport struct {

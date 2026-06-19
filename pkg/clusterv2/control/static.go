@@ -12,7 +12,13 @@ type StaticController struct {
 	watch      chan SnapshotEvent
 	nodeReport NodeReport
 	slotReport SlotRuntimeReport
-	started    bool
+	// CompletedTasks records fenced completion writes for tests.
+	CompletedTasks []TaskResult
+	// FailedTasks records fenced failure writes for tests.
+	FailedTasks []TaskResult
+	// ProgressReports records participant progress writes for tests.
+	ProgressReports []TaskProgress
+	started         bool
 }
 
 // NewStaticController creates a StaticController seeded with snapshot.
@@ -80,6 +86,39 @@ func (c *StaticController) ReportSlots(ctx context.Context, report SlotRuntimeRe
 	}
 	c.mu.Lock()
 	c.slotReport = cloneSlotRuntimeReport(report)
+	c.mu.Unlock()
+	return nil
+}
+
+// CompleteTask records a fenced global task completion result.
+func (c *StaticController) CompleteTask(ctx context.Context, result TaskResult) error {
+	if err := ctxErr(ctx); err != nil {
+		return err
+	}
+	c.mu.Lock()
+	c.CompletedTasks = append(c.CompletedTasks, result)
+	c.mu.Unlock()
+	return nil
+}
+
+// FailTask records a fenced global task failure result.
+func (c *StaticController) FailTask(ctx context.Context, result TaskResult) error {
+	if err := ctxErr(ctx); err != nil {
+		return err
+	}
+	c.mu.Lock()
+	c.FailedTasks = append(c.FailedTasks, result)
+	c.mu.Unlock()
+	return nil
+}
+
+// ReportTaskProgress records one participant's fenced progress report.
+func (c *StaticController) ReportTaskProgress(ctx context.Context, progress TaskProgress) error {
+	if err := ctxErr(ctx); err != nil {
+		return err
+	}
+	c.mu.Lock()
+	c.ProgressReports = append(c.ProgressReports, progress)
 	c.mu.Unlock()
 	return nil
 }

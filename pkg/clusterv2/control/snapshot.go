@@ -1,5 +1,7 @@
 package control
 
+import cv2 "github.com/WuKongIM/WuKongIM/pkg/controllerv2"
+
 // Role describes one durable node capability in clusterv2 control state.
 type Role string
 
@@ -23,12 +25,57 @@ const (
 )
 
 // TaskKind identifies one reconcile workflow kind.
-type TaskKind string
+type TaskKind = cv2.TaskKind
 
 const (
 	// TaskKindBootstrap creates the initial physical Slot replica group.
-	TaskKindBootstrap TaskKind = "bootstrap"
+	TaskKindBootstrap = cv2.TaskKindBootstrap
 )
+
+// TaskStep identifies the current step inside a task workflow.
+type TaskStep = cv2.TaskStep
+
+const (
+	// TaskStepCreateSlot creates or verifies a physical Slot replica group.
+	TaskStepCreateSlot = cv2.TaskStepCreateSlot
+)
+
+// TaskStatus describes whether a durable reconcile task is actionable.
+type TaskStatus = cv2.TaskStatus
+
+const (
+	// TaskStatusPending means the task is waiting for a worker.
+	TaskStatusPending = cv2.TaskStatusPending
+	// TaskStatusRunning means the task is actively being attempted.
+	TaskStatusRunning = cv2.TaskStatusRunning
+	// TaskStatusFailed means the task remains active after a failed attempt.
+	TaskStatusFailed = cv2.TaskStatusFailed
+)
+
+// TaskCompletionPolicy describes how participant progress gates completion.
+type TaskCompletionPolicy = cv2.TaskCompletionPolicy
+
+const (
+	// TaskCompletionPolicySingleObserver means one eligible observer may complete the task.
+	TaskCompletionPolicySingleObserver = cv2.TaskCompletionPolicySingleObserver
+	// TaskCompletionPolicyAllTargetPeers means every target peer must report done.
+	TaskCompletionPolicyAllTargetPeers = cv2.TaskCompletionPolicyAllTargetPeers
+)
+
+// TaskParticipantStatus describes one node's local task progress.
+type TaskParticipantStatus = cv2.TaskParticipantStatus
+
+const (
+	// TaskParticipantStatusPending means the participant is not complete.
+	TaskParticipantStatusPending = cv2.TaskParticipantStatusPending
+	// TaskParticipantStatusDone means the participant completed local work.
+	TaskParticipantStatusDone = cv2.TaskParticipantStatusDone
+	// TaskParticipantStatusFailed means the participant's latest local attempt failed.
+	TaskParticipantStatusFailed = cv2.TaskParticipantStatusFailed
+)
+
+// TaskParticipantProgress describes one node's local progress.
+type TaskParticipantProgress = cv2.TaskParticipantProgress
 
 // Snapshot is the clusterv2 control read model consumed by data-plane modules.
 type Snapshot struct {
@@ -98,10 +145,24 @@ type ReconcileTask struct {
 	SlotID uint32
 	// Kind identifies the reconcile workflow kind.
 	Kind TaskKind
+	// Step identifies the current workflow step.
+	Step TaskStep
+	// SourceNode is the optional node that currently owns source data.
+	SourceNode uint64
 	// TargetNode is the primary node that should execute this task when set.
 	TargetNode uint64
 	// TargetPeers are the peer IDs this task should converge.
 	TargetPeers []uint64
+	// CompletionPolicy controls how participant progress gates completion.
+	CompletionPolicy TaskCompletionPolicy
+	// ParticipantProgress records per-node local progress for barrier tasks.
+	ParticipantProgress []TaskParticipantProgress
 	// ConfigEpoch ties this task to a Slot assignment epoch.
 	ConfigEpoch uint64
+	// Attempt counts global task attempts, including failed attempts.
+	Attempt uint32
+	// Status describes whether this task is actionable.
+	Status TaskStatus
+	// LastError stores the bounded error from the most recent failed attempt.
+	LastError string
 }

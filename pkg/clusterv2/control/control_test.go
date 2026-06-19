@@ -73,6 +73,40 @@ func TestStaticControllerRecordsReports(t *testing.T) {
 	}
 }
 
+func TestStaticControllerRecordsTaskWrites(t *testing.T) {
+	c := NewStaticController(validSnapshot())
+	progress := TaskProgress{
+		TaskID:             "bootstrap-1",
+		SlotID:             1,
+		TaskKind:           TaskKindBootstrap,
+		ConfigEpoch:        1,
+		TaskAttempt:        0,
+		ParticipantNodeID:  2,
+		ParticipantAttempt: 0,
+		Status:             TaskParticipantStatusDone,
+	}
+	if err := c.ReportTaskProgress(context.Background(), progress); err != nil {
+		t.Fatalf("ReportTaskProgress() error = %v", err)
+	}
+	completed := TaskResult{TaskID: "bootstrap-1", SlotID: 1, TaskKind: TaskKindBootstrap, ConfigEpoch: 1}
+	if err := c.CompleteTask(context.Background(), completed); err != nil {
+		t.Fatalf("CompleteTask() error = %v", err)
+	}
+	failed := TaskResult{TaskID: "bootstrap-2", SlotID: 2, TaskKind: TaskKindBootstrap, ConfigEpoch: 2, Err: "boom"}
+	if err := c.FailTask(context.Background(), failed); err != nil {
+		t.Fatalf("FailTask() error = %v", err)
+	}
+	if len(c.ProgressReports) != 1 || c.ProgressReports[0].ParticipantNodeID != 2 {
+		t.Fatalf("ProgressReports = %#v, want one node 2 report", c.ProgressReports)
+	}
+	if len(c.CompletedTasks) != 1 || c.CompletedTasks[0].TaskID != "bootstrap-1" {
+		t.Fatalf("CompletedTasks = %#v, want bootstrap-1", c.CompletedTasks)
+	}
+	if len(c.FailedTasks) != 1 || c.FailedTasks[0].Err != "boom" {
+		t.Fatalf("FailedTasks = %#v, want boom failure", c.FailedTasks)
+	}
+}
+
 func validSnapshot() Snapshot {
 	return Snapshot{
 		Revision:     1,
@@ -84,6 +118,21 @@ func validSnapshot() Snapshot {
 		},
 		Slots:     []SlotAssignment{{SlotID: 1, DesiredPeers: []uint64{1, 2, 3}, ConfigEpoch: 1, PreferredLeader: 1}},
 		HashSlots: HashSlotTable{Revision: 1, Count: 4, Ranges: []HashSlotRange{{From: 0, To: 3, SlotID: 1}}},
-		Tasks:     []ReconcileTask{{TaskID: "bootstrap-1", SlotID: 1, Kind: TaskKindBootstrap, TargetNode: 1, TargetPeers: []uint64{1, 2, 3}, ConfigEpoch: 1}},
+		Tasks: []ReconcileTask{{
+			TaskID:           "bootstrap-1",
+			SlotID:           1,
+			Kind:             TaskKindBootstrap,
+			Step:             TaskStepCreateSlot,
+			TargetNode:       1,
+			TargetPeers:      []uint64{1, 2, 3},
+			CompletionPolicy: TaskCompletionPolicyAllTargetPeers,
+			ParticipantProgress: []TaskParticipantProgress{
+				{NodeID: 1, Status: TaskParticipantStatusPending},
+				{NodeID: 2, Status: TaskParticipantStatusPending},
+				{NodeID: 3, Status: TaskParticipantStatusPending},
+			},
+			ConfigEpoch: 1,
+			Status:      TaskStatusPending,
+		}},
 	}
 }

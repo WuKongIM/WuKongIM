@@ -15,6 +15,7 @@ func (s Snapshot) Clone() Snapshot {
 	out.Tasks = append([]ReconcileTask(nil), s.Tasks...)
 	for i := range out.Tasks {
 		out.Tasks[i].TargetPeers = append([]uint64(nil), s.Tasks[i].TargetPeers...)
+		out.Tasks[i].ParticipantProgress = append([]TaskParticipantProgress(nil), s.Tasks[i].ParticipantProgress...)
 	}
 	return out
 }

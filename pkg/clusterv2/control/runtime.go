@@ -205,6 +205,39 @@ func (r *Runtime) ReportSlots(ctx context.Context, report SlotRuntimeReport) err
 	return ctxErr(ctx)
 }
 
+// CompleteTask submits a fenced global task completion result.
+func (r *Runtime) CompleteTask(ctx context.Context, result TaskResult) error {
+	if err := ctxErr(ctx); err != nil {
+		return err
+	}
+	if r == nil || r.backend == nil {
+		return cv2.ErrNotStarted
+	}
+	return r.backend.CompleteTask(ctx, result)
+}
+
+// FailTask submits a fenced global task failure result.
+func (r *Runtime) FailTask(ctx context.Context, result TaskResult) error {
+	if err := ctxErr(ctx); err != nil {
+		return err
+	}
+	if r == nil || r.backend == nil {
+		return cv2.ErrNotStarted
+	}
+	return r.backend.FailTask(ctx, result)
+}
+
+// ReportTaskProgress submits one participant's fenced progress report.
+func (r *Runtime) ReportTaskProgress(ctx context.Context, progress TaskProgress) error {
+	if err := ctxErr(ctx); err != nil {
+		return err
+	}
+	if r == nil || r.backend == nil {
+		return cv2.ErrNotStarted
+	}
+	return r.backend.ReportTaskProgress(ctx, progress)
+}
+
 func (r *Runtime) startWatchLoop() {
 	if r.watchCancel != nil {
 		return
