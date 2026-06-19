@@ -271,7 +271,7 @@ func TestApplyCompleteTaskRemovesTask(t *testing.T) {
 	applyOK(t, sm, 2, bootstrapCommand(1, 1, []uint64{1, 2, 3}))
 	expected := uint64(2)
 
-	result, err := sm.Apply(ctx, 3, command.Command{Kind: command.KindCompleteTask, ExpectedRevision: &expected, TaskResult: &command.TaskResult{TaskID: "slot-1-bootstrap-1", SlotID: 1, FinishedAt: time.Now().UTC()}})
+	result, err := sm.Apply(ctx, 3, command.Command{Kind: command.KindCompleteTask, ExpectedRevision: &expected, TaskResult: &command.TaskResult{TaskID: "slot-1-bootstrap-1", SlotID: 1, TaskKind: state.TaskKindBootstrap, ConfigEpoch: 1, Attempt: 0, FinishedAt: time.Now().UTC()}})
 	require.NoError(t, err)
 	require.Equal(t, ApplyResult{Changed: true, Revision: 3, AppliedRaftIndex: 3}, result)
 	require.Empty(t, sm.Snapshot(ctx).Tasks)
@@ -283,7 +283,7 @@ func TestApplyFailTaskKeepsFailedTaskWithBoundedError(t *testing.T) {
 	applyOK(t, sm, 2, bootstrapCommand(1, 1, []uint64{1, 2, 3}))
 	longErr := strings.Repeat("界", 500)
 
-	result, err := sm.Apply(ctx, 3, command.Command{Kind: command.KindFailTask, TaskResult: &command.TaskResult{TaskID: "slot-1-bootstrap-1", SlotID: 1, Err: longErr}})
+	result, err := sm.Apply(ctx, 3, command.Command{Kind: command.KindFailTask, TaskResult: &command.TaskResult{TaskID: "slot-1-bootstrap-1", SlotID: 1, TaskKind: state.TaskKindBootstrap, ConfigEpoch: 1, Attempt: 0, Err: longErr}})
 	require.NoError(t, err)
 	require.Equal(t, ApplyResult{Changed: true, Revision: 3, AppliedRaftIndex: 3}, result)
 
@@ -313,9 +313,123 @@ func TestApplyFailTaskRejectsMissingResultOrSlotMismatch(t *testing.T) {
 
 	sm, _ = initializedStateMachine(t, 1)
 	applyOK(t, sm, 2, bootstrapCommand(1, 1, []uint64{1, 2, 3}))
-	result, err = sm.Apply(ctx, 3, command.Command{Kind: command.KindFailTask, TaskResult: &command.TaskResult{TaskID: "slot-1-bootstrap-1", SlotID: 2, Err: "wrong slot"}})
+	result, err = sm.Apply(ctx, 3, command.Command{Kind: command.KindFailTask, TaskResult: &command.TaskResult{TaskID: "slot-1-bootstrap-1", SlotID: 2, TaskKind: state.TaskKindBootstrap, ConfigEpoch: 1, Attempt: 0, Err: "wrong slot"}})
 	require.NoError(t, err)
 	require.Equal(t, ApplyResult{Rejected: true, Reason: ReasonTaskSlotMismatch, Revision: 2, AppliedRaftIndex: 3}, result)
+}
+
+func TestApplyReportTaskProgressUpdatesOnlyParticipant(t *testing.T) {
+	ctx := context.Background()
+	sm, _ := initializedStateMachine(t, 1)
+	applyOK(t, sm, 2, bootstrapCommand(1, 1, []uint64{1, 2, 3}))
+
+	result, err := sm.Apply(ctx, 3, command.Command{
+		Kind: command.KindReportTaskProgress,
+		TaskProgress: &command.TaskProgress{
+			TaskID:             "slot-1-bootstrap-1",
+			SlotID:             1,
+			TaskKind:           state.TaskKindBootstrap,
+			ConfigEpoch:        1,
+			TaskAttempt:        0,
+			ParticipantNodeID:  2,
+			ParticipantAttempt: 0,
+			Status:             state.TaskParticipantStatusDone,
+			FinishedAt:         time.Now().UTC(),
+		},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, ApplyResult{Changed: true, Revision: 3, AppliedRaftIndex: 3}, result)
+	task := sm.Snapshot(ctx).Tasks[0]
+	require.Equal(t, state.TaskParticipantStatusDone, participantStatus(task, 2))
+	require.Equal(t, state.TaskParticipantStatusPending, participantStatus(task, 1))
+	require.Equal(t, state.TaskParticipantStatusPending, participantStatus(task, 3))
+}
+
+func TestApplyReportTaskProgressRejectsUnexpectedParticipant(t *testing.T) {
+	ctx := context.Background()
+	sm, _ := initializedStateMachine(t, 1)
+	applyOK(t, sm, 2, bootstrapCommand(1, 1, []uint64{1, 2, 3}))
+
+	result, err := sm.Apply(ctx, 3, command.Command{
+		Kind: command.KindReportTaskProgress,
+		TaskProgress: &command.TaskProgress{
+			TaskID:            "slot-1-bootstrap-1",
+			SlotID:            1,
+			TaskKind:          state.TaskKindBootstrap,
+			ConfigEpoch:       1,
+			TaskAttempt:       0,
+			ParticipantNodeID: 9,
+			Status:            state.TaskParticipantStatusDone,
+		},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, ApplyResult{Rejected: true, Reason: ReasonTaskParticipantUnexpected, Revision: 2, AppliedRaftIndex: 3}, result)
+}
+
+func TestApplyReportTaskProgressStaleParticipantAttemptNoops(t *testing.T) {
+	ctx := context.Background()
+	sm, _ := initializedStateMachine(t, 1)
+	applyOK(t, sm, 2, bootstrapCommand(1, 1, []uint64{1, 2, 3}))
+	applyOK(t, sm, 3, command.Command{
+		Kind: command.KindReportTaskProgress,
+		TaskProgress: &command.TaskProgress{
+			TaskID:             "slot-1-bootstrap-1",
+			SlotID:             1,
+			TaskKind:           state.TaskKindBootstrap,
+			ConfigEpoch:        1,
+			TaskAttempt:        0,
+			ParticipantNodeID:  2,
+			ParticipantAttempt: 0,
+			Status:             state.TaskParticipantStatusFailed,
+			Err:                "first failure",
+		},
+	})
+
+	result, err := sm.Apply(ctx, 4, command.Command{
+		Kind: command.KindReportTaskProgress,
+		TaskProgress: &command.TaskProgress{
+			TaskID:             "slot-1-bootstrap-1",
+			SlotID:             1,
+			TaskKind:           state.TaskKindBootstrap,
+			ConfigEpoch:        1,
+			TaskAttempt:        0,
+			ParticipantNodeID:  2,
+			ParticipantAttempt: 0,
+			Status:             state.TaskParticipantStatusDone,
+		},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, ApplyResult{Noop: true, Reason: ReasonTaskParticipantAttemptStale, Revision: 3, AppliedRaftIndex: 4}, result)
+	require.Equal(t, state.TaskParticipantStatusFailed, participantStatus(sm.Snapshot(ctx).Tasks[0], 2))
+}
+
+func TestApplyCompleteTaskStaleAttemptNoops(t *testing.T) {
+	ctx := context.Background()
+	sm, _ := initializedStateMachine(t, 1)
+	applyOK(t, sm, 2, bootstrapCommand(1, 1, []uint64{1, 2, 3}))
+	applyOK(t, sm, 3, command.Command{Kind: command.KindFailTask, TaskResult: &command.TaskResult{
+		TaskID:      "slot-1-bootstrap-1",
+		SlotID:      1,
+		TaskKind:    state.TaskKindBootstrap,
+		ConfigEpoch: 1,
+		Attempt:     0,
+		Err:         "global failure",
+	}})
+
+	result, err := sm.Apply(ctx, 4, command.Command{Kind: command.KindCompleteTask, TaskResult: &command.TaskResult{
+		TaskID:      "slot-1-bootstrap-1",
+		SlotID:      1,
+		TaskKind:    state.TaskKindBootstrap,
+		ConfigEpoch: 1,
+		Attempt:     0,
+	}})
+
+	require.NoError(t, err)
+	require.Equal(t, ApplyResult{Noop: true, Reason: ReasonTaskAttemptMismatch, Revision: 3, AppliedRaftIndex: 4}, result)
+	require.Len(t, sm.Snapshot(ctx).Tasks, 1)
 }
 
 func TestApplySaveFailureDoesNotPublishState(t *testing.T) {
@@ -403,16 +517,35 @@ func bootstrapCommand(slotID uint32, expectedRevision uint64, peers []uint64) co
 		ExpectedRevision: &expectedRevision,
 		Assignment:       &assignment,
 		Task: &state.ReconcileTask{
-			TaskID:      "slot-" + string(rune('0'+slotID)) + "-bootstrap-1",
-			SlotID:      slotID,
-			Kind:        state.TaskKindBootstrap,
-			Step:        state.TaskStepCreateSlot,
-			TargetNode:  peers[0],
-			TargetPeers: peers,
-			ConfigEpoch: 1,
-			Status:      state.TaskStatusPending,
+			TaskID:              "slot-" + string(rune('0'+slotID)) + "-bootstrap-1",
+			SlotID:              slotID,
+			Kind:                state.TaskKindBootstrap,
+			Step:                state.TaskStepCreateSlot,
+			TargetNode:          peers[0],
+			TargetPeers:         peers,
+			CompletionPolicy:    state.TaskCompletionPolicyAllTargetPeers,
+			ParticipantProgress: participantProgress(peers),
+			ConfigEpoch:         1,
+			Status:              state.TaskStatusPending,
 		},
 	}
+}
+
+func participantProgress(peers []uint64) []state.TaskParticipantProgress {
+	out := make([]state.TaskParticipantProgress, 0, len(peers))
+	for _, peerID := range peers {
+		out = append(out, state.TaskParticipantProgress{NodeID: peerID, Status: state.TaskParticipantStatusPending})
+	}
+	return out
+}
+
+func participantStatus(task state.ReconcileTask, nodeID uint64) state.TaskParticipantStatus {
+	for _, progress := range task.ParticipantProgress {
+		if progress.NodeID == nodeID {
+			return progress.Status
+		}
+	}
+	return ""
 }
 
 func testConfig() state.ClusterConfig {

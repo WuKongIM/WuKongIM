@@ -22,6 +22,8 @@ const (
 	KindCompleteTask Kind = "complete_task"
 	// KindFailTask records a failed attempt while keeping the task active.
 	KindFailTask Kind = "fail_task"
+	// KindReportTaskProgress records one participant's local progress.
+	KindReportTaskProgress Kind = "report_task_progress"
 	// KindReplaceHashSlotTable replaces the hash-slot routing table.
 	KindReplaceHashSlotTable Kind = "replace_hash_slot_table"
 )
@@ -46,6 +48,8 @@ type Command struct {
 	Task *state.ReconcileTask `json:"task,omitempty"`
 	// TaskResult identifies a completed or failed task attempt.
 	TaskResult *TaskResult `json:"task_result,omitempty"`
+	// TaskProgress records one participant's local progress for barrier tasks.
+	TaskProgress *TaskProgress `json:"task_progress,omitempty"`
 	// HashSlots contains a replacement hash-slot table.
 	HashSlots *state.HashSlotTable `json:"hash_slots,omitempty"`
 }
@@ -68,8 +72,38 @@ type TaskResult struct {
 	TaskID string `json:"task_id"`
 	// SlotID optionally confirms the slot affected by the result.
 	SlotID uint32 `json:"slot_id,omitempty"`
+	// TaskKind fences the result to the active task kind.
+	TaskKind state.TaskKind `json:"task_kind,omitempty"`
+	// ConfigEpoch fences the result to the active assignment epoch.
+	ConfigEpoch uint64 `json:"config_epoch,omitempty"`
+	// Attempt fences the result to the active global task attempt.
+	Attempt uint32 `json:"attempt"`
 	// Err contains the task failure reason for KindFailTask.
 	Err string `json:"err,omitempty"`
 	// FinishedAt records when the worker observed the task result.
+	FinishedAt time.Time `json:"finished_at,omitempty"`
+}
+
+// TaskProgress describes one participant's local progress for a barrier task.
+type TaskProgress struct {
+	// TaskID identifies the active task.
+	TaskID string `json:"task_id"`
+	// SlotID confirms the slot affected by the progress report.
+	SlotID uint32 `json:"slot_id"`
+	// TaskKind fences the report to the active task kind.
+	TaskKind state.TaskKind `json:"task_kind"`
+	// ConfigEpoch fences the report to the active assignment epoch.
+	ConfigEpoch uint64 `json:"config_epoch"`
+	// TaskAttempt fences the report to the active global task attempt.
+	TaskAttempt uint32 `json:"task_attempt"`
+	// ParticipantNodeID is the reporting participant.
+	ParticipantNodeID uint64 `json:"participant_node_id"`
+	// ParticipantAttempt fences the report to the participant's local attempt.
+	ParticipantAttempt uint32 `json:"participant_attempt"`
+	// Status is the participant's new progress status.
+	Status state.TaskParticipantStatus `json:"status"`
+	// Err contains the participant failure reason when Status is failed.
+	Err string `json:"err,omitempty"`
+	// FinishedAt records when the participant observed this progress state.
 	FinishedAt time.Time `json:"finished_at,omitempty"`
 }

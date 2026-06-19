@@ -48,6 +48,19 @@ func handleFailTaskRevisionMismatch(current *state.ClusterState, cmd command.Com
 	return reject(ReasonExpectedRevisionMismatch), true
 }
 
+func handleTaskProgressRevisionMismatch(current *state.ClusterState, cmd command.Command) (ApplyResult, bool) {
+	if cmd.ExpectedRevision == nil || *cmd.ExpectedRevision == current.Revision {
+		return ApplyResult{}, false
+	}
+	if cmd.TaskProgress == nil || cmd.TaskProgress.TaskID == "" {
+		return reject(ReasonInvalidTaskResult), true
+	}
+	if findTaskByID(current.Tasks, cmd.TaskProgress.TaskID) < 0 {
+		return noop(ReasonTaskMissing), true
+	}
+	return reject(ReasonExpectedRevisionMismatch), true
+}
+
 func isNonBootstrapIdempotent(current state.ClusterState, cmd command.Command) bool {
 	switch cmd.Kind {
 	case command.KindUpsertNode:

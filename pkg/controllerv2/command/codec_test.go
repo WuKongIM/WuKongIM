@@ -52,8 +52,30 @@ func TestCommandEncodeDecodeRoundTrip(t *testing.T) {
 				Status:      state.TaskStatusRunning,
 				LastError:   "previous transient error",
 			},
-			TaskResult: &TaskResult{TaskID: "slot-2-bootstrap-3", SlotID: 2, Err: "", FinishedAt: now},
-			HashSlots:  &table,
+			TaskResult: &TaskResult{
+				TaskID:      "slot-2-bootstrap-3",
+				SlotID:      2,
+				TaskKind:    state.TaskKindBootstrap,
+				ConfigEpoch: 3,
+				Attempt:     1,
+				FinishedAt:  now,
+			},
+			HashSlots: &table,
+		},
+		{
+			Kind:     KindReportTaskProgress,
+			IssuedAt: now.Add(2 * time.Minute),
+			TaskProgress: &TaskProgress{
+				TaskID:             "slot-2-bootstrap-3",
+				SlotID:             2,
+				TaskKind:           state.TaskKindBootstrap,
+				ConfigEpoch:        3,
+				TaskAttempt:        1,
+				ParticipantNodeID:  2,
+				ParticipantAttempt: 0,
+				Status:             state.TaskParticipantStatusDone,
+				FinishedAt:         now.Add(2 * time.Minute),
+			},
 		},
 	}
 

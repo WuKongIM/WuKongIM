@@ -26,6 +26,16 @@ const (
 	ReasonTaskMissing = "task_missing"
 	// ReasonTaskSlotMismatch marks a task result that targets the wrong slot.
 	ReasonTaskSlotMismatch = "task_slot_mismatch"
+	// ReasonTaskKindMismatch marks a task result for the wrong active task kind.
+	ReasonTaskKindMismatch = "task_kind_mismatch"
+	// ReasonTaskEpochMismatch marks a task result for the wrong config epoch.
+	ReasonTaskEpochMismatch = "task_epoch_mismatch"
+	// ReasonTaskAttemptMismatch marks an obsolete task result for an older global attempt.
+	ReasonTaskAttemptMismatch = "task_attempt_mismatch"
+	// ReasonTaskParticipantUnexpected marks a progress report from a non-participant.
+	ReasonTaskParticipantUnexpected = "task_participant_unexpected"
+	// ReasonTaskParticipantAttemptStale marks an obsolete participant progress report.
+	ReasonTaskParticipantAttemptStale = "task_participant_attempt_stale"
 	// ReasonInitConflict marks an init command that does not match existing state.
 	ReasonInitConflict = "init_conflict"
 	// MaxTaskLastErrorBytes bounds the durable LastError field for failed tasks.
@@ -51,6 +61,10 @@ func (sm *StateMachine) applyMutation(next *state.ClusterState, raftIndex uint64
 		if stale, handled := handleFailTaskRevisionMismatch(next, cmd); handled {
 			return stale
 		}
+	case command.KindReportTaskProgress:
+		if stale, handled := handleTaskProgressRevisionMismatch(next, cmd); handled {
+			return stale
+		}
 	default:
 		if cmd.ExpectedRevision != nil && *cmd.ExpectedRevision != currentRevision {
 			if isNonBootstrapIdempotent(*next, cmd) {
@@ -73,6 +87,8 @@ func (sm *StateMachine) applyMutation(next *state.ClusterState, raftIndex uint64
 		return sm.applyCompleteTask(next, cmd)
 	case command.KindFailTask:
 		return sm.applyFailTask(next, cmd)
+	case command.KindReportTaskProgress:
+		return sm.applyReportTaskProgress(next, cmd)
 	default:
 		return reject(ReasonInvalidCommand)
 	}

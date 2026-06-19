@@ -125,6 +125,15 @@ func findTaskByID(tasks []state.ReconcileTask, taskID string) int {
 	return -1
 }
 
+func findParticipant(items []state.TaskParticipantProgress, nodeID uint64) int {
+	for i, item := range items {
+		if item.NodeID == nodeID {
+			return i
+		}
+	}
+	return -1
+}
+
 func truncateUTF8(s string, maxBytes int) string {
 	if maxBytes <= 0 || len([]byte(s)) <= maxBytes {
 		return s
@@ -156,6 +165,7 @@ func cloneAssignment(assignment state.SlotAssignment) state.SlotAssignment {
 
 func cloneTask(task state.ReconcileTask) state.ReconcileTask {
 	task.TargetPeers = append([]uint64(nil), task.TargetPeers...)
+	task.ParticipantProgress = append([]state.TaskParticipantProgress(nil), task.ParticipantProgress...)
 	return task
 }
 

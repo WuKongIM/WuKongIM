@@ -91,8 +91,8 @@ func (sm *StateMachine) applyCompleteTask(next *state.ClusterState, cmd command.
 	if idx < 0 {
 		return noop(ReasonTaskMissing)
 	}
-	if cmd.TaskResult.SlotID != 0 && cmd.TaskResult.SlotID != next.Tasks[idx].SlotID {
-		return reject(ReasonTaskSlotMismatch)
+	if guard := taskResultGuard(next.Tasks[idx], cmd.TaskResult); guard != (ApplyResult{}) {
+		return guard
 	}
 	before := next.Clone()
 	next.Tasks = append(next.Tasks[:idx], next.Tasks[idx+1:]...)
@@ -108,15 +108,102 @@ func (sm *StateMachine) applyFailTask(next *state.ClusterState, cmd command.Comm
 	if idx < 0 {
 		return noop(ReasonTaskMissing)
 	}
-	if cmd.TaskResult.SlotID != 0 && cmd.TaskResult.SlotID != next.Tasks[idx].SlotID {
-		return reject(ReasonTaskSlotMismatch)
+	if guard := taskResultGuard(next.Tasks[idx], cmd.TaskResult); guard != (ApplyResult{}) {
+		return guard
 	}
 	before := next.Clone()
 	next.Tasks[idx].Status = state.TaskStatusFailed
 	next.Tasks[idx].Attempt++
 	next.Tasks[idx].LastError = truncateUTF8(cmd.TaskResult.Err, MaxTaskLastErrorBytes)
+	if next.Tasks[idx].CompletionPolicy == state.TaskCompletionPolicyAllTargetPeers {
+		next.Tasks[idx].ParticipantProgress = nil
+		for _, peerID := range next.Tasks[idx].TargetPeers {
+			next.Tasks[idx].ParticipantProgress = append(next.Tasks[idx].ParticipantProgress, state.TaskParticipantProgress{NodeID: peerID, Status: state.TaskParticipantStatusPending})
+		}
+	}
 	next.Normalize()
 	return validateChanged(next, before, cmd)
+}
+
+func (sm *StateMachine) applyReportTaskProgress(next *state.ClusterState, cmd command.Command) ApplyResult {
+	if next.Revision == 0 || cmd.TaskProgress == nil || cmd.TaskProgress.TaskID == "" {
+		return reject(ReasonInvalidTaskResult)
+	}
+	idx := findTaskByID(next.Tasks, cmd.TaskProgress.TaskID)
+	if idx < 0 {
+		return noop(ReasonTaskMissing)
+	}
+	if guard := taskProgressGuard(next.Tasks[idx], cmd.TaskProgress); guard != (ApplyResult{}) {
+		return guard
+	}
+	participantIdx := findParticipant(next.Tasks[idx].ParticipantProgress, cmd.TaskProgress.ParticipantNodeID)
+	if participantIdx < 0 {
+		return reject(ReasonTaskParticipantUnexpected)
+	}
+	current := next.Tasks[idx].ParticipantProgress[participantIdx]
+	if cmd.TaskProgress.ParticipantAttempt < current.Attempt {
+		return noop(ReasonTaskParticipantAttemptStale)
+	}
+	if cmd.TaskProgress.ParticipantAttempt == current.Attempt && current.Status == state.TaskParticipantStatusFailed && cmd.TaskProgress.Status == state.TaskParticipantStatusDone {
+		return noop(ReasonTaskParticipantAttemptStale)
+	}
+	before := next.Clone()
+	next.Tasks[idx].ParticipantProgress[participantIdx].Status = cmd.TaskProgress.Status
+	next.Tasks[idx].ParticipantProgress[participantIdx].Attempt = cmd.TaskProgress.ParticipantAttempt
+	next.Tasks[idx].ParticipantProgress[participantIdx].LastError = ""
+	if cmd.TaskProgress.Status == state.TaskParticipantStatusFailed {
+		next.Tasks[idx].Status = state.TaskStatusFailed
+		next.Tasks[idx].ParticipantProgress[participantIdx].Attempt++
+		next.Tasks[idx].ParticipantProgress[participantIdx].LastError = truncateUTF8(cmd.TaskProgress.Err, MaxTaskLastErrorBytes)
+	}
+	next.Normalize()
+	if reflect.DeepEqual(before.Tasks, next.Tasks) {
+		return noop(ReasonNoChange)
+	}
+	return validateChanged(next, before, cmd)
+}
+
+func taskResultGuard(task state.ReconcileTask, result *command.TaskResult) ApplyResult {
+	if result == nil || result.TaskID == "" || result.SlotID == 0 || result.TaskKind == "" || result.ConfigEpoch == 0 {
+		return reject(ReasonInvalidTaskResult)
+	}
+	if result.SlotID != task.SlotID {
+		return reject(ReasonTaskSlotMismatch)
+	}
+	if result.TaskKind != task.Kind {
+		return noop(ReasonTaskKindMismatch)
+	}
+	if result.ConfigEpoch != task.ConfigEpoch {
+		return noop(ReasonTaskEpochMismatch)
+	}
+	if result.Attempt != task.Attempt {
+		return noop(ReasonTaskAttemptMismatch)
+	}
+	return ApplyResult{}
+}
+
+func taskProgressGuard(task state.ReconcileTask, progress *command.TaskProgress) ApplyResult {
+	if progress == nil || progress.TaskID == "" || progress.SlotID == 0 || progress.TaskKind == "" || progress.ConfigEpoch == 0 || progress.ParticipantNodeID == 0 {
+		return reject(ReasonInvalidTaskResult)
+	}
+	if progress.SlotID != task.SlotID {
+		return reject(ReasonTaskSlotMismatch)
+	}
+	if progress.TaskKind != task.Kind {
+		return noop(ReasonTaskKindMismatch)
+	}
+	if progress.ConfigEpoch != task.ConfigEpoch {
+		return noop(ReasonTaskEpochMismatch)
+	}
+	if progress.TaskAttempt != task.Attempt {
+		return noop(ReasonTaskAttemptMismatch)
+	}
+	switch progress.Status {
+	case state.TaskParticipantStatusPending, state.TaskParticipantStatusDone, state.TaskParticipantStatusFailed:
+	default:
+		return reject(ReasonInvalidTaskResult)
+	}
+	return ApplyResult{}
 }
 
 func initialStateFromCommand(cmd command.Command, raftIndex uint64) (state.ClusterState, error) {
