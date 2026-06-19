@@ -207,6 +207,12 @@ func validateTasks(tasks []ReconcileTask, assignments map[uint32]SlotAssignment)
 		if task.Status != TaskStatusPending && task.Status != TaskStatusRunning && task.Status != TaskStatusFailed {
 			return invalid("unknown task status")
 		}
+		if task.CompletionPolicy != TaskCompletionPolicySingleObserver && task.CompletionPolicy != TaskCompletionPolicyAllTargetPeers {
+			return invalid("unknown task completion_policy")
+		}
+		if err := validateParticipantProgress(task); err != nil {
+			return err
+		}
 		switch task.Kind {
 		case TaskKindBootstrap:
 			if task.Step != TaskStepCreateSlot {
@@ -227,6 +233,44 @@ func validateTasks(tasks []ReconcileTask, assignments map[uint32]SlotAssignment)
 			}
 		default:
 			return invalid("unknown task kind")
+		}
+	}
+	return nil
+}
+
+func validateParticipantProgress(task ReconcileTask) error {
+	if task.CompletionPolicy == TaskCompletionPolicySingleObserver {
+		if len(task.ParticipantProgress) != 0 {
+			return invalid("single_observer task must not have participant progress")
+		}
+		return nil
+	}
+	if task.CompletionPolicy != TaskCompletionPolicyAllTargetPeers {
+		return invalid("unknown task completion_policy")
+	}
+	if len(task.ParticipantProgress) != len(task.TargetPeers) {
+		return invalid("all_target_peers task progress must match target peers")
+	}
+	targets := make(map[uint64]struct{}, len(task.TargetPeers))
+	for _, peerID := range task.TargetPeers {
+		targets[peerID] = struct{}{}
+	}
+	seen := make(map[uint64]struct{}, len(task.ParticipantProgress))
+	for _, progress := range task.ParticipantProgress {
+		if progress.NodeID == 0 {
+			return invalid("task participant node_id must be non-zero")
+		}
+		if _, ok := targets[progress.NodeID]; !ok {
+			return invalid("task participant must be a target peer")
+		}
+		if _, exists := seen[progress.NodeID]; exists {
+			return invalid("duplicate task participant")
+		}
+		seen[progress.NodeID] = struct{}{}
+		switch progress.Status {
+		case TaskParticipantStatusPending, TaskParticipantStatusDone, TaskParticipantStatusFailed:
+		default:
+			return invalid("unknown task participant status")
 		}
 	}
 	return nil

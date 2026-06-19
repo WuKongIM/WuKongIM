@@ -61,14 +61,16 @@ func (p *BootstrapPlanner) Next(ctx context.Context, view View) (Decision, error
 		PreferredLeader: leader,
 	}
 	task := state.ReconcileTask{
-		TaskID:      fmt.Sprintf("slot-%d-bootstrap-%d", slotID, configEpoch),
-		SlotID:      slotID,
-		Kind:        state.TaskKindBootstrap,
-		Step:        state.TaskStepCreateSlot,
-		TargetNode:  leader,
-		TargetPeers: append([]uint64(nil), peers...),
-		ConfigEpoch: configEpoch,
-		Status:      state.TaskStatusPending,
+		TaskID:              fmt.Sprintf("slot-%d-bootstrap-%d", slotID, configEpoch),
+		SlotID:              slotID,
+		Kind:                state.TaskKindBootstrap,
+		Step:                state.TaskStepCreateSlot,
+		TargetNode:          leader,
+		TargetPeers:         append([]uint64(nil), peers...),
+		CompletionPolicy:    state.TaskCompletionPolicyAllTargetPeers,
+		ParticipantProgress: bootstrapParticipantProgress(peers),
+		ConfigEpoch:         configEpoch,
+		Status:              state.TaskStatusPending,
 	}
 	return Decision{
 		Kind: DecisionKindCommand,
@@ -193,6 +195,14 @@ func selectedNodeIDs(selected []candidateNode) []uint64 {
 	out := make([]uint64, len(selected))
 	for i := range selected {
 		out[i] = selected[i].nodeID
+	}
+	return out
+}
+
+func bootstrapParticipantProgress(peers []uint64) []state.TaskParticipantProgress {
+	out := make([]state.TaskParticipantProgress, 0, len(peers))
+	for _, peerID := range peers {
+		out = append(out, state.TaskParticipantProgress{NodeID: peerID, Status: state.TaskParticipantStatusPending})
 	}
 	return out
 }

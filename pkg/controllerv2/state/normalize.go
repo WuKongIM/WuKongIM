@@ -34,6 +34,7 @@ func (s *ClusterState) Normalize() {
 	}
 	for i := range s.Tasks {
 		sort.Slice(s.Tasks[i].TargetPeers, func(a, b int) bool { return s.Tasks[i].TargetPeers[a] < s.Tasks[i].TargetPeers[b] })
+		normalizeTaskProgress(&s.Tasks[i])
 	}
 	sort.Slice(s.Controllers, func(i, j int) bool { return s.Controllers[i].NodeID < s.Controllers[j].NodeID })
 	sort.Slice(s.Nodes, func(i, j int) bool { return s.Nodes[i].NodeID < s.Nodes[j].NodeID })
@@ -68,8 +69,27 @@ func (s ClusterState) Clone() ClusterState {
 	out.Tasks = cloneSlice(s.Tasks)
 	for i := range out.Tasks {
 		out.Tasks[i].TargetPeers = cloneUint64s(s.Tasks[i].TargetPeers)
+		out.Tasks[i].ParticipantProgress = cloneSlice(s.Tasks[i].ParticipantProgress)
 	}
 	return out
+}
+
+func normalizeTaskProgress(task *ReconcileTask) {
+	if task == nil {
+		return
+	}
+	if task.Kind == TaskKindBootstrap && task.CompletionPolicy == "" {
+		task.CompletionPolicy = TaskCompletionPolicyAllTargetPeers
+	}
+	if task.CompletionPolicy == TaskCompletionPolicyAllTargetPeers && len(task.ParticipantProgress) == 0 {
+		task.ParticipantProgress = make([]TaskParticipantProgress, 0, len(task.TargetPeers))
+		for _, peerID := range task.TargetPeers {
+			task.ParticipantProgress = append(task.ParticipantProgress, TaskParticipantProgress{NodeID: peerID, Status: TaskParticipantStatusPending})
+		}
+	}
+	sort.Slice(task.ParticipantProgress, func(i, j int) bool {
+		return task.ParticipantProgress[i].NodeID < task.ParticipantProgress[j].NodeID
+	})
 }
 
 // HasRole reports whether the node has the requested durable capability.

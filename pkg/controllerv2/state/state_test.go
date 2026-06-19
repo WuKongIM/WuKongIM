@@ -69,6 +69,74 @@ func TestValidateRequiresBootstrapTaskMatchesAssignment(t *testing.T) {
 	require.ErrorIs(t, st.Validate(), ErrInvalidState)
 }
 
+func TestValidateBootstrapTaskRequiresAllTargetPeerProgress(t *testing.T) {
+	st := testState()
+	st.Tasks = []ReconcileTask{{
+		TaskID:           "slot-1-bootstrap-1",
+		SlotID:           1,
+		Kind:             TaskKindBootstrap,
+		Step:             TaskStepCreateSlot,
+		TargetNode:       1,
+		TargetPeers:      []uint64{1, 2, 3},
+		CompletionPolicy: TaskCompletionPolicyAllTargetPeers,
+		ParticipantProgress: []TaskParticipantProgress{
+			{NodeID: 1, Status: TaskParticipantStatusPending},
+			{NodeID: 2, Status: TaskParticipantStatusPending},
+		},
+		ConfigEpoch: 1,
+		Status:      TaskStatusPending,
+	}}
+
+	require.ErrorIs(t, st.Validate(), ErrInvalidState)
+}
+
+func TestNormalizeBootstrapTaskDefaultsParticipantProgress(t *testing.T) {
+	st := testState()
+	st.Slots = []SlotAssignment{{SlotID: 1, DesiredPeers: []uint64{3, 1, 2}, ConfigEpoch: 1, PreferredLeader: 1}}
+	st.Tasks = []ReconcileTask{{
+		TaskID:      "slot-1-bootstrap-1",
+		SlotID:      1,
+		Kind:        TaskKindBootstrap,
+		Step:        TaskStepCreateSlot,
+		TargetNode:  1,
+		TargetPeers: []uint64{3, 1, 2},
+		ConfigEpoch: 1,
+		Status:      TaskStatusPending,
+	}}
+
+	st.Normalize()
+
+	require.Equal(t, TaskCompletionPolicyAllTargetPeers, st.Tasks[0].CompletionPolicy)
+	require.Equal(t, []TaskParticipantProgress{
+		{NodeID: 1, Status: TaskParticipantStatusPending},
+		{NodeID: 2, Status: TaskParticipantStatusPending},
+		{NodeID: 3, Status: TaskParticipantStatusPending},
+	}, st.Tasks[0].ParticipantProgress)
+}
+
+func TestClusterStateCloneCopiesParticipantProgress(t *testing.T) {
+	st := testState()
+	st.Tasks = []ReconcileTask{{
+		TaskID:           "slot-1-bootstrap-1",
+		SlotID:           1,
+		Kind:             TaskKindBootstrap,
+		Step:             TaskStepCreateSlot,
+		TargetNode:       1,
+		TargetPeers:      []uint64{1, 2, 3},
+		CompletionPolicy: TaskCompletionPolicyAllTargetPeers,
+		ParticipantProgress: []TaskParticipantProgress{
+			{NodeID: 1, Status: TaskParticipantStatusPending},
+		},
+		ConfigEpoch: 1,
+		Status:      TaskStatusPending,
+	}}
+
+	clone := st.Clone()
+	clone.Tasks[0].ParticipantProgress[0].Status = TaskParticipantStatusDone
+
+	require.Equal(t, TaskParticipantStatusPending, st.Tasks[0].ParticipantProgress[0].Status)
+}
+
 func TestBuildInitialHashSlotTableDistributesRanges(t *testing.T) {
 	table, err := BuildInitialHashSlotTable(16, 16384)
 	require.NoError(t, err)

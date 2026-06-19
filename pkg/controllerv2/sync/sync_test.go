@@ -671,7 +671,22 @@ func testSyncState(revision uint64, clusterID string) state.ClusterState {
 		Slots:     []state.SlotAssignment{{SlotID: 1, DesiredPeers: []uint64{1, 2, 3}, ConfigEpoch: 1, PreferredLeader: 1}},
 		HashSlots: table,
 		Tasks: []state.ReconcileTask{
-			{TaskID: "slot-1-bootstrap-1", SlotID: 1, Kind: state.TaskKindBootstrap, Step: state.TaskStepCreateSlot, TargetNode: 1, TargetPeers: []uint64{1, 2, 3}, ConfigEpoch: 1, Status: state.TaskStatusPending},
+			{
+				TaskID:           "slot-1-bootstrap-1",
+				SlotID:           1,
+				Kind:             state.TaskKindBootstrap,
+				Step:             state.TaskStepCreateSlot,
+				TargetNode:       1,
+				TargetPeers:      []uint64{1, 2, 3},
+				CompletionPolicy: state.TaskCompletionPolicyAllTargetPeers,
+				ParticipantProgress: []state.TaskParticipantProgress{
+					{NodeID: 1, Status: state.TaskParticipantStatusPending},
+					{NodeID: 2, Status: state.TaskParticipantStatusPending},
+					{NodeID: 3, Status: state.TaskParticipantStatusPending},
+				},
+				ConfigEpoch: 1,
+				Status:      state.TaskStatusPending,
+			},
 		},
 	}
 }

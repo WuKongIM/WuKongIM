@@ -79,6 +79,40 @@ const (
 	TaskStatusFailed TaskStatus = "failed"
 )
 
+// TaskCompletionPolicy describes how participant progress becomes task completion.
+type TaskCompletionPolicy string
+
+const (
+	// TaskCompletionPolicySingleObserver means one eligible executor can complete the task.
+	TaskCompletionPolicySingleObserver TaskCompletionPolicy = "single_observer"
+	// TaskCompletionPolicyAllTargetPeers requires every target peer to report done.
+	TaskCompletionPolicyAllTargetPeers TaskCompletionPolicy = "all_target_peers"
+)
+
+// TaskParticipantStatus describes one node's local task progress.
+type TaskParticipantStatus string
+
+const (
+	// TaskParticipantStatusPending means the participant has not completed its local work.
+	TaskParticipantStatusPending TaskParticipantStatus = "pending"
+	// TaskParticipantStatusDone means the participant completed its local work.
+	TaskParticipantStatusDone TaskParticipantStatus = "done"
+	// TaskParticipantStatusFailed means the participant's latest local attempt failed.
+	TaskParticipantStatusFailed TaskParticipantStatus = "failed"
+)
+
+// TaskParticipantProgress stores one participant's progress for the current global task attempt.
+type TaskParticipantProgress struct {
+	// NodeID is the participant node identity.
+	NodeID uint64 `json:"node_id"`
+	// Attempt counts this participant's local attempts within the current global task attempt.
+	Attempt uint32 `json:"attempt"`
+	// Status is the participant's current local progress.
+	Status TaskParticipantStatus `json:"status"`
+	// LastError stores the bounded error from the latest failed local attempt.
+	LastError string `json:"last_error,omitempty"`
+}
+
 // ClusterState is the canonical durable ControllerV2 cluster-state document.
 type ClusterState struct {
 	// SchemaVersion selects the durable JSON schema used by this file.
@@ -195,6 +229,10 @@ type ReconcileTask struct {
 	TargetNode uint64 `json:"target_node,omitempty"`
 	// TargetPeers is the desired peer set this task must converge.
 	TargetPeers []uint64 `json:"target_peers,omitempty"`
+	// CompletionPolicy controls how participant progress gates global completion.
+	CompletionPolicy TaskCompletionPolicy `json:"completion_policy,omitempty"`
+	// ParticipantProgress records per-node local progress for barrier-style tasks.
+	ParticipantProgress []TaskParticipantProgress `json:"participant_progress,omitempty"`
 	// ConfigEpoch is the assignment epoch this task is tied to.
 	ConfigEpoch uint64 `json:"config_epoch,omitempty"`
 	// Attempt counts task attempts, including failed attempts.

@@ -154,12 +154,17 @@ func TestBootstrapPlannerCommandContainsExpectedRevisionAssignmentAndTask(t *tes
 		PreferredLeader: 2,
 	}, decision.Command.Assignment)
 	require.Equal(t, &state.ReconcileTask{
-		TaskID:      "slot-1-bootstrap-1",
-		SlotID:      1,
-		Kind:        state.TaskKindBootstrap,
-		Step:        state.TaskStepCreateSlot,
-		TargetNode:  2,
-		TargetPeers: []uint64{2, 3},
+		TaskID:           "slot-1-bootstrap-1",
+		SlotID:           1,
+		Kind:             state.TaskKindBootstrap,
+		Step:             state.TaskStepCreateSlot,
+		TargetNode:       2,
+		TargetPeers:      []uint64{2, 3},
+		CompletionPolicy: state.TaskCompletionPolicyAllTargetPeers,
+		ParticipantProgress: []state.TaskParticipantProgress{
+			{NodeID: 2, Status: state.TaskParticipantStatusPending},
+			{NodeID: 3, Status: state.TaskParticipantStatusPending},
+		},
 		ConfigEpoch: 1,
 		Status:      state.TaskStatusPending,
 	}, decision.Command.Task)
@@ -210,12 +215,17 @@ func testAssignment(slotID uint32, peers []uint64, epoch uint64, leader uint64) 
 
 func testBootstrapTask(slotID uint32, peers []uint64, epoch uint64, target uint64) state.ReconcileTask {
 	return state.ReconcileTask{
-		TaskID:      fmt.Sprintf("slot-%d-bootstrap-%d", slotID, epoch),
-		SlotID:      slotID,
-		Kind:        state.TaskKindBootstrap,
-		Step:        state.TaskStepCreateSlot,
-		TargetNode:  target,
-		TargetPeers: append([]uint64(nil), peers...),
+		TaskID:           fmt.Sprintf("slot-%d-bootstrap-%d", slotID, epoch),
+		SlotID:           slotID,
+		Kind:             state.TaskKindBootstrap,
+		Step:             state.TaskStepCreateSlot,
+		TargetNode:       target,
+		TargetPeers:      append([]uint64(nil), peers...),
+		CompletionPolicy: state.TaskCompletionPolicyAllTargetPeers,
+		ParticipantProgress: []state.TaskParticipantProgress{
+			{NodeID: peers[0], Status: state.TaskParticipantStatusPending},
+			{NodeID: peers[1], Status: state.TaskParticipantStatusPending},
+		},
 		ConfigEpoch: epoch,
 		Status:      state.TaskStatusPending,
 	}
