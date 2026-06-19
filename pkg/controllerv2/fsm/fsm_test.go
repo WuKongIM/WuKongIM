@@ -406,6 +406,80 @@ func TestApplyReportTaskProgressStaleParticipantAttemptNoops(t *testing.T) {
 	require.Equal(t, state.TaskParticipantStatusFailed, participantStatus(sm.Snapshot(ctx).Tasks[0], 2))
 }
 
+func TestApplyReportTaskProgressAcceptsAdvancedParticipantAttemptAfterFailure(t *testing.T) {
+	ctx := context.Background()
+	sm, _ := initializedStateMachine(t, 1)
+	applyOK(t, sm, 2, bootstrapCommand(1, 1, []uint64{1, 2, 3}))
+	applyOK(t, sm, 3, command.Command{
+		Kind: command.KindReportTaskProgress,
+		TaskProgress: &command.TaskProgress{
+			TaskID:             "slot-1-bootstrap-1",
+			SlotID:             1,
+			TaskKind:           state.TaskKindBootstrap,
+			ConfigEpoch:        1,
+			TaskAttempt:        0,
+			ParticipantNodeID:  2,
+			ParticipantAttempt: 0,
+			Status:             state.TaskParticipantStatusFailed,
+			Err:                "first failure",
+		},
+	})
+
+	result, err := sm.Apply(ctx, 4, command.Command{
+		Kind: command.KindReportTaskProgress,
+		TaskProgress: &command.TaskProgress{
+			TaskID:             "slot-1-bootstrap-1",
+			SlotID:             1,
+			TaskKind:           state.TaskKindBootstrap,
+			ConfigEpoch:        1,
+			TaskAttempt:        0,
+			ParticipantNodeID:  2,
+			ParticipantAttempt: 1,
+			Status:             state.TaskParticipantStatusDone,
+		},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, ApplyResult{Changed: true, Revision: 4, AppliedRaftIndex: 4}, result)
+	task := sm.Snapshot(ctx).Tasks[0]
+	var got state.TaskParticipantProgress
+	for _, item := range task.ParticipantProgress {
+		if item.NodeID == 2 {
+			got = item
+			break
+		}
+	}
+	require.Equal(t, state.TaskParticipantStatusDone, got.Status)
+	require.Equal(t, uint32(1), got.Attempt)
+	require.Empty(t, got.LastError)
+}
+
+func TestApplyReportTaskProgressRejectsExpectedRevisionMismatchWhenTaskExists(t *testing.T) {
+	ctx := context.Background()
+	sm, _ := initializedStateMachine(t, 1)
+	applyOK(t, sm, 2, bootstrapCommand(1, 1, []uint64{1, 2, 3}))
+	expected := uint64(1)
+
+	result, err := sm.Apply(ctx, 3, command.Command{
+		Kind:             command.KindReportTaskProgress,
+		ExpectedRevision: &expected,
+		TaskProgress: &command.TaskProgress{
+			TaskID:             "slot-1-bootstrap-1",
+			SlotID:             1,
+			TaskKind:           state.TaskKindBootstrap,
+			ConfigEpoch:        1,
+			TaskAttempt:        0,
+			ParticipantNodeID:  2,
+			ParticipantAttempt: 0,
+			Status:             state.TaskParticipantStatusDone,
+		},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, ApplyResult{Rejected: true, Reason: ReasonExpectedRevisionMismatch, Revision: 2, AppliedRaftIndex: 3}, result)
+	require.Equal(t, state.TaskParticipantStatusPending, participantStatus(sm.Snapshot(ctx).Tasks[0], 2))
+}
+
 func TestApplyCompleteTaskStaleAttemptNoops(t *testing.T) {
 	ctx := context.Background()
 	sm, _ := initializedStateMachine(t, 1)

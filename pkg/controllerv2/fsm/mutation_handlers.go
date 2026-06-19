@@ -144,9 +144,6 @@ func (sm *StateMachine) applyReportTaskProgress(next *state.ClusterState, cmd co
 	if cmd.TaskProgress.ParticipantAttempt < current.Attempt {
 		return noop(ReasonTaskParticipantAttemptStale)
 	}
-	if cmd.TaskProgress.ParticipantAttempt == current.Attempt && current.Status == state.TaskParticipantStatusFailed && cmd.TaskProgress.Status == state.TaskParticipantStatusDone {
-		return noop(ReasonTaskParticipantAttemptStale)
-	}
 	before := next.Clone()
 	next.Tasks[idx].ParticipantProgress[participantIdx].Status = cmd.TaskProgress.Status
 	next.Tasks[idx].ParticipantProgress[participantIdx].Attempt = cmd.TaskProgress.ParticipantAttempt
