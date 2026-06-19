@@ -122,11 +122,14 @@ func TestManagerSlotLeaderTransferMapsErrors(t *testing.T) {
 
 	srv := New(Options{Management: managerNodesStub{slotLeaderTransferErr: errors.New("unexpected")}})
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/manager/slots/1/leader-transfer", strings.NewReader(`{"target_node":0}`))
+	req := httptest.NewRequest(http.MethodPost, "/manager/slots/1/leader-transfer", strings.NewReader(`{"target_node":2}`))
 	req.Header.Set("Content-Type", "application/json")
 	srv.Engine().ServeHTTP(rec, req)
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("invalid target status = %d, want %d; body=%s", rec.Code, http.StatusBadRequest, rec.Body.String())
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("unexpected error status = %d, want %d; body=%s", rec.Code, http.StatusInternalServerError, rec.Body.String())
+	}
+	if !jsonEqual(rec.Body.String(), `{"error":"internal_error","message":"unexpected"}`) {
+		t.Fatalf("body = %s, want internal_error", rec.Body.String())
 	}
 }
 
