@@ -40,6 +40,11 @@ type ProposalObserver interface {
 	ObserveSlotProposal(slotID SlotID, d time.Duration)
 }
 
+// LeaderChangeObserver receives observed Slot leader elections.
+type LeaderChangeObserver interface {
+	ObserveSlotLeaderChange(slotID SlotID, from, to NodeID)
+}
+
 // ApplyStateObserver receives committed/applied index snapshots for Slot Raft groups.
 type ApplyStateObserver interface {
 	SetSlotApplyState(slotID SlotID, commitIndex, appliedIndex uint64)

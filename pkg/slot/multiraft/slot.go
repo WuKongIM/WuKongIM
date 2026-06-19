@@ -698,11 +698,16 @@ func (g *slot) refreshFullStatus() {
 
 func (g *slot) applyBasicStatusLocked(st raft.BasicStatus) {
 	prevRole := g.status.Role
-	g.status.LeaderID = NodeID(st.Lead)
+	nextRole := mapRole(st.RaftState)
+	nextLeader := NodeID(st.Lead)
+	if nextLeader == 0 && nextRole == RoleLeader {
+		nextLeader = g.status.NodeID
+	}
+	g.setLeaderIDLocked(nextLeader)
 	g.status.Term = st.Term
 	g.status.CommitIndex = st.Commit
 	g.status.AppliedIndex = st.Applied
-	g.status.Role = mapRole(st.RaftState)
+	g.status.Role = nextRole
 	if observer, ok := g.observer.(ApplyStateObserver); ok && observer != nil {
 		observer.SetSlotApplyState(g.id, st.Commit, st.Applied)
 	}
@@ -778,9 +783,17 @@ func (g *slot) observeQueuedMessageLocked(msg raftpb.Message) {
 
 	switch msg.Type {
 	case raftpb.MsgApp, raftpb.MsgHeartbeat, raftpb.MsgSnap:
-		g.status.LeaderID = NodeID(msg.From)
+		g.setLeaderIDLocked(NodeID(msg.From))
 	default:
-		g.status.LeaderID = 0
+		g.setLeaderIDLocked(0)
+	}
+}
+
+func (g *slot) setLeaderIDLocked(next NodeID) {
+	prev := g.status.LeaderID
+	g.status.LeaderID = next
+	if observer, ok := g.observer.(LeaderChangeObserver); ok && observer != nil && next != 0 && prev != next {
+		observer.ObserveSlotLeaderChange(g.id, prev, next)
 	}
 }
 

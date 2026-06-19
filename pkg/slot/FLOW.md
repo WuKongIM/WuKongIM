@@ -60,6 +60,7 @@ Runtime.ChangeConfig / TransferLeadership / CompactLog / Status
 | `Command` | multiraft/types.go | 状态机命令：SlotID(物理 Raft 组), HashSlot(逻辑哈希分片), Index, Term, Data(TLV编码) |
 | `Future` / `Result` | multiraft/types.go | 异步提案结果，Wait(ctx) 阻塞到提交 |
 | `ProposalStageObserver` | multiraft/stage_observer.go | 低基数 proposal stage 观测接口；可从上游 ctx 进入 Future 并随 apply/commit 路径传播 |
+| `LeaderChangeObserver` | multiraft/types.go | Slot leader election 观测接口；用于把本地运行时观察到的 leader 变化映射到低基数指标 |
 | `ConfigChange` | multiraft/types.go | 成员变更：AddVoter / RemoveVoter / AddLearner / PromoteLearner |
 | `Status` | multiraft/types.go | Runtime 观测：Leader、Peers、CurrentVoters、Term/Index 等；CurrentVoters 来自当前 Raft conf state |
 | `Storage` interface | multiraft/types.go | Raft 日志存储抽象：InitialState / Entries / Save / MarkApplied |

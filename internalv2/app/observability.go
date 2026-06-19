@@ -759,6 +759,13 @@ func (o slotMetricsObserver) ObserveSlotProposal(slotID multiraft.SlotID, d time
 	o.metrics.Slot.ObserveProposal(uint32(slotID), d)
 }
 
+func (o slotMetricsObserver) ObserveSlotLeaderChange(slotID multiraft.SlotID, _, _ multiraft.NodeID) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.Slot.ObserveLeaderChange(uint32(slotID))
+}
+
 func (o slotMetricsObserver) SetSlotApplyState(slotID multiraft.SlotID, commitIndex, appliedIndex uint64) {
 	if o.metrics == nil {
 		return
@@ -1552,6 +1559,15 @@ func (o multiSlotObserver) ObserveSlotProposal(slotID multiraft.SlotID, d time.D
 		proposalObserver, ok := observer.(multiraft.ProposalObserver)
 		if ok {
 			proposalObserver.ObserveSlotProposal(slotID, d)
+		}
+	}
+}
+
+func (o multiSlotObserver) ObserveSlotLeaderChange(slotID multiraft.SlotID, from, to multiraft.NodeID) {
+	for _, observer := range o {
+		leaderChangeObserver, ok := observer.(multiraft.LeaderChangeObserver)
+		if ok {
+			leaderChangeObserver.ObserveSlotLeaderChange(slotID, from, to)
 		}
 	}
 }

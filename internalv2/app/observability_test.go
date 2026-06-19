@@ -424,6 +424,29 @@ func TestRuntimePressureAdapterMapsGatewayChannelSlotTransportAndDB(t *testing.T
 	}
 }
 
+func TestSlotMetricsObserverMapsLeaderChanges(t *testing.T) {
+	reg := obsmetrics.New(2, "node-2")
+	observer := combineSlotObservers(slotMetricsObserver{metrics: reg}, topSlotObserver{})
+	leaderObserver, ok := observer.(interface {
+		ObserveSlotLeaderChange(slotID multiraft.SlotID, from, to multiraft.NodeID)
+	})
+	if !ok {
+		t.Fatal("combined slot observer does not observe leader changes")
+	}
+
+	leaderObserver.ObserveSlotLeaderChange(7, 1, 2)
+
+	families, err := reg.Gather()
+	if err != nil {
+		t.Fatalf("Gather() error = %v", err)
+	}
+	leaderChanges := requireAppMetricFamily(t, families, "wukongim_slot_leader_elections_total")
+	metric := findAppMetricByLabels(t, leaderChanges, nil)
+	if got := metric.GetCounter().GetValue(); got != 1 {
+		t.Fatalf("slot leader changes = %v, want 1", got)
+	}
+}
+
 func TestStorageCommitMetricsObserverUsesConfiguredWorkers(t *testing.T) {
 	reg := obsmetrics.New(1, "node-1")
 	observer := storageCommitMetricsObserver{metrics: reg, workers: 4}

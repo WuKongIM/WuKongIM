@@ -105,6 +105,27 @@ func TestThreeNodeClusterTransfersLeadershipAndReplicatesAgain(t *testing.T) {
 	cluster.waitForAllApplied(t, slotID, []byte("set c=3"))
 }
 
+func TestThreeNodeClusterObservesLeaderChangeAfterTransfer(t *testing.T) {
+	observer := &slotLeaderChangeObserver{}
+	cluster := newAsyncTestClusterWithObserver(t, []NodeID{1, 2, 3}, asyncNetworkConfig{
+		MaxDelay: 5 * time.Millisecond,
+		Seed:     31,
+	}, observer)
+	slotID := SlotID(112)
+
+	cluster.bootstrapSlot(t, slotID, []NodeID{1, 2, 3})
+	cluster.waitForBootstrapApplied(t, slotID, 3)
+
+	leaderID := cluster.waitForLeader(t, slotID)
+	targetLeader := cluster.pickFollower(leaderID)
+	if err := cluster.runtime(leaderID).TransferLeadership(context.Background(), slotID, targetLeader); err != nil {
+		t.Fatalf("TransferLeadership() error = %v", err)
+	}
+	cluster.waitForSpecificLeader(t, slotID, targetLeader)
+
+	observer.waitForTarget(t, slotID, targetLeader)
+}
+
 func TestThreeNodeClusterIdleDoesNotRemarkApplied(t *testing.T) {
 	cluster := newAsyncTestCluster(t, []NodeID{1, 2, 3}, asyncNetworkConfig{
 		MaxDelay: 5 * time.Millisecond,
@@ -162,6 +183,10 @@ type networkLink struct {
 }
 
 func newAsyncTestCluster(t testing.TB, nodeIDs []NodeID, cfg asyncNetworkConfig) *testCluster {
+	return newAsyncTestClusterWithObserver(t, nodeIDs, cfg, nil)
+}
+
+func newAsyncTestClusterWithObserver(t testing.TB, nodeIDs []NodeID, cfg asyncNetworkConfig, observer SchedulerObserver) *testCluster {
 	t.Helper()
 
 	network := newAsyncTestNetwork(cfg)
@@ -181,6 +206,7 @@ func newAsyncTestCluster(t testing.TB, nodeIDs []NodeID, cfg asyncNetworkConfig)
 			TickInterval: 10 * time.Millisecond,
 			Workers:      1,
 			Transport:    transport,
+			Observer:     observer,
 			Raft: RaftOptions{
 				ElectionTick:  20,
 				HeartbeatTick: 1,
@@ -206,6 +232,54 @@ func newAsyncTestCluster(t testing.TB, nodeIDs []NodeID, cfg asyncNetworkConfig)
 	})
 
 	return cluster
+}
+
+type slotLeaderChangeObserver struct {
+	mu      sync.Mutex
+	changes []slotLeaderChangeObservation
+}
+
+type slotLeaderChangeObservation struct {
+	slotID SlotID
+	from   NodeID
+	to     NodeID
+}
+
+func (o *slotLeaderChangeObserver) SetSchedulerWorkers(int) {}
+
+func (o *slotLeaderChangeObserver) SetSchedulerInflight(int) {}
+
+func (o *slotLeaderChangeObserver) SetSchedulerState(SchedulerStateEvent) {}
+
+func (o *slotLeaderChangeObserver) ObserveSchedulerAdmission(string) {}
+
+func (o *slotLeaderChangeObserver) ObserveSchedulerTask(string, time.Duration) {}
+
+func (o *slotLeaderChangeObserver) ObserveSlotLeaderChange(slotID SlotID, from, to NodeID) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.changes = append(o.changes, slotLeaderChangeObservation{slotID: slotID, from: from, to: to})
+}
+
+func (o *slotLeaderChangeObserver) waitForTarget(t testing.TB, slotID SlotID, to NodeID) {
+	t.Helper()
+
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		o.mu.Lock()
+		for _, change := range o.changes {
+			if change.slotID == slotID && change.to == to {
+				o.mu.Unlock()
+				return
+			}
+		}
+		o.mu.Unlock()
+		time.Sleep(10 * time.Millisecond)
+	}
+	o.mu.Lock()
+	observed := append([]slotLeaderChangeObservation(nil), o.changes...)
+	o.mu.Unlock()
+	t.Fatalf("leader changes = %#v, want slot=%d to=%d", observed, slotID, to)
 }
 
 func newAsyncTestNetwork(cfg asyncNetworkConfig) *asyncTestNetwork {
