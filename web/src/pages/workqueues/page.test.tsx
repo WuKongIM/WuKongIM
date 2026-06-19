@@ -6,13 +6,19 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 import { resetLocale } from "@/i18n/locale-store"
 import { I18nProvider } from "@/i18n/provider"
 import { ManagerApiError } from "@/lib/manager-api"
+import type { ManagerNodesResponse } from "@/lib/manager-api.types"
 import { WorkqueuesPage } from "@/pages/workqueues/page"
 
 const getRuntimeWorkqueuesMock = vi.fn()
+const getNodesMock = vi.fn()
 
 vi.mock("@/lib/manager-api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/manager-api")>()
-  return { ...actual, getRuntimeWorkqueues: (...args: unknown[]) => getRuntimeWorkqueuesMock(...args) }
+  return {
+    ...actual,
+    getNodes: (...args: unknown[]) => getNodesMock(...args),
+    getRuntimeWorkqueues: (...args: unknown[]) => getRuntimeWorkqueuesMock(...args),
+  }
 })
 
 const workqueueResponse = {
@@ -76,6 +82,36 @@ const workqueueResponse = {
   },
 }
 
+const nodesResponse: ManagerNodesResponse = {
+  generated_at: "2026-06-17T10:00:00Z",
+  controller_leader_id: 1,
+  total: 2,
+  items: [
+    {
+      node_id: 1,
+      name: "node-1",
+      addr: "127.0.0.1:11110",
+      status: "alive",
+      last_heartbeat_at: "2026-06-17T10:00:00Z",
+      is_local: true,
+      capacity_weight: 1,
+      controller: { role: "leader", voter: true, leader_id: 1, raft_health: "healthy" },
+      slot_stats: { count: 8, leader_count: 4 },
+    },
+    {
+      node_id: 2,
+      name: "node-2",
+      addr: "127.0.0.1:11111",
+      status: "alive",
+      last_heartbeat_at: "2026-06-17T10:00:00Z",
+      is_local: false,
+      capacity_weight: 1,
+      controller: { role: "follower", voter: true, leader_id: 1, raft_health: "healthy" },
+      slot_stats: { count: 8, leader_count: 4 },
+    },
+  ],
+}
+
 function renderPage() {
   return render(
     <I18nProvider>
@@ -89,6 +125,8 @@ function renderPage() {
 beforeEach(() => {
   localStorage.clear()
   resetLocale()
+  getNodesMock.mockReset()
+  getNodesMock.mockResolvedValue(nodesResponse)
   getRuntimeWorkqueuesMock.mockReset()
 })
 
@@ -213,5 +251,17 @@ test("refreshes with the selected window", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Refresh" }))
   await waitFor(() => {
     expect(getRuntimeWorkqueuesMock).toHaveBeenLastCalledWith({ window: "30s", limit: 100 })
+  })
+})
+
+test("reloads workqueues for the selected node", async () => {
+  getRuntimeWorkqueuesMock.mockResolvedValue(workqueueResponse)
+  renderPage()
+
+  await screen.findByText("async_send")
+  fireEvent.change(screen.getByLabelText("Node"), { target: { value: "2" } })
+
+  await waitFor(() => {
+    expect(getRuntimeWorkqueuesMock).toHaveBeenLastCalledWith({ window: "10s", limit: 100, nodeId: 2 })
   })
 })

@@ -26,7 +26,7 @@ type RuntimeWorkqueuesResponse struct {
 	GeneratedAt time.Time `json:"generated_at"`
 	// WindowSeconds is the aggregation window represented in seconds.
 	WindowSeconds int `json:"window_seconds"`
-	// Scope identifies the local node represented by this response.
+	// Scope identifies the node represented by this response.
 	Scope RuntimeWorkqueuesScope `json:"scope"`
 	// Summary contains aggregate pressure counts and the hottest queue.
 	Summary RuntimeWorkqueuesSummary `json:"summary"`
@@ -36,15 +36,15 @@ type RuntimeWorkqueuesResponse struct {
 	Sources RuntimeWorkqueuesSources `json:"sources"`
 }
 
-// RuntimeWorkqueuesScope identifies the local node runtime view.
+// RuntimeWorkqueuesScope identifies the node runtime view.
 type RuntimeWorkqueuesScope struct {
-	// View is always local_node for manager runtime workqueue snapshots.
+	// View describes the provider scope for manager runtime workqueue snapshots.
 	View string `json:"view"`
-	// NodeID is the local cluster node ID.
+	// NodeID is the cluster node ID represented by this snapshot.
 	NodeID uint64 `json:"node_id"`
-	// NodeName is the local cluster node name.
+	// NodeName is the cluster node name represented by this snapshot.
 	NodeName string `json:"node_name"`
-	// Ready reports whether the local node is ready.
+	// Ready reports whether the represented node is ready.
 	Ready bool `json:"ready"`
 }
 
@@ -143,6 +143,7 @@ type RuntimeWorkqueuesMetricsSource struct {
 type runtimeWorkqueuesQuery struct {
 	window time.Duration
 	limit  int
+	nodeID uint64
 }
 
 func parseRuntimeWorkqueuesQuery(c *gin.Context) (runtimeWorkqueuesQuery, error) {
@@ -170,6 +171,11 @@ func parseRuntimeWorkqueuesQuery(c *gin.Context) (runtimeWorkqueuesQuery, error)
 		}
 		query.limit = limit
 	}
+	nodeID, err := parseOptionalConnectionNodeID(strings.TrimSpace(c.Query("node_id")))
+	if err != nil {
+		return query, fmt.Errorf("invalid node_id")
+	}
+	query.nodeID = nodeID
 	return query, nil
 }
 
@@ -187,6 +193,7 @@ func (s *Server) handleRuntimeWorkqueues(c *gin.Context) {
 		View:   accessapi.TopViewRuntime,
 		Window: query.window,
 		Limit:  query.limit,
+		NodeID: query.nodeID,
 	})
 	if err != nil {
 		if errors.Is(err, accessapi.ErrTopWarmingUp) {

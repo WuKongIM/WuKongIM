@@ -1597,6 +1597,28 @@ describe("manager api client", () => {
     )
   })
 
+  it("passes node filters to runtime workqueue pressure requests", async () => {
+    const response = {
+      generated_at: "2026-06-17T10:00:00Z",
+      window_seconds: 10,
+      scope: { view: "local_node", node_id: 2, node_name: "node-2", ready: true },
+      summary: { overall_level: "ok", total: 0, ok: 0, busy: 0, degraded: 0, critical: 0 },
+      items: [],
+      sources: {
+        collector: { available: true, sample_count: 10 },
+        metrics: { enabled: false, required: false },
+        notes: [],
+      },
+    }
+    fetchMock.mockResolvedValue(new Response(JSON.stringify(response), { status: 200 }))
+
+    await expect(getRuntimeWorkqueues({ window: "30s", limit: 100, nodeId: 2 })).resolves.toEqual(response)
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/manager/runtime/workqueues?window=30s&limit=100&node_id=2",
+      expect.objectContaining({ headers: expect.any(Headers) }),
+    )
+  })
+
   it("fetches application log sources, entries, and stream responses", async () => {
     const sources = {
       node_id: 2,

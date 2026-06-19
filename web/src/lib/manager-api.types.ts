@@ -1457,6 +1457,7 @@ export type ChannelRuntimeMetaListParams = {
 export type RuntimeWorkqueueParams = {
   window?: string
   limit?: number
+  nodeId?: number
 }
 
 export type ChannelClusterUnhealthyParams = {

@@ -482,6 +482,53 @@ func TestManagerRuntimeWorkqueuesPassesCustomWindow(t *testing.T) {
 	}
 }
 
+func TestManagerRuntimeWorkqueuesParsesNodeID(t *testing.T) {
+	provider := &managerTopStub{snapshot: accessapi.TopSnapshot{
+		GeneratedAt:   time.Date(2026, 6, 16, 10, 0, 0, 0, time.UTC),
+		WindowSeconds: 10,
+		Scope:         "local_node",
+		Node:          accessapi.TopNodeSnapshot{ID: 2, Name: "node-2", Ready: true},
+		Sources: accessapi.TopSources{
+			Collector: accessapi.TopSourceStatus{Available: true, SampleCount: 10},
+			Metrics:   accessapi.TopMetricsSource{Enabled: false, Required: false},
+		},
+	}}
+	srv := New(Options{Top: provider})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/manager/runtime/workqueues?window=30s&node_id=2", nil)
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	if provider.query.NodeID != 2 {
+		t.Fatalf("provider query NodeID = %d, want 2", provider.query.NodeID)
+	}
+}
+
+func TestManagerRuntimeWorkqueuesRejectsInvalidNodeID(t *testing.T) {
+	srv := New(Options{Top: &managerTopStub{}})
+
+	for _, path := range []string{
+		"/manager/runtime/workqueues?node_id=bad",
+		"/manager/runtime/workqueues?node_id=0",
+	} {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+
+		srv.Engine().ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("%s status = %d, want %d; body=%s", path, rec.Code, http.StatusBadRequest, rec.Body.String())
+		}
+		if !jsonEqual(rec.Body.String(), `{"error":"invalid_request","message":"invalid node_id"}`) {
+			t.Fatalf("%s body = %s, want invalid node_id", path, rec.Body.String())
+		}
+	}
+}
+
 func TestManagerRuntimeWorkqueuesClampsLargeLimit(t *testing.T) {
 	provider := &managerTopStub{}
 	srv := New(Options{Top: provider})

@@ -58,6 +58,8 @@ type TopSnapshotQuery struct {
 	View TopView
 	// Limit caps the number of pressure items returned.
 	Limit int
+	// NodeID optionally selects a cluster node for manager-mediated runtime views.
+	NodeID uint64
 }
 
 // TopSnapshot is the JSON response model for the node-local top API.

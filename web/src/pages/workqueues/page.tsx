@@ -2,15 +2,17 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { CircleHelp } from "lucide-react"
 import { useIntl } from "react-intl"
 
+import { MonitorNodeSelector } from "@/components/manager/monitor-node-selector"
 import { ResourceState } from "@/components/manager/resource-state"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { PageContainer } from "@/components/shell/page-container"
 import { PageHeader } from "@/components/shell/page-header"
-import { ManagerApiError, getRuntimeWorkqueues } from "@/lib/manager-api"
+import { ManagerApiError, getNodes, getRuntimeWorkqueues } from "@/lib/manager-api"
 import type {
   ManagerRuntimeWorkqueueItem,
   ManagerRuntimeWorkqueuesResponse,
+  ManagerNodesResponse,
 } from "@/lib/manager-api.types"
 
 type WindowValue = "10s" | "30s" | "1m"
@@ -147,6 +149,8 @@ function ColumnHeader({ description, label }: { description: string; label: stri
 export function WorkqueuesPage() {
   const intl = useIntl()
   const [windowValue, setWindowValue] = useState<WindowValue>("10s")
+  const [nodes, setNodes] = useState<ManagerNodesResponse | null>(null)
+  const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null)
   const [autoRefresh, setAutoRefresh] = useState(false)
   const [abnormalOnly, setAbnormalOnly] = useState(false)
   const [component, setComponent] = useState("")
@@ -154,8 +158,12 @@ export function WorkqueuesPage() {
 
   const title = intl.formatMessage({ id: "workqueues.title" })
 
-  const loadWorkqueues = useCallback(async (refreshing = false, windowOverride?: WindowValue) => {
-    const nextWindow = windowOverride ?? windowValue
+  const loadWorkqueues = useCallback(async (
+    refreshing = false,
+    options?: { window?: WindowValue; nodeId?: number | null },
+  ) => {
+    const nextWindow = options?.window ?? windowValue
+    const nextNodeId = options && "nodeId" in options ? options.nodeId : selectedNodeId
     setState((current) => ({
       ...current,
       loading: !refreshing,
@@ -163,7 +171,11 @@ export function WorkqueuesPage() {
       error: null,
     }))
     try {
-      const response = await getRuntimeWorkqueues({ window: nextWindow, limit: 100 })
+      const response = await getRuntimeWorkqueues({
+        window: nextWindow,
+        limit: 100,
+        ...(nextNodeId ? { nodeId: nextNodeId } : {}),
+      })
       setState({ response, loading: false, refreshing: false, error: null })
     } catch (error) {
       setState({
@@ -173,10 +185,35 @@ export function WorkqueuesPage() {
         error: error instanceof Error ? error : new Error("runtime workqueue request failed"),
       })
     }
-  }, [windowValue])
+  }, [selectedNodeId, windowValue])
+
+  const handleNodeChange = useCallback((nodeId: number | null) => {
+    setSelectedNodeId(nodeId)
+    setComponent("")
+    void loadWorkqueues(false, { nodeId })
+  }, [loadWorkqueues])
 
   useEffect(() => {
-    void loadWorkqueues(false, "10s")
+    let cancelled = false
+    getNodes()
+      .then((response) => {
+        if (!cancelled) {
+          setNodes(response)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setNodes(null)
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    void loadWorkqueues(false, { window: "10s" })
     // Initial load intentionally uses the default window.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -238,7 +275,16 @@ export function WorkqueuesPage() {
       ) : (
       <div className="space-y-4">
         <div className="flex flex-col gap-3 rounded-lg border border-border bg-card px-4 py-3 md:flex-row md:items-end md:justify-between">
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            <div className="self-end">
+              <MonitorNodeSelector
+                allNodesLabelId="workqueues.controls.allNodes"
+                labelId="workqueues.controls.node"
+                nodes={nodes}
+                onNodeChange={handleNodeChange}
+                selectedNodeId={selectedNodeId}
+              />
+            </div>
             <label className="text-sm font-medium text-foreground">
               {intl.formatMessage({ id: "workqueues.controls.window" })}
               <select

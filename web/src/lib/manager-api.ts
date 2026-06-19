@@ -214,6 +214,9 @@ function buildRuntimeWorkqueuesPath(params?: RuntimeWorkqueueParams) {
   if (typeof params?.limit === "number") {
     search.set("limit", String(params.limit))
   }
+  if (typeof params?.nodeId === "number") {
+    search.set("node_id", String(params.nodeId))
+  }
 
   const query = search.toString()
   return query ? `/manager/runtime/workqueues?${query}` : "/manager/runtime/workqueues"
