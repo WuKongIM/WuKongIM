@@ -301,6 +301,8 @@ type ConversationConfig struct {
 	AuthorityHandoffTimeout time.Duration
 	// AuthorityFlushInterval controls how often dirty authority active rows are flushed to durable storage.
 	AuthorityFlushInterval time.Duration
+	// AuthorityFlushTimeout bounds one authority active-row flush attempt.
+	AuthorityFlushTimeout time.Duration
 	// AuthorityFlushBatchRows bounds dirty authority active rows flushed in one tick.
 	AuthorityFlushBatchRows int
 	// AuthorityAdmitBatchRows limits active rows in one authority admission batch.
@@ -444,6 +446,9 @@ func defaultConversationConfig(cfg ConversationConfig) ConversationConfig {
 	}
 	if cfg.AuthorityFlushInterval == 0 {
 		cfg.AuthorityFlushInterval = time.Second
+	}
+	if cfg.AuthorityFlushTimeout == 0 {
+		cfg.AuthorityFlushTimeout = 5 * time.Second
 	}
 	if cfg.AuthorityFlushBatchRows == 0 {
 		cfg.AuthorityFlushBatchRows = 512
@@ -706,6 +711,9 @@ func validateConversationConfig(cfg ConversationConfig) error {
 	}
 	if cfg.AuthorityFlushInterval <= 0 {
 		return fmt.Errorf("%w: conversation authority flush interval must be positive", ErrInvalidConfig)
+	}
+	if cfg.AuthorityFlushTimeout <= 0 {
+		return fmt.Errorf("%w: conversation authority flush timeout must be positive", ErrInvalidConfig)
 	}
 	if cfg.AuthorityFlushBatchRows <= 0 {
 		return fmt.Errorf("%w: conversation authority flush batch rows must be positive", ErrInvalidConfig)

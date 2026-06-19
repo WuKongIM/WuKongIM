@@ -327,6 +327,8 @@ WK_DEBUG_API_ENABLE=false
 # WK_CONVERSATION_AUTHORITY_HANDOFF_TIMEOUT=3s
 # WK_CONVERSATION_AUTHORITY_FLUSH_INTERVAL controls how often dirty authority active rows are flushed to durable storage.
 # WK_CONVERSATION_AUTHORITY_FLUSH_INTERVAL=1s
+# WK_CONVERSATION_AUTHORITY_FLUSH_TIMEOUT bounds one authority active-row flush attempt.
+# WK_CONVERSATION_AUTHORITY_FLUSH_TIMEOUT=5s
 # WK_CONVERSATION_AUTHORITY_FLUSH_BATCH_ROWS bounds dirty authority active rows flushed in one tick.
 # WK_CONVERSATION_AUTHORITY_FLUSH_BATCH_ROWS=512
 # WK_CONVERSATION_AUTHORITY_ADMIT_BATCH_ROWS limits active rows in one authority admission batch.

@@ -1573,6 +1573,7 @@ func TestDefaultConversationAuthorityConfig(t *testing.T) {
 		cfg.AuthorityListDBWindowMax != 1000 ||
 		cfg.AuthorityHandoffTimeout != 3*time.Second ||
 		cfg.AuthorityFlushInterval != time.Second ||
+		cfg.AuthorityFlushTimeout != 5*time.Second ||
 		cfg.AuthorityFlushBatchRows != 512 ||
 		cfg.AuthorityAdmitBatchRows != 512 ||
 		cfg.AuthorityAdmitConcurrency != 16 {
@@ -1596,6 +1597,8 @@ func TestValidateConversationConfigRejectsInvalidValues(t *testing.T) {
 		{name: "authority handoff timeout zero", mutate: func(cfg *ConversationConfig) { cfg.AuthorityHandoffTimeout = 0 }},
 		{name: "authority flush interval negative", mutate: func(cfg *ConversationConfig) { cfg.AuthorityFlushInterval = -time.Nanosecond }},
 		{name: "authority flush interval zero", mutate: func(cfg *ConversationConfig) { cfg.AuthorityFlushInterval = 0 }},
+		{name: "authority flush timeout negative", mutate: func(cfg *ConversationConfig) { cfg.AuthorityFlushTimeout = -time.Nanosecond }},
+		{name: "authority flush timeout zero", mutate: func(cfg *ConversationConfig) { cfg.AuthorityFlushTimeout = 0 }},
 		{name: "authority flush batch rows negative", mutate: func(cfg *ConversationConfig) { cfg.AuthorityFlushBatchRows = -1 }},
 		{name: "authority flush batch rows zero", mutate: func(cfg *ConversationConfig) { cfg.AuthorityFlushBatchRows = 0 }},
 		{name: "authority admit batch rows negative", mutate: func(cfg *ConversationConfig) { cfg.AuthorityAdmitBatchRows = -1 }},

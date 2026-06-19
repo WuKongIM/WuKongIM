@@ -215,6 +215,7 @@ func TestLoadConfigExplicitConfigFile(t *testing.T) {
 		"WK_CONVERSATION_AUTHORITY_LIST_DB_WINDOW_MAX=1500",
 		"WK_CONVERSATION_AUTHORITY_HANDOFF_TIMEOUT=4s",
 		"WK_CONVERSATION_AUTHORITY_FLUSH_INTERVAL=1500ms",
+		"WK_CONVERSATION_AUTHORITY_FLUSH_TIMEOUT=2500ms",
 		"WK_CONVERSATION_AUTHORITY_FLUSH_BATCH_ROWS=384",
 		"WK_CONVERSATION_AUTHORITY_ADMIT_BATCH_ROWS=256",
 		"WK_CONVERSATION_AUTHORITY_ADMIT_CONCURRENCY=8",
@@ -343,6 +344,7 @@ func TestLoadConfigExplicitConfigFile(t *testing.T) {
 		AuthorityListDBWindowMax:    1500,
 		AuthorityHandoffTimeout:     4 * time.Second,
 		AuthorityFlushInterval:      1500 * time.Millisecond,
+		AuthorityFlushTimeout:       2500 * time.Millisecond,
 		AuthorityFlushBatchRows:     384,
 		AuthorityAdmitBatchRows:     256,
 		AuthorityAdmitConcurrency:   8,
@@ -470,6 +472,7 @@ func TestLoadConfigConversationAuthorityEnvOverridesFile(t *testing.T) {
 		"WK_CONVERSATION_AUTHORITY_LIST_DB_WINDOW_MAX=1000",
 		"WK_CONVERSATION_AUTHORITY_HANDOFF_TIMEOUT=3s",
 		"WK_CONVERSATION_AUTHORITY_FLUSH_INTERVAL=1s",
+		"WK_CONVERSATION_AUTHORITY_FLUSH_TIMEOUT=5s",
 		"WK_CONVERSATION_AUTHORITY_FLUSH_BATCH_ROWS=512",
 		"WK_CONVERSATION_AUTHORITY_ADMIT_BATCH_ROWS=512",
 		"WK_CONVERSATION_AUTHORITY_ADMIT_CONCURRENCY=16",
@@ -480,6 +483,7 @@ func TestLoadConfigConversationAuthorityEnvOverridesFile(t *testing.T) {
 	t.Setenv("WK_CONVERSATION_AUTHORITY_LIST_DB_WINDOW_MAX", "750")
 	t.Setenv("WK_CONVERSATION_AUTHORITY_HANDOFF_TIMEOUT", "2s")
 	t.Setenv("WK_CONVERSATION_AUTHORITY_FLUSH_INTERVAL", "750ms")
+	t.Setenv("WK_CONVERSATION_AUTHORITY_FLUSH_TIMEOUT", "1250ms")
 	t.Setenv("WK_CONVERSATION_AUTHORITY_FLUSH_BATCH_ROWS", "96")
 	t.Setenv("WK_CONVERSATION_AUTHORITY_ADMIT_BATCH_ROWS", "128")
 	t.Setenv("WK_CONVERSATION_AUTHORITY_ADMIT_CONCURRENCY", "4")
@@ -495,6 +499,7 @@ func TestLoadConfigConversationAuthorityEnvOverridesFile(t *testing.T) {
 		AuthorityListDBWindowMax:    750,
 		AuthorityHandoffTimeout:     2 * time.Second,
 		AuthorityFlushInterval:      750 * time.Millisecond,
+		AuthorityFlushTimeout:       1250 * time.Millisecond,
 		AuthorityFlushBatchRows:     96,
 		AuthorityAdmitBatchRows:     128,
 		AuthorityAdmitConcurrency:   4,
@@ -1145,6 +1150,8 @@ func TestLoadConfigRejectsBadValues(t *testing.T) {
 		{name: "conversation authority handoff timeout zero", line: "WK_CONVERSATION_AUTHORITY_HANDOFF_TIMEOUT=0s", wantKey: "WK_CONVERSATION_AUTHORITY_HANDOFF_TIMEOUT"},
 		{name: "conversation authority flush interval", line: "WK_CONVERSATION_AUTHORITY_FLUSH_INTERVAL=soon", wantKey: "WK_CONVERSATION_AUTHORITY_FLUSH_INTERVAL"},
 		{name: "conversation authority flush interval zero", line: "WK_CONVERSATION_AUTHORITY_FLUSH_INTERVAL=0s", wantKey: "WK_CONVERSATION_AUTHORITY_FLUSH_INTERVAL"},
+		{name: "conversation authority flush timeout", line: "WK_CONVERSATION_AUTHORITY_FLUSH_TIMEOUT=soon", wantKey: "WK_CONVERSATION_AUTHORITY_FLUSH_TIMEOUT"},
+		{name: "conversation authority flush timeout zero", line: "WK_CONVERSATION_AUTHORITY_FLUSH_TIMEOUT=0s", wantKey: "WK_CONVERSATION_AUTHORITY_FLUSH_TIMEOUT"},
 		{name: "conversation authority flush batch rows", line: "WK_CONVERSATION_AUTHORITY_FLUSH_BATCH_ROWS=many", wantKey: "WK_CONVERSATION_AUTHORITY_FLUSH_BATCH_ROWS"},
 		{name: "conversation authority flush batch rows zero", line: "WK_CONVERSATION_AUTHORITY_FLUSH_BATCH_ROWS=0", wantKey: "WK_CONVERSATION_AUTHORITY_FLUSH_BATCH_ROWS"},
 		{name: "conversation authority admit batch rows", line: "WK_CONVERSATION_AUTHORITY_ADMIT_BATCH_ROWS=many", wantKey: "WK_CONVERSATION_AUTHORITY_ADMIT_BATCH_ROWS"},
@@ -1365,6 +1372,7 @@ func assertConversationAuthorityConfig(t *testing.T, got, want app.ConversationC
 		got.AuthorityListDBWindowMax != want.AuthorityListDBWindowMax ||
 		got.AuthorityHandoffTimeout != want.AuthorityHandoffTimeout ||
 		got.AuthorityFlushInterval != want.AuthorityFlushInterval ||
+		got.AuthorityFlushTimeout != want.AuthorityFlushTimeout ||
 		got.AuthorityFlushBatchRows != want.AuthorityFlushBatchRows ||
 		got.AuthorityAdmitBatchRows != want.AuthorityAdmitBatchRows ||
 		got.AuthorityAdmitConcurrency != want.AuthorityAdmitConcurrency {

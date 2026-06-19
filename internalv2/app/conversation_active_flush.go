@@ -19,6 +19,8 @@ type conversationActiveFlushWorkerOptions struct {
 	Authority conversationActiveFlusher
 	// FlushInterval controls how often dirty active rows are persisted.
 	FlushInterval time.Duration
+	// FlushTimeout bounds one dirty active-row flush attempt.
+	FlushTimeout time.Duration
 	// BatchRows bounds dirty active rows flushed in one tick.
 	BatchRows int
 	// Logger records periodic flush failures.
@@ -37,6 +39,9 @@ type conversationActiveFlushWorker struct {
 func newConversationActiveFlushWorker(opts conversationActiveFlushWorkerOptions) *conversationActiveFlushWorker {
 	if opts.FlushInterval <= 0 {
 		opts.FlushInterval = time.Second
+	}
+	if opts.FlushTimeout <= 0 {
+		opts.FlushTimeout = 5 * time.Second
 	}
 	if opts.BatchRows <= 0 {
 		opts.BatchRows = 512
@@ -134,7 +139,13 @@ func (w *conversationActiveFlushWorker) flushOnce(ctx context.Context, final boo
 	if err := ctx.Err(); err != nil {
 		return conversationactive.FlushResult{}, err
 	}
-	result, err := w.opts.Authority.FlushActiveRows(ctx, w.opts.BatchRows)
+	flushCtx := ctx
+	var cancel context.CancelFunc
+	if w.opts.FlushTimeout > 0 {
+		flushCtx, cancel = context.WithTimeout(ctx, w.opts.FlushTimeout)
+		defer cancel()
+	}
+	result, err := w.opts.Authority.FlushActiveRows(flushCtx, w.opts.BatchRows)
 	if err == nil {
 		return result, nil
 	}

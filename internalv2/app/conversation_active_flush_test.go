@@ -112,6 +112,28 @@ func TestConversationActiveFlushWorkerStopHonorsContextWhileTickFlushBlocks(t *t
 	close(flusher.blockFlush)
 }
 
+func TestConversationActiveFlushWorkerTimesOutBlockedPeriodicFlush(t *testing.T) {
+	flusher := &contextBlockingConversationActiveFlusher{}
+	worker := newConversationActiveFlushWorker(conversationActiveFlushWorkerOptions{
+		Authority:     flusher,
+		FlushInterval: time.Hour,
+		FlushTimeout:  10 * time.Millisecond,
+		BatchRows:     2,
+	})
+
+	startedAt := time.Now()
+	_, err := worker.flushOnce(context.Background(), false)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("flushOnce() error = %v, want deadline exceeded", err)
+	}
+	if elapsed := time.Since(startedAt); elapsed > time.Second {
+		t.Fatalf("flushOnce() elapsed = %v, want timeout-bounded return", elapsed)
+	}
+	if got := flusher.calls(); got != 1 {
+		t.Fatalf("flush calls = %d, want 1", got)
+	}
+}
+
 type recordingConversationActiveFlusher struct {
 	mu         sync.Mutex
 	firstOnce  sync.Once
@@ -145,4 +167,23 @@ func (f *recordingConversationActiveFlusher) batchRows() []int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return append([]int(nil), f.batches...)
+}
+
+type contextBlockingConversationActiveFlusher struct {
+	mu      sync.Mutex
+	batches []int
+}
+
+func (f *contextBlockingConversationActiveFlusher) FlushActiveRows(ctx context.Context, batchRows int) (conversationactive.FlushResult, error) {
+	f.mu.Lock()
+	f.batches = append(f.batches, batchRows)
+	f.mu.Unlock()
+	<-ctx.Done()
+	return conversationactive.FlushResult{Selected: batchRows}, ctx.Err()
+}
+
+func (f *contextBlockingConversationActiveFlusher) calls() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return len(f.batches)
 }

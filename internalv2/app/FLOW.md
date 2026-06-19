@@ -499,7 +499,8 @@ does not create per-hash-slot workers.
 
 ```text
 periodic flush
-  -> conversationAuthority.FlushActiveRows(ctx, AuthorityFlushBatchRows)
+  -> derive an AuthorityFlushTimeout-bounded attempt context
+  -> conversationAuthority.FlushActiveRows(attemptCtx, AuthorityFlushBatchRows)
   -> runtime/conversationactive.Manager selects dirty rows with version fencing
   -> store.TouchUserConversationActiveAtBatch persists ActiveAt/ReadSeq/UpdatedAt
 
@@ -507,6 +508,7 @@ Stop(ctx)
   -> channelappend has already closed admission and drained accepted post-commit effects
   -> cancel the periodic loop
   -> drain remaining dirty active rows in bounded batches with the caller's stop context
+     and the same per-attempt timeout
 ```
 
 The flush worker does not construct conversation rows and does not read message

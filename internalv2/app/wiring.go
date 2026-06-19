@@ -253,6 +253,7 @@ func (a *App) wireConversationAuthority() {
 				a.conversationActiveWorker = newConversationActiveFlushWorker(conversationActiveFlushWorkerOptions{
 					Authority:     authority,
 					FlushInterval: a.cfg.Conversation.AuthorityFlushInterval,
+					FlushTimeout:  a.cfg.Conversation.AuthorityFlushTimeout,
 					BatchRows:     a.cfg.Conversation.AuthorityFlushBatchRows,
 					Logger:        a.logger.Named("conversation_active_flush"),
 				})
