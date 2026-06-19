@@ -316,6 +316,48 @@ func TestApplyLeaderTransferTaskUpsertAndComplete(t *testing.T) {
 	require.Empty(t, sm.Snapshot(ctx).Tasks)
 }
 
+func TestApplyLeaderTransferStaleEquivalentTaskNoops(t *testing.T) {
+	ctx := context.Background()
+	sm, _ := initializedStateMachine(t, 1)
+	applyOK(t, sm, 2, leaderTransferCommand(1, 1, 1, 2, []uint64{1, 2, 3}, 7))
+
+	result, err := sm.Apply(ctx, 3, leaderTransferCommand(1, 0, 1, 2, []uint64{1, 2, 3}, 7))
+
+	require.NoError(t, err)
+	require.Equal(t, ApplyResult{Noop: true, Reason: ReasonNoChange, Revision: 2, AppliedRaftIndex: 3}, result)
+	snap := sm.Snapshot(ctx)
+	require.Len(t, snap.Tasks, 1)
+	require.Equal(t, "slot-1-leader-transfer-7-r1", snap.Tasks[0].TaskID)
+}
+
+func TestApplyLeaderTransferStaleDifferentTaskRejects(t *testing.T) {
+	tests := []struct {
+		name string
+		cmd  command.Command
+	}{
+		{
+			name: "different target",
+			cmd:  leaderTransferCommand(1, 0, 1, 3, []uint64{1, 2, 3}, 7),
+		},
+		{
+			name: "different config epoch",
+			cmd:  leaderTransferCommand(1, 0, 1, 2, []uint64{1, 2, 3}, 8),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			sm, _ := initializedStateMachine(t, 1)
+			applyOK(t, sm, 2, leaderTransferCommand(1, 1, 1, 2, []uint64{1, 2, 3}, 7))
+
+			result, err := sm.Apply(ctx, 3, tt.cmd)
+
+			require.NoError(t, err)
+			require.Equal(t, ApplyResult{Rejected: true, Reason: ReasonExpectedRevisionMismatch, Revision: 2, AppliedRaftIndex: 3}, result)
+		})
+	}
+}
+
 func TestApplyLeaderTransferTaskFailKeepsActiveTask(t *testing.T) {
 	ctx := context.Background()
 	sm, _ := initializedStateMachine(t, 1)

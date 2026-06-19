@@ -39,12 +39,13 @@ func TestManagementSlotRaftOperatorUsesLocalStatus(t *testing.T) {
 	node := &fakeManagementSlotRaftNode{
 		nodeID: 1,
 		status: clusterv2.SlotRaftStatus{
-			NodeID:       1,
-			SlotID:       9,
-			LeaderID:     1,
-			Role:         "leader",
-			CommitIndex:  93,
-			AppliedIndex: 91,
+			NodeID:        1,
+			SlotID:        9,
+			LeaderID:      1,
+			Role:          "leader",
+			CurrentVoters: []uint64{1, 2, 3},
+			CommitIndex:   93,
+			AppliedIndex:  91,
 		},
 	}
 	operator := NewManagementSlotRaftOperator(node)
@@ -54,7 +55,7 @@ func TestManagementSlotRaftOperatorUsesLocalStatus(t *testing.T) {
 		t.Fatalf("SlotRaftStatus() error = %v", err)
 	}
 
-	if got.NodeID != 1 || got.LeaderID != 1 || got.Role != "leader" || got.CommitIndex != 93 || got.AppliedIndex != 91 {
+	if got.NodeID != 1 || got.LeaderID != 1 || got.Role != "leader" || !equalUint64Slices(got.CurrentVoters, []uint64{1, 2, 3}) || got.CommitIndex != 93 || got.AppliedIndex != 91 {
 		t.Fatalf("status = %#v, want local leader status with watermarks", got)
 	}
 	if node.localStatusSlotID != 9 || node.calledServiceID != 0 {
@@ -98,11 +99,12 @@ func TestManagementSlotRaftOperatorRoutesRemoteCompact(t *testing.T) {
 func TestManagementSlotRaftOperatorRoutesRemoteStatus(t *testing.T) {
 	service := &fakeRemoteSlotRaftService{
 		status: managementusecase.SlotNodeLogStatus{
-			NodeID:       2,
-			LeaderID:     1,
-			Role:         "follower",
-			CommitIndex:  93,
-			AppliedIndex: 91,
+			NodeID:        2,
+			LeaderID:      1,
+			Role:          "follower",
+			CurrentVoters: []uint64{1, 2, 3},
+			CommitIndex:   93,
+			AppliedIndex:  91,
 		},
 	}
 	adapter := accessnode.New(accessnode.Options{ManagerSlotRaft: service})
@@ -117,7 +119,7 @@ func TestManagementSlotRaftOperatorRoutesRemoteStatus(t *testing.T) {
 		t.Fatalf("SlotRaftStatus() error = %v", err)
 	}
 
-	if got.NodeID != 2 || got.LeaderID != 1 || got.Role != "follower" || got.CommitIndex != 93 || got.AppliedIndex != 91 {
+	if got.NodeID != 2 || got.LeaderID != 1 || got.Role != "follower" || !equalUint64Slices(got.CurrentVoters, []uint64{1, 2, 3}) || got.CommitIndex != 93 || got.AppliedIndex != 91 {
 		t.Fatalf("status = %#v, want remote follower status with watermarks", got)
 	}
 	if service.nodeID != 2 || service.slotID != 9 {
@@ -136,6 +138,7 @@ type fakeManagementSlotRaftNode struct {
 	localSlotID       uint32
 	localStatusSlotID uint32
 	status            clusterv2.SlotRaftStatus
+	statusErr         error
 	compact           clusterv2.SlotRaftCompactionResult
 }
 
@@ -149,6 +152,9 @@ func (f *fakeManagementSlotRaftNode) CallRPC(ctx context.Context, nodeID uint64,
 
 func (f *fakeManagementSlotRaftNode) LocalSlotRaftStatus(_ context.Context, slotID uint32) (clusterv2.SlotRaftStatus, error) {
 	f.localStatusSlotID = slotID
+	if f.statusErr != nil {
+		return clusterv2.SlotRaftStatus{}, f.statusErr
+	}
 	return f.status, nil
 }
 
@@ -174,4 +180,16 @@ func (f *fakeRemoteSlotRaftService) CompactSlotRaftLog(_ context.Context, nodeID
 	f.nodeID = nodeID
 	f.slotID = slotID
 	return f.result, nil
+}
+
+func equalUint64Slices(a, b []uint64) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }

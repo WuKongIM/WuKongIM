@@ -66,11 +66,12 @@ func (o *ManagementSlotRaftOperator) CompactSlotRaftLog(ctx context.Context, nod
 
 func slotRaftStatusFromCluster(status clusterv2.SlotRaftStatus) managementusecase.SlotNodeLogStatus {
 	return managementusecase.SlotNodeLogStatus{
-		NodeID:       status.NodeID,
-		LeaderID:     status.LeaderID,
-		Role:         status.Role,
-		CommitIndex:  status.CommitIndex,
-		AppliedIndex: status.AppliedIndex,
+		NodeID:        status.NodeID,
+		LeaderID:      status.LeaderID,
+		Role:          status.Role,
+		CurrentVoters: append([]uint64(nil), status.CurrentVoters...),
+		CommitIndex:   status.CommitIndex,
+		AppliedIndex:  status.AppliedIndex,
 	}
 }
 

@@ -130,6 +130,8 @@ type SlotNodeLogStatus struct {
 	LeaderID uint64
 	// Role is the reporting node's local Raft role for this slot.
 	Role string
+	// CurrentVoters is the current Slot Raft voter set observed by the reporting node.
+	CurrentVoters []uint64
 	// CommitIndex is the highest committed Raft log index known by the reporting node.
 	CommitIndex uint64
 	// AppliedIndex is the highest Raft log index applied by the reporting node.

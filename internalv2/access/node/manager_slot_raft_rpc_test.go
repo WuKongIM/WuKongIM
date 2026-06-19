@@ -40,11 +40,12 @@ func TestManagerSlotRaftRPCClientCompactsNodeSlot(t *testing.T) {
 func TestManagerSlotRaftRPCClientReadsNodeSlotStatus(t *testing.T) {
 	service := &fakeManagerSlotRaftService{
 		status: managementusecase.SlotNodeLogStatus{
-			NodeID:       2,
-			LeaderID:     1,
-			Role:         "follower",
-			CommitIndex:  93,
-			AppliedIndex: 91,
+			NodeID:        2,
+			LeaderID:      1,
+			Role:          "follower",
+			CurrentVoters: []uint64{1, 2, 3},
+			CommitIndex:   93,
+			AppliedIndex:  91,
 		},
 	}
 	adapter := New(Options{ManagerSlotRaft: service})
@@ -56,7 +57,7 @@ func TestManagerSlotRaftRPCClientReadsNodeSlotStatus(t *testing.T) {
 		t.Fatalf("GetManagerSlotRaftStatus() error = %v", err)
 	}
 
-	if got.NodeID != 2 || got.LeaderID != 1 || got.Role != "follower" || got.CommitIndex != 93 || got.AppliedIndex != 91 {
+	if got.NodeID != 2 || got.LeaderID != 1 || got.Role != "follower" || !sameNodeRPCUint64s(got.CurrentVoters, []uint64{1, 2, 3}) || got.CommitIndex != 93 || got.AppliedIndex != 91 {
 		t.Fatalf("status = %#v, want follower status with local watermarks", got)
 	}
 	if service.nodeID != 2 || service.slotID != 9 {
@@ -84,4 +85,16 @@ func (f *fakeManagerSlotRaftService) CompactSlotRaftLog(_ context.Context, nodeI
 	f.nodeID = nodeID
 	f.slotID = slotID
 	return f.result, nil
+}
+
+func sameNodeRPCUint64s(a, b []uint64) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }

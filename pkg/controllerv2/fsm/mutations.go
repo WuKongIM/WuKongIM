@@ -58,6 +58,10 @@ func (sm *StateMachine) applyMutation(next *state.ClusterState, raftIndex uint64
 			if stale, handled := handleBootstrapRevisionMismatch(next, cmd); handled {
 				return stale
 			}
+		} else if cmd.Task.Kind == state.TaskKindLeaderTransfer {
+			if stale, handled := handleLeaderTransferRevisionMismatch(next, cmd); handled {
+				return stale
+			}
 		} else if cmd.ExpectedRevision != nil && *cmd.ExpectedRevision != currentRevision {
 			return reject(ReasonExpectedRevisionMismatch)
 		}

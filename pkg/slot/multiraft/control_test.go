@@ -5,6 +5,11 @@ import (
 	"errors"
 	"testing"
 	"time"
+
+	"go.etcd.io/raft/v3"
+	"go.etcd.io/raft/v3/quorum"
+	"go.etcd.io/raft/v3/raftpb"
+	"go.etcd.io/raft/v3/tracker"
 )
 
 func TestEnsurePendingConfigCapacityPreservesTrackedFuture(t *testing.T) {
@@ -44,6 +49,70 @@ func TestTransferLeadershipRejectsUnknownSlot(t *testing.T) {
 	err := rt.TransferLeadership(context.Background(), 999, 2)
 	if !errors.Is(err, ErrSlotNotFound) {
 		t.Fatalf("expected ErrSlotNotFound, got %v", err)
+	}
+}
+
+func TestSelectLeaderTransferTransfereePrefersEligiblePreferred(t *testing.T) {
+	st := raft.Status{
+		BasicStatus: raft.BasicStatus{
+			SoftState: raft.SoftState{Lead: 1},
+			HardState: raftpb.HardState{Commit: 10},
+		},
+		Config: tracker.Config{Voters: quorum.JointConfig{
+			quorum.MajorityConfig{1: {}, 2: {}, 3: {}},
+		}},
+		Progress: map[uint64]tracker.Progress{
+			1: {Match: 10},
+			2: {Match: 10},
+			3: {Match: 10},
+		},
+	}
+
+	if got := selectLeaderTransferTransferee(st, 2); got != 2 {
+		t.Fatalf("selectLeaderTransferTransferee() = %d, want preferred 2", got)
+	}
+}
+
+func TestSelectLeaderTransferTransfereeFallsBackWhenPreferredBehind(t *testing.T) {
+	st := raft.Status{
+		BasicStatus: raft.BasicStatus{
+			SoftState: raft.SoftState{Lead: 1},
+			HardState: raftpb.HardState{Commit: 10},
+		},
+		Config: tracker.Config{Voters: quorum.JointConfig{
+			quorum.MajorityConfig{1: {}, 2: {}, 3: {}, 4: {}},
+		}},
+		Progress: map[uint64]tracker.Progress{
+			1: {Match: 10},
+			2: {Match: 9},
+			3: {Match: 10},
+			4: {Match: 10},
+		},
+	}
+
+	if got := selectLeaderTransferTransferee(st, 2); got != 3 {
+		t.Fatalf("selectLeaderTransferTransferee() = %d, want eligible voter 3", got)
+	}
+}
+
+func TestSelectLeaderTransferTransfereeReturnsZeroWithoutEligibleVoter(t *testing.T) {
+	st := raft.Status{
+		BasicStatus: raft.BasicStatus{
+			SoftState: raft.SoftState{Lead: 1},
+			HardState: raftpb.HardState{Commit: 10},
+		},
+		Config: tracker.Config{Voters: quorum.JointConfig{
+			quorum.MajorityConfig{1: {}, 2: {}, 3: {}},
+		}},
+		Progress: map[uint64]tracker.Progress{
+			1: {Match: 10},
+			2: {Match: 9},
+			3: {Match: 8},
+		},
+	}
+
+	if got := selectLeaderTransferTransferee(st, 2); got != 0 {
+		t.Fatalf("selectLeaderTransferTransferee() = %d, want 0", got)
 	}
 }
 

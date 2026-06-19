@@ -35,6 +35,24 @@ func handleBootstrapRevisionMismatch(current *state.ClusterState, cmd command.Co
 	return reject(ReasonStaleBootstrapMissingSlot), true
 }
 
+func handleLeaderTransferRevisionMismatch(current *state.ClusterState, cmd command.Command) (ApplyResult, bool) {
+	if cmd.ExpectedRevision == nil || *cmd.ExpectedRevision == current.Revision {
+		return ApplyResult{}, false
+	}
+	if cmd.Assignment == nil || cmd.Task == nil || cmd.Task.Kind != state.TaskKindLeaderTransfer {
+		return reject(ReasonExpectedRevisionMismatch), true
+	}
+	assignment, ok := findAssignment(current.Slots, cmd.Assignment.SlotID)
+	if !ok || !equivalentAssignment(assignment, *cmd.Assignment) {
+		return reject(ReasonExpectedRevisionMismatch), true
+	}
+	task, ok := findTaskBySlot(current.Tasks, cmd.Task.SlotID)
+	if !ok || !equivalentLeaderTransferTaskIgnoringID(task, *cmd.Task) {
+		return reject(ReasonExpectedRevisionMismatch), true
+	}
+	return noop(ReasonNoChange), true
+}
+
 func handleFailTaskRevisionMismatch(current *state.ClusterState, cmd command.Command) (ApplyResult, bool) {
 	if cmd.ExpectedRevision == nil || *cmd.ExpectedRevision == current.Revision {
 		return ApplyResult{}, false
@@ -81,6 +99,22 @@ func isNonBootstrapIdempotent(current state.ClusterState, cmd command.Command) b
 	default:
 		return false
 	}
+}
+
+func equivalentLeaderTransferTaskIgnoringID(a, b state.ReconcileTask) bool {
+	if a.Kind != state.TaskKindLeaderTransfer || b.Kind != state.TaskKindLeaderTransfer {
+		return false
+	}
+	if a.Status != state.TaskStatusPending || b.Status != state.TaskStatusPending {
+		return false
+	}
+	left := cloneTask(a)
+	right := cloneTask(b)
+	left.TaskID = ""
+	right.TaskID = ""
+	left.ParticipantProgress = nil
+	right.ParticipantProgress = nil
+	return equivalentTask(left, right)
 }
 
 func validateChanged(next *state.ClusterState, before state.ClusterState, cmd command.Command) ApplyResult {

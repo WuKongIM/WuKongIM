@@ -133,6 +133,8 @@ type SlotNodeLogDTO struct {
 	LeaderID uint64 `json:"leader_id"`
 	// Role is the reporting node's local Raft role for this slot.
 	Role string `json:"role"`
+	// CurrentVoters is the current Slot Raft voter set observed by the reporting node.
+	CurrentVoters []uint64 `json:"current_voters,omitempty"`
 	// CommitIndex is the highest committed Raft log index known by the reporting node.
 	CommitIndex uint64 `json:"commit_index"`
 	// AppliedIndex is the highest Raft log index applied by the reporting node.
@@ -255,10 +257,11 @@ func slotNodeLogDTO(item *managementusecase.SlotNodeLogStatus) *SlotNodeLogDTO {
 		return nil
 	}
 	return &SlotNodeLogDTO{
-		NodeID:       item.NodeID,
-		LeaderID:     item.LeaderID,
-		Role:         item.Role,
-		CommitIndex:  item.CommitIndex,
-		AppliedIndex: item.AppliedIndex,
+		NodeID:        item.NodeID,
+		LeaderID:      item.LeaderID,
+		Role:          item.Role,
+		CurrentVoters: append([]uint64(nil), item.CurrentVoters...),
+		CommitIndex:   item.CommitIndex,
+		AppliedIndex:  item.AppliedIndex,
 	}
 }

@@ -5,6 +5,8 @@ import (
 	"reflect"
 	"testing"
 
+	accessnode "github.com/WuKongIM/WuKongIM/internalv2/access/node"
+	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
 )
@@ -34,7 +36,8 @@ func TestManagementLeaderTransferAdapterUsesControlIntent(t *testing.T) {
 }
 
 func TestManagementSlotRuntimeStatusReaderUsesLocalSlotStatus(t *testing.T) {
-	node := &fakeManagementSlotRuntimeStatusNode{
+	node := &fakeManagementSlotRaftNode{
+		nodeID: 1,
 		status: clusterv2.SlotRaftStatus{
 			NodeID:        1,
 			SlotID:        1,
@@ -44,7 +47,7 @@ func TestManagementSlotRuntimeStatusReaderUsesLocalSlotStatus(t *testing.T) {
 	}
 	reader := NewManagementSlotRuntimeStatusReader(node)
 
-	got, err := reader.SlotRuntimeStatus(context.Background(), 1)
+	got, err := reader.SlotRuntimeStatus(context.Background(), 1, []uint64{1})
 	if err != nil {
 		t.Fatalf("SlotRuntimeStatus() error = %v", err)
 	}
@@ -58,6 +61,38 @@ func TestManagementSlotRuntimeStatusReaderUsesLocalSlotStatus(t *testing.T) {
 	}
 }
 
+func TestManagementSlotRuntimeStatusReaderSkipsLocalSlotNotFoundAndReadsRemoteCandidate(t *testing.T) {
+	service := &fakeRemoteSlotRaftService{
+		status: managementusecase.SlotNodeLogStatus{
+			NodeID:        2,
+			LeaderID:      2,
+			Role:          "leader",
+			CommitIndex:   93,
+			AppliedIndex:  91,
+			CurrentVoters: []uint64{1, 2, 3},
+		},
+	}
+	adapter := accessnode.New(accessnode.Options{ManagerSlotRaft: service})
+	node := &fakeManagementSlotRaftNode{
+		nodeID:    1,
+		statusErr: clusterv2.ErrSlotNotFound,
+		handler:   adapter.HandleManagerSlotRaftRPC,
+	}
+	reader := NewManagementSlotRuntimeStatusReader(node)
+
+	got, err := reader.SlotRuntimeStatus(context.Background(), 1, []uint64{1, 2, 3})
+	if err != nil {
+		t.Fatalf("SlotRuntimeStatus() error = %v", err)
+	}
+
+	if got.SlotID != 1 || got.LeaderID != 2 || !reflect.DeepEqual(got.CurrentVoters, []uint64{1, 2, 3}) {
+		t.Fatalf("SlotRuntimeStatus() = %#v, want remote slot 1 leader 2 voters [1 2 3]", got)
+	}
+	if node.localStatusSlotID != 1 || service.nodeID != 2 || service.slotID != 1 {
+		t.Fatalf("status attempts local=%d remote=%d/%d, want local slot 1 then remote node 2 slot 1", node.localStatusSlotID, service.nodeID, service.slotID)
+	}
+}
+
 type fakeManagementLeaderTransferNode struct {
 	request control.SlotLeaderTransferRequest
 	result  control.SlotLeaderTransferResult
@@ -66,12 +101,4 @@ type fakeManagementLeaderTransferNode struct {
 func (f *fakeManagementLeaderTransferNode) RequestSlotLeaderTransfer(_ context.Context, req control.SlotLeaderTransferRequest) (control.SlotLeaderTransferResult, error) {
 	f.request = req
 	return f.result, nil
-}
-
-type fakeManagementSlotRuntimeStatusNode struct {
-	status clusterv2.SlotRaftStatus
-}
-
-func (f *fakeManagementSlotRuntimeStatusNode) LocalSlotRaftStatus(_ context.Context, _ uint32) (clusterv2.SlotRaftStatus, error) {
-	return f.status, nil
 }

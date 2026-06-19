@@ -29,15 +29,16 @@ func TestRequestSlotLeaderTransferCreatesControllerTask(t *testing.T) {
 			},
 		},
 	}
-	app := New(Options{
-		Cluster: fakeNodeSnapshotReader{snapshot: leaderTransferSnapshot()},
-		SlotRuntimeStatus: fakeSlotRuntimeStatusReader{
-			statuses: map[uint32]SlotRuntimeStatus{
-				1: {SlotID: 1, LeaderID: 1, CurrentVoters: []uint64{1, 2, 3}},
-			},
+	statusReader := &fakeSlotRuntimeStatusReader{
+		statuses: map[uint32]SlotRuntimeStatus{
+			1: {SlotID: 1, LeaderID: 1, CurrentVoters: []uint64{1, 2, 3}},
 		},
-		LeaderTransfer: writer,
-		Now:            func() time.Time { return generatedAt },
+	}
+	app := New(Options{
+		Cluster:           fakeNodeSnapshotReader{snapshot: leaderTransferSnapshot()},
+		SlotRuntimeStatus: statusReader,
+		LeaderTransfer:    writer,
+		Now:               func() time.Time { return generatedAt },
 	})
 
 	got, err := app.RequestSlotLeaderTransfer(context.Background(), SlotLeaderTransferRequest{SlotID: 1, TargetNode: 2})
@@ -61,13 +62,16 @@ func TestRequestSlotLeaderTransferCreatesControllerTask(t *testing.T) {
 	if req.SlotID != 1 || req.SourceNode != 1 || req.TargetNode != 2 || !sameUint64Slice(req.TargetPeers, []uint64{1, 2, 3}) || req.ConfigEpoch != 7 || req.StateRevision != 9 {
 		t.Fatalf("writer request = %#v, want slot/source/target/peers/epoch/revision", req)
 	}
+	if !sameUint64Slice(statusReader.candidates, []uint64{1, 2, 3}) {
+		t.Fatalf("runtime candidates = %v, want desired peers [1 2 3]", statusReader.candidates)
+	}
 }
 
 func TestRequestSlotLeaderTransferAlreadyLeaderIsNoop(t *testing.T) {
 	writer := &fakeSlotLeaderTransferWriter{}
 	app := New(Options{
 		Cluster: fakeNodeSnapshotReader{snapshot: leaderTransferSnapshot()},
-		SlotRuntimeStatus: fakeSlotRuntimeStatusReader{
+		SlotRuntimeStatus: &fakeSlotRuntimeStatusReader{
 			statuses: map[uint32]SlotRuntimeStatus{
 				1: {SlotID: 1, LeaderID: 2, CurrentVoters: []uint64{1, 2, 3}},
 			},
@@ -85,6 +89,44 @@ func TestRequestSlotLeaderTransferAlreadyLeaderIsNoop(t *testing.T) {
 	}
 	if len(writer.requests) != 0 {
 		t.Fatalf("writer requests = %#v, want no call for already leader", writer.requests)
+	}
+}
+
+func TestRequestSlotLeaderTransferMapsWriterNoopToExistingTask(t *testing.T) {
+	writer := &fakeSlotLeaderTransferWriter{
+		result: control.SlotLeaderTransferResult{
+			Created: false,
+			Task: &control.ReconcileTask{
+				TaskID:           "slot-1-leader-transfer-7-r8",
+				SlotID:           1,
+				Kind:             control.TaskKindLeaderTransfer,
+				Step:             control.TaskStepTransferLeader,
+				SourceNode:       1,
+				TargetNode:       2,
+				TargetPeers:      []uint64{1, 2, 3},
+				CompletionPolicy: control.TaskCompletionPolicySingleObserver,
+				ConfigEpoch:      7,
+				Status:           control.TaskStatusPending,
+			},
+		},
+	}
+	app := New(Options{
+		Cluster: fakeNodeSnapshotReader{snapshot: leaderTransferSnapshot()},
+		SlotRuntimeStatus: &fakeSlotRuntimeStatusReader{
+			statuses: map[uint32]SlotRuntimeStatus{
+				1: {SlotID: 1, LeaderID: 1, CurrentVoters: []uint64{1, 2, 3}},
+			},
+		},
+		LeaderTransfer: writer,
+	})
+
+	got, err := app.RequestSlotLeaderTransfer(context.Background(), SlotLeaderTransferRequest{SlotID: 1, TargetNode: 2})
+
+	if err != nil {
+		t.Fatalf("RequestSlotLeaderTransfer() error = %v", err)
+	}
+	if got.Created || got.Message != SlotLeaderTransferMessageExistingTask || got.Task == nil || got.Task.TaskID != "slot-1-leader-transfer-7-r8" {
+		t.Fatalf("response = %#v, want existing task no-op from writer", got)
 	}
 }
 
@@ -164,7 +206,7 @@ func TestRequestSlotLeaderTransferRejectsInvalidSnapshotTargets(t *testing.T) {
 			writer := &fakeSlotLeaderTransferWriter{}
 			app := New(Options{
 				Cluster: fakeNodeSnapshotReader{snapshot: tt.snapshot},
-				SlotRuntimeStatus: fakeSlotRuntimeStatusReader{
+				SlotRuntimeStatus: &fakeSlotRuntimeStatusReader{
 					statuses: map[uint32]SlotRuntimeStatus{
 						1: {SlotID: 1, LeaderID: 1, CurrentVoters: []uint64{1, 2, 3}},
 					},
@@ -201,7 +243,7 @@ func TestRequestSlotLeaderTransferReusesExistingTaskAndRejectsConflicts(t *testi
 	snapshot.Tasks = []control.ReconcileTask{existing}
 	app := New(Options{
 		Cluster: fakeNodeSnapshotReader{snapshot: snapshot},
-		SlotRuntimeStatus: fakeSlotRuntimeStatusReader{
+		SlotRuntimeStatus: &fakeSlotRuntimeStatusReader{
 			statuses: map[uint32]SlotRuntimeStatus{
 				1: {SlotID: 1, LeaderID: 1, CurrentVoters: []uint64{1, 2, 3}},
 			},
@@ -220,7 +262,7 @@ func TestRequestSlotLeaderTransferReusesExistingTaskAndRejectsConflicts(t *testi
 	snapshot.Tasks[0].TargetNode = 3
 	app = New(Options{
 		Cluster: fakeNodeSnapshotReader{snapshot: snapshot},
-		SlotRuntimeStatus: fakeSlotRuntimeStatusReader{
+		SlotRuntimeStatus: &fakeSlotRuntimeStatusReader{
 			statuses: map[uint32]SlotRuntimeStatus{
 				1: {SlotID: 1, LeaderID: 1, CurrentVoters: []uint64{1, 2, 3}},
 			},
@@ -268,7 +310,7 @@ func TestRequestSlotLeaderTransferRejectsUnsafeRuntimeStateAsConflict(t *testing
 			writer := &fakeSlotLeaderTransferWriter{}
 			app := New(Options{
 				Cluster: fakeNodeSnapshotReader{snapshot: tt.snapshot},
-				SlotRuntimeStatus: fakeSlotRuntimeStatusReader{
+				SlotRuntimeStatus: &fakeSlotRuntimeStatusReader{
 					statuses: map[uint32]SlotRuntimeStatus{1: tt.status},
 				},
 				LeaderTransfer: writer,
@@ -318,13 +360,15 @@ func (f *fakeSlotLeaderTransferWriter) RequestSlotLeaderTransfer(_ context.Conte
 }
 
 type fakeSlotRuntimeStatusReader struct {
-	statuses map[uint32]SlotRuntimeStatus
-	err      error
+	statuses   map[uint32]SlotRuntimeStatus
+	candidates []uint64
+	err        error
 }
 
-func (f fakeSlotRuntimeStatusReader) SlotRuntimeStatus(_ context.Context, slotID uint32) (SlotRuntimeStatus, error) {
+func (f *fakeSlotRuntimeStatusReader) SlotRuntimeStatus(_ context.Context, slotID uint32, candidates []uint64) (SlotRuntimeStatus, error) {
 	if f.err != nil {
 		return SlotRuntimeStatus{}, f.err
 	}
+	f.candidates = append([]uint64(nil), candidates...)
 	return f.statuses[slotID], nil
 }

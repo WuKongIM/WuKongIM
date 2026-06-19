@@ -38,7 +38,7 @@ type SlotLeaderTransferWriter interface {
 // SlotRuntimeStatusReader reads live Slot Raft status for transfer validation.
 type SlotRuntimeStatusReader interface {
 	// SlotRuntimeStatus returns the currently observed leader and voter set for a Slot.
-	SlotRuntimeStatus(context.Context, uint32) (SlotRuntimeStatus, error)
+	SlotRuntimeStatus(context.Context, uint32, []uint64) (SlotRuntimeStatus, error)
 }
 
 // SlotRuntimeStatus is the live Slot Raft status needed before creating a transfer task.
@@ -102,7 +102,7 @@ func (a *App) RequestSlotLeaderTransfer(ctx context.Context, req SlotLeaderTrans
 	if !ok {
 		return SlotLeaderTransferResponse{}, ErrSlotLeaderTransferSlotNotFound
 	}
-	runtime, err := a.slotRuntimeStatus.SlotRuntimeStatus(ctx, req.SlotID)
+	runtime, err := a.slotRuntimeStatus.SlotRuntimeStatus(ctx, req.SlotID, assignment.DesiredPeers)
 	if err != nil {
 		return SlotLeaderTransferResponse{}, err
 	}
@@ -150,7 +150,11 @@ func (a *App) RequestSlotLeaderTransfer(ctx context.Context, req SlotLeaderTrans
 	}
 	response.Created = result.Created
 	response.Task = slotTaskFromControlPtr(result.Task)
-	response.Message = SlotLeaderTransferMessageCreated
+	if result.Created {
+		response.Message = SlotLeaderTransferMessageCreated
+	} else {
+		response.Message = SlotLeaderTransferMessageExistingTask
+	}
 	return response, nil
 }
 

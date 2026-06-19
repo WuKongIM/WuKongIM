@@ -3,6 +3,7 @@ package controllerv2
 import (
 	"context"
 	"fmt"
+	"sort"
 
 	"github.com/WuKongIM/WuKongIM/pkg/controllerv2/command"
 	"github.com/WuKongIM/WuKongIM/pkg/controllerv2/state"
@@ -62,5 +63,72 @@ func (r *Runtime) RequestSlotLeaderTransfer(ctx context.Context, req SlotLeaderT
 	}); err != nil {
 		return SlotLeaderTransferResult{}, err
 	}
+	st, err := r.LocalState(ctx)
+	if err != nil {
+		return SlotLeaderTransferResult{}, err
+	}
+	if existing, ok := equivalentActiveLeaderTransferTask(st, assignment, task); ok && existing.TaskID != task.TaskID {
+		return SlotLeaderTransferResult{Created: false, Task: (*ReconcileTask)(&existing)}, nil
+	}
 	return SlotLeaderTransferResult{Created: true, Task: (*ReconcileTask)(&task)}, nil
+}
+
+func equivalentActiveLeaderTransferTask(st state.ClusterState, assignment state.SlotAssignment, task state.ReconcileTask) (state.ReconcileTask, bool) {
+	foundAssignment := false
+	for _, existingAssignment := range st.Slots {
+		if existingAssignment.SlotID != assignment.SlotID {
+			continue
+		}
+		if !equivalentLeaderTransferAssignment(existingAssignment, assignment) {
+			return state.ReconcileTask{}, false
+		}
+		foundAssignment = true
+		break
+	}
+	if !foundAssignment {
+		return state.ReconcileTask{}, false
+	}
+	for _, existing := range st.Tasks {
+		if existing.SlotID == task.SlotID && equivalentLeaderTransferTask(existing, task) {
+			return existing, true
+		}
+	}
+	return state.ReconcileTask{}, false
+}
+
+func equivalentLeaderTransferAssignment(a, b state.SlotAssignment) bool {
+	return a.SlotID == b.SlotID &&
+		a.ConfigEpoch == b.ConfigEpoch &&
+		a.PreferredLeader == b.PreferredLeader &&
+		sameUint64Set(a.DesiredPeers, b.DesiredPeers)
+}
+
+func equivalentLeaderTransferTask(a, b state.ReconcileTask) bool {
+	return a.SlotID == b.SlotID &&
+		a.Kind == state.TaskKindLeaderTransfer &&
+		b.Kind == state.TaskKindLeaderTransfer &&
+		a.Step == b.Step &&
+		a.SourceNode == b.SourceNode &&
+		a.TargetNode == b.TargetNode &&
+		a.ConfigEpoch == b.ConfigEpoch &&
+		a.CompletionPolicy == b.CompletionPolicy &&
+		a.Status == state.TaskStatusPending &&
+		b.Status == state.TaskStatusPending &&
+		sameUint64Set(a.TargetPeers, b.TargetPeers)
+}
+
+func sameUint64Set(a, b []uint64) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	left := append([]uint64(nil), a...)
+	right := append([]uint64(nil), b...)
+	sort.Slice(left, func(i, j int) bool { return left[i] < left[j] })
+	sort.Slice(right, func(i, j int) bool { return right[i] < right[j] })
+	for i := range left {
+		if left[i] != right[i] {
+			return false
+		}
+	}
+	return true
 }

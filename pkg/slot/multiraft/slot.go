@@ -227,7 +227,10 @@ func (g *slot) processControls(ctx context.Context) bool {
 		case controlCampaign:
 			_ = g.rawNode.Campaign()
 		case controlTransferLeader:
-			g.rawNode.TransferLeader(uint64(action.target))
+			target := selectLeaderTransferTransferee(g.rawNode.Status(), action.target)
+			if target != 0 {
+				g.rawNode.TransferLeader(uint64(target))
+			}
 		case controlCompactLog:
 			if action.compact == nil {
 				continue
@@ -735,6 +738,42 @@ func currentVotersFromRaftStatus(st raft.Status) []NodeID {
 		return voters[i] < voters[j]
 	})
 	return voters
+}
+
+func selectLeaderTransferTransferee(st raft.Status, preferred NodeID) NodeID {
+	voters := st.Config.Voters.IDs()
+	if len(voters) == 0 {
+		return 0
+	}
+	lead := st.Lead
+	commit := st.Commit
+	isEligible := func(id uint64) bool {
+		if id == 0 || id == lead {
+			return false
+		}
+		if _, ok := voters[id]; !ok {
+			return false
+		}
+		progress, ok := st.Progress[id]
+		return ok && progress.Match >= commit
+	}
+	if isEligible(uint64(preferred)) {
+		return preferred
+	}
+
+	var selected uint64
+	var selectedMatch uint64
+	for id := range voters {
+		if !isEligible(id) {
+			continue
+		}
+		match := st.Progress[id].Match
+		if selected == 0 || match > selectedMatch || (match == selectedMatch && id < selected) {
+			selected = id
+			selectedMatch = match
+		}
+	}
+	return NodeID(selected)
 }
 
 func (g *slot) appliedIndex() uint64 {

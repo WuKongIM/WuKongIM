@@ -349,6 +349,21 @@ func TestRuntimeRequestSlotLeaderTransfer(t *testing.T) {
 	if st.Slots[0].PreferredLeader != 2 || st.Tasks[0].Step != TaskStepTransferLeader {
 		t.Fatalf("state after transfer request = %#v", st)
 	}
+
+	dupe, err := runtime.RequestSlotLeaderTransfer(ctx, SlotLeaderTransferRequest{
+		SlotID:        1,
+		SourceNode:    1,
+		TargetNode:    2,
+		TargetPeers:   []uint64{1, 2},
+		ConfigEpoch:   7,
+		StateRevision: ready.Revision - 1,
+	})
+	if err != nil {
+		t.Fatalf("RequestSlotLeaderTransfer(duplicate) error = %v", err)
+	}
+	if dupe.Created || dupe.Task == nil || dupe.Task.TaskID != wantTaskID {
+		t.Fatalf("RequestSlotLeaderTransfer(duplicate) = %#v, want existing task no-op", dupe)
+	}
 }
 
 func readStateEvent(t *testing.T, watch <-chan StateEvent) StateEvent {
