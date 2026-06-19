@@ -1,6 +1,7 @@
 package clusterv2
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"testing"
@@ -34,6 +35,41 @@ func TestNetworkSlotTransportUsesOwnedSenderWhenAvailable(t *testing.T) {
 	}
 	if len(envelopes) != 1 || envelopes[0].SlotID != 7 || envelopes[0].Message.Term != 4 {
 		t.Fatalf("envelopes = %#v, want one slot=7 term=4", envelopes)
+	}
+}
+
+func TestEncodeSlotRaftBatchUsesBinaryFraming(t *testing.T) {
+	data := bytes.Repeat([]byte("x"), 1024)
+	payload, err := encodeSlotRaftBatch([]multiraft.Envelope{
+		{
+			SlotID: 7,
+			Message: raftpb.Message{
+				From:    1,
+				To:      2,
+				Type:    raftpb.MsgApp,
+				Term:    4,
+				Entries: []raftpb.Entry{{Index: 1, Term: 4, Data: data}},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("encodeSlotRaftBatch() error = %v", err)
+	}
+	if !bytes.HasPrefix(payload, []byte("WKSRB1")) {
+		t.Fatalf("encoded payload prefix = %q, want binary Slot Raft batch frame", payload[:min(len(payload), 16)])
+	}
+	if bytes.Contains(payload, []byte(`"message"`)) {
+		t.Fatalf("encoded payload contains JSON field name, want raw binary frame")
+	}
+	envelopes, err := decodeSlotRaftBatch(payload)
+	if err != nil {
+		t.Fatalf("decodeSlotRaftBatch() error = %v", err)
+	}
+	if len(envelopes) != 1 || envelopes[0].SlotID != 7 {
+		t.Fatalf("decoded envelopes = %#v, want one slot=7", envelopes)
+	}
+	if got := envelopes[0].Message.Entries; len(got) != 1 || !bytes.Equal(got[0].Data, data) {
+		t.Fatalf("decoded entries = %#v, want original payload", got)
 	}
 }
 

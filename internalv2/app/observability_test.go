@@ -12,11 +12,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/internalv2/observability/diagnostics"
 	accessapi "github.com/WuKongIM/WuKongIM/internalv2/access/api"
+	"github.com/WuKongIM/WuKongIM/internalv2/observability/diagnostics"
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/channelappend"
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/conversationactive"
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internalv2/runtime/delivery"
+	conversationusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/conversation"
 	messageusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/message"
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/reactor"
@@ -1476,6 +1477,32 @@ func TestDeliveryMessageObserverLogsChannelAppendPostCommitFailure(t *testing.T)
 	requireAppLogField(t, entry, "dispatchBatchSize", 3)
 	requireAppLogField(t, entry, "dispatchOwnerNodeID", uint64(7))
 	requireAppLogField(t, entry, "dispatchOwnerRouteNum", 2)
+}
+
+func TestDeliveryMessageObserverWarnsExpectedRoutePostCommitFailure(t *testing.T) {
+	logger := &recordingAppLogger{}
+	app := &App{logger: logger}
+	observer := deliveryMessageObserver{app: app}
+
+	observer.ObserveChannelAppendPostCommitFailure(channelappend.PostCommitFailureObservation{
+		ChannelID:   "room",
+		ChannelType: 2,
+		MessageID:   42,
+		MessageSeq:  7,
+		Attempt:     1,
+		Result:      "stale_route",
+		Phase:       "conversation_active",
+		Err:         fmt.Errorf("conversation active: %w", conversationusecase.ErrStaleRoute),
+	})
+
+	entry := requireAppLogEvent(t, logger, "WARN", "internalv2.app.channelappend.post_commit_failed")
+	requireAppLogField(t, entry, "phase", "conversation_active")
+	requireAppLogField(t, entry, "result", "stale_route")
+	for _, logged := range logger.entries {
+		if logged.level == "ERROR" {
+			t.Fatalf("unexpected ERROR log for retryable post-commit route failure: %#v", logged)
+		}
+	}
 }
 
 type recordingInternalV2SendTraceSink struct {

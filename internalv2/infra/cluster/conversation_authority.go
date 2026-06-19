@@ -36,7 +36,7 @@ var _ conversationusecase.Store = (*ConversationAuthorityClient)(nil)
 
 const (
 	defaultConversationRouteRetryAttempts = 100
-	conversationAdmissionRetryAttempts    = 2
+	conversationAdmissionRetryAttempts    = 8
 	defaultConversationRouteRetryBackoff  = 5 * time.Millisecond
 )
 

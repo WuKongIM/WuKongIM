@@ -1,5 +1,13 @@
 # WKSIM Stress Findings
 
+## 2026-06-19 wkcli sim three-node memory growth
+
+- Scenario: `./scripts/smoke-wkcli-sim-wukongimv2-three-nodes.sh --duration 1h --users 1000 --groups 1000 --members 10 --rate 3/s`, where `--rate` is per group and therefore targets about 3000 group messages/s before backpressure.
+- Evidence: live node pprof during the user run showed multi-GB heap dominated by Slot Raft metadata replication and retention paths: `pkg/clusterv2.encodeSlotRaftBatch -> encoding/json.Marshal -> bytes.growSlice`, `pkg/raftlog.cloneEntry`, `raftpb.Entry.Unmarshal`, and `pkg/slot/multiraft.cloneEntry/Propose`. Node logs also contained a large `conversation_active` stale-route post-commit error storm.
+- Root cause: the default Slot Raft transport encoded raw Raft messages through JSON, forcing base64 expansion and large transient buffers, while wukongimv2 could not tune the existing Slot Raft log compaction window. The stale-route post-commit path amplified CPU and log volume but was not the primary heap owner.
+- Fix: Slot Raft transport batches now use a versioned binary frame carrying raw `raftpb.Message` bytes; clusterv2 exposes Slot log compaction config to `cmd/wukongimv2`; local v2 script configs use `WK_CLUSTER_SLOT_LOG_COMPACTION_TRIGGER_ENTRIES=1000` and `WK_CLUSTER_SLOT_LOG_COMPACTION_CHECK_INTERVAL=5s`; `ConversationAuthorityClient.AdmitActiveBatch` retries route movement in a small bounded window; expected post-commit route failures log at WARN instead of ERROR.
+- Verification: `go test ./pkg/clusterv2 ./cmd/wukongimv2 ./internalv2/infra/cluster ./internalv2/app` passed. A short three-node smoke with `--duration 1m --users 100 --groups 100 --members 10 --rate 0.1/s` passed with `messages_sent=528` and `send_errors=0`; evidence: `data/wkcli-sim-three-node-smoke-codex-fix/`.
+
 ## 2026-06-12 transportv2 hot-path surgical refactor follow-up
 
 - Scenario: `GOWORK=off ./scripts/bench-wukongimv2-three-nodes-real-qps.sh --qps 4000`, 1000 group channels, 4096 users, 10 members, 30s measured duration, after the transportv2 scheduler/write/RPC/OwnedBuffer hot-path refactor.

@@ -11,6 +11,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/channelappend"
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internalv2/runtime/delivery"
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/online"
+	conversationusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/conversation"
 	deliveryusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/delivery"
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/message"
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/presence"
@@ -188,7 +189,20 @@ func (o deliveryMessageObserver) ObserveChannelAppendPostCommitFailure(event cha
 	if o.app == nil {
 		return
 	}
+	fields := channelAppendPostCommitFailureFields(event)
+	if isExpectedPostCommitRouteFailure(event.Err) {
+		o.app.deliveryLogger().Warn("channelappend post-commit route failure",
+			fields...,
+		)
+		return
+	}
 	o.app.deliveryLogger().Error("channelappend post-commit failed",
+		fields...,
+	)
+}
+
+func channelAppendPostCommitFailureFields(event channelappend.PostCommitFailureObservation) []wklog.Field {
+	return []wklog.Field{
 		wklog.Event("internalv2.app.channelappend.post_commit_failed"),
 		wklog.ChannelID(event.ChannelID),
 		wklog.ChannelType(int64(event.ChannelType)),
@@ -210,7 +224,16 @@ func (o deliveryMessageObserver) ObserveChannelAppendPostCommitFailure(event cha
 		wklog.Uint64("dispatchOwnerNodeID", event.DispatchOwnerNodeID),
 		wklog.Int("dispatchOwnerRouteNum", event.DispatchOwnerRouteNum),
 		wklog.Error(event.Err),
-	)
+	}
+}
+
+func isExpectedPostCommitRouteFailure(err error) bool {
+	return errors.Is(err, conversationusecase.ErrStaleRoute) ||
+		errors.Is(err, conversationusecase.ErrNotLeader) ||
+		errors.Is(err, conversationusecase.ErrRouteNotReady) ||
+		errors.Is(err, channelappend.ErrStaleRoute) ||
+		errors.Is(err, channelappend.ErrNotLeader) ||
+		errors.Is(err, channelappend.ErrRouteNotReady)
 }
 
 func (o deliveryMessageObserver) SetChannelAppendRecipientDeliveryQueue(event channelappend.RecipientDeliveryQueueObservation) {

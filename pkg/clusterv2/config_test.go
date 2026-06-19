@@ -5,6 +5,9 @@ import (
 	"path/filepath"
 	"runtime"
 	"testing"
+	"time"
+
+	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 )
 
 func TestConfigDefaultsSingleNodeControl(t *testing.T) {
@@ -144,6 +147,49 @@ func TestConfigRejectsNegativeStorageCommitShards(t *testing.T) {
 	cfg.applyDefaults()
 	if err := cfg.validate(); !errors.Is(err, ErrInvalidConfig) {
 		t.Fatalf("validate() error = %v, want ErrInvalidConfig", err)
+	}
+}
+
+func TestConfigPreservesSlotLogCompactionConfig(t *testing.T) {
+	cfg := Config{
+		NodeID:     1,
+		ListenAddr: "127.0.0.1:0",
+		DataDir:    t.TempDir(),
+		Slots: SlotConfig{
+			LogCompaction: multiraft.LogCompactionConfig{
+				Enabled:        true,
+				EnabledSet:     true,
+				TriggerEntries: 1000,
+				CheckInterval:  5 * time.Second,
+			},
+		},
+	}
+	cfg.applyDefaults()
+	if err := cfg.validate(); err != nil {
+		t.Fatalf("validate() error = %v", err)
+	}
+	if cfg.Slots.LogCompaction.TriggerEntries != 1000 || cfg.Slots.LogCompaction.CheckInterval != 5*time.Second {
+		t.Fatalf("Slots.LogCompaction = %#v, want explicit tuning preserved", cfg.Slots.LogCompaction)
+	}
+}
+
+func TestConfigRejectsInvalidSlotLogCompactionConfig(t *testing.T) {
+	cfg := Config{
+		NodeID:     1,
+		ListenAddr: "127.0.0.1:0",
+		DataDir:    t.TempDir(),
+		Slots: SlotConfig{
+			LogCompaction: multiraft.LogCompactionConfig{
+				Enabled:        true,
+				EnabledSet:     true,
+				TriggerEntries: 1000,
+				CheckInterval:  -time.Second,
+			},
+		},
+	}
+	cfg.applyDefaults()
+	if err := cfg.validate(); !errors.Is(err, multiraft.ErrInvalidOptions) {
+		t.Fatalf("validate() error = %v, want multiraft.ErrInvalidOptions", err)
 	}
 }
 

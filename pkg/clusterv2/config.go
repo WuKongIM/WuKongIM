@@ -88,6 +88,8 @@ type SlotConfig struct {
 	HashSlotCount uint16
 	// ReplicaCount is the desired replica count for each physical Slot.
 	ReplicaCount uint16
+	// LogCompaction controls local Slot Raft snapshot compaction.
+	LogCompaction multiraft.LogCompactionConfig
 	// Observer receives low-cardinality Slot scheduler pressure observations.
 	Observer multiraft.SchedulerObserver
 }
@@ -212,6 +214,7 @@ func (c *Config) applySlotDefaults() {
 			c.Slots.ReplicaCount = 1
 		}
 	}
+	c.Slots.LogCompaction = multiraft.NormalizeLogCompactionConfig(c.Slots.LogCompaction)
 }
 
 func (c Config) validate() error {
@@ -308,6 +311,9 @@ func (c Config) validateSlots() error {
 	}
 	if int(c.Slots.ReplicaCount) > len(c.Control.Voters) {
 		return ErrInvalidConfig
+	}
+	if err := multiraft.ValidateLogCompactionConfig(c.Slots.LogCompaction); err != nil {
+		return err
 	}
 	return nil
 }

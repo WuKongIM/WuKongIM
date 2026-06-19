@@ -11,6 +11,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internalv2/app"
 	"github.com/WuKongIM/WuKongIM/pkg/gateway"
 	"github.com/WuKongIM/WuKongIM/pkg/gateway/binding"
+	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 )
 
 func TestLoadConfigDefaultValues(t *testing.T) {
@@ -157,6 +158,9 @@ func TestLoadConfigExplicitConfigFile(t *testing.T) {
 		"WK_CLUSTER_INITIAL_SLOT_COUNT=3",
 		"WK_CLUSTER_HASH_SLOT_COUNT=64",
 		"WK_CLUSTER_SLOT_REPLICA_N=1",
+		"WK_CLUSTER_SLOT_LOG_COMPACTION_ENABLED=true",
+		"WK_CLUSTER_SLOT_LOG_COMPACTION_TRIGGER_ENTRIES=1000",
+		"WK_CLUSTER_SLOT_LOG_COMPACTION_CHECK_INTERVAL=5s",
 		"WK_CLUSTER_CHANNEL_REACTOR_COUNT=12",
 		"WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS=24",
 		"WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS=20",
@@ -257,6 +261,9 @@ func TestLoadConfigExplicitConfigFile(t *testing.T) {
 	}
 	if cfg.Cluster.Slots.ReplicaCount != 1 {
 		t.Fatalf("ReplicaCount = %d", cfg.Cluster.Slots.ReplicaCount)
+	}
+	if cfg.Cluster.Slots.LogCompaction != (multiraft.LogCompactionConfig{Enabled: true, EnabledSet: true, TriggerEntries: 1000, CheckInterval: 5 * time.Second}) {
+		t.Fatalf("Slots.LogCompaction = %#v, want explicit file tuning", cfg.Cluster.Slots.LogCompaction)
 	}
 	if cfg.Cluster.Channel.ReactorCount != 12 {
 		t.Fatalf("Channel.ReactorCount = %d, want 12", cfg.Cluster.Channel.ReactorCount)
@@ -695,6 +702,9 @@ func TestLoadConfigEnvOverridesFile(t *testing.T) {
 	t.Setenv("WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT", "750us")
 	t.Setenv("WK_CLUSTER_CHANNEL_APPEND_BATCH_ADAPTIVE_FLUSH", "true")
 	t.Setenv("WK_CLUSTER_CHANNEL_APPEND_BATCH_COLD_MAX_WAIT", "125us")
+	t.Setenv("WK_CLUSTER_SLOT_LOG_COMPACTION_ENABLED", "true")
+	t.Setenv("WK_CLUSTER_SLOT_LOG_COMPACTION_TRIGGER_ENTRIES", "2000")
+	t.Setenv("WK_CLUSTER_SLOT_LOG_COMPACTION_CHECK_INTERVAL", "7s")
 	t.Setenv("WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW", "1ms")
 	t.Setenv("WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS", "32")
 	t.Setenv("WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS", "512")
@@ -785,6 +795,9 @@ func TestLoadConfigEnvOverridesFile(t *testing.T) {
 	}
 	if cfg.Cluster.Channel.AppendBatchColdMaxWait != 125*time.Microsecond {
 		t.Fatalf("Channel.AppendBatchColdMaxWait = %s, want 125us", cfg.Cluster.Channel.AppendBatchColdMaxWait)
+	}
+	if cfg.Cluster.Slots.LogCompaction != (multiraft.LogCompactionConfig{Enabled: true, EnabledSet: true, TriggerEntries: 2000, CheckInterval: 7 * time.Second}) {
+		t.Fatalf("Slots.LogCompaction env override = %#v, want explicit env tuning", cfg.Cluster.Slots.LogCompaction)
 	}
 	if cfg.Cluster.Storage.CommitFlushWindow != time.Millisecond {
 		t.Fatalf("Storage.CommitFlushWindow = %s, want 1ms", cfg.Cluster.Storage.CommitFlushWindow)

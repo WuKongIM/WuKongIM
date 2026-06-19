@@ -37,6 +37,9 @@ var supportedConfigKeys = []string{
 	"WK_CLUSTER_INITIAL_SLOT_COUNT",
 	"WK_CLUSTER_HASH_SLOT_COUNT",
 	"WK_CLUSTER_SLOT_REPLICA_N",
+	"WK_CLUSTER_SLOT_LOG_COMPACTION_ENABLED",
+	"WK_CLUSTER_SLOT_LOG_COMPACTION_TRIGGER_ENTRIES",
+	"WK_CLUSTER_SLOT_LOG_COMPACTION_CHECK_INTERVAL",
 	"WK_CLUSTER_CHANNEL_REACTOR_COUNT",
 	"WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS",
 	"WK_CLUSTER_CHANNEL_STORE_APPEND_BATCH_MAX_WAIT",
@@ -330,6 +333,34 @@ func buildConfig(values map[string]string) (app.Config, error) {
 			return app.Config{}, err
 		}
 		cfg.Cluster.Slots.ReplicaCount = replicaCount
+	}
+	if raw := configValue(values, "WK_CLUSTER_SLOT_LOG_COMPACTION_ENABLED"); raw != "" {
+		enabled, err := parseBool("WK_CLUSTER_SLOT_LOG_COMPACTION_ENABLED", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Cluster.Slots.LogCompaction.Enabled = enabled
+		cfg.Cluster.Slots.LogCompaction.EnabledSet = true
+	}
+	if raw := configValue(values, "WK_CLUSTER_SLOT_LOG_COMPACTION_TRIGGER_ENTRIES"); raw != "" {
+		triggerEntries, err := parseUint64("WK_CLUSTER_SLOT_LOG_COMPACTION_TRIGGER_ENTRIES", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if triggerEntries == 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CLUSTER_SLOT_LOG_COMPACTION_TRIGGER_ENTRIES: value must be > 0")
+		}
+		cfg.Cluster.Slots.LogCompaction.TriggerEntries = triggerEntries
+	}
+	if raw := configValue(values, "WK_CLUSTER_SLOT_LOG_COMPACTION_CHECK_INTERVAL"); raw != "" {
+		checkInterval, err := parseDuration("WK_CLUSTER_SLOT_LOG_COMPACTION_CHECK_INTERVAL", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if checkInterval <= 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CLUSTER_SLOT_LOG_COMPACTION_CHECK_INTERVAL: value must be > 0")
+		}
+		cfg.Cluster.Slots.LogCompaction.CheckInterval = checkInterval
 	}
 	if raw := configValue(values, "WK_CLUSTER_CHANNEL_REACTOR_COUNT"); raw != "" {
 		reactorCount, err := parseInt("WK_CLUSTER_CHANNEL_REACTOR_COUNT", raw)

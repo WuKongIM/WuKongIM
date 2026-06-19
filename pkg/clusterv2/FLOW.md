@@ -215,6 +215,12 @@ stale-route errors propagate to the caller.
 
 `WithProposer` and `WithChannels` are public override options for tests, smoke harnesses, and app-level composition. If callers do not provide them, `Node.Start` creates a default ControllerV2 runtime, proposer, and ChannelV2 service, backs ChannelV2 with the message DB under `DataDir/channellog`, registers ChannelV2 replication/append-forward handlers on the default node RPC transport, and owns the ChannelV2 tick loop plus default store factory cleanup. The default proposer is backed by a real local Slot Multi-Raft runtime, durable Slot Raft log storage under `DataDir/slotraft`, metadata FSM storage under `DataDir/slotmeta`, and clusterv2 typed RPC transport for multi-replica Slot Raft traffic.
 `Config.Slots.Observer` is passed to the default Slot Multi-Raft runtime so composition roots can expose scheduler pressure without changing Slot processing semantics.
+`Config.Slots.LogCompaction` is also passed through to the default Slot
+Multi-Raft runtime so composition roots can tune local Slot Raft snapshot
+compaction without changing proposal or apply semantics. Slot Raft transport
+batches use a versioned binary frame that carries raw `raftpb.Message` bytes
+instead of JSON encoding, avoiding base64 expansion on the metadata replication
+path.
 
 ## Distributed Log Inspection Flow
 

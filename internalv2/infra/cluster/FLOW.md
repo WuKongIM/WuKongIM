@@ -308,9 +308,9 @@ one target-scoped batch per group. Only the sender-owned target receives
 recipient subset, so a receiver authority cannot cache the sender row by
 mistake. If the sender is not in the recipient set, the sender target still
 receives a sender-only batch. Active-batch admission retries route-not-ready,
-stale-route, and not-leader errors once by resolving fresh UID routes and
-regrouping the whole batch; continued failure is returned to the caller so the
-post-commit path remains bounded.
+stale-route, and not-leader errors within a small bounded fresh-route window,
+regrouping the whole batch each time; continued failure is returned to the
+caller so the post-commit path remains bounded.
 The remote RPC client chunks large patch groups and active-batch recipient
 groups at the codec collection limit before sending them. List resolves the
 requested UID once per retry attempt and reads the active view from that
@@ -344,7 +344,8 @@ ConversationAuthorityClient
 List route-not-ready, stale-route, and not-leader results are retried with a
 short bounded backoff so authority movement can settle without changing
 conversation list semantics. Legacy patch admission returns those errors
-directly, while active-batch admission makes one fresh-route retry. Raw
+directly, while active-batch admission makes a small bounded fresh-route retry
+window. Raw
 clusterv2 route errors returned by remote RPC calls are mapped to the same
 conversation route sentinels before retry decisions.
 

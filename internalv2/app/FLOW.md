@@ -239,11 +239,12 @@ writer's best-effort post-commit pipeline. The recipient delivery worker later
 drains accepted batches, resolves online routes, and pushes owner-node delivery
 commands. Post-commit persistence and restart replay are not part of
 channelappend. Post-commit enqueue failures are logged with the failing phase and
-route/dispatch context, counted through effect metrics, and dropped without
-retry; they do not change channel durability or the already-successful SENDACK
-decision. Conversation active-batch admission itself also performs no app-layer
-route retry; failures surface as the `conversation_active` post-commit phase
-before online delivery is enqueued.
+route/dispatch context, counted through effect metrics, and dropped after the
+routed helper's bounded retry window; they do not change channel durability or
+the already-successful SENDACK decision. Conversation active-batch admission
+performs only a short bounded fresh-route retry in the routed client; failures
+surface as the `conversation_active` post-commit phase before online delivery
+is enqueued.
 Runtime fanout failures are counted with normalized delivery error classes.
 Retryable fanout failures enter
 a bounded in-memory retry scheduler with a small fixed attempt cap; retry queue

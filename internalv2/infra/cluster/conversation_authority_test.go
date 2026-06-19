@@ -216,8 +216,15 @@ func TestConversationAuthorityClientAdmitActiveBatchRetriesStaleRouteWithFreshRo
 	}
 }
 
-func TestConversationAuthorityClientAdmitActiveBatchRetriesStaleRouteOnlyOnce(t *testing.T) {
-	local := &fakeConversationAuthorityLocal{activeBatchAlwaysErr: conversationusecase.ErrStaleRoute}
+func TestConversationAuthorityClientAdmitActiveBatchRetriesStaleRouteWithBoundedFreshRoutes(t *testing.T) {
+	local := &fakeConversationAuthorityLocal{
+		activeBatchErrs: []error{
+			conversationusecase.ErrStaleRoute,
+			conversationusecase.ErrStaleRoute,
+			conversationusecase.ErrStaleRoute,
+			nil,
+		},
+	}
 	target := clusterv2.Route{HashSlot: 1, SlotID: 2, Leader: 1, Revision: 10, AuthorityEpoch: 20}
 	node := &fakeConversationAuthorityNode{
 		nodeID: 1,
@@ -226,6 +233,7 @@ func TestConversationAuthorityClientAdmitActiveBatchRetriesStaleRouteOnlyOnce(t 
 				target,
 				{HashSlot: 1, SlotID: 2, Leader: 1, Revision: 11, AuthorityEpoch: 21},
 				{HashSlot: 1, SlotID: 2, Leader: 1, Revision: 12, AuthorityEpoch: 22},
+				{HashSlot: 1, SlotID: 2, Leader: 1, Revision: 13, AuthorityEpoch: 23},
 			},
 		},
 	}
@@ -239,14 +247,20 @@ func TestConversationAuthorityClientAdmitActiveBatchRetriesStaleRouteOnlyOnce(t 
 		ActiveAtMS:  100,
 		Recipients:  []conversationactive.ActiveEntry{{UID: "receiver"}},
 	})
-	if !errors.Is(err, conversationusecase.ErrStaleRoute) {
-		t.Fatalf("AdmitActiveBatch() error = %v, want ErrStaleRoute", err)
+	if err != nil {
+		t.Fatalf("AdmitActiveBatch() error = %v", err)
 	}
-	if got := node.routeKeyCallsForUID("receiver"); got != 2 {
-		t.Fatalf("RouteKey(receiver) calls = %d, want one retry only", got)
+	if got := node.routeKeyCallsForUID("receiver"); got != 4 {
+		t.Fatalf("RouteKey(receiver) calls = %d, want fresh route per retry", got)
 	}
-	if len(local.activeBatches) != 2 {
-		t.Fatalf("active batch attempts = %d, want one retry only", len(local.activeBatches))
+	if len(local.activeBatches) != 4 {
+		t.Fatalf("active batch attempts = %d, want bounded retries through success", len(local.activeBatches))
+	}
+	for i, attempt := range local.activeBatches {
+		wantRevision := uint64(10 + i)
+		if attempt.target.RouteRevision != wantRevision {
+			t.Fatalf("active batch attempt %d route revision = %d, want %d", i, attempt.target.RouteRevision, wantRevision)
+		}
 	}
 }
 

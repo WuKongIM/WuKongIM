@@ -1,9 +1,11 @@
 package clusterv2
 
 import (
+	"bytes"
 	"context"
-	"encoding/json"
+	"encoding/binary"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"time"
 
@@ -25,6 +27,7 @@ const (
 	defaultSlotRuntimeWorkerCount = 20
 	defaultSlotRaftDirName        = "slotraft"
 	defaultSlotMetaDirName        = "slotmeta"
+	slotRaftBatchMagic            = "WKSRB1"
 )
 
 // ensureDefaultSlots creates the Slot runtime used by the default proposer.
@@ -53,6 +56,7 @@ func (n *Node) ensureDefaultSlots() error {
 			HeartbeatTick: defaultSlotHeartbeatTick,
 			PreVote:       true,
 			CheckQuorum:   true,
+			LogCompaction: n.cfg.Slots.LogCompaction,
 		},
 	})
 	if err != nil {
@@ -157,35 +161,85 @@ func (h slotRaftBatchHandler) HandleRPC(ctx context.Context, payload []byte) ([]
 	return nil, nil
 }
 
-type slotRaftEnvelopeDTO struct {
-	SlotID  uint64 `json:"slot_id"`
-	Message []byte `json:"message"`
-}
-
 func encodeSlotRaftBatch(batch []multiraft.Envelope) ([]byte, error) {
-	dto := make([]slotRaftEnvelopeDTO, 0, len(batch))
-	for _, env := range batch {
+	messages := make([][]byte, len(batch))
+	size := len(slotRaftBatchMagic) + binary.MaxVarintLen64
+	for i, env := range batch {
 		message, err := env.Message.Marshal()
 		if err != nil {
 			return nil, err
 		}
-		dto = append(dto, slotRaftEnvelopeDTO{SlotID: uint64(env.SlotID), Message: message})
+		messages[i] = message
+		size += binary.MaxVarintLen64 + binary.MaxVarintLen64 + len(message)
 	}
-	return json.Marshal(dto)
+	payload := make([]byte, 0, size)
+	payload = append(payload, slotRaftBatchMagic...)
+	payload = appendSlotRaftBatchUvarint(payload, uint64(len(batch)))
+	for i, env := range batch {
+		payload = appendSlotRaftBatchUvarint(payload, uint64(env.SlotID))
+		payload = appendSlotRaftBatchUvarint(payload, uint64(len(messages[i])))
+		payload = append(payload, messages[i]...)
+	}
+	return payload, nil
 }
 
 func decodeSlotRaftBatch(payload []byte) ([]multiraft.Envelope, error) {
-	var dto []slotRaftEnvelopeDTO
-	if err := json.Unmarshal(payload, &dto); err != nil {
+	if !bytes.HasPrefix(payload, []byte(slotRaftBatchMagic)) {
+		return nil, fmt.Errorf("clusterv2: invalid Slot Raft batch frame")
+	}
+	pos := len(slotRaftBatchMagic)
+	count, err := readSlotRaftBatchUvarint(payload, &pos)
+	if err != nil {
 		return nil, err
 	}
-	out := make([]multiraft.Envelope, 0, len(dto))
-	for _, item := range dto {
-		var message raftpb.Message
-		if err := message.Unmarshal(item.Message); err != nil {
+	if count > uint64(len(payload)-pos)/2 {
+		return nil, fmt.Errorf("clusterv2: Slot Raft batch envelope count %d exceeds payload size", count)
+	}
+	out := make([]multiraft.Envelope, 0, int(count))
+	for i := uint64(0); i < count; i++ {
+		slotID, err := readSlotRaftBatchUvarint(payload, &pos)
+		if err != nil {
 			return nil, err
 		}
-		out = append(out, multiraft.Envelope{SlotID: multiraft.SlotID(item.SlotID), Message: message})
+		messageLen, err := readSlotRaftBatchUvarint(payload, &pos)
+		if err != nil {
+			return nil, err
+		}
+		if messageLen > uint64(len(payload)-pos) {
+			return nil, fmt.Errorf("clusterv2: truncated Slot Raft message payload")
+		}
+		messageEnd := pos + int(messageLen)
+		var message raftpb.Message
+		if err := message.Unmarshal(payload[pos:messageEnd]); err != nil {
+			return nil, err
+		}
+		pos = messageEnd
+		out = append(out, multiraft.Envelope{SlotID: multiraft.SlotID(slotID), Message: message})
+	}
+	if pos != len(payload) {
+		return nil, fmt.Errorf("clusterv2: trailing bytes in Slot Raft batch frame")
 	}
 	return out, nil
+}
+
+func appendSlotRaftBatchUvarint(dst []byte, value uint64) []byte {
+	var buf [binary.MaxVarintLen64]byte
+	n := binary.PutUvarint(buf[:], value)
+	return append(dst, buf[:n]...)
+}
+
+func readSlotRaftBatchUvarint(payload []byte, pos *int) (uint64, error) {
+	if pos == nil || *pos > len(payload) {
+		return 0, fmt.Errorf("clusterv2: invalid Slot Raft batch cursor")
+	}
+	value, n := binary.Uvarint(payload[*pos:])
+	switch {
+	case n > 0:
+		*pos += n
+		return value, nil
+	case n == 0:
+		return 0, fmt.Errorf("clusterv2: truncated Slot Raft batch varint")
+	default:
+		return 0, fmt.Errorf("clusterv2: oversized Slot Raft batch varint")
+	}
 }
