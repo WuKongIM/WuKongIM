@@ -25,6 +25,10 @@ type slotReconciler interface {
 	Reconcile(context.Context, control.Snapshot) error
 }
 
+type taskExecutor interface {
+	Reconcile(context.Context, control.Snapshot) error
+}
+
 type channelService interface {
 	Append(context.Context, channelv2.AppendRequest) (channelv2.AppendResult, error)
 	AppendBatch(context.Context, channelv2.AppendBatchRequest) (channelv2.AppendBatchResult, error)
@@ -47,6 +51,7 @@ type Node struct {
 	transportServer *clusternet.TransportServer
 	transportClient *clusternet.TransportClient
 	slots           slotReconciler
+	tasks           taskExecutor
 	channels        channelService
 	// channelDataNodes tracks alive data-role nodes for default ChannelV2 placement.
 	channelDataNodes dataNodeView
@@ -120,6 +125,10 @@ func withController(controller control.Controller) Option {
 
 func withSlotReconciler(reconciler slotReconciler) Option {
 	return func(n *Node) { n.slots = reconciler }
+}
+
+func withTaskExecutor(executor taskExecutor) Option {
+	return func(n *Node) { n.tasks = executor }
 }
 
 // WithChannels overrides the default ChannelV2 service hosted by Node.

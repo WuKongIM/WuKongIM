@@ -98,6 +98,12 @@ Start(ctx)
 
 ControllerV2 changes enter clusterv2 as strongly typed `controllerv2.ClusterState` events. `pkg/clusterv2/control` maps those events to `control.Snapshot`; `Node` then compares node, Slot, task, and hash-slot domains before touching discovery, Slot runtime reconciliation, or foreground routing.
 
+When a control snapshot contains active bootstrap tasks, the Node runs the
+bootstrap task executor after Slot reconciliation. The executor only reports
+participant progress or fenced completion through the control task writer
+facade; it does not mutate ControllerV2 state directly. Task writes from
+non-leader Controller runtimes are forwarded to the current Controller leader.
+
 `Config.Control.RaftObserver` is passed through to the default ControllerV2
 runtime so composition roots can expose Controller Raft ingress queue metrics
 without changing control-plane semantics.

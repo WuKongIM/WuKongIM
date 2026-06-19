@@ -12,6 +12,7 @@ import (
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/clusterv2/net"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/propose"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/slots"
+	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/tasks"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/raftlog"
 	metafsm "github.com/WuKongIM/WuKongIM/pkg/slot/fsm"
@@ -76,6 +77,14 @@ func (n *Node) ensureDefaultSlots() error {
 		},
 	})
 	n.slots = slots.NewReconciler(n.cfg.NodeID, manager)
+	if n.tasks == nil && n.control != nil {
+		n.tasks = tasks.NewBootstrapExecutor(tasks.BootstrapExecutorConfig{
+			LocalNode: n.cfg.NodeID,
+			Slots:     manager,
+			Status:    runtime,
+			Writer:    n.control,
+		})
+	}
 	n.defaultSlotRuntime = runtime
 	n.registerDefaultSlotHandlers(runtime)
 	n.defaultSlotRaftDB = raftDB

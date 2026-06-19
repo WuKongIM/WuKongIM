@@ -72,6 +72,11 @@ func (n *Node) applySnapshot(ctx context.Context, snapshot control.Snapshot) err
 			return err
 		}
 	}
+	if n.tasks != nil && (firstSnapshot || changes.tasks || changes.slots) {
+		if err := n.tasks.Reconcile(ctx, snapshot); err != nil {
+			return err
+		}
+	}
 	if firstSnapshot || changes.nodes {
 		n.channelDataNodes.Update(aliveDataNodeIDs(snapshot.Nodes))
 	}

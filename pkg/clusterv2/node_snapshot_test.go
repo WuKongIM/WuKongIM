@@ -142,6 +142,50 @@ func TestNodeControlWatchSlotChangeReconcilesSlots(t *testing.T) {
 	}
 }
 
+func TestNodeControlWatchTaskChangeRunsTaskExecutor(t *testing.T) {
+	controller := control.NewStaticController(nodeControlSnapshot())
+	executor := &recordingTaskExecutor{}
+	node, err := New(validNodeConfig(t), withController(controller), withSlotReconciler(&recordingReconciler{}), withTaskExecutor(executor))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	if err := node.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	t.Cleanup(func() { _ = node.Stop(context.Background()) })
+	if executor.calls != 1 {
+		t.Fatalf("initial executor calls = %d, want 1", executor.calls)
+	}
+
+	next := nodeControlSnapshot()
+	next.Revision = 2
+	next.Tasks = []control.ReconcileTask{{
+		TaskID:           "slot-1-bootstrap-1",
+		SlotID:           1,
+		Kind:             control.TaskKindBootstrap,
+		Step:             control.TaskStepCreateSlot,
+		TargetNode:       1,
+		TargetPeers:      []uint64{1, 2, 3},
+		CompletionPolicy: control.TaskCompletionPolicyAllTargetPeers,
+		ParticipantProgress: []control.TaskParticipantProgress{
+			{NodeID: 1, Status: control.TaskParticipantStatusPending},
+			{NodeID: 2, Status: control.TaskParticipantStatusPending},
+			{NodeID: 3, Status: control.TaskParticipantStatusPending},
+		},
+		ConfigEpoch: 1,
+		Status:      control.TaskStatusPending,
+	}}
+	if err := controller.Publish(next); err != nil {
+		t.Fatalf("Publish() error = %v", err)
+	}
+	waitUntil(t, func() bool {
+		return executor.calls == 2
+	})
+	if len(executor.last.Tasks) != 1 || executor.last.Tasks[0].TaskID != "slot-1-bootstrap-1" {
+		t.Fatalf("executor last = %#v, want bootstrap task", executor.last)
+	}
+}
+
 func TestControlSnapshotChangesDetectTasks(t *testing.T) {
 	previous := nodeControlSnapshot()
 	next := previous.Clone()
@@ -193,5 +237,16 @@ type recordingReconciler struct {
 func (r *recordingReconciler) Reconcile(_ context.Context, snap control.Snapshot) error {
 	r.calls++
 	r.last = snap.Clone()
+	return nil
+}
+
+type recordingTaskExecutor struct {
+	calls int
+	last  control.Snapshot
+}
+
+func (e *recordingTaskExecutor) Reconcile(_ context.Context, snap control.Snapshot) error {
+	e.calls++
+	e.last = snap.Clone()
 	return nil
 }
