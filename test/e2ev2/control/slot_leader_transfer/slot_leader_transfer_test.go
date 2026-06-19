@@ -20,7 +20,7 @@ func TestThreeNodeSlotLeaderTransferCompletesAndClearsTask(t *testing.T) {
 
 	readyCtx, cancelReady := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancelReady()
-	require.NoError(t, cluster.WaitClusterReady(readyCtx), cluster.DumpDiagnostics())
+	require.NoError(t, cluster.WaitHTTPReady(readyCtx), cluster.DumpDiagnostics())
 
 	initialCtx, cancelInitial := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancelInitial()

@@ -3,9 +3,14 @@
 package suite
 
 import (
+	"context"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -59,6 +64,28 @@ func TestStartedClusterNodeLookupByID(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, uint64(2), node.Spec.ID)
 	require.Equal(t, uint64(1), cluster.MustNode(1).Spec.ID)
+}
+
+func TestStartedClusterWaitHTTPReadyRecordsReadyzObservations(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/readyz", r.URL.Path)
+		_, _ = w.Write([]byte(`{"status":"ok"}`))
+	}))
+	defer server.Close()
+
+	cluster := StartedCluster{
+		Nodes: []StartedNode{
+			{Spec: NodeSpec{ID: 1, APIAddr: strings.TrimPrefix(server.URL, "http://")}},
+			{Spec: NodeSpec{ID: 2, APIAddr: strings.TrimPrefix(server.URL, "http://")}},
+		},
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	require.NoError(t, cluster.WaitHTTPReady(ctx))
+
+	require.Equal(t, HTTPObservation{StatusCode: http.StatusOK, Body: `{"status":"ok"}`}, cluster.lastReadyz[1])
+	require.Equal(t, HTTPObservation{StatusCode: http.StatusOK, Body: `{"status":"ok"}`}, cluster.lastReadyz[2])
 }
 
 func writeFakeNodeBinary(t *testing.T) string {

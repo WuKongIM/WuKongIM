@@ -217,8 +217,8 @@ func (s *Suite) StartThreeNodeCluster(opts ...Option) *StartedCluster {
 	return cluster
 }
 
-// WaitClusterReady waits until every node satisfies the public v2 readiness contract.
-func (c *StartedCluster) WaitClusterReady(ctx context.Context) error {
+// WaitHTTPReady waits until every cluster node satisfies the public HTTP readiness contract.
+func (c *StartedCluster) WaitHTTPReady(ctx context.Context) error {
 	if c == nil {
 		return fmt.Errorf("started cluster is nil")
 	}
@@ -231,6 +231,16 @@ func (c *StartedCluster) WaitClusterReady(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("node %d http not ready: %w", node.Spec.ID, err)
 		}
+	}
+	return nil
+}
+
+// WaitClusterReady waits until every node satisfies the public v2 readiness contract.
+func (c *StartedCluster) WaitClusterReady(ctx context.Context) error {
+	if err := c.WaitHTTPReady(ctx); err != nil {
+		return err
+	}
+	for _, node := range c.Nodes {
 		if err := WaitWKProtoReady(ctx, node.Spec.GatewayAddr); err != nil {
 			return fmt.Errorf("node %d wkproto not ready: %w", node.Spec.ID, err)
 		}
