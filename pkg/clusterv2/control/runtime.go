@@ -61,7 +61,7 @@ type RuntimeConfig struct {
 	SyncClient *cv2.SyncClient
 	// SyncPeers resolves ControllerV2 state sync endpoints for mirror nodes.
 	SyncPeers cv2.PeerPicker
-	// TaskClient forwards task result commands to the current Controller leader.
+	// TaskClient forwards task writes and creation intents to the current Controller leader.
 	TaskClient *TaskClient
 	// Now returns timestamps used for ControllerV2 commands.
 	Now func() time.Time
@@ -271,10 +271,14 @@ func (r *Runtime) RequestSlotLeaderTransfer(ctx context.Context, req SlotLeaderT
 		StateRevision: req.StateRevision,
 	})
 	if shouldForwardTaskWrite(err) {
-		return SlotLeaderTransferResult{}, r.forwardTaskRequest(ctx, TaskRequest{
+		if err := r.forwardTaskRequest(ctx, TaskRequest{
 			Action:         TaskActionLeaderTransfer,
 			LeaderTransfer: req,
-		})
+		}); err != nil {
+			return SlotLeaderTransferResult{}, err
+		}
+		task := leaderTransferTaskFromRequest(req)
+		return SlotLeaderTransferResult{Created: true, Task: &task}, nil
 	}
 	if err != nil {
 		return SlotLeaderTransferResult{}, err

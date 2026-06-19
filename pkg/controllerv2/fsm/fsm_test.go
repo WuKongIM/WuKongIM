@@ -3,6 +3,7 @@ package fsm
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -659,7 +660,7 @@ func leaderTransferCommand(slotID uint32, expectedRevision uint64, sourceNode ui
 		ExpectedRevision: &expectedRevision,
 		Assignment:       &assignment,
 		Task: &state.ReconcileTask{
-			TaskID:           "slot-1-leader-transfer-7-r1",
+			TaskID:           fmt.Sprintf("slot-%d-leader-transfer-%d-r%d", slotID, configEpoch, expectedRevision),
 			SlotID:           slotID,
 			Kind:             state.TaskKindLeaderTransfer,
 			Step:             state.TaskStepTransferLeader,

@@ -115,6 +115,92 @@ func TestRuntimeTaskWritersWithoutBackendReturnNotStarted(t *testing.T) {
 	}
 }
 
+func TestRuntimeRequestSlotLeaderTransferReturnsTaskAfterForward(t *testing.T) {
+	network := clusternet.NewLocalNetwork()
+	taskClient := NewTaskClient(network)
+	voters := []RuntimeVoter{{NodeID: 1, Addr: "n1"}, {NodeID: 2, Addr: "n2"}, {NodeID: 3, Addr: "n3"}}
+	runtimes := make([]*Runtime, 0, len(voters))
+	for _, voter := range voters {
+		rt, err := NewRuntime(RuntimeConfig{
+			NodeID:           voter.NodeID,
+			Addr:             voter.Addr,
+			StateDir:         t.TempDir(),
+			ClusterID:        "cluster-forward-transfer",
+			Role:             RuntimeRoleVoter,
+			Voters:           voters,
+			AllowBootstrap:   true,
+			InitialSlotCount: 1,
+			HashSlotCount:    4,
+			ReplicaCount:     3,
+			TickInterval:     10 * time.Millisecond,
+			RaftTransport:    NewRaftTransport(network),
+			TaskClient:       taskClient,
+		})
+		if err != nil {
+			t.Fatalf("NewRuntime(%d) error = %v", voter.NodeID, err)
+		}
+		network.Register(voter.NodeID, clusternet.RPCControlRaft, NewRaftHandler(rt))
+		runtimes = append(runtimes, rt)
+	}
+	startCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	startErrs := make(chan error, len(runtimes))
+	for _, rt := range runtimes {
+		rt := rt
+		go func() { startErrs <- rt.Start(startCtx) }()
+		t.Cleanup(func() { _ = rt.Stop(context.Background()) })
+	}
+	for range runtimes {
+		if err := <-startErrs; err != nil {
+			t.Fatalf("Start() error = %v", err)
+		}
+	}
+
+	var leaderID uint64
+	var follower *Runtime
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		for _, rt := range runtimes {
+			leaderID = rt.LeaderID()
+			if leaderID == 0 {
+				continue
+			}
+			if rt.cfg.NodeID != leaderID {
+				follower = rt
+				break
+			}
+		}
+		if follower != nil {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if follower == nil {
+		t.Fatal("timeout waiting for follower runtime")
+	}
+
+	applier := &recordingTaskApplier{}
+	network.Register(leaderID, clusternet.RPCControlTaskResult, NewTaskHandler(applier))
+	req := SlotLeaderTransferRequest{
+		SlotID:        1,
+		SourceNode:    1,
+		TargetNode:    2,
+		TargetPeers:   []uint64{1, 2, 3},
+		ConfigEpoch:   7,
+		StateRevision: 9,
+	}
+	result, err := follower.RequestSlotLeaderTransfer(context.Background(), req)
+	if err != nil {
+		t.Fatalf("RequestSlotLeaderTransfer() error = %v", err)
+	}
+	if len(applier.leaderTransfers) != 1 || applier.leaderTransfers[0].TargetNode != 2 {
+		t.Fatalf("leaderTransfers = %#v, want one forwarded transfer", applier.leaderTransfers)
+	}
+	if !result.Created || result.Task == nil || result.Task.TaskID != "slot-1-leader-transfer-7-r9" {
+		t.Fatalf("RequestSlotLeaderTransfer() = %#v, want deterministic forwarded task", result)
+	}
+}
+
 func TestRuntimeRestartReusesExistingState(t *testing.T) {
 	dir := t.TempDir()
 	cfg := RuntimeConfig{
