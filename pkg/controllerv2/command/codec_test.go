@@ -63,6 +63,24 @@ func TestCommandEncodeDecodeRoundTrip(t *testing.T) {
 			HashSlots: &table,
 		},
 		{
+			Kind:             KindUpsertSlotAssignmentAndTask,
+			IssuedAt:         now.Add(90 * time.Second),
+			ExpectedRevision: &expectedRevision,
+			Assignment:       &state.SlotAssignment{SlotID: 2, DesiredPeers: []uint64{1, 2, 3}, ConfigEpoch: 7, PreferredLeader: 2},
+			Task: &state.ReconcileTask{
+				TaskID:           "slot-2-leader-transfer-7-r7",
+				SlotID:           2,
+				Kind:             state.TaskKindLeaderTransfer,
+				Step:             state.TaskStepTransferLeader,
+				SourceNode:       1,
+				TargetNode:       2,
+				TargetPeers:      []uint64{1, 2, 3},
+				CompletionPolicy: state.TaskCompletionPolicySingleObserver,
+				ConfigEpoch:      7,
+				Status:           state.TaskStatusPending,
+			},
+		},
+		{
 			Kind:     KindReportTaskProgress,
 			IssuedAt: now.Add(2 * time.Minute),
 			TaskProgress: &TaskProgress{
@@ -89,6 +107,35 @@ func TestCommandEncodeDecodeRoundTrip(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, want, got)
 	}
+}
+
+func TestCommandLeaderTransferTaskCodecRoundTrip(t *testing.T) {
+	expectedRevision := uint64(9)
+	now := time.Date(2026, 5, 24, 13, 0, 0, 0, time.UTC)
+	want := Command{
+		Kind:             KindUpsertSlotAssignmentAndTask,
+		IssuedAt:         now,
+		ExpectedRevision: &expectedRevision,
+		Assignment:       &state.SlotAssignment{SlotID: 1, DesiredPeers: []uint64{1, 2, 3}, ConfigEpoch: 7, PreferredLeader: 2},
+		Task: &state.ReconcileTask{
+			TaskID:           "slot-1-leader-transfer-7-r9",
+			SlotID:           1,
+			Kind:             state.TaskKindLeaderTransfer,
+			Step:             state.TaskStepTransferLeader,
+			SourceNode:       1,
+			TargetNode:       2,
+			TargetPeers:      []uint64{1, 2, 3},
+			CompletionPolicy: state.TaskCompletionPolicySingleObserver,
+			ConfigEpoch:      7,
+			Status:           state.TaskStatusPending,
+		},
+	}
+
+	data, err := Encode(want)
+	require.NoError(t, err)
+	got, err := Decode(data)
+	require.NoError(t, err)
+	require.Equal(t, want, got)
 }
 
 func TestCommandDecodeRejectsUnknownVersion(t *testing.T) {

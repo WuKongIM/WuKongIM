@@ -18,6 +18,8 @@ type StaticController struct {
 	FailedTasks []TaskResult
 	// ProgressReports records participant progress writes for tests.
 	ProgressReports []TaskProgress
+	// LeaderTransfers records Slot leader transfer intents for tests.
+	LeaderTransfers []SlotLeaderTransferRequest
 	started         bool
 }
 
@@ -121,6 +123,18 @@ func (c *StaticController) ReportTaskProgress(ctx context.Context, progress Task
 	c.ProgressReports = append(c.ProgressReports, progress)
 	c.mu.Unlock()
 	return nil
+}
+
+// RequestSlotLeaderTransfer records a Controller-backed Slot leader transfer intent.
+func (c *StaticController) RequestSlotLeaderTransfer(ctx context.Context, req SlotLeaderTransferRequest) (SlotLeaderTransferResult, error) {
+	if err := ctxErr(ctx); err != nil {
+		return SlotLeaderTransferResult{}, err
+	}
+	task := leaderTransferTaskFromRequest(req)
+	c.mu.Lock()
+	c.LeaderTransfers = append(c.LeaderTransfers, req)
+	c.mu.Unlock()
+	return SlotLeaderTransferResult{Created: true, Task: &task}, nil
 }
 
 // Watch returns snapshot update events.

@@ -57,6 +57,8 @@ type TaskKind string
 const (
 	// TaskKindBootstrap converges an initial physical slot assignment.
 	TaskKindBootstrap TaskKind = "bootstrap"
+	// TaskKindLeaderTransfer records an operator-requested Slot Raft leadership transfer.
+	TaskKindLeaderTransfer TaskKind = "leader_transfer"
 )
 
 // TaskStep describes the current step inside a reconcile workflow.
@@ -65,6 +67,8 @@ type TaskStep string
 const (
 	// TaskStepCreateSlot creates or verifies the slot replica group for an assignment.
 	TaskStepCreateSlot TaskStep = "create_slot"
+	// TaskStepTransferLeader asks Slot Raft to move leadership away from the observed source.
+	TaskStepTransferLeader TaskStep = "transfer_leader"
 )
 
 // TaskStatus describes whether a durable reconcile task is still actionable.

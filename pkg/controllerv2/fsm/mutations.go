@@ -54,8 +54,12 @@ func (sm *StateMachine) applyMutation(next *state.ClusterState, raftIndex uint64
 		if cmd.Task.SlotID != cmd.Assignment.SlotID {
 			return reject(ReasonTaskSlotMismatch)
 		}
-		if stale, handled := handleBootstrapRevisionMismatch(next, cmd); handled {
-			return stale
+		if cmd.Task.Kind == state.TaskKindBootstrap {
+			if stale, handled := handleBootstrapRevisionMismatch(next, cmd); handled {
+				return stale
+			}
+		} else if cmd.ExpectedRevision != nil && *cmd.ExpectedRevision != currentRevision {
+			return reject(ReasonExpectedRevisionMismatch)
 		}
 	case command.KindFailTask:
 		if stale, handled := handleFailTaskRevisionMismatch(next, cmd); handled {

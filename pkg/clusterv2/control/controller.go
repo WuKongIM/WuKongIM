@@ -26,6 +26,8 @@ type Controller interface {
 	FailTask(context.Context, TaskResult) error
 	// ReportTaskProgress submits one participant's fenced progress report.
 	ReportTaskProgress(context.Context, TaskProgress) error
+	// RequestSlotLeaderTransfer submits a Controller-backed Slot leader transfer intent.
+	RequestSlotLeaderTransfer(context.Context, SlotLeaderTransferRequest) (SlotLeaderTransferResult, error)
 	// Watch returns snapshot update events.
 	Watch() <-chan SnapshotEvent
 }

@@ -110,6 +110,9 @@ func TestRuntimeTaskWritersWithoutBackendReturnNotStarted(t *testing.T) {
 	if err := runtime.FailTask(context.Background(), TaskResult{TaskID: "bootstrap-1"}); !errors.Is(err, cv2.ErrNotStarted) {
 		t.Fatalf("FailTask() error = %v, want ErrNotStarted", err)
 	}
+	if _, err := runtime.RequestSlotLeaderTransfer(context.Background(), SlotLeaderTransferRequest{SlotID: 1}); !errors.Is(err, cv2.ErrNotStarted) {
+		t.Fatalf("RequestSlotLeaderTransfer() error = %v, want ErrNotStarted", err)
+	}
 }
 
 func TestRuntimeRestartReusesExistingState(t *testing.T) {

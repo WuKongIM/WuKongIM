@@ -204,12 +204,25 @@ func TestTaskClientCallsRemoteHandler(t *testing.T) {
 	if len(applier.completed) != 1 || applier.completed[0].TaskID != "slot-1-bootstrap-1" {
 		t.Fatalf("completed = %#v", applier.completed)
 	}
+
+	transfer := SlotLeaderTransferRequest{SlotID: 1, SourceNode: 1, TargetNode: 2, TargetPeers: []uint64{1, 2, 3}, ConfigEpoch: 7, StateRevision: 9}
+	err = client.SubmitTask(context.Background(), 1, TaskRequest{
+		Action:         TaskActionLeaderTransfer,
+		LeaderTransfer: transfer,
+	})
+	if err != nil {
+		t.Fatalf("SubmitTask(leader transfer) error = %v", err)
+	}
+	if len(applier.leaderTransfers) != 1 || applier.leaderTransfers[0].TargetNode != 2 {
+		t.Fatalf("leaderTransfers = %#v, want target node 2", applier.leaderTransfers)
+	}
 }
 
 type recordingTaskApplier struct {
-	completed []TaskResult
-	failed    []TaskResult
-	progress  []TaskProgress
+	completed       []TaskResult
+	failed          []TaskResult
+	progress        []TaskProgress
+	leaderTransfers []SlotLeaderTransferRequest
 }
 
 func (a *recordingTaskApplier) CompleteTask(ctx context.Context, result TaskResult) error {
@@ -225,6 +238,11 @@ func (a *recordingTaskApplier) FailTask(ctx context.Context, result TaskResult) 
 func (a *recordingTaskApplier) ReportTaskProgress(ctx context.Context, progress TaskProgress) error {
 	a.progress = append(a.progress, progress)
 	return nil
+}
+
+func (a *recordingTaskApplier) RequestSlotLeaderTransfer(ctx context.Context, req SlotLeaderTransferRequest) (SlotLeaderTransferResult, error) {
+	a.leaderTransfers = append(a.leaderTransfers, req)
+	return SlotLeaderTransferResult{Created: true}, nil
 }
 
 type recordingRaftStepper struct {

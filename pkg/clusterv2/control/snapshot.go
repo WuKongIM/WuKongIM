@@ -30,6 +30,8 @@ type TaskKind = cv2.TaskKind
 const (
 	// TaskKindBootstrap creates the initial physical Slot replica group.
 	TaskKindBootstrap = cv2.TaskKindBootstrap
+	// TaskKindLeaderTransfer records an operator-requested Slot Raft leadership transfer.
+	TaskKindLeaderTransfer = cv2.TaskKindLeaderTransfer
 )
 
 // TaskStep identifies the current step inside a task workflow.
@@ -38,6 +40,8 @@ type TaskStep = cv2.TaskStep
 const (
 	// TaskStepCreateSlot creates or verifies a physical Slot replica group.
 	TaskStepCreateSlot = cv2.TaskStepCreateSlot
+	// TaskStepTransferLeader asks Slot Raft to move leadership away from the observed source.
+	TaskStepTransferLeader = cv2.TaskStepTransferLeader
 )
 
 // TaskStatus describes whether a durable reconcile task is actionable.

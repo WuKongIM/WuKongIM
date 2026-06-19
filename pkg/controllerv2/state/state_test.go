@@ -90,6 +90,100 @@ func TestValidateBootstrapTaskRequiresAllTargetPeerProgress(t *testing.T) {
 	require.ErrorIs(t, st.Validate(), ErrInvalidState)
 }
 
+func TestClusterStateValidateAcceptsLeaderTransferTask(t *testing.T) {
+	st := testState()
+	st.Slots = []SlotAssignment{{SlotID: 1, DesiredPeers: []uint64{1, 2, 3}, ConfigEpoch: 7, PreferredLeader: 2}}
+	st.Tasks = []ReconcileTask{validLeaderTransferTask()}
+
+	require.NoError(t, st.Validate())
+}
+
+func TestClusterStateValidateRejectsInvalidLeaderTransferTask(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func(st *ClusterState)
+	}{
+		{
+			name: "wrong step",
+			mutate: func(st *ClusterState) {
+				st.Tasks[0].Step = TaskStepCreateSlot
+			},
+		},
+		{
+			name: "missing source",
+			mutate: func(st *ClusterState) {
+				st.Tasks[0].SourceNode = 0
+			},
+		},
+		{
+			name: "missing target",
+			mutate: func(st *ClusterState) {
+				st.Tasks[0].TargetNode = 0
+			},
+		},
+		{
+			name: "same source and target",
+			mutate: func(st *ClusterState) {
+				st.Tasks[0].TargetNode = st.Tasks[0].SourceNode
+				st.Slots[0].PreferredLeader = st.Tasks[0].SourceNode
+			},
+		},
+		{
+			name: "source outside assignment",
+			mutate: func(st *ClusterState) {
+				st.Tasks[0].SourceNode = 4
+			},
+		},
+		{
+			name: "target outside assignment",
+			mutate: func(st *ClusterState) {
+				st.Tasks[0].TargetNode = 4
+			},
+		},
+		{
+			name: "target peers mismatch assignment",
+			mutate: func(st *ClusterState) {
+				st.Tasks[0].TargetPeers = []uint64{1, 2}
+			},
+		},
+		{
+			name: "config epoch mismatch",
+			mutate: func(st *ClusterState) {
+				st.Tasks[0].ConfigEpoch = 8
+			},
+		},
+		{
+			name: "target not preferred leader",
+			mutate: func(st *ClusterState) {
+				st.Slots[0].PreferredLeader = 1
+			},
+		},
+		{
+			name: "wrong completion policy",
+			mutate: func(st *ClusterState) {
+				st.Tasks[0].CompletionPolicy = TaskCompletionPolicyAllTargetPeers
+			},
+		},
+		{
+			name: "participant progress present",
+			mutate: func(st *ClusterState) {
+				st.Tasks[0].ParticipantProgress = []TaskParticipantProgress{{NodeID: 2, Status: TaskParticipantStatusPending}}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			st := testState()
+			st.Slots = []SlotAssignment{{SlotID: 1, DesiredPeers: []uint64{1, 2, 3}, ConfigEpoch: 7, PreferredLeader: 2}}
+			st.Tasks = []ReconcileTask{validLeaderTransferTask()}
+			tt.mutate(&st)
+
+			require.ErrorIs(t, st.Validate(), ErrInvalidState)
+		})
+	}
+}
+
 func TestNormalizeBootstrapTaskDefaultsParticipantProgress(t *testing.T) {
 	st := testState()
 	st.Slots = []SlotAssignment{{SlotID: 1, DesiredPeers: []uint64{3, 1, 2}, ConfigEpoch: 1, PreferredLeader: 1}}
@@ -280,6 +374,21 @@ func testState() ClusterState {
 		Tasks: []ReconcileTask{
 			{TaskID: "slot-1-bootstrap-1", SlotID: 1, Kind: TaskKindBootstrap, Step: TaskStepCreateSlot, TargetNode: 1, TargetPeers: []uint64{1, 2, 3}, ConfigEpoch: 1, Status: TaskStatusPending},
 		},
+	}
+}
+
+func validLeaderTransferTask() ReconcileTask {
+	return ReconcileTask{
+		TaskID:           "slot-1-leader-transfer-7-r9",
+		SlotID:           1,
+		Kind:             TaskKindLeaderTransfer,
+		Step:             TaskStepTransferLeader,
+		SourceNode:       1,
+		TargetNode:       2,
+		TargetPeers:      []uint64{1, 2, 3},
+		CompletionPolicy: TaskCompletionPolicySingleObserver,
+		ConfigEpoch:      7,
+		Status:           TaskStatusPending,
 	}
 }
 

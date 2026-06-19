@@ -82,8 +82,12 @@ const (
 	NodeStatusDown = state.NodeStatusDown
 	// TaskKindBootstrap converges an initial physical Slot assignment.
 	TaskKindBootstrap = state.TaskKindBootstrap
+	// TaskKindLeaderTransfer records an operator-requested Slot Raft leadership transfer.
+	TaskKindLeaderTransfer = state.TaskKindLeaderTransfer
 	// TaskStepCreateSlot creates or verifies the Slot replica group for an assignment.
 	TaskStepCreateSlot = state.TaskStepCreateSlot
+	// TaskStepTransferLeader asks Slot Raft to move leadership away from the observed source.
+	TaskStepTransferLeader = state.TaskStepTransferLeader
 	// TaskStatusPending means the task is waiting for a worker.
 	TaskStatusPending = state.TaskStatusPending
 	// TaskStatusRunning means the task is actively being attempted.

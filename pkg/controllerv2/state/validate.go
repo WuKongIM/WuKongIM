@@ -231,11 +231,55 @@ func validateTasks(tasks []ReconcileTask, assignments map[uint32]SlotAssignment)
 			if task.TargetNode != assignment.PreferredLeader {
 				return invalid("bootstrap target node must match preferred leader")
 			}
+		case TaskKindLeaderTransfer:
+			if task.Step != TaskStepTransferLeader {
+				return invalid("leader transfer task step must be transfer_leader")
+			}
+			assignment, ok := assignments[task.SlotID]
+			if !ok {
+				return invalid("leader transfer task requires slot assignment")
+			}
+			if task.SourceNode == 0 || task.TargetNode == 0 {
+				return invalid("leader transfer source and target must be non-zero")
+			}
+			if task.SourceNode == task.TargetNode {
+				return invalid("leader transfer source and target must differ")
+			}
+			if !containsUint64(assignment.DesiredPeers, task.SourceNode) {
+				return invalid("leader transfer source must be a desired peer")
+			}
+			if !containsUint64(assignment.DesiredPeers, task.TargetNode) {
+				return invalid("leader transfer target must be a desired peer")
+			}
+			if !reflect.DeepEqual(task.TargetPeers, assignment.DesiredPeers) {
+				return invalid("leader transfer target peers must match assignment")
+			}
+			if task.ConfigEpoch != assignment.ConfigEpoch {
+				return invalid("leader transfer config_epoch must match assignment")
+			}
+			if task.TargetNode != assignment.PreferredLeader {
+				return invalid("leader transfer target node must match preferred leader")
+			}
+			if task.CompletionPolicy != TaskCompletionPolicySingleObserver {
+				return invalid("leader transfer completion_policy must be single_observer")
+			}
+			if len(task.ParticipantProgress) != 0 {
+				return invalid("leader transfer task must not have participant progress")
+			}
 		default:
 			return invalid("unknown task kind")
 		}
 	}
 	return nil
+}
+
+func containsUint64(items []uint64, want uint64) bool {
+	for _, item := range items {
+		if item == want {
+			return true
+		}
+	}
+	return false
 }
 
 func validateParticipantProgress(task ReconcileTask) error {

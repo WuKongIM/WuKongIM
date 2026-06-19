@@ -81,6 +81,9 @@ func normalizeTaskProgress(task *ReconcileTask) {
 	if task.Kind == TaskKindBootstrap && task.CompletionPolicy == "" {
 		task.CompletionPolicy = TaskCompletionPolicyAllTargetPeers
 	}
+	if task.Kind == TaskKindLeaderTransfer && task.CompletionPolicy == "" {
+		task.CompletionPolicy = TaskCompletionPolicySingleObserver
+	}
 	if task.CompletionPolicy == TaskCompletionPolicyAllTargetPeers && len(task.ParticipantProgress) == 0 {
 		task.ParticipantProgress = make([]TaskParticipantProgress, 0, len(task.TargetPeers))
 		for _, peerID := range task.TargetPeers {

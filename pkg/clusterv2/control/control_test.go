@@ -96,6 +96,11 @@ func TestStaticControllerRecordsTaskWrites(t *testing.T) {
 	if err := c.FailTask(context.Background(), failed); err != nil {
 		t.Fatalf("FailTask() error = %v", err)
 	}
+	transfer := SlotLeaderTransferRequest{SlotID: 1, SourceNode: 1, TargetNode: 2, TargetPeers: []uint64{1, 2, 3}, ConfigEpoch: 7, StateRevision: 9}
+	transferResult, err := c.RequestSlotLeaderTransfer(context.Background(), transfer)
+	if err != nil {
+		t.Fatalf("RequestSlotLeaderTransfer() error = %v", err)
+	}
 	if len(c.ProgressReports) != 1 || c.ProgressReports[0].ParticipantNodeID != 2 {
 		t.Fatalf("ProgressReports = %#v, want one node 2 report", c.ProgressReports)
 	}
@@ -104,6 +109,12 @@ func TestStaticControllerRecordsTaskWrites(t *testing.T) {
 	}
 	if len(c.FailedTasks) != 1 || c.FailedTasks[0].Err != "boom" {
 		t.Fatalf("FailedTasks = %#v, want boom failure", c.FailedTasks)
+	}
+	if len(c.LeaderTransfers) != 1 || c.LeaderTransfers[0].TargetNode != 2 {
+		t.Fatalf("LeaderTransfers = %#v, want target node 2", c.LeaderTransfers)
+	}
+	if !transferResult.Created || transferResult.Task == nil || transferResult.Task.TaskID != "slot-1-leader-transfer-7-r9" {
+		t.Fatalf("RequestSlotLeaderTransfer() = %#v, want deterministic task", transferResult)
 	}
 }
 

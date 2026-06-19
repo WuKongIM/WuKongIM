@@ -178,6 +178,14 @@ func (a *ControllerV2Adapter) ReportTaskProgress(ctx context.Context, progress T
 	return fmt.Errorf("control: controllerv2 adapter cannot write task progress")
 }
 
+// RequestSlotLeaderTransfer is unsupported on the read-only ControllerV2 snapshot adapter.
+func (a *ControllerV2Adapter) RequestSlotLeaderTransfer(ctx context.Context, req SlotLeaderTransferRequest) (SlotLeaderTransferResult, error) {
+	if err := ctxErr(ctx); err != nil {
+		return SlotLeaderTransferResult{}, err
+	}
+	return SlotLeaderTransferResult{}, fmt.Errorf("control: controllerv2 adapter cannot write leader transfer intents")
+}
+
 // Watch returns snapshot update events.
 func (a *ControllerV2Adapter) Watch() <-chan SnapshotEvent { return a.watch }
 

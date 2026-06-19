@@ -96,6 +96,8 @@ const (
 	TaskActionFail TaskAction = "fail"
 	// TaskActionProgress submits one participant progress report.
 	TaskActionProgress TaskAction = "progress"
+	// TaskActionLeaderTransfer submits a Slot leader transfer intent.
+	TaskActionLeaderTransfer TaskAction = "leader_transfer"
 )
 
 // TaskRequest carries one ControllerV2 task result or progress write.
@@ -106,6 +108,8 @@ type TaskRequest struct {
 	Result cv2.TaskResult `json:"result,omitempty"`
 	// Progress carries participant progress payloads.
 	Progress cv2.TaskProgress `json:"progress,omitempty"`
+	// LeaderTransfer carries a Slot leader transfer intent.
+	LeaderTransfer SlotLeaderTransferRequest `json:"leader_transfer,omitempty"`
 }
 
 // EncodeTaskRequest encodes one task write request.

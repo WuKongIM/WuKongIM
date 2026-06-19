@@ -254,6 +254,53 @@ func (r *Runtime) ReportTaskProgress(ctx context.Context, progress TaskProgress)
 	return err
 }
 
+// RequestSlotLeaderTransfer submits a Controller-backed Slot leader transfer intent.
+func (r *Runtime) RequestSlotLeaderTransfer(ctx context.Context, req SlotLeaderTransferRequest) (SlotLeaderTransferResult, error) {
+	if err := ctxErr(ctx); err != nil {
+		return SlotLeaderTransferResult{}, err
+	}
+	if r == nil || r.backend == nil {
+		return SlotLeaderTransferResult{}, cv2.ErrNotStarted
+	}
+	result, err := r.backend.RequestSlotLeaderTransfer(ctx, cv2.SlotLeaderTransferRequest{
+		SlotID:        req.SlotID,
+		SourceNode:    req.SourceNode,
+		TargetNode:    req.TargetNode,
+		TargetPeers:   append([]uint64(nil), req.TargetPeers...),
+		ConfigEpoch:   req.ConfigEpoch,
+		StateRevision: req.StateRevision,
+	})
+	if shouldForwardTaskWrite(err) {
+		return SlotLeaderTransferResult{}, r.forwardTaskRequest(ctx, TaskRequest{
+			Action:         TaskActionLeaderTransfer,
+			LeaderTransfer: req,
+		})
+	}
+	if err != nil {
+		return SlotLeaderTransferResult{}, err
+	}
+	task := leaderTransferTaskFromRequest(req)
+	if result.Task != nil {
+		task = ReconcileTask{
+			TaskID:           result.Task.TaskID,
+			SlotID:           result.Task.SlotID,
+			Kind:             TaskKind(result.Task.Kind),
+			Step:             TaskStep(result.Task.Step),
+			SourceNode:       result.Task.SourceNode,
+			TargetNode:       result.Task.TargetNode,
+			TargetPeers:      append([]uint64(nil), result.Task.TargetPeers...),
+			CompletionPolicy: TaskCompletionPolicy(result.Task.CompletionPolicy),
+			ParticipantProgress: append([]TaskParticipantProgress(nil),
+				result.Task.ParticipantProgress...),
+			ConfigEpoch: result.Task.ConfigEpoch,
+			Attempt:     result.Task.Attempt,
+			Status:      TaskStatus(result.Task.Status),
+			LastError:   result.Task.LastError,
+		}
+	}
+	return SlotLeaderTransferResult{Created: result.Created, Task: &task}, nil
+}
+
 func shouldForwardTaskWrite(err error) bool {
 	return errors.Is(err, cv2.ErrNotLeader) || errors.Is(err, cv2.ErrNotStarted)
 }

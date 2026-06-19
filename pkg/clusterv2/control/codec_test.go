@@ -52,29 +52,44 @@ func TestControlSyncCodecRoundTrip(t *testing.T) {
 }
 
 func TestControlTaskRequestCodecRoundTrip(t *testing.T) {
-	req := TaskRequest{
-		Action: TaskActionProgress,
-		Progress: cv2.TaskProgress{
-			TaskID:             "slot-1-bootstrap-1",
-			SlotID:             1,
-			TaskKind:           cv2.TaskKindBootstrap,
-			ConfigEpoch:        1,
-			TaskAttempt:        0,
-			ParticipantNodeID:  2,
-			ParticipantAttempt: 0,
-			Status:             cv2.TaskParticipantStatusDone,
+	requests := []TaskRequest{
+		{
+			Action: TaskActionProgress,
+			Progress: cv2.TaskProgress{
+				TaskID:             "slot-1-bootstrap-1",
+				SlotID:             1,
+				TaskKind:           cv2.TaskKindBootstrap,
+				ConfigEpoch:        1,
+				TaskAttempt:        0,
+				ParticipantNodeID:  2,
+				ParticipantAttempt: 0,
+				Status:             cv2.TaskParticipantStatusDone,
+			},
+		},
+		{
+			Action: TaskActionLeaderTransfer,
+			LeaderTransfer: SlotLeaderTransferRequest{
+				SlotID:        1,
+				SourceNode:    1,
+				TargetNode:    2,
+				TargetPeers:   []uint64{1, 2, 3},
+				ConfigEpoch:   7,
+				StateRevision: 9,
+			},
 		},
 	}
-	payload, err := EncodeTaskRequest(req)
-	if err != nil {
-		t.Fatalf("EncodeTaskRequest() error = %v", err)
-	}
-	got, err := DecodeTaskRequest(payload)
-	if err != nil {
-		t.Fatalf("DecodeTaskRequest() error = %v", err)
-	}
-	if !reflect.DeepEqual(got, req) {
-		t.Fatalf("DecodeTaskRequest() = %#v, want %#v", got, req)
+	for _, req := range requests {
+		payload, err := EncodeTaskRequest(req)
+		if err != nil {
+			t.Fatalf("EncodeTaskRequest() error = %v", err)
+		}
+		got, err := DecodeTaskRequest(payload)
+		if err != nil {
+			t.Fatalf("DecodeTaskRequest() error = %v", err)
+		}
+		if !reflect.DeepEqual(got, req) {
+			t.Fatalf("DecodeTaskRequest() = %#v, want %#v", got, req)
+		}
 	}
 }
 

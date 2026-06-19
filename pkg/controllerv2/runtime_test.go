@@ -2,8 +2,11 @@ package controllerv2
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
+
+	"github.com/WuKongIM/WuKongIM/pkg/controllerv2/command"
 )
 
 func TestPublicClusterStateAliasSupportsStrongCompositeLiterals(t *testing.T) {
@@ -266,6 +269,88 @@ func TestRuntimeCompleteTaskProposesCommand(t *testing.T) {
 	}
 }
 
+func TestRuntimeRequestSlotLeaderTransfer(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	runtime, err := NewRuntime(RuntimeConfig{
+		NodeID:           1,
+		Addr:             "127.0.0.1:10001",
+		StateDir:         t.TempDir(),
+		ClusterID:        "cluster-leader-transfer",
+		Role:             RuntimeRoleVoter,
+		Voters:           []Voter{{NodeID: 1, Addr: "127.0.0.1:10001"}},
+		AllowBootstrap:   true,
+		InitialSlotCount: 1,
+		HashSlotCount:    4,
+		ReplicaCount:     2,
+		TickInterval:     5 * time.Millisecond,
+	})
+	if err != nil {
+		t.Fatalf("NewRuntime() error = %v", err)
+	}
+	if err := runtime.Start(ctx); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	t.Cleanup(func() { _ = runtime.Stop(context.Background()) })
+
+	initial := waitForRuntimeState(t, runtime, func(st ClusterState) bool {
+		return st.Revision == 1
+	})
+	expected := initial.Revision
+	node := Node{
+		NodeID:         2,
+		Addr:           "n2",
+		Roles:          []NodeRole{NodeRoleData},
+		JoinState:      NodeJoinStateActive,
+		Status:         NodeStatusAlive,
+		CapacityWeight: 1,
+	}
+	if err := runtime.raft.Propose(ctx, commandWithNode(expected, node)); err != nil {
+		t.Fatalf("Propose(upsert node) error = %v", err)
+	}
+	ready := waitForRuntimeState(t, runtime, func(st ClusterState) bool {
+		return st.Revision > 1 && len(st.Nodes) == 2 && len(st.Slots) == 1
+	})
+	bootstrapTask := ready.Tasks[0]
+	if err := runtime.CompleteTask(ctx, TaskResult{
+		TaskID:      bootstrapTask.TaskID,
+		SlotID:      bootstrapTask.SlotID,
+		TaskKind:    bootstrapTask.Kind,
+		ConfigEpoch: bootstrapTask.ConfigEpoch,
+		Attempt:     bootstrapTask.Attempt,
+		FinishedAt:  time.Now().UTC(),
+	}); err != nil {
+		t.Fatalf("CompleteTask(bootstrap) error = %v", err)
+	}
+	ready = waitForRuntimeState(t, runtime, func(st ClusterState) bool {
+		return len(st.Nodes) == 2 && len(st.Slots) == 1 && len(st.Tasks) == 0
+	})
+	wantTaskID := fmt.Sprintf("slot-1-leader-transfer-7-r%d", ready.Revision)
+
+	result, err := runtime.RequestSlotLeaderTransfer(ctx, SlotLeaderTransferRequest{
+		SlotID:        1,
+		SourceNode:    1,
+		TargetNode:    2,
+		TargetPeers:   []uint64{1, 2},
+		ConfigEpoch:   7,
+		StateRevision: ready.Revision,
+	})
+	if err != nil {
+		t.Fatalf("RequestSlotLeaderTransfer() error = %v", err)
+	}
+	if !result.Created || result.Task == nil || result.Task.TaskID != wantTaskID {
+		t.Fatalf("RequestSlotLeaderTransfer() = %#v, want created task", result)
+	}
+
+	st := waitForRuntimeState(t, runtime, func(st ClusterState) bool {
+		return len(st.Tasks) == 1 && st.Tasks[0].Kind == TaskKindLeaderTransfer
+	})
+	if st.Slots[0].PreferredLeader != 2 || st.Tasks[0].Step != TaskStepTransferLeader {
+		t.Fatalf("state after transfer request = %#v", st)
+	}
+}
+
 func readStateEvent(t *testing.T, watch <-chan StateEvent) StateEvent {
 	t.Helper()
 	select {
@@ -333,6 +418,14 @@ func waitForRuntimeState(t *testing.T, runtime *Runtime, match func(ClusterState
 		case <-deadline:
 			t.Fatalf("timeout waiting for runtime state, last=%#v", st)
 		}
+	}
+}
+
+func commandWithNode(expectedRevision uint64, node Node) command.Command {
+	return command.Command{
+		Kind:             command.KindUpsertNode,
+		ExpectedRevision: &expectedRevision,
+		Node:             &node,
 	}
 }
 

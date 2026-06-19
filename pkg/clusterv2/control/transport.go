@@ -144,6 +144,8 @@ type TaskApplier interface {
 	FailTask(context.Context, TaskResult) error
 	// ReportTaskProgress submits one participant's fenced progress report.
 	ReportTaskProgress(context.Context, TaskProgress) error
+	// RequestSlotLeaderTransfer submits a Controller-backed Slot leader transfer intent.
+	RequestSlotLeaderTransfer(context.Context, SlotLeaderTransferRequest) (SlotLeaderTransferResult, error)
 }
 
 // TaskClient forwards ControllerV2 task writes to a remote node.
@@ -180,6 +182,9 @@ func NewTaskHandler(applier TaskApplier) clusternet.Handler {
 			return nil, applier.FailTask(ctx, req.Result)
 		case TaskActionProgress:
 			return nil, applier.ReportTaskProgress(ctx, req.Progress)
+		case TaskActionLeaderTransfer:
+			_, err := applier.RequestSlotLeaderTransfer(ctx, req.LeaderTransfer)
+			return nil, err
 		default:
 			return nil, fmt.Errorf("control task: unknown action %q", req.Action)
 		}

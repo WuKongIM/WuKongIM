@@ -295,6 +295,43 @@ func TestApplyFailTaskKeepsFailedTaskWithBoundedError(t *testing.T) {
 	require.NotEmpty(t, task.LastError)
 }
 
+func TestApplyLeaderTransferTaskUpsertAndComplete(t *testing.T) {
+	ctx := context.Background()
+	sm, _ := initializedStateMachine(t, 1)
+	applyOK(t, sm, 2, leaderTransferCommand(1, 1, 1, 2, []uint64{1, 2, 3}, 7))
+
+	snap := sm.Snapshot(ctx)
+	require.Len(t, snap.Slots, 1)
+	require.Equal(t, uint64(2), snap.Slots[0].PreferredLeader)
+	require.Len(t, snap.Tasks, 1)
+	require.Equal(t, state.TaskKindLeaderTransfer, snap.Tasks[0].Kind)
+	require.Equal(t, state.TaskStepTransferLeader, snap.Tasks[0].Step)
+	require.Empty(t, snap.Tasks[0].ParticipantProgress)
+
+	expected := snap.Revision
+	result, err := sm.Apply(ctx, 3, command.Command{Kind: command.KindCompleteTask, ExpectedRevision: &expected, TaskResult: &command.TaskResult{TaskID: "slot-1-leader-transfer-7-r1", SlotID: 1, TaskKind: state.TaskKindLeaderTransfer, ConfigEpoch: 7, Attempt: 0, FinishedAt: time.Now().UTC()}})
+	require.NoError(t, err)
+	require.Equal(t, ApplyResult{Changed: true, Revision: 3, AppliedRaftIndex: 3}, result)
+	require.Empty(t, sm.Snapshot(ctx).Tasks)
+}
+
+func TestApplyLeaderTransferTaskFailKeepsActiveTask(t *testing.T) {
+	ctx := context.Background()
+	sm, _ := initializedStateMachine(t, 1)
+	applyOK(t, sm, 2, leaderTransferCommand(1, 1, 1, 2, []uint64{1, 2, 3}, 7))
+
+	result, err := sm.Apply(ctx, 3, command.Command{Kind: command.KindFailTask, TaskResult: &command.TaskResult{TaskID: "slot-1-leader-transfer-7-r1", SlotID: 1, TaskKind: state.TaskKindLeaderTransfer, ConfigEpoch: 7, Attempt: 0, Err: "not leader"}})
+	require.NoError(t, err)
+	require.Equal(t, ApplyResult{Changed: true, Revision: 3, AppliedRaftIndex: 3}, result)
+
+	task := sm.Snapshot(ctx).Tasks[0]
+	require.Equal(t, state.TaskKindLeaderTransfer, task.Kind)
+	require.Equal(t, state.TaskStatusFailed, task.Status)
+	require.Equal(t, uint32(1), task.Attempt)
+	require.Equal(t, "not leader", task.LastError)
+	require.Empty(t, task.ParticipantProgress)
+}
+
 func TestApplyFailTaskMissingTaskNoops(t *testing.T) {
 	ctx := context.Background()
 	sm, _ := initializedStateMachine(t, 1)
@@ -611,6 +648,27 @@ func bootstrapCommand(slotID uint32, expectedRevision uint64, peers []uint64) co
 			ParticipantProgress: participantProgress(peers),
 			ConfigEpoch:         1,
 			Status:              state.TaskStatusPending,
+		},
+	}
+}
+
+func leaderTransferCommand(slotID uint32, expectedRevision uint64, sourceNode uint64, targetNode uint64, peers []uint64, configEpoch uint64) command.Command {
+	assignment := state.SlotAssignment{SlotID: slotID, DesiredPeers: peers, ConfigEpoch: configEpoch, PreferredLeader: targetNode}
+	return command.Command{
+		Kind:             command.KindUpsertSlotAssignmentAndTask,
+		ExpectedRevision: &expectedRevision,
+		Assignment:       &assignment,
+		Task: &state.ReconcileTask{
+			TaskID:           "slot-1-leader-transfer-7-r1",
+			SlotID:           slotID,
+			Kind:             state.TaskKindLeaderTransfer,
+			Step:             state.TaskStepTransferLeader,
+			SourceNode:       sourceNode,
+			TargetNode:       targetNode,
+			TargetPeers:      peers,
+			CompletionPolicy: state.TaskCompletionPolicySingleObserver,
+			ConfigEpoch:      configEpoch,
+			Status:           state.TaskStatusPending,
 		},
 	}
 }
