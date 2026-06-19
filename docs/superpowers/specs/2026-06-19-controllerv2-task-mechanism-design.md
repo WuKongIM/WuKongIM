@@ -27,19 +27,22 @@ the same mechanism instead of adding one-off manager HTTP actions.
 
 - `state.ReconcileTask` with `TaskID`, `SlotID`, `Kind`, `Step`,
   `SourceNode`, `TargetNode`, `TargetPeers`, `ConfigEpoch`, `Attempt`,
-  `Status`, and `LastError`.
+  `Status`, `LastError`, `CompletionPolicy`, and `ParticipantProgress`.
 - Controller Raft commands for `upsert_slot_assignment_and_task`,
-  `complete_task`, and `fail_task`.
-- FSM validation that allows only one active task per Slot.
-- A bootstrap planner that creates bootstrap assignments and tasks.
-- `pkg/clusterv2/control` exposes active tasks through control snapshots, but
-  the current DTO only carries a subset of task fields.
+  `complete_task`, `fail_task`, and `report_task_progress`.
+- FSM validation allows only one active task per Slot, removes completed active
+  tasks, retains failed active tasks, and fences progress/result commands by
+  task identity.
+- A bootstrap planner creates bootstrap assignments and `all_target_peers`
+  participant rows.
+- `pkg/clusterv2/control` exposes active tasks through control snapshots,
+  including participant progress for manager and executor readers.
+- `internalv2/usecase/management` maps active Slot task state into the manager
+  Slot read model.
 - `pkg/clusterv2/control.ReportSlots` is currently a best-effort no-op, so
   runtime Slot observations cannot be assumed to exist in Controller state.
-- The current task record does not yet have participant progress for tasks that
-  require multiple nodes to finish local work before global completion.
 
-The missing piece is the execution and observation loop:
+The remaining missing piece is the execution and observation loop:
 
 ```text
 Planner -> durable task -> node executor -> task result command -> observed convergence
@@ -47,6 +50,28 @@ Planner -> durable task -> node executor -> task result command -> observed conv
 
 The first implementation must therefore add the lifecycle surface, not just an
 executor goroutine.
+
+## V0 Work Slice
+
+The implementation plan produced from this spec must use this v0 slice as its
+scope boundary.
+
+V0 proves the Controller task substrate with the existing bootstrap workflow:
+
+- keep `bootstrap` as the only executable task kind
+- persist only active tasks in `cluster-state.json`
+- remove completed tasks from active state through `complete_task`
+- retain failed tasks with bounded errors through `fail_task`
+- track multi-node bootstrap work with `all_target_peers` participant progress
+- expose active task status through the `pkg/clusterv2/control` snapshot and
+  `internalv2` manager read model
+- route task progress and results through ControllerV2 Raft, not through direct
+  manager-to-runtime mutation paths
+
+V0 must not add Slot leader transfer creation, node-drain batch scheduling,
+automatic failure-triggered batch transfer, task history, cancellation, pause,
+or retry APIs. The future examples below are compatibility checks for the
+generic model; they are not v0 implementation items.
 
 ## Architecture
 
@@ -81,6 +106,18 @@ For the first bootstrap lifecycle, `pkg/clusterv2` should own a narrow runtime
 observation provider used by executors and convergence checks. The provider can
 read local Slot status and, when needed, routed peer status, but it must return
 explicit "missing" or error states instead of fabricating runtime truth.
+
+The v0 provider's minimum contract is synchronous Slot runtime evidence from
+`clusterv2` or its underlying multi-Raft status surface:
+
+- observed leader node ID
+- observed current voter node IDs
+- whether the Slot has quorum
+- whether the read is fresh or directly sampled from runtime state
+- a typed missing or unavailable result when the Slot runtime cannot answer
+
+The provider must not use `pkg/clusterv2/control.ReportSlots`, manager Slot-list
+fallbacks, desired peers, or `PreferredLeader` as completion evidence.
 
 Bootstrap completion must be based on concrete Slot runtime observation:
 
@@ -201,8 +238,12 @@ should prefer waiting for apply when possible. If a routed path can only confirm
 forwarding, executors must treat the outcome as uncertain and rely on
 idempotent retry plus fenced task results.
 
-Before wiring executors, task result and progress commands must be extended
-with fencing fields:
+Executor-produced task progress and result commands must rely on task fences,
+not planner-style revision compare-and-swap. In particular, executors should
+not set `ExpectedRevision`: participant reports are naturally concurrent and
+each successful report advances the Controller revision.
+
+Task result and progress commands use these fencing fields:
 
 - `TaskID`
 - `SlotID`
@@ -267,6 +308,12 @@ task.ParticipantProgress = {
 Each target peer executes its local step and submits `report_task_progress`.
 That report only updates the sender's participant entry. It never completes the
 whole task by itself.
+
+`ParticipantAttempt` is the participant-local fence for the current global task
+attempt. A failed participant report stores `failed`, records a bounded
+`LastError`, and advances that participant's attempt. The next retry from that
+participant must report with the advanced `ParticipantAttempt`; a success using
+the old participant attempt is obsolete and must be ignored.
 
 The global task completes only when both conditions are true:
 
@@ -612,4 +659,5 @@ manager-only action paths.
 - Manager read models can display active task state.
 - The design does not expose Slot leader transfer as a direct manager action.
 - Future Slot leader transfer can be implemented as a new task kind without
-  changing the lifecycle.
+  changing the durable task lifecycle, though it may extend observation and
+  executor ownership logic.
