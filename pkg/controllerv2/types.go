@@ -3,6 +3,7 @@ package controllerv2
 import (
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/controllerv2/command"
 	"github.com/WuKongIM/WuKongIM/pkg/controllerv2/raft"
 	"github.com/WuKongIM/WuKongIM/pkg/controllerv2/state"
 	cv2sync "github.com/WuKongIM/WuKongIM/pkg/controllerv2/sync"
@@ -48,6 +49,16 @@ type (
 	TaskStep = state.TaskStep
 	// TaskStatus describes whether a durable reconcile task is actionable.
 	TaskStatus = state.TaskStatus
+	// TaskCompletionPolicy describes how participant progress becomes task completion.
+	TaskCompletionPolicy = state.TaskCompletionPolicy
+	// TaskParticipantStatus describes one node's local task progress.
+	TaskParticipantStatus = state.TaskParticipantStatus
+	// TaskParticipantProgress stores one participant's progress for a task attempt.
+	TaskParticipantProgress = state.TaskParticipantProgress
+	// TaskResult describes the result of a data-plane reconcile task attempt.
+	TaskResult = command.TaskResult
+	// TaskProgress describes one participant's local progress for a barrier task.
+	TaskProgress = command.TaskProgress
 )
 
 const (
@@ -79,6 +90,16 @@ const (
 	TaskStatusRunning = state.TaskStatusRunning
 	// TaskStatusFailed means the task remains active after a failed attempt.
 	TaskStatusFailed = state.TaskStatusFailed
+	// TaskCompletionPolicySingleObserver means one eligible executor can complete the task.
+	TaskCompletionPolicySingleObserver = state.TaskCompletionPolicySingleObserver
+	// TaskCompletionPolicyAllTargetPeers requires every target peer to report done.
+	TaskCompletionPolicyAllTargetPeers = state.TaskCompletionPolicyAllTargetPeers
+	// TaskParticipantStatusPending means the participant has not completed its local work.
+	TaskParticipantStatusPending = state.TaskParticipantStatusPending
+	// TaskParticipantStatusDone means the participant completed its local work.
+	TaskParticipantStatusDone = state.TaskParticipantStatusDone
+	// TaskParticipantStatusFailed means the participant's latest local attempt failed.
+	TaskParticipantStatusFailed = state.TaskParticipantStatusFailed
 )
 
 type (

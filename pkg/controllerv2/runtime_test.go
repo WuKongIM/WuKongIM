@@ -207,6 +207,65 @@ func TestRuntimeProbeProposeDoesNotMutateRevision(t *testing.T) {
 	}
 }
 
+func TestRuntimeReportTaskProgressProposesCommand(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	runtime := newStartedSingleNodeRuntime(t, 1)
+	waitForRuntimeSlots(t, runtime, 1)
+
+	err := runtime.ReportTaskProgress(ctx, TaskProgress{
+		TaskID:             "slot-1-bootstrap-1",
+		SlotID:             1,
+		TaskKind:           TaskKindBootstrap,
+		ConfigEpoch:        1,
+		TaskAttempt:        0,
+		ParticipantNodeID:  1,
+		ParticipantAttempt: 0,
+		Status:             TaskParticipantStatusDone,
+		FinishedAt:         time.Now().UTC(),
+	})
+	if err != nil {
+		t.Fatalf("ReportTaskProgress() error = %v", err)
+	}
+
+	st := waitForRuntimeState(t, runtime, func(st ClusterState) bool {
+		return len(st.Tasks) == 1 &&
+			len(st.Tasks[0].ParticipantProgress) == 1 &&
+			st.Tasks[0].ParticipantProgress[0].Status == TaskParticipantStatusDone
+	})
+	if st.Tasks[0].ParticipantProgress[0].Status != TaskParticipantStatusDone {
+		t.Fatalf("participant progress = %#v, want done", st.Tasks[0].ParticipantProgress)
+	}
+}
+
+func TestRuntimeCompleteTaskProposesCommand(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	runtime := newStartedSingleNodeRuntime(t, 1)
+	waitForRuntimeSlots(t, runtime, 1)
+
+	err := runtime.CompleteTask(ctx, TaskResult{
+		TaskID:      "slot-1-bootstrap-1",
+		SlotID:      1,
+		TaskKind:    TaskKindBootstrap,
+		ConfigEpoch: 1,
+		Attempt:     0,
+		FinishedAt:  time.Now().UTC(),
+	})
+	if err != nil {
+		t.Fatalf("CompleteTask() error = %v", err)
+	}
+
+	st := waitForRuntimeState(t, runtime, func(st ClusterState) bool {
+		return len(st.Tasks) == 0
+	})
+	if len(st.Tasks) != 0 {
+		t.Fatalf("Tasks = %#v, want empty", st.Tasks)
+	}
+}
+
 func readStateEvent(t *testing.T, watch <-chan StateEvent) StateEvent {
 	t.Helper()
 	select {
@@ -215,6 +274,65 @@ func readStateEvent(t *testing.T, watch <-chan StateEvent) StateEvent {
 	case <-time.After(2 * time.Second):
 		t.Fatal("timeout waiting for StateEvent")
 		return StateEvent{}
+	}
+}
+
+func newStartedSingleNodeRuntime(t *testing.T, slotCount uint32) *Runtime {
+	t.Helper()
+	runtime, err := NewRuntime(RuntimeConfig{
+		NodeID:           1,
+		Addr:             "127.0.0.1:10001",
+		StateDir:         t.TempDir(),
+		ClusterID:        "cluster-task-facade",
+		Role:             RuntimeRoleVoter,
+		Voters:           []Voter{{NodeID: 1, Addr: "127.0.0.1:10001"}},
+		AllowBootstrap:   true,
+		InitialSlotCount: slotCount,
+		HashSlotCount:    4,
+		ReplicaCount:     1,
+		TickInterval:     5 * time.Millisecond,
+	})
+	if err != nil {
+		t.Fatalf("NewRuntime() error = %v", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	if err := runtime.Start(ctx); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	t.Cleanup(func() { _ = runtime.Stop(context.Background()) })
+	return runtime
+}
+
+func waitForRuntimeSlots(t *testing.T, runtime *Runtime, slotCount int) ClusterState {
+	t.Helper()
+	return waitForRuntimeState(t, runtime, func(st ClusterState) bool {
+		return len(st.Slots) == slotCount && len(st.Tasks) == slotCount
+	})
+}
+
+func waitForRuntimeState(t *testing.T, runtime *Runtime, match func(ClusterState) bool) ClusterState {
+	t.Helper()
+	deadline := time.After(2 * time.Second)
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		st, err := runtime.LocalState(context.Background())
+		if err != nil {
+			t.Fatalf("LocalState() error = %v", err)
+		}
+		if match(st) {
+			return st
+		}
+		select {
+		case event := <-runtime.Watch():
+			if match(event.State) {
+				return event.State
+			}
+		case <-ticker.C:
+		case <-deadline:
+			t.Fatalf("timeout waiting for runtime state, last=%#v", st)
+		}
 	}
 }
 
