@@ -26,6 +26,7 @@ func TestWkcliSimSmokeScriptDryRunPrintsNodeAndSimulatorCommands(t *testing.T) {
 		"--duration", "5s",
 	)
 	cmd.Dir = root
+	cmd.Env = envWithout("WK_DEBUG_API_ENABLE")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("dry-run failed: %v\n%s", err, output)
@@ -81,7 +82,7 @@ func TestWkcliSimThreeNodeSmokeScriptDryRunPrintsClusterAndSimulatorCommands(t *
 		"node_log_dir=" + filepath.Join(outDir, "node-logs"),
 		"sim_output=" + filepath.Join(outDir, "sim.jsonl"),
 		"snapshot_output_dir=" + filepath.Join(outDir, "bench-snapshots"),
-		"start_cmd=" + startScript + " --clean --ready-timeout 7 --bin " + filepath.Join(outDir, "wukongimv2") + " --log-dir " + filepath.Join(outDir, "node-logs"),
+		"start_cmd=env WK_DEBUG_API_ENABLE=true " + startScript + " --clean --ready-timeout 7 --bin " + filepath.Join(outDir, "wukongimv2") + " --log-dir " + filepath.Join(outDir, "node-logs"),
 		"sim_cmd=go run ./cmd/wkcli sim --server http://127.0.0.1:5011 --server http://127.0.0.1:5012 --server http://127.0.0.1:5013 --gateway 127.0.0.1:5111 --gateway 127.0.0.1:5112 --gateway 127.0.0.1:5113 --users 12 --groups 3 --group-members 4 --rate 6/s --max-runtime 4s",
 	} {
 		if !strings.Contains(text, want) {
@@ -112,7 +113,7 @@ func TestWkcliSimThreeNodeSmokeScriptAllowsFollowerSnapshotsWithoutCounts(t *tes
 		"--poll", "0",
 	)
 	cmd.Dir = root
-	cmd.Env = append(os.Environ(), "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	cmd.Env = append(envWithout("WK_DEBUG_API_ENABLE"), "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("script failed: %v\n%s", err, output)
@@ -184,6 +185,10 @@ func TestWkcliSimThreeNodeSmokeScriptStopsClusterAndPrintsEvidenceWhenSimFails(t
 	if !waitForFile(filepath.Join(callsDir, "start.term")) {
 		t.Fatalf("start script did not receive TERM; calls dir: %s", callsDir)
 	}
+	debugAPI := strings.TrimSpace(readFile(t, filepath.Join(callsDir, "start.debug_api")))
+	if debugAPI != "true" {
+		t.Fatalf("start script WK_DEBUG_API_ENABLE=%q, want true", debugAPI)
+	}
 }
 
 func writeFakeThreeNodeSimGo(t *testing.T, path string, callsDir string) {
@@ -234,6 +239,7 @@ func writeFakeThreeNodeSimStartScript(t *testing.T, path string, callsDir string
 set -euo pipefail
 mkdir -p "` + callsDir + `"
 printf '%s\n' "$$" > "` + callsDir + `/start.pid"
+printf '%s\n' "${WK_DEBUG_API_ENABLE-}" > "` + callsDir + `/start.debug_api"
 printf '%s\n' "$*" >> "` + callsDir + `/start.calls"
 log_dir=""
 while [[ $# -gt 0 ]]; do

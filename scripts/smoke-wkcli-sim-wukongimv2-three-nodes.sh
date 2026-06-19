@@ -9,6 +9,7 @@ GATEWAY_ADDRS="${WK_WKCLI_SIM_THREE_SMOKE_GATEWAY_ADDRS:-127.0.0.1:5111,127.0.0.
 STATUS_LISTEN="${WK_WKCLI_SIM_THREE_SMOKE_STATUS_LISTEN:-127.0.0.1:19109}"
 READY_TIMEOUT="${WK_WKCLI_SIM_THREE_SMOKE_READY_TIMEOUT:-90}"
 POLL_INTERVAL="${WK_WKCLI_SIM_THREE_SMOKE_POLL_INTERVAL:-1}"
+DEBUG_API_ENABLE="${WK_DEBUG_API_ENABLE:-true}"
 
 USERS="${WK_WKCLI_SIM_THREE_SMOKE_USERS:-30}"
 GROUP_COUNT="${WK_WKCLI_SIM_THREE_SMOKE_GROUPS:-6}"
@@ -33,6 +34,9 @@ Usage: scripts/smoke-wkcli-sim-wukongimv2-three-nodes.sh [options]
 Starts a local cmd/wukongimv2 three-node cluster, runs a small real wkcli sim
 workload through all three WKProto gateways, captures v2 bench API evidence
 from every node, then stops the cluster.
+
+The started cluster enables WK_DEBUG_API_ENABLE by default so pprof/debug
+evidence is available during failures. Set WK_DEBUG_API_ENABLE=false to opt out.
 
 Options:
   --out-dir DIR             Evidence directory. Default: data/wkcli-sim-three-node-smoke.
@@ -136,7 +140,7 @@ print_start_cmd() {
     printf 'start_cmd=<disabled>\n'
     return
   fi
-  printf 'start_cmd=%s' "$START_SCRIPT"
+  printf 'start_cmd=env WK_DEBUG_API_ENABLE=%s %s' "$DEBUG_API_ENABLE" "$START_SCRIPT"
   if [[ "$CLEAN_CLUSTER" -eq 1 ]]; then
     printf ' --clean'
   fi
@@ -367,7 +371,7 @@ start_cluster() {
   log "starting three-node cluster: $START_SCRIPT"
   (
     cd "$ROOT_DIR"
-    exec "${args[@]}"
+    exec env "WK_DEBUG_API_ENABLE=$DEBUG_API_ENABLE" "${args[@]}"
   ) >"$(cluster_log)" 2>&1 &
   CLUSTER_PID="$!"
   log "cluster pid=${CLUSTER_PID} log=$(cluster_log)"

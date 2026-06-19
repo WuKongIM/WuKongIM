@@ -189,6 +189,8 @@ test("runs a trace query and renders the summary", async () => {
   expect(screen.getAllByText("ok").length).toBeGreaterThan(0)
   expect(screen.getAllByText("2 events").length).toBeGreaterThan(0)
   expect(screen.getAllByText("store_append").length).toBeGreaterThan(0)
+  expect(screen.getByRole("list", { name: "Diagnostics timeline" })).toBeInTheDocument()
+  expect(screen.getByText("Node 2 · Slot 9")).toBeInTheDocument()
 })
 
 test("validates channel sequence input", async () => {

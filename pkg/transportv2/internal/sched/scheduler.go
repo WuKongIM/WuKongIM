@@ -120,11 +120,6 @@ func (s *Scheduler) Enqueue(ctx context.Context, item Item) error {
 	if item.Bytes < 0 {
 		item.Bytes = 0
 	}
-	if int64(item.Bytes) > s.maxBatchBytes {
-		total, lane := s.snapshotQueuePair(item.Priority)
-		s.observeEnqueue("too_large", item, total, lane)
-		return core.ErrMsgTooLarge
-	}
 
 	s.mu.Lock()
 
@@ -291,7 +286,7 @@ func (s *Scheduler) nextBatchLocked(dst []Item, observe bool) ([]Item, []core.Ev
 			s.finishLaneLocked()
 			continue
 		}
-		if batchBytes+itemBytes > s.maxBatchBytes {
+		if batchBytes+itemBytes > s.maxBatchBytes && len(batch) > 0 {
 			break
 		}
 

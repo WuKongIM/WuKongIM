@@ -463,20 +463,30 @@ func TestEnqueueEnforcesMaxItems(t *testing.T) {
 	}
 }
 
-func TestEnqueueRejectsItemLargerThanMaxBatchBytes(t *testing.T) {
+func TestNextBatchReturnsOversizedItemAsSingleton(t *testing.T) {
 	s := New(Config{MaxBatchBytes: 8})
 
-	err := s.Enqueue(context.Background(), Item{
+	if err := s.Enqueue(context.Background(), Item{
 		Priority: core.PriorityRPC,
 		Bytes:    9,
-		Value:    "too-large",
-	})
-
-	if !errors.Is(err, core.ErrMsgTooLarge) {
-		t.Fatalf("Enqueue() error = %v, want ErrMsgTooLarge", err)
+		Value:    "oversized",
+	}); err != nil {
+		t.Fatalf("Enqueue(oversized) error = %v", err)
 	}
-	if batch := s.NextBatch(); batch != nil {
-		t.Fatalf("NextBatch() = %#v, want nil after rejected enqueue", batch)
+	if err := s.Enqueue(context.Background(), Item{
+		Priority: core.PriorityRPC,
+		Bytes:    1,
+		Value:    "small",
+	}); err != nil {
+		t.Fatalf("Enqueue(small) error = %v", err)
+	}
+
+	batch := s.NextBatch()
+	if len(batch) != 1 {
+		t.Fatalf("NextBatch() len = %d, want 1", len(batch))
+	}
+	if batch[0].Value != "oversized" {
+		t.Fatalf("NextBatch()[0].Value = %v, want oversized", batch[0].Value)
 	}
 }
 

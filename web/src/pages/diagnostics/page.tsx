@@ -234,6 +234,24 @@ function SummaryCard({ label, value, detail }: { label: string; value: string; d
   )
 }
 
+function timelineContext(event: ManagerDiagnosticsEvent) {
+  const parts: string[] = []
+  if (event.node_id) parts.push(`Node ${event.node_id}`)
+  if (event.peer_node_id) parts.push(`Peer ${event.peer_node_id}`)
+  if (event.slot_id) parts.push(`Slot ${event.slot_id}`)
+  if (event.message_seq) parts.push(`Seq ${event.message_seq}`)
+  return parts.length > 0 ? parts.join(" · ") : "Cluster"
+}
+
+function timelineDetails(event: ManagerDiagnosticsEvent) {
+  const details: string[] = []
+  if (event.channel_key) details.push(event.channel_key)
+  if (event.service) details.push(event.service)
+  if (event.attempt) details.push(`attempt ${event.attempt}`)
+  if (event.queue_depth) details.push(`queue ${event.queue_depth}`)
+  return details
+}
+
 function parseChannelKey(channelKey: string | undefined) {
   if (!channelKey) return null
   const match = /^(\d+):([^\s/?#]+)$/.exec(channelKey)
@@ -605,17 +623,14 @@ export function DiagnosticsTracePanel() {
 
           <SectionCard title="Timeline" description="Diagnostics stages ordered by event time.">
             {events.length > 0 ? (
-              <ol className="space-y-2">
+              <ol aria-label="Diagnostics timeline" className="overflow-hidden rounded-lg border border-border bg-background">
                 {events.map((event, index) => (
-                  <li key={`${event.at}-${event.stage}-${index}`} className={`rounded-lg border p-3 ${failureResults.has(event.result) ? "border-destructive/30 bg-destructive/5" : "border-border bg-muted/20"}`}>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-medium text-foreground">{event.stage}</span>
-                      <StatusPill value={event.result} />
-                      <span className="text-xs text-muted-foreground">{timestamp(intl, event.at)}</span>
-                      {typeof event.duration_ms === "number" ? <span className="text-xs text-muted-foreground">{event.duration_ms} ms</span> : null}
-                    </div>
-                    {event.error ? <div className="mt-1 text-sm text-destructive">{event.error}</div> : null}
-                  </li>
+                  <TimelineEventItem
+                    key={`${event.at}-${event.stage}-${index}`}
+                    event={event}
+                    intl={intl}
+                    isLast={index === events.length - 1}
+                  />
                 ))}
               </ol>
             ) : <div className="text-sm text-muted-foreground">No timeline events.</div>}
@@ -694,6 +709,34 @@ function TextInput({ label, value, onChange }: { label: string; value: string; o
 function valueOrDash(value: string | number | undefined) {
   if (value === undefined || value === "") return "-"
   return String(value)
+}
+
+function TimelineEventItem({ event, intl, isLast }: { event: ManagerDiagnosticsEvent; intl: IntlShape; isLast: boolean }) {
+  const failed = failureResults.has(event.result)
+  const details = timelineDetails(event)
+  return (
+    <li className={`grid grid-cols-[1.25rem_minmax(0,1fr)] border-b border-border/70 last:border-b-0 ${failed ? "bg-destructive/5" : "hover:bg-muted/25"}`}>
+      <div className="relative flex justify-center py-3" aria-hidden="true">
+        {!isLast ? <span className="absolute bottom-0 top-6 w-px bg-border" /> : null}
+        <span className={`relative z-10 mt-1 size-2.5 rounded-full border ${failed ? "border-destructive bg-destructive" : "border-emerald-500 bg-emerald-500"}`} />
+      </div>
+      <div className="min-w-0 py-2.5 pr-3">
+        <div className="grid gap-2 md:grid-cols-[minmax(12rem,1fr)_auto_auto_auto] md:items-center">
+          <div className="min-w-0">
+            <div className="truncate text-sm font-semibold text-foreground" title={event.stage}>{event.stage}</div>
+            <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+              <span>{timelineContext(event)}</span>
+              {details.map((detail, detailIndex) => <span key={`${detail}-${detailIndex}`} className="max-w-full truncate">{detail}</span>)}
+            </div>
+          </div>
+          <StatusPill value={event.result} />
+          <span className="text-xs font-medium tabular-nums text-muted-foreground">{typeof event.duration_ms === "number" ? `${event.duration_ms} ms` : "-"}</span>
+          <time className="text-xs tabular-nums text-muted-foreground" dateTime={event.at}>{timestamp(intl, event.at)}</time>
+        </div>
+        {event.error ? <div className="mt-1.5 rounded-md border border-destructive/20 bg-destructive/10 px-2 py-1 text-xs text-destructive">{event.error}</div> : null}
+      </div>
+    </li>
+  )
 }
 
 function EventRow({ event }: { event: ManagerDiagnosticsEvent }) {
