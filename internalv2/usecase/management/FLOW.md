@@ -7,7 +7,8 @@ new manager API. It currently owns the node list, Slot list, business channel
 list, channel runtime metadata list, Controller/Slot distributed log pages,
 Controller Raft status and explicit compaction orchestration, recent
 conversation list, channel message list, message retention adapter
-contract, local-or-remote connection list/detail projection, DB Inspect
+contract, local-or-remote connection list/detail projection, DB Inspect,
+diagnostics trace/message/event query orchestration and tracking-rule fan-out,
 node-local diagnostics orchestration, user management, and system UID
 projections/actions used by `GET /manager/nodes`,
 `GET /manager/slots`, `GET /manager/channels`,
@@ -17,7 +18,8 @@ projections/actions used by `GET /manager/nodes`,
 `POST /manager/nodes/:node_id/controller-raft/compact`,
 `POST /manager/controller-raft/compact`, `GET /manager/conversations`, `GET /manager/messages`,
 `POST /manager/messages/retention`, `/manager/connections*`,
-`/manager/db/inspect*`, `/manager/users*`, and `/manager/system-users*`.
+`/manager/db/inspect*`, `/manager/diagnostics*`, `/manager/users*`, and
+`/manager/system-users*`.
 
 ## Node List Flow
 
@@ -215,6 +217,23 @@ and routes non-local `node_id` requests through the narrow remote DB inspect
 reader port. It does not merge rows across cluster nodes, accept or expose
 filesystem paths, or mutate storage; storage selection is owned by the app
 composition root and the underlying inspect reader.
+
+## Diagnostics Flow
+
+```text
+manager HTTP handler
+  -> management.App.QueryDiagnostics/CreateDiagnosticsTrackingRule/ListDiagnosticsTrackingRules/DeleteDiagnosticsTrackingRule
+  -> local node_id or aggregate target: DiagnosticsReader node-local query
+  -> non-local node_id or fan-out target: DiagnosticsReader manager diagnostics node RPC
+  -> internalv2 diagnostics query result or tracking-rule mutation result
+```
+
+Diagnostics queries normalize trace, message, and event filters in the
+management usecase, select alive or suspect nodes from the clusterv2 control
+snapshot for aggregate reads, and skip down nodes with per-node notes instead
+of masking the cluster shape. Tracking-rule mutations fan out to eligible
+nodes and preserve per-node successes, skips, and errors. The usecase depends
+only on the internalv2 diagnostics DTOs and the narrow diagnostics ports.
 
 ## User Management Flow
 

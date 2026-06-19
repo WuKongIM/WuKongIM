@@ -247,7 +247,7 @@ function RelatedLinks({ response }: { response: ManagerDiagnosticsResponse }) {
   for (const event of response.events) {
     if (event.slot_id && event.node_id) {
       links.set(`slot-${event.slot_id}-${event.node_id}`, {
-        href: `/cluster/diagnostics?tab=slot-logs&slot_id=${event.slot_id}&node_id=${event.node_id}`,
+        href: `/cluster/slots?tab=logs&slot_id=${event.slot_id}&node_id=${event.node_id}`,
         label: `Slot ${event.slot_id} logs on node ${event.node_id}`,
       })
     }

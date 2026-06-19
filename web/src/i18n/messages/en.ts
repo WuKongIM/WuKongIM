@@ -125,7 +125,7 @@ export const enMessages: AppMessages = {
   "nav.systemUsers.title": "System Users",
   "nav.systemUsers.description": "System UID management (bots, notification accounts).",
   "nav.diagnostics.title": "Diagnostics",
-  "nav.diagnostics.description": "Message tracing, network status, distributed logs, and ordinary app logs.",
+  "nav.diagnostics.description": "Message tracing and temporary diagnostics sampling rules.",
   "nav.network.title": "Network",
   "nav.network.description": "Local-node transport summary and runtime status.",
   "nav.connections.title": "Connections",

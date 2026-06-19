@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/internal/observability/diagnostics"
+	"github.com/WuKongIM/WuKongIM/internalv2/observability/diagnostics"
 	accessapi "github.com/WuKongIM/WuKongIM/internalv2/access/api"
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/channelappend"
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/conversationactive"

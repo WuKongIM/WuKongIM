@@ -20,6 +20,7 @@ storage, or routing branches that bypass cluster semantics.
 | `access/gateway` | Gateway event/frame adapter: presence activation/deactivation mapping, `SendPacket` mapping, sendack writing, and entry error mapping. |
 | `access/node` | Node RPC adapter for presence, conversation authority, delivery, and channel append calls between internalv2 nodes. |
 | `log` | Zap/lumberjack-backed application logger for the internalv2 composition root. |
+| `observability/diagnostics` | Bounded node-local diagnostics events, trace indexing, runtime tracking rules, and sendtrace context helpers. |
 | `usecase/channel` | Entry-agnostic channel metadata, subscriber, temporary subscriber, allowlist, and denylist orchestration. |
 | `usecase/message` | Entry-agnostic SEND facade and compatible channel message sync. |
 | `usecase/presence` | Entry-agnostic connection presence activation, deactivation, lookup, and authority coordination. |
@@ -111,6 +112,20 @@ runtime observer events
   -> internalv2/access/api /top/v1/snapshot
   -> wkcli top client-side multi-node aggregation
 ```
+
+## Diagnostics Trace Flow
+
+```text
+manager diagnostics HTTP request
+  -> internalv2/access/manager request validation and permissions
+  -> internalv2/usecase/management diagnostics orchestration
+  -> local internalv2/observability/diagnostics store or access/node Manager Diagnostics RPC
+  -> bounded trace/message/event result page or tracking-rule mutation result
+```
+
+Diagnostics trace storage and tracking rules belong to `internalv2`; new v2
+manager routes must not import the legacy `internal/observability/diagnostics`
+package.
 
 ## Legacy Channel Management Flow
 

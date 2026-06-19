@@ -28,7 +28,7 @@ import { WorkqueuesPage } from "@/pages/workqueues/page"
 function RedirectWithSearch({ tab, to }: { tab?: string; to: string }) {
   const location = useLocation()
   const params = new URLSearchParams(location.search)
-  if (tab && !params.has("tab")) {
+  if (tab) {
     params.set("tab", tab)
   }
   const search = params.toString()
@@ -92,10 +92,10 @@ export const routes: RouteObject[] = [
       { path: "channel-cluster/unhealthy", element: <Navigate replace to="/cluster/channels" /> },
       { path: "channels", element: <Navigate replace to="/cluster/channels" /> },
       { path: "diagnostics", element: <Navigate replace to="/cluster/diagnostics?tab=trace" /> },
-      { path: "network", element: <Navigate replace to="/cluster/diagnostics?tab=network" /> },
-      { path: "controller", element: <RedirectWithSearch tab="controller-logs" to="/cluster/diagnostics" /> },
-      { path: "slot-logs", element: <RedirectWithSearch tab="slot-logs" to="/cluster/diagnostics" /> },
-      { path: "app-logs", element: <RedirectWithSearch tab="app-logs" to="/cluster/diagnostics" /> },
+      { path: "network", element: <Navigate replace to="/cluster/diagnostics?tab=trace" /> },
+      { path: "controller", element: <RedirectWithSearch tab="trace" to="/cluster/diagnostics" /> },
+      { path: "slot-logs", element: <RedirectWithSearch tab="trace" to="/cluster/diagnostics" /> },
+      { path: "app-logs", element: <RedirectWithSearch tab="trace" to="/cluster/diagnostics" /> },
       { path: "users", element: <Navigate replace to="/business/users" /> },
       { path: "channels-biz", element: <Navigate replace to="/business/channels" /> },
       { path: "messages", element: <Navigate replace to="/business/messages" /> },

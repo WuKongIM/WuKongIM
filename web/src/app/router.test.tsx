@@ -87,8 +87,8 @@ test.each([
   ["/nodes", "/cluster/nodes"],
   ["/workqueues", "/cluster/workqueues"],
   ["/channel-cluster/unhealthy", "/cluster/channels"],
-  ["/network", "/cluster/diagnostics?tab=network"],
-  ["/app-logs", "/cluster/diagnostics?tab=app-logs"],
+  ["/network", "/cluster/diagnostics?tab=trace"],
+  ["/app-logs", "/cluster/diagnostics?tab=trace"],
   ["/connections", "/business/connections"],
   ["/system/connections", "/business/connections"],
   ["/db-inspect", "/system/db"],
@@ -133,9 +133,9 @@ test("renders the cluster live monitor route", async () => {
   expect(screen.queryByText("UI Preview")).not.toBeInTheDocument()
 })
 
-test("preserves controller log search params when redirecting to diagnostics", async () => {
+test("normalizes retired controller diagnostics route to tracing", async () => {
   useAuthStore.setState(authenticatedState())
-  const router = createMemoryRouter(routes, { initialEntries: ["/controller?node_id=1"] })
+  const router = createMemoryRouter(routes, { initialEntries: ["/controller?node_id=1&tab=controller-logs"] })
 
   render(
     <AppProviders>
@@ -145,7 +145,7 @@ test("preserves controller log search params when redirecting to diagnostics", a
 
   await screen.findByRole("main")
   expect(router.state.location.pathname + router.state.location.search).toBe(
-    "/cluster/diagnostics?node_id=1&tab=controller-logs",
+    "/cluster/diagnostics?node_id=1&tab=trace",
   )
 })
 

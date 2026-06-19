@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"strings"
 
-	obsdiagnostics "github.com/WuKongIM/WuKongIM/internal/observability/diagnostics"
 	accessapi "github.com/WuKongIM/WuKongIM/internalv2/access/api"
 	accessgateway "github.com/WuKongIM/WuKongIM/internalv2/access/gateway"
 	accessmanager "github.com/WuKongIM/WuKongIM/internalv2/access/manager"
 	accessnode "github.com/WuKongIM/WuKongIM/internalv2/access/node"
 	clusterinfra "github.com/WuKongIM/WuKongIM/internalv2/infra/cluster"
 	applog "github.com/WuKongIM/WuKongIM/internalv2/log"
+	obsdiagnostics "github.com/WuKongIM/WuKongIM/internalv2/observability/diagnostics"
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/channelappend"
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internalv2/runtime/delivery"
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/online"
@@ -409,6 +409,15 @@ func (a *App) wireManagerDBInspectRPC() {
 	registrar.RegisterRPC(accessnode.ManagerDBInspectRPCServiceID, nodeRPCHandlerFunc(adapter.HandleManagerDBInspectRPC))
 }
 
+func (a *App) wireManagerDiagnosticsRPC() {
+	registrar, hasRegistrar := a.cluster.(nodeRPCRegistrar)
+	if !hasRegistrar {
+		return
+	}
+	adapter := accessnode.New(accessnode.Options{ManagerDiagnostics: a, Logger: a.logger.Named("node")})
+	registrar.RegisterRPC(accessnode.ManagerDiagnosticsRPCServiceID, nodeRPCHandlerFunc(adapter.HandleManagerDiagnosticsRPC))
+}
+
 func (a *App) wireUsers() {
 	if a.users == nil {
 		if node, ok := a.cluster.(clusterinfra.UserMetadataNode); ok {
@@ -747,6 +756,11 @@ func (a *App) newManagerManagement() accessmanager.Management {
 		opts := managementusecase.Options{
 			Cluster:       clusterinfra.NewManagementSnapshotReader(node),
 			Conversations: a.conversations,
+		}
+		if rpcNode, ok := a.cluster.(clusterinfra.ManagementDiagnosticsRPCNode); ok {
+			diagnostics := clusterinfra.NewManagementDiagnosticsReader(rpcNode, a)
+			opts.Diagnostics = diagnostics
+			opts.DiagnosticsTracking = diagnostics
 		}
 		localApplicationLogs := a.newManagementApplicationLogReader()
 		opts.ApplicationLogs = localApplicationLogs

@@ -232,6 +232,25 @@ usecase and infra/cluster adapter. The payload preserves JSON-friendly dynamic
 rows and stats, but it does not merge rows across nodes, expose filesystem
 paths, or mutate storage.
 
+## Manager Diagnostics RPC
+
+```text
+remote manager diagnostics reader/operator
+  -> encode W K V D Q request
+  -> clusterv2 RPCManagerDiagnostics
+  -> Adapter.HandleManagerDiagnosticsRPC
+  -> Management diagnostics reader/tracking port
+  -> encode W K V D R response
+```
+
+Manager Diagnostics RPC transports internalv2 diagnostics trace/message/event
+queries and tracking-rule mutations to the selected node. The server calls
+only the configured local diagnostics port; aggregate node selection,
+alive/suspect/down filtering, and HTTP permission checks are decided above this
+package by the management usecase and manager access layer. The payload uses
+internalv2 diagnostics DTOs and does not read legacy `internal` diagnostics
+state.
+
 ## Manager Application Log RPC
 
 ```text
@@ -303,6 +322,11 @@ Manager DB Inspect RPC uses fixed magic headers:
 - Request: `W K V B 1`
 - Response: `W K V b 1`
 
+Manager Diagnostics RPC uses fixed magic headers:
+
+- Request: `W K V D Q`
+- Response: `W K V D R`
+
 Manager Application Log RPC uses fixed magic headers:
 
 - Request: `W K V G 1`
@@ -349,7 +373,8 @@ Delivery push and fanout responses currently use:
   presence sentinel errors, `internalv2/usecase/conversation` DTOs and
   sentinel errors, `internalv2/contracts/channelappend` DTOs and sentinel errors,
   runtime delivery DTOs, `internalv2/runtime/conversationactive.ActiveBatch`
-  as the active worker RPC DTO, and the clusterv2 RPC service IDs.
+  as the active worker RPC DTO, internalv2 diagnostics DTOs, and the clusterv2
+  RPC service IDs.
 - This package must not decide presence route conflict behavior.
 - This package must not implement conversation active-row construction, cache
   merge, active-row flush, or handoff business logic.
@@ -360,5 +385,5 @@ Delivery push and fanout responses currently use:
   state except through the `PresenceAuthority`, `PresenceOwner`, and
   `DeliveryOwnerPush` / `DeliveryFanoutRunner` / `ConversationAuthority` /
   standalone channel-write `ChannelAppend`, manager connection reader, and
-  manager log reader, manager DB inspect reader, and manager application log
-  reader adapter interfaces.
+  manager log reader, manager DB inspect reader, manager diagnostics
+  reader/operator, and manager application log reader adapter interfaces.

@@ -50,7 +50,7 @@ describe("navigationSections", () => {
     expect(legacyRouteRedirects["/monitor"]).toBe("/business/monitor")
     expect(legacyRouteRedirects["/channel-cluster/list"]).toBe("/cluster/channels")
     expect(legacyRouteRedirects["/workqueues"]).toBe("/cluster/workqueues")
-    expect(legacyRouteRedirects["/app-logs"]).toBe("/cluster/diagnostics?tab=app-logs")
+    expect(legacyRouteRedirects["/app-logs"]).toBe("/cluster/diagnostics?tab=trace")
     expect(legacyRouteRedirects["/connections"]).toBe("/business/connections")
     expect(legacyRouteRedirects["/conversations"]).toBe("/business/conversations")
   })

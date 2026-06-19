@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/bench/model"
-	obsdiagnostics "github.com/WuKongIM/WuKongIM/internal/observability/diagnostics"
+	obsdiagnostics "github.com/WuKongIM/WuKongIM/internalv2/observability/diagnostics"
 	channelusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/channel"
 	conversationusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/conversation"
 	messageusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/message"

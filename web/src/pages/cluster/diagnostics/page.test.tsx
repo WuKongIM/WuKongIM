@@ -1,5 +1,4 @@
 import { render, screen } from "@testing-library/react"
-import userEvent from "@testing-library/user-event"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { beforeEach, expect, test, vi } from "vitest"
 
@@ -90,30 +89,21 @@ test("defaults to the diagnostics trace tab", async () => {
   renderPage()
 
   expect(screen.getByRole("tab", { name: "Tracing" })).toHaveAttribute("aria-selected", "true")
+  expect(screen.queryByRole("tab", { name: "Network" })).not.toBeInTheDocument()
+  expect(screen.queryByRole("tab", { name: "Control Plane Logs" })).not.toBeInTheDocument()
+  expect(screen.queryByRole("tab", { name: "Slot Logs" })).not.toBeInTheDocument()
+  expect(screen.queryByRole("tab", { name: "App Logs" })).not.toBeInTheDocument()
   expect(await screen.findByText("Message Diagnostics")).toBeInTheDocument()
   expect(await screen.findByText("CLUSTER / DIAGNOSTICS")).toBeInTheDocument()
 })
 
-test("renders the network tab from the tab search param", async () => {
+test("normalizes retired diagnostics tabs to tracing", async () => {
   renderPage("/cluster/diagnostics?tab=network")
 
-  expect(screen.getByRole("tab", { name: "Network" })).toHaveAttribute("aria-selected", "true")
-  expect(await screen.findByText("Node Health Status")).toBeInTheDocument()
-})
-
-test("preserves existing search params when switching tabs", async () => {
-  const user = userEvent.setup()
-  renderPage("/cluster/diagnostics?node_id=1&tab=controller-logs")
-
-  expect(screen.getByRole("tab", { name: "Control Plane Logs" })).toHaveAttribute("aria-selected", "true")
-  await user.click(screen.getByRole("tab", { name: "Slot Logs" }))
-
-  expect(screen.getByRole("tab", { name: "Slot Logs" })).toHaveAttribute("aria-selected", "true")
-})
-
-test("renders the application log tab from the tab search param", async () => {
-  renderPage("/cluster/diagnostics?tab=app-logs")
-
-  expect(screen.getByRole("tab", { name: "App Logs" })).toHaveAttribute("aria-selected", "true")
-  expect(await screen.findByRole("heading", { name: "Application Logs" })).toBeInTheDocument()
+  expect(screen.getByRole("tab", { name: "Tracing" })).toHaveAttribute("aria-selected", "true")
+  expect(await screen.findByText("Message Diagnostics")).toBeInTheDocument()
+  expect(screen.queryByText("Node Health Status")).not.toBeInTheDocument()
+  expect(screen.queryByRole("heading", { name: "Application Logs" })).not.toBeInTheDocument()
+  expect(getNetworkSummaryMock).not.toHaveBeenCalled()
+  expect(getApplicationLogSourcesMock).not.toHaveBeenCalled()
 })

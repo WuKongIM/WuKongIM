@@ -12,10 +12,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	obsdiagnostics "github.com/WuKongIM/WuKongIM/internal/observability/diagnostics"
 	accessapi "github.com/WuKongIM/WuKongIM/internalv2/access/api"
 	accessgateway "github.com/WuKongIM/WuKongIM/internalv2/access/gateway"
 	clusterinfra "github.com/WuKongIM/WuKongIM/internalv2/infra/cluster"
+	obsdiagnostics "github.com/WuKongIM/WuKongIM/internalv2/observability/diagnostics"
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/channelappend"
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internalv2/runtime/delivery"
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/online"
@@ -168,6 +168,7 @@ func New(cfg Config, opts ...Option) (*App, error) {
 	app.wireManagerAppLogRPC()
 	app.wireManagerChannelRPC()
 	app.wireManagerDBInspectRPC()
+	app.wireManagerDiagnosticsRPC()
 	app.wireUsers()
 	app.wireDelivery()
 	if err := app.wireChannelAppend(clusterCfg.NodeID); err != nil {

@@ -1268,63 +1268,74 @@ func mustIssueTestToken(t *testing.T, srv *Server, username string) string {
 }
 
 type managerNodesStub struct {
-	nodes                         managementusecase.NodeList
-	slots                         []managementusecase.Slot
-	channelRuntimeMeta            managementusecase.ListChannelRuntimeMetaResponse
-	businessChannels              managementusecase.ListBusinessChannelsResponse
-	recentConversations           managementusecase.RecentConversationsResponse
-	messagesPage                  managementusecase.ListMessagesResponse
-	connections                   []managementusecase.Connection
-	connectionDetail              managementusecase.ConnectionDetail
-	usersPage                     managementusecase.ListUsersResponse
-	userDetail                    managementusecase.UserDetail
-	slotLogEntriesPage            managementusecase.SlotLogEntriesResponse
-	controllerLogEntriesPage      managementusecase.ControllerLogEntriesResponse
-	controllerRaftStatus          managementusecase.ControllerRaftStatus
-	controllerRaftCompactResult   managementusecase.ControllerRaftCompactionResult
-	controllerRaftCompactSummary  managementusecase.ControllerRaftCompactionSummary
-	kickUserResponse              managementusecase.KickUserResponse
-	resetUserTokenResponse        managementusecase.ResetUserTokenResponse
-	retentionResult               managementusecase.AdvanceMessageRetentionResponse
-	systemUsers                   managementusecase.ListSystemUsersResponse
-	systemUsersMutation           managementusecase.MutateSystemUsersResponse
-	lastSlotsOptions              *managementusecase.ListSlotsOptions
-	lastChannelRuntimeMetaRequest *managementusecase.ListChannelRuntimeMetaRequest
-	lastBusinessChannelsRequest   *managementusecase.ListBusinessChannelsRequest
-	recentConversationsReqSink    *managementusecase.RecentConversationsRequest
-	messagesReqSink               *managementusecase.ListMessagesRequest
-	connectionsReqSink            *managementusecase.ListConnectionsRequest
-	connectionDetailReqSink       *managementusecase.GetConnectionRequest
-	slotLogEntriesReqSink         *managementusecase.ListSlotLogEntriesRequest
-	controllerLogEntriesReqSink   *managementusecase.ListControllerLogEntriesRequest
-	controllerRaftStatusNodeSink  *uint64
-	controllerRaftCompactNodeSink *uint64
-	retentionReqSink              *managementusecase.AdvanceMessageRetentionRequest
-	usersReqSink                  *managementusecase.ListUsersRequest
-	kickUserReqSink               *managementusecase.KickUserRequest
-	resetUserTokenReqSink         *managementusecase.ResetUserTokenRequest
-	systemUsersAddReq             *managementusecase.MutateSystemUsersRequest
-	systemUsersRemoveReq          *managementusecase.MutateSystemUsersRequest
-	err                           error
-	slotsErr                      error
-	channelRuntimeMetaErr         error
-	businessChannelsErr           error
-	recentConversationsErr        error
-	messagesErr                   error
-	connectionsErr                error
-	connectionDetailErr           error
-	slotLogEntriesErr             error
-	controllerLogEntriesErr       error
-	controllerRaftStatusErr       error
-	controllerRaftCompactErr      error
-	controllerRaftCompactAllErr   error
-	retentionErr                  error
-	usersErr                      error
-	userDetailErr                 error
-	kickUserErr                   error
-	resetUserTokenErr             error
-	systemUsersErr                error
-	systemUsersMutationErr        error
+	nodes                             managementusecase.NodeList
+	slots                             []managementusecase.Slot
+	channelRuntimeMeta                managementusecase.ListChannelRuntimeMetaResponse
+	businessChannels                  managementusecase.ListBusinessChannelsResponse
+	recentConversations               managementusecase.RecentConversationsResponse
+	messagesPage                      managementusecase.ListMessagesResponse
+	connections                       []managementusecase.Connection
+	connectionDetail                  managementusecase.ConnectionDetail
+	usersPage                         managementusecase.ListUsersResponse
+	userDetail                        managementusecase.UserDetail
+	slotLogEntriesPage                managementusecase.SlotLogEntriesResponse
+	controllerLogEntriesPage          managementusecase.ControllerLogEntriesResponse
+	controllerRaftStatus              managementusecase.ControllerRaftStatus
+	controllerRaftCompactResult       managementusecase.ControllerRaftCompactionResult
+	controllerRaftCompactSummary      managementusecase.ControllerRaftCompactionSummary
+	diagnosticsResponse               managementusecase.DiagnosticsQueryResponse
+	diagnosticsTrackingCreateResponse managementusecase.DiagnosticsTrackingMutationResponse
+	diagnosticsTrackingListResponse   managementusecase.DiagnosticsTrackingListResponse
+	diagnosticsTrackingDeleteResponse managementusecase.DiagnosticsTrackingDeleteResponse
+	kickUserResponse                  managementusecase.KickUserResponse
+	resetUserTokenResponse            managementusecase.ResetUserTokenResponse
+	retentionResult                   managementusecase.AdvanceMessageRetentionResponse
+	systemUsers                       managementusecase.ListSystemUsersResponse
+	systemUsersMutation               managementusecase.MutateSystemUsersResponse
+	lastSlotsOptions                  *managementusecase.ListSlotsOptions
+	lastChannelRuntimeMetaRequest     *managementusecase.ListChannelRuntimeMetaRequest
+	lastBusinessChannelsRequest       *managementusecase.ListBusinessChannelsRequest
+	recentConversationsReqSink        *managementusecase.RecentConversationsRequest
+	messagesReqSink                   *managementusecase.ListMessagesRequest
+	connectionsReqSink                *managementusecase.ListConnectionsRequest
+	connectionDetailReqSink           *managementusecase.GetConnectionRequest
+	slotLogEntriesReqSink             *managementusecase.ListSlotLogEntriesRequest
+	controllerLogEntriesReqSink       *managementusecase.ListControllerLogEntriesRequest
+	controllerRaftStatusNodeSink      *uint64
+	controllerRaftCompactNodeSink     *uint64
+	diagnosticsReqSink                *managementusecase.DiagnosticsQueryRequest
+	diagnosticsTrackingCreateReqSink  *managementusecase.DiagnosticsTrackingCreateRequest
+	diagnosticsTrackingDeleteRuleSink *string
+	retentionReqSink                  *managementusecase.AdvanceMessageRetentionRequest
+	usersReqSink                      *managementusecase.ListUsersRequest
+	kickUserReqSink                   *managementusecase.KickUserRequest
+	resetUserTokenReqSink             *managementusecase.ResetUserTokenRequest
+	systemUsersAddReq                 *managementusecase.MutateSystemUsersRequest
+	systemUsersRemoveReq              *managementusecase.MutateSystemUsersRequest
+	err                               error
+	slotsErr                          error
+	channelRuntimeMetaErr             error
+	businessChannelsErr               error
+	recentConversationsErr            error
+	messagesErr                       error
+	connectionsErr                    error
+	connectionDetailErr               error
+	slotLogEntriesErr                 error
+	controllerLogEntriesErr           error
+	controllerRaftStatusErr           error
+	controllerRaftCompactErr          error
+	controllerRaftCompactAllErr       error
+	diagnosticsErr                    error
+	diagnosticsTrackingCreateErr      error
+	diagnosticsTrackingListErr        error
+	diagnosticsTrackingDeleteErr      error
+	retentionErr                      error
+	usersErr                          error
+	userDetailErr                     error
+	kickUserErr                       error
+	resetUserTokenErr                 error
+	systemUsersErr                    error
+	systemUsersMutationErr            error
 }
 
 type managerTopStub struct {
@@ -1421,6 +1432,31 @@ func (s managerNodesStub) CompactControllerRaftLog(_ context.Context, nodeID uin
 
 func (s managerNodesStub) CompactControllerRaftLogs(context.Context) (managementusecase.ControllerRaftCompactionSummary, error) {
 	return s.controllerRaftCompactSummary, s.controllerRaftCompactAllErr
+}
+
+func (s managerNodesStub) QueryDiagnostics(_ context.Context, req managementusecase.DiagnosticsQueryRequest) (managementusecase.DiagnosticsQueryResponse, error) {
+	if s.diagnosticsReqSink != nil {
+		*s.diagnosticsReqSink = req
+	}
+	return s.diagnosticsResponse, s.diagnosticsErr
+}
+
+func (s managerNodesStub) CreateDiagnosticsTrackingRule(_ context.Context, req managementusecase.DiagnosticsTrackingCreateRequest) (managementusecase.DiagnosticsTrackingMutationResponse, error) {
+	if s.diagnosticsTrackingCreateReqSink != nil {
+		*s.diagnosticsTrackingCreateReqSink = req
+	}
+	return s.diagnosticsTrackingCreateResponse, s.diagnosticsTrackingCreateErr
+}
+
+func (s managerNodesStub) ListDiagnosticsTrackingRules(context.Context) (managementusecase.DiagnosticsTrackingListResponse, error) {
+	return s.diagnosticsTrackingListResponse, s.diagnosticsTrackingListErr
+}
+
+func (s managerNodesStub) DeleteDiagnosticsTrackingRule(_ context.Context, ruleID string) (managementusecase.DiagnosticsTrackingDeleteResponse, error) {
+	if s.diagnosticsTrackingDeleteRuleSink != nil {
+		*s.diagnosticsTrackingDeleteRuleSink = ruleID
+	}
+	return s.diagnosticsTrackingDeleteResponse, s.diagnosticsTrackingDeleteErr
 }
 
 func (s managerNodesStub) ListBusinessChannels(_ context.Context, req managementusecase.ListBusinessChannelsRequest) (managementusecase.ListBusinessChannelsResponse, error) {

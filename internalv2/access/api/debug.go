@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/WuKongIM/WuKongIM/internal/observability/diagnostics"
+	"github.com/WuKongIM/WuKongIM/internalv2/observability/diagnostics"
 	"github.com/gin-gonic/gin"
 )
 

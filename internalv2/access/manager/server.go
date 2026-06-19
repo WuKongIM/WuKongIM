@@ -66,6 +66,14 @@ type Management interface {
 	CompactControllerRaftLog(ctx context.Context, nodeID uint64) (managementusecase.ControllerRaftCompactionResult, error)
 	// CompactControllerRaftLogs fans out Controller Raft log compaction to Controller voter nodes.
 	CompactControllerRaftLogs(ctx context.Context) (managementusecase.ControllerRaftCompactionSummary, error)
+	// QueryDiagnostics returns a manager-facing diagnostics aggregate query result.
+	QueryDiagnostics(ctx context.Context, req managementusecase.DiagnosticsQueryRequest) (managementusecase.DiagnosticsQueryResponse, error)
+	// CreateDiagnosticsTrackingRule installs a temporary diagnostics tracking rule.
+	CreateDiagnosticsTrackingRule(ctx context.Context, req managementusecase.DiagnosticsTrackingCreateRequest) (managementusecase.DiagnosticsTrackingMutationResponse, error)
+	// ListDiagnosticsTrackingRules returns active temporary diagnostics tracking rules.
+	ListDiagnosticsTrackingRules(ctx context.Context) (managementusecase.DiagnosticsTrackingListResponse, error)
+	// DeleteDiagnosticsTrackingRule removes a temporary diagnostics tracking rule.
+	DeleteDiagnosticsTrackingRule(ctx context.Context, ruleID string) (managementusecase.DiagnosticsTrackingDeleteResponse, error)
 	// ListBusinessChannels returns manager-facing channel metadata rows.
 	ListBusinessChannels(ctx context.Context, req managementusecase.ListBusinessChannelsRequest) (managementusecase.ListBusinessChannelsResponse, error)
 	// ListChannelRuntimeMeta returns manager-facing channel runtime metadata rows.
@@ -280,6 +288,22 @@ func (s *Server) registerRoutes() {
 	}
 	controllerRaftWrites.POST("/nodes/:node_id/controller-raft/compact", s.handleCompactControllerRaftLog)
 	controllerRaftWrites.POST("/controller-raft/compact", s.handleCompactControllerRaftLogs)
+
+	diagnostics := s.engine.Group("/manager")
+	if s.auth.enabled() {
+		diagnostics.Use(s.requirePermission("cluster.diagnostics", "r"))
+	}
+	diagnostics.GET("/diagnostics/trace/:trace_id", s.handleDiagnosticsTrace)
+	diagnostics.GET("/diagnostics/message", s.handleDiagnosticsMessage)
+	diagnostics.GET("/diagnostics/events", s.handleDiagnosticsEvents)
+	diagnostics.GET("/diagnostics/tracking-rules", s.handleDiagnosticsTrackingRules)
+
+	diagnosticsWrites := s.engine.Group("/manager")
+	if s.auth.enabled() {
+		diagnosticsWrites.Use(s.requirePermission("cluster.diagnostics", "w"))
+	}
+	diagnosticsWrites.POST("/diagnostics/tracking-rules", s.handleCreateDiagnosticsTrackingRule)
+	diagnosticsWrites.DELETE("/diagnostics/tracking-rules/:rule_id", s.handleDeleteDiagnosticsTrackingRule)
 
 	appLogs := s.engine.Group("/manager")
 	if s.auth.enabled() {

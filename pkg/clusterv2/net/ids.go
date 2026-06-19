@@ -60,6 +60,8 @@ const (
 	RPCManagerDBInspect
 	// RPCManagerAppLogs serves internalv2 selected-node ordinary application log reads.
 	RPCManagerAppLogs
+	// RPCManagerDiagnostics serves internalv2 node-local diagnostics trace reads and tracking rules.
+	RPCManagerDiagnostics
 )
 
 func transportServiceAlias(serviceID uint8) string {
@@ -116,6 +118,8 @@ func transportServiceAlias(serviceID uint8) string {
 		return "manager DB inspect"
 	case RPCManagerAppLogs:
 		return "manager app logs"
+	case RPCManagerDiagnostics:
+		return "manager diagnostics"
 	default:
 		return "unknown service"
 	}

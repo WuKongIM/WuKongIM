@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/WuKongIM/WuKongIM/internalv2/observability/diagnostics"
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/conversationactive"
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internalv2/runtime/delivery"
 	authoritypresence "github.com/WuKongIM/WuKongIM/internalv2/runtime/presence"
@@ -109,6 +110,14 @@ type ManagerAppLogReader interface {
 	ApplicationLogEntries(context.Context, managementusecase.ApplicationLogEntriesRequest) (managementusecase.ApplicationLogEntriesResponse, error)
 }
 
+// ManagerDiagnostics handles node-local diagnostics queries and tracking rules.
+type ManagerDiagnostics interface {
+	QueryDiagnostics(ctx context.Context, query diagnostics.Query) diagnostics.QueryResult
+	AddDiagnosticsTrackingRule(ctx context.Context, input diagnostics.TrackingRuleInput) (diagnostics.TrackingRule, error)
+	ListDiagnosticsTrackingRules(ctx context.Context) ([]diagnostics.TrackingRule, error)
+	DeleteDiagnosticsTrackingRule(ctx context.Context, ruleID string) error
+}
+
 // Options configures the internalv2 node RPC adapter.
 type Options struct {
 	// Authority handles UID route authority requests after payload decoding.
@@ -133,6 +142,8 @@ type Options struct {
 	ManagerDBInspect ManagerDBInspectReader
 	// ManagerAppLogs handles selected-node ordinary application log requests.
 	ManagerAppLogs ManagerAppLogReader
+	// ManagerDiagnostics handles node-local diagnostics query and tracking requests.
+	ManagerDiagnostics ManagerDiagnostics
 	// Logger records node RPC adapter failures that are converted into statuses.
 	Logger wklog.Logger
 }
@@ -161,6 +172,8 @@ type Adapter struct {
 	managerDBInspect ManagerDBInspectReader
 	// managerAppLogs reads selected-node ordinary application logs for manager pages.
 	managerAppLogs ManagerAppLogReader
+	// managerDiagnostics queries diagnostics events and mutates temporary tracking rules.
+	managerDiagnostics ManagerDiagnostics
 	// logger records adapter decode errors and rejected local operations.
 	logger wklog.Logger
 }
@@ -182,6 +195,7 @@ func New(opts Options) *Adapter {
 		managerChannels:       opts.ManagerChannels,
 		managerDBInspect:      opts.ManagerDBInspect,
 		managerAppLogs:        opts.ManagerAppLogs,
+		managerDiagnostics:    opts.ManagerDiagnostics,
 		logger:                opts.Logger,
 	}
 }

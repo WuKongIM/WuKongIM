@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/internal/observability/diagnostics"
+	"github.com/WuKongIM/WuKongIM/internalv2/observability/diagnostics"
 )
 
 type fakeDiagnosticsReader struct {

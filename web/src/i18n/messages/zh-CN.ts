@@ -124,7 +124,7 @@ export const zhCNMessages: AppMessages = {
   "nav.systemUsers.title": "系统用户",
   "nav.systemUsers.description": "系统级 UID 管理（机器人、通知账号）。",
   "nav.diagnostics.title": "诊断",
-  "nav.diagnostics.description": "消息追踪、网络状态、分布式日志与普通应用日志查看器。",
+  "nav.diagnostics.description": "消息追踪与临时诊断采样规则。",
   "nav.network.title": "网络",
   "nav.network.description": "本地节点传输摘要与运行时状态。",
   "nav.connections.title": "连接",

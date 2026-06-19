@@ -25,6 +25,12 @@ GET  /manager/slots/:slot_id/logs (Slot distributed log page; requires cluster.s
 GET  /manager/app-logs/sources (ordinary app log fixed source list; requires cluster.log:r when Auth.On=true)
 GET  /manager/app-logs (ordinary app log page; requires cluster.log:r when Auth.On=true)
 GET  /manager/app-logs/stream (ordinary app log NDJSON stream; requires cluster.log:r when Auth.On=true)
+GET  /manager/diagnostics/trace/:trace_id (diagnostics trace aggregation; requires cluster.diagnostics:r when Auth.On=true)
+GET  /manager/diagnostics/message (diagnostics message lookup; requires cluster.diagnostics:r when Auth.On=true)
+GET  /manager/diagnostics/events (diagnostics event query; requires cluster.diagnostics:r when Auth.On=true)
+GET  /manager/diagnostics/tracking-rules (diagnostics tracking rule list; requires cluster.diagnostics:r when Auth.On=true)
+POST /manager/diagnostics/tracking-rules (create diagnostics tracking rule; requires cluster.diagnostics:w when Auth.On=true)
+DELETE /manager/diagnostics/tracking-rules/:rule_id (delete diagnostics tracking rule; requires cluster.diagnostics:w when Auth.On=true)
 GET  /manager/channel-runtime-meta (read-only channel runtime metadata list; requires cluster.channel:r when Auth.On=true)
 GET  /manager/channels (read-only business channel list; requires cluster.channel:r when Auth.On=true)
 GET  /manager/conversations (recent conversation list; requires cluster.channel:r when Auth.On=true)
@@ -113,6 +119,13 @@ application log sources owned by the application log reader (`app`, `warn`,
 local-vs-remote node selection to `internalv2/usecase/management`. The stream
 route emits lightweight NDJSON events for lines, rotations, heartbeats, and
 reader errors without owning a long-running log runtime.
+
+`/manager/diagnostics*` exposes internalv2 diagnostics tracing. The HTTP layer
+parses trace/message/event query parameters, enforces the dedicated
+`cluster.diagnostics` permissions, and delegates local-vs-remote fan-out plus
+tracking-rule mutations to `internalv2/usecase/management`. These routes use
+the internalv2 diagnostics store and do not import or query legacy
+`internal/observability/diagnostics` state.
 
 `/manager/channels` preserves the legacy business channel list response shape
 for the web channel list view, including `node_id`, `type`, `keyword`, `limit`,

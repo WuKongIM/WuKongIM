@@ -4,7 +4,7 @@ import (
 	"encoding/base64"
 	"net/http"
 
-	"github.com/WuKongIM/WuKongIM/internal/observability/diagnostics/tracectx"
+	"github.com/WuKongIM/WuKongIM/internalv2/observability/diagnostics/tracectx"
 	messageusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/message"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/gin-gonic/gin"

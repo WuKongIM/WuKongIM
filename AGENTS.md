@@ -107,6 +107,7 @@ internalv2/
     channelmembers/      legacy 兼容 member-list channel id 命名合约
     messageevents/       消息提交事件合约
   log/                   新架构应用日志配置与 zap/lumberjack 封装
+  observability/         新架构节点内诊断事件、追踪采样与 sendtrace 辅助
   runtime/               新架构节点内运行时原语
     conversationactive/   节点内最近会话活跃缓存 admission runtime
     online/              节点内真实 gateway session 注册、状态、dirty touch 批量标记

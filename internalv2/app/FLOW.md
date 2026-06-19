@@ -108,6 +108,9 @@ New(Config)
      roots when message and Slot metadata DB paths are available; register the
      manager DB inspect RPC handler when node RPC is available so peer manager
      readers can inspect this node's local DB diagnostics
+  -> register the manager diagnostics RPC handler when node RPC and the local
+     diagnostics store are available, exposing this node's trace/message/event
+     diagnostics reads and tracking-rule mutations to peer manager readers
   -> when the cluster exposes user metadata APIs:
        create internalv2/usecase/user with an infra/cluster Slot metadata
        adapter, owner-local online registry, optional presence lookup, and the
@@ -159,7 +162,10 @@ New(Config)
      inspect node RPC reader, user writes reuse the internalv2 user usecase and
      optional presence owner-action routing, and message retention requests use
      an optional management retention port and return unavailable when that
-     port is not configured; when `Top.APIEnabled` creates a top collector,
+     port is not configured; diagnostics trace/message/event queries and
+     tracking-rule mutations use the internalv2 diagnostics store locally and
+     route selected non-local nodes through the manager diagnostics RPC path;
+     when `Top.APIEnabled` creates a top collector,
      attach the local top provider so `/manager/runtime/workqueues` can expose
      local runtime pressure; attach a Prometheus monitor provider so
      `/manager/monitor/realtime` can expose business monitor card series and
@@ -186,6 +192,13 @@ Raft log requests read clusterv2 log storage metadata and decoded Raft payloads.
 Remote ordinary app log requests use the manager app-log RPC path for the
 selected node and still return only reader-owned source names and file labels,
 never absolute paths.
+
+The diagnostics store is app-owned because only the composition root knows
+whether `Observability.Diagnostics.Enabled` installed the bounded event store,
+tracking sampler, and process-wide sendtrace sink. Manager diagnostics routes
+use that same store for local reads and tracking-rule mutations; non-local
+node-scoped reads and mutations route through the manager diagnostics RPC path
+without falling back to legacy `internal` diagnostics state.
 
 Controller Raft status and manual compaction use a cluster-routed management
 operator created in the app composition root. Local reads and compaction call

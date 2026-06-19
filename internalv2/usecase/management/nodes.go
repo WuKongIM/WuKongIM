@@ -6,6 +6,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internalv2/observability/diagnostics"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
 )
 
@@ -19,10 +20,30 @@ type ControlSnapshotReader interface {
 	LocalControlSnapshot(context.Context) (control.Snapshot, error)
 }
 
+// DiagnosticsReader reads node-local diagnostics events through an entry-agnostic adapter.
+type DiagnosticsReader interface {
+	// QueryNodeDiagnostics returns retained diagnostics events from one cluster node.
+	QueryNodeDiagnostics(ctx context.Context, nodeID uint64, query diagnostics.Query) (diagnostics.QueryResult, error)
+}
+
+// DiagnosticsTrackingOperator mutates node-local diagnostics tracking rules through manager fanout.
+type DiagnosticsTrackingOperator interface {
+	// AddNodeDiagnosticsTrackingRule installs a runtime diagnostics tracking rule on one node.
+	AddNodeDiagnosticsTrackingRule(ctx context.Context, nodeID uint64, input diagnostics.TrackingRuleInput) (diagnostics.TrackingRule, error)
+	// ListNodeDiagnosticsTrackingRules returns active runtime diagnostics tracking rules from one node.
+	ListNodeDiagnosticsTrackingRules(ctx context.Context, nodeID uint64) ([]diagnostics.TrackingRule, error)
+	// DeleteNodeDiagnosticsTrackingRule removes a runtime diagnostics tracking rule from one node.
+	DeleteNodeDiagnosticsTrackingRule(ctx context.Context, nodeID uint64, ruleID string) error
+}
+
 // Options configures the manager management usecase.
 type Options struct {
 	// Cluster reads clusterv2 control state.
 	Cluster ControlSnapshotReader
+	// Diagnostics reads local or remote node diagnostics events for manager aggregations.
+	Diagnostics DiagnosticsReader
+	// DiagnosticsTracking mutates local or remote runtime diagnostics tracking rules.
+	DiagnosticsTracking DiagnosticsTrackingOperator
 	// ChannelRuntimeMeta scans channel runtime metadata for cluster channel pages.
 	ChannelRuntimeMeta ChannelRuntimeMetaReader
 	// ChannelBusinessReader scans durable channel metadata for manager channel pages.
@@ -66,6 +87,8 @@ type Options struct {
 // App serves read-only manager management usecases for internalv2.
 type App struct {
 	cluster                ControlSnapshotReader
+	diagnostics            DiagnosticsReader
+	diagnosticsTracking    DiagnosticsTrackingOperator
 	channelRuntimeMeta     ChannelRuntimeMetaReader
 	channelBusinessReader  ChannelBusinessReader
 	remoteBusinessChannels RemoteBusinessChannelReader
@@ -95,6 +118,8 @@ func New(opts Options) *App {
 	}
 	return &App{
 		cluster:                opts.Cluster,
+		diagnostics:            opts.Diagnostics,
+		diagnosticsTracking:    opts.DiagnosticsTracking,
 		channelRuntimeMeta:     opts.ChannelRuntimeMeta,
 		channelBusinessReader:  opts.ChannelBusinessReader,
 		remoteBusinessChannels: opts.RemoteBusinessChannels,

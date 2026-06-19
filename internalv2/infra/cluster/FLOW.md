@@ -14,8 +14,10 @@ logs, adapts read-only manager message pages to committed ChannelV2 reads, and
 routes manager connection reads over clusterv2 node RPC, routes manager
 distributed log reads to node-local clusterv2 log storage or peer RPC, routes
 ordinary application log reads to the selected node's app-owned local reader or
-peer RPC, routes manager DB Inspect reads to node-local inspect readers or peer RPC, and
-adapts presence/delivery ports to clusterv2 routing and node RPC.
+peer RPC, routes manager DB Inspect reads to node-local inspect readers or peer
+RPC, routes manager diagnostics reads and tracking-rule mutations to the
+selected node's internalv2 diagnostics store or peer RPC, and adapts
+presence/delivery ports to clusterv2 routing and node RPC.
 
 ## Management Snapshot Flow
 
@@ -185,6 +187,23 @@ page. It only chooses local versus remote execution for the requested
 and response DTO shaping stay in `internalv2/usecase/management` and
 `internalv2/access/manager`. The adapter preserves read-only diagnostics and
 does not merge cluster rows, expose filesystem paths, or mutate storage.
+
+## Management Diagnostics Flow
+
+```text
+management.DiagnosticsReader/DiagnosticsTrackingOperator
+  -> local node_id: app-owned internalv2 diagnostics store
+  -> remote node_id: access/node Manager Diagnostics RPC client
+  -> clusterv2 CallRPC(target node, RPCManagerDiagnostics)
+  -> target node access/node Manager Diagnostics RPC handler
+  -> target node app-owned internalv2 diagnostics store
+```
+
+`ManagementDiagnosticsReader` is the narrow remote half of the diagnostics
+manager page. It only chooses local versus remote execution for the selected
+node; aggregate target selection, skipped-node notes, tracking-rule fan-out,
+and response DTO shaping stay in `internalv2/usecase/management`. The adapter
+does not query legacy `internal` diagnostics state.
 
 Bench runtime controls flow from internalv2 HTTP through `internalv2/infra/cluster`, `pkg/clusterv2.Node`, `pkg/clusterv2/channels.Service`, and finally the hosted ChannelV2 runtime. These routes are benchmark-only observation/cleanup controls and do not replace the gateway SEND activation path.
 

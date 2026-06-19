@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/internal/observability/diagnostics"
+	"github.com/WuKongIM/WuKongIM/internalv2/observability/diagnostics"
 )
 
 func (a *App) diagnosticsQuery(ctx context.Context, query diagnostics.Query) diagnostics.QueryResult {
