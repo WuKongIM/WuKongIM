@@ -823,6 +823,10 @@ func (a *App) newManagerManagement() accessmanager.Management {
 		}
 		if slotRaftNode, ok := a.cluster.(clusterinfra.ManagementSlotRaftNode); ok {
 			opts.SlotRaft = clusterinfra.NewManagementSlotRaftOperator(slotRaftNode)
+			opts.SlotRuntimeStatus = clusterinfra.NewManagementSlotRuntimeStatusReader(slotRaftNode)
+		}
+		if leaderTransferNode, ok := a.cluster.(clusterinfra.ManagementLeaderTransferNode); ok {
+			opts.LeaderTransfer = clusterinfra.NewManagementLeaderTransferAdapter(leaderTransferNode)
 		}
 		return managementusecase.New(opts)
 	}

@@ -48,3 +48,38 @@ func TestLocalControlSnapshotRequiresForegroundNode(t *testing.T) {
 		t.Fatalf("LocalControlSnapshot() error = %v, want %v", err, ErrNotStarted)
 	}
 }
+
+func TestNodeRequestSlotLeaderTransferDelegatesToControl(t *testing.T) {
+	controller := control.NewStaticController(control.Snapshot{})
+	node := &Node{control: controller}
+	node.started.Store(true)
+
+	req := control.SlotLeaderTransferRequest{
+		SlotID:        1,
+		SourceNode:    1,
+		TargetNode:    2,
+		TargetPeers:   []uint64{1, 2, 3},
+		ConfigEpoch:   4,
+		StateRevision: 9,
+	}
+	got, err := node.RequestSlotLeaderTransfer(context.Background(), req)
+	if err != nil {
+		t.Fatalf("RequestSlotLeaderTransfer() error = %v", err)
+	}
+
+	if !got.Created || got.Task == nil || got.Task.TargetNode != 2 {
+		t.Fatalf("RequestSlotLeaderTransfer() = %#v, want created target-node task", got)
+	}
+	if len(controller.LeaderTransfers) != 1 || controller.LeaderTransfers[0].TargetNode != 2 {
+		t.Fatalf("controller transfers = %#v, want one target node 2 request", controller.LeaderTransfers)
+	}
+}
+
+func TestNodeRequestSlotLeaderTransferRequiresForegroundNode(t *testing.T) {
+	node := &Node{control: control.NewStaticController(control.Snapshot{})}
+
+	_, err := node.RequestSlotLeaderTransfer(context.Background(), control.SlotLeaderTransferRequest{SlotID: 1, TargetNode: 2})
+	if err != ErrNotStarted {
+		t.Fatalf("RequestSlotLeaderTransfer() error = %v, want %v", err, ErrNotStarted)
+	}
+}

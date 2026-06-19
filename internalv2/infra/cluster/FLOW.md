@@ -14,7 +14,8 @@ logs, adapts read-only manager message pages to committed ChannelV2 reads, and
 routes manager connection reads over clusterv2 node RPC, routes manager
 distributed log reads to node-local clusterv2 log storage or peer RPC, routes
 manager Slot Raft status and compaction operations to the selected node-local clusterv2
-operation or peer RPC, routes manager Controller Raft operations to node-local
+operation or peer RPC, adapts manager Slot leader transfer intents to
+clusterv2 control, routes manager Controller Raft operations to node-local
 clusterv2 operations or peer RPC, routes ordinary application log reads to the
 selected node's app-owned local reader or peer RPC, routes manager DB Inspect
 reads to node-local inspect readers or peer RPC, routes manager diagnostics
@@ -171,6 +172,21 @@ management.SlotRaftOperator
 requested node and Slot. HTTP parsing, permission checks, and response summary
 shaping stay above this layer; actual Raft role/watermark reads and
 snapshot/log compaction stay in `pkg/clusterv2` and `pkg/slot/multiraft`.
+
+## Management Slot Leader Transfer Flow
+
+```text
+management.SlotRuntimeStatusReader
+  -> clusterv2.LocalSlotRaftStatus(slot_id)
+
+management.SlotLeaderTransferWriter
+  -> clusterv2.RequestSlotLeaderTransfer(control.SlotLeaderTransferRequest)
+  -> clusterv2 control runtime
+```
+
+The leader-transfer adapters do not implement Slot Raft mechanics. They expose
+the local Slot Raft leader/voter status needed by the management usecase
+preflight, then pass the validated control intent into clusterv2 control.
 
 ## Management Application Log Flow
 

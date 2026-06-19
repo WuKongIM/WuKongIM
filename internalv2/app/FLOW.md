@@ -159,7 +159,9 @@ New(Config)
      node RPC reader, remote channel list reads route through the manager
      channel RPC reader, Controller/Slot log pages route through the manager
      log reader, node-scoped Controller and Slot Raft compaction operations
-     route through their manager operator adapters, ordinary application log
+     route through their manager operator adapters, Slot leader transfer
+     requests use local Slot Raft runtime status for preflight and submit the
+     validated intent to clusterv2 control, ordinary application log
      sources and pages use the app-owned
      local reader for the local node and route peer `node_id` reads through the
      manager app-log RPC reader, DB Inspect reads use the local app inspect reader for empty or

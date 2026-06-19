@@ -549,6 +549,90 @@ func TestManagerServerCompactsSlotRaftFromClusterOperator(t *testing.T) {
 	}
 }
 
+func TestManagerServerRequestsSlotLeaderTransferFromClusterControl(t *testing.T) {
+	cluster := &fakeManagerCluster{
+		nodeID: 1,
+		snapshot: control.Snapshot{
+			Revision: 9,
+			Nodes: []control.Node{
+				{NodeID: 1, Roles: []control.Role{control.RoleController, control.RoleData}, Status: control.NodeAlive},
+				{NodeID: 2, Roles: []control.Role{control.RoleData}, Status: control.NodeAlive},
+				{NodeID: 3, Roles: []control.Role{control.RoleData}, Status: control.NodeAlive},
+			},
+			Slots: []control.SlotAssignment{{
+				SlotID:          1,
+				DesiredPeers:    []uint64{1, 2, 3},
+				ConfigEpoch:     4,
+				PreferredLeader: 1,
+			}},
+		},
+		slotRaftStatus: clusterv2.SlotRaftStatus{
+			NodeID:        1,
+			SlotID:        1,
+			LeaderID:      1,
+			CurrentVoters: []uint64{1, 2, 3},
+		},
+		slotLeaderTransferResult: control.SlotLeaderTransferResult{
+			Created: true,
+			Task: &control.ReconcileTask{
+				TaskID:      "slot-1-leader-transfer-4-r9",
+				SlotID:      1,
+				Kind:        control.TaskKindLeaderTransfer,
+				Step:        control.TaskStepTransferLeader,
+				SourceNode:  1,
+				TargetNode:  2,
+				TargetPeers: []uint64{1, 2, 3},
+				ConfigEpoch: 4,
+				Status:      control.TaskStatusPending,
+			},
+		},
+	}
+	app, err := newTestApp(t, Config{
+		Manager: ManagerConfig{
+			ListenAddr: "127.0.0.1:0",
+			AuthOn:     true,
+			JWTSecret:  "test-secret",
+			JWTIssuer:  "wukongim-manager",
+			JWTExpire:  time.Hour,
+			Users: []ManagerUserConfig{{
+				Username: "admin",
+				Password: "secret",
+				Permissions: []ManagerPermissionConfig{{
+					Resource: "cluster.slot",
+					Actions:  []string{"w"},
+				}},
+			}},
+		},
+	}, WithCluster(cluster), WithGateway(nil))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	srv, ok := app.manager.(*accessmanager.Server)
+	if !ok {
+		t.Fatalf("manager = %T, want *accessmanager.Server", app.manager)
+	}
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/manager/slots/1/leader-transfer", strings.NewReader(`{"target_node":2}`))
+	req.Header.Set("Authorization", "Bearer "+mustIssueManagerTokenForAppTest(t, srv, "admin"))
+	req.Header.Set("Content-Type", "application/json")
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusAccepted, rec.Body.String())
+	}
+	if cluster.slotLeaderTransferRequest.SourceNode != 1 {
+		t.Fatalf("source node = %d, want 1", cluster.slotLeaderTransferRequest.SourceNode)
+	}
+	if cluster.slotLeaderTransferRequest.TargetNode != 2 {
+		t.Fatalf("target node = %d, want 2", cluster.slotLeaderTransferRequest.TargetNode)
+	}
+	if cluster.slotLeaderTransferRequest.StateRevision != 9 {
+		t.Fatalf("state revision = %d, want 9", cluster.slotLeaderTransferRequest.StateRevision)
+	}
+}
+
 func TestManagerServerReadsControllerRaftStatusFromClusterOperator(t *testing.T) {
 	cluster := &fakeManagerCluster{
 		nodeID: 1,
@@ -4395,6 +4479,9 @@ type fakeManagerCluster struct {
 	controllerRaftCompact clusterv2.ControllerRaftCompactionResult
 	slotRaftCompact       clusterv2.SlotRaftCompactionResult
 	slotRaftCompactSlotID uint32
+
+	slotLeaderTransferRequest control.SlotLeaderTransferRequest
+	slotLeaderTransferResult  control.SlotLeaderTransferResult
 }
 
 type fakeManagerDeviceKey struct {
@@ -4438,6 +4525,11 @@ func (f *fakeManagerCluster) LocalCompactControllerRaftLog(context.Context) (clu
 func (f *fakeManagerCluster) LocalCompactSlotRaftLog(_ context.Context, slotID uint32) (clusterv2.SlotRaftCompactionResult, error) {
 	f.slotRaftCompactSlotID = slotID
 	return f.slotRaftCompact, nil
+}
+
+func (f *fakeManagerCluster) RequestSlotLeaderTransfer(_ context.Context, req control.SlotLeaderTransferRequest) (control.SlotLeaderTransferResult, error) {
+	f.slotLeaderTransferRequest = req
+	return f.slotLeaderTransferResult, nil
 }
 
 func (f *fakeManagerCluster) LocalControlSnapshot(context.Context) (control.Snapshot, error) {
