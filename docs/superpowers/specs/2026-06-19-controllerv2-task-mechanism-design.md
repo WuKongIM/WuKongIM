@@ -36,6 +36,8 @@ the same mechanism instead of adding one-off manager HTTP actions.
   the current DTO only carries a subset of task fields.
 - `pkg/clusterv2/control.ReportSlots` is currently a best-effort no-op, so
   runtime Slot observations cannot be assumed to exist in Controller state.
+- The current task record does not yet have participant progress for tasks that
+  require multiple nodes to finish local work before global completion.
 
 The missing piece is the execution and observation loop:
 
@@ -48,7 +50,7 @@ executor goroutine.
 
 ## Architecture
 
-The task mechanism is split into six responsibilities.
+The task mechanism is split into eight responsibilities.
 
 ### 1. Observation
 
@@ -126,6 +128,9 @@ A task is a durable intent, not proof that work has happened.
 - `TargetNode` is the main target of the workflow, not always the executor.
 - `SourceNode` is optional and used by move-like tasks.
 - `TargetPeers` records the target peer set for assignment-changing tasks.
+- `CompletionPolicy` chooses how local participant progress becomes global
+  completion.
+- `ParticipantProgress` records per-node progress for barrier-style tasks.
 - `ConfigEpoch` fences tasks tied to a specific assignment epoch.
 - `Attempt`, `Status`, and `LastError` describe the latest execution state.
 
@@ -162,7 +167,10 @@ failure. It must not rely on in-memory ownership for correctness.
 
 Task results are written through Controller Raft commands:
 
-- `complete_task` removes the active task after convergence is proven.
+- `complete_task` removes the active task from `cluster-state.json` after
+  convergence is proven.
+- `report_task_progress` records one participant's local progress for
+  barrier-style tasks.
 - `fail_task` records `LastError`, increments `Attempt`, and keeps the task
   visible.
 
@@ -193,7 +201,8 @@ should prefer waiting for apply when possible. If a routed path can only confirm
 forwarding, executors must treat the outcome as uncertain and rely on
 idempotent retry plus fenced task results.
 
-Before wiring executors, `TaskResult` must be extended with fencing fields:
+Before wiring executors, task result and progress commands must be extended
+with fencing fields:
 
 - `TaskID`
 - `SlotID`
@@ -203,20 +212,91 @@ Before wiring executors, `TaskResult` must be extended with fencing fields:
 - `FinishedAt`
 - optional bounded failure text
 
+Participant progress reports also need:
+
+- participant `NodeID`
+- participant attempt
+- participant status, such as `pending`, `done`, or `failed`
+
 Apply semantics should be:
 
 - missing task: obsolete no-op
 - missing required identifiers: reject as invalid input
 - guard mismatch on slot, task kind, config epoch, or attempt: obsolete no-op
+- unexpected participant node: reject as invalid input
+- stale participant attempt: obsolete no-op
+- matching `report_task_progress`: update that participant only
 - matching `complete_task`: remove the active task
 - matching `fail_task`: mark failed, increment `Attempt`, and store bounded
   `LastError`
+- matching `fail_task` on a barrier task: also reset participant progress for
+  the next global task attempt
 
 The guard mismatch rule is important for retries. A delayed success result from
 attempt `0` must not complete a task that already failed and moved to attempt
 `1`.
 
-### 6. Task Read Model
+### 6. Participant Progress
+
+Some task kinds require multiple nodes to finish local work before the task can
+be globally completed. These should be modeled as one durable task with a
+participant progress table, not as several unrelated active tasks.
+
+Recommended fields:
+
+- `CompletionPolicy`: for example `single_observer`, `all_target_peers`, or
+  future `quorum_participants`.
+- `ParticipantProgress`: entries keyed by node ID and scoped to the current
+  global task attempt.
+- participant `Status`: `pending`, `done`, or `failed`.
+- participant `Attempt`: local retry fence for that node's work.
+- participant `LastError`: bounded local failure reason.
+
+The `all_target_peers` policy works like a barrier:
+
+```text
+task.TargetPeers = [1, 2, 3]
+task.CompletionPolicy = "all_target_peers"
+task.ParticipantProgress = {
+  1: pending,
+  2: pending,
+  3: pending,
+}
+```
+
+Each target peer executes its local step and submits `report_task_progress`.
+That report only updates the sender's participant entry. It never completes the
+whole task by itself.
+
+The global task completes only when both conditions are true:
+
+- every required participant is `done` for the current task attempt
+- the task-specific convergence predicate is true from runtime observation
+
+For bootstrap, the convergence predicate remains concrete Slot observation:
+desired voters are present, a non-zero leader is known, and quorum is healthy.
+This second check prevents a task from completing just because every node
+reported success before Raft actually converged.
+
+Participant failure is reported with `report_task_progress(status=failed)`, not
+with global `fail_task`. It keeps the parent task active, marks the task
+visible as failed for operators, and advances only that participant's local
+attempt fence. The failed participant can be retried within the same global task
+attempt without forcing already done participants to redo work. A delayed
+success from an old participant attempt must be an obsolete no-op.
+
+Global `fail_task` is reserved for unrecoverable task-level failures, such as
+invalid durable task shape or a convergence predicate that cannot be satisfied
+without a new plan. If a barrier task is globally failed and then retried, the
+new global task attempt resets participant progress to `pending`; local steps
+must be idempotent so already-converged nodes can report `done` again quickly.
+
+This model keeps the active-task invariant simple: there is still one active
+task per physical Slot, but that task can have multiple participant rows.
+Parent/child task trees remain a future extension for workflows that need
+independent subtask scheduling across many Slots or phases.
+
+### 7. Task Read Model
 
 Manager and executors should consume task state through
 `pkg/clusterv2/control.Snapshot`, not by importing ControllerV2 subpackages.
@@ -233,11 +313,30 @@ read model needed by manager and executors:
 - `Attempt`
 - `Status`
 - `LastError`
+- `CompletionPolicy`
+- `ParticipantProgress`
 
 `internalv2/usecase/management` should continue reading through
 `ControlSnapshotReader.LocalControlSnapshot`. It should not read
 `pkg/controllerv2/state.ClusterState` directly just to recover missing task
 fields.
+
+### 8. Task Retention
+
+`cluster-state.json` should store active convergence tasks only. It is the
+current control-plane state, not an audit log.
+
+Retention semantics are:
+
+- `pending`, `running`, and `failed` tasks stay in `Tasks` because they still
+  represent work needed to converge the cluster.
+- `complete_task` removes the task from `Tasks` after convergence is proven.
+- `fail_task` keeps the task in `Tasks`, marks it `failed`, records bounded
+  `LastError`, and increments `Attempt`.
+
+Completed-task history should be a separate bounded history or event stream if
+manager UI later needs "recent operations." That history must not change the
+active-task invariant and should not be required for planner correctness.
 
 ## Lifecycle
 
@@ -249,10 +348,12 @@ The generic lifecycle is:
 3. Controller Raft commits the task.
 4. Nodes receive the task through control snapshots.
 5. Eligible executor performs a bounded attempt.
-6. Executor waits for or checks convergence.
-7. Executor proposes complete_task or fail_task.
-8. Controller applies the result.
-9. Next planner tick uses the updated state.
+6. For participant tasks, each executor reports local progress.
+7. Executor or Controller-side lifecycle checks task-specific convergence.
+8. Executor proposes complete_task or fail_task when the whole task is done or
+   globally failed.
+9. Controller applies the result.
+10. Next planner tick uses the updated state.
 ```
 
 Task status means:
@@ -310,6 +411,12 @@ ReconcileTask{
   Step: "create_slot",
   TargetNode: 2,
   TargetPeers: [1, 2, 3],
+  CompletionPolicy: "all_target_peers",
+  ParticipantProgress: {
+    1: pending,
+    2: pending,
+    3: pending,
+  },
   ConfigEpoch: 1,
   Status: "pending",
 }
@@ -319,14 +426,24 @@ This deterministic `TaskID` is valid only because initial physical Slot
 bootstrap is one-shot. Future task kinds that can be recreated after completion
 must include a generation in the task identity.
 
-Each peer reconciles local Slot runtime from the assignment. The executor then
-checks runtime observation. Once the Slot has the desired peers, a leader, and
-quorum, an eligible node proposes `complete_task`.
+Each peer reconciles local Slot runtime from the assignment. Node 1, 2, and 3
+each report `report_task_progress(..., status=done)` after their local Slot
+runtime step succeeds. These reports update only their own participant rows.
 
-If the Slot cannot be opened or quorum never forms before the bounded attempt
-expires, the executor proposes `fail_task` with a concise error. The failed task
-stays visible so the manager UI can show the problem, but the bootstrap
-executor can retry it later using the next fenced attempt.
+After every target peer is `done`, an eligible executor checks runtime
+observation. Once the Slot has the desired peers, a leader, and quorum, it
+proposes `complete_task`.
+
+If only one peer fails its local step, that peer reports failed participant
+progress. The parent task stays active and visible. Already-done peers do not
+need to redo local work; the failed peer can retry with its next participant
+attempt.
+
+If all peers report `done` but quorum never forms before the bounded convergence
+attempt expires, an eligible executor can propose global `fail_task` with a
+concise error. The failed task stays visible so the manager UI can show the
+problem, and a later retry can re-check the convergence predicate using the next
+fenced task attempt.
 
 ## Example 2: Future Manual Slot Leader Transfer
 
@@ -401,6 +518,8 @@ Recommended manager read model:
 - source node
 - target node
 - target peers
+- completion policy
+- participant progress
 - config epoch
 - attempt
 - last error
@@ -419,7 +538,9 @@ Failures should be explicit and bounded:
 
 - Invalid task input is rejected before it enters Controller Raft.
 - Stale task results become no-ops through the task-result guard fields.
-- Execution errors write `fail_task` with bounded `LastError`.
+- Participant execution errors write failed participant progress with bounded
+  `LastError`.
+- Unrecoverable task-level errors write `fail_task` with bounded `LastError`.
 - Runtime observation gaps defer work or fail closed.
 - Retrying is controlled by task kind, attempt count, and executor rate limits.
 
@@ -438,11 +559,15 @@ Unit tests should cover:
 - state validation for supported task kinds
 - planner output for bootstrap tasks
 - FSM apply behavior for complete and failed tasks
+- FSM apply behavior for participant progress updates
 - task-result fencing for stale attempts, stale epochs, and missing tasks
+- participant-progress fencing for stale participant attempts and unexpected
+  participant nodes
 - result writer routing from Controller leader, Controller follower, and mirror
   or data nodes
 - `pkg/clusterv2/control` snapshot mapping for the full task read model
 - executor ownership selection for bootstrap tasks
+- barrier completion for `all_target_peers`
 - bootstrap observation missing or stale fails closed
 - failed bootstrap task retry semantics
 - restart idempotence when an executor sees the same task after process restart
@@ -462,6 +587,7 @@ The design intentionally leaves these as follow-up work:
 - operator retry, pause, or cancellation commands
 - task history or terminal retention
 - batch task planning for node drain
+- parent/child task trees for multi-Slot or multi-phase workflows
 
 These features should reuse the same durable task lifecycle rather than adding
 manager-only action paths.
@@ -473,6 +599,10 @@ manager-only action paths.
 - Task result commands are proposed through a public facade and fenced by task
   identity, Slot, kind, config epoch, and attempt.
 - Stale task results cannot complete or fail a newer attempt.
+- Barrier-style tasks can track per-node participant progress and complete only
+  after every required participant is done plus the runtime convergence
+  predicate is true.
+- Stale participant progress cannot overwrite a newer participant attempt.
 - Failed bootstrap tasks are visible and retryable without blocking the planner
   forever.
 - Bootstrap completion uses real runtime observation, not manager display
