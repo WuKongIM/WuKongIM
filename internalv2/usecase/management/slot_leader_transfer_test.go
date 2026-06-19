@@ -147,6 +147,61 @@ func TestRequestSlotLeaderTransferReusesExistingTaskAndRejectsConflicts(t *testi
 	}
 }
 
+func TestRequestSlotLeaderTransferRejectsUnsafeRuntimeStateAsConflict(t *testing.T) {
+	tests := []struct {
+		name     string
+		snapshot control.Snapshot
+		status   SlotRuntimeStatus
+	}{
+		{
+			name:     "leader zero",
+			snapshot: leaderTransferSnapshot(),
+			status:   SlotRuntimeStatus{SlotID: 1, CurrentVoters: []uint64{1, 2, 3}},
+		},
+		{
+			name:     "leader not voter",
+			snapshot: leaderTransferSnapshot(),
+			status:   SlotRuntimeStatus{SlotID: 1, LeaderID: 4, CurrentVoters: []uint64{1, 2, 3}},
+		},
+		{
+			name:     "target not voter",
+			snapshot: leaderTransferSnapshot(),
+			status:   SlotRuntimeStatus{SlotID: 1, LeaderID: 1, CurrentVoters: []uint64{1, 3}},
+		},
+		{
+			name: "voters cannot form quorum",
+			snapshot: func() control.Snapshot {
+				snapshot := leaderTransferSnapshot()
+				snapshot.Slots[0].DesiredPeers = []uint64{1, 2, 3, 4, 5}
+				return snapshot
+			}(),
+			status: SlotRuntimeStatus{SlotID: 1, LeaderID: 1, CurrentVoters: []uint64{1, 2}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			writer := &fakeSlotLeaderTransferWriter{}
+			app := New(Options{
+				Cluster: fakeNodeSnapshotReader{snapshot: tt.snapshot},
+				SlotRuntimeStatus: fakeSlotRuntimeStatusReader{
+					statuses: map[uint32]SlotRuntimeStatus{1: tt.status},
+				},
+				LeaderTransfer: writer,
+			})
+
+			_, err := app.RequestSlotLeaderTransfer(context.Background(), SlotLeaderTransferRequest{SlotID: 1, TargetNode: 2})
+
+			if !errors.Is(err, ErrSlotLeaderTransferConflict) {
+				t.Fatalf("RequestSlotLeaderTransfer() error = %v, want %v", err, ErrSlotLeaderTransferConflict)
+			}
+			if len(writer.requests) != 0 {
+				t.Fatalf("writer requests = %#v, want no call for unsafe runtime state", writer.requests)
+			}
+		})
+	}
+}
+
 func leaderTransferSnapshot() control.Snapshot {
 	return control.Snapshot{
 		Revision: 9,

@@ -190,10 +190,10 @@ func validateSlotLeaderTransferSnapshot(snapshot control.Snapshot, assignment co
 
 func validateSlotLeaderTransferRuntime(runtime SlotRuntimeStatus, assignment control.SlotAssignment, targetNode uint64) error {
 	if runtime.LeaderID == 0 || !containsUint64(runtime.CurrentVoters, runtime.LeaderID) || !containsUint64(runtime.CurrentVoters, targetNode) {
-		return metadb.ErrInvalidArgument
+		return ErrSlotLeaderTransferConflict
 	}
 	if len(runtime.CurrentVoters) < int(quorumSize(len(assignment.DesiredPeers))) {
-		return metadb.ErrInvalidArgument
+		return ErrSlotLeaderTransferConflict
 	}
 	return nil
 }
