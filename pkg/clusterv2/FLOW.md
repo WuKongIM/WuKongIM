@@ -47,7 +47,9 @@ manager Slot Raft manual compaction uses the same node-scoped surface through
 `Node.LocalCompactSlotRaftLog`, which delegates only to the selected node's
 local Slot Multi-Raft runtime. Manager Slot leader transfer enters clusterv2
 through `Node.RequestSlotLeaderTransfer`, which only foreground-checks and
-delegates the already-validated intent to the control runtime. The
+delegates the already-validated intent to the control runtime. When the
+receiving node is not the Controller leader, the existing control task RPC
+forwarding path carries the creation request to the Controller leader. The
 default transport-backed
 typed RPC client uses a larger per-priority write queue than the generic
 transport default so short foreground RPC fanout bursts are absorbed before
@@ -100,11 +102,15 @@ Start(ctx)
 
 ControllerV2 changes enter clusterv2 as strongly typed `controllerv2.ClusterState` events. `pkg/clusterv2/control` maps those events to `control.Snapshot`; `Node` then compares node, Slot, task, and hash-slot domains before touching discovery, Slot runtime reconciliation, or foreground routing.
 
-When a control snapshot contains active bootstrap tasks, the Node runs the
-bootstrap task executor after Slot reconciliation. The executor only reports
+When a control snapshot contains active bootstrap or leader-transfer tasks, the
+Node runs task executors after Slot reconciliation. Executors only report
 participant progress or fenced completion through the control task writer
-facade; it does not mutate ControllerV2 state directly. Task writes from
+facade; they do not mutate ControllerV2 state directly. Task writes from
 non-leader Controller runtimes are forwarded to the current Controller leader.
+Leader-transfer execution calls Slot Raft `TransferLeadership` from the current
+Slot leader and completes once the observed actual leader is any legal
+non-source Slot Raft leader; the requested `target_node` is preferred, not a
+strict completion requirement.
 
 `Config.Control.RaftObserver` is passed through to the default ControllerV2
 runtime so composition roots can expose Controller Raft ingress queue metrics

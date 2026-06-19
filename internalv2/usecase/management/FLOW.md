@@ -85,7 +85,10 @@ tasks, targets outside desired peers, unavailable or non-data target nodes, and
 runtime voter sets that cannot prove quorum. Already-leader and same-task
 requests are no-ops and do not require the writer port to be wired. New task
 creation is delegated to the writer port with source leader, target leader,
-target peers, config epoch, and observed control-state revision.
+target peers, config epoch, and observed control-state revision. Management
+validation is intentionally limited to the current Slot Raft leader, voter set,
+desired peers, and target-node health; it does not inspect target match index or
+predict whether Raft will ultimately choose the preferred target.
 
 ## Distributed Log Flow
 

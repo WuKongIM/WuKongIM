@@ -97,8 +97,9 @@ Task progress and task result writes enter ControllerV2 as Raft commands.
 Results are fenced by `task_id`, `slot_id`, task kind, `config_epoch`, and
 global attempt. Barrier-style tasks also accept participant progress fenced by
 participant node and participant attempt. Completed tasks are removed from
-active cluster-state tasks; failed tasks remain active with bounded errors until
-a subsequent successful attempt or operator action.
+active cluster-state tasks, including `leader_transfer` tasks completed through
+`complete_task`; failed tasks remain active with bounded errors until a
+subsequent successful attempt or operator action.
 
 When a Controller voter wires the facade with an FSM-backed state source, `LocalState` reads that authoritative snapshot and planner ticks refresh it after successful proposals. Command-producing planner ticks require a state source; `InitialState`-only facades may serve local snapshots, sync updates, or non-command planner decisions only.
 

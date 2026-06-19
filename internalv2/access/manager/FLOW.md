@@ -103,7 +103,10 @@ and participant progress for display only. `/manager/slots/:slot_id/leader-trans
 parses a `target_node`, delegates snapshot/runtime validation to
 `internalv2/usecase/management`, returns `202 Accepted` when a new Controller
 task is created, and returns `200 OK` for no-op already-leader or existing-task
-responses. Slot detail and other operation routes remain unmigrated.
+responses. The response includes `target_node`, `preferred_leader`,
+`actual_leader`, `created`, and `message` so operators can distinguish accepted
+work from no-op outcomes without inspecting Controller internals. Slot detail
+and other operation routes remain unmigrated.
 
 `/manager/controller/logs` and `/manager/slots/:slot_id/logs` expose
 newest-first distributed Raft log pages for the selected node. They parse
