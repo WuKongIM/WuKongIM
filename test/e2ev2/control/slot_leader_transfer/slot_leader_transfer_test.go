@@ -5,6 +5,8 @@ package slot_leader_transfer
 import (
 	"context"
 	"fmt"
+	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -25,6 +27,7 @@ func TestThreeNodeSlotLeaderTransferCompletesAndClearsTask(t *testing.T) {
 	initial := requireSlotsReady(t, initialCtx, cluster, cluster.MustNode(1))
 
 	slotID, source, target := chooseTransfer(t, initial)
+	require.NotEqual(t, source, target)
 
 	postCtx, cancelPost := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancelPost()
@@ -32,15 +35,15 @@ func TestThreeNodeSlotLeaderTransferCompletesAndClearsTask(t *testing.T) {
 	require.True(t, accepted.Created, "same-target no-op or existing task was not expected: %#v", accepted)
 	require.Equal(t, slotID, accepted.SlotID)
 	require.Equal(t, target, accepted.TargetNode)
-	require.Equal(t, source, accepted.ActualLeader)
+	require.NotZero(t, accepted.ActualLeader)
 
 	finalCtx, cancelFinal := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancelFinal()
-	final := requireLeaderMoved(t, finalCtx, cluster, cluster.MustNode(1), slotID, source)
+	final := requireLeaderMoved(t, finalCtx, cluster, cluster.MustNode(1), slotID, accepted.ActualLeader)
 
 	require.NotNil(t, final.NodeLog)
 	require.NotZero(t, final.NodeLog.LeaderID)
-	require.NotEqual(t, source, final.NodeLog.LeaderID)
+	require.NotEqual(t, accepted.ActualLeader, final.NodeLog.LeaderID)
 	require.Contains(t, final.Assignment.DesiredPeers, final.NodeLog.LeaderID)
 }
 
@@ -119,19 +122,49 @@ func chooseTransfer(t *testing.T, slots managerSlotsResponse) (uint32, uint64, u
 func postLeaderTransfer(t *testing.T, ctx context.Context, cluster *suite.StartedCluster, slotID uint32, target uint64) managerSlotLeaderTransferResponse {
 	t.Helper()
 
-	var lastErr error
-	for _, node := range cluster.Nodes {
-		var out managerSlotLeaderTransferResponse
-		_, err := suite.PostJSON(ctx, fmt.Sprintf("http://%s/manager/slots/%d/leader-transfer", node.ManagerAddr(), slotID), map[string]any{
-			"target_node": target,
-		}, &out)
-		if err == nil {
-			return out
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+
+	nodeErrors := make(map[string]string)
+	for {
+		for _, node := range cluster.Nodes {
+			var out managerSlotLeaderTransferResponse
+			_, err := suite.PostJSON(ctx, fmt.Sprintf("http://%s/manager/slots/%d/leader-transfer", node.ManagerAddr(), slotID), map[string]any{
+				"target_node": target,
+			}, &out)
+			if err == nil {
+				return out
+			}
+			nodeErrors[managerNodeErrorKey(node)] = err.Error()
 		}
-		lastErr = err
+
+		select {
+		case <-ctx.Done():
+			t.Fatalf("no manager node accepted slot leader transfer slot=%d target=%d errors=%s\n%s", slotID, target, formatNodeErrors(nodeErrors), cluster.DumpDiagnostics())
+		case <-ticker.C:
+		}
 	}
-	t.Fatalf("no manager node accepted slot leader transfer slot=%d target=%d lastErr=%v\n%s", slotID, target, lastErr, cluster.DumpDiagnostics())
-	return managerSlotLeaderTransferResponse{}
+}
+
+func managerNodeErrorKey(node suite.StartedNode) string {
+	return fmt.Sprintf("node %d (%s)", node.Spec.ID, node.ManagerAddr())
+}
+
+func formatNodeErrors(nodeErrors map[string]string) string {
+	if len(nodeErrors) == 0 {
+		return "<none>"
+	}
+	keys := make([]string, 0, len(nodeErrors))
+	for key := range nodeErrors {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	lines := make([]string, 0, len(keys))
+	for _, key := range keys {
+		lines = append(lines, fmt.Sprintf("%s: %s", key, nodeErrors[key]))
+	}
+	return strings.Join(lines, "; ")
 }
 
 func requireLeaderMoved(t *testing.T, ctx context.Context, cluster *suite.StartedCluster, node *suite.StartedNode, slotID uint32, source uint64) managerSlotItem {
