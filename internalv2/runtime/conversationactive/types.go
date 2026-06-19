@@ -20,6 +20,8 @@ type Options struct {
 	NowMS func() int64
 	// Store reads and persists durable active conversation rows that have already flushed to DB.
 	Store ActiveStore
+	// ActiveCooldown skips receiver-only active_at flushes newer than the durable row by less than this duration.
+	ActiveCooldown time.Duration
 	// MaxCachedRows bounds in-memory active rows across all users; zero disables the bound.
 	MaxCachedRows int
 	// Observer receives low-cardinality cache and flush observations.
@@ -62,6 +64,8 @@ type ActiveStore interface {
 	ListUserConversationActivePage(ctx context.Context, uid string, after metadb.UserConversationActiveCursor, limit int) ([]metadb.UserConversationState, metadb.UserConversationActiveCursor, bool, error)
 	// GetUserConversationState returns one durable primary row for cache-only hydration.
 	GetUserConversationState(ctx context.Context, uid, channelID string, channelType int64) (metadb.UserConversationState, bool, error)
+	// GetUserConversationStates returns durable primary rows for flush-time active_at filtering.
+	GetUserConversationStates(ctx context.Context, keys []metadb.UserConversationKey) (map[metadb.UserConversationKey]metadb.UserConversationState, error)
 	// TouchUserConversationActiveAt persists active-row patches produced by the runtime cache.
 	TouchUserConversationActiveAt(ctx context.Context, patches []metadb.UserConversationActivePatch) error
 }

@@ -903,6 +903,21 @@ func (s *recordingConversationAuthorityStore) GetUserConversationState(_ context
 	return row, ok, nil
 }
 
+func (s *recordingConversationAuthorityStore) GetUserConversationStates(_ context.Context, keys []metadb.UserConversationKey) (map[metadb.UserConversationKey]metadb.UserConversationState, error) {
+	states := make(map[metadb.UserConversationKey]metadb.UserConversationState, len(keys))
+	if s.primary == nil {
+		return states, nil
+	}
+	for _, key := range keys {
+		row, ok := s.primary[metadb.ConversationKey{ChannelID: key.ChannelID, ChannelType: key.ChannelType}]
+		if !ok || row.UID != key.UID {
+			continue
+		}
+		states[key] = row
+	}
+	return states, nil
+}
+
 func (s *recordingConversationAuthorityStore) TouchUserConversationActiveAtBatch(ctx context.Context, patches []metadb.UserConversationActivePatch) error {
 	if err := ctx.Err(); err != nil {
 		return err

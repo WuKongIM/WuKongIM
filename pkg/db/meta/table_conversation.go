@@ -42,6 +42,16 @@ type UserConversationState struct {
 	SparseActive bool
 }
 
+// UserConversationKey identifies one UID-owned conversation row.
+type UserConversationKey struct {
+	// UID identifies the user that owns the conversation state.
+	UID string
+	// ChannelID identifies the conversation channel.
+	ChannelID string
+	// ChannelType identifies the channel namespace.
+	ChannelType int64
+}
+
 var conversationTable = registerMetaTable(TableSpec[UserConversationState]{
 	ID:   TableIDConversation,
 	Name: "conversation",

@@ -325,12 +325,14 @@ WK_DEBUG_API_ENABLE=false
 # WK_CONVERSATION_AUTHORITY_LIST_DB_WINDOW_MAX=1000
 # WK_CONVERSATION_AUTHORITY_HANDOFF_TIMEOUT bounds how long a new authority waits for old-authority drain before explicit abandon.
 # WK_CONVERSATION_AUTHORITY_HANDOFF_TIMEOUT=3s
+# WK_CONVERSATION_AUTHORITY_ACTIVE_COOLDOWN skips receiver-only active_at flushes newer than the durable row by less than this duration.
+# WK_CONVERSATION_AUTHORITY_ACTIVE_COOLDOWN=2h
 # WK_CONVERSATION_AUTHORITY_FLUSH_INTERVAL controls how often dirty authority active rows are flushed to durable storage.
 # WK_CONVERSATION_AUTHORITY_FLUSH_INTERVAL=1s
 # WK_CONVERSATION_AUTHORITY_FLUSH_TIMEOUT bounds one authority active-row flush attempt.
 # WK_CONVERSATION_AUTHORITY_FLUSH_TIMEOUT=5s
 # WK_CONVERSATION_AUTHORITY_FLUSH_BATCH_ROWS bounds dirty authority active rows flushed in one tick.
-# WK_CONVERSATION_AUTHORITY_FLUSH_BATCH_ROWS=512
+# WK_CONVERSATION_AUTHORITY_FLUSH_BATCH_ROWS=128
 # WK_CONVERSATION_AUTHORITY_ADMIT_BATCH_ROWS limits active rows in one authority admission batch.
 # WK_CONVERSATION_AUTHORITY_ADMIT_BATCH_ROWS=512
 # WK_CONVERSATION_AUTHORITY_ADMIT_CONCURRENCY limits concurrent authority admission batches.

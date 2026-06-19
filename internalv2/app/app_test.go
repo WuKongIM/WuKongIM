@@ -1572,9 +1572,10 @@ func TestDefaultConversationAuthorityConfig(t *testing.T) {
 		cfg.AuthorityCacheMaxRows != 100000 ||
 		cfg.AuthorityListDBWindowMax != 1000 ||
 		cfg.AuthorityHandoffTimeout != 3*time.Second ||
+		cfg.AuthorityActiveCooldown != 2*time.Hour ||
 		cfg.AuthorityFlushInterval != time.Second ||
 		cfg.AuthorityFlushTimeout != 5*time.Second ||
-		cfg.AuthorityFlushBatchRows != 512 ||
+		cfg.AuthorityFlushBatchRows != 128 ||
 		cfg.AuthorityAdmitBatchRows != 512 ||
 		cfg.AuthorityAdmitConcurrency != 16 {
 		t.Fatalf("conversation authority defaults = %#v", cfg)
@@ -1595,6 +1596,8 @@ func TestValidateConversationConfigRejectsInvalidValues(t *testing.T) {
 		{name: "authority list db window max zero", mutate: func(cfg *ConversationConfig) { cfg.AuthorityListDBWindowMax = 0 }},
 		{name: "authority handoff timeout negative", mutate: func(cfg *ConversationConfig) { cfg.AuthorityHandoffTimeout = -time.Nanosecond }},
 		{name: "authority handoff timeout zero", mutate: func(cfg *ConversationConfig) { cfg.AuthorityHandoffTimeout = 0 }},
+		{name: "authority active cooldown negative", mutate: func(cfg *ConversationConfig) { cfg.AuthorityActiveCooldown = -time.Nanosecond }},
+		{name: "authority active cooldown zero", mutate: func(cfg *ConversationConfig) { cfg.AuthorityActiveCooldown = 0 }},
 		{name: "authority flush interval negative", mutate: func(cfg *ConversationConfig) { cfg.AuthorityFlushInterval = -time.Nanosecond }},
 		{name: "authority flush interval zero", mutate: func(cfg *ConversationConfig) { cfg.AuthorityFlushInterval = 0 }},
 		{name: "authority flush timeout negative", mutate: func(cfg *ConversationConfig) { cfg.AuthorityFlushTimeout = -time.Nanosecond }},
@@ -4638,6 +4641,19 @@ func (f *fakeManagerCluster) GetUserConversationState(_ context.Context, uid, ch
 	return metadb.UserConversationState{}, false, nil
 }
 
+func (f *fakeManagerCluster) GetUserConversationStates(_ context.Context, keys []metadb.UserConversationKey) (map[metadb.UserConversationKey]metadb.UserConversationState, error) {
+	states := make(map[metadb.UserConversationKey]metadb.UserConversationState, len(keys))
+	for _, key := range keys {
+		for _, state := range f.conversationPages[key.UID] {
+			if state.ChannelID == key.ChannelID && state.ChannelType == key.ChannelType {
+				states[key] = state
+				break
+			}
+		}
+	}
+	return states, nil
+}
+
 func (f *fakeManagerCluster) ReadChannelLastVisible(_ context.Context, channelID channelv2.ChannelID, visibleAfterSeq uint64) (channelv2.Message, bool, error) {
 	key := metadb.ConversationKey{ChannelID: channelID.ID, ChannelType: int64(channelID.Type)}
 	messages := f.conversationMessages[key]
@@ -4832,6 +4848,20 @@ func (s *appRecordingConversationAuthorityStore) GetUserConversationState(_ cont
 		return metadb.UserConversationState{}, false, nil
 	}
 	return row, true, nil
+}
+
+func (s *appRecordingConversationAuthorityStore) GetUserConversationStates(_ context.Context, keys []metadb.UserConversationKey) (map[metadb.UserConversationKey]metadb.UserConversationState, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	states := make(map[metadb.UserConversationKey]metadb.UserConversationState, len(keys))
+	for _, key := range keys {
+		row, ok := s.rows[metadb.ConversationKey{ChannelID: key.ChannelID, ChannelType: key.ChannelType}]
+		if !ok || row.UID != key.UID {
+			continue
+		}
+		states[key] = row
+	}
+	return states, nil
 }
 
 func (s *appRecordingConversationAuthorityStore) TouchUserConversationActiveAtBatch(ctx context.Context, patches []metadb.UserConversationActivePatch) error {
@@ -5268,6 +5298,20 @@ func (f *fakePresenceCluster) GetUserConversationState(_ context.Context, uid, c
 	return metadb.UserConversationState{}, false, nil
 }
 
+func (f *fakePresenceCluster) GetUserConversationStates(ctx context.Context, keys []metadb.UserConversationKey) (map[metadb.UserConversationKey]metadb.UserConversationState, error) {
+	states := make(map[metadb.UserConversationKey]metadb.UserConversationState, len(keys))
+	for _, key := range keys {
+		state, ok, err := f.GetUserConversationState(ctx, key.UID, key.ChannelID, key.ChannelType)
+		if err != nil {
+			return nil, err
+		}
+		if ok {
+			states[key] = state
+		}
+	}
+	return states, nil
+}
+
 func (f *fakePresenceCluster) ReadChannelLastVisible(_ context.Context, id channelv2.ChannelID, visibleAfterSeq uint64) (channelv2.Message, bool, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -5429,6 +5473,20 @@ func (f *fakeConversationFallbackCluster) GetUserConversationState(_ context.Con
 		}
 	}
 	return out, found, nil
+}
+
+func (f *fakeConversationFallbackCluster) GetUserConversationStates(ctx context.Context, keys []metadb.UserConversationKey) (map[metadb.UserConversationKey]metadb.UserConversationState, error) {
+	states := make(map[metadb.UserConversationKey]metadb.UserConversationState, len(keys))
+	for _, key := range keys {
+		state, ok, err := f.GetUserConversationState(ctx, key.UID, key.ChannelID, key.ChannelType)
+		if err != nil {
+			return nil, err
+		}
+		if ok {
+			states[key] = state
+		}
+	}
+	return states, nil
 }
 
 func (f *fakeConversationFallbackCluster) ReadChannelLastVisible(_ context.Context, id channelv2.ChannelID, visibleAfterSeq uint64) (channelv2.Message, bool, error) {

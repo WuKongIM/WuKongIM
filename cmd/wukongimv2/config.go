@@ -117,6 +117,7 @@ var supportedConfigKeys = []string{
 	"WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS",
 	"WK_CONVERSATION_AUTHORITY_LIST_DB_WINDOW_MAX",
 	"WK_CONVERSATION_AUTHORITY_HANDOFF_TIMEOUT",
+	"WK_CONVERSATION_AUTHORITY_ACTIVE_COOLDOWN",
 	"WK_CONVERSATION_AUTHORITY_FLUSH_INTERVAL",
 	"WK_CONVERSATION_AUTHORITY_FLUSH_TIMEOUT",
 	"WK_CONVERSATION_AUTHORITY_FLUSH_BATCH_ROWS",
@@ -996,6 +997,16 @@ func buildConfig(values map[string]string) (app.Config, error) {
 			return app.Config{}, fmt.Errorf("parse WK_CONVERSATION_AUTHORITY_HANDOFF_TIMEOUT: value must be > 0")
 		}
 		cfg.Conversation.AuthorityHandoffTimeout = timeout
+	}
+	if raw := configValue(values, "WK_CONVERSATION_AUTHORITY_ACTIVE_COOLDOWN"); raw != "" {
+		cooldown, err := parseDuration("WK_CONVERSATION_AUTHORITY_ACTIVE_COOLDOWN", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if cooldown <= 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CONVERSATION_AUTHORITY_ACTIVE_COOLDOWN: value must be > 0")
+		}
+		cfg.Conversation.AuthorityActiveCooldown = cooldown
 	}
 	if raw := configValue(values, "WK_CONVERSATION_AUTHORITY_FLUSH_INTERVAL"); raw != "" {
 		interval, err := parseDuration("WK_CONVERSATION_AUTHORITY_FLUSH_INTERVAL", raw)

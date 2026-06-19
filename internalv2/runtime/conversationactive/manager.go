@@ -47,6 +47,8 @@ type Manager struct {
 	nowMS func() int64
 	// store reads and persists durable active rows for cache/store merging.
 	store ActiveStore
+	// activeCooldown skips receiver-only active_at flushes within this durable row age window.
+	activeCooldown time.Duration
 	// maxCachedRows bounds cached rows across all UIDs; zero means unbounded.
 	maxCachedRows int
 	// observer receives cache and flush observations.
@@ -76,6 +78,7 @@ func NewManager(opts Options) *Manager {
 	return &Manager{
 		nowMS:               nowMS,
 		store:               opts.Store,
+		activeCooldown:      opts.ActiveCooldown,
 		maxCachedRows:       opts.MaxCachedRows,
 		observer:            opts.Observer,
 		dirtyActiveAtCounts: make(map[int64]int),
@@ -291,19 +294,103 @@ func (m *Manager) flushDirty(ctx context.Context, limit int) (FlushResult, error
 		return FlushResult{}, nil
 	}
 
-	patches := make([]metadb.UserConversationActivePatch, 0, len(entries))
-	for _, entry := range entries {
-		patches = append(patches, activePatchMetaPatch(entry.patch))
-	}
-	if err := m.store.TouchUserConversationActiveAt(ctx, patches); err != nil {
+	flushEntries, skippedEntries, err := m.filterFlushEntries(ctx, entries)
+	if err != nil {
 		m.observeFlush(FlushObservation{Result: "error", Selected: len(entries), Duration: positiveDuration(time.Since(startedAt))})
 		m.observeCache()
 		return FlushResult{Selected: len(entries)}, err
 	}
-	m.clearFlushedDirty(entries)
-	m.observeFlush(FlushObservation{Result: "ok", Selected: len(entries), Flushed: len(entries), Duration: positiveDuration(time.Since(startedAt))})
+
+	patches := make([]metadb.UserConversationActivePatch, 0, len(flushEntries))
+	for _, entry := range flushEntries {
+		patches = append(patches, activePatchMetaPatch(entry.patch))
+	}
+	if len(patches) > 0 {
+		if err := m.store.TouchUserConversationActiveAt(ctx, patches); err != nil {
+			m.observeFlush(FlushObservation{Result: "error", Selected: len(entries), Duration: positiveDuration(time.Since(startedAt))})
+			m.observeCache()
+			return FlushResult{Selected: len(entries)}, err
+		}
+	}
+	m.clearSkippedDirty(skippedEntries)
+	m.clearFlushedDirty(flushEntries)
+	m.observeFlush(FlushObservation{Result: "ok", Selected: len(entries), Flushed: len(flushEntries), Duration: positiveDuration(time.Since(startedAt))})
 	m.observeCache()
-	return FlushResult{Selected: len(entries), Flushed: len(entries)}, nil
+	return FlushResult{Selected: len(entries), Flushed: len(flushEntries)}, nil
+}
+
+func (m *Manager) filterFlushEntries(ctx context.Context, entries []flushEntry) ([]flushEntry, []flushEntry, error) {
+	if m.activeCooldown <= 0 {
+		return entries, nil, nil
+	}
+	keys := make([]metadb.UserConversationKey, 0, len(entries))
+	for _, entry := range entries {
+		if entry.patch.ReadSeq > 0 {
+			continue
+		}
+		keys = append(keys, metadb.UserConversationKey{
+			UID:         entry.patch.UID,
+			ChannelID:   entry.patch.ChannelID,
+			ChannelType: int64(entry.patch.ChannelType),
+		})
+	}
+	if len(keys) == 0 {
+		return entries, nil, nil
+	}
+	states, err := m.store.GetUserConversationStates(ctx, keys)
+	if err != nil {
+		return nil, nil, err
+	}
+	cooldownMS := int64(m.activeCooldown / time.Millisecond)
+	if cooldownMS <= 0 {
+		return entries, nil, nil
+	}
+	flushEntries := make([]flushEntry, 0, len(entries))
+	skippedEntries := make([]flushEntry, 0)
+	for _, entry := range entries {
+		if entry.patch.ReadSeq > 0 {
+			flushEntries = append(flushEntries, entry)
+			continue
+		}
+		key := metadb.UserConversationKey{
+			UID:         entry.patch.UID,
+			ChannelID:   entry.patch.ChannelID,
+			ChannelType: int64(entry.patch.ChannelType),
+		}
+		state, ok := states[key]
+		if !ok || state.ActiveAt <= 0 || entry.patch.ActiveAtMS-state.ActiveAt >= cooldownMS {
+			flushEntries = append(flushEntries, entry)
+			continue
+		}
+		entry.patch.ActiveAtMS = state.ActiveAt
+		skippedEntries = append(skippedEntries, entry)
+	}
+	return flushEntries, skippedEntries, nil
+}
+
+func (m *Manager) clearSkippedDirty(entries []flushEntry) {
+	if len(entries) == 0 {
+		return
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	for _, skipped := range entries {
+		byChannel := m.cache[skipped.uid]
+		if byChannel == nil {
+			continue
+		}
+		current, ok := byChannel[skipped.key]
+		if !ok || current.version != skipped.version || !current.dirty {
+			continue
+		}
+		m.untrackDirtyLocked(current.patch.ActiveAtMS)
+		current.patch.ActiveAtMS = skipped.patch.ActiveAtMS
+		current.dirty = false
+		m.nextVersion++
+		current.version = m.nextVersion
+		byChannel[skipped.key] = current
+	}
 }
 
 func (m *Manager) observeCache() {

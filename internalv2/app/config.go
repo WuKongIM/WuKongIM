@@ -299,6 +299,8 @@ type ConversationConfig struct {
 	AuthorityListDBWindowMax int
 	// AuthorityHandoffTimeout bounds how long a new authority waits for old-authority drain before explicit abandon.
 	AuthorityHandoffTimeout time.Duration
+	// AuthorityActiveCooldown skips receiver-only active_at flushes newer than the durable row by less than this duration.
+	AuthorityActiveCooldown time.Duration
 	// AuthorityFlushInterval controls how often dirty authority active rows are flushed to durable storage.
 	AuthorityFlushInterval time.Duration
 	// AuthorityFlushTimeout bounds one authority active-row flush attempt.
@@ -444,6 +446,9 @@ func defaultConversationConfig(cfg ConversationConfig) ConversationConfig {
 	if cfg.AuthorityHandoffTimeout == 0 {
 		cfg.AuthorityHandoffTimeout = 3 * time.Second
 	}
+	if cfg.AuthorityActiveCooldown == 0 {
+		cfg.AuthorityActiveCooldown = 2 * time.Hour
+	}
 	if cfg.AuthorityFlushInterval == 0 {
 		cfg.AuthorityFlushInterval = time.Second
 	}
@@ -451,7 +456,7 @@ func defaultConversationConfig(cfg ConversationConfig) ConversationConfig {
 		cfg.AuthorityFlushTimeout = 5 * time.Second
 	}
 	if cfg.AuthorityFlushBatchRows == 0 {
-		cfg.AuthorityFlushBatchRows = 512
+		cfg.AuthorityFlushBatchRows = 128
 	}
 	if cfg.AuthorityAdmitBatchRows == 0 {
 		cfg.AuthorityAdmitBatchRows = 512
@@ -708,6 +713,9 @@ func validateConversationConfig(cfg ConversationConfig) error {
 	}
 	if cfg.AuthorityHandoffTimeout <= 0 {
 		return fmt.Errorf("%w: conversation authority handoff timeout must be positive", ErrInvalidConfig)
+	}
+	if cfg.AuthorityActiveCooldown <= 0 {
+		return fmt.Errorf("%w: conversation authority active cooldown must be positive", ErrInvalidConfig)
 	}
 	if cfg.AuthorityFlushInterval <= 0 {
 		return fmt.Errorf("%w: conversation authority flush interval must be positive", ErrInvalidConfig)

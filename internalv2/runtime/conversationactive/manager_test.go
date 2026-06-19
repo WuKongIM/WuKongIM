@@ -440,6 +440,90 @@ func TestFlushDirtyPersistsActiveRowsAndClearsDirty(t *testing.T) {
 	}
 }
 
+func TestFlushSkipsReceiverActiveWithinCooldown(t *testing.T) {
+	ctx := context.Background()
+	const previousActiveAt int64 = 1000
+	const nextActiveAt int64 = previousActiveAt + int64(time.Hour/time.Millisecond)
+	store := &recordingActiveStore{
+		primary: map[metadb.ConversationKey]metadb.UserConversationState{
+			{ChannelID: "room-1", ChannelType: 2}: {
+				UID:         "u1",
+				ChannelID:   "room-1",
+				ChannelType: 2,
+				ActiveAt:    previousActiveAt,
+			},
+		},
+	}
+	m := NewManager(Options{Store: store, ActiveCooldown: 2 * time.Hour})
+	if err := m.MarkActive(ctx, []ActivePatch{{UID: "u1", ChannelID: "room-1", ChannelType: 2, ActiveAtMS: nextActiveAt}}); err != nil {
+		t.Fatalf("MarkActive() error = %v", err)
+	}
+
+	result, err := m.Flush(ctx, 0)
+	if err != nil {
+		t.Fatalf("Flush() error = %v", err)
+	}
+	if result.Selected != 1 || result.Flushed != 0 {
+		t.Fatalf("Flush() result = %+v, want selected=1 flushed=0", result)
+	}
+	if len(store.touches) != 0 {
+		t.Fatalf("touches = %+v, want no durable touch inside cooldown", store.touches)
+	}
+	if got := m.DirtyCountForTest(); got != 0 {
+		t.Fatalf("DirtyCountForTest() = %d, want 0", got)
+	}
+	entry, ok := m.EntryForTest("u1", "room-1", 2)
+	if !ok {
+		t.Fatalf("expected cache entry to remain after filtered flush")
+	}
+	if entry.ActiveAtMS != previousActiveAt {
+		t.Fatalf("cached ActiveAtMS = %d, want durable active_at %d", entry.ActiveAtMS, previousActiveAt)
+	}
+}
+
+func TestFlushKeepsSenderActiveWithinCooldown(t *testing.T) {
+	ctx := context.Background()
+	const previousActiveAt int64 = 1000
+	const nextActiveAt int64 = previousActiveAt + int64(time.Hour/time.Millisecond)
+	store := &recordingActiveStore{
+		primary: map[metadb.ConversationKey]metadb.UserConversationState{
+			{ChannelID: "room-1", ChannelType: 2}: {
+				UID:         "u1",
+				ChannelID:   "room-1",
+				ChannelType: 2,
+				ActiveAt:    previousActiveAt,
+				ReadSeq:     7,
+			},
+		},
+	}
+	m := NewManager(Options{Store: store, ActiveCooldown: 2 * time.Hour})
+	if err := m.MarkActive(ctx, []ActivePatch{{UID: "u1", ChannelID: "room-1", ChannelType: 2, ActiveAtMS: nextActiveAt, ReadSeq: 9}}); err != nil {
+		t.Fatalf("MarkActive() error = %v", err)
+	}
+
+	result, err := m.Flush(ctx, 0)
+	if err != nil {
+		t.Fatalf("Flush() error = %v", err)
+	}
+	if result.Selected != 1 || result.Flushed != 1 {
+		t.Fatalf("Flush() result = %+v, want selected=1 flushed=1", result)
+	}
+	want := metadb.UserConversationActivePatch{
+		UID:         "u1",
+		ChannelID:   "room-1",
+		ChannelType: 2,
+		ReadSeq:     9,
+		ActiveAt:    nextActiveAt,
+		UpdatedAt:   nextActiveAt,
+	}
+	if len(store.touches) != 1 || len(store.touches[0]) != 1 {
+		t.Fatalf("touches = %+v, want one sender patch", store.touches)
+	}
+	if got := store.touches[0][0]; !reflect.DeepEqual(got, want) {
+		t.Fatalf("touch patch = %+v, want %+v", got, want)
+	}
+}
+
 func TestManagerObservesCacheRowsAndDirtyLag(t *testing.T) {
 	observer := &recordingConversationActiveObserver{}
 	m := NewManager(Options{
@@ -665,6 +749,7 @@ type recordingActiveStore struct {
 	lastLimit int
 	lookupErr error
 	lookups   []metadb.ConversationKey
+	batchKeys []metadb.UserConversationKey
 	touchErr  error
 	touchHook func()
 	touches   [][]metadb.UserConversationActivePatch
@@ -745,6 +830,22 @@ func (s *recordingActiveStore) GetUserConversationState(_ context.Context, _ str
 	}
 	row, ok := s.primary[key]
 	return row, ok, nil
+}
+
+func (s *recordingActiveStore) GetUserConversationStates(_ context.Context, keys []metadb.UserConversationKey) (map[metadb.UserConversationKey]metadb.UserConversationState, error) {
+	s.batchKeys = append(s.batchKeys, keys...)
+	if s.lookupErr != nil {
+		return nil, s.lookupErr
+	}
+	states := make(map[metadb.UserConversationKey]metadb.UserConversationState, len(keys))
+	for _, key := range keys {
+		row, ok := s.primary[metadb.ConversationKey{ChannelID: key.ChannelID, ChannelType: key.ChannelType}]
+		if !ok || row.UID != key.UID {
+			continue
+		}
+		states[key] = row
+	}
+	return states, nil
 }
 
 func (s *recordingActiveStore) TouchUserConversationActiveAt(_ context.Context, patches []metadb.UserConversationActivePatch) error {

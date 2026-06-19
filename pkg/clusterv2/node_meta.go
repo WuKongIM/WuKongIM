@@ -563,6 +563,35 @@ func (n *Node) GetUserConversationState(ctx context.Context, uid, channelID stri
 	return state, true, nil
 }
 
+// GetUserConversationStates reads UID-owned conversation rows from Slot metadata storage.
+func (n *Node) GetUserConversationStates(ctx context.Context, keys []metadb.UserConversationKey) (map[metadb.UserConversationKey]metadb.UserConversationState, error) {
+	if err := ctxErr(ctx); err != nil {
+		return nil, err
+	}
+	if err := n.ensureForeground(); err != nil {
+		return nil, err
+	}
+	if n.defaultSlotMetaDB == nil {
+		return nil, ErrNotStarted
+	}
+	states := make(map[metadb.UserConversationKey]metadb.UserConversationState, len(keys))
+	for _, key := range keys {
+		route, err := n.RouteKey(key.UID)
+		if err != nil {
+			return nil, err
+		}
+		state, err := n.defaultSlotMetaDB.ForHashSlot(route.HashSlot).GetUserConversationState(ctx, key.UID, key.ChannelID, key.ChannelType)
+		if err != nil {
+			if errors.Is(err, metadb.ErrNotFound) {
+				continue
+			}
+			return nil, err
+		}
+		states[key] = state
+	}
+	return states, nil
+}
+
 // ListUserConversationActivePage reads UID-owned active conversation rows from Slot metadata storage.
 func (n *Node) ListUserConversationActivePage(ctx context.Context, uid string, after metadb.UserConversationActiveCursor, limit int) ([]metadb.UserConversationState, metadb.UserConversationActiveCursor, bool, error) {
 	if err := ctxErr(ctx); err != nil {

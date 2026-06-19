@@ -214,6 +214,7 @@ func TestLoadConfigExplicitConfigFile(t *testing.T) {
 		"WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS=200000",
 		"WK_CONVERSATION_AUTHORITY_LIST_DB_WINDOW_MAX=1500",
 		"WK_CONVERSATION_AUTHORITY_HANDOFF_TIMEOUT=4s",
+		"WK_CONVERSATION_AUTHORITY_ACTIVE_COOLDOWN=90m",
 		"WK_CONVERSATION_AUTHORITY_FLUSH_INTERVAL=1500ms",
 		"WK_CONVERSATION_AUTHORITY_FLUSH_TIMEOUT=2500ms",
 		"WK_CONVERSATION_AUTHORITY_FLUSH_BATCH_ROWS=384",
@@ -343,6 +344,7 @@ func TestLoadConfigExplicitConfigFile(t *testing.T) {
 		AuthorityCacheMaxRows:       200000,
 		AuthorityListDBWindowMax:    1500,
 		AuthorityHandoffTimeout:     4 * time.Second,
+		AuthorityActiveCooldown:     90 * time.Minute,
 		AuthorityFlushInterval:      1500 * time.Millisecond,
 		AuthorityFlushTimeout:       2500 * time.Millisecond,
 		AuthorityFlushBatchRows:     384,
@@ -471,6 +473,7 @@ func TestLoadConfigConversationAuthorityEnvOverridesFile(t *testing.T) {
 		"WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS=100000",
 		"WK_CONVERSATION_AUTHORITY_LIST_DB_WINDOW_MAX=1000",
 		"WK_CONVERSATION_AUTHORITY_HANDOFF_TIMEOUT=3s",
+		"WK_CONVERSATION_AUTHORITY_ACTIVE_COOLDOWN=2h",
 		"WK_CONVERSATION_AUTHORITY_FLUSH_INTERVAL=1s",
 		"WK_CONVERSATION_AUTHORITY_FLUSH_TIMEOUT=5s",
 		"WK_CONVERSATION_AUTHORITY_FLUSH_BATCH_ROWS=512",
@@ -482,6 +485,7 @@ func TestLoadConfigConversationAuthorityEnvOverridesFile(t *testing.T) {
 	t.Setenv("WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS", "50000")
 	t.Setenv("WK_CONVERSATION_AUTHORITY_LIST_DB_WINDOW_MAX", "750")
 	t.Setenv("WK_CONVERSATION_AUTHORITY_HANDOFF_TIMEOUT", "2s")
+	t.Setenv("WK_CONVERSATION_AUTHORITY_ACTIVE_COOLDOWN", "45m")
 	t.Setenv("WK_CONVERSATION_AUTHORITY_FLUSH_INTERVAL", "750ms")
 	t.Setenv("WK_CONVERSATION_AUTHORITY_FLUSH_TIMEOUT", "1250ms")
 	t.Setenv("WK_CONVERSATION_AUTHORITY_FLUSH_BATCH_ROWS", "96")
@@ -498,6 +502,7 @@ func TestLoadConfigConversationAuthorityEnvOverridesFile(t *testing.T) {
 		AuthorityCacheMaxRows:       50000,
 		AuthorityListDBWindowMax:    750,
 		AuthorityHandoffTimeout:     2 * time.Second,
+		AuthorityActiveCooldown:     45 * time.Minute,
 		AuthorityFlushInterval:      750 * time.Millisecond,
 		AuthorityFlushTimeout:       1250 * time.Millisecond,
 		AuthorityFlushBatchRows:     96,
@@ -1148,6 +1153,8 @@ func TestLoadConfigRejectsBadValues(t *testing.T) {
 		{name: "conversation authority list db window max zero", line: "WK_CONVERSATION_AUTHORITY_LIST_DB_WINDOW_MAX=0", wantKey: "WK_CONVERSATION_AUTHORITY_LIST_DB_WINDOW_MAX"},
 		{name: "conversation authority handoff timeout", line: "WK_CONVERSATION_AUTHORITY_HANDOFF_TIMEOUT=soon", wantKey: "WK_CONVERSATION_AUTHORITY_HANDOFF_TIMEOUT"},
 		{name: "conversation authority handoff timeout zero", line: "WK_CONVERSATION_AUTHORITY_HANDOFF_TIMEOUT=0s", wantKey: "WK_CONVERSATION_AUTHORITY_HANDOFF_TIMEOUT"},
+		{name: "conversation authority active cooldown", line: "WK_CONVERSATION_AUTHORITY_ACTIVE_COOLDOWN=soon", wantKey: "WK_CONVERSATION_AUTHORITY_ACTIVE_COOLDOWN"},
+		{name: "conversation authority active cooldown zero", line: "WK_CONVERSATION_AUTHORITY_ACTIVE_COOLDOWN=0s", wantKey: "WK_CONVERSATION_AUTHORITY_ACTIVE_COOLDOWN"},
 		{name: "conversation authority flush interval", line: "WK_CONVERSATION_AUTHORITY_FLUSH_INTERVAL=soon", wantKey: "WK_CONVERSATION_AUTHORITY_FLUSH_INTERVAL"},
 		{name: "conversation authority flush interval zero", line: "WK_CONVERSATION_AUTHORITY_FLUSH_INTERVAL=0s", wantKey: "WK_CONVERSATION_AUTHORITY_FLUSH_INTERVAL"},
 		{name: "conversation authority flush timeout", line: "WK_CONVERSATION_AUTHORITY_FLUSH_TIMEOUT=soon", wantKey: "WK_CONVERSATION_AUTHORITY_FLUSH_TIMEOUT"},
@@ -1371,6 +1378,7 @@ func assertConversationAuthorityConfig(t *testing.T, got, want app.ConversationC
 		got.AuthorityCacheMaxRows != want.AuthorityCacheMaxRows ||
 		got.AuthorityListDBWindowMax != want.AuthorityListDBWindowMax ||
 		got.AuthorityHandoffTimeout != want.AuthorityHandoffTimeout ||
+		got.AuthorityActiveCooldown != want.AuthorityActiveCooldown ||
 		got.AuthorityFlushInterval != want.AuthorityFlushInterval ||
 		got.AuthorityFlushTimeout != want.AuthorityFlushTimeout ||
 		got.AuthorityFlushBatchRows != want.AuthorityFlushBatchRows ||

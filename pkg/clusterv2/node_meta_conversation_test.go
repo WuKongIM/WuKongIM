@@ -136,6 +136,43 @@ func TestClusterV2GetUserConversationStateUsesUIDHashSlot(t *testing.T) {
 	}
 }
 
+func TestClusterV2GetUserConversationStatesUsesUIDHashSlot(t *testing.T) {
+	node := newDefaultSingleNode(t)
+	startNode(t, node)
+	t.Cleanup(func() { stopNodes(t, node) })
+
+	ctx := context.Background()
+	uidA := conversationRouteKeyForHashSlot(t, node, 1)
+	uidB := conversationRouteKeyForHashSlot(t, node, 2)
+	waitRouteKeyLeaderReady(t, node, uidA)
+	waitRouteKeyLeaderReady(t, node, uidB)
+	states := []metadb.UserConversationState{
+		{UID: uidA, ChannelID: "g1", ChannelType: 2, ActiveAt: 100},
+		{UID: uidB, ChannelID: "g2", ChannelType: 2, ActiveAt: 200},
+	}
+	if err := node.UpsertUserConversationStatesBatch(ctx, states); err != nil {
+		t.Fatalf("UpsertUserConversationStatesBatch() error = %v", err)
+	}
+
+	got, err := node.GetUserConversationStates(ctx, []metadb.UserConversationKey{
+		{UID: uidA, ChannelID: "g1", ChannelType: 2},
+		{UID: uidB, ChannelID: "g2", ChannelType: 2},
+		{UID: uidA, ChannelID: "missing", ChannelType: 2},
+	})
+	if err != nil {
+		t.Fatalf("GetUserConversationStates() error = %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("states len = %d, want 2: %#v", len(got), got)
+	}
+	if got[metadb.UserConversationKey{UID: uidA, ChannelID: "g1", ChannelType: 2}].ActiveAt != 100 {
+		t.Fatalf("uidA state = %#v, want active_at 100", got)
+	}
+	if got[metadb.UserConversationKey{UID: uidB, ChannelID: "g2", ChannelType: 2}].ActiveAt != 200 {
+		t.Fatalf("uidB state = %#v, want active_at 200", got)
+	}
+}
+
 func TestClusterV2ListUserConversationActivePageUsesUIDHashSlot(t *testing.T) {
 	node := newDefaultSingleNode(t)
 	startNode(t, node)

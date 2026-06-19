@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/conversationactive"
 	conversationusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/conversation"
@@ -15,6 +16,8 @@ type conversationAuthorityStore interface {
 	ListUserConversationActivePage(context.Context, string, metadb.UserConversationActiveCursor, int) ([]metadb.UserConversationState, metadb.UserConversationActiveCursor, bool, error)
 	// GetUserConversationState returns the durable primary row used for active-view hydration.
 	GetUserConversationState(context.Context, string, string, int64) (metadb.UserConversationState, bool, error)
+	// GetUserConversationStates returns durable primary rows used for flush-time active_at filtering.
+	GetUserConversationStates(context.Context, []metadb.UserConversationKey) (map[metadb.UserConversationKey]metadb.UserConversationState, error)
 	// TouchUserConversationActiveAtBatch atomically flushes activity hints.
 	TouchUserConversationActiveAtBatch(context.Context, []metadb.UserConversationActivePatch) error
 }
@@ -34,6 +37,8 @@ type conversationAuthorityOptions struct {
 	AdmissionBatchRows int
 	// AdmissionConcurrency mirrors routed-client admission config and is retained for config compatibility.
 	AdmissionConcurrency int
+	// ActiveCooldown skips receiver-only active_at flushes newer than the durable row by less than this duration.
+	ActiveCooldown time.Duration
 	// Observer receives low-cardinality authority cache/list/handoff observations.
 	Observer conversationAuthorityObserver
 }
@@ -73,6 +78,14 @@ func (s conversationActiveStoreAdapter) GetUserConversationState(ctx context.Con
 		return metadb.UserConversationState{}, false, conversationactive.ErrStoreRequired
 	}
 	return store.GetUserConversationState(ctx, uid, channelID, channelType)
+}
+
+func (s conversationActiveStoreAdapter) GetUserConversationStates(ctx context.Context, keys []metadb.UserConversationKey) (map[metadb.UserConversationKey]metadb.UserConversationState, error) {
+	store := s.store()
+	if store == nil {
+		return nil, conversationactive.ErrStoreRequired
+	}
+	return store.GetUserConversationStates(ctx, keys)
 }
 
 func (s conversationActiveStoreAdapter) TouchUserConversationActiveAt(ctx context.Context, patches []metadb.UserConversationActivePatch) error {
@@ -182,9 +195,10 @@ func newConversationAuthority(opts conversationAuthorityOptions) *conversationAu
 		activeObserver = observer
 	}
 	authority.active = conversationactive.NewManager(conversationactive.Options{
-		Store:         conversationActiveStoreAdapter{authority: authority},
-		MaxCachedRows: opts.MaxRows,
-		Observer:      activeObserver,
+		Store:          conversationActiveStoreAdapter{authority: authority},
+		ActiveCooldown: opts.ActiveCooldown,
+		MaxCachedRows:  opts.MaxRows,
+		Observer:       activeObserver,
 	})
 	return authority
 }

@@ -502,7 +502,9 @@ periodic flush
   -> derive an AuthorityFlushTimeout-bounded attempt context
   -> conversationAuthority.FlushActiveRows(attemptCtx, AuthorityFlushBatchRows)
   -> runtime/conversationactive.Manager selects dirty rows with version fencing
-  -> store.TouchUserConversationActiveAtBatch persists ActiveAt/ReadSeq/UpdatedAt
+  -> batch-read durable conversation rows for receiver-only cooldown filtering
+  -> skip receiver-only ActiveAt updates inside AuthorityActiveCooldown
+  -> store.TouchUserConversationActiveAtBatch persists remaining ActiveAt/ReadSeq/UpdatedAt
 
 Stop(ctx)
   -> channelappend has already closed admission and drained accepted post-commit effects
