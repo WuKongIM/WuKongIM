@@ -386,6 +386,16 @@ func TestApplyReportTaskProgressStaleParticipantAttemptNoops(t *testing.T) {
 			Err:                "first failure",
 		},
 	})
+	failedTask := sm.Snapshot(ctx).Tasks[0]
+	var failedProgress state.TaskParticipantProgress
+	for _, item := range failedTask.ParticipantProgress {
+		if item.NodeID == 2 {
+			failedProgress = item
+			break
+		}
+	}
+	require.Equal(t, state.TaskParticipantStatusFailed, failedProgress.Status)
+	require.Equal(t, uint32(1), failedProgress.Attempt)
 
 	result, err := sm.Apply(ctx, 4, command.Command{
 		Kind: command.KindReportTaskProgress,
