@@ -17,6 +17,8 @@ GET  /manager/monitor/realtime (Prometheus-backed business realtime monitor card
 GET  /manager/cluster-monitor/realtime (Prometheus/control-snapshot cluster operations monitor cards; requires cluster.node:r when Auth.On=true)
 GET  /manager/runtime/workqueues (local-node runtime pressure; requires cluster.node:r when Auth.On=true)
 GET  /manager/slots   (read-only Slot list; requires cluster.slot:r when Auth.On=true)
+POST /manager/slots/leader-transfer-plan (read-only Slot leader-transfer batch preview; requires cluster.slot:r when Auth.On=true)
+POST /manager/slots/leader-transfer-batch (fenced Slot leader-transfer batch execute; requires cluster.slot:w when Auth.On=true)
 POST /manager/slots/:slot_id/leader-transfer (Controller-backed Slot leader-transfer intent; requires cluster.slot:w when Auth.On=true)
 POST /manager/nodes/:node_id/slots/:slot_id/compact (manual node-local Slot Raft compaction; requires cluster.slot:w when Auth.On=true)
 GET  /manager/controller/logs (Controller distributed log page; requires cluster.controller:r when Auth.On=true)
@@ -101,14 +103,22 @@ view, including `node_id` filtering. It reads the same control snapshot through
 `internalv2/usecase/management` and, when available, returns the selected node's
 local Slot Raft role plus commit/applied watermarks in `node_log` for the web
 status and log-height columns. The response may include active task summaries
-and participant progress for display only. `/manager/slots/:slot_id/leader-transfer`
-parses a `target_node`, delegates snapshot/runtime validation to
-`internalv2/usecase/management`, returns `202 Accepted` when a new Controller
-task is created, and returns `200 OK` for no-op already-leader or existing-task
-responses. The response includes `target_node`, `preferred_leader`,
-`actual_leader`, `created`, and `message` so operators can distinguish accepted
-work from no-op outcomes without inspecting Controller internals. Slot detail
-and other operation routes remain unmigrated.
+and participant progress for display only. `/manager/slots/leader-transfer-plan`
+parses source/target selection, optional Slot allow-list, max task count, and
+target policy, then delegates deterministic batch preview generation to
+`internalv2/usecase/management`; it is read-only and requires Slot read
+permission. `/manager/slots/leader-transfer-batch` accepts the same selection
+plus `state_revision` and `plan_id` fences, delegates execution to the
+management usecase, returns `202 Accepted` when at least one new Controller task
+is created, and returns `200 OK` for existing/no-op-only outcomes.
+`/manager/slots/:slot_id/leader-transfer` parses a `target_node`, delegates
+snapshot/runtime validation to `internalv2/usecase/management`, returns
+`202 Accepted` when a new Controller task is created, and returns `200 OK` for
+no-op already-leader or existing-task responses. The single-Slot response
+includes `target_node`, `preferred_leader`, `actual_leader`, `created`, and
+`message` so operators can distinguish accepted work from no-op outcomes without
+inspecting Controller internals. Slot detail and other operation routes remain
+unmigrated.
 
 `/manager/controller/logs` and `/manager/slots/:slot_id/logs` expose
 newest-first distributed Raft log pages for the selected node. They parse

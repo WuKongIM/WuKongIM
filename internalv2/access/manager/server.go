@@ -74,6 +74,10 @@ type Management interface {
 	CompactSlotRaftLog(ctx context.Context, nodeID uint64, slotID uint32) (managementusecase.SlotRaftCompactionSummary, error)
 	// RequestSlotLeaderTransfer submits a manager Slot leader transfer intent.
 	RequestSlotLeaderTransfer(ctx context.Context, req managementusecase.SlotLeaderTransferRequest) (managementusecase.SlotLeaderTransferResponse, error)
+	// PlanSlotLeaderTransfers previews a batch of Slot leader transfer tasks.
+	PlanSlotLeaderTransfers(ctx context.Context, req managementusecase.SlotLeaderTransferBatchPlanRequest) (managementusecase.SlotLeaderTransferBatchPlanResponse, error)
+	// ExecuteSlotLeaderTransferBatch submits a fenced batch of Slot leader transfer tasks.
+	ExecuteSlotLeaderTransferBatch(ctx context.Context, req managementusecase.SlotLeaderTransferBatchExecuteRequest) (managementusecase.SlotLeaderTransferBatchExecuteResponse, error)
 	// QueryDiagnostics returns a manager-facing diagnostics aggregate query result.
 	QueryDiagnostics(ctx context.Context, req managementusecase.DiagnosticsQueryRequest) (managementusecase.DiagnosticsQueryResponse, error)
 	// CreateDiagnosticsTrackingRule installs a temporary diagnostics tracking rule.
@@ -277,12 +281,14 @@ func (s *Server) registerRoutes() {
 	}
 	slots.GET("/slots", s.handleSlots)
 	slots.GET("/slots/:slot_id/logs", s.handleSlotLogs)
+	slots.POST("/slots/leader-transfer-plan", s.handleSlotLeaderTransferBatchPlan)
 
 	slotWrites := s.engine.Group("/manager")
 	if s.auth.enabled() {
 		slotWrites.Use(s.requirePermission("cluster.slot", "w"))
 	}
 	slotWrites.POST("/nodes/:node_id/slots/:slot_id/compact", s.handleCompactSlotRaftLog)
+	slotWrites.POST("/slots/leader-transfer-batch", s.handleSlotLeaderTransferBatchExecute)
 	slotWrites.POST("/slots/:slot_id/leader-transfer", s.handleSlotLeaderTransfer)
 
 	controllerReads := s.engine.Group("/manager")
