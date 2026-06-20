@@ -194,9 +194,10 @@ set.
 
 Recipient delivery is an enqueue contract. When delivery enqueueing is
 configured, recipient batches are grouped by the full fenced recipient
-authority target after active admission succeeds. UID authority resolution is
-performed once per unique trimmed UID and uses the optional batch resolver when
-available; invalid or missing targets map to route-not-ready before enqueueing.
+authority target, including Slot leader term and Slot config epoch, after
+active admission succeeds. UID authority resolution is performed once per
+unique trimmed UID and uses the optional batch resolver when available; invalid
+or missing targets map to route-not-ready before enqueueing.
 Different recipient authority targets may enqueue concurrently up to
 `RecipientAuthorityDispatchConcurrency`; batches for the same target are enqueued
 sequentially. The dedicated delivery worker drains the accepted batches,

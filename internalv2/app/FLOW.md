@@ -273,9 +273,10 @@ subscriber source, or the clusterv2 Slot metadata source. After each recipient
 set is formed, channelappend admits a `conversationactive.ActiveBatch` through
 the shared `ConversationAuthorityClient`; this still runs when online delivery
 is disabled. Recipients are then grouped by exact UID hash-slot authority target
-for delivery; when clusterv2 exposes batch key routing, the app recipient
-resolver resolves each subscriber page's unique UIDs through one batch route
-lookup before grouping. When delivery is enabled, the app wires a bounded
+including Slot leader term and Slot config epoch for delivery; when clusterv2
+exposes batch key routing, the app recipient resolver resolves each subscriber
+page's unique UIDs through one batch route lookup before grouping. When delivery
+is enabled, the app wires a bounded
 recipient delivery worker that drains those batches and runs the delivery-only
 channelappend recipient processor outside the authority writer. `/bench/v1/channels` and
 `/bench/v1/channels/subscribers` write real channel metadata and subscriber rows
@@ -428,7 +429,7 @@ gateway/API send
   -> authority writer post-commit effect:
        scope person recipients or page subscribers
        ConversationAuthorityClient.AdmitActiveBatch for the expanded recipient set
-       group recipients by UID authority target for delivery
+       group recipients by UID authority target, including Slot leader term and config epoch, for delivery
        enqueue recipient delivery batch when delivery is enabled
        drop the in-memory post-commit envelope after one enqueue attempt
 ```

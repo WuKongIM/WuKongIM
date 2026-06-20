@@ -139,6 +139,7 @@
 - Slot preferred leaders are controller soft intent. Raft remains authoritative; leader-transfer tasks must target observed current voters only.
 - Production controller planning writes must go through Controller Raft proposals; direct Store writes are only for local tests or tools.
 - Bootstrap planning rotates `Task.TargetNode` across DesiredPeers by SlotID, and cluster execution transfers the initialized Slot Leader to that target to avoid concentrated initial leader placement.
+- V2 UID authority targets must use distributed Slot identity `(hash slot, slot id, leader node, leader term, config epoch)` as the hard fence. Node-local `AuthorityEpoch` is diagnostic/order metadata only and must not be used as a cross-node hard fence.
 
 ### Controller Raft transport
 - Manager Controller log views read node-local Controller Raft entries through `pkg/cluster`; UI/API must describe them as local node logs, not a global authoritative log.
