@@ -91,6 +91,24 @@ validation is intentionally limited to the current Slot Raft leader, voter set,
 desired peers, and target-node health; it does not inspect target match index or
 predict whether Raft will ultimately choose the preferred target.
 
+## Slot Leader Transfer Batch Plan Flow
+
+```text
+manager HTTP handler
+  -> management.App.PlanSlotLeaderTransfers
+  -> ControlSnapshotReader.LocalControlSnapshot
+  -> SlotRuntimeStatusReader.SlotRuntimeStatus
+  -> ordered leader-transfer candidates, skipped rows, and deterministic plan_id
+```
+
+The batch planner is read-only. It scans the local clusterv2 control snapshot in
+stable Slot order, reads live Slot runtime status for the scanned assignments,
+and returns candidate rows, skip reasons, a summary, and a deterministic plan
+ID fenced to the observed control-state revision. Planning may reuse matching
+active leader-transfer tasks in the returned candidates, but it does not create
+ControllerV2 tasks, mutate preferred leaders, or call Slot Raft. Batch execute
+will get its own flow once that mutation path lands.
+
 ## Controller Task Read Flow
 
 ```text
