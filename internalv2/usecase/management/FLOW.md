@@ -106,8 +106,24 @@ stable Slot order, reads live Slot runtime status for the scanned assignments,
 and returns candidate rows, skip reasons, a summary, and a deterministic plan
 ID fenced to the observed control-state revision. Planning may reuse matching
 active leader-transfer tasks in the returned candidates, but it does not create
-ControllerV2 tasks, mutate preferred leaders, or call Slot Raft. Batch execute
-will get its own flow once that mutation path lands.
+ControllerV2 tasks, mutate preferred leaders, or call Slot Raft.
+
+## Slot Leader Transfer Batch Execute Flow
+
+```text
+manager HTTP handler
+  -> management.App.ExecuteSlotLeaderTransferBatch
+  -> management.App.PlanSlotLeaderTransfers
+  -> state_revision + plan_id fence check
+  -> SlotLeaderTransferWriter.RequestSlotLeaderTransfer for create candidates
+  -> ordered per-Slot execute results
+```
+
+Batch execute re-runs the planner from the execute request, rejects stale
+`state_revision` or mismatched `plan_id` before any writes, reports matching
+existing candidates as no-ops, and submits create candidates through the same
+Slot leader-transfer writer port. It does not call Slot Raft directly and does
+not create a durable batch task.
 
 ## Controller Task Read Flow
 

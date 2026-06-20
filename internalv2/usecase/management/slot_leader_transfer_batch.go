@@ -28,6 +28,15 @@ const (
 	// SlotLeaderTransferBatchActionExisting reports that a matching active task already exists.
 	SlotLeaderTransferBatchActionExisting = "existing"
 
+	// SlotLeaderTransferBatchResultCreated reports that execute created a transfer task.
+	SlotLeaderTransferBatchResultCreated = "created"
+	// SlotLeaderTransferBatchResultExisting reports that execute found or reused an existing task.
+	SlotLeaderTransferBatchResultExisting = "existing"
+	// SlotLeaderTransferBatchResultAlreadyLeader reports that the Slot is already led by the target.
+	SlotLeaderTransferBatchResultAlreadyLeader = "already_leader"
+	// SlotLeaderTransferBatchResultFailed reports that one Slot failed during execute.
+	SlotLeaderTransferBatchResultFailed = "failed"
+
 	// SlotLeaderTransferBatchSkipSlotNotAllowed reports that a Slot is outside the request allow-list.
 	SlotLeaderTransferBatchSkipSlotNotAllowed = "slot_not_allowed"
 	// SlotLeaderTransferBatchSkipAssignmentMissing reports that the requested Slot has no assignment.
@@ -153,6 +162,68 @@ type SlotLeaderTransferBatchSkip struct {
 	Message string
 }
 
+// SlotLeaderTransferBatchExecuteRequest describes a fenced batch execute request.
+type SlotLeaderTransferBatchExecuteRequest struct {
+	// SourceNodeID is the node whose Slot leadership should be moved away.
+	SourceNodeID uint64
+	// TargetNodeID is the explicit desired target node, or zero to use TargetPolicy.
+	TargetNodeID uint64
+	// SlotIDs optionally restricts execution to the listed physical Slots.
+	SlotIDs []uint32
+	// MaxTasks caps how many new leader-transfer tasks execute may create.
+	MaxTasks int
+	// TargetPolicy selects targets when TargetNodeID is zero.
+	TargetPolicy string
+	// StateRevision is the control-state revision observed by the accepted plan.
+	StateRevision uint64
+	// PlanID is the deterministic identity of the accepted plan.
+	PlanID string
+}
+
+// SlotLeaderTransferBatchExecuteResponse reports per-Slot batch execute outcomes.
+type SlotLeaderTransferBatchExecuteResponse struct {
+	// GeneratedAt records when this execute response was assembled.
+	GeneratedAt time.Time
+	// StateRevision is the control-state revision used by the recomputed plan.
+	StateRevision uint64
+	// PlanID is the deterministic identity of the recomputed plan.
+	PlanID string
+	// Summary contains aggregate execute counters.
+	Summary SlotLeaderTransferBatchExecuteSummary
+	// Results contains one ordered row for each executed candidate.
+	Results []SlotLeaderTransferBatchExecuteResult
+}
+
+// SlotLeaderTransferBatchExecuteSummary contains aggregate execute counters.
+type SlotLeaderTransferBatchExecuteSummary struct {
+	// Requested counts candidate rows considered by execute.
+	Requested int
+	// Created counts new transfer tasks accepted by the writer.
+	Created int
+	// Existing counts candidates or writer responses backed by existing tasks.
+	Existing int
+	// AlreadyLeader counts no-op rows where the target already leads the Slot.
+	AlreadyLeader int
+	// Skipped counts rows that execute skipped without a writer call.
+	Skipped int
+	// Failed counts per-Slot writer failures.
+	Failed int
+}
+
+// SlotLeaderTransferBatchExecuteResult describes one Slot execute outcome.
+type SlotLeaderTransferBatchExecuteResult struct {
+	// SlotID is the physical Slot identifier.
+	SlotID uint32
+	// TargetNodeID is the target leader node for this Slot.
+	TargetNodeID uint64
+	// Status is a stable machine-readable execute status.
+	Status string
+	// TaskID is the Controller task identifier when one is available.
+	TaskID string
+	// Message is a short operator-facing result explanation.
+	Message string
+}
+
 // PlanSlotLeaderTransfers validates and plans a batch of Slot leader transfers.
 func (a *App) PlanSlotLeaderTransfers(ctx context.Context, req SlotLeaderTransferBatchPlanRequest) (SlotLeaderTransferBatchPlanResponse, error) {
 	if err := ctxErr(ctx); err != nil {
@@ -169,6 +240,105 @@ func (a *App) PlanSlotLeaderTransfers(ctx context.Context, req SlotLeaderTransfe
 		return SlotLeaderTransferBatchPlanResponse{}, ErrSlotRuntimeStatusUnavailable
 	}
 	return a.planSlotLeaderTransfers(ctx, normalized, allowedSlots)
+}
+
+// ExecuteSlotLeaderTransferBatch re-plans and submits fenced Slot leader-transfer candidates.
+func (a *App) ExecuteSlotLeaderTransferBatch(ctx context.Context, req SlotLeaderTransferBatchExecuteRequest) (SlotLeaderTransferBatchExecuteResponse, error) {
+	if err := ctxErr(ctx); err != nil {
+		return SlotLeaderTransferBatchExecuteResponse{}, err
+	}
+	if req.StateRevision == 0 || req.PlanID == "" {
+		return SlotLeaderTransferBatchExecuteResponse{}, metadb.ErrInvalidArgument
+	}
+
+	plan, err := a.PlanSlotLeaderTransfers(ctx, SlotLeaderTransferBatchPlanRequest{
+		SourceNodeID: req.SourceNodeID,
+		TargetNodeID: req.TargetNodeID,
+		SlotIDs:      append([]uint32(nil), req.SlotIDs...),
+		MaxTasks:     req.MaxTasks,
+		TargetPolicy: req.TargetPolicy,
+	})
+	if err != nil {
+		return SlotLeaderTransferBatchExecuteResponse{}, err
+	}
+	if plan.StateRevision != req.StateRevision {
+		return SlotLeaderTransferBatchExecuteResponse{}, ErrSlotLeaderTransferPlanStale
+	}
+	if plan.PlanID != req.PlanID {
+		return SlotLeaderTransferBatchExecuteResponse{}, ErrSlotLeaderTransferPlanMismatch
+	}
+
+	hasCreate := false
+	for _, candidate := range plan.Candidates {
+		if candidate.Action == SlotLeaderTransferBatchActionCreate {
+			hasCreate = true
+			break
+		}
+	}
+	if hasCreate && (a == nil || a.leaderTransfer == nil) {
+		return SlotLeaderTransferBatchExecuteResponse{}, ErrSlotLeaderTransferUnavailable
+	}
+
+	response := SlotLeaderTransferBatchExecuteResponse{
+		GeneratedAt:   a.now(),
+		StateRevision: plan.StateRevision,
+		PlanID:        plan.PlanID,
+		Results:       make([]SlotLeaderTransferBatchExecuteResult, 0, len(plan.Candidates)),
+	}
+	for _, candidate := range plan.Candidates {
+		if err := ctxErr(ctx); err != nil {
+			return SlotLeaderTransferBatchExecuteResponse{}, err
+		}
+		switch candidate.Action {
+		case SlotLeaderTransferBatchActionExisting:
+			response.Summary.Requested++
+			response.Summary.Existing++
+			response.Results = append(response.Results, SlotLeaderTransferBatchExecuteResult{
+				SlotID:       candidate.SlotID,
+				TargetNodeID: candidate.TargetNodeID,
+				Status:       SlotLeaderTransferBatchResultExisting,
+				TaskID:       candidate.ExistingTaskID,
+				Message:      SlotLeaderTransferMessageExistingTask,
+			})
+		case SlotLeaderTransferBatchActionCreate:
+			response.Summary.Requested++
+			result, err := a.leaderTransfer.RequestSlotLeaderTransfer(ctx, control.SlotLeaderTransferRequest{
+				SlotID:        candidate.SlotID,
+				SourceNode:    candidate.SourceNodeID,
+				TargetNode:    candidate.TargetNodeID,
+				TargetPeers:   append([]uint64(nil), candidate.DesiredPeers...),
+				ConfigEpoch:   candidate.ConfigEpoch,
+				StateRevision: plan.StateRevision,
+			})
+			if err != nil {
+				response.Summary.Failed++
+				response.Results = append(response.Results, SlotLeaderTransferBatchExecuteResult{
+					SlotID:       candidate.SlotID,
+					TargetNodeID: candidate.TargetNodeID,
+					Status:       SlotLeaderTransferBatchResultFailed,
+					Message:      err.Error(),
+				})
+				continue
+			}
+			status := SlotLeaderTransferBatchResultExisting
+			message := SlotLeaderTransferMessageExistingTask
+			if result.Created {
+				status = SlotLeaderTransferBatchResultCreated
+				message = SlotLeaderTransferMessageCreated
+				response.Summary.Created++
+			} else {
+				response.Summary.Existing++
+			}
+			response.Results = append(response.Results, SlotLeaderTransferBatchExecuteResult{
+				SlotID:       candidate.SlotID,
+				TargetNodeID: candidate.TargetNodeID,
+				Status:       status,
+				TaskID:       slotLeaderTransferBatchTaskID(result.Task),
+				Message:      message,
+			})
+		}
+	}
+	return response, nil
 }
 
 func (a *App) planSlotLeaderTransfers(ctx context.Context, req SlotLeaderTransferBatchPlanRequest, allowedSlots []uint32) (SlotLeaderTransferBatchPlanResponse, error) {
@@ -529,4 +699,11 @@ func cloneSlotLeaderTransferBatchCandidate(item SlotLeaderTransferBatchCandidate
 	item.DesiredPeers = append([]uint64(nil), item.DesiredPeers...)
 	item.CurrentVoters = append([]uint64(nil), item.CurrentVoters...)
 	return item
+}
+
+func slotLeaderTransferBatchTaskID(task *control.ReconcileTask) string {
+	if task == nil {
+		return ""
+	}
+	return task.TaskID
 }
