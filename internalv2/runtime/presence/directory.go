@@ -29,12 +29,12 @@ type Directory struct {
 type directoryShard struct {
 	// mu protects all authority slots assigned to this shard.
 	mu sync.RWMutex
-	// slots holds per-hash-slot authority epochs installed on this node.
+	// slots holds per-hash-slot authority identities installed on this node.
 	slots map[uint16]*authoritySlot
 }
 
 type authoritySlot struct {
-	// target is the exact fencing token accepted by this authority epoch.
+	// target is the exact fencing token accepted by this authority identity.
 	target RouteTarget
 	// active contains committed routes by exact owner route identity.
 	active map[identityKey]Route
@@ -84,7 +84,7 @@ func NewDirectory(opts DirectoryOptions) *Directory {
 	return d
 }
 
-// BecomeAuthority installs a fresh authority epoch for one hash slot.
+// BecomeAuthority installs a fresh authority identity for one hash slot.
 func (d *Directory) BecomeAuthority(target RouteTarget) {
 	shard := d.shard(target.HashSlot)
 	shard.mu.Lock()
@@ -92,7 +92,7 @@ func (d *Directory) BecomeAuthority(target RouteTarget) {
 
 	current := shard.slots[target.HashSlot]
 	if current != nil {
-		if sameAuthorityEpoch(current.target, target) {
+		if sameAuthorityIdentity(current.target, target) {
 			if target.RouteRevision >= current.target.RouteRevision {
 				current.target = target
 			}
@@ -304,7 +304,7 @@ func (d *Directory) validateTargetLocked(shard *directoryShard, target RouteTarg
 		return nil, ErrNotLeader
 	}
 	slot := shard.slots[target.HashSlot]
-	if slot == nil || !sameAuthorityEpoch(slot.target, target) {
+	if slot == nil || !sameAuthorityIdentity(slot.target, target) {
 		return nil, ErrNotLeader
 	}
 	return slot, nil
@@ -465,11 +465,12 @@ func (s *authoritySlot) nextPendingToken() PendingRouteToken {
 	return PendingRouteToken(fmt.Sprintf("%d", s.nextID))
 }
 
-func sameAuthorityEpoch(left, right RouteTarget) bool {
+func sameAuthorityIdentity(left, right RouteTarget) bool {
 	return left.HashSlot == right.HashSlot &&
 		left.SlotID == right.SlotID &&
 		left.LeaderNodeID == right.LeaderNodeID &&
-		left.AuthorityEpoch == right.AuthorityEpoch
+		left.LeaderTerm == right.LeaderTerm &&
+		left.ConfigEpoch == right.ConfigEpoch
 }
 
 func conflicts(incoming, existing Route) bool {

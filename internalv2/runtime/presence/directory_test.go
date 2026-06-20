@@ -8,7 +8,7 @@ import (
 
 func TestDirectoryRejectsStaleTarget(t *testing.T) {
 	dir := NewDirectory(DirectoryOptions{ShardCount: 4})
-	target := RouteTarget{HashSlot: 1, SlotID: 1, LeaderNodeID: 1, RouteRevision: 2, AuthorityEpoch: 2}
+	target := RouteTarget{HashSlot: 1, SlotID: 1, LeaderNodeID: 1, LeaderTerm: 9, ConfigEpoch: 3, RouteRevision: 2, AuthorityEpoch: 2}
 	dir.BecomeAuthority(target)
 
 	route := Route{UID: "u1", OwnerNodeID: 1, OwnerBootID: 1, OwnerSeq: 1, SessionID: 10, DeviceID: "d1", DeviceFlag: 1, DeviceLevel: 1}
@@ -17,12 +17,52 @@ func TestDirectoryRejectsStaleTarget(t *testing.T) {
 	}
 
 	stale := target
-	stale.AuthorityEpoch = 1
+	stale.LeaderTerm = 8
 	if _, err := dir.EndpointsByUID(stale, "u1"); !errors.Is(err, ErrNotLeader) {
 		t.Fatalf("EndpointsByUID(stale target) error = %v, want ErrNotLeader", err)
 	}
 	if _, err := dir.RegisterRoute(stale, Route{UID: "u1", OwnerNodeID: 1, OwnerBootID: 1, OwnerSeq: 2, SessionID: 11, DeviceID: "d2", DeviceFlag: 1, DeviceLevel: 1}); !errors.Is(err, ErrNotLeader) {
 		t.Fatalf("RegisterRoute(stale target) error = %v, want ErrNotLeader", err)
+	}
+}
+
+func TestDirectoryAcceptsDifferentLocalAuthorityEpochWithSameRaftIdentity(t *testing.T) {
+	dir := NewDirectory(DirectoryOptions{LocalNodeID: 1})
+	installed := RouteTarget{
+		HashSlot: 1, SlotID: 2, LeaderNodeID: 1,
+		LeaderTerm: 9, ConfigEpoch: 3,
+		RouteRevision: 10, AuthorityEpoch: 1,
+	}
+	remote := installed
+	remote.AuthorityEpoch = 4
+	dir.BecomeAuthority(installed)
+
+	if err := dir.TouchRoutes(remote, []Route{{UID: "u1", OwnerNodeID: 2, OwnerBootID: 1, OwnerSeq: 1, SessionID: 10}}); err != nil {
+		t.Fatalf("TouchRoutes() error = %v, want same raft identity accepted", err)
+	}
+}
+
+func TestDirectoryRejectsOldLeaderTerm(t *testing.T) {
+	dir := NewDirectory(DirectoryOptions{LocalNodeID: 1})
+	target := RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 1, LeaderTerm: 9, ConfigEpoch: 3, RouteRevision: 10, AuthorityEpoch: 1}
+	dir.BecomeAuthority(target)
+
+	stale := target
+	stale.LeaderTerm = 8
+	if err := dir.TouchRoutes(stale, []Route{{UID: "u1", OwnerNodeID: 2, OwnerBootID: 1, OwnerSeq: 1, SessionID: 10}}); !errors.Is(err, ErrNotLeader) {
+		t.Fatalf("TouchRoutes(old leader term) error = %v, want ErrNotLeader", err)
+	}
+}
+
+func TestDirectoryRejectsDifferentConfigEpoch(t *testing.T) {
+	dir := NewDirectory(DirectoryOptions{LocalNodeID: 1})
+	target := RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 1, LeaderTerm: 9, ConfigEpoch: 3, RouteRevision: 10, AuthorityEpoch: 1}
+	dir.BecomeAuthority(target)
+
+	stale := target
+	stale.ConfigEpoch = 2
+	if err := dir.TouchRoutes(stale, []Route{{UID: "u1", OwnerNodeID: 2, OwnerBootID: 1, OwnerSeq: 1, SessionID: 10}}); !errors.Is(err, ErrNotLeader) {
+		t.Fatalf("TouchRoutes(different config epoch) error = %v, want ErrNotLeader", err)
 	}
 }
 
@@ -305,21 +345,21 @@ func TestDirectoryCommitRouteRejectsSupersededPendingRoute(t *testing.T) {
 	}
 }
 
-func TestDirectoryLeadershipEpochClearsOldRoutes(t *testing.T) {
+func TestDirectoryLeadershipIdentityClearsOldRoutes(t *testing.T) {
 	dir := NewDirectory(DirectoryOptions{ShardCount: 4})
-	first := RouteTarget{HashSlot: 3, SlotID: 1, LeaderNodeID: 1, RouteRevision: 1, AuthorityEpoch: 1}
+	first := RouteTarget{HashSlot: 3, SlotID: 1, LeaderNodeID: 1, LeaderTerm: 9, ConfigEpoch: 3, RouteRevision: 1, AuthorityEpoch: 1}
 	dir.BecomeAuthority(first)
 	if _, err := dir.RegisterRoute(first, Route{UID: "u1", OwnerNodeID: 1, OwnerBootID: 1, OwnerSeq: 1, SessionID: 10, DeviceID: "d1", DeviceFlag: 1, DeviceLevel: 1}); err != nil {
 		t.Fatalf("RegisterRoute(first) error = %v", err)
 	}
 
-	second := RouteTarget{HashSlot: 3, SlotID: 1, LeaderNodeID: 1, RouteRevision: 2, AuthorityEpoch: 2}
+	second := RouteTarget{HashSlot: 3, SlotID: 1, LeaderNodeID: 1, LeaderTerm: 10, ConfigEpoch: 3, RouteRevision: 2, AuthorityEpoch: 2}
 	dir.BecomeAuthority(second)
 	if routes, err := dir.EndpointsByUID(second, "u1"); err != nil || len(routes) != 0 {
-		t.Fatalf("EndpointsByUID(new epoch) routes=%#v error=%v, want empty routes", routes, err)
+		t.Fatalf("EndpointsByUID(new identity) routes=%#v error=%v, want empty routes", routes, err)
 	}
 	if _, err := dir.EndpointsByUID(first, "u1"); !errors.Is(err, ErrNotLeader) {
-		t.Fatalf("EndpointsByUID(old epoch) error = %v, want ErrNotLeader", err)
+		t.Fatalf("EndpointsByUID(old identity) error = %v, want ErrNotLeader", err)
 	}
 }
 
@@ -347,11 +387,11 @@ func TestDirectoryRouteRevisionUpdatePreservesAuthorityState(t *testing.T) {
 	}
 	lateRoute := Route{UID: "u2", OwnerNodeID: 1, OwnerBootID: 1, OwnerSeq: 1, SessionID: 11, DeviceID: "d1", DeviceFlag: 1, DeviceLevel: 1}
 	if _, err := dir.RegisterRoute(first, lateRoute); err != nil {
-		t.Fatalf("RegisterRoute(old revision same epoch) error = %v", err)
+		t.Fatalf("RegisterRoute(old revision same identity) error = %v", err)
 	}
 }
 
-func TestDirectoryAcceptsSameEpochTargetBeforeRevisionUpdateEvent(t *testing.T) {
+func TestDirectoryAcceptsSameIdentityTargetBeforeRevisionUpdateEvent(t *testing.T) {
 	dir := NewDirectory(DirectoryOptions{ShardCount: 4})
 	current := RouteTarget{HashSlot: 3, SlotID: 1, LeaderNodeID: 1, RouteRevision: 1, AuthorityEpoch: 1}
 	next := current
@@ -360,7 +400,7 @@ func TestDirectoryAcceptsSameEpochTargetBeforeRevisionUpdateEvent(t *testing.T) 
 
 	route := Route{UID: "u1", OwnerNodeID: 1, OwnerBootID: 1, OwnerSeq: 1, SessionID: 10, DeviceID: "d1", DeviceFlag: 1, DeviceLevel: 1}
 	if _, err := dir.RegisterRoute(next, route); err != nil {
-		t.Fatalf("RegisterRoute(new revision same epoch before BecomeAuthority) error = %v", err)
+		t.Fatalf("RegisterRoute(new revision same identity before BecomeAuthority) error = %v", err)
 	}
 }
 

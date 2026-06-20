@@ -8,13 +8,14 @@
 
 Every mutation and lookup carries a `RouteTarget`. The directory accepts the
 operation only when the target matches the installed authority identity:
-`(HashSlot, SlotID, LeaderNodeID, AuthorityEpoch)`.
+`(HashSlot, SlotID, LeaderNodeID, LeaderTerm, ConfigEpoch)`.
 
 `BecomeAuthority` installs a fresh authority identity and clears previous
 active, pending, and owner-sequence state for that hash slot. Route-revision-only
-updates with the same slot, leader, and `AuthorityEpoch` preserve state while
-advancing the observed target. In-flight callers using the same authority epoch
-are still accepted across revision-only updates. `LoseAuthority` removes the
+updates with the same Slot Raft identity preserve state while advancing the
+observed target. In-flight callers using the same Slot Raft identity are still
+accepted across revision-only updates. `AuthorityEpoch` is local diagnostic
+metadata and is not a distributed authority fence. `LoseAuthority` removes the
 hash-slot state so stale callers receive `ErrNotLeader`.
 
 ## Register And Conflicts
