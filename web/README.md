@@ -26,7 +26,7 @@ The web app provides the authenticated manager shell for WuKongIM operations:
 |------|----------------------|--------|
 | `/cluster/dashboard` | `GET /manager/overview`, `GET /manager/tasks`, `GET /manager/nodes`, `GET /manager/channel-cluster/summary`, `GET /manager/network/summary` | Implemented |
 | `/cluster/nodes` | `GET /manager/nodes`, `GET /manager/nodes/:id`, node lifecycle and scale-in APIs; `?panel=onboarding` also uses node onboarding APIs | Implemented |
-| `/cluster/slots` | `GET /manager/nodes`, `GET /manager/slots`, `GET /manager/slots/:id`, slot leader/recovery/rebalance APIs | Implemented |
+| `/cluster/slots` | `GET /manager/nodes`, `GET /manager/slots`, `GET /manager/slots/:id`, Slot leader single/batch transfer, recovery, and rebalance APIs | Implemented |
 | `/cluster/channels?tab=overview` | `GET /manager/channel-cluster/summary` | Implemented |
 | `/cluster/channels?tab=list` | `GET /manager/channel-runtime-meta`, `GET /manager/channel-runtime-meta/:type/:id` | Implemented |
 | `/cluster/channels?tab=unhealthy` | `GET /manager/channel-cluster/unhealthy`, `GET /manager/channel-cluster/:type/:id/replicas`, `POST /manager/channel-cluster/:type/:id/repair`, `POST /manager/channel-cluster/:type/:id/leader/transfer` | Implemented |

@@ -62,6 +62,7 @@ import {
   removeSlot,
   rebalanceSlots,
   recoverSlot,
+  executeSlotLeaderTransferBatch,
   resetManagerAuthConfig,
   resumeNode,
   addSystemUsers,
@@ -73,6 +74,7 @@ import {
   advanceNodeScaleIn,
   cancelNodeScaleIn,
   startNodeOnboardingJob,
+  planSlotLeaderTransfers,
   transferSlotLeader,
   advanceMessageRetention,
   addBusinessChannelMembers,
@@ -1352,6 +1354,27 @@ describe("manager api client", () => {
   })
 
   it("posts slot operator actions using backend request field names", async () => {
+    const transferResponse = {
+      generated_at: "2026-06-19T12:00:00Z",
+      slot_id: 9,
+      target_node: 2,
+      preferred_leader: 1,
+      actual_leader: 1,
+      created: true,
+      task: {
+        task_id: "slot-9-leader-transfer-7-r22",
+        kind: "leader_transfer",
+        step: "transfer_leader",
+        status: "pending",
+        source_node: 1,
+        target_node: 2,
+        target_peers: [1, 2, 3],
+        completion_policy: "single_observer",
+        config_epoch: 7,
+        attempt: 0,
+      },
+      message: "leader transfer task created",
+    }
     const slotDetail = {
       slot_id: 9,
       state: { quorum: "ready", sync: "in_sync" },
@@ -1376,15 +1399,70 @@ describe("manager api client", () => {
       items: [{ hash_slot: 3, from_slot_id: 9, to_slot_id: 11 }],
     }
 
-    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(slotDetail), { status: 200 }))
+    const batchPlanResult = {
+      generated_at: "2026-06-20T09:30:00Z",
+      state_revision: 22,
+      plan_id: "plan-22",
+      source_node_id: 1,
+      target_policy: "least_leaders",
+      max_tasks: 4,
+      summary: {
+        scanned: 3,
+        candidates: 1,
+        skipped: 1,
+        existing_tasks: 0,
+        would_create: 1,
+      },
+      candidates: [{
+        slot_id: 9,
+        source_node_id: 1,
+        target_node_id: 2,
+        preferred_leader: 1,
+        actual_leader: 1,
+        desired_peers: [1, 2, 3],
+        current_voters: [1, 2, 3],
+        config_epoch: 7,
+        existing_task_id: "",
+        action: "create",
+      }],
+      skipped: [{
+        slot_id: 10,
+        reason: "already_on_target",
+        message: "slot is already led by target node",
+      }],
+    }
+    const batchExecuteResult = {
+      generated_at: "2026-06-20T09:35:00Z",
+      state_revision: 22,
+      plan_id: "plan-22",
+      summary: {
+        requested: 1,
+        created: 1,
+        existing: 0,
+        already_leader: 0,
+        skipped: 0,
+        failed: 0,
+      },
+      results: [{
+        slot_id: 9,
+        target_node_id: 2,
+        status: "created",
+        task_id: "slot-9-leader-transfer-7-r22",
+        message: "leader transfer task created",
+      }],
+    }
+
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(transferResponse), { status: 202 }))
     fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(recoverResult), { status: 200 }))
     fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(rebalanceResult), { status: 200 }))
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(batchPlanResult), { status: 200 }))
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(batchExecuteResult), { status: 202 }))
 
-    await expect(transferSlotLeader(9, { targetNodeId: 2 })).resolves.toEqual(slotDetail)
+    await expect(transferSlotLeader(9, { targetNodeId: 2 })).resolves.toEqual(transferResponse)
     let requestInit = fetchMock.mock.calls[0]?.[1] as { method: string; body: string; headers: Headers }
-    expect(fetchMock.mock.calls[0]?.[0]).toBe("/manager/slots/9/leader/transfer")
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("/manager/slots/9/leader-transfer")
     expect(requestInit.method).toBe("POST")
-    expect(JSON.parse(requestInit.body)).toEqual({ target_node_id: 2 })
+    expect(JSON.parse(requestInit.body)).toEqual({ target_node: 2 })
     expect(requestInit.headers.get("Content-Type")).toBe("application/json")
 
     await expect(recoverSlot(9, { strategy: "latest_live_replica" })).resolves.toEqual(recoverResult)
@@ -1396,6 +1474,46 @@ describe("manager api client", () => {
     requestInit = fetchMock.mock.calls[2]?.[1] as { method: string }
     expect(fetchMock.mock.calls[2]?.[0]).toBe("/manager/slots/rebalance")
     expect(requestInit.method).toBe("POST")
+
+    await expect(planSlotLeaderTransfers({
+      sourceNodeId: 1,
+      targetNodeId: 2,
+      slotIds: [9, 10],
+      maxTasks: 4,
+      targetPolicy: "least_leaders",
+    })).resolves.toEqual(batchPlanResult)
+    requestInit = fetchMock.mock.calls[3]?.[1] as { method: string; body: string }
+    expect(fetchMock.mock.calls[3]?.[0]).toBe("/manager/slots/leader-transfer-plan")
+    expect(requestInit.method).toBe("POST")
+    expect(JSON.parse(requestInit.body)).toEqual({
+      source_node_id: 1,
+      target_node_id: 2,
+      slot_ids: [9, 10],
+      max_tasks: 4,
+      target_policy: "least_leaders",
+    })
+
+    await expect(executeSlotLeaderTransferBatch({
+      sourceNodeId: 1,
+      targetNodeId: 2,
+      slotIds: [9, 10],
+      maxTasks: 4,
+      targetPolicy: "least_leaders",
+      stateRevision: 22,
+      planId: "plan-22",
+    })).resolves.toEqual(batchExecuteResult)
+    requestInit = fetchMock.mock.calls[4]?.[1] as { method: string; body: string }
+    expect(fetchMock.mock.calls[4]?.[0]).toBe("/manager/slots/leader-transfer-batch")
+    expect(requestInit.method).toBe("POST")
+    expect(JSON.parse(requestInit.body)).toEqual({
+      source_node_id: 1,
+      target_node_id: 2,
+      slot_ids: [9, 10],
+      max_tasks: 4,
+      target_policy: "least_leaders",
+      state_revision: 22,
+      plan_id: "plan-22",
+    })
   })
 
   it("fetches tasks list and detail data", async () => {

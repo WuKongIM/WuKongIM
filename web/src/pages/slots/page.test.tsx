@@ -18,6 +18,8 @@ const compactSlotRaftLogOnNodeMock = vi.fn()
 const addSlotMock = vi.fn()
 const removeSlotMock = vi.fn()
 const transferSlotLeaderMock = vi.fn()
+const planSlotLeaderTransfersMock = vi.fn()
+const executeSlotLeaderTransferBatchMock = vi.fn()
 const recoverSlotMock = vi.fn()
 const rebalanceSlotsMock = vi.fn()
 
@@ -34,6 +36,8 @@ vi.mock("@/lib/manager-api", async (importOriginal) => {
     addSlot: (...args: unknown[]) => addSlotMock(...args),
     removeSlot: (...args: unknown[]) => removeSlotMock(...args),
     transferSlotLeader: (...args: unknown[]) => transferSlotLeaderMock(...args),
+    planSlotLeaderTransfers: (...args: unknown[]) => planSlotLeaderTransfersMock(...args),
+    executeSlotLeaderTransferBatch: (...args: unknown[]) => executeSlotLeaderTransferBatchMock(...args),
     recoverSlot: (...args: unknown[]) => recoverSlotMock(...args),
     rebalanceSlots: (...args: unknown[]) => rebalanceSlotsMock(...args),
   }
@@ -114,6 +118,8 @@ beforeEach(() => {
   addSlotMock.mockReset()
   removeSlotMock.mockReset()
   transferSlotLeaderMock.mockReset()
+  planSlotLeaderTransfersMock.mockReset()
+  executeSlotLeaderTransferBatchMock.mockReset()
   recoverSlotMock.mockReset()
   rebalanceSlotsMock.mockReset()
   useAuthStore.setState({
@@ -418,6 +424,92 @@ test("shows rebalance plan results after confirmation", async () => {
 
   expect(rebalanceSlotsMock).toHaveBeenCalledTimes(1)
   expect(await screen.findByText("From slot 9 to slot 11")).toBeInTheDocument()
+})
+
+test("previews and executes a batch slot leader transfer plan", async () => {
+  getSlotsMock.mockResolvedValueOnce({ total: 1, items: [slotRow] })
+  planSlotLeaderTransfersMock.mockResolvedValueOnce({
+    generated_at: "2026-06-20T09:30:00Z",
+    state_revision: 22,
+    plan_id: "plan-22",
+    source_node_id: 1,
+    target_policy: "least_leaders",
+    max_tasks: 8,
+    summary: {
+      scanned: 1,
+      candidates: 1,
+      skipped: 0,
+      existing_tasks: 0,
+      would_create: 1,
+    },
+    candidates: [{
+      slot_id: 9,
+      source_node_id: 1,
+      target_node_id: 2,
+      preferred_leader: 1,
+      actual_leader: 1,
+      desired_peers: [1, 2, 3],
+      current_voters: [1, 2, 3],
+      config_epoch: 7,
+      existing_task_id: "",
+      action: "create",
+    }],
+    skipped: [],
+  })
+  executeSlotLeaderTransferBatchMock.mockResolvedValueOnce({
+    generated_at: "2026-06-20T09:35:00Z",
+    state_revision: 22,
+    plan_id: "plan-22",
+    summary: {
+      requested: 1,
+      created: 1,
+      existing: 0,
+      already_leader: 0,
+      skipped: 0,
+      failed: 0,
+    },
+    results: [{
+      slot_id: 9,
+      target_node_id: 2,
+      status: "created",
+      task_id: "slot-9-leader-transfer-7-r22",
+      message: "leader transfer task created",
+    }],
+  })
+  getSlotsMock.mockResolvedValueOnce({ total: 1, items: [slotRow] })
+
+  const user = userEvent.setup()
+  renderSlotsPage()
+
+  expect(await screen.findByText("Slot 9")).toBeInTheDocument()
+  await user.click(screen.getByRole("button", { name: "Batch transfer leaders" }))
+  await user.type(screen.getByLabelText("Source node ID"), "1")
+  await user.type(screen.getByLabelText("Target node ID"), "2")
+  await user.click(screen.getByRole("button", { name: "Preview plan" }))
+
+  expect(planSlotLeaderTransfersMock).toHaveBeenCalledWith({
+    sourceNodeId: 1,
+    targetNodeId: 2,
+    slotIds: [],
+    maxTasks: 8,
+    targetPolicy: "least_leaders",
+  })
+  expect(await screen.findByText("Candidates 1 · Would create 1 · Skipped 0")).toBeInTheDocument()
+  expect(screen.getByText("Slot 9 -> Node 2")).toBeInTheDocument()
+
+  await user.click(screen.getByRole("button", { name: "Execute plan" }))
+
+  expect(executeSlotLeaderTransferBatchMock).toHaveBeenCalledWith({
+    sourceNodeId: 1,
+    targetNodeId: 2,
+    slotIds: [],
+    maxTasks: 8,
+    targetPolicy: "least_leaders",
+    stateRevision: 22,
+    planId: "plan-22",
+  })
+  expect(getSlotsMock).toHaveBeenCalledTimes(2)
+  expect(await screen.findByText("Created 1 · Existing 0 · Failed 0")).toBeInTheDocument()
 })
 
 test("starts physical slot removal and refreshes the list", async () => {

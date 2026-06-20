@@ -19,10 +19,12 @@ import { SlotLogsPanel } from "@/pages/slot-logs/page"
 import {
   ManagerApiError,
   addSlot,
+  executeSlotLeaderTransferBatch,
   getNodes,
   getOverview,
   getSlot,
   getSlots,
+  planSlotLeaderTransfers,
   removeSlot,
   rebalanceSlots,
   recoverSlot,
@@ -35,6 +37,8 @@ import type {
   ManagerOverviewSlotAnomalyItem,
   ManagerSlotDetailResponse,
   ManagerSlotHashSlots,
+  ManagerSlotLeaderTransferBatchExecuteResponse,
+  ManagerSlotLeaderTransferBatchPlanResponse,
   ManagerSlotRebalanceResponse,
   ManagerSlotsResponse,
 } from "@/lib/manager-api.types"
@@ -65,6 +69,8 @@ const tabs = [
 type SlotClusterTab = (typeof tabs)[number]["id"]
 
 const recoverStrategyValues = ["latest_live_replica"] as const
+const defaultBatchTargetPolicy = "least_leaders"
+const defaultBatchMaxTasks = "8"
 
 function normalizeTab(value: string | null): SlotClusterTab {
   return tabs.some((tab) => tab.id === value) ? (value as SlotClusterTab) : "list"
@@ -109,6 +115,28 @@ function hasPermission(
 
 function formatNodeList(nodeIds: number[]) {
   return nodeIds.length > 0 ? nodeIds.join(", ") : "-"
+}
+
+function parsePositiveInteger(value: string) {
+  const parsed = Number(value)
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null
+}
+
+function parseOptionalPositiveInteger(value: string) {
+  if (value.trim() === "") {
+    return 0
+  }
+  return parsePositiveInteger(value)
+}
+
+function parseSlotIDList(value: string) {
+  const trimmed = value.trim()
+  if (!trimmed) {
+    return [] as number[]
+  }
+  const parts = trimmed.split(/[\s,]+/).filter(Boolean)
+  const ids = parts.map((part) => Number(part))
+  return ids.every((id) => Number.isInteger(id) && id > 0) ? ids : null
 }
 
 function defaultNodeId(nodes: ManagerNodesResponse | null) {
@@ -272,6 +300,17 @@ export function SlotClusterListPanel() {
   const [rebalancePending, setRebalancePending] = useState(false)
   const [rebalanceError, setRebalanceError] = useState("")
   const [rebalancePlan, setRebalancePlan] = useState<ManagerSlotRebalanceResponse | null>(null)
+  const [batchTransferOpen, setBatchTransferOpen] = useState(false)
+  const [batchTransferPending, setBatchTransferPending] = useState(false)
+  const [batchTransferError, setBatchTransferError] = useState("")
+  const [batchSourceNodeId, setBatchSourceNodeId] = useState("")
+  const [batchTargetNodeId, setBatchTargetNodeId] = useState("")
+  const [batchSlotIds, setBatchSlotIds] = useState("")
+  const [batchMaxTasks, setBatchMaxTasks] = useState(defaultBatchMaxTasks)
+  const [batchTargetPolicy, setBatchTargetPolicy] = useState(defaultBatchTargetPolicy)
+  const [batchTransferPlan, setBatchTransferPlan] = useState<ManagerSlotLeaderTransferBatchPlanResponse | null>(null)
+  const [batchTransferResult, setBatchTransferResult] =
+    useState<ManagerSlotLeaderTransferBatchExecuteResponse | null>(null)
 
   const loadNodes = useCallback(async () => {
     try {
@@ -447,6 +486,78 @@ export function SlotClusterListPanel() {
     }
   }, [])
 
+  const resetBatchTransferPlan = useCallback(() => {
+    setBatchTransferPlan(null)
+    setBatchTransferError("")
+  }, [])
+
+  const submitBatchTransfer = useCallback(async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+
+    const sourceNodeId = parsePositiveInteger(batchSourceNodeId)
+    const targetNodeId = parseOptionalPositiveInteger(batchTargetNodeId)
+    const slotIds = parseSlotIDList(batchSlotIds)
+    const maxTasks = parsePositiveInteger(batchMaxTasks)
+    if (!sourceNodeId) {
+      setBatchTransferError(intl.formatMessage({ id: "slots.validation.sourceNodeId" }))
+      return
+    }
+    if (targetNodeId === null) {
+      setBatchTransferError(intl.formatMessage({ id: "slots.validation.targetNodeId" }))
+      return
+    }
+    if (slotIds === null) {
+      setBatchTransferError(intl.formatMessage({ id: "slots.validation.slotIds" }))
+      return
+    }
+    if (!maxTasks) {
+      setBatchTransferError(intl.formatMessage({ id: "slots.validation.maxTasks" }))
+      return
+    }
+
+    const input = {
+      sourceNodeId,
+      targetNodeId,
+      slotIds,
+      maxTasks,
+      targetPolicy: batchTargetPolicy,
+    }
+    setBatchTransferPending(true)
+    setBatchTransferError("")
+
+    try {
+      if (!batchTransferPlan) {
+        const nextPlan = await planSlotLeaderTransfers(input)
+        setBatchTransferPlan(nextPlan)
+        return
+      }
+
+      const nextResult = await executeSlotLeaderTransferBatch({
+        ...input,
+        stateRevision: batchTransferPlan.state_revision,
+        planId: batchTransferPlan.plan_id,
+      })
+      setBatchTransferResult(nextResult)
+      setBatchTransferPlan(null)
+      setBatchTransferOpen(false)
+      await loadSlots(true, selectedNodeId)
+    } catch (error) {
+      setBatchTransferError(error instanceof Error ? error.message : "slot leader transfer batch failed")
+    } finally {
+      setBatchTransferPending(false)
+    }
+  }, [
+    batchMaxTasks,
+    batchSlotIds,
+    batchSourceNodeId,
+    batchTargetNodeId,
+    batchTargetPolicy,
+    batchTransferPlan,
+    intl,
+    loadSlots,
+    selectedNodeId,
+  ])
+
   const runAddSlot = useCallback(async () => {
     setAddPending(true)
     setAddError("")
@@ -539,6 +650,18 @@ export function SlotClusterListPanel() {
             variant="outline"
           >
             {intl.formatMessage({ id: "slots.addSlot" })}
+          </Button>
+          <Button
+            disabled={!canWriteSlots}
+            onClick={() => {
+              setBatchTransferOpen(true)
+              setBatchTransferError("")
+              setBatchTransferPlan(null)
+            }}
+            size="sm"
+            variant="outline"
+          >
+            {intl.formatMessage({ id: "slots.batchTransferLeader" })}
           </Button>
           <Button
             disabled={!canWriteSlots}
@@ -656,6 +779,36 @@ export function SlotClusterListPanel() {
               ) : (
                 <ResourceState kind="empty" title={intl.formatMessage({ id: "slots.rebalancePlan.title" })} />
               )}
+            </div>
+          ) : null}
+
+          {batchTransferResult ? (
+            <div className="rounded-xl border border-border bg-card p-3 shadow-none">
+              <div className="text-sm font-medium text-foreground">
+                {intl.formatMessage(
+                  { id: "slots.batchTransferResult.summary" },
+                  {
+                    created: batchTransferResult.summary.created,
+                    existing: batchTransferResult.summary.existing,
+                    failed: batchTransferResult.summary.failed,
+                  },
+                )}
+              </div>
+              {batchTransferResult.results.length > 0 ? (
+                <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                  {batchTransferResult.results.map((item) => (
+                    <div className="rounded-lg border border-border bg-muted/20 px-3 py-2" key={item.slot_id}>
+                      <div className="text-sm font-medium text-foreground">
+                        {intl.formatMessage(
+                          { id: "slots.batchTransferResult.item" },
+                          { slot: item.slot_id, target: item.target_node_id },
+                        )}
+                      </div>
+                      <div className="mt-1 text-xs text-muted-foreground">{item.status}</div>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
             </div>
           ) : null}
         </>
@@ -817,6 +970,126 @@ export function SlotClusterListPanel() {
             value={targetNodeId}
           />
         </label>
+      </ActionFormDialog>
+
+      <ActionFormDialog
+        description={intl.formatMessage({ id: "slots.batchTransferDescription" })}
+        error={batchTransferError}
+        onOpenChange={(open) => {
+          setBatchTransferOpen(open)
+          if (!open) {
+            setBatchTransferError("")
+            setBatchTransferPlan(null)
+          }
+        }}
+        onSubmit={(event) => {
+          void submitBatchTransfer(event)
+        }}
+        open={batchTransferOpen}
+        pending={batchTransferPending}
+        submitLabel={intl.formatMessage({
+          id: batchTransferPlan ? "slots.batchTransferExecute" : "slots.batchTransferPreview",
+        })}
+        title={intl.formatMessage({ id: "slots.batchTransferLeader" })}
+      >
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="grid gap-2 text-sm text-foreground">
+            <span>{intl.formatMessage({ id: "slots.sourceNodeId" })}</span>
+            <input
+              className="rounded-md border border-border bg-background px-3 py-2 text-sm outline-none"
+              inputMode="numeric"
+              onChange={(event) => {
+                setBatchSourceNodeId(event.target.value)
+                resetBatchTransferPlan()
+              }}
+              value={batchSourceNodeId}
+            />
+          </label>
+          <label className="grid gap-2 text-sm text-foreground">
+            <span>{intl.formatMessage({ id: "slots.targetNodeId" })}</span>
+            <input
+              className="rounded-md border border-border bg-background px-3 py-2 text-sm outline-none"
+              inputMode="numeric"
+              onChange={(event) => {
+                setBatchTargetNodeId(event.target.value)
+                resetBatchTransferPlan()
+              }}
+              value={batchTargetNodeId}
+            />
+          </label>
+        </div>
+        <label className="grid gap-2 text-sm text-foreground">
+          <span>{intl.formatMessage({ id: "slots.batchTransferSlotIds" })}</span>
+          <input
+            className="rounded-md border border-border bg-background px-3 py-2 text-sm outline-none"
+            onChange={(event) => {
+              setBatchSlotIds(event.target.value)
+              resetBatchTransferPlan()
+            }}
+            value={batchSlotIds}
+          />
+        </label>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="grid gap-2 text-sm text-foreground">
+            <span>{intl.formatMessage({ id: "slots.batchTransferMaxTasks" })}</span>
+            <input
+              className="rounded-md border border-border bg-background px-3 py-2 text-sm outline-none"
+              inputMode="numeric"
+              onChange={(event) => {
+                setBatchMaxTasks(event.target.value)
+                resetBatchTransferPlan()
+              }}
+              value={batchMaxTasks}
+            />
+          </label>
+          <label className="grid gap-2 text-sm text-foreground">
+            <span>{intl.formatMessage({ id: "slots.batchTransferTargetPolicy" })}</span>
+            <select
+              className="rounded-md border border-border bg-background px-3 py-2 text-sm outline-none"
+              onChange={(event) => {
+                setBatchTargetPolicy(event.target.value)
+                resetBatchTransferPlan()
+              }}
+              value={batchTargetPolicy}
+            >
+              <option value={defaultBatchTargetPolicy}>
+                {intl.formatMessage({ id: "slots.batchTransferTargetPolicy.leastLeaders" })}
+              </option>
+            </select>
+          </label>
+        </div>
+        {batchTransferPlan ? (
+          <div className="rounded-lg border border-border bg-muted/20 px-3 py-3">
+            <div className="text-sm font-medium text-foreground">
+              {intl.formatMessage(
+                { id: "slots.batchTransferPlan.summary" },
+                {
+                  candidates: batchTransferPlan.summary.candidates,
+                  wouldCreate: batchTransferPlan.summary.would_create,
+                  skipped: batchTransferPlan.summary.skipped,
+                },
+              )}
+            </div>
+            <div className="mt-3 grid gap-2">
+              {batchTransferPlan.candidates.map((candidate) => (
+                <div className="text-sm text-muted-foreground" key={candidate.slot_id}>
+                  {intl.formatMessage(
+                    { id: "slots.batchTransferPlan.candidate" },
+                    { slot: candidate.slot_id, target: candidate.target_node_id },
+                  )}
+                </div>
+              ))}
+              {batchTransferPlan.skipped.map((item) => (
+                <div className="text-sm text-muted-foreground" key={`skip-${item.slot_id}`}>
+                  {intl.formatMessage(
+                    { id: "slots.batchTransferPlan.skipped" },
+                    { slot: item.slot_id, reason: item.message || item.reason },
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
       </ActionFormDialog>
 
       <ActionFormDialog

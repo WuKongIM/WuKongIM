@@ -59,6 +59,9 @@ import type {
   ManagerUserDetailResponse,
   ManagerUsersResponse,
   ManagerSlotDetailResponse,
+  ManagerSlotLeaderTransferBatchExecuteResponse,
+  ManagerSlotLeaderTransferBatchPlanResponse,
+  ManagerSlotLeaderTransferResponse,
   ManagerSlotLogsResponse,
   ManagerSlotRaftCompactResponse,
   ManagerSlotRemoveResponse,
@@ -75,6 +78,7 @@ import type {
   MutateSystemUsersResponse,
   MutatePluginBindingInput,
   NodeOnboardingJobsParams,
+  ExecuteSlotLeaderTransferBatchInput,
   PluginBindingListParams,
   SlotListParams,
   SlotLogListParams,
@@ -83,6 +87,7 @@ import type {
   ResetUserTokenResponse,
   RealtimeMonitorResponse,
   TransferSlotLeaderInput,
+  SlotLeaderTransferBatchInput,
   CreateNodeOnboardingPlanInput,
   CreateNodeScaleInPlanInput,
   AdvanceNodeScaleInInput,
@@ -713,10 +718,38 @@ export function removeSlot(slotId: number) {
   })
 }
 
+function slotLeaderTransferBatchBody(input: SlotLeaderTransferBatchInput) {
+  return {
+    source_node_id: input.sourceNodeId,
+    target_node_id: input.targetNodeId ?? 0,
+    slot_ids: input.slotIds ?? [],
+    max_tasks: input.maxTasks ?? 0,
+    target_policy: input.targetPolicy ?? "",
+  }
+}
+
 export function transferSlotLeader(slotId: number, input: TransferSlotLeaderInput) {
-  return jsonManagerFetch<ManagerSlotDetailResponse>(`/manager/slots/${slotId}/leader/transfer`, {
+  return jsonManagerFetch<ManagerSlotLeaderTransferResponse>(`/manager/slots/${slotId}/leader-transfer`, {
     method: "POST",
-    body: JSON.stringify({ target_node_id: input.targetNodeId }),
+    body: JSON.stringify({ target_node: input.targetNodeId }),
+  })
+}
+
+export function planSlotLeaderTransfers(input: SlotLeaderTransferBatchInput) {
+  return jsonManagerFetch<ManagerSlotLeaderTransferBatchPlanResponse>("/manager/slots/leader-transfer-plan", {
+    method: "POST",
+    body: JSON.stringify(slotLeaderTransferBatchBody(input)),
+  })
+}
+
+export function executeSlotLeaderTransferBatch(input: ExecuteSlotLeaderTransferBatchInput) {
+  return jsonManagerFetch<ManagerSlotLeaderTransferBatchExecuteResponse>("/manager/slots/leader-transfer-batch", {
+    method: "POST",
+    body: JSON.stringify({
+      ...slotLeaderTransferBatchBody(input),
+      state_revision: input.stateRevision,
+      plan_id: input.planId,
+    }),
   })
 }
 

@@ -948,6 +948,81 @@ export type ManagerSlotRebalanceResponse = {
   items: ManagerSlotRebalancePlanItem[]
 }
 
+export type ManagerSlotLeaderTransferResponse = {
+  generated_at: string
+  slot_id: number
+  target_node: number
+  preferred_leader: number
+  actual_leader: number
+  created: boolean
+  task?: ManagerTask
+  message: string
+}
+
+export type ManagerSlotLeaderTransferBatchPlanSummary = {
+  scanned: number
+  candidates: number
+  skipped: number
+  existing_tasks: number
+  would_create: number
+}
+
+export type ManagerSlotLeaderTransferBatchCandidate = {
+  slot_id: number
+  source_node_id: number
+  target_node_id: number
+  preferred_leader: number
+  actual_leader: number
+  desired_peers: number[]
+  current_voters: number[]
+  config_epoch: number
+  existing_task_id: string
+  action: string
+}
+
+export type ManagerSlotLeaderTransferBatchSkip = {
+  slot_id: number
+  reason: string
+  message: string
+}
+
+export type ManagerSlotLeaderTransferBatchPlanResponse = {
+  generated_at: string
+  state_revision: number
+  plan_id: string
+  source_node_id: number
+  target_policy: string
+  max_tasks: number
+  summary: ManagerSlotLeaderTransferBatchPlanSummary
+  candidates: ManagerSlotLeaderTransferBatchCandidate[]
+  skipped: ManagerSlotLeaderTransferBatchSkip[]
+}
+
+export type ManagerSlotLeaderTransferBatchExecuteSummary = {
+  requested: number
+  created: number
+  existing: number
+  already_leader: number
+  skipped: number
+  failed: number
+}
+
+export type ManagerSlotLeaderTransferBatchResult = {
+  slot_id: number
+  target_node_id: number
+  status: string
+  task_id: string
+  message: string
+}
+
+export type ManagerSlotLeaderTransferBatchExecuteResponse = {
+  generated_at: string
+  state_revision: number
+  plan_id: string
+  summary: ManagerSlotLeaderTransferBatchExecuteSummary
+  results: ManagerSlotLeaderTransferBatchResult[]
+}
+
 export type ManagerTasksResponse = {
   total: number
   items: ManagerTask[]
@@ -1441,6 +1516,19 @@ export type NodeOnboardingJobsParams = {
 
 export type TransferSlotLeaderInput = {
   targetNodeId: number
+}
+
+export type SlotLeaderTransferBatchInput = {
+  sourceNodeId: number
+  targetNodeId?: number
+  slotIds?: number[]
+  maxTasks?: number
+  targetPolicy?: string
+}
+
+export type ExecuteSlotLeaderTransferBatchInput = SlotLeaderTransferBatchInput & {
+  stateRevision: number
+  planId: string
 }
 
 export type RecoverSlotInput = {
