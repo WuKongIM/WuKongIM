@@ -20,6 +20,8 @@ GET  /manager/slots   (read-only Slot list; requires cluster.slot:r when Auth.On
 POST /manager/slots/:slot_id/leader-transfer (Controller-backed Slot leader-transfer intent; requires cluster.slot:w when Auth.On=true)
 POST /manager/nodes/:node_id/slots/:slot_id/compact (manual node-local Slot Raft compaction; requires cluster.slot:w when Auth.On=true)
 GET  /manager/controller/logs (Controller distributed log page; requires cluster.controller:r when Auth.On=true)
+GET  /manager/controller/tasks (active Controller task list; requires cluster.controller:r when Auth.On=true)
+GET  /manager/controller/tasks/:task_id (active Controller task detail; requires cluster.controller:r when Auth.On=true)
 GET  /manager/nodes/:node_id/controller-raft (node-local Controller Raft status; requires cluster.controller:r when Auth.On=true)
 POST /manager/nodes/:node_id/controller-raft/compact (manual node-local Controller Raft compaction; requires cluster.controller:w when Auth.On=true)
 POST /manager/controller-raft/compact (manual Controller voter compaction fan-out; requires cluster.controller:w when Auth.On=true)
@@ -114,6 +116,13 @@ newest-first distributed Raft log pages for the selected node. They parse
 selection to `internalv2/usecase/management`, and return decoded payload
 summaries only for inspection; the routes do not mutate Controller or Slot
 state.
+
+`/manager/controller/tasks*` exposes active ControllerV2 task state from the
+local control snapshot. The HTTP layer validates `kind`, `status`, `slot_id`,
+`node_id`, and `limit`, requires `cluster.controller:r` when manager auth is
+enabled, and delegates projection/filtering to `internalv2/usecase/management`.
+The route is read-only and intentionally omits completed task history because
+completed tasks are removed from active cluster state.
 
 `/manager/nodes/:node_id/slots/:slot_id/compact` is the explicit Slot Raft
 operator action paired with the read-only Slot log page and list-row Slot Raft

@@ -16,6 +16,7 @@ projections/actions used by `GET /manager/nodes`,
 `GET /manager/slots`, `POST /manager/slots/:slot_id/leader-transfer`,
 `GET /manager/channels`,
 `GET /manager/channel-runtime-meta`, `GET /manager/controller/logs`,
+`GET /manager/controller/tasks`, `GET /manager/controller/tasks/:task_id`,
 `GET /manager/slots/:slot_id/logs`,
 `GET /manager/nodes/:node_id/controller-raft`,
 `POST /manager/nodes/:node_id/controller-raft/compact`,
@@ -89,6 +90,24 @@ target peers, config epoch, and observed control-state revision. Management
 validation is intentionally limited to the current Slot Raft leader, voter set,
 desired peers, and target-node health; it does not inspect target match index or
 predict whether Raft will ultimately choose the preferred target.
+
+## Controller Task Read Flow
+
+```text
+manager HTTP handler
+  -> management.App.ListControllerTasks/ControllerTask
+  -> ControlSnapshotReader.LocalControlSnapshot
+  -> clusterv2 control snapshot Tasks
+  -> sorted active Controller task DTO rows or one active task
+```
+
+The task read model exposes active ControllerV2 tasks only. Completed tasks are
+absent because ControllerV2 removes them from active cluster state, while failed
+tasks remain visible with status, attempt, task error, and participant progress.
+List filtering is performed in the management usecase for kind, status,
+physical Slot, and related node membership across source, target, target peers,
+and participant rows. The usecase does not read Controller Raft logs, persist
+history, mutate task state, or provide cancellation and retry operations.
 
 ## Distributed Log Flow
 
