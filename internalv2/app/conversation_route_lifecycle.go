@@ -63,16 +63,15 @@ func (l *conversationAuthorityRouteLifecycle) Start(ctx context.Context) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	l.mu.Lock()
+	if l.cancel != nil {
+		l.mu.Unlock()
+		return nil
+	}
 	runCtx, cancel := context.WithCancel(ctx)
 	var events <-chan clusterv2.RouteAuthorityEvent
 	if l.watch != nil {
 		events = l.watch()
-	}
-	l.mu.Lock()
-	if l.cancel != nil {
-		l.mu.Unlock()
-		cancel()
-		return nil
 	}
 	l.cancel = cancel
 	if l.latest == nil {

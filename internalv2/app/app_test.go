@@ -2493,6 +2493,37 @@ func TestConversationAuthorityRouteLifecycleWatchesLocalAuthorityEvents(t *testi
 	}
 }
 
+func TestConversationAuthorityRouteLifecycleStartIdempotentDoesNotCreateSecondWatch(t *testing.T) {
+	local := newConversationAuthority(conversationAuthorityOptions{LocalNodeID: 1, Store: &appRecordingConversationAuthorityStore{}})
+	var mu sync.Mutex
+	watchCalls := 0
+	lifecycle := newConversationAuthorityRouteLifecycle(conversationAuthorityRouteLifecycleOptions{
+		LocalAuthority: local,
+		LocalNodeID:    1,
+		Watch: func() <-chan clusterv2.RouteAuthorityEvent {
+			mu.Lock()
+			defer mu.Unlock()
+			watchCalls++
+			return make(chan clusterv2.RouteAuthorityEvent)
+		},
+		HandoffTimeout: 50 * time.Millisecond,
+	})
+	if err := lifecycle.Start(context.Background()); err != nil {
+		t.Fatalf("first Start() error = %v", err)
+	}
+	defer lifecycle.Stop(context.Background())
+	if err := lifecycle.Start(context.Background()); err != nil {
+		t.Fatalf("second Start() error = %v", err)
+	}
+
+	mu.Lock()
+	got := watchCalls
+	mu.Unlock()
+	if got != 1 {
+		t.Fatalf("watch calls = %d, want 1 for idempotent Start", got)
+	}
+}
+
 func TestConversationActiveAdmitBatchRPCUpdatesRemoteAndLocalCache(t *testing.T) {
 	localTarget := conversationusecase.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 1, RouteRevision: 10, AuthorityEpoch: 20}
 	remoteTarget := conversationusecase.RouteTarget{HashSlot: 2, SlotID: 2, LeaderNodeID: 2, RouteRevision: 11, AuthorityEpoch: 21}
@@ -4090,6 +4121,36 @@ func TestPresenceTouchWorkerPeriodicReconcileRepairsDroppedAuthorityEvent(t *tes
 		got := directory.becomeSnapshot()
 		return len(got) == 1 && got[0].LeaderNodeID == 1 && got[0].LeaderTerm == 9 && got[0].ConfigEpoch == 3 && got[0].AuthorityEpoch == 4
 	})
+}
+
+func TestPresenceTouchWorkerStartIdempotentDoesNotCreateSecondWatch(t *testing.T) {
+	var mu sync.Mutex
+	watchCalls := 0
+	worker := newPresenceTouchWorker(presenceTouchWorkerOptions{
+		NodeID:        1,
+		Directory:     &recordingPresenceDirectory{},
+		FlushInterval: time.Hour,
+		Watch: func() <-chan clusterv2.RouteAuthorityEvent {
+			mu.Lock()
+			defer mu.Unlock()
+			watchCalls++
+			return make(chan clusterv2.RouteAuthorityEvent)
+		},
+	})
+	if err := worker.Start(context.Background()); err != nil {
+		t.Fatalf("first Start() error = %v", err)
+	}
+	defer worker.Stop(context.Background())
+	if err := worker.Start(context.Background()); err != nil {
+		t.Fatalf("second Start() error = %v", err)
+	}
+
+	mu.Lock()
+	got := watchCalls
+	mu.Unlock()
+	if got != 1 {
+		t.Fatalf("watch calls = %d, want 1 for idempotent Start", got)
+	}
 }
 
 func TestPresenceTouchWorkerUpdatesAuthorityDirectoryFromEvents(t *testing.T) {

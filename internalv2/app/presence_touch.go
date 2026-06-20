@@ -95,17 +95,16 @@ func (w *presenceTouchWorker) Start(ctx context.Context) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	w.mu.Lock()
+	if w.cancel != nil {
+		w.mu.Unlock()
+		return nil
+	}
 	events := w.opts.Events
 	if events == nil && w.opts.Watch != nil {
 		events = w.opts.Watch()
 	}
 	runCtx, cancel := context.WithCancel(ctx)
-	w.mu.Lock()
-	if w.cancel != nil {
-		w.mu.Unlock()
-		cancel()
-		return nil
-	}
 	w.cancel = cancel
 	w.wg.Add(2)
 	w.mu.Unlock()
