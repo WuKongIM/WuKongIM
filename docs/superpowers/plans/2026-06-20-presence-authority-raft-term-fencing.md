@@ -71,12 +71,17 @@ internalv2/access/node/
   presence_codec.go
   presence_codec_test.go
   presence_rpc_test.go
+  conversation_codec.go
+  conversation_codec_test.go
+  conversation_rpc_test.go
   FLOW.md
 
 internalv2/app/
   app.go
+  conversation_authority.go
   presence_touch.go
   conversation_route_lifecycle.go
+  conversation_authority_test.go
   app_test.go
   FLOW.md
 ```
@@ -498,6 +503,26 @@ Any `testPresenceTarget` helper or encoded target assertion should use non-zero
 `LeaderTerm` and `ConfigEpoch`, and the decoded/requested `presence.RouteTarget`
 must preserve them.
 
+- [ ] Modify `internalv2/access/node/conversation_codec.go`.
+
+Conversation Authority RPC also transports a `conversation.RouteTarget`. Extend
+the stable request payload with `LeaderTerm` and `ConfigEpoch`, and update the
+decode path so remote conversation authority calls do not collapse distributed
+identity to zero values.
+
+- [ ] Update conversation node RPC tests.
+
+Files:
+
+```text
+internalv2/access/node/conversation_codec_test.go
+internalv2/access/node/conversation_rpc_test.go
+```
+
+Any encoded `conversation.RouteTarget` assertion should use non-zero
+`LeaderTerm` and `ConfigEpoch`, and the decoded/requested target must preserve
+them.
+
 - [ ] Update adapter tests.
 
 Files:
@@ -603,6 +628,19 @@ No public config is required for v0. The existing `FlushInterval` is enough for 
 - [ ] Modify `internalv2/app/conversation_route_lifecycle.go`.
 
 Copy new fields in `conversationRouteTarget`, and update `conversationAuthorityRouteTargetNewer` with the same ordering rule as presence.
+
+- [ ] Modify `internalv2/app/conversation_authority.go`.
+
+The exact local authority key must use distributed identity:
+
+```text
+(HashSlot, SlotID, LeaderNodeID, LeaderTerm, ConfigEpoch)
+```
+
+Do not include `RouteRevision` or diagnostic `AuthorityEpoch` in the authority
+identity key. Same distributed identity with only revision/diagnostic epoch
+changes should keep serving the same target. Different leader term or config
+epoch is a different authority identity.
 
 - [ ] Add a small periodic reconcile to `conversationAuthorityRouteLifecycle`.
 
