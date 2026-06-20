@@ -121,9 +121,11 @@ manager HTTP handler
 
 Batch execute re-runs the planner from the execute request, rejects stale
 `state_revision` or mismatched `plan_id` before any writes, reports matching
-existing candidates as no-ops, and submits create candidates through the same
-Slot leader-transfer writer port. It does not call Slot Raft directly and does
-not create a durable batch task.
+pending or running existing candidates as no-ops, and submits create candidates
+through the same Slot leader-transfer writer port. Matching failed
+leader-transfer tasks are planned as create retries so the Controller task can
+be reset to pending through the writer path. It does not call Slot Raft directly
+and does not create a durable batch task.
 
 ## Controller Task Read Flow
 

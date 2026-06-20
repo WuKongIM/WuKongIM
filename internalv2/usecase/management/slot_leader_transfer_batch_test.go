@@ -577,6 +577,59 @@ func TestExecuteSlotLeaderTransferBatchReportsAllExistingWithNilWriter(t *testin
 	}
 }
 
+func TestExecuteSlotLeaderTransferBatchRetriesMatchingFailedTask(t *testing.T) {
+	snapshot := batchLeaderTransferSnapshot()
+	snapshot.Slots = snapshot.Slots[:1]
+	failedTask := batchLeaderTransferTask("slot-1-leader-transfer-7-r22", 1, 1, 2, []uint64{1, 2, 3}, 7)
+	failedTask.Status = control.TaskStatusFailed
+	failedTask.Attempt = 1
+	failedTask.LastError = "leader transfer timed out"
+	snapshot.Tasks = []control.ReconcileTask{failedTask}
+	writer := &fakeSlotLeaderTransferWriter{
+		result: control.SlotLeaderTransferResult{
+			Created: true,
+			Task:    batchLeaderTransferTaskPtr("slot-1-leader-transfer-7-r22", 1, 1, 2, []uint64{1, 2, 3}, 7),
+		},
+	}
+	app := New(Options{
+		Cluster: fakeNodeSnapshotReader{snapshot: snapshot},
+		SlotRuntimeStatus: &fakeSlotRuntimeStatusReader{
+			statuses: map[uint32]SlotRuntimeStatus{
+				1: {SlotID: 1, LeaderID: 1, CurrentVoters: []uint64{1, 2, 3}},
+			},
+		},
+		LeaderTransfer: writer,
+	})
+	plan, err := app.PlanSlotLeaderTransfers(context.Background(), SlotLeaderTransferBatchPlanRequest{SourceNodeID: 1, TargetNodeID: 2, MaxTasks: 8})
+	if err != nil {
+		t.Fatalf("PlanSlotLeaderTransfers() error = %v", err)
+	}
+	if len(plan.Candidates) != 1 || plan.Candidates[0].Action != SlotLeaderTransferBatchActionCreate || plan.Summary.ExistingTasks != 0 || plan.Summary.WouldCreate != 1 {
+		t.Fatalf("plan = %#v, want failed matching task to be retried as create candidate", plan)
+	}
+
+	got, err := app.ExecuteSlotLeaderTransferBatch(context.Background(), SlotLeaderTransferBatchExecuteRequest{
+		SourceNodeID:  1,
+		TargetNodeID:  2,
+		MaxTasks:      8,
+		StateRevision: plan.StateRevision,
+		PlanID:        plan.PlanID,
+	})
+
+	if err != nil {
+		t.Fatalf("ExecuteSlotLeaderTransferBatch() error = %v", err)
+	}
+	if got.Summary != (SlotLeaderTransferBatchExecuteSummary{Requested: 1, Created: 1}) {
+		t.Fatalf("summary = %#v, want requested 1 created 1", got.Summary)
+	}
+	if len(writer.requests) != 1 || writer.requests[0].SlotID != 1 || writer.requests[0].TargetNode != 2 {
+		t.Fatalf("writer requests = %#v, want one retry request to target 2", writer.requests)
+	}
+	if len(got.Results) != 1 || got.Results[0].Status != SlotLeaderTransferBatchResultCreated {
+		t.Fatalf("results = %#v, want created retry result", got.Results)
+	}
+}
+
 func TestExecuteSlotLeaderTransferBatchContinuesAfterPerSlotWriterFailure(t *testing.T) {
 	writer := &fakeSlotLeaderTransferBatchWriter{
 		errs: []error{errors.New("first write failed"), nil},

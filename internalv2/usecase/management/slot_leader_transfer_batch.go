@@ -432,9 +432,15 @@ func planOneSlotLeaderTransfer(snapshot control.Snapshot, req SlotLeaderTransfer
 	}
 
 	activeTask, hasActiveTask := findActiveSlotTask(snapshot.Tasks, assignment.SlotID)
-	if hasActiveTask && !canReuseLeaderTransferTask(activeTask, req.SourceNodeID, req.TargetNodeID, assignment) {
-		appendBatchSkip(response, assignment.SlotID, SlotLeaderTransferBatchSkipActiveTaskConflict, "different active task already owns the slot")
-		return
+	reusableActiveTask := false
+	retryableFailedTask := false
+	if hasActiveTask {
+		reusableActiveTask = canReuseLeaderTransferTask(activeTask, req.SourceNodeID, req.TargetNodeID, assignment)
+		retryableFailedTask = canRetryFailedLeaderTransferTask(activeTask, req.SourceNodeID, req.TargetNodeID, assignment)
+		if !reusableActiveTask && !retryableFailedTask {
+			appendBatchSkip(response, assignment.SlotID, SlotLeaderTransferBatchSkipActiveTaskConflict, "different active task already owns the slot")
+			return
+		}
 	}
 
 	targetNode := req.TargetNodeID
@@ -464,7 +470,7 @@ func planOneSlotLeaderTransfer(snapshot control.Snapshot, req SlotLeaderTransfer
 		ConfigEpoch:     assignment.ConfigEpoch,
 	}
 
-	if hasActiveTask {
+	if reusableActiveTask {
 		candidate.Action = SlotLeaderTransferBatchActionExisting
 		candidate.ExistingTaskID = activeTask.TaskID
 		response.Summary.ExistingTasks++
@@ -535,6 +541,20 @@ func uint32Set(items []uint32) map[uint32]struct{} {
 }
 
 func canReuseLeaderTransferTask(task control.ReconcileTask, sourceNode, requestedTarget uint64, assignment control.SlotAssignment) bool {
+	if task.Status != control.TaskStatusPending && task.Status != control.TaskStatusRunning {
+		return false
+	}
+	return leaderTransferTaskMatches(task, sourceNode, requestedTarget, assignment)
+}
+
+func canRetryFailedLeaderTransferTask(task control.ReconcileTask, sourceNode, requestedTarget uint64, assignment control.SlotAssignment) bool {
+	if task.Status != control.TaskStatusFailed {
+		return false
+	}
+	return leaderTransferTaskMatches(task, sourceNode, requestedTarget, assignment)
+}
+
+func leaderTransferTaskMatches(task control.ReconcileTask, sourceNode, requestedTarget uint64, assignment control.SlotAssignment) bool {
 	if task.Kind != control.TaskKindLeaderTransfer {
 		return false
 	}
