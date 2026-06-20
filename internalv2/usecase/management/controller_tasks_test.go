@@ -126,6 +126,19 @@ func TestListControllerTasksLimitBounds(t *testing.T) {
 		t.Fatalf("default limit response = total %d len %d, want total %d len %d", resp.Total, len(resp.Items), DefaultControllerTaskLimit+1, DefaultControllerTaskLimit)
 	}
 
+	_, err = app.ListControllerTasks(context.Background(), ListControllerTasksRequest{Limit: -1})
+	if !errors.Is(err, metadb.ErrInvalidArgument) {
+		t.Fatalf("ListControllerTasks(negative limit) error = %v, want %v", err, metadb.ErrInvalidArgument)
+	}
+
+	resp, err = app.ListControllerTasks(context.Background(), ListControllerTasksRequest{Limit: MaxControllerTaskLimit})
+	if err != nil {
+		t.Fatalf("ListControllerTasks(max limit) error = %v", err)
+	}
+	if resp.Total != DefaultControllerTaskLimit+1 || len(resp.Items) != DefaultControllerTaskLimit+1 {
+		t.Fatalf("max limit response = total %d len %d, want total %d len %d", resp.Total, len(resp.Items), DefaultControllerTaskLimit+1, DefaultControllerTaskLimit+1)
+	}
+
 	_, err = app.ListControllerTasks(context.Background(), ListControllerTasksRequest{Limit: MaxControllerTaskLimit + 1})
 	if !errors.Is(err, metadb.ErrInvalidArgument) {
 		t.Fatalf("ListControllerTasks(over max) error = %v, want %v", err, metadb.ErrInvalidArgument)
@@ -163,6 +176,10 @@ func TestControllerTaskReturnsDetailAndClonesSlices(t *testing.T) {
 	if !sameUint64Slice(second.TargetPeers, []uint64{1, 2, 3}) {
 		t.Fatalf("TargetPeers = %#v, want cloned [1 2 3]", second.TargetPeers)
 	}
+	var participants []ControllerTaskParticipant = second.Participants
+	if len(participants) != 1 {
+		t.Fatalf("Participants len = %d, want 1", len(participants))
+	}
 	if second.Participants[0].NodeID != 1 {
 		t.Fatalf("Participants = %#v, want cloned node 1", second.Participants)
 	}
@@ -175,7 +192,12 @@ func TestControllerTaskNotFoundAndSnapshotError(t *testing.T) {
 	notFoundApp := New(Options{Cluster: fakeNodeSnapshotReader{snapshot: control.Snapshot{Tasks: []control.ReconcileTask{
 		controllerTaskFixture("existing", 1, control.TaskKindBootstrap, control.TaskStatusPending, 0, 1, []uint64{1}),
 	}}}})
-	_, err := notFoundApp.ControllerTask(context.Background(), "missing")
+	_, err := notFoundApp.ControllerTask(context.Background(), "   ")
+	if !errors.Is(err, metadb.ErrInvalidArgument) {
+		t.Fatalf("ControllerTask(empty) error = %v, want %v", err, metadb.ErrInvalidArgument)
+	}
+
+	_, err = notFoundApp.ControllerTask(context.Background(), "missing")
 	if !errors.Is(err, ErrControllerTaskNotFound) {
 		t.Fatalf("ControllerTask(missing) error = %v, want %v", err, ErrControllerTaskNotFound)
 	}

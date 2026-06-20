@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"sort"
+	"strings"
 
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
@@ -68,7 +69,19 @@ type ControllerTask struct {
 	// LastError is the latest task-level error.
 	LastError string
 	// Participants contains per-node task progress.
-	Participants []SlotTaskParticipant
+	Participants []ControllerTaskParticipant
+}
+
+// ControllerTaskParticipant is one node's Controller task progress summary.
+type ControllerTaskParticipant struct {
+	// NodeID is the participant node identity.
+	NodeID uint64
+	// Attempt is the participant-local attempt.
+	Attempt uint32
+	// Status is the participant progress state.
+	Status string
+	// LastError is the latest participant-level error.
+	LastError string
 }
 
 // ListControllerTasks returns active Controller tasks from the control snapshot.
@@ -111,6 +124,10 @@ func (a *App) ListControllerTasks(ctx context.Context, req ListControllerTasksRe
 
 // ControllerTask returns one active Controller task by exact task ID.
 func (a *App) ControllerTask(ctx context.Context, taskID string) (ControllerTask, error) {
+	taskID = strings.TrimSpace(taskID)
+	if taskID == "" {
+		return ControllerTask{}, metadb.ErrInvalidArgument
+	}
 	if a == nil || a.cluster == nil {
 		return ControllerTask{}, ErrControllerTaskNotFound
 	}
@@ -169,6 +186,15 @@ func controllerTaskHasNode(task control.ReconcileTask, nodeID uint64) bool {
 
 func controllerTaskFromControl(task control.ReconcileTask) ControllerTask {
 	slotTask := slotTaskFromControl(task)
+	participants := make([]ControllerTaskParticipant, 0, len(slotTask.Participants))
+	for _, participant := range slotTask.Participants {
+		participants = append(participants, ControllerTaskParticipant{
+			NodeID:    participant.NodeID,
+			Attempt:   participant.Attempt,
+			Status:    participant.Status,
+			LastError: participant.LastError,
+		})
+	}
 	return ControllerTask{
 		TaskID:           slotTask.TaskID,
 		SlotID:           task.SlotID,
@@ -182,6 +208,6 @@ func controllerTaskFromControl(task control.ReconcileTask) ControllerTask {
 		ConfigEpoch:      slotTask.ConfigEpoch,
 		Attempt:          slotTask.Attempt,
 		LastError:        slotTask.LastError,
-		Participants:     append([]SlotTaskParticipant(nil), slotTask.Participants...),
+		Participants:     participants,
 	}
 }
