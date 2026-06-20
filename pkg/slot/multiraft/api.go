@@ -29,12 +29,16 @@ func (r *Runtime) Close() error {
 	r.wg.Wait()
 
 	for _, g := range slots {
+		var applyQueue *applyQueue
 		if r.apply != nil {
-			r.apply.closeSlot(g.id)
+			applyQueue = r.apply.closeSlot(g.id)
 		}
 		g.mu.Lock()
 		g.waitIdleLocked()
 		g.mu.Unlock()
+		if r.apply != nil {
+			r.apply.waitQueueRetired(g.id, applyQueue)
+		}
 	}
 	if r.apply != nil {
 		r.apply.close()
@@ -126,12 +130,16 @@ func (r *Runtime) CloseSlot(ctx context.Context, slotID SlotID) error {
 	delete(r.slots, slotID)
 	r.mu.Unlock()
 	g.mu.Unlock()
+	var applyQueue *applyQueue
 	if r.apply != nil {
-		r.apply.closeSlot(slotID)
+		applyQueue = r.apply.closeSlot(slotID)
 	}
 	g.mu.Lock()
 	g.waitIdleLocked()
 	g.mu.Unlock()
+	if r.apply != nil {
+		r.apply.waitQueueRetired(slotID, applyQueue)
+	}
 	return nil
 }
 

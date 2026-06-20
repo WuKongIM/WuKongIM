@@ -804,6 +804,109 @@ func TestCloseSlotAllowsReopenSameSlotIDForAsyncApply(t *testing.T) {
 	}
 }
 
+func TestCloseSlotWithInflightAsyncApplyRetiresQueueBeforeReopen(t *testing.T) {
+	rt := newStartedRuntimeWithTick(t, time.Hour)
+	slotID := SlotID(189)
+	fsm := newBlockingStateMachine()
+	t.Cleanup(func() {
+		fsm.unblock()
+	})
+
+	if err := rt.BootstrapSlot(context.Background(), BootstrapSlotRequest{
+		Slot: SlotOptions{
+			ID:           slotID,
+			Storage:      &internalFakeStorage{},
+			StateMachine: fsm,
+		},
+		Voters: []NodeID{1},
+	}); err != nil {
+		t.Fatalf("BootstrapSlot() error = %v", err)
+	}
+	waitForCondition(t, func() bool {
+		st, err := rt.Status(slotID)
+		return err == nil && st.Role == RoleLeader
+	})
+
+	if _, err := rt.Propose(context.Background(), slotID, proposalString("close-reopen-race")); err != nil {
+		t.Fatalf("Propose() error = %v", err)
+	}
+	select {
+	case <-fsm.started:
+	case <-time.After(time.Second):
+		t.Fatal("Apply() did not start")
+	}
+	g := slotFor(rt, slotID)
+	if g == nil {
+		t.Fatal("slotFor() = nil")
+	}
+
+	closeDone := make(chan error, 1)
+	go func() {
+		closeDone <- rt.CloseSlot(context.Background(), slotID)
+	}()
+	waitForCondition(t, func() bool {
+		rt.apply.mu.Lock()
+		defer rt.apply.mu.Unlock()
+		q := rt.apply.queues[slotID]
+		return q != nil && q.closed
+	})
+
+	rt.apply.mu.Lock()
+	fsm.unblock()
+	deadline := time.Now().Add(time.Second)
+	for {
+		g.mu.Lock()
+		applying := g.applying
+		g.mu.Unlock()
+		if applying == 0 {
+			break
+		}
+		if time.Now().After(deadline) {
+			rt.apply.mu.Unlock()
+			t.Fatal("async apply did not finish")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	select {
+	case err := <-closeDone:
+		rt.apply.mu.Unlock()
+		t.Fatalf("CloseSlot() returned before apply queue retired: %v", err)
+	case <-time.After(50 * time.Millisecond):
+	}
+	rt.apply.mu.Unlock()
+
+	select {
+	case err := <-closeDone:
+		if err != nil {
+			t.Fatalf("CloseSlot() error = %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("CloseSlot() did not return after apply queue retired")
+	}
+
+	if err := rt.BootstrapSlot(context.Background(), BootstrapSlotRequest{
+		Slot:   newInternalSlotOptions(slotID),
+		Voters: []NodeID{1},
+	}); err != nil {
+		t.Fatalf("BootstrapSlot() after reopen error = %v", err)
+	}
+	waitForCondition(t, func() bool {
+		st, err := rt.Status(slotID)
+		return err == nil && st.Role == RoleLeader
+	})
+	fut, err := rt.Propose(context.Background(), slotID, proposalString("after-inflight-reopen"))
+	if err != nil {
+		t.Fatalf("Propose() after reopen error = %v", err)
+	}
+	res, err := fut.Wait(context.Background())
+	if err != nil {
+		t.Fatalf("Wait() after reopen error = %v", err)
+	}
+	if string(res.Data) != "ok:after-inflight-reopen" {
+		t.Fatalf("Wait().Data = %q, want ok:after-inflight-reopen", res.Data)
+	}
+}
+
 func TestRuntimeCloseWaitsForAsyncApply(t *testing.T) {
 	rt := newStartedRuntimeWithTick(t, time.Hour)
 	slotID := SlotID(188)

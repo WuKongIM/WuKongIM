@@ -129,6 +129,7 @@ func (p *applyPipeline) runQueue(q *applyQueue) {
 				q.running = false
 				if q.closed {
 					delete(p.queues, q.slotID)
+					p.cond.Broadcast()
 				}
 				p.mu.Unlock()
 				return
@@ -164,19 +165,32 @@ func (p *applyPipeline) close() {
 	p.wg.Wait()
 }
 
-func (p *applyPipeline) closeSlot(slotID SlotID) {
+func (p *applyPipeline) closeSlot(slotID SlotID) *applyQueue {
 	if p == nil {
-		return
+		return nil
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	q := p.queues[slotID]
 	if q == nil {
-		return
+		return nil
 	}
 	q.closed = true
 	if !q.running && len(q.tasks) == 0 {
 		delete(p.queues, slotID)
+		p.cond.Broadcast()
+	}
+	return q
+}
+
+func (p *applyPipeline) waitQueueRetired(slotID SlotID, q *applyQueue) {
+	if p == nil || q == nil {
+		return
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	for p.queues[slotID] == q {
+		p.cond.Wait()
 	}
 }
 
