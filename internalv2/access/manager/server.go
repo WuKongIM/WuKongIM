@@ -60,6 +60,10 @@ type Management interface {
 	ListSlotLogEntries(ctx context.Context, req managementusecase.ListSlotLogEntriesRequest) (managementusecase.SlotLogEntriesResponse, error)
 	// ListControllerLogEntries returns one node-local Controller Raft log page.
 	ListControllerLogEntries(ctx context.Context, req managementusecase.ListControllerLogEntriesRequest) (managementusecase.ControllerLogEntriesResponse, error)
+	// ListControllerTasks returns active Controller task rows.
+	ListControllerTasks(ctx context.Context, req managementusecase.ListControllerTasksRequest) (managementusecase.ListControllerTasksResponse, error)
+	// ControllerTask returns one active Controller task by ID.
+	ControllerTask(ctx context.Context, taskID string) (managementusecase.ControllerTask, error)
 	// ControllerRaftStatus returns one node-local Controller Raft status snapshot.
 	ControllerRaftStatus(ctx context.Context, nodeID uint64) (managementusecase.ControllerRaftStatus, error)
 	// CompactControllerRaftLog forces one node-local Controller Raft log compaction attempt.
@@ -281,17 +285,14 @@ func (s *Server) registerRoutes() {
 	slotWrites.POST("/nodes/:node_id/slots/:slot_id/compact", s.handleCompactSlotRaftLog)
 	slotWrites.POST("/slots/:slot_id/leader-transfer", s.handleSlotLeaderTransfer)
 
-	controllerLogs := s.engine.Group("/manager")
+	controllerReads := s.engine.Group("/manager")
 	if s.auth.enabled() {
-		controllerLogs.Use(s.requirePermission("cluster.controller", "r"))
+		controllerReads.Use(s.requirePermission("cluster.controller", "r"))
 	}
-	controllerLogs.GET("/controller/logs", s.handleControllerLogs)
-
-	controllerRaftReads := s.engine.Group("/manager")
-	if s.auth.enabled() {
-		controllerRaftReads.Use(s.requirePermission("cluster.controller", "r"))
-	}
-	controllerRaftReads.GET("/nodes/:node_id/controller-raft", s.handleControllerRaftStatus)
+	controllerReads.GET("/controller/logs", s.handleControllerLogs)
+	controllerReads.GET("/controller/tasks", s.handleControllerTasks)
+	controllerReads.GET("/controller/tasks/:task_id", s.handleControllerTask)
+	controllerReads.GET("/nodes/:node_id/controller-raft", s.handleControllerRaftStatus)
 
 	controllerRaftWrites := s.engine.Group("/manager")
 	if s.auth.enabled() {

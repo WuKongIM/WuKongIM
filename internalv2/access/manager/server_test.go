@@ -1376,6 +1376,8 @@ type managerNodesStub struct {
 	userDetail                        managementusecase.UserDetail
 	slotLogEntriesPage                managementusecase.SlotLogEntriesResponse
 	controllerLogEntriesPage          managementusecase.ControllerLogEntriesResponse
+	controllerTasksResponse           managementusecase.ListControllerTasksResponse
+	controllerTask                    managementusecase.ControllerTask
 	controllerRaftStatus              managementusecase.ControllerRaftStatus
 	controllerRaftCompactResult       managementusecase.ControllerRaftCompactionResult
 	controllerRaftCompactSummary      managementusecase.ControllerRaftCompactionSummary
@@ -1399,6 +1401,8 @@ type managerNodesStub struct {
 	connectionDetailReqSink           *managementusecase.GetConnectionRequest
 	slotLogEntriesReqSink             *managementusecase.ListSlotLogEntriesRequest
 	controllerLogEntriesReqSink       *managementusecase.ListControllerLogEntriesRequest
+	controllerTasksReqSink            *managementusecase.ListControllerTasksRequest
+	controllerTaskIDSink              *string
 	controllerRaftStatusNodeSink      *uint64
 	controllerRaftCompactNodeSink     *uint64
 	slotRaftCompactNodeSink           *uint64
@@ -1423,6 +1427,8 @@ type managerNodesStub struct {
 	connectionDetailErr               error
 	slotLogEntriesErr                 error
 	controllerLogEntriesErr           error
+	controllerTasksErr                error
+	controllerTaskErr                 error
 	controllerRaftStatusErr           error
 	controllerRaftCompactErr          error
 	controllerRaftCompactAllErr       error
@@ -1517,6 +1523,20 @@ func (s managerNodesStub) ListControllerLogEntries(_ context.Context, req manage
 		*s.controllerLogEntriesReqSink = req
 	}
 	return s.controllerLogEntriesPage, s.controllerLogEntriesErr
+}
+
+func (s managerNodesStub) ListControllerTasks(_ context.Context, req managementusecase.ListControllerTasksRequest) (managementusecase.ListControllerTasksResponse, error) {
+	if s.controllerTasksReqSink != nil {
+		*s.controllerTasksReqSink = req
+	}
+	return s.controllerTasksResponse, s.controllerTasksErr
+}
+
+func (s managerNodesStub) ControllerTask(_ context.Context, taskID string) (managementusecase.ControllerTask, error) {
+	if s.controllerTaskIDSink != nil {
+		*s.controllerTaskIDSink = taskID
+	}
+	return s.controllerTask, s.controllerTaskErr
 }
 
 func (s managerNodesStub) ControllerRaftStatus(_ context.Context, nodeID uint64) (managementusecase.ControllerRaftStatus, error) {
