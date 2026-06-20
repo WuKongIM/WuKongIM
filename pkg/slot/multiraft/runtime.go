@@ -16,6 +16,7 @@ type Runtime struct {
 	closed    bool
 	slots     map[SlotID]*slot
 	scheduler *scheduler
+	apply     *applyPipeline
 	stopCh    chan struct{}
 	wg        sync.WaitGroup
 	inflight  atomic.Int64
@@ -40,6 +41,7 @@ func New(opts Options) (*Runtime, error) {
 		opts:      opts,
 		slots:     make(map[SlotID]*slot),
 		scheduler: newScheduler(opts.Observer),
+		apply:     newApplyPipeline(opts.Workers, opts.Goroutines),
 		stopCh:    make(chan struct{}),
 	}
 	if opts.Observer != nil {

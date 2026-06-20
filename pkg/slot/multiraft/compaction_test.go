@@ -187,6 +187,66 @@ func TestRuntimeManualLogCompactionForcesSnapshotBelowAutomaticThreshold(t *test
 	}
 }
 
+func TestRuntimeManualLogCompactionWaitsForAsyncApply(t *testing.T) {
+	rt := newCompactionRuntime(t, LogCompactionConfig{
+		Enabled:        true,
+		EnabledSet:     true,
+		TriggerEntries: 1000,
+		CheckInterval:  time.Hour,
+	})
+	slotID := SlotID(197)
+	fsm := newBlockingStateMachine()
+	t.Cleanup(func() {
+		fsm.unblock()
+	})
+
+	if err := rt.BootstrapSlot(context.Background(), BootstrapSlotRequest{
+		Slot: SlotOptions{
+			ID:           slotID,
+			Storage:      &internalFakeStorage{},
+			StateMachine: fsm,
+		},
+		Voters: []NodeID{1},
+	}); err != nil {
+		t.Fatalf("BootstrapSlot() error = %v", err)
+	}
+	waitForSingleNodeLeader(t, rt, slotID)
+
+	fut, err := rt.Propose(context.Background(), slotID, proposalString("manual-barrier"))
+	if err != nil {
+		t.Fatalf("Propose() error = %v", err)
+	}
+	select {
+	case <-fsm.started:
+	case <-time.After(time.Second):
+		t.Fatal("Apply() did not start")
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		_, err := rt.CompactLog(context.Background(), slotID)
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		t.Fatalf("CompactLog() returned before async apply finished: %v", err)
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	fsm.unblock()
+	if _, err := fut.Wait(context.Background()); err != nil {
+		t.Fatalf("Wait() error = %v", err)
+	}
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("CompactLog() error = %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("CompactLog() did not return after async apply unblocked")
+	}
+}
+
 func TestRuntimeManualCompactionReadsSnapshotMetadataWithoutPayload(t *testing.T) {
 	sentinel := errors.New("snapshot payload unavailable")
 	store := &slotSnapshotMetadataOnlyStorage{

@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	raft "go.etcd.io/raft/v3"
 	"go.etcd.io/raft/v3/raftpb"
 )
 
@@ -19,6 +20,16 @@ func TestCountTrackedReadyEntriesIgnoresEmptyNormalEntries(t *testing.T) {
 
 	if proposals != 1 || configs != 1 {
 		t.Fatalf("counts = (%d, %d), want (1, 1)", proposals, configs)
+	}
+}
+
+func TestReadyRequiresSynchronousApplyTreatsConfChangeV2AsBarrier(t *testing.T) {
+	ready := raft.Ready{CommittedEntries: []raftpb.Entry{
+		{Type: raftpb.EntryConfChangeV2},
+	}}
+
+	if !readyRequiresSynchronousApply(ready) {
+		t.Fatal("readyRequiresSynchronousApply() = false, want true for EntryConfChangeV2")
 	}
 }
 
@@ -545,6 +556,307 @@ func TestProposeWaitBlocksUntilReadyBatchFullyCompletes(t *testing.T) {
 	}
 }
 
+func TestNormalEntryApplyDoesNotBlockTickProcessing(t *testing.T) {
+	rt := newStartedRuntimeWithTick(t, time.Hour)
+	slotID := SlotID(184)
+	fsm := newBlockingStateMachine()
+	t.Cleanup(func() {
+		fsm.unblock()
+	})
+
+	err := rt.BootstrapSlot(context.Background(), BootstrapSlotRequest{
+		Slot: SlotOptions{
+			ID:           slotID,
+			Storage:      &internalFakeStorage{},
+			StateMachine: fsm,
+		},
+		Voters: []NodeID{1},
+	})
+	if err != nil {
+		t.Fatalf("BootstrapSlot() error = %v", err)
+	}
+
+	waitForCondition(t, func() bool {
+		st, err := rt.Status(slotID)
+		return err == nil && st.Role == RoleLeader
+	})
+
+	beforeTicks := slotTickCount(rt, slotID)
+	fut, err := rt.Propose(context.Background(), slotID, proposalString("slow-apply"))
+	if err != nil {
+		t.Fatalf("Propose() error = %v", err)
+	}
+
+	select {
+	case <-fsm.started:
+	case <-time.After(time.Second):
+		t.Fatal("Apply() did not start")
+	}
+
+	g := slotFor(rt, slotID)
+	if g == nil {
+		t.Fatal("slotFor() = nil")
+	}
+	g.markTickPending()
+	rt.scheduler.enqueue(slotID)
+
+	waitForCondition(t, func() bool {
+		return slotTickCount(rt, slotID) > beforeTicks
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	if _, err := fut.Wait(ctx); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("Wait() while Apply blocked = %v, want %v", err, context.DeadlineExceeded)
+	}
+
+	fsm.unblock()
+	if _, err := fut.Wait(context.Background()); err != nil {
+		t.Fatalf("Wait() after unblock error = %v", err)
+	}
+}
+
+func TestNormalEntryAsyncApplyKeepsStatusAppliedAtDurableIndex(t *testing.T) {
+	rt := newStartedRuntimeWithTick(t, time.Hour)
+	slotID := SlotID(185)
+	store := &internalFakeStorage{}
+	fsm := newBlockingStateMachine()
+	t.Cleanup(func() {
+		fsm.unblock()
+	})
+
+	err := rt.BootstrapSlot(context.Background(), BootstrapSlotRequest{
+		Slot: SlotOptions{
+			ID:           slotID,
+			Storage:      store,
+			StateMachine: fsm,
+		},
+		Voters: []NodeID{1},
+	})
+	if err != nil {
+		t.Fatalf("BootstrapSlot() error = %v", err)
+	}
+
+	waitForCondition(t, func() bool {
+		st, err := rt.Status(slotID)
+		return err == nil && st.Role == RoleLeader
+	})
+
+	store.mu.Lock()
+	baselineApplied := store.lastApplied
+	store.mu.Unlock()
+
+	fut, err := rt.Propose(context.Background(), slotID, proposalString("durable-status"))
+	if err != nil {
+		t.Fatalf("Propose() error = %v", err)
+	}
+
+	select {
+	case <-fsm.started:
+	case <-time.After(time.Second):
+		t.Fatal("Apply() did not start")
+	}
+
+	var committed uint64
+	waitForCondition(t, func() bool {
+		st, err := rt.Status(slotID)
+		if err != nil {
+			return false
+		}
+		committed = st.CommitIndex
+		return st.CommitIndex > baselineApplied
+	})
+
+	st, err := rt.Status(slotID)
+	if err != nil {
+		t.Fatalf("Status() error = %v", err)
+	}
+	if st.AppliedIndex != baselineApplied {
+		t.Fatalf("Status().AppliedIndex = %d while apply blocked, want durable %d; committed=%d", st.AppliedIndex, baselineApplied, committed)
+	}
+
+	fsm.unblock()
+	res, err := fut.Wait(context.Background())
+	if err != nil {
+		t.Fatalf("Wait() after unblock error = %v", err)
+	}
+
+	waitForCondition(t, func() bool {
+		st, err := rt.Status(slotID)
+		return err == nil && st.AppliedIndex == res.Index
+	})
+}
+
+func TestAsyncApplyStopsQueuedTasksAfterApplyFatal(t *testing.T) {
+	rt := newStartedRuntimeWithTick(t, time.Hour)
+	slotID := SlotID(186)
+	store := &internalFakeStorage{}
+	fatalErr := errors.New("fatal first async apply")
+	fsm := newFailFirstBlockingStateMachine(fatalErr)
+	t.Cleanup(func() {
+		fsm.unblock()
+	})
+
+	err := rt.BootstrapSlot(context.Background(), BootstrapSlotRequest{
+		Slot: SlotOptions{
+			ID:           slotID,
+			Storage:      store,
+			StateMachine: fsm,
+		},
+		Voters: []NodeID{1},
+	})
+	if err != nil {
+		t.Fatalf("BootstrapSlot() error = %v", err)
+	}
+
+	waitForCondition(t, func() bool {
+		st, err := rt.Status(slotID)
+		return err == nil && st.Role == RoleLeader
+	})
+
+	first, err := rt.Propose(context.Background(), slotID, proposalString("fatal-first"))
+	if err != nil {
+		t.Fatalf("first Propose() error = %v", err)
+	}
+	select {
+	case <-fsm.started:
+	case <-time.After(time.Second):
+		t.Fatal("first Apply() did not start")
+	}
+
+	second, err := rt.Propose(context.Background(), slotID, proposalString("must-not-apply"))
+	if err != nil {
+		t.Fatalf("second Propose() error = %v", err)
+	}
+	waitForCondition(t, func() bool {
+		g := slotFor(rt, slotID)
+		if g == nil {
+			return false
+		}
+		g.mu.Lock()
+		defer g.mu.Unlock()
+		return len(g.pendingProposals) >= 2
+	})
+
+	fsm.unblock()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if _, err := first.Wait(ctx); !errors.Is(err, fatalErr) {
+		t.Fatalf("first Wait() error = %v, want %v", err, fatalErr)
+	}
+	if _, err := second.Wait(ctx); !errors.Is(err, fatalErr) {
+		t.Fatalf("second Wait() error = %v, want %v", err, fatalErr)
+	}
+
+	select {
+	case <-fsm.secondStarted:
+		t.Fatal("second queued Apply() started after first fatal error")
+	default:
+	}
+	if got := fsm.applyCount(); got != 1 {
+		t.Fatalf("Apply() calls = %d, want 1", got)
+	}
+	if fut, err := rt.Propose(context.Background(), slotID, proposalString("after-fatal")); !errors.Is(err, fatalErr) {
+		t.Fatalf("Propose() after fatal = future=%v err=%v, want %v", fut, err, fatalErr)
+	}
+}
+
+func TestCloseSlotAllowsReopenSameSlotIDForAsyncApply(t *testing.T) {
+	rt := newStartedRuntimeWithTick(t, time.Hour)
+	slotID := SlotID(187)
+	if err := rt.BootstrapSlot(context.Background(), BootstrapSlotRequest{
+		Slot:   newInternalSlotOptions(slotID),
+		Voters: []NodeID{1},
+	}); err != nil {
+		t.Fatalf("BootstrapSlot() error = %v", err)
+	}
+	waitForCondition(t, func() bool {
+		st, err := rt.Status(slotID)
+		return err == nil && st.Role == RoleLeader
+	})
+	if err := rt.CloseSlot(context.Background(), slotID); err != nil {
+		t.Fatalf("CloseSlot() error = %v", err)
+	}
+
+	if err := rt.BootstrapSlot(context.Background(), BootstrapSlotRequest{
+		Slot:   newInternalSlotOptions(slotID),
+		Voters: []NodeID{1},
+	}); err != nil {
+		t.Fatalf("BootstrapSlot() after reopen error = %v", err)
+	}
+	waitForCondition(t, func() bool {
+		st, err := rt.Status(slotID)
+		return err == nil && st.Role == RoleLeader
+	})
+
+	fut, err := rt.Propose(context.Background(), slotID, proposalString("after-reopen"))
+	if err != nil {
+		t.Fatalf("Propose() after reopen error = %v", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	res, err := fut.Wait(ctx)
+	if err != nil {
+		t.Fatalf("Wait() after reopen error = %v", err)
+	}
+	if string(res.Data) != "ok:after-reopen" {
+		t.Fatalf("Wait().Data = %q, want ok:after-reopen", res.Data)
+	}
+}
+
+func TestRuntimeCloseWaitsForAsyncApply(t *testing.T) {
+	rt := newStartedRuntimeWithTick(t, time.Hour)
+	slotID := SlotID(188)
+	fsm := newBlockingStateMachine()
+	t.Cleanup(func() {
+		fsm.unblock()
+	})
+
+	if err := rt.BootstrapSlot(context.Background(), BootstrapSlotRequest{
+		Slot: SlotOptions{
+			ID:           slotID,
+			Storage:      &internalFakeStorage{},
+			StateMachine: fsm,
+		},
+		Voters: []NodeID{1},
+	}); err != nil {
+		t.Fatalf("BootstrapSlot() error = %v", err)
+	}
+	waitForCondition(t, func() bool {
+		st, err := rt.Status(slotID)
+		return err == nil && st.Role == RoleLeader
+	})
+
+	if _, err := rt.Propose(context.Background(), slotID, proposalString("close waits")); err != nil {
+		t.Fatalf("Propose() error = %v", err)
+	}
+	select {
+	case <-fsm.started:
+	case <-time.After(time.Second):
+		t.Fatal("Apply() did not start")
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		done <- rt.Close()
+	}()
+	select {
+	case err := <-done:
+		t.Fatalf("Close() returned before async apply finished: %v", err)
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	fsm.unblock()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("Close() error = %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Close() did not return after async apply unblocked")
+	}
+}
+
 func TestMarkAppliedFailureFailsFutureAndStopsAdvance(t *testing.T) {
 	rt := newStartedRuntime(t)
 	slotID := openSingleNodeLeader(t, rt, 182)
@@ -723,6 +1035,66 @@ func (f *blockingMarkAppliedStorage) unblock() {
 	f.once.Do(func() {
 		close(f.release)
 	})
+}
+
+type failFirstBlockingStateMachine struct {
+	mu            sync.Mutex
+	started       chan struct{}
+	release       chan struct{}
+	secondStarted chan struct{}
+	once          sync.Once
+	firstErr      error
+	calls         int
+}
+
+func newFailFirstBlockingStateMachine(firstErr error) *failFirstBlockingStateMachine {
+	return &failFirstBlockingStateMachine{
+		started:       make(chan struct{}, 1),
+		release:       make(chan struct{}),
+		secondStarted: make(chan struct{}, 1),
+		firstErr:      firstErr,
+	}
+}
+
+func (f *failFirstBlockingStateMachine) Apply(ctx context.Context, cmd Command) ([]byte, error) {
+	f.mu.Lock()
+	f.calls++
+	call := f.calls
+	f.mu.Unlock()
+
+	if call == 1 {
+		select {
+		case f.started <- struct{}{}:
+		default:
+		}
+		<-f.release
+		return nil, f.firstErr
+	}
+	select {
+	case f.secondStarted <- struct{}{}:
+	default:
+	}
+	return append([]byte("ok:"), cmd.Data...), nil
+}
+
+func (f *failFirstBlockingStateMachine) Restore(ctx context.Context, snap Snapshot) error {
+	return nil
+}
+
+func (f *failFirstBlockingStateMachine) Snapshot(ctx context.Context) (Snapshot, error) {
+	return Snapshot{}, nil
+}
+
+func (f *failFirstBlockingStateMachine) unblock() {
+	f.once.Do(func() {
+		close(f.release)
+	})
+}
+
+func (f *failFirstBlockingStateMachine) applyCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.calls
 }
 
 func mustPropose(t *testing.T, rt *Runtime, slotID SlotID, data string) Future {

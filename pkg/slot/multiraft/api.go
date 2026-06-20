@@ -15,7 +15,9 @@ func (r *Runtime) Close() error {
 		return nil
 	}
 	r.closed = true
+	slots := make([]*slot, 0, len(r.slots))
 	for _, g := range r.slots {
+		slots = append(slots, g)
 		g.mu.Lock()
 		g.closed = true
 		g.failPendingLocked(ErrRuntimeClosed)
@@ -25,6 +27,18 @@ func (r *Runtime) Close() error {
 	r.mu.Unlock()
 
 	r.wg.Wait()
+
+	for _, g := range slots {
+		if r.apply != nil {
+			r.apply.closeSlot(g.id)
+		}
+		g.mu.Lock()
+		g.waitIdleLocked()
+		g.mu.Unlock()
+	}
+	if r.apply != nil {
+		r.apply.close()
+	}
 
 	r.mu.Lock()
 	r.slots = make(map[SlotID]*slot)
@@ -37,7 +51,7 @@ func (r *Runtime) OpenSlot(ctx context.Context, opts SlotOptions) error {
 		return err
 	}
 
-	g, err := newSlot(ctx, r.opts.NodeID, r.opts.Logger, r.opts.Raft, opts, r.opts.Observer)
+	g, err := newSlot(ctx, r.opts.NodeID, r.opts.Logger, r.opts.Raft, opts, r.opts.Observer, r.apply)
 	if err != nil {
 		return err
 	}
@@ -60,7 +74,7 @@ func (r *Runtime) BootstrapSlot(ctx context.Context, req BootstrapSlotRequest) e
 		return err
 	}
 
-	g, err := newSlot(ctx, r.opts.NodeID, r.opts.Logger, r.opts.Raft, req.Slot, r.opts.Observer)
+	g, err := newSlot(ctx, r.opts.NodeID, r.opts.Logger, r.opts.Raft, req.Slot, r.opts.Observer, r.apply)
 	if err != nil {
 		return err
 	}
@@ -86,11 +100,7 @@ func (r *Runtime) BootstrapSlot(ctx context.Context, req BootstrapSlotRequest) e
 			return err
 		}
 		if len(req.Voters) == 1 && req.Voters[0] == r.opts.NodeID {
-			if err := g.enqueueControl(controlAction{kind: controlCampaign}); err != nil {
-				delete(r.slots, req.Slot.ID)
-				r.mu.Unlock()
-				return err
-			}
+			g.requestCampaignAfterReady()
 		}
 	}
 	r.mu.Unlock()
@@ -115,9 +125,12 @@ func (r *Runtime) CloseSlot(ctx context.Context, slotID SlotID) error {
 	g.failPendingLocked(ErrSlotClosed)
 	delete(r.slots, slotID)
 	r.mu.Unlock()
-	for g.processing {
-		g.cond.Wait()
+	g.mu.Unlock()
+	if r.apply != nil {
+		r.apply.closeSlot(slotID)
 	}
+	g.mu.Lock()
+	g.waitIdleLocked()
 	g.mu.Unlock()
 	return nil
 }

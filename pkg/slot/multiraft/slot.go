@@ -15,18 +15,21 @@ import (
 )
 
 type slot struct {
-	mu                 sync.Mutex
-	id                 SlotID
-	logger             wklog.Logger
-	storage            Storage
-	stateMachine       StateMachine
-	observer           SchedulerObserver
-	status             Status
-	storageView        *storageAdapter
-	closed             bool
-	fatalErr           error
-	cond               *sync.Cond
-	processing         bool
+	mu           sync.Mutex
+	id           SlotID
+	logger       wklog.Logger
+	storage      Storage
+	stateMachine StateMachine
+	observer     SchedulerObserver
+	status       Status
+	storageView  *storageAdapter
+	apply        *applyPipeline
+	closed       bool
+	fatalErr     error
+	cond         *sync.Cond
+	processing   bool
+	// applying counts async apply tasks that have been accepted for this Slot.
+	applying           int
 	rawNode            *raft.RawNode
 	requests           []raftpb.Message
 	requestWorkBuf     []raftpb.Message
@@ -43,6 +46,10 @@ type slot struct {
 	transportBuf       []Envelope
 	tickPending        bool
 	tickCount          int
+	// durableAppliedIndex is the highest index that completed FSM apply and Storage.MarkApplied.
+	durableAppliedIndex uint64
+	// campaignAfterReady requests a local campaign after bootstrap Ready applies membership.
+	campaignAfterReady bool
 	// votersInitialized reports whether CurrentVoters has been populated from a full Raft status.
 	votersInitialized bool
 	// votersDirty requests a full status refresh after applying a config change.
@@ -98,7 +105,7 @@ type logCompactionResponse struct {
 	err    error
 }
 
-func newSlot(ctx context.Context, nodeID NodeID, logger wklog.Logger, raftOpts RaftOptions, opts SlotOptions, observer SchedulerObserver) (*slot, error) {
+func newSlot(ctx context.Context, nodeID NodeID, logger wklog.Logger, raftOpts RaftOptions, opts SlotOptions, observer SchedulerObserver, apply *applyPipeline) (*slot, error) {
 	state, snapshot, memory, err := newStorageAdapter(opts.Storage).load(ctx)
 	if err != nil {
 		return nil, err
@@ -136,10 +143,12 @@ func newSlot(ctx context.Context, nodeID NodeID, logger wklog.Logger, raftOpts R
 			CommitIndex:  state.HardState.Commit,
 			AppliedIndex: appliedIndex,
 		},
-		logger:      logger,
-		storageView: newStorageAdapter(opts.Storage),
-		rawNode:     rawNode,
-		compactor:   newLogCompactor(raftOpts.LogCompaction, snapshot.Metadata.Index),
+		logger:              logger,
+		storageView:         newStorageAdapter(opts.Storage),
+		apply:               apply,
+		rawNode:             rawNode,
+		durableAppliedIndex: appliedIndex,
+		compactor:           newLogCompactor(raftOpts.LogCompaction, snapshot.Metadata.Index),
 	}
 	g.cond = sync.NewCond(&g.mu)
 	g.storageView.memory = memory
@@ -239,7 +248,12 @@ func (g *slot) processControls(ctx context.Context) bool {
 				action.compact.resp <- logCompactionResponse{err: err}
 				continue
 			}
-			applied := g.rawNode.BasicStatus().Applied
+			g.waitApplyIdle()
+			if err := g.currentErr(); err != nil {
+				action.compact.resp <- logCompactionResponse{err: err}
+				continue
+			}
+			applied := g.appliedIndex()
 			result, err := g.compactLogManually(action.compact.ctx, applied)
 			action.compact.resp <- logCompactionResponse{result: result, err: err}
 		}
@@ -346,6 +360,18 @@ func (g *slot) processReady(ctx context.Context, transport Transport) (bool, boo
 		_ = transport.Send(ctx, g.transportBuf)
 	}
 
+	if readyRequiresSynchronousApply(ready) {
+		return g.processReadySynchronously(ctx, ready)
+	}
+	return g.processReadyAsyncNormal(ctx, ready)
+}
+
+func (g *slot) processReadySynchronously(ctx context.Context, ready raft.Ready) (bool, bool) {
+	g.waitApplyIdle()
+	if !g.shouldProcess() {
+		return true, false
+	}
+
 	lastApplied := g.appliedIndex()
 	appliedBeforeReady := lastApplied
 	resolutions := g.takeResolutionBuffer()
@@ -367,7 +393,7 @@ func (g *slot) processReady(ctx context.Context, transport Transport) (bool, boo
 	batchSM, canBatch := g.stateMachine.(BatchStateMachine)
 	var configChanged bool
 	resolutions, configChanged = g.applyCommittedEntries(ctx, ready.CommittedEntries, &lastApplied, resolutions, batchSM, canBatch)
-	if g.fatalErr != nil {
+	if g.hasFatalErr() {
 		return true, false
 	}
 
@@ -379,11 +405,17 @@ func (g *slot) processReady(ctx context.Context, transport Transport) (bool, boo
 			g.fail(err)
 			return true, false
 		}
+		g.setDurableAppliedIndex(lastApplied)
 	}
 
 	g.rawNode.Advance(ready)
 	g.refreshStatus()
 	g.completeResolutions(resolutions)
+	requeue := g.rawNode.HasReady()
+	if g.takeCampaignAfterReady() {
+		_ = g.rawNode.Campaign()
+		requeue = true
+	}
 	// Refresh snapshots after membership changes so future learners can restore
 	// a snapshot whose ConfState includes the latest peer set.
 	if g.compactor.shouldCompact(lastApplied) || (configChanged && g.compactor.shouldRefreshAfterConfigChange(lastApplied)) {
@@ -393,6 +425,30 @@ func (g *slot) processReady(ctx context.Context, transport Transport) (bool, boo
 			g.compactor.recordSnapshot(lastApplied)
 		}
 	}
+	return true, requeue || g.rawNode.HasReady()
+}
+
+func (g *slot) processReadyAsyncNormal(ctx context.Context, ready raft.Ready) (bool, bool) {
+	if len(ready.CommittedEntries) == 0 {
+		g.rawNode.Advance(ready)
+		g.refreshStatus()
+		return true, g.rawNode.HasReady()
+	}
+	if g.apply == nil {
+		return g.processReadySynchronously(ctx, ready)
+	}
+
+	task := applyTask{
+		slot:          g,
+		entries:       cloneEntries(ready.CommittedEntries),
+		appliedBefore: g.appliedIndex(),
+	}
+	if err := g.apply.enqueue(task); err != nil {
+		g.fail(err)
+		return true, false
+	}
+	g.rawNode.Advance(ready)
+	g.refreshStatus()
 	return true, g.rawNode.HasReady()
 }
 
@@ -574,6 +630,34 @@ func (g *slot) applyCommittedEntries(
 					Term:  entry.Term,
 				},
 			})
+		case raftpb.EntryConfChangeV2:
+			// Flush pending normal entries before processing conf change.
+			if !flushBatch() {
+				return resolutions, configChanged
+			}
+			var cc raftpb.ConfChangeV2
+			if err := cc.Unmarshal(entry.Data); err != nil {
+				resolutions = append(resolutions, futureResolution{
+					kind:  controlConfigChange,
+					index: entry.Index,
+					term:  entry.Term,
+					err:   err,
+				})
+				continue
+			}
+			latest := g.rawNode.ApplyConfChange(cc)
+			g.storageView.memory.confState = cloneConfState(*latest)
+			configChanged = true
+			g.markVotersDirty()
+			resolutions = append(resolutions, futureResolution{
+				kind:  controlConfigChange,
+				index: entry.Index,
+				term:  entry.Term,
+				result: Result{
+					Index: entry.Index,
+					Term:  entry.Term,
+				},
+			})
 		}
 	}
 
@@ -699,6 +783,15 @@ func (g *slot) refreshFullStatus() {
 	g.applyBasicStatusLocked(st.BasicStatus)
 }
 
+func (g *slot) refreshDurableAppliedStatus() {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.status.AppliedIndex = g.durableAppliedIndex
+	if observer, ok := g.observer.(ApplyStateObserver); ok && observer != nil {
+		observer.SetSlotApplyState(g.id, g.status.CommitIndex, g.durableAppliedIndex)
+	}
+}
+
 func (g *slot) applyBasicStatusLocked(st raft.BasicStatus) {
 	prevRole := g.status.Role
 	nextRole := mapRole(st.RaftState)
@@ -709,10 +802,10 @@ func (g *slot) applyBasicStatusLocked(st raft.BasicStatus) {
 	g.setLeaderIDLocked(nextLeader)
 	g.status.Term = st.Term
 	g.status.CommitIndex = st.Commit
-	g.status.AppliedIndex = st.Applied
+	g.status.AppliedIndex = g.durableAppliedIndex
 	g.status.Role = nextRole
 	if observer, ok := g.observer.(ApplyStateObserver); ok && observer != nil {
-		observer.SetSlotApplyState(g.id, st.Commit, st.Applied)
+		observer.SetSlotApplyState(g.id, st.Commit, g.durableAppliedIndex)
 	}
 	if prevRole == RoleLeader && g.status.Role != RoleLeader {
 		g.failLeadershipDependentLocked(ErrNotLeader)
@@ -723,6 +816,22 @@ func (g *slot) markVotersDirty() {
 	g.mu.Lock()
 	g.votersDirty = true
 	g.mu.Unlock()
+}
+
+func (g *slot) requestCampaignAfterReady() {
+	g.mu.Lock()
+	g.campaignAfterReady = true
+	g.mu.Unlock()
+}
+
+func (g *slot) takeCampaignAfterReady() bool {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if !g.campaignAfterReady {
+		return false
+	}
+	g.campaignAfterReady = false
+	return true
 }
 
 func currentVotersFromRaftStatus(st raft.Status) []NodeID {
@@ -782,7 +891,16 @@ func selectLeaderTransferTransferee(st raft.Status, preferred NodeID) NodeID {
 func (g *slot) appliedIndex() uint64 {
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	return g.status.AppliedIndex
+	return g.durableAppliedIndex
+}
+
+func (g *slot) setDurableAppliedIndex(index uint64) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if index > g.durableAppliedIndex {
+		g.durableAppliedIndex = index
+	}
+	g.status.AppliedIndex = g.durableAppliedIndex
 }
 
 func (g *slot) nodeID() NodeID {
@@ -867,6 +985,53 @@ func (g *slot) finishProcessing() {
 	}
 }
 
+func (g *slot) beginApply() error {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if err := g.admissionErrLocked(); err != nil {
+		return err
+	}
+	g.applying++
+	return nil
+}
+
+func (g *slot) finishApply() {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.applying > 0 {
+		g.applying--
+	}
+	if g.cond != nil {
+		g.cond.Broadcast()
+	}
+}
+
+func (g *slot) waitIdleLocked() {
+	for g.processing || g.applying > 0 {
+		g.cond.Wait()
+	}
+}
+
+func (g *slot) waitApplyIdle() {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	for g.applying > 0 {
+		g.cond.Wait()
+	}
+}
+
+func (g *slot) currentErr() error {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return g.admissionErrLocked()
+}
+
+func (g *slot) hasFatalErr() bool {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return g.fatalErr != nil
+}
+
 func (g *slot) fail(err error) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
@@ -886,9 +1051,34 @@ func countTrackedReadyEntries(entries []raftpb.Entry) (proposalCount, configCoun
 			}
 		case raftpb.EntryConfChange:
 			configCount++
+		case raftpb.EntryConfChangeV2:
+			configCount++
 		}
 	}
 	return proposalCount, configCount
+}
+
+func readyRequiresSynchronousApply(ready raft.Ready) bool {
+	if !raft.IsEmptySnap(ready.Snapshot) {
+		return true
+	}
+	for _, entry := range ready.CommittedEntries {
+		if entry.Type == raftpb.EntryConfChange || entry.Type == raftpb.EntryConfChangeV2 {
+			return true
+		}
+	}
+	return false
+}
+
+func cloneEntries(entries []raftpb.Entry) []raftpb.Entry {
+	if len(entries) == 0 {
+		return nil
+	}
+	out := make([]raftpb.Entry, len(entries))
+	for i, entry := range entries {
+		out[i] = cloneEntry(entry, true)
+	}
+	return out
 }
 
 func (g *slot) ensurePendingProposalCapacity(additional int) {

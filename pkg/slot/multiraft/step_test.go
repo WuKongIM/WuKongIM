@@ -146,7 +146,7 @@ func TestRuntimeRefreshesVotersAfterConfigChange(t *testing.T) {
 }
 
 func TestRuntimeDoesNotDoubleRefreshAfterReady(t *testing.T) {
-	g, err := newSlot(context.Background(), 1, nil, RaftOptions{ElectionTick: 10, HeartbeatTick: 1}, newInternalSlotOptions(110), nil)
+	g, err := newSlot(context.Background(), 1, nil, RaftOptions{ElectionTick: 10, HeartbeatTick: 1}, newInternalSlotOptions(110), nil, nil)
 	if err != nil {
 		t.Fatalf("newSlot() error = %v", err)
 	}
@@ -265,16 +265,16 @@ func TestCloseSlotBlocksNewAdmissions(t *testing.T) {
 func TestRuntimeTickLoopDoesNotHoldLockAcrossEnqueue(t *testing.T) {
 	rt := newStartedRuntimeWithTick(t, time.Millisecond)
 	blockedSlotID := SlotID(105)
-	fsm := newBlockingStateMachine()
+	store := newBlockingMarkAppliedStorage()
 	t.Cleanup(func() {
-		fsm.unblock()
+		store.unblock()
 	})
 
 	if err := rt.BootstrapSlot(context.Background(), BootstrapSlotRequest{
 		Slot: SlotOptions{
 			ID:           blockedSlotID,
-			Storage:      &internalFakeStorage{},
-			StateMachine: fsm,
+			Storage:      store,
+			StateMachine: &internalFakeStateMachine{},
 		},
 		Voters: []NodeID{1},
 	}); err != nil {
@@ -286,15 +286,20 @@ func TestRuntimeTickLoopDoesNotHoldLockAcrossEnqueue(t *testing.T) {
 		return err == nil && st.Role == RoleLeader
 	})
 
-	fut, err := rt.Propose(context.Background(), blockedSlotID, proposalString("slow"))
+	store.internalFakeStorage.mu.Lock()
+	baselineApplied := store.internalFakeStorage.lastApplied
+	store.internalFakeStorage.mu.Unlock()
+	store.armAfter(baselineApplied + 1)
+
+	fut, err := rt.ChangeConfig(context.Background(), blockedSlotID, ConfigChange{Type: AddVoter, NodeID: 2})
 	if err != nil {
-		t.Fatalf("Propose() error = %v", err)
+		t.Fatalf("ChangeConfig() error = %v", err)
 	}
 
 	select {
-	case <-fsm.started:
+	case <-store.started:
 	case <-time.After(time.Second):
-		t.Fatal("Apply() did not start")
+		t.Fatal("MarkApplied() did not start")
 	}
 
 	for i := 0; i < cap(rt.scheduler.ch)+1; i++ {
@@ -320,7 +325,7 @@ func TestRuntimeTickLoopDoesNotHoldLockAcrossEnqueue(t *testing.T) {
 		t.Fatal("OpenSlot() blocked behind scheduler enqueue while ticker was running")
 	}
 
-	fsm.unblock()
+	store.unblock()
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	if _, err := fut.Wait(ctx); err != nil {
@@ -331,16 +336,16 @@ func TestRuntimeTickLoopDoesNotHoldLockAcrossEnqueue(t *testing.T) {
 func TestSchedulerBackpressureDoesNotBlockRuntime(t *testing.T) {
 	rt := newStartedRuntimeWithTick(t, time.Millisecond)
 	blockedSlotID := SlotID(106)
-	fsm := newBlockingStateMachine()
+	store := newBlockingMarkAppliedStorage()
 	t.Cleanup(func() {
-		fsm.unblock()
+		store.unblock()
 	})
 
 	if err := rt.BootstrapSlot(context.Background(), BootstrapSlotRequest{
 		Slot: SlotOptions{
 			ID:           blockedSlotID,
-			Storage:      &internalFakeStorage{},
-			StateMachine: fsm,
+			Storage:      store,
+			StateMachine: &internalFakeStateMachine{},
 		},
 		Voters: []NodeID{1},
 	}); err != nil {
@@ -352,15 +357,20 @@ func TestSchedulerBackpressureDoesNotBlockRuntime(t *testing.T) {
 		return err == nil && st.Role == RoleLeader
 	})
 
-	fut, err := rt.Propose(context.Background(), blockedSlotID, proposalString("slow"))
+	store.internalFakeStorage.mu.Lock()
+	baselineApplied := store.internalFakeStorage.lastApplied
+	store.internalFakeStorage.mu.Unlock()
+	store.armAfter(baselineApplied + 1)
+
+	fut, err := rt.ChangeConfig(context.Background(), blockedSlotID, ConfigChange{Type: AddVoter, NodeID: 2})
 	if err != nil {
-		t.Fatalf("Propose() error = %v", err)
+		t.Fatalf("ChangeConfig() error = %v", err)
 	}
 
 	select {
-	case <-fsm.started:
+	case <-store.started:
 	case <-time.After(time.Second):
-		t.Fatal("Apply() did not start")
+		t.Fatal("MarkApplied() did not start")
 	}
 
 	targetSlotID := SlotID(3000)
@@ -388,7 +398,7 @@ func TestSchedulerBackpressureDoesNotBlockRuntime(t *testing.T) {
 		t.Fatal("CloseSlot() blocked behind scheduler enqueue while ticker was running")
 	}
 
-	fsm.unblock()
+	store.unblock()
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	if _, err := fut.Wait(ctx); err != nil {
