@@ -13,7 +13,7 @@ import (
 func TestConversationAuthorityCodecRoundTripAdmit(t *testing.T) {
 	req := conversationAuthorityRequest{
 		Op:     conversationOpAdmitPatches,
-		Target: conversationusecase.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 3, RouteRevision: 4, AuthorityEpoch: 5},
+		Target: conversationusecase.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 3, LeaderTerm: 6, ConfigEpoch: 7, RouteRevision: 4, AuthorityEpoch: 5},
 		Patches: []conversationusecase.ActivePatch{{
 			UID: "u1", ChannelID: "g1", ChannelType: 2, ReadSeq: 7, DeletedToSeq: 8, ActiveAt: 100, UpdatedAt: 101, SparseActive: true, MessageSeq: 9,
 		}},
@@ -34,7 +34,7 @@ func TestConversationAuthorityCodecRoundTripAdmit(t *testing.T) {
 func TestConversationAuthorityCodecRoundTripActiveBatch(t *testing.T) {
 	req := conversationAuthorityRequest{
 		Op:     conversationOpAdmitActiveBatch,
-		Target: conversationusecase.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 3, RouteRevision: 4, AuthorityEpoch: 5},
+		Target: conversationusecase.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 3, LeaderTerm: 6, ConfigEpoch: 7, RouteRevision: 4, AuthorityEpoch: 5},
 		ActiveBatch: conversationactive.ActiveBatch{
 			SenderUID:   "sender",
 			ChannelID:   "g1",

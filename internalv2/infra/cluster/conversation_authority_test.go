@@ -16,11 +16,15 @@ import (
 
 func TestConversationAuthorityClientUsesLocalAuthority(t *testing.T) {
 	local := &fakeConversationAuthorityLocal{}
-	node := &fakeConversationAuthorityNode{nodeID: 1, route: clusterv2.Route{HashSlot: 7, SlotID: 2, Leader: 1, Revision: 3, AuthorityEpoch: 4}}
+	node := &fakeConversationAuthorityNode{nodeID: 1, route: clusterv2.Route{HashSlot: 7, SlotID: 2, Leader: 1, LeaderTerm: 5, ConfigEpoch: 6, Revision: 3, AuthorityEpoch: 4}}
 	client := NewConversationAuthorityClient(node, local)
 	patch := conversationusecase.ActivePatch{UID: "u1", ChannelID: "g1", ChannelType: 2, ActiveAt: 100, MessageSeq: 1}
 	if err := client.AdmitPatches(context.Background(), []conversationusecase.ActivePatch{patch}); err != nil {
 		t.Fatalf("AdmitPatches() error = %v", err)
+	}
+	wantTarget := conversationusecase.RouteTarget{HashSlot: 7, SlotID: 2, LeaderNodeID: 1, LeaderTerm: 5, ConfigEpoch: 6, RouteRevision: 3, AuthorityEpoch: 4}
+	if len(local.targets) != 1 || local.targets[0] != wantTarget {
+		t.Fatalf("local targets = %#v, want %#v", local.targets, wantTarget)
 	}
 	if len(local.patches) != 1 || !reflect.DeepEqual(local.patches[0], patch) {
 		t.Fatalf("local patches = %#v, want %#v", local.patches, patch)

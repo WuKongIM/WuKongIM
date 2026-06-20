@@ -483,11 +483,12 @@ recvacks expire during owner-local push activity.
 ```text
 clusterv2.RouteAuthorityEvent
   -> if local node becomes authority:
-       runtime/presence.Directory.BecomeAuthority(target)
+       runtime/presence.Directory.BecomeAuthority(target with route revision, Slot config epoch, Slot leader term, diagnostic authority epoch)
   -> if another node becomes authority:
        Directory.LoseAuthority(hashSlot)
 
 periodic flush
+  -> pull current route authorities from the cluster snapshot and repair missed watch events
   -> runtime/presence.Directory.ExpireRoutes(now, routeTTL)
   -> drain owner-local dirty routes through online.Registry.DrainTouched
   -> resolve the current UID authority target for each route
@@ -497,7 +498,11 @@ periodic flush
 
 The app worker has one authority watch loop and one periodic touch loop. It does
 not scan or replay owner-local active sessions when authority changes, and it
-does not create per-hash-slot workers.
+does not create per-hash-slot workers. Authority event ordering first compares
+route revision, then Slot config epoch, then Slot leader term, and only uses
+the authority epoch as a diagnostic tie-breaker for the same distributed
+identity; the periodic loop pulls the current authorities so startup races or
+dropped watch events self-heal.
 
 ## Conversation Active Flush Worker
 
@@ -526,7 +531,7 @@ eventual durable lag.
 
 ```text
 clusterv2.RouteAuthorityEvent
-  -> ignore stale events by hash-slot route revision and authority epoch
+  -> ignore stale events by hash-slot route revision, Slot config epoch, Slot leader term, and diagnostic authority epoch tie-break
   -> if local node becomes authority:
        mark the exact conversation authority target active
   -> if leader becomes unknown:
@@ -541,4 +546,9 @@ Foreground committed-message admission still resolves the current UID authority
 through the routed `ConversationAuthorityClient`. The watcher only maintains
 local cache/list readiness for targets that this node can serve. Handoff drains
 the same runtime dirty rows before a target is retired; normal app shutdown is
-handled by the conversation active flush worker.
+handled by the conversation active flush worker. The lifecycle also periodically
+pulls current authorities from the same initial route source so missed watch
+events and startup races repair local authority state. The hard local authority
+identity is `(HashSlot, SlotID, LeaderNodeID, Slot leader term, Slot config
+epoch)`; route revision orders observations, and the authority epoch is retained
+only as a local diagnostic tie-breaker for the same distributed identity.

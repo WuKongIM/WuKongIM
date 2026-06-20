@@ -329,12 +329,14 @@ failed. Routing, readiness, and other read errors still fail the request.
 `ConversationAuthorityClient` routes UID-owned active cache calls to the
 current authority leader and leaves cache/list business rules inside the local
 authority implementation. Legacy patch admission resolves each `ActivePatch`
-UID with `RouteKey(uid)`, groups patches by exact `RouteTarget`, and sends each
+UID with `RouteKey(uid)`, maps the route's Slot leader term and Slot config
+epoch into `RouteTarget`, groups patches by exact `RouteTarget`, and sends each
 group to the local authority when the target leader is this node or through
-access/node Conversation Authority RPC when the leader is remote. Legacy patch
-admission is best-effort and does not retry route-not-ready, stale-route, or
-not-leader errors; callers are expected to log and drop failed active
-admission.
+access/node Conversation Authority RPC when the leader is remote. The local
+authority epoch remains diagnostic metadata and is not the distributed
+identity. Legacy patch admission is best-effort and does not retry
+route-not-ready, stale-route, or not-leader errors; callers are expected to log
+and drop failed active admission.
 Active-batch admission resolves the affected UID set as `SenderUID` plus each
 unique recipient UID, caches each UID's `RouteTarget` for the whole batch,
 coalesces duplicate recipient entries with `IsSender` OR semantics, and sends
@@ -471,10 +473,12 @@ presence.RouteAction
 `RegisterRoute`, `UnregisterRoute`, and `EndpointsByUID` resolve their target
 from the UID carried by the request. `CommitRoute` and `AbortRoute` resolve
 their target from the UID remembered for the pending token returned by
-`RegisterRoute`. Touch batching uses `TouchRoutesTo(target, routes)` because
-the app worker groups dirty owner sessions by the exact authority target
-observed during flush. The adapter sends the batch locally when the target
-leader is this node and uses access/node RPC for remote leaders.
+`RegisterRoute`. Resolved targets carry the Slot leader term and Slot config
+epoch from clusterv2 routes; the authority epoch is only local diagnostic
+metadata. Touch batching uses `TouchRoutesTo(target, routes)` because the app
+worker groups dirty owner sessions by the exact authority target observed
+during flush. The adapter sends the batch locally when the target leader is
+this node and uses access/node RPC for remote leaders.
 
 If route resolution reports route-not-ready, stale routing, or not-leader, the
 adapter waits a short bounded backoff and resolves a fresh `RouteKey` within a

@@ -225,7 +225,7 @@ func TestPresenceCodecRejectsUnknownOpAndCollectionOverflow(t *testing.T) {
 func TestPresenceRPCCodecRoundTripTouchRoutes(t *testing.T) {
 	req := presenceRPCRequest{
 		Op:     presenceOpTouchRoutes,
-		Target: presence.RouteTarget{HashSlot: 7, SlotID: 8, LeaderNodeID: 9, RouteRevision: 10, AuthorityEpoch: 11},
+		Target: presence.RouteTarget{HashSlot: 7, SlotID: 8, LeaderNodeID: 9, LeaderTerm: 12, ConfigEpoch: 13, RouteRevision: 10, AuthorityEpoch: 11},
 		Routes: []presence.Route{{
 			UID:           "u1",
 			OwnerNodeID:   1,
@@ -262,7 +262,7 @@ func TestPresenceRPCCodecRoundTripTouchRoutes(t *testing.T) {
 func TestPresenceCodecGoldenTouchRoutesWireLayout(t *testing.T) {
 	req := presenceRPCRequest{
 		Op:     presenceOpTouchRoutes,
-		Target: presence.RouteTarget{HashSlot: 7, SlotID: 8, LeaderNodeID: 9, RouteRevision: 10, AuthorityEpoch: 11},
+		Target: presence.RouteTarget{HashSlot: 7, SlotID: 8, LeaderNodeID: 9, LeaderTerm: 12, ConfigEpoch: 13, RouteRevision: 10, AuthorityEpoch: 11},
 		Routes: []presence.Route{{
 			UID:           "u1",
 			OwnerNodeID:   1,
@@ -285,7 +285,7 @@ func TestPresenceCodecGoldenTouchRoutesWireLayout(t *testing.T) {
 	want := []byte{
 		'W', 'K', 'V', 'P', 2,
 		presenceOpTouchRoutesID,
-		7, 8, 9, 10, 11,
+		7, 8, 9, 12, 13, 10, 11,
 		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 		1,
 		2, 'u', '1', 1, 2, 3, 4, 2, 'd', '1', 1, 0, 3, 't', 'c', 'p', 0xc8, 0x01, 0xac, 0x02,

@@ -170,6 +170,8 @@ func appendConversationRouteTarget(dst []byte, target conversationusecase.RouteT
 	dst = appendUvarint(dst, uint64(target.HashSlot))
 	dst = appendUvarint(dst, uint64(target.SlotID))
 	dst = appendUvarint(dst, target.LeaderNodeID)
+	dst = appendUvarint(dst, target.LeaderTerm)
+	dst = appendUvarint(dst, target.ConfigEpoch)
 	dst = appendUvarint(dst, target.RouteRevision)
 	return appendUvarint(dst, target.AuthorityEpoch)
 }
@@ -193,6 +195,12 @@ func readConversationRouteTarget(body []byte, offset int) (conversationusecase.R
 	}
 	target.SlotID = uint32(v)
 	if target.LeaderNodeID, offset, err = readUvarint(body, offset); err != nil {
+		return conversationusecase.RouteTarget{}, offset, err
+	}
+	if target.LeaderTerm, offset, err = readUvarint(body, offset); err != nil {
+		return conversationusecase.RouteTarget{}, offset, err
+	}
+	if target.ConfigEpoch, offset, err = readUvarint(body, offset); err != nil {
 		return conversationusecase.RouteTarget{}, offset, err
 	}
 	if target.RouteRevision, offset, err = readUvarint(body, offset); err != nil {

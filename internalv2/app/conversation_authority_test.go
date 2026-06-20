@@ -127,7 +127,7 @@ func TestConversationAuthorityObservesAdmitResults(t *testing.T) {
 		t.Fatalf("AdmitPatches() error = %v", err)
 	}
 	staleTarget := target
-	staleTarget.AuthorityEpoch--
+	staleTarget.LeaderTerm = 1
 	err := authority.AdmitPatches(context.Background(), staleTarget, []conversationusecase.ActivePatch{{
 		UID: "u2", ChannelID: "b", ChannelType: 2, ActiveAt: 200, MessageSeq: 2,
 	}})
@@ -550,7 +550,7 @@ func TestConversationAuthorityListForWarmingTargetRejectsEvenWithActiveTarget(t 
 func TestConversationAuthorityListForStaleTargetRejects(t *testing.T) {
 	authority := newConversationAuthority(conversationAuthorityOptions{LocalNodeID: 1, Store: &recordingConversationAuthorityStore{}})
 	active := conversationusecase.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 1, RouteRevision: 3, AuthorityEpoch: 4}
-	stale := conversationusecase.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 1, RouteRevision: 5, AuthorityEpoch: 6}
+	stale := conversationusecase.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 1, LeaderTerm: 1, RouteRevision: 5, AuthorityEpoch: 6}
 	authority.markActive(active)
 	_, err := authority.ListUserConversationActiveViewForTarget(context.Background(), stale, "u1", metadb.UserConversationActiveCursor{}, 10)
 	if !errors.Is(err, conversationusecase.ErrStaleRoute) {
@@ -574,34 +574,34 @@ func TestConversationAuthorityListForActiveTargetSucceeds(t *testing.T) {
 	}
 }
 
-func TestConversationAuthoritySupersededTargetRejectsOldRoute(t *testing.T) {
+func TestConversationAuthorityAcceptsSameDistributedIdentityWithDifferentRouteRevisionAndAuthorityEpoch(t *testing.T) {
 	authority := newConversationAuthority(conversationAuthorityOptions{LocalNodeID: 1, Store: &recordingConversationAuthorityStore{}, MaxRowsPerUID: 10, MaxRows: 100, ListDBWindowMax: 20})
-	oldTarget := conversationusecase.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 1, RouteRevision: 3, AuthorityEpoch: 4}
-	newTarget := conversationusecase.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 1, RouteRevision: 5, AuthorityEpoch: 6}
+	oldTarget := conversationusecase.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 1, LeaderTerm: 9, ConfigEpoch: 3, RouteRevision: 3, AuthorityEpoch: 4}
+	newTarget := oldTarget
+	newTarget.RouteRevision = 5
+	newTarget.AuthorityEpoch = 6
 	authority.markActive(oldTarget)
 	authority.markActive(newTarget)
 	err := authority.AdmitPatches(context.Background(), oldTarget, []conversationusecase.ActivePatch{{
 		UID: "u1", ChannelID: "old", ChannelType: 2, ActiveAt: 300, MessageSeq: 30,
 	}})
-	if !errors.Is(err, conversationusecase.ErrStaleRoute) {
-		t.Fatalf("AdmitPatches(oldTarget) error = %v, want ErrStaleRoute", err)
+	if err != nil {
+		t.Fatalf("AdmitPatches(oldTarget) error = %v, want same distributed identity accepted", err)
 	}
 	_, err = authority.ListUserConversationActiveViewForTarget(context.Background(), oldTarget, "u1", metadb.UserConversationActiveCursor{}, 10)
-	if !errors.Is(err, conversationusecase.ErrStaleRoute) {
-		t.Fatalf("ListUserConversationActiveViewForTarget(oldTarget) error = %v, want ErrStaleRoute", err)
+	if err != nil {
+		t.Fatalf("ListUserConversationActiveViewForTarget(oldTarget) error = %v, want same distributed identity accepted", err)
 	}
 }
 
-func TestConversationAuthoritySupersededRevisionRetagsDirtyRows(t *testing.T) {
+func TestConversationAuthorityDifferentLeaderTermRejectsOldTarget(t *testing.T) {
 	authority := newConversationAuthority(conversationAuthorityOptions{LocalNodeID: 1, Store: &recordingConversationAuthorityStore{}, MaxRowsPerUID: 10, MaxRows: 100, ListDBWindowMax: 20})
-	oldTarget := conversationusecase.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 1, RouteRevision: 3, AuthorityEpoch: 4}
-	newTarget := conversationusecase.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 1, RouteRevision: 5, AuthorityEpoch: 6}
+	oldTarget := conversationusecase.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 1, LeaderTerm: 9, ConfigEpoch: 3, RouteRevision: 3, AuthorityEpoch: 4}
+	newTarget := oldTarget
+	newTarget.LeaderTerm = 10
+	newTarget.RouteRevision = 5
+	newTarget.AuthorityEpoch = 6
 	authority.markActive(oldTarget)
-	if err := authority.AdmitPatches(context.Background(), oldTarget, []conversationusecase.ActivePatch{{
-		UID: "u1", ChannelID: "dirty", ChannelType: 2, ActiveAt: 300, MessageSeq: 30,
-	}}); err != nil {
-		t.Fatalf("AdmitPatches(oldTarget) error = %v", err)
-	}
 	authority.markActive(newTarget)
 	err := authority.AdmitPatches(context.Background(), oldTarget, []conversationusecase.ActivePatch{{
 		UID: "u1", ChannelID: "old", ChannelType: 2, ActiveAt: 200, MessageSeq: 20,
@@ -613,12 +613,22 @@ func TestConversationAuthoritySupersededRevisionRetagsDirtyRows(t *testing.T) {
 	if !errors.Is(err, conversationusecase.ErrStaleRoute) {
 		t.Fatalf("ListUserConversationActiveViewForTarget(oldTarget) error = %v, want ErrStaleRoute", err)
 	}
-	page, err := authority.ListUserConversationActiveViewForTarget(context.Background(), newTarget, "u1", metadb.UserConversationActiveCursor{}, 10)
-	if err != nil {
-		t.Fatalf("ListUserConversationActiveViewForTarget(newTarget) error = %v", err)
-	}
-	if len(page.Rows) != 1 || page.Rows[0].ChannelID != "dirty" {
-		t.Fatalf("rows = %#v, want dirty row retagged to new target", page.Rows)
+}
+
+func TestConversationAuthorityDifferentConfigEpochRejectsOldTarget(t *testing.T) {
+	authority := newConversationAuthority(conversationAuthorityOptions{LocalNodeID: 1, Store: &recordingConversationAuthorityStore{}, MaxRowsPerUID: 10, MaxRows: 100, ListDBWindowMax: 20})
+	oldTarget := conversationusecase.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 1, LeaderTerm: 9, ConfigEpoch: 3, RouteRevision: 3, AuthorityEpoch: 4}
+	newTarget := oldTarget
+	newTarget.ConfigEpoch = 4
+	newTarget.RouteRevision = 5
+	newTarget.AuthorityEpoch = 6
+	authority.markActive(oldTarget)
+	authority.markActive(newTarget)
+	err := authority.AdmitPatches(context.Background(), oldTarget, []conversationusecase.ActivePatch{{
+		UID: "u1", ChannelID: "old", ChannelType: 2, ActiveAt: 200, MessageSeq: 20,
+	}})
+	if !errors.Is(err, conversationusecase.ErrStaleRoute) {
+		t.Fatalf("AdmitPatches(oldTarget) error = %v, want ErrStaleRoute", err)
 	}
 }
 
@@ -815,7 +825,7 @@ func TestConversationAuthorityDrainUnknownTargetDoesNotPoisonActiveList(t *testi
 	}
 	authority := newConversationAuthority(conversationAuthorityOptions{LocalNodeID: 1, Store: store, MaxRowsPerUID: 10, MaxRows: 100, ListDBWindowMax: 20})
 	active := conversationusecase.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 1, RouteRevision: 3, AuthorityEpoch: 4}
-	unknown := conversationusecase.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 1, RouteRevision: 5, AuthorityEpoch: 6}
+	unknown := conversationusecase.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 1, ConfigEpoch: 1, RouteRevision: 5, AuthorityEpoch: 6}
 	authority.markActive(active)
 	result, err := authority.DrainAuthority(context.Background(), unknown)
 	if !errors.Is(err, conversationusecase.ErrStaleRoute) {

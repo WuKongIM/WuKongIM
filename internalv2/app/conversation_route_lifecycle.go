@@ -20,6 +20,8 @@ type conversationAuthorityRouteLifecycleOptions struct {
 	Watch func() <-chan clusterv2.RouteAuthorityEvent
 	// HandoffTimeout bounds local authority drain during route-authority changes.
 	HandoffTimeout time.Duration
+	// ReconcileInterval controls private pull repair of missed route-authority events.
+	ReconcileInterval time.Duration
 }
 
 type conversationAuthorityRouteLifecycle struct {
@@ -28,6 +30,7 @@ type conversationAuthorityRouteLifecycle struct {
 	initial        func() []clusterv2.RouteAuthority
 	watch          func() <-chan clusterv2.RouteAuthorityEvent
 	handoffTimeout time.Duration
+	reconcileEvery time.Duration
 
 	mu     sync.Mutex
 	cancel context.CancelFunc
@@ -39,12 +42,16 @@ func newConversationAuthorityRouteLifecycle(opts conversationAuthorityRouteLifec
 	if opts.HandoffTimeout <= 0 {
 		opts.HandoffTimeout = 3 * time.Second
 	}
+	if opts.ReconcileInterval <= 0 {
+		opts.ReconcileInterval = 5 * time.Second
+	}
 	return &conversationAuthorityRouteLifecycle{
 		localAuthority: opts.LocalAuthority,
 		localNodeID:    opts.LocalNodeID,
 		initial:        opts.Initial,
 		watch:          opts.Watch,
 		handoffTimeout: opts.HandoffTimeout,
+		reconcileEvery: opts.ReconcileInterval,
 		latest:         make(map[uint16]conversationusecase.RouteTarget),
 	}
 }
@@ -74,6 +81,10 @@ func (l *conversationAuthorityRouteLifecycle) Start(ctx context.Context) error {
 	if events != nil {
 		l.wg.Add(1)
 		go l.watchRouteAuthorities(runCtx, events)
+	}
+	if l.initial != nil {
+		l.wg.Add(1)
+		go l.reconcileRouteAuthorities(runCtx)
 	}
 	l.mu.Unlock()
 	l.applyRouteAuthorities(runCtx, l.initialAuthorities())
@@ -115,6 +126,20 @@ func (l *conversationAuthorityRouteLifecycle) watchRouteAuthorities(ctx context.
 			for _, authority := range event.Authorities {
 				l.handleRouteAuthority(ctx, authority)
 			}
+		}
+	}
+}
+
+func (l *conversationAuthorityRouteLifecycle) reconcileRouteAuthorities(ctx context.Context) {
+	defer l.wg.Done()
+	ticker := time.NewTicker(l.reconcileEvery)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			l.applyRouteAuthorities(ctx, l.initialAuthorities())
 		}
 	}
 }
@@ -212,6 +237,12 @@ func conversationAuthorityRouteTargetNewer(next, current conversationusecase.Rou
 	if next.RouteRevision != current.RouteRevision {
 		return next.RouteRevision > current.RouteRevision
 	}
+	if next.ConfigEpoch != current.ConfigEpoch {
+		return next.ConfigEpoch > current.ConfigEpoch
+	}
+	if next.LeaderTerm != current.LeaderTerm {
+		return next.LeaderTerm > current.LeaderTerm
+	}
 	return next.AuthorityEpoch > current.AuthorityEpoch
 }
 
@@ -220,6 +251,8 @@ func conversationRouteTarget(authority clusterv2.RouteAuthority) conversationuse
 		HashSlot:       authority.HashSlot,
 		SlotID:         authority.SlotID,
 		LeaderNodeID:   authority.LeaderNodeID,
+		LeaderTerm:     authority.LeaderTerm,
+		ConfigEpoch:    authority.ConfigEpoch,
 		RouteRevision:  authority.RouteRevision,
 		AuthorityEpoch: authority.AuthorityEpoch,
 	}

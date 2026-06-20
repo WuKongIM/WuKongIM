@@ -211,6 +211,8 @@ func appendPresenceRouteTarget(dst []byte, target presence.RouteTarget) []byte {
 	dst = appendUvarint(dst, uint64(target.HashSlot))
 	dst = appendUvarint(dst, uint64(target.SlotID))
 	dst = appendUvarint(dst, target.LeaderNodeID)
+	dst = appendUvarint(dst, target.LeaderTerm)
+	dst = appendUvarint(dst, target.ConfigEpoch)
 	dst = appendUvarint(dst, target.RouteRevision)
 	dst = appendUvarint(dst, target.AuthorityEpoch)
 	return dst
@@ -235,6 +237,12 @@ func readPresenceRouteTarget(body []byte, offset int) (presence.RouteTarget, int
 	}
 	target.SlotID = uint32(v)
 	if target.LeaderNodeID, offset, err = readUvarint(body, offset); err != nil {
+		return presence.RouteTarget{}, offset, err
+	}
+	if target.LeaderTerm, offset, err = readUvarint(body, offset); err != nil {
+		return presence.RouteTarget{}, offset, err
+	}
+	if target.ConfigEpoch, offset, err = readUvarint(body, offset); err != nil {
 		return presence.RouteTarget{}, offset, err
 	}
 	if target.RouteRevision, offset, err = readUvarint(body, offset); err != nil {

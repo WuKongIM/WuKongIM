@@ -12,7 +12,7 @@ import (
 )
 
 func TestConversationAuthorityRPCDispatchesList(t *testing.T) {
-	target := conversationusecase.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 3, RouteRevision: 4, AuthorityEpoch: 5}
+	target := testConversationAuthorityTarget()
 	local := &fakeConversationAuthority{page: conversationusecase.ActiveViewPage{
 		Rows: []metadb.UserConversationState{{UID: "u1", ChannelID: "g1", ChannelType: 2, ActiveAt: 100}},
 		Done: true,
@@ -40,7 +40,7 @@ func TestConversationAuthorityRPCDispatchesList(t *testing.T) {
 }
 
 func TestConversationAuthorityRPCDispatchesAdmitAndDrain(t *testing.T) {
-	target := conversationusecase.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 3, RouteRevision: 4, AuthorityEpoch: 5}
+	target := testConversationAuthorityTarget()
 	patches := []conversationusecase.ActivePatch{{UID: "u1", ChannelID: "g1", ChannelType: 2, ActiveAt: 100, MessageSeq: 9}}
 	local := &fakeConversationAuthority{drainResult: conversationDrainResultTransferred}
 	adapter := New(Options{ConversationAuthority: local})
@@ -85,7 +85,7 @@ func TestConversationAuthorityRPCDispatchesAdmitAndDrain(t *testing.T) {
 }
 
 func TestConversationAuthorityRPCDispatchesAdmitActiveBatch(t *testing.T) {
-	target := conversationusecase.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 3, RouteRevision: 4, AuthorityEpoch: 5}
+	target := testConversationAuthorityTarget()
 	batch := conversationactive.ActiveBatch{
 		SenderUID:   "sender",
 		ChannelID:   "g1",
@@ -121,7 +121,7 @@ func TestConversationAuthorityRPCDispatchesAdmitActiveBatch(t *testing.T) {
 }
 
 func TestConversationAuthorityClientCallsExpectedServiceAndMapsStatus(t *testing.T) {
-	target := conversationusecase.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 3, RouteRevision: 4, AuthorityEpoch: 5}
+	target := testConversationAuthorityTarget()
 	after := metadb.UserConversationActiveCursor{ActiveAt: 99, ChannelID: "g0", ChannelType: 2}
 	node := &fakeConversationRPCNode{response: conversationAuthorityResponse{Status: conversationRPCStatusCachePressure}}
 	client := NewClient(node)
@@ -152,7 +152,7 @@ func TestConversationAuthorityClientCallsExpectedServiceAndMapsStatus(t *testing
 }
 
 func TestConversationAuthorityClientAdmitActiveBatchMapsStatus(t *testing.T) {
-	target := conversationusecase.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 3, RouteRevision: 4, AuthorityEpoch: 5}
+	target := testConversationAuthorityTarget()
 	batch := conversationactive.ActiveBatch{
 		SenderUID:   "sender",
 		ChannelID:   "g1",
@@ -187,7 +187,7 @@ func TestConversationAuthorityClientAdmitActiveBatchMapsStatus(t *testing.T) {
 }
 
 func TestConversationAuthorityClientChunksOversizedAdmitPayloads(t *testing.T) {
-	target := conversationusecase.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 3, RouteRevision: 4, AuthorityEpoch: 5}
+	target := testConversationAuthorityTarget()
 	patches := make([]conversationusecase.ActivePatch, maxConversationAuthorityCollectionLen+1)
 	for i := range patches {
 		patches[i] = conversationusecase.ActivePatch{
@@ -217,7 +217,7 @@ func TestConversationAuthorityClientChunksOversizedAdmitPayloads(t *testing.T) {
 }
 
 func TestConversationAuthorityClientRejectsNilNodeAndUnknownStatus(t *testing.T) {
-	target := conversationusecase.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 3, RouteRevision: 4, AuthorityEpoch: 5}
+	target := testConversationAuthorityTarget()
 	calls := []struct {
 		name string
 		call func(*Client) error
@@ -310,6 +310,18 @@ type fakeConversationAuthority struct {
 	activeBatch  conversationactive.ActiveBatch
 	page         conversationusecase.ActiveViewPage
 	drainResult  string
+}
+
+func testConversationAuthorityTarget() conversationusecase.RouteTarget {
+	return conversationusecase.RouteTarget{
+		HashSlot:       1,
+		SlotID:         2,
+		LeaderNodeID:   3,
+		LeaderTerm:     6,
+		ConfigEpoch:    7,
+		RouteRevision:  4,
+		AuthorityEpoch: 5,
+	}
 }
 
 func (f *fakeConversationAuthority) AdmitPatches(_ context.Context, target conversationusecase.RouteTarget, patches []conversationusecase.ActivePatch) error {

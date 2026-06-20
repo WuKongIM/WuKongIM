@@ -112,9 +112,7 @@ func (w *presenceTouchWorker) Start(ctx context.Context) error {
 
 	go w.watch(runCtx, events)
 	go w.tick(runCtx)
-	for _, authority := range w.initialAuthorities() {
-		w.handleAuthority(authority)
-	}
+	w.reconcileAuthorities()
 	return nil
 }
 
@@ -165,6 +163,7 @@ func (w *presenceTouchWorker) tick(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case now := <-ticker.C:
+			w.reconcileAuthorities()
 			w.flushOnce(ctx, now)
 		}
 	}
@@ -177,6 +176,12 @@ func (w *presenceTouchWorker) initialAuthorities() []clusterv2.RouteAuthority {
 	return w.opts.Initial()
 }
 
+func (w *presenceTouchWorker) reconcileAuthorities() {
+	for _, authority := range w.initialAuthorities() {
+		w.handleAuthority(authority)
+	}
+}
+
 func (w *presenceTouchWorker) handleAuthority(authority clusterv2.RouteAuthority) {
 	if w.opts.Directory == nil {
 		return
@@ -185,6 +190,8 @@ func (w *presenceTouchWorker) handleAuthority(authority clusterv2.RouteAuthority
 		HashSlot:       authority.HashSlot,
 		SlotID:         authority.SlotID,
 		LeaderNodeID:   authority.LeaderNodeID,
+		LeaderTerm:     authority.LeaderTerm,
+		ConfigEpoch:    authority.ConfigEpoch,
 		RouteRevision:  authority.RouteRevision,
 		AuthorityEpoch: authority.AuthorityEpoch,
 	}
@@ -219,6 +226,12 @@ func (w *presenceTouchWorker) acceptAuthority(target presence.RouteTarget) bool 
 func authorityTargetNewer(next, current presence.RouteTarget) bool {
 	if next.RouteRevision != current.RouteRevision {
 		return next.RouteRevision > current.RouteRevision
+	}
+	if next.ConfigEpoch != current.ConfigEpoch {
+		return next.ConfigEpoch > current.ConfigEpoch
+	}
+	if next.LeaderTerm != current.LeaderTerm {
+		return next.LeaderTerm > current.LeaderTerm
 	}
 	return next.AuthorityEpoch > current.AuthorityEpoch
 }

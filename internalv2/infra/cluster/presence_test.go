@@ -17,7 +17,7 @@ import (
 func TestPresenceClientUsesLocalAuthorityWhenTargetLeaderIsLocal(t *testing.T) {
 	cluster := &fakePresenceCluster{
 		nodeID: 1,
-		route:  clusterv2.Route{HashSlot: 7, SlotID: 11, Leader: 1, Revision: 17, AuthorityEpoch: 19},
+		route:  clusterv2.Route{HashSlot: 7, SlotID: 11, Leader: 1, LeaderTerm: 23, ConfigEpoch: 29, Revision: 17, AuthorityEpoch: 19},
 	}
 	local := &fakePresenceAuthority{registerResult: presence.RegisterResult{PendingToken: "pending-1"}}
 	client := NewPresenceAuthorityClient(cluster, local)
@@ -33,7 +33,7 @@ func TestPresenceClientUsesLocalAuthorityWhenTargetLeaderIsLocal(t *testing.T) {
 	if len(local.registerCalls) != 1 {
 		t.Fatalf("local register calls = %d, want 1", len(local.registerCalls))
 	}
-	wantTarget := presence.RouteTarget{HashSlot: 7, SlotID: 11, LeaderNodeID: 1, RouteRevision: 17, AuthorityEpoch: 19}
+	wantTarget := presence.RouteTarget{HashSlot: 7, SlotID: 11, LeaderNodeID: 1, LeaderTerm: 23, ConfigEpoch: 29, RouteRevision: 17, AuthorityEpoch: 19}
 	if !reflect.DeepEqual(local.registerCalls[0].target, wantTarget) {
 		t.Fatalf("local target = %#v, want %#v", local.registerCalls[0].target, wantTarget)
 	}
@@ -46,7 +46,7 @@ func TestPresenceClientCallsRemoteAuthorityWhenTargetLeaderIsRemote(t *testing.T
 	remoteAuthority := &fakePresenceAuthority{registerResult: presence.RegisterResult{PendingToken: "remote-pending"}}
 	cluster := &fakePresenceCluster{
 		nodeID: 1,
-		route:  clusterv2.Route{HashSlot: 9, SlotID: 12, Leader: 2, Revision: 18, AuthorityEpoch: 20},
+		route:  clusterv2.Route{HashSlot: 9, SlotID: 12, Leader: 2, LeaderTerm: 24, ConfigEpoch: 30, Revision: 18, AuthorityEpoch: 20},
 		rpc:    presenceRPCHandler{adapter: accessnode.New(accessnode.Options{Authority: remoteAuthority})},
 	}
 	local := &fakePresenceAuthority{}
@@ -71,7 +71,7 @@ func TestPresenceClientCallsRemoteAuthorityWhenTargetLeaderIsRemote(t *testing.T
 	if cluster.calls[0].nodeID != 2 || cluster.calls[0].serviceID != accessnode.PresenceAuthorityRPCServiceID {
 		t.Fatalf("remote rpc call = %#v", cluster.calls[0])
 	}
-	wantTarget := presence.RouteTarget{HashSlot: 9, SlotID: 12, LeaderNodeID: 2, RouteRevision: 18, AuthorityEpoch: 20}
+	wantTarget := presence.RouteTarget{HashSlot: 9, SlotID: 12, LeaderNodeID: 2, LeaderTerm: 24, ConfigEpoch: 30, RouteRevision: 18, AuthorityEpoch: 20}
 	if !reflect.DeepEqual(remoteAuthority.registerCalls[0].target, wantTarget) {
 		t.Fatalf("remote target = %#v, want %#v", remoteAuthority.registerCalls[0].target, wantTarget)
 	}

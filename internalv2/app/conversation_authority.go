@@ -110,10 +110,10 @@ type conversationAuthorityTargetKey struct {
 	slotID uint32
 	// leaderNodeID is the authority leader for this target.
 	leaderNodeID uint64
-	// routeRevision fences route-table changes.
-	routeRevision uint64
-	// authorityEpoch fences authority leadership changes.
-	authorityEpoch uint64
+	// leaderTerm is the Slot Raft term observed for leaderNodeID.
+	leaderTerm uint64
+	// configEpoch is the control-plane Slot config epoch.
+	configEpoch uint64
 }
 
 // conversationAuthorityState describes local authority handoff state.
@@ -516,11 +516,11 @@ func mapConversationActiveError(err error) error {
 
 func targetKey(target conversationusecase.RouteTarget) conversationAuthorityTargetKey {
 	return conversationAuthorityTargetKey{
-		hashSlot:       target.HashSlot,
-		slotID:         target.SlotID,
-		leaderNodeID:   target.LeaderNodeID,
-		routeRevision:  target.RouteRevision,
-		authorityEpoch: target.AuthorityEpoch,
+		hashSlot:     target.HashSlot,
+		slotID:       target.SlotID,
+		leaderNodeID: target.LeaderNodeID,
+		leaderTerm:   target.LeaderTerm,
+		configEpoch:  target.ConfigEpoch,
 	}
 }
 

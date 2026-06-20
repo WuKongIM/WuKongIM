@@ -328,6 +328,8 @@ func testPresenceTarget() presence.RouteTarget {
 		HashSlot:       7,
 		SlotID:         11,
 		LeaderNodeID:   13,
+		LeaderTerm:     17,
+		ConfigEpoch:    18,
 		RouteRevision:  17,
 		AuthorityEpoch: 19,
 	}

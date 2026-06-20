@@ -293,6 +293,10 @@ Presence authority RPC uses fixed magic headers:
 - Request: `W K V P 2`
 - Response: `W K V R 2`
 
+Presence authority request targets carry `HashSlot`, `SlotID`,
+`LeaderNodeID`, Slot `LeaderTerm`, Slot `ConfigEpoch`, route revision, and the
+diagnostic authority epoch in that order.
+
 Delivery push RPC uses fixed magic headers:
 
 - Request: `W K V D 1`
@@ -307,6 +311,10 @@ Conversation authority RPC uses fixed magic headers:
 
 - Request: `W K V C 1`
 - Response: `W K V c 1`
+
+Conversation authority request targets carry `HashSlot`, `SlotID`,
+`LeaderNodeID`, Slot `LeaderTerm`, Slot `ConfigEpoch`, route revision, and the
+diagnostic authority epoch in that order.
 
 Manager Controller Raft RPC uses fixed magic headers:
 

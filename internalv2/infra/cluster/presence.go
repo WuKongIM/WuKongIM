@@ -327,6 +327,8 @@ func routeTargetFromClusterRoute(route clusterv2.Route) presence.RouteTarget {
 		HashSlot:       route.HashSlot,
 		SlotID:         route.SlotID,
 		LeaderNodeID:   route.Leader,
+		LeaderTerm:     route.LeaderTerm,
+		ConfigEpoch:    route.ConfigEpoch,
 		RouteRevision:  route.Revision,
 		AuthorityEpoch: route.AuthorityEpoch,
 	}

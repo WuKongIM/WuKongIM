@@ -2444,7 +2444,7 @@ func TestConversationAuthorityRouteLifecycleWatchesLocalAuthorityEvents(t *testi
 	target := conversationusecase.RouteTarget{HashSlot: 7, SlotID: 2, LeaderNodeID: 1, RouteRevision: 10, AuthorityEpoch: 20}
 	store := &appRecordingConversationAuthorityStore{}
 	local := newConversationAuthority(conversationAuthorityOptions{LocalNodeID: 1, Store: store})
-	watch := make(chan clusterv2.RouteAuthorityEvent, 1)
+	watch := make(chan clusterv2.RouteAuthorityEvent)
 	node := &recordingConversationAuthorityRouteNode{
 		nodeID: 1,
 		routes: map[string]clusterv2.Route{
@@ -2664,11 +2664,11 @@ func TestConversationAuthorityRouteLifecycleDrainDoesNotBlockNewLocalAuthority(t
 }
 
 func TestConversationAuthorityRouteLifecycleIgnoresStaleRouteEvents(t *testing.T) {
-	currentTarget := conversationusecase.RouteTarget{HashSlot: 7, SlotID: 2, LeaderNodeID: 1, RouteRevision: 10, AuthorityEpoch: 20}
-	staleTarget := conversationusecase.RouteTarget{HashSlot: 7, SlotID: 2, LeaderNodeID: 2, RouteRevision: 9, AuthorityEpoch: 21}
+	currentTarget := conversationusecase.RouteTarget{HashSlot: 7, SlotID: 2, LeaderNodeID: 1, LeaderTerm: 9, ConfigEpoch: 3, RouteRevision: 10, AuthorityEpoch: 20}
+	staleTarget := conversationusecase.RouteTarget{HashSlot: 7, SlotID: 2, LeaderNodeID: 2, LeaderTerm: 9, ConfigEpoch: 3, RouteRevision: 9, AuthorityEpoch: 99}
 	store := &appRecordingConversationAuthorityStore{}
 	local := newConversationAuthority(conversationAuthorityOptions{LocalNodeID: 1, Store: store})
-	watch := make(chan clusterv2.RouteAuthorityEvent)
+	watch := make(chan clusterv2.RouteAuthorityEvent, 1)
 	lifecycle := newConversationAuthorityRouteLifecycle(conversationAuthorityRouteLifecycleOptions{
 		LocalAuthority: local,
 		LocalNodeID:    1,
@@ -2700,6 +2700,76 @@ func TestConversationAuthorityRouteLifecycleIgnoresStaleRouteEvents(t *testing.T
 	if err := local.AdmitPatches(context.Background(), currentTarget, nil); err != nil {
 		t.Fatalf("current local target was not preserved: %v", err)
 	}
+}
+
+func TestConversationAuthorityRouteLifecyclePrefersConfigEpochBeforeAuthorityEpoch(t *testing.T) {
+	currentTarget := conversationusecase.RouteTarget{HashSlot: 7, SlotID: 2, LeaderNodeID: 1, LeaderTerm: 9, ConfigEpoch: 3, RouteRevision: 10, AuthorityEpoch: 20}
+	staleTarget := currentTarget
+	staleTarget.LeaderNodeID = 2
+	staleTarget.ConfigEpoch = 2
+	staleTarget.AuthorityEpoch = 99
+	store := &appRecordingConversationAuthorityStore{}
+	local := newConversationAuthority(conversationAuthorityOptions{LocalNodeID: 1, Store: store})
+	watch := make(chan clusterv2.RouteAuthorityEvent, 1)
+	lifecycle := newConversationAuthorityRouteLifecycle(conversationAuthorityRouteLifecycleOptions{
+		LocalAuthority: local,
+		LocalNodeID:    1,
+		Initial: func() []clusterv2.RouteAuthority {
+			return []clusterv2.RouteAuthority{authorityFromConversationTarget(currentTarget)}
+		},
+		Watch:          func() <-chan clusterv2.RouteAuthorityEvent { return watch },
+		HandoffTimeout: 50 * time.Millisecond,
+	})
+	if err := lifecycle.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	watch <- clusterv2.RouteAuthorityEvent{Authorities: []clusterv2.RouteAuthority{authorityFromConversationTarget(staleTarget)}}
+	if err := lifecycle.Stop(context.Background()); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+	if store.totalTouchPatches() != 0 {
+		t.Fatalf("touch patches = %d, want lower config epoch ignored without drain", store.totalTouchPatches())
+	}
+	if err := local.AdmitPatches(context.Background(), currentTarget, nil); err != nil {
+		t.Fatalf("current local target was not preserved: %v", err)
+	}
+}
+
+func TestConversationAuthorityRouteLifecyclePeriodicReconcileRepairsDroppedAuthorityEvent(t *testing.T) {
+	remoteTarget := conversationusecase.RouteTarget{HashSlot: 7, SlotID: 2, LeaderNodeID: 2, LeaderTerm: 9, ConfigEpoch: 3, RouteRevision: 10, AuthorityEpoch: 20}
+	localTarget := remoteTarget
+	localTarget.LeaderNodeID = 1
+	localTarget.AuthorityEpoch = 21
+	store := &appRecordingConversationAuthorityStore{}
+	local := newConversationAuthority(conversationAuthorityOptions{LocalNodeID: 1, Store: store})
+	var mu sync.Mutex
+	authorities := []clusterv2.RouteAuthority{authorityFromConversationTarget(remoteTarget)}
+	lifecycle := newConversationAuthorityRouteLifecycle(conversationAuthorityRouteLifecycleOptions{
+		LocalAuthority:    local,
+		LocalNodeID:       1,
+		HandoffTimeout:    50 * time.Millisecond,
+		ReconcileInterval: 10 * time.Millisecond,
+		Initial: func() []clusterv2.RouteAuthority {
+			mu.Lock()
+			defer mu.Unlock()
+			return append([]clusterv2.RouteAuthority(nil), authorities...)
+		},
+	})
+	if err := lifecycle.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	defer lifecycle.Stop(context.Background())
+	if err := local.AdmitPatches(context.Background(), localTarget, nil); !errors.Is(err, conversationusecase.ErrStaleRoute) {
+		t.Fatalf("local target before reconcile error = %v, want ErrStaleRoute", err)
+	}
+
+	mu.Lock()
+	authorities = []clusterv2.RouteAuthority{authorityFromConversationTarget(localTarget)}
+	mu.Unlock()
+
+	waitUntil(t, time.Second, func() bool {
+		return local.AdmitPatches(context.Background(), localTarget, nil) == nil
+	})
 }
 
 func TestDeliveryWorkerGroupStopKeepsDependenciesRunningWhenDrainFails(t *testing.T) {
@@ -3880,7 +3950,7 @@ func TestPresenceTouchWorkerAcceptsNewerNoLeaderAuthority(t *testing.T) {
 	}
 }
 
-func TestPresenceTouchWorkerKeepsEpochFenceAcrossNoLeaderAuthority(t *testing.T) {
+func TestPresenceTouchWorkerAcceptsSameRaftIdentityWithDifferentAuthorityEpoch(t *testing.T) {
 	directory := &recordingPresenceDirectory{}
 	worker := newPresenceTouchWorker(presenceTouchWorkerOptions{
 		NodeID:    1,
@@ -3891,6 +3961,8 @@ func TestPresenceTouchWorkerKeepsEpochFenceAcrossNoLeaderAuthority(t *testing.T)
 		HashSlot:       9,
 		SlotID:         1,
 		LeaderNodeID:   1,
+		LeaderTerm:     9,
+		ConfigEpoch:    3,
 		RouteRevision:  4,
 		AuthorityEpoch: 3,
 	})
@@ -3898,6 +3970,8 @@ func TestPresenceTouchWorkerKeepsEpochFenceAcrossNoLeaderAuthority(t *testing.T)
 		HashSlot:       9,
 		SlotID:         1,
 		LeaderNodeID:   0,
+		LeaderTerm:     9,
+		ConfigEpoch:    3,
 		RouteRevision:  4,
 		AuthorityEpoch: 4,
 	})
@@ -3905,6 +3979,8 @@ func TestPresenceTouchWorkerKeepsEpochFenceAcrossNoLeaderAuthority(t *testing.T)
 		HashSlot:       9,
 		SlotID:         1,
 		LeaderNodeID:   1,
+		LeaderTerm:     9,
+		ConfigEpoch:    3,
 		RouteRevision:  4,
 		AuthorityEpoch: 3,
 	})
@@ -3912,24 +3988,60 @@ func TestPresenceTouchWorkerKeepsEpochFenceAcrossNoLeaderAuthority(t *testing.T)
 		HashSlot:       9,
 		SlotID:         1,
 		LeaderNodeID:   1,
+		LeaderTerm:     9,
+		ConfigEpoch:    3,
 		RouteRevision:  4,
 		AuthorityEpoch: 5,
 	})
 
 	got := directory.becomeSnapshot()
-	if len(got) != 2 || got[0].AuthorityEpoch != 3 || got[1].AuthorityEpoch != 5 {
-		t.Fatalf("become targets = %#v, want epochs 3 then 5", got)
+	if len(got) != 2 || got[0].AuthorityEpoch != 3 || got[1].AuthorityEpoch != 5 || got[1].LeaderTerm != 9 || got[1].ConfigEpoch != 3 {
+		t.Fatalf("become targets = %#v, want same raft identity with epochs 3 then 5", got)
 	}
 	if lost := directory.loseSnapshot(); !reflect.DeepEqual(lost, []uint16{9}) {
 		t.Fatalf("lost slots = %v, want one no-leader clear", lost)
 	}
 }
 
-func TestCurrentPresenceAuthoritiesIncludesNoLeaderRoutes(t *testing.T) {
+func TestPresenceTouchWorkerPrefersConfigEpochBeforeAuthorityEpoch(t *testing.T) {
+	directory := &recordingPresenceDirectory{}
+	worker := newPresenceTouchWorker(presenceTouchWorkerOptions{
+		NodeID:    1,
+		Directory: directory,
+	})
+
+	worker.handleAuthority(clusterv2.RouteAuthority{
+		HashSlot:       9,
+		SlotID:         1,
+		LeaderNodeID:   1,
+		LeaderTerm:     9,
+		ConfigEpoch:    3,
+		RouteRevision:  4,
+		AuthorityEpoch: 3,
+	})
+	worker.handleAuthority(clusterv2.RouteAuthority{
+		HashSlot:       9,
+		SlotID:         1,
+		LeaderNodeID:   2,
+		LeaderTerm:     9,
+		ConfigEpoch:    2,
+		RouteRevision:  4,
+		AuthorityEpoch: 99,
+	})
+
+	if got := directory.becomeSnapshot(); len(got) != 1 || got[0].LeaderNodeID != 1 {
+		t.Fatalf("become targets = %#v, want original local authority preserved", got)
+	}
+	if got := directory.loseSnapshot(); len(got) != 0 {
+		t.Fatalf("lost slots = %v, want lower config epoch ignored", got)
+	}
+}
+
+func TestCurrentPresenceAuthoritiesIncludesLeaderTermAndConfigEpoch(t *testing.T) {
 	cluster := &fakeWriteReadyCluster{
 		snapshots: []clusterv2.Snapshot{{HashSlotCount: 1}},
 		routes: map[uint16]clusterv2.Route{
-			0: {HashSlot: 0, SlotID: 1, Leader: 0, Revision: 4, AuthorityEpoch: 3},
+			0: {HashSlot: 0, SlotID: 1, Leader: 0, LeaderTerm: 9, ConfigEpoch: 5, Revision: 4, AuthorityEpoch: 3},
 		},
 	}
 	app := &App{cluster: cluster}
@@ -3939,9 +4051,45 @@ func TestCurrentPresenceAuthoritiesIncludesNoLeaderRoutes(t *testing.T) {
 	if len(got) != 1 {
 		t.Fatalf("authorities len = %d, want 1", len(got))
 	}
-	if got[0].LeaderNodeID != 0 || got[0].RouteRevision != 4 || got[0].AuthorityEpoch != 3 {
-		t.Fatalf("authority = %#v, want no-leader revision 4 epoch 3", got[0])
+	if got[0].LeaderNodeID != 0 || got[0].LeaderTerm != 9 || got[0].ConfigEpoch != 5 || got[0].RouteRevision != 4 || got[0].AuthorityEpoch != 3 {
+		t.Fatalf("authority = %#v, want no-leader term 9 config 5 revision 4 epoch 3", got[0])
 	}
+}
+
+func TestPresenceTouchWorkerPeriodicReconcileRepairsDroppedAuthorityEvent(t *testing.T) {
+	directory := &recordingPresenceDirectory{}
+	remote := clusterv2.RouteAuthority{HashSlot: 9, SlotID: 1, LeaderNodeID: 2, LeaderTerm: 9, ConfigEpoch: 3, RouteRevision: 4, AuthorityEpoch: 3}
+	local := remote
+	local.LeaderNodeID = 1
+	local.AuthorityEpoch = 4
+	var mu sync.Mutex
+	authorities := []clusterv2.RouteAuthority{remote}
+	worker := newPresenceTouchWorker(presenceTouchWorkerOptions{
+		NodeID:        1,
+		Directory:     directory,
+		FlushInterval: 10 * time.Millisecond,
+		Initial: func() []clusterv2.RouteAuthority {
+			mu.Lock()
+			defer mu.Unlock()
+			return append([]clusterv2.RouteAuthority(nil), authorities...)
+		},
+	})
+	if err := worker.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	defer worker.Stop(context.Background())
+	waitUntil(t, time.Second, func() bool {
+		return len(directory.loseSnapshot()) == 1
+	})
+
+	mu.Lock()
+	authorities = []clusterv2.RouteAuthority{local}
+	mu.Unlock()
+
+	waitUntil(t, time.Second, func() bool {
+		got := directory.becomeSnapshot()
+		return len(got) == 1 && got[0].LeaderNodeID == 1 && got[0].LeaderTerm == 9 && got[0].ConfigEpoch == 3 && got[0].AuthorityEpoch == 4
+	})
 }
 
 func TestPresenceTouchWorkerUpdatesAuthorityDirectoryFromEvents(t *testing.T) {
@@ -5091,6 +5239,8 @@ func routeFromConversationTarget(target conversationusecase.RouteTarget) cluster
 		HashSlot:       target.HashSlot,
 		SlotID:         target.SlotID,
 		Leader:         target.LeaderNodeID,
+		LeaderTerm:     target.LeaderTerm,
+		ConfigEpoch:    target.ConfigEpoch,
 		Revision:       target.RouteRevision,
 		AuthorityEpoch: target.AuthorityEpoch,
 	}
@@ -5101,6 +5251,8 @@ func authorityFromConversationTarget(target conversationusecase.RouteTarget) clu
 		HashSlot:       target.HashSlot,
 		SlotID:         target.SlotID,
 		LeaderNodeID:   target.LeaderNodeID,
+		LeaderTerm:     target.LeaderTerm,
+		ConfigEpoch:    target.ConfigEpoch,
 		RouteRevision:  target.RouteRevision,
 		AuthorityEpoch: target.AuthorityEpoch,
 	}
