@@ -124,8 +124,7 @@ func (a *App) ListControllerTasks(ctx context.Context, req ListControllerTasksRe
 
 // ControllerTask returns one active Controller task by exact task ID.
 func (a *App) ControllerTask(ctx context.Context, taskID string) (ControllerTask, error) {
-	taskID = strings.TrimSpace(taskID)
-	if taskID == "" {
+	if strings.TrimSpace(taskID) == "" {
 		return ControllerTask{}, metadb.ErrInvalidArgument
 	}
 	if a == nil || a.cluster == nil {

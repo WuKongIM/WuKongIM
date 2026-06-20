@@ -188,6 +188,25 @@ func TestControllerTaskReturnsDetailAndClonesSlices(t *testing.T) {
 	}
 }
 
+func TestControllerTaskUsesExactTaskIDMatch(t *testing.T) {
+	app := New(Options{Cluster: fakeNodeSnapshotReader{snapshot: control.Snapshot{Tasks: []control.ReconcileTask{
+		controllerTaskFixture(" task-with-space ", 1, control.TaskKindBootstrap, control.TaskStatusPending, 0, 1, []uint64{1}),
+	}}}})
+
+	got, err := app.ControllerTask(context.Background(), " task-with-space ")
+	if err != nil {
+		t.Fatalf("ControllerTask(exact spaces) error = %v", err)
+	}
+	if got.TaskID != " task-with-space " {
+		t.Fatalf("TaskID = %q, want exact task ID with spaces", got.TaskID)
+	}
+
+	_, err = app.ControllerTask(context.Background(), "task-with-space")
+	if !errors.Is(err, ErrControllerTaskNotFound) {
+		t.Fatalf("ControllerTask(trimmed lookup) error = %v, want %v", err, ErrControllerTaskNotFound)
+	}
+}
+
 func TestControllerTaskNotFoundAndSnapshotError(t *testing.T) {
 	notFoundApp := New(Options{Cluster: fakeNodeSnapshotReader{snapshot: control.Snapshot{Tasks: []control.ReconcileTask{
 		controllerTaskFixture("existing", 1, control.TaskKindBootstrap, control.TaskStatusPending, 0, 1, []uint64{1}),
