@@ -391,6 +391,39 @@ func TestDirectoryRouteRevisionUpdatePreservesAuthorityState(t *testing.T) {
 	}
 }
 
+func TestDirectoryRouteRevisionUpdatePreservesPendingConflictCandidate(t *testing.T) {
+	existing := Route{UID: "u1", OwnerNodeID: 1, OwnerBootID: 1, OwnerSeq: 1, SessionID: 10, DeviceID: "old", DeviceFlag: 1, DeviceLevel: 1}
+	incoming := Route{UID: "u1", OwnerNodeID: 2, OwnerBootID: 1, OwnerSeq: 1, SessionID: 20, DeviceID: "new", DeviceFlag: 1, DeviceLevel: 1}
+	dir := NewDirectory(DirectoryOptions{ShardCount: 4})
+	first := RouteTarget{HashSlot: 3, SlotID: 1, LeaderNodeID: 1, LeaderTerm: 9, ConfigEpoch: 3, RouteRevision: 1, AuthorityEpoch: 1}
+	dir.BecomeAuthority(first)
+	if _, err := dir.RegisterRoute(first, existing); err != nil {
+		t.Fatalf("RegisterRoute(existing) error = %v", err)
+	}
+	res, err := dir.RegisterRoute(first, incoming)
+	if err != nil {
+		t.Fatalf("RegisterRoute(incoming) error = %v", err)
+	}
+	if res.PendingToken == "" {
+		t.Fatalf("register result = %#v, want pending token", res)
+	}
+
+	second := first
+	second.RouteRevision = 2
+	dir.BecomeAuthority(second)
+	if err := dir.CommitRoute(second, res.PendingToken); err != nil {
+		t.Fatalf("CommitRoute(after revision update) error = %v", err)
+	}
+
+	routes, err := dir.EndpointsByUID(second, "u1")
+	if err != nil {
+		t.Fatalf("EndpointsByUID() error = %v", err)
+	}
+	if len(routes) != 1 || routes[0].SessionID != incoming.SessionID {
+		t.Fatalf("routes = %#v, want pending incoming route committed after revision update", routes)
+	}
+}
+
 func TestDirectoryAcceptsSameIdentityTargetBeforeRevisionUpdateEvent(t *testing.T) {
 	dir := NewDirectory(DirectoryOptions{ShardCount: 4})
 	current := RouteTarget{HashSlot: 3, SlotID: 1, LeaderNodeID: 1, RouteRevision: 1, AuthorityEpoch: 1}
