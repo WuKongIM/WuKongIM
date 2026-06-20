@@ -16,9 +16,13 @@ type RouteAuthority struct {
 	SlotID uint32
 	// LeaderNodeID is the best-known Slot leader that currently owns routing authority.
 	LeaderNodeID uint64
+	// LeaderTerm is the Slot Raft term observed for LeaderNodeID.
+	LeaderTerm uint64
+	// ConfigEpoch is the control-plane Slot config epoch.
+	ConfigEpoch uint64
 	// RouteRevision is the control route revision that produced this authority.
 	RouteRevision uint64
-	// AuthorityEpoch increments when the observed authority identity changes for HashSlot.
+	// AuthorityEpoch is a local observation sequence for diagnostics and compatibility. It is not a distributed fence.
 	AuthorityEpoch uint64
 }
 
@@ -58,13 +62,17 @@ type Route struct {
 	SlotID uint32
 	// Leader is the best-known Slot Raft leader node ID. Zero means unknown.
 	Leader uint64
+	// LeaderTerm is the Slot Raft term observed for Leader.
+	LeaderTerm uint64
+	// ConfigEpoch is the control-plane Slot config epoch for SlotID.
+	ConfigEpoch uint64
 	// PreferredLeader is the desired data-plane leader from the latest control snapshot.
 	PreferredLeader uint64
 	// Peers are the desired Slot replica node IDs from the latest control snapshot.
 	Peers []uint64
 	// Revision is the control snapshot revision that produced this route.
 	Revision uint64
-	// AuthorityEpoch is the observed authority epoch for HashSlot.
+	// AuthorityEpoch is a local observation sequence for diagnostics and compatibility. It is not a distributed fence.
 	AuthorityEpoch uint64
 }
 

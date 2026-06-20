@@ -24,6 +24,10 @@ type Table struct {
 	HashToSlot []uint32
 	// SlotLeaders maps physical Slot ID to best-known leader node ID.
 	SlotLeaders map[uint32]uint64
+	// SlotLeaderTerms maps physical Slot ID to the Slot Raft term observed with the leader.
+	SlotLeaderTerms map[uint32]uint64
+	// SlotConfigEpochs maps physical Slot ID to the control-plane Slot config epoch.
+	SlotConfigEpochs map[uint32]uint64
 	// SlotPreferredLeaders maps physical Slot ID to the desired placement leader.
 	SlotPreferredLeaders map[uint32]uint64
 	// SlotPeers maps physical Slot ID to desired replica node IDs.
@@ -40,6 +44,10 @@ type Route struct {
 	SlotID uint32
 	// Leader is the best-known Slot Raft leader node ID.
 	Leader uint64
+	// LeaderTerm is the Slot Raft term observed with Leader.
+	LeaderTerm uint64
+	// ConfigEpoch is the control-plane Slot config epoch for SlotID.
+	ConfigEpoch uint64
 	// PreferredLeader is the desired data-plane leader from the control snapshot.
 	PreferredLeader uint64
 	// Peers are the desired Slot replica node IDs.
@@ -54,6 +62,8 @@ type SlotStatus struct {
 	SlotID uint32
 	// Leader is the best-known leader node ID for SlotID.
 	Leader uint64
+	// LeaderTerm is the Slot Raft term observed with Leader.
+	LeaderTerm uint64
 }
 
 // BuildTable converts a control snapshot into an immutable route table.
@@ -66,11 +76,14 @@ func BuildTable(snapshot control.Snapshot) (*Table, error) {
 		Revision:             snapshot.Revision,
 		HashToSlot:           make([]uint32, int(count)),
 		SlotLeaders:          make(map[uint32]uint64, len(snapshot.Slots)),
+		SlotLeaderTerms:      make(map[uint32]uint64, len(snapshot.Slots)),
+		SlotConfigEpochs:     make(map[uint32]uint64, len(snapshot.Slots)),
 		SlotPreferredLeaders: make(map[uint32]uint64, len(snapshot.Slots)),
 		SlotPeers:            make(map[uint32][]uint64, len(snapshot.Slots)),
 		HashSlotCount:        count,
 	}
 	for _, slot := range snapshot.Slots {
+		table.SlotConfigEpochs[slot.SlotID] = slot.ConfigEpoch
 		if slot.PreferredLeader != 0 {
 			table.SlotPreferredLeaders[slot.SlotID] = slot.PreferredLeader
 		}
@@ -102,7 +115,7 @@ func (t *Table) routeHashSlot(hashSlot uint16) (Route, error) {
 	if leader == 0 {
 		return Route{}, ErrNoSlotLeader
 	}
-	return Route{HashSlot: hashSlot, SlotID: slotID, Leader: leader, PreferredLeader: t.SlotPreferredLeaders[slotID], Peers: append([]uint64(nil), t.SlotPeers[slotID]...), Revision: t.Revision}, nil
+	return Route{HashSlot: hashSlot, SlotID: slotID, Leader: leader, LeaderTerm: t.SlotLeaderTerms[slotID], ConfigEpoch: t.SlotConfigEpochs[slotID], PreferredLeader: t.SlotPreferredLeaders[slotID], Peers: append([]uint64(nil), t.SlotPeers[slotID]...), Revision: t.Revision}, nil
 }
 
 func (t *Table) cloneWithLeaders(status []SlotStatus) *Table {
@@ -113,12 +126,20 @@ func (t *Table) cloneWithLeaders(status []SlotStatus) *Table {
 		Revision:             t.Revision,
 		HashToSlot:           append([]uint32(nil), t.HashToSlot...),
 		SlotLeaders:          make(map[uint32]uint64, len(t.SlotLeaders)+len(status)),
+		SlotLeaderTerms:      make(map[uint32]uint64, len(t.SlotLeaderTerms)+len(status)),
+		SlotConfigEpochs:     make(map[uint32]uint64, len(t.SlotConfigEpochs)),
 		SlotPreferredLeaders: make(map[uint32]uint64, len(t.SlotPreferredLeaders)),
 		SlotPeers:            make(map[uint32][]uint64, len(t.SlotPeers)),
 		HashSlotCount:        t.HashSlotCount,
 	}
 	for slotID, leader := range t.SlotLeaders {
 		out.SlotLeaders[slotID] = leader
+	}
+	for slotID, term := range t.SlotLeaderTerms {
+		out.SlotLeaderTerms[slotID] = term
+	}
+	for slotID, epoch := range t.SlotConfigEpochs {
+		out.SlotConfigEpochs[slotID] = epoch
 	}
 	for slotID, leader := range t.SlotPreferredLeaders {
 		out.SlotPreferredLeaders[slotID] = leader
@@ -134,6 +155,7 @@ func (t *Table) cloneWithLeaders(status []SlotStatus) *Table {
 			continue
 		}
 		out.SlotLeaders[item.SlotID] = item.Leader
+		out.SlotLeaderTerms[item.SlotID] = item.LeaderTerm
 	}
 	return out
 }

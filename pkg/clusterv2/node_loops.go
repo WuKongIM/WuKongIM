@@ -6,10 +6,15 @@ import (
 )
 
 func (n *Node) startWatchLoop() {
+	if n == nil || n.control == nil || n.watchCancel != nil {
+		return
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	n.watchCancel = cancel
 	watch := n.control.Watch()
+	n.watchWG.Add(1)
 	go func() {
+		defer n.watchWG.Done()
 		for {
 			select {
 			case <-ctx.Done():
@@ -22,6 +27,15 @@ func (n *Node) startWatchLoop() {
 			}
 		}
 	}()
+}
+
+func (n *Node) stopWatchLoop() {
+	if n == nil || n.watchCancel == nil {
+		return
+	}
+	n.watchCancel()
+	n.watchWG.Wait()
+	n.watchCancel = nil
 }
 
 func (n *Node) startChannelTickLoop() {

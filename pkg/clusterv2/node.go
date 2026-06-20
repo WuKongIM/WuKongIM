@@ -81,7 +81,9 @@ type Node struct {
 	routeAuthorityWatchers []chan RouteAuthorityEvent
 	// routeAuthorityEpochs tracks observed authority epochs by logical hash slot.
 	routeAuthorityEpochs map[uint16]uint64
-	proposer             interface {
+	// routeAuthorityPublished tracks the last authority identity published per logical hash slot.
+	routeAuthorityPublished map[uint16]routeAuthorityKey
+	proposer                interface {
 		Propose(context.Context, propose.Request) error
 	}
 	group lifecycle.Group
@@ -90,6 +92,7 @@ type Node struct {
 	snapshot          Snapshot
 	controlSnapshot   control.Snapshot
 	watchCancel       context.CancelFunc
+	watchWG           sync.WaitGroup
 	channelTickCancel context.CancelFunc
 	channelTickWG     sync.WaitGroup
 	slotLeaderCancel  context.CancelFunc
@@ -290,6 +293,21 @@ func (n *Node) publishRouteAuthority(authorities ...RouteAuthority) {
 	if n == nil || len(authorities) == 0 {
 		return
 	}
+	n.recordPublishedRouteAuthority(authorities)
+	n.dispatchRouteAuthority(authorities...)
+}
+
+func (n *Node) publishRouteAuthorityChanges(before, after *routing.Table) {
+	if n == nil {
+		return
+	}
+	n.dispatchRouteAuthority(n.routeAuthorityChangesForPublish(before, after)...)
+}
+
+func (n *Node) dispatchRouteAuthority(authorities ...RouteAuthority) {
+	if n == nil || len(authorities) == 0 {
+		return
+	}
 	event := RouteAuthorityEvent{Authorities: append([]RouteAuthority(nil), authorities...)}
 	n.mu.RLock()
 	defer n.mu.RUnlock()
@@ -297,6 +315,63 @@ func (n *Node) publishRouteAuthority(authorities ...RouteAuthority) {
 		select {
 		case watcher <- event:
 		default:
+		}
+	}
+}
+
+func (n *Node) routeAuthorityChangesForPublish(before, after *routing.Table) []RouteAuthority {
+	if n == nil || after == nil {
+		return nil
+	}
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if n.routeAuthorityPublished == nil {
+		n.routeAuthorityPublished = make(map[uint16]routeAuthorityKey)
+	}
+	out := make([]RouteAuthority, 0)
+	for hashSlot, slotID := range after.HashToSlot {
+		if slotID == 0 {
+			continue
+		}
+		hashSlotID := uint16(hashSlot)
+		current := routeAuthorityKey{slotID: slotID, leaderNodeID: after.SlotLeaders[slotID], leaderTerm: after.SlotLeaderTerms[slotID], configEpoch: after.SlotConfigEpochs[slotID], revision: after.Revision}
+		previous, ok := routeAuthorityFromTable(before, hashSlotID)
+		if ok && previous == current {
+			continue
+		}
+		if published, ok := n.routeAuthorityPublished[hashSlotID]; ok && sameRouteAuthorityIdentity(published, current) {
+			continue
+		}
+		n.routeAuthorityPublished[hashSlotID] = current
+		out = append(out, RouteAuthority{
+			HashSlot:       hashSlotID,
+			SlotID:         current.slotID,
+			LeaderNodeID:   current.leaderNodeID,
+			LeaderTerm:     current.leaderTerm,
+			ConfigEpoch:    current.configEpoch,
+			RouteRevision:  current.revision,
+			AuthorityEpoch: n.authorityEpochForChangeLocked(hashSlotID, previous, ok, current),
+		})
+	}
+	return out
+}
+
+func (n *Node) recordPublishedRouteAuthority(authorities []RouteAuthority) {
+	if n == nil || len(authorities) == 0 {
+		return
+	}
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if n.routeAuthorityPublished == nil {
+		n.routeAuthorityPublished = make(map[uint16]routeAuthorityKey)
+	}
+	for _, authority := range authorities {
+		n.routeAuthorityPublished[authority.HashSlot] = routeAuthorityKey{
+			slotID:       authority.SlotID,
+			leaderNodeID: authority.LeaderNodeID,
+			leaderTerm:   authority.LeaderTerm,
+			configEpoch:  authority.ConfigEpoch,
+			revision:     authority.RouteRevision,
 		}
 	}
 }
@@ -319,22 +394,22 @@ func (n *Node) nextAuthorityEpoch(hashSlot uint16, leaderNodeID uint64) uint64 {
 	}
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	if n.routeAuthorityEpochs == nil {
-		n.routeAuthorityEpochs = make(map[uint16]uint64)
-	}
-	n.routeAuthorityEpochs[hashSlot]++
-	return n.routeAuthorityEpochs[hashSlot]
+	return n.nextAuthorityEpochLocked(hashSlot)
 }
 
 func (n *Node) authorityEpochForChange(hashSlot uint16, previous routeAuthorityKey, previousOK bool, current routeAuthorityKey) uint64 {
 	if n == nil {
 		return 0
 	}
-	if !previousOK || previous.slotID != current.slotID || previous.leaderNodeID != current.leaderNodeID {
-		return n.nextAuthorityEpoch(hashSlot, current.leaderNodeID)
-	}
 	n.mu.Lock()
 	defer n.mu.Unlock()
+	return n.authorityEpochForChangeLocked(hashSlot, previous, previousOK, current)
+}
+
+func (n *Node) authorityEpochForChangeLocked(hashSlot uint16, previous routeAuthorityKey, previousOK bool, current routeAuthorityKey) uint64 {
+	if !previousOK || !sameRouteAuthorityIdentity(previous, current) {
+		return n.nextAuthorityEpochLocked(hashSlot)
+	}
 	if n.routeAuthorityEpochs == nil {
 		n.routeAuthorityEpochs = make(map[uint16]uint64)
 	}
@@ -342,6 +417,21 @@ func (n *Node) authorityEpochForChange(hashSlot uint16, previous routeAuthorityK
 		n.routeAuthorityEpochs[hashSlot] = 1
 	}
 	return n.routeAuthorityEpochs[hashSlot]
+}
+
+func (n *Node) nextAuthorityEpochLocked(hashSlot uint16) uint64 {
+	if n.routeAuthorityEpochs == nil {
+		n.routeAuthorityEpochs = make(map[uint16]uint64)
+	}
+	n.routeAuthorityEpochs[hashSlot]++
+	return n.routeAuthorityEpochs[hashSlot]
+}
+
+func sameRouteAuthorityIdentity(a, b routeAuthorityKey) bool {
+	return a.slotID == b.slotID &&
+		a.leaderNodeID == b.leaderNodeID &&
+		a.leaderTerm == b.leaderTerm &&
+		a.configEpoch == b.configEpoch
 }
 
 func (n *Node) routeWithAuthorityEpoch(route Route, err error) (Route, error) {

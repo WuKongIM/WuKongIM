@@ -27,23 +27,48 @@ func TestRouterRoutesHashSlotZero(t *testing.T) {
 	}
 }
 
+func TestRouterRouteIncludesLeaderTermAndConfigEpoch(t *testing.T) {
+	r := NewRouter()
+	if err := r.UpdateControlSnapshot(testSnapshot()); err != nil {
+		t.Fatalf("UpdateControlSnapshot() error = %v", err)
+	}
+	r.UpdateSlotLeaders([]SlotStatus{{SlotID: 1, Leader: 2, LeaderTerm: 9}})
+
+	route, err := r.RouteHashSlot(0)
+	if err != nil {
+		t.Fatalf("RouteHashSlot() error = %v", err)
+	}
+	if route.LeaderTerm != 9 || route.ConfigEpoch != 1 {
+		t.Fatalf("route = %#v, want leaderTerm=9 configEpoch=1", route)
+	}
+}
+
 func TestRouterOldSnapshotIsImmutable(t *testing.T) {
 	r := NewRouter()
 	if err := r.UpdateControlSnapshot(testSnapshot()); err != nil {
 		t.Fatalf("UpdateControlSnapshot() error = %v", err)
 	}
+	r.UpdateSlotLeaders([]SlotStatus{{SlotID: 1, Leader: 1, LeaderTerm: 9}})
 	before := r.Table()
 	next := testSnapshot()
 	next.Revision++
+	next.Slots[0].ConfigEpoch = 2
 	next.Slots[0].DesiredPeers[1] = 9
 	if err := r.UpdateControlSnapshot(next); err != nil {
 		t.Fatalf("UpdateControlSnapshot(next) error = %v", err)
 	}
+	r.UpdateSlotLeaders([]SlotStatus{{SlotID: 1, Leader: 2, LeaderTerm: 10}})
 	if before == r.Table() {
 		t.Fatal("UpdateControlSnapshot reused the old table pointer")
 	}
 	if got := before.SlotPeers[1]; len(got) != 3 || got[0] != 1 || got[1] != 2 || got[2] != 3 {
 		t.Fatalf("old peers = %#v, want [1 2 3]", got)
+	}
+	if got := before.SlotLeaderTerms[1]; got != 9 {
+		t.Fatalf("old leader term = %d, want 9", got)
+	}
+	if got := before.SlotConfigEpochs[1]; got != 1 {
+		t.Fatalf("old config epoch = %d, want 1", got)
 	}
 }
 
@@ -92,8 +117,8 @@ func TestRouterIgnoresZeroLeaderObservation(t *testing.T) {
 	if err := r.UpdateControlSnapshot(testSnapshot()); err != nil {
 		t.Fatalf("UpdateControlSnapshot() error = %v", err)
 	}
-	r.UpdateSlotLeaders([]SlotStatus{{SlotID: 1, Leader: 1}, {SlotID: 2, Leader: 2}})
-	r.UpdateSlotLeaders([]SlotStatus{{SlotID: 1, Leader: 0}})
+	r.UpdateSlotLeaders([]SlotStatus{{SlotID: 1, Leader: 1, LeaderTerm: 9}, {SlotID: 2, Leader: 2, LeaderTerm: 8}})
+	r.UpdateSlotLeaders([]SlotStatus{{SlotID: 1, Leader: 0, LeaderTerm: 10}})
 
 	route, err := r.RouteHashSlot(0)
 	if err != nil {
@@ -101,6 +126,9 @@ func TestRouterIgnoresZeroLeaderObservation(t *testing.T) {
 	}
 	if route.Leader != 1 {
 		t.Fatalf("Leader = %d, want previous leader 1 to remain installed", route.Leader)
+	}
+	if route.LeaderTerm != 9 {
+		t.Fatalf("LeaderTerm = %d, want previous term 9 to remain installed", route.LeaderTerm)
 	}
 }
 

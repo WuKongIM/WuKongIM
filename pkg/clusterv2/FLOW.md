@@ -60,17 +60,26 @@ pull and pull-hint traffic.
 
 `WatchRouteAuthorities` publishes hash-slot authority changes derived from the
 installed routing table. Each `RouteAuthority` carries
-`(HashSlot, SlotID, LeaderNodeID, RouteRevision, AuthorityEpoch)` so callers can
-fence authority-side state. `AuthorityEpoch` changes when the observed authority
-identity changes for a hash slot and is included in `RouteKey`, `RouteKeys`,
-and `RouteHashSlot` results. `RouteKeys` resolves all keys against one installed
-routing snapshot and returns results in input order, allowing upper layers to
-batch UID authority lookups without repeatedly loading the foreground route
-table. Default Slot leader observation treats `Leader=0` as an unknown
-observation and keeps the last known non-zero Slot leader in the foreground
-router until a new non-zero leader is observed. This prevents transient Raft
-status gaps from briefly removing an otherwise valid route; stale leaders are
-still fenced by downstream Slot/Channel leadership checks.
+`(HashSlot, SlotID, LeaderNodeID, LeaderTerm, ConfigEpoch, RouteRevision,
+AuthorityEpoch)`. `LeaderTerm` comes from the observed Slot Raft leader and
+`ConfigEpoch` comes from the control-plane Slot assignment, so upper layers can
+use `(HashSlot, SlotID, LeaderNodeID, LeaderTerm, ConfigEpoch)` as the
+distributed authority identity. `AuthorityEpoch` is only a node-local
+observation sequence retained for diagnostics and compatibility; it must not be
+used as a distributed fence. `RouteKey`, `RouteKeys`, and `RouteHashSlot`
+include the distributed identity fields plus the local epoch. `RouteKeys`
+resolves all keys against one installed routing snapshot and returns results in
+input order, allowing upper layers to batch UID authority lookups without
+repeatedly loading the foreground route table. Real publication paths remember
+the last distributed identity published per hash slot and suppress duplicate
+events for the same `(SlotID, LeaderNodeID, LeaderTerm, ConfigEpoch)`, so a
+local `AuthorityEpoch` is not manufactured for already-published identities.
+Default Slot leader observation
+treats `Leader=0` as an unknown observation and keeps the last known non-zero
+Slot leader and term in the foreground router until a new non-zero leader is
+observed. This prevents transient Raft status gaps from briefly removing an
+otherwise valid route; stale leaders are still fenced by downstream Slot/Channel
+leadership checks.
 
 ## Start Flow
 

@@ -101,6 +101,7 @@ func (r *Router) UpdateControlSnapshot(snapshot control.Snapshot) error {
 		for slotID, leader := range current.SlotLeaders {
 			if _, ok := table.SlotPeers[slotID]; ok {
 				table.SlotLeaders[slotID] = leader
+				table.SlotLeaderTerms[slotID] = current.SlotLeaderTerms[slotID]
 			}
 		}
 	}

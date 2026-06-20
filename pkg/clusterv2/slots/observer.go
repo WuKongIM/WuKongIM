@@ -19,7 +19,7 @@ func StatusSnapshot(reader StatusReader, slotIDs []uint32) []Status {
 		if err != nil {
 			continue
 		}
-		item := Status{SlotID: uint32(status.SlotID), Leader: uint64(status.LeaderID), Peers: make([]uint64, 0, len(status.CurrentVoters))}
+		item := Status{SlotID: uint32(status.SlotID), Leader: uint64(status.LeaderID), Term: status.Term, Peers: make([]uint64, 0, len(status.CurrentVoters))}
 		for _, peer := range status.CurrentVoters {
 			item.Peers = append(item.Peers, uint64(peer))
 		}

@@ -26,6 +26,8 @@ type Status struct {
 	SlotID uint32
 	// Leader is the best-known Slot leader node ID.
 	Leader uint64
+	// Term is the Slot Raft term observed with Leader.
+	Term uint64
 	// Peers are observed current voter node IDs.
 	Peers []uint64
 }

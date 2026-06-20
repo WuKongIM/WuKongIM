@@ -76,9 +76,9 @@ func TestReconcilerSkipsUnassignedLocalNode(t *testing.T) {
 
 func TestStatusSnapshotMapsRuntimeStatus(t *testing.T) {
 	runtime := newFakeRuntime()
-	runtime.status[1] = multiraft.Status{SlotID: 1, LeaderID: 2, CurrentVoters: []multiraft.NodeID{1, 2, 3}}
+	runtime.status[1] = multiraft.Status{SlotID: 1, LeaderID: 2, Term: 9, CurrentVoters: []multiraft.NodeID{1, 2, 3}}
 	got := StatusSnapshot(runtime, []uint32{1})
-	if len(got) != 1 || got[0].SlotID != 1 || got[0].Leader != 2 || len(got[0].Peers) != 3 {
+	if len(got) != 1 || got[0].SlotID != 1 || got[0].Leader != 2 || got[0].Term != 9 || len(got[0].Peers) != 3 {
 		t.Fatalf("StatusSnapshot() = %#v, want one mapped status", got)
 	}
 }

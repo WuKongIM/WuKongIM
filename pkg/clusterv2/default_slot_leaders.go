@@ -52,13 +52,13 @@ func (n *Node) refreshDefaultSlotLeaders() {
 	}
 	before := n.router.Table()
 	n.router.UpdateSlotLeaders(routingSlotStatuses(slots.StatusSnapshot(n.defaultSlotRuntime, slotIDs)))
-	n.publishRouteAuthority(n.routeAuthorityChanges(before, n.router.Table())...)
+	n.publishRouteAuthorityChanges(before, n.router.Table())
 }
 
 func routingSlotStatuses(statuses []slots.Status) []routing.SlotStatus {
 	out := make([]routing.SlotStatus, 0, len(statuses))
 	for _, status := range statuses {
-		out = append(out, routing.SlotStatus{SlotID: status.SlotID, Leader: status.Leader})
+		out = append(out, routing.SlotStatus{SlotID: status.SlotID, Leader: status.Leader, LeaderTerm: status.Term})
 	}
 	return out
 }

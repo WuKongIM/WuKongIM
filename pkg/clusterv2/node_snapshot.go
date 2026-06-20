@@ -56,13 +56,12 @@ func (n *Node) applySnapshot(ctx context.Context, snapshot control.Snapshot) err
 	firstSnapshot := emptyControlSnapshot(previous)
 	n.mu.RUnlock()
 	changes := snapshotChanges(previous, snapshot)
-	var routeAuthorities []RouteAuthority
+	var routeAuthorityBefore *routing.Table
 	if n.router != nil && (firstSnapshot || changes.slots || changes.hashSlots) {
-		before := n.router.Table()
+		routeAuthorityBefore = n.router.Table()
 		if err := n.router.UpdateControlSnapshot(snapshot); err != nil {
 			return err
 		}
-		routeAuthorities = n.routeAuthorityChanges(before, n.router.Table())
 	}
 	if n.discovery != nil && (firstSnapshot || changes.nodes) {
 		n.discovery.Update(discoveryNodes(snapshot.Nodes))
@@ -71,6 +70,9 @@ func (n *Node) applySnapshot(ctx context.Context, snapshot control.Snapshot) err
 		if err := n.slots.Reconcile(ctx, snapshot); err != nil {
 			return err
 		}
+	}
+	if n.router != nil && (firstSnapshot || changes.slots || changes.hashSlots) {
+		n.publishRouteAuthorityChanges(routeAuthorityBefore, n.router.Table())
 	}
 	if n.tasks != nil && (firstSnapshot || changes.tasks || changes.slots) {
 		if err := n.tasks.Reconcile(ctx, snapshot); err != nil {
@@ -84,13 +86,14 @@ func (n *Node) applySnapshot(ctx context.Context, snapshot control.Snapshot) err
 	n.controlSnapshot = snapshot.Clone()
 	n.snapshot = Snapshot{NodeID: n.cfg.NodeID, ControllerLead: snapshot.ControllerID, StateRevision: snapshot.Revision, RoutesReady: n.router != nil && n.router.Table() != nil, SlotsReady: true, ChannelsReady: n.channels != nil, SlotCount: uint32(len(snapshot.Slots)), HashSlotCount: snapshot.HashSlots.Count}
 	n.mu.Unlock()
-	n.publishRouteAuthority(routeAuthorities...)
 	return nil
 }
 
 type routeAuthorityKey struct {
 	slotID       uint32
 	leaderNodeID uint64
+	leaderTerm   uint64
+	configEpoch  uint64
 	revision     uint64
 }
 
@@ -103,7 +106,7 @@ func (n *Node) routeAuthorityChanges(before, after *routing.Table) []RouteAuthor
 		if slotID == 0 {
 			continue
 		}
-		current := routeAuthorityKey{slotID: slotID, leaderNodeID: after.SlotLeaders[slotID], revision: after.Revision}
+		current := routeAuthorityKey{slotID: slotID, leaderNodeID: after.SlotLeaders[slotID], leaderTerm: after.SlotLeaderTerms[slotID], configEpoch: after.SlotConfigEpochs[slotID], revision: after.Revision}
 		previous, ok := routeAuthorityFromTable(before, uint16(hashSlot))
 		if ok && previous == current {
 			continue
@@ -113,6 +116,8 @@ func (n *Node) routeAuthorityChanges(before, after *routing.Table) []RouteAuthor
 			HashSlot:       hashSlotID,
 			SlotID:         current.slotID,
 			LeaderNodeID:   current.leaderNodeID,
+			LeaderTerm:     current.leaderTerm,
+			ConfigEpoch:    current.configEpoch,
 			RouteRevision:  current.revision,
 			AuthorityEpoch: n.authorityEpochForChange(hashSlotID, previous, ok, current),
 		})
@@ -128,7 +133,7 @@ func routeAuthorityFromTable(table *routing.Table, hashSlot uint16) (routeAuthor
 	if slotID == 0 {
 		return routeAuthorityKey{}, false
 	}
-	return routeAuthorityKey{slotID: slotID, leaderNodeID: table.SlotLeaders[slotID], revision: table.Revision}, true
+	return routeAuthorityKey{slotID: slotID, leaderNodeID: table.SlotLeaders[slotID], leaderTerm: table.SlotLeaderTerms[slotID], configEpoch: table.SlotConfigEpochs[slotID], revision: table.Revision}, true
 }
 
 func aliveDataNodeIDs(nodes []control.Node) []uint64 {
@@ -190,7 +195,7 @@ func convertRoute(route routing.Route, err error) (Route, error) {
 	if err != nil {
 		return Route{}, mapRouteError(err)
 	}
-	return Route{HashSlot: route.HashSlot, SlotID: route.SlotID, Leader: route.Leader, PreferredLeader: route.PreferredLeader, Peers: append([]uint64(nil), route.Peers...), Revision: route.Revision}, nil
+	return Route{HashSlot: route.HashSlot, SlotID: route.SlotID, Leader: route.Leader, LeaderTerm: route.LeaderTerm, ConfigEpoch: route.ConfigEpoch, PreferredLeader: route.PreferredLeader, Peers: append([]uint64(nil), route.Peers...), Revision: route.Revision}, nil
 }
 
 func mapRouteError(err error) error {

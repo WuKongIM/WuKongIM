@@ -3,7 +3,9 @@ package clusterv2
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
 )
@@ -22,8 +24,8 @@ func TestNodeStartAppliesControlSnapshot(t *testing.T) {
 	if _, err := node.RouteHashSlot(0); !errors.Is(err, ErrNoSlotLeader) {
 		t.Fatalf("RouteHashSlot() error = %v, want ErrNoSlotLeader before status observation", err)
 	}
-	if reconciler.calls != 1 || reconciler.last.Revision != 1 {
-		t.Fatalf("reconciler calls=%d revision=%d, want one call revision 1", reconciler.calls, reconciler.last.Revision)
+	if calls, last := reconciler.Calls(), reconciler.Last(); calls != 1 || last.Revision != 1 {
+		t.Fatalf("reconciler calls=%d revision=%d, want one call revision 1", calls, last.Revision)
 	}
 	if snap := node.Snapshot(); !snap.RoutesReady || !snap.SlotsReady || snap.StateRevision != 1 {
 		t.Fatalf("Snapshot() = %#v, want ready revision 1", snap)
@@ -62,8 +64,8 @@ func TestNodeControlWatchNodeOnlyChangeSkipsSlotReconcile(t *testing.T) {
 		t.Fatalf("Start() error = %v", err)
 	}
 	t.Cleanup(func() { _ = node.Stop(context.Background()) })
-	if reconciler.calls != 1 {
-		t.Fatalf("initial reconciler calls = %d, want 1", reconciler.calls)
+	if calls := reconciler.Calls(); calls != 1 {
+		t.Fatalf("initial reconciler calls = %d, want 1", calls)
 	}
 
 	next := nodeControlSnapshot()
@@ -75,8 +77,8 @@ func TestNodeControlWatchNodeOnlyChangeSkipsSlotReconcile(t *testing.T) {
 	waitUntil(t, func() bool {
 		return node.Snapshot().StateRevision == 2
 	})
-	if reconciler.calls != 1 {
-		t.Fatalf("reconciler calls = %d, want node-only change to skip slot reconcile", reconciler.calls)
+	if calls := reconciler.Calls(); calls != 1 {
+		t.Fatalf("reconciler calls = %d, want node-only change to skip slot reconcile", calls)
 	}
 }
 
@@ -123,8 +125,8 @@ func TestNodeControlWatchSlotChangeReconcilesSlots(t *testing.T) {
 		t.Fatalf("Start() error = %v", err)
 	}
 	t.Cleanup(func() { _ = node.Stop(context.Background()) })
-	if reconciler.calls != 1 {
-		t.Fatalf("initial reconciler calls = %d, want 1", reconciler.calls)
+	if calls := reconciler.Calls(); calls != 1 {
+		t.Fatalf("initial reconciler calls = %d, want 1", calls)
 	}
 
 	next := nodeControlSnapshot()
@@ -135,10 +137,11 @@ func TestNodeControlWatchSlotChangeReconcilesSlots(t *testing.T) {
 		t.Fatalf("Publish() error = %v", err)
 	}
 	waitUntil(t, func() bool {
-		return reconciler.calls == 2
+		return reconciler.Calls() == 2
 	})
-	if reconciler.last.Slots[0].ConfigEpoch != 2 || reconciler.last.Slots[0].PreferredLeader != 2 {
-		t.Fatalf("last reconciled snapshot = %#v, want slot epoch 2 preferred leader 2", reconciler.last)
+	lastReconciled := reconciler.Last()
+	if lastReconciled.Slots[0].ConfigEpoch != 2 || lastReconciled.Slots[0].PreferredLeader != 2 {
+		t.Fatalf("last reconciled snapshot = %#v, want slot epoch 2 preferred leader 2", lastReconciled)
 	}
 }
 
@@ -153,8 +156,8 @@ func TestNodeControlWatchTaskChangeRunsTaskExecutor(t *testing.T) {
 		t.Fatalf("Start() error = %v", err)
 	}
 	t.Cleanup(func() { _ = node.Stop(context.Background()) })
-	if executor.calls != 1 {
-		t.Fatalf("initial executor calls = %d, want 1", executor.calls)
+	if calls := executor.Calls(); calls != 1 {
+		t.Fatalf("initial executor calls = %d, want 1", calls)
 	}
 
 	next := nodeControlSnapshot()
@@ -179,10 +182,62 @@ func TestNodeControlWatchTaskChangeRunsTaskExecutor(t *testing.T) {
 		t.Fatalf("Publish() error = %v", err)
 	}
 	waitUntil(t, func() bool {
-		return executor.calls == 2
+		return executor.Calls() == 2
 	})
-	if len(executor.last.Tasks) != 1 || executor.last.Tasks[0].TaskID != "slot-1-bootstrap-1" {
-		t.Fatalf("executor last = %#v, want bootstrap task", executor.last)
+	lastExecuted := executor.Last()
+	if len(lastExecuted.Tasks) != 1 || lastExecuted.Tasks[0].TaskID != "slot-1-bootstrap-1" {
+		t.Fatalf("executor last = %#v, want bootstrap task", lastExecuted)
+	}
+}
+
+func TestNodeStopWaitsForControlWatchApplySnapshot(t *testing.T) {
+	controller := control.NewStaticController(nodeControlSnapshot())
+	executor := newBlockingTaskExecutor(2)
+	node, err := New(validNodeConfig(t), withController(controller), withSlotReconciler(&recordingReconciler{}), withTaskExecutor(executor))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	if err := node.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	t.Cleanup(func() { _ = node.Stop(context.Background()) })
+
+	next := nodeControlSnapshot()
+	next.Revision = 2
+	next.Tasks = []control.ReconcileTask{{
+		TaskID:      "slot-1-bootstrap-1",
+		SlotID:      1,
+		Kind:        control.TaskKindBootstrap,
+		Step:        control.TaskStepCreateSlot,
+		TargetNode:  1,
+		TargetPeers: []uint64{1, 2, 3},
+		ConfigEpoch: 1,
+		Status:      control.TaskStatusPending,
+	}}
+	if err := controller.Publish(next); err != nil {
+		t.Fatalf("Publish() error = %v", err)
+	}
+	waitUntil(t, func() bool {
+		return executor.blockingCallEntered()
+	})
+
+	stopDone := make(chan error, 1)
+	go func() {
+		stopDone <- node.Stop(context.Background())
+	}()
+	select {
+	case err := <-stopDone:
+		t.Fatalf("Stop() returned while watch-loop applySnapshot was still blocked: %v", err)
+	case <-time.After(100 * time.Millisecond):
+	}
+	executor.unblock()
+	select {
+	case err := <-stopDone:
+		if err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Stop() did not return after task executor unblocked")
 	}
 }
 
@@ -230,23 +285,90 @@ func equalUint64s(a []uint64, b []uint64) bool {
 }
 
 type recordingReconciler struct {
+	mu    sync.Mutex
 	calls int
 	last  control.Snapshot
 }
 
 func (r *recordingReconciler) Reconcile(_ context.Context, snap control.Snapshot) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.calls++
 	r.last = snap.Clone()
 	return nil
 }
 
+func (r *recordingReconciler) Calls() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.calls
+}
+
+func (r *recordingReconciler) Last() control.Snapshot {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.last.Clone()
+}
+
 type recordingTaskExecutor struct {
+	mu    sync.Mutex
 	calls int
 	last  control.Snapshot
 }
 
 func (e *recordingTaskExecutor) Reconcile(_ context.Context, snap control.Snapshot) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
 	e.calls++
 	e.last = snap.Clone()
 	return nil
+}
+
+func (e *recordingTaskExecutor) Calls() int {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.calls
+}
+
+func (e *recordingTaskExecutor) Last() control.Snapshot {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.last.Clone()
+}
+
+type blockingWatchTaskExecutor struct {
+	mu          sync.Mutex
+	calls       int
+	blockOnCall int
+	blocked     bool
+	unblockCh   chan struct{}
+}
+
+func newBlockingTaskExecutor(blockOnCall int) *blockingWatchTaskExecutor {
+	return &blockingWatchTaskExecutor{blockOnCall: blockOnCall, unblockCh: make(chan struct{})}
+}
+
+func (e *blockingWatchTaskExecutor) Reconcile(_ context.Context, snap control.Snapshot) error {
+	e.mu.Lock()
+	e.calls++
+	shouldBlock := e.calls == e.blockOnCall
+	if shouldBlock {
+		e.blocked = true
+	}
+	e.mu.Unlock()
+	if !shouldBlock {
+		return nil
+	}
+	<-e.unblockCh
+	return nil
+}
+
+func (e *blockingWatchTaskExecutor) blockingCallEntered() bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.blocked
+}
+
+func (e *blockingWatchTaskExecutor) unblock() {
+	close(e.unblockCh)
 }
