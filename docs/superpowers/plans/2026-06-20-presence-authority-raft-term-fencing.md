@@ -67,6 +67,12 @@ internalv2/infra/cluster/
   conversation_authority_test.go
   FLOW.md
 
+internalv2/access/node/
+  presence_codec.go
+  presence_codec_test.go
+  presence_rpc_test.go
+  FLOW.md
+
 internalv2/app/
   app.go
   presence_touch.go
@@ -471,6 +477,27 @@ func conversationRouteTargetFromClusterRoute(route clusterv2.Route) conversation
 }
 ```
 
+- [ ] Modify `internalv2/access/node/presence_codec.go`.
+
+Presence authority RPC must transport the same distributed route identity
+across nodes. Extend the stable v2 payload for `presence.RouteTarget` with
+`LeaderTerm` and `ConfigEpoch`, and update the corresponding decode path. This
+codec does not provide mixed-version rolling-upgrade compatibility yet, so keep
+the existing magic version unless the code already uses a version bump pattern.
+
+- [ ] Update node RPC tests.
+
+Files:
+
+```text
+internalv2/access/node/presence_codec_test.go
+internalv2/access/node/presence_rpc_test.go
+```
+
+Any `testPresenceTarget` helper or encoded target assertion should use non-zero
+`LeaderTerm` and `ConfigEpoch`, and the decoded/requested `presence.RouteTarget`
+must preserve them.
+
 - [ ] Update adapter tests.
 
 Files:
@@ -485,7 +512,7 @@ Any fake `clusterv2.Route` used for authority target assertions should include n
 - [ ] Run focused tests.
 
 ```bash
-go test ./internalv2/infra/cluster -count=1
+go test ./internalv2/infra/cluster ./internalv2/access/node -count=1
 ```
 
 Expected: package passes.
