@@ -3,8 +3,12 @@
 package slot_leader_transfer
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"sort"
 	"strings"
 	"testing"
@@ -44,6 +48,71 @@ func TestThreeNodeSlotLeaderTransferCompletesAndClearsTask(t *testing.T) {
 	require.NotNil(t, final.NodeLog)
 	require.NotZero(t, final.NodeLog.LeaderID)
 	require.NotEqual(t, accepted.ActualLeader, final.NodeLog.LeaderID)
+	require.Contains(t, final.Assignment.DesiredPeers, final.NodeLog.LeaderID)
+}
+
+func TestThreeNodeSlotLeaderTransferBatchPlanExecuteCompletesAndClearsTask(t *testing.T) {
+	s := suite.New(t)
+	cluster := s.StartThreeNodeCluster(suite.WithManagerHTTP())
+
+	readyCtx, cancelReady := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancelReady()
+	require.NoError(t, cluster.WaitHTTPReady(readyCtx), cluster.DumpDiagnostics())
+
+	initialCtx, cancelInitial := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancelInitial()
+	initial := requireSlotsReady(t, initialCtx, cluster, cluster.MustNode(1))
+
+	slotID, source, target := chooseTransfer(t, initial)
+	require.NotEqual(t, source, target)
+	req := map[string]any{
+		"source_node_id": source,
+		"target_node_id": target,
+		"slot_ids":       []uint32{slotID},
+		"max_tasks":      1,
+		"target_policy":  "least_leaders",
+	}
+
+	planCtx, cancelPlan := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancelPlan()
+	plan := postLeaderTransferBatchPlan(t, planCtx, cluster, req)
+	require.NotZero(t, plan.StateRevision)
+	require.NotEmpty(t, plan.PlanID)
+	require.Equal(t, 1, plan.Summary.Candidates)
+	require.Equal(t, 1, plan.Summary.WouldCreate)
+	require.Len(t, plan.Candidates, 1)
+	candidate := plan.Candidates[0]
+	require.Equal(t, slotID, candidate.SlotID)
+	require.Equal(t, source, candidate.SourceNodeID)
+	require.Equal(t, target, candidate.TargetNodeID)
+	require.NotZero(t, candidate.ActualLeader)
+	require.Equal(t, "create", candidate.Action)
+	require.Contains(t, candidate.DesiredPeers, source)
+	require.Contains(t, candidate.DesiredPeers, target)
+	require.Contains(t, candidate.DesiredPeers, candidate.ActualLeader)
+
+	req["state_revision"] = plan.StateRevision
+	req["plan_id"] = plan.PlanID
+	executeCtx, cancelExecute := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancelExecute()
+	executed := postLeaderTransferBatchExecute(t, executeCtx, cluster, req)
+	require.Equal(t, plan.StateRevision, executed.StateRevision)
+	require.Equal(t, plan.PlanID, executed.PlanID)
+	require.Equal(t, 1, executed.Summary.Requested)
+	require.Equal(t, 1, executed.Summary.Created)
+	require.Equal(t, 0, executed.Summary.Failed)
+	require.Len(t, executed.Results, 1)
+	require.Equal(t, slotID, executed.Results[0].SlotID)
+	require.Equal(t, "created", executed.Results[0].Status)
+	require.NotEmpty(t, executed.Results[0].TaskID)
+
+	finalCtx, cancelFinal := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancelFinal()
+	final := requireLeaderMoved(t, finalCtx, cluster, cluster.MustNode(1), slotID, source)
+
+	require.NotNil(t, final.NodeLog)
+	require.NotZero(t, final.NodeLog.LeaderID)
+	require.NotEqual(t, source, final.NodeLog.LeaderID)
 	require.Contains(t, final.Assignment.DesiredPeers, final.NodeLog.LeaderID)
 }
 
@@ -117,6 +186,94 @@ func chooseTransfer(t *testing.T, slots managerSlotsResponse) (uint32, uint64, u
 	}
 	t.Fatalf("no transferable slot found in manager slots response: %#v", slots)
 	return 0, 0, 0
+}
+
+func postLeaderTransferBatchPlan(t *testing.T, ctx context.Context, cluster *suite.StartedCluster, req map[string]any) managerSlotLeaderTransferBatchPlanResponse {
+	t.Helper()
+
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+
+	nodeErrors := make(map[string]string)
+	for {
+		for _, node := range cluster.Nodes {
+			var out managerSlotLeaderTransferBatchPlanResponse
+			status, _, err := postManagerJSON(ctx, fmt.Sprintf("http://%s/manager/slots/leader-transfer-plan", node.ManagerAddr()), req, &out)
+			if err == nil && status == http.StatusOK {
+				return out
+			}
+			nodeErrors[managerNodeErrorKey(node)] = formatManagerPostError(status, err)
+		}
+
+		select {
+		case <-ctx.Done():
+			t.Fatalf("no manager node returned slot leader-transfer batch plan req=%#v errors=%s\n%s", req, formatNodeErrors(nodeErrors), cluster.DumpDiagnostics())
+		case <-ticker.C:
+		}
+	}
+}
+
+func postLeaderTransferBatchExecute(t *testing.T, ctx context.Context, cluster *suite.StartedCluster, req map[string]any) managerSlotLeaderTransferBatchExecuteResponse {
+	t.Helper()
+
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+
+	nodeErrors := make(map[string]string)
+	for {
+		for _, node := range cluster.Nodes {
+			var out managerSlotLeaderTransferBatchExecuteResponse
+			status, _, err := postManagerJSON(ctx, fmt.Sprintf("http://%s/manager/slots/leader-transfer-batch", node.ManagerAddr()), req, &out)
+			if err == nil && status == http.StatusAccepted {
+				return out
+			}
+			nodeErrors[managerNodeErrorKey(node)] = formatManagerPostError(status, err)
+		}
+
+		select {
+		case <-ctx.Done():
+			t.Fatalf("no manager node accepted slot leader-transfer batch req=%#v errors=%s\n%s", req, formatNodeErrors(nodeErrors), cluster.DumpDiagnostics())
+		case <-ticker.C:
+		}
+	}
+}
+
+func postManagerJSON(ctx context.Context, url string, body any, out any) (int, []byte, error) {
+	data, err := json.Marshal(body)
+	if err != nil {
+		return 0, nil, err
+	}
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(data))
+	if err != nil {
+		return 0, nil, err
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(httpReq)
+	if err != nil {
+		return 0, nil, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return resp.StatusCode, nil, err
+	}
+	if resp.StatusCode/100 != 2 {
+		return resp.StatusCode, respBody, fmt.Errorf("POST %s returned %d: %s", url, resp.StatusCode, strings.TrimSpace(string(respBody)))
+	}
+	if out != nil {
+		if err := json.Unmarshal(respBody, out); err != nil {
+			return resp.StatusCode, respBody, fmt.Errorf("decode POST %s: %w body=%s", url, err, strings.TrimSpace(string(respBody)))
+		}
+	}
+	return resp.StatusCode, respBody, nil
+}
+
+func formatManagerPostError(status int, err error) string {
+	if err == nil {
+		return fmt.Sprintf("unexpected status %d", status)
+	}
+	return err.Error()
 }
 
 func postLeaderTransfer(t *testing.T, ctx context.Context, cluster *suite.StartedCluster, slotID uint32, target uint64) managerSlotLeaderTransferResponse {
@@ -279,4 +436,44 @@ type managerSlotLeaderTransferResponse struct {
 	Created         bool             `json:"created"`
 	Task            *managerSlotTask `json:"task,omitempty"`
 	Message         string           `json:"message"`
+}
+
+type managerSlotLeaderTransferBatchPlanResponse struct {
+	StateRevision uint64                                    `json:"state_revision"`
+	PlanID        string                                    `json:"plan_id"`
+	Summary       managerSlotLeaderTransferBatchPlanSummary `json:"summary"`
+	Candidates    []managerSlotLeaderTransferBatchCandidate `json:"candidates"`
+}
+
+type managerSlotLeaderTransferBatchPlanSummary struct {
+	Candidates  int `json:"candidates"`
+	WouldCreate int `json:"would_create"`
+}
+
+type managerSlotLeaderTransferBatchCandidate struct {
+	SlotID       uint32   `json:"slot_id"`
+	SourceNodeID uint64   `json:"source_node_id"`
+	TargetNodeID uint64   `json:"target_node_id"`
+	ActualLeader uint64   `json:"actual_leader"`
+	DesiredPeers []uint64 `json:"desired_peers"`
+	Action       string   `json:"action"`
+}
+
+type managerSlotLeaderTransferBatchExecuteResponse struct {
+	StateRevision uint64                                       `json:"state_revision"`
+	PlanID        string                                       `json:"plan_id"`
+	Summary       managerSlotLeaderTransferBatchExecuteSummary `json:"summary"`
+	Results       []managerSlotLeaderTransferBatchResult       `json:"results"`
+}
+
+type managerSlotLeaderTransferBatchExecuteSummary struct {
+	Requested int `json:"requested"`
+	Created   int `json:"created"`
+	Failed    int `json:"failed"`
+}
+
+type managerSlotLeaderTransferBatchResult struct {
+	SlotID uint32 `json:"slot_id"`
+	Status string `json:"status"`
+	TaskID string `json:"task_id"`
 }
