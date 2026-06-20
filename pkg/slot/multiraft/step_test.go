@@ -107,20 +107,34 @@ func TestRuntimeStatusCurrentVotersSnapshotIsImmutable(t *testing.T) {
 }
 
 func TestRuntimeRefreshesBasicStatusAfterTick(t *testing.T) {
-	rt := newStartedRuntime(t)
-	slotID := openSingleNodeLeader(t, rt, 108)
-	g := slotFor(rt, slotID)
-	if g == nil {
-		t.Fatal("slotFor() = nil")
+	slotID := SlotID(108)
+	g, err := newSlot(context.Background(), 1, nil, RaftOptions{ElectionTick: 10, HeartbeatTick: 1}, newInternalSlotOptions(slotID), nil, nil)
+	if err != nil {
+		t.Fatalf("newSlot() error = %v", err)
 	}
-	beforeBasic, _ := slotStatusRefreshCounts(g)
+	if err := g.rawNode.Bootstrap([]raft.Peer{{ID: 1}}); err != nil {
+		t.Fatalf("Bootstrap() error = %v", err)
+	}
+	rt := &Runtime{
+		opts:  Options{Transport: &internalFakeTransport{}},
+		slots: map[SlotID]*slot{slotID: g},
+	}
+	for i := 0; i < 8; i++ {
+		if !rt.processSlot(slotID) {
+			break
+		}
+	}
+	beforeBasic, beforeFull := slotStatusRefreshCounts(g)
 
 	g.markTickPending()
 	rt.processSlot(slotID)
 
-	afterBasic, _ := slotStatusRefreshCounts(g)
-	if afterBasic <= beforeBasic {
-		t.Fatalf("basic status refresh count = %d, want > %d", afterBasic, beforeBasic)
+	afterBasic, afterFull := slotStatusRefreshCounts(g)
+	if got := afterBasic - beforeBasic; got != 1 {
+		t.Fatalf("basic status refresh delta = %d, want 1 (before=%d after=%d)", got, beforeBasic, afterBasic)
+	}
+	if afterFull != beforeFull {
+		t.Fatalf("full status refresh count = %d, want %d", afterFull, beforeFull)
 	}
 }
 
