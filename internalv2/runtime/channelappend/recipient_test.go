@@ -337,8 +337,8 @@ func (e *payloadAliasRecipientEnqueuerForRecipientTest) EnqueueRecipientBatch(_ 
 
 func TestRecipientBatchesKeepSameLeaderDifferentFenceTargetsSeparate(t *testing.T) {
 	enqueuer := &recordingRecipientEnqueuerForRecipientTest{}
-	first := authority.Target{HashSlot: 1, SlotID: 11, LeaderNodeID: 10, RouteRevision: 100, AuthorityEpoch: 1000}
-	second := authority.Target{HashSlot: 2, SlotID: 11, LeaderNodeID: 10, RouteRevision: 100, AuthorityEpoch: 1000}
+	first := authority.Target{HashSlot: 1, SlotID: 11, LeaderNodeID: 10, LeaderTerm: 101, ConfigEpoch: 1001, RouteRevision: 100, AuthorityEpoch: 1000}
+	second := authority.Target{HashSlot: 2, SlotID: 11, LeaderNodeID: 10, LeaderTerm: 101, ConfigEpoch: 1001, RouteRevision: 100, AuthorityEpoch: 1000}
 	resolver := mapRecipientAuthorityResolverForRecipientTest{
 		targets: map[string]RecipientAuthorityTarget{"u1": first, "u2": second},
 	}
@@ -850,6 +850,8 @@ func recipientAuthorityTargetForTest(hashSlot uint16, leader uint64, epoch uint6
 		HashSlot:       hashSlot,
 		SlotID:         uint32(hashSlot + 100),
 		LeaderNodeID:   leader,
+		LeaderTerm:     epoch + 10000,
+		ConfigEpoch:    uint64(hashSlot) + 20000,
 		RouteRevision:  uint64(hashSlot + 1000),
 		AuthorityEpoch: epoch,
 	}

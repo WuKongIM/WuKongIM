@@ -15,9 +15,13 @@ type Target struct {
 	SlotID uint32
 	// LeaderNodeID is the node that was authority leader when this target was resolved.
 	LeaderNodeID uint64
+	// LeaderTerm is the Slot Raft term observed for LeaderNodeID.
+	LeaderTerm uint64
+	// ConfigEpoch is the control-plane Slot config epoch.
+	ConfigEpoch uint64
 	// RouteRevision is the clusterv2 route-table revision used to resolve this target.
 	RouteRevision uint64
-	// AuthorityEpoch fences leadership changes for HashSlot.
+	// AuthorityEpoch is a local observation sequence for diagnostics and compatibility. It is not a distributed fence.
 	AuthorityEpoch uint64
 }
 

@@ -14,8 +14,8 @@ import (
 func TestChannelAppendRecipientResolverUsesBatchRouteNode(t *testing.T) {
 	node := &batchRecipientRouteNodeForChannelAppendTest{
 		routes: map[string]clusterv2.Route{
-			"u1": {HashSlot: 1, SlotID: 11, Leader: 10, Revision: 100, AuthorityEpoch: 1000},
-			"u2": {HashSlot: 2, SlotID: 22, Leader: 20, Revision: 200, AuthorityEpoch: 2000},
+			"u1": {HashSlot: 1, SlotID: 11, Leader: 10, LeaderTerm: 101, ConfigEpoch: 1001, Revision: 100, AuthorityEpoch: 1000},
+			"u2": {HashSlot: 2, SlotID: 22, Leader: 20, LeaderTerm: 202, ConfigEpoch: 2002, Revision: 200, AuthorityEpoch: 2000},
 		},
 	}
 	resolver := channelAppendRecipientResolver{node: node}
@@ -35,8 +35,8 @@ func TestChannelAppendRecipientResolverUsesBatchRouteNode(t *testing.T) {
 		t.Fatalf("RouteKeys keys = %#v, want u1,u2", node.batchKeys)
 	}
 	want := map[string]channelappend.RecipientAuthorityTarget{
-		"u1": {HashSlot: 1, SlotID: 11, LeaderNodeID: 10, RouteRevision: 100, AuthorityEpoch: 1000},
-		"u2": {HashSlot: 2, SlotID: 22, LeaderNodeID: 20, RouteRevision: 200, AuthorityEpoch: 2000},
+		"u1": {HashSlot: 1, SlotID: 11, LeaderNodeID: 10, LeaderTerm: 101, ConfigEpoch: 1001, RouteRevision: 100, AuthorityEpoch: 1000},
+		"u2": {HashSlot: 2, SlotID: 22, LeaderNodeID: 20, LeaderTerm: 202, ConfigEpoch: 2002, RouteRevision: 200, AuthorityEpoch: 2000},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("targets = %#v, want %#v", got, want)

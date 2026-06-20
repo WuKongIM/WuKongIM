@@ -121,6 +121,8 @@ func channelAppendRecipientTargetFromRoute(route clusterv2.Route) (channelappend
 		HashSlot:       route.HashSlot,
 		SlotID:         route.SlotID,
 		LeaderNodeID:   route.Leader,
+		LeaderTerm:     route.LeaderTerm,
+		ConfigEpoch:    route.ConfigEpoch,
 		RouteRevision:  route.Revision,
 		AuthorityEpoch: route.AuthorityEpoch,
 	}, nil
