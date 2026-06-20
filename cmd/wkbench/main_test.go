@@ -44,7 +44,7 @@ func TestRootCommandHelpListsSubcommands(t *testing.T) {
 	}
 }
 
-func TestRootCommandUsesWkcliName(t *testing.T) {
+func TestRootCommandUsesWkbenchName(t *testing.T) {
 	var stderr bytes.Buffer
 
 	code := runWithStderr([]string{"--help"}, &stderr)
@@ -52,11 +52,8 @@ func TestRootCommandUsesWkcliName(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("expected help exit code 0, got %d stderr %q", code, stderr.String())
 	}
-	if !strings.Contains(stderr.String(), "wkcli") {
-		t.Fatalf("expected root help to use wkcli name, got %q", stderr.String())
-	}
-	if strings.Contains(stderr.String(), "wkbench") {
-		t.Fatalf("root help should not use old wkbench name, got %q", stderr.String())
+	if !strings.Contains(stderr.String(), "wkbench") {
+		t.Fatalf("expected root help to use wkbench name, got %q", stderr.String())
 	}
 }
 

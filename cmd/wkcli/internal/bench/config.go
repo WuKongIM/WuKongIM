@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	runtimechannelid "github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 )
 
@@ -21,6 +20,7 @@ const (
 	defaultClientMsgNo    = "wkcli-bench"
 	defaultUIDPrefix      = "wkcli-bench-u"
 	defaultDevicePrefix   = "wkcli-bench-device"
+	commandChannelSuffix  = "____cmd"
 )
 
 type sendConfig struct {
@@ -184,7 +184,10 @@ func parseByteSize(value string) (int, error) {
 }
 
 func commandChannelID(channelID string) string {
-	return runtimechannelid.ToCommandChannel(channelID)
+	if strings.HasSuffix(channelID, commandChannelSuffix) {
+		return channelID
+	}
+	return channelID + commandChannelSuffix
 }
 
 // newRunID returns a compact random token that scopes idempotency keys to one bench run.

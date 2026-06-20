@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	accessapi "github.com/WuKongIM/WuKongIM/internalv2/access/api"
+	accessapi "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/top/topapi"
 )
 
 type client struct {

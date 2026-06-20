@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math"
+	"time"
 )
 
 // Raft message types used when registering with transport.Server.
@@ -182,21 +183,26 @@ func decodeRaftSnapshotChunkBody(body []byte) (raftSnapshotChunk, error) {
 	return chunk, nil
 }
 
-// encodeProposalPayload encodes [hashSlot:2][cmd:N] for raft proposals.
+// proposalEnvelopeSize is the cluster-side mirror of the Slot Raft proposal
+// envelope: [hashSlot:2][createdAtMS:8][cmd:N].
+const proposalEnvelopeSize = 10
+
+// encodeProposalPayload encodes [hashSlot:2][createdAtMS:8][cmd:N] for raft proposals.
 func encodeProposalPayload(hashSlot uint16, cmd []byte) []byte {
-	buf := make([]byte, 2+len(cmd))
+	buf := make([]byte, proposalEnvelopeSize+len(cmd))
 	binary.BigEndian.PutUint16(buf[0:2], hashSlot)
-	copy(buf[2:], cmd)
+	binary.BigEndian.PutUint64(buf[2:proposalEnvelopeSize], uint64(time.Now().UTC().UnixMilli()))
+	copy(buf[proposalEnvelopeSize:], cmd)
 	return buf
 }
 
-// decodeProposalPayload decodes [hashSlot:2][cmd:N] from raft proposals.
+// decodeProposalPayload decodes [hashSlot:2][createdAtMS:8][cmd:N] from raft proposals.
 func decodeProposalPayload(payload []byte) (hashSlot uint16, cmd []byte, err error) {
-	if len(payload) < 2 {
+	if len(payload) < proposalEnvelopeSize {
 		return 0, nil, fmt.Errorf("proposal payload too short: %d", len(payload))
 	}
 	hashSlot = binary.BigEndian.Uint16(payload[0:2])
-	cmd = payload[2:]
+	cmd = payload[proposalEnvelopeSize:]
 	return hashSlot, cmd, nil
 }
 

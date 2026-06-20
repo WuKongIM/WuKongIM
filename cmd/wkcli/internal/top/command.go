@@ -8,7 +8,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/command"
 	contextcmd "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/context"
-	accessapi "github.com/WuKongIM/WuKongIM/internalv2/access/api"
+	accessapi "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/top/topapi"
 	"github.com/spf13/cobra"
 )
 

@@ -1,0 +1,647 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "expr": "avg(wukongim_node_cpu_percent{node_name=~\"$node_name\"}) by (node_name)",
+          "legendFormat": "cpu {{node_name}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(wukongim_node_goroutines{node_name=~\"$node_name\"}) by (node_name)",
+          "legendFormat": "goroutines {{node_name}}",
+          "refId": "B"
+        },
+        {
+          "expr": "sum(wukongim_node_threads{node_name=~\"$node_name\"}) by (node_name)",
+          "legendFormat": "threads {{node_name}}",
+          "refId": "C"
+        },
+        {
+          "expr": "sum(wukongim_node_memory_rss_bytes{node_name=~\"$node_name\"}) by (node_name)",
+          "legendFormat": "rss {{node_name}}",
+          "refId": "D"
+        },
+        {
+          "expr": "sum(wukongim_node_memory_vms_bytes{node_name=~\"$node_name\"}) by (node_name)",
+          "legendFormat": "vms {{node_name}}",
+          "refId": "E"
+        }
+      ],
+      "title": "Node Resource Pressure",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "id": 2,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "expr": "max(wukongim_slot_apply_gap{node_name=~\"$node_name\"}) by (node_name)",
+          "legendFormat": "slot apply gap {{node_name}}",
+          "refId": "A"
+        },
+        {
+          "expr": "max(wukongim_slot_replica_lag_seconds{node_name=~\"$node_name\"}) by (node_name)",
+          "legendFormat": "slot replica lag {{node_name}}",
+          "refId": "B"
+        },
+        {
+          "expr": "max(wukongim_controller_apply_gap{node_name=~\"$node_name\"}) by (node_name)",
+          "legendFormat": "controller apply gap {{node_name}}",
+          "refId": "C"
+        },
+        {
+          "expr": "sum(wukongim_channelv2_isr_anomaly_channels{node_name=~\"$node_name\"}) by (node_name)",
+          "legendFormat": "isr anomalies {{node_name}}",
+          "refId": "D"
+        },
+        {
+          "expr": "sum(rate(wukongim_channelv2_worker_task_error_total{node_name=~\"$node_name\"}[$__rate_interval])) by (kind, error)",
+          "legendFormat": "worker task {{kind}} {{error}}",
+          "refId": "E"
+        }
+      ],
+      "title": "Slot And Controller Gaps",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "id": 3,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(wukongim_channelappend_router_total{node_name=~\"$node_name\"}[$__rate_interval])) by (path, result)",
+          "legendFormat": "router {{path}} {{result}}",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wukongim_channelappend_router_duration_seconds_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, path, result))",
+          "legendFormat": "router p95 {{path}} {{result}}",
+          "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wukongim_channelappend_router_items_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, path, result))",
+          "legendFormat": "router items p95 {{path}} {{result}}",
+          "refId": "C"
+        },
+        {
+          "expr": "sum(rate(wukongim_channelappend_local_admission_total{node_name=~\"$node_name\"}[$__rate_interval])) by (result)",
+          "legendFormat": "local admission {{result}}",
+          "refId": "D"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wukongim_channelappend_local_admission_items_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, result))",
+          "legendFormat": "local admission items p95 {{result}}",
+          "refId": "E"
+        }
+      ],
+      "title": "Channel Append Router And Admission",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
+      "id": 4,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(wukongim_channelappend_writer_admission_depth{node_name=~\"$node_name\"}) by (writer)",
+          "legendFormat": "writer admission depth {{writer}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(wukongim_channelappend_writer_admission_capacity{node_name=~\"$node_name\"}) by (writer)",
+          "legendFormat": "writer admission capacity {{writer}}",
+          "refId": "B"
+        },
+        {
+          "expr": "sum(wukongim_channelappend_writer_pool_running{node_name=~\"$node_name\"}) by (writer)",
+          "legendFormat": "writer running {{writer}}",
+          "refId": "C"
+        },
+        {
+          "expr": "sum(wukongim_channelappend_writer_pool_capacity{node_name=~\"$node_name\"}) by (writer)",
+          "legendFormat": "writer pool capacity {{writer}}",
+          "refId": "D"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wukongim_channelappend_writer_state_items_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, state))",
+          "legendFormat": "writer state items p95 {{state}}",
+          "refId": "E"
+        },
+        {
+          "expr": "sum(wukongim_channelappend_effect_pool_inflight{node_name=~\"$node_name\"}) by (pool)",
+          "legendFormat": "effect inflight {{pool}}",
+          "refId": "F"
+        },
+        {
+          "expr": "sum(wukongim_channelappend_effect_pool_capacity{node_name=~\"$node_name\"}) by (pool)",
+          "legendFormat": "effect capacity {{pool}}",
+          "refId": "G"
+        },
+        {
+          "expr": "sum(wukongim_channelappend_effect_pool_saturated{node_name=~\"$node_name\"}) by (pool)",
+          "legendFormat": "effect saturated {{pool}}",
+          "refId": "H"
+        },
+        {
+          "expr": "sum(rate(wukongim_channelappend_effect_pool_submit_total{node_name=~\"$node_name\"}[$__rate_interval])) by (pool, result)",
+          "legendFormat": "effect submit {{pool}} {{result}}",
+          "refId": "I"
+        }
+      ],
+      "title": "Channel Append Writer And Effect Pool",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 16
+      },
+      "id": 5,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(wukongim_channelappend_effect_total{node_name=~\"$node_name\"}[$__rate_interval])) by (stage, result)",
+          "legendFormat": "effect {{stage}} {{result}}",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wukongim_channelappend_effect_duration_seconds_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, stage, result))",
+          "legendFormat": "effect p95 {{stage}} {{result}}",
+          "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wukongim_channelappend_effect_items_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, stage, result))",
+          "legendFormat": "effect items p95 {{stage}} {{result}}",
+          "refId": "C"
+        }
+      ],
+      "title": "Channel Append Effect Results",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 16
+      },
+      "id": 6,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(wukongim_conversation_active_cache_rows{node_name=~\"$node_name\"}) by (node_name)",
+          "legendFormat": "cache rows {{node_name}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(wukongim_conversation_active_cache_dirty_rows{node_name=~\"$node_name\"}) by (node_name)",
+          "legendFormat": "dirty rows {{node_name}}",
+          "refId": "B"
+        },
+        {
+          "expr": "max(wukongim_conversation_active_cache_oldest_dirty_age_seconds{node_name=~\"$node_name\"}) by (node_name)",
+          "legendFormat": "oldest dirty age {{node_name}}",
+          "refId": "C"
+        },
+        {
+          "expr": "sum(rate(wukongim_conversation_active_flush_total{node_name=~\"$node_name\"}[$__rate_interval])) by (result)",
+          "legendFormat": "flush {{result}}",
+          "refId": "D"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wukongim_conversation_active_flush_duration_seconds_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, result))",
+          "legendFormat": "flush p95 {{result}}",
+          "refId": "E"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wukongim_conversation_active_flush_rows_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, result))",
+          "legendFormat": "flush rows p95 {{result}}",
+          "refId": "F"
+        }
+      ],
+      "title": "Conversation Active Cache And Flush",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 24
+      },
+      "id": 7,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(wukongim_conversation_sync_total{node_name=~\"$node_name\"}[$__rate_interval])) by (result)",
+          "legendFormat": "sync {{result}}",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wukongim_conversation_sync_duration_seconds_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, result))",
+          "legendFormat": "sync p95 {{result}}",
+          "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wukongim_conversation_sync_recent_load_duration_seconds_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, result))",
+          "legendFormat": "recent load p95 {{result}}",
+          "refId": "C"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wukongim_conversation_sync_returned_items_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, result))",
+          "legendFormat": "returned items p95 {{result}}",
+          "refId": "D"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wukongim_conversation_sync_overlay_items_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, result))",
+          "legendFormat": "overlay items p95 {{result}}",
+          "refId": "E"
+        }
+      ],
+      "title": "Conversation Sync",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 24
+      },
+      "id": 8,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(wukongim_delivery_recipient_worker_queue_depth{node_name=~\"$node_name\"})",
+          "legendFormat": "queue depth",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(wukongim_delivery_recipient_worker_queue_capacity{node_name=~\"$node_name\"})",
+          "legendFormat": "queue capacity",
+          "refId": "B"
+        },
+        {
+          "expr": "sum(rate(wukongim_delivery_recipient_worker_admission_total{node_name=~\"$node_name\"}[$__rate_interval])) by (result)",
+          "legendFormat": "admission {{result}}",
+          "refId": "C"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wukongim_delivery_recipient_worker_admission_wait_seconds_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, result))",
+          "legendFormat": "admission wait p95 {{result}}",
+          "refId": "D"
+        },
+        {
+          "expr": "sum(rate(wukongim_delivery_recipient_worker_process_total{node_name=~\"$node_name\"}[$__rate_interval])) by (result)",
+          "legendFormat": "process {{result}}",
+          "refId": "E"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wukongim_delivery_recipient_worker_process_duration_seconds_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, result))",
+          "legendFormat": "process p95 {{result}}",
+          "refId": "F"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wukongim_delivery_recipient_worker_process_recipients_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, result))",
+          "legendFormat": "recipients p95 {{result}}",
+          "refId": "G"
+        }
+      ],
+      "title": "Recipient Worker",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 32
+      },
+      "id": 9,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(wukongim_ants_pool_running{node_name=~\"$node_name\"}) by (component, pool)",
+          "legendFormat": "running {{component}} {{pool}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(wukongim_ants_pool_capacity{node_name=~\"$node_name\"}) by (component, pool)",
+          "legendFormat": "capacity {{component}} {{pool}}",
+          "refId": "B"
+        },
+        {
+          "expr": "sum(wukongim_ants_pool_waiting{node_name=~\"$node_name\"}) by (component, pool)",
+          "legendFormat": "waiting {{component}} {{pool}}",
+          "refId": "C"
+        },
+        {
+          "expr": "avg(wukongim_ants_pool_utilization{node_name=~\"$node_name\"}) by (component, pool)",
+          "legendFormat": "utilization {{component}} {{pool}}",
+          "refId": "D"
+        }
+      ],
+      "title": "Ants Pool Usage",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 36,
+  "style": "dark",
+  "tags": [
+    "wukongim",
+    "v2-runtime-ops"
+  ],
+  "templating": {
+    "list": [
+      {
+        "allValue": ".*",
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": "Prometheus",
+        "definition": "label_values(wukongim_node_goroutines, node_name)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Node",
+        "multi": true,
+        "name": "node_name",
+        "options": [],
+        "query": "label_values(wukongim_node_goroutines, node_name)",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-30m",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "",
+  "title": "WuKongIM V2 Runtime Operations",
+  "uid": "wukongim-v2-runtime-ops",
+  "version": 1,
+  "weekStart": ""
+}

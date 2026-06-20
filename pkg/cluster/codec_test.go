@@ -2,7 +2,9 @@ package cluster
 
 import (
 	"bytes"
+	"encoding/binary"
 	"testing"
+	"time"
 )
 
 func TestRaftBodyRoundTrip(t *testing.T) {
@@ -64,7 +66,16 @@ func TestForwardPayloadRoundTrip(t *testing.T) {
 
 func TestProposalPayloadRoundTrip(t *testing.T) {
 	cmd := []byte("proposal-command")
+	before := time.Now().UTC().UnixMilli()
 	payload := encodeProposalPayload(23, cmd)
+	after := time.Now().UTC().UnixMilli()
+	if len(payload) != 10+len(cmd) {
+		t.Fatalf("encoded proposal payload length = %d, want %d", len(payload), 10+len(cmd))
+	}
+	createdAtMS := int64(binary.BigEndian.Uint64(payload[2:10]))
+	if createdAtMS < before || createdAtMS > after {
+		t.Fatalf("encoded proposal createdAtMS = %d, want between %d and %d", createdAtMS, before, after)
+	}
 	hashSlot, decoded, err := decodeProposalPayload(payload)
 	if err != nil {
 		t.Fatalf("decode: %v", err)

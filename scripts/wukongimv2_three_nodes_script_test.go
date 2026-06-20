@@ -224,7 +224,15 @@ func writeFakeWukongIMV2ReadyCurl(t *testing.T, path string, callsDir string) {
 set -euo pipefail
 calls_dir="` + callsDir + `"
 echo "$*" >> "$calls_dir/curl.calls"
-echo "ok"
+for _ in $(seq 1 50); do
+  if [[ -f "$calls_dir/wukongimv2.env" ]] && [[ "$(grep -c ' WK_PROMETHEUS_ENABLE=' "$calls_dir/wukongimv2.env" 2>/dev/null || true)" -ge 3 ]]; then
+    echo "ok"
+    exit 0
+  fi
+  sleep 0.02
+done
+echo "nodes did not start" >&2
+exit 7
 `
 	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
 		t.Fatal(err)

@@ -10,7 +10,7 @@ import (
 	"text/tabwriter"
 	"time"
 
-	accessapi "github.com/WuKongIM/WuKongIM/internalv2/access/api"
+	accessapi "github.com/WuKongIM/WuKongIM/cmd/wkcli/internal/top/topapi"
 )
 
 func renderJSON(w io.Writer, snapshot aggregateSnapshot) error {
