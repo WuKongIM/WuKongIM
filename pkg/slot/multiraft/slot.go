@@ -248,7 +248,10 @@ func (g *slot) processControls(ctx context.Context) bool {
 				action.compact.resp <- logCompactionResponse{err: err}
 				continue
 			}
-			g.waitApplyIdle()
+			if err := g.waitApplyIdle(action.compact.ctx); err != nil {
+				action.compact.resp <- logCompactionResponse{err: err}
+				continue
+			}
 			if err := g.currentErr(); err != nil {
 				action.compact.resp <- logCompactionResponse{err: err}
 				continue
@@ -367,7 +370,9 @@ func (g *slot) processReady(ctx context.Context, transport Transport) (bool, boo
 }
 
 func (g *slot) processReadySynchronously(ctx context.Context, ready raft.Ready) (bool, bool) {
-	g.waitApplyIdle()
+	if err := g.waitApplyIdle(ctx); err != nil {
+		return true, false
+	}
 	if !g.shouldProcess() {
 		return true, false
 	}
@@ -1012,12 +1017,35 @@ func (g *slot) waitIdleLocked() {
 	}
 }
 
-func (g *slot) waitApplyIdle() {
+func (g *slot) waitApplyIdle(ctx context.Context) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	var stop chan struct{}
+	if done := ctx.Done(); done != nil {
+		stop = make(chan struct{})
+		go func() {
+			select {
+			case <-done:
+				g.mu.Lock()
+				if g.cond != nil {
+					g.cond.Broadcast()
+				}
+				g.mu.Unlock()
+			case <-stop:
+			}
+		}()
+		defer close(stop)
+	}
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	for g.applying > 0 {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		g.cond.Wait()
 	}
+	return ctx.Err()
 }
 
 func (g *slot) currentErr() error {
@@ -1154,7 +1182,7 @@ func (g *slot) trackReadyEntries(entries []raftpb.Entry) {
 				term:   entry.Term,
 			}
 			g.submittedProposals = g.submittedProposals[1:]
-		case raftpb.EntryConfChange:
+		case raftpb.EntryConfChange, raftpb.EntryConfChangeV2:
 			if len(g.submittedConfigs) == 0 {
 				continue
 			}

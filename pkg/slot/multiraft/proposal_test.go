@@ -33,6 +33,26 @@ func TestReadyRequiresSynchronousApplyTreatsConfChangeV2AsBarrier(t *testing.T) 
 	}
 }
 
+func TestTrackReadyEntriesTracksConfChangeV2Future(t *testing.T) {
+	fut := newFuture(nil)
+	g := &slot{submittedConfigs: []*future{fut}}
+
+	g.trackReadyEntries([]raftpb.Entry{
+		{Type: raftpb.EntryConfChangeV2, Index: 9, Term: 3},
+	})
+
+	pending, ok := g.pendingConfigs[9]
+	if !ok {
+		t.Fatal("EntryConfChangeV2 future was not tracked")
+	}
+	if pending.future != fut || pending.term != 3 {
+		t.Fatalf("tracked future = %+v, want future=%p term=3", pending, fut)
+	}
+	if len(g.submittedConfigs) != 0 {
+		t.Fatalf("submitted configs = %d, want 0", len(g.submittedConfigs))
+	}
+}
+
 func TestEnsurePendingProposalCapacityPreservesTrackedFuture(t *testing.T) {
 	fut := newFuture(nil)
 	g := &slot{
@@ -687,6 +707,39 @@ func TestNormalEntryAsyncApplyKeepsStatusAppliedAtDurableIndex(t *testing.T) {
 	})
 }
 
+func TestAsyncApplyObserverReportsTaskDurationAndQueueDepth(t *testing.T) {
+	observer := &slotApplyTaskObserver{}
+	rt := newStartedRuntimeWithObserver(t, observer)
+	slotID := openSingleNodeLeader(t, rt, 1185)
+
+	fut, err := rt.Propose(context.Background(), slotID, proposalString("observe-apply"))
+	if err != nil {
+		t.Fatalf("Propose() error = %v", err)
+	}
+	if _, err := fut.Wait(context.Background()); err != nil {
+		t.Fatalf("Wait() error = %v", err)
+	}
+
+	waitForCondition(t, func() bool {
+		observer.mu.Lock()
+		defer observer.mu.Unlock()
+		return len(observer.applyTasks) > 0
+	})
+
+	observer.mu.Lock()
+	defer observer.mu.Unlock()
+	event := observer.applyTasks[0]
+	if event.slotID != slotID {
+		t.Fatalf("apply task slot = %d, want %d", event.slotID, slotID)
+	}
+	if event.queueDepth <= 0 {
+		t.Fatalf("apply task queue depth = %d, want > 0", event.queueDepth)
+	}
+	if event.duration < 0 {
+		t.Fatalf("apply task duration = %v, want >= 0", event.duration)
+	}
+}
+
 func TestAsyncApplyStopsQueuedTasksAfterApplyFatal(t *testing.T) {
 	rt := newStartedRuntimeWithTick(t, time.Hour)
 	slotID := SlotID(186)
@@ -904,6 +957,99 @@ func TestCloseSlotWithInflightAsyncApplyRetiresQueueBeforeReopen(t *testing.T) {
 	}
 	if string(res.Data) != "ok:after-inflight-reopen" {
 		t.Fatalf("Wait().Data = %q, want ok:after-inflight-reopen", res.Data)
+	}
+}
+
+func TestCloseSlotDuringApplyEnqueueHandoffRejectsTaskAndRetiresQueue(t *testing.T) {
+	rt := newStartedRuntimeWithTick(t, time.Hour)
+	slotID := SlotID(190)
+	if err := rt.BootstrapSlot(context.Background(), BootstrapSlotRequest{
+		Slot:   newInternalSlotOptions(slotID),
+		Voters: []NodeID{1},
+	}); err != nil {
+		t.Fatalf("BootstrapSlot() error = %v", err)
+	}
+	waitForCondition(t, func() bool {
+		st, err := rt.Status(slotID)
+		return err == nil && st.Role == RoleLeader
+	})
+
+	hookStarted := make(chan struct{})
+	releaseHook := make(chan struct{})
+	var hookOnce sync.Once
+	var releaseOnce sync.Once
+	restoreHook := setApplyPipelineAfterBeginApplyHook(func(id SlotID) {
+		if id != slotID {
+			return
+		}
+		hookOnce.Do(func() { close(hookStarted) })
+		<-releaseHook
+	})
+	defer restoreHook()
+	defer releaseOnce.Do(func() { close(releaseHook) })
+
+	proposeDone := make(chan error, 1)
+	go func() {
+		fut, err := rt.Propose(context.Background(), slotID, proposalString("handoff-race"))
+		if err != nil {
+			proposeDone <- err
+			return
+		}
+		_, err = fut.Wait(context.Background())
+		proposeDone <- err
+	}()
+
+	select {
+	case <-hookStarted:
+	case <-time.After(time.Second):
+		t.Fatal("apply enqueue handoff hook did not run")
+	}
+
+	closeDone := make(chan error, 1)
+	go func() {
+		closeDone <- rt.CloseSlot(context.Background(), slotID)
+	}()
+	time.Sleep(20 * time.Millisecond)
+	releaseOnce.Do(func() { close(releaseHook) })
+
+	select {
+	case err := <-closeDone:
+		if err != nil {
+			t.Fatalf("CloseSlot() error = %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("CloseSlot() did not return")
+	}
+	if err := <-proposeDone; !errors.Is(err, ErrSlotClosed) {
+		t.Fatalf("in-flight proposal error = %v, want %v", err, ErrSlotClosed)
+	}
+	rt.apply.mu.Lock()
+	leakedQueue := rt.apply.queues[slotID] != nil
+	rt.apply.mu.Unlock()
+	if leakedQueue {
+		t.Fatal("apply queue leaked after CloseSlot during enqueue handoff")
+	}
+
+	if err := rt.BootstrapSlot(context.Background(), BootstrapSlotRequest{
+		Slot:   newInternalSlotOptions(slotID),
+		Voters: []NodeID{1},
+	}); err != nil {
+		t.Fatalf("BootstrapSlot() after handoff close error = %v", err)
+	}
+	waitForCondition(t, func() bool {
+		st, err := rt.Status(slotID)
+		return err == nil && st.Role == RoleLeader
+	})
+	fut, err := rt.Propose(context.Background(), slotID, proposalString("after-handoff-reopen"))
+	if err != nil {
+		t.Fatalf("Propose() after reopen error = %v", err)
+	}
+	res, err := fut.Wait(context.Background())
+	if err != nil {
+		t.Fatalf("Wait() after reopen error = %v", err)
+	}
+	if string(res.Data) != "ok:after-handoff-reopen" {
+		t.Fatalf("Wait().Data = %q, want ok:after-handoff-reopen", res.Data)
 	}
 }
 
@@ -1278,4 +1424,31 @@ func (o *slotProposalObserver) ObserveSlotProposal(slotID SlotID, d time.Duratio
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	o.proposals = append(o.proposals, slotProposalObservation{slotID: slotID, duration: d})
+}
+
+type slotApplyTaskObserver struct {
+	mu         sync.Mutex
+	applyTasks []slotApplyTaskObservation
+}
+
+type slotApplyTaskObservation struct {
+	slotID     SlotID
+	queueDepth int
+	duration   time.Duration
+}
+
+func (o *slotApplyTaskObserver) SetSchedulerWorkers(int) {}
+
+func (o *slotApplyTaskObserver) SetSchedulerInflight(int) {}
+
+func (o *slotApplyTaskObserver) SetSchedulerState(SchedulerStateEvent) {}
+
+func (o *slotApplyTaskObserver) ObserveSchedulerAdmission(string) {}
+
+func (o *slotApplyTaskObserver) ObserveSchedulerTask(string, time.Duration) {}
+
+func (o *slotApplyTaskObserver) ObserveSlotApplyTask(slotID SlotID, queueDepth int, d time.Duration) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.applyTasks = append(o.applyTasks, slotApplyTaskObservation{slotID: slotID, queueDepth: queueDepth, duration: d})
 }

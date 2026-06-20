@@ -247,6 +247,65 @@ func TestRuntimeManualLogCompactionWaitsForAsyncApply(t *testing.T) {
 	}
 }
 
+func TestRuntimeManualLogCompactionCancellationDoesNotPinSlotWorker(t *testing.T) {
+	rt := newCompactionRuntime(t, LogCompactionConfig{
+		Enabled:        true,
+		EnabledSet:     true,
+		TriggerEntries: 1000,
+		CheckInterval:  time.Hour,
+	})
+	slotID := SlotID(198)
+	fsm := newBlockingStateMachine()
+	t.Cleanup(func() {
+		fsm.unblock()
+	})
+
+	if err := rt.BootstrapSlot(context.Background(), BootstrapSlotRequest{
+		Slot: SlotOptions{
+			ID:           slotID,
+			Storage:      &internalFakeStorage{},
+			StateMachine: fsm,
+		},
+		Voters: []NodeID{1},
+	}); err != nil {
+		t.Fatalf("BootstrapSlot() error = %v", err)
+	}
+	waitForSingleNodeLeader(t, rt, slotID)
+
+	fut, err := rt.Propose(context.Background(), slotID, proposalString("manual-cancel"))
+	if err != nil {
+		t.Fatalf("Propose() error = %v", err)
+	}
+	select {
+	case <-fsm.started:
+	case <-time.After(time.Second):
+		t.Fatal("Apply() did not start")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	_, err = rt.CompactLog(ctx, slotID)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("CompactLog() error = %v, want %v", err, context.DeadlineExceeded)
+	}
+
+	beforeTicks := slotTickCount(rt, slotID)
+	g := slotFor(rt, slotID)
+	if g == nil {
+		t.Fatal("slotFor() = nil")
+	}
+	g.markTickPending()
+	rt.scheduler.enqueue(slotID)
+	waitForCondition(t, func() bool {
+		return slotTickCount(rt, slotID) > beforeTicks
+	})
+
+	fsm.unblock()
+	if _, err := fut.Wait(context.Background()); err != nil {
+		t.Fatalf("Wait() error = %v", err)
+	}
+}
+
 func TestRuntimeManualCompactionReadsSnapshotMetadataWithoutPayload(t *testing.T) {
 	sentinel := errors.New("snapshot payload unavailable")
 	store := &slotSnapshotMetadataOnlyStorage{

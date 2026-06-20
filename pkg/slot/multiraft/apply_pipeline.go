@@ -15,6 +15,8 @@ type applyTask struct {
 	entries []raftpb.Entry
 	// appliedBefore is the durable applied index before this task's Ready.
 	appliedBefore uint64
+	// queueDepth is the number of pending tasks for this Slot after enqueue.
+	queueDepth int
 }
 
 type applyQueue struct {
@@ -31,14 +33,48 @@ type applyPipeline struct {
 	closed bool
 	queues map[SlotID]*applyQueue
 	ready  []*applyQueue
+	// observer receives low-cardinality async apply pipeline observations.
+	observer ApplyPipelineObserver
 }
 
-func newApplyPipeline(workers int, goroutines *goroutine.Registry) *applyPipeline {
+type applyPipelineTestHookState struct {
+	mu              sync.Mutex
+	afterBeginApply func(slotID SlotID)
+}
+
+// applyPipelineTestHooks exposes deterministic package-internal lifecycle points for race tests.
+var applyPipelineTestHooks applyPipelineTestHookState
+
+func (h *applyPipelineTestHookState) runAfterBeginApply(slotID SlotID) {
+	h.mu.Lock()
+	fn := h.afterBeginApply
+	h.mu.Unlock()
+	if fn != nil {
+		fn(slotID)
+	}
+}
+
+func setApplyPipelineAfterBeginApplyHook(fn func(slotID SlotID)) func() {
+	applyPipelineTestHooks.mu.Lock()
+	prev := applyPipelineTestHooks.afterBeginApply
+	applyPipelineTestHooks.afterBeginApply = fn
+	applyPipelineTestHooks.mu.Unlock()
+	return func() {
+		applyPipelineTestHooks.mu.Lock()
+		applyPipelineTestHooks.afterBeginApply = prev
+		applyPipelineTestHooks.mu.Unlock()
+	}
+}
+
+func newApplyPipeline(workers int, goroutines *goroutine.Registry, observer SchedulerObserver) *applyPipeline {
 	if workers <= 0 {
 		workers = 1
 	}
 	p := &applyPipeline{
 		queues: make(map[SlotID]*applyQueue),
+	}
+	if applyObserver, ok := observer.(ApplyPipelineObserver); ok {
+		p.observer = applyObserver
 	}
 	p.cond = sync.NewCond(&p.mu)
 	for i := 0; i < workers; i++ {
@@ -62,19 +98,6 @@ func (p *applyPipeline) enqueue(task applyTask) error {
 		p.mu.Unlock()
 		return ErrRuntimeClosed
 	}
-	p.mu.Unlock()
-
-	if err := task.slot.beginApply(); err != nil {
-		return err
-	}
-
-	p.mu.Lock()
-	if p.closed {
-		p.mu.Unlock()
-		task.slot.finishApply()
-		return ErrRuntimeClosed
-	}
-
 	q := p.queues[slotID]
 	if q == nil {
 		q = &applyQueue{slotID: slotID}
@@ -82,9 +105,32 @@ func (p *applyPipeline) enqueue(task applyTask) error {
 	}
 	if q.closed {
 		p.mu.Unlock()
-		task.slot.finishApply()
 		return ErrSlotClosed
 	}
+	p.mu.Unlock()
+
+	if err := task.slot.beginApply(); err != nil {
+		p.mu.Lock()
+		p.deleteQueueIfIdleLocked(slotID, q)
+		p.mu.Unlock()
+		return err
+	}
+	applyPipelineTestHooks.runAfterBeginApply(slotID)
+
+	p.mu.Lock()
+	if p.closed {
+		p.deleteQueueIfIdleLocked(slotID, q)
+		task.slot.finishApply()
+		p.mu.Unlock()
+		return ErrRuntimeClosed
+	}
+	if p.queues[slotID] != q || q.closed {
+		p.deleteQueueIfIdleLocked(slotID, q)
+		task.slot.finishApply()
+		p.mu.Unlock()
+		return ErrSlotClosed
+	}
+	task.queueDepth = len(q.tasks) + 1
 	q.tasks = append(q.tasks, task)
 	p.scheduleLocked(q)
 	p.mu.Unlock()
@@ -127,18 +173,35 @@ func (p *applyPipeline) runQueue(q *applyQueue) {
 			p.mu.Lock()
 			if len(q.tasks) == 0 {
 				q.running = false
-				if q.closed {
-					delete(p.queues, q.slotID)
-					p.cond.Broadcast()
-				}
+				p.deleteQueueIfIdleLocked(q.slotID, q)
 				p.mu.Unlock()
 				return
 			}
 			p.mu.Unlock()
 			continue
 		}
+		started := time.Now()
 		task.slot.runApplyTask(context.Background(), task)
+		p.observeApplyTask(task, time.Since(started))
 	}
+}
+
+func (p *applyPipeline) deleteQueueIfIdleLocked(slotID SlotID, q *applyQueue) {
+	if q == nil || p.queues[slotID] != q || q.running || len(q.tasks) > 0 {
+		return
+	}
+	delete(p.queues, slotID)
+	p.cond.Broadcast()
+}
+
+func (p *applyPipeline) observeApplyTask(task applyTask, d time.Duration) {
+	if p == nil || p.observer == nil || task.slot == nil {
+		return
+	}
+	if d < 0 {
+		d = 0
+	}
+	p.observer.ObserveSlotApplyTask(task.slot.id, task.queueDepth, d)
 }
 
 func (p *applyPipeline) popTask(q *applyQueue) (applyTask, bool) {

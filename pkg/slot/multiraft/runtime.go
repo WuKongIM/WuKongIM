@@ -41,7 +41,7 @@ func New(opts Options) (*Runtime, error) {
 		opts:      opts,
 		slots:     make(map[SlotID]*slot),
 		scheduler: newScheduler(opts.Observer),
-		apply:     newApplyPipeline(opts.Workers, opts.Goroutines),
+		apply:     newApplyPipeline(opts.Workers, opts.Goroutines, opts.Observer),
 		stopCh:    make(chan struct{}),
 	}
 	if opts.Observer != nil {

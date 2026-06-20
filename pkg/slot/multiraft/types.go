@@ -35,6 +35,12 @@ type SchedulerObserver interface {
 	ObserveSchedulerTask(task string, d time.Duration)
 }
 
+// ApplyPipelineObserver receives low-cardinality async apply pipeline observations.
+// Implementations are called from apply workers and should be concurrency-safe and non-blocking.
+type ApplyPipelineObserver interface {
+	ObserveSlotApplyTask(slotID SlotID, queueDepth int, d time.Duration)
+}
+
 // ProposalObserver receives completed Slot proposal latency observations.
 type ProposalObserver interface {
 	ObserveSlotProposal(slotID SlotID, d time.Duration)
