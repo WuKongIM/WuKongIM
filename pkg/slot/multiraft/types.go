@@ -37,11 +37,12 @@ type SchedulerObserver interface {
 }
 
 // ApplyPipelineObserver receives async apply pipeline observations.
-// A zero duration reports enqueue-time queue depth; a positive duration reports task completion latency.
+// ObserveSlotApplyQueue reports enqueue-time queue depth, while ObserveSlotApplyTask reports task completion latency.
 // Implementations should not expose slotID as a high-cardinality metrics label.
 // Implementations are called from slot and apply worker paths and should be concurrency-safe and non-blocking.
 type ApplyPipelineObserver interface {
-	ObserveSlotApplyTask(slotID SlotID, queueDepth int, d time.Duration)
+	ObserveSlotApplyQueue(slotID SlotID, queueDepth int)
+	ObserveSlotApplyTask(slotID SlotID, d time.Duration)
 }
 
 // ProposalObserver receives completed Slot proposal latency observations.

@@ -210,16 +210,25 @@ func TestCloseSlotStopsFurtherProcessing(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("Apply() did not start")
 	}
+	g := slotFor(rt, slotID)
+	if g == nil {
+		t.Fatal("slotFor() = nil")
+	}
 
 	closeDone := make(chan error, 1)
 	go func() {
 		closeDone <- rt.CloseSlot(context.Background(), slotID)
 	}()
+	waitForCondition(t, func() bool {
+		g.mu.Lock()
+		defer g.mu.Unlock()
+		return g.closed && g.applying > 0
+	})
 
 	select {
 	case err := <-closeDone:
 		t.Fatalf("CloseSlot() returned before in-flight apply finished: %v", err)
-	case <-time.After(100 * time.Millisecond):
+	default:
 	}
 
 	fsm.unblock()
@@ -309,7 +318,6 @@ func TestRuntimeTickLoopDoesNotHoldLockAcrossEnqueue(t *testing.T) {
 	}
 
 	waitForCondition(t, func() bool { return len(rt.scheduler.ch) == cap(rt.scheduler.ch) })
-	time.Sleep(20 * time.Millisecond)
 
 	openDone := make(chan error, 1)
 	go func() {
@@ -382,7 +390,6 @@ func TestSchedulerBackpressureDoesNotBlockRuntime(t *testing.T) {
 	}
 
 	waitForCondition(t, func() bool { return len(rt.scheduler.ch) == cap(rt.scheduler.ch) })
-	time.Sleep(20 * time.Millisecond)
 
 	closeDone := make(chan error, 1)
 	go func() {

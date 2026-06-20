@@ -3,6 +3,7 @@ package multiraft
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/goroutine"
@@ -20,10 +21,12 @@ type applyTask struct {
 }
 
 type applyQueue struct {
-	slotID  SlotID
-	tasks   []applyTask
-	running bool
-	closed  bool
+	slotID SlotID
+	tasks  []applyTask
+	// taskHead is the next task offset, avoiding front-slice capacity loss.
+	taskHead int
+	running  bool
+	closed   bool
 }
 
 type applyPipeline struct {
@@ -39,55 +42,46 @@ type applyPipeline struct {
 	observer ApplyPipelineObserver
 }
 
-type applyPipelineTestHookState struct {
-	mu                sync.Mutex
-	afterBeginApply   func(slotID SlotID)
-	beforeRetireQueue func(slotID SlotID)
+type applyPipelineHook struct {
+	fn func(slotID SlotID)
 }
 
-// applyPipelineTestHooks exposes deterministic package-internal lifecycle points for race tests.
-var applyPipelineTestHooks applyPipelineTestHookState
+var applyPipelineAfterBeginApplyHook atomic.Pointer[applyPipelineHook]
+var applyPipelineBeforeRetireQueueHook atomic.Pointer[applyPipelineHook]
 
-func (h *applyPipelineTestHookState) runAfterBeginApply(slotID SlotID) {
-	h.mu.Lock()
-	fn := h.afterBeginApply
-	h.mu.Unlock()
-	if fn != nil {
-		fn(slotID)
+func runApplyPipelineAfterBeginApplyHook(slotID SlotID) {
+	hook := applyPipelineAfterBeginApplyHook.Load()
+	if hook != nil && hook.fn != nil {
+		hook.fn(slotID)
 	}
 }
 
-func (h *applyPipelineTestHookState) runBeforeRetireQueue(slotID SlotID) {
-	h.mu.Lock()
-	fn := h.beforeRetireQueue
-	h.mu.Unlock()
-	if fn != nil {
-		fn(slotID)
+func runApplyPipelineBeforeRetireQueueHook(slotID SlotID) {
+	hook := applyPipelineBeforeRetireQueueHook.Load()
+	if hook != nil && hook.fn != nil {
+		hook.fn(slotID)
 	}
 }
 
 func setApplyPipelineAfterBeginApplyHook(fn func(slotID SlotID)) func() {
-	applyPipelineTestHooks.mu.Lock()
-	prev := applyPipelineTestHooks.afterBeginApply
-	applyPipelineTestHooks.afterBeginApply = fn
-	applyPipelineTestHooks.mu.Unlock()
+	prev := applyPipelineAfterBeginApplyHook.Swap(newApplyPipelineHook(fn))
 	return func() {
-		applyPipelineTestHooks.mu.Lock()
-		applyPipelineTestHooks.afterBeginApply = prev
-		applyPipelineTestHooks.mu.Unlock()
+		applyPipelineAfterBeginApplyHook.Store(prev)
 	}
 }
 
 func setApplyPipelineBeforeRetireQueueHook(fn func(slotID SlotID)) func() {
-	applyPipelineTestHooks.mu.Lock()
-	prev := applyPipelineTestHooks.beforeRetireQueue
-	applyPipelineTestHooks.beforeRetireQueue = fn
-	applyPipelineTestHooks.mu.Unlock()
+	prev := applyPipelineBeforeRetireQueueHook.Swap(newApplyPipelineHook(fn))
 	return func() {
-		applyPipelineTestHooks.mu.Lock()
-		applyPipelineTestHooks.beforeRetireQueue = prev
-		applyPipelineTestHooks.mu.Unlock()
+		applyPipelineBeforeRetireQueueHook.Store(prev)
 	}
+}
+
+func newApplyPipelineHook(fn func(slotID SlotID)) *applyPipelineHook {
+	if fn == nil {
+		return nil
+	}
+	return &applyPipelineHook{fn: fn}
 }
 
 func newApplyPipeline(workers int, goroutines *goroutine.Registry, observer SchedulerObserver) *applyPipeline {
@@ -139,7 +133,7 @@ func (p *applyPipeline) enqueue(task applyTask) error {
 		p.mu.Unlock()
 		return err
 	}
-	applyPipelineTestHooks.runAfterBeginApply(slotID)
+	runApplyPipelineAfterBeginApplyHook(slotID)
 
 	p.mu.Lock()
 	if p.closed {
@@ -154,16 +148,16 @@ func (p *applyPipeline) enqueue(task applyTask) error {
 		p.mu.Unlock()
 		return ErrSlotClosed
 	}
-	task.queueDepth = len(q.tasks) + 1
-	q.tasks = append(q.tasks, task)
+	task.queueDepth = q.taskLenLocked() + 1
+	q.pushTaskLocked(task)
 	p.scheduleLocked(q)
 	p.mu.Unlock()
-	p.observeApplyTask(task, 0)
+	p.observeApplyQueue(task)
 	return nil
 }
 
 func (p *applyPipeline) scheduleLocked(q *applyQueue) {
-	if q == nil || q.running || len(q.tasks) == 0 {
+	if q == nil || q.running || q.taskLenLocked() == 0 {
 		return
 	}
 	q.running = true
@@ -193,10 +187,10 @@ func (p *applyPipeline) runQueue(q *applyQueue) {
 		task, ok := p.popTask(q)
 		if !ok {
 			p.mu.Lock()
-			if len(q.tasks) == 0 {
+			if q.taskLenLocked() == 0 {
 				q.running = false
 				p.mu.Unlock()
-				applyPipelineTestHooks.runBeforeRetireQueue(q.slotID)
+				runApplyPipelineBeforeRetireQueueHook(q.slotID)
 				p.mu.Lock()
 				p.deleteQueueIfIdleLocked(q.slotID, q)
 				p.mu.Unlock()
@@ -237,12 +231,49 @@ func (p *applyPipeline) readyLenLocked() int {
 	return len(p.ready) - p.readyHead
 }
 
+func (q *applyQueue) pushTaskLocked(task applyTask) {
+	q.tasks = append(q.tasks, task)
+}
+
+func (q *applyQueue) popTaskLocked() (applyTask, bool) {
+	if q == nil || q.taskHead >= len(q.tasks) {
+		return applyTask{}, false
+	}
+	task := q.tasks[q.taskHead]
+	var zero applyTask
+	q.tasks[q.taskHead] = zero
+	q.taskHead++
+	if q.taskHead > 64 && q.taskHead*2 >= len(q.tasks) {
+		remaining := copy(q.tasks, q.tasks[q.taskHead:])
+		for i := remaining; i < len(q.tasks); i++ {
+			q.tasks[i] = zero
+		}
+		q.tasks = q.tasks[:remaining]
+		q.taskHead = 0
+	}
+	return task, true
+}
+
+func (q *applyQueue) taskLenLocked() int {
+	if q == nil {
+		return 0
+	}
+	return len(q.tasks) - q.taskHead
+}
+
 func (p *applyPipeline) deleteQueueIfIdleLocked(slotID SlotID, q *applyQueue) {
-	if q == nil || p.queues[slotID] != q || q.running || len(q.tasks) > 0 {
+	if q == nil || p.queues[slotID] != q || q.running || q.taskLenLocked() > 0 {
 		return
 	}
 	delete(p.queues, slotID)
 	p.cond.Broadcast()
+}
+
+func (p *applyPipeline) observeApplyQueue(task applyTask) {
+	if p == nil || p.observer == nil || task.slot == nil {
+		return
+	}
+	p.observer.ObserveSlotApplyQueue(task.slot.id, task.queueDepth)
 }
 
 func (p *applyPipeline) observeApplyTask(task applyTask, d time.Duration) {
@@ -252,20 +283,13 @@ func (p *applyPipeline) observeApplyTask(task applyTask, d time.Duration) {
 	if d < 0 {
 		d = 0
 	}
-	p.observer.ObserveSlotApplyTask(task.slot.id, task.queueDepth, d)
+	p.observer.ObserveSlotApplyTask(task.slot.id, d)
 }
 
 func (p *applyPipeline) popTask(q *applyQueue) (applyTask, bool) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if q == nil || len(q.tasks) == 0 {
-		return applyTask{}, false
-	}
-	task := q.tasks[0]
-	var zero applyTask
-	q.tasks[0] = zero
-	q.tasks = q.tasks[1:]
-	return task, true
+	return q.popTaskLocked()
 }
 
 func (p *applyPipeline) close() {
@@ -290,7 +314,7 @@ func (p *applyPipeline) closeSlot(slotID SlotID) *applyQueue {
 		return nil
 	}
 	q.closed = true
-	if !q.running && len(q.tasks) == 0 {
+	if !q.running && q.taskLenLocked() == 0 {
 		delete(p.queues, slotID)
 		p.cond.Broadcast()
 	}

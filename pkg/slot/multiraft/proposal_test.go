@@ -508,7 +508,15 @@ func TestReadyPersistenceFailureDoesNotAdvance(t *testing.T) {
 		t.Fatalf("Wait() error = %v, want %v", err, saveErr)
 	}
 
-	time.Sleep(100 * time.Millisecond)
+	g := slotFor(rt, slotID)
+	if g == nil {
+		t.Fatal("slotFor() = nil")
+	}
+	waitForCondition(t, func() bool {
+		g.mu.Lock()
+		defer g.mu.Unlock()
+		return !g.processing && g.applying == 0
+	})
 
 	store.mu.Lock()
 	defer store.mu.Unlock()
@@ -926,7 +934,7 @@ func TestAsyncApplyObserverReportsTaskDurationAndQueueDepth(t *testing.T) {
 	}
 
 	observer.mu.Lock()
-	observedBeforeQueued := len(observer.applyTasks)
+	observedBeforeQueued := len(observer.applyQueues)
 	observer.mu.Unlock()
 	second, err := rt.Propose(context.Background(), slotID, proposalString("observe-queued"))
 	if err != nil {
@@ -936,20 +944,17 @@ func TestAsyncApplyObserverReportsTaskDurationAndQueueDepth(t *testing.T) {
 	waitForCondition(t, func() bool {
 		observer.mu.Lock()
 		defer observer.mu.Unlock()
-		return len(observer.applyTasks) > observedBeforeQueued
+		return len(observer.applyQueues) > observedBeforeQueued
 	})
 
 	observer.mu.Lock()
-	event := observer.applyTasks[len(observer.applyTasks)-1]
+	queueEvent := observer.applyQueues[len(observer.applyQueues)-1]
 	observer.mu.Unlock()
-	if event.slotID != slotID {
-		t.Fatalf("apply task slot = %d, want %d", event.slotID, slotID)
+	if queueEvent.slotID != slotID {
+		t.Fatalf("apply queue slot = %d, want %d", queueEvent.slotID, slotID)
 	}
-	if event.queueDepth <= 0 {
-		t.Fatalf("apply task queue depth = %d, want > 0", event.queueDepth)
-	}
-	if event.duration != 0 {
-		t.Fatalf("enqueue apply task duration = %v, want 0 before task completes", event.duration)
+	if queueEvent.queueDepth <= 0 {
+		t.Fatalf("apply queue depth = %d, want > 0", queueEvent.queueDepth)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
@@ -976,9 +981,9 @@ func TestAsyncApplyObserverReportsTaskDurationAndQueueDepth(t *testing.T) {
 	})
 	observer.mu.Lock()
 	defer observer.mu.Unlock()
-	for _, event := range observer.applyTasks {
+	for _, event := range observer.applyQueues {
 		if event.queueDepth < 0 {
-			t.Fatalf("apply task queue depth = %d, want >= 0", event.queueDepth)
+			t.Fatalf("apply queue depth = %d, want >= 0", event.queueDepth)
 		}
 	}
 }
@@ -1693,14 +1698,19 @@ func (o *slotProposalObserver) ObserveSlotProposal(slotID SlotID, d time.Duratio
 }
 
 type slotApplyTaskObserver struct {
-	mu         sync.Mutex
-	applyTasks []slotApplyTaskObservation
+	mu          sync.Mutex
+	applyQueues []slotApplyQueueObservation
+	applyTasks  []slotApplyTaskObservation
+}
+
+type slotApplyQueueObservation struct {
+	slotID     SlotID
+	queueDepth int
 }
 
 type slotApplyTaskObservation struct {
-	slotID     SlotID
-	queueDepth int
-	duration   time.Duration
+	slotID   SlotID
+	duration time.Duration
 }
 
 func (o *slotApplyTaskObserver) SetSchedulerWorkers(int) {}
@@ -1713,8 +1723,14 @@ func (o *slotApplyTaskObserver) ObserveSchedulerAdmission(string) {}
 
 func (o *slotApplyTaskObserver) ObserveSchedulerTask(string, time.Duration) {}
 
-func (o *slotApplyTaskObserver) ObserveSlotApplyTask(slotID SlotID, queueDepth int, d time.Duration) {
+func (o *slotApplyTaskObserver) ObserveSlotApplyQueue(slotID SlotID, queueDepth int) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	o.applyTasks = append(o.applyTasks, slotApplyTaskObservation{slotID: slotID, queueDepth: queueDepth, duration: d})
+	o.applyQueues = append(o.applyQueues, slotApplyQueueObservation{slotID: slotID, queueDepth: queueDepth})
+}
+
+func (o *slotApplyTaskObserver) ObserveSlotApplyTask(slotID SlotID, d time.Duration) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.applyTasks = append(o.applyTasks, slotApplyTaskObservation{slotID: slotID, duration: d})
 }

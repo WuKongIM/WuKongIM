@@ -35,3 +35,34 @@ func TestApplyPipelineReadyQueuePopsFIFOWithoutShifting(t *testing.T) {
 		t.Fatal("pop from empty ready queue succeeded")
 	}
 }
+
+func TestApplyQueuePopsTasksFIFOWithoutShifting(t *testing.T) {
+	q := &applyQueue{slotID: 1}
+	first := applyTask{appliedBefore: 1}
+	second := applyTask{appliedBefore: 2}
+	third := applyTask{appliedBefore: 3}
+
+	q.pushTaskLocked(first)
+	q.pushTaskLocked(second)
+	q.pushTaskLocked(third)
+
+	got, ok := q.popTaskLocked()
+	if !ok || got.appliedBefore != first.appliedBefore {
+		t.Fatalf("first pop = %+v ok=%v, want first task", got, ok)
+	}
+	if q.taskHead != 1 {
+		t.Fatalf("taskHead after one pop = %d, want 1", q.taskHead)
+	}
+	if len(q.tasks) != 3 {
+		t.Fatalf("task backing length after one pop = %d, want 3", len(q.tasks))
+	}
+	if got, ok = q.popTaskLocked(); !ok || got.appliedBefore != second.appliedBefore {
+		t.Fatalf("second pop = %+v ok=%v, want second task", got, ok)
+	}
+	if got, ok = q.popTaskLocked(); !ok || got.appliedBefore != third.appliedBefore {
+		t.Fatalf("third pop = %+v ok=%v, want third task", got, ok)
+	}
+	if _, ok := q.popTaskLocked(); ok {
+		t.Fatal("pop from empty task queue succeeded")
+	}
+}
