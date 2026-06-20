@@ -798,6 +798,99 @@ func TestSnapshotReadyWaitsForAsyncApplyBeforeMemoryApplySnapshot(t *testing.T) 
 	})
 }
 
+func TestSnapshotReadyDoesNotApplyMemoryAfterBarrierPredecessorFails(t *testing.T) {
+	rt := newStartedRuntimeWithTick(t, time.Hour)
+	slotID := SlotID(1186)
+	store := &internalFakeStorage{}
+	fatalErr := errors.New("fatal snapshot predecessor")
+	fsm := newFailFirstBlockingStateMachine(fatalErr)
+	t.Cleanup(func() {
+		fsm.unblock()
+	})
+
+	if err := rt.BootstrapSlot(context.Background(), BootstrapSlotRequest{
+		Slot: SlotOptions{
+			ID:           slotID,
+			Storage:      store,
+			StateMachine: fsm,
+		},
+		Voters: []NodeID{1},
+	}); err != nil {
+		t.Fatalf("BootstrapSlot() error = %v", err)
+	}
+	waitForCondition(t, func() bool {
+		st, err := rt.Status(slotID)
+		return err == nil && st.Role == RoleLeader
+	})
+
+	fut, err := rt.Propose(context.Background(), slotID, proposalString("fatal-before-snapshot"))
+	if err != nil {
+		t.Fatalf("Propose() error = %v", err)
+	}
+	select {
+	case <-fsm.started:
+	case <-time.After(time.Second):
+		t.Fatal("Apply() did not start")
+	}
+
+	g := slotFor(rt, slotID)
+	if g == nil {
+		t.Fatal("slotFor() = nil")
+	}
+	beforeFirst, err := g.storageView.memory.FirstIndex()
+	if err != nil {
+		t.Fatalf("FirstIndex() before snapshot error = %v", err)
+	}
+	status, err := rt.Status(slotID)
+	if err != nil {
+		t.Fatalf("Status() error = %v", err)
+	}
+	snapIndex := status.CommitIndex + 100
+	snapTerm := status.Term + 1
+	snap := raftpb.Snapshot{
+		Data: []byte("fatal predecessor snapshot"),
+		Metadata: raftpb.SnapshotMetadata{
+			Index:     snapIndex,
+			Term:      snapTerm,
+			ConfState: raftpb.ConfState{Voters: []uint64{1}},
+		},
+	}
+	if err := rt.Step(context.Background(), Envelope{
+		SlotID: slotID,
+		Message: raftpb.Message{
+			Type:     raftpb.MsgSnap,
+			From:     2,
+			To:       1,
+			Term:     snapTerm,
+			Snapshot: &snap,
+		},
+	}); err != nil {
+		t.Fatalf("Step(snapshot) error = %v", err)
+	}
+
+	waitForCondition(t, func() bool {
+		saved, err := store.Snapshot(context.Background())
+		return err == nil && saved.Metadata.Index == snapIndex
+	})
+	fsm.unblock()
+	if _, err := fut.Wait(context.Background()); !errors.Is(err, fatalErr) {
+		t.Fatalf("Wait() error = %v, want %v", err, fatalErr)
+	}
+	waitForCondition(t, func() bool {
+		g.mu.Lock()
+		defer g.mu.Unlock()
+		return !g.processing && g.applying == 0 && errors.Is(g.fatalErr, fatalErr)
+	})
+
+	firstAfterFatal, err := g.storageView.memory.FirstIndex()
+	if err != nil {
+		t.Fatalf("FirstIndex() after fatal error = %v", err)
+	}
+	if firstAfterFatal != beforeFirst {
+		t.Fatalf("memory FirstIndex after predecessor fatal = %d, want %d", firstAfterFatal, beforeFirst)
+	}
+}
+
 func TestAsyncApplyObserverReportsTaskDurationAndQueueDepth(t *testing.T) {
 	observer := &slotApplyTaskObserver{}
 	rt := newStartedRuntimeWithTickAndObserver(t, time.Hour, observer)
@@ -1042,6 +1135,19 @@ func TestCloseSlotWithInflightAsyncApplyRetiresQueueBeforeReopen(t *testing.T) {
 	if g == nil {
 		t.Fatal("slotFor() = nil")
 	}
+	retireStarted := make(chan struct{})
+	releaseRetire := make(chan struct{})
+	var retireOnce sync.Once
+	var releaseRetireOnce sync.Once
+	restoreRetireHook := setApplyPipelineBeforeRetireQueueHook(func(id SlotID) {
+		if id != slotID {
+			return
+		}
+		retireOnce.Do(func() { close(retireStarted) })
+		<-releaseRetire
+	})
+	defer restoreRetireHook()
+	defer releaseRetireOnce.Do(func() { close(releaseRetire) })
 
 	closeDone := make(chan error, 1)
 	go func() {
@@ -1054,29 +1160,18 @@ func TestCloseSlotWithInflightAsyncApplyRetiresQueueBeforeReopen(t *testing.T) {
 		return q != nil && q.closed
 	})
 
-	rt.apply.mu.Lock()
 	fsm.unblock()
-	deadline := time.Now().Add(time.Second)
-	for {
-		g.mu.Lock()
-		applying := g.applying
-		g.mu.Unlock()
-		if applying == 0 {
-			break
-		}
-		if time.Now().After(deadline) {
-			rt.apply.mu.Unlock()
-			t.Fatal("async apply did not finish")
-		}
-		time.Sleep(10 * time.Millisecond)
+	select {
+	case <-retireStarted:
+	case <-time.After(time.Second):
+		t.Fatal("apply queue retire hook did not run")
 	}
 	select {
 	case err := <-closeDone:
-		rt.apply.mu.Unlock()
 		t.Fatalf("CloseSlot() returned before apply queue retired: %v", err)
-	case <-time.After(50 * time.Millisecond):
+	default:
 	}
-	rt.apply.mu.Unlock()
+	releaseRetireOnce.Do(func() { close(releaseRetire) })
 
 	select {
 	case err := <-closeDone:
@@ -1247,14 +1342,23 @@ func TestRuntimeCloseWaitsForAsyncApply(t *testing.T) {
 		t.Fatal("Apply() did not start")
 	}
 
+	g := slotFor(rt, slotID)
+	if g == nil {
+		t.Fatal("slotFor() = nil")
+	}
 	done := make(chan error, 1)
 	go func() {
 		done <- rt.Close()
 	}()
+	waitForCondition(t, func() bool {
+		g.mu.Lock()
+		defer g.mu.Unlock()
+		return g.closed && g.applying > 0
+	})
 	select {
 	case err := <-done:
 		t.Fatalf("Close() returned before async apply finished: %v", err)
-	case <-time.After(50 * time.Millisecond):
+	default:
 	}
 
 	fsm.unblock()

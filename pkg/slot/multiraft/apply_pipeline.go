@@ -33,13 +33,16 @@ type applyPipeline struct {
 	closed bool
 	queues map[SlotID]*applyQueue
 	ready  []*applyQueue
+	// readyHead is the next ready queue offset, avoiding O(n) front removal.
+	readyHead int
 	// observer receives low-cardinality async apply pipeline observations.
 	observer ApplyPipelineObserver
 }
 
 type applyPipelineTestHookState struct {
-	mu              sync.Mutex
-	afterBeginApply func(slotID SlotID)
+	mu                sync.Mutex
+	afterBeginApply   func(slotID SlotID)
+	beforeRetireQueue func(slotID SlotID)
 }
 
 // applyPipelineTestHooks exposes deterministic package-internal lifecycle points for race tests.
@@ -54,6 +57,15 @@ func (h *applyPipelineTestHookState) runAfterBeginApply(slotID SlotID) {
 	}
 }
 
+func (h *applyPipelineTestHookState) runBeforeRetireQueue(slotID SlotID) {
+	h.mu.Lock()
+	fn := h.beforeRetireQueue
+	h.mu.Unlock()
+	if fn != nil {
+		fn(slotID)
+	}
+}
+
 func setApplyPipelineAfterBeginApplyHook(fn func(slotID SlotID)) func() {
 	applyPipelineTestHooks.mu.Lock()
 	prev := applyPipelineTestHooks.afterBeginApply
@@ -62,6 +74,18 @@ func setApplyPipelineAfterBeginApplyHook(fn func(slotID SlotID)) func() {
 	return func() {
 		applyPipelineTestHooks.mu.Lock()
 		applyPipelineTestHooks.afterBeginApply = prev
+		applyPipelineTestHooks.mu.Unlock()
+	}
+}
+
+func setApplyPipelineBeforeRetireQueueHook(fn func(slotID SlotID)) func() {
+	applyPipelineTestHooks.mu.Lock()
+	prev := applyPipelineTestHooks.beforeRetireQueue
+	applyPipelineTestHooks.beforeRetireQueue = fn
+	applyPipelineTestHooks.mu.Unlock()
+	return func() {
+		applyPipelineTestHooks.mu.Lock()
+		applyPipelineTestHooks.beforeRetireQueue = prev
 		applyPipelineTestHooks.mu.Unlock()
 	}
 }
@@ -143,24 +167,21 @@ func (p *applyPipeline) scheduleLocked(q *applyQueue) {
 		return
 	}
 	q.running = true
-	p.ready = append(p.ready, q)
+	p.pushReadyLocked(q)
 	p.cond.Signal()
 }
 
 func (p *applyPipeline) runWorker() {
 	for {
 		p.mu.Lock()
-		for len(p.ready) == 0 && !p.closed {
+		for p.readyLenLocked() == 0 && !p.closed {
 			p.cond.Wait()
 		}
-		if len(p.ready) == 0 && p.closed {
+		if p.readyLenLocked() == 0 && p.closed {
 			p.mu.Unlock()
 			return
 		}
-		q := p.ready[0]
-		copy(p.ready, p.ready[1:])
-		p.ready[len(p.ready)-1] = nil
-		p.ready = p.ready[:len(p.ready)-1]
+		q, _ := p.popReadyLocked()
 		p.mu.Unlock()
 
 		p.runQueue(q)
@@ -174,6 +195,9 @@ func (p *applyPipeline) runQueue(q *applyQueue) {
 			p.mu.Lock()
 			if len(q.tasks) == 0 {
 				q.running = false
+				p.mu.Unlock()
+				applyPipelineTestHooks.runBeforeRetireQueue(q.slotID)
+				p.mu.Lock()
 				p.deleteQueueIfIdleLocked(q.slotID, q)
 				p.mu.Unlock()
 				return
@@ -185,6 +209,32 @@ func (p *applyPipeline) runQueue(q *applyQueue) {
 		task.slot.runApplyTask(context.Background(), task)
 		p.observeApplyTask(task, time.Since(started))
 	}
+}
+
+func (p *applyPipeline) pushReadyLocked(q *applyQueue) {
+	p.ready = append(p.ready, q)
+}
+
+func (p *applyPipeline) popReadyLocked() (*applyQueue, bool) {
+	if p.readyHead >= len(p.ready) {
+		return nil, false
+	}
+	q := p.ready[p.readyHead]
+	p.ready[p.readyHead] = nil
+	p.readyHead++
+	if p.readyHead > 64 && p.readyHead*2 >= len(p.ready) {
+		remaining := copy(p.ready, p.ready[p.readyHead:])
+		for i := remaining; i < len(p.ready); i++ {
+			p.ready[i] = nil
+		}
+		p.ready = p.ready[:remaining]
+		p.readyHead = 0
+	}
+	return q, true
+}
+
+func (p *applyPipeline) readyLenLocked() int {
+	return len(p.ready) - p.readyHead
 }
 
 func (p *applyPipeline) deleteQueueIfIdleLocked(slotID SlotID, q *applyQueue) {

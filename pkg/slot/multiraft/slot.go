@@ -359,6 +359,9 @@ func (g *slot) processReady(ctx context.Context, transport Transport) (bool, boo
 		if err := g.waitApplyIdle(ctx); err != nil {
 			return true, false
 		}
+		if err := g.currentErr(); err != nil {
+			return true, false
+		}
 	}
 	if err := g.storageView.applyReadyToMemory(persist); err != nil {
 		g.failPending(err)

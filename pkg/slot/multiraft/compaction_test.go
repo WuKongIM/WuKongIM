@@ -227,10 +227,11 @@ func TestRuntimeManualLogCompactionWaitsForAsyncApply(t *testing.T) {
 		_, err := rt.CompactLog(context.Background(), slotID)
 		done <- err
 	}()
+	waitForSlotWorkerWaitingOnApply(t, rt, slotID)
 	select {
 	case err := <-done:
 		t.Fatalf("CompactLog() returned before async apply finished: %v", err)
-	case <-time.After(50 * time.Millisecond):
+	default:
 	}
 
 	fsm.unblock()
@@ -504,6 +505,19 @@ func waitForSingleNodeLeader(t *testing.T, rt *Runtime, slotID SlotID) {
 	waitForCondition(t, func() bool {
 		st, err := rt.Status(slotID)
 		return err == nil && st.Role == RoleLeader
+	})
+}
+
+func waitForSlotWorkerWaitingOnApply(t *testing.T, rt *Runtime, slotID SlotID) {
+	t.Helper()
+	waitForCondition(t, func() bool {
+		g := slotFor(rt, slotID)
+		if g == nil {
+			return false
+		}
+		g.mu.Lock()
+		defer g.mu.Unlock()
+		return g.processing && g.applying > 0
 	})
 }
 
