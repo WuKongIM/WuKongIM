@@ -586,6 +586,10 @@ func newStartedRuntimeWithObserver(t *testing.T, observer SchedulerObserver) *Ru
 	return newStartedRuntimeWithOptions(t, 10*time.Millisecond, observer)
 }
 
+func newStartedRuntimeWithTickAndObserver(t *testing.T, tickInterval time.Duration, observer SchedulerObserver) *Runtime {
+	return newStartedRuntimeWithOptions(t, tickInterval, observer)
+}
+
 func newStartedRuntimeWithOptions(t *testing.T, tickInterval time.Duration, observer SchedulerObserver) *Runtime {
 	t.Helper()
 

@@ -349,7 +349,18 @@ func (g *slot) processReady(ctx context.Context, transport Transport) (bool, boo
 	}
 
 	ready := g.rawNode.Ready()
-	if err := g.storageView.persistReady(ctx, ready); err != nil {
+	persist, err := g.storageView.persistReadyDurable(ctx, ready)
+	if err != nil {
+		g.failPending(err)
+		return true, false
+	}
+	requiresSyncApply := readyRequiresSynchronousApply(ready)
+	if requiresSyncApply {
+		if err := g.waitApplyIdle(ctx); err != nil {
+			return true, false
+		}
+	}
+	if err := g.storageView.applyReadyToMemory(persist); err != nil {
 		g.failPending(err)
 		return true, false
 	}
@@ -363,7 +374,7 @@ func (g *slot) processReady(ctx context.Context, transport Transport) (bool, boo
 		_ = transport.Send(ctx, g.transportBuf)
 	}
 
-	if readyRequiresSynchronousApply(ready) {
+	if requiresSyncApply {
 		return g.processReadySynchronously(ctx, ready)
 	}
 	return g.processReadyAsyncNormal(ctx, ready)

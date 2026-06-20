@@ -20,6 +20,7 @@ type Options struct {
 	Logger       wklog.Logger
 	Raft         RaftOptions
 	// Observer receives low-cardinality scheduler pressure observations.
+	// The same observer can implement ApplyPipelineObserver for async apply queue observations.
 	Observer SchedulerObserver
 	// Goroutines is the optional goroutine registry for lifecycle tracking.
 	Goroutines *goroutine.Registry
@@ -36,7 +37,8 @@ type SchedulerObserver interface {
 }
 
 // ApplyPipelineObserver receives low-cardinality async apply pipeline observations.
-// Implementations are called from apply workers and should be concurrency-safe and non-blocking.
+// A zero duration reports enqueue-time queue depth; a positive duration reports task completion latency.
+// Implementations are called from slot and apply worker paths and should be concurrency-safe and non-blocking.
 type ApplyPipelineObserver interface {
 	ObserveSlotApplyTask(slotID SlotID, queueDepth int, d time.Duration)
 }

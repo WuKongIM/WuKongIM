@@ -134,6 +134,7 @@ func (p *applyPipeline) enqueue(task applyTask) error {
 	q.tasks = append(q.tasks, task)
 	p.scheduleLocked(q)
 	p.mu.Unlock()
+	p.observeApplyTask(task, 0)
 	return nil
 }
 

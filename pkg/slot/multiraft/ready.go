@@ -59,6 +59,14 @@ func (s *storageAdapter) load(ctx context.Context) (BootstrapState, raftpb.Snaps
 }
 
 func (s *storageAdapter) persistReady(ctx context.Context, ready raft.Ready) error {
+	persist, err := s.persistReadyDurable(ctx, ready)
+	if err != nil {
+		return err
+	}
+	return s.applyReadyToMemory(persist)
+}
+
+func (s *storageAdapter) persistReadyDurable(ctx context.Context, ready raft.Ready) (PersistentState, error) {
 	persist := PersistentState{}
 	needsSave := false
 
@@ -79,10 +87,13 @@ func (s *storageAdapter) persistReady(ctx context.Context, ready raft.Ready) err
 
 	if needsSave {
 		if err := s.storage.Save(ctx, persist); err != nil {
-			return err
+			return PersistentState{}, err
 		}
 	}
+	return persist, nil
+}
 
+func (s *storageAdapter) applyReadyToMemory(persist PersistentState) error {
 	if persist.Snapshot != nil {
 		if err := s.memory.ApplySnapshot(*persist.Snapshot); err != nil {
 			return err

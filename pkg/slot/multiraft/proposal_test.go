@@ -707,36 +707,186 @@ func TestNormalEntryAsyncApplyKeepsStatusAppliedAtDurableIndex(t *testing.T) {
 	})
 }
 
-func TestAsyncApplyObserverReportsTaskDurationAndQueueDepth(t *testing.T) {
-	observer := &slotApplyTaskObserver{}
-	rt := newStartedRuntimeWithObserver(t, observer)
-	slotID := openSingleNodeLeader(t, rt, 1185)
+func TestSnapshotReadyWaitsForAsyncApplyBeforeMemoryApplySnapshot(t *testing.T) {
+	rt := newStartedRuntimeWithTick(t, time.Hour)
+	slotID := SlotID(1184)
+	store := &internalFakeStorage{}
+	fsm := newBlockingStateMachine()
+	t.Cleanup(func() {
+		fsm.unblock()
+	})
 
-	fut, err := rt.Propose(context.Background(), slotID, proposalString("observe-apply"))
+	if err := rt.BootstrapSlot(context.Background(), BootstrapSlotRequest{
+		Slot: SlotOptions{
+			ID:           slotID,
+			Storage:      store,
+			StateMachine: fsm,
+		},
+		Voters: []NodeID{1},
+	}); err != nil {
+		t.Fatalf("BootstrapSlot() error = %v", err)
+	}
+	waitForCondition(t, func() bool {
+		st, err := rt.Status(slotID)
+		return err == nil && st.Role == RoleLeader
+	})
+
+	fut, err := rt.Propose(context.Background(), slotID, proposalString("snapshot-barrier"))
 	if err != nil {
 		t.Fatalf("Propose() error = %v", err)
 	}
+	select {
+	case <-fsm.started:
+	case <-time.After(time.Second):
+		t.Fatal("Apply() did not start")
+	}
+
+	g := slotFor(rt, slotID)
+	if g == nil {
+		t.Fatal("slotFor() = nil")
+	}
+	beforeFirst, err := g.storageView.memory.FirstIndex()
+	if err != nil {
+		t.Fatalf("FirstIndex() before snapshot error = %v", err)
+	}
+	status, err := rt.Status(slotID)
+	if err != nil {
+		t.Fatalf("Status() error = %v", err)
+	}
+	snapIndex := status.CommitIndex + 100
+	snapTerm := status.Term + 1
+	snap := raftpb.Snapshot{
+		Data: []byte("incoming snapshot"),
+		Metadata: raftpb.SnapshotMetadata{
+			Index:     snapIndex,
+			Term:      snapTerm,
+			ConfState: raftpb.ConfState{Voters: []uint64{1}},
+		},
+	}
+	if err := rt.Step(context.Background(), Envelope{
+		SlotID: slotID,
+		Message: raftpb.Message{
+			Type:     raftpb.MsgSnap,
+			From:     2,
+			To:       1,
+			Term:     snapTerm,
+			Snapshot: &snap,
+		},
+	}); err != nil {
+		t.Fatalf("Step(snapshot) error = %v", err)
+	}
+
+	waitForCondition(t, func() bool {
+		saved, err := store.Snapshot(context.Background())
+		return err == nil && saved.Metadata.Index == snapIndex
+	})
+	firstWhileBlocked, err := g.storageView.memory.FirstIndex()
+	if err != nil {
+		t.Fatalf("FirstIndex() while apply blocked error = %v", err)
+	}
+	if firstWhileBlocked != beforeFirst {
+		t.Fatalf("memory FirstIndex while apply blocked = %d, want %d before snapshot memory apply", firstWhileBlocked, beforeFirst)
+	}
+
+	fsm.unblock()
 	if _, err := fut.Wait(context.Background()); err != nil {
-		t.Fatalf("Wait() error = %v", err)
+		t.Fatalf("Wait() after unblock error = %v", err)
+	}
+	waitForCondition(t, func() bool {
+		first, err := g.storageView.memory.FirstIndex()
+		return err == nil && first == snapIndex+1
+	})
+}
+
+func TestAsyncApplyObserverReportsTaskDurationAndQueueDepth(t *testing.T) {
+	observer := &slotApplyTaskObserver{}
+	rt := newStartedRuntimeWithTickAndObserver(t, time.Hour, observer)
+	slotID := SlotID(1185)
+	fsm := newBlockingStateMachine()
+	t.Cleanup(func() {
+		fsm.unblock()
+	})
+
+	if err := rt.BootstrapSlot(context.Background(), BootstrapSlotRequest{
+		Slot: SlotOptions{
+			ID:           slotID,
+			Storage:      &internalFakeStorage{},
+			StateMachine: fsm,
+		},
+		Voters: []NodeID{1},
+	}); err != nil {
+		t.Fatalf("BootstrapSlot() error = %v", err)
+	}
+	waitForCondition(t, func() bool {
+		st, err := rt.Status(slotID)
+		return err == nil && st.Role == RoleLeader
+	})
+
+	first, err := rt.Propose(context.Background(), slotID, proposalString("observe-blocked"))
+	if err != nil {
+		t.Fatalf("first Propose() error = %v", err)
+	}
+	select {
+	case <-fsm.started:
+	case <-time.After(time.Second):
+		t.Fatal("first Apply() did not start")
+	}
+
+	observer.mu.Lock()
+	observedBeforeQueued := len(observer.applyTasks)
+	observer.mu.Unlock()
+	second, err := rt.Propose(context.Background(), slotID, proposalString("observe-queued"))
+	if err != nil {
+		t.Fatalf("second Propose() error = %v", err)
 	}
 
 	waitForCondition(t, func() bool {
 		observer.mu.Lock()
 		defer observer.mu.Unlock()
-		return len(observer.applyTasks) > 0
+		return len(observer.applyTasks) > observedBeforeQueued
 	})
 
 	observer.mu.Lock()
-	defer observer.mu.Unlock()
-	event := observer.applyTasks[0]
+	event := observer.applyTasks[len(observer.applyTasks)-1]
+	observer.mu.Unlock()
 	if event.slotID != slotID {
 		t.Fatalf("apply task slot = %d, want %d", event.slotID, slotID)
 	}
 	if event.queueDepth <= 0 {
 		t.Fatalf("apply task queue depth = %d, want > 0", event.queueDepth)
 	}
-	if event.duration < 0 {
-		t.Fatalf("apply task duration = %v, want >= 0", event.duration)
+	if event.duration != 0 {
+		t.Fatalf("enqueue apply task duration = %v, want 0 before task completes", event.duration)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	if _, err := second.Wait(ctx); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("second Wait() while first apply blocked = %v, want %v", err, context.DeadlineExceeded)
+	}
+	fsm.unblock()
+	if _, err := first.Wait(context.Background()); err != nil {
+		t.Fatalf("first Wait() after unblock error = %v", err)
+	}
+	if _, err := second.Wait(context.Background()); err != nil {
+		t.Fatalf("second Wait() after unblock error = %v", err)
+	}
+	waitForCondition(t, func() bool {
+		observer.mu.Lock()
+		defer observer.mu.Unlock()
+		for _, event := range observer.applyTasks {
+			if event.slotID == slotID && event.duration > 0 {
+				return true
+			}
+		}
+		return false
+	})
+	observer.mu.Lock()
+	defer observer.mu.Unlock()
+	for _, event := range observer.applyTasks {
+		if event.queueDepth < 0 {
+			t.Fatalf("apply task queue depth = %d, want >= 0", event.queueDepth)
+		}
 	}
 }
 
@@ -1009,7 +1159,19 @@ func TestCloseSlotDuringApplyEnqueueHandoffRejectsTaskAndRetiresQueue(t *testing
 	go func() {
 		closeDone <- rt.CloseSlot(context.Background(), slotID)
 	}()
-	time.Sleep(20 * time.Millisecond)
+	g := slotFor(rt, slotID)
+	if g == nil {
+		t.Fatal("slotFor() = nil")
+	}
+	waitForCondition(t, func() bool {
+		rt.mu.RLock()
+		_, exists := rt.slots[slotID]
+		rt.mu.RUnlock()
+		g.mu.Lock()
+		closed := g.closed
+		g.mu.Unlock()
+		return closed && !exists
+	})
 	releaseOnce.Do(func() { close(releaseHook) })
 
 	select {
