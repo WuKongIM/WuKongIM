@@ -69,12 +69,10 @@ package management
 
 import (
 	"context"
-	"errors"
 	"testing"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
-	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
 func TestPlanSlotLeaderTransfersSelectsCandidatesAndSkipsInStableOrder(t *testing.T) {
@@ -494,6 +492,8 @@ func TestPlanSlotLeaderTransfersValidatesRequestAndUnavailablePorts(t *testing.T
 	}
 }
 ```
+
+Add `errors` and `metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"` to the test imports.
 
 - [ ] **Step 5: Run the full management usecase package tests**
 
