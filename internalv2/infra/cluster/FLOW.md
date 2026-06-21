@@ -96,6 +96,26 @@ contract and returns messages to the usecase in ascending sequence order. It
 maps only the fields currently carried by ChannelV2 committed messages; legacy
 HTTP-only field shaping remains in `internalv2/access/api`.
 
+## CMD Sync Flow
+
+```text
+cmdsync.Sync
+  -> ListConversationActivePage(ConversationKindCMD, uid)
+  -> ReadChannelCommitted(command channel/source SyncOnce channel, forward from read cursor)
+  -> cmdsync.SyncedMessage
+
+cmdsync.SyncAck
+  -> UpsertConversationStatesBatch(kind forced to ConversationKindCMD)
+```
+
+`CMDSyncStore` is the single internalv2 adapter for durable command-message
+sync. It reads CMD rows from the unified UID-owned conversation projection and
+advances read progress by writing CMD-kind `ConversationState` rows back through
+clusterv2 Slot metadata. It does not create a second CMD-specific metadata
+table or a pending overlay. Channel log reads use ChannelV2 committed forward
+reads and return cloned payloads to keep access/usecase layers from aliasing
+storage-owned memory.
+
 ## Management Message Flow
 
 ```text

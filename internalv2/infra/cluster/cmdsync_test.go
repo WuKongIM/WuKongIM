@@ -1,0 +1,123 @@
+package cluster
+
+import (
+	"context"
+	"reflect"
+	"testing"
+
+	"github.com/WuKongIM/WuKongIM/internalv2/usecase/cmdsync"
+	"github.com/WuKongIM/WuKongIM/pkg/channelv2"
+	channelstore "github.com/WuKongIM/WuKongIM/pkg/channelv2/store"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+)
+
+func TestCMDSyncStoreListsCMDKindOnly(t *testing.T) {
+	node := &cmdSyncNodeFake{
+		rows: []metadb.ConversationState{
+			{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "normal", ChannelType: 2, ActiveAt: 300},
+			{UID: "u1", Kind: metadb.ConversationKindCMD, ChannelID: "cmd____cmd", ChannelType: 2, ActiveAt: 200},
+		},
+	}
+	store := NewCMDSyncStore(node)
+
+	rows, err := store.ListConversationActiveView(context.Background(), "u1", 10)
+	if err != nil {
+		t.Fatalf("ListConversationActiveView(): %v", err)
+	}
+	if got, want := node.activeCalls, []cmdSyncActiveCallFake{{kind: metadb.ConversationKindCMD, uid: "u1", limit: 10}}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("active calls = %#v, want %#v", got, want)
+	}
+	if len(rows) != 1 || rows[0].Kind != metadb.ConversationKindCMD || rows[0].ChannelID != "cmd____cmd" {
+		t.Fatalf("rows = %+v", rows)
+	}
+}
+
+func TestCMDSyncStoreUpsertsCMDKindRows(t *testing.T) {
+	node := &cmdSyncNodeFake{}
+	store := NewCMDSyncStore(node)
+	states := []metadb.ConversationState{{
+		UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "g1", ChannelType: 2, ReadSeq: 7,
+	}}
+
+	if err := store.UpsertConversationStates(context.Background(), states); err != nil {
+		t.Fatalf("UpsertConversationStates(): %v", err)
+	}
+	states[0].ReadSeq = 1
+
+	if got, want := node.upserts, []metadb.ConversationState{{
+		UID: "u1", Kind: metadb.ConversationKindCMD, ChannelID: "g1", ChannelType: 2, ReadSeq: 7,
+	}}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("upserts = %#v, want %#v", got, want)
+	}
+}
+
+func TestCMDMessageReaderReadsCommittedCommandMessages(t *testing.T) {
+	node := &cmdSyncNodeFake{
+		readResult: channelstore.ReadCommittedResult{Messages: []channelv2.Message{{
+			MessageID: 11, MessageSeq: 4, ChannelID: "g1____cmd", ChannelType: 2, FromUID: "u2", ClientMsgNo: "c1", ServerTimestampMS: 99, Payload: []byte("x"),
+		}}},
+	}
+	store := NewCMDSyncStore(node)
+
+	msgs, err := store.LoadCommandMessages(context.Background(), cmdsync.CommandChannelKey{ChannelID: "g1____cmd", ChannelType: 2}, 3, 10)
+	if err != nil {
+		t.Fatalf("LoadCommandMessages(): %v", err)
+	}
+	if node.lastReadID != (channelv2.ChannelID{ID: "g1____cmd", Type: 2}) {
+		t.Fatalf("read channel id = %#v, want command channel", node.lastReadID)
+	}
+	if node.lastReadReq.FromSeq != 3 || node.lastReadReq.Limit != 10 || node.lastReadReq.Reverse || node.lastReadReq.MaxBytes != maxInt() {
+		t.Fatalf("read request = %#v, want forward from seq 3 limit 10", node.lastReadReq)
+	}
+	if len(msgs) != 1 || msgs[0].MessageSeq != 4 || msgs[0].MessageID != 11 || msgs[0].ServerTimestampMS != 99 || string(msgs[0].Payload) != "x" {
+		t.Fatalf("msgs = %+v", msgs)
+	}
+	msgs[0].Payload[0] = 'X'
+	again, err := store.LoadCommandMessages(context.Background(), cmdsync.CommandChannelKey{ChannelID: "g1____cmd", ChannelType: 2}, 3, 10)
+	if err != nil {
+		t.Fatalf("LoadCommandMessages(again): %v", err)
+	}
+	if string(again[0].Payload) != "x" {
+		t.Fatalf("message payload aliases node storage: %q", again[0].Payload)
+	}
+}
+
+type cmdSyncActiveCallFake struct {
+	kind  metadb.ConversationKind
+	uid   string
+	limit int
+}
+
+type cmdSyncNodeFake struct {
+	rows        []metadb.ConversationState
+	activeCalls []cmdSyncActiveCallFake
+	upserts     []metadb.ConversationState
+	lastReadID  channelv2.ChannelID
+	lastReadReq channelstore.ReadCommittedRequest
+	readResult  channelstore.ReadCommittedResult
+}
+
+func (n *cmdSyncNodeFake) ListConversationActivePage(_ context.Context, kind metadb.ConversationKind, uid string, _ metadb.ConversationActiveCursor, limit int) ([]metadb.ConversationState, metadb.ConversationActiveCursor, bool, error) {
+	n.activeCalls = append(n.activeCalls, cmdSyncActiveCallFake{kind: kind, uid: uid, limit: limit})
+	rows := make([]metadb.ConversationState, 0, len(n.rows))
+	for _, row := range n.rows {
+		if row.UID == uid && row.Kind == kind {
+			rows = append(rows, row)
+		}
+	}
+	if limit > 0 && len(rows) > limit {
+		rows = rows[:limit]
+	}
+	return rows, metadb.ConversationActiveCursor{}, true, nil
+}
+
+func (n *cmdSyncNodeFake) UpsertConversationStatesBatch(_ context.Context, states []metadb.ConversationState) error {
+	n.upserts = append(n.upserts, states...)
+	return nil
+}
+
+func (n *cmdSyncNodeFake) ReadChannelCommitted(_ context.Context, id channelv2.ChannelID, req channelstore.ReadCommittedRequest) (channelstore.ReadCommittedResult, error) {
+	n.lastReadID = id
+	n.lastReadReq = req
+	return n.readResult, nil
+}

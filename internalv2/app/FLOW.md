@@ -140,8 +140,11 @@ New(Config)
   -> create message.App with channelappend.Router, clusterv2 channel metadata
      permission reads, system UID cache, configured message permission switches,
      and the clusterv2 committed message reader when exposed for channel message sync
+  -> when the cluster exposes unified conversation metadata writes and ChannelV2
+     committed reads, create internalv2/usecase/cmdsync with one
+     infra/cluster CMDSyncStore over ConversationKindCMD rows
   -> create access/gateway.Handler with the message facade and activation-timeout-wrapped presence usecases
-  -> create access/api.Server with the channel, user, message, and conversation
+  -> create access/api.Server with the channel, user, message, CMD sync, and conversation
      usecases, legacy route address lookup derived from gateway listeners and
      static cluster voters, optional debug snapshots, optional bench presence
      snapshot controller, and real benchmark channel/subscriber data writer when
@@ -318,6 +321,15 @@ send path available.
 If that runtime also implements the committed channel message read surface,
 `New` wires a `ChannelMessageReader` so `/channel/messagesync` can use the same
 message usecase as the gateway send path.
+
+If the runtime also exposes unified conversation projection writes and committed
+ChannelV2 reads, `New` wires `internalv2/usecase/cmdsync` through
+`CMDSyncStore`. `/message/sync` scans only `ConversationKindCMD` rows from the
+UID-owned projection, reads the corresponding command/source SyncOnce channel
+logs, and returns legacy message arrays through the API adapter.
+`/message/syncack` advances CMD-kind read cursors in the same ordinary
+conversation table, so CMD sync does not introduce a second metadata branch or
+pending-state updater.
 
 Bench runtime controls flow from internalv2 HTTP through `internalv2/infra/cluster`, `pkg/clusterv2.Node`, `pkg/clusterv2/channels.Service`, and finally the hosted ChannelV2 runtime. These routes are benchmark-only observation/cleanup controls and do not replace the gateway SEND activation path.
 

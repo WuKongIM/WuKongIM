@@ -42,6 +42,8 @@ func (s *Server) registerMessageRoutes() {
 		return
 	}
 	s.engine.POST("/message/send", s.handleSendMessage)
+	s.engine.POST("/message/sync", s.handleMessageSync)
+	s.engine.POST("/message/syncack", s.handleMessageSyncAck)
 	s.engine.POST("/channel/messagesync", s.handleChannelMessageSync)
 }
 

@@ -14,6 +14,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/bench/model"
 	obsdiagnostics "github.com/WuKongIM/WuKongIM/internalv2/observability/diagnostics"
 	channelusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/channel"
+	cmdsyncusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/cmdsync"
 	conversationusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/conversation"
 	messageusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/message"
 	userusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/user"
@@ -81,6 +82,12 @@ type LegacyRouteNodeAddresses struct {
 type MessageUsecase interface {
 	Send(context.Context, messageusecase.SendCommand) (messageusecase.SendResult, error)
 	SyncChannelMessages(context.Context, messageusecase.SyncChannelMessagesQuery) (messageusecase.SyncChannelMessagesResult, error)
+}
+
+// CMDSyncUsecase coordinates compatible durable command-message sync routes.
+type CMDSyncUsecase interface {
+	Sync(context.Context, cmdsyncusecase.SyncQuery) (cmdsyncusecase.SyncResult, error)
+	SyncAck(context.Context, cmdsyncusecase.SyncAckCommand) error
 }
 
 // ConversationUsecase coordinates compatible conversation list and sync routes.
@@ -228,6 +235,8 @@ type Options struct {
 	Users UserUsecase
 	// Messages handles compatible message send and channel message sync routes.
 	Messages MessageUsecase
+	// CMDSync handles compatible durable command-message sync routes.
+	CMDSync CMDSyncUsecase
 	// Conversations handles compatible conversation list routes.
 	Conversations ConversationUsecase
 	// ConversationListObserver records conversation list read performance.
@@ -276,6 +285,7 @@ type Server struct {
 	channels                 ChannelUsecase
 	users                    UserUsecase
 	messages                 MessageUsecase
+	cmdSync                  CMDSyncUsecase
 	conversations            ConversationUsecase
 	conversationObserver     ConversationListObserver
 	conversationSyncObserver ConversationSyncObserver
@@ -316,6 +326,7 @@ func New(opts Options) *Server {
 		channels:                 opts.Channels,
 		users:                    opts.Users,
 		messages:                 opts.Messages,
+		cmdSync:                  opts.CMDSync,
 		conversations:            opts.Conversations,
 		conversationObserver:     opts.ConversationListObserver,
 		conversationSyncObserver: opts.ConversationSyncObserver,

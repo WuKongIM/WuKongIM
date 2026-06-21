@@ -44,6 +44,8 @@ POST /bench/v1/users/tokens
 POST /bench/v1/channels
 POST /bench/v1/channels/subscribers
 POST /message/send
+POST /message/sync
+POST /message/syncack
 POST /conversation/list
 POST /conversation/sync
 POST /conversations/clearUnread
@@ -126,10 +128,14 @@ The compatible message routes are registered regardless of bench mode.
 `/message/send` accepts the legacy base64 payload request, maps `sender_uid` to
 `from_uid`, forwards `subscribers` as an explicit request-scoped command, and
 returns the legacy `{"message_id","message_seq","reason"}` response with
-protocol reason codes. `/channel/messagesync` keeps the legacy response shape
-and converts canonical person-channel IDs back to the peer UID for the logged-in
-user. If the composition root does not provide a message usecase, these routes
-fail closed using their legacy envelopes.
+protocol reason codes. `/message/sync` and `/message/syncack` forward durable
+CMD message sync and ack requests to `internalv2/usecase/cmdsync`, preserving
+legacy validation messages and response envelopes while keeping CMD projection
+reads and read-cursor writes out of the HTTP layer. `/channel/messagesync` keeps
+the legacy response shape and converts canonical person-channel IDs back to the
+peer UID for the logged-in user. If the composition root does not provide the
+corresponding message or CMD sync usecase, these routes fail closed using their
+legacy envelopes.
 
 The conversation list, sync, and mutation routes are registered regardless of bench mode.
 `/conversation/list` accepts `uid`, `limit`, and an optional sorted conversation
@@ -199,6 +205,10 @@ not by the HTTP adapter directly. The user adapter maps JSON into
 directly. The message adapter decodes legacy HTTP payloads and trace headers
 but leaves send orchestration, request-scoped command-channel derivation, and
 channel message reads to `internalv2/usecase/message`.
+The CMD sync adapter validates only request shape, UID presence, non-negative
+limits, and non-zero `last_message_seq` for syncack; CMD row selection,
+message ordering, command suffix stripping, and read-cursor writes stay in
+`internalv2/usecase/cmdsync`.
 The conversation adapter validates only request shape and UID presence; active
 index ordering, active cursor application, sync candidate filtering,
 read/delete cursor mutation, and message reads stay in

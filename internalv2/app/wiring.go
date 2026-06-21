@@ -17,6 +17,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/online"
 	authoritypresence "github.com/WuKongIM/WuKongIM/internalv2/runtime/presence"
 	channelusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/channel"
+	cmdsyncusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/cmdsync"
 	conversationusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/conversation"
 	deliveryusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/delivery"
 	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
@@ -661,6 +662,18 @@ func (a *App) wireMessages() {
 	}
 }
 
+func (a *App) wireCMDSync() {
+	if a.cmdSync == nil {
+		if node, ok := a.cluster.(clusterinfra.CMDSyncNode); ok {
+			store := clusterinfra.NewCMDSyncStore(node)
+			a.cmdSync = cmdsyncusecase.New(cmdsyncusecase.Options{
+				States:   store,
+				Messages: store,
+			})
+		}
+	}
+}
+
 func (a *App) wireAPIMessageFacade() {
 	if a.apiMessages == nil && a.messages != nil {
 		a.apiMessages = a.messages
@@ -699,6 +712,7 @@ func (a *App) wireAPI() {
 			Channels:                 a.channels,
 			Users:                    a.users,
 			Messages:                 a.apiMessages,
+			CMDSync:                  a.cmdSync,
 			Conversations:            a.conversations,
 			ConversationListObserver: a.conversationListObserver(),
 			ConversationSyncObserver: a.conversationSyncObserver(),

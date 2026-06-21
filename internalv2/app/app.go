@@ -21,6 +21,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/online"
 	authoritypresence "github.com/WuKongIM/WuKongIM/internalv2/runtime/presence"
 	channelusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/channel"
+	cmdsyncusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/cmdsync"
 	conversationusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/conversation"
 	deliveryusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/delivery"
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/message"
@@ -81,6 +82,7 @@ type App struct {
 	channelAppendDeliveryWorker *channelappend.RecipientDeliveryWorker
 	channelAppendMetadata       *clusterinfra.ChannelAppendMetadataCache
 	channels                    *channelusecase.App
+	cmdSync                     *cmdsyncusecase.App
 	conversations               *conversationusecase.App
 	users                       *userusecase.App
 	delivery                    *deliveryusecase.App
@@ -176,6 +178,7 @@ func New(cfg Config, opts ...Option) (*App, error) {
 		return nil, err
 	}
 	app.wireMessages()
+	app.wireCMDSync()
 	app.wireAPIMessageFacade()
 	app.wireGatewayHandler(clusterCfg.NodeID)
 	app.wireAPI()

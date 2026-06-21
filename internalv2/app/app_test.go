@@ -4304,6 +4304,33 @@ func TestAppWiresConversationListRouteToUsecase(t *testing.T) {
 	}
 }
 
+func TestAppWiresMessageSyncRouteToCMDSyncUsecase(t *testing.T) {
+	cluster := newFakePresenceCluster(1, nil)
+	cluster.snapshot = readyFakeClusterSnapshot(1, 16)
+	app, err := newTestApp(t, Config{
+		API: APIConfig{ListenAddr: "127.0.0.1:0"},
+	}, WithCluster(cluster))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	apiSrv, ok := app.api.(*accessapi.Server)
+	if !ok {
+		t.Fatalf("api runtime = %T, want *accessapi.Server", app.api)
+	}
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/message/sync", strings.NewReader(`{"uid":"u1","limit":10}`))
+	req.Header.Set("Content-Type", "application/json")
+	apiSrv.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s, want 200", rec.Code, rec.Body.String())
+	}
+	if rec.Body.String() != "[]" {
+		t.Fatalf("body = %s, want empty CMD sync array", rec.Body.String())
+	}
+}
+
 func TestAppWiresConversationListMetrics(t *testing.T) {
 	cluster := newFakePresenceCluster(1, nil)
 	cluster.snapshot = readyFakeClusterSnapshot(1, 16)
