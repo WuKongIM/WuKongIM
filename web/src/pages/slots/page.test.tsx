@@ -50,7 +50,7 @@ const slotRow = {
   assignment: { desired_peers: [1, 2, 3], config_epoch: 7, balance_version: 4 },
   runtime: {
     current_peers: [1, 2, 3],
-    leader_id: 2,
+    preferred_leader_id: 1,
     healthy_voters: 3,
     has_quorum: true,
     observed_config_epoch: 7,
@@ -188,6 +188,7 @@ test("renders the slot list tab from the tab search param", async () => {
 
   expect(screen.getByRole("tab", { name: "List" })).toHaveAttribute("aria-selected", "true")
   expect(await screen.findByText("Slot 9")).toBeInTheDocument()
+  expect(screen.getByRole("columnheader", { name: "Leader" })).toBeInTheDocument()
   expect(screen.getByRole("columnheader", { name: "Status" })).toBeInTheDocument()
   expect(screen.getByText("follower")).toBeInTheDocument()
   expect(screen.getByText("commit 93 / applied 91")).toBeInTheDocument()
@@ -245,11 +246,12 @@ test("adds a physical slot and opens the returned detail", async () => {
     runtime: {
       ...slotRow.runtime,
       current_peers: [],
-      leader_id: 0,
+      preferred_leader_id: 0,
       healthy_voters: 0,
       has_quorum: false,
       observed_config_epoch: 0,
     },
+    node_log: null,
     task: null,
   }
   getSlotsMock.mockResolvedValueOnce({ total: 1, items: [slotRow] })
@@ -266,7 +268,7 @@ test("adds a physical slot and opens the returned detail", async () => {
   expect(addSlotMock).toHaveBeenCalledTimes(1)
   expect(getSlotsMock).toHaveBeenCalledTimes(2)
   expect(await screen.findByRole("heading", { name: "Slot 11" })).toBeInTheDocument()
-  expect(screen.getByText("Leader 0")).toBeInTheDocument()
+  expect(screen.getByText("Leader -")).toBeInTheDocument()
 })
 
 function renderSlotsPage(path = "/cluster/slots?tab=list") {
@@ -353,6 +355,7 @@ test("opens slot detail without the moved slot log query", async () => {
   await user.click(screen.getByRole("button", { name: "Inspect slot 9" }))
 
   expect(await screen.findByText("Desired peers")).toBeInTheDocument()
+  expect(screen.getByText("Leader 2")).toBeInTheDocument()
   expect(screen.queryByText("Log entries")).not.toBeInTheDocument()
 })
 

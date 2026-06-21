@@ -259,7 +259,7 @@ beforeEach(() => {
       assignment: { desired_peers: [1, 2, 3], config_epoch: 7, balance_version: 4 },
       runtime: {
         current_peers: [1, 2, 3],
-        leader_id: 2,
+        preferred_leader_id: 2,
         healthy_voters: 3,
         has_quorum: true,
         observed_config_epoch: 7,

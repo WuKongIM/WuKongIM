@@ -39,6 +39,10 @@ type conversationAuthorityOptions struct {
 	AdmissionConcurrency int
 	// ActiveCooldown skips receiver-only active_at flushes newer than the durable row by less than this duration.
 	ActiveCooldown time.Duration
+	// FlushBatchRows bounds dirty rows flushed per authority handoff iteration.
+	FlushBatchRows int
+	// CurrentRouteTarget returns the locally visible authority target for one hash slot.
+	CurrentRouteTarget func(uint16) (conversationusecase.RouteTarget, bool)
 	// Observer receives low-cardinality authority cache/list/handoff observations.
 	Observer conversationAuthorityObserver
 }
@@ -52,6 +56,10 @@ type conversationAuthority struct {
 	store conversationAuthorityStore
 	// active owns active-row cache, list merge, pressure, and dirty flush state.
 	active *conversationactive.Manager
+	// flushBatchRows bounds one scoped handoff flush iteration.
+	flushBatchRows int
+	// currentRouteTarget reads the local route table for lazy authority activation after leader moves.
+	currentRouteTarget func(uint16) (conversationusecase.RouteTarget, bool)
 	// targets stores fenced authority state by full route target.
 	targets map[conversationAuthorityTargetKey]conversationAuthorityState
 	// observer receives authority-specific cache/list/handoff observations.
@@ -184,11 +192,16 @@ func newConversationAuthority(opts conversationAuthorityOptions) *conversationAu
 	if opts.MaxRows <= 0 {
 		opts.MaxRows = 100000
 	}
+	if opts.FlushBatchRows <= 0 {
+		opts.FlushBatchRows = 128
+	}
 	authority := &conversationAuthority{
-		localNodeID: opts.LocalNodeID,
-		store:       opts.Store,
-		targets:     make(map[conversationAuthorityTargetKey]conversationAuthorityState),
-		observer:    opts.Observer,
+		localNodeID:        opts.LocalNodeID,
+		store:              opts.Store,
+		flushBatchRows:     opts.FlushBatchRows,
+		currentRouteTarget: opts.CurrentRouteTarget,
+		targets:            make(map[conversationAuthorityTargetKey]conversationAuthorityState),
+		observer:           opts.Observer,
 	}
 	var activeObserver conversationactive.Observer
 	if observer, ok := opts.Observer.(conversationactive.Observer); ok {
@@ -228,9 +241,7 @@ func (a *conversationAuthority) AdmitPatches(ctx context.Context, target convers
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	a.mu.Lock()
-	err = a.ensureTargetLocked(target)
-	a.mu.Unlock()
+	err = a.ensureTarget(target)
 	if err != nil {
 		return err
 	}
@@ -238,7 +249,7 @@ func (a *conversationAuthority) AdmitPatches(ctx context.Context, target convers
 	if len(activePatches) == 0 {
 		return nil
 	}
-	err = mapConversationActiveError(a.active.MarkActive(ctx, activePatches))
+	err = mapConversationActiveError(a.active.MarkActiveForHashSlot(ctx, target.HashSlot, activePatches))
 	if errors.Is(err, conversationusecase.ErrCachePressure) {
 		a.observeCachePressure(conversationAuthorityPhaseAdmit, err)
 	}
@@ -256,13 +267,11 @@ func (a *conversationAuthority) AdmitActiveBatch(ctx context.Context, target con
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	a.mu.Lock()
-	err = a.ensureTargetLocked(target)
-	a.mu.Unlock()
+	err = a.ensureTarget(target)
 	if err != nil {
 		return err
 	}
-	err = mapConversationActiveError(a.active.AdmitActiveBatch(ctx, batch))
+	err = mapConversationActiveError(a.active.AdmitActiveBatchForHashSlot(ctx, target.HashSlot, batch))
 	if errors.Is(err, conversationusecase.ErrCachePressure) {
 		a.observeCachePressure(conversationAuthorityPhaseAdmit, err)
 	}
@@ -271,6 +280,40 @@ func (a *conversationAuthority) AdmitActiveBatch(ctx context.Context, target con
 
 func (a *conversationAuthority) ensureTargetLocked(target conversationusecase.RouteTarget) error {
 	return a.ensureTargetKeyLocked(targetKey(target))
+}
+
+func (a *conversationAuthority) ensureTarget(target conversationusecase.RouteTarget) error {
+	if a == nil {
+		return conversationusecase.ErrRouteNotReady
+	}
+	key := targetKey(target)
+	a.mu.Lock()
+	err := a.ensureTargetKeyLocked(key)
+	a.mu.Unlock()
+	if err == nil {
+		return nil
+	}
+	if !errors.Is(err, conversationusecase.ErrStaleRoute) || !a.canLazyActivateTarget(target) {
+		return err
+	}
+	current, ok := a.currentRouteTarget(target.HashSlot)
+	if !ok || targetKey(current) != key {
+		return err
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if err := a.ensureTargetKeyLocked(key); err == nil {
+		return nil
+	}
+	a.setTargetStateLocked(key, conversationAuthorityActive)
+	return nil
+}
+
+func (a *conversationAuthority) canLazyActivateTarget(target conversationusecase.RouteTarget) bool {
+	return a != nil &&
+		a.currentRouteTarget != nil &&
+		target.LeaderNodeID != 0 &&
+		target.LeaderNodeID == a.localNodeID
 }
 
 func (a *conversationAuthority) ensureTargetKeyLocked(target conversationAuthorityTargetKey) error {
@@ -340,7 +383,7 @@ func (a *conversationAuthority) DrainAuthority(ctx context.Context, target conve
 	if err != nil {
 		return result, err
 	}
-	return a.flushDrainingAuthority(ctx)
+	return a.flushDrainingAuthority(ctx, target.HashSlot)
 }
 
 func (a *conversationAuthority) beginDrainAuthority(target conversationusecase.RouteTarget) (conversationDrainResult, error) {
@@ -357,7 +400,7 @@ func (a *conversationAuthority) beginDrainAuthority(target conversationusecase.R
 	return conversationDrainResultNoDirty, nil
 }
 
-func (a *conversationAuthority) finishDrainingAuthority(ctx context.Context) (result conversationDrainResult, err error) {
+func (a *conversationAuthority) finishDrainingAuthority(ctx context.Context, target conversationusecase.RouteTarget) (result conversationDrainResult, err error) {
 	if a == nil {
 		return conversationDrainResultNoDirty, nil
 	}
@@ -368,18 +411,27 @@ func (a *conversationAuthority) finishDrainingAuthority(ctx context.Context) (re
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	return a.flushDrainingAuthority(ctx)
+	return a.flushDrainingAuthority(ctx, target.HashSlot)
 }
 
-func (a *conversationAuthority) flushDrainingAuthority(ctx context.Context) (conversationDrainResult, error) {
-	flush, flushErr := a.active.Flush(ctx, 0)
-	if flushErr != nil {
-		return conversationDrainResultBusy, mapConversationActiveError(flushErr)
+func (a *conversationAuthority) flushDrainingAuthority(ctx context.Context, hashSlot uint16) (conversationDrainResult, error) {
+	selected := 0
+	for {
+		if err := ctx.Err(); err != nil {
+			return conversationDrainResultBusy, err
+		}
+		flush, flushErr := a.active.FlushHashSlot(ctx, hashSlot, a.flushBatchRows)
+		if flushErr != nil {
+			return conversationDrainResultBusy, mapConversationActiveError(flushErr)
+		}
+		if flush.Selected == 0 {
+			if selected == 0 {
+				return conversationDrainResultNoDirty, nil
+			}
+			return conversationDrainResultDrained, nil
+		}
+		selected += flush.Selected
 	}
-	if flush.Selected == 0 {
-		return conversationDrainResultNoDirty, nil
-	}
-	return conversationDrainResultDrained, nil
 }
 
 // ListUserConversationActiveView is a conservative test/backward adapter for unscoped reads.
@@ -407,9 +459,7 @@ func (a *conversationAuthority) ListUserConversationActiveViewForTarget(ctx cont
 		a.observeList(err)
 	}()
 	targetKey := targetKey(target)
-	a.mu.Lock()
-	err = a.ensureTargetLocked(target)
-	a.mu.Unlock()
+	err = a.ensureTarget(target)
 	if err != nil {
 		return conversationusecase.ActiveViewPage{}, err
 	}

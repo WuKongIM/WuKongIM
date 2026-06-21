@@ -32,6 +32,16 @@ func TestConfigDefaultsSingleNodeControl(t *testing.T) {
 	if cfg.Slots.InitialSlotCount == 0 || cfg.Slots.HashSlotCount == 0 || cfg.Slots.ReplicaCount == 0 {
 		t.Fatalf("Slots defaults = %#v, want non-zero", cfg.Slots)
 	}
+	if cfg.Slots.TickInterval != defaultSlotTickInterval || cfg.Slots.ElectionTick != defaultSlotElectionTick || cfg.Slots.HeartbeatTick != defaultSlotHeartbeatTick {
+		t.Fatalf("Slot Raft timing defaults = %s/%d/%d, want %s/%d/%d",
+			cfg.Slots.TickInterval,
+			cfg.Slots.ElectionTick,
+			cfg.Slots.HeartbeatTick,
+			defaultSlotTickInterval,
+			defaultSlotElectionTick,
+			defaultSlotHeartbeatTick,
+		)
+	}
 }
 
 func TestConfigDefaultsChannelReactorCountFromGOMAXPROCS(t *testing.T) {
@@ -170,6 +180,52 @@ func TestConfigPreservesSlotLogCompactionConfig(t *testing.T) {
 	}
 	if cfg.Slots.LogCompaction.TriggerEntries != 1000 || cfg.Slots.LogCompaction.CheckInterval != 5*time.Second {
 		t.Fatalf("Slots.LogCompaction = %#v, want explicit tuning preserved", cfg.Slots.LogCompaction)
+	}
+}
+
+func TestConfigPreservesExplicitSlotRaftTiming(t *testing.T) {
+	cfg := Config{
+		NodeID:     1,
+		ListenAddr: "127.0.0.1:0",
+		DataDir:    t.TempDir(),
+		Slots: SlotConfig{
+			TickInterval:  25 * time.Millisecond,
+			ElectionTick:  20,
+			HeartbeatTick: 2,
+		},
+	}
+	cfg.applyDefaults()
+	if err := cfg.validate(); err != nil {
+		t.Fatalf("validate() error = %v", err)
+	}
+	if cfg.Slots.TickInterval != 25*time.Millisecond || cfg.Slots.ElectionTick != 20 || cfg.Slots.HeartbeatTick != 2 {
+		t.Fatalf("Slot Raft timing = %s/%d/%d, want 25ms/20/2", cfg.Slots.TickInterval, cfg.Slots.ElectionTick, cfg.Slots.HeartbeatTick)
+	}
+}
+
+func TestConfigRejectsInvalidSlotRaftTiming(t *testing.T) {
+	for _, tt := range []struct {
+		name  string
+		slots SlotConfig
+	}{
+		{name: "negative tick interval", slots: SlotConfig{TickInterval: -time.Millisecond}},
+		{name: "negative election", slots: SlotConfig{ElectionTick: -1}},
+		{name: "negative heartbeat", slots: SlotConfig{HeartbeatTick: -1}},
+		{name: "election equals heartbeat", slots: SlotConfig{ElectionTick: 1, HeartbeatTick: 1}},
+		{name: "election below heartbeat", slots: SlotConfig{ElectionTick: 1, HeartbeatTick: 2}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := Config{
+				NodeID:     1,
+				ListenAddr: "127.0.0.1:0",
+				DataDir:    t.TempDir(),
+				Slots:      tt.slots,
+			}
+			cfg.applyDefaults()
+			if err := cfg.validate(); !errors.Is(err, ErrInvalidConfig) {
+				t.Fatalf("validate() error = %v, want ErrInvalidConfig", err)
+			}
+		})
 	}
 }
 

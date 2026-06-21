@@ -173,7 +173,7 @@ test("renders source-specific task detail payload", async () => {
           runtime: {
             current_peers: [2, 3],
             current_voters: [2, 3],
-            leader_id: 2,
+            preferred_leader_id: 2,
             healthy_voters: 2,
             has_quorum: true,
             observed_config_epoch: 8,

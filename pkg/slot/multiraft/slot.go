@@ -53,6 +53,8 @@ type slot struct {
 	tickPending                 bool
 	tickCount                   int
 	lastKnownLeaderID           NodeID
+	// pendingLeaderTransferTarget records an expected transfer target until the next non-zero leader change is observed.
+	pendingLeaderTransferTarget NodeID
 	// durableAppliedIndex is the highest index that completed FSM apply and Storage.MarkApplied.
 	durableAppliedIndex uint64
 	// campaignAfterReady requests a local campaign after bootstrap Ready applies membership.
@@ -127,14 +129,26 @@ func (e applyStateEvent) emit() {
 }
 
 type leaderChangeEvent struct {
-	observer LeaderChangeObserver
-	slotID   SlotID
-	from     NodeID
-	to       NodeID
+	observer      LeaderChangeObserver
+	causeObserver LeaderChangeCauseObserver
+	slotID        SlotID
+	from          NodeID
+	to            NodeID
+	cause         LeaderChangeCause
 }
 
 func (e leaderChangeEvent) emit() {
-	if e.observer != nil && e.from != 0 && e.to != 0 && e.from != e.to {
+	if e.from == 0 || e.to == 0 || e.from == e.to {
+		return
+	}
+	if e.cause == "" {
+		e.cause = LeaderChangeCauseElection
+	}
+	if e.causeObserver != nil {
+		e.causeObserver.ObserveSlotLeaderChangeWithCause(e.slotID, e.from, e.to, e.cause)
+		return
+	}
+	if e.observer != nil {
 		e.observer.ObserveSlotLeaderChange(e.slotID, e.from, e.to)
 	}
 }
@@ -324,6 +338,7 @@ func (g *slot) processControls(ctx context.Context) bool {
 		case controlTransferLeader:
 			target := selectLeaderTransferTransferee(g.rawNode.Status(), action.target)
 			if target != 0 {
+				g.expectLeaderTransfer(target)
 				g.rawNode.TransferLeader(uint64(target))
 			}
 		case controlCompactLog:
@@ -1075,13 +1090,44 @@ func (g *slot) setLeaderIDLocked(next NodeID) leaderChangeEvent {
 		}
 		g.lastKnownLeaderID = next
 	}
+	cause := g.leaderChangeCauseLocked(eventFrom, next)
 	observer, _ := g.observer.(LeaderChangeObserver)
+	causeObserver, _ := g.observer.(LeaderChangeCauseObserver)
 	return leaderChangeEvent{
-		observer: observer,
-		slotID:   g.id,
-		from:     eventFrom,
-		to:       next,
+		observer:      observer,
+		causeObserver: causeObserver,
+		slotID:        g.id,
+		from:          eventFrom,
+		to:            next,
+		cause:         cause,
 	}
+}
+
+func (g *slot) expectLeaderTransfer(target NodeID) {
+	if target == 0 {
+		return
+	}
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.pendingLeaderTransferTarget = target
+}
+
+func (g *slot) leaderChangeCauseLocked(from, to NodeID) LeaderChangeCause {
+	cause := LeaderChangeCauseElection
+	if to == 0 || from == to {
+		return cause
+	}
+	if g.pendingLeaderTransferTarget == to {
+		if from != 0 {
+			cause = LeaderChangeCausePlannedTransfer
+		}
+		g.pendingLeaderTransferTarget = 0
+		return cause
+	}
+	if from != 0 {
+		g.pendingLeaderTransferTarget = 0
+	}
+	return cause
 }
 
 func (g *slot) applyStateEventLocked(commitIndex, appliedIndex uint64) applyStateEvent {

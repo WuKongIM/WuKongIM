@@ -444,13 +444,13 @@ func (f managerClusterControlReaderFake) ListSlots(context.Context, managementus
 	}
 	return []managementusecase.Slot{{
 		State:   managementusecase.SlotState{Quorum: "ready", LeaderMatch: true},
-		Runtime: managementusecase.SlotRuntime{LeaderID: 1, HasQuorum: true},
+		Runtime: managementusecase.SlotRuntime{PreferredLeaderID: 1, HasQuorum: true},
 	}, {
 		State:   managementusecase.SlotState{Quorum: "ready"},
 		Runtime: managementusecase.SlotRuntime{HasQuorum: true},
 	}, {
 		State:   managementusecase.SlotState{Quorum: "lost"},
-		Runtime: managementusecase.SlotRuntime{LeaderID: 3},
+		Runtime: managementusecase.SlotRuntime{PreferredLeaderID: 3},
 	}}, nil
 }
 
@@ -479,6 +479,6 @@ func (f *managerClusterControlReaderSpy) ListSlots(_ context.Context, options ma
 	f.listSlotsOptions = append(f.listSlotsOptions, options)
 	return []managementusecase.Slot{{
 		State:   managementusecase.SlotState{Quorum: "ready", LeaderMatch: true},
-		Runtime: managementusecase.SlotRuntime{LeaderID: 2, HasQuorum: true},
+		Runtime: managementusecase.SlotRuntime{PreferredLeaderID: 2, HasQuorum: true},
 	}}, nil
 }

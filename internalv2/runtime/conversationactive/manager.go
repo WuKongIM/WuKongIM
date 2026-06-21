@@ -26,6 +26,10 @@ type cacheEntry struct {
 	version uint64
 	// dirty reports that patch still needs to be flushed to the durable store.
 	dirty bool
+	// hashSlot is the UID hash slot supplied by the authority route at admission time.
+	hashSlot uint16
+	// hasHashSlot reports whether hashSlot is valid for target-scoped flushing.
+	hasHashSlot bool
 }
 
 type flushEntry struct {
@@ -65,6 +69,8 @@ type Manager struct {
 	nextVersion uint64
 	// cache stores UID -> conversation key -> active projection entry.
 	cache map[string]map[conversationKey]cacheEntry
+	// dirtyByHashSlot indexes dirty cache rows by UID hash slot for bounded authority handoff drains.
+	dirtyByHashSlot map[uint16]map[cacheAddress]struct{}
 }
 
 // NewManager creates a conversation active admission manager.
@@ -83,11 +89,21 @@ func NewManager(opts Options) *Manager {
 		observer:            opts.Observer,
 		dirtyActiveAtCounts: make(map[int64]int),
 		cache:               make(map[string]map[conversationKey]cacheEntry),
+		dirtyByHashSlot:     make(map[uint16]map[cacheAddress]struct{}),
 	}
 }
 
 // AdmitActiveBatch admits a channelappend recipient batch into the active cache.
 func (m *Manager) AdmitActiveBatch(ctx context.Context, batch ActiveBatch) error {
+	return m.admitActiveBatch(ctx, 0, false, batch)
+}
+
+// AdmitActiveBatchForHashSlot admits a channelappend recipient batch for one UID hash slot.
+func (m *Manager) AdmitActiveBatchForHashSlot(ctx context.Context, hashSlot uint16, batch ActiveBatch) error {
+	return m.admitActiveBatch(ctx, hashSlot, true, batch)
+}
+
+func (m *Manager) admitActiveBatch(ctx context.Context, hashSlot uint16, hasHashSlot bool, batch ActiveBatch) error {
 	activeAtMS := batch.ActiveAtMS
 	if activeAtMS == 0 {
 		activeAtMS = m.nowMS()
@@ -126,11 +142,20 @@ func (m *Manager) AdmitActiveBatch(ctx context.Context, batch ActiveBatch) error
 		})
 	}
 
-	return m.MarkActive(ctx, patches)
+	return m.markActive(ctx, hashSlot, hasHashSlot, patches)
 }
 
 // MarkActive merges active conversation patches into the UID cache.
 func (m *Manager) MarkActive(ctx context.Context, patches []ActivePatch) error {
+	return m.markActive(ctx, 0, false, patches)
+}
+
+// MarkActiveForHashSlot merges active conversation patches owned by one UID hash slot.
+func (m *Manager) MarkActiveForHashSlot(ctx context.Context, hashSlot uint16, patches []ActivePatch) error {
+	return m.markActive(ctx, hashSlot, true, patches)
+}
+
+func (m *Manager) markActive(ctx context.Context, hashSlot uint16, hasHashSlot bool, patches []ActivePatch) error {
 	if len(patches) == 0 {
 		return nil
 	}
@@ -143,7 +168,7 @@ func (m *Manager) MarkActive(ctx context.Context, patches []ActivePatch) error {
 				if patch.UID == "" {
 					continue
 				}
-				m.markActiveLocked(patch)
+				m.markActiveLocked(patch, hashSlot, hasHashSlot)
 			}
 			m.mu.Unlock()
 			m.observeCache()
@@ -161,8 +186,9 @@ func (m *Manager) MarkActive(ctx context.Context, patches []ActivePatch) error {
 	}
 }
 
-func (m *Manager) markActiveLocked(patch ActivePatch) {
+func (m *Manager) markActiveLocked(patch ActivePatch, hashSlot uint16, hasHashSlot bool) {
 	key := conversationKey{channelID: patch.ChannelID, channelType: patch.ChannelType}
+	address := cacheAddress{uid: patch.UID, key: key}
 	byChannel := m.cache[patch.UID]
 	if byChannel == nil {
 		byChannel = make(map[conversationKey]cacheEntry)
@@ -172,9 +198,10 @@ func (m *Manager) markActiveLocked(patch ActivePatch) {
 	current, ok := byChannel[key]
 	if !ok {
 		m.nextVersion++
-		byChannel[key] = cacheEntry{patch: patch, version: m.nextVersion, dirty: true}
+		entry := cacheEntry{patch: patch, version: m.nextVersion, dirty: true, hashSlot: hashSlot, hasHashSlot: hasHashSlot}
+		byChannel[key] = entry
 		m.totalRows++
-		m.trackDirtyLocked(patch.ActiveAtMS)
+		m.trackDirtyLocked(address, entry)
 		return
 	}
 
@@ -185,20 +212,25 @@ func (m *Manager) markActiveLocked(patch ActivePatch) {
 	if patch.ReadSeq > merged.ReadSeq {
 		merged.ReadSeq = patch.ReadSeq
 	}
-	if merged == current.patch {
+	slotChanged := current.hashSlot != hashSlot || current.hasHashSlot != hasHashSlot
+	if merged == current.patch && !slotChanged {
 		return
 	}
 
+	next := current
+	next.patch = merged
+	next.hashSlot = hashSlot
+	next.hasHashSlot = hasHashSlot
 	if current.dirty {
-		m.moveDirtyActiveAtLocked(current.patch.ActiveAtMS, merged.ActiveAtMS)
+		m.moveDirtyLocked(address, current, next)
 	} else {
-		m.trackDirtyLocked(merged.ActiveAtMS)
+		next.dirty = true
+		m.trackDirtyLocked(address, next)
 	}
 	m.nextVersion++
-	current.patch = merged
-	current.version = m.nextVersion
-	current.dirty = true
-	byChannel[key] = current
+	next.version = m.nextVersion
+	next.dirty = true
+	byChannel[key] = next
 }
 
 func (m *Manager) countNewRowsLocked(patches []ActivePatch) int {
@@ -281,13 +313,25 @@ func (m *Manager) Flush(ctx context.Context, limit int) (FlushResult, error) {
 	return m.flushDirty(ctx, limit)
 }
 
+// FlushHashSlot persists dirty active rows for one UID hash slot.
+func (m *Manager) FlushHashSlot(ctx context.Context, hashSlot uint16, limit int) (FlushResult, error) {
+	if m.store == nil {
+		return FlushResult{}, ErrStoreRequired
+	}
+	startedAt := time.Now()
+	return m.flushDirtyEntries(ctx, startedAt, m.dirtyFlushEntriesForHashSlot(hashSlot, limit))
+}
+
 func (m *Manager) flushDirty(ctx context.Context, limit int) (FlushResult, error) {
 	if m.store == nil {
 		return FlushResult{}, ErrStoreRequired
 	}
 	startedAt := time.Now()
 
-	entries := m.dirtyFlushEntries(limit)
+	return m.flushDirtyEntries(ctx, startedAt, m.dirtyFlushEntries(limit))
+}
+
+func (m *Manager) flushDirtyEntries(ctx context.Context, startedAt time.Time, entries []flushEntry) (FlushResult, error) {
 	if len(entries) == 0 {
 		m.observeFlush(FlushObservation{Result: "no_dirty", Duration: positiveDuration(time.Since(startedAt))})
 		m.observeCache()
@@ -384,7 +428,7 @@ func (m *Manager) clearSkippedDirty(entries []flushEntry) {
 		if !ok || current.version != skipped.version || !current.dirty {
 			continue
 		}
-		m.untrackDirtyLocked(current.patch.ActiveAtMS)
+		m.untrackDirtyLocked(cacheAddress{uid: skipped.uid, key: skipped.key}, current)
 		current.patch.ActiveAtMS = skipped.patch.ActiveAtMS
 		current.dirty = false
 		m.nextVersion++
@@ -458,6 +502,37 @@ func (m *Manager) dirtyFlushEntries(limit int) []flushEntry {
 	return entries
 }
 
+func (m *Manager) dirtyFlushEntriesForHashSlot(hashSlot uint16, limit int) []flushEntry {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	addresses := m.dirtyByHashSlot[hashSlot]
+	if len(addresses) == 0 {
+		return nil
+	}
+	entries := make([]flushEntry, 0)
+	for address := range addresses {
+		byChannel := m.cache[address.uid]
+		if byChannel == nil {
+			continue
+		}
+		entry, ok := byChannel[address.key]
+		if !ok || !entry.dirty || !entry.hasHashSlot || entry.hashSlot != hashSlot {
+			continue
+		}
+		entries = append(entries, flushEntry{
+			uid:     address.uid,
+			key:     address.key,
+			patch:   entry.patch,
+			version: entry.version,
+		})
+		if limit > 0 && len(entries) >= limit {
+			return entries
+		}
+	}
+	return entries
+}
+
 func (m *Manager) clearFlushedDirty(entries []flushEntry) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -473,12 +548,24 @@ func (m *Manager) clearFlushedDirty(entries []flushEntry) {
 		}
 		current.dirty = false
 		byChannel[flushed.key] = current
-		m.untrackDirtyLocked(current.patch.ActiveAtMS)
+		m.untrackDirtyLocked(cacheAddress{uid: flushed.uid, key: flushed.key}, current)
 	}
 }
 
-func (m *Manager) trackDirtyLocked(activeAtMS int64) {
+func (m *Manager) trackDirtyLocked(address cacheAddress, entry cacheEntry) {
 	m.dirtyRows++
+	if entry.hasHashSlot {
+		if m.dirtyByHashSlot == nil {
+			m.dirtyByHashSlot = make(map[uint16]map[cacheAddress]struct{})
+		}
+		addresses := m.dirtyByHashSlot[entry.hashSlot]
+		if addresses == nil {
+			addresses = make(map[cacheAddress]struct{})
+			m.dirtyByHashSlot[entry.hashSlot] = addresses
+		}
+		addresses[address] = struct{}{}
+	}
+	activeAtMS := entry.patch.ActiveAtMS
 	if activeAtMS <= 0 {
 		return
 	}
@@ -491,10 +578,18 @@ func (m *Manager) trackDirtyLocked(activeAtMS int64) {
 	m.dirtyActiveAtCounts[activeAtMS]++
 }
 
-func (m *Manager) untrackDirtyLocked(activeAtMS int64) {
+func (m *Manager) untrackDirtyLocked(address cacheAddress, entry cacheEntry) {
 	if m.dirtyRows > 0 {
 		m.dirtyRows--
 	}
+	if entry.hasHashSlot && m.dirtyByHashSlot != nil {
+		addresses := m.dirtyByHashSlot[entry.hashSlot]
+		delete(addresses, address)
+		if len(addresses) == 0 {
+			delete(m.dirtyByHashSlot, entry.hashSlot)
+		}
+	}
+	activeAtMS := entry.patch.ActiveAtMS
 	if activeAtMS <= 0 || m.dirtyActiveAtCounts == nil {
 		return
 	}
@@ -506,12 +601,14 @@ func (m *Manager) untrackDirtyLocked(activeAtMS int64) {
 	m.dirtyActiveAtCounts[activeAtMS] = count - 1
 }
 
-func (m *Manager) moveDirtyActiveAtLocked(oldActiveAtMS, newActiveAtMS int64) {
-	if oldActiveAtMS == newActiveAtMS {
+func (m *Manager) moveDirtyLocked(address cacheAddress, oldEntry, newEntry cacheEntry) {
+	if oldEntry.patch.ActiveAtMS == newEntry.patch.ActiveAtMS &&
+		oldEntry.hashSlot == newEntry.hashSlot &&
+		oldEntry.hasHashSlot == newEntry.hasHashSlot {
 		return
 	}
-	m.untrackDirtyLocked(oldActiveAtMS)
-	m.trackDirtyLocked(newActiveAtMS)
+	m.untrackDirtyLocked(address, oldEntry)
+	m.trackDirtyLocked(address, newEntry)
 }
 
 func (m *Manager) oldestDirtyAtLocked() int64 {

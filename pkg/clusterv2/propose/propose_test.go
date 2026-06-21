@@ -98,6 +98,17 @@ func TestNetworkForwardClientUsesOwnedCallerWhenAvailable(t *testing.T) {
 	}
 }
 
+func TestNetworkForwardClientMapsRemoteNotLeader(t *testing.T) {
+	caller := &recordingOwnedForwardCaller{err: transportv2.RemoteError{Code: "remote_error", Message: ErrNotLeader.Error()}}
+	client := NewNetworkForwardClient(caller)
+
+	err := client.ForwardPropose(context.Background(), 2, ForwardRequest{SlotID: 11, HashSlot: 3, Payload: EncodePayload(3, []byte("cmd"))})
+
+	if !errors.Is(err, ErrNotLeader) {
+		t.Fatalf("ForwardPropose() error = %v, want ErrNotLeader", err)
+	}
+}
+
 func TestForwardCodecRoundTripsProposalClass(t *testing.T) {
 	payload, err := EncodeForwardRequest(ForwardRequest{
 		SlotID:   11,
@@ -134,6 +145,38 @@ func TestServiceProposeRemoteNotLeader(t *testing.T) {
 	svc := NewService(Config{LocalNode: 1, Router: fakeRouter{route: routing.Route{HashSlot: 3, SlotID: 11, Leader: 2}}, Slots: &fakeSlots{}, Forward: forward})
 	if err := svc.Propose(context.Background(), Request{Key: "u1", Command: []byte("cmd")}); !errors.Is(err, ErrNotLeader) {
 		t.Fatalf("Propose() error = %v, want ErrNotLeader", err)
+	}
+}
+
+func TestServiceProposeReroutesAfterRemoteNotLeader(t *testing.T) {
+	router := &sequenceRouter{routes: []routing.Route{
+		{HashSlot: 3, SlotID: 11, Leader: 2},
+		{HashSlot: 3, SlotID: 11, Leader: 3},
+	}}
+	forward := &fakeForward{errs: []error{ErrNotLeader, nil}}
+	svc := NewService(Config{LocalNode: 1, Router: router, Slots: &fakeSlots{}, Forward: forward})
+
+	if err := svc.Propose(context.Background(), Request{Key: "u1", Command: []byte("cmd")}); err != nil {
+		t.Fatalf("Propose() error = %v", err)
+	}
+	if router.calls != 2 {
+		t.Fatalf("route calls = %d, want 2", router.calls)
+	}
+	if forward.calls != 2 || forward.nodeID != 3 {
+		t.Fatalf("forward calls=%d node=%d, want retry to node 3", forward.calls, forward.nodeID)
+	}
+}
+
+func TestServiceProposeFallsBackToRoutePeerAfterRemoteNotLeader(t *testing.T) {
+	router := fakeRouter{route: routing.Route{HashSlot: 3, SlotID: 11, Leader: 2, Peers: []uint64{2, 3}}}
+	forward := &fakeForward{errs: []error{ErrNotLeader, nil}}
+	svc := NewService(Config{LocalNode: 1, Router: router, Slots: &fakeSlots{}, Forward: forward})
+
+	if err := svc.Propose(context.Background(), Request{Key: "u1", Command: []byte("cmd")}); err != nil {
+		t.Fatalf("Propose() error = %v", err)
+	}
+	if forward.calls != 2 || forward.nodeID != 3 {
+		t.Fatalf("forward calls=%d node=%d, want peer fallback to node 3", forward.calls, forward.nodeID)
 	}
 }
 
@@ -187,6 +230,31 @@ func (r fakeRouter) RouteKey(string) (routing.Route, error)          { return r.
 func (r fakeRouter) RouteHashSlot(uint16) (routing.Route, error)     { return r.route, r.err }
 func (r fakeRouter) RouteSlot(uint32, uint16) (routing.Route, error) { return r.route, r.err }
 
+type sequenceRouter struct {
+	routes []routing.Route
+	errs   []error
+	calls  int
+}
+
+func (r *sequenceRouter) RouteKey(string) (routing.Route, error)          { return r.next() }
+func (r *sequenceRouter) RouteHashSlot(uint16) (routing.Route, error)     { return r.next() }
+func (r *sequenceRouter) RouteSlot(uint32, uint16) (routing.Route, error) { return r.next() }
+
+func (r *sequenceRouter) next() (routing.Route, error) {
+	idx := r.calls
+	r.calls++
+	if idx < len(r.errs) && r.errs[idx] != nil {
+		return routing.Route{}, r.errs[idx]
+	}
+	if len(r.routes) == 0 {
+		return routing.Route{}, nil
+	}
+	if idx >= len(r.routes) {
+		idx = len(r.routes) - 1
+	}
+	return r.routes[idx], nil
+}
+
 type fakeSlots struct {
 	local   bool
 	calls   int
@@ -210,12 +278,20 @@ type fakeForward struct {
 	nodeID uint64
 	req    ForwardRequest
 	err    error
+	errs   []error
 }
 
 func (f *fakeForward) ForwardPropose(_ context.Context, nodeID uint64, req ForwardRequest) error {
 	f.calls++
 	f.nodeID = nodeID
 	f.req = req
+	if len(f.errs) > 0 {
+		idx := f.calls - 1
+		if idx >= len(f.errs) {
+			idx = len(f.errs) - 1
+		}
+		return f.errs[idx]
+	}
 	return f.err
 }
 
@@ -225,10 +301,14 @@ type recordingOwnedForwardCaller struct {
 	payload        []byte
 	callCount      int
 	callOwnedCount int
+	err            error
 }
 
 func (c *recordingOwnedForwardCaller) Call(context.Context, uint64, uint8, []byte) ([]byte, error) {
 	c.callCount++
+	if c.err != nil {
+		return nil, c.err
+	}
 	return nil, errors.New("normal call")
 }
 
@@ -238,6 +318,9 @@ func (c *recordingOwnedForwardCaller) CallOwned(_ context.Context, nodeID uint64
 	c.serviceID = serviceID
 	c.payload = append([]byte(nil), payload.Bytes()...)
 	payload.Release()
+	if c.err != nil {
+		return nil, c.err
+	}
 	return nil, nil
 }
 

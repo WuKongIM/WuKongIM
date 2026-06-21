@@ -212,11 +212,11 @@ func (l *conversationAuthorityRouteLifecycle) startAuthorityDrain(ctx context.Co
 	l.mu.Unlock()
 	go func() {
 		defer l.wg.Done()
-		l.drainAuthorityTarget(ctx)
+		l.drainAuthorityTarget(ctx, target)
 	}()
 }
 
-func (l *conversationAuthorityRouteLifecycle) drainAuthorityTarget(ctx context.Context) {
+func (l *conversationAuthorityRouteLifecycle) drainAuthorityTarget(ctx context.Context, target conversationusecase.RouteTarget) {
 	if l == nil || l.localAuthority == nil {
 		return
 	}
@@ -229,7 +229,7 @@ func (l *conversationAuthorityRouteLifecycle) drainAuthorityTarget(ctx context.C
 		drainCtx, cancel = context.WithTimeout(ctx, l.handoffTimeout)
 		defer cancel()
 	}
-	_, _ = l.localAuthority.finishDrainingAuthority(drainCtx)
+	_, _ = l.localAuthority.finishDrainingAuthority(drainCtx, target)
 }
 
 func conversationAuthorityRouteTargetNewer(next, current conversationusecase.RouteTarget) bool {

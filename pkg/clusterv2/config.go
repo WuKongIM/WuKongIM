@@ -88,6 +88,12 @@ type SlotConfig struct {
 	HashSlotCount uint16
 	// ReplicaCount is the desired replica count for each physical Slot.
 	ReplicaCount uint16
+	// TickInterval controls how often Slot Raft groups receive local ticks.
+	TickInterval time.Duration
+	// ElectionTick is the Slot Raft election timeout measured in TickInterval units.
+	ElectionTick int
+	// HeartbeatTick is the Slot Raft heartbeat interval measured in TickInterval units.
+	HeartbeatTick int
 	// LogCompaction controls local Slot Raft snapshot compaction.
 	LogCompaction multiraft.LogCompactionConfig
 	// Observer receives low-cardinality Slot scheduler pressure observations.
@@ -214,6 +220,15 @@ func (c *Config) applySlotDefaults() {
 			c.Slots.ReplicaCount = 1
 		}
 	}
+	if c.Slots.TickInterval == 0 {
+		c.Slots.TickInterval = defaultSlotTickInterval
+	}
+	if c.Slots.ElectionTick == 0 {
+		c.Slots.ElectionTick = defaultSlotElectionTick
+	}
+	if c.Slots.HeartbeatTick == 0 {
+		c.Slots.HeartbeatTick = defaultSlotHeartbeatTick
+	}
 	c.Slots.LogCompaction = multiraft.NormalizeLogCompactionConfig(c.Slots.LogCompaction)
 }
 
@@ -310,6 +325,9 @@ func (c Config) validateSlots() error {
 		return ErrInvalidConfig
 	}
 	if int(c.Slots.ReplicaCount) > len(c.Control.Voters) {
+		return ErrInvalidConfig
+	}
+	if c.Slots.TickInterval <= 0 || c.Slots.ElectionTick <= 0 || c.Slots.HeartbeatTick <= 0 || c.Slots.ElectionTick <= c.Slots.HeartbeatTick {
 		return ErrInvalidConfig
 	}
 	if err := multiraft.ValidateLogCompactionConfig(c.Slots.LogCompaction); err != nil {

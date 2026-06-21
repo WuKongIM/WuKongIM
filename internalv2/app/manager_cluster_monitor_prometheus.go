@@ -225,7 +225,7 @@ func (p *managerClusterPrometheusMonitorProvider) controlSnapshot(ctx context.Co
 		}
 	}
 	for _, slot := range slots {
-		leaderMissing := slot.Runtime.LeaderID == 0
+		leaderMissing := slot.Runtime.PreferredLeaderID == 0
 		quorumLost := slot.State.Quorum == "lost"
 		if !slot.Runtime.HasQuorum && len(slot.Runtime.CurrentVoters) > 0 {
 			quorumLost = true

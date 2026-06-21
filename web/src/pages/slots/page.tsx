@@ -171,6 +171,11 @@ function nodeRaftStatus(slot: ManagerSlotsResponse["items"][number]) {
   return slot.node_log?.role || "unknown"
 }
 
+function formatActualLeader(slot: ManagerSlotsResponse["items"][number]) {
+  const leaderId = slot.node_log?.leader_id ?? 0
+  return leaderId > 0 ? String(leaderId) : "-"
+}
+
 function sortedHashSlotItems(ownership: ManagerSlotHashSlots) {
   const items = Array.isArray(ownership.items) ? ownership.items : []
   return Array.from(new Set(items)).sort((left, right) => left - right)
@@ -731,7 +736,7 @@ export function SlotClusterListPanel() {
                         <td className="px-3 py-3 text-sm text-muted-foreground">
                           {formatNodeList(slot.runtime.current_peers)}
                         </td>
-                        <td className="px-3 py-3 text-sm text-muted-foreground">{slot.runtime.leader_id}</td>
+                        <td className="px-3 py-3 text-sm text-muted-foreground">{formatActualLeader(slot)}</td>
                         <td className="px-3 py-3 text-sm text-foreground">
                           <StatusBadge value={nodeRaftStatus(slot)} />
                         </td>
@@ -817,7 +822,7 @@ export function SlotClusterListPanel() {
       <DetailSheet
         description={
           detail
-            ? intl.formatMessage({ id: "slots.detailDescriptionValue" }, { id: detail.runtime.leader_id })
+            ? intl.formatMessage({ id: "slots.detailDescriptionValue" }, { id: formatActualLeader(detail) })
             : intl.formatMessage({ id: "slots.detailDescriptionFallback" })
         }
         footer={
@@ -912,7 +917,7 @@ export function SlotClusterListPanel() {
                   label: intl.formatMessage({ id: "slots.detail.sync" }),
                   value: <StatusBadge value={detail.state.sync} />,
                 },
-                { label: intl.formatMessage({ id: "slots.detail.leaderId" }), value: detail.runtime.leader_id },
+                { label: intl.formatMessage({ id: "slots.detail.leaderId" }), value: formatActualLeader(detail) },
                 {
                   label: intl.formatMessage({ id: "slots.detail.healthyVoters" }),
                   value: detail.runtime.healthy_voters,

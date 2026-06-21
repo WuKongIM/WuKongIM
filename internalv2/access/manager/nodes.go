@@ -93,7 +93,7 @@ type NodeControllerDTO struct {
 
 // NodeSlotStatsDTO contains slot placement summary fields.
 type NodeSlotStatsDTO struct {
-	// Count is the number of observed slot peers hosted by the node.
+	// Count is the number of desired Slot replicas hosted by the node.
 	Count int `json:"count"`
 	// LeaderCount is the number of observed slots led by the node.
 	LeaderCount int `json:"leader_count"`
@@ -103,9 +103,9 @@ type NodeSlotStatsDTO struct {
 type NodeSlotsSummaryDTO struct {
 	// ReplicaCount is the number of desired Slot replicas hosted by the node.
 	ReplicaCount int `json:"replica_count"`
-	// LeaderCount is the number of preferred Slots led by the node.
+	// LeaderCount is the number of actual Slot Raft leaders hosted by the node.
 	LeaderCount int `json:"leader_count"`
-	// FollowerCount is the number of desired non-leader Slot replicas hosted by the node.
+	// FollowerCount is the number of desired Slot replicas that are not observed leaders.
 	FollowerCount int `json:"follower_count"`
 	// QuorumLostCount is reserved for runtime observation once available.
 	QuorumLostCount int `json:"quorum_lost_count"`

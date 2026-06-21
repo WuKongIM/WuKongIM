@@ -589,6 +589,7 @@ func TestSlotAndTransportMetricsTrackProposalsLeaderChangesAndRPCs(t *testing.T)
 	reg.Slot.ObserveProposal(3, 12*time.Millisecond)
 	reg.Slot.ObserveProposalAdmission("background", "throttled")
 	reg.Slot.ObserveLeaderChange(3)
+	reg.Slot.ObserveLeaderChangeCause(3, "planned_transfer")
 	reg.Slot.SetApplyGap(3, 4)
 	reg.Slot.SetReplicaLag(1, 2, 150*time.Millisecond)
 	reg.Transport.ObserveRPC("controller_list_nodes", "ok", 7*time.Millisecond)
@@ -629,6 +630,21 @@ func TestSlotAndTransportMetricsTrackProposalsLeaderChangesAndRPCs(t *testing.T)
 		"node_name": "node-9",
 	})
 	require.Equal(t, float64(1), leaderChanges.GetMetric()[0].GetCounter().GetValue())
+
+	leaderChangeDetails := requireMetricFamily(t, families, "wukongim_slot_leader_changes_total")
+	require.Len(t, leaderChangeDetails.GetMetric(), 2)
+	require.Equal(t, float64(1), findMetricByLabels(t, leaderChangeDetails, map[string]string{
+		"node_id":   "9",
+		"node_name": "node-9",
+		"slot_id":   "3",
+		"cause":     "election",
+	}).GetCounter().GetValue())
+	require.Equal(t, float64(1), findMetricByLabels(t, leaderChangeDetails, map[string]string{
+		"node_id":   "9",
+		"node_name": "node-9",
+		"slot_id":   "3",
+		"cause":     "planned_transfer",
+	}).GetCounter().GetValue())
 
 	applyGap := requireMetricFamily(t, families, "wukongim_slot_apply_gap")
 	require.Len(t, applyGap.GetMetric(), 1)

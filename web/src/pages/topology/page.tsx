@@ -52,7 +52,7 @@ function formatNodeList(nodeIds: number[] | undefined) {
 
 function slotMentionsNode(slot: ManagerSlot, nodeId: number) {
   return (
-    slot.runtime.leader_id === nodeId ||
+    slot.runtime.preferred_leader_id === nodeId ||
     slot.assignment.desired_peers.includes(nodeId) ||
     slot.runtime.current_peers.includes(nodeId) ||
     Boolean(slot.runtime.current_voters?.includes(nodeId))
@@ -95,7 +95,7 @@ function slotQuorumLabel(slot: ManagerSlot) {
 }
 
 function leaderLabel(slot: ManagerSlot) {
-  return slot.runtime.leader_id > 0 ? `Leader ${slot.runtime.leader_id}` : "Leader missing"
+  return slot.runtime.preferred_leader_id > 0 ? `Preferred leader ${slot.runtime.preferred_leader_id}` : "Preferred leader missing"
 }
 
 function hashSlotLabel(slot: ManagerSlot) {

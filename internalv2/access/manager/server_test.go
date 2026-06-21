@@ -954,7 +954,7 @@ func TestManagerSlotsReturnsReadOnlyInventory(t *testing.T) {
 				Runtime: managementusecase.SlotRuntime{
 					CurrentPeers:        []uint64{1, 2},
 					CurrentVoters:       []uint64{1, 2},
-					LeaderID:            1,
+					PreferredLeaderID:   1,
 					HealthyVoters:       2,
 					HasQuorum:           true,
 					ObservedConfigEpoch: 7,
@@ -1024,13 +1024,13 @@ func TestManagerSlotsReturnsReadOnlyInventory(t *testing.T) {
 					"last_error": "open failed"
 				}]
 			},
-			"runtime": {
-				"current_peers": [1, 2],
-				"current_voters": [1, 2],
-				"leader_id": 1,
-				"healthy_voters": 2,
-				"has_quorum": true,
-				"observed_config_epoch": 7,
+				"runtime": {
+					"current_peers": [1, 2],
+					"current_voters": [1, 2],
+					"preferred_leader_id": 1,
+					"healthy_voters": 2,
+					"has_quorum": true,
+					"observed_config_epoch": 7,
 				"last_report_at": "2026-06-16T11:00:00Z"
 			},
 			"node_log": {

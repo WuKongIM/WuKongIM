@@ -7,6 +7,7 @@ import (
 	"time"
 
 	accessnode "github.com/WuKongIM/WuKongIM/internalv2/access/node"
+	"github.com/WuKongIM/WuKongIM/internalv2/runtime/conversationactive"
 	conversationusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/conversation"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
@@ -106,6 +107,75 @@ func TestConversationAuthorityCachePressureRejectsOversizedBatch(t *testing.T) {
 	}
 	if len(store.touched) != 0 {
 		t.Fatalf("durable patches = %#v, want runtime to keep pressure handling out of app fallback", store.touched)
+	}
+}
+
+func TestConversationAuthorityAdmitActiveBatchLazyActivatesCurrentLocalRoute(t *testing.T) {
+	target := conversationusecase.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 1, LeaderTerm: 9, ConfigEpoch: 3, RouteRevision: 10, AuthorityEpoch: 20}
+	routeLookups := 0
+	authority := newConversationAuthority(conversationAuthorityOptions{
+		LocalNodeID: 1,
+		Store:       &recordingConversationAuthorityStore{},
+		CurrentRouteTarget: func(hashSlot uint16) (conversationusecase.RouteTarget, bool) {
+			routeLookups++
+			if hashSlot != target.HashSlot {
+				return conversationusecase.RouteTarget{}, false
+			}
+			return target, true
+		},
+	})
+
+	err := authority.AdmitActiveBatch(context.Background(), target, conversationactive.ActiveBatch{
+		SenderUID:   "u1",
+		ChannelID:   "g-lazy",
+		ChannelType: 2,
+		MessageSeq:  7,
+		ActiveAtMS:  100,
+	})
+	if err != nil {
+		t.Fatalf("AdmitActiveBatch() error = %v, want lazy current local route activation", err)
+	}
+	if routeLookups != 1 {
+		t.Fatalf("current route lookups after lazy activation = %d, want 1", routeLookups)
+	}
+
+	page, err := authority.ListUserConversationActiveViewForTarget(context.Background(), target, "u1", metadb.UserConversationActiveCursor{}, 10)
+	if err != nil {
+		t.Fatalf("ListUserConversationActiveViewForTarget() error = %v", err)
+	}
+	if len(page.Rows) != 1 || page.Rows[0].ChannelID != "g-lazy" || page.Rows[0].ReadSeq != 7 {
+		t.Fatalf("rows = %#v, want lazily admitted active row", page.Rows)
+	}
+	if routeLookups != 1 {
+		t.Fatalf("current route lookups after active fast path = %d, want still 1", routeLookups)
+	}
+}
+
+func TestConversationAuthorityAdmitActiveBatchActiveFastPathSkipsCurrentRouteLookup(t *testing.T) {
+	target := conversationusecase.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 1, LeaderTerm: 9, ConfigEpoch: 3, RouteRevision: 10, AuthorityEpoch: 20}
+	routeLookups := 0
+	authority := newConversationAuthority(conversationAuthorityOptions{
+		LocalNodeID: 1,
+		Store:       &recordingConversationAuthorityStore{},
+		CurrentRouteTarget: func(uint16) (conversationusecase.RouteTarget, bool) {
+			routeLookups++
+			return target, true
+		},
+	})
+	authority.markActive(target)
+
+	err := authority.AdmitActiveBatch(context.Background(), target, conversationactive.ActiveBatch{
+		SenderUID:   "u1",
+		ChannelID:   "g-fast",
+		ChannelType: 2,
+		MessageSeq:  7,
+		ActiveAtMS:  100,
+	})
+	if err != nil {
+		t.Fatalf("AdmitActiveBatch() error = %v", err)
+	}
+	if routeLookups != 0 {
+		t.Fatalf("current route lookups on active fast path = %d, want 0", routeLookups)
 	}
 }
 
@@ -720,7 +790,7 @@ func TestConversationAuthorityUnscopedListRejectsSecondActiveAfterStoreRead(t *t
 	}
 }
 
-func TestConversationAuthorityDrainFlushesRuntimeDirtyRowsBeforeHandoff(t *testing.T) {
+func TestConversationAuthorityDrainFlushesTargetDirtyRowsBeforeHandoff(t *testing.T) {
 	store := &recordingConversationAuthorityStore{}
 	authority := newConversationAuthority(conversationAuthorityOptions{LocalNodeID: 1, Store: store, MaxRowsPerUID: 10, MaxRows: 100, ListDBWindowMax: 20})
 	targetA := conversationusecase.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 1, RouteRevision: 3, AuthorityEpoch: 4}
@@ -728,12 +798,12 @@ func TestConversationAuthorityDrainFlushesRuntimeDirtyRowsBeforeHandoff(t *testi
 	authority.markActive(targetA)
 	authority.markActive(targetB)
 	if err := authority.AdmitPatches(context.Background(), targetA, []conversationusecase.ActivePatch{{
-		UID: "u1", ChannelID: "a", ChannelType: 2, ActiveAt: 300, MessageSeq: 30,
+		UID: "u-slot-1", ChannelID: "a", ChannelType: 2, ActiveAt: 300, MessageSeq: 30,
 	}}); err != nil {
 		t.Fatalf("AdmitPatches(targetA) error = %v", err)
 	}
 	if err := authority.AdmitPatches(context.Background(), targetB, []conversationusecase.ActivePatch{{
-		UID: "u1", ChannelID: "b", ChannelType: 2, ActiveAt: 200, MessageSeq: 20,
+		UID: "u-slot-9", ChannelID: "b", ChannelType: 2, ActiveAt: 200, MessageSeq: 20,
 	}}); err != nil {
 		t.Fatalf("AdmitPatches(targetB) error = %v", err)
 	}
@@ -744,19 +814,57 @@ func TestConversationAuthorityDrainFlushesRuntimeDirtyRowsBeforeHandoff(t *testi
 	if result != conversationDrainResultDrained {
 		t.Fatalf("DrainAuthority() result = %q, want %q", result, conversationDrainResultDrained)
 	}
-	if len(store.touched) != 2 || !conversationAuthorityPatchesContain(store.touched, "a") || !conversationAuthorityPatchesContain(store.touched, "b") {
-		t.Fatalf("touched = %#v, want all runtime dirty rows flushed before handoff", store.touched)
+	if len(store.touched) != 1 || store.touched[0].ChannelID != "a" {
+		t.Fatalf("touched = %#v, want only target A runtime dirty row flushed before handoff", store.touched)
 	}
-	page, err := authority.ListUserConversationActiveViewForTarget(context.Background(), targetB, "u1", metadb.UserConversationActiveCursor{}, 10)
+	page, err := authority.ListUserConversationActiveViewForTarget(context.Background(), targetB, "u-slot-9", metadb.UserConversationActiveCursor{}, 10)
 	if err != nil {
 		t.Fatalf("ListUserConversationActiveViewForTarget(targetB) error = %v", err)
 	}
-	if !conversationAuthorityRowsContain(page.Rows, "a") || !conversationAuthorityRowsContain(page.Rows, "b") {
-		t.Fatalf("target B rows = %#v, want flushed target A DB row and target B cache row visible", page.Rows)
+	if len(page.Rows) != 1 || page.Rows[0].ChannelID != "b" {
+		t.Fatalf("target B rows = %#v, want target B cache row untouched by target A drain", page.Rows)
 	}
 }
 
-func TestConversationAuthorityDrainFlushesDirtyRowsFromRuntimeEvenWhenAnotherTargetAdmitted(t *testing.T) {
+func TestConversationAuthorityDrainFlushesOnlyTargetHashSlot(t *testing.T) {
+	store := &recordingConversationAuthorityStore{}
+	authority := newConversationAuthority(conversationAuthorityOptions{LocalNodeID: 1, Store: store, MaxRowsPerUID: 10, MaxRows: 100, ListDBWindowMax: 20})
+	targetA := conversationusecase.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 1, RouteRevision: 3, AuthorityEpoch: 4}
+	targetB := conversationusecase.RouteTarget{HashSlot: 9, SlotID: 10, LeaderNodeID: 1, RouteRevision: 5, AuthorityEpoch: 6}
+	authority.markActive(targetA)
+	authority.markActive(targetB)
+	if err := authority.AdmitPatches(context.Background(), targetA, []conversationusecase.ActivePatch{{
+		UID: "u-slot-1", ChannelID: "target-a", ChannelType: 2, ActiveAt: 300, MessageSeq: 30,
+	}}); err != nil {
+		t.Fatalf("AdmitPatches(targetA) error = %v", err)
+	}
+	if err := authority.AdmitPatches(context.Background(), targetB, []conversationusecase.ActivePatch{{
+		UID: "u-slot-9", ChannelID: "target-b", ChannelType: 2, ActiveAt: 200, MessageSeq: 20,
+	}}); err != nil {
+		t.Fatalf("AdmitPatches(targetB) error = %v", err)
+	}
+
+	result, err := authority.DrainAuthority(context.Background(), targetA)
+	if err != nil {
+		t.Fatalf("DrainAuthority(targetA) error = %v", err)
+	}
+	if result != conversationDrainResultDrained {
+		t.Fatalf("DrainAuthority(targetA) result = %q, want %q", result, conversationDrainResultDrained)
+	}
+	if len(store.touched) != 1 || store.touched[0].ChannelID != "target-a" {
+		t.Fatalf("touched = %#v, want only target-a flushed during targetA drain", store.touched)
+	}
+
+	page, err := authority.ListUserConversationActiveViewForTarget(context.Background(), targetB, "u-slot-9", metadb.UserConversationActiveCursor{}, 10)
+	if err != nil {
+		t.Fatalf("ListUserConversationActiveViewForTarget(targetB) error = %v", err)
+	}
+	if len(page.Rows) != 1 || page.Rows[0].ChannelID != "target-b" {
+		t.Fatalf("target B rows = %#v, want target-b still served from cache", page.Rows)
+	}
+}
+
+func TestConversationAuthorityDrainLeavesOtherTargetDirtyRowsAlone(t *testing.T) {
 	store := &recordingConversationAuthorityStore{}
 	authority := newConversationAuthority(conversationAuthorityOptions{LocalNodeID: 1, Store: store, MaxRowsPerUID: 10, MaxRows: 100, ListDBWindowMax: 20})
 	targetA := conversationusecase.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 1, RouteRevision: 3, AuthorityEpoch: 4}
@@ -772,11 +880,11 @@ func TestConversationAuthorityDrainFlushesDirtyRowsFromRuntimeEvenWhenAnotherTar
 	if err != nil {
 		t.Fatalf("DrainAuthority() error = %v", err)
 	}
-	if result != conversationDrainResultDrained {
-		t.Fatalf("DrainAuthority() result = %q, want %q", result, conversationDrainResultDrained)
+	if result != conversationDrainResultNoDirty {
+		t.Fatalf("DrainAuthority() result = %q, want %q", result, conversationDrainResultNoDirty)
 	}
-	if len(store.touched) != 1 || store.touched[0].ChannelID != "b" {
-		t.Fatalf("touched = %#v, want runtime dirty row flushed", store.touched)
+	if len(store.touched) != 0 {
+		t.Fatalf("touched = %#v, want target B dirty row left alone", store.touched)
 	}
 	page, err := authority.ListUserConversationActiveViewForTarget(context.Background(), targetB, "u1", metadb.UserConversationActiveCursor{}, 10)
 	if err != nil {

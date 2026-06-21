@@ -245,6 +245,8 @@ func (a *App) wireConversationAuthority() {
 				AdmissionBatchRows:   a.cfg.Conversation.AuthorityAdmitBatchRows,
 				AdmissionConcurrency: a.cfg.Conversation.AuthorityAdmitConcurrency,
 				ActiveCooldown:       a.cfg.Conversation.AuthorityActiveCooldown,
+				FlushBatchRows:       a.cfg.Conversation.AuthorityFlushBatchRows,
+				CurrentRouteTarget:   a.currentConversationAuthorityRouteTarget,
 				Observer:             a.conversationAuthorityObserver(),
 			})
 			client := clusterinfra.NewConversationAuthorityClient(authorityNode, authority)

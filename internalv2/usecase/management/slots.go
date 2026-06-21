@@ -70,8 +70,8 @@ type SlotRuntime struct {
 	CurrentPeers []uint64
 	// CurrentVoters is the currently observed slot voter set.
 	CurrentVoters []uint64
-	// LeaderID is the currently observed slot leader.
-	LeaderID uint64
+	// PreferredLeaderID is the controller preferred leader projected into the fallback runtime view.
+	PreferredLeaderID uint64
 	// HealthyVoters is the observed healthy voter count.
 	HealthyVoters uint32
 	// HasQuorum reports whether the slot currently has quorum.
@@ -182,7 +182,7 @@ func slotFromControlAssignment(assignment control.SlotAssignment, hashSlots cont
 		State: SlotState{
 			Quorum:      managerSlotQuorumState(hasRuntime, runtime.HasQuorum),
 			Sync:        managerSlotSyncState(hasRuntime),
-			LeaderMatch: assignment.PreferredLeader != 0 && assignment.PreferredLeader == runtime.LeaderID,
+			LeaderMatch: assignment.PreferredLeader != 0 && assignment.PreferredLeader == runtime.PreferredLeaderID,
 		},
 		Assignment: SlotAssignment{
 			DesiredPeers:    append([]uint64(nil), assignment.DesiredPeers...),
@@ -227,7 +227,7 @@ func runtimeFromControlAssignment(assignment control.SlotAssignment, generatedAt
 	return SlotRuntime{
 		CurrentPeers:        peers,
 		CurrentVoters:       append([]uint64(nil), peers...),
-		LeaderID:            assignment.PreferredLeader,
+		PreferredLeaderID:   assignment.PreferredLeader,
 		HealthyVoters:       uint32(len(peers)),
 		HasQuorum:           uint32(len(peers)) >= quorumSize(len(peers)),
 		ObservedConfigEpoch: assignment.ConfigEpoch,

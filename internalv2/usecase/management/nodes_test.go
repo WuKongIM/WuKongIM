@@ -26,6 +26,12 @@ func TestListNodesBuildsReadOnlyNodeInventory(t *testing.T) {
 				},
 			},
 		},
+		SlotRuntimeStatus: &fakeSlotRuntimeStatusReader{
+			statuses: map[uint32]SlotRuntimeStatus{
+				1: {SlotID: 1, LeaderID: 1, CurrentVoters: []uint64{1, 2}},
+				2: {SlotID: 2, LeaderID: 2, CurrentVoters: []uint64{2}},
+			},
+		},
 		Now: func() time.Time { return generatedAt },
 	})
 
@@ -72,6 +78,51 @@ func TestListNodesBuildsReadOnlyNodeInventory(t *testing.T) {
 	}
 	if second.Slots.ReplicaCount != 2 || second.Slots.LeaderCount != 1 || second.Slots.FollowerCount != 1 {
 		t.Fatalf("second slots = %#v, want two replicas with one leader", second.Slots)
+	}
+}
+
+func TestListNodesCountsActualSlotRaftLeaders(t *testing.T) {
+	app := New(Options{
+		Cluster: fakeNodeSnapshotReader{
+			nodeID: 1,
+			snapshot: control.Snapshot{
+				ControllerID: 1,
+				Nodes: []control.Node{
+					{NodeID: 1, Addr: "127.0.0.1:7011", Roles: []control.Role{control.RoleController, control.RoleData}, Status: control.NodeAlive},
+					{NodeID: 2, Addr: "127.0.0.1:7012", Roles: []control.Role{control.RoleData}, Status: control.NodeAlive},
+					{NodeID: 3, Addr: "127.0.0.1:7013", Roles: []control.Role{control.RoleData}, Status: control.NodeAlive},
+				},
+				Slots: []control.SlotAssignment{
+					{SlotID: 1, DesiredPeers: []uint64{1, 2, 3}, PreferredLeader: 1},
+					{SlotID: 2, DesiredPeers: []uint64{1, 2, 3}, PreferredLeader: 2},
+					{SlotID: 3, DesiredPeers: []uint64{1, 2, 3}, PreferredLeader: 3},
+				},
+			},
+		},
+		SlotRuntimeStatus: &fakeSlotRuntimeStatusReader{
+			statuses: map[uint32]SlotRuntimeStatus{
+				1: {SlotID: 1, LeaderID: 2, CurrentVoters: []uint64{1, 2, 3}},
+				2: {SlotID: 2, LeaderID: 3, CurrentVoters: []uint64{1, 2, 3}},
+				3: {SlotID: 3, LeaderID: 3, CurrentVoters: []uint64{1, 2, 3}},
+			},
+		},
+	})
+
+	got, err := app.ListNodes(context.Background())
+	if err != nil {
+		t.Fatalf("ListNodes() error = %v", err)
+	}
+	if len(got.Items) != 3 {
+		t.Fatalf("Items len = %d, want 3: %#v", len(got.Items), got.Items)
+	}
+	wantLeaders := map[uint64]int{1: 0, 2: 1, 3: 2}
+	for _, item := range got.Items {
+		if item.Slots.LeaderCount != wantLeaders[item.NodeID] {
+			t.Fatalf("node %d leader count = %d, want %d from actual raft leaders", item.NodeID, item.Slots.LeaderCount, wantLeaders[item.NodeID])
+		}
+		if item.Slots.FollowerCount != item.Slots.ReplicaCount-item.Slots.LeaderCount {
+			t.Fatalf("node %d slots = %#v, want followers derived from actual raft leaders", item.NodeID, item.Slots)
+		}
 	}
 }
 

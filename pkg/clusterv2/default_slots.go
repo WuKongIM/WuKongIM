@@ -23,7 +23,7 @@ import (
 const (
 	defaultSlotTickInterval       = 10 * time.Millisecond
 	defaultSlotLeaderPollInterval = 10 * time.Millisecond
-	defaultSlotElectionTick       = 10
+	defaultSlotElectionTick       = 50
 	defaultSlotHeartbeatTick      = 1
 	defaultSlotRuntimeWorkerCount = 20
 	defaultSlotRaftDirName        = "slotraft"
@@ -47,14 +47,14 @@ func (n *Node) ensureDefaultSlots() error {
 	}
 	runtime, err := multiraft.New(multiraft.Options{
 		NodeID:       multiraft.NodeID(n.cfg.NodeID),
-		TickInterval: defaultSlotTickInterval,
+		TickInterval: n.cfg.Slots.TickInterval,
 		Workers:      defaultSlotRuntimeWorkerCount,
 		Transport:    n.defaultSlotTransport(),
 		Observer:     n.cfg.Slots.Observer,
 		Goroutines:   n.cfg.Goroutines,
 		Raft: multiraft.RaftOptions{
-			ElectionTick:  defaultSlotElectionTick,
-			HeartbeatTick: defaultSlotHeartbeatTick,
+			ElectionTick:  n.cfg.Slots.ElectionTick,
+			HeartbeatTick: n.cfg.Slots.HeartbeatTick,
 			PreVote:       true,
 			CheckQuorum:   true,
 			LogCompaction: n.cfg.Slots.LogCompaction,

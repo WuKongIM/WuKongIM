@@ -82,6 +82,12 @@ func TestWkcliSimThreeNodeSmokeScriptDryRunPrintsClusterAndSimulatorCommands(t *
 		"node_log_dir=" + filepath.Join(outDir, "node-logs"),
 		"sim_output=" + filepath.Join(outDir, "sim.jsonl"),
 		"snapshot_output_dir=" + filepath.Join(outDir, "bench-snapshots"),
+		"metrics_output_dir=" + filepath.Join(outDir, "metrics"),
+		"max_flush_error_selected_rows=0",
+		"max_handoff_error_total=0",
+		"max_handoff_timeout_total=0",
+		"max_goroutines=2000",
+		"max_heap_alloc_bytes=4294967296",
 		"start_cmd=env WK_DEBUG_API_ENABLE=true " + startScript + " --clean --ready-timeout 7 --bin " + filepath.Join(outDir, "wukongimv2") + " --log-dir " + filepath.Join(outDir, "node-logs"),
 		"sim_cmd=go run ./cmd/wkcli sim --server http://127.0.0.1:5011 --server http://127.0.0.1:5012 --server http://127.0.0.1:5013 --gateway 127.0.0.1:5111 --gateway 127.0.0.1:5112 --gateway 127.0.0.1:5113 --users 12 --groups 3 --group-members 4 --rate 6/s --max-runtime 4s",
 	} {
@@ -127,6 +133,8 @@ func TestWkcliSimThreeNodeSmokeScriptAllowsFollowerSnapshotsWithoutCounts(t *tes
 		"- messages_sent: 9",
 		"- send_errors: 0",
 		"- snapshots: bench-snapshots/",
+		"- metrics: metrics/",
+		"- max_flush_error_selected_rows: 0",
 	} {
 		if !strings.Contains(summary, want) {
 			t.Fatalf("summary missing %q:\n%s", want, summary)
@@ -135,6 +143,41 @@ func TestWkcliSimThreeNodeSmokeScriptAllowsFollowerSnapshotsWithoutCounts(t *tes
 	node2Snapshot := readFile(t, filepath.Join(outDir, "bench-snapshots", "node2.json"))
 	if strings.Contains(node2Snapshot, "accepted_channels") {
 		t.Fatalf("test fixture should model an empty follower snapshot, got:\n%s", node2Snapshot)
+	}
+}
+
+func TestWkcliSimThreeNodeSmokeScriptFailsOnConversationActiveMetricGate(t *testing.T) {
+	root := repoRoot(t)
+	binDir := t.TempDir()
+	callsDir := t.TempDir()
+	outDir := t.TempDir()
+	writeFakeThreeNodeSimGo(t, filepath.Join(binDir, "go"), callsDir)
+	writeFakeThreeNodeSimCurl(t, filepath.Join(binDir, "curl"), callsDir)
+
+	cmd := exec.Command("bash", "scripts/smoke-wkcli-sim-wukongimv2-three-nodes.sh",
+		"--no-start",
+		"--out-dir", outDir,
+		"--api", "http://127.0.0.1:5011,http://127.0.0.1:5012,http://127.0.0.1:5013",
+		"--gateway", "127.0.0.1:5111,127.0.0.1:5112,127.0.0.1:5113",
+		"--users", "12",
+		"--groups", "3",
+		"--members", "4",
+		"--rate", "6/s",
+		"--duration", "4s",
+		"--ready-timeout", "2",
+		"--poll", "0",
+	)
+	cmd.Dir = root
+	cmd.Env = append(envWithout("WK_DEBUG_API_ENABLE"),
+		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
+		"WK_FAKE_THREE_NODE_SIM_METRICS_BAD=1",
+	)
+	output, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatalf("script should fail when conversation active metrics exceed gates:\n%s", output)
+	}
+	if !strings.Contains(string(output), "conversation_active selected_error_rows=5 exceeds limit 0") {
+		t.Fatalf("failure output missing selected-error gate:\n%s", output)
 	}
 }
 
@@ -322,6 +365,26 @@ case "$url" in
     ;;
   http://127.0.0.1:5012/bench/v1/snapshot|http://127.0.0.1:5013/bench/v1/snapshot)
     echo '{"version":"bench/v1"}'
+    ;;
+  */metrics)
+    count_file="` + callsDir + `/metrics.count"
+    count=0
+    if [[ -f "$count_file" ]]; then
+      count="$(cat "$count_file")"
+    fi
+    count=$((count + 1))
+    printf '%s\n' "$count" > "$count_file"
+    selected_error=0
+    if [[ "${WK_FAKE_THREE_NODE_SIM_METRICS_BAD:-}" == "1" && "$count" -gt 3 ]]; then
+      selected_error=5
+    fi
+    cat <<METRICS
+go_goroutines 100
+go_memstats_heap_alloc_bytes 1000
+wukongim_conversation_active_flush_rows_sum{kind="selected",result="error"} ${selected_error}
+wukongim_conversation_authority_handoff_total{result="error"} 0
+wukongim_conversation_authority_handoff_total{result="timeout"} 0
+METRICS
     ;;
   *)
     echo "unexpected curl url: $url" >&2

@@ -766,8 +766,16 @@ func (o slotMetricsObserver) ObserveSlotProposalAdmission(_ multiraft.SlotID, cl
 	o.metrics.Slot.ObserveProposalAdmission(string(class), result)
 }
 
-func (o slotMetricsObserver) ObserveSlotLeaderChange(slotID multiraft.SlotID, _, _ multiraft.NodeID) {
+func (o slotMetricsObserver) ObserveSlotLeaderChange(slotID multiraft.SlotID, from, to multiraft.NodeID) {
+	o.ObserveSlotLeaderChangeWithCause(slotID, from, to, multiraft.LeaderChangeCauseElection)
+}
+
+func (o slotMetricsObserver) ObserveSlotLeaderChangeWithCause(slotID multiraft.SlotID, _, _ multiraft.NodeID, cause multiraft.LeaderChangeCause) {
 	if o.metrics == nil {
+		return
+	}
+	if cause == multiraft.LeaderChangeCausePlannedTransfer {
+		o.metrics.Slot.ObserveLeaderChangeCause(uint32(slotID), string(cause))
 		return
 	}
 	o.metrics.Slot.ObserveLeaderChange(uint32(slotID))
@@ -1580,9 +1588,16 @@ func (o multiSlotObserver) ObserveSlotProposalAdmission(slotID multiraft.SlotID,
 }
 
 func (o multiSlotObserver) ObserveSlotLeaderChange(slotID multiraft.SlotID, from, to multiraft.NodeID) {
+	o.ObserveSlotLeaderChangeWithCause(slotID, from, to, multiraft.LeaderChangeCauseElection)
+}
+
+func (o multiSlotObserver) ObserveSlotLeaderChangeWithCause(slotID multiraft.SlotID, from, to multiraft.NodeID, cause multiraft.LeaderChangeCause) {
 	for _, observer := range o {
-		leaderChangeObserver, ok := observer.(multiraft.LeaderChangeObserver)
-		if ok {
+		if causeObserver, ok := observer.(multiraft.LeaderChangeCauseObserver); ok {
+			causeObserver.ObserveSlotLeaderChangeWithCause(slotID, from, to, cause)
+			continue
+		}
+		if leaderChangeObserver, ok := observer.(multiraft.LeaderChangeObserver); ok {
 			leaderChangeObserver.ObserveSlotLeaderChange(slotID, from, to)
 		}
 	}

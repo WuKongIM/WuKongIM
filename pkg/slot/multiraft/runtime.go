@@ -132,7 +132,12 @@ func (r *Runtime) processSlot(slotID SlotID) bool {
 	if !g.shouldProcess() {
 		return false
 	}
-	worked = g.processControls(context.Background()) || worked
+	readyWorked, requeue := g.processReady(context.Background(), r.opts.Transport)
+	if requeue {
+		return true
+	}
+	worked = readyWorked || worked
+
 	if !g.shouldProcess() {
 		return false
 	}
@@ -144,10 +149,23 @@ func (r *Runtime) processSlot(slotID SlotID) bool {
 	if requeue {
 		return true
 	}
-	if readyProcessed {
+	readyWorked = readyWorked || readyProcessed
+	worked = readyProcessed || worked
+
+	if !g.shouldProcess() {
 		return false
 	}
-	if worked {
+	worked = g.processControls(context.Background()) || worked
+	if !g.shouldProcess() {
+		return false
+	}
+	readyProcessed, requeue = g.processReady(context.Background(), r.opts.Transport)
+	if requeue {
+		return true
+	}
+	readyWorked = readyWorked || readyProcessed
+	worked = readyProcessed || worked
+	if worked && !readyWorked {
 		g.refreshStatus()
 	}
 	return false

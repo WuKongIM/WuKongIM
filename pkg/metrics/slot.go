@@ -13,6 +13,7 @@ type SlotMetrics struct {
 	applyDuration     *prometheus.HistogramVec
 	applyGap          *prometheus.GaugeVec
 	leaderElections   prometheus.Counter
+	leaderChanges     *prometheus.CounterVec
 	replicaLag        *prometheus.GaugeVec
 }
 
@@ -44,6 +45,11 @@ func newSlotMetrics(registry prometheus.Registerer, labels prometheus.Labels) *S
 			Help:        "Total number of observed slot leader changes.",
 			ConstLabels: labels,
 		}),
+		leaderChanges: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name:        "wukongim_slot_leader_changes_total",
+			Help:        "Total number of observed slot leader changes grouped by physical slot and cause.",
+			ConstLabels: labels,
+		}, []string{"slot_id", "cause"}),
 		replicaLag: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name:        "wukongim_slot_replica_lag_seconds",
 			Help:        "Current Slot replica lag in seconds grouped by physical slot and replica node.",
@@ -57,6 +63,7 @@ func newSlotMetrics(registry prometheus.Registerer, labels prometheus.Labels) *S
 		m.applyDuration,
 		m.applyGap,
 		m.leaderElections,
+		m.leaderChanges,
 		m.replicaLag,
 	)
 
@@ -80,11 +87,24 @@ func (m *SlotMetrics) ObserveProposalAdmission(class string, result string) {
 	m.proposalAdmission.WithLabelValues(class, result).Inc()
 }
 
-func (m *SlotMetrics) ObserveLeaderChange(_ uint32) {
+func (m *SlotMetrics) ObserveLeaderChange(slotID uint32) {
 	if m == nil {
 		return
 	}
 	m.leaderElections.Inc()
+	m.ObserveLeaderChangeCause(slotID, "election")
+}
+
+// ObserveLeaderChangeCause records a Slot leader change without affecting the
+// legacy election-only aggregate used by the stability monitor.
+func (m *SlotMetrics) ObserveLeaderChangeCause(slotID uint32, cause string) {
+	if m == nil {
+		return
+	}
+	if cause == "" {
+		cause = "unknown"
+	}
+	m.leaderChanges.WithLabelValues(strconv.FormatUint(uint64(slotID), 10), cause).Inc()
 }
 
 // SetApplyGap records the committed-to-applied Raft log gap for one Slot.

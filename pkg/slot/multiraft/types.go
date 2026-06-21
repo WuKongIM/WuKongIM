@@ -50,9 +50,24 @@ type ProposalObserver interface {
 	ObserveSlotProposal(slotID SlotID, d time.Duration)
 }
 
-// LeaderChangeObserver receives observed Slot leader elections.
+// LeaderChangeObserver receives observed Slot leader changes.
 type LeaderChangeObserver interface {
 	ObserveSlotLeaderChange(slotID SlotID, from, to NodeID)
+}
+
+// LeaderChangeCause identifies why a non-zero Slot leader changed.
+type LeaderChangeCause string
+
+const (
+	// LeaderChangeCauseElection is used when a change cannot be matched to a planned transfer.
+	LeaderChangeCauseElection LeaderChangeCause = "election"
+	// LeaderChangeCausePlannedTransfer is used for changes matching an expected leadership transfer.
+	LeaderChangeCausePlannedTransfer LeaderChangeCause = "planned_transfer"
+)
+
+// LeaderChangeCauseObserver receives observed Slot leader changes with cause metadata.
+type LeaderChangeCauseObserver interface {
+	ObserveSlotLeaderChangeWithCause(slotID SlotID, from, to NodeID, cause LeaderChangeCause)
 }
 
 // ApplyStateObserver receives committed/applied index snapshots for Slot Raft groups.

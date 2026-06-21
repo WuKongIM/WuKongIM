@@ -2,8 +2,11 @@ package propose
 
 import (
 	"context"
+	"errors"
+	"strings"
 
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/clusterv2/net"
+	"github.com/WuKongIM/WuKongIM/pkg/transportv2"
 )
 
 // NetworkForwardClient forwards Slot proposals over clusterv2 typed RPC.
@@ -23,7 +26,7 @@ func (c *NetworkForwardClient) ForwardPropose(ctx context.Context, nodeID uint64
 		return err
 	}
 	_, err = clusternet.CallOwnedPayload(ctx, c.caller, nodeID, clusternet.RPCSlotForwardPropose, payload)
-	return err
+	return mapForwardError(err)
 }
 
 // ForwardHandler handles remote Slot proposal requests on the target node.
@@ -51,3 +54,14 @@ func (h *ForwardHandler) HandleRPC(ctx context.Context, payload []byte) ([]byte,
 }
 
 var _ ForwardClient = (*NetworkForwardClient)(nil)
+
+func mapForwardError(err error) error {
+	if err == nil {
+		return nil
+	}
+	var remoteErr transportv2.RemoteError
+	if errors.As(err, &remoteErr) && strings.Contains(remoteErr.Message, ErrNotLeader.Error()) {
+		return ErrNotLeader
+	}
+	return err
+}

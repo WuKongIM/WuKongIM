@@ -52,6 +52,14 @@ func TestTransferLeadershipRejectsUnknownSlot(t *testing.T) {
 	}
 }
 
+func TestExpectLeaderTransferRejectsUnknownSlot(t *testing.T) {
+	rt := newStartedRuntime(t)
+	err := rt.ExpectLeaderTransfer(context.Background(), 999, 2)
+	if !errors.Is(err, ErrSlotNotFound) {
+		t.Fatalf("expected ErrSlotNotFound, got %v", err)
+	}
+}
+
 func TestSelectLeaderTransferTransfereePrefersEligiblePreferred(t *testing.T) {
 	st := raft.Status{
 		BasicStatus: raft.BasicStatus{

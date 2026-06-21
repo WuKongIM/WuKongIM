@@ -576,6 +576,81 @@ func TestFlushZeroLimitFlushesAllDirtyRows(t *testing.T) {
 	}
 }
 
+func TestFlushHashSlotFlushesOnlyTargetDirtyRows(t *testing.T) {
+	ctx := context.Background()
+	store := &recordingActiveStore{}
+	m := NewManager(Options{Store: store})
+	if err := m.MarkActiveForHashSlot(ctx, 1, []ActivePatch{
+		{UID: "u-slot-1", ChannelID: "slot-1", ChannelType: 2, ActiveAtMS: 1000},
+	}); err != nil {
+		t.Fatalf("MarkActiveForHashSlot(slot 1) error = %v", err)
+	}
+	if err := m.MarkActiveForHashSlot(ctx, 9, []ActivePatch{
+		{UID: "u-slot-9", ChannelID: "slot-9", ChannelType: 2, ActiveAtMS: 2000},
+	}); err != nil {
+		t.Fatalf("MarkActiveForHashSlot(slot 9) error = %v", err)
+	}
+
+	result, err := m.FlushHashSlot(ctx, 1, 0)
+	if err != nil {
+		t.Fatalf("FlushHashSlot(slot 1) error = %v", err)
+	}
+	if result.Selected != 1 || result.Flushed != 1 {
+		t.Fatalf("FlushHashSlot(slot 1) result = %+v, want selected=1 flushed=1", result)
+	}
+	if len(store.touches) != 1 || len(store.touches[0]) != 1 || store.touches[0][0].ChannelID != "slot-1" {
+		t.Fatalf("touches = %+v, want only slot-1 flushed", store.touches)
+	}
+	if got := m.DirtyCountForTest(); got != 1 {
+		t.Fatalf("DirtyCountForTest() = %d, want slot-9 dirty row left", got)
+	}
+
+	result, err = m.FlushHashSlot(ctx, 9, 0)
+	if err != nil {
+		t.Fatalf("FlushHashSlot(slot 9) error = %v", err)
+	}
+	if result.Selected != 1 || result.Flushed != 1 {
+		t.Fatalf("FlushHashSlot(slot 9) result = %+v, want selected=1 flushed=1", result)
+	}
+	if len(store.touches) != 2 || len(store.touches[1]) != 1 || store.touches[1][0].ChannelID != "slot-9" {
+		t.Fatalf("touches = %+v, want slot-9 flushed second", store.touches)
+	}
+	if got := m.DirtyCountForTest(); got != 0 {
+		t.Fatalf("DirtyCountForTest() = %d, want all dirty rows flushed", got)
+	}
+}
+
+func TestFlushHashSlotFailureDoesNotSelectOtherSlots(t *testing.T) {
+	ctx := context.Background()
+	touchErr := errors.New("touch failed")
+	store := &recordingActiveStore{touchErr: touchErr}
+	m := NewManager(Options{Store: store})
+	if err := m.MarkActiveForHashSlot(ctx, 1, []ActivePatch{
+		{UID: "u-slot-1", ChannelID: "slot-1", ChannelType: 2, ActiveAtMS: 1000},
+	}); err != nil {
+		t.Fatalf("MarkActiveForHashSlot(slot 1) error = %v", err)
+	}
+	if err := m.MarkActiveForHashSlot(ctx, 9, []ActivePatch{
+		{UID: "u-slot-9", ChannelID: "slot-9", ChannelType: 2, ActiveAtMS: 2000},
+	}); err != nil {
+		t.Fatalf("MarkActiveForHashSlot(slot 9) error = %v", err)
+	}
+
+	result, err := m.FlushHashSlot(ctx, 1, 0)
+	if !errors.Is(err, touchErr) {
+		t.Fatalf("FlushHashSlot(slot 1) error = %v, want %v", err, touchErr)
+	}
+	if result.Selected != 1 || result.Flushed != 0 {
+		t.Fatalf("FlushHashSlot(slot 1) result = %+v, want selected=1 flushed=0", result)
+	}
+	if len(store.touches) != 1 || len(store.touches[0]) != 1 || store.touches[0][0].ChannelID != "slot-1" {
+		t.Fatalf("touches = %+v, want failed attempt to include only slot-1", store.touches)
+	}
+	if got := m.DirtyCountForTest(); got != 2 {
+		t.Fatalf("DirtyCountForTest() = %d, want both rows still dirty after failure", got)
+	}
+}
+
 func TestManagerObservesFlushResults(t *testing.T) {
 	ctx := context.Background()
 	observer := &recordingConversationActiveObserver{}

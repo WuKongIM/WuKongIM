@@ -125,6 +125,7 @@ func TestThreeNodeClusterObservesLeaderChangeAfterTransfer(t *testing.T) {
 	cluster.waitForSpecificLeader(t, slotID, targetLeader)
 
 	observer.waitForTarget(t, slotID, targetLeader)
+	observer.waitForTargetCause(t, slotID, targetLeader, LeaderChangeCausePlannedTransfer)
 }
 
 func TestThreeNodeClusterIdleDoesNotRemarkApplied(t *testing.T) {
@@ -244,6 +245,7 @@ type slotLeaderChangeObservation struct {
 	slotID SlotID
 	from   NodeID
 	to     NodeID
+	cause  LeaderChangeCause
 }
 
 func (o *slotLeaderChangeObserver) SetSchedulerWorkers(int) {}
@@ -257,9 +259,13 @@ func (o *slotLeaderChangeObserver) ObserveSchedulerAdmission(string) {}
 func (o *slotLeaderChangeObserver) ObserveSchedulerTask(string, time.Duration) {}
 
 func (o *slotLeaderChangeObserver) ObserveSlotLeaderChange(slotID SlotID, from, to NodeID) {
+	o.ObserveSlotLeaderChangeWithCause(slotID, from, to, LeaderChangeCauseElection)
+}
+
+func (o *slotLeaderChangeObserver) ObserveSlotLeaderChangeWithCause(slotID SlotID, from, to NodeID, cause LeaderChangeCause) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	o.changes = append(o.changes, slotLeaderChangeObservation{slotID: slotID, from: from, to: to})
+	o.changes = append(o.changes, slotLeaderChangeObservation{slotID: slotID, from: from, to: to, cause: cause})
 }
 
 func (o *slotLeaderChangeObserver) clear() {
@@ -287,6 +293,27 @@ func (o *slotLeaderChangeObserver) waitForTarget(t testing.TB, slotID SlotID, to
 	observed := append([]slotLeaderChangeObservation(nil), o.changes...)
 	o.mu.Unlock()
 	t.Fatalf("leader changes = %#v, want slot=%d to=%d", observed, slotID, to)
+}
+
+func (o *slotLeaderChangeObserver) waitForTargetCause(t testing.TB, slotID SlotID, to NodeID, cause LeaderChangeCause) {
+	t.Helper()
+
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		o.mu.Lock()
+		for _, change := range o.changes {
+			if change.slotID == slotID && change.to == to && change.cause == cause {
+				o.mu.Unlock()
+				return
+			}
+		}
+		o.mu.Unlock()
+		time.Sleep(10 * time.Millisecond)
+	}
+	o.mu.Lock()
+	observed := append([]slotLeaderChangeObservation(nil), o.changes...)
+	o.mu.Unlock()
+	t.Fatalf("leader changes = %#v, want slot=%d to=%d cause=%q", observed, slotID, to, cause)
 }
 
 func newAsyncTestNetwork(cfg asyncNetworkConfig) *asyncTestNetwork {

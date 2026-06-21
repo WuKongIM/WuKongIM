@@ -428,7 +428,7 @@ export const enMessages: AppMessages = {
   "tasks.detail.channelMigrationContext": "Channel migration context",
   "tasks.detail.quorum": "Quorum",
   "tasks.detail.sync": "Sync",
-  "tasks.detail.leader": "Leader",
+  "tasks.detail.leader": "Preferred leader",
   "tasks.detail.desiredPeers": "Desired peers",
   "tasks.detail.currentPeers": "Current peers",
   "tasks.detail.observedEpoch": "Observed epoch",

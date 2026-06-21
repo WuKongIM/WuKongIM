@@ -34,12 +34,16 @@ manager HTTP handler
   -> management.App.ListNodes
   -> ControlSnapshotReader.LocalControlSnapshot
   -> clusterv2 control snapshot
+  -> SlotRuntimeStatusReader.SlotRuntimeStatus
   -> sorted manager node DTO rows
 ```
 
-The projection derives node identity, health, controller role, and lightweight
-Slot placement counts from the local clusterv2 control snapshot. Runtime online
-counters are marked unknown until a migrated runtime summary source exists.
+The projection derives node identity, health, controller role, and desired Slot
+replica counts from the local clusterv2 control snapshot. Slot leader counts
+are best-effort live Raft observations from `SlotRuntimeStatusReader`; they do
+not fall back to `PreferredLeader`, so the node list does not mix control-plane
+placement intent with actual Raft leadership. Runtime online counters are
+marked unknown until a migrated runtime summary source exists.
 Node operation action hints are always false because lifecycle, scale-in, and
 onboarding operation routes are intentionally outside this migration step.
 
@@ -56,19 +60,21 @@ manager HTTP handler
 The Slot projection derives physical Slot assignments, preferred leaders,
 config epochs, and logical hash-slot ownership from the local clusterv2 control
 snapshot. The list uses desired peers as the fallback display runtime so the
-web Slot list can always render quorum, sync, leader, and voter columns. When a
-positive `node_id` is selected and the Slot Raft operator is wired, the usecase
-also performs a best-effort node-local or routed peer status read for each
-returned Slot and attaches the selected node's Raft role plus commit/applied
-watermarks. Status read misses are omitted from the row rather than failing the
-inventory response. Active task summaries are derived from the same clusterv2
-control snapshot and attached to the matching Slot row. Slot leader-transfer
-requests use the same control snapshot plus a live Slot runtime status reader
-to validate the current leader, voter quorum, desired peers, and target-node
-health before submitting a Controller-backed task intent. The usecase does not
-read ControllerV2 state directly and only exposes this narrow task mutation
-route; Slot detail, rebalance, recovery, and add/remove operation routes are
-outside this migration step.
+web Slot list can always render quorum, sync, preferred leader, and voter
+columns. `runtime.preferred_leader_id` is the control-plane preferred leader; it
+is not the live Raft leader. When a positive `node_id` is selected and the Slot
+Raft operator is wired, the usecase also performs a best-effort node-local or
+routed peer status read for each returned Slot and attaches the selected node's
+Raft leader, role, and commit/applied watermarks in `node_log`. Status read
+misses are omitted from the row rather than failing the inventory response.
+Active task summaries are derived from the same clusterv2 control snapshot and
+attached to the matching Slot row. Slot leader-transfer requests use the same
+control snapshot plus a live Slot runtime status reader to validate the current
+leader, voter quorum, desired peers, and target-node health before submitting a
+Controller-backed task intent. The usecase does not read ControllerV2 state
+directly and only exposes this narrow task mutation route; Slot detail,
+rebalance, recovery, and add/remove operation routes are outside this migration
+step.
 
 ## Slot Leader Transfer Flow
 

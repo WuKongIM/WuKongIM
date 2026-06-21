@@ -35,7 +35,7 @@ type SlotLeaderTransferWriter interface {
 	RequestSlotLeaderTransfer(context.Context, control.SlotLeaderTransferRequest) (control.SlotLeaderTransferResult, error)
 }
 
-// SlotRuntimeStatusReader reads live Slot Raft status for transfer validation.
+// SlotRuntimeStatusReader reads live Slot Raft status for transfer validation and inventory summaries.
 type SlotRuntimeStatusReader interface {
 	// SlotRuntimeStatus returns the currently observed leader and voter set for a Slot.
 	SlotRuntimeStatus(context.Context, uint32, []uint64) (SlotRuntimeStatus, error)

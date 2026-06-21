@@ -37,6 +37,9 @@ var supportedConfigKeys = []string{
 	"WK_CLUSTER_INITIAL_SLOT_COUNT",
 	"WK_CLUSTER_HASH_SLOT_COUNT",
 	"WK_CLUSTER_SLOT_REPLICA_N",
+	"WK_CLUSTER_SLOT_TICK_INTERVAL",
+	"WK_CLUSTER_SLOT_ELECTION_TICK",
+	"WK_CLUSTER_SLOT_HEARTBEAT_TICK",
 	"WK_CLUSTER_SLOT_LOG_COMPACTION_ENABLED",
 	"WK_CLUSTER_SLOT_LOG_COMPACTION_TRIGGER_ENTRIES",
 	"WK_CLUSTER_SLOT_LOG_COMPACTION_CHECK_INTERVAL",
@@ -335,6 +338,36 @@ func buildConfig(values map[string]string) (app.Config, error) {
 			return app.Config{}, err
 		}
 		cfg.Cluster.Slots.ReplicaCount = replicaCount
+	}
+	if raw := configValue(values, "WK_CLUSTER_SLOT_TICK_INTERVAL"); raw != "" {
+		tickInterval, err := parseDuration("WK_CLUSTER_SLOT_TICK_INTERVAL", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if tickInterval <= 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CLUSTER_SLOT_TICK_INTERVAL: value must be > 0")
+		}
+		cfg.Cluster.Slots.TickInterval = tickInterval
+	}
+	if raw := configValue(values, "WK_CLUSTER_SLOT_ELECTION_TICK"); raw != "" {
+		electionTick, err := parseInt("WK_CLUSTER_SLOT_ELECTION_TICK", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if electionTick <= 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CLUSTER_SLOT_ELECTION_TICK: value must be > 0")
+		}
+		cfg.Cluster.Slots.ElectionTick = electionTick
+	}
+	if raw := configValue(values, "WK_CLUSTER_SLOT_HEARTBEAT_TICK"); raw != "" {
+		heartbeatTick, err := parseInt("WK_CLUSTER_SLOT_HEARTBEAT_TICK", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if heartbeatTick <= 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CLUSTER_SLOT_HEARTBEAT_TICK: value must be > 0")
+		}
+		cfg.Cluster.Slots.HeartbeatTick = heartbeatTick
 	}
 	if raw := configValue(values, "WK_CLUSTER_SLOT_LOG_COMPACTION_ENABLED"); raw != "" {
 		enabled, err := parseBool("WK_CLUSTER_SLOT_LOG_COMPACTION_ENABLED", raw)

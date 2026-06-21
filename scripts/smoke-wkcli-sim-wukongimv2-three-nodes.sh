@@ -10,6 +10,11 @@ STATUS_LISTEN="${WK_WKCLI_SIM_THREE_SMOKE_STATUS_LISTEN:-127.0.0.1:19109}"
 READY_TIMEOUT="${WK_WKCLI_SIM_THREE_SMOKE_READY_TIMEOUT:-90}"
 POLL_INTERVAL="${WK_WKCLI_SIM_THREE_SMOKE_POLL_INTERVAL:-1}"
 DEBUG_API_ENABLE="${WK_DEBUG_API_ENABLE:-true}"
+MAX_FLUSH_ERROR_SELECTED_ROWS="${WK_WKCLI_SIM_THREE_SMOKE_MAX_FLUSH_ERROR_SELECTED_ROWS:-0}"
+MAX_HANDOFF_ERROR_TOTAL="${WK_WKCLI_SIM_THREE_SMOKE_MAX_HANDOFF_ERROR_TOTAL:-0}"
+MAX_HANDOFF_TIMEOUT_TOTAL="${WK_WKCLI_SIM_THREE_SMOKE_MAX_HANDOFF_TIMEOUT_TOTAL:-0}"
+MAX_GOROUTINES="${WK_WKCLI_SIM_THREE_SMOKE_MAX_GOROUTINES:-2000}"
+MAX_HEAP_ALLOC_BYTES="${WK_WKCLI_SIM_THREE_SMOKE_MAX_HEAP_ALLOC_BYTES:-4294967296}"
 
 USERS="${WK_WKCLI_SIM_THREE_SMOKE_USERS:-30}"
 GROUP_COUNT="${WK_WKCLI_SIM_THREE_SMOKE_GROUPS:-6}"
@@ -125,6 +130,10 @@ snapshot_dir() {
   printf '%s/bench-snapshots' "$OUT_DIR"
 }
 
+metrics_dir() {
+  printf '%s/metrics' "$OUT_DIR"
+}
+
 summary_output() {
   printf '%s/summary.md' "$OUT_DIR"
 }
@@ -175,6 +184,12 @@ print_plan() {
   printf 'node_log_dir=%s\n' "$(node_log_dir)"
   printf 'sim_output=%s\n' "$(sim_output)"
   printf 'snapshot_output_dir=%s\n' "$(snapshot_dir)"
+  printf 'metrics_output_dir=%s\n' "$(metrics_dir)"
+  printf 'max_flush_error_selected_rows=%s\n' "$MAX_FLUSH_ERROR_SELECTED_ROWS"
+  printf 'max_handoff_error_total=%s\n' "$MAX_HANDOFF_ERROR_TOTAL"
+  printf 'max_handoff_timeout_total=%s\n' "$MAX_HANDOFF_TIMEOUT_TOTAL"
+  printf 'max_goroutines=%s\n' "$MAX_GOROUTINES"
+  printf 'max_heap_alloc_bytes=%s\n' "$MAX_HEAP_ALLOC_BYTES"
   print_start_cmd
   print_sim_cmd
 }
@@ -323,6 +338,11 @@ require_uint '--poll' "$POLL_INTERVAL"
 require_positive_uint '--users' "$USERS"
 require_positive_uint '--groups' "$GROUP_COUNT"
 require_positive_uint '--members' "$GROUP_MEMBERS"
+require_uint 'WK_WKCLI_SIM_THREE_SMOKE_MAX_FLUSH_ERROR_SELECTED_ROWS' "$MAX_FLUSH_ERROR_SELECTED_ROWS"
+require_uint 'WK_WKCLI_SIM_THREE_SMOKE_MAX_HANDOFF_ERROR_TOTAL' "$MAX_HANDOFF_ERROR_TOTAL"
+require_uint 'WK_WKCLI_SIM_THREE_SMOKE_MAX_HANDOFF_TIMEOUT_TOTAL' "$MAX_HANDOFF_TIMEOUT_TOTAL"
+require_uint 'WK_WKCLI_SIM_THREE_SMOKE_MAX_GOROUTINES' "$MAX_GOROUTINES"
+require_uint 'WK_WKCLI_SIM_THREE_SMOKE_MAX_HEAP_ALLOC_BYTES' "$MAX_HEAP_ALLOC_BYTES"
 
 if [[ "${#API_VALUES[@]}" -eq 0 ]]; then
   die 'at least one --api value is required'
@@ -339,7 +359,7 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
   exit 0
 fi
 
-mkdir -p "$OUT_DIR" "$(node_log_dir)" "$(capabilities_dir)" "$(capacity_dir)" "$(snapshot_dir)"
+mkdir -p "$OUT_DIR" "$(node_log_dir)" "$(capabilities_dir)" "$(capacity_dir)" "$(snapshot_dir)" "$(metrics_dir)"
 : >"$(cluster_log)"
 : >"$(sim_output)"
 
@@ -502,6 +522,93 @@ capture_snapshots() {
   log "bench snapshots: $(snapshot_dir)"
 }
 
+metric_file() {
+  local phase="$1"
+  local index="$2"
+  printf '%s/node%s-%s.prom' "$(metrics_dir)" "$index" "$phase"
+}
+
+capture_metrics() {
+  local phase="$1"
+  local idx=0
+  local api
+  for api in "${API_VALUES[@]}"; do
+    local node=$((idx + 1))
+    curl -fsS "$api/metrics" >"$(metric_file "$phase" "$node")"
+    idx=$((idx + 1))
+  done
+  log "metrics ${phase}: $(metrics_dir)"
+}
+
+metric_sum() {
+  local file="$1"
+  local metric="$2"
+  local label_a="${3:-}"
+  local label_b="${4:-}"
+  awk -v metric="$metric" -v label_a="$label_a" -v label_b="$label_b" '
+    $1 ~ ("^" metric "(\\{| )") {
+      if (label_a != "" && index($0, label_a) == 0) next
+      if (label_b != "" && index($0, label_b) == 0) next
+      sum += $NF
+    }
+    END { printf "%.0f\n", sum }
+  ' "$file"
+}
+
+metric_delta() {
+  local before="$1"
+  local after="$2"
+  local metric="$3"
+  local label_a="${4:-}"
+  local label_b="${5:-}"
+  local before_value
+  local after_value
+  before_value="$(metric_sum "$before" "$metric" "$label_a" "$label_b")"
+  after_value="$(metric_sum "$after" "$metric" "$label_a" "$label_b")"
+  awk -v before="$before_value" -v after="$after_value" 'BEGIN {
+    delta = after - before
+    if (delta < 0) delta = after
+    printf "%.0f\n", delta
+  }'
+}
+
+verify_metric_limit() {
+  local name="$1"
+  local value="$2"
+  local limit="$3"
+  if (( value > limit )); then
+    die "${name}=${value} exceeds limit ${limit}"
+  fi
+}
+
+verify_metrics_health() {
+  local idx=0
+  while (( idx < ${#API_VALUES[@]} )); do
+    local node=$((idx + 1))
+    local before
+    local after
+    before="$(metric_file before "$node")"
+    after="$(metric_file after "$node")"
+    local selected_error
+    local handoff_error
+    local handoff_timeout
+    local goroutines
+    local heap_alloc
+    selected_error="$(metric_delta "$before" "$after" 'wukongim_conversation_active_flush_rows_sum' 'kind="selected"' 'result="error"')"
+    handoff_error="$(metric_delta "$before" "$after" 'wukongim_conversation_authority_handoff_total' 'result="error"')"
+    handoff_timeout="$(metric_delta "$before" "$after" 'wukongim_conversation_authority_handoff_total' 'result="timeout"')"
+    goroutines="$(metric_sum "$after" 'go_goroutines')"
+    heap_alloc="$(metric_sum "$after" 'go_memstats_heap_alloc_bytes')"
+    verify_metric_limit "node${node} conversation_active selected_error_rows" "$selected_error" "$MAX_FLUSH_ERROR_SELECTED_ROWS"
+    verify_metric_limit "node${node} conversation_authority handoff_error" "$handoff_error" "$MAX_HANDOFF_ERROR_TOTAL"
+    verify_metric_limit "node${node} conversation_authority handoff_timeout" "$handoff_timeout" "$MAX_HANDOFF_TIMEOUT_TOTAL"
+    verify_metric_limit "node${node} go_goroutines" "$goroutines" "$MAX_GOROUTINES"
+    verify_metric_limit "node${node} heap_alloc_bytes" "$heap_alloc" "$MAX_HEAP_ALLOC_BYTES"
+    idx=$((idx + 1))
+  done
+  log 'metrics health gates passed'
+}
+
 write_summary() {
   local final state sent errors
   final="$(grep '"state"' "$(sim_output)" | tail -n 1 || true)"
@@ -517,14 +624,23 @@ write_summary() {
     printf '%s\n' "- gateway_addrs: $(IFS=','; printf '%s' "${GATEWAY_VALUES[*]}")"
     printf '%s\n' '- sim_output: sim.jsonl'
     printf '%s\n' '- snapshots: bench-snapshots/'
+    printf '%s\n' '- metrics: metrics/'
+    printf '%s\n' "- max_flush_error_selected_rows: ${MAX_FLUSH_ERROR_SELECTED_ROWS}"
+    printf '%s\n' "- max_handoff_error_total: ${MAX_HANDOFF_ERROR_TOTAL}"
+    printf '%s\n' "- max_handoff_timeout_total: ${MAX_HANDOFF_TIMEOUT_TOTAL}"
+    printf '%s\n' "- max_goroutines: ${MAX_GOROUTINES}"
+    printf '%s\n' "- max_heap_alloc_bytes: ${MAX_HEAP_ALLOC_BYTES}"
   } >"$(summary_output)"
 }
 
 start_cluster
 wait_ready
 capture_target_evidence
+capture_metrics before
 run_sim
 verify_sim_output
+capture_metrics after
+verify_metrics_health
 capture_snapshots
 write_summary
 log "smoke passed; evidence_dir=$OUT_DIR"

@@ -65,8 +65,9 @@ invalid credentials return
 
 `/manager/nodes` preserves the legacy list response shape for the web node list
 view. It reads a control snapshot through `internalv2/usecase/management` and
-sets node operation action hints to false because node lifecycle/scale-in
-operation routes are intentionally not migrated in this phase.
+uses the wired Slot runtime status reader for actual Slot Raft leader counts.
+Node operation action hints are false because node lifecycle/scale-in operation
+routes are intentionally not migrated in this phase.
 
 `/manager/monitor/realtime` backs the web business realtime monitor card wall.
 It parses the chart `window`, optional `step`, and optional positive `node_id`
@@ -100,10 +101,13 @@ the HTTP response layer.
 
 `/manager/slots` preserves the legacy list response shape for the web Slot list
 view, including `node_id` filtering. It reads the same control snapshot through
-`internalv2/usecase/management` and, when available, returns the selected node's
-local Slot Raft role plus commit/applied watermarks in `node_log` for the web
-status and log-height columns. The response may include active task summaries
-and participant progress for display only. `/manager/slots/leader-transfer-plan`
+`internalv2/usecase/management`; `runtime.preferred_leader_id` is the
+Controller preferred leader from the assignment, while the selected node's
+actual local Slot Raft leader is exposed as `node_log.leader_id` when
+available. The route also returns the selected node's local Slot Raft role plus
+commit/applied watermarks in `node_log` for the web status and log-height
+columns. The response may include active task summaries and participant
+progress for display only. `/manager/slots/leader-transfer-plan`
 parses source/target selection, optional Slot allow-list, max task count, and
 target policy, then delegates deterministic batch preview generation to
 `internalv2/usecase/management`; it is read-only and requires Slot read

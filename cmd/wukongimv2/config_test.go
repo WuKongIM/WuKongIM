@@ -158,6 +158,9 @@ func TestLoadConfigExplicitConfigFile(t *testing.T) {
 		"WK_CLUSTER_INITIAL_SLOT_COUNT=3",
 		"WK_CLUSTER_HASH_SLOT_COUNT=64",
 		"WK_CLUSTER_SLOT_REPLICA_N=1",
+		"WK_CLUSTER_SLOT_TICK_INTERVAL=20ms",
+		"WK_CLUSTER_SLOT_ELECTION_TICK=30",
+		"WK_CLUSTER_SLOT_HEARTBEAT_TICK=2",
 		"WK_CLUSTER_SLOT_LOG_COMPACTION_ENABLED=true",
 		"WK_CLUSTER_SLOT_LOG_COMPACTION_TRIGGER_ENTRIES=1000",
 		"WK_CLUSTER_SLOT_LOG_COMPACTION_CHECK_INTERVAL=5s",
@@ -263,6 +266,9 @@ func TestLoadConfigExplicitConfigFile(t *testing.T) {
 	}
 	if cfg.Cluster.Slots.ReplicaCount != 1 {
 		t.Fatalf("ReplicaCount = %d", cfg.Cluster.Slots.ReplicaCount)
+	}
+	if cfg.Cluster.Slots.TickInterval != 20*time.Millisecond || cfg.Cluster.Slots.ElectionTick != 30 || cfg.Cluster.Slots.HeartbeatTick != 2 {
+		t.Fatalf("Slot Raft timing = %s/%d/%d, want 20ms/30/2", cfg.Cluster.Slots.TickInterval, cfg.Cluster.Slots.ElectionTick, cfg.Cluster.Slots.HeartbeatTick)
 	}
 	if cfg.Cluster.Slots.LogCompaction != (multiraft.LogCompactionConfig{Enabled: true, EnabledSet: true, TriggerEntries: 1000, CheckInterval: 5 * time.Second}) {
 		t.Fatalf("Slots.LogCompaction = %#v, want explicit file tuning", cfg.Cluster.Slots.LogCompaction)
@@ -712,6 +718,9 @@ func TestLoadConfigEnvOverridesFile(t *testing.T) {
 	t.Setenv("WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT", "750us")
 	t.Setenv("WK_CLUSTER_CHANNEL_APPEND_BATCH_ADAPTIVE_FLUSH", "true")
 	t.Setenv("WK_CLUSTER_CHANNEL_APPEND_BATCH_COLD_MAX_WAIT", "125us")
+	t.Setenv("WK_CLUSTER_SLOT_TICK_INTERVAL", "15ms")
+	t.Setenv("WK_CLUSTER_SLOT_ELECTION_TICK", "40")
+	t.Setenv("WK_CLUSTER_SLOT_HEARTBEAT_TICK", "4")
 	t.Setenv("WK_CLUSTER_SLOT_LOG_COMPACTION_ENABLED", "true")
 	t.Setenv("WK_CLUSTER_SLOT_LOG_COMPACTION_TRIGGER_ENTRIES", "2000")
 	t.Setenv("WK_CLUSTER_SLOT_LOG_COMPACTION_CHECK_INTERVAL", "7s")
@@ -805,6 +814,9 @@ func TestLoadConfigEnvOverridesFile(t *testing.T) {
 	}
 	if cfg.Cluster.Channel.AppendBatchColdMaxWait != 125*time.Microsecond {
 		t.Fatalf("Channel.AppendBatchColdMaxWait = %s, want 125us", cfg.Cluster.Channel.AppendBatchColdMaxWait)
+	}
+	if cfg.Cluster.Slots.TickInterval != 15*time.Millisecond || cfg.Cluster.Slots.ElectionTick != 40 || cfg.Cluster.Slots.HeartbeatTick != 4 {
+		t.Fatalf("Slot Raft timing env override = %s/%d/%d, want 15ms/40/4", cfg.Cluster.Slots.TickInterval, cfg.Cluster.Slots.ElectionTick, cfg.Cluster.Slots.HeartbeatTick)
 	}
 	if cfg.Cluster.Slots.LogCompaction != (multiraft.LogCompactionConfig{Enabled: true, EnabledSet: true, TriggerEntries: 2000, CheckInterval: 7 * time.Second}) {
 		t.Fatalf("Slots.LogCompaction env override = %#v, want explicit env tuning", cfg.Cluster.Slots.LogCompaction)
@@ -1097,6 +1109,12 @@ func TestLoadConfigRejectsBadValues(t *testing.T) {
 	}{
 		{name: "node id", line: "WK_NODE_ID=bad", wantKey: "WK_NODE_ID"},
 		{name: "slot count", line: "WK_CLUSTER_INITIAL_SLOT_COUNT=-1", wantKey: "WK_CLUSTER_INITIAL_SLOT_COUNT"},
+		{name: "slot tick interval", line: "WK_CLUSTER_SLOT_TICK_INTERVAL=soon", wantKey: "WK_CLUSTER_SLOT_TICK_INTERVAL"},
+		{name: "slot tick interval zero", line: "WK_CLUSTER_SLOT_TICK_INTERVAL=0s", wantKey: "WK_CLUSTER_SLOT_TICK_INTERVAL"},
+		{name: "slot election tick", line: "WK_CLUSTER_SLOT_ELECTION_TICK=many", wantKey: "WK_CLUSTER_SLOT_ELECTION_TICK"},
+		{name: "slot election tick zero", line: "WK_CLUSTER_SLOT_ELECTION_TICK=0", wantKey: "WK_CLUSTER_SLOT_ELECTION_TICK"},
+		{name: "slot heartbeat tick", line: "WK_CLUSTER_SLOT_HEARTBEAT_TICK=many", wantKey: "WK_CLUSTER_SLOT_HEARTBEAT_TICK"},
+		{name: "slot heartbeat tick zero", line: "WK_CLUSTER_SLOT_HEARTBEAT_TICK=0", wantKey: "WK_CLUSTER_SLOT_HEARTBEAT_TICK"},
 		{name: "channel reactor count", line: "WK_CLUSTER_CHANNEL_REACTOR_COUNT=many", wantKey: "WK_CLUSTER_CHANNEL_REACTOR_COUNT"},
 		{name: "store append workers", line: "WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS=many", wantKey: "WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS"},
 		{name: "store append workers negative", line: "WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS=-1", wantKey: "WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS"},

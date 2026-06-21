@@ -437,13 +437,14 @@ func TestSlotMetricsObserverMapsLeaderChanges(t *testing.T) {
 	reg := obsmetrics.New(2, "node-2")
 	observer := combineSlotObservers(slotMetricsObserver{metrics: reg}, topSlotObserver{})
 	leaderObserver, ok := observer.(interface {
-		ObserveSlotLeaderChange(slotID multiraft.SlotID, from, to multiraft.NodeID)
+		ObserveSlotLeaderChangeWithCause(slotID multiraft.SlotID, from, to multiraft.NodeID, cause multiraft.LeaderChangeCause)
 	})
 	if !ok {
 		t.Fatal("combined slot observer does not observe leader changes")
 	}
 
-	leaderObserver.ObserveSlotLeaderChange(7, 1, 2)
+	leaderObserver.ObserveSlotLeaderChangeWithCause(7, 1, 2, multiraft.LeaderChangeCauseElection)
+	leaderObserver.ObserveSlotLeaderChangeWithCause(7, 2, 3, multiraft.LeaderChangeCausePlannedTransfer)
 
 	families, err := reg.Gather()
 	if err != nil {
@@ -453,6 +454,21 @@ func TestSlotMetricsObserverMapsLeaderChanges(t *testing.T) {
 	metric := findAppMetricByLabels(t, leaderChanges, nil)
 	if got := metric.GetCounter().GetValue(); got != 1 {
 		t.Fatalf("slot leader changes = %v, want 1", got)
+	}
+	leaderChangeDetails := requireAppMetricFamily(t, families, "wukongim_slot_leader_changes_total")
+	electionMetric := findAppMetricByLabels(t, leaderChangeDetails, map[string]string{
+		"slot_id": "7",
+		"cause":   "election",
+	})
+	if got := electionMetric.GetCounter().GetValue(); got != 1 {
+		t.Fatalf("slot leader election details = %v, want 1", got)
+	}
+	plannedMetric := findAppMetricByLabels(t, leaderChangeDetails, map[string]string{
+		"slot_id": "7",
+		"cause":   "planned_transfer",
+	})
+	if got := plannedMetric.GetCounter().GetValue(); got != 1 {
+		t.Fatalf("slot leader planned transfer details = %v, want 1", got)
 	}
 }
 

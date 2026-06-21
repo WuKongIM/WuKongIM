@@ -183,6 +183,86 @@ func TestRuntimeDoesNotDoubleRefreshAfterReady(t *testing.T) {
 	}
 }
 
+func TestRuntimeProcessesHeartbeatTickBeforeProposalControls(t *testing.T) {
+	slotID := SlotID(111)
+	store := newBlockingSaveStorage()
+	transport := &recordingTransport{}
+	g, err := newSlot(context.Background(), 1, nil, RaftOptions{ElectionTick: 10, HeartbeatTick: 1}, SlotOptions{
+		ID:           slotID,
+		Storage:      store,
+		StateMachine: &internalFakeStateMachine{},
+	}, nil, nil)
+	if err != nil {
+		t.Fatalf("newSlot() error = %v", err)
+	}
+	rt := &Runtime{
+		opts:  Options{Transport: transport},
+		slots: map[SlotID]*slot{slotID: g},
+	}
+	if err := g.rawNode.Bootstrap([]raft.Peer{{ID: 1}, {ID: 2}, {ID: 3}}); err != nil {
+		t.Fatalf("Bootstrap() error = %v", err)
+	}
+	for i := 0; i < 8; i++ {
+		if !rt.processSlot(slotID) {
+			break
+		}
+	}
+	if err := g.rawNode.Campaign(); err != nil {
+		t.Fatalf("Campaign() error = %v", err)
+	}
+	term := g.rawNode.BasicStatus().Term
+	if err := g.rawNode.Step(raftpb.Message{Type: raftpb.MsgVoteResp, From: 2, To: 1, Term: term}); err != nil {
+		t.Fatalf("Step(vote from 2) error = %v", err)
+	}
+	if err := g.rawNode.Step(raftpb.Message{Type: raftpb.MsgVoteResp, From: 3, To: 1, Term: term}); err != nil {
+		t.Fatalf("Step(vote from 3) error = %v", err)
+	}
+	for i := 0; i < 8; i++ {
+		if !rt.processSlot(slotID) {
+			break
+		}
+	}
+	st, err := rt.Status(slotID)
+	if err != nil {
+		t.Fatalf("Status() error = %v", err)
+	}
+	if st.Role != RoleLeader {
+		t.Fatalf("role = %v, want leader", st.Role)
+	}
+
+	transport.clear()
+	store.armEntrySave()
+	fut := newFuture(nil)
+	if err := g.enqueueControl(controlAction{
+		kind:          controlPropose,
+		data:          proposalString("blocked"),
+		proposalClass: ProposalClassForeground,
+		future:        fut,
+	}); err != nil {
+		t.Fatalf("enqueueControl() error = %v", err)
+	}
+	g.markTickPending()
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		rt.processSlot(slotID)
+	}()
+
+	select {
+	case <-store.started:
+	case <-time.After(time.Second):
+		t.Fatal("proposal Save() did not start")
+	}
+	if got := transport.countMessagesOfType(raftpb.MsgHeartbeat); got == 0 {
+		store.release()
+		<-done
+		t.Fatalf("heartbeat messages before proposal Save = %d, want > 0", got)
+	}
+	store.release()
+	<-done
+}
+
 func slotStatusRefreshCounts(g *slot) (basic int, full int) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
@@ -834,6 +914,33 @@ func TestLeaderChangeObserverCountsUnknownGapToDifferentLeader(t *testing.T) {
 	}
 }
 
+func TestLeaderChangeObserverMarksExpectedTransferAsPlanned(t *testing.T) {
+	observer := &slotLeaderChangeObserver{}
+	g := newTestSlotForDrain()
+	g.id = 7
+	g.observer = observer
+
+	g.mu.Lock()
+	firstKnown := g.setLeaderIDLocked(1)
+	g.pendingLeaderTransferTarget = 2
+	unknown := g.setLeaderIDLocked(0)
+	planned := g.setLeaderIDLocked(2)
+	g.mu.Unlock()
+
+	firstKnown.emit()
+	unknown.emit()
+	planned.emit()
+
+	observer.mu.Lock()
+	defer observer.mu.Unlock()
+	if len(observer.changes) != 1 {
+		t.Fatalf("leader changes = %v, want one planned change", observer.changes)
+	}
+	if got := observer.changes[0]; got.from != 1 || got.to != 2 || got.cause != LeaderChangeCausePlannedTransfer {
+		t.Fatalf("leader change = %+v, want planned transfer from=1 to=2", got)
+	}
+}
+
 func newStartedRuntime(t *testing.T) *Runtime {
 	return newStartedRuntimeWithTick(t, 10*time.Millisecond)
 }
@@ -990,6 +1097,41 @@ func (f *internalFakeTransport) Send(ctx context.Context, batch []Envelope) erro
 	return nil
 }
 
+type recordingTransport struct {
+	mu   sync.Mutex
+	sent []Envelope
+}
+
+func (t *recordingTransport) Send(ctx context.Context, batch []Envelope) error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	for _, env := range batch {
+		t.sent = append(t.sent, Envelope{
+			SlotID:  env.SlotID,
+			Message: cloneMessage(env.Message, true),
+		})
+	}
+	return nil
+}
+
+func (t *recordingTransport) clear() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.sent = nil
+}
+
+func (t *recordingTransport) countMessagesOfType(typ raftpb.MessageType) int {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	count := 0
+	for _, env := range t.sent {
+		if env.Message.Type == typ {
+			count++
+		}
+	}
+	return count
+}
+
 type blockingStateMachine struct {
 	started chan struct{}
 	release chan struct{}
@@ -1023,6 +1165,56 @@ func (f *blockingStateMachine) Snapshot(ctx context.Context) (Snapshot, error) {
 func (f *blockingStateMachine) unblock() {
 	f.once.Do(func() {
 		close(f.release)
+	})
+}
+
+type blockingSaveStorage struct {
+	*internalFakeStorage
+	started   chan struct{}
+	releaseCh chan struct{}
+	once      sync.Once
+	mu        sync.Mutex
+	armed     bool
+}
+
+func newBlockingSaveStorage() *blockingSaveStorage {
+	return &blockingSaveStorage{
+		internalFakeStorage: &internalFakeStorage{},
+		started:             make(chan struct{}, 1),
+		releaseCh:           make(chan struct{}),
+	}
+}
+
+func (f *blockingSaveStorage) armEntrySave() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.armed = true
+}
+
+func (f *blockingSaveStorage) Save(ctx context.Context, st PersistentState) error {
+	f.mu.Lock()
+	armed := f.armed
+	f.mu.Unlock()
+	if !armed || len(st.Entries) == 0 {
+		return f.internalFakeStorage.Save(ctx, st)
+	}
+
+	select {
+	case f.started <- struct{}{}:
+	default:
+	}
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-f.releaseCh:
+	}
+	return f.internalFakeStorage.Save(ctx, st)
+}
+
+func (f *blockingSaveStorage) release() {
+	f.once.Do(func() {
+		close(f.releaseCh)
 	})
 }
 

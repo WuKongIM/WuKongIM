@@ -18,6 +18,7 @@ const (
 // LeaderTransferRuntime is the Slot Raft surface needed to move leadership.
 type LeaderTransferRuntime interface {
 	Status(multiraft.SlotID) (multiraft.Status, error)
+	ExpectLeaderTransfer(context.Context, multiraft.SlotID, multiraft.NodeID) error
 	TransferLeadership(context.Context, multiraft.SlotID, multiraft.NodeID) error
 }
 
@@ -82,6 +83,9 @@ func (e *LeaderTransferExecutor) reconcileTask(ctx context.Context, task control
 	}
 	if legalCompletedLeader(task, assignment, status) {
 		return e.completeTask(ctx, task)
+	}
+	if err := e.cfg.Runtime.ExpectLeaderTransfer(ctx, slotID, multiraft.NodeID(task.TargetNode)); err != nil {
+		return err
 	}
 	if uint64(status.LeaderID) != e.cfg.LocalNode {
 		return nil

@@ -405,6 +405,26 @@ func (a *App) currentPresenceAuthorities() []clusterv2.RouteAuthority {
 	return authorities
 }
 
+func (a *App) currentConversationAuthorityRouteTarget(hashSlot uint16) (conversationusecase.RouteTarget, bool) {
+	routes, ok := a.cluster.(clusterWriteReadyRuntime)
+	if !ok {
+		return conversationusecase.RouteTarget{}, false
+	}
+	route, err := routes.RouteHashSlot(hashSlot)
+	if err != nil {
+		return conversationusecase.RouteTarget{}, false
+	}
+	return conversationusecase.RouteTarget{
+		HashSlot:       route.HashSlot,
+		SlotID:         route.SlotID,
+		LeaderNodeID:   route.Leader,
+		LeaderTerm:     route.LeaderTerm,
+		ConfigEpoch:    route.ConfigEpoch,
+		RouteRevision:  route.Revision,
+		AuthorityEpoch: route.AuthorityEpoch,
+	}, true
+}
+
 func defaultClusterConfig(cfg Config) clusterv2.Config {
 	cluster := cfg.Cluster
 	if cluster.NodeID == 0 {

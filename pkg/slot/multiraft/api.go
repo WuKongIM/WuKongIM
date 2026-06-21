@@ -233,6 +233,28 @@ func (r *Runtime) TransferLeadership(ctx context.Context, slotID SlotID, target 
 	return nil
 }
 
+// ExpectLeaderTransfer marks an externally planned Slot leader transfer so observers can classify the next matching change.
+func (r *Runtime) ExpectLeaderTransfer(ctx context.Context, slotID SlotID, target NodeID) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	r.mu.RLock()
+	if r.closed {
+		r.mu.RUnlock()
+		return ErrRuntimeClosed
+	}
+	g, ok := r.slots[slotID]
+	r.mu.RUnlock()
+	if !ok {
+		return ErrSlotNotFound
+	}
+	g.expectLeaderTransfer(target)
+	return nil
+}
+
 // CompactLog manually snapshots one local Slot and compacts its applied Raft entries.
 func (r *Runtime) CompactLog(ctx context.Context, slotID SlotID) (LogCompactionResult, error) {
 	if ctx == nil {

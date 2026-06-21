@@ -546,10 +546,13 @@ clusterv2.RouteAuthorityEvent
 Foreground committed-message admission still resolves the current UID authority
 through the routed `ConversationAuthorityClient`. The watcher only maintains
 local cache/list readiness for targets that this node can serve. Handoff drains
-the same runtime dirty rows before a target is retired; normal app shutdown is
-handled by the conversation active flush worker. The lifecycle also periodically
-pulls current authorities from the same initial route source so missed watch
-events and startup races repair local authority state. The hard local authority
-identity is `(HashSlot, SlotID, LeaderNodeID, Slot leader term, Slot config
-epoch)`; route revision orders observations, and the authority epoch is retained
-only as a local diagnostic tie-breaker for the same distributed identity.
+only dirty runtime rows indexed under the previous target's UID hash slot, using
+`AuthorityFlushBatchRows` per iteration until the target is clean or
+`AuthorityHandoffTimeout` expires. Dirty rows for other hash slots stay owned by
+their current authorities and are left for their own scoped drains or the normal
+conversation active flush worker. The lifecycle also periodically pulls current
+authorities from the same initial route source so missed watch events and startup
+races repair local authority state. The hard local authority identity is
+`(HashSlot, SlotID, LeaderNodeID, Slot leader term, Slot config epoch)`; route
+revision orders observations, and the authority epoch is retained only as a
+local diagnostic tie-breaker for the same distributed identity.

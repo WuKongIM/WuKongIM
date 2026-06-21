@@ -839,10 +839,10 @@ describe("manager api client", () => {
         slot_id: 9,
         state: { quorum: "ready", sync: "in_sync" },
         assignment: { desired_peers: [1, 2, 3], config_epoch: 7, balance_version: 4 },
-        runtime: {
-          current_peers: [1, 2, 3],
-          leader_id: 2,
-          healthy_voters: 3,
+	        runtime: {
+	          current_peers: [1, 2, 3],
+	          preferred_leader_id: 2,
+	          healthy_voters: 3,
           has_quorum: true,
           observed_config_epoch: 7,
           last_report_at: "2026-04-23T08:00:00Z",
@@ -879,10 +879,10 @@ describe("manager api client", () => {
         slot_id: 9,
         state: { quorum: "ready", sync: "in_sync" },
         assignment: { desired_peers: [1, 2, 3], config_epoch: 7, balance_version: 4 },
-        runtime: {
-          current_peers: [1, 2, 3],
-          leader_id: 2,
-          healthy_voters: 3,
+	        runtime: {
+	          current_peers: [1, 2, 3],
+	          preferred_leader_id: 2,
+	          healthy_voters: 3,
           has_quorum: true,
           observed_config_epoch: 7,
           last_report_at: "2026-04-23T08:00:00Z",
@@ -1325,10 +1325,10 @@ describe("manager api client", () => {
       slot_id: 11,
       state: { quorum: "ready", sync: "matched" },
       assignment: { desired_peers: [1, 2, 3], config_epoch: 1, balance_version: 0 },
-      runtime: {
-        current_peers: [1, 2, 3],
-        leader_id: 1,
-        healthy_voters: 3,
+	      runtime: {
+	        current_peers: [1, 2, 3],
+	        preferred_leader_id: 1,
+	        healthy_voters: 3,
         has_quorum: true,
         observed_config_epoch: 1,
         last_report_at: "2026-04-23T08:00:00Z",
@@ -1379,10 +1379,10 @@ describe("manager api client", () => {
       slot_id: 9,
       state: { quorum: "ready", sync: "in_sync" },
       assignment: { desired_peers: [1, 2, 3], config_epoch: 7, balance_version: 4 },
-      runtime: {
-        current_peers: [1, 2, 3],
-        leader_id: 2,
-        healthy_voters: 3,
+	      runtime: {
+	        current_peers: [1, 2, 3],
+	        preferred_leader_id: 2,
+	        healthy_voters: 3,
         has_quorum: true,
         observed_config_epoch: 7,
         last_report_at: "2026-04-23T08:00:00Z",
@@ -1536,10 +1536,10 @@ describe("manager api client", () => {
       slot: {
         state: { quorum: "ready", sync: "in_sync" },
         assignment: { desired_peers: [1, 2, 3], config_epoch: 7, balance_version: 4 },
-        runtime: {
-          current_peers: [1, 2, 3],
-          leader_id: 2,
-          healthy_voters: 3,
+	        runtime: {
+	          current_peers: [1, 2, 3],
+	          preferred_leader_id: 2,
+	          healthy_voters: 3,
           has_quorum: true,
           observed_config_epoch: 7,
           last_report_at: "2026-04-23T08:00:00Z",

@@ -76,7 +76,7 @@ type Options struct {
 	SlotRaft SlotRaftOperator
 	// LeaderTransfer submits Controller-backed Slot leader transfer intents.
 	LeaderTransfer SlotLeaderTransferWriter
-	// SlotRuntimeStatus reads the live Slot Raft status used to validate transfers.
+	// SlotRuntimeStatus reads the live Slot Raft status used to validate transfers and summarize node leadership.
 	SlotRuntimeStatus SlotRuntimeStatusReader
 	// ControllerRaft runs node-local Controller Raft status and compaction operations.
 	ControllerRaft ControllerRaftOperator
@@ -234,9 +234,9 @@ type NodeController struct {
 type NodeSlotSummary struct {
 	// ReplicaCount is the number of desired Slot replicas hosted by the node.
 	ReplicaCount int
-	// LeaderCount is the number of preferred Slot leaders hosted by the node.
+	// LeaderCount is the number of actual Slot Raft leaders hosted by the node.
 	LeaderCount int
-	// FollowerCount is the number of non-leader desired Slot replicas hosted by the node.
+	// FollowerCount is the number of desired Slot replicas that are not observed leaders.
 	FollowerCount int
 	// QuorumLostCount is reserved for runtime observation once available.
 	QuorumLostCount int
@@ -288,7 +288,7 @@ func (a *App) ListNodes(ctx context.Context) (NodeList, error) {
 		return NodeList{}, err
 	}
 	generatedAt := a.now()
-	slots := summarizeSlots(snapshot.Slots)
+	slots := a.summarizeSlots(ctx, snapshot.Slots)
 	nodes := make([]Node, 0, len(snapshot.Nodes))
 	for _, node := range snapshot.Nodes {
 		nodes = append(nodes, buildNode(nodeBuildOptions{
@@ -308,17 +308,29 @@ type slotSummary struct {
 	leaders  map[uint64]int
 }
 
-func summarizeSlots(assignments []control.SlotAssignment) slotSummary {
+func (a *App) summarizeSlots(ctx context.Context, assignments []control.SlotAssignment) slotSummary {
 	summary := slotSummary{replicas: map[uint64]int{}, leaders: map[uint64]int{}}
 	for _, assignment := range assignments {
 		for _, nodeID := range assignment.DesiredPeers {
 			summary.replicas[nodeID]++
 		}
-		if assignment.PreferredLeader != 0 {
-			summary.leaders[assignment.PreferredLeader]++
+		leaderID := a.actualSlotLeaderID(ctx, assignment)
+		if leaderID != 0 {
+			summary.leaders[leaderID]++
 		}
 	}
 	return summary
+}
+
+func (a *App) actualSlotLeaderID(ctx context.Context, assignment control.SlotAssignment) uint64 {
+	if a == nil || a.slotRuntimeStatus == nil {
+		return 0
+	}
+	status, err := a.slotRuntimeStatus.SlotRuntimeStatus(ctx, assignment.SlotID, append([]uint64(nil), assignment.DesiredPeers...))
+	if err != nil {
+		return 0
+	}
+	return status.LeaderID
 }
 
 type nodeBuildOptions struct {

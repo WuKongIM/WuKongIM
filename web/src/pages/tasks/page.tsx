@@ -116,7 +116,7 @@ function SourceSpecificDetail({ detail, intl }: { detail: ManagerDistributedTask
           items={[
             { label: intl.formatMessage({ id: "tasks.detail.quorum" }), value: <StatusBadge value={source.slot.slot.state.quorum} /> },
             { label: intl.formatMessage({ id: "tasks.detail.sync" }), value: <StatusBadge value={source.slot.slot.state.sync} /> },
-            { label: intl.formatMessage({ id: "tasks.detail.leader" }), value: source.slot.slot.runtime.leader_id },
+            { label: intl.formatMessage({ id: "tasks.detail.leader" }), value: source.slot.slot.runtime.preferred_leader_id },
             { label: intl.formatMessage({ id: "tasks.detail.desiredPeers" }), value: formatNodeList(source.slot.slot.assignment.desired_peers) },
             { label: intl.formatMessage({ id: "tasks.detail.currentPeers" }), value: formatNodeList(source.slot.slot.runtime.current_peers) },
             { label: intl.formatMessage({ id: "tasks.detail.observedEpoch" }), value: source.slot.slot.runtime.observed_config_epoch },

@@ -54,7 +54,7 @@ func TestListSlotsBuildsReadOnlySlotInventory(t *testing.T) {
 	}
 	if !sameUint64Slice(first.Runtime.CurrentPeers, []uint64{1, 2}) ||
 		!sameUint64Slice(first.Runtime.CurrentVoters, []uint64{1, 2}) ||
-		first.Runtime.LeaderID != 1 ||
+		first.Runtime.PreferredLeaderID != 1 ||
 		first.Runtime.HealthyVoters != 2 ||
 		!first.Runtime.HasQuorum ||
 		first.Runtime.ObservedConfigEpoch != 7 ||
@@ -69,7 +69,7 @@ func TestListSlotsBuildsReadOnlySlotInventory(t *testing.T) {
 	if second.SlotID != 2 || second.HashSlots == nil || second.HashSlots.Count != 3 || !sameUint16Slice(second.HashSlots.Items, []uint16{3, 4, 5}) {
 		t.Fatalf("second slot = %#v, want slot 2 with hash slots 3,4,5", second)
 	}
-	if second.Runtime.LeaderID != 2 || second.Runtime.HealthyVoters != 1 || !second.Runtime.HasQuorum {
+	if second.Runtime.PreferredLeaderID != 2 || second.Runtime.HealthyVoters != 1 || !second.Runtime.HasQuorum {
 		t.Fatalf("second runtime = %#v, want single-voter ready runtime", second.Runtime)
 	}
 }

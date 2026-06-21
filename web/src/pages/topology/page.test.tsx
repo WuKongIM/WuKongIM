@@ -147,7 +147,7 @@ function mockSuccessfulTopology() {
         runtime: {
           current_peers: [1, 2],
           current_voters: [1, 2],
-          leader_id: 1,
+          preferred_leader_id: 1,
           healthy_voters: 2,
           has_quorum: true,
           observed_config_epoch: 3,
@@ -162,7 +162,7 @@ function mockSuccessfulTopology() {
         runtime: {
           current_peers: [1],
           current_voters: [1],
-          leader_id: 0,
+          preferred_leader_id: 0,
           healthy_voters: 1,
           has_quorum: false,
           observed_config_epoch: 4,
@@ -177,7 +177,7 @@ function mockSuccessfulTopology() {
         runtime: {
           current_peers: [2],
           current_voters: [2],
-          leader_id: 2,
+          preferred_leader_id: 2,
           healthy_voters: 1,
           has_quorum: true,
           observed_config_epoch: 5,
@@ -203,7 +203,7 @@ test("renders topology summary, nodes, and slot matrix", async () => {
   expect(screen.getByText("wk-node-2")).toBeInTheDocument()
   expect(screen.getByText("Slot Placement")).toBeInTheDocument()
   expect(screen.getByText("Slot 1")).toBeInTheDocument()
-  expect(screen.getByText("Leader 1")).toBeInTheDocument()
+  expect(screen.getByText("Preferred leader 1")).toBeInTheDocument()
   expect(screen.getByText("quorum lost")).toBeInTheDocument()
 })
 

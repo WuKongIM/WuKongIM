@@ -81,6 +81,15 @@ WK_CLUSTER_LONG_POLL_MAX_CHANNELS=64
 WK_CLUSTER_LONG_POLL_DATA_NOTIFY_DELAY=0
 WK_CLUSTER_CONTROLLER_REPLICA_N=1
 WK_CLUSTER_SLOT_REPLICA_N=1
+# Slot Raft tick interval for physical Slot metadata replication.
+WK_CLUSTER_SLOT_TICK_INTERVAL=10ms
+# Slot Raft election timeout in Slot tick units. The default 50 means about
+# 500ms with WK_CLUSTER_SLOT_TICK_INTERVAL=10ms, leaving room for local IO and
+# GC pauses during high proposal load.
+WK_CLUSTER_SLOT_ELECTION_TICK=50
+# Slot Raft heartbeat interval in Slot tick units. Keep this lower than
+# WK_CLUSTER_SLOT_ELECTION_TICK.
+WK_CLUSTER_SLOT_HEARTBEAT_TICK=1
 WK_CLUSTER_FORWARD_TIMEOUT=2s
 WK_CLUSTER_TICK_INTERVAL=200ms
 WK_CLUSTER_POOL_SIZE=1

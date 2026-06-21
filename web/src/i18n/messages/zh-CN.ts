@@ -426,7 +426,7 @@ export const zhCNMessages: AppMessages = {
   "tasks.detail.channelMigrationContext": "频道迁移详情",
   "tasks.detail.quorum": "仲裁",
   "tasks.detail.sync": "同步",
-  "tasks.detail.leader": "Leader",
+  "tasks.detail.leader": "偏好 Leader",
   "tasks.detail.desiredPeers": "期望副本",
   "tasks.detail.currentPeers": "当前副本",
   "tasks.detail.observedEpoch": "观测 Epoch",

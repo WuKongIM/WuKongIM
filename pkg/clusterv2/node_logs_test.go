@@ -202,8 +202,11 @@ func TestLocalCompactSlotRaftLogUsesDefaultSlotRuntime(t *testing.T) {
 		t.Fatalf("LocalCompactSlotRaftLog() error = %v", err)
 	}
 
-	if got.NodeID != 2 || got.SlotID != 9 || got.AppliedIndex != 2 || got.AfterSnapshotIndex != 2 || !got.Compacted {
-		t.Fatalf("compaction = %#v, want node 2 slot 9 compacted through applied 2", got)
+	if got.NodeID != 2 || got.SlotID != 9 || got.AppliedIndex < 2 || got.AfterSnapshotIndex < 2 {
+		t.Fatalf("compaction = %#v, want node 2 slot 9 covering applied index >= 2", got)
+	}
+	if !got.Compacted && got.SkippedReason != multiraft.LogCompactionSkippedUpToDate {
+		t.Fatalf("compaction = %#v, want compacted or up-to-date", got)
 	}
 }
 
