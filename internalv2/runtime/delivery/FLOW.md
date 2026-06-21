@@ -4,13 +4,15 @@
 
 The package is independent from gateway, app, and concrete cluster runtimes. It only consumes small ports for subscriber paging, presence resolution, partition discovery, and pushing, so planner and fanout behavior can be unit tested and benchmarked in isolation.
 
-`AckTracker` keeps owner-local recvack state and can enforce a per UID/session
-pending limit. `Manager`, `Planner`, and `FanoutWorker` form the runtime facade
-used by app adapters. `Manager` owns bounded async admission through
-`pkg/workqueue.BoundedWorkerQueue` when fanout ports are configured. Runtime `Observer` and
-`ManagerObserver` events describe fanout routing, UID route resolution, owner
-push attempts, manager admission, and terminal async outcomes with bounded
-result and error-class labels; concrete metrics and logging remain app
+`AckTracker` keeps owner-local recvack state, enforces a per UID/session pending
+limit, and maintains an O(1) derived pending count so the recvack hot path never
+scans all shards for observability. `Manager`, `Planner`, and `FanoutWorker`
+form the runtime facade used by app adapters. `Manager` owns bounded async
+admission through `pkg/workqueue.BoundedWorkerQueue` when fanout ports are
+configured. Runtime `Observer`, `ManagerObserver`, and `AckObserver` events
+describe fanout routing, UID route resolution, owner push attempts, manager
+admission, terminal async outcomes, and owner-local ack state changes with
+bounded result and error-class labels; concrete metrics and logging remain app
 concerns.
 `RetryScheduler` can wrap any `FanoutTaskRunner` with a bounded in-memory
 retry queue. It executes the first attempt inline; retryable failures are
@@ -75,8 +77,16 @@ Retry scheduler lifecycle:
 Recvack flow:
 
 1. Push accepted by recipient owner.
-2. `AckTracker.Bind` records the pending recvack when the per-session limit
-   allows it.
+2. `Manager.BindPendingAck` calls `AckTracker.BindResult` and records the
+   pending recvack when the per-session limit allows it.
 3. Client sends Recvack.
-4. `AckTracker.Ack` clears the owner-local pending state.
-5. `SessionClosed` or `Expire` cleans pending entries that no longer have a live client ack path.
+4. `Manager.Recvack` calls `AckTracker.Ack` and clears the owner-local pending
+   state for matched entries.
+5. `Manager.SessionClosed` or `Manager.ExpirePendingAcks` cleans pending
+   entries that no longer have a live client ack path.
+6. Each bind, ack, session-close, and expire mutation emits a bounded
+   `AckEvent` from `Manager` with action, result, changed count, and the
+   owner-local pending count after the mutation.
+7. App top and Prometheus observers consume the same ack event path, so
+   `ack_bindings` and `wukongim_delivery_ack_bindings` reflect `AckTracker`
+   transitions instead of adapter-local estimates.
