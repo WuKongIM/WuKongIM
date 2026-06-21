@@ -62,8 +62,8 @@ type UserConversationActiveHint struct {
 	SparseActiveSet bool
 }
 
-// UserConversationDeleteBarrier prevents stale hints from reactivating deletes.
-type UserConversationDeleteBarrier struct {
+// ConversationDeleteBarrier prevents stale hints from reactivating deletes.
+type ConversationDeleteBarrier struct {
 	UID          string
 	ChannelID    string
 	ChannelType  int64
@@ -448,91 +448,62 @@ func (s *ShardStore) UpsertChannelLatest(ctx context.Context, latest ChannelLate
 	return s.shard.UpsertChannelLatest(ctx, latest)
 }
 
-func (s *ShardStore) GetUserConversationState(ctx context.Context, uid, channelID string, channelType int64) (UserConversationState, error) {
+func (s *ShardStore) GetConversationState(ctx context.Context, kind ConversationKind, uid, channelID string, channelType int64) (ConversationState, error) {
 	if err := s.validate(); err != nil {
-		return UserConversationState{}, err
+		return ConversationState{}, err
 	}
-	state, ok, err := s.shard.GetUserConversationState(ctx, uid, channelID, channelType)
+	state, ok, err := s.shard.GetConversationState(ctx, kind, uid, channelID, channelType)
 	return state, foundError(ok, err)
 }
 
-func (s *ShardStore) UpsertUserConversationState(ctx context.Context, state UserConversationState) error {
+func (s *ShardStore) UpsertConversationState(ctx context.Context, state ConversationState) error {
 	if err := s.validate(); err != nil {
 		return err
 	}
-	return s.shard.UpsertUserConversationState(ctx, state)
+	return s.shard.UpsertConversationState(ctx, state)
 }
 
-func (s *ShardStore) TouchUserConversationActiveAt(ctx context.Context, patch UserConversationActivePatch) error {
+func (s *ShardStore) TouchConversationActiveAt(ctx context.Context, patch ConversationActivePatch) error {
 	if err := s.validate(); err != nil {
 		return err
 	}
-	return s.shard.TouchUserConversationActiveAt(ctx, patch)
+	return s.shard.TouchConversationActiveAt(ctx, patch)
 }
 
-func (s *ShardStore) ClearUserConversationActiveAt(ctx context.Context, uid string, keys []ConversationKey) error {
+func (s *ShardStore) ClearConversationActiveAt(ctx context.Context, kind ConversationKind, uid string, keys []ConversationKey) error {
 	if err := s.validate(); err != nil {
 		return err
 	}
-	return s.shard.ClearUserConversationActiveAt(ctx, uid, keys)
+	return s.shard.ClearConversationActiveAt(ctx, kind, uid, keys)
 }
 
-func (s *ShardStore) HideUserConversation(ctx context.Context, req UserConversationDelete) error {
+func (s *ShardStore) HideConversation(ctx context.Context, req ConversationDelete) error {
 	if err := s.validate(); err != nil {
 		return err
 	}
-	return s.shard.HideUserConversation(ctx, req)
+	return s.shard.HideConversation(ctx, req)
 }
 
-func (s *ShardStore) ListUserConversationActive(ctx context.Context, uid string, limit int) ([]UserConversationState, error) {
+func (s *ShardStore) ListConversationActive(ctx context.Context, kind ConversationKind, uid string, limit int) ([]ConversationState, error) {
 	if err := s.validate(); err != nil {
 		return nil, err
 	}
-	return s.shard.ListUserConversationActive(ctx, uid, limit)
+	return s.shard.ListConversationActive(ctx, kind, uid, limit)
 }
 
-// ListUserConversationActivePage returns active conversation rows after an active-index cursor.
-func (s *ShardStore) ListUserConversationActivePage(ctx context.Context, uid string, after UserConversationActiveCursor, limit int) ([]UserConversationState, UserConversationActiveCursor, bool, error) {
+// ListConversationActivePage returns active conversation rows after an active-index cursor.
+func (s *ShardStore) ListConversationActivePage(ctx context.Context, kind ConversationKind, uid string, after ConversationActiveCursor, limit int) ([]ConversationState, ConversationActiveCursor, bool, error) {
 	if err := s.validate(); err != nil {
-		return nil, UserConversationActiveCursor{}, false, err
+		return nil, ConversationActiveCursor{}, false, err
 	}
-	return s.shard.ListUserConversationActivePage(ctx, uid, after, limit)
+	return s.shard.ListConversationActivePage(ctx, kind, uid, after, limit)
 }
 
-func (s *ShardStore) ListUserConversationStatePage(ctx context.Context, uid string, after ConversationCursor, limit int) ([]UserConversationState, ConversationCursor, bool, error) {
+func (s *ShardStore) ListConversationStatePage(ctx context.Context, kind ConversationKind, uid string, after ConversationCursor, limit int) ([]ConversationState, ConversationCursor, bool, error) {
 	if err := s.validate(); err != nil {
 		return nil, ConversationCursor{}, false, err
 	}
-	return s.shard.ListUserConversationStatePage(ctx, uid, after, limit)
-}
-
-func (s *ShardStore) GetCMDConversationState(ctx context.Context, uid, channelID string, channelType int64) (CMDConversationState, error) {
-	if err := s.validate(); err != nil {
-		return CMDConversationState{}, err
-	}
-	state, ok, err := s.shard.GetCMDConversationState(ctx, uid, channelID, channelType)
-	return state, foundError(ok, err)
-}
-
-func (s *ShardStore) UpsertCMDConversationState(ctx context.Context, state CMDConversationState) error {
-	if err := s.validate(); err != nil {
-		return err
-	}
-	return s.shard.UpsertCMDConversationState(ctx, state)
-}
-
-func (s *ShardStore) AdvanceCMDConversationReadSeq(ctx context.Context, patch CMDConversationReadPatch) error {
-	if err := s.validate(); err != nil {
-		return err
-	}
-	return s.shard.AdvanceCMDConversationReadSeq(ctx, patch)
-}
-
-func (s *ShardStore) ListCMDConversationActive(ctx context.Context, uid string, limit int) ([]CMDConversationState, error) {
-	if err := s.validate(); err != nil {
-		return nil, err
-	}
-	return s.shard.ListCMDConversationActive(ctx, uid, limit)
+	return s.shard.ListConversationStatePage(ctx, kind, uid, after, limit)
 }
 
 func (s *ShardStore) BindPluginUser(ctx context.Context, binding PluginUserBinding) error {
@@ -1125,43 +1096,51 @@ func (b *WriteBatch) stageSubscribers(hashSlot uint16, channelID string, channel
 	return nil
 }
 
-func (b *WriteBatch) UpsertUserConversationState(hashSlot uint16, state UserConversationState) error {
+func (b *WriteBatch) UpsertConversationState(hashSlot uint16, state ConversationState) error {
 	if err := b.ensure(); err != nil {
+		return err
+	}
+	if err := validateConversationState(state); err != nil {
 		return err
 	}
 	b.batch.addOp(HashSlot(hashSlot), func(ctx context.Context, st *batchCommitState, batch *engine.Batch) error {
 		shard := &Shard{db: st.db, hashSlot: HashSlot(hashSlot)}
-		pk := KeyParts{String(state.UID), String(state.ChannelID), Int64Ordered(state.ChannelType)}
-		key := encodeConversationRowKey(HashSlot(hashSlot), state.UID, state.ChannelID, state.ChannelType, conversationPrimaryFamilyID)
+		pk := conversationPrimaryKeyParts(state.Kind, state.UID, state.ChannelID, state.ChannelType)
+		key := encodeConversationRowKey(HashSlot(hashSlot), state.UID, state.Kind, state.ChannelID, state.ChannelType, conversationPrimaryFamilyID)
 		existing, exists, err := conversationTable.loadBatchRow(st, HashSlot(hashSlot), pk, key)
 		if err != nil {
 			return err
 		}
 		next := state
 		if exists {
-			next = mergeUserConversationState(existing, next)
+			next = mergeConversationState(existing, next)
 		}
-		return shard.stageUserConversationStateWithOverlay(st, batch, key, existing, exists, next)
+		return shard.stageConversationStateWithOverlay(st, batch, key, existing, exists, next)
 	})
 	return nil
 }
 
-func (b *WriteBatch) TouchUserConversationActiveAt(hashSlot uint16, patches []UserConversationActivePatch) error {
+func (b *WriteBatch) TouchConversationActiveAt(hashSlot uint16, patches []ConversationActivePatch) error {
 	if err := b.ensure(); err != nil {
 		return err
+	}
+	for _, patch := range patches {
+		if err := validateConversationActivePatch(patch); err != nil {
+			return err
+		}
 	}
 	for _, patch := range patches {
 		p := patch
 		b.batch.addOp(HashSlot(hashSlot), func(ctx context.Context, st *batchCommitState, batch *engine.Batch) error {
 			shard := &Shard{db: st.db, hashSlot: HashSlot(hashSlot)}
-			pk := KeyParts{String(p.UID), String(p.ChannelID), Int64Ordered(p.ChannelType)}
-			key := encodeConversationRowKey(HashSlot(hashSlot), p.UID, p.ChannelID, p.ChannelType, conversationPrimaryFamilyID)
+			pk := conversationPrimaryKeyParts(p.Kind, p.UID, p.ChannelID, p.ChannelType)
+			key := encodeConversationRowKey(HashSlot(hashSlot), p.UID, p.Kind, p.ChannelID, p.ChannelType, conversationPrimaryFamilyID)
 			current, exists, err := conversationTable.loadBatchRow(st, HashSlot(hashSlot), pk, key)
 			if err != nil {
 				return err
 			}
 			if !exists {
-				current = UserConversationState{UID: p.UID, ChannelID: p.ChannelID, ChannelType: p.ChannelType}
+				current = ConversationState{UID: p.UID, Kind: p.Kind, ChannelID: p.ChannelID, ChannelType: p.ChannelType}
 			}
 			deleteBarrier := current.DeletedToSeq
 			if p.DeletedToSeq > deleteBarrier {
@@ -1190,42 +1169,55 @@ func (b *WriteBatch) TouchUserConversationActiveAt(hashSlot uint16, patches []Us
 			if p.UpdatedAt > next.UpdatedAt {
 				next.UpdatedAt = p.UpdatedAt
 			}
-			return shard.stageUserConversationStateWithOverlay(st, batch, key, current, exists, next)
+			return shard.stageConversationStateWithOverlay(st, batch, key, current, exists, next)
 		})
 	}
 	return nil
 }
 
-func (b *WriteBatch) ClearUserConversationActiveAt(hashSlot uint16, uid string, keys []ConversationKey) error {
+func (b *WriteBatch) ClearConversationActiveAt(hashSlot uint16, kind ConversationKind, uid string, keys []ConversationKey) error {
 	if err := b.ensure(); err != nil {
 		return err
 	}
-	for _, key := range keys {
+	if err := validateConversationKind(kind); err != nil {
+		return err
+	}
+	if err := validateConversationUID(uid); err != nil {
+		return err
+	}
+	normalized, err := normalizeConversationKeys(keys)
+	if err != nil {
+		return err
+	}
+	for _, key := range normalized {
 		k := key
 		b.batch.addOp(HashSlot(hashSlot), func(ctx context.Context, st *batchCommitState, batch *engine.Batch) error {
 			shard := &Shard{db: st.db, hashSlot: HashSlot(hashSlot)}
-			primaryKey := encodeConversationRowKey(HashSlot(hashSlot), uid, k.ChannelID, k.ChannelType, conversationPrimaryFamilyID)
-			pk := KeyParts{String(uid), String(k.ChannelID), Int64Ordered(k.ChannelType)}
+			primaryKey := encodeConversationRowKey(HashSlot(hashSlot), uid, kind, k.ChannelID, k.ChannelType, conversationPrimaryFamilyID)
+			pk := conversationPrimaryKeyParts(kind, uid, k.ChannelID, k.ChannelType)
 			current, exists, err := conversationTable.loadBatchRow(st, HashSlot(hashSlot), pk, primaryKey)
 			if err != nil || !exists || current.ActiveAt == 0 {
 				return err
 			}
 			next := current
 			next.ActiveAt = 0
-			return shard.stageUserConversationStateWithOverlay(st, batch, primaryKey, current, true, next)
+			return shard.stageConversationStateWithOverlay(st, batch, primaryKey, current, true, next)
 		})
 	}
 	return nil
 }
 
-func (b *WriteBatch) HideUserConversation(hashSlot uint16, req UserConversationDelete) error {
+func (b *WriteBatch) HideConversation(hashSlot uint16, req ConversationDelete) error {
 	if err := b.ensure(); err != nil {
+		return err
+	}
+	if err := validateConversationDelete(req); err != nil {
 		return err
 	}
 	b.batch.addOp(HashSlot(hashSlot), func(ctx context.Context, st *batchCommitState, batch *engine.Batch) error {
 		shard := &Shard{db: st.db, hashSlot: HashSlot(hashSlot)}
-		pk := KeyParts{String(req.UID), String(req.ChannelID), Int64Ordered(req.ChannelType)}
-		key := encodeConversationRowKey(HashSlot(hashSlot), req.UID, req.ChannelID, req.ChannelType, conversationPrimaryFamilyID)
+		pk := conversationPrimaryKeyParts(req.Kind, req.UID, req.ChannelID, req.ChannelType)
+		key := encodeConversationRowKey(HashSlot(hashSlot), req.UID, req.Kind, req.ChannelID, req.ChannelType, conversationPrimaryFamilyID)
 		current, exists, err := conversationTable.loadBatchRow(st, HashSlot(hashSlot), pk, key)
 		if err != nil {
 			return err
@@ -1234,7 +1226,7 @@ func (b *WriteBatch) HideUserConversation(hashSlot uint16, req UserConversationD
 			if req.DeletedToSeq == 0 {
 				return nil
 			}
-			current = UserConversationState{UID: req.UID, ChannelID: req.ChannelID, ChannelType: req.ChannelType}
+			current = ConversationState{UID: req.UID, Kind: req.Kind, ChannelID: req.ChannelID, ChannelType: req.ChannelType}
 		}
 		if req.DeletedToSeq <= current.DeletedToSeq {
 			return nil
@@ -1245,51 +1237,8 @@ func (b *WriteBatch) HideUserConversation(hashSlot uint16, req UserConversationD
 		if req.UpdatedAt > next.UpdatedAt {
 			next.UpdatedAt = req.UpdatedAt
 		}
-		return shard.stageUserConversationStateWithOverlay(st, batch, key, current, exists, next)
+		return shard.stageConversationStateWithOverlay(st, batch, key, current, exists, next)
 	})
-	return nil
-}
-
-func (b *WriteBatch) UpsertCMDConversationState(hashSlot uint16, state CMDConversationState) error {
-	if err := b.ensure(); err != nil {
-		return err
-	}
-	b.batch.addOp(HashSlot(hashSlot), func(ctx context.Context, st *batchCommitState, batch *engine.Batch) error {
-		shard := &Shard{db: st.db, hashSlot: HashSlot(hashSlot)}
-		key := encodeCMDConversationRowKey(HashSlot(hashSlot), state.UID, state.ChannelID, state.ChannelType, cmdConversationPrimaryFamilyID)
-		existing, exists, err := shard.getCMDConversationStateByKey(ctx, key, state.UID, state.ChannelID, state.ChannelType)
-		if err != nil {
-			return err
-		}
-		next := state
-		if exists {
-			next = mergeCMDConversationState(existing, next)
-		}
-		return shard.stageCMDConversationState(batch, key, existing, exists, next)
-	})
-	return nil
-}
-
-func (b *WriteBatch) AdvanceCMDConversationReadSeq(hashSlot uint16, patches []CMDConversationReadPatch) error {
-	if err := b.ensure(); err != nil {
-		return err
-	}
-	for _, patch := range patches {
-		p := patch
-		b.batch.addOp(HashSlot(hashSlot), func(ctx context.Context, st *batchCommitState, batch *engine.Batch) error {
-			shard := &Shard{db: st.db, hashSlot: HashSlot(hashSlot)}
-			key := encodeCMDConversationRowKey(HashSlot(hashSlot), p.UID, p.ChannelID, p.ChannelType, cmdConversationPrimaryFamilyID)
-			current, exists, err := shard.getCMDConversationStateByKey(ctx, key, p.UID, p.ChannelID, p.ChannelType)
-			if err != nil || !exists || p.ReadSeq <= current.ReadSeq {
-				return err
-			}
-			current.ReadSeq = p.ReadSeq
-			if p.UpdatedAt > current.UpdatedAt {
-				current.UpdatedAt = p.UpdatedAt
-			}
-			return shard.stageCMDConversationState(batch, key, current, true, current)
-		})
-	}
 	return nil
 }
 

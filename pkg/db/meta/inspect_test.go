@@ -21,7 +21,6 @@ func TestInspectTablesIncludesRegisteredSchemas(t *testing.T) {
 		"channel_runtime_meta",
 		"subscriber",
 		"conversation",
-		"cmd_conversation",
 		"plugin_binding",
 		"channel_migration",
 		"hashslot_migration",
@@ -346,8 +345,9 @@ func TestInspectScanConversationNumericFilterMatchesUnsignedRowField(t *testing.
 	store := openTestMetaStore(t)
 	defer store.close(t)
 	ctx := context.Background()
-	if err := conversationTable.Upsert(ctx, store.db.HashSlot(12), UserConversationState{
+	if err := conversationTable.Upsert(ctx, store.db.HashSlot(12), ConversationState{
 		UID:         "u-conv",
+		Kind:        ConversationKindNormal,
 		ChannelID:   "conv",
 		ChannelType: 2,
 		ReadSeq:     3,
@@ -402,26 +402,12 @@ func TestInspectScanRemainingTablesSmoke(t *testing.T) {
 			table: "conversation",
 			slot:  12,
 			seed: func(ctx context.Context, shard *Shard) error {
-				return conversationTable.Upsert(ctx, shard, UserConversationState{UID: "u-conv", ChannelID: "conv", ChannelType: 2, ReadSeq: 3, DeletedToSeq: 1, ActiveAt: 10, UpdatedAt: 11, SparseActive: true})
+				return conversationTable.Upsert(ctx, shard, ConversationState{UID: "u-conv", Kind: ConversationKindNormal, ChannelID: "conv", ChannelType: 2, ReadSeq: 3, DeletedToSeq: 1, ActiveAt: 10, UpdatedAt: 11, SparseActive: true})
 			},
 			assert: func(t *testing.T, row InspectRow) {
 				t.Helper()
-				if row["uid"] != "u-conv" || row["read_seq"] != uint64(3) || row["updated_at"] != int64(11) || row["sparse_active"] != true {
+				if row["uid"] != "u-conv" || row["kind"] != uint8(ConversationKindNormal) || row["read_seq"] != uint64(3) || row["updated_at"] != int64(11) || row["sparse_active"] != true {
 					t.Fatalf("conversation row = %+v", row)
-				}
-			},
-		},
-		{
-			name:  "cmd_conversation",
-			table: "cmd_conversation",
-			slot:  13,
-			seed: func(ctx context.Context, shard *Shard) error {
-				return cmdConversationTable.Upsert(ctx, shard, CMDConversationState{UID: "u-cmd", ChannelID: "cmd", ChannelType: 2, ReadSeq: 4, DeletedToSeq: 1, ActiveAt: 20, UpdatedAt: 21})
-			},
-			assert: func(t *testing.T, row InspectRow) {
-				t.Helper()
-				if row["uid"] != "u-cmd" || row["read_seq"] != uint64(4) || row["active_at"] != int64(20) {
-					t.Fatalf("cmd conversation row = %+v", row)
 				}
 			},
 		},

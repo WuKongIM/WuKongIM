@@ -8,63 +8,151 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors"
 )
 
+func TestConversationKindIsPartOfPrimaryKey(t *testing.T) {
+	store := openTestMetaStore(t)
+	defer store.close(t)
+	shard := store.db.HashSlot(4)
+	ctx := context.Background()
+
+	normal := ConversationState{UID: "u1", Kind: ConversationKindNormal, ChannelID: "g1", ChannelType: 2, ReadSeq: 3, ActiveAt: 100, UpdatedAt: 100}
+	cmd := ConversationState{UID: "u1", Kind: ConversationKindCMD, ChannelID: "g1", ChannelType: 2, ReadSeq: 9, ActiveAt: 200, UpdatedAt: 200}
+	if err := shard.UpsertConversationState(ctx, normal); err != nil {
+		t.Fatalf("UpsertConversationState(normal): %v", err)
+	}
+	if err := shard.UpsertConversationState(ctx, cmd); err != nil {
+		t.Fatalf("UpsertConversationState(cmd): %v", err)
+	}
+
+	gotNormal, ok, err := shard.GetConversationState(ctx, ConversationKindNormal, "u1", "g1", 2)
+	if err != nil || !ok {
+		t.Fatalf("GetConversationState(normal) ok=%v err=%v", ok, err)
+	}
+	gotCMD, ok, err := shard.GetConversationState(ctx, ConversationKindCMD, "u1", "g1", 2)
+	if err != nil || !ok {
+		t.Fatalf("GetConversationState(cmd) ok=%v err=%v", ok, err)
+	}
+	if gotNormal.ReadSeq != 3 || gotCMD.ReadSeq != 9 {
+		t.Fatalf("states share primary key: normal=%+v cmd=%+v", gotNormal, gotCMD)
+	}
+}
+
+func TestConversationActivePageScansOnlyRequestedKind(t *testing.T) {
+	store := openTestMetaStore(t)
+	defer store.close(t)
+	shard := store.db.HashSlot(4)
+	ctx := context.Background()
+
+	rows := []ConversationState{
+		{UID: "u1", Kind: ConversationKindNormal, ChannelID: "normal-a", ChannelType: 2, ActiveAt: 100},
+		{UID: "u1", Kind: ConversationKindCMD, ChannelID: "cmd-a____cmd", ChannelType: 2, ActiveAt: 300},
+		{UID: "u1", Kind: ConversationKindNormal, ChannelID: "normal-b", ChannelType: 2, ActiveAt: 200},
+	}
+	for _, row := range rows {
+		if err := shard.UpsertConversationState(ctx, row); err != nil {
+			t.Fatalf("UpsertConversationState(%+v): %v", row, err)
+		}
+	}
+
+	got, cursor, done, err := shard.ListConversationActivePage(ctx, ConversationKindNormal, "u1", ConversationActiveCursor{}, 10)
+	if err != nil {
+		t.Fatalf("ListConversationActivePage(normal): %v", err)
+	}
+	want := []ConversationState{
+		{UID: "u1", Kind: ConversationKindNormal, ChannelID: "normal-b", ChannelType: 2, ActiveAt: 200},
+		{UID: "u1", Kind: ConversationKindNormal, ChannelID: "normal-a", ChannelType: 2, ActiveAt: 100},
+	}
+	if !equalConversationStates(got, want) || !done || cursor.ChannelID != "normal-a" {
+		t.Fatalf("normal active page = %+v cursor=%+v done=%v, want %+v done", got, cursor, done, want)
+	}
+}
+
+func TestConversationTouchAndHideAreKindIsolated(t *testing.T) {
+	store := openTestMetaStore(t)
+	defer store.close(t)
+	shard := store.db.HashSlot(4)
+	ctx := context.Background()
+
+	for _, kind := range []ConversationKind{ConversationKindNormal, ConversationKindCMD} {
+		if err := shard.UpsertConversationState(ctx, ConversationState{UID: "u1", Kind: kind, ChannelID: "same", ChannelType: 2, ReadSeq: 1, ActiveAt: 10}); err != nil {
+			t.Fatalf("UpsertConversationState(%d): %v", kind, err)
+		}
+	}
+	if err := shard.TouchConversationActiveAt(ctx, ConversationActivePatch{UID: "u1", Kind: ConversationKindCMD, ChannelID: "same", ChannelType: 2, ReadSeq: 8, ActiveAt: 80, UpdatedAt: 80}); err != nil {
+		t.Fatalf("TouchConversationActiveAt(cmd): %v", err)
+	}
+	if err := shard.HideConversation(ctx, ConversationDelete{UID: "u1", Kind: ConversationKindNormal, ChannelID: "same", ChannelType: 2, DeletedToSeq: 5, UpdatedAt: 90}); err != nil {
+		t.Fatalf("HideConversation(normal): %v", err)
+	}
+	normal, _, err := shard.GetConversationState(ctx, ConversationKindNormal, "u1", "same", 2)
+	if err != nil {
+		t.Fatalf("GetConversationState(normal): %v", err)
+	}
+	cmd, _, err := shard.GetConversationState(ctx, ConversationKindCMD, "u1", "same", 2)
+	if err != nil {
+		t.Fatalf("GetConversationState(cmd): %v", err)
+	}
+	if normal.DeletedToSeq != 5 || normal.ReadSeq != 1 || cmd.ReadSeq != 8 || cmd.DeletedToSeq != 0 {
+		t.Fatalf("kind isolation failed: normal=%+v cmd=%+v", normal, cmd)
+	}
+}
+
 func TestUserConversationActiveReturnsLatestFirst(t *testing.T) {
 	store := openTestMetaStore(t)
 	defer store.close(t)
 	shard := store.db.HashSlot(3)
 	ctx := context.Background()
 
-	states := []UserConversationState{
-		{UID: "u1", ChannelID: "g1", ChannelType: 2, ActiveAt: 100, UpdatedAt: 10},
-		{UID: "u1", ChannelID: "g2", ChannelType: 2, ActiveAt: 300, UpdatedAt: 20},
-		{UID: "u1", ChannelID: "g3", ChannelType: 2, ActiveAt: 0, UpdatedAt: 30},
-		{UID: "u1", ChannelID: "g4", ChannelType: 2, ActiveAt: 200, UpdatedAt: 40},
-		{UID: "u2", ChannelID: "g1", ChannelType: 2, ActiveAt: 500, UpdatedAt: 50},
+	states := []ConversationState{
+		{UID: "u1", Kind: ConversationKindNormal, ChannelID: "g1", ChannelType: 2, ActiveAt: 100, UpdatedAt: 10},
+		{UID: "u1", Kind: ConversationKindNormal, ChannelID: "g2", ChannelType: 2, ActiveAt: 300, UpdatedAt: 20},
+		{UID: "u1", Kind: ConversationKindNormal, ChannelID: "g3", ChannelType: 2, ActiveAt: 0, UpdatedAt: 30},
+		{UID: "u1", Kind: ConversationKindNormal, ChannelID: "g4", ChannelType: 2, ActiveAt: 200, UpdatedAt: 40},
+		{UID: "u2", Kind: ConversationKindNormal, ChannelID: "g1", ChannelType: 2, ActiveAt: 500, UpdatedAt: 50},
 	}
 	for _, state := range states {
-		if err := shard.UpsertUserConversationState(ctx, state); err != nil {
-			t.Fatalf("UpsertUserConversationState(%+v): %v", state, err)
+		if err := shard.UpsertConversationState(ctx, state); err != nil {
+			t.Fatalf("UpsertConversationState(%+v): %v", state, err)
 		}
 	}
 
-	got, err := shard.ListUserConversationActive(ctx, "u1", 10)
+	got, err := shard.ListConversationActive(ctx, ConversationKindNormal, "u1", 10)
 	if err != nil {
-		t.Fatalf("ListUserConversationActive(): %v", err)
+		t.Fatalf("ListConversationActive(): %v", err)
 	}
-	want := []UserConversationState{
-		{UID: "u1", ChannelID: "g2", ChannelType: 2, ActiveAt: 300, UpdatedAt: 20},
-		{UID: "u1", ChannelID: "g4", ChannelType: 2, ActiveAt: 200, UpdatedAt: 40},
-		{UID: "u1", ChannelID: "g1", ChannelType: 2, ActiveAt: 100, UpdatedAt: 10},
+	want := []ConversationState{
+		{UID: "u1", Kind: ConversationKindNormal, ChannelID: "g2", ChannelType: 2, ActiveAt: 300, UpdatedAt: 20},
+		{UID: "u1", Kind: ConversationKindNormal, ChannelID: "g4", ChannelType: 2, ActiveAt: 200, UpdatedAt: 40},
+		{UID: "u1", Kind: ConversationKindNormal, ChannelID: "g1", ChannelType: 2, ActiveAt: 100, UpdatedAt: 10},
 	}
-	if !equalUserConversationStates(got, want) {
+	if !equalConversationStates(got, want) {
 		t.Fatalf("active conversations = %+v, want %+v", got, want)
 	}
 }
 
-func TestUserConversationStateSparseActiveRoundTrip(t *testing.T) {
+func TestConversationStateSparseActiveRoundTrip(t *testing.T) {
 	store := openTestMetaStore(t)
 	defer store.close(t)
 	shard := store.db.HashSlot(3)
 	ctx := context.Background()
 
-	state := UserConversationState{UID: "u1", ChannelID: "g1", ChannelType: 2, ActiveAt: 100, UpdatedAt: 101, SparseActive: true}
-	if err := shard.UpsertUserConversationState(ctx, state); err != nil {
-		t.Fatalf("UpsertUserConversationState(): %v", err)
+	state := ConversationState{UID: "u1", Kind: ConversationKindNormal, ChannelID: "g1", ChannelType: 2, ActiveAt: 100, UpdatedAt: 101, SparseActive: true}
+	if err := shard.UpsertConversationState(ctx, state); err != nil {
+		t.Fatalf("UpsertConversationState(): %v", err)
 	}
-	got, ok, err := shard.GetUserConversationState(ctx, "u1", "g1", 2)
+	got, ok, err := shard.GetConversationState(ctx, ConversationKindNormal, "u1", "g1", 2)
 	if err != nil || !ok {
-		t.Fatalf("GetUserConversationState() ok=%v err=%v, want ok", ok, err)
+		t.Fatalf("GetConversationState() ok=%v err=%v, want ok", ok, err)
 	}
 	if !got.SparseActive {
 		t.Fatalf("SparseActive = false, want true: %+v", got)
 	}
 }
 
-func TestUserConversationStateOldValueDecodesSparseInactive(t *testing.T) {
+func TestConversationStateOldValueDecodesSparseInactive(t *testing.T) {
 	value := encodeConversationValue(11, 7, 100, 101)
-	got, err := decodeUserConversationValue("u1", "g1", 2, value)
+	got, err := decodeConversationStateValue("u1", ConversationKindNormal, "g1", 2, value)
 	if err != nil {
-		t.Fatalf("decodeUserConversationValue(old value): %v", err)
+		t.Fatalf("decodeConversationStateValue(old value): %v", err)
 	}
 	if got.SparseActive {
 		t.Fatalf("SparseActive = true, want false for old value: %+v", got)
@@ -77,66 +165,66 @@ func TestUserConversationActivePageUsesCursorAndTies(t *testing.T) {
 	shard := store.db.HashSlot(3)
 	ctx := context.Background()
 
-	for _, state := range []UserConversationState{
-		{UID: "u1", ChannelID: "g-z", ChannelType: 2, ActiveAt: 300},
-		{UID: "u1", ChannelID: "g-a", ChannelType: 2, ActiveAt: 200},
-		{UID: "u1", ChannelID: "g-b", ChannelType: 1, ActiveAt: 200},
-		{UID: "u1", ChannelID: "g-b", ChannelType: 2, ActiveAt: 200},
-		{UID: "u1", ChannelID: "g-c", ChannelType: 2, ActiveAt: 100},
-		{UID: "u2", ChannelID: "g-other", ChannelType: 2, ActiveAt: 500},
+	for _, state := range []ConversationState{
+		{UID: "u1", Kind: ConversationKindNormal, ChannelID: "g-z", ChannelType: 2, ActiveAt: 300},
+		{UID: "u1", Kind: ConversationKindNormal, ChannelID: "g-a", ChannelType: 2, ActiveAt: 200},
+		{UID: "u1", Kind: ConversationKindNormal, ChannelID: "g-b", ChannelType: 1, ActiveAt: 200},
+		{UID: "u1", Kind: ConversationKindNormal, ChannelID: "g-b", ChannelType: 2, ActiveAt: 200},
+		{UID: "u1", Kind: ConversationKindNormal, ChannelID: "g-c", ChannelType: 2, ActiveAt: 100},
+		{UID: "u2", Kind: ConversationKindNormal, ChannelID: "g-other", ChannelType: 2, ActiveAt: 500},
 	} {
-		if err := shard.UpsertUserConversationState(ctx, state); err != nil {
-			t.Fatalf("UpsertUserConversationState(%+v): %v", state, err)
+		if err := shard.UpsertConversationState(ctx, state); err != nil {
+			t.Fatalf("UpsertConversationState(%+v): %v", state, err)
 		}
 	}
 
-	page, cursor, done, err := shard.ListUserConversationActivePage(ctx, "u1", UserConversationActiveCursor{}, 3)
+	page, cursor, done, err := shard.ListConversationActivePage(ctx, ConversationKindNormal, "u1", ConversationActiveCursor{}, 3)
 	if err != nil {
-		t.Fatalf("ListUserConversationActivePage(): %v", err)
+		t.Fatalf("ListConversationActivePage(): %v", err)
 	}
-	wantFirst := []UserConversationState{
-		{UID: "u1", ChannelID: "g-z", ChannelType: 2, ActiveAt: 300},
-		{UID: "u1", ChannelID: "g-a", ChannelType: 2, ActiveAt: 200},
-		{UID: "u1", ChannelID: "g-b", ChannelType: 1, ActiveAt: 200},
+	wantFirst := []ConversationState{
+		{UID: "u1", Kind: ConversationKindNormal, ChannelID: "g-z", ChannelType: 2, ActiveAt: 300},
+		{UID: "u1", Kind: ConversationKindNormal, ChannelID: "g-a", ChannelType: 2, ActiveAt: 200},
+		{UID: "u1", Kind: ConversationKindNormal, ChannelID: "g-b", ChannelType: 1, ActiveAt: 200},
 	}
-	if done || !equalUserConversationStates(page, wantFirst) || cursor != (UserConversationActiveCursor{ActiveAt: 200, ChannelID: "g-b", ChannelType: 1}) {
+	if done || !equalConversationStates(page, wantFirst) || cursor != (ConversationActiveCursor{ActiveAt: 200, ChannelID: "g-b", ChannelType: 1}) {
 		t.Fatalf("first page=%+v cursor=%+v done=%v, want first ordered page", page, cursor, done)
 	}
 
-	page, cursor, done, err = shard.ListUserConversationActivePage(ctx, "u1", cursor, 3)
+	page, cursor, done, err = shard.ListConversationActivePage(ctx, ConversationKindNormal, "u1", cursor, 3)
 	if err != nil {
-		t.Fatalf("ListUserConversationActivePage(next): %v", err)
+		t.Fatalf("ListConversationActivePage(next): %v", err)
 	}
-	wantSecond := []UserConversationState{
-		{UID: "u1", ChannelID: "g-b", ChannelType: 2, ActiveAt: 200},
-		{UID: "u1", ChannelID: "g-c", ChannelType: 2, ActiveAt: 100},
+	wantSecond := []ConversationState{
+		{UID: "u1", Kind: ConversationKindNormal, ChannelID: "g-b", ChannelType: 2, ActiveAt: 200},
+		{UID: "u1", Kind: ConversationKindNormal, ChannelID: "g-c", ChannelType: 2, ActiveAt: 100},
 	}
-	if !done || !equalUserConversationStates(page, wantSecond) || cursor != (UserConversationActiveCursor{ActiveAt: 100, ChannelID: "g-c", ChannelType: 2}) {
+	if !done || !equalConversationStates(page, wantSecond) || cursor != (ConversationActiveCursor{ActiveAt: 100, ChannelID: "g-c", ChannelType: 2}) {
 		t.Fatalf("second page=%+v cursor=%+v done=%v, want final ordered page", page, cursor, done)
 	}
 }
 
-func TestUserConversationActiveIndexKeepsLegacyLayout(t *testing.T) {
+func TestUserConversationActiveIndexKeepsCustomLayout(t *testing.T) {
 	store := openTestMetaStore(t)
 	defer store.close(t)
 	shard := store.db.HashSlot(21)
 	ctx := context.Background()
 
-	state := UserConversationState{UID: "u-layout", ChannelID: "g1", ChannelType: 2, ActiveAt: 123, UpdatedAt: 10}
-	if err := shard.UpsertUserConversationState(ctx, state); err != nil {
-		t.Fatalf("UpsertUserConversationState(): %v", err)
+	state := ConversationState{UID: "u-layout", Kind: ConversationKindNormal, ChannelID: "g1", ChannelType: 2, ActiveAt: 123, UpdatedAt: 10}
+	if err := shard.UpsertConversationState(ctx, state); err != nil {
+		t.Fatalf("UpsertConversationState(): %v", err)
 	}
 
-	legacyKey := encodeConversationActiveIndexKey(21, TableIDConversation, state.UID, state.ActiveAt, state.ChannelID, state.ChannelType)
-	if _, ok, err := store.engine.Get(legacyKey); err != nil || !ok {
-		t.Fatalf("legacy active index exists ok=%v err=%v, want ok", ok, err)
+	activeKey := encodeConversationActiveIndexKey(21, state.UID, state.Kind, state.ActiveAt, state.ChannelID, state.ChannelType)
+	if _, ok, err := store.engine.Get(activeKey); err != nil || !ok {
+		t.Fatalf("custom active index exists ok=%v err=%v, want ok", ok, err)
 	}
 	genericKey, err := encodeTableIndexKey(
 		21,
 		TableIDConversation,
 		conversationActiveIndexID,
-		KeyParts{String(state.UID), Int64Desc(state.ActiveAt), String(state.ChannelID), Int64Ordered(state.ChannelType)},
-		KeyParts{String(state.UID), String(state.ChannelID), Int64Ordered(state.ChannelType)},
+		KeyParts{String(state.UID), Uint64(uint64(state.Kind)), Int64Desc(state.ActiveAt), String(state.ChannelID), Int64Ordered(state.ChannelType)},
+		KeyParts{String(state.UID), Uint64(uint64(state.Kind)), String(state.ChannelID), Int64Ordered(state.ChannelType)},
 	)
 	if err != nil {
 		t.Fatalf("encodeTableIndexKey(): %v", err)
@@ -152,13 +240,13 @@ func TestUserConversationActiveSkipsStaleIndex(t *testing.T) {
 	shard := store.db.HashSlot(23)
 	ctx := context.Background()
 
-	state := UserConversationState{UID: "u-stale", ChannelID: "g1", ChannelType: 2, ActiveAt: 100, UpdatedAt: 10}
-	if err := shard.UpsertUserConversationState(ctx, state); err != nil {
-		t.Fatalf("UpsertUserConversationState(): %v", err)
+	state := ConversationState{UID: "u-stale", Kind: ConversationKindNormal, ChannelID: "g1", ChannelType: 2, ActiveAt: 100, UpdatedAt: 10}
+	if err := shard.UpsertConversationState(ctx, state); err != nil {
+		t.Fatalf("UpsertConversationState(): %v", err)
 	}
 	batch := store.engine.NewBatch()
 	defer batch.Close()
-	staleKey := encodeConversationActiveIndexKey(23, TableIDConversation, state.UID, 200, state.ChannelID, state.ChannelType)
+	staleKey := encodeConversationActiveIndexKey(23, state.UID, state.Kind, 200, state.ChannelID, state.ChannelType)
 	if err := batch.Set(staleKey, nil); err != nil {
 		t.Fatalf("Set(stale index): %v", err)
 	}
@@ -166,12 +254,12 @@ func TestUserConversationActiveSkipsStaleIndex(t *testing.T) {
 		t.Fatalf("Commit(stale index): %v", err)
 	}
 
-	got, err := shard.ListUserConversationActive(ctx, state.UID, 10)
+	got, err := shard.ListConversationActive(ctx, ConversationKindNormal, state.UID, 10)
 	if err != nil {
-		t.Fatalf("ListUserConversationActive(): %v", err)
+		t.Fatalf("ListConversationActive(): %v", err)
 	}
-	want := []UserConversationState{state}
-	if !equalUserConversationStates(got, want) {
+	want := []ConversationState{state}
+	if !equalConversationStates(got, want) {
 		t.Fatalf("active conversations = %+v, want %+v", got, want)
 	}
 }
@@ -182,7 +270,7 @@ func TestUserConversationActiveMalformedIndexReturnsCorruptValue(t *testing.T) {
 	shard := store.db.HashSlot(23)
 	ctx := context.Background()
 
-	prefix := encodeConversationActiveIndexPrefix(23, TableIDConversation, "u-bad")
+	prefix := encodeConversationActiveIndexPrefix(23, "u-bad", ConversationKindNormal)
 	badKey := append(append([]byte(nil), prefix...), 0x01)
 	batch := store.engine.NewBatch()
 	defer batch.Close()
@@ -193,9 +281,9 @@ func TestUserConversationActiveMalformedIndexReturnsCorruptValue(t *testing.T) {
 		t.Fatalf("Commit(malformed index): %v", err)
 	}
 
-	_, err := shard.ListUserConversationActive(ctx, "u-bad", 10)
+	_, err := shard.ListConversationActive(ctx, ConversationKindNormal, "u-bad", 10)
 	if !errors.Is(err, dberrors.ErrCorruptValue) {
-		t.Fatalf("ListUserConversationActive() err = %v, want corrupt value", err)
+		t.Fatalf("ListConversationActive() err = %v, want corrupt value", err)
 	}
 }
 
@@ -205,11 +293,11 @@ func TestUserConversationActiveLimitDoesNotDecodeTail(t *testing.T) {
 	shard := store.db.HashSlot(25)
 	ctx := context.Background()
 
-	state := UserConversationState{UID: "u-tail", ChannelID: "g1", ChannelType: 2, ActiveAt: 200, UpdatedAt: 10}
-	if err := shard.UpsertUserConversationState(ctx, state); err != nil {
-		t.Fatalf("UpsertUserConversationState(): %v", err)
+	state := ConversationState{UID: "u-tail", Kind: ConversationKindNormal, ChannelID: "g1", ChannelType: 2, ActiveAt: 200, UpdatedAt: 10}
+	if err := shard.UpsertConversationState(ctx, state); err != nil {
+		t.Fatalf("UpsertConversationState(): %v", err)
 	}
-	malformedTail, err := encodeTableIndexScanPrefix(25, TableIDConversation, conversationActiveIndexID, KeyParts{String(state.UID), Int64Desc(100)})
+	malformedTail, err := encodeTableIndexScanPrefix(25, TableIDConversation, conversationActiveIndexID, KeyParts{String(state.UID), Uint64(uint64(state.Kind)), Int64Desc(100)})
 	if err != nil {
 		t.Fatalf("encode malformed tail: %v", err)
 	}
@@ -222,23 +310,23 @@ func TestUserConversationActiveLimitDoesNotDecodeTail(t *testing.T) {
 		t.Fatalf("Commit(malformed tail): %v", err)
 	}
 
-	got, err := shard.ListUserConversationActive(ctx, state.UID, 1)
+	got, err := shard.ListConversationActive(ctx, ConversationKindNormal, state.UID, 1)
 	if err != nil {
-		t.Fatalf("ListUserConversationActive(): %v", err)
+		t.Fatalf("ListConversationActive(): %v", err)
 	}
-	want := []UserConversationState{state}
-	if !equalUserConversationStates(got, want) {
+	want := []ConversationState{state}
+	if !equalConversationStates(got, want) {
 		t.Fatalf("active conversations = %+v, want %+v", got, want)
 	}
 }
 
-func TestUserConversationStatePageMalformedRowReturnsCorruptValue(t *testing.T) {
+func TestConversationStatePageMalformedRowReturnsCorruptValue(t *testing.T) {
 	store := openTestMetaStore(t)
 	defer store.close(t)
 	shard := store.db.HashSlot(26)
 	ctx := context.Background()
 
-	malformed := append(encodeConversationRowPrefix(26, "u-bad-row"), 0x01)
+	malformed := append(encodeConversationRowPrefix(26, "u-bad-row", ConversationKindNormal), 0x01)
 	batch := store.engine.NewBatch()
 	defer batch.Close()
 	if err := batch.Set(malformed, nil); err != nil {
@@ -248,9 +336,9 @@ func TestUserConversationStatePageMalformedRowReturnsCorruptValue(t *testing.T) 
 		t.Fatalf("Commit(malformed row): %v", err)
 	}
 
-	_, _, _, err := shard.ListUserConversationStatePage(ctx, "u-bad-row", ConversationCursor{}, 10)
+	_, _, _, err := shard.ListConversationStatePage(ctx, ConversationKindNormal, "u-bad-row", ConversationCursor{}, 10)
 	if !errors.Is(err, dberrors.ErrCorruptValue) {
-		t.Fatalf("ListUserConversationStatePage() err = %v, want corrupt value", err)
+		t.Fatalf("ListConversationStatePage() err = %v, want corrupt value", err)
 	}
 }
 
@@ -260,8 +348,9 @@ func TestUserConversationTouchClearHideAndPage(t *testing.T) {
 	shard := store.db.HashSlot(3)
 	ctx := context.Background()
 
-	base := UserConversationState{
+	base := ConversationState{
 		UID:          "u1",
+		Kind:         ConversationKindNormal,
 		ChannelID:    "g1",
 		ChannelType:  2,
 		ReadSeq:      10,
@@ -269,93 +358,96 @@ func TestUserConversationTouchClearHideAndPage(t *testing.T) {
 		ActiveAt:     100,
 		UpdatedAt:    200,
 	}
-	if err := shard.UpsertUserConversationState(ctx, base); err != nil {
-		t.Fatalf("UpsertUserConversationState(): %v", err)
+	if err := shard.UpsertConversationState(ctx, base); err != nil {
+		t.Fatalf("UpsertConversationState(): %v", err)
 	}
-	if err := shard.TouchUserConversationActiveAt(ctx, UserConversationActivePatch{
+	if err := shard.TouchConversationActiveAt(ctx, ConversationActivePatch{
 		UID:         "u1",
+		Kind:        ConversationKindNormal,
 		ChannelID:   "g1",
 		ChannelType: 2,
 		ActiveAt:    300,
 		MessageSeq:  5,
 	}); err != nil {
-		t.Fatalf("TouchUserConversationActiveAt(deleted): %v", err)
+		t.Fatalf("TouchConversationActiveAt(deleted): %v", err)
 	}
-	got, ok, err := shard.GetUserConversationState(ctx, "u1", "g1", 2)
+	got, ok, err := shard.GetConversationState(ctx, ConversationKindNormal, "u1", "g1", 2)
 	if err != nil || !ok {
-		t.Fatalf("GetUserConversationState() ok=%v err=%v", ok, err)
+		t.Fatalf("GetConversationState() ok=%v err=%v", ok, err)
 	}
 	if got.ActiveAt != 100 {
 		t.Fatalf("ActiveAt after deleted touch = %d, want 100", got.ActiveAt)
 	}
 
-	if err := shard.TouchUserConversationActiveAt(ctx, UserConversationActivePatch{
+	if err := shard.TouchConversationActiveAt(ctx, ConversationActivePatch{
 		UID:         "u1",
+		Kind:        ConversationKindNormal,
 		ChannelID:   "g1",
 		ChannelType: 2,
 		ActiveAt:    300,
 		MessageSeq:  6,
 	}); err != nil {
-		t.Fatalf("TouchUserConversationActiveAt(): %v", err)
+		t.Fatalf("TouchConversationActiveAt(): %v", err)
 	}
-	got, ok, err = shard.GetUserConversationState(ctx, "u1", "g1", 2)
+	got, ok, err = shard.GetConversationState(ctx, ConversationKindNormal, "u1", "g1", 2)
 	if err != nil || !ok {
-		t.Fatalf("GetUserConversationState(touched) ok=%v err=%v", ok, err)
+		t.Fatalf("GetConversationState(touched) ok=%v err=%v", ok, err)
 	}
 	if got.ActiveAt != 300 || got.UpdatedAt != 200 || got.ReadSeq != 10 || got.DeletedToSeq != 5 {
 		t.Fatalf("touched state = %+v, want active 300 while preserving other fields", got)
 	}
 
-	if err := shard.UpsertUserConversationState(ctx, UserConversationState{UID: "u1", ChannelID: "g2", ChannelType: 2, UpdatedAt: 20}); err != nil {
-		t.Fatalf("UpsertUserConversationState(g2): %v", err)
+	if err := shard.UpsertConversationState(ctx, ConversationState{UID: "u1", Kind: ConversationKindNormal, ChannelID: "g2", ChannelType: 2, UpdatedAt: 20}); err != nil {
+		t.Fatalf("UpsertConversationState(g2): %v", err)
 	}
-	page, cursor, done, err := shard.ListUserConversationStatePage(ctx, "u1", ConversationCursor{}, 1)
+	page, cursor, done, err := shard.ListConversationStatePage(ctx, ConversationKindNormal, "u1", ConversationCursor{}, 1)
 	if err != nil {
-		t.Fatalf("ListUserConversationStatePage(): %v", err)
+		t.Fatalf("ListConversationStatePage(): %v", err)
 	}
 	if done || len(page) != 1 || page[0].ChannelID != "g1" || cursor != (ConversationCursor{ChannelID: "g1", ChannelType: 2}) {
 		t.Fatalf("first page=%+v cursor=%+v done=%v, want g1 and more", page, cursor, done)
 	}
-	page, cursor, done, err = shard.ListUserConversationStatePage(ctx, "u1", cursor, 2)
+	page, cursor, done, err = shard.ListConversationStatePage(ctx, ConversationKindNormal, "u1", cursor, 2)
 	if err != nil {
-		t.Fatalf("ListUserConversationStatePage(next): %v", err)
+		t.Fatalf("ListConversationStatePage(next): %v", err)
 	}
 	if !done || len(page) != 1 || page[0].ChannelID != "g2" || cursor != (ConversationCursor{ChannelID: "g2", ChannelType: 2}) {
 		t.Fatalf("next page=%+v cursor=%+v done=%v, want g2 final", page, cursor, done)
 	}
 
-	if err := shard.ClearUserConversationActiveAt(ctx, "u1", []ConversationKey{{ChannelID: "g1", ChannelType: 2}}); err != nil {
-		t.Fatalf("ClearUserConversationActiveAt(): %v", err)
+	if err := shard.ClearConversationActiveAt(ctx, ConversationKindNormal, "u1", []ConversationKey{{ChannelID: "g1", ChannelType: 2}}); err != nil {
+		t.Fatalf("ClearConversationActiveAt(): %v", err)
 	}
-	got, ok, err = shard.GetUserConversationState(ctx, "u1", "g1", 2)
+	got, ok, err = shard.GetConversationState(ctx, ConversationKindNormal, "u1", "g1", 2)
 	if err != nil || !ok {
-		t.Fatalf("GetUserConversationState(cleared) ok=%v err=%v", ok, err)
+		t.Fatalf("GetConversationState(cleared) ok=%v err=%v", ok, err)
 	}
 	if got.ActiveAt != 0 || got.ReadSeq != 10 || got.DeletedToSeq != 5 || got.UpdatedAt != 200 {
 		t.Fatalf("cleared state = %+v, want only active cleared", got)
 	}
 
-	if err := shard.HideUserConversation(ctx, UserConversationDelete{
+	if err := shard.HideConversation(ctx, ConversationDelete{
 		UID:          "u1",
+		Kind:         ConversationKindNormal,
 		ChannelID:    "g1",
 		ChannelType:  2,
 		DeletedToSeq: 20,
 		UpdatedAt:    500,
 	}); err != nil {
-		t.Fatalf("HideUserConversation(): %v", err)
+		t.Fatalf("HideConversation(): %v", err)
 	}
-	got, ok, err = shard.GetUserConversationState(ctx, "u1", "g1", 2)
+	got, ok, err = shard.GetConversationState(ctx, ConversationKindNormal, "u1", "g1", 2)
 	if err != nil || !ok {
-		t.Fatalf("GetUserConversationState(hidden) ok=%v err=%v", ok, err)
+		t.Fatalf("GetConversationState(hidden) ok=%v err=%v", ok, err)
 	}
 	if got.ActiveAt != 0 || got.DeletedToSeq != 20 || got.UpdatedAt != 500 {
 		t.Fatalf("hidden state = %+v, want deleted 20 updated 500 inactive", got)
 	}
 
-	if err := shard.HideUserConversation(ctx, UserConversationDelete{UID: "u1", ChannelID: "missing", ChannelType: 2}); err != nil {
-		t.Fatalf("HideUserConversation(missing zero): %v", err)
+	if err := shard.HideConversation(ctx, ConversationDelete{UID: "u1", Kind: ConversationKindNormal, ChannelID: "missing", ChannelType: 2}); err != nil {
+		t.Fatalf("HideConversation(missing zero): %v", err)
 	}
-	if _, ok, err := shard.GetUserConversationState(ctx, "u1", "missing", 2); err != nil || ok {
+	if _, ok, err := shard.GetConversationState(ctx, ConversationKindNormal, "u1", "missing", 2); err != nil || ok {
 		t.Fatalf("missing hidden state ok=%v err=%v, want no row", ok, err)
 	}
 }
@@ -366,23 +458,24 @@ func TestUserConversationTouchIgnoredBelowDeletedToSeq(t *testing.T) {
 	shard := store.db.HashSlot(3)
 	ctx := context.Background()
 
-	base := UserConversationState{UID: "u1", ChannelID: "g1", ChannelType: 2, DeletedToSeq: 10, ActiveAt: 0}
-	if err := shard.UpsertUserConversationState(ctx, base); err != nil {
-		t.Fatalf("UpsertUserConversationState(): %v", err)
+	base := ConversationState{UID: "u1", Kind: ConversationKindNormal, ChannelID: "g1", ChannelType: 2, DeletedToSeq: 10, ActiveAt: 0}
+	if err := shard.UpsertConversationState(ctx, base); err != nil {
+		t.Fatalf("UpsertConversationState(): %v", err)
 	}
-	err := shard.TouchUserConversationActiveAt(ctx, UserConversationActivePatch{
+	err := shard.TouchConversationActiveAt(ctx, ConversationActivePatch{
 		UID:         "u1",
+		Kind:        ConversationKindNormal,
 		ChannelID:   "g1",
 		ChannelType: 2,
 		ActiveAt:    500,
 		MessageSeq:  10,
 	})
 	if err != nil {
-		t.Fatalf("TouchUserConversationActiveAt(): %v", err)
+		t.Fatalf("TouchConversationActiveAt(): %v", err)
 	}
-	got, _, err := shard.GetUserConversationState(ctx, "u1", "g1", 2)
+	got, _, err := shard.GetConversationState(ctx, ConversationKindNormal, "u1", "g1", 2)
 	if err != nil {
-		t.Fatalf("GetUserConversationState(): %v", err)
+		t.Fatalf("GetConversationState(): %v", err)
 	}
 	if got.ActiveAt != 0 {
 		t.Fatalf("ActiveAt = %d, want unchanged 0", got.ActiveAt)
@@ -395,8 +488,9 @@ func TestUserConversationUpsertMergePreservesMonotonicFloors(t *testing.T) {
 	shard := store.db.HashSlot(3)
 	ctx := context.Background()
 
-	base := UserConversationState{
+	base := ConversationState{
 		UID:          "u1",
+		Kind:         ConversationKindNormal,
 		ChannelID:    "g1",
 		ChannelType:  2,
 		ReadSeq:      20,
@@ -405,11 +499,12 @@ func TestUserConversationUpsertMergePreservesMonotonicFloors(t *testing.T) {
 		UpdatedAt:    400,
 		SparseActive: true,
 	}
-	if err := shard.UpsertUserConversationState(ctx, base); err != nil {
-		t.Fatalf("UpsertUserConversationState(base): %v", err)
+	if err := shard.UpsertConversationState(ctx, base); err != nil {
+		t.Fatalf("UpsertConversationState(base): %v", err)
 	}
-	if err := shard.UpsertUserConversationState(ctx, UserConversationState{
+	if err := shard.UpsertConversationState(ctx, ConversationState{
 		UID:          "u1",
+		Kind:         ConversationKindNormal,
 		ChannelID:    "g1",
 		ChannelType:  2,
 		ReadSeq:      10,
@@ -417,11 +512,11 @@ func TestUserConversationUpsertMergePreservesMonotonicFloors(t *testing.T) {
 		ActiveAt:     100,
 		UpdatedAt:    200,
 	}); err != nil {
-		t.Fatalf("UpsertUserConversationState(regression): %v", err)
+		t.Fatalf("UpsertConversationState(regression): %v", err)
 	}
-	got, ok, err := shard.GetUserConversationState(ctx, "u1", "g1", 2)
+	got, ok, err := shard.GetConversationState(ctx, ConversationKindNormal, "u1", "g1", 2)
 	if err != nil || !ok {
-		t.Fatalf("GetUserConversationState() ok=%v err=%v, want ok", ok, err)
+		t.Fatalf("GetConversationState() ok=%v err=%v, want ok", ok, err)
 	}
 	if got.ReadSeq != 20 || got.DeletedToSeq != 15 || got.ActiveAt != 300 || got.UpdatedAt != 400 {
 		t.Fatalf("merged state = %+v, want monotonic fields preserved", got)
@@ -430,8 +525,9 @@ func TestUserConversationUpsertMergePreservesMonotonicFloors(t *testing.T) {
 		t.Fatalf("SparseActive = true, want explicit upsert false to clear")
 	}
 
-	if err := shard.UpsertUserConversationState(ctx, UserConversationState{
+	if err := shard.UpsertConversationState(ctx, ConversationState{
 		UID:          "u1",
+		Kind:         ConversationKindNormal,
 		ChannelID:    "g2",
 		ChannelType:  2,
 		ReadSeq:      41,
@@ -439,11 +535,11 @@ func TestUserConversationUpsertMergePreservesMonotonicFloors(t *testing.T) {
 		UpdatedAt:    500,
 		SparseActive: true,
 	}); err != nil {
-		t.Fatalf("UpsertUserConversationState(join floor): %v", err)
+		t.Fatalf("UpsertConversationState(join floor): %v", err)
 	}
-	got, ok, err = shard.GetUserConversationState(ctx, "u1", "g2", 2)
+	got, ok, err = shard.GetConversationState(ctx, ConversationKindNormal, "u1", "g2", 2)
 	if err != nil || !ok {
-		t.Fatalf("GetUserConversationState(join floor) ok=%v err=%v, want ok", ok, err)
+		t.Fatalf("GetConversationState(join floor) ok=%v err=%v, want ok", ok, err)
 	}
 	if got.ReadSeq != 41 || got.DeletedToSeq != 41 || !got.SparseActive {
 		t.Fatalf("join floor state = %+v, want read/delete floor and sparse active", got)
@@ -456,37 +552,39 @@ func TestUserConversationTouchCanSetSparseActiveWithoutRegressingActiveAt(t *tes
 	shard := store.db.HashSlot(3)
 	ctx := context.Background()
 
-	base := UserConversationState{UID: "u1", ChannelID: "g1", ChannelType: 2, ActiveAt: 300}
-	if err := shard.UpsertUserConversationState(ctx, base); err != nil {
-		t.Fatalf("UpsertUserConversationState(): %v", err)
+	base := ConversationState{UID: "u1", Kind: ConversationKindNormal, ChannelID: "g1", ChannelType: 2, ActiveAt: 300}
+	if err := shard.UpsertConversationState(ctx, base); err != nil {
+		t.Fatalf("UpsertConversationState(): %v", err)
 	}
-	if err := shard.TouchUserConversationActiveAt(ctx, UserConversationActivePatch{
+	if err := shard.TouchConversationActiveAt(ctx, ConversationActivePatch{
 		UID:             "u1",
+		Kind:            ConversationKindNormal,
 		ChannelID:       "g1",
 		ChannelType:     2,
 		ActiveAt:        100,
 		SparseActive:    true,
 		SparseActiveSet: true,
 	}); err != nil {
-		t.Fatalf("TouchUserConversationActiveAt(): %v", err)
+		t.Fatalf("TouchConversationActiveAt(): %v", err)
 	}
-	got, ok, err := shard.GetUserConversationState(ctx, "u1", "g1", 2)
+	got, ok, err := shard.GetConversationState(ctx, ConversationKindNormal, "u1", "g1", 2)
 	if err != nil || !ok {
-		t.Fatalf("GetUserConversationState() ok=%v err=%v, want ok", ok, err)
+		t.Fatalf("GetConversationState() ok=%v err=%v, want ok", ok, err)
 	}
 	if got.ActiveAt != 300 || !got.SparseActive {
 		t.Fatalf("touched state = %+v, want active_at preserved and sparse set", got)
 	}
 }
 
-func TestUserConversationActivePatchPersistsFloorsInOneMutation(t *testing.T) {
+func TestConversationActivePatchPersistsFloorsInOneMutation(t *testing.T) {
 	store := openTestMetaStore(t)
 	defer store.close(t)
 	shard := store.db.HashSlot(3)
 	ctx := context.Background()
 
-	if err := shard.TouchUserConversationActiveAt(ctx, UserConversationActivePatch{
+	if err := shard.TouchConversationActiveAt(ctx, ConversationActivePatch{
 		UID:             "u1",
+		Kind:            ConversationKindNormal,
 		ChannelID:       "g-floor",
 		ChannelType:     2,
 		ReadSeq:         8,
@@ -497,23 +595,24 @@ func TestUserConversationActivePatchPersistsFloorsInOneMutation(t *testing.T) {
 		SparseActive:    true,
 		SparseActiveSet: true,
 	}); err != nil {
-		t.Fatalf("TouchUserConversationActiveAt(floor): %v", err)
+		t.Fatalf("TouchConversationActiveAt(floor): %v", err)
 	}
-	got, ok, err := shard.GetUserConversationState(ctx, "u1", "g-floor", 2)
+	got, ok, err := shard.GetConversationState(ctx, ConversationKindNormal, "u1", "g-floor", 2)
 	if err != nil || !ok {
-		t.Fatalf("GetUserConversationState(floor) ok=%v err=%v, want ok", ok, err)
+		t.Fatalf("GetConversationState(floor) ok=%v err=%v, want ok", ok, err)
 	}
 	if got.ReadSeq != 8 || got.DeletedToSeq != 8 || got.ActiveAt != 300 || got.UpdatedAt != 301 || !got.SparseActive {
 		t.Fatalf("floor patch state = %+v, want floors, active_at, updated_at, and sparse active", got)
 	}
 
-	if err := shard.UpsertUserConversationState(ctx, UserConversationState{
-		UID: "u1", ChannelID: "g-hidden", ChannelType: 2, DeletedToSeq: 10,
+	if err := shard.UpsertConversationState(ctx, ConversationState{
+		UID: "u1", Kind: ConversationKindNormal, ChannelID: "g-hidden", ChannelType: 2, DeletedToSeq: 10,
 	}); err != nil {
-		t.Fatalf("UpsertUserConversationState(hidden): %v", err)
+		t.Fatalf("UpsertConversationState(hidden): %v", err)
 	}
-	if err := shard.TouchUserConversationActiveAt(ctx, UserConversationActivePatch{
+	if err := shard.TouchConversationActiveAt(ctx, ConversationActivePatch{
 		UID:          "u1",
+		Kind:         ConversationKindNormal,
 		ChannelID:    "g-hidden",
 		ChannelType:  2,
 		ReadSeq:      12,
@@ -522,18 +621,19 @@ func TestUserConversationActivePatchPersistsFloorsInOneMutation(t *testing.T) {
 		UpdatedAt:    501,
 		MessageSeq:   9,
 	}); err != nil {
-		t.Fatalf("TouchUserConversationActiveAt(hidden floor): %v", err)
+		t.Fatalf("TouchConversationActiveAt(hidden floor): %v", err)
 	}
-	got, ok, err = shard.GetUserConversationState(ctx, "u1", "g-hidden", 2)
+	got, ok, err = shard.GetConversationState(ctx, ConversationKindNormal, "u1", "g-hidden", 2)
 	if err != nil || !ok {
-		t.Fatalf("GetUserConversationState(hidden) ok=%v err=%v, want ok", ok, err)
+		t.Fatalf("GetConversationState(hidden) ok=%v err=%v, want ok", ok, err)
 	}
 	if got.ActiveAt != 0 || got.ReadSeq != 12 || got.DeletedToSeq != 12 || got.UpdatedAt != 501 {
 		t.Fatalf("hidden floor state = %+v, want active blocked and floors advanced", got)
 	}
 
-	if err := shard.TouchUserConversationActiveAt(ctx, UserConversationActivePatch{
+	if err := shard.TouchConversationActiveAt(ctx, ConversationActivePatch{
 		UID:          "u1",
+		Kind:         ConversationKindNormal,
 		ChannelID:    "g-self-hidden",
 		ChannelType:  2,
 		ReadSeq:      10,
@@ -542,11 +642,11 @@ func TestUserConversationActivePatchPersistsFloorsInOneMutation(t *testing.T) {
 		UpdatedAt:    601,
 		MessageSeq:   9,
 	}); err != nil {
-		t.Fatalf("TouchUserConversationActiveAt(self hidden floor): %v", err)
+		t.Fatalf("TouchConversationActiveAt(self hidden floor): %v", err)
 	}
-	got, ok, err = shard.GetUserConversationState(ctx, "u1", "g-self-hidden", 2)
+	got, ok, err = shard.GetConversationState(ctx, ConversationKindNormal, "u1", "g-self-hidden", 2)
 	if err != nil || !ok {
-		t.Fatalf("GetUserConversationState(self hidden) ok=%v err=%v, want ok", ok, err)
+		t.Fatalf("GetConversationState(self hidden) ok=%v err=%v, want ok", ok, err)
 	}
 	if got.ActiveAt != 0 || got.ReadSeq != 10 || got.DeletedToSeq != 10 || got.UpdatedAt != 601 {
 		t.Fatalf("self hidden floor state = %+v, want patch floor to block active", got)
@@ -566,17 +666,17 @@ func TestShardStoreListsUserConversationActivePage(t *testing.T) {
 	shardStore := db.ForHashSlot(3)
 	ctx := context.Background()
 
-	for _, state := range []UserConversationState{
-		{UID: "u1", ChannelID: "g1", ChannelType: 2, ActiveAt: 200},
-		{UID: "u1", ChannelID: "g2", ChannelType: 2, ActiveAt: 100},
+	for _, state := range []ConversationState{
+		{UID: "u1", Kind: ConversationKindNormal, ChannelID: "g1", ChannelType: 2, ActiveAt: 200},
+		{UID: "u1", Kind: ConversationKindNormal, ChannelID: "g2", ChannelType: 2, ActiveAt: 100},
 	} {
-		if err := shardStore.UpsertUserConversationState(ctx, state); err != nil {
-			t.Fatalf("UpsertUserConversationState(%+v): %v", state, err)
+		if err := shardStore.UpsertConversationState(ctx, state); err != nil {
+			t.Fatalf("UpsertConversationState(%+v): %v", state, err)
 		}
 	}
-	page, cursor, done, err := shardStore.ListUserConversationActivePage(ctx, "u1", UserConversationActiveCursor{}, 1)
+	page, cursor, done, err := shardStore.ListConversationActivePage(ctx, ConversationKindNormal, "u1", ConversationActiveCursor{}, 1)
 	if err != nil {
-		t.Fatalf("ListUserConversationActivePage(): %v", err)
+		t.Fatalf("ListConversationActivePage(): %v", err)
 	}
 	if done || len(page) != 1 || page[0].ChannelID != "g1" || cursor.ActiveAt != 200 {
 		t.Fatalf("page=%+v cursor=%+v done=%v, want first active row and more", page, cursor, done)
@@ -596,8 +696,9 @@ func TestWriteBatchUserConversationUpsertUsesReadYourWrites(t *testing.T) {
 
 	batch := db.NewWriteBatch()
 	defer batch.Close()
-	if err := batch.UpsertUserConversationState(3, UserConversationState{
+	if err := batch.UpsertConversationState(3, ConversationState{
 		UID:          "u1",
+		Kind:         ConversationKindNormal,
 		ChannelID:    "g1",
 		ChannelType:  2,
 		ReadSeq:      30,
@@ -606,10 +707,11 @@ func TestWriteBatchUserConversationUpsertUsesReadYourWrites(t *testing.T) {
 		UpdatedAt:    400,
 		SparseActive: true,
 	}); err != nil {
-		t.Fatalf("UpsertUserConversationState(first): %v", err)
+		t.Fatalf("UpsertConversationState(first): %v", err)
 	}
-	if err := batch.UpsertUserConversationState(3, UserConversationState{
+	if err := batch.UpsertConversationState(3, ConversationState{
 		UID:          "u1",
+		Kind:         ConversationKindNormal,
 		ChannelID:    "g1",
 		ChannelType:  2,
 		ReadSeq:      10,
@@ -617,15 +719,15 @@ func TestWriteBatchUserConversationUpsertUsesReadYourWrites(t *testing.T) {
 		ActiveAt:     100,
 		UpdatedAt:    200,
 	}); err != nil {
-		t.Fatalf("UpsertUserConversationState(second): %v", err)
+		t.Fatalf("UpsertConversationState(second): %v", err)
 	}
 	if err := batch.Commit(); err != nil {
 		t.Fatalf("Commit(): %v", err)
 	}
 
-	got, err := db.ForHashSlot(3).GetUserConversationState(context.Background(), "u1", "g1", 2)
+	got, err := db.ForHashSlot(3).GetConversationState(context.Background(), ConversationKindNormal, "u1", "g1", 2)
 	if err != nil {
-		t.Fatalf("GetUserConversationState(): %v", err)
+		t.Fatalf("GetConversationState(): %v", err)
 	}
 	if got.ReadSeq != 30 || got.DeletedToSeq != 20 || got.ActiveAt != 300 || got.UpdatedAt != 400 {
 		t.Fatalf("batch upsert state = %+v, want monotonic maxima", got)
@@ -648,20 +750,20 @@ func TestWriteBatchUserConversationTouchUsesReadYourWrites(t *testing.T) {
 
 	batch := db.NewWriteBatch()
 	defer batch.Close()
-	if err := batch.TouchUserConversationActiveAt(3, []UserConversationActivePatch{
-		{UID: "u1", ChannelID: "g1", ChannelType: 2, ActiveAt: 300},
-		{UID: "u1", ChannelID: "g1", ChannelType: 2, ActiveAt: 100, SparseActive: true, SparseActiveSet: true},
-		{UID: "u1", ChannelID: "g1", ChannelType: 2, ActiveAt: 200, SparseActive: false, SparseActiveSet: true},
+	if err := batch.TouchConversationActiveAt(3, []ConversationActivePatch{
+		{UID: "u1", Kind: ConversationKindNormal, ChannelID: "g1", ChannelType: 2, ActiveAt: 300},
+		{UID: "u1", Kind: ConversationKindNormal, ChannelID: "g1", ChannelType: 2, ActiveAt: 100, SparseActive: true, SparseActiveSet: true},
+		{UID: "u1", Kind: ConversationKindNormal, ChannelID: "g1", ChannelType: 2, ActiveAt: 200, SparseActive: false, SparseActiveSet: true},
 	}); err != nil {
-		t.Fatalf("TouchUserConversationActiveAt(): %v", err)
+		t.Fatalf("TouchConversationActiveAt(): %v", err)
 	}
 	if err := batch.Commit(); err != nil {
 		t.Fatalf("Commit(): %v", err)
 	}
 
-	got, err := db.ForHashSlot(3).GetUserConversationState(context.Background(), "u1", "g1", 2)
+	got, err := db.ForHashSlot(3).GetConversationState(context.Background(), ConversationKindNormal, "u1", "g1", 2)
 	if err != nil {
-		t.Fatalf("GetUserConversationState(): %v", err)
+		t.Fatalf("GetConversationState(): %v", err)
 	}
 	if got.ActiveAt != 300 || got.SparseActive {
 		t.Fatalf("batch touch state = %+v, want max active_at 300 and sparse false", got)
@@ -681,29 +783,107 @@ func TestWriteBatchUserConversationTouchSeesStagedDeleteFence(t *testing.T) {
 
 	batch := db.NewWriteBatch()
 	defer batch.Close()
-	if err := batch.UpsertUserConversationState(3, UserConversationState{
+	if err := batch.UpsertConversationState(3, ConversationState{
 		UID:          "u1",
+		Kind:         ConversationKindNormal,
 		ChannelID:    "g1",
 		ChannelType:  2,
 		DeletedToSeq: 10,
 	}); err != nil {
-		t.Fatalf("UpsertUserConversationState(delete floor): %v", err)
+		t.Fatalf("UpsertConversationState(delete floor): %v", err)
 	}
-	if err := batch.TouchUserConversationActiveAt(3, []UserConversationActivePatch{
-		{UID: "u1", ChannelID: "g1", ChannelType: 2, ActiveAt: 500, MessageSeq: 10},
+	if err := batch.TouchConversationActiveAt(3, []ConversationActivePatch{
+		{UID: "u1", Kind: ConversationKindNormal, ChannelID: "g1", ChannelType: 2, ActiveAt: 500, MessageSeq: 10},
 	}); err != nil {
-		t.Fatalf("TouchUserConversationActiveAt(): %v", err)
+		t.Fatalf("TouchConversationActiveAt(): %v", err)
 	}
 	if err := batch.Commit(); err != nil {
 		t.Fatalf("Commit(): %v", err)
 	}
 
-	got, err := db.ForHashSlot(3).GetUserConversationState(context.Background(), "u1", "g1", 2)
+	got, err := db.ForHashSlot(3).GetConversationState(context.Background(), ConversationKindNormal, "u1", "g1", 2)
 	if err != nil {
-		t.Fatalf("GetUserConversationState(): %v", err)
+		t.Fatalf("GetConversationState(): %v", err)
 	}
 	if got.DeletedToSeq != 10 || got.ActiveAt != 0 {
 		t.Fatalf("batch fenced touch state = %+v, want deleted_to_seq 10 and inactive", got)
+	}
+}
+
+func TestWriteBatchConversationRejectsInvalidInputs(t *testing.T) {
+	db, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("Open(): %v", err)
+	}
+	defer func() {
+		if err := db.Close(); err != nil {
+			t.Fatalf("Close(): %v", err)
+		}
+	}()
+
+	tests := []struct {
+		name string
+		run  func(*WriteBatch) error
+	}{
+		{
+			name: "upsert zero kind",
+			run: func(batch *WriteBatch) error {
+				return batch.UpsertConversationState(3, ConversationState{UID: "u1", ChannelID: "g1", ChannelType: 2})
+			},
+		},
+		{
+			name: "touch zero kind",
+			run: func(batch *WriteBatch) error {
+				return batch.TouchConversationActiveAt(3, []ConversationActivePatch{{UID: "u1", ChannelID: "g1", ChannelType: 2, ActiveAt: 100}})
+			},
+		},
+		{
+			name: "touch validates whole batch before staging",
+			run: func(batch *WriteBatch) error {
+				return batch.TouchConversationActiveAt(3, []ConversationActivePatch{
+					{UID: "u1", Kind: ConversationKindNormal, ChannelID: "g1", ChannelType: 2, ActiveAt: 100},
+					{UID: "u1", ChannelID: "g2", ChannelType: 2, ActiveAt: 200},
+				})
+			},
+		},
+		{
+			name: "clear zero kind",
+			run: func(batch *WriteBatch) error {
+				return batch.ClearConversationActiveAt(3, 0, "u1", []ConversationKey{{ChannelID: "g1", ChannelType: 2}})
+			},
+		},
+		{
+			name: "clear invalid key",
+			run: func(batch *WriteBatch) error {
+				return batch.ClearConversationActiveAt(3, ConversationKindNormal, "u1", []ConversationKey{{ChannelType: 2}})
+			},
+		},
+		{
+			name: "hide zero kind",
+			run: func(batch *WriteBatch) error {
+				return batch.HideConversation(3, ConversationDelete{UID: "u1", ChannelID: "g1", ChannelType: 2, DeletedToSeq: 1})
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			batch := db.NewWriteBatch()
+			defer batch.Close()
+			err := tt.run(batch)
+			if !errors.Is(err, dberrors.ErrInvalidArgument) {
+				t.Fatalf("batch conversation invalid err = %v, want invalid argument", err)
+			}
+			if err := batch.Commit(); err != nil {
+				t.Fatalf("Commit() after rejected op: %v", err)
+			}
+			active, err := db.ForHashSlot(3).ListConversationActive(context.Background(), ConversationKindNormal, "u1", 10)
+			if err != nil {
+				t.Fatalf("ListConversationActive(): %v", err)
+			}
+			if len(active) != 0 {
+				t.Fatalf("rejected batch staged rows: %+v", active)
+			}
+		})
 	}
 }
 
@@ -712,17 +892,17 @@ func TestUserConversationRejectsInvalidInputs(t *testing.T) {
 	defer store.close(t)
 	shard := store.db.HashSlot(3)
 
-	err := shard.UpsertUserConversationState(context.Background(), UserConversationState{ChannelID: "g1", ChannelType: 2})
+	err := shard.UpsertConversationState(context.Background(), ConversationState{ChannelID: "g1", ChannelType: 2})
 	if !errors.Is(err, dberrors.ErrInvalidArgument) {
 		t.Fatalf("invalid upsert err = %v, want invalid argument", err)
 	}
-	_, _, _, err = shard.ListUserConversationStatePage(context.Background(), "u1", ConversationCursor{ChannelType: 2}, 1)
+	_, _, _, err = shard.ListConversationStatePage(context.Background(), ConversationKindNormal, "u1", ConversationCursor{ChannelType: 2}, 1)
 	if !errors.Is(err, dberrors.ErrInvalidArgument) {
 		t.Fatalf("invalid cursor err = %v, want invalid argument", err)
 	}
 }
 
-func equalUserConversationStates(a, b []UserConversationState) bool {
+func equalConversationStates(a, b []ConversationState) bool {
 	if len(a) != len(b) {
 		return false
 	}

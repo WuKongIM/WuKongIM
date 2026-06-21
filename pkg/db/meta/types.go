@@ -11,6 +11,16 @@ type ChannelID struct {
 	Type int64
 }
 
+// ConversationKind identifies one logical UID-owned conversation projection view.
+type ConversationKind uint8
+
+const (
+	// ConversationKindNormal stores ordinary chat conversation cursors.
+	ConversationKindNormal ConversationKind = 1
+	// ConversationKindCMD stores command-channel sync cursors.
+	ConversationKindCMD ConversationKind = 2
+)
+
 const (
 	// TableIDUser stores user token and device defaults.
 	TableIDUser uint32 = 1
@@ -24,7 +34,7 @@ const (
 	TableIDSubscriber uint32 = 5
 	// TableIDConversation stores user conversation state.
 	TableIDConversation uint32 = 6
-	// TableIDCMDConversation stores command conversation state.
+	// TableIDCMDConversation is reserved by the development-era split CMD table and must not be reused.
 	TableIDCMDConversation uint32 = 7
 	// TableIDPluginBinding stores plugin user bindings.
 	TableIDPluginBinding uint32 = 8

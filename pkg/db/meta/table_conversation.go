@@ -19,12 +19,15 @@ const (
 	conversationColumnValue        uint16 = 4
 	conversationColumnActiveAt     uint16 = 5
 	conversationColumnSparseActive uint16 = 6
+	conversationColumnKind         uint16 = 7
 )
 
-// UserConversationState stores one user's durable conversation cursors.
-type UserConversationState struct {
+// ConversationState stores one user's durable conversation cursors.
+type ConversationState struct {
 	// UID identifies the user that owns the conversation state.
 	UID string
+	// Kind identifies the logical conversation projection view.
+	Kind ConversationKind
 	// ChannelID identifies the conversation channel.
 	ChannelID string
 	// ChannelType identifies the channel namespace.
@@ -42,21 +45,24 @@ type UserConversationState struct {
 	SparseActive bool
 }
 
-// UserConversationKey identifies one UID-owned conversation row.
-type UserConversationKey struct {
+// ConversationStateKey identifies one UID-owned conversation row.
+type ConversationStateKey struct {
 	// UID identifies the user that owns the conversation state.
 	UID string
+	// Kind identifies the logical conversation projection view.
+	Kind ConversationKind
 	// ChannelID identifies the conversation channel.
 	ChannelID string
 	// ChannelType identifies the channel namespace.
 	ChannelType int64
 }
 
-var conversationTable = registerMetaTable(TableSpec[UserConversationState]{
+var conversationTable = registerMetaTable(TableSpec[ConversationState]{
 	ID:   TableIDConversation,
 	Name: "conversation",
 	Columns: []schema.Column{
 		{ID: conversationColumnUID, Name: "uid", Type: schema.TypeString, Required: true},
+		{ID: conversationColumnKind, Name: "kind", Type: schema.TypeUint64, Required: true},
 		{ID: conversationColumnChannelID, Name: "channel_id", Type: schema.TypeString, Required: true},
 		{ID: conversationColumnChannelType, Name: "channel_type", Type: schema.TypeInt64, Required: true},
 		{ID: conversationColumnValue, Name: "value", Type: schema.TypeBytes},
@@ -64,38 +70,38 @@ var conversationTable = registerMetaTable(TableSpec[UserConversationState]{
 		{ID: conversationColumnSparseActive, Name: "sparse_active", Type: schema.TypeBool},
 	},
 	Families: []schema.Family{{ID: conversationPrimaryFamilyID, Name: "primary", Columns: []uint16{conversationColumnValue, conversationColumnActiveAt, conversationColumnSparseActive}}},
-	Primary: PrimarySpec[UserConversationState]{
+	Primary: PrimarySpec[ConversationState]{
 		IndexID:  conversationPrimaryIndexID,
 		FamilyID: conversationPrimaryFamilyID,
 		Name:     "pk_conversation",
-		Columns:  []uint16{conversationColumnUID, conversationColumnChannelID, conversationColumnChannelType},
-		Layout:   KeyLayout{KeyString, KeyString, KeyInt64Ordered},
-		Key: func(state UserConversationState) KeyParts {
-			return KeyParts{String(state.UID), String(state.ChannelID), Int64Ordered(state.ChannelType)}
+		Columns:  []uint16{conversationColumnUID, conversationColumnKind, conversationColumnChannelID, conversationColumnChannelType},
+		Layout:   KeyLayout{KeyString, KeyUint64, KeyString, KeyInt64Ordered},
+		Key: func(state ConversationState) KeyParts {
+			return KeyParts{String(state.UID), Uint64(uint64(state.Kind)), String(state.ChannelID), Int64Ordered(state.ChannelType)}
 		},
 	},
-	Indexes: []IndexSpec[UserConversationState]{
+	Indexes: []IndexSpec[ConversationState]{
 		{
 			ID:      conversationActiveIndexID,
 			Name:    "idx_conversation_active",
-			Columns: []uint16{conversationColumnUID, conversationColumnActiveAt, conversationColumnChannelID, conversationColumnChannelType},
-			Layout:  KeyLayout{KeyString, KeyInt64Desc, KeyString, KeyInt64Ordered},
-			Key: func(state UserConversationState) (KeyParts, bool) {
+			Columns: []uint16{conversationColumnUID, conversationColumnKind, conversationColumnActiveAt, conversationColumnChannelID, conversationColumnChannelType},
+			Layout:  KeyLayout{KeyString, KeyUint64, KeyInt64Desc, KeyString, KeyInt64Ordered},
+			Key: func(state ConversationState) (KeyParts, bool) {
 				if state.ActiveAt <= 0 {
 					return nil, false
 				}
-				return KeyParts{String(state.UID), Int64Desc(state.ActiveAt), String(state.ChannelID), Int64Ordered(state.ChannelType)}, true
+				return KeyParts{String(state.UID), Uint64(uint64(state.Kind)), Int64Desc(state.ActiveAt), String(state.ChannelID), Int64Ordered(state.ChannelType)}, true
 			},
 			PrimaryKeyFromIndexParts: conversationPrimaryFromActiveIndexParts,
 			CorruptIndexKeyIsError:   true,
 		},
 	},
-	Validate: validateUserConversationState,
-	EncodeValue: func(state UserConversationState) ([]byte, error) {
-		return encodeUserConversationValue(state), nil
+	Validate: validateConversationState,
+	EncodeValue: func(state ConversationState) ([]byte, error) {
+		return encodeConversationStateValue(state), nil
 	},
-	DecodeValue: func(primary KeyParts, value []byte) (UserConversationState, error) {
-		return decodeUserConversationValue(primary[0].S, primary[1].S, primary[2].I64, value)
+	DecodeValue: func(primary KeyParts, value []byte) (ConversationState, error) {
+		return decodeConversationStateValue(primary[0].S, ConversationKind(primary[1].U64), primary[2].S, primary[3].I64, value)
 	},
 })
 
@@ -118,8 +124,8 @@ type ConversationCursor struct {
 	ChannelType int64
 }
 
-// UserConversationActiveCursor identifies the last emitted active-index row.
-type UserConversationActiveCursor struct {
+// ConversationActiveCursor identifies the last emitted active-index row.
+type ConversationActiveCursor struct {
 	// ActiveAt is the active timestamp from the last emitted row.
 	ActiveAt int64
 	// ChannelID is the channel ID from the last emitted row.
@@ -128,10 +134,12 @@ type UserConversationActiveCursor struct {
 	ChannelType int64
 }
 
-// UserConversationActivePatch advances a conversation active timestamp.
-type UserConversationActivePatch struct {
+// ConversationActivePatch advances a conversation active timestamp.
+type ConversationActivePatch struct {
 	// UID identifies the user that owns the conversation state.
 	UID string
+	// Kind identifies the logical conversation projection view.
+	Kind ConversationKind
 	// ChannelID identifies the conversation channel.
 	ChannelID string
 	// ChannelType identifies the channel namespace.
@@ -152,10 +160,12 @@ type UserConversationActivePatch struct {
 	SparseActiveSet bool
 }
 
-// UserConversationDelete hides a conversation through DeletedToSeq.
-type UserConversationDelete struct {
+// ConversationDelete hides a conversation through DeletedToSeq.
+type ConversationDelete struct {
 	// UID identifies the user that owns the conversation state.
 	UID string
+	// Kind identifies the logical conversation projection view.
+	Kind ConversationKind
 	// ChannelID identifies the conversation channel.
 	ChannelID string
 	// ChannelType identifies the channel namespace.
@@ -166,69 +176,69 @@ type UserConversationDelete struct {
 	UpdatedAt int64
 }
 
-// GetUserConversationState returns one user conversation state row.
-func (s *Shard) GetUserConversationState(ctx context.Context, uid, channelID string, channelType int64) (UserConversationState, bool, error) {
+// GetConversationState returns one conversation state row.
+func (s *Shard) GetConversationState(ctx context.Context, kind ConversationKind, uid, channelID string, channelType int64) (ConversationState, bool, error) {
 	if err := s.check(ctx); err != nil {
-		return UserConversationState{}, false, err
+		return ConversationState{}, false, err
+	}
+	if err := validateConversationKind(kind); err != nil {
+		return ConversationState{}, false, err
 	}
 	if err := validateConversationUID(uid); err != nil {
-		return UserConversationState{}, false, err
+		return ConversationState{}, false, err
 	}
 	if err := validateConversationKey(ConversationKey{ChannelID: channelID, ChannelType: channelType}); err != nil {
-		return UserConversationState{}, false, err
+		return ConversationState{}, false, err
 	}
-	state, ok, err := conversationTable.Get(ctx, s, KeyParts{String(uid), String(channelID), Int64Ordered(channelType)})
+	state, ok, err := conversationTable.Get(ctx, s, conversationPrimaryKeyParts(kind, uid, channelID, channelType))
 	return state, ok, err
 }
 
-// UpsertUserConversationState stores a user conversation state.
-func (s *Shard) UpsertUserConversationState(ctx context.Context, state UserConversationState) error {
+// UpsertConversationState stores a conversation state.
+func (s *Shard) UpsertConversationState(ctx context.Context, state ConversationState) error {
 	if err := s.check(ctx); err != nil {
 		return err
 	}
-	if err := validateUserConversationState(state); err != nil {
+	if err := validateConversationState(state); err != nil {
 		return err
 	}
 	unlock := s.lock()
 	defer unlock()
 
-	primaryKey := encodeConversationRowKey(s.hashSlot, state.UID, state.ChannelID, state.ChannelType, conversationPrimaryFamilyID)
-	existing, exists, err := conversationTable.Get(ctx, s, KeyParts{String(state.UID), String(state.ChannelID), Int64Ordered(state.ChannelType)})
+	primaryKey := encodeConversationRowKey(s.hashSlot, state.UID, state.Kind, state.ChannelID, state.ChannelType, conversationPrimaryFamilyID)
+	existing, exists, err := conversationTable.Get(ctx, s, conversationPrimaryKeyParts(state.Kind, state.UID, state.ChannelID, state.ChannelType))
 	if err != nil {
 		return err
 	}
 	if exists {
-		state = mergeUserConversationState(existing, state)
+		state = mergeConversationState(existing, state)
 	}
 	batch := s.db.engine.NewBatch()
 	defer batch.Close()
-	if err := s.stageUserConversationState(batch, primaryKey, existing, exists, state); err != nil {
+	if err := s.stageConversationState(batch, primaryKey, existing, exists, state); err != nil {
 		return err
 	}
 	return batch.Commit(true)
 }
 
-// TouchUserConversationActiveAt advances active_at and monotonic visibility floors.
-func (s *Shard) TouchUserConversationActiveAt(ctx context.Context, patch UserConversationActivePatch) error {
+// TouchConversationActiveAt advances active_at and monotonic visibility floors.
+func (s *Shard) TouchConversationActiveAt(ctx context.Context, patch ConversationActivePatch) error {
 	if err := s.check(ctx); err != nil {
 		return err
 	}
-	if err := validateConversationUID(patch.UID); err != nil {
-		return err
-	}
-	if err := validateConversationKey(ConversationKey{ChannelID: patch.ChannelID, ChannelType: patch.ChannelType}); err != nil {
+	if err := validateConversationActivePatch(patch); err != nil {
 		return err
 	}
 	unlock := s.lock()
 	defer unlock()
 
-	primaryKey := encodeConversationRowKey(s.hashSlot, patch.UID, patch.ChannelID, patch.ChannelType, conversationPrimaryFamilyID)
-	current, exists, err := conversationTable.Get(ctx, s, KeyParts{String(patch.UID), String(patch.ChannelID), Int64Ordered(patch.ChannelType)})
+	primaryKey := encodeConversationRowKey(s.hashSlot, patch.UID, patch.Kind, patch.ChannelID, patch.ChannelType, conversationPrimaryFamilyID)
+	current, exists, err := conversationTable.Get(ctx, s, conversationPrimaryKeyParts(patch.Kind, patch.UID, patch.ChannelID, patch.ChannelType))
 	if err != nil {
 		return err
 	}
 	if !exists {
-		current = UserConversationState{UID: patch.UID, ChannelID: patch.ChannelID, ChannelType: patch.ChannelType}
+		current = ConversationState{UID: patch.UID, Kind: patch.Kind, ChannelID: patch.ChannelID, ChannelType: patch.ChannelType}
 	}
 	deleteBarrier := current.DeletedToSeq
 	if patch.DeletedToSeq > deleteBarrier {
@@ -260,15 +270,18 @@ func (s *Shard) TouchUserConversationActiveAt(ctx context.Context, patch UserCon
 
 	batch := s.db.engine.NewBatch()
 	defer batch.Close()
-	if err := s.stageUserConversationState(batch, primaryKey, current, exists, next); err != nil {
+	if err := s.stageConversationState(batch, primaryKey, current, exists, next); err != nil {
 		return err
 	}
 	return batch.Commit(true)
 }
 
-// ClearUserConversationActiveAt clears active_at for existing conversations.
-func (s *Shard) ClearUserConversationActiveAt(ctx context.Context, uid string, keys []ConversationKey) error {
+// ClearConversationActiveAt clears active_at for existing conversations.
+func (s *Shard) ClearConversationActiveAt(ctx context.Context, kind ConversationKind, uid string, keys []ConversationKey) error {
 	if err := s.check(ctx); err != nil {
+		return err
+	}
+	if err := validateConversationKind(kind); err != nil {
 		return err
 	}
 	if err := validateConversationUID(uid); err != nil {
@@ -287,8 +300,8 @@ func (s *Shard) ClearUserConversationActiveAt(ctx context.Context, uid string, k
 	batch := s.db.engine.NewBatch()
 	defer batch.Close()
 	for _, key := range normalized {
-		primaryKey := encodeConversationRowKey(s.hashSlot, uid, key.ChannelID, key.ChannelType, conversationPrimaryFamilyID)
-		current, exists, err := conversationTable.Get(ctx, s, KeyParts{String(uid), String(key.ChannelID), Int64Ordered(key.ChannelType)})
+		primaryKey := encodeConversationRowKey(s.hashSlot, uid, kind, key.ChannelID, key.ChannelType, conversationPrimaryFamilyID)
+		current, exists, err := conversationTable.Get(ctx, s, conversationPrimaryKeyParts(kind, uid, key.ChannelID, key.ChannelType))
 		if err != nil {
 			return err
 		}
@@ -297,26 +310,26 @@ func (s *Shard) ClearUserConversationActiveAt(ctx context.Context, uid string, k
 		}
 		next := current
 		next.ActiveAt = 0
-		if err := s.stageUserConversationState(batch, primaryKey, current, true, next); err != nil {
+		if err := s.stageConversationState(batch, primaryKey, current, true, next); err != nil {
 			return err
 		}
 	}
 	return batch.Commit(true)
 }
 
-// HideUserConversation advances the delete barrier and clears active_at.
-func (s *Shard) HideUserConversation(ctx context.Context, req UserConversationDelete) error {
+// HideConversation advances the delete barrier and clears active_at.
+func (s *Shard) HideConversation(ctx context.Context, req ConversationDelete) error {
 	if err := s.check(ctx); err != nil {
 		return err
 	}
-	if err := validateUserConversationDelete(req); err != nil {
+	if err := validateConversationDelete(req); err != nil {
 		return err
 	}
 	unlock := s.lock()
 	defer unlock()
 
-	primaryKey := encodeConversationRowKey(s.hashSlot, req.UID, req.ChannelID, req.ChannelType, conversationPrimaryFamilyID)
-	current, exists, err := conversationTable.Get(ctx, s, KeyParts{String(req.UID), String(req.ChannelID), Int64Ordered(req.ChannelType)})
+	primaryKey := encodeConversationRowKey(s.hashSlot, req.UID, req.Kind, req.ChannelID, req.ChannelType, conversationPrimaryFamilyID)
+	current, exists, err := conversationTable.Get(ctx, s, conversationPrimaryKeyParts(req.Kind, req.UID, req.ChannelID, req.ChannelType))
 	if err != nil {
 		return err
 	}
@@ -324,7 +337,7 @@ func (s *Shard) HideUserConversation(ctx context.Context, req UserConversationDe
 		if req.DeletedToSeq == 0 {
 			return nil
 		}
-		current = UserConversationState{UID: req.UID, ChannelID: req.ChannelID, ChannelType: req.ChannelType}
+		current = ConversationState{UID: req.UID, Kind: req.Kind, ChannelID: req.ChannelID, ChannelType: req.ChannelType}
 	}
 	if req.DeletedToSeq <= current.DeletedToSeq {
 		return nil
@@ -338,15 +351,18 @@ func (s *Shard) HideUserConversation(ctx context.Context, req UserConversationDe
 
 	batch := s.db.engine.NewBatch()
 	defer batch.Close()
-	if err := s.stageUserConversationState(batch, primaryKey, current, exists, next); err != nil {
+	if err := s.stageConversationState(batch, primaryKey, current, exists, next); err != nil {
 		return err
 	}
 	return batch.Commit(true)
 }
 
-// ListUserConversationActive returns active conversations in newest-first order.
-func (s *Shard) ListUserConversationActive(ctx context.Context, uid string, limit int) ([]UserConversationState, error) {
+// ListConversationActive returns active conversations in newest-first order.
+func (s *Shard) ListConversationActive(ctx context.Context, kind ConversationKind, uid string, limit int) ([]ConversationState, error) {
 	if err := s.check(ctx); err != nil {
+		return nil, err
+	}
+	if err := validateConversationKind(kind); err != nil {
 		return nil, err
 	}
 	if err := validateConversationUID(uid); err != nil {
@@ -355,45 +371,51 @@ func (s *Shard) ListUserConversationActive(ctx context.Context, uid string, limi
 	if err := validateConversationLimit(limit); err != nil {
 		return nil, err
 	}
-	rows, err := conversationTable.scanIndexRows(ctx, s, conversationActiveIndexID, KeyParts{String(uid)}, limit)
+	rows, err := conversationTable.scanIndexRows(ctx, s, conversationActiveIndexID, conversationActivePrefixParts(kind, uid), limit)
 	return rows, err
 }
 
-// ListUserConversationActivePage returns active rows with an active-index cursor.
-func (s *Shard) ListUserConversationActivePage(ctx context.Context, uid string, cursor UserConversationActiveCursor, limit int) ([]UserConversationState, UserConversationActiveCursor, bool, error) {
+// ListConversationActivePage returns active rows with an active-index cursor.
+func (s *Shard) ListConversationActivePage(ctx context.Context, kind ConversationKind, uid string, cursor ConversationActiveCursor, limit int) ([]ConversationState, ConversationActiveCursor, bool, error) {
 	if err := s.check(ctx); err != nil {
-		return nil, UserConversationActiveCursor{}, false, err
+		return nil, ConversationActiveCursor{}, false, err
+	}
+	if err := validateConversationKind(kind); err != nil {
+		return nil, ConversationActiveCursor{}, false, err
 	}
 	if err := validateConversationUID(uid); err != nil {
-		return nil, UserConversationActiveCursor{}, false, err
+		return nil, ConversationActiveCursor{}, false, err
 	}
-	if err := validateUserConversationActiveCursor(cursor); err != nil {
-		return nil, UserConversationActiveCursor{}, false, err
+	if err := validateConversationActiveCursor(cursor); err != nil {
+		return nil, ConversationActiveCursor{}, false, err
 	}
 	if err := validateConversationLimit(limit); err != nil {
-		return nil, UserConversationActiveCursor{}, false, err
+		return nil, ConversationActiveCursor{}, false, err
 	}
 	var after KeyParts
-	if cursor != (UserConversationActiveCursor{}) {
-		after = KeyParts{String(uid), Int64Desc(cursor.ActiveAt), String(cursor.ChannelID), Int64Ordered(cursor.ChannelType)}
+	if cursor != (ConversationActiveCursor{}) {
+		after = KeyParts{String(uid), Uint64(uint64(kind)), Int64Desc(cursor.ActiveAt), String(cursor.ChannelID), Int64Ordered(cursor.ChannelType)}
 	}
-	rows, next, done, err := conversationTable.ScanIndex(ctx, s, conversationActiveIndexID, KeyParts{String(uid)}, after, limit)
+	rows, next, done, err := conversationTable.ScanIndex(ctx, s, conversationActiveIndexID, conversationActivePrefixParts(kind, uid), after, limit)
 	if err != nil {
-		return nil, UserConversationActiveCursor{}, false, err
+		return nil, ConversationActiveCursor{}, false, err
 	}
 	nextCursor := cursor
-	if len(next) >= 4 {
-		nextCursor = UserConversationActiveCursor{ActiveAt: next[1].I64, ChannelID: next[2].S, ChannelType: next[3].I64}
+	if len(next) >= 5 {
+		nextCursor = ConversationActiveCursor{ActiveAt: next[2].I64, ChannelID: next[3].S, ChannelType: next[4].I64}
 	} else if len(rows) > 0 {
 		last := rows[len(rows)-1]
-		nextCursor = UserConversationActiveCursor{ActiveAt: last.ActiveAt, ChannelID: last.ChannelID, ChannelType: last.ChannelType}
+		nextCursor = ConversationActiveCursor{ActiveAt: last.ActiveAt, ChannelID: last.ChannelID, ChannelType: last.ChannelType}
 	}
 	return rows, nextCursor, done, nil
 }
 
-// ListUserConversationStatePage returns primary rows in stable key order.
-func (s *Shard) ListUserConversationStatePage(ctx context.Context, uid string, cursor ConversationCursor, limit int) ([]UserConversationState, ConversationCursor, bool, error) {
+// ListConversationStatePage returns primary rows in stable key order.
+func (s *Shard) ListConversationStatePage(ctx context.Context, kind ConversationKind, uid string, cursor ConversationCursor, limit int) ([]ConversationState, ConversationCursor, bool, error) {
 	if err := s.check(ctx); err != nil {
+		return nil, ConversationCursor{}, false, err
+	}
+	if err := validateConversationKind(kind); err != nil {
 		return nil, ConversationCursor{}, false, err
 	}
 	if err := validateConversationUID(uid); err != nil {
@@ -407,15 +429,15 @@ func (s *Shard) ListUserConversationStatePage(ctx context.Context, uid string, c
 	}
 	var after KeyParts
 	if cursor != (ConversationCursor{}) {
-		after = KeyParts{String(uid), String(cursor.ChannelID), Int64Ordered(cursor.ChannelType)}
+		after = KeyParts{String(uid), Uint64(uint64(kind)), String(cursor.ChannelID), Int64Ordered(cursor.ChannelType)}
 	}
-	rows, next, done, err := conversationTable.scanPrimaryPrefixStrict(ctx, s, KeyParts{String(uid)}, after, limit)
+	rows, next, done, err := conversationTable.scanPrimaryPrefixStrict(ctx, s, conversationPrimaryPrefixParts(kind, uid), after, limit)
 	if err != nil {
 		return nil, ConversationCursor{}, false, err
 	}
 	nextCursor := cursor
-	if len(next) >= 3 {
-		nextCursor = ConversationCursor{ChannelID: next[1].S, ChannelType: next[2].I64}
+	if len(next) >= 4 {
+		nextCursor = ConversationCursor{ChannelID: next[2].S, ChannelType: next[3].I64}
 	} else if len(rows) > 0 {
 		last := rows[len(rows)-1]
 		nextCursor = ConversationCursor{ChannelID: last.ChannelID, ChannelType: last.ChannelType}
@@ -423,53 +445,76 @@ func (s *Shard) ListUserConversationStatePage(ctx context.Context, uid string, c
 	return rows, nextCursor, done, nil
 }
 
-func (s *Shard) getUserConversationStateByKey(ctx context.Context, key []byte, uid, channelID string, channelType int64) (UserConversationState, bool, error) {
-	return conversationTable.Get(ctx, s, KeyParts{String(uid), String(channelID), Int64Ordered(channelType)})
+func (s *Shard) getConversationStateByKey(ctx context.Context, key []byte, kind ConversationKind, uid, channelID string, channelType int64) (ConversationState, bool, error) {
+	return conversationTable.Get(ctx, s, conversationPrimaryKeyParts(kind, uid, channelID, channelType))
 }
 
-func (s *Shard) stageUserConversationState(batch *engine.Batch, primaryKey []byte, existing UserConversationState, exists bool, next UserConversationState) error {
-	pk := KeyParts{String(next.UID), String(next.ChannelID), Int64Ordered(next.ChannelType)}
+func (s *Shard) stageConversationState(batch *engine.Batch, primaryKey []byte, existing ConversationState, exists bool, next ConversationState) error {
+	pk := conversationPrimaryKeyParts(next.Kind, next.UID, next.ChannelID, next.ChannelType)
 	if exists {
 		if err := conversationTable.stageDeleteIndexEntries(batch, s.hashSlot, existing, pk); err != nil {
 			return err
 		}
 	}
-	value := encodeUserConversationValue(next)
+	value := encodeConversationStateValue(next)
 	if err := batch.Set(primaryKey, value); err != nil {
 		return err
 	}
 	return conversationTable.stagePutIndexEntries(batch, s.hashSlot, next, pk, value)
 }
 
-// stageUserConversationStateWithOverlay stages a user conversation row and exposes it to later batch operations.
-func (s *Shard) stageUserConversationStateWithOverlay(state *batchCommitState, batch *engine.Batch, primaryKey []byte, existing UserConversationState, exists bool, next UserConversationState) error {
-	if err := s.stageUserConversationState(batch, primaryKey, existing, exists, next); err != nil {
+// stageConversationStateWithOverlay stages a user conversation row and exposes it to later batch operations.
+func (s *Shard) stageConversationStateWithOverlay(state *batchCommitState, batch *engine.Batch, primaryKey []byte, existing ConversationState, exists bool, next ConversationState) error {
+	if err := s.stageConversationState(batch, primaryKey, existing, exists, next); err != nil {
 		return err
 	}
-	value := encodeUserConversationValue(next)
+	value := encodeConversationStateValue(next)
 	state.tableRows[string(primaryKey)] = tableRowOverlay{value: append([]byte(nil), value...), exists: true}
 	return nil
 }
 
 func conversationPrimaryFromActiveIndexParts(parts KeyParts) (KeyParts, bool) {
-	if len(parts) != 4 {
+	if len(parts) != 5 {
 		return nil, false
 	}
-	return KeyParts{parts[0], parts[2], parts[3]}, true
+	return KeyParts{parts[0], parts[1], parts[3], parts[4]}, true
 }
 
-func validateUserConversationState(state UserConversationState) error {
+func validateConversationState(state ConversationState) error {
+	if err := validateConversationKind(state.Kind); err != nil {
+		return err
+	}
 	if err := validateConversationUID(state.UID); err != nil {
 		return err
 	}
 	return validateConversationKey(ConversationKey{ChannelID: state.ChannelID, ChannelType: state.ChannelType})
 }
 
-func validateUserConversationDelete(req UserConversationDelete) error {
+func validateConversationDelete(req ConversationDelete) error {
+	if err := validateConversationKind(req.Kind); err != nil {
+		return err
+	}
 	if err := validateConversationUID(req.UID); err != nil {
 		return err
 	}
 	return validateConversationKey(ConversationKey{ChannelID: req.ChannelID, ChannelType: req.ChannelType})
+}
+
+func validateConversationActivePatch(patch ConversationActivePatch) error {
+	if err := validateConversationKind(patch.Kind); err != nil {
+		return err
+	}
+	if err := validateConversationUID(patch.UID); err != nil {
+		return err
+	}
+	return validateConversationKey(ConversationKey{ChannelID: patch.ChannelID, ChannelType: patch.ChannelType})
+}
+
+func validateConversationKind(kind ConversationKind) error {
+	if kind == 0 {
+		return dberrors.ErrInvalidArgument
+	}
+	return nil
 }
 
 func validateConversationUID(uid string) error {
@@ -490,8 +535,8 @@ func validateConversationCursor(cursor ConversationCursor) error {
 	return validateConversationKey(ConversationKey{ChannelID: cursor.ChannelID, ChannelType: cursor.ChannelType})
 }
 
-func validateUserConversationActiveCursor(cursor UserConversationActiveCursor) error {
-	if cursor == (UserConversationActiveCursor{}) {
+func validateConversationActiveCursor(cursor ConversationActiveCursor) error {
+	if cursor == (ConversationActiveCursor{}) {
 		return nil
 	}
 	if cursor.ActiveAt <= 0 || cursor.ChannelID == "" {
@@ -507,8 +552,9 @@ func validateConversationLimit(limit int) error {
 	return nil
 }
 
-func mergeUserConversationState(existing, next UserConversationState) UserConversationState {
+func mergeConversationState(existing, next ConversationState) ConversationState {
 	next.UID = existing.UID
+	next.Kind = existing.Kind
 	next.ChannelID = existing.ChannelID
 	next.ChannelType = existing.ChannelType
 	if next.ReadSeq < existing.ReadSeq {
@@ -524,6 +570,18 @@ func mergeUserConversationState(existing, next UserConversationState) UserConver
 		next.UpdatedAt = existing.UpdatedAt
 	}
 	return next
+}
+
+func conversationPrimaryPrefixParts(kind ConversationKind, uid string) KeyParts {
+	return KeyParts{String(uid), Uint64(uint64(kind))}
+}
+
+func conversationPrimaryKeyParts(kind ConversationKind, uid, channelID string, channelType int64) KeyParts {
+	return KeyParts{String(uid), Uint64(uint64(kind)), String(channelID), Int64Ordered(channelType)}
+}
+
+func conversationActivePrefixParts(kind ConversationKind, uid string) KeyParts {
+	return KeyParts{String(uid), Uint64(uint64(kind))}
 }
 
 func normalizeConversationKeys(keys []ConversationKey) ([]ConversationKey, error) {
@@ -558,7 +616,7 @@ func encodeConversationValue(readSeq, deletedToSeq uint64, activeAt, updatedAt i
 	return appendValueInt64(value, updatedAt)
 }
 
-func encodeUserConversationValue(state UserConversationState) []byte {
+func encodeConversationStateValue(state ConversationState) []byte {
 	value := encodeConversationValue(state.ReadSeq, state.DeletedToSeq, state.ActiveAt, state.UpdatedAt)
 	if state.SparseActive {
 		return append(value, 1)
@@ -566,13 +624,14 @@ func encodeUserConversationValue(state UserConversationState) []byte {
 	return append(value, 0)
 }
 
-func decodeUserConversationValue(uid, channelID string, channelType int64, value []byte) (UserConversationState, error) {
-	readSeq, deletedToSeq, activeAt, updatedAt, sparseActive, err := decodeUserConversationValueFields(value)
+func decodeConversationStateValue(uid string, kind ConversationKind, channelID string, channelType int64, value []byte) (ConversationState, error) {
+	readSeq, deletedToSeq, activeAt, updatedAt, sparseActive, err := decodeConversationStateValueFields(value)
 	if err != nil {
-		return UserConversationState{}, err
+		return ConversationState{}, err
 	}
-	return UserConversationState{
+	return ConversationState{
 		UID:          uid,
+		Kind:         kind,
 		ChannelID:    channelID,
 		ChannelType:  channelType,
 		ReadSeq:      readSeq,
@@ -583,7 +642,7 @@ func decodeUserConversationValue(uid, channelID string, channelType int64, value
 	}, nil
 }
 
-func decodeUserConversationValueFields(value []byte) (uint64, uint64, int64, int64, bool, error) {
+func decodeConversationStateValueFields(value []byte) (uint64, uint64, int64, int64, bool, error) {
 	readSeq, deletedToSeq, activeAt, updatedAt, rest, err := decodeConversationValueFields(value)
 	if err != nil {
 		return 0, 0, 0, 0, false, err

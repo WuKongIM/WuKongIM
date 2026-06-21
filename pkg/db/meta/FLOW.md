@@ -39,15 +39,14 @@ Current flow:
    fence state with a runtime-backed primary row and key-aware rowcodec value;
    typed methods keep monotonic upserts, guards, and retention semantics, while
    page scans use runtime primary-key order and cursor bounds.
-13. User and CMD conversation tables use the table runtime for primary rows,
-   primary-prefix pages, active-index maintenance, and active scans; their typed
-   methods keep merge, hide, clear, and read-advance business semantics. User
-   conversation rows are UID-owned active-index rows. `SparseActive` marks rows
-   whose `ActiveAt` is a low-frequency ordering anchor, and active list pages use
-   `(uid, active_at desc, channel_id, channel_type)` cursors. User conversation
-   active patches can also carry monotonic read/delete floors, so activity
-   advancement, sparse-active changes, delete-barrier checks, and floor merges
-   happen in one shard-locked mutation.
+13. Conversation state uses one kind-aware table for ordinary and CMD logical
+   views. Rows are keyed by `(uid, kind, channel_id, channel_type)`, active scans
+   use `(uid, kind, active_at desc, channel_id, channel_type)`, and `kind` stays
+   out of the encoded row value. Typed methods keep merge, hide, clear, and
+   read-advance semantics isolated per kind. `SparseActive` marks rows whose
+   `ActiveAt` is a low-frequency ordering anchor, and active patches can carry
+   monotonic read/delete floors so activity advancement, sparse-active changes,
+   delete-barrier checks, and floor merges happen in one shard-locked mutation.
 14. Channel migration tasks use the table runtime for primary rows and terminal
    indexes while keeping the active-task index custom because its legacy value
    stores the active `task_id`; guarded task/runtime-meta mutations keep

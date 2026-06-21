@@ -97,8 +97,6 @@ func InspectScan(ctx context.Context, db *MetaDB, req InspectScanRequest) (Inspe
 		return inspectScanTable(ctx, db, req, slots, channelLatestTable, inspectChannelLatestRow)
 	case "conversation":
 		return inspectScanTable(ctx, db, req, slots, conversationTable, inspectConversationRow)
-	case "cmd_conversation":
-		return inspectScanTable(ctx, db, req, slots, cmdConversationTable, inspectCMDConversationRow)
 	case "plugin_binding":
 		return inspectScanTable(ctx, db, req, slots, pluginBindingTable, inspectPluginBindingRow)
 	case "channel_migration":
@@ -520,9 +518,10 @@ func inspectChannelLatestRow(latest ChannelLatest) InspectRow {
 	}
 }
 
-func inspectConversationRow(state UserConversationState) InspectRow {
+func inspectConversationRow(state ConversationState) InspectRow {
 	return InspectRow{
 		"uid":            state.UID,
+		"kind":           uint8(state.Kind),
 		"channel_id":     state.ChannelID,
 		"channel_type":   state.ChannelType,
 		"read_seq":       state.ReadSeq,
@@ -530,18 +529,6 @@ func inspectConversationRow(state UserConversationState) InspectRow {
 		"active_at":      state.ActiveAt,
 		"updated_at":     state.UpdatedAt,
 		"sparse_active":  state.SparseActive,
-	}
-}
-
-func inspectCMDConversationRow(state CMDConversationState) InspectRow {
-	return InspectRow{
-		"uid":            state.UID,
-		"channel_id":     state.ChannelID,
-		"channel_type":   state.ChannelType,
-		"read_seq":       state.ReadSeq,
-		"deleted_to_seq": state.DeletedToSeq,
-		"active_at":      state.ActiveAt,
-		"updated_at":     state.UpdatedAt,
 	}
 }
 
