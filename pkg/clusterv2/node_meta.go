@@ -11,8 +11,8 @@ import (
 )
 
 const (
-	maxChannelLatestBatchItems    = 512
-	maxUserConversationBatchItems = 512
+	maxChannelLatestBatchItems = 512
+	maxConversationBatchItems  = 512
 )
 
 // CreateUserMetadata persists durable UID metadata through Slot ownership.
@@ -398,8 +398,8 @@ func (n *Node) ListUserChannelMembershipPage(ctx context.Context, uid string, af
 	return n.defaultSlotMetaDB.ForHashSlot(route.HashSlot).ListUserChannelMembershipPage(ctx, uid, after, limit)
 }
 
-// UpsertUserConversationStatesBatch persists UID-owned conversation states through Slot ownership.
-func (n *Node) UpsertUserConversationStatesBatch(ctx context.Context, states []metadb.UserConversationState) error {
+// UpsertConversationStatesBatch persists UID-owned conversation states through Slot ownership.
+func (n *Node) UpsertConversationStatesBatch(ctx context.Context, states []metadb.ConversationState) error {
 	if err := ctxErr(ctx); err != nil {
 		return err
 	}
@@ -409,19 +409,19 @@ func (n *Node) UpsertUserConversationStatesBatch(ctx context.Context, states []m
 	if len(states) == 0 {
 		return nil
 	}
-	groups, err := n.groupUserConversationStatesBySlot(states)
+	groups, err := n.groupConversationStatesBySlot(states)
 	if err != nil {
 		return err
 	}
-	for _, slotID := range sortedUserConversationSlotIDs(groups) {
+	for _, slotID := range sortedConversationSlotIDs(groups) {
 		group := groups[slotID]
-		for start := 0; start < len(group.stateItems); start += maxUserConversationBatchItems {
-			end := start + maxUserConversationBatchItems
+		for start := 0; start < len(group.stateItems); start += maxConversationBatchItems {
+			end := start + maxConversationBatchItems
 			if end > len(group.stateItems) {
 				end = len(group.stateItems)
 			}
 			items := group.stateItems[start:end]
-			command, err := metafsm.EncodeUpsertUserConversationStateBatchCommandChecked(n.cfg.Slots.HashSlotCount, items)
+			command, err := metafsm.EncodeUpsertConversationStateBatchCommandChecked(n.cfg.Slots.HashSlotCount, items)
 			if err != nil {
 				return err
 			}
@@ -445,8 +445,8 @@ func (n *Node) UpsertUserConversationStatesBatch(ctx context.Context, states []m
 	return nil
 }
 
-// HideUserConversationsBatch persists UID-owned conversation delete barriers through Slot ownership.
-func (n *Node) HideUserConversationsBatch(ctx context.Context, deletes []metadb.UserConversationDelete) error {
+// HideConversationsBatch persists UID-owned conversation delete barriers through Slot ownership.
+func (n *Node) HideConversationsBatch(ctx context.Context, deletes []metadb.ConversationDelete) error {
 	if err := ctxErr(ctx); err != nil {
 		return err
 	}
@@ -456,19 +456,19 @@ func (n *Node) HideUserConversationsBatch(ctx context.Context, deletes []metadb.
 	if len(deletes) == 0 {
 		return nil
 	}
-	groups, err := n.groupUserConversationDeletesBySlot(deletes)
+	groups, err := n.groupConversationDeletesBySlot(deletes)
 	if err != nil {
 		return err
 	}
-	for _, slotID := range sortedUserConversationSlotIDs(groups) {
+	for _, slotID := range sortedConversationSlotIDs(groups) {
 		group := groups[slotID]
-		for start := 0; start < len(group.deleteItems); start += maxUserConversationBatchItems {
-			end := start + maxUserConversationBatchItems
+		for start := 0; start < len(group.deleteItems); start += maxConversationBatchItems {
+			end := start + maxConversationBatchItems
 			if end > len(group.deleteItems) {
 				end = len(group.deleteItems)
 			}
 			items := group.deleteItems[start:end]
-			command, err := metafsm.EncodeHideUserConversationBatchCommandChecked(n.cfg.Slots.HashSlotCount, items)
+			command, err := metafsm.EncodeHideConversationBatchCommandChecked(n.cfg.Slots.HashSlotCount, items)
 			if err != nil {
 				return err
 			}
@@ -492,8 +492,8 @@ func (n *Node) HideUserConversationsBatch(ctx context.Context, deletes []metadb.
 	return nil
 }
 
-// TouchUserConversationActiveAtBatch persists UID-owned active-at patches through Slot ownership.
-func (n *Node) TouchUserConversationActiveAtBatch(ctx context.Context, patches []metadb.UserConversationActivePatch) error {
+// TouchConversationActiveAtBatch persists UID-owned active-at patches through Slot ownership.
+func (n *Node) TouchConversationActiveAtBatch(ctx context.Context, patches []metadb.ConversationActivePatch) error {
 	if err := ctxErr(ctx); err != nil {
 		return err
 	}
@@ -504,19 +504,19 @@ func (n *Node) TouchUserConversationActiveAtBatch(ctx context.Context, patches [
 	if len(patches) == 0 {
 		return nil
 	}
-	groups, err := n.groupUserConversationPatchesBySlot(patches)
+	groups, err := n.groupConversationPatchesBySlot(patches)
 	if err != nil {
 		return err
 	}
-	for _, slotID := range sortedUserConversationSlotIDs(groups) {
+	for _, slotID := range sortedConversationSlotIDs(groups) {
 		group := groups[slotID]
-		for start := 0; start < len(group.patchItems); start += maxUserConversationBatchItems {
-			end := start + maxUserConversationBatchItems
+		for start := 0; start < len(group.patchItems); start += maxConversationBatchItems {
+			end := start + maxConversationBatchItems
 			if end > len(group.patchItems) {
 				end = len(group.patchItems)
 			}
 			items := group.patchItems[start:end]
-			command, err := metafsm.EncodeTouchUserConversationActiveAtBatchCommandChecked(n.cfg.Slots.HashSlotCount, items)
+			command, err := metafsm.EncodeTouchConversationActiveAtBatchCommandChecked(n.cfg.Slots.HashSlotCount, items)
 			if err != nil {
 				return err
 			}
@@ -540,33 +540,33 @@ func (n *Node) TouchUserConversationActiveAtBatch(ctx context.Context, patches [
 	return nil
 }
 
-// GetUserConversationState reads one UID-owned conversation row from Slot metadata storage.
-func (n *Node) GetUserConversationState(ctx context.Context, uid, channelID string, channelType int64) (metadb.UserConversationState, bool, error) {
+// GetConversationState reads one UID-owned conversation row from Slot metadata storage.
+func (n *Node) GetConversationState(ctx context.Context, kind metadb.ConversationKind, uid, channelID string, channelType int64) (metadb.ConversationState, bool, error) {
 	if err := ctxErr(ctx); err != nil {
-		return metadb.UserConversationState{}, false, err
+		return metadb.ConversationState{}, false, err
 	}
 	if err := n.ensureForeground(); err != nil {
-		return metadb.UserConversationState{}, false, err
+		return metadb.ConversationState{}, false, err
 	}
 	if n.defaultSlotMetaDB == nil {
-		return metadb.UserConversationState{}, false, ErrNotStarted
+		return metadb.ConversationState{}, false, ErrNotStarted
 	}
 	route, err := n.RouteKey(uid)
 	if err != nil {
-		return metadb.UserConversationState{}, false, err
+		return metadb.ConversationState{}, false, err
 	}
-	state, err := n.defaultSlotMetaDB.ForHashSlot(route.HashSlot).GetUserConversationState(ctx, uid, channelID, channelType)
+	state, err := n.defaultSlotMetaDB.ForHashSlot(route.HashSlot).GetConversationState(ctx, kind, uid, channelID, channelType)
 	if err != nil {
 		if errors.Is(err, metadb.ErrNotFound) {
-			return metadb.UserConversationState{}, false, nil
+			return metadb.ConversationState{}, false, nil
 		}
-		return metadb.UserConversationState{}, false, err
+		return metadb.ConversationState{}, false, err
 	}
 	return state, true, nil
 }
 
-// GetUserConversationStates reads UID-owned conversation rows from Slot metadata storage.
-func (n *Node) GetUserConversationStates(ctx context.Context, keys []metadb.UserConversationKey) (map[metadb.UserConversationKey]metadb.UserConversationState, error) {
+// GetConversationStates reads UID-owned conversation rows from Slot metadata storage.
+func (n *Node) GetConversationStates(ctx context.Context, keys []metadb.ConversationStateKey) (map[metadb.ConversationStateKey]metadb.ConversationState, error) {
 	if err := ctxErr(ctx); err != nil {
 		return nil, err
 	}
@@ -576,13 +576,13 @@ func (n *Node) GetUserConversationStates(ctx context.Context, keys []metadb.User
 	if n.defaultSlotMetaDB == nil {
 		return nil, ErrNotStarted
 	}
-	states := make(map[metadb.UserConversationKey]metadb.UserConversationState, len(keys))
+	states := make(map[metadb.ConversationStateKey]metadb.ConversationState, len(keys))
 	for _, key := range keys {
 		route, err := n.RouteKey(key.UID)
 		if err != nil {
 			return nil, err
 		}
-		state, err := n.defaultSlotMetaDB.ForHashSlot(route.HashSlot).GetUserConversationState(ctx, key.UID, key.ChannelID, key.ChannelType)
+		state, err := n.defaultSlotMetaDB.ForHashSlot(route.HashSlot).GetConversationState(ctx, key.Kind, key.UID, key.ChannelID, key.ChannelType)
 		if err != nil {
 			if errors.Is(err, metadb.ErrNotFound) {
 				continue
@@ -594,22 +594,22 @@ func (n *Node) GetUserConversationStates(ctx context.Context, keys []metadb.User
 	return states, nil
 }
 
-// ListUserConversationActivePage reads UID-owned active conversation rows from Slot metadata storage.
-func (n *Node) ListUserConversationActivePage(ctx context.Context, uid string, after metadb.UserConversationActiveCursor, limit int) ([]metadb.UserConversationState, metadb.UserConversationActiveCursor, bool, error) {
+// ListConversationActivePage reads UID-owned active conversation rows from Slot metadata storage.
+func (n *Node) ListConversationActivePage(ctx context.Context, kind metadb.ConversationKind, uid string, after metadb.ConversationActiveCursor, limit int) ([]metadb.ConversationState, metadb.ConversationActiveCursor, bool, error) {
 	if err := ctxErr(ctx); err != nil {
-		return nil, metadb.UserConversationActiveCursor{}, false, err
+		return nil, metadb.ConversationActiveCursor{}, false, err
 	}
 	if err := n.ensureForeground(); err != nil {
-		return nil, metadb.UserConversationActiveCursor{}, false, err
+		return nil, metadb.ConversationActiveCursor{}, false, err
 	}
 	if n.defaultSlotMetaDB == nil {
-		return nil, metadb.UserConversationActiveCursor{}, false, ErrNotStarted
+		return nil, metadb.ConversationActiveCursor{}, false, ErrNotStarted
 	}
 	route, err := n.RouteKey(uid)
 	if err != nil {
-		return nil, metadb.UserConversationActiveCursor{}, false, err
+		return nil, metadb.ConversationActiveCursor{}, false, err
 	}
-	return n.defaultSlotMetaDB.ForHashSlot(route.HashSlot).ListUserConversationActivePage(ctx, uid, after, limit)
+	return n.defaultSlotMetaDB.ForHashSlot(route.HashSlot).ListConversationActivePage(ctx, kind, uid, after, limit)
 }
 
 type channelLatestSlotBatch struct {
@@ -617,11 +617,11 @@ type channelLatestSlotBatch struct {
 	items         []metafsm.ChannelLatestBatchItem
 }
 
-type userConversationSlotBatch struct {
+type conversationSlotBatch struct {
 	routeHashSlot uint16
-	stateItems    []metafsm.UserConversationStateBatchItem
-	patchItems    []metafsm.UserConversationActivePatchBatchItem
-	deleteItems   []metafsm.UserConversationDeleteBatchItem
+	stateItems    []metafsm.ConversationStateBatchItem
+	patchItems    []metafsm.ConversationActivePatchBatchItem
+	deleteItems   []metafsm.ConversationDeleteBatchItem
 }
 
 func (n *Node) groupChannelLatestBySlot(latestRows []metadb.ChannelLatest) (map[uint32]channelLatestSlotBatch, error) {
@@ -656,8 +656,8 @@ func sortedChannelLatestSlotIDs(groups map[uint32]channelLatestSlotBatch) []uint
 	return slotIDs
 }
 
-func (n *Node) groupUserConversationStatesBySlot(states []metadb.UserConversationState) (map[uint32]userConversationSlotBatch, error) {
-	groups := make(map[uint32]userConversationSlotBatch)
+func (n *Node) groupConversationStatesBySlot(states []metadb.ConversationState) (map[uint32]conversationSlotBatch, error) {
+	groups := make(map[uint32]conversationSlotBatch)
 	for _, state := range states {
 		if state.UID == "" || state.ChannelID == "" || state.ChannelType == 0 {
 			return nil, metadb.ErrInvalidArgument
@@ -670,7 +670,7 @@ func (n *Node) groupUserConversationStatesBySlot(states []metadb.UserConversatio
 		if len(group.stateItems) == 0 && len(group.patchItems) == 0 && len(group.deleteItems) == 0 {
 			group.routeHashSlot = route.HashSlot
 		}
-		group.stateItems = append(group.stateItems, metafsm.UserConversationStateBatchItem{
+		group.stateItems = append(group.stateItems, metafsm.ConversationStateBatchItem{
 			HashSlot: route.HashSlot,
 			State:    state,
 		})
@@ -679,8 +679,8 @@ func (n *Node) groupUserConversationStatesBySlot(states []metadb.UserConversatio
 	return groups, nil
 }
 
-func (n *Node) groupUserConversationPatchesBySlot(patches []metadb.UserConversationActivePatch) (map[uint32]userConversationSlotBatch, error) {
-	groups := make(map[uint32]userConversationSlotBatch)
+func (n *Node) groupConversationPatchesBySlot(patches []metadb.ConversationActivePatch) (map[uint32]conversationSlotBatch, error) {
+	groups := make(map[uint32]conversationSlotBatch)
 	for _, patch := range patches {
 		if patch.UID == "" || patch.ChannelID == "" || patch.ChannelType == 0 {
 			return nil, metadb.ErrInvalidArgument
@@ -693,7 +693,7 @@ func (n *Node) groupUserConversationPatchesBySlot(patches []metadb.UserConversat
 		if len(group.stateItems) == 0 && len(group.patchItems) == 0 && len(group.deleteItems) == 0 {
 			group.routeHashSlot = route.HashSlot
 		}
-		group.patchItems = append(group.patchItems, metafsm.UserConversationActivePatchBatchItem{
+		group.patchItems = append(group.patchItems, metafsm.ConversationActivePatchBatchItem{
 			HashSlot: route.HashSlot,
 			Patch:    patch,
 		})
@@ -702,8 +702,8 @@ func (n *Node) groupUserConversationPatchesBySlot(patches []metadb.UserConversat
 	return groups, nil
 }
 
-func (n *Node) groupUserConversationDeletesBySlot(deletes []metadb.UserConversationDelete) (map[uint32]userConversationSlotBatch, error) {
-	groups := make(map[uint32]userConversationSlotBatch)
+func (n *Node) groupConversationDeletesBySlot(deletes []metadb.ConversationDelete) (map[uint32]conversationSlotBatch, error) {
+	groups := make(map[uint32]conversationSlotBatch)
 	for _, req := range deletes {
 		if req.UID == "" || req.ChannelID == "" || req.ChannelType == 0 {
 			return nil, metadb.ErrInvalidArgument
@@ -716,7 +716,7 @@ func (n *Node) groupUserConversationDeletesBySlot(deletes []metadb.UserConversat
 		if len(group.stateItems) == 0 && len(group.patchItems) == 0 && len(group.deleteItems) == 0 {
 			group.routeHashSlot = route.HashSlot
 		}
-		group.deleteItems = append(group.deleteItems, metafsm.UserConversationDeleteBatchItem{
+		group.deleteItems = append(group.deleteItems, metafsm.ConversationDeleteBatchItem{
 			HashSlot: route.HashSlot,
 			Delete:   req,
 		})
@@ -725,7 +725,7 @@ func (n *Node) groupUserConversationDeletesBySlot(deletes []metadb.UserConversat
 	return groups, nil
 }
 
-func sortedUserConversationSlotIDs(groups map[uint32]userConversationSlotBatch) []uint32 {
+func sortedConversationSlotIDs(groups map[uint32]conversationSlotBatch) []uint32 {
 	slotIDs := make([]uint32, 0, len(groups))
 	for slotID := range groups {
 		slotIDs = append(slotIDs, slotID)

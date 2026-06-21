@@ -171,21 +171,24 @@ slot and submit one Slot proposal per touched hash slot. Reads such as
 `ListUserChannelMembershipPage` also route by UID and read the current local
 metadata shard for that UID hash slot.
 
-UID-owned conversation rows are the active recent-conversation path.
-`UpsertUserConversationStatesBatch`, `TouchUserConversationActiveAtBatch`, and
-`HideUserConversationsBatch` route each row by `RouteKey(uid)`, group rows by
+Kind-aware UID-owned conversation rows are the active recent-conversation path.
+`UpsertConversationStatesBatch`, `TouchConversationActiveAtBatch`, and
+`HideConversationsBatch` route each row by `RouteKey(uid)`, group rows by
 physical Slot, and submit bounded Slot FSM commands that carry each row's real
-UID hash slot. `TouchUserConversationActiveAtBatch` marks those proposals as
-background admission work because they are retryable active-cache projection
-flushes; user-facing UID metadata writes keep the default foreground class.
-The Slot FSM then applies each conversation state, active patch, or delete
-barrier to that UID-owned hash slot, preserving `SparseActive`, read/delete
-visibility floors, and the active ordering anchor in one metadata mutation.
-Hide requests advance `DeletedToSeq` and clear `active_at` through the same
-Slot ownership path. Reads such as
-`ListUserConversationActivePage` route by UID and scan the local conversation
-active index for that UID hash slot with the `(active_at, channel_id,
-channel_type)` cursor. Legacy `channel_latest` remains a channel-owned
+UID hash slot plus its `ConversationKind`. `TouchConversationActiveAtBatch`
+marks those proposals as background admission work because they are retryable
+active-cache projection flushes; user-facing UID metadata writes keep the
+default foreground class. The Slot FSM then applies each conversation state,
+active patch, or delete barrier to that UID-owned hash slot and logical kind,
+preserving `SparseActive`, read/delete visibility floors, and the active
+ordering anchor in one metadata mutation. Hide requests advance `DeletedToSeq`
+and clear `active_at` through the same Slot ownership path. Reads such as
+`GetConversationState`, `GetConversationStates`, and
+`ListConversationActivePage` route by UID and require a
+`ConversationKind` so normal and CMD projections stay isolated. Active pages
+scan the local conversation active index for that UID hash slot and selected
+kind with the `(active_at, channel_id, channel_type)` cursor; kind is part of
+the scan scope, not the cursor. Legacy `channel_latest` remains a channel-owned
 projection for old callers and is not the recent-conversation active path.
 
 ## ChannelV2 Flow
