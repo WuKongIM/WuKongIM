@@ -5,13 +5,12 @@ import (
 	"sort"
 	"time"
 
-	runtimechannelid "github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
 type syncCandidate struct {
 	key              ConversationKey
-	state            metadb.UserConversationState
+	state            metadb.ConversationState
 	hasState         bool
 	clientLastSeq    uint64
 	overlay          bool
@@ -20,7 +19,7 @@ type syncCandidate struct {
 
 type syncConversationView struct {
 	key              ConversationKey
-	state            metadb.UserConversationState
+	state            metadb.ConversationState
 	displayUpdatedAt int64
 	conversation     SyncConversation
 }
@@ -35,7 +34,7 @@ func (a *App) Sync(ctx context.Context, query SyncQuery) (SyncResult, error) {
 	}
 	limit := normalizeSyncLimit(query.Limit)
 	candidates := make(map[ConversationKey]*syncCandidate)
-	active, err := a.store.ListUserConversationActiveView(ctx, query.UID, metadb.UserConversationActiveCursor{}, a.activeScanLimit)
+	active, err := a.store.ListConversationActiveView(ctx, metadb.ConversationKindNormal, query.UID, metadb.ConversationActiveCursor{}, a.activeScanLimit)
 	if err != nil {
 		return SyncResult{}, err
 	}
@@ -98,7 +97,7 @@ func normalizeSyncLimit(limit int) int {
 	return limit
 }
 
-func addSyncActiveCandidates(states []metadb.UserConversationState, candidates map[ConversationKey]*syncCandidate) {
+func addSyncActiveCandidates(states []metadb.ConversationState, candidates map[ConversationKey]*syncCandidate) {
 	for _, state := range states {
 		key := ConversationKey{ChannelID: state.ChannelID, ChannelType: state.ChannelType}
 		candidate := ensureSyncCandidate(candidates, key)
@@ -119,7 +118,7 @@ func (a *App) addSyncOverlayCandidates(ctx context.Context, query SyncQuery, can
 			candidate.overlay = false
 			continue
 		}
-		state, ok, err := a.stateStore.GetUserConversationState(ctx, query.UID, key.ChannelID, key.ChannelType)
+		state, ok, err := a.stateStore.GetConversationState(ctx, metadb.ConversationKindNormal, query.UID, key.ChannelID, key.ChannelType)
 		if err != nil {
 			return err
 		}
@@ -129,8 +128,9 @@ func (a *App) addSyncOverlayCandidates(ctx context.Context, query SyncQuery, can
 			candidate.overlay = false
 			continue
 		}
-		candidate.state = metadb.UserConversationState{
+		candidate.state = metadb.ConversationState{
 			UID:         query.UID,
+			Kind:        metadb.ConversationKindNormal,
 			ChannelID:   key.ChannelID,
 			ChannelType: key.ChannelType,
 		}
@@ -247,9 +247,6 @@ func filterSyncCandidateKeys(candidates map[ConversationKey]*syncCandidate, excl
 	}
 	keys := make([]ConversationKey, 0, len(candidates))
 	for key := range candidates {
-		if runtimechannelid.IsCommandChannel(key.ChannelID) {
-			continue
-		}
 		if _, ok := blocked[key.ChannelType]; ok {
 			continue
 		}

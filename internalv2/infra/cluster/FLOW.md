@@ -290,18 +290,18 @@ fail the request.
 
 ```text
 conversation list usecase
-  -> ListUserConversationActiveView(uid, active cursor)
-       -> wraps ListUserConversationActivePage(uid, active cursor)
-       -> UID-owned conversation rows routed by UID hash slot
+  -> ListConversationActiveView(normal kind, uid, active cursor)
+       -> wraps ListConversationActivePage(normal kind, uid, active cursor)
+       -> UID-owned normal-kind conversation rows routed by UID hash slot
   -> GetLastVisibleMessages(current page keys)
        -> ReadChannelLastVisible(channel, visible_after_seq)
        -> channel-owned route resolves the ChannelV2 leader
        -> missing channel or no visible message returns no last message for that row
 
 conversation sync usecase
-  -> ListUserConversationActiveView(uid, zero cursor)
+  -> ListConversationActiveView(normal kind, uid, zero cursor)
        -> bounded active working-set scan
-  -> GetUserConversationState(uid, channel)
+  -> GetConversationState(normal kind, uid, channel)
        -> durable UID-owned row for client-known overlay candidates
   -> GetLastVisibleMessages(candidate keys)
        -> newest channel-owned message for sync selection
@@ -310,11 +310,11 @@ conversation sync usecase
        -> channel-owned committed rows used for legacy recents
 
 conversation mutation usecase
-  -> UpsertUserConversationStates(uid-owned read row)
-       -> UpsertUserConversationStatesBatch
+  -> UpsertConversationStates(uid-owned normal-kind read row)
+       -> UpsertConversationStatesBatch
        -> UID-owned Slot metadata propose
-  -> HideUserConversations(uid-owned delete barrier)
-       -> HideUserConversationsBatch
+  -> HideConversations(uid-owned normal-kind delete barrier)
+       -> HideConversationsBatch
        -> UID-owned Slot metadata propose that clears active_at
 ```
 
@@ -370,7 +370,7 @@ ConversationAuthorityClient
        -> set SenderUID only on the sender target's batch
        -> local conversation authority for local groups
        -> access/node Conversation Authority ActiveBatch RPC for remote groups
-  -> ListUserConversationActiveView(uid)
+  -> ListConversationActiveView(kind, uid)
        -> RouteKey(uid)
        -> local conversation authority active view when local
        -> access/node Conversation Authority List RPC when remote

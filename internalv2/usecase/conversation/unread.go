@@ -72,14 +72,15 @@ func (a *App) DeleteConversation(ctx context.Context, cmd DeleteConversationComm
 		}
 		deleteSeq = latestSeq
 	}
-	req := metadb.UserConversationDelete{
+	req := metadb.ConversationDelete{
 		UID:          cmd.UID,
+		Kind:         metadb.ConversationKindNormal,
 		ChannelID:    key.ChannelID,
 		ChannelType:  key.ChannelType,
 		DeletedToSeq: deleteSeq,
 		UpdatedAt:    a.now().UnixNano(),
 	}
-	if err := a.deleteStore.HideUserConversations(ctx, []metadb.UserConversationDelete{req}); err != nil {
+	if err := a.deleteStore.HideConversations(ctx, []metadb.ConversationDelete{req}); err != nil {
 		return fmt.Errorf("conversation: hide conversation: %w", err)
 	}
 	return nil
@@ -119,13 +120,14 @@ func (a *App) advanceReadSeq(ctx context.Context, uid string, key ConversationKe
 	if a.stateStore == nil || a.stateWriter == nil {
 		return ErrStoreRequired
 	}
-	state, ok, err := a.stateStore.GetUserConversationState(ctx, uid, key.ChannelID, key.ChannelType)
+	state, ok, err := a.stateStore.GetConversationState(ctx, metadb.ConversationKindNormal, uid, key.ChannelID, key.ChannelType)
 	if err != nil {
 		return err
 	}
 	if !ok {
-		state = metadb.UserConversationState{
+		state = metadb.ConversationState{
 			UID:         uid,
+			Kind:        metadb.ConversationKindNormal,
 			ChannelID:   key.ChannelID,
 			ChannelType: key.ChannelType,
 		}
@@ -135,7 +137,7 @@ func (a *App) advanceReadSeq(ctx context.Context, uid string, key ConversationKe
 	}
 	state.ReadSeq = target
 	state.UpdatedAt = a.now().UnixNano()
-	if err := a.stateWriter.UpsertUserConversationStates(ctx, []metadb.UserConversationState{state}); err != nil {
+	if err := a.stateWriter.UpsertConversationStates(ctx, []metadb.ConversationState{state}); err != nil {
 		return fmt.Errorf("conversation: upsert unread state: %w", err)
 	}
 	return nil

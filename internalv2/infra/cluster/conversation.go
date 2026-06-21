@@ -14,20 +14,20 @@ import (
 
 // ConversationNode exposes clusterv2 reads needed by conversation lists.
 type ConversationNode interface {
-	ListUserConversationActivePage(context.Context, string, metadb.UserConversationActiveCursor, int) ([]metadb.UserConversationState, metadb.UserConversationActiveCursor, bool, error)
-	GetUserConversationState(context.Context, string, string, int64) (metadb.UserConversationState, bool, error)
+	ListConversationActivePage(context.Context, metadb.ConversationKind, string, metadb.ConversationActiveCursor, int) ([]metadb.ConversationState, metadb.ConversationActiveCursor, bool, error)
+	GetConversationState(context.Context, metadb.ConversationKind, string, string, int64) (metadb.ConversationState, bool, error)
 	ReadChannelLastVisible(context.Context, channelv2.ChannelID, uint64) (channelv2.Message, bool, error)
 	ReadChannelCommitted(context.Context, channelv2.ChannelID, channelstore.ReadCommittedRequest) (channelstore.ReadCommittedResult, error)
 }
 
 // ConversationStateMutationNode exposes clusterv2 read-state writes needed by conversation mutations.
 type ConversationStateMutationNode interface {
-	UpsertUserConversationStatesBatch(context.Context, []metadb.UserConversationState) error
+	UpsertConversationStatesBatch(context.Context, []metadb.ConversationState) error
 }
 
 // ConversationDeleteNode exposes clusterv2 delete-barrier writes needed by conversation mutations.
 type ConversationDeleteNode interface {
-	HideUserConversationsBatch(context.Context, []metadb.UserConversationDelete) error
+	HideConversationsBatch(context.Context, []metadb.ConversationDelete) error
 }
 
 // ConversationStore adapts clusterv2 reads to the conversation usecase ports.
@@ -58,37 +58,37 @@ func NewConversationStore(node ConversationNode, options ...ConversationStoreOpt
 	return &ConversationStore{node: node, maxLastMessageConcurrency: opts.MaxLastMessageConcurrency}
 }
 
-// ListUserConversationActivePage reads UID-owned active conversation rows.
-func (s *ConversationStore) ListUserConversationActivePage(ctx context.Context, uid string, after metadb.UserConversationActiveCursor, limit int) ([]metadb.UserConversationState, metadb.UserConversationActiveCursor, bool, error) {
+// ListConversationActivePage reads UID-owned active conversation rows.
+func (s *ConversationStore) ListConversationActivePage(ctx context.Context, kind metadb.ConversationKind, uid string, after metadb.ConversationActiveCursor, limit int) ([]metadb.ConversationState, metadb.ConversationActiveCursor, bool, error) {
 	if s == nil || s.node == nil {
-		return nil, metadb.UserConversationActiveCursor{}, true, metadb.ErrNotFound
+		return nil, metadb.ConversationActiveCursor{}, true, metadb.ErrNotFound
 	}
-	rows, cursor, done, err := s.node.ListUserConversationActivePage(ctx, uid, after, limit)
+	rows, cursor, done, err := s.node.ListConversationActivePage(ctx, kind, uid, after, limit)
 	if err != nil {
-		return nil, metadb.UserConversationActiveCursor{}, false, err
+		return nil, metadb.ConversationActiveCursor{}, false, err
 	}
-	return append([]metadb.UserConversationState(nil), rows...), cursor, done, nil
+	return append([]metadb.ConversationState(nil), rows...), cursor, done, nil
 }
 
-// ListUserConversationActiveView wraps the current clusterv2 active-page facade for the usecase contract.
-func (s *ConversationStore) ListUserConversationActiveView(ctx context.Context, uid string, after metadb.UserConversationActiveCursor, limit int) (conversationusecase.ActiveViewPage, error) {
-	rows, cursor, done, err := s.ListUserConversationActivePage(ctx, uid, after, limit)
+// ListConversationActiveView wraps the current clusterv2 active-page facade for the usecase contract.
+func (s *ConversationStore) ListConversationActiveView(ctx context.Context, kind metadb.ConversationKind, uid string, after metadb.ConversationActiveCursor, limit int) (conversationusecase.ActiveViewPage, error) {
+	rows, cursor, done, err := s.ListConversationActivePage(ctx, kind, uid, after, limit)
 	if err != nil {
 		return conversationusecase.ActiveViewPage{}, err
 	}
 	return conversationusecase.ActiveViewPage{Rows: rows, Cursor: cursor, Done: done}, nil
 }
 
-// GetUserConversationState reads one durable UID-owned conversation row.
-func (s *ConversationStore) GetUserConversationState(ctx context.Context, uid, channelID string, channelType int64) (metadb.UserConversationState, bool, error) {
+// GetConversationState reads one durable UID-owned conversation row.
+func (s *ConversationStore) GetConversationState(ctx context.Context, kind metadb.ConversationKind, uid, channelID string, channelType int64) (metadb.ConversationState, bool, error) {
 	if s == nil || s.node == nil {
-		return metadb.UserConversationState{}, false, metadb.ErrNotFound
+		return metadb.ConversationState{}, false, metadb.ErrNotFound
 	}
-	return s.node.GetUserConversationState(ctx, uid, channelID, channelType)
+	return s.node.GetConversationState(ctx, kind, uid, channelID, channelType)
 }
 
-// UpsertUserConversationStates writes durable UID-owned conversation read state.
-func (s *ConversationStore) UpsertUserConversationStates(ctx context.Context, states []metadb.UserConversationState) error {
+// UpsertConversationStates writes durable UID-owned conversation read state.
+func (s *ConversationStore) UpsertConversationStates(ctx context.Context, states []metadb.ConversationState) error {
 	if len(states) == 0 {
 		return nil
 	}
@@ -96,11 +96,11 @@ func (s *ConversationStore) UpsertUserConversationStates(ctx context.Context, st
 	if !ok {
 		return metadb.ErrNotFound
 	}
-	return node.UpsertUserConversationStatesBatch(ctx, cloneUserConversationStates(states))
+	return node.UpsertConversationStatesBatch(ctx, cloneConversationStates(states))
 }
 
-// HideUserConversations writes durable UID-owned conversation delete barriers.
-func (s *ConversationStore) HideUserConversations(ctx context.Context, reqs []metadb.UserConversationDelete) error {
+// HideConversations writes durable UID-owned conversation delete barriers.
+func (s *ConversationStore) HideConversations(ctx context.Context, reqs []metadb.ConversationDelete) error {
 	if len(reqs) == 0 {
 		return nil
 	}
@@ -108,7 +108,7 @@ func (s *ConversationStore) HideUserConversations(ctx context.Context, reqs []me
 	if !ok {
 		return metadb.ErrNotFound
 	}
-	return node.HideUserConversationsBatch(ctx, cloneUserConversationDeletes(reqs))
+	return node.HideConversationsBatch(ctx, cloneConversationDeletes(reqs))
 }
 
 func (s *ConversationStore) stateMutationNode() (ConversationStateMutationNode, bool) {
@@ -289,12 +289,12 @@ func syncMessagesFromChannel(messages []channelv2.Message) []conversationusecase
 	return out
 }
 
-func cloneUserConversationStates(states []metadb.UserConversationState) []metadb.UserConversationState {
-	return append([]metadb.UserConversationState(nil), states...)
+func cloneConversationStates(states []metadb.ConversationState) []metadb.ConversationState {
+	return append([]metadb.ConversationState(nil), states...)
 }
 
-func cloneUserConversationDeletes(reqs []metadb.UserConversationDelete) []metadb.UserConversationDelete {
-	return append([]metadb.UserConversationDelete(nil), reqs...)
+func cloneConversationDeletes(reqs []metadb.ConversationDelete) []metadb.ConversationDelete {
+	return append([]metadb.ConversationDelete(nil), reqs...)
 }
 
 func isMissingLastMessage(err error) bool {

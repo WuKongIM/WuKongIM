@@ -16,8 +16,8 @@ func TestSyncUsesActiveRowsClientKnownOverlayAndRecents(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NormalizePersonChannel() error = %v", err)
 	}
-	store.active = []metadb.UserConversationState{
-		{UID: "u1", ChannelID: "g1", ChannelType: 2, ReadSeq: 5, ActiveAt: 300, UpdatedAt: 50},
+	store.active = []metadb.ConversationState{
+		{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "g1", ChannelType: 2, ReadSeq: 5, ActiveAt: 300, UpdatedAt: 50},
 	}
 	store.states[metadb.ConversationKey{ChannelID: "g1", ChannelType: 2}] = store.active[0]
 	store.latest[ConversationKey{ChannelID: "g1", ChannelType: 2}] = LastMessage{
@@ -56,10 +56,10 @@ func TestSyncUsesActiveRowsClientKnownOverlayAndRecents(t *testing.T) {
 	if !reflect.DeepEqual(got.Conversations, want) {
 		t.Fatalf("conversations = %#v, want %#v", got.Conversations, want)
 	}
-	if got, want := store.activeCalls, []activeViewCall{{uid: "u1", after: metadb.UserConversationActiveCursor{}, limit: defaultSyncActiveScanLimit}}; !reflect.DeepEqual(got, want) {
+	if got, want := store.activeCalls, []activeViewCall{{kind: metadb.ConversationKindNormal, uid: "u1", after: metadb.ConversationActiveCursor{}, limit: defaultSyncActiveScanLimit}}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("active calls = %#v, want %#v", got, want)
 	}
-	if got, want := store.stateCalls, []stateCall{{uid: "u1", channelID: personChannel, channelType: 1}}; !reflect.DeepEqual(got, want) {
+	if got, want := store.stateCalls, []stateCall{{kind: metadb.ConversationKindNormal, uid: "u1", channelID: personChannel, channelType: 1}}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("state calls = %#v, want %#v", got, want)
 	}
 	if got, want := store.recentBatchCalls, [][]ConversationKey{{{ChannelID: personChannel, ChannelType: 1}, {ChannelID: "g1", ChannelType: 2}}}; !reflect.DeepEqual(got, want) {
@@ -67,14 +67,13 @@ func TestSyncUsesActiveRowsClientKnownOverlayAndRecents(t *testing.T) {
 	}
 }
 
-func TestSyncFiltersUnreadDeletedExcludedAndCommandConversations(t *testing.T) {
+func TestSyncFiltersUnreadDeletedAndExcludedConversations(t *testing.T) {
 	store := newConversationSyncStore()
-	store.active = []metadb.UserConversationState{
-		{UID: "u1", ChannelID: "unread", ChannelType: 2, ReadSeq: 3, ActiveAt: 400},
-		{UID: "u1", ChannelID: "read", ChannelType: 2, ReadSeq: 10, ActiveAt: 300},
-		{UID: "u1", ChannelID: "deleted", ChannelType: 2, DeletedToSeq: 9, ActiveAt: 200},
-		{UID: "u1", ChannelID: "excluded", ChannelType: 3, ActiveAt: 100},
-		{UID: "u1", ChannelID: runtimechannelid.ToCommandChannel("cmd"), ChannelType: 2, ActiveAt: 90},
+	store.active = []metadb.ConversationState{
+		{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "unread", ChannelType: 2, ReadSeq: 3, ActiveAt: 400},
+		{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "read", ChannelType: 2, ReadSeq: 10, ActiveAt: 300},
+		{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "deleted", ChannelType: 2, DeletedToSeq: 9, ActiveAt: 200},
+		{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "excluded", ChannelType: 3, ActiveAt: 100},
 	}
 	for _, row := range store.active {
 		store.states[metadb.ConversationKey{ChannelID: row.ChannelID, ChannelType: row.ChannelType}] = row
@@ -102,18 +101,38 @@ func TestSyncFiltersUnreadDeletedExcludedAndCommandConversations(t *testing.T) {
 	}
 }
 
+func TestSyncReadsOnlyNormalKindRows(t *testing.T) {
+	store := newConversationSyncStore()
+	store.active = []metadb.ConversationState{
+		{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "chat", ChannelType: 2, ReadSeq: 1, ActiveAt: 100},
+		{UID: "u1", Kind: metadb.ConversationKindCMD, ChannelID: runtimechannelid.ToCommandChannel("chat"), ChannelType: 2, ReadSeq: 1, ActiveAt: 200},
+	}
+	store.latest[ConversationKey{ChannelID: "chat", ChannelType: 2}] = LastMessage{MessageSeq: 3, ServerTimestampMS: 1000}
+
+	app := New(Options{Store: store, StateStore: store, Messages: store})
+	got, err := app.Sync(context.Background(), SyncQuery{UID: "u1"})
+	if err != nil {
+		t.Fatalf("Sync(): %v", err)
+	}
+	if gotIDs := syncConversationIDs(got.Conversations); !reflect.DeepEqual(gotIDs, []string{"chat"}) {
+		t.Fatalf("conversation IDs = %#v, want normal kind only", gotIDs)
+	}
+}
+
 func TestSyncReportsOverlayAndRecentLoadShape(t *testing.T) {
 	store := newConversationSyncStore()
-	store.active = []metadb.UserConversationState{{
+	store.active = []metadb.ConversationState{{
 		UID:         "u1",
+		Kind:        metadb.ConversationKindNormal,
 		ChannelID:   "active",
 		ChannelType: 2,
 		ActiveAt:    20,
 	}}
 	store.latest[ConversationKey{ChannelID: "active", ChannelType: 2}] = LastMessage{MessageSeq: 4, ServerTimestampMS: 4000}
 	store.latest[ConversationKey{ChannelID: "overlay", ChannelType: 2}] = LastMessage{MessageSeq: 9, ServerTimestampMS: 9000}
-	store.states[metadb.ConversationKey{ChannelID: "durable-overlay", ChannelType: 2}] = metadb.UserConversationState{
+	store.states[metadb.ConversationKey{ChannelID: "durable-overlay", ChannelType: 2}] = metadb.ConversationState{
 		UID:         "u1",
+		Kind:        metadb.ConversationKindNormal,
 		ChannelID:   "durable-overlay",
 		ChannelType: 2,
 	}
@@ -146,8 +165,8 @@ func TestSyncReportsOverlayAndRecentLoadShape(t *testing.T) {
 }
 
 type conversationSyncStore struct {
-	active           []metadb.UserConversationState
-	states           map[metadb.ConversationKey]metadb.UserConversationState
+	active           []metadb.ConversationState
+	states           map[metadb.ConversationKey]metadb.ConversationState
 	latest           map[ConversationKey]LastMessage
 	recents          map[ConversationKey][]SyncMessage
 	activeCalls      []activeViewCall
@@ -157,6 +176,7 @@ type conversationSyncStore struct {
 }
 
 type stateCall struct {
+	kind        metadb.ConversationKind
 	uid         string
 	channelID   string
 	channelType int64
@@ -164,17 +184,17 @@ type stateCall struct {
 
 func newConversationSyncStore() *conversationSyncStore {
 	return &conversationSyncStore{
-		states:  make(map[metadb.ConversationKey]metadb.UserConversationState),
+		states:  make(map[metadb.ConversationKey]metadb.ConversationState),
 		latest:  make(map[ConversationKey]LastMessage),
 		recents: make(map[ConversationKey][]SyncMessage),
 	}
 }
 
-func (s *conversationSyncStore) ListUserConversationActiveView(_ context.Context, uid string, after metadb.UserConversationActiveCursor, limit int) (ActiveViewPage, error) {
-	s.activeCalls = append(s.activeCalls, activeViewCall{uid: uid, after: after, limit: limit})
-	rows := make([]metadb.UserConversationState, 0, len(s.active))
+func (s *conversationSyncStore) ListConversationActiveView(_ context.Context, kind metadb.ConversationKind, uid string, after metadb.ConversationActiveCursor, limit int) (ActiveViewPage, error) {
+	s.activeCalls = append(s.activeCalls, activeViewCall{kind: kind, uid: uid, after: after, limit: limit})
+	rows := make([]metadb.ConversationState, 0, len(s.active))
 	for _, row := range s.active {
-		if row.UID == uid {
+		if row.Kind == kind && row.UID == uid {
 			rows = append(rows, row)
 		}
 	}
@@ -184,11 +204,11 @@ func (s *conversationSyncStore) ListUserConversationActiveView(_ context.Context
 	return ActiveViewPage{Rows: rows, Done: true}, nil
 }
 
-func (s *conversationSyncStore) GetUserConversationState(_ context.Context, uid, channelID string, channelType int64) (metadb.UserConversationState, bool, error) {
-	s.stateCalls = append(s.stateCalls, stateCall{uid: uid, channelID: channelID, channelType: channelType})
+func (s *conversationSyncStore) GetConversationState(_ context.Context, kind metadb.ConversationKind, uid, channelID string, channelType int64) (metadb.ConversationState, bool, error) {
+	s.stateCalls = append(s.stateCalls, stateCall{kind: kind, uid: uid, channelID: channelID, channelType: channelType})
 	state, ok := s.states[metadb.ConversationKey{ChannelID: channelID, ChannelType: channelType}]
-	if !ok {
-		return metadb.UserConversationState{}, false, nil
+	if !ok || state.Kind != kind {
+		return metadb.ConversationState{}, false, nil
 	}
 	return state, true, nil
 }

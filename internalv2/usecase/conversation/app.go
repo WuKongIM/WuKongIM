@@ -26,22 +26,22 @@ var (
 
 // Store pages authoritative UID-owned conversation active rows.
 type Store interface {
-	ListUserConversationActiveView(ctx context.Context, uid string, after metadb.UserConversationActiveCursor, limit int) (ActiveViewPage, error)
+	ListConversationActiveView(ctx context.Context, kind metadb.ConversationKind, uid string, after metadb.ConversationActiveCursor, limit int) (ActiveViewPage, error)
 }
 
 // StateStore reads durable UID-owned conversation rows outside the active view window.
 type StateStore interface {
-	GetUserConversationState(ctx context.Context, uid, channelID string, channelType int64) (metadb.UserConversationState, bool, error)
+	GetConversationState(ctx context.Context, kind metadb.ConversationKind, uid, channelID string, channelType int64) (metadb.ConversationState, bool, error)
 }
 
 // StateMutationStore persists durable UID-owned conversation read state.
 type StateMutationStore interface {
-	UpsertUserConversationStates(ctx context.Context, states []metadb.UserConversationState) error
+	UpsertConversationStates(ctx context.Context, states []metadb.ConversationState) error
 }
 
 // DeleteStore persists durable UID-owned conversation delete barriers.
 type DeleteStore interface {
-	HideUserConversations(ctx context.Context, reqs []metadb.UserConversationDelete) error
+	HideConversations(ctx context.Context, reqs []metadb.ConversationDelete) error
 }
 
 // LastVisibleMessageRequest identifies one channel tail read and its visibility floor.
@@ -136,7 +136,7 @@ func (a *App) List(ctx context.Context, req ListRequest) (ListResult, error) {
 		return ListResult{}, err
 	}
 	limit := normalizeListLimit(req.Limit)
-	page, err := a.store.ListUserConversationActiveView(ctx, req.UID, req.Cursor.toMeta(), limit+1)
+	page, err := a.store.ListConversationActiveView(ctx, metadb.ConversationKindNormal, req.UID, req.Cursor.toMeta(), limit+1)
 	if err != nil {
 		return ListResult{}, err
 	}
@@ -183,18 +183,18 @@ func normalizeListLimit(limit int) int {
 	return limit
 }
 
-func (c Cursor) toMeta() metadb.UserConversationActiveCursor {
+func (c Cursor) toMeta() metadb.ConversationActiveCursor {
 	if c == (Cursor{}) {
-		return metadb.UserConversationActiveCursor{}
+		return metadb.ConversationActiveCursor{}
 	}
-	return metadb.UserConversationActiveCursor{
+	return metadb.ConversationActiveCursor{
 		ActiveAt:    c.ActiveAt,
 		ChannelID:   c.ChannelID,
 		ChannelType: c.ChannelType,
 	}
 }
 
-func cursorFromMeta(cursor metadb.UserConversationActiveCursor) Cursor {
+func cursorFromMeta(cursor metadb.ConversationActiveCursor) Cursor {
 	return Cursor{
 		ActiveAt:    cursor.ActiveAt,
 		ChannelID:   cursor.ChannelID,
@@ -202,15 +202,15 @@ func cursorFromMeta(cursor metadb.UserConversationActiveCursor) Cursor {
 	}
 }
 
-func cursorFromRow(row metadb.UserConversationState) metadb.UserConversationActiveCursor {
-	return metadb.UserConversationActiveCursor{
+func cursorFromRow(row metadb.ConversationState) metadb.ConversationActiveCursor {
+	return metadb.ConversationActiveCursor{
 		ActiveAt:    row.ActiveAt,
 		ChannelID:   row.ChannelID,
 		ChannelType: row.ChannelType,
 	}
 }
 
-func lastVisibleMessageRequests(rows []metadb.UserConversationState) []LastVisibleMessageRequest {
+func lastVisibleMessageRequests(rows []metadb.ConversationState) []LastVisibleMessageRequest {
 	requests := make([]LastVisibleMessageRequest, 0, len(rows))
 	for _, row := range rows {
 		requests = append(requests, LastVisibleMessageRequest{
@@ -222,7 +222,7 @@ func lastVisibleMessageRequests(rows []metadb.UserConversationState) []LastVisib
 	return requests
 }
 
-func conversationsFromRows(rows []metadb.UserConversationState, lastMessages map[metadb.ConversationKey]LastMessage) []Conversation {
+func conversationsFromRows(rows []metadb.ConversationState, lastMessages map[metadb.ConversationKey]LastMessage) []Conversation {
 	items := make([]Conversation, 0, len(rows))
 	for _, row := range rows {
 		key := metadb.ConversationKey{ChannelID: row.ChannelID, ChannelType: row.ChannelType}
@@ -248,7 +248,7 @@ func conversationsFromRows(rows []metadb.UserConversationState, lastMessages map
 	return items
 }
 
-func unreadCount(row metadb.UserConversationState, lastMessageSeq uint64) uint64 {
+func unreadCount(row metadb.ConversationState, lastMessageSeq uint64) uint64 {
 	floor := row.ReadSeq
 	if row.DeletedToSeq > floor {
 		floor = row.DeletedToSeq

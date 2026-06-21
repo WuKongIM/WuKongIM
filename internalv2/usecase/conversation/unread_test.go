@@ -19,8 +19,9 @@ func TestClearUnreadAdvancesReadSeqToLatestMessage(t *testing.T) {
 		t.Fatalf("ClearUnread() error = %v", err)
 	}
 
-	want := []metadb.UserConversationState{{
+	want := []metadb.ConversationState{{
 		UID:         "u1",
+		Kind:        metadb.ConversationKindNormal,
 		ChannelID:   "g1",
 		ChannelType: 2,
 		ReadSeq:     12,
@@ -56,8 +57,9 @@ func TestDeleteConversationHidesThroughLatestMessage(t *testing.T) {
 		t.Fatalf("DeleteConversation() error = %v", err)
 	}
 
-	want := []metadb.UserConversationDelete{{
+	want := []metadb.ConversationDelete{{
 		UID:          "u1",
+		Kind:         metadb.ConversationKindNormal,
 		ChannelID:    "g1",
 		ChannelType:  2,
 		DeletedToSeq: 12,
@@ -69,27 +71,31 @@ func TestDeleteConversationHidesThroughLatestMessage(t *testing.T) {
 }
 
 type conversationMutationStore struct {
-	states  map[ConversationKey]metadb.UserConversationState
+	states  map[ConversationKey]metadb.ConversationState
 	latest  map[metadb.ConversationKey]LastMessage
-	upserts []metadb.UserConversationState
-	deletes []metadb.UserConversationDelete
+	upserts []metadb.ConversationState
+	deletes []metadb.ConversationDelete
 }
 
 func newConversationMutationStore() *conversationMutationStore {
 	return &conversationMutationStore{
-		states: make(map[ConversationKey]metadb.UserConversationState),
+		states: make(map[ConversationKey]metadb.ConversationState),
 		latest: make(map[metadb.ConversationKey]LastMessage),
 	}
 }
 
-func (s *conversationMutationStore) ListUserConversationActiveView(context.Context, string, metadb.UserConversationActiveCursor, int) (ActiveViewPage, error) {
+func (s *conversationMutationStore) ListConversationActiveView(context.Context, metadb.ConversationKind, string, metadb.ConversationActiveCursor, int) (ActiveViewPage, error) {
 	return ActiveViewPage{Done: true}, nil
 }
 
-func (s *conversationMutationStore) GetUserConversationState(_ context.Context, uid, channelID string, channelType int64) (metadb.UserConversationState, bool, error) {
+func (s *conversationMutationStore) GetConversationState(_ context.Context, kind metadb.ConversationKind, uid, channelID string, channelType int64) (metadb.ConversationState, bool, error) {
 	state, ok := s.states[ConversationKey{ChannelID: channelID, ChannelType: channelType}]
+	if ok && state.Kind != kind {
+		return metadb.ConversationState{}, false, nil
+	}
 	if ok {
 		state.UID = uid
+		state.Kind = kind
 	}
 	return state, ok, nil
 }
@@ -106,12 +112,12 @@ func (s *conversationMutationStore) GetLastVisibleMessages(_ context.Context, re
 	return out, nil
 }
 
-func (s *conversationMutationStore) UpsertUserConversationStates(_ context.Context, states []metadb.UserConversationState) error {
+func (s *conversationMutationStore) UpsertConversationStates(_ context.Context, states []metadb.ConversationState) error {
 	s.upserts = append(s.upserts, states...)
 	return nil
 }
 
-func (s *conversationMutationStore) HideUserConversations(_ context.Context, reqs []metadb.UserConversationDelete) error {
+func (s *conversationMutationStore) HideConversations(_ context.Context, reqs []metadb.ConversationDelete) error {
 	s.deletes = append(s.deletes, reqs...)
 	return nil
 }

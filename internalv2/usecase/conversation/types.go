@@ -241,9 +241,10 @@ type ActivePatch struct {
 }
 
 // ToMetaPatch converts the activity candidate to the durable DB patch command.
-func (p ActivePatch) ToMetaPatch() metadb.UserConversationActivePatch {
-	return metadb.UserConversationActivePatch{
+func (p ActivePatch) ToMetaPatch() metadb.ConversationActivePatch {
+	return metadb.ConversationActivePatch{
 		UID:             p.UID,
+		Kind:            metadb.ConversationKindNormal,
 		ChannelID:       p.ChannelID,
 		ChannelType:     p.ChannelType,
 		ReadSeq:         p.ReadSeq,
@@ -259,9 +260,9 @@ func (p ActivePatch) ToMetaPatch() metadb.UserConversationActivePatch {
 // ActiveViewPage is one authoritative active-row page before last-message hydration.
 type ActiveViewPage struct {
 	// Rows contains DB rows merged with unflushed authority cache rows.
-	Rows []metadb.UserConversationState
+	Rows []metadb.ConversationState
 	// Cursor is the active index cursor after the last returned row.
-	Cursor metadb.UserConversationActiveCursor
+	Cursor metadb.ConversationActiveCursor
 	// Done reports that no further rows are available in the authoritative view.
 	Done bool
 }
