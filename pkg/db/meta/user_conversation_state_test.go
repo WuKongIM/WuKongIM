@@ -683,6 +683,38 @@ func TestShardStoreListsUserConversationActivePage(t *testing.T) {
 	}
 }
 
+func TestShardStoreConversationKindMethods(t *testing.T) {
+	db, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("Open(): %v", err)
+	}
+	defer func() {
+		if err := db.Close(); err != nil {
+			t.Fatalf("Close(): %v", err)
+		}
+	}()
+	ctx := context.Background()
+	shard := db.ForHashSlot(4)
+
+	if err := shard.UpsertConversationState(ctx, ConversationState{UID: "u1", Kind: ConversationKindNormal, ChannelID: "g1", ChannelType: 2, ReadSeq: 1}); err != nil {
+		t.Fatalf("UpsertConversationState(normal): %v", err)
+	}
+	if err := shard.UpsertConversationState(ctx, ConversationState{UID: "u1", Kind: ConversationKindCMD, ChannelID: "g1", ChannelType: 2, ReadSeq: 7}); err != nil {
+		t.Fatalf("UpsertConversationState(cmd): %v", err)
+	}
+	normal, err := shard.GetConversationState(ctx, ConversationKindNormal, "u1", "g1", 2)
+	if err != nil {
+		t.Fatalf("GetConversationState(normal): %v", err)
+	}
+	cmd, err := shard.GetConversationState(ctx, ConversationKindCMD, "u1", "g1", 2)
+	if err != nil {
+		t.Fatalf("GetConversationState(cmd): %v", err)
+	}
+	if normal.ReadSeq != 1 || cmd.ReadSeq != 7 {
+		t.Fatalf("shard store states = normal:%+v cmd:%+v", normal, cmd)
+	}
+}
+
 func TestWriteBatchUserConversationUpsertUsesReadYourWrites(t *testing.T) {
 	db, err := Open(t.TempDir())
 	if err != nil {
