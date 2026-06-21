@@ -2,6 +2,7 @@ package delivery
 
 import (
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -17,11 +18,22 @@ type AckTrackerOptions struct {
 	MaxPendingPerSession int
 }
 
+// AckBindResult describes the outcome of binding one pending recvack.
+type AckBindResult struct {
+	// Bound reports whether the pending ack was stored.
+	Bound bool
+	// Added reports whether this bind created a new pending ack entry.
+	Added bool
+	// PendingCount is the owner-local pending ack count after the mutation.
+	PendingCount int
+}
+
 // AckTracker tracks delivered messages that still need recipient recvacks.
 type AckTracker struct {
 	now                  func() int64
 	maxPendingPerSession int
 	shards               []ackTrackerShard
+	pendingCount         atomic.Int64
 }
 
 type ackTrackerShard struct {
@@ -67,8 +79,16 @@ func NewAckTracker(opts AckTrackerOptions) *AckTracker {
 
 // Bind records a delivered message that is waiting for a recipient recvack.
 func (t *AckTracker) Bind(pending PendingRecvAck) bool {
+	return t.BindResult(pending).Bound
+}
+
+// BindResult records a delivered message and reports whether it changed the pending set.
+func (t *AckTracker) BindResult(pending PendingRecvAck) AckBindResult {
 	if t == nil || pending.UID == "" || pending.SessionID == 0 || pending.MessageID == 0 {
-		return false
+		if t == nil {
+			return AckBindResult{}
+		}
+		return AckBindResult{PendingCount: t.PendingCount()}
 	}
 	if pending.DeliveredAt == 0 {
 		pending.DeliveredAt = t.now()
@@ -80,18 +100,20 @@ func (t *AckTracker) Bind(pending PendingRecvAck) bool {
 	messageKey := ackMessageKey{uid: pending.UID, sessionID: pending.SessionID, messageID: pending.MessageID}
 	sessionKey := ackSessionKey{uid: pending.UID, sessionID: pending.SessionID}
 	messages := shard.bySession[sessionKey]
+	_, existed := shard.byMessage[messageKey]
+	if t.maxPendingPerSession > 0 && !existed && len(messages) >= t.maxPendingPerSession {
+		return AckBindResult{PendingCount: int(t.pendingCount.Load())}
+	}
 	if messages == nil {
 		messages = make(map[uint64]struct{})
 		shard.bySession[sessionKey] = messages
 	}
-	if t.maxPendingPerSession > 0 && len(messages) >= t.maxPendingPerSession {
-		if _, exists := messages[pending.MessageID]; !exists {
-			return false
-		}
-	}
 	shard.byMessage[messageKey] = pending
 	messages[pending.MessageID] = struct{}{}
-	return true
+	if !existed {
+		return AckBindResult{Bound: true, Added: true, PendingCount: int(t.pendingCount.Add(1))}
+	}
+	return AckBindResult{Bound: true, PendingCount: int(t.pendingCount.Load())}
 }
 
 // Ack clears and returns a pending recvack matched by UID, session ID, and message ID.
@@ -110,6 +132,7 @@ func (t *AckTracker) Ack(ack Recvack) (PendingRecvAck, bool) {
 	}
 	delete(shard.byMessage, messageKey)
 	t.deleteSessionMessageLocked(shard, ackSessionKey{uid: ack.UID, sessionID: ack.SessionID}, ack.MessageID)
+	t.pendingCount.Add(-1)
 	return pending, true
 }
 
@@ -136,6 +159,9 @@ func (t *AckTracker) SessionClosed(uid string, sessionID uint64) []PendingRecvAc
 		}
 	}
 	delete(shard.bySession, sessionKey)
+	if len(removed) > 0 {
+		t.pendingCount.Add(-int64(len(removed)))
+	}
 	return removed
 }
 
@@ -150,6 +176,7 @@ func (t *AckTracker) Expire(ttl time.Duration) []PendingRecvAck {
 	for i := range t.shards {
 		shard := &t.shards[i]
 		shard.mu.Lock()
+		removedInShard := 0
 		for messageKey, pending := range shard.byMessage {
 			if pending.DeliveredAt > cutoff {
 				continue
@@ -157,6 +184,10 @@ func (t *AckTracker) Expire(ttl time.Duration) []PendingRecvAck {
 			removed = append(removed, pending)
 			delete(shard.byMessage, messageKey)
 			t.deleteSessionMessageLocked(shard, ackSessionKey{uid: messageKey.uid, sessionID: messageKey.sessionID}, messageKey.messageID)
+			removedInShard++
+		}
+		if removedInShard > 0 {
+			t.pendingCount.Add(-int64(removedInShard))
 		}
 		shard.mu.Unlock()
 	}
@@ -168,14 +199,7 @@ func (t *AckTracker) PendingCount() int {
 	if t == nil {
 		return 0
 	}
-	var count int
-	for i := range t.shards {
-		shard := &t.shards[i]
-		shard.mu.Lock()
-		count += len(shard.byMessage)
-		shard.mu.Unlock()
-	}
-	return count
+	return int(t.pendingCount.Load())
 }
 
 func (t *AckTracker) shard(sessionID uint64) *ackTrackerShard {
