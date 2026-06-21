@@ -14,8 +14,9 @@ func TestConversationAuthorityCodecRoundTripAdmit(t *testing.T) {
 	req := conversationAuthorityRequest{
 		Op:     conversationOpAdmitPatches,
 		Target: conversationusecase.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 3, LeaderTerm: 6, ConfigEpoch: 7, RouteRevision: 4, AuthorityEpoch: 5},
+		Kind:   metadb.ConversationKindNormal,
 		Patches: []conversationusecase.ActivePatch{{
-			UID: "u1", ChannelID: "g1", ChannelType: 2, ReadSeq: 7, DeletedToSeq: 8, ActiveAt: 100, UpdatedAt: 101, SparseActive: true, MessageSeq: 9,
+			UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "g1", ChannelType: 2, ReadSeq: 7, DeletedToSeq: 8, ActiveAt: 100, UpdatedAt: 101, SparseActive: true, MessageSeq: 9,
 		}},
 	}
 	body, err := encodeConversationAuthorityRequest(req)
@@ -35,7 +36,9 @@ func TestConversationAuthorityCodecRoundTripActiveBatch(t *testing.T) {
 	req := conversationAuthorityRequest{
 		Op:     conversationOpAdmitActiveBatch,
 		Target: conversationusecase.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 3, LeaderTerm: 6, ConfigEpoch: 7, RouteRevision: 4, AuthorityEpoch: 5},
+		Kind:   metadb.ConversationKindNormal,
 		ActiveBatch: conversationactive.ActiveBatch{
+			Kind:        metadb.ConversationKindCMD,
 			SenderUID:   "sender",
 			ChannelID:   "g1",
 			ChannelType: 2,
@@ -64,8 +67,8 @@ func TestConversationAuthorityCodecRoundTripListResponse(t *testing.T) {
 	resp := conversationAuthorityResponse{
 		Status: conversationRPCStatusOK,
 		Page: conversationusecase.ActiveViewPage{
-			Rows:   []metadb.UserConversationState{{UID: "u1", ChannelID: "g1", ChannelType: 2, ReadSeq: 7, DeletedToSeq: 8, ActiveAt: 100, UpdatedAt: 101, SparseActive: true}},
-			Cursor: metadb.UserConversationActiveCursor{ActiveAt: 100, ChannelID: "g1", ChannelType: 2},
+			Rows:   []metadb.ConversationState{{UID: "u1", Kind: metadb.ConversationKindCMD, ChannelID: "g1____cmd", ChannelType: 2, ReadSeq: 7, DeletedToSeq: 8, ActiveAt: 100, UpdatedAt: 101, SparseActive: true}},
+			Cursor: metadb.ConversationActiveCursor{ActiveAt: 100, ChannelID: "g1____cmd", ChannelType: 2},
 			Done:   true,
 		},
 	}
@@ -79,6 +82,28 @@ func TestConversationAuthorityCodecRoundTripListResponse(t *testing.T) {
 	}
 	if !reflect.DeepEqual(got, resp) {
 		t.Fatalf("decoded = %#v, want %#v", got, resp)
+	}
+}
+
+func TestConversationAuthorityCodecRoundTripListRequestPreservesKind(t *testing.T) {
+	req := conversationAuthorityRequest{
+		Op:     conversationOpList,
+		Target: conversationusecase.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 3, LeaderTerm: 6, ConfigEpoch: 7, RouteRevision: 4, AuthorityEpoch: 5},
+		Kind:   metadb.ConversationKindCMD,
+		UID:    "u1",
+		After:  metadb.ConversationActiveCursor{ActiveAt: 100, ChannelID: "g1____cmd", ChannelType: 2},
+		Limit:  20,
+	}
+	body, err := encodeConversationAuthorityRequest(req)
+	if err != nil {
+		t.Fatalf("encodeConversationAuthorityRequest() error = %v", err)
+	}
+	got, err := decodeConversationAuthorityRequest(body)
+	if err != nil {
+		t.Fatalf("decodeConversationAuthorityRequest() error = %v", err)
+	}
+	if !reflect.DeepEqual(got, req) {
+		t.Fatalf("decoded = %#v, want %#v", got, req)
 	}
 }
 
@@ -101,7 +126,7 @@ func TestConversationAuthorityCodecRoundTripDrainResponse(t *testing.T) {
 }
 
 func TestConversationAuthorityCodecRejectsMalformedPayloads(t *testing.T) {
-	validReq, err := encodeConversationAuthorityRequest(conversationAuthorityRequest{Op: conversationOpList, Limit: 1})
+	validReq, err := encodeConversationAuthorityRequest(conversationAuthorityRequest{Op: conversationOpList, Kind: metadb.ConversationKindNormal, Limit: 1})
 	if err != nil {
 		t.Fatalf("encodeConversationAuthorityRequest() error = %v", err)
 	}
@@ -169,7 +194,8 @@ func conversationAuthorityRequestWithOpAndLimit(op string, limit int64) []byte {
 	dst = appendString(dst, op)
 	dst = appendConversationRouteTarget(dst, conversationusecase.RouteTarget{})
 	dst = appendString(dst, "u1")
-	dst = appendConversationActiveCursor(dst, metadb.UserConversationActiveCursor{})
+	dst = appendConversationKind(dst, metadb.ConversationKindNormal)
+	dst = appendConversationActiveCursor(dst, metadb.ConversationActiveCursor{})
 	dst = appendVarint(dst, limit)
 	return appendUvarint(dst, 0)
 }
@@ -187,10 +213,12 @@ func conversationAuthorityRequestWithPatchBool(flag byte) []byte {
 	dst = appendString(dst, conversationOpAdmitPatches)
 	dst = appendConversationRouteTarget(dst, conversationusecase.RouteTarget{})
 	dst = appendString(dst, "")
-	dst = appendConversationActiveCursor(dst, metadb.UserConversationActiveCursor{})
+	dst = appendConversationKind(dst, metadb.ConversationKindNormal)
+	dst = appendConversationActiveCursor(dst, metadb.ConversationActiveCursor{})
 	dst = appendVarint(dst, 1)
 	dst = appendUvarint(dst, 1)
 	dst = appendString(dst, "u1")
+	dst = appendConversationKind(dst, metadb.ConversationKindNormal)
 	dst = appendString(dst, "g1")
 	dst = appendVarint(dst, 2)
 	dst = appendUvarint(dst, 0)
@@ -207,6 +235,7 @@ func conversationAuthorityResponseWithStateBool(flag byte) []byte {
 	dst = appendString(dst, conversationRPCStatusOK)
 	dst = appendUvarint(dst, 1)
 	dst = appendString(dst, "u1")
+	dst = appendConversationKind(dst, metadb.ConversationKindNormal)
 	dst = appendString(dst, "g1")
 	dst = appendVarint(dst, 2)
 	dst = appendUvarint(dst, 7)
@@ -214,7 +243,7 @@ func conversationAuthorityResponseWithStateBool(flag byte) []byte {
 	dst = appendVarint(dst, 100)
 	dst = appendVarint(dst, 101)
 	dst = append(dst, flag)
-	dst = appendConversationActiveCursor(dst, metadb.UserConversationActiveCursor{})
+	dst = appendConversationActiveCursor(dst, metadb.ConversationActiveCursor{})
 	dst = appendConversationBool(dst, true)
 	return appendString(dst, "")
 }

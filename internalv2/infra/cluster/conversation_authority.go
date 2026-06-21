@@ -126,15 +126,15 @@ func (c *ConversationAuthorityClient) AdmitActiveBatch(ctx context.Context, batc
 	return conversationusecase.ErrRouteNotReady
 }
 
-// ListUserConversationActiveView reads one UID's active view from the current authority leader.
-func (c *ConversationAuthorityClient) ListUserConversationActiveView(ctx context.Context, uid string, after metadb.UserConversationActiveCursor, limit int) (conversationusecase.ActiveViewPage, error) {
+// ListConversationActiveView reads one UID's active view from the current authority leader.
+func (c *ConversationAuthorityClient) ListConversationActiveView(ctx context.Context, kind metadb.ConversationKind, uid string, after metadb.ConversationActiveCursor, limit int) (conversationusecase.ActiveViewPage, error) {
 	var page conversationusecase.ActiveViewPage
 	err := c.withFreshTarget(ctx, uid, func(target conversationusecase.RouteTarget) error {
 		authority, err := c.authorityForTarget(target)
 		if err != nil {
 			return err
 		}
-		page, err = authority.ListUserConversationActiveViewForTarget(ctx, target, uid, after, limit)
+		page, err = authority.ListConversationActiveViewForTarget(ctx, target, kind, uid, after, limit)
 		return err
 	})
 	if err != nil {
@@ -254,6 +254,7 @@ func ensureConversationActiveBatchGroup(groups *[]conversationAuthorityActiveBat
 	*groups = append(*groups, conversationAuthorityActiveBatchGroup{
 		target: target,
 		batch: conversationactive.ActiveBatch{
+			Kind:        source.Kind,
 			ChannelID:   source.ChannelID,
 			ChannelType: source.ChannelType,
 			MessageSeq:  source.MessageSeq,
@@ -412,11 +413,11 @@ func (a remoteConversationAuthority) AdmitActiveBatch(ctx context.Context, targe
 	return mapConversationRouteError(a.client.AdmitConversationActiveBatch(ctx, a.nodeID, target, batch))
 }
 
-func (a remoteConversationAuthority) ListUserConversationActiveViewForTarget(ctx context.Context, target conversationusecase.RouteTarget, uid string, after metadb.UserConversationActiveCursor, limit int) (conversationusecase.ActiveViewPage, error) {
+func (a remoteConversationAuthority) ListConversationActiveViewForTarget(ctx context.Context, target conversationusecase.RouteTarget, kind metadb.ConversationKind, uid string, after metadb.ConversationActiveCursor, limit int) (conversationusecase.ActiveViewPage, error) {
 	if a.client == nil || a.nodeID == 0 {
 		return conversationusecase.ActiveViewPage{}, conversationusecase.ErrRouteNotReady
 	}
-	page, err := a.client.ListConversations(ctx, a.nodeID, target, uid, after, limit)
+	page, err := a.client.ListConversations(ctx, a.nodeID, target, kind, uid, after, limit)
 	return page, mapConversationRouteError(err)
 }
 

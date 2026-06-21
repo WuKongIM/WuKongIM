@@ -569,7 +569,7 @@ func (a *App) wireChannelAppend(nodeID uint64) error {
 				opts.RecipientAuthorityResolver = channelAppendRecipientResolver{node: recipientNode}
 			}
 			if a.conversationAuthorityClient != nil {
-				opts.ConversationActiveAdmitter = a.conversationAuthorityClient
+				opts.ConversationActiveAdmitter = normalConversationActiveAdmitter{next: a.conversationAuthorityClient}
 			}
 			var observer deliveryMessageObserver
 			if _, topEnabled := a.topProvider.(*topCollector); a.cfg.Delivery.Enabled || a.metrics != nil || topEnabled {

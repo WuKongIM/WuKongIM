@@ -220,9 +220,10 @@ func TestConversationListAPIPaginatesWithNextCursor(t *testing.T) {
 	time.Sleep(2 * time.Millisecond)
 	postAppJSON(t, handler, "/message/send", `{"from_uid":"sender","channel_id":"room-conversation-page-new","channel_type":2,"client_msg_no":"client-page-new","payload":"bmV3"}`, http.StatusOK)
 
-	upsertAppConversationStates(t, node, []metadb.UserConversationState{
+	upsertAppConversationStates(t, node, []metadb.ConversationState{
 		{
 			UID:          "u-page",
+			Kind:         metadb.ConversationKindNormal,
 			ChannelID:    firstChannel.ID,
 			ChannelType:  int64(firstChannel.Type),
 			ActiveAt:     firstActiveAt,
@@ -231,6 +232,7 @@ func TestConversationListAPIPaginatesWithNextCursor(t *testing.T) {
 		},
 		{
 			UID:         "u-page",
+			Kind:        metadb.ConversationKindNormal,
 			ChannelID:   secondChannel.ID,
 			ChannelType: int64(secondChannel.Type),
 			ActiveAt:    secondActiveAt,
@@ -304,15 +306,15 @@ func decodeConversationListSmokeResponse(t *testing.T, body []byte) conversation
 	return resp
 }
 
-func upsertAppConversationStates(t *testing.T, node *clusterv2.Node, states []metadb.UserConversationState) {
+func upsertAppConversationStates(t *testing.T, node *clusterv2.Node, states []metadb.ConversationState) {
 	t.Helper()
 	for _, state := range states {
 		waitSingleNodeClusterRouteLeader(t, node, state.UID, node.NodeID())
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	if err := node.UpsertUserConversationStatesBatch(ctx, states); err != nil {
-		t.Fatalf("UpsertUserConversationStatesBatch() error = %v", err)
+	if err := node.UpsertConversationStatesBatch(ctx, states); err != nil {
+		t.Fatalf("UpsertConversationStatesBatch() error = %v", err)
 	}
 }
 

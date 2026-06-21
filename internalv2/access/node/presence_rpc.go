@@ -72,7 +72,7 @@ type ConversationAuthority interface {
 	AdmitPatches(context.Context, conversationusecase.RouteTarget, []conversationusecase.ActivePatch) error
 	// AdmitActiveBatch admits one already-routed channelappend active batch at the target authority.
 	AdmitActiveBatch(context.Context, conversationusecase.RouteTarget, conversationactive.ActiveBatch) error
-	ListUserConversationActiveViewForTarget(context.Context, conversationusecase.RouteTarget, string, metadb.UserConversationActiveCursor, int) (conversationusecase.ActiveViewPage, error)
+	ListConversationActiveViewForTarget(context.Context, conversationusecase.RouteTarget, metadb.ConversationKind, string, metadb.ConversationActiveCursor, int) (conversationusecase.ActiveViewPage, error)
 	DrainAuthority(context.Context, conversationusecase.RouteTarget) (string, error)
 }
 

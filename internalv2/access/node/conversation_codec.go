@@ -44,8 +44,10 @@ type conversationAuthorityRequest struct {
 	Target conversationusecase.RouteTarget
 	// UID selects the conversation active view owner for list requests.
 	UID string
+	// Kind selects the logical conversation projection view for list requests.
+	Kind metadb.ConversationKind
 	// After resumes list requests after one active-index row.
-	After metadb.UserConversationActiveCursor
+	After metadb.ConversationActiveCursor
 	// Limit bounds list response rows.
 	Limit int
 	// Patches carries unflushed active-row candidates for admit requests.
@@ -70,6 +72,7 @@ func encodeConversationAuthorityRequest(req conversationAuthorityRequest) ([]byt
 	dst = appendString(dst, req.Op)
 	dst = appendConversationRouteTarget(dst, req.Target)
 	dst = appendString(dst, req.UID)
+	dst = appendConversationKind(dst, req.Kind)
 	dst = appendConversationActiveCursor(dst, req.After)
 	dst = appendVarint(dst, int64(req.Limit))
 	dst = appendConversationActivePatches(dst, req.Patches)
@@ -97,6 +100,9 @@ func decodeConversationAuthorityRequest(body []byte) (conversationAuthorityReque
 		return conversationAuthorityRequest{}, err
 	}
 	if req.UID, offset, err = readString(body, offset); err != nil {
+		return conversationAuthorityRequest{}, err
+	}
+	if req.Kind, offset, err = readConversationKind(body, offset); err != nil {
 		return conversationAuthorityRequest{}, err
 	}
 	if req.After, offset, err = readConversationActiveCursor(body, offset); err != nil {
@@ -212,29 +218,48 @@ func readConversationRouteTarget(body []byte, offset int) (conversationusecase.R
 	return target, offset, nil
 }
 
-func appendConversationActiveCursor(dst []byte, cursor metadb.UserConversationActiveCursor) []byte {
+func appendConversationKind(dst []byte, kind metadb.ConversationKind) []byte {
+	return appendUvarint(dst, uint64(kind))
+}
+
+func readConversationKind(body []byte, offset int) (metadb.ConversationKind, int, error) {
+	v, next, err := readUvarint(body, offset)
+	if err != nil {
+		return 0, offset, err
+	}
+	kind := metadb.ConversationKind(v)
+	switch kind {
+	case metadb.ConversationKindNormal, metadb.ConversationKindCMD:
+		return kind, next, nil
+	default:
+		return 0, offset, fmt.Errorf("internalv2/access/node: invalid conversation kind %d", v)
+	}
+}
+
+func appendConversationActiveCursor(dst []byte, cursor metadb.ConversationActiveCursor) []byte {
 	dst = appendVarint(dst, cursor.ActiveAt)
 	dst = appendString(dst, cursor.ChannelID)
 	return appendVarint(dst, cursor.ChannelType)
 }
 
-func readConversationActiveCursor(body []byte, offset int) (metadb.UserConversationActiveCursor, int, error) {
-	var cursor metadb.UserConversationActiveCursor
+func readConversationActiveCursor(body []byte, offset int) (metadb.ConversationActiveCursor, int, error) {
+	var cursor metadb.ConversationActiveCursor
 	var err error
 	if cursor.ActiveAt, offset, err = readVarint(body, offset); err != nil {
-		return metadb.UserConversationActiveCursor{}, offset, err
+		return metadb.ConversationActiveCursor{}, offset, err
 	}
 	if cursor.ChannelID, offset, err = readString(body, offset); err != nil {
-		return metadb.UserConversationActiveCursor{}, offset, err
+		return metadb.ConversationActiveCursor{}, offset, err
 	}
 	if cursor.ChannelType, offset, err = readVarint(body, offset); err != nil {
-		return metadb.UserConversationActiveCursor{}, offset, err
+		return metadb.ConversationActiveCursor{}, offset, err
 	}
 	return cursor, offset, nil
 }
 
 func appendConversationActivePatch(dst []byte, patch conversationusecase.ActivePatch) []byte {
 	dst = appendString(dst, patch.UID)
+	dst = appendConversationKind(dst, patch.Kind)
 	dst = appendString(dst, patch.ChannelID)
 	dst = appendVarint(dst, patch.ChannelType)
 	dst = appendUvarint(dst, patch.ReadSeq)
@@ -249,6 +274,9 @@ func readConversationActivePatch(body []byte, offset int) (conversationusecase.A
 	var patch conversationusecase.ActivePatch
 	var err error
 	if patch.UID, offset, err = readString(body, offset); err != nil {
+		return conversationusecase.ActivePatch{}, offset, err
+	}
+	if patch.Kind, offset, err = readConversationKind(body, offset); err != nil {
 		return conversationusecase.ActivePatch{}, offset, err
 	}
 	if patch.ChannelID, offset, err = readString(body, offset); err != nil {
@@ -310,6 +338,7 @@ func readConversationActivePatches(body []byte, offset int) ([]conversationuseca
 }
 
 func appendConversationActiveBatch(dst []byte, batch conversationactive.ActiveBatch) []byte {
+	dst = appendConversationKind(dst, batch.Kind)
 	dst = appendString(dst, batch.SenderUID)
 	dst = appendString(dst, batch.ChannelID)
 	dst = appendUvarint(dst, uint64(batch.ChannelType))
@@ -322,6 +351,9 @@ func readConversationActiveBatch(body []byte, offset int) (conversationactive.Ac
 	var batch conversationactive.ActiveBatch
 	var channelType uint64
 	var err error
+	if batch.Kind, offset, err = readConversationKind(body, offset); err != nil {
+		return conversationactive.ActiveBatch{}, offset, err
+	}
 	if batch.SenderUID, offset, err = readString(body, offset); err != nil {
 		return conversationactive.ActiveBatch{}, offset, err
 	}
@@ -395,8 +427,9 @@ func readConversationActiveEntries(body []byte, offset int) ([]conversationactiv
 	return entries, offset, nil
 }
 
-func appendConversationState(dst []byte, state metadb.UserConversationState) []byte {
+func appendConversationState(dst []byte, state metadb.ConversationState) []byte {
 	dst = appendString(dst, state.UID)
+	dst = appendConversationKind(dst, state.Kind)
 	dst = appendString(dst, state.ChannelID)
 	dst = appendVarint(dst, state.ChannelType)
 	dst = appendUvarint(dst, state.ReadSeq)
@@ -406,37 +439,40 @@ func appendConversationState(dst []byte, state metadb.UserConversationState) []b
 	return appendConversationBool(dst, state.SparseActive)
 }
 
-func readConversationState(body []byte, offset int) (metadb.UserConversationState, int, error) {
-	var state metadb.UserConversationState
+func readConversationState(body []byte, offset int) (metadb.ConversationState, int, error) {
+	var state metadb.ConversationState
 	var err error
 	if state.UID, offset, err = readString(body, offset); err != nil {
-		return metadb.UserConversationState{}, offset, err
+		return metadb.ConversationState{}, offset, err
+	}
+	if state.Kind, offset, err = readConversationKind(body, offset); err != nil {
+		return metadb.ConversationState{}, offset, err
 	}
 	if state.ChannelID, offset, err = readString(body, offset); err != nil {
-		return metadb.UserConversationState{}, offset, err
+		return metadb.ConversationState{}, offset, err
 	}
 	if state.ChannelType, offset, err = readVarint(body, offset); err != nil {
-		return metadb.UserConversationState{}, offset, err
+		return metadb.ConversationState{}, offset, err
 	}
 	if state.ReadSeq, offset, err = readUvarint(body, offset); err != nil {
-		return metadb.UserConversationState{}, offset, err
+		return metadb.ConversationState{}, offset, err
 	}
 	if state.DeletedToSeq, offset, err = readUvarint(body, offset); err != nil {
-		return metadb.UserConversationState{}, offset, err
+		return metadb.ConversationState{}, offset, err
 	}
 	if state.ActiveAt, offset, err = readVarint(body, offset); err != nil {
-		return metadb.UserConversationState{}, offset, err
+		return metadb.ConversationState{}, offset, err
 	}
 	if state.UpdatedAt, offset, err = readVarint(body, offset); err != nil {
-		return metadb.UserConversationState{}, offset, err
+		return metadb.ConversationState{}, offset, err
 	}
 	if state.SparseActive, offset, err = readConversationBool(body, offset, "conversation sparse active"); err != nil {
-		return metadb.UserConversationState{}, offset, err
+		return metadb.ConversationState{}, offset, err
 	}
 	return state, offset, nil
 }
 
-func appendConversationStates(dst []byte, states []metadb.UserConversationState) []byte {
+func appendConversationStates(dst []byte, states []metadb.ConversationState) []byte {
 	dst = appendUvarint(dst, uint64(len(states)))
 	for _, state := range states {
 		dst = appendConversationState(dst, state)
@@ -444,7 +480,7 @@ func appendConversationStates(dst []byte, states []metadb.UserConversationState)
 	return dst
 }
 
-func readConversationStates(body []byte, offset int) ([]metadb.UserConversationState, int, error) {
+func readConversationStates(body []byte, offset int) ([]metadb.ConversationState, int, error) {
 	count, next, err := readUvarint(body, offset)
 	if err != nil {
 		return nil, offset, err
@@ -456,9 +492,9 @@ func readConversationStates(body []byte, offset int) ([]metadb.UserConversationS
 	if err := validateConversationCollectionLen(count, len(body)-offset, "conversation states"); err != nil {
 		return nil, offset, err
 	}
-	states := make([]metadb.UserConversationState, 0, int(count))
+	states := make([]metadb.ConversationState, 0, int(count))
 	for i := uint64(0); i < count; i++ {
-		var state metadb.UserConversationState
+		var state metadb.ConversationState
 		if state, offset, err = readConversationState(body, offset); err != nil {
 			return nil, offset, err
 		}

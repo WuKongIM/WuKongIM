@@ -271,12 +271,15 @@ two channel participants. For non-person unscoped channels it pages durable
 subscribers through the app delivery metadata source, an explicitly supplied
 subscriber source, or the clusterv2 Slot metadata source. After each recipient
 set is formed, channelappend admits a `conversationactive.ActiveBatch` through
-the shared `ConversationAuthorityClient`; this still runs when online delivery
-is disabled. Recipients are then grouped by exact UID hash-slot authority target
-including Slot leader term and Slot config epoch for delivery; when clusterv2
-exposes batch key routing, the app recipient resolver resolves each subscriber
-page's unique UIDs through one batch route lookup before grouping. When delivery
-is enabled, the app wires a bounded
+an app-level normal-conversation adapter around the shared
+`ConversationAuthorityClient`; this is the only boundary that stamps
+`metadb.ConversationKindNormal` for channelappend's current kind-less
+admitter interface, and it still runs when online delivery is disabled.
+Recipients are then grouped by exact UID hash-slot authority target including
+Slot leader term and Slot config epoch for delivery; when clusterv2 exposes
+batch key routing, the app recipient resolver resolves each subscriber page's
+unique UIDs through one batch route lookup before grouping. When delivery is
+enabled, the app wires a bounded
 recipient delivery worker that drains those batches and runs the delivery-only
 channelappend recipient processor outside the authority writer. `/bench/v1/channels` and
 `/bench/v1/channels/subscribers` write real channel metadata and subscriber rows
@@ -370,7 +373,8 @@ Conversation list with authority enabled:
 Conversation active-batch admission with authority enabled:
 
 ```text
-channelappend/future active producer
+channelappend normal active producer
+  -> normalConversationActiveAdmitter stamps metadb.ConversationKindNormal
   -> ConversationAuthorityClient.AdmitActiveBatch
        -> cluster groups SenderUID and recipient UIDs by exact UID authority
   -> local authority:
@@ -381,9 +385,10 @@ channelappend/future active producer
        remote local authority applies the same target validation and runtime admission
 ```
 
-The app authority does not regroup or reinterpret active batches. It trusts the
-cluster-routed client to send `SenderUID` only to the sender-owned authority
-target; non-sender recipient targets arrive with an empty sender field.
+The app authority does not regroup or reinterpret active batches and does not
+normalize zero conversation kinds. It trusts the cluster-routed client to send
+`SenderUID` only to the sender-owned authority target; non-sender recipient
+targets arrive with an empty sender field.
 
 Legacy user management requests flow from internalv2 HTTP through
 `internalv2/usecase/user` and the `internalv2/infra/cluster`
@@ -514,7 +519,7 @@ periodic flush
   -> runtime/conversationactive.Manager selects dirty rows with version fencing
   -> batch-read durable conversation rows for receiver-only cooldown filtering
   -> skip receiver-only ActiveAt updates inside AuthorityActiveCooldown
-  -> store.TouchUserConversationActiveAtBatch persists remaining ActiveAt/ReadSeq/UpdatedAt
+  -> store.TouchConversationActiveAtBatch persists remaining ActiveAt/ReadSeq/UpdatedAt
 
 Stop(ctx)
   -> channelappend has already closed admission and drained accepted post-commit effects

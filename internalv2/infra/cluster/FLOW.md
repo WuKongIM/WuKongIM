@@ -343,12 +343,14 @@ coalesces duplicate recipient entries with `IsSender` OR semantics, and sends
 one target-scoped batch per group. Only the sender-owned target receives
 `SenderUID`; other target batches carry an empty `SenderUID` and only their
 recipient subset, so a receiver authority cannot cache the sender row by
-mistake. If the sender is not in the recipient set, the sender target still
-receives a sender-only batch. Active-batch admission retries route-not-ready,
-stale-route, not-leader, and background Slot proposal backpressure within a
-small bounded fresh-route window, regrouping only target groups that failed on
-the prior attempt; continued failure is returned to the caller so the
-post-commit path remains bounded.
+mistake. Each target-scoped batch preserves the source
+`metadb.ConversationKind`; invalid or zero kinds are left for downstream
+validation instead of being normalized. If the sender is not in the recipient
+set, the sender target still receives a sender-only batch. Active-batch
+admission retries route-not-ready, stale-route, not-leader, and background Slot
+proposal backpressure within a small bounded fresh-route window, regrouping
+only target groups that failed on the prior attempt; continued failure is
+returned to the caller so the post-commit path remains bounded.
 The remote RPC client chunks large patch groups and active-batch recipient
 groups at the codec collection limit before sending them. List resolves the
 requested UID once per retry attempt and reads the active view from that
@@ -372,8 +374,8 @@ ConversationAuthorityClient
        -> access/node Conversation Authority ActiveBatch RPC for remote groups
   -> ListConversationActiveView(kind, uid)
        -> RouteKey(uid)
-       -> local conversation authority active view when local
-       -> access/node Conversation Authority List RPC when remote
+       -> local conversation authority active view for kind when local
+       -> access/node Conversation Authority List RPC carrying kind when remote
   -> DrainAuthority(target)
        -> local drain when target leader is this node
        -> access/node Conversation Authority Drain RPC when remote

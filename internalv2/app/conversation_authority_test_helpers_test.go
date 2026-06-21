@@ -6,8 +6,8 @@ import (
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
-func conversationRowAfter(row metadb.UserConversationState, after metadb.UserConversationActiveCursor) bool {
-	if after == (metadb.UserConversationActiveCursor{}) {
+func conversationRowAfter(row metadb.ConversationState, after metadb.ConversationActiveCursor) bool {
+	if after == (metadb.ConversationActiveCursor{}) {
 		return true
 	}
 	if row.ActiveAt != after.ActiveAt {
@@ -19,15 +19,15 @@ func conversationRowAfter(row metadb.UserConversationState, after metadb.UserCon
 	return row.ChannelType > after.ChannelType
 }
 
-func conversationRowsCursor(rows []metadb.UserConversationState, fallback metadb.UserConversationActiveCursor) metadb.UserConversationActiveCursor {
+func conversationRowsCursor(rows []metadb.ConversationState, fallback metadb.ConversationActiveCursor) metadb.ConversationActiveCursor {
 	if len(rows) == 0 {
 		return fallback
 	}
 	last := rows[len(rows)-1]
-	return metadb.UserConversationActiveCursor{ActiveAt: last.ActiveAt, ChannelID: last.ChannelID, ChannelType: last.ChannelType}
+	return metadb.ConversationActiveCursor{ActiveAt: last.ActiveAt, ChannelID: last.ChannelID, ChannelType: last.ChannelType}
 }
 
-func sortConversationRows(rows []metadb.UserConversationState) {
+func sortConversationRows(rows []metadb.ConversationState) {
 	sort.Slice(rows, func(i, j int) bool {
 		if rows[i].ActiveAt != rows[j].ActiveAt {
 			return rows[i].ActiveAt > rows[j].ActiveAt
@@ -39,7 +39,7 @@ func sortConversationRows(rows []metadb.UserConversationState) {
 	})
 }
 
-func mergeConversationState(existing, next metadb.UserConversationState) metadb.UserConversationState {
+func mergeConversationState(existing, next metadb.ConversationState) metadb.ConversationState {
 	merged := existing
 	if next.ActiveAt > merged.ActiveAt {
 		merged.ActiveAt = next.ActiveAt

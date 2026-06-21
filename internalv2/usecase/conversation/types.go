@@ -222,6 +222,8 @@ type RouteTarget struct {
 type ActivePatch struct {
 	// UID identifies the user that owns the conversation row.
 	UID string
+	// Kind identifies the logical conversation projection view.
+	Kind metadb.ConversationKind
 	// ChannelID identifies the conversation channel.
 	ChannelID string
 	// ChannelType identifies the channel namespace.
@@ -244,7 +246,7 @@ type ActivePatch struct {
 func (p ActivePatch) ToMetaPatch() metadb.ConversationActivePatch {
 	return metadb.ConversationActivePatch{
 		UID:             p.UID,
-		Kind:            metadb.ConversationKindNormal,
+		Kind:            p.Kind,
 		ChannelID:       p.ChannelID,
 		ChannelType:     p.ChannelType,
 		ReadSeq:         p.ReadSeq,

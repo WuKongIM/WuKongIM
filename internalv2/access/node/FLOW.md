@@ -92,7 +92,7 @@ Supported conversation authority calls:
 
 - `AdmitPatches(RouteTarget, []ActivePatch)`
 - `AdmitActiveBatch(RouteTarget, conversationactive.ActiveBatch)`
-- `ListUserConversationActiveViewForTarget(RouteTarget, uid, activeCursor, limit)`
+- `ListConversationActiveViewForTarget(RouteTarget, kind, uid, activeCursor, limit)`
 - `DrainAuthority(RouteTarget)`
 
 The RPC boundary is deliberately narrow:
@@ -105,9 +105,10 @@ The RPC boundary is deliberately narrow:
   authority target. Sender/recipient route grouping is performed by
   `internalv2/infra/cluster`; this package only transports the exact batch
   subset it receives.
-- List reads the target-owned active view from the authority node. The local
-  authority implementation decides how to merge unflushed cache rows with DB
-  rows; this package only transports the request and response.
+- List reads the target-owned active view for one `metadb.ConversationKind`
+  from the authority node. The local authority implementation decides how to
+  merge unflushed cache rows with DB rows; this package only transports the
+  request and response.
 - Drain asks an authority node to flush and retire one exact `RouteTarget`
   during handoff. Handoff ordering and cache state transitions stay in the app
   authority runtime.
@@ -314,7 +315,10 @@ Conversation authority RPC uses fixed magic headers:
 
 Conversation authority request targets carry `HashSlot`, `SlotID`,
 `LeaderNodeID`, Slot `LeaderTerm`, Slot `ConfigEpoch`, route revision, and the
-diagnostic authority epoch in that order.
+diagnostic authority epoch in that order. The shared request fields then carry
+`UID`, `metadb.ConversationKind`, active cursor, limit, legacy patch collection,
+and drain result placeholders. Invalid or zero conversation kinds are rejected
+by the decoder instead of being normalized.
 
 Manager Controller Raft RPC uses fixed magic headers:
 
@@ -323,9 +327,11 @@ Manager Controller Raft RPC uses fixed magic headers:
 
 Conversation active-batch requests append the batch payload only for the
 `admit_conversation_active_batch` op, after the shared request fields and legacy
-patch collection. The stable batch field order is `SenderUID`, `ChannelID`,
-`ChannelType`, `MessageSeq`, `ActiveAtMS`, then recipient entries in `UID`,
-`IsSender` order.
+patch collection. The stable batch field order is `Kind`, `SenderUID`,
+`ChannelID`, `ChannelType`, `MessageSeq`, `ActiveAtMS`, then recipient entries
+in `UID`, `IsSender` order. Active-view response rows use
+`metadb.ConversationState` and encode row `Kind`; cursors use
+`metadb.ConversationActiveCursor`.
 
 Channel Append RPC uses fixed magic headers:
 

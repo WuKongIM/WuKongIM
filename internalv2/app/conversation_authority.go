@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -12,14 +13,30 @@ import (
 )
 
 type conversationAuthorityStore interface {
-	// ListUserConversationActivePage returns durable active rows in active-index order.
-	ListUserConversationActivePage(context.Context, string, metadb.UserConversationActiveCursor, int) ([]metadb.UserConversationState, metadb.UserConversationActiveCursor, bool, error)
-	// GetUserConversationState returns the durable primary row used for active-view hydration.
-	GetUserConversationState(context.Context, string, string, int64) (metadb.UserConversationState, bool, error)
-	// GetUserConversationStates returns durable primary rows used for flush-time active_at filtering.
-	GetUserConversationStates(context.Context, []metadb.UserConversationKey) (map[metadb.UserConversationKey]metadb.UserConversationState, error)
-	// TouchUserConversationActiveAtBatch atomically flushes activity hints.
-	TouchUserConversationActiveAtBatch(context.Context, []metadb.UserConversationActivePatch) error
+	// ListConversationActivePage returns durable active rows in active-index order.
+	ListConversationActivePage(context.Context, metadb.ConversationKind, string, metadb.ConversationActiveCursor, int) ([]metadb.ConversationState, metadb.ConversationActiveCursor, bool, error)
+	// GetConversationState returns the durable primary row used for active-view hydration.
+	GetConversationState(context.Context, metadb.ConversationKind, string, string, int64) (metadb.ConversationState, bool, error)
+	// GetConversationStates returns durable primary rows used for flush-time active_at filtering.
+	GetConversationStates(context.Context, []metadb.ConversationStateKey) (map[metadb.ConversationStateKey]metadb.ConversationState, error)
+	// TouchConversationActiveAtBatch atomically flushes activity hints.
+	TouchConversationActiveAtBatch(context.Context, []metadb.ConversationActivePatch) error
+}
+
+type conversationActiveAdmitter interface {
+	AdmitActiveBatch(context.Context, conversationactive.ActiveBatch) error
+}
+
+type normalConversationActiveAdmitter struct {
+	next conversationActiveAdmitter
+}
+
+func (a normalConversationActiveAdmitter) AdmitActiveBatch(ctx context.Context, batch conversationactive.ActiveBatch) error {
+	if a.next == nil {
+		return nil
+	}
+	batch.Kind = metadb.ConversationKindNormal
+	return a.next.AdmitActiveBatch(ctx, batch)
 }
 
 type conversationAuthorityOptions struct {
@@ -72,36 +89,36 @@ type conversationActiveStoreAdapter struct {
 	authority *conversationAuthority
 }
 
-func (s conversationActiveStoreAdapter) ListUserConversationActivePage(ctx context.Context, uid string, after metadb.UserConversationActiveCursor, limit int) ([]metadb.UserConversationState, metadb.UserConversationActiveCursor, bool, error) {
+func (s conversationActiveStoreAdapter) ListConversationActivePage(ctx context.Context, kind metadb.ConversationKind, uid string, after metadb.ConversationActiveCursor, limit int) ([]metadb.ConversationState, metadb.ConversationActiveCursor, bool, error) {
 	store := s.store()
 	if store == nil {
 		return nil, after, false, conversationactive.ErrStoreRequired
 	}
-	return store.ListUserConversationActivePage(ctx, uid, after, limit)
+	return store.ListConversationActivePage(ctx, kind, uid, after, limit)
 }
 
-func (s conversationActiveStoreAdapter) GetUserConversationState(ctx context.Context, uid, channelID string, channelType int64) (metadb.UserConversationState, bool, error) {
+func (s conversationActiveStoreAdapter) GetConversationState(ctx context.Context, kind metadb.ConversationKind, uid, channelID string, channelType int64) (metadb.ConversationState, bool, error) {
 	store := s.store()
 	if store == nil {
-		return metadb.UserConversationState{}, false, conversationactive.ErrStoreRequired
+		return metadb.ConversationState{}, false, conversationactive.ErrStoreRequired
 	}
-	return store.GetUserConversationState(ctx, uid, channelID, channelType)
+	return store.GetConversationState(ctx, kind, uid, channelID, channelType)
 }
 
-func (s conversationActiveStoreAdapter) GetUserConversationStates(ctx context.Context, keys []metadb.UserConversationKey) (map[metadb.UserConversationKey]metadb.UserConversationState, error) {
+func (s conversationActiveStoreAdapter) GetConversationStates(ctx context.Context, keys []metadb.ConversationStateKey) (map[metadb.ConversationStateKey]metadb.ConversationState, error) {
 	store := s.store()
 	if store == nil {
 		return nil, conversationactive.ErrStoreRequired
 	}
-	return store.GetUserConversationStates(ctx, keys)
+	return store.GetConversationStates(ctx, keys)
 }
 
-func (s conversationActiveStoreAdapter) TouchUserConversationActiveAt(ctx context.Context, patches []metadb.UserConversationActivePatch) error {
+func (s conversationActiveStoreAdapter) TouchConversationActiveAt(ctx context.Context, patches []metadb.ConversationActivePatch) error {
 	store := s.store()
 	if store == nil {
 		return conversationactive.ErrStoreRequired
 	}
-	return store.TouchUserConversationActiveAtBatch(ctx, patches)
+	return store.TouchConversationActiveAtBatch(ctx, patches)
 }
 
 func (s conversationActiveStoreAdapter) store() conversationAuthorityStore {
@@ -245,7 +262,10 @@ func (a *conversationAuthority) AdmitPatches(ctx context.Context, target convers
 	if err != nil {
 		return err
 	}
-	activePatches := conversationActivePatches(patches)
+	activePatches, err := conversationActivePatches(patches)
+	if err != nil {
+		return err
+	}
 	if len(activePatches) == 0 {
 		return nil
 	}
@@ -434,9 +454,9 @@ func (a *conversationAuthority) flushDrainingAuthority(ctx context.Context, hash
 	}
 }
 
-// ListUserConversationActiveView is a conservative test/backward adapter for unscoped reads.
-// Future local and RPC callers should use ListUserConversationActiveViewForTarget.
-func (a *conversationAuthority) ListUserConversationActiveView(ctx context.Context, uid string, after metadb.UserConversationActiveCursor, limit int) (page conversationusecase.ActiveViewPage, err error) {
+// ListConversationActiveView is a conservative test/backward adapter for unscoped reads.
+// Future local and RPC callers should use ListConversationActiveViewForTarget.
+func (a *conversationAuthority) ListConversationActiveView(ctx context.Context, kind metadb.ConversationKind, uid string, after metadb.ConversationActiveCursor, limit int) (page conversationusecase.ActiveViewPage, err error) {
 	if a == nil {
 		return conversationusecase.ActiveViewPage{}, conversationusecase.ErrRouteNotReady
 	}
@@ -447,11 +467,11 @@ func (a *conversationAuthority) ListUserConversationActiveView(ctx context.Conte
 	if err != nil {
 		return conversationusecase.ActiveViewPage{}, err
 	}
-	return a.listUserConversationActiveView(ctx, &target, true, uid, after, limit)
+	return a.listConversationActiveView(ctx, &target, true, kind, uid, after, limit)
 }
 
-// ListUserConversationActiveViewForTarget serves an active view after validating the exact local route target.
-func (a *conversationAuthority) ListUserConversationActiveViewForTarget(ctx context.Context, target conversationusecase.RouteTarget, uid string, after metadb.UserConversationActiveCursor, limit int) (page conversationusecase.ActiveViewPage, err error) {
+// ListConversationActiveViewForTarget serves an active view after validating the exact local route target.
+func (a *conversationAuthority) ListConversationActiveViewForTarget(ctx context.Context, target conversationusecase.RouteTarget, kind metadb.ConversationKind, uid string, after metadb.ConversationActiveCursor, limit int) (page conversationusecase.ActiveViewPage, err error) {
 	if a == nil {
 		return conversationusecase.ActiveViewPage{}, conversationusecase.ErrRouteNotReady
 	}
@@ -463,14 +483,14 @@ func (a *conversationAuthority) ListUserConversationActiveViewForTarget(ctx cont
 	if err != nil {
 		return conversationusecase.ActiveViewPage{}, err
 	}
-	return a.listUserConversationActiveView(ctx, &targetKey, false, uid, after, limit)
+	return a.listConversationActiveView(ctx, &targetKey, false, kind, uid, after, limit)
 }
 
-func (a *conversationAuthority) listUserConversationActiveView(ctx context.Context, target *conversationAuthorityTargetKey, requireSingleActive bool, uid string, after metadb.UserConversationActiveCursor, limit int) (conversationusecase.ActiveViewPage, error) {
+func (a *conversationAuthority) listConversationActiveView(ctx context.Context, target *conversationAuthorityTargetKey, requireSingleActive bool, kind metadb.ConversationKind, uid string, after metadb.ConversationActiveCursor, limit int) (conversationusecase.ActiveViewPage, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	page, err := a.active.ListActiveView(ctx, uid, after, limit)
+	page, err := a.active.ListActiveView(ctx, kind, uid, after, limit)
 	if err != nil {
 		return conversationusecase.ActiveViewPage{}, mapConversationActiveError(err)
 	}
@@ -533,21 +553,34 @@ func (a *conversationAuthority) unscopedListTarget() (conversationAuthorityTarge
 	return conversationAuthorityTargetKey{}, conversationusecase.ErrStaleRoute
 }
 
-func conversationActivePatches(patches []conversationusecase.ActivePatch) []conversationactive.ActivePatch {
+func conversationActivePatches(patches []conversationusecase.ActivePatch) ([]conversationactive.ActivePatch, error) {
 	activePatches := make([]conversationactive.ActivePatch, 0, len(patches))
 	for _, patch := range patches {
+		if !validConversationKind(patch.Kind) {
+			return nil, fmt.Errorf("internalv2/app: invalid conversation kind %d", patch.Kind)
+		}
 		if patch.UID == "" || patch.ChannelID == "" || patch.ChannelType <= 0 || patch.ChannelType > 255 || patch.ActiveAt <= 0 {
 			continue
 		}
 		activePatches = append(activePatches, conversationactive.ActivePatch{
 			UID:         patch.UID,
+			Kind:        patch.Kind,
 			ChannelID:   patch.ChannelID,
 			ChannelType: uint8(patch.ChannelType),
 			ActiveAtMS:  patch.ActiveAt,
 			ReadSeq:     patch.ReadSeq,
 		})
 	}
-	return activePatches
+	return activePatches, nil
+}
+
+func validConversationKind(kind metadb.ConversationKind) bool {
+	switch kind {
+	case metadb.ConversationKindNormal, metadb.ConversationKindCMD:
+		return true
+	default:
+		return false
+	}
 }
 
 func mapConversationActiveError(err error) error {

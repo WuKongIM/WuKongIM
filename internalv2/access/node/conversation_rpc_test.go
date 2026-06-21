@@ -14,11 +14,11 @@ import (
 func TestConversationAuthorityRPCDispatchesList(t *testing.T) {
 	target := testConversationAuthorityTarget()
 	local := &fakeConversationAuthority{page: conversationusecase.ActiveViewPage{
-		Rows: []metadb.UserConversationState{{UID: "u1", ChannelID: "g1", ChannelType: 2, ActiveAt: 100}},
+		Rows: []metadb.ConversationState{{UID: "u1", Kind: metadb.ConversationKindCMD, ChannelID: "g1____cmd", ChannelType: 2, ActiveAt: 100}},
 		Done: true,
 	}}
 	adapter := New(Options{ConversationAuthority: local})
-	req := conversationAuthorityRequest{Op: conversationOpList, Target: target, UID: "u1", Limit: 10}
+	req := conversationAuthorityRequest{Op: conversationOpList, Target: target, Kind: metadb.ConversationKindCMD, UID: "u1", Limit: 10}
 	body, err := encodeConversationAuthorityRequest(req)
 	if err != nil {
 		t.Fatalf("encode request: %v", err)
@@ -37,15 +37,18 @@ func TestConversationAuthorityRPCDispatchesList(t *testing.T) {
 	if local.target != target {
 		t.Fatalf("target = %#v, want %#v", local.target, target)
 	}
+	if local.listKind != metadb.ConversationKindCMD {
+		t.Fatalf("list kind = %v, want %v", local.listKind, metadb.ConversationKindCMD)
+	}
 }
 
 func TestConversationAuthorityRPCDispatchesAdmitAndDrain(t *testing.T) {
 	target := testConversationAuthorityTarget()
-	patches := []conversationusecase.ActivePatch{{UID: "u1", ChannelID: "g1", ChannelType: 2, ActiveAt: 100, MessageSeq: 9}}
+	patches := []conversationusecase.ActivePatch{{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "g1", ChannelType: 2, ActiveAt: 100, MessageSeq: 9}}
 	local := &fakeConversationAuthority{drainResult: conversationDrainResultTransferred}
 	adapter := New(Options{ConversationAuthority: local})
 
-	admitBody, err := encodeConversationAuthorityRequest(conversationAuthorityRequest{Op: conversationOpAdmitPatches, Target: target, Patches: patches})
+	admitBody, err := encodeConversationAuthorityRequest(conversationAuthorityRequest{Op: conversationOpAdmitPatches, Target: target, Kind: metadb.ConversationKindNormal, Patches: patches})
 	if err != nil {
 		t.Fatalf("encode admit request: %v", err)
 	}
@@ -64,7 +67,7 @@ func TestConversationAuthorityRPCDispatchesAdmitAndDrain(t *testing.T) {
 		t.Fatalf("admit target/patches = %#v/%#v, want %#v/%#v", local.admitTarget, local.patches, target, patches)
 	}
 
-	drainBody, err := encodeConversationAuthorityRequest(conversationAuthorityRequest{Op: conversationOpDrain, Target: target})
+	drainBody, err := encodeConversationAuthorityRequest(conversationAuthorityRequest{Op: conversationOpDrain, Target: target, Kind: metadb.ConversationKindNormal})
 	if err != nil {
 		t.Fatalf("encode drain request: %v", err)
 	}
@@ -87,6 +90,7 @@ func TestConversationAuthorityRPCDispatchesAdmitAndDrain(t *testing.T) {
 func TestConversationAuthorityRPCDispatchesAdmitActiveBatch(t *testing.T) {
 	target := testConversationAuthorityTarget()
 	batch := conversationactive.ActiveBatch{
+		Kind:        metadb.ConversationKindNormal,
 		SenderUID:   "sender",
 		ChannelID:   "g1",
 		ChannelType: 2,
@@ -100,7 +104,7 @@ func TestConversationAuthorityRPCDispatchesAdmitActiveBatch(t *testing.T) {
 	local := &fakeConversationAuthority{}
 	adapter := New(Options{ConversationAuthority: local})
 
-	body, err := encodeConversationAuthorityRequest(conversationAuthorityRequest{Op: conversationOpAdmitActiveBatch, Target: target, ActiveBatch: batch})
+	body, err := encodeConversationAuthorityRequest(conversationAuthorityRequest{Op: conversationOpAdmitActiveBatch, Target: target, Kind: metadb.ConversationKindNormal, ActiveBatch: batch})
 	if err != nil {
 		t.Fatalf("encode active batch request: %v", err)
 	}
@@ -122,11 +126,11 @@ func TestConversationAuthorityRPCDispatchesAdmitActiveBatch(t *testing.T) {
 
 func TestConversationAuthorityClientCallsExpectedServiceAndMapsStatus(t *testing.T) {
 	target := testConversationAuthorityTarget()
-	after := metadb.UserConversationActiveCursor{ActiveAt: 99, ChannelID: "g0", ChannelType: 2}
+	after := metadb.ConversationActiveCursor{ActiveAt: 99, ChannelID: "g0____cmd", ChannelType: 2}
 	node := &fakeConversationRPCNode{response: conversationAuthorityResponse{Status: conversationRPCStatusCachePressure}}
 	client := NewClient(node)
 
-	_, err := client.ListConversations(context.Background(), 13, target, "u1", after, 10)
+	_, err := client.ListConversations(context.Background(), 13, target, metadb.ConversationKindCMD, "u1", after, 10)
 	if !errors.Is(err, conversationusecase.ErrCachePressure) {
 		t.Fatalf("ListConversations() error = %v, want ErrCachePressure", err)
 	}
@@ -140,7 +144,7 @@ func TestConversationAuthorityClientCallsExpectedServiceAndMapsStatus(t *testing
 	if err != nil {
 		t.Fatalf("decodeConversationAuthorityRequest(client payload) error = %v", err)
 	}
-	if req.Op != conversationOpList || req.UID != "u1" || req.Limit != 10 {
+	if req.Op != conversationOpList || req.Kind != metadb.ConversationKindCMD || req.UID != "u1" || req.Limit != 10 {
 		t.Fatalf("client request = %#v", req)
 	}
 	if !reflect.DeepEqual(req.Target, target) {
@@ -154,6 +158,7 @@ func TestConversationAuthorityClientCallsExpectedServiceAndMapsStatus(t *testing
 func TestConversationAuthorityClientAdmitActiveBatchMapsStatus(t *testing.T) {
 	target := testConversationAuthorityTarget()
 	batch := conversationactive.ActiveBatch{
+		Kind:        metadb.ConversationKindNormal,
 		SenderUID:   "sender",
 		ChannelID:   "g1",
 		ChannelType: 2,
@@ -191,7 +196,7 @@ func TestConversationAuthorityClientChunksOversizedAdmitPayloads(t *testing.T) {
 	patches := make([]conversationusecase.ActivePatch, maxConversationAuthorityCollectionLen+1)
 	for i := range patches {
 		patches[i] = conversationusecase.ActivePatch{
-			UID: "u1", ChannelID: "g1", ChannelType: 2, ActiveAt: int64(i + 1), MessageSeq: uint64(i + 1),
+			UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "g1", ChannelType: 2, ActiveAt: int64(i + 1), MessageSeq: uint64(i + 1),
 		}
 	}
 	node := &fakeConversationRPCNode{response: conversationAuthorityResponse{Status: conversationRPCStatusOK}}
@@ -231,13 +236,13 @@ func TestConversationAuthorityClientRejectsNilNodeAndUnknownStatus(t *testing.T)
 		{
 			name: "active batch",
 			call: func(client *Client) error {
-				return client.AdmitConversationActiveBatch(context.Background(), 13, target, conversationactive.ActiveBatch{SenderUID: "sender"})
+				return client.AdmitConversationActiveBatch(context.Background(), 13, target, conversationactive.ActiveBatch{Kind: metadb.ConversationKindNormal, SenderUID: "sender"})
 			},
 		},
 		{
 			name: "list",
 			call: func(client *Client) error {
-				_, err := client.ListConversations(context.Background(), 13, target, "u1", metadb.UserConversationActiveCursor{}, 10)
+				_, err := client.ListConversations(context.Background(), 13, target, metadb.ConversationKindCMD, "u1", metadb.ConversationActiveCursor{}, 10)
 				return err
 			},
 		},
@@ -310,6 +315,7 @@ type fakeConversationAuthority struct {
 	activeBatch  conversationactive.ActiveBatch
 	page         conversationusecase.ActiveViewPage
 	drainResult  string
+	listKind     metadb.ConversationKind
 }
 
 func testConversationAuthorityTarget() conversationusecase.RouteTarget {
@@ -336,8 +342,9 @@ func (f *fakeConversationAuthority) AdmitActiveBatch(_ context.Context, target c
 	return nil
 }
 
-func (f *fakeConversationAuthority) ListUserConversationActiveViewForTarget(_ context.Context, target conversationusecase.RouteTarget, _ string, _ metadb.UserConversationActiveCursor, _ int) (conversationusecase.ActiveViewPage, error) {
+func (f *fakeConversationAuthority) ListConversationActiveViewForTarget(_ context.Context, target conversationusecase.RouteTarget, kind metadb.ConversationKind, _ string, _ metadb.ConversationActiveCursor, _ int) (conversationusecase.ActiveViewPage, error) {
 	f.target = target
+	f.listKind = kind
 	return f.page, nil
 }
 

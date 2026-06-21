@@ -19,7 +19,7 @@ func TestConversationAuthorityClientUsesLocalAuthority(t *testing.T) {
 	local := &fakeConversationAuthorityLocal{}
 	node := &fakeConversationAuthorityNode{nodeID: 1, route: clusterv2.Route{HashSlot: 7, SlotID: 2, Leader: 1, LeaderTerm: 5, ConfigEpoch: 6, Revision: 3, AuthorityEpoch: 4}}
 	client := NewConversationAuthorityClient(node, local)
-	patch := conversationusecase.ActivePatch{UID: "u1", ChannelID: "g1", ChannelType: 2, ActiveAt: 100, MessageSeq: 1}
+	patch := conversationusecase.ActivePatch{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "g1", ChannelType: 2, ActiveAt: 100, MessageSeq: 1}
 	if err := client.AdmitPatches(context.Background(), []conversationusecase.ActivePatch{patch}); err != nil {
 		t.Fatalf("AdmitPatches() error = %v", err)
 	}
@@ -46,6 +46,7 @@ func TestConversationAuthorityClientAdmitActiveBatchSplitsSenderAndReceiverTarge
 	client := NewConversationAuthorityClient(node, local)
 
 	err := client.AdmitActiveBatch(context.Background(), conversationactive.ActiveBatch{
+		Kind:        metadb.ConversationKindNormal,
 		SenderUID:   "sender",
 		ChannelID:   "g1",
 		ChannelType: 2,
@@ -74,6 +75,38 @@ func TestConversationAuthorityClientAdmitActiveBatchSplitsSenderAndReceiverTarge
 	}
 }
 
+func TestConversationAuthorityClientAdmitActiveBatchPreservesKind(t *testing.T) {
+	local := &fakeConversationAuthorityLocal{}
+	target := clusterv2.Route{HashSlot: 1, SlotID: 2, Leader: 1, Revision: 10, AuthorityEpoch: 20}
+	node := &fakeConversationAuthorityNode{
+		nodeID: 1,
+		routesByUID: map[string]clusterv2.Route{
+			"sender":   target,
+			"receiver": target,
+		},
+	}
+	client := NewConversationAuthorityClient(node, local)
+
+	err := client.AdmitActiveBatch(context.Background(), conversationactive.ActiveBatch{
+		Kind:        metadb.ConversationKindCMD,
+		SenderUID:   "sender",
+		ChannelID:   "g1____cmd",
+		ChannelType: 2,
+		MessageSeq:  9,
+		ActiveAtMS:  100,
+		Recipients:  []conversationactive.ActiveEntry{{UID: "receiver"}},
+	})
+	if err != nil {
+		t.Fatalf("AdmitActiveBatch() error = %v", err)
+	}
+	if len(local.activeBatches) != 1 {
+		t.Fatalf("active batches = %#v, want one local batch", local.activeBatches)
+	}
+	if got := local.activeBatches[0].batch.Kind; got != metadb.ConversationKindCMD {
+		t.Fatalf("active batch kind = %v, want %v", got, metadb.ConversationKindCMD)
+	}
+}
+
 func TestConversationAuthorityClientAdmitActiveBatchKeepsSenderWithSameTargetRecipients(t *testing.T) {
 	local := &fakeConversationAuthorityLocal{}
 	target := clusterv2.Route{HashSlot: 1, SlotID: 2, Leader: 1, Revision: 10, AuthorityEpoch: 20}
@@ -91,6 +124,7 @@ func TestConversationAuthorityClientAdmitActiveBatchKeepsSenderWithSameTargetRec
 	}
 
 	err := client.AdmitActiveBatch(context.Background(), conversationactive.ActiveBatch{
+		Kind:        metadb.ConversationKindNormal,
 		SenderUID:   "sender",
 		ChannelID:   "g1",
 		ChannelType: 2,
@@ -123,6 +157,7 @@ func TestConversationAuthorityClientAdmitActiveBatchCachesSenderRecipientRoute(t
 	client := NewConversationAuthorityClient(node, local)
 
 	err := client.AdmitActiveBatch(context.Background(), conversationactive.ActiveBatch{
+		Kind:        metadb.ConversationKindNormal,
 		SenderUID:   "sender",
 		ChannelID:   "g1",
 		ChannelType: 2,
@@ -162,6 +197,7 @@ func TestConversationAuthorityClientAdmitActiveBatchCoalescesDuplicateRecipients
 	client := NewConversationAuthorityClient(node, local)
 
 	err := client.AdmitActiveBatch(context.Background(), conversationactive.ActiveBatch{
+		Kind:        metadb.ConversationKindNormal,
 		ChannelID:   "g1",
 		ChannelType: 2,
 		MessageSeq:  9,
@@ -201,6 +237,7 @@ func TestConversationAuthorityClientAdmitActiveBatchRetriesStaleRouteWithFreshRo
 	client.routeRetrySleep = func(context.Context, time.Duration) error { return nil }
 
 	err := client.AdmitActiveBatch(context.Background(), conversationactive.ActiveBatch{
+		Kind:        metadb.ConversationKindNormal,
 		ChannelID:   "g1",
 		ChannelType: 2,
 		MessageSeq:  9,
@@ -241,6 +278,7 @@ func TestConversationAuthorityClientAdmitActiveBatchRetriesOnlyFailedTargetGroup
 	client.routeRetrySleep = func(context.Context, time.Duration) error { return nil }
 
 	err := client.AdmitActiveBatch(context.Background(), conversationactive.ActiveBatch{
+		Kind:        metadb.ConversationKindNormal,
 		SenderUID:   "sender",
 		ChannelID:   "g1",
 		ChannelType: 2,
@@ -287,6 +325,7 @@ func TestConversationAuthorityClientAdmitActiveBatchRetriesStaleRouteWithBounded
 	client.routeRetrySleep = func(context.Context, time.Duration) error { return nil }
 
 	err := client.AdmitActiveBatch(context.Background(), conversationactive.ActiveBatch{
+		Kind:        metadb.ConversationKindNormal,
 		ChannelID:   "g1",
 		ChannelType: 2,
 		MessageSeq:  9,
@@ -312,7 +351,7 @@ func TestConversationAuthorityClientAdmitActiveBatchRetriesStaleRouteWithBounded
 
 func TestConversationAuthorityClientRoutesRemoteList(t *testing.T) {
 	remoteAuthority := &fakeConversationAuthorityLocal{page: conversationusecase.ActiveViewPage{
-		Rows: []metadb.UserConversationState{{UID: "u1", ChannelID: "g1", ChannelType: 2, ActiveAt: 100}},
+		Rows: []metadb.ConversationState{{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "g1", ChannelType: 2, ActiveAt: 100}},
 		Done: true,
 	}}
 	adapter := accessnode.New(accessnode.Options{ConversationAuthority: remoteAuthority})
@@ -324,9 +363,9 @@ func TestConversationAuthorityClientRoutesRemoteList(t *testing.T) {
 		}),
 	}
 	client := NewConversationAuthorityClient(node, nil)
-	page, err := client.ListUserConversationActiveView(context.Background(), "u1", metadb.UserConversationActiveCursor{}, 10)
+	page, err := client.ListConversationActiveView(context.Background(), metadb.ConversationKindNormal, "u1", metadb.ConversationActiveCursor{}, 10)
 	if err != nil {
-		t.Fatalf("ListUserConversationActiveView() error = %v", err)
+		t.Fatalf("ListConversationActiveView() error = %v", err)
 	}
 	if len(page.Rows) != 1 || page.Rows[0].ChannelID != "g1" {
 		t.Fatalf("page = %#v, want remote row", page)
@@ -344,8 +383,8 @@ func TestConversationAuthorityClientGroupsByExactTarget(t *testing.T) {
 	}
 	client := NewConversationAuthorityClient(node, local)
 	err := client.AdmitPatches(context.Background(), []conversationusecase.ActivePatch{
-		{UID: "u1", ChannelID: "g", ChannelType: 2, ActiveAt: 10},
-		{UID: "u2", ChannelID: "g", ChannelType: 2, ActiveAt: 20},
+		{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "g", ChannelType: 2, ActiveAt: 10},
+		{UID: "u2", Kind: metadb.ConversationKindNormal, ChannelID: "g", ChannelType: 2, ActiveAt: 20},
 	})
 	if err != nil {
 		t.Fatalf("AdmitPatches() error = %v", err)
@@ -368,9 +407,9 @@ func TestConversationAuthorityClientGroupsByFullTargetFields(t *testing.T) {
 	client := NewConversationAuthorityClient(node, local)
 
 	err := client.AdmitPatches(context.Background(), []conversationusecase.ActivePatch{
-		{UID: "u1", ChannelID: "g1", ChannelType: 2, ActiveAt: 10},
-		{UID: "u2", ChannelID: "g2", ChannelType: 2, ActiveAt: 20},
-		{UID: "u3", ChannelID: "g3", ChannelType: 2, ActiveAt: 30},
+		{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "g1", ChannelType: 2, ActiveAt: 10},
+		{UID: "u2", Kind: metadb.ConversationKindNormal, ChannelID: "g2", ChannelType: 2, ActiveAt: 20},
+		{UID: "u3", Kind: metadb.ConversationKindNormal, ChannelID: "g3", ChannelType: 2, ActiveAt: 30},
 	})
 	if err != nil {
 		t.Fatalf("AdmitPatches() error = %v", err)
@@ -404,8 +443,8 @@ func TestConversationAuthorityClientGroupByTargetUsesEveryFencingField(t *testin
 			client := NewConversationAuthorityClient(node, &fakeConversationAuthorityLocal{})
 
 			groups, err := client.groupByTarget([]conversationusecase.ActivePatch{
-				{UID: "u1", ChannelID: "g1", ChannelType: 2, ActiveAt: 10},
-				{UID: "u2", ChannelID: "g2", ChannelType: 2, ActiveAt: 20},
+				{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "g1", ChannelType: 2, ActiveAt: 10},
+				{UID: "u2", Kind: metadb.ConversationKindNormal, ChannelID: "g2", ChannelType: 2, ActiveAt: 20},
 			})
 			if err != nil {
 				t.Fatalf("groupByTarget() error = %v", err)
@@ -429,8 +468,8 @@ func TestConversationAuthorityClientCoalescesIdenticalExactTargets(t *testing.T)
 	client := NewConversationAuthorityClient(node, local)
 
 	err := client.AdmitPatches(context.Background(), []conversationusecase.ActivePatch{
-		{UID: "u1", ChannelID: "g1", ChannelType: 2, ActiveAt: 10},
-		{UID: "u2", ChannelID: "g2", ChannelType: 2, ActiveAt: 20},
+		{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "g1", ChannelType: 2, ActiveAt: 10},
+		{UID: "u2", Kind: metadb.ConversationKindNormal, ChannelID: "g2", ChannelType: 2, ActiveAt: 20},
 	})
 	if err != nil {
 		t.Fatalf("AdmitPatches() error = %v", err)
@@ -458,7 +497,7 @@ func TestConversationAuthorityClientAdmitPatchesDoesNotRetryStaleRoute(t *testin
 		return nil
 	}
 
-	err := client.AdmitPatches(context.Background(), []conversationusecase.ActivePatch{{UID: "u1", ChannelID: "g", ChannelType: 2, ActiveAt: 10}})
+	err := client.AdmitPatches(context.Background(), []conversationusecase.ActivePatch{{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "g", ChannelType: 2, ActiveAt: 10}})
 	if !errors.Is(err, conversationusecase.ErrStaleRoute) {
 		t.Fatalf("AdmitPatches() error = %v, want ErrStaleRoute", err)
 	}
@@ -485,7 +524,7 @@ func TestConversationAuthorityClientAdmitPatchesDoesNotRetryRouteNotReady(t *tes
 		return nil
 	}
 
-	err := client.AdmitPatches(context.Background(), []conversationusecase.ActivePatch{{UID: "u1", ChannelID: "g", ChannelType: 2, ActiveAt: 10}})
+	err := client.AdmitPatches(context.Background(), []conversationusecase.ActivePatch{{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "g", ChannelType: 2, ActiveAt: 10}})
 	if !errors.Is(err, conversationusecase.ErrRouteNotReady) {
 		t.Fatalf("AdmitPatches() error = %v, want ErrRouteNotReady", err)
 	}
@@ -501,7 +540,7 @@ func TestConversationAuthorityClientRetriesRouteNotReadyListWithFreshRoute(t *te
 	local := &fakeConversationAuthorityLocal{
 		listErrs: []error{conversationusecase.ErrRouteNotReady, nil},
 		page: conversationusecase.ActiveViewPage{
-			Rows: []metadb.UserConversationState{{UID: "u1", ChannelID: "g1", ChannelType: 2, ActiveAt: 100}},
+			Rows: []metadb.ConversationState{{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "g1", ChannelType: 2, ActiveAt: 100}},
 			Done: true,
 		},
 	}
@@ -515,9 +554,9 @@ func TestConversationAuthorityClientRetriesRouteNotReadyListWithFreshRoute(t *te
 	client := NewConversationAuthorityClient(node, local)
 	client.routeRetrySleep = func(context.Context, time.Duration) error { return nil }
 
-	page, err := client.ListUserConversationActiveView(context.Background(), "u1", metadb.UserConversationActiveCursor{}, 10)
+	page, err := client.ListConversationActiveView(context.Background(), metadb.ConversationKindNormal, "u1", metadb.ConversationActiveCursor{}, 10)
 	if err != nil {
-		t.Fatalf("ListUserConversationActiveView() error = %v", err)
+		t.Fatalf("ListConversationActiveView() error = %v", err)
 	}
 	if node.routeKeyCalls != 2 {
 		t.Fatalf("RouteKey calls = %d, want 2", node.routeKeyCalls)
@@ -532,7 +571,7 @@ func TestConversationAuthorityClientRetriesRouteNotReadyListWithFreshRoute(t *te
 
 func TestConversationAuthorityClientRetriesRawRemoteRouteErrorWithFreshRoute(t *testing.T) {
 	remoteAuthority := &fakeConversationAuthorityLocal{page: conversationusecase.ActiveViewPage{
-		Rows: []metadb.UserConversationState{{UID: "u1", ChannelID: "g1", ChannelType: 2, ActiveAt: 100}},
+		Rows: []metadb.ConversationState{{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "g1", ChannelType: 2, ActiveAt: 100}},
 		Done: true,
 	}}
 	adapter := accessnode.New(accessnode.Options{ConversationAuthority: remoteAuthority})
@@ -550,9 +589,9 @@ func TestConversationAuthorityClientRetriesRawRemoteRouteErrorWithFreshRoute(t *
 	client := NewConversationAuthorityClient(node, nil)
 	client.routeRetrySleep = func(context.Context, time.Duration) error { return nil }
 
-	page, err := client.ListUserConversationActiveView(context.Background(), "u1", metadb.UserConversationActiveCursor{}, 10)
+	page, err := client.ListConversationActiveView(context.Background(), metadb.ConversationKindNormal, "u1", metadb.ConversationActiveCursor{}, 10)
 	if err != nil {
-		t.Fatalf("ListUserConversationActiveView() error = %v", err)
+		t.Fatalf("ListConversationActiveView() error = %v", err)
 	}
 	if node.routeKeyCalls != 2 || len(node.calls) != 2 {
 		t.Fatalf("route/call counts = %d/%d, want retry through fresh route", node.routeKeyCalls, len(node.calls))
@@ -571,7 +610,7 @@ func TestConversationAuthorityClientAdmitPatchesDoesNotExhaustBoundedRetries(t *
 	client := NewConversationAuthorityClient(node, local)
 	client.routeRetrySleep = func(context.Context, time.Duration) error { return nil }
 
-	err := client.AdmitPatches(context.Background(), []conversationusecase.ActivePatch{{UID: "u1", ChannelID: "g", ChannelType: 2, ActiveAt: 10}})
+	err := client.AdmitPatches(context.Background(), []conversationusecase.ActivePatch{{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "g", ChannelType: 2, ActiveAt: 10}})
 	if !errors.Is(err, conversationusecase.ErrNotLeader) {
 		t.Fatalf("AdmitPatches() error = %v, want ErrNotLeader", err)
 	}
@@ -590,7 +629,7 @@ func TestConversationAuthorityClientAdmitPatchesReturnsContextCancellationBefore
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	err := client.AdmitPatches(ctx, []conversationusecase.ActivePatch{{UID: "u1", ChannelID: "g", ChannelType: 2, ActiveAt: 10}})
+	err := client.AdmitPatches(ctx, []conversationusecase.ActivePatch{{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "g", ChannelType: 2, ActiveAt: 10}})
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("AdmitPatches() error = %v, want context.Canceled", err)
 	}
@@ -614,7 +653,7 @@ func TestConversationAuthorityClientAdmitPatchesDoesNotRetryNotLeader(t *testing
 		return nil
 	}
 
-	err := client.AdmitPatches(context.Background(), []conversationusecase.ActivePatch{{UID: "u1", ChannelID: "g", ChannelType: 2, ActiveAt: 10}})
+	err := client.AdmitPatches(context.Background(), []conversationusecase.ActivePatch{{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "g", ChannelType: 2, ActiveAt: 10}})
 	if !errors.Is(err, conversationusecase.ErrNotLeader) {
 		t.Fatalf("AdmitPatches() error = %v, want ErrNotLeader", err)
 	}
@@ -642,9 +681,9 @@ func TestConversationAuthorityClientAdmitPatchesStopsAtRetryableGroupError(t *te
 		return nil
 	}
 	patches := []conversationusecase.ActivePatch{
-		{UID: "u1", ChannelID: "g1", ChannelType: 2, ActiveAt: 10},
-		{UID: "u2", ChannelID: "g2", ChannelType: 2, ActiveAt: 20},
-		{UID: "u3", ChannelID: "g3", ChannelType: 2, ActiveAt: 30},
+		{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "g1", ChannelType: 2, ActiveAt: 10},
+		{UID: "u2", Kind: metadb.ConversationKindNormal, ChannelID: "g2", ChannelType: 2, ActiveAt: 20},
+		{UID: "u3", Kind: metadb.ConversationKindNormal, ChannelID: "g3", ChannelType: 2, ActiveAt: 30},
 	}
 
 	err := client.AdmitPatches(context.Background(), patches)
@@ -707,9 +746,9 @@ func TestConversationAuthorityClientMapsRouteErrors(t *testing.T) {
 			client := NewConversationAuthorityClient(node, &fakeConversationAuthorityLocal{})
 			client.routeRetrySleep = func(context.Context, time.Duration) error { return nil }
 
-			_, err := client.ListUserConversationActiveView(context.Background(), "u1", metadb.UserConversationActiveCursor{}, 10)
+			_, err := client.ListConversationActiveView(context.Background(), metadb.ConversationKindNormal, "u1", metadb.ConversationActiveCursor{}, 10)
 			if !errors.Is(err, tt.want) {
-				t.Fatalf("ListUserConversationActiveView() error = %v, want %v", err, tt.want)
+				t.Fatalf("ListConversationActiveView() error = %v, want %v", err, tt.want)
 			}
 		})
 	}
@@ -867,7 +906,7 @@ func (f *fakeConversationAuthorityLocal) AdmitActiveBatch(_ context.Context, tar
 	return nil
 }
 
-func (f *fakeConversationAuthorityLocal) ListUserConversationActiveViewForTarget(_ context.Context, target conversationusecase.RouteTarget, _ string, _ metadb.UserConversationActiveCursor, _ int) (conversationusecase.ActiveViewPage, error) {
+func (f *fakeConversationAuthorityLocal) ListConversationActiveViewForTarget(_ context.Context, target conversationusecase.RouteTarget, _ metadb.ConversationKind, _ string, _ metadb.ConversationActiveCursor, _ int) (conversationusecase.ActiveViewPage, error) {
 	f.targets = append(f.targets, target)
 	if len(f.listErrs) > 0 {
 		err := f.listErrs[0]

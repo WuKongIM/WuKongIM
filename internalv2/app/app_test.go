@@ -1106,9 +1106,9 @@ func TestManagerServerListsRecentConversationsFromConversationUsecase(t *testing
 			Slots:     []control.SlotAssignment{{SlotID: 1, DesiredPeers: []uint64{1}}},
 			HashSlots: control.HashSlotTable{Count: 4, Ranges: []control.HashSlotRange{{From: 0, To: 3, SlotID: 1}}},
 		},
-		conversationPages: map[string][]metadb.UserConversationState{
+		conversationPages: map[string][]metadb.ConversationState{
 			"u1": {{
-				UID: "u1", ChannelID: "g1", ChannelType: 2,
+				UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "g1", ChannelType: 2,
 				ReadSeq: 4, ActiveAt: 200000000000, UpdatedAt: 200000000000,
 			}},
 		},
@@ -2217,7 +2217,7 @@ func TestNewDoesNotWireConversationFallbackWhenAuthorityUnavailable(t *testing.T
 	}
 
 	cluster.mu.Lock()
-	stateBatches := append([][]metadb.UserConversationState(nil), cluster.conversationStateBatches...)
+	stateBatches := append([][]metadb.ConversationState(nil), cluster.conversationStateBatches...)
 	cluster.mu.Unlock()
 	if len(stateBatches) != 0 {
 		t.Fatalf("conversation state batches = %#v, want no legacy DB projection", stateBatches)
@@ -2475,6 +2475,7 @@ func TestConversationAuthorityRouteLifecycleWatchesLocalAuthorityEvents(t *testi
 
 	patch := conversationusecase.ActivePatch{
 		UID:         "u1",
+		Kind:        metadb.ConversationKindNormal,
 		ChannelID:   "g-watch",
 		ChannelType: 2,
 		ActiveAt:    100,
@@ -2484,9 +2485,9 @@ func TestConversationAuthorityRouteLifecycleWatchesLocalAuthorityEvents(t *testi
 	if err := client.AdmitPatches(context.Background(), []conversationusecase.ActivePatch{patch}); err != nil {
 		t.Fatalf("client AdmitPatches() error = %v", err)
 	}
-	page, err := client.ListUserConversationActiveView(context.Background(), "u1", metadb.UserConversationActiveCursor{}, 10)
+	page, err := client.ListConversationActiveView(context.Background(), metadb.ConversationKindNormal, "u1", metadb.ConversationActiveCursor{}, 10)
 	if err != nil {
-		t.Fatalf("client ListUserConversationActiveView() error = %v", err)
+		t.Fatalf("client ListConversationActiveView() error = %v", err)
 	}
 	if len(page.Rows) != 1 || page.Rows[0].ChannelID != "g-watch" || page.Rows[0].ActiveAt != 100 {
 		t.Fatalf("authority page rows = %#v, want watched local cache row", page.Rows)
@@ -2547,6 +2548,7 @@ func TestConversationActiveAdmitBatchRPCUpdatesRemoteAndLocalCache(t *testing.T)
 	client := clusterinfra.NewConversationAuthorityClient(node, localAuthority)
 
 	err := client.AdmitActiveBatch(context.Background(), conversationactive.ActiveBatch{
+		Kind:        metadb.ConversationKindNormal,
 		SenderUID:   "sender",
 		ChannelID:   "g-active",
 		ChannelType: 2,
@@ -2558,17 +2560,17 @@ func TestConversationActiveAdmitBatchRPCUpdatesRemoteAndLocalCache(t *testing.T)
 		t.Fatalf("AdmitActiveBatch() error = %v", err)
 	}
 
-	senderPage, err := client.ListUserConversationActiveView(context.Background(), "sender", metadb.UserConversationActiveCursor{}, 10)
+	senderPage, err := client.ListConversationActiveView(context.Background(), metadb.ConversationKindNormal, "sender", metadb.ConversationActiveCursor{}, 10)
 	if err != nil {
-		t.Fatalf("ListUserConversationActiveView(sender) error = %v", err)
+		t.Fatalf("ListConversationActiveView(sender) error = %v", err)
 	}
 	if len(senderPage.Rows) != 1 || senderPage.Rows[0].ChannelID != "g-active" || senderPage.Rows[0].ReadSeq != 42 || senderPage.Rows[0].ActiveAt != 1234 {
 		t.Fatalf("sender active rows = %#v, want cached sender row with read seq", senderPage.Rows)
 	}
 
-	receiverPage, err := client.ListUserConversationActiveView(context.Background(), "receiver", metadb.UserConversationActiveCursor{}, 10)
+	receiverPage, err := client.ListConversationActiveView(context.Background(), metadb.ConversationKindNormal, "receiver", metadb.ConversationActiveCursor{}, 10)
 	if err != nil {
-		t.Fatalf("ListUserConversationActiveView(receiver) error = %v", err)
+		t.Fatalf("ListConversationActiveView(receiver) error = %v", err)
 	}
 	if len(receiverPage.Rows) != 1 || receiverPage.Rows[0].ChannelID != "g-active" || receiverPage.Rows[0].ReadSeq != 0 || receiverPage.Rows[0].ActiveAt != 1234 {
 		t.Fatalf("receiver active rows = %#v, want cached receiver row without sender read seq", receiverPage.Rows)
@@ -2598,6 +2600,7 @@ func TestConversationAuthorityRouteLifecycleRemoteEventDrainsPreviousLocalTarget
 	}
 	if err := local.AdmitPatches(context.Background(), localTarget, []conversationusecase.ActivePatch{{
 		UID:         "u1",
+		Kind:        metadb.ConversationKindNormal,
 		ChannelID:   "g-drain",
 		ChannelType: 2,
 		ActiveAt:    100,
@@ -2623,11 +2626,12 @@ func TestConversationAuthorityRouteLifecycleRemoteEventDrainsPreviousLocalTarget
 	if !store.lastTouchDeadlineWithin(75*time.Millisecond, 75*time.Millisecond) {
 		t.Fatalf("handoff drain deadline = %v, want about 75ms", store.lastTouchDeadline())
 	}
-	if _, err := local.ListUserConversationActiveViewForTarget(context.Background(), localTarget, "u1", metadb.UserConversationActiveCursor{}, 10); !errors.Is(err, conversationusecase.ErrStaleRoute) {
-		t.Fatalf("stale local ListUserConversationActiveViewForTarget() error = %v, want %v", err, conversationusecase.ErrStaleRoute)
+	if _, err := local.ListConversationActiveViewForTarget(context.Background(), localTarget, metadb.ConversationKindNormal, "u1", metadb.ConversationActiveCursor{}, 10); !errors.Is(err, conversationusecase.ErrStaleRoute) {
+		t.Fatalf("stale local ListConversationActiveViewForTarget() error = %v, want %v", err, conversationusecase.ErrStaleRoute)
 	}
 	if err := local.AdmitPatches(context.Background(), localTarget, []conversationusecase.ActivePatch{{
 		UID:         "u1",
+		Kind:        metadb.ConversationKindNormal,
 		ChannelID:   "g-drain-2",
 		ChannelType: 2,
 		ActiveAt:    102,
@@ -2672,6 +2676,7 @@ func TestConversationAuthorityRouteLifecycleDrainDoesNotBlockNewLocalAuthority(t
 	}()
 	if err := local.AdmitPatches(context.Background(), oldLocalTarget, []conversationusecase.ActivePatch{{
 		UID:         "u1",
+		Kind:        metadb.ConversationKindNormal,
 		ChannelID:   "g-blocking-drain",
 		ChannelType: 2,
 		ActiveAt:    100,
@@ -4678,7 +4683,7 @@ type fakeManagerCluster struct {
 	devices      map[fakeManagerDeviceKey]metadb.Device
 	systemUIDs   []string
 
-	conversationPages     map[string][]metadb.UserConversationState
+	conversationPages     map[string][]metadb.ConversationState
 	conversationMessages  map[metadb.ConversationKey][]channelv2.Message
 	registeredHandlers    map[uint8]clusterv2.NodeRPCHandler
 	controllerLogs        clusterv2.ControllerLogEntries
@@ -4906,8 +4911,15 @@ func (f *fakeManagerCluster) ListChannelSubscribersPage(_ context.Context, _ str
 	return page, next, end >= len(f.systemUIDs), nil
 }
 
-func (f *fakeManagerCluster) ListUserConversationActivePage(_ context.Context, uid string, after metadb.UserConversationActiveCursor, limit int) ([]metadb.UserConversationState, metadb.UserConversationActiveCursor, bool, error) {
+func (f *fakeManagerCluster) ListConversationActivePage(_ context.Context, kind metadb.ConversationKind, uid string, after metadb.ConversationActiveCursor, limit int) ([]metadb.ConversationState, metadb.ConversationActiveCursor, bool, error) {
 	items := f.conversationPages[uid]
+	filtered := make([]metadb.ConversationState, 0, len(items))
+	for _, item := range items {
+		if item.Kind == kind {
+			filtered = append(filtered, item)
+		}
+	}
+	items = filtered
 	start := 0
 	if after.ChannelID != "" {
 		for i, item := range items {
@@ -4924,29 +4936,29 @@ func (f *fakeManagerCluster) ListUserConversationActivePage(_ context.Context, u
 	if end > len(items) {
 		end = len(items)
 	}
-	page := append([]metadb.UserConversationState(nil), items[start:end]...)
+	page := append([]metadb.ConversationState(nil), items[start:end]...)
 	cursor := after
 	if len(page) > 0 {
 		last := page[len(page)-1]
-		cursor = metadb.UserConversationActiveCursor{ActiveAt: last.ActiveAt, ChannelID: last.ChannelID, ChannelType: last.ChannelType}
+		cursor = metadb.ConversationActiveCursor{ActiveAt: last.ActiveAt, ChannelID: last.ChannelID, ChannelType: last.ChannelType}
 	}
 	return page, cursor, end >= len(items), nil
 }
 
-func (f *fakeManagerCluster) GetUserConversationState(_ context.Context, uid, channelID string, channelType int64) (metadb.UserConversationState, bool, error) {
+func (f *fakeManagerCluster) GetConversationState(_ context.Context, kind metadb.ConversationKind, uid, channelID string, channelType int64) (metadb.ConversationState, bool, error) {
 	for _, state := range f.conversationPages[uid] {
-		if state.ChannelID == channelID && state.ChannelType == channelType {
+		if state.Kind == kind && state.ChannelID == channelID && state.ChannelType == channelType {
 			return state, true, nil
 		}
 	}
-	return metadb.UserConversationState{}, false, nil
+	return metadb.ConversationState{}, false, nil
 }
 
-func (f *fakeManagerCluster) GetUserConversationStates(_ context.Context, keys []metadb.UserConversationKey) (map[metadb.UserConversationKey]metadb.UserConversationState, error) {
-	states := make(map[metadb.UserConversationKey]metadb.UserConversationState, len(keys))
+func (f *fakeManagerCluster) GetConversationStates(_ context.Context, keys []metadb.ConversationStateKey) (map[metadb.ConversationStateKey]metadb.ConversationState, error) {
+	states := make(map[metadb.ConversationStateKey]metadb.ConversationState, len(keys))
 	for _, key := range keys {
 		for _, state := range f.conversationPages[key.UID] {
-			if state.ChannelID == key.ChannelID && state.ChannelType == key.ChannelType {
+			if state.Kind == key.Kind && state.ChannelID == key.ChannelID && state.ChannelType == key.ChannelType {
 				states[key] = state
 				break
 			}
@@ -5050,9 +5062,9 @@ type fakePresenceCluster struct {
 	appendSeq                 uint64
 	mu                        sync.Mutex
 	messages                  map[metadb.ConversationKey][]channelv2.Message
-	conversationStateBatches  [][]metadb.UserConversationState
-	conversationDeleteBatches [][]metadb.UserConversationDelete
-	conversationPatchBatches  [][]metadb.UserConversationActivePatch
+	conversationStateBatches  [][]metadb.ConversationState
+	conversationDeleteBatches [][]metadb.ConversationDelete
+	conversationPatchBatches  [][]metadb.ConversationActivePatch
 	subscribers               map[string][]string
 	channels                  map[metadb.ConversationKey]metadb.Channel
 }
@@ -5062,7 +5074,7 @@ type fakeConversationFallbackCluster struct {
 	appendSeq                uint64
 	mu                       sync.Mutex
 	messages                 map[metadb.ConversationKey][]channelv2.Message
-	conversationStateBatches [][]metadb.UserConversationState
+	conversationStateBatches [][]metadb.ConversationState
 	subscribers              map[string][]string
 	channels                 map[metadb.ConversationKey]metadb.Channel
 }
@@ -5098,16 +5110,16 @@ func newFakePresenceCluster(nodeID uint64, events <-chan clusterv2.RouteAuthorit
 	return &fakePresenceCluster{nodeID: nodeID, events: events}
 }
 
-func conversationStatesByUID(states []metadb.UserConversationState) map[string]metadb.UserConversationState {
-	out := make(map[string]metadb.UserConversationState, len(states))
+func conversationStatesByUID(states []metadb.ConversationState) map[string]metadb.ConversationState {
+	out := make(map[string]metadb.ConversationState, len(states))
 	for _, state := range states {
 		out[state.UID] = state
 	}
 	return out
 }
 
-func conversationPatchesByUID(patches []metadb.UserConversationActivePatch) map[string]metadb.UserConversationActivePatch {
-	out := make(map[string]metadb.UserConversationActivePatch, len(patches))
+func conversationPatchesByUID(patches []metadb.ConversationActivePatch) map[string]metadb.ConversationActivePatch {
+	out := make(map[string]metadb.ConversationActivePatch, len(patches))
 	for _, patch := range patches {
 		out[patch.UID] = patch
 	}
@@ -5119,45 +5131,45 @@ type appRecordingConversationAuthorityStore struct {
 	touchStarted       chan struct{}
 	touchStartedOnce   sync.Once
 	touchBlock         <-chan struct{}
-	touchBatches       [][]metadb.UserConversationActivePatch
-	rows               map[metadb.ConversationKey]metadb.UserConversationState
+	touchBatches       [][]metadb.ConversationActivePatch
+	rows               map[metadb.ConversationKey]metadb.ConversationState
 	lastTouchDeadlineV time.Time
 }
 
-func (s *appRecordingConversationAuthorityStore) ListUserConversationActivePage(_ context.Context, uid string, after metadb.UserConversationActiveCursor, limit int) ([]metadb.UserConversationState, metadb.UserConversationActiveCursor, bool, error) {
+func (s *appRecordingConversationAuthorityStore) ListConversationActivePage(_ context.Context, kind metadb.ConversationKind, uid string, after metadb.ConversationActiveCursor, limit int) ([]metadb.ConversationState, metadb.ConversationActiveCursor, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	rows := make([]metadb.UserConversationState, 0, len(s.rows))
+	rows := make([]metadb.ConversationState, 0, len(s.rows))
 	for _, row := range s.rows {
-		if row.UID == uid && conversationRowAfter(row, after) {
+		if row.UID == uid && row.Kind == kind && conversationRowAfter(row, after) {
 			rows = append(rows, row)
 		}
 	}
 	sortConversationRows(rows)
 	if limit <= 0 || len(rows) <= limit {
-		return append([]metadb.UserConversationState(nil), rows...), conversationRowsCursor(rows, after), true, nil
+		return append([]metadb.ConversationState(nil), rows...), conversationRowsCursor(rows, after), true, nil
 	}
-	page := append([]metadb.UserConversationState(nil), rows[:limit]...)
+	page := append([]metadb.ConversationState(nil), rows[:limit]...)
 	return page, conversationRowsCursor(page, after), false, nil
 }
 
-func (s *appRecordingConversationAuthorityStore) GetUserConversationState(_ context.Context, uid, channelID string, channelType int64) (metadb.UserConversationState, bool, error) {
+func (s *appRecordingConversationAuthorityStore) GetConversationState(_ context.Context, kind metadb.ConversationKind, uid, channelID string, channelType int64) (metadb.ConversationState, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	row, ok := s.rows[metadb.ConversationKey{ChannelID: channelID, ChannelType: channelType}]
-	if !ok || row.UID != uid {
-		return metadb.UserConversationState{}, false, nil
+	if !ok || row.UID != uid || row.Kind != kind {
+		return metadb.ConversationState{}, false, nil
 	}
 	return row, true, nil
 }
 
-func (s *appRecordingConversationAuthorityStore) GetUserConversationStates(_ context.Context, keys []metadb.UserConversationKey) (map[metadb.UserConversationKey]metadb.UserConversationState, error) {
+func (s *appRecordingConversationAuthorityStore) GetConversationStates(_ context.Context, keys []metadb.ConversationStateKey) (map[metadb.ConversationStateKey]metadb.ConversationState, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	states := make(map[metadb.UserConversationKey]metadb.UserConversationState, len(keys))
+	states := make(map[metadb.ConversationStateKey]metadb.ConversationState, len(keys))
 	for _, key := range keys {
 		row, ok := s.rows[metadb.ConversationKey{ChannelID: key.ChannelID, ChannelType: key.ChannelType}]
-		if !ok || row.UID != key.UID {
+		if !ok || row.UID != key.UID || row.Kind != key.Kind {
 			continue
 		}
 		states[key] = row
@@ -5165,7 +5177,7 @@ func (s *appRecordingConversationAuthorityStore) GetUserConversationStates(_ con
 	return states, nil
 }
 
-func (s *appRecordingConversationAuthorityStore) TouchUserConversationActiveAtBatch(ctx context.Context, patches []metadb.UserConversationActivePatch) error {
+func (s *appRecordingConversationAuthorityStore) TouchConversationActiveAtBatch(ctx context.Context, patches []metadb.ConversationActivePatch) error {
 	if s.touchStarted != nil {
 		s.touchStartedOnce.Do(func() {
 			close(s.touchStarted)
@@ -5183,14 +5195,15 @@ func (s *appRecordingConversationAuthorityStore) TouchUserConversationActiveAtBa
 	if deadline, ok := ctx.Deadline(); ok {
 		s.lastTouchDeadlineV = deadline
 	}
-	s.touchBatches = append(s.touchBatches, append([]metadb.UserConversationActivePatch(nil), patches...))
+	s.touchBatches = append(s.touchBatches, append([]metadb.ConversationActivePatch(nil), patches...))
 	if s.rows == nil {
-		s.rows = make(map[metadb.ConversationKey]metadb.UserConversationState)
+		s.rows = make(map[metadb.ConversationKey]metadb.ConversationState)
 	}
 	for _, patch := range patches {
 		key := metadb.ConversationKey{ChannelID: patch.ChannelID, ChannelType: patch.ChannelType}
 		row := s.rows[key]
 		row.UID = patch.UID
+		row.Kind = patch.Kind
 		row.ChannelID = patch.ChannelID
 		row.ChannelType = patch.ChannelType
 		if patch.ReadSeq > row.ReadSeq {
@@ -5213,14 +5226,14 @@ func (s *appRecordingConversationAuthorityStore) TouchUserConversationActiveAtBa
 	return nil
 }
 
-func (s *appRecordingConversationAuthorityStore) UpsertUserConversationStatesBatch(ctx context.Context, states []metadb.UserConversationState) error {
+func (s *appRecordingConversationAuthorityStore) UpsertConversationStatesBatch(ctx context.Context, states []metadb.ConversationState) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if err := ctx.Err(); err != nil {
 		return err
 	}
 	if s.rows == nil {
-		s.rows = make(map[metadb.ConversationKey]metadb.UserConversationState)
+		s.rows = make(map[metadb.ConversationKey]metadb.ConversationState)
 	}
 	for _, state := range states {
 		key := metadb.ConversationKey{ChannelID: state.ChannelID, ChannelType: state.ChannelType}
@@ -5532,26 +5545,26 @@ func (f *fakePresenceCluster) AppendChannelBatch(_ context.Context, req channelv
 	return channelv2.AppendBatchResult{Items: fakeItems}, nil
 }
 
-func (f *fakePresenceCluster) UpsertUserConversationStatesBatch(_ context.Context, states []metadb.UserConversationState) error {
+func (f *fakePresenceCluster) UpsertConversationStatesBatch(_ context.Context, states []metadb.ConversationState) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	batch := append([]metadb.UserConversationState(nil), states...)
+	batch := append([]metadb.ConversationState(nil), states...)
 	f.conversationStateBatches = append(f.conversationStateBatches, batch)
 	return nil
 }
 
-func (f *fakePresenceCluster) HideUserConversationsBatch(_ context.Context, deletes []metadb.UserConversationDelete) error {
+func (f *fakePresenceCluster) HideConversationsBatch(_ context.Context, deletes []metadb.ConversationDelete) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	batch := append([]metadb.UserConversationDelete(nil), deletes...)
+	batch := append([]metadb.ConversationDelete(nil), deletes...)
 	f.conversationDeleteBatches = append(f.conversationDeleteBatches, batch)
 	return nil
 }
 
-func (f *fakePresenceCluster) TouchUserConversationActiveAtBatch(_ context.Context, patches []metadb.UserConversationActivePatch) error {
+func (f *fakePresenceCluster) TouchConversationActiveAtBatch(_ context.Context, patches []metadb.ConversationActivePatch) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	batch := append([]metadb.UserConversationActivePatch(nil), patches...)
+	batch := append([]metadb.ConversationActivePatch(nil), patches...)
 	f.conversationPatchBatches = append(f.conversationPatchBatches, batch)
 	return nil
 }
@@ -5586,27 +5599,27 @@ func (f *fakePresenceCluster) ListUserChannelMembershipPage(_ context.Context, _
 	return nil, metadb.UserChannelMembershipCursor{}, true, nil
 }
 
-func (f *fakePresenceCluster) ListUserConversationActivePage(_ context.Context, _ string, _ metadb.UserConversationActiveCursor, _ int) ([]metadb.UserConversationState, metadb.UserConversationActiveCursor, bool, error) {
-	return nil, metadb.UserConversationActiveCursor{}, true, nil
+func (f *fakePresenceCluster) ListConversationActivePage(_ context.Context, _ metadb.ConversationKind, _ string, _ metadb.ConversationActiveCursor, _ int) ([]metadb.ConversationState, metadb.ConversationActiveCursor, bool, error) {
+	return nil, metadb.ConversationActiveCursor{}, true, nil
 }
 
-func (f *fakePresenceCluster) GetUserConversationState(_ context.Context, uid, channelID string, channelType int64) (metadb.UserConversationState, bool, error) {
+func (f *fakePresenceCluster) GetConversationState(_ context.Context, kind metadb.ConversationKind, uid, channelID string, channelType int64) (metadb.ConversationState, bool, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	for i := len(f.conversationStateBatches) - 1; i >= 0; i-- {
 		for _, state := range f.conversationStateBatches[i] {
-			if state.UID == uid && state.ChannelID == channelID && state.ChannelType == channelType {
+			if state.UID == uid && state.Kind == kind && state.ChannelID == channelID && state.ChannelType == channelType {
 				return state, true, nil
 			}
 		}
 	}
-	return metadb.UserConversationState{}, false, nil
+	return metadb.ConversationState{}, false, nil
 }
 
-func (f *fakePresenceCluster) GetUserConversationStates(ctx context.Context, keys []metadb.UserConversationKey) (map[metadb.UserConversationKey]metadb.UserConversationState, error) {
-	states := make(map[metadb.UserConversationKey]metadb.UserConversationState, len(keys))
+func (f *fakePresenceCluster) GetConversationStates(ctx context.Context, keys []metadb.ConversationStateKey) (map[metadb.ConversationStateKey]metadb.ConversationState, error) {
+	states := make(map[metadb.ConversationStateKey]metadb.ConversationState, len(keys))
 	for _, key := range keys {
-		state, ok, err := f.GetUserConversationState(ctx, key.UID, key.ChannelID, key.ChannelType)
+		state, ok, err := f.GetConversationState(ctx, key.Kind, key.UID, key.ChannelID, key.ChannelType)
 		if err != nil {
 			return nil, err
 		}
@@ -5687,14 +5700,15 @@ func (f *fakeConversationFallbackCluster) GetChannelMetadata(_ context.Context, 
 	return channel, nil
 }
 
-func (f *fakeConversationFallbackCluster) UpsertUserConversationStatesBatch(_ context.Context, states []metadb.UserConversationState) error {
+func (f *fakeConversationFallbackCluster) UpsertConversationStatesBatch(_ context.Context, states []metadb.ConversationState) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.conversationStateBatches = append(f.conversationStateBatches, append([]metadb.UserConversationState(nil), states...))
+	batch := append([]metadb.ConversationState(nil), states...)
+	f.conversationStateBatches = append(f.conversationStateBatches, batch)
 	return nil
 }
 
-func (f *fakeConversationFallbackCluster) TouchUserConversationActiveAtBatch(context.Context, []metadb.UserConversationActivePatch) error {
+func (f *fakeConversationFallbackCluster) TouchConversationActiveAtBatch(context.Context, []metadb.ConversationActivePatch) error {
 	return errors.New("unexpected authority active patch fallback write")
 }
 
@@ -5724,16 +5738,16 @@ func (f *fakeConversationFallbackCluster) ListChannelSubscribersPage(_ context.C
 	return page, page[len(page)-1], false, nil
 }
 
-func (f *fakeConversationFallbackCluster) ListUserConversationActivePage(_ context.Context, uid string, after metadb.UserConversationActiveCursor, limit int) ([]metadb.UserConversationState, metadb.UserConversationActiveCursor, bool, error) {
+func (f *fakeConversationFallbackCluster) ListConversationActivePage(_ context.Context, kind metadb.ConversationKind, uid string, after metadb.ConversationActiveCursor, limit int) ([]metadb.ConversationState, metadb.ConversationActiveCursor, bool, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if limit <= 0 {
-		return nil, metadb.UserConversationActiveCursor{}, true, nil
+		return nil, metadb.ConversationActiveCursor{}, true, nil
 	}
-	latest := make(map[metadb.ConversationKey]metadb.UserConversationState)
+	latest := make(map[metadb.ConversationKey]metadb.ConversationState)
 	for _, batch := range f.conversationStateBatches {
 		for _, state := range batch {
-			if state.UID != uid {
+			if state.UID != uid || state.Kind != kind {
 				continue
 			}
 			key := metadb.ConversationKey{ChannelID: state.ChannelID, ChannelType: state.ChannelType}
@@ -5745,7 +5759,7 @@ func (f *fakeConversationFallbackCluster) ListUserConversationActivePage(_ conte
 			latest[key] = mergeConversationState(existing, state)
 		}
 	}
-	rows := make([]metadb.UserConversationState, 0, len(latest))
+	rows := make([]metadb.ConversationState, 0, len(latest))
 	for _, state := range latest {
 		if conversationRowAfter(state, after) {
 			rows = append(rows, state)
@@ -5755,18 +5769,18 @@ func (f *fakeConversationFallbackCluster) ListUserConversationActivePage(_ conte
 	if len(rows) <= limit {
 		return rows, conversationRowsCursor(rows, after), true, nil
 	}
-	page := append([]metadb.UserConversationState(nil), rows[:limit]...)
+	page := append([]metadb.ConversationState(nil), rows[:limit]...)
 	return page, conversationRowsCursor(page, after), false, nil
 }
 
-func (f *fakeConversationFallbackCluster) GetUserConversationState(_ context.Context, uid, channelID string, channelType int64) (metadb.UserConversationState, bool, error) {
+func (f *fakeConversationFallbackCluster) GetConversationState(_ context.Context, kind metadb.ConversationKind, uid, channelID string, channelType int64) (metadb.ConversationState, bool, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	var out metadb.UserConversationState
+	var out metadb.ConversationState
 	found := false
 	for _, batch := range f.conversationStateBatches {
 		for _, state := range batch {
-			if state.UID != uid || state.ChannelID != channelID || state.ChannelType != channelType {
+			if state.UID != uid || state.Kind != kind || state.ChannelID != channelID || state.ChannelType != channelType {
 				continue
 			}
 			if found {
@@ -5780,10 +5794,10 @@ func (f *fakeConversationFallbackCluster) GetUserConversationState(_ context.Con
 	return out, found, nil
 }
 
-func (f *fakeConversationFallbackCluster) GetUserConversationStates(ctx context.Context, keys []metadb.UserConversationKey) (map[metadb.UserConversationKey]metadb.UserConversationState, error) {
-	states := make(map[metadb.UserConversationKey]metadb.UserConversationState, len(keys))
+func (f *fakeConversationFallbackCluster) GetConversationStates(ctx context.Context, keys []metadb.ConversationStateKey) (map[metadb.ConversationStateKey]metadb.ConversationState, error) {
+	states := make(map[metadb.ConversationStateKey]metadb.ConversationState, len(keys))
 	for _, key := range keys {
-		state, ok, err := f.GetUserConversationState(ctx, key.UID, key.ChannelID, key.ChannelType)
+		state, ok, err := f.GetConversationState(ctx, key.Kind, key.UID, key.ChannelID, key.ChannelType)
 		if err != nil {
 			return nil, err
 		}

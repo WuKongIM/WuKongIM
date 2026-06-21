@@ -37,7 +37,7 @@ func (a *Adapter) HandleConversationAuthorityRPC(ctx context.Context, payload []
 		err = a.conversation.AdmitActiveBatch(ctx, req.Target, req.ActiveBatch)
 		return encodeConversationAuthorityResponse(conversationAuthorityResponse{Status: conversationRPCStatusForError(err)})
 	case conversationOpList:
-		page, err := a.conversation.ListUserConversationActiveViewForTarget(ctx, req.Target, req.UID, req.After, req.Limit)
+		page, err := a.conversation.ListConversationActiveViewForTarget(ctx, req.Target, req.Kind, req.UID, req.After, req.Limit)
 		return encodeConversationAuthorityResponse(conversationAuthorityResponse{Status: conversationRPCStatusForError(err), Page: page})
 	case conversationOpDrain:
 		result, err := a.conversation.DrainAuthority(ctx, req.Target)
@@ -50,7 +50,7 @@ func (a *Adapter) HandleConversationAuthorityRPC(ctx context.Context, payload []
 // AdmitConversationPatches forwards active conversation patches to nodeID.
 func (c *Client) AdmitConversationPatches(ctx context.Context, nodeID uint64, target conversationusecase.RouteTarget, patches []conversationusecase.ActivePatch) error {
 	if len(patches) <= maxConversationAuthorityCollectionLen {
-		resp, err := c.callConversationAuthority(ctx, nodeID, conversationAuthorityRequest{Op: conversationOpAdmitPatches, Target: target, Patches: patches})
+		resp, err := c.callConversationAuthority(ctx, nodeID, conversationAuthorityRequest{Op: conversationOpAdmitPatches, Target: target, Kind: metadb.ConversationKindNormal, Patches: patches})
 		if err != nil {
 			return err
 		}
@@ -64,6 +64,7 @@ func (c *Client) AdmitConversationPatches(ctx context.Context, nodeID uint64, ta
 		resp, err := c.callConversationAuthority(ctx, nodeID, conversationAuthorityRequest{
 			Op:      conversationOpAdmitPatches,
 			Target:  target,
+			Kind:    metadb.ConversationKindNormal,
 			Patches: patches[start:end],
 		})
 		if err != nil {
@@ -79,7 +80,7 @@ func (c *Client) AdmitConversationPatches(ctx context.Context, nodeID uint64, ta
 // AdmitConversationActiveBatch forwards one routed active conversation batch to nodeID.
 func (c *Client) AdmitConversationActiveBatch(ctx context.Context, nodeID uint64, target conversationusecase.RouteTarget, batch conversationactive.ActiveBatch) error {
 	if len(batch.Recipients) == 0 {
-		resp, err := c.callConversationAuthority(ctx, nodeID, conversationAuthorityRequest{Op: conversationOpAdmitActiveBatch, Target: target, ActiveBatch: batch})
+		resp, err := c.callConversationAuthority(ctx, nodeID, conversationAuthorityRequest{Op: conversationOpAdmitActiveBatch, Target: target, Kind: metadb.ConversationKindNormal, ActiveBatch: batch})
 		if err != nil {
 			return err
 		}
@@ -95,6 +96,7 @@ func (c *Client) AdmitConversationActiveBatch(ctx context.Context, nodeID uint64
 		resp, err := c.callConversationAuthority(ctx, nodeID, conversationAuthorityRequest{
 			Op:          conversationOpAdmitActiveBatch,
 			Target:      target,
+			Kind:        metadb.ConversationKindNormal,
 			ActiveBatch: chunk,
 		})
 		if err != nil {
@@ -108,8 +110,8 @@ func (c *Client) AdmitConversationActiveBatch(ctx context.Context, nodeID uint64
 }
 
 // ListConversations reads the target-owned active conversation page from nodeID.
-func (c *Client) ListConversations(ctx context.Context, nodeID uint64, target conversationusecase.RouteTarget, uid string, after metadb.UserConversationActiveCursor, limit int) (conversationusecase.ActiveViewPage, error) {
-	resp, err := c.callConversationAuthority(ctx, nodeID, conversationAuthorityRequest{Op: conversationOpList, Target: target, UID: uid, After: after, Limit: limit})
+func (c *Client) ListConversations(ctx context.Context, nodeID uint64, target conversationusecase.RouteTarget, kind metadb.ConversationKind, uid string, after metadb.ConversationActiveCursor, limit int) (conversationusecase.ActiveViewPage, error) {
+	resp, err := c.callConversationAuthority(ctx, nodeID, conversationAuthorityRequest{Op: conversationOpList, Target: target, Kind: kind, UID: uid, After: after, Limit: limit})
 	if err != nil {
 		return conversationusecase.ActiveViewPage{}, err
 	}
@@ -121,7 +123,7 @@ func (c *Client) ListConversations(ctx context.Context, nodeID uint64, target co
 
 // DrainConversationAuthority asks nodeID to flush and drain one conversation authority target.
 func (c *Client) DrainConversationAuthority(ctx context.Context, nodeID uint64, target conversationusecase.RouteTarget) (string, error) {
-	resp, err := c.callConversationAuthority(ctx, nodeID, conversationAuthorityRequest{Op: conversationOpDrain, Target: target})
+	resp, err := c.callConversationAuthority(ctx, nodeID, conversationAuthorityRequest{Op: conversationOpDrain, Target: target, Kind: metadb.ConversationKindNormal})
 	if err != nil {
 		return "", err
 	}

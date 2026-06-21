@@ -28,6 +28,7 @@ func TestConversationAuthorityRuntimeListSeesCacheBeforeFlush(t *testing.T) {
 
 	if err := authority.AdmitPatches(context.Background(), target, []conversationusecase.ActivePatch{{
 		UID:          "u1",
+		Kind:         metadb.ConversationKindNormal,
 		ChannelID:    "runtime-cache",
 		ChannelType:  2,
 		ReadSeq:      7,
@@ -40,9 +41,9 @@ func TestConversationAuthorityRuntimeListSeesCacheBeforeFlush(t *testing.T) {
 		t.Fatalf("AdmitPatches() error = %v", err)
 	}
 
-	page, err := authority.ListUserConversationActiveViewForTarget(context.Background(), target, "u1", metadb.UserConversationActiveCursor{}, 10)
+	page, err := authority.ListConversationActiveViewForTarget(context.Background(), target, metadb.ConversationKindNormal, "u1", metadb.ConversationActiveCursor{}, 10)
 	if err != nil {
-		t.Fatalf("ListUserConversationActiveViewForTarget() error = %v", err)
+		t.Fatalf("ListConversationActiveViewForTarget() error = %v", err)
 	}
 	if len(page.Rows) != 1 {
 		t.Fatalf("rows = %#v, want one runtime cache row", page.Rows)
@@ -61,7 +62,7 @@ func TestConversationAuthorityRuntimeListSeesCacheBeforeFlush(t *testing.T) {
 
 func TestConversationAuthorityListMergesCacheAndDB(t *testing.T) {
 	store := &recordingConversationAuthorityStore{
-		activeRows: []metadb.UserConversationState{{UID: "u1", ChannelID: "db", ChannelType: 2, ActiveAt: 100}},
+		activeRows: []metadb.ConversationState{{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "db", ChannelType: 2, ActiveAt: 100}},
 	}
 	authority := newConversationAuthority(conversationAuthorityOptions{
 		LocalNodeID:          1,
@@ -75,13 +76,13 @@ func TestConversationAuthorityListMergesCacheAndDB(t *testing.T) {
 	target := conversationusecase.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 1, RouteRevision: 3, AuthorityEpoch: 4}
 	authority.markActive(target)
 	if err := authority.AdmitPatches(context.Background(), target, []conversationusecase.ActivePatch{{
-		UID: "u1", ChannelID: "cache", ChannelType: 2, ActiveAt: 300, UpdatedAt: 300, MessageSeq: 9,
+		UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "cache", ChannelType: 2, ActiveAt: 300, UpdatedAt: 300, MessageSeq: 9,
 	}}); err != nil {
 		t.Fatalf("AdmitPatches() error = %v", err)
 	}
-	page, err := authority.ListUserConversationActiveView(context.Background(), "u1", metadb.UserConversationActiveCursor{}, 10)
+	page, err := authority.ListConversationActiveView(context.Background(), metadb.ConversationKindNormal, "u1", metadb.ConversationActiveCursor{}, 10)
 	if err != nil {
-		t.Fatalf("ListUserConversationActiveView() error = %v", err)
+		t.Fatalf("ListConversationActiveView() error = %v", err)
 	}
 	if len(page.Rows) != 2 || page.Rows[0].ChannelID != "cache" || page.Rows[1].ChannelID != "db" {
 		t.Fatalf("rows = %#v, want cache before db", page.Rows)
@@ -99,8 +100,8 @@ func TestConversationAuthorityCachePressureRejectsOversizedBatch(t *testing.T) {
 	target := conversationusecase.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 1, RouteRevision: 3, AuthorityEpoch: 4}
 	authority.markActive(target)
 	err := authority.AdmitPatches(context.Background(), target, []conversationusecase.ActivePatch{
-		{UID: "u1", ChannelID: "a", ChannelType: 2, ActiveAt: 300, MessageSeq: 3},
-		{UID: "u1", ChannelID: "b", ChannelType: 2, ActiveAt: 200, MessageSeq: 2},
+		{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "a", ChannelType: 2, ActiveAt: 300, MessageSeq: 3},
+		{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "b", ChannelType: 2, ActiveAt: 200, MessageSeq: 2},
 	})
 	if !errors.Is(err, conversationusecase.ErrCachePressure) {
 		t.Fatalf("AdmitPatches() error = %v, want ErrCachePressure", err)
@@ -126,6 +127,7 @@ func TestConversationAuthorityAdmitActiveBatchLazyActivatesCurrentLocalRoute(t *
 	})
 
 	err := authority.AdmitActiveBatch(context.Background(), target, conversationactive.ActiveBatch{
+		Kind:        metadb.ConversationKindNormal,
 		SenderUID:   "u1",
 		ChannelID:   "g-lazy",
 		ChannelType: 2,
@@ -139,9 +141,9 @@ func TestConversationAuthorityAdmitActiveBatchLazyActivatesCurrentLocalRoute(t *
 		t.Fatalf("current route lookups after lazy activation = %d, want 1", routeLookups)
 	}
 
-	page, err := authority.ListUserConversationActiveViewForTarget(context.Background(), target, "u1", metadb.UserConversationActiveCursor{}, 10)
+	page, err := authority.ListConversationActiveViewForTarget(context.Background(), target, metadb.ConversationKindNormal, "u1", metadb.ConversationActiveCursor{}, 10)
 	if err != nil {
-		t.Fatalf("ListUserConversationActiveViewForTarget() error = %v", err)
+		t.Fatalf("ListConversationActiveViewForTarget() error = %v", err)
 	}
 	if len(page.Rows) != 1 || page.Rows[0].ChannelID != "g-lazy" || page.Rows[0].ReadSeq != 7 {
 		t.Fatalf("rows = %#v, want lazily admitted active row", page.Rows)
@@ -165,6 +167,7 @@ func TestConversationAuthorityAdmitActiveBatchActiveFastPathSkipsCurrentRouteLoo
 	authority.markActive(target)
 
 	err := authority.AdmitActiveBatch(context.Background(), target, conversationactive.ActiveBatch{
+		Kind:        metadb.ConversationKindNormal,
 		SenderUID:   "u1",
 		ChannelID:   "g-fast",
 		ChannelType: 2,
@@ -192,14 +195,14 @@ func TestConversationAuthorityObservesAdmitResults(t *testing.T) {
 	target := conversationusecase.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 1, RouteRevision: 3, AuthorityEpoch: 4}
 	authority.markActive(target)
 	if err := authority.AdmitPatches(context.Background(), target, []conversationusecase.ActivePatch{{
-		UID: "u1", ChannelID: "a", ChannelType: 2, ActiveAt: 300, MessageSeq: 3,
+		UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "a", ChannelType: 2, ActiveAt: 300, MessageSeq: 3,
 	}}); err != nil {
 		t.Fatalf("AdmitPatches() error = %v", err)
 	}
 	staleTarget := target
 	staleTarget.LeaderTerm = 1
 	err := authority.AdmitPatches(context.Background(), staleTarget, []conversationusecase.ActivePatch{{
-		UID: "u2", ChannelID: "b", ChannelType: 2, ActiveAt: 200, MessageSeq: 2,
+		UID: "u2", Kind: metadb.ConversationKindNormal, ChannelID: "b", ChannelType: 2, ActiveAt: 200, MessageSeq: 2,
 	}})
 	if !errors.Is(err, conversationusecase.ErrStaleRoute) {
 		t.Fatalf("AdmitPatches(stale) error = %v, want ErrStaleRoute", err)
@@ -221,8 +224,8 @@ func TestConversationAuthorityObservesCachePressureInAdmit(t *testing.T) {
 	target := conversationusecase.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 1, RouteRevision: 3, AuthorityEpoch: 4}
 	admitAuthority.markActive(target)
 	err := admitAuthority.AdmitPatches(context.Background(), target, []conversationusecase.ActivePatch{
-		{UID: "u1", ChannelID: "a", ChannelType: 2, ActiveAt: 300, MessageSeq: 3},
-		{UID: "u1", ChannelID: "b", ChannelType: 2, ActiveAt: 200, MessageSeq: 2},
+		{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "a", ChannelType: 2, ActiveAt: 300, MessageSeq: 3},
+		{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "b", ChannelType: 2, ActiveAt: 200, MessageSeq: 2},
 	})
 	if !errors.Is(err, conversationusecase.ErrCachePressure) {
 		t.Fatalf("AdmitPatches() error = %v, want ErrCachePressure", err)
@@ -252,8 +255,8 @@ func TestConversationAuthorityAdmitCachePressureObserverRunsAfterUnlock(t *testi
 	errCh := make(chan error, 1)
 	go func() {
 		errCh <- authority.AdmitPatches(context.Background(), target, []conversationusecase.ActivePatch{
-			{UID: "u1", ChannelID: "a", ChannelType: 2, ActiveAt: 300, MessageSeq: 3},
-			{UID: "u1", ChannelID: "b", ChannelType: 2, ActiveAt: 200, MessageSeq: 2},
+			{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "a", ChannelType: 2, ActiveAt: 300, MessageSeq: 3},
+			{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "b", ChannelType: 2, ActiveAt: 200, MessageSeq: 2},
 		})
 	}()
 
@@ -281,7 +284,7 @@ func TestConversationAuthorityAdmitCachePressureObserverRunsAfterUnlock(t *testi
 func TestConversationAuthorityObservesListSuccessAndError(t *testing.T) {
 	observer := &recordingConversationAuthorityObserver{}
 	store := &recordingConversationAuthorityStore{
-		activeRows: []metadb.UserConversationState{{UID: "u1", ChannelID: "db", ChannelType: 2, ActiveAt: 100}},
+		activeRows: []metadb.ConversationState{{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "db", ChannelType: 2, ActiveAt: 100}},
 	}
 	authority := newConversationAuthority(conversationAuthorityOptions{
 		LocalNodeID:     1,
@@ -293,13 +296,13 @@ func TestConversationAuthorityObservesListSuccessAndError(t *testing.T) {
 	})
 	target := conversationusecase.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 1, RouteRevision: 3, AuthorityEpoch: 4}
 	authority.markActive(target)
-	if _, err := authority.ListUserConversationActiveViewForTarget(context.Background(), target, "u1", metadb.UserConversationActiveCursor{}, 10); err != nil {
-		t.Fatalf("ListUserConversationActiveViewForTarget() error = %v", err)
+	if _, err := authority.ListConversationActiveViewForTarget(context.Background(), target, metadb.ConversationKindNormal, "u1", metadb.ConversationActiveCursor{}, 10); err != nil {
+		t.Fatalf("ListConversationActiveViewForTarget() error = %v", err)
 	}
 
 	store.listErr = errors.New("store list failed")
-	if _, err := authority.ListUserConversationActiveViewForTarget(context.Background(), target, "u1", metadb.UserConversationActiveCursor{}, 10); err == nil {
-		t.Fatal("ListUserConversationActiveViewForTarget() error = nil, want store error")
+	if _, err := authority.ListConversationActiveViewForTarget(context.Background(), target, metadb.ConversationKindNormal, "u1", metadb.ConversationActiveCursor{}, 10); err == nil {
+		t.Fatal("ListConversationActiveViewForTarget() error = nil, want store error")
 	}
 	if got := observer.listResults(); len(got) != 2 || got[0] != "ok" || got[1] != "error" {
 		t.Fatalf("list observations = %#v, want ok then error", got)
@@ -317,15 +320,15 @@ func TestConversationAuthorityAdmissionPressureDoesNotPartiallyCache(t *testing.
 	target := conversationusecase.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 1, RouteRevision: 3, AuthorityEpoch: 4}
 	authority.markActive(target)
 	err := authority.AdmitPatches(context.Background(), target, []conversationusecase.ActivePatch{
-		{UID: "u1", ChannelID: "a", ChannelType: 2, ActiveAt: 300, MessageSeq: 3},
-		{UID: "u1", ChannelID: "b", ChannelType: 2, ActiveAt: 200, MessageSeq: 2},
+		{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "a", ChannelType: 2, ActiveAt: 300, MessageSeq: 3},
+		{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "b", ChannelType: 2, ActiveAt: 200, MessageSeq: 2},
 	})
 	if err != nil {
 		t.Fatalf("AdmitPatches() error = %v", err)
 	}
-	page, err := authority.ListUserConversationActiveViewForTarget(context.Background(), target, "u1", metadb.UserConversationActiveCursor{}, 10)
+	page, err := authority.ListConversationActiveViewForTarget(context.Background(), target, metadb.ConversationKindNormal, "u1", metadb.ConversationActiveCursor{}, 10)
 	if err != nil {
-		t.Fatalf("ListUserConversationActiveViewForTarget() error = %v", err)
+		t.Fatalf("ListConversationActiveViewForTarget() error = %v", err)
 	}
 	if len(page.Rows) != 2 || page.Rows[0].ChannelID != "a" || page.Rows[1].ChannelID != "b" {
 		t.Fatalf("rows = %#v, want durable fallback rows without partial cache admission", page.Rows)
@@ -344,8 +347,8 @@ func TestConversationAuthorityCachePressureDoesNotDurablyFallback(t *testing.T) 
 	authority.markActive(target)
 
 	err := authority.AdmitPatches(context.Background(), target, []conversationusecase.ActivePatch{
-		{UID: "u1", ChannelID: "a", ChannelType: 2, ReadSeq: 6, DeletedToSeq: 6, ActiveAt: 300, UpdatedAt: 300, MessageSeq: 7},
-		{UID: "u1", ChannelID: "b", ChannelType: 2, ActiveAt: 200, UpdatedAt: 200, MessageSeq: 5},
+		{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "a", ChannelType: 2, ReadSeq: 6, DeletedToSeq: 6, ActiveAt: 300, UpdatedAt: 300, MessageSeq: 7},
+		{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "b", ChannelType: 2, ActiveAt: 200, UpdatedAt: 200, MessageSeq: 5},
 	})
 	if !errors.Is(err, conversationusecase.ErrCachePressure) {
 		t.Fatalf("AdmitPatches() error = %v, want ErrCachePressure", err)
@@ -353,9 +356,9 @@ func TestConversationAuthorityCachePressureDoesNotDurablyFallback(t *testing.T) 
 	if len(store.touched) != 0 {
 		t.Fatalf("durable patches = %#v, want no app durable fallback after cache pressure", store.touched)
 	}
-	page, err := authority.ListUserConversationActiveViewForTarget(context.Background(), target, "u1", metadb.UserConversationActiveCursor{}, 10)
+	page, err := authority.ListConversationActiveViewForTarget(context.Background(), target, metadb.ConversationKindNormal, "u1", metadb.ConversationActiveCursor{}, 10)
 	if err != nil {
-		t.Fatalf("ListUserConversationActiveViewForTarget() error = %v", err)
+		t.Fatalf("ListConversationActiveViewForTarget() error = %v", err)
 	}
 	if len(page.Rows) != 0 {
 		t.Fatalf("rows = %#v, want failed oversized batch not partially cached", page.Rows)
@@ -374,7 +377,7 @@ func TestConversationAuthorityFlushPersistsRuntimeReadFloor(t *testing.T) {
 	target := conversationusecase.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 1, RouteRevision: 3, AuthorityEpoch: 4}
 	authority.markActive(target)
 	patch := conversationusecase.ActivePatch{
-		UID: "u1", ChannelID: "join-floor", ChannelType: 2, ReadSeq: 8, DeletedToSeq: 8, ActiveAt: 300, UpdatedAt: 300, MessageSeq: 9,
+		UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "join-floor", ChannelType: 2, ReadSeq: 8, DeletedToSeq: 8, ActiveAt: 300, UpdatedAt: 300, MessageSeq: 9,
 	}
 	if err := authority.AdmitPatches(context.Background(), target, []conversationusecase.ActivePatch{patch}); err != nil {
 		t.Fatalf("AdmitPatches() error = %v", err)
@@ -386,9 +389,9 @@ func TestConversationAuthorityFlushPersistsRuntimeReadFloor(t *testing.T) {
 	if len(store.touched) != 1 || store.touched[0].ReadSeq != 8 || store.touched[0].DeletedToSeq != 0 || store.touched[0].MessageSeq != 0 {
 		t.Fatalf("durable patches = %#v, want flushed runtime read floor only", store.touched)
 	}
-	page, err := authority.ListUserConversationActiveViewForTarget(context.Background(), target, "u1", metadb.UserConversationActiveCursor{}, 10)
+	page, err := authority.ListConversationActiveViewForTarget(context.Background(), target, metadb.ConversationKindNormal, "u1", metadb.ConversationActiveCursor{}, 10)
 	if err != nil {
-		t.Fatalf("ListUserConversationActiveViewForTarget() error = %v", err)
+		t.Fatalf("ListConversationActiveViewForTarget() error = %v", err)
 	}
 	if len(page.Rows) != 1 || page.Rows[0].ReadSeq != 8 || page.Rows[0].DeletedToSeq != 0 {
 		t.Fatalf("rows = %#v, want DB row to keep runtime read floor after cache flush", page.Rows)
@@ -397,21 +400,21 @@ func TestConversationAuthorityFlushPersistsRuntimeReadFloor(t *testing.T) {
 
 func TestConversationAuthorityCacheOnlyRowHydratesPrimaryDeleteBarrier(t *testing.T) {
 	store := &recordingConversationAuthorityStore{
-		primary: map[metadb.ConversationKey]metadb.UserConversationState{
-			{ChannelID: "hidden", ChannelType: 2}: {UID: "u1", ChannelID: "hidden", ChannelType: 2, DeletedToSeq: 10, ActiveAt: 0},
+		primary: map[metadb.ConversationKey]metadb.ConversationState{
+			{ChannelID: "hidden", ChannelType: 2}: {UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "hidden", ChannelType: 2, DeletedToSeq: 10, ActiveAt: 0},
 		},
 	}
 	authority := newConversationAuthority(conversationAuthorityOptions{LocalNodeID: 1, Store: store, MaxRowsPerUID: 10, MaxRows: 100, ListDBWindowMax: 20})
 	target := conversationusecase.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 1, RouteRevision: 3, AuthorityEpoch: 4}
 	authority.markActive(target)
 	if err := authority.AdmitPatches(context.Background(), target, []conversationusecase.ActivePatch{{
-		UID: "u1", ChannelID: "hidden", ChannelType: 2, ActiveAt: 300, MessageSeq: 9,
+		UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "hidden", ChannelType: 2, ActiveAt: 300, MessageSeq: 9,
 	}}); err != nil {
 		t.Fatalf("AdmitPatches() error = %v", err)
 	}
-	page, err := authority.ListUserConversationActiveView(context.Background(), "u1", metadb.UserConversationActiveCursor{}, 10)
+	page, err := authority.ListConversationActiveView(context.Background(), metadb.ConversationKindNormal, "u1", metadb.ConversationActiveCursor{}, 10)
 	if err != nil {
-		t.Fatalf("ListUserConversationActiveView() error = %v", err)
+		t.Fatalf("ListConversationActiveView() error = %v", err)
 	}
 	if len(page.Rows) != 1 || page.Rows[0].ChannelID != "hidden" || page.Rows[0].DeletedToSeq != 10 || page.Rows[0].ActiveAt != 300 {
 		t.Fatalf("rows = %#v, want cache row hydrated with durable delete barrier", page.Rows)
@@ -420,21 +423,21 @@ func TestConversationAuthorityCacheOnlyRowHydratesPrimaryDeleteBarrier(t *testin
 
 func TestConversationAuthorityDBActiveRowKeepsDeleteBarrierDuringCacheOverlay(t *testing.T) {
 	store := &recordingConversationAuthorityStore{
-		activeRows: []metadb.UserConversationState{{
-			UID: "u1", ChannelID: "same", ChannelType: 2, DeletedToSeq: 10, ActiveAt: 100,
+		activeRows: []metadb.ConversationState{{
+			UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "same", ChannelType: 2, DeletedToSeq: 10, ActiveAt: 100,
 		}},
 	}
 	authority := newConversationAuthority(conversationAuthorityOptions{LocalNodeID: 1, Store: store, MaxRowsPerUID: 10, MaxRows: 100, ListDBWindowMax: 20})
 	target := conversationusecase.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 1, RouteRevision: 3, AuthorityEpoch: 4}
 	authority.markActive(target)
 	if err := authority.AdmitPatches(context.Background(), target, []conversationusecase.ActivePatch{{
-		UID: "u1", ChannelID: "same", ChannelType: 2, ActiveAt: 300, MessageSeq: 9,
+		UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "same", ChannelType: 2, ActiveAt: 300, MessageSeq: 9,
 	}}); err != nil {
 		t.Fatalf("AdmitPatches() error = %v", err)
 	}
-	page, err := authority.ListUserConversationActiveViewForTarget(context.Background(), target, "u1", metadb.UserConversationActiveCursor{}, 10)
+	page, err := authority.ListConversationActiveViewForTarget(context.Background(), target, metadb.ConversationKindNormal, "u1", metadb.ConversationActiveCursor{}, 10)
 	if err != nil {
-		t.Fatalf("ListUserConversationActiveViewForTarget() error = %v", err)
+		t.Fatalf("ListConversationActiveViewForTarget() error = %v", err)
 	}
 	if len(page.Rows) != 1 || page.Rows[0].ActiveAt != 300 || page.Rows[0].DeletedToSeq != 10 {
 		t.Fatalf("rows = %#v, want cache active time over durable delete barrier", page.Rows)
@@ -446,13 +449,13 @@ func TestConversationAuthorityCachedDeleteBarrierIsIgnoredByRuntimeAdmission(t *
 	target := conversationusecase.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 1, RouteRevision: 3, AuthorityEpoch: 4}
 	authority.markActive(target)
 	if err := authority.AdmitPatches(context.Background(), target, []conversationusecase.ActivePatch{{
-		UID: "u1", ChannelID: "hidden", ChannelType: 2, ActiveAt: 300, DeletedToSeq: 10, MessageSeq: 9,
+		UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "hidden", ChannelType: 2, ActiveAt: 300, DeletedToSeq: 10, MessageSeq: 9,
 	}}); err != nil {
 		t.Fatalf("AdmitPatches() error = %v", err)
 	}
-	page, err := authority.ListUserConversationActiveViewForTarget(context.Background(), target, "u1", metadb.UserConversationActiveCursor{}, 10)
+	page, err := authority.ListConversationActiveViewForTarget(context.Background(), target, metadb.ConversationKindNormal, "u1", metadb.ConversationActiveCursor{}, 10)
 	if err != nil {
-		t.Fatalf("ListUserConversationActiveViewForTarget() error = %v", err)
+		t.Fatalf("ListConversationActiveViewForTarget() error = %v", err)
 	}
 	if len(page.Rows) != 1 || page.Rows[0].ChannelID != "hidden" || page.Rows[0].DeletedToSeq != 0 {
 		t.Fatalf("rows = %#v, want runtime admission to ignore cached delete barrier", page.Rows)
@@ -461,23 +464,23 @@ func TestConversationAuthorityCachedDeleteBarrierIsIgnoredByRuntimeAdmission(t *
 
 func TestConversationAuthorityCoalescedRowIgnoresMessageSeqFence(t *testing.T) {
 	store := &recordingConversationAuthorityStore{
-		primary: map[metadb.ConversationKey]metadb.UserConversationState{
-			{ChannelID: "hidden", ChannelType: 2}: {UID: "u1", ChannelID: "hidden", ChannelType: 2, DeletedToSeq: 10, ActiveAt: 0},
+		primary: map[metadb.ConversationKey]metadb.ConversationState{
+			{ChannelID: "hidden", ChannelType: 2}: {UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "hidden", ChannelType: 2, DeletedToSeq: 10, ActiveAt: 0},
 		},
 	}
 	authority := newConversationAuthority(conversationAuthorityOptions{LocalNodeID: 1, Store: store, MaxRowsPerUID: 10, MaxRows: 100, ListDBWindowMax: 20})
 	target := conversationusecase.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 1, RouteRevision: 3, AuthorityEpoch: 4}
 	authority.markActive(target)
 	err := authority.AdmitPatches(context.Background(), target, []conversationusecase.ActivePatch{
-		{UID: "u1", ChannelID: "hidden", ChannelType: 2, ActiveAt: 300, MessageSeq: 9},
-		{UID: "u1", ChannelID: "hidden", ChannelType: 2, ActiveAt: 200, MessageSeq: 11},
+		{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "hidden", ChannelType: 2, ActiveAt: 300, MessageSeq: 9},
+		{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "hidden", ChannelType: 2, ActiveAt: 200, MessageSeq: 11},
 	})
 	if err != nil {
 		t.Fatalf("AdmitPatches() error = %v", err)
 	}
-	page, err := authority.ListUserConversationActiveView(context.Background(), "u1", metadb.UserConversationActiveCursor{}, 10)
+	page, err := authority.ListConversationActiveView(context.Background(), metadb.ConversationKindNormal, "u1", metadb.ConversationActiveCursor{}, 10)
 	if err != nil {
-		t.Fatalf("ListUserConversationActiveView() error = %v", err)
+		t.Fatalf("ListConversationActiveView() error = %v", err)
 	}
 	if len(page.Rows) != 1 || page.Rows[0].ChannelID != "hidden" || page.Rows[0].ActiveAt != 300 || page.Rows[0].DeletedToSeq != 10 {
 		t.Fatalf("rows = %#v, want coalesced runtime row hydrated from durable state", page.Rows)
@@ -489,14 +492,14 @@ func TestConversationAuthoritySparseModeIsNotAdmittedFromRuntimePatch(t *testing
 	target := conversationusecase.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 1, RouteRevision: 3, AuthorityEpoch: 4}
 	authority.markActive(target)
 	if err := authority.AdmitPatches(context.Background(), target, []conversationusecase.ActivePatch{
-		{UID: "u1", ChannelID: "g1", ChannelType: 2, ActiveAt: 300, MessageSeq: 30, SparseActive: true},
-		{UID: "u1", ChannelID: "g1", ChannelType: 2, ActiveAt: 200, MessageSeq: 20, SparseActive: false},
+		{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "g1", ChannelType: 2, ActiveAt: 300, MessageSeq: 30, SparseActive: true},
+		{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "g1", ChannelType: 2, ActiveAt: 200, MessageSeq: 20, SparseActive: false},
 	}); err != nil {
 		t.Fatalf("AdmitPatches() error = %v", err)
 	}
-	page, err := authority.ListUserConversationActiveViewForTarget(context.Background(), target, "u1", metadb.UserConversationActiveCursor{}, 10)
+	page, err := authority.ListConversationActiveViewForTarget(context.Background(), target, metadb.ConversationKindNormal, "u1", metadb.ConversationActiveCursor{}, 10)
 	if err != nil {
-		t.Fatalf("ListUserConversationActiveViewForTarget() error = %v", err)
+		t.Fatalf("ListConversationActiveViewForTarget() error = %v", err)
 	}
 	if len(page.Rows) != 1 || page.Rows[0].SparseActive {
 		t.Fatalf("rows = %#v, want runtime admission to ignore sparse mode", page.Rows)
@@ -505,19 +508,19 @@ func TestConversationAuthoritySparseModeIsNotAdmittedFromRuntimePatch(t *testing
 
 func TestConversationAuthoritySparseModeFollowsNewerDBRow(t *testing.T) {
 	store := &recordingConversationAuthorityStore{
-		activeRows: []metadb.UserConversationState{{UID: "u1", ChannelID: "g1", ChannelType: 2, ActiveAt: 300, SparseActive: true}},
+		activeRows: []metadb.ConversationState{{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "g1", ChannelType: 2, ActiveAt: 300, SparseActive: true}},
 	}
 	authority := newConversationAuthority(conversationAuthorityOptions{LocalNodeID: 1, Store: store, MaxRowsPerUID: 10, MaxRows: 100, ListDBWindowMax: 20})
 	target := conversationusecase.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 1, RouteRevision: 3, AuthorityEpoch: 4}
 	authority.markActive(target)
 	if err := authority.AdmitPatches(context.Background(), target, []conversationusecase.ActivePatch{{
-		UID: "u1", ChannelID: "g1", ChannelType: 2, ActiveAt: 200, MessageSeq: 20, SparseActive: false,
+		UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "g1", ChannelType: 2, ActiveAt: 200, MessageSeq: 20, SparseActive: false,
 	}}); err != nil {
 		t.Fatalf("AdmitPatches() error = %v", err)
 	}
-	page, err := authority.ListUserConversationActiveViewForTarget(context.Background(), target, "u1", metadb.UserConversationActiveCursor{}, 10)
+	page, err := authority.ListConversationActiveViewForTarget(context.Background(), target, metadb.ConversationKindNormal, "u1", metadb.ConversationActiveCursor{}, 10)
 	if err != nil {
-		t.Fatalf("ListUserConversationActiveViewForTarget() error = %v", err)
+		t.Fatalf("ListConversationActiveViewForTarget() error = %v", err)
 	}
 	if len(page.Rows) != 1 || !page.Rows[0].SparseActive {
 		t.Fatalf("rows = %#v, want sparse mode from newer DB row", page.Rows)
@@ -526,25 +529,25 @@ func TestConversationAuthoritySparseModeFollowsNewerDBRow(t *testing.T) {
 
 func TestConversationAuthorityListHydratesDurableDeleteBarriers(t *testing.T) {
 	store := &recordingConversationAuthorityStore{
-		primary: map[metadb.ConversationKey]metadb.UserConversationState{
-			{ChannelID: "hidden-a", ChannelType: 2}: {UID: "u1", ChannelID: "hidden-a", ChannelType: 2, DeletedToSeq: 10},
-			{ChannelID: "hidden-b", ChannelType: 2}: {UID: "u1", ChannelID: "hidden-b", ChannelType: 2, DeletedToSeq: 20},
+		primary: map[metadb.ConversationKey]metadb.ConversationState{
+			{ChannelID: "hidden-a", ChannelType: 2}: {UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "hidden-a", ChannelType: 2, DeletedToSeq: 10},
+			{ChannelID: "hidden-b", ChannelType: 2}: {UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "hidden-b", ChannelType: 2, DeletedToSeq: 20},
 		},
 	}
 	authority := newConversationAuthority(conversationAuthorityOptions{LocalNodeID: 1, Store: store, MaxRowsPerUID: 10, MaxRows: 100, ListDBWindowMax: 20})
 	target := conversationusecase.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 1, RouteRevision: 3, AuthorityEpoch: 4}
 	authority.markActive(target)
 	err := authority.AdmitPatches(context.Background(), target, []conversationusecase.ActivePatch{
-		{UID: "u1", ChannelID: "hidden-a", ChannelType: 2, ActiveAt: 300, MessageSeq: 9},
-		{UID: "u1", ChannelID: "hidden-b", ChannelType: 2, ActiveAt: 200, MessageSeq: 19},
-		{UID: "u1", ChannelID: "visible", ChannelType: 2, ActiveAt: 100, MessageSeq: 30},
+		{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "hidden-a", ChannelType: 2, ActiveAt: 300, MessageSeq: 9},
+		{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "hidden-b", ChannelType: 2, ActiveAt: 200, MessageSeq: 19},
+		{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "visible", ChannelType: 2, ActiveAt: 100, MessageSeq: 30},
 	})
 	if err != nil {
 		t.Fatalf("AdmitPatches() error = %v", err)
 	}
-	page, err := authority.ListUserConversationActiveView(context.Background(), "u1", metadb.UserConversationActiveCursor{}, 1)
+	page, err := authority.ListConversationActiveView(context.Background(), metadb.ConversationKindNormal, "u1", metadb.ConversationActiveCursor{}, 1)
 	if err != nil {
-		t.Fatalf("ListUserConversationActiveView() error = %v", err)
+		t.Fatalf("ListConversationActiveView() error = %v", err)
 	}
 	if len(page.Rows) != 1 || page.Rows[0].ChannelID != "hidden-a" || page.Rows[0].DeletedToSeq != 10 {
 		t.Fatalf("rows = %#v, want highest runtime row hydrated with durable delete barrier", page.Rows)
@@ -559,6 +562,7 @@ func TestConversationAuthorityManyCacheRowsSmallLimitDoesNotPressure(t *testing.
 	for i := 0; i < 9; i++ {
 		patches = append(patches, conversationusecase.ActivePatch{
 			UID:         "u1",
+			Kind:        metadb.ConversationKindNormal,
 			ChannelID:   string(rune('a' + i)),
 			ChannelType: 2,
 			ActiveAt:    int64(900 - i),
@@ -568,9 +572,9 @@ func TestConversationAuthorityManyCacheRowsSmallLimitDoesNotPressure(t *testing.
 	if err := authority.AdmitPatches(context.Background(), target, patches); err != nil {
 		t.Fatalf("AdmitPatches() error = %v", err)
 	}
-	page, err := authority.ListUserConversationActiveViewForTarget(context.Background(), target, "u1", metadb.UserConversationActiveCursor{}, 1)
+	page, err := authority.ListConversationActiveViewForTarget(context.Background(), target, metadb.ConversationKindNormal, "u1", metadb.ConversationActiveCursor{}, 1)
 	if err != nil {
-		t.Fatalf("ListUserConversationActiveViewForTarget() error = %v", err)
+		t.Fatalf("ListConversationActiveViewForTarget() error = %v", err)
 	}
 	if len(page.Rows) != 1 || page.Rows[0].ChannelID != "a" {
 		t.Fatalf("rows = %#v, want top cache row without pressure", page.Rows)
@@ -583,7 +587,7 @@ func TestConversationAuthorityFlushUsesRuntimeTouchPatch(t *testing.T) {
 	target := conversationusecase.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 1, RouteRevision: 3, AuthorityEpoch: 4}
 	authority.markActive(target)
 	if err := authority.AdmitPatches(context.Background(), target, []conversationusecase.ActivePatch{{
-		UID: "u1", ChannelID: "g1", ChannelType: 2, ActiveAt: 300, MessageSeq: 30, SparseActive: true,
+		UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "g1", ChannelType: 2, ActiveAt: 300, MessageSeq: 30, SparseActive: true,
 	}}); err != nil {
 		t.Fatalf("AdmitPatches() error = %v", err)
 	}
@@ -599,9 +603,9 @@ func TestConversationAuthorityWarmingRejectsList(t *testing.T) {
 	authority := newConversationAuthority(conversationAuthorityOptions{LocalNodeID: 1, Store: &recordingConversationAuthorityStore{}})
 	target := conversationusecase.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 1, RouteRevision: 3, AuthorityEpoch: 4}
 	authority.markWarming(target)
-	_, err := authority.ListUserConversationActiveView(context.Background(), "u1", metadb.UserConversationActiveCursor{}, 10)
+	_, err := authority.ListConversationActiveView(context.Background(), metadb.ConversationKindNormal, "u1", metadb.ConversationActiveCursor{}, 10)
 	if !errors.Is(err, conversationusecase.ErrRouteNotReady) {
-		t.Fatalf("ListUserConversationActiveView() error = %v, want ErrRouteNotReady", err)
+		t.Fatalf("ListConversationActiveView() error = %v, want ErrRouteNotReady", err)
 	}
 }
 
@@ -611,9 +615,9 @@ func TestConversationAuthorityListForWarmingTargetRejectsEvenWithActiveTarget(t 
 	warming := conversationusecase.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 1, RouteRevision: 5, AuthorityEpoch: 6}
 	authority.markActive(active)
 	authority.markWarming(warming)
-	_, err := authority.ListUserConversationActiveViewForTarget(context.Background(), warming, "u1", metadb.UserConversationActiveCursor{}, 10)
+	_, err := authority.ListConversationActiveViewForTarget(context.Background(), warming, metadb.ConversationKindNormal, "u1", metadb.ConversationActiveCursor{}, 10)
 	if !errors.Is(err, conversationusecase.ErrRouteNotReady) {
-		t.Fatalf("ListUserConversationActiveViewForTarget() error = %v, want ErrRouteNotReady", err)
+		t.Fatalf("ListConversationActiveViewForTarget() error = %v, want ErrRouteNotReady", err)
 	}
 }
 
@@ -622,22 +626,22 @@ func TestConversationAuthorityListForStaleTargetRejects(t *testing.T) {
 	active := conversationusecase.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 1, RouteRevision: 3, AuthorityEpoch: 4}
 	stale := conversationusecase.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 1, LeaderTerm: 1, RouteRevision: 5, AuthorityEpoch: 6}
 	authority.markActive(active)
-	_, err := authority.ListUserConversationActiveViewForTarget(context.Background(), stale, "u1", metadb.UserConversationActiveCursor{}, 10)
+	_, err := authority.ListConversationActiveViewForTarget(context.Background(), stale, metadb.ConversationKindNormal, "u1", metadb.ConversationActiveCursor{}, 10)
 	if !errors.Is(err, conversationusecase.ErrStaleRoute) {
-		t.Fatalf("ListUserConversationActiveViewForTarget() error = %v, want ErrStaleRoute", err)
+		t.Fatalf("ListConversationActiveViewForTarget() error = %v, want ErrStaleRoute", err)
 	}
 }
 
 func TestConversationAuthorityListForActiveTargetSucceeds(t *testing.T) {
 	store := &recordingConversationAuthorityStore{
-		activeRows: []metadb.UserConversationState{{UID: "u1", ChannelID: "db", ChannelType: 2, ActiveAt: 100}},
+		activeRows: []metadb.ConversationState{{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "db", ChannelType: 2, ActiveAt: 100}},
 	}
 	authority := newConversationAuthority(conversationAuthorityOptions{LocalNodeID: 1, Store: store, MaxRowsPerUID: 10, MaxRows: 100, ListDBWindowMax: 20})
 	active := conversationusecase.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 1, RouteRevision: 3, AuthorityEpoch: 4}
 	authority.markActive(active)
-	page, err := authority.ListUserConversationActiveViewForTarget(context.Background(), active, "u1", metadb.UserConversationActiveCursor{}, 10)
+	page, err := authority.ListConversationActiveViewForTarget(context.Background(), active, metadb.ConversationKindNormal, "u1", metadb.ConversationActiveCursor{}, 10)
 	if err != nil {
-		t.Fatalf("ListUserConversationActiveViewForTarget() error = %v", err)
+		t.Fatalf("ListConversationActiveViewForTarget() error = %v", err)
 	}
 	if len(page.Rows) != 1 || page.Rows[0].ChannelID != "db" {
 		t.Fatalf("rows = %#v, want active target DB row", page.Rows)
@@ -653,14 +657,14 @@ func TestConversationAuthorityAcceptsSameDistributedIdentityWithDifferentRouteRe
 	authority.markActive(oldTarget)
 	authority.markActive(newTarget)
 	err := authority.AdmitPatches(context.Background(), oldTarget, []conversationusecase.ActivePatch{{
-		UID: "u1", ChannelID: "old", ChannelType: 2, ActiveAt: 300, MessageSeq: 30,
+		UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "old", ChannelType: 2, ActiveAt: 300, MessageSeq: 30,
 	}})
 	if err != nil {
 		t.Fatalf("AdmitPatches(oldTarget) error = %v, want same distributed identity accepted", err)
 	}
-	_, err = authority.ListUserConversationActiveViewForTarget(context.Background(), oldTarget, "u1", metadb.UserConversationActiveCursor{}, 10)
+	_, err = authority.ListConversationActiveViewForTarget(context.Background(), oldTarget, metadb.ConversationKindNormal, "u1", metadb.ConversationActiveCursor{}, 10)
 	if err != nil {
-		t.Fatalf("ListUserConversationActiveViewForTarget(oldTarget) error = %v, want same distributed identity accepted", err)
+		t.Fatalf("ListConversationActiveViewForTarget(oldTarget) error = %v, want same distributed identity accepted", err)
 	}
 }
 
@@ -674,14 +678,14 @@ func TestConversationAuthorityDifferentLeaderTermRejectsOldTarget(t *testing.T) 
 	authority.markActive(oldTarget)
 	authority.markActive(newTarget)
 	err := authority.AdmitPatches(context.Background(), oldTarget, []conversationusecase.ActivePatch{{
-		UID: "u1", ChannelID: "old", ChannelType: 2, ActiveAt: 200, MessageSeq: 20,
+		UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "old", ChannelType: 2, ActiveAt: 200, MessageSeq: 20,
 	}})
 	if !errors.Is(err, conversationusecase.ErrStaleRoute) {
 		t.Fatalf("AdmitPatches(oldTarget) error = %v, want ErrStaleRoute", err)
 	}
-	_, err = authority.ListUserConversationActiveViewForTarget(context.Background(), oldTarget, "u1", metadb.UserConversationActiveCursor{}, 10)
+	_, err = authority.ListConversationActiveViewForTarget(context.Background(), oldTarget, metadb.ConversationKindNormal, "u1", metadb.ConversationActiveCursor{}, 10)
 	if !errors.Is(err, conversationusecase.ErrStaleRoute) {
-		t.Fatalf("ListUserConversationActiveViewForTarget(oldTarget) error = %v, want ErrStaleRoute", err)
+		t.Fatalf("ListConversationActiveViewForTarget(oldTarget) error = %v, want ErrStaleRoute", err)
 	}
 }
 
@@ -695,7 +699,7 @@ func TestConversationAuthorityDifferentConfigEpochRejectsOldTarget(t *testing.T)
 	authority.markActive(oldTarget)
 	authority.markActive(newTarget)
 	err := authority.AdmitPatches(context.Background(), oldTarget, []conversationusecase.ActivePatch{{
-		UID: "u1", ChannelID: "old", ChannelType: 2, ActiveAt: 200, MessageSeq: 20,
+		UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "old", ChannelType: 2, ActiveAt: 200, MessageSeq: 20,
 	}})
 	if !errors.Is(err, conversationusecase.ErrStaleRoute) {
 		t.Fatalf("AdmitPatches(oldTarget) error = %v, want ErrStaleRoute", err)
@@ -709,14 +713,14 @@ func TestConversationAuthoritySupersededSlotMoveRejectsOldTarget(t *testing.T) {
 	authority.markActive(oldTarget)
 	authority.markActive(newTarget)
 	err := authority.AdmitPatches(context.Background(), oldTarget, []conversationusecase.ActivePatch{{
-		UID: "u1", ChannelID: "old", ChannelType: 2, ActiveAt: 300, MessageSeq: 30,
+		UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "old", ChannelType: 2, ActiveAt: 300, MessageSeq: 30,
 	}})
 	if !errors.Is(err, conversationusecase.ErrStaleRoute) {
 		t.Fatalf("AdmitPatches(oldTarget) error = %v, want ErrStaleRoute", err)
 	}
-	_, err = authority.ListUserConversationActiveViewForTarget(context.Background(), oldTarget, "u1", metadb.UserConversationActiveCursor{}, 10)
+	_, err = authority.ListConversationActiveViewForTarget(context.Background(), oldTarget, metadb.ConversationKindNormal, "u1", metadb.ConversationActiveCursor{}, 10)
 	if !errors.Is(err, conversationusecase.ErrStaleRoute) {
-		t.Fatalf("ListUserConversationActiveViewForTarget(oldTarget) error = %v, want ErrStaleRoute", err)
+		t.Fatalf("ListConversationActiveViewForTarget(oldTarget) error = %v, want ErrStaleRoute", err)
 	}
 }
 
@@ -732,9 +736,9 @@ func TestConversationAuthorityListForDrainedTargetRejects(t *testing.T) {
 	if result != conversationDrainResultNoDirty {
 		t.Fatalf("DrainAuthority() result = %q, want %q", result, conversationDrainResultNoDirty)
 	}
-	_, err = authority.ListUserConversationActiveViewForTarget(context.Background(), target, "u1", metadb.UserConversationActiveCursor{}, 10)
+	_, err = authority.ListConversationActiveViewForTarget(context.Background(), target, metadb.ConversationKindNormal, "u1", metadb.ConversationActiveCursor{}, 10)
 	if !errors.Is(err, conversationusecase.ErrStaleRoute) {
-		t.Fatalf("ListUserConversationActiveViewForTarget() error = %v, want ErrStaleRoute", err)
+		t.Fatalf("ListConversationActiveViewForTarget() error = %v, want ErrStaleRoute", err)
 	}
 }
 
@@ -742,16 +746,16 @@ func TestConversationAuthorityListForTargetRechecksDrainingAfterStoreRead(t *tes
 	authority := newConversationAuthority(conversationAuthorityOptions{LocalNodeID: 1, MaxRowsPerUID: 10, MaxRows: 100, ListDBWindowMax: 20})
 	target := conversationusecase.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 1, RouteRevision: 3, AuthorityEpoch: 4}
 	store := &recordingConversationAuthorityStore{
-		activeRows: []metadb.UserConversationState{{UID: "u1", ChannelID: "db", ChannelType: 2, ActiveAt: 100}},
+		activeRows: []metadb.ConversationState{{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "db", ChannelType: 2, ActiveAt: 100}},
 		beforeList: func() {
 			_, _ = authority.DrainAuthority(context.Background(), target)
 		},
 	}
 	authority.store = store
 	authority.markActive(target)
-	_, err := authority.ListUserConversationActiveViewForTarget(context.Background(), target, "u1", metadb.UserConversationActiveCursor{}, 10)
+	_, err := authority.ListConversationActiveViewForTarget(context.Background(), target, metadb.ConversationKindNormal, "u1", metadb.ConversationActiveCursor{}, 10)
 	if !errors.Is(err, conversationusecase.ErrStaleRoute) {
-		t.Fatalf("ListUserConversationActiveViewForTarget() error = %v, want ErrStaleRoute", err)
+		t.Fatalf("ListConversationActiveViewForTarget() error = %v, want ErrStaleRoute", err)
 	}
 }
 
@@ -759,16 +763,16 @@ func TestConversationAuthorityUnscopedListRechecksDrainingAfterStoreRead(t *test
 	authority := newConversationAuthority(conversationAuthorityOptions{LocalNodeID: 1, MaxRowsPerUID: 10, MaxRows: 100, ListDBWindowMax: 20})
 	target := conversationusecase.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 1, RouteRevision: 3, AuthorityEpoch: 4}
 	store := &recordingConversationAuthorityStore{
-		activeRows: []metadb.UserConversationState{{UID: "u1", ChannelID: "db", ChannelType: 2, ActiveAt: 100}},
+		activeRows: []metadb.ConversationState{{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "db", ChannelType: 2, ActiveAt: 100}},
 		beforeList: func() {
 			_, _ = authority.DrainAuthority(context.Background(), target)
 		},
 	}
 	authority.store = store
 	authority.markActive(target)
-	_, err := authority.ListUserConversationActiveView(context.Background(), "u1", metadb.UserConversationActiveCursor{}, 10)
+	_, err := authority.ListConversationActiveView(context.Background(), metadb.ConversationKindNormal, "u1", metadb.ConversationActiveCursor{}, 10)
 	if !errors.Is(err, conversationusecase.ErrStaleRoute) {
-		t.Fatalf("ListUserConversationActiveView() error = %v, want ErrStaleRoute", err)
+		t.Fatalf("ListConversationActiveView() error = %v, want ErrStaleRoute", err)
 	}
 }
 
@@ -777,16 +781,16 @@ func TestConversationAuthorityUnscopedListRejectsSecondActiveAfterStoreRead(t *t
 	targetA := conversationusecase.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 1, RouteRevision: 3, AuthorityEpoch: 4}
 	targetB := conversationusecase.RouteTarget{HashSlot: 9, SlotID: 10, LeaderNodeID: 1, RouteRevision: 5, AuthorityEpoch: 6}
 	store := &recordingConversationAuthorityStore{
-		activeRows: []metadb.UserConversationState{{UID: "u1", ChannelID: "db", ChannelType: 2, ActiveAt: 100}},
+		activeRows: []metadb.ConversationState{{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "db", ChannelType: 2, ActiveAt: 100}},
 		beforeList: func() {
 			authority.markActive(targetB)
 		},
 	}
 	authority.store = store
 	authority.markActive(targetA)
-	_, err := authority.ListUserConversationActiveView(context.Background(), "u1", metadb.UserConversationActiveCursor{}, 10)
+	_, err := authority.ListConversationActiveView(context.Background(), metadb.ConversationKindNormal, "u1", metadb.ConversationActiveCursor{}, 10)
 	if !errors.Is(err, conversationusecase.ErrStaleRoute) {
-		t.Fatalf("ListUserConversationActiveView() error = %v, want ErrStaleRoute", err)
+		t.Fatalf("ListConversationActiveView() error = %v, want ErrStaleRoute", err)
 	}
 }
 
@@ -798,12 +802,12 @@ func TestConversationAuthorityDrainFlushesTargetDirtyRowsBeforeHandoff(t *testin
 	authority.markActive(targetA)
 	authority.markActive(targetB)
 	if err := authority.AdmitPatches(context.Background(), targetA, []conversationusecase.ActivePatch{{
-		UID: "u-slot-1", ChannelID: "a", ChannelType: 2, ActiveAt: 300, MessageSeq: 30,
+		UID: "u-slot-1", Kind: metadb.ConversationKindNormal, ChannelID: "a", ChannelType: 2, ActiveAt: 300, MessageSeq: 30,
 	}}); err != nil {
 		t.Fatalf("AdmitPatches(targetA) error = %v", err)
 	}
 	if err := authority.AdmitPatches(context.Background(), targetB, []conversationusecase.ActivePatch{{
-		UID: "u-slot-9", ChannelID: "b", ChannelType: 2, ActiveAt: 200, MessageSeq: 20,
+		UID: "u-slot-9", Kind: metadb.ConversationKindNormal, ChannelID: "b", ChannelType: 2, ActiveAt: 200, MessageSeq: 20,
 	}}); err != nil {
 		t.Fatalf("AdmitPatches(targetB) error = %v", err)
 	}
@@ -817,9 +821,9 @@ func TestConversationAuthorityDrainFlushesTargetDirtyRowsBeforeHandoff(t *testin
 	if len(store.touched) != 1 || store.touched[0].ChannelID != "a" {
 		t.Fatalf("touched = %#v, want only target A runtime dirty row flushed before handoff", store.touched)
 	}
-	page, err := authority.ListUserConversationActiveViewForTarget(context.Background(), targetB, "u-slot-9", metadb.UserConversationActiveCursor{}, 10)
+	page, err := authority.ListConversationActiveViewForTarget(context.Background(), targetB, metadb.ConversationKindNormal, "u-slot-9", metadb.ConversationActiveCursor{}, 10)
 	if err != nil {
-		t.Fatalf("ListUserConversationActiveViewForTarget(targetB) error = %v", err)
+		t.Fatalf("ListConversationActiveViewForTarget(targetB) error = %v", err)
 	}
 	if len(page.Rows) != 1 || page.Rows[0].ChannelID != "b" {
 		t.Fatalf("target B rows = %#v, want target B cache row untouched by target A drain", page.Rows)
@@ -834,12 +838,12 @@ func TestConversationAuthorityDrainFlushesOnlyTargetHashSlot(t *testing.T) {
 	authority.markActive(targetA)
 	authority.markActive(targetB)
 	if err := authority.AdmitPatches(context.Background(), targetA, []conversationusecase.ActivePatch{{
-		UID: "u-slot-1", ChannelID: "target-a", ChannelType: 2, ActiveAt: 300, MessageSeq: 30,
+		UID: "u-slot-1", Kind: metadb.ConversationKindNormal, ChannelID: "target-a", ChannelType: 2, ActiveAt: 300, MessageSeq: 30,
 	}}); err != nil {
 		t.Fatalf("AdmitPatches(targetA) error = %v", err)
 	}
 	if err := authority.AdmitPatches(context.Background(), targetB, []conversationusecase.ActivePatch{{
-		UID: "u-slot-9", ChannelID: "target-b", ChannelType: 2, ActiveAt: 200, MessageSeq: 20,
+		UID: "u-slot-9", Kind: metadb.ConversationKindNormal, ChannelID: "target-b", ChannelType: 2, ActiveAt: 200, MessageSeq: 20,
 	}}); err != nil {
 		t.Fatalf("AdmitPatches(targetB) error = %v", err)
 	}
@@ -855,9 +859,9 @@ func TestConversationAuthorityDrainFlushesOnlyTargetHashSlot(t *testing.T) {
 		t.Fatalf("touched = %#v, want only target-a flushed during targetA drain", store.touched)
 	}
 
-	page, err := authority.ListUserConversationActiveViewForTarget(context.Background(), targetB, "u-slot-9", metadb.UserConversationActiveCursor{}, 10)
+	page, err := authority.ListConversationActiveViewForTarget(context.Background(), targetB, metadb.ConversationKindNormal, "u-slot-9", metadb.ConversationActiveCursor{}, 10)
 	if err != nil {
-		t.Fatalf("ListUserConversationActiveViewForTarget(targetB) error = %v", err)
+		t.Fatalf("ListConversationActiveViewForTarget(targetB) error = %v", err)
 	}
 	if len(page.Rows) != 1 || page.Rows[0].ChannelID != "target-b" {
 		t.Fatalf("target B rows = %#v, want target-b still served from cache", page.Rows)
@@ -872,7 +876,7 @@ func TestConversationAuthorityDrainLeavesOtherTargetDirtyRowsAlone(t *testing.T)
 	authority.markActive(targetA)
 	authority.markActive(targetB)
 	if err := authority.AdmitPatches(context.Background(), targetB, []conversationusecase.ActivePatch{{
-		UID: "u1", ChannelID: "b", ChannelType: 2, ActiveAt: 200, MessageSeq: 20,
+		UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "b", ChannelType: 2, ActiveAt: 200, MessageSeq: 20,
 	}}); err != nil {
 		t.Fatalf("AdmitPatches(targetB) error = %v", err)
 	}
@@ -886,9 +890,9 @@ func TestConversationAuthorityDrainLeavesOtherTargetDirtyRowsAlone(t *testing.T)
 	if len(store.touched) != 0 {
 		t.Fatalf("touched = %#v, want target B dirty row left alone", store.touched)
 	}
-	page, err := authority.ListUserConversationActiveViewForTarget(context.Background(), targetB, "u1", metadb.UserConversationActiveCursor{}, 10)
+	page, err := authority.ListConversationActiveViewForTarget(context.Background(), targetB, metadb.ConversationKindNormal, "u1", metadb.ConversationActiveCursor{}, 10)
 	if err != nil {
-		t.Fatalf("ListUserConversationActiveViewForTarget(targetB) error = %v", err)
+		t.Fatalf("ListConversationActiveViewForTarget(targetB) error = %v", err)
 	}
 	if len(page.Rows) != 1 || page.Rows[0].ChannelID != "b" {
 		t.Fatalf("target B rows = %#v, want target B cache row still visible", page.Rows)
@@ -909,7 +913,7 @@ func TestConversationAuthorityObservesHandoffTimeout(t *testing.T) {
 	target := conversationusecase.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 1, RouteRevision: 3, AuthorityEpoch: 4}
 	authority.markActive(target)
 	if err := authority.AdmitPatches(context.Background(), target, []conversationusecase.ActivePatch{{
-		UID: "u1", ChannelID: "dirty", ChannelType: 2, ActiveAt: 300, MessageSeq: 30,
+		UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "dirty", ChannelType: 2, ActiveAt: 300, MessageSeq: 30,
 	}}); err != nil {
 		t.Fatalf("AdmitPatches() error = %v", err)
 	}
@@ -929,7 +933,7 @@ func TestConversationAuthorityObservesHandoffTimeout(t *testing.T) {
 
 func TestConversationAuthorityDrainUnknownTargetDoesNotPoisonActiveList(t *testing.T) {
 	store := &recordingConversationAuthorityStore{
-		activeRows: []metadb.UserConversationState{{UID: "u1", ChannelID: "db", ChannelType: 2, ActiveAt: 100}},
+		activeRows: []metadb.ConversationState{{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "db", ChannelType: 2, ActiveAt: 100}},
 	}
 	authority := newConversationAuthority(conversationAuthorityOptions{LocalNodeID: 1, Store: store, MaxRowsPerUID: 10, MaxRows: 100, ListDBWindowMax: 20})
 	active := conversationusecase.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 1, RouteRevision: 3, AuthorityEpoch: 4}
@@ -942,9 +946,9 @@ func TestConversationAuthorityDrainUnknownTargetDoesNotPoisonActiveList(t *testi
 	if result != conversationDrainResultNoDirty {
 		t.Fatalf("DrainAuthority(unknown) result = %q, want %q", result, conversationDrainResultNoDirty)
 	}
-	page, err := authority.ListUserConversationActiveViewForTarget(context.Background(), active, "u1", metadb.UserConversationActiveCursor{}, 10)
+	page, err := authority.ListConversationActiveViewForTarget(context.Background(), active, metadb.ConversationKindNormal, "u1", metadb.ConversationActiveCursor{}, 10)
 	if err != nil {
-		t.Fatalf("ListUserConversationActiveViewForTarget(active) error = %v", err)
+		t.Fatalf("ListConversationActiveViewForTarget(active) error = %v", err)
 	}
 	if len(page.Rows) != 1 || page.Rows[0].ChannelID != "db" {
 		t.Fatalf("rows = %#v, want active target unaffected", page.Rows)
@@ -953,50 +957,50 @@ func TestConversationAuthorityDrainUnknownTargetDoesNotPoisonActiveList(t *testi
 
 func TestConversationAuthorityStoreFakeHonorsCursorLimitAndOrdering(t *testing.T) {
 	store := &recordingConversationAuthorityStore{
-		activeRows: []metadb.UserConversationState{
-			{UID: "u2", ChannelID: "other", ChannelType: 2, ActiveAt: 900},
-			{UID: "u1", ChannelID: "c", ChannelType: 2, ActiveAt: 100},
-			{UID: "u1", ChannelID: "a", ChannelType: 2, ActiveAt: 300},
-			{UID: "u1", ChannelID: "b", ChannelType: 1, ActiveAt: 200},
-			{UID: "u1", ChannelID: "b", ChannelType: 2, ActiveAt: 200},
+		activeRows: []metadb.ConversationState{
+			{UID: "u2", Kind: metadb.ConversationKindNormal, ChannelID: "other", ChannelType: 2, ActiveAt: 900},
+			{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "c", ChannelType: 2, ActiveAt: 100},
+			{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "a", ChannelType: 2, ActiveAt: 300},
+			{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "b", ChannelType: 1, ActiveAt: 200},
+			{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "b", ChannelType: 2, ActiveAt: 200},
 		},
 	}
-	first, cursor, done, err := store.ListUserConversationActivePage(context.Background(), "u1", metadb.UserConversationActiveCursor{}, 2)
+	first, cursor, done, err := store.ListConversationActivePage(context.Background(), metadb.ConversationKindNormal, "u1", metadb.ConversationActiveCursor{}, 2)
 	if err != nil {
-		t.Fatalf("ListUserConversationActivePage(first) error = %v", err)
+		t.Fatalf("ListConversationActivePage(first) error = %v", err)
 	}
-	if done || cursor != (metadb.UserConversationActiveCursor{ActiveAt: 200, ChannelID: "b", ChannelType: 1}) || conversationAuthorityChannelIDs(first) != "a,b" {
+	if done || cursor != (metadb.ConversationActiveCursor{ActiveAt: 200, ChannelID: "b", ChannelType: 1}) || conversationAuthorityChannelIDs(first) != "a,b" {
 		t.Fatalf("first rows=%#v cursor=%+v done=%v, want first ordered page", first, cursor, done)
 	}
-	second, cursor, done, err := store.ListUserConversationActivePage(context.Background(), "u1", cursor, 2)
+	second, cursor, done, err := store.ListConversationActivePage(context.Background(), metadb.ConversationKindNormal, "u1", cursor, 2)
 	if err != nil {
-		t.Fatalf("ListUserConversationActivePage(second) error = %v", err)
+		t.Fatalf("ListConversationActivePage(second) error = %v", err)
 	}
-	if !done || cursor != (metadb.UserConversationActiveCursor{ActiveAt: 100, ChannelID: "c", ChannelType: 2}) || conversationAuthorityChannelIDs(second) != "b,c" {
+	if !done || cursor != (metadb.ConversationActiveCursor{ActiveAt: 100, ChannelID: "c", ChannelType: 2}) || conversationAuthorityChannelIDs(second) != "b,c" {
 		t.Fatalf("second rows=%#v cursor=%+v done=%v, want second ordered page", second, cursor, done)
 	}
 }
 
 type recordingConversationAuthorityStore struct {
-	activeRows []metadb.UserConversationState
-	primary    map[metadb.ConversationKey]metadb.UserConversationState
-	touched    []metadb.UserConversationActivePatch
+	activeRows []metadb.ConversationState
+	primary    map[metadb.ConversationKey]metadb.ConversationState
+	touched    []metadb.ConversationActivePatch
 	listErr    error
 	beforeList func()
 }
 
-func (s *recordingConversationAuthorityStore) ListUserConversationActivePage(_ context.Context, uid string, after metadb.UserConversationActiveCursor, limit int) ([]metadb.UserConversationState, metadb.UserConversationActiveCursor, bool, error) {
+func (s *recordingConversationAuthorityStore) ListConversationActivePage(_ context.Context, kind metadb.ConversationKind, uid string, after metadb.ConversationActiveCursor, limit int) ([]metadb.ConversationState, metadb.ConversationActiveCursor, bool, error) {
 	if s.beforeList != nil {
 		s.beforeList()
 	}
 	if s.listErr != nil {
 		return nil, after, false, s.listErr
 	}
-	rows := append([]metadb.UserConversationState(nil), s.activeRows...)
+	rows := append([]metadb.ConversationState(nil), s.activeRows...)
 	sortConversationRows(rows)
-	candidates := make([]metadb.UserConversationState, 0, len(rows))
+	candidates := make([]metadb.ConversationState, 0, len(rows))
 	for _, row := range rows {
-		if row.UID != uid || !conversationRowAfter(row, after) {
+		if row.UID != uid || row.Kind != kind || !conversationRowAfter(row, after) {
 			continue
 		}
 		candidates = append(candidates, row)
@@ -1008,27 +1012,30 @@ func (s *recordingConversationAuthorityStore) ListUserConversationActivePage(_ c
 	cursor := after
 	if len(candidates) > 0 {
 		last := candidates[len(candidates)-1]
-		cursor = metadb.UserConversationActiveCursor{ActiveAt: last.ActiveAt, ChannelID: last.ChannelID, ChannelType: last.ChannelType}
+		cursor = metadb.ConversationActiveCursor{ActiveAt: last.ActiveAt, ChannelID: last.ChannelID, ChannelType: last.ChannelType}
 	}
 	return candidates, cursor, done, nil
 }
 
-func (s *recordingConversationAuthorityStore) GetUserConversationState(_ context.Context, _ string, channelID string, channelType int64) (metadb.UserConversationState, bool, error) {
+func (s *recordingConversationAuthorityStore) GetConversationState(_ context.Context, kind metadb.ConversationKind, _ string, channelID string, channelType int64) (metadb.ConversationState, bool, error) {
 	if s.primary == nil {
-		return metadb.UserConversationState{}, false, nil
+		return metadb.ConversationState{}, false, nil
 	}
 	row, ok := s.primary[metadb.ConversationKey{ChannelID: channelID, ChannelType: channelType}]
+	if ok && row.Kind != kind {
+		return metadb.ConversationState{}, false, nil
+	}
 	return row, ok, nil
 }
 
-func (s *recordingConversationAuthorityStore) GetUserConversationStates(_ context.Context, keys []metadb.UserConversationKey) (map[metadb.UserConversationKey]metadb.UserConversationState, error) {
-	states := make(map[metadb.UserConversationKey]metadb.UserConversationState, len(keys))
+func (s *recordingConversationAuthorityStore) GetConversationStates(_ context.Context, keys []metadb.ConversationStateKey) (map[metadb.ConversationStateKey]metadb.ConversationState, error) {
+	states := make(map[metadb.ConversationStateKey]metadb.ConversationState, len(keys))
 	if s.primary == nil {
 		return states, nil
 	}
 	for _, key := range keys {
 		row, ok := s.primary[metadb.ConversationKey{ChannelID: key.ChannelID, ChannelType: key.ChannelType}]
-		if !ok || row.UID != key.UID {
+		if !ok || row.UID != key.UID || row.Kind != key.Kind {
 			continue
 		}
 		states[key] = row
@@ -1036,20 +1043,21 @@ func (s *recordingConversationAuthorityStore) GetUserConversationStates(_ contex
 	return states, nil
 }
 
-func (s *recordingConversationAuthorityStore) TouchUserConversationActiveAtBatch(ctx context.Context, patches []metadb.UserConversationActivePatch) error {
+func (s *recordingConversationAuthorityStore) TouchConversationActiveAtBatch(ctx context.Context, patches []metadb.ConversationActivePatch) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
 	s.touched = append(s.touched, patches...)
 	if s.primary == nil {
-		s.primary = make(map[metadb.ConversationKey]metadb.UserConversationState)
+		s.primary = make(map[metadb.ConversationKey]metadb.ConversationState)
 	}
 	for _, patch := range patches {
 		key := metadb.ConversationKey{ChannelID: patch.ChannelID, ChannelType: patch.ChannelType}
 		state, ok := s.primary[key]
 		if !ok {
-			state = metadb.UserConversationState{
+			state = metadb.ConversationState{
 				UID:         patch.UID,
+				Kind:        patch.Kind,
 				ChannelID:   patch.ChannelID,
 				ChannelType: patch.ChannelType,
 			}
@@ -1083,9 +1091,9 @@ func (s *recordingConversationAuthorityStore) TouchUserConversationActiveAtBatch
 	return nil
 }
 
-func (s *recordingConversationAuthorityStore) upsertActiveRow(state metadb.UserConversationState) {
+func (s *recordingConversationAuthorityStore) upsertActiveRow(state metadb.ConversationState) {
 	if s.primary == nil {
-		s.primary = make(map[metadb.ConversationKey]metadb.UserConversationState)
+		s.primary = make(map[metadb.ConversationKey]metadb.ConversationState)
 	}
 	key := metadb.ConversationKey{ChannelID: state.ChannelID, ChannelType: state.ChannelType}
 	if existing, ok := s.primary[key]; ok && existing.UID == state.UID {
@@ -1104,7 +1112,7 @@ func (s *recordingConversationAuthorityStore) upsertActiveRow(state metadb.UserC
 	s.activeRows = append(s.activeRows, state)
 }
 
-func conversationAuthorityRowsContain(rows []metadb.UserConversationState, channelID string) bool {
+func conversationAuthorityRowsContain(rows []metadb.ConversationState, channelID string) bool {
 	for _, row := range rows {
 		if row.ChannelID == channelID {
 			return true
@@ -1113,7 +1121,7 @@ func conversationAuthorityRowsContain(rows []metadb.UserConversationState, chann
 	return false
 }
 
-func conversationAuthorityPatchesContain(patches []metadb.UserConversationActivePatch, channelID string) bool {
+func conversationAuthorityPatchesContain(patches []metadb.ConversationActivePatch, channelID string) bool {
 	for _, patch := range patches {
 		if patch.ChannelID == channelID {
 			return true
@@ -1187,11 +1195,11 @@ type reentrantConversationAuthorityObserver struct {
 
 func (o *reentrantConversationAuthorityObserver) ObserveConversationAuthorityCachePressure(event conversationAuthorityCachePressureEvent) {
 	o.recordingConversationAuthorityObserver.ObserveConversationAuthorityCachePressure(event)
-	_, err := o.authority.ListUserConversationActiveViewForTarget(context.Background(), o.target, o.uid, metadb.UserConversationActiveCursor{}, 10)
+	_, err := o.authority.ListConversationActiveViewForTarget(context.Background(), o.target, metadb.ConversationKindNormal, o.uid, metadb.ConversationActiveCursor{}, 10)
 	o.done <- err
 }
 
-func conversationAuthorityChannelIDs(rows []metadb.UserConversationState) string {
+func conversationAuthorityChannelIDs(rows []metadb.ConversationState) string {
 	var out string
 	for i, row := range rows {
 		if i > 0 {
