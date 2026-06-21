@@ -11,6 +11,7 @@ import (
 	runtimechannelid "github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
 	"github.com/WuKongIM/WuKongIM/internalv2/contracts/authority"
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/conversationactive"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
 func TestScopedUIDsBypassSubscriberScan(t *testing.T) {
@@ -113,6 +114,65 @@ func TestActiveBatchAdmittedWithoutRecipientEnqueuer(t *testing.T) {
 
 	if got := active.recipientUIDs(); !reflect.DeepEqual(got, []string{"u2", "u3"}) {
 		t.Fatalf("active recipient uids = %#v, want subscriber page recipients", got)
+	}
+}
+
+func TestRecipientProcessorAdmitsNormalConversationKind(t *testing.T) {
+	active := &recordingActiveAdmitterForRecipientTest{}
+	event := CommittedEnvelope{
+		MessageID:         1,
+		MessageSeq:        7,
+		ChannelID:         "g1",
+		ChannelType:       2,
+		FromUID:           "sender",
+		ServerTimestampMS: 99,
+		MessageScopedUIDs: []string{"u2"},
+	}
+
+	err := dispatchCommittedRecipients(context.Background(), event, commitPorts{
+		activeAdmitter: active,
+	})
+	if err != nil {
+		t.Fatalf("dispatchCommittedRecipients() error = %v", err)
+	}
+	if len(active.batches) != 1 || active.batches[0].Kind != metadb.ConversationKindNormal {
+		t.Fatalf("active batches = %+v, want normal conversation kind", active.batches)
+	}
+}
+
+func TestRecipientProcessorAdmitsCMDConversationKind(t *testing.T) {
+	tests := []struct {
+		name      string
+		channelID string
+		syncOnce  bool
+	}{
+		{name: "sync_once", channelID: "g1", syncOnce: true},
+		{name: "command_channel", channelID: runtimechannelid.ToCommandChannel("g1")},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			active := &recordingActiveAdmitterForRecipientTest{}
+			event := CommittedEnvelope{
+				MessageID:         1,
+				MessageSeq:        7,
+				ChannelID:         tt.channelID,
+				ChannelType:       2,
+				FromUID:           "sender",
+				ServerTimestampMS: 99,
+				SyncOnce:          tt.syncOnce,
+				MessageScopedUIDs: []string{"u2"},
+			}
+
+			err := dispatchCommittedRecipients(context.Background(), event, commitPorts{
+				activeAdmitter: active,
+			})
+			if err != nil {
+				t.Fatalf("dispatchCommittedRecipients() error = %v", err)
+			}
+			if len(active.batches) != 1 || active.batches[0].Kind != metadb.ConversationKindCMD {
+				t.Fatalf("active batches = %+v, want CMD conversation kind", active.batches)
+			}
+		})
 	}
 }
 

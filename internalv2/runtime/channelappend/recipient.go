@@ -8,6 +8,7 @@ import (
 
 	runtimechannelid "github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/conversationactive"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
 const subscriberSnapshotLoadLimit = 1 << 30
@@ -194,6 +195,7 @@ func admitConversationActiveBatch(ctx context.Context, event CommittedEnvelope, 
 		return nil
 	}
 	batch := conversationactive.ActiveBatch{
+		Kind:        conversationKindForCommittedEnvelope(event),
 		SenderUID:   event.FromUID,
 		ChannelID:   event.ChannelID,
 		ChannelType: event.ChannelType,
@@ -210,6 +212,13 @@ func admitConversationActiveBatch(ctx context.Context, event CommittedEnvelope, 
 		})
 	}
 	return nil
+}
+
+func conversationKindForCommittedEnvelope(event CommittedEnvelope) metadb.ConversationKind {
+	if event.SyncOnce || runtimechannelid.IsCommandChannel(event.ChannelID) {
+		return metadb.ConversationKindCMD
+	}
+	return metadb.ConversationKindNormal
 }
 
 func normalizeRecipientsForAuthorityResolution(recipients []Recipient) ([]Recipient, []string) {

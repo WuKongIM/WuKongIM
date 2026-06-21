@@ -270,11 +270,11 @@ The channel append commit pipeline scopes unscoped person-channel events to the
 two channel participants. For non-person unscoped channels it pages durable
 subscribers through the app delivery metadata source, an explicitly supplied
 subscriber source, or the clusterv2 Slot metadata source. After each recipient
-set is formed, channelappend admits a `conversationactive.ActiveBatch` through
-an app-level normal-conversation adapter around the shared
-`ConversationAuthorityClient`; this is the only boundary that stamps
-`metadb.ConversationKindNormal` for channelappend's current kind-less
-admitter interface, and it still runs when online delivery is disabled.
+set is formed, channelappend admits a kind-aware
+`conversationactive.ActiveBatch` through the shared
+`ConversationAuthorityClient`; channelappend chooses normal versus CMD kind
+from the committed envelope, and active admission still runs when online
+delivery is disabled.
 Recipients are then grouped by exact UID hash-slot authority target including
 Slot leader term and Slot config epoch for delivery; when clusterv2 exposes
 batch key routing, the app recipient resolver resolves each subscriber page's
@@ -373,8 +373,8 @@ Conversation list with authority enabled:
 Conversation active-batch admission with authority enabled:
 
 ```text
-channelappend normal active producer
-  -> normalConversationActiveAdmitter stamps metadb.ConversationKindNormal
+channelappend active producer
+  -> emits conversationactive.ActiveBatch with explicit normal or CMD kind
   -> ConversationAuthorityClient.AdmitActiveBatch
        -> cluster groups SenderUID and recipient UIDs by exact UID authority
   -> local authority:

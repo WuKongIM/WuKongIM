@@ -23,22 +23,6 @@ type conversationAuthorityStore interface {
 	TouchConversationActiveAtBatch(context.Context, []metadb.ConversationActivePatch) error
 }
 
-type conversationActiveAdmitter interface {
-	AdmitActiveBatch(context.Context, conversationactive.ActiveBatch) error
-}
-
-type normalConversationActiveAdmitter struct {
-	next conversationActiveAdmitter
-}
-
-func (a normalConversationActiveAdmitter) AdmitActiveBatch(ctx context.Context, batch conversationactive.ActiveBatch) error {
-	if a.next == nil {
-		return nil
-	}
-	batch.Kind = metadb.ConversationKindNormal
-	return a.next.AdmitActiveBatch(ctx, batch)
-}
-
 type conversationAuthorityOptions struct {
 	// LocalNodeID identifies the node allowed to serve local authority targets.
 	LocalNodeID uint64
@@ -290,6 +274,9 @@ func (a *conversationAuthority) AdmitActiveBatch(ctx context.Context, target con
 	err = a.ensureTarget(target)
 	if err != nil {
 		return err
+	}
+	if !validConversationKind(batch.Kind) {
+		return fmt.Errorf("internalv2/app: invalid conversation kind %d", batch.Kind)
 	}
 	err = mapConversationActiveError(a.active.AdmitActiveBatchForHashSlot(ctx, target.HashSlot, batch))
 	if errors.Is(err, conversationusecase.ErrCachePressure) {

@@ -182,6 +182,34 @@ func TestConversationAuthorityAdmitActiveBatchActiveFastPathSkipsCurrentRouteLoo
 	}
 }
 
+func TestConversationAuthorityAdmitActiveBatchRejectsInvalidKind(t *testing.T) {
+	target := conversationusecase.RouteTarget{HashSlot: 1, SlotID: 2, LeaderNodeID: 1, LeaderTerm: 9, ConfigEpoch: 3, RouteRevision: 10, AuthorityEpoch: 20}
+	authority := newConversationAuthority(conversationAuthorityOptions{
+		LocalNodeID: 1,
+		Store:       &recordingConversationAuthorityStore{},
+	})
+	authority.markActive(target)
+
+	err := authority.AdmitActiveBatch(context.Background(), target, conversationactive.ActiveBatch{
+		SenderUID:   "u1",
+		ChannelID:   "invalid-kind",
+		ChannelType: 2,
+		MessageSeq:  7,
+		ActiveAtMS:  100,
+	})
+	if err == nil {
+		t.Fatal("AdmitActiveBatch() error = nil, want invalid kind rejection")
+	}
+
+	page, listErr := authority.ListConversationActiveViewForTarget(context.Background(), target, metadb.ConversationKindNormal, "u1", metadb.ConversationActiveCursor{}, 10)
+	if listErr != nil {
+		t.Fatalf("ListConversationActiveViewForTarget() error = %v", listErr)
+	}
+	if len(page.Rows) != 0 {
+		t.Fatalf("rows = %#v, want invalid batch kept out of cache", page.Rows)
+	}
+}
+
 func TestConversationAuthorityObservesAdmitResults(t *testing.T) {
 	observer := &recordingConversationAuthorityObserver{}
 	authority := newConversationAuthority(conversationAuthorityOptions{

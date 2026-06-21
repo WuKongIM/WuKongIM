@@ -183,11 +183,13 @@ the invalid page before the envelope is dropped.
 
 After each recipient set is formed, channelappend admits one
 `conversationactive.ActiveBatch` before enqueueing recipient delivery batches.
-The batch carries `SenderUID` from the committed event, channel identity,
-message sequence, activity timestamp, and the expanded recipient UIDs. Receiver
-entries leave `IsSender` unset; the active worker advances the sender read
-sequence from `SenderUID` semantics. This active admission still runs when
-online delivery enqueueing is disabled or no `RecipientDeliveryEnqueuer` is
+The batch carries an explicit `metadb.ConversationKind`: normal for ordinary
+channel commits, CMD for one-shot sync commits or command-channel ids. It also
+carries `SenderUID` from the committed event, channel identity, message
+sequence, activity timestamp, and the expanded recipient UIDs. Receiver entries
+leave `IsSender` unset; the active worker advances the sender read sequence
+from `SenderUID` semantics. This active admission still runs when online
+delivery enqueueing is disabled or no `RecipientDeliveryEnqueuer` is
 configured. If active admission fails, the post-commit failure phase is
 `conversation_active` and recipient delivery is not enqueued for that recipient
 set.

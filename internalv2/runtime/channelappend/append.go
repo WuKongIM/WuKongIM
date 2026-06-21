@@ -297,6 +297,7 @@ func committedEnvelopeForAppend(item preparedSend, appended AppendBatchItemResul
 		ServerTimestampMS: serverTimestampMS,
 		Payload:           cloneBytes(payload),
 		RedDot:            cmd.RedDot,
+		SyncOnce:          cmd.SyncOnce,
 		MessageScopedUIDs: append([]string(nil), cmd.MessageScopedUIDs...),
 	}
 }
