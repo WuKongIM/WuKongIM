@@ -15,10 +15,11 @@ import (
 
 func TestThreeNodeClusterCrossNodeUsersExchangeMessages(t *testing.T) {
 	s := suite.New(t)
+	overrides := deliveryTopOverrides()
 	cluster := s.StartThreeNodeCluster(
-		suite.WithNodeConfigOverrides(1, map[string]string{"WK_DELIVERY_ENABLE": "true"}),
-		suite.WithNodeConfigOverrides(2, map[string]string{"WK_DELIVERY_ENABLE": "true"}),
-		suite.WithNodeConfigOverrides(3, map[string]string{"WK_DELIVERY_ENABLE": "true"}),
+		suite.WithNodeConfigOverrides(1, overrides),
+		suite.WithNodeConfigOverrides(2, overrides),
+		suite.WithNodeConfigOverrides(3, overrides),
 	)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -30,8 +31,17 @@ func TestThreeNodeClusterCrossNodeUsersExchangeMessages(t *testing.T) {
 	userB := newConnectedClient(t, cluster.MustNode(2), "e2ev2-cross-b")
 	defer func() { _ = userB.Close() }()
 
-	sendAndRequireRecv(t, cluster, userA, userB, "e2ev2-cross-a", "e2ev2-cross-b", 1, "e2ev2-cross-a-to-b-1", []byte("hello b from a"))
-	sendAndRequireRecv(t, cluster, userB, userA, "e2ev2-cross-b", "e2ev2-cross-a", 1, "e2ev2-cross-b-to-a-1", []byte("hello a from b"))
+	sendAndRequireRecv(t, cluster, cluster.MustNode(2), userA, userB, "e2ev2-cross-a", "e2ev2-cross-b", 1, "e2ev2-cross-a-to-b-1", []byte("hello b from a"))
+	sendAndRequireRecv(t, cluster, cluster.MustNode(1), userB, userA, "e2ev2-cross-b", "e2ev2-cross-a", 1, "e2ev2-cross-b-to-a-1", []byte("hello a from b"))
+}
+
+func deliveryTopOverrides() map[string]string {
+	return map[string]string{
+		"WK_DELIVERY_ENABLE":      "true",
+		"WK_TOP_API_ENABLE":       "true",
+		"WK_TOP_COLLECT_INTERVAL": "100ms",
+		"WK_TOP_HISTORY_WINDOW":   "2s",
+	}
 }
 
 func newConnectedClient(t *testing.T, node *suite.StartedNode, uid string) *suite.WKProtoClient {
@@ -46,6 +56,7 @@ func newConnectedClient(t *testing.T, node *suite.StartedNode, uid string) *suit
 func sendAndRequireRecv(
 	t *testing.T,
 	cluster *suite.StartedCluster,
+	recipientOwner *suite.StartedNode,
 	sender, recipient *suite.WKProtoClient,
 	senderUID, recipientUID string,
 	clientSeq uint64,
@@ -80,5 +91,7 @@ func sendAndRequireRecv(
 	require.Equal(t, sendack.MessageSeq, recv.MessageSeq)
 	fmt.Printf("recipient received message: %+v\n", recv)
 
+	suite.RequireTopDeliveryAckBindingsAtLeastEventually(t, *recipientOwner, 1)
 	require.NoError(t, recipient.RecvAck(recv.MessageID, recv.MessageSeq), cluster.DumpDiagnostics())
+	suite.RequireTopDeliveryAckBindingsEventually(t, *recipientOwner, 0)
 }

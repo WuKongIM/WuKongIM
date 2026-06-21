@@ -52,6 +52,24 @@ func TestGetJSONDecodesPublicResponse(t *testing.T) {
 	require.Equal(t, 1, out.Total)
 }
 
+func TestFetchTopDeliveryDecodesPublicResponse(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, http.MethodGet, r.Method)
+		require.Equal(t, "/top/v1/snapshot", r.URL.Path)
+		require.Equal(t, "delivery", r.URL.Query().Get("view"))
+		require.Equal(t, "2s", r.URL.Query().Get("window"))
+
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"delivery":{"ack_bindings":3,"retry_queue_depth":2}}`))
+	}))
+	defer server.Close()
+
+	delivery, err := FetchTopDelivery(context.Background(), strings.TrimPrefix(server.URL, "http://"))
+	require.NoError(t, err)
+	require.Equal(t, int64(3), delivery.AckBindings)
+	require.Equal(t, int64(2), delivery.RetryQueueDepth)
+}
+
 func TestParseMetricSampleMatchesLabels(t *testing.T) {
 	name, labels, value, ok := parseMetricSample(`wukongim_authority_recipient_dispatch_total{phase="conversation",result="ok"} 3`)
 
