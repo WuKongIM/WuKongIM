@@ -62,12 +62,224 @@ type UserConversationActiveHint struct {
 	SparseActiveSet bool
 }
 
+// UserConversationState is the legacy ordinary conversation source shape.
+// It maps to ConversationState with ConversationKindNormal.
+type UserConversationState struct {
+	// UID identifies the user that owns the conversation state.
+	UID string
+	// ChannelID identifies the conversation channel.
+	ChannelID string
+	// ChannelType identifies the channel namespace.
+	ChannelType int64
+	// ReadSeq is the highest message sequence acknowledged by the user.
+	ReadSeq uint64
+	// DeletedToSeq is the highest message sequence hidden from future sync.
+	DeletedToSeq uint64
+	// ActiveAt is the latest activity timestamp used by active scans.
+	ActiveAt int64
+	// UpdatedAt records the latest state mutation timestamp.
+	UpdatedAt int64
+	// SparseActive reports that ActiveAt is a low-frequency ordering anchor.
+	SparseActive bool
+}
+
+// UserConversationActivePatch is the legacy ordinary active patch shape.
+// It maps to ConversationActivePatch with ConversationKindNormal.
+type UserConversationActivePatch struct {
+	// UID identifies the user that owns the conversation state.
+	UID string
+	// ChannelID identifies the conversation channel.
+	ChannelID string
+	// ChannelType identifies the channel namespace.
+	ChannelType int64
+	// ReadSeq is a monotonic read floor merged with the durable row.
+	ReadSeq uint64
+	// DeletedToSeq is a monotonic visibility floor merged with the durable row.
+	DeletedToSeq uint64
+	// ActiveAt is the candidate activity timestamp.
+	ActiveAt int64
+	// UpdatedAt records the latest projection update timestamp.
+	UpdatedAt int64
+	// MessageSeq fences stale activity hints after a user delete barrier.
+	MessageSeq uint64
+	// SparseActive is the requested sparse-active mode when SparseActiveSet is true.
+	SparseActive bool
+	// SparseActiveSet reports that SparseActive should update the stored sparse mode.
+	SparseActiveSet bool
+}
+
+// UserConversationDelete is the legacy ordinary delete request shape.
+// It maps to ConversationDelete with ConversationKindNormal.
+type UserConversationDelete struct {
+	// UID identifies the user that owns the conversation state.
+	UID string
+	// ChannelID identifies the conversation channel.
+	ChannelID string
+	// ChannelType identifies the channel namespace.
+	ChannelType int64
+	// DeletedToSeq is the highest sequence hidden by the delete.
+	DeletedToSeq uint64
+	// UpdatedAt records when the hide operation was requested.
+	UpdatedAt int64
+}
+
 // ConversationDeleteBarrier prevents stale hints from reactivating deletes.
 type ConversationDeleteBarrier struct {
 	UID          string
 	ChannelID    string
 	ChannelType  int64
 	DeletedToSeq uint64
+}
+
+// UserConversationDeleteBarrier is the legacy ordinary delete-barrier shape.
+type UserConversationDeleteBarrier = ConversationDeleteBarrier
+
+// CMDConversationState is the legacy command sync cursor shape.
+// It maps to ConversationState with ConversationKindCMD.
+type CMDConversationState struct {
+	// UID identifies the user that owns the CMD sync cursor.
+	UID string
+	// ChannelID identifies the command or SyncOnce source channel.
+	ChannelID string
+	// ChannelType identifies the channel namespace.
+	ChannelType int64
+	// ReadSeq is the highest command message sequence acknowledged by the user.
+	ReadSeq uint64
+	// DeletedToSeq is the highest command message sequence hidden from sync.
+	DeletedToSeq uint64
+	// ActiveAt is the latest command activity timestamp used by active scans.
+	ActiveAt int64
+	// UpdatedAt records the latest cursor mutation timestamp.
+	UpdatedAt int64
+}
+
+// CMDConversationReadPatch advances one legacy CMD read cursor.
+// It maps to ConversationActivePatch with ConversationKindCMD.
+type CMDConversationReadPatch struct {
+	// UID identifies the user that owns the CMD sync cursor.
+	UID string
+	// ChannelID identifies the command or SyncOnce source channel.
+	ChannelID string
+	// ChannelType identifies the channel namespace.
+	ChannelType int64
+	// ReadSeq is the monotonic read floor.
+	ReadSeq uint64
+	// UpdatedAt records when the read cursor advanced.
+	UpdatedAt int64
+}
+
+func userConversationStateToConversation(state UserConversationState) ConversationState {
+	return ConversationState{
+		UID:          state.UID,
+		Kind:         ConversationKindNormal,
+		ChannelID:    state.ChannelID,
+		ChannelType:  state.ChannelType,
+		ReadSeq:      state.ReadSeq,
+		DeletedToSeq: state.DeletedToSeq,
+		ActiveAt:     state.ActiveAt,
+		UpdatedAt:    state.UpdatedAt,
+		SparseActive: state.SparseActive,
+	}
+}
+
+func userConversationStateFromConversation(state ConversationState) UserConversationState {
+	return UserConversationState{
+		UID:          state.UID,
+		ChannelID:    state.ChannelID,
+		ChannelType:  state.ChannelType,
+		ReadSeq:      state.ReadSeq,
+		DeletedToSeq: state.DeletedToSeq,
+		ActiveAt:     state.ActiveAt,
+		UpdatedAt:    state.UpdatedAt,
+		SparseActive: state.SparseActive,
+	}
+}
+
+func userConversationStatesFromConversations(states []ConversationState) []UserConversationState {
+	out := make([]UserConversationState, 0, len(states))
+	for _, state := range states {
+		out = append(out, userConversationStateFromConversation(state))
+	}
+	return out
+}
+
+func userConversationActivePatchToConversation(patch UserConversationActivePatch) ConversationActivePatch {
+	return ConversationActivePatch{
+		UID:             patch.UID,
+		Kind:            ConversationKindNormal,
+		ChannelID:       patch.ChannelID,
+		ChannelType:     patch.ChannelType,
+		ReadSeq:         patch.ReadSeq,
+		DeletedToSeq:    patch.DeletedToSeq,
+		ActiveAt:        patch.ActiveAt,
+		UpdatedAt:       patch.UpdatedAt,
+		MessageSeq:      patch.MessageSeq,
+		SparseActive:    patch.SparseActive,
+		SparseActiveSet: patch.SparseActiveSet,
+	}
+}
+
+func userConversationActivePatchesToConversations(patches []UserConversationActivePatch) []ConversationActivePatch {
+	out := make([]ConversationActivePatch, 0, len(patches))
+	for _, patch := range patches {
+		out = append(out, userConversationActivePatchToConversation(patch))
+	}
+	return out
+}
+
+func userConversationDeleteToConversation(req UserConversationDelete) ConversationDelete {
+	return ConversationDelete{
+		UID:          req.UID,
+		Kind:         ConversationKindNormal,
+		ChannelID:    req.ChannelID,
+		ChannelType:  req.ChannelType,
+		DeletedToSeq: req.DeletedToSeq,
+		UpdatedAt:    req.UpdatedAt,
+	}
+}
+
+func cmdConversationStateToConversation(state CMDConversationState) ConversationState {
+	return ConversationState{
+		UID:          state.UID,
+		Kind:         ConversationKindCMD,
+		ChannelID:    state.ChannelID,
+		ChannelType:  state.ChannelType,
+		ReadSeq:      state.ReadSeq,
+		DeletedToSeq: state.DeletedToSeq,
+		ActiveAt:     state.ActiveAt,
+		UpdatedAt:    state.UpdatedAt,
+	}
+}
+
+func cmdConversationStateFromConversation(state ConversationState) CMDConversationState {
+	return CMDConversationState{
+		UID:          state.UID,
+		ChannelID:    state.ChannelID,
+		ChannelType:  state.ChannelType,
+		ReadSeq:      state.ReadSeq,
+		DeletedToSeq: state.DeletedToSeq,
+		ActiveAt:     state.ActiveAt,
+		UpdatedAt:    state.UpdatedAt,
+	}
+}
+
+func cmdConversationStatesFromConversations(states []ConversationState) []CMDConversationState {
+	out := make([]CMDConversationState, 0, len(states))
+	for _, state := range states {
+		out = append(out, cmdConversationStateFromConversation(state))
+	}
+	return out
+}
+
+func cmdConversationReadPatchToConversation(patch CMDConversationReadPatch) ConversationActivePatch {
+	return ConversationActivePatch{
+		UID:         patch.UID,
+		Kind:        ConversationKindCMD,
+		ChannelID:   patch.ChannelID,
+		ChannelType: patch.ChannelType,
+		ReadSeq:     patch.ReadSeq,
+		UpdatedAt:   patch.UpdatedAt,
+	}
 }
 
 // DB is the compatibility handle used by slot FSM and proxy callers.
@@ -448,6 +660,86 @@ func (s *ShardStore) UpsertChannelLatest(ctx context.Context, latest ChannelLate
 	return s.shard.UpsertChannelLatest(ctx, latest)
 }
 
+// GetUserConversationState returns a legacy ordinary conversation row.
+func (s *Shard) GetUserConversationState(ctx context.Context, uid, channelID string, channelType int64) (UserConversationState, error) {
+	state, ok, err := s.GetConversationState(ctx, ConversationKindNormal, uid, channelID, channelType)
+	return userConversationStateFromConversation(state), foundError(ok, err)
+}
+
+// UpsertUserConversationState stores a legacy ordinary conversation row.
+func (s *Shard) UpsertUserConversationState(ctx context.Context, state UserConversationState) error {
+	return s.UpsertConversationState(ctx, userConversationStateToConversation(state))
+}
+
+// TouchUserConversationActiveAt advances a legacy ordinary active row.
+func (s *Shard) TouchUserConversationActiveAt(ctx context.Context, patch UserConversationActivePatch) error {
+	return s.TouchConversationActiveAt(ctx, userConversationActivePatchToConversation(patch))
+}
+
+// ClearUserConversationActiveAt clears legacy ordinary active rows.
+func (s *Shard) ClearUserConversationActiveAt(ctx context.Context, uid string, keys []ConversationKey) error {
+	return s.ClearConversationActiveAt(ctx, ConversationKindNormal, uid, keys)
+}
+
+// HideUserConversation hides one legacy ordinary conversation row.
+func (s *Shard) HideUserConversation(ctx context.Context, req UserConversationDelete) error {
+	return s.HideConversation(ctx, userConversationDeleteToConversation(req))
+}
+
+// ListUserConversationActive returns legacy ordinary active rows.
+func (s *Shard) ListUserConversationActive(ctx context.Context, uid string, limit int) ([]UserConversationState, error) {
+	states, err := s.ListConversationActive(ctx, ConversationKindNormal, uid, limit)
+	return userConversationStatesFromConversations(states), err
+}
+
+// ListUserConversationActivePage returns legacy ordinary active rows with a cursor.
+func (s *Shard) ListUserConversationActivePage(ctx context.Context, uid string, after ConversationActiveCursor, limit int) ([]UserConversationState, ConversationActiveCursor, bool, error) {
+	states, cursor, done, err := s.ListConversationActivePage(ctx, ConversationKindNormal, uid, after, limit)
+	return userConversationStatesFromConversations(states), cursor, done, err
+}
+
+// ListUserConversationStatePage returns legacy ordinary primary rows with a cursor.
+func (s *Shard) ListUserConversationStatePage(ctx context.Context, uid string, after ConversationCursor, limit int) ([]UserConversationState, ConversationCursor, bool, error) {
+	states, cursor, done, err := s.ListConversationStatePage(ctx, ConversationKindNormal, uid, after, limit)
+	return userConversationStatesFromConversations(states), cursor, done, err
+}
+
+// GetCMDConversationState returns one legacy CMD sync cursor.
+func (s *Shard) GetCMDConversationState(ctx context.Context, uid, channelID string, channelType int64) (CMDConversationState, error) {
+	state, ok, err := s.GetConversationState(ctx, ConversationKindCMD, uid, channelID, channelType)
+	return cmdConversationStateFromConversation(state), foundError(ok, err)
+}
+
+// UpsertCMDConversationState stores one legacy CMD sync cursor.
+func (s *Shard) UpsertCMDConversationState(ctx context.Context, state CMDConversationState) error {
+	return s.UpsertConversationState(ctx, cmdConversationStateToConversation(state))
+}
+
+// AdvanceCMDConversationReadSeq advances an existing legacy CMD read cursor.
+func (s *Shard) AdvanceCMDConversationReadSeq(ctx context.Context, patch CMDConversationReadPatch) error {
+	current, ok, err := s.GetConversationState(ctx, ConversationKindCMD, patch.UID, patch.ChannelID, patch.ChannelType)
+	if err != nil || !ok {
+		return err
+	}
+	if patch.ReadSeq <= current.ReadSeq && patch.UpdatedAt <= current.UpdatedAt {
+		return nil
+	}
+	next := current
+	if patch.ReadSeq > next.ReadSeq {
+		next.ReadSeq = patch.ReadSeq
+	}
+	if patch.UpdatedAt > next.UpdatedAt {
+		next.UpdatedAt = patch.UpdatedAt
+	}
+	return s.UpsertConversationState(ctx, next)
+}
+
+// ListCMDConversationActive returns legacy CMD active rows.
+func (s *Shard) ListCMDConversationActive(ctx context.Context, uid string, limit int) ([]CMDConversationState, error) {
+	states, err := s.ListConversationActive(ctx, ConversationKindCMD, uid, limit)
+	return cmdConversationStatesFromConversations(states), err
+}
+
 func (s *ShardStore) GetConversationState(ctx context.Context, kind ConversationKind, uid, channelID string, channelType int64) (ConversationState, error) {
 	if err := s.validate(); err != nil {
 		return ConversationState{}, err
@@ -504,6 +796,152 @@ func (s *ShardStore) ListConversationStatePage(ctx context.Context, kind Convers
 		return nil, ConversationCursor{}, false, err
 	}
 	return s.shard.ListConversationStatePage(ctx, kind, uid, after, limit)
+}
+
+// GetUserConversationState returns a legacy ordinary conversation row.
+func (s *ShardStore) GetUserConversationState(ctx context.Context, uid, channelID string, channelType int64) (UserConversationState, error) {
+	if err := s.validate(); err != nil {
+		return UserConversationState{}, err
+	}
+	return s.shard.GetUserConversationState(ctx, uid, channelID, channelType)
+}
+
+// UpsertUserConversationState stores one legacy ordinary conversation row.
+func (s *ShardStore) UpsertUserConversationState(ctx context.Context, state UserConversationState) error {
+	if err := s.validate(); err != nil {
+		return err
+	}
+	return s.shard.UpsertUserConversationState(ctx, state)
+}
+
+// UpsertUserConversationStates stores legacy ordinary conversation rows in one batch.
+func (s *ShardStore) UpsertUserConversationStates(ctx context.Context, states []UserConversationState) error {
+	if err := s.validate(); err != nil {
+		return err
+	}
+	wb := s.db.NewWriteBatch()
+	for _, state := range states {
+		if err := wb.UpsertUserConversationState(uint16(s.hashSlot), state); err != nil {
+			return err
+		}
+	}
+	return wb.Commit()
+}
+
+// TouchUserConversationActiveAt advances legacy ordinary active rows in one batch.
+func (s *ShardStore) TouchUserConversationActiveAt(ctx context.Context, patches []UserConversationActivePatch) error {
+	if err := s.validate(); err != nil {
+		return err
+	}
+	wb := s.db.NewWriteBatch()
+	if err := wb.TouchUserConversationActiveAt(uint16(s.hashSlot), patches); err != nil {
+		return err
+	}
+	return wb.Commit()
+}
+
+// ClearUserConversationActiveAt clears legacy ordinary active rows.
+func (s *ShardStore) ClearUserConversationActiveAt(ctx context.Context, uid string, keys []ConversationKey) error {
+	if err := s.validate(); err != nil {
+		return err
+	}
+	return s.shard.ClearUserConversationActiveAt(ctx, uid, keys)
+}
+
+// HideUserConversation hides one legacy ordinary conversation row.
+func (s *ShardStore) HideUserConversation(ctx context.Context, req UserConversationDelete) error {
+	if err := s.validate(); err != nil {
+		return err
+	}
+	return s.shard.HideUserConversation(ctx, req)
+}
+
+// HideUserConversations hides legacy ordinary conversation rows in one batch.
+func (s *ShardStore) HideUserConversations(ctx context.Context, reqs []UserConversationDelete) error {
+	if err := s.validate(); err != nil {
+		return err
+	}
+	wb := s.db.NewWriteBatch()
+	for _, req := range reqs {
+		if err := wb.HideUserConversation(uint16(s.hashSlot), req); err != nil {
+			return err
+		}
+	}
+	return wb.Commit()
+}
+
+// ListUserConversationActive returns legacy ordinary active rows.
+func (s *ShardStore) ListUserConversationActive(ctx context.Context, uid string, limit int) ([]UserConversationState, error) {
+	if err := s.validate(); err != nil {
+		return nil, err
+	}
+	return s.shard.ListUserConversationActive(ctx, uid, limit)
+}
+
+// ListUserConversationActivePage returns legacy ordinary active rows with a cursor.
+func (s *ShardStore) ListUserConversationActivePage(ctx context.Context, uid string, after ConversationActiveCursor, limit int) ([]UserConversationState, ConversationActiveCursor, bool, error) {
+	if err := s.validate(); err != nil {
+		return nil, ConversationActiveCursor{}, false, err
+	}
+	return s.shard.ListUserConversationActivePage(ctx, uid, after, limit)
+}
+
+// ListUserConversationStatePage returns legacy ordinary primary rows with a cursor.
+func (s *ShardStore) ListUserConversationStatePage(ctx context.Context, uid string, after ConversationCursor, limit int) ([]UserConversationState, ConversationCursor, bool, error) {
+	if err := s.validate(); err != nil {
+		return nil, ConversationCursor{}, false, err
+	}
+	return s.shard.ListUserConversationStatePage(ctx, uid, after, limit)
+}
+
+// GetCMDConversationState returns one legacy CMD sync cursor.
+func (s *ShardStore) GetCMDConversationState(ctx context.Context, uid, channelID string, channelType int64) (CMDConversationState, error) {
+	if err := s.validate(); err != nil {
+		return CMDConversationState{}, err
+	}
+	return s.shard.GetCMDConversationState(ctx, uid, channelID, channelType)
+}
+
+// UpsertCMDConversationState stores one legacy CMD sync cursor.
+func (s *ShardStore) UpsertCMDConversationState(ctx context.Context, state CMDConversationState) error {
+	if err := s.validate(); err != nil {
+		return err
+	}
+	return s.shard.UpsertCMDConversationState(ctx, state)
+}
+
+// UpsertCMDConversationStates stores legacy CMD sync cursors in one batch.
+func (s *ShardStore) UpsertCMDConversationStates(ctx context.Context, states []CMDConversationState) error {
+	if err := s.validate(); err != nil {
+		return err
+	}
+	wb := s.db.NewWriteBatch()
+	for _, state := range states {
+		if err := wb.UpsertCMDConversationState(uint16(s.hashSlot), state); err != nil {
+			return err
+		}
+	}
+	return wb.Commit()
+}
+
+// AdvanceCMDConversationReadSeq advances legacy CMD read cursors in one batch.
+func (s *ShardStore) AdvanceCMDConversationReadSeq(ctx context.Context, patches []CMDConversationReadPatch) error {
+	if err := s.validate(); err != nil {
+		return err
+	}
+	wb := s.db.NewWriteBatch()
+	if err := wb.AdvanceCMDConversationReadSeq(uint16(s.hashSlot), patches); err != nil {
+		return err
+	}
+	return wb.Commit()
+}
+
+// ListCMDConversationActive returns legacy CMD active rows.
+func (s *ShardStore) ListCMDConversationActive(ctx context.Context, uid string, limit int) ([]CMDConversationState, error) {
+	if err := s.validate(); err != nil {
+		return nil, err
+	}
+	return s.shard.ListCMDConversationActive(ctx, uid, limit)
 }
 
 func (s *ShardStore) BindPluginUser(ctx context.Context, binding PluginUserBinding) error {
@@ -1239,6 +1677,97 @@ func (b *WriteBatch) HideConversation(hashSlot uint16, req ConversationDelete) e
 		}
 		return shard.stageConversationStateWithOverlay(st, batch, key, current, exists, next)
 	})
+	return nil
+}
+
+// UpsertUserConversationState stores one legacy ordinary conversation row.
+func (b *WriteBatch) UpsertUserConversationState(hashSlot uint16, state UserConversationState) error {
+	return b.UpsertConversationState(hashSlot, userConversationStateToConversation(state))
+}
+
+// UpsertUserConversationStates stores legacy ordinary conversation rows.
+func (b *WriteBatch) UpsertUserConversationStates(hashSlot uint16, states []UserConversationState) error {
+	for _, state := range states {
+		if err := b.UpsertUserConversationState(hashSlot, state); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// TouchUserConversationActiveAt advances legacy ordinary active rows.
+func (b *WriteBatch) TouchUserConversationActiveAt(hashSlot uint16, patches []UserConversationActivePatch) error {
+	return b.TouchConversationActiveAt(hashSlot, userConversationActivePatchesToConversations(patches))
+}
+
+// ClearUserConversationActiveAt clears legacy ordinary active rows.
+func (b *WriteBatch) ClearUserConversationActiveAt(hashSlot uint16, uid string, keys []ConversationKey) error {
+	return b.ClearConversationActiveAt(hashSlot, ConversationKindNormal, uid, keys)
+}
+
+// HideUserConversation hides one legacy ordinary conversation row.
+func (b *WriteBatch) HideUserConversation(hashSlot uint16, req UserConversationDelete) error {
+	return b.HideConversation(hashSlot, userConversationDeleteToConversation(req))
+}
+
+// HideUserConversations hides legacy ordinary conversation rows.
+func (b *WriteBatch) HideUserConversations(hashSlot uint16, reqs []UserConversationDelete) error {
+	for _, req := range reqs {
+		if err := b.HideUserConversation(hashSlot, req); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// UpsertCMDConversationState stores one legacy CMD sync cursor.
+func (b *WriteBatch) UpsertCMDConversationState(hashSlot uint16, state CMDConversationState) error {
+	return b.UpsertConversationState(hashSlot, cmdConversationStateToConversation(state))
+}
+
+// UpsertCMDConversationStates stores legacy CMD sync cursors.
+func (b *WriteBatch) UpsertCMDConversationStates(hashSlot uint16, states []CMDConversationState) error {
+	for _, state := range states {
+		if err := b.UpsertCMDConversationState(hashSlot, state); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// AdvanceCMDConversationReadSeq advances existing legacy CMD read cursors.
+func (b *WriteBatch) AdvanceCMDConversationReadSeq(hashSlot uint16, patches []CMDConversationReadPatch) error {
+	if err := b.ensure(); err != nil {
+		return err
+	}
+	for _, patch := range patches {
+		if err := validateConversationActivePatch(cmdConversationReadPatchToConversation(patch)); err != nil {
+			return err
+		}
+	}
+	for _, patch := range patches {
+		p := patch
+		b.batch.addOp(HashSlot(hashSlot), func(ctx context.Context, st *batchCommitState, batch *engine.Batch) error {
+			shard := &Shard{db: st.db, hashSlot: HashSlot(hashSlot)}
+			pk := conversationPrimaryKeyParts(ConversationKindCMD, p.UID, p.ChannelID, p.ChannelType)
+			key := encodeConversationRowKey(HashSlot(hashSlot), p.UID, ConversationKindCMD, p.ChannelID, p.ChannelType, conversationPrimaryFamilyID)
+			current, exists, err := conversationTable.loadBatchRow(st, HashSlot(hashSlot), pk, key)
+			if err != nil || !exists {
+				return err
+			}
+			if p.ReadSeq <= current.ReadSeq && p.UpdatedAt <= current.UpdatedAt {
+				return nil
+			}
+			next := current
+			if p.ReadSeq > next.ReadSeq {
+				next.ReadSeq = p.ReadSeq
+			}
+			if p.UpdatedAt > next.UpdatedAt {
+				next.UpdatedAt = p.UpdatedAt
+			}
+			return shard.stageConversationStateWithOverlay(st, batch, key, current, true, next)
+		})
+	}
 	return nil
 }
 

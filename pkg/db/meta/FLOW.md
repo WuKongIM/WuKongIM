@@ -42,10 +42,12 @@ Current flow:
 13. Conversation state uses one kind-aware table for ordinary and CMD logical
    views. Rows are keyed by `(uid, kind, channel_id, channel_type)`, active scans
    use `(uid, kind, active_at desc, channel_id, channel_type)`, and `kind` stays
-   out of the encoded row value. Typed methods keep merge, hide, clear, and
-   read-advance semantics isolated per kind. `SparseActive` marks rows whose
-   `ActiveAt` is a low-frequency ordering anchor, and active patches can carry
-   monotonic read/delete floors so activity advancement, sparse-active changes,
+   out of the encoded row value. Storage never infers ordinary versus CMD
+   semantics from channel-name suffixes; callers must pass the requested
+   `ConversationKind`. Typed methods keep merge, hide, clear, and read-advance
+   semantics isolated per kind. `SparseActive` marks rows whose `ActiveAt` is a
+   low-frequency ordering anchor, and active patches can carry monotonic
+   read/delete floors so activity advancement, sparse-active changes,
    delete-barrier checks, and floor merges happen in one shard-locked mutation.
 14. Channel migration tasks use the table runtime for primary rows and terminal
    indexes while keeping the active-task index custom because its legacy value
@@ -74,5 +76,9 @@ Current flow:
 21. Slot FSM, proxy, cluster, runtime, access, and usecase callers use this
     package through the compatibility `DB`, `ShardStore`, and `WriteBatch`
     surface while the typed `MetaDB`/`Shard` APIs remain the new storage core.
+    Legacy `UserConversation*` compatibility methods map to
+    `ConversationKindNormal`, and legacy `CMDConversation*` compatibility
+    methods map to `ConversationKindCMD`; neither path registers or writes a
+    second conversation table.
 
 Storage code in this package must not import Pebble directly.

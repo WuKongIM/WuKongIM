@@ -148,8 +148,7 @@ wkdb --data-dir ./data/node-1 --hash-slot-count 256 query "select * from meta.us
 - `meta.channel`：`channel_id`
 - `meta.channel_runtime_meta`：`channel_id`
 - `meta.subscriber`：`channel_id`
-- `meta.conversation`：`uid`
-- `meta.cmd_conversation`：`uid`
+- `meta.conversation`：`uid`（普通会话与 CMD 同步共用，通过 `kind` 区分）
 - `meta.plugin_binding`：`uid`
 - `meta.channel_migration`：`channel_id`
 

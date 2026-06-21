@@ -327,9 +327,11 @@ ChannelV2 reads, `New` wires `internalv2/usecase/cmdsync` through
 `CMDSyncStore`. `/message/sync` scans only `ConversationKindCMD` rows from the
 UID-owned projection, reads the corresponding command/source SyncOnce channel
 logs, and returns legacy message arrays through the API adapter.
-`/message/syncack` advances CMD-kind read cursors in the same ordinary
+`/message/syncack` advances CMD-kind read cursors in the same kind-aware
 conversation table, so CMD sync does not introduce a second metadata branch or
-pending-state updater.
+pending-state updater. Ordinary conversation hydration stays on
+`ConversationKindNormal` rows and skips `SyncOnce`/command-channel log entries
+instead of relying on suffix filtering in conversation storage or list logic.
 
 Bench runtime controls flow from internalv2 HTTP through `internalv2/infra/cluster`, `pkg/clusterv2.Node`, `pkg/clusterv2/channels.Service`, and finally the hosted ChannelV2 runtime. These routes are benchmark-only observation/cleanup controls and do not replace the gateway SEND activation path.
 

@@ -1611,7 +1611,7 @@ git commit -m "test: cover unified conversation cmd sync isolation"
 - Modify: `docs/development/PROJECT_KNOWLEDGE.md` only if a concise durable rule is missing
 - Remove stale references discovered by `rg`
 
-- [ ] **Step 1: Search for stale split-surface names**
+- [x] **Step 1: Search for stale split-surface names**
 
 Run:
 
@@ -1621,7 +1621,7 @@ rg -n "UserConversation|CMDConversation|cmd_conversation|ListUserConversation|To
 
 Expected: only intentional legacy `internal/` references remain, plus historical wording in the committed design if still useful. No `internalv2` or `pkg/clusterv2` final API should use those names.
 
-- [ ] **Step 2: Update docs**
+- [x] **Step 2: Update docs**
 
 Update the FLOW files listed above so they all describe:
 
@@ -1631,7 +1631,7 @@ Update the FLOW files listed above so they all describe:
 - UID hash slot ownership for both kinds,
 - no suffix filtering in ordinary conversation storage/listing.
 
-- [ ] **Step 3: Run final unit suite**
+- [x] **Step 3: Run final unit suite**
 
 Run:
 
@@ -1641,7 +1641,7 @@ go test ./internal/... ./internalv2/... ./pkg/...
 
 Expected: PASS.
 
-- [ ] **Step 4: Check git diff**
+- [x] **Step 4: Check git diff**
 
 Run:
 
@@ -1652,7 +1652,7 @@ git diff --stat
 
 Expected: only intended files changed since the last task commit.
 
-- [ ] **Step 5: Commit cleanup**
+- [x] **Step 5: Commit cleanup**
 
 ```bash
 git add internalv2 pkg docs test

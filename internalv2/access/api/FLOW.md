@@ -9,10 +9,12 @@ request/response DTOs, and entry validation, but it does not mutate message,
 conversation, channel, user, or management business state directly. Channel
 management requests forward to the channel usecase supplied by the composition
 root, `/user*` requests forward to the user usecase, and compatible message
-send/sync requests forward to the message usecase. `/conversation/list` and
-`/conversation/sync` requests forward to the conversation usecase and keep
-ordering, cursor rules, sync candidate selection, and message reads out of the
-HTTP layer. When the composition root provides a benchmark data writer,
+send and channel-message sync requests forward to the message usecase.
+`/message/sync` and `/message/syncack` requests forward to the CMD sync
+usecase. `/conversation/list` and `/conversation/sync` requests forward to the
+conversation usecase and keep ordering, cursor rules, sync candidate selection,
+and message reads out of the HTTP layer. When the composition root provides a
+benchmark data writer,
 `/bench/v1/channels` and `/bench/v1/channels/subscribers` forward setup
 mutations through that writer; for `cmd/wukongimv2` delivery benchmarks the
 writer persists real clusterv2 Slot metadata.
@@ -131,9 +133,12 @@ returns the legacy `{"message_id","message_seq","reason"}` response with
 protocol reason codes. `/message/sync` and `/message/syncack` forward durable
 CMD message sync and ack requests to `internalv2/usecase/cmdsync`, preserving
 legacy validation messages and response envelopes while keeping CMD projection
-reads and read-cursor writes out of the HTTP layer. `/channel/messagesync` keeps
-the legacy response shape and converts canonical person-channel IDs back to the
-peer UID for the logged-in user. If the composition root does not provide the
+reads and read-cursor writes out of the HTTP layer. They operate on
+`ConversationKindCMD` rows from the shared UID-owned conversation projection and
+return only durable command messages, stripping one command-channel suffix from
+client-facing channel IDs when present. `/channel/messagesync` keeps the legacy
+response shape and converts canonical person-channel IDs back to the peer UID
+for the logged-in user. If the composition root does not provide the
 corresponding message or CMD sync usecase, these routes fail closed using their
 legacy envelopes.
 
@@ -145,9 +150,12 @@ loads to `internalv2/usecase/conversation`, then returns `conversations`,
 `next_cursor`, and `more`. Each conversation item contains the active row
 fields plus `unread`; `last_message` is `null` when the usecase found no visible
 durable message for that row. The access adapter converts canonical
-person-channel IDs back to the peer UID for the requesting user. If the
-composition root does not provide a conversation usecase, the route fails
-closed with the compatible JSON error envelope. Each request emits a
+person-channel IDs back to the peer UID for the requesting user. The underlying
+usecase/infra path reads `ConversationKindNormal` rows and ordinary message
+hydration skips `SyncOnce` or command-channel rows, so CMD activity cannot
+replace the ordinary `last_message` or recent-message list. If the composition
+root does not provide a conversation usecase, the route fails closed with the
+compatible JSON error envelope. Each request emits a
 low-cardinality conversation-list observation containing result, latency,
 returned item count, sparse item count, last-message load count, last-message
 error count, active-index stale skip count, and whether another active page is
@@ -207,11 +215,12 @@ but leaves send orchestration, request-scoped command-channel derivation, and
 channel message reads to `internalv2/usecase/message`.
 The CMD sync adapter validates only request shape, UID presence, non-negative
 limits, and non-zero `last_message_seq` for syncack; CMD row selection,
-message ordering, command suffix stripping, and read-cursor writes stay in
-`internalv2/usecase/cmdsync`.
+message ordering, command suffix stripping, and read-cursor writes over
+`ConversationKindCMD` stay in `internalv2/usecase/cmdsync`.
 The conversation adapter validates only request shape and UID presence; active
 index ordering, active cursor application, sync candidate filtering,
-read/delete cursor mutation, and message reads stay in
-`internalv2/usecase/conversation`. The adapter observes successful and failed
-list requests without adding UID or channel labels, so performance triage can
-inspect list cost without increasing metrics cardinality.
+read/delete cursor mutation, and ordinary `ConversationKindNormal` message
+reads stay in `internalv2/usecase/conversation`. The adapter observes
+successful and failed list requests without adding UID or channel labels, so
+performance triage can inspect list cost without increasing metrics
+cardinality.

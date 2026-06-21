@@ -5,8 +5,8 @@
 `internalv2` is a parallel business kernel for the new architecture. Phase 1
 keeps the existing `internal` production path unchanged and proves the client
 `SEND -> SENDACK` write skeleton through `pkg/clusterv2` and `pkg/channelv2`.
-It also exposes a legacy-compatible channel management HTTP surface backed by
-the clusterv2 Slot metadata path.
+It also exposes legacy-compatible channel, user, message, conversation, and CMD
+sync HTTP surfaces backed by clusterv2 Slot metadata and ChannelV2 logs.
 
 Single-node deployment is still a single-node cluster. Do not add send,
 storage, or routing branches that bypass cluster semantics.
@@ -16,18 +16,26 @@ storage, or routing branches that bypass cluster semantics.
 | Package | Responsibility |
 |---------|----------------|
 | `app` | Single composition root for config, dependency wiring, and lifecycle. |
-| `access/api` | Health, readiness, bench/v1 target HTTP surface, legacy `/route` address lookup, and legacy-compatible channel management HTTP adapters. |
+| `access/api` | Health, readiness, bench/v1 target HTTP surface, legacy `/route` address lookup, and legacy-compatible channel/user/message/conversation/CMD sync HTTP adapters. |
 | `access/gateway` | Gateway event/frame adapter: presence activation/deactivation mapping, `SendPacket` mapping, sendack writing, and entry error mapping. |
+| `access/manager` | Manager HTTP adapter for diagnostics and read-only management views. |
 | `access/node` | Node RPC adapter for presence, conversation authority, delivery, and channel append calls between internalv2 nodes. |
 | `log` | Zap/lumberjack-backed application logger for the internalv2 composition root. |
 | `observability/diagnostics` | Bounded node-local diagnostics events, trace indexing, runtime tracking rules, and sendtrace context helpers. |
 | `usecase/channel` | Entry-agnostic channel metadata, subscriber, temporary subscriber, allowlist, and denylist orchestration. |
+| `usecase/cmdsync` | Entry-agnostic durable CMD offline sync and syncack over CMD-kind conversation projection rows. |
+| `usecase/conversation` | Entry-agnostic ordinary recent conversation list, sync, unread, and delete orchestration over normal-kind conversation projection rows. |
+| `usecase/delivery` | Entry-agnostic delivery submission and route-to-owner fanout orchestration. |
+| `usecase/management` | Entry-agnostic management read orchestration for manager adapters. |
 | `usecase/message` | Entry-agnostic SEND facade and compatible channel message sync. |
 | `usecase/presence` | Entry-agnostic connection presence activation, deactivation, lookup, and authority coordination. |
+| `usecase/user` | Entry-agnostic user token, device quit, online status, and system UID compatibility orchestration. |
+| `runtime/conversationactive` | Kind-aware UID-owned active conversation cache and flush runtime. |
+| `runtime/delivery` | Node-local online fanout, owner push, and retry runtime. |
 | `runtime/online` | Owner-local active gateway session registry used for local delivery and dirty touch batching. |
 | `runtime/presence` | In-memory UID route authority directory for hash slots locally led by this node. |
 | `runtime/channelappend` | Channel-authority write group where each local authoritative channel is served by an independent single-writer state machine, hash-sharded for lookup and advanced by shared worker pools. |
-| `infra/cluster` | Adapter from channel append, channel metadata, delivery, presence, and conversation ports to `pkg/clusterv2` / `pkg/channelv2`. |
+| `infra/cluster` | Adapter from channel append, channel/user metadata, delivery, presence, conversation, and CMD sync ports to `pkg/clusterv2` / `pkg/channelv2`. |
 | `contracts/channelmembers` | Stable legacy-compatible member-list channel-id namespace helpers. |
 | `contracts/messageevents` | Lightweight committed-message event DTOs for later delivery/conversation migration. |
 
@@ -63,7 +71,37 @@ non-authority node forwards the batch to the authority node through Channel
 Append RPC and does not create proxy channel state or enter a local writer for
 that channel. Conversation projection, recipient authority grouping, owner
 push, and delivery fanout run after the successful append in the authority
-writer's best-effort post-commit pipeline.
+writer's best-effort post-commit pipeline. Conversation admission emits
+`conversationactive.ActiveBatch` with an explicit `metadb.ConversationKind`:
+ordinary SENDs project `ConversationKindNormal`, while `SyncOnce` or command
+channel commits project `ConversationKindCMD`.
+
+## Conversation Projection Flow
+
+```text
+ordinary conversation list/sync
+  -> internalv2/access/api conversation routes
+  -> internalv2/usecase/conversation
+  -> internalv2/infra/cluster ConversationStore
+  -> ListConversationActiveView(ConversationKindNormal, uid)
+  -> read latest non-CMD ChannelV2 messages for visible rows
+
+CMD offline sync/syncack
+  -> internalv2/access/api /message/sync or /message/syncack
+  -> internalv2/usecase/cmdsync
+  -> internalv2/infra/cluster CMDSyncStore
+  -> ListConversationActivePage(ConversationKindCMD, uid)
+  -> read only SyncOnce or command-channel ChannelV2 messages
+  -> syncack writes ConversationKindCMD read cursors
+```
+
+`pkg/db/meta` owns one canonical conversation projection table keyed by
+`(uid, kind, channel_id, channel_type)`. Both ordinary and CMD rows are routed
+by the UID hash slot, including single-node cluster deployments. Ordinary
+conversation storage and listing do not infer semantics from the `____cmd`
+suffix; the suffix remains a legacy command-channel naming detail, while
+ordinary/CMD separation is carried by explicit `ConversationKind` and the
+durable ChannelV2 `SyncOnce` marker.
 
 ## Phase-1 Presence Flow
 
@@ -146,8 +184,8 @@ single-node cluster.
 ## Phase-1 Non-Goals
 
 - Do not wire `internalv2` into `cmd/wukongim` yet.
-- Do not migrate legacy message sync, conversation, CMD, plugin hooks, or
-  management APIs.
+- Do not migrate legacy plugin hooks or remaining management APIs not listed in
+  the internalv2 manager/access flows.
 - Do not implement realtime `NoPersist` delivery yet; return a stable
   unsupported result until that runtime exists.
 - Do not advertise legacy message fields that `channelv2.Message` cannot

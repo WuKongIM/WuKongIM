@@ -67,7 +67,7 @@ Runtime.ChangeConfig / TransferLeadership / CompactLog / Status
 | `User` / `Channel` / `Device` | pkg/db/meta | 业务数据模型；`Channel` 现在持久化 `Ban` / `Disband` / `SendBan` / `AllowStranger` / `SubscriberMutationVersion` |
 | `ChannelRuntimeMeta` | pkg/db/meta | Leader/ISR/Epoch、RouteGeneration、write-fence 与权威保留边界运行时元数据 |
 | `ChannelMigrationTask` | pkg/db/meta | Channel leader transfer / replica replace 的权威任务、owner lease、进度与 terminal retention 索引 |
-| `CMDConversationState` | pkg/db/meta | UID-owned CMD 离线同步工作集与 read cursor，独立于普通会话状态 |
+| `ConversationState` | pkg/db/meta | UID-owned kind-aware 会话投影；`ConversationKindNormal` 服务普通会话，`ConversationKindCMD` 服务 CMD 离线同步 |
 | `Raft Logger` | multiraft/logging.go | `wklog` 结构化日志，模块 `slot.raft`，附带 `raftScope=slot` / `nodeID` / `slotID` / `raftEvent`；heartbeat/read-index/probe 类噪声按 Debug 输出 |
 
 ## 5. 核心流程
@@ -253,15 +253,15 @@ Meta  (0x12): [0x12][hashSlot:2][...]                             元信息
 | 3 | ChannelRuntimeMeta | (channel_id, channel_type) | - |
 | 4 | Device | (uid, device_flag) | - |
 | 5 | Subscriber | (channel_id, channel_type, uid) | - |
-| 6 | UserConversationState | (uid, channel_type, channel_id) | idx_user_conversation_active |
-| 7 | CMDConversationState | (uid, channel_id, channel_type) | idx_cmd_conversation_active |
+| 6 | Conversation | (uid, kind, channel_id, channel_type) | idx_conversation_active |
+| 7 | ReservedCMDConversation | - | development-era split CMD table ID, not registered |
 | 8 | PluginUserBinding | (uid, plugin_no) | idx_plugin_no_uid |
 | 9 | ChannelMigrationTask | (channel_id, channel_type, task_id) | idx_channel_migration_active, idx_channel_migration_terminal |
 | 10 | HashSlotMigration | (hash_slot) | - |
 | 11 | UserChannelMembership | (uid, channel_id, channel_type) | - |
 | 12 | ChannelLatest | (channel_id, channel_type) | - |
 
-## 7. FSM 命令类型（37 种 + 2 个保留 ID）
+## 7. FSM 命令类型（33 种 + 2 个保留 ID）
 
 TLV 格式: `[Version:1][CmdType:1][Tag:1 + Length:4 + Value:N]...`
 未知 Tag 自动跳过（前向兼容）。详见 `fsm/command.go`。
@@ -271,13 +271,11 @@ TLV 格式: `[Version:1][CmdType:1][Tag:1 + Length:4 + Value:N]...`
 4: UpsertChannelRuntimeMeta                     5: DeleteChannelRuntimeMeta
 6: CreateUser         7: UpsertDevice
 8: AddSubscribers     9: RemoveSubscribers
-10: UpsertUserConversationStates
-11: TouchUserConversationActiveAt               12: ClearUserConversationActiveAt
+10: UpsertConversationStates
+11: TouchConversationActiveAt                   12: ClearConversationActiveAt
 13: ReservedConversationProjectionUpsert        14: ReservedConversationProjectionDelete
 15: AdvanceChannelRetentionThroughSeq
-16: HideUserConversations
-17: UpsertCMDConversationStates
-18: AdvanceCMDConversationReadSeq
+16: HideConversations
 20: ApplyDelta                         21: EnterFence
 22: AckMigrationOutbox                 23: CleanupMigrationOutbox
 30: CreateChannelMigrationTask         31: ClaimChannelMigrationTask
@@ -334,7 +332,7 @@ TLV 格式: `[Version:1][CmdType:1][Tag:1 + Length:4 + Value:N]...`
 - **ListUserConversationActive 热覆盖层**: `Store.ListUserConversationActive` 在 UID 所属 Slot leader 合并持久化 active index 与 `UserConversationActiveOverlay` 中的 UID-local 热提示；覆盖层只作为工作集提示，合并时会 point-read 未出现在 active index 的会话状态，用 `DeletedToSeq` 过滤 stale hint，且对覆盖层请求完整的 UID-local 有界热集合，避免已删除 hint 前缀遮挡后续有效 hint。
 - **HideUserConversations 删除语义**: 删除会话必须走独立命令 16；只有新 `DeletedToSeq` 前进时才持久化屏障并在同一批写中清空 `ActiveAt`/删除 active index，避免旧 delete 重试覆盖后续新消息激活；随后通过 `RemoveUserConversationActiveHints` 删除 UID-owner hot hint 并安装 stale hint barrier。
 - **命令 16 升级约束**: 混合版本 Slot 副本不能安全接收 `HideUserConversations`；发布时需要 stop-the-world 升级或后续 capability gate。
-- **CMDConversationState 是独立表**: CMD 离线同步只读写 Table ID 9，不能混用 `UserConversationState`；active index 仍按 UID owner 有界扫描。
+- **统一会话投影**: 旧 `UserConversation*` / `CMDConversation*` proxy 名称只是源码兼容入口，FSM command 会映射为统一 conversation command。存储层只读写 Table ID 6，并通过 `(uid, kind, channel_id, channel_type)` 区分 `ConversationKindNormal` 与 `ConversationKindCMD`；Table ID 7 是开发期 split CMD 表保留 ID，不能注册或复用。
 - **CMD read cursor 单调推进**: `AdvanceCMDConversationReadSeq` 只在新 `ReadSeq` 更大时推进，旧 syncack 重试不能回退 cursor。
 - **PluginUserBinding UID 路由**: 插件绑定表使用 `(uid, plugin_no)` 主键和 `idx_plugin_no_uid(plugin_no, uid)` 二级索引；写入、解绑、按 UID 查询必须以 UID 作为 hash slot 路由 key，按 plugin_no 扫描是诊断/管理查询，需要按 Slot 权威分页聚合。
 - **PluginUserBinding plugin_no 分页**: plugin_no 维度扫描的公开 cursor 以 `(plugin_no, uid, slot_id, hash_slot)` 做总序断点，避免不同 hash slot 中出现相同 `(plugin_no, uid)` 时翻页跳项；远端扫描请求必须校验 `hash_slot` 属于目标物理 Slot。

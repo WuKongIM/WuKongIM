@@ -1249,6 +1249,121 @@ func EncodeHideConversationBatchCommandChecked(hashSlotCount uint16, items []Con
 	return EncodeHideConversationBatchCommand(items), nil
 }
 
+// EncodeUpsertUserConversationStatesCommand maps legacy ordinary rows to the unified conversation command.
+func EncodeUpsertUserConversationStatesCommand(states []metadb.UserConversationState) []byte {
+	return EncodeUpsertConversationStatesCommand(userConversationStatesToConversation(states))
+}
+
+// EncodeTouchUserConversationActiveAtCommand maps legacy ordinary patches to the unified conversation command.
+func EncodeTouchUserConversationActiveAtCommand(patches []metadb.UserConversationActivePatch) []byte {
+	return EncodeTouchConversationActiveAtCommand(userConversationActivePatchesToConversation(patches))
+}
+
+// EncodeClearUserConversationActiveAtCommand maps a legacy ordinary clear to the unified conversation command.
+func EncodeClearUserConversationActiveAtCommand(uid string, keys []metadb.ConversationKey) []byte {
+	return EncodeClearConversationActiveAtCommand(metadb.ConversationKindNormal, uid, keys)
+}
+
+// EncodeHideUserConversationsCommand maps legacy ordinary deletes to the unified conversation command.
+func EncodeHideUserConversationsCommand(deletes []metadb.UserConversationDelete) []byte {
+	return EncodeHideConversationsCommand(userConversationDeletesToConversation(deletes))
+}
+
+// EncodeUpsertCMDConversationStatesCommand maps legacy CMD rows to the unified conversation command.
+func EncodeUpsertCMDConversationStatesCommand(states []metadb.CMDConversationState) []byte {
+	return EncodeUpsertConversationStatesCommand(cmdConversationStatesToConversation(states))
+}
+
+// EncodeAdvanceCMDConversationReadSeqCommand maps legacy CMD read patches to the unified conversation command.
+func EncodeAdvanceCMDConversationReadSeqCommand(patches []metadb.CMDConversationReadPatch) []byte {
+	return EncodeTouchConversationActiveAtCommand(cmdConversationReadPatchesToConversation(patches))
+}
+
+func userConversationStatesToConversation(states []metadb.UserConversationState) []metadb.ConversationState {
+	out := make([]metadb.ConversationState, 0, len(states))
+	for _, state := range states {
+		out = append(out, metadb.ConversationState{
+			UID:          state.UID,
+			Kind:         metadb.ConversationKindNormal,
+			ChannelID:    state.ChannelID,
+			ChannelType:  state.ChannelType,
+			ReadSeq:      state.ReadSeq,
+			DeletedToSeq: state.DeletedToSeq,
+			ActiveAt:     state.ActiveAt,
+			UpdatedAt:    state.UpdatedAt,
+			SparseActive: state.SparseActive,
+		})
+	}
+	return out
+}
+
+func userConversationActivePatchesToConversation(patches []metadb.UserConversationActivePatch) []metadb.ConversationActivePatch {
+	out := make([]metadb.ConversationActivePatch, 0, len(patches))
+	for _, patch := range patches {
+		out = append(out, metadb.ConversationActivePatch{
+			UID:             patch.UID,
+			Kind:            metadb.ConversationKindNormal,
+			ChannelID:       patch.ChannelID,
+			ChannelType:     patch.ChannelType,
+			ReadSeq:         patch.ReadSeq,
+			DeletedToSeq:    patch.DeletedToSeq,
+			ActiveAt:        patch.ActiveAt,
+			UpdatedAt:       patch.UpdatedAt,
+			MessageSeq:      patch.MessageSeq,
+			SparseActive:    patch.SparseActive,
+			SparseActiveSet: patch.SparseActiveSet,
+		})
+	}
+	return out
+}
+
+func userConversationDeletesToConversation(deletes []metadb.UserConversationDelete) []metadb.ConversationDelete {
+	out := make([]metadb.ConversationDelete, 0, len(deletes))
+	for _, req := range deletes {
+		out = append(out, metadb.ConversationDelete{
+			UID:          req.UID,
+			Kind:         metadb.ConversationKindNormal,
+			ChannelID:    req.ChannelID,
+			ChannelType:  req.ChannelType,
+			DeletedToSeq: req.DeletedToSeq,
+			UpdatedAt:    req.UpdatedAt,
+		})
+	}
+	return out
+}
+
+func cmdConversationStatesToConversation(states []metadb.CMDConversationState) []metadb.ConversationState {
+	out := make([]metadb.ConversationState, 0, len(states))
+	for _, state := range states {
+		out = append(out, metadb.ConversationState{
+			UID:          state.UID,
+			Kind:         metadb.ConversationKindCMD,
+			ChannelID:    state.ChannelID,
+			ChannelType:  state.ChannelType,
+			ReadSeq:      state.ReadSeq,
+			DeletedToSeq: state.DeletedToSeq,
+			ActiveAt:     state.ActiveAt,
+			UpdatedAt:    state.UpdatedAt,
+		})
+	}
+	return out
+}
+
+func cmdConversationReadPatchesToConversation(patches []metadb.CMDConversationReadPatch) []metadb.ConversationActivePatch {
+	out := make([]metadb.ConversationActivePatch, 0, len(patches))
+	for _, patch := range patches {
+		out = append(out, metadb.ConversationActivePatch{
+			UID:         patch.UID,
+			Kind:        metadb.ConversationKindCMD,
+			ChannelID:   patch.ChannelID,
+			ChannelType: patch.ChannelType,
+			ReadSeq:     patch.ReadSeq,
+			UpdatedAt:   patch.UpdatedAt,
+		})
+	}
+	return out
+}
+
 func encodeSubscribersCommand(cmdType uint8, channelID string, channelType int64, uids []string, subscriberMutationVersion ...uint64) []byte {
 	buf := make([]byte, 0, headerSize+len(channelID)+len(uids)*8+16)
 	buf = append(buf, commandVersion, cmdType)
