@@ -34,6 +34,9 @@ func TestNormalizeConfigAppliesDefaultsAndDedupeTargets(t *testing.T) {
 	if cfg.AckTimeout != defaultAckTimeout || cfg.OperationTimeout != defaultOpTimeout || cfg.StatusInterval != defaultStatusInterval {
 		t.Fatalf("duration defaults = %#v", cfg)
 	}
+	if cfg.HeartbeatInterval != defaultHeartbeatInterval || cfg.HeartbeatTimeout != defaultHeartbeatTimeout {
+		t.Fatalf("heartbeat defaults = interval %s timeout %s", cfg.HeartbeatInterval, cfg.HeartbeatTimeout)
+	}
 	if cfg.StatusListen != defaultStatusListen || cfg.UIDPrefix != defaultUIDPrefix || cfg.DevicePrefix != defaultDevicePrefix || cfg.ChannelPrefix != defaultChannelPrefix {
 		t.Fatalf("string defaults = %#v", cfg)
 	}
@@ -58,6 +61,8 @@ func TestNormalizeConfigRejectsInvalidTopologyAndMissingTarget(t *testing.T) {
 		{name: "users", cfg: Config{ContextName: "dev", Users: -1}, want: "--users"},
 		{name: "groups", cfg: Config{ContextName: "dev", Groups: -1}, want: "--groups"},
 		{name: "group members", cfg: Config{ContextName: "dev", GroupMembers: -1}, want: "--group-members"},
+		{name: "heartbeat interval", cfg: Config{ContextName: "dev", HeartbeatInterval: -1 * time.Second}, want: "--heartbeat-interval"},
+		{name: "heartbeat timeout", cfg: Config{ContextName: "dev", HeartbeatTimeout: -1 * time.Second}, want: "--heartbeat-timeout"},
 		{name: "max runtime", cfg: Config{ContextName: "dev", MaxRuntime: -1 * time.Second}, want: "--max-runtime"},
 	}
 

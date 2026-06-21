@@ -3,6 +3,7 @@ package sim
 import (
 	"context"
 	"net"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -51,7 +52,7 @@ func TestRuntimeConnectsAndSendsUntilMaxRuntimeStops(t *testing.T) {
 	if !pool.closed {
 		t.Fatalf("pool was not closed")
 	}
-	if pool.sent == 0 {
+	if pool.sent.Load() == 0 {
 		t.Fatalf("expected sends")
 	}
 	snapshot := status.snapshot()
@@ -184,7 +185,7 @@ func TestRuntimeStaggersGroupTrafficWithoutLocalQueueFull(t *testing.T) {
 	if err := runtime.Run(context.Background()); err != nil {
 		t.Fatalf("Run() error = %v", err)
 	}
-	if pool.sent == 0 {
+	if pool.sent.Load() == 0 {
 		t.Fatalf("expected sends")
 	}
 	snapshot := status.snapshot()
@@ -210,6 +211,74 @@ func TestClientObserverIgnoresShutdownErrorsAfterRuntimeStops(t *testing.T) {
 	}
 }
 
+func TestSimClientPoolHeartbeatsConnectedClientBeforeConnectReturns(t *testing.T) {
+	cfg, err := normalizeConfig(Config{
+		Gateways:          []string{"127.0.0.1:5100"},
+		Users:             2,
+		Groups:            1,
+		GroupMembers:      1,
+		RatePerGroup:      "1/s",
+		RunID:             "run-1",
+		ConnectRate:       1000,
+		Concurrency:       2,
+		HeartbeatInterval: 5 * time.Millisecond,
+		HeartbeatTimeout:  100 * time.Millisecond,
+	})
+	if err != nil {
+		t.Fatalf("normalizeConfig() error = %v", err)
+	}
+
+	secondConnectStarted := make(chan struct{})
+	unblockSecondConnect := make(chan struct{})
+	firstPinged := make(chan struct{}, 1)
+	pool := newSimClientPool(cfg, cfg.Gateways, nil)
+	pool.newClient = func(wkclient.Config) (simClient, error) {
+		return &fakeSimClient{
+			onConnect: func(uid string) {
+				if uid == "u2" {
+					close(secondConnectStarted)
+					<-unblockSecondConnect
+				}
+			},
+			onPing: func(uid string) {
+				if uid == "u1" {
+					select {
+					case firstPinged <- struct{}{}:
+					default:
+					}
+				}
+			},
+		}, nil
+	}
+
+	connectDone := make(chan error, 1)
+	go func() {
+		connectDone <- pool.Connect(context.Background(), []wkclient.Identity{
+			{UID: "u1", DeviceID: "d1"},
+			{UID: "u2", DeviceID: "d2"},
+		})
+	}()
+
+	select {
+	case <-secondConnectStarted:
+	case <-time.After(time.Second):
+		t.Fatal("second client did not start connecting")
+	}
+	select {
+	case <-firstPinged:
+	case <-time.After(time.Second):
+		t.Fatal("first connected client was not heartbeated while later connect was still blocked")
+	}
+
+	close(unblockSecondConnect)
+	if err := <-connectDone; err != nil {
+		t.Fatalf("Connect() error = %v", err)
+	}
+	if err := pool.Close(); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+}
+
 type fakeTarget struct {
 	resolved targetPreflight
 	setupN   int
@@ -226,7 +295,7 @@ func (f *fakeTarget) setup(context.Context, Config, targetPreflight, Plan) error
 
 type fakePool struct {
 	connected []wkclient.Identity
-	sent      int
+	sent      atomic.Int64
 	closed    bool
 }
 
@@ -236,7 +305,7 @@ func (f *fakePool) Connect(ctx context.Context, identities []wkclient.Identity) 
 }
 
 func (f *fakePool) SendBatch(ctx context.Context, messages []wkclient.RoutedMessage) ([]wkclient.SendResult, error) {
-	f.sent += len(messages)
+	f.sent.Add(int64(len(messages)))
 	results := make([]wkclient.SendResult, 0, len(messages))
 	for _, msg := range messages {
 		results = append(results, wkclient.SendResult{
@@ -271,6 +340,37 @@ func (f *deadlinePool) SendBatch(ctx context.Context, messages []wkclient.Routed
 }
 
 func (f *deadlinePool) Close() error {
+	f.closed = true
+	return nil
+}
+
+type fakeSimClient struct {
+	uid       string
+	closed    bool
+	onConnect func(uid string)
+	onPing    func(uid string)
+}
+
+func (f *fakeSimClient) Connect(ctx context.Context, opts wkclient.ConnectOptions) (*frame.ConnackPacket, error) {
+	f.uid = opts.UID
+	if f.onConnect != nil {
+		f.onConnect(opts.UID)
+	}
+	return &frame.ConnackPacket{ReasonCode: frame.ReasonSuccess}, nil
+}
+
+func (f *fakeSimClient) SendBatch(context.Context, []wkclient.Message) ([]wkclient.SendResult, error) {
+	return []wkclient.SendResult{{ReasonCode: frame.ReasonSuccess}}, nil
+}
+
+func (f *fakeSimClient) Ping(context.Context) error {
+	if f.onPing != nil {
+		f.onPing(f.uid)
+	}
+	return nil
+}
+
+func (f *fakeSimClient) Close() error {
 	f.closed = true
 	return nil
 }

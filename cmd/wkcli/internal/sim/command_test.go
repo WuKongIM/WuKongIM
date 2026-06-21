@@ -33,6 +33,8 @@ func TestCommandHelpListsSimulationFlags(t *testing.T) {
 		"--payload-size",
 		"--connect-rate",
 		"--concurrency",
+		"--heartbeat-interval",
+		"--heartbeat-timeout",
 		"--ack-timeout",
 		"--operation-timeout",
 		"--run-id",
@@ -74,6 +76,8 @@ func TestCommandInjectsNormalizedConfig(t *testing.T) {
 		"--payload-size", "1KiB",
 		"--connect-rate", "5",
 		"--concurrency", "8",
+		"--heartbeat-interval", "2s",
+		"--heartbeat-timeout", "750ms",
 		"--ack-timeout", "3s",
 		"--operation-timeout", "4s",
 		"--run-id", "fixed-run",
@@ -103,6 +107,9 @@ func TestCommandInjectsNormalizedConfig(t *testing.T) {
 	}
 	if captured.ConnectRate != 5 || captured.Concurrency != 8 || captured.StatusListen != "127.0.0.1:19092" {
 		t.Fatalf("captured runtime config = %#v", captured)
+	}
+	if captured.HeartbeatInterval != 2*time.Second || captured.HeartbeatTimeout != 750*time.Millisecond {
+		t.Fatalf("captured heartbeat config = %#v", captured)
 	}
 	if captured.Rate.PerSecond != 2.5 || captured.RatePerGroup != "2.5/s" || captured.PayloadBytes != 1024 {
 		t.Fatalf("captured rate/payload = %#v", captured)

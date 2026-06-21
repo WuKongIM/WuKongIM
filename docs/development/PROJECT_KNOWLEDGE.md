@@ -188,6 +188,7 @@
 - Bench APIs are unauthenticated benchmark-only `/bench/v1/*` routes gated by `WK_BENCH_API_ENABLE`; mutations go through benchdata plus user/channel usecase boundaries.
 - wkbench requires server bench mode (`WK_BENCH_API_ENABLE=true`) and must prepare target data only through `/bench/v1/*`; it must not use Manager APIs for benchmark setup.
 - wkbench traffic with `recv_ack=true` must drain delivered recv frames and send protocol recvack even when receive verification is `none`; otherwise delivery retry will keep re-pushing accepted routes until they expire.
+- `wkcli sim` online users must start client PING heartbeats as soon as each CONNECT succeeds; slow full-pool connection phases must not leave early sessions idle until all users connect.
 - `pkg/client` WKProto client batch-send changes should run `scripts/bench-pkg-client-baseline.sh`; hard allocation guards and recorded baseline numbers live in `docs/development/PKG_CLIENT_BENCHMARK_BASELINE.md`.
 - Committed delivery routing treats transient channel status errors such as `channel: not ready` as retry signals; warn only after retries are exhausted.
 - `wkbench dev-sim` must run warmup after prepare/connect and before measured run windows; warmup must touch every assigned channel at least once, and warmup counters are a baseline that must not be counted in `/status` measured traffic.

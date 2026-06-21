@@ -28,6 +28,15 @@ type simPool interface {
 	Close() error
 }
 
+type simClient interface {
+	Connect(context.Context, wkclient.ConnectOptions) (*frame.ConnackPacket, error)
+	SendBatch(context.Context, []wkclient.Message) ([]wkclient.SendResult, error)
+	Ping(context.Context) error
+	Close() error
+}
+
+type simClientFactory func(wkclient.Config) (simClient, error)
+
 // poolFactory builds a connected-client pool for one runtime attempt.
 type poolFactory func(Config, []string, wkclient.Observer) (simPool, error)
 
@@ -230,19 +239,322 @@ func (r *Runtime) runTraffic(ctx context.Context, pool simPool, plan Plan, seque
 }
 
 func newClientPool(cfg Config, gateways []string, observer wkclient.Observer) (simPool, error) {
-	return wkclient.NewPool(wkclient.PoolConfig{
-		Addrs: gateways,
-		Client: wkclient.Config{
-			OperationTimeout:       cfg.OperationTimeout,
-			AckTimeout:             cfg.AckTimeout,
-			SendQueueCapacity:      cfg.Concurrency * 4,
-			MaxInflight:            cfg.Concurrency,
-			InboundFrameBufferSize: cfg.Concurrency * 4,
-			AutoRecvAck:            true,
-			Observer:               observer,
-		},
-		ConnectRatePerSecond: cfg.ConnectRate,
-	})
+	return newSimClientPool(cfg, gateways, observer), nil
+}
+
+type simClientPool struct {
+	cfg      Config
+	gateways []string
+	observer wkclient.Observer
+
+	newClient simClientFactory
+
+	mu      sync.RWMutex
+	closed  bool
+	clients map[string]simClient
+
+	heartbeatStop chan struct{}
+	heartbeatDone chan struct{}
+}
+
+func newSimClientPool(cfg Config, gateways []string, observer wkclient.Observer) *simClientPool {
+	p := &simClientPool{
+		cfg:           cfg,
+		gateways:      append([]string(nil), gateways...),
+		observer:      observer,
+		clients:       make(map[string]simClient),
+		heartbeatStop: make(chan struct{}),
+		heartbeatDone: make(chan struct{}),
+	}
+	p.newClient = func(clientCfg wkclient.Config) (simClient, error) {
+		return wkclient.New(clientCfg)
+	}
+	go p.heartbeatLoop()
+	return p
+}
+
+func (p *simClientPool) Connect(ctx context.Context, identities []wkclient.Identity) error {
+	if p == nil {
+		return wkclient.ErrClosed
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	p.mu.RLock()
+	if p.closed {
+		p.mu.RUnlock()
+		return wkclient.ErrClosed
+	}
+	p.mu.RUnlock()
+
+	addrs := p.gateways
+	if len(addrs) == 0 {
+		return wkclient.ErrMissingAddr
+	}
+
+	var throttle <-chan time.Time
+	var ticker *time.Ticker
+	if p.cfg.ConnectRate > 0 {
+		interval := time.Second / time.Duration(p.cfg.ConnectRate)
+		if interval <= 0 {
+			interval = time.Nanosecond
+		}
+		ticker = time.NewTicker(interval)
+		defer ticker.Stop()
+		throttle = ticker.C
+	}
+
+	connected := make(map[string]simClient, len(identities))
+	for i, identity := range identities {
+		if err := ctx.Err(); err != nil {
+			p.removeAndClose(connected)
+			return err
+		}
+		if i > 0 && throttle != nil {
+			select {
+			case <-throttle:
+			case <-ctx.Done():
+				p.removeAndClose(connected)
+				return ctx.Err()
+			}
+		}
+
+		clientCfg := p.clientConfig(addrs[i%len(addrs)])
+		c, err := p.newClient(clientCfg)
+		if err != nil {
+			p.removeAndClose(connected)
+			return err
+		}
+		_, err = c.Connect(ctx, wkclient.ConnectOptions{
+			UID:        identity.UID,
+			DeviceID:   identity.DeviceID,
+			DeviceFlag: frame.APP,
+			Token:      identity.Token,
+		})
+		if err != nil {
+			_ = c.Close()
+			p.removeAndClose(connected)
+			return err
+		}
+
+		p.mu.Lock()
+		if p.closed {
+			p.mu.Unlock()
+			_ = c.Close()
+			p.removeAndClose(connected)
+			return wkclient.ErrClosed
+		}
+		if old := p.clients[identity.UID]; old != nil {
+			_ = old.Close()
+		}
+		p.clients[identity.UID] = c
+		p.mu.Unlock()
+		connected[identity.UID] = c
+	}
+	return nil
+}
+
+func (p *simClientPool) SendBatch(ctx context.Context, messages []wkclient.RoutedMessage) ([]wkclient.SendResult, error) {
+	if p == nil {
+		return nil, wkclient.ErrClosed
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if len(messages) == 0 {
+		return nil, nil
+	}
+
+	results := make([]wkclient.SendResult, len(messages))
+	type grouped struct {
+		client  simClient
+		indexes []int
+		msgs    []wkclient.Message
+	}
+	groups := make(map[string]*grouped)
+
+	p.mu.RLock()
+	if p.closed {
+		p.mu.RUnlock()
+		return nil, wkclient.ErrClosed
+	}
+	for i, msg := range messages {
+		client := p.clients[msg.UID]
+		if client == nil {
+			p.mu.RUnlock()
+			return nil, fmt.Errorf("client pool: missing client for uid %q", msg.UID)
+		}
+		group := groups[msg.UID]
+		if group == nil {
+			group = &grouped{client: client}
+			groups[msg.UID] = group
+		}
+		group.indexes = append(group.indexes, i)
+		group.msgs = append(group.msgs, msg.Message)
+	}
+	p.mu.RUnlock()
+
+	for _, group := range groups {
+		groupResults, err := group.client.SendBatch(ctx, group.msgs)
+		if err != nil {
+			return results, err
+		}
+		if len(groupResults) != len(group.indexes) {
+			return results, fmt.Errorf("client pool: result count mismatch")
+		}
+		for i, result := range groupResults {
+			results[group.indexes[i]] = result
+		}
+	}
+	return results, nil
+}
+
+func (p *simClientPool) Close() error {
+	if p == nil {
+		return nil
+	}
+	p.mu.Lock()
+	if p.closed {
+		p.mu.Unlock()
+		return wkclient.ErrClosed
+	}
+	p.closed = true
+	clients := make([]simClient, 0, len(p.clients))
+	for _, client := range p.clients {
+		clients = append(clients, client)
+	}
+	p.clients = make(map[string]simClient)
+	stop := p.heartbeatStop
+	done := p.heartbeatDone
+	p.mu.Unlock()
+
+	if stop != nil {
+		close(stop)
+	}
+	if done != nil {
+		<-done
+	}
+
+	var first error
+	for _, client := range clients {
+		if err := client.Close(); err != nil && first == nil {
+			first = err
+		}
+	}
+	return first
+}
+
+func (p *simClientPool) clientConfig(addr string) wkclient.Config {
+	return wkclient.Config{
+		Addr:                   addr,
+		OperationTimeout:       p.cfg.OperationTimeout,
+		AckTimeout:             p.cfg.AckTimeout,
+		SendQueueCapacity:      p.cfg.Concurrency * 4,
+		MaxInflight:            p.cfg.Concurrency,
+		InboundFrameBufferSize: p.cfg.Concurrency * 4,
+		AutoRecvAck:            true,
+		Observer:               p.observer,
+	}
+}
+
+func (p *simClientPool) heartbeatLoop() {
+	defer close(p.heartbeatDone)
+	interval := p.cfg.HeartbeatInterval
+	if interval <= 0 {
+		interval = defaultHeartbeatInterval
+	}
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-p.heartbeatStop:
+			return
+		case <-ticker.C:
+			p.heartbeatRound()
+		}
+	}
+}
+
+func (p *simClientPool) heartbeatRound() {
+	clients := p.snapshotClients()
+	if len(clients) == 0 {
+		return
+	}
+	workers := p.cfg.Concurrency
+	if workers <= 0 {
+		workers = 1
+	}
+	if workers > len(clients) {
+		workers = len(clients)
+	}
+
+	jobs := make(chan simClient, workers)
+	var wg sync.WaitGroup
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for client := range jobs {
+				p.pingHeartbeat(client)
+			}
+		}()
+	}
+	for _, client := range clients {
+		select {
+		case <-p.heartbeatStop:
+			close(jobs)
+			wg.Wait()
+			return
+		case jobs <- client:
+		}
+	}
+	close(jobs)
+	wg.Wait()
+}
+
+func (p *simClientPool) snapshotClients() []simClient {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	if p.closed || len(p.clients) == 0 {
+		return nil
+	}
+	clients := make([]simClient, 0, len(p.clients))
+	for _, client := range p.clients {
+		clients = append(clients, client)
+	}
+	return clients
+}
+
+func (p *simClientPool) pingHeartbeat(client simClient) {
+	if client == nil {
+		return
+	}
+	timeout := p.cfg.HeartbeatTimeout
+	if timeout <= 0 {
+		timeout = defaultHeartbeatTimeout
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	err := client.Ping(ctx)
+	cancel()
+	if err != nil && p.observer != nil {
+		p.observer.OnError(wkclient.ErrorEvent{Op: "heartbeat", Err: err})
+	}
+}
+
+func (p *simClientPool) removeAndClose(clients map[string]simClient) {
+	if len(clients) == 0 {
+		return
+	}
+	p.mu.Lock()
+	for uid, client := range clients {
+		if p.clients[uid] == client {
+			delete(p.clients, uid)
+		}
+	}
+	p.mu.Unlock()
+	for _, client := range clients {
+		_ = client.Close()
+	}
 }
 
 type clientObserver struct {

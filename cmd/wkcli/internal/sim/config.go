@@ -11,20 +11,22 @@ import (
 )
 
 const (
-	defaultUsers          = 100
-	defaultGroups         = 20
-	defaultGroupMembers   = 10
-	defaultRate           = "0.2/s"
-	defaultPayloadSize    = "128B"
-	defaultConnectRate    = 20
-	defaultConcurrency    = 64
-	defaultAckTimeout     = 5 * time.Second
-	defaultOpTimeout      = 5 * time.Second
-	defaultStatusListen   = "127.0.0.1:19091"
-	defaultStatusInterval = 2 * time.Second
-	defaultUIDPrefix      = "wkcli-sim-u"
-	defaultDevicePrefix   = "wkcli-sim-d"
-	defaultChannelPrefix  = "wkcli-sim-g"
+	defaultUsers             = 100
+	defaultGroups            = 20
+	defaultGroupMembers      = 10
+	defaultRate              = "0.2/s"
+	defaultPayloadSize       = "128B"
+	defaultConnectRate       = 20
+	defaultConcurrency       = 64
+	defaultHeartbeatInterval = 30 * time.Second
+	defaultHeartbeatTimeout  = 5 * time.Second
+	defaultAckTimeout        = 5 * time.Second
+	defaultOpTimeout         = 5 * time.Second
+	defaultStatusListen      = "127.0.0.1:19091"
+	defaultStatusInterval    = 2 * time.Second
+	defaultUIDPrefix         = "wkcli-sim-u"
+	defaultDevicePrefix      = "wkcli-sim-d"
+	defaultChannelPrefix     = "wkcli-sim-g"
 )
 
 // Rate describes a per-second simulation operation rate.
@@ -63,6 +65,10 @@ type Config struct {
 	ConnectRate int
 	// Concurrency limits concurrent simulation work.
 	Concurrency int
+	// HeartbeatInterval controls how often connected simulated users send PING.
+	HeartbeatInterval time.Duration
+	// HeartbeatTimeout bounds one simulated user heartbeat PING.
+	HeartbeatTimeout time.Duration
 	// AckTimeout bounds SENDACK waits.
 	AckTimeout time.Duration
 	// OperationTimeout bounds non-SEND setup operations.
@@ -136,6 +142,18 @@ func normalizeConfig(cfg Config) (Config, error) {
 	}
 	if cfg.Concurrency == 0 {
 		cfg.Concurrency = defaultConcurrency
+	}
+	if cfg.HeartbeatInterval < 0 {
+		return Config{}, fmt.Errorf("--heartbeat-interval must be greater than zero")
+	}
+	if cfg.HeartbeatInterval == 0 {
+		cfg.HeartbeatInterval = defaultHeartbeatInterval
+	}
+	if cfg.HeartbeatTimeout < 0 {
+		return Config{}, fmt.Errorf("--heartbeat-timeout must be greater than zero")
+	}
+	if cfg.HeartbeatTimeout == 0 {
+		cfg.HeartbeatTimeout = defaultHeartbeatTimeout
 	}
 	if cfg.AckTimeout < 0 {
 		return Config{}, fmt.Errorf("--ack-timeout must be greater than zero")

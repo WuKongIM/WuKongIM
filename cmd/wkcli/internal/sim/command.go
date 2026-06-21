@@ -20,20 +20,22 @@ var runSimulation = func(ctx context.Context, cfg Config, status *statusModel) e
 // NewCommand builds the sim subcommand skeleton.
 func NewCommand(deps command.Deps) *cobra.Command {
 	cfg := Config{
-		Users:            defaultUsers,
-		Groups:           defaultGroups,
-		GroupMembers:     defaultGroupMembers,
-		RatePerGroup:     defaultRate,
-		PayloadSize:      defaultPayloadSize,
-		ConnectRate:      defaultConnectRate,
-		Concurrency:      defaultConcurrency,
-		AckTimeout:       defaultAckTimeout,
-		OperationTimeout: defaultOpTimeout,
-		UIDPrefix:        defaultUIDPrefix,
-		DevicePrefix:     defaultDevicePrefix,
-		ChannelPrefix:    defaultChannelPrefix,
-		StatusListen:     defaultStatusListen,
-		StatusInterval:   defaultStatusInterval,
+		Users:             defaultUsers,
+		Groups:            defaultGroups,
+		GroupMembers:      defaultGroupMembers,
+		RatePerGroup:      defaultRate,
+		PayloadSize:       defaultPayloadSize,
+		ConnectRate:       defaultConnectRate,
+		Concurrency:       defaultConcurrency,
+		HeartbeatInterval: defaultHeartbeatInterval,
+		HeartbeatTimeout:  defaultHeartbeatTimeout,
+		AckTimeout:        defaultAckTimeout,
+		OperationTimeout:  defaultOpTimeout,
+		UIDPrefix:         defaultUIDPrefix,
+		DevicePrefix:      defaultDevicePrefix,
+		ChannelPrefix:     defaultChannelPrefix,
+		StatusListen:      defaultStatusListen,
+		StatusInterval:    defaultStatusInterval,
 	}
 	cmd := &cobra.Command{
 		Use:   "sim",
@@ -70,6 +72,8 @@ func NewCommand(deps command.Deps) *cobra.Command {
 	cmd.Flags().StringVar(&cfg.PayloadSize, "payload-size", cfg.PayloadSize, "Generated payload size such as 128B, 1KB, or 1MiB")
 	cmd.Flags().IntVar(&cfg.ConnectRate, "connect-rate", cfg.ConnectRate, "Maximum simulated client connects per second")
 	cmd.Flags().IntVar(&cfg.Concurrency, "concurrency", cfg.Concurrency, "Maximum concurrent simulation operations")
+	cmd.Flags().DurationVar(&cfg.HeartbeatInterval, "heartbeat-interval", cfg.HeartbeatInterval, "Interval between simulated client heartbeat PING frames")
+	cmd.Flags().DurationVar(&cfg.HeartbeatTimeout, "heartbeat-timeout", cfg.HeartbeatTimeout, "Timeout for one simulated client heartbeat PING")
 	cmd.Flags().DurationVar(&cfg.AckTimeout, "ack-timeout", cfg.AckTimeout, "SENDACK wait timeout")
 	cmd.Flags().DurationVar(&cfg.OperationTimeout, "operation-timeout", cfg.OperationTimeout, "Setup operation timeout")
 	cmd.Flags().StringVar(&cfg.RunID, "run-id", "", "Run identifier used to scope generated identities")
