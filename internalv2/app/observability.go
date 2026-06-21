@@ -23,6 +23,7 @@ import (
 	clusterv2channels "github.com/WuKongIM/WuKongIM/pkg/clusterv2/channels"
 	cv2raft "github.com/WuKongIM/WuKongIM/pkg/controllerv2/raft"
 	messagedb "github.com/WuKongIM/WuKongIM/pkg/db/message"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	accessgateway "github.com/WuKongIM/WuKongIM/pkg/gateway"
 	obsmetrics "github.com/WuKongIM/WuKongIM/pkg/metrics"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
@@ -420,6 +421,9 @@ func (o conversationAuthorityMetricsObserver) ObserveConversationActiveCache(eve
 		return
 	}
 	o.metrics.Conversation.SetActiveCache(event.Rows, event.DirtyRows, event.OldestDirtyAge)
+	for _, kind := range []metadb.ConversationKind{metadb.ConversationKindNormal, metadb.ConversationKindCMD} {
+		o.metrics.Conversation.SetActiveCacheKind(conversationKindMetricLabel(kind), event.RowsByKind[kind], event.DirtyRowsByKind[kind])
+	}
 }
 
 func (o conversationAuthorityMetricsObserver) ObserveConversationActiveFlush(event conversationactive.FlushObservation) {
@@ -427,6 +431,17 @@ func (o conversationAuthorityMetricsObserver) ObserveConversationActiveFlush(eve
 		return
 	}
 	o.metrics.Conversation.ObserveActiveFlush(event.Result, event.Selected, event.Flushed, event.Duration)
+}
+
+func conversationKindMetricLabel(kind metadb.ConversationKind) string {
+	switch kind {
+	case metadb.ConversationKindNormal:
+		return "normal"
+	case metadb.ConversationKindCMD:
+		return "cmd"
+	default:
+		return "other"
+	}
 }
 
 func (o channelV2MetricsObserver) SetReactorMailboxDepth(reactorID int, priority string, depth int) {

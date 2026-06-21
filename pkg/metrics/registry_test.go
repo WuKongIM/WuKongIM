@@ -1600,6 +1600,8 @@ func TestConversationMetricsTrackActiveCacheAndFlush(t *testing.T) {
 	reg := New(11, "node-11")
 
 	reg.Conversation.SetActiveCache(12, 5, 2*time.Second)
+	reg.Conversation.SetActiveCacheKind("normal", 8, 2)
+	reg.Conversation.SetActiveCacheKind("cmd", 4, 3)
 	reg.Conversation.ObserveActiveFlush("ok", 4, 3, 7*time.Millisecond)
 
 	families, err := reg.Gather()
@@ -1621,6 +1623,30 @@ func TestConversationMetricsTrackActiveCacheAndFlush(t *testing.T) {
 	require.Equal(t, float64(2), findMetricByLabels(t, age, map[string]string{
 		"node_id":   "11",
 		"node_name": "node-11",
+	}).GetGauge().GetValue())
+
+	kindRows := requireMetricFamily(t, families, "wukongim_conversation_active_cache_kind_rows")
+	require.Equal(t, float64(8), findMetricByLabels(t, kindRows, map[string]string{
+		"node_id":   "11",
+		"node_name": "node-11",
+		"kind":      "normal",
+	}).GetGauge().GetValue())
+	require.Equal(t, float64(4), findMetricByLabels(t, kindRows, map[string]string{
+		"node_id":   "11",
+		"node_name": "node-11",
+		"kind":      "cmd",
+	}).GetGauge().GetValue())
+
+	kindDirtyRows := requireMetricFamily(t, families, "wukongim_conversation_active_cache_kind_dirty_rows")
+	require.Equal(t, float64(2), findMetricByLabels(t, kindDirtyRows, map[string]string{
+		"node_id":   "11",
+		"node_name": "node-11",
+		"kind":      "normal",
+	}).GetGauge().GetValue())
+	require.Equal(t, float64(3), findMetricByLabels(t, kindDirtyRows, map[string]string{
+		"node_id":   "11",
+		"node_name": "node-11",
+		"kind":      "cmd",
 	}).GetGauge().GetValue())
 
 	total := requireMetricFamily(t, families, "wukongim_conversation_active_flush_total")

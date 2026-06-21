@@ -62,6 +62,10 @@ type Manager struct {
 	totalRows int
 	// dirtyRows tracks cached rows that still need durable flush.
 	dirtyRows int
+	// rowsByKind tracks cached active rows by conversation kind.
+	rowsByKind map[metadb.ConversationKind]int
+	// dirtyRowsByKind tracks dirty cached rows by conversation kind.
+	dirtyRowsByKind map[metadb.ConversationKind]int
 	// dirtyActiveAtCounts counts dirty rows by positive ActiveAtMS for oldest-age observation.
 	dirtyActiveAtCounts map[int64]int
 	// dirtyActiveAtHeap keeps candidate dirty ActiveAtMS values ordered by oldest first.
@@ -88,6 +92,8 @@ func NewManager(opts Options) *Manager {
 		activeCooldown:      opts.ActiveCooldown,
 		maxCachedRows:       opts.MaxCachedRows,
 		observer:            opts.Observer,
+		rowsByKind:          make(map[metadb.ConversationKind]int),
+		dirtyRowsByKind:     make(map[metadb.ConversationKind]int),
 		dirtyActiveAtCounts: make(map[int64]int),
 		cache:               make(map[string]map[conversationKey]cacheEntry),
 		dirtyByHashSlot:     make(map[uint16]map[cacheAddress]struct{}),
@@ -204,6 +210,10 @@ func (m *Manager) markActiveLocked(patch ActivePatch, hashSlot uint16, hasHashSl
 		entry := cacheEntry{patch: patch, version: m.nextVersion, dirty: true, hashSlot: hashSlot, hasHashSlot: hasHashSlot}
 		byChannel[key] = entry
 		m.totalRows++
+		if m.rowsByKind == nil {
+			m.rowsByKind = make(map[metadb.ConversationKind]int)
+		}
+		m.rowsByKind[key.kind]++
 		m.trackDirtyLocked(address, entry)
 		return
 	}
@@ -296,6 +306,7 @@ func (m *Manager) evictCleanRowsLocked(limit int) int {
 			}
 			delete(byChannel, key)
 			m.totalRows--
+			decrementKindCount(m.rowsByKind, key.kind)
 			evicted++
 			if evicted >= limit {
 				break
@@ -460,12 +471,16 @@ func (m *Manager) cacheObservation() CacheObservation {
 	m.mu.Lock()
 	rows := m.totalRows
 	dirtyRows := m.dirtyRows
+	rowsByKind := cloneKindCounts(m.rowsByKind)
+	dirtyRowsByKind := cloneKindCounts(m.dirtyRowsByKind)
 	oldestDirtyAt := m.oldestDirtyAtLocked()
 	m.mu.Unlock()
 	return CacheObservation{
-		Rows:           rows,
-		DirtyRows:      dirtyRows,
-		OldestDirtyAge: dirtyAge(m.nowMS(), oldestDirtyAt),
+		Rows:            rows,
+		DirtyRows:       dirtyRows,
+		RowsByKind:      rowsByKind,
+		DirtyRowsByKind: dirtyRowsByKind,
+		OldestDirtyAge:  dirtyAge(m.nowMS(), oldestDirtyAt),
 	}
 }
 
@@ -559,6 +574,10 @@ func (m *Manager) clearFlushedDirty(entries []flushEntry) {
 
 func (m *Manager) trackDirtyLocked(address cacheAddress, entry cacheEntry) {
 	m.dirtyRows++
+	if m.dirtyRowsByKind == nil {
+		m.dirtyRowsByKind = make(map[metadb.ConversationKind]int)
+	}
+	m.dirtyRowsByKind[entry.patch.Kind]++
 	if entry.hasHashSlot {
 		if m.dirtyByHashSlot == nil {
 			m.dirtyByHashSlot = make(map[uint16]map[cacheAddress]struct{})
@@ -587,6 +606,7 @@ func (m *Manager) untrackDirtyLocked(address cacheAddress, entry cacheEntry) {
 	if m.dirtyRows > 0 {
 		m.dirtyRows--
 	}
+	decrementKindCount(m.dirtyRowsByKind, entry.patch.Kind)
 	if entry.hasHashSlot && m.dirtyByHashSlot != nil {
 		addresses := m.dirtyByHashSlot[entry.hashSlot]
 		delete(addresses, address)
@@ -625,6 +645,31 @@ func (m *Manager) oldestDirtyAtLocked() int64 {
 		heap.Pop(&m.dirtyActiveAtHeap)
 	}
 	return 0
+}
+
+func cloneKindCounts(in map[metadb.ConversationKind]int) map[metadb.ConversationKind]int {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make(map[metadb.ConversationKind]int, len(in))
+	for kind, count := range in {
+		if count > 0 {
+			out[kind] = count
+		}
+	}
+	return out
+}
+
+func decrementKindCount(counts map[metadb.ConversationKind]int, kind metadb.ConversationKind) {
+	if len(counts) == 0 {
+		return
+	}
+	count := counts[kind]
+	if count <= 1 {
+		delete(counts, kind)
+		return
+	}
+	counts[kind] = count - 1
 }
 
 func activePatchMetaPatch(patch ActivePatch) metadb.ConversationActivePatch {

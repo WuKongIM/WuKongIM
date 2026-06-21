@@ -25,6 +25,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/worker"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
 	messagedb "github.com/WuKongIM/WuKongIM/pkg/db/message"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/gateway"
 	obsmetrics "github.com/WuKongIM/WuKongIM/pkg/metrics"
 	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
@@ -663,6 +664,14 @@ func TestObservabilityConversationAuthorityMetricsObserverMapsCounters(t *testin
 		Rows:           10,
 		DirtyRows:      4,
 		OldestDirtyAge: 3 * time.Second,
+		RowsByKind: map[metadb.ConversationKind]int{
+			metadb.ConversationKindNormal: 7,
+			metadb.ConversationKindCMD:    3,
+		},
+		DirtyRowsByKind: map[metadb.ConversationKind]int{
+			metadb.ConversationKindNormal: 1,
+			metadb.ConversationKindCMD:    3,
+		},
 	})
 	observer.ObserveConversationActiveFlush(conversationactive.FlushObservation{
 		Result:   "ok",
@@ -690,6 +699,20 @@ func TestObservabilityConversationAuthorityMetricsObserverMapsCounters(t *testin
 	dirtyRows := requireAppMetricFamily(t, families, "wukongim_conversation_active_cache_dirty_rows")
 	if got := findAppMetricByLabels(t, dirtyRows, nil).GetGauge().GetValue(); got != 4 {
 		t.Fatalf("active cache dirty rows metric = %v, want 4", got)
+	}
+	kindRows := requireAppMetricFamily(t, families, "wukongim_conversation_active_cache_kind_rows")
+	if got := findAppMetricByLabels(t, kindRows, map[string]string{"kind": "normal"}).GetGauge().GetValue(); got != 7 {
+		t.Fatalf("normal active cache rows metric = %v, want 7", got)
+	}
+	if got := findAppMetricByLabels(t, kindRows, map[string]string{"kind": "cmd"}).GetGauge().GetValue(); got != 3 {
+		t.Fatalf("cmd active cache rows metric = %v, want 3", got)
+	}
+	kindDirtyRows := requireAppMetricFamily(t, families, "wukongim_conversation_active_cache_kind_dirty_rows")
+	if got := findAppMetricByLabels(t, kindDirtyRows, map[string]string{"kind": "normal"}).GetGauge().GetValue(); got != 1 {
+		t.Fatalf("normal active cache dirty rows metric = %v, want 1", got)
+	}
+	if got := findAppMetricByLabels(t, kindDirtyRows, map[string]string{"kind": "cmd"}).GetGauge().GetValue(); got != 3 {
+		t.Fatalf("cmd active cache dirty rows metric = %v, want 3", got)
 	}
 	flushRows := requireAppMetricFamily(t, families, "wukongim_conversation_active_flush_rows")
 	if got := findAppMetricByLabels(t, flushRows, map[string]string{"result": "ok", "kind": "flushed"}).GetHistogram().GetSampleSum(); got != 4 {

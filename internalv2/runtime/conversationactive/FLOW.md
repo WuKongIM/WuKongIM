@@ -11,3 +11,8 @@ Current flow:
 3. Dirty rows flush through `ActiveStore.TouchConversationActiveAt`.
 4. Active view reads merge cache rows with durable `(uid, kind)` active-index pages.
 5. Hash-slot handoff drains dirty rows scoped by UID hash slot before authority moves.
+
+Cache observations report aggregate row/dirty counts plus fixed kind-aware
+normal/CMD counts maintained incrementally on cache mutation. Observation does
+not scan all UID rows, so large active-cache snapshots stay bounded by the
+number of fixed conversation kinds rather than total cached conversations.

@@ -29,6 +29,8 @@ type ConversationMetrics struct {
 	authorityHandoffTotal     *prometheus.CounterVec
 	activeCacheRows           prometheus.Gauge
 	activeCacheDirtyRows      prometheus.Gauge
+	activeCacheKindRows       *prometheus.GaugeVec
+	activeCacheKindDirtyRows  *prometheus.GaugeVec
 	activeCacheOldestDirtyAge prometheus.Gauge
 	activeFlushTotal          *prometheus.CounterVec
 	activeFlushRows           *prometheus.HistogramVec
@@ -137,6 +139,16 @@ func newConversationMetrics(registry prometheus.Registerer, labels prometheus.La
 			Help:        "Current dirty rows in the conversation active cache.",
 			ConstLabels: labels,
 		}),
+		activeCacheKindRows: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name:        "wukongim_conversation_active_cache_kind_rows",
+			Help:        "Current rows in the conversation active cache by fixed conversation kind.",
+			ConstLabels: labels,
+		}, []string{"kind"}),
+		activeCacheKindDirtyRows: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name:        "wukongim_conversation_active_cache_kind_dirty_rows",
+			Help:        "Current dirty rows in the conversation active cache by fixed conversation kind.",
+			ConstLabels: labels,
+		}, []string{"kind"}),
 		activeCacheOldestDirtyAge: prometheus.NewGauge(prometheus.GaugeOpts{
 			Name:        "wukongim_conversation_active_cache_oldest_dirty_age_seconds",
 			Help:        "Age in seconds of the oldest dirty conversation active cache row.",
@@ -180,6 +192,8 @@ func newConversationMetrics(registry prometheus.Registerer, labels prometheus.La
 		m.authorityHandoffTotal,
 		m.activeCacheRows,
 		m.activeCacheDirtyRows,
+		m.activeCacheKindRows,
+		m.activeCacheKindDirtyRows,
 		m.activeCacheOldestDirtyAge,
 		m.activeFlushTotal,
 		m.activeFlushRows,
@@ -272,6 +286,16 @@ func (m *ConversationMetrics) SetActiveCache(rows, dirtyRows int, oldestDirtyAge
 	m.activeCacheOldestDirtyAge.Set(oldestDirtyAge.Seconds())
 }
 
+// SetActiveCacheKind sets current conversation active cache pressure for one fixed kind.
+func (m *ConversationMetrics) SetActiveCacheKind(kind string, rows, dirtyRows int) {
+	if m == nil {
+		return
+	}
+	kind = conversationActiveKind(kind)
+	m.activeCacheKindRows.WithLabelValues(kind).Set(float64(nonNegative(rows)))
+	m.activeCacheKindDirtyRows.WithLabelValues(kind).Set(float64(nonNegative(dirtyRows)))
+}
+
 // ObserveActiveFlush records one conversation active cache flush attempt.
 func (m *ConversationMetrics) ObserveActiveFlush(result string, selected, flushed int, dur time.Duration) {
 	if m == nil {
@@ -319,6 +343,15 @@ func conversationAuthorityResult(result string) string {
 func conversationActiveFlushRowsKind(kind string) string {
 	switch kind {
 	case "selected", "flushed":
+		return kind
+	default:
+		return "other"
+	}
+}
+
+func conversationActiveKind(kind string) string {
+	switch kind {
+	case "normal", "cmd":
 		return kind
 	default:
 		return "other"

@@ -606,6 +606,27 @@ func TestManagerObservesCacheRowsAndDirtyLag(t *testing.T) {
 	}
 }
 
+func TestManagerObservesCacheRowsByKind(t *testing.T) {
+	observer := &recordingConversationActiveObserver{}
+	m := NewManager(Options{Observer: observer})
+
+	if err := m.MarkActive(context.Background(), []ActivePatch{
+		{Kind: metadb.ConversationKindNormal, UID: "u1", ChannelID: "normal-a", ChannelType: 2, ActiveAtMS: 1000},
+		{Kind: metadb.ConversationKindNormal, UID: "u1", ChannelID: "normal-b", ChannelType: 2, ActiveAtMS: 1001},
+		{Kind: metadb.ConversationKindCMD, UID: "u1", ChannelID: "cmd-a", ChannelType: 2, ActiveAtMS: 1002},
+	}); err != nil {
+		t.Fatalf("MarkActive() error = %v", err)
+	}
+
+	got := observer.lastCache(t)
+	if got.RowsByKind[metadb.ConversationKindNormal] != 2 || got.RowsByKind[metadb.ConversationKindCMD] != 1 {
+		t.Fatalf("RowsByKind = %+v, want normal=2 cmd=1", got.RowsByKind)
+	}
+	if got.DirtyRowsByKind[metadb.ConversationKindNormal] != 2 || got.DirtyRowsByKind[metadb.ConversationKindCMD] != 1 {
+		t.Fatalf("DirtyRowsByKind = %+v, want normal=2 cmd=1", got.DirtyRowsByKind)
+	}
+}
+
 func TestFlushZeroLimitFlushesAllDirtyRows(t *testing.T) {
 	ctx := context.Background()
 	store := &recordingActiveStore{}

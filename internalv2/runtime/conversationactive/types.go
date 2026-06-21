@@ -42,6 +42,10 @@ type CacheObservation struct {
 	Rows int
 	// DirtyRows is the number of cached rows still waiting to flush.
 	DirtyRows int
+	// RowsByKind counts cached rows by conversation kind.
+	RowsByKind map[metadb.ConversationKind]int
+	// DirtyRowsByKind counts dirty cached rows by conversation kind.
+	DirtyRowsByKind map[metadb.ConversationKind]int
 	// OldestDirtyAge is the age of the oldest dirty row by ActiveAtMS.
 	OldestDirtyAge time.Duration
 }

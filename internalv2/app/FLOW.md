@@ -364,7 +364,8 @@ Prometheus metrics for latency, returned items, sparse items, last-message
 loads, last-message errors, active-index stale skips, and whether another active
 page exists using only low-cardinality labels. It also maps conversation active
 cache observations to Prometheus gauges for cached rows, dirty rows, oldest
-dirty age, and flush result/row/duration metrics.
+dirty age, fixed normal/CMD row and dirty-row counts, and flush
+result/row/duration metrics.
 
 Conversation list with authority enabled:
 

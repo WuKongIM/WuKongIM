@@ -408,6 +408,42 @@ func managerMonitorMetricDefinitions() []monitorMetricDefinition {
 			},
 		},
 		{
+			key:   "conversationActiveNormalRows",
+			stage: accessmanager.RealtimeMonitorStageConversationSync,
+			tone:  accessmanager.RealtimeMonitorToneNormal,
+			unit:  "rows",
+			query: func(string) string {
+				return "sum(wukongim_conversation_active_cache_kind_rows{kind=\"normal\"})"
+			},
+		},
+		{
+			key:   "conversationActiveCMDRows",
+			stage: accessmanager.RealtimeMonitorStageConversationSync,
+			tone:  accessmanager.RealtimeMonitorToneNormal,
+			unit:  "rows",
+			query: func(string) string {
+				return "sum(wukongim_conversation_active_cache_kind_rows{kind=\"cmd\"})"
+			},
+		},
+		{
+			key:   "conversationActiveNormalDirtyRows",
+			stage: accessmanager.RealtimeMonitorStageConversationSync,
+			tone:  accessmanager.RealtimeMonitorToneWarning,
+			unit:  "rows",
+			query: func(string) string {
+				return "sum(wukongim_conversation_active_cache_kind_dirty_rows{kind=\"normal\"})"
+			},
+		},
+		{
+			key:   "conversationActiveCMDDirtyRows",
+			stage: accessmanager.RealtimeMonitorStageConversationSync,
+			tone:  accessmanager.RealtimeMonitorToneWarning,
+			unit:  "rows",
+			query: func(string) string {
+				return "sum(wukongim_conversation_active_cache_kind_dirty_rows{kind=\"cmd\"})"
+			},
+		},
+		{
 			key:   "conversationActiveOldestDirtyAge",
 			stage: accessmanager.RealtimeMonitorStageConversationSync,
 			tone:  accessmanager.RealtimeMonitorToneWarning,
