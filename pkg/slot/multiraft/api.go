@@ -176,9 +176,10 @@ func (r *Runtime) Propose(ctx context.Context, slotID SlotID, data []byte) (Futu
 
 	fut := newFuture(proposalStageObserversFromContext(ctx))
 	if err := g.enqueueControl(controlAction{
-		kind:   controlPropose,
-		data:   append([]byte(nil), data...),
-		future: fut,
+		kind:          controlPropose,
+		data:          append([]byte(nil), data...),
+		proposalClass: ProposalClassFromContext(ctx),
+		future:        fut,
 	}); err != nil {
 		return nil, err
 	}

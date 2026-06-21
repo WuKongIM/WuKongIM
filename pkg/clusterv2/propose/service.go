@@ -61,7 +61,12 @@ func (s *Service) Propose(ctx context.Context, req Request) error {
 		return fmt.Errorf("%w: missing forward client", ErrInvalidRequest)
 	}
 	started := time.Now()
-	err = s.forward.ForwardPropose(ctx, route.Leader, ForwardRequest{SlotID: route.SlotID, HashSlot: route.HashSlot, Payload: payload})
+	err = s.forward.ForwardPropose(ctx, route.Leader, ForwardRequest{
+		SlotID:   route.SlotID,
+		HashSlot: route.HashSlot,
+		Class:    ProposalClassFromContext(ctx),
+		Payload:  payload,
+	})
 	ObserveStage(ctx, stageMetaCreateProposeForward, err, time.Since(started))
 	return err
 }

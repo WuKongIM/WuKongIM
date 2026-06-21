@@ -175,11 +175,14 @@ UID-owned conversation rows are the active recent-conversation path.
 `UpsertUserConversationStatesBatch`, `TouchUserConversationActiveAtBatch`, and
 `HideUserConversationsBatch` route each row by `RouteKey(uid)`, group rows by
 physical Slot, and submit bounded Slot FSM commands that carry each row's real
-UID hash slot. The Slot FSM then applies each conversation state, active patch,
-or delete barrier to that UID-owned hash slot, preserving `SparseActive`,
-read/delete visibility floors, and the active ordering anchor in one metadata
-mutation. Hide requests advance `DeletedToSeq` and clear `active_at` through
-the same Slot ownership path. Reads such as
+UID hash slot. `TouchUserConversationActiveAtBatch` marks those proposals as
+background admission work because they are retryable active-cache projection
+flushes; user-facing UID metadata writes keep the default foreground class.
+The Slot FSM then applies each conversation state, active patch, or delete
+barrier to that UID-owned hash slot, preserving `SparseActive`, read/delete
+visibility floors, and the active ordering anchor in one metadata mutation.
+Hide requests advance `DeletedToSeq` and clear `active_at` through the same
+Slot ownership path. Reads such as
 `ListUserConversationActivePage` route by UID and scan the local conversation
 active index for that UID hash slot with the `(active_at, channel_id,
 channel_type)` cursor. Legacy `channel_latest` remains a channel-owned

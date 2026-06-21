@@ -587,6 +587,7 @@ func TestSlotAndTransportMetricsTrackProposalsLeaderChangesAndRPCs(t *testing.T)
 	reg := New(9, "node-9")
 
 	reg.Slot.ObserveProposal(3, 12*time.Millisecond)
+	reg.Slot.ObserveProposalAdmission("background", "throttled")
 	reg.Slot.ObserveLeaderChange(3)
 	reg.Slot.SetApplyGap(3, 4)
 	reg.Slot.SetReplicaLag(1, 2, 150*time.Millisecond)
@@ -610,6 +611,16 @@ func TestSlotAndTransportMetricsTrackProposalsLeaderChangesAndRPCs(t *testing.T)
 		"slot_id":   "3",
 	})
 	require.Equal(t, float64(1), proposals.GetMetric()[0].GetCounter().GetValue())
+
+	proposalAdmission := requireMetricFamily(t, families, "wukongim_slot_proposal_admission_total")
+	require.Len(t, proposalAdmission.GetMetric(), 1)
+	requireMetricLabels(t, proposalAdmission.GetMetric()[0], map[string]string{
+		"node_id":   "9",
+		"node_name": "node-9",
+		"class":     "background",
+		"result":    "throttled",
+	})
+	require.Equal(t, float64(1), proposalAdmission.GetMetric()[0].GetCounter().GetValue())
 
 	leaderChanges := requireMetricFamily(t, families, "wukongim_slot_leader_elections_total")
 	require.Len(t, leaderChanges.GetMetric(), 1)

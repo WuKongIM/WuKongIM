@@ -595,6 +595,196 @@ func TestResolutionBufferHelpersReuseBackingSlice(t *testing.T) {
 	}
 }
 
+func TestEnqueueRequestRejectsWhenQueueLimitReached(t *testing.T) {
+	g := newTestSlotForDrain()
+	g.maxQueuedRequests = 1
+
+	if err := g.enqueueRequest(raftpb.Message{Type: raftpb.MsgHeartbeat, From: 2, To: 1}); err != nil {
+		t.Fatalf("first enqueueRequest() error = %v", err)
+	}
+	err := g.enqueueRequest(raftpb.Message{Type: raftpb.MsgHeartbeat, From: 3, To: 1})
+	if !errors.Is(err, ErrSlotBusy) {
+		t.Fatalf("second enqueueRequest() error = %v, want %v", err, ErrSlotBusy)
+	}
+}
+
+func TestEnqueueControlRejectsWhenQueueLimitReached(t *testing.T) {
+	g := newLeaderTestSlotForDrain()
+	g.maxQueuedControls = 1
+
+	if err := g.enqueueControl(controlAction{kind: controlTransferLeader, target: 2}); err != nil {
+		t.Fatalf("first enqueueControl() error = %v", err)
+	}
+	err := g.enqueueControl(controlAction{kind: controlTransferLeader, target: 3})
+	if !errors.Is(err, ErrSlotBusy) {
+		t.Fatalf("second enqueueControl() error = %v, want %v", err, ErrSlotBusy)
+	}
+}
+
+func TestProposalClassContextDefaultsForeground(t *testing.T) {
+	if got := ProposalClassFromContext(context.Background()); got != ProposalClassForeground {
+		t.Fatalf("default proposal class = %q, want %q", got, ProposalClassForeground)
+	}
+	ctx := WithProposalClass(context.Background(), ProposalClassBackground)
+	if got := ProposalClassFromContext(ctx); got != ProposalClassBackground {
+		t.Fatalf("context proposal class = %q, want %q", got, ProposalClassBackground)
+	}
+}
+
+func TestBackgroundProposalAdmissionLeavesForegroundReserve(t *testing.T) {
+	g := newLeaderTestSlotForDrain()
+	g.maxQueuedControls = 4
+	g.maxQueuedBackgroundControls = 1
+
+	if err := g.enqueueControl(controlAction{
+		kind:          controlPropose,
+		proposalClass: ProposalClassBackground,
+		future:        newFuture(nil),
+	}); err != nil {
+		t.Fatalf("first background enqueueControl() error = %v", err)
+	}
+	if err := g.enqueueControl(controlAction{
+		kind:          controlPropose,
+		proposalClass: ProposalClassBackground,
+		future:        newFuture(nil),
+	}); !errors.Is(err, ErrBackgroundProposalThrottled) {
+		t.Fatalf("second background enqueueControl() error = %v, want %v", err, ErrBackgroundProposalThrottled)
+	}
+	if err := g.enqueueControl(controlAction{
+		kind:          controlPropose,
+		proposalClass: ProposalClassForeground,
+		future:        newFuture(nil),
+	}); err != nil {
+		t.Fatalf("foreground enqueueControl() after background throttle error = %v", err)
+	}
+}
+
+func TestProposalAdmissionObserverRecordsBackgroundThrottle(t *testing.T) {
+	observer := &recordingProposalAdmissionObserver{}
+	g := newLeaderTestSlotForDrain()
+	g.observer = observer
+	g.maxQueuedControls = 4
+	g.maxQueuedBackgroundControls = 1
+
+	if err := g.enqueueControl(controlAction{
+		kind:          controlPropose,
+		proposalClass: ProposalClassBackground,
+		future:        newFuture(nil),
+	}); err != nil {
+		t.Fatalf("first background enqueueControl() error = %v", err)
+	}
+	if err := g.enqueueControl(controlAction{
+		kind:          controlPropose,
+		proposalClass: ProposalClassBackground,
+		future:        newFuture(nil),
+	}); !errors.Is(err, ErrBackgroundProposalThrottled) {
+		t.Fatalf("second background enqueueControl() error = %v, want %v", err, ErrBackgroundProposalThrottled)
+	}
+	if got := observer.results; !reflect.DeepEqual(got, []string{"background:ok", "background:throttled"}) {
+		t.Fatalf("proposal admission results = %v, want background ok then throttled", got)
+	}
+}
+
+func TestBeginApplyRejectsWhenApplyLimitReached(t *testing.T) {
+	g := newTestSlotForDrain()
+	g.maxApplyingTasks = 1
+
+	if err := g.beginApply(); err != nil {
+		t.Fatalf("first beginApply() error = %v", err)
+	}
+	if err := g.beginApply(); !errors.Is(err, ErrSlotBusy) {
+		t.Fatalf("second beginApply() error = %v, want %v", err, ErrSlotBusy)
+	}
+	g.finishApply()
+	if err := g.beginApply(); err != nil {
+		t.Fatalf("beginApply() after finish error = %v", err)
+	}
+	g.finishApply()
+}
+
+func TestReusableBuffersClearRetainedReferences(t *testing.T) {
+	g := newLeaderTestSlotForDrain()
+	msg := raftpb.Message{
+		Type:    raftpb.MsgApp,
+		From:    2,
+		To:      1,
+		Context: []byte("ctx"),
+		Entries: []raftpb.Entry{{Data: []byte("entry")}},
+		Snapshot: &raftpb.Snapshot{
+			Data: []byte("snapshot"),
+		},
+	}
+	if err := g.enqueueRequest(msg); err != nil {
+		t.Fatalf("enqueueRequest() error = %v", err)
+	}
+	requests := g.takeRequestBatch()
+	g.releaseRequestBatch(requests)
+	requestBacking := g.requestWorkBuf[:cap(g.requestWorkBuf)]
+	if requestBacking[0].Context != nil || requestBacking[0].Entries != nil || requestBacking[0].Snapshot != nil {
+		t.Fatalf("request work buffer retained payload references: %+v", requestBacking[0])
+	}
+
+	if err := g.enqueueControl(controlAction{
+		kind:   controlPropose,
+		data:   []byte("proposal"),
+		future: newFuture(nil),
+	}); err != nil {
+		t.Fatalf("enqueueControl() error = %v", err)
+	}
+	controls := g.takeControlBatch()
+	g.releaseControlBatch(controls)
+	controlBacking := g.controlWorkBuf[:cap(g.controlWorkBuf)]
+	if controlBacking[0].data != nil || controlBacking[0].future != nil {
+		t.Fatalf("control work buffer retained references: %+v", controlBacking[0])
+	}
+
+	resolutions := g.takeResolutionBuffer()
+	resolutions = append(resolutions, futureResolution{
+		future: newFuture(nil),
+		result: Result{Data: []byte("result")},
+	})
+	g.releaseResolutionBuffer(resolutions)
+	resolutionBacking := g.resolutionBuf[:cap(g.resolutionBuf)]
+	if resolutionBacking[0].future != nil || resolutionBacking[0].result.Data != nil {
+		t.Fatalf("resolution buffer retained references: %+v", resolutionBacking[0])
+	}
+}
+
+func TestTrackReadyEntriesClearsConsumedSubmittedFutureReference(t *testing.T) {
+	first := newFuture(nil)
+	second := newFuture(nil)
+	submitted := []*future{first, second}
+	g := &slot{submittedProposals: submitted}
+
+	g.trackReadyEntries([]raftpb.Entry{{
+		Index: 1,
+		Term:  1,
+		Type:  raftpb.EntryNormal,
+		Data:  []byte("proposal"),
+	}})
+
+	if submitted[0] != nil {
+		t.Fatal("consumed submitted proposal future was retained in backing slice")
+	}
+	if len(g.submittedProposals) != 1 || g.submittedProposals[0] != second {
+		t.Fatalf("submittedProposals = %v, want only second future", g.submittedProposals)
+	}
+}
+
+func TestApplyStateObserverCanReenterSlotWithoutDeadlock(t *testing.T) {
+	g := newTestSlotForDrain()
+	observer := &reentrantApplyStateObserver{slot: g, done: make(chan struct{})}
+	g.observer = observer
+
+	go g.refreshDurableAppliedStatus()
+
+	select {
+	case <-observer.done:
+	case <-time.After(time.Second):
+		t.Fatal("apply state observer reentry deadlocked")
+	}
+}
+
 func newStartedRuntime(t *testing.T) *Runtime {
 	return newStartedRuntimeWithTick(t, 10*time.Millisecond)
 }
@@ -654,6 +844,46 @@ func newLeaderTestSlotForDrain() *slot {
 	g := newTestSlotForDrain()
 	g.status.Role = RoleLeader
 	return g
+}
+
+type reentrantApplyStateObserver struct {
+	slot *slot
+	done chan struct{}
+}
+
+func (o *reentrantApplyStateObserver) SetSchedulerWorkers(int) {}
+
+func (o *reentrantApplyStateObserver) SetSchedulerInflight(int) {}
+
+func (o *reentrantApplyStateObserver) SetSchedulerState(SchedulerStateEvent) {}
+
+func (o *reentrantApplyStateObserver) ObserveSchedulerAdmission(string) {}
+
+func (o *reentrantApplyStateObserver) ObserveSchedulerTask(string, time.Duration) {}
+
+func (o *reentrantApplyStateObserver) SetSlotApplyState(SlotID, uint64, uint64) {
+	if o.slot != nil {
+		_, _ = o.slot.statusSnapshot()
+	}
+	close(o.done)
+}
+
+type recordingProposalAdmissionObserver struct {
+	results []string
+}
+
+func (o *recordingProposalAdmissionObserver) SetSchedulerWorkers(int) {}
+
+func (o *recordingProposalAdmissionObserver) SetSchedulerInflight(int) {}
+
+func (o *recordingProposalAdmissionObserver) SetSchedulerState(SchedulerStateEvent) {}
+
+func (o *recordingProposalAdmissionObserver) ObserveSchedulerAdmission(string) {}
+
+func (o *recordingProposalAdmissionObserver) ObserveSchedulerTask(string, time.Duration) {}
+
+func (o *recordingProposalAdmissionObserver) ObserveSlotProposalAdmission(_ SlotID, class ProposalClass, result string) {
+	o.results = append(o.results, string(class)+":"+result)
 }
 
 func proposalPayload(hashSlot uint16, data []byte) []byte {

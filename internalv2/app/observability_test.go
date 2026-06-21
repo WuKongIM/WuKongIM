@@ -90,6 +90,7 @@ func TestRuntimePressureAdapterMapsGatewayChannelSlotTransportAndDB(t *testing.T
 	slotObserver.ObserveSchedulerAdmission("dirty")
 	slotObserver.ObserveSchedulerTask("process_slot", time.Millisecond)
 	slotObserver.ObserveSlotProposal(7, 2*time.Millisecond)
+	slotObserver.ObserveSlotProposalAdmission(7, multiraft.ProposalClassBackground, "throttled")
 	slotObserver.SetSlotApplyState(7, 11, 8)
 
 	transportObserver := transportV2MetricsObserver{metrics: reg}
@@ -212,6 +213,14 @@ func TestRuntimePressureAdapterMapsGatewayChannelSlotTransportAndDB(t *testing.T
 	})
 	if got := slotSevenProposal.GetCounter().GetValue(); got != 1 {
 		t.Fatalf("slot proposals = %v, want 1", got)
+	}
+	slotProposalAdmission := requireAppMetricFamily(t, families, "wukongim_slot_proposal_admission_total")
+	slotBackgroundThrottle := findAppMetricByLabels(t, slotProposalAdmission, map[string]string{
+		"class":  "background",
+		"result": "throttled",
+	})
+	if got := slotBackgroundThrottle.GetCounter().GetValue(); got != 1 {
+		t.Fatalf("slot proposal admission = %v, want 1", got)
 	}
 	slotApplyGap := requireAppMetricFamily(t, families, "wukongim_slot_apply_gap")
 	slotSevenGap := findAppMetricByLabels(t, slotApplyGap, map[string]string{

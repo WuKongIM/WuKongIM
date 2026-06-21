@@ -6,6 +6,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
+	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/propose"
+	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/routing"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
@@ -83,6 +86,47 @@ func TestClusterV2TouchUserConversationActiveAtBatchRoutesByUID(t *testing.T) {
 	}
 	if got.ActiveAt != 300 || !got.SparseActive {
 		t.Fatalf("state = %+v, want active_at preserved at 300 and sparse_active=true", got)
+	}
+}
+
+func TestTouchUserConversationActiveAtBatchMarksProposalBackground(t *testing.T) {
+	proposer := &recordingProposer{}
+	node, err := New(validNodeConfig(t), WithProposer(proposer))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	hashSlotCount := node.cfg.Slots.HashSlotCount
+	snapshot := control.Snapshot{
+		Revision:     1,
+		ControllerID: 1,
+		Nodes: []control.Node{
+			{NodeID: 1, Addr: "127.0.0.1:1001", Roles: []control.Role{control.RoleData}, Status: control.NodeAlive},
+		},
+		Slots: []control.SlotAssignment{
+			{SlotID: 1, DesiredPeers: []uint64{1}, ConfigEpoch: 1, PreferredLeader: 1},
+		},
+		HashSlots: control.HashSlotTable{Revision: 1, Count: hashSlotCount, Ranges: []control.HashSlotRange{
+			{From: 0, To: uint16(hashSlotCount - 1), SlotID: 1},
+		}},
+	}
+	if err := node.router.UpdateControlSnapshot(snapshot); err != nil {
+		t.Fatalf("UpdateControlSnapshot() error = %v", err)
+	}
+	node.router.UpdateSlotLeaders([]routing.SlotStatus{{SlotID: 1, Leader: 1}})
+	node.snapshot = Snapshot{NodeID: 1, RoutesReady: true, SlotsReady: true, ChannelsReady: true, SlotCount: 1, HashSlotCount: hashSlotCount}
+	node.started.Store(true)
+
+	err = node.TouchUserConversationActiveAtBatch(context.Background(), []metadb.UserConversationActivePatch{{
+		UID:         "u1",
+		ChannelID:   "g1",
+		ChannelType: 2,
+		ActiveAt:    10,
+	}})
+	if err != nil {
+		t.Fatalf("TouchUserConversationActiveAtBatch() error = %v", err)
+	}
+	if got := propose.ProposalClassFromContext(proposer.ctx); got != propose.ProposalClassBackground {
+		t.Fatalf("proposal class = %q, want %q", got, propose.ProposalClassBackground)
 	}
 }
 

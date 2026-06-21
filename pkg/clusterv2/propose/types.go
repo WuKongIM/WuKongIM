@@ -14,7 +14,40 @@ var (
 	ErrInvalidPayload = errors.New("clusterv2/propose: invalid payload")
 	// ErrNotLeader indicates that the target node is not the local Slot leader.
 	ErrNotLeader = errors.New("clusterv2/propose: not leader")
+	// ErrProposalBackpressure indicates that Slot proposal admission is saturated.
+	ErrProposalBackpressure = errors.New("clusterv2/propose: proposal backpressure")
+	// ErrBackgroundProposalThrottled indicates that background proposal admission is throttled.
+	ErrBackgroundProposalThrottled = errors.New("clusterv2/propose: background proposal throttled")
 )
+
+// ProposalClass identifies the admission priority of a Slot metadata proposal.
+type ProposalClass uint8
+
+const (
+	// ProposalClassForeground is the default class for user-facing metadata writes.
+	ProposalClassForeground ProposalClass = iota
+	// ProposalClassBackground is used for retryable projection writes.
+	ProposalClassBackground
+)
+
+type proposalClassContextKey struct{}
+
+// WithProposalClass marks proposals derived from ctx with class.
+func WithProposalClass(ctx context.Context, class ProposalClass) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return context.WithValue(ctx, proposalClassContextKey{}, normalizeProposalClass(class))
+}
+
+// ProposalClassFromContext returns the proposal class carried by ctx.
+func ProposalClassFromContext(ctx context.Context) ProposalClass {
+	if ctx == nil {
+		return ProposalClassForeground
+	}
+	class, _ := ctx.Value(proposalClassContextKey{}).(ProposalClass)
+	return normalizeProposalClass(class)
+}
 
 // Request submits one Slot metadata command through a route snapshot.
 type Request struct {
@@ -68,6 +101,17 @@ type ForwardRequest struct {
 	SlotID uint32
 	// HashSlot is the logical hash slot carried in Payload.
 	HashSlot uint16
+	// Class is the proposal admission class for the target Slot runtime.
+	Class ProposalClass
 	// Payload is the encoded Slot proposal payload.
 	Payload []byte
+}
+
+func normalizeProposalClass(class ProposalClass) ProposalClass {
+	switch class {
+	case ProposalClassBackground:
+		return ProposalClassBackground
+	default:
+		return ProposalClassForeground
+	}
 }

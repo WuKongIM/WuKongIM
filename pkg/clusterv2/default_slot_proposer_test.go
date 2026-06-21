@@ -40,6 +40,19 @@ func TestDefaultSlotProposerObservesMetaCreateSubmitAndWait(t *testing.T) {
 	requireRecordedAppendStage(t, observer.events, "meta_create_slot_raft_commit_wait", "ok")
 }
 
+func TestDefaultSlotProposerPassesBackgroundProposalClass(t *testing.T) {
+	runtime := &recordingSlotRuntime{future: recordingSlotFuture{}}
+	ctx := propose.WithProposalClass(context.Background(), propose.ProposalClassBackground)
+
+	err := defaultSlotProposer{runtime: runtime}.Propose(ctx, 7, propose.EncodePayload(11, []byte("cmd")))
+	if err != nil {
+		t.Fatalf("Propose() error = %v", err)
+	}
+	if got := multiraft.ProposalClassFromContext(runtime.ctx); got != multiraft.ProposalClassBackground {
+		t.Fatalf("runtime proposal class = %q, want %q", got, multiraft.ProposalClassBackground)
+	}
+}
+
 type recordingSlotRuntime struct {
 	proposeCalls int
 	slotID       multiraft.SlotID

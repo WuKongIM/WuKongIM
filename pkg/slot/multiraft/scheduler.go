@@ -7,11 +7,12 @@ type scheduler struct {
 
 	observer SchedulerObserver
 
-	mu         sync.Mutex
-	pending    []SlotID
-	queued     map[SlotID]struct{}
-	processing map[SlotID]struct{}
-	dirty      map[SlotID]struct{}
+	mu          sync.Mutex
+	pending     []SlotID
+	pendingHead int
+	queued      map[SlotID]struct{}
+	processing  map[SlotID]struct{}
+	dirty       map[SlotID]struct{}
 }
 
 type schedulerObservation struct {
@@ -97,14 +98,39 @@ func (s *scheduler) requeue(slotID SlotID) {
 }
 
 func (s *scheduler) dispatchLocked() {
-	for len(s.pending) > 0 {
+	for s.pendingLenLocked() > 0 {
+		slotID := s.pending[s.pendingHead]
 		select {
-		case s.ch <- s.pending[0]:
-			s.pending = s.pending[1:]
+		case s.ch <- slotID:
+			s.pending[s.pendingHead] = 0
+			s.pendingHead++
+			s.compactPendingLocked()
 		default:
 			return
 		}
 	}
+}
+
+func (s *scheduler) pendingLenLocked() int {
+	return len(s.pending) - s.pendingHead
+}
+
+func (s *scheduler) compactPendingLocked() {
+	if s.pendingHead == 0 {
+		return
+	}
+	if s.pendingHead >= len(s.pending) {
+		s.pending = s.pending[:0]
+		s.pendingHead = 0
+		return
+	}
+	if s.pendingHead <= 64 || s.pendingHead*2 < len(s.pending) {
+		return
+	}
+	remaining := copy(s.pending, s.pending[s.pendingHead:])
+	clear(s.pending[remaining:])
+	s.pending = s.pending[:remaining]
+	s.pendingHead = 0
 }
 
 func (s *scheduler) observationLocked(admission string) schedulerObservation {
@@ -116,7 +142,7 @@ func (s *scheduler) observationLocked(admission string) schedulerObservation {
 		state: SchedulerStateEvent{
 			Depth:      len(s.ch),
 			Capacity:   cap(s.ch),
-			Pending:    len(s.pending),
+			Pending:    s.pendingLenLocked(),
 			Queued:     len(s.queued),
 			Processing: len(s.processing),
 			Dirty:      len(s.dirty),

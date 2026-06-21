@@ -11,6 +11,7 @@ type ProposalStageObserver interface {
 }
 
 type proposalStageContextKey struct{}
+type proposalClassContextKey struct{}
 
 // WithProposalStageObserver attaches observer to proposal work derived from ctx.
 func WithProposalStageObserver(ctx context.Context, observer ProposalStageObserver) context.Context {
@@ -46,6 +47,23 @@ func proposalStageObserversFromContext(ctx context.Context) []ProposalStageObser
 	return observers
 }
 
+// WithProposalClass marks proposal work derived from ctx with an admission class.
+func WithProposalClass(ctx context.Context, class ProposalClass) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return context.WithValue(ctx, proposalClassContextKey{}, normalizeProposalClass(class))
+}
+
+// ProposalClassFromContext returns the proposal admission class carried by ctx.
+func ProposalClassFromContext(ctx context.Context) ProposalClass {
+	if ctx == nil {
+		return ProposalClassForeground
+	}
+	class, _ := ctx.Value(proposalClassContextKey{}).(ProposalClass)
+	return normalizeProposalClass(class)
+}
+
 // ObserveProposalStage records one proposal stage when ctx carries observers.
 func ObserveProposalStage(ctx context.Context, stage string, err error, d time.Duration) {
 	observeProposalStage(proposalStageObserversFromContext(ctx), stage, err, d)
@@ -66,5 +84,14 @@ func observeProposalStage(observers []ProposalStageObserver, stage string, err e
 		if observer != nil {
 			observer.ObserveProposalStage(stage, result, d)
 		}
+	}
+}
+
+func normalizeProposalClass(class ProposalClass) ProposalClass {
+	switch class {
+	case ProposalClassBackground:
+		return ProposalClassBackground
+	default:
+		return ProposalClassForeground
 	}
 }

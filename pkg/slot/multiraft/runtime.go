@@ -20,10 +20,11 @@ type Runtime struct {
 	stopCh    chan struct{}
 	wg        sync.WaitGroup
 	inflight  atomic.Int64
+	tickSlots []*slot
 }
 
 func New(opts Options) (*Runtime, error) {
-	opts.Raft.LogCompaction = NormalizeLogCompactionConfig(opts.Raft.LogCompaction)
+	opts.Raft = NormalizeRaftOptions(opts.Raft)
 	if opts.NodeID == 0 ||
 		opts.TickInterval <= 0 ||
 		opts.Workers <= 0 ||
@@ -33,7 +34,7 @@ func New(opts Options) (*Runtime, error) {
 		opts.Raft.ElectionTick <= opts.Raft.HeartbeatTick {
 		return nil, ErrInvalidOptions
 	}
-	if err := ValidateLogCompactionConfig(opts.Raft.LogCompaction); err != nil {
+	if err := ValidateRaftOptions(opts.Raft); err != nil {
 		return nil, err
 	}
 
@@ -95,18 +96,24 @@ func (r *Runtime) runTicker() {
 		case <-r.stopCh:
 			return
 		case <-ticker.C:
-			r.mu.RLock()
-			slots := make([]*slot, 0, len(r.slots))
-			for _, g := range r.slots {
-				slots = append(slots, g)
-			}
-			r.mu.RUnlock()
-			for _, g := range slots {
-				g.markTickPending()
-				r.scheduler.enqueue(g.id)
-			}
+			r.enqueueTickForOpenSlots()
 		}
 	}
+}
+
+func (r *Runtime) enqueueTickForOpenSlots() {
+	slots := r.tickSlots[:0]
+	r.mu.RLock()
+	for _, g := range r.slots {
+		slots = append(slots, g)
+	}
+	r.mu.RUnlock()
+	for _, g := range slots {
+		g.markTickPending()
+		r.scheduler.enqueue(g.id)
+	}
+	clear(slots)
+	r.tickSlots = slots[:0]
 }
 
 func (r *Runtime) processSlot(slotID SlotID) bool {

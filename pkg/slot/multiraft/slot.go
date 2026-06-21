@@ -3,6 +3,7 @@ package multiraft
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"math"
 	"sort"
@@ -29,23 +30,28 @@ type slot struct {
 	cond         *sync.Cond
 	processing   bool
 	// applying counts async apply tasks that have been accepted for this Slot.
-	applying           int
-	rawNode            *raft.RawNode
-	requests           []raftpb.Message
-	requestWorkBuf     []raftpb.Message
-	requestCount       int
-	controls           []controlAction
-	controlWorkBuf     []controlAction
-	submittedProposals []*future
-	submittedConfigs   []*future
-	pendingProposals   map[uint64]trackedFuture
-	pendingConfigs     map[uint64]trackedFuture
-	pendingProposalCap int
-	pendingConfigCap   int
-	resolutionBuf      []futureResolution
-	transportBuf       []Envelope
-	tickPending        bool
-	tickCount          int
+	applying                    int
+	rawNode                     *raft.RawNode
+	requests                    []raftpb.Message
+	requestWorkBuf              []raftpb.Message
+	requestCount                int
+	controls                    []controlAction
+	controlWorkBuf              []controlAction
+	submittedProposals          []*future
+	submittedConfigs            []*future
+	pendingProposals            map[uint64]trackedFuture
+	pendingConfigs              map[uint64]trackedFuture
+	pendingProposalCap          int
+	pendingConfigCap            int
+	maxQueuedRequests           int
+	maxQueuedControls           int
+	maxQueuedBackgroundControls int
+	queuedBackgroundControls    int
+	maxApplyingTasks            int
+	resolutionBuf               []futureResolution
+	transportBuf                []Envelope
+	tickPending                 bool
+	tickCount                   int
 	// durableAppliedIndex is the highest index that completed FSM apply and Storage.MarkApplied.
 	durableAppliedIndex uint64
 	// campaignAfterReady requests a local campaign after bootstrap Ready applies membership.
@@ -87,12 +93,13 @@ const (
 )
 
 type controlAction struct {
-	kind    controlKind
-	data    []byte
-	future  *future
-	target  NodeID
-	change  ConfigChange
-	compact *logCompactionRequest
+	kind          controlKind
+	data          []byte
+	proposalClass ProposalClass
+	future        *future
+	target        NodeID
+	change        ConfigChange
+	compact       *logCompactionRequest
 }
 
 type logCompactionRequest struct {
@@ -105,7 +112,47 @@ type logCompactionResponse struct {
 	err    error
 }
 
+type applyStateEvent struct {
+	observer     ApplyStateObserver
+	slotID       SlotID
+	commitIndex  uint64
+	appliedIndex uint64
+}
+
+func (e applyStateEvent) emit() {
+	if e.observer != nil {
+		e.observer.SetSlotApplyState(e.slotID, e.commitIndex, e.appliedIndex)
+	}
+}
+
+type leaderChangeEvent struct {
+	observer LeaderChangeObserver
+	slotID   SlotID
+	from     NodeID
+	to       NodeID
+}
+
+func (e leaderChangeEvent) emit() {
+	if e.observer != nil && e.to != 0 && e.from != e.to {
+		e.observer.ObserveSlotLeaderChange(e.slotID, e.from, e.to)
+	}
+}
+
+type proposalAdmissionEvent struct {
+	observer ProposalAdmissionObserver
+	slotID   SlotID
+	class    ProposalClass
+	result   string
+}
+
+func (e proposalAdmissionEvent) emit() {
+	if e.observer != nil {
+		e.observer.ObserveSlotProposalAdmission(e.slotID, e.class, e.result)
+	}
+}
+
 func newSlot(ctx context.Context, nodeID NodeID, logger wklog.Logger, raftOpts RaftOptions, opts SlotOptions, observer SchedulerObserver, apply *applyPipeline) (*slot, error) {
+	raftOpts = NormalizeRaftOptions(raftOpts)
 	state, snapshot, memory, err := newStorageAdapter(opts.Storage).load(ctx)
 	if err != nil {
 		return nil, err
@@ -143,12 +190,16 @@ func newSlot(ctx context.Context, nodeID NodeID, logger wklog.Logger, raftOpts R
 			CommitIndex:  state.HardState.Commit,
 			AppliedIndex: appliedIndex,
 		},
-		logger:              logger,
-		storageView:         newStorageAdapter(opts.Storage),
-		apply:               apply,
-		rawNode:             rawNode,
-		durableAppliedIndex: appliedIndex,
-		compactor:           newLogCompactor(raftOpts.LogCompaction, snapshot.Metadata.Index),
+		logger:                      logger,
+		storageView:                 newStorageAdapter(opts.Storage),
+		apply:                       apply,
+		rawNode:                     rawNode,
+		durableAppliedIndex:         appliedIndex,
+		compactor:                   newLogCompactor(raftOpts.LogCompaction, snapshot.Metadata.Index),
+		maxQueuedRequests:           raftOpts.MaxQueuedRequests,
+		maxQueuedControls:           raftOpts.MaxQueuedControls,
+		maxQueuedBackgroundControls: raftOpts.MaxQueuedBackgroundControls,
+		maxApplyingTasks:            raftOpts.MaxApplyingTasks,
 	}
 	g.cond = sync.NewCond(&g.mu)
 	g.storageView.memory = memory
@@ -167,12 +218,18 @@ func newSlot(ctx context.Context, nodeID NodeID, logger wklog.Logger, raftOpts R
 
 func (g *slot) enqueueRequest(msg raftpb.Message) error {
 	g.mu.Lock()
-	defer g.mu.Unlock()
 	if err := g.admissionErrLocked(); err != nil {
+		g.mu.Unlock()
 		return err
 	}
-	g.observeQueuedMessageLocked(msg)
+	if queueLimitReached(g.maxQueuedRequests, len(g.requests)) {
+		g.mu.Unlock()
+		return ErrSlotBusy
+	}
+	leaderEvent := g.observeQueuedMessageLocked(msg)
 	g.requests = append(g.requests, msg)
+	g.mu.Unlock()
+	leaderEvent.emit()
 	return nil
 }
 
@@ -188,20 +245,48 @@ func (g *slot) processRequests() bool {
 
 func (g *slot) enqueueControl(action controlAction) error {
 	g.mu.Lock()
-	defer g.mu.Unlock()
 	if err := g.admissionErrLocked(); err != nil {
+		g.mu.Unlock()
 		return err
 	}
+	action.proposalClass = normalizeProposalClass(action.proposalClass)
 	switch action.kind {
 	case controlPropose, controlConfigChange:
 		if g.status.Role != RoleLeader {
+			event := g.proposalAdmissionEventLocked(action, "not_leader")
+			g.mu.Unlock()
+			event.emit()
 			return ErrNotLeader
 		}
 		if action.kind == controlConfigChange && g.hasPendingConfigChangeLocked() {
+			g.mu.Unlock()
 			return ErrConfigChangePending
 		}
 	}
+	if queueLimitReached(g.maxQueuedControls, len(g.controls)) {
+		event := g.proposalAdmissionEventLocked(action, "busy")
+		g.mu.Unlock()
+		event.emit()
+		if action.kind == controlPropose {
+			return fmt.Errorf("%w: %w", ErrProposalBackpressure, ErrSlotBusy)
+		}
+		return ErrSlotBusy
+	}
+	if action.kind == controlPropose &&
+		action.proposalClass == ProposalClassBackground &&
+		queueLimitReached(g.maxQueuedBackgroundControls, g.queuedBackgroundControls) {
+		event := g.proposalAdmissionEventLocked(action, "throttled")
+		g.mu.Unlock()
+		event.emit()
+		return fmt.Errorf("%w: %w", ErrBackgroundProposalThrottled, ErrProposalBackpressure)
+	}
+	if action.kind == controlPropose && action.proposalClass == ProposalClassBackground {
+		g.queuedBackgroundControls++
+	}
 	g.controls = append(g.controls, action)
+	event := g.proposalAdmissionEventLocked(action, "ok")
+	g.mu.Unlock()
+	event.emit()
 	return nil
 }
 
@@ -278,6 +363,7 @@ func (g *slot) takeRequestBatch() []raftpb.Message {
 func (g *slot) releaseRequestBatch(batch []raftpb.Message) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
+	clear(batch)
 	g.requestWorkBuf = batch[:0]
 }
 
@@ -286,6 +372,7 @@ func (g *slot) takeControlBatch() []controlAction {
 	defer g.mu.Unlock()
 
 	batch := g.controls
+	g.queuedBackgroundControls = 0
 	g.controls = g.controlWorkBuf[:0]
 	g.controlWorkBuf = nil
 	return batch
@@ -294,6 +381,7 @@ func (g *slot) takeControlBatch() []controlAction {
 func (g *slot) releaseControlBatch(batch []controlAction) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
+	clear(batch)
 	g.controlWorkBuf = batch[:0]
 }
 
@@ -321,6 +409,7 @@ func (g *slot) takeResolutionBuffer() []futureResolution {
 func (g *slot) releaseResolutionBuffer(buf []futureResolution) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
+	clear(buf)
 	g.resolutionBuf = buf[:0]
 }
 
@@ -375,6 +464,8 @@ func (g *slot) processReady(ctx context.Context, transport Transport) (bool, boo
 	if len(ready.Messages) > 0 {
 		g.transportBuf = wrapMessagesIntoForTransport(g.transportBuf[:0], g.id, ready.Messages, transport)
 		_ = transport.Send(ctx, g.transportBuf)
+		clear(g.transportBuf)
+		g.transportBuf = g.transportBuf[:0]
 	}
 
 	if requiresSyncApply {
@@ -463,6 +554,9 @@ func (g *slot) processReadyAsyncNormal(ctx context.Context, ready raft.Ready) (b
 		appliedBefore: g.appliedIndex(),
 	}
 	if err := g.apply.enqueue(task); err != nil {
+		if errors.Is(err, ErrSlotBusy) {
+			return g.processReadySynchronously(ctx, ready)
+		}
 		g.fail(err)
 		return true, false
 	}
@@ -525,7 +619,7 @@ func (g *slot) applyCommittedEntries(
 					HashSlot: hashSlot,
 					Index:    entry.Index,
 					Term:     entry.Term,
-					Data:     append([]byte(nil), data...),
+					Data:     data,
 				})
 				fut.observeStage("meta_create_slot_fsm_apply", err, time.Since(started))
 				if err != nil {
@@ -570,7 +664,7 @@ func (g *slot) applyCommittedEntries(
 				HashSlot: hashSlot,
 				Index:    entry.Index,
 				Term:     entry.Term,
-				Data:     append([]byte(nil), data...),
+				Data:     data,
 			}
 		}
 		observeFuturesSince(futures, "meta_create_slot_raft_commit_wait", nil, func(f *future) time.Time {
@@ -785,50 +879,52 @@ func (g *slot) needsFullStatusRefresh() bool {
 func (g *slot) refreshBasicStatus() {
 	st := g.rawNode.BasicStatus()
 	g.mu.Lock()
-	defer g.mu.Unlock()
 	g.basicStatusRefreshCount++
-	g.applyBasicStatusLocked(st)
+	leaderEvent, applyEvent := g.applyBasicStatusLocked(st)
+	g.mu.Unlock()
+	leaderEvent.emit()
+	applyEvent.emit()
 }
 
 // refreshFullStatus updates voter membership and basic status from RawNode.Status.
 func (g *slot) refreshFullStatus() {
 	st := g.rawNode.Status()
 	g.mu.Lock()
-	defer g.mu.Unlock()
 	g.fullStatusRefreshCount++
 	g.votersInitialized = true
 	g.votersDirty = false
 	g.status.CurrentVoters = currentVotersFromRaftStatus(st)
-	g.applyBasicStatusLocked(st.BasicStatus)
+	leaderEvent, applyEvent := g.applyBasicStatusLocked(st.BasicStatus)
+	g.mu.Unlock()
+	leaderEvent.emit()
+	applyEvent.emit()
 }
 
 func (g *slot) refreshDurableAppliedStatus() {
 	g.mu.Lock()
-	defer g.mu.Unlock()
 	g.status.AppliedIndex = g.durableAppliedIndex
-	if observer, ok := g.observer.(ApplyStateObserver); ok && observer != nil {
-		observer.SetSlotApplyState(g.id, g.status.CommitIndex, g.durableAppliedIndex)
-	}
+	applyEvent := g.applyStateEventLocked(g.status.CommitIndex, g.durableAppliedIndex)
+	g.mu.Unlock()
+	applyEvent.emit()
 }
 
-func (g *slot) applyBasicStatusLocked(st raft.BasicStatus) {
+func (g *slot) applyBasicStatusLocked(st raft.BasicStatus) (leaderChangeEvent, applyStateEvent) {
 	prevRole := g.status.Role
 	nextRole := mapRole(st.RaftState)
 	nextLeader := NodeID(st.Lead)
 	if nextLeader == 0 && nextRole == RoleLeader {
 		nextLeader = g.status.NodeID
 	}
-	g.setLeaderIDLocked(nextLeader)
+	leaderEvent := g.setLeaderIDLocked(nextLeader)
 	g.status.Term = st.Term
 	g.status.CommitIndex = st.Commit
 	g.status.AppliedIndex = g.durableAppliedIndex
 	g.status.Role = nextRole
-	if observer, ok := g.observer.(ApplyStateObserver); ok && observer != nil {
-		observer.SetSlotApplyState(g.id, st.Commit, g.durableAppliedIndex)
-	}
+	applyEvent := g.applyStateEventLocked(st.Commit, g.durableAppliedIndex)
 	if prevRole == RoleLeader && g.status.Role != RoleLeader {
 		g.failLeadershipDependentLocked(ErrNotLeader)
 	}
+	return leaderEvent, applyEvent
 }
 
 func (g *slot) markVotersDirty() {
@@ -952,9 +1048,9 @@ func (g *slot) admissionErrLocked() error {
 	return nil
 }
 
-func (g *slot) observeQueuedMessageLocked(msg raftpb.Message) {
+func (g *slot) observeQueuedMessageLocked(msg raftpb.Message) leaderChangeEvent {
 	if msg.Term <= g.status.Term {
-		return
+		return leaderChangeEvent{}
 	}
 
 	g.status.Term = msg.Term
@@ -962,17 +1058,44 @@ func (g *slot) observeQueuedMessageLocked(msg raftpb.Message) {
 
 	switch msg.Type {
 	case raftpb.MsgApp, raftpb.MsgHeartbeat, raftpb.MsgSnap:
-		g.setLeaderIDLocked(NodeID(msg.From))
+		return g.setLeaderIDLocked(NodeID(msg.From))
 	default:
-		g.setLeaderIDLocked(0)
+		return g.setLeaderIDLocked(0)
 	}
 }
 
-func (g *slot) setLeaderIDLocked(next NodeID) {
+func (g *slot) setLeaderIDLocked(next NodeID) leaderChangeEvent {
 	prev := g.status.LeaderID
 	g.status.LeaderID = next
-	if observer, ok := g.observer.(LeaderChangeObserver); ok && observer != nil && next != 0 && prev != next {
-		observer.ObserveSlotLeaderChange(g.id, prev, next)
+	observer, _ := g.observer.(LeaderChangeObserver)
+	return leaderChangeEvent{
+		observer: observer,
+		slotID:   g.id,
+		from:     prev,
+		to:       next,
+	}
+}
+
+func (g *slot) applyStateEventLocked(commitIndex, appliedIndex uint64) applyStateEvent {
+	observer, _ := g.observer.(ApplyStateObserver)
+	return applyStateEvent{
+		observer:     observer,
+		slotID:       g.id,
+		commitIndex:  commitIndex,
+		appliedIndex: appliedIndex,
+	}
+}
+
+func (g *slot) proposalAdmissionEventLocked(action controlAction, result string) proposalAdmissionEvent {
+	if action.kind != controlPropose {
+		return proposalAdmissionEvent{}
+	}
+	observer, _ := g.observer.(ProposalAdmissionObserver)
+	return proposalAdmissionEvent{
+		observer: observer,
+		slotID:   g.id,
+		class:    action.proposalClass,
+		result:   result,
 	}
 }
 
@@ -1009,6 +1132,9 @@ func (g *slot) beginApply() error {
 	defer g.mu.Unlock()
 	if err := g.admissionErrLocked(); err != nil {
 		return err
+	}
+	if queueLimitReached(g.maxApplyingTasks, g.applying) {
+		return ErrSlotBusy
 	}
 	g.applying++
 	return nil
@@ -1195,6 +1321,7 @@ func (g *slot) trackReadyEntries(entries []raftpb.Entry) {
 				future: g.submittedProposals[0],
 				term:   entry.Term,
 			}
+			g.submittedProposals[0] = nil
 			g.submittedProposals = g.submittedProposals[1:]
 		case raftpb.EntryConfChange, raftpb.EntryConfChangeV2:
 			if len(g.submittedConfigs) == 0 {
@@ -1207,6 +1334,7 @@ func (g *slot) trackReadyEntries(entries []raftpb.Entry) {
 				future: g.submittedConfigs[0],
 				term:   entry.Term,
 			}
+			g.submittedConfigs[0] = nil
 			g.submittedConfigs = g.submittedConfigs[1:]
 		}
 	}
@@ -1222,11 +1350,11 @@ func (g *slot) resolveProposal(index, term uint64, result Result, err error) {
 	}
 	delete(g.pendingProposals, index)
 	fut := pending.future
+	g.mu.Unlock()
+	g.observeSlotProposal(fut)
 	if fut != nil {
 		fut.resolve(result, err)
 	}
-	g.mu.Unlock()
-	g.observeSlotProposal(fut)
 }
 
 func (g *slot) failPending(err error) {
@@ -1408,6 +1536,10 @@ func maxInflight(v int) int {
 		return 256
 	}
 	return v
+}
+
+func queueLimitReached(limit, current int) bool {
+	return limit > 0 && current >= limit
 }
 
 func toRaftConfChange(change ConfigChange) (raftpb.ConfChange, error) {

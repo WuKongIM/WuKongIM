@@ -5,6 +5,7 @@ import (
 	"errors"
 	"sort"
 
+	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/propose"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	metafsm "github.com/WuKongIM/WuKongIM/pkg/slot/fsm"
 )
@@ -496,6 +497,7 @@ func (n *Node) TouchUserConversationActiveAtBatch(ctx context.Context, patches [
 	if err := ctxErr(ctx); err != nil {
 		return err
 	}
+	ctx = propose.WithProposalClass(ctx, propose.ProposalClassBackground)
 	if n == nil {
 		return ErrNotStarted
 	}

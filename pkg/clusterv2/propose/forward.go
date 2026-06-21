@@ -43,6 +43,7 @@ func (h *ForwardHandler) HandleRPC(ctx context.Context, payload []byte) ([]byte,
 	if h == nil || h.slots == nil || !h.slots.IsLocalLeader(req.SlotID) {
 		return nil, ErrNotLeader
 	}
+	ctx = WithProposalClass(ctx, req.Class)
 	if err := h.slots.Propose(ctx, req.SlotID, req.Payload); err != nil {
 		return nil, err
 	}

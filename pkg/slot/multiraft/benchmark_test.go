@@ -99,17 +99,7 @@ func BenchmarkRuntimeTickFanout(b *testing.B) {
 }
 
 func benchmarkTickFanout(rt *Runtime) {
-	rt.mu.RLock()
-	slots := make([]*slot, 0, len(rt.slots))
-	for _, g := range rt.slots {
-		slots = append(slots, g)
-	}
-	rt.mu.RUnlock()
-
-	for _, g := range slots {
-		g.markTickPending()
-		rt.scheduler.enqueue(g.id)
-	}
+	rt.enqueueTickForOpenSlots()
 }
 
 func benchmarkDrainScheduler(s *scheduler, slotCount int) {

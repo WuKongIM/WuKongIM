@@ -10,6 +10,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/conversationactive"
 	conversationusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/conversation"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
+	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/propose"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
@@ -36,7 +37,7 @@ var _ conversationusecase.Store = (*ConversationAuthorityClient)(nil)
 
 const (
 	defaultConversationRouteRetryAttempts = 100
-	conversationAdmissionRetryAttempts    = 8
+	conversationAdmissionRetryAttempts    = 3
 	defaultConversationRouteRetryBackoff  = 5 * time.Millisecond
 )
 
@@ -89,8 +90,9 @@ func (c *ConversationAuthorityClient) AdmitActiveBatch(ctx context.Context, batc
 		return err
 	}
 
+	pending := []conversationactive.ActiveBatch{batch}
 	for attempt := 0; attempt < conversationAdmissionRetryAttempts; attempt++ {
-		groups, err := c.groupActiveBatchByTarget(batch)
+		groups, err := c.groupActiveBatchesByTarget(pending)
 		if err != nil {
 			if attempt+1 < conversationAdmissionRetryAttempts && shouldRetryConversationRouteLookup(err) {
 				if sleepErr := c.sleepBeforeRouteRetry(ctx); sleepErr != nil {
@@ -100,16 +102,26 @@ func (c *ConversationAuthorityClient) AdmitActiveBatch(ctx context.Context, batc
 			}
 			return err
 		}
-		if err := c.admitActiveBatchGroups(ctx, groups); err != nil {
-			if attempt+1 < conversationAdmissionRetryAttempts && shouldRetryConversationRoute(err) {
-				if sleepErr := c.sleepBeforeRouteRetry(ctx); sleepErr != nil {
-					return sleepErr
+		failed := make([]conversationactive.ActiveBatch, 0)
+		for _, group := range groups {
+			if err := c.admitActiveBatchGroup(ctx, group); err != nil {
+				if attempt+1 < conversationAdmissionRetryAttempts && shouldRetryConversationRoute(err) {
+					failed = append(failed, group.batch)
+					continue
 				}
-				continue
+				return err
 			}
-			return err
 		}
-		return nil
+		if len(failed) == 0 {
+			return nil
+		}
+		if attempt+1 < conversationAdmissionRetryAttempts {
+			if sleepErr := c.sleepBeforeRouteRetry(ctx); sleepErr != nil {
+				return sleepErr
+			}
+			pending = failed
+			continue
+		}
 	}
 	return conversationusecase.ErrRouteNotReady
 }
@@ -205,6 +217,18 @@ func (c *ConversationAuthorityClient) groupActiveBatchByTarget(batch conversatio
 	return groups, nil
 }
 
+func (c *ConversationAuthorityClient) groupActiveBatchesByTarget(batches []conversationactive.ActiveBatch) ([]conversationAuthorityActiveBatchGroup, error) {
+	groups := make([]conversationAuthorityActiveBatchGroup, 0, len(batches))
+	for _, batch := range batches {
+		batchGroups, err := c.groupActiveBatchByTarget(batch)
+		if err != nil {
+			return nil, err
+		}
+		groups = append(groups, batchGroups...)
+	}
+	return groups, nil
+}
+
 func coalesceConversationActiveRecipients(recipients []conversationactive.ActiveEntry) []conversationactive.ActiveEntry {
 	recipientIndex := make(map[string]int, len(recipients))
 	coalesced := make([]conversationactive.ActiveEntry, 0, len(recipients))
@@ -239,17 +263,12 @@ func ensureConversationActiveBatchGroup(groups *[]conversationAuthorityActiveBat
 	return len(*groups) - 1
 }
 
-func (c *ConversationAuthorityClient) admitActiveBatchGroups(ctx context.Context, groups []conversationAuthorityActiveBatchGroup) error {
-	for _, group := range groups {
-		authority, err := c.authorityForTarget(group.target)
-		if err != nil {
-			return err
-		}
-		if err := authority.AdmitActiveBatch(ctx, group.target, group.batch); err != nil {
-			return err
-		}
+func (c *ConversationAuthorityClient) admitActiveBatchGroup(ctx context.Context, group conversationAuthorityActiveBatchGroup) error {
+	authority, err := c.authorityForTarget(group.target)
+	if err != nil {
+		return err
 	}
-	return nil
+	return authority.AdmitActiveBatch(ctx, group.target, group.batch)
 }
 
 func (c *ConversationAuthorityClient) withFreshTarget(ctx context.Context, uid string, call func(conversationusecase.RouteTarget) error) error {
@@ -367,6 +386,8 @@ func mapConversationRouteError(err error) error {
 		return fmt.Errorf("%w: %w", conversationusecase.ErrRouteNotReady, err)
 	case errors.Is(err, clusterv2.ErrNotLeader):
 		return fmt.Errorf("%w: %w", conversationusecase.ErrNotLeader, err)
+	case errors.Is(err, propose.ErrProposalBackpressure), errors.Is(err, propose.ErrBackgroundProposalThrottled):
+		return fmt.Errorf("%w: %w", conversationusecase.ErrRouteNotReady, err)
 	default:
 		return err
 	}

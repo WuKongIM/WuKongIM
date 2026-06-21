@@ -72,6 +72,72 @@ func TestSchedulerEnqueueBuffersWhenChannelIsFull(t *testing.T) {
 	}
 }
 
+func TestSchedulerPendingBufferReusesBackingAfterDrain(t *testing.T) {
+	s := newScheduler(nil)
+	s.ch = make(chan SlotID, 1)
+
+	for i := 1; i <= 5; i++ {
+		s.enqueue(SlotID(i))
+	}
+
+	s.mu.Lock()
+	originalCap := cap(s.pending)
+	pending := s.pendingLenLocked()
+	s.mu.Unlock()
+	if pending != 4 {
+		t.Fatalf("pending len = %d, want 4", pending)
+	}
+	if originalCap == 0 {
+		t.Fatal("pending cap = 0, want reusable backing array")
+	}
+
+	for i := 1; i <= 5; i++ {
+		slotID := <-s.ch
+		s.begin(slotID)
+		_ = s.done(slotID)
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if got := s.pendingLenLocked(); got != 0 {
+		t.Fatalf("pending len after drain = %d, want 0", got)
+	}
+	if cap(s.pending) < originalCap {
+		t.Fatalf("pending cap after drain = %d, want at least %d", cap(s.pending), originalCap)
+	}
+}
+
+func TestRuntimeTickScratchReusesBackingAndClearsReferences(t *testing.T) {
+	rt := &Runtime{
+		slots:     make(map[SlotID]*slot),
+		scheduler: newScheduler(nil),
+	}
+	for i := 1; i <= 5; i++ {
+		id := SlotID(i)
+		rt.slots[id] = &slot{id: id}
+	}
+
+	rt.enqueueTickForOpenSlots()
+	firstCap := cap(rt.tickSlots)
+	if firstCap < len(rt.slots) {
+		t.Fatalf("tick scratch cap = %d, want at least %d", firstCap, len(rt.slots))
+	}
+	if len(rt.tickSlots) != 0 {
+		t.Fatalf("tick scratch len = %d, want 0", len(rt.tickSlots))
+	}
+	for i := 0; i < firstCap; i++ {
+		if rt.tickSlots[:firstCap][i] != nil {
+			t.Fatal("tick scratch retained slot reference")
+		}
+	}
+	benchmarkDrainScheduler(rt.scheduler, len(rt.slots))
+
+	rt.enqueueTickForOpenSlots()
+	if cap(rt.tickSlots) != firstCap {
+		t.Fatalf("tick scratch cap after reuse = %d, want %d", cap(rt.tickSlots), firstCap)
+	}
+}
+
 func TestSchedulerReportsAdmissionAndState(t *testing.T) {
 	obs := &recordingSlotSchedulerObserver{}
 	s := newScheduler(obs)

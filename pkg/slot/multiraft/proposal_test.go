@@ -33,6 +33,36 @@ func TestReadyRequiresSynchronousApplyTreatsConfChangeV2AsBarrier(t *testing.T) 
 	}
 }
 
+func TestApplyCommittedEntriesPassesCommandDataWithoutExtraCopy(t *testing.T) {
+	sm := &commandDataPointerStateMachine{}
+	payload := proposalString("owned-command-data")
+	g := &slot{
+		id:           7,
+		stateMachine: sm,
+		pendingProposals: map[uint64]trackedFuture{
+			1: {term: 1, future: newFuture(nil)},
+		},
+	}
+	lastApplied := uint64(0)
+
+	resolutions, _ := g.applyCommittedEntries(context.Background(), []raftpb.Entry{{
+		Index: 1,
+		Term:  1,
+		Type:  raftpb.EntryNormal,
+		Data:  payload,
+	}}, &lastApplied, nil, sm, true)
+
+	if len(resolutions) != 1 {
+		t.Fatalf("len(resolutions) = %d, want 1", len(resolutions))
+	}
+	if len(sm.data) == 0 {
+		t.Fatal("state machine did not receive command data")
+	}
+	if &sm.data[0] != &payload[proposalEnvelopeSize] {
+		t.Fatal("command data was copied instead of reusing the owned entry payload")
+	}
+}
+
 func TestTrackReadyEntriesTracksConfChangeV2Future(t *testing.T) {
 	fut := newFuture(nil)
 	g := &slot{submittedConfigs: []*future{fut}}
@@ -1615,6 +1645,30 @@ func (f *failFirstBlockingStateMachine) applyCount() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.calls
+}
+
+type commandDataPointerStateMachine struct {
+	data []byte
+}
+
+func (s *commandDataPointerStateMachine) Apply(ctx context.Context, cmd Command) ([]byte, error) {
+	s.data = cmd.Data
+	return nil, nil
+}
+
+func (s *commandDataPointerStateMachine) ApplyBatch(ctx context.Context, cmds []Command) ([][]byte, error) {
+	if len(cmds) > 0 {
+		s.data = cmds[0].Data
+	}
+	return make([][]byte, len(cmds)), nil
+}
+
+func (s *commandDataPointerStateMachine) Restore(ctx context.Context, snap Snapshot) error {
+	return nil
+}
+
+func (s *commandDataPointerStateMachine) Snapshot(ctx context.Context) (Snapshot, error) {
+	return Snapshot{}, nil
 }
 
 func mustPropose(t *testing.T, rt *Runtime, slotID SlotID, data string) Future {

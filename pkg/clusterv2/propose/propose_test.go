@@ -61,6 +61,19 @@ func TestServiceProposeRemoteLeader(t *testing.T) {
 	}
 }
 
+func TestServiceProposeRemoteLeaderCarriesProposalClass(t *testing.T) {
+	forward := &fakeForward{}
+	svc := NewService(Config{LocalNode: 1, Router: fakeRouter{route: routing.Route{HashSlot: 3, SlotID: 11, Leader: 2}}, Slots: &fakeSlots{}, Forward: forward})
+
+	err := svc.Propose(WithProposalClass(context.Background(), ProposalClassBackground), Request{Key: "u1", Command: []byte("cmd")})
+	if err != nil {
+		t.Fatalf("Propose() error = %v", err)
+	}
+	if forward.req.Class != ProposalClassBackground {
+		t.Fatalf("forward proposal class = %q, want %q", forward.req.Class, ProposalClassBackground)
+	}
+}
+
 func TestNetworkForwardClientUsesOwnedCallerWhenAvailable(t *testing.T) {
 	caller := &recordingOwnedForwardCaller{}
 	client := NewNetworkForwardClient(caller)
@@ -82,6 +95,25 @@ func TestNetworkForwardClientUsesOwnedCallerWhenAvailable(t *testing.T) {
 	}
 	if req.SlotID != 11 || req.HashSlot != 3 {
 		t.Fatalf("decoded request = %#v, want slot=11 hash=3", req)
+	}
+}
+
+func TestForwardCodecRoundTripsProposalClass(t *testing.T) {
+	payload, err := EncodeForwardRequest(ForwardRequest{
+		SlotID:   11,
+		HashSlot: 3,
+		Payload:  EncodePayload(3, []byte("cmd")),
+		Class:    ProposalClassBackground,
+	})
+	if err != nil {
+		t.Fatalf("EncodeForwardRequest() error = %v", err)
+	}
+	req, err := DecodeForwardRequest(payload)
+	if err != nil {
+		t.Fatalf("DecodeForwardRequest() error = %v", err)
+	}
+	if req.Class != ProposalClassBackground {
+		t.Fatalf("decoded proposal class = %q, want %q", req.Class, ProposalClassBackground)
 	}
 }
 
@@ -126,6 +158,26 @@ func TestForwardHandlerChecksLocalLeader(t *testing.T) {
 	}
 }
 
+func TestForwardHandlerPassesProposalClassToSlots(t *testing.T) {
+	slots := &fakeSlots{local: true}
+	handler := NewForwardHandler(slots)
+	payload, err := EncodeForwardRequest(ForwardRequest{
+		SlotID:   1,
+		HashSlot: 0,
+		Payload:  EncodePayload(0, []byte("cmd")),
+		Class:    ProposalClassBackground,
+	})
+	if err != nil {
+		t.Fatalf("EncodeForwardRequest() error = %v", err)
+	}
+	if _, err := handler.HandleRPC(context.Background(), payload); err != nil {
+		t.Fatalf("HandleRPC() error = %v", err)
+	}
+	if got := ProposalClassFromContext(slots.ctx); got != ProposalClassBackground {
+		t.Fatalf("slot proposal class = %q, want %q", got, ProposalClassBackground)
+	}
+}
+
 type fakeRouter struct {
 	route routing.Route
 	err   error
@@ -140,12 +192,14 @@ type fakeSlots struct {
 	calls   int
 	slotID  uint32
 	payload []byte
+	ctx     context.Context
 	err     error
 }
 
 func (s *fakeSlots) IsLocalLeader(uint32) bool { return s.local }
-func (s *fakeSlots) Propose(_ context.Context, slotID uint32, payload []byte) error {
+func (s *fakeSlots) Propose(ctx context.Context, slotID uint32, payload []byte) error {
 	s.calls++
+	s.ctx = ctx
 	s.slotID = slotID
 	s.payload = append([]byte(nil), payload...)
 	return s.err

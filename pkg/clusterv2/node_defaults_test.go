@@ -338,10 +338,12 @@ type recordingProposer struct {
 	calls    int
 	last     propose.Request
 	requests []propose.Request
+	ctx      context.Context
 }
 
-func (p *recordingProposer) Propose(_ context.Context, req propose.Request) error {
+func (p *recordingProposer) Propose(ctx context.Context, req propose.Request) error {
 	p.calls++
+	p.ctx = ctx
 	p.last = req
 	p.requests = append(p.requests, req)
 	return nil

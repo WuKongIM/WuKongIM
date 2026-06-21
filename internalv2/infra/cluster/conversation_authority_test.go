@@ -11,6 +11,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/conversationactive"
 	conversationusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/conversation"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
+	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/propose"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
@@ -220,6 +221,47 @@ func TestConversationAuthorityClientAdmitActiveBatchRetriesStaleRouteWithFreshRo
 	}
 }
 
+func TestConversationAuthorityClientAdmitActiveBatchRetriesOnlyFailedTargetGroup(t *testing.T) {
+	local := &fakeConversationAuthorityLocal{
+		activeBatchErrsByHashSlot: map[uint16][]error{
+			2: {conversationusecase.ErrStaleRoute, nil},
+		},
+	}
+	senderTarget := clusterv2.Route{HashSlot: 1, SlotID: 2, Leader: 1, Revision: 10, AuthorityEpoch: 20}
+	receiverFirstTarget := clusterv2.Route{HashSlot: 2, SlotID: 2, Leader: 1, Revision: 11, AuthorityEpoch: 21}
+	receiverFreshTarget := clusterv2.Route{HashSlot: 2, SlotID: 2, Leader: 1, Revision: 12, AuthorityEpoch: 22}
+	node := &fakeConversationAuthorityNode{
+		nodeID: 1,
+		routesByUIDSequence: map[string][]clusterv2.Route{
+			"sender":   {senderTarget},
+			"receiver": {receiverFirstTarget, receiverFreshTarget},
+		},
+	}
+	client := NewConversationAuthorityClient(node, local)
+	client.routeRetrySleep = func(context.Context, time.Duration) error { return nil }
+
+	err := client.AdmitActiveBatch(context.Background(), conversationactive.ActiveBatch{
+		SenderUID:   "sender",
+		ChannelID:   "g1",
+		ChannelType: 2,
+		MessageSeq:  9,
+		ActiveAtMS:  100,
+		Recipients:  []conversationactive.ActiveEntry{{UID: "receiver"}},
+	})
+	if err != nil {
+		t.Fatalf("AdmitActiveBatch() error = %v", err)
+	}
+	if got := activeBatchAttemptCountsByHashSlot(local.activeBatches); got[1] != 1 || got[2] != 2 {
+		t.Fatalf("active batch attempts by hash slot = %#v, want sender once and receiver twice", got)
+	}
+	if got := node.routeKeyCallsForUID("sender"); got != 1 {
+		t.Fatalf("RouteKey(sender) calls = %d, want no retry after successful target group", got)
+	}
+	if got := node.routeKeyCallsForUID("receiver"); got != 2 {
+		t.Fatalf("RouteKey(receiver) calls = %d, want retry only failed receiver group", got)
+	}
+}
+
 func TestConversationAuthorityClientAdmitActiveBatchRetriesStaleRouteWithBoundedFreshRoutes(t *testing.T) {
 	local := &fakeConversationAuthorityLocal{
 		activeBatchErrs: []error{
@@ -251,14 +293,14 @@ func TestConversationAuthorityClientAdmitActiveBatchRetriesStaleRouteWithBounded
 		ActiveAtMS:  100,
 		Recipients:  []conversationactive.ActiveEntry{{UID: "receiver"}},
 	})
-	if err != nil {
-		t.Fatalf("AdmitActiveBatch() error = %v", err)
+	if !errors.Is(err, conversationusecase.ErrStaleRoute) {
+		t.Fatalf("AdmitActiveBatch() error = %v, want ErrStaleRoute after 3 attempts", err)
 	}
-	if got := node.routeKeyCallsForUID("receiver"); got != 4 {
+	if got := node.routeKeyCallsForUID("receiver"); got != 3 {
 		t.Fatalf("RouteKey(receiver) calls = %d, want fresh route per retry", got)
 	}
-	if len(local.activeBatches) != 4 {
-		t.Fatalf("active batch attempts = %d, want bounded retries through success", len(local.activeBatches))
+	if len(local.activeBatches) != 3 {
+		t.Fatalf("active batch attempts = %d, want 3 attempts", len(local.activeBatches))
 	}
 	for i, attempt := range local.activeBatches {
 		wantRevision := uint64(10 + i)
@@ -654,6 +696,8 @@ func TestConversationAuthorityClientMapsRouteErrors(t *testing.T) {
 		{name: "route not ready", err: clusterv2.ErrRouteNotReady, want: conversationusecase.ErrRouteNotReady},
 		{name: "no slot leader", err: clusterv2.ErrNoSlotLeader, want: conversationusecase.ErrRouteNotReady},
 		{name: "not leader", err: clusterv2.ErrNotLeader, want: conversationusecase.ErrNotLeader},
+		{name: "proposal backpressure", err: propose.ErrProposalBackpressure, want: conversationusecase.ErrRouteNotReady},
+		{name: "background proposal throttled", err: propose.ErrBackgroundProposalThrottled, want: conversationusecase.ErrRouteNotReady},
 		{name: "context canceled", err: context.Canceled, want: context.Canceled},
 		{name: "context deadline", err: context.DeadlineExceeded, want: context.DeadlineExceeded},
 	}
@@ -766,18 +810,19 @@ func (f *fakeConversationAuthorityNode) WatchRouteAuthorities() <-chan clusterv2
 }
 
 type fakeConversationAuthorityLocal struct {
-	patches              []conversationusecase.ActivePatch
-	deliveredPatches     []conversationusecase.ActivePatch
-	targets              []conversationusecase.RouteTarget
-	activeBatches        []activeBatchDelivery
-	page                 conversationusecase.ActiveViewPage
-	admitErrs            []error
-	admitAlwaysErr       error
-	activeBatchErrs      []error
-	activeBatchAlwaysErr error
-	listErrs             []error
-	drainResult          string
-	drainTargets         []conversationusecase.RouteTarget
+	patches                   []conversationusecase.ActivePatch
+	deliveredPatches          []conversationusecase.ActivePatch
+	targets                   []conversationusecase.RouteTarget
+	activeBatches             []activeBatchDelivery
+	page                      conversationusecase.ActiveViewPage
+	admitErrs                 []error
+	admitAlwaysErr            error
+	activeBatchErrs           []error
+	activeBatchErrsByHashSlot map[uint16][]error
+	activeBatchAlwaysErr      error
+	listErrs                  []error
+	drainResult               string
+	drainTargets              []conversationusecase.RouteTarget
 }
 
 func (f *fakeConversationAuthorityLocal) AdmitPatches(_ context.Context, target conversationusecase.RouteTarget, patches []conversationusecase.ActivePatch) error {
@@ -804,6 +849,13 @@ func (f *fakeConversationAuthorityLocal) AdmitActiveBatch(_ context.Context, tar
 	})
 	if f.activeBatchAlwaysErr != nil {
 		return f.activeBatchAlwaysErr
+	}
+	if len(f.activeBatchErrsByHashSlot[target.HashSlot]) > 0 {
+		err := f.activeBatchErrsByHashSlot[target.HashSlot][0]
+		f.activeBatchErrsByHashSlot[target.HashSlot] = f.activeBatchErrsByHashSlot[target.HashSlot][1:]
+		if err != nil {
+			return err
+		}
 	}
 	if len(f.activeBatchErrs) > 0 {
 		err := f.activeBatchErrs[0]
@@ -849,6 +901,14 @@ func activeBatchesByHashSlot(deliveries []activeBatchDelivery) map[uint16]conver
 	out := make(map[uint16]conversationactive.ActiveBatch, len(deliveries))
 	for _, delivery := range deliveries {
 		out[delivery.target.HashSlot] = delivery.batch
+	}
+	return out
+}
+
+func activeBatchAttemptCountsByHashSlot(deliveries []activeBatchDelivery) map[uint16]int {
+	out := make(map[uint16]int, len(deliveries))
+	for _, delivery := range deliveries {
+		out[delivery.target.HashSlot]++
 	}
 	return out
 }

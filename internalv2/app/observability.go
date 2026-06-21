@@ -759,6 +759,13 @@ func (o slotMetricsObserver) ObserveSlotProposal(slotID multiraft.SlotID, d time
 	o.metrics.Slot.ObserveProposal(uint32(slotID), d)
 }
 
+func (o slotMetricsObserver) ObserveSlotProposalAdmission(_ multiraft.SlotID, class multiraft.ProposalClass, result string) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.Slot.ObserveProposalAdmission(string(class), result)
+}
+
 func (o slotMetricsObserver) ObserveSlotLeaderChange(slotID multiraft.SlotID, _, _ multiraft.NodeID) {
 	if o.metrics == nil {
 		return
@@ -1563,6 +1570,15 @@ func (o multiSlotObserver) ObserveSlotProposal(slotID multiraft.SlotID, d time.D
 	}
 }
 
+func (o multiSlotObserver) ObserveSlotProposalAdmission(slotID multiraft.SlotID, class multiraft.ProposalClass, result string) {
+	for _, observer := range o {
+		admissionObserver, ok := observer.(multiraft.ProposalAdmissionObserver)
+		if ok {
+			admissionObserver.ObserveSlotProposalAdmission(slotID, class, result)
+		}
+	}
+}
+
 func (o multiSlotObserver) ObserveSlotLeaderChange(slotID multiraft.SlotID, from, to multiraft.NodeID) {
 	for _, observer := range o {
 		leaderChangeObserver, ok := observer.(multiraft.LeaderChangeObserver)
@@ -1847,6 +1863,7 @@ var _ clusterv2channels.MetaCacheObserver = channelV2MetricsObserver{}
 var _ clusterv2channels.AppendStageObserver = channelV2MetricsObserver{}
 var _ multiraft.SchedulerObserver = slotMetricsObserver{}
 var _ multiraft.ProposalObserver = slotMetricsObserver{}
+var _ multiraft.ProposalAdmissionObserver = slotMetricsObserver{}
 var _ multiraft.ApplyStateObserver = slotMetricsObserver{}
 var _ transportv2.Observer = (*transportV2MetricsObserver)(nil)
 var _ cv2raft.Observer = controllerRaftMetricsObserver{}
@@ -1872,6 +1889,7 @@ var _ clusterv2channels.MetaCacheObserver = multiChannelV2Observer{}
 var _ clusterv2channels.AppendStageObserver = multiChannelV2Observer{}
 var _ multiraft.SchedulerObserver = multiSlotObserver{}
 var _ multiraft.ProposalObserver = multiSlotObserver{}
+var _ multiraft.ProposalAdmissionObserver = multiSlotObserver{}
 var _ multiraft.ApplyStateObserver = multiSlotObserver{}
 var _ cv2raft.Observer = multiControllerRaftObserver{}
 var _ cv2raft.ApplyStateObserver = multiControllerRaftObserver{}

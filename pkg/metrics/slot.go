@@ -8,11 +8,12 @@ import (
 )
 
 type SlotMetrics struct {
-	proposalsTotal  *prometheus.CounterVec
-	applyDuration   *prometheus.HistogramVec
-	applyGap        *prometheus.GaugeVec
-	leaderElections prometheus.Counter
-	replicaLag      *prometheus.GaugeVec
+	proposalsTotal    *prometheus.CounterVec
+	proposalAdmission *prometheus.CounterVec
+	applyDuration     *prometheus.HistogramVec
+	applyGap          *prometheus.GaugeVec
+	leaderElections   prometheus.Counter
+	replicaLag        *prometheus.GaugeVec
 }
 
 func newSlotMetrics(registry prometheus.Registerer, labels prometheus.Labels) *SlotMetrics {
@@ -22,6 +23,11 @@ func newSlotMetrics(registry prometheus.Registerer, labels prometheus.Labels) *S
 			Help:        "Total number of slot proposal operations.",
 			ConstLabels: labels,
 		}, []string{"slot_id"}),
+		proposalAdmission: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name:        "wukongim_slot_proposal_admission_total",
+			Help:        "Total Slot proposal admission decisions by class and result.",
+			ConstLabels: labels,
+		}, []string{"class", "result"}),
 		applyDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Name:        "wukongim_slot_apply_duration_seconds",
 			Help:        "Slot proposal apply latency in seconds.",
@@ -47,6 +53,7 @@ func newSlotMetrics(registry prometheus.Registerer, labels prometheus.Labels) *S
 
 	registry.MustRegister(
 		m.proposalsTotal,
+		m.proposalAdmission,
 		m.applyDuration,
 		m.applyGap,
 		m.leaderElections,
@@ -63,6 +70,14 @@ func (m *SlotMetrics) ObserveProposal(slotID uint32, dur time.Duration) {
 	slotLabel := strconv.FormatUint(uint64(slotID), 10)
 	m.proposalsTotal.WithLabelValues(slotLabel).Inc()
 	m.applyDuration.WithLabelValues(slotLabel).Observe(dur.Seconds())
+}
+
+// ObserveProposalAdmission records one Slot proposal admission decision.
+func (m *SlotMetrics) ObserveProposalAdmission(class string, result string) {
+	if m == nil {
+		return
+	}
+	m.proposalAdmission.WithLabelValues(class, result).Inc()
 }
 
 func (m *SlotMetrics) ObserveLeaderChange(_ uint32) {

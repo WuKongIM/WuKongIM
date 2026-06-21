@@ -338,16 +338,17 @@ identity. Legacy patch admission is best-effort and does not retry
 route-not-ready, stale-route, or not-leader errors; callers are expected to log
 and drop failed active admission.
 Active-batch admission resolves the affected UID set as `SenderUID` plus each
-unique recipient UID, caches each UID's `RouteTarget` for the whole batch,
+unique recipient UID, caches each UID's `RouteTarget` for the current attempt,
 coalesces duplicate recipient entries with `IsSender` OR semantics, and sends
 one target-scoped batch per group. Only the sender-owned target receives
 `SenderUID`; other target batches carry an empty `SenderUID` and only their
 recipient subset, so a receiver authority cannot cache the sender row by
 mistake. If the sender is not in the recipient set, the sender target still
 receives a sender-only batch. Active-batch admission retries route-not-ready,
-stale-route, and not-leader errors within a small bounded fresh-route window,
-regrouping the whole batch each time; continued failure is returned to the
-caller so the post-commit path remains bounded.
+stale-route, not-leader, and background Slot proposal backpressure within a
+small bounded fresh-route window, regrouping only target groups that failed on
+the prior attempt; continued failure is returned to the caller so the
+post-commit path remains bounded.
 The remote RPC client chunks large patch groups and active-batch recipient
 groups at the codec collection limit before sending them. List resolves the
 requested UID once per retry attempt and reads the active view from that

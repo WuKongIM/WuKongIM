@@ -52,6 +52,9 @@ func (p defaultSlotProposer) Propose(ctx context.Context, slotID uint32, payload
 	if observer := propose.StageObserverFromContext(ctx); observer != nil {
 		ctx = multiraft.WithProposalStageObserver(ctx, defaultSlotProposalStageObserver{observer: observer})
 	}
+	if propose.ProposalClassFromContext(ctx) == propose.ProposalClassBackground {
+		ctx = multiraft.WithProposalClass(ctx, multiraft.ProposalClassBackground)
+	}
 	started := time.Now()
 	future, err := p.runtime.Propose(ctx, multiraft.SlotID(slotID), multiraftPayload(hashSlot, command))
 	propose.ObserveStage(ctx, defaultSlotStageMetaCreateSubmit, err, time.Since(started))
@@ -79,10 +82,16 @@ func multiraftPayloadWithCreatedAt(hashSlot uint16, createdAtMS int64, command [
 
 // mapMultiraftProposeError preserves the public propose package error contract.
 func mapMultiraftProposeError(err error) error {
-	if errors.Is(err, multiraft.ErrNotLeader) {
+	switch {
+	case errors.Is(err, multiraft.ErrNotLeader):
 		return propose.ErrNotLeader
+	case errors.Is(err, multiraft.ErrBackgroundProposalThrottled):
+		return propose.ErrBackgroundProposalThrottled
+	case errors.Is(err, multiraft.ErrProposalBackpressure):
+		return propose.ErrProposalBackpressure
+	default:
+		return err
 	}
-	return err
 }
 
 var _ propose.SlotRuntime = defaultSlotProposer{}

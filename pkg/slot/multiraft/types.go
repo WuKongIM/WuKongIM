@@ -60,6 +60,21 @@ type ApplyStateObserver interface {
 	SetSlotApplyState(slotID SlotID, commitIndex, appliedIndex uint64)
 }
 
+// ProposalClass identifies the admission priority of a Slot proposal.
+type ProposalClass string
+
+const (
+	// ProposalClassForeground is the default class for user-facing metadata writes.
+	ProposalClassForeground ProposalClass = "foreground"
+	// ProposalClassBackground is used for retryable projection and maintenance writes.
+	ProposalClassBackground ProposalClass = "background"
+)
+
+// ProposalAdmissionObserver receives low-cardinality proposal admission decisions.
+type ProposalAdmissionObserver interface {
+	ObserveSlotProposalAdmission(slotID SlotID, class ProposalClass, result string)
+}
+
 // SchedulerStateEvent reports aggregate Slot scheduler queue state.
 type SchedulerStateEvent struct {
 	// Depth is the number of runnable Slot IDs queued in the dispatch channel.
@@ -83,6 +98,19 @@ type RaftOptions struct {
 	CheckQuorum   bool
 	MaxSizePerMsg uint64
 	MaxInflight   int
+	// MaxQueuedRequests bounds inbound Raft messages buffered per Slot before
+	// scheduler processing catches up. Zero uses a conservative default.
+	MaxQueuedRequests int
+	// MaxQueuedControls bounds locally submitted control actions per Slot,
+	// including proposals and membership changes. Zero uses a conservative default.
+	MaxQueuedControls int
+	// MaxQueuedBackgroundControls bounds queued background proposals per Slot.
+	// Zero uses a conservative default derived from MaxQueuedControls.
+	MaxQueuedBackgroundControls int
+	// MaxApplyingTasks bounds async apply tasks accepted per Slot. When the
+	// limit is reached, the Slot applies the current Ready synchronously to
+	// convert overload into backpressure instead of unbounded heap growth.
+	MaxApplyingTasks int
 	// LogCompaction controls local Slot Raft snapshot compaction.
 	LogCompaction LogCompactionConfig
 }
@@ -179,7 +207,9 @@ type Command struct {
 	HashSlot uint16
 	Index    uint64
 	Term     uint64
-	Data     []byte
+	// Data is read-only and valid until Apply or ApplyBatch returns. State
+	// machines that retain command bytes beyond the call must copy them.
+	Data []byte
 }
 
 type Snapshot struct {
