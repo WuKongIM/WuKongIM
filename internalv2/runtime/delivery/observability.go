@@ -20,6 +20,24 @@ const (
 	// DeliveryResultMaxAttempts reports retry work that reached its attempt cap.
 	DeliveryResultMaxAttempts = "max_attempts"
 
+	// DeliveryAckActionBind reports a pending ack bind attempt.
+	DeliveryAckActionBind = "bind"
+	// DeliveryAckActionAck reports a client recvack mutation attempt.
+	DeliveryAckActionAck = "ack"
+	// DeliveryAckActionSessionClosed reports cleanup for a closed owner-local session.
+	DeliveryAckActionSessionClosed = "session_closed"
+	// DeliveryAckActionExpire reports TTL cleanup for stale pending acks.
+	DeliveryAckActionExpire = "expire"
+
+	// DeliveryAckResultOK reports that the ack mutation changed state successfully.
+	DeliveryAckResultOK = "ok"
+	// DeliveryAckResultMiss reports that an ack mutation found no matching pending entry.
+	DeliveryAckResultMiss = "miss"
+	// DeliveryAckResultRejected reports that a pending ack bind was rejected by limits or invalid input.
+	DeliveryAckResultRejected = "rejected"
+	// DeliveryAckResultNoop reports that a cleanup mutation had no matching state to remove.
+	DeliveryAckResultNoop = "noop"
+
 	// DeliveryErrorClassNone reports that no error was present.
 	DeliveryErrorClassNone = "none"
 	// DeliveryErrorClassRetryable reports a retryable fanout or push error.
@@ -59,6 +77,23 @@ type Observer interface {
 type ManagerObserver interface {
 	ObserveManagerAdmission(ManagerAdmissionEvent)
 	ObserveManagerTerminal(ManagerTerminalEvent)
+}
+
+// AckObserver receives owner-local pending recvack state changes.
+type AckObserver interface {
+	ObserveAck(AckEvent)
+}
+
+// AckEvent describes one owner-local pending recvack mutation.
+type AckEvent struct {
+	// Action is bind, ack, session_closed, or expire.
+	Action string
+	// Result is ok, miss, rejected, or noop.
+	Result string
+	// Changed is the number of pending ack entries added or removed.
+	Changed int
+	// PendingCount is the owner-local pending ack count after the mutation.
+	PendingCount int
 }
 
 // ManagerAdmissionEvent describes one manager admission decision.

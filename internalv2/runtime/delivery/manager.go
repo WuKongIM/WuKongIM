@@ -21,15 +21,18 @@ type ManagerOptions struct {
 	AsyncWorkers int
 	// ManagerObserver receives async manager admission and terminal observations.
 	ManagerObserver ManagerObserver
+	// AckObserver receives owner-local pending recvack state changes.
+	AckObserver AckObserver
 }
 
 // Manager is the delivery runtime facade used by app adapters.
 // It admits committed work into a bounded queue when fanout ports are configured.
 type Manager struct {
-	planner *Planner
-	runner  FanoutTaskRunner
-	acks    *AckTracker
-	async   *managerAsync
+	planner     *Planner
+	runner      FanoutTaskRunner
+	acks        *AckTracker
+	async       *managerAsync
+	ackObserver AckObserver
 }
 
 // NewManager creates a delivery runtime facade.
@@ -44,9 +47,10 @@ func NewManager(opts ManagerOptions) *Manager {
 		asyncWorkers = defaultManagerAsyncWorkers
 	}
 	manager := &Manager{
-		planner: opts.Planner,
-		runner:  runner,
-		acks:    acks,
+		planner:     opts.Planner,
+		runner:      runner,
+		acks:        acks,
+		ackObserver: opts.AckObserver,
 	}
 	if opts.Planner != nil && runner != nil {
 		manager.async = newManagerAsync(manager, opts.AsyncQueueSize, asyncWorkers, opts.ManagerObserver)
@@ -96,7 +100,14 @@ func (m *Manager) Recvack(_ context.Context, cmd Recvack) error {
 	if m == nil || m.acks == nil {
 		return nil
 	}
-	m.acks.Ack(cmd)
+	_, ok := m.acks.Ack(cmd)
+	result := DeliveryAckResultMiss
+	changed := 0
+	if ok {
+		result = DeliveryAckResultOK
+		changed = 1
+	}
+	m.observeAck(DeliveryAckActionAck, result, changed, m.acks.PendingCount())
 	return nil
 }
 
@@ -105,7 +116,12 @@ func (m *Manager) SessionClosed(_ context.Context, cmd SessionClosed) error {
 	if m == nil || m.acks == nil {
 		return nil
 	}
-	m.acks.SessionClosed(cmd.UID, cmd.SessionID)
+	removed := m.acks.SessionClosed(cmd.UID, cmd.SessionID)
+	result := DeliveryAckResultNoop
+	if len(removed) > 0 {
+		result = DeliveryAckResultOK
+	}
+	m.observeAck(DeliveryAckActionSessionClosed, result, len(removed), m.acks.PendingCount())
 	return nil
 }
 
@@ -114,7 +130,17 @@ func (m *Manager) BindPendingAck(pending PendingRecvAck) bool {
 	if m == nil || m.acks == nil {
 		return false
 	}
-	return m.acks.Bind(pending)
+	result := m.acks.BindResult(pending)
+	eventResult := DeliveryAckResultRejected
+	changed := 0
+	if result.Bound {
+		eventResult = DeliveryAckResultOK
+		if result.Added {
+			changed = 1
+		}
+	}
+	m.observeAck(DeliveryAckActionBind, eventResult, changed, result.PendingCount)
+	return result.Bound
 }
 
 // ExpirePendingAcks removes pending recvacks older than ttl.
@@ -122,7 +148,13 @@ func (m *Manager) ExpirePendingAcks(ttl time.Duration) []PendingRecvAck {
 	if m == nil || m.acks == nil {
 		return nil
 	}
-	return m.acks.Expire(ttl)
+	removed := m.acks.Expire(ttl)
+	result := DeliveryAckResultNoop
+	if len(removed) > 0 {
+		result = DeliveryAckResultOK
+	}
+	m.observeAck(DeliveryAckActionExpire, result, len(removed), m.acks.PendingCount())
+	return removed
 }
 
 // PendingAckCount returns the current pending recvack count for tests and diagnostics.
@@ -131,6 +163,18 @@ func (m *Manager) PendingAckCount() int {
 		return 0
 	}
 	return m.acks.PendingCount()
+}
+
+func (m *Manager) observeAck(action, result string, changed, pendingCount int) {
+	if m == nil || m.ackObserver == nil {
+		return
+	}
+	m.ackObserver.ObserveAck(AckEvent{
+		Action:       action,
+		Result:       result,
+		Changed:      changed,
+		PendingCount: pendingCount,
+	})
 }
 
 func envelopeFromEvent(event messageevents.MessageCommitted) Envelope {
