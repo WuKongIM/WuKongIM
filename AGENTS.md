@@ -111,6 +111,7 @@ internalv2/
     presence/            Slot leader 内存权威连接目录、authority epoch、OwnerSeq fencing
   usecase/               新架构入口无关业务用例
     channel/             频道资料、订阅者、黑白名单等 legacy 兼容用例
+    cmdsync/             基于统一会话投影的 CMD 离线同步与 syncack 用例
     conversation/        最近会话列表读模型，基于 UID membership 与 channel_latest 读时 join
     delivery/            投递提交与运行时入队用例
     management/          后台管理节点列表等只读展示用例
