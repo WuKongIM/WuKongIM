@@ -1576,6 +1576,62 @@ func TestDeliveryMessageObserverWarnsExpectedRoutePostCommitFailure(t *testing.T
 	}
 }
 
+func TestDeliveryMetricsObserverMapsAckEventToGauge(t *testing.T) {
+	reg := obsmetrics.New(1, "n1")
+	observer := deliveryMetricsObserver{metrics: reg}
+
+	observer.ObserveAck(runtimedelivery.AckEvent{PendingCount: 6})
+
+	families, err := reg.Gather()
+	if err != nil {
+		t.Fatalf("Gather() error = %v", err)
+	}
+	ackBindings := requireAppMetricFamily(t, families, "wukongim_delivery_ack_bindings")
+	if got := findAppMetricByLabels(t, ackBindings, nil).GetGauge().GetValue(); got != 6 {
+		t.Fatalf("delivery ack bindings = %v, want 6", got)
+	}
+}
+
+func TestCombinedDeliveryObserverFansOutAckEvents(t *testing.T) {
+	reg := obsmetrics.New(1, "n1")
+	collector := newTopCollector(topCollectorOptions{
+		ClusterSnapshot: func() clusterv2.Snapshot {
+			return clusterv2.Snapshot{RoutesReady: true, SlotsReady: true, ChannelsReady: true}
+		},
+	})
+	observer := combineDeliveryObservers(
+		deliveryMetricsObserver{metrics: reg},
+		topDeliveryObserver{top: collector},
+	)
+	ackObserver, ok := observer.(runtimedelivery.AckObserver)
+	if !ok {
+		t.Fatalf("combined observer does not implement AckObserver")
+	}
+
+	collector.recordSampleAt(time.Unix(100, 0))
+	ackObserver.ObserveAck(runtimedelivery.AckEvent{PendingCount: 9})
+	collector.recordSampleAt(time.Unix(110, 0))
+
+	families, err := reg.Gather()
+	if err != nil {
+		t.Fatalf("Gather() error = %v", err)
+	}
+	ackBindings := requireAppMetricFamily(t, families, "wukongim_delivery_ack_bindings")
+	if got := findAppMetricByLabels(t, ackBindings, nil).GetGauge().GetValue(); got != 9 {
+		t.Fatalf("metrics ack bindings = %v, want 9", got)
+	}
+	snapshot, err := collector.SnapshotTop(context.Background(), accessapi.TopSnapshotQuery{
+		Window: 10 * time.Second,
+		View:   accessapi.TopViewDelivery,
+	})
+	if err != nil {
+		t.Fatalf("SnapshotTop() error = %v", err)
+	}
+	if snapshot.Delivery == nil || snapshot.Delivery.AckBindings != 9 {
+		t.Fatalf("top ack bindings = %#v, want 9", snapshot.Delivery)
+	}
+}
+
 type recordingInternalV2SendTraceSink struct {
 	events []sendtrace.Event
 }

@@ -457,11 +457,7 @@ func (a *App) wireUsers() {
 
 func (a *App) wireDelivery() {
 	if a.cfg.Delivery.Enabled && a.delivery == nil {
-		var top *topCollector
-		if collector, ok := a.topProvider.(*topCollector); ok {
-			top = collector
-		}
-		localPusher := &localOwnerPusher{online: a.online, top: top, pendingAckTTL: a.cfg.Delivery.PendingAckTTL, logger: a.logger.Named("delivery.owner")}
+		localPusher := &localOwnerPusher{online: a.online, pendingAckTTL: a.cfg.Delivery.PendingAckTTL, logger: a.logger.Named("delivery.owner")}
 		a.localOwnerPusher = localPusher
 		deliveryObserver := a.deliveryObserver()
 		var push runtimedelivery.Pusher = localPusher
@@ -513,12 +509,17 @@ func (a *App) wireDelivery() {
 		if observer, ok := deliveryObserver.(runtimedelivery.ManagerObserver); ok {
 			managerObserver = observer
 		}
+		var ackObserver runtimedelivery.AckObserver
+		if observer, ok := deliveryObserver.(runtimedelivery.AckObserver); ok {
+			ackObserver = observer
+		}
 		manager := runtimedelivery.NewManager(runtimedelivery.ManagerOptions{
 			Planner:         runtimedelivery.NewPlanner(runtimedelivery.PlannerOptions{Partitioner: partitioner}),
 			Runner:          retryScheduler,
 			AsyncQueueSize:  a.cfg.Delivery.EventQueueSize,
 			AsyncWorkers:    1,
 			ManagerObserver: managerObserver,
+			AckObserver:     ackObserver,
 			Acks: runtimedelivery.NewAckTracker(runtimedelivery.AckTrackerOptions{
 				MaxPendingPerSession: a.cfg.Delivery.PendingAckMaxPerSession,
 			}),

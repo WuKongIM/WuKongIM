@@ -1065,6 +1065,13 @@ func (o deliveryMetricsObserver) ObserveRetry(event runtimedelivery.RetryEvent) 
 	}
 }
 
+func (o deliveryMetricsObserver) ObserveAck(event runtimedelivery.AckEvent) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.Delivery.SetAckBindings(event.PendingCount)
+}
+
 func (o deliveryMetricsObserver) ObserveManagerAdmission(event runtimedelivery.ManagerAdmissionEvent) {
 	if o.metrics != nil {
 		o.metrics.Delivery.ObserveEventQueue(event.Result)
@@ -1714,6 +1721,15 @@ func (o multiDeliveryObserver) ObserveRetry(event runtimedelivery.RetryEvent) {
 	}
 }
 
+func (o multiDeliveryObserver) ObserveAck(event runtimedelivery.AckEvent) {
+	for _, observer := range o {
+		ackObserver, ok := observer.(runtimedelivery.AckObserver)
+		if ok {
+			ackObserver.ObserveAck(event)
+		}
+	}
+}
+
 func (o multiDeliveryObserver) ObserveManagerAdmission(event runtimedelivery.ManagerAdmissionEvent) {
 	for _, observer := range o {
 		managerObserver, ok := observer.(runtimedelivery.ManagerObserver)
@@ -1931,4 +1947,6 @@ var _ messagedb.CommitCoordinatorQueueObserver = multiCommitCoordinatorObserver{
 var _ messagedb.CommitCoordinatorRequestObserver = multiCommitCoordinatorObserver{}
 var _ runtimedelivery.Observer = multiDeliveryObserver{}
 var _ runtimedelivery.RetryObserver = multiDeliveryObserver{}
+var _ runtimedelivery.AckObserver = deliveryMetricsObserver{}
+var _ runtimedelivery.AckObserver = multiDeliveryObserver{}
 var _ runtimedelivery.ManagerObserver = multiDeliveryObserver{}

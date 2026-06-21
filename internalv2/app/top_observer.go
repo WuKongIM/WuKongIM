@@ -400,6 +400,13 @@ func (o topDeliveryObserver) ObserveRetry(event runtimedelivery.RetryEvent) {
 	}
 }
 
+func (o topDeliveryObserver) ObserveAck(event runtimedelivery.AckEvent) {
+	if o.top == nil {
+		return
+	}
+	o.top.SetDeliveryAckBindings(int64(event.PendingCount))
+}
+
 func (o topDeliveryObserver) ObserveManagerAdmission(event runtimedelivery.ManagerAdmissionEvent) {
 	if o.top == nil {
 		return
@@ -581,6 +588,7 @@ var _ messagedb.CommitCoordinatorQueueObserver = topStorageObserver{}
 var _ messagedb.CommitCoordinatorRequestObserver = topStorageObserver{}
 var _ runtimedelivery.Observer = topDeliveryObserver{}
 var _ runtimedelivery.RetryObserver = topDeliveryObserver{}
+var _ runtimedelivery.AckObserver = topDeliveryObserver{}
 var _ runtimedelivery.ManagerObserver = topDeliveryObserver{}
 var _ multiraft.SchedulerObserver = topSlotObserver{}
 var _ cv2raft.Observer = topControllerRaftObserver{}

@@ -1050,3 +1050,27 @@ func TestTopCollectorStopHonorsContextWhenSnapshotBlocks(t *testing.T) {
 		t.Fatalf("final Stop() error = %v", err)
 	}
 }
+
+func TestTopDeliveryObserverMapsAckEventToAckBindings(t *testing.T) {
+	collector := newTopCollector(topCollectorOptions{
+		ClusterSnapshot: func() clusterv2.Snapshot {
+			return clusterv2.Snapshot{RoutesReady: true, SlotsReady: true, ChannelsReady: true}
+		},
+	})
+	observer := topDeliveryObserver{top: collector}
+
+	collector.recordSampleAt(time.Unix(100, 0))
+	observer.ObserveAck(runtimedelivery.AckEvent{PendingCount: 7})
+	collector.recordSampleAt(time.Unix(110, 0))
+
+	snapshot, err := collector.SnapshotTop(context.Background(), accessapi.TopSnapshotQuery{
+		Window: 10 * time.Second,
+		View:   accessapi.TopViewDelivery,
+	})
+	if err != nil {
+		t.Fatalf("SnapshotTop() error = %v", err)
+	}
+	if snapshot.Delivery == nil || snapshot.Delivery.AckBindings != 7 {
+		t.Fatalf("delivery snapshot = %#v, want ack_bindings 7", snapshot.Delivery)
+	}
+}
