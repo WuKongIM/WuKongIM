@@ -785,6 +785,55 @@ func TestApplyStateObserverCanReenterSlotWithoutDeadlock(t *testing.T) {
 	}
 }
 
+func TestLeaderChangeObserverIgnoresUnknownRecoveryToSameLeader(t *testing.T) {
+	observer := &slotLeaderChangeObserver{}
+	g := newTestSlotForDrain()
+	g.id = 7
+	g.observer = observer
+
+	g.mu.Lock()
+	firstKnown := g.setLeaderIDLocked(1)
+	unknown := g.setLeaderIDLocked(0)
+	sameKnown := g.setLeaderIDLocked(1)
+	g.mu.Unlock()
+
+	firstKnown.emit()
+	unknown.emit()
+	sameKnown.emit()
+
+	observer.mu.Lock()
+	defer observer.mu.Unlock()
+	if len(observer.changes) != 0 {
+		t.Fatalf("leader changes = %v, want no change for unknown recovery to same leader", observer.changes)
+	}
+}
+
+func TestLeaderChangeObserverCountsUnknownGapToDifferentLeader(t *testing.T) {
+	observer := &slotLeaderChangeObserver{}
+	g := newTestSlotForDrain()
+	g.id = 7
+	g.observer = observer
+
+	g.mu.Lock()
+	firstKnown := g.setLeaderIDLocked(1)
+	unknown := g.setLeaderIDLocked(0)
+	differentKnown := g.setLeaderIDLocked(2)
+	g.mu.Unlock()
+
+	firstKnown.emit()
+	unknown.emit()
+	differentKnown.emit()
+
+	observer.mu.Lock()
+	defer observer.mu.Unlock()
+	if len(observer.changes) != 1 {
+		t.Fatalf("leader changes = %v, want one change after unknown gap to different leader", observer.changes)
+	}
+	if got := observer.changes[0]; got.from != 1 || got.to != 2 {
+		t.Fatalf("leader change = %+v, want from=1 to=2", got)
+	}
+}
+
 func newStartedRuntime(t *testing.T) *Runtime {
 	return newStartedRuntimeWithTick(t, 10*time.Millisecond)
 }

@@ -52,6 +52,7 @@ type slot struct {
 	transportBuf                []Envelope
 	tickPending                 bool
 	tickCount                   int
+	lastKnownLeaderID           NodeID
 	// durableAppliedIndex is the highest index that completed FSM apply and Storage.MarkApplied.
 	durableAppliedIndex uint64
 	// campaignAfterReady requests a local campaign after bootstrap Ready applies membership.
@@ -133,7 +134,7 @@ type leaderChangeEvent struct {
 }
 
 func (e leaderChangeEvent) emit() {
-	if e.observer != nil && e.to != 0 && e.from != e.to {
+	if e.observer != nil && e.from != 0 && e.to != 0 && e.from != e.to {
 		e.observer.ObserveSlotLeaderChange(e.slotID, e.from, e.to)
 	}
 }
@@ -1067,11 +1068,18 @@ func (g *slot) observeQueuedMessageLocked(msg raftpb.Message) leaderChangeEvent 
 func (g *slot) setLeaderIDLocked(next NodeID) leaderChangeEvent {
 	prev := g.status.LeaderID
 	g.status.LeaderID = next
+	eventFrom := prev
+	if next != 0 {
+		if eventFrom == 0 {
+			eventFrom = g.lastKnownLeaderID
+		}
+		g.lastKnownLeaderID = next
+	}
 	observer, _ := g.observer.(LeaderChangeObserver)
 	return leaderChangeEvent{
 		observer: observer,
 		slotID:   g.id,
-		from:     prev,
+		from:     eventFrom,
 		to:       next,
 	}
 }

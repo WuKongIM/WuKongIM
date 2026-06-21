@@ -117,6 +117,7 @@ func TestThreeNodeClusterObservesLeaderChangeAfterTransfer(t *testing.T) {
 	cluster.waitForBootstrapApplied(t, slotID, 3)
 
 	leaderID := cluster.waitForLeader(t, slotID)
+	observer.clear()
 	targetLeader := cluster.pickFollower(leaderID)
 	if err := cluster.runtime(leaderID).TransferLeadership(context.Background(), slotID, targetLeader); err != nil {
 		t.Fatalf("TransferLeadership() error = %v", err)
@@ -259,6 +260,12 @@ func (o *slotLeaderChangeObserver) ObserveSlotLeaderChange(slotID SlotID, from, 
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	o.changes = append(o.changes, slotLeaderChangeObservation{slotID: slotID, from: from, to: to})
+}
+
+func (o *slotLeaderChangeObserver) clear() {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.changes = nil
 }
 
 func (o *slotLeaderChangeObserver) waitForTarget(t testing.TB, slotID SlotID, to NodeID) {
