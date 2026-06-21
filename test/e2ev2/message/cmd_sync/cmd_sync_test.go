@@ -112,6 +112,74 @@ func TestWukongIMV2UnifiedConversationProjectionIsolatesCMDSync(t *testing.T) {
 	requireMessageSyncEmptyFor(t, *node, bobUID, 500*time.Millisecond)
 }
 
+func TestWukongIMV2CMDSyncProjectionSurvivesRestartBeforeSync(t *testing.T) {
+	node := suite.New(t).StartSingleNodeCluster(suite.WithNodeConfigOverrides(1, map[string]string{
+		"WK_CONVERSATION_AUTHORITY_FLUSH_INTERVAL": "1h",
+	}))
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	const (
+		channelID  = "e2e-cmd-sync-restart-room"
+		aliceUID   = "cmd-sync-restart-alice"
+		bobUID     = "cmd-sync-restart-bob"
+		cmdMsgNo   = "cmd-sync-restart-command-1"
+		cmdPayload = "command sync message before restart"
+	)
+	require.NoError(t, suite.PostChannel(ctx, node.APIAddr(), map[string]any{
+		"channel_id":   channelID,
+		"channel_type": frame.ChannelTypeGroup,
+		"reset":        1,
+		"subscribers":  []string{aliceUID, bobUID},
+	}), node.DumpDiagnostics())
+
+	cmdSend, err := suite.PostMessageSend(ctx, node.APIAddr(), map[string]any{
+		"from_uid":      aliceUID,
+		"channel_id":    channelID,
+		"channel_type":  frame.ChannelTypeGroup,
+		"client_msg_no": cmdMsgNo,
+		"sync_once":     1,
+		"payload":       base64.StdEncoding.EncodeToString([]byte(cmdPayload)),
+	})
+	require.NoError(t, err, node.DumpDiagnostics())
+	require.Equal(t, uint8(frame.ReasonSuccess), cmdSend.Reason, node.DumpDiagnostics())
+	require.NotZero(t, cmdSend.MessageSeq)
+
+	restartSingleNodeCluster(t, node)
+
+	cmdMessages := requireMessageSyncEventually(t, *node, bobUID, cmdMsgNo, 10*time.Second)
+	require.Len(t, cmdMessages, 1, node.DumpDiagnostics())
+	require.Equal(t, cmdSend.MessageSeq, cmdMessages[0].MessageSeq)
+	require.Equal(t, cmdPayload, string(cmdMessages[0].Payload))
+	requireNoCommandSuffix(t, cmdMessages[0].ChannelID)
+
+	restartSingleNodeCluster(t, node)
+	cmdMessages = requireMessageSyncEventually(t, *node, bobUID, cmdMsgNo, 10*time.Second)
+	require.Len(t, cmdMessages, 1, node.DumpDiagnostics())
+	require.Equal(t, cmdSend.MessageSeq, cmdMessages[0].MessageSeq)
+	require.Equal(t, cmdPayload, string(cmdMessages[0].Payload))
+
+	requireMessageSyncAck(t, *node, bobUID, cmdMessages[len(cmdMessages)-1].MessageSeq)
+	restartSingleNodeCluster(t, node)
+	requireMessageSyncEmptyEventually(t, *node, bobUID, 10*time.Second)
+	requireMessageSyncEmptyFor(t, *node, bobUID, 500*time.Millisecond)
+}
+
+func restartSingleNodeCluster(t *testing.T, node *suite.StartedNode) {
+	t.Helper()
+
+	require.NotNil(t, node)
+	require.NotNil(t, node.Process)
+	require.NoError(t, node.Process.Stop())
+	require.NoError(t, node.Process.Start())
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	require.NoError(t, suite.WaitHTTPReady(ctx, node.APIAddr(), "/readyz"), node.DumpDiagnostics())
+	require.NoError(t, suite.WaitWKProtoReady(ctx, node.GatewayAddr()), node.DumpDiagnostics())
+}
+
 func mustConnectWKProto(t *testing.T, node suite.StartedNode, uid string) *suite.WKProtoClient {
 	t.Helper()
 
