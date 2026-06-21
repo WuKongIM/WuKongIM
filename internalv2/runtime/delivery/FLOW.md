@@ -87,6 +87,8 @@ Recvack flow:
 6. Each bind, ack, session-close, and expire mutation emits a bounded
    `AckEvent` from `Manager` with action, result, changed count, and the
    owner-local pending count after the mutation.
-7. App top and Prometheus observers consume the same ack event path, so
+7. `Manager` serializes each ack mutation with its `AckEvent` emission, so
+   observers do not apply an older pending count after a newer state change.
+8. App top and Prometheus observers consume the same ack event path, so
    `ack_bindings` and `wukongim_delivery_ack_bindings` reflect `AckTracker`
    transitions instead of adapter-local estimates.

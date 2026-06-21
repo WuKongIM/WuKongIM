@@ -2,6 +2,7 @@ package delivery
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internalv2/contracts/messageevents"
@@ -33,6 +34,7 @@ type Manager struct {
 	acks        *AckTracker
 	async       *managerAsync
 	ackObserver AckObserver
+	ackMu       sync.Mutex
 }
 
 // NewManager creates a delivery runtime facade.
@@ -100,6 +102,9 @@ func (m *Manager) Recvack(_ context.Context, cmd Recvack) error {
 	if m == nil || m.acks == nil {
 		return nil
 	}
+	m.ackMu.Lock()
+	defer m.ackMu.Unlock()
+
 	_, ok := m.acks.Ack(cmd)
 	result := DeliveryAckResultMiss
 	changed := 0
@@ -116,6 +121,9 @@ func (m *Manager) SessionClosed(_ context.Context, cmd SessionClosed) error {
 	if m == nil || m.acks == nil {
 		return nil
 	}
+	m.ackMu.Lock()
+	defer m.ackMu.Unlock()
+
 	removed := m.acks.SessionClosed(cmd.UID, cmd.SessionID)
 	result := DeliveryAckResultNoop
 	if len(removed) > 0 {
@@ -130,6 +138,9 @@ func (m *Manager) BindPendingAck(pending PendingRecvAck) bool {
 	if m == nil || m.acks == nil {
 		return false
 	}
+	m.ackMu.Lock()
+	defer m.ackMu.Unlock()
+
 	result := m.acks.BindResult(pending)
 	eventResult := DeliveryAckResultRejected
 	changed := 0
@@ -148,6 +159,9 @@ func (m *Manager) ExpirePendingAcks(ttl time.Duration) []PendingRecvAck {
 	if m == nil || m.acks == nil {
 		return nil
 	}
+	m.ackMu.Lock()
+	defer m.ackMu.Unlock()
+
 	removed := m.acks.Expire(ttl)
 	result := DeliveryAckResultNoop
 	if len(removed) > 0 {

@@ -3,6 +3,8 @@ package delivery
 import (
 	"context"
 	"reflect"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -68,6 +70,61 @@ func TestManagerAckObserverReportsCloseExpireAndRejectedBind(t *testing.T) {
 	}
 }
 
+func TestManagerAckObserverSerializesMutationAndObservation(t *testing.T) {
+	observer := newDelayedBindAckObserver()
+	manager := NewManager(ManagerOptions{
+		Acks:        newAckTrackerWithClock(100),
+		AckObserver: observer,
+	})
+
+	bindDone := make(chan bool, 1)
+	go func() {
+		bindDone <- manager.BindPendingAck(PendingRecvAck{UID: "u1", SessionID: 10, MessageID: 1001})
+	}()
+
+	select {
+	case <-observer.bindBlocked:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for bind observation")
+	}
+
+	ackDone := make(chan error, 1)
+	go func() {
+		ackDone <- manager.Recvack(context.Background(), Recvack{UID: "u1", SessionID: 10, MessageID: 1001})
+	}()
+	select {
+	case <-observer.ackObserved:
+	case <-time.After(50 * time.Millisecond):
+	}
+	close(observer.releaseBind)
+
+	select {
+	case ok := <-bindDone:
+		if !ok {
+			t.Fatalf("BindPendingAck() ok = false, want true")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for bind to finish")
+	}
+	select {
+	case err := <-ackDone:
+		if err != nil {
+			t.Fatalf("Recvack() error = %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for recvack to finish")
+	}
+
+	events := observer.Events()
+	if len(events) == 0 {
+		t.Fatalf("ack events = nil, want final event")
+	}
+	last := events[len(events)-1]
+	if got := manager.PendingAckCount(); last.PendingCount != got {
+		t.Fatalf("last ack event PendingCount = %d, tracker count = %d, events = %#v", last.PendingCount, got, events)
+	}
+}
+
 func newAckTrackerWithClock(now int64) *AckTracker {
 	return NewAckTracker(AckTrackerOptions{
 		ShardCount: 4,
@@ -86,5 +143,43 @@ func (o *recordingAckObserver) ObserveAck(event AckEvent) {
 }
 
 func (o *recordingAckObserver) Events() []AckEvent {
+	return append([]AckEvent(nil), o.events...)
+}
+
+type delayedBindAckObserver struct {
+	bindBlocked chan struct{}
+	ackObserved chan struct{}
+	releaseBind chan struct{}
+	blocked     atomic.Bool
+	acked       atomic.Bool
+
+	mu     sync.Mutex
+	events []AckEvent
+}
+
+func newDelayedBindAckObserver() *delayedBindAckObserver {
+	return &delayedBindAckObserver{
+		bindBlocked: make(chan struct{}),
+		ackObserved: make(chan struct{}),
+		releaseBind: make(chan struct{}),
+	}
+}
+
+func (o *delayedBindAckObserver) ObserveAck(event AckEvent) {
+	if event.Action == DeliveryAckActionBind && event.PendingCount == 1 && o.blocked.CompareAndSwap(false, true) {
+		close(o.bindBlocked)
+		<-o.releaseBind
+	}
+	o.mu.Lock()
+	o.events = append(o.events, event)
+	o.mu.Unlock()
+	if event.Action == DeliveryAckActionAck && o.acked.CompareAndSwap(false, true) {
+		close(o.ackObserved)
+	}
+}
+
+func (o *delayedBindAckObserver) Events() []AckEvent {
+	o.mu.Lock()
+	defer o.mu.Unlock()
 	return append([]AckEvent(nil), o.events...)
 }
