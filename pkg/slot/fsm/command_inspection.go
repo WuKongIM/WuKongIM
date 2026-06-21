@@ -55,16 +55,17 @@ func inspectCommand(cmd command) (CommandInspection, error) {
 		return subscribersInspection("add_subscribers", typed.channelID, typed.channelType, typed.uids, typed.subscriberMutationVersion), nil
 	case *removeSubscribersCmd:
 		return subscribersInspection("remove_subscribers", typed.channelID, typed.channelType, typed.uids, typed.subscriberMutationVersion), nil
-	case *upsertUserConversationStatesCmd:
-		return simpleInspection("upsert_user_conversation_states", map[string]any{
-			"states": userConversationStatesPayload(typed.states()),
+	case *upsertConversationStatesCmd:
+		return simpleInspection("upsert_conversation_states", map[string]any{
+			"states": conversationStatesPayload(typed.states()),
 		}), nil
-	case *touchUserConversationActiveAtCmd:
-		return simpleInspection("touch_user_conversation_active_at", map[string]any{
-			"patches": userConversationActivePatchesPayload(typed.patches()),
+	case *touchConversationActiveAtCmd:
+		return simpleInspection("touch_conversation_active_at", map[string]any{
+			"patches": conversationActivePatchesPayload(typed.patches()),
 		}), nil
-	case *clearUserConversationActiveAtCmd:
-		return simpleInspection("clear_user_conversation_active_at", map[string]any{
+	case *clearConversationActiveAtCmd:
+		return simpleInspection("clear_conversation_active_at", map[string]any{
+			"kind": uint8(typed.kind),
 			"uid":  typed.uid,
 			"keys": conversationKeysPayload(typed.keys),
 		}), nil
@@ -73,17 +74,9 @@ func inspectCommand(cmd command) (CommandInspection, error) {
 			"deprecated": true,
 			"reserved":   true,
 		}), nil
-	case *hideUserConversationsCmd:
-		return simpleInspection("hide_user_conversations", map[string]any{
-			"deletes": userConversationDeletesPayload(typed.deletes()),
-		}), nil
-	case *upsertCMDConversationStatesCmd:
-		return simpleInspection("upsert_cmd_conversation_states", map[string]any{
-			"states": cmdConversationStatesPayload(typed.states),
-		}), nil
-	case *advanceCMDConversationReadSeqCmd:
-		return simpleInspection("advance_cmd_conversation_read_seq", map[string]any{
-			"patches": cmdConversationReadPatchesPayload(typed.patches),
+	case *hideConversationsCmd:
+		return simpleInspection("hide_conversations", map[string]any{
+			"deletes": conversationDeletesPayload(typed.deletes()),
 		}), nil
 	case *bindPluginUserCmd:
 		return pluginBindingInspection("bind_plugin_user", typed.binding), nil
@@ -268,11 +261,12 @@ func applyDeltaInspection(cmd *applyDeltaCmd) (CommandInspection, error) {
 	}), nil
 }
 
-func userConversationStatesPayload(states []metadb.UserConversationState) []map[string]any {
+func conversationStatesPayload(states []metadb.ConversationState) []map[string]any {
 	out := make([]map[string]any, 0, len(states))
 	for _, state := range states {
 		out = append(out, map[string]any{
 			"uid":            state.UID,
+			"kind":           uint8(state.Kind),
 			"channel_id":     state.ChannelID,
 			"channel_type":   state.ChannelType,
 			"read_seq":       state.ReadSeq,
@@ -285,11 +279,12 @@ func userConversationStatesPayload(states []metadb.UserConversationState) []map[
 	return out
 }
 
-func userConversationActivePatchesPayload(patches []metadb.UserConversationActivePatch) []map[string]any {
+func conversationActivePatchesPayload(patches []metadb.ConversationActivePatch) []map[string]any {
 	out := make([]map[string]any, 0, len(patches))
 	for _, patch := range patches {
 		out = append(out, map[string]any{
 			"uid":               patch.UID,
+			"kind":              uint8(patch.Kind),
 			"channel_id":        patch.ChannelID,
 			"channel_type":      patch.ChannelType,
 			"read_seq":          patch.ReadSeq,
@@ -304,45 +299,16 @@ func userConversationActivePatchesPayload(patches []metadb.UserConversationActiv
 	return out
 }
 
-func userConversationDeletesPayload(deletes []metadb.UserConversationDelete) []map[string]any {
+func conversationDeletesPayload(deletes []metadb.ConversationDelete) []map[string]any {
 	out := make([]map[string]any, 0, len(deletes))
 	for _, req := range deletes {
 		out = append(out, map[string]any{
 			"uid":            req.UID,
+			"kind":           uint8(req.Kind),
 			"channel_id":     req.ChannelID,
 			"channel_type":   req.ChannelType,
 			"deleted_to_seq": req.DeletedToSeq,
 			"updated_at":     req.UpdatedAt,
-		})
-	}
-	return out
-}
-
-func cmdConversationStatesPayload(states []metadb.CMDConversationState) []map[string]any {
-	out := make([]map[string]any, 0, len(states))
-	for _, state := range states {
-		out = append(out, map[string]any{
-			"uid":            state.UID,
-			"channel_id":     state.ChannelID,
-			"channel_type":   state.ChannelType,
-			"read_seq":       state.ReadSeq,
-			"deleted_to_seq": state.DeletedToSeq,
-			"active_at":      state.ActiveAt,
-			"updated_at":     state.UpdatedAt,
-		})
-	}
-	return out
-}
-
-func cmdConversationReadPatchesPayload(patches []metadb.CMDConversationReadPatch) []map[string]any {
-	out := make([]map[string]any, 0, len(patches))
-	for _, patch := range patches {
-		out = append(out, map[string]any{
-			"uid":          patch.UID,
-			"channel_id":   patch.ChannelID,
-			"channel_type": patch.ChannelType,
-			"read_seq":     patch.ReadSeq,
-			"updated_at":   patch.UpdatedAt,
 		})
 	}
 	return out
