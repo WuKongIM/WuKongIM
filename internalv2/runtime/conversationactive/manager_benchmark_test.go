@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"testing"
+
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
 func BenchmarkFlushHashSlotSelected128Of10KDirtyRows(b *testing.B) {
@@ -19,6 +21,7 @@ func BenchmarkMarkActiveCoalesces100KUpdates(b *testing.B) {
 	patches := make([]ActivePatch, 0, 100_000)
 	for i := 0; i < cap(patches); i++ {
 		patches = append(patches, ActivePatch{
+			Kind:        metadb.ConversationKindNormal,
 			UID:         fmt.Sprintf("u-%04d", i%1000),
 			ChannelID:   fmt.Sprintf("g-%04d", i%100),
 			ChannelType: 2,
@@ -79,6 +82,7 @@ func seedDirtyHashSlots(b *testing.B, ctx context.Context, m *Manager, totalRows
 			hashSlot = (hashSlot + 1) % hashSlotCount
 		}
 		bySlot[hashSlot] = append(bySlot[hashSlot], ActivePatch{
+			Kind:        metadb.ConversationKindNormal,
 			UID:         fmt.Sprintf("u-%06d", i),
 			ChannelID:   fmt.Sprintf("g-%06d", i),
 			ChannelType: 2,

@@ -60,14 +60,14 @@ type FlushObservation struct {
 
 // ActiveStore reads and persists durable active conversation rows for cache/DB view merging.
 type ActiveStore interface {
-	// ListUserConversationActivePage returns active rows after the active-index cursor.
-	ListUserConversationActivePage(ctx context.Context, uid string, after metadb.UserConversationActiveCursor, limit int) ([]metadb.UserConversationState, metadb.UserConversationActiveCursor, bool, error)
-	// GetUserConversationState returns one durable primary row for cache-only hydration.
-	GetUserConversationState(ctx context.Context, uid, channelID string, channelType int64) (metadb.UserConversationState, bool, error)
-	// GetUserConversationStates returns durable primary rows for flush-time active_at filtering.
-	GetUserConversationStates(ctx context.Context, keys []metadb.UserConversationKey) (map[metadb.UserConversationKey]metadb.UserConversationState, error)
-	// TouchUserConversationActiveAt persists active-row patches produced by the runtime cache.
-	TouchUserConversationActiveAt(ctx context.Context, patches []metadb.UserConversationActivePatch) error
+	// ListConversationActivePage returns active rows after the active-index cursor for one conversation kind.
+	ListConversationActivePage(ctx context.Context, kind metadb.ConversationKind, uid string, after metadb.ConversationActiveCursor, limit int) ([]metadb.ConversationState, metadb.ConversationActiveCursor, bool, error)
+	// GetConversationState returns one durable primary row for cache-only hydration.
+	GetConversationState(ctx context.Context, kind metadb.ConversationKind, uid, channelID string, channelType int64) (metadb.ConversationState, bool, error)
+	// GetConversationStates returns durable primary rows for flush-time active_at filtering.
+	GetConversationStates(ctx context.Context, keys []metadb.ConversationStateKey) (map[metadb.ConversationStateKey]metadb.ConversationState, error)
+	// TouchConversationActiveAt persists active-row patches produced by the runtime cache.
+	TouchConversationActiveAt(ctx context.Context, patches []metadb.ConversationActivePatch) error
 }
 
 // FlushResult reports the outcome of one dirty active-row flush attempt.
@@ -81,15 +81,17 @@ type FlushResult struct {
 // ActiveViewPage is a merged cache plus durable active-row page.
 type ActiveViewPage struct {
 	// Rows contains active conversations ordered by active-index order.
-	Rows []metadb.UserConversationState
+	Rows []metadb.ConversationState
 	// Cursor identifies the last returned row for the next page request.
-	Cursor metadb.UserConversationActiveCursor
+	Cursor metadb.ConversationActiveCursor
 	// Done reports that there are no more active rows after Cursor.
 	Done bool
 }
 
 // ActiveBatch is the channelappend output consumed by the active cache.
 type ActiveBatch struct {
+	// Kind identifies the logical conversation projection view being touched.
+	Kind metadb.ConversationKind
 	// SenderUID identifies the user who sent the committed message.
 	SenderUID string
 	// ChannelID identifies the conversation channel.
@@ -116,6 +118,8 @@ type ActiveEntry struct {
 type ActivePatch struct {
 	// UID identifies the owner of the cached conversation row.
 	UID string
+	// Kind identifies the logical conversation projection view being touched.
+	Kind metadb.ConversationKind
 	// ChannelID identifies the active conversation channel.
 	ChannelID string
 	// ChannelType identifies the active conversation channel type.

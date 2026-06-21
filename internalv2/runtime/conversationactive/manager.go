@@ -10,6 +10,7 @@ import (
 )
 
 type conversationKey struct {
+	kind        metadb.ConversationKind
 	channelID   string
 	channelType uint8
 }
@@ -113,6 +114,7 @@ func (m *Manager) admitActiveBatch(ctx context.Context, hashSlot uint16, hasHash
 	if batch.SenderUID != "" {
 		patches = append(patches, ActivePatch{
 			UID:         batch.SenderUID,
+			Kind:        batch.Kind,
 			ChannelID:   batch.ChannelID,
 			ChannelType: batch.ChannelType,
 			ActiveAtMS:  activeAtMS,
@@ -135,6 +137,7 @@ func (m *Manager) admitActiveBatch(ctx context.Context, hashSlot uint16, hasHash
 
 		patches = append(patches, ActivePatch{
 			UID:         recipient.UID,
+			Kind:        batch.Kind,
 			ChannelID:   batch.ChannelID,
 			ChannelType: batch.ChannelType,
 			ActiveAtMS:  activeAtMS,
@@ -187,7 +190,7 @@ func (m *Manager) markActive(ctx context.Context, hashSlot uint16, hasHashSlot b
 }
 
 func (m *Manager) markActiveLocked(patch ActivePatch, hashSlot uint16, hasHashSlot bool) {
-	key := conversationKey{channelID: patch.ChannelID, channelType: patch.ChannelType}
+	key := conversationKey{kind: patch.Kind, channelID: patch.ChannelID, channelType: patch.ChannelType}
 	address := cacheAddress{uid: patch.UID, key: key}
 	byChannel := m.cache[patch.UID]
 	if byChannel == nil {
@@ -240,7 +243,7 @@ func (m *Manager) countNewRowsLocked(patches []ActivePatch) int {
 		if patch.UID == "" {
 			continue
 		}
-		key := conversationKey{channelID: patch.ChannelID, channelType: patch.ChannelType}
+		key := conversationKey{kind: patch.Kind, channelID: patch.ChannelID, channelType: patch.ChannelType}
 		address := cacheAddress{uid: patch.UID, key: key}
 		if _, ok := seen[address]; ok {
 			continue
@@ -345,12 +348,12 @@ func (m *Manager) flushDirtyEntries(ctx context.Context, startedAt time.Time, en
 		return FlushResult{Selected: len(entries)}, err
 	}
 
-	patches := make([]metadb.UserConversationActivePatch, 0, len(flushEntries))
+	patches := make([]metadb.ConversationActivePatch, 0, len(flushEntries))
 	for _, entry := range flushEntries {
 		patches = append(patches, activePatchMetaPatch(entry.patch))
 	}
 	if len(patches) > 0 {
-		if err := m.store.TouchUserConversationActiveAt(ctx, patches); err != nil {
+		if err := m.store.TouchConversationActiveAt(ctx, patches); err != nil {
 			m.observeFlush(FlushObservation{Result: "error", Selected: len(entries), Duration: positiveDuration(time.Since(startedAt))})
 			m.observeCache()
 			return FlushResult{Selected: len(entries)}, err
@@ -367,13 +370,14 @@ func (m *Manager) filterFlushEntries(ctx context.Context, entries []flushEntry) 
 	if m.activeCooldown <= 0 {
 		return entries, nil, nil
 	}
-	keys := make([]metadb.UserConversationKey, 0, len(entries))
+	keys := make([]metadb.ConversationStateKey, 0, len(entries))
 	for _, entry := range entries {
 		if entry.patch.ReadSeq > 0 {
 			continue
 		}
-		keys = append(keys, metadb.UserConversationKey{
+		keys = append(keys, metadb.ConversationStateKey{
 			UID:         entry.patch.UID,
+			Kind:        entry.patch.Kind,
 			ChannelID:   entry.patch.ChannelID,
 			ChannelType: int64(entry.patch.ChannelType),
 		})
@@ -381,7 +385,7 @@ func (m *Manager) filterFlushEntries(ctx context.Context, entries []flushEntry) 
 	if len(keys) == 0 {
 		return entries, nil, nil
 	}
-	states, err := m.store.GetUserConversationStates(ctx, keys)
+	states, err := m.store.GetConversationStates(ctx, keys)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -396,8 +400,9 @@ func (m *Manager) filterFlushEntries(ctx context.Context, entries []flushEntry) 
 			flushEntries = append(flushEntries, entry)
 			continue
 		}
-		key := metadb.UserConversationKey{
+		key := metadb.ConversationStateKey{
 			UID:         entry.patch.UID,
+			Kind:        entry.patch.Kind,
 			ChannelID:   entry.patch.ChannelID,
 			ChannelType: int64(entry.patch.ChannelType),
 		}
@@ -622,9 +627,10 @@ func (m *Manager) oldestDirtyAtLocked() int64 {
 	return 0
 }
 
-func activePatchMetaPatch(patch ActivePatch) metadb.UserConversationActivePatch {
-	return metadb.UserConversationActivePatch{
+func activePatchMetaPatch(patch ActivePatch) metadb.ConversationActivePatch {
+	return metadb.ConversationActivePatch{
 		UID:         patch.UID,
+		Kind:        patch.Kind,
 		ChannelID:   patch.ChannelID,
 		ChannelType: int64(patch.ChannelType),
 		ReadSeq:     patch.ReadSeq,
@@ -642,7 +648,7 @@ func (m *Manager) DirtyCountForTest() int {
 }
 
 // EntryForTest returns a cached active row for tests.
-func (m *Manager) EntryForTest(uid, channelID string, channelType uint8) (ActivePatch, bool) {
+func (m *Manager) EntryForTest(kind metadb.ConversationKind, uid, channelID string, channelType uint8) (ActivePatch, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -650,7 +656,7 @@ func (m *Manager) EntryForTest(uid, channelID string, channelType uint8) (Active
 	if byChannel == nil {
 		return ActivePatch{}, false
 	}
-	entry, ok := byChannel[conversationKey{channelID: channelID, channelType: channelType}]
+	entry, ok := byChannel[conversationKey{kind: kind, channelID: channelID, channelType: channelType}]
 	return entry.patch, ok
 }
 

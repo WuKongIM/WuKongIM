@@ -13,7 +13,7 @@ type activeViewKey struct {
 }
 
 // ListActiveView returns active conversations from cache and durable store.
-func (m *Manager) ListActiveView(ctx context.Context, uid string, after metadb.UserConversationActiveCursor, limit int) (ActiveViewPage, error) {
+func (m *Manager) ListActiveView(ctx context.Context, kind metadb.ConversationKind, uid string, after metadb.ConversationActiveCursor, limit int) (ActiveViewPage, error) {
 	if m.store == nil {
 		return ActiveViewPage{}, ErrStoreRequired
 	}
@@ -21,15 +21,15 @@ func (m *Manager) ListActiveView(ctx context.Context, uid string, after metadb.U
 		return ActiveViewPage{Cursor: after, Done: true}, nil
 	}
 
-	cacheRows, cacheAfter, cacheAll := m.cacheRowsForActiveView(uid, after)
+	cacheRows, cacheAfter, cacheAll := m.cacheRowsForActiveView(kind, uid, after)
 
 	dbLimit := limit + len(cacheAll)
-	dbRows, _, dbDone, err := m.store.ListUserConversationActivePage(ctx, uid, after, dbLimit)
+	dbRows, _, dbDone, err := m.store.ListConversationActivePage(ctx, kind, uid, after, dbLimit)
 	if err != nil {
 		return ActiveViewPage{}, err
 	}
 
-	merged, err := m.mergeActiveViewRows(ctx, uid, dbRows, cacheRows, cacheAfter, cacheAll)
+	merged, err := m.mergeActiveViewRows(ctx, kind, uid, dbRows, cacheRows, cacheAfter, cacheAll)
 	if err != nil {
 		return ActiveViewPage{}, err
 	}
@@ -48,7 +48,7 @@ func (m *Manager) ListActiveView(ctx context.Context, uid string, after metadb.U
 	}, nil
 }
 
-func (m *Manager) cacheRowsForActiveView(uid string, after metadb.UserConversationActiveCursor) ([]metadb.UserConversationState, map[activeViewKey]metadb.UserConversationState, map[activeViewKey]metadb.UserConversationState) {
+func (m *Manager) cacheRowsForActiveView(kind metadb.ConversationKind, uid string, after metadb.ConversationActiveCursor) ([]metadb.ConversationState, map[activeViewKey]metadb.ConversationState, map[activeViewKey]metadb.ConversationState) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -57,10 +57,13 @@ func (m *Manager) cacheRowsForActiveView(uid string, after metadb.UserConversati
 		return nil, nil, nil
 	}
 
-	rows := make([]metadb.UserConversationState, 0, len(byChannel))
-	afterRows := make(map[activeViewKey]metadb.UserConversationState, len(byChannel))
-	allRows := make(map[activeViewKey]metadb.UserConversationState, len(byChannel))
+	rows := make([]metadb.ConversationState, 0, len(byChannel))
+	afterRows := make(map[activeViewKey]metadb.ConversationState, len(byChannel))
+	allRows := make(map[activeViewKey]metadb.ConversationState, len(byChannel))
 	for key, entry := range byChannel {
+		if key.kind != kind {
+			continue
+		}
 		row := activePatchState(entry.patch)
 		if row.ActiveAt <= 0 {
 			continue
@@ -77,8 +80,8 @@ func (m *Manager) cacheRowsForActiveView(uid string, after metadb.UserConversati
 	return rows, afterRows, allRows
 }
 
-func (m *Manager) mergeActiveViewRows(ctx context.Context, uid string, dbRows []metadb.UserConversationState, cacheRows []metadb.UserConversationState, cacheAfter map[activeViewKey]metadb.UserConversationState, cacheAll map[activeViewKey]metadb.UserConversationState) ([]metadb.UserConversationState, error) {
-	merged := make([]metadb.UserConversationState, 0, len(dbRows)+len(cacheRows))
+func (m *Manager) mergeActiveViewRows(ctx context.Context, kind metadb.ConversationKind, uid string, dbRows []metadb.ConversationState, cacheRows []metadb.ConversationState, cacheAfter map[activeViewKey]metadb.ConversationState, cacheAll map[activeViewKey]metadb.ConversationState) ([]metadb.ConversationState, error) {
+	merged := make([]metadb.ConversationState, 0, len(dbRows)+len(cacheRows))
 	mergedKeys := make(map[activeViewKey]struct{}, len(dbRows)+len(cacheRows))
 	for _, dbRow := range dbRows {
 		key := activeViewKey{channelID: dbRow.ChannelID, channelType: dbRow.ChannelType}
@@ -98,7 +101,7 @@ func (m *Manager) mergeActiveViewRows(ctx context.Context, uid string, dbRows []
 		if _, ok := mergedKeys[key]; ok {
 			continue
 		}
-		durable, ok, err := m.store.GetUserConversationState(ctx, uid, cacheRow.ChannelID, cacheRow.ChannelType)
+		durable, ok, err := m.store.GetConversationState(ctx, kind, uid, cacheRow.ChannelID, cacheRow.ChannelType)
 		if err != nil {
 			return nil, err
 		}
@@ -111,9 +114,10 @@ func (m *Manager) mergeActiveViewRows(ctx context.Context, uid string, dbRows []
 	return merged, nil
 }
 
-func activePatchState(patch ActivePatch) metadb.UserConversationState {
-	return metadb.UserConversationState{
+func activePatchState(patch ActivePatch) metadb.ConversationState {
+	return metadb.ConversationState{
 		UID:         patch.UID,
+		Kind:        patch.Kind,
 		ChannelID:   patch.ChannelID,
 		ChannelType: int64(patch.ChannelType),
 		ReadSeq:     patch.ReadSeq,
@@ -121,7 +125,7 @@ func activePatchState(patch ActivePatch) metadb.UserConversationState {
 	}
 }
 
-func mergeActiveViewState(dbRow metadb.UserConversationState, cacheRow metadb.UserConversationState) metadb.UserConversationState {
+func mergeActiveViewState(dbRow metadb.ConversationState, cacheRow metadb.ConversationState) metadb.ConversationState {
 	merged := dbRow
 	if cacheRow.ActiveAt > merged.ActiveAt {
 		merged.ActiveAt = cacheRow.ActiveAt
@@ -135,8 +139,8 @@ func mergeActiveViewState(dbRow metadb.UserConversationState, cacheRow metadb.Us
 	return merged
 }
 
-func activeRowAfter(row metadb.UserConversationState, after metadb.UserConversationActiveCursor) bool {
-	if after == (metadb.UserConversationActiveCursor{}) {
+func activeRowAfter(row metadb.ConversationState, after metadb.ConversationActiveCursor) bool {
+	if after == (metadb.ConversationActiveCursor{}) {
 		return true
 	}
 	if row.ActiveAt != after.ActiveAt {
@@ -148,15 +152,15 @@ func activeRowAfter(row metadb.UserConversationState, after metadb.UserConversat
 	return row.ChannelType > after.ChannelType
 }
 
-func activeViewCursor(rows []metadb.UserConversationState, fallback metadb.UserConversationActiveCursor) metadb.UserConversationActiveCursor {
+func activeViewCursor(rows []metadb.ConversationState, fallback metadb.ConversationActiveCursor) metadb.ConversationActiveCursor {
 	if len(rows) == 0 {
 		return fallback
 	}
 	last := rows[len(rows)-1]
-	return metadb.UserConversationActiveCursor{ActiveAt: last.ActiveAt, ChannelID: last.ChannelID, ChannelType: last.ChannelType}
+	return metadb.ConversationActiveCursor{ActiveAt: last.ActiveAt, ChannelID: last.ChannelID, ChannelType: last.ChannelType}
 }
 
-func sortActiveViewRows(rows []metadb.UserConversationState) {
+func sortActiveViewRows(rows []metadb.ConversationState) {
 	sort.Slice(rows, func(i, j int) bool {
 		if rows[i].ActiveAt != rows[j].ActiveAt {
 			return rows[i].ActiveAt > rows[j].ActiveAt

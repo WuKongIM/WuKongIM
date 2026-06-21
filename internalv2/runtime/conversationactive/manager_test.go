@@ -16,6 +16,7 @@ func TestAdmitActiveBatchUpdatesCacheAndSenderReadSeq(t *testing.T) {
 	m := NewManager(Options{})
 
 	err := m.AdmitActiveBatch(context.Background(), ActiveBatch{
+		Kind:        metadb.ConversationKindNormal,
 		SenderUID:   "alice",
 		ChannelID:   "room-1",
 		ChannelType: 2,
@@ -30,7 +31,7 @@ func TestAdmitActiveBatchUpdatesCacheAndSenderReadSeq(t *testing.T) {
 		t.Fatalf("AdmitActiveBatch() error = %v", err)
 	}
 
-	sender, ok := m.EntryForTest("alice", "room-1", 2)
+	sender, ok := m.EntryForTest(metadb.ConversationKindNormal, "alice", "room-1", 2)
 	if !ok {
 		t.Fatalf("sender conversation was not cached")
 	}
@@ -41,7 +42,7 @@ func TestAdmitActiveBatchUpdatesCacheAndSenderReadSeq(t *testing.T) {
 		t.Fatalf("sender ReadSeq = %d, want 42", sender.ReadSeq)
 	}
 
-	receiver, ok := m.EntryForTest("bob", "room-1", 2)
+	receiver, ok := m.EntryForTest(metadb.ConversationKindNormal, "bob", "room-1", 2)
 	if !ok {
 		t.Fatalf("receiver conversation was not cached")
 	}
@@ -58,6 +59,7 @@ func TestAdmitActiveBatchCachesSenderWhenNotRecipient(t *testing.T) {
 	m := NewManager(Options{})
 
 	err := m.AdmitActiveBatch(context.Background(), ActiveBatch{
+		Kind:        metadb.ConversationKindNormal,
 		SenderUID:   "alice",
 		ChannelID:   "room-1",
 		ChannelType: 2,
@@ -71,7 +73,7 @@ func TestAdmitActiveBatchCachesSenderWhenNotRecipient(t *testing.T) {
 		t.Fatalf("AdmitActiveBatch() error = %v", err)
 	}
 
-	sender, ok := m.EntryForTest("alice", "room-1", 2)
+	sender, ok := m.EntryForTest(metadb.ConversationKindNormal, "alice", "room-1", 2)
 	if !ok {
 		t.Fatalf("sender conversation was not cached")
 	}
@@ -82,7 +84,7 @@ func TestAdmitActiveBatchCachesSenderWhenNotRecipient(t *testing.T) {
 		t.Fatalf("sender ReadSeq = %d, want 42", sender.ReadSeq)
 	}
 
-	receiver, ok := m.EntryForTest("bob", "room-1", 2)
+	receiver, ok := m.EntryForTest(metadb.ConversationKindNormal, "bob", "room-1", 2)
 	if !ok {
 		t.Fatalf("receiver conversation was not cached")
 	}
@@ -99,6 +101,7 @@ func TestAdmitActiveBatchPreservesReceiverReadSeq(t *testing.T) {
 
 	for _, batch := range []ActiveBatch{
 		{
+			Kind:        metadb.ConversationKindNormal,
 			SenderUID:   "alice",
 			ChannelID:   "room-1",
 			ChannelType: 2,
@@ -110,6 +113,7 @@ func TestAdmitActiveBatchPreservesReceiverReadSeq(t *testing.T) {
 			},
 		},
 		{
+			Kind:        metadb.ConversationKindNormal,
 			SenderUID:   "alice",
 			ChannelID:   "room-1",
 			ChannelType: 2,
@@ -121,6 +125,7 @@ func TestAdmitActiveBatchPreservesReceiverReadSeq(t *testing.T) {
 			},
 		},
 		{
+			Kind:        metadb.ConversationKindNormal,
 			SenderUID:   "alice",
 			ChannelID:   "room-1",
 			ChannelType: 2,
@@ -137,7 +142,7 @@ func TestAdmitActiveBatchPreservesReceiverReadSeq(t *testing.T) {
 		}
 	}
 
-	sender, ok := m.EntryForTest("alice", "room-1", 2)
+	sender, ok := m.EntryForTest(metadb.ConversationKindNormal, "alice", "room-1", 2)
 	if !ok {
 		t.Fatalf("sender conversation was not cached")
 	}
@@ -148,7 +153,7 @@ func TestAdmitActiveBatchPreservesReceiverReadSeq(t *testing.T) {
 		t.Fatalf("sender ReadSeq = %d, want 11", sender.ReadSeq)
 	}
 
-	receiver, ok := m.EntryForTest("bob", "room-1", 2)
+	receiver, ok := m.EntryForTest(metadb.ConversationKindNormal, "bob", "room-1", 2)
 	if !ok {
 		t.Fatalf("receiver conversation was not cached")
 	}
@@ -169,6 +174,7 @@ func TestAdmitActiveBatchUsesNowMSWhenActiveAtMissing(t *testing.T) {
 	})
 
 	err := m.AdmitActiveBatch(context.Background(), ActiveBatch{
+		Kind:        metadb.ConversationKindNormal,
 		SenderUID:   "alice",
 		ChannelID:   "room-1",
 		ChannelType: 2,
@@ -181,7 +187,7 @@ func TestAdmitActiveBatchUsesNowMSWhenActiveAtMissing(t *testing.T) {
 		t.Fatalf("AdmitActiveBatch() error = %v", err)
 	}
 
-	sender, ok := m.EntryForTest("alice", "room-1", 2)
+	sender, ok := m.EntryForTest(metadb.ConversationKindNormal, "alice", "room-1", 2)
 	if !ok {
 		t.Fatalf("sender conversation was not cached")
 	}
@@ -189,7 +195,7 @@ func TestAdmitActiveBatchUsesNowMSWhenActiveAtMissing(t *testing.T) {
 		t.Fatalf("sender ActiveAtMS = %d, want %d", sender.ActiveAtMS, nowMS)
 	}
 
-	receiver, ok := m.EntryForTest("bob", "room-1", 2)
+	receiver, ok := m.EntryForTest(metadb.ConversationKindNormal, "bob", "room-1", 2)
 	if !ok {
 		t.Fatalf("receiver conversation was not cached")
 	}
@@ -204,6 +210,7 @@ func TestListActiveViewReadsCacheBeforeFlush(t *testing.T) {
 	m := NewManager(Options{Store: store})
 
 	err := m.AdmitActiveBatch(ctx, ActiveBatch{
+		Kind:        metadb.ConversationKindNormal,
 		SenderUID:   "alice",
 		ChannelID:   "room-1",
 		ChannelType: 2,
@@ -214,19 +221,20 @@ func TestListActiveViewReadsCacheBeforeFlush(t *testing.T) {
 		t.Fatalf("AdmitActiveBatch() error = %v", err)
 	}
 
-	page, err := m.ListActiveView(ctx, "alice", metadb.UserConversationActiveCursor{}, 10)
+	page, err := m.ListActiveView(ctx, metadb.ConversationKindNormal, "alice", metadb.ConversationActiveCursor{}, 10)
 	if err != nil {
 		t.Fatalf("ListActiveView() error = %v", err)
 	}
 
-	wantRows := []metadb.UserConversationState{{
+	wantRows := []metadb.ConversationState{{
 		UID:         "alice",
+		Kind:        metadb.ConversationKindNormal,
 		ChannelID:   "room-1",
 		ChannelType: 2,
 		ReadSeq:     42,
 		ActiveAt:    1781094600000,
 	}}
-	wantCursor := metadb.UserConversationActiveCursor{ActiveAt: 1781094600000, ChannelID: "room-1", ChannelType: 2}
+	wantCursor := metadb.ConversationActiveCursor{ActiveAt: 1781094600000, ChannelID: "room-1", ChannelType: 2}
 	if !reflect.DeepEqual(page.Rows, wantRows) || page.Cursor != wantCursor || !page.Done {
 		t.Fatalf("page = %+v, want rows=%+v cursor=%+v done=true", page, wantRows, wantCursor)
 	}
@@ -235,41 +243,69 @@ func TestListActiveViewReadsCacheBeforeFlush(t *testing.T) {
 	}
 }
 
+func TestManagerKeepsKindsIsolatedForSameChannel(t *testing.T) {
+	ctx := context.Background()
+	store := &recordingActiveStore{}
+	m := NewManager(Options{Store: store})
+
+	if err := m.MarkActive(ctx, []ActivePatch{
+		{Kind: metadb.ConversationKindNormal, UID: "u1", ChannelID: "g1", ChannelType: 2, ActiveAtMS: 100, ReadSeq: 1},
+		{Kind: metadb.ConversationKindCMD, UID: "u1", ChannelID: "g1", ChannelType: 2, ActiveAtMS: 200, ReadSeq: 9},
+	}); err != nil {
+		t.Fatalf("MarkActive(): %v", err)
+	}
+
+	normal, err := m.ListActiveView(ctx, metadb.ConversationKindNormal, "u1", metadb.ConversationActiveCursor{}, 10)
+	if err != nil {
+		t.Fatalf("ListActiveView(normal): %v", err)
+	}
+	cmd, err := m.ListActiveView(ctx, metadb.ConversationKindCMD, "u1", metadb.ConversationActiveCursor{}, 10)
+	if err != nil {
+		t.Fatalf("ListActiveView(cmd): %v", err)
+	}
+	if len(normal.Rows) != 1 || normal.Rows[0].Kind != metadb.ConversationKindNormal || normal.Rows[0].ReadSeq != 1 {
+		t.Fatalf("normal page = %+v", normal.Rows)
+	}
+	if len(cmd.Rows) != 1 || cmd.Rows[0].Kind != metadb.ConversationKindCMD || cmd.Rows[0].ReadSeq != 9 {
+		t.Fatalf("cmd page = %+v", cmd.Rows)
+	}
+}
+
 func TestListActiveViewMergesCacheOverDB(t *testing.T) {
 	ctx := context.Background()
 	store := &recordingActiveStore{
-		rows: []metadb.UserConversationState{
-			{UID: "u1", ChannelID: "shared", ChannelType: 2, ReadSeq: 3, DeletedToSeq: 7, ActiveAt: 100, UpdatedAt: 101},
-			{UID: "u1", ChannelID: "db-only", ChannelType: 2, ReadSeq: 1, ActiveAt: 900},
-			{UID: "u1", ChannelID: "a-db-tie", ChannelType: 2, ActiveAt: 800},
-			{UID: "u2", ChannelID: "other-user", ChannelType: 2, ActiveAt: 2000},
+		rows: []metadb.ConversationState{
+			{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "shared", ChannelType: 2, ReadSeq: 3, DeletedToSeq: 7, ActiveAt: 100, UpdatedAt: 101},
+			{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "db-only", ChannelType: 2, ReadSeq: 1, ActiveAt: 900},
+			{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "a-db-tie", ChannelType: 2, ActiveAt: 800},
+			{UID: "u2", Kind: metadb.ConversationKindNormal, ChannelID: "other-user", ChannelType: 2, ActiveAt: 2000},
 		},
 	}
 	m := NewManager(Options{Store: store})
 
 	err := m.MarkActive(ctx, []ActivePatch{
-		{UID: "u1", ChannelID: "shared", ChannelType: 2, ActiveAtMS: 1000, ReadSeq: 10},
-		{UID: "u1", ChannelID: "b-cache-tie", ChannelType: 2, ActiveAtMS: 800},
+		{Kind: metadb.ConversationKindNormal, UID: "u1", ChannelID: "shared", ChannelType: 2, ActiveAtMS: 1000, ReadSeq: 10},
+		{Kind: metadb.ConversationKindNormal, UID: "u1", ChannelID: "b-cache-tie", ChannelType: 2, ActiveAtMS: 800},
 	})
 	if err != nil {
 		t.Fatalf("MarkActive() error = %v", err)
 	}
 
-	page, err := m.ListActiveView(ctx, "u1", metadb.UserConversationActiveCursor{}, 10)
+	page, err := m.ListActiveView(ctx, metadb.ConversationKindNormal, "u1", metadb.ConversationActiveCursor{}, 10)
 	if err != nil {
 		t.Fatalf("ListActiveView() error = %v", err)
 	}
 
-	wantRows := []metadb.UserConversationState{
-		{UID: "u1", ChannelID: "shared", ChannelType: 2, ReadSeq: 10, DeletedToSeq: 7, ActiveAt: 1000, UpdatedAt: 101},
-		{UID: "u1", ChannelID: "db-only", ChannelType: 2, ReadSeq: 1, ActiveAt: 900},
-		{UID: "u1", ChannelID: "a-db-tie", ChannelType: 2, ActiveAt: 800},
-		{UID: "u1", ChannelID: "b-cache-tie", ChannelType: 2, ActiveAt: 800},
+	wantRows := []metadb.ConversationState{
+		{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "shared", ChannelType: 2, ReadSeq: 10, DeletedToSeq: 7, ActiveAt: 1000, UpdatedAt: 101},
+		{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "db-only", ChannelType: 2, ReadSeq: 1, ActiveAt: 900},
+		{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "a-db-tie", ChannelType: 2, ActiveAt: 800},
+		{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "b-cache-tie", ChannelType: 2, ActiveAt: 800},
 	}
 	if !reflect.DeepEqual(page.Rows, wantRows) {
 		t.Fatalf("rows = %+v, want merged rows %+v", page.Rows, wantRows)
 	}
-	if page.Cursor != (metadb.UserConversationActiveCursor{ActiveAt: 800, ChannelID: "b-cache-tie", ChannelType: 2}) || !page.Done {
+	if page.Cursor != (metadb.ConversationActiveCursor{ActiveAt: 800, ChannelID: "b-cache-tie", ChannelType: 2}) || !page.Done {
 		t.Fatalf("cursor=%+v done=%v, want final cursor and done=true", page.Cursor, page.Done)
 	}
 }
@@ -277,12 +313,13 @@ func TestListActiveViewMergesCacheOverDB(t *testing.T) {
 func TestListActiveViewHydratesCacheOnlyDurableRow(t *testing.T) {
 	ctx := context.Background()
 	store := &recordingActiveStore{
-		rows: []metadb.UserConversationState{
-			{UID: "u1", ChannelID: "db-only", ChannelType: 2, ActiveAt: 900},
+		rows: []metadb.ConversationState{
+			{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "db-only", ChannelType: 2, ActiveAt: 900},
 		},
-		primary: map[metadb.ConversationKey]metadb.UserConversationState{
-			{ChannelID: "shared", ChannelType: 2}: {
+		primary: map[metadb.ConversationStateKey]metadb.ConversationState{
+			{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "shared", ChannelType: 2}: {
 				UID:          "u1",
+				Kind:         metadb.ConversationKindNormal,
 				ChannelID:    "shared",
 				ChannelType:  2,
 				ReadSeq:      50,
@@ -295,25 +332,25 @@ func TestListActiveViewHydratesCacheOnlyDurableRow(t *testing.T) {
 	}
 	m := NewManager(Options{Store: store})
 	err := m.MarkActive(ctx, []ActivePatch{
-		{UID: "u1", ChannelID: "shared", ChannelType: 2, ActiveAtMS: 1000, ReadSeq: 10},
+		{Kind: metadb.ConversationKindNormal, UID: "u1", ChannelID: "shared", ChannelType: 2, ActiveAtMS: 1000, ReadSeq: 10},
 	})
 	if err != nil {
 		t.Fatalf("MarkActive() error = %v", err)
 	}
 
-	page, err := m.ListActiveView(ctx, "u1", metadb.UserConversationActiveCursor{}, 10)
+	page, err := m.ListActiveView(ctx, metadb.ConversationKindNormal, "u1", metadb.ConversationActiveCursor{}, 10)
 	if err != nil {
 		t.Fatalf("ListActiveView() error = %v", err)
 	}
 
-	wantRows := []metadb.UserConversationState{
-		{UID: "u1", ChannelID: "shared", ChannelType: 2, ReadSeq: 50, DeletedToSeq: 7, ActiveAt: 1000, UpdatedAt: 111, SparseActive: true},
-		{UID: "u1", ChannelID: "db-only", ChannelType: 2, ActiveAt: 900},
+	wantRows := []metadb.ConversationState{
+		{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "shared", ChannelType: 2, ReadSeq: 50, DeletedToSeq: 7, ActiveAt: 1000, UpdatedAt: 111, SparseActive: true},
+		{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "db-only", ChannelType: 2, ActiveAt: 900},
 	}
 	if !reflect.DeepEqual(page.Rows, wantRows) {
 		t.Fatalf("rows = %+v, want hydrated rows %+v", page.Rows, wantRows)
 	}
-	if len(store.lookups) != 1 || store.lookups[0] != (metadb.ConversationKey{ChannelID: "shared", ChannelType: 2}) {
+	if len(store.lookups) != 1 || store.lookups[0] != (metadb.ConversationStateKey{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "shared", ChannelType: 2}) {
 		t.Fatalf("lookups = %+v, want shared primary lookup", store.lookups)
 	}
 }
@@ -323,12 +360,12 @@ func TestListActiveViewPropagatesCacheOnlyHydrationError(t *testing.T) {
 	lookupErr := errors.New("primary lookup failed")
 	store := &recordingActiveStore{lookupErr: lookupErr}
 	m := NewManager(Options{Store: store})
-	err := m.MarkActive(ctx, []ActivePatch{{UID: "u1", ChannelID: "cache-only", ChannelType: 2, ActiveAtMS: 1000}})
+	err := m.MarkActive(ctx, []ActivePatch{{Kind: metadb.ConversationKindNormal, UID: "u1", ChannelID: "cache-only", ChannelType: 2, ActiveAtMS: 1000}})
 	if err != nil {
 		t.Fatalf("MarkActive() error = %v", err)
 	}
 
-	_, err = m.ListActiveView(ctx, "u1", metadb.UserConversationActiveCursor{}, 10)
+	_, err = m.ListActiveView(ctx, metadb.ConversationKindNormal, "u1", metadb.ConversationActiveCursor{}, 10)
 	if !errors.Is(err, lookupErr) {
 		t.Fatalf("ListActiveView() error = %v, want %v", err, lookupErr)
 	}
@@ -336,11 +373,11 @@ func TestListActiveViewPropagatesCacheOnlyHydrationError(t *testing.T) {
 
 func TestListActiveViewRequiresStore(t *testing.T) {
 	m := NewManager(Options{})
-	if err := m.MarkActive(context.Background(), []ActivePatch{{UID: "u1", ChannelID: "cache-only", ChannelType: 2, ActiveAtMS: 1000}}); err != nil {
+	if err := m.MarkActive(context.Background(), []ActivePatch{{Kind: metadb.ConversationKindNormal, UID: "u1", ChannelID: "cache-only", ChannelType: 2, ActiveAtMS: 1000}}); err != nil {
 		t.Fatalf("MarkActive() error = %v", err)
 	}
 
-	page, err := m.ListActiveView(context.Background(), "u1", metadb.UserConversationActiveCursor{}, 10)
+	page, err := m.ListActiveView(context.Background(), metadb.ConversationKindNormal, "u1", metadb.ConversationActiveCursor{}, 10)
 	if !errors.Is(err, ErrStoreRequired) {
 		t.Fatalf("ListActiveView() error = %v, want %v", err, ErrStoreRequired)
 	}
@@ -353,41 +390,41 @@ func TestListActiveViewPaginatesCacheRowsWithCursorAndLimit(t *testing.T) {
 	ctx := context.Background()
 	m := NewManager(Options{Store: &recordingActiveStore{}})
 	err := m.MarkActive(ctx, []ActivePatch{
-		{UID: "u1", ChannelID: "a", ChannelType: 2, ActiveAtMS: 300},
-		{UID: "u1", ChannelID: "b", ChannelType: 1, ActiveAtMS: 200},
-		{UID: "u1", ChannelID: "b", ChannelType: 2, ActiveAtMS: 200},
-		{UID: "u1", ChannelID: "c", ChannelType: 2, ActiveAtMS: 100},
+		{Kind: metadb.ConversationKindNormal, UID: "u1", ChannelID: "a", ChannelType: 2, ActiveAtMS: 300},
+		{Kind: metadb.ConversationKindNormal, UID: "u1", ChannelID: "b", ChannelType: 1, ActiveAtMS: 200},
+		{Kind: metadb.ConversationKindNormal, UID: "u1", ChannelID: "b", ChannelType: 2, ActiveAtMS: 200},
+		{Kind: metadb.ConversationKindNormal, UID: "u1", ChannelID: "c", ChannelType: 2, ActiveAtMS: 100},
 	})
 	if err != nil {
 		t.Fatalf("MarkActive() error = %v", err)
 	}
 
-	first, err := m.ListActiveView(ctx, "u1", metadb.UserConversationActiveCursor{}, 2)
+	first, err := m.ListActiveView(ctx, metadb.ConversationKindNormal, "u1", metadb.ConversationActiveCursor{}, 2)
 	if err != nil {
 		t.Fatalf("ListActiveView(first) error = %v", err)
 	}
-	if activeChannelIDs(first.Rows) != "a,b" || first.Cursor != (metadb.UserConversationActiveCursor{ActiveAt: 200, ChannelID: "b", ChannelType: 1}) || first.Done {
+	if activeChannelIDs(first.Rows) != "a,b" || first.Cursor != (metadb.ConversationActiveCursor{ActiveAt: 200, ChannelID: "b", ChannelType: 1}) || first.Done {
 		t.Fatalf("first page=%+v, want first two cache rows with done=false", first)
 	}
 
-	second, err := m.ListActiveView(ctx, "u1", first.Cursor, 10)
+	second, err := m.ListActiveView(ctx, metadb.ConversationKindNormal, "u1", first.Cursor, 10)
 	if err != nil {
 		t.Fatalf("ListActiveView(second) error = %v", err)
 	}
-	if activeChannelIDs(second.Rows) != "b,c" || second.Cursor != (metadb.UserConversationActiveCursor{ActiveAt: 100, ChannelID: "c", ChannelType: 2}) || !second.Done {
+	if activeChannelIDs(second.Rows) != "b,c" || second.Cursor != (metadb.ConversationActiveCursor{ActiveAt: 100, ChannelID: "c", ChannelType: 2}) || !second.Done {
 		t.Fatalf("second page=%+v, want remaining cache rows with done=true", second)
 	}
 }
 
 func TestListActiveViewNonPositiveLimitReturnsEmptyDonePage(t *testing.T) {
-	store := &recordingActiveStore{rows: []metadb.UserConversationState{{UID: "u1", ChannelID: "db", ChannelType: 2, ActiveAt: 100}}}
+	store := &recordingActiveStore{rows: []metadb.ConversationState{{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "db", ChannelType: 2, ActiveAt: 100}}}
 	m := NewManager(Options{Store: store})
-	if err := m.MarkActive(context.Background(), []ActivePatch{{UID: "u1", ChannelID: "cache", ChannelType: 2, ActiveAtMS: 200}}); err != nil {
+	if err := m.MarkActive(context.Background(), []ActivePatch{{Kind: metadb.ConversationKindNormal, UID: "u1", ChannelID: "cache", ChannelType: 2, ActiveAtMS: 200}}); err != nil {
 		t.Fatalf("MarkActive() error = %v", err)
 	}
-	after := metadb.UserConversationActiveCursor{ActiveAt: 300, ChannelID: "before", ChannelType: 2}
+	after := metadb.ConversationActiveCursor{ActiveAt: 300, ChannelID: "before", ChannelType: 2}
 
-	page, err := m.ListActiveView(context.Background(), "u1", after, 0)
+	page, err := m.ListActiveView(context.Background(), metadb.ConversationKindNormal, "u1", after, 0)
 	if err != nil {
 		t.Fatalf("ListActiveView() error = %v", err)
 	}
@@ -403,7 +440,7 @@ func TestFlushDirtyPersistsActiveRowsAndClearsDirty(t *testing.T) {
 	ctx := context.Background()
 	store := &recordingActiveStore{}
 	m := NewManager(Options{Store: store})
-	if err := m.MarkActive(ctx, []ActivePatch{{UID: "u1", ChannelID: "room-1", ChannelType: 2, ActiveAtMS: 1000, ReadSeq: 7}}); err != nil {
+	if err := m.MarkActive(ctx, []ActivePatch{{Kind: metadb.ConversationKindNormal, UID: "u1", ChannelID: "room-1", ChannelType: 2, ActiveAtMS: 1000, ReadSeq: 7}}); err != nil {
 		t.Fatalf("MarkActive() error = %v", err)
 	}
 	if got := m.DirtyCountForTest(); got != 1 {
@@ -421,8 +458,9 @@ func TestFlushDirtyPersistsActiveRowsAndClearsDirty(t *testing.T) {
 		t.Fatalf("DirtyCountForTest() = %d, want 0", got)
 	}
 
-	want := metadb.UserConversationActivePatch{
+	want := metadb.ConversationActivePatch{
 		UID:         "u1",
+		Kind:        metadb.ConversationKindNormal,
 		ChannelID:   "room-1",
 		ChannelType: 2,
 		ReadSeq:     7,
@@ -440,14 +478,33 @@ func TestFlushDirtyPersistsActiveRowsAndClearsDirty(t *testing.T) {
 	}
 }
 
+func TestFlushPersistsKindAwarePatches(t *testing.T) {
+	ctx := context.Background()
+	store := &recordingActiveStore{}
+	m := NewManager(Options{Store: store})
+	if err := m.MarkActive(ctx, []ActivePatch{{Kind: metadb.ConversationKindCMD, UID: "u1", ChannelID: "g1____cmd", ChannelType: 2, ActiveAtMS: 1000, ReadSeq: 7}}); err != nil {
+		t.Fatalf("MarkActive(): %v", err)
+	}
+	if _, err := m.Flush(ctx, 10); err != nil {
+		t.Fatalf("Flush(): %v", err)
+	}
+	if len(store.touches) != 1 || len(store.touches[0]) != 1 {
+		t.Fatalf("touches = %+v", store.touches)
+	}
+	if got := store.touches[0][0]; got.Kind != metadb.ConversationKindCMD || got.ChannelID != "g1____cmd" || got.ReadSeq != 7 {
+		t.Fatalf("touch patch = %+v", got)
+	}
+}
+
 func TestFlushSkipsReceiverActiveWithinCooldown(t *testing.T) {
 	ctx := context.Background()
 	const previousActiveAt int64 = 1000
 	const nextActiveAt int64 = previousActiveAt + int64(time.Hour/time.Millisecond)
 	store := &recordingActiveStore{
-		primary: map[metadb.ConversationKey]metadb.UserConversationState{
-			{ChannelID: "room-1", ChannelType: 2}: {
+		primary: map[metadb.ConversationStateKey]metadb.ConversationState{
+			{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "room-1", ChannelType: 2}: {
 				UID:         "u1",
+				Kind:        metadb.ConversationKindNormal,
 				ChannelID:   "room-1",
 				ChannelType: 2,
 				ActiveAt:    previousActiveAt,
@@ -455,7 +512,7 @@ func TestFlushSkipsReceiverActiveWithinCooldown(t *testing.T) {
 		},
 	}
 	m := NewManager(Options{Store: store, ActiveCooldown: 2 * time.Hour})
-	if err := m.MarkActive(ctx, []ActivePatch{{UID: "u1", ChannelID: "room-1", ChannelType: 2, ActiveAtMS: nextActiveAt}}); err != nil {
+	if err := m.MarkActive(ctx, []ActivePatch{{Kind: metadb.ConversationKindNormal, UID: "u1", ChannelID: "room-1", ChannelType: 2, ActiveAtMS: nextActiveAt}}); err != nil {
 		t.Fatalf("MarkActive() error = %v", err)
 	}
 
@@ -472,7 +529,7 @@ func TestFlushSkipsReceiverActiveWithinCooldown(t *testing.T) {
 	if got := m.DirtyCountForTest(); got != 0 {
 		t.Fatalf("DirtyCountForTest() = %d, want 0", got)
 	}
-	entry, ok := m.EntryForTest("u1", "room-1", 2)
+	entry, ok := m.EntryForTest(metadb.ConversationKindNormal, "u1", "room-1", 2)
 	if !ok {
 		t.Fatalf("expected cache entry to remain after filtered flush")
 	}
@@ -486,9 +543,10 @@ func TestFlushKeepsSenderActiveWithinCooldown(t *testing.T) {
 	const previousActiveAt int64 = 1000
 	const nextActiveAt int64 = previousActiveAt + int64(time.Hour/time.Millisecond)
 	store := &recordingActiveStore{
-		primary: map[metadb.ConversationKey]metadb.UserConversationState{
-			{ChannelID: "room-1", ChannelType: 2}: {
+		primary: map[metadb.ConversationStateKey]metadb.ConversationState{
+			{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "room-1", ChannelType: 2}: {
 				UID:         "u1",
+				Kind:        metadb.ConversationKindNormal,
 				ChannelID:   "room-1",
 				ChannelType: 2,
 				ActiveAt:    previousActiveAt,
@@ -497,7 +555,7 @@ func TestFlushKeepsSenderActiveWithinCooldown(t *testing.T) {
 		},
 	}
 	m := NewManager(Options{Store: store, ActiveCooldown: 2 * time.Hour})
-	if err := m.MarkActive(ctx, []ActivePatch{{UID: "u1", ChannelID: "room-1", ChannelType: 2, ActiveAtMS: nextActiveAt, ReadSeq: 9}}); err != nil {
+	if err := m.MarkActive(ctx, []ActivePatch{{Kind: metadb.ConversationKindNormal, UID: "u1", ChannelID: "room-1", ChannelType: 2, ActiveAtMS: nextActiveAt, ReadSeq: 9}}); err != nil {
 		t.Fatalf("MarkActive() error = %v", err)
 	}
 
@@ -508,8 +566,9 @@ func TestFlushKeepsSenderActiveWithinCooldown(t *testing.T) {
 	if result.Selected != 1 || result.Flushed != 1 {
 		t.Fatalf("Flush() result = %+v, want selected=1 flushed=1", result)
 	}
-	want := metadb.UserConversationActivePatch{
+	want := metadb.ConversationActivePatch{
 		UID:         "u1",
+		Kind:        metadb.ConversationKindNormal,
 		ChannelID:   "room-1",
 		ChannelType: 2,
 		ReadSeq:     9,
@@ -532,8 +591,8 @@ func TestManagerObservesCacheRowsAndDirtyLag(t *testing.T) {
 	})
 
 	if err := m.MarkActive(context.Background(), []ActivePatch{
-		{UID: "u1", ChannelID: "old", ChannelType: 2, ActiveAtMS: 1000},
-		{UID: "u1", ChannelID: "new", ChannelType: 2, ActiveAtMS: 2000},
+		{Kind: metadb.ConversationKindNormal, UID: "u1", ChannelID: "old", ChannelType: 2, ActiveAtMS: 1000},
+		{Kind: metadb.ConversationKindNormal, UID: "u1", ChannelID: "new", ChannelType: 2, ActiveAtMS: 2000},
 	}); err != nil {
 		t.Fatalf("MarkActive() error = %v", err)
 	}
@@ -552,8 +611,8 @@ func TestFlushZeroLimitFlushesAllDirtyRows(t *testing.T) {
 	store := &recordingActiveStore{}
 	m := NewManager(Options{Store: store})
 	if err := m.MarkActive(ctx, []ActivePatch{
-		{UID: "u1", ChannelID: "room-1", ChannelType: 2, ActiveAtMS: 1000},
-		{UID: "u2", ChannelID: "room-2", ChannelType: 1, ActiveAtMS: 2000, ReadSeq: 5},
+		{Kind: metadb.ConversationKindNormal, UID: "u1", ChannelID: "room-1", ChannelType: 2, ActiveAtMS: 1000},
+		{Kind: metadb.ConversationKindNormal, UID: "u2", ChannelID: "room-2", ChannelType: 1, ActiveAtMS: 2000, ReadSeq: 5},
 	}); err != nil {
 		t.Fatalf("MarkActive() error = %v", err)
 	}
@@ -581,12 +640,12 @@ func TestFlushHashSlotFlushesOnlyTargetDirtyRows(t *testing.T) {
 	store := &recordingActiveStore{}
 	m := NewManager(Options{Store: store})
 	if err := m.MarkActiveForHashSlot(ctx, 1, []ActivePatch{
-		{UID: "u-slot-1", ChannelID: "slot-1", ChannelType: 2, ActiveAtMS: 1000},
+		{Kind: metadb.ConversationKindNormal, UID: "u-slot-1", ChannelID: "slot-1", ChannelType: 2, ActiveAtMS: 1000},
 	}); err != nil {
 		t.Fatalf("MarkActiveForHashSlot(slot 1) error = %v", err)
 	}
 	if err := m.MarkActiveForHashSlot(ctx, 9, []ActivePatch{
-		{UID: "u-slot-9", ChannelID: "slot-9", ChannelType: 2, ActiveAtMS: 2000},
+		{Kind: metadb.ConversationKindNormal, UID: "u-slot-9", ChannelID: "slot-9", ChannelType: 2, ActiveAtMS: 2000},
 	}); err != nil {
 		t.Fatalf("MarkActiveForHashSlot(slot 9) error = %v", err)
 	}
@@ -626,12 +685,12 @@ func TestFlushHashSlotFailureDoesNotSelectOtherSlots(t *testing.T) {
 	store := &recordingActiveStore{touchErr: touchErr}
 	m := NewManager(Options{Store: store})
 	if err := m.MarkActiveForHashSlot(ctx, 1, []ActivePatch{
-		{UID: "u-slot-1", ChannelID: "slot-1", ChannelType: 2, ActiveAtMS: 1000},
+		{Kind: metadb.ConversationKindNormal, UID: "u-slot-1", ChannelID: "slot-1", ChannelType: 2, ActiveAtMS: 1000},
 	}); err != nil {
 		t.Fatalf("MarkActiveForHashSlot(slot 1) error = %v", err)
 	}
 	if err := m.MarkActiveForHashSlot(ctx, 9, []ActivePatch{
-		{UID: "u-slot-9", ChannelID: "slot-9", ChannelType: 2, ActiveAtMS: 2000},
+		{Kind: metadb.ConversationKindNormal, UID: "u-slot-9", ChannelID: "slot-9", ChannelType: 2, ActiveAtMS: 2000},
 	}); err != nil {
 		t.Fatalf("MarkActiveForHashSlot(slot 9) error = %v", err)
 	}
@@ -660,7 +719,7 @@ func TestManagerObservesFlushResults(t *testing.T) {
 		NowMS:    func() int64 { return 3000 },
 		Observer: observer,
 	})
-	if err := m.MarkActive(ctx, []ActivePatch{{UID: "u1", ChannelID: "room-1", ChannelType: 2, ActiveAtMS: 1000}}); err != nil {
+	if err := m.MarkActive(ctx, []ActivePatch{{Kind: metadb.ConversationKindNormal, UID: "u1", ChannelID: "room-1", ChannelType: 2, ActiveAtMS: 1000}}); err != nil {
 		t.Fatalf("MarkActive() error = %v", err)
 	}
 
@@ -695,7 +754,7 @@ func TestManagerObservesFlushFailureAndNoDirty(t *testing.T) {
 		NowMS:    func() int64 { return 3000 },
 		Observer: observer,
 	})
-	if err := m.MarkActive(ctx, []ActivePatch{{UID: "u1", ChannelID: "room-1", ChannelType: 2, ActiveAtMS: 1000}}); err != nil {
+	if err := m.MarkActive(ctx, []ActivePatch{{Kind: metadb.ConversationKindNormal, UID: "u1", ChannelID: "room-1", ChannelType: 2, ActiveAtMS: 1000}}); err != nil {
 		t.Fatalf("MarkActive() error = %v", err)
 	}
 
@@ -725,7 +784,7 @@ func TestFlushFailureKeepsDirty(t *testing.T) {
 	touchErr := errors.New("touch failed")
 	store := &recordingActiveStore{touchErr: touchErr}
 	m := NewManager(Options{Store: store})
-	if err := m.MarkActive(ctx, []ActivePatch{{UID: "u1", ChannelID: "room-1", ChannelType: 2, ActiveAtMS: 1000}}); err != nil {
+	if err := m.MarkActive(ctx, []ActivePatch{{Kind: metadb.ConversationKindNormal, UID: "u1", ChannelID: "room-1", ChannelType: 2, ActiveAtMS: 1000}}); err != nil {
 		t.Fatalf("MarkActive() error = %v", err)
 	}
 
@@ -745,11 +804,11 @@ func TestFlushDoesNotClearConcurrentDirtyUpdate(t *testing.T) {
 	ctx := context.Background()
 	store := &recordingActiveStore{}
 	m := NewManager(Options{Store: store})
-	if err := m.MarkActive(ctx, []ActivePatch{{UID: "u1", ChannelID: "room-1", ChannelType: 2, ActiveAtMS: 1000, ReadSeq: 7}}); err != nil {
+	if err := m.MarkActive(ctx, []ActivePatch{{Kind: metadb.ConversationKindNormal, UID: "u1", ChannelID: "room-1", ChannelType: 2, ActiveAtMS: 1000, ReadSeq: 7}}); err != nil {
 		t.Fatalf("MarkActive() error = %v", err)
 	}
 	store.touchHook = func() {
-		if err := m.MarkActive(ctx, []ActivePatch{{UID: "u1", ChannelID: "room-1", ChannelType: 2, ActiveAtMS: 2000, ReadSeq: 9}}); err != nil {
+		if err := m.MarkActive(ctx, []ActivePatch{{Kind: metadb.ConversationKindNormal, UID: "u1", ChannelID: "room-1", ChannelType: 2, ActiveAtMS: 2000, ReadSeq: 9}}); err != nil {
 			t.Fatalf("MarkActive(concurrent) error = %v", err)
 		}
 	}
@@ -764,7 +823,7 @@ func TestFlushDoesNotClearConcurrentDirtyUpdate(t *testing.T) {
 	if got := m.DirtyCountForTest(); got != 1 {
 		t.Fatalf("DirtyCountForTest() = %d, want 1 after concurrent update", got)
 	}
-	entry, ok := m.EntryForTest("u1", "room-1", 2)
+	entry, ok := m.EntryForTest(metadb.ConversationKindNormal, "u1", "room-1", 2)
 	if !ok {
 		t.Fatalf("entry was removed")
 	}
@@ -780,11 +839,12 @@ func TestAdmitUnderCachePressureSpillsDirtyRows(t *testing.T) {
 	ctx := context.Background()
 	store := &recordingActiveStore{}
 	m := NewManager(Options{Store: store, MaxCachedRows: 1})
-	if err := m.MarkActive(ctx, []ActivePatch{{UID: "u1", ChannelID: "old", ChannelType: 2, ActiveAtMS: 1000}}); err != nil {
+	if err := m.MarkActive(ctx, []ActivePatch{{Kind: metadb.ConversationKindNormal, UID: "u1", ChannelID: "old", ChannelType: 2, ActiveAtMS: 1000}}); err != nil {
 		t.Fatalf("MarkActive(old) error = %v", err)
 	}
 
 	err := m.AdmitActiveBatch(ctx, ActiveBatch{
+		Kind:        metadb.ConversationKindNormal,
 		SenderUID:   "u1",
 		ChannelID:   "new",
 		ChannelType: 2,
@@ -795,10 +855,10 @@ func TestAdmitUnderCachePressureSpillsDirtyRows(t *testing.T) {
 		t.Fatalf("AdmitActiveBatch() error = %v", err)
 	}
 
-	if _, ok := m.EntryForTest("u1", "old", 2); ok {
+	if _, ok := m.EntryForTest(metadb.ConversationKindNormal, "u1", "old", 2); ok {
 		t.Fatalf("old flushed row is still cached under pressure")
 	}
-	newEntry, ok := m.EntryForTest("u1", "new", 2)
+	newEntry, ok := m.EntryForTest(metadb.ConversationKindNormal, "u1", "new", 2)
 	if !ok {
 		t.Fatalf("new row was not cached")
 	}
@@ -817,17 +877,18 @@ func TestAdmitUnderCachePressureSpillsDirtyRows(t *testing.T) {
 }
 
 type recordingActiveStore struct {
-	rows      []metadb.UserConversationState
-	primary   map[metadb.ConversationKey]metadb.UserConversationState
+	rows      []metadb.ConversationState
+	primary   map[metadb.ConversationStateKey]metadb.ConversationState
 	calls     int
-	lastAfter metadb.UserConversationActiveCursor
+	lastKind  metadb.ConversationKind
+	lastAfter metadb.ConversationActiveCursor
 	lastLimit int
 	lookupErr error
-	lookups   []metadb.ConversationKey
-	batchKeys []metadb.UserConversationKey
+	lookups   []metadb.ConversationStateKey
+	batchKeys []metadb.ConversationStateKey
 	touchErr  error
 	touchHook func()
-	touches   [][]metadb.UserConversationActivePatch
+	touches   [][]metadb.ConversationActivePatch
 }
 
 type recordingConversationActiveObserver struct {
@@ -859,12 +920,13 @@ func (o *recordingConversationActiveObserver) lastFlush(t *testing.T) FlushObser
 	return o.flush[len(o.flush)-1]
 }
 
-func (s *recordingActiveStore) ListUserConversationActivePage(_ context.Context, uid string, after metadb.UserConversationActiveCursor, limit int) ([]metadb.UserConversationState, metadb.UserConversationActiveCursor, bool, error) {
+func (s *recordingActiveStore) ListConversationActivePage(_ context.Context, kind metadb.ConversationKind, uid string, after metadb.ConversationActiveCursor, limit int) ([]metadb.ConversationState, metadb.ConversationActiveCursor, bool, error) {
 	s.calls++
+	s.lastKind = kind
 	s.lastAfter = after
 	s.lastLimit = limit
 
-	rows := append([]metadb.UserConversationState(nil), s.rows...)
+	rows := append([]metadb.ConversationState(nil), s.rows...)
 	sort.Slice(rows, func(i, j int) bool {
 		if rows[i].ActiveAt != rows[j].ActiveAt {
 			return rows[i].ActiveAt > rows[j].ActiveAt
@@ -875,9 +937,9 @@ func (s *recordingActiveStore) ListUserConversationActivePage(_ context.Context,
 		return rows[i].ChannelType < rows[j].ChannelType
 	})
 
-	candidates := make([]metadb.UserConversationState, 0, len(rows))
+	candidates := make([]metadb.ConversationState, 0, len(rows))
 	for _, row := range rows {
-		if row.UID != uid || !testActiveRowAfter(row, after) {
+		if row.Kind != kind || row.UID != uid || !testActiveRowAfter(row, after) {
 			continue
 		}
 		candidates = append(candidates, row)
@@ -892,30 +954,30 @@ func (s *recordingActiveStore) ListUserConversationActivePage(_ context.Context,
 	cursor := after
 	if len(candidates) > 0 {
 		last := candidates[len(candidates)-1]
-		cursor = metadb.UserConversationActiveCursor{ActiveAt: last.ActiveAt, ChannelID: last.ChannelID, ChannelType: last.ChannelType}
+		cursor = metadb.ConversationActiveCursor{ActiveAt: last.ActiveAt, ChannelID: last.ChannelID, ChannelType: last.ChannelType}
 	}
 	return candidates, cursor, done, nil
 }
 
-func (s *recordingActiveStore) GetUserConversationState(_ context.Context, _ string, channelID string, channelType int64) (metadb.UserConversationState, bool, error) {
-	key := metadb.ConversationKey{ChannelID: channelID, ChannelType: channelType}
+func (s *recordingActiveStore) GetConversationState(_ context.Context, kind metadb.ConversationKind, uid string, channelID string, channelType int64) (metadb.ConversationState, bool, error) {
+	key := metadb.ConversationStateKey{UID: uid, Kind: kind, ChannelID: channelID, ChannelType: channelType}
 	s.lookups = append(s.lookups, key)
 	if s.lookupErr != nil {
-		return metadb.UserConversationState{}, false, s.lookupErr
+		return metadb.ConversationState{}, false, s.lookupErr
 	}
 	row, ok := s.primary[key]
 	return row, ok, nil
 }
 
-func (s *recordingActiveStore) GetUserConversationStates(_ context.Context, keys []metadb.UserConversationKey) (map[metadb.UserConversationKey]metadb.UserConversationState, error) {
+func (s *recordingActiveStore) GetConversationStates(_ context.Context, keys []metadb.ConversationStateKey) (map[metadb.ConversationStateKey]metadb.ConversationState, error) {
 	s.batchKeys = append(s.batchKeys, keys...)
 	if s.lookupErr != nil {
 		return nil, s.lookupErr
 	}
-	states := make(map[metadb.UserConversationKey]metadb.UserConversationState, len(keys))
+	states := make(map[metadb.ConversationStateKey]metadb.ConversationState, len(keys))
 	for _, key := range keys {
-		row, ok := s.primary[metadb.ConversationKey{ChannelID: key.ChannelID, ChannelType: key.ChannelType}]
-		if !ok || row.UID != key.UID {
+		row, ok := s.primary[key]
+		if !ok {
 			continue
 		}
 		states[key] = row
@@ -923,8 +985,8 @@ func (s *recordingActiveStore) GetUserConversationStates(_ context.Context, keys
 	return states, nil
 }
 
-func (s *recordingActiveStore) TouchUserConversationActiveAt(_ context.Context, patches []metadb.UserConversationActivePatch) error {
-	batch := append([]metadb.UserConversationActivePatch(nil), patches...)
+func (s *recordingActiveStore) TouchConversationActiveAt(_ context.Context, patches []metadb.ConversationActivePatch) error {
+	batch := append([]metadb.ConversationActivePatch(nil), patches...)
 	s.touches = append(s.touches, batch)
 	if s.touchHook != nil {
 		s.touchHook()
@@ -935,8 +997,8 @@ func (s *recordingActiveStore) TouchUserConversationActiveAt(_ context.Context, 
 	return nil
 }
 
-func testActiveRowAfter(row metadb.UserConversationState, after metadb.UserConversationActiveCursor) bool {
-	if after == (metadb.UserConversationActiveCursor{}) {
+func testActiveRowAfter(row metadb.ConversationState, after metadb.ConversationActiveCursor) bool {
+	if after == (metadb.ConversationActiveCursor{}) {
 		return true
 	}
 	if row.ActiveAt != after.ActiveAt {
@@ -948,7 +1010,7 @@ func testActiveRowAfter(row metadb.UserConversationState, after metadb.UserConve
 	return row.ChannelType > after.ChannelType
 }
 
-func activeChannelIDs(rows []metadb.UserConversationState) string {
+func activeChannelIDs(rows []metadb.ConversationState) string {
 	var out string
 	for _, row := range rows {
 		if out != "" {
