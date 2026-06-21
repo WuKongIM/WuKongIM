@@ -51,6 +51,8 @@ type SyncedMessage struct {
 	ClientMsgNo string
 	// ServerTimestampMS is the server append timestamp used for deterministic ordering.
 	ServerTimestampMS int64
+	// SyncOnce reports whether this message is an explicit one-shot command-sync entry.
+	SyncOnce bool
 	// Payload is the immutable message payload returned to the access adapter.
 	Payload []byte
 }

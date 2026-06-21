@@ -15,6 +15,7 @@ This domain covers black-box message and conversation behavior for
 | `send_permission` | Prove `cmd/wukongimv2` enforces migrated legacy send-permission decisions through public channel-management and `/message/send` HTTP APIs. | `GOWORK=off go test -tags=e2e ./test/e2ev2/message/send_permission -count=1` |
 | `recipient_authority` | Prove `cmd/wukongimv2` routes committed group messages through recipient UID authority, updates subscriber-owned `/conversation/list` rows, and exposes low-cardinality authority metrics, with an opt-in 100k subscriber stress path. | `GOWORK=off go test -tags=e2e ./test/e2ev2/message/recipient_authority -count=1` |
 | `cross_node_delivery` | Prove a static three-node `cmd/wukongimv2` cluster can deliver person-channel messages between users connected to different nodes in both directions. | `GOWORK=off go test -tags=e2e ./test/e2ev2/message/cross_node_delivery -count=1 -timeout 2m` |
+| `cmd_sync` | Prove unified normal/CMD conversation projection isolation, `/message/sync` delivery, and `/message/syncack` draining in a single-node cluster. | `GOWORK=off go test -tags=e2e ./test/e2ev2/message/cmd_sync -count=1 -timeout 2m` |
 
 ## Maintenance Rules
 

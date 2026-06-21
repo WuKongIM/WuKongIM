@@ -3,11 +3,14 @@ package cluster
 import (
 	"context"
 
+	runtimechannelid "github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/cmdsync"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channelv2/store"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
+
+const cmdSyncReadPageLimit = 256
 
 // CMDSyncNode exposes clusterv2 reads and writes needed by CMD sync.
 type CMDSyncNode interface {
@@ -67,31 +70,55 @@ func (s *CMDSyncStore) LoadCommandMessages(ctx context.Context, key cmdsync.Comm
 	if fromSeq == 0 {
 		fromSeq = 1
 	}
-	read, err := s.node.ReadChannelCommitted(ctx, channelv2.ChannelID{ID: key.ChannelID, Type: key.ChannelType}, channelstore.ReadCommittedRequest{
-		FromSeq:  fromSeq,
-		MaxSeq:   maxUint64(),
-		Limit:    limit,
-		MaxBytes: maxInt(),
-	})
-	if err != nil {
-		return nil, mapAppendError(err)
+	out := make([]cmdsync.SyncedMessage, 0, limit)
+	nextSeq := fromSeq
+	for len(out) < limit {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		read, err := s.node.ReadChannelCommitted(ctx, channelv2.ChannelID{ID: key.ChannelID, Type: key.ChannelType}, channelstore.ReadCommittedRequest{
+			FromSeq:  nextSeq,
+			MaxSeq:   maxUint64(),
+			Limit:    cmdSyncReadPageLimit,
+			MaxBytes: maxInt(),
+		})
+		if err != nil {
+			return nil, mapAppendError(err)
+		}
+		if len(read.Messages) == 0 {
+			break
+		}
+		for _, msg := range read.Messages {
+			if !isCommandSyncChannelMessage(msg) {
+				continue
+			}
+			out = append(out, cmdSyncedMessageFromChannel(msg))
+			if len(out) >= limit {
+				break
+			}
+		}
+		if read.NextSeq <= nextSeq {
+			break
+		}
+		nextSeq = read.NextSeq
 	}
-	return cmdSyncedMessagesFromChannel(read.Messages), nil
+	return out, nil
 }
 
-func cmdSyncedMessagesFromChannel(in []channelv2.Message) []cmdsync.SyncedMessage {
-	out := make([]cmdsync.SyncedMessage, 0, len(in))
-	for _, msg := range in {
-		out = append(out, cmdsync.SyncedMessage{
-			MessageID:         msg.MessageID,
-			MessageSeq:        msg.MessageSeq,
-			ChannelID:         msg.ChannelID,
-			ChannelType:       msg.ChannelType,
-			FromUID:           msg.FromUID,
-			ClientMsgNo:       msg.ClientMsgNo,
-			ServerTimestampMS: msg.ServerTimestampMS,
-			Payload:           append([]byte(nil), msg.Payload...),
-		})
+func isCommandSyncChannelMessage(msg channelv2.Message) bool {
+	return msg.SyncOnce || runtimechannelid.IsCommandChannel(msg.ChannelID)
+}
+
+func cmdSyncedMessageFromChannel(msg channelv2.Message) cmdsync.SyncedMessage {
+	return cmdsync.SyncedMessage{
+		MessageID:         msg.MessageID,
+		MessageSeq:        msg.MessageSeq,
+		ChannelID:         msg.ChannelID,
+		ChannelType:       msg.ChannelType,
+		FromUID:           msg.FromUID,
+		ClientMsgNo:       msg.ClientMsgNo,
+		ServerTimestampMS: msg.ServerTimestampMS,
+		SyncOnce:          msg.SyncOnce || runtimechannelid.IsCommandChannel(msg.ChannelID),
+		Payload:           append([]byte(nil), msg.Payload...),
 	}
-	return out
 }

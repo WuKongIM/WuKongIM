@@ -150,10 +150,17 @@ func TestConversationStoreReadsLastVisibleMessages(t *testing.T) {
 	}
 }
 
-func TestConversationStoreReadsDurableStateAndRecentMessages(t *testing.T) {
+func TestConversationStoreSkipsSyncOnceTailForLastVisibleMessage(t *testing.T) {
 	node := &conversationNodeFake{
-		states: map[metadb.ConversationKey]metadb.ConversationState{
-			{ChannelID: "g-a", ChannelType: 2}: {UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "g-a", ChannelType: 2, ReadSeq: 7},
+		read: map[metadb.ConversationKey]lastVisibleResultFake{
+			{ChannelID: "g-a", ChannelType: 2}: {msg: channelv2.Message{
+				MessageID:   13,
+				MessageSeq:  13,
+				ChannelID:   "g-a",
+				ChannelType: 2,
+				ClientMsgNo: "cmd-13",
+				SyncOnce:    true,
+			}, ok: true},
 		},
 		committed: map[metadb.ConversationKey][]channelv2.Message{
 			{ChannelID: "g-a", ChannelType: 2}: {{
@@ -162,10 +169,57 @@ func TestConversationStoreReadsDurableStateAndRecentMessages(t *testing.T) {
 				ChannelID:         "g-a",
 				ChannelType:       2,
 				FromUID:           "u2",
-				ClientMsgNo:       "client-12",
+				ClientMsgNo:       "normal-12",
 				ServerTimestampMS: 900,
-				Payload:           []byte("recent"),
+				Payload:           []byte("normal"),
 			}},
+		},
+	}
+	store := NewConversationStore(node)
+
+	got, err := store.GetLastVisibleMessages(context.Background(), []conversationusecase.LastVisibleMessageRequest{{ChannelID: "g-a", ChannelType: 2}})
+	if err != nil {
+		t.Fatalf("GetLastVisibleMessages() error = %v", err)
+	}
+	key := metadb.ConversationKey{ChannelID: "g-a", ChannelType: 2}
+	msg, ok := got[key]
+	if !ok || msg.ClientMsgNo != "normal-12" || msg.MessageSeq != 12 {
+		t.Fatalf("last message = %#v ok=%v, want latest ordinary message", msg, ok)
+	}
+	if got, want := node.committedCalls, []committedCallFake{{
+		channelID: channelv2.ChannelID{ID: "g-a", Type: 2},
+		req:       channelstore.ReadCommittedRequest{FromSeq: 12, MaxSeq: maxUint64(), Limit: conversationReadMinPageLimit, MaxBytes: maxInt(), Reverse: true},
+	}}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("committed calls = %#v, want %#v", got, want)
+	}
+}
+
+func TestConversationStoreReadsDurableStateAndRecentMessages(t *testing.T) {
+	node := &conversationNodeFake{
+		states: map[metadb.ConversationKey]metadb.ConversationState{
+			{ChannelID: "g-a", ChannelType: 2}: {UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "g-a", ChannelType: 2, ReadSeq: 7},
+		},
+		committed: map[metadb.ConversationKey][]channelv2.Message{
+			{ChannelID: "g-a", ChannelType: 2}: {
+				{
+					MessageID:   13,
+					MessageSeq:  13,
+					ChannelID:   "g-a",
+					ChannelType: 2,
+					ClientMsgNo: "cmd-13",
+					SyncOnce:    true,
+				},
+				{
+					MessageID:         12,
+					MessageSeq:        12,
+					ChannelID:         "g-a",
+					ChannelType:       2,
+					FromUID:           "u2",
+					ClientMsgNo:       "client-12",
+					ServerTimestampMS: 900,
+					Payload:           []byte("recent"),
+				},
+			},
 		},
 	}
 	store := NewConversationStore(node)
@@ -191,8 +245,8 @@ func TestConversationStoreReadsDurableStateAndRecentMessages(t *testing.T) {
 		t.Fatalf("recent message payload aliases node storage: %q", again[key][0].Payload)
 	}
 	if got, want := node.committedCalls, []committedCallFake{
-		{channelID: channelv2.ChannelID{ID: "g-a", Type: 2}, req: channelstore.ReadCommittedRequest{FromSeq: maxUint64(), MaxSeq: maxUint64(), Limit: 2, MaxBytes: maxInt(), Reverse: true}},
-		{channelID: channelv2.ChannelID{ID: "g-a", Type: 2}, req: channelstore.ReadCommittedRequest{FromSeq: maxUint64(), MaxSeq: maxUint64(), Limit: 2, MaxBytes: maxInt(), Reverse: true}},
+		{channelID: channelv2.ChannelID{ID: "g-a", Type: 2}, req: channelstore.ReadCommittedRequest{FromSeq: maxUint64(), MaxSeq: maxUint64(), Limit: conversationReadMinPageLimit, MaxBytes: maxInt(), Reverse: true}},
+		{channelID: channelv2.ChannelID{ID: "g-a", Type: 2}, req: channelstore.ReadCommittedRequest{FromSeq: maxUint64(), MaxSeq: maxUint64(), Limit: conversationReadMinPageLimit, MaxBytes: maxInt(), Reverse: true}},
 	}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("committed calls = %#v, want %#v", got, want)
 	}

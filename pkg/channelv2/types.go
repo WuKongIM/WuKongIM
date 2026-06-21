@@ -85,7 +85,9 @@ type Message struct {
 	TraceID string
 	// ChannelKey is the diagnostics-safe channel identifier for this transient append message.
 	ChannelKey string
-	Payload    []byte
+	// SyncOnce marks one-shot command-sync messages in the durable channel log.
+	SyncOnce bool
+	Payload  []byte
 }
 
 // OpID identifies an asynchronous operation inside one channel generation.
@@ -114,6 +116,8 @@ type Record struct {
 	ClientMsgNo string
 	// ServerTimestampMS is the server append timestamp in Unix milliseconds.
 	ServerTimestampMS int64
+	// SyncOnce marks one-shot command-sync records in the durable channel log.
+	SyncOnce bool
 	// Payload is the encoded message body in v0 memory and store adapters.
 	Payload []byte
 	// SizeBytes is used by batching and read budgets.

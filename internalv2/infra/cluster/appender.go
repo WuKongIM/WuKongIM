@@ -133,6 +133,7 @@ func toChannelMessages(in []channelappend.Message) []channelv2.Message {
 			TraceID:           msg.TraceID,
 			ChannelKey:        msg.ChannelKey,
 			Payload:           append([]byte(nil), msg.Payload...),
+			SyncOnce:          msg.SyncOnce,
 			ServerTimestampMS: msg.ServerTimestampMS,
 		})
 	}
@@ -170,6 +171,7 @@ func fromChannelMessage(msg channelv2.Message) channelappend.Message {
 		TraceID:           msg.TraceID,
 		ChannelKey:        msg.ChannelKey,
 		Payload:           append([]byte(nil), msg.Payload...),
+		SyncOnce:          msg.SyncOnce,
 		ServerTimestampMS: msg.ServerTimestampMS,
 	}
 }

@@ -206,6 +206,8 @@ type Message struct {
 	ChannelKey string
 	// Payload is the durable message body.
 	Payload []byte
+	// SyncOnce marks this durable message as a one-shot command-sync entry.
+	SyncOnce bool
 	// ServerTimestampMS is the server append timestamp in Unix milliseconds.
 	ServerTimestampMS int64
 }

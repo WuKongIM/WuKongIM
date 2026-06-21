@@ -143,6 +143,7 @@ func appendRequest(target AuthorityTarget, active []preparedSend, attempt int) A
 			TraceID:           cmd.TraceID,
 			ChannelKey:        cmd.ChannelKey,
 			Payload:           cmd.Payload,
+			SyncOnce:          cmd.SyncOnce,
 			ServerTimestampMS: serverTimestampMS,
 		})
 	}

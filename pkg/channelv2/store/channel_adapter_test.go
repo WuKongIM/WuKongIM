@@ -107,6 +107,43 @@ func TestMessageDBStoreAdapterPreservesConversationDisplayFields(t *testing.T) {
 	require.Equal(t, int64(1234), msg.ServerTimestampMS)
 }
 
+func TestMessageDBStoreAdapterPreservesSyncOnceFlag(t *testing.T) {
+	ctx := context.Background()
+	factory := NewMessageDBFactory(t.TempDir())
+	t.Cleanup(func() { _ = factory.Close() })
+	id := ch.ChannelID{ID: "sync-once", Type: 2}
+	cs, err := factory.ChannelStore(ch.ChannelKeyForID(id), id)
+	require.NoError(t, err)
+
+	_, err = cs.AppendLeader(ctx, AppendLeaderRequest{
+		Records: []ch.Record{{
+			ID:        10,
+			Payload:   []byte("cmd"),
+			SizeBytes: len("cmd"),
+			SyncOnce:  true,
+		}},
+		Sync: true,
+	})
+	require.NoError(t, err)
+
+	committed, err := cs.ReadCommitted(ctx, ReadCommittedRequest{FromSeq: 1, MaxSeq: 1, Limit: 10, MaxBytes: 1024})
+	require.NoError(t, err)
+	require.Len(t, committed.Messages, 1)
+	require.True(t, committed.Messages[0].SyncOnce)
+
+	log, err := cs.ReadLog(ctx, ReadLogRequest{FromOffset: 1, MaxOffset: 1, MaxBytes: 1024})
+	require.NoError(t, err)
+	require.Len(t, log.Records, 1)
+	require.True(t, log.Records[0].SyncOnce)
+
+	lookup, ok := cs.(MessageLookup)
+	require.True(t, ok)
+	msg, found, err := lookup.LookupMessageByID(ctx, 10)
+	require.NoError(t, err)
+	require.True(t, found)
+	require.True(t, msg.SyncOnce)
+}
+
 func TestDBCompatibleLegacyTimestampDoesNotBecomeServerTimestampMS(t *testing.T) {
 	payload, err := encodeDBCompatibleMessage(channel.Message{
 		MessageID: 10,

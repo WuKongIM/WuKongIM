@@ -1521,10 +1521,11 @@ git commit -m "feat: expose kind-aware conversation active metrics"
 
 **Files:**
 
-- Create or modify: `test/e2ev2/message/cmd_sync_test.go`
-- Modify: `test/e2ev2/suite/*` only if helper support is missing
+- Create: `test/e2ev2/message/cmd_sync/cmd_sync_test.go`
+- Create: `test/e2ev2/message/cmd_sync/AGENTS.md`
+- Modify: `test/e2ev2/message/AGENTS.md`
 
-- [ ] **Step 1: Write black-box e2ev2 test**
+- [x] **Step 1: Write black-box e2ev2 test**
 
 Create `test/e2ev2/message/cmd_sync_test.go`:
 
@@ -1569,27 +1570,27 @@ func TestUnifiedConversationCMDIsolation(t *testing.T) {
 
 If the suite lacks `MustSendSyncOnceText`, `MustMessageSync`, or `MustMessageSyncAck`, add helpers in `test/e2ev2/suite` that call the existing HTTP API endpoints and WK protocol send path.
 
-- [ ] **Step 2: Run targeted e2ev2 test**
+- [x] **Step 2: Run targeted e2ev2 test**
 
 Run:
 
 ```bash
-go test ./test/e2ev2/message -run TestUnifiedConversationCMDIsolation
+GOWORK=off go test -tags=e2e ./test/e2ev2/message/cmd_sync -count=1 -timeout 2m
 ```
 
 Expected: PASS.
 
-- [ ] **Step 3: Run broader internalv2 and storage tests**
+- [x] **Step 3: Run broader internalv2 and storage tests**
 
 Run:
 
 ```bash
-go test ./pkg/db/meta ./pkg/slot/fsm ./pkg/clusterv2 ./internalv2/runtime/conversationactive ./internalv2/usecase/conversation ./internalv2/usecase/cmdsync ./internalv2/infra/cluster ./internalv2/access/api ./internalv2/app ./internalv2/runtime/channelappend
+GOWORK=off go test -count=1 ./pkg/db/meta ./pkg/slot/fsm ./pkg/clusterv2 ./pkg/channelv2/store ./pkg/channelv2/reactor ./pkg/channelv2/machine ./internalv2/runtime/conversationactive ./internalv2/usecase/conversation ./internalv2/usecase/cmdsync ./internalv2/infra/cluster ./internalv2/access/api ./internalv2/app ./internalv2/runtime/channelappend
 ```
 
 Expected: PASS.
 
-- [ ] **Step 4: Commit e2e coverage**
+- [x] **Step 4: Commit e2e coverage**
 
 ```bash
 git add test/e2ev2/message test/e2ev2/suite

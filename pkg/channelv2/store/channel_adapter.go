@@ -12,6 +12,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	messagedb "github.com/WuKongIM/WuKongIM/pkg/db/message"
+	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 )
 
 // MessageDBFactory adapts the shared message DB engine to channelv2.
@@ -324,6 +325,7 @@ func encodeRecordsForMessageDB(id ch.ChannelID, records []ch.Record) []channel.R
 		msg := channel.Message{
 			MessageID:         record.ID,
 			MessageSeq:        record.Index,
+			Framer:            frame.Framer{SyncOnce: record.SyncOnce},
 			ChannelID:         id.ID,
 			ChannelType:       id.Type,
 			FromUID:           record.FromUID,
@@ -364,13 +366,14 @@ func fromDBRecord(record channel.Record) ch.Record {
 			Payload:           cloneBytes(msg.Payload),
 			SizeBytes:         len(msg.Payload),
 			ServerTimestampMS: msg.ServerTimestampMS,
+			SyncOnce:          msg.Framer.SyncOnce,
 		}
 	}
 	return ch.Record{ID: record.ID, Index: record.Index, Epoch: record.Epoch, Payload: cloneBytes(record.Payload), SizeBytes: record.SizeBytes}
 }
 
 func fromDBMessage(msg channel.Message) ch.Message {
-	return ch.Message{MessageID: msg.MessageID, MessageSeq: msg.MessageSeq, ChannelID: msg.ChannelID, ChannelType: msg.ChannelType, FromUID: msg.FromUID, ClientMsgNo: msg.ClientMsgNo, Payload: cloneBytes(msg.Payload), ServerTimestampMS: msg.ServerTimestampMS}
+	return ch.Message{MessageID: msg.MessageID, MessageSeq: msg.MessageSeq, ChannelID: msg.ChannelID, ChannelType: msg.ChannelType, FromUID: msg.FromUID, ClientMsgNo: msg.ClientMsgNo, Payload: cloneBytes(msg.Payload), ServerTimestampMS: msg.ServerTimestampMS, SyncOnce: msg.Framer.SyncOnce}
 }
 
 const durableMessageHeaderSize = 45
@@ -388,7 +391,7 @@ func encodeDBCompatibleMessage(message channel.Message) ([]byte, error) {
 	payload := make([]byte, 0, size)
 	payload = append(payload, channel.DurableMessageCodecVersion)
 	payload = binary.BigEndian.AppendUint64(payload, message.MessageID)
-	payload = append(payload, 0, byte(message.Setting), byte(message.StreamFlag), message.ChannelType)
+	payload = append(payload, encodeDBCompatibleFramerFlags(message.Framer), byte(message.Setting), byte(message.StreamFlag), message.ChannelType)
 	payload = binary.BigEndian.AppendUint32(payload, message.Expire)
 	payload = binary.BigEndian.AppendUint64(payload, message.ClientSeq)
 	payload = binary.BigEndian.AppendUint64(payload, message.StreamID)
@@ -414,7 +417,9 @@ func decodeDBCompatibleMessage(payload []byte) (channel.Message, error) {
 	}
 	msg := channel.Message{
 		MessageID:   binary.BigEndian.Uint64(payload[1:9]),
-		Setting:     channel.Message{}.Setting,
+		Framer:      decodeDBCompatibleFramerFlags(payload[9]),
+		Setting:     frame.Setting(payload[10]),
+		StreamFlag:  frame.StreamFlag(payload[11]),
 		ChannelType: payload[12],
 		Expire:      binary.BigEndian.Uint32(payload[13:17]),
 		ClientSeq:   binary.BigEndian.Uint64(payload[17:25]),
@@ -456,6 +461,40 @@ func decodeDBCompatibleMessage(payload []byte) (channel.Message, error) {
 		msg.ServerTimestampMS = serverTimestampMS
 	}
 	return msg, nil
+}
+
+func encodeDBCompatibleFramerFlags(framer frame.Framer) uint8 {
+	var flags uint8
+	if framer.NoPersist {
+		flags |= 1
+	}
+	if framer.RedDot {
+		flags |= 2
+	}
+	if framer.SyncOnce {
+		flags |= 4
+	}
+	if framer.DUP {
+		flags |= 8
+	}
+	if framer.HasServerVersion {
+		flags |= 16
+	}
+	if framer.End {
+		flags |= 32
+	}
+	return flags
+}
+
+func decodeDBCompatibleFramerFlags(flags uint8) frame.Framer {
+	return frame.Framer{
+		NoPersist:        flags&1 != 0,
+		RedDot:           flags&2 != 0,
+		SyncOnce:         flags&4 != 0,
+		DUP:              flags&8 != 0,
+		HasServerVersion: flags&16 != 0,
+		End:              flags&32 != 0,
+	}
 }
 
 func appendSizedString(dst []byte, value string) []byte {

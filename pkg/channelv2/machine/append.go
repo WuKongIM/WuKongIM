@@ -323,6 +323,7 @@ func appendItemsForRecords(id ch.ChannelID, records []ch.Record, omitPayload boo
 			FromUID:           record.FromUID,
 			ClientMsgNo:       record.ClientMsgNo,
 			ServerTimestampMS: record.ServerTimestampMS,
+			SyncOnce:          record.SyncOnce,
 		}
 		if !omitPayload {
 			msg.Payload = cloneBytes(record.Payload)

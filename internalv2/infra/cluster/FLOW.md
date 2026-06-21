@@ -102,6 +102,7 @@ HTTP-only field shaping remains in `internalv2/access/api`.
 cmdsync.Sync
   -> ListConversationActivePage(ConversationKindCMD, uid)
   -> ReadChannelCommitted(command channel/source SyncOnce channel, forward from read cursor)
+       -> page forward until enough SyncOnce/command-channel messages are found
   -> cmdsync.SyncedMessage
 
 cmdsync.SyncAck
@@ -113,8 +114,8 @@ sync. It reads CMD rows from the unified UID-owned conversation projection and
 advances read progress by writing CMD-kind `ConversationState` rows back through
 clusterv2 Slot metadata. It does not create a second CMD-specific metadata
 table or a pending overlay. Channel log reads use ChannelV2 committed forward
-reads and return cloned payloads to keep access/usecase layers from aliasing
-storage-owned memory.
+reads, filter out ordinary source-channel messages, and return cloned payloads
+to keep access/usecase layers from aliasing storage-owned memory.
 
 ## Management Message Flow
 
@@ -315,6 +316,7 @@ conversation list usecase
        -> UID-owned normal-kind conversation rows routed by UID hash slot
   -> GetLastVisibleMessages(current page keys)
        -> ReadChannelLastVisible(channel, visible_after_seq)
+       -> if the tail is SyncOnce/CMD, reverse-scan committed rows for the latest ordinary message
        -> channel-owned route resolves the ChannelV2 leader
        -> missing channel or no visible message returns no last message for that row
 
@@ -326,7 +328,8 @@ conversation sync usecase
   -> GetLastVisibleMessages(candidate keys)
        -> newest channel-owned message for sync selection
   -> GetRecentMessages(final returned keys)
-       -> ReadChannelCommitted(reverse, latest, limit)
+       -> ReadChannelCommitted(reverse, latest, paged)
+       -> filter SyncOnce/CMD rows from ordinary legacy recents
        -> channel-owned committed rows used for legacy recents
 
 conversation mutation usecase
@@ -342,6 +345,9 @@ The adapter clones row slices and message payloads across the boundary. It does
 not own ordering, cursor, sync filtering, unread, read-cursor, delete-barrier,
 or sparse-active rules; those stay in the conversation usecase so access
 adapters can share the same list, sync, and mutation semantics.
+It does own the storage-facing split between ordinary conversation hydration
+and CMD sync hydration: normal conversation last-message/recent reads skip
+`SyncOnce`/command-channel rows, while `CMDSyncStore` returns only those rows.
 `metadb.ErrNotFound` and `channelv2.ErrChannelNotFound` during a single
 last-message read mean that row has no display message, not that the whole list
 failed. Routing, readiness, and other read errors still fail the request.

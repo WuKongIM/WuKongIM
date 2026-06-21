@@ -254,6 +254,7 @@ func messageFromRecord(id ch.ChannelID, record ch.Record) ch.Message {
 		ClientMsgNo:       record.ClientMsgNo,
 		Payload:           cloneBytes(record.Payload),
 		ServerTimestampMS: record.ServerTimestampMS,
+		SyncOnce:          record.SyncOnce,
 	}
 }
 

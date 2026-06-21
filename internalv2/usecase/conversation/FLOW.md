@@ -16,8 +16,8 @@ channel-owned message reads.
 List(uid, cursor, limit)
   -> scan UID-owned normal-kind conversation active index using (active_at, channel_id, channel_type) cursor
   -> keep the returned page order exactly as storage emits it
-  -> build current-page last-message requests with visible_after_seq = deleted_to_seq
-  -> batch-read newest visible messages from each channel-owned message log
+  -> build current-page ordinary last-message requests with visible_after_seq = deleted_to_seq
+  -> batch-read newest non-CMD visible messages from each channel-owned message log
   -> keep conversation rows whose channel has no visible last message
   -> calculate unread as max(last_message_seq - max(read_seq, deleted_to_seq), 0)
   -> clone payloads before returning
@@ -41,7 +41,7 @@ Sync(uid, last_msg_seqs, msg_count, only_unread, excluded_types, limit)
   -> merge client-known last_msg_seqs as overlay candidates
   -> read durable UID-owned normal-kind rows for overlay candidates when present
   -> skip excluded channel types
-  -> batch-read newest channel messages for all candidate keys
+  -> batch-read newest non-CMD channel messages for all candidate keys
   -> hide rows whose newest message is at or below deleted_to_seq
   -> calculate unread from max(read_seq, deleted_to_seq)
   -> suppress self-sent unread and apply only_unread
@@ -55,8 +55,9 @@ back to peer IDs for legacy HTTP clients. `version` is accepted for compatibilit
 but does not trigger a historical directory scan. `last_msg_seqs` discovers
 client-known conversations that are outside the active scan window; overlay
 candidates without durable user state are returned only when the channel latest
-message is newer than the client-supplied sequence. Recent messages are filtered
-by the row delete floor and cloned before returning.
+ordinary message is newer than the client-supplied sequence. Recent messages
+are filtered by the row delete floor, exclude CMD/SyncOnce messages, and are
+cloned before returning.
 
 ## Mutation Flow
 

@@ -142,6 +142,10 @@ successful append results complete `SENDACK` futures immediately with
 enqueue `CommittedEnvelope` values in the same `channelState` as the handoff
 point for best-effort post-commit recipient work. Post-commit side effects are
 not checkpointed and not replayed after authority restart.
+The append payload carries the `SyncOnce` command marker through the durable
+channel appender port so CMD sync readers and ordinary conversation readers can
+separate command messages from normal channel messages without guessing from
+channel names or client message numbers.
 
 Post-commit work is scheduled from the writer state after durable append
 succeeds and is independent from `SENDACK` completion. A committed envelope
