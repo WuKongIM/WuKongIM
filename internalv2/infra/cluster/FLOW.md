@@ -180,6 +180,11 @@ Local plugin snapshot reads, HTTP permissions, and response shaping stay in the
 management usecase and manager access layer. This adapter does not inspect
 plugin directories or mutate plugin lifecycle state.
 
+`PluginHTTPForwarder` reuses the same `RPCManagerPlugins` service with the
+`http_forward` operation for `/plugin/httpForward` requests that target a
+positive `toNodeId`. The receiver executes its local `/plugin/route` hook only;
+fanout `toNodeId=-1` remains deferred in the plugin usecase.
+
 ## Management Log Flow
 
 ```text

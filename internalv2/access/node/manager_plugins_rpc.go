@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/WuKongIM/WuKongIM/internal/usecase/plugin/pluginproto"
 	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
 	pluginusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/plugin"
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/clusterv2/net"
@@ -25,20 +26,34 @@ func (a *Adapter) HandleManagerPluginRPC(ctx context.Context, payload []byte) ([
 		)
 		return nil, err
 	}
-	if a == nil || a.managerPlugins == nil {
+	if a == nil {
 		return encodeManagerPluginResponse(managerPluginRPCResponse{Status: rpcStatusRejected})
 	}
 	switch req.Op {
 	case managerPluginOpList:
+		if a.managerPlugins == nil {
+			return encodeManagerPluginResponse(managerPluginRPCResponse{Status: rpcStatusRejected})
+		}
 		list, err := a.managerPlugins.ListNodePlugins(ctx, req.NodeID)
 		status := managerPluginRPCStatusForError(err)
 		a.logManagerPluginError(req, status, err)
 		return encodeManagerPluginResponse(managerPluginRPCResponse{Status: status, Plugins: list.Plugins})
 	case managerPluginOpGet:
+		if a.managerPlugins == nil {
+			return encodeManagerPluginResponse(managerPluginRPCResponse{Status: rpcStatusRejected})
+		}
 		plugin, err := a.managerPlugins.GetNodePlugin(ctx, req.NodeID, req.PluginNo)
 		status := managerPluginRPCStatusForError(err)
 		a.logManagerPluginError(req, status, err)
 		return encodeManagerPluginResponse(managerPluginRPCResponse{Status: status, Plugin: plugin})
+	case managerPluginOpHTTPForward:
+		if a.pluginHTTPRoutes == nil || req.ForwardReq == nil {
+			return encodeManagerPluginResponse(managerPluginRPCResponse{Status: rpcStatusRejected})
+		}
+		resp, err := a.pluginHTTPRoutes.Route(ctx, req.ForwardReq.GetPluginNo(), req.ForwardReq.GetRequest())
+		status := managerPluginRPCStatusForError(err)
+		a.logManagerPluginError(req, status, err)
+		return encodeManagerPluginResponse(managerPluginRPCResponse{Status: status, ForwardResp: resp})
 	default:
 		err := fmt.Errorf("internalv2/access/node: unknown manager plugin op %q", req.Op)
 		a.rpcLogger().Warn("manager plugin rpc unknown operation",
@@ -72,6 +87,29 @@ func (c *Client) GetManagerPlugin(ctx context.Context, nodeID uint64, pluginNo s
 		return managementusecase.Plugin{}, err
 	}
 	return resp.Plugin, nil
+}
+
+// ForwardPluginHTTP invokes one plugin HTTP route on nodeID.
+func (c *Client) ForwardPluginHTTP(ctx context.Context, nodeID uint64, req *pluginproto.ForwardHttpReq) (*pluginproto.HttpResponse, error) {
+	if req == nil {
+		req = &pluginproto.ForwardHttpReq{}
+	}
+	resp, err := c.callManagerPlugin(ctx, nodeID, managerPluginRPCRequest{
+		Op:         managerPluginOpHTTPForward,
+		NodeID:     nodeID,
+		PluginNo:   req.GetPluginNo(),
+		ForwardReq: req,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if err := managerPluginRPCErrorForStatus(resp.Status); err != nil {
+		return nil, err
+	}
+	if resp.ForwardResp == nil {
+		return &pluginproto.HttpResponse{}, nil
+	}
+	return resp.ForwardResp, nil
 }
 
 func (c *Client) callManagerPlugin(ctx context.Context, nodeID uint64, req managerPluginRPCRequest) (managerPluginRPCResponse, error) {

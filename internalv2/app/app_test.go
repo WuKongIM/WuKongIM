@@ -4714,6 +4714,8 @@ type fakeManagerCluster struct {
 	conversationMessages  map[metadb.ConversationKey][]channelv2.Message
 	channelOwnerMetas     map[channelv2.ChannelID]channelv2.Meta
 	registeredHandlers    map[uint8]clusterv2.NodeRPCHandler
+	rpcNodeID             uint64
+	rpcServiceID          uint8
 	controllerLogs        clusterv2.ControllerLogEntries
 	slotLogs              clusterv2.SlotLogEntries
 	slotRaftStatus        clusterv2.SlotRaftStatus
@@ -4740,7 +4742,14 @@ func (f *fakeManagerCluster) RegisterRPC(serviceID uint8, handler clusterv2.Node
 	f.registeredHandlers[serviceID] = handler
 }
 
-func (f *fakeManagerCluster) CallRPC(context.Context, uint64, uint8, []byte) ([]byte, error) {
+func (f *fakeManagerCluster) CallRPC(ctx context.Context, nodeID uint64, serviceID uint8, payload []byte) ([]byte, error) {
+	f.rpcNodeID = nodeID
+	f.rpcServiceID = serviceID
+	if serviceID == accessnode.ManagerPluginRPCServiceID && f.registeredHandlers != nil {
+		if handler, ok := f.registeredHandlers[serviceID]; ok {
+			return handler.HandleRPC(ctx, payload)
+		}
+	}
 	return nil, errors.New("unexpected manager rpc call")
 }
 

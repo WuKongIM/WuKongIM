@@ -113,6 +113,29 @@ plugin /conversation/channels host RPC
 uses the legacy fixed limit of 1000 and intentionally does not join last visible
 messages or reuse the user-facing conversation list defaults.
 
+## Host RPC HTTP Forward Flow
+
+```text
+plugin /plugin/httpForward host RPC
+  -> access/plugin decodes pluginproto.ForwardHttpReq and applies timeout
+  -> App.HTTPForward
+  -> trim pluginNo, falling back to the caller plugin number when empty
+  -> clone the HTTP request and drop hop-by-hop headers plus Connection tokens
+  -> enforce bounded request header/query and body sizes
+  -> toNodeId <= 0:
+       call local plugin /plugin/route through Invoker.RequestPlugin
+  -> toNodeId > 0:
+       call HTTPForwarder.ForwardPluginHTTP(target node, normalized request)
+       validate and clone the returned response
+  -> toNodeId == -1:
+       return ErrHTTPForwardFanoutDeferred until fanout compatibility is implemented
+```
+
+`/plugin/httpForward` keeps the legacy host RPC surface while preserving v2
+cluster routing. Remote forwarding is a narrow port owned by app/infra wiring;
+the plugin usecase does not call clusterv2 directly and the remote receiver
+must execute only the local `/plugin/route` hook.
+
 ## PersistAfter Flow
 
 ```text

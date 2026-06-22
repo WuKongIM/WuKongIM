@@ -3,6 +3,7 @@ package plugin
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/internal/usecase/plugin/pluginproto"
@@ -13,6 +14,7 @@ import (
 
 var benchmarkMessageBatchSink *pluginproto.MessageBatch
 var benchmarkMessageBatchScalarSink uint64
+var benchmarkHTTPResponseSink *pluginproto.HttpResponse
 
 func BenchmarkPersistAfterMessageBatchMapping(b *testing.B) {
 	payloadSizes := []int{128, 1024, 16 * 1024}
@@ -167,6 +169,75 @@ func BenchmarkConversationChannels(b *testing.B) {
 				if len(resp.GetChannels()) != count {
 					b.Fatal("invalid response count")
 				}
+			}
+		})
+	}
+}
+
+func BenchmarkHTTPForward(b *testing.B) {
+	for _, payloadSize := range []int{128, 1024, 16 * 1024} {
+		b.Run(fmt.Sprintf("local_payload_%d", payloadSize), func(b *testing.B) {
+			payload := make([]byte, payloadSize)
+			invoker := &recordingHTTPRouteInvoker{
+				response: &pluginproto.HttpResponse{
+					Status:  http.StatusOK,
+					Headers: map[string]string{"X-Plugin": "ok"},
+					Body:    []byte("ok"),
+				},
+			}
+			app, err := NewApp(Options{Runtime: &recordingRuntime{}, Invoker: invoker})
+			require.NoError(b, err)
+			req := &pluginproto.ForwardHttpReq{
+				PluginNo: "bench.plugin",
+				Request: &pluginproto.HttpRequest{
+					Method:  http.MethodPost,
+					Path:    "/echo",
+					Headers: map[string]string{"X-Trace": "bench"},
+					Query:   map[string]string{"q": "1"},
+					Body:    payload,
+				},
+			}
+			b.ReportAllocs()
+			b.SetBytes(int64(payloadSize))
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				resp, err := app.HTTPForward(context.Background(), req, "bench.plugin")
+				if err != nil {
+					b.Fatal(err)
+				}
+				if resp.GetStatus() != http.StatusOK {
+					b.Fatal("invalid status")
+				}
+				benchmarkHTTPResponseSink = resp
+			}
+		})
+		b.Run(fmt.Sprintf("remote_payload_%d", payloadSize), func(b *testing.B) {
+			payload := make([]byte, payloadSize)
+			forwarder := &recordingHTTPForwarder{resp: &pluginproto.HttpResponse{Status: http.StatusAccepted}}
+			app, err := NewApp(Options{Runtime: &recordingRuntime{}, Invoker: &recordingHTTPRouteInvoker{}, HTTPForwarder: forwarder})
+			require.NoError(b, err)
+			req := &pluginproto.ForwardHttpReq{
+				PluginNo: "bench.plugin",
+				ToNodeId: 2,
+				Request: &pluginproto.HttpRequest{
+					Method:  http.MethodPost,
+					Path:    "/remote",
+					Headers: map[string]string{"X-Trace": "bench"},
+					Body:    payload,
+				},
+			}
+			b.ReportAllocs()
+			b.SetBytes(int64(payloadSize))
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				resp, err := app.HTTPForward(context.Background(), req, "bench.plugin")
+				if err != nil {
+					b.Fatal(err)
+				}
+				if resp.GetStatus() != http.StatusAccepted {
+					b.Fatal("invalid status")
+				}
+				benchmarkHTTPResponseSink = resp
 			}
 		})
 	}

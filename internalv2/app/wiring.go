@@ -450,7 +450,11 @@ func (a *App) wireManagerPluginRPC() {
 			Plugins: a.plugins,
 		})
 	}
-	adapter := accessnode.New(accessnode.Options{ManagerPlugins: service, Logger: a.logger.Named("node")})
+	adapter := accessnode.New(accessnode.Options{
+		ManagerPlugins:   service,
+		PluginHTTPRoutes: a.plugins,
+		Logger:           a.logger.Named("node"),
+	})
 	registrar.RegisterRPC(accessnode.ManagerPluginRPCServiceID, nodeRPCHandlerFunc(adapter.HandleManagerPluginRPC))
 }
 

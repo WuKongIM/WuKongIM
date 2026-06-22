@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/WuKongIM/WuKongIM/internal/usecase/plugin/pluginproto"
 	"github.com/WuKongIM/WuKongIM/internalv2/observability/diagnostics"
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/conversationactive"
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internalv2/runtime/delivery"
@@ -130,6 +131,11 @@ type ManagerPluginReader interface {
 	GetNodePlugin(context.Context, uint64, string) (managementusecase.Plugin, error)
 }
 
+// PluginHTTPRouter invokes one node-local plugin HTTP route.
+type PluginHTTPRouter interface {
+	Route(context.Context, string, *pluginproto.HttpRequest) (*pluginproto.HttpResponse, error)
+}
+
 // Options configures the internalv2 node RPC adapter.
 type Options struct {
 	// Authority handles UID route authority requests after payload decoding.
@@ -160,6 +166,8 @@ type Options struct {
 	ManagerDiagnostics ManagerDiagnostics
 	// ManagerPlugins handles node-local plugin inventory requests.
 	ManagerPlugins ManagerPluginReader
+	// PluginHTTPRoutes handles node-local plugin HTTP route requests.
+	PluginHTTPRoutes PluginHTTPRouter
 	// Logger records node RPC adapter failures that are converted into statuses.
 	Logger wklog.Logger
 }
@@ -194,6 +202,8 @@ type Adapter struct {
 	managerDiagnostics ManagerDiagnostics
 	// managerPlugins reads node-local plugin inventory for manager pages.
 	managerPlugins ManagerPluginReader
+	// pluginHTTPRoutes invokes node-local plugin HTTP route hooks.
+	pluginHTTPRoutes PluginHTTPRouter
 	// logger records adapter decode errors and rejected local operations.
 	logger wklog.Logger
 }
@@ -218,6 +228,7 @@ func New(opts Options) *Adapter {
 		managerAppLogs:        opts.ManagerAppLogs,
 		managerDiagnostics:    opts.ManagerDiagnostics,
 		managerPlugins:        opts.ManagerPlugins,
+		pluginHTTPRoutes:      opts.PluginHTTPRoutes,
 		logger:                opts.Logger,
 	}
 }

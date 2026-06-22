@@ -2,9 +2,11 @@ package node
 
 import (
 	"fmt"
+	"net/http"
 	"testing"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/usecase/plugin/pluginproto"
 	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
 	pluginusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/plugin"
 )
@@ -59,6 +61,111 @@ func BenchmarkManagerPluginRPCResponseDecode(b *testing.B) {
 				}
 				benchmarkManagerPluginRespSink = resp
 			}
+		})
+	}
+}
+
+func BenchmarkManagerPluginRPCHTTPForwardRequestCodec(b *testing.B) {
+	for _, payloadSize := range []int{128, 1024, 16 * 1024} {
+		b.Run(fmt.Sprintf("payload_%d", payloadSize), func(b *testing.B) {
+			req := managerPluginRPCRequest{
+				Op:       managerPluginOpHTTPForward,
+				NodeID:   2,
+				PluginNo: "bench.plugin",
+				ForwardReq: &pluginproto.ForwardHttpReq{
+					PluginNo: "bench.plugin",
+					ToNodeId: 2,
+					Request: &pluginproto.HttpRequest{
+						Method:  http.MethodPost,
+						Path:    "/bench",
+						Headers: map[string]string{"X-Trace": "bench"},
+						Query:   map[string]string{"q": "1"},
+						Body:    make([]byte, payloadSize),
+					},
+				},
+			}
+			b.Run("encode", func(b *testing.B) {
+				b.ReportAllocs()
+				b.SetBytes(int64(payloadSize))
+				b.ResetTimer()
+				for i := 0; i < b.N; i++ {
+					body, err := encodeManagerPluginRequest(req)
+					if err != nil {
+						b.Fatal(err)
+					}
+					if len(body) == 0 {
+						b.Fatal("empty encoded request")
+					}
+					benchmarkManagerPluginBytesSink = body
+				}
+			})
+			body, err := encodeManagerPluginRequest(req)
+			if err != nil {
+				b.Fatal(err)
+			}
+			b.Run("decode", func(b *testing.B) {
+				b.ReportAllocs()
+				b.SetBytes(int64(payloadSize))
+				b.ResetTimer()
+				for i := 0; i < b.N; i++ {
+					got, err := decodeManagerPluginRequest(body)
+					if err != nil {
+						b.Fatal(err)
+					}
+					if got.ForwardReq.GetRequest().GetPath() != "/bench" {
+						b.Fatal("invalid request")
+					}
+				}
+			})
+		})
+	}
+}
+
+func BenchmarkManagerPluginRPCHTTPForwardResponseCodec(b *testing.B) {
+	for _, payloadSize := range []int{128, 1024, 16 * 1024} {
+		b.Run(fmt.Sprintf("payload_%d", payloadSize), func(b *testing.B) {
+			resp := managerPluginRPCResponse{
+				Status: rpcStatusOK,
+				ForwardResp: &pluginproto.HttpResponse{
+					Status:  http.StatusOK,
+					Headers: map[string]string{"X-Plugin": "ok"},
+					Body:    make([]byte, payloadSize),
+				},
+			}
+			b.Run("encode", func(b *testing.B) {
+				b.ReportAllocs()
+				b.SetBytes(int64(payloadSize))
+				b.ResetTimer()
+				for i := 0; i < b.N; i++ {
+					body, err := encodeManagerPluginResponse(resp)
+					if err != nil {
+						b.Fatal(err)
+					}
+					if len(body) == 0 {
+						b.Fatal("empty encoded response")
+					}
+					benchmarkManagerPluginBytesSink = body
+				}
+			})
+			body, err := encodeManagerPluginResponse(resp)
+			if err != nil {
+				b.Fatal(err)
+			}
+			b.Run("decode", func(b *testing.B) {
+				b.ReportAllocs()
+				b.SetBytes(int64(payloadSize))
+				b.ResetTimer()
+				for i := 0; i < b.N; i++ {
+					got, err := decodeManagerPluginResponse(body)
+					if err != nil {
+						b.Fatal(err)
+					}
+					if got.ForwardResp.GetStatus() != http.StatusOK {
+						b.Fatal("invalid response")
+					}
+					benchmarkManagerPluginRespSink = got
+				}
+			})
 		})
 	}
 }

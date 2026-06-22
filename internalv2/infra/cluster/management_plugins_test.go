@@ -2,8 +2,10 @@ package cluster
 
 import (
 	"context"
+	"net/http"
 	"testing"
 
+	"github.com/WuKongIM/WuKongIM/internal/usecase/plugin/pluginproto"
 	accessnode "github.com/WuKongIM/WuKongIM/internalv2/access/node"
 	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
 )
@@ -44,6 +46,51 @@ func TestManagementPluginReaderRoutesRemotePluginReads(t *testing.T) {
 	}
 }
 
+func TestPluginHTTPForwarderRoutesRemotePluginHTTP(t *testing.T) {
+	routes := &fakePluginHTTPRoutes{
+		resp: &pluginproto.HttpResponse{
+			Status:  http.StatusCreated,
+			Headers: map[string]string{"X-Plugin": "ok"},
+			Body:    []byte("forwarded"),
+		},
+	}
+	adapter := accessnode.New(accessnode.Options{PluginHTTPRoutes: routes})
+	node := &fakeManagementPluginNode{handler: adapter.HandleManagerPluginRPC}
+	forwarder := NewPluginHTTPForwarder(node)
+
+	resp, err := forwarder.ForwardPluginHTTP(context.Background(), 3, &pluginproto.ForwardHttpReq{
+		PluginNo: "wk.http",
+		ToNodeId: 3,
+		Request: &pluginproto.HttpRequest{
+			Method: "POST",
+			Path:   "/echo",
+			Body:   []byte("payload"),
+		},
+	})
+	if err != nil {
+		t.Fatalf("ForwardPluginHTTP() error = %v", err)
+	}
+	if node.nodeID != 3 || node.serviceID != accessnode.ManagerPluginRPCServiceID {
+		t.Fatalf("rpc target = node:%d service:%d, want node 3 service %d", node.nodeID, node.serviceID, accessnode.ManagerPluginRPCServiceID)
+	}
+	if routes.pluginNo != "wk.http" || routes.req.GetPath() != "/echo" || string(routes.req.GetBody()) != "payload" {
+		t.Fatalf("route call = plugin:%q req:%#v", routes.pluginNo, routes.req)
+	}
+	if resp.GetStatus() != http.StatusCreated || string(resp.GetBody()) != "forwarded" || resp.GetHeaders()["X-Plugin"] != "ok" {
+		t.Fatalf("response = %#v, want remote plugin response", resp)
+	}
+}
+
+func TestPluginHTTPForwarderRequiresNode(t *testing.T) {
+	forwarder := NewPluginHTTPForwarder(nil)
+
+	_, err := forwarder.ForwardPluginHTTP(context.Background(), 2, &pluginproto.ForwardHttpReq{})
+
+	if err == nil {
+		t.Fatal("ForwardPluginHTTP() error = nil, want unavailable")
+	}
+}
+
 type fakeManagementPluginService struct {
 	listNodeID     uint64
 	detailNodeID   uint64
@@ -76,4 +123,17 @@ func (f *fakeManagementPluginNode) CallRPC(ctx context.Context, nodeID uint64, s
 	f.nodeID = nodeID
 	f.serviceID = serviceID
 	return f.handler(ctx, payload)
+}
+
+type fakePluginHTTPRoutes struct {
+	pluginNo string
+	req      *pluginproto.HttpRequest
+	resp     *pluginproto.HttpResponse
+	err      error
+}
+
+func (f *fakePluginHTTPRoutes) Route(_ context.Context, pluginNo string, req *pluginproto.HttpRequest) (*pluginproto.HttpResponse, error) {
+	f.pluginNo = pluginNo
+	f.req = req
+	return f.resp, f.err
 }

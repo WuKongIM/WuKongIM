@@ -45,6 +45,7 @@ type Usecase interface {
 	ClusterConfig(context.Context, string) (*pluginproto.ClusterConfig, error)
 	ClusterChannelsBelongNode(context.Context, *pluginproto.ClusterChannelBelongNodeReq, string) (*pluginproto.ClusterChannelBelongNodeBatchResp, error)
 	ConversationChannels(context.Context, *pluginproto.ConversationChannelReq, string) (*pluginproto.ConversationChannelResp, error)
+	HTTPForward(context.Context, *pluginproto.ForwardHttpReq, string) (*pluginproto.HttpResponse, error)
 }
 
 // Server adapts plugin-origin lifecycle wkrpc host RPCs to the v2 plugin usecase.
@@ -106,7 +107,7 @@ func (h registeredRouteHandler) handle(c rpcContext) {
 	h.server.handlePath(h.path, c)
 }
 
-var routePaths = []string{"/plugin/start", "/close", "/message/send", "/channel/messages", "/cluster/config", "/cluster/channels/belongNode", "/conversation/channels"}
+var routePaths = []string{"/plugin/start", "/close", "/message/send", "/channel/messages", "/cluster/config", "/cluster/channels/belongNode", "/conversation/channels", "/plugin/httpForward"}
 
 func (s *Server) handlePath(path string, c rpcContext) {
 	switch path {
@@ -124,6 +125,8 @@ func (s *Server) handlePath(path string, c rpcContext) {
 		s.handleClusterChannelsBelongNode(c)
 	case "/conversation/channels":
 		s.handleConversationChannels(c)
+	case "/plugin/httpForward":
+		s.handleHTTPForward(c)
 	default:
 		c.WriteErr(errors.New("plugin host rpc route not registered"))
 	}

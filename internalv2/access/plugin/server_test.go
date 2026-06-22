@@ -2,6 +2,8 @@ package plugin
 
 import (
 	"context"
+	"fmt"
+	"net/http"
 	"testing"
 	"time"
 
@@ -15,7 +17,7 @@ func TestServerRegistersHostRPCRoutes(t *testing.T) {
 	routes := &recordingRoutes{}
 	_, err := NewServer(Options{Routes: routes, Usecase: &recordingUsecase{}, Timeout: time.Second})
 	require.NoError(t, err)
-	require.ElementsMatch(t, []string{"/plugin/start", "/close", "/message/send", "/channel/messages", "/cluster/config", "/cluster/channels/belongNode", "/conversation/channels"}, routes.paths)
+	require.ElementsMatch(t, []string{"/plugin/start", "/close", "/message/send", "/channel/messages", "/cluster/config", "/cluster/channels/belongNode", "/conversation/channels", "/plugin/httpForward"}, routes.paths)
 }
 
 func TestHandlePluginStartDecodesAndWritesStartupResponse(t *testing.T) {
@@ -272,6 +274,63 @@ func TestHandleConversationChannelsDecodesUsesTimeoutAndWritesResponse(t *testin
 	require.Equal(t, "g1", got.GetChannels()[0].GetChannelId())
 }
 
+func TestHandleHTTPForwardDecodesFillsCallerUsesTimeoutAndWritesResponse(t *testing.T) {
+	usecase := &recordingUsecase{httpForwardResp: &pluginproto.HttpResponse{
+		Status:  http.StatusCreated,
+		Headers: map[string]string{"X-Plugin": "ok"},
+		Body:    []byte("created"),
+	}}
+	server, err := NewServer(Options{Usecase: usecase, Timeout: time.Second})
+	require.NoError(t, err)
+	ctx := newTestRPCContext("wk.plugin.echo", mustMarshalProto(t, &pluginproto.ForwardHttpReq{
+		Request: &pluginproto.HttpRequest{Method: http.MethodGet, Path: "/hello"},
+	}))
+
+	server.handlePath("/plugin/httpForward", ctx)
+
+	require.NoError(t, ctx.err)
+	require.Equal(t, 1, usecase.httpForwardCalls)
+	require.Equal(t, "wk.plugin.echo", usecase.httpForwardCaller)
+	require.Equal(t, "wk.plugin.echo", usecase.httpForwardReq.GetPluginNo())
+	require.Equal(t, http.MethodGet, usecase.httpForwardReq.GetRequest().GetMethod())
+	require.Equal(t, "/hello", usecase.httpForwardReq.GetRequest().GetPath())
+	require.True(t, usecase.httpForwardDeadlineSet)
+	require.WithinDuration(t, time.Now().Add(time.Second), usecase.httpForwardDeadline, 100*time.Millisecond)
+	var got pluginproto.HttpResponse
+	require.NoError(t, proto.Unmarshal(ctx.body, &got))
+	require.Equal(t, int32(http.StatusCreated), got.GetStatus())
+	require.Equal(t, "ok", got.GetHeaders()["X-Plugin"])
+	require.Equal(t, []byte("created"), got.GetBody())
+}
+
+func TestHandleHTTPForwardPreservesExplicitPluginNo(t *testing.T) {
+	usecase := &recordingUsecase{httpForwardResp: &pluginproto.HttpResponse{Status: http.StatusOK}}
+	server, err := NewServer(Options{Usecase: usecase, Timeout: time.Second})
+	require.NoError(t, err)
+	ctx := newTestRPCContext("wk.plugin.caller", mustMarshalProto(t, &pluginproto.ForwardHttpReq{
+		PluginNo: "wk.plugin.other",
+		Request:  &pluginproto.HttpRequest{Path: "/hello"},
+	}))
+
+	server.handlePath("/plugin/httpForward", ctx)
+
+	require.NoError(t, ctx.err)
+	require.Equal(t, "wk.plugin.other", usecase.httpForwardReq.GetPluginNo())
+}
+
+func TestHandleHTTPForwardRejectsOversizedRequestBody(t *testing.T) {
+	usecase := &recordingUsecase{}
+	server, err := NewServer(Options{Usecase: usecase, Timeout: time.Second, MaxBodyBytes: 4})
+	require.NoError(t, err)
+	ctx := newTestRPCContext("wk.plugin.echo", []byte("12345"))
+
+	server.handlePath("/plugin/httpForward", ctx)
+
+	require.Error(t, ctx.err)
+	require.Contains(t, ctx.err.Error(), "exceeds max bytes")
+	require.Zero(t, usecase.httpForwardCalls)
+}
+
 func TestMessageHostRPCKeepsShorterIncomingDeadline(t *testing.T) {
 	usecase := &recordingUsecase{sendResp: &pluginproto.SendResp{MessageId: 1}}
 	server, err := NewServer(Options{Usecase: usecase, Timeout: time.Second})
@@ -341,6 +400,21 @@ func TestConversationHostRPCKeepsShorterIncomingDeadline(t *testing.T) {
 	require.NoError(t, ctx.err)
 	require.True(t, usecase.conversationChannelsDeadlineSet)
 	require.WithinDuration(t, time.Now().Add(200*time.Millisecond), usecase.conversationChannelsDeadline, 100*time.Millisecond)
+}
+
+func TestHTTPForwardHostRPCKeepsShorterIncomingDeadline(t *testing.T) {
+	usecase := &recordingUsecase{httpForwardResp: &pluginproto.HttpResponse{Status: http.StatusOK}}
+	server, err := NewServer(Options{Usecase: usecase, Timeout: time.Second})
+	require.NoError(t, err)
+	incoming, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	ctx := newTimedTestRPCContext(incoming, "wk.plugin.echo", mustMarshalProto(t, &pluginproto.ForwardHttpReq{PluginNo: "wk.plugin.echo"}))
+
+	server.handlePath("/plugin/httpForward", ctx)
+
+	require.NoError(t, ctx.err)
+	require.True(t, usecase.httpForwardDeadlineSet)
+	require.WithinDuration(t, time.Now().Add(200*time.Millisecond), usecase.httpForwardDeadline, 100*time.Millisecond)
 }
 
 func TestChannelMessagesHostRPCKeepsShorterIncomingDeadline(t *testing.T) {
@@ -430,6 +504,12 @@ type recordingUsecase struct {
 	conversationChannelsCaller      string
 	conversationChannelsDeadline    time.Time
 	conversationChannelsDeadlineSet bool
+	httpForwardCalls                int
+	httpForwardReq                  *pluginproto.ForwardHttpReq
+	httpForwardResp                 *pluginproto.HttpResponse
+	httpForwardCaller               string
+	httpForwardDeadline             time.Time
+	httpForwardDeadlineSet          bool
 }
 
 func (r *recordingUsecase) StartPlugin(ctx context.Context, info *pluginproto.PluginInfo, callerUID string) (*pluginproto.StartupResp, error) {
@@ -535,6 +615,20 @@ func (r *recordingUsecase) ConversationChannels(ctx context.Context, req *plugin
 		return r.conversationChannelsResp, nil
 	}
 	return &pluginproto.ConversationChannelResp{}, nil
+}
+
+func (r *recordingUsecase) HTTPForward(ctx context.Context, req *pluginproto.ForwardHttpReq, callerUID string) (*pluginproto.HttpResponse, error) {
+	r.httpForwardCalls++
+	r.httpForwardReq = proto.Clone(req).(*pluginproto.ForwardHttpReq)
+	r.httpForwardCaller = callerUID
+	if deadline, ok := ctx.Deadline(); ok {
+		r.httpForwardDeadline = deadline
+		r.httpForwardDeadlineSet = true
+	}
+	if r.httpForwardResp != nil {
+		return r.httpForwardResp, nil
+	}
+	return &pluginproto.HttpResponse{}, nil
 }
 
 type testRPCContext struct {
@@ -652,6 +746,42 @@ func BenchmarkConversationHostRPCHandler(b *testing.B) {
 		if len(ctx.body) == 0 {
 			b.Fatal("empty response")
 		}
+	}
+}
+
+func BenchmarkHTTPForwardHostRPCHandler(b *testing.B) {
+	for _, payloadSize := range []int{128, 1024, 16 * 1024} {
+		b.Run(fmt.Sprintf("payload_%d", payloadSize), func(b *testing.B) {
+			usecase := &recordingUsecase{httpForwardResp: &pluginproto.HttpResponse{
+				Status:  http.StatusOK,
+				Headers: map[string]string{"X-Plugin": "ok"},
+				Body:    []byte("ok"),
+			}}
+			server, err := NewServer(Options{Usecase: usecase, Timeout: time.Second})
+			require.NoError(b, err)
+			body, err := proto.Marshal(&pluginproto.ForwardHttpReq{
+				Request: &pluginproto.HttpRequest{
+					Method:  http.MethodPost,
+					Path:    "/bench",
+					Headers: map[string]string{"X-Trace": "bench"},
+					Body:    make([]byte, payloadSize),
+				},
+			})
+			require.NoError(b, err)
+			b.ReportAllocs()
+			b.SetBytes(int64(payloadSize))
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				ctx := newTestRPCContext("bench.plugin", body)
+				server.handlePath("/plugin/httpForward", ctx)
+				if ctx.err != nil {
+					b.Fatal(ctx.err)
+				}
+				if len(ctx.body) == 0 {
+					b.Fatal("empty response")
+				}
+			}
+		})
 	}
 }
 

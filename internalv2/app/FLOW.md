@@ -134,7 +134,7 @@ New(Config)
        wire a node-local PDK-compatible plugin runtime with a Unix host RPC
        socket, the lifecycle plus /message/send, /channel/messages,
        /cluster/config, /cluster/channels/belongNode, and
-       /conversation/channels host RPC
+       /conversation/channels, and /plugin/httpForward host RPC
        adapter, the v2 plugin usecase, and a bounded PersistAfter worker; pass
        WK_PLUGIN_FAIL_OPEN into the synchronous Send hook usecase; wire
        plugin-origin /message/send back through the v2 message usecase with the
@@ -142,12 +142,14 @@ New(Config)
        committed-message reader when available; wire cluster host RPCs to the
        clusterv2 control snapshot and ChannelV2 append-authority readers when
        available; wire /conversation/channels to the clusterv2 active
-       conversation row reader when available without last-message joins; attach
-       the plugin hook metrics observer
+       conversation row reader when available without last-message joins; wire
+       positive toNodeId /plugin/httpForward calls through the clusterv2 manager
+       plugin RPC forwarder; attach the plugin hook metrics observer
        when metrics are enabled, expose durable commit PersistAfter events to
        channelappend, and register the manager plugin RPC handler when node RPC
        is available so peer managers can inspect this node's observed plugin
-       snapshot
+       snapshot and invoke this node's local /plugin/route hook for forwarded
+       plugin HTTP requests
   -> when the cluster exposes ChannelV2 append plus channel append authority:
        create channelappend.Group with hash-sharded per-channel authority writers,
        clusterv2 ChannelAppender, node-scoped message IDs, subscriber source,
@@ -190,7 +192,8 @@ New(Config)
      ports when clusterv2 exposes them, use local Slot Raft runtime status for
      preflight, and submit the validated intent to clusterv2 control, plugin
      inventory uses the local v2 plugin usecase for the local node and routes
-     peer `node_id` reads through the manager plugin RPC reader, ordinary
+     peer `node_id` reads plus positive-node plugin HTTP forwarding through the
+     manager plugin RPC path, ordinary
      application log
      sources and pages use the app-owned
      local reader for the local node and route peer `node_id` reads through the

@@ -3,6 +3,7 @@ package plugin
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/WuKongIM/WuKongIM/internal/usecase/plugin/pluginproto"
 )
@@ -12,6 +13,8 @@ const (
 	PathSend = "/plugin/send"
 	// PathPersistAfter is the legacy PDK RPC path for the PersistAfter hook.
 	PathPersistAfter = "/plugin/persist_after"
+	// PathRoute is the legacy PDK RPC path for plugin HTTP routing.
+	PathRoute = "/plugin/route"
 	// MsgTypePersistAfter is the legacy one-way message type for async PersistAfter.
 	MsgTypePersistAfter uint32 = 2
 )
@@ -50,4 +53,36 @@ func (a *App) InvokePersistAfter(ctx context.Context, plugin ObservedPlugin, bat
 		return fmt.Errorf("plugin %q PersistAfter async msgType %d: %w", plugin.No, MsgTypePersistAfter, err)
 	}
 	return nil
+}
+
+// Route calls one plugin's HTTP-compatible route hook.
+func (a *App) Route(ctx context.Context, pluginNo string, req *pluginproto.HttpRequest) (*pluginproto.HttpResponse, error) {
+	if a == nil || a.invoker == nil {
+		return nil, ErrInvokerRequired
+	}
+	pluginNo = strings.TrimSpace(pluginNo)
+	if pluginNo == "" {
+		return nil, ErrPluginNoRequired
+	}
+	req = clonePluginHTTPRequest(req)
+	dropHopByHopHeaders(req.Headers)
+	if err := a.validateHTTPForwardRequestSize(req); err != nil {
+		return nil, err
+	}
+	data, err := req.Marshal()
+	if err != nil {
+		return nil, fmt.Errorf("marshal plugin http request: %w", err)
+	}
+	respData, err := a.invoker.RequestPlugin(ctx, pluginNo, PathRoute, data)
+	if err != nil {
+		return nil, err
+	}
+	var resp pluginproto.HttpResponse
+	if err := resp.Unmarshal(respData); err != nil {
+		return nil, fmt.Errorf("unmarshal plugin http response: %w", err)
+	}
+	if err := a.validateHTTPForwardResponseSize(&resp); err != nil {
+		return nil, err
+	}
+	return clonePluginHTTPResponse(&resp), nil
 }

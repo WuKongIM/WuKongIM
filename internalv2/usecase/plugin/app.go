@@ -27,6 +27,8 @@ func NewApp(opts Options) (*App, error) {
 		clusterReader:    opts.ClusterReader,
 		channelOwners:    opts.ChannelOwners,
 		conversations:    opts.Conversations,
+		httpForwarder:    opts.HTTPForwarder,
+		httpForwardLimit: opts.HTTPForwardMaxBodyBytes,
 		defaultSenderUID: strings.TrimSpace(opts.DefaultSenderUID),
 		failOpen:         opts.FailOpen,
 		observer:         opts.Observer,

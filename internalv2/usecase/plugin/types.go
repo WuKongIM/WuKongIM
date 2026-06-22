@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/usecase/plugin/pluginproto"
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/message"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
@@ -38,6 +39,14 @@ var (
 	ErrConversationReaderRequired = errors.New("plugin conversation reader required")
 	// ErrConversationUIDRequired reports that host conversation/channels omitted the UID.
 	ErrConversationUIDRequired = errors.New("plugin conversation uid required")
+	// ErrHTTPForwarderRequired reports that remote plugin HTTP forward needs a node forwarder.
+	ErrHTTPForwarderRequired = errors.New("plugin http forwarder required")
+	// ErrHTTPForwardFanoutDeferred reports that broadcast HTTP forward is not implemented in phase 1.
+	ErrHTTPForwardFanoutDeferred = errors.New("plugin http forward fanout deferred")
+	// ErrHTTPForwardBodyTooLarge reports that a plugin HTTP body exceeds the configured limit.
+	ErrHTTPForwardBodyTooLarge = errors.New("plugin http forward body too large")
+	// ErrHTTPForwardHeaderTooLarge reports that plugin HTTP headers exceed the configured limit.
+	ErrHTTPForwardHeaderTooLarge = errors.New("plugin http forward headers too large")
 )
 
 // Method identifies a plugin hook advertised by a plugin manifest.
@@ -162,6 +171,12 @@ type ConversationReader interface {
 	ConversationChannels(context.Context, string, int) ([]message.ChannelID, error)
 }
 
+// HTTPForwarder forwards plugin HTTP route requests to another cluster node.
+type HTTPForwarder interface {
+	// ForwardPluginHTTP calls the target node's node-local plugin route provider.
+	ForwardPluginHTTP(context.Context, uint64, *pluginproto.ForwardHttpReq) (*pluginproto.HttpResponse, error)
+}
+
 // Observer records low-cardinality synchronous plugin hook events.
 type Observer interface {
 	ObserveSendInvoke(result string, d time.Duration)
@@ -183,6 +198,10 @@ type Options struct {
 	ChannelOwners ChannelOwnerReader
 	// Conversations reads authoritative UID conversation channels for plugin host RPCs.
 	Conversations ConversationReader
+	// HTTPForwarder forwards plugin HTTP route requests to remote nodes.
+	HTTPForwarder HTTPForwarder
+	// HTTPForwardMaxBodyBytes limits plugin HTTP forward request and response bodies.
+	HTTPForwardMaxBodyBytes int64
 	// FailOpen lets synchronous Send hook infrastructure failures preserve the original send.
 	FailOpen bool
 	Observer Observer
@@ -198,6 +217,8 @@ type App struct {
 	clusterReader    ClusterReader
 	channelOwners    ChannelOwnerReader
 	conversations    ConversationReader
+	httpForwarder    HTTPForwarder
+	httpForwardLimit int64
 	defaultSenderUID string
 	failOpen         bool
 	observer         Observer

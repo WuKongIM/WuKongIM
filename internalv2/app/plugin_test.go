@@ -202,6 +202,30 @@ func TestNewWiresPluginUsecaseAsConversationReader(t *testing.T) {
 	require.Equal(t, "p1", resp.GetChannels()[1].GetChannelId())
 }
 
+func TestNewWiresPluginUsecaseAsHTTPForwarder(t *testing.T) {
+	cluster := &fakeManagerCluster{nodeID: 1}
+	app, err := newTestApp(t, Config{
+		DataDir: t.TempDir(),
+		Cluster: clusterv2.Config{NodeID: 1},
+		Plugin:  PluginConfig{Enable: true, HotReload: false},
+	}, WithCluster(cluster), WithGateway(nil))
+	require.NoError(t, err)
+
+	_, err = app.plugins.HTTPForward(context.Background(), &pluginproto.ForwardHttpReq{
+		PluginNo: "wk.http",
+		ToNodeId: 2,
+		Request: &pluginproto.HttpRequest{
+			Method: "GET",
+			Path:   "/echo",
+		},
+	}, "caller")
+
+	require.Error(t, err)
+	require.NotErrorIs(t, err, pluginusecase.ErrHTTPForwarderRequired)
+	require.Equal(t, uint64(2), cluster.rpcNodeID)
+	require.Equal(t, accessnode.ManagerPluginRPCServiceID, cluster.rpcServiceID)
+}
+
 func TestNewPassesPluginFailOpenToPluginUsecase(t *testing.T) {
 	app, err := newTestApp(t, Config{
 		DataDir: t.TempDir(),
