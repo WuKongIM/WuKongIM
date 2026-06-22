@@ -183,7 +183,8 @@ plugin directories or mutate plugin lifecycle state.
 `PluginHTTPForwarder` reuses the same `RPCManagerPlugins` service with the
 `http_forward` operation for `/plugin/httpForward` requests that target a
 positive `toNodeId`. The receiver executes its local `/plugin/route` hook only;
-fanout `toNodeId=-1` remains deferred in the plugin usecase.
+fanout `toNodeId=-1` is intentionally deferred in the plugin usecase and never
+enters the infra adapter.
 
 ## Management Log Flow
 

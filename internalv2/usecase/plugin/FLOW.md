@@ -128,13 +128,15 @@ plugin /plugin/httpForward host RPC
        call HTTPForwarder.ForwardPluginHTTP(target node, normalized request)
        validate and clone the returned response
   -> toNodeId == -1:
-       return ErrHTTPForwardFanoutDeferred until fanout compatibility is implemented
+       return ErrHTTPForwardFanoutDeferred by explicit compatibility decision
 ```
 
 `/plugin/httpForward` keeps the legacy host RPC surface while preserving v2
 cluster routing. Remote forwarding is a narrow port owned by app/infra wiring;
 the plugin usecase does not call clusterv2 directly and the remote receiver
-must execute only the local `/plugin/route` hook.
+must execute only the local `/plugin/route` hook. Fanout `toNodeId=-1` remains
+an intentional deferred compatibility path; it must not scan the cluster
+snapshot or issue partial remote RPCs.
 
 ## PersistAfter Flow
 

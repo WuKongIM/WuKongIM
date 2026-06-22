@@ -308,7 +308,14 @@ func (c *client) runInitiator() error {
 	if err != nil {
 		return err
 	}
-	return c.appendRecord("remote", remote)
+	if err := c.appendRecord("remote", remote); err != nil {
+		return err
+	}
+	fanoutErr := c.forwardExpectError(context.Background(), -1, "/fanout", []byte("fanout-payload"))
+	if fanoutErr == nil {
+		return errors.New("fanout httpForward unexpectedly succeeded")
+	}
+	return c.appendErrorRecord("fanout", fanoutErr)
 }
 
 func (c *client) forwardWithRetry(mode string, toNodeID int64, path string, body []byte) (*pluginproto.HttpResponse, error) {
@@ -329,6 +336,11 @@ func (c *client) forwardWithRetry(mode string, toNodeID int64, path string, body
 		time.Sleep(100 * time.Millisecond)
 	}
 	return nil, fmt.Errorf("%s httpForward to node %d failed: %w", mode, toNodeID, lastErr)
+}
+
+func (c *client) forwardExpectError(ctx context.Context, toNodeID int64, path string, body []byte) error {
+	_, err := c.forwardHTTP(ctx, toNodeID, path, body)
+	return err
 }
 
 func (c *client) forwardHTTP(ctx context.Context, toNodeID int64, path string, body []byte) (*pluginproto.HttpResponse, error) {
@@ -370,6 +382,22 @@ func (c *client) appendRecord(mode string, resp *pluginproto.HttpResponse) error
 		Mode:   mode,
 		Status: resp.GetStatus(),
 		Body:   string(resp.GetBody()),
+	})
+}
+
+func (c *client) appendErrorRecord(mode string, err error) error {
+	path := filepath.Join(c.sandbox, resultsFile)
+	file, openErr := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
+	if openErr != nil {
+		return openErr
+	}
+	defer file.Close()
+	return json.NewEncoder(file).Encode(struct {
+		Mode  string `json:"mode"`
+		Error string `json:"error"`
+	}{
+		Mode:  mode,
+		Error: err.Error(),
 	})
 }
 

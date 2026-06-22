@@ -44,9 +44,10 @@ func TestPluginHTTPForwardRoutesLocalAndRemotePluginHTTP(t *testing.T) {
 	defer cancel()
 	require.NoError(t, cluster.WaitClusterReady(ctx), cluster.DumpDiagnostics())
 
-	records := waitHTTPForwardRecords(t, node1.resultPath, 2, cluster)
+	records := waitHTTPForwardRecords(t, node1.resultPath, 3, cluster)
 	requireHTTPForwardRecord(t, records, "local", 200, "route:httpforward:/local:local-payload")
 	requireHTTPForwardRecord(t, records, "remote", 200, "route:httpforward:/remote:remote-payload")
+	requireHTTPForwardErrorRecord(t, records, "fanout", "plugin http forward fanout deferred")
 }
 
 type httpForwardNodeFiles struct {
@@ -61,6 +62,7 @@ type httpForwardRecord struct {
 	Mode   string `json:"mode"`
 	Status int32  `json:"status"`
 	Body   string `json:"body"`
+	Error  string `json:"error"`
 }
 
 func newHTTPForwardNodeFiles(t *testing.T, root string, nodeID int, role string) httpForwardNodeFiles {
@@ -156,6 +158,20 @@ func requireHTTPForwardRecord(t *testing.T, records []httpForwardRecord, mode st
 		return
 	}
 	t.Fatalf("record mode %q not found in %#v", mode, records)
+}
+
+func requireHTTPForwardErrorRecord(t *testing.T, records []httpForwardRecord, mode string, contains string) {
+	t.Helper()
+	for _, record := range records {
+		if record.Mode != mode {
+			continue
+		}
+		require.Contains(t, record.Error, contains)
+		require.Zero(t, record.Status)
+		require.Empty(t, record.Body)
+		return
+	}
+	t.Fatalf("error record mode %q not found in %#v", mode, records)
 }
 
 func goBuildEnv(t *testing.T) []string {
