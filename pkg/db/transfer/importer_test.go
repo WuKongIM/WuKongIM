@@ -135,6 +135,79 @@ func TestImportBundleWritesCurrentStores(t *testing.T) {
 	}
 }
 
+func TestImportBundleStreamsMessageChannelCatalog(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	writeJSONLFile(t, root, "message/channels.jsonl",
+		`{"channel_key":"a:2","channel_id":"a","channel_type":2}`,
+		`{"channel_key":"g1:2","channel_id":"g1","channel_type":2}`,
+		`{"channel_key":"z:2","channel_id":"z","channel_type":2}`,
+	)
+	writeJSONLFile(t, root, "message/messages-000001.jsonl",
+		`{"channel_key":"g1:2","message_seq":1,"message_id":1001,"client_msg_no":"c1","from_uid":"u1","server_timestamp_ms":3000,"payload_b64":"aGk="}`,
+	)
+	writeManifestForFiles(t, root, 16, []manifestTestFile{
+		{Path: "message/channels.jsonl", Kind: FileKindMessageChannels},
+		{Path: "message/messages-000001.jsonl", Kind: FileKindMessageMessages},
+	})
+
+	store := openImportNodeStore(t)
+	if _, err := ImportBundle(ctx, root, store, ImportOptions{HashSlotCount: 16}); err != nil {
+		t.Fatalf("ImportBundle(): %v", err)
+	}
+	messages, err := store.Messages().Channel("g1:2", msgdb.ChannelID{ID: "g1", Type: 2}).Read(ctx, 1, msgdb.ReadOptions{Limit: 1})
+	if err != nil {
+		t.Fatalf("Read(): %v", err)
+	}
+	if len(messages) != 1 || messages[0].MessageID != 1001 {
+		t.Fatalf("messages = %+v, want imported g1 message", messages)
+	}
+}
+
+func TestImportBundleRejectsDuplicateMessageIDAcrossBatches(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	writeJSONLFile(t, root, "message/channels.jsonl",
+		`{"channel_key":"g1:2","channel_id":"g1","channel_type":2}`,
+	)
+	writeJSONLFile(t, root, "message/messages-000001.jsonl",
+		`{"channel_key":"g1:2","message_seq":1,"message_id":1001,"payload_b64":""}`,
+		`{"channel_key":"g1:2","message_seq":2,"message_id":1001,"payload_b64":""}`,
+	)
+	writeManifestForFiles(t, root, 16, []manifestTestFile{
+		{Path: "message/channels.jsonl", Kind: FileKindMessageChannels},
+		{Path: "message/messages-000001.jsonl", Kind: FileKindMessageMessages},
+	})
+
+	store := openImportNodeStore(t)
+	_, err := ImportBundle(ctx, root, store, ImportOptions{HashSlotCount: 16, MessageBatchSize: 1})
+	if err == nil || !strings.Contains(err.Error(), "message id") {
+		t.Fatalf("ImportBundle() error = %v, want duplicate message id", err)
+	}
+}
+
+func TestImportBundleRejectsDuplicateIdempotencyAcrossBatches(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	writeJSONLFile(t, root, "message/channels.jsonl",
+		`{"channel_key":"g1:2","channel_id":"g1","channel_type":2}`,
+	)
+	writeJSONLFile(t, root, "message/messages-000001.jsonl",
+		`{"channel_key":"g1:2","message_seq":1,"message_id":1001,"from_uid":"u1","client_msg_no":"c1","payload_b64":""}`,
+		`{"channel_key":"g1:2","message_seq":2,"message_id":1002,"from_uid":"u1","client_msg_no":"c1","payload_b64":""}`,
+	)
+	writeManifestForFiles(t, root, 16, []manifestTestFile{
+		{Path: "message/channels.jsonl", Kind: FileKindMessageChannels},
+		{Path: "message/messages-000001.jsonl", Kind: FileKindMessageMessages},
+	})
+
+	store := openImportNodeStore(t)
+	_, err := ImportBundle(ctx, root, store, ImportOptions{HashSlotCount: 16, MessageBatchSize: 1})
+	if err == nil {
+		t.Fatal("ImportBundle() error = nil, want duplicate idempotency rejection")
+	}
+}
+
 func TestImportBundleRejectsNonEmptyTarget(t *testing.T) {
 	ctx := context.Background()
 	root := t.TempDir()

@@ -75,42 +75,6 @@ func TestValidateBundleRejectsMessageSequenceGap(t *testing.T) {
 	}
 }
 
-func TestValidateBundleRejectsDuplicateMessageID(t *testing.T) {
-	root := t.TempDir()
-	writeJSONLFile(t, root, "message/channels.jsonl", `{"channel_key":"g1:2","channel_id":"g1","channel_type":2}`)
-	writeJSONLFile(t, root, "message/messages-000001.jsonl",
-		`{"channel_key":"g1:2","message_seq":1,"message_id":1001,"payload_b64":""}`,
-		`{"channel_key":"g1:2","message_seq":2,"message_id":1001,"payload_b64":""}`,
-	)
-	writeManifestForFiles(t, root, 16, []manifestTestFile{
-		{Path: "message/channels.jsonl", Kind: FileKindMessageChannels},
-		{Path: "message/messages-000001.jsonl", Kind: FileKindMessageMessages},
-	})
-
-	_, err := ValidateBundle(context.Background(), root, ImportOptions{HashSlotCount: 16})
-	if err == nil || !strings.Contains(err.Error(), "duplicate message_id") {
-		t.Fatalf("ValidateBundle() error = %v, want duplicate message_id", err)
-	}
-}
-
-func TestValidateBundleRejectsDuplicateIdempotencyKey(t *testing.T) {
-	root := t.TempDir()
-	writeJSONLFile(t, root, "message/channels.jsonl", `{"channel_key":"g1:2","channel_id":"g1","channel_type":2}`)
-	writeJSONLFile(t, root, "message/messages-000001.jsonl",
-		`{"channel_key":"g1:2","message_seq":1,"message_id":1001,"from_uid":"u1","client_msg_no":"c1","payload_b64":""}`,
-		`{"channel_key":"g1:2","message_seq":2,"message_id":1002,"from_uid":"u1","client_msg_no":"c1","payload_b64":""}`,
-	)
-	writeManifestForFiles(t, root, 16, []manifestTestFile{
-		{Path: "message/channels.jsonl", Kind: FileKindMessageChannels},
-		{Path: "message/messages-000001.jsonl", Kind: FileKindMessageMessages},
-	})
-
-	_, err := ValidateBundle(context.Background(), root, ImportOptions{HashSlotCount: 16})
-	if err == nil || !strings.Contains(err.Error(), "duplicate idempotency") {
-		t.Fatalf("ValidateBundle() error = %v, want duplicate idempotency", err)
-	}
-}
-
 func TestValidateBundleRejectsMissingMessageChannel(t *testing.T) {
 	root := t.TempDir()
 	writeJSONLFile(t, root, "message/messages-000001.jsonl",

@@ -253,7 +253,7 @@ hash-slot 校验规则：
 - `message.messages` 在同一 logical stream 中必须全局按 `(channel_key, message_seq)` 严格升序。
 - 每个 channel 的 `message_seq` 必须从 1 开始连续递增。
 - 每条 `message.messages` 必须引用一个已在 `message.channels` 中声明的 `channel_key`。
-- 同一 channel 内重复 `message_id` 会被拒绝；同一 channel 内相同 `(from_uid, client_msg_no)` 的非空幂等键也会被拒绝。
+- 为保持 dry-run 对超大 channel 的低内存校验，dry-run 不维护全 channel 的 `message_id` 或幂等键集合；真实导入会通过当前 message store 的唯一索引拒绝重复 `message_id` 和重复 `(from_uid, client_msg_no)` 非空幂等键。
 
 当一个 kind 被拆成多个文件时，校验会按 manifest 中同 kind 文件出现的顺序组成一个 logical stream，因此 exporter 要保证跨文件边界也满足上述排序规则。
 

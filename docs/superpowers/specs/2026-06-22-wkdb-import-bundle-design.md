@@ -174,19 +174,22 @@ channel-name suffix.
 Rules:
 
 - `message_seq` starts at 1 for each channel and must be contiguous.
-- Duplicate `message_id` values inside one channel are rejected.
-- Duplicate `(from_uid, client_msg_no)` pairs inside one channel are rejected
-  when both fields are non-empty.
+- Dry-run keeps validation streaming and does not keep a whole-channel
+  duplicate set for `message_id` or `(from_uid, client_msg_no)`.
+- Real import rejects duplicate `message_id` values and duplicate
+  `(from_uid, client_msg_no)` pairs through the current message store unique
+  indexes when both idempotency fields are non-empty.
 - `payload_b64` is required and may encode an empty byte slice.
-- The importer writes batches with `message.ChannelLog.ApplyFetch` and
-  `AppendTrustedContiguous` semantics so the source sequence is preserved.
+- The importer writes bounded batches with `message.ChannelLog.Append` in
+  strict mode and pins `BaseSeq` to the source sequence so current unique
+  indexes are enforced while source sequence is preserved.
 
 ## Import Flow
 
 1. Load and validate `manifest.json`.
 2. Resolve target paths using existing `wkdb` config rules.
 3. For `--dry-run`, open no write handles and validate all files with the same
-   parser and semantic checks used by real import.
+   parser and the low-memory structural checks used before real import.
 4. For real import, open the current `pkg/db.NodeStore`.
 5. Reject non-empty targets unless the future command explicitly supports merge.
 6. Import users and devices.
@@ -195,16 +198,18 @@ Rules:
    Subscriber rows are applied through existing subscriber APIs so
    `SubscriberCount` is rebuilt by the current storage code.
 9. Import user channel memberships, conversations, and channel latest rows.
-10. Import message channels and message records. Message files are streamed;
-    each channel accumulates bounded batches and flushes through `ApplyFetch`.
-11. Emit progress and a final summary to stderr:
+10. Import message channel catalog rows and message records with a streaming
+    catalog/message merge. Message files are streamed; each channel accumulates
+    bounded batches and flushes through strict `Append` with source `BaseSeq`.
+11. Emit a final summary to stdout:
     records validated, records written, bytes read, channels imported, and
     message rows imported.
 
 ## Failure Semantics
 
-- Any manifest, checksum, path, type, hash-slot, ordering, duplicate, or storage
-  error fails the command with a non-zero exit code.
+- Any manifest, checksum, path, type, hash-slot, ordering, catalog reference,
+  message unique-index, or storage error fails the command with a non-zero exit
+  code.
 - Real import is not an all-database transaction. If a write fails after earlier
   writes, the target directory is considered partially imported and must be
   discarded or restored from backup before retry.
@@ -250,7 +255,8 @@ Rules:
   - rejects unknown conversation kind
 - Import dry-run tests:
   - validates a complete bundle without creating target Pebble files
-  - returns the same validation errors as real import
+  - returns low-memory structural validation errors without opening a writable
+    store
 - Import write tests:
   - imports users, devices, channels, subscribers, memberships,
     conversations, channel latest, and messages into a fresh store
@@ -261,7 +267,7 @@ Rules:
   - rejects non-empty target stores
   - rejects out-of-order message rows
   - rejects non-contiguous message sequences
-  - rejects duplicate message IDs within a channel
+  - rejects duplicate message IDs during real import
   - rejects hash-slot mismatches
 
 Focused command:

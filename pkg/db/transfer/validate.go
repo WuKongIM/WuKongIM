@@ -288,16 +288,21 @@ func newMessageChannelStream(ctx context.Context, root string, entries []FileEnt
 }
 
 func (s *messageChannelStream) Declared(channelKey string) (bool, error) {
+	_, ok, err := s.Lookup(channelKey)
+	return ok, err
+}
+
+func (s *messageChannelStream) Lookup(channelKey string) (MessageChannelRecord, bool, error) {
 	for {
 		row, ok, err := s.Peek()
 		if err != nil {
-			return false, err
+			return MessageChannelRecord{}, false, err
 		}
 		if !ok {
-			return false, nil
+			return MessageChannelRecord{}, false, nil
 		}
 		if row.ChannelKey >= channelKey {
-			return row.ChannelKey == channelKey, nil
+			return row, row.ChannelKey == channelKey, nil
 		}
 		s.current = nil
 	}
@@ -357,7 +362,9 @@ func (s *messageChannelStream) Peek() (MessageChannelRecord, bool, error) {
 				return MessageChannelRecord{}, false, fmt.Errorf("validate %q: line %d: %w", s.entry.Path, s.lineNo, err)
 			}
 			s.fileRows++
-			s.stats.RowsValidated++
+			if s.stats != nil {
+				s.stats.RowsValidated++
+			}
 			s.current = &row
 			return row, true, nil
 		}
@@ -393,8 +400,10 @@ func (s *messageChannelStream) openNextFile() error {
 	s.scanner.Buffer(make([]byte, 0, 64*1024), maxJSONLLineBytes)
 	s.lineNo = 0
 	s.fileRows = 0
-	s.stats.Files++
-	s.stats.BytesRead += size
+	if s.stats != nil {
+		s.stats.Files++
+		s.stats.BytesRead += size
+	}
 	return nil
 }
 
@@ -444,18 +453,14 @@ func (v *messageValidator) Visit(row MessageRecord) error {
 }
 
 type messageOrder struct {
-	channelKey      string
-	nextSeq         uint64
-	messageIDs      map[uint64]struct{}
-	idempotencyKeys map[string]struct{}
+	channelKey string
+	nextSeq    uint64
 }
 
 func newMessageOrder(channelKey string) messageOrder {
 	return messageOrder{
-		channelKey:      channelKey,
-		nextSeq:         1,
-		messageIDs:      make(map[uint64]struct{}),
-		idempotencyKeys: make(map[string]struct{}),
+		channelKey: channelKey,
+		nextSeq:    1,
 	}
 }
 
@@ -465,19 +470,5 @@ func (o *messageOrder) visit(row MessageRecord) error {
 		return fmt.Errorf("%w: message sequence must be contiguous channel_key=%q got=%d want=%d", ErrValidation, row.ChannelKey, seq, o.nextSeq)
 	}
 	o.nextSeq++
-
-	messageID := uint64(row.MessageID)
-	if _, ok := o.messageIDs[messageID]; ok {
-		return fmt.Errorf("%w: duplicate message_id channel_key=%q message_id=%d", ErrValidation, row.ChannelKey, messageID)
-	}
-	o.messageIDs[messageID] = struct{}{}
-
-	if row.FromUID != "" && row.ClientMsgNo != "" {
-		key := row.FromUID + "\x00" + row.ClientMsgNo
-		if _, ok := o.idempotencyKeys[key]; ok {
-			return fmt.Errorf("%w: duplicate idempotency channel_key=%q from_uid=%q client_msg_no=%q", ErrValidation, row.ChannelKey, row.FromUID, row.ClientMsgNo)
-		}
-		o.idempotencyKeys[key] = struct{}{}
-	}
 	return nil
 }

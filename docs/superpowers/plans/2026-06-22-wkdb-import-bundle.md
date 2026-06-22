@@ -17,7 +17,7 @@
 - Create `pkg/db/transfer/manifest_test.go`: manifest and helper tests.
 - Create `pkg/db/transfer/jsonl.go`: bounded JSONL scanner, exact numeric parsing, base64 parsing, and per-kind record decoding.
 - Create `pkg/db/transfer/jsonl_test.go`: parser tests for required fields, uint64 strings, and payload bytes.
-- Create `pkg/db/transfer/validate.go`: streaming semantic validation for hash slots, subscriber ordering, message catalog references, contiguous message sequences, and duplicate keys.
+- Create `pkg/db/transfer/validate.go`: streaming semantic validation for hash slots, subscriber ordering, message catalog references, and contiguous message sequences.
 - Create `pkg/db/transfer/validate_test.go`: dry-run validation tests.
 - Create `pkg/db/transfer/importer.go`: empty-target checks and typed metadata/message import.
 - Create `pkg/db/transfer/importer_test.go`: real import tests against temporary stores.
@@ -1101,8 +1101,6 @@ func compareSubscriberOrder(a, b SubscriberRecord) int {
 type messageOrder struct {
 	currentChannel string
 	nextSeq        uint64
-	messageIDs     map[uint64]struct{}
-	idempotency    map[string]struct{}
 }
 
 func (o *messageOrder) Visit(row MessageRecord) error {
@@ -1112,28 +1110,17 @@ func (o *messageOrder) Visit(row MessageRecord) error {
 		}
 		o.currentChannel = row.ChannelKey
 		o.nextSeq = 1
-		o.messageIDs = make(map[uint64]struct{})
-		o.idempotency = make(map[string]struct{})
 	}
 	if uint64(row.MessageSeq) != o.nextSeq {
 		return fmt.Errorf("%w: message_seq must be contiguous for %s got=%d want=%d", ErrValidation, row.ChannelKey, row.MessageSeq, o.nextSeq)
 	}
 	o.nextSeq++
-	messageID := uint64(row.MessageID)
-	if _, exists := o.messageIDs[messageID]; exists {
-		return fmt.Errorf("%w: duplicate message_id %d in %s", ErrValidation, messageID, row.ChannelKey)
-	}
-	o.messageIDs[messageID] = struct{}{}
-	if row.FromUID != "" && row.ClientMsgNo != "" {
-		key := row.FromUID + "\x00" + row.ClientMsgNo
-		if _, exists := o.idempotency[key]; exists {
-			return fmt.Errorf("%w: duplicate idempotency key in %s", ErrValidation, row.ChannelKey)
-		}
-		o.idempotency[key] = struct{}{}
-	}
 	return nil
 }
 ```
+
+Duplicate `message_id` and idempotency keys are enforced by strict typed
+message writes during real import instead of by an unbounded dry-run map.
 
 - [ ] **Step 4: Fix the test helper imports**
 
@@ -1425,7 +1412,7 @@ func checkTargetEmpty(ctx context.Context, store *db.NodeStore, hashSlotCount ui
 type importWriter struct {
 	store               *db.NodeStore
 	opts                ImportOptions
-	messageChannels     map[string]msgdb.ChannelID
+	messageChannels     *messageChannelStream
 	subscriberGroup     subscriberGroup
 	messageGroup        messageGroup
 	channelsImported    int64
@@ -1435,9 +1422,8 @@ type importWriter struct {
 
 func newImportWriter(store *db.NodeStore, opts ImportOptions) *importWriter {
 	w := &importWriter{
-		store:           store,
-		opts:            opts,
-		messageChannels: make(map[string]msgdb.ChannelID),
+		store: store,
+		opts:  opts,
 	}
 	w.subscriberGroup.opts = opts
 	w.messageGroup.opts = opts
@@ -1580,7 +1566,7 @@ func (g *messageGroup) Flush(ctx context.Context, messages *msgdb.MessageDB, cou
 	} else {
 		return err
 	}
-	result, err := log.ApplyFetch(ctx, msgdb.ApplyFetchRequest{BaseSeq: baseSeq, Records: g.records})
+	result, err := log.Append(ctx, g.records, msgdb.AppendOptions{Mode: msgdb.AppendStrict, BaseSeq: baseSeq})
 	if err != nil {
 		return err
 	}
@@ -2021,6 +2007,6 @@ If the spec file did not change, omit it from `git add`.
 - Type consistency:
   - Transfer records map directly to `metadb.User`, `metadb.Device`, `metadb.Channel`, `metadb.UserChannelMembership`, `metadb.ConversationState`, `metadb.ChannelLatest`, and `msgdb.Record`.
   - Hash-slot validation uses `pkg/cluster.HashSlotForKey`, matching the current inspect planner.
-  - Message writes use `ChannelLog.ApplyFetch` with `BaseSeq = LEO + 1`, preserving source `message_seq` because validation enforces contiguous ordered records.
+  - Message writes use strict `ChannelLog.Append` with source `BaseSeq`, preserving source `message_seq` while current message unique indexes reject duplicate message IDs and idempotency keys during real import.
 - Required implementation note:
   - Transfer record structs use the `Uint64` wrapper for every imported unsigned 64-bit field, and DB-write boundaries convert with `uint64(row.Field)`.

@@ -55,10 +55,8 @@ func ImportBundle(ctx context.Context, root string, store *db.NodeStore, opts Im
 		}
 	}
 
-	channels, err := loadMessageChannelLookup(ctx, root, entries[FileKindMessageChannels])
-	if err != nil {
-		return stats, err
-	}
+	channels := newMessageChannelStream(ctx, root, entries[FileKindMessageChannels], nil)
+	defer channels.Close()
 	for _, entry := range entries[FileKindMessageMessages] {
 		if err := importMessageEntry(ctx, root, entry, store.Messages(), channels, opts, &stats); err != nil {
 			return stats, err
@@ -282,21 +280,7 @@ func importSubscriberEntry(ctx context.Context, root string, entry FileEntry, me
 	return flush()
 }
 
-func loadMessageChannelLookup(ctx context.Context, root string, entries []FileEntry) (map[string]msgdb.ChannelID, error) {
-	channels := make(map[string]msgdb.ChannelID)
-	for _, entry := range entries {
-		if err := importBundleEntry(ctx, root, entry, func(record any) error {
-			row := record.(MessageChannelRecord)
-			channels[row.ChannelKey] = msgdb.ChannelID{ID: row.ChannelID, Type: row.ChannelType}
-			return nil
-		}); err != nil {
-			return nil, err
-		}
-	}
-	return channels, nil
-}
-
-func importMessageEntry(ctx context.Context, root string, entry FileEntry, messages *msgdb.MessageDB, channels map[string]msgdb.ChannelID, opts ImportOptions, stats *ImportStats) error {
+func importMessageEntry(ctx context.Context, root string, entry FileEntry, messages *msgdb.MessageDB, channels *messageChannelStream, opts ImportOptions, stats *ImportStats) error {
 	var currentKey string
 	var currentID msgdb.ChannelID
 	var haveCurrent bool
@@ -309,9 +293,9 @@ func importMessageEntry(ctx context.Context, root string, entry FileEntry, messa
 			return nil
 		}
 		log := messages.Channel(msgdb.ChannelKey(currentKey), currentID)
-		_, err := log.ApplyFetch(ctx, msgdb.ApplyFetchRequest{
+		_, err := log.Append(ctx, records, msgdb.AppendOptions{
+			Mode:    msgdb.AppendStrict,
 			BaseSeq: batchBaseSeq,
-			Records: records,
 		})
 		if err != nil {
 			return err
@@ -328,12 +312,15 @@ func importMessageEntry(ctx context.Context, root string, entry FileEntry, messa
 			if err := flush(); err != nil {
 				return err
 			}
-			channelID, ok := channels[row.ChannelKey]
+			channelRecord, ok, err := channels.Lookup(row.ChannelKey)
+			if err != nil {
+				return err
+			}
 			if !ok {
 				return fmt.Errorf("%w: missing message channel channel_key=%q", ErrValidation, row.ChannelKey)
 			}
 			currentKey = row.ChannelKey
-			currentID = channelID
+			currentID = msgdb.ChannelID{ID: channelRecord.ChannelID, Type: channelRecord.ChannelType}
 			haveCurrent = true
 		}
 		if len(records) == 0 {
