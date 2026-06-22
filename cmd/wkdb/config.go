@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/WuKongIM/WuKongIM/pkg/db"
 	"github.com/WuKongIM/WuKongIM/pkg/db/inspect"
 )
 
@@ -32,26 +33,16 @@ type cliFlags struct {
 type cliConfig struct {
 	// options configures the read-only inspect store.
 	options inspect.Options
+	// nodeOptions configures the writable node store for import operations.
+	nodeOptions db.NodeStoreOptions
 	// format selects the output renderer.
 	format string
 }
 
 func resolveCLIConfig(flags cliFlags, env []string) (cliConfig, error) {
-	values := map[string]string{}
-	if strings.TrimSpace(flags.configPath) != "" {
-		fileValues, err := readKeyValueFile(flags.configPath)
-		if err != nil {
-			return cliConfig{}, err
-		}
-		for key, value := range fileValues {
-			values[key] = value
-		}
-	}
-	for _, item := range env {
-		key, value, ok := strings.Cut(item, "=")
-		if ok && strings.HasPrefix(key, "WK_") {
-			values[key] = value
-		}
+	values, err := loadCLIValues(flags.configPath, env)
+	if err != nil {
+		return cliConfig{}, err
 	}
 
 	flagDataDir := strings.TrimSpace(flags.dataDir)
@@ -82,8 +73,43 @@ func resolveCLIConfig(flags cliFlags, env []string) (cliConfig, error) {
 			DefaultLimit:  100,
 			MaxLimit:      10000,
 		},
+		nodeOptions: db.NodeStoreOptions{
+			MetaPath:    metaPath,
+			MessagePath: messagePath,
+		},
 		format: format,
 	}, nil
+}
+
+func resolveCLIHashSlotCount(flags cliFlags, env []string) (uint16, error) {
+	if flags.hashSlotCount != 0 {
+		return flags.hashSlotCount, nil
+	}
+	values, err := loadCLIValues(flags.configPath, env)
+	if err != nil {
+		return 0, err
+	}
+	return parseHashSlotCount(values)
+}
+
+func loadCLIValues(configPath string, env []string) (map[string]string, error) {
+	values := map[string]string{}
+	if strings.TrimSpace(configPath) != "" {
+		fileValues, err := readKeyValueFile(configPath)
+		if err != nil {
+			return nil, err
+		}
+		for key, value := range fileValues {
+			values[key] = value
+		}
+	}
+	for _, item := range env {
+		key, value, ok := strings.Cut(item, "=")
+		if ok && strings.HasPrefix(key, "WK_") {
+			values[key] = value
+		}
+	}
+	return values, nil
 }
 
 func resolveStoragePath(flagPath, flagDataDir, configuredPath, dataDir, name string) string {

@@ -24,8 +24,12 @@ func main() {
 }
 
 func runWithIO(args []string, stdin io.Reader, stderr io.Writer) int {
+	return runWithStreams(args, stdin, os.Stdout, stderr)
+}
+
+func runWithStreams(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintln(stderr, "usage: wkdb [flags] <query|repl>")
+		fmt.Fprintln(stderr, "usage: wkdb [flags] <query|repl|import>")
 		return exitConfig
 	}
 	flags, rest, code := parseFlags(args, stderr)
@@ -33,7 +37,7 @@ func runWithIO(args []string, stdin io.Reader, stderr io.Writer) int {
 		return code
 	}
 	if len(rest) == 0 {
-		fmt.Fprintln(stderr, "usage: wkdb [flags] <query|repl>")
+		fmt.Fprintln(stderr, "usage: wkdb [flags] <query|repl|import>")
 		return exitConfig
 	}
 	switch rest[0] {
@@ -43,12 +47,14 @@ func runWithIO(args []string, stdin io.Reader, stderr io.Writer) int {
 			return exitConfig
 		}
 		return withStore(flags, stderr, func(store *inspect.Store, format string) int {
-			return runQuery(context.Background(), store, format, strings.Join(rest[1:], " "), os.Stdout, stderr)
+			return runQuery(context.Background(), store, format, strings.Join(rest[1:], " "), stdout, stderr)
 		})
 	case "repl":
 		return withStore(flags, stderr, func(store *inspect.Store, format string) int {
-			return runREPL(context.Background(), store, format, stdin, os.Stdout, stderr)
+			return runREPL(context.Background(), store, format, stdin, stdout, stderr)
 		})
+	case "import":
+		return runImport(context.Background(), flags, rest[1:], stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "unknown command %q\n", rest[0])
 		return exitConfig
