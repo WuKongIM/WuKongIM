@@ -78,45 +78,33 @@ func TestManagerClusterMonitorProviderMapsPrometheusAndControlSnapshot(t *testin
 	if resp.Status != accessmanager.RealtimeMonitorStatusReady {
 		t.Fatalf("Status = %q, want ready; sources=%#v", resp.Status, resp.Sources)
 	}
-	wantCalls := len(managerMonitorMetricDefinitions()) + len(managerClusterMonitorMetricDefinitions())
+	wantKeys := []string{
+		"sendRate",
+		"sendSuccessRate",
+		"entryLatencyP99",
+		"conversationSyncLatencyP99",
+		"conversationActiveOldestDirtyAge",
+		"deliveryLatencyP99",
+		"retryQueueDepth",
+		"pathErrorRate",
+		"activeConnections",
+		"controllerApplyGap",
+		"slotLeaderStability",
+		"slotApplyGap",
+		"channelAppendLatencyP99",
+		"rpcSuccessRate",
+		"nodeCpuPercent",
+		"nodeMemoryRSS",
+	}
+	wantCalls := len(wantKeys)
 	if calls.Load() != int64(wantCalls) {
 		t.Fatalf("prometheus calls = %d, want %d", calls.Load(), wantCalls)
 	}
 	joinedQueries := strings.Join(queries, "\n")
-	if !strings.Contains(joinedQueries, `wukongim_transport_sent_bytes_total{job="wukongimv2"}[1m]`) ||
-		!strings.Contains(joinedQueries, `wukongim_transport_received_bytes_total{job="wukongimv2"}[1m]`) {
-		t.Fatalf("queries = %q, want internal traffic rate windows filled", joinedQueries)
-	}
-	if !strings.Contains(joinedQueries, "wukongim_channelv2_active_runtimes") || !strings.Contains(joinedQueries, "vector(0)") {
-		t.Fatalf("queries = %q, want active runtime zero fallback", joinedQueries)
-	}
-	if !strings.Contains(joinedQueries, `wukongim_slot_proposals_total{job="wukongimv2"}[1m]`) ||
-		!strings.Contains(joinedQueries, `wukongim_slot_apply_gap{job="wukongimv2"}`) ||
-		!strings.Contains(joinedQueries, `wukongim_slot_apply_duration_seconds_bucket{job="wukongimv2"}[1m]`) {
-		t.Fatalf("queries = %#v, want propose rate, apply gap, and latency p99", queries)
-	}
-	if !strings.Contains(joinedQueries, `wukongim_node_cpu_percent{job="wukongimv2"}`) ||
-		!strings.Contains(joinedQueries, `wukongim_node_memory_rss_bytes{job="wukongimv2"}`) ||
-		!strings.Contains(joinedQueries, `wukongim_node_goroutines{job="wukongimv2"}`) {
-		t.Fatalf("queries = %#v, want cpu, rss, and goroutine zero-fallback metrics", queries)
-	}
-	wantKeys := []string{
-		"controllerProposeRate",
-		"controllerApplyGap",
-		"slotLeaderStability",
-		"slotProposeRate",
-		"slotApplyGap",
-		"slotLatencyP99",
-		"channelAppendLatencyP99",
-		"activeChannels",
-		"internalTraffic",
-		"rpcSuccessRate",
-		"rpcLatencyP95",
-		"workqueuePressure",
-		"nodeCpuPercent",
-		"nodeMemoryRSS",
-		"nodeGoroutines",
-		"storageWriteP99",
+	if !strings.Contains(joinedQueries, `wukongim_slot_apply_gap{job="wukongimv2"}`) ||
+		!strings.Contains(joinedQueries, `wukongim_node_cpu_percent{job="wukongimv2"}`) ||
+		!strings.Contains(joinedQueries, `wukongim_node_memory_rss_bytes{job="wukongimv2"}`) {
+		t.Fatalf("queries = %#v, want common slot and node metrics", queries)
 	}
 	if len(resp.Cards) != wantCalls {
 		t.Fatalf("cards = %d, want %d", len(resp.Cards), wantCalls)
@@ -127,13 +115,9 @@ func TestManagerClusterMonitorProviderMapsPrometheusAndControlSnapshot(t *testin
 			t.Fatalf("card %q = %#v, want available prometheus card", want, card)
 		}
 	}
-	controlCard := requireMonitorCardForTest(t, resp.Cards, "controllerProposeRate")
+	controlCard := requireMonitorCardForTest(t, resp.Cards, "controllerApplyGap")
 	if controlCard.Stage != accessmanager.RealtimeMonitorStageControlPlane || controlCard.Value != 15 {
 		t.Fatalf("control card = %#v, want control-plane latest value 15", controlCard)
-	}
-	activeCard := requireMonitorCardForTest(t, resp.Cards, "activeChannels")
-	if activeCard.Key != "activeChannels" || activeCard.Value != 15 || activeCard.Unit != "" {
-		t.Fatalf("activeChannels card = %#v, want active channel count 15", activeCard)
 	}
 	if !resp.Sources.ControlSnapshot.Enabled {
 		t.Fatalf("ControlSnapshot.Enabled = false, want true")
@@ -142,8 +126,68 @@ func TestManagerClusterMonitorProviderMapsPrometheusAndControlSnapshot(t *testin
 	requireClusterSnapshotValueWithUnit(t, resp.Snapshot, "slotsReady", (1.0/3.0)*100, "%", accessmanager.RealtimeMonitorSourceControlSnapshot)
 	requireClusterSnapshotValue(t, resp.Snapshot, "controllerApplyGap", 15, accessmanager.RealtimeMonitorSourcePrometheus)
 	requireClusterSnapshotValue(t, resp.Snapshot, "rpcErrorRate", 85, accessmanager.RealtimeMonitorSourcePrometheus)
-	requireClusterSnapshotValue(t, resp.Snapshot, "queuePressure", 15, accessmanager.RealtimeMonitorSourcePrometheus)
-	requireClusterSnapshotValue(t, resp.Snapshot, "storageWriteP99", 15, accessmanager.RealtimeMonitorSourcePrometheus)
+}
+
+func TestManagerClusterMonitorProviderFiltersCommonCards(t *testing.T) {
+	var calls atomic.Int64
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		if r.URL.Path != "/api/v1/query_range" {
+			t.Fatalf("path = %s, want /api/v1/query_range", r.URL.Path)
+		}
+		writePrometheusRangeForTest(w, "7")
+	}))
+	defer server.Close()
+	provider := newManagerPrometheusMonitorProvider(managerPrometheusMonitorOptions{
+		Enabled: true,
+		BaseURL: server.URL,
+		Client:  server.Client(),
+		Now:     func() time.Time { return time.Unix(1781767240, 0).UTC() },
+		Control: managerClusterControlReaderFake{},
+	})
+
+	resp, err := provider.RealtimeMonitor(context.Background(), accessmanager.RealtimeMonitorQuery{
+		Window:   15 * time.Minute,
+		Step:     20 * time.Second,
+		Category: "common",
+	})
+
+	if err != nil {
+		t.Fatalf("RealtimeMonitor() error = %v", err)
+	}
+	wantKeys := []string{
+		"sendRate",
+		"sendSuccessRate",
+		"entryLatencyP99",
+		"conversationSyncLatencyP99",
+		"conversationActiveOldestDirtyAge",
+		"deliveryLatencyP99",
+		"retryQueueDepth",
+		"pathErrorRate",
+		"activeConnections",
+		"controllerApplyGap",
+		"slotLeaderStability",
+		"slotApplyGap",
+		"channelAppendLatencyP99",
+		"rpcSuccessRate",
+		"nodeCpuPercent",
+		"nodeMemoryRSS",
+	}
+	requireMonitorCardKeysForTest(t, resp.Cards, wantKeys)
+	if calls.Load() != int64(len(wantKeys)) {
+		t.Fatalf("prometheus calls = %d, want %d common queries", calls.Load(), len(wantKeys))
+	}
+	for _, category := range resp.Categories {
+		if category.Key == "all" {
+			t.Fatalf("categories = %#v, want all category removed", resp.Categories)
+		}
+	}
+	if len(resp.Categories) == 0 || resp.Categories[0].Key != "common" || resp.Categories[0].Count != len(wantKeys) {
+		t.Fatalf("first category = %#v, want common count %d", resp.Categories, len(wantKeys))
+	}
+	requireMonitorSnapshotForTest(t, resp, "send")
+	requireClusterSnapshotValue(t, resp.Snapshot, "controllerApplyGap", 7, accessmanager.RealtimeMonitorSourcePrometheus)
+	requireClusterSnapshotValueWithUnit(t, resp.Snapshot, "slotsReady", (1.0/3.0)*100, "%", accessmanager.RealtimeMonitorSourceControlSnapshot)
 }
 
 func TestManagerClusterMonitorProviderIncludesAllNodeResourceStats(t *testing.T) {
@@ -235,7 +279,7 @@ func TestManagerClusterMonitorProviderFiltersPromQLAndControlSnapshotByNodeID(t 
 	}
 	joinedQueries := strings.Join(queries, "\n")
 	for _, want := range []string{
-		`wukongim_controller_decisions_total{job="wukongimv2",node_id="2"}[1m]`,
+		`wukongim_controller_apply_gap{job="wukongimv2",node_id="2"}`,
 		`wukongim_transport_rpc_total{job="wukongimv2",node_id="2",result="ok"}[1m]`,
 		`wukongim_transport_rpc_total{job="wukongimv2",node_id="2"}[1m]`,
 	} {
@@ -244,11 +288,17 @@ func TestManagerClusterMonitorProviderFiltersPromQLAndControlSnapshotByNodeID(t 
 		}
 	}
 	for _, forbidden := range []string{
-		`wukongim_controller_decisions_total[1m]`,
-		`wukongim_controller_decisions_total{node_id="2"}[1m]`,
+		`wukongim_controller_apply_gap`,
+		`wukongim_controller_apply_gap{node_id="2"}`,
 		`wukongim_transport_rpc_total{node_id="2",result="ok"}[1m]`,
 		`wukongim_transport_rpc_total{result="ok"}[1m]`,
 	} {
+		if forbidden == `wukongim_controller_apply_gap` {
+			if strings.Contains(joinedQueries, `max(wukongim_controller_apply_gap)`) {
+				t.Fatalf("promql queries still contain unfiltered selector %q: %s", forbidden, joinedQueries)
+			}
+			continue
+		}
 		if strings.Contains(joinedQueries, forbidden) {
 			t.Fatalf("promql queries still contain unfiltered selector %q: %s", forbidden, joinedQueries)
 		}

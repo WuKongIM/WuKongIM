@@ -33,8 +33,8 @@ const (
 	// RealtimeMonitorSourceControlSnapshot identifies the bounded cluster control snapshot source.
 	RealtimeMonitorSourceControlSnapshot = "control_snapshot"
 
-	// RealtimeMonitorCategoryAll returns all realtime monitor cards.
-	RealtimeMonitorCategoryAll = "all"
+	// RealtimeMonitorCategoryCommon returns the default lightweight operator view.
+	RealtimeMonitorCategoryCommon = "common"
 	// RealtimeMonitorCategoryGateway groups gateway ingress and connection-facing cards.
 	RealtimeMonitorCategoryGateway = "gateway"
 	// RealtimeMonitorCategoryInternal groups internal node transport and RPC cards.
@@ -258,7 +258,7 @@ func (s *Server) handleRealtimeMonitor(c *gin.Context) {
 }
 
 func parseRealtimeMonitorQuery(c *gin.Context) (RealtimeMonitorQuery, error) {
-	query := RealtimeMonitorQuery{Window: defaultRealtimeMonitorWindow, Category: RealtimeMonitorCategoryAll}
+	query := RealtimeMonitorQuery{Window: defaultRealtimeMonitorWindow, Category: RealtimeMonitorCategoryCommon}
 	if raw := strings.TrimSpace(c.Query("window")); raw != "" {
 		window, err := parseRealtimeMonitorWindow(raw)
 		if err != nil {
@@ -293,7 +293,7 @@ func parseRealtimeMonitorQuery(c *gin.Context) (RealtimeMonitorQuery, error) {
 
 func isValidRealtimeMonitorCategory(category string) bool {
 	switch category {
-	case RealtimeMonitorCategoryAll,
+	case RealtimeMonitorCategoryCommon,
 		RealtimeMonitorCategoryGateway,
 		RealtimeMonitorCategoryInternal,
 		RealtimeMonitorCategoryMessage,

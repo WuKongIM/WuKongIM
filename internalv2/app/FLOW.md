@@ -34,8 +34,8 @@ New(Config)
      authority admit/list/cache-pressure/handoff counters, conversation active
      cache/flush gauges and histograms, channel append and post-commit
      counters, recipient delivery worker queue/admission/process metrics,
-     plugin PersistAfter hook enqueue/invoke counters and histograms, and
-     synchronous plugin Send hook invoke counters and histograms
+     plugin PersistAfter and Receive hook enqueue/invoke counters and
+     histograms, and synchronous plugin Send hook invoke counters and histograms
      plus node resource pressure gauges backed by the local resource sampler;
      when Top.APIEnabled=false this sampler runs only for Prometheus metrics and
      does not expose the Top snapshot provider
@@ -135,7 +135,8 @@ New(Config)
        socket, the lifecycle plus /message/send, /channel/messages,
        /cluster/config, /cluster/channels/belongNode, and
        /conversation/channels, and /plugin/httpForward host RPC
-       adapter, the v2 plugin usecase, and a bounded PersistAfter worker; pass
+       adapter, the v2 plugin usecase, and a bounded plugin hook worker for
+       PersistAfter plus Receive side effects; pass
        WK_PLUGIN_FAIL_OPEN into the synchronous Send hook usecase; wire
        plugin-origin /message/send back through the v2 message usecase with the
        default system UID fallback; wire /channel/messages to the clusterv2
@@ -144,18 +145,22 @@ New(Config)
        available; wire /conversation/channels to the clusterv2 active
        conversation row reader when available without last-message joins; wire
        positive toNodeId /plugin/httpForward calls through the clusterv2 manager
-       plugin RPC forwarder; attach the plugin hook metrics observer
+       plugin RPC forwarder; wire Receive hook binding selection to
+       cluster-authoritative UID plugin bindings when available; attach the
+       plugin hook metrics observer
        when metrics are enabled, expose durable commit PersistAfter events to
-       channelappend, and register the manager plugin RPC handler when node RPC
-       is available so peer managers can inspect this node's observed plugin
-       snapshot and invoke this node's local /plugin/route hook for forwarded
-       plugin HTTP requests
+       channelappend, expose durable offline recipient candidates to
+       channelappend's recipient delivery worker for Receive hooks, and
+       register the manager plugin RPC handler when node RPC is available so
+       peer managers can inspect this node's observed plugin snapshot and invoke
+       this node's local /plugin/route hook for forwarded plugin HTTP requests
   -> when the cluster exposes ChannelV2 append plus channel append authority:
        create channelappend.Group with hash-sharded per-channel authority writers,
        clusterv2 ChannelAppender, node-scoped message IDs, subscriber source,
        recipient authority resolver, conversation active-batch admitter,
        optional recipient delivery worker enqueuer, optional plugin PersistAfter
-       enqueuer, append metrics observer, and shared append/post-commit worker pools
+       enqueuer, optional plugin Receive offline-recipient observer, append
+       metrics observer, and shared append/post-commit worker pools
        create channelappend.Router for local authority admission and remote
        channel-authority forwarding
        register Channel Append RPC so remote nodes can submit to the local
@@ -178,7 +183,8 @@ New(Config)
      snapshots, attach internalv2/usecase/management for `/manager/nodes`,
      `/manager/slots`, `/manager/channels`, `/manager/channel-runtime-meta`,
      `/manager/conversations`, `/manager/messages`, `/manager/connections*`,
-     `/manager/nodes/:node_id/plugins*`, `/manager/users*`, and
+     `/manager/nodes/:node_id/plugins*`, `/manager/plugin-bindings`,
+     `/manager/users*`, and
      `/manager/system-users*`;
      channel, conversation, message, and user lists are attached only when the
      cluster also exposes the corresponding metadata/message page scans, while
@@ -193,7 +199,8 @@ New(Config)
      preflight, and submit the validated intent to clusterv2 control, plugin
      inventory uses the local v2 plugin usecase for the local node and routes
      peer `node_id` reads plus positive-node plugin HTTP forwarding through the
-     manager plugin RPC path, ordinary
+     manager plugin RPC path, plugin binding mutations use clusterv2
+     UID-owned Slot metadata when that facade is exposed, ordinary
      application log
      sources and pages use the app-owned
      local reader for the local node and route peer `node_id` reads through the

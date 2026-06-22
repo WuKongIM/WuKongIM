@@ -44,5 +44,5 @@ test("renders business risks and management entry links", () => {
   expect(screen.getByRole("link", { name: /Open Users/ })).toHaveAttribute("href", "/business/users")
   expect(screen.getByRole("link", { name: /Open Channels/ })).toHaveAttribute("href", "/business/channels")
   expect(screen.getByRole("link", { name: /^Users/ })).toHaveAttribute("href", "/business/users")
-  expect(screen.getByRole("link", { name: /Live Monitor/ })).toHaveAttribute("href", "/business/monitor")
+  expect(screen.getByRole("link", { name: /Live Monitor/ })).toHaveAttribute("href", "/cluster/monitor")
 })

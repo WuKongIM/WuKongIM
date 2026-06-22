@@ -233,3 +233,5 @@ type sendHookObserver struct {
 func (o *sendHookObserver) ObserveSendInvoke(result string, _ time.Duration) {
 	o.results = append(o.results, result)
 }
+
+func (o *sendHookObserver) ObserveReceiveInvoke(string, time.Duration) {}

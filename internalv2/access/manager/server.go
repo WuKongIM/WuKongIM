@@ -104,6 +104,12 @@ type Management interface {
 	ListNodePlugins(ctx context.Context, nodeID uint64) (managementusecase.NodePluginList, error)
 	// GetNodePlugin returns one node-local plugin detail.
 	GetNodePlugin(ctx context.Context, nodeID uint64, pluginNo string) (managementusecase.Plugin, error)
+	// ListPluginBindings returns cluster-authoritative plugin-user bindings.
+	ListPluginBindings(ctx context.Context, req managementusecase.PluginBindingListRequest) (managementusecase.PluginBindingListResponse, error)
+	// BindPluginUser creates or updates a cluster-authoritative plugin-user binding.
+	BindPluginUser(ctx context.Context, req managementusecase.PluginBindingMutationRequest) (managementusecase.PluginBindingMutationResponse, error)
+	// UnbindPluginUser removes a cluster-authoritative plugin-user binding.
+	UnbindPluginUser(ctx context.Context, req managementusecase.PluginBindingMutationRequest) error
 	// ListUsers returns manager-facing user metadata rows.
 	ListUsers(ctx context.Context, req managementusecase.ListUsersRequest) (managementusecase.ListUsersResponse, error)
 	// GetUser returns one manager-facing user detail.
@@ -360,6 +366,14 @@ func (s *Server) registerRoutes() {
 	}
 	pluginReads.GET("/nodes/:node_id/plugins", s.handleNodePlugins)
 	pluginReads.GET("/nodes/:node_id/plugins/:plugin_no", s.handleNodePlugin)
+	pluginReads.GET("/plugin-bindings", s.handlePluginBindings)
+
+	pluginWrites := s.engine.Group("/manager")
+	if s.auth.enabled() {
+		pluginWrites.Use(s.requirePermission("cluster.plugin", "w"))
+	}
+	pluginWrites.POST("/plugin-bindings", s.handlePluginBindingCreate)
+	pluginWrites.DELETE("/plugin-bindings", s.handlePluginBindingDelete)
 
 	channelWrites := s.engine.Group("/manager")
 	if s.auth.enabled() {

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/usecase/plugin/pluginproto"
 	pluginevents "github.com/WuKongIM/WuKongIM/internalv2/contracts/pluginevents"
@@ -307,6 +308,61 @@ func BenchmarkPersistAfterCandidates(b *testing.B) {
 	}
 }
 
+func BenchmarkReceivePluginCandidates(b *testing.B) {
+	for _, count := range []int{1, 16, 128, 1024} {
+		b.Run(fmt.Sprintf("bindings_%d", count), func(b *testing.B) {
+			app, err := NewApp(Options{
+				Runtime:         &recordingRuntime{plugins: benchmarkReceivePlugins(count)},
+				Invoker:         benchmarkReceiveInvoker{},
+				ReceiveBindings: benchmarkReceiveBindingReader{bindings: benchmarkReceiveBindings(count)},
+			})
+			require.NoError(b, err)
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				plugin, ok, err := app.boundReceivePluginForUID(context.Background(), "bench-bot")
+				if err != nil {
+					b.Fatal(err)
+				}
+				if !ok || plugin.No == "" {
+					b.Fatal("empty candidate")
+				}
+			}
+		})
+	}
+}
+
+func BenchmarkReceiveOffline(b *testing.B) {
+	for _, payloadSize := range []int{128, 1024, 16 * 1024} {
+		b.Run(fmt.Sprintf("payload_%d", payloadSize), func(b *testing.B) {
+			now := time.Unix(1713859200, 0).UTC()
+			app, err := NewApp(Options{
+				Runtime:          &recordingRuntime{plugins: benchmarkReceivePlugins(1)},
+				Invoker:          benchmarkReceiveInvoker{},
+				ReceiveBindings:  benchmarkReceiveBindingReader{bindings: benchmarkReceiveBindings(1)},
+				DefaultSenderUID: "____system",
+				ReceiveDedupeTTL: time.Nanosecond,
+				Clock: func() time.Time {
+					now = now.Add(time.Microsecond)
+					return now
+				},
+			})
+			require.NoError(b, err)
+			event := benchmarkReceiveOfflineEvent(payloadSize)
+			b.ReportAllocs()
+			b.SetBytes(int64(payloadSize))
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				event.MessageID = uint64(i + 1)
+				event.MessageSeq = uint64(i + 1)
+				if err := app.ReceiveOffline(context.Background(), event); err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
+	}
+}
+
 func messageResultForBenchmark() message.SendResult {
 	return message.SendResult{MessageID: 1, Reason: message.ReasonSuccess}
 }
@@ -425,6 +481,24 @@ func benchmarkPersistAfterEvent(payloadSize int) pluginevents.PersistAfterCommit
 	}
 }
 
+func benchmarkReceiveOfflineEvent(payloadSize int) pluginevents.ReceiveOffline {
+	payload := make([]byte, payloadSize)
+	for i := range payload {
+		payload[i] = byte(i)
+	}
+	return pluginevents.ReceiveOffline{
+		MessageID:         11,
+		MessageSeq:        5,
+		ChannelID:         "room",
+		ChannelType:       2,
+		FromUID:           "sender",
+		UID:               "bench-bot",
+		ClientMsgNo:       "bench-client",
+		ServerTimestampMS: 1713859200123,
+		Payload:           payload,
+	}
+}
+
 func benchmarkPlugins(count int) []ObservedPlugin {
 	plugins := make([]ObservedPlugin, 0, count)
 	for i := 0; i < count; i++ {
@@ -437,4 +511,44 @@ func benchmarkPlugins(count int) []ObservedPlugin {
 		})
 	}
 	return plugins
+}
+
+func benchmarkReceivePlugins(count int) []ObservedPlugin {
+	plugins := make([]ObservedPlugin, 0, count)
+	for i := 0; i < count; i++ {
+		plugins = append(plugins, ObservedPlugin{
+			No:       fmt.Sprintf("receive-plugin-%04d", i),
+			Methods:  []Method{MethodReceive},
+			Priority: i % 32,
+			Status:   StatusRunning,
+			Enabled:  true,
+		})
+	}
+	return plugins
+}
+
+func benchmarkReceiveBindings(count int) []PluginBinding {
+	bindings := make([]PluginBinding, 0, count)
+	for i := 0; i < count; i++ {
+		bindings = append(bindings, PluginBinding{UID: "bench-bot", PluginNo: fmt.Sprintf("receive-plugin-%04d", i)})
+	}
+	return bindings
+}
+
+type benchmarkReceiveBindingReader struct {
+	bindings []PluginBinding
+}
+
+func (r benchmarkReceiveBindingReader) ListPluginBindingsByUID(context.Context, string) ([]PluginBinding, error) {
+	return r.bindings, nil
+}
+
+type benchmarkReceiveInvoker struct{}
+
+func (benchmarkReceiveInvoker) RequestPlugin(context.Context, string, string, []byte) ([]byte, error) {
+	return nil, nil
+}
+
+func (benchmarkReceiveInvoker) SendPlugin(string, uint32, []byte) error {
+	return nil
 }

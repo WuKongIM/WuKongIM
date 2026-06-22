@@ -24,6 +24,25 @@ const (
 
 var managerMonitorPrometheusMetricSelectorRE = regexp.MustCompile(`\b(wukongim_[a-zA-Z0-9_:]+)(\{[^{}]*\})?`)
 
+var managerRealtimeMonitorCommonMetricKeys = map[string]struct{}{
+	"activeConnections":                {},
+	"channelAppendLatencyP99":          {},
+	"conversationActiveOldestDirtyAge": {},
+	"conversationSyncLatencyP99":       {},
+	"controllerApplyGap":               {},
+	"deliveryLatencyP99":               {},
+	"entryLatencyP99":                  {},
+	"nodeCpuPercent":                   {},
+	"nodeMemoryRSS":                    {},
+	"pathErrorRate":                    {},
+	"retryQueueDepth":                  {},
+	"rpcSuccessRate":                   {},
+	"sendRate":                         {},
+	"sendSuccessRate":                  {},
+	"slotApplyGap":                     {},
+	"slotLeaderStability":              {},
+}
+
 type managerPrometheusMonitorOptions struct {
 	// Enabled reports whether Prometheus-backed manager monitor queries may run.
 	Enabled bool
@@ -224,12 +243,9 @@ func (p *managerPrometheusMonitorProvider) queryRange(ctx context.Context, promQ
 }
 
 func filterMonitorMetricDefinitions(defs []monitorMetricDefinition, category string) []monitorMetricDefinition {
-	if category == "" || category == accessmanager.RealtimeMonitorCategoryAll {
-		return defs
-	}
 	out := make([]monitorMetricDefinition, 0, len(defs))
 	for _, def := range defs {
-		if def.category == category {
+		if realtimeMonitorDefinitionMatchesCategory(def.key, def.category, category) {
 			out = append(out, def)
 		}
 	}
@@ -237,31 +253,44 @@ func filterMonitorMetricDefinitions(defs []monitorMetricDefinition, category str
 }
 
 func filterClusterMonitorMetricDefinitions(defs []clusterMonitorMetricDefinition, category string) []clusterMonitorMetricDefinition {
-	if category == "" || category == accessmanager.RealtimeMonitorCategoryAll {
-		return defs
-	}
 	out := make([]clusterMonitorMetricDefinition, 0, len(defs))
 	for _, def := range defs {
-		if def.category == category {
+		if realtimeMonitorDefinitionMatchesCategory(def.key, def.category, category) {
 			out = append(out, def)
 		}
 	}
 	return out
 }
 
+func realtimeMonitorDefinitionMatchesCategory(key string, defCategory string, category string) bool {
+	if category == "" || category == accessmanager.RealtimeMonitorCategoryCommon {
+		return isCommonRealtimeMonitorMetricKey(key)
+	}
+	return defCategory == category
+}
+
+func isCommonRealtimeMonitorMetricKey(key string) bool {
+	_, ok := managerRealtimeMonitorCommonMetricKeys[key]
+	return ok
+}
+
 func realtimeMonitorCategories() []accessmanager.RealtimeMonitorCategory {
 	counts := map[string]int{}
-	total := 0
+	common := 0
 	for _, def := range managerMonitorMetricDefinitions() {
 		counts[def.category]++
-		total++
+		if isCommonRealtimeMonitorMetricKey(def.key) {
+			common++
+		}
 	}
 	for _, def := range managerClusterMonitorMetricDefinitions() {
 		counts[def.category]++
-		total++
+		if isCommonRealtimeMonitorMetricKey(def.key) {
+			common++
+		}
 	}
 	return []accessmanager.RealtimeMonitorCategory{
-		{Key: accessmanager.RealtimeMonitorCategoryAll, Count: total},
+		{Key: accessmanager.RealtimeMonitorCategoryCommon, Count: common},
 		{Key: accessmanager.RealtimeMonitorCategoryGateway, Count: counts[accessmanager.RealtimeMonitorCategoryGateway]},
 		{Key: accessmanager.RealtimeMonitorCategoryInternal, Count: counts[accessmanager.RealtimeMonitorCategoryInternal]},
 		{Key: accessmanager.RealtimeMonitorCategoryMessage, Count: counts[accessmanager.RealtimeMonitorCategoryMessage]},
@@ -275,7 +304,7 @@ func realtimeMonitorCategories() []accessmanager.RealtimeMonitorCategory {
 
 func realtimeMonitorCategoryUsesControlSnapshot(category string) bool {
 	switch category {
-	case "", accessmanager.RealtimeMonitorCategoryAll, accessmanager.RealtimeMonitorCategoryControl, accessmanager.RealtimeMonitorCategorySlot:
+	case "", accessmanager.RealtimeMonitorCategoryCommon, accessmanager.RealtimeMonitorCategoryControl, accessmanager.RealtimeMonitorCategorySlot:
 		return true
 	default:
 		return false

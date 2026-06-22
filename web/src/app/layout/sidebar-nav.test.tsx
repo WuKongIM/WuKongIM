@@ -125,7 +125,8 @@ test("omits the business dashboard menu item from the business section", async (
   const nav = await screen.findByRole("navigation", { name: "Primary navigation" })
   const links = within(nav).getAllByRole("link").map((link) => link.textContent)
   expect(links).not.toContain("Dashboard")
-  expect(links.slice(0, 2)).toEqual(["Live Monitor", "Connections"])
+  expect(links).not.toContain("Live Monitor")
+  expect(links.slice(0, 2)).toEqual(["Connections", "Users"])
 })
 
 test("moves connections from the system section into business management", async () => {

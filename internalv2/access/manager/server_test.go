@@ -597,7 +597,7 @@ func TestManagerRealtimeMonitorReturnsUnifiedPayload(t *testing.T) {
 			},
 		},
 		Categories: []RealtimeMonitorCategory{{
-			Key:   RealtimeMonitorCategoryAll,
+			Key:   RealtimeMonitorCategoryCommon,
 			Count: 2,
 		}, {
 			Key:   RealtimeMonitorCategoryGateway,
@@ -667,7 +667,7 @@ func TestManagerRealtimeMonitorReturnsUnifiedPayload(t *testing.T) {
 			"control_snapshot":{"enabled":true,"query_ms":1,"error":""}
 		},
 		"categories":[
-			{"key":"all","count":2},
+			{"key":"common","count":2},
 			{"key":"gateway","count":1},
 			{"key":"internal","count":1}
 		],
@@ -706,6 +706,31 @@ func TestManagerRealtimeMonitorParsesNodeID(t *testing.T) {
 	}
 }
 
+func TestManagerRealtimeMonitorDefaultsToCommonCategory(t *testing.T) {
+	provider := &managerMonitorStub{response: RealtimeMonitorResponse{
+		Status:        RealtimeMonitorStatusReady,
+		GeneratedAt:   time.Date(2026, 6, 18, 10, 0, 0, 0, time.UTC),
+		WindowSeconds: 900,
+		StepSeconds:   20,
+		Scope:         RealtimeMonitorScope{View: RealtimeMonitorScopeUnified},
+		Snapshot:      []RealtimeMonitorSnapshotEntry{},
+		Cards:         []RealtimeMonitorCard{},
+	}}
+	srv := New(Options{RealtimeMonitor: provider})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/manager/realtime-monitor", nil)
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	if provider.query.Category != "common" {
+		t.Fatalf("provider query category = %q, want common", provider.query.Category)
+	}
+}
+
 func TestManagerRealtimeMonitorRejectsInvalidQuery(t *testing.T) {
 	tests := []struct {
 		name string
@@ -718,6 +743,7 @@ func TestManagerRealtimeMonitorRejectsInvalidQuery(t *testing.T) {
 		{name: "too small step", url: "/manager/realtime-monitor?step=1s", want: "step invalid"},
 		{name: "invalid node id", url: "/manager/realtime-monitor?node_id=bad", want: "invalid node_id"},
 		{name: "zero node id", url: "/manager/realtime-monitor?node_id=0", want: "invalid node_id"},
+		{name: "all category removed", url: "/manager/realtime-monitor?category=all", want: "category invalid"},
 		{name: "invalid category", url: "/manager/realtime-monitor?category=business", want: "category invalid"},
 	}
 	for _, tt := range tests {
@@ -1272,6 +1298,8 @@ type managerNodesStub struct {
 	connectionDetail                   managementusecase.ConnectionDetail
 	pluginList                         managementusecase.NodePluginList
 	pluginDetail                       managementusecase.Plugin
+	pluginBindingList                  managementusecase.PluginBindingListResponse
+	pluginBindingMutation              managementusecase.PluginBindingMutationResponse
 	usersPage                          managementusecase.ListUsersResponse
 	userDetail                         managementusecase.UserDetail
 	slotLogEntriesPage                 managementusecase.SlotLogEntriesResponse
@@ -1304,6 +1332,9 @@ type managerNodesStub struct {
 	pluginListNodeSink                 *uint64
 	pluginDetailNodeSink               *uint64
 	pluginDetailNoSink                 *string
+	pluginBindingListReqSink           *managementusecase.PluginBindingListRequest
+	pluginBindingMutationReqSink       *managementusecase.PluginBindingMutationRequest
+	pluginBindingUnbindReqSink         *managementusecase.PluginBindingMutationRequest
 	slotLogEntriesReqSink              *managementusecase.ListSlotLogEntriesRequest
 	controllerLogEntriesReqSink        *managementusecase.ListControllerLogEntriesRequest
 	controllerTasksReqSink             *managementusecase.ListControllerTasksRequest
@@ -1334,6 +1365,9 @@ type managerNodesStub struct {
 	connectionDetailErr                error
 	pluginListErr                      error
 	pluginDetailErr                    error
+	pluginBindingListErr               error
+	pluginBindingMutationErr           error
+	pluginBindingUnbindErr             error
 	slotLogEntriesErr                  error
 	controllerLogEntriesErr            error
 	controllerTasksErr                 error
@@ -1560,6 +1594,27 @@ func (s managerNodesStub) GetNodePlugin(_ context.Context, nodeID uint64, plugin
 		*s.pluginDetailNoSink = pluginNo
 	}
 	return s.pluginDetail, s.pluginDetailErr
+}
+
+func (s managerNodesStub) ListPluginBindings(_ context.Context, req managementusecase.PluginBindingListRequest) (managementusecase.PluginBindingListResponse, error) {
+	if s.pluginBindingListReqSink != nil {
+		*s.pluginBindingListReqSink = req
+	}
+	return s.pluginBindingList, s.pluginBindingListErr
+}
+
+func (s managerNodesStub) BindPluginUser(_ context.Context, req managementusecase.PluginBindingMutationRequest) (managementusecase.PluginBindingMutationResponse, error) {
+	if s.pluginBindingMutationReqSink != nil {
+		*s.pluginBindingMutationReqSink = req
+	}
+	return s.pluginBindingMutation, s.pluginBindingMutationErr
+}
+
+func (s managerNodesStub) UnbindPluginUser(_ context.Context, req managementusecase.PluginBindingMutationRequest) error {
+	if s.pluginBindingUnbindReqSink != nil {
+		*s.pluginBindingUnbindReqSink = req
+	}
+	return s.pluginBindingUnbindErr
 }
 
 func (s managerNodesStub) AdvanceMessageRetention(_ context.Context, req managementusecase.AdvanceMessageRetentionRequest) (managementusecase.AdvanceMessageRetentionResponse, error) {

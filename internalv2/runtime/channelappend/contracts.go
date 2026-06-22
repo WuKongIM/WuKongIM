@@ -1,6 +1,10 @@
 package channelappend
 
-import contract "github.com/WuKongIM/WuKongIM/internalv2/contracts/channelappend"
+import (
+	"context"
+
+	contract "github.com/WuKongIM/WuKongIM/internalv2/contracts/channelappend"
+)
 
 // ChannelID identifies a message channel.
 type ChannelID = contract.ChannelID
@@ -90,6 +94,20 @@ type Recipient = contract.Recipient
 
 // RecipientBatch carries one committed envelope and the recipients to process together.
 type RecipientBatch = contract.RecipientBatch
+
+// OfflineRecipientEvent reports one durable recipient with no online route.
+type OfflineRecipientEvent struct {
+	// Event is the committed message whose recipient was classified offline.
+	Event CommittedEnvelope
+	// UID is the recipient user identifier without an online route.
+	UID string
+}
+
+// OfflineRecipientObserver receives offline recipient candidates after presence resolution.
+type OfflineRecipientObserver interface {
+	// ObserveOfflineRecipient records one durable recipient with no online route.
+	ObserveOfflineRecipient(context.Context, OfflineRecipientEvent)
+}
 
 // SubscriberPageRequest describes one channel subscriber page scan.
 type SubscriberPageRequest = contract.SubscriberPageRequest

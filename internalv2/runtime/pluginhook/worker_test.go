@@ -79,6 +79,39 @@ func TestWorkerEnqueueClonesPayload(t *testing.T) {
 	require.Equal(t, []string{"u1", "u2"}, usecase.calls[0].MessageScopedUIDs)
 }
 
+func TestWorkerEnqueueReceiveInvokesReceiveUsecaseAndClonesPayload(t *testing.T) {
+	usecase := &recordingHookUsecase{receiveDone: make(chan struct{})}
+	observer := &recordingObserver{}
+	worker := NewWorker(Options{Usecase: usecase, QueueSize: 1, Workers: 1, Timeout: time.Second, Observer: observer})
+	require.NoError(t, worker.Start(context.Background()))
+	defer worker.Stop(context.Background())
+
+	payload := []byte("hello")
+	scopedUIDs := []string{"u2"}
+	worker.EnqueueReceive(context.Background(), pluginevents.ReceiveOffline{
+		MessageID:         1,
+		UID:               "u2",
+		Payload:           payload,
+		MessageScopedUIDs: scopedUIDs,
+	})
+	payload[0] = 'x'
+	scopedUIDs[0] = "changed"
+
+	select {
+	case <-usecase.receiveDone:
+	case <-time.After(time.Second):
+		t.Fatal("Receive was not invoked")
+	}
+
+	usecase.mu.Lock()
+	defer usecase.mu.Unlock()
+	require.Len(t, usecase.receiveCalls, 1)
+	require.Equal(t, []byte("hello"), usecase.receiveCalls[0].Payload)
+	require.Equal(t, []string{"u2"}, usecase.receiveCalls[0].MessageScopedUIDs)
+	require.Eventually(t, func() bool { return observer.receiveEnqueueCount(enqueueResultAccepted) == 1 }, time.Second, time.Millisecond)
+	require.Eventually(t, func() bool { return observer.receiveInvokeCount(invokeResultOK) == 1 }, time.Second, time.Millisecond)
+}
+
 func TestWorkerQueueFullDropsWithoutBlockingCaller(t *testing.T) {
 	usecase := newBlockingPersistAfterUsecase()
 	observer := &recordingObserver{}
@@ -245,6 +278,35 @@ type persistAfterUsecaseFunc func(context.Context, pluginevents.PersistAfterComm
 
 func (f persistAfterUsecaseFunc) PersistAfterCommitted(ctx context.Context, event pluginevents.PersistAfterCommitted) error {
 	return f(ctx, event)
+}
+
+type recordingHookUsecase struct {
+	receiveDone chan struct{}
+
+	mu                sync.Mutex
+	persistAfterCalls []pluginevents.PersistAfterCommitted
+	receiveCalls      []pluginevents.ReceiveOffline
+}
+
+func (r *recordingHookUsecase) PersistAfterCommitted(_ context.Context, event pluginevents.PersistAfterCommitted) error {
+	r.mu.Lock()
+	r.persistAfterCalls = append(r.persistAfterCalls, event)
+	r.mu.Unlock()
+	return nil
+}
+
+func (r *recordingHookUsecase) ReceiveOffline(_ context.Context, event pluginevents.ReceiveOffline) error {
+	r.mu.Lock()
+	r.receiveCalls = append(r.receiveCalls, event)
+	r.mu.Unlock()
+	if r.receiveDone != nil {
+		select {
+		case <-r.receiveDone:
+		default:
+			close(r.receiveDone)
+		}
+	}
+	return nil
 }
 
 type recordingPersistAfterUsecase struct {
@@ -472,9 +534,11 @@ func (s *stubbornPersistAfterUsecase) callCount() int {
 }
 
 type recordingObserver struct {
-	mu            sync.Mutex
-	enqueueCounts map[string]int
-	invokeCounts  map[string]int
+	mu                   sync.Mutex
+	enqueueCounts        map[string]int
+	invokeCounts         map[string]int
+	receiveEnqueueCounts map[string]int
+	receiveInvokeCounts  map[string]int
 }
 
 func (r *recordingObserver) ObservePersistAfterEnqueue(result string, _ time.Duration) {
@@ -495,6 +559,24 @@ func (r *recordingObserver) ObservePersistAfterInvoke(result string, _ time.Dura
 	r.invokeCounts[result]++
 }
 
+func (r *recordingObserver) ObserveReceiveEnqueue(result string, _ time.Duration) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.receiveEnqueueCounts == nil {
+		r.receiveEnqueueCounts = make(map[string]int)
+	}
+	r.receiveEnqueueCounts[result]++
+}
+
+func (r *recordingObserver) ObserveReceiveInvoke(result string, _ time.Duration) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.receiveInvokeCounts == nil {
+		r.receiveInvokeCounts = make(map[string]int)
+	}
+	r.receiveInvokeCounts[result]++
+}
+
 func (r *recordingObserver) enqueueCount(result string) int {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -505,4 +587,16 @@ func (r *recordingObserver) invokeCount(result string) int {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.invokeCounts[result]
+}
+
+func (r *recordingObserver) receiveEnqueueCount(result string) int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.receiveEnqueueCounts[result]
+}
+
+func (r *recordingObserver) receiveInvokeCount(result string) int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.receiveInvokeCounts[result]
 }

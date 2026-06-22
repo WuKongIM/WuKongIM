@@ -198,7 +198,7 @@ export function buildBusinessRisks(metrics: DashboardMetricsResponse): BusinessR
       titleId: "businessDashboard.risks.retryQueue",
       detailId: "businessDashboard.risks.retryQueueDetail",
       detailValues: { count: m.retry_queue_depth.latest.toLocaleString() },
-      href: "/business/monitor",
+      href: "/cluster/monitor",
     })
   }
 
@@ -221,7 +221,7 @@ export function buildBusinessRisks(metrics: DashboardMetricsResponse): BusinessR
       titleId: "businessDashboard.risks.deliveryLatency",
       detailId: "businessDashboard.risks.deliveryLatencyDetail",
       detailValues: { value: Math.round(m.delivery_latency_p99_ms.latest).toLocaleString() },
-      href: "/business/monitor",
+      href: "/cluster/monitor",
     })
   }
 
@@ -235,7 +235,7 @@ export function buildBusinessRisks(metrics: DashboardMetricsResponse): BusinessR
         deliver: m.deliver_per_sec.latest.toLocaleString(),
         send: m.send_per_sec.latest.toLocaleString(),
       },
-      href: "/business/monitor",
+      href: "/cluster/monitor",
     })
   }
 
@@ -284,7 +284,7 @@ export function buildBusinessEntryCards(input: {
       key: "monitor",
       titleId: "businessDashboard.entries.monitor",
       descriptionId: "businessDashboard.entries.monitorDescription",
-      href: "/business/monitor",
+      href: "/cluster/monitor",
       value: "Live",
       source: "real",
     },

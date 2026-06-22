@@ -544,6 +544,30 @@ func BenchmarkChannelAppendPostCommitPlugin(b *testing.B) {
 	})
 }
 
+func BenchmarkRecipientProcessorOfflineObserver(b *testing.B) {
+	for _, count := range []int{16, 1024, 10000} {
+		b.Run("recipients_"+strconv.Itoa(count), func(b *testing.B) {
+			batch, routes := benchmarkOfflineRecipientBatch(count)
+			observer := &benchmarkOfflineRecipientObserver{}
+			ports := recipientPorts{
+				presence:                 benchmarkPresenceResolver{routes: routes},
+				offlineRecipientObserver: observer,
+			}
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				if err := processRecipientBatch(context.Background(), batch, ports); err != nil {
+					b.Fatalf("processRecipientBatch() error = %v", err)
+				}
+			}
+			b.StopTimer()
+			if observer.count == 0 {
+				b.Fatal("offline observer was not invoked")
+			}
+		})
+	}
+}
+
 func BenchmarkRecipientDeliveryWorkerEnqueue(b *testing.B) {
 	observer := &benchmarkRecipientDeliveryWorkerObserver{}
 	worker := NewRecipientDeliveryWorker(RecipientDeliveryWorkerOptions{
@@ -619,4 +643,43 @@ func (o *benchmarkRecipientDeliveryWorkerObserver) AppendFinished(string, error,
 
 func (o *benchmarkRecipientDeliveryWorkerObserver) ObserveChannelAppendRecipientDeliveryProcess(RecipientDeliveryProcessObservation) {
 	o.processed.Add(1)
+}
+
+type benchmarkPresenceResolver struct {
+	routes []Route
+}
+
+func (r benchmarkPresenceResolver) EndpointsByUIDs(context.Context, []string) ([]Route, error) {
+	return r.routes, nil
+}
+
+type benchmarkOfflineRecipientObserver struct {
+	count uint64
+}
+
+func (o *benchmarkOfflineRecipientObserver) ObserveOfflineRecipient(context.Context, OfflineRecipientEvent) {
+	o.count++
+}
+
+func benchmarkOfflineRecipientBatch(count int) (RecipientBatch, []Route) {
+	recipients := make([]Recipient, 0, count)
+	routes := make([]Route, 0, count/2)
+	for i := 0; i < count; i++ {
+		uid := "user-" + strconv.Itoa(i)
+		recipients = append(recipients, Recipient{UID: uid})
+		if i%2 == 0 {
+			routes = append(routes, Route{UID: uid, OwnerNodeID: 1, SessionID: uint64(i + 1)})
+		}
+	}
+	return RecipientBatch{
+		Event: CommittedEnvelope{
+			MessageID:   1,
+			MessageSeq:  1,
+			ChannelID:   "bench-offline",
+			ChannelType: 2,
+			FromUID:     "sender",
+			Payload:     benchmarkPayload,
+		},
+		Recipients: recipients,
+	}, routes
 }

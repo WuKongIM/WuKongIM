@@ -581,6 +581,18 @@ func requireMonitorCardForTest(t *testing.T, cards []accessmanager.RealtimeMonit
 	return accessmanager.RealtimeMonitorCard{}
 }
 
+func requireMonitorCardKeysForTest(t *testing.T, cards []accessmanager.RealtimeMonitorCard, want []string) {
+	t.Helper()
+	if len(cards) != len(want) {
+		t.Fatalf("cards = %d, want %d; cards=%#v", len(cards), len(want), cards)
+	}
+	for i, key := range want {
+		if cards[i].Key != key {
+			t.Fatalf("card[%d].Key = %q, want %q; cards=%#v", i, cards[i].Key, key, cards)
+		}
+	}
+}
+
 func requireMonitorDefinitionForTest(t *testing.T, key string) monitorMetricDefinition {
 	t.Helper()
 	for _, def := range managerMonitorMetricDefinitions() {

@@ -1,9 +1,11 @@
 package manager
 
 import (
+	"bytes"
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -163,6 +165,151 @@ func TestManagerNodePluginsRequiresPluginReadPermission(t *testing.T) {
 
 	if rec.Code != http.StatusForbidden {
 		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusForbidden, rec.Body.String())
+	}
+}
+
+func TestManagerPluginBindingsUseQueryAndMutationBodies(t *testing.T) {
+	var listSink managementusecase.PluginBindingListRequest
+	var bindSink managementusecase.PluginBindingMutationRequest
+	var unbindSink managementusecase.PluginBindingMutationRequest
+	srv := New(Options{
+		Auth: testAuthConfig([]UserConfig{{
+			Username: "admin",
+			Password: "secret",
+			Permissions: []PermissionConfig{{
+				Resource: "cluster.plugin",
+				Actions:  []string{"r", "w"},
+			}},
+		}}),
+		Management: managerNodesStub{
+			pluginBindingListReqSink:     &listSink,
+			pluginBindingMutationReqSink: &bindSink,
+			pluginBindingUnbindReqSink:   &unbindSink,
+			pluginBindingList: managementusecase.PluginBindingListResponse{
+				Bindings: []managementusecase.PluginBinding{{UID: "u1", PluginNo: "wk.receive"}},
+			},
+			pluginBindingMutation: managementusecase.PluginBindingMutationResponse{
+				Binding: managementusecase.PluginBinding{UID: "u1", PluginNo: "wk.receive"},
+				Changed: true,
+			},
+		},
+	})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/manager/plugin-bindings?uid=u1", nil)
+	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
+	srv.Engine().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("list status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	if listSink != (managementusecase.PluginBindingListRequest{UID: "u1"}) {
+		t.Fatalf("list request = %#v, want uid u1", listSink)
+	}
+	if !jsonEqual(rec.Body.String(), `{
+		"items": [{"uid":"u1","plugin_no":"wk.receive","warnings":[]}],
+		"total": 1,
+		"has_more": false
+	}`) {
+		t.Fatalf("list body = %s", rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/manager/plugin-bindings", bytes.NewBufferString(`{"uid":"u1","plugin_no":"wk.receive"}`))
+	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
+	req.Header.Set("Content-Type", "application/json")
+	srv.Engine().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("bind status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	if bindSink != (managementusecase.PluginBindingMutationRequest{UID: "u1", PluginNo: "wk.receive"}) {
+		t.Fatalf("bind request = %#v, want u1/wk.receive", bindSink)
+	}
+	if !jsonEqual(rec.Body.String(), `{
+		"binding": {"uid":"u1","plugin_no":"wk.receive","warnings":[]},
+		"changed": true
+	}`) {
+		t.Fatalf("bind body = %s", rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodDelete, "/manager/plugin-bindings", strings.NewReader(`{"uid":"u1","plugin_no":"wk.receive"}`))
+	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
+	req.Header.Set("Content-Type", "application/json")
+	srv.Engine().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("unbind status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	if unbindSink != (managementusecase.PluginBindingMutationRequest{UID: "u1", PluginNo: "wk.receive"}) {
+		t.Fatalf("unbind request = %#v, want u1/wk.receive", unbindSink)
+	}
+}
+
+func TestManagerPluginBindingsRequirePluginPermissions(t *testing.T) {
+	srv := New(Options{
+		Auth: testAuthConfig([]UserConfig{{
+			Username: "admin",
+			Password: "secret",
+			Permissions: []PermissionConfig{{
+				Resource: "cluster.node",
+				Actions:  []string{"r", "w"},
+			}},
+		}}),
+		Management: managerNodesStub{},
+	})
+
+	for _, tt := range []struct {
+		name   string
+		method string
+		path   string
+		body   string
+	}{
+		{name: "read", method: http.MethodGet, path: "/manager/plugin-bindings?uid=u1"},
+		{name: "bind", method: http.MethodPost, path: "/manager/plugin-bindings", body: `{"uid":"u1","plugin_no":"wk.receive"}`},
+		{name: "unbind", method: http.MethodDelete, path: "/manager/plugin-bindings", body: `{"uid":"u1","plugin_no":"wk.receive"}`},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest(tt.method, tt.path, strings.NewReader(tt.body))
+			req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
+			if tt.body != "" {
+				req.Header.Set("Content-Type", "application/json")
+			}
+			srv.Engine().ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusForbidden {
+				t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusForbidden, rec.Body.String())
+			}
+		})
+	}
+}
+
+func TestManagerPluginBindingsRejectInvalidRequests(t *testing.T) {
+	srv := New(Options{Management: managerNodesStub{}})
+
+	for _, tt := range []struct {
+		name   string
+		method string
+		path   string
+		body   string
+	}{
+		{name: "missing selector", method: http.MethodGet, path: "/manager/plugin-bindings"},
+		{name: "ambiguous selector", method: http.MethodGet, path: "/manager/plugin-bindings?uid=u1&plugin_no=wk.receive"},
+		{name: "invalid limit", method: http.MethodGet, path: "/manager/plugin-bindings?plugin_no=wk.receive&limit=bad"},
+		{name: "missing bind uid", method: http.MethodPost, path: "/manager/plugin-bindings", body: `{"plugin_no":"wk.receive"}`},
+		{name: "invalid json", method: http.MethodDelete, path: "/manager/plugin-bindings", body: `{"uid":`},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest(tt.method, tt.path, strings.NewReader(tt.body))
+			if tt.body != "" {
+				req.Header.Set("Content-Type", "application/json")
+			}
+			srv.Engine().ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusBadRequest {
+				t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusBadRequest, rec.Body.String())
+			}
+		})
 	}
 }
 

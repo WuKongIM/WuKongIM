@@ -57,7 +57,7 @@ export function BusinessHealthHero({ verdict, generatedAt, metrics }: BusinessHe
         </p>
         <div className="mt-4 flex flex-wrap gap-2">
           <Button asChild size="sm">
-            <Link to="/business/monitor">
+            <Link to="/cluster/monitor">
               <Activity aria-hidden className="size-3.5" />
               {intl.formatMessage({ id: "businessDashboard.actions.openMonitor" })}
             </Link>

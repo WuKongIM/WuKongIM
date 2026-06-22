@@ -79,6 +79,52 @@ func (n *Node) GetDeviceMetadata(ctx context.Context, uid string, deviceFlag int
 	return n.defaultSlotMetaDB.ForHashSlot(route.HashSlot).GetDevice(ctx, uid, deviceFlag)
 }
 
+// BindPluginUser persists one UID-owned plugin binding through Slot ownership.
+func (n *Node) BindPluginUser(ctx context.Context, binding metadb.PluginUserBinding) error {
+	if err := ctxErr(ctx); err != nil {
+		return err
+	}
+	if n == nil {
+		return ErrNotStarted
+	}
+	return n.Propose(ctx, ProposeRequest{
+		Key:     binding.UID,
+		Command: metafsm.EncodeBindPluginUserCommand(binding),
+	})
+}
+
+// UnbindPluginUser removes one UID-owned plugin binding through Slot ownership.
+func (n *Node) UnbindPluginUser(ctx context.Context, uid, pluginNo string) error {
+	if err := ctxErr(ctx); err != nil {
+		return err
+	}
+	if n == nil {
+		return ErrNotStarted
+	}
+	return n.Propose(ctx, ProposeRequest{
+		Key:     uid,
+		Command: metafsm.EncodeUnbindPluginUserCommand(uid, pluginNo),
+	})
+}
+
+// ListPluginBindingsByUID reads durable plugin bindings from the UID-owned Slot metadata.
+func (n *Node) ListPluginBindingsByUID(ctx context.Context, uid string) ([]metadb.PluginUserBinding, error) {
+	if err := ctxErr(ctx); err != nil {
+		return nil, err
+	}
+	if err := n.ensureForeground(); err != nil {
+		return nil, err
+	}
+	if n.defaultSlotMetaDB == nil {
+		return nil, ErrNotStarted
+	}
+	route, err := n.RouteKey(uid)
+	if err != nil {
+		return nil, err
+	}
+	return n.defaultSlotMetaDB.ForHashSlot(route.HashSlot).ListPluginBindingsByUID(ctx, uid)
+}
+
 // UpsertChannelMetadata persists durable channel metadata through Slot ownership.
 func (n *Node) UpsertChannelMetadata(ctx context.Context, channel metadb.Channel) error {
 	if err := ctxErr(ctx); err != nil {

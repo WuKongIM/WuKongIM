@@ -193,6 +193,16 @@ not affect SENDACK, append success, recipient delivery, or conversation active
 projection. Transient NoPersist realtime sends skip PersistAfter because they
 do not create durable committed envelopes.
 
+When an offline recipient observer is configured, recipient delivery resolves
+presence first, then reports each unique recipient UID with no online route.
+This observer runs before sender echo suppression so a sender's other online
+sessions do not hide unrelated offline recipients. It is limited to durable
+ordinary commits: zero-sequence realtime envelopes, SyncOnce command messages,
+and request-scoped `MessageScopedUIDs` batches are skipped. The observer is a
+best-effort side-effect boundary; it receives the immutable committed envelope
+plus one UID and must not influence SENDACK, append success, conversation active
+admission, or owner push delivery.
+
 Scoped `MessageScopedUIDs` dispatch directly without scanning subscribers.
 Person channels derive exactly the two canonical participants from the
 committed channel id. Large channels page subscribers with the configured page

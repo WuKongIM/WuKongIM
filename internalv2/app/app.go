@@ -88,7 +88,9 @@ type App struct {
 	pluginHook WorkerRuntime
 	// pluginPersistAfter adapts durable committed envelopes into plugin PersistAfter events.
 	pluginPersistAfter channelappend.PersistAfterEnqueuer
-	// plugins exposes v2 plugin lifecycle and PersistAfter usecases.
+	// pluginReceive adapts offline recipient events into plugin Receive events.
+	pluginReceive channelappend.OfflineRecipientObserver
+	// plugins exposes v2 plugin lifecycle and hook usecases.
 	plugins                     *pluginusecase.App
 	channels                    *channelusecase.App
 	cmdSync                     *cmdsyncusecase.App

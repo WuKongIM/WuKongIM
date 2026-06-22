@@ -257,6 +257,77 @@ func TestNewWiresManagerServerWhenListenAddrConfigured(t *testing.T) {
 	}
 }
 
+func TestManagerServerMutatesPluginBindingsFromClusterMetadata(t *testing.T) {
+	cluster := &fakeManagerCluster{nodeID: 1}
+	app, err := newTestApp(t, Config{
+		Manager: ManagerConfig{
+			ListenAddr: ":0",
+			AuthOn:     true,
+			JWTSecret:  "manager-secret",
+			JWTIssuer:  "wukongim-manager",
+			JWTExpire:  time.Hour,
+			Users: []ManagerUserConfig{{
+				Username: "admin",
+				Password: "secret",
+				Permissions: []ManagerPermissionConfig{{
+					Resource: "cluster.plugin",
+					Actions:  []string{"r", "w"},
+				}},
+			}},
+		},
+	}, WithCluster(cluster), WithGateway(nil))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	srv, ok := app.manager.(*accessmanager.Server)
+	if !ok {
+		t.Fatalf("manager = %T, want *accessmanager.Server", app.manager)
+	}
+	token := mustIssueManagerTokenForAppTest(t, srv, "admin")
+
+	bindRec := httptest.NewRecorder()
+	bindReq := httptest.NewRequest(http.MethodPost, "/manager/plugin-bindings", strings.NewReader(`{"uid":"bot","plugin_no":"receive-plugin"}`))
+	bindReq.Header.Set("Authorization", "Bearer "+token)
+	bindReq.Header.Set("Content-Type", "application/json")
+	srv.Engine().ServeHTTP(bindRec, bindReq)
+	if bindRec.Code != http.StatusOK {
+		t.Fatalf("bind status = %d, want %d; body=%s", bindRec.Code, http.StatusOK, bindRec.Body.String())
+	}
+
+	listRec := httptest.NewRecorder()
+	listReq := httptest.NewRequest(http.MethodGet, "/manager/plugin-bindings?uid=bot", nil)
+	listReq.Header.Set("Authorization", "Bearer "+token)
+	srv.Engine().ServeHTTP(listRec, listReq)
+	if listRec.Code != http.StatusOK {
+		t.Fatalf("list status = %d, want %d; body=%s", listRec.Code, http.StatusOK, listRec.Body.String())
+	}
+	var listBody struct {
+		Total int `json:"total"`
+		Items []struct {
+			UID      string `json:"uid"`
+			PluginNo string `json:"plugin_no"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(listRec.Body.Bytes(), &listBody); err != nil {
+		t.Fatalf("Unmarshal list body error = %v", err)
+	}
+	if listBody.Total != 1 || len(listBody.Items) != 1 || listBody.Items[0].UID != "bot" || listBody.Items[0].PluginNo != "receive-plugin" {
+		t.Fatalf("list body = %#v, want one bot/receive-plugin binding", listBody)
+	}
+
+	unbindRec := httptest.NewRecorder()
+	unbindReq := httptest.NewRequest(http.MethodDelete, "/manager/plugin-bindings", strings.NewReader(`{"uid":"bot","plugin_no":"receive-plugin"}`))
+	unbindReq.Header.Set("Authorization", "Bearer "+token)
+	unbindReq.Header.Set("Content-Type", "application/json")
+	srv.Engine().ServeHTTP(unbindRec, unbindReq)
+	if unbindRec.Code != http.StatusOK {
+		t.Fatalf("unbind status = %d, want %d; body=%s", unbindRec.Code, http.StatusOK, unbindRec.Body.String())
+	}
+	if bindings := cluster.pluginBindingsByUID["bot"]; len(bindings) != 0 {
+		t.Fatalf("bindings after unbind = %#v, want empty", bindings)
+	}
+}
+
 func TestManagerServerReceivesTopProviderWhenConfigured(t *testing.T) {
 	app, err := newTestApp(t, Config{
 		Manager: ManagerConfig{
@@ -4696,6 +4767,7 @@ type fakeManagerCluster struct {
 
 	conversationPages     map[string][]metadb.ConversationState
 	conversationMessages  map[metadb.ConversationKey][]channelv2.Message
+	pluginBindingsByUID   map[string][]metadb.PluginUserBinding
 	channelOwnerMetas     map[channelv2.ChannelID]channelv2.Meta
 	registeredHandlers    map[uint8]clusterv2.NodeRPCHandler
 	rpcNodeID             uint64
@@ -4986,6 +5058,42 @@ func (f *fakeManagerCluster) GetConversationStates(_ context.Context, keys []met
 		}
 	}
 	return states, nil
+}
+
+func (f *fakeManagerCluster) ListPluginBindingsByUID(_ context.Context, uid string) ([]metadb.PluginUserBinding, error) {
+	return append([]metadb.PluginUserBinding(nil), f.pluginBindingsByUID[uid]...), nil
+}
+
+func (f *fakeManagerCluster) BindPluginUser(_ context.Context, binding metadb.PluginUserBinding) error {
+	if f.pluginBindingsByUID == nil {
+		f.pluginBindingsByUID = make(map[string][]metadb.PluginUserBinding)
+	}
+	bindings := f.pluginBindingsByUID[binding.UID]
+	for i, existing := range bindings {
+		if existing.PluginNo == binding.PluginNo {
+			bindings[i] = binding
+			f.pluginBindingsByUID[binding.UID] = bindings
+			return nil
+		}
+	}
+	f.pluginBindingsByUID[binding.UID] = append(bindings, binding)
+	return nil
+}
+
+func (f *fakeManagerCluster) UnbindPluginUser(_ context.Context, uid, pluginNo string) error {
+	bindings := f.pluginBindingsByUID[uid]
+	kept := bindings[:0]
+	for _, binding := range bindings {
+		if binding.PluginNo != pluginNo {
+			kept = append(kept, binding)
+		}
+	}
+	if len(kept) == 0 {
+		delete(f.pluginBindingsByUID, uid)
+		return nil
+	}
+	f.pluginBindingsByUID[uid] = kept
+	return nil
 }
 
 func (f *fakeManagerCluster) ReadChannelLastVisible(_ context.Context, channelID channelv2.ChannelID, visibleAfterSeq uint64) (channelv2.Message, bool, error) {

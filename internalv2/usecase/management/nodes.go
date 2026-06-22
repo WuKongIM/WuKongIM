@@ -74,6 +74,8 @@ type Options struct {
 	Plugins PluginReader
 	// RemotePlugins reads node-local plugin runtime snapshots from peer nodes.
 	RemotePlugins RemotePluginReader
+	// PluginBindings reads and mutates cluster-authoritative UID plugin bindings.
+	PluginBindings PluginBindingStore
 	// Logs reads node-local distributed Raft log pages.
 	Logs LogReader
 	// SlotRaft runs node-local Slot Raft compaction operations.
@@ -114,6 +116,7 @@ type App struct {
 	remoteConnections      RemoteConnectionReader
 	plugins                PluginReader
 	remotePlugins          RemotePluginReader
+	pluginBindings         PluginBindingStore
 	logs                   LogReader
 	slotRaft               SlotRaftOperator
 	leaderTransfer         SlotLeaderTransferWriter
@@ -150,6 +153,7 @@ func New(opts Options) *App {
 		remoteConnections:      opts.RemoteConnections,
 		plugins:                opts.Plugins,
 		remotePlugins:          opts.RemotePlugins,
+		pluginBindings:         opts.PluginBindings,
 		logs:                   opts.Logs,
 		slotRaft:               opts.SlotRaft,
 		leaderTransfer:         opts.LeaderTransfer,

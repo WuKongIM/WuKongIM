@@ -45,6 +45,9 @@ GET  /manager/connections (connection list; requires cluster.connection:r when A
 GET  /manager/connections/:session_id (connection detail; requires cluster.connection:r when Auth.On=true)
 GET  /manager/nodes/:node_id/plugins (node-local plugin inventory; requires cluster.plugin:r when Auth.On=true)
 GET  /manager/nodes/:node_id/plugins/:plugin_no (node-local plugin detail; requires cluster.plugin:r when Auth.On=true)
+GET  /manager/plugin-bindings (UID/plugin binding list; requires cluster.plugin:r when Auth.On=true)
+POST /manager/plugin-bindings (create/update UID/plugin binding; requires cluster.plugin:w when Auth.On=true)
+DELETE /manager/plugin-bindings (remove UID/plugin binding; requires cluster.plugin:w when Auth.On=true)
 GET  /manager/db/inspect/tables (DB Inspect table list; requires cluster.db:r when Auth.On=true)
 GET  /manager/db/inspect/tables/:domain/:table (DB Inspect table schema; requires cluster.db:r when Auth.On=true)
 POST /manager/db/inspect/query (DB Inspect query; requires cluster.db:r when Auth.On=true)
@@ -206,6 +209,15 @@ last-seen timestamp, and latest error text from
 `internalv2/usecase/management`. Non-local node reads are routed below this
 package through manager plugin node RPC. These routes do not start, stop,
 reload, configure, or mutate plugin desired state.
+
+`/manager/plugin-bindings` exposes cluster-authoritative UID/plugin bindings
+used by Receive hooks. `GET` accepts exactly one selector: `uid` for
+UID-owned binding reads, or `plugin_no` for plugin-centric pages when the
+wired binding store supports that scan. `POST` and `DELETE` parse
+`uid`/`plugin_no` from JSON bodies or query parameters, require
+`cluster.plugin:w`, and delegate mutations to `internalv2/usecase/management`.
+The HTTP layer owns only parsing, permission checks, and response DTO mapping;
+durable ownership and timestamps stay below the access layer.
 
 `/manager/db/inspect*` backs the web `/system/db` DB Inspect page. It parses
 HTTP query/body parameters, enforces `cluster.db:r` when manager auth is

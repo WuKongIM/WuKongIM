@@ -9,7 +9,8 @@ Controller Raft status and explicit compaction orchestration, Slot Raft
 explicit compaction orchestration, Slot leader-transfer intent
 validation/submission, recent conversation list, channel message list,
 message retention adapter contract, local-or-remote connection list/detail
-projection, local-or-remote node plugin list/detail projection, DB Inspect,
+projection, local-or-remote node plugin list/detail projection,
+cluster-authoritative plugin binding list/mutation, DB Inspect,
 diagnostics trace/message/event query orchestration and tracking-rule fan-out,
 node-local diagnostics orchestration, user management, and system UID
 projections/actions used by `GET /manager/nodes`,
@@ -24,7 +25,7 @@ projections/actions used by `GET /manager/nodes`,
 `POST /manager/nodes/:node_id/slots/:slot_id/compact`,
 `GET /manager/conversations`, `GET /manager/messages`,
 `POST /manager/messages/retention`, `/manager/connections*`,
-`/manager/nodes/:node_id/plugins*`,
+`/manager/nodes/:node_id/plugins*`, `/manager/plugin-bindings`,
 `/manager/db/inspect*`, `/manager/diagnostics*`, `/manager/users*`, and
 `/manager/system-users*`.
 
@@ -331,6 +332,17 @@ usecase for the local node, and delegates non-local reads to a narrow
 runtime-only fields such as status, sync flags, process ID, last-seen time, and
 latest error text. It does not inspect plugin files, load configuration
 templates, start/stop/reload processes, or mutate plugin desired state.
+
+Plugin binding management is cluster-authoritative and UID-owned. The usecase
+validates that list requests provide exactly one selector, trims mutation
+identities, stamps accepted binds with `Now`, and delegates persistence to a
+`PluginBindingStore` port backed by Slot metadata. UID reads use
+`ListPluginBindingsByUID`; plugin-centric pages are used only when the store
+also exposes `PluginBindingPluginScanner`, so internalv2 does not fake a
+cluster-wide reverse scan from one local node. When the node-local plugin
+runtime is wired, binding rows include non-fatal warnings for missing,
+disabled, non-running, or Receive-unsupported plugins; binding persistence does
+not depend on local plugin runtime availability.
 
 ## DB Inspect Flow
 

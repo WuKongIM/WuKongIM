@@ -118,6 +118,84 @@ func TestRetryableOwnerPushRoutesReturnErrorAfterMaxAttempts(t *testing.T) {
 	}
 }
 
+func TestRecipientProcessorObservesOfflineRecipientsAfterPresence(t *testing.T) {
+	steps := &orderedStepsForDeliveryTest{}
+	observer := &recordingOfflineRecipientObserverForDeliveryTest{steps: steps}
+	pusher := &recordingOwnerPusherForDeliveryTest{steps: steps}
+	batch := RecipientBatch{
+		Event: CommittedEnvelope{MessageID: 10, MessageSeq: 4, ChannelID: "g1", ChannelType: 2, Payload: []byte("hello")},
+		Recipients: []Recipient{
+			{UID: "u1"},
+			{UID: "u2"},
+			{UID: "u2"},
+			{UID: "u3"},
+		},
+	}
+
+	err := processRecipientBatch(context.Background(), batch, recipientPorts{
+		presence: &recordingPresenceResolverForDeliveryTest{steps: steps, routes: []Route{
+			{UID: "u1", OwnerNodeID: 3, SessionID: 20},
+			{UID: "u3", OwnerNodeID: 4, SessionID: 30},
+			{UID: "u3", OwnerNodeID: 4, SessionID: 31},
+		}},
+		pusher:                   pusher,
+		offlineRecipientObserver: observer,
+		deliveryRetryMaxAttempts: 2,
+	})
+
+	if err != nil {
+		t.Fatalf("processRecipientBatch() error = %v", err)
+	}
+	if got, want := observer.uids(), []string{"u2"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("offline uids = %#v, want %#v", got, want)
+	}
+	if got, want := steps.snapshot(), []string{"presence", "offline", "push", "push"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("steps = %#v, want %#v", got, want)
+	}
+	if got := pusher.callCount(); got != 2 {
+		t.Fatalf("push calls = %d, want two owner groups", got)
+	}
+}
+
+func TestRecipientProcessorOfflineObserverSkipsNonDurableCandidates(t *testing.T) {
+	cases := []struct {
+		name  string
+		event CommittedEnvelope
+	}{
+		{
+			name:  "zero message seq",
+			event: CommittedEnvelope{MessageID: 10, ChannelID: "g1", ChannelType: 2},
+		},
+		{
+			name:  "sync once",
+			event: CommittedEnvelope{MessageID: 10, MessageSeq: 4, ChannelID: "g1", ChannelType: 2, SyncOnce: true},
+		},
+		{
+			name:  "request scoped",
+			event: CommittedEnvelope{MessageID: 10, MessageSeq: 4, ChannelID: "g1", ChannelType: 2, MessageScopedUIDs: []string{"u2"}},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			observer := &recordingOfflineRecipientObserverForDeliveryTest{}
+			err := processRecipientBatch(context.Background(), RecipientBatch{
+				Event:      tc.event,
+				Recipients: []Recipient{{UID: "u2"}},
+			}, recipientPorts{
+				presence:                 &recordingPresenceResolverForDeliveryTest{},
+				pusher:                   &recordingOwnerPusherForDeliveryTest{},
+				offlineRecipientObserver: observer,
+			})
+			if err != nil {
+				t.Fatalf("processRecipientBatch() error = %v", err)
+			}
+			if got := observer.uids(); len(got) != 0 {
+				t.Fatalf("offline uids = %#v, want none", got)
+			}
+		})
+	}
+}
+
 type orderedStepsForDeliveryTest struct {
 	mu    sync.Mutex
 	steps []string
@@ -217,6 +295,29 @@ func deviceIDSetForDeliveryTest(deviceIDs []string) map[string]bool {
 	out := make(map[string]bool)
 	for _, deviceID := range deviceIDs {
 		out[deviceID] = true
+	}
+	return out
+}
+
+type recordingOfflineRecipientObserverForDeliveryTest struct {
+	steps  *orderedStepsForDeliveryTest
+	mu     sync.Mutex
+	events []OfflineRecipientEvent
+}
+
+func (o *recordingOfflineRecipientObserverForDeliveryTest) ObserveOfflineRecipient(_ context.Context, event OfflineRecipientEvent) {
+	o.steps.add("offline")
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.events = append(o.events, event)
+}
+
+func (o *recordingOfflineRecipientObserverForDeliveryTest) uids() []string {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	out := make([]string, 0, len(o.events))
+	for _, event := range o.events {
+		out = append(out, event.UID)
 	}
 	return out
 }

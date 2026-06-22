@@ -2,11 +2,14 @@
 
 This document records the internalv2 plugin migration microbenchmark baseline.
 Use it before and after changes that touch plugin dispatch, host RPC mapping,
-PersistAfter, Send hooks, NoPersist realtime delivery, or plugin metrics.
+PersistAfter, Send hooks, Receive hooks, NoPersist realtime delivery, offline
+recipient detection, or plugin metrics.
 
 ## Baseline Commit
 
 - Commit: `c6e42412a9ce test: add plugin benchmark baselines`
+- Receive hook extension recorded from the 2026-06-22 working tree before the
+  Receive hook commit.
 - Date: 2026-06-22
 - Host for recorded numbers: Apple M4, darwin/arm64
 - Go: `go1.25.0`
@@ -16,13 +19,13 @@ PersistAfter, Send hooks, NoPersist realtime delivery, or plugin metrics.
 Run the plugin package group:
 
 ```bash
-go test ./internalv2/usecase/plugin ./internalv2/runtime/pluginhook ./internalv2/contracts/pluginevents ./internalv2/app -run '^$' -bench 'Benchmark(PersistAfter|SendMessageFromPluginReq|ChannelMessagesFromPluginReq|ClusterConfigFromSnapshot|ClusterChannelsBelongNode|ConversationChannels|HTTPForward|ListPlugins|SendPluginCandidates|BeforeSend|PluginHook|PluginMetricsObserver)' -benchmem -benchtime=3s
+go test ./internalv2/usecase/plugin ./internalv2/runtime/pluginhook ./internalv2/contracts/pluginevents ./internalv2/app -run '^$' -bench 'Benchmark(PersistAfter|Receive|SendMessageFromPluginReq|ChannelMessagesFromPluginReq|ClusterConfigFromSnapshot|ClusterChannelsBelongNode|ConversationChannels|HTTPForward|ListPlugins|SendPluginCandidates|BeforeSend|PluginHook|PluginMetricsObserver)' -benchmem -benchtime=3s
 ```
 
 Run the channelappend plugin-related subset:
 
 ```bash
-go test ./internalv2/runtime/channelappend -run '^$' -bench 'Benchmark(SubmitLocalNoPersistRealtimeScoped|ChannelAppendPostCommitPlugin)$' -benchmem -benchtime=3s
+go test ./internalv2/runtime/channelappend -run '^$' -bench 'Benchmark(SubmitLocalNoPersistRealtimeScoped|ChannelAppendPostCommitPlugin|RecipientProcessorOfflineObserver)$' -benchmem -benchtime=3s
 ```
 
 ## Recorded Numbers
@@ -59,6 +62,13 @@ go test ./internalv2/runtime/channelappend -run '^$' -bench 'Benchmark(SubmitLoc
 | `BenchmarkPersistAfterCandidates/plugins_16` | `1356` | `5864` | `21` |
 | `BenchmarkPersistAfterCandidates/plugins_128` | `14248` | `45800` | `133` |
 | `BenchmarkPersistAfterCandidates/plugins_1024` | `135253` | `344306` | `1029` |
+| `BenchmarkReceivePluginCandidates/bindings_1` | `233.4` | `520` | `5` |
+| `BenchmarkReceivePluginCandidates/bindings_16` | `3076` | `9488` | `25` |
+| `BenchmarkReceivePluginCandidates/bindings_128` | `26636` | `74128` | `137` |
+| `BenchmarkReceivePluginCandidates/bindings_1024` | `250413` | `562745` | `1035` |
+| `BenchmarkReceiveOffline/payload_128` | `705.9` | `983` | `11` |
+| `BenchmarkReceiveOffline/payload_1024` | `1013` | `2871` | `11` |
+| `BenchmarkReceiveOffline/payload_16384` | `6088` | `35527` | `11` |
 | `BenchmarkListPlugins/plugins_1` | `85.36` | `336` | `3` |
 | `BenchmarkListPlugins/plugins_16` | `858.1` | `5632` | `18` |
 | `BenchmarkListPlugins/plugins_256` | `11708` | `86017` | `258` |
@@ -77,6 +87,8 @@ go test ./internalv2/runtime/channelappend -run '^$' -bench 'Benchmark(SubmitLoc
 | --- | ---: | ---: | ---: |
 | `BenchmarkPluginHookEnqueue` | `799.9` | `1331` | `5` |
 | `BenchmarkPluginHookQueueFull` | `2263497` | `257` | `4` |
+| `BenchmarkPluginHookReceiveEnqueue` | `1060` | `1352` | `5` |
+| `BenchmarkPluginHookReceiveQueueFull` | `2222822` | `257` | `4` |
 
 ### Plugin event contracts
 
@@ -91,12 +103,23 @@ go test ./internalv2/runtime/channelappend -run '^$' -bench 'Benchmark(SubmitLoc
 | `BenchmarkPersistAfterCommittedClone/payload_16384/scoped_0` | `1045` | `16384` | `1` |
 | `BenchmarkPersistAfterCommittedClone/payload_16384/scoped_10` | `1073` | `16544` | `2` |
 | `BenchmarkPersistAfterCommittedClone/payload_16384/scoped_1000` | `2190` | `32768` | `2` |
+| `BenchmarkReceiveOfflineClone/payload_128/scoped_0` | `33.25` | `128` | `1` |
+| `BenchmarkReceiveOfflineClone/payload_128/scoped_10` | `76.76` | `288` | `2` |
+| `BenchmarkReceiveOfflineClone/payload_128/scoped_1000` | `1903` | `16512` | `2` |
+| `BenchmarkReceiveOfflineClone/payload_1024/scoped_0` | `147.4` | `1024` | `1` |
+| `BenchmarkReceiveOfflineClone/payload_1024/scoped_10` | `195.8` | `1184` | `2` |
+| `BenchmarkReceiveOfflineClone/payload_1024/scoped_1000` | `1925` | `17408` | `2` |
+| `BenchmarkReceiveOfflineClone/payload_16384/scoped_0` | `1775` | `16384` | `1` |
+| `BenchmarkReceiveOfflineClone/payload_16384/scoped_10` | `1750` | `16544` | `2` |
+| `BenchmarkReceiveOfflineClone/payload_16384/scoped_1000` | `3880` | `32768` | `2` |
 
 ### App plugin metrics observer
 
 | Benchmark | ns/op | B/op | allocs/op |
 | --- | ---: | ---: | ---: |
 | `BenchmarkPluginMetricsObserverSendInvoke` | `117.8` | `128` | `4` |
+| `BenchmarkPluginMetricsObserverReceiveEnqueue` | `168.6` | `128` | `4` |
+| `BenchmarkPluginMetricsObserverReceiveInvoke` | `161.7` | `128` | `4` |
 
 ### Channelappend plugin and NoPersist edges
 
@@ -105,6 +128,9 @@ go test ./internalv2/runtime/channelappend -run '^$' -bench 'Benchmark(SubmitLoc
 | `BenchmarkSubmitLocalNoPersistRealtimeScoped` | `3301` | `5185` | `43` | `3.000 goroutine-delta` |
 | `BenchmarkChannelAppendPostCommitPlugin/disabled` | `101.6` | `320` | `1` | |
 | `BenchmarkChannelAppendPostCommitPlugin/enabled_enqueue` | `105.1` | `320` | `1` | |
+| `BenchmarkRecipientProcessorOfflineObserver/recipients_16` | `486.4` | `256` | `1` | |
+| `BenchmarkRecipientProcessorOfflineObserver/recipients_1024` | `56301` | `99888` | `19` | |
+| `BenchmarkRecipientProcessorOfflineObserver/recipients_10000` | `642181` | `818682` | `64` | |
 
 ## Interpreting Regressions
 
@@ -114,6 +140,11 @@ go test ./internalv2/runtime/channelappend -run '^$' -bench 'Benchmark(SubmitLoc
   regression.
 - Candidate and list benchmarks intentionally include `plugins_1024`; do not
   remove those cases when changing plugin registry or selection logic.
+- Receive candidate benchmarks intentionally include `bindings_1024`; keep that
+  case when changing UID binding selection.
+- Offline recipient observer benchmarks intentionally include `recipients_10000`
+  as a local signal for large-group scanning cost. Keep it below integration
+  scale so ordinary benchmark runs stay practical.
 - `BenchmarkSubmitLocalNoPersistRealtimeScoped` must stay in the channelappend
   subset because command-style NoPersist realtime delivery is owned by
   channelappend, not the plugin usecase.

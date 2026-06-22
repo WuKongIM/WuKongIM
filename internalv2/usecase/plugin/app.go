@@ -3,6 +3,7 @@ package plugin
 import (
 	"context"
 	"strings"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/usecase/plugin/pluginproto"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
@@ -19,6 +20,12 @@ func NewApp(opts Options) (*App, error) {
 	if opts.Logger == nil {
 		opts.Logger = wklog.NewNop()
 	}
+	if opts.Clock == nil {
+		opts.Clock = time.Now
+	}
+	if opts.ReceiveDedupeTTL <= 0 {
+		opts.ReceiveDedupeTTL = 5 * time.Minute
+	}
 	return &App{
 		runtime:          opts.Runtime,
 		invoker:          opts.Invoker,
@@ -29,7 +36,12 @@ func NewApp(opts Options) (*App, error) {
 		conversations:    opts.Conversations,
 		httpForwarder:    opts.HTTPForwarder,
 		httpForwardLimit: opts.HTTPForwardMaxBodyBytes,
+		receiveBindings:  opts.ReceiveBindings,
+		systemUIDs:       opts.SystemUIDs,
 		defaultSenderUID: strings.TrimSpace(opts.DefaultSenderUID),
+		receiveDedupeTTL: opts.ReceiveDedupeTTL,
+		receiveDedupe:    make(map[string]time.Time),
+		clock:            opts.Clock,
 		failOpen:         opts.FailOpen,
 		observer:         opts.Observer,
 		logger:           opts.Logger,
@@ -83,7 +95,7 @@ func methodsFromStrings(methods []string) []Method {
 	out := make([]Method, 0, len(methods))
 	for _, method := range methods {
 		switch Method(method) {
-		case MethodSend, MethodPersistAfter:
+		case MethodSend, MethodPersistAfter, MethodReceive:
 			out = append(out, Method(method))
 		}
 	}

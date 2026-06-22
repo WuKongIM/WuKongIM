@@ -25,6 +25,7 @@ func TestNewSkipsPluginSubsystemWhenDisabled(t *testing.T) {
 	require.Nil(t, app.pluginRuntime)
 	require.Nil(t, app.pluginHook)
 	require.Nil(t, app.pluginPersistAfter)
+	require.Nil(t, app.pluginReceive)
 }
 
 func TestNewWiresPluginSubsystemWhenEnabled(t *testing.T) {
@@ -38,6 +39,42 @@ func TestNewWiresPluginSubsystemWhenEnabled(t *testing.T) {
 	require.NotNil(t, app.plugins)
 	require.NotNil(t, app.pluginHook)
 	require.NotNil(t, app.pluginPersistAfter)
+	require.NotNil(t, app.pluginReceive)
+}
+
+func TestNewWiresPluginUsecaseAsReceiveBindingReader(t *testing.T) {
+	cluster := &fakeManagerCluster{
+		nodeID: 1,
+		pluginBindingsByUID: map[string][]metadb.PluginUserBinding{
+			"bot": {{UID: "bot", PluginNo: "receive-plugin"}},
+		},
+	}
+	app, err := newTestApp(t, Config{
+		DataDir: t.TempDir(),
+		Cluster: clusterv2.Config{NodeID: 1},
+		Plugin:  PluginConfig{Enable: true, HotReload: false},
+	}, WithCluster(cluster), WithGateway(nil))
+	require.NoError(t, err)
+	_, err = app.plugins.StartPlugin(context.Background(), &pluginproto.PluginInfo{
+		No:        "receive-plugin",
+		Methods:   []string{"Receive"},
+		ReplySync: true,
+	}, "receive-plugin")
+	require.NoError(t, err)
+
+	err = app.plugins.ReceiveOffline(context.Background(), pluginevents.ReceiveOffline{
+		MessageID:   101,
+		MessageSeq:  7,
+		ChannelID:   "g1",
+		ChannelType: 2,
+		FromUID:     "u1",
+		UID:         "bot",
+		Payload:     []byte("hello"),
+	})
+
+	require.Error(t, err)
+	require.NotErrorIs(t, err, pluginusecase.ErrReceiveBindingReaderRequired)
+	require.Contains(t, err.Error(), "/plugin/receive")
 }
 
 func TestNewWiresPluginUsecaseAsMessageSendHook(t *testing.T) {
@@ -338,6 +375,16 @@ func TestPluginPersistAfterAdapterIsAvailableForChannelAppendWhenEnabled(t *test
 	require.NotNil(t, app.pluginPersistAfter)
 }
 
+func TestPluginReceiveObserverIsAvailableForChannelAppendWhenEnabled(t *testing.T) {
+	app, err := newTestApp(t, Config{
+		DataDir: t.TempDir(),
+		Cluster: clusterv2.Config{NodeID: 1},
+		Plugin:  PluginConfig{Enable: true, HotReload: false},
+	}, WithCluster(&fakeCluster{}))
+	require.NoError(t, err)
+	require.NotNil(t, app.pluginReceive)
+}
+
 func TestPluginPersistAfterEnqueuerMapsCommittedEnvelope(t *testing.T) {
 	worker := &recordingPluginPersistAfterWorker{}
 	enqueuer := pluginPersistAfterEnqueuer{worker: worker}
@@ -378,11 +425,71 @@ func TestPluginPersistAfterEnqueuerMapsCommittedEnvelope(t *testing.T) {
 	}}, worker.events)
 }
 
+func TestPluginReceiveObserverMapsOfflineRecipientEvent(t *testing.T) {
+	worker := &recordingPluginReceiveWorker{}
+	observer := pluginReceiveObserver{worker: worker}
+	source := channelappend.OfflineRecipientEvent{
+		UID: "bot",
+		Event: channelappend.CommittedEnvelope{
+			MessageID:         101,
+			MessageSeq:        202,
+			ChannelID:         "room-a",
+			ChannelType:       2,
+			FromUID:           "sender-u1",
+			ClientMsgNo:       "client-1",
+			ServerTimestampMS: 123456789,
+			Payload:           []byte("payload"),
+			MessageScopedUIDs: []string{"bot"},
+		},
+	}
+
+	observer.ObserveOfflineRecipient(context.Background(), source)
+	source.Event.Payload[0] = 'X'
+	source.Event.MessageScopedUIDs[0] = "mutated"
+
+	require.Equal(t, []pluginevents.ReceiveOffline{{
+		MessageID:         101,
+		MessageSeq:        202,
+		ChannelID:         "room-a",
+		ChannelType:       2,
+		FromUID:           "sender-u1",
+		UID:               "bot",
+		ClientMsgNo:       "client-1",
+		ServerTimestampMS: 123456789,
+		Payload:           []byte("payload"),
+		MessageScopedUIDs: []string{"bot"},
+	}}, worker.events)
+}
+
+func TestPluginRuntimeAdapterPreservesReceiveMethod(t *testing.T) {
+	runtime := runtimeplugin.NewRuntime(runtimeplugin.RuntimeOptions{Registry: runtimeplugin.NewRegistry()})
+	adapter := pluginRuntimeAdapter{runtime: runtime}
+	err := adapter.RegisterObserved(context.Background(), pluginusecase.ObservedPlugin{
+		No:      "wk.receive",
+		Methods: []pluginusecase.Method{pluginusecase.MethodReceive, pluginusecase.MethodSend},
+		Status:  pluginusecase.StatusRunning,
+		Enabled: true,
+	})
+	require.NoError(t, err)
+
+	plugins := adapter.List()
+	require.Len(t, plugins, 1)
+	require.Equal(t, []pluginusecase.Method{pluginusecase.MethodReceive, pluginusecase.MethodSend}, plugins[0].Methods)
+}
+
 type recordingPluginPersistAfterWorker struct {
 	events []pluginevents.PersistAfterCommitted
 }
 
 func (w *recordingPluginPersistAfterWorker) EnqueuePersistAfter(_ context.Context, event pluginevents.PersistAfterCommitted) {
+	w.events = append(w.events, event)
+}
+
+type recordingPluginReceiveWorker struct {
+	events []pluginevents.ReceiveOffline
+}
+
+func (w *recordingPluginReceiveWorker) EnqueueReceive(_ context.Context, event pluginevents.ReceiveOffline) {
 	w.events = append(w.events, event)
 }
 

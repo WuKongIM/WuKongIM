@@ -116,6 +116,116 @@ func TestNodePluginReadsRequireNodeID(t *testing.T) {
 	}
 }
 
+func TestPluginBindingsUseClusterAuthoritativeStore(t *testing.T) {
+	store := &fakePluginBindingStore{
+		byUID: map[string][]PluginBinding{
+			"u1": {{UID: "u1", PluginNo: "wk.receive"}},
+		},
+		byPlugin: map[string]pluginBindingScanPage{
+			"wk.receive": {
+				bindings: []PluginBinding{{UID: "u2", PluginNo: "wk.receive"}},
+				cursor:   "cursor-2",
+				hasMore:  true,
+			},
+		},
+	}
+	app := New(Options{
+		PluginBindings: store,
+		Now:            func() time.Time { return time.UnixMilli(1700000000123).UTC() },
+	})
+
+	byUID, err := app.ListPluginBindings(context.Background(), PluginBindingListRequest{UID: " u1 "})
+	if err != nil {
+		t.Fatalf("ListPluginBindings(uid) error = %v", err)
+	}
+	if byUID.UID != "u1" || len(byUID.Bindings) != 1 || byUID.Bindings[0] != (PluginBinding{UID: "u1", PluginNo: "wk.receive"}) {
+		t.Fatalf("uid page = %#v, want one u1/wk.receive row", byUID)
+	}
+
+	byPlugin, err := app.ListPluginBindings(context.Background(), PluginBindingListRequest{PluginNo: " wk.receive ", Cursor: "c1", Limit: 25})
+	if err != nil {
+		t.Fatalf("ListPluginBindings(plugin) error = %v", err)
+	}
+	if store.lastPluginNo != "wk.receive" || store.lastCursor != "c1" || store.lastLimit != 25 {
+		t.Fatalf("scan args = plugin=%q cursor=%q limit=%d, want wk.receive/c1/25", store.lastPluginNo, store.lastCursor, store.lastLimit)
+	}
+	if byPlugin.PluginNo != "wk.receive" || byPlugin.Cursor != "cursor-2" || !byPlugin.HasMore || len(byPlugin.Bindings) != 1 {
+		t.Fatalf("plugin page = %#v, want one row with cursor", byPlugin)
+	}
+
+	mutation, err := app.BindPluginUser(context.Background(), PluginBindingMutationRequest{UID: " u3 ", PluginNo: " wk.receive "})
+	if err != nil {
+		t.Fatalf("BindPluginUser() error = %v", err)
+	}
+	if mutation.Binding.UID != "u3" || mutation.Binding.PluginNo != "wk.receive" || !mutation.Changed {
+		t.Fatalf("mutation = %#v, want changed u3/wk.receive", mutation)
+	}
+	if got := store.bound; len(got) != 1 || got[0].UID != "u3" || got[0].PluginNo != "wk.receive" || got[0].CreatedAt.IsZero() || got[0].UpdatedAt.IsZero() {
+		t.Fatalf("bound rows = %#v, want one timestamped u3/wk.receive", got)
+	}
+
+	if err := app.UnbindPluginUser(context.Background(), PluginBindingMutationRequest{UID: "u3", PluginNo: "wk.receive"}); err != nil {
+		t.Fatalf("UnbindPluginUser() error = %v", err)
+	}
+	if got := store.unbound; len(got) != 1 || got[0] != (PluginBinding{UID: "u3", PluginNo: "wk.receive"}) {
+		t.Fatalf("unbound rows = %#v, want u3/wk.receive", got)
+	}
+}
+
+func TestPluginBindingsRejectMissingOrAmbiguousSelector(t *testing.T) {
+	app := New(Options{PluginBindings: &fakePluginBindingStore{}})
+
+	_, err := app.ListPluginBindings(context.Background(), PluginBindingListRequest{})
+	if !errors.Is(err, ErrPluginBindingSelectorRequired) {
+		t.Fatalf("ListPluginBindings(empty) error = %v, want %v", err, ErrPluginBindingSelectorRequired)
+	}
+	_, err = app.ListPluginBindings(context.Background(), PluginBindingListRequest{UID: "u1", PluginNo: "wk.receive"})
+	if !errors.Is(err, ErrPluginBindingSelectorAmbiguous) {
+		t.Fatalf("ListPluginBindings(ambiguous) error = %v, want %v", err, ErrPluginBindingSelectorAmbiguous)
+	}
+}
+
+func TestPluginBindingsRequireAuthoritativeStore(t *testing.T) {
+	app := New(Options{})
+
+	_, err := app.ListPluginBindings(context.Background(), PluginBindingListRequest{UID: "u1"})
+	if !errors.Is(err, ErrPluginBindingsUnavailable) {
+		t.Fatalf("ListPluginBindings() error = %v, want %v", err, ErrPluginBindingsUnavailable)
+	}
+	_, err = app.BindPluginUser(context.Background(), PluginBindingMutationRequest{UID: "u1", PluginNo: "wk.receive"})
+	if !errors.Is(err, ErrPluginBindingsUnavailable) {
+		t.Fatalf("BindPluginUser() error = %v, want %v", err, ErrPluginBindingsUnavailable)
+	}
+}
+
+func TestPluginBindingWarningsUseLocalRuntimeWhenAvailable(t *testing.T) {
+	reader := &fakePluginReader{plugin: pluginusecase.ObservedPlugin{
+		No:      "wk.persist",
+		Status:  pluginusecase.StatusRunning,
+		Enabled: true,
+		Methods: []pluginusecase.Method{
+			pluginusecase.MethodPersistAfter,
+		},
+	}}
+	store := &fakePluginBindingStore{
+		byUID: map[string][]PluginBinding{
+			"u1": {{UID: "u1", PluginNo: "wk.persist"}},
+		},
+	}
+	app := New(Options{Plugins: reader, PluginBindings: store})
+
+	got, err := app.ListPluginBindings(context.Background(), PluginBindingListRequest{UID: "u1"})
+	if err != nil {
+		t.Fatalf("ListPluginBindings() error = %v", err)
+	}
+	if len(got.Details) != 1 || len(got.Details[0].Warnings) != 1 {
+		t.Fatalf("details = %#v, want one Receive warning", got.Details)
+	}
+	if got.Details[0].Warnings[0].Code != BindingWarningReceiveUnsupported {
+		t.Fatalf("warning = %#v, want %s", got.Details[0].Warnings[0], BindingWarningReceiveUnsupported)
+	}
+}
+
 type fakePluginReader struct {
 	listCalls int
 	plugins   []pluginusecase.ObservedPlugin
@@ -133,6 +243,44 @@ func (f *fakePluginReader) GetPlugin(_ context.Context, pluginNo string) (plugin
 		return pluginusecase.ObservedPlugin{}, f.pluginErr
 	}
 	return f.plugin, nil
+}
+
+type pluginBindingScanPage struct {
+	bindings []PluginBinding
+	cursor   string
+	hasMore  bool
+}
+
+type fakePluginBindingStore struct {
+	byUID        map[string][]PluginBinding
+	byPlugin     map[string]pluginBindingScanPage
+	bound        []PluginBinding
+	unbound      []PluginBinding
+	lastPluginNo string
+	lastCursor   string
+	lastLimit    int
+}
+
+func (f *fakePluginBindingStore) ListPluginBindingsByUID(_ context.Context, uid string) ([]PluginBinding, error) {
+	return append([]PluginBinding(nil), f.byUID[uid]...), nil
+}
+
+func (f *fakePluginBindingStore) ListPluginBindingsByPluginNo(_ context.Context, pluginNo, cursor string, limit int) ([]PluginBinding, string, bool, error) {
+	f.lastPluginNo = pluginNo
+	f.lastCursor = cursor
+	f.lastLimit = limit
+	page := f.byPlugin[pluginNo]
+	return append([]PluginBinding(nil), page.bindings...), page.cursor, page.hasMore, nil
+}
+
+func (f *fakePluginBindingStore) BindPluginUser(_ context.Context, binding PluginBinding) error {
+	f.bound = append(f.bound, binding)
+	return nil
+}
+
+func (f *fakePluginBindingStore) UnbindPluginUser(_ context.Context, uid, pluginNo string) error {
+	f.unbound = append(f.unbound, PluginBinding{UID: uid, PluginNo: pluginNo})
+	return nil
 }
 
 type fakeRemotePluginReader struct {

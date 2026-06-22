@@ -609,6 +609,7 @@ func (a *App) wireChannelAppend(nodeID uint64) error {
 				processor := channelappend.NewRecipientProcessor(channelappend.RecipientProcessorOptions{
 					PresenceResolver:            channelAppendPresenceResolver{presence: a.presence},
 					OwnerPusher:                 a.channelAppendOwnerPusher(nodeID),
+					OfflineRecipientObserver:    a.pluginReceive,
 					DeliveryRetryMaxAttempts:    defaultDeliveryRetryMaxAttempts,
 					DeliveryRetryInitialBackoff: defaultDeliveryRetryBackoff,
 					DeliveryRetryMaxBackoff:     defaultDeliveryRetryBackoff,
@@ -852,6 +853,9 @@ func (a *App) newManagerManagement() accessmanager.Management {
 		}
 		if pluginNode, ok := a.cluster.(clusterinfra.ManagementPluginNode); ok {
 			opts.RemotePlugins = clusterinfra.NewManagementPluginReader(pluginNode)
+		}
+		if bindingNode, ok := a.cluster.(clusterinfra.ManagementPluginBindingNode); ok {
+			opts.PluginBindings = clusterinfra.NewManagementPluginBindingStore(bindingNode)
 		}
 		if connNode, ok := a.cluster.(clusterinfra.ManagementConnectionNode); ok {
 			opts.RemoteConnections = clusterinfra.NewManagementConnectionReader(connNode)

@@ -13,10 +13,14 @@ const (
 	PathSend = "/plugin/send"
 	// PathPersistAfter is the legacy PDK RPC path for the PersistAfter hook.
 	PathPersistAfter = "/plugin/persist_after"
+	// PathReceive is the legacy PDK RPC path for the Receive hook.
+	PathReceive = "/plugin/receive"
 	// PathRoute is the legacy PDK RPC path for plugin HTTP routing.
 	PathRoute = "/plugin/route"
 	// MsgTypePersistAfter is the legacy one-way message type for async PersistAfter.
 	MsgTypePersistAfter uint32 = 2
+	// MsgTypeReceive is the legacy one-way message type for async Receive.
+	MsgTypeReceive uint32 = 3
 )
 
 // InvokeSend calls one plugin's Send hook and returns the possibly mutated packet.
@@ -51,6 +55,25 @@ func (a *App) InvokePersistAfter(ctx context.Context, plugin ObservedPlugin, bat
 	}
 	if err := a.invoker.SendPlugin(plugin.No, MsgTypePersistAfter, data); err != nil {
 		return fmt.Errorf("plugin %q PersistAfter async msgType %d: %w", plugin.No, MsgTypePersistAfter, err)
+	}
+	return nil
+}
+
+// InvokeReceive calls or sends one plugin's Receive hook.
+func (a *App) InvokeReceive(ctx context.Context, plugin ObservedPlugin, packet *pluginproto.RecvPacket) error {
+	data, err := packet.Marshal()
+	if err != nil {
+		return fmt.Errorf("plugin %q Receive marshal: %w", plugin.No, err)
+	}
+	if plugin.ReplySync {
+		_, err = a.invoker.RequestPlugin(ctx, plugin.No, PathReceive, data)
+		if err != nil {
+			return fmt.Errorf("plugin %q Receive sync %s: %w", plugin.No, PathReceive, err)
+		}
+		return nil
+	}
+	if err := a.invoker.SendPlugin(plugin.No, MsgTypeReceive, data); err != nil {
+		return fmt.Errorf("plugin %q Receive async msgType %d: %w", plugin.No, MsgTypeReceive, err)
 	}
 	return nil
 }

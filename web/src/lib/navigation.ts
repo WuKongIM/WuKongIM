@@ -50,6 +50,7 @@ export const navigationSections: NavigationSection[] = [
         descriptionMessageId: "nav.clusterMonitor.description",
         pathLabelMessageId: "nav.path.cluster.monitor",
         icon: Activity,
+        aliases: ["/monitor", "/business/monitor"],
       },
       {
         href: "/cluster/nodes",
@@ -118,17 +119,9 @@ export const navigationSections: NavigationSection[] = [
   },
   {
     id: "business",
-    href: "/business/monitor",
+    href: "/business/connections",
     titleMessageId: "nav.section.business",
     items: [
-      {
-        href: "/business/monitor",
-        titleMessageId: "nav.monitor.title",
-        descriptionMessageId: "nav.monitor.description",
-        pathLabelMessageId: "nav.path.business.monitor",
-        icon: Activity,
-        aliases: ["/monitor"],
-      },
       {
         href: "/business/connections",
         titleMessageId: "nav.connections.title",
@@ -238,7 +231,8 @@ export const pageMetadata = new Map(
 
 export const legacyRouteRedirects: Record<string, string> = {
   "/dashboard": "/cluster/dashboard",
-  "/monitor": "/business/monitor",
+  "/monitor": "/cluster/monitor",
+  "/business/monitor": "/cluster/monitor",
   "/nodes": "/cluster/nodes",
   "/onboarding": "/cluster/nodes?panel=onboarding",
   "/slots": "/cluster/slots",

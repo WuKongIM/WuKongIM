@@ -49,6 +49,12 @@ const stageLabelIds: Record<ClusterMonitorStage, string> = {
   internalNetwork: "clusterMonitor.stage.internalNetwork",
   runtimePressure: "clusterMonitor.stage.runtimePressure",
   incidentClosure: "clusterMonitor.stage.incidentClosure",
+  sendEntry: "monitor.stage.sendEntry",
+  appendCommit: "monitor.stage.appendCommit",
+  conversationSync: "monitor.stage.conversationSync",
+  onlineDelivery: "monitor.stage.onlineDelivery",
+  offlineRetry: "monitor.stage.offlineRetry",
+  errorClosure: "monitor.stage.errorClosure",
 }
 
 const statusByTone: Record<ClusterMonitorTone, string> = {

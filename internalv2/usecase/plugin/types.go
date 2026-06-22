@@ -3,6 +3,7 @@ package plugin
 import (
 	"context"
 	"errors"
+	"sync"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/usecase/plugin/pluginproto"
@@ -47,6 +48,8 @@ var (
 	ErrHTTPForwardBodyTooLarge = errors.New("plugin http forward body too large")
 	// ErrHTTPForwardHeaderTooLarge reports that plugin HTTP headers exceed the configured limit.
 	ErrHTTPForwardHeaderTooLarge = errors.New("plugin http forward headers too large")
+	// ErrReceiveBindingReaderRequired reports that Receive hook selection needs a UID binding reader.
+	ErrReceiveBindingReaderRequired = errors.New("plugin receive binding reader required")
 )
 
 // Method identifies a plugin hook advertised by a plugin manifest.
@@ -57,6 +60,8 @@ const (
 	MethodSend Method = "Send"
 	// MethodPersistAfter is invoked after a durable message is committed.
 	MethodPersistAfter Method = "PersistAfter"
+	// MethodReceive is invoked for eligible offline bound recipients.
+	MethodReceive Method = "Receive"
 )
 
 // Status describes the node-local runtime state observed for a plugin.
@@ -171,6 +176,26 @@ type ConversationReader interface {
 	ConversationChannels(context.Context, string, int) ([]message.ChannelID, error)
 }
 
+// PluginBinding records a cluster-authoritative UID to plugin association.
+type PluginBinding struct {
+	// PluginNo is the plugin selected for a UID.
+	PluginNo string
+	// UID is the user id whose offline Receive hook targets the plugin.
+	UID string
+}
+
+// ReceiveBindingReader reads cluster-authoritative UID to plugin bindings.
+type ReceiveBindingReader interface {
+	// ListPluginBindingsByUID lists all plugin bindings for one UID.
+	ListPluginBindingsByUID(context.Context, string) ([]PluginBinding, error)
+}
+
+// SystemUIDChecker identifies internal system senders that should not trigger Receive hooks.
+type SystemUIDChecker interface {
+	// IsSystemUID reports whether uid is an internal system sender.
+	IsSystemUID(uid string) bool
+}
+
 // HTTPForwarder forwards plugin HTTP route requests to another cluster node.
 type HTTPForwarder interface {
 	// ForwardPluginHTTP calls the target node's node-local plugin route provider.
@@ -180,6 +205,7 @@ type HTTPForwarder interface {
 // Observer records low-cardinality synchronous plugin hook events.
 type Observer interface {
 	ObserveSendInvoke(result string, d time.Duration)
+	ObserveReceiveInvoke(result string, d time.Duration)
 }
 
 // Options configures the v2 plugin usecase.
@@ -202,6 +228,14 @@ type Options struct {
 	HTTPForwarder HTTPForwarder
 	// HTTPForwardMaxBodyBytes limits plugin HTTP forward request and response bodies.
 	HTTPForwardMaxBodyBytes int64
+	// ReceiveBindings reads UID to plugin bindings for Receive hook selection.
+	ReceiveBindings ReceiveBindingReader
+	// SystemUIDs identifies internal system senders that should not trigger Receive hooks.
+	SystemUIDs SystemUIDChecker
+	// ReceiveDedupeTTL bounds duplicate Receive hook suppression for messageID+UID pairs.
+	ReceiveDedupeTTL time.Duration
+	// Clock supplies timestamps for deterministic Receive dedupe tests.
+	Clock func() time.Time
 	// FailOpen lets synchronous Send hook infrastructure failures preserve the original send.
 	FailOpen bool
 	Observer Observer
@@ -210,17 +244,24 @@ type Options struct {
 
 // App orchestrates v2 plugin lifecycle, selection, and hook invocation usecases.
 type App struct {
-	runtime          Runtime
-	invoker          Invoker
-	messages         MessageSender
-	messageReader    MessageReader
-	clusterReader    ClusterReader
-	channelOwners    ChannelOwnerReader
-	conversations    ConversationReader
-	httpForwarder    HTTPForwarder
-	httpForwardLimit int64
-	defaultSenderUID string
-	failOpen         bool
-	observer         Observer
-	logger           wklog.Logger
+	runtime                Runtime
+	invoker                Invoker
+	messages               MessageSender
+	messageReader          MessageReader
+	clusterReader          ClusterReader
+	channelOwners          ChannelOwnerReader
+	conversations          ConversationReader
+	httpForwarder          HTTPForwarder
+	httpForwardLimit       int64
+	receiveBindings        ReceiveBindingReader
+	systemUIDs             SystemUIDChecker
+	defaultSenderUID       string
+	receiveDedupeTTL       time.Duration
+	receiveDedupeNextSweep time.Time
+	receiveDedupeMu        sync.Mutex
+	receiveDedupe          map[string]time.Time
+	clock                  func() time.Time
+	failOpen               bool
+	observer               Observer
+	logger                 wklog.Logger
 }

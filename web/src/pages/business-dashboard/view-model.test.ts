@@ -97,6 +97,6 @@ describe("buildBusinessEntryCards", () => {
   it("uses deterministic sample labels when optional summaries are absent", () => {
     const cards = buildBusinessEntryCards()
     expect(cards.map((card) => card.source)).toEqual(["sample", "sample", "real", "sample", "real"])
-    expect(cards.find((card) => card.key === "monitor")?.href).toBe("/business/monitor")
+    expect(cards.find((card) => card.key === "monitor")?.href).toBe("/cluster/monitor")
   })
 })

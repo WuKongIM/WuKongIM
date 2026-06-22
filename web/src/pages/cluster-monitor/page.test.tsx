@@ -137,6 +137,79 @@ function readyClusterMonitorResponse(): RealtimeMonitorResponse {
   }
 }
 
+function businessRealtimeMonitorResponse(): RealtimeMonitorResponse {
+  return {
+    ...readyClusterMonitorResponse(),
+    snapshot: [],
+    categories: [
+      { key: "all", count: 3 },
+      { key: "gateway", count: 1 },
+      { key: "message", count: 1 },
+      { key: "conversation", count: 1 },
+    ],
+    cards: [
+      {
+        key: "sendRate",
+        category: "gateway" as const,
+        source: "prometheus" as const,
+        stage: "sendEntry",
+        tone: "normal" as const,
+        unit: "msg/s",
+        value: 128.4,
+        available: true,
+        error: "",
+        series: [
+          { timestamp: 1781767200000, value: 121.2 },
+          { timestamp: 1781767220000, value: 128.4 },
+        ],
+        stats: [
+          { key: "avg", value: 124.8 },
+          { key: "peak", value: 132.6 },
+          { key: "total", value: 1_250, unit: "msg" },
+        ],
+      },
+      {
+        key: "deliveryLatencyP99",
+        category: "message" as const,
+        source: "prometheus" as const,
+        stage: "onlineDelivery",
+        tone: "warning" as const,
+        unit: "ms",
+        value: 48.2,
+        available: true,
+        error: "",
+        series: [
+          { timestamp: 1781767200000, value: 42.8 },
+          { timestamp: 1781767220000, value: 48.2 },
+        ],
+        stats: [
+          { key: "avg", value: 45.1 },
+          { key: "peak", value: 51.6 },
+        ],
+      },
+      {
+        key: "conversationSyncRate",
+        category: "conversation" as const,
+        source: "prometheus" as const,
+        stage: "conversationSync",
+        tone: "normal" as const,
+        unit: "req/s",
+        value: 36.9,
+        available: true,
+        error: "",
+        series: [
+          { timestamp: 1781767200000, value: 33.4 },
+          { timestamp: 1781767220000, value: 36.9 },
+        ],
+        stats: [
+          { key: "avg", value: 35.2 },
+          { key: "peak", value: 39.1 },
+        ],
+      },
+    ],
+  }
+}
+
 function partialClusterMonitorResponse(): RealtimeMonitorResponse {
   return {
     ...readyClusterMonitorResponse(),
@@ -365,6 +438,23 @@ test("renders cluster monitor cards from realtime API data", async () => {
   expect(getRealtimeMonitor).toHaveBeenCalledWith({ window: "15m" })
 })
 
+test("renders former business realtime monitor cards in cluster monitor page", async () => {
+  vi.mocked(getRealtimeMonitor).mockResolvedValueOnce(businessRealtimeMonitorResponse())
+  renderClusterMonitorPage()
+
+  const cards = await screen.findAllByTestId("cluster-monitor-metric-card")
+  expect(cards).toHaveLength(3)
+  expect(within(cards[0]).getByText("Send Rate")).toBeInTheDocument()
+  expect(within(cards[0]).getByText("Send Entry")).toBeInTheDocument()
+  expect(within(cards[0]).getByText("128.4")).toBeInTheDocument()
+  expect(within(cards[0]).getByText("Total")).toBeInTheDocument()
+  expect(within(cards[0]).getByText("1,250 msg")).toBeInTheDocument()
+  expect(within(cards[1]).getByText("Delivery Latency P99")).toBeInTheDocument()
+  expect(within(cards[1]).getByText("Online Delivery")).toBeInTheDocument()
+  expect(within(cards[2]).getByText("Conversation Sync Rate")).toBeInTheDocument()
+  expect(within(cards[2]).getByText("Conversation Sync")).toBeInTheDocument()
+})
+
 test("shows metric explanations from card help buttons", async () => {
   const user = userEvent.setup()
   vi.mocked(getRealtimeMonitor).mockResolvedValueOnce(readyClusterMonitorResponse())
@@ -496,6 +586,21 @@ test("updates selected time range and auto refresh interval from the toolbar", a
   expect(screen.getByRole("combobox", { name: "Auto refresh" })).toHaveValue("off")
 })
 
+test("filters realtime monitor by selected category", async () => {
+  const user = userEvent.setup()
+  vi.mocked(getRealtimeMonitor).mockResolvedValue(readyClusterMonitorResponse())
+  renderClusterMonitorPage()
+
+  const categorySelect = await screen.findByRole("combobox", { name: "Category" })
+  expect(categorySelect).toHaveValue("all")
+  expect(getRealtimeMonitor).toHaveBeenCalledWith({ window: "15m" })
+
+  await user.selectOptions(categorySelect, "internal")
+
+  expect(categorySelect).toHaveValue("internal")
+  expect(getRealtimeMonitor).toHaveBeenLastCalledWith({ window: "15m", category: "internal" })
+})
+
 test("manually and automatically refreshes realtime monitor data", async () => {
   vi.useFakeTimers()
   vi.mocked(getRealtimeMonitor).mockResolvedValue(readyClusterMonitorResponse())
@@ -535,9 +640,10 @@ test("filters realtime monitor by selected node", async () => {
   const nodeSelect = await screen.findByRole("combobox", { name: "Node" })
   expect(getRealtimeMonitor).toHaveBeenCalledWith({ window: "15m" })
 
+  await user.selectOptions(screen.getByRole("combobox", { name: "Category" }), "control")
   await user.selectOptions(nodeSelect, "2")
 
-  expect(getRealtimeMonitor).toHaveBeenLastCalledWith({ window: "15m", nodeId: 2 })
+  expect(getRealtimeMonitor).toHaveBeenLastCalledWith({ window: "15m", category: "control", nodeId: 2 })
 })
 
 test("does not silently render preview fixture before the realtime API responds", () => {

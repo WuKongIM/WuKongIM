@@ -348,7 +348,7 @@ beforeEach(() => {
 it.each([
   ["/cluster/dashboard", "Cluster Dashboard", "Internal Link Trends"],
   ["/business/dashboard", "Business Dashboard", "Business Message Trends"],
-  ["/business/monitor", "Live Monitor", "Global business message path health trends."],
+  ["/business/monitor", "Live Monitor", "Cluster control plane, replication, internal network, queue, and storage watermarks."],
   ["/cluster/nodes", "Nodes", "127.0.0.1:7000"],
   ["/cluster/slots", "Slots", "Slot 9"],
   ["/cluster/channels", "Channel Cluster", "No manager data is available for this view yet."],
@@ -412,7 +412,7 @@ it.each([
 it.each([
   ["/cluster/dashboard", "集群仪表盘", "内部链路趋势"],
   ["/business/dashboard", "业务仪表盘", "业务消息趋势"],
-  ["/business/monitor", "实时监控", "全局业务消息路径健康趋势。"],
+  ["/business/monitor", "实时监控", "集群控制面、复制、内部网络、队列与存储水位。"],
   ["/cluster/nodes", "节点", "127.0.0.1:7000"],
   ["/cluster/slots", "槽位", "槽位 9"],
   ["/cluster/channels", "频道集群", "当前视图还没有可用的管理面数据。"],

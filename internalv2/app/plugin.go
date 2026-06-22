@@ -25,9 +25,19 @@ type pluginPersistAfterWorker interface {
 	EnqueuePersistAfter(context.Context, pluginevents.PersistAfterCommitted)
 }
 
+// pluginReceiveWorker accepts one mapped Receive event for asynchronous processing.
+type pluginReceiveWorker interface {
+	EnqueueReceive(context.Context, pluginevents.ReceiveOffline)
+}
+
 // pluginPersistAfterEnqueuer adapts durable channelappend envelopes to plugin PersistAfter events.
 type pluginPersistAfterEnqueuer struct {
 	worker pluginPersistAfterWorker
+}
+
+// pluginReceiveObserver adapts durable offline recipients to plugin Receive events.
+type pluginReceiveObserver struct {
+	worker pluginReceiveWorker
 }
 
 type pluginMessageSender struct {
@@ -67,9 +77,13 @@ func (a *App) wirePluginSubsystem(nodeID uint64) error {
 		Invoker:          invoker,
 		Messages:         pluginMessageSender{app: a},
 		DefaultSenderUID: userusecase.DefaultSystemUID,
+		SystemUIDs:       a.users,
 		FailOpen:         a.cfg.Plugin.FailOpen,
 		Observer:         a.pluginUsecaseObserver(),
 		Logger:           a.logger.Named("plugin"),
+	}
+	if bindingNode, ok := a.cluster.(clusterinfra.PluginBindingNode); ok {
+		pluginOptions.ReceiveBindings = clusterinfra.NewPluginBindingReader(bindingNode)
 	}
 	if readNode, ok := a.cluster.(clusterinfra.ChannelMessageReadNode); ok {
 		pluginOptions.MessageReader = clusterinfra.NewChannelMessageReader(readNode)
@@ -99,17 +113,19 @@ func (a *App) wirePluginSubsystem(nodeID uint64) error {
 	}
 
 	hook := pluginhook.NewWorker(pluginhook.Options{
-		Usecase:   plugins,
-		QueueSize: a.cfg.Plugin.PersistAfterQueueSize,
-		Workers:   a.cfg.Plugin.PersistAfterWorkers,
-		Timeout:   a.cfg.Plugin.Timeout,
-		Observer:  a.pluginHookObserver(),
-		Logger:    a.logger.Named("plugin.persist_after"),
+		Usecase:        plugins,
+		ReceiveUsecase: plugins,
+		QueueSize:      a.cfg.Plugin.PersistAfterQueueSize,
+		Workers:        a.cfg.Plugin.PersistAfterWorkers,
+		Timeout:        a.cfg.Plugin.Timeout,
+		Observer:       a.pluginHookObserver(),
+		Logger:         a.logger.Named("plugin.hook"),
 	})
 	a.pluginRuntime = runtime
 	a.plugins = plugins
 	a.pluginHook = hook
 	a.pluginPersistAfter = pluginPersistAfterEnqueuer{worker: hook}
+	a.pluginReceive = pluginReceiveObserver{worker: hook}
 	return nil
 }
 
@@ -176,7 +192,7 @@ func runtimeMethodsFromUsecase(methods []pluginusecase.Method) []runtimeplugin.M
 	out := make([]runtimeplugin.Method, 0, len(methods))
 	for _, method := range methods {
 		switch method {
-		case pluginusecase.MethodSend, pluginusecase.MethodPersistAfter:
+		case pluginusecase.MethodReceive, pluginusecase.MethodSend, pluginusecase.MethodPersistAfter:
 			out = append(out, runtimeplugin.Method(method))
 		}
 	}
@@ -187,7 +203,7 @@ func usecaseMethodsFromRuntime(methods []runtimeplugin.Method) []pluginusecase.M
 	out := make([]pluginusecase.Method, 0, len(methods))
 	for _, method := range methods {
 		switch method {
-		case runtimeplugin.MethodSend, runtimeplugin.MethodPersistAfter:
+		case runtimeplugin.MethodReceive, runtimeplugin.MethodSend, runtimeplugin.MethodPersistAfter:
 			out = append(out, pluginusecase.Method(method))
 		}
 	}
@@ -235,5 +251,27 @@ func (e pluginPersistAfterEnqueuer) EnqueuePersistAfter(ctx context.Context, eve
 		RedDot:            event.RedDot,
 		SyncOnce:          event.SyncOnce,
 		MessageScopedUIDs: append([]string(nil), event.MessageScopedUIDs...),
+	})
+}
+
+// ObserveOfflineRecipient converts one offline recipient into a plugin Receive event.
+func (o pluginReceiveObserver) ObserveOfflineRecipient(ctx context.Context, event channelappend.OfflineRecipientEvent) {
+	if o.worker == nil {
+		return
+	}
+	source := event.Event
+	o.worker.EnqueueReceive(ctx, pluginevents.ReceiveOffline{
+		MessageID:         source.MessageID,
+		MessageSeq:        source.MessageSeq,
+		ChannelID:         source.ChannelID,
+		ChannelType:       source.ChannelType,
+		FromUID:           source.FromUID,
+		UID:               event.UID,
+		ClientMsgNo:       source.ClientMsgNo,
+		ServerTimestampMS: source.ServerTimestampMS,
+		Payload:           append([]byte(nil), source.Payload...),
+		SyncOnce:          source.SyncOnce,
+		NoPersist:         source.MessageSeq == 0,
+		MessageScopedUIDs: append([]string(nil), source.MessageScopedUIDs...),
 	})
 }

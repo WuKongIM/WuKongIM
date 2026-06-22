@@ -83,3 +83,42 @@ func TestClusterV2SingleNodeUserMetadataFacadePersistsByUIDHashSlot(t *testing.T
 		t.Fatalf("GetUser(uid hash slot) error = %v", err)
 	}
 }
+
+func TestClusterV2SingleNodePluginBindingFacadePersistsByUIDHashSlot(t *testing.T) {
+	node := newDefaultSingleNode(t)
+	startNode(t, node)
+	t.Cleanup(func() { stopNodes(t, node) })
+
+	route := waitRouteKeyLeaderReady(t, node, "bot")
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	binding := metadb.PluginUserBinding{UID: "bot", PluginNo: "receive-plugin", CreatedAtMS: 10, UpdatedAtMS: 20}
+	if err := node.BindPluginUser(ctx, binding); err != nil {
+		t.Fatalf("BindPluginUser() error = %v", err)
+	}
+	got, err := node.ListPluginBindingsByUID(ctx, "bot")
+	if err != nil {
+		t.Fatalf("ListPluginBindingsByUID() error = %v", err)
+	}
+	if len(got) != 1 || got[0] != binding {
+		t.Fatalf("bindings = %#v, want %#v", got, []metadb.PluginUserBinding{binding})
+	}
+	direct, err := node.defaultSlotMetaDB.ForHashSlot(route.HashSlot).ListPluginBindingsByUID(ctx, "bot")
+	if err != nil {
+		t.Fatalf("ListPluginBindingsByUID(uid hash slot) error = %v", err)
+	}
+	if len(direct) != 1 || direct[0] != binding {
+		t.Fatalf("direct bindings = %#v, want %#v", direct, []metadb.PluginUserBinding{binding})
+	}
+	if err := node.UnbindPluginUser(ctx, "bot", "receive-plugin"); err != nil {
+		t.Fatalf("UnbindPluginUser() error = %v", err)
+	}
+	got, err = node.ListPluginBindingsByUID(ctx, "bot")
+	if err != nil {
+		t.Fatalf("ListPluginBindingsByUID(after unbind) error = %v", err)
+	}
+	if len(got) != 0 {
+		t.Fatalf("bindings after unbind = %#v, want empty", got)
+	}
+}

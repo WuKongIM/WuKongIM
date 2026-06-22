@@ -8,6 +8,7 @@ import { PageHeader } from "@/components/shell/page-header"
 import { getRealtimeMonitor, getNodes } from "@/lib/manager-api"
 import type {
   RealtimeMonitorCard,
+  RealtimeMonitorCategory,
   RealtimeMonitorResponse,
   RealtimeMonitorSnapshotEntry as ApiSnapshotEntry,
   RealtimeMonitorStat as ApiStat,
@@ -43,6 +44,7 @@ type ClusterMonitorPageState =
 export function ClusterMonitorPage() {
   const intl = useIntl()
   const [timeRange, setTimeRange] = useState<ClusterMonitorTimeRange>("15m")
+  const [selectedCategory, setSelectedCategory] = useState<RealtimeMonitorCategory>("all")
   const [refreshInterval, setRefreshInterval] = useState<MonitorRefreshInterval>("30s")
   const [refreshNonce, setRefreshNonce] = useState(0)
   const [nodes, setNodes] = useState<ManagerNodesResponse | null>(null)
@@ -74,12 +76,16 @@ export function ClusterMonitorPage() {
 
   useEffect(() => {
     let cancelled = false
-    const queryKey = `${timeRange}:${selectedNodeId ?? "all"}`
+    const queryKey = `${timeRange}:${selectedNodeId ?? "all"}:${selectedCategory}`
     const isSameQuery = lastQueryKeyRef.current === queryKey
     lastQueryKeyRef.current = queryKey
     setState((current) => (isSameQuery && current.kind === "ready" ? current : { kind: "loading" }))
 
-    getRealtimeMonitor({ window: timeRange, ...(selectedNodeId ? { nodeId: selectedNodeId } : {}) })
+    getRealtimeMonitor({
+      window: timeRange,
+      ...(selectedCategory !== "all" ? { category: selectedCategory } : {}),
+      ...(selectedNodeId ? { nodeId: selectedNodeId } : {}),
+    })
       .then((response) => {
         if (!cancelled) {
           setState({ kind: "ready", response })
@@ -94,7 +100,7 @@ export function ClusterMonitorPage() {
     return () => {
       cancelled = true
     }
-  }, [refreshNonce, selectedNodeId, timeRange])
+  }, [refreshNonce, selectedCategory, selectedNodeId, timeRange])
 
   useEffect(() => {
     const intervalMs = monitorRefreshIntervalMs(refreshInterval)
@@ -128,11 +134,13 @@ export function ClusterMonitorPage() {
       <ClusterMonitorToolbar
         generatedAt={model?.generatedAt ?? generatedAt}
         nodes={nodes}
+        onCategoryChange={setSelectedCategory}
         onNodeChange={setSelectedNodeId}
         onRefresh={requestRefresh}
         onRefreshIntervalChange={setRefreshInterval}
         onTimeRangeChange={setTimeRange}
         refreshInterval={refreshInterval}
+        selectedCategory={selectedCategory}
         scopeLabel={scopeLabel}
         scopeLabelId={model?.scopeLabelId ?? "clusterMonitor.scope.global"}
         selectedNodeId={selectedNodeId}

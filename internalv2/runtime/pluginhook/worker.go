@@ -25,8 +25,9 @@ const (
 )
 
 var (
-	errNilUsecase    = errors.New("pluginhook: persist-after usecase is required")
-	ErrWorkerClosing = errors.New("pluginhook: worker is closing")
+	errNilUsecase        = errors.New("pluginhook: persist-after usecase is required")
+	errNilReceiveUsecase = errors.New("pluginhook: receive usecase is required")
+	ErrWorkerClosing     = errors.New("pluginhook: worker is closing")
 )
 
 type workerState uint8
@@ -42,16 +43,25 @@ type PersistAfterUsecase interface {
 	PersistAfterCommitted(context.Context, pluginevents.PersistAfterCommitted) error
 }
 
+// ReceiveUsecase runs one ReceiveOffline plugin hook invocation.
+type ReceiveUsecase interface {
+	ReceiveOffline(context.Context, pluginevents.ReceiveOffline) error
+}
+
 // Observer records enqueue and invoke outcomes for plugin hook runtime metrics.
 type Observer interface {
 	ObservePersistAfterEnqueue(result string, wait time.Duration)
 	ObservePersistAfterInvoke(result string, d time.Duration)
+	ObserveReceiveEnqueue(result string, wait time.Duration)
+	ObserveReceiveInvoke(result string, d time.Duration)
 }
 
 // Options configures the bounded plugin hook worker.
 type Options struct {
 	// Usecase handles one accepted PersistAfterCommitted event.
 	Usecase PersistAfterUsecase
+	// ReceiveUsecase handles one accepted ReceiveOffline event. When nil, Usecase is used if it supports ReceiveUsecase.
+	ReceiveUsecase ReceiveUsecase
 	// QueueSize bounds accepted events waiting for workers.
 	QueueSize int
 	// Workers controls the number of worker goroutines.
@@ -68,20 +78,34 @@ type Options struct {
 type workerRun struct {
 	ctx        context.Context
 	cancel     context.CancelFunc
-	queue      chan pluginevents.PersistAfterCommitted
+	queue      chan hookEvent
 	acceptDone chan struct{}
 	done       chan struct{}
 	finalized  chan struct{}
 }
 
+type hookEventKind uint8
+
+const (
+	hookEventPersistAfter hookEventKind = iota + 1
+	hookEventReceive
+)
+
+type hookEvent struct {
+	kind         hookEventKind
+	persistAfter pluginevents.PersistAfterCommitted
+	receive      pluginevents.ReceiveOffline
+}
+
 // Worker provides fail-open bounded admission for async plugin hook side effects.
 type Worker struct {
-	usecase   PersistAfterUsecase
-	queueSize int
-	workers   int
-	timeout   time.Duration
-	observer  Observer
-	logger    wklog.Logger
+	usecase        PersistAfterUsecase
+	receiveUsecase ReceiveUsecase
+	queueSize      int
+	workers        int
+	timeout        time.Duration
+	observer       Observer
+	logger         wklog.Logger
 
 	mu    sync.Mutex
 	state workerState
@@ -106,14 +130,21 @@ func NewWorker(opts Options) *Worker {
 	if logger == nil {
 		logger = wklog.NewNop()
 	}
+	receiveUsecase := opts.ReceiveUsecase
+	if receiveUsecase == nil {
+		if candidate, ok := opts.Usecase.(ReceiveUsecase); ok {
+			receiveUsecase = candidate
+		}
+	}
 	return &Worker{
-		usecase:   opts.Usecase,
-		queueSize: queueSize,
-		workers:   workers,
-		timeout:   timeout,
-		observer:  opts.Observer,
-		logger:    logger,
-		state:     workerStateClosed,
+		usecase:        opts.Usecase,
+		receiveUsecase: receiveUsecase,
+		queueSize:      queueSize,
+		workers:        workers,
+		timeout:        timeout,
+		observer:       opts.Observer,
+		logger:         logger,
+		state:          workerStateClosed,
 	}
 }
 
@@ -142,7 +173,7 @@ func (w *Worker) Start(ctx context.Context) error {
 	run := &workerRun{
 		ctx:        runCtx,
 		cancel:     cancel,
-		queue:      make(chan pluginevents.PersistAfterCommitted, w.queueSize),
+		queue:      make(chan hookEvent, w.queueSize),
 		acceptDone: make(chan struct{}),
 		done:       make(chan struct{}),
 		finalized:  make(chan struct{}),
@@ -189,16 +220,25 @@ func (w *Worker) Stop(ctx context.Context) error {
 
 // EnqueuePersistAfter clones the event and attempts bounded admission without failing the caller.
 func (w *Worker) EnqueuePersistAfter(_ context.Context, event pluginevents.PersistAfterCommitted) {
+	w.enqueue(hookEvent{kind: hookEventPersistAfter, persistAfter: event.Clone()}, w.observePersistAfterEnqueue)
+}
+
+// EnqueueReceive clones the event and attempts bounded admission without failing the caller.
+func (w *Worker) EnqueueReceive(_ context.Context, event pluginevents.ReceiveOffline) {
+	w.enqueue(hookEvent{kind: hookEventReceive, receive: event.Clone()}, w.observeReceiveEnqueue)
+}
+
+func (w *Worker) enqueue(event hookEvent, observe func(string, time.Duration)) {
 	if w == nil {
 		return
 	}
 	startedAt := time.Now()
 	result := enqueueResultAccepted
 	defer func() {
-		w.observeEnqueue(result, time.Since(startedAt))
+		observe(result, time.Since(startedAt))
 	}()
 
-	run, cloned, state := w.tryEnqueueFast(event)
+	run, state := w.tryEnqueueFast(event)
 	switch state {
 	case enqueueResultClosed:
 		result = enqueueResultClosed
@@ -211,7 +251,7 @@ func (w *Worker) EnqueuePersistAfter(_ context.Context, event pluginevents.Persi
 	defer timer.Stop()
 
 	select {
-	case run.queue <- cloned:
+	case run.queue <- event:
 		if !w.runStillOpen(run) {
 			result = enqueueResultClosed
 		}
@@ -225,19 +265,18 @@ func (w *Worker) EnqueuePersistAfter(_ context.Context, event pluginevents.Persi
 	}
 }
 
-func (w *Worker) tryEnqueueFast(event pluginevents.PersistAfterCommitted) (*workerRun, pluginevents.PersistAfterCommitted, string) {
-	cloned := event.Clone()
-	run, accepted, open := w.tryEnqueueCloned(nil, cloned)
+func (w *Worker) tryEnqueueFast(event hookEvent) (*workerRun, string) {
+	run, accepted, open := w.tryEnqueueEvent(nil, event)
 	if !open {
-		return nil, cloned, enqueueResultClosed
+		return nil, enqueueResultClosed
 	}
 	if accepted {
-		return nil, cloned, enqueueResultAccepted
+		return nil, enqueueResultAccepted
 	}
-	return run, cloned, enqueueResultFull
+	return run, enqueueResultFull
 }
 
-func (w *Worker) tryEnqueueCloned(expected *workerRun, cloned pluginevents.PersistAfterCommitted) (*workerRun, bool, bool) {
+func (w *Worker) tryEnqueueEvent(expected *workerRun, event hookEvent) (*workerRun, bool, bool) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
@@ -249,7 +288,7 @@ func (w *Worker) tryEnqueueCloned(expected *workerRun, cloned pluginevents.Persi
 		return nil, false, false
 	}
 	select {
-	case run.queue <- cloned:
+	case run.queue <- event:
 		return nil, true, true
 	default:
 		return run, false, true
@@ -313,24 +352,24 @@ func (w *Worker) runStillOpen(run *workerRun) bool {
 	return w.state == workerStateOpen && w.run == run
 }
 
-func (w *Worker) invoke(runCtx context.Context, event pluginevents.PersistAfterCommitted) {
+func (w *Worker) invoke(runCtx context.Context, event hookEvent) {
 	startedAt := time.Now()
 	result := invokeResultOK
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			result = invokeResultPanic
-			w.logger.Warn("pluginhook persist-after panic")
+			w.logger.Warn("pluginhook hook panic")
 		}
-		w.observeInvoke(result, time.Since(startedAt))
+		w.observeInvoke(event.kind, result, time.Since(startedAt))
 	}()
 
 	invokeCtx, cancel := context.WithTimeout(runCtx, w.timeout)
 	defer cancel()
 
-	if err := w.usecase.PersistAfterCommitted(invokeCtx, event); err != nil {
+	if err := w.invokeEvent(invokeCtx, event); err != nil {
 		if errors.Is(err, context.DeadlineExceeded) || errors.Is(invokeCtx.Err(), context.DeadlineExceeded) {
 			result = invokeResultTimeout
-			w.logger.Warn("pluginhook persist-after timeout")
+			w.logger.Warn("pluginhook hook timeout")
 			return
 		}
 		if errors.Is(err, context.Canceled) && runCtx.Err() != nil {
@@ -338,11 +377,25 @@ func (w *Worker) invoke(runCtx context.Context, event pluginevents.PersistAfterC
 			return
 		}
 		result = invokeResultError
-		w.logger.Warn("pluginhook persist-after failed")
+		w.logger.Warn("pluginhook hook failed")
 	}
 }
 
-func (w *Worker) discardQueued(queue <-chan pluginevents.PersistAfterCommitted) {
+func (w *Worker) invokeEvent(ctx context.Context, event hookEvent) error {
+	switch event.kind {
+	case hookEventPersistAfter:
+		return w.usecase.PersistAfterCommitted(ctx, event.persistAfter)
+	case hookEventReceive:
+		if w.receiveUsecase == nil {
+			return errNilReceiveUsecase
+		}
+		return w.receiveUsecase.ReceiveOffline(ctx, event.receive)
+	default:
+		return nil
+	}
+}
+
+func (w *Worker) discardQueued(queue <-chan hookEvent) {
 	for {
 		select {
 		case <-queue:
@@ -352,16 +405,28 @@ func (w *Worker) discardQueued(queue <-chan pluginevents.PersistAfterCommitted) 
 	}
 }
 
-func (w *Worker) observeEnqueue(result string, wait time.Duration) {
+func (w *Worker) observePersistAfterEnqueue(result string, wait time.Duration) {
 	if w == nil || w.observer == nil {
 		return
 	}
 	w.observer.ObservePersistAfterEnqueue(result, wait)
 }
 
-func (w *Worker) observeInvoke(result string, d time.Duration) {
+func (w *Worker) observeReceiveEnqueue(result string, wait time.Duration) {
 	if w == nil || w.observer == nil {
 		return
 	}
-	w.observer.ObservePersistAfterInvoke(result, d)
+	w.observer.ObserveReceiveEnqueue(result, wait)
+}
+
+func (w *Worker) observeInvoke(kind hookEventKind, result string, d time.Duration) {
+	if w == nil || w.observer == nil {
+		return
+	}
+	switch kind {
+	case hookEventReceive:
+		w.observer.ObserveReceiveInvoke(result, d)
+	default:
+		w.observer.ObservePersistAfterInvoke(result, d)
+	}
 }

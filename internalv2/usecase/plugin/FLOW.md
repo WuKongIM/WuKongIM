@@ -30,6 +30,34 @@ message.Send / SendBatch after permission success
 should keep Send plugin chains short and watch `method="send"` hook invoke
 metrics when plugins are enabled.
 
+## Receive Hook Flow
+
+```text
+channelappend recipient delivery after presence resolution
+  -> runtime/pluginhook bounded worker
+  -> App.ReceiveOffline
+  -> reject ineligible candidates:
+       NoPersist, SyncOnce, request-scoped, temp-channel, missing durable ids,
+       missing sender, sender == recipient, or system sender
+  -> read UID-owned plugin bindings from the cluster-authoritative metadata port
+  -> intersect bindings with node-local running plugins advertising MethodReceive
+  -> select the highest-priority plugin, then plugin number asc
+  -> suppress duplicate messageID+UID candidates for a bounded TTL
+  -> map the recipient view to pluginproto.RecvPacket
+       strip command-channel suffixes
+       for person channels, expose the recipient's counterpart channel id
+       clone payload before crossing the plugin boundary
+  -> invoke /plugin/receive synchronously when ReplySync=true,
+     otherwise send the legacy async Receive msgType
+  -> observe low-cardinality invoke result when Observer is configured
+```
+
+Receive hooks are post-commit side effects. Their failures are logged and
+reported through hook metrics but do not change SENDACK, durable append,
+conversation projection, or ordinary online delivery outcomes. The usecase does
+not scan subscribers; channelappend provides one already-expanded offline UID
+candidate at a time.
+
 ## Host RPC Message Send Flow
 
 ```text

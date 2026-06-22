@@ -2,7 +2,7 @@ import { useIntl } from "react-intl"
 
 import { MonitorNodeSelector } from "@/components/manager/monitor-node-selector"
 import { MonitorRefreshControls, type MonitorRefreshInterval } from "@/components/manager/monitor-refresh-controls"
-import type { ManagerNodesResponse } from "@/lib/manager-api.types"
+import type { ManagerNodesResponse, RealtimeMonitorCategory } from "@/lib/manager-api.types"
 import { cn } from "@/lib/utils"
 
 import type { ClusterMonitorTimeRange } from "../types"
@@ -12,9 +12,11 @@ type ClusterMonitorToolbarProps = {
   scopeLabelId: string
   scopeLabel?: string
   nodes: ManagerNodesResponse | null
+  selectedCategory: RealtimeMonitorCategory
   selectedNodeId: number | null
   timeRange: ClusterMonitorTimeRange
   refreshInterval: MonitorRefreshInterval
+  onCategoryChange: (category: RealtimeMonitorCategory) => void
   onNodeChange: (nodeId: number | null) => void
   onTimeRangeChange: (range: ClusterMonitorTimeRange) => void
   onRefresh: () => void
@@ -22,15 +24,28 @@ type ClusterMonitorToolbarProps = {
 }
 
 const ranges: ClusterMonitorTimeRange[] = ["5m", "15m", "30m", "1h"]
+const categories: RealtimeMonitorCategory[] = [
+  "all",
+  "gateway",
+  "internal",
+  "message",
+  "conversation",
+  "channel",
+  "control",
+  "slot",
+  "node",
+]
 
 export function ClusterMonitorToolbar({
   generatedAt,
   scopeLabelId,
   scopeLabel,
   nodes,
+  selectedCategory,
   selectedNodeId,
   timeRange,
   refreshInterval,
+  onCategoryChange,
   onNodeChange,
   onTimeRangeChange,
   onRefresh,
@@ -55,6 +70,22 @@ export function ClusterMonitorToolbar({
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
+        <label className="flex h-8 items-center gap-2 rounded-lg border border-border bg-background px-2 text-xs font-medium text-muted-foreground">
+          <span>{intl.formatMessage({ id: "clusterMonitor.controls.category" })}</span>
+          <select
+            aria-label={intl.formatMessage({ id: "clusterMonitor.controls.category" })}
+            className="h-6 min-w-28 bg-transparent text-xs font-medium text-foreground outline-none"
+            onChange={(event) => onCategoryChange(event.target.value as RealtimeMonitorCategory)}
+            value={selectedCategory}
+          >
+            {categories.map((category) => (
+              <option key={category} value={category}>
+                {intl.formatMessage({ id: `clusterMonitor.category.${category}` })}
+              </option>
+            ))}
+          </select>
+        </label>
+
         <MonitorNodeSelector
           allNodesLabelId="clusterMonitor.controls.allNodes"
           labelId="clusterMonitor.controls.node"

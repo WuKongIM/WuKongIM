@@ -10,6 +10,7 @@ import (
 
 const (
 	pluginHookMethodPersistAfter = "persist_after"
+	pluginHookMethodReceive      = "receive"
 	pluginHookMethodSend         = "send"
 )
 
@@ -38,6 +39,13 @@ func (o pluginHookMetricsObserver) ObservePersistAfterEnqueue(result string, wai
 	o.metrics.Plugin.ObserveHookEnqueue(pluginHookMethodPersistAfter, result, wait)
 }
 
+func (o pluginHookMetricsObserver) ObserveReceiveEnqueue(result string, wait time.Duration) {
+	if o.metrics == nil || o.metrics.Plugin == nil {
+		return
+	}
+	o.metrics.Plugin.ObserveHookEnqueue(pluginHookMethodReceive, result, wait)
+}
+
 func (o pluginHookMetricsObserver) ObservePersistAfterInvoke(result string, d time.Duration) {
 	if o.metrics == nil || o.metrics.Plugin == nil {
 		return
@@ -50,6 +58,13 @@ func (o pluginHookMetricsObserver) ObserveSendInvoke(result string, d time.Durat
 		return
 	}
 	o.metrics.Plugin.ObserveHookInvoke(pluginHookMethodSend, result, d)
+}
+
+func (o pluginHookMetricsObserver) ObserveReceiveInvoke(result string, d time.Duration) {
+	if o.metrics == nil || o.metrics.Plugin == nil {
+		return
+	}
+	o.metrics.Plugin.ObserveHookInvoke(pluginHookMethodReceive, result, d)
 }
 
 var _ pluginhook.Observer = pluginHookMetricsObserver{}

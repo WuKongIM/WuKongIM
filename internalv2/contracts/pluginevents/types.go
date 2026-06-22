@@ -36,3 +36,38 @@ func (e PersistAfterCommitted) Clone() PersistAfterCommitted {
 	e.MessageScopedUIDs = append([]string(nil), e.MessageScopedUIDs...)
 	return e
 }
+
+// ReceiveOffline carries one offline recipient candidate into plugin hooks.
+type ReceiveOffline struct {
+	// MessageID is the durable server message identifier.
+	MessageID uint64
+	// MessageSeq is the committed channel sequence number.
+	MessageSeq uint64
+	// ChannelID is the target channel identifier.
+	ChannelID string
+	// ChannelType is the target channel type.
+	ChannelType uint8
+	// FromUID is the sender user identifier.
+	FromUID string
+	// UID is the offline recipient user identifier.
+	UID string
+	// ClientMsgNo is the client-provided idempotency key.
+	ClientMsgNo string
+	// ServerTimestampMS is the server commit timestamp in milliseconds.
+	ServerTimestampMS int64
+	// Payload is the committed message body.
+	Payload []byte
+	// NoPersist reports whether the envelope was a transient realtime send.
+	NoPersist bool
+	// SyncOnce reports whether the message should only sync once to recipients.
+	SyncOnce bool
+	// MessageScopedUIDs marks request-scoped messages that must not trigger Receive.
+	MessageScopedUIDs []string
+}
+
+// Clone returns an independent event copy safe for asynchronous plugin workers.
+func (e ReceiveOffline) Clone() ReceiveOffline {
+	e.Payload = append([]byte(nil), e.Payload...)
+	e.MessageScopedUIDs = append([]string(nil), e.MessageScopedUIDs...)
+	return e
+}

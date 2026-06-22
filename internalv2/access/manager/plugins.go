@@ -54,6 +54,59 @@ type PluginDTO struct {
 	LastError string `json:"last_error"`
 }
 
+// PluginBindingsResponse is the manager plugin binding list response body.
+type PluginBindingsResponse struct {
+	// Items contains durable binding rows with non-fatal row warnings.
+	Items []PluginBindingDTO `json:"items"`
+	// Total is the number of returned rows.
+	Total int `json:"total"`
+	// NextCursor is the opaque cursor for the next page.
+	NextCursor string `json:"next_cursor,omitempty"`
+	// HasMore reports whether another page exists.
+	HasMore bool `json:"has_more"`
+	// Warnings contains page-level non-fatal metadata.
+	Warnings []PluginBindingWarningDTO `json:"warnings,omitempty"`
+}
+
+// PluginBindingDTO is one manager-facing plugin binding row.
+type PluginBindingDTO struct {
+	// UID is the user id whose offline Receive hook targets the plugin.
+	UID string `json:"uid"`
+	// PluginNo is the plugin selected for the UID.
+	PluginNo string `json:"plugin_no"`
+	// Plugin is local plugin metadata when enrichment is available.
+	Plugin *PluginDTO `json:"plugin,omitempty"`
+	// Warnings contains row-scoped non-fatal metadata.
+	Warnings []PluginBindingWarningDTO `json:"warnings"`
+}
+
+// PluginBindingWarningDTO describes non-fatal binding metadata.
+type PluginBindingWarningDTO struct {
+	// Code is a stable machine-readable warning code.
+	Code string `json:"code"`
+	// Message is a human-readable warning summary.
+	Message string `json:"message"`
+	// UID identifies the binding user when relevant.
+	UID string `json:"uid,omitempty"`
+	// PluginNo identifies the binding plugin when relevant.
+	PluginNo string `json:"plugin_no,omitempty"`
+}
+
+// PluginBindingMutationResponseDTO is the manager plugin binding mutation response body.
+type PluginBindingMutationResponseDTO struct {
+	// Binding is the mutated UID to plugin association.
+	Binding PluginBindingDTO `json:"binding"`
+	// Changed reports whether the mutation was accepted.
+	Changed bool `json:"changed"`
+	// Warnings contains non-fatal metadata.
+	Warnings []PluginBindingWarningDTO `json:"warnings,omitempty"`
+}
+
+type pluginBindingMutationBody struct {
+	UID      string `json:"uid"`
+	PluginNo string `json:"plugin_no"`
+}
+
 func (s *Server) handleNodePlugins(c *gin.Context) {
 	if s.management == nil {
 		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "management not configured")
@@ -106,6 +159,92 @@ func (s *Server) handleNodePlugin(c *gin.Context) {
 	c.JSON(http.StatusOK, pluginDTO(plugin))
 }
 
+func (s *Server) handlePluginBindings(c *gin.Context) {
+	if s.management == nil {
+		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "management not configured")
+		return
+	}
+	limit, err := parseOptionalPositiveInt(c.Query("limit"))
+	if err != nil {
+		jsonError(c, http.StatusBadRequest, "bad_request", "invalid limit")
+		return
+	}
+	req := managementusecase.PluginBindingListRequest{
+		UID:      strings.TrimSpace(c.Query("uid")),
+		PluginNo: strings.TrimSpace(c.Query("plugin_no")),
+		Cursor:   c.Query("cursor"),
+		Limit:    limit,
+	}
+	if req.UID == "" && req.PluginNo == "" {
+		writePluginError(c, managementusecase.ErrPluginBindingSelectorRequired)
+		return
+	}
+	if req.UID != "" && req.PluginNo != "" {
+		writePluginError(c, managementusecase.ErrPluginBindingSelectorAmbiguous)
+		return
+	}
+	resp, err := s.management.ListPluginBindings(c.Request.Context(), req)
+	if err != nil {
+		writePluginError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, pluginBindingsResponseDTO(resp))
+}
+
+func (s *Server) handlePluginBindingCreate(c *gin.Context) {
+	if s.management == nil {
+		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "management not configured")
+		return
+	}
+	req, err := parsePluginBindingMutation(c)
+	if err != nil {
+		jsonError(c, http.StatusBadRequest, "bad_request", "invalid plugin binding request")
+		return
+	}
+	if req.UID == "" {
+		writePluginError(c, managementusecase.ErrPluginBindingUIDRequired)
+		return
+	}
+	if req.PluginNo == "" {
+		writePluginError(c, pluginusecase.ErrPluginNoRequired)
+		return
+	}
+	resp, err := s.management.BindPluginUser(c.Request.Context(), req)
+	if err != nil {
+		writePluginError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, pluginBindingMutationResponseDTO(resp))
+}
+
+func (s *Server) handlePluginBindingDelete(c *gin.Context) {
+	if s.management == nil {
+		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "management not configured")
+		return
+	}
+	req, err := parsePluginBindingMutation(c)
+	if err != nil {
+		jsonError(c, http.StatusBadRequest, "bad_request", "invalid plugin binding request")
+		return
+	}
+	if req.UID == "" {
+		writePluginError(c, managementusecase.ErrPluginBindingUIDRequired)
+		return
+	}
+	if req.PluginNo == "" {
+		writePluginError(c, pluginusecase.ErrPluginNoRequired)
+		return
+	}
+	if err := s.management.UnbindPluginUser(c.Request.Context(), req); err != nil {
+		writePluginError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, PluginBindingMutationResponseDTO{
+		Binding: PluginBindingDTO{UID: req.UID, PluginNo: req.PluginNo, Warnings: []PluginBindingWarningDTO{}},
+		Changed: true,
+	})
+}
+
 func parseRequiredPluginNodeID(raw string) (uint64, error) {
 	if raw == "" {
 		return 0, strconv.ErrSyntax
@@ -117,10 +256,46 @@ func parseRequiredPluginNodeID(raw string) (uint64, error) {
 	return value, nil
 }
 
+func parsePluginBindingMutation(c *gin.Context) (managementusecase.PluginBindingMutationRequest, error) {
+	body := pluginBindingMutationBody{UID: c.Query("uid"), PluginNo: c.Query("plugin_no")}
+	if c.Request != nil && c.Request.Body != nil {
+		var fromBody pluginBindingMutationBody
+		if err := bindOptionalJSON(c, &fromBody); err != nil {
+			return managementusecase.PluginBindingMutationRequest{}, err
+		}
+		if fromBody.UID != "" || fromBody.PluginNo != "" {
+			body = fromBody
+		}
+	}
+	return managementusecase.PluginBindingMutationRequest{
+		UID:      strings.TrimSpace(body.UID),
+		PluginNo: strings.TrimSpace(body.PluginNo),
+	}, nil
+}
+
+func parseOptionalPositiveInt(raw string) (int, error) {
+	if raw == "" {
+		return 0, nil
+	}
+	value, err := strconv.Atoi(raw)
+	if err != nil || value <= 0 {
+		return 0, strconv.ErrSyntax
+	}
+	return value, nil
+}
+
 func writePluginError(c *gin.Context, err error) {
 	switch {
+	case errors.Is(err, managementusecase.ErrPluginBindingsUnavailable):
+		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "plugin bindings unavailable")
 	case errors.Is(err, managementusecase.ErrPluginNodeIDRequired):
 		jsonError(c, http.StatusBadRequest, "bad_request", "invalid node_id")
+	case errors.Is(err, managementusecase.ErrPluginBindingSelectorRequired):
+		jsonError(c, http.StatusBadRequest, "bad_request", "plugin binding selector required")
+	case errors.Is(err, managementusecase.ErrPluginBindingSelectorAmbiguous):
+		jsonError(c, http.StatusBadRequest, "bad_request", "plugin binding selector ambiguous")
+	case errors.Is(err, managementusecase.ErrPluginBindingUIDRequired):
+		jsonError(c, http.StatusBadRequest, "bad_request", "plugin binding uid required")
 	case errors.Is(err, pluginusecase.ErrPluginNoRequired):
 		jsonError(c, http.StatusBadRequest, "bad_request", "invalid plugin_no")
 	case errors.Is(err, pluginusecase.ErrPluginNotFound):
@@ -157,6 +332,66 @@ func pluginDTO(plugin managementusecase.Plugin) PluginDTO {
 		LastSeenAt:       plugin.LastSeenAt,
 		LastError:        plugin.LastError,
 	}
+}
+
+func pluginBindingsResponseDTO(resp managementusecase.PluginBindingListResponse) PluginBindingsResponse {
+	details := resp.Details
+	if len(details) == 0 {
+		details = make([]managementusecase.PluginBindingDetail, 0, len(resp.Bindings))
+		for _, binding := range resp.Bindings {
+			details = append(details, managementusecase.PluginBindingDetail{Binding: binding})
+		}
+	}
+	items := make([]PluginBindingDTO, 0, len(details))
+	for _, detail := range details {
+		items = append(items, pluginBindingDTO(detail))
+	}
+	return PluginBindingsResponse{
+		Items:      items,
+		Total:      len(items),
+		NextCursor: resp.Cursor,
+		HasMore:    resp.HasMore,
+		Warnings:   pluginBindingWarningDTOs(resp.Warnings),
+	}
+}
+
+func pluginBindingDTO(detail managementusecase.PluginBindingDetail) PluginBindingDTO {
+	var plugin *PluginDTO
+	if detail.Plugin != nil {
+		dto := pluginDTO(*detail.Plugin)
+		plugin = &dto
+	}
+	return PluginBindingDTO{
+		UID:      detail.Binding.UID,
+		PluginNo: detail.Binding.PluginNo,
+		Plugin:   plugin,
+		Warnings: pluginBindingWarningDTOs(detail.Warnings),
+	}
+}
+
+func pluginBindingMutationResponseDTO(resp managementusecase.PluginBindingMutationResponse) PluginBindingMutationResponseDTO {
+	return PluginBindingMutationResponseDTO{
+		Binding: PluginBindingDTO{
+			UID:      resp.Binding.UID,
+			PluginNo: resp.Binding.PluginNo,
+			Warnings: []PluginBindingWarningDTO{},
+		},
+		Changed:  resp.Changed,
+		Warnings: pluginBindingWarningDTOs(resp.Warnings),
+	}
+}
+
+func pluginBindingWarningDTOs(warnings []managementusecase.PluginBindingWarning) []PluginBindingWarningDTO {
+	out := make([]PluginBindingWarningDTO, 0, len(warnings))
+	for _, warning := range warnings {
+		out = append(out, PluginBindingWarningDTO{
+			Code:     warning.Code,
+			Message:  warning.Message,
+			UID:      warning.UID,
+			PluginNo: warning.PluginNo,
+		})
+	}
+	return out
 }
 
 func pluginMethodStrings(methods []pluginusecase.Method) []string {
