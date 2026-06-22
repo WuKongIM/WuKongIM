@@ -104,16 +104,16 @@ type ChannelRecord struct {
 	ChannelID string `json:"channel_id"`
 	// ChannelType is the numeric channel type.
 	ChannelType int64 `json:"channel_type"`
-	// Ban marks whether the channel is banned.
-	Ban bool `json:"ban"`
-	// Disband marks whether the channel has been disbanded.
-	Disband bool `json:"disband"`
-	// SendBan marks whether sending is disabled for the channel.
-	SendBan bool `json:"send_ban"`
-	// AllowStranger marks whether non-subscribers may interact with the channel.
-	AllowStranger bool `json:"allow_stranger"`
-	// Large marks whether the channel should use large-channel behavior.
-	Large bool `json:"large"`
+	// Ban is the numeric 0/1 flag that marks whether the channel is banned.
+	Ban int64 `json:"ban"`
+	// Disband is the numeric 0/1 flag that marks whether the channel has been disbanded.
+	Disband int64 `json:"disband"`
+	// SendBan is the numeric 0/1 flag that marks whether sending is disabled for the channel.
+	SendBan int64 `json:"send_ban"`
+	// AllowStranger is the numeric 0/1 flag that marks whether non-subscribers may interact with the channel.
+	AllowStranger int64 `json:"allow_stranger"`
+	// Large is the numeric 0/1 flag that marks whether the channel should use large-channel behavior.
+	Large int64 `json:"large"`
 	// SubscriberMutationVersion is the exact subscriber mutation version.
 	SubscriberMutationVersion Uint64 `json:"subscriber_mutation_version"`
 }
