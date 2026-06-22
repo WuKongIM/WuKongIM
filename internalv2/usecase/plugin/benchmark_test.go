@@ -147,6 +147,50 @@ func BenchmarkClusterChannelsBelongNode(b *testing.B) {
 	}
 }
 
+func BenchmarkConversationChannels(b *testing.B) {
+	for _, count := range []int{1, 16, 128, 1000} {
+		b.Run(fmt.Sprintf("items_%d", count), func(b *testing.B) {
+			app, err := NewApp(Options{
+				Runtime:       &recordingRuntime{},
+				Invoker:       &recordingInvoker{},
+				Conversations: benchmarkConversationReader{channels: benchmarkConversationChannels(count)},
+			})
+			require.NoError(b, err)
+			req := &pluginproto.ConversationChannelReq{Uid: "bench-user"}
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				resp, err := app.ConversationChannels(context.Background(), req, "bench.plugin")
+				if err != nil {
+					b.Fatal(err)
+				}
+				if len(resp.GetChannels()) != count {
+					b.Fatal("invalid response count")
+				}
+			}
+		})
+	}
+}
+
+type benchmarkConversationReader struct {
+	channels []message.ChannelID
+}
+
+func (r benchmarkConversationReader) ConversationChannels(context.Context, string, int) ([]message.ChannelID, error) {
+	return r.channels, nil
+}
+
+func benchmarkConversationChannels(count int) []message.ChannelID {
+	channels := make([]message.ChannelID, 0, count)
+	for i := 0; i < count; i++ {
+		channels = append(channels, message.ChannelID{
+			ID:   fmt.Sprintf("room-%d", i),
+			Type: uint8((i % 3) + 1),
+		})
+	}
+	return channels
+}
+
 func BenchmarkPersistAfterCandidates(b *testing.B) {
 	for _, count := range []int{1, 16, 128, 1024} {
 		b.Run(fmt.Sprintf("plugins_%d", count), func(b *testing.B) {

@@ -98,6 +98,21 @@ Cluster host RPCs are read-only compatibility surfaces. They use authoritative
 control/authority adapters supplied by the app composition root and do not
 depend directly on clusterv2 from the plugin usecase.
 
+## Host RPC Conversation Channels Flow
+
+```text
+plugin /conversation/channels host RPC
+  -> access/plugin decodes pluginproto.ConversationChannelReq and applies timeout
+  -> App.ConversationChannels
+  -> trim and validate uid
+  -> ConversationReader.ConversationChannels(limit=1000)
+  -> map reader-defined channel order to pluginproto.ConversationChannelResp
+```
+
+`/conversation/channels` is an authoritative UID conversation-channel read. It
+uses the legacy fixed limit of 1000 and intentionally does not join last visible
+messages or reuse the user-facing conversation list defaults.
+
 ## PersistAfter Flow
 
 ```text

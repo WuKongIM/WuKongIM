@@ -176,6 +176,32 @@ func TestNewWiresPluginUsecaseAsChannelOwnerReader(t *testing.T) {
 	require.Equal(t, uint64(3), resp.GetClusterChannelBelongNodeResps()[0].GetNodeId())
 }
 
+func TestNewWiresPluginUsecaseAsConversationReader(t *testing.T) {
+	cluster := &fakeManagerCluster{
+		nodeID: 1,
+		conversationPages: map[string][]metadb.ConversationState{
+			"u1": {
+				{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "g1", ChannelType: 2, ActiveAt: 2},
+				{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "p1", ChannelType: 1, ActiveAt: 1},
+			},
+		},
+	}
+	app, err := newTestApp(t, Config{
+		DataDir: t.TempDir(),
+		Cluster: clusterv2.Config{NodeID: 1},
+		Plugin:  PluginConfig{Enable: true, HotReload: false},
+	}, WithCluster(cluster), WithGateway(nil))
+	require.NoError(t, err)
+
+	resp, err := app.plugins.ConversationChannels(context.Background(), &pluginproto.ConversationChannelReq{Uid: "u1"}, "wk.conversation")
+
+	require.NoError(t, err)
+	require.Len(t, resp.GetChannels(), 2)
+	require.Equal(t, "g1", resp.GetChannels()[0].GetChannelId())
+	require.Equal(t, uint32(2), resp.GetChannels()[0].GetChannelType())
+	require.Equal(t, "p1", resp.GetChannels()[1].GetChannelId())
+}
+
 func TestNewPassesPluginFailOpenToPluginUsecase(t *testing.T) {
 	app, err := newTestApp(t, Config{
 		DataDir: t.TempDir(),

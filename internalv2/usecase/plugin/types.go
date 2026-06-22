@@ -34,6 +34,10 @@ var (
 	ErrChannelRequired = errors.New("plugin channel required")
 	// ErrChannelOwnerUnknown reports that a channel owner could not be determined authoritatively.
 	ErrChannelOwnerUnknown = errors.New("plugin channel owner unknown")
+	// ErrConversationReaderRequired reports that host conversation/channels needs the conversation reader port.
+	ErrConversationReaderRequired = errors.New("plugin conversation reader required")
+	// ErrConversationUIDRequired reports that host conversation/channels omitted the UID.
+	ErrConversationUIDRequired = errors.New("plugin conversation uid required")
 )
 
 // Method identifies a plugin hook advertised by a plugin manifest.
@@ -152,6 +156,12 @@ type ChannelOwnerReader interface {
 	ChannelOwnerNode(context.Context, message.ChannelID) (uint64, error)
 }
 
+// ConversationReader reads authoritative UID conversation channel lists for host RPCs.
+type ConversationReader interface {
+	// ConversationChannels returns recent conversation channels for a UID in reader-defined order.
+	ConversationChannels(context.Context, string, int) ([]message.ChannelID, error)
+}
+
 // Observer records low-cardinality synchronous plugin hook events.
 type Observer interface {
 	ObserveSendInvoke(result string, d time.Duration)
@@ -171,6 +181,8 @@ type Options struct {
 	ClusterReader ClusterReader
 	// ChannelOwners resolves authoritative channel owner nodes for plugin host RPCs.
 	ChannelOwners ChannelOwnerReader
+	// Conversations reads authoritative UID conversation channels for plugin host RPCs.
+	Conversations ConversationReader
 	// FailOpen lets synchronous Send hook infrastructure failures preserve the original send.
 	FailOpen bool
 	Observer Observer
@@ -185,6 +197,7 @@ type App struct {
 	messageReader    MessageReader
 	clusterReader    ClusterReader
 	channelOwners    ChannelOwnerReader
+	conversations    ConversationReader
 	defaultSenderUID string
 	failOpen         bool
 	observer         Observer

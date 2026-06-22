@@ -15,7 +15,7 @@ func TestServerRegistersHostRPCRoutes(t *testing.T) {
 	routes := &recordingRoutes{}
 	_, err := NewServer(Options{Routes: routes, Usecase: &recordingUsecase{}, Timeout: time.Second})
 	require.NoError(t, err)
-	require.ElementsMatch(t, []string{"/plugin/start", "/close", "/message/send", "/channel/messages", "/cluster/config", "/cluster/channels/belongNode"}, routes.paths)
+	require.ElementsMatch(t, []string{"/plugin/start", "/close", "/message/send", "/channel/messages", "/cluster/config", "/cluster/channels/belongNode", "/conversation/channels"}, routes.paths)
 }
 
 func TestHandlePluginStartDecodesAndWritesStartupResponse(t *testing.T) {
@@ -250,6 +250,28 @@ func TestHandleClusterChannelsBelongNodeDecodesUsesTimeoutAndWritesResponse(t *t
 	require.Equal(t, uint64(2), got.GetClusterChannelBelongNodeResps()[0].GetNodeId())
 }
 
+func TestHandleConversationChannelsDecodesUsesTimeoutAndWritesResponse(t *testing.T) {
+	usecase := &recordingUsecase{conversationChannelsResp: &pluginproto.ConversationChannelResp{
+		Channels: []*pluginproto.Channel{{ChannelId: "g1", ChannelType: 2}},
+	}}
+	server, err := NewServer(Options{Usecase: usecase, Timeout: time.Second})
+	require.NoError(t, err)
+	ctx := newTestRPCContext("wk.conversation", mustMarshalProto(t, &pluginproto.ConversationChannelReq{Uid: "u1"}))
+
+	server.handlePath("/conversation/channels", ctx)
+
+	require.NoError(t, ctx.err)
+	require.Equal(t, 1, usecase.conversationChannelsCalls)
+	require.Equal(t, "wk.conversation", usecase.conversationChannelsCaller)
+	require.Equal(t, "u1", usecase.conversationChannelsReq.GetUid())
+	require.True(t, usecase.conversationChannelsDeadlineSet)
+	require.WithinDuration(t, time.Now().Add(time.Second), usecase.conversationChannelsDeadline, 100*time.Millisecond)
+	var got pluginproto.ConversationChannelResp
+	require.NoError(t, proto.Unmarshal(ctx.body, &got))
+	require.Len(t, got.GetChannels(), 1)
+	require.Equal(t, "g1", got.GetChannels()[0].GetChannelId())
+}
+
 func TestMessageHostRPCKeepsShorterIncomingDeadline(t *testing.T) {
 	usecase := &recordingUsecase{sendResp: &pluginproto.SendResp{MessageId: 1}}
 	server, err := NewServer(Options{Usecase: usecase, Timeout: time.Second})
@@ -306,6 +328,21 @@ func TestClusterHostRPCKeepsShorterIncomingDeadline(t *testing.T) {
 	}
 }
 
+func TestConversationHostRPCKeepsShorterIncomingDeadline(t *testing.T) {
+	usecase := &recordingUsecase{conversationChannelsResp: &pluginproto.ConversationChannelResp{}}
+	server, err := NewServer(Options{Usecase: usecase, Timeout: time.Second})
+	require.NoError(t, err)
+	incoming, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	ctx := newTimedTestRPCContext(incoming, "wk.conversation", mustMarshalProto(t, &pluginproto.ConversationChannelReq{Uid: "u1"}))
+
+	server.handlePath("/conversation/channels", ctx)
+
+	require.NoError(t, ctx.err)
+	require.True(t, usecase.conversationChannelsDeadlineSet)
+	require.WithinDuration(t, time.Now().Add(200*time.Millisecond), usecase.conversationChannelsDeadline, 100*time.Millisecond)
+}
+
 func TestChannelMessagesHostRPCKeepsShorterIncomingDeadline(t *testing.T) {
 	usecase := &recordingUsecase{channelMessagesResp: &pluginproto.ChannelMessageBatchResp{}}
 	server, err := NewServer(Options{Usecase: usecase, Timeout: time.Second})
@@ -353,40 +390,46 @@ func (r *recordingRoutes) Route(path string, _ wkrpc.Handler) {
 }
 
 type recordingUsecase struct {
-	started                      *pluginproto.PluginInfo
-	startCalls                   int
-	startResp                    *pluginproto.StartupResp
-	startDoneSignal              chan struct{}
-	startDeadline                time.Time
-	startDeadlineSet             bool
-	caller                       string
-	closedPluginNo               string
-	closedCaller                 string
-	closeCalled                  chan struct{}
-	closeErr                     error
-	sendCalls                    int
-	sendReq                      *pluginproto.SendReq
-	sendResp                     *pluginproto.SendResp
-	sendCaller                   string
-	sendDeadline                 time.Time
-	sendDeadlineSet              bool
-	channelMessagesCalls         int
-	channelMessagesReq           *pluginproto.ChannelMessageBatchReq
-	channelMessagesResp          *pluginproto.ChannelMessageBatchResp
-	channelMessagesCaller        string
-	channelMessagesDeadline      time.Time
-	channelMessagesDeadlineSet   bool
-	clusterConfigCalls           int
-	clusterConfigResp            *pluginproto.ClusterConfig
-	clusterConfigCaller          string
-	clusterConfigDeadline        time.Time
-	clusterConfigDeadlineSet     bool
-	clusterBelongNodeCalls       int
-	clusterBelongNodeReq         *pluginproto.ClusterChannelBelongNodeReq
-	clusterBelongNodeResp        *pluginproto.ClusterChannelBelongNodeBatchResp
-	clusterBelongNodeCaller      string
-	clusterBelongNodeDeadline    time.Time
-	clusterBelongNodeDeadlineSet bool
+	started                         *pluginproto.PluginInfo
+	startCalls                      int
+	startResp                       *pluginproto.StartupResp
+	startDoneSignal                 chan struct{}
+	startDeadline                   time.Time
+	startDeadlineSet                bool
+	caller                          string
+	closedPluginNo                  string
+	closedCaller                    string
+	closeCalled                     chan struct{}
+	closeErr                        error
+	sendCalls                       int
+	sendReq                         *pluginproto.SendReq
+	sendResp                        *pluginproto.SendResp
+	sendCaller                      string
+	sendDeadline                    time.Time
+	sendDeadlineSet                 bool
+	channelMessagesCalls            int
+	channelMessagesReq              *pluginproto.ChannelMessageBatchReq
+	channelMessagesResp             *pluginproto.ChannelMessageBatchResp
+	channelMessagesCaller           string
+	channelMessagesDeadline         time.Time
+	channelMessagesDeadlineSet      bool
+	clusterConfigCalls              int
+	clusterConfigResp               *pluginproto.ClusterConfig
+	clusterConfigCaller             string
+	clusterConfigDeadline           time.Time
+	clusterConfigDeadlineSet        bool
+	clusterBelongNodeCalls          int
+	clusterBelongNodeReq            *pluginproto.ClusterChannelBelongNodeReq
+	clusterBelongNodeResp           *pluginproto.ClusterChannelBelongNodeBatchResp
+	clusterBelongNodeCaller         string
+	clusterBelongNodeDeadline       time.Time
+	clusterBelongNodeDeadlineSet    bool
+	conversationChannelsCalls       int
+	conversationChannelsReq         *pluginproto.ConversationChannelReq
+	conversationChannelsResp        *pluginproto.ConversationChannelResp
+	conversationChannelsCaller      string
+	conversationChannelsDeadline    time.Time
+	conversationChannelsDeadlineSet bool
 }
 
 func (r *recordingUsecase) StartPlugin(ctx context.Context, info *pluginproto.PluginInfo, callerUID string) (*pluginproto.StartupResp, error) {
@@ -480,6 +523,20 @@ func (r *recordingUsecase) ClusterChannelsBelongNode(ctx context.Context, req *p
 	return &pluginproto.ClusterChannelBelongNodeBatchResp{}, nil
 }
 
+func (r *recordingUsecase) ConversationChannels(ctx context.Context, req *pluginproto.ConversationChannelReq, callerUID string) (*pluginproto.ConversationChannelResp, error) {
+	r.conversationChannelsCalls++
+	r.conversationChannelsReq = proto.Clone(req).(*pluginproto.ConversationChannelReq)
+	r.conversationChannelsCaller = callerUID
+	if deadline, ok := ctx.Deadline(); ok {
+		r.conversationChannelsDeadline = deadline
+		r.conversationChannelsDeadlineSet = true
+	}
+	if r.conversationChannelsResp != nil {
+		return r.conversationChannelsResp, nil
+	}
+	return &pluginproto.ConversationChannelResp{}, nil
+}
+
 type testRPCContext struct {
 	baseCtx     context.Context
 	uid         string
@@ -563,6 +620,32 @@ func BenchmarkChannelMessagesHostRPCHandler(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		ctx := newTestRPCContext("bench.plugin", body)
 		server.handlePath("/channel/messages", ctx)
+		if ctx.err != nil {
+			b.Fatal(ctx.err)
+		}
+		if len(ctx.body) == 0 {
+			b.Fatal("empty response")
+		}
+	}
+}
+
+func BenchmarkConversationHostRPCHandler(b *testing.B) {
+	usecase := &recordingUsecase{conversationChannelsResp: &pluginproto.ConversationChannelResp{
+		Channels: []*pluginproto.Channel{
+			{ChannelId: "g1", ChannelType: 2},
+			{ChannelId: "p1", ChannelType: 1},
+		},
+	}}
+	server, err := NewServer(Options{Usecase: usecase, Timeout: time.Second})
+	require.NoError(b, err)
+	body, err := proto.Marshal(&pluginproto.ConversationChannelReq{Uid: "u1"})
+	require.NoError(b, err)
+	b.ReportAllocs()
+	b.SetBytes(int64(len(body)))
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		ctx := newTestRPCContext("bench.plugin", body)
+		server.handlePath("/conversation/channels", ctx)
 		if ctx.err != nil {
 			b.Fatal(ctx.err)
 		}

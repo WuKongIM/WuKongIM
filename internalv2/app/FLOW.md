@@ -133,14 +133,17 @@ New(Config)
   -> when Plugin.Enable=true:
        wire a node-local PDK-compatible plugin runtime with a Unix host RPC
        socket, the lifecycle plus /message/send, /channel/messages,
-       /cluster/config, and /cluster/channels/belongNode host RPC
+       /cluster/config, /cluster/channels/belongNode, and
+       /conversation/channels host RPC
        adapter, the v2 plugin usecase, and a bounded PersistAfter worker; pass
        WK_PLUGIN_FAIL_OPEN into the synchronous Send hook usecase; wire
        plugin-origin /message/send back through the v2 message usecase with the
        default system UID fallback; wire /channel/messages to the clusterv2
        committed-message reader when available; wire cluster host RPCs to the
        clusterv2 control snapshot and ChannelV2 append-authority readers when
-       available; attach the plugin hook metrics observer
+       available; wire /conversation/channels to the clusterv2 active
+       conversation row reader when available without last-message joins; attach
+       the plugin hook metrics observer
        when metrics are enabled, expose durable commit PersistAfter events to
        channelappend, and register the manager plugin RPC handler when node RPC
        is available so peer managers can inspect this node's observed plugin

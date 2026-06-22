@@ -80,6 +80,9 @@ func (a *App) wirePluginSubsystem(nodeID uint64) error {
 	if ownerNode, ok := a.cluster.(clusterinfra.PluginChannelOwnerNode); ok {
 		pluginOptions.ChannelOwners = clusterinfra.NewPluginChannelOwnerReader(ownerNode)
 	}
+	if conversationNode, ok := a.cluster.(clusterinfra.PluginConversationNode); ok {
+		pluginOptions.Conversations = clusterinfra.NewPluginConversationReader(conversationNode)
+	}
 	plugins, err := pluginusecase.NewApp(pluginOptions)
 	if err != nil {
 		return fmt.Errorf("internalv2/app: create plugin usecase: %w", err)

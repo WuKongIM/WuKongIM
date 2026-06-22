@@ -13,6 +13,7 @@ import (
 
 const defaultHostChannelMessagesLimit = 100
 const maxHostChannelMessagesLimit = 10000
+const defaultHostConversationChannelsLimit = 1000
 
 func sendCommandFromPluginReq(req *pluginproto.SendReq, defaultSenderUID string) (message.SendCommand, error) {
 	if req == nil {
@@ -145,6 +146,19 @@ func clonePluginChannel(item *pluginproto.Channel) *pluginproto.Channel {
 		ChannelId:   item.GetChannelId(),
 		ChannelType: item.GetChannelType(),
 	}
+}
+
+func conversationChannelsRespFromChannelIDs(channels []message.ChannelID) *pluginproto.ConversationChannelResp {
+	resp := &pluginproto.ConversationChannelResp{
+		Channels: make([]*pluginproto.Channel, 0, len(channels)),
+	}
+	for _, channel := range channels {
+		resp.Channels = append(resp.Channels, &pluginproto.Channel{
+			ChannelId:   channel.ID,
+			ChannelType: uint32(channel.Type),
+		})
+	}
+	return resp
 }
 
 func messageBatchFromPersistAfter(event pluginevents.PersistAfterCommitted) *pluginproto.MessageBatch {
