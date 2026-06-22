@@ -52,6 +52,26 @@ permission, transient NoPersist, and channel authority routing semantics as
 other trusted host-origin sends, with `SendOriginPlugin` only used to fence hook
 recursion.
 
+## Host RPC Channel Messages Flow
+
+```text
+plugin /channel/messages host RPC
+  -> access/plugin decodes pluginproto.ChannelMessageBatchReq and applies timeout
+  -> App.ChannelMessages
+  -> for each request item:
+       map to message.ChannelMessageQuery
+       apply legacy limit default 100 and cap 10000
+       use PullModeUp
+       call MessageReader.SyncMessages
+       map metadb.ErrNotFound to an empty item response
+       clone each returned payload into pluginproto.Message
+  -> return pluginproto.ChannelMessageBatchResp with item-aligned responses
+```
+
+`/channel/messages` is an authoritative committed-message read. It does not use
+login UID person-channel normalization because the legacy plugin RPC carries the
+explicit channel id and channel type to read.
+
 ## PersistAfter Flow
 
 ```text

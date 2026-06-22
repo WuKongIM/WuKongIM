@@ -23,6 +23,7 @@ func NewApp(opts Options) (*App, error) {
 		runtime:          opts.Runtime,
 		invoker:          opts.Invoker,
 		messages:         opts.Messages,
+		messageReader:    opts.MessageReader,
 		defaultSenderUID: strings.TrimSpace(opts.DefaultSenderUID),
 		failOpen:         opts.FailOpen,
 		observer:         opts.Observer,

@@ -7,6 +7,7 @@ import (
 	runtimeplugin "github.com/WuKongIM/WuKongIM/internal/runtime/plugin"
 	accessplugin "github.com/WuKongIM/WuKongIM/internalv2/access/plugin"
 	pluginevents "github.com/WuKongIM/WuKongIM/internalv2/contracts/pluginevents"
+	clusterinfra "github.com/WuKongIM/WuKongIM/internalv2/infra/cluster"
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/channelappend"
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/pluginhook"
 	messageusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/message"
@@ -61,7 +62,7 @@ func (a *App) wirePluginSubsystem(nodeID uint64) error {
 		Socket:     socket,
 		Invoker:    invoker,
 	})
-	plugins, err := pluginusecase.NewApp(pluginusecase.Options{
+	pluginOptions := pluginusecase.Options{
 		Runtime:          pluginRuntimeAdapter{runtime: runtime},
 		Invoker:          invoker,
 		Messages:         pluginMessageSender{app: a},
@@ -69,7 +70,11 @@ func (a *App) wirePluginSubsystem(nodeID uint64) error {
 		FailOpen:         a.cfg.Plugin.FailOpen,
 		Observer:         a.pluginUsecaseObserver(),
 		Logger:           a.logger.Named("plugin"),
-	})
+	}
+	if readNode, ok := a.cluster.(clusterinfra.ChannelMessageReadNode); ok {
+		pluginOptions.MessageReader = clusterinfra.NewChannelMessageReader(readNode)
+	}
+	plugins, err := pluginusecase.NewApp(pluginOptions)
 	if err != nil {
 		return fmt.Errorf("internalv2/app: create plugin usecase: %w", err)
 	}

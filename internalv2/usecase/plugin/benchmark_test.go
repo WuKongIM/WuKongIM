@@ -76,6 +76,32 @@ func BenchmarkSendMessageFromPluginReq(b *testing.B) {
 	}
 }
 
+func BenchmarkChannelMessagesFromPluginReq(b *testing.B) {
+	for _, count := range []int{1, 16, 128} {
+		b.Run(fmt.Sprintf("items_%d", count), func(b *testing.B) {
+			reader := &benchmarkChannelMessageReader{}
+			app, err := NewApp(Options{
+				Runtime:       &recordingRuntime{},
+				Invoker:       &recordingInvoker{},
+				MessageReader: reader,
+			})
+			require.NoError(b, err)
+			req := benchmarkChannelMessagesReq(count)
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				resp, err := app.ChannelMessages(context.Background(), req, "bench.plugin")
+				if err != nil {
+					b.Fatal(err)
+				}
+				if len(resp.GetChannelMessageResps()) != count {
+					b.Fatal("invalid response count")
+				}
+			}
+		})
+	}
+}
+
 func BenchmarkPersistAfterCandidates(b *testing.B) {
 	for _, count := range []int{1, 16, 128, 1024} {
 		b.Run(fmt.Sprintf("plugins_%d", count), func(b *testing.B) {
@@ -97,6 +123,33 @@ func BenchmarkPersistAfterCandidates(b *testing.B) {
 
 func messageResultForBenchmark() message.SendResult {
 	return message.SendResult{MessageID: 1, Reason: message.ReasonSuccess}
+}
+
+func benchmarkChannelMessagesReq(count int) *pluginproto.ChannelMessageBatchReq {
+	req := &pluginproto.ChannelMessageBatchReq{ChannelMessageReqs: make([]*pluginproto.ChannelMessageReq, 0, count)}
+	for i := 0; i < count; i++ {
+		req.ChannelMessageReqs = append(req.ChannelMessageReqs, &pluginproto.ChannelMessageReq{
+			ChannelId:       fmt.Sprintf("room-%d", i),
+			ChannelType:     2,
+			StartMessageSeq: 1,
+			Limit:           1,
+		})
+	}
+	return req
+}
+
+type benchmarkChannelMessageReader struct{}
+
+func (benchmarkChannelMessageReader) SyncMessages(context.Context, message.ChannelMessageQuery) (message.ChannelMessagePage, error) {
+	return message.ChannelMessagePage{Messages: []message.SyncedMessage{{
+		MessageID:   1,
+		MessageSeq:  1,
+		ClientMsgNo: "bench-client",
+		FromUID:     "u1",
+		ChannelID:   "room",
+		ChannelType: 2,
+		Payload:     []byte("payload"),
+	}}}, nil
 }
 
 func BenchmarkListPlugins(b *testing.B) {

@@ -12,7 +12,9 @@ import (
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/channelappend"
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/message"
 	pluginusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/plugin"
+	"github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/stretchr/testify/require"
 )
 
@@ -79,6 +81,45 @@ func TestNewWiresPluginUsecaseAsMessageSender(t *testing.T) {
 	require.Equal(t, "u1", submitter.last.FromUID)
 	require.Equal(t, message.SendOriginPlugin, submitter.last.Origin)
 	require.NotErrorIs(t, err, pluginusecase.ErrMessageSenderRequired)
+}
+
+func TestNewWiresPluginUsecaseAsChannelMessageReader(t *testing.T) {
+	cluster := &fakeManagerCluster{
+		nodeID: 1,
+		conversationMessages: map[metadb.ConversationKey][]channelv2.Message{
+			{ChannelID: "g1", ChannelType: 2}: {{
+				MessageID:   321,
+				MessageSeq:  7,
+				ChannelID:   "g1",
+				ChannelType: 2,
+				FromUID:     "u1",
+				ClientMsgNo: "client-7",
+				Payload:     []byte("stored"),
+			}},
+		},
+	}
+	app, err := newTestApp(t, Config{
+		DataDir: t.TempDir(),
+		Cluster: clusterv2.Config{NodeID: 1},
+		Plugin:  PluginConfig{Enable: true, HotReload: false},
+	}, WithCluster(cluster), WithGateway(nil))
+	require.NoError(t, err)
+
+	resp, err := app.plugins.ChannelMessages(context.Background(), &pluginproto.ChannelMessageBatchReq{
+		ChannelMessageReqs: []*pluginproto.ChannelMessageReq{{
+			ChannelId:       "g1",
+			ChannelType:     2,
+			StartMessageSeq: 7,
+			Limit:           1,
+		}},
+	}, "wk.reader")
+
+	require.NoError(t, err)
+	require.Len(t, resp.GetChannelMessageResps(), 1)
+	msgs := resp.GetChannelMessageResps()[0].GetMessages()
+	require.Len(t, msgs, 1)
+	require.Equal(t, int64(321), msgs[0].GetMessageId())
+	require.Equal(t, []byte("stored"), msgs[0].GetPayload())
 }
 
 func TestNewPassesPluginFailOpenToPluginUsecase(t *testing.T) {

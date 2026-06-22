@@ -24,6 +24,8 @@ var (
 	ErrMessageSenderRequired = errors.New("plugin message sender required")
 	// ErrDefaultSenderUIDRequired reports that plugin-origin sends without fromUid need a default sender.
 	ErrDefaultSenderUIDRequired = errors.New("plugin default sender uid required")
+	// ErrMessageReaderRequired reports that host channel/messages needs the message reader port.
+	ErrMessageReaderRequired = errors.New("plugin message reader required")
 )
 
 // Method identifies a plugin hook advertised by a plugin manifest.
@@ -94,6 +96,11 @@ type MessageSender interface {
 	Send(context.Context, message.SendCommand) (message.SendResult, error)
 }
 
+// MessageReader reads authoritative channel message pages for plugin host RPCs.
+type MessageReader interface {
+	SyncMessages(context.Context, message.ChannelMessageQuery) (message.ChannelMessagePage, error)
+}
+
 // Observer records low-cardinality synchronous plugin hook events.
 type Observer interface {
 	ObserveSendInvoke(result string, d time.Duration)
@@ -107,6 +114,8 @@ type Options struct {
 	Messages MessageSender
 	// DefaultSenderUID is used when legacy plugin send requests omit fromUid.
 	DefaultSenderUID string
+	// MessageReader reads authoritative channel message pages for plugin host RPCs.
+	MessageReader MessageReader
 	// FailOpen lets synchronous Send hook infrastructure failures preserve the original send.
 	FailOpen bool
 	Observer Observer
@@ -118,6 +127,7 @@ type App struct {
 	runtime          Runtime
 	invoker          Invoker
 	messages         MessageSender
+	messageReader    MessageReader
 	defaultSenderUID string
 	failOpen         bool
 	observer         Observer
