@@ -138,17 +138,22 @@ func decodeRecord(kind FileKind, line []byte) (any, error) {
 		}
 		return record, nil
 	case FileKindMetaChannelLatest:
-		var record ChannelLatestRecord
-		if err := decodeStrict(line, &record); err != nil {
+		var wire channelLatestRecordWire
+		if err := decodeStrict(line, &wire); err != nil {
 			return nil, err
 		}
+		record := wire.record()
 		if err := requireString("channel_id", record.ChannelID); err != nil {
 			return nil, err
 		}
-		payload, err := decodeBase64Field("last_payload_b64", record.LastPayloadB64)
+		if wire.LastPayloadB64 == nil {
+			return nil, fmt.Errorf("last_payload_b64 is required")
+		}
+		payload, err := decodeBase64Field("last_payload_b64", *wire.LastPayloadB64)
 		if err != nil {
 			return nil, err
 		}
+		record.LastPayloadB64 = *wire.LastPayloadB64
 		record.Payload = payload
 		return record, nil
 	case FileKindMessageChannels:
@@ -164,10 +169,11 @@ func decodeRecord(kind FileKind, line []byte) (any, error) {
 		}
 		return record, nil
 	case FileKindMessageMessages:
-		var record MessageRecord
-		if err := decodeStrict(line, &record); err != nil {
+		var wire messageRecordWire
+		if err := decodeStrict(line, &wire); err != nil {
 			return nil, err
 		}
+		record := wire.record()
 		if err := requireString("channel_key", record.ChannelKey); err != nil {
 			return nil, err
 		}
@@ -177,14 +183,66 @@ func decodeRecord(kind FileKind, line []byte) (any, error) {
 		if record.MessageID == 0 {
 			return nil, fmt.Errorf("message_id is required")
 		}
-		payload, err := decodeBase64Field("payload_b64", record.PayloadB64)
+		if wire.PayloadB64 == nil {
+			return nil, fmt.Errorf("payload_b64 is required")
+		}
+		payload, err := decodeBase64Field("payload_b64", *wire.PayloadB64)
 		if err != nil {
 			return nil, err
 		}
+		record.PayloadB64 = *wire.PayloadB64
 		record.Payload = payload
 		return record, nil
 	default:
 		return nil, fmt.Errorf("unknown kind %q", kind)
+	}
+}
+
+type channelLatestRecordWire struct {
+	HashSlot       uint16  `json:"hash_slot"`
+	ChannelID      string  `json:"channel_id"`
+	ChannelType    int64   `json:"channel_type"`
+	LastMessageID  Uint64  `json:"last_message_id"`
+	LastMessageSeq Uint64  `json:"last_message_seq"`
+	LastAt         int64   `json:"last_at"`
+	FromUID        string  `json:"from_uid"`
+	ClientMsgNo    string  `json:"client_msg_no"`
+	LastPayloadB64 *string `json:"last_payload_b64"`
+	UpdatedAt      int64   `json:"updated_at"`
+}
+
+func (w channelLatestRecordWire) record() ChannelLatestRecord {
+	return ChannelLatestRecord{
+		HashSlot:       w.HashSlot,
+		ChannelID:      w.ChannelID,
+		ChannelType:    w.ChannelType,
+		LastMessageID:  w.LastMessageID,
+		LastMessageSeq: w.LastMessageSeq,
+		LastAt:         w.LastAt,
+		FromUID:        w.FromUID,
+		ClientMsgNo:    w.ClientMsgNo,
+		UpdatedAt:      w.UpdatedAt,
+	}
+}
+
+type messageRecordWire struct {
+	ChannelKey        string  `json:"channel_key"`
+	MessageSeq        Uint64  `json:"message_seq"`
+	MessageID         Uint64  `json:"message_id"`
+	ClientMsgNo       string  `json:"client_msg_no"`
+	FromUID           string  `json:"from_uid"`
+	ServerTimestampMS int64   `json:"server_timestamp_ms"`
+	PayloadB64        *string `json:"payload_b64"`
+}
+
+func (w messageRecordWire) record() MessageRecord {
+	return MessageRecord{
+		ChannelKey:        w.ChannelKey,
+		MessageSeq:        w.MessageSeq,
+		MessageID:         w.MessageID,
+		ClientMsgNo:       w.ClientMsgNo,
+		FromUID:           w.FromUID,
+		ServerTimestampMS: w.ServerTimestampMS,
 	}
 }
 
