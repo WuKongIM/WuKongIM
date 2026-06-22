@@ -70,6 +70,9 @@ func validateFileEntry(root string, index int, entry FileEntry) error {
 	if len(entry.SHA256) != sha256.Size*2 {
 		return fmt.Errorf("%w: file[%d] invalid sha256 length", ErrValidation, index)
 	}
+	if entry.SHA256 != strings.ToLower(entry.SHA256) {
+		return fmt.Errorf("%w: file[%d] sha256 must be lowercase", ErrValidation, index)
+	}
 	if _, err := hex.DecodeString(entry.SHA256); err != nil {
 		return fmt.Errorf("%w: file[%d] invalid sha256 hex: %v", ErrValidation, index, err)
 	}
@@ -78,7 +81,7 @@ func validateFileEntry(root string, index int, entry FileEntry) error {
 	if err != nil {
 		return fmt.Errorf("%w: file[%d] checksum read %q: %v", ErrValidation, index, entry.Path, err)
 	}
-	if !strings.EqualFold(actual, entry.SHA256) {
+	if actual != entry.SHA256 {
 		return fmt.Errorf("%w: file[%d] checksum mismatch for %q", ErrValidation, index, entry.Path)
 	}
 	return nil
@@ -123,11 +126,30 @@ func safeBundlePath(raw string) (string, error) {
 }
 
 func fileSHA256(filePath string) (string, error) {
+	info, err := os.Lstat(filePath)
+	if err != nil {
+		return "", err
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		return "", fmt.Errorf("symlink file")
+	}
+	if !info.Mode().IsRegular() {
+		return "", fmt.Errorf("non-regular file")
+	}
+
 	file, err := os.Open(filePath)
 	if err != nil {
 		return "", err
 	}
 	defer file.Close()
+
+	info, err = file.Stat()
+	if err != nil {
+		return "", err
+	}
+	if !info.Mode().IsRegular() {
+		return "", fmt.Errorf("non-regular file after open")
+	}
 
 	hash := sha256.New()
 	if _, err := io.Copy(hash, file); err != nil {

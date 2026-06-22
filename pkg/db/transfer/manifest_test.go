@@ -77,6 +77,73 @@ func TestLoadManifestRejectsUnknownKind(t *testing.T) {
 	}
 }
 
+func TestLoadManifestRejectsSymlinkFile(t *testing.T) {
+	root := t.TempDir()
+	outside := filepath.Join(t.TempDir(), "outside.jsonl")
+	data := []byte("{}\n")
+	if err := os.WriteFile(outside, data, 0o600); err != nil {
+		t.Fatalf("WriteFile(%s): %v", outside, err)
+	}
+
+	link := filepath.Join(root, "meta/users.jsonl")
+	if err := os.MkdirAll(filepath.Dir(link), 0o755); err != nil {
+		t.Fatalf("MkdirAll(%s): %v", filepath.Dir(link), err)
+	}
+	if err := os.Symlink(outside, link); err != nil {
+		t.Skipf("Symlink(%s, %s): %v", outside, link, err)
+	}
+	sum := sha256.Sum256(data)
+	writeManifest(t, root, `{
+        "format":"wkdb-import-bundle",
+        "version":1,
+        "hash_slot_count":16,
+        "files":[{"path":"meta/users.jsonl","kind":"meta.users","rows":1,"sha256":"`+hex.EncodeToString(sum[:])+`"}]
+    }`)
+
+	_, err := LoadManifest(root)
+	if err == nil || !strings.Contains(err.Error(), "symlink") {
+		t.Fatalf("LoadManifest() error = %v, want symlink error", err)
+	}
+}
+
+func TestLoadManifestRejectsNonRegularFile(t *testing.T) {
+	root := t.TempDir()
+	dir := filepath.Join(root, "meta/users.jsonl")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(%s): %v", dir, err)
+	}
+	sum := sha256.Sum256(nil)
+	writeManifest(t, root, `{
+        "format":"wkdb-import-bundle",
+        "version":1,
+        "hash_slot_count":16,
+        "files":[{"path":"meta/users.jsonl","kind":"meta.users","rows":0,"sha256":"`+hex.EncodeToString(sum[:])+`"}]
+    }`)
+
+	_, err := LoadManifest(root)
+	if err == nil || !strings.Contains(err.Error(), "non-regular") {
+		t.Fatalf("LoadManifest() error = %v, want non-regular error", err)
+	}
+}
+
+func TestLoadManifestRejectsUppercaseSHA256(t *testing.T) {
+	root := t.TempDir()
+	data := []byte("{}\n")
+	writeBundleFile(t, root, "meta/users.jsonl", data)
+	sum := sha256.Sum256(data)
+	writeManifest(t, root, `{
+        "format":"wkdb-import-bundle",
+        "version":1,
+        "hash_slot_count":16,
+        "files":[{"path":"meta/users.jsonl","kind":"meta.users","rows":1,"sha256":"`+strings.ToUpper(hex.EncodeToString(sum[:]))+`"}]
+    }`)
+
+	_, err := LoadManifest(root)
+	if err == nil || !strings.Contains(err.Error(), "lowercase") {
+		t.Fatalf("LoadManifest() error = %v, want lowercase sha256 error", err)
+	}
+}
+
 func writeBundleFile(t *testing.T, root, rel string, data []byte) {
 	t.Helper()
 	path := filepath.Join(root, rel)
