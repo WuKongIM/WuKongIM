@@ -62,11 +62,21 @@ type FileEntry struct {
 	SHA256 string `json:"sha256"`
 }
 
-// ImportOptions controls how a verified WKDB import bundle is applied.
-type ImportOptions struct{}
+// ImportOptions controls how a verified WKDB import bundle is validated or applied.
+type ImportOptions struct {
+	// HashSlotCount is the target cluster hash slot count; zero means use the manifest count.
+	HashSlotCount uint16
+}
 
-// ImportStats summarizes the outcome of applying a WKDB import bundle.
-type ImportStats struct{}
+// ImportStats summarizes the outcome of validating or applying a WKDB import bundle.
+type ImportStats struct {
+	// Files is the number of listed bundle data files that were opened.
+	Files int64
+	// RowsValidated is the number of decoded rows that passed semantic validation.
+	RowsValidated int64
+	// BytesRead is the sum of listed data file sizes read during validation.
+	BytesRead int64
+}
 
 // UserRecord represents one imported user metadata row.
 type UserRecord struct {
