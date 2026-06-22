@@ -15,7 +15,7 @@ func TestServerRegistersHostRPCRoutes(t *testing.T) {
 	routes := &recordingRoutes{}
 	_, err := NewServer(Options{Routes: routes, Usecase: &recordingUsecase{}, Timeout: time.Second})
 	require.NoError(t, err)
-	require.ElementsMatch(t, []string{"/plugin/start", "/close", "/message/send", "/channel/messages"}, routes.paths)
+	require.ElementsMatch(t, []string{"/plugin/start", "/close", "/message/send", "/channel/messages", "/cluster/config", "/cluster/channels/belongNode"}, routes.paths)
 }
 
 func TestHandlePluginStartDecodesAndWritesStartupResponse(t *testing.T) {
@@ -188,6 +188,68 @@ func TestHandleChannelMessagesDecodesUsesTimeoutAndWritesResponse(t *testing.T) 
 	require.Equal(t, int64(1001), got.GetChannelMessageResps()[0].GetMessages()[0].GetMessageId())
 }
 
+func TestHandleClusterConfigUsesTimeoutAndWritesResponse(t *testing.T) {
+	usecase := &recordingUsecase{clusterConfigResp: &pluginproto.ClusterConfig{
+		Nodes: []*pluginproto.Node{{
+			Id:            1,
+			ClusterAddr:   "127.0.0.1:7001",
+			ApiServerAddr: "http://127.0.0.1:5001",
+			Online:        true,
+		}},
+		Slots: []*pluginproto.Slot{{
+			Id:       7,
+			Leader:   2,
+			Term:     3,
+			Replicas: []uint64{1, 2, 3},
+		}},
+	}}
+	server, err := NewServer(Options{Usecase: usecase, Timeout: time.Second})
+	require.NoError(t, err)
+	ctx := newTestRPCContext("wk.cluster", nil)
+
+	server.handlePath("/cluster/config", ctx)
+
+	require.NoError(t, ctx.err)
+	require.Equal(t, 1, usecase.clusterConfigCalls)
+	require.Equal(t, "wk.cluster", usecase.clusterConfigCaller)
+	require.True(t, usecase.clusterConfigDeadlineSet)
+	require.WithinDuration(t, time.Now().Add(time.Second), usecase.clusterConfigDeadline, 100*time.Millisecond)
+	var got pluginproto.ClusterConfig
+	require.NoError(t, proto.Unmarshal(ctx.body, &got))
+	require.Len(t, got.GetNodes(), 1)
+	require.Equal(t, uint64(1), got.GetNodes()[0].GetId())
+	require.Len(t, got.GetSlots(), 1)
+	require.Equal(t, uint32(7), got.GetSlots()[0].GetId())
+}
+
+func TestHandleClusterChannelsBelongNodeDecodesUsesTimeoutAndWritesResponse(t *testing.T) {
+	usecase := &recordingUsecase{clusterBelongNodeResp: &pluginproto.ClusterChannelBelongNodeBatchResp{
+		ClusterChannelBelongNodeResps: []*pluginproto.ClusterChannelBelongNodeResp{{
+			NodeId:   2,
+			Channels: []*pluginproto.Channel{{ChannelId: "g1", ChannelType: 2}},
+		}},
+	}}
+	server, err := NewServer(Options{Usecase: usecase, Timeout: time.Second})
+	require.NoError(t, err)
+	ctx := newTestRPCContext("wk.cluster", mustMarshalProto(t, &pluginproto.ClusterChannelBelongNodeReq{
+		Channels: []*pluginproto.Channel{{ChannelId: "g1", ChannelType: 2}},
+	}))
+
+	server.handlePath("/cluster/channels/belongNode", ctx)
+
+	require.NoError(t, ctx.err)
+	require.Equal(t, 1, usecase.clusterBelongNodeCalls)
+	require.Equal(t, "wk.cluster", usecase.clusterBelongNodeCaller)
+	require.Len(t, usecase.clusterBelongNodeReq.GetChannels(), 1)
+	require.Equal(t, "g1", usecase.clusterBelongNodeReq.GetChannels()[0].GetChannelId())
+	require.True(t, usecase.clusterBelongNodeDeadlineSet)
+	require.WithinDuration(t, time.Now().Add(time.Second), usecase.clusterBelongNodeDeadline, 100*time.Millisecond)
+	var got pluginproto.ClusterChannelBelongNodeBatchResp
+	require.NoError(t, proto.Unmarshal(ctx.body, &got))
+	require.Len(t, got.GetClusterChannelBelongNodeResps(), 1)
+	require.Equal(t, uint64(2), got.GetClusterChannelBelongNodeResps()[0].GetNodeId())
+}
+
 func TestMessageHostRPCKeepsShorterIncomingDeadline(t *testing.T) {
 	usecase := &recordingUsecase{sendResp: &pluginproto.SendResp{MessageId: 1}}
 	server, err := NewServer(Options{Usecase: usecase, Timeout: time.Second})
@@ -201,6 +263,47 @@ func TestMessageHostRPCKeepsShorterIncomingDeadline(t *testing.T) {
 	require.NoError(t, ctx.err)
 	require.True(t, usecase.sendDeadlineSet)
 	require.WithinDuration(t, time.Now().Add(200*time.Millisecond), usecase.sendDeadline, 100*time.Millisecond)
+}
+
+func TestClusterHostRPCKeepsShorterIncomingDeadline(t *testing.T) {
+	for _, tc := range []struct {
+		name             string
+		path             string
+		body             []byte
+		deadlineObserved func(*recordingUsecase) (time.Time, bool)
+	}{
+		{
+			name: "cluster config",
+			path: "/cluster/config",
+			deadlineObserved: func(u *recordingUsecase) (time.Time, bool) {
+				return u.clusterConfigDeadline, u.clusterConfigDeadlineSet
+			},
+		},
+		{
+			name: "/cluster/channels/belongNode",
+			path: "/cluster/channels/belongNode",
+			body: mustMarshalProto(t, &pluginproto.ClusterChannelBelongNodeReq{}),
+			deadlineObserved: func(u *recordingUsecase) (time.Time, bool) {
+				return u.clusterBelongNodeDeadline, u.clusterBelongNodeDeadlineSet
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			usecase := &recordingUsecase{clusterConfigResp: &pluginproto.ClusterConfig{}, clusterBelongNodeResp: &pluginproto.ClusterChannelBelongNodeBatchResp{}}
+			server, err := NewServer(Options{Usecase: usecase, Timeout: time.Second})
+			require.NoError(t, err)
+			incoming, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+			defer cancel()
+			ctx := newTimedTestRPCContext(incoming, "wk.cluster", tc.body)
+
+			server.handlePath(tc.path, ctx)
+
+			require.NoError(t, ctx.err)
+			deadline, ok := tc.deadlineObserved(usecase)
+			require.True(t, ok)
+			require.WithinDuration(t, time.Now().Add(200*time.Millisecond), deadline, 100*time.Millisecond)
+		})
+	}
 }
 
 func TestChannelMessagesHostRPCKeepsShorterIncomingDeadline(t *testing.T) {
@@ -250,29 +353,40 @@ func (r *recordingRoutes) Route(path string, _ wkrpc.Handler) {
 }
 
 type recordingUsecase struct {
-	started                    *pluginproto.PluginInfo
-	startCalls                 int
-	startResp                  *pluginproto.StartupResp
-	startDoneSignal            chan struct{}
-	startDeadline              time.Time
-	startDeadlineSet           bool
-	caller                     string
-	closedPluginNo             string
-	closedCaller               string
-	closeCalled                chan struct{}
-	closeErr                   error
-	sendCalls                  int
-	sendReq                    *pluginproto.SendReq
-	sendResp                   *pluginproto.SendResp
-	sendCaller                 string
-	sendDeadline               time.Time
-	sendDeadlineSet            bool
-	channelMessagesCalls       int
-	channelMessagesReq         *pluginproto.ChannelMessageBatchReq
-	channelMessagesResp        *pluginproto.ChannelMessageBatchResp
-	channelMessagesCaller      string
-	channelMessagesDeadline    time.Time
-	channelMessagesDeadlineSet bool
+	started                      *pluginproto.PluginInfo
+	startCalls                   int
+	startResp                    *pluginproto.StartupResp
+	startDoneSignal              chan struct{}
+	startDeadline                time.Time
+	startDeadlineSet             bool
+	caller                       string
+	closedPluginNo               string
+	closedCaller                 string
+	closeCalled                  chan struct{}
+	closeErr                     error
+	sendCalls                    int
+	sendReq                      *pluginproto.SendReq
+	sendResp                     *pluginproto.SendResp
+	sendCaller                   string
+	sendDeadline                 time.Time
+	sendDeadlineSet              bool
+	channelMessagesCalls         int
+	channelMessagesReq           *pluginproto.ChannelMessageBatchReq
+	channelMessagesResp          *pluginproto.ChannelMessageBatchResp
+	channelMessagesCaller        string
+	channelMessagesDeadline      time.Time
+	channelMessagesDeadlineSet   bool
+	clusterConfigCalls           int
+	clusterConfigResp            *pluginproto.ClusterConfig
+	clusterConfigCaller          string
+	clusterConfigDeadline        time.Time
+	clusterConfigDeadlineSet     bool
+	clusterBelongNodeCalls       int
+	clusterBelongNodeReq         *pluginproto.ClusterChannelBelongNodeReq
+	clusterBelongNodeResp        *pluginproto.ClusterChannelBelongNodeBatchResp
+	clusterBelongNodeCaller      string
+	clusterBelongNodeDeadline    time.Time
+	clusterBelongNodeDeadlineSet bool
 }
 
 func (r *recordingUsecase) StartPlugin(ctx context.Context, info *pluginproto.PluginInfo, callerUID string) (*pluginproto.StartupResp, error) {
@@ -337,6 +451,33 @@ func (r *recordingUsecase) ChannelMessages(ctx context.Context, req *pluginproto
 		return r.channelMessagesResp, nil
 	}
 	return &pluginproto.ChannelMessageBatchResp{}, nil
+}
+
+func (r *recordingUsecase) ClusterConfig(ctx context.Context, callerUID string) (*pluginproto.ClusterConfig, error) {
+	r.clusterConfigCalls++
+	r.clusterConfigCaller = callerUID
+	if deadline, ok := ctx.Deadline(); ok {
+		r.clusterConfigDeadline = deadline
+		r.clusterConfigDeadlineSet = true
+	}
+	if r.clusterConfigResp != nil {
+		return r.clusterConfigResp, nil
+	}
+	return &pluginproto.ClusterConfig{}, nil
+}
+
+func (r *recordingUsecase) ClusterChannelsBelongNode(ctx context.Context, req *pluginproto.ClusterChannelBelongNodeReq, callerUID string) (*pluginproto.ClusterChannelBelongNodeBatchResp, error) {
+	r.clusterBelongNodeCalls++
+	r.clusterBelongNodeReq = proto.Clone(req).(*pluginproto.ClusterChannelBelongNodeReq)
+	r.clusterBelongNodeCaller = callerUID
+	if deadline, ok := ctx.Deadline(); ok {
+		r.clusterBelongNodeDeadline = deadline
+		r.clusterBelongNodeDeadlineSet = true
+	}
+	if r.clusterBelongNodeResp != nil {
+		return r.clusterBelongNodeResp, nil
+	}
+	return &pluginproto.ClusterChannelBelongNodeBatchResp{}, nil
 }
 
 type testRPCContext struct {
@@ -429,4 +570,54 @@ func BenchmarkChannelMessagesHostRPCHandler(b *testing.B) {
 			b.Fatal("empty response")
 		}
 	}
+}
+
+func BenchmarkClusterHostRPCHandlers(b *testing.B) {
+	b.Run("config", func(b *testing.B) {
+		usecase := &recordingUsecase{clusterConfigResp: &pluginproto.ClusterConfig{
+			Nodes: []*pluginproto.Node{{Id: 1, ClusterAddr: "127.0.0.1:7001", Online: true}},
+			Slots: []*pluginproto.Slot{{Id: 1, Leader: 1, Term: 1, Replicas: []uint64{1, 2, 3}}},
+		}}
+		server, err := NewServer(Options{Usecase: usecase, Timeout: time.Second})
+		require.NoError(b, err)
+		b.ReportAllocs()
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			ctx := newTestRPCContext("bench.plugin", nil)
+			server.handlePath("/cluster/config", ctx)
+			if ctx.err != nil {
+				b.Fatal(ctx.err)
+			}
+			if len(ctx.body) == 0 {
+				b.Fatal("empty response")
+			}
+		}
+	})
+	b.Run("belong_node", func(b *testing.B) {
+		usecase := &recordingUsecase{clusterBelongNodeResp: &pluginproto.ClusterChannelBelongNodeBatchResp{
+			ClusterChannelBelongNodeResps: []*pluginproto.ClusterChannelBelongNodeResp{{
+				NodeId:   1,
+				Channels: []*pluginproto.Channel{{ChannelId: "g1", ChannelType: 2}},
+			}},
+		}}
+		server, err := NewServer(Options{Usecase: usecase, Timeout: time.Second})
+		require.NoError(b, err)
+		body, err := proto.Marshal(&pluginproto.ClusterChannelBelongNodeReq{
+			Channels: []*pluginproto.Channel{{ChannelId: "g1", ChannelType: 2}},
+		})
+		require.NoError(b, err)
+		b.ReportAllocs()
+		b.SetBytes(int64(len(body)))
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			ctx := newTestRPCContext("bench.plugin", body)
+			server.handlePath("/cluster/channels/belongNode", ctx)
+			if ctx.err != nil {
+				b.Fatal(ctx.err)
+			}
+			if len(ctx.body) == 0 {
+				b.Fatal("empty response")
+			}
+		}
+	})
 }

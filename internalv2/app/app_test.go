@@ -4712,6 +4712,7 @@ type fakeManagerCluster struct {
 
 	conversationPages     map[string][]metadb.ConversationState
 	conversationMessages  map[metadb.ConversationKey][]channelv2.Message
+	channelOwnerMetas     map[channelv2.ChannelID]channelv2.Meta
 	registeredHandlers    map[uint8]clusterv2.NodeRPCHandler
 	controllerLogs        clusterv2.ControllerLogEntries
 	slotLogs              clusterv2.SlotLogEntries
@@ -5017,6 +5018,13 @@ func (f *fakeManagerCluster) ReadChannelCommitted(_ context.Context, channelID c
 		messages = messages[:req.Limit]
 	}
 	return channelstore.ReadCommittedResult{Messages: messages}, nil
+}
+
+func (f *fakeManagerCluster) ResolveChannelAppendAuthority(_ context.Context, id channelv2.ChannelID) (channelv2.Meta, error) {
+	if f.channelOwnerMetas == nil {
+		return channelv2.Meta{}, nil
+	}
+	return f.channelOwnerMetas[id], nil
 }
 
 var _ clusterinfra.ChannelRuntimeBenchNode = (*fakeRuntimeBenchCluster)(nil)

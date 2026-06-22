@@ -26,6 +26,14 @@ var (
 	ErrDefaultSenderUIDRequired = errors.New("plugin default sender uid required")
 	// ErrMessageReaderRequired reports that host channel/messages needs the message reader port.
 	ErrMessageReaderRequired = errors.New("plugin message reader required")
+	// ErrClusterReaderRequired reports that host cluster/config needs the cluster reader port.
+	ErrClusterReaderRequired = errors.New("plugin cluster reader required")
+	// ErrChannelOwnerReaderRequired reports that host belong-node lookup needs the channel owner reader port.
+	ErrChannelOwnerReaderRequired = errors.New("plugin channel owner reader required")
+	// ErrChannelRequired reports that a host RPC omitted a required channel.
+	ErrChannelRequired = errors.New("plugin channel required")
+	// ErrChannelOwnerUnknown reports that a channel owner could not be determined authoritatively.
+	ErrChannelOwnerUnknown = errors.New("plugin channel owner unknown")
 )
 
 // Method identifies a plugin hook advertised by a plugin manifest.
@@ -101,6 +109,49 @@ type MessageReader interface {
 	SyncMessages(context.Context, message.ChannelMessageQuery) (message.ChannelMessagePage, error)
 }
 
+// ClusterSnapshot is the authoritative cluster view exposed to legacy plugins.
+type ClusterSnapshot struct {
+	// Nodes contains cluster node metadata.
+	Nodes []ClusterNode
+	// Slots contains physical Slot placement and runtime leadership metadata.
+	Slots []ClusterSlot
+}
+
+// ClusterNode is one node in a plugin-compatible cluster snapshot.
+type ClusterNode struct {
+	// ID is the stable cluster node identifier.
+	ID uint64
+	// ClusterAddr is the node-to-node cluster RPC address.
+	ClusterAddr string
+	// APIServerAddr is the node API address when an adapter can provide it.
+	APIServerAddr string
+	// Online reports whether the controller currently considers the node alive.
+	Online bool
+}
+
+// ClusterSlot is one physical Slot in a plugin-compatible cluster snapshot.
+type ClusterSlot struct {
+	// ID is the physical Slot identifier.
+	ID uint32
+	// Leader is the currently observed or preferred Slot leader. Zero means unknown.
+	Leader uint64
+	// Term is the observed or desired leader term when available.
+	Term uint32
+	// Replicas is the desired replica set for the Slot.
+	Replicas []uint64
+}
+
+// ClusterReader exposes the authoritative cluster snapshot needed by legacy host RPCs.
+type ClusterReader interface {
+	ClusterSnapshot(context.Context) (ClusterSnapshot, error)
+}
+
+// ChannelOwnerReader resolves authoritative channel ownership for host RPC routing.
+type ChannelOwnerReader interface {
+	// ChannelOwnerNode returns the node that owns the channel.
+	ChannelOwnerNode(context.Context, message.ChannelID) (uint64, error)
+}
+
 // Observer records low-cardinality synchronous plugin hook events.
 type Observer interface {
 	ObserveSendInvoke(result string, d time.Duration)
@@ -116,6 +167,10 @@ type Options struct {
 	DefaultSenderUID string
 	// MessageReader reads authoritative channel message pages for plugin host RPCs.
 	MessageReader MessageReader
+	// ClusterReader reads authoritative cluster state for plugin host RPCs.
+	ClusterReader ClusterReader
+	// ChannelOwners resolves authoritative channel owner nodes for plugin host RPCs.
+	ChannelOwners ChannelOwnerReader
 	// FailOpen lets synchronous Send hook infrastructure failures preserve the original send.
 	FailOpen bool
 	Observer Observer
@@ -128,6 +183,8 @@ type App struct {
 	invoker          Invoker
 	messages         MessageSender
 	messageReader    MessageReader
+	clusterReader    ClusterReader
+	channelOwners    ChannelOwnerReader
 	defaultSenderUID string
 	failOpen         bool
 	observer         Observer

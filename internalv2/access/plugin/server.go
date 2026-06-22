@@ -42,6 +42,8 @@ type Usecase interface {
 	ClosePlugin(context.Context, string, string) error
 	SendMessage(context.Context, *pluginproto.SendReq, string) (*pluginproto.SendResp, error)
 	ChannelMessages(context.Context, *pluginproto.ChannelMessageBatchReq, string) (*pluginproto.ChannelMessageBatchResp, error)
+	ClusterConfig(context.Context, string) (*pluginproto.ClusterConfig, error)
+	ClusterChannelsBelongNode(context.Context, *pluginproto.ClusterChannelBelongNodeReq, string) (*pluginproto.ClusterChannelBelongNodeBatchResp, error)
 }
 
 // Server adapts plugin-origin lifecycle wkrpc host RPCs to the v2 plugin usecase.
@@ -103,7 +105,7 @@ func (h registeredRouteHandler) handle(c rpcContext) {
 	h.server.handlePath(h.path, c)
 }
 
-var routePaths = []string{"/plugin/start", "/close", "/message/send", "/channel/messages"}
+var routePaths = []string{"/plugin/start", "/close", "/message/send", "/channel/messages", "/cluster/config", "/cluster/channels/belongNode"}
 
 func (s *Server) handlePath(path string, c rpcContext) {
 	switch path {
@@ -115,6 +117,10 @@ func (s *Server) handlePath(path string, c rpcContext) {
 		s.handleSendMessage(c)
 	case "/channel/messages":
 		s.handleChannelMessages(c)
+	case "/cluster/config":
+		s.handleClusterConfig(c)
+	case "/cluster/channels/belongNode":
+		s.handleClusterChannelsBelongNode(c)
 	default:
 		c.WriteErr(errors.New("plugin host rpc route not registered"))
 	}

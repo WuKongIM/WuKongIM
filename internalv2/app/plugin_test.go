@@ -14,6 +14,7 @@ import (
 	pluginusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/plugin"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
+	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/stretchr/testify/require"
 )
@@ -120,6 +121,59 @@ func TestNewWiresPluginUsecaseAsChannelMessageReader(t *testing.T) {
 	require.Len(t, msgs, 1)
 	require.Equal(t, int64(321), msgs[0].GetMessageId())
 	require.Equal(t, []byte("stored"), msgs[0].GetPayload())
+}
+
+func TestNewWiresPluginUsecaseAsClusterReader(t *testing.T) {
+	cluster := &fakeManagerCluster{
+		nodeID: 1,
+		snapshot: control.Snapshot{
+			Nodes: []control.Node{{NodeID: 1, Addr: "127.0.0.1:7001", Status: control.NodeAlive}},
+			Slots: []control.SlotAssignment{{SlotID: 7, DesiredPeers: []uint64{1, 2}, ConfigEpoch: 3, PreferredLeader: 2}},
+		},
+	}
+	app, err := newTestApp(t, Config{
+		DataDir: t.TempDir(),
+		Cluster: clusterv2.Config{NodeID: 1},
+		Plugin:  PluginConfig{Enable: true, HotReload: false},
+	}, WithCluster(cluster), WithGateway(nil))
+	require.NoError(t, err)
+
+	resp, err := app.plugins.ClusterConfig(context.Background(), "wk.cluster")
+
+	require.NoError(t, err)
+	require.Len(t, resp.GetNodes(), 1)
+	require.Equal(t, uint64(1), resp.GetNodes()[0].GetId())
+	require.Equal(t, "127.0.0.1:7001", resp.GetNodes()[0].GetClusterAddr())
+	require.True(t, resp.GetNodes()[0].GetOnline())
+	require.Len(t, resp.GetSlots(), 1)
+	require.Equal(t, uint32(7), resp.GetSlots()[0].GetId())
+	require.Equal(t, uint64(2), resp.GetSlots()[0].GetLeader())
+}
+
+func TestNewWiresPluginUsecaseAsChannelOwnerReader(t *testing.T) {
+	cluster := &fakeManagerCluster{
+		nodeID: 1,
+		channelOwnerMetas: map[channelv2.ChannelID]channelv2.Meta{
+			{ID: "g1", Type: 2}: {
+				ID:     channelv2.ChannelID{ID: "g1", Type: 2},
+				Leader: 3,
+			},
+		},
+	}
+	app, err := newTestApp(t, Config{
+		DataDir: t.TempDir(),
+		Cluster: clusterv2.Config{NodeID: 1},
+		Plugin:  PluginConfig{Enable: true, HotReload: false},
+	}, WithCluster(cluster), WithGateway(nil))
+	require.NoError(t, err)
+
+	resp, err := app.plugins.ClusterChannelsBelongNode(context.Background(), &pluginproto.ClusterChannelBelongNodeReq{
+		Channels: []*pluginproto.Channel{{ChannelId: "g1", ChannelType: 2}},
+	}, "wk.cluster")
+
+	require.NoError(t, err)
+	require.Len(t, resp.GetClusterChannelBelongNodeResps(), 1)
+	require.Equal(t, uint64(3), resp.GetClusterChannelBelongNodeResps()[0].GetNodeId())
 }
 
 func TestNewPassesPluginFailOpenToPluginUsecase(t *testing.T) {

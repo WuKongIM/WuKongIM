@@ -24,6 +24,8 @@ func NewApp(opts Options) (*App, error) {
 		invoker:          opts.Invoker,
 		messages:         opts.Messages,
 		messageReader:    opts.MessageReader,
+		clusterReader:    opts.ClusterReader,
+		channelOwners:    opts.ChannelOwners,
 		defaultSenderUID: strings.TrimSpace(opts.DefaultSenderUID),
 		failOpen:         opts.FailOpen,
 		observer:         opts.Observer,

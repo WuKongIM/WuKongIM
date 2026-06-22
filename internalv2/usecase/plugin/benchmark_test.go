@@ -102,6 +102,51 @@ func BenchmarkChannelMessagesFromPluginReq(b *testing.B) {
 	}
 }
 
+func BenchmarkClusterConfigFromSnapshot(b *testing.B) {
+	app, err := NewApp(Options{
+		Runtime:       &recordingRuntime{},
+		Invoker:       &recordingInvoker{},
+		ClusterReader: benchmarkClusterReader{snapshot: benchmarkClusterSnapshot(3, 256)},
+	})
+	require.NoError(b, err)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		resp, err := app.ClusterConfig(context.Background(), "bench.plugin")
+		if err != nil {
+			b.Fatal(err)
+		}
+		if len(resp.GetSlots()) != 256 {
+			b.Fatal("invalid slot count")
+		}
+	}
+}
+
+func BenchmarkClusterChannelsBelongNode(b *testing.B) {
+	for _, count := range []int{1, 16, 128} {
+		b.Run(fmt.Sprintf("items_%d", count), func(b *testing.B) {
+			app, err := NewApp(Options{
+				Runtime:       &recordingRuntime{},
+				Invoker:       &recordingInvoker{},
+				ChannelOwners: benchmarkChannelOwnerReader{},
+			})
+			require.NoError(b, err)
+			req := benchmarkClusterBelongNodeReq(count)
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				resp, err := app.ClusterChannelsBelongNode(context.Background(), req, "bench.plugin")
+				if err != nil {
+					b.Fatal(err)
+				}
+				if len(resp.GetClusterChannelBelongNodeResps()) == 0 {
+					b.Fatal("empty response")
+				}
+			}
+		})
+	}
+}
+
 func BenchmarkPersistAfterCandidates(b *testing.B) {
 	for _, count := range []int{1, 16, 128, 1024} {
 		b.Run(fmt.Sprintf("plugins_%d", count), func(b *testing.B) {
@@ -150,6 +195,54 @@ func (benchmarkChannelMessageReader) SyncMessages(context.Context, message.Chann
 		ChannelType: 2,
 		Payload:     []byte("payload"),
 	}}}, nil
+}
+
+type benchmarkClusterReader struct {
+	snapshot ClusterSnapshot
+}
+
+func (r benchmarkClusterReader) ClusterSnapshot(context.Context) (ClusterSnapshot, error) {
+	return r.snapshot, nil
+}
+
+func benchmarkClusterSnapshot(nodes int, slots int) ClusterSnapshot {
+	snapshot := ClusterSnapshot{
+		Nodes: make([]ClusterNode, 0, nodes),
+		Slots: make([]ClusterSlot, 0, slots),
+	}
+	for i := 1; i <= nodes; i++ {
+		snapshot.Nodes = append(snapshot.Nodes, ClusterNode{
+			ID:          uint64(i),
+			ClusterAddr: fmt.Sprintf("127.0.0.1:%d", 7000+i),
+			Online:      true,
+		})
+	}
+	for i := 1; i <= slots; i++ {
+		snapshot.Slots = append(snapshot.Slots, ClusterSlot{
+			ID:       uint32(i),
+			Leader:   uint64((i % nodes) + 1),
+			Term:     uint32(i),
+			Replicas: []uint64{1, 2, 3},
+		})
+	}
+	return snapshot
+}
+
+type benchmarkChannelOwnerReader struct{}
+
+func (benchmarkChannelOwnerReader) ChannelOwnerNode(_ context.Context, id message.ChannelID) (uint64, error) {
+	return uint64(id.Type%3) + 1, nil
+}
+
+func benchmarkClusterBelongNodeReq(count int) *pluginproto.ClusterChannelBelongNodeReq {
+	req := &pluginproto.ClusterChannelBelongNodeReq{Channels: make([]*pluginproto.Channel, 0, count)}
+	for i := 0; i < count; i++ {
+		req.Channels = append(req.Channels, &pluginproto.Channel{
+			ChannelId:   fmt.Sprintf("room-%d", i),
+			ChannelType: uint32((i % 3) + 1),
+		})
+	}
+	return req
 }
 
 func BenchmarkListPlugins(b *testing.B) {

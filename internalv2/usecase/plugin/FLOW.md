@@ -72,6 +72,32 @@ plugin /channel/messages host RPC
 login UID person-channel normalization because the legacy plugin RPC carries the
 explicit channel id and channel type to read.
 
+## Host RPC Cluster Flow
+
+```text
+plugin /cluster/config host RPC
+  -> access/plugin applies body limit and host RPC timeout
+  -> App.ClusterConfig
+  -> ClusterReader.ClusterSnapshot
+  -> map nodes and physical Slots to pluginproto.ClusterConfig
+       sort nodes by node id
+       sort Slots by physical Slot id
+       clone Slot replica lists
+       do not infer API server addresses
+
+plugin /cluster/channels/belongNode host RPC
+  -> access/plugin decodes pluginproto.ClusterChannelBelongNodeReq and applies timeout
+  -> App.ClusterChannelsBelongNode
+  -> validate non-empty channel ids
+  -> ChannelOwnerReader.ChannelOwnerNode for each request item
+  -> reject zero or unknown owners instead of guessing local ownership
+  -> group responses by owner node id, preserving request order within each group
+```
+
+Cluster host RPCs are read-only compatibility surfaces. They use authoritative
+control/authority adapters supplied by the app composition root and do not
+depend directly on clusterv2 from the plugin usecase.
+
 ## PersistAfter Flow
 
 ```text
