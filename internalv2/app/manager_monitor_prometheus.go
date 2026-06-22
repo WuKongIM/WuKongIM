@@ -37,6 +37,8 @@ type managerPrometheusMonitorOptions struct {
 	Client *http.Client
 	// Now returns the current time for deterministic tests.
 	Now func() time.Time
+	// Control reads bounded manager control snapshots for current cluster health values.
+	Control managerClusterControlReader
 }
 
 type managerPrometheusMonitorProvider struct {
@@ -47,6 +49,7 @@ type managerPrometheusMonitorProvider struct {
 
 type monitorMetricDefinition struct {
 	key               string
+	category          string
 	stage             string
 	tone              string
 	unit              string
@@ -88,20 +91,24 @@ func (p *managerPrometheusMonitorProvider) RealtimeMonitor(ctx context.Context, 
 	}
 
 	started := time.Now()
-	defs := managerMonitorMetricDefinitions()
-	cards := make([]accessmanager.RealtimeMonitorCard, 0, len(defs))
+	businessDefs := filterMonitorMetricDefinitions(managerMonitorMetricDefinitions(), query.Category)
+	clusterDefs := filterClusterMonitorMetricDefinitions(managerClusterMonitorMetricDefinitions(), query.Category)
+	totalDefs := len(businessDefs) + len(clusterDefs)
+	cards := make([]accessmanager.RealtimeMonitorCard, 0, totalDefs)
 	rateWindow := managerMonitorRateWindow(query.Window, query.Step)
 	end := now
 	start := end.Add(-query.Window)
 	var firstErr error
 	var available int
 
-	for _, def := range defs {
+	for _, def := range businessDefs {
 		promQL := prometheusFilterNodeID(def.query(rateWindow), query.NodeID)
 		series, err := p.queryRange(ctx, promQL, start, end, query.Step)
 		card := accessmanager.RealtimeMonitorCard{
 			Key:       def.key,
+			Category:  def.category,
 			Stage:     def.stage,
+			Source:    accessmanager.RealtimeMonitorSourcePrometheus,
 			Tone:      def.tone,
 			Unit:      def.unit,
 			Series:    series,
@@ -126,6 +133,18 @@ func (p *managerPrometheusMonitorProvider) RealtimeMonitor(ctx context.Context, 
 		}
 		cards = append(cards, card)
 	}
+	clusterCards, clusterAvailable, clusterErr := p.clusterCards(ctx, clusterDefs, rateWindow, start, end, query.Step, query.NodeID)
+	cards = append(cards, clusterCards...)
+	available += clusterAvailable
+	if firstErr == nil && clusterErr != nil {
+		firstErr = clusterErr
+	}
+
+	controlSnapshot := managerClusterControlSnapshot{}
+	controlSource := accessmanager.RealtimeMonitorSource{Enabled: false}
+	if realtimeMonitorCategoryUsesControlSnapshot(query.Category) {
+		controlSnapshot, controlSource = p.controlSnapshot(ctx, query.NodeID)
+	}
 
 	status := accessmanager.RealtimeMonitorStatusReady
 	sourceErr := ""
@@ -136,11 +155,14 @@ func (p *managerPrometheusMonitorProvider) RealtimeMonitor(ctx context.Context, 
 		} else {
 			sourceErr = "prometheus returned no monitor series"
 		}
-	} else if available < len(defs) {
+	} else if available < totalDefs {
 		status = accessmanager.RealtimeMonitorStatusPartial
 		if firstErr != nil {
 			sourceErr = firstErr.Error()
 		}
+	}
+	if realtimeMonitorCategoryUsesControlSnapshot(query.Category) && !controlSource.Enabled && status == accessmanager.RealtimeMonitorStatusReady {
+		status = accessmanager.RealtimeMonitorStatusPartial
 	}
 
 	return accessmanager.RealtimeMonitorResponse{
@@ -156,9 +178,11 @@ func (p *managerPrometheusMonitorProvider) RealtimeMonitor(ctx context.Context, 
 				QueryMS: time.Since(started).Milliseconds(),
 				Error:   sourceErr,
 			},
+			ControlSnapshot: controlSource,
 		},
-		Snapshot: monitorSnapshotFromCards(cards),
-		Cards:    cards,
+		Categories: realtimeMonitorCategories(),
+		Snapshot:   realtimeMonitorSnapshot(cards, controlSnapshot),
+		Cards:      cards,
 	}, nil
 }
 
@@ -175,30 +199,93 @@ func (p *managerPrometheusMonitorProvider) monitorDisabledResponse(query accessm
 				BaseURL: strings.TrimRight(strings.TrimSpace(p.options.BaseURL), "/"),
 				Error:   "prometheus is disabled; set WK_METRICS_ENABLE=true and WK_PROMETHEUS_ENABLE=true",
 			},
+			ControlSnapshot: accessmanager.RealtimeMonitorSource{Enabled: false},
 		},
-		Snapshot: []accessmanager.RealtimeMonitorSnapshotEntry{},
-		Cards:    []accessmanager.RealtimeMonitorCard{},
+		Categories: realtimeMonitorCategories(),
+		Snapshot:   []accessmanager.RealtimeMonitorSnapshotEntry{},
+		Cards:      []accessmanager.RealtimeMonitorCard{},
 	}
 }
 
 func (p *managerPrometheusMonitorProvider) monitorScope(queryNodeID uint64) accessmanager.RealtimeMonitorScope {
-	scope := accessmanager.RealtimeMonitorScope{View: accessmanager.RealtimeMonitorScopePrometheus}
+	scope := accessmanager.RealtimeMonitorScope{View: accessmanager.RealtimeMonitorScopeUnified}
 	if queryNodeID != 0 {
 		scope.NodeID = queryNodeID
-		if p != nil && p.options.NodeID == queryNodeID {
-			scope.NodeName = strings.TrimSpace(p.options.NodeName)
-		}
 		return scope
 	}
 	if p != nil {
 		scope.NodeID = p.options.NodeID
-		scope.NodeName = strings.TrimSpace(p.options.NodeName)
 	}
 	return scope
 }
 
 func (p *managerPrometheusMonitorProvider) queryRange(ctx context.Context, promQL string, start, end time.Time, step time.Duration) ([]accessmanager.RealtimeMonitorPoint, error) {
 	return managerMonitorQueryRange(ctx, p.client, p.options.BaseURL, promQL, start, end, step)
+}
+
+func filterMonitorMetricDefinitions(defs []monitorMetricDefinition, category string) []monitorMetricDefinition {
+	if category == "" || category == accessmanager.RealtimeMonitorCategoryAll {
+		return defs
+	}
+	out := make([]monitorMetricDefinition, 0, len(defs))
+	for _, def := range defs {
+		if def.category == category {
+			out = append(out, def)
+		}
+	}
+	return out
+}
+
+func filterClusterMonitorMetricDefinitions(defs []clusterMonitorMetricDefinition, category string) []clusterMonitorMetricDefinition {
+	if category == "" || category == accessmanager.RealtimeMonitorCategoryAll {
+		return defs
+	}
+	out := make([]clusterMonitorMetricDefinition, 0, len(defs))
+	for _, def := range defs {
+		if def.category == category {
+			out = append(out, def)
+		}
+	}
+	return out
+}
+
+func realtimeMonitorCategories() []accessmanager.RealtimeMonitorCategory {
+	counts := map[string]int{}
+	total := 0
+	for _, def := range managerMonitorMetricDefinitions() {
+		counts[def.category]++
+		total++
+	}
+	for _, def := range managerClusterMonitorMetricDefinitions() {
+		counts[def.category]++
+		total++
+	}
+	return []accessmanager.RealtimeMonitorCategory{
+		{Key: accessmanager.RealtimeMonitorCategoryAll, Count: total},
+		{Key: accessmanager.RealtimeMonitorCategoryGateway, Count: counts[accessmanager.RealtimeMonitorCategoryGateway]},
+		{Key: accessmanager.RealtimeMonitorCategoryInternal, Count: counts[accessmanager.RealtimeMonitorCategoryInternal]},
+		{Key: accessmanager.RealtimeMonitorCategoryMessage, Count: counts[accessmanager.RealtimeMonitorCategoryMessage]},
+		{Key: accessmanager.RealtimeMonitorCategoryConversation, Count: counts[accessmanager.RealtimeMonitorCategoryConversation]},
+		{Key: accessmanager.RealtimeMonitorCategoryChannel, Count: counts[accessmanager.RealtimeMonitorCategoryChannel]},
+		{Key: accessmanager.RealtimeMonitorCategoryControl, Count: counts[accessmanager.RealtimeMonitorCategoryControl]},
+		{Key: accessmanager.RealtimeMonitorCategorySlot, Count: counts[accessmanager.RealtimeMonitorCategorySlot]},
+		{Key: accessmanager.RealtimeMonitorCategoryNode, Count: counts[accessmanager.RealtimeMonitorCategoryNode]},
+	}
+}
+
+func realtimeMonitorCategoryUsesControlSnapshot(category string) bool {
+	switch category {
+	case "", accessmanager.RealtimeMonitorCategoryAll, accessmanager.RealtimeMonitorCategoryControl, accessmanager.RealtimeMonitorCategorySlot:
+		return true
+	default:
+		return false
+	}
+}
+
+func realtimeMonitorSnapshot(cards []accessmanager.RealtimeMonitorCard, control managerClusterControlSnapshot) []accessmanager.RealtimeMonitorSnapshotEntry {
+	out := monitorSnapshotFromCards(cards)
+	out = append(out, clusterMonitorSnapshot(cards, control)...)
+	return out
 }
 
 func managerMonitorQueryRange(ctx context.Context, client *http.Client, baseURL, promQL string, start, end time.Time, step time.Duration) ([]accessmanager.RealtimeMonitorPoint, error) {
@@ -282,7 +369,7 @@ func prometheusSelectorHasLabel(labels string, name string) bool {
 }
 
 func managerMonitorMetricDefinitions() []monitorMetricDefinition {
-	return []monitorMetricDefinition{
+	return withMonitorCategories([]monitorMetricDefinition{
 		{
 			key:   "sendRate",
 			stage: accessmanager.RealtimeMonitorStageSendEntry,
@@ -563,6 +650,32 @@ func managerMonitorMetricDefinitions() []monitorMetricDefinition {
 				return prometheusZeroFallback("sum(wukongim_gateway_connections_active)")
 			},
 		},
+	})
+}
+
+func withMonitorCategories(defs []monitorMetricDefinition) []monitorMetricDefinition {
+	for i := range defs {
+		if defs[i].category != "" {
+			continue
+		}
+		defs[i].category = realtimeMonitorCategoryForStage(defs[i].stage)
+	}
+	return defs
+}
+
+func realtimeMonitorCategoryForStage(stage string) string {
+	switch stage {
+	case accessmanager.RealtimeMonitorStageSendEntry:
+		return accessmanager.RealtimeMonitorCategoryGateway
+	case accessmanager.RealtimeMonitorStageConversationSync:
+		return accessmanager.RealtimeMonitorCategoryConversation
+	case accessmanager.RealtimeMonitorStageAppendCommit,
+		accessmanager.RealtimeMonitorStageOnlineDelivery,
+		accessmanager.RealtimeMonitorStageOfflineRetry,
+		accessmanager.RealtimeMonitorStageErrorClosure:
+		return accessmanager.RealtimeMonitorCategoryMessage
+	default:
+		return accessmanager.RealtimeMonitorCategoryMessage
 	}
 }
 

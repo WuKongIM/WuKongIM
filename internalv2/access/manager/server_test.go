@@ -574,7 +574,7 @@ func TestManagerRuntimeWorkqueuesRequiresNodeReadPermission(t *testing.T) {
 	}
 }
 
-func TestManagerRealtimeMonitorReturnsPrometheusPayload(t *testing.T) {
+func TestManagerRealtimeMonitorReturnsUnifiedPayload(t *testing.T) {
 	generatedAt := time.Date(2026, 6, 18, 10, 0, 0, 0, time.UTC)
 	provider := &managerMonitorStub{response: RealtimeMonitorResponse{
 		Status:        RealtimeMonitorStatusReady,
@@ -582,9 +582,8 @@ func TestManagerRealtimeMonitorReturnsPrometheusPayload(t *testing.T) {
 		WindowSeconds: 900,
 		StepSeconds:   20,
 		Scope: RealtimeMonitorScope{
-			View:     RealtimeMonitorScopePrometheus,
-			NodeID:   1,
-			NodeName: "node-1",
+			View:   RealtimeMonitorScopeUnified,
+			NodeID: 1,
 		},
 		Sources: RealtimeMonitorSources{
 			Prometheus: RealtimeMonitorPrometheusSource{
@@ -592,17 +591,27 @@ func TestManagerRealtimeMonitorReturnsPrometheusPayload(t *testing.T) {
 				BaseURL: "http://127.0.0.1:9090",
 				QueryMS: 18,
 			},
+			ControlSnapshot: RealtimeMonitorSource{
+				Enabled: true,
+				QueryMS: 1,
+			},
 		},
-		Snapshot: []RealtimeMonitorSnapshotEntry{{
-			Key:       "send",
-			MetricKey: "sendRate",
-			Value:     12.5,
-			Unit:      "msg/s",
-			Tone:      RealtimeMonitorToneNormal,
+		Categories: []RealtimeMonitorCategory{{
+			Key:   RealtimeMonitorCategoryAll,
+			Count: 2,
+		}, {
+			Key:   RealtimeMonitorCategoryGateway,
+			Count: 1,
+		}, {
+			Key:   RealtimeMonitorCategoryInternal,
+			Count: 1,
 		}},
+		Snapshot: []RealtimeMonitorSnapshotEntry{},
 		Cards: []RealtimeMonitorCard{{
 			Key:       "sendRate",
+			Category:  RealtimeMonitorCategoryGateway,
 			Stage:     RealtimeMonitorStageSendEntry,
+			Source:    RealtimeMonitorSourcePrometheus,
 			Tone:      RealtimeMonitorToneNormal,
 			Unit:      "msg/s",
 			Value:     12.5,
@@ -615,12 +624,26 @@ func TestManagerRealtimeMonitorReturnsPrometheusPayload(t *testing.T) {
 				Key:   "avg",
 				Value: 12.5,
 			}},
+		}, {
+			Key:       "rpcSuccessRate",
+			Category:  RealtimeMonitorCategoryInternal,
+			Stage:     RealtimeMonitorStageInternalNetwork,
+			Source:    RealtimeMonitorSourcePrometheus,
+			Tone:      RealtimeMonitorToneNormal,
+			Unit:      "%",
+			Value:     99.96,
+			Available: true,
+			Series: []RealtimeMonitorPoint{{
+				Timestamp: 1781767200000,
+				Value:     99.96,
+			}},
+			Stats: []RealtimeMonitorStat{},
 		}},
 	}}
-	srv := New(Options{Monitor: provider})
+	srv := New(Options{RealtimeMonitor: provider})
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/monitor/realtime?window=15m&step=20s", nil)
+	req := httptest.NewRequest(http.MethodGet, "/manager/realtime-monitor?window=15m&step=20s&category=internal", nil)
 
 	srv.Engine().ServeHTTP(rec, req)
 
@@ -630,15 +653,29 @@ func TestManagerRealtimeMonitorReturnsPrometheusPayload(t *testing.T) {
 	if provider.query.Window != 15*time.Minute || provider.query.Step != 20*time.Second {
 		t.Fatalf("provider query = %#v, want 15m/20s", provider.query)
 	}
+	if provider.query.Category != RealtimeMonitorCategoryInternal {
+		t.Fatalf("provider query category = %q, want %q", provider.query.Category, RealtimeMonitorCategoryInternal)
+	}
 	if !jsonEqual(rec.Body.String(), `{
 		"status":"ready",
 		"generated_at":"2026-06-18T10:00:00Z",
 		"window_seconds":900,
 		"step_seconds":20,
-		"scope":{"view":"prometheus","node_id":1,"node_name":"node-1"},
-		"sources":{"prometheus":{"enabled":true,"base_url":"http://127.0.0.1:9090","query_ms":18,"error":""}},
-		"snapshot":[{"key":"send","metric_key":"sendRate","value":12.5,"unit":"msg/s","tone":"normal"}],
-		"cards":[{"key":"sendRate","stage":"sendEntry","tone":"normal","unit":"msg/s","value":12.5,"series":[{"timestamp":1781767200000,"value":12.5}],"stats":[{"key":"avg","value":12.5}],"available":true,"error":""}]
+		"scope":{"view":"realtime_monitor","node_id":1},
+		"sources":{
+			"prometheus":{"enabled":true,"base_url":"http://127.0.0.1:9090","query_ms":18,"error":""},
+			"control_snapshot":{"enabled":true,"query_ms":1,"error":""}
+		},
+		"categories":[
+			{"key":"all","count":2},
+			{"key":"gateway","count":1},
+			{"key":"internal","count":1}
+		],
+		"snapshot":[],
+		"cards":[
+			{"key":"sendRate","category":"gateway","stage":"sendEntry","source":"prometheus","tone":"normal","unit":"msg/s","value":12.5,"series":[{"timestamp":1781767200000,"value":12.5}],"stats":[{"key":"avg","value":12.5}],"available":true,"error":""},
+			{"key":"rpcSuccessRate","category":"internal","stage":"internalNetwork","source":"prometheus","tone":"normal","unit":"%","value":99.96,"series":[{"timestamp":1781767200000,"value":99.96}],"stats":[],"available":true,"error":""}
+		]
 	}`) {
 		t.Fatalf("body = %s", rec.Body.String())
 	}
@@ -650,14 +687,14 @@ func TestManagerRealtimeMonitorParsesNodeID(t *testing.T) {
 		GeneratedAt:   time.Date(2026, 6, 18, 10, 0, 0, 0, time.UTC),
 		WindowSeconds: 900,
 		StepSeconds:   20,
-		Scope:         RealtimeMonitorScope{View: RealtimeMonitorScopePrometheus, NodeID: 2},
+		Scope:         RealtimeMonitorScope{View: RealtimeMonitorScopeUnified, NodeID: 2},
 		Snapshot:      []RealtimeMonitorSnapshotEntry{},
 		Cards:         []RealtimeMonitorCard{},
 	}}
-	srv := New(Options{Monitor: provider})
+	srv := New(Options{RealtimeMonitor: provider})
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/monitor/realtime?window=15m&node_id=2", nil)
+	req := httptest.NewRequest(http.MethodGet, "/manager/realtime-monitor?window=15m&node_id=2", nil)
 
 	srv.Engine().ServeHTTP(rec, req)
 
@@ -675,16 +712,17 @@ func TestManagerRealtimeMonitorRejectsInvalidQuery(t *testing.T) {
 		url  string
 		want string
 	}{
-		{name: "invalid window", url: "/manager/monitor/realtime?window=soon", want: "window invalid"},
-		{name: "unsupported window", url: "/manager/monitor/realtime?window=2h", want: "window invalid"},
-		{name: "invalid step", url: "/manager/monitor/realtime?step=soon", want: "step invalid"},
-		{name: "too small step", url: "/manager/monitor/realtime?step=1s", want: "step invalid"},
-		{name: "invalid node id", url: "/manager/monitor/realtime?node_id=bad", want: "invalid node_id"},
-		{name: "zero node id", url: "/manager/monitor/realtime?node_id=0", want: "invalid node_id"},
+		{name: "invalid window", url: "/manager/realtime-monitor?window=soon", want: "window invalid"},
+		{name: "unsupported window", url: "/manager/realtime-monitor?window=2h", want: "window invalid"},
+		{name: "invalid step", url: "/manager/realtime-monitor?step=soon", want: "step invalid"},
+		{name: "too small step", url: "/manager/realtime-monitor?step=1s", want: "step invalid"},
+		{name: "invalid node id", url: "/manager/realtime-monitor?node_id=bad", want: "invalid node_id"},
+		{name: "zero node id", url: "/manager/realtime-monitor?node_id=0", want: "invalid node_id"},
+		{name: "invalid category", url: "/manager/realtime-monitor?category=business", want: "category invalid"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			srv := New(Options{Monitor: &managerMonitorStub{}})
+			srv := New(Options{RealtimeMonitor: &managerMonitorStub{}})
 
 			rec := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodGet, tt.url, nil)
@@ -711,11 +749,11 @@ func TestManagerRealtimeMonitorRequiresNodeReadPermission(t *testing.T) {
 				Actions:  []string{"r"},
 			}},
 		}}),
-		Monitor: &managerMonitorStub{},
+		RealtimeMonitor: &managerMonitorStub{},
 	})
 
 	denied := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/monitor/realtime", nil)
+	req := httptest.NewRequest(http.MethodGet, "/manager/realtime-monitor", nil)
 	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "viewer"))
 	srv.Engine().ServeHTTP(denied, req)
 	if denied.Code != http.StatusForbidden {
@@ -723,152 +761,10 @@ func TestManagerRealtimeMonitorRequiresNodeReadPermission(t *testing.T) {
 	}
 }
 
-func TestManagerClusterRealtimeMonitorReturnsPayload(t *testing.T) {
-	provider := &managerClusterMonitorStub{response: ClusterRealtimeMonitorResponse{
-		Status:        ClusterRealtimeMonitorStatusReady,
-		GeneratedAt:   time.Date(2026, 6, 18, 10, 0, 0, 0, time.UTC),
-		WindowSeconds: 900,
-		StepSeconds:   20,
-		Scope:         ClusterRealtimeMonitorScope{View: ClusterRealtimeMonitorScopeCluster},
-		Sources: ClusterRealtimeMonitorSources{
-			Prometheus:      RealtimeMonitorPrometheusSource{Enabled: true, BaseURL: "http://127.0.0.1:9090", QueryMS: 12},
-			ControlSnapshot: ClusterRealtimeMonitorSource{Enabled: true, QueryMS: 1},
-		},
-		Snapshot: []ClusterRealtimeMonitorSnapshotEntry{{
-			Key:       "nodesAlive",
-			MetricKey: "nodesAlive",
-			Value:     3,
-			Tone:      RealtimeMonitorToneNormal,
-			Source:    ClusterRealtimeMonitorSourceControlSnapshot,
-		}},
-		Cards: []ClusterRealtimeMonitorCard{{
-			Key:       "rpcSuccessRate",
-			Stage:     ClusterRealtimeMonitorStageInternalNetwork,
-			Tone:      RealtimeMonitorToneNormal,
-			Unit:      "%",
-			Value:     99.96,
-			Source:    ClusterRealtimeMonitorSourcePrometheus,
-			Available: true,
-			Series: []RealtimeMonitorPoint{{
-				Timestamp: 1781767200000,
-				Value:     99.96,
-			}},
-			Stats: []ClusterRealtimeMonitorStat{{
-				Key:   "callsPerSecond",
-				Value: testFloat64Ptr(1280),
-				Unit:  "calls/s",
-			}, {
-				Key:  "topReason",
-				Text: "timeout",
-			}},
-		}},
-	}}
-	srv := New(Options{ClusterMonitor: provider})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/cluster-monitor/realtime?window=15m&step=20s", nil)
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
-	}
-	if provider.query.Window != 15*time.Minute || provider.query.Step != 20*time.Second {
-		t.Fatalf("query = %#v, want 15m window and 20s step", provider.query)
-	}
-	if !jsonEqual(rec.Body.String(), `{
-		"status": "ready",
-		"generated_at": "2026-06-18T10:00:00Z",
-		"window_seconds": 900,
-		"step_seconds": 20,
-		"scope": {"view": "cluster"},
-		"sources": {
-			"prometheus": {"enabled": true, "base_url": "http://127.0.0.1:9090", "query_ms": 12, "error": ""},
-			"control_snapshot": {"enabled": true, "query_ms": 1, "error": ""}
-		},
-		"snapshot": [{
-			"key": "nodesAlive",
-			"metric_key": "nodesAlive",
-			"value": 3,
-			"tone": "normal",
-			"source": "control_snapshot"
-		}],
-		"cards": [{
-			"key": "rpcSuccessRate",
-			"stage": "internalNetwork",
-			"tone": "normal",
-			"unit": "%",
-			"value": 99.96,
-			"source": "prometheus",
-			"available": true,
-			"error": "",
-			"series": [{"timestamp": 1781767200000, "value": 99.96}],
-			"stats": [
-				{"key": "callsPerSecond", "value": 1280, "unit": "calls/s"},
-				{"key": "topReason", "text": "timeout"}
-			]
-		}]
-	}`) {
-		t.Fatalf("body = %s", rec.Body.String())
-	}
-}
-
-func TestManagerClusterRealtimeMonitorParsesNodeID(t *testing.T) {
-	provider := &managerClusterMonitorStub{response: ClusterRealtimeMonitorResponse{
-		Status:        ClusterRealtimeMonitorStatusReady,
-		GeneratedAt:   time.Date(2026, 6, 18, 10, 0, 0, 0, time.UTC),
-		WindowSeconds: 900,
-		StepSeconds:   20,
-		Scope:         ClusterRealtimeMonitorScope{View: ClusterRealtimeMonitorScopeCluster, NodeID: 2},
-		Snapshot:      []ClusterRealtimeMonitorSnapshotEntry{},
-		Cards:         []ClusterRealtimeMonitorCard{},
-	}}
-	srv := New(Options{ClusterMonitor: provider})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/cluster-monitor/realtime?window=15m&node_id=2", nil)
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
-	}
-	if provider.query.NodeID != 2 {
-		t.Fatalf("provider query NodeID = %d, want 2", provider.query.NodeID)
-	}
-}
-
-func TestManagerClusterRealtimeMonitorRejectsInvalidQuery(t *testing.T) {
-	srv := New(Options{ClusterMonitor: &managerClusterMonitorStub{}})
-
-	for _, path := range []string{
-		"/manager/cluster-monitor/realtime?window=2m",
-		"/manager/cluster-monitor/realtime?step=1s",
-		"/manager/cluster-monitor/realtime?step=10m",
-		"/manager/cluster-monitor/realtime?step=bad",
-		"/manager/cluster-monitor/realtime?node_id=bad",
-		"/manager/cluster-monitor/realtime?node_id=0",
-	} {
-		rec := httptest.NewRecorder()
-		srv.Engine().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
-		if rec.Code != http.StatusBadRequest {
-			t.Fatalf("%s status = %d, want %d", path, rec.Code, http.StatusBadRequest)
-		}
-	}
-}
-
-func TestManagerClusterRealtimeMonitorRequiresNodeReadPermission(t *testing.T) {
-	provider := &managerClusterMonitorStub{}
+func TestManagerRealtimeMonitorRemovesOldRoutes(t *testing.T) {
+	provider := &managerMonitorStub{}
 	srv := New(Options{
 		Auth: testAuthConfig([]UserConfig{
-			{
-				Username: "viewer",
-				Password: "secret",
-				Permissions: []PermissionConfig{{
-					Resource: "cluster.slot",
-					Actions:  []string{"r"},
-				}},
-			},
 			{
 				Username: "node-reader",
 				Password: "secret",
@@ -878,25 +774,27 @@ func TestManagerClusterRealtimeMonitorRequiresNodeReadPermission(t *testing.T) {
 				}},
 			},
 		}),
-		ClusterMonitor: provider,
+		RealtimeMonitor: provider,
 	})
 
 	missing := httptest.NewRecorder()
-	srv.Engine().ServeHTTP(missing, httptest.NewRequest(http.MethodGet, "/manager/cluster-monitor/realtime", nil))
+	srv.Engine().ServeHTTP(missing, httptest.NewRequest(http.MethodGet, "/manager/realtime-monitor", nil))
 	if missing.Code != http.StatusUnauthorized {
 		t.Fatalf("missing token status = %d, want %d", missing.Code, http.StatusUnauthorized)
 	}
 
-	forbidden := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/cluster-monitor/realtime", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "viewer"))
-	srv.Engine().ServeHTTP(forbidden, req)
-	if forbidden.Code != http.StatusForbidden {
-		t.Fatalf("forbidden status = %d, want %d", forbidden.Code, http.StatusForbidden)
+	for _, path := range []string{"/manager/monitor/realtime", "/manager/cluster-monitor/realtime"} {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "node-reader"))
+		srv.Engine().ServeHTTP(rec, req)
+		if rec.Code != http.StatusNotFound {
+			t.Fatalf("%s status = %d, want %d", path, rec.Code, http.StatusNotFound)
+		}
 	}
 
 	allowed := httptest.NewRecorder()
-	allowedReq := httptest.NewRequest(http.MethodGet, "/manager/cluster-monitor/realtime", nil)
+	allowedReq := httptest.NewRequest(http.MethodGet, "/manager/realtime-monitor", nil)
 	allowedReq.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "node-reader"))
 	srv.Engine().ServeHTTP(allowed, allowedReq)
 	if allowed.Code != http.StatusOK {
@@ -1472,12 +1370,6 @@ type managerMonitorStub struct {
 	query    RealtimeMonitorQuery
 }
 
-type managerClusterMonitorStub struct {
-	response ClusterRealtimeMonitorResponse
-	err      error
-	query    ClusterRealtimeMonitorQuery
-}
-
 func (s *managerTopStub) SnapshotTop(_ context.Context, query accessapi.TopSnapshotQuery) (accessapi.TopSnapshot, error) {
 	s.query = query
 	if s.err != nil {
@@ -1490,14 +1382,6 @@ func (s *managerMonitorStub) RealtimeMonitor(_ context.Context, query RealtimeMo
 	s.query = query
 	if s.err != nil {
 		return RealtimeMonitorResponse{}, s.err
-	}
-	return s.response, nil
-}
-
-func (s *managerClusterMonitorStub) ClusterRealtimeMonitor(_ context.Context, query ClusterRealtimeMonitorQuery) (ClusterRealtimeMonitorResponse, error) {
-	s.query = query
-	if s.err != nil {
-		return ClusterRealtimeMonitorResponse{}, s.err
 	}
 	return s.response, nil
 }

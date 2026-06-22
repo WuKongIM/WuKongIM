@@ -16,21 +16,21 @@ import (
 )
 
 func TestManagerClusterMonitorProviderReturnsDisabledWhenNotEnabled(t *testing.T) {
-	provider := newManagerClusterPrometheusMonitorProvider(managerClusterPrometheusMonitorOptions{
+	provider := newManagerPrometheusMonitorProvider(managerPrometheusMonitorOptions{
 		Enabled: false,
 		Now:     func() time.Time { return time.Unix(1781767200, 0).UTC() },
 	})
 
-	resp, err := provider.ClusterRealtimeMonitor(context.Background(), accessmanager.ClusterRealtimeMonitorQuery{
+	resp, err := provider.RealtimeMonitor(context.Background(), accessmanager.RealtimeMonitorQuery{
 		Window: 15 * time.Minute,
 		Step:   20 * time.Second,
 	})
 
 	if err != nil {
-		t.Fatalf("ClusterRealtimeMonitor() error = %v", err)
+		t.Fatalf("RealtimeMonitor() error = %v", err)
 	}
-	if resp.Status != accessmanager.ClusterRealtimeMonitorStatusPrometheusDisabled {
-		t.Fatalf("Status = %q, want %q", resp.Status, accessmanager.ClusterRealtimeMonitorStatusPrometheusDisabled)
+	if resp.Status != accessmanager.RealtimeMonitorStatusPrometheusDisabled {
+		t.Fatalf("Status = %q, want %q", resp.Status, accessmanager.RealtimeMonitorStatusPrometheusDisabled)
 	}
 	if resp.Sources.Prometheus.Enabled {
 		t.Fatalf("Prometheus.Enabled = true, want false")
@@ -59,7 +59,7 @@ func TestManagerClusterMonitorProviderMapsPrometheusAndControlSnapshot(t *testin
 		_, _ = w.Write([]byte(`{"status":"success","data":{"resultType":"matrix","result":[{"metric":{},"values":[[1781767200,"12.5"],[1781767220,"15"]]}]}}`))
 	}))
 	defer server.Close()
-	provider := newManagerClusterPrometheusMonitorProvider(managerClusterPrometheusMonitorOptions{
+	provider := newManagerPrometheusMonitorProvider(managerPrometheusMonitorOptions{
 		Enabled: true,
 		BaseURL: server.URL,
 		Client:  server.Client(),
@@ -67,42 +67,38 @@ func TestManagerClusterMonitorProviderMapsPrometheusAndControlSnapshot(t *testin
 		Control: managerClusterControlReaderFake{},
 	})
 
-	resp, err := provider.ClusterRealtimeMonitor(context.Background(), accessmanager.ClusterRealtimeMonitorQuery{
+	resp, err := provider.RealtimeMonitor(context.Background(), accessmanager.RealtimeMonitorQuery{
 		Window: 15 * time.Minute,
 		Step:   20 * time.Second,
 	})
 
 	if err != nil {
-		t.Fatalf("ClusterRealtimeMonitor() error = %v", err)
+		t.Fatalf("RealtimeMonitor() error = %v", err)
 	}
-	if resp.Status != accessmanager.ClusterRealtimeMonitorStatusReady {
+	if resp.Status != accessmanager.RealtimeMonitorStatusReady {
 		t.Fatalf("Status = %q, want ready; sources=%#v", resp.Status, resp.Sources)
 	}
-	if calls.Load() != int64(len(managerClusterMonitorMetricDefinitions())) {
-		t.Fatalf("prometheus calls = %d, want %d", calls.Load(), len(managerClusterMonitorMetricDefinitions()))
+	wantCalls := len(managerMonitorMetricDefinitions()) + len(managerClusterMonitorMetricDefinitions())
+	if calls.Load() != int64(wantCalls) {
+		t.Fatalf("prometheus calls = %d, want %d", calls.Load(), wantCalls)
 	}
-	if len(queries) < 10 ||
-		!strings.Contains(queries[8], `wukongim_transport_sent_bytes_total{job="wukongimv2"}[1m]`) ||
-		!strings.Contains(queries[8], `wukongim_transport_received_bytes_total{job="wukongimv2"}[1m]`) {
-		t.Fatalf("internalTraffic query = %q, want two rate windows filled", queries[8])
+	joinedQueries := strings.Join(queries, "\n")
+	if !strings.Contains(joinedQueries, `wukongim_transport_sent_bytes_total{job="wukongimv2"}[1m]`) ||
+		!strings.Contains(joinedQueries, `wukongim_transport_received_bytes_total{job="wukongimv2"}[1m]`) {
+		t.Fatalf("queries = %q, want internal traffic rate windows filled", joinedQueries)
 	}
-	if len(queries) < 8 || !strings.Contains(queries[7], "wukongim_channelv2_active_runtimes") || !strings.Contains(queries[7], "vector(0)") {
-		t.Fatalf("activeChannels query = %q, want active runtime zero fallback", queries[7])
+	if !strings.Contains(joinedQueries, "wukongim_channelv2_active_runtimes") || !strings.Contains(joinedQueries, "vector(0)") {
+		t.Fatalf("queries = %q, want active runtime zero fallback", joinedQueries)
 	}
-	if len(queries) < 6 ||
-		!strings.Contains(queries[3], `wukongim_slot_proposals_total{job="wukongimv2"}[1m]`) ||
-		!strings.Contains(queries[4], `wukongim_slot_apply_gap{job="wukongimv2"}`) ||
-		!strings.Contains(queries[5], `wukongim_slot_apply_duration_seconds_bucket{job="wukongimv2"}[1m]`) {
-		t.Fatalf("slot metric queries = %#v, want propose rate, apply gap, and latency p99", queries[3:6])
+	if !strings.Contains(joinedQueries, `wukongim_slot_proposals_total{job="wukongimv2"}[1m]`) ||
+		!strings.Contains(joinedQueries, `wukongim_slot_apply_gap{job="wukongimv2"}`) ||
+		!strings.Contains(joinedQueries, `wukongim_slot_apply_duration_seconds_bucket{job="wukongimv2"}[1m]`) {
+		t.Fatalf("queries = %#v, want propose rate, apply gap, and latency p99", queries)
 	}
-	if len(queries) < 15 ||
-		!strings.Contains(queries[12], `wukongim_node_cpu_percent{job="wukongimv2"}`) ||
-		!strings.Contains(queries[13], `wukongim_node_memory_rss_bytes{job="wukongimv2"}`) ||
-		!strings.Contains(queries[14], `wukongim_node_goroutines{job="wukongimv2"}`) ||
-		!strings.Contains(queries[12], "vector(0)") ||
-		!strings.Contains(queries[13], "vector(0)") ||
-		!strings.Contains(queries[14], "vector(0)") {
-		t.Fatalf("node resource queries = %#v, want cpu, rss, and goroutine zero-fallback metrics", queries[12:15])
+	if !strings.Contains(joinedQueries, `wukongim_node_cpu_percent{job="wukongimv2"}`) ||
+		!strings.Contains(joinedQueries, `wukongim_node_memory_rss_bytes{job="wukongimv2"}`) ||
+		!strings.Contains(joinedQueries, `wukongim_node_goroutines{job="wukongimv2"}`) {
+		t.Fatalf("queries = %#v, want cpu, rss, and goroutine zero-fallback metrics", queries)
 	}
 	wantKeys := []string{
 		"controllerProposeRate",
@@ -122,33 +118,32 @@ func TestManagerClusterMonitorProviderMapsPrometheusAndControlSnapshot(t *testin
 		"nodeGoroutines",
 		"storageWriteP99",
 	}
-	if len(resp.Cards) != len(wantKeys) {
-		t.Fatalf("cards = %d, want %d", len(resp.Cards), len(wantKeys))
+	if len(resp.Cards) != wantCalls {
+		t.Fatalf("cards = %d, want %d", len(resp.Cards), wantCalls)
 	}
-	for i, want := range wantKeys {
-		if resp.Cards[i].Key != want {
-			t.Fatalf("card[%d].Key = %q, want %q", i, resp.Cards[i].Key, want)
-		}
-		if resp.Cards[i].Source != accessmanager.ClusterRealtimeMonitorSourcePrometheus || !resp.Cards[i].Available {
-			t.Fatalf("card[%d] = %#v, want available prometheus card", i, resp.Cards[i])
+	for _, want := range wantKeys {
+		card := requireMonitorCardForTest(t, resp.Cards, want)
+		if card.Source != accessmanager.RealtimeMonitorSourcePrometheus || !card.Available {
+			t.Fatalf("card %q = %#v, want available prometheus card", want, card)
 		}
 	}
-	if resp.Cards[0].Stage != accessmanager.ClusterRealtimeMonitorStageControlPlane || resp.Cards[0].Value != 15 {
-		t.Fatalf("first card = %#v, want control-plane latest value 15", resp.Cards[0])
+	controlCard := requireMonitorCardForTest(t, resp.Cards, "controllerProposeRate")
+	if controlCard.Stage != accessmanager.RealtimeMonitorStageControlPlane || controlCard.Value != 15 {
+		t.Fatalf("control card = %#v, want control-plane latest value 15", controlCard)
 	}
-	activeCard := resp.Cards[7]
+	activeCard := requireMonitorCardForTest(t, resp.Cards, "activeChannels")
 	if activeCard.Key != "activeChannels" || activeCard.Value != 15 || activeCard.Unit != "" {
 		t.Fatalf("activeChannels card = %#v, want active channel count 15", activeCard)
 	}
 	if !resp.Sources.ControlSnapshot.Enabled {
 		t.Fatalf("ControlSnapshot.Enabled = false, want true")
 	}
-	requireClusterSnapshotValue(t, resp.Snapshot, "nodesAlive", 2, accessmanager.ClusterRealtimeMonitorSourceControlSnapshot)
-	requireClusterSnapshotValueWithUnit(t, resp.Snapshot, "slotsReady", (1.0/3.0)*100, "%", accessmanager.ClusterRealtimeMonitorSourceControlSnapshot)
-	requireClusterSnapshotValue(t, resp.Snapshot, "controllerApplyGap", 15, accessmanager.ClusterRealtimeMonitorSourcePrometheus)
-	requireClusterSnapshotValue(t, resp.Snapshot, "rpcErrorRate", 85, accessmanager.ClusterRealtimeMonitorSourcePrometheus)
-	requireClusterSnapshotValue(t, resp.Snapshot, "queuePressure", 15, accessmanager.ClusterRealtimeMonitorSourcePrometheus)
-	requireClusterSnapshotValue(t, resp.Snapshot, "storageWriteP99", 15, accessmanager.ClusterRealtimeMonitorSourcePrometheus)
+	requireClusterSnapshotValue(t, resp.Snapshot, "nodesAlive", 2, accessmanager.RealtimeMonitorSourceControlSnapshot)
+	requireClusterSnapshotValueWithUnit(t, resp.Snapshot, "slotsReady", (1.0/3.0)*100, "%", accessmanager.RealtimeMonitorSourceControlSnapshot)
+	requireClusterSnapshotValue(t, resp.Snapshot, "controllerApplyGap", 15, accessmanager.RealtimeMonitorSourcePrometheus)
+	requireClusterSnapshotValue(t, resp.Snapshot, "rpcErrorRate", 85, accessmanager.RealtimeMonitorSourcePrometheus)
+	requireClusterSnapshotValue(t, resp.Snapshot, "queuePressure", 15, accessmanager.RealtimeMonitorSourcePrometheus)
+	requireClusterSnapshotValue(t, resp.Snapshot, "storageWriteP99", 15, accessmanager.RealtimeMonitorSourcePrometheus)
 }
 
 func TestManagerClusterMonitorProviderIncludesAllNodeResourceStats(t *testing.T) {
@@ -163,7 +158,7 @@ func TestManagerClusterMonitorProviderIncludesAllNodeResourceStats(t *testing.T)
 		_, _ = w.Write([]byte(`{"status":"success","data":{"resultType":"matrix","result":[{"metric":{},"values":[[1781767200,"12.5"],[1781767220,"15"]]}]}}`))
 	}))
 	defer server.Close()
-	provider := newManagerClusterPrometheusMonitorProvider(managerClusterPrometheusMonitorOptions{
+	provider := newManagerPrometheusMonitorProvider(managerPrometheusMonitorOptions{
 		Enabled: true,
 		BaseURL: server.URL,
 		Client:  server.Client(),
@@ -171,13 +166,13 @@ func TestManagerClusterMonitorProviderIncludesAllNodeResourceStats(t *testing.T)
 		Control: managerClusterControlReaderFake{},
 	})
 
-	resp, err := provider.ClusterRealtimeMonitor(context.Background(), accessmanager.ClusterRealtimeMonitorQuery{
+	resp, err := provider.RealtimeMonitor(context.Background(), accessmanager.RealtimeMonitorQuery{
 		Window: 15 * time.Minute,
 		Step:   20 * time.Second,
 	})
 
 	if err != nil {
-		t.Fatalf("ClusterRealtimeMonitor() error = %v", err)
+		t.Fatalf("RealtimeMonitor() error = %v", err)
 	}
 	if nodeCPUQuery == "" {
 		t.Fatal("node cpu query was not issued")
@@ -185,7 +180,7 @@ func TestManagerClusterMonitorProviderIncludesAllNodeResourceStats(t *testing.T)
 	if strings.Contains(nodeCPUQuery, "max(") {
 		t.Fatalf("node cpu query = %q, want raw per-node series", nodeCPUQuery)
 	}
-	var cpuCard accessmanager.ClusterRealtimeMonitorCard
+	var cpuCard accessmanager.RealtimeMonitorCard
 	for _, card := range resp.Cards {
 		if card.Key == "nodeCpuPercent" {
 			cpuCard = card
@@ -218,7 +213,7 @@ func TestManagerClusterMonitorProviderFiltersPromQLAndControlSnapshotByNodeID(t 
 	}))
 	defer server.Close()
 	control := &managerClusterControlReaderSpy{}
-	provider := newManagerClusterPrometheusMonitorProvider(managerClusterPrometheusMonitorOptions{
+	provider := newManagerPrometheusMonitorProvider(managerPrometheusMonitorOptions{
 		Enabled: true,
 		BaseURL: server.URL,
 		Client:  server.Client(),
@@ -226,14 +221,14 @@ func TestManagerClusterMonitorProviderFiltersPromQLAndControlSnapshotByNodeID(t 
 		Control: control,
 	})
 
-	resp, err := provider.ClusterRealtimeMonitor(context.Background(), accessmanager.ClusterRealtimeMonitorQuery{
+	resp, err := provider.RealtimeMonitor(context.Background(), accessmanager.RealtimeMonitorQuery{
 		Window: 15 * time.Minute,
 		Step:   20 * time.Second,
 		NodeID: 2,
 	})
 
 	if err != nil {
-		t.Fatalf("ClusterRealtimeMonitor() error = %v", err)
+		t.Fatalf("RealtimeMonitor() error = %v", err)
 	}
 	if resp.Scope.NodeID != 2 {
 		t.Fatalf("Scope.NodeID = %d, want 2", resp.Scope.NodeID)
@@ -264,7 +259,7 @@ func TestManagerClusterMonitorProviderFiltersPromQLAndControlSnapshotByNodeID(t 
 	if control.listSlotsOptions[0].NodeID != 2 {
 		t.Fatalf("ListSlots NodeID = %d, want 2", control.listSlotsOptions[0].NodeID)
 	}
-	requireClusterSnapshotValue(t, resp.Snapshot, "nodesAlive", 1, accessmanager.ClusterRealtimeMonitorSourceControlSnapshot)
+	requireClusterSnapshotValue(t, resp.Snapshot, "nodesAlive", 1, accessmanager.RealtimeMonitorSourceControlSnapshot)
 }
 
 func TestManagerClusterMonitorProviderReturnsPartialForMissingMetric(t *testing.T) {
@@ -277,7 +272,7 @@ func TestManagerClusterMonitorProviderReturnsPartialForMissingMetric(t *testing.
 		_, _ = w.Write([]byte(`{"status":"success","data":{"resultType":"matrix","result":[{"metric":{},"values":[[1781767200,"12.5"],[1781767220,"15"]]}]}}`))
 	}))
 	defer server.Close()
-	provider := newManagerClusterPrometheusMonitorProvider(managerClusterPrometheusMonitorOptions{
+	provider := newManagerPrometheusMonitorProvider(managerPrometheusMonitorOptions{
 		Enabled: true,
 		BaseURL: server.URL,
 		Client:  server.Client(),
@@ -285,15 +280,15 @@ func TestManagerClusterMonitorProviderReturnsPartialForMissingMetric(t *testing.
 		Control: managerClusterControlReaderFake{},
 	})
 
-	resp, err := provider.ClusterRealtimeMonitor(context.Background(), accessmanager.ClusterRealtimeMonitorQuery{
+	resp, err := provider.RealtimeMonitor(context.Background(), accessmanager.RealtimeMonitorQuery{
 		Window: 15 * time.Minute,
 		Step:   20 * time.Second,
 	})
 
 	if err != nil {
-		t.Fatalf("ClusterRealtimeMonitor() error = %v", err)
+		t.Fatalf("RealtimeMonitor() error = %v", err)
 	}
-	if resp.Status != accessmanager.ClusterRealtimeMonitorStatusPartial {
+	if resp.Status != accessmanager.RealtimeMonitorStatusPartial {
 		t.Fatalf("Status = %q, want partial", resp.Status)
 	}
 	if resp.Sources.Prometheus.Error == "" {
@@ -327,7 +322,7 @@ func TestManagerClusterMonitorProviderReturnsPartialWhenControlSnapshotUnavailab
 				_, _ = w.Write([]byte(`{"status":"success","data":{"resultType":"matrix","result":[{"metric":{},"values":[[1781767200,"12.5"],[1781767220,"15"]]}]}}`))
 			}))
 			defer server.Close()
-			provider := newManagerClusterPrometheusMonitorProvider(managerClusterPrometheusMonitorOptions{
+			provider := newManagerPrometheusMonitorProvider(managerPrometheusMonitorOptions{
 				Enabled: true,
 				BaseURL: server.URL,
 				Client:  server.Client(),
@@ -335,15 +330,15 @@ func TestManagerClusterMonitorProviderReturnsPartialWhenControlSnapshotUnavailab
 				Control: tc.control,
 			})
 
-			resp, err := provider.ClusterRealtimeMonitor(context.Background(), accessmanager.ClusterRealtimeMonitorQuery{
+			resp, err := provider.RealtimeMonitor(context.Background(), accessmanager.RealtimeMonitorQuery{
 				Window: 15 * time.Minute,
 				Step:   20 * time.Second,
 			})
 
 			if err != nil {
-				t.Fatalf("ClusterRealtimeMonitor() error = %v", err)
+				t.Fatalf("RealtimeMonitor() error = %v", err)
 			}
-			if resp.Status != accessmanager.ClusterRealtimeMonitorStatusPartial {
+			if resp.Status != accessmanager.RealtimeMonitorStatusPartial {
 				t.Fatalf("Status = %q, want partial", resp.Status)
 			}
 			if resp.Sources.ControlSnapshot.Enabled {
@@ -359,7 +354,7 @@ func TestManagerClusterMonitorProviderReturnsPartialWhenControlSnapshotUnavailab
 	}
 }
 
-func requireClusterSnapshotValue(t *testing.T, snapshot []accessmanager.ClusterRealtimeMonitorSnapshotEntry, key string, want float64, source string) {
+func requireClusterSnapshotValue(t *testing.T, snapshot []accessmanager.RealtimeMonitorSnapshotEntry, key string, want float64, source string) {
 	t.Helper()
 	for _, item := range snapshot {
 		if item.Key == key {
@@ -372,7 +367,7 @@ func requireClusterSnapshotValue(t *testing.T, snapshot []accessmanager.ClusterR
 	t.Fatalf("snapshot missing key %s: %#v", key, snapshot)
 }
 
-func requireClusterSnapshotValueWithUnit(t *testing.T, snapshot []accessmanager.ClusterRealtimeMonitorSnapshotEntry, key string, want float64, unit string, source string) {
+func requireClusterSnapshotValueWithUnit(t *testing.T, snapshot []accessmanager.RealtimeMonitorSnapshotEntry, key string, want float64, unit string, source string) {
 	t.Helper()
 	for _, item := range snapshot {
 		if item.Key == key {
@@ -385,14 +380,11 @@ func requireClusterSnapshotValueWithUnit(t *testing.T, snapshot []accessmanager.
 	t.Fatalf("snapshot missing key %s: %#v", key, snapshot)
 }
 
-func requireClusterCardStat(t *testing.T, card accessmanager.ClusterRealtimeMonitorCard, label string, want float64, unit string) {
+func requireClusterCardStat(t *testing.T, card accessmanager.RealtimeMonitorCard, label string, want float64, unit string) {
 	t.Helper()
 	for _, stat := range card.Stats {
 		if stat.Label == label {
-			if stat.Value == nil {
-				t.Fatalf("stat %q value = nil, want %v", label, want)
-			}
-			if math.Abs(*stat.Value-want) > 1e-9 || stat.Unit != unit {
+			if math.Abs(stat.Value-want) > 1e-9 || stat.Unit != unit {
 				t.Fatalf("stat %q = %#v, want value %v unit %q", label, stat, want, unit)
 			}
 			return
@@ -401,7 +393,7 @@ func requireClusterCardStat(t *testing.T, card accessmanager.ClusterRealtimeMoni
 	t.Fatalf("card %s missing stat label %q: %#v", card.Key, label, card.Stats)
 }
 
-func requireClusterCardPoint(t *testing.T, card accessmanager.ClusterRealtimeMonitorCard, timestamp int64, label string, want float64) {
+func requireClusterCardPoint(t *testing.T, card accessmanager.RealtimeMonitorCard, timestamp int64, label string, want float64) {
 	t.Helper()
 	for _, point := range card.Series {
 		if point.Timestamp == timestamp && point.Label == label {

@@ -2,7 +2,6 @@ import { getManagerApiBaseUrl } from "@/lib/env"
 import type {
   ChannelRuntimeMetaListParams,
   ChannelClusterUnhealthyParams,
-  ClusterRealtimeMonitorResponse,
   ControllerLogListParams,
   ConnectionDetailParams,
   ConnectionListParams,
@@ -85,6 +84,7 @@ import type {
   RecoverSlotInput,
   ResetUserTokenInput,
   ResetUserTokenResponse,
+  RealtimeMonitorCategory,
   RealtimeMonitorResponse,
   TransferSlotLeaderInput,
   SlotLeaderTransferBatchInput,
@@ -505,22 +505,14 @@ export function getNetworkSummary() {
   return jsonManagerFetch<ManagerNetworkSummaryResponse>("/manager/network/summary")
 }
 
-export function getRealtimeMonitor(params?: { window?: string; step?: string; nodeId?: number }) {
+export function getRealtimeMonitor(params?: { window?: string; step?: string; nodeId?: number; category?: RealtimeMonitorCategory }) {
   const search = new URLSearchParams()
   if (params?.window) search.set("window", params.window)
   if (params?.step) search.set("step", params.step)
   if (typeof params?.nodeId === "number") search.set("node_id", String(params.nodeId))
+  if (params?.category) search.set("category", params.category)
   const query = search.toString()
-  return jsonManagerFetch<RealtimeMonitorResponse>(`/manager/monitor/realtime${query ? `?${query}` : ""}`)
-}
-
-export function getClusterRealtimeMonitor(params?: { window?: string; step?: string; nodeId?: number }) {
-  const search = new URLSearchParams()
-  if (params?.window) search.set("window", params.window)
-  if (params?.step) search.set("step", params.step)
-  if (typeof params?.nodeId === "number") search.set("node_id", String(params.nodeId))
-  const query = search.toString()
-  return jsonManagerFetch<ClusterRealtimeMonitorResponse>(`/manager/cluster-monitor/realtime${query ? `?${query}` : ""}`)
+  return jsonManagerFetch<RealtimeMonitorResponse>(`/manager/realtime-monitor${query ? `?${query}` : ""}`)
 }
 
 export function getNodes() {

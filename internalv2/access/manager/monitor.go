@@ -25,8 +25,32 @@ const (
 	// RealtimeMonitorStatusPrometheusUnavailable reports that the Prometheus HTTP API cannot be queried.
 	RealtimeMonitorStatusPrometheusUnavailable = "prometheus_unavailable"
 
-	// RealtimeMonitorScopePrometheus identifies Prometheus as the monitor data source.
-	RealtimeMonitorScopePrometheus = "prometheus"
+	// RealtimeMonitorScopeUnified identifies the unified cluster operations realtime monitor view.
+	RealtimeMonitorScopeUnified = "realtime_monitor"
+
+	// RealtimeMonitorSourcePrometheus identifies Prometheus as a card or snapshot source.
+	RealtimeMonitorSourcePrometheus = "prometheus"
+	// RealtimeMonitorSourceControlSnapshot identifies the bounded cluster control snapshot source.
+	RealtimeMonitorSourceControlSnapshot = "control_snapshot"
+
+	// RealtimeMonitorCategoryAll returns all realtime monitor cards.
+	RealtimeMonitorCategoryAll = "all"
+	// RealtimeMonitorCategoryGateway groups gateway ingress and connection-facing cards.
+	RealtimeMonitorCategoryGateway = "gateway"
+	// RealtimeMonitorCategoryInternal groups internal node transport and RPC cards.
+	RealtimeMonitorCategoryInternal = "internal"
+	// RealtimeMonitorCategoryMessage groups message append, commit, delivery, retry, and path error cards.
+	RealtimeMonitorCategoryMessage = "message"
+	// RealtimeMonitorCategoryConversation groups conversation sync and active-cache cards.
+	RealtimeMonitorCategoryConversation = "conversation"
+	// RealtimeMonitorCategoryChannel groups channel runtime and append cards.
+	RealtimeMonitorCategoryChannel = "channel"
+	// RealtimeMonitorCategoryControl groups control-plane cards.
+	RealtimeMonitorCategoryControl = "control"
+	// RealtimeMonitorCategorySlot groups Slot replication cards.
+	RealtimeMonitorCategorySlot = "slot"
+	// RealtimeMonitorCategoryNode groups node runtime, workqueue, and storage cards.
+	RealtimeMonitorCategoryNode = "node"
 
 	// RealtimeMonitorToneNormal is the normal card status tone.
 	RealtimeMonitorToneNormal = "normal"
@@ -47,6 +71,18 @@ const (
 	RealtimeMonitorStageOfflineRetry = "offlineRetry"
 	// RealtimeMonitorStageErrorClosure identifies error closure cards.
 	RealtimeMonitorStageErrorClosure = "errorClosure"
+	// RealtimeMonitorStageControlPlane identifies control-plane health cards.
+	RealtimeMonitorStageControlPlane = "controlPlane"
+	// RealtimeMonitorStageSlotReplication identifies Slot replication health cards.
+	RealtimeMonitorStageSlotReplication = "slotReplication"
+	// RealtimeMonitorStageChannelReplication identifies Channel replication health cards.
+	RealtimeMonitorStageChannelReplication = "channelReplication"
+	// RealtimeMonitorStageInternalNetwork identifies internal node RPC and transport cards.
+	RealtimeMonitorStageInternalNetwork = "internalNetwork"
+	// RealtimeMonitorStageRuntimePressure identifies node runtime pressure cards.
+	RealtimeMonitorStageRuntimePressure = "runtimePressure"
+	// RealtimeMonitorStageIncidentClosure identifies incident closure and error-rate cards.
+	RealtimeMonitorStageIncidentClosure = "incidentClosure"
 )
 
 // RealtimeMonitorProvider returns Prometheus-backed manager monitor snapshots.
@@ -62,9 +98,11 @@ type RealtimeMonitorQuery struct {
 	Step time.Duration
 	// NodeID restricts Prometheus metrics to one cluster node when non-zero.
 	NodeID uint64
+	// Category restricts returned monitor cards to one operator-facing category.
+	Category string
 }
 
-// RealtimeMonitorResponse is the manager business realtime monitor payload.
+// RealtimeMonitorResponse is the unified manager realtime monitor payload.
 type RealtimeMonitorResponse struct {
 	// Status is ready, partial, prometheus_disabled, or prometheus_unavailable.
 	Status string `json:"status"`
@@ -78,6 +116,8 @@ type RealtimeMonitorResponse struct {
 	Scope RealtimeMonitorScope `json:"scope"`
 	// Sources reports source availability and query details.
 	Sources RealtimeMonitorSources `json:"sources"`
+	// Categories contains selectable card categories and their current card counts.
+	Categories []RealtimeMonitorCategory `json:"categories"`
 	// Snapshot contains compact top-line monitor values.
 	Snapshot []RealtimeMonitorSnapshotEntry `json:"snapshot"`
 	// Cards contains graphable monitor card data.
@@ -86,18 +126,18 @@ type RealtimeMonitorResponse struct {
 
 // RealtimeMonitorScope identifies the monitor source and local node.
 type RealtimeMonitorScope struct {
-	// View is prometheus for this monitor endpoint.
+	// View is realtime_monitor for the unified monitor endpoint.
 	View string `json:"view"`
 	// NodeID is the local node ID when known.
 	NodeID uint64 `json:"node_id,omitempty"`
-	// NodeName is the local node name when known.
-	NodeName string `json:"node_name,omitempty"`
 }
 
 // RealtimeMonitorSources reports monitor data source state.
 type RealtimeMonitorSources struct {
 	// Prometheus reports Prometheus query availability.
 	Prometheus RealtimeMonitorPrometheusSource `json:"prometheus"`
+	// ControlSnapshot reports bounded control snapshot availability.
+	ControlSnapshot RealtimeMonitorSource `json:"control_snapshot"`
 }
 
 // RealtimeMonitorPrometheusSource reports Prometheus query availability.
@@ -112,6 +152,24 @@ type RealtimeMonitorPrometheusSource struct {
 	Error string `json:"error"`
 }
 
+// RealtimeMonitorSource reports one non-Prometheus monitor source state.
+type RealtimeMonitorSource struct {
+	// Enabled reports whether the source can be queried.
+	Enabled bool `json:"enabled"`
+	// QueryMS is the total query duration in milliseconds.
+	QueryMS int64 `json:"query_ms"`
+	// Error contains a non-fatal source error shown to operators.
+	Error string `json:"error"`
+}
+
+// RealtimeMonitorCategory is one selectable realtime monitor category.
+type RealtimeMonitorCategory struct {
+	// Key is the stable category key.
+	Key string `json:"key"`
+	// Count is the number of cards available in this category.
+	Count int `json:"count"`
+}
+
 // RealtimeMonitorSnapshotEntry is one compact monitor summary value.
 type RealtimeMonitorSnapshotEntry struct {
 	// Key is the stable snapshot entry key.
@@ -124,14 +182,20 @@ type RealtimeMonitorSnapshotEntry struct {
 	Unit string `json:"unit,omitempty"`
 	// Tone is the status tone used by the frontend.
 	Tone string `json:"tone"`
+	// Source identifies where the value came from.
+	Source string `json:"source,omitempty"`
 }
 
 // RealtimeMonitorCard is one graphable monitor card.
 type RealtimeMonitorCard struct {
 	// Key is the stable card metric key.
 	Key string `json:"key"`
+	// Category is the stable operator-facing category key.
+	Category string `json:"category"`
 	// Stage is the stable business path stage key.
 	Stage string `json:"stage"`
+	// Source identifies where the card value came from.
+	Source string `json:"source"`
 	// Tone is the status tone used by the frontend.
 	Tone string `json:"tone"`
 	// Unit is the primary value unit.
@@ -166,8 +230,14 @@ type RealtimeMonitorPoint struct {
 type RealtimeMonitorStat struct {
 	// Key is the stable statistic key.
 	Key string `json:"key"`
-	// Value is the numeric statistic value.
+	// Label is an optional display label for dynamic statistics such as per-node values.
+	Label string `json:"label,omitempty"`
+	// Value is the numeric statistic value. Zero is meaningful and must be serialized.
 	Value float64 `json:"value"`
+	// Text is the textual statistic value when the stat is a label or reason.
+	Text string `json:"text,omitempty"`
+	// Unit is the statistic unit.
+	Unit string `json:"unit,omitempty"`
 }
 
 func (s *Server) handleRealtimeMonitor(c *gin.Context) {
@@ -176,11 +246,11 @@ func (s *Server) handleRealtimeMonitor(c *gin.Context) {
 		jsonError(c, http.StatusBadRequest, "invalid_request", err.Error())
 		return
 	}
-	if s == nil || s.monitor == nil {
+	if s == nil || s.realtimeMonitor == nil {
 		c.JSON(http.StatusOK, realtimeMonitorDisabledResponse(query, "prometheus monitor provider is not configured"))
 		return
 	}
-	response, err := s.monitor.RealtimeMonitor(c.Request.Context(), query)
+	response, err := s.realtimeMonitor.RealtimeMonitor(c.Request.Context(), query)
 	if err != nil {
 		response = realtimeMonitorUnavailableResponse(query, err.Error())
 	}
@@ -188,7 +258,7 @@ func (s *Server) handleRealtimeMonitor(c *gin.Context) {
 }
 
 func parseRealtimeMonitorQuery(c *gin.Context) (RealtimeMonitorQuery, error) {
-	query := RealtimeMonitorQuery{Window: defaultRealtimeMonitorWindow}
+	query := RealtimeMonitorQuery{Window: defaultRealtimeMonitorWindow, Category: RealtimeMonitorCategoryAll}
 	if raw := strings.TrimSpace(c.Query("window")); raw != "" {
 		window, err := parseRealtimeMonitorWindow(raw)
 		if err != nil {
@@ -212,7 +282,30 @@ func parseRealtimeMonitorQuery(c *gin.Context) (RealtimeMonitorQuery, error) {
 		return query, fmt.Errorf("invalid node_id")
 	}
 	query.NodeID = nodeID
+	if raw := strings.TrimSpace(c.Query("category")); raw != "" {
+		if !isValidRealtimeMonitorCategory(raw) {
+			return query, fmt.Errorf("category invalid")
+		}
+		query.Category = raw
+	}
 	return query, nil
+}
+
+func isValidRealtimeMonitorCategory(category string) bool {
+	switch category {
+	case RealtimeMonitorCategoryAll,
+		RealtimeMonitorCategoryGateway,
+		RealtimeMonitorCategoryInternal,
+		RealtimeMonitorCategoryMessage,
+		RealtimeMonitorCategoryConversation,
+		RealtimeMonitorCategoryChannel,
+		RealtimeMonitorCategoryControl,
+		RealtimeMonitorCategorySlot,
+		RealtimeMonitorCategoryNode:
+		return true
+	default:
+		return false
+	}
 }
 
 func parseRealtimeMonitorWindow(raw string) (time.Duration, error) {
@@ -245,12 +338,14 @@ func realtimeMonitorDisabledResponse(query RealtimeMonitorQuery, message string)
 		GeneratedAt:   time.Now().UTC(),
 		WindowSeconds: int(query.Window / time.Second),
 		StepSeconds:   int(query.Step / time.Second),
-		Scope:         RealtimeMonitorScope{View: RealtimeMonitorScopePrometheus, NodeID: query.NodeID},
+		Scope:         RealtimeMonitorScope{View: RealtimeMonitorScopeUnified, NodeID: query.NodeID},
 		Sources: RealtimeMonitorSources{
-			Prometheus: RealtimeMonitorPrometheusSource{Enabled: false, Error: message},
+			Prometheus:      RealtimeMonitorPrometheusSource{Enabled: false, Error: message},
+			ControlSnapshot: RealtimeMonitorSource{Enabled: false},
 		},
-		Snapshot: []RealtimeMonitorSnapshotEntry{},
-		Cards:    []RealtimeMonitorCard{},
+		Categories: []RealtimeMonitorCategory{},
+		Snapshot:   []RealtimeMonitorSnapshotEntry{},
+		Cards:      []RealtimeMonitorCard{},
 	}
 }
 
@@ -260,11 +355,13 @@ func realtimeMonitorUnavailableResponse(query RealtimeMonitorQuery, message stri
 		GeneratedAt:   time.Now().UTC(),
 		WindowSeconds: int(query.Window / time.Second),
 		StepSeconds:   int(query.Step / time.Second),
-		Scope:         RealtimeMonitorScope{View: RealtimeMonitorScopePrometheus, NodeID: query.NodeID},
+		Scope:         RealtimeMonitorScope{View: RealtimeMonitorScopeUnified, NodeID: query.NodeID},
 		Sources: RealtimeMonitorSources{
-			Prometheus: RealtimeMonitorPrometheusSource{Enabled: true, Error: message},
+			Prometheus:      RealtimeMonitorPrometheusSource{Enabled: true, Error: message},
+			ControlSnapshot: RealtimeMonitorSource{Enabled: false},
 		},
-		Snapshot: []RealtimeMonitorSnapshotEntry{},
-		Cards:    []RealtimeMonitorCard{},
+		Categories: []RealtimeMonitorCategory{},
+		Snapshot:   []RealtimeMonitorSnapshotEntry{},
+		Cards:      []RealtimeMonitorCard{},
 	}
 }

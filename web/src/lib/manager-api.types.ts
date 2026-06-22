@@ -293,18 +293,38 @@ export type RealtimeMonitorStatus = "ready" | "partial" | "prometheus_disabled" 
 
 export type RealtimeMonitorTone = "normal" | "warning" | "critical"
 
+export type RealtimeMonitorSource = "prometheus" | "control_snapshot"
+
+export type RealtimeMonitorCategory =
+  | "all"
+  | "gateway"
+  | "internal"
+  | "message"
+  | "conversation"
+  | "channel"
+  | "control"
+  | "slot"
+  | "node"
+
 export type RealtimeMonitorPoint = {
   timestamp: number
   value: number
+  label?: string
+  series_key?: string
 }
 
 export type RealtimeMonitorStat = {
   key: string
-  value: number
+  label?: string
+  value?: number
+  text?: string
+  unit?: string
 }
 
 export type RealtimeMonitorCard = {
   key: string
+  category: RealtimeMonitorCategory
+  source: RealtimeMonitorSource
   stage: string
   tone: RealtimeMonitorTone
   unit: string
@@ -322,6 +342,19 @@ export type RealtimeMonitorSnapshotEntry = {
   value: number
   unit?: string
   tone: RealtimeMonitorTone
+  source?: RealtimeMonitorSource
+}
+
+export type RealtimeMonitorSourceStatus = {
+  enabled: boolean
+  base_url?: string
+  query_ms: number
+  error: string
+}
+
+export type RealtimeMonitorCategoryEntry = {
+  key: RealtimeMonitorCategory
+  count: number
 }
 
 export type RealtimeMonitorResponse = {
@@ -330,89 +363,16 @@ export type RealtimeMonitorResponse = {
   window_seconds: number
   step_seconds: number
   scope: {
-    view: "prometheus"
+    view: "realtime_monitor"
     node_id?: number
-    node_name?: string
   }
   sources: {
-    prometheus: {
-      enabled: boolean
-      base_url: string
-      query_ms: number
-      error: string
-    }
+    prometheus: RealtimeMonitorSourceStatus
+    control_snapshot: RealtimeMonitorSourceStatus
   }
+  categories: RealtimeMonitorCategoryEntry[]
   snapshot: RealtimeMonitorSnapshotEntry[]
   cards: RealtimeMonitorCard[]
-}
-
-export type ClusterRealtimeMonitorStatus = "ready" | "partial" | "prometheus_disabled" | "prometheus_unavailable"
-
-export type ClusterRealtimeMonitorTone = "normal" | "warning" | "critical"
-
-export type ClusterRealtimeMonitorSource = "prometheus" | "control_snapshot"
-
-export type ClusterRealtimeMonitorPoint = {
-  timestamp: number
-  value: number
-  label?: string
-  series_key?: string
-}
-
-export type ClusterRealtimeMonitorStat = {
-  key: string
-  label?: string
-  value?: number
-  text?: string
-  unit?: string
-}
-
-export type ClusterRealtimeMonitorCard = {
-  key: string
-  source: ClusterRealtimeMonitorSource
-  stage: string
-  tone: ClusterRealtimeMonitorTone
-  unit?: string
-  value?: number
-  text?: string
-  available: boolean
-  error: string
-  series: ClusterRealtimeMonitorPoint[]
-  stats: ClusterRealtimeMonitorStat[]
-}
-
-export type ClusterRealtimeMonitorSnapshotEntry = {
-  key: string
-  metric_key: string
-  source: ClusterRealtimeMonitorSource
-  value?: number
-  text?: string
-  unit?: string
-  tone: ClusterRealtimeMonitorTone
-}
-
-export type ClusterRealtimeMonitorSourceStatus = {
-  enabled: boolean
-  base_url?: string
-  query_ms: number
-  error: string
-}
-
-export type ClusterRealtimeMonitorResponse = {
-  status: ClusterRealtimeMonitorStatus
-  generated_at: string
-  window_seconds: number
-  step_seconds: number
-  scope: {
-    view: "cluster"
-    node_id?: number
-  }
-  sources: {
-    prometheus: ClusterRealtimeMonitorSourceStatus
-    control_snapshot: ClusterRealtimeMonitorSourceStatus
-  }
-  snapshot: ClusterRealtimeMonitorSnapshotEntry[]
-  cards: ClusterRealtimeMonitorCard[]
 }
 
 export type ManagerNode = {

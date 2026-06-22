@@ -22,8 +22,9 @@ func TestManagerMonitorPrometheusProviderReturnsDisabledWhenNotEnabled(t *testin
 	})
 
 	resp, err := provider.RealtimeMonitor(context.Background(), accessmanager.RealtimeMonitorQuery{
-		Window: 15 * time.Minute,
-		Step:   20 * time.Second,
+		Window:   15 * time.Minute,
+		Step:     20 * time.Second,
+		Category: accessmanager.RealtimeMonitorCategoryGateway,
 	})
 
 	if err != nil {
@@ -66,8 +67,9 @@ func TestManagerMonitorPrometheusProviderMapsQueryRange(t *testing.T) {
 	})
 
 	resp, err := provider.RealtimeMonitor(context.Background(), accessmanager.RealtimeMonitorQuery{
-		Window: 15 * time.Minute,
-		Step:   20 * time.Second,
+		Window:   15 * time.Minute,
+		Step:     20 * time.Second,
+		Category: accessmanager.RealtimeMonitorCategoryGateway,
 	})
 
 	if err != nil {
@@ -79,11 +81,11 @@ func TestManagerMonitorPrometheusProviderMapsQueryRange(t *testing.T) {
 	if calls.Load() == 0 {
 		t.Fatal("Prometheus server was not queried")
 	}
-	if resp.Scope.NodeID != 1 || resp.Scope.NodeName != "node-1" {
-		t.Fatalf("Scope = %#v, want node identity", resp.Scope)
+	if resp.Scope.NodeID != 1 || resp.Scope.View != accessmanager.RealtimeMonitorScopeUnified {
+		t.Fatalf("Scope = %#v, want unified node scope", resp.Scope)
 	}
-	if len(resp.Cards) != len(managerMonitorMetricDefinitions()) {
-		t.Fatalf("cards = %d, want %d", len(resp.Cards), len(managerMonitorMetricDefinitions()))
+	if len(resp.Cards) != len(filterMonitorMetricDefinitions(managerMonitorMetricDefinitions(), accessmanager.RealtimeMonitorCategoryGateway)) {
+		t.Fatalf("cards = %d, want gateway cards", len(resp.Cards))
 	}
 	card := resp.Cards[0]
 	if card.Key != "sendRate" || card.Value != 15 || !card.Available {
@@ -166,8 +168,9 @@ func TestManagerMonitorPrometheusProviderReturnsUnavailableWhenPrometheusFails(t
 	})
 
 	resp, err := provider.RealtimeMonitor(context.Background(), accessmanager.RealtimeMonitorQuery{
-		Window: 15 * time.Minute,
-		Step:   20 * time.Second,
+		Window:   15 * time.Minute,
+		Step:     20 * time.Second,
+		Category: accessmanager.RealtimeMonitorCategoryGateway,
 	})
 
 	if err != nil {
@@ -199,8 +202,9 @@ func TestManagerMonitorPrometheusProviderReturnsPartialWhenOneMetricFails(t *tes
 	})
 
 	resp, err := provider.RealtimeMonitor(context.Background(), accessmanager.RealtimeMonitorQuery{
-		Window: 15 * time.Minute,
-		Step:   20 * time.Second,
+		Window:   15 * time.Minute,
+		Step:     20 * time.Second,
+		Category: accessmanager.RealtimeMonitorCategoryMessage,
 	})
 
 	if err != nil {
@@ -246,8 +250,9 @@ func TestManagerMonitorPrometheusProviderZeroFillsSparseBusinessSeries(t *testin
 	})
 
 	resp, err := provider.RealtimeMonitor(context.Background(), accessmanager.RealtimeMonitorQuery{
-		Window: 15 * time.Minute,
-		Step:   20 * time.Second,
+		Window:   15 * time.Minute,
+		Step:     20 * time.Second,
+		Category: accessmanager.RealtimeMonitorCategoryMessage,
 	})
 
 	if err != nil {
@@ -289,8 +294,9 @@ func TestManagerMonitorPrometheusProviderReadsV2ChannelAppendBacklog(t *testing.
 	})
 
 	resp, err := provider.RealtimeMonitor(context.Background(), accessmanager.RealtimeMonitorQuery{
-		Window: 15 * time.Minute,
-		Step:   20 * time.Second,
+		Window:   15 * time.Minute,
+		Step:     20 * time.Second,
+		Category: accessmanager.RealtimeMonitorCategoryMessage,
 	})
 
 	if err != nil {
@@ -315,8 +321,9 @@ func TestManagerMonitorPrometheusProviderIncludesConversationCardsAndSnapshots(t
 	})
 
 	resp, err := provider.RealtimeMonitor(context.Background(), accessmanager.RealtimeMonitorQuery{
-		Window: 15 * time.Minute,
-		Step:   20 * time.Second,
+		Window:   15 * time.Minute,
+		Step:     20 * time.Second,
+		Category: accessmanager.RealtimeMonitorCategoryConversation,
 	})
 
 	if err != nil {
@@ -345,9 +352,8 @@ func TestManagerMonitorPrometheusProviderIncludesConversationCardsAndSnapshots(t
 		{key: "conversationActiveFlushErrorRate", unit: "%", tone: accessmanager.RealtimeMonitorToneCritical},
 		{key: "conversationAuthorityPressureRate", unit: "events/s", tone: accessmanager.RealtimeMonitorToneWarning},
 	}
-	pendingIndex := monitorCardIndexForTest(t, resp, "pendingCommitBacklog")
 	for offset, expected := range expectedCards {
-		got := resp.Cards[pendingIndex+1+offset]
+		got := resp.Cards[offset]
 		if got.Key != expected.key {
 			t.Fatalf("conversation card at offset %d = %q, want %q", offset, got.Key, expected.key)
 		}
@@ -359,11 +365,6 @@ func TestManagerMonitorPrometheusProviderIncludesConversationCardsAndSnapshots(t
 			t.Fatalf("%s card = %#v, want unit=%q tone=%q value=7 available", card.Key, card, expected.unit, expected.tone)
 		}
 	}
-	deliveryIndex := monitorCardIndexForTest(t, resp, "deliveryRate")
-	if deliveryIndex != pendingIndex+1+len(expectedCards) {
-		t.Fatalf("deliveryRate index = %d, want immediately after conversation cards at %d", deliveryIndex, pendingIndex+1+len(expectedCards))
-	}
-
 	expectedSnapshots := []struct {
 		key       string
 		metricKey string
@@ -375,9 +376,8 @@ func TestManagerMonitorPrometheusProviderIncludesConversationCardsAndSnapshots(t
 		{key: "conversationDirtyAge", metricKey: "conversationActiveOldestDirtyAge", unit: "s", tone: accessmanager.RealtimeMonitorToneWarning},
 		{key: "conversationFlushErrors", metricKey: "conversationActiveFlushErrorRate", unit: "%", tone: accessmanager.RealtimeMonitorToneCritical},
 	}
-	entryP99Index := monitorSnapshotIndexForTest(t, resp, "entryP99")
 	for offset, expected := range expectedSnapshots {
-		got := resp.Snapshot[entryP99Index+1+offset]
+		got := resp.Snapshot[offset]
 		if got.Key != expected.key {
 			t.Fatalf("conversation snapshot at offset %d = %q, want %q", offset, got.Key, expected.key)
 		}
@@ -414,8 +414,9 @@ func TestManagerMonitorPrometheusProviderConversationNoDataAndNoDirtyHandling(t 
 	})
 
 	resp, err := provider.RealtimeMonitor(context.Background(), accessmanager.RealtimeMonitorQuery{
-		Window: 15 * time.Minute,
-		Step:   20 * time.Second,
+		Window:   15 * time.Minute,
+		Step:     20 * time.Second,
+		Category: accessmanager.RealtimeMonitorCategoryConversation,
 	})
 
 	if err != nil {
@@ -488,8 +489,9 @@ func TestManagerMonitorPrometheusProviderConversationHealthyZeroRatesStayAvailab
 	})
 
 	resp, err := provider.RealtimeMonitor(context.Background(), accessmanager.RealtimeMonitorQuery{
-		Window: 15 * time.Minute,
-		Step:   20 * time.Second,
+		Window:   15 * time.Minute,
+		Step:     20 * time.Second,
+		Category: accessmanager.RealtimeMonitorCategoryConversation,
 	})
 
 	if err != nil {
@@ -538,8 +540,9 @@ func TestManagerMonitorPrometheusProviderConversationQueryErrorUsesGenericUnavai
 	})
 
 	resp, err := provider.RealtimeMonitor(context.Background(), accessmanager.RealtimeMonitorQuery{
-		Window: 15 * time.Minute,
-		Step:   20 * time.Second,
+		Window:   15 * time.Minute,
+		Step:     20 * time.Second,
+		Category: accessmanager.RealtimeMonitorCategoryConversation,
 	})
 
 	if err != nil {

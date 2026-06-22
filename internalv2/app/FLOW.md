@@ -57,8 +57,8 @@ New(Config)
        external binary path is configured, and scrapes the node API /metrics endpoint
      Manager realtime monitor queries use this configured Prometheus HTTP API.
      They scope PromQL to the generated `wukongimv2` job and can optionally add
-     a node-scoped filter; cluster monitor snapshots also pass the selected node
-     into bounded control snapshot reads.
+     a node-scoped filter; unified realtime monitor snapshots also pass the
+     selected node into bounded control snapshot reads.
      They do not use the top collector or in-process dashboard ring buffers.
   -> when Observability.Diagnostics.Enabled=true:
        create a bounded node-local diagnostics store, runtime tracking rules,
@@ -207,13 +207,12 @@ New(Config)
      route selected non-local nodes through the manager diagnostics RPC path;
      when `Top.APIEnabled` creates a top collector,
      attach the local top provider so `/manager/runtime/workqueues` can expose
-     local runtime pressure; attach a Prometheus monitor provider so
-     `/manager/monitor/realtime` can expose business monitor card series and
-     explicit disabled/unavailable source states; attach a Prometheus-backed
-     cluster monitor provider so `/manager/cluster-monitor/realtime` can expose
-     cluster operations card series while using the management usecase only for
-     bounded `ListNodes`/`ListSlots` control snapshots; the cluster monitor does
-     not read from `topCollector`
+     local runtime pressure; attach one Prometheus-backed realtime monitor
+     provider so `/manager/realtime-monitor` can expose business-path and
+     cluster-operations card series, category counts, explicit
+     disabled/unavailable source states, and bounded `ListNodes`/`ListSlots`
+     control snapshots through the management usecase; the realtime monitor
+     does not read from `topCollector`
   -> create pkg/gateway.Gateway with WKProto CONNECT authentication only when listeners are configured
 ```
 

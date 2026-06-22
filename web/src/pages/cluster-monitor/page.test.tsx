@@ -5,15 +5,15 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { resetLocale } from "@/i18n/locale-store"
 import { I18nProvider } from "@/i18n/provider"
-import { getClusterRealtimeMonitor, getNodes } from "@/lib/manager-api"
-import type { ClusterRealtimeMonitorResponse, ManagerNodesResponse } from "@/lib/manager-api.types"
+import { getRealtimeMonitor, getNodes } from "@/lib/manager-api"
+import type { RealtimeMonitorResponse, ManagerNodesResponse } from "@/lib/manager-api.types"
 import { ClusterMonitorPage } from "@/pages/cluster-monitor/page"
 
 vi.mock("@/lib/manager-api", async () => {
   const actual = await vi.importActual<typeof import("@/lib/manager-api")>("@/lib/manager-api")
   return {
     ...actual,
-    getClusterRealtimeMonitor: vi.fn(),
+    getRealtimeMonitor: vi.fn(),
     getNodes: vi.fn(),
   }
 })
@@ -31,7 +31,7 @@ function renderClusterMonitorPage() {
 beforeEach(() => {
   localStorage.clear()
   resetLocale()
-  vi.mocked(getClusterRealtimeMonitor).mockReset()
+  vi.mocked(getRealtimeMonitor).mockReset()
   vi.mocked(getNodes).mockReset()
   vi.mocked(getNodes).mockResolvedValue(managerNodesResponse())
 })
@@ -72,24 +72,30 @@ function managerNodesResponse(): ManagerNodesResponse {
   }
 }
 
-function readyClusterMonitorResponse(): ClusterRealtimeMonitorResponse {
+function readyClusterMonitorResponse(): RealtimeMonitorResponse {
   return {
     status: "ready" as const,
     generated_at: "2026-06-18T10:00:00Z",
     window_seconds: 900,
     step_seconds: 20,
-    scope: { view: "cluster" },
+    scope: { view: "realtime_monitor" },
     sources: {
       prometheus: { enabled: true, base_url: "http://127.0.0.1:9090", query_ms: 12, error: "" },
       control_snapshot: { enabled: true, query_ms: 2, error: "" },
     },
+    categories: [
+      { key: "all", count: 2 },
+      { key: "control", count: 1 },
+      { key: "internal", count: 1 },
+    ],
     snapshot: [
-      { key: "nodesAlive", metric_key: "controllerProposeRate", source: "control_snapshot" as const, text: "3/3", tone: "normal" as const },
+      { key: "nodesAlive", metric_key: "controllerProposeRate", source: "control_snapshot" as const, value: 3, tone: "normal" as const },
       { key: "rpcErrorRate", metric_key: "rpcSuccessRate", source: "prometheus" as const, value: 0.14, unit: "%", tone: "normal" as const },
     ],
     cards: [
       {
         key: "controllerProposeRate",
+        category: "control" as const,
         source: "prometheus" as const,
         stage: "controlPlane",
         tone: "normal" as const,
@@ -109,6 +115,7 @@ function readyClusterMonitorResponse(): ClusterRealtimeMonitorResponse {
       },
       {
         key: "rpcSuccessRate",
+        category: "internal" as const,
         source: "prometheus" as const,
         stage: "internalNetwork",
         tone: "normal" as const,
@@ -130,7 +137,7 @@ function readyClusterMonitorResponse(): ClusterRealtimeMonitorResponse {
   }
 }
 
-function partialClusterMonitorResponse(): ClusterRealtimeMonitorResponse {
+function partialClusterMonitorResponse(): RealtimeMonitorResponse {
   return {
     ...readyClusterMonitorResponse(),
     status: "partial" as const,
@@ -142,10 +149,12 @@ function partialClusterMonitorResponse(): ClusterRealtimeMonitorResponse {
       readyClusterMonitorResponse().cards[0],
       {
         key: "controllerApplyGap",
+        category: "control" as const,
         source: "prometheus" as const,
         stage: "controlPlane",
         tone: "warning" as const,
         unit: "",
+        value: 0,
         available: false,
         error: "prometheus series unavailable",
         series: [],
@@ -153,6 +162,7 @@ function partialClusterMonitorResponse(): ClusterRealtimeMonitorResponse {
       },
       {
         key: "unknownMetric",
+        category: "control" as const,
         source: "prometheus" as const,
         stage: "controlPlane",
         tone: "critical" as const,
@@ -167,13 +177,14 @@ function partialClusterMonitorResponse(): ClusterRealtimeMonitorResponse {
   }
 }
 
-function largeTrafficClusterMonitorResponse(): ClusterRealtimeMonitorResponse {
+function largeTrafficClusterMonitorResponse(): RealtimeMonitorResponse {
   return {
     ...readyClusterMonitorResponse(),
     snapshot: [],
     cards: [
       {
         key: "internalTraffic",
+        category: "internal" as const,
         source: "prometheus" as const,
         stage: "internalNetwork",
         tone: "normal" as const,
@@ -194,19 +205,20 @@ function largeTrafficClusterMonitorResponse(): ClusterRealtimeMonitorResponse {
   }
 }
 
-function largeTrafficClusterMonitorResponseWithoutStats(): ClusterRealtimeMonitorResponse {
+function largeTrafficClusterMonitorResponseWithoutStats(): RealtimeMonitorResponse {
   const response = largeTrafficClusterMonitorResponse()
   delete (response.cards[0] as unknown as Record<string, unknown>).stats
   return response
 }
 
-function burstyTrafficClusterMonitorResponse(): ClusterRealtimeMonitorResponse {
+function burstyTrafficClusterMonitorResponse(): RealtimeMonitorResponse {
   return {
     ...readyClusterMonitorResponse(),
     snapshot: [],
     cards: [
       {
         key: "internalTraffic",
+        category: "internal" as const,
         source: "prometheus" as const,
         stage: "internalNetwork",
         tone: "normal" as const,
@@ -227,13 +239,14 @@ function burstyTrafficClusterMonitorResponse(): ClusterRealtimeMonitorResponse {
   }
 }
 
-function nodeMemoryClusterMonitorResponse(): ClusterRealtimeMonitorResponse {
+function nodeMemoryClusterMonitorResponse(): RealtimeMonitorResponse {
   return {
     ...readyClusterMonitorResponse(),
     snapshot: [],
     cards: [
       {
         key: "nodeMemoryRSS",
+        category: "node" as const,
         source: "prometheus" as const,
         stage: "runtimePressure",
         tone: "warning" as const,
@@ -254,13 +267,14 @@ function nodeMemoryClusterMonitorResponse(): ClusterRealtimeMonitorResponse {
   }
 }
 
-function allNodeCpuClusterMonitorResponse(): ClusterRealtimeMonitorResponse {
+function allNodeCpuClusterMonitorResponse(): RealtimeMonitorResponse {
   return {
     ...readyClusterMonitorResponse(),
     snapshot: [],
     cards: [
       {
         key: "nodeCpuPercent",
+        category: "node" as const,
         source: "prometheus" as const,
         stage: "runtimePressure",
         tone: "warning" as const,
@@ -283,13 +297,13 @@ function allNodeCpuClusterMonitorResponse(): ClusterRealtimeMonitorResponse {
   }
 }
 
-function disabledClusterMonitorResponse(): ClusterRealtimeMonitorResponse {
+function disabledClusterMonitorResponse(): RealtimeMonitorResponse {
   return {
     status: "prometheus_disabled" as const,
     generated_at: "2026-06-18T10:00:00Z",
     window_seconds: 900,
     step_seconds: 20,
-    scope: { view: "cluster" },
+    scope: { view: "realtime_monitor" },
     sources: {
       prometheus: {
         enabled: false,
@@ -299,18 +313,19 @@ function disabledClusterMonitorResponse(): ClusterRealtimeMonitorResponse {
       },
       control_snapshot: { enabled: true, query_ms: 1, error: "" },
     },
+    categories: [],
     snapshot: [],
     cards: [],
   }
 }
 
-function unavailableClusterMonitorResponse(): ClusterRealtimeMonitorResponse {
+function unavailableClusterMonitorResponse(): RealtimeMonitorResponse {
   return {
     status: "prometheus_unavailable" as const,
     generated_at: "2026-06-18T10:00:00Z",
     window_seconds: 900,
     step_seconds: 20,
-    scope: { view: "cluster" },
+    scope: { view: "realtime_monitor" },
     sources: {
       prometheus: {
         enabled: true,
@@ -320,13 +335,14 @@ function unavailableClusterMonitorResponse(): ClusterRealtimeMonitorResponse {
       },
       control_snapshot: { enabled: true, query_ms: 1, error: "" },
     },
+    categories: [],
     snapshot: [],
     cards: [],
   }
 }
 
 test("renders cluster monitor cards from realtime API data", async () => {
-  vi.mocked(getClusterRealtimeMonitor).mockResolvedValueOnce(readyClusterMonitorResponse())
+  vi.mocked(getRealtimeMonitor).mockResolvedValueOnce(readyClusterMonitorResponse())
   renderClusterMonitorPage()
 
   expect(screen.getByRole("heading", { name: "Live Monitor" })).toBeInTheDocument()
@@ -346,12 +362,12 @@ test("renders cluster monitor cards from realtime API data", async () => {
   expect(screen.getByText("RPC Errors")).toBeInTheDocument()
   expect(screen.getByRole("button", { name: "Refresh now" })).toBeInTheDocument()
   expect(screen.getByRole("combobox", { name: "Auto refresh" })).toHaveValue("30s")
-  expect(getClusterRealtimeMonitor).toHaveBeenCalledWith({ window: "15m" })
+  expect(getRealtimeMonitor).toHaveBeenCalledWith({ window: "15m" })
 })
 
 test("shows metric explanations from card help buttons", async () => {
   const user = userEvent.setup()
-  vi.mocked(getClusterRealtimeMonitor).mockResolvedValueOnce(readyClusterMonitorResponse())
+  vi.mocked(getRealtimeMonitor).mockResolvedValueOnce(readyClusterMonitorResponse())
   renderClusterMonitorPage()
 
   expect(await screen.findByRole("button", { name: "Explain Controller Propose Rate" })).toBeInTheDocument()
@@ -363,7 +379,7 @@ test("shows metric explanations from card help buttons", async () => {
 })
 
 test("keeps known unavailable cards visible during partial responses", async () => {
-  vi.mocked(getClusterRealtimeMonitor).mockResolvedValueOnce(partialClusterMonitorResponse())
+  vi.mocked(getRealtimeMonitor).mockResolvedValueOnce(partialClusterMonitorResponse())
   renderClusterMonitorPage()
 
   const cards = await screen.findAllByTestId("cluster-monitor-metric-card")
@@ -379,7 +395,7 @@ test("keeps known unavailable cards visible during partial responses", async () 
 })
 
 test("formats large internal traffic byte rates", async () => {
-  vi.mocked(getClusterRealtimeMonitor).mockResolvedValueOnce(largeTrafficClusterMonitorResponse())
+  vi.mocked(getRealtimeMonitor).mockResolvedValueOnce(largeTrafficClusterMonitorResponse())
   renderClusterMonitorPage()
 
   const card = await screen.findByTestId("cluster-monitor-metric-card")
@@ -392,7 +408,7 @@ test("formats large internal traffic byte rates", async () => {
 })
 
 test("keeps internal traffic unit readable when an old burst is larger than the current value", async () => {
-  vi.mocked(getClusterRealtimeMonitor).mockResolvedValueOnce(burstyTrafficClusterMonitorResponse())
+  vi.mocked(getRealtimeMonitor).mockResolvedValueOnce(burstyTrafficClusterMonitorResponse())
   renderClusterMonitorPage()
 
   const card = await screen.findByTestId("cluster-monitor-metric-card")
@@ -406,7 +422,7 @@ test("keeps internal traffic unit readable when an old burst is larger than the 
 })
 
 test("formats node memory pressure bytes", async () => {
-  vi.mocked(getClusterRealtimeMonitor).mockResolvedValueOnce(nodeMemoryClusterMonitorResponse())
+  vi.mocked(getRealtimeMonitor).mockResolvedValueOnce(nodeMemoryClusterMonitorResponse())
   renderClusterMonitorPage()
 
   const card = await screen.findByTestId("cluster-monitor-metric-card")
@@ -419,7 +435,7 @@ test("formats node memory pressure bytes", async () => {
 })
 
 test("renders all node resource pressure stats in global scope", async () => {
-  vi.mocked(getClusterRealtimeMonitor).mockResolvedValueOnce(allNodeCpuClusterMonitorResponse())
+  vi.mocked(getRealtimeMonitor).mockResolvedValueOnce(allNodeCpuClusterMonitorResponse())
   renderClusterMonitorPage()
 
   const card = await screen.findByTestId("cluster-monitor-metric-card")
@@ -431,7 +447,7 @@ test("renders all node resource pressure stats in global scope", async () => {
 })
 
 test("keeps rendering when cluster cards omit stats", async () => {
-  vi.mocked(getClusterRealtimeMonitor).mockResolvedValueOnce(largeTrafficClusterMonitorResponseWithoutStats())
+  vi.mocked(getRealtimeMonitor).mockResolvedValueOnce(largeTrafficClusterMonitorResponseWithoutStats())
   renderClusterMonitorPage()
 
   const card = await screen.findByTestId("cluster-monitor-metric-card")
@@ -441,8 +457,8 @@ test("keeps rendering when cluster cards omit stats", async () => {
   expect(within(card).queryByText("Avg")).not.toBeInTheDocument()
 })
 
-test("shows prometheus setup guidance when cluster realtime monitor is disabled", async () => {
-  vi.mocked(getClusterRealtimeMonitor).mockResolvedValueOnce(disabledClusterMonitorResponse())
+test("shows prometheus setup guidance when realtime monitor is disabled", async () => {
+  vi.mocked(getRealtimeMonitor).mockResolvedValueOnce(disabledClusterMonitorResponse())
   renderClusterMonitorPage()
 
   expect(await screen.findByText("Prometheus monitoring is not enabled")).toBeInTheDocument()
@@ -452,7 +468,7 @@ test("shows prometheus setup guidance when cluster realtime monitor is disabled"
 })
 
 test("shows unavailable guidance for source errors and rejected requests", async () => {
-  vi.mocked(getClusterRealtimeMonitor).mockResolvedValueOnce(unavailableClusterMonitorResponse())
+  vi.mocked(getRealtimeMonitor).mockResolvedValueOnce(unavailableClusterMonitorResponse())
   const { unmount } = renderClusterMonitorPage()
 
   expect(await screen.findByText("Prometheus is unavailable")).toBeInTheDocument()
@@ -460,7 +476,7 @@ test("shows unavailable guidance for source errors and rejected requests", async
   expect(screen.queryByTestId("cluster-monitor-metric-card")).not.toBeInTheDocument()
 
   unmount()
-  vi.mocked(getClusterRealtimeMonitor).mockRejectedValueOnce(new Error("manager api unavailable"))
+  vi.mocked(getRealtimeMonitor).mockRejectedValueOnce(new Error("manager api unavailable"))
   renderClusterMonitorPage()
 
   expect(await screen.findByText("Prometheus is unavailable")).toBeInTheDocument()
@@ -469,20 +485,20 @@ test("shows unavailable guidance for source errors and rejected requests", async
 
 test("updates selected time range and auto refresh interval from the toolbar", async () => {
   const user = userEvent.setup()
-  vi.mocked(getClusterRealtimeMonitor).mockResolvedValue(readyClusterMonitorResponse())
+  vi.mocked(getRealtimeMonitor).mockResolvedValue(readyClusterMonitorResponse())
   renderClusterMonitorPage()
 
   await user.click(await screen.findByRole("button", { name: "30m time range" }))
   expect(screen.getByRole("button", { name: "30m time range" })).toHaveAttribute("aria-pressed", "true")
-  expect(getClusterRealtimeMonitor).toHaveBeenLastCalledWith({ window: "30m" })
+  expect(getRealtimeMonitor).toHaveBeenLastCalledWith({ window: "30m" })
 
   await user.selectOptions(screen.getByRole("combobox", { name: "Auto refresh" }), "off")
   expect(screen.getByRole("combobox", { name: "Auto refresh" })).toHaveValue("off")
 })
 
-test("manually and automatically refreshes cluster realtime monitor data", async () => {
+test("manually and automatically refreshes realtime monitor data", async () => {
   vi.useFakeTimers()
-  vi.mocked(getClusterRealtimeMonitor).mockResolvedValue(readyClusterMonitorResponse())
+  vi.mocked(getRealtimeMonitor).mockResolvedValue(readyClusterMonitorResponse())
   renderClusterMonitorPage()
 
   await act(async () => {
@@ -490,42 +506,42 @@ test("manually and automatically refreshes cluster realtime monitor data", async
     await Promise.resolve()
   })
   expect(screen.getAllByTestId("cluster-monitor-metric-card")).toHaveLength(2)
-  expect(getClusterRealtimeMonitor).toHaveBeenCalledTimes(1)
+  expect(getRealtimeMonitor).toHaveBeenCalledTimes(1)
 
   fireEvent.click(screen.getByRole("button", { name: "Refresh now" }))
   await act(async () => {})
-  expect(getClusterRealtimeMonitor).toHaveBeenCalledTimes(2)
-  expect(getClusterRealtimeMonitor).toHaveBeenLastCalledWith({ window: "15m" })
+  expect(getRealtimeMonitor).toHaveBeenCalledTimes(2)
+  expect(getRealtimeMonitor).toHaveBeenLastCalledWith({ window: "15m" })
 
   await act(async () => {
     await vi.advanceTimersByTimeAsync(30_000)
   })
-  expect(getClusterRealtimeMonitor).toHaveBeenCalledTimes(3)
-  expect(getClusterRealtimeMonitor).toHaveBeenLastCalledWith({ window: "15m" })
+  expect(getRealtimeMonitor).toHaveBeenCalledTimes(3)
+  expect(getRealtimeMonitor).toHaveBeenLastCalledWith({ window: "15m" })
 
   fireEvent.change(screen.getByRole("combobox", { name: "Auto refresh" }), { target: { value: "off" } })
   await act(async () => {})
   await act(async () => {
     await vi.advanceTimersByTimeAsync(30_000)
   })
-  expect(getClusterRealtimeMonitor).toHaveBeenCalledTimes(3)
+  expect(getRealtimeMonitor).toHaveBeenCalledTimes(3)
 })
 
-test("filters cluster realtime monitor by selected node", async () => {
+test("filters realtime monitor by selected node", async () => {
   const user = userEvent.setup()
-  vi.mocked(getClusterRealtimeMonitor).mockResolvedValue(readyClusterMonitorResponse())
+  vi.mocked(getRealtimeMonitor).mockResolvedValue(readyClusterMonitorResponse())
   renderClusterMonitorPage()
 
   const nodeSelect = await screen.findByRole("combobox", { name: "Node" })
-  expect(getClusterRealtimeMonitor).toHaveBeenCalledWith({ window: "15m" })
+  expect(getRealtimeMonitor).toHaveBeenCalledWith({ window: "15m" })
 
   await user.selectOptions(nodeSelect, "2")
 
-  expect(getClusterRealtimeMonitor).toHaveBeenLastCalledWith({ window: "15m", nodeId: 2 })
+  expect(getRealtimeMonitor).toHaveBeenLastCalledWith({ window: "15m", nodeId: 2 })
 })
 
 test("does not silently render preview fixture before the realtime API responds", () => {
-  vi.mocked(getClusterRealtimeMonitor).mockReturnValue(new Promise(() => undefined))
+  vi.mocked(getRealtimeMonitor).mockReturnValue(new Promise(() => undefined))
   renderClusterMonitorPage()
 
   expect(screen.getByText("Loading cluster monitor data...")).toBeInTheDocument()

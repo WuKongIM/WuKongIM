@@ -6,7 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 import { resetLocale } from "@/i18n/locale-store"
 import { I18nProvider } from "@/i18n/provider"
 import { getNodes, getRealtimeMonitor } from "@/lib/manager-api"
-import type { ManagerNodesResponse } from "@/lib/manager-api.types"
+import type { ManagerNodesResponse, RealtimeMonitorResponse } from "@/lib/manager-api.types"
 import { MonitorPage } from "@/pages/monitor/page"
 
 vi.mock("@/lib/manager-api", async () => {
@@ -72,14 +72,22 @@ function managerNodesResponse(): ManagerNodesResponse {
   }
 }
 
-function readyMonitorResponse() {
+function readyMonitorResponse(): RealtimeMonitorResponse {
   return {
     status: "ready" as const,
     generated_at: "2026-06-18T10:00:00Z",
     window_seconds: 900,
     step_seconds: 20,
-    scope: { view: "prometheus" as const, node_id: 1, node_name: "node-1" },
-    sources: { prometheus: { enabled: true, base_url: "http://127.0.0.1:9090", query_ms: 18, error: "" } },
+    scope: { view: "realtime_monitor" as const, node_id: 1 },
+    sources: {
+      prometheus: { enabled: true, base_url: "http://127.0.0.1:9090", query_ms: 18, error: "" },
+      control_snapshot: { enabled: true, query_ms: 1, error: "" },
+    },
+    categories: [
+      { key: "all", count: 3 },
+      { key: "gateway", count: 2 },
+      { key: "conversation", count: 1 },
+    ],
     snapshot: [
       { key: "send", metric_key: "sendRate", value: 12.5, unit: "msg/s", tone: "normal" as const },
       { key: "conversationSyncP99", metric_key: "conversationSyncLatencyP99", value: 18.4, unit: "ms", tone: "normal" as const },
@@ -88,6 +96,8 @@ function readyMonitorResponse() {
     cards: [
       {
         key: "sendRate",
+        category: "gateway" as const,
+        source: "prometheus" as const,
         stage: "sendEntry",
         tone: "normal" as const,
         unit: "msg/s",
@@ -106,6 +116,8 @@ function readyMonitorResponse() {
       },
       {
         key: "conversationSyncRate",
+        category: "conversation" as const,
+        source: "prometheus" as const,
         stage: "conversationSync",
         tone: "normal" as const,
         unit: "sync/s",
@@ -124,6 +136,8 @@ function readyMonitorResponse() {
       },
       {
         key: "activeConnections",
+        category: "gateway" as const,
+        source: "prometheus" as const,
         stage: "sendEntry",
         tone: "normal" as const,
         unit: "",
@@ -154,6 +168,8 @@ function partialMonitorResponseWithUnavailableConversationCard(unavailableReason
       response.cards[0],
       {
         key: "conversationRecentLoadLatencyP99",
+        category: "conversation" as const,
+        source: "prometheus" as const,
         stage: "conversationSync",
         tone: "warning" as const,
         unit: "ms",
@@ -168,13 +184,13 @@ function partialMonitorResponseWithUnavailableConversationCard(unavailableReason
   }
 }
 
-function disabledMonitorResponse() {
+function disabledMonitorResponse(): RealtimeMonitorResponse {
   return {
     status: "prometheus_disabled" as const,
     generated_at: "2026-06-18T10:00:00Z",
     window_seconds: 900,
     step_seconds: 20,
-    scope: { view: "prometheus" as const },
+    scope: { view: "realtime_monitor" as const },
     sources: {
       prometheus: {
         enabled: false,
@@ -182,7 +198,9 @@ function disabledMonitorResponse() {
         query_ms: 0,
         error: "prometheus is disabled; set WK_METRICS_ENABLE=true and WK_PROMETHEUS_ENABLE=true",
       },
+      control_snapshot: { enabled: true, query_ms: 1, error: "" },
     },
+    categories: [],
     snapshot: [],
     cards: [],
   }
@@ -199,11 +217,14 @@ function partialMonitorResponseWithNoDataCard() {
         query_ms: 22,
         error: "deliveryLatencyP99: no delivery latency samples in selected window",
       },
+      control_snapshot: { enabled: true, query_ms: 1, error: "" },
     },
     cards: [
       readyMonitorResponse().cards[0],
       {
         key: "deliveryLatencyP99",
+        category: "message" as const,
+        source: "prometheus" as const,
         stage: "onlineDelivery",
         tone: "warning" as const,
         unit: "ms",

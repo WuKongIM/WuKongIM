@@ -13,8 +13,7 @@ user, or conversation business state.
 ```text
 POST /manager/login   (only when Auth.On=true)
 GET  /manager/nodes   (read-only node list; requires cluster.node:r when Auth.On=true)
-GET  /manager/monitor/realtime (Prometheus-backed business realtime monitor cards; requires cluster.node:r when Auth.On=true)
-GET  /manager/cluster-monitor/realtime (Prometheus/control-snapshot cluster operations monitor cards; requires cluster.node:r when Auth.On=true)
+GET  /manager/realtime-monitor (unified realtime monitor cards; requires cluster.node:r when Auth.On=true)
 GET  /manager/runtime/workqueues (local-node runtime pressure; requires cluster.node:r when Auth.On=true)
 GET  /manager/slots   (read-only Slot list; requires cluster.slot:r when Auth.On=true)
 POST /manager/slots/leader-transfer-plan (read-only Slot leader-transfer batch preview; requires cluster.slot:r when Auth.On=true)
@@ -71,27 +70,20 @@ uses the wired Slot runtime status reader for actual Slot Raft leader counts.
 Node operation action hints are false because node lifecycle/scale-in operation
 routes are intentionally not migrated in this phase.
 
-`/manager/monitor/realtime` backs the web business realtime monitor card wall.
-It parses the chart `window`, optional `step`, and optional positive `node_id`
-Prometheus metric filter, requires `cluster.node:r` when
-manager auth is enabled, and delegates all metric reads to the app-wired
-Prometheus monitor provider. When Prometheus is disabled or unavailable the
-route still returns HTTP 200 with an explicit monitor status so the web UI can
-show setup guidance instead of rendering empty charts. This route does not read
-from the top collector or any in-process dashboard ring buffer. PromQL is
-scoped to the app-managed `wukongimv2` Prometheus job so obsolete
-`cmd/wukongim` metrics cannot be mixed into the realtime cards.
-The Prometheus-backed card wall includes a `conversationSync` stage covering
-the `/conversation/sync` client experience, active-cache dirty age, active
-flush health, and conversation authority pressure.
-
-`/manager/cluster-monitor/realtime` backs the web cluster operations realtime
-monitor card wall. It uses the same chart `window`, optional `step`, optional
-positive `node_id`, and bounds as the business realtime monitor, requires
+`/manager/realtime-monitor` backs the unified web realtime monitor under
+cluster operations. It parses chart `window`, optional `step`, optional
+positive `node_id`, and `category` (`all`, `gateway`, `internal`, `message`,
+`conversation`, `channel`, `control`, `slot`, or `node`), requires
 `cluster.node:r` when manager auth is enabled, and delegates Prometheus plus
-bounded `control_snapshot` reads to the app-wired cluster monitor provider.
-This route does not read from the top collector or any in-process dashboard
-ring buffer. PromQL is scoped to the app-managed `wukongimv2` Prometheus job.
+bounded `control_snapshot` reads to the app-wired realtime monitor provider.
+When Prometheus is disabled or unavailable the route still returns HTTP 200
+with an explicit monitor status so the web UI can show setup guidance instead
+of rendering empty charts. This route does not read from the top collector or
+any in-process dashboard ring buffer. PromQL is scoped to the app-managed
+`wukongimv2` Prometheus job so obsolete `cmd/wukongim` metrics cannot be mixed
+into the realtime cards. Conversation cards include a `conversationSync` stage
+covering the `/conversation/sync` client experience, active-cache dirty age,
+active flush health, and conversation authority pressure.
 
 `/manager/runtime/workqueues` is backed by the `internalv2/app` top collector.
 It is a forced runtime view of the local node only: it does not fan out to peer

@@ -216,10 +216,7 @@ function mapRealtimeCard(card: RealtimeMonitorCard): MonitorMetricCard | null {
     stats: available
       ? card.stats.map((stat) => ({
           labelId: monitorStatLabelIds[stat.key] ?? "monitor.stat.avg",
-          value:
-            stat.key === "total"
-              ? formatMonitorNumber(stat.value, 0)
-              : appendMonitorUnit(formatMonitorNumber(stat.value, config.precision), card.unit),
+          value: formatMonitorStatValue(stat, card.unit, stat.key === "total" ? 0 : config.precision, stat.key !== "total"),
         }))
       : [],
     chartColor: config.chartColor,
@@ -258,6 +255,13 @@ function formatMonitorNumber(value: number, precision: number) {
     maximumFractionDigits: precision,
     minimumFractionDigits: precision > 0 && Math.abs(value) < 10 ? precision : 0,
   })
+}
+
+function formatMonitorStatValue(stat: { value?: number; text?: string }, unit: string, precision: number, appendUnit: boolean) {
+  if (stat.text !== undefined && stat.text !== "") return stat.text
+  if (typeof stat.value !== "number") return "-"
+  const formatted = formatMonitorNumber(stat.value, precision)
+  return appendUnit ? appendMonitorUnit(formatted, unit) : formatted
 }
 
 function appendMonitorUnit(value: string, unit: string) {

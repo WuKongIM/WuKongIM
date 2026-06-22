@@ -337,7 +337,7 @@ func TestManagerServerReceivesPrometheusMonitorProviderWhenConfigured(t *testing
 	}
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/monitor/realtime", nil)
+	req := httptest.NewRequest(http.MethodGet, "/manager/realtime-monitor?category=internal", nil)
 	req.Header.Set("Authorization", "Bearer "+mustIssueManagerTokenForAppTest(t, srv, "admin"))
 
 	srv.Engine().ServeHTTP(rec, req)
@@ -350,22 +350,6 @@ func TestManagerServerReceivesPrometheusMonitorProviderWhenConfigured(t *testing
 	}
 	if !strings.Contains(rec.Body.String(), `"enabled":true`) {
 		t.Fatalf("monitor body = %s, want prometheus source enabled", rec.Body.String())
-	}
-
-	clusterRec := httptest.NewRecorder()
-	clusterReq := httptest.NewRequest(http.MethodGet, "/manager/cluster-monitor/realtime", nil)
-	clusterReq.Header.Set("Authorization", req.Header.Get("Authorization"))
-
-	srv.Engine().ServeHTTP(clusterRec, clusterReq)
-
-	if clusterRec.Code != http.StatusOK {
-		t.Fatalf("cluster monitor status = %d, want %d; body=%s", clusterRec.Code, http.StatusOK, clusterRec.Body.String())
-	}
-	if strings.Contains(clusterRec.Body.String(), accessmanager.ClusterRealtimeMonitorStatusPrometheusDisabled) {
-		t.Fatalf("cluster monitor body = %s, want configured prometheus provider", clusterRec.Body.String())
-	}
-	if !strings.Contains(clusterRec.Body.String(), `"enabled":true`) {
-		t.Fatalf("cluster monitor body = %s, want prometheus source enabled", clusterRec.Body.String())
 	}
 }
 

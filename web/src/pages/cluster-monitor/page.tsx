@@ -5,13 +5,13 @@ import { selectedMonitorNodeLabel } from "@/components/manager/monitor-node-sele
 import { monitorRefreshIntervalMs, type MonitorRefreshInterval } from "@/components/manager/monitor-refresh-controls"
 import { PageContainer } from "@/components/shell/page-container"
 import { PageHeader } from "@/components/shell/page-header"
-import { getClusterRealtimeMonitor, getNodes } from "@/lib/manager-api"
+import { getRealtimeMonitor, getNodes } from "@/lib/manager-api"
 import type {
-  ClusterRealtimeMonitorCard,
-  ClusterRealtimeMonitorResponse,
-  ClusterRealtimeMonitorSnapshotEntry as ApiSnapshotEntry,
-  ClusterRealtimeMonitorStat as ApiStat,
-  ClusterRealtimeMonitorTone,
+  RealtimeMonitorCard,
+  RealtimeMonitorResponse,
+  RealtimeMonitorSnapshotEntry as ApiSnapshotEntry,
+  RealtimeMonitorStat as ApiStat,
+  RealtimeMonitorTone,
   ManagerNodesResponse,
 } from "@/lib/manager-api.types"
 
@@ -37,7 +37,7 @@ import type {
 
 type ClusterMonitorPageState =
   | { kind: "loading" }
-  | { kind: "ready"; response: ClusterRealtimeMonitorResponse }
+  | { kind: "ready"; response: RealtimeMonitorResponse }
   | { kind: "error"; message: string }
 
 export function ClusterMonitorPage() {
@@ -79,7 +79,7 @@ export function ClusterMonitorPage() {
     lastQueryKeyRef.current = queryKey
     setState((current) => (isSameQuery && current.kind === "ready" ? current : { kind: "loading" }))
 
-    getClusterRealtimeMonitor({ window: timeRange, ...(selectedNodeId ? { nodeId: selectedNodeId } : {}) })
+    getRealtimeMonitor({ window: timeRange, ...(selectedNodeId ? { nodeId: selectedNodeId } : {}) })
       .then((response) => {
         if (!cancelled) {
           setState({ kind: "ready", response })
@@ -106,7 +106,7 @@ export function ClusterMonitorPage() {
 
   const model = useMemo(() => {
     if (state.kind !== "ready" || !isRenderableClusterMonitor(state.response)) return null
-    return buildClusterRealtimeMonitorModel(state.response, timeRange, refreshInterval === "off")
+    return buildRealtimeMonitorModel(state.response, timeRange, refreshInterval === "off")
   }, [refreshInterval, state, timeRange])
   const generatedAt = state.kind === "ready" ? state.response.generated_at : new Date().toISOString()
   const sourceError = state.kind === "ready" ? getSourceError(state.response) : undefined
@@ -157,7 +157,7 @@ export function ClusterMonitorPage() {
   )
 }
 
-function isRenderableClusterMonitor(response: ClusterRealtimeMonitorResponse) {
+function isRenderableClusterMonitor(response: RealtimeMonitorResponse) {
   if (response.status === "ready" || response.status === "partial") {
     return response.snapshot.some((entry) => clusterMonitorSnapshotLabelIds[entry.key]) || response.cards.some(isKnownClusterCard)
   }
@@ -167,8 +167,8 @@ function isRenderableClusterMonitor(response: ClusterRealtimeMonitorResponse) {
   return false
 }
 
-function buildClusterRealtimeMonitorModel(
-  response: ClusterRealtimeMonitorResponse,
+function buildRealtimeMonitorModel(
+  response: RealtimeMonitorResponse,
   timeRange: ClusterMonitorTimeRange,
   isPaused: boolean,
 ): PreviewClusterMonitorModel {
@@ -190,7 +190,7 @@ function buildClusterRealtimeMonitorModel(
   }
 }
 
-function mapClusterRealtimeCard(card: ClusterRealtimeMonitorCard): ClusterMonitorMetricCard | null {
+function mapClusterRealtimeCard(card: RealtimeMonitorCard): ClusterMonitorMetricCard | null {
   if (!isClusterMonitorMetricKey(card.key)) return null
 
   const config = clusterMonitorMetricConfig[card.key]
@@ -263,7 +263,7 @@ function unavailableStats(error: string) {
   ]
 }
 
-function isKnownClusterCard(card: ClusterRealtimeMonitorCard) {
+function isKnownClusterCard(card: RealtimeMonitorCard) {
   return isClusterMonitorMetricKey(card.key)
 }
 
@@ -276,7 +276,7 @@ function normalizeStage(stage: string, fallback: ClusterMonitorStage): ClusterMo
   return fallback
 }
 
-function normalizeTone(tone: ClusterRealtimeMonitorTone | string | undefined, fallback: ClusterMonitorTone): ClusterMonitorTone {
+function normalizeTone(tone: RealtimeMonitorTone | string | undefined, fallback: ClusterMonitorTone): ClusterMonitorTone {
   if (tone === "normal" || tone === "warning" || tone === "critical") return tone
   return fallback === "preview" ? "normal" : fallback
 }
@@ -311,7 +311,7 @@ type ClusterDisplayScale = {
   unit: string
 }
 
-function clusterDisplayScale(card: ClusterRealtimeMonitorCard): ClusterDisplayScale {
+function clusterDisplayScale(card: RealtimeMonitorCard): ClusterDisplayScale {
   const unit = card.unit ?? ""
   if (!isScalableByteUnit(unit)) return { factor: 1, unit }
 
@@ -351,11 +351,11 @@ function isByteRateUnit(unit: string) {
   return unit === "B/s"
 }
 
-function clusterCardSeries(card: ClusterRealtimeMonitorCard) {
+function clusterCardSeries(card: RealtimeMonitorCard) {
   return Array.isArray(card.series) ? card.series : []
 }
 
-function clusterCardStats(card: ClusterRealtimeMonitorCard) {
+function clusterCardStats(card: RealtimeMonitorCard) {
   return Array.isArray(card.stats) ? card.stats : []
 }
 
@@ -369,7 +369,7 @@ function scaleClusterStat(stat: ApiStat, factor: number): ApiStat {
   return { ...stat, value: stat.value / factor }
 }
 
-function scaleClusterSeries(series: ClusterRealtimeMonitorCard["series"], factor: number) {
+function scaleClusterSeries(series: RealtimeMonitorCard["series"], factor: number) {
   return series.map((point) => ({
     timestamp: point.timestamp,
     value: factor === 1 ? point.value : point.value / factor,
@@ -378,7 +378,7 @@ function scaleClusterSeries(series: ClusterRealtimeMonitorCard["series"], factor
   }))
 }
 
-function getSourceError(response: ClusterRealtimeMonitorResponse) {
+function getSourceError(response: RealtimeMonitorResponse) {
   return response.sources.prometheus.error || response.sources.control_snapshot.error
 }
 

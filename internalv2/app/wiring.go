@@ -773,16 +773,15 @@ func (a *App) wireManager() {
 				JWTExpire: a.cfg.Manager.JWTExpire,
 				Users:     managerUserConfigs(a.cfg.Manager.Users),
 			},
-			Management:     management,
-			Monitor:        a.newManagerMonitorProvider(),
-			ClusterMonitor: a.newManagerClusterMonitorProvider(management),
-			Top:            a.topProvider,
-			Logger:         a.logger.Named("access.manager"),
+			Management:      management,
+			RealtimeMonitor: a.newManagerMonitorProvider(management),
+			Top:             a.topProvider,
+			Logger:          a.logger.Named("access.manager"),
 		})
 	}
 }
 
-func (a *App) newManagerMonitorProvider() accessmanager.RealtimeMonitorProvider {
+func (a *App) newManagerMonitorProvider(control managerClusterControlReader) accessmanager.RealtimeMonitorProvider {
 	prometheusBaseURL := ""
 	if listenAddr := strings.TrimSpace(a.cfg.Observability.Prometheus.ListenAddr); listenAddr != "" {
 		prometheusBaseURL = "http://" + listenAddr
@@ -796,18 +795,7 @@ func (a *App) newManagerMonitorProvider() accessmanager.RealtimeMonitorProvider 
 		BaseURL:  prometheusBaseURL,
 		NodeID:   nodeID,
 		NodeName: fmt.Sprintf("node-%d", nodeID),
-	})
-}
-
-func (a *App) newManagerClusterMonitorProvider(control managerClusterControlReader) accessmanager.ClusterRealtimeMonitorProvider {
-	prometheusBaseURL := ""
-	if listenAddr := strings.TrimSpace(a.cfg.Observability.Prometheus.ListenAddr); listenAddr != "" {
-		prometheusBaseURL = "http://" + listenAddr
-	}
-	return newManagerClusterPrometheusMonitorProvider(managerClusterPrometheusMonitorOptions{
-		Enabled: a.cfg.Observability.MetricsEnabled && a.cfg.Observability.Prometheus.Enabled,
-		BaseURL: prometheusBaseURL,
-		Control: control,
+		Control:  control,
 	})
 }
 
