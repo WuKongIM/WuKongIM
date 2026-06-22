@@ -20,6 +20,7 @@ func ImportBundle(ctx context.Context, root string, store *db.NodeStore, opts Im
 	if store == nil {
 		return ImportStats{}, fmt.Errorf("import bundle: nil target store")
 	}
+	opts = normalizeImportOptions(opts)
 	stats, err := ValidateBundle(ctx, root, opts)
 	if err != nil {
 		return stats, err
@@ -49,7 +50,7 @@ func ImportBundle(ctx context.Context, root string, store *db.NodeStore, opts Im
 		FileKindMetaChannelLatest,
 	} {
 		for _, entry := range entries[kind] {
-			if err := importMetaEntry(ctx, root, entry, store, &stats); err != nil {
+			if err := importMetaEntry(ctx, root, entry, store, opts, &stats); err != nil {
 				return stats, err
 			}
 		}
@@ -60,11 +61,24 @@ func ImportBundle(ctx context.Context, root string, store *db.NodeStore, opts Im
 		return stats, err
 	}
 	for _, entry := range entries[FileKindMessageMessages] {
-		if err := importMessageEntry(ctx, root, entry, store.Messages(), channels, &stats); err != nil {
+		if err := importMessageEntry(ctx, root, entry, store.Messages(), channels, opts, &stats); err != nil {
 			return stats, err
 		}
 	}
 	return stats, nil
+}
+
+func normalizeImportOptions(opts ImportOptions) ImportOptions {
+	if opts.SubscriberBatchSize <= 0 {
+		opts.SubscriberBatchSize = defaultSubscriberBatchSize
+	}
+	if opts.MessageBatchSize <= 0 {
+		opts.MessageBatchSize = defaultMessageBatchSize
+	}
+	if opts.MessageBatchBytes <= 0 {
+		opts.MessageBatchBytes = defaultMessageBatchBytes
+	}
+	return opts
 }
 
 func groupManifestEntries(manifest Manifest) map[FileKind][]FileEntry {
@@ -100,10 +114,10 @@ func checkTargetEmpty(ctx context.Context, store *db.NodeStore, hashSlotCount ui
 	return nil
 }
 
-func importMetaEntry(ctx context.Context, root string, entry FileEntry, store *db.NodeStore, stats *ImportStats) error {
+func importMetaEntry(ctx context.Context, root string, entry FileEntry, store *db.NodeStore, opts ImportOptions, stats *ImportStats) error {
 	switch entry.Kind {
 	case FileKindMetaSubscribers:
-		return importSubscriberEntry(ctx, root, entry, store.Meta(), stats)
+		return importSubscriberEntry(ctx, root, entry, store.Meta(), opts, stats)
 	default:
 		return importBundleEntry(ctx, root, entry, func(record any) error {
 			if err := importMetaRecord(ctx, store.Meta(), entry.Kind, record); err != nil {
@@ -209,10 +223,10 @@ type subscriberGroup struct {
 	channelType int64
 }
 
-func importSubscriberEntry(ctx context.Context, root string, entry FileEntry, meta *metadb.MetaDB, stats *ImportStats) error {
+func importSubscriberEntry(ctx context.Context, root string, entry FileEntry, meta *metadb.MetaDB, opts ImportOptions, stats *ImportStats) error {
 	var current subscriberGroup
 	var haveCurrent bool
-	uids := make([]string, 0, defaultSubscriberBatchSize)
+	uids := make([]string, 0, opts.SubscriberBatchSize)
 
 	flush := func() error {
 		if !haveCurrent || len(uids) == 0 {
@@ -238,7 +252,7 @@ func importSubscriberEntry(ctx context.Context, root string, entry FileEntry, me
 		uids = append(uids, row.UID)
 		stats.RowsWritten++
 		stats.SubscribersImported++
-		if len(uids) >= defaultSubscriberBatchSize {
+		if len(uids) >= opts.SubscriberBatchSize {
 			return flush()
 		}
 		return nil
@@ -263,11 +277,11 @@ func loadMessageChannelLookup(ctx context.Context, root string, entries []FileEn
 	return channels, nil
 }
 
-func importMessageEntry(ctx context.Context, root string, entry FileEntry, messages *msgdb.MessageDB, channels map[string]msgdb.ChannelID, stats *ImportStats) error {
+func importMessageEntry(ctx context.Context, root string, entry FileEntry, messages *msgdb.MessageDB, channels map[string]msgdb.ChannelID, opts ImportOptions, stats *ImportStats) error {
 	var currentKey string
 	var currentID msgdb.ChannelID
 	var haveCurrent bool
-	records := make([]msgdb.Record, 0, defaultMessageBatchSize)
+	records := make([]msgdb.Record, 0, opts.MessageBatchSize)
 	var recordBytes int
 
 	flush := func() error {
@@ -316,7 +330,7 @@ func importMessageEntry(ctx context.Context, root string, entry FileEntry, messa
 		recordBytes += len(row.Payload)
 		stats.RowsWritten++
 		stats.MessagesImported++
-		if len(records) >= defaultMessageBatchSize || recordBytes >= defaultMessageBatchBytes {
+		if len(records) >= opts.MessageBatchSize || recordBytes >= opts.MessageBatchBytes {
 			return flush()
 		}
 		return nil

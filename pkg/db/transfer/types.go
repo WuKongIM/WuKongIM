@@ -68,6 +68,12 @@ type ImportOptions struct {
 	HashSlotCount uint16
 	// RequireEmpty rejects imports when the target NodeStore already contains meta or message rows.
 	RequireEmpty bool
+	// SubscriberBatchSize bounds subscriber UID chunks written through the typed metadata API.
+	SubscriberBatchSize int
+	// MessageBatchSize bounds message record chunks written through the typed message API.
+	MessageBatchSize int
+	// MessageBatchBytes bounds approximate payload bytes per message import chunk.
+	MessageBatchBytes int
 }
 
 // ImportStats summarizes the outcome of validating or applying a WKDB import bundle.

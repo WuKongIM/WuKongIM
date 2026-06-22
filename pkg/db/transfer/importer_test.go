@@ -11,6 +11,28 @@ import (
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
+func TestNormalizeImportOptions(t *testing.T) {
+	defaulted := normalizeImportOptions(ImportOptions{})
+	if defaulted.SubscriberBatchSize != defaultSubscriberBatchSize {
+		t.Fatalf("SubscriberBatchSize = %d, want %d", defaulted.SubscriberBatchSize, defaultSubscriberBatchSize)
+	}
+	if defaulted.MessageBatchSize != defaultMessageBatchSize {
+		t.Fatalf("MessageBatchSize = %d, want %d", defaulted.MessageBatchSize, defaultMessageBatchSize)
+	}
+	if defaulted.MessageBatchBytes != defaultMessageBatchBytes {
+		t.Fatalf("MessageBatchBytes = %d, want %d", defaulted.MessageBatchBytes, defaultMessageBatchBytes)
+	}
+
+	explicit := normalizeImportOptions(ImportOptions{
+		SubscriberBatchSize: 1,
+		MessageBatchSize:    2,
+		MessageBatchBytes:   3,
+	})
+	if explicit.SubscriberBatchSize != 1 || explicit.MessageBatchSize != 2 || explicit.MessageBatchBytes != 3 {
+		t.Fatalf("explicit batch options = %+v, want subscriber=1 messages=2 bytes=3", explicit)
+	}
+}
+
 func TestImportBundleWritesCurrentStores(t *testing.T) {
 	ctx := context.Background()
 	root := t.TempDir()
