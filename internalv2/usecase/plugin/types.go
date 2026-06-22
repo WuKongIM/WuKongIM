@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internalv2/usecase/message"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
@@ -19,6 +20,10 @@ var (
 	ErrRuntimeRequired = errors.New("plugin runtime required")
 	// ErrInvokerRequired reports that the plugin usecase was built without an invocation port.
 	ErrInvokerRequired = errors.New("plugin invoker required")
+	// ErrMessageSenderRequired reports that host message/send needs the message usecase port.
+	ErrMessageSenderRequired = errors.New("plugin message sender required")
+	// ErrDefaultSenderUIDRequired reports that plugin-origin sends without fromUid need a default sender.
+	ErrDefaultSenderUIDRequired = errors.New("plugin default sender uid required")
 )
 
 // Method identifies a plugin hook advertised by a plugin manifest.
@@ -84,6 +89,11 @@ type Invoker interface {
 	SendPlugin(string, uint32, []byte) error
 }
 
+// MessageSender submits plugin-origin messages through the v2 message usecase.
+type MessageSender interface {
+	Send(context.Context, message.SendCommand) (message.SendResult, error)
+}
+
 // Observer records low-cardinality synchronous plugin hook events.
 type Observer interface {
 	ObserveSendInvoke(result string, d time.Duration)
@@ -93,6 +103,10 @@ type Observer interface {
 type Options struct {
 	Runtime Runtime
 	Invoker Invoker
+	// Messages submits plugin-origin /message/send host RPCs.
+	Messages MessageSender
+	// DefaultSenderUID is used when legacy plugin send requests omit fromUid.
+	DefaultSenderUID string
 	// FailOpen lets synchronous Send hook infrastructure failures preserve the original send.
 	FailOpen bool
 	Observer Observer
@@ -101,9 +115,11 @@ type Options struct {
 
 // App orchestrates v2 plugin lifecycle, selection, and hook invocation usecases.
 type App struct {
-	runtime  Runtime
-	invoker  Invoker
-	failOpen bool
-	observer Observer
-	logger   wklog.Logger
+	runtime          Runtime
+	invoker          Invoker
+	messages         MessageSender
+	defaultSenderUID string
+	failOpen         bool
+	observer         Observer
+	logger           wklog.Logger
 }

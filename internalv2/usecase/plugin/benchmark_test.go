@@ -7,6 +7,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/internal/usecase/plugin/pluginproto"
 	pluginevents "github.com/WuKongIM/WuKongIM/internalv2/contracts/pluginevents"
+	"github.com/WuKongIM/WuKongIM/internalv2/usecase/message"
 	"github.com/stretchr/testify/require"
 )
 
@@ -38,6 +39,43 @@ func BenchmarkPersistAfterMessageBatchMapping(b *testing.B) {
 	}
 }
 
+func BenchmarkSendMessageFromPluginReq(b *testing.B) {
+	for _, payloadSize := range []int{128, 1024, 16 * 1024} {
+		b.Run(fmt.Sprintf("payload_%d", payloadSize), func(b *testing.B) {
+			payload := make([]byte, payloadSize)
+			for i := range payload {
+				payload[i] = byte(i)
+			}
+			app, err := NewApp(Options{
+				Runtime:          &recordingRuntime{},
+				Invoker:          &recordingInvoker{},
+				Messages:         &recordingMessageSender{result: messageResultForBenchmark()},
+				DefaultSenderUID: "____system",
+			})
+			require.NoError(b, err)
+			req := &pluginproto.SendReq{
+				Header:      &pluginproto.Header{NoPersist: true, SyncOnce: true, RedDot: true},
+				ClientMsgNo: "bench-client",
+				ChannelId:   "receiver",
+				ChannelType: 1,
+				Payload:     payload,
+			}
+			b.ReportAllocs()
+			b.SetBytes(int64(payloadSize))
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				resp, err := app.SendMessage(context.Background(), req, "bench.plugin")
+				if err != nil {
+					b.Fatal(err)
+				}
+				if resp.GetMessageId() == 0 {
+					b.Fatal("empty message id")
+				}
+			}
+		})
+	}
+}
+
 func BenchmarkPersistAfterCandidates(b *testing.B) {
 	for _, count := range []int{1, 16, 128, 1024} {
 		b.Run(fmt.Sprintf("plugins_%d", count), func(b *testing.B) {
@@ -55,6 +93,10 @@ func BenchmarkPersistAfterCandidates(b *testing.B) {
 			}
 		})
 	}
+}
+
+func messageResultForBenchmark() message.SendResult {
+	return message.SendResult{MessageID: 1, Reason: message.ReasonSuccess}
 }
 
 func BenchmarkListPlugins(b *testing.B) {

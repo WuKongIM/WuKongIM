@@ -40,6 +40,7 @@ type RouteRegistrar interface {
 type Usecase interface {
 	StartPlugin(context.Context, *pluginproto.PluginInfo, string) (*pluginproto.StartupResp, error)
 	ClosePlugin(context.Context, string, string) error
+	SendMessage(context.Context, *pluginproto.SendReq, string) (*pluginproto.SendResp, error)
 }
 
 // Server adapts plugin-origin lifecycle wkrpc host RPCs to the v2 plugin usecase.
@@ -101,7 +102,7 @@ func (h registeredRouteHandler) handle(c rpcContext) {
 	h.server.handlePath(h.path, c)
 }
 
-var routePaths = []string{"/plugin/start", "/close"}
+var routePaths = []string{"/plugin/start", "/close", "/message/send"}
 
 func (s *Server) handlePath(path string, c rpcContext) {
 	switch path {
@@ -109,6 +110,8 @@ func (s *Server) handlePath(path string, c rpcContext) {
 		s.handlePluginStart(c)
 	case "/close":
 		s.handleClose(c)
+	case "/message/send":
+		s.handleSendMessage(c)
 	default:
 		c.WriteErr(errors.New("plugin host rpc route not registered"))
 	}

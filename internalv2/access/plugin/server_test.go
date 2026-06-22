@@ -11,11 +11,11 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-func TestServerRegistersLifecycleRoutes(t *testing.T) {
+func TestServerRegistersHostRPCRoutes(t *testing.T) {
 	routes := &recordingRoutes{}
 	_, err := NewServer(Options{Routes: routes, Usecase: &recordingUsecase{}, Timeout: time.Second})
 	require.NoError(t, err)
-	require.ElementsMatch(t, []string{"/plugin/start", "/close"}, routes.paths)
+	require.ElementsMatch(t, []string{"/plugin/start", "/close", "/message/send"}, routes.paths)
 }
 
 func TestHandlePluginStartDecodesAndWritesStartupResponse(t *testing.T) {
@@ -119,6 +119,51 @@ func TestHandleCloseCloseEventDoesNotWriteAndCallsUsecaseAsync(t *testing.T) {
 	require.Equal(t, "wk.echo", usecase.closedCaller)
 }
 
+func TestHandleSendMessageDecodesUsesTimeoutAndWritesResponse(t *testing.T) {
+	usecase := &recordingUsecase{sendResp: &pluginproto.SendResp{MessageId: 987}}
+	server, err := NewServer(Options{Usecase: usecase, Timeout: time.Second})
+	require.NoError(t, err)
+	ctx := newTestRPCContext("wk.sender", mustMarshalProto(t, &pluginproto.SendReq{
+		Header:      &pluginproto.Header{NoPersist: true, SyncOnce: true, RedDot: true},
+		ClientMsgNo: "client-1",
+		ChannelId:   "g1",
+		ChannelType: 2,
+		Payload:     []byte("hello"),
+	}))
+
+	server.handlePath("/message/send", ctx)
+
+	require.NoError(t, ctx.err)
+	require.Equal(t, 1, usecase.sendCalls)
+	require.Equal(t, "wk.sender", usecase.sendCaller)
+	require.Equal(t, "client-1", usecase.sendReq.GetClientMsgNo())
+	require.Equal(t, "g1", usecase.sendReq.GetChannelId())
+	require.Equal(t, []byte("hello"), usecase.sendReq.GetPayload())
+	require.True(t, usecase.sendReq.GetHeader().GetNoPersist())
+	require.True(t, usecase.sendReq.GetHeader().GetSyncOnce())
+	require.True(t, usecase.sendReq.GetHeader().GetRedDot())
+	require.True(t, usecase.sendDeadlineSet)
+	require.WithinDuration(t, time.Now().Add(time.Second), usecase.sendDeadline, 100*time.Millisecond)
+	var got pluginproto.SendResp
+	require.NoError(t, proto.Unmarshal(ctx.body, &got))
+	require.Equal(t, int64(987), got.GetMessageId())
+}
+
+func TestMessageHostRPCKeepsShorterIncomingDeadline(t *testing.T) {
+	usecase := &recordingUsecase{sendResp: &pluginproto.SendResp{MessageId: 1}}
+	server, err := NewServer(Options{Usecase: usecase, Timeout: time.Second})
+	require.NoError(t, err)
+	incoming, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	ctx := newTimedTestRPCContext(incoming, "wk.sender", mustMarshalProto(t, &pluginproto.SendReq{ClientMsgNo: "client-1"}))
+
+	server.handlePath("/message/send", ctx)
+
+	require.NoError(t, ctx.err)
+	require.True(t, usecase.sendDeadlineSet)
+	require.WithinDuration(t, time.Now().Add(200*time.Millisecond), usecase.sendDeadline, 100*time.Millisecond)
+}
+
 func TestHandlePluginStartPassesCancelableTimeoutContextToUsecase(t *testing.T) {
 	usecase := &recordingUsecase{
 		startResp:       &pluginproto.StartupResp{Success: true},
@@ -162,6 +207,12 @@ type recordingUsecase struct {
 	closedCaller     string
 	closeCalled      chan struct{}
 	closeErr         error
+	sendCalls        int
+	sendReq          *pluginproto.SendReq
+	sendResp         *pluginproto.SendResp
+	sendCaller       string
+	sendDeadline     time.Time
+	sendDeadlineSet  bool
 }
 
 func (r *recordingUsecase) StartPlugin(ctx context.Context, info *pluginproto.PluginInfo, callerUID string) (*pluginproto.StartupResp, error) {
@@ -200,6 +251,20 @@ func (r *recordingUsecase) ClosePlugin(_ context.Context, pluginNo string, calle
 	return r.closeErr
 }
 
+func (r *recordingUsecase) SendMessage(ctx context.Context, req *pluginproto.SendReq, callerUID string) (*pluginproto.SendResp, error) {
+	r.sendCalls++
+	r.sendReq = proto.Clone(req).(*pluginproto.SendReq)
+	r.sendCaller = callerUID
+	if deadline, ok := ctx.Deadline(); ok {
+		r.sendDeadline = deadline
+		r.sendDeadlineSet = true
+	}
+	if r.sendResp != nil {
+		return r.sendResp, nil
+	}
+	return &pluginproto.SendResp{}, nil
+}
+
 type testRPCContext struct {
 	baseCtx     context.Context
 	uid         string
@@ -231,4 +296,31 @@ func mustMarshalProto(t *testing.T, msg proto.Message) []byte {
 	data, err := proto.Marshal(msg)
 	require.NoError(t, err)
 	return data
+}
+
+func BenchmarkMessageSendHostRPCHandler(b *testing.B) {
+	usecase := &recordingUsecase{sendResp: &pluginproto.SendResp{MessageId: 1}}
+	server, err := NewServer(Options{Usecase: usecase, Timeout: time.Second})
+	require.NoError(b, err)
+	body, err := proto.Marshal(&pluginproto.SendReq{
+		Header:      &pluginproto.Header{NoPersist: true, SyncOnce: true},
+		ClientMsgNo: "bench-client",
+		ChannelId:   "receiver",
+		ChannelType: 1,
+		Payload:     []byte("hello"),
+	})
+	require.NoError(b, err)
+	b.ReportAllocs()
+	b.SetBytes(int64(len(body)))
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		ctx := newTestRPCContext("bench.plugin", body)
+		server.handlePath("/message/send", ctx)
+		if ctx.err != nil {
+			b.Fatal(ctx.err)
+		}
+		if len(ctx.body) == 0 {
+			b.Fatal("empty response")
+		}
+	}
 }

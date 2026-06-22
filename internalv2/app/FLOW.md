@@ -132,9 +132,11 @@ New(Config)
        register delivery push and fanout RPC handlers when node RPC is available
   -> when Plugin.Enable=true:
        wire a node-local PDK-compatible plugin runtime with a Unix host RPC
-       socket, the minimal lifecycle host RPC adapter, the v2 plugin usecase,
-       and a bounded PersistAfter worker; pass WK_PLUGIN_FAIL_OPEN into the
-       synchronous Send hook usecase; attach the plugin hook metrics observer
+       socket, the lifecycle plus /message/send host RPC adapter, the v2 plugin
+       usecase, and a bounded PersistAfter worker; pass WK_PLUGIN_FAIL_OPEN into
+       the synchronous Send hook usecase; wire plugin-origin /message/send back
+       through the v2 message usecase with the default system UID fallback; attach
+       the plugin hook metrics observer
        when metrics are enabled, expose durable commit PersistAfter events to
        channelappend, and register the manager plugin RPC handler when node RPC
        is available so peer managers can inspect this node's observed plugin

@@ -30,6 +30,28 @@ message.Send / SendBatch after permission success
 should keep Send plugin chains short and watch `method="send"` hook invoke
 metrics when plugins are enabled.
 
+## Host RPC Message Send Flow
+
+```text
+plugin /message/send host RPC
+  -> access/plugin decodes pluginproto.SendReq and applies the host RPC timeout
+  -> App.SendMessage
+  -> map SendReq to message.SendCommand
+       use DefaultSystemUID when fromUid is empty
+       clone payload before entering the message usecase
+       preserve NoPersist, SyncOnce, and RedDot header flags
+       set NormalizePersonChannel for person-channel sends
+       set Origin=SendOriginPlugin and leave SkipPluginHooks=false
+  -> MessageSender.Send
+  -> message usecase permissions, Send hook recursion guard, and channelappend
+  -> return pluginproto.SendResp with the accepted messageId
+```
+
+Plugin-origin sends do not bypass the v2 message usecase. They use the same
+permission, transient NoPersist, and channel authority routing semantics as
+other trusted host-origin sends, with `SendOriginPlugin` only used to fence hook
+recursion.
+
 ## PersistAfter Flow
 
 ```text

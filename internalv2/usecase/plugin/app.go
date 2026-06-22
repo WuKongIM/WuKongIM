@@ -20,11 +20,13 @@ func NewApp(opts Options) (*App, error) {
 		opts.Logger = wklog.NewNop()
 	}
 	return &App{
-		runtime:  opts.Runtime,
-		invoker:  opts.Invoker,
-		failOpen: opts.FailOpen,
-		observer: opts.Observer,
-		logger:   opts.Logger,
+		runtime:          opts.Runtime,
+		invoker:          opts.Invoker,
+		messages:         opts.Messages,
+		defaultSenderUID: strings.TrimSpace(opts.DefaultSenderUID),
+		failOpen:         opts.FailOpen,
+		observer:         opts.Observer,
+		logger:           opts.Logger,
 	}, nil
 }
 

@@ -9,7 +9,9 @@ import (
 	pluginevents "github.com/WuKongIM/WuKongIM/internalv2/contracts/pluginevents"
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/channelappend"
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/pluginhook"
+	messageusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/message"
 	pluginusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/plugin"
+	userusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/user"
 )
 
 // pluginRuntimeAdapter adapts the reusable node-local runtime registry to the v2 plugin usecase port.
@@ -25,6 +27,17 @@ type pluginPersistAfterWorker interface {
 // pluginPersistAfterEnqueuer adapts durable channelappend envelopes to plugin PersistAfter events.
 type pluginPersistAfterEnqueuer struct {
 	worker pluginPersistAfterWorker
+}
+
+type pluginMessageSender struct {
+	app *App
+}
+
+func (s pluginMessageSender) Send(ctx context.Context, cmd messageusecase.SendCommand) (messageusecase.SendResult, error) {
+	if s.app == nil || s.app.messages == nil {
+		return messageusecase.SendResult{}, pluginusecase.ErrMessageSenderRequired
+	}
+	return s.app.messages.Send(ctx, cmd)
 }
 
 func (a *App) wirePluginSubsystem(nodeID uint64) error {
@@ -49,11 +62,13 @@ func (a *App) wirePluginSubsystem(nodeID uint64) error {
 		Invoker:    invoker,
 	})
 	plugins, err := pluginusecase.NewApp(pluginusecase.Options{
-		Runtime:  pluginRuntimeAdapter{runtime: runtime},
-		Invoker:  invoker,
-		FailOpen: a.cfg.Plugin.FailOpen,
-		Observer: a.pluginUsecaseObserver(),
-		Logger:   a.logger.Named("plugin"),
+		Runtime:          pluginRuntimeAdapter{runtime: runtime},
+		Invoker:          invoker,
+		Messages:         pluginMessageSender{app: a},
+		DefaultSenderUID: userusecase.DefaultSystemUID,
+		FailOpen:         a.cfg.Plugin.FailOpen,
+		Observer:         a.pluginUsecaseObserver(),
+		Logger:           a.logger.Named("plugin"),
 	})
 	if err != nil {
 		return fmt.Errorf("internalv2/app: create plugin usecase: %w", err)

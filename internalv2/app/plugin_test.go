@@ -57,6 +57,30 @@ func TestNewWiresPluginUsecaseAsMessageSendHook(t *testing.T) {
 	require.Contains(t, err.Error(), "/plugin/send")
 }
 
+func TestNewWiresPluginUsecaseAsMessageSender(t *testing.T) {
+	submitter := &recordingAppMessageSubmitter{result: message.SendResult{MessageID: 222, Reason: message.ReasonSuccess}}
+	app, err := newTestApp(t, Config{
+		DataDir: t.TempDir(),
+		Cluster: clusterv2.Config{NodeID: 1},
+		Plugin:  PluginConfig{Enable: true, HotReload: false},
+	}, WithCluster(&fakeCluster{}), WithGateway(nil), WithMessages(message.New(message.Options{Submitter: submitter})))
+	require.NoError(t, err)
+
+	resp, err := app.plugins.SendMessage(context.Background(), &pluginproto.SendReq{
+		FromUid:     "u1",
+		ChannelId:   "g1",
+		ChannelType: 2,
+		Payload:     []byte("hello"),
+	}, "wk.sender")
+
+	require.NoError(t, err)
+	require.Equal(t, int64(222), resp.GetMessageId())
+	require.Equal(t, 1, submitter.calls)
+	require.Equal(t, "u1", submitter.last.FromUID)
+	require.Equal(t, message.SendOriginPlugin, submitter.last.Origin)
+	require.NotErrorIs(t, err, pluginusecase.ErrMessageSenderRequired)
+}
+
 func TestNewPassesPluginFailOpenToPluginUsecase(t *testing.T) {
 	app, err := newTestApp(t, Config{
 		DataDir: t.TempDir(),
@@ -215,4 +239,26 @@ type recordingPluginPersistAfterWorker struct {
 
 func (w *recordingPluginPersistAfterWorker) EnqueuePersistAfter(_ context.Context, event pluginevents.PersistAfterCommitted) {
 	w.events = append(w.events, event)
+}
+
+type recordingAppMessageSubmitter struct {
+	calls  int
+	last   message.SendCommand
+	result message.SendResult
+	err    error
+}
+
+func (s *recordingAppMessageSubmitter) Send(_ context.Context, cmd message.SendCommand) (message.SendResult, error) {
+	s.calls++
+	s.last = cmd
+	return s.result, s.err
+}
+
+func (s *recordingAppMessageSubmitter) SendBatch(items []message.SendBatchItem) []message.SendBatchItemResult {
+	results := make([]message.SendBatchItemResult, len(items))
+	for i, item := range items {
+		result, err := s.Send(item.Context, item.Command)
+		results[i] = message.SendBatchItemResult{Result: result, Err: err}
+	}
+	return results
 }
