@@ -11,6 +11,7 @@ type commitPorts struct {
 	activeAdmitter               ConversationActiveAdmitter
 	recipientAuthorityResolver   RecipientAuthorityResolver
 	deliveryEnqueuer             RecipientDeliveryEnqueuer
+	persistAfter                 PersistAfterEnqueuer
 	subscriberPageSize           int
 	recipientBatchSize           int
 	recipientDispatchConcurrency int
@@ -18,6 +19,10 @@ type commitPorts struct {
 }
 
 func (p commitPorts) hasPostCommitWork() bool {
+	return p.persistAfter != nil || p.activeAdmitter != nil || effectiveRecipientDeliveryEnqueuer(p) != nil
+}
+
+func (p commitPorts) hasRecipientWork() bool {
 	return p.activeAdmitter != nil || effectiveRecipientDeliveryEnqueuer(p) != nil
 }
 
@@ -61,6 +66,11 @@ func (e commitEffect) run(runtimeCtx context.Context, ports commitPorts) commitC
 	}
 	cache := e.subscriberCache
 	for _, event := range e.events {
+		enqueuePersistAfterBestEffort(runtimeCtx, ports.persistAfter, event)
+		if !ports.hasRecipientWork() {
+			completion.items = append(completion.items, commitCompletedItem{event: event, checkpointSeq: event.MessageSeq})
+			continue
+		}
 		dispatch, err := dispatchCommittedRecipientsForTarget(runtimeCtx, e.target, event, cache, ports)
 		if err != nil {
 			itemResult := errorClass(err)
@@ -83,6 +93,16 @@ func (e commitEffect) run(runtimeCtx context.Context, ports commitPorts) commitC
 		completion.items = append(completion.items, commitCompletedItem{event: event, checkpointSeq: event.MessageSeq})
 	}
 	return completion
+}
+
+func enqueuePersistAfterBestEffort(ctx context.Context, enqueuer PersistAfterEnqueuer, event CommittedEnvelope) {
+	if enqueuer == nil {
+		return
+	}
+	defer func() {
+		_ = recover()
+	}()
+	enqueuer.EnqueuePersistAfter(ctx, event)
 }
 
 func commitPanicCompletion(effect commitEffect, recovered any) commitCompletedEvent {

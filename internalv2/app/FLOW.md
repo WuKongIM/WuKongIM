@@ -7,7 +7,8 @@ phase-1 config, the internalv2 root logger, `pkg/clusterv2`, the message
 usecase, the channel management usecase, the user management usecase, the
 conversation list usecase, the manager management read usecase, the optional
 delivery usecase/runtime, the presence usecase, the gateway handler, the optional HTTP API runtime, the optional
-dedicated manager HTTP runtime, the optional Prometheus metrics registry, the
+dedicated manager HTTP runtime, the optional plugin runtime/usecase/hook
+worker, the optional Prometheus metrics registry, the
 optional app-managed Prometheus child process, and the optional gateway runtime. The phase-1
 runtime supports single-node clusters and static multi-node clusters for the
 `SEND -> SENDACK` write path, legacy-compatible channel/user metadata
@@ -32,7 +33,9 @@ New(Config)
      plus conversation list request latency/page-shape metrics, conversation
      authority admit/list/cache-pressure/handoff counters, conversation active
      cache/flush gauges and histograms, channel append and post-commit
-     counters, and recipient delivery worker queue/admission/process metrics
+     counters, recipient delivery worker queue/admission/process metrics,
+     plugin PersistAfter hook enqueue/invoke counters and histograms, and
+     synchronous plugin Send hook invoke counters and histograms
      plus node resource pressure gauges backed by the local resource sampler;
      when Top.APIEnabled=false this sampler runs only for Prometheus metrics and
      does not expose the Top snapshot provider
@@ -127,19 +130,29 @@ New(Config)
        attach delivery observer for metrics and async error logging
        create usecase/delivery.App backed by the manager
        register delivery push and fanout RPC handlers when node RPC is available
+  -> when Plugin.Enable=true:
+       wire a node-local PDK-compatible plugin runtime with a Unix host RPC
+       socket, the minimal lifecycle host RPC adapter, the v2 plugin usecase,
+       and a bounded PersistAfter worker; pass WK_PLUGIN_FAIL_OPEN into the
+       synchronous Send hook usecase; attach the plugin hook metrics observer
+       when metrics are enabled, expose durable commit PersistAfter events to
+       channelappend, and register the manager plugin RPC handler when node RPC
+       is available so peer managers can inspect this node's observed plugin
+       snapshot
   -> when the cluster exposes ChannelV2 append plus channel append authority:
        create channelappend.Group with hash-sharded per-channel authority writers,
        clusterv2 ChannelAppender, node-scoped message IDs, subscriber source,
        recipient authority resolver, conversation active-batch admitter,
-       optional recipient delivery worker enqueuer, append metrics observer,
-       and shared append/post-commit worker pools
+       optional recipient delivery worker enqueuer, optional plugin PersistAfter
+       enqueuer, append metrics observer, and shared append/post-commit worker pools
        create channelappend.Router for local authority admission and remote
        channel-authority forwarding
        register Channel Append RPC so remote nodes can submit to the local
        authority writer group
   -> create message.App with channelappend.Router, clusterv2 channel metadata
      permission reads, system UID cache, configured message permission switches,
-     and the clusterv2 committed message reader when exposed for channel message sync
+     the optional plugin Send hook usecase when plugins are enabled, and the
+     clusterv2 committed message reader when exposed for channel message sync
   -> when the cluster exposes unified conversation metadata writes and ChannelV2
      committed reads, create internalv2/usecase/cmdsync with one
      infra/cluster CMDSyncStore over ConversationKindCMD rows
@@ -154,7 +167,8 @@ New(Config)
      snapshots, attach internalv2/usecase/management for `/manager/nodes`,
      `/manager/slots`, `/manager/channels`, `/manager/channel-runtime-meta`,
      `/manager/conversations`, `/manager/messages`, `/manager/connections*`,
-     `/manager/users*`, and `/manager/system-users*`;
+     `/manager/nodes/:node_id/plugins*`, `/manager/users*`, and
+     `/manager/system-users*`;
      channel, conversation, message, and user lists are attached only when the
      cluster also exposes the corresponding metadata/message page scans, while
      local connection list/detail reads use the owner-local online registry,
@@ -165,7 +179,9 @@ New(Config)
      route through their manager operator adapters, Slot leader transfer
      requests wire the management `LeaderTransfer` and `SlotRuntimeStatus`
      ports when clusterv2 exposes them, use local Slot Raft runtime status for
-     preflight, and submit the validated intent to clusterv2 control, ordinary
+     preflight, and submit the validated intent to clusterv2 control, plugin
+     inventory uses the local v2 plugin usecase for the local node and routes
+     peer `node_id` reads through the manager plugin RPC reader, ordinary
      application log
      sources and pages use the app-owned
      local reader for the local node and route peer `node_id` reads through the
@@ -471,6 +487,8 @@ Start(ctx)
   -> conversation authority route lifecycle Start(ctx): watch route authorities and seed current targets
   -> conversation active flush worker Start(ctx): periodically persist dirty active rows
   -> presence touch worker Start(ctx)
+  -> plugin runtime Start(ctx): open the host RPC socket, scan local plugins, and start enabled processes
+  -> plugin PersistAfter worker Start(ctx): accept durable commit side effects before channel append opens
   -> delivery worker group Start(ctx): retry scheduler, async manager, then recipient delivery worker
   -> channel append group Start(ctx): open local channel-authority writer admission
   -> api.Start()
@@ -486,6 +504,8 @@ Stop(ctx)
   -> api.Stop(ctx)
   -> channel append group Stop(ctx): close admission and drain accepted appends plus post-commit effects
   -> delivery worker group Stop(ctx): recipient delivery worker drains before async manager and retry scheduler
+  -> plugin PersistAfter worker Stop(ctx): stop accepting new side effects after channel append drains
+  -> plugin runtime Stop(ctx): stop plugin processes and close the host RPC socket
   -> conversation active flush worker Stop(ctx): cancel periodic flush and persist remaining dirty active rows
   -> conversation authority route lifecycle Stop(ctx): cancel authority watcher
   -> presence touch worker Stop(ctx)
@@ -495,6 +515,12 @@ Stop(ctx)
 `Start` and `Stop` are serialized by a lifecycle mutex. If API, manager, Prometheus, or gateway
 startup fails after the cluster starts, `Start` attempts rollback in reverse
 order; if rollback fails, state remains retryable so a later `Stop` can clean up.
+When `Plugin.Enable=true`, the app wires the PDK-compatible node-local plugin
+runtime, minimal lifecycle host RPC adapter, v2 plugin usecase, and bounded
+PersistAfter worker before channelappend. The channelappend group receives only
+the PersistAfter enqueue port. Plugin runtime and hook workers start before
+channelappend and stop after channelappend drains, so accepted durable commits
+can enqueue plugin side effects until the append runtime is stopped.
 The manager drains accepted fanout before the retry scheduler stops, so queued
 retries remain available while accepted manager work completes. Stale pending
 recvacks expire during owner-local push activity.

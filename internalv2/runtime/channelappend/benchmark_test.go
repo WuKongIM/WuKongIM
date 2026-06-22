@@ -492,6 +492,25 @@ func BenchmarkSubmitLocalHotChannelPostCommit(b *testing.B) {
 	b.ReportMetric(float64(runtime.NumGoroutine()-startGoroutines), "goroutine-delta")
 }
 
+func BenchmarkChannelAppendPostCommitPlugin(b *testing.B) {
+	event := CommittedEnvelope{MessageID: 1, MessageSeq: 1, ChannelID: "room", ChannelType: 2, Payload: []byte("payload")}
+	b.Run("disabled", func(b *testing.B) {
+		effect := commitEffect{events: []CommittedEnvelope{event}}
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			_ = effect.run(context.Background(), commitPorts{})
+		}
+	})
+	b.Run("enabled_enqueue", func(b *testing.B) {
+		effect := commitEffect{events: []CommittedEnvelope{event}}
+		enqueuer := &benchmarkPersistAfterEnqueuer{}
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			_ = effect.run(context.Background(), commitPorts{persistAfter: enqueuer})
+		}
+	})
+}
+
 func BenchmarkRecipientDeliveryWorkerEnqueue(b *testing.B) {
 	observer := &benchmarkRecipientDeliveryWorkerObserver{}
 	worker := NewRecipientDeliveryWorker(RecipientDeliveryWorkerOptions{
@@ -543,6 +562,14 @@ func maxBenchmarkInt(a, b int) int {
 
 type benchmarkRecipientDeliveryWorkerObserver struct {
 	processed atomic.Uint64
+}
+
+type benchmarkPersistAfterEnqueuer struct {
+	count uint64
+}
+
+func (e *benchmarkPersistAfterEnqueuer) EnqueuePersistAfter(context.Context, CommittedEnvelope) {
+	e.count++
 }
 
 func (o *benchmarkRecipientDeliveryWorkerObserver) AppendFinished(string, error, time.Duration) {

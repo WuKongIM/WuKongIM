@@ -360,6 +360,162 @@ func TestSendBatchFiltersPermissionRejectedItemsAndDelegatesAllowedItems(t *test
 	}
 }
 
+func TestSendHookRunsAfterPermissionAndBeforeSubmitter(t *testing.T) {
+	store := newFakePermissionStore()
+	store.channels[permissionKey("g1", int64(channelTypeGroup))] = metadb.Channel{ChannelID: "g1", ChannelType: int64(channelTypeGroup)}
+	store.members[permissionKey("g1", int64(channelTypeGroup))] = map[string]bool{"u1": true}
+	hook := &recordingSendHook{
+		mutate: func(cmd SendCommand) (SendCommand, Reason, error) {
+			cmd.Payload = []byte("mutated")
+			return cmd, ReasonSuccess, nil
+		},
+	}
+	submitter := &recordingSubmitter{sendResult: SendResult{MessageID: 30, Reason: ReasonSuccess}}
+	app := New(Options{Submitter: submitter, PermissionStore: store, SendHook: hook})
+
+	result, err := app.Send(context.Background(), SendCommand{FromUID: "u1", ChannelID: "g1", ChannelType: channelTypeGroup, Payload: []byte("original")})
+
+	if err != nil {
+		t.Fatalf("Send() error = %v, want nil", err)
+	}
+	if result.MessageID != 30 || result.Reason != ReasonSuccess {
+		t.Fatalf("Send() result = %#v, want delegated success", result)
+	}
+	if len(hook.calls) != 1 || string(hook.calls[0].Payload) != "original" {
+		t.Fatalf("hook calls = %#v, want original payload after permission", hook.calls)
+	}
+	if string(submitter.sendCommand.Payload) != "mutated" {
+		t.Fatalf("submitter payload = %q, want mutated", submitter.sendCommand.Payload)
+	}
+}
+
+func TestSendHookRejectsBeforeSubmitter(t *testing.T) {
+	hook := &recordingSendHook{
+		mutate: func(cmd SendCommand) (SendCommand, Reason, error) {
+			return cmd, ReasonNotAllowSend, nil
+		},
+	}
+	submitter := &recordingSubmitter{sendResult: SendResult{MessageID: 31, Reason: ReasonSuccess}}
+	app := New(Options{Submitter: submitter, SendHook: hook})
+
+	result, err := app.Send(context.Background(), SendCommand{FromUID: "u1", ChannelID: "g1", ChannelType: channelTypeGroup, Payload: []byte("blocked")})
+
+	if err != nil {
+		t.Fatalf("Send() error = %v, want nil", err)
+	}
+	if result.Reason != ReasonNotAllowSend {
+		t.Fatalf("Send() reason = %v, want %v", result.Reason, ReasonNotAllowSend)
+	}
+	if submitter.sendCommand.FromUID != "" {
+		t.Fatalf("submitter was called with %#v, want hook rejection before delegation", submitter.sendCommand)
+	}
+}
+
+func TestSendBatchHookResultsRemainItemAligned(t *testing.T) {
+	store := newFakePermissionStore()
+	store.channels[permissionKey("g1", int64(channelTypeGroup))] = metadb.Channel{ChannelID: "g1", ChannelType: int64(channelTypeGroup)}
+	store.members[permissionKey("g1", int64(channelTypeGroup))] = map[string]bool{"u1": true}
+	store.channels[permissionKey("u2", int64(channelTypePerson))] = metadb.Channel{ChannelID: "u2", ChannelType: int64(channelTypePerson), SendBan: 1}
+	hook := &recordingSendHook{
+		mutate: func(cmd SendCommand) (SendCommand, Reason, error) {
+			if string(cmd.Payload) == "reject" {
+				return cmd, ReasonNotAllowSend, nil
+			}
+			cmd.Payload = []byte("mutated-" + string(cmd.Payload))
+			return cmd, ReasonSuccess, nil
+		},
+	}
+	submitter := &recordingSubmitter{batchResults: []SendBatchItemResult{{
+		Result: SendResult{MessageID: 41, Reason: ReasonSuccess},
+	}}}
+	app := New(Options{Submitter: submitter, PermissionStore: store, SendHook: hook})
+	items := []SendBatchItem{
+		{Command: SendCommand{FromUID: "u1", ChannelID: "g1", ChannelType: channelTypeGroup, Payload: []byte("ok")}},
+		{Command: SendCommand{FromUID: "u1", ChannelID: "g1", ChannelType: channelTypeGroup, Payload: []byte("reject")}},
+		{Command: SendCommand{FromUID: "u2", ChannelID: "g1", ChannelType: channelTypeGroup, Payload: []byte("sendban")}},
+	}
+
+	results := app.SendBatch(items)
+
+	if len(results) != 3 {
+		t.Fatalf("SendBatch() len = %d, want 3", len(results))
+	}
+	if results[0].Result.MessageID != 41 || results[0].Result.Reason != ReasonSuccess {
+		t.Fatalf("first result = %#v, want delegated success", results[0])
+	}
+	if results[1].Result.Reason != ReasonNotAllowSend || results[1].Err != nil {
+		t.Fatalf("second result = %#v, want hook rejection", results[1])
+	}
+	if results[2].Result.Reason != ReasonSendBan || results[2].Err != nil {
+		t.Fatalf("third result = %#v, want permission rejection", results[2])
+	}
+	if len(submitter.batchItems) != 1 || len(submitter.batchItems[0]) != 1 {
+		t.Fatalf("delegated batch = %#v, want one accepted item", submitter.batchItems)
+	}
+	if got := string(submitter.batchItems[0][0].Command.Payload); got != "mutated-ok" {
+		t.Fatalf("delegated payload = %q, want mutated-ok", got)
+	}
+	if len(hook.calls) != 2 {
+		t.Fatalf("hook calls = %d, want 2 permission-accepted items", len(hook.calls))
+	}
+}
+
+func TestSendHookPluginOriginDepthGuard(t *testing.T) {
+	hook := &recordingSendHook{}
+	submitter := &recordingSubmitter{sendResult: SendResult{MessageID: 50, Reason: ReasonSuccess}}
+	app := New(Options{Submitter: submitter, SendHook: hook})
+
+	_, err := app.Send(context.Background(), SendCommand{
+		FromUID: "plugin-a", ChannelID: "g1", ChannelType: channelTypeGroup, Payload: []byte("loop"),
+		Origin: SendOriginPlugin, HookDepth: DefaultPluginSendMaxHookDepth,
+	})
+	if !errors.Is(err, ErrSendHookDepthExceeded) {
+		t.Fatalf("Send() error = %v, want ErrSendHookDepthExceeded", err)
+	}
+	if len(hook.calls) != 0 || submitter.sendCommand.FromUID != "" {
+		t.Fatalf("hook calls = %d submitter = %#v, want neither called", len(hook.calls), submitter.sendCommand)
+	}
+
+	_, err = app.Send(context.Background(), SendCommand{
+		FromUID: "plugin-a", ChannelID: "g1", ChannelType: channelTypeGroup, Payload: []byte("ok"),
+		Origin: SendOriginPlugin,
+	})
+	if err != nil {
+		t.Fatalf("Send() error = %v, want nil", err)
+	}
+	if len(hook.calls) != 1 || hook.calls[0].HookDepth != 1 || hook.calls[0].Origin != SendOriginPlugin {
+		t.Fatalf("hook calls = %#v, want plugin origin depth 1", hook.calls)
+	}
+}
+
+func TestSendHookSkipPluginHooksBypassesHook(t *testing.T) {
+	hook := &recordingSendHook{
+		mutate: func(cmd SendCommand) (SendCommand, Reason, error) {
+			cmd.Payload = []byte("unexpected")
+			return cmd, ReasonSuccess, nil
+		},
+	}
+	submitter := &recordingSubmitter{sendResult: SendResult{MessageID: 60, Reason: ReasonSuccess}}
+	app := New(Options{Submitter: submitter, SendHook: hook})
+
+	result, err := app.Send(context.Background(), SendCommand{
+		FromUID: "u1", ChannelID: "g1", ChannelType: channelTypeGroup, Payload: []byte("original"), SkipPluginHooks: true,
+	})
+
+	if err != nil {
+		t.Fatalf("Send() error = %v, want nil", err)
+	}
+	if result.MessageID != 60 {
+		t.Fatalf("Send() result = %#v, want delegated success", result)
+	}
+	if len(hook.calls) != 0 {
+		t.Fatalf("hook calls = %d, want bypassed", len(hook.calls))
+	}
+	if string(submitter.sendCommand.Payload) != "original" {
+		t.Fatalf("submitter payload = %q, want original", submitter.sendCommand.Payload)
+	}
+}
+
 type recordingSubmitter struct {
 	sendCtx      context.Context
 	sendCommand  SendCommand
@@ -435,3 +591,16 @@ func (s *fakePermissionStore) HasChannelSubscribers(_ context.Context, channelID
 type fakeSystemUIDChecker map[string]bool
 
 func (f fakeSystemUIDChecker) IsSystemUID(uid string) bool { return f[uid] }
+
+type recordingSendHook struct {
+	calls  []SendCommand
+	mutate func(SendCommand) (SendCommand, Reason, error)
+}
+
+func (h *recordingSendHook) BeforeSend(_ context.Context, cmd SendCommand) (SendCommand, Reason, error) {
+	h.calls = append(h.calls, cmd)
+	if h.mutate != nil {
+		return h.mutate(cmd)
+	}
+	return cmd, ReasonSuccess, nil
+}

@@ -24,6 +24,7 @@ type Registry struct {
 	Message         *MessageMetrics
 	Conversation    *ConversationMetrics
 	Delivery        *DeliveryMetrics
+	Plugin          *PluginMetrics
 	Diagnostics     *DiagnosticsMetrics
 	RuntimePressure *RuntimePressureMetrics
 	AntsPool        *AntsPoolMetrics
@@ -53,6 +54,7 @@ func New(nodeID uint64, nodeName string) *Registry {
 		Message:         newMessageMetrics(registry, labels),
 		Conversation:    newConversationMetrics(registry, labels),
 		Delivery:        newDeliveryMetrics(registry, labels),
+		Plugin:          newPluginMetrics(registry, labels),
 		Diagnostics:     newDiagnosticsMetrics(registry, labels),
 		RuntimePressure: newRuntimePressureMetrics(registry, labels),
 		AntsPool:        newAntsPoolMetrics(registry, labels),

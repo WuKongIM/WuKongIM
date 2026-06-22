@@ -23,6 +23,13 @@ func (a *App) Send(ctx context.Context, cmd SendCommand) (SendResult, error) {
 	if reason != ReasonSuccess {
 		return SendResult{Reason: reason}, nil
 	}
+	cmd, reason, err = a.beforeSendHook(ctx, cmd)
+	if err != nil {
+		return SendResult{Reason: reason}, err
+	}
+	if reason != ReasonSuccess {
+		return SendResult{Reason: reason}, nil
+	}
 	if a == nil || a.submitter == nil {
 		return SendResult{}, ErrRouteNotReady
 	}
@@ -40,6 +47,15 @@ func (a *App) SendBatch(items []SendBatchItem) []SendBatchItemResult {
 			ctx = context.Background()
 		}
 		cmd, reason, err := a.checkSendPermission(ctx, item.Command)
+		if err != nil {
+			results[i] = SendBatchItemResult{Result: SendResult{Reason: reason}, Err: err}
+			continue
+		}
+		if reason != ReasonSuccess {
+			results[i] = SendBatchItemResult{Result: SendResult{Reason: reason}}
+			continue
+		}
+		cmd, reason, err = a.beforeSendHook(ctx, cmd)
 		if err != nil {
 			results[i] = SendBatchItemResult{Result: SendResult{Reason: reason}, Err: err}
 			continue
@@ -69,4 +85,30 @@ func (a *App) SendBatch(items []SendBatchItem) []SendBatchItemResult {
 		results[indexes[i]] = result
 	}
 	return results
+}
+
+func (a *App) beforeSendHook(ctx context.Context, cmd SendCommand) (SendCommand, Reason, error) {
+	if cmd.SkipPluginHooks || a == nil || a.sendHook == nil {
+		return cmd, ReasonSuccess, nil
+	}
+	if cmd.Origin == "" {
+		cmd.Origin = SendOriginClient
+	}
+	if cmd.Origin == SendOriginPlugin {
+		if cmd.HookDepth >= DefaultPluginSendMaxHookDepth {
+			return cmd, ReasonSystemError, ErrSendHookDepthExceeded
+		}
+		cmd.HookDepth++
+	}
+	mutated, reason, err := a.sendHook.BeforeSend(ctx, cmd)
+	if err != nil {
+		if reason != 0 {
+			return mutated, reason, err
+		}
+		return mutated, ReasonSystemError, err
+	}
+	if reason != 0 && reason != ReasonSuccess {
+		return mutated, reason, nil
+	}
+	return mutated, ReasonSuccess, nil
 }

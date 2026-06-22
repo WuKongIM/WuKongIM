@@ -234,6 +234,16 @@ func TestLoadConfigExplicitConfigFile(t *testing.T) {
 		"WK_DELIVERY_PENDING_ACK_TTL=45s",
 		"WK_DELIVERY_PENDING_ACK_MAX_PER_SESSION=777",
 		"WK_DELIVERY_EVENT_QUEUE_SIZE=2048",
+		"WK_PLUGIN_ENABLE=true",
+		"WK_PLUGIN_DIR=/tmp/wk-plugins",
+		"WK_PLUGIN_SOCKET_PATH=/tmp/wk-plugin.sock",
+		"WK_PLUGIN_SANDBOX_DIR=/tmp/wk-plugin-sandbox",
+		"WK_PLUGIN_STATE_DIR=/tmp/wk-plugin-state",
+		"WK_PLUGIN_TIMEOUT=3s",
+		"WK_PLUGIN_HOT_RELOAD=false",
+		"WK_PLUGIN_FAIL_OPEN=true",
+		"WK_PLUGIN_PERSIST_AFTER_QUEUE_SIZE=2048",
+		"WK_PLUGIN_PERSIST_AFTER_WORKERS=24",
 		"WK_LOG_LEVEL=debug",
 		"WK_LOG_DIR="+filepath.Join(dir, "logs"),
 		"WK_LOG_MAX_SIZE=64",
@@ -389,6 +399,18 @@ func TestLoadConfigExplicitConfigFile(t *testing.T) {
 	}
 	if cfg.Delivery.EventQueueSize != 2048 {
 		t.Fatalf("Delivery.EventQueueSize = %d, want 2048", cfg.Delivery.EventQueueSize)
+	}
+	if !cfg.Plugin.Enable ||
+		cfg.Plugin.Dir != "/tmp/wk-plugins" ||
+		cfg.Plugin.SocketPath != "/tmp/wk-plugin.sock" ||
+		cfg.Plugin.SandboxDir != "/tmp/wk-plugin-sandbox" ||
+		cfg.Plugin.StateDir != "/tmp/wk-plugin-state" ||
+		cfg.Plugin.Timeout != 3*time.Second ||
+		cfg.Plugin.HotReload ||
+		!cfg.Plugin.FailOpen ||
+		cfg.Plugin.PersistAfterQueueSize != 2048 ||
+		cfg.Plugin.PersistAfterWorkers != 24 {
+		t.Fatalf("Plugin config = %#v", cfg.Plugin)
 	}
 	if cfg.Log.Level != "debug" {
 		t.Fatalf("Log.Level = %q, want debug", cfg.Log.Level)
@@ -758,6 +780,16 @@ func TestLoadConfigEnvOverridesFile(t *testing.T) {
 	t.Setenv("WK_DELIVERY_PENDING_ACK_TTL", "10s")
 	t.Setenv("WK_DELIVERY_PENDING_ACK_MAX_PER_SESSION", "256")
 	t.Setenv("WK_DELIVERY_EVENT_QUEUE_SIZE", "512")
+	t.Setenv("WK_PLUGIN_ENABLE", "true")
+	t.Setenv("WK_PLUGIN_DIR", "/tmp/wk-plugins")
+	t.Setenv("WK_PLUGIN_SOCKET_PATH", "/tmp/wk-plugin.sock")
+	t.Setenv("WK_PLUGIN_SANDBOX_DIR", "/tmp/wk-plugin-sandbox")
+	t.Setenv("WK_PLUGIN_STATE_DIR", "/tmp/wk-plugin-state")
+	t.Setenv("WK_PLUGIN_TIMEOUT", "3s")
+	t.Setenv("WK_PLUGIN_HOT_RELOAD", "false")
+	t.Setenv("WK_PLUGIN_FAIL_OPEN", "true")
+	t.Setenv("WK_PLUGIN_PERSIST_AFTER_QUEUE_SIZE", "2048")
+	t.Setenv("WK_PLUGIN_PERSIST_AFTER_WORKERS", "24")
 	t.Setenv("WK_LOG_LEVEL", "warn")
 	t.Setenv("WK_LOG_DIR", filepath.Join(dir, "env-logs"))
 	t.Setenv("WK_LOG_MAX_SIZE", "32")
@@ -861,6 +893,18 @@ func TestLoadConfigEnvOverridesFile(t *testing.T) {
 		cfg.Delivery.PendingAckTTL != 10*time.Second || cfg.Delivery.PendingAckMaxPerSession != 256 ||
 		cfg.Delivery.EventQueueSize != 512 {
 		t.Fatalf("Delivery env override = %#v", cfg.Delivery)
+	}
+	if !cfg.Plugin.Enable ||
+		cfg.Plugin.Dir != "/tmp/wk-plugins" ||
+		cfg.Plugin.SocketPath != "/tmp/wk-plugin.sock" ||
+		cfg.Plugin.SandboxDir != "/tmp/wk-plugin-sandbox" ||
+		cfg.Plugin.StateDir != "/tmp/wk-plugin-state" ||
+		cfg.Plugin.Timeout != 3*time.Second ||
+		cfg.Plugin.HotReload ||
+		!cfg.Plugin.FailOpen ||
+		cfg.Plugin.PersistAfterQueueSize != 2048 ||
+		cfg.Plugin.PersistAfterWorkers != 24 {
+		t.Fatalf("Plugin config = %#v", cfg.Plugin)
 	}
 	if cfg.Log.Level != "warn" || cfg.Log.Dir != filepath.Join(dir, "env-logs") ||
 		cfg.Log.MaxSize != 32 || cfg.Log.MaxAge != 6 || cfg.Log.MaxBackups != 2 ||
@@ -1204,6 +1248,15 @@ func TestLoadConfigRejectsBadValues(t *testing.T) {
 		{name: "delivery pending ack max per session negative", line: "WK_DELIVERY_PENDING_ACK_MAX_PER_SESSION=-1", wantKey: "WK_DELIVERY_PENDING_ACK_MAX_PER_SESSION"},
 		{name: "delivery event queue size", line: "WK_DELIVERY_EVENT_QUEUE_SIZE=many", wantKey: "WK_DELIVERY_EVENT_QUEUE_SIZE"},
 		{name: "delivery event queue size negative", line: "WK_DELIVERY_EVENT_QUEUE_SIZE=-1", wantKey: "WK_DELIVERY_EVENT_QUEUE_SIZE"},
+		{name: "plugin enable", line: "WK_PLUGIN_ENABLE=maybe", wantKey: "WK_PLUGIN_ENABLE"},
+		{name: "plugin timeout", line: "WK_PLUGIN_TIMEOUT=soon", wantKey: "WK_PLUGIN_TIMEOUT"},
+		{name: "plugin timeout negative", line: "WK_PLUGIN_TIMEOUT=-1s", wantKey: "WK_PLUGIN_TIMEOUT"},
+		{name: "plugin hot reload", line: "WK_PLUGIN_HOT_RELOAD=maybe", wantKey: "WK_PLUGIN_HOT_RELOAD"},
+		{name: "plugin fail open", line: "WK_PLUGIN_FAIL_OPEN=maybe", wantKey: "WK_PLUGIN_FAIL_OPEN"},
+		{name: "plugin persist after queue size", line: "WK_PLUGIN_PERSIST_AFTER_QUEUE_SIZE=many", wantKey: "WK_PLUGIN_PERSIST_AFTER_QUEUE_SIZE"},
+		{name: "plugin persist after queue size negative", line: "WK_PLUGIN_PERSIST_AFTER_QUEUE_SIZE=-1", wantKey: "WK_PLUGIN_PERSIST_AFTER_QUEUE_SIZE"},
+		{name: "plugin persist after workers", line: "WK_PLUGIN_PERSIST_AFTER_WORKERS=many", wantKey: "WK_PLUGIN_PERSIST_AFTER_WORKERS"},
+		{name: "plugin persist after workers negative", line: "WK_PLUGIN_PERSIST_AFTER_WORKERS=-1", wantKey: "WK_PLUGIN_PERSIST_AFTER_WORKERS"},
 		{name: "log max size", line: "WK_LOG_MAX_SIZE=many", wantKey: "WK_LOG_MAX_SIZE"},
 		{name: "log max age", line: "WK_LOG_MAX_AGE=many", wantKey: "WK_LOG_MAX_AGE"},
 		{name: "log max backups", line: "WK_LOG_MAX_BACKUPS=many", wantKey: "WK_LOG_MAX_BACKUPS"},

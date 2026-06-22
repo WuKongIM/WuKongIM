@@ -32,6 +32,7 @@ func mapSendCommandWithPayload(ctx *coregateway.Context, pkt *frame.SendPacket, 
 	cmd := message.SendCommand{
 		FromUID:         fromUID,
 		DeviceID:        deviceIDFromValue(ctx.Session.Value(coregateway.SessionValueDeviceID)),
+		DeviceFlag:      deviceFlagFromValue(ctx.Session.Value(coregateway.SessionValueDeviceFlag)),
 		SenderNodeID:    ownerNodeID,
 		SenderSessionID: ctx.Session.ID(),
 		ProtocolVersion: protocolVersion,

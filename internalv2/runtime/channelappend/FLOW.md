@@ -6,7 +6,9 @@
 It is entered only after routing has resolved that the local node is the current
 channel append authority. The package validates SEND commands, allocates
 message IDs, admits durable append work, completes item-aligned futures, and
-runs best-effort post-commit recipient/conversation effects.
+runs best-effort post-commit recipient/conversation effects. It also handles
+legacy command-style `NoPersist` sends as transient realtime delivery without
+writing the channel log or conversation active state.
 
 ## Router Flow
 
@@ -19,6 +21,11 @@ stable temporary command channel, and person-channel sends with
 command is still submitted unchanged so the local append authority remains the
 authoritative validation, idempotency, message-id allocation, and canonical
 command mutation point.
+Plain non-command `NoPersist` sends are terminal successes at pre-route time
+and intentionally do not resolve authority, append, or dispatch realtime
+delivery. Command-style `NoPersist` sends (`SyncOnce` or an already command
+channel id) route by the command-channel id so the resolved authority owns the
+transient realtime enqueue.
 
 ```text
 Router.SendBatch
@@ -121,6 +128,12 @@ items enter the writer state's pending queue in input order only when the
 state's pending plus in-flight item count is below
 `ChannelBacklogHighWatermark`; saturated channels complete those items with
 `ErrChannelBusy` before they reach the append port.
+Prepared command-style `NoPersist` items also receive one message id and server
+timestamp, but they do not enter the durable pending queue. The writer schedules
+them as realtime effects and completes their future only after the recipient
+delivery queue accepts the transient envelope or returns an error. If no
+recipient delivery enqueuer is configured, the transient send fails instead of
+reporting a success that cannot be delivered.
 
 The writer builds channel-aligned append batches from prepared pending items
 and keeps up to `AppendInflightBatchesPerChannel` append batches in flight per channel.
@@ -147,6 +160,12 @@ channel appender port so CMD sync readers and ordinary conversation readers can
 separate command messages from normal channel messages without guessing from
 channel names or client message numbers.
 
+Realtime `NoPersist` effects reuse the same recipient authority grouping and
+delivery enqueue machinery as post-commit work, but they explicitly skip
+`conversationactive.ActiveBatch` admission. Request-scoped realtime sends keep
+using `MessageScopedUIDs`, so they bypass subscriber scans just like durable
+request-scoped commits.
+
 Post-commit work is scheduled from the writer state after durable append
 succeeds and is independent from `SENDACK` completion. A committed envelope
 remains pending only until one recipient delivery enqueue attempt completes.
@@ -166,6 +185,13 @@ time, and concurrency inside that envelope is limited to recipient authority
 targets. Unprocessed and in-flight commit backlog still participates in the
 channel high-watermark, but failed best-effort work is dropped promptly to
 avoid retaining unbounded payloads.
+
+When a PersistAfter enqueuer is configured, each successful durable committed
+envelope is cloned into the plugin side-effect worker from the same
+authority-local post-commit point. PersistAfter enqueue is best-effort and does
+not affect SENDACK, append success, recipient delivery, or conversation active
+projection. Transient NoPersist realtime sends skip PersistAfter because they
+do not create durable committed envelopes.
 
 Scoped `MessageScopedUIDs` dispatch directly without scanning subscribers.
 Person channels derive exactly the two canonical participants from the

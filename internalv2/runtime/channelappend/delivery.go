@@ -15,6 +15,8 @@ var (
 	ErrDeliveryRetryExhausted = errors.New("internalv2/channelappend: delivery retry exhausted")
 	// ErrEffectPanic reports a recovered panic from an asynchronous channel append effect.
 	ErrEffectPanic = errors.New("internalv2/channelappend: effect panic")
+	// ErrRealtimeDeliveryRequired reports a transient send without a realtime delivery queue.
+	ErrRealtimeDeliveryRequired = errors.New("internalv2/channelappend: realtime delivery required")
 )
 
 // RecipientProcessorOptions configures recipient-authority post-commit processing.

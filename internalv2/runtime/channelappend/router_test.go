@@ -173,6 +173,33 @@ func TestRouterRoutesNormalizePersonSendByCanonicalChannel(t *testing.T) {
 	}
 }
 
+func TestRouterRoutesNoPersistSyncOnceByCommandChannel(t *testing.T) {
+	commandChannelID := runtimechannelid.ToCommandChannel("room")
+	canonical := ChannelID{ID: commandChannelID, Type: 2}
+	target := routerTarget(commandChannelID, 2, 7)
+	resolver := &routerResolverForTest{targetsByChannel: map[ChannelID]AuthorityTarget{canonical: target}}
+	local := &routerLocalSubmitterForTest{results: []SendBatchItemResult{{Result: SendResult{MessageID: 22, Reason: ReasonSuccess}}}}
+	router := NewRouter(RouterOptions{LocalNodeID: 7, Resolver: resolver, Local: local})
+
+	item := routerItem("u1", "room", 2)
+	item.Command.NoPersist = true
+	item.Command.SyncOnce = true
+
+	results := router.SendBatch([]SendBatchItem{item})
+	if len(results) != 1 || results[0].Err != nil || results[0].Result.MessageID != 22 {
+		t.Fatalf("results = %#v, want no-persist sync-once local success", results)
+	}
+	if resolver.lastID != canonical {
+		t.Fatalf("resolved channel = %#v, want command channel %#v", resolver.lastID, canonical)
+	}
+	if local.target.ChannelID != canonical {
+		t.Fatalf("local target channel = %#v, want command channel %#v", local.target.ChannelID, canonical)
+	}
+	if len(local.items) != 1 || local.items[0].Command.ChannelID != "room" || !local.items[0].Command.NoPersist || !local.items[0].Command.SyncOnce {
+		t.Fatalf("submitted item command = %#v, want original no-persist sync-once command preserved for authority writer prepare", local.items)
+	}
+}
+
 func TestRouterRejectsInvalidCommandWithoutRouteLookup(t *testing.T) {
 	target := routerTarget("invalid", 2, 7)
 	resolver := &routerResolverForTest{targetsByChannel: map[ChannelID]AuthorityTarget{target.ChannelID: target}}

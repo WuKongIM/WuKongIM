@@ -47,5 +47,6 @@ func rpcServiceIDsForTest() map[string]uint8 {
 		"manager_db_inspect":      RPCManagerDBInspect,
 		"manager_app_logs":        RPCManagerAppLogs,
 		"manager_diagnostics":     RPCManagerDiagnostics,
+		"manager_plugins":         RPCManagerPlugins,
 	}
 }

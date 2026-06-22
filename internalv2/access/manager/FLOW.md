@@ -44,6 +44,8 @@ GET  /manager/messages (channel message list; requires cluster.channel:r when Au
 POST /manager/messages/retention (message retention request; requires cluster.channel:w when Auth.On=true)
 GET  /manager/connections (connection list; requires cluster.connection:r when Auth.On=true)
 GET  /manager/connections/:session_id (connection detail; requires cluster.connection:r when Auth.On=true)
+GET  /manager/nodes/:node_id/plugins (node-local plugin inventory; requires cluster.plugin:r when Auth.On=true)
+GET  /manager/nodes/:node_id/plugins/:plugin_no (node-local plugin detail; requires cluster.plugin:r when Auth.On=true)
 GET  /manager/db/inspect/tables (DB Inspect table list; requires cluster.db:r when Auth.On=true)
 GET  /manager/db/inspect/tables/:domain/:table (DB Inspect table schema; requires cluster.db:r when Auth.On=true)
 POST /manager/db/inspect/query (DB Inspect query; requires cluster.db:r when Auth.On=true)
@@ -203,6 +205,15 @@ through internalv2 node RPC, and maps session details such as UID, device,
 listener, state, timestamps, and addresses when the gateway session handle
 exposes them. If a remote connection reader is not wired, non-local filters
 return `service_unavailable`.
+
+`/manager/nodes/:node_id/plugins*` exposes read-only plugin runtime inventory
+for one selected node. The HTTP layer validates positive `node_id` values,
+requires the dedicated `cluster.plugin:r` permission when manager auth is
+enabled, and maps plugin status, hook methods, hook sync flags, process ID,
+last-seen timestamp, and latest error text from
+`internalv2/usecase/management`. Non-local node reads are routed below this
+package through manager plugin node RPC. These routes do not start, stop,
+reload, configure, or mutate plugin desired state.
 
 `/manager/db/inspect*` backs the web `/system/db` DB Inspect page. It parses
 HTTP query/body parameters, enforces `cluster.db:r` when manager auth is

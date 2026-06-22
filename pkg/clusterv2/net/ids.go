@@ -66,6 +66,8 @@ const (
 	RPCManagerAppLogs
 	// RPCManagerDiagnostics serves internalv2 node-local diagnostics trace reads and tracking rules.
 	RPCManagerDiagnostics
+	// RPCManagerPlugins serves internalv2 node-local manager plugin inventory reads.
+	RPCManagerPlugins
 )
 
 func transportServiceAlias(serviceID uint8) string {
@@ -128,6 +130,8 @@ func transportServiceAlias(serviceID uint8) string {
 		return "manager app logs"
 	case RPCManagerDiagnostics:
 		return "manager diagnostics"
+	case RPCManagerPlugins:
+		return "manager plugins"
 	default:
 		return "unknown service"
 	}

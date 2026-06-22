@@ -787,6 +787,40 @@ func TestObservabilityConversationSyncMetricsObserverMapsCounters(t *testing.T) 
 	}
 }
 
+func TestPluginHookMetricsObserverMapsPersistAfterCounters(t *testing.T) {
+	reg := obsmetrics.New(1, "n1")
+	observer := pluginHookMetricsObserver{metrics: reg}
+
+	observer.ObservePersistAfterEnqueue("accepted", 2*time.Millisecond)
+	observer.ObservePersistAfterInvoke("ok", 3*time.Millisecond)
+	observer.ObserveSendInvoke("reject", 4*time.Millisecond)
+
+	families, err := reg.Gather()
+	if err != nil {
+		t.Fatalf("Gather() error = %v", err)
+	}
+	enqueueTotal := requireAppMetricFamily(t, families, "wukongim_plugin_hook_enqueue_total")
+	if got := findAppMetricByLabels(t, enqueueTotal, map[string]string{
+		"method": "persist_after",
+		"result": "accepted",
+	}).GetCounter().GetValue(); got != 1 {
+		t.Fatalf("plugin hook enqueue total = %v, want 1", got)
+	}
+	invokeTotal := requireAppMetricFamily(t, families, "wukongim_plugin_hook_invoke_total")
+	if got := findAppMetricByLabels(t, invokeTotal, map[string]string{
+		"method": "persist_after",
+		"result": "ok",
+	}).GetCounter().GetValue(); got != 1 {
+		t.Fatalf("plugin hook invoke total = %v, want 1", got)
+	}
+	if got := findAppMetricByLabels(t, invokeTotal, map[string]string{
+		"method": "send",
+		"result": "reject",
+	}).GetCounter().GetValue(); got != 1 {
+		t.Fatalf("plugin send hook invoke total = %v, want 1", got)
+	}
+}
+
 func requireAppMetricFamily(t *testing.T, families []*dto.MetricFamily, name string) *dto.MetricFamily {
 	t.Helper()
 	for _, family := range families {

@@ -40,6 +40,11 @@ type preparedInboxBatch struct {
 	outcome prepareOutcome
 }
 
+type realtimeDispatch struct {
+	target AuthorityTarget
+	items  []preparedSend
+}
+
 // writerPorts are the dependencies a writer needs to advance its state machine.
 type writerPorts struct {
 	prepare    preparePorts
@@ -201,7 +206,10 @@ func (w *channelWriter) advance() {
 			w.mu.Unlock()
 			prepared := w.prepareInbox(inbox)
 			w.mu.Lock()
-			w.admitPreparedInboxLocked(prepared)
+			realtime := w.admitPreparedInboxLocked(prepared)
+			w.mu.Unlock()
+			w.runRealtimeDispatches(realtime)
+			w.mu.Lock()
 		}
 		hasAppend := w.nextAppendLocked(&appendEff)
 		hasCommit := w.nextCommitLocked(&commitEff)
@@ -234,7 +242,10 @@ func (w *channelWriter) advanceAppendOnly() {
 			w.mu.Unlock()
 			prepared := w.prepareInbox(inbox)
 			w.mu.Lock()
-			w.admitPreparedInboxLocked(prepared)
+			realtime := w.admitPreparedInboxLocked(prepared)
+			w.mu.Unlock()
+			w.runRealtimeDispatches(realtime)
+			w.mu.Lock()
 		}
 		hasAppend := w.nextAppendLocked(&appendEff)
 		if !hasAppend {
@@ -277,15 +288,17 @@ func (w *channelWriter) prepareInbox(inbox []submittedBatch) []preparedInboxBatc
 }
 
 // admitPreparedInboxLocked moves prepared work into channelState while w.mu is held.
-func (w *channelWriter) admitPreparedInboxLocked(prepared []preparedInboxBatch) {
+func (w *channelWriter) admitPreparedInboxLocked(prepared []preparedInboxBatch) []realtimeDispatch {
+	var realtime []realtimeDispatch
 	for _, item := range prepared {
-		w.admitPreparedLocked(item.batch, item.outcome)
+		realtime = append(realtime, w.admitPreparedLocked(item.batch, item.outcome)...)
 	}
+	return realtime
 }
 
 // admitPreparedLocked applies prepare results: completes terminal items on the
 // future immediately and enqueues append-bound items, honoring canAdmit backpressure.
-func (w *channelWriter) admitPreparedLocked(batch submittedBatch, outcome prepareOutcome) {
+func (w *channelWriter) admitPreparedLocked(batch submittedBatch, outcome prepareOutcome) []realtimeDispatch {
 	for _, item := range outcome.canonicalResults {
 		if !preparedCommandMatchesTarget(batch.target, item.command) {
 			outcome.results[item.index] = SendBatchItemResult{Err: ErrStaleRoute}
@@ -293,7 +306,7 @@ func (w *channelWriter) admitPreparedLocked(batch submittedBatch, outcome prepar
 	}
 
 	matching := make([]preparedSend, 0, len(outcome.prepared))
-	matchingIndex := make(map[int]struct{}, len(outcome.prepared))
+	pendingIndex := make(map[int]struct{}, len(outcome.prepared)+len(outcome.realtime))
 	for _, item := range outcome.prepared {
 		if !preparedCommandMatchesTarget(batch.target, item.Command) {
 			outcome.results[item.Index] = SendBatchItemResult{Err: ErrStaleRoute}
@@ -301,7 +314,17 @@ func (w *channelWriter) admitPreparedLocked(batch submittedBatch, outcome prepar
 		}
 		item.future = batch.future
 		matching = append(matching, item)
-		matchingIndex[item.Index] = struct{}{}
+		pendingIndex[item.Index] = struct{}{}
+	}
+	realtimeItems := make([]preparedSend, 0, len(outcome.realtime))
+	for _, item := range outcome.realtime {
+		if !preparedCommandMatchesTarget(batch.target, item.Command) {
+			outcome.results[item.Index] = SendBatchItemResult{Err: ErrStaleRoute}
+			continue
+		}
+		item.future = batch.future
+		realtimeItems = append(realtimeItems, item)
+		pendingIndex[item.Index] = struct{}{}
 	}
 	if len(matching) > 0 {
 		w.state.refreshRecipientMetadata(batch.target)
@@ -311,15 +334,19 @@ func (w *channelWriter) admitPreparedLocked(batch submittedBatch, outcome prepar
 			w.ports.metrics.observePressure()
 		} else {
 			for _, item := range matching {
-				delete(matchingIndex, item.Index)
+				delete(pendingIndex, item.Index)
 				outcome.results[item.Index] = SendBatchItemResult{Err: ErrChannelBusy}
 			}
 		}
 	}
 	batch.future.completeItems(outcome.results, func(index int) bool {
-		_, pendingAppend := matchingIndex[index]
-		return !pendingAppend
+		_, pending := pendingIndex[index]
+		return !pending
 	})
+	if len(realtimeItems) == 0 {
+		return nil
+	}
+	return []realtimeDispatch{{target: batch.target, items: realtimeItems}}
 }
 
 func (w *channelWriter) nextAppendLocked(out *appendEffect) bool {
@@ -344,6 +371,29 @@ func (w *channelWriter) runAppend(effect *appendEffect) {
 		w.applyAppendCompletion(completion)
 		w.rescheduleIfNeeded()
 	})
+}
+
+func (w *channelWriter) runRealtimeDispatches(dispatches []realtimeDispatch) {
+	for _, dispatch := range dispatches {
+		w.runRealtimeDispatch(dispatch)
+	}
+}
+
+func (w *channelWriter) runRealtimeDispatch(dispatch realtimeDispatch) {
+	if len(dispatch.items) == 0 {
+		return
+	}
+	effect := realtimeEffect{target: dispatch.target, items: dispatch.items}
+	if err := w.ports.pool.submit(func() {
+		for _, completion := range effect.run(w.ports.runtimeCtx, w.ports.commit) {
+			completion.item.future.completeItem(completion.item.Index, completion.result)
+		}
+	}); err != nil {
+		result := SendBatchItemResult{Err: effectScheduleError(effectStageRealtime, err)}
+		for _, item := range dispatch.items {
+			item.future.completeItem(item.Index, result)
+		}
+	}
 }
 
 func (w *channelWriter) applyAppendCompletion(event appendCompletedEvent) {

@@ -32,11 +32,6 @@ func TestPrepareRejectsInvalidCommandsWithoutAllocation(t *testing.T) {
 			cmd:  SendCommand{FromUID: "u1", ChannelID: "room", ChannelType: 2},
 			want: ReasonInvalidRequest,
 		},
-		{
-			name: "no persist",
-			cmd:  SendCommand{FromUID: "u1", ChannelID: "room", ChannelType: 2, Payload: []byte("payload"), NoPersist: true},
-			want: ReasonUnsupported,
-		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			ids := newSequenceIDsForPrepare(100)

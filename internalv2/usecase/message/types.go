@@ -6,6 +6,21 @@ import "github.com/WuKongIM/WuKongIM/internalv2/contracts/channelappend"
 type Reason = channelappend.Reason
 
 const (
+	// DefaultPluginSendMaxHookDepth limits plugin-origin Send hook recursion.
+	DefaultPluginSendMaxHookDepth = 1
+)
+
+// SendOrigin identifies where a SendCommand entered the message usecase.
+type SendOrigin = channelappend.SendOrigin
+
+const (
+	// SendOriginClient marks sends that originated from a client or trusted host caller.
+	SendOriginClient = channelappend.SendOriginClient
+	// SendOriginPlugin marks sends that originated from a plugin host RPC.
+	SendOriginPlugin = channelappend.SendOriginPlugin
+)
+
+const (
 	// ReasonSuccess means the send was durably accepted.
 	ReasonSuccess = channelappend.ReasonSuccess
 	// ReasonInvalidRequest means the command is malformed.

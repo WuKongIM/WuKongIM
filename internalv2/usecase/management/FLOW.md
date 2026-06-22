@@ -9,7 +9,7 @@ Controller Raft status and explicit compaction orchestration, Slot Raft
 explicit compaction orchestration, Slot leader-transfer intent
 validation/submission, recent conversation list, channel message list,
 message retention adapter contract, local-or-remote connection list/detail
-projection, DB Inspect,
+projection, local-or-remote node plugin list/detail projection, DB Inspect,
 diagnostics trace/message/event query orchestration and tracking-rule fan-out,
 node-local diagnostics orchestration, user management, and system UID
 projections/actions used by `GET /manager/nodes`,
@@ -24,6 +24,7 @@ projections/actions used by `GET /manager/nodes`,
 `POST /manager/nodes/:node_id/slots/:slot_id/compact`,
 `GET /manager/conversations`, `GET /manager/messages`,
 `POST /manager/messages/retention`, `/manager/connections*`,
+`/manager/nodes/:node_id/plugins*`,
 `/manager/db/inspect*`, `/manager/diagnostics*`, `/manager/users*`, and
 `/manager/system-users*`.
 
@@ -312,6 +313,24 @@ list results by newest connection first. Remote `node_id` filters delegate to a
 narrow `RemoteConnectionReader` port so the app layer can route manager
 connection inventory reads over node RPC. When that port is not wired, the
 usecase returns `ErrConnectionReaderUnavailable`.
+
+## Plugin Management Flow
+
+```text
+manager HTTP handler
+  -> management.App.ListNodePlugins/GetNodePlugin
+  -> local node_id: PluginReader node-local observed plugin snapshot
+  -> remote node_id: RemotePluginReader manager plugin node RPC
+  -> manager plugin DTO rows
+```
+
+The plugin projection is read-only and node-scoped. It validates positive
+`node_id` values and non-empty plugin numbers, reads the local v2 plugin
+usecase for the local node, and delegates non-local reads to a narrow
+`RemotePluginReader` port. The projection clones hook method slices and keeps
+runtime-only fields such as status, sync flags, process ID, last-seen time, and
+latest error text. It does not inspect plugin files, load configuration
+templates, start/stop/reload processes, or mutate plugin desired state.
 
 ## DB Inspect Flow
 

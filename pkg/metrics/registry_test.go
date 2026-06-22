@@ -202,6 +202,48 @@ func TestNodeResourceMetricsTrackProcessPressure(t *testing.T) {
 	}
 }
 
+func TestPluginMetricsTrackPersistAfterHookPressure(t *testing.T) {
+	reg := New(5, "node-5")
+
+	reg.Plugin.ObserveHookEnqueue("persist_after", "accepted", 2*time.Millisecond)
+	reg.Plugin.ObserveHookInvoke("persist_after", "ok", 4*time.Millisecond)
+
+	families, err := reg.Gather()
+	require.NoError(t, err)
+
+	enqueueTotal := requireMetricFamily(t, families, "wukongim_plugin_hook_enqueue_total")
+	require.Equal(t, float64(1), findMetricByLabels(t, enqueueTotal, map[string]string{
+		"node_id":   "5",
+		"node_name": "node-5",
+		"method":    "persist_after",
+		"result":    "accepted",
+	}).GetCounter().GetValue())
+
+	enqueueWait := requireMetricFamily(t, families, "wukongim_plugin_hook_enqueue_wait_seconds")
+	findMetricByLabels(t, enqueueWait, map[string]string{
+		"node_id":   "5",
+		"node_name": "node-5",
+		"method":    "persist_after",
+		"result":    "accepted",
+	})
+
+	invokeTotal := requireMetricFamily(t, families, "wukongim_plugin_hook_invoke_total")
+	require.Equal(t, float64(1), findMetricByLabels(t, invokeTotal, map[string]string{
+		"node_id":   "5",
+		"node_name": "node-5",
+		"method":    "persist_after",
+		"result":    "ok",
+	}).GetCounter().GetValue())
+
+	invokeDuration := requireMetricFamily(t, families, "wukongim_plugin_hook_invoke_duration_seconds")
+	findMetricByLabels(t, invokeDuration, map[string]string{
+		"node_id":   "5",
+		"node_name": "node-5",
+		"method":    "persist_after",
+		"result":    "ok",
+	})
+}
+
 func TestChannelMetricsTrackAppendFetchAndActiveChannels(t *testing.T) {
 	reg := New(7, "node-7")
 

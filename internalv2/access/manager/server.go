@@ -100,6 +100,10 @@ type Management interface {
 	ListConnections(ctx context.Context, req managementusecase.ListConnectionsRequest) ([]managementusecase.Connection, error)
 	// GetConnection returns one manager-facing local connection detail DTO.
 	GetConnection(ctx context.Context, req managementusecase.GetConnectionRequest) (managementusecase.ConnectionDetail, error)
+	// ListNodePlugins returns one node's local plugin inventory.
+	ListNodePlugins(ctx context.Context, nodeID uint64) (managementusecase.NodePluginList, error)
+	// GetNodePlugin returns one node-local plugin detail.
+	GetNodePlugin(ctx context.Context, nodeID uint64, pluginNo string) (managementusecase.Plugin, error)
 	// ListUsers returns manager-facing user metadata rows.
 	ListUsers(ctx context.Context, req managementusecase.ListUsersRequest) (managementusecase.ListUsersResponse, error)
 	// GetUser returns one manager-facing user detail.
@@ -354,6 +358,13 @@ func (s *Server) registerRoutes() {
 	}
 	connections.GET("/connections", s.handleConnections)
 	connections.GET("/connections/:session_id", s.handleConnection)
+
+	pluginReads := s.engine.Group("/manager")
+	if s.auth.enabled() {
+		pluginReads.Use(s.requirePermission("cluster.plugin", "r"))
+	}
+	pluginReads.GET("/nodes/:node_id/plugins", s.handleNodePlugins)
+	pluginReads.GET("/nodes/:node_id/plugins/:plugin_no", s.handleNodePlugin)
 
 	channelWrites := s.engine.Group("/manager")
 	if s.auth.enabled() {

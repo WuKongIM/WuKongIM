@@ -124,6 +124,12 @@ type ManagerDiagnostics interface {
 	DeleteDiagnosticsTrackingRule(ctx context.Context, ruleID string) error
 }
 
+// ManagerPluginReader handles node-local manager plugin inventory requests.
+type ManagerPluginReader interface {
+	ListNodePlugins(context.Context, uint64) (managementusecase.NodePluginList, error)
+	GetNodePlugin(context.Context, uint64, string) (managementusecase.Plugin, error)
+}
+
 // Options configures the internalv2 node RPC adapter.
 type Options struct {
 	// Authority handles UID route authority requests after payload decoding.
@@ -152,6 +158,8 @@ type Options struct {
 	ManagerAppLogs ManagerAppLogReader
 	// ManagerDiagnostics handles node-local diagnostics query and tracking requests.
 	ManagerDiagnostics ManagerDiagnostics
+	// ManagerPlugins handles node-local plugin inventory requests.
+	ManagerPlugins ManagerPluginReader
 	// Logger records node RPC adapter failures that are converted into statuses.
 	Logger wklog.Logger
 }
@@ -184,6 +192,8 @@ type Adapter struct {
 	managerAppLogs ManagerAppLogReader
 	// managerDiagnostics queries diagnostics events and mutates temporary tracking rules.
 	managerDiagnostics ManagerDiagnostics
+	// managerPlugins reads node-local plugin inventory for manager pages.
+	managerPlugins ManagerPluginReader
 	// logger records adapter decode errors and rejected local operations.
 	logger wklog.Logger
 }
@@ -207,6 +217,7 @@ func New(opts Options) *Adapter {
 		managerDBInspect:      opts.ManagerDBInspect,
 		managerAppLogs:        opts.ManagerAppLogs,
 		managerDiagnostics:    opts.ManagerDiagnostics,
+		managerPlugins:        opts.ManagerPlugins,
 		logger:                opts.Logger,
 	}
 }

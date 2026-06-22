@@ -20,8 +20,9 @@ clusterv2 operations or peer RPC, routes ordinary application log reads to the
 selected node's app-owned local reader or peer RPC, routes manager DB Inspect
 reads to node-local inspect readers or peer RPC, routes manager diagnostics
 reads and tracking-rule mutations to the selected node's internalv2 diagnostics
-store or peer RPC, and adapts presence/delivery ports to clusterv2 routing and
-node RPC.
+store or peer RPC, routes manager plugin inventory reads to the selected
+node's plugin runtime snapshot over peer RPC, and adapts presence/delivery
+ports to clusterv2 routing and node RPC.
 
 ## Management Snapshot Flow
 
@@ -161,6 +162,23 @@ connection page. It forwards non-local `node_id` list/detail reads to the owner
 node and preserves management usecase DTOs across the RPC boundary. Local
 connection filtering and DTO shaping stay in the management usecase; this
 adapter only chooses the typed node RPC client.
+
+## Management Plugin Flow
+
+```text
+management.RemotePluginReader
+  -> access/node Manager Plugin RPC client
+  -> clusterv2 CallRPC(target node, RPCManagerPlugins)
+  -> target node access/node Manager Plugin RPC handler
+  -> target node v2 plugin usecase observed runtime snapshot
+```
+
+`ManagementPluginReader` is the narrow remote half of the manager plugin
+inventory page. It forwards non-local `node_id` list/detail reads to the
+selected node and preserves management plugin DTOs across the RPC boundary.
+Local plugin snapshot reads, HTTP permissions, and response shaping stay in the
+management usecase and manager access layer. This adapter does not inspect
+plugin directories or mutate plugin lifecycle state.
 
 ## Management Log Flow
 

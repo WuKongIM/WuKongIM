@@ -137,6 +137,16 @@ var supportedConfigKeys = []string{
 	"WK_DELIVERY_PENDING_ACK_TTL",
 	"WK_DELIVERY_PENDING_ACK_MAX_PER_SESSION",
 	"WK_DELIVERY_EVENT_QUEUE_SIZE",
+	"WK_PLUGIN_ENABLE",
+	"WK_PLUGIN_DIR",
+	"WK_PLUGIN_SOCKET_PATH",
+	"WK_PLUGIN_SANDBOX_DIR",
+	"WK_PLUGIN_STATE_DIR",
+	"WK_PLUGIN_TIMEOUT",
+	"WK_PLUGIN_HOT_RELOAD",
+	"WK_PLUGIN_FAIL_OPEN",
+	"WK_PLUGIN_PERSIST_AFTER_QUEUE_SIZE",
+	"WK_PLUGIN_PERSIST_AFTER_WORKERS",
 	"WK_LOG_LEVEL",
 	"WK_LOG_DIR",
 	"WK_LOG_MAX_SIZE",
@@ -1198,6 +1208,62 @@ func buildConfig(values map[string]string) (app.Config, error) {
 		}
 		cfg.Delivery.EventQueueSize = queueSize
 	}
+	if raw := configValue(values, "WK_PLUGIN_ENABLE"); raw != "" {
+		enabled, err := parseBool("WK_PLUGIN_ENABLE", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Plugin.Enable = enabled
+	}
+	cfg.Plugin.Dir = configValue(values, "WK_PLUGIN_DIR")
+	cfg.Plugin.SocketPath = configValue(values, "WK_PLUGIN_SOCKET_PATH")
+	cfg.Plugin.SandboxDir = configValue(values, "WK_PLUGIN_SANDBOX_DIR")
+	cfg.Plugin.StateDir = configValue(values, "WK_PLUGIN_STATE_DIR")
+	if raw := configValue(values, "WK_PLUGIN_TIMEOUT"); raw != "" {
+		timeout, err := parseDuration("WK_PLUGIN_TIMEOUT", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if timeout < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_PLUGIN_TIMEOUT: value must be >= 0")
+		}
+		cfg.Plugin.Timeout = timeout
+	}
+	if raw := configValue(values, "WK_PLUGIN_HOT_RELOAD"); raw != "" {
+		hotReload, err := parseBool("WK_PLUGIN_HOT_RELOAD", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Plugin.HotReload = hotReload
+	}
+	if raw := configValue(values, "WK_PLUGIN_FAIL_OPEN"); raw != "" {
+		failOpen, err := parseBool("WK_PLUGIN_FAIL_OPEN", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Plugin.FailOpen = failOpen
+	}
+	if raw := configValue(values, "WK_PLUGIN_PERSIST_AFTER_QUEUE_SIZE"); raw != "" {
+		queueSize, err := parseInt("WK_PLUGIN_PERSIST_AFTER_QUEUE_SIZE", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if queueSize < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_PLUGIN_PERSIST_AFTER_QUEUE_SIZE: value must be >= 0")
+		}
+		cfg.Plugin.PersistAfterQueueSize = queueSize
+	}
+	if raw := configValue(values, "WK_PLUGIN_PERSIST_AFTER_WORKERS"); raw != "" {
+		workers, err := parseInt("WK_PLUGIN_PERSIST_AFTER_WORKERS", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if workers < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_PLUGIN_PERSIST_AFTER_WORKERS: value must be >= 0")
+		}
+		cfg.Plugin.PersistAfterWorkers = workers
+	}
+	cfg.Plugin.SetExplicitFlags(configValue(values, "WK_PLUGIN_HOT_RELOAD") != "")
 
 	return cfg, nil
 }

@@ -59,6 +59,10 @@ func (a *App) applyConfigDefaults() error {
 	if err := validateDeliveryConfig(a.cfg.Delivery); err != nil {
 		return err
 	}
+	a.cfg.Plugin = defaultPluginConfig(a.cfg.DataDir, a.cfg.Plugin)
+	if err := validatePluginConfig(a.cfg.Plugin); err != nil {
+		return err
+	}
 	a.cfg.Observability = defaultObservabilityConfig(a.cfg.Observability)
 	a.cfg.Observability.Prometheus = defaultPrometheusConfigForApp(a.cfg)
 	if err := validateObservabilityConfig(a.cfg.Observability); err != nil {
@@ -434,6 +438,22 @@ func (a *App) wireManagerDiagnosticsRPC() {
 	registrar.RegisterRPC(accessnode.ManagerDiagnosticsRPCServiceID, nodeRPCHandlerFunc(adapter.HandleManagerDiagnosticsRPC))
 }
 
+func (a *App) wireManagerPluginRPC() {
+	registrar, hasRegistrar := a.cluster.(nodeRPCRegistrar)
+	if !hasRegistrar || a.plugins == nil {
+		return
+	}
+	service := managementusecase.New(managementusecase.Options{Plugins: a.plugins})
+	if node, ok := a.cluster.(clusterinfra.ManagementNode); ok {
+		service = managementusecase.New(managementusecase.Options{
+			Cluster: clusterinfra.NewManagementSnapshotReader(node),
+			Plugins: a.plugins,
+		})
+	}
+	adapter := accessnode.New(accessnode.Options{ManagerPlugins: service, Logger: a.logger.Named("node")})
+	registrar.RegisterRPC(accessnode.ManagerPluginRPCServiceID, nodeRPCHandlerFunc(adapter.HandleManagerPluginRPC))
+}
+
 func (a *App) wireUsers() {
 	if a.users == nil {
 		if node, ok := a.cluster.(clusterinfra.UserMetadataNode); ok {
@@ -573,6 +593,9 @@ func (a *App) wireChannelAppend(nodeID uint64) error {
 			if a.conversationAuthorityClient != nil {
 				opts.ConversationActiveAdmitter = a.conversationAuthorityClient
 			}
+			if a.pluginPersistAfter != nil {
+				opts.PersistAfterEnqueuer = a.pluginPersistAfter
+			}
 			var observer deliveryMessageObserver
 			if _, topEnabled := a.topProvider.(*topCollector); a.cfg.Delivery.Enabled || a.metrics != nil || topEnabled {
 				observer = deliveryMessageObserver{app: a}
@@ -652,6 +675,9 @@ func (a *App) wireMessages() {
 			PersonWhitelistEnabled: a.cfg.Message.PersonWhitelistEnabled,
 			SystemDeviceID:         a.cfg.Message.SystemDeviceID,
 			PermissionCacheTTL:     a.cfg.Message.PermissionCacheTTL,
+		}
+		if a.plugins != nil {
+			messageOpts.SendHook = a.plugins
 		}
 		if channelNode, ok := a.cluster.(clusterinfra.ChannelMetadataNode); ok {
 			messageOpts.PermissionStore = clusterinfra.NewChannelMetadataStore(channelNode, nil)
@@ -828,6 +854,12 @@ func (a *App) newManagerManagement() accessmanager.Management {
 		}
 		if a.online != nil {
 			opts.Connections = a.online
+		}
+		if a.plugins != nil {
+			opts.Plugins = a.plugins
+		}
+		if pluginNode, ok := a.cluster.(clusterinfra.ManagementPluginNode); ok {
+			opts.RemotePlugins = clusterinfra.NewManagementPluginReader(pluginNode)
 		}
 		if connNode, ok := a.cluster.(clusterinfra.ManagementConnectionNode); ok {
 			opts.RemoteConnections = clusterinfra.NewManagementConnectionReader(connNode)

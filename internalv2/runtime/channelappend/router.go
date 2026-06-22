@@ -361,7 +361,7 @@ func preRouteChannel(cmd SendCommand) (ChannelID, SendBatchItemResult, bool) {
 		return ChannelID{}, SendBatchItemResult{Result: SendResult{Reason: ReasonInvalidRequest}}, true
 	}
 	if cmd.NoPersist {
-		return ChannelID{}, SendBatchItemResult{Result: SendResult{Reason: ReasonUnsupported}}, true
+		return preRouteNoPersistChannel(cmd)
 	}
 	if cmd.NormalizePersonChannel && cmd.ChannelType == channelTypePerson {
 		channelID, err := runtimechannelid.NormalizePersonChannel(cmd.FromUID, cmd.ChannelID)
@@ -371,6 +371,22 @@ func preRouteChannel(cmd SendCommand) (ChannelID, SendBatchItemResult, bool) {
 		return ChannelID{ID: channelID, Type: cmd.ChannelType}, SendBatchItemResult{}, false
 	}
 	return ChannelID{ID: cmd.ChannelID, Type: cmd.ChannelType}, SendBatchItemResult{}, false
+}
+
+func preRouteNoPersistChannel(cmd SendCommand) (ChannelID, SendBatchItemResult, bool) {
+	sourceChannelID, alreadyCommandChannel := runtimechannelid.FromCommandChannel(cmd.ChannelID)
+	cmd.ChannelID = sourceChannelID
+	if !cmd.SyncOnce && !alreadyCommandChannel {
+		return ChannelID{}, SendBatchItemResult{Result: SendResult{Reason: ReasonSuccess}}, true
+	}
+	if cmd.NormalizePersonChannel && cmd.ChannelType == channelTypePerson {
+		channelID, err := runtimechannelid.NormalizePersonChannel(cmd.FromUID, cmd.ChannelID)
+		if err != nil {
+			return ChannelID{}, SendBatchItemResult{Err: err}, true
+		}
+		cmd.ChannelID = channelID
+	}
+	return ChannelID{ID: runtimechannelid.ToCommandChannel(cmd.ChannelID), Type: cmd.ChannelType}, SendBatchItemResult{}, false
 }
 
 func preRouteRequestScopedChannel(cmd SendCommand) (ChannelID, SendBatchItemResult, bool) {
@@ -391,7 +407,7 @@ func preRouteRequestScopedChannel(cmd SendCommand) (ChannelID, SendBatchItemResu
 		return ChannelID{}, SendBatchItemResult{Err: err}, true
 	}
 	if cmd.NoPersist {
-		return ChannelID{}, SendBatchItemResult{Result: SendResult{Reason: ReasonUnsupported}}, true
+		return ChannelID{ID: scoped.CommandChannelID, Type: scoped.ChannelType}, SendBatchItemResult{}, false
 	}
 	return ChannelID{ID: scoped.CommandChannelID, Type: scoped.ChannelType}, SendBatchItemResult{}, false
 }

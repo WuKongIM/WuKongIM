@@ -70,6 +70,10 @@ type Options struct {
 	Connections ConnectionReader
 	// RemoteConnections reads owner-local gateway session snapshots from peer nodes.
 	RemoteConnections RemoteConnectionReader
+	// Plugins reads node-local plugin runtime snapshots for manager plugin pages.
+	Plugins PluginReader
+	// RemotePlugins reads node-local plugin runtime snapshots from peer nodes.
+	RemotePlugins RemotePluginReader
 	// Logs reads node-local distributed Raft log pages.
 	Logs LogReader
 	// SlotRaft runs node-local Slot Raft compaction operations.
@@ -108,6 +112,8 @@ type App struct {
 	messageRetention       MessageRetentionOperator
 	connections            ConnectionReader
 	remoteConnections      RemoteConnectionReader
+	plugins                PluginReader
+	remotePlugins          RemotePluginReader
 	logs                   LogReader
 	slotRaft               SlotRaftOperator
 	leaderTransfer         SlotLeaderTransferWriter
@@ -142,6 +148,8 @@ func New(opts Options) *App {
 		messageRetention:       opts.MessageRetention,
 		connections:            opts.Connections,
 		remoteConnections:      opts.RemoteConnections,
+		plugins:                opts.Plugins,
+		remotePlugins:          opts.RemotePlugins,
 		logs:                   opts.Logs,
 		slotRaft:               opts.SlotRaft,
 		leaderTransfer:         opts.LeaderTransfer,

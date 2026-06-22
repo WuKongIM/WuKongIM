@@ -231,6 +231,26 @@ manager usecase errors. The RPC payload preserves node, filter, cursor,
 `has_more`, and next-cursor state, but it does not implement channel mutations
 or decide which HTTP request targets a remote node.
 
+## Manager Plugin RPC
+
+```text
+remote manager plugin reader
+  -> encode W K V J 1 request
+  -> clusterv2 RPCManagerPlugins
+  -> Adapter.HandleManagerPluginRPC
+  -> Management plugin reader port
+  -> encode W K V j 1 response
+```
+
+Manager Plugin RPC transports node-local plugin list/detail reads to the
+selected node. The server calls only the configured management plugin reader
+port, which reads the target node's in-memory plugin runtime snapshot. The
+client maps stable RPC statuses back to manager usecase errors. The payload
+preserves plugin number, display metadata, hook methods, PersistAfter/reply
+sync flags, process ID, last-seen timestamp, and latest error text. It does
+not mutate plugin desired state, start or stop plugin processes, or decide
+which manager HTTP request targets a remote node.
+
 ## Manager DB Inspect RPC
 
 ```text
@@ -348,6 +368,11 @@ Manager Log RPC uses fixed magic headers:
 - Request: `W K V L 1`
 - Response: `W K V l 1`
 
+Manager Plugin RPC uses fixed magic headers:
+
+- Request: `W K V J 1`
+- Response: `W K V j 1`
+
 Manager DB Inspect RPC uses fixed magic headers:
 
 - Request: `W K V B 1`
@@ -416,5 +441,6 @@ Delivery push and fanout responses currently use:
   state except through the `PresenceAuthority`, `PresenceOwner`, and
   `DeliveryOwnerPush` / `DeliveryFanoutRunner` / `ConversationAuthority` /
   standalone channel-write `ChannelAppend`, manager connection reader, and
-  manager log reader, manager DB inspect reader, manager diagnostics
-  reader/operator, and manager application log reader adapter interfaces.
+  manager log reader, manager plugin reader, manager DB inspect reader,
+  manager diagnostics reader/operator, and manager application log reader
+  adapter interfaces.

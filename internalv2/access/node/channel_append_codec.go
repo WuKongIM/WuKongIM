@@ -204,6 +204,7 @@ func readChannelAppendItem(body []byte, offset int) (channelAppendItem, int, err
 func appendChannelAppendSendCommand(dst []byte, cmd channelappend.SendCommand) []byte {
 	dst = appendString(dst, cmd.FromUID)
 	dst = appendString(dst, cmd.DeviceID)
+	dst = append(dst, cmd.DeviceFlag)
 	dst = appendUvarint(dst, cmd.SenderNodeID)
 	dst = appendUvarint(dst, cmd.SenderSessionID)
 	dst = appendUvarint(dst, cmd.ClientSeq)
@@ -220,7 +221,10 @@ func appendChannelAppendSendCommand(dst []byte, cmd channelappend.SendCommand) [
 	dst = appendChannelAppendBool(dst, cmd.RequestScoped)
 	dst = appendChannelAppendStringSlice(dst, cmd.MessageScopedUIDs)
 	dst = appendUvarint(dst, cmd.MessageID)
-	return append(dst, cmd.ProtocolVersion)
+	dst = append(dst, cmd.ProtocolVersion)
+	dst = appendString(dst, string(cmd.Origin))
+	dst = appendVarint(dst, int64(cmd.HookDepth))
+	return appendChannelAppendBool(dst, cmd.SkipPluginHooks)
 }
 
 func readChannelAppendSendCommand(body []byte, offset int) (channelappend.SendCommand, int, error) {
@@ -230,6 +234,9 @@ func readChannelAppendSendCommand(body []byte, offset int) (channelappend.SendCo
 		return channelappend.SendCommand{}, offset, err
 	}
 	if cmd.DeviceID, offset, err = readString(body, offset); err != nil {
+		return channelappend.SendCommand{}, offset, err
+	}
+	if cmd.DeviceFlag, offset, err = readByte(body, offset, "channel append command device flag"); err != nil {
 		return channelappend.SendCommand{}, offset, err
 	}
 	if cmd.SenderNodeID, offset, err = readUvarint(body, offset); err != nil {
@@ -281,6 +288,22 @@ func readChannelAppendSendCommand(body []byte, offset int) (channelappend.SendCo
 		return channelappend.SendCommand{}, offset, err
 	}
 	if cmd.ProtocolVersion, offset, err = readByte(body, offset, "channel append protocol version"); err != nil {
+		return channelappend.SendCommand{}, offset, err
+	}
+	var origin string
+	if origin, offset, err = readString(body, offset); err != nil {
+		return channelappend.SendCommand{}, offset, err
+	}
+	cmd.Origin = channelappend.SendOrigin(origin)
+	var hookDepth int64
+	if hookDepth, offset, err = readVarint(body, offset); err != nil {
+		return channelappend.SendCommand{}, offset, err
+	}
+	if hookDepth < 0 {
+		return channelappend.SendCommand{}, offset, fmt.Errorf("internalv2/access/node: channel append hook depth is negative")
+	}
+	cmd.HookDepth = int(hookDepth)
+	if cmd.SkipPluginHooks, offset, err = readChannelAppendBool(body, offset, "channel append skip plugin hooks"); err != nil {
 		return channelappend.SendCommand{}, offset, err
 	}
 	return cmd, offset, nil

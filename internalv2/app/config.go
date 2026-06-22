@@ -58,6 +58,8 @@ type Config struct {
 	Presence PresenceConfig
 	// Delivery configures online message delivery fanout and owner-local ack tracking.
 	Delivery DeliveryConfig
+	// Plugin configures node-local PDK-compatible plugin runtime integration.
+	Plugin PluginConfig
 }
 
 // APIConfig contains HTTP API settings for the standalone v2 entry.
@@ -341,6 +343,40 @@ type DeliveryConfig struct {
 	EventQueueSize int
 }
 
+// PluginConfig controls node-local PDK-compatible plugin runtime integration.
+type PluginConfig struct {
+	// Enable allows node-local .wkp plugin processes and PersistAfter hooks when the app wires the plugin subsystem.
+	Enable bool
+	// Dir stores executable .wkp plugin files for this node.
+	Dir string
+	// SocketPath is the Unix socket used for plugin host RPC traffic.
+	SocketPath string
+	// SandboxDir is the root directory for per-plugin writable sandbox data.
+	SandboxDir string
+	// StateDir stores node-local desired plugin state files.
+	StateDir string
+	// Timeout bounds plugin host RPCs and graceful process shutdown.
+	Timeout time.Duration
+	// HotReload watches Dir for plugin binary changes when enabled.
+	HotReload bool
+	// FailOpen is retained for future Send hooks; PersistAfter is always fail-open.
+	FailOpen bool
+	// PersistAfterQueueSize bounds queued PersistAfter events retained in memory.
+	PersistAfterQueueSize int
+	// PersistAfterWorkers bounds concurrent PersistAfter hook invocations.
+	PersistAfterWorkers int
+
+	hotReloadSet bool
+}
+
+// SetExplicitFlags records whether plugin boolean defaults were explicitly configured.
+func (c *PluginConfig) SetExplicitFlags(hotReloadSet bool) {
+	if c == nil {
+		return
+	}
+	c.hotReloadSet = hotReloadSet
+}
+
 func defaultManagerConfig(cfg ManagerConfig) ManagerConfig {
 	if cfg.AuthOn && cfg.JWTExpire == 0 {
 		cfg.JWTExpire = 24 * time.Hour
@@ -386,6 +422,36 @@ func defaultDeliveryConfig(cfg DeliveryConfig) DeliveryConfig {
 	}
 	if cfg.EventQueueSize == 0 {
 		cfg.EventQueueSize = 1024
+	}
+	return cfg
+}
+
+func defaultPluginConfig(dataDir string, cfg PluginConfig) PluginConfig {
+	if cfg.Enable {
+		if cfg.Dir == "" {
+			cfg.Dir = filepath.Join(dataDir, "plugins")
+		}
+		if cfg.SocketPath == "" {
+			cfg.SocketPath = filepath.Join(dataDir, "run", "plugin.sock")
+		}
+		if cfg.SandboxDir == "" {
+			cfg.SandboxDir = filepath.Join(dataDir, "plugin-sandbox")
+		}
+		if cfg.StateDir == "" {
+			cfg.StateDir = filepath.Join(dataDir, "plugin-state")
+		}
+	}
+	if cfg.Timeout == 0 {
+		cfg.Timeout = 5 * time.Second
+	}
+	if cfg.PersistAfterQueueSize == 0 {
+		cfg.PersistAfterQueueSize = 1024
+	}
+	if cfg.PersistAfterWorkers == 0 {
+		cfg.PersistAfterWorkers = 16
+	}
+	if !cfg.HotReload && !cfg.hotReloadSet {
+		cfg.HotReload = true
 	}
 	return cfg
 }
@@ -694,6 +760,19 @@ func validateDeliveryConfig(cfg DeliveryConfig) error {
 	}
 	if cfg.EventQueueSize < 0 {
 		return fmt.Errorf("%w: delivery event queue size must be non-negative", ErrInvalidConfig)
+	}
+	return nil
+}
+
+func validatePluginConfig(cfg PluginConfig) error {
+	if cfg.Timeout < 0 {
+		return fmt.Errorf("%w: plugin timeout must be >= 0", ErrInvalidConfig)
+	}
+	if cfg.PersistAfterQueueSize < 0 {
+		return fmt.Errorf("%w: plugin persist-after queue size must be >= 0", ErrInvalidConfig)
+	}
+	if cfg.PersistAfterWorkers < 0 {
+		return fmt.Errorf("%w: plugin persist-after workers must be >= 0", ErrInvalidConfig)
 	}
 	return nil
 }

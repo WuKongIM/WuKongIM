@@ -217,23 +217,26 @@ WK_DELIVERY_ACK_BATCH_MAX_WAIT=0
 # Zero uses the application default when WK_DELIVERY_ACK_BATCH_MAX_WAIT is enabled.
 WK_DELIVERY_ACK_BATCH_MAX_SIZE=0
 
-# Plugins execute node-local .wkp binaries and are disabled by default for safety.
-# When enabled, WK_PLUGIN_DIR defaults to ${WK_NODE_DATA_DIR}/plugins and only
-# executable files directly under that directory with the .wkp suffix are started.
-# The runtime passes --socket and --sandbox to go-pdk plugins; keep the socket
-# path short on macOS because Unix socket paths have a small OS limit.
-# WK_PLUGIN_STATE_DIR stores only node-local desired config/enabled JSON files;
-# plugin-user bindings are cluster metadata managed through Slot Raft.
-# WK_PLUGIN_FAIL_OPEN=false rejects sends when a Send hook fails. Set true only
-# if plugin availability must not block message sending.
+# Enables node-local .wkp plugin processes and hooks. Disabled by default for safety.
 WK_PLUGIN_ENABLE=false
+# Directory containing executable .wkp plugin files. Defaults to ${WK_NODE_DATA_DIR}/plugins when enabled.
 WK_PLUGIN_DIR=
+# Unix socket path for plugin host RPC traffic. Defaults to ${WK_NODE_DATA_DIR}/run/plugin.sock; keep it short on Unix-like systems.
 WK_PLUGIN_SOCKET_PATH=
+# Root directory for per-plugin writable sandbox data. Defaults to ${WK_NODE_DATA_DIR}/plugin-sandbox when enabled.
 WK_PLUGIN_SANDBOX_DIR=
+# Directory for node-local desired plugin state files. Defaults to ${WK_NODE_DATA_DIR}/plugin-state when enabled.
 WK_PLUGIN_STATE_DIR=
+# Timeout for plugin host RPCs and graceful process shutdown. Defaults to 5s.
 WK_PLUGIN_TIMEOUT=5s
+# Watches the plugin directory for binary changes when enabled. Defaults to true.
 WK_PLUGIN_HOT_RELOAD=true
+# Retained for future Send hooks; PersistAfter is always fail-open in internalv2 Phase 1.
 WK_PLUGIN_FAIL_OPEN=false
+# Bounds queued PersistAfter events retained in memory.
+WK_PLUGIN_PERSIST_AFTER_QUEUE_SIZE=1024
+# Bounds concurrent PersistAfter hook invocations.
+WK_PLUGIN_PERSIST_AFTER_WORKERS=16
 
 # Conversation ActiveAt is a best-effort working-set hint. Cache updates are
 # batched and may be delayed or dropped without affecting message durability.

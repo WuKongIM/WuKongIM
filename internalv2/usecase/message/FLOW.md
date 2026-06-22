@@ -25,18 +25,26 @@ SendBatch(items)
        enforce person receiver denylist and optional receiver allowlist/AllowStranger checks
        enforce agent participant and visitors/customer-service membership checks
        reject denied items with item-aligned Reason values
+       if SendHook is configured, run it before append admission
+       reject hook-denied items with item-aligned Reason values
   -> if Submitter is nil, return ErrRouteNotReady for remaining allowed items
   -> delegate allowed items to Submitter.SendBatch
   -> copy delegated results back to original item indexes
 ```
 
 `Send(ctx, cmd)` runs the same permission check and delegates allowed commands
-directly to `Submitter.Send`. The configured submitter is normally the app-level
-channel append router, which resolves channel append authority and admits work
-into the authority node's channel append reactor. Validation, request-scoped
-command-channel derivation, message ID allocation, append retries, committed
-cursors, subscriber scan, conversation projection, and online delivery are all
-owned by `internalv2/runtime/channelappend`.
+directly to `Submitter.Send`. When configured, `SendHook.BeforeSend` runs after
+permission success and before the submitter. It may mutate the command payload
+or reject with a usecase `Reason`; it does not run for permission-rejected
+items. Plugin-origin sends carry `Origin`/`HookDepth` recursion controls, and
+trusted internal paths may set `SkipPluginHooks`.
+
+The configured submitter is normally the app-level channel append router, which
+resolves channel append authority and admits work into the authority node's
+channel append reactor. Validation, request-scoped command-channel derivation,
+message ID allocation, append retries, committed cursors, subscriber scan,
+conversation projection, NoPersist realtime dispatch, PersistAfter hooks, and
+online delivery are all owned by `internalv2/runtime/channelappend`.
 
 Permission checks preserve legacy reason semantics while staying
 entry-agnostic: `internalv2/access/gateway` and `internalv2/access/api` map the

@@ -15,6 +15,8 @@ type Options struct {
 	Reader ChannelMessageReader
 	// PermissionStore provides authoritative membership and channel reads for send authorization.
 	PermissionStore PermissionStore
+	// SendHook optionally mutates or rejects permission-accepted sends before append admission.
+	SendHook SendHook
 	// SystemUIDs identifies internal system senders that bypass business permissions.
 	SystemUIDs SystemUIDChecker
 	// PersonWhitelistEnabled enables receiver-side personal allowlist checks.
@@ -32,6 +34,7 @@ type App struct {
 	submitter              Submitter
 	reader                 ChannelMessageReader
 	permissions            PermissionStore
+	sendHook               SendHook
 	systemUIDs             SystemUIDChecker
 	personWhitelistEnabled bool
 	systemDeviceID         string
@@ -48,6 +51,7 @@ func New(opts Options) *App {
 		submitter:              opts.Submitter,
 		reader:                 opts.Reader,
 		permissions:            permissions,
+		sendHook:               opts.SendHook,
 		systemUIDs:             opts.SystemUIDs,
 		personWhitelistEnabled: opts.PersonWhitelistEnabled,
 		systemDeviceID:         opts.SystemDeviceID,

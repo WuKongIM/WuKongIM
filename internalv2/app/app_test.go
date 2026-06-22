@@ -5987,9 +5987,14 @@ type recordingWorkerRuntime struct {
 	stopErr    error
 	calls      *[]string
 	name       string
+	onStart    func()
+	onStop     func()
 }
 
 func (r *recordingWorkerRuntime) Start(context.Context) error {
+	if r.onStart != nil {
+		r.onStart()
+	}
 	if r.calls != nil && r.name != "" {
 		*r.calls = append(*r.calls, r.name+".start")
 	}
@@ -5998,6 +6003,9 @@ func (r *recordingWorkerRuntime) Start(context.Context) error {
 }
 
 func (r *recordingWorkerRuntime) Stop(context.Context) error {
+	if r.onStop != nil {
+		r.onStop()
+	}
 	if r.calls != nil && r.name != "" {
 		*r.calls = append(*r.calls, r.name+".stop")
 	}

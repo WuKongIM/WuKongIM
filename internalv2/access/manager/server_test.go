@@ -1372,6 +1372,8 @@ type managerNodesStub struct {
 	messagesPage                       managementusecase.ListMessagesResponse
 	connections                        []managementusecase.Connection
 	connectionDetail                   managementusecase.ConnectionDetail
+	pluginList                         managementusecase.NodePluginList
+	pluginDetail                       managementusecase.Plugin
 	usersPage                          managementusecase.ListUsersResponse
 	userDetail                         managementusecase.UserDetail
 	slotLogEntriesPage                 managementusecase.SlotLogEntriesResponse
@@ -1401,6 +1403,9 @@ type managerNodesStub struct {
 	messagesReqSink                    *managementusecase.ListMessagesRequest
 	connectionsReqSink                 *managementusecase.ListConnectionsRequest
 	connectionDetailReqSink            *managementusecase.GetConnectionRequest
+	pluginListNodeSink                 *uint64
+	pluginDetailNodeSink               *uint64
+	pluginDetailNoSink                 *string
 	slotLogEntriesReqSink              *managementusecase.ListSlotLogEntriesRequest
 	controllerLogEntriesReqSink        *managementusecase.ListControllerLogEntriesRequest
 	controllerTasksReqSink             *managementusecase.ListControllerTasksRequest
@@ -1429,6 +1434,8 @@ type managerNodesStub struct {
 	messagesErr                        error
 	connectionsErr                     error
 	connectionDetailErr                error
+	pluginListErr                      error
+	pluginDetailErr                    error
 	slotLogEntriesErr                  error
 	controllerLogEntriesErr            error
 	controllerTasksErr                 error
@@ -1652,6 +1659,23 @@ func (s managerNodesStub) GetConnection(_ context.Context, req managementusecase
 		*s.connectionDetailReqSink = req
 	}
 	return s.connectionDetail, s.connectionDetailErr
+}
+
+func (s managerNodesStub) ListNodePlugins(_ context.Context, nodeID uint64) (managementusecase.NodePluginList, error) {
+	if s.pluginListNodeSink != nil {
+		*s.pluginListNodeSink = nodeID
+	}
+	return s.pluginList, s.pluginListErr
+}
+
+func (s managerNodesStub) GetNodePlugin(_ context.Context, nodeID uint64, pluginNo string) (managementusecase.Plugin, error) {
+	if s.pluginDetailNodeSink != nil {
+		*s.pluginDetailNodeSink = nodeID
+	}
+	if s.pluginDetailNoSink != nil {
+		*s.pluginDetailNoSink = pluginNo
+	}
+	return s.pluginDetail, s.pluginDetailErr
 }
 
 func (s managerNodesStub) AdvanceMessageRetention(_ context.Context, req managementusecase.AdvanceMessageRetentionRequest) (managementusecase.AdvanceMessageRetentionResponse, error) {

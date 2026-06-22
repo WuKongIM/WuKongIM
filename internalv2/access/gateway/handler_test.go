@@ -232,6 +232,8 @@ func TestOnFrameSendPacketWritesSuccessSendack(t *testing.T) {
 	var written []frame.Frame
 	sess := newTestSession(t, &written)
 	sess.SetValue(coregateway.SessionValueUID, "u1")
+	sess.SetValue(coregateway.SessionValueDeviceID, "d1")
+	sess.SetValue(coregateway.SessionValueDeviceFlag, frame.WEB)
 	sess.SetValue(coregateway.SessionValueProtocolVersion, uint8(4))
 
 	usecase := &recordingMessages{
@@ -266,8 +268,8 @@ func TestOnFrameSendPacketWritesSuccessSendack(t *testing.T) {
 		t.Fatalf("batch item count = %d, want 1", len(usecase.batchItems))
 	}
 	cmd := usecase.batchItems[0].Command
-	if cmd.FromUID != "u1" || cmd.SenderNodeID != 9 || cmd.SenderSessionID != sess.ID() || cmd.ProtocolVersion != 4 {
-		t.Fatalf("mapped sender fields = uid=%q node=%d session=%d version=%d", cmd.FromUID, cmd.SenderNodeID, cmd.SenderSessionID, cmd.ProtocolVersion)
+	if cmd.FromUID != "u1" || cmd.DeviceID != "d1" || cmd.DeviceFlag != uint8(frame.WEB) || cmd.SenderNodeID != 9 || cmd.SenderSessionID != sess.ID() || cmd.ProtocolVersion != 4 {
+		t.Fatalf("mapped sender fields = uid=%q device=%q flag=%d node=%d session=%d version=%d", cmd.FromUID, cmd.DeviceID, cmd.DeviceFlag, cmd.SenderNodeID, cmd.SenderSessionID, cmd.ProtocolVersion)
 	}
 	if cmd.ClientSeq != pkt.ClientSeq || cmd.ClientMsgNo != pkt.ClientMsgNo || cmd.ChannelID != pkt.ChannelID || cmd.ChannelType != pkt.ChannelType {
 		t.Fatalf("mapped packet fields = %#v, want packet fields from %#v", cmd, pkt)

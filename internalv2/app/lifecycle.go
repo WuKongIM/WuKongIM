@@ -86,6 +86,22 @@ func (a *App) Start(ctx context.Context) error {
 		}
 		a.presenceStarted = true
 	}
+	if a.pluginRuntime != nil {
+		if err := a.pluginRuntime.Start(ctx); err != nil {
+			a.logLifecycleError("plugin_runtime", "start", err)
+			stopErr := a.rollbackStarted(ctx)
+			return errors.Join(err, stopErr)
+		}
+		a.pluginRuntimeStarted = true
+	}
+	if a.pluginHook != nil {
+		if err := a.pluginHook.Start(ctx); err != nil {
+			a.logLifecycleError("plugin_hook", "start", err)
+			stopErr := a.rollbackStarted(ctx)
+			return errors.Join(err, stopErr)
+		}
+		a.pluginHookStarted = true
+	}
 	if a.deliveryWorker != nil {
 		if err := a.deliveryWorker.Start(ctx); err != nil {
 			a.logLifecycleError("delivery_worker", "start", err)
@@ -215,6 +231,22 @@ func (a *App) Stop(ctx context.Context) error {
 			a.deliveryStarted = false
 		}
 	}
+	if a.pluginHookStarted && a.pluginHook != nil {
+		if stopErr := a.pluginHook.Stop(ctx); stopErr != nil {
+			a.logLifecycleWarn("plugin_hook", "stop", stopErr)
+			err = errors.Join(err, stopErr)
+		} else {
+			a.pluginHookStarted = false
+		}
+	}
+	if a.pluginRuntimeStarted && a.pluginRuntime != nil {
+		if stopErr := a.pluginRuntime.Stop(ctx); stopErr != nil {
+			a.logLifecycleWarn("plugin_runtime", "stop", stopErr)
+			err = errors.Join(err, stopErr)
+		} else {
+			a.pluginRuntimeStarted = false
+		}
+	}
 	if a.conversationActiveStarted && a.conversationActiveWorker != nil {
 		if stopErr := a.conversationActiveWorker.Stop(ctx); stopErr != nil {
 			a.logLifecycleWarn("conversation_active_worker", "stop", stopErr)
@@ -247,7 +279,7 @@ func (a *App) Stop(ctx context.Context) error {
 			a.clusterStarted = false
 		}
 	}
-	if !a.gatewayStarted && !a.prometheusStarted && !a.managerStarted && !a.apiStarted && !a.topStarted && !a.channelAppendStarted && !a.deliveryStarted && !a.conversationActiveStarted && !a.conversationRouteStarted && !a.presenceStarted && !a.clusterStarted {
+	if !a.gatewayStarted && !a.prometheusStarted && !a.managerStarted && !a.apiStarted && !a.topStarted && !a.channelAppendStarted && !a.deliveryStarted && !a.pluginHookStarted && !a.pluginRuntimeStarted && !a.conversationActiveStarted && !a.conversationRouteStarted && !a.presenceStarted && !a.clusterStarted {
 		a.started = false
 	}
 	err = errors.Join(err, a.syncLogger())
@@ -309,6 +341,22 @@ func (a *App) rollbackStarted(ctx context.Context) error {
 			err = errors.Join(err, stopErr)
 		} else {
 			a.deliveryStarted = false
+		}
+	}
+	if a.pluginHookStarted && a.pluginHook != nil {
+		if stopErr := a.pluginHook.Stop(ctx); stopErr != nil {
+			a.logLifecycleWarn("plugin_hook", "rollback_stop", stopErr)
+			err = errors.Join(err, stopErr)
+		} else {
+			a.pluginHookStarted = false
+		}
+	}
+	if a.pluginRuntimeStarted && a.pluginRuntime != nil {
+		if stopErr := a.pluginRuntime.Stop(ctx); stopErr != nil {
+			a.logLifecycleWarn("plugin_runtime", "rollback_stop", stopErr)
+			err = errors.Join(err, stopErr)
+		} else {
+			a.pluginRuntimeStarted = false
 		}
 	}
 	if a.conversationActiveStarted && a.conversationActiveWorker != nil {

@@ -11,6 +11,7 @@ const (
 	effectStagePrepare    = "prepare"
 	effectStageAppend     = "append"
 	effectStagePostCommit = "post_commit"
+	effectStageRealtime   = "realtime"
 )
 
 func effectPanicError(stage string, recovered any) error {

@@ -10,6 +10,10 @@ func TestSendCommandCloneClonesSlices(t *testing.T) {
 	cmd := channelappend.SendCommand{
 		Payload:           []byte("hello"),
 		MessageScopedUIDs: []string{"u1", "u2"},
+		DeviceFlag:        3,
+		Origin:            channelappend.SendOriginPlugin,
+		HookDepth:         1,
+		SkipPluginHooks:   true,
 	}
 	cloned := cmd.Clone()
 	cmd.Payload[0] = 'x'
@@ -19,6 +23,9 @@ func TestSendCommandCloneClonesSlices(t *testing.T) {
 	}
 	if got := cloned.MessageScopedUIDs[0]; got != "u1" {
 		t.Fatalf("scoped uid clone mutated: %q", got)
+	}
+	if cloned.DeviceFlag != 3 || cloned.Origin != channelappend.SendOriginPlugin || cloned.HookDepth != 1 || !cloned.SkipPluginHooks {
+		t.Fatalf("hook/device controls were not preserved: %#v", cloned)
 	}
 }
 

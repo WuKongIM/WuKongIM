@@ -184,6 +184,7 @@ func channelAppendTestCommand() channelappend.SendCommand {
 	return channelappend.SendCommand{
 		FromUID:                "u1",
 		DeviceID:               "d1",
+		DeviceFlag:             3,
 		SenderNodeID:           11,
 		SenderSessionID:        12,
 		ClientSeq:              13,
@@ -201,5 +202,8 @@ func channelAppendTestCommand() channelappend.SendCommand {
 		MessageScopedUIDs:      []string{"u2", "u3"},
 		MessageID:              99,
 		ProtocolVersion:        4,
+		Origin:                 channelappend.SendOriginPlugin,
+		HookDepth:              1,
+		SkipPluginHooks:        true,
 	}
 }

@@ -9,7 +9,7 @@ import (
 type Reason uint8
 
 const (
-	// ReasonSuccess means the send was durably accepted.
+	// ReasonSuccess means the send was accepted for its requested durability mode.
 	ReasonSuccess Reason = iota
 	// ReasonInvalidRequest means the command is malformed.
 	ReasonInvalidRequest
@@ -57,6 +57,16 @@ type ChannelID struct {
 	Type uint8
 }
 
+// SendOrigin identifies where a SendCommand entered the message usecase.
+type SendOrigin string
+
+const (
+	// SendOriginClient marks sends that originated from a client or trusted host caller.
+	SendOriginClient SendOrigin = "client"
+	// SendOriginPlugin marks sends that originated from a plugin host RPC.
+	SendOriginPlugin SendOrigin = "plugin"
+)
+
 // AuthorityTarget identifies the fenced channel authority for write admission.
 type AuthorityTarget struct {
 	// ChannelID is the canonical channel owned by the authority node.
@@ -81,6 +91,8 @@ type SendCommand struct {
 	FromUID string
 	// DeviceID is the authenticated gateway device id, used by trusted system-device sends.
 	DeviceID string
+	// DeviceFlag is the authenticated gateway device category used by plugin hooks.
+	DeviceFlag uint8
 	// SenderNodeID is the owner node id that accepted the sender gateway session.
 	SenderNodeID uint64
 	// SenderSessionID is the node-local gateway session id.
@@ -99,9 +111,9 @@ type SendCommand struct {
 	ChannelType uint8
 	// Payload is the message body. Send-path implementations treat it as immutable.
 	Payload []byte
-	// NoPersist requests transient delivery; phase 1 returns ReasonUnsupported.
+	// NoPersist requests transient delivery without writing the channel log.
 	NoPersist bool
-	// SyncOnce marks a one-shot sync command; phase 1 passes it through only as a flag.
+	// SyncOnce marks a one-shot sync command.
 	SyncOnce bool
 	// RedDot carries the client red-dot flag for future delivery side effects.
 	RedDot bool
@@ -115,6 +127,12 @@ type SendCommand struct {
 	MessageID uint64
 	// ProtocolVersion is the client protocol version.
 	ProtocolVersion uint8
+	// Origin identifies the caller class for plugin hook recursion controls.
+	Origin SendOrigin
+	// HookDepth records how many plugin Send hook layers have already run.
+	HookDepth int
+	// SkipPluginHooks bypasses Send hook invocation for trusted internal paths.
+	SkipPluginHooks bool
 }
 
 // Clone returns an independent copy of the send command.
@@ -126,9 +144,9 @@ func (c SendCommand) Clone() SendCommand {
 
 // SendResult is the client-facing SEND outcome.
 type SendResult struct {
-	// MessageID is the durable message id.
+	// MessageID is the accepted message id. Transient sends allocate an id when they dispatch realtime.
 	MessageID uint64
-	// MessageSeq is the committed channel sequence.
+	// MessageSeq is the committed channel sequence; transient realtime sends return zero.
 	MessageSeq uint64
 	// Reason is the entry-agnostic result code.
 	Reason Reason

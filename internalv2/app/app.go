@@ -25,6 +25,7 @@ import (
 	conversationusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/conversation"
 	deliveryusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/delivery"
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/message"
+	pluginusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/plugin"
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/presence"
 	userusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/user"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
@@ -81,6 +82,14 @@ type App struct {
 	channelAppendRouter         *channelappend.Router
 	channelAppendDeliveryWorker *channelappend.RecipientDeliveryWorker
 	channelAppendMetadata       *clusterinfra.ChannelAppendMetadataCache
+	// pluginRuntime owns the node-local plugin process/socket runtime.
+	pluginRuntime WorkerRuntime
+	// pluginHook owns the bounded PersistAfter worker that drains durable commit side effects.
+	pluginHook WorkerRuntime
+	// pluginPersistAfter adapts durable committed envelopes into plugin PersistAfter events.
+	pluginPersistAfter channelappend.PersistAfterEnqueuer
+	// plugins exposes v2 plugin lifecycle and PersistAfter usecases.
+	plugins                     *pluginusecase.App
 	channels                    *channelusecase.App
 	cmdSync                     *cmdsyncusecase.App
 	conversations               *conversationusecase.App
@@ -126,6 +135,8 @@ type App struct {
 	conversationActiveStarted bool
 	channelAppendStarted      bool
 	deliveryStarted           bool
+	pluginRuntimeStarted      bool
+	pluginHookStarted         bool
 	apiStarted                bool
 	managerStarted            bool
 	prometheusStarted         bool
@@ -174,6 +185,10 @@ func New(cfg Config, opts ...Option) (*App, error) {
 	app.wireManagerDiagnosticsRPC()
 	app.wireUsers()
 	app.wireDelivery()
+	if err := app.wirePluginSubsystem(clusterCfg.NodeID); err != nil {
+		return nil, err
+	}
+	app.wireManagerPluginRPC()
 	if err := app.wireChannelAppend(clusterCfg.NodeID); err != nil {
 		return nil, err
 	}

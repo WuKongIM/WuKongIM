@@ -310,6 +310,12 @@ type RecipientDeliveryEnqueuer interface {
 	EnqueueRecipientBatch(context.Context, RecipientAuthorityTarget, RecipientBatch) error
 }
 
+// PersistAfterEnqueuer accepts durable committed messages for plugin PersistAfter hooks.
+type PersistAfterEnqueuer interface {
+	// EnqueuePersistAfter queues one committed message for plugin side effects.
+	EnqueuePersistAfter(context.Context, CommittedEnvelope)
+}
+
 // ConversationActiveAdmitter admits committed recipient activity into the conversation active worker.
 type ConversationActiveAdmitter interface {
 	// AdmitActiveBatch hands one committed recipient set to the conversation active worker.
@@ -368,6 +374,8 @@ type Options struct {
 	RecipientAuthorityResolver RecipientAuthorityResolver
 	// RecipientDeliveryEnqueuer queues selected recipients for asynchronous delivery processing.
 	RecipientDeliveryEnqueuer RecipientDeliveryEnqueuer
+	// PersistAfterEnqueuer queues durable committed messages for plugin PersistAfter side effects.
+	PersistAfterEnqueuer PersistAfterEnqueuer
 	// ConversationActiveAdmitter admits active conversation batches after recipient expansion.
 	ConversationActiveAdmitter ConversationActiveAdmitter
 	// SubscriberScanPageSize bounds each group-channel subscriber scan page. Values <= 0 use a bounded default.
@@ -460,6 +468,7 @@ func commitPortsFromOptions(opts Options) commitPorts {
 		activeAdmitter:               opts.ConversationActiveAdmitter,
 		recipientAuthorityResolver:   opts.RecipientAuthorityResolver,
 		deliveryEnqueuer:             opts.RecipientDeliveryEnqueuer,
+		persistAfter:                 opts.PersistAfterEnqueuer,
 		subscriberPageSize:           opts.SubscriberScanPageSize,
 		recipientBatchSize:           opts.RecipientBatchSize,
 		recipientDispatchConcurrency: opts.RecipientAuthorityDispatchConcurrency,
