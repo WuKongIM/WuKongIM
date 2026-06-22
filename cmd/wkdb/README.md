@@ -1,10 +1,16 @@
 # wkdb
 
-`wkdb` is a read-only offline inspection CLI for one WuKongIM node data directory.
+`wkdb` is a local offline CLI for one WuKongIM node data directory. It has two
+operation classes:
+
+- Read-only inspection: `query` and `repl` open metadata/message stores in
+  read-only mode.
+- Offline import: `import` validates a WKDB Import Bundle v1 and explicitly
+  writes it into an offline target store.
 
 Full operations guide: [docs/wiki/operations/wkdb-readonly-cli.md](../../docs/wiki/operations/wkdb-readonly-cli.md)
 
-Examples:
+Inspection examples:
 
 ```bash
 wkdb --data-dir ./node-1 query "show tables"
@@ -12,6 +18,14 @@ wkdb --data-dir ./node-1 --hash-slot-count 256 query "select * from meta.user wh
 wkdb --data-dir ./node-1 --hash-slot-count 256 query "select * from meta.user limit 100"
 wkdb --data-dir ./node-1 query "select * from message.channels limit 20"
 wkdb --data-dir ./node-1 query "select * from message.message where channel_key='g1:2' limit 50"
+```
+
+Import examples:
+
+```bash
+# Global flags must appear before the command; import flags appear after it.
+wkdb --data-dir ./node-new --hash-slot-count 256 import --input ./wkdb-dump --dry-run
+wkdb --data-dir ./node-new --hash-slot-count 256 import --input ./wkdb-dump --require-empty
 ```
 
 Common flags:
@@ -36,4 +50,32 @@ wkdb --data-dir ./node-1 --hash-slot-count 256 query "select * from meta.user li
 {"type":"stats","stats":{"has_more":true,"next_cursor":"..."}}
 ```
 
-`wkdb` is local-only. It opens the metadata and message stores in read-only mode, does not contact cluster peers, and does not return a global cluster view.
+`wkdb` is local-only. `query` and `repl` open the metadata and message stores in
+read-only mode, do not contact cluster peers, and do not return a global cluster
+view. `import` is the only write command; it does not connect to cluster nodes
+and is intended for fresh/offline target directories.
+
+WKDB Import Bundle v1 is a directory with one manifest and JSONL data files:
+
+```text
+wkdb-dump/
+  manifest.json
+  meta/
+    users.jsonl
+    devices.jsonl
+    channels.jsonl
+    subscribers.jsonl
+    user_channel_memberships.jsonl
+    conversations.jsonl
+    channel_latest.jsonl
+  message/
+    channels.jsonl
+    messages-000001.jsonl
+```
+
+`manifest.json` uses `format="wkdb-import-bundle"`, `version=1`,
+`hash_slot_count`, and `files[]` entries with `path`, `kind`, `rows`, and
+`sha256`. Supported file kinds are `meta.users`, `meta.devices`,
+`meta.channels`, `meta.subscribers`, `meta.user_channel_memberships`,
+`meta.conversations`, `meta.channel_latest`, `message.channels`, and
+`message.messages`.
