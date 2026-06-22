@@ -29,12 +29,11 @@ func ImportBundle(ctx context.Context, root string, store *db.NodeStore, opts Im
 	if err != nil {
 		return stats, err
 	}
-	hashSlotCount, err := validateHashSlotCount(manifest, opts)
-	if err != nil {
+	if _, err := validateHashSlotCount(manifest, opts); err != nil {
 		return stats, err
 	}
 	if opts.RequireEmpty {
-		if err := checkTargetEmpty(ctx, store, hashSlotCount); err != nil {
+		if err := checkTargetEmpty(ctx, store); err != nil {
 			return stats, err
 		}
 	}
@@ -89,18 +88,14 @@ func groupManifestEntries(manifest Manifest) map[FileKind][]FileEntry {
 	return entries
 }
 
-func checkTargetEmpty(ctx context.Context, store *db.NodeStore, hashSlotCount uint16) error {
+func checkTargetEmpty(ctx context.Context, store *db.NodeStore) error {
 	meta := store.Meta()
 	for _, table := range metadb.InspectTables() {
-		result, err := metadb.InspectScan(ctx, meta, metadb.InspectScanRequest{
-			Table:         table.Name,
-			HashSlotCount: hashSlotCount,
-			Limit:         1,
-		})
+		nonEmpty, err := metaTableHasAnyRow(ctx, meta, table.Name)
 		if err != nil {
-			return fmt.Errorf("inspect target meta table %q: %w", table.Name, err)
+			return err
 		}
-		if len(result.Rows) > 0 {
+		if nonEmpty {
 			return fmt.Errorf("non-empty target: meta table %q", table.Name)
 		}
 	}
@@ -112,6 +107,30 @@ func checkTargetEmpty(ctx context.Context, store *db.NodeStore, hashSlotCount ui
 		return fmt.Errorf("non-empty target: message channels")
 	}
 	return nil
+}
+
+func metaTableHasAnyRow(ctx context.Context, meta *metadb.MetaDB, tableName string) (bool, error) {
+	result, err := metadb.InspectScan(ctx, meta, metadb.InspectScanRequest{
+		Table:         tableName,
+		HashSlotCount: ^uint16(0),
+		Limit:         1,
+	})
+	if err != nil {
+		return false, fmt.Errorf("inspect target meta table %q: %w", tableName, err)
+	}
+	if len(result.Rows) > 0 {
+		return true, nil
+	}
+	result, err = metadb.InspectScan(ctx, meta, metadb.InspectScanRequest{
+		Table:       tableName,
+		HashSlot:    ^uint16(0),
+		HashSlotSet: true,
+		Limit:       1,
+	})
+	if err != nil {
+		return false, fmt.Errorf("inspect target meta table %q: %w", tableName, err)
+	}
+	return len(result.Rows) > 0, nil
 }
 
 func importMetaEntry(ctx context.Context, root string, entry FileEntry, store *db.NodeStore, opts ImportOptions, stats *ImportStats) error {
@@ -282,6 +301,7 @@ func importMessageEntry(ctx context.Context, root string, entry FileEntry, messa
 	var currentID msgdb.ChannelID
 	var haveCurrent bool
 	records := make([]msgdb.Record, 0, opts.MessageBatchSize)
+	var batchBaseSeq uint64
 	var recordBytes int
 
 	flush := func() error {
@@ -289,18 +309,15 @@ func importMessageEntry(ctx context.Context, root string, entry FileEntry, messa
 			return nil
 		}
 		log := messages.Channel(msgdb.ChannelKey(currentKey), currentID)
-		leo, err := log.LEO(ctx)
-		if err != nil {
-			return err
-		}
-		_, err = log.ApplyFetch(ctx, msgdb.ApplyFetchRequest{
-			BaseSeq: leo + 1,
+		_, err := log.ApplyFetch(ctx, msgdb.ApplyFetchRequest{
+			BaseSeq: batchBaseSeq,
 			Records: records,
 		})
 		if err != nil {
 			return err
 		}
 		records = records[:0]
+		batchBaseSeq = 0
 		recordBytes = 0
 		return nil
 	}
@@ -318,6 +335,9 @@ func importMessageEntry(ctx context.Context, root string, entry FileEntry, messa
 			currentKey = row.ChannelKey
 			currentID = channelID
 			haveCurrent = true
+		}
+		if len(records) == 0 {
+			batchBaseSeq = uint64(row.MessageSeq)
 		}
 		records = append(records, msgdb.Record{
 			ID:                uint64(row.MessageID),

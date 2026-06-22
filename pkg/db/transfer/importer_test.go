@@ -151,6 +151,60 @@ func TestImportBundleRejectsNonEmptyTarget(t *testing.T) {
 	}
 }
 
+func TestImportBundleRejectsNonEmptyTargetOutsideBundleHashSlotCount(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	writeManifestForFiles(t, root, 16, nil)
+
+	store := openImportNodeStore(t)
+	if err := store.Meta().HashSlot(20).UpsertUser(ctx, metadb.User{UID: "outside-slot", Token: "existing"}); err != nil {
+		t.Fatalf("UpsertUser(existing outside bundle slots): %v", err)
+	}
+
+	_, err := ImportBundle(ctx, root, store, ImportOptions{HashSlotCount: 16, RequireEmpty: true})
+	if err == nil || !strings.Contains(err.Error(), "non-empty") {
+		t.Fatalf("ImportBundle() error = %v, want non-empty target error", err)
+	}
+}
+
+func TestImportBundleRejectsMessageBaseSeqMismatch(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	writeJSONLFile(t, root, "message/channels.jsonl",
+		`{"channel_key":"g1:2","channel_id":"g1","channel_type":2}`,
+	)
+	writeJSONLFile(t, root, "message/messages-000001.jsonl",
+		`{"channel_key":"g1:2","message_seq":1,"message_id":1001,"client_msg_no":"c1","from_uid":"u1","server_timestamp_ms":3000,"payload_b64":"aGk="}`,
+	)
+	writeManifestForFiles(t, root, 16, []manifestTestFile{
+		{Path: "message/channels.jsonl", Kind: FileKindMessageChannels},
+		{Path: "message/messages-000001.jsonl", Kind: FileKindMessageMessages},
+	})
+
+	store := openImportNodeStore(t)
+	log := store.Messages().Channel("g1:2", msgdb.ChannelID{ID: "g1", Type: 2})
+	if _, err := log.ApplyFetch(ctx, msgdb.ApplyFetchRequest{
+		BaseSeq: 1,
+		Records: []msgdb.Record{
+			{ID: 9001, Payload: []byte("existing")},
+		},
+	}); err != nil {
+		t.Fatalf("ApplyFetch(existing): %v", err)
+	}
+
+	_, err := ImportBundle(ctx, root, store, ImportOptions{HashSlotCount: 16})
+	if err == nil {
+		t.Fatal("ImportBundle() error = nil, want base sequence mismatch")
+	}
+	messages, readErr := log.Read(ctx, 1, msgdb.ReadOptions{Limit: 2})
+	if readErr != nil {
+		t.Fatalf("Read(after failed import): %v", readErr)
+	}
+	if len(messages) != 1 || messages[0].MessageID != 9001 {
+		t.Fatalf("messages after failed import = %+v, want only existing message", messages)
+	}
+}
+
 func openImportNodeStore(t *testing.T) *db.NodeStore {
 	t.Helper()
 	store, err := db.OpenNodeStore(db.DefaultNodeStoreOptions(t.TempDir()))
