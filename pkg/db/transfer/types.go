@@ -66,6 +66,8 @@ type FileEntry struct {
 type ImportOptions struct {
 	// HashSlotCount is the target cluster hash slot count; zero means use the manifest count.
 	HashSlotCount uint16
+	// RequireEmpty rejects imports when the target NodeStore already contains meta or message rows.
+	RequireEmpty bool
 }
 
 // ImportStats summarizes the outcome of validating or applying a WKDB import bundle.
@@ -76,6 +78,14 @@ type ImportStats struct {
 	RowsValidated int64
 	// BytesRead is the sum of listed data file sizes read during validation.
 	BytesRead int64
+	// RowsWritten is the number of decoded rows applied to the target store.
+	RowsWritten int64
+	// ChannelsImported is the number of channel metadata rows written.
+	ChannelsImported int64
+	// MessagesImported is the number of message log rows written.
+	MessagesImported int64
+	// SubscribersImported is the number of subscriber rows written.
+	SubscribersImported int64
 }
 
 // UserRecord represents one imported user metadata row.
