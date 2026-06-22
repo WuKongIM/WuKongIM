@@ -175,6 +175,7 @@
 - Plugin runtime is node-local and disabled by default; plugin-user bindings are Slot Raft metadata keyed by UID.
 - Phase 1 supports `.wkp`/go-pdk core methods and host RPCs, but stream RPCs return explicit unimplemented errors.
 - Plugin sends must go through `message.App.Send`; PersistAfter runs only on the channel owner node.
+- Plugin migration changes should rerun the microbenchmark baseline in `docs/development/PLUGIN_BENCHMARK_BASELINE.md`, especially Send hook selection, host RPC mapping, PersistAfter, HTTP forward, and NoPersist realtime delivery.
 
 ## Development Workflow
 
