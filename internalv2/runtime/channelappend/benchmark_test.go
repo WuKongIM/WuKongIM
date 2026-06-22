@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	runtimechannelid "github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/conversationactive"
 )
 
@@ -137,6 +138,38 @@ func BenchmarkSubmitLocalHotChannelCoalescedBurst(b *testing.B) {
 				b.Fatalf("results %d = %#v, want one successful result", j, results)
 			}
 			futures[j] = nil
+		}
+	}
+	b.StopTimer()
+	b.ReportMetric(float64(runtime.NumGoroutine()-startGoroutines), "goroutine-delta")
+}
+
+func BenchmarkSubmitLocalNoPersistRealtimeScoped(b *testing.B) {
+	group := newBenchmarkChannelAppendGroup(b, Options{
+		LocalNodeID:                1,
+		AuthorityShardCount:        1,
+		EffectPoolSize:             4,
+		AdmissionCapacityPerShard:  4096,
+		InboxCoalesceWindow:        -time.Nanosecond,
+		RecipientAuthorityResolver: staticRecipientAuthorityResolverForRecipientTest{nodeID: 1},
+		RecipientDeliveryEnqueuer:  &benchmarkRealtimeDeliveryEnqueuer{},
+	})
+	item := benchmarkSendItem("bench-nopersist-realtime")
+	target := benchmarkAuthorityTarget(runtimechannelid.ToCommandChannel(item.Command.ChannelID))
+	item.Command.NoPersist = true
+	item.Command.SyncOnce = true
+	item.Command.MessageScopedUIDs = []string{"u1"}
+	startGoroutines := runtime.NumGoroutine()
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		results, err := submitAndWaitBenchmark(group, target, item)
+		if err != nil {
+			b.Fatalf("submit/wait error = %v", err)
+		}
+		if len(results) != 1 || results[0].Err != nil || results[0].Result.Reason != ReasonSuccess {
+			b.Fatalf("results = %#v, want one successful realtime result", results)
 		}
 	}
 	b.StopTimer()
@@ -570,6 +603,15 @@ type benchmarkPersistAfterEnqueuer struct {
 
 func (e *benchmarkPersistAfterEnqueuer) EnqueuePersistAfter(context.Context, CommittedEnvelope) {
 	e.count++
+}
+
+type benchmarkRealtimeDeliveryEnqueuer struct {
+	count atomic.Uint64
+}
+
+func (e *benchmarkRealtimeDeliveryEnqueuer) EnqueueRecipientBatch(context.Context, RecipientAuthorityTarget, RecipientBatch) error {
+	e.count.Add(1)
+	return nil
 }
 
 func (o *benchmarkRecipientDeliveryWorkerObserver) AppendFinished(string, error, time.Duration) {

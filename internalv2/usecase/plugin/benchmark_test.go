@@ -2,6 +2,7 @@ package plugin
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"testing"
@@ -240,6 +241,31 @@ func BenchmarkHTTPForward(b *testing.B) {
 				benchmarkHTTPResponseSink = resp
 			}
 		})
+	}
+}
+
+func BenchmarkHTTPForwardFanoutDeferred(b *testing.B) {
+	app, err := NewApp(Options{Runtime: &recordingRuntime{}, Invoker: &recordingHTTPRouteInvoker{}, HTTPForwarder: &recordingHTTPForwarder{}})
+	require.NoError(b, err)
+	req := &pluginproto.ForwardHttpReq{
+		PluginNo: "bench.plugin",
+		ToNodeId: -1,
+		Request: &pluginproto.HttpRequest{
+			Method: http.MethodPost,
+			Path:   "/fanout",
+			Body:   []byte("fanout"),
+		},
+	}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		resp, err := app.HTTPForward(context.Background(), req, "bench.plugin")
+		if !errors.Is(err, ErrHTTPForwardFanoutDeferred) {
+			b.Fatalf("HTTPForward() error = %v, want ErrHTTPForwardFanoutDeferred", err)
+		}
+		if resp != nil {
+			b.Fatalf("HTTPForward() response = %#v, want nil", resp)
+		}
 	}
 }
 
