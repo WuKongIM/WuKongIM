@@ -70,6 +70,8 @@ const (
 	RPCManagerPlugins
 	// RPCPluginBindingScan serves clusterv2 Slot-leader plugin binding index scans.
 	RPCPluginBindingScan
+	// RPCManagerMessageRetention serves internalv2 manager message retention forwarding.
+	RPCManagerMessageRetention
 )
 
 func transportServiceAlias(serviceID uint8) string {
@@ -134,6 +136,8 @@ func transportServiceAlias(serviceID uint8) string {
 		return "manager diagnostics"
 	case RPCManagerPlugins:
 		return "manager plugins"
+	case RPCManagerMessageRetention:
+		return "manager message retention"
 	case RPCPluginBindingScan:
 		return "plugin binding scan"
 	default:

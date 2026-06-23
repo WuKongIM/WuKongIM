@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	accessnode "github.com/WuKongIM/WuKongIM/internalv2/access/node"
 	"github.com/WuKongIM/WuKongIM/internalv2/contracts/channelappend"
 	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2"
@@ -104,6 +105,49 @@ func TestManagementMessageRetentionOperatorRejectsNonLeader(t *testing.T) {
 	}
 }
 
+func TestManagementMessageRetentionOperatorForwardsRemoteLeaderBoundary(t *testing.T) {
+	remoteService := &recordingRemoteRetentionService{
+		result: managementusecase.AdvanceMessageRetentionResponse{
+			ChannelID: "room-1", ChannelType: 2,
+			RequestedThroughSeq: 10, AdvancedThroughSeq: 8, MinAvailableSeq: 9,
+			Status: managementusecase.MessageRetentionStatusAdvanced,
+		},
+	}
+	adapter := accessnode.New(accessnode.Options{ManagerMessageRetention: remoteService})
+	node := &recordingRetentionRPCNode{
+		recordingRetentionNode: recordingRetentionNode{
+			nodeID: 7,
+			meta: metadb.ChannelRuntimeMeta{
+				ChannelID: "room-1", ChannelType: 2,
+				ChannelEpoch: 4, LeaderEpoch: 5, Leader: 8,
+				Replicas: []uint64{7, 8}, ISR: []uint64{7, 8}, MinISR: 2, Status: uint8(channelv2.StatusActive),
+			},
+		},
+		handler: adapter.HandleManagerMessageRetentionRPC,
+	}
+	operator := NewManagementMessageRetentionOperator(node)
+
+	got, err := operator.AdvanceMessageRetention(context.Background(), managementusecase.AdvanceMessageRetentionRequest{
+		ChannelID: "room-1", ChannelType: 2, ThroughSeq: 10,
+	})
+
+	if err != nil {
+		t.Fatalf("AdvanceMessageRetention() error = %v", err)
+	}
+	if got.Status != managementusecase.MessageRetentionStatusAdvanced || got.AdvancedThroughSeq != 8 || got.MinAvailableSeq != 9 {
+		t.Fatalf("response = %+v, want remote advanced through 8", got)
+	}
+	if node.calledNodeID != 8 || node.calledServiceID != accessnode.ManagerMessageRetentionRPCServiceID {
+		t.Fatalf("rpc target = node:%d service:%d, want node 8 service %d", node.calledNodeID, node.calledServiceID, accessnode.ManagerMessageRetentionRPCServiceID)
+	}
+	if remoteService.req.ChannelID != "room-1" || remoteService.req.ThroughSeq != 10 {
+		t.Fatalf("remote request = %+v, want original retention request", remoteService.req)
+	}
+	if node.advanceCalled {
+		t.Fatalf("local AdvanceChannelRetentionThroughSeq called for remote leader")
+	}
+}
+
 func TestManagementMessageRetentionOperatorMapsStaleFenceToStaleRoute(t *testing.T) {
 	node := &recordingRetentionNode{
 		nodeID: 7,
@@ -155,4 +199,28 @@ func (n *recordingRetentionNode) AdvanceChannelRetentionThroughSeq(_ context.Con
 	n.advance = req
 	n.advanceCalled = true
 	return n.advanceErr
+}
+
+type recordingRetentionRPCNode struct {
+	recordingRetentionNode
+	handler         func(context.Context, []byte) ([]byte, error)
+	calledNodeID    uint64
+	calledServiceID uint8
+}
+
+func (n *recordingRetentionRPCNode) CallRPC(ctx context.Context, nodeID uint64, serviceID uint8, payload []byte) ([]byte, error) {
+	n.calledNodeID = nodeID
+	n.calledServiceID = serviceID
+	return n.handler(ctx, payload)
+}
+
+type recordingRemoteRetentionService struct {
+	req    managementusecase.AdvanceMessageRetentionRequest
+	result managementusecase.AdvanceMessageRetentionResponse
+	err    error
+}
+
+func (s *recordingRemoteRetentionService) AdvanceMessageRetention(_ context.Context, req managementusecase.AdvanceMessageRetentionRequest) (managementusecase.AdvanceMessageRetentionResponse, error) {
+	s.req = req
+	return s.result, s.err
 }

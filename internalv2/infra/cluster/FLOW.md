@@ -137,7 +137,8 @@ HTTP response shaping to `internalv2/access/manager`.
 ```text
 management.MessageRetentionOperator.AdvanceMessageRetention
   -> MessageRetentionNode.GetChannelRuntimeMeta
-  -> verify local node is the ChannelV2 leader
+  -> if local node is not the ChannelV2 leader, forward once to meta.Leader
+  -> leader re-reads ChannelRuntimeMeta and verifies local leadership
   -> ReadChannelCommitted(reverse latest, min_seq = RetentionThroughSeq + 1)
   -> AdvanceChannelRetentionThroughSeq(fenced Slot metadata command)
   -> manager retention response
@@ -148,9 +149,11 @@ compaction. It never deletes message rows. It computes a safe boundary no
 higher than the latest committed visible message, then advances
 `RetentionThroughSeq` through the Slot metadata FSM using the observed channel
 epoch, leader epoch, leader ID, and lease fence. Dry-runs return the calculated
-boundary without proposing. Requests received on a non-leader return retryable
-not-leader semantics; cross-node retention forwarding is outside this adapter
-slice.
+boundary without proposing. Requests first received on a non-leader forward to
+the metadata leader when node RPC is available; the remote leader recomputes
+all fences locally, so origin nodes never transmit stale metadata fences.
+Missing leaders, stale routes, and local-only non-leader states return typed
+retryable errors to the manager usecase.
 
 ## Management Channel RPC Flow
 

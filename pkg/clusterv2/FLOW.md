@@ -45,9 +45,13 @@ surface for node-scoped operations; clusterv2 exposes only the selected node's
 local operation and does not fan out or interpret manager policy. Internalv2
 manager Slot Raft manual compaction uses the same node-scoped surface through
 `Node.LocalCompactSlotRaftLog`, which delegates only to the selected node's
-local Slot Multi-Raft runtime. Manager Slot leader transfer enters clusterv2
-through `Node.RequestSlotLeaderTransfer`, which only foreground-checks and
-delegates the already-validated intent to the control runtime. When the
+local Slot Multi-Raft runtime. Internalv2 manager message retention forwarding
+uses the same surface to carry one logical ChannelV2 compaction-boundary
+request to the channel leader; clusterv2 transports the payload only, while the
+receiving leader revalidates runtime metadata and Slot metadata fences.
+Manager Slot leader transfer enters clusterv2 through
+`Node.RequestSlotLeaderTransfer`, which only foreground-checks and delegates
+the already-validated intent to the control runtime. When the
 receiving node is not the Controller leader, the existing control task RPC
 forwarding path carries the creation request to the Controller leader. The
 default transport-backed

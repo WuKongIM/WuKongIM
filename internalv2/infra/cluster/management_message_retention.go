@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	accessnode "github.com/WuKongIM/WuKongIM/internalv2/access/node"
 	"github.com/WuKongIM/WuKongIM/internalv2/contracts/channelappend"
 	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2"
@@ -21,14 +22,28 @@ type MessageRetentionNode interface {
 	AdvanceChannelRetentionThroughSeq(context.Context, metadb.ChannelRetentionAdvance) error
 }
 
-// ManagementMessageRetentionOperator advances channel message retention through Slot metadata.
-type ManagementMessageRetentionOperator struct {
-	node MessageRetentionNode
-	now  func() time.Time
+type messageRetentionRPCNode interface {
+	CallRPC(context.Context, uint64, uint8, []byte) ([]byte, error)
 }
 
-// NewManagementMessageRetentionOperator creates a Slot-backed manager retention operator.
+// ManagementMessageRetentionOperator advances channel message retention through Slot metadata.
+type ManagementMessageRetentionOperator struct {
+	node   MessageRetentionNode
+	remote *accessnode.Client
+	now    func() time.Time
+}
+
+// NewManagementMessageRetentionOperator creates a Slot-backed manager retention operator that may forward to the channel leader.
 func NewManagementMessageRetentionOperator(node MessageRetentionNode) *ManagementMessageRetentionOperator {
+	operator := NewLocalManagementMessageRetentionOperator(node)
+	if rpcNode, ok := node.(messageRetentionRPCNode); ok {
+		operator.remote = accessnode.NewClient(rpcNode)
+	}
+	return operator
+}
+
+// NewLocalManagementMessageRetentionOperator creates a Slot-backed retention operator without remote forwarding.
+func NewLocalManagementMessageRetentionOperator(node MessageRetentionNode) *ManagementMessageRetentionOperator {
 	return &ManagementMessageRetentionOperator{node: node, now: time.Now}
 }
 
@@ -53,6 +68,9 @@ func (o *ManagementMessageRetentionOperator) AdvanceMessageRetention(ctx context
 		return managementusecase.AdvanceMessageRetentionResponse{}, channelappend.ErrRouteNotReady
 	}
 	if meta.Leader != o.node.NodeID() {
+		if o.remote != nil {
+			return o.remote.AdvanceManagerMessageRetention(ctx, meta.Leader, req)
+		}
 		return managementusecase.AdvanceMessageRetentionResponse{}, channelappend.ErrNotLeader
 	}
 

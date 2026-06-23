@@ -429,6 +429,19 @@ func (a *App) wireManagerChannelRPC() {
 	registrar.RegisterRPC(accessnode.ManagerChannelRPCServiceID, nodeRPCHandlerFunc(adapter.HandleManagerChannelRPC))
 }
 
+func (a *App) wireManagerMessageRetentionRPC() {
+	node, hasNode := a.cluster.(clusterinfra.MessageRetentionNode)
+	registrar, hasRegistrar := a.cluster.(nodeRPCRegistrar)
+	if !hasNode || !hasRegistrar {
+		return
+	}
+	service := managementusecase.New(managementusecase.Options{
+		MessageRetention: clusterinfra.NewLocalManagementMessageRetentionOperator(node),
+	})
+	adapter := accessnode.New(accessnode.Options{ManagerMessageRetention: service, Logger: a.logger.Named("node")})
+	registrar.RegisterRPC(accessnode.ManagerMessageRetentionRPCServiceID, nodeRPCHandlerFunc(adapter.HandleManagerMessageRetentionRPC))
+}
+
 func (a *App) wireManagerDBInspectRPC() {
 	registrar, hasRegistrar := a.cluster.(nodeRPCRegistrar)
 	if !hasRegistrar {

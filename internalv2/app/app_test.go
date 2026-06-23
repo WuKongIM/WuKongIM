@@ -573,6 +573,40 @@ func TestNewRegistersManagerSlotRaftRPCWhenClusterSupportsOperations(t *testing.
 	}
 }
 
+func TestNewRegistersManagerMessageRetentionRPCWhenClusterSupportsRetention(t *testing.T) {
+	key := metadb.ConversationKey{ChannelID: "room-1", ChannelType: 2}
+	cluster := &fakeManagerCluster{
+		nodeID: 1,
+		channelRuntimeMetas: map[metadb.ConversationKey]metadb.ChannelRuntimeMeta{key: {
+			ChannelID: "room-1", ChannelType: 2,
+			ChannelEpoch: 4, LeaderEpoch: 5, Leader: 1, LeaseUntilMS: 1713859200123,
+			Replicas: []uint64{1}, ISR: []uint64{1}, MinISR: 1, Status: uint8(channelv2.StatusActive),
+		}},
+		conversationMessages: map[metadb.ConversationKey][]channelv2.Message{
+			key: {{MessageID: 101, MessageSeq: 2, ChannelID: "room-1", ChannelType: 2}},
+		},
+	}
+
+	_, err := newTestApp(t, Config{}, WithCluster(cluster), WithGateway(nil))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	client := accessnode.NewClient(cluster)
+	got, err := client.AdvanceManagerMessageRetention(context.Background(), 1, managementusecase.AdvanceMessageRetentionRequest{
+		ChannelID: "room-1", ChannelType: 2, ThroughSeq: 2,
+	})
+	if err != nil {
+		t.Fatalf("AdvanceManagerMessageRetention() error = %v", err)
+	}
+	if got.Status != managementusecase.MessageRetentionStatusAdvanced || got.AdvancedThroughSeq != 2 || got.MinAvailableSeq != 3 {
+		t.Fatalf("response = %+v, want advanced through 2 min 3", got)
+	}
+	if cluster.rpcNodeID != 1 || cluster.rpcServiceID != accessnode.ManagerMessageRetentionRPCServiceID {
+		t.Fatalf("rpc target = node:%d service:%d, want node 1 service %d", cluster.rpcNodeID, cluster.rpcServiceID, accessnode.ManagerMessageRetentionRPCServiceID)
+	}
+}
+
 func TestManagerServerCompactsSlotRaftFromClusterOperator(t *testing.T) {
 	cluster := &fakeManagerCluster{
 		nodeID: 1,
@@ -4895,7 +4929,7 @@ func (f *fakeManagerCluster) RegisterRPC(serviceID uint8, handler clusterv2.Node
 func (f *fakeManagerCluster) CallRPC(ctx context.Context, nodeID uint64, serviceID uint8, payload []byte) ([]byte, error) {
 	f.rpcNodeID = nodeID
 	f.rpcServiceID = serviceID
-	if serviceID == accessnode.ManagerPluginRPCServiceID && f.registeredHandlers != nil {
+	if (serviceID == accessnode.ManagerPluginRPCServiceID || serviceID == accessnode.ManagerMessageRetentionRPCServiceID) && f.registeredHandlers != nil {
 		if handler, ok := f.registeredHandlers[serviceID]; ok {
 			return handler.HandleRPC(ctx, payload)
 		}

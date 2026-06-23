@@ -118,6 +118,10 @@ New(Config)
   -> register the manager channel RPC handler when node RPC and channel metadata
      scans are available, exposing this node's channel list pages to peer
      manager readers
+  -> register the manager message retention RPC handler when node RPC and
+     ChannelV2 retention metadata APIs are available, exposing this node's
+     channel-leader logical compaction boundary advance path to peer manager
+     operators without allowing recursive forwarding on the receiver
   -> create the app-level DB Inspect reader from derived node-local storage
      roots when message and Slot metadata DB paths are available; register the
      manager DB inspect RPC handler when node RPC is available so peer manager

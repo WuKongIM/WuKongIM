@@ -213,6 +213,25 @@ Slot Raft operator; it does not fan out across Slot replicas, inspect log
 payloads, or decide which HTTP request should target a remote node. Per-target
 summary shaping is assembled above this package by the management usecase.
 
+## Manager Message Retention RPC
+
+```text
+remote manager retention operator
+  -> encode W K V T 1 request
+  -> clusterv2 RPCManagerMessageRetention
+  -> Adapter.HandleManagerMessageRetentionRPC
+  -> Management message retention operator port
+  -> encode W K V t 1 response
+```
+
+Manager Message Retention RPC transports one explicit channel history
+retention request to the channel leader node. The server calls only the
+configured management retention operator; it revalidates local ChannelV2
+leadership, recomputes the safe boundary from fresh runtime metadata and
+committed messages, and maps retryable not-leader, stale-route, and
+route-not-ready statuses back to typed caller errors. Origin nodes do not send
+metadata fences across this RPC boundary.
+
 ## Manager Channel RPC
 
 ```text
