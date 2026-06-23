@@ -225,6 +225,52 @@ wkdb --data-dir ./node-new --hash-slot-count 256 import --input ./wkdb-dump --re
 validated=5 written=4 messages=1 subscribers=1 channels=1 files=5 bytes=1234
 ```
 
+## 离线 diff/verify
+
+`wkdb diff` 用于迁移后核对两个节点本地数据目录是否保留了 WKDB Import Bundle v1 覆盖的数据。典型用法是：旧库按 bundle v1 导出，新库离线导入后，用 diff 对旧节点目录和新节点目录做只读比对。
+
+基本命令：
+
+```bash
+wkdb --hash-slot-count 256 diff --source-data-dir ./node-old --target-data-dir ./node-new
+```
+
+更严格的 payload 字节比对：
+
+```bash
+wkdb --hash-slot-count 256 diff --source-data-dir ./node-old --target-data-dir ./node-new --mode full
+```
+
+路径 flags：
+
+- `--source-data-dir`：源节点数据目录，派生 `data` 和 `channellog`。
+- `--target-data-dir`：目标节点数据目录，派生 `data` 和 `channellog`。
+- `--source-meta-path` / `--source-message-path`：显式指定源 metadata/message 存储路径。
+- `--target-meta-path` / `--target-message-path`：显式指定目标 metadata/message 存储路径。
+
+mode 语义：
+
+- `summary`：默认模式。对元数据、message catalog、message 行做流式 digest；message payload 参与 `payload_hash` 和 `payload_size` 比对。
+- `full`：在 `summary` 基础上，把 message payload 原始字节也纳入 digest。用于迁移验收时更保守的离线核对。
+
+退出码：
+
+- `0`：两个目录在当前支持的数据集上相等。
+- `2`：diff 成功执行，但发现数据不一致。
+- `1` / `3`：参数、配置、打开存储或内部执行错误。
+
+性能说明：
+
+- diff 使用 inspect API 分页扫描，并对每个数据集做 SHA256 digest，不把大表整体加载到内存。
+- 对大 message store，`full` 模式会把 payload 字节纳入 digest，I/O 成本高于 `summary`。
+- 可用 `--page-size` 控制每页扫描行数；默认值适合一般离线核对，超大目录可按磁盘和内存情况调小或调大。
+
+当前非目标：
+
+- 不跨节点聚合，不提供全局集群一致性判断。
+- 不修复差异，不生成补偿数据，不 merge 目标目录。
+- 不比较 Raft/controller/runtime 状态，只比较当前 bundle v1 支持的业务元数据和消息日志。
+
 ## WKDB Import Bundle v1
 
 bundle 根目录由 `manifest.json` 和若干 JSONL 文件组成。目录名和文件名可以自定义，但必须通过 manifest 的 `files[].path` 声明：

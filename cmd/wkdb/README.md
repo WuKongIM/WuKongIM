@@ -38,6 +38,19 @@ wkdb --data-dir ./node-1 --hash-slot-count 256 export --output ./wkdb-dump
 wkdb --data-dir ./node-1 --hash-slot-count 256 export --output ./wkdb-dump --overwrite
 ```
 
+Diff examples:
+
+```bash
+# Verify that two offline node-local stores contain the same bundle-v1 data.
+wkdb --hash-slot-count 256 diff --source-data-dir ./node-old --target-data-dir ./node-new
+wkdb --hash-slot-count 256 diff --source-data-dir ./node-old --target-data-dir ./node-new --mode full
+```
+
+`summary` mode is the default and compares rows plus payload checksums. `full`
+mode also hashes message payload bytes. `diff` opens both source and target
+stores in read-only mode. Exit `0` means equal; exit `2` means a verified
+mismatch was found.
+
 Common flags:
 
 - `--config ./wukongim.conf` reads the storage paths and hash-slot count from a `KEY=value` config file. `WK_` environment variables override file values.
