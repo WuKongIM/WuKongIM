@@ -186,6 +186,69 @@ func TestExportCommandWritesImportBundle(t *testing.T) {
 	}
 }
 
+func TestDiffCommandReturnsOKForEqualStores(t *testing.T) {
+	bundleRoot := writeMinimalImportBundle(t)
+	sourceDir := t.TempDir()
+	importBundleToDataDir(t, bundleRoot, sourceDir)
+
+	exportRoot := filepath.Join(t.TempDir(), "exported")
+	var exportStdout, exportStderr bytes.Buffer
+	exportCode := runWithStreams([]string{
+		"--data-dir", sourceDir,
+		"--hash-slot-count", "16",
+		"export",
+		"--output", exportRoot,
+	}, nil, &exportStdout, &exportStderr)
+	if exportCode != exitOK {
+		t.Fatalf("export exit code = %d, stderr = %q", exportCode, exportStderr.String())
+	}
+
+	targetDir := t.TempDir()
+	importBundleToDataDir(t, exportRoot, targetDir)
+
+	var stdout, stderr bytes.Buffer
+	code := runWithStreams([]string{
+		"--hash-slot-count", "16",
+		"diff",
+		"--source-data-dir", sourceDir,
+		"--target-data-dir", targetDir,
+		"--mode", "full",
+	}, nil, &stdout, &stderr)
+	if code != exitOK {
+		t.Fatalf("exit code = %d, stderr = %q", code, stderr.String())
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q, want empty", stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "equal=true") {
+		t.Fatalf("stdout = %q, want equal=true", stdout.String())
+	}
+}
+
+func TestDiffCommandReturnsQueryExitForMismatch(t *testing.T) {
+	sourceDir := t.TempDir()
+	importBundleToDataDir(t, writeMinimalImportBundleWithUserToken(t, "user-token"), sourceDir)
+	targetDir := t.TempDir()
+	importBundleToDataDir(t, writeMinimalImportBundleWithUserToken(t, "changed-token"), targetDir)
+
+	var stdout, stderr bytes.Buffer
+	code := runWithStreams([]string{
+		"--hash-slot-count", "16",
+		"diff",
+		"--source-data-dir", sourceDir,
+		"--target-data-dir", targetDir,
+	}, nil, &stdout, &stderr)
+	if code != exitQuery {
+		t.Fatalf("exit code = %d, want %d; stderr = %q", code, exitQuery, stderr.String())
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q, want empty", stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "equal=false") {
+		t.Fatalf("stdout = %q, want equal=false", stdout.String())
+	}
+}
+
 func TestRunQueryShowTables(t *testing.T) {
 	metaPath := t.TempDir()
 	metaDB, err := meta.Open(metaPath)
@@ -208,6 +271,21 @@ func TestRunQueryShowTables(t *testing.T) {
 	}
 	if !bytes.Contains(stdout.Bytes(), []byte("meta.user")) {
 		t.Fatalf("stdout = %q, want meta.user", stdout.String())
+	}
+}
+
+func importBundleToDataDir(t *testing.T, bundleRoot, dataDir string) {
+	t.Helper()
+	var stdout, stderr bytes.Buffer
+	code := runWithStreams([]string{
+		"--data-dir", dataDir,
+		"--hash-slot-count", "16",
+		"import",
+		"--input", bundleRoot,
+		"--require-empty",
+	}, nil, &stdout, &stderr)
+	if code != exitOK {
+		t.Fatalf("import exit code = %d, stderr = %q", code, stderr.String())
 	}
 }
 
@@ -244,6 +322,11 @@ type wkdbBundleFile struct {
 
 func writeMinimalImportBundle(t *testing.T) string {
 	t.Helper()
+	return writeMinimalImportBundleWithUserToken(t, "user-token")
+}
+
+func writeMinimalImportBundleWithUserToken(t *testing.T, userToken string) string {
+	t.Helper()
 	root := t.TempDir()
 	userSlot := cluster.HashSlotForKey("u1", 16)
 	channelSlot := cluster.HashSlotForKey("g1", 16)
@@ -252,7 +335,7 @@ func writeMinimalImportBundle(t *testing.T) string {
 			path: "meta/users.jsonl",
 			kind: transfer.FileKindMetaUsers,
 			lines: []string{
-				`{"hash_slot":` + strconv.Itoa(int(userSlot)) + `,"uid":"u1","token":"user-token","device_flag":1,"device_level":2}`,
+				`{"hash_slot":` + strconv.Itoa(int(userSlot)) + `,"uid":"u1","token":"` + userToken + `","device_flag":1,"device_level":2}`,
 			},
 		},
 		{
