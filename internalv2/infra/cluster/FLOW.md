@@ -10,7 +10,8 @@ facades, adapts legacy-compatible user metadata calls and manager user scans to
 UID Slot metadata facades, adapts read-only manager business channel and
 channel runtime metadata scans to clusterv2 Slot metadata reads, adapts conversation reads and read/delete
 mutations to UID-owned conversation rows plus channel-owned committed message
-logs, adapts read-only manager message pages to committed ChannelV2 reads, and
+logs, adapts read-only manager message pages to committed ChannelV2 reads,
+adapts manager message retention requests to fenced Slot metadata advances, and
 routes manager connection reads over clusterv2 node RPC, routes manager
 distributed log reads to node-local clusterv2 log storage or peer RPC, routes
 manager Slot Raft status and compaction operations to the selected node-local clusterv2
@@ -132,6 +133,24 @@ for the manager message page. It converts timestamps from milliseconds to Unix
 seconds, clones payloads, applies the manager's optional message id and client
 message number filters within the returned page, and leaves cursor encoding and
 HTTP response shaping to `internalv2/access/manager`.
+
+```text
+management.MessageRetentionOperator.AdvanceMessageRetention
+  -> MessageRetentionNode.GetChannelRuntimeMeta
+  -> verify local node is the ChannelV2 leader
+  -> ReadChannelCommitted(reverse latest, min_seq = RetentionThroughSeq + 1)
+  -> AdvanceChannelRetentionThroughSeq(fenced Slot metadata command)
+  -> manager retention response
+```
+
+The manager retention adapter treats history deletion as logical channel log
+compaction. It never deletes message rows. It computes a safe boundary no
+higher than the latest committed visible message, then advances
+`RetentionThroughSeq` through the Slot metadata FSM using the observed channel
+epoch, leader epoch, leader ID, and lease fence. Dry-runs return the calculated
+boundary without proposing. Requests received on a non-leader return retryable
+not-leader semantics; cross-node retention forwarding is outside this adapter
+slice.
 
 ## Management Channel RPC Flow
 

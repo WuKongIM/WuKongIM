@@ -67,6 +67,8 @@ type Meta struct {
 	MinISR int
 	// LeaseUntil is reserved for later leader lease enforcement.
 	LeaseUntil time.Time
+	// RetentionThroughSeq is the highest sequence hidden by authoritative compaction.
+	RetentionThroughSeq uint64
 	// Status controls local serving behavior.
 	Status Status
 }

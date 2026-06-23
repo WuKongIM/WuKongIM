@@ -99,8 +99,10 @@ type ApplyFollowerBatchResult struct {
 
 // ReadCommittedRequest reads client-visible messages up to MaxSeq.
 type ReadCommittedRequest struct {
-	FromSeq  uint64
-	MaxSeq   uint64
+	FromSeq uint64
+	MaxSeq  uint64
+	// MinSeq is the lowest visible message sequence for logical compaction.
+	MinSeq   uint64
 	Limit    int
 	MaxBytes int
 	// Reverse reads messages at or before FromSeq in descending sequence order.

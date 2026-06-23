@@ -164,6 +164,11 @@ The propose path returns typed not-ready/no-leader/not-leader errors and does no
 Channel metadata, subscriber rows, and legacy `channel_latest` rows route by
 channel ID. Subscriber point lookups and subscriber-set non-emptiness reads use
 the same channel-owned Slot metadata route for message permission checks.
+`GetChannelRuntimeMeta` reads authoritative channel runtime metadata from the
+channel's current hash-slot route, and `AdvanceChannelRetentionThroughSeq`
+proposes a fenced Slot FSM command that only advances the channel message
+retention boundary. Manager history deletion must use this metadata advance
+instead of deleting ChannelV2 message rows directly.
 `UpsertChannelLatestBatch` first resolves each channel's real hash slot, then
 groups rows by physical Slot and submits bounded batch commands carrying
 per-row hash slots. `ScanChannelsSlotPage`,
@@ -247,8 +252,10 @@ work when diagnosing forwarded SEND p99.
 
 `Node.ReadChannelCommitted` is a narrow read facade for internalv2 HTTP message
 sync. It opens the Node-created default ChannelV2 store for the requested
-channel and delegates to `channelv2/store.ReadCommitted`; it does not replace
-ChannelV2 append, replication, or metadata routing. Callers that override the
+channel, resolves the authoritative `ChannelRuntimeMeta`, applies
+`RetentionThroughSeq + 1` as the minimum visible message sequence, and then
+delegates to `channelv2/store.ReadCommitted`; it does not replace ChannelV2
+append, replication, or metadata routing. Callers that override the
 ChannelV2 service without using the Node-created default store do not
 automatically get this read facade.
 
@@ -257,9 +264,10 @@ conversation list display. It resolves authoritative ChannelRuntimeMeta for the
 channel, reads the local store only when this node is the ChannelV2 leader, and
 otherwise forwards a typed RPC to the resolved leader. The leader-side handler
 validates local channel leadership before reading its local store with a reverse
-limit-1 committed read and applying the caller's visibility floor. Channel not
-found or no visible tail returns `ok=false`; route, not-ready, not-leader, and
-stale-route errors propagate to the caller.
+limit-1 committed read and applying the maximum of the caller's visibility
+floor and `RetentionThroughSeq`. Channel not found or no visible tail returns
+`ok=false`; route, not-ready, not-leader, and stale-route errors propagate to
+the caller.
 
 `WithProposer` and `WithChannels` are public override options for tests, smoke harnesses, and app-level composition. If callers do not provide them, `Node.Start` creates a default ControllerV2 runtime, proposer, and ChannelV2 service, backs ChannelV2 with the message DB under `DataDir/channellog`, registers ChannelV2 replication/append-forward handlers on the default node RPC transport, and owns the ChannelV2 tick loop plus default store factory cleanup. The default proposer is backed by a real local Slot Multi-Raft runtime, durable Slot Raft log storage under `DataDir/slotraft`, metadata FSM storage under `DataDir/slotmeta`, and clusterv2 typed RPC transport for multi-replica Slot Raft traffic.
 `Config.Slots.Observer` is passed to the default Slot Multi-Raft runtime so composition roots can expose scheduler pressure without changing Slot processing semantics.

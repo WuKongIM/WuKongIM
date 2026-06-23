@@ -855,6 +855,9 @@ func (a *App) newManagerManagement() accessmanager.Management {
 		if readNode, ok := a.cluster.(clusterinfra.ChannelMessageReadNode); ok {
 			opts.Messages = clusterinfra.NewManagementMessageReader(readNode)
 		}
+		if retentionNode, ok := a.cluster.(clusterinfra.MessageRetentionNode); ok {
+			opts.MessageRetention = clusterinfra.NewManagementMessageRetentionOperator(retentionNode)
+		}
 		if a.online != nil {
 			opts.Connections = a.online
 		}

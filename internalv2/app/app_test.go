@@ -1302,6 +1302,70 @@ func TestManagerServerListsMessagesFromClusterCommittedLog(t *testing.T) {
 	}
 }
 
+func TestManagerServerAdvancesMessageRetentionThroughClusterMeta(t *testing.T) {
+	key := metadb.ConversationKey{ChannelID: "room-1", ChannelType: 2}
+	meta := metadb.ChannelRuntimeMeta{
+		ChannelID: "room-1", ChannelType: 2,
+		ChannelEpoch: 4, LeaderEpoch: 5, Leader: 1, LeaseUntilMS: 1713859200123,
+		Replicas: []uint64{1}, ISR: []uint64{1}, MinISR: 1, Status: uint8(channelv2.StatusActive),
+	}
+	cluster := &fakeManagerCluster{
+		nodeID: 1,
+		snapshot: control.Snapshot{
+			Slots:     []control.SlotAssignment{{SlotID: 1, DesiredPeers: []uint64{1}}},
+			HashSlots: control.HashSlotTable{Count: 4, Ranges: []control.HashSlotRange{{From: 0, To: 3, SlotID: 1}}},
+		},
+		channelRuntimeMetas: map[metadb.ConversationKey]metadb.ChannelRuntimeMeta{key: meta},
+		conversationMessages: map[metadb.ConversationKey][]channelv2.Message{
+			key: {
+				{MessageID: 100, MessageSeq: 1, ChannelID: "room-1", ChannelType: 2},
+				{MessageID: 101, MessageSeq: 2, ChannelID: "room-1", ChannelType: 2},
+				{MessageID: 102, MessageSeq: 3, ChannelID: "room-1", ChannelType: 2},
+			},
+		},
+	}
+	app, err := newTestApp(t, Config{
+		Manager: ManagerConfig{
+			ListenAddr: ":0", AuthOn: true, JWTSecret: "manager-secret", JWTIssuer: "wukongim-manager", JWTExpire: time.Hour,
+			Users: []ManagerUserConfig{{Username: "admin", Password: "secret", Permissions: []ManagerPermissionConfig{{Resource: "cluster.channel", Actions: []string{"w"}}}}},
+		},
+	}, WithCluster(cluster), WithGateway(nil))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	srv, ok := app.manager.(*accessmanager.Server)
+	if !ok {
+		t.Fatalf("manager = %T, want *accessmanager.Server", app.manager)
+	}
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/manager/messages/retention", strings.NewReader(`{"channel_id":"room-1","channel_type":2,"through_seq":2}`))
+	req.Header.Set("Authorization", "Bearer "+mustIssueManagerTokenForAppTest(t, srv, "admin"))
+	req.Header.Set("Content-Type", "application/json")
+	srv.Engine().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("retention status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	var body struct {
+		AdvancedThroughSeq uint64 `json:"advanced_through_seq"`
+		MinAvailableSeq    uint64 `json:"min_available_seq"`
+		Status             string `json:"status"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("Unmarshal retention body error = %v", err)
+	}
+	if body.Status != "advanced" || body.AdvancedThroughSeq != 2 || body.MinAvailableSeq != 3 {
+		t.Fatalf("retention body = %+v, want advanced through 2 min 3", body)
+	}
+	if cluster.retentionAdvance.RetentionThroughSeq != 2 ||
+		cluster.retentionAdvance.ExpectedChannelEpoch != meta.ChannelEpoch ||
+		cluster.retentionAdvance.ExpectedLeaderEpoch != meta.LeaderEpoch ||
+		cluster.retentionAdvance.ExpectedLeader != meta.Leader ||
+		cluster.retentionAdvance.ExpectedLeaseUntilMS != meta.LeaseUntilMS {
+		t.Fatalf("retention advance = %+v, want fenced advance from meta %+v", cluster.retentionAdvance, meta)
+	}
+}
+
 func TestManagerServerListsConnectionsFromLocalOnlineRegistry(t *testing.T) {
 	cluster := &fakeManagerCluster{
 		nodeID: 1,
@@ -4795,6 +4859,7 @@ type fakeManagerCluster struct {
 
 	conversationPages     map[string][]metadb.ConversationState
 	conversationMessages  map[metadb.ConversationKey][]channelv2.Message
+	channelRuntimeMetas   map[metadb.ConversationKey]metadb.ChannelRuntimeMeta
 	pluginBindingsByUID   map[string][]metadb.PluginUserBinding
 	channelOwnerMetas     map[channelv2.ChannelID]channelv2.Meta
 	registeredHandlers    map[uint8]clusterv2.NodeRPCHandler
@@ -4810,6 +4875,7 @@ type fakeManagerCluster struct {
 
 	slotLeaderTransferRequest control.SlotLeaderTransferRequest
 	slotLeaderTransferResult  control.SlotLeaderTransferResult
+	retentionAdvance          metadb.ChannelRetentionAdvance
 }
 
 type fakeManagerDeviceKey struct {
@@ -5171,7 +5237,23 @@ func (f *fakeManagerCluster) ReadChannelLastVisible(_ context.Context, channelID
 
 func (f *fakeManagerCluster) ReadChannelCommitted(_ context.Context, channelID channelv2.ChannelID, req channelstore.ReadCommittedRequest) (channelstore.ReadCommittedResult, error) {
 	key := metadb.ConversationKey{ChannelID: channelID.ID, ChannelType: int64(channelID.Type)}
-	messages := append([]channelv2.Message(nil), f.conversationMessages[key]...)
+	source := f.conversationMessages[key]
+	messages := make([]channelv2.Message, 0, len(source))
+	for _, message := range source {
+		if req.MinSeq > 0 && message.MessageSeq < req.MinSeq {
+			continue
+		}
+		if req.MaxSeq > 0 && message.MessageSeq > req.MaxSeq {
+			continue
+		}
+		if !req.Reverse && req.FromSeq > 0 && message.MessageSeq < req.FromSeq {
+			continue
+		}
+		if req.Reverse && req.FromSeq > 0 && message.MessageSeq > req.FromSeq {
+			continue
+		}
+		messages = append(messages, message)
+	}
 	if req.Reverse {
 		for left, right := 0, len(messages)-1; left < right; left, right = left+1, right-1 {
 			messages[left], messages[right] = messages[right], messages[left]
@@ -5181,6 +5263,24 @@ func (f *fakeManagerCluster) ReadChannelCommitted(_ context.Context, channelID c
 		messages = messages[:req.Limit]
 	}
 	return channelstore.ReadCommittedResult{Messages: messages}, nil
+}
+
+func (f *fakeManagerCluster) GetChannelRuntimeMeta(_ context.Context, channelID string, channelType int64) (metadb.ChannelRuntimeMeta, error) {
+	meta, ok := f.channelRuntimeMetas[metadb.ConversationKey{ChannelID: channelID, ChannelType: channelType}]
+	if !ok {
+		return metadb.ChannelRuntimeMeta{}, metadb.ErrNotFound
+	}
+	return meta, nil
+}
+
+func (f *fakeManagerCluster) AdvanceChannelRetentionThroughSeq(_ context.Context, req metadb.ChannelRetentionAdvance) error {
+	f.retentionAdvance = req
+	key := metadb.ConversationKey{ChannelID: req.ChannelID, ChannelType: req.ChannelType}
+	meta := f.channelRuntimeMetas[key]
+	meta.RetentionThroughSeq = req.RetentionThroughSeq
+	meta.RetentionUpdatedAtMS = req.RetentionUpdatedAtMS
+	f.channelRuntimeMetas[key] = meta
+	return nil
 }
 
 func (f *fakeManagerCluster) ResolveChannelAppendAuthority(_ context.Context, id channelv2.ChannelID) (channelv2.Meta, error) {

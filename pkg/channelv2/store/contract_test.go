@@ -56,10 +56,35 @@ func testStoreCheckpointHWMonotonic(t *testing.T, factory Factory) {
 	require.Equal(t, uint64(5), loaded.CheckpointHW)
 }
 
+func testStoreReadCommittedHonorsMinSeq(t *testing.T, factory Factory) {
+	t.Helper()
+	ctx := context.Background()
+	cs, err := factory.ChannelStore(ch.ChannelKey("1:retained"), ch.ChannelID{ID: "retained", Type: 1})
+	require.NoError(t, err)
+	_, err = cs.AppendLeader(ctx, AppendLeaderRequest{Records: []ch.Record{
+		{ID: 1, Payload: []byte("a"), SizeBytes: 1},
+		{ID: 2, Payload: []byte("b"), SizeBytes: 1},
+		{ID: 3, Payload: []byte("c"), SizeBytes: 1},
+		{ID: 4, Payload: []byte("d"), SizeBytes: 1},
+	}, Sync: true})
+	require.NoError(t, err)
+
+	forward, err := cs.ReadCommitted(ctx, ReadCommittedRequest{FromSeq: 1, MaxSeq: 4, MinSeq: 3, Limit: 10, MaxBytes: 1024})
+	require.NoError(t, err)
+	require.Equal(t, []uint64{3, 4}, messageSeqs(forward.Messages))
+	require.Equal(t, uint64(5), forward.NextSeq)
+
+	reverse, err := cs.ReadCommitted(ctx, ReadCommittedRequest{FromSeq: 4, MaxSeq: 4, MinSeq: 3, Limit: 10, MaxBytes: 1024, Reverse: true})
+	require.NoError(t, err)
+	require.Equal(t, []uint64{4, 3}, messageSeqs(reverse.Messages))
+	require.Equal(t, uint64(2), reverse.NextSeq)
+}
+
 func TestMemoryStoreContract(t *testing.T) {
 	factory := NewMemoryFactory()
 	testStoreContract(t, factory)
 	testStoreCheckpointHWMonotonic(t, factory)
+	testStoreReadCommittedHonorsMinSeq(t, factory)
 }
 
 func TestMemoryStoreApplyFollowerSkipsDuplicatePrefix(t *testing.T) {
@@ -97,4 +122,12 @@ func TestTraceMetadataIsNotStoredInDBCompatibleMessage(t *testing.T) {
 	require.True(t, found)
 	require.Empty(t, msg.TraceID)
 	require.Empty(t, msg.ChannelKey)
+}
+
+func messageSeqs(messages []ch.Message) []uint64 {
+	out := make([]uint64, 0, len(messages))
+	for _, msg := range messages {
+		out = append(out, msg.MessageSeq)
+	}
+	return out
 }

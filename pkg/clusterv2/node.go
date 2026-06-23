@@ -501,6 +501,18 @@ func (n *Node) ReadChannelCommitted(ctx context.Context, id channelv2.ChannelID,
 	if err != nil {
 		return channelstore.ReadCommittedResult{}, err
 	}
+	if n.defaultSlotMetaDB == nil {
+		return channelstore.ReadCommittedResult{}, ErrNotStarted
+	}
+	route, err := n.RouteKey(id.ID)
+	if err != nil {
+		return channelstore.ReadCommittedResult{}, err
+	}
+	meta, err := n.defaultSlotMetaDB.ForHashSlot(route.HashSlot).GetChannelRuntimeMeta(ctx, id.ID, int64(id.Type))
+	if err != nil {
+		return channelstore.ReadCommittedResult{}, err
+	}
+	req.MinSeq = maxReadCommittedMinSeq(req.MinSeq, minAvailableSeq(meta.RetentionThroughSeq))
 	return store.ReadCommitted(ctx, req)
 }
 
@@ -516,4 +528,18 @@ func (n *Node) ReadChannelLastVisible(ctx context.Context, id channelv2.ChannelI
 		return channelv2.Message{}, false, ErrNotStarted
 	}
 	return n.channels.ReadChannelLastVisible(ctx, id, visibleAfterSeq)
+}
+
+func minAvailableSeq(retentionThroughSeq uint64) uint64 {
+	if retentionThroughSeq == ^uint64(0) {
+		return retentionThroughSeq
+	}
+	return retentionThroughSeq + 1
+}
+
+func maxReadCommittedMinSeq(left, right uint64) uint64 {
+	if left > right {
+		return left
+	}
+	return right
 }

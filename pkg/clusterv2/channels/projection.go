@@ -21,16 +21,17 @@ func projectRuntimeMeta(meta metadb.ChannelRuntimeMeta) ch.Meta {
 		leaseUntil = time.UnixMilli(meta.LeaseUntilMS).UTC()
 	}
 	return ch.Meta{
-		Key:         ch.ChannelKeyForID(id),
-		ID:          id,
-		Epoch:       meta.ChannelEpoch,
-		LeaderEpoch: meta.LeaderEpoch,
-		Leader:      ch.NodeID(meta.Leader),
-		Replicas:    projectNodeIDs(meta.Replicas),
-		ISR:         projectNodeIDs(meta.ISR),
-		MinISR:      int(meta.MinISR),
-		LeaseUntil:  leaseUntil,
-		Status:      ch.Status(meta.Status),
+		Key:                 ch.ChannelKeyForID(id),
+		ID:                  id,
+		Epoch:               meta.ChannelEpoch,
+		LeaderEpoch:         meta.LeaderEpoch,
+		Leader:              ch.NodeID(meta.Leader),
+		Replicas:            projectNodeIDs(meta.Replicas),
+		ISR:                 projectNodeIDs(meta.ISR),
+		MinISR:              int(meta.MinISR),
+		LeaseUntil:          leaseUntil,
+		RetentionThroughSeq: meta.RetentionThroughSeq,
+		Status:              ch.Status(meta.Status),
 	}
 }
 

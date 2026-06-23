@@ -46,16 +46,17 @@ func TestSlotMetaSourceResolvesAuthoritativeRuntimeMeta(t *testing.T) {
 	id := ch.ChannelID{ID: "room", Type: 1}
 	leaseUntil := time.UnixMilli(1234).UTC()
 	source := NewSlotMetaSource(runtimeMetaReaderFake{meta: metadb.ChannelRuntimeMeta{
-		ChannelID:    id.ID,
-		ChannelType:  int64(id.Type),
-		ChannelEpoch: 2,
-		LeaderEpoch:  3,
-		Leader:       2,
-		Replicas:     []uint64{3, 1, 2},
-		ISR:          []uint64{2, 1},
-		MinISR:       2,
-		LeaseUntilMS: leaseUntil.UnixMilli(),
-		Status:       uint8(ch.StatusActive),
+		ChannelID:           id.ID,
+		ChannelType:         int64(id.Type),
+		ChannelEpoch:        2,
+		LeaderEpoch:         3,
+		Leader:              2,
+		Replicas:            []uint64{3, 1, 2},
+		ISR:                 []uint64{2, 1},
+		MinISR:              2,
+		LeaseUntilMS:        leaseUntil.UnixMilli(),
+		RetentionThroughSeq: 9,
+		Status:              uint8(ch.StatusActive),
 	}})
 
 	meta, err := source.ResolveChannelMeta(context.Background(), id)
@@ -73,6 +74,9 @@ func TestSlotMetaSourceResolvesAuthoritativeRuntimeMeta(t *testing.T) {
 	}
 	if meta.MinISR != 2 || !meta.LeaseUntil.Equal(leaseUntil) || meta.Status != ch.StatusActive {
 		t.Fatalf("meta quorum/lease/status = %#v", meta)
+	}
+	if meta.RetentionThroughSeq != 9 {
+		t.Fatalf("RetentionThroughSeq = %d, want 9", meta.RetentionThroughSeq)
 	}
 }
 
@@ -1396,6 +1400,30 @@ func TestServiceReadChannelLastVisibleUsesLocalLeaderStore(t *testing.T) {
 	require.Equal(t, []byte("new"), got.Payload)
 
 	_, ok, err = svc.ReadChannelLastVisible(context.Background(), id, 2)
+	require.NoError(t, err)
+	require.False(t, ok)
+}
+
+func TestServiceReadChannelLastVisibleHonorsRetentionThroughSeq(t *testing.T) {
+	id := ch.ChannelID{ID: "read-last-retained", Type: 1}
+	factory := channelstore.NewMemoryFactory()
+	store, err := factory.ChannelStore(ch.ChannelKeyForID(id), id)
+	require.NoError(t, err)
+	_, err = store.AppendLeader(context.Background(), channelstore.AppendLeaderRequest{Records: []ch.Record{
+		{ID: 10, Payload: []byte("old"), SizeBytes: 3},
+		{ID: 11, Payload: []byte("retained"), SizeBytes: 8},
+	}})
+	require.NoError(t, err)
+	source := NewStaticMetaSource([]ch.Meta{{
+		ID: id, Epoch: 1, LeaderEpoch: 1, Leader: 1,
+		Replicas: []ch.NodeID{1}, ISR: []ch.NodeID{1}, MinISR: 1,
+		RetentionThroughSeq: 2,
+		Status:              ch.StatusActive,
+	}})
+	svc, err := NewService(Config{Runtime: &fakeRuntime{}, LocalNode: 1, MetaSource: source, Store: factory})
+	require.NoError(t, err)
+
+	_, ok, err := svc.ReadChannelLastVisible(context.Background(), id, 0)
 	require.NoError(t, err)
 	require.False(t, ok)
 }

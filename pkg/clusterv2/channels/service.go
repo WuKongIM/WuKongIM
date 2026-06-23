@@ -222,6 +222,7 @@ func (s *Service) ReadChannelLastVisible(ctx context.Context, id ch.ChannelID, v
 	if !ok || meta.Leader == 0 {
 		return ch.Message{}, false, ch.ErrNotReady
 	}
+	visibleAfterSeq = maxUint64Value(visibleAfterSeq, meta.RetentionThroughSeq)
 	if meta.Leader != s.localNode {
 		if s.forward == nil {
 			return ch.Message{}, false, ch.ErrNotLeader
@@ -263,7 +264,8 @@ func (s *Service) handleForwardLastVisible(ctx context.Context, req LastVisibleR
 	if metaOlderThanRequest(meta, req) {
 		return LastVisibleResponse{}, ch.ErrStaleMeta
 	}
-	msg, ok, err := s.readLocalLastVisible(ctx, req.ChannelID, req.VisibleAfterSeq)
+	visibleAfterSeq := maxUint64Value(req.VisibleAfterSeq, meta.RetentionThroughSeq)
+	msg, ok, err := s.readLocalLastVisible(ctx, req.ChannelID, visibleAfterSeq)
 	return LastVisibleResponse{Message: msg, Found: ok}, err
 }
 
@@ -601,6 +603,13 @@ func normalizeAppendMeta(id ch.ChannelID, meta ch.Meta) (ch.Meta, bool, error) {
 
 func maxUint64() uint64 {
 	return ^uint64(0)
+}
+
+func maxUint64Value(left, right uint64) uint64 {
+	if left > right {
+		return left
+	}
+	return right
 }
 
 func maxInt() int {

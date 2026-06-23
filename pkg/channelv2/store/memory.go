@@ -119,6 +119,9 @@ func (s *MemoryChannelStore) ReadCommitted(ctx context.Context, req ReadCommitte
 	if from == 0 {
 		from = 1
 	}
+	if req.MinSeq > 0 && from < req.MinSeq {
+		from = req.MinSeq
+	}
 	limit := req.Limit
 	if limit <= 0 {
 		limit = len(s.records)
@@ -133,6 +136,9 @@ func (s *MemoryChannelStore) ReadCommitted(ctx context.Context, req ReadCommitte
 	maxSeq := req.MaxSeq
 	if maxSeq == 0 {
 		maxSeq = uint64(len(s.records))
+	}
+	if req.MinSeq > 0 && maxSeq < req.MinSeq {
+		return ReadCommittedResult{NextSeq: from}, nil
 	}
 	messages := make([]ch.Message, 0, limit)
 	used := 0
@@ -157,16 +163,31 @@ func (s *MemoryChannelStore) readCommittedReverseLocked(req ReadCommittedRequest
 	if req.MaxSeq > 0 && from > req.MaxSeq {
 		from = req.MaxSeq
 	}
+	minSeq := req.MinSeq
+	if minSeq == 0 {
+		minSeq = 1
+	}
+	if from < minSeq {
+		return ReadCommittedResult{NextSeq: from}
+	}
 	messages := make([]ch.Message, 0, limit)
 	used := 0
 	next := from
-	for seq := from; seq >= 1 && seq <= uint64(len(s.records)); seq-- {
+	for seq := from; seq >= minSeq && seq <= uint64(len(s.records)); seq-- {
 		record := s.records[seq-1]
 		if len(messages) >= limit || used+record.SizeBytes > maxBytes && len(messages) > 0 {
 			break
 		}
 		used += record.SizeBytes
 		messages = append(messages, messageFromRecord(s.id, record))
+		if seq == minSeq {
+			if minSeq == 1 {
+				next = 0
+			} else {
+				next = minSeq - 1
+			}
+			break
+		}
 		if seq == 1 {
 			next = 0
 			break

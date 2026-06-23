@@ -3,11 +3,13 @@ package clusterv2
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channelv2/store"
 	channeltransport "github.com/WuKongIM/WuKongIM/pkg/channelv2/transport"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/channels"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
 func TestNodeDefaultChannelsUseDurableMessageDBStore(t *testing.T) {
@@ -45,6 +47,57 @@ func TestNodeDefaultChannelsUseDurableMessageDBStore(t *testing.T) {
 	}
 	if second.MessageSeq != 2 {
 		t.Fatalf("restart AppendChannel() MessageSeq = %d, want 2 from durable message DB LEO", second.MessageSeq)
+	}
+}
+
+func TestNodeReadChannelCommittedHonorsRetentionThroughSeq(t *testing.T) {
+	node := newDefaultSingleNode(t)
+	startNode(t, node)
+	t.Cleanup(func() { stopNodes(t, node) })
+
+	id := channelv2.ChannelID{ID: "retained-read", Type: 1}
+	route := waitRouteKeyLeaderReady(t, node, id.ID)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	for i := 0; i < 4; i++ {
+		_, err := node.AppendChannel(ctx, channelv2.AppendRequest{
+			ChannelID: id,
+			Message:   channelv2.Message{MessageID: uint64(100 + i), Payload: []byte{byte('a' + i)}},
+		})
+		if err != nil {
+			t.Fatalf("AppendChannel(%d) error = %v", i, err)
+		}
+	}
+	meta, err := node.defaultSlotMetaDB.ForHashSlot(route.HashSlot).GetChannelRuntimeMeta(ctx, id.ID, int64(id.Type))
+	if err != nil {
+		t.Fatalf("GetChannelRuntimeMeta() error = %v", err)
+	}
+	if err := node.AdvanceChannelRetentionThroughSeq(ctx, metadb.ChannelRetentionAdvance{
+		ChannelID:            id.ID,
+		ChannelType:          int64(id.Type),
+		ExpectedChannelEpoch: meta.ChannelEpoch,
+		ExpectedLeaderEpoch:  meta.LeaderEpoch,
+		ExpectedLeader:       meta.Leader,
+		ExpectedLeaseUntilMS: meta.LeaseUntilMS,
+		RetentionThroughSeq:  2,
+		RetentionUpdatedAtMS: time.Now().UnixMilli(),
+	}); err != nil {
+		t.Fatalf("AdvanceChannelRetentionThroughSeq() error = %v", err)
+	}
+
+	forward, err := node.ReadChannelCommitted(ctx, id, channelstore.ReadCommittedRequest{FromSeq: 1, MaxSeq: 4, Limit: 10, MaxBytes: 1024})
+	if err != nil {
+		t.Fatalf("ReadChannelCommitted(forward) error = %v", err)
+	}
+	if got := nodeMessageSeqs(forward.Messages); !equalNodeMessageSeqs(got, []uint64{3, 4}) {
+		t.Fatalf("forward seqs = %v, want [3 4]", got)
+	}
+	reverse, err := node.ReadChannelCommitted(ctx, id, channelstore.ReadCommittedRequest{FromSeq: 4, MaxSeq: 4, Limit: 10, MaxBytes: 1024, Reverse: true})
+	if err != nil {
+		t.Fatalf("ReadChannelCommitted(reverse) error = %v", err)
+	}
+	if got := nodeMessageSeqs(reverse.Messages); !equalNodeMessageSeqs(got, []uint64{4, 3}) {
+		t.Fatalf("reverse seqs = %v, want [4 3]", got)
 	}
 }
 
@@ -89,6 +142,26 @@ func TestNodeWithChannelsOptionOverridesDefault(t *testing.T) {
 	if res.MessageSeq == 0 {
 		t.Fatal("AppendChannel() MessageSeq = 0, want committed sequence")
 	}
+}
+
+func nodeMessageSeqs(messages []channelv2.Message) []uint64 {
+	out := make([]uint64, 0, len(messages))
+	for _, msg := range messages {
+		out = append(out, msg.MessageSeq)
+	}
+	return out
+}
+
+func equalNodeMessageSeqs(left, right []uint64) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for i := range left {
+		if left[i] != right[i] {
+			return false
+		}
+	}
+	return true
 }
 
 func TestNodeAppendChannelDelegatesToService(t *testing.T) {

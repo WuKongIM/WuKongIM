@@ -295,15 +295,22 @@ manager HTTP handler
   -> MessageReader.QueryMessages
   -> committed channel message log
   -> bounded manager message DTO rows
+
+manager HTTP handler
+  -> management.App.AdvanceMessageRetention
+  -> MessageRetentionOperator.AdvanceMessageRetention
+  -> manager retention outcome
 ```
 
 Message list parsing, validation, cursor state, and response shaping stay in
 the access and management layers; committed-log reads are delegated through a
 narrow port. Message retention requests validate the legacy manager envelope
-and delegate to an optional retention operator. When no retention operator is
-wired, the usecase reports `ErrMessageRetentionUnavailable` so the HTTP layer
-can return `503` instead of claiming a successful delete-through-sequence
-operation.
+and delegate to an optional retention operator. The usecase owns no Slot,
+ChannelV2, or storage details; the adapter decides whether the request can
+advance a cluster-authoritative logical compaction boundary. When no retention
+operator is wired, the usecase reports `ErrMessageRetentionUnavailable` so the
+HTTP layer can return `503` instead of claiming a successful
+delete-through-sequence operation.
 
 ## Connection Management Flow
 

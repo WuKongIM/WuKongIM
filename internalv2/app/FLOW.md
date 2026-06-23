@@ -221,8 +221,10 @@ New(Config)
      local `node_id` and route non-local `node_id` through the manager DB
      inspect node RPC reader, user writes reuse the internalv2 user usecase and
      optional presence owner-action routing, and message retention requests use
-     an optional management retention port and return unavailable when that
-     port is not configured; diagnostics trace/message/event queries and
+     the Slot-backed management retention adapter when the cluster exposes
+     channel runtime metadata reads, committed message reads, and fenced
+     retention advances; otherwise retention returns unavailable; diagnostics
+     trace/message/event queries and
      tracking-rule mutations use the internalv2 diagnostics store locally and
      route selected non-local nodes through the manager diagnostics RPC path;
      when `Top.APIEnabled` creates a top collector,

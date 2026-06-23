@@ -157,6 +157,38 @@ func (n *Node) GetChannelMetadata(ctx context.Context, channelID string, channel
 	return n.defaultSlotMetaDB.ForHashSlot(route.HashSlot).GetChannel(ctx, channelID, channelType)
 }
 
+// GetChannelRuntimeMeta reads authoritative channel runtime metadata from the current Slot route.
+func (n *Node) GetChannelRuntimeMeta(ctx context.Context, channelID string, channelType int64) (metadb.ChannelRuntimeMeta, error) {
+	if err := ctxErr(ctx); err != nil {
+		return metadb.ChannelRuntimeMeta{}, err
+	}
+	if err := n.ensureForeground(); err != nil {
+		return metadb.ChannelRuntimeMeta{}, err
+	}
+	if n.defaultSlotMetaDB == nil {
+		return metadb.ChannelRuntimeMeta{}, ErrNotStarted
+	}
+	route, err := n.RouteKey(channelID)
+	if err != nil {
+		return metadb.ChannelRuntimeMeta{}, err
+	}
+	return n.defaultSlotMetaDB.ForHashSlot(route.HashSlot).GetChannelRuntimeMeta(ctx, channelID, channelType)
+}
+
+// AdvanceChannelRetentionThroughSeq persists a fenced channel message compaction boundary through Slot ownership.
+func (n *Node) AdvanceChannelRetentionThroughSeq(ctx context.Context, req metadb.ChannelRetentionAdvance) error {
+	if err := ctxErr(ctx); err != nil {
+		return err
+	}
+	if n == nil {
+		return ErrNotStarted
+	}
+	return n.Propose(ctx, ProposeRequest{
+		Key:     req.ChannelID,
+		Command: metafsm.EncodeAdvanceChannelRetentionThroughSeqCommand(req),
+	})
+}
+
 // DeleteChannelMetadata removes durable channel metadata through Slot ownership.
 func (n *Node) DeleteChannelMetadata(ctx context.Context, channelID string, channelType int64) error {
 	if err := ctxErr(ctx); err != nil {

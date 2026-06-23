@@ -167,6 +167,14 @@ owning reactor to read a durable row by message id, then returns it only when
 the row has a positive sequence and the local HW covers that sequence. It never
 advances HW, creates rows, or turns an uncommitted local write into success.
 
+Logical channel message compaction is represented by the caller-supplied
+`ReadCommittedRequest.MinSeq` floor, normally derived from Slot metadata
+`RetentionThroughSeq + 1` by clusterv2. Forward committed reads clamp their
+starting sequence to this floor, reverse/latest reads stop before crossing it,
+and message DB adapter reads filter compacted rows even when physical message
+rows still exist. ChannelV2 does not range-delete rows or reset LEO for this
+first retention slice; it only enforces logical visibility.
+
 ## Channel Runtime Lifecycle Model
 
 `Unloaded` is represented by absence from the owning reactor's `channels` map.

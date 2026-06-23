@@ -228,13 +228,30 @@ func (a *messageDBChannelStoreAdapter) ReadCommitted(ctx context.Context, req Re
 	if err := ctx.Err(); err != nil {
 		return ReadCommittedResult{}, err
 	}
-	messages, err := a.store.ListMessagesBySeq(req.FromSeq, req.Limit, req.MaxBytes, req.Reverse)
+	readFrom := req.FromSeq
+	if !req.Reverse && req.MinSeq > 0 && readFrom < req.MinSeq {
+		readFrom = req.MinSeq
+	}
+	if req.Reverse && req.MinSeq > 0 && readFrom < req.MinSeq {
+		return ReadCommittedResult{NextSeq: readFrom}, nil
+	}
+	if !req.Reverse && req.MaxSeq > 0 && req.MinSeq > 0 && req.MaxSeq < req.MinSeq {
+		return ReadCommittedResult{NextSeq: readFrom}, nil
+	}
+	messages, err := a.store.ListMessagesBySeq(readFrom, req.Limit, req.MaxBytes, req.Reverse)
 	if err != nil {
 		return ReadCommittedResult{}, err
 	}
 	out := make([]ch.Message, 0, len(messages))
-	next := req.FromSeq
+	next := readFrom
 	for _, msg := range messages {
+		if req.MinSeq > 0 && msg.MessageSeq < req.MinSeq {
+			if req.Reverse {
+				next = req.MinSeq - 1
+				break
+			}
+			continue
+		}
 		if req.MaxSeq > 0 && msg.MessageSeq > req.MaxSeq {
 			if req.Reverse {
 				continue
