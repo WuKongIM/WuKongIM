@@ -2,6 +2,8 @@ package clusterv2
 
 import (
 	"context"
+	"fmt"
+	"reflect"
 	"testing"
 	"time"
 
@@ -121,4 +123,80 @@ func TestClusterV2SingleNodePluginBindingFacadePersistsByUIDHashSlot(t *testing.
 	if len(got) != 0 {
 		t.Fatalf("bindings after unbind = %#v, want empty", got)
 	}
+}
+
+func TestClusterV2PluginBindingPluginNoScanRoutesToSlotLeader(t *testing.T) {
+	nodes := newDefaultThreeNodeCluster(t)
+	startNodes(t, nodes...)
+	t.Cleanup(func() { stopNodes(t, nodes...) })
+	waitClusterReady(t, nodes...)
+
+	pluginNo := "receive-plugin"
+	uids := []string{
+		pluginBindingUIDForHashSlot(t, nodes[0], 0),
+		pluginBindingUIDForHashSlot(t, nodes[0], 1),
+		pluginBindingUIDForHashSlot(t, nodes[0], 2),
+	}
+	leaderRoute := waitRouteKeyLeaderReady(t, nodes[0], uids[0])
+	queryNode := firstNonLeaderNode(t, nodes, leaderRoute.Leader)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	for i, uid := range uids {
+		binding := metadb.PluginUserBinding{
+			UID:         uid,
+			PluginNo:    pluginNo,
+			CreatedAtMS: int64(10 + i),
+			UpdatedAtMS: int64(20 + i),
+		}
+		if err := nodes[0].BindPluginUser(ctx, binding); err != nil {
+			t.Fatalf("BindPluginUser(%s) error = %v", uid, err)
+		}
+	}
+	if err := nodes[0].BindPluginUser(ctx, metadb.PluginUserBinding{UID: "noise-user", PluginNo: "other-plugin", CreatedAtMS: 1, UpdatedAtMS: 1}); err != nil {
+		t.Fatalf("BindPluginUser(noise) error = %v", err)
+	}
+
+	page1, cursor, hasMore, err := queryNode.ListPluginBindingsByPluginNo(ctx, pluginNo, "", 2)
+	if err != nil {
+		t.Fatalf("ListPluginBindingsByPluginNo(page1) error = %v", err)
+	}
+	if !hasMore || cursor == "" {
+		t.Fatalf("page1 cursor=%q hasMore=%t, want cursor and hasMore", cursor, hasMore)
+	}
+	if got := pluginBindingUIDs(page1); !reflect.DeepEqual(got, uids[:2]) {
+		t.Fatalf("page1 uids = %#v, want %#v", got, uids[:2])
+	}
+
+	page2, cursor, hasMore, err := queryNode.ListPluginBindingsByPluginNo(ctx, pluginNo, cursor, 2)
+	if err != nil {
+		t.Fatalf("ListPluginBindingsByPluginNo(page2) error = %v", err)
+	}
+	if hasMore || cursor != "" {
+		t.Fatalf("page2 cursor=%q hasMore=%t, want final empty cursor", cursor, hasMore)
+	}
+	if got := pluginBindingUIDs(page2); !reflect.DeepEqual(got, uids[2:]) {
+		t.Fatalf("page2 uids = %#v, want %#v", got, uids[2:])
+	}
+}
+
+func pluginBindingUIDForHashSlot(t testing.TB, node *Node, want uint16) string {
+	t.Helper()
+	for i := 0; i < 10000; i++ {
+		uid := fmt.Sprintf("plugin-binding-%02d-%04d", want, i)
+		route := waitRouteKeyLeaderReady(t, node, uid)
+		if route.HashSlot == want {
+			return uid
+		}
+	}
+	t.Fatalf("could not find plugin binding uid for hash slot %d", want)
+	return ""
+}
+
+func pluginBindingUIDs(bindings []metadb.PluginUserBinding) []string {
+	uids := make([]string, 0, len(bindings))
+	for _, binding := range bindings {
+		uids = append(uids, binding.UID)
+	}
+	return uids
 }

@@ -68,6 +68,8 @@ const (
 	RPCManagerDiagnostics
 	// RPCManagerPlugins serves internalv2 node-local manager plugin inventory reads.
 	RPCManagerPlugins
+	// RPCPluginBindingScan serves clusterv2 Slot-leader plugin binding index scans.
+	RPCPluginBindingScan
 )
 
 func transportServiceAlias(serviceID uint8) string {
@@ -132,6 +134,8 @@ func transportServiceAlias(serviceID uint8) string {
 		return "manager diagnostics"
 	case RPCManagerPlugins:
 		return "manager plugins"
+	case RPCPluginBindingScan:
+		return "plugin binding scan"
 	default:
 		return "unknown service"
 	}

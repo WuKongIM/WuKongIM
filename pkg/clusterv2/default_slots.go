@@ -93,10 +93,10 @@ func (n *Node) ensureDefaultSlots() error {
 		)
 	}
 	n.defaultSlotRuntime = runtime
-	n.registerDefaultSlotHandlers(runtime)
 	n.defaultSlotRaftDB = raftDB
 	n.defaultSlotMetaDB = metaDB
 	n.defaultSlotProposer = defaultSlotProposer{runtime: runtime}
+	n.registerDefaultSlotHandlers(runtime)
 	n.defaultSlots = true
 	return nil
 }
@@ -114,6 +114,7 @@ func (n *Node) registerDefaultSlotHandlers(runtime *multiraft.Runtime) {
 	}
 	n.transportServer.Register(clusternet.MsgSlotRaftBatch, slotRaftBatchHandler{runtime: runtime})
 	n.transportServer.Register(clusternet.RPCSlotForwardPropose, propose.NewForwardHandler(defaultSlotProposer{runtime: runtime}))
+	n.transportServer.Register(clusternet.RPCPluginBindingScan, pluginBindingScanHandler{node: n})
 }
 
 // noopSlotTransport is sufficient for the default single-node Slot runtime.

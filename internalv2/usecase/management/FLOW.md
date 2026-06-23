@@ -29,6 +29,13 @@ projections/actions used by `GET /manager/nodes`,
 `/manager/db/inspect*`, `/manager/diagnostics*`, `/manager/users*`, and
 `/manager/system-users*`.
 
+Plugin binding list requests accept exactly one selector. UID requests call the
+cluster-authoritative binding store directly. Plugin-number requests require
+the store to implement the optional plugin-centric scanner and preserve its
+opaque cursor/`has_more` values; the usecase only normalizes limits, enriches
+rows with local plugin runtime warnings, and keeps response shaping independent
+from HTTP.
+
 ## Node List Flow
 
 ```text

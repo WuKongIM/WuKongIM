@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channelv2/store"
@@ -13,6 +14,7 @@ import (
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/clusterv2/net"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/propose"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/routing"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
 var clusterV2BenchPayload = []byte("hello-clusterv2")
@@ -116,6 +118,71 @@ func BenchmarkChannelAppendLocalParallel(b *testing.B) {
 			}
 		}
 	})
+}
+
+func BenchmarkListPluginBindingsByPluginNo(b *testing.B) {
+	node := newBenchPluginBindingNode(b)
+	startNode(b, node)
+	b.Cleanup(func() { stopNodes(b, node) })
+	waitBenchRouteKeyLeaderReady(b, node, "bench-plugin-ready")
+
+	ctx := context.Background()
+	for i := 0; i < 1024; i++ {
+		uid := "bench-plugin-user-" + strconv.Itoa(i)
+		route, err := node.RouteKey(uid)
+		if err != nil {
+			b.Fatalf("RouteKey(%d) error = %v", i, err)
+		}
+		if err := node.defaultSlotMetaDB.ForHashSlot(route.HashSlot).BindPluginUser(ctx, metadb.PluginUserBinding{UID: uid, PluginNo: "bench.receive", CreatedAtMS: int64(i), UpdatedAtMS: int64(i)}); err != nil {
+			b.Fatalf("BindPluginUser(%d) error = %v", i, err)
+		}
+	}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		cursor := ""
+		for {
+			_, next, hasMore, err := node.ListPluginBindingsByPluginNo(ctx, "bench.receive", cursor, 100)
+			if err != nil {
+				b.Fatalf("ListPluginBindingsByPluginNo() error = %v", err)
+			}
+			if !hasMore {
+				break
+			}
+			cursor = next
+		}
+	}
+}
+
+func newBenchPluginBindingNode(b *testing.B) *Node {
+	b.Helper()
+	cfg := Config{NodeID: 1, ListenAddr: "127.0.0.1:0", DataDir: b.TempDir()}
+	cfg.Control.ClusterID = "clusterv2-bench-plugin-binding"
+	cfg.Slots.InitialSlotCount = 1
+	cfg.Slots.HashSlotCount = 4
+	cfg.Slots.ReplicaCount = 1
+	cfg.Channel.TickInterval = time.Millisecond
+	node, err := New(cfg)
+	if err != nil {
+		b.Fatal(err)
+	}
+	return node
+}
+
+func waitBenchRouteKeyLeaderReady(b *testing.B, node *Node, key string) {
+	b.Helper()
+	deadline := time.Now().Add(3 * time.Second)
+	var lastErr error
+	for time.Now().Before(deadline) {
+		route, err := node.RouteKey(key)
+		if err == nil && route.Leader != 0 {
+			return
+		}
+		lastErr = err
+		time.Sleep(10 * time.Millisecond)
+	}
+	b.Fatalf("route key %q leader not ready: %v", key, lastErr)
 }
 
 func newBenchChannelAppendNode(b *testing.B) (*Node, channelv2.ChannelID) {

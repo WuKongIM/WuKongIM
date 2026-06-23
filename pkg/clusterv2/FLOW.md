@@ -171,6 +171,16 @@ slot and submit one Slot proposal per touched hash slot. Reads such as
 `ListUserChannelMembershipPage` also route by UID and read the current local
 metadata shard for that UID hash slot.
 
+Plugin binding rows are UID-owned for writes and Receive hook lookups.
+`BindPluginUser`, `UnbindPluginUser`, and `ListPluginBindingsByUID` route by
+UID hash slot. `ListPluginBindingsByPluginNo` is the plugin-centric manager
+scan path: it walks the installed hash-slot route table, asks each hash slot's
+current Slot leader for one `plugin_binding` secondary-index candidate, merges
+those candidates by UID with a heap, and returns an opaque cursor carrying the
+last emitted `(plugin_no, uid)`. The scan never reads only the manager node's
+local DB as a cluster-wide answer, and it does not materialize all bindings for
+one plugin before paging.
+
 Kind-aware UID-owned conversation rows are the active recent-conversation path.
 `UpsertConversationStatesBatch`, `TouchConversationActiveAtBatch`, and
 `HideConversationsBatch` route each row by `RouteKey(uid)`, group rows by

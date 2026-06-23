@@ -186,6 +186,13 @@ positive `toNodeId`. The receiver executes its local `/plugin/route` hook only;
 fanout `toNodeId=-1` is intentionally deferred in the plugin usecase and never
 enters the infra adapter.
 
+`ManagementPluginBindingStore` adapts manager plugin binding reads and
+mutations to clusterv2 metadata. UID reads and mutations stay UID-owned.
+Plugin-centric pages use clusterv2 `ListPluginBindingsByPluginNo`, which owns
+hash-slot fan-out, Slot-leader routing, heap merge, and opaque cursor semantics;
+the infra adapter only maps metadata rows to management DTOs and reports
+`ErrPluginBindingsUnavailable` when the underlying node lacks that scanner.
+
 ## Management Log Flow
 
 ```text

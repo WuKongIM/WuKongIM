@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"runtime"
+	"sort"
 	"strings"
 	"sync"
 	"testing"
@@ -313,6 +314,27 @@ func TestManagerServerMutatesPluginBindingsFromClusterMetadata(t *testing.T) {
 	}
 	if listBody.Total != 1 || len(listBody.Items) != 1 || listBody.Items[0].UID != "bot" || listBody.Items[0].PluginNo != "receive-plugin" {
 		t.Fatalf("list body = %#v, want one bot/receive-plugin binding", listBody)
+	}
+
+	pluginListRec := httptest.NewRecorder()
+	pluginListReq := httptest.NewRequest(http.MethodGet, "/manager/plugin-bindings?plugin_no=receive-plugin", nil)
+	pluginListReq.Header.Set("Authorization", "Bearer "+token)
+	srv.Engine().ServeHTTP(pluginListRec, pluginListReq)
+	if pluginListRec.Code != http.StatusOK {
+		t.Fatalf("plugin list status = %d, want %d; body=%s", pluginListRec.Code, http.StatusOK, pluginListRec.Body.String())
+	}
+	var pluginListBody struct {
+		Total int `json:"total"`
+		Items []struct {
+			UID      string `json:"uid"`
+			PluginNo string `json:"plugin_no"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(pluginListRec.Body.Bytes(), &pluginListBody); err != nil {
+		t.Fatalf("Unmarshal plugin list body error = %v", err)
+	}
+	if pluginListBody.Total != 1 || len(pluginListBody.Items) != 1 || pluginListBody.Items[0].UID != "bot" || pluginListBody.Items[0].PluginNo != "receive-plugin" {
+		t.Fatalf("plugin list body = %#v, want one bot/receive-plugin binding", pluginListBody)
 	}
 
 	unbindRec := httptest.NewRecorder()
@@ -5062,6 +5084,40 @@ func (f *fakeManagerCluster) GetConversationStates(_ context.Context, keys []met
 
 func (f *fakeManagerCluster) ListPluginBindingsByUID(_ context.Context, uid string) ([]metadb.PluginUserBinding, error) {
 	return append([]metadb.PluginUserBinding(nil), f.pluginBindingsByUID[uid]...), nil
+}
+
+func (f *fakeManagerCluster) ListPluginBindingsByPluginNo(_ context.Context, pluginNo, cursor string, limit int) ([]metadb.PluginUserBinding, string, bool, error) {
+	items := make([]metadb.PluginUserBinding, 0)
+	for _, bindings := range f.pluginBindingsByUID {
+		for _, binding := range bindings {
+			if binding.PluginNo == pluginNo {
+				items = append(items, binding)
+			}
+		}
+	}
+	sort.Slice(items, func(i, j int) bool { return items[i].UID < items[j].UID })
+	start := 0
+	if cursor != "" {
+		for i, item := range items {
+			if item.UID == cursor {
+				start = i + 1
+				break
+			}
+		}
+	}
+	if limit <= 0 {
+		limit = len(items)
+	}
+	end := start + limit
+	if end > len(items) {
+		end = len(items)
+	}
+	page := append([]metadb.PluginUserBinding(nil), items[start:end]...)
+	next := ""
+	if end < len(items) && len(page) > 0 {
+		next = page[len(page)-1].UID
+	}
+	return page, next, end < len(items), nil
 }
 
 func (f *fakeManagerCluster) BindPluginUser(_ context.Context, binding metadb.PluginUserBinding) error {

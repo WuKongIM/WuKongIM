@@ -24,6 +24,11 @@ type ManagementPluginBindingNode interface {
 	UnbindPluginUser(context.Context, string, string) error
 }
 
+type managementPluginBindingPluginNoNode interface {
+	// ListPluginBindingsByPluginNo returns one plugin-centric binding page.
+	ListPluginBindingsByPluginNo(context.Context, string, string, int) ([]metadb.PluginUserBinding, string, bool, error)
+}
+
 // PluginBindingReader adapts cluster metadata rows to the plugin usecase port.
 type PluginBindingReader struct {
 	node PluginBindingNode
@@ -80,6 +85,26 @@ func (s *ManagementPluginBindingStore) ListPluginBindingsByUID(ctx context.Conte
 		out = append(out, managementPluginBindingFromMeta(binding))
 	}
 	return out, nil
+}
+
+// ListPluginBindingsByPluginNo lists one plugin-centric binding page.
+func (s *ManagementPluginBindingStore) ListPluginBindingsByPluginNo(ctx context.Context, pluginNo, cursor string, limit int) ([]managementusecase.PluginBinding, string, bool, error) {
+	if s == nil || s.node == nil {
+		return nil, "", false, managementusecase.ErrPluginBindingsUnavailable
+	}
+	scanner, ok := s.node.(managementPluginBindingPluginNoNode)
+	if !ok {
+		return nil, "", false, managementusecase.ErrPluginBindingsUnavailable
+	}
+	bindings, next, hasMore, err := scanner.ListPluginBindingsByPluginNo(ctx, pluginNo, cursor, limit)
+	if err != nil {
+		return nil, "", false, err
+	}
+	out := make([]managementusecase.PluginBinding, 0, len(bindings))
+	for _, binding := range bindings {
+		out = append(out, managementPluginBindingFromMeta(binding))
+	}
+	return out, next, hasMore, nil
 }
 
 // BindPluginUser creates or updates one UID binding.
