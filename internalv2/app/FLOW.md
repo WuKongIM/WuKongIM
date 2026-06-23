@@ -61,7 +61,10 @@ New(Config)
      selected node into bounded control snapshot reads. The database monitor
      category is Prometheus-only and uses internalv2 message DB commit request,
      grouped commit stage, commit runtime queue, and Pebble engine snapshot
-     metrics.
+     metrics. The node monitor category keeps per-node Prometheus series for
+     process CPU, RSS memory, goroutines, and Go GC pause/rate/CPU/heap-goal
+     pressure so global views can show the highest-pressure node without
+     dropping node labels.
      Queries do not read the top collector's in-process dashboard ring buffers;
      the hidden collector only refreshes process resource and Pebble snapshot
      gauges for Prometheus when metrics are enabled.

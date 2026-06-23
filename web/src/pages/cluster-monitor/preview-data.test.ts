@@ -29,6 +29,10 @@ test("builds the cluster runtime monitor cards in troubleshooting order", () => 
     "nodeCpuPercent",
     "nodeMemoryRSS",
     "nodeGoroutines",
+    "nodeGCPauseRate",
+    "nodeGCRate",
+    "nodeGCCPUFraction",
+    "nodeGCHeapGoalUsage",
     "storageWriteP99",
     "storagePebbleDiskUsage",
     "storagePebbleReadAmplification",
@@ -50,7 +54,7 @@ test("builds deterministic preview data with chart series and stats", () => {
   const second = buildPreviewClusterMonitorModel("30m", false)
 
   expect(second).toEqual(first)
-  expect(first.cards).toHaveLength(27)
+  expect(first.cards).toHaveLength(31)
   expect(first.cards[0].series.length).toBeGreaterThan(20)
   expect(first.cards[0].stats).toHaveLength(3)
 })

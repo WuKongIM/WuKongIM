@@ -1009,6 +1009,73 @@ function allNodeCpuClusterMonitorResponse(): RealtimeMonitorResponse {
   }
 }
 
+function nodeGCClusterMonitorResponse(): RealtimeMonitorResponse {
+  return {
+    ...readyClusterMonitorResponse(),
+    snapshot: [],
+    cards: [
+      {
+        key: "nodeGCPauseRate",
+        category: "node" as const,
+        source: "prometheus" as const,
+        stage: "runtimePressure",
+        tone: "warning" as const,
+        unit: "ms/s",
+        value: 0.75,
+        available: true,
+        error: "",
+        series: [
+          { timestamp: 1781767200000, value: 0.25, label: "node-1", series_key: "node-1" },
+          { timestamp: 1781767220000, value: 0.75, label: "node-2", series_key: "node-2" },
+        ],
+        stats: [
+          { key: "node", label: "node-1", value: 0.5, unit: "ms/s" },
+          { key: "node", label: "node-2", value: 0.75, unit: "ms/s" },
+        ],
+      },
+      {
+        key: "nodeGCRate",
+        category: "node" as const,
+        source: "prometheus" as const,
+        stage: "runtimePressure",
+        tone: "warning" as const,
+        unit: "events/s",
+        value: 0.08,
+        available: true,
+        error: "",
+        series: [{ timestamp: 1781767220000, value: 0.08 }],
+        stats: [{ key: "peak", value: 0.08, unit: "events/s" }],
+      },
+      {
+        key: "nodeGCCPUFraction",
+        category: "node" as const,
+        source: "prometheus" as const,
+        stage: "runtimePressure",
+        tone: "warning" as const,
+        unit: "%",
+        value: 1.2,
+        available: true,
+        error: "",
+        series: [{ timestamp: 1781767220000, value: 1.2 }],
+        stats: [{ key: "peak", value: 1.2, unit: "%" }],
+      },
+      {
+        key: "nodeGCHeapGoalUsage",
+        category: "node" as const,
+        source: "prometheus" as const,
+        stage: "runtimePressure",
+        tone: "warning" as const,
+        unit: "%",
+        value: 68.4,
+        available: true,
+        error: "",
+        series: [{ timestamp: 1781767220000, value: 68.4 }],
+        stats: [{ key: "peak", value: 68.4, unit: "%" }],
+      },
+    ],
+  }
+}
+
 function disabledClusterMonitorResponse(): RealtimeMonitorResponse {
   return {
     status: "prometheus_disabled" as const,
@@ -1294,6 +1361,20 @@ test("renders all node resource pressure stats in global scope", async () => {
   expect(within(card).getByText("15%")).toBeInTheDocument()
   expect(within(card).getByText("node-2")).toBeInTheDocument()
   expect(within(card).getByText("40%")).toBeInTheDocument()
+})
+
+test("renders node GC pressure cards from realtime API data", async () => {
+  vi.mocked(getRealtimeMonitor).mockResolvedValueOnce(nodeGCClusterMonitorResponse())
+  renderClusterMonitorPage()
+
+  const cards = await screen.findAllByTestId("cluster-monitor-metric-card")
+  expect(cards).toHaveLength(4)
+  expect(within(cards[0]).getByText("GC Pause Rate")).toBeInTheDocument()
+  expect(within(cards[0]).getByText("ms/s")).toBeInTheDocument()
+  expect(within(cards[0]).getByText("node-2")).toBeInTheDocument()
+  expect(within(cards[1]).getByText("GC Rate")).toBeInTheDocument()
+  expect(within(cards[2]).getByText("GC CPU Fraction")).toBeInTheDocument()
+  expect(within(cards[3]).getByText("GC Heap Goal Usage")).toBeInTheDocument()
 })
 
 test("keeps rendering when cluster cards omit stats", async () => {

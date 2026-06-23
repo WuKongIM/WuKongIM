@@ -382,6 +382,24 @@ func TestManagerMonitorPrometheusProviderReturnsSlotOperatorCards(t *testing.T) 
 	}
 }
 
+func TestPrometheusFilterNodeIDScopesGoRuntimeSelectors(t *testing.T) {
+	promQL := `rate(go_gc_duration_seconds_sum[1m]) + go_memstats_gc_cpu_fraction + (go_memstats_heap_alloc_bytes / clamp_min(go_memstats_next_gc_bytes, 1)) + wukongim_node_goroutines`
+
+	got := prometheusFilterNodeID(promQL, 2)
+
+	for _, want := range []string{
+		`go_gc_duration_seconds_sum{job="wukongimv2",node_id="2"}[1m]`,
+		`go_memstats_gc_cpu_fraction{job="wukongimv2",node_id="2"}`,
+		`go_memstats_heap_alloc_bytes{job="wukongimv2",node_id="2"}`,
+		`go_memstats_next_gc_bytes{job="wukongimv2",node_id="2"}`,
+		`wukongim_node_goroutines{job="wukongimv2",node_id="2"}`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("prometheusFilterNodeID() = %q, want selector %q", got, want)
+		}
+	}
+}
+
 func TestManagerMonitorPrometheusProviderFiltersPromQLByNodeID(t *testing.T) {
 	var queries []string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

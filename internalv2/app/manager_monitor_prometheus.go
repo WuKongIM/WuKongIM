@@ -22,7 +22,7 @@ const (
 	managerMonitorPrometheusJobName      = "wukongimv2"
 )
 
-var managerMonitorPrometheusMetricSelectorRE = regexp.MustCompile(`\b(wukongim_[a-zA-Z0-9_:]+)(\{[^{}]*\})?`)
+var managerMonitorPrometheusMetricSelectorRE = regexp.MustCompile(`\b((?:wukongim|go)_[a-zA-Z0-9_:]+)(\{[^{}]*\})?`)
 
 var managerRealtimeMonitorCommonMetricKeys = map[string]struct{}{
 	"activeConnections":                {},

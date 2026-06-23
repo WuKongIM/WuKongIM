@@ -51,7 +51,7 @@ const (
 	RealtimeMonitorCategoryControl = "control"
 	// RealtimeMonitorCategorySlot groups Slot replication cards.
 	RealtimeMonitorCategorySlot = "slot"
-	// RealtimeMonitorCategoryNode groups node runtime, workqueue, and storage cards.
+	// RealtimeMonitorCategoryNode groups node runtime, workqueue, and Go GC cards.
 	RealtimeMonitorCategoryNode = "node"
 
 	// RealtimeMonitorToneNormal is the normal card status tone.

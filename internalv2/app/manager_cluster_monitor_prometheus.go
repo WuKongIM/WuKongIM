@@ -233,6 +233,10 @@ func managerClusterMonitorMetricDefinitions() []clusterMonitorMetricDefinition {
 		clusterNodeMetric(accessmanager.RealtimeMonitorCategoryNode, "nodeCpuPercent", accessmanager.RealtimeMonitorStageRuntimePressure, accessmanager.RealtimeMonitorToneWarning, "%", prometheusZeroFallback("wukongim_node_cpu_percent")),
 		clusterNodeMetric(accessmanager.RealtimeMonitorCategoryNode, "nodeMemoryRSS", accessmanager.RealtimeMonitorStageRuntimePressure, accessmanager.RealtimeMonitorToneWarning, "B", prometheusZeroFallback("wukongim_node_memory_rss_bytes")),
 		clusterNodeMetric(accessmanager.RealtimeMonitorCategoryNode, "nodeGoroutines", accessmanager.RealtimeMonitorStageRuntimePressure, accessmanager.RealtimeMonitorToneWarning, "", prometheusZeroFallback("wukongim_node_goroutines")),
+		clusterNodeMetric(accessmanager.RealtimeMonitorCategoryNode, "nodeGCPauseRate", accessmanager.RealtimeMonitorStageRuntimePressure, accessmanager.RealtimeMonitorToneWarning, "ms/s", prometheusZeroFallback("rate(go_gc_duration_seconds_sum[%s]) * 1000")),
+		clusterNodeMetric(accessmanager.RealtimeMonitorCategoryNode, "nodeGCRate", accessmanager.RealtimeMonitorStageRuntimePressure, accessmanager.RealtimeMonitorToneWarning, "events/s", prometheusZeroFallback("rate(go_gc_duration_seconds_count[%s])")),
+		clusterNodeMetric(accessmanager.RealtimeMonitorCategoryNode, "nodeGCCPUFraction", accessmanager.RealtimeMonitorStageRuntimePressure, accessmanager.RealtimeMonitorToneWarning, "%", prometheusZeroFallback("go_memstats_gc_cpu_fraction * 100")),
+		clusterNodeMetric(accessmanager.RealtimeMonitorCategoryNode, "nodeGCHeapGoalUsage", accessmanager.RealtimeMonitorStageRuntimePressure, accessmanager.RealtimeMonitorToneWarning, "%", prometheusZeroFallback("(go_memstats_heap_alloc_bytes / clamp_min(go_memstats_next_gc_bytes, 1)) * 100")),
 	}
 }
 

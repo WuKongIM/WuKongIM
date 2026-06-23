@@ -110,6 +110,9 @@ sampler.
 Slot cards cover Slot leader stability, proposal/apply rate and gap, proposal
 admission rejects, leader-change rate, replica lag, and Slot scheduler
 queue/inflight/task-latency pressure.
+Node cards cover runtime workqueue pressure, process CPU, RSS memory,
+goroutine count, and Go GC pause/rate/CPU/heap-goal pressure while preserving
+per-node series for the global cluster view.
 
 `/manager/runtime/workqueues` is backed by the `internalv2/app` top collector.
 It is a forced runtime view of the local node only: it does not fan out to peer

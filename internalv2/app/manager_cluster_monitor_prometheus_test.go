@@ -439,6 +439,89 @@ func TestManagerClusterMonitorProviderIncludesAllNodeResourceStats(t *testing.T)
 	requireClusterCardStat(t, cpuCard, "node-2", 40, "%")
 }
 
+func TestManagerClusterMonitorProviderReturnsNodeGCCards(t *testing.T) {
+	var queries []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query().Get("query")
+		queries = append(queries, query)
+		if strings.Contains(query, "go_gc_duration_seconds_sum") {
+			_, _ = w.Write([]byte(`{"status":"success","data":{"resultType":"matrix","result":[{"metric":{"node_id":"1","node_name":"node-1"},"values":[[1781767200,"0.25"],[1781767220,"0.5"]]},{"metric":{"node_id":"2","node_name":"node-2"},"values":[[1781767200,"0.4"],[1781767220,"0.75"]]}]}}`))
+			return
+		}
+		writePrometheusRangeForTest(w, "7")
+	}))
+	defer server.Close()
+	provider := newManagerPrometheusMonitorProvider(managerPrometheusMonitorOptions{
+		Enabled: true,
+		BaseURL: server.URL,
+		Client:  server.Client(),
+		Now:     func() time.Time { return time.Unix(1781767240, 0).UTC() },
+		Control: managerClusterControlReaderFake{},
+	})
+
+	resp, err := provider.RealtimeMonitor(context.Background(), accessmanager.RealtimeMonitorQuery{
+		Window:   15 * time.Minute,
+		Step:     20 * time.Second,
+		Category: accessmanager.RealtimeMonitorCategoryNode,
+	})
+
+	if err != nil {
+		t.Fatalf("RealtimeMonitor() error = %v", err)
+	}
+	wantKeys := []string{
+		"workqueuePressure",
+		"nodeCpuPercent",
+		"nodeMemoryRSS",
+		"nodeGoroutines",
+		"nodeGCPauseRate",
+		"nodeGCRate",
+		"nodeGCCPUFraction",
+		"nodeGCHeapGoalUsage",
+	}
+	requireMonitorCardKeysForTest(t, resp.Cards, wantKeys)
+	var nodeCategoryCount int
+	for _, category := range resp.Categories {
+		if category.Key == accessmanager.RealtimeMonitorCategoryNode {
+			nodeCategoryCount = category.Count
+			break
+		}
+	}
+	if nodeCategoryCount != len(wantKeys) {
+		t.Fatalf("node category count = %d, want %d", nodeCategoryCount, len(wantKeys))
+	}
+
+	joinedQueries := strings.Join(queries, "\n")
+	for _, want := range []string{
+		`go_gc_duration_seconds_sum{job="wukongimv2"}[1m]`,
+		`go_gc_duration_seconds_count{job="wukongimv2"}[1m]`,
+		`go_memstats_gc_cpu_fraction{job="wukongimv2"}`,
+		`go_memstats_heap_alloc_bytes{job="wukongimv2"}`,
+		`go_memstats_next_gc_bytes{job="wukongimv2"}`,
+	} {
+		if !strings.Contains(joinedQueries, want) {
+			t.Fatalf("queries missing %q: %s", want, joinedQueries)
+		}
+	}
+	for _, forbidden := range []string{
+		"sum(rate(go_gc_duration_seconds_sum",
+		"sum(rate(go_gc_duration_seconds_count",
+		"max(go_memstats_gc_cpu_fraction",
+		"max((go_memstats_heap_alloc_bytes",
+	} {
+		if strings.Contains(joinedQueries, forbidden) {
+			t.Fatalf("queries contain node-label-dropping aggregation %q: %s", forbidden, joinedQueries)
+		}
+	}
+	gcPauseCard := requireMonitorCardForTest(t, resp.Cards, "nodeGCPauseRate")
+	if gcPauseCard.Unit != "ms/s" {
+		t.Fatalf("nodeGCPauseRate unit = %q, want ms/s", gcPauseCard.Unit)
+	}
+	if len(gcPauseCard.Stats) != 2 {
+		t.Fatalf("nodeGCPauseRate stats = %#v, want per-node stats", gcPauseCard.Stats)
+	}
+	requireClusterCardPoint(t, gcPauseCard, 1781767220000, "node-2", 0.75)
+}
+
 func TestManagerClusterMonitorProviderFiltersPromQLAndControlSnapshotByNodeID(t *testing.T) {
 	var queries []string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
