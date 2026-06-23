@@ -181,6 +181,15 @@ func TestNewMessageDBFactoryWithOptionsConfiguresCommitCoordinatorTuning(t *test
 	require.Equal(t, 4, cfg.Shards)
 }
 
+func TestMessageDBFactoryMetricsSnapshotReportsPhysicalStore(t *testing.T) {
+	factory := NewMessageDBFactory(t.TempDir())
+	t.Cleanup(func() { _ = factory.Close() })
+
+	snapshot := factory.MetricsSnapshot()
+	require.Greater(t, snapshot.DiskSpaceUsageBytes, uint64(0))
+	require.GreaterOrEqual(t, snapshot.ReadAmplification, 0)
+}
+
 func TestStoreApplyFetchRecordsPrefersTrustedPath(t *testing.T) {
 	store := &trustedApplyFetchRecorder{leo: 7}
 

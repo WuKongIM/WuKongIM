@@ -79,7 +79,7 @@ routes are intentionally not migrated in this phase.
 `/manager/realtime-monitor` backs the unified web realtime monitor under
 cluster operations. It parses chart `window`, optional `step`, optional
 positive `node_id`, and `category` (`common`, `gateway`, `internal`, `message`,
-`conversation`, `channel`, `control`, `slot`, or `node`), requires
+`conversation`, `channel`, `database`, `control`, `slot`, or `node`), requires
 `cluster.node:r` when manager auth is enabled, and delegates Prometheus plus
 bounded `control_snapshot` reads to the app-wired realtime monitor provider.
 When Prometheus is disabled or unavailable the route still returns HTTP 200
@@ -103,6 +103,10 @@ error closure. Channel cards cover ChannelV2 append tail latency, active
 runtime count, append batch shape, append error rate, channel writer admission
 pressure, parked followers, activation rejections, reactor mailbox depth,
 worker queue depth, PullHint error rate, and follower replication tail latency.
+Database cards cover message DB commit request tail latency, commit error rate,
+commit queue pressure, physical commit tail latency, and grouped commit batch
+shape. Disk usage is not exposed here until internalv2 owns a database disk
+sampler.
 Slot cards cover Slot leader stability, proposal/apply rate and gap, proposal
 admission rejects, leader-change rate, replica lag, and Slot scheduler
 queue/inflight/task-latency pressure.

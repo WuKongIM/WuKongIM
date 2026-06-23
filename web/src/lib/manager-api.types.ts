@@ -302,6 +302,7 @@ export type RealtimeMonitorCategory =
   | "message"
   | "conversation"
   | "channel"
+  | "database"
   | "control"
   | "slot"
   | "node"

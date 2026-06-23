@@ -17,13 +17,28 @@ var storageStores = []string{
 var storageCommitRequestDurationBuckets = []float64{0.0005, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 15, 30}
 
 type StorageMetrics struct {
-	diskUsageBytes        *prometheus.GaugeVec
-	commitQueueDepth      *prometheus.GaugeVec
-	commitBatchRecords    *prometheus.HistogramVec
-	commitBatchBytes      *prometheus.HistogramVec
-	commitBatchRequests   *prometheus.HistogramVec
-	commitBatchDuration   *prometheus.HistogramVec
-	commitRequestDuration *prometheus.HistogramVec
+	diskUsageBytes                  *prometheus.GaugeVec
+	pebbleDiskUsageBytes            *prometheus.GaugeVec
+	pebbleReadAmplification         *prometheus.GaugeVec
+	pebbleMemTableSizeBytes         *prometheus.GaugeVec
+	pebbleMemTableCount             *prometheus.GaugeVec
+	pebbleWALFiles                  *prometheus.GaugeVec
+	pebbleWALSizeBytes              *prometheus.GaugeVec
+	pebbleWALPhysicalSizeBytes      *prometheus.GaugeVec
+	pebbleWALBytesIn                *prometheus.GaugeVec
+	pebbleWALBytesWritten           *prometheus.GaugeVec
+	pebbleFlushCount                *prometheus.GaugeVec
+	pebbleFlushesInProgress         *prometheus.GaugeVec
+	pebbleCompactionCount           *prometheus.GaugeVec
+	pebbleCompactionEstimatedDebt   *prometheus.GaugeVec
+	pebbleCompactionInProgressBytes *prometheus.GaugeVec
+	pebbleCompactionsInProgress     *prometheus.GaugeVec
+	commitQueueDepth                *prometheus.GaugeVec
+	commitBatchRecords              *prometheus.HistogramVec
+	commitBatchBytes                *prometheus.HistogramVec
+	commitBatchRequests             *prometheus.HistogramVec
+	commitBatchDuration             *prometheus.HistogramVec
+	commitRequestDuration           *prometheus.HistogramVec
 }
 
 // StorageCommitBatchObservation describes one grouped storage commit attempt.
@@ -45,11 +60,120 @@ type StorageCommitRequestObservation struct {
 	Duration time.Duration
 }
 
+// StoragePebbleObservation describes one Pebble-backed storage engine snapshot.
+type StoragePebbleObservation struct {
+	// DiskSpaceUsageBytes is the engine's local disk usage, including live and obsolete files.
+	DiskSpaceUsageBytes uint64
+	// ReadAmplification is the current LSM read amplification estimate.
+	ReadAmplification int
+	// MemTableSizeBytes is the bytes allocated by active memtables and flushable batches.
+	MemTableSizeBytes uint64
+	// MemTableCount is the number of active memtables.
+	MemTableCount int64
+	// WALFiles is the number of live WAL files.
+	WALFiles int64
+	// WALSizeBytes is the live logical size of WAL files.
+	WALSizeBytes uint64
+	// WALPhysicalSizeBytes is the physical on-disk size of WAL files.
+	WALPhysicalSizeBytes uint64
+	// WALBytesIn is the logical bytes written to the WAL.
+	WALBytesIn uint64
+	// WALBytesWritten is the physical bytes written to the WAL.
+	WALBytesWritten uint64
+	// FlushCount is the number of completed flushes since the engine opened.
+	FlushCount int64
+	// FlushesInProgress is the current number of flushes in progress.
+	FlushesInProgress int64
+	// CompactionCount is the number of completed compactions since the engine opened.
+	CompactionCount int64
+	// CompactionEstimatedDebtBytes is Pebble's estimate of bytes that need compaction.
+	CompactionEstimatedDebtBytes uint64
+	// CompactionInProgressBytes is the bytes being written by in-progress compactions.
+	CompactionInProgressBytes int64
+	// CompactionsInProgress is the current number of compactions in progress.
+	CompactionsInProgress int64
+}
+
 func newStorageMetrics(registry prometheus.Registerer, labels prometheus.Labels) *StorageMetrics {
 	m := &StorageMetrics{
 		diskUsageBytes: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name:        "wukongim_storage_disk_usage_bytes",
 			Help:        "Disk usage by storage subsystem in bytes.",
+			ConstLabels: labels,
+		}, []string{"store"}),
+		pebbleDiskUsageBytes: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name:        "wukongim_storage_pebble_disk_usage_bytes",
+			Help:        "Pebble local disk usage by storage subsystem in bytes.",
+			ConstLabels: labels,
+		}, []string{"store"}),
+		pebbleReadAmplification: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name:        "wukongim_storage_pebble_read_amplification",
+			Help:        "Pebble LSM read amplification by storage subsystem.",
+			ConstLabels: labels,
+		}, []string{"store"}),
+		pebbleMemTableSizeBytes: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name:        "wukongim_storage_pebble_memtable_size_bytes",
+			Help:        "Pebble memtable and flushable batch memory by storage subsystem in bytes.",
+			ConstLabels: labels,
+		}, []string{"store"}),
+		pebbleMemTableCount: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name:        "wukongim_storage_pebble_memtable_count",
+			Help:        "Pebble active memtable count by storage subsystem.",
+			ConstLabels: labels,
+		}, []string{"store"}),
+		pebbleWALFiles: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name:        "wukongim_storage_pebble_wal_files",
+			Help:        "Pebble live WAL file count by storage subsystem.",
+			ConstLabels: labels,
+		}, []string{"store"}),
+		pebbleWALSizeBytes: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name:        "wukongim_storage_pebble_wal_size_bytes",
+			Help:        "Pebble live logical WAL size by storage subsystem in bytes.",
+			ConstLabels: labels,
+		}, []string{"store"}),
+		pebbleWALPhysicalSizeBytes: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name:        "wukongim_storage_pebble_wal_physical_size_bytes",
+			Help:        "Pebble physical WAL size by storage subsystem in bytes.",
+			ConstLabels: labels,
+		}, []string{"store"}),
+		pebbleWALBytesIn: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name:        "wukongim_storage_pebble_wal_bytes_in",
+			Help:        "Pebble logical bytes written to the WAL by storage subsystem.",
+			ConstLabels: labels,
+		}, []string{"store"}),
+		pebbleWALBytesWritten: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name:        "wukongim_storage_pebble_wal_bytes_written",
+			Help:        "Pebble physical bytes written to the WAL by storage subsystem.",
+			ConstLabels: labels,
+		}, []string{"store"}),
+		pebbleFlushCount: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name:        "wukongim_storage_pebble_flush_count",
+			Help:        "Pebble completed flush count by storage subsystem since engine open.",
+			ConstLabels: labels,
+		}, []string{"store"}),
+		pebbleFlushesInProgress: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name:        "wukongim_storage_pebble_flushes_in_progress",
+			Help:        "Pebble flushes currently in progress by storage subsystem.",
+			ConstLabels: labels,
+		}, []string{"store"}),
+		pebbleCompactionCount: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name:        "wukongim_storage_pebble_compaction_count",
+			Help:        "Pebble completed compaction count by storage subsystem since engine open.",
+			ConstLabels: labels,
+		}, []string{"store"}),
+		pebbleCompactionEstimatedDebt: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name:        "wukongim_storage_pebble_compaction_estimated_debt_bytes",
+			Help:        "Pebble estimated compaction debt by storage subsystem in bytes.",
+			ConstLabels: labels,
+		}, []string{"store"}),
+		pebbleCompactionInProgressBytes: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name:        "wukongim_storage_pebble_compaction_in_progress_bytes",
+			Help:        "Pebble bytes being written by in-progress compactions by storage subsystem.",
+			ConstLabels: labels,
+		}, []string{"store"}),
+		pebbleCompactionsInProgress: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name:        "wukongim_storage_pebble_compactions_in_progress",
+			Help:        "Pebble compactions currently in progress by storage subsystem.",
 			ConstLabels: labels,
 		}, []string{"store"}),
 		commitQueueDepth: prometheus.NewGaugeVec(prometheus.GaugeOpts{
@@ -91,6 +215,21 @@ func newStorageMetrics(registry prometheus.Registerer, labels prometheus.Labels)
 
 	registry.MustRegister(
 		m.diskUsageBytes,
+		m.pebbleDiskUsageBytes,
+		m.pebbleReadAmplification,
+		m.pebbleMemTableSizeBytes,
+		m.pebbleMemTableCount,
+		m.pebbleWALFiles,
+		m.pebbleWALSizeBytes,
+		m.pebbleWALPhysicalSizeBytes,
+		m.pebbleWALBytesIn,
+		m.pebbleWALBytesWritten,
+		m.pebbleFlushCount,
+		m.pebbleFlushesInProgress,
+		m.pebbleCompactionCount,
+		m.pebbleCompactionEstimatedDebt,
+		m.pebbleCompactionInProgressBytes,
+		m.pebbleCompactionsInProgress,
 		m.commitQueueDepth,
 		m.commitBatchRequests,
 		m.commitBatchRecords,
@@ -101,6 +240,7 @@ func newStorageMetrics(registry prometheus.Registerer, labels prometheus.Labels)
 
 	for _, store := range storageStores {
 		m.diskUsageBytes.WithLabelValues(store).Set(0)
+		m.SetPebbleMetrics(store, StoragePebbleObservation{})
 	}
 
 	return m
@@ -122,6 +262,30 @@ func (m *StorageMetrics) SetDiskUsage(usageByStore map[string]int64) {
 		}
 		m.diskUsageBytes.WithLabelValues(store).Set(float64(size))
 	}
+}
+
+func (m *StorageMetrics) SetPebbleMetrics(store string, obs StoragePebbleObservation) {
+	if m == nil {
+		return
+	}
+	if store == "" {
+		store = "unknown"
+	}
+	m.pebbleDiskUsageBytes.WithLabelValues(store).Set(float64(obs.DiskSpaceUsageBytes))
+	m.pebbleReadAmplification.WithLabelValues(store).Set(float64(obs.ReadAmplification))
+	m.pebbleMemTableSizeBytes.WithLabelValues(store).Set(float64(obs.MemTableSizeBytes))
+	m.pebbleMemTableCount.WithLabelValues(store).Set(float64(obs.MemTableCount))
+	m.pebbleWALFiles.WithLabelValues(store).Set(float64(obs.WALFiles))
+	m.pebbleWALSizeBytes.WithLabelValues(store).Set(float64(obs.WALSizeBytes))
+	m.pebbleWALPhysicalSizeBytes.WithLabelValues(store).Set(float64(obs.WALPhysicalSizeBytes))
+	m.pebbleWALBytesIn.WithLabelValues(store).Set(float64(obs.WALBytesIn))
+	m.pebbleWALBytesWritten.WithLabelValues(store).Set(float64(obs.WALBytesWritten))
+	m.pebbleFlushCount.WithLabelValues(store).Set(float64(obs.FlushCount))
+	m.pebbleFlushesInProgress.WithLabelValues(store).Set(float64(obs.FlushesInProgress))
+	m.pebbleCompactionCount.WithLabelValues(store).Set(float64(obs.CompactionCount))
+	m.pebbleCompactionEstimatedDebt.WithLabelValues(store).Set(float64(obs.CompactionEstimatedDebtBytes))
+	m.pebbleCompactionInProgressBytes.WithLabelValues(store).Set(float64(obs.CompactionInProgressBytes))
+	m.pebbleCompactionsInProgress.WithLabelValues(store).Set(float64(obs.CompactionsInProgress))
 }
 
 func (m *StorageMetrics) SetCommitQueueDepth(store string, depth int) {

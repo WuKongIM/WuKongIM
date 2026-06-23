@@ -24,6 +24,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/transport"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/worker"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
+	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
 	messagedb "github.com/WuKongIM/WuKongIM/pkg/db/message"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/gateway"
@@ -518,6 +519,68 @@ func TestControllerRaftMetricsObserverMapsApplyGap(t *testing.T) {
 	gapMetric = findAppMetricByLabels(t, applyGap, nil)
 	if got := gapMetric.GetGauge().GetValue(); got != 0 {
 		t.Fatalf("controller apply gap after applied catches up = %v, want 0", got)
+	}
+}
+
+func TestControlSnapshotMetricsObserverMapsControllerHealth(t *testing.T) {
+	reg := obsmetrics.New(1, "n1")
+	observer := controlSnapshotMetricsObserver{metrics: reg}
+
+	observer.ObserveControlSnapshot(control.Snapshot{
+		Revision:     42,
+		ControllerID: 1,
+		Nodes: []control.Node{
+			{NodeID: 1, Roles: []control.Role{control.RoleController, control.RoleData}, Status: control.NodeAlive},
+			{NodeID: 2, Roles: []control.Role{control.RoleController, control.RoleData}, Status: control.NodeAlive},
+			{NodeID: 3, Roles: []control.Role{control.RoleData}, Status: control.NodeDown},
+			{NodeID: 4, Roles: []control.Role{control.RoleController}, Status: control.NodeSuspect},
+		},
+		Slots: []control.SlotAssignment{
+			{SlotID: 1, DesiredPeers: []uint64{1, 2}, PreferredLeader: 1},
+			{SlotID: 2, DesiredPeers: []uint64{1, 2}, PreferredLeader: 1},
+			{SlotID: 3, DesiredPeers: []uint64{1, 2}, PreferredLeader: 2},
+		},
+		Tasks: []control.ReconcileTask{
+			{TaskID: "slot-1-transfer", SlotID: 1, Kind: control.TaskKindLeaderTransfer, Step: control.TaskStepTransferLeader, Status: control.TaskStatusFailed},
+			{TaskID: "slot-2-bootstrap", SlotID: 2, Kind: control.TaskKindBootstrap, Step: control.TaskStepCreateSlot, Status: control.TaskStatusPending},
+		},
+	})
+
+	families, err := reg.Gather()
+	if err != nil {
+		t.Fatalf("Gather() error = %v", err)
+	}
+
+	revision := requireAppMetricFamily(t, families, "wukongim_controller_state_revision")
+	if got := revision.GetMetric()[0].GetGauge().GetValue(); got != 42 {
+		t.Fatalf("controller revision = %v, want 42", got)
+	}
+	leaderPresent := requireAppMetricFamily(t, families, "wukongim_controller_leader_present")
+	if got := leaderPresent.GetMetric()[0].GetGauge().GetValue(); got != 1 {
+		t.Fatalf("controller leader present = %v, want 1", got)
+	}
+	nodesSuspect := requireAppMetricFamily(t, families, "wukongim_controller_nodes_suspect")
+	if got := nodesSuspect.GetMetric()[0].GetGauge().GetValue(); got != 1 {
+		t.Fatalf("controller suspect nodes = %v, want 1", got)
+	}
+	nodesDead := requireAppMetricFamily(t, families, "wukongim_controller_nodes_dead")
+	if got := nodesDead.GetMetric()[0].GetGauge().GetValue(); got != 1 {
+		t.Fatalf("controller dead nodes = %v, want 1", got)
+	}
+	active := requireAppMetricFamily(t, families, "wukongim_controller_tasks_active")
+	if got := findAppMetricByLabels(t, active, map[string]string{"type": "leader_transfer"}).GetGauge().GetValue(); got != 0 {
+		t.Fatalf("leader transfer active tasks = %v, want 0", got)
+	}
+	if got := findAppMetricByLabels(t, active, map[string]string{"type": "bootstrap"}).GetGauge().GetValue(); got != 1 {
+		t.Fatalf("bootstrap active tasks = %v, want 1", got)
+	}
+	failed := requireAppMetricFamily(t, families, "wukongim_controller_tasks_failed")
+	if got := findAppMetricByLabels(t, failed, map[string]string{"type": "leader_transfer"}).GetGauge().GetValue(); got != 1 {
+		t.Fatalf("leader transfer failed tasks = %v, want 1", got)
+	}
+	skew := requireAppMetricFamily(t, families, "wukongim_controller_slot_leader_skew")
+	if got := skew.GetMetric()[0].GetGauge().GetValue(); got != 1 {
+		t.Fatalf("controller slot leader skew = %v, want 1", got)
 	}
 }
 

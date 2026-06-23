@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/reactor"
+	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
 	messagedb "github.com/WuKongIM/WuKongIM/pkg/db/message"
 	gorutine "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
@@ -54,12 +55,19 @@ type ControlConfig struct {
 	AllowBootstrap bool
 	// RaftObserver receives local ControllerV2 Raft queue metrics.
 	RaftObserver ControllerRaftObserver
+	// SnapshotObserver receives low-frequency locally visible control snapshots.
+	SnapshotObserver ControlSnapshotObserver
 }
 
 // ControllerRaftObserver receives low-cardinality local ControllerV2 Raft runtime metrics.
 type ControllerRaftObserver interface {
 	SetStepQueueDepth(depth int, capacity int)
 	ObserveStepEnqueue(result string, d time.Duration)
+}
+
+// ControlSnapshotObserver receives low-frequency control-plane state snapshots.
+type ControlSnapshotObserver interface {
+	ObserveControlSnapshot(control.Snapshot)
 }
 
 // ControlRole declares how this node participates in ControllerV2.

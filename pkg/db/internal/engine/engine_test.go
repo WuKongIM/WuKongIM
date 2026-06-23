@@ -180,6 +180,48 @@ func TestOpenReadOnlyRejectsWrites(t *testing.T) {
 	}
 }
 
+func TestMetricsSnapshotReportsPebblePressure(t *testing.T) {
+	db := openTestDB(t)
+	batch := db.NewBatch()
+	if err := batch.Set([]byte("metrics-key"), []byte("metrics-value")); err != nil {
+		t.Fatalf("Set(): %v", err)
+	}
+	if err := batch.Commit(true); err != nil {
+		t.Fatalf("Commit(): %v", err)
+	}
+	if err := batch.Close(); err != nil {
+		t.Fatalf("Close batch(): %v", err)
+	}
+
+	snapshot := db.MetricsSnapshot()
+	if snapshot.DiskSpaceUsageBytes == 0 {
+		t.Fatalf("DiskSpaceUsageBytes = 0, want Pebble disk usage")
+	}
+	if snapshot.WALBytesIn == 0 {
+		t.Fatalf("WALBytesIn = 0, want WAL bytes after a committed write")
+	}
+	if snapshot.WALFiles == 0 {
+		t.Fatalf("WALFiles = 0, want live WAL file count")
+	}
+	if snapshot.ReadAmplification < 0 {
+		t.Fatalf("ReadAmplification = %d, want non-negative value", snapshot.ReadAmplification)
+	}
+}
+
+func TestMetricsSnapshotReturnsZeroWhenClosed(t *testing.T) {
+	db, err := engine.Open(t.TempDir(), engine.Options{})
+	if err != nil {
+		t.Fatalf("Open(): %v", err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatalf("Close(): %v", err)
+	}
+
+	if got := db.MetricsSnapshot(); got != (engine.MetricsSnapshot{}) {
+		t.Fatalf("MetricsSnapshot() after Close = %#v, want zero snapshot", got)
+	}
+}
+
 func openTestDB(t *testing.T) *engine.DB {
 	t.Helper()
 	db, err := engine.Open(t.TempDir(), engine.Options{})

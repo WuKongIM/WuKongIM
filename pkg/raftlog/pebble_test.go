@@ -76,6 +76,26 @@ func TestPebbleForControllerReturnsStorage(t *testing.T) {
 	}
 }
 
+func TestPebbleMetricsSnapshotReportsPhysicalStore(t *testing.T) {
+	db, err := Open(filepath.Join(t.TempDir(), "raft"), Options{})
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Fatalf("Close() error = %v", err)
+		}
+	})
+
+	snapshot := db.MetricsSnapshot()
+	if snapshot.DiskSpaceUsageBytes == 0 {
+		t.Fatalf("DiskSpaceUsageBytes = 0, want physical usage")
+	}
+	if snapshot.ReadAmplification < 0 {
+		t.Fatalf("ReadAmplification = %d, want non-negative value", snapshot.ReadAmplification)
+	}
+}
+
 func TestPebbleOpenInitializesManifest(t *testing.T) {
 	db, err := Open(filepath.Join(t.TempDir(), "raft"), Options{})
 	if err != nil {

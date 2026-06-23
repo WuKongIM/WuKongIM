@@ -927,7 +927,10 @@ func TestControllerMetricsIncludeLeaderTransferAndLeaderSkew(t *testing.T) {
 	reg.Controller.ObserveDecision("leader_transfer", time.Millisecond)
 	reg.Controller.ObserveTaskCompleted("leader_transfer", "safety_check")
 	reg.Controller.SetTaskActive(map[string]int{"leader_transfer": 1})
+	reg.Controller.SetTaskFailed(map[string]int{"leader_transfer": 1})
 	reg.Controller.SetSlotLeaderSkew(2)
+	reg.Controller.SetStateRevision(42)
+	reg.Controller.SetLeaderPresent(true)
 
 	families, err := reg.Gather()
 	require.NoError(t, err)
@@ -946,8 +949,18 @@ func TestControllerMetricsIncludeLeaderTransferAndLeaderSkew(t *testing.T) {
 	activeLeaderTransfer := findMetricByLabels(t, active, map[string]string{"type": "leader_transfer"})
 	require.Equal(t, float64(1), activeLeaderTransfer.GetGauge().GetValue())
 
+	failed := requireMetricFamily(t, families, "wukongim_controller_tasks_failed")
+	failedLeaderTransfer := findMetricByLabels(t, failed, map[string]string{"type": "leader_transfer"})
+	require.Equal(t, float64(1), failedLeaderTransfer.GetGauge().GetValue())
+
 	skew := requireMetricFamily(t, families, "wukongim_controller_slot_leader_skew")
 	require.Equal(t, float64(2), skew.GetMetric()[0].GetGauge().GetValue())
+
+	revision := requireMetricFamily(t, families, "wukongim_controller_state_revision")
+	require.Equal(t, float64(42), revision.GetMetric()[0].GetGauge().GetValue())
+
+	leaderPresent := requireMetricFamily(t, families, "wukongim_controller_leader_present")
+	require.Equal(t, float64(1), leaderPresent.GetMetric()[0].GetGauge().GetValue())
 }
 
 func TestStorageMetricsTrackDiskUsageByStore(t *testing.T) {
@@ -982,6 +995,62 @@ func TestStorageMetricsTrackDiskUsageByStore(t *testing.T) {
 		require.True(t, ok, "unexpected store label %q", store)
 		require.Equal(t, expected, metric.GetGauge().GetValue(), "store %s", store)
 	}
+}
+
+func TestStorageMetricsTrackPebbleEngineSnapshot(t *testing.T) {
+	reg := New(15, "node-15")
+
+	reg.Storage.SetPebbleMetrics("channel_log", StoragePebbleObservation{
+		DiskSpaceUsageBytes:          1024,
+		ReadAmplification:            3,
+		MemTableSizeBytes:            2048,
+		MemTableCount:                2,
+		WALFiles:                     1,
+		WALSizeBytes:                 512,
+		WALPhysicalSizeBytes:         768,
+		WALBytesIn:                   300,
+		WALBytesWritten:              400,
+		FlushCount:                   5,
+		FlushesInProgress:            1,
+		CompactionCount:              7,
+		CompactionEstimatedDebtBytes: 4096,
+		CompactionInProgressBytes:    128,
+		CompactionsInProgress:        2,
+	})
+
+	families, err := reg.Gather()
+	require.NoError(t, err)
+
+	usage := requireMetricFamily(t, families, "wukongim_storage_pebble_disk_usage_bytes")
+	require.Equal(t, float64(1024), findMetricByLabels(t, usage, map[string]string{"store": "channel_log"}).GetGauge().GetValue())
+	readAmp := requireMetricFamily(t, families, "wukongim_storage_pebble_read_amplification")
+	require.Equal(t, float64(3), findMetricByLabels(t, readAmp, map[string]string{"store": "channel_log"}).GetGauge().GetValue())
+	memtableSize := requireMetricFamily(t, families, "wukongim_storage_pebble_memtable_size_bytes")
+	require.Equal(t, float64(2048), findMetricByLabels(t, memtableSize, map[string]string{"store": "channel_log"}).GetGauge().GetValue())
+	memtableCount := requireMetricFamily(t, families, "wukongim_storage_pebble_memtable_count")
+	require.Equal(t, float64(2), findMetricByLabels(t, memtableCount, map[string]string{"store": "channel_log"}).GetGauge().GetValue())
+	walFiles := requireMetricFamily(t, families, "wukongim_storage_pebble_wal_files")
+	require.Equal(t, float64(1), findMetricByLabels(t, walFiles, map[string]string{"store": "channel_log"}).GetGauge().GetValue())
+	walSize := requireMetricFamily(t, families, "wukongim_storage_pebble_wal_size_bytes")
+	require.Equal(t, float64(512), findMetricByLabels(t, walSize, map[string]string{"store": "channel_log"}).GetGauge().GetValue())
+	walPhysical := requireMetricFamily(t, families, "wukongim_storage_pebble_wal_physical_size_bytes")
+	require.Equal(t, float64(768), findMetricByLabels(t, walPhysical, map[string]string{"store": "channel_log"}).GetGauge().GetValue())
+	walBytesIn := requireMetricFamily(t, families, "wukongim_storage_pebble_wal_bytes_in")
+	require.Equal(t, float64(300), findMetricByLabels(t, walBytesIn, map[string]string{"store": "channel_log"}).GetGauge().GetValue())
+	walBytesWritten := requireMetricFamily(t, families, "wukongim_storage_pebble_wal_bytes_written")
+	require.Equal(t, float64(400), findMetricByLabels(t, walBytesWritten, map[string]string{"store": "channel_log"}).GetGauge().GetValue())
+	flushCount := requireMetricFamily(t, families, "wukongim_storage_pebble_flush_count")
+	require.Equal(t, float64(5), findMetricByLabels(t, flushCount, map[string]string{"store": "channel_log"}).GetGauge().GetValue())
+	flushesInProgress := requireMetricFamily(t, families, "wukongim_storage_pebble_flushes_in_progress")
+	require.Equal(t, float64(1), findMetricByLabels(t, flushesInProgress, map[string]string{"store": "channel_log"}).GetGauge().GetValue())
+	compactionCount := requireMetricFamily(t, families, "wukongim_storage_pebble_compaction_count")
+	require.Equal(t, float64(7), findMetricByLabels(t, compactionCount, map[string]string{"store": "channel_log"}).GetGauge().GetValue())
+	compactionDebt := requireMetricFamily(t, families, "wukongim_storage_pebble_compaction_estimated_debt_bytes")
+	require.Equal(t, float64(4096), findMetricByLabels(t, compactionDebt, map[string]string{"store": "channel_log"}).GetGauge().GetValue())
+	compactionBytes := requireMetricFamily(t, families, "wukongim_storage_pebble_compaction_in_progress_bytes")
+	require.Equal(t, float64(128), findMetricByLabels(t, compactionBytes, map[string]string{"store": "channel_log"}).GetGauge().GetValue())
+	compactionsInProgress := requireMetricFamily(t, families, "wukongim_storage_pebble_compactions_in_progress")
+	require.Equal(t, float64(2), findMetricByLabels(t, compactionsInProgress, map[string]string{"store": "channel_log"}).GetGauge().GetValue())
 }
 
 func TestStorageMetricsTrackCommitCoordinator(t *testing.T) {

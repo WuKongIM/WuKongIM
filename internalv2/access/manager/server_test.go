@@ -731,6 +731,31 @@ func TestManagerRealtimeMonitorDefaultsToCommonCategory(t *testing.T) {
 	}
 }
 
+func TestManagerRealtimeMonitorParsesDatabaseCategory(t *testing.T) {
+	provider := &managerMonitorStub{response: RealtimeMonitorResponse{
+		Status:        RealtimeMonitorStatusReady,
+		GeneratedAt:   time.Date(2026, 6, 18, 10, 0, 0, 0, time.UTC),
+		WindowSeconds: 900,
+		StepSeconds:   20,
+		Scope:         RealtimeMonitorScope{View: RealtimeMonitorScopeUnified},
+		Snapshot:      []RealtimeMonitorSnapshotEntry{},
+		Cards:         []RealtimeMonitorCard{},
+	}}
+	srv := New(Options{RealtimeMonitor: provider})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/manager/realtime-monitor?category=database", nil)
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	if provider.query.Category != RealtimeMonitorCategoryDatabase {
+		t.Fatalf("provider query category = %q, want %q", provider.query.Category, RealtimeMonitorCategoryDatabase)
+	}
+}
+
 func TestManagerRealtimeMonitorRejectsInvalidQuery(t *testing.T) {
 	tests := []struct {
 		name string

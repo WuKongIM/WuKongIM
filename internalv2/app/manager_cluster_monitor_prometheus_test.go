@@ -89,6 +89,7 @@ func TestManagerClusterMonitorProviderMapsPrometheusAndControlSnapshot(t *testin
 		"pathErrorRate",
 		"activeConnections",
 		"controllerApplyGap",
+		"controllerRaftStepQueueUsage",
 		"slotLeaderStability",
 		"slotApplyGap",
 		"channelAppendLatencyP99",
@@ -102,6 +103,8 @@ func TestManagerClusterMonitorProviderMapsPrometheusAndControlSnapshot(t *testin
 	}
 	joinedQueries := strings.Join(queries, "\n")
 	if !strings.Contains(joinedQueries, `wukongim_slot_apply_gap{job="wukongimv2"}`) ||
+		!strings.Contains(joinedQueries, `wukongim_controller_raft_step_queue_depth{job="wukongimv2"}`) ||
+		!strings.Contains(joinedQueries, `wukongim_controller_raft_step_queue_capacity{job="wukongimv2"}`) ||
 		!strings.Contains(joinedQueries, `wukongim_node_cpu_percent{job="wukongimv2"}`) ||
 		!strings.Contains(joinedQueries, `wukongim_node_memory_rss_bytes{job="wukongimv2"}`) {
 		t.Fatalf("queries = %#v, want common slot and node metrics", queries)
@@ -166,6 +169,7 @@ func TestManagerClusterMonitorProviderFiltersCommonCards(t *testing.T) {
 		"pathErrorRate",
 		"activeConnections",
 		"controllerApplyGap",
+		"controllerRaftStepQueueUsage",
 		"slotLeaderStability",
 		"slotApplyGap",
 		"channelAppendLatencyP99",
@@ -247,6 +251,129 @@ func TestManagerClusterMonitorProviderReturnsInternalOperatorCards(t *testing.T)
 		`wukongim_transport_dial_duration_seconds_bucket{job="wukongimv2"}[1m]`,
 		`wukongim_runtime_pool_queue_depth{job="wukongimv2",component="transportv2"}`,
 		`wukongim_runtime_pool_admission_total{job="wukongimv2",component="transportv2",result!="ok"}[1m]`,
+	} {
+		if !strings.Contains(joinedQueries, want) {
+			t.Fatalf("queries missing %q: %s", want, joinedQueries)
+		}
+	}
+}
+
+func TestManagerClusterMonitorProviderReturnsDatabaseOperatorCards(t *testing.T) {
+	var queries []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query().Get("query")
+		queries = append(queries, query)
+		writePrometheusRangeForTest(w, "7")
+	}))
+	defer server.Close()
+	provider := newManagerPrometheusMonitorProvider(managerPrometheusMonitorOptions{
+		Enabled: true,
+		BaseURL: server.URL,
+		Client:  server.Client(),
+		Now:     func() time.Time { return time.Unix(1781767240, 0).UTC() },
+		Control: managerClusterControlReaderFake{},
+	})
+
+	resp, err := provider.RealtimeMonitor(context.Background(), accessmanager.RealtimeMonitorQuery{
+		Window:   15 * time.Minute,
+		Step:     20 * time.Second,
+		Category: accessmanager.RealtimeMonitorCategoryDatabase,
+	})
+
+	if err != nil {
+		t.Fatalf("RealtimeMonitor() error = %v", err)
+	}
+	wantKeys := []string{
+		"storageWriteP99",
+		"storageCommitErrorRate",
+		"storageCommitQueueUsage",
+		"storagePhysicalCommitP99",
+		"storageCommitBatchRecordsP95",
+		"storageCommitBatchBytesP95",
+		"storagePebbleDiskUsage",
+		"storagePebbleReadAmplification",
+		"storagePebbleCompactionDebt",
+	}
+	requireMonitorCardKeysForTest(t, resp.Cards, wantKeys)
+	if len(resp.Categories) <= 6 || resp.Categories[6].Key != accessmanager.RealtimeMonitorCategoryDatabase || resp.Categories[6].Count != len(wantKeys) {
+		t.Fatalf("database category = %#v, want count %d", resp.Categories, len(wantKeys))
+	}
+
+	joinedQueries := strings.Join(queries, "\n")
+	for _, want := range []string{
+		`wukongim_storage_commit_request_duration_seconds_bucket{job="wukongimv2"}[1m]`,
+		`wukongim_storage_commit_request_duration_seconds_count{job="wukongimv2",result!="ok"}[1m]`,
+		`wukongim_runtime_pool_queue_depth{job="wukongimv2",component="db",pool="message_commit",queue="commit"}`,
+		`wukongim_runtime_pool_queue_capacity{job="wukongimv2",component="db",pool="message_commit",queue="commit"}`,
+		`wukongim_storage_commit_batch_duration_seconds_bucket{job="wukongimv2",stage="commit"}[1m]`,
+		`wukongim_storage_commit_batch_records_bucket{job="wukongimv2"}[1m]`,
+		`wukongim_storage_commit_batch_bytes_bucket{job="wukongimv2"}[1m]`,
+		`wukongim_storage_pebble_disk_usage_bytes{job="wukongimv2"}`,
+		`wukongim_storage_pebble_read_amplification{job="wukongimv2"}`,
+		`wukongim_storage_pebble_compaction_estimated_debt_bytes{job="wukongimv2"}`,
+	} {
+		if !strings.Contains(joinedQueries, want) {
+			t.Fatalf("queries missing %q: %s", want, joinedQueries)
+		}
+	}
+}
+
+func TestManagerClusterMonitorProviderReturnsControlOperatorCards(t *testing.T) {
+	var queries []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query().Get("query")
+		queries = append(queries, query)
+		writePrometheusRangeForTest(w, "7")
+	}))
+	defer server.Close()
+	provider := newManagerPrometheusMonitorProvider(managerPrometheusMonitorOptions{
+		Enabled: true,
+		BaseURL: server.URL,
+		Client:  server.Client(),
+		Now:     func() time.Time { return time.Unix(1781767240, 0).UTC() },
+		Control: managerClusterControlReaderFake{},
+	})
+
+	resp, err := provider.RealtimeMonitor(context.Background(), accessmanager.RealtimeMonitorQuery{
+		Window:   15 * time.Minute,
+		Step:     20 * time.Second,
+		Category: accessmanager.RealtimeMonitorCategoryControl,
+	})
+
+	if err != nil {
+		t.Fatalf("RealtimeMonitor() error = %v", err)
+	}
+	wantKeys := []string{
+		"controllerApplyGap",
+		"controllerRaftStepQueueUsage",
+		"controllerRaftStepEnqueueLatencyP99",
+		"controllerRaftStepEnqueueErrorRate",
+		"controllerStateRevision",
+		"controllerActiveTasks",
+		"controllerFailedTasks",
+		"controllerNodesUnhealthy",
+		"controllerSlotLeaderSkew",
+		"controllerLeaderPresent",
+	}
+	requireMonitorCardKeysForTest(t, resp.Cards, wantKeys)
+	if resp.Categories[7].Key != accessmanager.RealtimeMonitorCategoryControl || resp.Categories[7].Count != len(wantKeys) {
+		t.Fatalf("control category = %#v, want count %d", resp.Categories[7], len(wantKeys))
+	}
+
+	joinedQueries := strings.Join(queries, "\n")
+	for _, want := range []string{
+		`wukongim_controller_apply_gap{job="wukongimv2"}`,
+		`wukongim_controller_raft_step_queue_depth{job="wukongimv2"}`,
+		`wukongim_controller_raft_step_queue_capacity{job="wukongimv2"}`,
+		`wukongim_controller_raft_step_enqueue_duration_seconds_bucket{job="wukongimv2"}[1m]`,
+		`wukongim_controller_raft_step_enqueue_duration_seconds_count{job="wukongimv2",result!="ok"}[1m]`,
+		`wukongim_controller_state_revision{job="wukongimv2"}`,
+		`wukongim_controller_tasks_active{job="wukongimv2"}`,
+		`wukongim_controller_tasks_failed{job="wukongimv2"}`,
+		`wukongim_controller_nodes_suspect{job="wukongimv2"}`,
+		`wukongim_controller_nodes_dead{job="wukongimv2"}`,
+		`wukongim_controller_slot_leader_skew{job="wukongimv2"}`,
+		`wukongim_controller_leader_present{job="wukongimv2"}`,
 	} {
 		if !strings.Contains(joinedQueries, want) {
 			t.Fatalf("queries missing %q: %s", want, joinedQueries)
@@ -344,6 +471,8 @@ func TestManagerClusterMonitorProviderFiltersPromQLAndControlSnapshotByNodeID(t 
 	joinedQueries := strings.Join(queries, "\n")
 	for _, want := range []string{
 		`wukongim_controller_apply_gap{job="wukongimv2",node_id="2"}`,
+		`wukongim_controller_raft_step_queue_depth{job="wukongimv2",node_id="2"}`,
+		`wukongim_controller_raft_step_queue_capacity{job="wukongimv2",node_id="2"}`,
 		`wukongim_transport_rpc_total{job="wukongimv2",node_id="2",result="ok"}[1m]`,
 		`wukongim_transport_rpc_total{job="wukongimv2",node_id="2"}[1m]`,
 	} {
@@ -353,12 +482,20 @@ func TestManagerClusterMonitorProviderFiltersPromQLAndControlSnapshotByNodeID(t 
 	}
 	for _, forbidden := range []string{
 		`wukongim_controller_apply_gap`,
+		`wukongim_controller_raft_step_queue_depth`,
 		`wukongim_controller_apply_gap{node_id="2"}`,
+		`wukongim_controller_raft_step_queue_depth{node_id="2"}`,
 		`wukongim_transport_rpc_total{node_id="2",result="ok"}[1m]`,
 		`wukongim_transport_rpc_total{result="ok"}[1m]`,
 	} {
 		if forbidden == `wukongim_controller_apply_gap` {
 			if strings.Contains(joinedQueries, `max(wukongim_controller_apply_gap)`) {
+				t.Fatalf("promql queries still contain unfiltered selector %q: %s", forbidden, joinedQueries)
+			}
+			continue
+		}
+		if forbidden == `wukongim_controller_raft_step_queue_depth` {
+			if strings.Contains(joinedQueries, `max(wukongim_controller_raft_step_queue_depth)`) {
 				t.Fatalf("promql queries still contain unfiltered selector %q: %s", forbidden, joinedQueries)
 			}
 			continue

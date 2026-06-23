@@ -50,3 +50,30 @@ func TestOpenNodeStoreExposesMetaDomain(t *testing.T) {
 		t.Fatal("Meta() = nil")
 	}
 }
+
+func TestNodeStoreMetricsSnapshotIncludesPhysicalStores(t *testing.T) {
+	opts := db.DefaultNodeStoreOptions(t.TempDir())
+	store, err := db.OpenNodeStore(opts)
+	if err != nil {
+		t.Fatalf("OpenNodeStore(): %v", err)
+	}
+	defer store.Close()
+
+	snapshot := store.MetricsSnapshot()
+	if len(snapshot.Stores) != 2 {
+		t.Fatalf("stores = %#v, want message and meta", snapshot.Stores)
+	}
+	byStore := make(map[string]db.StorageEngineMetrics, len(snapshot.Stores))
+	for _, storeSnapshot := range snapshot.Stores {
+		byStore[storeSnapshot.Store] = storeSnapshot.Engine
+	}
+	for _, name := range []string{"message", "meta"} {
+		engineMetrics, ok := byStore[name]
+		if !ok {
+			t.Fatalf("store %q missing from metrics snapshot: %#v", name, snapshot.Stores)
+		}
+		if engineMetrics.DiskSpaceUsageBytes == 0 {
+			t.Fatalf("store %q DiskSpaceUsageBytes = 0, want physical usage", name)
+		}
+	}
+}

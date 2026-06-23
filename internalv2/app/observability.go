@@ -21,6 +21,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/worker"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
 	clusterv2channels "github.com/WuKongIM/WuKongIM/pkg/clusterv2/channels"
+	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
 	cv2raft "github.com/WuKongIM/WuKongIM/pkg/controllerv2/raft"
 	messagedb "github.com/WuKongIM/WuKongIM/pkg/db/message"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
@@ -61,6 +62,10 @@ type controllerRaftMetricsObserver struct {
 	metrics *obsmetrics.Registry
 }
 
+type controlSnapshotMetricsObserver struct {
+	metrics *obsmetrics.Registry
+}
+
 type storageCommitMetricsObserver struct {
 	metrics *obsmetrics.Registry
 	workers int
@@ -87,6 +92,7 @@ type multiChannelV2Observer []reactor.Observer
 type multiSlotObserver []multiraft.SchedulerObserver
 type multiTransportV2Observer []transportv2.Observer
 type multiControllerRaftObserver []cv2raft.Observer
+type multiControlSnapshotObserver []clusterv2.ControlSnapshotObserver
 type multiCommitCoordinatorObserver []messagedb.CommitCoordinatorObserver
 type multiGatewayObserver []accessgateway.Observer
 type multiSendackObserver []gatewayadapter.SendackObserver
@@ -930,6 +936,93 @@ func controllerApplyGap(commitIndex, appliedIndex uint64) uint64 {
 	return commitIndex - appliedIndex
 }
 
+func (o controlSnapshotMetricsObserver) ObserveControlSnapshot(snapshot control.Snapshot) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.Controller.SetStateRevision(snapshot.Revision)
+	o.metrics.Controller.SetLeaderPresent(snapshot.ControllerID != 0)
+	alive, suspect, dead := controllerNodeCounts(snapshot.Nodes)
+	o.metrics.Controller.SetNodeCounts(alive, suspect, dead)
+	activeTasks, failedTasks := controllerTaskCounts(snapshot.Tasks)
+	o.metrics.Controller.SetTaskActive(activeTasks)
+	o.metrics.Controller.SetTaskFailed(failedTasks)
+	o.metrics.Controller.SetSlotLeaderSkew(controllerPreferredLeaderSkew(snapshot.Nodes, snapshot.Slots))
+}
+
+func controllerNodeCounts(nodes []control.Node) (alive, suspect, dead int) {
+	for _, node := range nodes {
+		switch node.Status {
+		case control.NodeAlive:
+			alive++
+		case control.NodeSuspect:
+			suspect++
+		case control.NodeDown:
+			dead++
+		}
+	}
+	return alive, suspect, dead
+}
+
+func controllerTaskCounts(tasks []control.ReconcileTask) (map[string]int, map[string]int) {
+	active := make(map[string]int)
+	failed := make(map[string]int)
+	for _, task := range tasks {
+		kind := string(task.Kind)
+		if kind == "" {
+			continue
+		}
+		if task.Status == control.TaskStatusFailed {
+			failed[kind]++
+			continue
+		}
+		active[kind]++
+	}
+	return active, failed
+}
+
+func controllerPreferredLeaderSkew(nodes []control.Node, slots []control.SlotAssignment) int {
+	counts := make(map[uint64]int)
+	for _, node := range nodes {
+		if node.Status == control.NodeAlive && controlNodeHasRole(node.Roles, control.RoleData) {
+			counts[node.NodeID] = 0
+		}
+	}
+	if len(counts) == 0 {
+		return 0
+	}
+	for _, slot := range slots {
+		if _, ok := counts[slot.PreferredLeader]; ok {
+			counts[slot.PreferredLeader]++
+		}
+	}
+	min, max := 0, 0
+	first := true
+	for _, count := range counts {
+		if first {
+			min, max = count, count
+			first = false
+			continue
+		}
+		if count < min {
+			min = count
+		}
+		if count > max {
+			max = count
+		}
+	}
+	return max - min
+}
+
+func controlNodeHasRole(roles []control.Role, role control.Role) bool {
+	for _, candidate := range roles {
+		if candidate == role {
+			return true
+		}
+	}
+	return false
+}
+
 func (o storageCommitMetricsObserver) SetCommitCoordinatorQueueDepth(depth int) {
 	o.SetCommitCoordinatorQueue(depth, 0)
 }
@@ -1169,6 +1262,16 @@ func combineControllerRaftObservers(first, second cv2raft.Observer) cv2raft.Obse
 		return first
 	}
 	return multiControllerRaftObserver{first, second}
+}
+
+func combineControlSnapshotObservers(first, second clusterv2.ControlSnapshotObserver) clusterv2.ControlSnapshotObserver {
+	if first == nil {
+		return second
+	}
+	if second == nil {
+		return first
+	}
+	return multiControlSnapshotObserver{first, second}
 }
 
 func combineCommitCoordinatorObservers(first, second messagedb.CommitCoordinatorObserver) messagedb.CommitCoordinatorObserver {
@@ -1659,6 +1762,14 @@ func (o multiControllerRaftObserver) SetApplyState(commitIndex, appliedIndex uin
 		applyObserver, ok := observer.(cv2raft.ApplyStateObserver)
 		if ok {
 			applyObserver.SetApplyState(commitIndex, appliedIndex)
+		}
+	}
+}
+
+func (o multiControlSnapshotObserver) ObserveControlSnapshot(snapshot control.Snapshot) {
+	for _, observer := range o {
+		if observer != nil {
+			observer.ObserveControlSnapshot(snapshot)
 		}
 	}
 }

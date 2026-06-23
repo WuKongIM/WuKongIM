@@ -360,8 +360,8 @@ func TestManagerMonitorPrometheusProviderReturnsSlotOperatorCards(t *testing.T) 
 		"slotSchedulerTaskLatencyP99",
 	}
 	requireMonitorCardKeysForTest(t, resp.Cards, wantKeys)
-	if resp.Categories[7].Key != accessmanager.RealtimeMonitorCategorySlot || resp.Categories[7].Count != len(wantKeys) {
-		t.Fatalf("slot category = %#v, want count %d", resp.Categories[7], len(wantKeys))
+	if resp.Categories[8].Key != accessmanager.RealtimeMonitorCategorySlot || resp.Categories[8].Count != len(wantKeys) {
+		t.Fatalf("slot category = %#v, want count %d", resp.Categories[8], len(wantKeys))
 	}
 
 	joinedQueries := strings.Join(queries, "\n")

@@ -16,3 +16,19 @@ func TestMetaDBShardHandlesAreStable(t *testing.T) {
 		t.Fatalf("HashSlot() = %d, want 12", a.HashSlot())
 	}
 }
+
+func TestDBMetricsSnapshotReportsPhysicalStore(t *testing.T) {
+	db, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("Open(): %v", err)
+	}
+	defer db.Close()
+
+	snapshot := db.MetricsSnapshot()
+	if snapshot.DiskSpaceUsageBytes == 0 {
+		t.Fatalf("DiskSpaceUsageBytes = 0, want physical usage")
+	}
+	if snapshot.ReadAmplification < 0 {
+		t.Fatalf("ReadAmplification = %d, want non-negative value", snapshot.ReadAmplification)
+	}
+}

@@ -125,6 +125,12 @@ strict completion requirement.
 runtime so composition roots can expose Controller Raft ingress queue metrics
 without changing control-plane semantics.
 
+Default ChannelV2 message, Slot metadata, and Slot Raft Pebble-backed stores
+are exposed through `Node.StorageMetricsSnapshot` as low-cardinality
+`channel_log`, `meta`, and `raft` snapshots. Pebble types remain behind the
+storage packages; clusterv2 only publishes the neutral metrics shape used by
+composition roots.
+
 ## Stop Flow
 
 ```text

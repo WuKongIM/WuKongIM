@@ -58,8 +58,13 @@ New(Config)
      Manager realtime monitor queries use this configured Prometheus HTTP API.
      They scope PromQL to the generated `wukongimv2` job and can optionally add
      a node-scoped filter; unified realtime monitor snapshots also pass the
-     selected node into bounded control snapshot reads.
-     They do not use the top collector or in-process dashboard ring buffers.
+     selected node into bounded control snapshot reads. The database monitor
+     category is Prometheus-only and uses internalv2 message DB commit request,
+     grouped commit stage, commit runtime queue, and Pebble engine snapshot
+     metrics.
+     Queries do not read the top collector's in-process dashboard ring buffers;
+     the hidden collector only refreshes process resource and Pebble snapshot
+     gauges for Prometheus when metrics are enabled.
   -> when Observability.Diagnostics.Enabled=true:
        create a bounded node-local diagnostics store, runtime tracking rules,
        sampler, and sendtrace sink; install the process-wide sendtrace sink

@@ -89,28 +89,28 @@ function readyClusterMonitorResponse(): RealtimeMonitorResponse {
       { key: "internal", count: 1 },
     ],
     snapshot: [
-      { key: "nodesAlive", metric_key: "controllerProposeRate", source: "control_snapshot" as const, value: 3, tone: "normal" as const },
+      { key: "nodesAlive", metric_key: "controllerApplyGap", source: "control_snapshot" as const, value: 3, tone: "normal" as const },
       { key: "rpcErrorRate", metric_key: "rpcSuccessRate", source: "prometheus" as const, value: 0.14, unit: "%", tone: "normal" as const },
     ],
     cards: [
       {
-        key: "controllerProposeRate",
+        key: "controllerApplyGap",
         category: "control" as const,
         source: "prometheus" as const,
         stage: "controlPlane",
-        tone: "normal" as const,
-        unit: "cmd/s",
-        value: 18.4,
+        tone: "warning" as const,
+        unit: "entries",
+        value: 15,
         available: true,
         error: "",
         series: [
-          { timestamp: 1781767200000, value: 17.8 },
-          { timestamp: 1781767220000, value: 18.4 },
+          { timestamp: 1781767200000, value: 13 },
+          { timestamp: 1781767220000, value: 15 },
         ],
         stats: [
-          { key: "avg", value: 18.1 },
-          { key: "peak", value: 19.3 },
-          { key: "rejected", text: "0" },
+          { key: "p95Gap", value: 15 },
+          { key: "maxGap", value: 15 },
+          { key: "slowNodes", text: "1" },
         ],
       },
       {
@@ -491,7 +491,7 @@ function partialClusterMonitorResponse(): RealtimeMonitorResponse {
       control_snapshot: { enabled: true, query_ms: 2, error: "" },
     },
     cards: [
-      readyClusterMonitorResponse().cards[0],
+      readyClusterMonitorResponse().cards[1],
       {
         key: "controllerApplyGap",
         category: "control" as const,
@@ -822,6 +822,53 @@ function channelOperatorMonitorResponse(): RealtimeMonitorResponse {
   }
 }
 
+function databaseOperatorCard(
+  key: string,
+  stage: string,
+  tone: "normal" | "warning" | "critical",
+  unit: string,
+  value: number,
+): RealtimeMonitorResponse["cards"][number] {
+  return {
+    key,
+    category: "database",
+    source: "prometheus",
+    stage,
+    tone,
+    unit,
+    value,
+    available: true,
+    error: "",
+    series: [
+      { timestamp: 1781767200000, value: value * 0.8 },
+      { timestamp: 1781767220000, value },
+    ],
+    stats: [],
+  }
+}
+
+function databaseOperatorMonitorResponse(): RealtimeMonitorResponse {
+  return {
+    ...readyClusterMonitorResponse(),
+    snapshot: [],
+    categories: [
+      { key: "common", count: 3 },
+      { key: "database", count: 9 },
+    ],
+    cards: [
+      databaseOperatorCard("storageWriteP99", "runtimePressure", "warning", "ms", 38.4),
+      databaseOperatorCard("storageCommitErrorRate", "incidentClosure", "critical", "%", 0.25),
+      databaseOperatorCard("storageCommitQueueUsage", "runtimePressure", "warning", "%", 61.5),
+      databaseOperatorCard("storagePhysicalCommitP99", "runtimePressure", "warning", "ms", 24.2),
+      databaseOperatorCard("storageCommitBatchRecordsP95", "runtimePressure", "normal", "records", 128),
+      databaseOperatorCard("storageCommitBatchBytesP95", "runtimePressure", "normal", "B", 65_536),
+      databaseOperatorCard("storagePebbleDiskUsage", "runtimePressure", "warning", "B", 1_048_576),
+      databaseOperatorCard("storagePebbleReadAmplification", "runtimePressure", "warning", "", 4),
+      databaseOperatorCard("storagePebbleCompactionDebt", "runtimePressure", "warning", "B", 262_144),
+    ],
+  }
+}
+
 function slotOperatorCard(
   key: string,
   stage: string,
@@ -1017,9 +1064,9 @@ test("renders cluster monitor cards from realtime API data", async () => {
 
   const cards = await screen.findAllByTestId("cluster-monitor-metric-card")
   expect(cards).toHaveLength(2)
-  expect(within(cards[0]).getByText("Controller Propose Rate")).toBeInTheDocument()
-  expect(within(cards[0]).getByText("18.4")).toBeInTheDocument()
-  expect(within(cards[0]).getByText("0")).toBeInTheDocument()
+  expect(within(cards[0]).getByText("Controller Apply Gap")).toBeInTheDocument()
+  expect(within(cards[0]).getByText("15")).toBeInTheDocument()
+  expect(within(cards[0]).getByText("Slow Nodes")).toBeInTheDocument()
   expect(within(cards[1]).getByText("RPC Success Rate")).toBeInTheDocument()
   expect(within(cards[1]).getByText("2.8k")).toBeInTheDocument()
 
@@ -1077,12 +1124,16 @@ test("shows metric explanations from card help buttons", async () => {
   vi.mocked(getRealtimeMonitor).mockResolvedValueOnce(readyClusterMonitorResponse())
   renderClusterMonitorPage()
 
-  expect(await screen.findByRole("button", { name: "Explain Controller Propose Rate" })).toBeInTheDocument()
+  expect(await screen.findByRole("button", { name: "Explain Controller Apply Gap" })).toBeInTheDocument()
   expect(screen.getByRole("button", { name: "Explain RPC Success Rate" })).toBeInTheDocument()
 
-  await user.click(screen.getByRole("button", { name: "Explain Controller Propose Rate" }))
+  await user.click(screen.getByRole("button", { name: "Explain Controller Apply Gap" }))
 
-  expect(await screen.findAllByText("Rate of control-plane decisions proposed by the controller.")).not.toHaveLength(0)
+  expect(
+    await screen.findAllByText(
+      "Number of controller Raft entries waiting to be applied. Sustained growth means the control plane is falling behind.",
+    ),
+  ).not.toHaveLength(0)
 })
 
 test("keeps known unavailable cards visible during partial responses", async () => {
@@ -1169,6 +1220,23 @@ test("renders channel operator cards from realtime API data", async () => {
   expect(within(cards[9]).getByText("Channel Worker Queue Depth")).toBeInTheDocument()
   expect(within(cards[10]).getByText("Pull Hint Error Rate")).toBeInTheDocument()
   expect(within(cards[11]).getByText("Replication Latency P99")).toBeInTheDocument()
+})
+
+test("renders database operator cards from realtime API data", async () => {
+  vi.mocked(getRealtimeMonitor).mockResolvedValueOnce(databaseOperatorMonitorResponse())
+  renderClusterMonitorPage()
+
+  const cards = await screen.findAllByTestId("cluster-monitor-metric-card")
+  expect(cards).toHaveLength(9)
+  expect(within(cards[0]).getByText("Storage Write P99")).toBeInTheDocument()
+  expect(within(cards[1]).getByText("Storage Commit Error Rate")).toBeInTheDocument()
+  expect(within(cards[2]).getByText("Storage Commit Queue Usage")).toBeInTheDocument()
+  expect(within(cards[3]).getByText("Physical Commit P99")).toBeInTheDocument()
+  expect(within(cards[4]).getByText("Commit Batch Records P95")).toBeInTheDocument()
+  expect(within(cards[5]).getByText("Commit Batch Bytes P95")).toBeInTheDocument()
+  expect(within(cards[6]).getByText("Pebble Disk Usage")).toBeInTheDocument()
+  expect(within(cards[7]).getByText("Pebble Read Amplification")).toBeInTheDocument()
+  expect(within(cards[8]).getByText("Pebble Compaction Debt")).toBeInTheDocument()
 })
 
 test("renders slot operator cards from realtime API data", async () => {
@@ -1286,13 +1354,14 @@ test("filters realtime monitor by selected category", async () => {
   const categorySelect = await screen.findByRole("combobox", { name: "Category" })
   expect(categorySelect).toHaveValue("common")
   expect(within(categorySelect).getByRole("option", { name: "Common" })).toBeInTheDocument()
+  expect(within(categorySelect).getByRole("option", { name: "Database" })).toBeInTheDocument()
   expect(within(categorySelect).queryByRole("option", { name: "All" })).not.toBeInTheDocument()
   expect(getRealtimeMonitor).toHaveBeenCalledWith({ window: "15m", category: "common" })
 
-  await user.selectOptions(categorySelect, "internal")
+  await user.selectOptions(categorySelect, "database")
 
-  expect(categorySelect).toHaveValue("internal")
-  expect(getRealtimeMonitor).toHaveBeenLastCalledWith({ window: "15m", category: "internal" })
+  expect(categorySelect).toHaveValue("database")
+  expect(getRealtimeMonitor).toHaveBeenLastCalledWith({ window: "15m", category: "database" })
 })
 
 test("manually and automatically refreshes realtime monitor data", async () => {

@@ -16,6 +16,7 @@ type ControllerMetrics struct {
 	decisionsTotal   *prometheus.CounterVec
 	decisionDuration prometheus.Histogram
 	tasksActive      *prometheus.GaugeVec
+	tasksFailed      *prometheus.GaugeVec
 	tasksCompleted   *prometheus.CounterVec
 	migrationsActive prometheus.Gauge
 	migrationsTotal  *prometheus.CounterVec
@@ -23,6 +24,8 @@ type ControllerMetrics struct {
 	nodesSuspect     prometheus.Gauge
 	nodesDead        prometheus.Gauge
 	slotLeaderSkew   prometheus.Gauge
+	stateRevision    prometheus.Gauge
+	leaderPresent    prometheus.Gauge
 	applyGap         *prometheus.GaugeVec
 	raftStepDepth    prometheus.Gauge
 	raftStepCapacity prometheus.Gauge
@@ -45,6 +48,11 @@ func newControllerMetrics(registry prometheus.Registerer, labels prometheus.Labe
 		tasksActive: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name:        "wukongim_controller_tasks_active",
 			Help:        "Number of active controller tasks grouped by type.",
+			ConstLabels: labels,
+		}, []string{"type"}),
+		tasksFailed: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name:        "wukongim_controller_tasks_failed",
+			Help:        "Number of active failed controller tasks grouped by type.",
 			ConstLabels: labels,
 		}, []string{"type"}),
 		tasksCompleted: prometheus.NewCounterVec(prometheus.CounterOpts{
@@ -82,6 +90,16 @@ func newControllerMetrics(registry prometheus.Registerer, labels prometheus.Labe
 			Help:        "Max-minus-min Slot leader count skew across active data nodes.",
 			ConstLabels: labels,
 		}),
+		stateRevision: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name:        "wukongim_controller_state_revision",
+			Help:        "Latest locally visible ControllerV2 cluster-state revision.",
+			ConstLabels: labels,
+		}),
+		leaderPresent: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name:        "wukongim_controller_leader_present",
+			Help:        "Reports 1 when the local ControllerV2 snapshot has a known leader, otherwise 0.",
+			ConstLabels: labels,
+		}),
 		applyGap: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name:        "wukongim_controller_apply_gap",
 			Help:        "ControllerV2 committed-to-applied Raft log gap.",
@@ -109,6 +127,7 @@ func newControllerMetrics(registry prometheus.Registerer, labels prometheus.Labe
 		m.decisionsTotal,
 		m.decisionDuration,
 		m.tasksActive,
+		m.tasksFailed,
 		m.tasksCompleted,
 		m.migrationsActive,
 		m.migrationsTotal,
@@ -116,6 +135,8 @@ func newControllerMetrics(registry prometheus.Registerer, labels prometheus.Labe
 		m.nodesSuspect,
 		m.nodesDead,
 		m.slotLeaderSkew,
+		m.stateRevision,
+		m.leaderPresent,
 		m.applyGap,
 		m.raftStepDepth,
 		m.raftStepCapacity,
@@ -125,6 +146,7 @@ func newControllerMetrics(registry prometheus.Registerer, labels prometheus.Labe
 	for _, kind := range controllerTaskKinds {
 		m.decisionsTotal.WithLabelValues(kind)
 		m.tasksActive.WithLabelValues(kind).Set(0)
+		m.tasksFailed.WithLabelValues(kind).Set(0)
 		for _, result := range controllerTaskResults {
 			m.tasksCompleted.WithLabelValues(kind, result)
 		}
@@ -185,11 +207,38 @@ func (m *ControllerMetrics) SetTaskActive(counts map[string]int) {
 	}
 }
 
+func (m *ControllerMetrics) SetTaskFailed(counts map[string]int) {
+	if m == nil {
+		return
+	}
+	for _, kind := range controllerTaskKinds {
+		m.tasksFailed.WithLabelValues(kind).Set(float64(counts[kind]))
+	}
+}
+
 func (m *ControllerMetrics) SetSlotLeaderSkew(skew int) {
 	if m == nil {
 		return
 	}
 	m.slotLeaderSkew.Set(float64(skew))
+}
+
+func (m *ControllerMetrics) SetStateRevision(revision uint64) {
+	if m == nil {
+		return
+	}
+	m.stateRevision.Set(float64(revision))
+}
+
+func (m *ControllerMetrics) SetLeaderPresent(present bool) {
+	if m == nil {
+		return
+	}
+	if present {
+		m.leaderPresent.Set(1)
+		return
+	}
+	m.leaderPresent.Set(0)
 }
 
 // SetApplyGap records the current ControllerV2 committed-to-applied Raft log gap.

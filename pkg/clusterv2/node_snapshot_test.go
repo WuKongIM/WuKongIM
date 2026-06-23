@@ -53,6 +53,35 @@ func TestNodeControlWatchUpdatesRouteRevision(t *testing.T) {
 	})
 }
 
+func TestNodeControlSnapshotObserverSeesInitialAndWatchedSnapshots(t *testing.T) {
+	controller := control.NewStaticController(nodeControlSnapshot())
+	observer := &recordingControlSnapshotObserver{}
+	cfg := validNodeConfig(t)
+	cfg.Control.SnapshotObserver = observer
+	node, err := New(cfg, withController(controller), withSlotReconciler(&recordingReconciler{}))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	if err := node.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	t.Cleanup(func() { _ = node.Stop(context.Background()) })
+	if calls, last := observer.Calls(), observer.Last(); calls != 1 || last.Revision != 1 {
+		t.Fatalf("observer calls=%d last revision=%d, want initial revision 1", calls, last.Revision)
+	}
+
+	next := nodeControlSnapshot()
+	next.Revision = 2
+	next.HashSlots.Revision = 2
+	if err := controller.Publish(next); err != nil {
+		t.Fatalf("Publish() error = %v", err)
+	}
+	waitUntil(t, func() bool {
+		calls, last := observer.Calls(), observer.Last()
+		return calls == 2 && last.Revision == 2
+	})
+}
+
 func TestNodeControlWatchNodeOnlyChangeSkipsSlotReconcile(t *testing.T) {
 	controller := control.NewStaticController(nodeControlSnapshot())
 	reconciler := &recordingReconciler{}
@@ -308,6 +337,31 @@ func (r *recordingReconciler) Last() control.Snapshot {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.last.Clone()
+}
+
+type recordingControlSnapshotObserver struct {
+	mu    sync.Mutex
+	calls int
+	last  control.Snapshot
+}
+
+func (o *recordingControlSnapshotObserver) ObserveControlSnapshot(snap control.Snapshot) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.calls++
+	o.last = snap.Clone()
+}
+
+func (o *recordingControlSnapshotObserver) Calls() int {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.calls
+}
+
+func (o *recordingControlSnapshotObserver) Last() control.Snapshot {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.last.Clone()
 }
 
 type recordingTaskExecutor struct {

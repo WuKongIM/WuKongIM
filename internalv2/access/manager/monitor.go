@@ -45,6 +45,8 @@ const (
 	RealtimeMonitorCategoryConversation = "conversation"
 	// RealtimeMonitorCategoryChannel groups channel runtime and append cards.
 	RealtimeMonitorCategoryChannel = "channel"
+	// RealtimeMonitorCategoryDatabase groups database commit latency, batching, queue pressure, and Pebble engine cards.
+	RealtimeMonitorCategoryDatabase = "database"
 	// RealtimeMonitorCategoryControl groups control-plane cards.
 	RealtimeMonitorCategoryControl = "control"
 	// RealtimeMonitorCategorySlot groups Slot replication cards.
@@ -299,6 +301,7 @@ func isValidRealtimeMonitorCategory(category string) bool {
 		RealtimeMonitorCategoryMessage,
 		RealtimeMonitorCategoryConversation,
 		RealtimeMonitorCategoryChannel,
+		RealtimeMonitorCategoryDatabase,
 		RealtimeMonitorCategoryControl,
 		RealtimeMonitorCategorySlot,
 		RealtimeMonitorCategoryNode:

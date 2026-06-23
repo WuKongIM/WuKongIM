@@ -3,15 +3,19 @@ package clusterv2
 import (
 	"context"
 	"errors"
+	"path/filepath"
 	"reflect"
 	"testing"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2"
+	channelstore "github.com/WuKongIM/WuKongIM/pkg/channelv2/store"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/propose"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/routing"
 	messagedb "github.com/WuKongIM/WuKongIM/pkg/db/message"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	"github.com/WuKongIM/WuKongIM/pkg/raftlog"
 	metafsm "github.com/WuKongIM/WuKongIM/pkg/slot/fsm"
 )
 
@@ -121,6 +125,40 @@ func TestStorageConfigDoesNotExposeCommitNoSync(t *testing.T) {
 	_, ok := reflect.TypeOf(StorageConfig{}).FieldByName("CommitNoSync")
 	if ok {
 		t.Fatal("StorageConfig exposes CommitNoSync, want durable sync fixed on")
+	}
+}
+
+func TestNodeStorageMetricsSnapshotAggregatesDefaultStores(t *testing.T) {
+	base := t.TempDir()
+	channelStore := channelstore.NewMessageDBFactory(filepath.Join(base, "messages"))
+	metaDB, err := metadb.Open(filepath.Join(base, "slotmeta"))
+	if err != nil {
+		t.Fatalf("Open meta DB: %v", err)
+	}
+	raftDB, err := raftlog.Open(filepath.Join(base, "slotraft"), raftlog.Options{})
+	if err != nil {
+		t.Fatalf("Open raft DB: %v", err)
+	}
+	node := &Node{
+		defaultChannelStore: channelStore,
+		defaultSlotMetaDB:   metaDB,
+		defaultSlotRaftDB:   raftDB,
+	}
+	t.Cleanup(func() {
+		_ = channelStore.Close()
+		_ = metaDB.Close()
+		_ = raftDB.Close()
+	})
+
+	snapshot := node.StorageMetricsSnapshot()
+	for _, store := range []string{"channel_log", "meta", "raft"} {
+		metrics, ok := findStorageMetricsSnapshot(snapshot, store)
+		if !ok {
+			t.Fatalf("store %q missing from snapshot %#v", store, snapshot.Stores)
+		}
+		if metrics.DiskSpaceUsageBytes == 0 {
+			t.Fatalf("store %q DiskSpaceUsageBytes = 0, want physical usage", store)
+		}
 	}
 }
 
@@ -310,6 +348,15 @@ func TestNodeStopDiscardsDefaultChannelsForRestart(t *testing.T) {
 }
 
 type recordingCommitCoordinatorObserver struct{}
+
+func findStorageMetricsSnapshot(snapshot StorageMetricsSnapshot, store string) (StorageEngineMetrics, bool) {
+	for _, item := range snapshot.Stores {
+		if item.Store == store {
+			return item.Engine, true
+		}
+	}
+	return StorageEngineMetrics{}, false
+}
 
 func (recordingCommitCoordinatorObserver) SetCommitCoordinatorQueueDepth(int) {}
 

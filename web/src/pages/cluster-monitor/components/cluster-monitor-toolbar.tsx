@@ -31,6 +31,7 @@ const categories: RealtimeMonitorCategory[] = [
   "message",
   "conversation",
   "channel",
+  "database",
   "control",
   "slot",
   "node",

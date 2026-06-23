@@ -155,6 +155,49 @@ func TestTopCollectorRecordsResourceMetrics(t *testing.T) {
 	}
 }
 
+func TestTopCollectorRecordsStoragePebbleMetrics(t *testing.T) {
+	reg := obsmetrics.New(10, "node-10")
+	collector := newTopCollector(topCollectorOptions{
+		StorageMetrics: reg.Storage,
+		StorageMetricsSnapshot: func() clusterv2.StorageMetricsSnapshot {
+			return clusterv2.StorageMetricsSnapshot{Stores: []clusterv2.StorageStoreMetricsSnapshot{
+				{
+					Store: "channel_log",
+					Engine: clusterv2.StorageEngineMetrics{
+						DiskSpaceUsageBytes:          1024,
+						ReadAmplification:            3,
+						MemTableSizeBytes:            2048,
+						WALBytesIn:                   300,
+						CompactionEstimatedDebtBytes: 4096,
+					},
+				},
+			}}
+		},
+		ResourceSampler: func() topResourceSample {
+			return topResourceSample{}
+		},
+	})
+
+	collector.recordSampleAt(time.Unix(100, 0))
+
+	families, err := reg.Gather()
+	if err != nil {
+		t.Fatalf("Gather() error = %v", err)
+	}
+	usage := requireAppMetricFamily(t, families, "wukongim_storage_pebble_disk_usage_bytes")
+	if got := findAppMetricByLabels(t, usage, map[string]string{"store": "channel_log"}).GetGauge().GetValue(); got != 1024 {
+		t.Fatalf("storage pebble disk usage metric = %v, want 1024", got)
+	}
+	readAmp := requireAppMetricFamily(t, families, "wukongim_storage_pebble_read_amplification")
+	if got := findAppMetricByLabels(t, readAmp, map[string]string{"store": "channel_log"}).GetGauge().GetValue(); got != 3 {
+		t.Fatalf("storage pebble read amplification metric = %v, want 3", got)
+	}
+	debt := requireAppMetricFamily(t, families, "wukongim_storage_pebble_compaction_estimated_debt_bytes")
+	if got := findAppMetricByLabels(t, debt, map[string]string{"store": "channel_log"}).GetGauge().GetValue(); got != 4096 {
+		t.Fatalf("storage pebble compaction debt metric = %v, want 4096", got)
+	}
+}
+
 func TestTopCollectorInstallsStableDefaultResourceSamplerForCPUPercent(t *testing.T) {
 	collector := newTopCollector(topCollectorOptions{})
 

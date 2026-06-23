@@ -86,6 +86,9 @@ func (n *Node) applySnapshot(ctx context.Context, snapshot control.Snapshot) err
 	n.controlSnapshot = snapshot.Clone()
 	n.snapshot = Snapshot{NodeID: n.cfg.NodeID, ControllerLead: snapshot.ControllerID, StateRevision: snapshot.Revision, RoutesReady: n.router != nil && n.router.Table() != nil, SlotsReady: true, ChannelsReady: n.channels != nil, SlotCount: uint32(len(snapshot.Slots)), HashSlotCount: snapshot.HashSlots.Count}
 	n.mu.Unlock()
+	if observer := n.cfg.Control.SnapshotObserver; observer != nil {
+		observer.ObserveControlSnapshot(snapshot.Clone())
+	}
 	return nil
 }
 

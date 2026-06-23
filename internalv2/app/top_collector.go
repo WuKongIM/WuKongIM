@@ -62,6 +62,10 @@ type topCollectorOptions struct {
 	MetricsEnabled bool
 	// ResourceMetrics receives local resource samples for Prometheus-backed monitor cards.
 	ResourceMetrics *obsmetrics.NodeResourceMetrics
+	// StorageMetrics receives local storage engine samples for Prometheus-backed monitor cards.
+	StorageMetrics *obsmetrics.StorageMetrics
+	// StorageMetricsSnapshot returns the latest local storage engine metrics.
+	StorageMetricsSnapshot func() clusterv2.StorageMetricsSnapshot
 	// ResourceSampler returns local process CPU and memory usage for top snapshots.
 	ResourceSampler func() topResourceSample
 }
@@ -488,6 +492,7 @@ func (c *topCollector) recordSampleAt(at time.Time) {
 	cluster := c.clusterSnapshot()
 	resource := c.resourceSample()
 	c.observeResourceMetrics(resource)
+	c.observeStorageMetrics()
 
 	c.mu.Lock()
 	c.ring[c.head] = topSample{
@@ -556,6 +561,15 @@ func (c *topCollector) setResourceMetrics(metrics *obsmetrics.NodeResourceMetric
 	c.options.ResourceMetrics = metrics
 }
 
+func (c *topCollector) setStorageMetrics(metrics *obsmetrics.StorageMetrics) {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.options.StorageMetrics = metrics
+}
+
 func (c *topCollector) observeResourceMetrics(sample topResourceSample) {
 	if c == nil {
 		return
@@ -573,6 +587,39 @@ func (c *topCollector) observeResourceMetrics(sample topResourceSample) {
 		Goroutines:     sample.Goroutines,
 		Threads:        sample.Threads,
 	})
+}
+
+func (c *topCollector) observeStorageMetrics() {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	metrics := c.options.StorageMetrics
+	snapshotFn := c.options.StorageMetricsSnapshot
+	c.mu.Unlock()
+	if metrics == nil || snapshotFn == nil {
+		return
+	}
+	snapshot := snapshotFn()
+	for _, store := range snapshot.Stores {
+		metrics.SetPebbleMetrics(store.Store, obsmetrics.StoragePebbleObservation{
+			DiskSpaceUsageBytes:          store.Engine.DiskSpaceUsageBytes,
+			ReadAmplification:            store.Engine.ReadAmplification,
+			MemTableSizeBytes:            store.Engine.MemTableSizeBytes,
+			MemTableCount:                store.Engine.MemTableCount,
+			WALFiles:                     store.Engine.WALFiles,
+			WALSizeBytes:                 store.Engine.WALSizeBytes,
+			WALPhysicalSizeBytes:         store.Engine.WALPhysicalSizeBytes,
+			WALBytesIn:                   store.Engine.WALBytesIn,
+			WALBytesWritten:              store.Engine.WALBytesWritten,
+			FlushCount:                   store.Engine.FlushCount,
+			FlushesInProgress:            store.Engine.FlushesInProgress,
+			CompactionCount:              store.Engine.CompactionCount,
+			CompactionEstimatedDebtBytes: store.Engine.CompactionEstimatedDebtBytes,
+			CompactionInProgressBytes:    store.Engine.CompactionInProgressBytes,
+			CompactionsInProgress:        store.Engine.CompactionsInProgress,
+		})
+	}
 }
 
 func (c *topCollector) SnapshotTop(_ context.Context, query accessapi.TopSnapshotQuery) (accessapi.TopSnapshot, error) {

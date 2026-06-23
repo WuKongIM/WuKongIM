@@ -32,6 +32,22 @@ func TestCommitCoordinatorConfigKeepsShardCount(t *testing.T) {
 	}
 }
 
+func TestEngineMetricsSnapshotReportsPhysicalStore(t *testing.T) {
+	engine, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer engine.Close()
+
+	snapshot := engine.MetricsSnapshot()
+	if snapshot.DiskSpaceUsageBytes == 0 {
+		t.Fatalf("DiskSpaceUsageBytes = 0, want physical usage")
+	}
+	if snapshot.ReadAmplification < 0 {
+		t.Fatalf("ReadAmplification = %d, want non-negative value", snapshot.ReadAmplification)
+	}
+}
+
 func TestCompatEngineAppendReadAndIdempotency(t *testing.T) {
 	engine, err := Open(t.TempDir())
 	if err != nil {

@@ -6,8 +6,16 @@ test("builds the cluster runtime monitor cards in troubleshooting order", () => 
   const model = buildPreviewClusterMonitorModel("15m", false)
 
   expect(model.cards.map((card) => card.key)).toEqual([
-    "controllerProposeRate",
     "controllerApplyGap",
+    "controllerRaftStepQueueUsage",
+    "controllerRaftStepEnqueueLatencyP99",
+    "controllerRaftStepEnqueueErrorRate",
+    "controllerStateRevision",
+    "controllerActiveTasks",
+    "controllerFailedTasks",
+    "controllerNodesUnhealthy",
+    "controllerSlotLeaderSkew",
+    "controllerLeaderPresent",
     "slotLeaderStability",
     "slotProposeRate",
     "slotApplyGap",
@@ -22,6 +30,9 @@ test("builds the cluster runtime monitor cards in troubleshooting order", () => 
     "nodeMemoryRSS",
     "nodeGoroutines",
     "storageWriteP99",
+    "storagePebbleDiskUsage",
+    "storagePebbleReadAmplification",
+    "storagePebbleCompactionDebt",
   ])
   expect(model.scopeLabelId).toBe("clusterMonitor.scope.global")
   expect(model.snapshot.map((entry) => entry.labelId)).toEqual([
@@ -39,7 +50,7 @@ test("builds deterministic preview data with chart series and stats", () => {
   const second = buildPreviewClusterMonitorModel("30m", false)
 
   expect(second).toEqual(first)
-  expect(first.cards).toHaveLength(16)
+  expect(first.cards).toHaveLength(27)
   expect(first.cards[0].series.length).toBeGreaterThan(20)
   expect(first.cards[0].stats).toHaveLength(3)
 })

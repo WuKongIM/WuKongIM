@@ -1900,6 +1900,12 @@ func TestConfigureObservabilitySamplesResourcesForMetricsWithoutTopProvider(t *t
 	if collector.options.ResourceMetrics == nil {
 		t.Fatal("resource metrics were not attached to hidden collector")
 	}
+	if collector.options.StorageMetrics == nil {
+		t.Fatal("storage metrics were not attached to hidden collector")
+	}
+	if collector.options.StorageMetricsSnapshot == nil {
+		t.Fatal("storage metrics snapshot callback was not attached to hidden collector")
+	}
 }
 
 func TestStopSyncsLogger(t *testing.T) {
