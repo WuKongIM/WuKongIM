@@ -25,7 +25,7 @@ type ClusterMonitorToolbarProps = {
 
 const ranges: ClusterMonitorTimeRange[] = ["5m", "15m", "30m", "1h"]
 const categories: RealtimeMonitorCategory[] = [
-  "all",
+  "common",
   "gateway",
   "internal",
   "message",

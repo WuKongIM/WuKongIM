@@ -75,7 +75,7 @@ routes are intentionally not migrated in this phase.
 
 `/manager/realtime-monitor` backs the unified web realtime monitor under
 cluster operations. It parses chart `window`, optional `step`, optional
-positive `node_id`, and `category` (`all`, `gateway`, `internal`, `message`,
+positive `node_id`, and `category` (`common`, `gateway`, `internal`, `message`,
 `conversation`, `channel`, `control`, `slot`, or `node`), requires
 `cluster.node:r` when manager auth is enabled, and delegates Prometheus plus
 bounded `control_snapshot` reads to the app-wired realtime monitor provider.
@@ -86,7 +86,23 @@ any in-process dashboard ring buffer. PromQL is scoped to the app-managed
 `wukongimv2` Prometheus job so obsolete `cmd/wukongim` metrics cannot be mixed
 into the realtime cards. Conversation cards include a `conversationSync` stage
 covering the `/conversation/sync` client experience, active-cache dirty age,
-active flush health, and conversation authority pressure.
+active flush health, and conversation authority pressure. Gateway cards cover
+client ingress, active connections, async SEND queue usage, connection churn,
+close-reason distribution, auth success/latency, SENDACK error rate, gateway
+traffic, frame handling latency, async SEND batch shape, async auth pressure,
+and transport queue/byte pressure. Internal network cards cover total and
+split TX/RX transport traffic, RPC rate/success/error/inflight/tail latency,
+dial success/latency, and TransportV2 queue/admission pressure. Message cards
+cover SEND rate/SENDACK error rate, append commit rate/error and tail latency,
+committed dispatch backlog/enqueue/overflow, online delivery rate/latency/fan-out,
+delivery queue/admission pressure, retry rate/depth, route expiry, and path
+error closure. Channel cards cover ChannelV2 append tail latency, active
+runtime count, append batch shape, append error rate, channel writer admission
+pressure, parked followers, activation rejections, reactor mailbox depth,
+worker queue depth, PullHint error rate, and follower replication tail latency.
+Slot cards cover Slot leader stability, proposal/apply rate and gap, proposal
+admission rejects, leader-change rate, replica lag, and Slot scheduler
+queue/inflight/task-latency pressure.
 
 `/manager/runtime/workqueues` is backed by the `internalv2/app` top collector.
 It is a forced runtime view of the local node only: it does not fan out to peer

@@ -44,7 +44,7 @@ type ClusterMonitorPageState =
 export function ClusterMonitorPage() {
   const intl = useIntl()
   const [timeRange, setTimeRange] = useState<ClusterMonitorTimeRange>("15m")
-  const [selectedCategory, setSelectedCategory] = useState<RealtimeMonitorCategory>("all")
+  const [selectedCategory, setSelectedCategory] = useState<RealtimeMonitorCategory>("common")
   const [refreshInterval, setRefreshInterval] = useState<MonitorRefreshInterval>("30s")
   const [refreshNonce, setRefreshNonce] = useState(0)
   const [nodes, setNodes] = useState<ManagerNodesResponse | null>(null)
@@ -83,7 +83,7 @@ export function ClusterMonitorPage() {
 
     getRealtimeMonitor({
       window: timeRange,
-      ...(selectedCategory !== "all" ? { category: selectedCategory } : {}),
+      category: selectedCategory,
       ...(selectedNodeId ? { nodeId: selectedNodeId } : {}),
     })
       .then((response) => {

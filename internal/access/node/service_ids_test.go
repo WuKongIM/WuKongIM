@@ -25,7 +25,6 @@ func TestRPCServiceIDsAreUniqueAndNonZero(t *testing.T) {
 		"channelLeaderTransfer": channelLeaderTransferRPCServiceID,
 		"cmdSync":               cmdSyncRPCServiceID,
 		"diagnosticsTracking":   diagnosticsTrackingRPCServiceID,
-		"monitorMetrics":        monitorMetricsRPCServiceID,
 		"pluginHTTPForward":     pluginHTTPForwardRPCServiceID,
 		"pluginManagement":      pluginManagementRPCServiceID,
 		"pluginCommitted":       pluginCommittedRPCServiceID,
@@ -40,7 +39,7 @@ func TestRPCServiceIDsAreUniqueAndNonZero(t *testing.T) {
 		}
 		seen[id] = name
 	}
-	for reserved, owner := range map[uint8]string{47: "slot/proxy channel migration", 48: "channel transport fence/drain", 49: "slot/proxy CMD conversation state", 53: "slot/proxy plugin binding"} {
+	for reserved, owner := range map[uint8]string{47: "slot/proxy channel migration", 48: "channel transport fence/drain", 49: "slot/proxy CMD conversation state", 52: "retired manager monitor metrics", 53: "slot/proxy plugin binding"} {
 		if name, ok := seen[reserved]; ok {
 			t.Fatalf("service id %d is reserved for %s but used by %s", reserved, owner, name)
 		}

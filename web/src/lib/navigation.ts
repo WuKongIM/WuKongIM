@@ -50,7 +50,6 @@ export const navigationSections: NavigationSection[] = [
         descriptionMessageId: "nav.clusterMonitor.description",
         pathLabelMessageId: "nav.path.cluster.monitor",
         icon: Activity,
-        aliases: ["/monitor", "/business/monitor"],
       },
       {
         href: "/cluster/nodes",
@@ -231,8 +230,6 @@ export const pageMetadata = new Map(
 
 export const legacyRouteRedirects: Record<string, string> = {
   "/dashboard": "/cluster/dashboard",
-  "/monitor": "/cluster/monitor",
-  "/business/monitor": "/cluster/monitor",
   "/nodes": "/cluster/nodes",
   "/onboarding": "/cluster/nodes?panel=onboarding",
   "/slots": "/cluster/slots",

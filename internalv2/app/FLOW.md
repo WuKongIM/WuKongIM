@@ -216,7 +216,8 @@ New(Config)
      attach the local top provider so `/manager/runtime/workqueues` can expose
      local runtime pressure; attach one Prometheus-backed realtime monitor
      provider so `/manager/realtime-monitor` can expose business-path and
-     cluster-operations card series, category counts, explicit
+     cluster-operations card series, including Slot proposal admission,
+     leader-change, replica-lag, and scheduler pressure cards, category counts, explicit
      disabled/unavailable source states, and bounded `ListNodes`/`ListSlots`
      control snapshots through the management usecase; the realtime monitor
      does not read from `topCollector`

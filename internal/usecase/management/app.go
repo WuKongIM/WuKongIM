@@ -229,12 +229,6 @@ type RuntimeSummaryReader interface {
 	NodeRuntimeSummary(ctx context.Context, nodeID uint64) (NodeRuntimeSummary, error)
 }
 
-// MonitorMetricsReader reads node-local dashboard metrics for monitor fanout.
-type MonitorMetricsReader interface {
-	// NodeMonitorMetrics returns timestamped local monitor metrics from one cluster node.
-	NodeMonitorMetrics(ctx context.Context, nodeID uint64, window, step time.Duration) (metrics.QueryResult, error)
-}
-
 // ConnectionReader reads node-local connection inventory for non-local manager filters.
 type ConnectionReader interface {
 	// NodeConnections returns active connections currently registered on one cluster node.
@@ -299,8 +293,6 @@ type Options struct {
 	Online online.Registry
 	// RuntimeSummary reads local or remote node runtime counters for scale-in safety.
 	RuntimeSummary RuntimeSummaryReader
-	// MonitorMetrics reads node-local dashboard metrics for cluster monitor aggregation.
-	MonitorMetrics MonitorMetricsReader
 	// Connections reads remote node connection inventory for manager connection filters.
 	Connections ConnectionReader
 	// Diagnostics reads local or remote node diagnostics events for manager aggregations.
@@ -361,7 +353,6 @@ type App struct {
 	cluster                  ClusterReader
 	online                   online.Registry
 	runtimeSummary           RuntimeSummaryReader
-	monitorMetrics           MonitorMetricsReader
 	connections              ConnectionReader
 	diagnostics              DiagnosticsReader
 	diagnosticsTracking      DiagnosticsTrackingOperator
@@ -417,7 +408,6 @@ func New(opts Options) *App {
 		cluster:                  opts.Cluster,
 		online:                   opts.Online,
 		runtimeSummary:           opts.RuntimeSummary,
-		monitorMetrics:           opts.MonitorMetrics,
 		connections:              opts.Connections,
 		diagnostics:              opts.Diagnostics,
 		diagnosticsTracking:      opts.DiagnosticsTracking,

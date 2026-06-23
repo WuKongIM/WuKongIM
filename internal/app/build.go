@@ -734,7 +734,6 @@ func build(cfg Config) (_ *App, err error) {
 		ChannelLeaderTransfer: channelLeaderRepairer,
 		ChannelLeaderEvaluate: channelLeaderEvaluator,
 		RuntimeSummary:        nodeRuntimeSummaryProvider{collector: runtimeSummaries},
-		MonitorMetrics:        nodeMonitorMetricsProvider{collector: app.dashboardCollector},
 		Diagnostics:           app,
 		DiagnosticsTracking:   app,
 		ChannelRetention:      managerMessageRetentionNodeProvider{target: managerRetention},
@@ -839,12 +838,7 @@ func build(cfg Config) (_ *App, err error) {
 			Cluster:           app.cluster,
 			Online:            onlineRegistry,
 			RuntimeSummary:    managementRuntimeSummaryReader{collector: runtimeSummaries, nodeClient: app.nodeClient},
-			MonitorMetrics: managementMonitorMetricsReader{
-				localNodeID: cfg.Node.ID,
-				collector:   app.dashboardCollector,
-				remote:      app.nodeClient,
-			},
-			Connections: managementConnectionReader{nodeClient: app.nodeClient},
+			Connections:       managementConnectionReader{nodeClient: app.nodeClient},
 			Diagnostics: managementDiagnosticsReader{
 				localNodeID: cfg.Node.ID,
 				local:       app,

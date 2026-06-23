@@ -83,8 +83,6 @@ test("renders the shell for redesigned cluster routes", async () => {
 test.each([
   ["/", "/cluster/monitor"],
   ["/dashboard", "/cluster/dashboard"],
-  ["/monitor", "/cluster/monitor"],
-  ["/business/monitor", "/cluster/monitor"],
   ["/nodes", "/cluster/nodes"],
   ["/workqueues", "/cluster/workqueues"],
   ["/channel-cluster/unhealthy", "/cluster/channels"],
@@ -105,6 +103,14 @@ test.each([
 
   await screen.findByRole("main")
   expect(router.state.location.pathname + router.state.location.search).toBe(to)
+})
+
+test("does not register retired monitor route aliases", () => {
+  const appRoute = routes.find((route) => route.path === "/")
+  const registeredPaths = appRoute?.children?.map((route) => route.path)
+
+  expect(registeredPaths).not.toContain("monitor")
+  expect(registeredPaths).not.toContain("business/monitor")
 })
 
 test("renders the workqueue monitor route", async () => {

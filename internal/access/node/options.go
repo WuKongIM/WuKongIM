@@ -19,7 +19,6 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/db/message"
-	"github.com/WuKongIM/WuKongIM/pkg/metrics"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/codec"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 	"github.com/WuKongIM/WuKongIM/pkg/transport"
@@ -140,11 +139,6 @@ type RuntimeSummaryProvider interface {
 	LocalRuntimeSummary(ctx context.Context) (RuntimeSummary, error)
 }
 
-// MonitorMetricsProvider provides the local node dashboard collector for RPC callers.
-type MonitorMetricsProvider interface {
-	LocalMonitorMetrics(ctx context.Context, window, step time.Duration) (metrics.QueryResult, error)
-}
-
 // DiagnosticsProvider queries retained node-local diagnostics events.
 type DiagnosticsProvider interface {
 	QueryDiagnostics(ctx context.Context, query diagnostics.Query) diagnostics.QueryResult
@@ -224,7 +218,6 @@ type Options struct {
 	ChannelLeaderEvaluate  ChannelLeaderEvaluator
 	DeliveryAckIndex       *deliveryruntime.AckIndex
 	RuntimeSummary         RuntimeSummaryProvider
-	MonitorMetrics         MonitorMetricsProvider
 	Diagnostics            DiagnosticsProvider
 	DiagnosticsTracking    DiagnosticsTrackingProvider
 	ChannelRetention       ChannelRetentionProvider
@@ -256,7 +249,6 @@ type Adapter struct {
 	channelLeaderEvaluate  ChannelLeaderEvaluator
 	deliveryAckIndex       *deliveryruntime.AckIndex
 	runtimeSummary         RuntimeSummaryProvider
-	monitorMetrics         MonitorMetricsProvider
 	diagnostics            DiagnosticsProvider
 	diagnosticsTracking    DiagnosticsTrackingProvider
 	channelRetention       ChannelRetentionProvider
@@ -295,7 +287,6 @@ func New(opts Options) *Adapter {
 		channelLeaderEvaluate:  opts.ChannelLeaderEvaluate,
 		deliveryAckIndex:       opts.DeliveryAckIndex,
 		runtimeSummary:         opts.RuntimeSummary,
-		monitorMetrics:         opts.MonitorMetrics,
 		diagnostics:            opts.Diagnostics,
 		diagnosticsTracking:    opts.DiagnosticsTracking,
 		channelRetention:       opts.ChannelRetention,
@@ -323,7 +314,6 @@ func New(opts Options) *Adapter {
 		opts.Cluster.RPCMux().Handle(channelLeaderTransferRPCServiceID, adapter.handleChannelLeaderTransferRPC)
 		opts.Cluster.RPCMux().Handle(channelLeaderEvaluateRPCServiceID, adapter.handleChannelLeaderEvaluateRPC)
 		opts.Cluster.RPCMux().Handle(runtimeSummaryRPCServiceID, adapter.handleRuntimeSummaryRPC)
-		opts.Cluster.RPCMux().Handle(monitorMetricsRPCServiceID, adapter.handleMonitorMetricsRPC)
 		opts.Cluster.RPCMux().Handle(connectionsRPCServiceID, adapter.handleConnectionsRPC)
 		opts.Cluster.RPCMux().Handle(connectionRPCServiceID, adapter.handleConnectionRPC)
 		opts.Cluster.RPCMux().Handle(diagnosticsRPCServiceID, adapter.handleDiagnosticsRPC)

@@ -4250,135 +4250,15 @@ func TestManagerOverviewReturnsAggregatedObject(t *testing.T) {
 	}`, rec.Body.String())
 }
 
-func TestServerHandleMonitorMetricsReturnsTimestampedSeries(t *testing.T) {
-	generatedAt := time.Date(2026, 5, 15, 8, 30, 0, 0, time.UTC)
-	firstPointAt := generatedAt.Add(-10 * time.Second)
-	secondPointAt := generatedAt.Add(-5 * time.Second)
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "admin",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.overview",
-				Actions:  []string{"r"},
-			}},
-		}}),
-		Management: managementStub{
-			monitorMetrics: managementusecase.MonitorMetricsResult{
-				GeneratedAt:   generatedAt,
-				WindowSeconds: 10,
-				StepSeconds:   5,
-				Points:        2,
-				Scope: managementusecase.MonitorMetricsScope{
-					View:        "local_node",
-					LocalNodeID: 1,
-				},
-				Capabilities: managementusecase.MonitorMetricsCapabilities{
-					NodeFilter: false,
-				},
-				Nodes: []managementusecase.MonitorMetricsNode{{
-					NodeID:    1,
-					Name:      "node-1",
-					IsLocal:   true,
-					Available: true,
-				}},
-				Metrics: map[string]managementusecase.MonitorMetricSeries{
-					"send_rate": {
-						Key:    "send_rate",
-						Unit:   "msg/s",
-						Latest: 8,
-						Peak:   8,
-						Avg:    6,
-						Points: []managementusecase.MonitorMetricPoint{
-							{At: firstPointAt, Value: 4},
-							{At: secondPointAt, Value: 8},
-						},
-					},
-				},
-			},
-		},
-	})
+func TestServerRemovesMonitorMetricsRoute(t *testing.T) {
+	srv := New(Options{Management: managementStub{}})
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/manager/monitor/metrics?window=5m&step=5s", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
 
 	srv.Engine().ServeHTTP(rec, req)
 
-	require.Equal(t, http.StatusOK, rec.Code)
-	require.JSONEq(t, `{
-		"generated_at": "2026-05-15T08:30:00Z",
-		"window_seconds": 10,
-		"step_seconds": 5,
-		"points": 2,
-		"scope": {
-			"view": "local_node",
-			"local_node_id": 1
-		},
-		"capabilities": {
-			"node_filter": false
-		},
-		"nodes": [{
-			"node_id": 1,
-			"name": "node-1",
-			"is_local": true,
-			"available": true
-		}],
-		"metrics": {
-			"send_rate": {
-				"key": "send_rate",
-				"unit": "msg/s",
-				"latest": 8,
-				"peak": 8,
-				"avg": 6,
-				"points": [
-					{"at": "2026-05-15T08:29:50Z", "value": 4},
-					{"at": "2026-05-15T08:29:55Z", "value": 8}
-				]
-			}
-		}
-	}`, rec.Body.String())
-}
-
-func TestServerHandleMonitorMetricsPassesNodeID(t *testing.T) {
-	var received uint64
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "admin",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.overview",
-				Actions:  []string{"r"},
-			}},
-		}}),
-		Management: managementStub{
-			monitorMetricsNodeIDSink: &received,
-			monitorMetrics: managementusecase.MonitorMetricsResult{
-				GeneratedAt:   time.Date(2026, 5, 15, 8, 30, 0, 0, time.UTC),
-				WindowSeconds: 10,
-				StepSeconds:   5,
-				Points:        2,
-				Scope: managementusecase.MonitorMetricsScope{
-					View:        "node",
-					LocalNodeID: 1,
-					NodeID:      2,
-				},
-				Capabilities: managementusecase.MonitorMetricsCapabilities{NodeFilter: true},
-				Nodes:        []managementusecase.MonitorMetricsNode{{NodeID: 2, Name: "node-2", Available: true}},
-				Metrics:      map[string]managementusecase.MonitorMetricSeries{},
-			},
-		},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/monitor/metrics?window=5m&step=5s&node_id=2", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusOK, rec.Code)
-	require.Equal(t, uint64(2), received)
-	require.Contains(t, rec.Body.String(), `"node_id":2`)
+	require.Equal(t, http.StatusNotFound, rec.Code)
 }
 
 func testAuthConfig(users []UserConfig) AuthConfig {
@@ -4551,9 +4431,6 @@ type managementStub struct {
 	overviewErr                        error
 	networkSummary                     managementusecase.NetworkSummary
 	networkSummaryErr                  error
-	monitorMetrics                     managementusecase.MonitorMetricsResult
-	monitorMetricsErr                  error
-	monitorMetricsNodeIDSink           *uint64
 	pluginList                         pluginusecase.LocalPluginList
 	pluginListErr                      error
 	pluginDetail                       pluginusecase.LocalPluginDetail
@@ -4934,13 +4811,6 @@ func (s managementStub) GetOverview(context.Context) (managementusecase.Overview
 
 func (s managementStub) ListNetworkSummary(context.Context) (managementusecase.NetworkSummary, error) {
 	return s.networkSummary, s.networkSummaryErr
-}
-
-func (s managementStub) GetMonitorMetrics(_ context.Context, nodeID uint64, _, _ time.Duration) (managementusecase.MonitorMetricsResult, error) {
-	if s.monitorMetricsNodeIDSink != nil {
-		*s.monitorMetricsNodeIDSink = nodeID
-	}
-	return s.monitorMetrics, s.monitorMetricsErr
 }
 
 func (s managementStub) ListNodePlugins(_ context.Context, nodeID uint64) (pluginusecase.LocalPluginList, error) {

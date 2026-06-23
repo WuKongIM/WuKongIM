@@ -1,4 +1,4 @@
-import { Activity, ArrowRight, Bot, Hash, MessageSquareText, Users } from "lucide-react"
+import { ArrowRight, Bot, Hash, MessageSquareText, Users } from "lucide-react"
 import { useIntl } from "react-intl"
 import { Link } from "react-router-dom"
 
@@ -13,7 +13,6 @@ const entryIcons = {
   channels: Hash,
   messages: MessageSquareText,
   systemUsers: Bot,
-  monitor: Activity,
 } satisfies Record<BusinessEntryCard["key"], typeof Users>
 
 export function BusinessEntryCards({ cards }: BusinessEntryCardsProps) {
@@ -27,7 +26,7 @@ export function BusinessEntryCards({ cards }: BusinessEntryCardsProps) {
           <p className="text-xs leading-5 text-muted-foreground">{intl.formatMessage({ id: "businessDashboard.entries.description" })}</p>
         </div>
       </div>
-      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         {cards.map((card) => (
           <EntryLink card={card} key={card.key} />
         ))}

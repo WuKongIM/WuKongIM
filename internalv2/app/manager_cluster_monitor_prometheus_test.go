@@ -190,6 +190,70 @@ func TestManagerClusterMonitorProviderFiltersCommonCards(t *testing.T) {
 	requireClusterSnapshotValueWithUnit(t, resp.Snapshot, "slotsReady", (1.0/3.0)*100, "%", accessmanager.RealtimeMonitorSourceControlSnapshot)
 }
 
+func TestManagerClusterMonitorProviderReturnsInternalOperatorCards(t *testing.T) {
+	var queries []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query().Get("query")
+		queries = append(queries, query)
+		writePrometheusRangeForTest(w, "7")
+	}))
+	defer server.Close()
+	provider := newManagerPrometheusMonitorProvider(managerPrometheusMonitorOptions{
+		Enabled: true,
+		BaseURL: server.URL,
+		Client:  server.Client(),
+		Now:     func() time.Time { return time.Unix(1781767240, 0).UTC() },
+		Control: managerClusterControlReaderFake{},
+	})
+
+	resp, err := provider.RealtimeMonitor(context.Background(), accessmanager.RealtimeMonitorQuery{
+		Window:   15 * time.Minute,
+		Step:     20 * time.Second,
+		Category: accessmanager.RealtimeMonitorCategoryInternal,
+	})
+
+	if err != nil {
+		t.Fatalf("RealtimeMonitor() error = %v", err)
+	}
+	wantKeys := []string{
+		"internalTraffic",
+		"rpcSuccessRate",
+		"rpcLatencyP95",
+		"internalTxTraffic",
+		"internalRxTraffic",
+		"rpcRate",
+		"rpcErrorRate",
+		"rpcInflight",
+		"rpcLatencyP99",
+		"dialSuccessRate",
+		"dialLatencyP95",
+		"transportV2QueueUsage",
+		"transportV2AdmissionErrorRate",
+	}
+	requireMonitorCardKeysForTest(t, resp.Cards, wantKeys)
+	if resp.Categories[2].Key != accessmanager.RealtimeMonitorCategoryInternal || resp.Categories[2].Count != len(wantKeys) {
+		t.Fatalf("internal category = %#v, want count %d", resp.Categories[2], len(wantKeys))
+	}
+
+	joinedQueries := strings.Join(queries, "\n")
+	for _, want := range []string{
+		`wukongim_transport_sent_bytes_total{job="wukongimv2"}[1m]`,
+		`wukongim_transport_received_bytes_total{job="wukongimv2"}[1m]`,
+		`wukongim_transport_rpc_total{job="wukongimv2"}[1m]`,
+		`wukongim_transport_rpc_total{job="wukongimv2",result!="ok"}[1m]`,
+		`wukongim_transport_rpc_inflight{job="wukongimv2"}`,
+		`wukongim_transport_rpc_duration_seconds_bucket{job="wukongimv2"}[1m]`,
+		`wukongim_transport_dial_total{job="wukongimv2",result="ok"}[1m]`,
+		`wukongim_transport_dial_duration_seconds_bucket{job="wukongimv2"}[1m]`,
+		`wukongim_runtime_pool_queue_depth{job="wukongimv2",component="transportv2"}`,
+		`wukongim_runtime_pool_admission_total{job="wukongimv2",component="transportv2",result!="ok"}[1m]`,
+	} {
+		if !strings.Contains(joinedQueries, want) {
+			t.Fatalf("queries missing %q: %s", want, joinedQueries)
+		}
+	}
+}
+
 func TestManagerClusterMonitorProviderIncludesAllNodeResourceStats(t *testing.T) {
 	var nodeCPUQuery string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

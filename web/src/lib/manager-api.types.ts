@@ -296,7 +296,7 @@ export type RealtimeMonitorTone = "normal" | "warning" | "critical"
 export type RealtimeMonitorSource = "prometheus" | "control_snapshot"
 
 export type RealtimeMonitorCategory =
-  | "all"
+  | "common"
   | "gateway"
   | "internal"
   | "message"

@@ -141,7 +141,6 @@ func (s *Server) registerRoutes() {
 	}
 	overview.GET("/overview", s.handleOverview)
 	overview.GET("/dashboard/metrics", s.handleDashboardMetrics)
-	overview.GET("/monitor/metrics", s.handleMonitorMetrics)
 
 	network := s.engine.Group("/manager")
 	if s.auth.enabled() {

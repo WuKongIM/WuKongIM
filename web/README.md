@@ -25,6 +25,7 @@ The web app provides the authenticated manager shell for WuKongIM operations:
 | Page | Manager API coverage | Status |
 |------|----------------------|--------|
 | `/cluster/dashboard` | `GET /manager/overview`, `GET /manager/tasks`, `GET /manager/nodes`, `GET /manager/channel-cluster/summary`, `GET /manager/network/summary` | Implemented |
+| `/cluster/monitor` | `GET /manager/realtime-monitor`, optional `node_id` and `category` filters | Implemented |
 | `/cluster/nodes` | `GET /manager/nodes`, `GET /manager/nodes/:id`, node lifecycle and scale-in APIs; `?panel=onboarding` also uses node onboarding APIs | Implemented |
 | `/cluster/slots` | `GET /manager/nodes`, `GET /manager/slots`, `GET /manager/slots/:id`, Slot leader single/batch transfer, recovery, and rebalance APIs | Implemented |
 | `/cluster/channels?tab=overview` | `GET /manager/channel-cluster/summary` | Implemented |
@@ -38,7 +39,6 @@ The web app provides the authenticated manager shell for WuKongIM operations:
 | `/cluster/diagnostics?tab=controller-logs` | Controller Raft log/status and compaction APIs | Implemented |
 | `/cluster/diagnostics?tab=slot-logs` | Slot Raft log and compaction APIs | Implemented |
 | `/business/dashboard` | `GET /manager/dashboard/metrics`; optional `GET /manager/users`, `GET /manager/channels`, `GET /manager/system-users` for entry-card counts | Implemented |
-| `/business/monitor` | `GET /manager/monitor/metrics`, optional `node_id` filter | Implemented |
 | `/business/users` | `GET /manager/users`, `GET /manager/users/:uid`, `POST /manager/users/:uid/kick`, `POST /manager/users/:uid/token/reset` | Implemented |
 | `/business/channels` | `GET /manager/channels`, `GET /manager/channels/:type/:id`, `POST /manager/channels`, member list add/remove APIs | Implemented |
 | `/business/messages` | `GET /manager/messages`, message retention APIs, channel runtime suggestions | Implemented |
@@ -52,7 +52,7 @@ The web app provides the authenticated manager shell for WuKongIM operations:
 
 Old bookmarks are kept as `replace` redirects into the redesigned sections:
 
-- Dashboard routes: `/dashboard` -> `/cluster/dashboard`; `/monitor` -> `/business/monitor`.
+- Dashboard routes: `/dashboard` -> `/cluster/dashboard`.
 - Cluster routes: `/nodes`, `/onboarding`, `/slots`, `/tasks`, `/topology`, `/channel-cluster`, `/channel-cluster/list`, `/channel-cluster/unhealthy`, `/channels`.
 - Diagnostics routes: `/diagnostics`, `/network`, `/controller`, `/slot-logs`; log redirects preserve existing query parameters such as `node_id` and `slot_id`.
 - Business routes: `/users`, `/channels-biz`, `/messages`, `/system-users`.

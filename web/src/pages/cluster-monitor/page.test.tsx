@@ -84,7 +84,7 @@ function readyClusterMonitorResponse(): RealtimeMonitorResponse {
       control_snapshot: { enabled: true, query_ms: 2, error: "" },
     },
     categories: [
-      { key: "all", count: 2 },
+      { key: "common", count: 2 },
       { key: "control", count: 1 },
       { key: "internal", count: 1 },
     ],
@@ -142,7 +142,7 @@ function businessRealtimeMonitorResponse(): RealtimeMonitorResponse {
     ...readyClusterMonitorResponse(),
     snapshot: [],
     categories: [
-      { key: "all", count: 3 },
+      { key: "common", count: 3 },
       { key: "gateway", count: 1 },
       { key: "message", count: 1 },
       { key: "conversation", count: 1 },
@@ -205,6 +205,278 @@ function businessRealtimeMonitorResponse(): RealtimeMonitorResponse {
           { key: "avg", value: 35.2 },
           { key: "peak", value: 39.1 },
         ],
+      },
+    ],
+  }
+}
+
+function gatewayOperatorMonitorResponse(): RealtimeMonitorResponse {
+  return {
+    ...readyClusterMonitorResponse(),
+    snapshot: [],
+    categories: [
+      { key: "common", count: 3 },
+      { key: "gateway", count: 20 },
+    ],
+    cards: [
+      {
+        key: "sendQueueUsage",
+        category: "gateway" as const,
+        source: "prometheus" as const,
+        stage: "sendEntry",
+        tone: "warning" as const,
+        unit: "%",
+        value: 62.5,
+        available: true,
+        error: "",
+        series: [
+          { timestamp: 1781767200000, value: 51.2 },
+          { timestamp: 1781767220000, value: 62.5 },
+        ],
+        stats: [
+          { key: "avg", value: 56.8 },
+          { key: "peak", value: 62.5 },
+        ],
+      },
+      {
+        key: "connectionOpenRate",
+        category: "gateway" as const,
+        source: "prometheus" as const,
+        stage: "sendEntry",
+        tone: "normal" as const,
+        unit: "conn/s",
+        value: 12.8,
+        available: true,
+        error: "",
+        series: [
+          { timestamp: 1781767200000, value: 10.1 },
+          { timestamp: 1781767220000, value: 12.8 },
+        ],
+        stats: [],
+      },
+      {
+        key: "connectionCloseRate",
+        category: "gateway" as const,
+        source: "prometheus" as const,
+        stage: "sendEntry",
+        tone: "warning" as const,
+        unit: "conn/s",
+        value: 9.2,
+        available: true,
+        error: "",
+        series: [
+          { timestamp: 1781767200000, value: 6.4 },
+          { timestamp: 1781767220000, value: 9.2 },
+        ],
+        stats: [],
+      },
+      {
+        key: "connectionCloseReasonRate",
+        category: "gateway" as const,
+        source: "prometheus" as const,
+        stage: "incidentClosure",
+        tone: "warning" as const,
+        unit: "conn/s",
+        value: 4.8,
+        available: true,
+        error: "",
+        series: [
+          { timestamp: 1781767200000, value: 3.1, label: "idle", series_key: "reason=idle" },
+          { timestamp: 1781767220000, value: 4.8, label: "idle", series_key: "reason=idle" },
+        ],
+        stats: [],
+      },
+      {
+        key: "authSuccessRate",
+        category: "gateway" as const,
+        source: "prometheus" as const,
+        stage: "sendEntry",
+        tone: "normal" as const,
+        unit: "%",
+        value: 99.2,
+        available: true,
+        error: "",
+        series: [
+          { timestamp: 1781767200000, value: 98.9 },
+          { timestamp: 1781767220000, value: 99.2 },
+        ],
+        stats: [],
+      },
+      {
+        key: "authLatencyP99",
+        category: "gateway" as const,
+        source: "prometheus" as const,
+        stage: "sendEntry",
+        tone: "warning" as const,
+        unit: "ms",
+        value: 18.6,
+        available: true,
+        error: "",
+        series: [
+          { timestamp: 1781767200000, value: 16.4 },
+          { timestamp: 1781767220000, value: 18.6 },
+        ],
+        stats: [],
+      },
+      {
+        key: "sendackErrorRate",
+        category: "gateway" as const,
+        source: "prometheus" as const,
+        stage: "incidentClosure",
+        tone: "critical" as const,
+        unit: "%",
+        value: 0.42,
+        available: true,
+        error: "",
+        series: [
+          { timestamp: 1781767200000, value: 0.12 },
+          { timestamp: 1781767220000, value: 0.42 },
+        ],
+        stats: [],
+      },
+      {
+        key: "gatewayInboundTraffic",
+        category: "gateway" as const,
+        source: "prometheus" as const,
+        stage: "sendEntry",
+        tone: "normal" as const,
+        unit: "B/s",
+        value: 262_144,
+        available: true,
+        error: "",
+        series: [
+          { timestamp: 1781767200000, value: 131_072 },
+          { timestamp: 1781767220000, value: 262_144 },
+        ],
+        stats: [],
+      },
+      {
+        key: "gatewayOutboundTraffic",
+        category: "gateway" as const,
+        source: "prometheus" as const,
+        stage: "sendEntry",
+        tone: "normal" as const,
+        unit: "B/s",
+        value: 524_288,
+        available: true,
+        error: "",
+        series: [
+          { timestamp: 1781767200000, value: 262_144 },
+          { timestamp: 1781767220000, value: 524_288 },
+        ],
+        stats: [],
+      },
+      {
+        key: "frameHandleLatencyP99",
+        category: "gateway" as const,
+        source: "prometheus" as const,
+        stage: "sendEntry",
+        tone: "warning" as const,
+        unit: "ms",
+        value: 21.4,
+        available: true,
+        error: "",
+        series: [
+          { timestamp: 1781767200000, value: 18.2, label: "SEND", series_key: "frame_type=SEND" },
+          { timestamp: 1781767220000, value: 21.4, label: "SEND", series_key: "frame_type=SEND" },
+        ],
+        stats: [],
+      },
+      {
+        key: "asyncBatchWaitP99",
+        category: "gateway" as const,
+        source: "prometheus" as const,
+        stage: "sendEntry",
+        tone: "warning" as const,
+        unit: "ms",
+        value: 7.8,
+        available: true,
+        error: "",
+        series: [
+          { timestamp: 1781767200000, value: 6.2 },
+          { timestamp: 1781767220000, value: 7.8 },
+        ],
+        stats: [],
+      },
+      {
+        key: "asyncBatchRecordsP95",
+        category: "gateway" as const,
+        source: "prometheus" as const,
+        stage: "sendEntry",
+        tone: "normal" as const,
+        unit: "records",
+        value: 64,
+        available: true,
+        error: "",
+        series: [
+          { timestamp: 1781767200000, value: 32 },
+          { timestamp: 1781767220000, value: 64 },
+        ],
+        stats: [],
+      },
+      {
+        key: "asyncBatchBytesP95",
+        category: "gateway" as const,
+        source: "prometheus" as const,
+        stage: "sendEntry",
+        tone: "normal" as const,
+        unit: "B",
+        value: 65_536,
+        available: true,
+        error: "",
+        series: [
+          { timestamp: 1781767200000, value: 32_768 },
+          { timestamp: 1781767220000, value: 65_536 },
+        ],
+        stats: [],
+      },
+      {
+        key: "authQueueUsage",
+        category: "gateway" as const,
+        source: "prometheus" as const,
+        stage: "runtimePressure",
+        tone: "warning" as const,
+        unit: "%",
+        value: 41.2,
+        available: true,
+        error: "",
+        series: [
+          { timestamp: 1781767200000, value: 21.4 },
+          { timestamp: 1781767220000, value: 41.2 },
+        ],
+        stats: [],
+      },
+      {
+        key: "transportV2QueueUsage",
+        category: "gateway" as const,
+        source: "prometheus" as const,
+        stage: "runtimePressure",
+        tone: "warning" as const,
+        unit: "%",
+        value: 72.1,
+        available: true,
+        error: "",
+        series: [
+          { timestamp: 1781767200000, value: 43.5 },
+          { timestamp: 1781767220000, value: 72.1 },
+        ],
+        stats: [],
+      },
+      {
+        key: "transportBytesUsage",
+        category: "gateway" as const,
+        source: "prometheus" as const,
+        stage: "runtimePressure",
+        tone: "warning" as const,
+        unit: "%",
+        value: 80.6,
+        available: true,
+        error: "",
+        series: [
+          { timestamp: 1781767200000, value: 62.4 },
+          { timestamp: 1781767220000, value: 80.6 },
+        ],
+        stats: [],
       },
     ],
   }
@@ -274,6 +546,326 @@ function largeTrafficClusterMonitorResponse(): RealtimeMonitorResponse {
           { key: "peak", value: 398006.3 },
         ],
       },
+    ],
+  }
+}
+
+function internalOperatorMonitorResponse(): RealtimeMonitorResponse {
+  return {
+    ...readyClusterMonitorResponse(),
+    snapshot: [],
+    categories: [
+      { key: "common", count: 3 },
+      { key: "internal", count: 13 },
+    ],
+    cards: [
+      {
+        key: "internalTxTraffic",
+        category: "internal" as const,
+        source: "prometheus" as const,
+        stage: "internalNetwork",
+        tone: "normal" as const,
+        unit: "B/s",
+        value: 262_144,
+        available: true,
+        error: "",
+        series: [
+          { timestamp: 1781767200000, value: 131_072 },
+          { timestamp: 1781767220000, value: 262_144 },
+        ],
+        stats: [],
+      },
+      {
+        key: "internalRxTraffic",
+        category: "internal" as const,
+        source: "prometheus" as const,
+        stage: "internalNetwork",
+        tone: "normal" as const,
+        unit: "B/s",
+        value: 393_216,
+        available: true,
+        error: "",
+        series: [
+          { timestamp: 1781767200000, value: 262_144 },
+          { timestamp: 1781767220000, value: 393_216 },
+        ],
+        stats: [],
+      },
+      {
+        key: "rpcRate",
+        category: "internal" as const,
+        source: "prometheus" as const,
+        stage: "internalNetwork",
+        tone: "normal" as const,
+        unit: "calls/s",
+        value: 180,
+        available: true,
+        error: "",
+        series: [
+          { timestamp: 1781767200000, value: 150 },
+          { timestamp: 1781767220000, value: 180 },
+        ],
+        stats: [],
+      },
+      {
+        key: "rpcErrorRate",
+        category: "internal" as const,
+        source: "prometheus" as const,
+        stage: "internalNetwork",
+        tone: "critical" as const,
+        unit: "%",
+        value: 0.8,
+        available: true,
+        error: "",
+        series: [
+          { timestamp: 1781767200000, value: 0.2 },
+          { timestamp: 1781767220000, value: 0.8 },
+        ],
+        stats: [],
+      },
+      {
+        key: "rpcInflight",
+        category: "internal" as const,
+        source: "prometheus" as const,
+        stage: "internalNetwork",
+        tone: "warning" as const,
+        unit: "",
+        value: 42,
+        available: true,
+        error: "",
+        series: [
+          { timestamp: 1781767200000, value: 30 },
+          { timestamp: 1781767220000, value: 42 },
+        ],
+        stats: [],
+      },
+      {
+        key: "rpcLatencyP99",
+        category: "internal" as const,
+        source: "prometheus" as const,
+        stage: "internalNetwork",
+        tone: "warning" as const,
+        unit: "ms",
+        value: 48.6,
+        available: true,
+        error: "",
+        series: [
+          { timestamp: 1781767200000, value: 31.2 },
+          { timestamp: 1781767220000, value: 48.6 },
+        ],
+        stats: [],
+      },
+      {
+        key: "dialSuccessRate",
+        category: "internal" as const,
+        source: "prometheus" as const,
+        stage: "internalNetwork",
+        tone: "normal" as const,
+        unit: "%",
+        value: 99.4,
+        available: true,
+        error: "",
+        series: [
+          { timestamp: 1781767200000, value: 99.1 },
+          { timestamp: 1781767220000, value: 99.4 },
+        ],
+        stats: [],
+      },
+      {
+        key: "dialLatencyP95",
+        category: "internal" as const,
+        source: "prometheus" as const,
+        stage: "internalNetwork",
+        tone: "warning" as const,
+        unit: "ms",
+        value: 16.8,
+        available: true,
+        error: "",
+        series: [
+          { timestamp: 1781767200000, value: 12.4 },
+          { timestamp: 1781767220000, value: 16.8 },
+        ],
+        stats: [],
+      },
+      {
+        key: "transportV2QueueUsage",
+        category: "internal" as const,
+        source: "prometheus" as const,
+        stage: "runtimePressure",
+        tone: "warning" as const,
+        unit: "%",
+        value: 71.5,
+        available: true,
+        error: "",
+        series: [
+          { timestamp: 1781767200000, value: 45.2 },
+          { timestamp: 1781767220000, value: 71.5 },
+        ],
+        stats: [],
+      },
+      {
+        key: "transportV2AdmissionErrorRate",
+        category: "internal" as const,
+        source: "prometheus" as const,
+        stage: "runtimePressure",
+        tone: "critical" as const,
+        unit: "%",
+        value: 1.2,
+        available: true,
+        error: "",
+        series: [
+          { timestamp: 1781767200000, value: 0.3 },
+          { timestamp: 1781767220000, value: 1.2 },
+        ],
+        stats: [],
+      },
+    ],
+  }
+}
+
+function messageOperatorCard(
+  key: string,
+  stage: string,
+  tone: "normal" | "warning" | "critical",
+  unit: string,
+  value: number,
+): RealtimeMonitorResponse["cards"][number] {
+  return {
+    key,
+    category: "message",
+    source: "prometheus",
+    stage,
+    tone,
+    unit,
+    value,
+    available: true,
+    error: "",
+    series: [
+      { timestamp: 1781767200000, value: value * 0.8 },
+      { timestamp: 1781767220000, value },
+    ],
+    stats: [],
+  }
+}
+
+function messageOperatorMonitorResponse(): RealtimeMonitorResponse {
+  return {
+    ...readyClusterMonitorResponse(),
+    snapshot: [],
+    categories: [
+      { key: "common", count: 3 },
+      { key: "message", count: 19 },
+    ],
+    cards: [
+      messageOperatorCard("messageSendRate", "sendEntry", "normal", "msg/s", 216),
+      messageOperatorCard("messageSendackErrorRate", "errorClosure", "critical", "%", 0.42),
+      messageOperatorCard("messageAppendErrorRate", "appendCommit", "critical", "%", 0.28),
+      messageOperatorCard("messageAppendLatencyP95", "appendCommit", "warning", "ms", 28.4),
+      messageOperatorCard("messageDispatchEnqueueRate", "appendCommit", "normal", "msg/s", 208),
+      messageOperatorCard("messageDispatchOverflowRate", "appendCommit", "critical", "events/s", 0.4),
+      messageOperatorCard("deliveryEnqueueRate", "onlineDelivery", "normal", "msg/s", 204),
+      messageOperatorCard("deliveryQueueUsage", "onlineDelivery", "warning", "%", 63.5),
+      messageOperatorCard("deliveryRetryRate", "offlineRetry", "warning", "events/s", 3.2),
+      messageOperatorCard("deliveryAdmissionErrorRate", "onlineDelivery", "critical", "%", 1.1),
+      messageOperatorCard("deliveryRouteExpireRate", "errorClosure", "critical", "events/s", 0.7),
+    ],
+  }
+}
+
+function channelOperatorCard(
+  key: string,
+  stage: string,
+  tone: "normal" | "warning" | "critical",
+  unit: string,
+  value: number,
+): RealtimeMonitorResponse["cards"][number] {
+  return {
+    key,
+    category: "channel",
+    source: "prometheus",
+    stage,
+    tone,
+    unit,
+    value,
+    available: true,
+    error: "",
+    series: [
+      { timestamp: 1781767200000, value: value * 0.8 },
+      { timestamp: 1781767220000, value },
+    ],
+    stats: [],
+  }
+}
+
+function channelOperatorMonitorResponse(): RealtimeMonitorResponse {
+  return {
+    ...readyClusterMonitorResponse(),
+    snapshot: [],
+    categories: [
+      { key: "common", count: 3 },
+      { key: "channel", count: 12 },
+    ],
+    cards: [
+      channelOperatorCard("channelAppendLatencyP99", "channelReplication", "warning", "ms", 42),
+      channelOperatorCard("activeChannels", "channelReplication", "normal", "", 1024),
+      channelOperatorCard("channelAppendBatchRecordsP95", "channelReplication", "normal", "records", 64),
+      channelOperatorCard("channelAppendBatchBytesP95", "channelReplication", "normal", "B", 32768),
+      channelOperatorCard("channelAppendErrorRate", "channelReplication", "critical", "%", 0.35),
+      channelOperatorCard("channelWriterAdmissionUsage", "runtimePressure", "warning", "%", 68),
+      channelOperatorCard("channelRuntimeFollowersParked", "channelReplication", "warning", "", 128),
+      channelOperatorCard("channelActivationRejectRate", "channelReplication", "critical", "events/s", 1.2),
+      channelOperatorCard("channelReactorMailboxDepth", "runtimePressure", "warning", "", 23),
+      channelOperatorCard("channelWorkerQueueDepth", "runtimePressure", "warning", "", 48),
+      channelOperatorCard("channelPullHintErrorRate", "channelReplication", "critical", "%", 2.1),
+      channelOperatorCard("channelReplicationLatencyP99", "channelReplication", "warning", "ms", 55),
+    ],
+  }
+}
+
+function slotOperatorCard(
+  key: string,
+  stage: string,
+  tone: "normal" | "warning" | "critical",
+  unit: string,
+  value: number,
+): RealtimeMonitorResponse["cards"][number] {
+  return {
+    key,
+    category: "slot",
+    source: "prometheus",
+    stage,
+    tone,
+    unit,
+    value,
+    available: true,
+    error: "",
+    series: [
+      { timestamp: 1781767200000, value: value * 0.8 },
+      { timestamp: 1781767220000, value },
+    ],
+    stats: [],
+  }
+}
+
+function slotOperatorMonitorResponse(): RealtimeMonitorResponse {
+  return {
+    ...readyClusterMonitorResponse(),
+    snapshot: [],
+    categories: [
+      { key: "common", count: 3 },
+      { key: "slot", count: 10 },
+    ],
+    cards: [
+      slotOperatorCard("slotLeaderStability", "slotReplication", "normal", "%", 99.8),
+      slotOperatorCard("slotProposeRate", "slotReplication", "normal", "cmd/s", 180),
+      slotOperatorCard("slotApplyGap", "slotReplication", "warning", "entries", 2),
+      slotOperatorCard("slotLatencyP99", "slotReplication", "warning", "ms", 36),
+      slotOperatorCard("slotProposalAdmissionRejectRate", "slotReplication", "critical", "%", 0.8),
+      slotOperatorCard("slotLeaderChangeRate", "slotReplication", "warning", "events/s", 0.2),
+      slotOperatorCard("slotReplicaLagMax", "slotReplication", "warning", "s", 1.4),
+      slotOperatorCard("slotSchedulerQueueUsage", "runtimePressure", "warning", "%", 61),
+      slotOperatorCard("slotSchedulerInflightUsage", "runtimePressure", "warning", "%", 45),
+      slotOperatorCard("slotSchedulerTaskLatencyP99", "runtimePressure", "warning", "ms", 22),
     ],
   }
 }
@@ -435,7 +1027,7 @@ test("renders cluster monitor cards from realtime API data", async () => {
   expect(screen.getByText("RPC Errors")).toBeInTheDocument()
   expect(screen.getByRole("button", { name: "Refresh now" })).toBeInTheDocument()
   expect(screen.getByRole("combobox", { name: "Auto refresh" })).toHaveValue("30s")
-  expect(getRealtimeMonitor).toHaveBeenCalledWith({ window: "15m" })
+  expect(getRealtimeMonitor).toHaveBeenCalledWith({ window: "15m", category: "common" })
 })
 
 test("renders former business realtime monitor cards in cluster monitor page", async () => {
@@ -453,6 +1045,31 @@ test("renders former business realtime monitor cards in cluster monitor page", a
   expect(within(cards[1]).getByText("Online Delivery")).toBeInTheDocument()
   expect(within(cards[2]).getByText("Conversation Sync Rate")).toBeInTheDocument()
   expect(within(cards[2]).getByText("Conversation Sync")).toBeInTheDocument()
+})
+
+test("renders gateway operator cards from realtime API data", async () => {
+  vi.mocked(getRealtimeMonitor).mockResolvedValueOnce(gatewayOperatorMonitorResponse())
+  renderClusterMonitorPage()
+
+  const cards = await screen.findAllByTestId("cluster-monitor-metric-card")
+  expect(cards).toHaveLength(16)
+  expect(within(cards[0]).getByText("Gateway Send Queue")).toBeInTheDocument()
+  expect(within(cards[0]).getByText("62.5")).toBeInTheDocument()
+  expect(within(cards[1]).getByText("Connection Opens")).toBeInTheDocument()
+  expect(within(cards[2]).getByText("Connection Closes")).toBeInTheDocument()
+  expect(within(cards[3]).getByText("Close Reasons")).toBeInTheDocument()
+  expect(within(cards[4]).getByText("Auth Success Rate")).toBeInTheDocument()
+  expect(within(cards[5]).getByText("Auth Latency P99")).toBeInTheDocument()
+  expect(within(cards[6]).getByText("Sendack Error Rate")).toBeInTheDocument()
+  expect(within(cards[7]).getByText("Gateway Inbound Traffic")).toBeInTheDocument()
+  expect(within(cards[8]).getByText("Gateway Outbound Traffic")).toBeInTheDocument()
+  expect(within(cards[9]).getByText("Frame Latency P99")).toBeInTheDocument()
+  expect(within(cards[10]).getByText("Async Batch Wait P99")).toBeInTheDocument()
+  expect(within(cards[11]).getByText("Async Batch Records P95")).toBeInTheDocument()
+  expect(within(cards[12]).getByText("Async Batch Bytes P95")).toBeInTheDocument()
+  expect(within(cards[13]).getByText("Auth Queue Usage")).toBeInTheDocument()
+  expect(within(cards[14]).getByText("Transport Queue Usage")).toBeInTheDocument()
+  expect(within(cards[15]).getByText("Transport Bytes Usage")).toBeInTheDocument()
 })
 
 test("shows metric explanations from card help buttons", async () => {
@@ -495,6 +1112,81 @@ test("formats large internal traffic byte rates", async () => {
   expect(within(card).getByText("286.5 KB/s")).toBeInTheDocument()
   expect(within(card).getByText("388.7 KB/s")).toBeInTheDocument()
   expect(within(card).queryByText("398,006.3")).not.toBeInTheDocument()
+})
+
+test("renders internal operator cards from realtime API data", async () => {
+  vi.mocked(getRealtimeMonitor).mockResolvedValueOnce(internalOperatorMonitorResponse())
+  renderClusterMonitorPage()
+
+  const cards = await screen.findAllByTestId("cluster-monitor-metric-card")
+  expect(cards).toHaveLength(10)
+  expect(within(cards[0]).getByText("Internal TX Traffic")).toBeInTheDocument()
+  expect(within(cards[1]).getByText("Internal RX Traffic")).toBeInTheDocument()
+  expect(within(cards[2]).getByText("RPC Rate")).toBeInTheDocument()
+  expect(within(cards[3]).getByText("RPC Error Rate")).toBeInTheDocument()
+  expect(within(cards[4]).getByText("RPC Inflight")).toBeInTheDocument()
+  expect(within(cards[5]).getByText("RPC Latency P99")).toBeInTheDocument()
+  expect(within(cards[6]).getByText("Dial Success Rate")).toBeInTheDocument()
+  expect(within(cards[7]).getByText("Dial Latency P95")).toBeInTheDocument()
+  expect(within(cards[8]).getByText("Transport Queue Usage")).toBeInTheDocument()
+  expect(within(cards[9]).getByText("Transport Admission Errors")).toBeInTheDocument()
+})
+
+test("renders message operator cards from realtime API data", async () => {
+  vi.mocked(getRealtimeMonitor).mockResolvedValueOnce(messageOperatorMonitorResponse())
+  renderClusterMonitorPage()
+
+  const cards = await screen.findAllByTestId("cluster-monitor-metric-card")
+  expect(cards).toHaveLength(11)
+  expect(within(cards[0]).getByText("Message Send Rate")).toBeInTheDocument()
+  expect(within(cards[1]).getByText("Message Sendack Error Rate")).toBeInTheDocument()
+  expect(within(cards[2]).getByText("Append Error Rate")).toBeInTheDocument()
+  expect(within(cards[3]).getByText("Append Latency P95")).toBeInTheDocument()
+  expect(within(cards[4]).getByText("Dispatch Enqueue Rate")).toBeInTheDocument()
+  expect(within(cards[5]).getByText("Dispatch Overflow Rate")).toBeInTheDocument()
+  expect(within(cards[6]).getByText("Delivery Enqueue Rate")).toBeInTheDocument()
+  expect(within(cards[7]).getByText("Delivery Queue Usage")).toBeInTheDocument()
+  expect(within(cards[8]).getByText("Delivery Retry Rate")).toBeInTheDocument()
+  expect(within(cards[9]).getByText("Delivery Admission Errors")).toBeInTheDocument()
+  expect(within(cards[10]).getByText("Delivery Route Expired")).toBeInTheDocument()
+})
+
+test("renders channel operator cards from realtime API data", async () => {
+  vi.mocked(getRealtimeMonitor).mockResolvedValueOnce(channelOperatorMonitorResponse())
+  renderClusterMonitorPage()
+
+  const cards = await screen.findAllByTestId("cluster-monitor-metric-card")
+  expect(cards).toHaveLength(12)
+  expect(within(cards[0]).getByText("Channel Append Latency P99")).toBeInTheDocument()
+  expect(within(cards[1]).getByText("Active Channels")).toBeInTheDocument()
+  expect(within(cards[2]).getByText("Append Batch Records P95")).toBeInTheDocument()
+  expect(within(cards[3]).getByText("Append Batch Bytes P95")).toBeInTheDocument()
+  expect(within(cards[4]).getByText("Channel Append Error Rate")).toBeInTheDocument()
+  expect(within(cards[5]).getByText("Writer Admission Usage")).toBeInTheDocument()
+  expect(within(cards[6]).getByText("Parked Followers")).toBeInTheDocument()
+  expect(within(cards[7]).getByText("Channel Activation Rejects")).toBeInTheDocument()
+  expect(within(cards[8]).getByText("Reactor Mailbox Depth")).toBeInTheDocument()
+  expect(within(cards[9]).getByText("Channel Worker Queue Depth")).toBeInTheDocument()
+  expect(within(cards[10]).getByText("Pull Hint Error Rate")).toBeInTheDocument()
+  expect(within(cards[11]).getByText("Replication Latency P99")).toBeInTheDocument()
+})
+
+test("renders slot operator cards from realtime API data", async () => {
+  vi.mocked(getRealtimeMonitor).mockResolvedValueOnce(slotOperatorMonitorResponse())
+  renderClusterMonitorPage()
+
+  const cards = await screen.findAllByTestId("cluster-monitor-metric-card")
+  expect(cards).toHaveLength(10)
+  expect(within(cards[0]).getByText("Slot Leader Stability")).toBeInTheDocument()
+  expect(within(cards[1]).getByText("Slot Propose Rate")).toBeInTheDocument()
+  expect(within(cards[2]).getByText("Slot Apply Gap")).toBeInTheDocument()
+  expect(within(cards[3]).getByText("Slot Apply Latency P99")).toBeInTheDocument()
+  expect(within(cards[4]).getByText("Slot Proposal Reject Rate")).toBeInTheDocument()
+  expect(within(cards[5]).getByText("Slot Leader Changes")).toBeInTheDocument()
+  expect(within(cards[6]).getByText("Slot Replica Lag Max")).toBeInTheDocument()
+  expect(within(cards[7]).getByText("Slot Scheduler Queue Usage")).toBeInTheDocument()
+  expect(within(cards[8]).getByText("Slot Scheduler Inflight Usage")).toBeInTheDocument()
+  expect(within(cards[9]).getByText("Slot Scheduler Task Latency P99")).toBeInTheDocument()
 })
 
 test("keeps internal traffic unit readable when an old burst is larger than the current value", async () => {
@@ -580,7 +1272,7 @@ test("updates selected time range and auto refresh interval from the toolbar", a
 
   await user.click(await screen.findByRole("button", { name: "30m time range" }))
   expect(screen.getByRole("button", { name: "30m time range" })).toHaveAttribute("aria-pressed", "true")
-  expect(getRealtimeMonitor).toHaveBeenLastCalledWith({ window: "30m" })
+  expect(getRealtimeMonitor).toHaveBeenLastCalledWith({ window: "30m", category: "common" })
 
   await user.selectOptions(screen.getByRole("combobox", { name: "Auto refresh" }), "off")
   expect(screen.getByRole("combobox", { name: "Auto refresh" })).toHaveValue("off")
@@ -592,8 +1284,10 @@ test("filters realtime monitor by selected category", async () => {
   renderClusterMonitorPage()
 
   const categorySelect = await screen.findByRole("combobox", { name: "Category" })
-  expect(categorySelect).toHaveValue("all")
-  expect(getRealtimeMonitor).toHaveBeenCalledWith({ window: "15m" })
+  expect(categorySelect).toHaveValue("common")
+  expect(within(categorySelect).getByRole("option", { name: "Common" })).toBeInTheDocument()
+  expect(within(categorySelect).queryByRole("option", { name: "All" })).not.toBeInTheDocument()
+  expect(getRealtimeMonitor).toHaveBeenCalledWith({ window: "15m", category: "common" })
 
   await user.selectOptions(categorySelect, "internal")
 
@@ -616,13 +1310,13 @@ test("manually and automatically refreshes realtime monitor data", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Refresh now" }))
   await act(async () => {})
   expect(getRealtimeMonitor).toHaveBeenCalledTimes(2)
-  expect(getRealtimeMonitor).toHaveBeenLastCalledWith({ window: "15m" })
+  expect(getRealtimeMonitor).toHaveBeenLastCalledWith({ window: "15m", category: "common" })
 
   await act(async () => {
     await vi.advanceTimersByTimeAsync(30_000)
   })
   expect(getRealtimeMonitor).toHaveBeenCalledTimes(3)
-  expect(getRealtimeMonitor).toHaveBeenLastCalledWith({ window: "15m" })
+  expect(getRealtimeMonitor).toHaveBeenLastCalledWith({ window: "15m", category: "common" })
 
   fireEvent.change(screen.getByRole("combobox", { name: "Auto refresh" }), { target: { value: "off" } })
   await act(async () => {})
@@ -638,7 +1332,7 @@ test("filters realtime monitor by selected node", async () => {
   renderClusterMonitorPage()
 
   const nodeSelect = await screen.findByRole("combobox", { name: "Node" })
-  expect(getRealtimeMonitor).toHaveBeenCalledWith({ window: "15m" })
+  expect(getRealtimeMonitor).toHaveBeenCalledWith({ window: "15m", category: "common" })
 
   await user.selectOptions(screen.getByRole("combobox", { name: "Category" }), "control")
   await user.selectOptions(nodeSelect, "2")

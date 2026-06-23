@@ -157,8 +157,6 @@ type Management interface {
 	DeleteDiagnosticsTrackingRule(ctx context.Context, ruleID string) (managementusecase.DiagnosticsTrackingDeleteResponse, error)
 	// GetDashboardMetrics returns time-series dashboard metrics for the given window and step.
 	GetDashboardMetrics(window, step time.Duration) (managementusecase.DashboardMetricsResult, error)
-	// GetMonitorMetrics returns timestamped real-time monitor metrics for the requested node scope.
-	GetMonitorMetrics(ctx context.Context, nodeID uint64, window, step time.Duration) (managementusecase.MonitorMetricsResult, error)
 	// ListNodePlugins returns one node's local plugin inventory.
 	ListNodePlugins(ctx context.Context, nodeID uint64) (pluginusecase.LocalPluginList, error)
 	// GetNodePlugin returns one node-local plugin detail.

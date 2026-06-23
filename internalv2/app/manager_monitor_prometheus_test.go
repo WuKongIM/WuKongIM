@@ -105,6 +105,283 @@ func TestManagerMonitorPrometheusProviderMapsQueryRange(t *testing.T) {
 	}
 }
 
+func TestManagerMonitorPrometheusProviderReturnsGatewayOperatorCards(t *testing.T) {
+	var queries []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query().Get("query")
+		queries = append(queries, query)
+		if strings.Contains(query, "sum by (reason) (rate(wukongim_gateway_connection_closes_total") {
+			writePrometheusLabeledRangeForTest(w, "reason", "idle", 1, 2)
+			return
+		}
+		writePrometheusRangeForTest(w, "7")
+	}))
+	defer server.Close()
+	provider := newManagerPrometheusMonitorProvider(managerPrometheusMonitorOptions{
+		Enabled: true,
+		BaseURL: server.URL,
+		Client:  server.Client(),
+		Now:     func() time.Time { return time.Unix(1781767240, 0).UTC() },
+	})
+
+	resp, err := provider.RealtimeMonitor(context.Background(), accessmanager.RealtimeMonitorQuery{
+		Window:   15 * time.Minute,
+		Step:     20 * time.Second,
+		Category: accessmanager.RealtimeMonitorCategoryGateway,
+	})
+
+	if err != nil {
+		t.Fatalf("RealtimeMonitor() error = %v", err)
+	}
+	wantKeys := []string{
+		"sendRate",
+		"sendSuccessRate",
+		"entryLatencyP99",
+		"activeConnections",
+		"sendQueueUsage",
+		"connectionOpenRate",
+		"connectionCloseRate",
+		"connectionCloseReasonRate",
+		"authSuccessRate",
+		"authLatencyP99",
+		"sendackErrorRate",
+		"gatewayInboundTraffic",
+		"gatewayOutboundTraffic",
+		"frameHandleLatencyP99",
+		"asyncBatchWaitP99",
+		"asyncBatchRecordsP95",
+		"asyncBatchBytesP95",
+		"authQueueUsage",
+		"transportQueueUsage",
+		"transportBytesUsage",
+	}
+	requireMonitorCardKeysForTest(t, resp.Cards, wantKeys)
+	if resp.Categories[1].Key != accessmanager.RealtimeMonitorCategoryGateway || resp.Categories[1].Count != len(wantKeys) {
+		t.Fatalf("gateway category = %#v, want count %d", resp.Categories[1], len(wantKeys))
+	}
+	reasonCard := requireMonitorCardForTest(t, resp.Cards, "connectionCloseReasonRate")
+	requireMonitorCardPointForTest(t, reasonCard, 1781767200000, "idle", 1)
+	requireMonitorCardPointForTest(t, reasonCard, 1781767220000, "idle", 2)
+
+	joinedQueries := strings.Join(queries, "\n")
+	for _, want := range []string{
+		`wukongim_gateway_async_send_queue_depth{job="wukongimv2"}`,
+		`wukongim_gateway_async_send_queue_capacity{job="wukongimv2"}`,
+		`wukongim_gateway_connections_total{job="wukongimv2",event="open"}[1m]`,
+		`wukongim_gateway_connections_total{job="wukongimv2",event="close"}[1m]`,
+		`sum by (reason) (rate(wukongim_gateway_connection_closes_total{job="wukongimv2"}[1m]))`,
+		`wukongim_gateway_auth_total{job="wukongimv2",status="ok"}[1m]`,
+		`wukongim_gateway_auth_duration_seconds_bucket{job="wukongimv2"}[1m]`,
+		`wukongim_gateway_sendacks_total{job="wukongimv2",reason!="success"}[1m]`,
+		`wukongim_gateway_messages_received_bytes_total{job="wukongimv2"}[1m]`,
+		`wukongim_gateway_messages_delivered_bytes_total{job="wukongimv2"}[1m]`,
+		`sum by (le, frame_type) (rate(wukongim_gateway_frame_handle_duration_seconds_bucket{job="wukongimv2"}[1m]))`,
+		`wukongim_gateway_async_send_batch_wait_duration_seconds_bucket{job="wukongimv2"}[1m]`,
+		`wukongim_gateway_async_send_batch_records_bucket{job="wukongimv2"}[1m]`,
+		`wukongim_gateway_async_send_batch_bytes_bucket{job="wukongimv2"}[1m]`,
+		`wukongim_runtime_pool_queue_depth{job="wukongimv2",component="gateway",pool="async_auth",queue="auth"}`,
+		`wukongim_runtime_pool_queue_depth{job="wukongimv2",component="gateway",pool!~"async_send|async_auth"}`,
+		`wukongim_runtime_pool_queue_bytes{job="wukongimv2",component="gateway",pool!~"async_send|async_auth"}`,
+	} {
+		if !strings.Contains(joinedQueries, want) {
+			t.Fatalf("queries missing %q: %s", want, joinedQueries)
+		}
+	}
+}
+
+func TestManagerMonitorPrometheusProviderReturnsMessageOperatorCards(t *testing.T) {
+	var queries []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query().Get("query")
+		queries = append(queries, query)
+		writePrometheusRangeForTest(w, "7")
+	}))
+	defer server.Close()
+	provider := newManagerPrometheusMonitorProvider(managerPrometheusMonitorOptions{
+		Enabled: true,
+		BaseURL: server.URL,
+		Client:  server.Client(),
+		Now:     func() time.Time { return time.Unix(1781767240, 0).UTC() },
+	})
+
+	resp, err := provider.RealtimeMonitor(context.Background(), accessmanager.RealtimeMonitorQuery{
+		Window:   15 * time.Minute,
+		Step:     20 * time.Second,
+		Category: accessmanager.RealtimeMonitorCategoryMessage,
+	})
+
+	if err != nil {
+		t.Fatalf("RealtimeMonitor() error = %v", err)
+	}
+	wantKeys := []string{
+		"messageSendRate",
+		"messageSendackErrorRate",
+		"commitRate",
+		"messageAppendErrorRate",
+		"messageAppendLatencyP95",
+		"commitLatencyP99",
+		"pendingCommitBacklog",
+		"messageDispatchEnqueueRate",
+		"messageDispatchOverflowRate",
+		"deliveryRate",
+		"deliveryLatencyP99",
+		"fanOutRatio",
+		"deliveryEnqueueRate",
+		"deliveryQueueUsage",
+		"deliveryRetryRate",
+		"deliveryAdmissionErrorRate",
+		"deliveryRouteExpireRate",
+		"retryQueueDepth",
+		"pathErrorRate",
+	}
+	requireMonitorCardKeysForTest(t, resp.Cards, wantKeys)
+	if resp.Categories[3].Key != accessmanager.RealtimeMonitorCategoryMessage || resp.Categories[3].Count != len(wantKeys) {
+		t.Fatalf("message category = %#v, want count %d", resp.Categories[3], len(wantKeys))
+	}
+
+	joinedQueries := strings.Join(queries, "\n")
+	for _, want := range []string{
+		`wukongim_gateway_messages_received_total{job="wukongimv2"}[1m]`,
+		`wukongim_gateway_sendacks_total{job="wukongimv2",reason!="success"}[1m]`,
+		`wukongim_message_append_total{job="wukongimv2",result!="ok"}[1m]`,
+		`wukongim_message_append_duration_seconds_bucket{job="wukongimv2",result="ok"}[1m]`,
+		`wukongim_message_committed_dispatch_enqueue_total{job="wukongimv2",result="ok"}[1m]`,
+		`wukongim_message_committed_dispatch_overflow_total{job="wukongimv2"}[1m]`,
+		`wukongim_delivery_event_queue_total{job="wukongimv2",result="ok"}[1m]`,
+		`wukongim_delivery_recipient_worker_queue_depth{job="wukongimv2"}`,
+		`wukongim_delivery_retry_total{job="wukongimv2",event="enqueue"}[1m]`,
+		`wukongim_delivery_recipient_worker_admission_total{job="wukongimv2",result!="ok"}[1m]`,
+		`wukongim_delivery_route_expired_total{job="wukongimv2"}[1m]`,
+	} {
+		if !strings.Contains(joinedQueries, want) {
+			t.Fatalf("queries missing %q: %s", want, joinedQueries)
+		}
+	}
+}
+
+func TestManagerMonitorPrometheusProviderReturnsChannelOperatorCards(t *testing.T) {
+	var queries []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query().Get("query")
+		queries = append(queries, query)
+		writePrometheusRangeForTest(w, "7")
+	}))
+	defer server.Close()
+	provider := newManagerPrometheusMonitorProvider(managerPrometheusMonitorOptions{
+		Enabled: true,
+		BaseURL: server.URL,
+		Client:  server.Client(),
+		Now:     func() time.Time { return time.Unix(1781767240, 0).UTC() },
+	})
+
+	resp, err := provider.RealtimeMonitor(context.Background(), accessmanager.RealtimeMonitorQuery{
+		Window:   15 * time.Minute,
+		Step:     20 * time.Second,
+		Category: accessmanager.RealtimeMonitorCategoryChannel,
+	})
+
+	if err != nil {
+		t.Fatalf("RealtimeMonitor() error = %v", err)
+	}
+	wantKeys := []string{
+		"channelAppendLatencyP99",
+		"activeChannels",
+		"channelAppendBatchRecordsP95",
+		"channelAppendBatchBytesP95",
+		"channelAppendErrorRate",
+		"channelWriterAdmissionUsage",
+		"channelRuntimeFollowersParked",
+		"channelActivationRejectRate",
+		"channelReactorMailboxDepth",
+		"channelWorkerQueueDepth",
+		"channelPullHintErrorRate",
+		"channelReplicationLatencyP99",
+	}
+	requireMonitorCardKeysForTest(t, resp.Cards, wantKeys)
+	if resp.Categories[5].Key != accessmanager.RealtimeMonitorCategoryChannel || resp.Categories[5].Count != len(wantKeys) {
+		t.Fatalf("channel category = %#v, want count %d", resp.Categories[5], len(wantKeys))
+	}
+
+	joinedQueries := strings.Join(queries, "\n")
+	for _, want := range []string{
+		`wukongim_channelv2_append_duration_seconds_bucket{job="wukongimv2"}[1m]`,
+		`wukongim_channelv2_active_runtimes{job="wukongimv2"}`,
+		`wukongim_channelv2_append_batch_records_bucket{job="wukongimv2"}[1m]`,
+		`wukongim_channelv2_append_batch_bytes_bucket{job="wukongimv2"}[1m]`,
+		`wukongim_channelv2_append_stage_duration_seconds_count{job="wukongimv2",result!="ok"}[1m]`,
+		`wukongim_channelappend_writer_admission_depth{job="wukongimv2"}`,
+		`wukongim_channelv2_follower_parked{job="wukongimv2"}`,
+		`wukongim_channelv2_activation_rejected_total{job="wukongimv2"}[1m]`,
+		`wukongim_channelv2_reactor_mailbox_depth{job="wukongimv2"}`,
+		`wukongim_channelv2_worker_queue_depth{job="wukongimv2"}`,
+		`wukongim_channelv2_pull_hint_total{job="wukongimv2",result!="ok"}[1m]`,
+		`wukongim_channelv2_replication_stage_duration_seconds_bucket{job="wukongimv2"}[1m]`,
+	} {
+		if !strings.Contains(joinedQueries, want) {
+			t.Fatalf("queries missing %q: %s", want, joinedQueries)
+		}
+	}
+}
+
+func TestManagerMonitorPrometheusProviderReturnsSlotOperatorCards(t *testing.T) {
+	var queries []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query().Get("query")
+		queries = append(queries, query)
+		writePrometheusRangeForTest(w, "7")
+	}))
+	defer server.Close()
+	provider := newManagerPrometheusMonitorProvider(managerPrometheusMonitorOptions{
+		Enabled: true,
+		BaseURL: server.URL,
+		Client:  server.Client(),
+		Now:     func() time.Time { return time.Unix(1781767240, 0).UTC() },
+	})
+
+	resp, err := provider.RealtimeMonitor(context.Background(), accessmanager.RealtimeMonitorQuery{
+		Window:   15 * time.Minute,
+		Step:     20 * time.Second,
+		Category: accessmanager.RealtimeMonitorCategorySlot,
+	})
+
+	if err != nil {
+		t.Fatalf("RealtimeMonitor() error = %v", err)
+	}
+	wantKeys := []string{
+		"slotLeaderStability",
+		"slotProposeRate",
+		"slotApplyGap",
+		"slotLatencyP99",
+		"slotProposalAdmissionRejectRate",
+		"slotLeaderChangeRate",
+		"slotReplicaLagMax",
+		"slotSchedulerQueueUsage",
+		"slotSchedulerInflightUsage",
+		"slotSchedulerTaskLatencyP99",
+	}
+	requireMonitorCardKeysForTest(t, resp.Cards, wantKeys)
+	if resp.Categories[7].Key != accessmanager.RealtimeMonitorCategorySlot || resp.Categories[7].Count != len(wantKeys) {
+		t.Fatalf("slot category = %#v, want count %d", resp.Categories[7], len(wantKeys))
+	}
+
+	joinedQueries := strings.Join(queries, "\n")
+	for _, want := range []string{
+		`wukongim_slot_proposals_total{job="wukongimv2"}[1m]`,
+		`wukongim_slot_apply_gap{job="wukongimv2"}`,
+		`wukongim_slot_apply_duration_seconds_bucket{job="wukongimv2"}[1m]`,
+		`wukongim_slot_proposal_admission_total{job="wukongimv2",result!="ok"}[1m]`,
+		`wukongim_slot_leader_changes_total{job="wukongimv2"}[1m]`,
+		`wukongim_slot_replica_lag_seconds{job="wukongimv2"}`,
+		`wukongim_runtime_pool_queue_depth{job="wukongimv2",component="slot",pool="scheduler"}`,
+		`wukongim_runtime_pool_inflight{job="wukongimv2",component="slot",pool="scheduler"}`,
+		`wukongim_runtime_pool_task_duration_seconds_bucket{job="wukongimv2",component="slot",pool="scheduler"}[1m]`,
+	} {
+		if !strings.Contains(joinedQueries, want) {
+			t.Fatalf("queries missing %q: %s", want, joinedQueries)
+		}
+	}
+}
+
 func TestManagerMonitorPrometheusProviderFiltersPromQLByNodeID(t *testing.T) {
 	var queries []string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -593,6 +870,19 @@ func requireMonitorCardKeysForTest(t *testing.T, cards []accessmanager.RealtimeM
 	}
 }
 
+func requireMonitorCardPointForTest(t *testing.T, card accessmanager.RealtimeMonitorCard, timestamp int64, label string, want float64) {
+	t.Helper()
+	for _, point := range card.Series {
+		if point.Timestamp == timestamp && point.Label == label {
+			if point.Value != want {
+				t.Fatalf("point %s/%d = %#v, want %v", label, timestamp, point, want)
+			}
+			return
+		}
+	}
+	t.Fatalf("card %s missing point label %q timestamp %d: %#v", card.Key, label, timestamp, card.Series)
+}
+
 func requireMonitorDefinitionForTest(t *testing.T, key string) monitorMetricDefinition {
 	t.Helper()
 	for _, def := range managerMonitorMetricDefinitions() {
@@ -671,6 +961,17 @@ func writePrometheusMatrixForMonitorTest(t *testing.T, w http.ResponseWriter, va
 func writePrometheusRangeForTest(w http.ResponseWriter, value string) {
 	w.Header().Set("Content-Type", "application/json")
 	_, _ = w.Write([]byte(`{"status":"success","data":{"resultType":"matrix","result":[{"metric":{},"values":[[1781767200,"` + value + `"],[1781767220,"` + value + `"]]}]}}`))
+}
+
+func writePrometheusLabeledRangeForTest(w http.ResponseWriter, labelKey, labelValue string, first, second float64) {
+	w.Header().Set("Content-Type", "application/json")
+	_, _ = w.Write([]byte(fmt.Sprintf(
+		`{"status":"success","data":{"resultType":"matrix","result":[{"metric":{"%s":"%s"},"values":[[1781767200,"%g"],[1781767220,"%g"]]}]}}`,
+		labelKey,
+		labelValue,
+		first,
+		second,
+	)))
 }
 
 func writePrometheusNoDataForTest(w http.ResponseWriter) {

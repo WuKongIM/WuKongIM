@@ -24,7 +24,7 @@ describe("navigationSections", () => {
     expect(getActiveNavigationSection("/cluster/plugins")?.id).toBe("cluster")
     expect(getActiveNavigationSection("/cluster/workqueues")?.id).toBe("cluster")
     expect(getActiveNavigationSection("/business/dashboard")?.id).toBe("business")
-    expect(getActiveNavigationSection("/business/monitor")?.id).toBe("cluster")
+    expect(getActiveNavigationSection("/business/monitor")?.id).toBe("business")
     expect(getActiveNavigationSection("/business/connections")?.id).toBe("business")
     expect(getActiveNavigationSection("/business/messages")?.id).toBe("business")
     expect(getActiveNavigationSection("/business/conversations")?.id).toBe("business")
@@ -61,8 +61,8 @@ describe("navigationSections", () => {
 
   test("maps legacy routes to new routes", () => {
     expect(legacyRouteRedirects["/dashboard"]).toBe("/cluster/dashboard")
-    expect(legacyRouteRedirects["/monitor"]).toBe("/cluster/monitor")
-    expect(legacyRouteRedirects["/business/monitor"]).toBe("/cluster/monitor")
+    expect(legacyRouteRedirects["/monitor"]).toBeUndefined()
+    expect(legacyRouteRedirects["/business/monitor"]).toBeUndefined()
     expect(legacyRouteRedirects["/channel-cluster/list"]).toBe("/cluster/channels")
     expect(legacyRouteRedirects["/workqueues"]).toBe("/cluster/workqueues")
     expect(legacyRouteRedirects["/app-logs"]).toBe("/cluster/diagnostics?tab=trace")

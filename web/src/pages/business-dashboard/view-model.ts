@@ -28,7 +28,7 @@ export type BusinessRisk = {
 }
 
 export type BusinessEntryCard = {
-  key: "users" | "channels" | "messages" | "systemUsers" | "monitor"
+  key: "users" | "channels" | "messages" | "systemUsers"
   titleId: string
   descriptionId: string
   href: string
@@ -279,14 +279,6 @@ export function buildBusinessEntryCards(input: {
       href: "/business/system-users",
       value: input.systemUsers ? String(input.systemUsers.total) : "24",
       source: input.systemUsers ? "real" : "sample",
-    },
-    {
-      key: "monitor",
-      titleId: "businessDashboard.entries.monitor",
-      descriptionId: "businessDashboard.entries.monitorDescription",
-      href: "/cluster/monitor",
-      value: "Live",
-      source: "real",
     },
   ]
 }

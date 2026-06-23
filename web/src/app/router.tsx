@@ -66,7 +66,6 @@ export const routes: RouteObject[] = [
       { path: "cluster/diagnostics", element: <ClusterDiagnosticsPage /> },
       // Business management
       { path: "business/dashboard", element: <BusinessDashboardPage /> },
-      { path: "business/monitor", element: <Navigate replace to="/cluster/monitor" /> },
       { path: "business/users", element: <UsersPage /> },
       { path: "business/channels", element: <ChannelsBizPage /> },
       { path: "business/messages", element: <MessagesPage /> },
@@ -80,7 +79,6 @@ export const routes: RouteObject[] = [
       { path: "system/connections", element: <RedirectWithSearch to="/business/connections" /> },
       // Legacy redirects
       { path: "dashboard", element: <Navigate replace to="/cluster/dashboard" /> },
-      { path: "monitor", element: <Navigate replace to="/cluster/monitor" /> },
       { path: "nodes", element: <Navigate replace to="/cluster/nodes" /> },
       { path: "onboarding", element: <Navigate replace to="/cluster/nodes?panel=onboarding" /> },
       { path: "slots", element: <Navigate replace to="/cluster/slots" /> },
