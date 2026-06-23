@@ -550,6 +550,12 @@ export function restartNodePlugin(nodeId: number, pluginNo: string) {
   )
 }
 
+export async function deleteNodePlugin(nodeId: number, pluginNo: string) {
+  await managerFetch(`/manager/nodes/${nodeId}/plugins/${encodeURIComponent(pluginNo)}`, {
+    method: "DELETE",
+  })
+}
+
 export function markNodeDraining(nodeId: number) {
   return jsonManagerFetch<ManagerNodeDetailResponse>(`/manager/nodes/${nodeId}/draining`, {
     method: "POST",

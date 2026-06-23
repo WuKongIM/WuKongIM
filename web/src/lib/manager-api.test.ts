@@ -30,6 +30,7 @@ import {
   getRealtimeMonitor,
   getNetworkSummary,
   createNodeOnboardingPlan,
+  deleteNodePlugin,
   getNode,
   getNodeOnboardingCandidates,
   getNodeOnboardingJob,
@@ -343,11 +344,13 @@ describe("manager api client", () => {
     fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(detail), { status: 200 }))
     fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(mutation), { status: 200 }))
     fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(mutation), { status: 200 }))
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }))
 
     await expect(getNodePlugins(2)).resolves.toEqual(list)
     await expect(getNodePlugin(2, "wk.echo")).resolves.toEqual(detail)
     await expect(updateNodePluginConfig(2, "wk.echo", { api_key: "******" })).resolves.toEqual(mutation)
     await expect(restartNodePlugin(2, "wk.echo")).resolves.toEqual(mutation)
+    await expect(deleteNodePlugin(2, "wk.echo")).resolves.toBeUndefined()
 
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
@@ -372,6 +375,11 @@ describe("manager api client", () => {
       4,
       "/manager/nodes/2/plugins/wk.echo/restart",
       expect.objectContaining({ method: "POST", headers: expect.any(Headers) }),
+    )
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      5,
+      "/manager/nodes/2/plugins/wk.echo",
+      expect.objectContaining({ method: "DELETE", headers: expect.any(Headers) }),
     )
   })
 

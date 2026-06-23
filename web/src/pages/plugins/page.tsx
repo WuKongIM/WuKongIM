@@ -15,6 +15,7 @@ import { PageHeader } from "@/components/shell/page-header"
 import { SectionCard } from "@/components/shell/section-card"
 import {
   createPluginBinding,
+  deleteNodePlugin,
   deletePluginBinding,
   getPluginBindings,
   getNodePlugin,
@@ -180,6 +181,9 @@ export function PluginsPage() {
   const [restartPlugin, setRestartPlugin] = useState<ManagerPlugin | null>(null)
   const [restartPending, setRestartPending] = useState(false)
   const [restartError, setRestartError] = useState("")
+  const [uninstallPlugin, setUninstallPlugin] = useState<ManagerPlugin | null>(null)
+  const [uninstallPending, setUninstallPending] = useState(false)
+  const [uninstallError, setUninstallError] = useState("")
   const [bindingSelector, setBindingSelector] = useState<BindingSelector>("uid")
   const [bindingQuery, setBindingQuery] = useState("")
   const [bindingState, setBindingState] = useState<PluginBindingState>({
@@ -328,6 +332,23 @@ export function PluginsPage() {
       setRestartError(error instanceof Error ? error.message : "restart plugin failed")
     } finally {
       setRestartPending(false)
+    }
+  }
+
+  const confirmUninstall = async () => {
+    if (!uninstallPlugin || !selectedNodeId) {
+      return
+    }
+    setUninstallPending(true)
+    setUninstallError("")
+    try {
+      await deleteNodePlugin(selectedNodeId, uninstallPlugin.plugin_no)
+      setUninstallPlugin(null)
+      await loadPlugins(selectedNodeId, true)
+    } catch (error) {
+      setUninstallError(error instanceof Error ? error.message : "uninstall plugin failed")
+    } finally {
+      setUninstallPending(false)
     }
   }
 
@@ -546,6 +567,17 @@ export function PluginsPage() {
                           >
                             {intl.formatMessage({ id: "plugins.action.restart" })}
                           </Button>
+                          <Button
+                            aria-label={intl.formatMessage({ id: "plugins.action.uninstallPlugin" }, { pluginNo: plugin.plugin_no })}
+                            onClick={() => {
+                              setUninstallError("")
+                              setUninstallPlugin(plugin)
+                            }}
+                            size="sm"
+                            variant="destructive"
+                          >
+                            {intl.formatMessage({ id: "plugins.action.uninstall" })}
+                          </Button>
                         </div>
                       </td>
                     </tr>
@@ -730,6 +762,25 @@ export function PluginsPage() {
         open={restartPlugin !== null}
         pending={restartPending}
         title={intl.formatMessage({ id: "plugins.restart.title" })}
+      />
+
+      <ConfirmDialog
+        confirmLabel={intl.formatMessage({ id: "plugins.uninstall.confirm" })}
+        description={uninstallPlugin && selectedNodeId
+          ? intl.formatMessage({ id: "plugins.uninstall.description" }, { pluginNo: uninstallPlugin.plugin_no, nodeId: selectedNodeId })
+          : undefined}
+        error={uninstallError}
+        onConfirm={() => {
+          void confirmUninstall()
+        }}
+        onOpenChange={(open) => {
+          if (!open) {
+            setUninstallPlugin(null)
+          }
+        }}
+        open={uninstallPlugin !== null}
+        pending={uninstallPending}
+        title={intl.formatMessage({ id: "plugins.uninstall.title" })}
       />
 
       <ActionFormDialog

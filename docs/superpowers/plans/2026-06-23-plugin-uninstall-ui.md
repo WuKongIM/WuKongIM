@@ -111,7 +111,7 @@ test("confirms plugin uninstall and refreshes inventory", async () => {
     expect(deleteNodePluginMock).toHaveBeenCalledWith(2, "wk.echo")
   })
   expect(getNodePluginsMock).toHaveBeenCalledTimes(2)
-  expect(await screen.findByText("No data available.")).toBeInTheDocument()
+  expect(await screen.findByText("No manager data is available for this view yet.")).toBeInTheDocument()
 })
 ```
 

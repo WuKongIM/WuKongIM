@@ -13,6 +13,7 @@ const getNodePluginsMock = vi.fn()
 const getNodePluginMock = vi.fn()
 const updateNodePluginConfigMock = vi.fn()
 const restartNodePluginMock = vi.fn()
+const deleteNodePluginMock = vi.fn()
 const getPluginBindingsMock = vi.fn()
 const createPluginBindingMock = vi.fn()
 const deletePluginBindingMock = vi.fn()
@@ -26,6 +27,7 @@ vi.mock("@/lib/manager-api", async (importOriginal) => {
     getNodePlugin: (...args: unknown[]) => getNodePluginMock(...args),
     updateNodePluginConfig: (...args: unknown[]) => updateNodePluginConfigMock(...args),
     restartNodePlugin: (...args: unknown[]) => restartNodePluginMock(...args),
+    deleteNodePlugin: (...args: unknown[]) => deleteNodePluginMock(...args),
     getPluginBindings: (...args: unknown[]) => getPluginBindingsMock(...args),
     createPluginBinding: (...args: unknown[]) => createPluginBindingMock(...args),
     deletePluginBinding: (...args: unknown[]) => deletePluginBindingMock(...args),
@@ -85,6 +87,7 @@ beforeEach(() => {
   getNodePluginMock.mockReset()
   updateNodePluginConfigMock.mockReset()
   restartNodePluginMock.mockReset()
+  deleteNodePluginMock.mockReset()
   getPluginBindingsMock.mockReset()
   createPluginBindingMock.mockReset()
   deletePluginBindingMock.mockReset()
@@ -257,6 +260,25 @@ test("confirms plugin restart and refreshes inventory", async () => {
     expect(restartNodePluginMock).toHaveBeenCalledWith(2, "wk.echo")
   })
   expect(getNodePluginsMock).toHaveBeenCalledTimes(2)
+})
+
+test("confirms plugin uninstall and refreshes inventory", async () => {
+  getNodePluginsMock.mockResolvedValueOnce({ node_id: 2, total: 1, items: [pluginRow] })
+  getNodePluginsMock.mockResolvedValueOnce({ node_id: 2, total: 0, items: [] })
+  deleteNodePluginMock.mockResolvedValueOnce(undefined)
+
+  const user = userEvent.setup()
+  renderPluginsPage()
+
+  expect(await screen.findByText("wk.echo")).toBeInTheDocument()
+  await user.click(screen.getByRole("button", { name: "Uninstall plugin wk.echo" }))
+  await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Uninstall plugin" }))
+
+  await waitFor(() => {
+    expect(deleteNodePluginMock).toHaveBeenCalledWith(2, "wk.echo")
+  })
+  expect(getNodePluginsMock).toHaveBeenCalledTimes(2)
+  expect(await screen.findByText("No manager data is available for this view yet.")).toBeInTheDocument()
 })
 
 test("queries plugin bindings by UID and plugin number", async () => {
