@@ -214,12 +214,13 @@ func inspectChannelRow(entry ChannelCatalogEntry) InspectMessageRow {
 func inspectMessageRow(msg Message) InspectMessageRow {
 	payload := append([]byte(nil), msg.Payload...)
 	return InspectMessageRow{
-		"message_seq":   msg.MessageSeq,
-		"message_id":    msg.MessageID,
-		"client_msg_no": msg.ClientMsgNo,
-		"from_uid":      msg.FromUID,
-		"payload_hash":  msg.PayloadHash,
-		"payload_size":  uint64(len(payload)),
-		"payload":       payload,
+		"message_seq":         msg.MessageSeq,
+		"message_id":          msg.MessageID,
+		"client_msg_no":       msg.ClientMsgNo,
+		"from_uid":            msg.FromUID,
+		"server_timestamp_ms": msg.ServerTimestampMS,
+		"payload_hash":        msg.PayloadHash,
+		"payload_size":        uint64(len(payload)),
+		"payload":             payload,
 	}
 }

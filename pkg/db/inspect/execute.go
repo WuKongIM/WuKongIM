@@ -304,7 +304,7 @@ var inspectColumns = map[string][]string{
 	"meta.channel_migration":    {"channel_id", "channel_type", "task_id", "kind", "status", "phase", "source_node", "target_node", "desired_leader", "owner_node_id", "owner_lease_until_ms", "created_at_ms", "updated_at_ms", "completed_at_ms"},
 	"meta.hashslot_migration":   {"hash_slot", "source_slot", "target_slot", "phase", "fence_index", "last_outbox_index", "last_acked_index"},
 	"message.channels":          {"channel_key", "channel_id", "channel_type"},
-	"message.message":           {"channel_key", "message_seq", "message_id", "client_msg_no", "from_uid", "payload_hash", "payload_size", "payload"},
+	"message.message":           {"channel_key", "message_seq", "message_id", "client_msg_no", "from_uid", "server_timestamp_ms", "payload_hash", "payload_size", "payload"},
 }
 
 var inspectColumnTypes = map[string]string{
@@ -363,6 +363,7 @@ var inspectColumnTypes = map[string]string{
 	"message_id":                  "uint64",
 	"client_msg_no":               "string",
 	"from_uid":                    "string",
+	"server_timestamp_ms":         "int64",
 	"payload_hash":                "uint64",
 	"payload_size":                "uint64",
 	"payload":                     "bytes",

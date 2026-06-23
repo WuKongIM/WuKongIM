@@ -194,6 +194,29 @@ func TestInspectMessagesByChannelKeyAndCursor(t *testing.T) {
 	}
 }
 
+func TestInspectMessagesIncludesServerTimestampMS(t *testing.T) {
+	store := openTestMessageStore(t)
+	defer store.close(t)
+	ctx := context.Background()
+
+	log := store.db.Channel(ChannelKey("g1:2"), ChannelID{ID: "g1", Type: 2})
+	record := Record{ID: 201, Payload: []byte("payload"), ServerTimestampMS: 3000}
+	if _, err := log.Append(ctx, []Record{record}, AppendOptions{}); err != nil {
+		t.Fatalf("Append(): %v", err)
+	}
+
+	got, err := InspectMessages(ctx, store.db, InspectMessageRequest{ChannelKey: "g1:2", Limit: 1})
+	if err != nil {
+		t.Fatalf("InspectMessages(): %v", err)
+	}
+	if len(got.Rows) != 1 {
+		t.Fatalf("rows len = %d, want 1: %+v", len(got.Rows), got.Rows)
+	}
+	if got.Rows[0]["server_timestamp_ms"] != int64(3000) {
+		t.Fatalf("server_timestamp_ms = %v, want 3000 in %+v", got.Rows[0]["server_timestamp_ms"], got.Rows[0])
+	}
+}
+
 func TestInspectMessagesDoesNotPopulateChannelCache(t *testing.T) {
 	store := openTestMessageStore(t)
 	defer store.close(t)
