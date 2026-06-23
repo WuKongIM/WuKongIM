@@ -1,20 +1,23 @@
-# wkdb 本地排查与离线导入工具使用手册
+# wkdb 本地排查与离线导入导出工具使用手册
 
 ## 适用范围
 
-`wkdb` 是一个节点本地离线 CLI，用于查看或导入 WuKongIM 某个节点的数据目录里的 metadata 和 message 存储。
+`wkdb` 是一个节点本地离线 CLI，用于查看、导出或导入 WuKongIM 某个节点的数据目录里的 metadata 和 message 存储。
 
-它包含两类命令：
+它包含三类命令：
 
 - `query` / `repl`：read-only inspection，只读查看本地 Pebble 存储。
+- `export`：offline export，只读打开源存储并输出 WKDB Import Bundle v1。
 - `import`：offline import，显式离线写入一个目标数据目录。
 
-`query` / `repl` 只做观察：
+`query` / `repl` / `export` 的源库读取只做观察：
 
 - 以只读模式打开本地 Pebble 存储。
 - 不连接其他集群节点。
 - 不提供全局集群视图。
-- 不修复、不 compact、不重写 key，不执行 insert/update/delete。
+- 不修复、不 compact、不重写 key，不对源库执行 insert/update/delete。
+
+`export` 会写 `--output` 指定的 bundle 目录，但不会写源 WKDB 存储。
 
 `import` 不是只读命令。它不连接集群节点，只对本地离线目标目录写入，并要求操作者显式执行 `import` 子命令。
 
@@ -31,6 +34,8 @@
 除非已经明确验证过当前环境支持在线并发只读打开，否则不要直接对线上运行中的生产节点目录执行排查命令。
 
 不要把一个节点的本地扫描结果当成全局集群事实。涉及集群决策时，需要结合其他节点结果或 manager/cluster API。
+
+执行 `wkdb export` 时，如果需要精确一致的源数据，建议对已停止节点、文件系统快照或节点目录副本执行。当前 export 不做在线一致性快照，不聚合多个节点的数据。
 
 执行 `wkdb import` 时，建议目标目录是 fresh/offline target。当前 import 不支持在线导入，不支持把 bundle merge 到已有数据目录，也不提供事务回滚。
 
@@ -126,11 +131,66 @@ wkdb --data-dir ./node-new --hash-slot-count 256 import --input ./wkdb-dump --dr
 wkdb --data-dir ./node-new --hash-slot-count 256 import --input ./wkdb-dump --require-empty
 ```
 
-注意：`wkdb` 的全局 flags 必须放在 command 前面，例如 `--data-dir`、`--hash-slot-count`、`--config`；`import` 自己的 flags 放在 `import` 后面，例如 `--input`、`--dry-run`、`--require-empty`。
+离线导出当前节点本地数据：
+
+```bash
+wkdb --data-dir ./data/node-1 --hash-slot-count 256 export --output ./wkdb-dump
+```
+
+覆盖已有导出目录：
+
+```bash
+wkdb --data-dir ./data/node-1 --hash-slot-count 256 export --output ./wkdb-dump --overwrite
+```
+
+注意：`wkdb` 的全局 flags 必须放在 command 前面，例如 `--data-dir`、`--hash-slot-count`、`--config`；子命令自己的 flags 放在子命令后面，例如 `import --input`、`import --dry-run`、`import --require-empty`、`export --output`、`export --overwrite`。
+
+## 离线 export
+
+`wkdb export` 用于把一个节点本地当前数据库导出成 WKDB Import Bundle v1。输出目录可以直接作为 `wkdb import --input` 使用。
+
+安全边界：
+
+- 源 metadata/message 存储使用 read-only inspect store 打开。
+- 不连接集群节点，不通过 manager 或节点间 RPC 协调。
+- 不提供全局集群视图；它只导出当前节点目录内实际存在的数据。
+- 不做在线一致性快照；需要强一致迁移时，应对停止节点、文件系统快照或目录副本执行。
+- 不导出 Raft/controller/runtime/迁移任务状态，只导出 bundle v1 支持的业务元数据和消息日志。
+
+基本命令：
+
+```bash
+wkdb --data-dir ./data/node-1 --hash-slot-count 256 export --output ./wkdb-dump
+```
+
+`--output` 目录默认必须不存在或为空；如果要覆盖已有目录，显式传 `--overwrite`：
+
+```bash
+wkdb --data-dir ./data/node-1 --hash-slot-count 256 export --output ./wkdb-dump --overwrite
+```
+
+可选分页参数：
+
+- `--page-size`：每次 read-only inspect 扫描读取的行数。
+- `--message-file-rows`：每个 `message/messages-*.jsonl` 文件最多写入的 message 行数。
+
+导出成功后输出一行摘要：
+
+```text
+exported=9 messages=1 subscribers=1 channels=1 files=9 bytes=1234
+```
+
+第一版 export 暂不支持：
+
+- 跨节点聚合导出。
+- 在线一致性 snapshot。
+- 增量导出。
+- 压缩包格式。
+- Raft/controller/runtime 状态迁移。
 
 ## 离线 import
 
-`wkdb import` 用于把 WKDB Import Bundle v1 写入一个离线目标目录。它是本工具当前唯一会写本地存储的命令。
+`wkdb import` 用于把 WKDB Import Bundle v1 写入一个离线目标目录。它是本工具当前唯一会写 WKDB 存储的命令。
 
 安全边界：
 
