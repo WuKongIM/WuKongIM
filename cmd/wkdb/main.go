@@ -29,7 +29,7 @@ func runWithIO(args []string, stdin io.Reader, stderr io.Writer) int {
 
 func runWithStreams(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintln(stderr, "usage: wkdb [flags] <query|repl|import>")
+		fmt.Fprintln(stderr, "usage: wkdb [flags] <query|repl|import|export>")
 		return exitConfig
 	}
 	flags, rest, code := parseFlags(args, stderr)
@@ -37,7 +37,7 @@ func runWithStreams(args []string, stdin io.Reader, stdout, stderr io.Writer) in
 		return code
 	}
 	if len(rest) == 0 {
-		fmt.Fprintln(stderr, "usage: wkdb [flags] <query|repl|import>")
+		fmt.Fprintln(stderr, "usage: wkdb [flags] <query|repl|import|export>")
 		return exitConfig
 	}
 	switch rest[0] {
@@ -55,6 +55,8 @@ func runWithStreams(args []string, stdin io.Reader, stdout, stderr io.Writer) in
 		})
 	case "import":
 		return runImport(context.Background(), flags, rest[1:], stdout, stderr)
+	case "export":
+		return runExport(context.Background(), flags, rest[1:], stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "unknown command %q\n", rest[0])
 		return exitConfig

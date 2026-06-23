@@ -143,6 +143,49 @@ func TestRunImportWritesTempNodeStore(t *testing.T) {
 	}
 }
 
+func TestExportCommandWritesImportBundle(t *testing.T) {
+	bundleRoot := writeMinimalImportBundle(t)
+	dataDir := t.TempDir()
+
+	var importStdout, importStderr bytes.Buffer
+	importCode := runWithStreams([]string{
+		"--data-dir", dataDir,
+		"--hash-slot-count", "16",
+		"import",
+		"--input", bundleRoot,
+		"--require-empty",
+	}, nil, &importStdout, &importStderr)
+	if importCode != exitOK {
+		t.Fatalf("import exit code = %d, stderr = %q", importCode, importStderr.String())
+	}
+
+	exportRoot := filepath.Join(t.TempDir(), "exported")
+	var stdout, stderr bytes.Buffer
+	code := runWithStreams([]string{
+		"--data-dir", dataDir,
+		"--hash-slot-count", "16",
+		"export",
+		"--output", exportRoot,
+		"--page-size", "1",
+		"--message-file-rows", "1",
+	}, nil, &stdout, &stderr)
+	if code != exitOK {
+		t.Fatalf("exit code = %d, stderr = %q", code, stderr.String())
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q, want empty", stderr.String())
+	}
+	out := stdout.String()
+	for _, want := range []string{"exported=", "messages=1", "subscribers=1", "channels=1", "files="} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("stdout = %q, want %s", out, want)
+		}
+	}
+	if _, err := transfer.ValidateBundle(context.Background(), exportRoot, transfer.ImportOptions{HashSlotCount: 16}); err != nil {
+		t.Fatalf("ValidateBundle(exported): %v", err)
+	}
+}
+
 func TestRunQueryShowTables(t *testing.T) {
 	metaPath := t.TempDir()
 	metaDB, err := meta.Open(metaPath)
