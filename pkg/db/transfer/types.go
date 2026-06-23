@@ -94,6 +94,34 @@ type ImportStats struct {
 	SubscribersImported int64
 }
 
+// ExportOptions controls how a read-only store is written into a WKDB import bundle.
+type ExportOptions struct {
+	// HashSlotCount is the source cluster hash slot count and must be nonzero.
+	HashSlotCount uint16
+	// PageSize bounds rows read from inspect APIs per scan page.
+	PageSize int
+	// MessageFileRows bounds message rows per message/messages-*.jsonl file.
+	MessageFileRows int
+	// Overwrite removes an existing output directory before writing the bundle.
+	Overwrite bool
+}
+
+// ExportStats summarizes the outcome of writing a WKDB import bundle.
+type ExportStats struct {
+	// FilesWritten is the number of data files listed in the exported manifest.
+	FilesWritten int64
+	// RowsExported is the number of JSONL records written.
+	RowsExported int64
+	// BytesWritten is the sum of listed data file sizes.
+	BytesWritten int64
+	// ChannelsExported is the number of channel metadata rows written.
+	ChannelsExported int64
+	// MessagesExported is the number of message log rows written.
+	MessagesExported int64
+	// SubscribersExported is the number of subscriber rows written.
+	SubscribersExported int64
+}
+
 // UserRecord represents one imported user metadata row.
 type UserRecord struct {
 	// HashSlot is the hash slot that owns this user.

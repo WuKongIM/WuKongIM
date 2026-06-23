@@ -57,6 +57,22 @@ func OpenStore(opts Options) (*Store, error) {
 	return store, nil
 }
 
+// Meta returns the read-only metadata database handle.
+func (s *Store) Meta() *meta.MetaDB {
+	if s == nil {
+		return nil
+	}
+	return s.metaDB
+}
+
+// Messages returns the read-only message database handle.
+func (s *Store) Messages() *message.MessageDB {
+	if s == nil {
+		return nil
+	}
+	return s.messageDB
+}
+
 // Close releases all opened inspect store handles.
 func (s *Store) Close() error {
 	if s == nil {
