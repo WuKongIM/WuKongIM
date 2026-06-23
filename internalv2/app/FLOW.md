@@ -137,7 +137,10 @@ New(Config)
        /conversation/channels, and /plugin/httpForward host RPC
        adapter, the v2 plugin usecase, and a bounded plugin hook worker for
        PersistAfter plus Receive side effects; pass
-       WK_PLUGIN_FAIL_OPEN into the synchronous Send hook usecase; wire
+       WK_PLUGIN_FAIL_OPEN into the synchronous Send hook usecase; adapt the
+       node-local plugin desired-state store into the usecase so StartPlugin can
+       return node id, sandbox dir, startup config, and ConfigTemplate metadata;
+       wire
        plugin-origin /message/send back through the v2 message usecase with the
        default system UID fallback; wire /channel/messages to the clusterv2
        committed-message reader when available; wire cluster host RPCs to the
@@ -152,8 +155,9 @@ New(Config)
        channelappend, expose durable offline recipient candidates to
        channelappend's recipient delivery worker for Receive hooks, and
        register the manager plugin RPC handler when node RPC is available so
-       peer managers can inspect this node's observed plugin snapshot and invoke
-       this node's local /plugin/route hook for forwarded plugin HTTP requests
+       peer managers can inspect or mutate this node's plugin lifecycle state
+       and invoke this node's local /plugin/route hook for forwarded plugin
+       HTTP requests
   -> when the cluster exposes ChannelV2 append plus channel append authority:
        create channelappend.Group with hash-sharded per-channel authority writers,
        clusterv2 ChannelAppender, node-scoped message IDs, subscriber source,
@@ -197,9 +201,10 @@ New(Config)
      requests wire the management `LeaderTransfer` and `SlotRuntimeStatus`
      ports when clusterv2 exposes them, use local Slot Raft runtime status for
      preflight, and submit the validated intent to clusterv2 control, plugin
-     inventory uses the local v2 plugin usecase for the local node and routes
-     peer `node_id` reads plus positive-node plugin HTTP forwarding through the
-     manager plugin RPC path, plugin binding mutations use clusterv2
+     inventory and lifecycle mutations use the local v2 plugin usecase for the
+     local node and route peer `node_id` reads/writes plus positive-node plugin
+     HTTP forwarding through the manager plugin RPC path, plugin binding
+     mutations use clusterv2
      UID-owned Slot metadata when that facade is exposed, ordinary
      application log
      sources and pages use the app-owned
@@ -535,11 +540,14 @@ Stop(ctx)
 startup fails after the cluster starts, `Start` attempts rollback in reverse
 order; if rollback fails, state remains retryable so a later `Stop` can clean up.
 When `Plugin.Enable=true`, the app wires the PDK-compatible node-local plugin
-runtime, minimal lifecycle host RPC adapter, v2 plugin usecase, and bounded
-PersistAfter worker before channelappend. The channelappend group receives only
-the PersistAfter enqueue port. Plugin runtime and hook workers start before
-channelappend and stop after channelappend drains, so accepted durable commits
-can enqueue plugin side effects until the append runtime is stopped.
+runtime, desired-state store adapter, minimal lifecycle host RPC adapter, v2
+plugin usecase, and bounded PersistAfter worker before channelappend. The
+channelappend group receives only the PersistAfter enqueue port. Plugin runtime
+and hook workers start before channelappend and stop after channelappend drains,
+so accepted durable commits can enqueue plugin side effects until the append
+runtime is stopped. Desired plugin config remains node-local in this phase and
+is applied by the v2 plugin usecase during startup, local config updates, and
+hook candidate selection.
 The manager drains accepted fanout before the retry scheduler stops, so queued
 retries remain available while accepted manager work completes. Stale pending
 recvacks expire during owner-local push activity.

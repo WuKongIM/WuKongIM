@@ -1,16 +1,21 @@
 package manager
 
 import (
+	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/usecase/plugin/pluginproto"
 	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
 	pluginusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/plugin"
 	"github.com/gin-gonic/gin"
 )
+
+const maxManagerPluginConfigBytes = 1 << 20
 
 // NodePluginsResponse is the manager node-scoped plugin list response body.
 type NodePluginsResponse struct {
@@ -32,6 +37,14 @@ type PluginDTO struct {
 	Name string `json:"name"`
 	// Version is the plugin version.
 	Version string `json:"version"`
+	// ConfigTemplate is the plugin-declared config schema.
+	ConfigTemplate *pluginproto.ConfigTemplate `json:"config_template,omitempty"`
+	// Config is the desired config with secret values already redacted by the usecase.
+	Config map[string]any `json:"config,omitempty"`
+	// CreatedAt records when desired state was first persisted.
+	CreatedAt *time.Time `json:"created_at,omitempty"`
+	// UpdatedAt records when desired state last changed.
+	UpdatedAt *time.Time `json:"updated_at,omitempty"`
 	// Methods lists hook method names advertised by the plugin.
 	Methods []string `json:"methods"`
 	// Priority controls hook ordering; larger values run first.
@@ -52,6 +65,18 @@ type PluginDTO struct {
 	LastSeenAt time.Time `json:"last_seen_at"`
 	// LastError stores the latest runtime error message.
 	LastError string `json:"last_error"`
+}
+
+// PluginMutationResponse is the manager response for plugin lifecycle writes.
+type PluginMutationResponse struct {
+	// NodeID identifies the node whose local plugin was mutated.
+	NodeID uint64 `json:"node_id"`
+	// PluginNo is the stable plugin number.
+	PluginNo string `json:"plugin_no"`
+	// Changed reports whether the mutation was accepted.
+	Changed bool `json:"changed"`
+	// Plugin contains the latest plugin detail when available.
+	Plugin *PluginDTO `json:"plugin,omitempty"`
 }
 
 // PluginBindingsResponse is the manager plugin binding list response body.
@@ -138,14 +163,8 @@ func (s *Server) handleNodePlugin(c *gin.Context) {
 		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "management not configured")
 		return
 	}
-	nodeID, err := parseRequiredPluginNodeID(c.Param("node_id"))
-	if err != nil {
-		jsonError(c, http.StatusBadRequest, "bad_request", "invalid node_id")
-		return
-	}
-	pluginNo := strings.TrimSpace(c.Param("plugin_no"))
-	if pluginNo == "" {
-		jsonError(c, http.StatusBadRequest, "bad_request", "invalid plugin_no")
+	nodeID, pluginNo, ok := parseNodePluginParams(c)
+	if !ok {
 		return
 	}
 	plugin, err := s.management.GetNodePlugin(c.Request.Context(), nodeID, pluginNo)
@@ -157,6 +176,75 @@ func (s *Server) handleNodePlugin(c *gin.Context) {
 		plugin.NodeID = nodeID
 	}
 	c.JSON(http.StatusOK, pluginDTO(plugin))
+}
+
+func (s *Server) handleNodePluginConfigUpdate(c *gin.Context) {
+	if s.management == nil {
+		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "management not configured")
+		return
+	}
+	nodeID, pluginNo, ok := parseNodePluginParams(c)
+	if !ok {
+		return
+	}
+	config, err := readPluginConfigBody(c)
+	if err != nil {
+		jsonError(c, http.StatusBadRequest, "bad_request", "invalid plugin config")
+		return
+	}
+	detail, err := s.management.UpdateNodePluginConfig(c.Request.Context(), nodeID, pluginNo, config)
+	if err != nil {
+		writePluginError(c, err)
+		return
+	}
+	if detail.NodeID == 0 {
+		detail.NodeID = nodeID
+	}
+	dto := pluginDTO(detail)
+	c.JSON(http.StatusOK, PluginMutationResponse{NodeID: nodeID, PluginNo: pluginNo, Changed: true, Plugin: &dto})
+}
+
+func (s *Server) handleNodePluginRestart(c *gin.Context) {
+	s.handleNodePluginDetailMutation(c, func(nodeID uint64, pluginNo string) (managementusecase.Plugin, error) {
+		return s.management.RestartNodePlugin(c.Request.Context(), nodeID, pluginNo)
+	})
+}
+
+func (s *Server) handleNodePluginUninstall(c *gin.Context) {
+	if s.management == nil {
+		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "management not configured")
+		return
+	}
+	nodeID, pluginNo, ok := parseNodePluginParams(c)
+	if !ok {
+		return
+	}
+	if err := s.management.UninstallNodePlugin(c.Request.Context(), nodeID, pluginNo); err != nil {
+		writePluginError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, PluginMutationResponse{NodeID: nodeID, PluginNo: pluginNo, Changed: true})
+}
+
+func (s *Server) handleNodePluginDetailMutation(c *gin.Context, mutate func(uint64, string) (managementusecase.Plugin, error)) {
+	if s.management == nil {
+		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "management not configured")
+		return
+	}
+	nodeID, pluginNo, ok := parseNodePluginParams(c)
+	if !ok {
+		return
+	}
+	detail, err := mutate(nodeID, pluginNo)
+	if err != nil {
+		writePluginError(c, err)
+		return
+	}
+	if detail.NodeID == 0 {
+		detail.NodeID = nodeID
+	}
+	dto := pluginDTO(detail)
+	c.JSON(http.StatusOK, PluginMutationResponse{NodeID: nodeID, PluginNo: pluginNo, Changed: true, Plugin: &dto})
 }
 
 func (s *Server) handlePluginBindings(c *gin.Context) {
@@ -256,6 +344,38 @@ func parseRequiredPluginNodeID(raw string) (uint64, error) {
 	return value, nil
 }
 
+func parseNodePluginParams(c *gin.Context) (uint64, string, bool) {
+	nodeID, err := parseRequiredPluginNodeID(c.Param("node_id"))
+	if err != nil {
+		jsonError(c, http.StatusBadRequest, "bad_request", "invalid node_id")
+		return 0, "", false
+	}
+	pluginNo := strings.TrimSpace(c.Param("plugin_no"))
+	if pluginNo == "" {
+		jsonError(c, http.StatusBadRequest, "bad_request", "invalid plugin_no")
+		return 0, "", false
+	}
+	return nodeID, pluginNo, true
+}
+
+func readPluginConfigBody(c *gin.Context) (json.RawMessage, error) {
+	body, err := io.ReadAll(io.LimitReader(c.Request.Body, maxManagerPluginConfigBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(body) == 0 || len(body) > maxManagerPluginConfigBytes || !json.Valid(body) {
+		return nil, errors.New("invalid plugin config")
+	}
+	var value any
+	if err := json.Unmarshal(body, &value); err != nil {
+		return nil, err
+	}
+	if _, ok := value.(map[string]any); !ok {
+		return nil, errors.New("plugin config must be object")
+	}
+	return append(json.RawMessage(nil), body...), nil
+}
+
 func parsePluginBindingMutation(c *gin.Context) (managementusecase.PluginBindingMutationRequest, error) {
 	body := pluginBindingMutationBody{UID: c.Query("uid"), PluginNo: c.Query("plugin_no")}
 	if c.Request != nil && c.Request.Body != nil {
@@ -298,9 +418,11 @@ func writePluginError(c *gin.Context, err error) {
 		jsonError(c, http.StatusBadRequest, "bad_request", "plugin binding uid required")
 	case errors.Is(err, pluginusecase.ErrPluginNoRequired):
 		jsonError(c, http.StatusBadRequest, "bad_request", "invalid plugin_no")
+	case errors.Is(err, pluginusecase.ErrInvalidPluginNo):
+		jsonError(c, http.StatusBadRequest, "bad_request", "invalid plugin_no")
 	case errors.Is(err, pluginusecase.ErrPluginNotFound):
 		jsonError(c, http.StatusNotFound, "not_found", "plugin not found")
-	case errors.Is(err, managementusecase.ErrPluginNodeUnavailable):
+	case errors.Is(err, managementusecase.ErrPluginNodeUnavailable), errors.Is(err, pluginusecase.ErrRuntimeRequired), errors.Is(err, pluginusecase.ErrDesiredStoreRequired):
 		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "plugin node unavailable")
 	default:
 		jsonError(c, http.StatusInternalServerError, "internal_error", err.Error())
@@ -321,6 +443,10 @@ func pluginDTO(plugin managementusecase.Plugin) PluginDTO {
 		PluginNo:         plugin.No,
 		Name:             plugin.Name,
 		Version:          plugin.Version,
+		ConfigTemplate:   plugin.ConfigTemplate,
+		Config:           plugin.Config,
+		CreatedAt:        plugin.CreatedAt,
+		UpdatedAt:        plugin.UpdatedAt,
 		Methods:          pluginMethodStrings(plugin.Methods),
 		Priority:         plugin.Priority,
 		PersistAfterSync: plugin.PersistAfterSync,

@@ -2,6 +2,8 @@ package app
 
 import (
 	"context"
+	"encoding/json"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -75,6 +77,43 @@ func TestNewWiresPluginUsecaseAsReceiveBindingReader(t *testing.T) {
 	require.Error(t, err)
 	require.NotErrorIs(t, err, pluginusecase.ErrReceiveBindingReaderRequired)
 	require.Contains(t, err.Error(), "/plugin/receive")
+}
+
+func TestNewWiresPluginDesiredStoreIntoUsecase(t *testing.T) {
+	dataDir := t.TempDir()
+	store := runtimeplugin.NewStore(filepath.Join(dataDir, "plugin-state"))
+	require.NoError(t, store.Save(runtimeplugin.DesiredState{
+		No:        "wk.plugin.ai",
+		Config:    json.RawMessage(`{"api_key":"secret"}`),
+		Enabled:   false,
+		CreatedAt: time.Unix(1, 0).UTC(),
+		UpdatedAt: time.Unix(2, 0).UTC(),
+	}))
+	app, err := newTestApp(t, Config{
+		DataDir: dataDir,
+		Cluster: clusterv2.Config{NodeID: 3},
+		Plugin:  PluginConfig{Enable: true, HotReload: false},
+	}, WithCluster(&fakeCluster{}), WithGateway(nil))
+	require.NoError(t, err)
+
+	resp, err := app.plugins.StartPlugin(context.Background(), &pluginproto.PluginInfo{
+		No:      "wk.plugin.ai",
+		Methods: []string{"Send"},
+		ConfigTemplate: &pluginproto.ConfigTemplate{Fields: []*pluginproto.Field{{
+			Name: "api_key",
+			Type: pluginproto.FieldTypeSecret.String(),
+		}}},
+	}, "wk.plugin.ai")
+	require.NoError(t, err)
+	require.Equal(t, uint64(3), resp.GetNodeId())
+	require.NotEmpty(t, resp.GetSandboxDir())
+	require.JSONEq(t, `{"api_key":"secret"}`, string(resp.GetConfig()))
+
+	detail, err := app.plugins.GetLocalPlugin(context.Background(), "wk.plugin.ai")
+	require.NoError(t, err)
+	require.False(t, detail.Enabled)
+	require.Equal(t, pluginusecase.StatusDisabled, detail.Status)
+	require.Equal(t, pluginusecase.SecretHidden, detail.Config["api_key"])
 }
 
 func TestNewWiresPluginUsecaseAsMessageSendHook(t *testing.T) {

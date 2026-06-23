@@ -29,6 +29,7 @@ func NewApp(opts Options) (*App, error) {
 	return &App{
 		runtime:          opts.Runtime,
 		invoker:          opts.Invoker,
+		desired:          opts.DesiredStore,
 		messages:         opts.Messages,
 		messageReader:    opts.MessageReader,
 		clusterReader:    opts.ClusterReader,
@@ -41,10 +42,12 @@ func NewApp(opts Options) (*App, error) {
 		defaultSenderUID: strings.TrimSpace(opts.DefaultSenderUID),
 		receiveDedupeTTL: opts.ReceiveDedupeTTL,
 		receiveDedupe:    make(map[string]time.Time),
+		desiredCache:     make(map[string]desiredCacheEntry),
 		clock:            opts.Clock,
 		failOpen:         opts.FailOpen,
 		observer:         opts.Observer,
 		logger:           opts.Logger,
+		nodeID:           opts.NodeID,
 	}, nil
 }
 
@@ -57,14 +60,39 @@ func (a *App) StartPlugin(ctx context.Context, info *pluginproto.PluginInfo, cal
 	if callerUID != "" && callerUID != no {
 		return nil, ErrPluginCallerMismatch
 	}
+	if err := validatePluginNo(no); err != nil {
+		return nil, err
+	}
+	configTemplateRaw, err := marshalConfigTemplate(info.GetConfigTemplate())
+	if err != nil {
+		return nil, err
+	}
 	observed := observedFromPluginInfo(info)
 	observed.No = no
+	observed.ConfigTemplateRaw = configTemplateRaw
 	observed.Status = StatusRunning
 	observed.Enabled = true
+	desired, found, err := a.desiredState(ctx, no)
+	if err != nil {
+		return nil, err
+	}
+	if found && !desired.Enabled {
+		observed.Enabled = false
+		observed.Status = StatusDisabled
+		observed.PID = 0
+	}
 	if err := a.runtime.RegisterObserved(ctx, observed); err != nil {
 		return nil, err
 	}
-	return &pluginproto.StartupResp{Success: true}, nil
+	resp := &pluginproto.StartupResp{
+		NodeId:     a.nodeID,
+		Success:    true,
+		SandboxDir: a.sandboxDir(no),
+	}
+	if found && len(desired.Config) > 0 {
+		resp.Config = append([]byte(nil), desired.Config...)
+	}
+	return resp, nil
 }
 
 // ClosePlugin marks a plugin connection closed after the host RPC close handshake.
@@ -95,7 +123,7 @@ func methodsFromStrings(methods []string) []Method {
 	out := make([]Method, 0, len(methods))
 	for _, method := range methods {
 		switch Method(method) {
-		case MethodSend, MethodPersistAfter, MethodReceive:
+		case MethodSend, MethodPersistAfter, MethodReceive, MethodConfigUpdate:
 			out = append(out, Method(method))
 		}
 	}

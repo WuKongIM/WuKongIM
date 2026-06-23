@@ -1298,6 +1298,7 @@ type managerNodesStub struct {
 	connectionDetail                   managementusecase.ConnectionDetail
 	pluginList                         managementusecase.NodePluginList
 	pluginDetail                       managementusecase.Plugin
+	pluginMutationDetail               managementusecase.Plugin
 	pluginBindingList                  managementusecase.PluginBindingListResponse
 	pluginBindingMutation              managementusecase.PluginBindingMutationResponse
 	usersPage                          managementusecase.ListUsersResponse
@@ -1332,6 +1333,13 @@ type managerNodesStub struct {
 	pluginListNodeSink                 *uint64
 	pluginDetailNodeSink               *uint64
 	pluginDetailNoSink                 *string
+	pluginConfigUpdateNodeSink         *uint64
+	pluginConfigUpdateNoSink           *string
+	pluginConfigUpdateBodySink         *string
+	pluginRestartNodeSink              *uint64
+	pluginRestartNoSink                *string
+	pluginUninstallNodeSink            *uint64
+	pluginUninstallNoSink              *string
 	pluginBindingListReqSink           *managementusecase.PluginBindingListRequest
 	pluginBindingMutationReqSink       *managementusecase.PluginBindingMutationRequest
 	pluginBindingUnbindReqSink         *managementusecase.PluginBindingMutationRequest
@@ -1365,6 +1373,7 @@ type managerNodesStub struct {
 	connectionDetailErr                error
 	pluginListErr                      error
 	pluginDetailErr                    error
+	pluginMutationErr                  error
 	pluginBindingListErr               error
 	pluginBindingMutationErr           error
 	pluginBindingUnbindErr             error
@@ -1594,6 +1603,39 @@ func (s managerNodesStub) GetNodePlugin(_ context.Context, nodeID uint64, plugin
 		*s.pluginDetailNoSink = pluginNo
 	}
 	return s.pluginDetail, s.pluginDetailErr
+}
+
+func (s managerNodesStub) UpdateNodePluginConfig(_ context.Context, nodeID uint64, pluginNo string, config json.RawMessage) (managementusecase.Plugin, error) {
+	if s.pluginConfigUpdateNodeSink != nil {
+		*s.pluginConfigUpdateNodeSink = nodeID
+	}
+	if s.pluginConfigUpdateNoSink != nil {
+		*s.pluginConfigUpdateNoSink = pluginNo
+	}
+	if s.pluginConfigUpdateBodySink != nil {
+		*s.pluginConfigUpdateBodySink = string(config)
+	}
+	return s.pluginMutationDetail, s.pluginMutationErr
+}
+
+func (s managerNodesStub) RestartNodePlugin(_ context.Context, nodeID uint64, pluginNo string) (managementusecase.Plugin, error) {
+	if s.pluginRestartNodeSink != nil {
+		*s.pluginRestartNodeSink = nodeID
+	}
+	if s.pluginRestartNoSink != nil {
+		*s.pluginRestartNoSink = pluginNo
+	}
+	return s.pluginMutationDetail, s.pluginMutationErr
+}
+
+func (s managerNodesStub) UninstallNodePlugin(_ context.Context, nodeID uint64, pluginNo string) error {
+	if s.pluginUninstallNodeSink != nil {
+		*s.pluginUninstallNodeSink = nodeID
+	}
+	if s.pluginUninstallNoSink != nil {
+		*s.pluginUninstallNoSink = pluginNo
+	}
+	return s.pluginMutationErr
 }
 
 func (s managerNodesStub) ListPluginBindings(_ context.Context, req managementusecase.PluginBindingListRequest) (managementusecase.PluginBindingListResponse, error) {

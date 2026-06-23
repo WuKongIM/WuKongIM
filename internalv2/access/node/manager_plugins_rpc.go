@@ -2,6 +2,7 @@ package node
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -54,6 +55,30 @@ func (a *Adapter) HandleManagerPluginRPC(ctx context.Context, payload []byte) ([
 		status := managerPluginRPCStatusForError(err)
 		a.logManagerPluginError(req, status, err)
 		return encodeManagerPluginResponse(managerPluginRPCResponse{Status: status, ForwardResp: resp})
+	case managerPluginOpUpdateConfig:
+		if a.managerPlugins == nil {
+			return encodeManagerPluginResponse(managerPluginRPCResponse{Status: rpcStatusRejected})
+		}
+		plugin, err := a.managerPlugins.UpdateNodePluginConfig(ctx, req.NodeID, req.PluginNo, req.Config)
+		status := managerPluginRPCStatusForError(err)
+		a.logManagerPluginError(req, status, err)
+		return encodeManagerPluginResponse(managerPluginRPCResponse{Status: status, Plugin: plugin})
+	case managerPluginOpRestart:
+		if a.managerPlugins == nil {
+			return encodeManagerPluginResponse(managerPluginRPCResponse{Status: rpcStatusRejected})
+		}
+		plugin, err := a.managerPlugins.RestartNodePlugin(ctx, req.NodeID, req.PluginNo)
+		status := managerPluginRPCStatusForError(err)
+		a.logManagerPluginError(req, status, err)
+		return encodeManagerPluginResponse(managerPluginRPCResponse{Status: status, Plugin: plugin})
+	case managerPluginOpUninstall:
+		if a.managerPlugins == nil {
+			return encodeManagerPluginResponse(managerPluginRPCResponse{Status: rpcStatusRejected})
+		}
+		err := a.managerPlugins.UninstallNodePlugin(ctx, req.NodeID, req.PluginNo)
+		status := managerPluginRPCStatusForError(err)
+		a.logManagerPluginError(req, status, err)
+		return encodeManagerPluginResponse(managerPluginRPCResponse{Status: status})
 	default:
 		err := fmt.Errorf("internalv2/access/node: unknown manager plugin op %q", req.Op)
 		a.rpcLogger().Warn("manager plugin rpc unknown operation",
@@ -87,6 +112,44 @@ func (c *Client) GetManagerPlugin(ctx context.Context, nodeID uint64, pluginNo s
 		return managementusecase.Plugin{}, err
 	}
 	return resp.Plugin, nil
+}
+
+// UpdateManagerPluginConfig persists desired config on nodeID.
+func (c *Client) UpdateManagerPluginConfig(ctx context.Context, nodeID uint64, pluginNo string, config json.RawMessage) (managementusecase.Plugin, error) {
+	resp, err := c.callManagerPlugin(ctx, nodeID, managerPluginRPCRequest{
+		Op:       managerPluginOpUpdateConfig,
+		NodeID:   nodeID,
+		PluginNo: pluginNo,
+		Config:   append(json.RawMessage(nil), config...),
+	})
+	if err != nil {
+		return managementusecase.Plugin{}, err
+	}
+	if err := managerPluginRPCErrorForStatus(resp.Status); err != nil {
+		return managementusecase.Plugin{}, err
+	}
+	return resp.Plugin, nil
+}
+
+// RestartManagerPlugin restarts one plugin process on nodeID.
+func (c *Client) RestartManagerPlugin(ctx context.Context, nodeID uint64, pluginNo string) (managementusecase.Plugin, error) {
+	resp, err := c.callManagerPlugin(ctx, nodeID, managerPluginRPCRequest{Op: managerPluginOpRestart, NodeID: nodeID, PluginNo: pluginNo})
+	if err != nil {
+		return managementusecase.Plugin{}, err
+	}
+	if err := managerPluginRPCErrorForStatus(resp.Status); err != nil {
+		return managementusecase.Plugin{}, err
+	}
+	return resp.Plugin, nil
+}
+
+// UninstallManagerPlugin disables and removes one plugin process on nodeID.
+func (c *Client) UninstallManagerPlugin(ctx context.Context, nodeID uint64, pluginNo string) error {
+	resp, err := c.callManagerPlugin(ctx, nodeID, managerPluginRPCRequest{Op: managerPluginOpUninstall, NodeID: nodeID, PluginNo: pluginNo})
+	if err != nil {
+		return err
+	}
+	return managerPluginRPCErrorForStatus(resp.Status)
 }
 
 // ForwardPluginHTTP invokes one plugin HTTP route on nodeID.

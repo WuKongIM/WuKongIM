@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/usecase/plugin/pluginproto"
 	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
 	pluginusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/plugin"
 )
@@ -30,6 +31,8 @@ func BenchmarkPluginDTOs(b *testing.B) {
 
 func benchmarkManagerPlugins(count int) []managementusecase.Plugin {
 	lastSeenAt := time.Date(2026, 6, 22, 10, 0, 0, 0, time.UTC)
+	createdAt := lastSeenAt.Add(-time.Hour)
+	updatedAt := lastSeenAt.Add(-time.Minute)
 	plugins := make([]managementusecase.Plugin, 0, count)
 	for i := 0; i < count; i++ {
 		plugins = append(plugins, managementusecase.Plugin{
@@ -37,6 +40,10 @@ func benchmarkManagerPlugins(count int) []managementusecase.Plugin {
 			No:               fmt.Sprintf("plugin-%04d", i),
 			Name:             fmt.Sprintf("Plugin %04d", i),
 			Version:          "v1",
+			ConfigTemplate:   &pluginproto.ConfigTemplate{Fields: []*pluginproto.Field{{Name: "mode", Type: "string", Label: "Mode"}}},
+			Config:           map[string]any{"mode": "fast", "shard": float64(i % 16)},
+			CreatedAt:        &createdAt,
+			UpdatedAt:        &updatedAt,
 			Methods:          []pluginusecase.Method{pluginusecase.MethodPersistAfter, pluginusecase.MethodSend},
 			Priority:         i % 32,
 			PersistAfterSync: i%2 == 0,

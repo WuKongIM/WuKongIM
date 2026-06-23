@@ -238,22 +238,25 @@ remote manager plugin reader
   -> encode W K V J 1 request
   -> clusterv2 RPCManagerPlugins
   -> Adapter.HandleManagerPluginRPC
-  -> list/get: Management plugin reader port
+  -> list/get/update_config/restart/uninstall: Management plugin reader port
   -> http_forward: local PluginHTTPRouter.Route(/plugin/route)
   -> encode W K V j 1 response
 ```
 
-Manager Plugin RPC transports node-local plugin list/detail reads and plugin
-HTTP route forwarding to the selected node. List/detail operations call only
-the configured management plugin reader port, which reads the target node's
-in-memory plugin runtime snapshot. `http_forward` calls the node-local
-`PluginHTTPRouter.Route` port directly; it must not call `HTTPForward` again or
-the remote path can recurse. The client maps stable RPC statuses back to
-manager/plugin usecase errors. The list/detail payload preserves plugin number,
-display metadata, hook methods, PersistAfter/reply sync flags, process ID,
-last-seen timestamp, and latest error text. This RPC does not mutate plugin
-desired state, start or stop plugin processes, or decide which manager HTTP
-request targets a remote node.
+Manager Plugin RPC transports node-local plugin list/detail reads, lifecycle
+mutations, and plugin HTTP route forwarding to the selected node. List/detail
+and lifecycle operations call only the configured management plugin reader
+port, which reads or mutates the target node's plugin lifecycle usecase.
+`update_config` carries the raw desired-config JSON object bytes; `restart`
+returns the latest plugin detail; `uninstall` returns only an accepted status.
+`http_forward` calls the node-local `PluginHTTPRouter.Route` port directly; it
+must not call `HTTPForward` again or the remote path can recurse. The client
+maps stable RPC statuses back to manager/plugin usecase errors. The plugin
+payload preserves plugin number, display metadata, config template bytes,
+redacted desired config JSON, desired-state timestamps, hook methods,
+PersistAfter/reply sync flags, process ID, last-seen timestamp, and latest
+error text. This RPC does not decide which manager HTTP request targets a
+remote node.
 
 ## Manager DB Inspect RPC
 

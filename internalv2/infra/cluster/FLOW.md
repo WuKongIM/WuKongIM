@@ -20,9 +20,9 @@ clusterv2 operations or peer RPC, routes ordinary application log reads to the
 selected node's app-owned local reader or peer RPC, routes manager DB Inspect
 reads to node-local inspect readers or peer RPC, routes manager diagnostics
 reads and tracking-rule mutations to the selected node's internalv2 diagnostics
-store or peer RPC, routes manager plugin inventory reads to the selected
-node's plugin runtime snapshot over peer RPC, and adapts presence/delivery
-ports to clusterv2 routing and node RPC.
+store or peer RPC, routes manager plugin inventory reads and lifecycle
+mutations to the selected node's plugin lifecycle usecase over peer RPC, and
+adapts presence/delivery ports to clusterv2 routing and node RPC.
 
 ## Management Snapshot Flow
 
@@ -170,15 +170,16 @@ management.RemotePluginReader
   -> access/node Manager Plugin RPC client
   -> clusterv2 CallRPC(target node, RPCManagerPlugins)
   -> target node access/node Manager Plugin RPC handler
-  -> target node v2 plugin usecase observed runtime snapshot
+  -> target node v2 plugin lifecycle usecase
 ```
 
 `ManagementPluginReader` is the narrow remote half of the manager plugin
-inventory page. It forwards non-local `node_id` list/detail reads to the
-selected node and preserves management plugin DTOs across the RPC boundary.
-Local plugin snapshot reads, HTTP permissions, and response shaping stay in the
-management usecase and manager access layer. This adapter does not inspect
-plugin directories or mutate plugin lifecycle state.
+inventory and lifecycle API. It forwards non-local `node_id` list/detail reads,
+config updates, restarts, and uninstalls to the selected node and preserves
+management plugin DTOs across the RPC boundary. Local plugin reads/mutations,
+HTTP permissions, and response shaping stay in the management usecase and
+manager access layer. This adapter does not inspect plugin directories or call
+the plugin runtime directly.
 
 `PluginHTTPForwarder` reuses the same `RPCManagerPlugins` service with the
 `http_forward` operation for `/plugin/httpForward` requests that target a

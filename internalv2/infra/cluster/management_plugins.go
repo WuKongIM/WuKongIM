@@ -2,6 +2,7 @@ package cluster
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/WuKongIM/WuKongIM/internal/usecase/plugin/pluginproto"
 	accessnode "github.com/WuKongIM/WuKongIM/internalv2/access/node"
@@ -53,6 +54,30 @@ func (r *ManagementPluginReader) NodePlugin(ctx context.Context, nodeID uint64, 
 		return managementusecase.Plugin{}, managementusecase.ErrPluginNodeUnavailable
 	}
 	return r.remote.GetManagerPlugin(ctx, nodeID, pluginNo)
+}
+
+// UpdateNodePluginConfig persists desired config on one selected node.
+func (r *ManagementPluginReader) UpdateNodePluginConfig(ctx context.Context, nodeID uint64, pluginNo string, config json.RawMessage) (managementusecase.Plugin, error) {
+	if r == nil || r.remote == nil {
+		return managementusecase.Plugin{}, managementusecase.ErrPluginNodeUnavailable
+	}
+	return r.remote.UpdateManagerPluginConfig(ctx, nodeID, pluginNo, config)
+}
+
+// RestartNodePlugin restarts one plugin process on one selected node.
+func (r *ManagementPluginReader) RestartNodePlugin(ctx context.Context, nodeID uint64, pluginNo string) (managementusecase.Plugin, error) {
+	if r == nil || r.remote == nil {
+		return managementusecase.Plugin{}, managementusecase.ErrPluginNodeUnavailable
+	}
+	return r.remote.RestartManagerPlugin(ctx, nodeID, pluginNo)
+}
+
+// UninstallNodePlugin disables and removes one plugin on one selected node.
+func (r *ManagementPluginReader) UninstallNodePlugin(ctx context.Context, nodeID uint64, pluginNo string) error {
+	if r == nil || r.remote == nil {
+		return managementusecase.ErrPluginNodeUnavailable
+	}
+	return r.remote.UninstallManagerPlugin(ctx, nodeID, pluginNo)
 }
 
 // ForwardPluginHTTP invokes one plugin HTTP route on one selected node.

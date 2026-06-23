@@ -2,19 +2,28 @@ package management
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/usecase/plugin/pluginproto"
 	pluginusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/plugin"
 )
 
 func TestListNodePluginsReadsLocalPluginReader(t *testing.T) {
 	lastSeen := time.Unix(1713859200, 0).UTC()
-	local := &fakePluginReader{plugins: []pluginusecase.ObservedPlugin{{
+	createdAt := time.Unix(1713859100, 0).UTC()
+	updatedAt := time.Unix(1713859150, 0).UTC()
+	local := &fakePluginReader{plugins: []pluginusecase.LocalPlugin{{
+		NodeID:           1,
 		No:               "wk.persist",
 		Name:             "Persist",
 		Version:          "v1",
+		ConfigTemplate:   &pluginproto.ConfigTemplate{Fields: []*pluginproto.Field{{Name: "mode", Type: "string", Label: "Mode"}}},
+		Config:           map[string]any{"mode": "fast"},
+		CreatedAt:        &createdAt,
+		UpdatedAt:        &updatedAt,
 		Methods:          []pluginusecase.Method{pluginusecase.MethodPersistAfter},
 		Priority:         9,
 		PersistAfterSync: true,
@@ -39,12 +48,17 @@ func TestListNodePluginsReadsLocalPluginReader(t *testing.T) {
 	}
 	want := NodePluginList{NodeID: 1, Plugins: []Plugin{{
 		NodeID: 1, No: "wk.persist", Name: "Persist", Version: "v1",
-		Methods:  []pluginusecase.Method{pluginusecase.MethodPersistAfter},
-		Priority: 9, PersistAfterSync: true, Status: "running", Enabled: true,
+		ConfigTemplate: &pluginproto.ConfigTemplate{Fields: []*pluginproto.Field{{Name: "mode", Type: "string", Label: "Mode"}}},
+		Config:         map[string]any{"mode": "fast"},
+		Methods:        []pluginusecase.Method{pluginusecase.MethodPersistAfter},
+		Priority:       9, PersistAfterSync: true, Status: "running", Enabled: true,
 		PID: 101, LastSeenAt: lastSeen, LastError: "last warning",
 	}}}
 	if !sameNodePluginList(got, want) {
 		t.Fatalf("plugins = %#v, want %#v", got, want)
+	}
+	if got.Plugins[0].Config["mode"] != "fast" || got.Plugins[0].ConfigTemplate.GetFields()[0].GetName() != "mode" {
+		t.Fatalf("plugin config metadata = %#v template=%#v, want redacted config/template", got.Plugins[0].Config, got.Plugins[0].ConfigTemplate)
 	}
 }
 
@@ -77,7 +91,8 @@ func TestListNodePluginsRoutesRemoteNodeReads(t *testing.T) {
 }
 
 func TestGetNodePluginReturnsLocalDetailAndNotFound(t *testing.T) {
-	local := &fakePluginReader{plugin: pluginusecase.ObservedPlugin{
+	local := &fakePluginReader{plugin: pluginusecase.LocalPluginDetail{
+		NodeID:  1,
 		No:      "wk.persist",
 		Name:    "Persist",
 		Status:  pluginusecase.StatusRunning,
@@ -99,6 +114,85 @@ func TestGetNodePluginReturnsLocalDetailAndNotFound(t *testing.T) {
 	_, err = app.GetNodePlugin(context.Background(), 1, "missing")
 	if !errors.Is(err, pluginusecase.ErrPluginNotFound) {
 		t.Fatalf("GetNodePlugin(missing) error = %v, want %v", err, pluginusecase.ErrPluginNotFound)
+	}
+}
+
+func TestPluginMutationsRouteLocalNode(t *testing.T) {
+	local := &fakePluginReader{
+		updatePlugin:  pluginusecase.LocalPluginDetail{NodeID: 1, No: "wk.persist", Status: pluginusecase.StatusRunning, Enabled: true, Config: map[string]any{"mode": "fast"}},
+		restartPlugin: pluginusecase.LocalPluginDetail{NodeID: 1, No: "wk.persist", Status: pluginusecase.StatusStarting, Enabled: true},
+	}
+	app := New(Options{
+		Cluster: fakeNodeSnapshotReader{nodeID: 1},
+		Plugins: local,
+	})
+
+	updated, err := app.UpdateNodePluginConfig(context.Background(), 1, " wk.persist ", json.RawMessage(`{"mode":"fast"}`))
+	if err != nil {
+		t.Fatalf("UpdateNodePluginConfig(local) error = %v", err)
+	}
+	if local.updatePluginNo != "wk.persist" || string(local.updateConfig) != `{"mode":"fast"}` {
+		t.Fatalf("local update call = plugin:%q config:%s, want wk.persist fast config", local.updatePluginNo, string(local.updateConfig))
+	}
+	if updated.NodeID != 1 || updated.Config["mode"] != "fast" {
+		t.Fatalf("updated = %#v, want local updated plugin config", updated)
+	}
+
+	restarted, err := app.RestartNodePlugin(context.Background(), 1, "wk.persist")
+	if err != nil {
+		t.Fatalf("RestartNodePlugin(local) error = %v", err)
+	}
+	if local.restartPluginNo != "wk.persist" || restarted.Status != string(pluginusecase.StatusStarting) {
+		t.Fatalf("restart call = %q detail=%#v, want restarting wk.persist", local.restartPluginNo, restarted)
+	}
+
+	if err := app.UninstallNodePlugin(context.Background(), 1, "wk.persist"); err != nil {
+		t.Fatalf("UninstallNodePlugin(local) error = %v", err)
+	}
+	if local.uninstallPluginNo != "wk.persist" {
+		t.Fatalf("uninstall plugin = %q, want wk.persist", local.uninstallPluginNo)
+	}
+}
+
+func TestPluginMutationsRouteRemoteNode(t *testing.T) {
+	local := &fakePluginReader{}
+	remote := &fakeRemotePluginReader{
+		updatePlugin:  Plugin{NodeID: 3, No: "wk.remote", Status: "running", Enabled: true, Config: map[string]any{"mode": "safe"}},
+		restartPlugin: Plugin{NodeID: 3, No: "wk.remote", Status: "starting", Enabled: true},
+	}
+	app := New(Options{
+		Cluster:       fakeNodeSnapshotReader{nodeID: 1},
+		Plugins:       local,
+		RemotePlugins: remote,
+	})
+
+	updated, err := app.UpdateNodePluginConfig(context.Background(), 3, "wk.remote", json.RawMessage(`{"mode":"safe"}`))
+	if err != nil {
+		t.Fatalf("UpdateNodePluginConfig(remote) error = %v", err)
+	}
+	if local.updatePluginNo != "" {
+		t.Fatalf("local update plugin = %q, want no local mutation for remote node", local.updatePluginNo)
+	}
+	if remote.updateNodeID != 3 || remote.updatePluginNo != "wk.remote" || string(remote.updateConfig) != `{"mode":"safe"}` {
+		t.Fatalf("remote update call = node:%d plugin:%q config:%s", remote.updateNodeID, remote.updatePluginNo, string(remote.updateConfig))
+	}
+	if updated.NodeID != 3 || updated.Config["mode"] != "safe" {
+		t.Fatalf("updated = %#v, want remote updated plugin", updated)
+	}
+
+	restarted, err := app.RestartNodePlugin(context.Background(), 3, "wk.remote")
+	if err != nil {
+		t.Fatalf("RestartNodePlugin(remote) error = %v", err)
+	}
+	if remote.restartNodeID != 3 || remote.restartPluginNo != "wk.remote" || restarted.Status != "starting" {
+		t.Fatalf("remote restart call = node:%d plugin:%q detail=%#v", remote.restartNodeID, remote.restartPluginNo, restarted)
+	}
+
+	if err := app.UninstallNodePlugin(context.Background(), 3, "wk.remote"); err != nil {
+		t.Fatalf("UninstallNodePlugin(remote) error = %v", err)
+	}
+	if remote.uninstallNodeID != 3 || remote.uninstallPluginNo != "wk.remote" {
+		t.Fatalf("remote uninstall call = node:%d plugin:%q", remote.uninstallNodeID, remote.uninstallPluginNo)
 	}
 }
 
@@ -199,7 +293,7 @@ func TestPluginBindingsRequireAuthoritativeStore(t *testing.T) {
 }
 
 func TestPluginBindingWarningsUseLocalRuntimeWhenAvailable(t *testing.T) {
-	reader := &fakePluginReader{plugin: pluginusecase.ObservedPlugin{
+	reader := &fakePluginReader{plugin: pluginusecase.LocalPluginDetail{
 		No:      "wk.persist",
 		Status:  pluginusecase.StatusRunning,
 		Enabled: true,
@@ -227,22 +321,81 @@ func TestPluginBindingWarningsUseLocalRuntimeWhenAvailable(t *testing.T) {
 }
 
 type fakePluginReader struct {
-	listCalls int
-	plugins   []pluginusecase.ObservedPlugin
-	plugin    pluginusecase.ObservedPlugin
-	pluginErr error
+	listCalls         int
+	plugins           []pluginusecase.LocalPlugin
+	plugin            pluginusecase.LocalPluginDetail
+	updatePlugin      pluginusecase.LocalPluginDetail
+	restartPlugin     pluginusecase.LocalPluginDetail
+	pluginErr         error
+	updatePluginNo    string
+	updateConfig      json.RawMessage
+	restartPluginNo   string
+	uninstallPluginNo string
 }
 
-func (f *fakePluginReader) ListPlugins(context.Context) ([]pluginusecase.ObservedPlugin, error) {
+func (f *fakePluginReader) ListLocalPlugins(context.Context) (pluginusecase.LocalPluginList, error) {
 	f.listCalls++
-	return append([]pluginusecase.ObservedPlugin(nil), f.plugins...), nil
+	return pluginusecase.LocalPluginList{NodeID: 1, Plugins: append([]pluginusecase.LocalPlugin(nil), f.plugins...)}, nil
 }
 
-func (f *fakePluginReader) GetPlugin(_ context.Context, pluginNo string) (pluginusecase.ObservedPlugin, error) {
+func (f *fakePluginReader) GetLocalPlugin(_ context.Context, pluginNo string) (pluginusecase.LocalPluginDetail, error) {
 	if pluginNo == "missing" {
-		return pluginusecase.ObservedPlugin{}, f.pluginErr
+		return pluginusecase.LocalPluginDetail{}, f.pluginErr
 	}
 	return f.plugin, nil
+}
+
+func (f *fakePluginReader) UpdateLocalConfig(_ context.Context, pluginNo string, config json.RawMessage) (pluginusecase.LocalPluginDetail, error) {
+	f.updatePluginNo = pluginNo
+	f.updateConfig = append(json.RawMessage(nil), config...)
+	return f.updatePlugin, nil
+}
+
+func (f *fakePluginReader) RestartLocalPlugin(_ context.Context, pluginNo string) (pluginusecase.LocalPluginDetail, error) {
+	f.restartPluginNo = pluginNo
+	return f.restartPlugin, nil
+}
+
+func (f *fakePluginReader) UninstallLocalPlugin(_ context.Context, pluginNo string) error {
+	f.uninstallPluginNo = pluginNo
+	return nil
+}
+
+func (f *fakePluginReader) ListPlugins(ctx context.Context) ([]pluginusecase.ObservedPlugin, error) {
+	list, err := f.ListLocalPlugins(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]pluginusecase.ObservedPlugin, 0, len(list.Plugins))
+	for _, item := range list.Plugins {
+		out = append(out, observedFromLocalPlugin(item))
+	}
+	return out, nil
+}
+
+func (f *fakePluginReader) GetPlugin(ctx context.Context, pluginNo string) (pluginusecase.ObservedPlugin, error) {
+	item, err := f.GetLocalPlugin(ctx, pluginNo)
+	if err != nil {
+		return pluginusecase.ObservedPlugin{}, err
+	}
+	return observedFromLocalPlugin(item), nil
+}
+
+func observedFromLocalPlugin(item pluginusecase.LocalPlugin) pluginusecase.ObservedPlugin {
+	return pluginusecase.ObservedPlugin{
+		No:               item.No,
+		Name:             item.Name,
+		Version:          item.Version,
+		Methods:          append([]pluginusecase.Method(nil), item.Methods...),
+		Priority:         item.Priority,
+		PersistAfterSync: item.PersistAfterSync,
+		ReplySync:        item.ReplySync,
+		Status:           item.Status,
+		Enabled:          item.Enabled,
+		PID:              item.PID,
+		LastSeenAt:       item.LastSeenAt,
+		LastError:        item.LastError,
+	}
 }
 
 type pluginBindingScanPage struct {
@@ -284,11 +437,20 @@ func (f *fakePluginBindingStore) UnbindPluginUser(_ context.Context, uid, plugin
 }
 
 type fakeRemotePluginReader struct {
-	listNodeID     uint64
-	detailNodeID   uint64
-	detailPluginNo string
-	plugins        []Plugin
-	plugin         Plugin
+	listNodeID        uint64
+	detailNodeID      uint64
+	detailPluginNo    string
+	updateNodeID      uint64
+	updatePluginNo    string
+	updateConfig      json.RawMessage
+	restartNodeID     uint64
+	restartPluginNo   string
+	uninstallNodeID   uint64
+	uninstallPluginNo string
+	plugins           []Plugin
+	plugin            Plugin
+	updatePlugin      Plugin
+	restartPlugin     Plugin
 }
 
 func (f *fakeRemotePluginReader) NodePlugins(_ context.Context, nodeID uint64) ([]Plugin, error) {
@@ -300,6 +462,25 @@ func (f *fakeRemotePluginReader) NodePlugin(_ context.Context, nodeID uint64, pl
 	f.detailNodeID = nodeID
 	f.detailPluginNo = pluginNo
 	return f.plugin, nil
+}
+
+func (f *fakeRemotePluginReader) UpdateNodePluginConfig(_ context.Context, nodeID uint64, pluginNo string, config json.RawMessage) (Plugin, error) {
+	f.updateNodeID = nodeID
+	f.updatePluginNo = pluginNo
+	f.updateConfig = append(json.RawMessage(nil), config...)
+	return f.updatePlugin, nil
+}
+
+func (f *fakeRemotePluginReader) RestartNodePlugin(_ context.Context, nodeID uint64, pluginNo string) (Plugin, error) {
+	f.restartNodeID = nodeID
+	f.restartPluginNo = pluginNo
+	return f.restartPlugin, nil
+}
+
+func (f *fakeRemotePluginReader) UninstallNodePlugin(_ context.Context, nodeID uint64, pluginNo string) error {
+	f.uninstallNodeID = nodeID
+	f.uninstallPluginNo = pluginNo
+	return nil
 }
 
 func sameNodePluginList(left, right NodePluginList) bool {
@@ -328,6 +509,7 @@ func samePlugin(left, right Plugin) bool {
 		left.PID != right.PID ||
 		!left.LastSeenAt.Equal(right.LastSeenAt) ||
 		left.LastError != right.LastError ||
+		!sameAnyMap(left.Config, right.Config) ||
 		len(left.Methods) != len(right.Methods) {
 		return false
 	}
@@ -337,4 +519,10 @@ func samePlugin(left, right Plugin) bool {
 		}
 	}
 	return true
+}
+
+func sameAnyMap(left, right map[string]any) bool {
+	leftRaw, _ := json.Marshal(left)
+	rightRaw, _ := json.Marshal(right)
+	return string(leftRaw) == string(rightRaw)
 }

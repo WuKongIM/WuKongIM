@@ -2,6 +2,7 @@ package manager
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net"
 	"net/http"
@@ -104,6 +105,12 @@ type Management interface {
 	ListNodePlugins(ctx context.Context, nodeID uint64) (managementusecase.NodePluginList, error)
 	// GetNodePlugin returns one node-local plugin detail.
 	GetNodePlugin(ctx context.Context, nodeID uint64, pluginNo string) (managementusecase.Plugin, error)
+	// UpdateNodePluginConfig persists desired config for one node-local plugin.
+	UpdateNodePluginConfig(ctx context.Context, nodeID uint64, pluginNo string, config json.RawMessage) (managementusecase.Plugin, error)
+	// RestartNodePlugin restarts one node-local plugin process.
+	RestartNodePlugin(ctx context.Context, nodeID uint64, pluginNo string) (managementusecase.Plugin, error)
+	// UninstallNodePlugin disables and removes one node-local plugin process.
+	UninstallNodePlugin(ctx context.Context, nodeID uint64, pluginNo string) error
 	// ListPluginBindings returns cluster-authoritative plugin-user bindings.
 	ListPluginBindings(ctx context.Context, req managementusecase.PluginBindingListRequest) (managementusecase.PluginBindingListResponse, error)
 	// BindPluginUser creates or updates a cluster-authoritative plugin-user binding.
@@ -374,6 +381,9 @@ func (s *Server) registerRoutes() {
 	}
 	pluginWrites.POST("/plugin-bindings", s.handlePluginBindingCreate)
 	pluginWrites.DELETE("/plugin-bindings", s.handlePluginBindingDelete)
+	pluginWrites.PUT("/nodes/:node_id/plugins/:plugin_no/config", s.handleNodePluginConfigUpdate)
+	pluginWrites.POST("/nodes/:node_id/plugins/:plugin_no/restart", s.handleNodePluginRestart)
+	pluginWrites.DELETE("/nodes/:node_id/plugins/:plugin_no", s.handleNodePluginUninstall)
 
 	channelWrites := s.engine.Group("/manager")
 	if s.auth.enabled() {

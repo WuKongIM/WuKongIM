@@ -209,10 +209,13 @@ func TestPersistAfterCommittedJoinedErrorPreservesMultiplePluginFailures(t *test
 }
 
 type recordingRuntime struct {
-	mu         sync.Mutex
-	plugins    []ObservedPlugin
-	registered []ObservedPlugin
-	closed     []string
+	mu          sync.Mutex
+	plugins     []ObservedPlugin
+	registered  []ObservedPlugin
+	closed      []string
+	restarted   []string
+	uninstalled []string
+	sandboxDirs map[string]string
 }
 
 func (r *recordingRuntime) RegisterObserved(_ context.Context, plugin ObservedPlugin) error {
@@ -245,13 +248,21 @@ func (r *recordingRuntime) MarkClosed(_ context.Context, pluginNo string) error 
 func (r *recordingRuntime) List() []ObservedPlugin {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	return append([]ObservedPlugin(nil), r.plugins...)
+	out := make([]ObservedPlugin, 0, len(r.plugins))
+	for _, plugin := range r.plugins {
+		out = append(out, cloneObservedPlugin(plugin))
+	}
+	return out
 }
 
 func (r *recordingRuntime) registeredPlugins() []ObservedPlugin {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	return append([]ObservedPlugin(nil), r.registered...)
+	out := make([]ObservedPlugin, 0, len(r.registered))
+	for _, plugin := range r.registered {
+		out = append(out, cloneObservedPlugin(plugin))
+	}
+	return out
 }
 
 func (r *recordingRuntime) closedPlugins() []string {
@@ -260,9 +271,34 @@ func (r *recordingRuntime) closedPlugins() []string {
 	return append([]string(nil), r.closed...)
 }
 
+func (r *recordingRuntime) SandboxDir(no string) (string, error) {
+	return r.sandboxDirs[no], nil
+}
+
+func (r *recordingRuntime) Restart(_ context.Context, no string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.restarted = append(r.restarted, no)
+	return nil
+}
+
+func (r *recordingRuntime) Uninstall(_ context.Context, no string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.uninstalled = append(r.uninstalled, no)
+	for i := range r.plugins {
+		if r.plugins[i].No == no {
+			r.plugins[i].Status = StatusDisabled
+			r.plugins[i].Enabled = false
+		}
+	}
+	return nil
+}
+
 type recordingInvoker struct {
 	mu            sync.Mutex
 	requests      []string
+	requestBodies [][]byte
 	sends         []recordingSend
 	requestErrors map[string]error
 	sendErrors    map[string]error
@@ -278,6 +314,7 @@ func (r *recordingInvoker) RequestPlugin(_ context.Context, no, path string, bod
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.requests = append(r.requests, fmt.Sprintf("%s:%s", no, path))
+	r.requestBodies = append(r.requestBodies, append([]byte(nil), body...))
 	if err := r.requestErrors[no]; err != nil {
 		return nil, err
 	}

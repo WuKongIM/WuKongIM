@@ -308,6 +308,61 @@ func BenchmarkPersistAfterCandidates(b *testing.B) {
 	}
 }
 
+func BenchmarkLocalPluginListWithDesiredState(b *testing.B) {
+	for _, count := range []int{1, 16, 128, 1024} {
+		b.Run(fmt.Sprintf("plugins_%d", count), func(b *testing.B) {
+			store := newRecordingDesiredStore()
+			plugins := benchmarkPlugins(count)
+			for _, plugin := range plugins {
+				store.states[plugin.No] = DesiredPlugin{
+					No:      plugin.No,
+					Config:  []byte(`{"api_key":"secret","mode":"fast"}`),
+					Enabled: true,
+				}
+			}
+			app, err := NewApp(Options{Runtime: &recordingRuntime{plugins: plugins}, Invoker: &recordingInvoker{}, DesiredStore: store, NodeID: 1})
+			require.NoError(b, err)
+			b.ReportAllocs()
+			for i := 0; i < b.N; i++ {
+				list, err := app.ListLocalPlugins(context.Background())
+				if err != nil {
+					b.Fatal(err)
+				}
+				if len(list.Plugins) != count {
+					b.Fatal("invalid plugin count")
+				}
+			}
+		})
+	}
+}
+
+func BenchmarkSendCandidatesWithDesiredCache(b *testing.B) {
+	for _, count := range []int{1, 16, 128, 1024} {
+		b.Run(fmt.Sprintf("plugins_%d", count), func(b *testing.B) {
+			store := newRecordingDesiredStore()
+			plugins := benchmarkSendPlugins(count)
+			for _, plugin := range plugins {
+				store.states[plugin.No] = DesiredPlugin{No: plugin.No, Enabled: true}
+			}
+			app, err := NewApp(Options{Runtime: &recordingRuntime{plugins: plugins}, Invoker: &recordingInvoker{}, DesiredStore: store})
+			require.NoError(b, err)
+			_, err = app.SendPluginCandidates(context.Background())
+			require.NoError(b, err)
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				candidates, err := app.SendPluginCandidates(context.Background())
+				if err != nil {
+					b.Fatal(err)
+				}
+				if len(candidates) == 0 {
+					b.Fatal("empty candidates")
+				}
+			}
+		})
+	}
+}
+
 func BenchmarkReceivePluginCandidates(b *testing.B) {
 	for _, count := range []int{1, 16, 128, 1024} {
 		b.Run(fmt.Sprintf("bindings_%d", count), func(b *testing.B) {

@@ -1,6 +1,7 @@
 package node
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"testing"
@@ -121,6 +122,53 @@ func BenchmarkManagerPluginRPCHTTPForwardRequestCodec(b *testing.B) {
 	}
 }
 
+func BenchmarkManagerPluginRPCUpdateConfigRequestCodec(b *testing.B) {
+	for _, payloadSize := range []int{128, 1024, 16 * 1024, 256 * 1024} {
+		b.Run(fmt.Sprintf("payload_%d", payloadSize), func(b *testing.B) {
+			config := benchmarkPluginConfig(payloadSize)
+			req := managerPluginRPCRequest{
+				Op:       managerPluginOpUpdateConfig,
+				NodeID:   2,
+				PluginNo: "bench.plugin",
+				Config:   config,
+			}
+			b.Run("encode", func(b *testing.B) {
+				b.ReportAllocs()
+				b.SetBytes(int64(len(config)))
+				b.ResetTimer()
+				for i := 0; i < b.N; i++ {
+					body, err := encodeManagerPluginRequest(req)
+					if err != nil {
+						b.Fatal(err)
+					}
+					if len(body) == 0 {
+						b.Fatal("empty encoded request")
+					}
+					benchmarkManagerPluginBytesSink = body
+				}
+			})
+			body, err := encodeManagerPluginRequest(req)
+			if err != nil {
+				b.Fatal(err)
+			}
+			b.Run("decode", func(b *testing.B) {
+				b.ReportAllocs()
+				b.SetBytes(int64(len(config)))
+				b.ResetTimer()
+				for i := 0; i < b.N; i++ {
+					got, err := decodeManagerPluginRequest(body)
+					if err != nil {
+						b.Fatal(err)
+					}
+					if got.PluginNo != "bench.plugin" || len(got.Config) != len(config) {
+						b.Fatal("invalid request")
+					}
+				}
+			})
+		})
+	}
+}
+
 func BenchmarkManagerPluginRPCHTTPForwardResponseCodec(b *testing.B) {
 	for _, payloadSize := range []int{128, 1024, 16 * 1024} {
 		b.Run(fmt.Sprintf("payload_%d", payloadSize), func(b *testing.B) {
@@ -170,8 +218,21 @@ func BenchmarkManagerPluginRPCHTTPForwardResponseCodec(b *testing.B) {
 	}
 }
 
+func benchmarkPluginConfig(size int) json.RawMessage {
+	if size <= 32 {
+		return json.RawMessage(`{"mode":"fast"}`)
+	}
+	value := make([]byte, size-20)
+	for i := range value {
+		value[i] = 'x'
+	}
+	return json.RawMessage(fmt.Sprintf(`{"payload":"%s"}`, string(value)))
+}
+
 func benchmarkNodeManagerPlugins(count int) []managementusecase.Plugin {
 	lastSeenAt := time.Date(2026, 6, 22, 10, 0, 0, 0, time.UTC)
+	createdAt := lastSeenAt.Add(-time.Hour)
+	updatedAt := lastSeenAt.Add(-time.Minute)
 	plugins := make([]managementusecase.Plugin, 0, count)
 	for i := 0; i < count; i++ {
 		plugins = append(plugins, managementusecase.Plugin{
@@ -179,6 +240,10 @@ func benchmarkNodeManagerPlugins(count int) []managementusecase.Plugin {
 			No:               fmt.Sprintf("plugin-%04d", i),
 			Name:             fmt.Sprintf("Plugin %04d", i),
 			Version:          "v1",
+			ConfigTemplate:   &pluginproto.ConfigTemplate{Fields: []*pluginproto.Field{{Name: "mode", Type: "string", Label: "Mode"}}},
+			Config:           map[string]any{"mode": "fast", "shard": float64(i % 16)},
+			CreatedAt:        &createdAt,
+			UpdatedAt:        &updatedAt,
 			Methods:          []pluginusecase.Method{pluginusecase.MethodPersistAfter, pluginusecase.MethodSend},
 			Priority:         i % 32,
 			PersistAfterSync: i%2 == 0,

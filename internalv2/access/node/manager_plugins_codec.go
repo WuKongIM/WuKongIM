@@ -1,6 +1,7 @@
 package node
 
 import (
+	"encoding/json"
 	"fmt"
 	"sort"
 	"time"
@@ -8,6 +9,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/usecase/plugin/pluginproto"
 	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
 	pluginusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/plugin"
+	"google.golang.org/protobuf/proto"
 )
 
 var (
@@ -16,13 +18,19 @@ var (
 )
 
 const (
-	managerPluginOpList        = "list_plugins"
-	managerPluginOpGet         = "get_plugin"
-	managerPluginOpHTTPForward = "http_forward"
+	managerPluginOpList         = "list_plugins"
+	managerPluginOpGet          = "get_plugin"
+	managerPluginOpHTTPForward  = "http_forward"
+	managerPluginOpUpdateConfig = "update_config"
+	managerPluginOpRestart      = "restart"
+	managerPluginOpUninstall    = "uninstall"
 
 	managerPluginOpListID byte = iota + 1
 	managerPluginOpGetID
 	managerPluginOpHTTPForwardID
+	managerPluginOpUpdateConfigID
+	managerPluginOpRestartID
+	managerPluginOpUninstallID
 
 	maxManagerPluginRPCCollectionLen = 4096
 )
@@ -32,6 +40,7 @@ type managerPluginRPCRequest struct {
 	NodeID     uint64
 	PluginNo   string
 	ForwardReq *pluginproto.ForwardHttpReq
+	Config     json.RawMessage
 }
 
 type managerPluginRPCResponse struct {
@@ -51,8 +60,11 @@ func encodeManagerPluginRequest(req managerPluginRPCRequest) ([]byte, error) {
 	dst = append(dst, opID)
 	dst = appendUvarint(dst, req.NodeID)
 	dst = appendString(dst, req.PluginNo)
-	if req.ForwardReq != nil {
+	switch req.Op {
+	case managerPluginOpHTTPForward:
 		dst = appendForwardHTTPReq(dst, req.ForwardReq)
+	case managerPluginOpUpdateConfig:
+		dst = appendBytes(dst, req.Config)
 	}
 	return dst, nil
 }
@@ -80,7 +92,9 @@ func decodeManagerPluginRequest(body []byte) (managerPluginRPCRequest, error) {
 		return managerPluginRPCRequest{}, err
 	}
 	var forwardReq *pluginproto.ForwardHttpReq
-	if offset < len(body) {
+	var config json.RawMessage
+	switch reqOp := op; reqOp {
+	case managerPluginOpHTTPForward:
 		forwardReq, offset, err = readForwardHTTPReq(body, offset)
 		if err != nil {
 			return managerPluginRPCRequest{}, err
@@ -88,11 +102,18 @@ func decodeManagerPluginRequest(body []byte) (managerPluginRPCRequest, error) {
 		if pluginNo == "" {
 			pluginNo = forwardReq.GetPluginNo()
 		}
+	case managerPluginOpUpdateConfig:
+		var raw []byte
+		raw, offset, err = readBytes(body, offset)
+		if err != nil {
+			return managerPluginRPCRequest{}, err
+		}
+		config = append(json.RawMessage(nil), raw...)
 	}
 	if offset != len(body) {
 		return managerPluginRPCRequest{}, fmt.Errorf("internalv2/access/node: trailing manager plugin request bytes")
 	}
-	return managerPluginRPCRequest{Op: op, NodeID: nodeID, PluginNo: pluginNo, ForwardReq: forwardReq}, nil
+	return managerPluginRPCRequest{Op: op, NodeID: nodeID, PluginNo: pluginNo, ForwardReq: forwardReq, Config: config}, nil
 }
 
 func encodeManagerPluginResponse(resp managerPluginRPCResponse) ([]byte, error) {
@@ -298,6 +319,10 @@ func appendManagerPlugin(dst []byte, item managementusecase.Plugin) []byte {
 	dst = appendString(dst, item.No)
 	dst = appendString(dst, item.Name)
 	dst = appendString(dst, item.Version)
+	dst = appendConfigTemplate(dst, item.ConfigTemplate)
+	dst = appendAnyMap(dst, item.Config)
+	dst = appendOptionalTime(dst, item.CreatedAt)
+	dst = appendOptionalTime(dst, item.UpdatedAt)
 	dst = appendUvarint(dst, uint64(len(item.Methods)))
 	for _, method := range item.Methods {
 		dst = appendString(dst, string(method))
@@ -330,6 +355,18 @@ func readManagerPlugin(body []byte, offset int) (managementusecase.Plugin, int, 
 		return item, offset, err
 	}
 	if item.Version, offset, err = readString(body, offset); err != nil {
+		return item, offset, err
+	}
+	if item.ConfigTemplate, offset, err = readConfigTemplate(body, offset); err != nil {
+		return item, offset, err
+	}
+	if item.Config, offset, err = readAnyMap(body, offset); err != nil {
+		return item, offset, err
+	}
+	if item.CreatedAt, offset, err = readOptionalTime(body, offset, "manager plugin created_at"); err != nil {
+		return item, offset, err
+	}
+	if item.UpdatedAt, offset, err = readOptionalTime(body, offset, "manager plugin updated_at"); err != nil {
 		return item, offset, err
 	}
 	methodCount, offset, err := readUvarint(body, offset)
@@ -392,6 +429,12 @@ func managerPluginOpID(op string) (byte, error) {
 		return managerPluginOpGetID, nil
 	case managerPluginOpHTTPForward:
 		return managerPluginOpHTTPForwardID, nil
+	case managerPluginOpUpdateConfig:
+		return managerPluginOpUpdateConfigID, nil
+	case managerPluginOpRestart:
+		return managerPluginOpRestartID, nil
+	case managerPluginOpUninstall:
+		return managerPluginOpUninstallID, nil
 	default:
 		return 0, fmt.Errorf("internalv2/access/node: unknown manager plugin op %q", op)
 	}
@@ -405,7 +448,89 @@ func managerPluginOpFromID(id byte) (string, error) {
 		return managerPluginOpGet, nil
 	case managerPluginOpHTTPForwardID:
 		return managerPluginOpHTTPForward, nil
+	case managerPluginOpUpdateConfigID:
+		return managerPluginOpUpdateConfig, nil
+	case managerPluginOpRestartID:
+		return managerPluginOpRestart, nil
+	case managerPluginOpUninstallID:
+		return managerPluginOpUninstall, nil
 	default:
 		return "", fmt.Errorf("internalv2/access/node: unknown manager plugin op id %d", id)
 	}
+}
+
+func appendConfigTemplate(dst []byte, template *pluginproto.ConfigTemplate) []byte {
+	if template == nil {
+		return appendBytes(dst, nil)
+	}
+	raw, err := proto.Marshal(template)
+	if err != nil {
+		return appendBytes(dst, nil)
+	}
+	return appendBytes(dst, raw)
+}
+
+func readConfigTemplate(body []byte, offset int) (*pluginproto.ConfigTemplate, int, error) {
+	raw, offset, err := readBytes(body, offset)
+	if err != nil {
+		return nil, offset, err
+	}
+	if len(raw) == 0 {
+		return nil, offset, nil
+	}
+	var template pluginproto.ConfigTemplate
+	if err := proto.Unmarshal(raw, &template); err != nil {
+		return nil, offset, err
+	}
+	return &template, offset, nil
+}
+
+func appendAnyMap(dst []byte, values map[string]any) []byte {
+	if len(values) == 0 {
+		return appendBytes(dst, nil)
+	}
+	raw, err := json.Marshal(values)
+	if err != nil {
+		return appendBytes(dst, nil)
+	}
+	return appendBytes(dst, raw)
+}
+
+func readAnyMap(body []byte, offset int) (map[string]any, int, error) {
+	raw, offset, err := readBytes(body, offset)
+	if err != nil {
+		return nil, offset, err
+	}
+	if len(raw) == 0 {
+		return nil, offset, nil
+	}
+	var values map[string]any
+	if err := json.Unmarshal(raw, &values); err != nil {
+		return nil, offset, err
+	}
+	return values, offset, nil
+}
+
+func appendOptionalTime(dst []byte, value *time.Time) []byte {
+	if value == nil {
+		return appendBoolByte(dst, false)
+	}
+	dst = appendBoolByte(dst, true)
+	return appendVarint(dst, value.UTC().UnixNano())
+}
+
+func readOptionalTime(body []byte, offset int, label string) (*time.Time, int, error) {
+	present, offset, err := readBoolByte(body, offset, label+" present")
+	if err != nil {
+		return nil, offset, err
+	}
+	if !present {
+		return nil, offset, nil
+	}
+	nanos, offset, err := readVarint(body, offset)
+	if err != nil {
+		return nil, offset, err
+	}
+	value := time.Unix(0, nanos).UTC()
+	return &value, offset, nil
 }

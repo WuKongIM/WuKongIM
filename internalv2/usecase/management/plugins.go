@@ -2,11 +2,14 @@ package management
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/usecase/plugin/pluginproto"
 	pluginusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/plugin"
+	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -38,12 +41,18 @@ var (
 	ErrPluginBindingUIDRequired = errors.New("internalv2/usecase/management: plugin binding uid required")
 )
 
-// PluginReader exposes node-local plugin runtime snapshots.
+// PluginReader exposes node-local plugin lifecycle state.
 type PluginReader interface {
-	// ListPlugins returns all node-local observed plugin rows.
-	ListPlugins(context.Context) ([]pluginusecase.ObservedPlugin, error)
-	// GetPlugin returns one node-local observed plugin row.
-	GetPlugin(context.Context, string) (pluginusecase.ObservedPlugin, error)
+	// ListLocalPlugins returns all node-local plugin rows with desired metadata.
+	ListLocalPlugins(context.Context) (pluginusecase.LocalPluginList, error)
+	// GetLocalPlugin returns one node-local plugin row with desired metadata.
+	GetLocalPlugin(context.Context, string) (pluginusecase.LocalPluginDetail, error)
+	// UpdateLocalConfig persists desired config for one node-local plugin.
+	UpdateLocalConfig(context.Context, string, json.RawMessage) (pluginusecase.LocalPluginDetail, error)
+	// RestartLocalPlugin restarts one node-local plugin process.
+	RestartLocalPlugin(context.Context, string) (pluginusecase.LocalPluginDetail, error)
+	// UninstallLocalPlugin disables desired state and removes one node-local plugin process.
+	UninstallLocalPlugin(context.Context, string) error
 }
 
 // RemotePluginReader reads plugin runtime snapshots from another node.
@@ -52,6 +61,12 @@ type RemotePluginReader interface {
 	NodePlugins(context.Context, uint64) ([]Plugin, error)
 	// NodePlugin returns one observed plugin from one selected cluster node.
 	NodePlugin(context.Context, uint64, string) (Plugin, error)
+	// UpdateNodePluginConfig persists desired config on one selected cluster node.
+	UpdateNodePluginConfig(context.Context, uint64, string, json.RawMessage) (Plugin, error)
+	// RestartNodePlugin restarts one node-local plugin process on one selected cluster node.
+	RestartNodePlugin(context.Context, uint64, string) (Plugin, error)
+	// UninstallNodePlugin disables desired state and removes one node-local plugin on one selected cluster node.
+	UninstallNodePlugin(context.Context, uint64, string) error
 }
 
 // PluginBindingStore reads and mutates cluster-authoritative UID plugin bindings.
@@ -88,6 +103,14 @@ type Plugin struct {
 	Name string
 	// Version is the plugin version.
 	Version string
+	// ConfigTemplate is the plugin-declared config schema.
+	ConfigTemplate *pluginproto.ConfigTemplate
+	// Config is the desired config with secret values already redacted.
+	Config map[string]any
+	// CreatedAt records when desired state was first persisted.
+	CreatedAt *time.Time
+	// UpdatedAt records when desired state last changed.
+	UpdatedAt *time.Time
 	// Methods lists hook methods advertised by the plugin.
 	Methods []pluginusecase.Method
 	// Priority controls hook ordering; larger values run first.
@@ -214,11 +237,11 @@ func (a *App) ListNodePlugins(ctx context.Context, nodeID uint64) (NodePluginLis
 	if a == nil || a.plugins == nil {
 		return NodePluginList{}, ErrPluginNodeUnavailable
 	}
-	observed, err := a.plugins.ListPlugins(ctx)
+	local, err := a.plugins.ListLocalPlugins(ctx)
 	if err != nil {
 		return NodePluginList{}, err
 	}
-	return NodePluginList{NodeID: nodeID, Plugins: managementPluginsFromObserved(nodeID, observed)}, nil
+	return NodePluginList{NodeID: nodeID, Plugins: managementPluginsFromLocal(nodeID, local.Plugins)}, nil
 }
 
 // GetNodePlugin returns one node-local plugin detail.
@@ -247,11 +270,102 @@ func (a *App) GetNodePlugin(ctx context.Context, nodeID uint64, pluginNo string)
 	if a == nil || a.plugins == nil {
 		return Plugin{}, ErrPluginNodeUnavailable
 	}
-	observed, err := a.plugins.GetPlugin(ctx, no)
+	local, err := a.plugins.GetLocalPlugin(ctx, no)
 	if err != nil {
 		return Plugin{}, err
 	}
-	return managementPluginFromObserved(nodeID, observed), nil
+	return managementPluginFromLocal(nodeID, local), nil
+}
+
+// UpdateNodePluginConfig persists desired plugin config on one node.
+func (a *App) UpdateNodePluginConfig(ctx context.Context, nodeID uint64, pluginNo string, config json.RawMessage) (Plugin, error) {
+	if err := ctxErr(ctx); err != nil {
+		return Plugin{}, err
+	}
+	if nodeID == 0 {
+		return Plugin{}, ErrPluginNodeIDRequired
+	}
+	no := strings.TrimSpace(pluginNo)
+	if no == "" {
+		return Plugin{}, pluginusecase.ErrPluginNoRequired
+	}
+	localNodeID := a.localNodeID()
+	if !a.pluginRequestTargetsLocal(nodeID, localNodeID) {
+		if a == nil || a.remotePlugins == nil {
+			return Plugin{}, ErrPluginNodeUnavailable
+		}
+		plugin, err := a.remotePlugins.UpdateNodePluginConfig(ctx, nodeID, no, append(json.RawMessage(nil), config...))
+		if err != nil {
+			return Plugin{}, err
+		}
+		return cloneManagementPlugin(nodeID, plugin), nil
+	}
+	if a == nil || a.plugins == nil {
+		return Plugin{}, ErrPluginNodeUnavailable
+	}
+	detail, err := a.plugins.UpdateLocalConfig(ctx, no, append(json.RawMessage(nil), config...))
+	if err != nil {
+		return Plugin{}, err
+	}
+	return managementPluginFromLocal(nodeID, detail), nil
+}
+
+// RestartNodePlugin restarts one node-local plugin process.
+func (a *App) RestartNodePlugin(ctx context.Context, nodeID uint64, pluginNo string) (Plugin, error) {
+	if err := ctxErr(ctx); err != nil {
+		return Plugin{}, err
+	}
+	if nodeID == 0 {
+		return Plugin{}, ErrPluginNodeIDRequired
+	}
+	no := strings.TrimSpace(pluginNo)
+	if no == "" {
+		return Plugin{}, pluginusecase.ErrPluginNoRequired
+	}
+	localNodeID := a.localNodeID()
+	if !a.pluginRequestTargetsLocal(nodeID, localNodeID) {
+		if a == nil || a.remotePlugins == nil {
+			return Plugin{}, ErrPluginNodeUnavailable
+		}
+		plugin, err := a.remotePlugins.RestartNodePlugin(ctx, nodeID, no)
+		if err != nil {
+			return Plugin{}, err
+		}
+		return cloneManagementPlugin(nodeID, plugin), nil
+	}
+	if a == nil || a.plugins == nil {
+		return Plugin{}, ErrPluginNodeUnavailable
+	}
+	detail, err := a.plugins.RestartLocalPlugin(ctx, no)
+	if err != nil {
+		return Plugin{}, err
+	}
+	return managementPluginFromLocal(nodeID, detail), nil
+}
+
+// UninstallNodePlugin disables and removes one node-local plugin process.
+func (a *App) UninstallNodePlugin(ctx context.Context, nodeID uint64, pluginNo string) error {
+	if err := ctxErr(ctx); err != nil {
+		return err
+	}
+	if nodeID == 0 {
+		return ErrPluginNodeIDRequired
+	}
+	no := strings.TrimSpace(pluginNo)
+	if no == "" {
+		return pluginusecase.ErrPluginNoRequired
+	}
+	localNodeID := a.localNodeID()
+	if !a.pluginRequestTargetsLocal(nodeID, localNodeID) {
+		if a == nil || a.remotePlugins == nil {
+			return ErrPluginNodeUnavailable
+		}
+		return a.remotePlugins.UninstallNodePlugin(ctx, nodeID, no)
+	}
+	if a == nil || a.plugins == nil {
+		return ErrPluginNodeUnavailable
+	}
+	return a.plugins.UninstallLocalPlugin(ctx, no)
 }
 
 // ListPluginBindings lists cluster-authoritative plugin bindings by UID or plugin number.
@@ -391,14 +505,14 @@ func (a *App) pluginBindingRuntimeMetadata(ctx context.Context, binding PluginBi
 	if a == nil || a.plugins == nil {
 		return nil, nil, nil
 	}
-	observed, err := a.plugins.GetPlugin(ctx, binding.PluginNo)
+	local, err := a.plugins.GetLocalPlugin(ctx, binding.PluginNo)
 	if errors.Is(err, pluginusecase.ErrPluginNotFound) {
 		return []PluginBindingWarning{pluginBindingWarning(binding, BindingWarningPluginMissing, "plugin is not observed on this node")}, nil, nil
 	}
 	if err != nil {
 		return nil, nil, err
 	}
-	plugin := managementPluginFromObserved(a.localNodeID(), observed)
+	plugin := managementPluginFromLocal(a.localNodeID(), local)
 	switch {
 	case !plugin.Enabled || plugin.Status == string(pluginusecase.StatusDisabled):
 		return []PluginBindingWarning{pluginBindingWarning(binding, BindingWarningPluginDisabled, "plugin is disabled on this node")}, &plugin, nil
@@ -424,26 +538,31 @@ func pluginBindingWarning(binding PluginBinding, code, message string) PluginBin
 	return PluginBindingWarning{Code: code, Message: message, UID: binding.UID, PluginNo: binding.PluginNo}
 }
 
-func managementPluginsFromObserved(nodeID uint64, observed []pluginusecase.ObservedPlugin) []Plugin {
-	out := make([]Plugin, 0, len(observed))
-	for _, plugin := range observed {
-		out = append(out, managementPluginFromObserved(nodeID, plugin))
+func managementPluginsFromLocal(nodeID uint64, local []pluginusecase.LocalPlugin) []Plugin {
+	out := make([]Plugin, 0, len(local))
+	for _, plugin := range local {
+		out = append(out, managementPluginFromLocal(nodeID, plugin))
 	}
 	return out
 }
 
-func managementPluginFromObserved(nodeID uint64, plugin pluginusecase.ObservedPlugin) Plugin {
+func managementPluginFromLocal(nodeID uint64, plugin pluginusecase.LocalPlugin) Plugin {
 	return Plugin{
 		NodeID:           nodeID,
 		No:               plugin.No,
 		Name:             plugin.Name,
 		Version:          plugin.Version,
+		ConfigTemplate:   cloneConfigTemplate(plugin.ConfigTemplate),
+		Config:           cloneAnyMap(plugin.Config),
+		CreatedAt:        cloneTimePtr(plugin.CreatedAt),
+		UpdatedAt:        cloneTimePtr(plugin.UpdatedAt),
 		Methods:          append([]pluginusecase.Method(nil), plugin.Methods...),
 		Priority:         plugin.Priority,
 		PersistAfterSync: plugin.PersistAfterSync,
 		ReplySync:        plugin.ReplySync,
 		Status:           string(plugin.Status),
 		Enabled:          plugin.Enabled,
+		IsAI:             plugin.IsAI,
 		PID:              plugin.PID,
 		LastSeenAt:       plugin.LastSeenAt,
 		LastError:        plugin.LastError,
@@ -463,7 +582,41 @@ func cloneManagementPlugin(nodeID uint64, plugin Plugin) Plugin {
 		plugin.NodeID = nodeID
 	}
 	plugin.Methods = append([]pluginusecase.Method(nil), plugin.Methods...)
+	plugin.ConfigTemplate = cloneConfigTemplate(plugin.ConfigTemplate)
+	plugin.Config = cloneAnyMap(plugin.Config)
+	plugin.CreatedAt = cloneTimePtr(plugin.CreatedAt)
+	plugin.UpdatedAt = cloneTimePtr(plugin.UpdatedAt)
 	return plugin
+}
+
+func cloneConfigTemplate(template *pluginproto.ConfigTemplate) *pluginproto.ConfigTemplate {
+	if template == nil {
+		return nil
+	}
+	cloned, ok := proto.Clone(template).(*pluginproto.ConfigTemplate)
+	if !ok {
+		return nil
+	}
+	return cloned
+}
+
+func cloneAnyMap(values map[string]any) map[string]any {
+	if len(values) == 0 {
+		return nil
+	}
+	out := make(map[string]any, len(values))
+	for key, value := range values {
+		out[key] = value
+	}
+	return out
+}
+
+func cloneTimePtr(t *time.Time) *time.Time {
+	if t == nil {
+		return nil
+	}
+	v := *t
+	return &v
 }
 
 func clonePluginBindings(bindings []PluginBinding) []PluginBinding {

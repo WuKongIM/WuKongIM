@@ -91,7 +91,11 @@ func (a *App) boundReceivePluginForUID(ctx context.Context, uid string) (Observe
 			candidates = append(candidates, plugin)
 		}
 	}
-	ordered := runningPluginsByMethod(candidates, MethodReceive)
+	effective, err := a.applyDesiredToPlugins(ctx, candidates)
+	if err != nil {
+		return ObservedPlugin{}, false, err
+	}
+	ordered := runningPluginsByMethod(effective, MethodReceive)
 	if len(ordered) == 0 {
 		return ObservedPlugin{}, false, nil
 	}

@@ -7,11 +7,59 @@ candidate selection, and PDK-compatible hook payload mapping. It reuses the
 existing PDK `pluginproto` wire format but does not own process launching,
 Unix-socket transport, HTTP manager routes, or channel append side effects.
 
+## Lifecycle Desired-State Flow
+
+```text
+plugin /plugin/start host RPC
+  -> access/plugin decodes pluginproto.PluginInfo
+  -> App.StartPlugin
+  -> validate plugin number and caller identity
+  -> marshal ConfigTemplate from the manifest into ObservedPlugin
+  -> read node-local desired state through DesiredStore
+       if found and disabled, register observed status as disabled
+       if config exists, return it in pluginproto.StartupResp.Config
+  -> resolve sandbox directory through the runtime adapter
+  -> Runtime.RegisterObserved
+  -> return StartupResp with node id, sandbox dir, config, and success=true
+```
+
+Desired state is node-local in this phase because the reusable plugin runtime
+starts local `.wkp` processes from the local plugin directory. The usecase keeps
+a small desired-state cache so Send/Receive/PersistAfter candidate selection
+does not read the filesystem on every message. Mutations refresh the cache after
+writing the store.
+
+## Config And Local Lifecycle Flow
+
+```text
+manager/app local plugin config update
+  -> App.UpdateLocalConfig
+  -> validate plugin number and require an observed local plugin
+  -> decode ConfigTemplate and preserve existing secret values when the manager
+     sends the SecretHidden placeholder
+  -> persist DesiredPlugin through DesiredStore
+  -> when the effective plugin is running, enabled, and advertises ConfigUpdate:
+       call /plugin/config_update synchronously through Invoker.RequestPlugin
+  -> return LocalPluginDetail with config secrets redacted
+
+local restart/uninstall
+  -> App.RestartLocalPlugin / App.UninstallLocalPlugin
+  -> validate plugin number
+  -> delegate process control to the runtime lifecycle adapter
+  -> uninstall first writes disabled desired state, then asks the runtime to
+     stop/remove the local plugin process
+```
+
+Manager HTTP and cross-node mutation routing are intentionally outside this
+package. This usecase owns entry-agnostic config merging, redaction, desired
+state, and candidate gating only.
+
 ## Send Hook Flow
 
 ```text
 message.Send / SendBatch after permission success
   -> App.BeforeSend
+  -> apply cached desired enable state to node-local observed plugins
   -> select running, enabled plugins advertising MethodSend
   -> order by priority desc, plugin number asc
   -> for each plugin:
@@ -40,7 +88,8 @@ channelappend recipient delivery after presence resolution
        NoPersist, SyncOnce, request-scoped, temp-channel, missing durable ids,
        missing sender, sender == recipient, or system sender
   -> read UID-owned plugin bindings from the cluster-authoritative metadata port
-  -> intersect bindings with node-local running plugins advertising MethodReceive
+  -> intersect bindings with node-local plugins after cached desired enable state
+  -> select running plugins advertising MethodReceive
   -> select the highest-priority plugin, then plugin number asc
   -> suppress duplicate messageID+UID candidates for a bounded TTL
   -> map the recipient view to pluginproto.RecvPacket
@@ -172,6 +221,7 @@ snapshot or issue partial remote RPCs.
 channelappend durable commit success
   -> runtime/pluginhook bounded worker
   -> App.PersistAfterCommitted
+  -> apply cached desired enable state to node-local observed plugins
   -> select running, enabled plugins advertising MethodPersistAfter
   -> map committed event to pluginproto.MessageBatch
   -> invoke each candidate as sync or async according to PersistAfterSync

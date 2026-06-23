@@ -2,6 +2,7 @@ package node
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"testing"
 	"time"
@@ -72,6 +73,60 @@ func TestManagerPluginRPCClientGetsNodePlugin(t *testing.T) {
 	}
 }
 
+func TestManagerPluginRPCClientUpdatesNodePluginConfig(t *testing.T) {
+	service := &fakeManagerPluginService{
+		updatePlugin: managementusecase.Plugin{
+			NodeID:  2,
+			No:      "wk.persist",
+			Status:  "running",
+			Enabled: true,
+			Config:  map[string]any{"mode": "fast"},
+		},
+	}
+	adapter := New(Options{ManagerPlugins: service})
+	node := &fakeManagerPluginRPCNode{handler: adapter.HandleManagerPluginRPC}
+	client := NewClient(node)
+
+	got, err := client.UpdateManagerPluginConfig(context.Background(), 2, "wk.persist", json.RawMessage(`{"mode":"fast"}`))
+	if err != nil {
+		t.Fatalf("UpdateManagerPluginConfig() error = %v", err)
+	}
+
+	if got.NodeID != 2 || got.No != "wk.persist" || got.Config["mode"] != "fast" {
+		t.Fatalf("plugin = %#v, want updated wk.persist config", got)
+	}
+	if node.nodeID != 2 || node.serviceID != ManagerPluginRPCServiceID {
+		t.Fatalf("rpc target = node:%d service:%d, want node 2 service %d", node.nodeID, node.serviceID, ManagerPluginRPCServiceID)
+	}
+	if service.updateNodeID != 2 || service.updatePluginNo != "wk.persist" || string(service.updateConfig) != `{"mode":"fast"}` {
+		t.Fatalf("service update target = node:%d plugin:%q config:%s", service.updateNodeID, service.updatePluginNo, string(service.updateConfig))
+	}
+}
+
+func TestManagerPluginRPCClientRestartsAndUninstallsNodePlugin(t *testing.T) {
+	service := &fakeManagerPluginService{
+		restartPlugin: managementusecase.Plugin{NodeID: 2, No: "wk.persist", Status: "starting", Enabled: true},
+	}
+	adapter := New(Options{ManagerPlugins: service})
+	node := &fakeManagerPluginRPCNode{handler: adapter.HandleManagerPluginRPC}
+	client := NewClient(node)
+
+	restarted, err := client.RestartManagerPlugin(context.Background(), 2, "wk.persist")
+	if err != nil {
+		t.Fatalf("RestartManagerPlugin() error = %v", err)
+	}
+	if restarted.Status != "starting" || service.restartNodeID != 2 || service.restartPluginNo != "wk.persist" {
+		t.Fatalf("restart = %#v service node=%d plugin=%q", restarted, service.restartNodeID, service.restartPluginNo)
+	}
+
+	if err := client.UninstallManagerPlugin(context.Background(), 2, "wk.persist"); err != nil {
+		t.Fatalf("UninstallManagerPlugin() error = %v", err)
+	}
+	if service.uninstallNodeID != 2 || service.uninstallPluginNo != "wk.persist" {
+		t.Fatalf("uninstall target = node:%d plugin:%q", service.uninstallNodeID, service.uninstallPluginNo)
+	}
+}
+
 func TestManagerPluginRPCHTTPForwardRoutesLocalPlugin(t *testing.T) {
 	router := &fakePluginHTTPRouter{resp: &pluginproto.HttpResponse{
 		Status:  http.StatusCreated,
@@ -136,12 +191,21 @@ func TestManagerPluginRPCClientForwardsPluginHTTP(t *testing.T) {
 }
 
 type fakeManagerPluginService struct {
-	listNodeID     uint64
-	detailNodeID   uint64
-	detailPluginNo string
-	list           managementusecase.NodePluginList
-	plugin         managementusecase.Plugin
-	err            error
+	listNodeID        uint64
+	detailNodeID      uint64
+	detailPluginNo    string
+	updateNodeID      uint64
+	updatePluginNo    string
+	updateConfig      json.RawMessage
+	restartNodeID     uint64
+	restartPluginNo   string
+	uninstallNodeID   uint64
+	uninstallPluginNo string
+	list              managementusecase.NodePluginList
+	plugin            managementusecase.Plugin
+	updatePlugin      managementusecase.Plugin
+	restartPlugin     managementusecase.Plugin
+	err               error
 }
 
 func (f *fakeManagerPluginService) ListNodePlugins(_ context.Context, nodeID uint64) (managementusecase.NodePluginList, error) {
@@ -153,6 +217,25 @@ func (f *fakeManagerPluginService) GetNodePlugin(_ context.Context, nodeID uint6
 	f.detailNodeID = nodeID
 	f.detailPluginNo = pluginNo
 	return f.plugin, f.err
+}
+
+func (f *fakeManagerPluginService) UpdateNodePluginConfig(_ context.Context, nodeID uint64, pluginNo string, config json.RawMessage) (managementusecase.Plugin, error) {
+	f.updateNodeID = nodeID
+	f.updatePluginNo = pluginNo
+	f.updateConfig = append(json.RawMessage(nil), config...)
+	return f.updatePlugin, f.err
+}
+
+func (f *fakeManagerPluginService) RestartNodePlugin(_ context.Context, nodeID uint64, pluginNo string) (managementusecase.Plugin, error) {
+	f.restartNodeID = nodeID
+	f.restartPluginNo = pluginNo
+	return f.restartPlugin, f.err
+}
+
+func (f *fakeManagerPluginService) UninstallNodePlugin(_ context.Context, nodeID uint64, pluginNo string) error {
+	f.uninstallNodeID = nodeID
+	f.uninstallPluginNo = pluginNo
+	return f.err
 }
 
 type fakePluginHTTPRouter struct {

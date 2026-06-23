@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/usecase/plugin/pluginproto"
 	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
 	pluginusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/plugin"
 )
@@ -88,6 +89,8 @@ func TestManagerNodePluginsReturnsReadOnlyInventory(t *testing.T) {
 func TestManagerNodePluginReturnsDetail(t *testing.T) {
 	var requestedNodeID uint64
 	var requestedPluginNo string
+	createdAt := time.Date(2026, 6, 22, 9, 0, 0, 0, time.UTC)
+	updatedAt := time.Date(2026, 6, 22, 9, 30, 0, 0, time.UTC)
 	srv := New(Options{
 		Auth: testAuthConfig([]UserConfig{{
 			Username: "admin",
@@ -104,6 +107,10 @@ func TestManagerNodePluginReturnsDetail(t *testing.T) {
 				NodeID:           3,
 				No:               "wk.persist",
 				Name:             "Persist",
+				ConfigTemplate:   &pluginproto.ConfigTemplate{Fields: []*pluginproto.Field{{Name: "mode", Type: "string", Label: "Mode"}}},
+				Config:           map[string]any{"mode": "fast"},
+				CreatedAt:        &createdAt,
+				UpdatedAt:        &updatedAt,
 				Methods:          []pluginusecase.Method{pluginusecase.MethodPersistAfter},
 				PersistAfterSync: true,
 				Status:           "running",
@@ -129,6 +136,10 @@ func TestManagerNodePluginReturnsDetail(t *testing.T) {
 		"plugin_no": "wk.persist",
 		"name": "Persist",
 		"version": "",
+		"config_template": {"fields": [{"name": "mode", "type": "string", "label": "Mode"}]},
+		"config": {"mode": "fast"},
+		"created_at": "2026-06-22T09:00:00Z",
+		"updated_at": "2026-06-22T09:30:00Z",
 		"methods": ["PersistAfter"],
 		"priority": 0,
 		"persist_after_sync": true,
@@ -141,6 +152,129 @@ func TestManagerNodePluginReturnsDetail(t *testing.T) {
 		"last_error": ""
 	}`) {
 		t.Fatalf("body = %s", rec.Body.String())
+	}
+}
+
+func TestManagerNodePluginLifecycleMutations(t *testing.T) {
+	var updateNodeID uint64
+	var updatePluginNo string
+	var updateConfig string
+	var restartNodeID uint64
+	var restartPluginNo string
+	var uninstallNodeID uint64
+	var uninstallPluginNo string
+	srv := New(Options{
+		Auth: testAuthConfig([]UserConfig{{
+			Username: "admin",
+			Password: "secret",
+			Permissions: []PermissionConfig{{
+				Resource: "cluster.plugin",
+				Actions:  []string{"w"},
+			}},
+		}}),
+		Management: managerNodesStub{
+			pluginConfigUpdateNodeSink: &updateNodeID,
+			pluginConfigUpdateNoSink:   &updatePluginNo,
+			pluginConfigUpdateBodySink: &updateConfig,
+			pluginRestartNodeSink:      &restartNodeID,
+			pluginRestartNoSink:        &restartPluginNo,
+			pluginUninstallNodeSink:    &uninstallNodeID,
+			pluginUninstallNoSink:      &uninstallPluginNo,
+			pluginMutationDetail: managementusecase.Plugin{
+				NodeID:  2,
+				No:      "wk.persist",
+				Status:  "running",
+				Enabled: true,
+				Config:  map[string]any{"mode": "fast"},
+			},
+		},
+	})
+	token := mustIssueTestToken(t, srv, "admin")
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPut, "/manager/nodes/2/plugins/wk.persist/config", strings.NewReader(`{"mode":"fast"}`))
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+	srv.Engine().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("update status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	if updateNodeID != 2 || updatePluginNo != "wk.persist" || updateConfig != `{"mode":"fast"}` {
+		t.Fatalf("update call = node:%d plugin:%q config:%s", updateNodeID, updatePluginNo, updateConfig)
+	}
+	if !jsonEqual(rec.Body.String(), `{
+		"node_id": 2,
+		"plugin_no": "wk.persist",
+		"changed": true,
+		"plugin": {
+			"node_id": 2,
+			"plugin_no": "wk.persist",
+			"name": "",
+			"version": "",
+			"config": {"mode": "fast"},
+			"methods": [],
+			"priority": 0,
+			"persist_after_sync": false,
+			"reply_sync": false,
+			"status": "running",
+			"enabled": true,
+			"is_ai": 0,
+			"pid": 0,
+			"last_seen_at": "0001-01-01T00:00:00Z",
+			"last_error": ""
+		}
+	}`) {
+		t.Fatalf("update body = %s", rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/manager/nodes/2/plugins/wk.persist/restart", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	srv.Engine().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("restart status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	if restartNodeID != 2 || restartPluginNo != "wk.persist" {
+		t.Fatalf("restart call = node:%d plugin:%q", restartNodeID, restartPluginNo)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodDelete, "/manager/nodes/2/plugins/wk.persist", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	srv.Engine().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("uninstall status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	if uninstallNodeID != 2 || uninstallPluginNo != "wk.persist" {
+		t.Fatalf("uninstall call = node:%d plugin:%q", uninstallNodeID, uninstallPluginNo)
+	}
+	if !jsonEqual(rec.Body.String(), `{"node_id":2,"plugin_no":"wk.persist","changed":true}`) {
+		t.Fatalf("uninstall body = %s", rec.Body.String())
+	}
+}
+
+func TestManagerNodePluginConfigRejectsInvalidBody(t *testing.T) {
+	srv := New(Options{Management: managerNodesStub{}})
+
+	for _, tt := range []struct {
+		name string
+		body string
+	}{
+		{name: "empty", body: ""},
+		{name: "array", body: `[]`},
+		{name: "invalid json", body: `{"mode":`},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodPut, "/manager/nodes/2/plugins/wk.persist/config", strings.NewReader(tt.body))
+			req.Header.Set("Content-Type", "application/json")
+
+			srv.Engine().ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusBadRequest {
+				t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusBadRequest, rec.Body.String())
+			}
+		})
 	}
 }
 
@@ -266,6 +400,9 @@ func TestManagerPluginBindingsRequirePluginPermissions(t *testing.T) {
 		{name: "read", method: http.MethodGet, path: "/manager/plugin-bindings?uid=u1"},
 		{name: "bind", method: http.MethodPost, path: "/manager/plugin-bindings", body: `{"uid":"u1","plugin_no":"wk.receive"}`},
 		{name: "unbind", method: http.MethodDelete, path: "/manager/plugin-bindings", body: `{"uid":"u1","plugin_no":"wk.receive"}`},
+		{name: "config update", method: http.MethodPut, path: "/manager/nodes/2/plugins/wk.persist/config", body: `{}`},
+		{name: "restart", method: http.MethodPost, path: "/manager/nodes/2/plugins/wk.persist/restart"},
+		{name: "uninstall", method: http.MethodDelete, path: "/manager/nodes/2/plugins/wk.persist"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			rec := httptest.NewRecorder()

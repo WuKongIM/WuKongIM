@@ -30,8 +30,12 @@ func (a *App) PersistAfterCommitted(ctx context.Context, event pluginevents.Pers
 }
 
 // PersistAfterPluginCandidates returns running local PersistAfter plugins in hook order.
-func (a *App) PersistAfterPluginCandidates(_ context.Context) ([]ObservedPlugin, error) {
-	return runningPluginsByMethod(a.runtime.List(), MethodPersistAfter), nil
+func (a *App) PersistAfterPluginCandidates(ctx context.Context) ([]ObservedPlugin, error) {
+	plugins, err := a.applyDesiredToPlugins(ctx, a.runtime.List())
+	if err != nil {
+		return nil, err
+	}
+	return runningPluginsByMethod(plugins, MethodPersistAfter), nil
 }
 
 func runningPluginsByMethod(plugins []ObservedPlugin, method Method) []ObservedPlugin {
@@ -52,6 +56,7 @@ func runningPluginsByMethod(plugins []ObservedPlugin, method Method) []ObservedP
 
 func cloneObservedPlugin(plugin ObservedPlugin) ObservedPlugin {
 	plugin.Methods = append([]Method(nil), plugin.Methods...)
+	plugin.ConfigTemplateRaw = append([]byte(nil), plugin.ConfigTemplateRaw...)
 	return plugin
 }
 

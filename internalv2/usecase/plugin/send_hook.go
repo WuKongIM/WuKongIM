@@ -57,8 +57,12 @@ func (a *App) BeforeSend(ctx context.Context, cmd message.SendCommand) (message.
 }
 
 // SendPluginCandidates returns running local Send plugins in hook order.
-func (a *App) SendPluginCandidates(_ context.Context) ([]ObservedPlugin, error) {
-	return runningPluginsByMethod(a.runtime.List(), MethodSend), nil
+func (a *App) SendPluginCandidates(ctx context.Context) ([]ObservedPlugin, error) {
+	plugins, err := a.applyDesiredToPlugins(ctx, a.runtime.List())
+	if err != nil {
+		return nil, err
+	}
+	return runningPluginsByMethod(plugins, MethodSend), nil
 }
 
 func sendPacketFromCommand(cmd message.SendCommand) *pluginproto.SendPacket {

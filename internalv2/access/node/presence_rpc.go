@@ -2,6 +2,7 @@ package node
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -127,8 +128,16 @@ type ManagerDiagnostics interface {
 
 // ManagerPluginReader handles node-local manager plugin inventory requests.
 type ManagerPluginReader interface {
+	// ListNodePlugins returns this node's plugin inventory projection.
 	ListNodePlugins(context.Context, uint64) (managementusecase.NodePluginList, error)
+	// GetNodePlugin returns one plugin detail from this node.
 	GetNodePlugin(context.Context, uint64, string) (managementusecase.Plugin, error)
+	// UpdateNodePluginConfig persists desired config for one plugin on this node.
+	UpdateNodePluginConfig(context.Context, uint64, string, json.RawMessage) (managementusecase.Plugin, error)
+	// RestartNodePlugin restarts one plugin process on this node.
+	RestartNodePlugin(context.Context, uint64, string) (managementusecase.Plugin, error)
+	// UninstallNodePlugin disables and removes one plugin process on this node.
+	UninstallNodePlugin(context.Context, uint64, string) error
 }
 
 // PluginHTTPRouter invokes one node-local plugin HTTP route.

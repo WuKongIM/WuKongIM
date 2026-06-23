@@ -326,19 +326,22 @@ usecase returns `ErrConnectionReaderUnavailable`.
 
 ```text
 manager HTTP handler
-  -> management.App.ListNodePlugins/GetNodePlugin
-  -> local node_id: PluginReader node-local observed plugin snapshot
+  -> management.App.ListNodePlugins/GetNodePlugin/UpdateNodePluginConfig/RestartNodePlugin/UninstallNodePlugin
+  -> local node_id: PluginReader node-local lifecycle API
   -> remote node_id: RemotePluginReader manager plugin node RPC
   -> manager plugin DTO rows
 ```
 
-The plugin projection is read-only and node-scoped. It validates positive
-`node_id` values and non-empty plugin numbers, reads the local v2 plugin
-usecase for the local node, and delegates non-local reads to a narrow
-`RemotePluginReader` port. The projection clones hook method slices and keeps
-runtime-only fields such as status, sync flags, process ID, last-seen time, and
-latest error text. It does not inspect plugin files, load configuration
-templates, start/stop/reload processes, or mutate plugin desired state.
+Plugin management is node-scoped. It validates positive `node_id` values and
+non-empty plugin numbers, reads the local v2 plugin usecase for the local node,
+and delegates non-local reads and lifecycle mutations to a narrow
+`RemotePluginReader` port. The projection clones hook method slices, config
+template pointers, redacted desired config maps, desired-state timestamps, and
+runtime fields such as status, sync flags, process ID, last-seen time, and
+latest error text. Config update writes node-local desired state and preserves
+secret redaction below the management layer; restart and uninstall delegate to
+the selected node's plugin runtime through the plugin usecase. The management
+usecase does not inspect plugin files or run plugin processes directly.
 
 Plugin binding management is cluster-authoritative and UID-owned. The usecase
 validates that list requests provide exactly one selector, trims mutation

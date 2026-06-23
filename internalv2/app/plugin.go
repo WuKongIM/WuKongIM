@@ -2,7 +2,9 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"path/filepath"
 
 	runtimeplugin "github.com/WuKongIM/WuKongIM/internal/runtime/plugin"
 	accessplugin "github.com/WuKongIM/WuKongIM/internalv2/access/plugin"
@@ -17,7 +19,8 @@ import (
 
 // pluginRuntimeAdapter adapts the reusable node-local runtime registry to the v2 plugin usecase port.
 type pluginRuntimeAdapter struct {
-	runtime *runtimeplugin.Runtime
+	runtime    *runtimeplugin.Runtime
+	sandboxDir string
 }
 
 // pluginPersistAfterWorker accepts one mapped PersistAfter event for asynchronous processing.
@@ -52,7 +55,6 @@ func (s pluginMessageSender) Send(ctx context.Context, cmd messageusecase.SendCo
 }
 
 func (a *App) wirePluginSubsystem(nodeID uint64) error {
-	_ = nodeID
 	if !a.cfg.Plugin.Enable || a.pluginRuntime != nil {
 		return nil
 	}
@@ -73,14 +75,16 @@ func (a *App) wirePluginSubsystem(nodeID uint64) error {
 		Invoker:    invoker,
 	})
 	pluginOptions := pluginusecase.Options{
-		Runtime:          pluginRuntimeAdapter{runtime: runtime},
+		Runtime:          pluginRuntimeAdapter{runtime: runtime, sandboxDir: a.cfg.Plugin.SandboxDir},
 		Invoker:          invoker,
+		DesiredStore:     pluginDesiredStoreAdapter{store: store},
 		Messages:         pluginMessageSender{app: a},
 		DefaultSenderUID: userusecase.DefaultSystemUID,
 		SystemUIDs:       a.users,
 		FailOpen:         a.cfg.Plugin.FailOpen,
 		Observer:         a.pluginUsecaseObserver(),
 		Logger:           a.logger.Named("plugin"),
+		NodeID:           nodeID,
 	}
 	if bindingNode, ok := a.cluster.(clusterinfra.PluginBindingNode); ok {
 		pluginOptions.ReceiveBindings = clusterinfra.NewPluginBindingReader(bindingNode)
@@ -134,18 +138,19 @@ func (a pluginRuntimeAdapter) RegisterObserved(_ context.Context, plugin pluginu
 		return pluginusecase.ErrRuntimeRequired
 	}
 	a.runtime.Registry().Upsert(runtimeplugin.ObservedPlugin{
-		No:               plugin.No,
-		Name:             plugin.Name,
-		Version:          plugin.Version,
-		Methods:          runtimeMethodsFromUsecase(plugin.Methods),
-		Priority:         plugin.Priority,
-		PersistAfterSync: plugin.PersistAfterSync,
-		ReplySync:        plugin.ReplySync,
-		Status:           runtimeStatusFromUsecase(plugin.Status),
-		Enabled:          plugin.Enabled,
-		PID:              plugin.PID,
-		LastSeenAt:       plugin.LastSeenAt,
-		LastError:        plugin.LastError,
+		No:                plugin.No,
+		Name:              plugin.Name,
+		Version:           plugin.Version,
+		Methods:           runtimeMethodsFromUsecase(plugin.Methods),
+		Priority:          plugin.Priority,
+		PersistAfterSync:  plugin.PersistAfterSync,
+		ReplySync:         plugin.ReplySync,
+		ConfigTemplateRaw: append([]byte(nil), plugin.ConfigTemplateRaw...),
+		Status:            runtimeStatusFromUsecase(plugin.Status),
+		Enabled:           plugin.Enabled,
+		PID:               plugin.PID,
+		LastSeenAt:        plugin.LastSeenAt,
+		LastError:         plugin.LastError,
 	})
 	return nil
 }
@@ -171,18 +176,19 @@ func (a pluginRuntimeAdapter) List() []pluginusecase.ObservedPlugin {
 	out := make([]pluginusecase.ObservedPlugin, 0, len(plugins))
 	for _, plugin := range plugins {
 		out = append(out, pluginusecase.ObservedPlugin{
-			No:               plugin.No,
-			Name:             plugin.Name,
-			Version:          plugin.Version,
-			Methods:          usecaseMethodsFromRuntime(plugin.Methods),
-			Priority:         plugin.Priority,
-			PersistAfterSync: plugin.PersistAfterSync,
-			ReplySync:        plugin.ReplySync,
-			Status:           usecaseStatusFromRuntime(plugin.Status),
-			Enabled:          plugin.Enabled,
-			PID:              plugin.PID,
-			LastSeenAt:       plugin.LastSeenAt,
-			LastError:        plugin.LastError,
+			No:                plugin.No,
+			Name:              plugin.Name,
+			Version:           plugin.Version,
+			Methods:           usecaseMethodsFromRuntime(plugin.Methods),
+			Priority:          plugin.Priority,
+			PersistAfterSync:  plugin.PersistAfterSync,
+			ReplySync:         plugin.ReplySync,
+			ConfigTemplateRaw: append([]byte(nil), plugin.ConfigTemplateRaw...),
+			Status:            usecaseStatusFromRuntime(plugin.Status),
+			Enabled:           plugin.Enabled,
+			PID:               plugin.PID,
+			LastSeenAt:        plugin.LastSeenAt,
+			LastError:         plugin.LastError,
 		})
 	}
 	return out
@@ -192,7 +198,7 @@ func runtimeMethodsFromUsecase(methods []pluginusecase.Method) []runtimeplugin.M
 	out := make([]runtimeplugin.Method, 0, len(methods))
 	for _, method := range methods {
 		switch method {
-		case pluginusecase.MethodReceive, pluginusecase.MethodSend, pluginusecase.MethodPersistAfter:
+		case pluginusecase.MethodReceive, pluginusecase.MethodSend, pluginusecase.MethodPersistAfter, pluginusecase.MethodConfigUpdate:
 			out = append(out, runtimeplugin.Method(method))
 		}
 	}
@@ -203,7 +209,7 @@ func usecaseMethodsFromRuntime(methods []runtimeplugin.Method) []pluginusecase.M
 	out := make([]pluginusecase.Method, 0, len(methods))
 	for _, method := range methods {
 		switch method {
-		case runtimeplugin.MethodReceive, runtimeplugin.MethodSend, runtimeplugin.MethodPersistAfter:
+		case runtimeplugin.MethodReceive, runtimeplugin.MethodSend, runtimeplugin.MethodPersistAfter, runtimeplugin.MethodConfigUpdate:
 			out = append(out, pluginusecase.Method(method))
 		}
 	}
@@ -212,8 +218,12 @@ func usecaseMethodsFromRuntime(methods []runtimeplugin.Method) []pluginusecase.M
 
 func runtimeStatusFromUsecase(status pluginusecase.Status) runtimeplugin.Status {
 	switch status {
+	case pluginusecase.StatusStarting:
+		return runtimeplugin.StatusStarting
 	case pluginusecase.StatusRunning:
 		return runtimeplugin.StatusRunning
+	case pluginusecase.StatusError:
+		return runtimeplugin.StatusError
 	case pluginusecase.StatusDisabled:
 		return runtimeplugin.StatusDisabled
 	default:
@@ -223,13 +233,82 @@ func runtimeStatusFromUsecase(status pluginusecase.Status) runtimeplugin.Status 
 
 func usecaseStatusFromRuntime(status runtimeplugin.Status) pluginusecase.Status {
 	switch status {
+	case runtimeplugin.StatusStarting:
+		return pluginusecase.StatusStarting
 	case runtimeplugin.StatusRunning:
 		return pluginusecase.StatusRunning
+	case runtimeplugin.StatusError:
+		return pluginusecase.StatusError
 	case runtimeplugin.StatusDisabled:
 		return pluginusecase.StatusDisabled
 	default:
 		return pluginusecase.StatusOffline
 	}
+}
+
+func (a pluginRuntimeAdapter) SandboxDir(no string) (string, error) {
+	if a.runtime == nil || a.sandboxDir == "" {
+		return "", pluginusecase.ErrRuntimeRequired
+	}
+	return filepath.Join(a.sandboxDir, no), nil
+}
+
+func (a pluginRuntimeAdapter) Restart(ctx context.Context, no string) error {
+	if a.runtime == nil {
+		return pluginusecase.ErrRuntimeRequired
+	}
+	return a.runtime.Restart(ctx, no)
+}
+
+func (a pluginRuntimeAdapter) Uninstall(ctx context.Context, no string) error {
+	if a.runtime == nil {
+		return pluginusecase.ErrRuntimeRequired
+	}
+	return a.runtime.Uninstall(ctx, no)
+}
+
+type pluginDesiredStoreAdapter struct {
+	store *runtimeplugin.Store
+}
+
+func (a pluginDesiredStoreAdapter) Get(_ context.Context, no string) (pluginusecase.DesiredPlugin, error) {
+	if a.store == nil {
+		return pluginusecase.DesiredPlugin{}, pluginusecase.ErrDesiredPluginNotFound
+	}
+	state, err := a.store.Load(no)
+	if err != nil {
+		if errors.Is(err, runtimeplugin.ErrDesiredStateNotFound) {
+			return pluginusecase.DesiredPlugin{}, pluginusecase.ErrDesiredPluginNotFound
+		}
+		return pluginusecase.DesiredPlugin{}, err
+	}
+	return pluginusecase.DesiredPlugin{
+		No:        state.No,
+		Config:    append([]byte(nil), state.Config...),
+		Enabled:   state.Enabled,
+		CreatedAt: state.CreatedAt,
+		UpdatedAt: state.UpdatedAt,
+	}, nil
+}
+
+func (a pluginDesiredStoreAdapter) Save(_ context.Context, state pluginusecase.DesiredPlugin) error {
+	if a.store == nil {
+		return pluginusecase.ErrDesiredStoreRequired
+	}
+	return a.store.Save(runtimeplugin.DesiredState{
+		No:        state.No,
+		Config:    append([]byte(nil), state.Config...),
+		Enabled:   state.Enabled,
+		CreatedAt: state.CreatedAt,
+		UpdatedAt: state.UpdatedAt,
+	})
+}
+
+func (a pluginDesiredStoreAdapter) Delete(_ context.Context, no string) error {
+	if a.store == nil {
+		return pluginusecase.ErrDesiredStoreRequired
+	}
+	return a.store.Delete(no)
 }
 
 // EnqueuePersistAfter converts one committed durable envelope into a plugin PersistAfter event.

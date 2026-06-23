@@ -2,7 +2,9 @@ package plugin
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"regexp"
 	"sync"
 	"time"
 
@@ -12,6 +14,8 @@ import (
 )
 
 var (
+	// ErrDesiredPluginNotFound reports that no node-local desired state exists.
+	ErrDesiredPluginNotFound = errors.New("plugin desired state not found")
 	// ErrPluginNoRequired reports that a plugin operation omitted the plugin number.
 	ErrPluginNoRequired = errors.New("plugin no required")
 	// ErrPluginCallerMismatch reports a mismatch between the authenticated caller and plugin number.
@@ -20,8 +24,12 @@ var (
 	ErrPluginNotFound = errors.New("plugin not found")
 	// ErrRuntimeRequired reports that the plugin usecase was built without a runtime port.
 	ErrRuntimeRequired = errors.New("plugin runtime required")
+	// ErrDesiredStoreRequired reports that a plugin config mutation has no desired-state store.
+	ErrDesiredStoreRequired = errors.New("plugin desired store required")
 	// ErrInvokerRequired reports that the plugin usecase was built without an invocation port.
 	ErrInvokerRequired = errors.New("plugin invoker required")
+	// ErrInvalidPluginNo reports a plugin number that is not safe for node-local lifecycle storage.
+	ErrInvalidPluginNo = errors.New("invalid plugin no")
 	// ErrMessageSenderRequired reports that host message/send needs the message usecase port.
 	ErrMessageSenderRequired = errors.New("plugin message sender required")
 	// ErrDefaultSenderUIDRequired reports that plugin-origin sends without fromUid need a default sender.
@@ -52,6 +60,13 @@ var (
 	ErrReceiveBindingReaderRequired = errors.New("plugin receive binding reader required")
 )
 
+const (
+	// SecretHidden is the manager-visible placeholder for configured secret values.
+	SecretHidden = "******"
+)
+
+var pluginNoPattern = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
+
 // Method identifies a plugin hook advertised by a plugin manifest.
 type Method string
 
@@ -62,16 +77,22 @@ const (
 	MethodPersistAfter Method = "PersistAfter"
 	// MethodReceive is invoked for eligible offline bound recipients.
 	MethodReceive Method = "Receive"
+	// MethodConfigUpdate notifies a running plugin that its config changed.
+	MethodConfigUpdate Method = "ConfigUpdate"
 )
 
 // Status describes the node-local runtime state observed for a plugin.
 type Status string
 
 const (
+	// StatusStarting means the process has started but has not completed host startup.
+	StatusStarting Status = "starting"
 	// StatusRunning means the plugin has an active host RPC connection.
 	StatusRunning Status = "running"
 	// StatusOffline means the plugin is not connected on this node.
 	StatusOffline Status = "offline"
+	// StatusError means the runtime observed a plugin process or host RPC error.
+	StatusError Status = "error"
 	// StatusDisabled means this node should not invoke the plugin.
 	StatusDisabled Status = "disabled"
 )
@@ -92,6 +113,8 @@ type ObservedPlugin struct {
 	PersistAfterSync bool
 	// ReplySync reports whether reply hooks wait for plugin completion.
 	ReplySync bool
+	// ConfigTemplateRaw stores pluginproto.ConfigTemplate bytes from the manifest.
+	ConfigTemplateRaw []byte
 	// Status is the current node-local process status.
 	Status Status
 	// Enabled reports whether this node should invoke the plugin.
@@ -104,11 +127,86 @@ type ObservedPlugin struct {
 	LastError string
 }
 
+// DesiredPlugin is the durable node-local desired state for one plugin.
+type DesiredPlugin struct {
+	// No is the stable plugin number.
+	No string
+	// Config stores plugin configuration as a JSON object.
+	Config json.RawMessage
+	// Enabled controls whether this node should run and invoke the plugin.
+	Enabled bool
+	// CreatedAt records when desired state was first persisted.
+	CreatedAt time.Time
+	// UpdatedAt records when desired state last changed.
+	UpdatedAt time.Time
+}
+
+// LocalPluginList is a node-scoped plugin inventory response.
+type LocalPluginList struct {
+	// NodeID is the node whose local plugin inventory was read.
+	NodeID uint64
+	// Plugins contains node-local plugin rows.
+	Plugins []LocalPlugin
+}
+
+// LocalPlugin is the manager-facing summary of one node-local plugin.
+type LocalPlugin struct {
+	// NodeID identifies the node whose local plugin registry was read.
+	NodeID uint64
+	// No is the stable plugin number.
+	No string
+	// Name is the human-readable plugin name.
+	Name string
+	// Version is the plugin version.
+	Version string
+	// ConfigTemplate is the plugin-declared config schema.
+	ConfigTemplate *pluginproto.ConfigTemplate
+	// Config is the desired config with secret values redacted.
+	Config map[string]any
+	// CreatedAt records when desired state was first persisted.
+	CreatedAt *time.Time
+	// UpdatedAt records when desired state last changed.
+	UpdatedAt *time.Time
+	// Methods lists hook methods advertised by the plugin.
+	Methods []Method
+	// Priority controls hook ordering; larger values run first.
+	Priority int
+	// PersistAfterSync reports whether PersistAfter waits for plugin completion.
+	PersistAfterSync bool
+	// ReplySync reports whether Receive waits for plugin completion.
+	ReplySync bool
+	// Status is the current node-local process status.
+	Status Status
+	// Enabled reports whether this node should invoke the plugin.
+	Enabled bool
+	// IsAI is reserved for legacy Receive AI hook display compatibility.
+	IsAI uint8
+	// PID is the local operating-system process id when available.
+	PID int
+	// LastSeenAt records the latest runtime observation time.
+	LastSeenAt time.Time
+	// LastError stores the latest runtime error message.
+	LastError string
+}
+
+// LocalPluginDetail is the manager-facing detail of one node-local plugin.
+type LocalPluginDetail = LocalPlugin
+
 // Runtime stores node-local observed plugin state for the v2 usecase.
 type Runtime interface {
 	RegisterObserved(context.Context, ObservedPlugin) error
 	MarkClosed(context.Context, string) error
 	List() []ObservedPlugin
+}
+
+// DesiredStore persists node-local plugin config and enable state.
+type DesiredStore interface {
+	// Get returns the desired state for one plugin.
+	Get(context.Context, string) (DesiredPlugin, error)
+	// Save writes the desired state for one plugin.
+	Save(context.Context, DesiredPlugin) error
+	// Delete removes the desired state for one plugin.
+	Delete(context.Context, string) error
 }
 
 // Invoker calls or sends PDK-compatible plugin hook payloads.
@@ -212,6 +310,8 @@ type Observer interface {
 type Options struct {
 	Runtime Runtime
 	Invoker Invoker
+	// DesiredStore persists plugin config and enable state.
+	DesiredStore DesiredStore
 	// Messages submits plugin-origin /message/send host RPCs.
 	Messages MessageSender
 	// DefaultSenderUID is used when legacy plugin send requests omit fromUid.
@@ -240,12 +340,15 @@ type Options struct {
 	FailOpen bool
 	Observer Observer
 	Logger   wklog.Logger
+	// NodeID identifies the local cluster node for node-scoped plugin responses.
+	NodeID uint64
 }
 
 // App orchestrates v2 plugin lifecycle, selection, and hook invocation usecases.
 type App struct {
 	runtime                Runtime
 	invoker                Invoker
+	desired                DesiredStore
 	messages               MessageSender
 	messageReader          MessageReader
 	clusterReader          ClusterReader
@@ -260,8 +363,16 @@ type App struct {
 	receiveDedupeNextSweep time.Time
 	receiveDedupeMu        sync.Mutex
 	receiveDedupe          map[string]time.Time
+	desiredMu              sync.RWMutex
+	desiredCache           map[string]desiredCacheEntry
 	clock                  func() time.Time
 	failOpen               bool
 	observer               Observer
 	logger                 wklog.Logger
+	nodeID                 uint64
+}
+
+type desiredCacheEntry struct {
+	state DesiredPlugin
+	found bool
 }

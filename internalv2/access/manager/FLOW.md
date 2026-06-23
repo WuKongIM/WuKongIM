@@ -45,6 +45,9 @@ GET  /manager/connections (connection list; requires cluster.connection:r when A
 GET  /manager/connections/:session_id (connection detail; requires cluster.connection:r when Auth.On=true)
 GET  /manager/nodes/:node_id/plugins (node-local plugin inventory; requires cluster.plugin:r when Auth.On=true)
 GET  /manager/nodes/:node_id/plugins/:plugin_no (node-local plugin detail; requires cluster.plugin:r when Auth.On=true)
+PUT  /manager/nodes/:node_id/plugins/:plugin_no/config (node-local plugin desired config update; requires cluster.plugin:w when Auth.On=true)
+POST /manager/nodes/:node_id/plugins/:plugin_no/restart (node-local plugin restart; requires cluster.plugin:w when Auth.On=true)
+DELETE /manager/nodes/:node_id/plugins/:plugin_no (node-local plugin uninstall; requires cluster.plugin:w when Auth.On=true)
 GET  /manager/plugin-bindings (UID/plugin binding list; requires cluster.plugin:r when Auth.On=true)
 POST /manager/plugin-bindings (create/update UID/plugin binding; requires cluster.plugin:w when Auth.On=true)
 DELETE /manager/plugin-bindings (remove UID/plugin binding; requires cluster.plugin:w when Auth.On=true)
@@ -217,14 +220,17 @@ listener, state, timestamps, and addresses when the gateway session handle
 exposes them. If a remote connection reader is not wired, non-local filters
 return `service_unavailable`.
 
-`/manager/nodes/:node_id/plugins*` exposes read-only plugin runtime inventory
-for one selected node. The HTTP layer validates positive `node_id` values,
-requires the dedicated `cluster.plugin:r` permission when manager auth is
-enabled, and maps plugin status, hook methods, hook sync flags, process ID,
-last-seen timestamp, and latest error text from
-`internalv2/usecase/management`. Non-local node reads are routed below this
-package through manager plugin node RPC. These routes do not start, stop,
-reload, configure, or mutate plugin desired state.
+`/manager/nodes/:node_id/plugins*` exposes node-scoped plugin inventory,
+detail, desired-config update, restart, and uninstall operations for one
+selected node. The HTTP layer validates positive `node_id` values and non-empty
+plugin numbers, requires `cluster.plugin:r` for reads and `cluster.plugin:w`
+for lifecycle writes when manager auth is enabled, caps config update bodies at
+1 MiB, and accepts only JSON objects for desired config. Response DTOs map
+plugin status, hook methods, hook sync flags, process ID, last-seen timestamp,
+latest error text, config templates, redacted desired config, and desired-state
+timestamps from `internalv2/usecase/management`. Local-vs-remote node targeting
+is routed below this package through manager plugin node RPC; the HTTP layer
+does not inspect plugin files or call the plugin runtime directly.
 
 `/manager/plugin-bindings` exposes cluster-authoritative UID/plugin bindings
 used by Receive hooks. `GET` accepts exactly one selector: `uid` for
