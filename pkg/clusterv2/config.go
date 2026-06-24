@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/reactor"
@@ -252,7 +253,7 @@ func (c *Config) applyControlDefaults() {
 }
 
 func (c Config) seedJoinMode() bool {
-	return len(c.Join.Seeds) > 0
+	return c.Join.Seeds != nil || c.Join.AdvertiseAddr != "" || c.Join.Token != ""
 }
 
 func (c *Config) applySlotDefaults() {
@@ -370,11 +371,11 @@ func (c Config) validateControl() error {
 		if c.Control.Role != ControlRoleMirror || c.Control.AllowBootstrap || len(c.Control.Voters) != 0 {
 			return ErrInvalidConfig
 		}
-		if c.Join.AdvertiseAddr == "" || c.Join.Token == "" {
+		if len(c.Join.Seeds) == 0 || strings.TrimSpace(c.Join.AdvertiseAddr) == "" || strings.TrimSpace(c.Join.Token) == "" {
 			return ErrInvalidConfig
 		}
 		for _, seed := range c.Join.Seeds {
-			if seed == "" {
+			if strings.TrimSpace(seed) == "" {
 				return ErrInvalidConfig
 			}
 		}

@@ -89,6 +89,62 @@ func TestConfigRejectsSeedJoinMissingAdvertiseAddr(t *testing.T) {
 	}
 }
 
+func TestConfigRejectsSeedJoinWhitespaceValues(t *testing.T) {
+	base := Config{
+		NodeID:     4,
+		ListenAddr: "127.0.0.1:7014",
+		DataDir:    t.TempDir(),
+		Control:    ControlConfig{ClusterID: "dev-three"},
+		Join: JoinConfig{
+			Seeds:         []string{"127.0.0.1:7011"},
+			AdvertiseAddr: "127.0.0.1:7014",
+			Token:         "join-secret",
+		},
+	}
+	for _, tt := range []struct {
+		name   string
+		mutate func(*Config)
+	}{
+		{name: "advertise addr", mutate: func(cfg *Config) { cfg.Join.AdvertiseAddr = " \t " }},
+		{name: "token", mutate: func(cfg *Config) { cfg.Join.Token = " \t " }},
+		{name: "seed", mutate: func(cfg *Config) { cfg.Join.Seeds = []string{" \t "} }},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := base
+			cfg.DataDir = t.TempDir()
+			tt.mutate(&cfg)
+			cfg.applyDefaults()
+			if err := cfg.validate(); !errors.Is(err, ErrInvalidConfig) {
+				t.Fatalf("validate() error = %v, want ErrInvalidConfig", err)
+			}
+		})
+	}
+}
+
+func TestConfigRejectsSeedJoinEmptySeedsIntentDoesNotBootstrap(t *testing.T) {
+	cfg := Config{
+		NodeID:     4,
+		ListenAddr: "127.0.0.1:7014",
+		DataDir:    t.TempDir(),
+		Control:    ControlConfig{ClusterID: "dev-three"},
+		Join:       JoinConfig{AdvertiseAddr: "127.0.0.1:7014", Token: "join-secret"},
+	}
+	cfg.applyDefaults()
+
+	if cfg.Control.Role != ControlRoleMirror {
+		t.Fatalf("Control.Role = %q, want mirror for explicit seed-join intent", cfg.Control.Role)
+	}
+	if cfg.Control.AllowBootstrap {
+		t.Fatal("Control.AllowBootstrap = true, want false for invalid seed-join intent")
+	}
+	if len(cfg.Control.Voters) != 0 {
+		t.Fatalf("Control.Voters = %#v, want no implicit voters for invalid seed-join intent", cfg.Control.Voters)
+	}
+	if err := cfg.validate(); !errors.Is(err, ErrInvalidConfig) {
+		t.Fatalf("validate() error = %v, want ErrInvalidConfig", err)
+	}
+}
+
 func TestConfigDefaultsChannelReactorCountFromGOMAXPROCS(t *testing.T) {
 	old := runtime.GOMAXPROCS(6)
 	t.Cleanup(func() { runtime.GOMAXPROCS(old) })

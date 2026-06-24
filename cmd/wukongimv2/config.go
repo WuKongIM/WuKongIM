@@ -1400,6 +1400,9 @@ func parseClusterSeeds(raw string) ([]string, error) {
 	if err := json.Unmarshal([]byte(raw), &seeds); err != nil {
 		return nil, fmt.Errorf("parse WK_CLUSTER_SEEDS as JSON: %w", err)
 	}
+	if len(seeds) == 0 {
+		return nil, fmt.Errorf("parse WK_CLUSTER_SEEDS: seed list must not be empty")
+	}
 	for i, seed := range seeds {
 		seeds[i] = strings.TrimSpace(seed)
 		if seeds[i] == "" {

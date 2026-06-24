@@ -1294,6 +1294,8 @@ func TestLoadConfigRejectsInvalidValues(t *testing.T) {
 		{name: "commit coordinator shards negative", line: "WK_CLUSTER_COMMIT_COORDINATOR_SHARDS=-1", wantKey: "WK_CLUSTER_COMMIT_COORDINATOR_SHARDS"},
 		{name: "cluster nodes json", line: "WK_CLUSTER_NODES=not-json", wantKey: "WK_CLUSTER_NODES"},
 		{name: "cluster seeds json", line: "WK_CLUSTER_SEEDS=not-json", wantKey: "WK_CLUSTER_SEEDS"},
+		{name: "cluster seeds empty list", line: "WK_CLUSTER_SEEDS=[]", wantKey: "WK_CLUSTER_SEEDS"},
+		{name: "cluster seeds null", line: "WK_CLUSTER_SEEDS=null", wantKey: "WK_CLUSTER_SEEDS"},
 		{name: "listener json", line: "WK_GATEWAY_LISTENERS=not-json", wantKey: "WK_GATEWAY_LISTENERS"},
 		{name: "gnet multicore", line: "WK_GATEWAY_GNET_MULTICORE=maybe", wantKey: "WK_GATEWAY_GNET_MULTICORE"},
 		{name: "gnet event loop", line: "WK_GATEWAY_GNET_NUM_EVENT_LOOP=many", wantKey: "WK_GATEWAY_GNET_NUM_EVENT_LOOP"},
