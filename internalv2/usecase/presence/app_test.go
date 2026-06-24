@@ -160,6 +160,87 @@ func TestActivateCleansPendingLocalRouteWhenMarkActiveFails(t *testing.T) {
 	}
 }
 
+func TestActivateEmitsOnlineStatusAfterSuccessfulMarkActive(t *testing.T) {
+	var calls []string
+	local := newFakeLocalRegistry(&calls)
+	observer := &fakeOnlineStatusObserver{calls: &calls, err: errBoom}
+	app := New(Options{
+		Local:                local,
+		Authority:            &fakeAuthorityClient{calls: &calls},
+		OnlineStatusObserver: observer,
+	})
+
+	err := app.Activate(context.Background(), ActivateCommand{
+		UID:       "u1",
+		SessionID: 11,
+		Session:   fakeSessionHandle{},
+	})
+	require.NoError(t, err)
+
+	require.Equal(t, []string{"local.register_pending", "authority.register", "local.mark_active", "observer.online_status"}, calls)
+	require.Equal(t, []OnlineStatusEvent{{UID: "u1", Online: true, Value: "u1-1"}}, observer.events)
+}
+
+func TestActivateFailurePathsDoNotEmitOnlineStatus(t *testing.T) {
+	tests := []struct {
+		name      string
+		authority *fakeAuthorityClient
+		localErr  error
+	}{
+		{
+			name:      "authority register fails",
+			authority: &fakeAuthorityClient{registerErr: errBoom},
+		},
+		{
+			name:     "mark active fails",
+			localErr: errBoom,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var calls []string
+			local := newFakeLocalRegistry(&calls)
+			local.markActiveErr = tt.localErr
+			authority := tt.authority
+			if authority == nil {
+				authority = &fakeAuthorityClient{}
+			}
+			authority.calls = &calls
+			observer := &fakeOnlineStatusObserver{calls: &calls}
+			app := New(Options{
+				Local:                local,
+				Authority:            authority,
+				OnlineStatusObserver: observer,
+			})
+
+			err := app.Activate(context.Background(), ActivateCommand{
+				UID:       "u1",
+				SessionID: 11,
+				Session:   fakeSessionHandle{},
+			})
+			require.Error(t, err)
+			require.Empty(t, observer.events)
+		})
+	}
+}
+
+func TestActivateWithNilOnlineStatusObserverIsNoop(t *testing.T) {
+	var calls []string
+	local := newFakeLocalRegistry(&calls)
+	app := New(Options{
+		Local:     local,
+		Authority: &fakeAuthorityClient{calls: &calls},
+	})
+
+	err := app.Activate(context.Background(), ActivateCommand{
+		UID:       "u1",
+		SessionID: 11,
+		Session:   fakeSessionHandle{},
+	})
+	require.NoError(t, err)
+	require.Equal(t, []string{"local.register_pending", "authority.register", "local.mark_active"}, calls)
+}
+
 func TestActivateAppliesPendingActionsBeforeCommitThenMarksActive(t *testing.T) {
 	var calls []string
 	local := newFakeLocalRegistry(&calls)
@@ -303,6 +384,57 @@ func TestDeactivateRemovesLocalRouteAndQueuesAuthorityTombstone(t *testing.T) {
 	}
 }
 
+func TestDeactivateEmitsOfflineStatusForLastLocalSession(t *testing.T) {
+	var calls []string
+	local := newFakeLocalRegistry(&calls)
+	local.pending[11] = LocalSession{Route: OwnerRoute{UID: "u1", OwnerNodeID: 3, OwnerBootID: 4, OwnerSeq: 5, SessionID: 11}}
+	observer := &fakeOnlineStatusObserver{calls: &calls, err: errBoom}
+	app := New(Options{
+		Local:                local,
+		Authority:            &fakeAuthorityClient{calls: &calls},
+		OnlineStatusObserver: observer,
+	})
+
+	err := app.Deactivate(context.Background(), DeactivateCommand{UID: "u1", SessionID: 11})
+	require.NoError(t, err)
+
+	require.Equal(t, []string{"local.mark_closing_unregister", "observer.online_status", "authority.enqueue_unregister"}, calls)
+	require.Equal(t, []OnlineStatusEvent{{UID: "u1", Online: false, Value: "u1-0"}}, observer.events)
+}
+
+func TestDeactivateDoesNotEmitOfflineStatusWhenSameUIDSessionRemains(t *testing.T) {
+	var calls []string
+	local := newFakeLocalRegistry(&calls)
+	local.pending[11] = LocalSession{Route: OwnerRoute{UID: "u1", OwnerNodeID: 3, OwnerBootID: 4, OwnerSeq: 5, SessionID: 11}}
+	local.pending[12] = LocalSession{Route: OwnerRoute{UID: "u1", OwnerNodeID: 3, OwnerBootID: 4, OwnerSeq: 6, SessionID: 12}}
+	observer := &fakeOnlineStatusObserver{calls: &calls}
+	app := New(Options{
+		Local:                local,
+		Authority:            &fakeAuthorityClient{calls: &calls},
+		OnlineStatusObserver: observer,
+	})
+
+	err := app.Deactivate(context.Background(), DeactivateCommand{UID: "u1", SessionID: 11})
+	require.NoError(t, err)
+
+	require.Empty(t, observer.events)
+	require.Equal(t, []string{"local.mark_closing_unregister", "authority.enqueue_unregister"}, calls)
+}
+
+func TestDeactivateWithNilOnlineStatusObserverIsNoop(t *testing.T) {
+	var calls []string
+	local := newFakeLocalRegistry(&calls)
+	local.pending[11] = LocalSession{Route: OwnerRoute{UID: "u1", OwnerNodeID: 3, OwnerBootID: 4, OwnerSeq: 5, SessionID: 11}}
+	app := New(Options{
+		Local:     local,
+		Authority: &fakeAuthorityClient{calls: &calls},
+	})
+
+	err := app.Deactivate(context.Background(), DeactivateCommand{UID: "u1", SessionID: 11})
+	require.NoError(t, err)
+	require.Equal(t, []string{"local.mark_closing_unregister", "authority.enqueue_unregister"}, calls)
+}
+
 func TestEndpointsByUIDUsesAuthorityClient(t *testing.T) {
 	var calls []string
 	authority := &fakeAuthorityClient{
@@ -397,6 +529,16 @@ func (f *fakeLocalRegistry) MarkClosingAndUnregister(sessionID uint64) (OwnerRou
 	return session.Route, ok
 }
 
+func (f *fakeLocalRegistry) LocalSessionsByUID(uid string) []LocalSession {
+	var sessions []LocalSession
+	for _, session := range f.pending {
+		if session.Route.UID == uid {
+			sessions = append(sessions, session)
+		}
+	}
+	return sessions
+}
+
 func (f *fakeLocalRegistry) MarkTouched(sessionID uint64, activityUnix int64) (OwnerRoute, bool) {
 	f.touchedSessionID = sessionID
 	f.touchedUnix = activityUnix
@@ -479,3 +621,15 @@ type fakeSessionHandle struct {
 func (h fakeSessionHandle) WriteDelivery(any) error { return h.err }
 
 func (h fakeSessionHandle) CloseSession(string) error { return h.err }
+
+type fakeOnlineStatusObserver struct {
+	calls  *[]string
+	events []OnlineStatusEvent
+	err    error
+}
+
+func (f *fakeOnlineStatusObserver) ObserveOnlineStatus(_ context.Context, event OnlineStatusEvent) error {
+	*f.calls = append(*f.calls, "observer.online_status")
+	f.events = append(f.events, event)
+	return f.err
+}

@@ -21,22 +21,28 @@ Activate(command)
   -> local.MarkActive(sessionID)
      -> on failure, authority.EnqueueUnregister(ctx, exact route identity, owner seq)
         and local.MarkClosingAndUnregister(sessionID)
+  -> observe uid online status when an owner-local session remains
 ```
 
 `MarkActive` is the final local active re-check. A successful activation means
 the authority accepted the route, required owner actions were acknowledged, and
-the owner still has the session locally.
+the owner still has the session locally. Online-status observation is
+best-effort and owner-local; it emits the legacy-compatible `uid-1` status only
+after successful local activation and never adds authority traffic.
 
 ## Deactivate Flow
 
 ```text
 Deactivate(command)
   -> local.MarkClosingAndUnregister(sessionID)
+  -> observe uid offline status when no owner-local sessions remain for the UID
   -> authority.EnqueueUnregister(ctx, exact route identity, owner seq)
 ```
 
 Local removal happens before the authority tombstone is queued so owner-local
-delivery no longer sees the route while unregister retry is pending.
+delivery no longer sees the route while unregister retry is pending. Offline
+status observation is best-effort and emits the legacy-compatible `uid-0` status
+only after the removed session was the last owner-local session for that UID.
 
 ## Touch Flow
 
