@@ -107,7 +107,11 @@ func TestActivateNodeDelegates(t *testing.T) {
 			},
 		},
 	}
-	app := New(Options{NodeLifecycle: writer})
+	app := New(Options{
+		Cluster:       fakeNodeSnapshotReader{snapshot: activationReadinessSnapshot()},
+		NodeLifecycle: writer,
+		NodeReadiness: fakeNodeReadinessReader{resp: activationReadyReadiness()},
+	})
 
 	response, err := app.ActivateNode(context.Background(), ActivateNodeRequest{NodeID: 4})
 	if err != nil {
@@ -118,6 +122,51 @@ func TestActivateNodeDelegates(t *testing.T) {
 	}
 	if writer.activateReq.NodeID != 4 {
 		t.Fatalf("writer activate request = %#v, want node 4", writer.activateReq)
+	}
+}
+
+func TestActivateNodeRejectsWhenReadinessIsUnknown(t *testing.T) {
+	writer := &nodeLifecycleWriterStub{}
+	app := New(Options{
+		Cluster:       fakeNodeSnapshotReader{snapshot: activationReadinessSnapshot()},
+		NodeLifecycle: writer,
+		NodeReadiness: fakeNodeReadinessReader{resp: NodeReadiness{NodeID: 4, Unknown: true}},
+	})
+
+	_, err := app.ActivateNode(context.Background(), ActivateNodeRequest{NodeID: 4})
+
+	if !errors.Is(err, ErrNodeNotReadyForActivation) {
+		t.Fatalf("ActivateNode() error = %v, want ErrNodeNotReadyForActivation", err)
+	}
+	if writer.activateReq.NodeID != 0 {
+		t.Fatalf("writer activate request = %#v, want no activation write", writer.activateReq)
+	}
+}
+
+func TestActivateNodeRequiresMirrorClusterAndRevision(t *testing.T) {
+	writer := &nodeLifecycleWriterStub{}
+	app := New(Options{
+		Cluster:       fakeNodeSnapshotReader{snapshot: activationReadinessSnapshot()},
+		NodeLifecycle: writer,
+		NodeReadiness: fakeNodeReadinessReader{resp: NodeReadiness{
+			NodeID:            4,
+			Reachable:         true,
+			MirrorClusterID:   "cluster-a",
+			ExpectedClusterID: "cluster-a",
+			MirrorRevision:    21,
+			TransportReady:    true,
+			ControlReady:      true,
+			RuntimeReady:      true,
+		}},
+	})
+
+	_, err := app.ActivateNode(context.Background(), ActivateNodeRequest{NodeID: 4})
+
+	if !errors.Is(err, ErrNodeNotReadyForActivation) {
+		t.Fatalf("ActivateNode() error = %v, want ErrNodeNotReadyForActivation", err)
+	}
+	if writer.activateReq.NodeID != 0 {
+		t.Fatalf("writer activate request = %#v, want no activation write", writer.activateReq)
 	}
 }
 
@@ -142,7 +191,11 @@ func TestActivateNodeMapsControlLifecycleErrors(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			app := New(Options{NodeLifecycle: &nodeLifecycleWriterStub{activateErr: tt.err}})
+			app := New(Options{
+				Cluster:       fakeNodeSnapshotReader{snapshot: activationReadinessSnapshot()},
+				NodeLifecycle: &nodeLifecycleWriterStub{activateErr: tt.err},
+				NodeReadiness: fakeNodeReadinessReader{resp: activationReadyReadiness()},
+			})
 
 			_, err := app.ActivateNode(context.Background(), ActivateNodeRequest{NodeID: 4})
 
@@ -164,7 +217,11 @@ func TestActivateNodeMapsControlAvailabilityErrors(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			app := New(Options{NodeLifecycle: &nodeLifecycleWriterStub{activateErr: tt.err}})
+			app := New(Options{
+				Cluster:       fakeNodeSnapshotReader{snapshot: activationReadinessSnapshot()},
+				NodeLifecycle: &nodeLifecycleWriterStub{activateErr: tt.err},
+				NodeReadiness: fakeNodeReadinessReader{resp: activationReadyReadiness()},
+			})
 
 			_, err := app.ActivateNode(context.Background(), ActivateNodeRequest{NodeID: 4})
 
@@ -195,4 +252,42 @@ func (s *nodeLifecycleWriterStub) JoinNode(_ context.Context, req control.JoinNo
 func (s *nodeLifecycleWriterStub) ActivateNode(_ context.Context, req control.ActivateNodeRequest) (control.ActivateNodeResult, error) {
 	s.activateReq = req
 	return s.activateResult, s.activateErr
+}
+
+type fakeNodeReadinessReader struct {
+	req  uint64
+	resp NodeReadiness
+	err  error
+}
+
+func (f fakeNodeReadinessReader) NodeReadiness(_ context.Context, nodeID uint64) (NodeReadiness, error) {
+	f.req = nodeID
+	return f.resp, f.err
+}
+
+func activationReadinessSnapshot() control.Snapshot {
+	return control.Snapshot{
+		ClusterID: "cluster-a",
+		Revision:  22,
+		Nodes: []control.Node{{
+			NodeID:    4,
+			Addr:      "10.0.0.4:11110",
+			Roles:     []control.Role{control.RoleData},
+			Status:    control.NodeAlive,
+			JoinState: control.NodeJoinStateJoining,
+		}},
+	}
+}
+
+func activationReadyReadiness() NodeReadiness {
+	return NodeReadiness{
+		NodeID:            4,
+		ExpectedClusterID: "cluster-a",
+		MirrorClusterID:   "cluster-a",
+		MirrorRevision:    22,
+		Reachable:         true,
+		TransportReady:    true,
+		ControlReady:      true,
+		RuntimeReady:      true,
+	}
 }

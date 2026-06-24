@@ -97,6 +97,8 @@ type TaskParticipantProgress = cv2.TaskParticipantProgress
 
 // Snapshot is the clusterv2 control read model consumed by data-plane modules.
 type Snapshot struct {
+	// ClusterID is the stable ControllerV2 cluster identity carried by this snapshot.
+	ClusterID string
 	// Revision is the monotonically increasing control state revision.
 	Revision uint64
 	// ControllerID is the best-known Controller leader or owner node ID.

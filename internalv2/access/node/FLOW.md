@@ -252,9 +252,11 @@ advertised cluster address, cluster ID, join token, and capacity weight. The
 server validates the cluster ID and token at the RPC boundary before delegating
 only the manager-facing join fields to the management usecase, which in turn
 uses the clusterv2 control lifecycle writer and its Controller-leader
-forwarding. The same service also carries a simple readiness probe DTO for
-future activation checks; this package only transports the probe and does not
-gate activation.
+forwarding. The same service carries the activation readiness probe DTO:
+expected cluster ID, mirrored cluster ID/revision, reachability, transport,
+control, runtime, unknown, and last-error fields. This package only preserves
+that wire shape and maps stable statuses; the management usecase owns the
+activation gate.
 
 ## Manager Channel RPC
 

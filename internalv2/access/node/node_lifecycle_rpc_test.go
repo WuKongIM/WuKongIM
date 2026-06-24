@@ -84,6 +84,49 @@ func TestNodeLifecycleRPCJoinRequiresConfiguredToken(t *testing.T) {
 	}
 }
 
+func TestNodeLifecycleRPCReadinessPreservesActivationFields(t *testing.T) {
+	readiness := &fakeNodeReadinessProvider{
+		response: NodeReadinessResponse{
+			NodeID:            4,
+			ClusterID:         "cluster-a",
+			ExpectedClusterID: "cluster-a",
+			MirrorClusterID:   "cluster-a",
+			MirrorRevision:    22,
+			Reachable:         true,
+			TransportReady:    true,
+			ControlReady:      true,
+			RuntimeReady:      true,
+			Ready:             true,
+		},
+	}
+	adapter := New(Options{
+		NodeReadiness:          readiness,
+		NodeLifecycleClusterID: "cluster-a",
+	})
+	node := &fakeNodeLifecycleRPCNode{handler: adapter.HandleNodeLifecycleRPC}
+	client := NewClient(node)
+
+	req := NodeReadinessRequest{NodeID: 4, ClusterID: "cluster-a"}
+	got, err := client.NodeReadiness(context.Background(), 4, req)
+	if err != nil {
+		t.Fatalf("NodeReadiness() error = %v", err)
+	}
+
+	if got != readiness.response {
+		t.Fatalf("NodeReadiness() = %#v, want %#v", got, readiness.response)
+	}
+	if readiness.request != req {
+		t.Fatalf("readiness request = %#v, want %#v", readiness.request, req)
+	}
+	wireReq, err := decodeNodeLifecycleRequest(node.payload)
+	if err != nil {
+		t.Fatalf("decodeNodeLifecycleRequest() error = %v", err)
+	}
+	if wireReq.Op != nodeLifecycleOpReadiness || wireReq.Readiness != req {
+		t.Fatalf("wire request = %#v, want readiness %#v", wireReq, req)
+	}
+}
+
 type fakeNodeLifecycleService struct {
 	joinRequest  managementusecase.JoinNodeRequest
 	joinResponse managementusecase.JoinNodeResponse
@@ -92,6 +135,16 @@ type fakeNodeLifecycleService struct {
 func (f *fakeNodeLifecycleService) JoinNode(_ context.Context, req managementusecase.JoinNodeRequest) (managementusecase.JoinNodeResponse, error) {
 	f.joinRequest = req
 	return f.joinResponse, nil
+}
+
+type fakeNodeReadinessProvider struct {
+	request  NodeReadinessRequest
+	response NodeReadinessResponse
+}
+
+func (f *fakeNodeReadinessProvider) NodeReadiness(_ context.Context, req NodeReadinessRequest) (NodeReadinessResponse, error) {
+	f.request = req
+	return f.response, nil
 }
 
 type fakeNodeLifecycleRPCNode struct {

@@ -34,6 +34,12 @@ type NodeLifecycleWriter interface {
 	ActivateNode(context.Context, control.ActivateNodeRequest) (control.ActivateNodeResult, error)
 }
 
+// NodeReadinessReader reads app-local readiness for activation gates.
+type NodeReadinessReader interface {
+	// NodeReadiness returns the selected node's activation readiness view.
+	NodeReadiness(context.Context, uint64) (NodeReadiness, error)
+}
+
 // DiagnosticsReader reads node-local diagnostics events through an entry-agnostic adapter.
 type DiagnosticsReader interface {
 	// QueryNodeDiagnostics returns retained diagnostics events from one cluster node.
@@ -58,6 +64,8 @@ type Options struct {
 	RuntimeSummary RuntimeSummaryReader
 	// NodeLifecycle submits cluster-authoritative node join and activation requests.
 	NodeLifecycle NodeLifecycleWriter
+	// NodeReadiness reads selected-node readiness before activation writes.
+	NodeReadiness NodeReadinessReader
 	// Diagnostics reads local or remote node diagnostics events for manager aggregations.
 	Diagnostics DiagnosticsReader
 	// DiagnosticsTracking mutates local or remote runtime diagnostics tracking rules.
@@ -119,6 +127,7 @@ type App struct {
 	cluster                ControlSnapshotReader
 	runtimeSummary         RuntimeSummaryReader
 	nodeLifecycle          NodeLifecycleWriter
+	nodeReadiness          NodeReadinessReader
 	diagnostics            DiagnosticsReader
 	diagnosticsTracking    DiagnosticsTrackingOperator
 	channelRuntimeMeta     ChannelRuntimeMetaReader
@@ -158,6 +167,7 @@ func New(opts Options) *App {
 		cluster:                opts.Cluster,
 		runtimeSummary:         opts.RuntimeSummary,
 		nodeLifecycle:          opts.NodeLifecycle,
+		nodeReadiness:          opts.NodeReadiness,
 		diagnostics:            opts.Diagnostics,
 		diagnosticsTracking:    opts.DiagnosticsTracking,
 		channelRuntimeMeta:     opts.ChannelRuntimeMeta,

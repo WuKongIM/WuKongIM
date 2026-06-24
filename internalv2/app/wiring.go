@@ -975,6 +975,9 @@ func (a *App) newManagerManagement() accessmanager.Management {
 		if lifecycleNode, ok := a.cluster.(clusterinfra.ManagementNodeLifecycleNode); ok {
 			opts.NodeLifecycle = clusterinfra.NewManagementNodeLifecycleAdapter(lifecycleNode)
 		}
+		if lifecycleNode, ok := a.cluster.(clusterinfra.NodeLifecycleNode); ok {
+			opts.NodeReadiness = clusterinfra.NewNodeLifecycleClient(lifecycleNode, strings.TrimSpace(a.cfg.Cluster.Control.ClusterID))
+		}
 		return managementusecase.New(opts)
 	}
 	return nil

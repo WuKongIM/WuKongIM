@@ -275,7 +275,7 @@ func seedJoinSeedIDs(snapshot control.Snapshot, seedAddrs []string, localNodeID 
 // NodeReadiness reports coarse local startup readiness for seed lifecycle RPC probes.
 func (a *App) NodeReadiness(ctx context.Context, req accessnode.NodeReadinessRequest) (accessnode.NodeReadinessResponse, error) {
 	if a == nil {
-		return accessnode.NodeReadinessResponse{NodeID: req.NodeID, ClusterID: req.ClusterID, LastError: "app not configured"}, nil
+		return accessnode.NodeReadinessResponse{NodeID: req.NodeID, ClusterID: req.ClusterID, ExpectedClusterID: strings.TrimSpace(req.ClusterID), Unknown: true, LastError: "app not configured"}, nil
 	}
 	nodeID := a.cfg.Cluster.NodeID
 	if nodeID == 0 {
@@ -283,26 +283,58 @@ func (a *App) NodeReadiness(ctx context.Context, req accessnode.NodeReadinessReq
 	}
 	clusterID := strings.TrimSpace(a.cfg.Cluster.Control.ClusterID)
 	resp := accessnode.NodeReadinessResponse{
-		NodeID:          nodeID,
-		ClusterID:       clusterID,
-		Reachable:       true,
-		MirrorClusterID: clusterID,
+		NodeID:            nodeID,
+		ClusterID:         clusterID,
+		ExpectedClusterID: clusterID,
+		Reachable:         true,
 	}
 	a.lifecycleMu.Lock()
 	resp.TransportReady = a.clusterStarted
-	resp.RuntimeReady = a.started
+	gatewayStarted := a.gatewayStarted
 	a.lifecycleMu.Unlock()
 	if snapshots, ok := a.cluster.(seedJoinSnapshotReader); ok {
 		snapshot, err := snapshots.LocalControlSnapshot(ctx)
 		if err != nil {
+			resp.Unknown = true
 			resp.LastError = err.Error()
 		} else {
+			resp.MirrorClusterID = strings.TrimSpace(snapshot.ClusterID)
 			resp.MirrorRevision = snapshot.Revision
-			resp.ControlReady = len(snapshot.Nodes) > 0
+			resp.ControlReady = snapshot.Revision > 0
 		}
+	} else {
+		resp.Unknown = true
+		resp.LastError = "control snapshot unavailable"
+	}
+	defaultSlotsReady := false
+	if routes, ok := a.cluster.(clusterWriteReadyRuntime); ok {
+		defaultSlotsReady, resp.LastError = clusterDefaultSlotsReady(routes)
+	}
+	if gatewayStarted && defaultSlotsReady {
+		resp.RuntimeReady = true
 	}
 	resp.Ready = resp.Reachable && resp.TransportReady && resp.ControlReady && resp.RuntimeReady
 	return resp, nil
+}
+
+func clusterDefaultSlotsReady(routes clusterWriteReadyRuntime) (bool, string) {
+	if routes == nil {
+		return false, "cluster routes unavailable"
+	}
+	snapshot := routes.Snapshot()
+	if !snapshot.RoutesReady || !snapshot.SlotsReady || !snapshot.ChannelsReady || snapshot.HashSlotCount == 0 {
+		return false, "cluster write routes not ready"
+	}
+	for hashSlot := uint16(0); hashSlot < snapshot.HashSlotCount; hashSlot++ {
+		route, err := routes.RouteHashSlot(hashSlot)
+		if err != nil {
+			return false, err.Error()
+		}
+		if route.Leader == 0 {
+			return false, "cluster route leader missing"
+		}
+	}
+	return true, ""
 }
 
 func waitSeedJoinDelay(ctx context.Context, delay time.Duration) bool {

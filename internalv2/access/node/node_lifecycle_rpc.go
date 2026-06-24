@@ -57,6 +57,8 @@ type NodeReadinessResponse struct {
 	NodeID uint64 `json:"node_id"`
 	// ClusterID is the local cluster identity observed by the probe handler.
 	ClusterID string `json:"cluster_id"`
+	// ExpectedClusterID is the configured cluster identity expected by the probed node.
+	ExpectedClusterID string `json:"expected_cluster_id"`
 	// Reachable reports whether the node RPC handler is reachable.
 	Reachable bool `json:"reachable"`
 	// MirrorRevision is the latest local control mirror revision observed by the node.
@@ -71,6 +73,8 @@ type NodeReadinessResponse struct {
 	RuntimeReady bool `json:"runtime_ready"`
 	// Ready reports aggregate readiness for later activation gates.
 	Ready bool `json:"ready"`
+	// Unknown reports that readiness could not be determined.
+	Unknown bool `json:"unknown,omitempty"`
 	// LastError carries a compact diagnostic for the last readiness failure.
 	LastError string `json:"last_error,omitempty"`
 }

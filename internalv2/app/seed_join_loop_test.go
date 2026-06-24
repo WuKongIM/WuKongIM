@@ -64,6 +64,59 @@ func TestAppSkipsSeedJoinLoopWithoutJoinConfig(t *testing.T) {
 	}
 }
 
+func TestAppNodeReadinessReportsMirrorClusterAndRuntimeGates(t *testing.T) {
+	cluster := &fakeReadinessCluster{
+		fakeManagerCluster: fakeManagerCluster{
+			nodeID: 4,
+			snapshot: control.Snapshot{
+				ClusterID: "cluster-a",
+				Revision:  22,
+				Nodes: []control.Node{{
+					NodeID:    4,
+					Addr:      "10.0.0.4:11110",
+					Roles:     []control.Role{control.RoleData},
+					JoinState: control.NodeJoinStateJoining,
+				}},
+			},
+		},
+		snapshot: clusterv2.Snapshot{
+			RoutesReady:   true,
+			SlotsReady:    true,
+			ChannelsReady: true,
+			HashSlotCount: 2,
+		},
+		routes: map[uint16]clusterv2.Route{
+			0: {HashSlot: 0, SlotID: 1, Leader: 4},
+			1: {HashSlot: 1, SlotID: 1, Leader: 4},
+		},
+	}
+	app, err := newTestApp(t, Config{
+		NodeID: 4,
+		Cluster: clusterv2.Config{
+			NodeID:  4,
+			Control: clusterv2.ControlConfig{ClusterID: "cluster-a"},
+		},
+	}, WithCluster(cluster), WithGateway(nil))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	app.lifecycleMu.Lock()
+	app.clusterStarted = true
+	app.gatewayStarted = true
+	app.lifecycleMu.Unlock()
+
+	got, err := app.NodeReadiness(context.Background(), accessnode.NodeReadinessRequest{NodeID: 4, ClusterID: "cluster-a"})
+	if err != nil {
+		t.Fatalf("NodeReadiness() error = %v", err)
+	}
+	if !got.Ready || got.MirrorClusterID != "cluster-a" || got.MirrorRevision != 22 {
+		t.Fatalf("NodeReadiness() = %#v, want ready mirror cluster-a revision 22", got)
+	}
+	if !got.TransportReady || !got.ControlReady || !got.RuntimeReady || got.ExpectedClusterID != "cluster-a" {
+		t.Fatalf("NodeReadiness() = %#v, want transport/control/runtime ready and expected cluster-a", got)
+	}
+}
+
 func TestSeedJoinLoopStopsAfterMirrorSeesJoiningNode(t *testing.T) {
 	snapshots := &fakeSeedJoinSnapshotReader{}
 	client := &fakeSeedJoinClient{
@@ -202,4 +255,22 @@ func (f *fakeSeedJoinClient) waitCall(t *testing.T) seedJoinCall {
 		t.Fatal("timed out waiting for seed join call")
 		return seedJoinCall{}
 	}
+}
+
+type fakeReadinessCluster struct {
+	fakeManagerCluster
+	snapshot clusterv2.Snapshot
+	routes   map[uint16]clusterv2.Route
+}
+
+func (f *fakeReadinessCluster) Snapshot() clusterv2.Snapshot {
+	return f.snapshot
+}
+
+func (f *fakeReadinessCluster) RouteHashSlot(hashSlot uint16) (clusterv2.Route, error) {
+	route, ok := f.routes[hashSlot]
+	if !ok {
+		return clusterv2.Route{}, clusterv2.ErrRouteNotReady
+	}
+	return route, nil
 }

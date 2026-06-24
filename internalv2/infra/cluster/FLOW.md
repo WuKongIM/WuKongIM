@@ -45,13 +45,21 @@ seed join loop
   -> clusterv2 CallRPC(seed_node_id, RPCNodeLifecycle)
   -> seed node access/node lifecycle handler
   -> management JoinNode usecase
+
+management activation gate
+  -> NodeLifecycleClient.NodeReadiness(node_id)
+  -> access/node NodeLifecycle RPC client
+  -> clusterv2 CallRPC(node_id, RPCNodeLifecycle)
+  -> target node app-local readiness provider
+  -> management NodeReadiness DTO
 ```
 
 `NodeLifecycleClient` is the narrow cluster-facing wrapper for startup seed
-join and readiness RPCs. It does not validate membership, choose activation
-timing, rebalance Slots, or call ActivateNode. The seed-side handler still
-routes durable join writes through the management usecase and clusterv2 control
-writer.
+join and readiness RPCs. It maps the readiness wire DTO into the management
+usecase's entry-independent `NodeReadiness` shape, but it does not validate
+membership, choose activation timing, rebalance Slots, or call ActivateNode.
+The seed-side handler still routes durable join writes through the management
+usecase and clusterv2 control writer.
 
 ## Management Channel List Flow
 
@@ -301,10 +309,11 @@ management.NodeLifecycleWriter
   -> clusterv2 control runtime
 ```
 
-`ManagementNodeLifecycleAdapter` does not inspect readiness or rebalance Slots.
-It only passes manager-validated node join and activation intents into the
-clusterv2 control facade and preserves typed control errors for the management
-usecase to map to operator-facing responses.
+`ManagementNodeLifecycleAdapter` does not inspect readiness or rebalance Slots;
+activation readiness is checked above it through `NodeLifecycleClient`. It only
+passes manager-validated node join and activation intents into the clusterv2
+control facade and preserves typed control errors for the management usecase to
+map to operator-facing responses.
 
 ## Management Application Log Flow
 

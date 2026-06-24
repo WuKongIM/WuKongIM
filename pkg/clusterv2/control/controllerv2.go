@@ -41,7 +41,7 @@ func SnapshotFromControllerV2(st cv2.ClusterState) (Snapshot, error) {
 	}
 	st = st.Clone()
 	st.Normalize()
-	snap := Snapshot{Revision: st.Revision, Nodes: make([]Node, 0, len(st.Nodes)), Slots: make([]SlotAssignment, 0, len(st.Slots)), Tasks: make([]ReconcileTask, 0, len(st.Tasks))}
+	snap := Snapshot{ClusterID: st.ClusterID, Revision: st.Revision, Nodes: make([]Node, 0, len(st.Nodes)), Slots: make([]SlotAssignment, 0, len(st.Slots)), Tasks: make([]ReconcileTask, 0, len(st.Tasks))}
 	if len(st.Controllers) > 0 {
 		snap.ControllerID = st.Controllers[0].NodeID
 	}
