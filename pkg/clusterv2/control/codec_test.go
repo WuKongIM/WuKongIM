@@ -126,6 +126,7 @@ func TestControlWriteResponsePreservesSemanticErrorIdentity(t *testing.T) {
 	}{
 		{name: "not leader", err: cv2.ErrNotLeader, want: cv2.ErrNotLeader},
 		{name: "not started", err: cv2.ErrNotStarted, want: cv2.ErrNotStarted},
+		{name: "stopped", err: cv2.ErrStopped, want: cv2.ErrStopped},
 		{name: "proposal rejected", err: cv2.ErrProposalRejected, want: cv2.ErrProposalRejected},
 		{name: "node lifecycle conflict", err: cv2.ErrNodeLifecycleConflict, want: cv2.ErrNodeLifecycleConflict},
 		{name: "node lifecycle not found", err: cv2.ErrNodeLifecycleNotFound, want: cv2.ErrNodeLifecycleNotFound},

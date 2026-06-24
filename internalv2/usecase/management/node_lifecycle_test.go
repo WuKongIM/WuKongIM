@@ -70,6 +70,31 @@ func TestJoinNodeMapsControlLifecycleConflict(t *testing.T) {
 	}
 }
 
+func TestJoinNodeMapsControlAvailabilityErrors(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+	}{
+		{name: "not leader", err: cv2.ErrNotLeader},
+		{name: "not started", err: cv2.ErrNotStarted},
+		{name: "stopped", err: cv2.ErrStopped},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			app := New(Options{NodeLifecycle: &nodeLifecycleWriterStub{joinErr: tt.err}})
+
+			_, err := app.JoinNode(context.Background(), JoinNodeRequest{NodeID: 4, Addr: "10.0.0.4:11110"})
+
+			if !errors.Is(err, ErrNodeLifecycleUnavailable) {
+				t.Fatalf("JoinNode() error = %v, want ErrNodeLifecycleUnavailable", err)
+			}
+			if !errors.Is(err, tt.err) {
+				t.Fatalf("JoinNode() error = %v, want wrapped %v", err, tt.err)
+			}
+		})
+	}
+}
+
 func TestActivateNodeDelegates(t *testing.T) {
 	writer := &nodeLifecycleWriterStub{
 		activateResult: control.ActivateNodeResult{
@@ -123,6 +148,31 @@ func TestActivateNodeMapsControlLifecycleErrors(t *testing.T) {
 
 			if !errors.Is(err, tt.want) {
 				t.Fatalf("ActivateNode() error = %v, want %v", err, tt.want)
+			}
+		})
+	}
+}
+
+func TestActivateNodeMapsControlAvailabilityErrors(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+	}{
+		{name: "not leader", err: cv2.ErrNotLeader},
+		{name: "not started", err: cv2.ErrNotStarted},
+		{name: "stopped", err: cv2.ErrStopped},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			app := New(Options{NodeLifecycle: &nodeLifecycleWriterStub{activateErr: tt.err}})
+
+			_, err := app.ActivateNode(context.Background(), ActivateNodeRequest{NodeID: 4})
+
+			if !errors.Is(err, ErrNodeLifecycleUnavailable) {
+				t.Fatalf("ActivateNode() error = %v, want ErrNodeLifecycleUnavailable", err)
+			}
+			if !errors.Is(err, tt.err) {
+				t.Fatalf("ActivateNode() error = %v, want wrapped %v", err, tt.err)
 			}
 		})
 	}

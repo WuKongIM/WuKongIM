@@ -176,6 +176,7 @@ type controlWriteResponseEnvelope struct {
 const (
 	controlWriteErrorCodeNotLeader         = "controllerv2_not_leader"
 	controlWriteErrorCodeNotStarted        = "controllerv2_not_started"
+	controlWriteErrorCodeStopped           = "controllerv2_stopped"
 	controlWriteErrorCodeProposalRejected  = "controllerv2_proposal_rejected"
 	controlWriteErrorCodeLifecycleConflict = "controllerv2_node_lifecycle_conflict"
 	controlWriteErrorCodeLifecycleNotFound = "controllerv2_node_lifecycle_not_found"
@@ -253,6 +254,8 @@ func controlWriteErrorCode(err error) string {
 		return controlWriteErrorCodeNotLeader
 	case errors.Is(err, cv2.ErrNotStarted):
 		return controlWriteErrorCodeNotStarted
+	case errors.Is(err, cv2.ErrStopped):
+		return controlWriteErrorCodeStopped
 	case errors.Is(err, cv2.ErrProposalRejected):
 		return controlWriteErrorCodeProposalRejected
 	case errors.Is(err, cv2.ErrNodeLifecycleConflict):
@@ -271,6 +274,8 @@ func controlWriteSemanticError(code, text string) error {
 		target = cv2.ErrNotLeader
 	case controlWriteErrorCodeNotStarted:
 		target = cv2.ErrNotStarted
+	case controlWriteErrorCodeStopped:
+		target = cv2.ErrStopped
 	case controlWriteErrorCodeProposalRejected:
 		target = cv2.ErrProposalRejected
 	case controlWriteErrorCodeLifecycleConflict:

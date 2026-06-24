@@ -38,6 +38,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/routing"
+	cv2 "github.com/WuKongIM/WuKongIM/pkg/controllerv2"
 	messagedb "github.com/WuKongIM/WuKongIM/pkg/db/message"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/gateway"
@@ -873,6 +874,48 @@ func TestManagerServerJoinsNodeFromClusterControl(t *testing.T) {
 	}
 	if cluster.joinNodeRequest.NodeID != 4 || cluster.joinNodeRequest.Name != "node-4" || cluster.joinNodeRequest.Addr != "10.0.0.4:11110" || cluster.joinNodeRequest.CapacityWeight != 2 {
 		t.Fatalf("join request = %#v, want parsed lifecycle request", cluster.joinNodeRequest)
+	}
+}
+
+func TestManagerServerMapsControllerLifecycleAvailabilityErrors(t *testing.T) {
+	cluster := &fakeManagerCluster{
+		nodeID:      1,
+		joinNodeErr: cv2.ErrNotLeader,
+	}
+	app, err := newTestApp(t, Config{
+		Manager: ManagerConfig{
+			ListenAddr: "127.0.0.1:0",
+			AuthOn:     true,
+			JWTSecret:  "test-secret",
+			JWTIssuer:  "wukongim-manager",
+			JWTExpire:  time.Hour,
+			Users: []ManagerUserConfig{{
+				Username: "admin",
+				Password: "secret",
+				Permissions: []ManagerPermissionConfig{{
+					Resource: "cluster.node",
+					Actions:  []string{"w"},
+				}},
+			}},
+		},
+	}, WithCluster(cluster), WithGateway(nil))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	srv, ok := app.manager.(*accessmanager.Server)
+	if !ok {
+		t.Fatalf("manager = %T, want *accessmanager.Server", app.manager)
+	}
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/manager/nodes/join", strings.NewReader(`{"node_id":4,"addr":"10.0.0.4:11110"}`))
+	req.Header.Set("Authorization", "Bearer "+mustIssueManagerTokenForAppTest(t, srv, "admin"))
+	req.Header.Set("Content-Type", "application/json")
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusServiceUnavailable, rec.Body.String())
 	}
 }
 
@@ -5044,8 +5087,10 @@ type fakeManagerCluster struct {
 	slotLeaderTransferResult  control.SlotLeaderTransferResult
 	joinNodeRequest           control.JoinNodeRequest
 	joinNodeResult            control.JoinNodeResult
+	joinNodeErr               error
 	activateNodeRequest       control.ActivateNodeRequest
 	activateNodeResult        control.ActivateNodeResult
+	activateNodeErr           error
 	retentionAdvance          metadb.ChannelRetentionAdvance
 }
 
@@ -5106,12 +5151,12 @@ func (f *fakeManagerCluster) RequestSlotLeaderTransfer(_ context.Context, req co
 
 func (f *fakeManagerCluster) JoinNode(_ context.Context, req control.JoinNodeRequest) (control.JoinNodeResult, error) {
 	f.joinNodeRequest = req
-	return f.joinNodeResult, nil
+	return f.joinNodeResult, f.joinNodeErr
 }
 
 func (f *fakeManagerCluster) ActivateNode(_ context.Context, req control.ActivateNodeRequest) (control.ActivateNodeResult, error) {
 	f.activateNodeRequest = req
-	return f.activateNodeResult, nil
+	return f.activateNodeResult, f.activateNodeErr
 }
 
 func (f *fakeManagerCluster) LocalControlSnapshot(context.Context) (control.Snapshot, error) {

@@ -123,6 +123,10 @@ func (a *App) ActivateNode(ctx context.Context, req ActivateNodeRequest) (Activa
 
 func mapNodeLifecycleError(err error) error {
 	switch {
+	case errors.Is(err, cv2.ErrNotLeader),
+		errors.Is(err, cv2.ErrNotStarted),
+		errors.Is(err, cv2.ErrStopped):
+		return fmt.Errorf("%w: %w", ErrNodeLifecycleUnavailable, err)
 	case errors.Is(err, cv2.ErrNodeLifecycleConflict):
 		return fmt.Errorf("%w: %v", ErrNodeLifecycleConflict, err)
 	case errors.Is(err, cv2.ErrNodeLifecycleNotFound):
