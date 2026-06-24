@@ -299,6 +299,100 @@ func TestRequestSlotLeaderTransferReusesExistingTaskAndRejectsConflicts(t *testi
 	}
 }
 
+func TestRequestSlotLeaderTransferRejectsExistingTaskWhenTargetInactive(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func(*control.Snapshot)
+	}{
+		{
+			name: "joining",
+			mutate: func(snapshot *control.Snapshot) {
+				snapshot.Nodes[1].JoinState = control.NodeJoinStateJoining
+			},
+		},
+		{
+			name: "leaving",
+			mutate: func(snapshot *control.Snapshot) {
+				snapshot.Nodes[1].JoinState = control.NodeJoinStateLeaving
+			},
+		},
+		{
+			name: "removed",
+			mutate: func(snapshot *control.Snapshot) {
+				snapshot.Nodes[1].JoinState = control.NodeJoinStateRemoved
+			},
+		},
+		{
+			name: "no data role",
+			mutate: func(snapshot *control.Snapshot) {
+				snapshot.Nodes[1].Roles = []control.Role{control.RoleController}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			writer := &fakeSlotLeaderTransferWriter{}
+			snapshot := leaderTransferSnapshot()
+			snapshot.Tasks = []control.ReconcileTask{
+				batchLeaderTransferTask("existing-transfer", 1, 1, 2, []uint64{1, 2, 3}, 7),
+			}
+			tt.mutate(&snapshot)
+			app := New(Options{
+				Cluster: fakeNodeSnapshotReader{snapshot: snapshot},
+				SlotRuntimeStatus: &fakeSlotRuntimeStatusReader{
+					statuses: map[uint32]SlotRuntimeStatus{
+						1: {SlotID: 1, LeaderID: 1, CurrentVoters: []uint64{1, 2, 3}},
+					},
+				},
+				LeaderTransfer: writer,
+			})
+
+			_, err := app.RequestSlotLeaderTransfer(context.Background(), SlotLeaderTransferRequest{SlotID: 1, TargetNode: 2})
+
+			if !errors.Is(err, metadb.ErrInvalidArgument) {
+				t.Fatalf("RequestSlotLeaderTransfer() error = %v, want %v", err, metadb.ErrInvalidArgument)
+			}
+			if len(writer.requests) != 0 {
+				t.Fatalf("writer requests = %#v, want none", writer.requests)
+			}
+		})
+	}
+}
+
+func TestRequestSlotLeaderTransferAllowsSuspectActiveTarget(t *testing.T) {
+	writer := &fakeSlotLeaderTransferWriter{
+		result: control.SlotLeaderTransferResult{
+			Created: true,
+			Task:    batchLeaderTransferTaskPtr("slot-1-leader-transfer-7-r9", 1, 1, 2, []uint64{1, 2, 3}, 7),
+		},
+	}
+	snapshot := leaderTransferSnapshot()
+	snapshot.Nodes[1].Status = control.NodeSuspect
+	snapshot.Nodes[1].JoinState = control.NodeJoinStateActive
+	app := New(Options{
+		Cluster: fakeNodeSnapshotReader{snapshot: snapshot},
+		SlotRuntimeStatus: &fakeSlotRuntimeStatusReader{
+			statuses: map[uint32]SlotRuntimeStatus{
+				1: {SlotID: 1, LeaderID: 1, CurrentVoters: []uint64{1, 2, 3}},
+			},
+		},
+		LeaderTransfer: writer,
+	})
+
+	got, err := app.RequestSlotLeaderTransfer(context.Background(), SlotLeaderTransferRequest{SlotID: 1, TargetNode: 2})
+
+	if err != nil {
+		t.Fatalf("RequestSlotLeaderTransfer() error = %v", err)
+	}
+	if !got.Created || got.TargetNode != 2 {
+		t.Fatalf("response = %#v, want created transfer to suspect active target 2", got)
+	}
+	if len(writer.requests) != 1 || writer.requests[0].TargetNode != 2 {
+		t.Fatalf("writer requests = %#v, want one request to target 2", writer.requests)
+	}
+}
+
 func TestRequestSlotLeaderTransferRejectsUnsafeRuntimeStateAsConflict(t *testing.T) {
 	tests := []struct {
 		name     string

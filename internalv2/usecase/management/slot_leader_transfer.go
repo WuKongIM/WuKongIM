@@ -116,6 +116,9 @@ func (a *App) RequestSlotLeaderTransfer(ctx context.Context, req SlotLeaderTrans
 
 	if task, ok := findActiveSlotTask(snapshot.Tasks, req.SlotID); ok {
 		if task.Kind == control.TaskKindLeaderTransfer && task.TargetNode == req.TargetNode {
+			if err := validateSlotLeaderTransferSnapshot(snapshot, assignment, req.TargetNode); err != nil {
+				return SlotLeaderTransferResponse{}, err
+			}
 			response.Task = slotTaskFromControl(task)
 			response.Message = SlotLeaderTransferMessageExistingTask
 			return response, nil

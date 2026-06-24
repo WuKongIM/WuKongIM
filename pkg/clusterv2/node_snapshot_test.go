@@ -111,7 +111,7 @@ func TestNodeControlWatchNodeOnlyChangeSkipsSlotReconcile(t *testing.T) {
 	}
 }
 
-func TestNodeAppliesAliveDataNodesForChannelPlacement(t *testing.T) {
+func TestNodeAppliesActiveDataNodesForChannelPlacement(t *testing.T) {
 	controller := control.NewStaticController(nodeControlSnapshot())
 	node, err := New(validNodeConfig(t), withController(controller), withSlotReconciler(&recordingReconciler{}))
 	if err != nil {

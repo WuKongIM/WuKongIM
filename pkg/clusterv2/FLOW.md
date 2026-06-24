@@ -315,10 +315,12 @@ fan-out is owned by `internalv2/usecase/management`, not clusterv2.
 Initial ChannelV2 placement is data-plane placement, not Slot metadata
 placement. Slot routing identifies the authoritative metadata Slot and its
 leader/peers; the default ChannelV2 placement resolver chooses replicas from
-alive data nodes using deterministic rendezvous ranking and uses the route
-preferred leader only when that node is selected as a ChannelV2 replica.
-Existing `ChannelRuntimeMeta` rows remain authoritative for established
-channels.
+effective-active data-role nodes using deterministic rendezvous ranking and
+uses the route preferred leader only when that node is selected as a ChannelV2
+replica. Placement intentionally ignores `NodeStatus` until health reports have
+freshness; joining, leaving, and removed data nodes remain visible but are not
+new placement candidates. Existing `ChannelRuntimeMeta` rows remain
+authoritative for established channels.
 
 ChannelV2 PullHint RPCs carry only a slim metadata reference and wakeup fields.
 An unloaded or newer-fence follower creates reactor-owned `PendingMeta` and

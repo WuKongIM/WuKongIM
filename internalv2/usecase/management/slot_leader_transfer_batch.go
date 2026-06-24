@@ -59,8 +59,11 @@ const (
 	SlotLeaderTransferBatchSkipMatchingTaskExists = "matching_task_exists"
 	// SlotLeaderTransferBatchSkipTargetInvalid reports that no valid target can be selected.
 	SlotLeaderTransferBatchSkipTargetInvalid = "target_invalid"
-	// SlotLeaderTransferBatchSkipTargetNotAliveDataNode reports that the target is absent or not active data-capable.
-	SlotLeaderTransferBatchSkipTargetNotAliveDataNode = "target_not_alive_data_node"
+	// SlotLeaderTransferBatchSkipTargetNotActiveDataNode reports that the target is absent or not active data-capable.
+	// The stable wire value keeps its legacy "alive" name for API compatibility.
+	SlotLeaderTransferBatchSkipTargetNotActiveDataNode = "target_not_alive_data_node"
+	// SlotLeaderTransferBatchSkipTargetNotAliveDataNode is a legacy-named alias for active data lifecycle validation.
+	SlotLeaderTransferBatchSkipTargetNotAliveDataNode = SlotLeaderTransferBatchSkipTargetNotActiveDataNode
 	// SlotLeaderTransferBatchSkipTargetNotDesiredPeer reports that the target is outside desired peers.
 	SlotLeaderTransferBatchSkipTargetNotDesiredPeer = "target_not_desired_peer"
 	// SlotLeaderTransferBatchSkipTargetNotCurrentVoter reports that the target is not in current Slot voters.
@@ -575,7 +578,7 @@ func validateBatchTarget(snapshot control.Snapshot, assignment control.SlotAssig
 		return SlotLeaderTransferBatchSkipTargetNotDesiredPeer
 	}
 	if !targetIsActiveDataNode(snapshot, targetNode) {
-		return SlotLeaderTransferBatchSkipTargetNotAliveDataNode
+		return SlotLeaderTransferBatchSkipTargetNotActiveDataNode
 	}
 	if !containsUint64(runtime.CurrentVoters, targetNode) {
 		return SlotLeaderTransferBatchSkipTargetNotCurrentVoter
@@ -596,7 +599,7 @@ func selectLeastLeadersTarget(snapshot control.Snapshot, assignment control.Slot
 			continue
 		}
 		if !targetIsActiveDataNode(snapshot, peer) {
-			blockReason = SlotLeaderTransferBatchSkipTargetNotAliveDataNode
+			blockReason = SlotLeaderTransferBatchSkipTargetNotActiveDataNode
 			continue
 		}
 		count := projectedLeaders[peer]
@@ -647,7 +650,7 @@ func appendBatchSkip(response *SlotLeaderTransferBatchPlanResponse, slotID uint3
 
 func batchTargetSkipMessage(reason string) string {
 	switch reason {
-	case SlotLeaderTransferBatchSkipTargetNotAliveDataNode:
+	case SlotLeaderTransferBatchSkipTargetNotActiveDataNode:
 		return "target node is not an active data node"
 	case SlotLeaderTransferBatchSkipTargetNotDesiredPeer:
 		return "target node is not a desired peer"

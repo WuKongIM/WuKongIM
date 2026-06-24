@@ -79,6 +79,83 @@ func TestPlanSlotLeaderTransfersSelectsCandidatesAndSkipsInStableOrder(t *testin
 	}
 }
 
+func TestPlanSlotLeaderTransfersAllowsSuspectActiveTarget(t *testing.T) {
+	snapshot := batchLeaderTransferSnapshot()
+	snapshot.Slots = snapshot.Slots[:1]
+	snapshot.Nodes[1].Status = control.NodeSuspect
+	snapshot.Nodes[1].JoinState = control.NodeJoinStateActive
+	app := New(Options{
+		Cluster: fakeNodeSnapshotReader{snapshot: snapshot},
+		SlotRuntimeStatus: &fakeSlotRuntimeStatusReader{
+			statuses: map[uint32]SlotRuntimeStatus{
+				1: {SlotID: 1, LeaderID: 1, CurrentVoters: []uint64{1, 2, 3}},
+			},
+		},
+	})
+
+	got, err := app.PlanSlotLeaderTransfers(context.Background(), SlotLeaderTransferBatchPlanRequest{
+		SourceNodeID: 1,
+		TargetNodeID: 2,
+		MaxTasks:     8,
+	})
+
+	if err != nil {
+		t.Fatalf("PlanSlotLeaderTransfers() error = %v", err)
+	}
+	if len(got.Candidates) != 1 || len(got.Skipped) != 0 {
+		t.Fatalf("plan = %#v, want one candidate and no skips for suspect active target", got)
+	}
+	if got.Candidates[0].TargetNodeID != 2 || got.Candidates[0].Action != SlotLeaderTransferBatchActionCreate {
+		t.Fatalf("candidate = %#v, want create candidate to target 2", got.Candidates[0])
+	}
+}
+
+func TestPlanSlotLeaderTransfersSkipsInactiveTargets(t *testing.T) {
+	if SlotLeaderTransferBatchSkipTargetNotActiveDataNode != SlotLeaderTransferBatchSkipTargetNotAliveDataNode {
+		t.Fatalf("active target skip reason = %q, want legacy alias %q", SlotLeaderTransferBatchSkipTargetNotActiveDataNode, SlotLeaderTransferBatchSkipTargetNotAliveDataNode)
+	}
+	tests := []struct {
+		name  string
+		state control.NodeJoinState
+	}{
+		{name: "joining", state: control.NodeJoinStateJoining},
+		{name: "leaving", state: control.NodeJoinStateLeaving},
+		{name: "removed", state: control.NodeJoinStateRemoved},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			snapshot := batchLeaderTransferSnapshot()
+			snapshot.Slots = snapshot.Slots[:1]
+			snapshot.Nodes[1].JoinState = tt.state
+			app := New(Options{
+				Cluster: fakeNodeSnapshotReader{snapshot: snapshot},
+				SlotRuntimeStatus: &fakeSlotRuntimeStatusReader{
+					statuses: map[uint32]SlotRuntimeStatus{
+						1: {SlotID: 1, LeaderID: 1, CurrentVoters: []uint64{1, 2, 3}},
+					},
+				},
+			})
+
+			got, err := app.PlanSlotLeaderTransfers(context.Background(), SlotLeaderTransferBatchPlanRequest{
+				SourceNodeID: 1,
+				TargetNodeID: 2,
+				MaxTasks:     8,
+			})
+
+			if err != nil {
+				t.Fatalf("PlanSlotLeaderTransfers() error = %v", err)
+			}
+			if len(got.Candidates) != 0 || len(got.Skipped) != 1 {
+				t.Fatalf("plan = %#v, want no candidates and one inactive target skip", got)
+			}
+			if got.Skipped[0].Reason != SlotLeaderTransferBatchSkipTargetNotActiveDataNode {
+				t.Fatalf("skip = %#v, want %q", got.Skipped[0], SlotLeaderTransferBatchSkipTargetNotActiveDataNode)
+			}
+		})
+	}
+}
+
 func TestPlanSlotLeaderTransfersCorrectsPreferredLeaderAfterActualMoved(t *testing.T) {
 	snapshot := batchLeaderTransferSnapshot()
 	snapshot.Slots = []control.SlotAssignment{{
