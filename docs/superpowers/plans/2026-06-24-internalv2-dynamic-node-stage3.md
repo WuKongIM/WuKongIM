@@ -4,7 +4,7 @@
 
 **Goal:** Add bounded Slot replica onboarding so activated dynamic data nodes can receive existing physical Slot replicas safely.
 
-**Architecture:** Stage 3 keeps `DesiredPeers` as the committed voter set and represents the target as task-local staged state until learner catch-up and promotion are proven. The manager creates bounded onboarding tasks; `pkg/clusterv2/tasks` executes Slot Raft config changes through the Slot leader and commits the final assignment only after observed voters match the target set.
+**Architecture:** Stage 3 keeps `DesiredPeers` as the committed voter set and represents the target as task-local staged state until learner catch-up and promotion are proven. The manager creates bounded onboarding tasks; `pkg/clusterv2/tasks` executes Slot Raft config changes through the Slot leader and commits the final assignment only after observed voters match the target set. Target nodes open learner Slot runtimes locally and idempotently before they are voters; this is not a `DesiredPeers` change.
 
 **Tech Stack:** Go, `pkg/slot/multiraft` config changes, `pkg/clusterv2/slots`, ControllerV2 task FSM, clusterv2 tasks executor, internalv2 manager onboarding APIs, e2ev2 SEND smoke.
 
@@ -21,13 +21,24 @@ This plan implements only the "Stage 3: Slot Onboarding" section of:
 
 Stage 3 does not mark nodes `leaving`, does not drain gateway connections, and does not migrate historical Channel replicas. It moves physical Slot replicas only.
 
+## Review Corrections
+
+Stage 3 must incorporate these corrections before production code changes:
+
+- Target learner opening is part of execution. A target node that is not yet in `DesiredPeers` must still open local Slot Raft storage/state machine through a dedicated `OpenLearner` path, otherwise incoming learner Raft messages can hit `ErrSlotNotFound`.
+- `ConfigAppliedIndex` means the exact applied Raft entry index where the latest config change was applied or observed. It must not be updated by unrelated normal entries.
+- `slot_replica_move` ControllerV2 validation must explicitly allow `TargetPeers` to differ from current `DesiredPeers` while the task is active, but only when `TargetPeers` equals the current assignment with `SourceNode` replaced by `TargetNode`.
+- Remove-voter is split across reconcile attempts. If the source node is still the Slot leader, the executor transfers leadership away, persists or keeps the `remove_voter` phase, and returns. A later reconcile on the observed Slot leader removes the source voter.
+- Use explicit ControllerV2 commands for slot replica move creation, phase advance, final commit, and cancellation. Do not hide this behind an unqualified generic task upsert.
+- Existing manager `advance`/`cancel` routes require precise writer surfaces; if cancellation lands in Stage 3 it must be a fenced Controller command, not HTTP-only glue.
+
 ## Entry Gate
 
 - [ ] Stage 2 is implemented and committed.
 - [ ] Dynamic join e2ev2 passes:
 
 ```bash
-go test ./test/e2ev2/cluster/dynamic_node_join -run TestDynamicJoinFourthDataNode -count=1
+GOWORK=off go test -tags=e2e ./test/e2ev2/cluster/dynamic_node_join -run TestDynamicJoinFourthDataNode -count=1
 ```
 
 ## File Structure
@@ -43,7 +54,7 @@ go test ./test/e2ev2/cluster/dynamic_node_join -run TestDynamicJoinFourthDataNod
 - Modify `pkg/clusterv2/slots/runtime.go`
   - Delegates `ChangeConfig` to `multiraft.Runtime`.
 - Modify `pkg/clusterv2/slots/manager.go`
-  - Adds `OpenLearner` so task executors can open target storage without calling `BootstrapSlot`.
+  - Adds `OpenLearner` so task executors can open target storage without calling `BootstrapSlot` or requiring `DesiredPeers` membership.
 - Modify `pkg/clusterv2/control/snapshot.go`
   - Adds `TaskKindSlotReplicaMove`, task steps, task-local target peer fields, and durable phase fence fields.
 - Modify `pkg/controllerv2/state/types.go`, `pkg/controllerv2/state/validate.go`, `pkg/controllerv2/command/command.go`, `pkg/controllerv2/fsm/*`
@@ -75,6 +86,7 @@ go test ./test/e2ev2/cluster/dynamic_node_join -run TestDynamicJoinFourthDataNod
 - Modify: `pkg/slot/multiraft/step_test.go`
 - Modify: `pkg/clusterv2/slots/types.go`
 - Modify: `pkg/clusterv2/slots/runtime.go`
+- Modify: `pkg/clusterv2/slots/manager.go`
 
 - [ ] **Step 1: Write failing multiraft status tests**
 
@@ -115,7 +127,7 @@ func TestRuntimeStatusIncludesLearnersConfStateAndProgress(t *testing.T) {
 Run:
 
 ```bash
-go test ./pkg/slot/multiraft -run TestRuntimeStatusIncludesLearnersConfStateAndProgress -count=1
+GOWORK=off go test ./pkg/slot/multiraft -run TestRuntimeStatusIncludesLearnersConfStateAndProgress -count=1
 ```
 
 Expected: FAIL because the extended `Status` fields are not defined.
@@ -174,17 +186,30 @@ func (a *Adapter) ChangeConfig(ctx context.Context, slotID multiraft.SlotID, cha
 }
 ```
 
-- [ ] **Step 5: Run Slot runtime tests and verify GREEN**
+- [ ] **Step 5: Add target learner open contract**
+
+Add `OpenLearner(ctx, assignment)` to `pkg/clusterv2/slots.Manager`. It must:
+
+- validate manager wiring and positive `SlotID`;
+- return nil when the local Slot runtime is already open;
+- open existing local storage with `Runtime.OpenSlot`;
+- if storage has no hard state yet, open an empty local Slot runtime suitable for later learner Raft traffic;
+- never call `BootstrapSlot`;
+- never require the local node to be in `assignment.DesiredPeers`.
+
+Add a focused `pkg/clusterv2/slots` test proving `OpenLearner` opens local storage for a non-desired target and does not bootstrap voters.
+
+- [ ] **Step 6: Run Slot runtime tests and verify GREEN**
 
 Run:
 
 ```bash
-go test ./pkg/slot/multiraft ./pkg/clusterv2/slots -run 'TestRuntimeStatusIncludesLearnersConfStateAndProgress|TestChangeConfig' -count=1
+GOWORK=off go test ./pkg/slot/multiraft ./pkg/clusterv2/slots -run 'TestRuntimeStatusIncludesLearnersConfStateAndProgress|TestChangeConfig|TestManagerOpenLearner' -count=1
 ```
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit Slot runtime contract**
+- [ ] **Step 7: Commit Slot runtime contract**
 
 ```bash
 git add pkg/slot/multiraft pkg/clusterv2/slots
@@ -272,9 +297,10 @@ In `pkg/controllerv2/state/types.go`, add:
 Add task steps:
 
 ```go
-	TaskStepAddLearner      TaskStep = "add_learner"
-	TaskStepPromoteLearner  TaskStep = "promote_learner"
-	TaskStepRemoveVoter     TaskStep = "remove_voter"
+	TaskStepOpenLearner      TaskStep = "open_learner"
+	TaskStepAddLearner       TaskStep = "add_learner"
+	TaskStepPromoteLearner   TaskStep = "promote_learner"
+	TaskStepRemoveVoter      TaskStep = "remove_voter"
 	TaskStepCommitAssignment TaskStep = "commit_assignment"
 ```
 
@@ -317,7 +343,7 @@ func (r *Runtime) RequestSlotReplicaMove(ctx context.Context, req SlotReplicaMov
 		TaskID:           taskID,
 		SlotID:           req.SlotID,
 		Kind:             state.TaskKindSlotReplicaMove,
-		Step:             state.TaskStepAddLearner,
+		Step:             state.TaskStepOpenLearner,
 		SourceNode:       req.SourceNode,
 		TargetNode:       req.TargetNode,
 		TargetPeers:      append([]uint64(nil), req.TargetPeers...),
@@ -328,7 +354,7 @@ func (r *Runtime) RequestSlotReplicaMove(ctx context.Context, req SlotReplicaMov
 	}
 	expectedRevision := req.StateRevision
 	if err := r.proposeTaskCommand(ctx, command.Command{
-		Kind:             command.KindUpsertTask,
+		Kind:             command.KindUpsertSlotReplicaMoveTask,
 		ExpectedRevision: &expectedRevision,
 		Task:             &task,
 	}); err != nil {
@@ -338,7 +364,16 @@ func (r *Runtime) RequestSlotReplicaMove(ctx context.Context, req SlotReplicaMov
 }
 ```
 
-If the command package keeps a single task upsert path, add `KindUpsertTask` and a matching FSM handler that only writes `Tasks`; it must not change `Slots`.
+Add an explicit `KindUpsertSlotReplicaMoveTask` command and matching FSM handler that only writes `Tasks`; it must not change `Slots`.
+
+Validation must enforce:
+
+- the current Slot assignment exists and `ConfigEpoch` matches;
+- `SourceNode` is in current `DesiredPeers`;
+- `TargetNode` is active data membership and is not already in current `DesiredPeers`;
+- `TargetPeers` equals current `DesiredPeers` with `SourceNode` replaced by `TargetNode`;
+- only one active task per Slot remains allowed;
+- `CompletionPolicy` is `single_observer` and participant progress is empty.
 
 - [ ] **Step 4: Add fenced phase advance and final assignment commit commands**
 
@@ -365,7 +400,7 @@ type SlotReplicaMovePhaseAdvance struct {
 }
 ```
 
-The FSM handler must reject stale phase advances when task ID, attempt, config epoch, expected phase index, or task kind does not match. It must increment `PhaseIndex`, set `Step`, and persist the observed config index/voters/learners.
+The FSM handler must reject stale phase advances when task ID, attempt, config epoch, expected phase index, or task kind does not match. It must increment `PhaseIndex`, set `Step`, and persist the observed config index/voters/learners. It must also re-check the assignment guards above so phase writes cannot outlive a conflicting assignment change.
 
 Add a ControllerV2 command for the executor's final phase:
 
@@ -380,9 +415,14 @@ The FSM handler must:
 - require observed voters to equal `TargetPeers`;
 - require the task step to be `commit_assignment`;
 - require `ObservedConfigIndex` to be non-zero;
+- require current assignment `ConfigEpoch` to equal task `ConfigEpoch`;
+- require current `DesiredPeers` to still contain `SourceNode` and not contain `TargetNode`;
+- require `TargetPeers` to still equal current `DesiredPeers` with `SourceNode` replaced by `TargetNode`;
 - replace `DesiredPeers` with `TargetPeers`;
 - increment `ConfigEpoch`;
 - remove the completed task.
+
+Add `KindCancelSlotReplicaMoveTask` only if the manager `cancel` route is implemented in this stage. It must be fenced by task ID, Slot ID, task kind, config epoch, attempt, and expected revision, and should fail the task with bounded reason `operator_cancelled`.
 
 - [ ] **Step 5: Add crash-resume FSM tests**
 
@@ -392,7 +432,7 @@ Add tests to `pkg/controllerv2/fsm/fsm_test.go`:
 func TestApplyAdvanceSlotReplicaMovePhasePersistsFence(t *testing.T) {
 	sm := newLoadedStateMachine(t)
 	task := stagedSlotReplicaMoveTask("slot-1-replica-move-1-to-4-r9")
-	applyOK(t, sm, 2, command.Command{Kind: command.KindUpsertTask, Task: &task})
+	applyOK(t, sm, 2, command.Command{Kind: command.KindUpsertSlotReplicaMoveTask, Task: &task})
 
 	result, err := sm.Apply(context.Background(), 3, command.Command{
 		Kind: command.KindAdvanceSlotReplicaMovePhase,
@@ -415,7 +455,7 @@ func TestApplyAdvanceSlotReplicaMovePhaseRejectsStalePhase(t *testing.T) {
 	sm := newLoadedStateMachine(t)
 	task := stagedSlotReplicaMoveTask("slot-1-replica-move-1-to-4-r9")
 	task.PhaseIndex = 1
-	applyOK(t, sm, 2, command.Command{Kind: command.KindUpsertTask, Task: &task})
+	applyOK(t, sm, 2, command.Command{Kind: command.KindUpsertSlotReplicaMoveTask, Task: &task})
 
 	result, err := sm.Apply(context.Background(), 3, command.Command{
 		Kind: command.KindAdvanceSlotReplicaMovePhase,
@@ -453,14 +493,14 @@ type SlotReplicaMoveResult struct {
 }
 ```
 
-Extend the Stage 2 generic control-write path instead of using task-result RPC:
+Extend the Stage 2 generic control-write path instead of using task-result RPC. Update `pkg/clusterv2/control/control_write.go`, codec, runtime, and transport handler together:
 
 - add `ControlWriteActionSlotReplicaMove = "slot_replica_move"` to `pkg/clusterv2/control/codec.go`;
 - add `SlotReplicaMove *SlotReplicaMoveRequest` and `SlotReplicaMove *SlotReplicaMoveResult` to `ControlWriteRequest` and `ControlWriteResponse`;
 - add `RequestSlotReplicaMove(context.Context, SlotReplicaMoveRequest) (SlotReplicaMoveResult, error)` to `ControlWriteApplier`;
 - add `Runtime.RequestSlotReplicaMove` using `forwardControlWrite` when the local node is not Controller leader.
 
-Do not add Slot replica move creation to `TaskApplier`; `TaskApplier` remains for task result/progress writes.
+Do not add Slot replica move creation to `TaskApplier`; `TaskApplier` remains for task result/progress writes. Phase advance, final commit, and cancel may use task-result RPC only if their applier methods are explicitly typed and fenced; otherwise use the generic control-write path.
 
 - [ ] **Step 7: Run ControllerV2 and control tests**
 
@@ -485,6 +525,7 @@ git commit -m "feat: add staged slot replica move intent"
 - Create: `pkg/clusterv2/tasks/slot_replica_move.go`
 - Create: `pkg/clusterv2/tasks/slot_replica_move_test.go`
 - Modify: `pkg/clusterv2/default_slots.go`
+- Modify: `pkg/clusterv2/slots/manager.go`
 
 - [ ] **Step 1: Write failing executor tests**
 
@@ -510,7 +551,7 @@ func TestSlotReplicaMoveExecutorAddsLearnerBeforeDesiredPeersChange(t *testing.T
 		Role:          multiraft.RoleLeader,
 	}}
 	writer := &fakeSlotReplicaMoveWriter{}
-	executor := NewSlotReplicaMoveExecutor(SlotReplicaMoveExecutorConfig{LocalNode: 1, Runtime: runtime, Writer: writer})
+	executor := NewSlotReplicaMoveExecutor(SlotReplicaMoveExecutorConfig{LocalNode: 1, Runtime: runtime, MoveWriter: writer})
 
 	snap := control.Snapshot{
 		Slots: []control.SlotAssignment{{SlotID: 1, DesiredPeers: []uint64{1, 2, 3}, ConfigEpoch: 7, PreferredLeader: 1}},
@@ -534,6 +575,27 @@ func TestSlotReplicaMoveExecutorAddsLearnerBeforeDesiredPeersChange(t *testing.T
 	}
 	if writer.completed {
 		t.Fatal("completed before learner catch-up")
+	}
+}
+
+func TestSlotReplicaMoveExecutorOpensTargetLearnerBeforeDesiredPeersChange(t *testing.T) {
+	opener := &fakeLearnerOpener{}
+	executor := NewSlotReplicaMoveExecutor(SlotReplicaMoveExecutorConfig{LocalNode: 4, Learners: opener, MoveWriter: &fakeSlotReplicaMoveWriter{}})
+	task := control.ReconcileTask{
+		TaskID: "slot-1-replica-move-1-to-4-r9", SlotID: 1, Kind: control.TaskKindSlotReplicaMove,
+		Step: control.TaskStepOpenLearner, SourceNode: 1, TargetNode: 4,
+		TargetPeers: []uint64{2, 3, 4}, ConfigEpoch: 7,
+	}
+	snap := control.Snapshot{
+		HashSlots: control.HashSlotTable{Ranges: []control.HashSlotRange{{From: 0, To: 3, SlotID: 1}}},
+		Slots: []control.SlotAssignment{{SlotID: 1, DesiredPeers: []uint64{1, 2, 3}, ConfigEpoch: 7}},
+		Tasks: []control.ReconcileTask{task},
+	}
+	if err := executor.Reconcile(context.Background(), snap); err != nil {
+		t.Fatalf("Reconcile() error = %v", err)
+	}
+	if len(opener.opened) != 1 || opener.opened[0].SlotID != 1 {
+		t.Fatalf("opened = %#v, want target learner slot 1", opener.opened)
 	}
 }
 
@@ -591,6 +653,10 @@ type SlotReplicaMoveRuntime interface {
 	TransferLeadership(context.Context, multiraft.SlotID, multiraft.NodeID) error
 }
 
+type SlotLearnerOpener interface {
+	OpenLearner(context.Context, slots.Assignment) error
+}
+
 type SlotReplicaMoveWriter interface {
 	AdvanceSlotReplicaMovePhase(context.Context, control.SlotReplicaMovePhaseAdvance) error
 	CommitSlotReplicaMove(context.Context, control.SlotReplicaMoveCommit) error
@@ -600,9 +666,10 @@ type SlotReplicaMoveWriter interface {
 type SlotReplicaMoveExecutorConfig struct {
 	LocalNode uint64
 	Runtime   SlotReplicaMoveRuntime
+	Learners  SlotLearnerOpener
 	MoveWriter SlotReplicaMoveWriter
 	PollMax   int
-	PollDelay  time.Duration
+	PollInterval  time.Duration
 }
 
 type SlotReplicaMoveExecutor struct {
@@ -613,8 +680,8 @@ func NewSlotReplicaMoveExecutor(cfg SlotReplicaMoveExecutorConfig) *SlotReplicaM
 	if cfg.PollMax == 0 {
 		cfg.PollMax = 30
 	}
-	if cfg.PollDelay == 0 {
-		cfg.PollDelay = 10 * time.Millisecond
+	if cfg.PollInterval == 0 {
+		cfg.PollInterval = 10 * time.Millisecond
 	}
 	return &SlotReplicaMoveExecutor{cfg: cfg}
 }
@@ -623,11 +690,12 @@ func NewSlotReplicaMoveExecutor(cfg SlotReplicaMoveExecutorConfig) *SlotReplicaM
 `Reconcile` must:
 
 - execute only `TaskKindSlotReplicaMove`;
-- run only on the current Slot leader;
+- on the `TargetNode`, call `Learners.OpenLearner` idempotently while `Step` is `open_learner` or later and return without mutating `DesiredPeers`;
+- run Slot Raft config changes only on the current Slot leader;
 - use `task.Step` and `task.PhaseIndex` as the source of truth after restart;
 - call `ChangeConfig(AddLearner)` while target is absent from voters, then call `MoveWriter.AdvanceSlotReplicaMovePhase` with `NextStep: TaskStepPromoteLearner`;
 - wait until `CurrentLearners` contains target and target progress has caught up to `CommitIndex`, then call `ChangeConfig(PromoteLearner)` and persist `NextStep: TaskStepRemoveVoter`;
-- transfer leadership away from `SourceNode` when the source is still leader, then call `ChangeConfig(RemoveVoter)` and persist `NextStep: TaskStepCommitAssignment`;
+- when `Step` is `remove_voter` and the source is still leader, transfer leadership away from `SourceNode` and return; the next reconcile on the observed Slot leader performs `ChangeConfig(RemoveVoter)` and persists `NextStep: TaskStepCommitAssignment`;
 - call `MoveWriter.CommitSlotReplicaMove` only after observed voters equal `TargetPeers`, `ObservedConfigIndex` is non-zero, and the task step is `commit_assignment`;
 - call `FailTask` with a bounded error when a phase cannot prove its fence.
 
@@ -639,6 +707,7 @@ In `pkg/clusterv2/default_slots.go`, add to the composite executor:
 tasks.NewSlotReplicaMoveExecutor(tasks.SlotReplicaMoveExecutorConfig{
 	LocalNode: n.cfg.NodeID,
 	Runtime:   runtime,
+	Learners:  manager,
 	MoveWriter: n.control,
 }),
 ```
@@ -753,7 +822,7 @@ POST /manager/nodes/:node_id/onboarding/advance
 POST /manager/nodes/:node_id/onboarding/cancel
 ```
 
-`start` and `advance` call the same bounded executor path and create at most `max_slot_moves` new tasks per request. `cancel` marks pending onboarding tasks failed with reason `operator_cancelled` through the Controller task writer.
+`start` and `advance` call the same bounded planner path and create at most `max_slot_moves` new tasks per request. `cancel` marks pending onboarding tasks failed with reason `operator_cancelled` through an explicit fenced Controller command. If that cancel writer is not implemented in this stage, omit the route rather than adding HTTP-only behavior.
 
 - [ ] **Step 4: Run manager tests**
 
@@ -819,7 +888,7 @@ func TestSlotReplicaMoveKeepsSendAvailable(t *testing.T) {
 Run:
 
 ```bash
-go test ./test/e2ev2/cluster/dynamic_node_join -run TestSlotReplicaMoveKeepsSendAvailable -count=1
+GOWORK=off go test -tags=e2e ./test/e2ev2/cluster/dynamic_node_join -run TestSlotReplicaMoveKeepsSendAvailable -count=1
 ```
 
 Expected: PASS.
@@ -852,9 +921,9 @@ git commit -m "test: verify slot onboarding send continuity"
 - [ ] Run full Stage 3 verification:
 
 ```bash
-go test ./pkg/slot/multiraft ./pkg/clusterv2/slots ./pkg/controllerv2 ./pkg/clusterv2/control ./pkg/clusterv2/tasks ./pkg/clusterv2
-go test ./internalv2/usecase/management ./internalv2/access/manager ./internalv2/app
-go test ./test/e2ev2/cluster/dynamic_node_join -run 'TestDynamicJoinFourthDataNode|TestSlotReplicaMoveKeepsSendAvailable' -count=1
+GOWORK=off go test ./pkg/slot/multiraft ./pkg/clusterv2/slots ./pkg/controllerv2 ./pkg/clusterv2/control ./pkg/clusterv2/tasks ./pkg/clusterv2
+GOWORK=off go test ./internalv2/usecase/management ./internalv2/access/manager ./internalv2/app
+GOWORK=off go test -tags=e2e ./test/e2ev2/cluster/dynamic_node_join -run 'TestDynamicJoinFourthDataNode|TestSlotReplicaMoveKeepsSendAvailable' -count=1
 git diff --check
 ```
 
