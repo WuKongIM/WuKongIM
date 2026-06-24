@@ -192,6 +192,7 @@ func (l *seedJoinLoop) joinObserved(ctx context.Context) bool {
 	if l == nil || l.snapshots == nil || l.cfg.NodeID == 0 {
 		return false
 	}
+	expectedAddr := strings.TrimSpace(l.cfg.AdvertiseAddr)
 	snapshot, err := l.snapshots.LocalControlSnapshot(ctx)
 	if err != nil {
 		l.logger.Debug("seed join snapshot read failed",
@@ -204,6 +205,9 @@ func (l *seedJoinLoop) joinObserved(ctx context.Context) bool {
 	for _, node := range snapshot.Nodes {
 		if node.NodeID != l.cfg.NodeID {
 			continue
+		}
+		if expectedAddr != "" && strings.TrimSpace(node.Addr) != expectedAddr {
+			return false
 		}
 		switch node.JoinState {
 		case "", control.NodeJoinStateJoining, control.NodeJoinStateActive:

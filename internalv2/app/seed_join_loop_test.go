@@ -127,6 +127,30 @@ func TestSeedJoinLoopStopsAfterMirrorSeesJoiningNode(t *testing.T) {
 	}
 }
 
+func TestSeedJoinLoopIgnoresSameNodeIDWithDifferentAddr(t *testing.T) {
+	snapshots := &fakeSeedJoinSnapshotReader{}
+	snapshots.set(control.Snapshot{
+		Revision: 8,
+		Nodes: []control.Node{{
+			NodeID:    4,
+			Addr:      "10.0.0.99:11110",
+			JoinState: control.NodeJoinStateJoining,
+		}},
+	})
+	loop := newSeedJoinLoop(seedJoinLoopConfig{
+		NodeID:        4,
+		AdvertiseAddr: "10.0.0.4:11110",
+		ClusterID:     "cluster-a",
+		JoinToken:     "join-secret",
+		Seeds:         []uint64{1},
+		Interval:      5 * time.Millisecond,
+	}, &fakeSeedJoinClient{}, snapshots, wklog.NewNop())
+
+	if loop.joinObserved(context.Background()) {
+		t.Fatal("joinObserved = true for same node id with different addr, want false")
+	}
+}
+
 type fakeSeedJoinSnapshotReader struct {
 	mu       sync.Mutex
 	snapshot control.Snapshot

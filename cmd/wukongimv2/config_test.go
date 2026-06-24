@@ -1374,6 +1374,27 @@ func TestLoadConfigScriptFiles(t *testing.T) {
 	}
 }
 
+func TestLoadConfigStaticNodeScriptFilesSetJoinToken(t *testing.T) {
+	unsetLoadConfigEnv(t)
+
+	files := []string{
+		filepath.Join("..", "..", "scripts", "wukongimv2", "wukongimv2-node1.conf"),
+		filepath.Join("..", "..", "scripts", "wukongimv2", "wukongimv2-node2.conf"),
+		filepath.Join("..", "..", "scripts", "wukongimv2", "wukongimv2-node3.conf"),
+	}
+	for _, file := range files {
+		t.Run(filepath.Base(file), func(t *testing.T) {
+			cfg, err := loadConfig([]string{"-config", file})
+			if err != nil {
+				t.Fatalf("loadConfig(%s) error = %v", file, err)
+			}
+			if cfg.Cluster.Join.Token == "" {
+				t.Fatalf("Cluster.Join.Token is empty for %s, want static seed join token", file)
+			}
+		})
+	}
+}
+
 func TestLoadConfigRejectsInvalidValues(t *testing.T) {
 	cases := []struct {
 		name    string
