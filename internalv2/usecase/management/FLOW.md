@@ -81,11 +81,11 @@ misses are omitted from the row rather than failing the inventory response.
 Active task summaries are derived from the same clusterv2 control snapshot and
 attached to the matching Slot row. Slot leader-transfer requests use the same
 control snapshot plus a live Slot runtime status reader to validate the current
-leader, voter quorum, desired peers, and target-node health before submitting a
-Controller-backed task intent. The usecase does not read ControllerV2 state
-directly and only exposes this narrow task mutation route; Slot detail,
-rebalance, recovery, and add/remove operation routes are outside this migration
-step.
+leader, voter quorum, desired peers, and target-node active data lifecycle
+before submitting a Controller-backed task intent. The usecase does not read
+ControllerV2 state directly and only exposes this narrow task mutation route;
+Slot detail, rebalance, recovery, and add/remove operation routes are outside
+this migration step.
 
 ## Slot Leader Transfer Flow
 
@@ -99,14 +99,15 @@ manager HTTP handler
 ```
 
 The usecase rejects invalid IDs, missing Slot assignments, existing conflicting
-tasks, targets outside desired peers, unavailable or non-data target nodes, and
+tasks, targets outside desired peers, non-active or non-data target nodes, and
 runtime voter sets that cannot prove quorum. Already-leader and same-task
 requests are no-ops and do not require the writer port to be wired. New task
 creation is delegated to the writer port with source leader, target leader,
 target peers, config epoch, and observed control-state revision. Management
 validation is intentionally limited to the current Slot Raft leader, voter set,
-desired peers, and target-node health; it does not inspect target match index or
-predict whether Raft will ultimately choose the preferred target.
+desired peers, and target-node active data lifecycle; it does not inspect target
+health status, target match index, or predict whether Raft will ultimately
+choose the preferred target.
 
 ## Slot Leader Transfer Batch Plan Flow
 

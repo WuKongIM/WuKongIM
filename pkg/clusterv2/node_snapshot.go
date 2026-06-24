@@ -80,7 +80,7 @@ func (n *Node) applySnapshot(ctx context.Context, snapshot control.Snapshot) err
 		}
 	}
 	if firstSnapshot || changes.nodes {
-		n.channelDataNodes.Update(aliveDataNodeIDs(snapshot.Nodes))
+		n.channelDataNodes.Update(activeDataNodeIDs(snapshot.Nodes))
 	}
 	n.mu.Lock()
 	n.controlSnapshot = snapshot.Clone()
@@ -139,16 +139,27 @@ func routeAuthorityFromTable(table *routing.Table, hashSlot uint16) (routeAuthor
 	return routeAuthorityKey{slotID: slotID, leaderNodeID: table.SlotLeaders[slotID], leaderTerm: table.SlotLeaderTerms[slotID], configEpoch: table.SlotConfigEpochs[slotID], revision: table.Revision}, true
 }
 
-func aliveDataNodeIDs(nodes []control.Node) []uint64 {
+// activeDataNodeIDs intentionally ignores NodeStatus until health reports have freshness.
+func activeDataNodeIDs(nodes []control.Node) []uint64 {
 	out := make([]uint64, 0, len(nodes))
 	for _, node := range nodes {
-		if node.Status != control.NodeAlive || !hasControlRole(node.Roles, control.RoleData) {
+		if !hasControlRole(node.Roles, control.RoleData) {
+			continue
+		}
+		if controlNodeJoinState(node.JoinState) != control.NodeJoinStateActive {
 			continue
 		}
 		out = append(out, node.NodeID)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
 	return out
+}
+
+func controlNodeJoinState(state control.NodeJoinState) control.NodeJoinState {
+	if state == "" {
+		return control.NodeJoinStateActive
+	}
+	return state
 }
 
 func hasControlRole(roles []control.Role, role control.Role) bool {

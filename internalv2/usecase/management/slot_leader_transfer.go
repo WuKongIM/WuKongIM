@@ -184,12 +184,24 @@ func validateSlotLeaderTransferSnapshot(snapshot control.Snapshot, assignment co
 		if node.NodeID != targetNode {
 			continue
 		}
-		if node.Status == control.NodeAlive && hasRole(node.Roles, control.RoleData) {
+		if isActiveDataNode(node) {
 			return nil
 		}
 		return metadb.ErrInvalidArgument
 	}
 	return metadb.ErrInvalidArgument
+}
+
+func isActiveDataNode(node control.Node) bool {
+	return hasRole(node.Roles, control.RoleData) &&
+		managerControlJoinState(node.JoinState) == control.NodeJoinStateActive
+}
+
+func managerControlJoinState(state control.NodeJoinState) control.NodeJoinState {
+	if state == "" {
+		return control.NodeJoinStateActive
+	}
+	return state
 }
 
 func validateSlotLeaderTransferRuntime(runtime SlotRuntimeStatus, assignment control.SlotAssignment, targetNode uint64) error {

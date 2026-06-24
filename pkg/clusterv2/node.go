@@ -55,7 +55,7 @@ type Node struct {
 	slots           slotReconciler
 	tasks           taskExecutor
 	channels        channelService
-	// channelDataNodes tracks alive data-role nodes for default ChannelV2 placement.
+	// channelDataNodes tracks active data-role nodes for default ChannelV2 placement.
 	channelDataNodes dataNodeView
 	// defaultControl reports whether Node constructed the Controller runtime.
 	defaultControl bool

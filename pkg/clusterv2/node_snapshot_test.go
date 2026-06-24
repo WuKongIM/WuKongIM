@@ -131,15 +131,18 @@ func TestNodeAppliesAliveDataNodesForChannelPlacement(t *testing.T) {
 	next := nodeControlSnapshot()
 	next.Revision = 2
 	next.Nodes = append(next.Nodes,
-		control.Node{NodeID: 4, Addr: "127.0.0.1:1004", Roles: []control.Role{control.RoleData}, Status: control.NodeAlive},
-		control.Node{NodeID: 5, Addr: "127.0.0.1:1005", Roles: []control.Role{control.RoleData}, Status: control.NodeDown},
+		control.Node{NodeID: 4, Addr: "127.0.0.1:1004", Roles: []control.Role{control.RoleData}, Status: control.NodeAlive, JoinState: control.NodeJoinStateActive},
+		control.Node{NodeID: 5, Addr: "127.0.0.1:1005", Roles: []control.Role{control.RoleData}, Status: control.NodeAlive, JoinState: control.NodeJoinStateJoining},
+		control.Node{NodeID: 6, Addr: "127.0.0.1:1006", Roles: []control.Role{control.RoleData}, Status: control.NodeAlive, JoinState: control.NodeJoinStateLeaving},
+		control.Node{NodeID: 7, Addr: "127.0.0.1:1007", Roles: []control.Role{control.RoleData}, Status: control.NodeAlive, JoinState: control.NodeJoinStateRemoved},
+		control.Node{NodeID: 8, Addr: "127.0.0.1:1008", Roles: []control.Role{control.RoleData}, Status: control.NodeSuspect, JoinState: control.NodeJoinStateActive},
 	)
 	if err := controller.Publish(next); err != nil {
 		t.Fatalf("Publish() error = %v", err)
 	}
 	waitUntil(t, func() bool {
 		got = node.channelDataNodes.DataNodes()
-		return equalUint64s(got, []uint64{1, 2, 3, 4})
+		return equalUint64s(got, []uint64{1, 2, 3, 4, 8})
 	})
 }
 

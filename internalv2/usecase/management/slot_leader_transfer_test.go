@@ -180,10 +180,10 @@ func TestRequestSlotLeaderTransferRejectsInvalidSnapshotTargets(t *testing.T) {
 			wantErr: metadb.ErrInvalidArgument,
 		},
 		{
-			name: "target node not alive",
+			name: "target node leaving",
 			snapshot: func() control.Snapshot {
 				snapshot := leaderTransferSnapshot()
-				snapshot.Nodes[1].Status = control.NodeSuspect
+				snapshot.Nodes[1].JoinState = control.NodeJoinStateLeaving
 				return snapshot
 			}(),
 			target:  2,
@@ -223,6 +223,32 @@ func TestRequestSlotLeaderTransferRejectsInvalidSnapshotTargets(t *testing.T) {
 				t.Fatalf("writer requests = %#v, want no call for invalid snapshot target", writer.requests)
 			}
 		})
+	}
+}
+
+func TestRequestSlotLeaderTransferRejectsJoiningTarget(t *testing.T) {
+	writer := &fakeSlotLeaderTransferWriter{}
+	snapshot := leaderTransferSnapshot()
+	snapshot.Nodes[1].JoinState = control.NodeJoinStateJoining
+	app := New(Options{
+		Cluster: fakeNodeSnapshotReader{snapshot: snapshot},
+		SlotRuntimeStatus: &fakeSlotRuntimeStatusReader{
+			statuses: map[uint32]SlotRuntimeStatus{
+				1: {SlotID: 1, LeaderID: 1, CurrentVoters: []uint64{1, 2, 3}},
+			},
+		},
+		LeaderTransfer: writer,
+	})
+
+	_, err := app.RequestSlotLeaderTransfer(context.Background(), SlotLeaderTransferRequest{
+		SlotID:     1,
+		TargetNode: 2,
+	})
+	if err == nil {
+		t.Fatal("RequestSlotLeaderTransfer() error = nil, want joining target rejection")
+	}
+	if len(writer.requests) != 0 {
+		t.Fatalf("writer requests = %#v, want none", writer.requests)
 	}
 }
 
