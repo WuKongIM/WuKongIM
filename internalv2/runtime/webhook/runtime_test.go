@@ -110,6 +110,54 @@ func TestRuntimeRetriesThenDrops(t *testing.T) {
 	}
 }
 
+func TestRuntimeNegativeRetryMaxAttemptsAttemptsOnce(t *testing.T) {
+	sender := &failingSender{}
+	observer := &recordingObserver{}
+	rt, err := New(RuntimeOptions{
+		Sender:              sender,
+		Observer:            observer,
+		QueueSize:           4,
+		Workers:             1,
+		NotifyBatchMaxItems: 1,
+		NotifyBatchMaxWait:  time.Millisecond,
+		OnlineBatchMaxItems: 1,
+		OnlineBatchMaxWait:  time.Millisecond,
+		OfflineUIDBatchSize: 1,
+		RequestTimeout:      time.Second,
+		RetryMaxAttempts:    -1,
+	})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	defer rt.Stop(context.Background())
+	if err := rt.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	rt.Notify(context.Background(), Message{MessageID: 1, MessageSeq: 1})
+	waitUntil(t, time.Second, func() bool { return observer.hasResult(EventMsgNotify, "retry_exhausted") })
+	if got := sender.calls.Load(); got != 1 {
+		t.Fatalf("sender calls = %d, want 1", got)
+	}
+}
+
+func TestRuntimeRejectsZeroRequestTimeout(t *testing.T) {
+	_, err := New(RuntimeOptions{
+		Sender:              &recordingSender{requests: make(chan SendRequest, 1)},
+		QueueSize:           4,
+		Workers:             1,
+		NotifyBatchMaxItems: 1,
+		NotifyBatchMaxWait:  time.Millisecond,
+		OnlineBatchMaxItems: 1,
+		OnlineBatchMaxWait:  time.Millisecond,
+		OfflineUIDBatchSize: 1,
+		RequestTimeout:      0,
+		RetryMaxAttempts:    1,
+	})
+	if err == nil {
+		t.Fatalf("New() error = nil, want error")
+	}
+}
+
 func TestRuntimeFocusEventsFiltersDisabledEvents(t *testing.T) {
 	sender := &recordingSender{requests: make(chan SendRequest, 2)}
 	observer := &recordingObserver{}

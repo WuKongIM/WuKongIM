@@ -74,10 +74,10 @@ func New(opts RuntimeOptions) (*Runtime, error) {
 	if opts.Sender == nil || opts.QueueSize <= 0 || opts.Workers <= 0 {
 		return nil, workqueue.ErrInvalidConfig
 	}
-	if opts.NotifyBatchMaxWait < 0 || opts.OnlineBatchMaxWait < 0 || opts.RequestTimeout < 0 {
+	if opts.NotifyBatchMaxWait < 0 || opts.OnlineBatchMaxWait < 0 || opts.RequestTimeout <= 0 {
 		return nil, workqueue.ErrInvalidConfig
 	}
-	if opts.NotifyBatchMaxItems < 0 || opts.OnlineBatchMaxItems < 0 || opts.OfflineUIDBatchSize < 0 || opts.RetryMaxAttempts < 0 {
+	if opts.NotifyBatchMaxItems < 0 || opts.OnlineBatchMaxItems < 0 || opts.OfflineUIDBatchSize < 0 {
 		return nil, workqueue.ErrInvalidConfig
 	}
 	if opts.NotifyBatchMaxItems == 0 {
