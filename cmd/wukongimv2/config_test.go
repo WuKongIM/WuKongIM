@@ -784,23 +784,68 @@ func TestLoadConfigSeedJoinMode(t *testing.T) {
 }
 
 func TestLoadConfigRejectsSeedJoinWithStaticNodes(t *testing.T) {
-	unsetLoadConfigEnv(t)
-	dir := t.TempDir()
-	path := filepath.Join(dir, "wukongim.conf")
-	writeConf(t, path,
-		"WK_NODE_ID=4",
-		"WK_NODE_DATA_DIR="+filepath.Join(dir, "node-4"),
-		"WK_CLUSTER_LISTEN_ADDR=0.0.0.0:7014",
-		"WK_CLUSTER_ID=dev-three",
-		`WK_CLUSTER_SEEDS=["127.0.0.1:7011"]`,
-		"WK_CLUSTER_ADVERTISE_ADDR=127.0.0.1:7014",
-		"WK_CLUSTER_JOIN_TOKEN=join-secret",
-		`WK_CLUSTER_NODES=[{"id":1,"addr":"127.0.0.1:7011"}]`,
-	)
+	for _, tt := range []struct {
+		name      string
+		extra     []string
+		wantError string
+	}{
+		{
+			name: "seeds with static nodes",
+			extra: []string{
+				`WK_CLUSTER_SEEDS=["127.0.0.1:7011"]`,
+				"WK_CLUSTER_ADVERTISE_ADDR=127.0.0.1:7014",
+				"WK_CLUSTER_JOIN_TOKEN=join-secret",
+				`WK_CLUSTER_NODES=[{"id":1,"addr":"127.0.0.1:7011"}]`,
+			},
+			wantError: "WK_CLUSTER_SEEDS",
+		},
+		{
+			name:      "advertise addr without seeds",
+			extra:     []string{"WK_CLUSTER_ADVERTISE_ADDR=127.0.0.1:7014"},
+			wantError: "WK_CLUSTER_SEEDS",
+		},
+		{
+			name:      "join token without seeds",
+			extra:     []string{"WK_CLUSTER_JOIN_TOKEN=join-secret"},
+			wantError: "WK_CLUSTER_SEEDS",
+		},
+		{
+			name:      "seeds missing advertise addr",
+			extra:     []string{`WK_CLUSTER_SEEDS=["127.0.0.1:7011"]`, "WK_CLUSTER_JOIN_TOKEN=join-secret"},
+			wantError: "WK_CLUSTER_ADVERTISE_ADDR",
+		},
+		{
+			name:      "seeds missing join token",
+			extra:     []string{`WK_CLUSTER_SEEDS=["127.0.0.1:7011"]`, "WK_CLUSTER_ADVERTISE_ADDR=127.0.0.1:7014"},
+			wantError: "WK_CLUSTER_JOIN_TOKEN",
+		},
+		{
+			name: "partial join with static nodes",
+			extra: []string{
+				"WK_CLUSTER_ADVERTISE_ADDR=127.0.0.1:7014",
+				`WK_CLUSTER_NODES=[{"id":1,"addr":"127.0.0.1:7011"}]`,
+			},
+			wantError: "WK_CLUSTER_SEEDS",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			unsetLoadConfigEnv(t)
+			dir := t.TempDir()
+			path := filepath.Join(dir, "wukongim.conf")
+			lines := []string{
+				"WK_NODE_ID=4",
+				"WK_NODE_DATA_DIR=" + filepath.Join(dir, "node-4"),
+				"WK_CLUSTER_LISTEN_ADDR=0.0.0.0:7014",
+				"WK_CLUSTER_ID=dev-three",
+			}
+			lines = append(lines, tt.extra...)
+			writeConf(t, path, lines...)
 
-	_, err := loadConfig([]string{"-config", path})
-	if err == nil || !strings.Contains(err.Error(), "WK_CLUSTER_SEEDS") {
-		t.Fatalf("loadConfig() error = %v, want WK_CLUSTER_SEEDS conflict", err)
+			_, err := loadConfig([]string{"-config", path})
+			if err == nil || !strings.Contains(err.Error(), tt.wantError) {
+				t.Fatalf("loadConfig() error = %v, want %s", err, tt.wantError)
+			}
+		})
 	}
 }
 
@@ -1293,6 +1338,7 @@ func TestLoadConfigRejectsInvalidValues(t *testing.T) {
 		{name: "commit coordinator shards", line: "WK_CLUSTER_COMMIT_COORDINATOR_SHARDS=many", wantKey: "WK_CLUSTER_COMMIT_COORDINATOR_SHARDS"},
 		{name: "commit coordinator shards negative", line: "WK_CLUSTER_COMMIT_COORDINATOR_SHARDS=-1", wantKey: "WK_CLUSTER_COMMIT_COORDINATOR_SHARDS"},
 		{name: "cluster nodes json", line: "WK_CLUSTER_NODES=not-json", wantKey: "WK_CLUSTER_NODES"},
+		{name: "cluster seeds empty value", line: "WK_CLUSTER_SEEDS=", wantKey: "WK_CLUSTER_SEEDS"},
 		{name: "cluster seeds json", line: "WK_CLUSTER_SEEDS=not-json", wantKey: "WK_CLUSTER_SEEDS"},
 		{name: "cluster seeds empty list", line: "WK_CLUSTER_SEEDS=[]", wantKey: "WK_CLUSTER_SEEDS"},
 		{name: "cluster seeds null", line: "WK_CLUSTER_SEEDS=null", wantKey: "WK_CLUSTER_SEEDS"},

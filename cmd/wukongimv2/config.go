@@ -329,19 +329,31 @@ func buildConfig(values map[string]string) (app.Config, error) {
 	cfg.Cluster.ListenAddr = listenAddr
 
 	cfg.Cluster.Control.ClusterID = configValue(values, "WK_CLUSTER_ID")
-	if raw := configValue(values, "WK_CLUSTER_SEEDS"); raw != "" {
-		seeds, err := parseClusterSeeds(raw)
+	joinConfigPresent := configKeyPresent(values, "WK_CLUSTER_SEEDS") ||
+		configKeyPresent(values, "WK_CLUSTER_ADVERTISE_ADDR") ||
+		configKeyPresent(values, "WK_CLUSTER_JOIN_TOKEN")
+	if joinConfigPresent {
+		cfg.Cluster.Control.Role = clusterv2.ControlRoleMirror
+		cfg.Cluster.Control.AllowBootstrap = false
+		if configKeyPresent(values, "WK_CLUSTER_NODES") {
+			return app.Config{}, fmt.Errorf("load config: WK_CLUSTER_SEEDS cannot be combined with WK_CLUSTER_NODES")
+		}
+
+		seeds, err := parseClusterSeeds(configValue(values, "WK_CLUSTER_SEEDS"))
 		if err != nil {
 			return app.Config{}, err
 		}
-		cfg.Cluster.Join.Seeds = seeds
-		cfg.Cluster.Join.AdvertiseAddr = configValue(values, "WK_CLUSTER_ADVERTISE_ADDR")
-		cfg.Cluster.Join.Token = configValue(values, "WK_CLUSTER_JOIN_TOKEN")
-		cfg.Cluster.Control.Role = clusterv2.ControlRoleMirror
-		cfg.Cluster.Control.AllowBootstrap = false
-		if configValue(values, "WK_CLUSTER_NODES") != "" {
-			return app.Config{}, fmt.Errorf("load config: WK_CLUSTER_SEEDS cannot be combined with WK_CLUSTER_NODES")
+		advertiseAddr := configValue(values, "WK_CLUSTER_ADVERTISE_ADDR")
+		if advertiseAddr == "" {
+			return app.Config{}, fmt.Errorf("load config: WK_CLUSTER_ADVERTISE_ADDR is required when WK_CLUSTER_SEEDS is set")
 		}
+		token := configValue(values, "WK_CLUSTER_JOIN_TOKEN")
+		if token == "" {
+			return app.Config{}, fmt.Errorf("load config: WK_CLUSTER_JOIN_TOKEN is required when WK_CLUSTER_SEEDS is set")
+		}
+		cfg.Cluster.Join.Seeds = seeds
+		cfg.Cluster.Join.AdvertiseAddr = advertiseAddr
+		cfg.Cluster.Join.Token = token
 	}
 	if raw := configValue(values, "WK_CLUSTER_NODES"); raw != "" {
 		nodes, err := parseClusterNodes(raw)
@@ -1543,6 +1555,11 @@ func parseDuration(key, raw string) (time.Duration, error) {
 
 func configValue(values map[string]string, key string) string {
 	return strings.TrimSpace(values[key])
+}
+
+func configKeyPresent(values map[string]string, key string) bool {
+	_, ok := values[key]
+	return ok
 }
 
 func requiredConfigValue(values map[string]string, key string) (string, error) {
