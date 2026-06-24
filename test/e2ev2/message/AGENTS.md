@@ -12,6 +12,7 @@ This domain covers black-box message and conversation behavior for
 | Scenario | Purpose | Run |
 | --- | --- | --- |
 | `single_node_send` | Prove `cmd/wukongimv2` can complete one single-node cluster WKProto `SEND -> SENDACK` closure and expose sender/receiver rows through `/conversation/list`. | `GOWORK=off go test -tags=e2e ./test/e2ev2/message/single_node_send -count=1` |
+| `webhook` | Prove a single-node cluster posts `user.onlinestatus`, `msg.notify`, and `msg.offline` webhook callbacks to an external HTTP endpoint after a real WKProto SEND. | `GOWORK=off go test -tags=e2e ./test/e2ev2/message/webhook -count=1 -timeout 2m -p=1` |
 | `send_permission` | Prove `cmd/wukongimv2` enforces migrated legacy send-permission decisions through public channel-management and `/message/send` HTTP APIs. | `GOWORK=off go test -tags=e2e ./test/e2ev2/message/send_permission -count=1` |
 | `recipient_authority` | Prove `cmd/wukongimv2` routes committed group messages through recipient UID authority, updates subscriber-owned `/conversation/list` rows, and exposes low-cardinality authority metrics, with an opt-in 100k subscriber stress path. | `GOWORK=off go test -tags=e2e ./test/e2ev2/message/recipient_authority -count=1` |
 | `cross_node_delivery` | Prove a static three-node `cmd/wukongimv2` cluster can deliver person-channel messages between users connected to different nodes in both directions. | `GOWORK=off go test -tags=e2e ./test/e2ev2/message/cross_node_delivery -count=1 -timeout 2m` |
