@@ -133,6 +133,7 @@ func (n *Node) ensureDefaultTransport() error {
 		Observer:  n.cfg.Transport.Observer,
 		PoolSize:  1000,
 	})
+	n.slotStatusCaller = n.transportClient
 	n.defaultTransport = true
 	n.registeredRPCHandlers = make(map[uint8]struct{})
 	return nil
@@ -294,6 +295,7 @@ func (n *Node) discardDefaultTransport() {
 	server := n.transportServer
 	n.transportClient = nil
 	n.transportServer = nil
+	n.slotStatusCaller = nil
 	n.defaultTransport = false
 	n.registeredRPCHandlers = nil
 	n.mu.Unlock()

@@ -45,16 +45,17 @@ type channelService interface {
 
 // Node is the clusterv2 lifecycle root and public runtime facade.
 type Node struct {
-	cfg             Config
-	resources       []lifecycle.NamedResource
-	control         control.Controller
-	router          *routing.Router
-	discovery       *clusternet.Discovery
-	transportServer *clusternet.TransportServer
-	transportClient *clusternet.TransportClient
-	slots           slotReconciler
-	tasks           taskExecutor
-	channels        channelService
+	cfg              Config
+	resources        []lifecycle.NamedResource
+	control          control.Controller
+	router           *routing.Router
+	discovery        *clusternet.Discovery
+	transportServer  *clusternet.TransportServer
+	transportClient  *clusternet.TransportClient
+	slotStatusCaller clusternet.Caller
+	slots            slotReconciler
+	tasks            taskExecutor
+	channels         channelService
 	// channelDataNodes tracks active data-role nodes for default ChannelV2 placement.
 	channelDataNodes dataNodeView
 	// defaultControl reports whether Node constructed the Controller runtime.

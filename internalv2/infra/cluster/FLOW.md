@@ -59,7 +59,10 @@ join and readiness RPCs. It maps the readiness wire DTO into the management
 usecase's entry-independent `NodeReadiness` shape, but it does not validate
 membership, choose activation timing, rebalance Slots, or call ActivateNode.
 The seed-side handler still routes durable join writes through the management
-usecase and clusterv2 control writer.
+usecase and clusterv2 control writer. Activation readiness is checked through
+the typed node lifecycle RPC; callers should not substitute raw TCP probes for
+the transport-ready gate because the RPC response also carries the target
+mirror cluster ID, mirror revision, and app runtime readiness.
 
 ## Management Channel List Flow
 

@@ -128,6 +128,12 @@ configured `Join.Seeds` addresses are converted into temporary state-sync peer
 IDs used only for transport discovery and ControllerV2 mirror sync. After the
 first real control snapshot arrives, normal membership discovery is installed
 while those seed peers remain available for later mirror refreshes.
+Once a seed-join mirror sees its own membership state become `active`, it still
+does not host Slot replicas in Stage 2. It therefore refreshes foreground Slot
+routes by batching `RPCSlotStatus` reads to the existing desired Slot peers and
+installing the observed actual leader and term. While the mirrored local state
+is still `joining`, it does not install preferred leaders and public readiness
+continues to be activation-only.
 
 ControllerV2 changes enter clusterv2 as strongly typed `controllerv2.ClusterState` events. `pkg/clusterv2/control` maps those events to `control.Snapshot`; `Node` then compares node, Slot, task, and hash-slot domains before touching discovery, Slot runtime reconciliation, or foreground routing.
 

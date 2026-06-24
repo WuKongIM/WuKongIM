@@ -214,6 +214,103 @@ func TestStartWaitsForSeedJoinAdmissionBeforeGateway(t *testing.T) {
 	}
 }
 
+func TestSeedJoinStartSkipsClusterWriteReadinessBeforeActivation(t *testing.T) {
+	calls := make([]string, 0, 4)
+	cluster := &fakeSeedJoinWriteReadyCluster{
+		fakeWriteReadyCluster: fakeWriteReadyCluster{
+			fakeCluster: fakeCluster{calls: &calls},
+			snapshots: []clusterv2.Snapshot{{
+				RoutesReady:   true,
+				SlotsReady:    true,
+				ChannelsReady: true,
+				HashSlotCount: 1,
+			}},
+		},
+		nodeID: 4,
+		controlSnapshot: control.Snapshot{
+			Nodes: []control.Node{
+				{NodeID: 1, Addr: "10.0.0.1:11110", JoinState: control.NodeJoinStateActive},
+				{NodeID: 4, Addr: "10.0.0.4:11110", JoinState: control.NodeJoinStateJoining},
+			},
+		},
+	}
+	gateway := &fakeGateway{calls: &calls}
+	app, err := newTestApp(t, Config{
+		NodeID: 4,
+		Cluster: clusterv2.Config{
+			NodeID: 4,
+			Control: clusterv2.ControlConfig{
+				ClusterID: "cluster-a",
+			},
+			Join: clusterv2.JoinConfig{
+				Seeds:         []string{"10.0.0.1:11110"},
+				AdvertiseAddr: "10.0.0.4:11110",
+				Token:         "join-secret",
+			},
+		},
+	}, WithCluster(cluster), WithGateway(gateway))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	if err := app.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	if got := joinCalls(calls); got != "cluster.start,gateway.start" {
+		t.Fatalf("calls = %s, want seed join startup to skip write route/probe before gateway", got)
+	}
+}
+
+func TestSeedJoinActiveRestartWaitsForClusterWriteReadiness(t *testing.T) {
+	calls := make([]string, 0, 4)
+	cluster := &fakeSeedJoinWriteReadyCluster{
+		fakeWriteReadyCluster: fakeWriteReadyCluster{
+			fakeCluster: fakeCluster{calls: &calls},
+			snapshots: []clusterv2.Snapshot{{
+				RoutesReady:   true,
+				SlotsReady:    true,
+				ChannelsReady: true,
+				HashSlotCount: 1,
+			}},
+		},
+		nodeID: 4,
+		controlSnapshot: control.Snapshot{
+			Nodes: []control.Node{
+				{NodeID: 1, Addr: "10.0.0.1:11110", JoinState: control.NodeJoinStateActive},
+				{NodeID: 4, Addr: "10.0.0.4:11110", JoinState: control.NodeJoinStateActive},
+			},
+		},
+	}
+	gateway := &fakeGateway{calls: &calls}
+	app, err := newTestApp(t, Config{
+		NodeID: 4,
+		Cluster: clusterv2.Config{
+			NodeID: 4,
+			Control: clusterv2.ControlConfig{
+				ClusterID: "cluster-a",
+			},
+			Join: clusterv2.JoinConfig{
+				Seeds:         []string{"10.0.0.1:11110"},
+				AdvertiseAddr: "10.0.0.4:11110",
+				Token:         "join-secret",
+			},
+		},
+	}, WithCluster(cluster), WithGateway(gateway))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond)
+	defer cancel()
+	err = app.Start(ctx)
+	if err == nil || !strings.Contains(err.Error(), "cluster write readiness") {
+		t.Fatalf("Start() error = %v, want cluster write readiness failure", err)
+	}
+	if got := joinCalls(calls); strings.Contains(got, "gateway.start") {
+		t.Fatalf("calls = %s, want no gateway.start before active seed join write readiness", got)
+	}
+}
+
 func TestGatewayStartFailureStopsCluster(t *testing.T) {
 	gatewayErr := errors.New("gateway start failed")
 	calls := make([]string, 0, 3)
@@ -5634,6 +5731,24 @@ func (f *fakeWriteReadyCluster) ProbeWriteReady(context.Context) error {
 	err := f.probeErrors[0]
 	f.probeErrors = f.probeErrors[1:]
 	return err
+}
+
+type fakeSeedJoinWriteReadyCluster struct {
+	fakeWriteReadyCluster
+	nodeID          uint64
+	controlSnapshot control.Snapshot
+}
+
+func (f *fakeSeedJoinWriteReadyCluster) NodeID() uint64 {
+	return f.nodeID
+}
+
+func (f *fakeSeedJoinWriteReadyCluster) LocalControlSnapshot(context.Context) (control.Snapshot, error) {
+	return f.controlSnapshot, nil
+}
+
+func (f *fakeSeedJoinWriteReadyCluster) CallRPC(context.Context, uint64, uint8, []byte) ([]byte, error) {
+	return nil, nil
 }
 
 type fakePresenceCluster struct {

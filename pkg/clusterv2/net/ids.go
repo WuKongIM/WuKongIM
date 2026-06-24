@@ -79,6 +79,8 @@ const (
 	RPCManagerMessageRetention
 	// RPCNodeLifecycle serves internalv2 seed join and readiness RPCs.
 	RPCNodeLifecycle
+	// RPCSlotStatus serves clusterv2 Slot leader status snapshots.
+	RPCSlotStatus
 )
 
 func transportServiceAlias(serviceID uint8) string {
@@ -155,6 +157,8 @@ func transportServiceAlias(serviceID uint8) string {
 		return "controller write"
 	case RPCPluginBindingScan:
 		return "plugin binding scan"
+	case RPCSlotStatus:
+		return "slot status"
 	default:
 		return "unknown service"
 	}

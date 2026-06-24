@@ -3,11 +3,14 @@ package clusterv2
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
+	clusternet "github.com/WuKongIM/WuKongIM/pkg/clusterv2/net"
+	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/routing"
 )
 
 func TestNodeStartAppliesControlSnapshot(t *testing.T) {
@@ -32,6 +35,48 @@ func TestNodeStartAppliesControlSnapshot(t *testing.T) {
 	}
 }
 
+func TestSeedJoinJoiningMirrorDoesNotInstallPreferredSlotLeaders(t *testing.T) {
+	node := seedJoinMirrorRouteNodeForTest(4, &fakeSlotStatusCaller{statuses: []routing.SlotStatus{{SlotID: 1, Leader: 2, LeaderTerm: 9}}})
+	node.started.Store(true)
+	snapshot := nodeControlSnapshot()
+	snapshot.Nodes = append(snapshot.Nodes, control.Node{
+		NodeID:    4,
+		Addr:      "127.0.0.1:1004",
+		Roles:     []control.Role{control.RoleData},
+		JoinState: control.NodeJoinStateJoining,
+	})
+
+	if err := node.applySnapshot(context.Background(), snapshot); err != nil {
+		t.Fatalf("applySnapshot() error = %v", err)
+	}
+	if _, err := node.RouteHashSlot(0); !errors.Is(err, ErrNoSlotLeader) {
+		t.Fatalf("RouteHashSlot() error = %v, want ErrNoSlotLeader while joining", err)
+	}
+}
+
+func TestSeedJoinActiveMirrorInstallsRemoteObservedSlotLeaders(t *testing.T) {
+	node := seedJoinMirrorRouteNodeForTest(4, &fakeSlotStatusCaller{statuses: []routing.SlotStatus{{SlotID: 1, Leader: 2, LeaderTerm: 9}}})
+	node.started.Store(true)
+	snapshot := nodeControlSnapshot()
+	snapshot.Nodes = append(snapshot.Nodes, control.Node{
+		NodeID:    4,
+		Addr:      "127.0.0.1:1004",
+		Roles:     []control.Role{control.RoleData},
+		JoinState: control.NodeJoinStateActive,
+	})
+
+	if err := node.applySnapshot(context.Background(), snapshot); err != nil {
+		t.Fatalf("applySnapshot() error = %v", err)
+	}
+	route, err := node.RouteHashSlot(0)
+	if err != nil {
+		t.Fatalf("RouteHashSlot() error = %v", err)
+	}
+	if route.Leader != 2 || route.LeaderTerm != 9 || route.PreferredLeader != 1 || route.SlotID != 1 {
+		t.Fatalf("route = %#v, want remote observed leader 2 term 9 on slot 1", route)
+	}
+}
+
 func TestNodeControlWatchUpdatesRouteRevision(t *testing.T) {
 	controller := control.NewStaticController(nodeControlSnapshot())
 	node, err := New(validNodeConfig(t), withController(controller), withSlotReconciler(&recordingReconciler{}))
@@ -51,6 +96,33 @@ func TestNodeControlWatchUpdatesRouteRevision(t *testing.T) {
 	waitUntil(t, func() bool {
 		return node.Snapshot().StateRevision == 2
 	})
+}
+
+func seedJoinMirrorRouteNodeForTest(nodeID uint64, caller clusternet.Caller) *Node {
+	return &Node{
+		cfg: Config{
+			NodeID: nodeID,
+			Join: JoinConfig{
+				Seeds:         []string{"127.0.0.1:1001"},
+				AdvertiseAddr: "127.0.0.1:1004",
+				Token:         "join-secret",
+			},
+		},
+		router:               routing.NewRouter(),
+		slotStatusCaller:     caller,
+		routeAuthorityEpochs: map[uint16]uint64{},
+	}
+}
+
+type fakeSlotStatusCaller struct {
+	statuses []routing.SlotStatus
+}
+
+func (f *fakeSlotStatusCaller) Call(_ context.Context, _ uint64, serviceID uint8, _ []byte) ([]byte, error) {
+	if serviceID != clusternet.RPCSlotStatus {
+		return nil, fmt.Errorf("unexpected service id %d", serviceID)
+	}
+	return encodeSlotStatusResponse(f.statuses)
 }
 
 func TestNodeControlSnapshotObserverSeesInitialAndWatchedSnapshots(t *testing.T) {

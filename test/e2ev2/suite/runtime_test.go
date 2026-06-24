@@ -52,6 +52,72 @@ func TestStartThreeNodeClusterWritesManagerConfigWhenEnabled(t *testing.T) {
 	}
 }
 
+func TestStartThreeNodeClusterWritesDynamicJoinTokenWhenConfigured(t *testing.T) {
+	t.Setenv("WK_E2EV2_BINARY", writeFakeNodeBinary(t))
+
+	cluster := New(t).StartThreeNodeCluster(WithDynamicJoinToken("join-secret"))
+
+	require.Len(t, cluster.Nodes, 3)
+	for _, node := range cluster.Nodes {
+		cfg, err := os.ReadFile(node.Spec.ConfigPath)
+		require.NoError(t, err)
+		require.Contains(t, string(cfg), "WK_CLUSTER_JOIN_TOKEN=join-secret\n")
+		require.Empty(t, cluster.options.nodeConfigOverrides[node.Spec.ID]["WK_CLUSTER_JOIN_TOKEN"])
+	}
+}
+
+func TestRenderSeedJoinNodeConfigOmitsStaticClusterNodes(t *testing.T) {
+	spec := NodeSpec{
+		ID:          4,
+		DataDir:     t.TempDir(),
+		ClusterAddr: "127.0.0.1:7014",
+		APIAddr:     "127.0.0.1:7024",
+		GatewayAddr: "127.0.0.1:7034",
+		LogDir:      t.TempDir(),
+	}
+
+	cfg := RenderSeedJoinNodeConfig(spec, SeedJoinNodeConfig{
+		NodeID:    4,
+		Seeds:     []string{"127.0.0.1:7011", "127.0.0.1:7012"},
+		JoinToken: "join-secret",
+	})
+
+	require.Contains(t, cfg, "WK_CLUSTER_ID=wukongimv2-e2ev2-three\n")
+	require.Contains(t, cfg, `WK_CLUSTER_SEEDS=["127.0.0.1:7011","127.0.0.1:7012"]`+"\n")
+	require.Contains(t, cfg, "WK_CLUSTER_ADVERTISE_ADDR=127.0.0.1:7014\n")
+	require.Contains(t, cfg, "WK_CLUSTER_JOIN_TOKEN=join-secret\n")
+	require.Contains(t, cfg, "WK_CLUSTER_SLOT_REPLICA_N=3\n")
+	require.NotContains(t, cfg, "WK_CLUSTER_NODES=")
+}
+
+func TestStartedClusterSeedAddrsAreSortedByNodeID(t *testing.T) {
+	cluster := StartedCluster{
+		Nodes: []StartedNode{
+			{Spec: NodeSpec{ID: 3, ClusterAddr: "node-3"}},
+			{Spec: NodeSpec{ID: 1, ClusterAddr: "node-1"}},
+			{Spec: NodeSpec{ID: 2, ClusterAddr: "node-2"}},
+		},
+	}
+
+	require.Equal(t, []string{"node-1", "node-2", "node-3"}, cluster.SeedAddrs())
+}
+
+func TestSameSlotAssignmentsIgnoresOrdering(t *testing.T) {
+	a := []SlotDTO{
+		{SlotID: 2, Assignment: SlotAssignmentDTO{DesiredPeers: []uint64{1, 2, 3}, PreferredLeaderID: 2, ConfigEpoch: 9}},
+		{SlotID: 1, Assignment: SlotAssignmentDTO{DesiredPeers: []uint64{1, 2, 3}, PreferredLeaderID: 1, ConfigEpoch: 8}},
+	}
+	b := []SlotDTO{
+		{SlotID: 1, Assignment: SlotAssignmentDTO{DesiredPeers: []uint64{1, 2, 3}, PreferredLeaderID: 1, ConfigEpoch: 8}},
+		{SlotID: 2, Assignment: SlotAssignmentDTO{DesiredPeers: []uint64{1, 2, 3}, PreferredLeaderID: 2, ConfigEpoch: 9}},
+	}
+
+	require.True(t, SameSlotAssignments(a, b))
+
+	b[1].Assignment.DesiredPeers = []uint64{1, 2, 4}
+	require.False(t, SameSlotAssignments(a, b))
+}
+
 func TestStartedClusterNodeLookupByID(t *testing.T) {
 	cluster := StartedCluster{
 		Nodes: []StartedNode{

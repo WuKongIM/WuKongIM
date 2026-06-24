@@ -3,6 +3,7 @@ package clusterv2
 import (
 	"context"
 	"errors"
+	"net"
 	"path/filepath"
 	"reflect"
 	"testing"
@@ -367,6 +368,11 @@ func TestNodeDefaultSeedJoinMirrorSyncsFromSeedAddresses(t *testing.T) {
 	if snapshot.Revision == 0 || snapshot.ControllerID != 1 {
 		t.Fatalf("joining snapshot = %#v, want seed control snapshot", snapshot)
 	}
+	conn, err := net.DialTimeout("tcp", joinAddr, time.Second)
+	if err != nil {
+		t.Fatalf("dial joining mirror transport %s: %v", joinAddr, err)
+	}
+	_ = conn.Close()
 }
 
 func TestNodeDefaultSeedJoinMirrorSyncsThroughFollowerSeedRedirect(t *testing.T) {

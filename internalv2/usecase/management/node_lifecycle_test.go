@@ -3,6 +3,7 @@ package management
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
@@ -138,6 +139,9 @@ func TestActivateNodeRejectsWhenReadinessIsUnknown(t *testing.T) {
 	if !errors.Is(err, ErrNodeNotReadyForActivation) {
 		t.Fatalf("ActivateNode() error = %v, want ErrNodeNotReadyForActivation", err)
 	}
+	if !strings.Contains(err.Error(), "readiness unknown") {
+		t.Fatalf("ActivateNode() error = %v, want readiness detail", err)
+	}
 	if writer.activateReq.NodeID != 0 {
 		t.Fatalf("writer activate request = %#v, want no activation write", writer.activateReq)
 	}
@@ -164,6 +168,9 @@ func TestActivateNodeRequiresMirrorClusterAndRevision(t *testing.T) {
 
 	if !errors.Is(err, ErrNodeNotReadyForActivation) {
 		t.Fatalf("ActivateNode() error = %v, want ErrNodeNotReadyForActivation", err)
+	}
+	if !strings.Contains(err.Error(), "mirror_revision=21 min_revision=22") {
+		t.Fatalf("ActivateNode() error = %v, want revision detail", err)
 	}
 	if writer.activateReq.NodeID != 0 {
 		t.Fatalf("writer activate request = %#v, want no activation write", writer.activateReq)

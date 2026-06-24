@@ -117,6 +117,192 @@ func TestAppNodeReadinessReportsMirrorClusterAndRuntimeGates(t *testing.T) {
 	}
 }
 
+func TestSeedJoinNodeReadinessUsesGatewayRuntimeBeforeSlotRoutes(t *testing.T) {
+	cluster := &fakeReadinessCluster{
+		fakeManagerCluster: fakeManagerCluster{
+			nodeID: 4,
+			snapshot: control.Snapshot{
+				ClusterID: "cluster-a",
+				Revision:  22,
+				Nodes: []control.Node{{
+					NodeID:    4,
+					Addr:      "10.0.0.4:11110",
+					Roles:     []control.Role{control.RoleData},
+					JoinState: control.NodeJoinStateJoining,
+				}},
+			},
+		},
+		snapshot: clusterv2.Snapshot{
+			RoutesReady:   true,
+			SlotsReady:    true,
+			ChannelsReady: true,
+			HashSlotCount: 1,
+		},
+	}
+	app, err := newTestApp(t, Config{
+		NodeID: 4,
+		Cluster: clusterv2.Config{
+			NodeID:  4,
+			Control: clusterv2.ControlConfig{ClusterID: "cluster-a"},
+			Join: clusterv2.JoinConfig{
+				Seeds:         []string{"10.0.0.1:11110"},
+				AdvertiseAddr: "10.0.0.4:11110",
+				Token:         "join-secret",
+			},
+		},
+	}, WithCluster(cluster), WithGateway(nil))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	app.lifecycleMu.Lock()
+	app.clusterStarted = true
+	app.gatewayStarted = true
+	app.lifecycleMu.Unlock()
+
+	got, err := app.NodeReadiness(context.Background(), accessnode.NodeReadinessRequest{NodeID: 4, ClusterID: "cluster-a"})
+	if err != nil {
+		t.Fatalf("NodeReadiness() error = %v", err)
+	}
+	if !got.Ready || !got.RuntimeReady {
+		t.Fatalf("NodeReadiness() = %#v, want seed-join runtime ready without slot leaders", got)
+	}
+}
+
+func TestSeedJoinActiveNodeReadinessRequiresSlotRoutes(t *testing.T) {
+	cluster := &fakeReadinessCluster{
+		fakeManagerCluster: fakeManagerCluster{
+			nodeID: 4,
+			snapshot: control.Snapshot{
+				ClusterID: "cluster-a",
+				Revision:  22,
+				Nodes: []control.Node{{
+					NodeID:    4,
+					Addr:      "10.0.0.4:11110",
+					Roles:     []control.Role{control.RoleData},
+					JoinState: control.NodeJoinStateActive,
+				}},
+			},
+		},
+		snapshot: clusterv2.Snapshot{
+			RoutesReady:   true,
+			SlotsReady:    true,
+			ChannelsReady: true,
+			HashSlotCount: 1,
+		},
+	}
+	app, err := newTestApp(t, Config{
+		NodeID: 4,
+		Cluster: clusterv2.Config{
+			NodeID:  4,
+			Control: clusterv2.ControlConfig{ClusterID: "cluster-a"},
+			Join: clusterv2.JoinConfig{
+				Seeds:         []string{"10.0.0.1:11110"},
+				AdvertiseAddr: "10.0.0.4:11110",
+				Token:         "join-secret",
+			},
+		},
+	}, WithCluster(cluster), WithGateway(nil))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	app.lifecycleMu.Lock()
+	app.clusterStarted = true
+	app.gatewayStarted = true
+	app.lifecycleMu.Unlock()
+
+	got, err := app.NodeReadiness(context.Background(), accessnode.NodeReadinessRequest{NodeID: 4, ClusterID: "cluster-a"})
+	if err != nil {
+		t.Fatalf("NodeReadiness() error = %v", err)
+	}
+	if got.Ready || got.RuntimeReady {
+		t.Fatalf("NodeReadiness() = %#v, want active seed-join to require slot routes", got)
+	}
+}
+
+func TestSeedJoinReadyzWaitsForGatewayRuntime(t *testing.T) {
+	app, err := newTestApp(t, Config{
+		NodeID: 4,
+		Cluster: clusterv2.Config{
+			NodeID:  4,
+			Control: clusterv2.ControlConfig{ClusterID: "cluster-a"},
+			Join: clusterv2.JoinConfig{
+				Seeds:         []string{"10.0.0.1:11110"},
+				AdvertiseAddr: "10.0.0.4:11110",
+				Token:         "join-secret",
+			},
+		},
+	}, WithCluster(&fakeReadinessCluster{
+		fakeManagerCluster: fakeManagerCluster{
+			nodeID: 4,
+			snapshot: control.Snapshot{
+				Nodes: []control.Node{{
+					NodeID:    4,
+					Addr:      "10.0.0.4:11110",
+					JoinState: control.NodeJoinStateJoining,
+				}},
+			},
+		},
+	}), WithGateway(nil))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	app.lifecycleMu.Lock()
+	app.clusterStarted = true
+	app.gatewayStarted = false
+	app.lifecycleMu.Unlock()
+
+	ready, body := app.readyzReport(context.Background())
+	if ready {
+		t.Fatalf("readyz ready=true body=%#v, want not ready before gateway starts", body)
+	}
+
+	app.lifecycleMu.Lock()
+	app.gatewayStarted = true
+	app.lifecycleMu.Unlock()
+	ready, body = app.readyzReport(context.Background())
+	if !ready {
+		t.Fatalf("readyz ready=false body=%#v, want ready after gateway starts", body)
+	}
+}
+
+func TestSeedJoinActiveReadyzRequiresWriteRoutes(t *testing.T) {
+	app, err := newTestApp(t, Config{
+		NodeID: 4,
+		Cluster: clusterv2.Config{
+			NodeID:  4,
+			Control: clusterv2.ControlConfig{ClusterID: "cluster-a"},
+			Join: clusterv2.JoinConfig{
+				Seeds:         []string{"10.0.0.1:11110"},
+				AdvertiseAddr: "10.0.0.4:11110",
+				Token:         "join-secret",
+			},
+		},
+	}, WithCluster(&fakeReadinessCluster{
+		fakeManagerCluster: fakeManagerCluster{
+			nodeID: 4,
+			snapshot: control.Snapshot{
+				Nodes: []control.Node{{
+					NodeID:    4,
+					Addr:      "10.0.0.4:11110",
+					JoinState: control.NodeJoinStateActive,
+				}},
+			},
+		},
+	}), WithGateway(nil))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	app.lifecycleMu.Lock()
+	app.clusterStarted = true
+	app.gatewayStarted = true
+	app.lifecycleMu.Unlock()
+
+	ready, body := app.readyzReport(context.Background())
+	if ready {
+		t.Fatalf("readyz ready=true body=%#v, want active seed join to require write routes", body)
+	}
+}
+
 func TestSeedJoinLoopStopsAfterMirrorSeesJoiningNode(t *testing.T) {
 	snapshots := &fakeSeedJoinSnapshotReader{}
 	client := &fakeSeedJoinClient{

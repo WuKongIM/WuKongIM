@@ -70,10 +70,12 @@ func (a *App) Start(ctx context.Context) error {
 			return errors.Join(err, stopErr)
 		}
 	}
-	if err := a.waitClusterWriteReady(ctx); err != nil {
-		stopErr := a.rollbackStarted(ctx)
-		a.logLifecycleError("cluster_write_ready", "start", err)
-		return errors.Join(err, stopErr)
+	if !a.seedJoinPreActivationMode(ctx) {
+		if err := a.waitClusterWriteReady(ctx); err != nil {
+			stopErr := a.rollbackStarted(ctx)
+			a.logLifecycleError("cluster_write_ready", "start", err)
+			return errors.Join(err, stopErr)
+		}
 	}
 	if a.conversationRouteLifecycle != nil {
 		if err := a.conversationRouteLifecycle.Start(ctx); err != nil {
@@ -488,6 +490,15 @@ func (a *App) lifecycleLogger() wklog.Logger {
 func (a *App) readyzReport(ctx context.Context) (bool, any) {
 	if a == nil || a.cluster == nil {
 		return false, map[string]any{"ready": false, "reason": "cluster not configured"}
+	}
+	if a.seedJoinPreActivationMode(ctx) {
+		a.lifecycleMu.Lock()
+		ready := a.clusterStarted && a.gatewayStarted
+		a.lifecycleMu.Unlock()
+		if ready {
+			return true, map[string]any{"ready": true}
+		}
+		return false, map[string]any{"ready": false, "reason": "seed join runtime not ready"}
 	}
 	routes, ok := a.cluster.(clusterWriteReadyRuntime)
 	if !ok {

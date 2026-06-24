@@ -53,6 +53,7 @@ func rpcServiceIDsForTest() map[string]uint8 {
 		"manager_message_retention": RPCManagerMessageRetention,
 		"node_lifecycle":            RPCNodeLifecycle,
 		"plugin_binding_scan":       RPCPluginBindingScan,
+		"slot_status":               RPCSlotStatus,
 		"control_write":             RPCControlWrite,
 	}
 }

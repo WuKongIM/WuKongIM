@@ -88,7 +88,10 @@ node from the path, accepts an empty body, delegates to the same lifecycle
 usecase, and returns `202 Accepted` when activation changes state after the
 joining-node readiness gate passes. These routes do not seed node RPC, poll
 peer startup, or perform Slot rebalance work. Lifecycle conflicts and
-not-ready activation gates return `409 conflict`, missing activation targets
+not-ready activation gates return `409 conflict`; not-ready responses preserve
+the usecase's compact readiness detail in `message` so operators can see
+whether transport reachability, control mirror catch-up, runtime readiness,
+cluster ID, or revision fencing blocked activation. Missing activation targets
 return `404 not_found`, and unwired control writers/readiness readers return
 `503 service_unavailable`.
 

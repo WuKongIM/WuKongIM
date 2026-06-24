@@ -149,8 +149,8 @@ func (a *App) ActivateNode(ctx context.Context, req ActivateNodeRequest) (Activa
 	if err != nil {
 		return ActivateNodeResponse{}, err
 	}
-	if !nodeReadyForActivation(readiness, req.NodeID, snapshot.Revision) {
-		return ActivateNodeResponse{}, fmt.Errorf("%w: %s", ErrNodeNotReadyForActivation, readiness.LastError)
+	if err := nodeActivationReadinessError(readiness, req.NodeID, snapshot.Revision); err != nil {
+		return ActivateNodeResponse{}, err
 	}
 	result, err := a.nodeLifecycle.ActivateNode(ctx, control.ActivateNodeRequest{NodeID: req.NodeID})
 	if err != nil {
@@ -197,21 +197,25 @@ func findControlNode(snapshot control.Snapshot, nodeID uint64) (control.Node, bo
 }
 
 func nodeReadyForActivation(readiness NodeReadiness, expectedNodeID uint64, minRevision uint64) bool {
+	return nodeActivationReadinessError(readiness, expectedNodeID, minRevision) == nil
+}
+
+func nodeActivationReadinessError(readiness NodeReadiness, expectedNodeID uint64, minRevision uint64) error {
 	expectedClusterID := strings.TrimSpace(readiness.ExpectedClusterID)
 	mirrorClusterID := strings.TrimSpace(readiness.MirrorClusterID)
 	switch {
 	case readiness.Unknown:
-		return false
+		return fmt.Errorf("%w: readiness unknown: %s", ErrNodeNotReadyForActivation, readiness.LastError)
 	case readiness.NodeID != expectedNodeID:
-		return false
+		return fmt.Errorf("%w: node_id=%d expected=%d", ErrNodeNotReadyForActivation, readiness.NodeID, expectedNodeID)
 	case !readiness.Reachable || !readiness.TransportReady || !readiness.ControlReady || !readiness.RuntimeReady:
-		return false
+		return fmt.Errorf("%w: reachable=%t transport=%t control=%t runtime=%t last_error=%s", ErrNodeNotReadyForActivation, readiness.Reachable, readiness.TransportReady, readiness.ControlReady, readiness.RuntimeReady, readiness.LastError)
 	case expectedClusterID == "" || mirrorClusterID == "" || expectedClusterID != mirrorClusterID:
-		return false
+		return fmt.Errorf("%w: mirror_cluster_id=%q expected_cluster_id=%q", ErrNodeNotReadyForActivation, mirrorClusterID, expectedClusterID)
 	case readiness.MirrorRevision < minRevision:
-		return false
+		return fmt.Errorf("%w: mirror_revision=%d min_revision=%d", ErrNodeNotReadyForActivation, readiness.MirrorRevision, minRevision)
 	default:
-		return true
+		return nil
 	}
 }
 

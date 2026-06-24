@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"testing"
@@ -41,6 +42,9 @@ type StartedNode struct {
 type StartedCluster struct {
 	Nodes      []StartedNode
 	lastReadyz map[uint64]HTTPObservation
+	binaryPath string
+	workspace  Workspace
+	options    suiteOptions
 }
 
 // Option customizes one e2ev2 cluster start.
@@ -58,6 +62,7 @@ type suiteOptions struct {
 	workspaceRootDir    string
 	nodeLogRootDir      string
 	managerHTTP         bool
+	dynamicJoinToken    string
 	nodeConfigOverrides map[uint64]map[string]string
 	nodeEnv             map[uint64][]string
 }
@@ -80,6 +85,13 @@ func WithNodeLogRootDir(rootDir string) Option {
 func WithManagerHTTP() Option {
 	return optionFunc(func(options *suiteOptions) {
 		options.managerHTTP = true
+	})
+}
+
+// WithDynamicJoinToken configures static nodes to accept seed JoinNode RPCs.
+func WithDynamicJoinToken(token string) Option {
+	return optionFunc(func(options *suiteOptions) {
+		options.dynamicJoinToken = strings.TrimSpace(token)
 	})
 }
 
@@ -186,6 +198,9 @@ func (s *Suite) StartThreeNodeCluster(opts ...Option) *StartedCluster {
 	for i, portSet := range ports {
 		nodeID := uint64(i + 1)
 		spec := buildNodeSpec(nodeID, portSet, workspace, options)
+		if options.dynamicJoinToken != "" {
+			setSpecConfigOverride(&spec, "WK_CLUSTER_JOIN_TOKEN", options.dynamicJoinToken)
+		}
 		require.NoError(s.t, workspace.ensureNodeDirs(nodeID))
 		specs = append(specs, spec)
 	}
@@ -199,6 +214,9 @@ func (s *Suite) StartThreeNodeCluster(opts ...Option) *StartedCluster {
 	cluster := &StartedCluster{
 		Nodes:      make([]StartedNode, 0, len(specs)),
 		lastReadyz: make(map[uint64]HTTPObservation, len(specs)),
+		binaryPath: s.binaryPath,
+		workspace:  workspace,
+		options:    options,
 	}
 	for _, spec := range specs {
 		process := &NodeProcess{Spec: spec, BinaryPath: s.binaryPath}
@@ -215,6 +233,91 @@ func (s *Suite) StartThreeNodeCluster(opts ...Option) *StartedCluster {
 	})
 
 	return cluster
+}
+
+// SeedJoinNodeConfig describes one dynamic data-node seed-join process.
+type SeedJoinNodeConfig struct {
+	// NodeID is the stable non-zero identity requested by the joining node.
+	NodeID uint64
+	// Seeds contains reachable existing cluster RPC addresses.
+	Seeds []string
+	// JoinAddr is the stable cluster RPC address advertised into membership.
+	JoinAddr string
+	// JoinToken authenticates the pre-membership JoinNode RPC.
+	JoinToken string
+	// ClusterID is the expected ControllerV2 cluster identity.
+	ClusterID string
+}
+
+// SeedAddrs returns stable seed RPC addresses from the currently started cluster nodes.
+func (c *StartedCluster) SeedAddrs() []string {
+	if c == nil {
+		return nil
+	}
+	nodes := append([]StartedNode(nil), c.Nodes...)
+	sort.Slice(nodes, func(i, j int) bool {
+		return nodes[i].Spec.ID < nodes[j].Spec.ID
+	})
+	addrs := make([]string, 0, len(nodes))
+	for _, node := range nodes {
+		if node.Spec.ClusterAddr != "" {
+			addrs = append(addrs, node.Spec.ClusterAddr)
+		}
+	}
+	return addrs
+}
+
+// NodeAddr returns the cluster RPC address for an already started node.
+func (c *StartedCluster) NodeAddr(nodeID uint64) string {
+	node := c.MustNode(nodeID)
+	return node.Spec.ClusterAddr
+}
+
+// StartSeedJoinNode starts one dynamic data node that joins through configured seeds.
+func (c *StartedCluster) StartSeedJoinNode(t testing.TB, cfg SeedJoinNodeConfig) *StartedNode {
+	t.Helper()
+	require.NotNil(t, c, "started cluster is nil")
+	require.NotEmpty(t, c.binaryPath, "started cluster binary path is empty")
+	require.NotZero(t, cfg.NodeID, "seed join node id must be non-zero")
+
+	if len(cfg.Seeds) == 0 {
+		cfg.Seeds = c.SeedAddrs()
+	}
+	if strings.TrimSpace(cfg.JoinToken) == "" {
+		cfg.JoinToken = c.options.dynamicJoinToken
+	}
+	if strings.TrimSpace(cfg.ClusterID) == "" {
+		cfg.ClusterID = staticThreeNodeClusterID
+	}
+	require.NotEmpty(t, cfg.Seeds, "seed join seeds must not be empty")
+	require.NotEmpty(t, strings.TrimSpace(cfg.JoinToken), "seed join token must not be empty")
+
+	ports := ReserveLoopbackPorts(t)
+	spec := buildNodeSpec(cfg.NodeID, ports, c.workspace, c.options)
+	if strings.TrimSpace(cfg.JoinAddr) == "" {
+		cfg.JoinAddr = spec.ClusterAddr
+	}
+
+	require.NoError(t, c.workspace.ensureNodeDirs(spec.ID))
+	renderedConfig := RenderSeedJoinNodeConfig(spec, cfg)
+	require.NoError(t, os.WriteFile(spec.ConfigPath, []byte(renderedConfig), 0o644))
+	spec.Env = append(envFromConfig(renderedConfig), spec.Env...)
+
+	process := &NodeProcess{Spec: spec, BinaryPath: c.binaryPath}
+	require.NoError(t, process.Start())
+	c.Nodes = append(c.Nodes, StartedNode{Spec: spec, Process: process})
+	if c.lastReadyz == nil {
+		c.lastReadyz = make(map[uint64]HTTPObservation)
+	}
+	started := &c.Nodes[len(c.Nodes)-1]
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	observation, err := waitHTTPReadyDetailed(ctx, started.Spec.APIAddr, "/readyz")
+	c.lastReadyz[started.Spec.ID] = observation
+	require.NoError(t, err, c.DumpDiagnostics())
+
+	return started
 }
 
 // WaitHTTPReady waits until every cluster node satisfies the public HTTP readiness contract.
@@ -470,4 +573,11 @@ func cloneEnv(env []string) []string {
 		return nil
 	}
 	return append([]string(nil), env...)
+}
+
+func setSpecConfigOverride(spec *NodeSpec, key, value string) {
+	if spec.ConfigOverrides == nil {
+		spec.ConfigOverrides = make(map[string]string)
+	}
+	spec.ConfigOverrides[key] = value
 }

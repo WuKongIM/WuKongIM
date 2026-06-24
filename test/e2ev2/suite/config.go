@@ -9,6 +9,8 @@ import (
 	"strings"
 )
 
+const staticThreeNodeClusterID = "wukongimv2-e2ev2-three"
+
 // NodeSpec describes the external runtime inputs for one e2ev2 node process.
 type NodeSpec struct {
 	ID          uint64
@@ -63,9 +65,51 @@ func RenderClusterConfig(local NodeSpec, nodes []NodeSpec) string {
 	}
 	if len(nodes) > 1 {
 		lines = append(lines,
-			configLine{key: "WK_CLUSTER_ID", value: "wukongimv2-e2ev2-three"},
+			configLine{key: "WK_CLUSTER_ID", value: staticThreeNodeClusterID},
 			configLine{key: "WK_CLUSTER_NODES", value: marshalClusterNodes(nodes)},
 		)
+	}
+	if local.LogDir != "" {
+		lines = append(lines, configLine{key: "WK_LOG_DIR", value: local.LogDir})
+	}
+	lines = applyConfigOverrides(lines, local.ConfigOverrides)
+
+	rendered := make([]string, 0, len(lines))
+	for _, line := range lines {
+		rendered = append(rendered, line.key+"="+line.value)
+	}
+	return strings.Join(rendered, "\n") + "\n"
+}
+
+// RenderSeedJoinNodeConfig renders a seed-join node config without static cluster nodes.
+func RenderSeedJoinNodeConfig(local NodeSpec, cfg SeedJoinNodeConfig) string {
+	clusterID := strings.TrimSpace(cfg.ClusterID)
+	if clusterID == "" {
+		clusterID = staticThreeNodeClusterID
+	}
+	joinAddr := strings.TrimSpace(cfg.JoinAddr)
+	if joinAddr == "" {
+		joinAddr = local.ClusterAddr
+	}
+
+	lines := []configLine{
+		{key: "WK_NODE_ID", value: fmt.Sprintf("%d", local.ID)},
+		{key: "WK_NODE_DATA_DIR", value: local.DataDir},
+		{key: "WK_CLUSTER_LISTEN_ADDR", value: local.ClusterAddr},
+		{key: "WK_CLUSTER_ID", value: clusterID},
+		{key: "WK_CLUSTER_SEEDS", value: marshalStringList(cfg.Seeds)},
+		{key: "WK_CLUSTER_ADVERTISE_ADDR", value: joinAddr},
+		{key: "WK_CLUSTER_JOIN_TOKEN", value: strings.TrimSpace(cfg.JoinToken)},
+		{key: "WK_CLUSTER_INITIAL_SLOT_COUNT", value: "3"},
+		{key: "WK_CLUSTER_HASH_SLOT_COUNT", value: "16"},
+		{key: "WK_CLUSTER_SLOT_REPLICA_N", value: "3"},
+		{key: "WK_API_LISTEN_ADDR", value: local.APIAddr},
+		{key: "WK_METRICS_ENABLE", value: "true"},
+		{key: "WK_GATEWAY_LISTENERS", value: renderGatewayListeners(local.GatewayAddr)},
+		{key: "WK_GATEWAY_SEND_TIMEOUT", value: "5s"},
+	}
+	if local.ManagerAddr != "" {
+		lines = append(lines, configLine{key: "WK_MANAGER_LISTEN_ADDR", value: local.ManagerAddr})
 	}
 	if local.LogDir != "" {
 		lines = append(lines, configLine{key: "WK_LOG_DIR", value: local.LogDir})
@@ -97,6 +141,14 @@ func marshalClusterNodes(nodes []NodeSpec) string {
 	data, err := json.Marshal(items)
 	if err != nil {
 		panic(fmt.Sprintf("marshal cluster nodes: %v", err))
+	}
+	return string(data)
+}
+
+func marshalStringList(items []string) string {
+	data, err := json.Marshal(items)
+	if err != nil {
+		panic(fmt.Sprintf("marshal string list: %v", err))
 	}
 	return string(data)
 }

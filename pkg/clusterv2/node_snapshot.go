@@ -58,11 +58,13 @@ func (n *Node) applySnapshot(ctx context.Context, snapshot control.Snapshot) err
 	n.mu.RUnlock()
 	changes := snapshotChanges(previous, snapshot)
 	var routeAuthorityBefore *routing.Table
+	routeAuthorityChanged := false
 	if n.router != nil && (firstSnapshot || changes.slots || changes.hashSlots) {
 		routeAuthorityBefore = n.router.Table()
 		if err := n.router.UpdateControlSnapshot(snapshot); err != nil {
 			return err
 		}
+		routeAuthorityChanged = true
 	}
 	if n.discovery != nil && (firstSnapshot || changes.nodes) {
 		n.discovery.Update(n.discoveryNodesForSnapshot(snapshot.Nodes))
@@ -72,7 +74,15 @@ func (n *Node) applySnapshot(ctx context.Context, snapshot control.Snapshot) err
 			return err
 		}
 	}
-	if n.router != nil && (firstSnapshot || changes.slots || changes.hashSlots) {
+	if n.router != nil && (firstSnapshot || changes.nodes || changes.slots || changes.hashSlots) {
+		if routeAuthorityBefore == nil {
+			routeAuthorityBefore = n.router.Table()
+		}
+		if n.installSeedJoinActiveRemoteSlotLeaders(ctx, snapshot) {
+			routeAuthorityChanged = true
+		}
+	}
+	if n.router != nil && routeAuthorityChanged {
 		n.publishRouteAuthorityChanges(routeAuthorityBefore, n.router.Table())
 	}
 	if n.tasks != nil && (firstSnapshot || changes.tasks || changes.slots) {

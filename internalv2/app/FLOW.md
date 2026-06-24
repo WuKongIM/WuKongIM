@@ -138,7 +138,12 @@ New(Config)
      local control mirror and retries JoinNode until this node appears as
      joining or active; app lifecycle treats that observed membership record as
      an admission gate before starting HTTP, manager, gateway, or worker
-     runtimes
+     runtimes; seed-join startup deliberately skips the normal Slot write-ready
+     gate only while the local mirrored membership state is `joining`, because
+     a pre-activation joining node is not yet assigned writeable Slot routes,
+     while `/readyz` still waits for cluster and gateway startup before
+     reporting ready. Once the node is mirrored as `active`, restarts and
+     readiness probes use the normal Slot write-ready gate.
   -> when the cluster exposes user metadata APIs:
        create internalv2/usecase/user with an infra/cluster Slot metadata
        adapter, owner-local online registry, optional presence lookup, and the

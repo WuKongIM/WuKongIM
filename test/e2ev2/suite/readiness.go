@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -53,6 +54,32 @@ func WaitWKProtoReady(ctx context.Context, addr string) error {
 func WaitHTTPReady(ctx context.Context, addr, path string) error {
 	_, err := waitHTTPReadyDetailed(ctx, addr, path)
 	return err
+}
+
+// WaitTCPReady waits until a TCP listener accepts a connection on addr.
+func WaitTCPReady(ctx context.Context, addr string) error {
+	ticker := time.NewTicker(readyPollInterval)
+	defer ticker.Stop()
+
+	var lastErr error
+	for {
+		dialer := net.Dialer{}
+		conn, err := dialer.DialContext(ctx, "tcp", addr)
+		if err == nil {
+			_ = conn.Close()
+			return nil
+		}
+		lastErr = err
+
+		select {
+		case <-ctx.Done():
+			if lastErr != nil {
+				return lastErr
+			}
+			return ctx.Err()
+		case <-ticker.C:
+		}
+	}
 }
 
 func waitHTTPReadyDetailed(ctx context.Context, addr, path string) (HTTPObservation, error) {

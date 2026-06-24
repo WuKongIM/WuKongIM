@@ -306,15 +306,54 @@ func (a *App) NodeReadiness(ctx context.Context, req accessnode.NodeReadinessReq
 		resp.Unknown = true
 		resp.LastError = "control snapshot unavailable"
 	}
-	defaultSlotsReady := false
-	if routes, ok := a.cluster.(clusterWriteReadyRuntime); ok {
-		defaultSlotsReady, resp.LastError = clusterDefaultSlotsReady(routes)
-	}
-	if gatewayStarted && defaultSlotsReady {
-		resp.RuntimeReady = true
+	if gatewayStarted {
+		if a.seedJoinPreActivationMode(ctx) {
+			resp.RuntimeReady = true
+		} else {
+			defaultSlotsReady := false
+			if routes, ok := a.cluster.(clusterWriteReadyRuntime); ok {
+				defaultSlotsReady, resp.LastError = clusterDefaultSlotsReady(routes)
+			}
+			resp.RuntimeReady = defaultSlotsReady
+		}
 	}
 	resp.Ready = resp.Reachable && resp.TransportReady && resp.ControlReady && resp.RuntimeReady
 	return resp, nil
+}
+
+func (a *App) seedJoinPreActivationMode(ctx context.Context) bool {
+	node, ok := a.seedJoinLocalControlNode(ctx)
+	return ok && node.JoinState == control.NodeJoinStateJoining
+}
+
+func (a *App) seedJoinLocalControlNode(ctx context.Context) (control.Node, bool) {
+	if a == nil || a.seedJoinLoop == nil {
+		return control.Node{}, false
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	snapshots, ok := a.cluster.(seedJoinSnapshotReader)
+	if !ok {
+		return control.Node{}, false
+	}
+	nodeID := a.cfg.Cluster.NodeID
+	if nodeID == 0 {
+		nodeID = a.cfg.NodeID
+	}
+	if nodeID == 0 {
+		return control.Node{}, false
+	}
+	snapshot, err := snapshots.LocalControlSnapshot(ctx)
+	if err != nil {
+		return control.Node{}, false
+	}
+	for _, node := range snapshot.Nodes {
+		if node.NodeID == nodeID {
+			return node, true
+		}
+	}
+	return control.Node{}, false
 }
 
 func clusterDefaultSlotsReady(routes clusterWriteReadyRuntime) (bool, string) {

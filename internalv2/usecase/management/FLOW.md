@@ -82,7 +82,10 @@ when the target is reachable, transport/control/runtime ready, mirrored to the
 expected cluster ID, and caught up to at least the observed control revision.
 Control conflicts, missing-node activation errors, and not-ready activation
 checks are mapped to dedicated usecase errors so HTTP can distinguish operator
-input conflicts, infrastructure failures, and readiness gates. When the
+input conflicts, infrastructure failures, and readiness gates. Not-ready errors
+include the failed readiness fields and compact target error text so operators
+can tell transport, control mirror, runtime, cluster-id, and revision gates
+apart without guessing from a generic conflict. When the
 lifecycle writer or readiness reader is not configured, the usecase returns a
 dedicated unavailable error so HTTP can report `service_unavailable` instead of
 treating wiring as invalid operator input.
