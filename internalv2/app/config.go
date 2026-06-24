@@ -60,6 +60,8 @@ type Config struct {
 	Presence PresenceConfig
 	// Delivery configures online message delivery fanout and owner-local ack tracking.
 	Delivery DeliveryConfig
+	// Webhook configures node-local best-effort webhook delivery.
+	Webhook WebhookConfig
 	// Plugin configures node-local PDK-compatible plugin runtime integration.
 	Plugin PluginConfig
 }
@@ -357,6 +359,101 @@ type DeliveryConfig struct {
 	PendingAckMaxPerSession int
 	// EventQueueSize bounds committed-message events waiting for asynchronous delivery fanout.
 	EventQueueSize int
+}
+
+// WebhookConfig controls node-local best-effort webhook delivery.
+type WebhookConfig struct {
+	// Enabled starts the webhook runtime when at least one endpoint is configured.
+	Enabled bool
+	// HTTPAddr receives JSON webhook POST requests as {HTTPAddr}?event=<event>.
+	HTTPAddr string
+	// FocusEvents limits delivered event names. Empty means all supported webhook events are delivered.
+	FocusEvents []string
+	// QueueSize bounds accepted webhook events waiting in memory before worker execution.
+	QueueSize int
+	// Workers bounds concurrent webhook sender calls.
+	Workers int
+	// NotifyBatchMaxItems limits msg.notify messages sent in one webhook request.
+	NotifyBatchMaxItems int
+	// NotifyBatchMaxWait bounds how long msg.notify waits for adjacent messages before sending a partial batch.
+	NotifyBatchMaxWait time.Duration
+	// OnlineBatchMaxItems limits user.onlinestatus records sent in one webhook request.
+	OnlineBatchMaxItems int
+	// OnlineBatchMaxWait bounds how long user.onlinestatus waits for adjacent records before sending a partial batch.
+	OnlineBatchMaxWait time.Duration
+	// OfflineUIDBatchSize limits offline recipient UIDs sent in one msg.offline request.
+	OfflineUIDBatchSize int
+	// RequestTimeout bounds one outbound webhook request attempt.
+	RequestTimeout time.Duration
+	// RetryMaxAttempts bounds attempts for one admitted webhook batch before it is dropped.
+	RetryMaxAttempts int
+}
+
+func NormalizeWebhookConfig(cfg WebhookConfig) (WebhookConfig, error) {
+	cfg = defaultWebhookConfig(cfg)
+	if err := validateWebhookConfig(cfg); err != nil {
+		return WebhookConfig{}, err
+	}
+	return cfg, nil
+}
+
+func defaultWebhookConfig(cfg WebhookConfig) WebhookConfig {
+	if cfg.HTTPAddr != "" {
+		cfg.Enabled = true
+	}
+	if cfg.QueueSize == 0 {
+		cfg.QueueSize = 1024
+	}
+	if cfg.Workers == 0 {
+		cfg.Workers = 16
+	}
+	if cfg.NotifyBatchMaxItems == 0 {
+		cfg.NotifyBatchMaxItems = 100
+	}
+	if cfg.NotifyBatchMaxWait == 0 {
+		cfg.NotifyBatchMaxWait = 500 * time.Millisecond
+	}
+	if cfg.OnlineBatchMaxItems == 0 {
+		cfg.OnlineBatchMaxItems = 512
+	}
+	if cfg.OnlineBatchMaxWait == 0 {
+		cfg.OnlineBatchMaxWait = 2 * time.Second
+	}
+	if cfg.OfflineUIDBatchSize == 0 {
+		cfg.OfflineUIDBatchSize = 512
+	}
+	if cfg.RequestTimeout == 0 {
+		cfg.RequestTimeout = 5 * time.Second
+	}
+	if cfg.RetryMaxAttempts == 0 {
+		cfg.RetryMaxAttempts = 3
+	}
+	return cfg
+}
+
+func validateWebhookConfig(cfg WebhookConfig) error {
+	if !cfg.Enabled {
+		return nil
+	}
+	if cfg.HTTPAddr == "" {
+		return fmt.Errorf("%w: webhook HTTPAddr is required when webhook is enabled", ErrInvalidConfig)
+	}
+	if cfg.QueueSize < 0 {
+		return fmt.Errorf("%w: webhook QueueSize must be >= 0", ErrInvalidConfig)
+	}
+	if cfg.Workers < 0 {
+		return fmt.Errorf("%w: webhook Workers must be >= 0", ErrInvalidConfig)
+	}
+	if cfg.NotifyBatchMaxItems < 0 || cfg.OnlineBatchMaxItems < 0 || cfg.OfflineUIDBatchSize < 0 {
+		return fmt.Errorf("%w: webhook batch sizes must be >= 0", ErrInvalidConfig)
+	}
+	if cfg.NotifyBatchMaxWait < 0 || cfg.OnlineBatchMaxWait < 0 || cfg.RequestTimeout < 0 {
+		return fmt.Errorf("%w: webhook durations must be >= 0", ErrInvalidConfig)
+	}
+	if cfg.RetryMaxAttempts < 0 {
+		return fmt.Errorf("%w: webhook RetryMaxAttempts must be >= 0", ErrInvalidConfig)
+	}
+	return nil
 }
 
 // PluginConfig controls node-local PDK-compatible plugin runtime integration.

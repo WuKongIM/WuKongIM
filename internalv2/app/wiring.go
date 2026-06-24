@@ -63,6 +63,13 @@ func (a *App) applyConfigDefaults() error {
 	if err := validateDeliveryConfig(a.cfg.Delivery); err != nil {
 		return err
 	}
+	{
+		webhook, err := NormalizeWebhookConfig(a.cfg.Webhook)
+		if err != nil {
+			return err
+		}
+		a.cfg.Webhook = webhook
+	}
 	a.cfg.Plugin = defaultPluginConfig(a.cfg.DataDir, a.cfg.Plugin)
 	if err := validatePluginConfig(a.cfg.Plugin); err != nil {
 		return err

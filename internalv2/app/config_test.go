@@ -8,6 +8,60 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestWebhookConfigDefaultsWhenEndpointConfigured(t *testing.T) {
+	cfg, err := NormalizeWebhookConfig(WebhookConfig{
+		HTTPAddr: "http://127.0.0.1:18080/hook",
+	})
+	if err != nil {
+		t.Fatalf("NormalizeWebhookConfig() error = %v", err)
+	}
+	if !cfg.Enabled {
+		t.Fatalf("Enabled = false, want true when HTTPAddr is configured")
+	}
+	if cfg.QueueSize != 1024 {
+		t.Fatalf("QueueSize = %d, want 1024", cfg.QueueSize)
+	}
+	if cfg.Workers != 16 {
+		t.Fatalf("Workers = %d, want 16", cfg.Workers)
+	}
+	if cfg.NotifyBatchMaxItems != 100 {
+		t.Fatalf("NotifyBatchMaxItems = %d, want 100", cfg.NotifyBatchMaxItems)
+	}
+	if cfg.NotifyBatchMaxWait != 500*time.Millisecond {
+		t.Fatalf("NotifyBatchMaxWait = %v, want 500ms", cfg.NotifyBatchMaxWait)
+	}
+	if cfg.OfflineUIDBatchSize != 512 {
+		t.Fatalf("OfflineUIDBatchSize = %d, want 512", cfg.OfflineUIDBatchSize)
+	}
+	if cfg.RequestTimeout != 5*time.Second {
+		t.Fatalf("RequestTimeout = %v, want 5s", cfg.RequestTimeout)
+	}
+	if cfg.RetryMaxAttempts != 3 {
+		t.Fatalf("RetryMaxAttempts = %d, want 3", cfg.RetryMaxAttempts)
+	}
+}
+
+func TestWebhookConfigRejectsInvalidValues(t *testing.T) {
+	tests := []struct {
+		name string
+		cfg  WebhookConfig
+	}{
+		{name: "enabled without endpoint", cfg: WebhookConfig{Enabled: true}},
+		{name: "negative queue", cfg: WebhookConfig{HTTPAddr: "http://127.0.0.1/hook", QueueSize: -1}},
+		{name: "negative workers", cfg: WebhookConfig{HTTPAddr: "http://127.0.0.1/hook", Workers: -1}},
+		{name: "negative notify batch", cfg: WebhookConfig{HTTPAddr: "http://127.0.0.1/hook", NotifyBatchMaxItems: -1}},
+		{name: "negative online wait", cfg: WebhookConfig{HTTPAddr: "http://127.0.0.1/hook", OnlineBatchMaxWait: -1}},
+		{name: "negative retry", cfg: WebhookConfig{HTTPAddr: "http://127.0.0.1/hook", RetryMaxAttempts: -1}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, err := NormalizeWebhookConfig(tt.cfg); err == nil {
+				t.Fatalf("NormalizeWebhookConfig() error = nil, want error")
+			}
+		})
+	}
+}
+
 func TestPluginConfigDefaultsDerivePathsWhenEnabled(t *testing.T) {
 	cfg := Config{DataDir: t.TempDir(), Plugin: PluginConfig{Enable: true}}
 	app := &App{cfg: cfg}
