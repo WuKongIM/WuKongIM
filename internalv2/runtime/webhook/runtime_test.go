@@ -319,16 +319,31 @@ func TestRuntimeSendsOfflineAndOnlineStatusEvents(t *testing.T) {
 }
 
 func TestOfflineMailboxSizingNeverExceedsQueueSize(t *testing.T) {
-	for _, queueSize := range []int{1, 2, 255, 256, 257, 1024} {
-		shards, perShard := offlineMailboxSizing(queueSize)
+	for _, tt := range []struct {
+		queueSize int
+		wantTotal int
+	}{
+		{queueSize: 1, wantTotal: 1},
+		{queueSize: 2, wantTotal: 2},
+		{queueSize: 255, wantTotal: 255},
+		{queueSize: 256, wantTotal: 256},
+		{queueSize: 257, wantTotal: 257},
+		{queueSize: 512, wantTotal: 512},
+		{queueSize: 1024, wantTotal: 1024},
+		{queueSize: 4096, wantTotal: 4096},
+	} {
+		shards, perShard := offlineMailboxSizing(tt.queueSize)
 		if shards <= 0 {
-			t.Fatalf("queueSize=%d shards=%d, want positive", queueSize, shards)
+			t.Fatalf("queueSize=%d shards=%d, want positive", tt.queueSize, shards)
 		}
 		if perShard <= 0 {
-			t.Fatalf("queueSize=%d perShard=%d, want positive", queueSize, perShard)
+			t.Fatalf("queueSize=%d perShard=%d, want positive", tt.queueSize, perShard)
 		}
-		if got := shards * perShard; got > queueSize {
-			t.Fatalf("queueSize=%d aggregate capacity=%d, want <= queueSize", queueSize, got)
+		if got := shards * perShard; got > tt.queueSize {
+			t.Fatalf("queueSize=%d aggregate capacity=%d, want <= queueSize", tt.queueSize, got)
+		}
+		if got := shards * perShard; got != tt.wantTotal {
+			t.Fatalf("queueSize=%d aggregate capacity=%d, want %d", tt.queueSize, got, tt.wantTotal)
 		}
 	}
 }

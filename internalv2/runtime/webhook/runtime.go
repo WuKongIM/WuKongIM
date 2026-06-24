@@ -463,11 +463,16 @@ func offlineMailboxSizing(queueSize int) (int, int) {
 	if queueSize <= 1 {
 		return 1, 1
 	}
-	shards := defaultOfflineShards
-	if queueSize < shards {
-		shards = queueSize
+	maxShards := defaultOfflineShards
+	if queueSize < maxShards {
+		maxShards = queueSize
 	}
-	return shards, 1
+	for shards := maxShards; shards > 1; shards-- {
+		if queueSize%shards == 0 {
+			return shards, queueSize / shards
+		}
+	}
+	return 1, queueSize
 }
 
 func waitForStop(ctx context.Context, stopCh <-chan struct{}) error {
