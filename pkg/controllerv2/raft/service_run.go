@@ -31,10 +31,10 @@ func (s *Service) run(store *raftstore.Store, startup runStartupState, stopCh <-
 
 	tracker := newProposalTracker()
 	var trackerMu sync.Mutex
-	complete := func(index uint64, err error) {
+	complete := func(index uint64, result ProposalResult, err error) {
 		trackerMu.Lock()
 		defer trackerMu.Unlock()
-		tracker.complete(index, err)
+		tracker.complete(index, result, err)
 	}
 	scheduler := newApplyScheduler(applySchedulerConfig{MaxEntries: s.cfg.MaxApplyBatchEntries, MaxBytes: s.cfg.MaxApplyBatchBytes, MaxDelay: s.cfg.MaxApplyDelay}, s.cfg.StateMachine, store, complete)
 	scheduler.onApplied = func(ctx context.Context, index uint64) error { return s.maybeSnapshot(ctx, store, index) }
@@ -121,18 +121,18 @@ func (s *Service) run(store *raftstore.Store, startup runStartupState, stopCh <-
 			failOnLeaderLoss()
 		case req := <-proposalCh:
 			if err := req.ctx.Err(); err != nil {
-				req.resp <- err
+				req.resp <- proposalResponse{err: err}
 				continue
 			}
 			if rawNode.Status().RaftState != etcdraft.StateLeader {
-				req.resp <- ErrNotLeader
+				req.resp <- proposalResponse{err: ErrNotLeader}
 				continue
 			}
 			var data []byte
 			if !req.probe {
 				encoded, err := command.Encode(req.cmd)
 				if err != nil {
-					req.resp <- err
+					req.resp <- proposalResponse{err: err}
 					continue
 				}
 				data = encoded
@@ -140,7 +140,7 @@ func (s *Service) run(store *raftstore.Store, startup runStartupState, stopCh <-
 			// Probe proposals intentionally carry no Controller command. The empty
 			// normal entry advances Raft applied metadata without changing Revision.
 			if err := rawNode.Propose(data); err != nil {
-				req.resp <- err
+				req.resp <- proposalResponse{err: err}
 				continue
 			}
 			trackerMu.Lock()

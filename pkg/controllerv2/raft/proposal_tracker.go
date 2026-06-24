@@ -30,29 +30,29 @@ func (t *proposalTracker) bindAppended(entries []raftpb.Entry) {
 	}
 }
 
-func (t *proposalTracker) complete(index uint64, err error) {
+func (t *proposalTracker) complete(index uint64, result ProposalResult, err error) {
 	tracked, ok := t.byIndex[index]
 	if !ok {
 		return
 	}
-	tracked.resp <- err
+	tracked.resp <- proposalResponse{result: result, err: err}
 	delete(t.byIndex, index)
 }
 
 func (t *proposalTracker) failAll(err error) {
 	for _, tracked := range t.queue {
-		tracked.resp <- err
+		tracked.resp <- proposalResponse{err: err}
 	}
 	t.queue = t.queue[:0]
 	for index, tracked := range t.byIndex {
-		tracked.resp <- err
+		tracked.resp <- proposalResponse{err: err}
 		delete(t.byIndex, index)
 	}
 }
 
 func (t *proposalTracker) failUnbound(err error) {
 	for _, tracked := range t.queue {
-		tracked.resp <- err
+		tracked.resp <- proposalResponse{err: err}
 	}
 	t.queue = t.queue[:0]
 }
@@ -60,7 +60,7 @@ func (t *proposalTracker) failUnbound(err error) {
 func (t *proposalTracker) failFrom(index uint64, err error) {
 	for idx, tracked := range t.byIndex {
 		if idx >= index {
-			tracked.resp <- err
+			tracked.resp <- proposalResponse{err: err}
 			delete(t.byIndex, idx)
 		}
 	}

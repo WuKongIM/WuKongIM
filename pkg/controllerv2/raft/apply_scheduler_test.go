@@ -50,8 +50,10 @@ func (s *fakeAppliedStore) MarkAppliedBatch(ctx context.Context, index uint64) e
 func TestApplySchedulerBatchesContiguousNormalEntries(t *testing.T) {
 	applier := &fakeBatchApplier{}
 	store := &fakeAppliedStore{}
-	completions := make(map[uint64]error)
-	sched := newApplyScheduler(applySchedulerConfig{MaxEntries: 4, MaxBytes: 1 << 20, MaxDelay: time.Hour}, applier, store, func(index uint64, err error) { completions[index] = err })
+	completions := make(map[uint64]proposalResponse)
+	sched := newApplyScheduler(applySchedulerConfig{MaxEntries: 4, MaxBytes: 1 << 20, MaxDelay: time.Hour}, applier, store, func(index uint64, result ProposalResult, err error) {
+		completions[index] = proposalResponse{result: result, err: err}
+	})
 	entries := []raftpb.Entry{
 		{Index: 1, Term: 1, Type: raftpb.EntryNormal, Data: mustEncodeSchedulerCommand(t)},
 		{Index: 2, Term: 1, Type: raftpb.EntryNormal, Data: mustEncodeSchedulerCommand(t)},
@@ -62,21 +64,28 @@ func TestApplySchedulerBatchesContiguousNormalEntries(t *testing.T) {
 	require.Equal(t, uint64(2), store.marks[0])
 	require.Contains(t, completions, uint64(1))
 	require.Contains(t, completions, uint64(2))
+	require.True(t, completions[1].result.Changed)
+	require.Equal(t, uint64(1), completions[1].result.AppliedRaftIndex)
 }
 
 func TestApplySchedulerCompletesSemanticRejectForMatchingIndex(t *testing.T) {
 	applier := &fakeBatchApplier{reject: map[uint64]string{2: "bad"}}
 	store := &fakeAppliedStore{}
-	completions := make(map[uint64]error)
-	sched := newApplyScheduler(applySchedulerConfig{MaxEntries: 4, MaxBytes: 1 << 20}, applier, store, func(index uint64, err error) { completions[index] = err })
+	completions := make(map[uint64]proposalResponse)
+	sched := newApplyScheduler(applySchedulerConfig{MaxEntries: 4, MaxBytes: 1 << 20}, applier, store, func(index uint64, result ProposalResult, err error) {
+		completions[index] = proposalResponse{result: result, err: err}
+	})
 	entries := []raftpb.Entry{
 		{Index: 1, Term: 1, Type: raftpb.EntryNormal, Data: mustEncodeSchedulerCommand(t)},
 		{Index: 2, Term: 1, Type: raftpb.EntryNormal, Data: mustEncodeSchedulerCommand(t)},
 	}
 
 	require.NoError(t, sched.applyEntries(context.Background(), entries, nil))
-	require.NoError(t, completions[1])
-	require.ErrorIs(t, completions[2], ErrProposalRejected)
+	require.NoError(t, completions[1].err)
+	require.True(t, completions[1].result.Changed)
+	require.ErrorIs(t, completions[2].err, ErrProposalRejected)
+	require.True(t, completions[2].result.Rejected)
+	require.Equal(t, "bad", completions[2].result.Reason)
 }
 
 func TestApplySchedulerRestoresReadySnapshot(t *testing.T) {

@@ -305,6 +305,38 @@ func TestSemanticRejectReturnsProposalErrorAndServiceKeepsRunning(t *testing.T) 
 	require.Equal(t, "good-revision", findTestNode(t, states[0], 1).Name)
 }
 
+func TestServiceProposeResultReportsChangedAndStaleNoop(t *testing.T) {
+	cluster := newRaftTestCluster(t, []uint64{1})
+	cluster.start(t)
+	cluster.propose(t, testInitCommand("wk-propose-result", cluster.peers))
+	cluster.waitForRevision(t, 1)
+	leader := cluster.waitForLeader(t)
+
+	changed, err := leader.service.ProposeResult(context.Background(), testUpsertNodeCommand(1, 1, "node-1-result"))
+	require.NoError(t, err)
+	require.True(t, changed.Changed)
+	require.False(t, changed.Noop)
+	require.False(t, changed.Rejected)
+	require.Equal(t, uint64(2), changed.Revision)
+	require.NotZero(t, changed.AppliedRaftIndex)
+
+	noop, err := leader.service.ProposeResult(context.Background(), testUpsertNodeCommand(1, 1, "node-1-result"))
+	require.NoError(t, err)
+	require.False(t, noop.Changed)
+	require.True(t, noop.Noop)
+	require.False(t, noop.Rejected)
+	require.Equal(t, fsm.ReasonNoChange, noop.Reason)
+	require.Equal(t, changed.Revision, noop.Revision)
+	require.Greater(t, noop.AppliedRaftIndex, changed.AppliedRaftIndex)
+
+	rejected, err := leader.service.ProposeResult(context.Background(), testUpsertNodeCommand(1, 1, "node-1-rejected"))
+	require.ErrorIs(t, err, ErrProposalRejected)
+	require.True(t, rejected.Rejected)
+	require.Equal(t, fsm.ReasonExpectedRevisionMismatch, rejected.Reason)
+	require.Equal(t, changed.Revision, rejected.Revision)
+	require.Greater(t, rejected.AppliedRaftIndex, noop.AppliedRaftIndex)
+}
+
 func TestStartupReplaysWhenStateBehindWAL(t *testing.T) {
 	ctx := context.Background()
 	dir := t.TempDir()

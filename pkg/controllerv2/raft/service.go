@@ -41,6 +41,22 @@ func (e ProposalRejectedError) Error() string {
 
 func (e ProposalRejectedError) Unwrap() error { return ErrProposalRejected }
 
+// ProposalResult describes the FSM outcome for one committed ControllerV2 proposal.
+type ProposalResult struct {
+	// Changed is true when the proposal advanced the logical cluster-state revision.
+	Changed bool
+	// Noop is true when the proposal was committed but idempotent or obsolete.
+	Noop bool
+	// Rejected is true when the FSM rejected the committed proposal.
+	Rejected bool
+	// Reason describes a no-op or reject outcome.
+	Reason string
+	// Revision is the resulting logical cluster-state revision.
+	Revision uint64
+	// AppliedRaftIndex is the resulting durable Raft applied index.
+	AppliedRaftIndex uint64
+}
+
 // Service owns one ControllerV2 RawNode and applies committed commands to the state machine.
 type Service struct {
 	cfg Config
@@ -69,7 +85,7 @@ type proposalRequest struct {
 	ctx   context.Context
 	cmd   command.Command
 	probe bool
-	resp  chan error
+	resp  chan proposalResponse
 }
 
 type compactRequest struct {
@@ -83,8 +99,13 @@ type compactResponse struct {
 }
 
 type trackedProposal struct {
-	resp  chan error
+	resp  chan proposalResponse
 	probe bool
+}
+
+type proposalResponse struct {
+	result ProposalResult
+	err    error
 }
 
 // NewService validates cfg and creates a ControllerV2 Raft service. Call Start before use.
@@ -204,13 +225,20 @@ func (s *Service) Stop() error {
 
 // Propose appends a ControllerV2 command on the leader and waits until it is applied.
 func (s *Service) Propose(ctx context.Context, cmd command.Command) error {
+	_, err := s.submitProposal(ctx, proposalRequest{cmd: cmd})
+	return err
+}
+
+// ProposeResult appends a ControllerV2 command and returns its FSM apply outcome.
+func (s *Service) ProposeResult(ctx context.Context, cmd command.Command) (ProposalResult, error) {
 	return s.submitProposal(ctx, proposalRequest{cmd: cmd})
 }
 
 // ProbePropose appends an empty Raft entry and waits until it is applied.
 // It verifies the Controller proposal write path without mutating ControllerV2 cluster state.
 func (s *Service) ProbePropose(ctx context.Context) error {
-	return s.submitProposal(ctx, proposalRequest{probe: true})
+	_, err := s.submitProposal(ctx, proposalRequest{probe: true})
+	return err
 }
 
 // CompactLog forces a local ControllerV2 Raft log compaction attempt.
@@ -276,7 +304,7 @@ func (s *Service) CompactLog(ctx context.Context) (LogCompactionResult, error) {
 	}
 }
 
-func (s *Service) submitProposal(ctx context.Context, req proposalRequest) error {
+func (s *Service) submitProposal(ctx context.Context, req proposalRequest) (ProposalResult, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -285,13 +313,13 @@ func (s *Service) submitProposal(ctx context.Context, req proposalRequest) error
 		stopped := s.stopped
 		s.mu.Unlock()
 		if stopped {
-			return ErrStopped
+			return ProposalResult{}, ErrStopped
 		}
-		return ErrNotStarted
+		return ProposalResult{}, ErrNotStarted
 	}
 	if s.stopping {
 		s.mu.Unlock()
-		return ErrStopped
+		return ProposalResult{}, ErrStopped
 	}
 	proposalCh := s.proposal
 	stopCh := s.stopCh
@@ -299,26 +327,26 @@ func (s *Service) submitProposal(ctx context.Context, req proposalRequest) error
 	s.mu.Unlock()
 
 	req.ctx = ctx
-	req.resp = make(chan error, 1)
+	req.resp = make(chan proposalResponse, 1)
 	select {
 	case proposalCh <- req:
 	case <-ctx.Done():
-		return ctx.Err()
+		return ProposalResult{}, ctx.Err()
 	case <-doneCh:
-		return s.currentError()
+		return ProposalResult{}, s.currentError()
 	case <-stopCh:
-		return ErrStopped
+		return ProposalResult{}, ErrStopped
 	}
 
 	select {
-	case err := <-req.resp:
-		return err
+	case resp := <-req.resp:
+		return resp.result, resp.err
 	case <-ctx.Done():
-		return ctx.Err()
+		return ProposalResult{}, ctx.Err()
 	case <-doneCh:
-		return s.currentError()
+		return ProposalResult{}, s.currentError()
 	case <-stopCh:
-		return ErrStopped
+		return ProposalResult{}, ErrStopped
 	}
 }
 

@@ -25,7 +25,7 @@ type appliedMarker interface {
 	MarkAppliedBatch(context.Context, uint64) error
 }
 
-type applyCompletion func(index uint64, err error)
+type applyCompletion func(index uint64, result ProposalResult, err error)
 
 type applySchedulerConfig struct {
 	MaxEntries int
@@ -181,7 +181,7 @@ func (s *applyScheduler) applyEntries(ctx context.Context, entries []raftpb.Entr
 				proposalErr = ProposalRejectedError{Index: indexes[i], Reason: applyResult.Reason}
 			}
 			if s.complete != nil {
-				s.complete(indexes[i], proposalErr)
+				s.complete(indexes[i], proposalResultFromApplyResult(applyResult), proposalErr)
 			}
 		}
 		batch = batch[:0]
@@ -207,7 +207,7 @@ func (s *applyScheduler) applyEntries(ctx context.Context, entries []raftpb.Entr
 					return err
 				}
 				if s.complete != nil {
-					s.complete(entry.Index, nil)
+					s.complete(entry.Index, ProposalResult{Noop: true, AppliedRaftIndex: entry.Index}, nil)
 				}
 				continue
 			}
@@ -252,6 +252,17 @@ func (s *applyScheduler) applyEntries(ctx context.Context, entries []raftpb.Entr
 		}
 	}
 	return flush()
+}
+
+func proposalResultFromApplyResult(result fsm.ApplyResult) ProposalResult {
+	return ProposalResult{
+		Changed:          result.Changed,
+		Noop:             result.Noop,
+		Rejected:         result.Rejected,
+		Reason:           result.Reason,
+		Revision:         result.Revision,
+		AppliedRaftIndex: result.AppliedRaftIndex,
+	}
 }
 
 func (s *applyScheduler) notifyApplied(ctx context.Context, index uint64) error {
