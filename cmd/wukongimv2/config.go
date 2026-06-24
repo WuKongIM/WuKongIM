@@ -145,6 +145,17 @@ var supportedConfigKeys = []string{
 	"WK_DELIVERY_PENDING_ACK_TTL",
 	"WK_DELIVERY_PENDING_ACK_MAX_PER_SESSION",
 	"WK_DELIVERY_EVENT_QUEUE_SIZE",
+	"WK_WEBHOOK_HTTP_ADDR",
+	"WK_WEBHOOK_FOCUS_EVENTS",
+	"WK_WEBHOOK_QUEUE_SIZE",
+	"WK_WEBHOOK_WORKERS",
+	"WK_WEBHOOK_MSG_NOTIFY_BATCH_MAX_ITEMS",
+	"WK_WEBHOOK_MSG_NOTIFY_BATCH_MAX_WAIT",
+	"WK_WEBHOOK_ONLINE_STATUS_BATCH_MAX_ITEMS",
+	"WK_WEBHOOK_ONLINE_STATUS_BATCH_MAX_WAIT",
+	"WK_WEBHOOK_OFFLINE_UID_BATCH_SIZE",
+	"WK_WEBHOOK_REQUEST_TIMEOUT",
+	"WK_WEBHOOK_RETRY_MAX_ATTEMPTS",
 	"WK_PLUGIN_ENABLE",
 	"WK_PLUGIN_DIR",
 	"WK_PLUGIN_SOCKET_PATH",
@@ -1293,6 +1304,108 @@ func buildConfig(values map[string]string) (app.Config, error) {
 			return app.Config{}, fmt.Errorf("parse WK_DELIVERY_EVENT_QUEUE_SIZE: value must be >= 0")
 		}
 		cfg.Delivery.EventQueueSize = queueSize
+	}
+	cfg.Webhook.HTTPAddr = configValue(values, "WK_WEBHOOK_HTTP_ADDR")
+	if raw := configValue(values, "WK_WEBHOOK_FOCUS_EVENTS"); raw != "" {
+		focusEvents, err := parseStringList("WK_WEBHOOK_FOCUS_EVENTS", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Webhook.FocusEvents = focusEvents
+	}
+	if raw := configValue(values, "WK_WEBHOOK_QUEUE_SIZE"); raw != "" {
+		queueSize, err := parseInt("WK_WEBHOOK_QUEUE_SIZE", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if queueSize < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_WEBHOOK_QUEUE_SIZE: value must be >= 0")
+		}
+		cfg.Webhook.QueueSize = queueSize
+	}
+	if raw := configValue(values, "WK_WEBHOOK_WORKERS"); raw != "" {
+		workers, err := parseInt("WK_WEBHOOK_WORKERS", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if workers < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_WEBHOOK_WORKERS: value must be >= 0")
+		}
+		cfg.Webhook.Workers = workers
+	}
+	if raw := configValue(values, "WK_WEBHOOK_MSG_NOTIFY_BATCH_MAX_ITEMS"); raw != "" {
+		maxItems, err := parseInt("WK_WEBHOOK_MSG_NOTIFY_BATCH_MAX_ITEMS", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if maxItems < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_WEBHOOK_MSG_NOTIFY_BATCH_MAX_ITEMS: value must be >= 0")
+		}
+		cfg.Webhook.NotifyBatchMaxItems = maxItems
+	}
+	if raw := configValue(values, "WK_WEBHOOK_MSG_NOTIFY_BATCH_MAX_WAIT"); raw != "" {
+		maxWait, err := parseDuration("WK_WEBHOOK_MSG_NOTIFY_BATCH_MAX_WAIT", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if maxWait < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_WEBHOOK_MSG_NOTIFY_BATCH_MAX_WAIT: value must be >= 0")
+		}
+		cfg.Webhook.NotifyBatchMaxWait = maxWait
+	}
+	if raw := configValue(values, "WK_WEBHOOK_ONLINE_STATUS_BATCH_MAX_ITEMS"); raw != "" {
+		maxItems, err := parseInt("WK_WEBHOOK_ONLINE_STATUS_BATCH_MAX_ITEMS", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if maxItems < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_WEBHOOK_ONLINE_STATUS_BATCH_MAX_ITEMS: value must be >= 0")
+		}
+		cfg.Webhook.OnlineBatchMaxItems = maxItems
+	}
+	if raw := configValue(values, "WK_WEBHOOK_ONLINE_STATUS_BATCH_MAX_WAIT"); raw != "" {
+		maxWait, err := parseDuration("WK_WEBHOOK_ONLINE_STATUS_BATCH_MAX_WAIT", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if maxWait < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_WEBHOOK_ONLINE_STATUS_BATCH_MAX_WAIT: value must be >= 0")
+		}
+		cfg.Webhook.OnlineBatchMaxWait = maxWait
+	}
+	if raw := configValue(values, "WK_WEBHOOK_OFFLINE_UID_BATCH_SIZE"); raw != "" {
+		batchSize, err := parseInt("WK_WEBHOOK_OFFLINE_UID_BATCH_SIZE", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if batchSize < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_WEBHOOK_OFFLINE_UID_BATCH_SIZE: value must be >= 0")
+		}
+		cfg.Webhook.OfflineUIDBatchSize = batchSize
+	}
+	if raw := configValue(values, "WK_WEBHOOK_REQUEST_TIMEOUT"); raw != "" {
+		timeout, err := parseDuration("WK_WEBHOOK_REQUEST_TIMEOUT", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if timeout < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_WEBHOOK_REQUEST_TIMEOUT: value must be >= 0")
+		}
+		cfg.Webhook.RequestTimeout = timeout
+	}
+	if raw := configValue(values, "WK_WEBHOOK_RETRY_MAX_ATTEMPTS"); raw != "" {
+		attempts, err := parseInt("WK_WEBHOOK_RETRY_MAX_ATTEMPTS", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if attempts < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_WEBHOOK_RETRY_MAX_ATTEMPTS: value must be >= 0")
+		}
+		cfg.Webhook.RetryMaxAttempts = attempts
+	}
+	cfg.Webhook, err = app.NormalizeWebhookConfig(cfg.Webhook)
+	if err != nil {
+		return app.Config{}, err
 	}
 	if raw := configValue(values, "WK_PLUGIN_ENABLE"); raw != "" {
 		enabled, err := parseBool("WK_PLUGIN_ENABLE", raw)

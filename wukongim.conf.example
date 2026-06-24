@@ -217,6 +217,22 @@ WK_DELIVERY_ACK_BATCH_MAX_WAIT=0
 # Zero uses the application default when WK_DELIVERY_ACK_BATCH_MAX_WAIT is enabled.
 WK_DELIVERY_ACK_BATCH_MAX_SIZE=0
 
+# Node-local best-effort webhook delivery is enabled when an HTTP endpoint is configured.
+# Webhook queues are bounded in memory; overload or endpoint failure may drop webhook batches.
+# Webhook failure never changes SENDACK or durable append success.
+# FocusEvents is a JSON array; empty means all supported events: msg.notify, msg.offline, user.onlinestatus.
+# WK_WEBHOOK_HTTP_ADDR=http://127.0.0.1:19090/webhook
+# WK_WEBHOOK_FOCUS_EVENTS=["msg.notify","msg.offline","user.onlinestatus"]
+# WK_WEBHOOK_QUEUE_SIZE=1024
+# WK_WEBHOOK_WORKERS=16
+# WK_WEBHOOK_MSG_NOTIFY_BATCH_MAX_ITEMS=100
+# WK_WEBHOOK_MSG_NOTIFY_BATCH_MAX_WAIT=500ms
+# WK_WEBHOOK_ONLINE_STATUS_BATCH_MAX_ITEMS=512
+# WK_WEBHOOK_ONLINE_STATUS_BATCH_MAX_WAIT=2s
+# WK_WEBHOOK_OFFLINE_UID_BATCH_SIZE=512
+# WK_WEBHOOK_REQUEST_TIMEOUT=5s
+# WK_WEBHOOK_RETRY_MAX_ATTEMPTS=3
+
 # Enables node-local .wkp plugin processes and hooks. Disabled by default for safety.
 WK_PLUGIN_ENABLE=false
 # Directory containing executable .wkp plugin files. Defaults to ${WK_NODE_DATA_DIR}/plugins when enabled.

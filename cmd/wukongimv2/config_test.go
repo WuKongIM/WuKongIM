@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -249,6 +250,17 @@ func TestLoadConfigExplicitConfigFile(t *testing.T) {
 		"WK_DELIVERY_PENDING_ACK_TTL=45s",
 		"WK_DELIVERY_PENDING_ACK_MAX_PER_SESSION=777",
 		"WK_DELIVERY_EVENT_QUEUE_SIZE=2048",
+		"WK_WEBHOOK_HTTP_ADDR=http://127.0.0.1:19090/webhook",
+		`WK_WEBHOOK_FOCUS_EVENTS=["msg.notify","msg.offline"]`,
+		"WK_WEBHOOK_QUEUE_SIZE=2048",
+		"WK_WEBHOOK_WORKERS=32",
+		"WK_WEBHOOK_MSG_NOTIFY_BATCH_MAX_ITEMS=200",
+		"WK_WEBHOOK_MSG_NOTIFY_BATCH_MAX_WAIT=250ms",
+		"WK_WEBHOOK_ONLINE_STATUS_BATCH_MAX_ITEMS=300",
+		"WK_WEBHOOK_ONLINE_STATUS_BATCH_MAX_WAIT=1s",
+		"WK_WEBHOOK_OFFLINE_UID_BATCH_SIZE=1000",
+		"WK_WEBHOOK_REQUEST_TIMEOUT=2s",
+		"WK_WEBHOOK_RETRY_MAX_ATTEMPTS=4",
 		"WK_PLUGIN_ENABLE=true",
 		"WK_PLUGIN_DIR=/tmp/wk-plugins",
 		"WK_PLUGIN_SOCKET_PATH=/tmp/wk-plugin.sock",
@@ -414,6 +426,20 @@ func TestLoadConfigExplicitConfigFile(t *testing.T) {
 	}
 	if cfg.Delivery.EventQueueSize != 2048 {
 		t.Fatalf("Delivery.EventQueueSize = %d, want 2048", cfg.Delivery.EventQueueSize)
+	}
+	if !cfg.Webhook.Enabled ||
+		cfg.Webhook.HTTPAddr != "http://127.0.0.1:19090/webhook" ||
+		!slices.Equal(cfg.Webhook.FocusEvents, []string{"msg.notify", "msg.offline"}) ||
+		cfg.Webhook.QueueSize != 2048 ||
+		cfg.Webhook.Workers != 32 ||
+		cfg.Webhook.NotifyBatchMaxItems != 200 ||
+		cfg.Webhook.NotifyBatchMaxWait != 250*time.Millisecond ||
+		cfg.Webhook.OnlineBatchMaxItems != 300 ||
+		cfg.Webhook.OnlineBatchMaxWait != time.Second ||
+		cfg.Webhook.OfflineUIDBatchSize != 1000 ||
+		cfg.Webhook.RequestTimeout != 2*time.Second ||
+		cfg.Webhook.RetryMaxAttempts != 4 {
+		t.Fatalf("Webhook config = %#v", cfg.Webhook)
 	}
 	if !cfg.Plugin.Enable ||
 		cfg.Plugin.Dir != "/tmp/wk-plugins" ||
@@ -932,6 +958,17 @@ func TestLoadConfigEnvOverridesFile(t *testing.T) {
 	t.Setenv("WK_DELIVERY_PENDING_ACK_TTL", "10s")
 	t.Setenv("WK_DELIVERY_PENDING_ACK_MAX_PER_SESSION", "256")
 	t.Setenv("WK_DELIVERY_EVENT_QUEUE_SIZE", "512")
+	t.Setenv("WK_WEBHOOK_HTTP_ADDR", "http://127.0.0.1:19091/webhook")
+	t.Setenv("WK_WEBHOOK_FOCUS_EVENTS", `["msg.notify","user.onlinestatus"]`)
+	t.Setenv("WK_WEBHOOK_QUEUE_SIZE", "4096")
+	t.Setenv("WK_WEBHOOK_WORKERS", "12")
+	t.Setenv("WK_WEBHOOK_MSG_NOTIFY_BATCH_MAX_ITEMS", "150")
+	t.Setenv("WK_WEBHOOK_MSG_NOTIFY_BATCH_MAX_WAIT", "125ms")
+	t.Setenv("WK_WEBHOOK_ONLINE_STATUS_BATCH_MAX_ITEMS", "250")
+	t.Setenv("WK_WEBHOOK_ONLINE_STATUS_BATCH_MAX_WAIT", "750ms")
+	t.Setenv("WK_WEBHOOK_OFFLINE_UID_BATCH_SIZE", "900")
+	t.Setenv("WK_WEBHOOK_REQUEST_TIMEOUT", "1500ms")
+	t.Setenv("WK_WEBHOOK_RETRY_MAX_ATTEMPTS", "5")
 	t.Setenv("WK_PLUGIN_ENABLE", "true")
 	t.Setenv("WK_PLUGIN_DIR", "/tmp/wk-plugins")
 	t.Setenv("WK_PLUGIN_SOCKET_PATH", "/tmp/wk-plugin.sock")
@@ -1045,6 +1082,20 @@ func TestLoadConfigEnvOverridesFile(t *testing.T) {
 		cfg.Delivery.PendingAckTTL != 10*time.Second || cfg.Delivery.PendingAckMaxPerSession != 256 ||
 		cfg.Delivery.EventQueueSize != 512 {
 		t.Fatalf("Delivery env override = %#v", cfg.Delivery)
+	}
+	if !cfg.Webhook.Enabled ||
+		cfg.Webhook.HTTPAddr != "http://127.0.0.1:19091/webhook" ||
+		!slices.Equal(cfg.Webhook.FocusEvents, []string{"msg.notify", "user.onlinestatus"}) ||
+		cfg.Webhook.QueueSize != 4096 ||
+		cfg.Webhook.Workers != 12 ||
+		cfg.Webhook.NotifyBatchMaxItems != 150 ||
+		cfg.Webhook.NotifyBatchMaxWait != 125*time.Millisecond ||
+		cfg.Webhook.OnlineBatchMaxItems != 250 ||
+		cfg.Webhook.OnlineBatchMaxWait != 750*time.Millisecond ||
+		cfg.Webhook.OfflineUIDBatchSize != 900 ||
+		cfg.Webhook.RequestTimeout != 1500*time.Millisecond ||
+		cfg.Webhook.RetryMaxAttempts != 5 {
+		t.Fatalf("Webhook env override = %#v", cfg.Webhook)
 	}
 	if !cfg.Plugin.Enable ||
 		cfg.Plugin.Dir != "/tmp/wk-plugins" ||
@@ -1404,6 +1455,25 @@ func TestLoadConfigRejectsInvalidValues(t *testing.T) {
 		{name: "delivery pending ack max per session negative", line: "WK_DELIVERY_PENDING_ACK_MAX_PER_SESSION=-1", wantKey: "WK_DELIVERY_PENDING_ACK_MAX_PER_SESSION"},
 		{name: "delivery event queue size", line: "WK_DELIVERY_EVENT_QUEUE_SIZE=many", wantKey: "WK_DELIVERY_EVENT_QUEUE_SIZE"},
 		{name: "delivery event queue size negative", line: "WK_DELIVERY_EVENT_QUEUE_SIZE=-1", wantKey: "WK_DELIVERY_EVENT_QUEUE_SIZE"},
+		{name: "webhook focus events malformed", line: "WK_WEBHOOK_FOCUS_EVENTS=msg.notify", wantKey: "WK_WEBHOOK_FOCUS_EVENTS"},
+		{name: "webhook queue size", line: "WK_WEBHOOK_QUEUE_SIZE=many", wantKey: "WK_WEBHOOK_QUEUE_SIZE"},
+		{name: "webhook queue size negative", line: "WK_WEBHOOK_QUEUE_SIZE=-1", wantKey: "WK_WEBHOOK_QUEUE_SIZE"},
+		{name: "webhook workers", line: "WK_WEBHOOK_WORKERS=many", wantKey: "WK_WEBHOOK_WORKERS"},
+		{name: "webhook workers negative", line: "WK_WEBHOOK_WORKERS=-1", wantKey: "WK_WEBHOOK_WORKERS"},
+		{name: "webhook notify batch max items", line: "WK_WEBHOOK_MSG_NOTIFY_BATCH_MAX_ITEMS=many", wantKey: "WK_WEBHOOK_MSG_NOTIFY_BATCH_MAX_ITEMS"},
+		{name: "webhook notify batch max items negative", line: "WK_WEBHOOK_MSG_NOTIFY_BATCH_MAX_ITEMS=-1", wantKey: "WK_WEBHOOK_MSG_NOTIFY_BATCH_MAX_ITEMS"},
+		{name: "webhook notify batch max wait", line: "WK_WEBHOOK_MSG_NOTIFY_BATCH_MAX_WAIT=soon", wantKey: "WK_WEBHOOK_MSG_NOTIFY_BATCH_MAX_WAIT"},
+		{name: "webhook notify batch max wait negative", line: "WK_WEBHOOK_MSG_NOTIFY_BATCH_MAX_WAIT=-1s", wantKey: "WK_WEBHOOK_MSG_NOTIFY_BATCH_MAX_WAIT"},
+		{name: "webhook online batch max items", line: "WK_WEBHOOK_ONLINE_STATUS_BATCH_MAX_ITEMS=many", wantKey: "WK_WEBHOOK_ONLINE_STATUS_BATCH_MAX_ITEMS"},
+		{name: "webhook online batch max items negative", line: "WK_WEBHOOK_ONLINE_STATUS_BATCH_MAX_ITEMS=-1", wantKey: "WK_WEBHOOK_ONLINE_STATUS_BATCH_MAX_ITEMS"},
+		{name: "webhook online batch max wait", line: "WK_WEBHOOK_ONLINE_STATUS_BATCH_MAX_WAIT=soon", wantKey: "WK_WEBHOOK_ONLINE_STATUS_BATCH_MAX_WAIT"},
+		{name: "webhook online batch max wait negative", line: "WK_WEBHOOK_ONLINE_STATUS_BATCH_MAX_WAIT=-1s", wantKey: "WK_WEBHOOK_ONLINE_STATUS_BATCH_MAX_WAIT"},
+		{name: "webhook offline uid batch size", line: "WK_WEBHOOK_OFFLINE_UID_BATCH_SIZE=many", wantKey: "WK_WEBHOOK_OFFLINE_UID_BATCH_SIZE"},
+		{name: "webhook offline uid batch size negative", line: "WK_WEBHOOK_OFFLINE_UID_BATCH_SIZE=-1", wantKey: "WK_WEBHOOK_OFFLINE_UID_BATCH_SIZE"},
+		{name: "webhook request timeout", line: "WK_WEBHOOK_REQUEST_TIMEOUT=soon", wantKey: "WK_WEBHOOK_REQUEST_TIMEOUT"},
+		{name: "webhook request timeout negative", line: "WK_WEBHOOK_REQUEST_TIMEOUT=-1s", wantKey: "WK_WEBHOOK_REQUEST_TIMEOUT"},
+		{name: "webhook retry max attempts", line: "WK_WEBHOOK_RETRY_MAX_ATTEMPTS=many", wantKey: "WK_WEBHOOK_RETRY_MAX_ATTEMPTS"},
+		{name: "webhook retry max attempts negative", line: "WK_WEBHOOK_RETRY_MAX_ATTEMPTS=-1", wantKey: "WK_WEBHOOK_RETRY_MAX_ATTEMPTS"},
 		{name: "plugin enable", line: "WK_PLUGIN_ENABLE=maybe", wantKey: "WK_PLUGIN_ENABLE"},
 		{name: "plugin timeout", line: "WK_PLUGIN_TIMEOUT=soon", wantKey: "WK_PLUGIN_TIMEOUT"},
 		{name: "plugin timeout negative", line: "WK_PLUGIN_TIMEOUT=-1s", wantKey: "WK_PLUGIN_TIMEOUT"},
