@@ -58,7 +58,7 @@ func (a *App) observeOnlineStatus(ctx context.Context, uid string, online bool) 
 	if a.onlineStatus == nil || a.local == nil || uid == "" {
 		return
 	}
-	if sessions := a.local.LocalSessionsByUID(uid); len(sessions) == 0 {
+	if !a.hasActiveLocalSession(uid) {
 		return
 	}
 	value := uid + "-0"
@@ -76,7 +76,7 @@ func (a *App) observeOfflineIfLastLocalSession(ctx context.Context, uid string) 
 	if a.onlineStatus == nil || a.local == nil || uid == "" {
 		return
 	}
-	if sessions := a.local.LocalSessionsByUID(uid); len(sessions) != 0 {
+	if a.hasActiveLocalSession(uid) {
 		return
 	}
 	_ = a.onlineStatus.ObserveOnlineStatus(ctx, OnlineStatusEvent{
@@ -84,6 +84,15 @@ func (a *App) observeOfflineIfLastLocalSession(ctx context.Context, uid string) 
 		Online: false,
 		Value:  uid + "-0",
 	})
+}
+
+func (a *App) hasActiveLocalSession(uid string) bool {
+	for _, session := range a.local.LocalSessionsByUID(uid) {
+		if session.State == RouteStateActive {
+			return true
+		}
+	}
+	return false
 }
 
 func (a *App) ownerRoute(cmd ActivateCommand) (OwnerRoute, error) {
