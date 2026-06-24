@@ -322,6 +322,16 @@ func (r *Runtime) JoinNode(ctx context.Context, req JoinNodeRequest) (JoinNodeRe
 	if r == nil || r.backend == nil {
 		return JoinNodeResult{}, cv2.ErrNotStarted
 	}
+	if r.canForwardControlWriteToLeader() {
+		resp, err := r.forwardControlWrite(ctx, ControlWriteRequest{
+			Action:   ControlWriteActionJoinNode,
+			JoinNode: req,
+		})
+		if err != nil {
+			return JoinNodeResult{}, err
+		}
+		return resp.JoinNode, nil
+	}
 	result, err := r.backend.JoinNode(ctx, cv2JoinNodeRequest(req))
 	if shouldForwardControlWrite(err) {
 		resp, err := r.forwardControlWrite(ctx, ControlWriteRequest{
@@ -347,6 +357,16 @@ func (r *Runtime) ActivateNode(ctx context.Context, req ActivateNodeRequest) (Ac
 	if r == nil || r.backend == nil {
 		return ActivateNodeResult{}, cv2.ErrNotStarted
 	}
+	if r.canForwardControlWriteToLeader() {
+		resp, err := r.forwardControlWrite(ctx, ControlWriteRequest{
+			Action:       ControlWriteActionActivateNode,
+			ActivateNode: req,
+		})
+		if err != nil {
+			return ActivateNodeResult{}, err
+		}
+		return resp.ActivateNode, nil
+	}
 	result, err := r.backend.ActivateNode(ctx, cv2ActivateNodeRequest(req))
 	if shouldForwardControlWrite(err) {
 		resp, err := r.forwardControlWrite(ctx, ControlWriteRequest{
@@ -370,6 +390,14 @@ func shouldForwardTaskWrite(err error) bool {
 
 func shouldForwardControlWrite(err error) bool {
 	return errors.Is(err, cv2.ErrNotLeader) || errors.Is(err, cv2.ErrNotStarted)
+}
+
+func (r *Runtime) canForwardControlWriteToLeader() bool {
+	if r == nil || r.writeClient == nil {
+		return false
+	}
+	leaderID := r.LeaderID()
+	return leaderID != 0 && leaderID != r.cfg.NodeID
 }
 
 func (r *Runtime) forwardTaskRequest(ctx context.Context, req TaskRequest) error {

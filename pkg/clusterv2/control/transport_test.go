@@ -2,6 +2,8 @@ package control
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -218,6 +220,22 @@ func TestTaskClientCallsRemoteHandler(t *testing.T) {
 	}
 }
 
+func TestControlWriteClientPreservesWrappedSemanticErrorIdentity(t *testing.T) {
+	network := clusternet.NewLocalNetwork()
+	applier := &recordingControlWriteApplier{activateErr: fmt.Errorf("wrapped semantic error: %w", cv2.ErrProposalRejected)}
+	network.Register(1, clusternet.RPCControlWrite, NewControlWriteHandler(applier))
+	client := NewControlWriteClient(network)
+
+	_, err := client.Submit(context.Background(), 1, ControlWriteRequest{
+		Action:       ControlWriteActionActivateNode,
+		ActivateNode: ActivateNodeRequest{NodeID: 4},
+	})
+
+	if !errors.Is(err, cv2.ErrProposalRejected) {
+		t.Fatalf("Submit() error = %v, want errors.Is(ErrProposalRejected)", err)
+	}
+}
+
 type recordingTaskApplier struct {
 	completed       []TaskResult
 	failed          []TaskResult
@@ -243,6 +261,33 @@ func (a *recordingTaskApplier) ReportTaskProgress(ctx context.Context, progress 
 func (a *recordingTaskApplier) RequestSlotLeaderTransfer(ctx context.Context, req SlotLeaderTransferRequest) (SlotLeaderTransferResult, error) {
 	a.leaderTransfers = append(a.leaderTransfers, req)
 	return SlotLeaderTransferResult{Created: true}, nil
+}
+
+type recordingControlWriteApplier struct {
+	joinNodes      []JoinNodeRequest
+	joinResult     JoinNodeResult
+	joinErr        error
+	activateNodes  []ActivateNodeRequest
+	activateCalls  int
+	activateResult ActivateNodeResult
+	activateErr    error
+}
+
+func (a *recordingControlWriteApplier) JoinNode(ctx context.Context, req JoinNodeRequest) (JoinNodeResult, error) {
+	a.joinNodes = append(a.joinNodes, req)
+	if a.joinErr != nil {
+		return JoinNodeResult{}, a.joinErr
+	}
+	return a.joinResult, nil
+}
+
+func (a *recordingControlWriteApplier) ActivateNode(ctx context.Context, req ActivateNodeRequest) (ActivateNodeResult, error) {
+	a.activateNodes = append(a.activateNodes, req)
+	a.activateCalls++
+	if a.activateErr != nil {
+		return ActivateNodeResult{}, a.activateErr
+	}
+	return a.activateResult, nil
 }
 
 type recordingRaftStepper struct {

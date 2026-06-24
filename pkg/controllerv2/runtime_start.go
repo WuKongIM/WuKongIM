@@ -84,6 +84,7 @@ func (r *Runtime) startMirror(ctx context.Context) error {
 		return err
 	}
 	r.server = srv
+	r.syncClient = client
 	if err := srv.SyncOnce(ctx); err != nil {
 		return err
 	}

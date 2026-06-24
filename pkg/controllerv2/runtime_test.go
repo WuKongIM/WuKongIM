@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/controllerv2/command"
+	"github.com/WuKongIM/WuKongIM/pkg/controllerv2/statefile"
+	cv2sync "github.com/WuKongIM/WuKongIM/pkg/controllerv2/sync"
 )
 
 func TestPublicClusterStateAliasSupportsStrongCompositeLiterals(t *testing.T) {
@@ -114,6 +116,61 @@ func TestRuntimeMirrorSyncsStateEvent(t *testing.T) {
 	event := readStateEvent(t, mirror.Watch())
 	if event.State.ClusterID != "cluster-mirror" || event.State.Revision == 0 || len(event.State.Nodes) != 1 {
 		t.Fatalf("mirror StateEvent = %#v, want synced leader state", event)
+	}
+}
+
+func TestRuntimeMirrorLeaderIDUsesSyncClientKnownLeader(t *testing.T) {
+	leaderState := ClusterState{
+		SchemaVersion: CurrentSchemaVersion,
+		ClusterID:     "cluster-mirror-known-leader",
+		Revision:      7,
+		Config:        ClusterConfig{SlotCount: 1, HashSlotCount: 4, ReplicaCount: 2},
+		Controllers: []ControllerVoter{
+			{NodeID: 1, Addr: "n1", Role: ControllerRoleVoter},
+			{NodeID: 2, Addr: "n2", Role: ControllerRoleVoter},
+		},
+		Nodes: []Node{
+			{NodeID: 1, Addr: "n1", Roles: []NodeRole{NodeRoleControllerVoter, NodeRoleData}, JoinState: NodeJoinStateActive, Status: NodeStatusAlive, CapacityWeight: 1},
+			{NodeID: 2, Addr: "n2", Roles: []NodeRole{NodeRoleControllerVoter, NodeRoleData}, JoinState: NodeJoinStateActive, Status: NodeStatusAlive, CapacityWeight: 1},
+		},
+		Slots:     []SlotAssignment{{SlotID: 1, DesiredPeers: []uint64{1, 2}, ConfigEpoch: 3, PreferredLeader: 2}},
+		HashSlots: HashSlotTable{Version: CurrentHashSlotTableVersion, SlotCount: 4, Ranges: []HashSlotRange{{From: 0, To: 3, SlotID: 1}}},
+	}
+	if err := leaderState.Validate(); err != nil {
+		t.Fatalf("leaderState.Validate() error = %v", err)
+	}
+	syncServer := NewStateSyncServer(StateSyncServerConfig{
+		NodeID:    2,
+		ClusterID: leaderState.ClusterID,
+		LeaderID:  func() uint64 { return 2 },
+		Ready:     func() bool { return true },
+		Snapshot:  func(context.Context) (ClusterState, error) { return leaderState, nil },
+	})
+	syncClient := cv2sync.NewClient(cv2sync.ClientConfig{
+		ClusterID: leaderState.ClusterID,
+		Store:     statefile.New(t.TempDir() + "/cluster-state.json"),
+		Peers:     fixedPeerPicker{ids: []uint64{1}, endpoints: map[uint64]Endpoint{1: syncServer}},
+		LeaderID:  1,
+	})
+	runtime, err := NewRuntime(RuntimeConfig{
+		NodeID:     4,
+		Addr:       "n4",
+		StateDir:   t.TempDir(),
+		ClusterID:  leaderState.ClusterID,
+		Role:       RuntimeRoleMirror,
+		Voters:     []Voter{{NodeID: 1, Addr: "n1"}, {NodeID: 2, Addr: "n2"}},
+		SyncClient: syncClient,
+	})
+	if err != nil {
+		t.Fatalf("NewRuntime(mirror) error = %v", err)
+	}
+	if err := runtime.Start(context.Background()); err != nil {
+		t.Fatalf("Start(mirror) error = %v", err)
+	}
+	t.Cleanup(func() { _ = runtime.Stop(context.Background()) })
+
+	if got := runtime.LeaderID(); got != 2 {
+		t.Fatalf("LeaderID() = %d, want sync client leader 2", got)
 	}
 }
 

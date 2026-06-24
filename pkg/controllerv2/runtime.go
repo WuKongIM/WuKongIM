@@ -30,6 +30,7 @@ type Runtime struct {
 	server *server.Server
 
 	syncServer *cv2sync.Server
+	syncClient *cv2sync.Client
 
 	refreshCancel context.CancelFunc
 	refreshWG     sync.WaitGroup
@@ -104,6 +105,11 @@ func (r *Runtime) LocalState(ctx context.Context) (ClusterState, error) {
 func (r *Runtime) LeaderID() uint64 {
 	if r.raft != nil {
 		return r.raft.LeaderID()
+	}
+	if r.syncClient != nil {
+		if leaderID := r.syncClient.LeaderID(); leaderID != 0 {
+			return leaderID
+		}
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
