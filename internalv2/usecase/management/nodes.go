@@ -26,6 +26,14 @@ type RuntimeSummaryReader interface {
 	NodeRuntimeSummary(ctx context.Context, nodeID uint64) (NodeRuntimeSummary, error)
 }
 
+// NodeLifecycleWriter submits cluster-authoritative node lifecycle mutations.
+type NodeLifecycleWriter interface {
+	// JoinNode submits a data-node join request to the control writer.
+	JoinNode(context.Context, control.JoinNodeRequest) (control.JoinNodeResult, error)
+	// ActivateNode submits a node activation request to the control writer.
+	ActivateNode(context.Context, control.ActivateNodeRequest) (control.ActivateNodeResult, error)
+}
+
 // DiagnosticsReader reads node-local diagnostics events through an entry-agnostic adapter.
 type DiagnosticsReader interface {
 	// QueryNodeDiagnostics returns retained diagnostics events from one cluster node.
@@ -48,6 +56,8 @@ type Options struct {
 	Cluster ControlSnapshotReader
 	// RuntimeSummary reads node runtime counters for the manager node list.
 	RuntimeSummary RuntimeSummaryReader
+	// NodeLifecycle submits cluster-authoritative node join and activation requests.
+	NodeLifecycle NodeLifecycleWriter
 	// Diagnostics reads local or remote node diagnostics events for manager aggregations.
 	Diagnostics DiagnosticsReader
 	// DiagnosticsTracking mutates local or remote runtime diagnostics tracking rules.
@@ -108,6 +118,7 @@ type Options struct {
 type App struct {
 	cluster                ControlSnapshotReader
 	runtimeSummary         RuntimeSummaryReader
+	nodeLifecycle          NodeLifecycleWriter
 	diagnostics            DiagnosticsReader
 	diagnosticsTracking    DiagnosticsTrackingOperator
 	channelRuntimeMeta     ChannelRuntimeMetaReader
@@ -146,6 +157,7 @@ func New(opts Options) *App {
 	return &App{
 		cluster:                opts.Cluster,
 		runtimeSummary:         opts.RuntimeSummary,
+		nodeLifecycle:          opts.NodeLifecycle,
 		diagnostics:            opts.Diagnostics,
 		diagnosticsTracking:    opts.DiagnosticsTracking,
 		channelRuntimeMeta:     opts.ChannelRuntimeMeta,

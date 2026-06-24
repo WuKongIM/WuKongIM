@@ -1336,6 +1336,8 @@ type managerNodesStub struct {
 	controllerRaftCompactResult        managementusecase.ControllerRaftCompactionResult
 	controllerRaftCompactSummary       managementusecase.ControllerRaftCompactionSummary
 	slotRaftCompactSummary             managementusecase.SlotRaftCompactionSummary
+	joinNodeResponse                   managementusecase.JoinNodeResponse
+	activateNodeResponse               managementusecase.ActivateNodeResponse
 	slotLeaderTransferResponse         managementusecase.SlotLeaderTransferResponse
 	slotLeaderTransferBatchPlan        managementusecase.SlotLeaderTransferBatchPlanResponse
 	slotLeaderTransferBatchExecute     managementusecase.SlotLeaderTransferBatchExecuteResponse
@@ -1376,6 +1378,8 @@ type managerNodesStub struct {
 	controllerRaftCompactNodeSink      *uint64
 	slotRaftCompactNodeSink            *uint64
 	slotRaftCompactSlotSink            *uint32
+	joinNodeReqSink                    *managementusecase.JoinNodeRequest
+	activateNodeReqSink                *managementusecase.ActivateNodeRequest
 	slotLeaderTransferReqSink          *managementusecase.SlotLeaderTransferRequest
 	slotLeaderTransferBatchPlanSink    *managementusecase.SlotLeaderTransferBatchPlanRequest
 	slotLeaderTransferBatchExecuteSink *managementusecase.SlotLeaderTransferBatchExecuteRequest
@@ -1410,6 +1414,8 @@ type managerNodesStub struct {
 	controllerRaftCompactErr           error
 	controllerRaftCompactAllErr        error
 	slotRaftCompactErr                 error
+	joinNodeErr                        error
+	activateNodeErr                    error
 	slotLeaderTransferErr              error
 	slotLeaderTransferBatchPlanErr     error
 	slotLeaderTransferBatchExecuteErr  error
@@ -1460,6 +1466,20 @@ func testFloat64Ptr(v float64) *float64 {
 
 func (s managerNodesStub) ListNodes(context.Context) (managementusecase.NodeList, error) {
 	return s.nodes, s.err
+}
+
+func (s managerNodesStub) JoinNode(_ context.Context, req managementusecase.JoinNodeRequest) (managementusecase.JoinNodeResponse, error) {
+	if s.joinNodeReqSink != nil {
+		*s.joinNodeReqSink = req
+	}
+	return s.joinNodeResponse, s.joinNodeErr
+}
+
+func (s managerNodesStub) ActivateNode(_ context.Context, req managementusecase.ActivateNodeRequest) (managementusecase.ActivateNodeResponse, error) {
+	if s.activateNodeReqSink != nil {
+		*s.activateNodeReqSink = req
+	}
+	return s.activateNodeResponse, s.activateNodeErr
 }
 
 func (s managerNodesStub) ListSlots(_ context.Context, opts managementusecase.ListSlotsOptions) ([]managementusecase.Slot, error) {

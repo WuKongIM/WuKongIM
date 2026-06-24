@@ -12,8 +12,9 @@ message retention adapter contract, local-or-remote connection list/detail
 projection, local-or-remote node plugin list/detail projection,
 cluster-authoritative plugin binding list/mutation, DB Inspect,
 diagnostics trace/message/event query orchestration and tracking-rule fan-out,
-node-local diagnostics orchestration, user management, and system UID
-projections/actions used by `GET /manager/nodes`,
+node-local diagnostics orchestration, node lifecycle join/activation,
+user management, and system UID projections/actions used by `GET /manager/nodes`,
+`POST /manager/nodes/join`, `POST /manager/nodes/:node_id/activate`,
 `GET /manager/slots`, `POST /manager/slots/:slot_id/leader-transfer`,
 `GET /manager/channels`,
 `GET /manager/channel-runtime-meta`, `GET /manager/controller/logs`,
@@ -57,9 +58,28 @@ from `SlotRuntimeStatusReader`; they do not fall back to `PreferredLeader`, so
 the node list does not mix control-plane placement intent with actual Raft
 leadership. Runtime online and gateway counters are read through the narrow
 `RuntimeSummaryReader` port. Read failures or an unwired runtime source mark
-only that node's runtime summary as unknown. Node operation action hints are
-always false because lifecycle, scale-in, and onboarding operation routes are
-intentionally outside this migration step.
+only that node's runtime summary as unknown. Node list action hints remain
+read-model hints; lifecycle writes are exposed separately by the join and
+activate flow below.
+
+## Node Lifecycle Flow
+
+```text
+manager HTTP handler
+  -> management.App.JoinNode/ActivateNode
+  -> NodeLifecycleWriter
+  -> clusterv2 control lifecycle writer
+```
+
+The lifecycle usecase validates manager-facing node IDs and join addresses,
+then delegates cluster-authoritative mutations to the narrow control writer
+port. Join requests always request the data role and leave capacity-weight
+defaulting to the control writer. Activation validates only the selected node
+identity before delegation. When the lifecycle writer is not configured, the
+usecase returns a dedicated unavailable error so HTTP can report
+`service_unavailable` instead of treating wiring as invalid operator input.
+Lifecycle usecase methods do not seed node RPC, poll startup, rebalance Slots,
+or mutate node operation hints.
 
 ## Slot List Flow
 

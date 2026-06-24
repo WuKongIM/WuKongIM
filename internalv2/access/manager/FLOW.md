@@ -13,6 +13,8 @@ user, or conversation business state.
 ```text
 POST /manager/login   (only when Auth.On=true)
 GET  /manager/nodes   (read-only node list; requires cluster.node:r when Auth.On=true)
+POST /manager/nodes/join (node lifecycle join; requires cluster.node:w when Auth.On=true)
+POST /manager/nodes/:node_id/activate (node lifecycle activation; requires cluster.node:w when Auth.On=true)
 GET  /manager/realtime-monitor (unified realtime monitor cards; requires cluster.node:r when Auth.On=true)
 GET  /manager/runtime/workqueues (local-node runtime pressure; requires cluster.node:r when Auth.On=true)
 GET  /manager/slots   (read-only Slot list; requires cluster.slot:r when Auth.On=true)
@@ -76,8 +78,16 @@ uses the wired Slot runtime status reader for actual Slot Raft leader counts.
 It also surfaces lightweight online/gateway runtime counters from the
 management runtime-summary reader; unavailable per-node runtime summaries stay
 explicitly marked `unknown` instead of failing the inventory response.
-Node operation action hints are false because node lifecycle/scale-in operation
-routes are intentionally not migrated in this phase.
+Node list action hints remain read-model hints. Node lifecycle writes are
+exposed as separate join and activate routes under `cluster.node:w`.
+`/manager/nodes/join` parses `node_id`, optional `name`, `addr`, and optional
+`capacity_weight`, delegates to `internalv2/usecase/management`, returns
+`202 Accepted` when the control writer creates state, and returns `200 OK` for
+idempotent no-op results. `/manager/nodes/:node_id/activate` parses the target
+node from the path, accepts an empty body, delegates to the same lifecycle
+usecase, and returns `202 Accepted` when activation changes state or `200 OK`
+when it is already active. These routes do not seed node RPC, poll peer
+startup, or perform Slot rebalance work.
 
 `/manager/realtime-monitor` backs the unified web realtime monitor under
 cluster operations. It parses chart `window`, optional `step`, optional

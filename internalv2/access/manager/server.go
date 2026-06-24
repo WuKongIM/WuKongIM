@@ -55,6 +55,10 @@ type AuthConfig struct {
 type Management interface {
 	// ListNodes returns manager-facing node DTOs.
 	ListNodes(ctx context.Context) (managementusecase.NodeList, error)
+	// JoinNode submits a manager node join intent.
+	JoinNode(ctx context.Context, req managementusecase.JoinNodeRequest) (managementusecase.JoinNodeResponse, error)
+	// ActivateNode submits a manager node activation intent.
+	ActivateNode(ctx context.Context, req managementusecase.ActivateNodeRequest) (managementusecase.ActivateNodeResponse, error)
 	// ListSlots returns manager-facing slot DTOs.
 	ListSlots(ctx context.Context, opts managementusecase.ListSlotsOptions) ([]managementusecase.Slot, error)
 	// ListSlotLogEntries returns one node-local Slot Raft log page.
@@ -286,6 +290,13 @@ func (s *Server) registerRoutes() {
 	nodes.GET("/nodes", s.handleNodes)
 	nodes.GET("/runtime/workqueues", s.handleRuntimeWorkqueues)
 	nodes.GET("/realtime-monitor", s.handleRealtimeMonitor)
+
+	nodeWrites := s.engine.Group("/manager")
+	if s.auth.enabled() {
+		nodeWrites.Use(s.requirePermission("cluster.node", "w"))
+	}
+	nodeWrites.POST("/nodes/join", s.handleJoinNode)
+	nodeWrites.POST("/nodes/:node_id/activate", s.handleActivateNode)
 
 	slots := s.engine.Group("/manager")
 	if s.auth.enabled() {
