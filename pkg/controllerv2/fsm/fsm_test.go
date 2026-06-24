@@ -375,6 +375,112 @@ func TestApplyLeaderTransferTaskFailKeepsActiveTask(t *testing.T) {
 	require.Empty(t, task.ParticipantProgress)
 }
 
+func TestApplyAdvanceSlotReplicaMovePhasePersistsFence(t *testing.T) {
+	ctx := context.Background()
+	sm := slotReplicaMoveStateMachine(t)
+	task := stagedSlotReplicaMoveTask("slot-1-replica-move-1-to-4-r9")
+	applyOK(t, sm, 4, command.Command{Kind: command.KindUpsertSlotReplicaMoveTask, Task: &task})
+
+	result, err := sm.Apply(ctx, 5, command.Command{
+		Kind: command.KindAdvanceSlotReplicaMovePhase,
+		SlotReplicaMovePhase: &command.SlotReplicaMovePhaseAdvance{
+			TaskID:              task.TaskID,
+			SlotID:              1,
+			ConfigEpoch:         7,
+			Attempt:             0,
+			ExpectedPhaseIndex:  0,
+			NextStep:            state.TaskStepPromoteLearner,
+			ObservedConfigIndex: 33,
+			ObservedVoters:      []uint64{1, 2, 3},
+			ObservedLearners:    []uint64{4},
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, ApplyResult{Changed: true, Revision: 5, AppliedRaftIndex: 5}, result)
+	got := sm.Snapshot(ctx).Tasks[0]
+	require.Equal(t, state.TaskStepPromoteLearner, got.Step)
+	require.Equal(t, uint32(1), got.PhaseIndex)
+	require.Equal(t, uint64(33), got.ObservedConfigIndex)
+	require.Equal(t, []uint64{1, 2, 3}, got.ObservedVoters)
+	require.Equal(t, []uint64{4}, got.ObservedLearners)
+}
+
+func TestApplyAdvanceSlotReplicaMovePhaseRejectsStalePhase(t *testing.T) {
+	ctx := context.Background()
+	sm := slotReplicaMoveStateMachine(t)
+	task := stagedSlotReplicaMoveTask("slot-1-replica-move-1-to-4-r9")
+	task.PhaseIndex = 1
+	applyOK(t, sm, 4, command.Command{Kind: command.KindUpsertSlotReplicaMoveTask, Task: &task})
+
+	result, err := sm.Apply(ctx, 5, command.Command{
+		Kind: command.KindAdvanceSlotReplicaMovePhase,
+		SlotReplicaMovePhase: &command.SlotReplicaMovePhaseAdvance{
+			TaskID:             task.TaskID,
+			SlotID:             1,
+			ConfigEpoch:        7,
+			Attempt:            0,
+			ExpectedPhaseIndex: 0,
+			NextStep:           state.TaskStepRemoveVoter,
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, ApplyResult{Rejected: true, Reason: ReasonTaskPhaseMismatch, Revision: 4, AppliedRaftIndex: 5}, result)
+	require.Equal(t, uint32(1), sm.Snapshot(ctx).Tasks[0].PhaseIndex)
+}
+
+func TestApplyCommitSlotReplicaMoveUpdatesAssignmentAndRemovesTask(t *testing.T) {
+	ctx := context.Background()
+	sm := slotReplicaMoveStateMachine(t)
+	task := stagedSlotReplicaMoveTask("slot-1-replica-move-1-to-4-r9")
+	task.Step = state.TaskStepCommitAssignment
+	task.PhaseIndex = 4
+	task.ObservedConfigIndex = 55
+	task.ObservedVoters = []uint64{4, 2, 3}
+	applyOK(t, sm, 4, command.Command{Kind: command.KindUpsertSlotReplicaMoveTask, Task: &task})
+
+	result, err := sm.Apply(ctx, 5, command.Command{
+		Kind: command.KindCommitSlotReplicaMove,
+		SlotReplicaMoveCommit: &command.SlotReplicaMoveCommit{
+			TaskID:      task.TaskID,
+			SlotID:      1,
+			ConfigEpoch: 7,
+			Attempt:     0,
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, ApplyResult{Changed: true, Revision: 5, AppliedRaftIndex: 5}, result)
+	snap := sm.Snapshot(ctx)
+	require.Empty(t, snap.Tasks)
+	require.Equal(t, []uint64{2, 3, 4}, snap.Slots[0].DesiredPeers)
+	require.Equal(t, uint64(8), snap.Slots[0].ConfigEpoch)
+}
+
+func TestApplyCommitSlotReplicaMoveRejectsObservedVoterMismatch(t *testing.T) {
+	ctx := context.Background()
+	sm := slotReplicaMoveStateMachine(t)
+	task := stagedSlotReplicaMoveTask("slot-1-replica-move-1-to-4-r9")
+	task.Step = state.TaskStepCommitAssignment
+	task.ObservedConfigIndex = 55
+	task.ObservedVoters = []uint64{4, 2, 9}
+	applyOK(t, sm, 4, command.Command{Kind: command.KindUpsertSlotReplicaMoveTask, Task: &task})
+
+	result, err := sm.Apply(ctx, 5, command.Command{
+		Kind: command.KindCommitSlotReplicaMove,
+		SlotReplicaMoveCommit: &command.SlotReplicaMoveCommit{
+			TaskID:      task.TaskID,
+			SlotID:      1,
+			ConfigEpoch: 7,
+			Attempt:     0,
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, ApplyResult{Rejected: true, Reason: ReasonTaskObservedVotersMismatch, Revision: 4, AppliedRaftIndex: 5}, result)
+	snap := sm.Snapshot(ctx)
+	require.Len(t, snap.Tasks, 1)
+	require.Equal(t, []uint64{1, 2, 3}, snap.Slots[0].DesiredPeers)
+	require.Equal(t, uint64(7), snap.Slots[0].ConfigEpoch)
+}
+
 func TestApplyFailTaskMissingTaskNoops(t *testing.T) {
 	ctx := context.Background()
 	sm, _ := initializedStateMachine(t, 1)
@@ -713,6 +819,48 @@ func leaderTransferCommand(slotID uint32, expectedRevision uint64, sourceNode ui
 			ConfigEpoch:      configEpoch,
 			Status:           state.TaskStatusPending,
 		},
+	}
+}
+
+func slotReplicaMoveStateMachine(t *testing.T) *StateMachine {
+	t.Helper()
+	sm, _ := initializedStateMachine(t, 1)
+	task := state.ReconcileTask{
+		TaskID:              "slot-1-bootstrap-7",
+		SlotID:              1,
+		Kind:                state.TaskKindBootstrap,
+		Step:                state.TaskStepCreateSlot,
+		TargetNode:          1,
+		TargetPeers:         []uint64{1, 2, 3},
+		CompletionPolicy:    state.TaskCompletionPolicyAllTargetPeers,
+		ParticipantProgress: participantProgress([]uint64{1, 2, 3}),
+		ConfigEpoch:         7,
+		Status:              state.TaskStatusPending,
+	}
+	assignment := state.SlotAssignment{SlotID: 1, DesiredPeers: []uint64{1, 2, 3}, ConfigEpoch: 7, PreferredLeader: 1}
+	applyOK(t, sm, 2, command.Command{Kind: command.KindUpsertSlotAssignmentAndTask, Assignment: &assignment, Task: &task})
+	applyOK(t, sm, 3, command.Command{Kind: command.KindCompleteTask, TaskResult: &command.TaskResult{
+		TaskID:      task.TaskID,
+		SlotID:      task.SlotID,
+		TaskKind:    task.Kind,
+		ConfigEpoch: task.ConfigEpoch,
+		Attempt:     task.Attempt,
+	}})
+	return sm
+}
+
+func stagedSlotReplicaMoveTask(taskID string) state.ReconcileTask {
+	return state.ReconcileTask{
+		TaskID:           taskID,
+		SlotID:           1,
+		Kind:             state.TaskKindSlotReplicaMove,
+		Step:             state.TaskStepOpenLearner,
+		SourceNode:       1,
+		TargetNode:       4,
+		TargetPeers:      []uint64{4, 2, 3},
+		CompletionPolicy: state.TaskCompletionPolicySingleObserver,
+		ConfigEpoch:      7,
+		Status:           state.TaskStatusPending,
 	}
 }
 

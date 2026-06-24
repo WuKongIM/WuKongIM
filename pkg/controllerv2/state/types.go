@@ -61,6 +61,8 @@ const (
 	TaskKindBootstrap TaskKind = "bootstrap"
 	// TaskKindLeaderTransfer records an operator-requested Slot Raft leadership transfer.
 	TaskKindLeaderTransfer TaskKind = "leader_transfer"
+	// TaskKindSlotReplicaMove moves one physical Slot voter from SourceNode to TargetNode.
+	TaskKindSlotReplicaMove TaskKind = "slot_replica_move"
 )
 
 // TaskStep describes the current step inside a reconcile workflow.
@@ -71,6 +73,16 @@ const (
 	TaskStepCreateSlot TaskStep = "create_slot"
 	// TaskStepTransferLeader asks Slot Raft to move leadership away from the observed source.
 	TaskStepTransferLeader TaskStep = "transfer_leader"
+	// TaskStepOpenLearner opens the target replica as a non-voting Slot learner.
+	TaskStepOpenLearner TaskStep = "open_learner"
+	// TaskStepAddLearner adds the target node to the Slot Raft learner set.
+	TaskStepAddLearner TaskStep = "add_learner"
+	// TaskStepPromoteLearner promotes the target learner into the Slot Raft voter set.
+	TaskStepPromoteLearner TaskStep = "promote_learner"
+	// TaskStepRemoveVoter removes the source node from the Slot Raft voter set.
+	TaskStepRemoveVoter TaskStep = "remove_voter"
+	// TaskStepCommitAssignment commits the durable Slot assignment after Slot Raft converges.
+	TaskStepCommitAssignment TaskStep = "commit_assignment"
 )
 
 // TaskStatus describes whether a durable reconcile task is still actionable.
@@ -247,4 +259,12 @@ type ReconcileTask struct {
 	Status TaskStatus `json:"status"`
 	// LastError stores the bounded error from the most recent failed attempt.
 	LastError string `json:"last_error,omitempty"`
+	// PhaseIndex advances after each externally observed Slot Raft config step.
+	PhaseIndex uint32 `json:"phase_index,omitempty"`
+	// ObservedConfigIndex is the Slot Raft applied index that proved the current phase.
+	ObservedConfigIndex uint64 `json:"observed_config_index,omitempty"`
+	// ObservedVoters stores the voter set observed for the current phase.
+	ObservedVoters []uint64 `json:"observed_voters,omitempty"`
+	// ObservedLearners stores the learner set observed for the current phase.
+	ObservedLearners []uint64 `json:"observed_learners,omitempty"`
 }

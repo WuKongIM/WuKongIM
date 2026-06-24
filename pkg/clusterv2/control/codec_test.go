@@ -94,27 +94,42 @@ func TestControlTaskRequestCodecRoundTrip(t *testing.T) {
 	}
 }
 
-func TestControlWriteRequestNodeLifecycleCodecRoundTrip(t *testing.T) {
-	req := ControlWriteRequest{
-		Action: ControlWriteActionJoinNode,
-		JoinNode: JoinNodeRequest{
-			NodeID:         4,
-			Name:           "node-4",
-			Addr:           "127.0.0.1:10004",
-			Roles:          []Role{RoleData},
-			CapacityWeight: 2,
+func TestControlWriteRequestCodecRoundTripSlotReplicaMove(t *testing.T) {
+	requests := []ControlWriteRequest{
+		{
+			Action: ControlWriteActionJoinNode,
+			JoinNode: JoinNodeRequest{
+				NodeID:         4,
+				Name:           "node-4",
+				Addr:           "127.0.0.1:10004",
+				Roles:          []Role{RoleData},
+				CapacityWeight: 2,
+			},
+		},
+		{
+			Action: ControlWriteActionSlotReplicaMove,
+			SlotReplicaMove: SlotReplicaMoveRequest{
+				SlotID:        1,
+				SourceNode:    1,
+				TargetNode:    4,
+				TargetPeers:   []uint64{4, 2, 3},
+				ConfigEpoch:   7,
+				StateRevision: 9,
+			},
 		},
 	}
-	payload, err := EncodeControlWriteRequest(req)
-	if err != nil {
-		t.Fatalf("EncodeControlWriteRequest() error = %v", err)
-	}
-	got, err := DecodeControlWriteRequest(payload)
-	if err != nil {
-		t.Fatalf("DecodeControlWriteRequest() error = %v", err)
-	}
-	if !reflect.DeepEqual(got, req) {
-		t.Fatalf("DecodeControlWriteRequest() = %#v, want %#v", got, req)
+	for _, req := range requests {
+		payload, err := EncodeControlWriteRequest(req)
+		if err != nil {
+			t.Fatalf("EncodeControlWriteRequest() error = %v", err)
+		}
+		got, err := DecodeControlWriteRequest(payload)
+		if err != nil {
+			t.Fatalf("DecodeControlWriteRequest() error = %v", err)
+		}
+		if !reflect.DeepEqual(got, req) {
+			t.Fatalf("DecodeControlWriteRequest() = %#v, want %#v", got, req)
+		}
 	}
 }
 

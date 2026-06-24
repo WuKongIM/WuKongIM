@@ -13,6 +13,8 @@ type ControlWriteApplier interface {
 	JoinNode(context.Context, JoinNodeRequest) (JoinNodeResult, error)
 	// ActivateNode submits a node activation intent.
 	ActivateNode(context.Context, ActivateNodeRequest) (ActivateNodeResult, error)
+	// RequestSlotReplicaMove submits a staged Slot replica move intent.
+	RequestSlotReplicaMove(context.Context, SlotReplicaMoveRequest) (SlotReplicaMoveResult, error)
 }
 
 // ControlWriteClient forwards generic ControllerV2 writes to a remote node.
@@ -65,6 +67,12 @@ func NewControlWriteHandler(applier ControlWriteApplier) clusternet.Handler {
 				return encodeControlWriteErrorResponse(err)
 			}
 			resp.ActivateNode = result
+		case ControlWriteActionSlotReplicaMove:
+			result, err := applier.RequestSlotReplicaMove(ctx, req.SlotReplicaMove)
+			if err != nil {
+				return encodeControlWriteErrorResponse(err)
+			}
+			resp.SlotReplicaMove = result
 		default:
 			return nil, fmt.Errorf("control write: unknown action %q", req.Action)
 		}

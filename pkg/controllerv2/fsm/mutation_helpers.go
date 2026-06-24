@@ -86,6 +86,10 @@ func equivalentTask(a, b state.ReconcileTask) bool {
 	right := cloneTask(b)
 	sort.Slice(left.TargetPeers, func(i, j int) bool { return left.TargetPeers[i] < left.TargetPeers[j] })
 	sort.Slice(right.TargetPeers, func(i, j int) bool { return right.TargetPeers[i] < right.TargetPeers[j] })
+	sort.Slice(left.ObservedVoters, func(i, j int) bool { return left.ObservedVoters[i] < left.ObservedVoters[j] })
+	sort.Slice(right.ObservedVoters, func(i, j int) bool { return right.ObservedVoters[i] < right.ObservedVoters[j] })
+	sort.Slice(left.ObservedLearners, func(i, j int) bool { return left.ObservedLearners[i] < left.ObservedLearners[j] })
+	sort.Slice(right.ObservedLearners, func(i, j int) bool { return right.ObservedLearners[i] < right.ObservedLearners[j] })
 	return reflect.DeepEqual(left, right)
 }
 
@@ -134,6 +138,42 @@ func findParticipant(items []state.TaskParticipantProgress, nodeID uint64) int {
 	return -1
 }
 
+func containsUint64(items []uint64, want uint64) bool {
+	for _, item := range items {
+		if item == want {
+			return true
+		}
+	}
+	return false
+}
+
+func replacePeer(peers []uint64, source uint64, target uint64) []uint64 {
+	out := append([]uint64(nil), peers...)
+	for i, peer := range out {
+		if peer == source {
+			out[i] = target
+			break
+		}
+	}
+	return out
+}
+
+func sameUint64Set(a, b []uint64) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	left := append([]uint64(nil), a...)
+	right := append([]uint64(nil), b...)
+	sort.Slice(left, func(i, j int) bool { return left[i] < left[j] })
+	sort.Slice(right, func(i, j int) bool { return right[i] < right[j] })
+	for i := range left {
+		if left[i] != right[i] {
+			return false
+		}
+	}
+	return true
+}
+
 func truncateUTF8(s string, maxBytes int) string {
 	if maxBytes <= 0 || len([]byte(s)) <= maxBytes {
 		return s
@@ -166,6 +206,8 @@ func cloneAssignment(assignment state.SlotAssignment) state.SlotAssignment {
 func cloneTask(task state.ReconcileTask) state.ReconcileTask {
 	task.TargetPeers = append([]uint64(nil), task.TargetPeers...)
 	task.ParticipantProgress = append([]state.TaskParticipantProgress(nil), task.ParticipantProgress...)
+	task.ObservedVoters = append([]uint64(nil), task.ObservedVoters...)
+	task.ObservedLearners = append([]uint64(nil), task.ObservedLearners...)
 	return task
 }
 

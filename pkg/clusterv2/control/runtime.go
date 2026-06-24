@@ -314,6 +314,52 @@ func (r *Runtime) RequestSlotLeaderTransfer(ctx context.Context, req SlotLeaderT
 	return SlotLeaderTransferResult{Created: result.Created, Task: &task}, nil
 }
 
+// RequestSlotReplicaMove submits a Controller-backed staged Slot replica move intent.
+func (r *Runtime) RequestSlotReplicaMove(ctx context.Context, req SlotReplicaMoveRequest) (SlotReplicaMoveResult, error) {
+	if err := ctxErr(ctx); err != nil {
+		return SlotReplicaMoveResult{}, err
+	}
+	if r == nil || r.backend == nil {
+		return SlotReplicaMoveResult{}, cv2.ErrNotStarted
+	}
+	if r.canForwardControlWriteToLeader() {
+		resp, err := r.forwardControlWrite(ctx, ControlWriteRequest{
+			Action:          ControlWriteActionSlotReplicaMove,
+			SlotReplicaMove: req,
+		})
+		if err != nil {
+			return SlotReplicaMoveResult{}, err
+		}
+		return resp.SlotReplicaMove, nil
+	}
+	result, err := r.backend.RequestSlotReplicaMove(ctx, cv2.SlotReplicaMoveRequest{
+		SlotID:        req.SlotID,
+		SourceNode:    req.SourceNode,
+		TargetNode:    req.TargetNode,
+		TargetPeers:   append([]uint64(nil), req.TargetPeers...),
+		ConfigEpoch:   req.ConfigEpoch,
+		StateRevision: req.StateRevision,
+	})
+	if shouldForwardControlWrite(err) {
+		resp, err := r.forwardControlWriteAfterError(ctx, ControlWriteRequest{
+			Action:          ControlWriteActionSlotReplicaMove,
+			SlotReplicaMove: req,
+		}, err)
+		if err != nil {
+			return SlotReplicaMoveResult{}, err
+		}
+		return resp.SlotReplicaMove, nil
+	}
+	if err != nil {
+		return SlotReplicaMoveResult{}, err
+	}
+	task := slotReplicaMoveTaskFromRequest(req)
+	if result.Task != nil {
+		task = reconcileTaskFromControllerV2(*result.Task)
+	}
+	return SlotReplicaMoveResult{Created: result.Created, Task: &task}, nil
+}
+
 // JoinNode submits a data-node join intent.
 func (r *Runtime) JoinNode(ctx context.Context, req JoinNodeRequest) (JoinNodeResult, error) {
 	if err := ctxErr(ctx); err != nil {
@@ -498,6 +544,28 @@ func emptyControllerV2State(st cv2.ClusterState) bool {
 		st.HashSlots.SlotCount == 0 &&
 		len(st.HashSlots.Ranges) == 0 &&
 		len(st.Tasks) == 0
+}
+
+func reconcileTaskFromControllerV2(task cv2.ReconcileTask) ReconcileTask {
+	return ReconcileTask{
+		TaskID:              task.TaskID,
+		SlotID:              task.SlotID,
+		Kind:                TaskKind(task.Kind),
+		Step:                TaskStep(task.Step),
+		SourceNode:          task.SourceNode,
+		TargetNode:          task.TargetNode,
+		TargetPeers:         append([]uint64(nil), task.TargetPeers...),
+		CompletionPolicy:    TaskCompletionPolicy(task.CompletionPolicy),
+		ParticipantProgress: append([]TaskParticipantProgress(nil), task.ParticipantProgress...),
+		ConfigEpoch:         task.ConfigEpoch,
+		Attempt:             task.Attempt,
+		Status:              TaskStatus(task.Status),
+		LastError:           task.LastError,
+		PhaseIndex:          task.PhaseIndex,
+		ObservedConfigIndex: task.ObservedConfigIndex,
+		ObservedVoters:      append([]uint64(nil), task.ObservedVoters...),
+		ObservedLearners:    append([]uint64(nil), task.ObservedLearners...),
+	}
 }
 
 var _ Controller = (*Runtime)(nil)

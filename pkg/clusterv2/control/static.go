@@ -20,7 +20,9 @@ type StaticController struct {
 	ProgressReports []TaskProgress
 	// LeaderTransfers records Slot leader transfer intents for tests.
 	LeaderTransfers []SlotLeaderTransferRequest
-	started         bool
+	// SlotReplicaMoves records staged Slot replica move intents for tests.
+	SlotReplicaMoves []SlotReplicaMoveRequest
+	started          bool
 }
 
 // NewStaticController creates a StaticController seeded with snapshot.
@@ -135,6 +137,18 @@ func (c *StaticController) RequestSlotLeaderTransfer(ctx context.Context, req Sl
 	c.LeaderTransfers = append(c.LeaderTransfers, req)
 	c.mu.Unlock()
 	return SlotLeaderTransferResult{Created: true, Task: &task}, nil
+}
+
+// RequestSlotReplicaMove records a Controller-backed staged Slot replica move intent.
+func (c *StaticController) RequestSlotReplicaMove(ctx context.Context, req SlotReplicaMoveRequest) (SlotReplicaMoveResult, error) {
+	if err := ctxErr(ctx); err != nil {
+		return SlotReplicaMoveResult{}, err
+	}
+	task := slotReplicaMoveTaskFromRequest(req)
+	c.mu.Lock()
+	c.SlotReplicaMoves = append(c.SlotReplicaMoves, req)
+	c.mu.Unlock()
+	return SlotReplicaMoveResult{Created: true, Task: &task}, nil
 }
 
 // Watch returns snapshot update events.

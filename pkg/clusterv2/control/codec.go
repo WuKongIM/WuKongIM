@@ -147,6 +147,8 @@ const (
 	ControlWriteActionJoinNode ControlWriteAction = "join_node"
 	// ControlWriteActionActivateNode submits a node activation intent.
 	ControlWriteActionActivateNode ControlWriteAction = "activate_node"
+	// ControlWriteActionSlotReplicaMove submits a staged Slot replica move intent.
+	ControlWriteActionSlotReplicaMove ControlWriteAction = "slot_replica_move"
 )
 
 // ControlWriteRequest carries one generic ControllerV2 write.
@@ -157,6 +159,8 @@ type ControlWriteRequest struct {
 	JoinNode JoinNodeRequest `json:"join_node,omitempty"`
 	// ActivateNode carries a node activation intent.
 	ActivateNode ActivateNodeRequest `json:"activate_node,omitempty"`
+	// SlotReplicaMove carries a staged Slot replica move intent.
+	SlotReplicaMove SlotReplicaMoveRequest `json:"slot_replica_move,omitempty"`
 }
 
 // ControlWriteResponse carries the result of one generic ControllerV2 write.
@@ -165,6 +169,8 @@ type ControlWriteResponse struct {
 	JoinNode JoinNodeResult `json:"join_node,omitempty"`
 	// ActivateNode carries the result of a node activation intent.
 	ActivateNode ActivateNodeResult `json:"activate_node,omitempty"`
+	// SlotReplicaMove carries the result of a staged Slot replica move intent.
+	SlotReplicaMove SlotReplicaMoveResult `json:"slot_replica_move,omitempty"`
 }
 
 type controlWriteResponseEnvelope struct {

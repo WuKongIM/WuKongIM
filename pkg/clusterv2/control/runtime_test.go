@@ -434,6 +434,106 @@ func TestRuntimeActivateNodeReturnsControlWriteAfterForward(t *testing.T) {
 	}
 }
 
+func TestRuntimeRequestSlotReplicaMoveReturnsControlWriteAfterForward(t *testing.T) {
+	network := clusternet.NewLocalNetwork()
+	controlWriteClient := NewControlWriteClient(network)
+	voters := []RuntimeVoter{{NodeID: 1, Addr: "n1"}, {NodeID: 2, Addr: "n2"}, {NodeID: 3, Addr: "n3"}}
+	runtimes := make([]*Runtime, 0, len(voters))
+	for _, voter := range voters {
+		rt, err := NewRuntime(RuntimeConfig{
+			NodeID:             voter.NodeID,
+			Addr:               voter.Addr,
+			StateDir:           t.TempDir(),
+			ClusterID:          "cluster-forward-slot-replica-move",
+			Role:               RuntimeRoleVoter,
+			Voters:             voters,
+			AllowBootstrap:     true,
+			InitialSlotCount:   1,
+			HashSlotCount:      4,
+			ReplicaCount:       3,
+			TickInterval:       10 * time.Millisecond,
+			RaftTransport:      NewRaftTransport(network),
+			ControlWriteClient: controlWriteClient,
+		})
+		if err != nil {
+			t.Fatalf("NewRuntime(%d) error = %v", voter.NodeID, err)
+		}
+		network.Register(voter.NodeID, clusternet.RPCControlRaft, NewRaftHandler(rt))
+		runtimes = append(runtimes, rt)
+	}
+	startCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	startErrs := make(chan error, len(runtimes))
+	for _, rt := range runtimes {
+		rt := rt
+		go func() { startErrs <- rt.Start(startCtx) }()
+		t.Cleanup(func() { _ = rt.Stop(context.Background()) })
+	}
+	for range runtimes {
+		if err := <-startErrs; err != nil {
+			t.Fatalf("Start() error = %v", err)
+		}
+	}
+
+	var leaderID uint64
+	var follower *Runtime
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		for _, rt := range runtimes {
+			leaderID = rt.LeaderID()
+			if leaderID == 0 {
+				continue
+			}
+			if rt.cfg.NodeID != leaderID {
+				follower = rt
+				break
+			}
+		}
+		if follower != nil {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if follower == nil {
+		t.Fatal("timeout waiting for follower runtime")
+	}
+
+	wantTask := ReconcileTask{
+		TaskID:           "slot-1-replica-move-1-to-4-r9",
+		SlotID:           1,
+		Kind:             TaskKindSlotReplicaMove,
+		Step:             TaskStepOpenLearner,
+		SourceNode:       1,
+		TargetNode:       4,
+		TargetPeers:      []uint64{4, 2, 3},
+		CompletionPolicy: TaskCompletionPolicySingleObserver,
+		ConfigEpoch:      7,
+		Status:           TaskStatusPending,
+	}
+	applier := &recordingControlWriteApplier{
+		slotReplicaMoveResult: SlotReplicaMoveResult{Created: true, Task: &wantTask},
+	}
+	network.Register(leaderID, clusternet.RPCControlWrite, NewControlWriteHandler(applier))
+	req := SlotReplicaMoveRequest{
+		SlotID:        1,
+		SourceNode:    1,
+		TargetNode:    4,
+		TargetPeers:   []uint64{4, 2, 3},
+		ConfigEpoch:   7,
+		StateRevision: 9,
+	}
+	result, err := follower.RequestSlotReplicaMove(context.Background(), req)
+	if err != nil {
+		t.Fatalf("RequestSlotReplicaMove() error = %v", err)
+	}
+	if len(applier.slotReplicaMoves) != 1 || applier.slotReplicaMoves[0].TargetNode != 4 {
+		t.Fatalf("slotReplicaMoves = %#v, want one forwarded move", applier.slotReplicaMoves)
+	}
+	if !result.Created || result.Task == nil || result.Task.TaskID != wantTask.TaskID {
+		t.Fatalf("RequestSlotReplicaMove() = %#v, want forwarded task", result)
+	}
+}
+
 func TestRuntimeRestartReusesExistingState(t *testing.T) {
 	dir := t.TempDir()
 	cfg := RuntimeConfig{

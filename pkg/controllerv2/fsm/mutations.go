@@ -36,6 +36,14 @@ const (
 	ReasonTaskParticipantUnexpected = "task_participant_unexpected"
 	// ReasonTaskParticipantAttemptStale marks an obsolete participant progress report.
 	ReasonTaskParticipantAttemptStale = "task_participant_attempt_stale"
+	// ReasonTaskPhaseMismatch marks an obsolete Slot replica move phase report.
+	ReasonTaskPhaseMismatch = "task_phase_mismatch"
+	// ReasonTaskStepMismatch marks a task command for the wrong workflow step.
+	ReasonTaskStepMismatch = "task_step_mismatch"
+	// ReasonTaskObservedVotersMismatch marks a commit whose observed voters do not match target peers.
+	ReasonTaskObservedVotersMismatch = "task_observed_voters_mismatch"
+	// ReasonTaskObservedConfigMissing marks a commit without a durable Slot Raft config observation.
+	ReasonTaskObservedConfigMissing = "task_observed_config_missing"
 	// ReasonInitConflict marks an init command that does not match existing state.
 	ReasonInitConflict = "init_conflict"
 	// MaxTaskLastErrorBytes bounds the durable LastError field for failed tasks.
@@ -65,6 +73,13 @@ func (sm *StateMachine) applyMutation(next *state.ClusterState, raftIndex uint64
 		} else if cmd.ExpectedRevision != nil && *cmd.ExpectedRevision != currentRevision {
 			return reject(ReasonExpectedRevisionMismatch)
 		}
+	case command.KindUpsertSlotReplicaMoveTask:
+		if cmd.Task == nil || cmd.Task.Kind != state.TaskKindSlotReplicaMove {
+			return reject(ReasonInvalidCommand)
+		}
+		if cmd.ExpectedRevision != nil && *cmd.ExpectedRevision != currentRevision {
+			return reject(ReasonExpectedRevisionMismatch)
+		}
 	case command.KindFailTask:
 		if stale, handled := handleFailTaskRevisionMismatch(next, cmd); handled {
 			return stale
@@ -91,6 +106,12 @@ func (sm *StateMachine) applyMutation(next *state.ClusterState, raftIndex uint64
 		return sm.applyReplaceHashSlotTable(next, cmd)
 	case command.KindUpsertSlotAssignmentAndTask:
 		return sm.applyUpsertSlotAssignmentAndTask(next, cmd)
+	case command.KindUpsertSlotReplicaMoveTask:
+		return sm.applyUpsertSlotReplicaMoveTask(next, cmd)
+	case command.KindAdvanceSlotReplicaMovePhase:
+		return sm.applyAdvanceSlotReplicaMovePhase(next, cmd)
+	case command.KindCommitSlotReplicaMove:
+		return sm.applyCommitSlotReplicaMove(next, cmd)
 	case command.KindCompleteTask:
 		return sm.applyCompleteTask(next, cmd)
 	case command.KindFailTask:

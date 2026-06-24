@@ -3,6 +3,7 @@ package state
 import (
 	"fmt"
 	"reflect"
+	"sort"
 )
 
 // Validate checks whether the cluster state satisfies durable ControllerV2 invariants.
@@ -39,7 +40,7 @@ func (s ClusterState) Validate() error {
 	if err := validateHashSlots(s.Config, s.HashSlots); err != nil {
 		return err
 	}
-	if err := validateTasks(s.Tasks, assignments); err != nil {
+	if err := validateTasks(s.Tasks, assignments, nodes); err != nil {
 		return err
 	}
 	return nil
@@ -189,7 +190,7 @@ func validateHashSlots(config ClusterConfig, table HashSlotTable) error {
 	return nil
 }
 
-func validateTasks(tasks []ReconcileTask, assignments map[uint32]SlotAssignment) error {
+func validateTasks(tasks []ReconcileTask, assignments map[uint32]SlotAssignment, nodes map[uint64]Node) error {
 	seenTaskIDs := make(map[string]struct{}, len(tasks))
 	seenSlots := make(map[uint32]struct{}, len(tasks))
 	for _, task := range tasks {
@@ -269,6 +270,49 @@ func validateTasks(tasks []ReconcileTask, assignments map[uint32]SlotAssignment)
 			if len(task.ParticipantProgress) != 0 {
 				return invalid("leader transfer task must not have participant progress")
 			}
+		case TaskKindSlotReplicaMove:
+			if task.Step != TaskStepOpenLearner &&
+				task.Step != TaskStepAddLearner &&
+				task.Step != TaskStepPromoteLearner &&
+				task.Step != TaskStepRemoveVoter &&
+				task.Step != TaskStepCommitAssignment {
+				return invalid("slot replica move task step is invalid")
+			}
+			assignment, ok := assignments[task.SlotID]
+			if !ok {
+				return invalid("slot replica move task requires slot assignment")
+			}
+			if task.SourceNode == 0 || task.TargetNode == 0 {
+				return invalid("slot replica move source and target must be non-zero")
+			}
+			if task.SourceNode == task.TargetNode {
+				return invalid("slot replica move source and target must differ")
+			}
+			if task.ConfigEpoch != assignment.ConfigEpoch {
+				return invalid("slot replica move config_epoch must match assignment")
+			}
+			if !containsUint64(assignment.DesiredPeers, task.SourceNode) {
+				return invalid("slot replica move source must be a desired peer")
+			}
+			if containsUint64(assignment.DesiredPeers, task.TargetNode) {
+				return invalid("slot replica move target must not already be a desired peer")
+			}
+			target, ok := nodes[task.TargetNode]
+			if !ok || target.JoinState != NodeJoinStateActive || !target.HasRole(NodeRoleData) {
+				return invalid("slot replica move target must be an active data node")
+			}
+			if !reflect.DeepEqual(task.TargetPeers, replacePeer(assignment.DesiredPeers, task.SourceNode, task.TargetNode)) {
+				return invalid("slot replica move target peers must replace source with target")
+			}
+			if task.CompletionPolicy != TaskCompletionPolicySingleObserver {
+				return invalid("slot replica move completion_policy must be single_observer")
+			}
+			if len(task.ParticipantProgress) != 0 {
+				return invalid("slot replica move task must not have participant progress")
+			}
+			if hasDuplicateUint64(task.ObservedVoters) || hasDuplicateUint64(task.ObservedLearners) {
+				return invalid("slot replica move observed sets must be unique")
+			}
 		default:
 			return invalid("unknown task kind")
 		}
@@ -281,6 +325,32 @@ func containsUint64(items []uint64, want uint64) bool {
 		if item == want {
 			return true
 		}
+	}
+	return false
+}
+
+func replacePeer(peers []uint64, source uint64, target uint64) []uint64 {
+	out := append([]uint64(nil), peers...)
+	for i, peer := range out {
+		if peer == source {
+			out[i] = target
+			break
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
+	return out
+}
+
+func hasDuplicateUint64(items []uint64) bool {
+	seen := make(map[uint64]struct{}, len(items))
+	for _, item := range items {
+		if item == 0 {
+			return true
+		}
+		if _, exists := seen[item]; exists {
+			return true
+		}
+		seen[item] = struct{}{}
 	}
 	return false
 }

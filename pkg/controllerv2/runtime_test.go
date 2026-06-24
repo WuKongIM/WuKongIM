@@ -439,6 +439,69 @@ func TestRuntimeRequestSlotLeaderTransfer(t *testing.T) {
 	}
 }
 
+func TestRuntimeRequestSlotReplicaMoveCreatesTaskWithoutChangingDesiredPeers(t *testing.T) {
+	runtime := startSingleVoterRuntime(t, "cluster-slot-replica-move")
+	if _, err := runtime.JoinNode(context.Background(), JoinNodeRequest{NodeID: 4, Addr: "n4", Roles: []NodeRole{NodeRoleData}, CapacityWeight: 1}); err != nil {
+		t.Fatalf("JoinNode() error = %v", err)
+	}
+	if _, err := runtime.ActivateNode(context.Background(), ActivateNodeRequest{NodeID: 4}); err != nil {
+		t.Fatalf("ActivateNode() error = %v", err)
+	}
+	ready := waitForState(t, runtime, func(st ClusterState) bool {
+		return len(st.Tasks) == 1 && len(st.Slots) == 1
+	})
+	bootstrapTask := ready.Tasks[0]
+	if err := runtime.CompleteTask(context.Background(), TaskResult{
+		TaskID:      bootstrapTask.TaskID,
+		SlotID:      bootstrapTask.SlotID,
+		TaskKind:    bootstrapTask.Kind,
+		ConfigEpoch: bootstrapTask.ConfigEpoch,
+		Attempt:     bootstrapTask.Attempt,
+		FinishedAt:  time.Now().UTC(),
+	}); err != nil {
+		t.Fatalf("CompleteTask(bootstrap) error = %v", err)
+	}
+	waitForState(t, runtime, func(st ClusterState) bool {
+		return len(st.Tasks) == 0
+	})
+	before, err := runtime.LocalState(context.Background())
+	if err != nil {
+		t.Fatalf("LocalState() error = %v", err)
+	}
+	assignment := before.Slots[0]
+	source := assignment.DesiredPeers[0]
+
+	result, err := runtime.RequestSlotReplicaMove(context.Background(), SlotReplicaMoveRequest{
+		SlotID:        assignment.SlotID,
+		SourceNode:    source,
+		TargetNode:    4,
+		TargetPeers:   replacePeerForTest(assignment.DesiredPeers, source, 4),
+		ConfigEpoch:   assignment.ConfigEpoch,
+		StateRevision: before.Revision,
+	})
+	if err != nil {
+		t.Fatalf("RequestSlotReplicaMove() error = %v", err)
+	}
+	if !result.Created || result.Task == nil || result.Task.Kind != TaskKindSlotReplicaMove {
+		t.Fatalf("RequestSlotReplicaMove() = %#v, want slot_replica_move task", result)
+	}
+
+	after := waitForState(t, runtime, func(st ClusterState) bool {
+		for _, task := range st.Tasks {
+			if task.Kind == TaskKindSlotReplicaMove && task.TargetNode == 4 {
+				return true
+			}
+		}
+		return false
+	})
+	if !sameUint64SetForTest(after.Slots[0].DesiredPeers, assignment.DesiredPeers) {
+		t.Fatalf("DesiredPeers = %v, want unchanged %v", after.Slots[0].DesiredPeers, assignment.DesiredPeers)
+	}
+	if after.Tasks[0].CompletionPolicy != TaskCompletionPolicySingleObserver || len(after.Tasks[0].ParticipantProgress) != 0 {
+		t.Fatalf("task progress policy = %#v progress=%#v, want single observer and empty progress", after.Tasks[0].CompletionPolicy, after.Tasks[0].ParticipantProgress)
+	}
+}
+
 func TestRuntimeJoinNodeCreatesJoiningDataNode(t *testing.T) {
 	runtime := startSingleVoterRuntime(t, "cluster-join-node")
 	before, err := runtime.LocalState(context.Background())
@@ -814,6 +877,34 @@ func sameNodeRoles(left, right []NodeRole) bool {
 	for _, role := range right {
 		seen[role]--
 		if seen[role] < 0 {
+			return false
+		}
+	}
+	return true
+}
+
+func replacePeerForTest(peers []uint64, source uint64, target uint64) []uint64 {
+	out := append([]uint64(nil), peers...)
+	for i, peer := range out {
+		if peer == source {
+			out[i] = target
+			return out
+		}
+	}
+	return out
+}
+
+func sameUint64SetForTest(left, right []uint64) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	seen := make(map[uint64]int, len(left))
+	for _, value := range left {
+		seen[value]++
+	}
+	for _, value := range right {
+		seen[value]--
+		if seen[value] < 0 {
 			return false
 		}
 	}

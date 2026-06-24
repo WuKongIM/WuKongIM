@@ -34,6 +34,8 @@ func (s *ClusterState) Normalize() {
 	}
 	for i := range s.Tasks {
 		sort.Slice(s.Tasks[i].TargetPeers, func(a, b int) bool { return s.Tasks[i].TargetPeers[a] < s.Tasks[i].TargetPeers[b] })
+		sort.Slice(s.Tasks[i].ObservedVoters, func(a, b int) bool { return s.Tasks[i].ObservedVoters[a] < s.Tasks[i].ObservedVoters[b] })
+		sort.Slice(s.Tasks[i].ObservedLearners, func(a, b int) bool { return s.Tasks[i].ObservedLearners[a] < s.Tasks[i].ObservedLearners[b] })
 		normalizeTaskProgress(&s.Tasks[i])
 	}
 	sort.Slice(s.Controllers, func(i, j int) bool { return s.Controllers[i].NodeID < s.Controllers[j].NodeID })
@@ -70,6 +72,8 @@ func (s ClusterState) Clone() ClusterState {
 	for i := range out.Tasks {
 		out.Tasks[i].TargetPeers = cloneUint64s(s.Tasks[i].TargetPeers)
 		out.Tasks[i].ParticipantProgress = cloneSlice(s.Tasks[i].ParticipantProgress)
+		out.Tasks[i].ObservedVoters = cloneUint64s(s.Tasks[i].ObservedVoters)
+		out.Tasks[i].ObservedLearners = cloneUint64s(s.Tasks[i].ObservedLearners)
 	}
 	return out
 }
@@ -82,6 +86,9 @@ func normalizeTaskProgress(task *ReconcileTask) {
 		task.CompletionPolicy = TaskCompletionPolicyAllTargetPeers
 	}
 	if task.Kind == TaskKindLeaderTransfer && task.CompletionPolicy == "" {
+		task.CompletionPolicy = TaskCompletionPolicySingleObserver
+	}
+	if task.Kind == TaskKindSlotReplicaMove && task.CompletionPolicy == "" {
 		task.CompletionPolicy = TaskCompletionPolicySingleObserver
 	}
 	if task.CompletionPolicy == TaskCompletionPolicyAllTargetPeers && len(task.ParticipantProgress) == 0 {

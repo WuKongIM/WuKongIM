@@ -77,6 +77,10 @@ func SnapshotFromControllerV2(st cv2.ClusterState) (Snapshot, error) {
 			Attempt:             task.Attempt,
 			Status:              TaskStatus(task.Status),
 			LastError:           task.LastError,
+			PhaseIndex:          task.PhaseIndex,
+			ObservedConfigIndex: task.ObservedConfigIndex,
+			ObservedVoters:      append([]uint64(nil), task.ObservedVoters...),
+			ObservedLearners:    append([]uint64(nil), task.ObservedLearners...),
 		})
 	}
 	if err := snap.Validate(); err != nil {
@@ -191,6 +195,14 @@ func (a *ControllerV2Adapter) RequestSlotLeaderTransfer(ctx context.Context, req
 		return SlotLeaderTransferResult{}, err
 	}
 	return SlotLeaderTransferResult{}, fmt.Errorf("control: controllerv2 adapter cannot write leader transfer intents")
+}
+
+// RequestSlotReplicaMove is unsupported on the read-only ControllerV2 snapshot adapter.
+func (a *ControllerV2Adapter) RequestSlotReplicaMove(ctx context.Context, req SlotReplicaMoveRequest) (SlotReplicaMoveResult, error) {
+	if err := ctxErr(ctx); err != nil {
+		return SlotReplicaMoveResult{}, err
+	}
+	return SlotReplicaMoveResult{}, fmt.Errorf("control: controllerv2 adapter cannot write slot replica move intents")
 }
 
 // Watch returns snapshot update events.

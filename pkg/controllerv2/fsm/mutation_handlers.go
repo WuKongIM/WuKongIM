@@ -83,6 +83,116 @@ func (sm *StateMachine) applyUpsertSlotAssignmentAndTask(next *state.ClusterStat
 	return validateChanged(next, before, cmd)
 }
 
+func (sm *StateMachine) applyUpsertSlotReplicaMoveTask(next *state.ClusterState, cmd command.Command) ApplyResult {
+	if next.Revision == 0 || cmd.Task == nil || cmd.Task.Kind != state.TaskKindSlotReplicaMove {
+		return reject(ReasonInvalidCommand)
+	}
+	before := next.Clone()
+	upsertTask(next, cloneTask(*cmd.Task))
+	next.Normalize()
+	if reflect.DeepEqual(before.Tasks, next.Tasks) {
+		return noop(ReasonNoChange)
+	}
+	return validateChanged(next, before, cmd)
+}
+
+func (sm *StateMachine) applyAdvanceSlotReplicaMovePhase(next *state.ClusterState, cmd command.Command) ApplyResult {
+	phase := cmd.SlotReplicaMovePhase
+	if next.Revision == 0 || phase == nil || phase.TaskID == "" || phase.SlotID == 0 || phase.ConfigEpoch == 0 || phase.NextStep == "" {
+		return reject(ReasonInvalidTaskResult)
+	}
+	idx := findTaskByID(next.Tasks, phase.TaskID)
+	if idx < 0 {
+		return noop(ReasonTaskMissing)
+	}
+	task := next.Tasks[idx]
+	if task.SlotID != phase.SlotID {
+		return reject(ReasonTaskSlotMismatch)
+	}
+	if task.Kind != state.TaskKindSlotReplicaMove {
+		return noop(ReasonTaskKindMismatch)
+	}
+	if task.ConfigEpoch != phase.ConfigEpoch {
+		return noop(ReasonTaskEpochMismatch)
+	}
+	if task.Attempt != phase.Attempt {
+		return noop(ReasonTaskAttemptMismatch)
+	}
+	if task.PhaseIndex != phase.ExpectedPhaseIndex {
+		return reject(ReasonTaskPhaseMismatch)
+	}
+	before := next.Clone()
+	next.Tasks[idx].Step = phase.NextStep
+	next.Tasks[idx].PhaseIndex++
+	next.Tasks[idx].ObservedConfigIndex = phase.ObservedConfigIndex
+	next.Tasks[idx].ObservedVoters = append([]uint64(nil), phase.ObservedVoters...)
+	next.Tasks[idx].ObservedLearners = append([]uint64(nil), phase.ObservedLearners...)
+	next.Normalize()
+	return validateChanged(next, before, cmd)
+}
+
+func (sm *StateMachine) applyCommitSlotReplicaMove(next *state.ClusterState, cmd command.Command) ApplyResult {
+	commit := cmd.SlotReplicaMoveCommit
+	if next.Revision == 0 || commit == nil || commit.TaskID == "" || commit.SlotID == 0 || commit.ConfigEpoch == 0 {
+		return reject(ReasonInvalidTaskResult)
+	}
+	idx := findTaskByID(next.Tasks, commit.TaskID)
+	if idx < 0 {
+		return noop(ReasonTaskMissing)
+	}
+	task := next.Tasks[idx]
+	if task.SlotID != commit.SlotID {
+		return reject(ReasonTaskSlotMismatch)
+	}
+	if task.Kind != state.TaskKindSlotReplicaMove {
+		return noop(ReasonTaskKindMismatch)
+	}
+	if task.ConfigEpoch != commit.ConfigEpoch {
+		return noop(ReasonTaskEpochMismatch)
+	}
+	if task.Attempt != commit.Attempt {
+		return noop(ReasonTaskAttemptMismatch)
+	}
+	if task.Step != state.TaskStepCommitAssignment {
+		return reject(ReasonTaskStepMismatch)
+	}
+	if task.ObservedConfigIndex == 0 {
+		return reject(ReasonTaskObservedConfigMissing)
+	}
+	if !sameUint64Set(task.ObservedVoters, task.TargetPeers) {
+		return reject(ReasonTaskObservedVotersMismatch)
+	}
+	assignmentIdx := -1
+	for i := range next.Slots {
+		if next.Slots[i].SlotID == task.SlotID {
+			assignmentIdx = i
+			break
+		}
+	}
+	if assignmentIdx < 0 {
+		return reject(ReasonInvalidState)
+	}
+	assignment := next.Slots[assignmentIdx]
+	if assignment.ConfigEpoch != task.ConfigEpoch {
+		return reject(ReasonTaskEpochMismatch)
+	}
+	if !containsUint64(assignment.DesiredPeers, task.SourceNode) || containsUint64(assignment.DesiredPeers, task.TargetNode) {
+		return reject(ReasonInvalidState)
+	}
+	if !sameUint64Set(task.TargetPeers, replacePeer(assignment.DesiredPeers, task.SourceNode, task.TargetNode)) {
+		return reject(ReasonInvalidState)
+	}
+	before := next.Clone()
+	next.Slots[assignmentIdx].DesiredPeers = append([]uint64(nil), task.TargetPeers...)
+	next.Slots[assignmentIdx].ConfigEpoch++
+	if !containsUint64(next.Slots[assignmentIdx].DesiredPeers, next.Slots[assignmentIdx].PreferredLeader) {
+		next.Slots[assignmentIdx].PreferredLeader = task.TargetNode
+	}
+	next.Tasks = append(next.Tasks[:idx], next.Tasks[idx+1:]...)
+	next.Normalize()
+	return validateChanged(next, before, cmd)
+}
+
 func (sm *StateMachine) applyCompleteTask(next *state.ClusterState, cmd command.Command) ApplyResult {
 	if next.Revision == 0 || cmd.TaskResult == nil || cmd.TaskResult.TaskID == "" {
 		return reject(ReasonInvalidTaskResult)

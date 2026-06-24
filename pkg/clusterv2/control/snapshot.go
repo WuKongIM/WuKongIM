@@ -46,6 +46,8 @@ const (
 	TaskKindBootstrap = cv2.TaskKindBootstrap
 	// TaskKindLeaderTransfer records an operator-requested Slot Raft leadership transfer.
 	TaskKindLeaderTransfer = cv2.TaskKindLeaderTransfer
+	// TaskKindSlotReplicaMove moves one physical Slot voter from SourceNode to TargetNode.
+	TaskKindSlotReplicaMove = cv2.TaskKindSlotReplicaMove
 )
 
 // TaskStep identifies the current step inside a task workflow.
@@ -56,6 +58,16 @@ const (
 	TaskStepCreateSlot = cv2.TaskStepCreateSlot
 	// TaskStepTransferLeader asks Slot Raft to move leadership away from the observed source.
 	TaskStepTransferLeader = cv2.TaskStepTransferLeader
+	// TaskStepOpenLearner opens the target replica as a non-voting Slot learner.
+	TaskStepOpenLearner = cv2.TaskStepOpenLearner
+	// TaskStepAddLearner adds the target node to the Slot Raft learner set.
+	TaskStepAddLearner = cv2.TaskStepAddLearner
+	// TaskStepPromoteLearner promotes the target learner into the Slot Raft voter set.
+	TaskStepPromoteLearner = cv2.TaskStepPromoteLearner
+	// TaskStepRemoveVoter removes the source node from the Slot Raft voter set.
+	TaskStepRemoveVoter = cv2.TaskStepRemoveVoter
+	// TaskStepCommitAssignment commits the durable Slot assignment after Slot Raft converges.
+	TaskStepCommitAssignment = cv2.TaskStepCommitAssignment
 )
 
 // TaskStatus describes whether a durable reconcile task is actionable.
@@ -189,4 +201,12 @@ type ReconcileTask struct {
 	Status TaskStatus
 	// LastError stores the bounded error from the most recent failed attempt.
 	LastError string
+	// PhaseIndex advances after each observed Slot Raft config step.
+	PhaseIndex uint32
+	// ObservedConfigIndex is the Slot Raft applied index that proved the current phase.
+	ObservedConfigIndex uint64
+	// ObservedVoters stores the voter set observed for the current phase.
+	ObservedVoters []uint64
+	// ObservedLearners stores the learner set observed for the current phase.
+	ObservedLearners []uint64
 }

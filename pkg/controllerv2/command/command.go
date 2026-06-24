@@ -18,6 +18,12 @@ const (
 	KindUpdateControllerVoters Kind = "update_controller_voters"
 	// KindUpsertSlotAssignmentAndTask atomically writes a slot assignment and reconcile task.
 	KindUpsertSlotAssignmentAndTask Kind = "upsert_slot_assignment_and_task"
+	// KindUpsertSlotReplicaMoveTask writes a staged Slot replica move task without changing assignment peers.
+	KindUpsertSlotReplicaMoveTask Kind = "upsert_slot_replica_move_task"
+	// KindAdvanceSlotReplicaMovePhase records the next safe Slot replica move phase.
+	KindAdvanceSlotReplicaMovePhase Kind = "advance_slot_replica_move_phase"
+	// KindCommitSlotReplicaMove atomically replaces the Slot assignment and completes the move task.
+	KindCommitSlotReplicaMove Kind = "commit_slot_replica_move"
 	// KindCompleteTask removes a completed active reconcile task.
 	KindCompleteTask Kind = "complete_task"
 	// KindFailTask records a failed attempt while keeping the task active.
@@ -46,12 +52,50 @@ type Command struct {
 	Assignment *state.SlotAssignment `json:"assignment,omitempty"`
 	// Task contains the active reconcile task to upsert.
 	Task *state.ReconcileTask `json:"task,omitempty"`
+	// SlotReplicaMovePhase carries a fenced Slot replica move phase update.
+	SlotReplicaMovePhase *SlotReplicaMovePhaseAdvance `json:"slot_replica_move_phase,omitempty"`
+	// SlotReplicaMoveCommit carries a fenced Slot replica move assignment commit.
+	SlotReplicaMoveCommit *SlotReplicaMoveCommit `json:"slot_replica_move_commit,omitempty"`
 	// TaskResult identifies a completed or failed task attempt.
 	TaskResult *TaskResult `json:"task_result,omitempty"`
 	// TaskProgress records one participant's local progress for barrier tasks.
 	TaskProgress *TaskProgress `json:"task_progress,omitempty"`
 	// HashSlots contains a replacement hash-slot table.
 	HashSlots *state.HashSlotTable `json:"hash_slots,omitempty"`
+}
+
+// SlotReplicaMovePhaseAdvance records an observed Slot Raft config phase.
+type SlotReplicaMovePhaseAdvance struct {
+	// TaskID fences the phase update to the active move task.
+	TaskID string `json:"task_id"`
+	// SlotID fences the phase update to the physical Slot.
+	SlotID uint32 `json:"slot_id"`
+	// ConfigEpoch fences the phase update to the assignment epoch being moved.
+	ConfigEpoch uint64 `json:"config_epoch"`
+	// Attempt fences the phase update to the active global task attempt.
+	Attempt uint32 `json:"attempt"`
+	// ExpectedPhaseIndex rejects stale phase observations.
+	ExpectedPhaseIndex uint32 `json:"expected_phase_index"`
+	// NextStep is the next durable move workflow step.
+	NextStep state.TaskStep `json:"next_step"`
+	// ObservedConfigIndex is the Slot Raft applied index proving this phase.
+	ObservedConfigIndex uint64 `json:"observed_config_index"`
+	// ObservedVoters is the Slot Raft voter set observed for this phase.
+	ObservedVoters []uint64 `json:"observed_voters,omitempty"`
+	// ObservedLearners is the Slot Raft learner set observed for this phase.
+	ObservedLearners []uint64 `json:"observed_learners,omitempty"`
+}
+
+// SlotReplicaMoveCommit fences the final durable assignment replacement.
+type SlotReplicaMoveCommit struct {
+	// TaskID fences the commit to the active move task.
+	TaskID string `json:"task_id"`
+	// SlotID fences the commit to the physical Slot.
+	SlotID uint32 `json:"slot_id"`
+	// ConfigEpoch fences the commit to the assignment epoch being moved.
+	ConfigEpoch uint64 `json:"config_epoch"`
+	// Attempt fences the commit to the active global task attempt.
+	Attempt uint32 `json:"attempt"`
 }
 
 // InitClusterState is the committed payload that creates the first cluster state.

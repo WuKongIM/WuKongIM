@@ -264,13 +264,16 @@ func (a *recordingTaskApplier) RequestSlotLeaderTransfer(ctx context.Context, re
 }
 
 type recordingControlWriteApplier struct {
-	joinNodes      []JoinNodeRequest
-	joinResult     JoinNodeResult
-	joinErr        error
-	activateNodes  []ActivateNodeRequest
-	activateCalls  int
-	activateResult ActivateNodeResult
-	activateErr    error
+	joinNodes             []JoinNodeRequest
+	joinResult            JoinNodeResult
+	joinErr               error
+	activateNodes         []ActivateNodeRequest
+	activateCalls         int
+	activateResult        ActivateNodeResult
+	activateErr           error
+	slotReplicaMoves      []SlotReplicaMoveRequest
+	slotReplicaMoveResult SlotReplicaMoveResult
+	slotReplicaMoveErr    error
 }
 
 func (a *recordingControlWriteApplier) JoinNode(ctx context.Context, req JoinNodeRequest) (JoinNodeResult, error) {
@@ -288,6 +291,14 @@ func (a *recordingControlWriteApplier) ActivateNode(ctx context.Context, req Act
 		return ActivateNodeResult{}, a.activateErr
 	}
 	return a.activateResult, nil
+}
+
+func (a *recordingControlWriteApplier) RequestSlotReplicaMove(ctx context.Context, req SlotReplicaMoveRequest) (SlotReplicaMoveResult, error) {
+	a.slotReplicaMoves = append(a.slotReplicaMoves, req)
+	if a.slotReplicaMoveErr != nil {
+		return SlotReplicaMoveResult{}, a.slotReplicaMoveErr
+	}
+	return a.slotReplicaMoveResult, nil
 }
 
 type recordingRaftStepper struct {

@@ -59,6 +59,10 @@ type (
 	TaskResult = command.TaskResult
 	// TaskProgress describes one participant's local progress for a barrier task.
 	TaskProgress = command.TaskProgress
+	// SlotReplicaMovePhaseAdvance records an observed Slot Raft config phase.
+	SlotReplicaMovePhaseAdvance = command.SlotReplicaMovePhaseAdvance
+	// SlotReplicaMoveCommit fences the final durable assignment replacement.
+	SlotReplicaMoveCommit = command.SlotReplicaMoveCommit
 )
 
 const (
@@ -86,10 +90,22 @@ const (
 	TaskKindBootstrap = state.TaskKindBootstrap
 	// TaskKindLeaderTransfer records an operator-requested Slot Raft leadership transfer.
 	TaskKindLeaderTransfer = state.TaskKindLeaderTransfer
+	// TaskKindSlotReplicaMove moves one physical Slot voter from SourceNode to TargetNode.
+	TaskKindSlotReplicaMove = state.TaskKindSlotReplicaMove
 	// TaskStepCreateSlot creates or verifies the Slot replica group for an assignment.
 	TaskStepCreateSlot = state.TaskStepCreateSlot
 	// TaskStepTransferLeader asks Slot Raft to move leadership away from the observed source.
 	TaskStepTransferLeader = state.TaskStepTransferLeader
+	// TaskStepOpenLearner opens the target replica as a non-voting Slot learner.
+	TaskStepOpenLearner = state.TaskStepOpenLearner
+	// TaskStepAddLearner adds the target node to the Slot Raft learner set.
+	TaskStepAddLearner = state.TaskStepAddLearner
+	// TaskStepPromoteLearner promotes the target learner into the Slot Raft voter set.
+	TaskStepPromoteLearner = state.TaskStepPromoteLearner
+	// TaskStepRemoveVoter removes the source node from the Slot Raft voter set.
+	TaskStepRemoveVoter = state.TaskStepRemoveVoter
+	// TaskStepCommitAssignment commits the durable Slot assignment after Slot Raft converges.
+	TaskStepCommitAssignment = state.TaskStepCommitAssignment
 	// TaskStatusPending means the task is waiting for a worker.
 	TaskStatusPending = state.TaskStatusPending
 	// TaskStatusRunning means the task is actively being attempted.
