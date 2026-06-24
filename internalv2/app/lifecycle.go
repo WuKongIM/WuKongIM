@@ -102,6 +102,14 @@ func (a *App) Start(ctx context.Context) error {
 		}
 		a.pluginHookStarted = true
 	}
+	if a.webhook != nil {
+		if err := a.webhook.Start(ctx); err != nil {
+			a.logLifecycleError("webhook", "start", err)
+			stopErr := a.rollbackStarted(ctx)
+			return errors.Join(err, stopErr)
+		}
+		a.webhookStarted = true
+	}
 	if a.deliveryWorker != nil {
 		if err := a.deliveryWorker.Start(ctx); err != nil {
 			a.logLifecycleError("delivery_worker", "start", err)
@@ -231,6 +239,14 @@ func (a *App) Stop(ctx context.Context) error {
 			a.deliveryStarted = false
 		}
 	}
+	if a.webhookStarted && a.webhook != nil {
+		if stopErr := a.webhook.Stop(ctx); stopErr != nil {
+			a.logLifecycleWarn("webhook", "stop", stopErr)
+			err = errors.Join(err, stopErr)
+		} else {
+			a.webhookStarted = false
+		}
+	}
 	if a.pluginHookStarted && a.pluginHook != nil {
 		if stopErr := a.pluginHook.Stop(ctx); stopErr != nil {
 			a.logLifecycleWarn("plugin_hook", "stop", stopErr)
@@ -279,7 +295,7 @@ func (a *App) Stop(ctx context.Context) error {
 			a.clusterStarted = false
 		}
 	}
-	if !a.gatewayStarted && !a.prometheusStarted && !a.managerStarted && !a.apiStarted && !a.topStarted && !a.channelAppendStarted && !a.deliveryStarted && !a.pluginHookStarted && !a.pluginRuntimeStarted && !a.conversationActiveStarted && !a.conversationRouteStarted && !a.presenceStarted && !a.clusterStarted {
+	if !a.gatewayStarted && !a.prometheusStarted && !a.managerStarted && !a.apiStarted && !a.topStarted && !a.channelAppendStarted && !a.deliveryStarted && !a.webhookStarted && !a.pluginHookStarted && !a.pluginRuntimeStarted && !a.conversationActiveStarted && !a.conversationRouteStarted && !a.presenceStarted && !a.clusterStarted {
 		a.started = false
 	}
 	err = errors.Join(err, a.syncLogger())
@@ -341,6 +357,14 @@ func (a *App) rollbackStarted(ctx context.Context) error {
 			err = errors.Join(err, stopErr)
 		} else {
 			a.deliveryStarted = false
+		}
+	}
+	if a.webhookStarted && a.webhook != nil {
+		if stopErr := a.webhook.Stop(ctx); stopErr != nil {
+			a.logLifecycleWarn("webhook", "rollback_stop", stopErr)
+			err = errors.Join(err, stopErr)
+		} else {
+			a.webhookStarted = false
 		}
 	}
 	if a.pluginHookStarted && a.pluginHook != nil {

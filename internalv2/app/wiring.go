@@ -337,11 +337,12 @@ func (a *App) wirePresence() {
 		if a.presence == nil {
 			ownerBootID := newOwnerBootID()
 			a.presence = presence.New(presence.Options{
-				Local:        a.online,
-				Authority:    client,
-				OwnerActions: client,
-				OwnerNodeID:  presenceNode.NodeID(),
-				OwnerBootID:  ownerBootID,
+				Local:                a.online,
+				Authority:            client,
+				OwnerActions:         client,
+				OnlineStatusObserver: a.webhookPresence,
+				OwnerNodeID:          presenceNode.NodeID(),
+				OwnerBootID:          ownerBootID,
 				HashSlot: func(uid string) (uint16, error) {
 					target, err := client.ResolveRouteTarget(uid)
 					if err != nil {
@@ -635,19 +636,19 @@ func (a *App) wireChannelAppend(nodeID uint64) error {
 			if a.conversationAuthorityClient != nil {
 				opts.ConversationActiveAdmitter = a.conversationAuthorityClient
 			}
-			if a.pluginPersistAfter != nil {
-				opts.PersistAfterEnqueuer = a.pluginPersistAfter
-			}
+			opts.PersistAfterEnqueuer = composePersistAfterEnqueuers(a.pluginPersistAfter, a.webhookNotify)
 			var observer deliveryMessageObserver
 			if _, topEnabled := a.topProvider.(*topCollector); a.cfg.Delivery.Enabled || a.metrics != nil || topEnabled {
 				observer = deliveryMessageObserver{app: a}
 				opts.Observer = observer
 			}
 			if a.cfg.Delivery.Enabled {
+				offlineSingle, offlineBatch := composeOfflineRecipientObservers(a.pluginReceive, a.webhookOffline)
 				processor := channelappend.NewRecipientProcessor(channelappend.RecipientProcessorOptions{
 					PresenceResolver:            channelAppendPresenceResolver{presence: a.presence},
 					OwnerPusher:                 a.channelAppendOwnerPusher(nodeID),
-					OfflineRecipientObserver:    a.pluginReceive,
+					OfflineRecipientObserver:    offlineSingle,
+					OfflineRecipientsObserver:   offlineBatch,
 					DeliveryRetryMaxAttempts:    defaultDeliveryRetryMaxAttempts,
 					DeliveryRetryInitialBackoff: defaultDeliveryRetryBackoff,
 					DeliveryRetryMaxBackoff:     defaultDeliveryRetryBackoff,

@@ -90,6 +90,14 @@ type App struct {
 	pluginPersistAfter channelappend.PersistAfterEnqueuer
 	// pluginReceive adapts offline recipient events into plugin Receive events.
 	pluginReceive channelappend.OfflineRecipientObserver
+	// webhook owns bounded best-effort webhook delivery workers.
+	webhook WorkerRuntime
+	// webhookNotify adapts durable committed envelopes into msg.notify webhook events.
+	webhookNotify channelappend.PersistAfterEnqueuer
+	// webhookOffline adapts offline recipient batches into msg.offline webhook events.
+	webhookOffline channelappend.OfflineRecipientsObserver
+	// webhookPresence adapts owner-local online status transitions into webhook events.
+	webhookPresence presence.OnlineStatusObserver
 	// plugins exposes v2 plugin lifecycle and hook usecases.
 	plugins                     *pluginusecase.App
 	channels                    *channelusecase.App
@@ -139,6 +147,7 @@ type App struct {
 	deliveryStarted           bool
 	pluginRuntimeStarted      bool
 	pluginHookStarted         bool
+	webhookStarted            bool
 	apiStarted                bool
 	managerStarted            bool
 	prometheusStarted         bool
@@ -171,6 +180,9 @@ func New(cfg Config, opts ...Option) (*App, error) {
 	}
 
 	app.ensureOnlineRegistry()
+	if err := app.wireWebhook(); err != nil {
+		return nil, err
+	}
 	app.wireDeliveryMetadata()
 	app.wireChannels()
 	conversationReadStore := app.newConversationReadStore()
