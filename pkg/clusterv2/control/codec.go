@@ -234,6 +234,7 @@ const (
 	controlWriteErrorCodeNotLeader         = "controllerv2_not_leader"
 	controlWriteErrorCodeNotStarted        = "controllerv2_not_started"
 	controlWriteErrorCodeStopped           = "controllerv2_stopped"
+	controlWriteErrorCodeRevisionMismatch  = "controllerv2_expected_revision_mismatch"
 	controlWriteErrorCodeProposalRejected  = "controllerv2_proposal_rejected"
 	controlWriteErrorCodeLifecycleConflict = "controllerv2_node_lifecycle_conflict"
 	controlWriteErrorCodeLifecycleNotFound = "controllerv2_node_lifecycle_not_found"
@@ -313,6 +314,8 @@ func controlWriteErrorCode(err error) string {
 		return controlWriteErrorCodeNotStarted
 	case errors.Is(err, cv2.ErrStopped):
 		return controlWriteErrorCodeStopped
+	case cv2.IsExpectedRevisionMismatch(err):
+		return controlWriteErrorCodeRevisionMismatch
 	case errors.Is(err, cv2.ErrProposalRejected):
 		return controlWriteErrorCodeProposalRejected
 	case errors.Is(err, cv2.ErrNodeLifecycleConflict):
@@ -333,6 +336,8 @@ func controlWriteSemanticError(code, text string) error {
 		target = cv2.ErrNotStarted
 	case controlWriteErrorCodeStopped:
 		target = cv2.ErrStopped
+	case controlWriteErrorCodeRevisionMismatch:
+		target = cv2.ErrExpectedRevisionMismatch
 	case controlWriteErrorCodeProposalRejected:
 		target = cv2.ErrProposalRejected
 	case controlWriteErrorCodeLifecycleConflict:

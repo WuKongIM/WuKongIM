@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
+	cv2raft "github.com/WuKongIM/WuKongIM/pkg/controllerv2/raft"
 )
 
 func TestPlanNodeOnboardingSelectsBoundedSlotMoves(t *testing.T) {
@@ -101,6 +102,56 @@ func TestStartNodeOnboardingReplansBetweenRealControlWrites(t *testing.T) {
 	})
 	if len(snap.Tasks) != 2 {
 		t.Fatalf("tasks = %#v, want exactly two active replica-move tasks", snap.Tasks)
+	}
+}
+
+func TestStartNodeOnboardingReturnsPartialSuccessWhenConflictPersists(t *testing.T) {
+	writer := &sequencedSlotReplicaMoveWriter{
+		results: []control.SlotReplicaMoveResult{{Created: true}},
+		errs: []error{
+			nil,
+			cv2raft.ProposalRejectedError{Reason: "expected_revision_mismatch"},
+			cv2raft.ProposalRejectedError{Reason: "expected_revision_mismatch"},
+			cv2raft.ProposalRejectedError{Reason: "expected_revision_mismatch"},
+			cv2raft.ProposalRejectedError{Reason: "expected_revision_mismatch"},
+			cv2raft.ProposalRejectedError{Reason: "expected_revision_mismatch"},
+		},
+	}
+	app := New(Options{
+		Cluster:         fakeNodeSnapshotReader{snapshot: nodeOnboardingSnapshot()},
+		SlotReplicaMove: writer,
+	})
+
+	got, err := app.StartNodeOnboarding(context.Background(), NodeOnboardingStartRequest{TargetNodeID: 4, MaxSlotMoves: 2})
+	if err != nil {
+		t.Fatalf("StartNodeOnboarding() error = %v", err)
+	}
+
+	if got.Created != 1 || len(got.Results) != 1 {
+		t.Fatalf("start response = %#v, want one partial created result", got)
+	}
+	if len(got.Skipped) == 0 || got.Skipped[0].Reason != "control_conflict" {
+		t.Fatalf("skipped = %#v, want control_conflict", got.Skipped)
+	}
+}
+
+func TestStartNodeOnboardingDoesNotRetryNonRevisionProposalRejection(t *testing.T) {
+	wantErr := cv2raft.ProposalRejectedError{Reason: "invalid_state"}
+	writer := &sequencedSlotReplicaMoveWriter{errs: []error{wantErr}}
+	app := New(Options{
+		Cluster:         fakeNodeSnapshotReader{snapshot: nodeOnboardingSnapshot()},
+		SlotReplicaMove: writer,
+	})
+
+	_, err := app.StartNodeOnboarding(context.Background(), NodeOnboardingStartRequest{TargetNodeID: 4, MaxSlotMoves: 1})
+	if !errors.Is(err, cv2raft.ErrProposalRejected) {
+		t.Fatalf("StartNodeOnboarding() error = %v, want proposal rejected", err)
+	}
+	if errors.Is(err, ErrNodeOnboardingConflict) {
+		t.Fatalf("StartNodeOnboarding() error = %v, should not be onboarding conflict", err)
+	}
+	if len(writer.requests) != 1 {
+		t.Fatalf("requests = %d, want no retry for invalid_state", len(writer.requests))
 	}
 }
 
@@ -257,4 +308,22 @@ func (f *fakeSlotReplicaMoveWriter) RequestSlotReplicaMove(_ context.Context, re
 		return control.SlotReplicaMoveResult{}, f.err
 	}
 	return f.result, nil
+}
+
+type sequencedSlotReplicaMoveWriter struct {
+	requests []control.SlotReplicaMoveRequest
+	results  []control.SlotReplicaMoveResult
+	errs     []error
+}
+
+func (f *sequencedSlotReplicaMoveWriter) RequestSlotReplicaMove(_ context.Context, req control.SlotReplicaMoveRequest) (control.SlotReplicaMoveResult, error) {
+	f.requests = append(f.requests, req)
+	idx := len(f.requests) - 1
+	if idx < len(f.errs) && f.errs[idx] != nil {
+		return control.SlotReplicaMoveResult{}, f.errs[idx]
+	}
+	if idx < len(f.results) {
+		return f.results[idx], nil
+	}
+	return control.SlotReplicaMoveResult{}, nil
 }

@@ -27,6 +27,8 @@ const (
 	NodeOnboardingSkipNoSourcePeer = "no_source_peer"
 	// NodeOnboardingSkipMaxMovesReached reports a Slot skipped after the request bound is reached.
 	NodeOnboardingSkipMaxMovesReached = "max_slot_moves_reached"
+	// NodeOnboardingSkipControlConflict reports that onboarding stopped after concurrent control-state changes.
+	NodeOnboardingSkipControlConflict = "control_conflict"
 )
 
 var (
@@ -326,6 +328,12 @@ func (a *App) executeNodeOnboarding(ctx context.Context, targetNodeID uint64, ma
 		if err != nil {
 			if nodeOnboardingRetryableWriteError(err) {
 				if retryBudget <= 0 {
+					if response.Created > 0 {
+						response.Skipped = append([]NodeOnboardingSkip{
+							nodeOnboardingSkip(candidate.SlotID, NodeOnboardingSkipControlConflict, "control state changed while creating onboarding tasks"),
+						}, response.Skipped...)
+						return response, nil
+					}
 					return NodeOnboardingStartResponse{}, ErrNodeOnboardingConflict
 				}
 				retryBudget--
@@ -394,7 +402,7 @@ func applyNodeOnboardingActiveTaskProjection(tasks []control.ReconcileTask, coun
 }
 
 func nodeOnboardingRetryableWriteError(err error) bool {
-	return errors.Is(err, cv2.ErrProposalRejected)
+	return cv2.IsExpectedRevisionMismatch(err)
 }
 
 func bestReplaceableNodeOnboardingPeer(peers []uint64, targetNodeID uint64, projectedReplicas map[uint64]int) (uint64, bool) {
