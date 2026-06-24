@@ -48,15 +48,18 @@ manager HTTP handler
   -> sorted manager node DTO rows
 ```
 
-The projection derives node identity, health, controller role, and desired Slot
-replica counts from the local clusterv2 control snapshot. Slot leader counts
-are best-effort live Raft observations from `SlotRuntimeStatusReader`; they do
-not fall back to `PreferredLeader`, so the node list does not mix control-plane
-placement intent with actual Raft leadership. Runtime online and gateway
-counters are read through the narrow `RuntimeSummaryReader` port. Read failures
-or an unwired runtime source mark only that node's runtime summary as unknown.
-Node operation action hints are always false because lifecycle, scale-in, and
-onboarding operation routes are intentionally outside this migration step.
+The projection derives node identity, health, durable lifecycle, capacity
+weight, controller role, and desired Slot replica counts from the local
+clusterv2 control snapshot. `membership.schedulable` is true only for active
+data nodes; health freshness is display-only and does not gate the
+schedulable flag. Slot leader counts are best-effort live Raft observations
+from `SlotRuntimeStatusReader`; they do not fall back to `PreferredLeader`, so
+the node list does not mix control-plane placement intent with actual Raft
+leadership. Runtime online and gateway counters are read through the narrow
+`RuntimeSummaryReader` port. Read failures or an unwired runtime source mark
+only that node's runtime summary as unknown. Node operation action hints are
+always false because lifecycle, scale-in, and onboarding operation routes are
+intentionally outside this migration step.
 
 ## Slot List Flow
 

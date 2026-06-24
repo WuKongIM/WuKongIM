@@ -398,6 +398,8 @@ type nodeBuildOptions struct {
 func buildNode(opts nodeBuildOptions) Node {
 	status := managerNodeStatus(opts.node.Status)
 	role := managerNodeRole(opts.node.Roles)
+	joinState := managerNodeJoinState(opts.node.JoinState)
+	schedulable := role == "data" && joinState == "active"
 	controllerVoter := hasRole(opts.node.Roles, control.RoleController)
 	replicas := opts.slots.replicas[opts.node.NodeID]
 	leaders := opts.slots.leaders[opts.node.NodeID]
@@ -412,11 +414,11 @@ func buildNode(opts nodeBuildOptions) Node {
 		Status:          status,
 		LastHeartbeatAt: opts.generatedAt,
 		IsLocal:         opts.node.NodeID == opts.localNodeID,
-		CapacityWeight:  1,
+		CapacityWeight:  managerNodeCapacityWeight(opts.node.CapacityWeight),
 		Membership: NodeMembership{
 			Role:        role,
-			JoinState:   "active",
-			Schedulable: role == "data" && status == "alive",
+			JoinState:   joinState,
+			Schedulable: schedulable,
 		},
 		Health: NodeHealth{
 			Status:          status,
@@ -436,6 +438,28 @@ func buildNode(opts nodeBuildOptions) Node {
 		Runtime: opts.runtime,
 		Actions: NodeActions{},
 	}
+}
+
+func managerNodeJoinState(state control.NodeJoinState) string {
+	switch managerControlJoinState(state) {
+	case control.NodeJoinStateActive:
+		return "active"
+	case control.NodeJoinStateJoining:
+		return "joining"
+	case control.NodeJoinStateLeaving:
+		return "leaving"
+	case control.NodeJoinStateRemoved:
+		return "removed"
+	default:
+		return "unknown"
+	}
+}
+
+func managerNodeCapacityWeight(weight uint32) int {
+	if weight == 0 {
+		return 1
+	}
+	return int(weight)
 }
 
 func managerNodeStatus(status control.NodeStatus) string {

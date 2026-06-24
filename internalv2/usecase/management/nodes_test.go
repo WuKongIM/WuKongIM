@@ -17,7 +17,7 @@ func TestListNodesBuildsReadOnlyNodeInventory(t *testing.T) {
 			snapshot: control.Snapshot{
 				ControllerID: 1,
 				Nodes: []control.Node{
-					{NodeID: 2, Addr: "127.0.0.1:7012", Roles: []control.Role{control.RoleData}, Status: control.NodeSuspect},
+					{NodeID: 2, Addr: "127.0.0.1:7012", Roles: []control.Role{control.RoleData}, Status: control.NodeSuspect, JoinState: control.NodeJoinStateJoining},
 					{NodeID: 1, Addr: "127.0.0.1:7011", Roles: []control.Role{control.RoleController, control.RoleData}, Status: control.NodeAlive},
 				},
 				Slots: []control.SlotAssignment{
@@ -78,6 +78,47 @@ func TestListNodesBuildsReadOnlyNodeInventory(t *testing.T) {
 	}
 	if second.Slots.ReplicaCount != 2 || second.Slots.LeaderCount != 1 || second.Slots.FollowerCount != 1 {
 		t.Fatalf("second slots = %#v, want two replicas with one leader", second.Slots)
+	}
+}
+
+func TestListNodesReportsLifecycleAndCapacity(t *testing.T) {
+	app := New(Options{
+		Cluster: fakeNodeSnapshotReader{
+			nodeID: 1,
+			snapshot: control.Snapshot{
+				ControllerID: 1,
+				Nodes: []control.Node{
+					{NodeID: 1, Addr: "127.0.0.1:7011", Roles: []control.Role{control.RoleController, control.RoleData}, Status: control.NodeAlive, JoinState: control.NodeJoinStateActive, CapacityWeight: 3},
+					{NodeID: 2, Addr: "127.0.0.1:7012", Roles: []control.Role{control.RoleData}, Status: control.NodeAlive, JoinState: control.NodeJoinStateJoining, CapacityWeight: 2},
+					{NodeID: 3, Addr: "127.0.0.1:7013", Roles: []control.Role{control.RoleData}, Status: control.NodeAlive, JoinState: control.NodeJoinStateLeaving, CapacityWeight: 1},
+					{NodeID: 4, Addr: "127.0.0.1:7014", Roles: []control.Role{control.RoleData}, Status: control.NodeDown, JoinState: control.NodeJoinStateRemoved, CapacityWeight: 1},
+				},
+			},
+		},
+	})
+
+	got, err := app.ListNodes(context.Background())
+	if err != nil {
+		t.Fatalf("ListNodes() error = %v", err)
+	}
+	if len(got.Items) != 4 {
+		t.Fatalf("Items len = %d, want 4", len(got.Items))
+	}
+	want := map[uint64]struct {
+		joinState   string
+		schedulable bool
+		capacity    int
+	}{
+		1: {joinState: "active", schedulable: true, capacity: 3},
+		2: {joinState: "joining", schedulable: false, capacity: 2},
+		3: {joinState: "leaving", schedulable: false, capacity: 1},
+		4: {joinState: "removed", schedulable: false, capacity: 1},
+	}
+	for _, item := range got.Items {
+		expect := want[item.NodeID]
+		if item.Membership.JoinState != expect.joinState || item.Membership.Schedulable != expect.schedulable || item.CapacityWeight != expect.capacity {
+			t.Fatalf("node %d membership=%#v capacity=%d, want %#v", item.NodeID, item.Membership, item.CapacityWeight, expect)
+		}
 	}
 }
 
