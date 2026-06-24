@@ -60,6 +60,30 @@ func TestNodeLifecycleRPCJoinForwardsTokenAndClusterID(t *testing.T) {
 	}
 }
 
+func TestNodeLifecycleRPCJoinRequiresConfiguredToken(t *testing.T) {
+	service := &fakeNodeLifecycleService{}
+	adapter := New(Options{
+		NodeLifecycle:          service,
+		NodeLifecycleClusterID: "cluster-a",
+	})
+	node := &fakeNodeLifecycleRPCNode{handler: adapter.HandleNodeLifecycleRPC}
+	client := NewClient(node)
+
+	_, err := client.JoinNode(context.Background(), 1, NodeJoinRequest{
+		NodeID:        4,
+		AdvertiseAddr: "10.0.0.4:11110",
+		ClusterID:     "cluster-a",
+		JoinToken:     "join-secret",
+	})
+
+	if err != managementusecase.ErrNodeLifecycleUnavailable {
+		t.Fatalf("JoinNode() error = %v, want ErrNodeLifecycleUnavailable", err)
+	}
+	if service.joinRequest.NodeID != 0 {
+		t.Fatalf("service join request = %#v, want no delegate when token is not configured", service.joinRequest)
+	}
+}
+
 type fakeNodeLifecycleService struct {
 	joinRequest  managementusecase.JoinNodeRequest
 	joinResponse managementusecase.JoinNodeResponse

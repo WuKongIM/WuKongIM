@@ -56,7 +56,7 @@ All nodes in a static cluster must share `WK_CLUSTER_ID` and
 listener ports.
 
 Static bootstrap nodes use `WK_CLUSTER_NODES` to form the initial Controller
-voter set and `WK_CLUSTER_JOIN_TOKEN` to validate future JoinNode RPCs. A
+voter set and `WK_CLUSTER_JOIN_TOKEN` to validate JoinNode RPCs. A
 future dynamic data node uses `WK_CLUSTER_SEEDS`, `WK_CLUSTER_ADVERTISE_ADDR`,
 and the same `WK_CLUSTER_JOIN_TOKEN` instead; it must not set
 `WK_CLUSTER_NODES`, because seed-join mode runs as a Controller mirror and does

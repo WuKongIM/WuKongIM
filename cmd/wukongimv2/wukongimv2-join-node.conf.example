@@ -21,7 +21,7 @@ WK_CLUSTER_SEEDS=["127.0.0.1:7011","127.0.0.1:7012"]
 # Stable address that other nodes should use to call this joining node.
 WK_CLUSTER_ADVERTISE_ADDR=127.0.0.1:7014
 
-# Shared join secret used by the future JoinNode request path.
+# Shared join secret validated by existing nodes for JoinNode RPCs.
 WK_CLUSTER_JOIN_TOKEN=change-me
 
 # The joining node must use the same hash-slot count as the existing cluster.

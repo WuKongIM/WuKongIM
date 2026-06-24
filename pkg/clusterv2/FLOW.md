@@ -49,6 +49,9 @@ local Slot Multi-Raft runtime. Internalv2 manager message retention forwarding
 uses the same surface to carry one logical ChannelV2 compaction-boundary
 request to the channel leader; clusterv2 transports the payload only, while the
 receiving leader revalidates runtime metadata and Slot metadata fences.
+Internalv2 seed-join and readiness probes also use this typed RPC surface:
+clusterv2 routes `RPCNodeLifecycle` payloads only, and the app-level node RPC
+adapter validates join tokens, cluster IDs, and management lifecycle policy.
 Manager Slot leader transfer enters clusterv2 through
 `Node.RequestSlotLeaderTransfer`, which only foreground-checks and delegates
 the already-validated intent to the control runtime. When the

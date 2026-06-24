@@ -178,7 +178,11 @@ func (a *Adapter) validateNodeLifecycleJoin(req NodeJoinRequest) error {
 	if expected := strings.TrimSpace(a.nodeLifecycleClusterID); expected != "" && strings.TrimSpace(req.ClusterID) != expected {
 		return metadb.ErrInvalidArgument
 	}
-	if expected := a.nodeLifecycleJoinToken; expected != "" && req.JoinToken != expected {
+	expectedToken := a.nodeLifecycleJoinToken
+	if expectedToken == "" {
+		return managementusecase.ErrNodeLifecycleUnavailable
+	}
+	if req.JoinToken != expectedToken {
 		return metadb.ErrInvalidArgument
 	}
 	return nil
