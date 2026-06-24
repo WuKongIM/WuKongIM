@@ -192,6 +192,36 @@ func TestRecipientProcessorPrefersBatchOfflineObserver(t *testing.T) {
 	}
 }
 
+func TestRecipientProcessorOptionsAcceptsBatchOnlyOfflineObserver(t *testing.T) {
+	observer := &recordingBatchOnlyOfflineRecipientObserverForDeliveryTest{}
+	processor := NewRecipientProcessor(RecipientProcessorOptions{
+		PresenceResolver: &recordingPresenceResolverForDeliveryTest{routes: []Route{
+			{UID: "u3", OwnerNodeID: 4, SessionID: 30},
+		}},
+		OfflineRecipientsObserver: observer,
+	})
+
+	err := processor.ProcessRecipientBatch(context.Background(), RecipientBatch{
+		Event: CommittedEnvelope{MessageID: 10, MessageSeq: 4, ChannelID: "g1", ChannelType: 2},
+		Recipients: []Recipient{
+			{UID: "u1"},
+			{UID: "u2"},
+			{UID: "u1"},
+			{UID: "u3"},
+		},
+	})
+
+	if err != nil {
+		t.Fatalf("ProcessRecipientBatch() error = %v", err)
+	}
+	if got := observer.batchCallCount(); got != 1 {
+		t.Fatalf("batch offline observer calls = %d, want 1", got)
+	}
+	if got, want := observer.batchUIDs(), []string{"u1", "u2"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("batch offline uids = %#v, want %#v", got, want)
+	}
+}
+
 func TestRecipientProcessorFallsBackToSingleOfflineObserver(t *testing.T) {
 	observer := &recordingOfflineRecipientObserverForDeliveryTest{}
 
@@ -221,7 +251,7 @@ func TestRecipientProcessorBatchOfflineObserverReceivesCopiedUIDSlice(t *testing
 
 	observeOfflineRecipients(context.Background(), RecipientBatch{
 		Event: CommittedEnvelope{MessageID: 10, MessageSeq: 4, ChannelID: "g1", ChannelType: 2},
-	}, uids, []Route{{UID: "u3", OwnerNodeID: 4, SessionID: 30}}, observer)
+	}, uids, []Route{{UID: "u3", OwnerNodeID: 4, SessionID: 30}}, observer, nil)
 
 	if observer.sawUIDAlias() {
 		t.Fatalf("batch offline observer received a UID slice alias")
@@ -488,4 +518,32 @@ func (o *recordingBatchOfflineRecipientObserverForDeliveryTest) sawUIDAlias() bo
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	return o.aliased
+}
+
+type recordingBatchOnlyOfflineRecipientObserverForDeliveryTest struct {
+	mu     sync.Mutex
+	events []OfflineRecipientsEvent
+}
+
+func (o *recordingBatchOnlyOfflineRecipientObserverForDeliveryTest) ObserveOfflineRecipients(_ context.Context, event OfflineRecipientsEvent) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	copied := event
+	copied.UIDs = append([]string(nil), event.UIDs...)
+	o.events = append(o.events, copied)
+}
+
+func (o *recordingBatchOnlyOfflineRecipientObserverForDeliveryTest) batchCallCount() int {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return len(o.events)
+}
+
+func (o *recordingBatchOnlyOfflineRecipientObserverForDeliveryTest) batchUIDs() []string {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if len(o.events) == 0 {
+		return nil
+	}
+	return append([]string(nil), o.events[0].UIDs...)
 }

@@ -25,6 +25,8 @@ type RecipientProcessorOptions struct {
 	PresenceResolver PresenceResolver
 	// OwnerPusher pushes online delivery commands to owner nodes.
 	OwnerPusher OwnerPusher
+	// OfflineRecipientsObserver receives durable offline recipients in one batch.
+	OfflineRecipientsObserver OfflineRecipientsObserver
 	// OfflineRecipientObserver receives durable recipients with no online route.
 	OfflineRecipientObserver OfflineRecipientObserver
 	// DeliveryRetryMaxAttempts bounds retryable owner push attempts. Values <= 0 use a bounded default.
@@ -43,6 +45,7 @@ type RecipientProcessor struct {
 type recipientPorts struct {
 	presence                    PresenceResolver
 	pusher                      OwnerPusher
+	offlineRecipientsObserver   OfflineRecipientsObserver
 	offlineRecipientObserver    OfflineRecipientObserver
 	deliveryRetryMaxAttempts    int
 	deliveryRetryInitialBackoff time.Duration
@@ -54,6 +57,7 @@ func NewRecipientProcessor(opts RecipientProcessorOptions) *RecipientProcessor {
 	return &RecipientProcessor{ports: recipientPorts{
 		presence:                    opts.PresenceResolver,
 		pusher:                      opts.OwnerPusher,
+		offlineRecipientsObserver:   opts.OfflineRecipientsObserver,
 		offlineRecipientObserver:    opts.OfflineRecipientObserver,
 		deliveryRetryMaxAttempts:    opts.DeliveryRetryMaxAttempts,
 		deliveryRetryInitialBackoff: opts.DeliveryRetryInitialBackoff,
@@ -76,7 +80,8 @@ func processRecipientBatch(ctx context.Context, batch RecipientBatch, ports reci
 	if err := contextErr(ctx); err != nil {
 		return withPostCommitFailureDetail(err, postCommitBatchDetail("context", batch))
 	}
-	if ports.presence == nil || (ports.pusher == nil && ports.offlineRecipientObserver == nil) {
+	if ports.presence == nil ||
+		(ports.pusher == nil && ports.offlineRecipientsObserver == nil && ports.offlineRecipientObserver == nil) {
 		return nil
 	}
 	uids := recipientUIDs(batch.Recipients)
@@ -86,7 +91,7 @@ func processRecipientBatch(ctx context.Context, batch RecipientBatch, ports reci
 		detail.UIDCount = len(uids)
 		return withPostCommitFailureDetail(err, detail)
 	}
-	observeOfflineRecipients(ctx, batch, uids, routes, ports.offlineRecipientObserver)
+	observeOfflineRecipients(ctx, batch, uids, routes, ports.offlineRecipientsObserver, ports.offlineRecipientObserver)
 	if ports.pusher == nil {
 		return nil
 	}
@@ -110,8 +115,15 @@ func processRecipientBatch(ctx context.Context, batch RecipientBatch, ports reci
 	return nil
 }
 
-func observeOfflineRecipients(ctx context.Context, batch RecipientBatch, uids []string, routes []Route, observer OfflineRecipientObserver) {
-	if observer == nil || !offlineRecipientObserverEligible(batch.Event) {
+func observeOfflineRecipients(
+	ctx context.Context,
+	batch RecipientBatch,
+	uids []string,
+	routes []Route,
+	batchObserver OfflineRecipientsObserver,
+	singleObserver OfflineRecipientObserver,
+) {
+	if (batchObserver == nil && singleObserver == nil) || !offlineRecipientObserverEligible(batch.Event) {
 		return
 	}
 	online := make(map[string]struct{}, len(routes))
@@ -138,15 +150,21 @@ func observeOfflineRecipients(ctx context.Context, batch RecipientBatch, uids []
 	if len(offlineUIDs) == 0 {
 		return
 	}
-	if batchObserver, ok := observer.(OfflineRecipientsObserver); ok {
+	if batchObserver == nil && singleObserver != nil {
+		batchObserver, _ = singleObserver.(OfflineRecipientsObserver)
+	}
+	if batchObserver != nil {
 		batchObserver.ObserveOfflineRecipients(ctx, OfflineRecipientsEvent{
 			Event: batch.Event,
 			UIDs:  append([]string(nil), offlineUIDs...),
 		})
 		return
 	}
+	if singleObserver == nil {
+		return
+	}
 	for _, uid := range offlineUIDs {
-		observer.ObserveOfflineRecipient(ctx, OfflineRecipientEvent{Event: batch.Event, UID: uid})
+		singleObserver.ObserveOfflineRecipient(ctx, OfflineRecipientEvent{Event: batch.Event, UID: uid})
 	}
 }
 
