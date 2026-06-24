@@ -4,7 +4,7 @@
 
 **Goal:** Build the Stage 1 foundation for internalv2 dynamic node lifecycle: seed-join config safety, durable lifecycle read models, active-only placement candidates, and manager lifecycle projection.
 
-**Architecture:** This plan does not implement `JoinNode`, `ActivateNode`, Slot replica movement, or scale-in mutations. It makes the existing runtime safe for those later stages by separating static Controller voter bootstrap from seed discovery, carrying node lifecycle state through ControllerV2 -> clusterv2 -> manager, and excluding non-active nodes from new placement candidate views. Health freshness remains display-only in Stage 1; placement still fails closed on lifecycle state and durable status.
+**Architecture:** This plan does not implement `JoinNode`, `ActivateNode`, Slot replica movement, or scale-in mutations. It makes the existing runtime safe for those later stages by separating static Controller voter bootstrap from seed discovery, carrying node lifecycle state through ControllerV2 -> clusterv2 -> manager, and excluding non-active nodes from new placement candidate views. Health freshness remains display-only in Stage 1; placement uses durable role and lifecycle only until later stages add fresh runtime/control-revision gates.
 
 **Tech Stack:** Go, `testing`, ControllerV2 state model, clusterv2 control snapshots, cmd/wukongimv2 KEY=value config loader, internalv2 manager usecase tests.
 
@@ -15,6 +15,9 @@
 This plan implements only the "Stage 1: Read Model And Config Foundation" section of:
 
 - `docs/superpowers/specs/2026-06-24-internalv2-dynamic-node-lifecycle-design.md`
+- Master index: `docs/superpowers/plans/2026-06-24-internalv2-dynamic-node-lifecycle.md`
+- Previous stage: none
+- Next stage: `docs/superpowers/plans/2026-06-24-internalv2-dynamic-node-stage2.md`
 
 It intentionally does not add manager join routes, control write RPCs, Slot learner movement, gateway drain mode, or node removal operations. Those require separate plans after this foundation passes.
 
@@ -40,7 +43,8 @@ It intentionally does not add manager join routes, control write RPCs, Slot lear
   - Verifies lifecycle and capacity mapping.
 - Modify `pkg/clusterv2/node_snapshot.go`
   - Renames the candidate helper from "alive" semantics to active schedulable semantics.
-  - Excludes `joining`, `leaving`, `removed`, `suspect`, and `down` nodes from ChannelV2 placement candidates.
+  - Excludes `joining`, `leaving`, and `removed` nodes from ChannelV2 placement candidates.
+  - Keeps `NodeStatus` out of placement because Stage 1 does not yet persist fresh health reports.
 - Modify `pkg/clusterv2/node_snapshot_test.go`
   - Verifies candidate filtering.
 - Modify `pkg/clusterv2/config.go`
@@ -690,7 +694,7 @@ In `pkg/clusterv2/node_snapshot_test.go`, update `TestNodeAppliesAliveDataNodesF
 Keep the final expected data nodes:
 
 ```go
-return equalUint64s(got, []uint64{1, 2, 3, 4})
+return equalUint64s(got, []uint64{1, 2, 3, 4, 8})
 ```
 
 - [ ] **Step 2: Run candidate test and verify RED**
@@ -701,7 +705,7 @@ Run:
 go test ./pkg/clusterv2 -run TestNodeAppliesAliveDataNodesForChannelPlacement -count=1
 ```
 
-Expected: FAIL because joining/leaving/removed alive data nodes are still included.
+Expected: FAIL because joining/leaving/removed data nodes are still included.
 
 - [ ] **Step 3: Rename and update the candidate helper**
 
@@ -717,7 +721,7 @@ Replace `aliveDataNodeIDs` with:
 func activeDataNodeIDs(nodes []control.Node) []uint64 {
 	out := make([]uint64, 0, len(nodes))
 	for _, node := range nodes {
-		if node.Status != control.NodeAlive || !hasControlRole(node.Roles, control.RoleData) {
+		if !hasControlRole(node.Roles, control.RoleData) {
 			continue
 		}
 		if controlNodeJoinState(node.JoinState) != control.NodeJoinStateActive {
@@ -737,7 +741,11 @@ func controlNodeJoinState(state control.NodeJoinState) control.NodeJoinState {
 }
 ```
 
-Update the comment in `pkg/clusterv2/node.go` from "alive data-role nodes" to "active alive data-role nodes".
+Update the comment in `pkg/clusterv2/node.go` from "alive data-role nodes" to "active data-role nodes". Add a comment above `activeDataNodeIDs`:
+
+```go
+// activeDataNodeIDs intentionally ignores NodeStatus until health reports have freshness.
+```
 
 - [ ] **Step 4: Run candidate tests and verify GREEN**
 
@@ -751,7 +759,7 @@ Expected: PASS.
 
 - [ ] **Step 5: Write failing manager transfer candidate tests**
 
-Find existing leader-transfer tests that mark node status suspect. Add one case in `internalv2/usecase/management/slot_leader_transfer_test.go` where the target is alive data but `JoinState: control.NodeJoinStateJoining`, and assert the request is rejected:
+Find existing leader-transfer tests that mark node status suspect. Add one case in `internalv2/usecase/management/slot_leader_transfer_test.go` where the target has the data role but `JoinState: control.NodeJoinStateJoining`, and assert the request is rejected:
 
 ```go
 func TestRequestSlotLeaderTransferRejectsJoiningTarget(t *testing.T) {
@@ -783,7 +791,7 @@ Run:
 go test ./internalv2/usecase/management -run 'TestRequestSlotLeaderTransferRejectsJoiningTarget|TestRequestSlotLeaderTransferRejectsUnavailableTarget' -count=1
 ```
 
-Expected: FAIL because transfer target filtering only checks alive data status.
+Expected: FAIL because transfer target filtering only checks data role and ignores lifecycle.
 
 - [ ] **Step 7: Add a shared active-data predicate in management**
 
@@ -791,8 +799,7 @@ In `internalv2/usecase/management/slot_leader_transfer.go`, add:
 
 ```go
 func isActiveDataNode(node control.Node) bool {
-	return node.Status == control.NodeAlive &&
-		hasRole(node.Roles, control.RoleData) &&
+	return hasRole(node.Roles, control.RoleData) &&
 		managerControlJoinState(node.JoinState) == control.NodeJoinStateActive
 }
 
@@ -807,7 +814,7 @@ func managerControlJoinState(state control.NodeJoinState) control.NodeJoinState 
 Replace local checks shaped like:
 
 ```go
-node.Status == control.NodeAlive && hasRole(node.Roles, control.RoleData)
+hasRole(node.Roles, control.RoleData)
 ```
 
 with:
@@ -942,7 +949,7 @@ In `buildNode`, compute lifecycle values before returning:
 
 ```go
 	joinState := managerNodeJoinState(opts.node.JoinState)
-	schedulable := role == "data" && status == "alive" && joinState == "active"
+	schedulable := role == "data" && joinState == "active"
 ```
 
 Then replace:
@@ -1133,12 +1140,8 @@ Expected: Stage 1 commits are visible, and only intentional local changes remain
 
 ## Handoff To Stage 2
 
-After Stage 1 lands, write a separate Stage 2 plan for:
+After Stage 1 lands, continue with:
 
-- ControllerV2 `JoinNode` and `ActivateNode` commands.
-- Node RPC join request handling and leader forwarding.
-- Seed startup join loop.
-- Manager read surface for joining nodes.
-- e2ev2 test for adding a fourth data node to a running three-node cluster.
+- `docs/superpowers/plans/2026-06-24-internalv2-dynamic-node-stage2.md`
 
-Do not begin Stage 2 implementation from this plan.
+Do not begin Stage 2 implementation from this plan. Stage 2 has its own entry gate and verification commands.
