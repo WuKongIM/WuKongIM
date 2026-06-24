@@ -57,6 +57,35 @@ func TestValidateRejectsSlotPeerWithoutDataRole(t *testing.T) {
 	require.ErrorIs(t, st.Validate(), ErrInvalidState)
 }
 
+func TestValidateAllowsRemovedDataNodeTombstone(t *testing.T) {
+	st := testState()
+	st.Nodes = append(st.Nodes, Node{
+		NodeID:         4,
+		Name:           "n4",
+		Addr:           "n4",
+		Roles:          []NodeRole{NodeRoleData},
+		JoinState:      NodeJoinStateRemoved,
+		Status:         NodeStatusDown,
+		CapacityWeight: 1,
+	})
+
+	require.NoError(t, st.Validate())
+}
+
+func TestValidateRejectsRemovedControllerVoter(t *testing.T) {
+	st := testState()
+	st.Nodes[0].JoinState = NodeJoinStateRemoved
+
+	require.ErrorIs(t, st.Validate(), ErrInvalidState)
+}
+
+func TestValidateRejectsRemovedSlotPeer(t *testing.T) {
+	st := testState()
+	st.Nodes[2].JoinState = NodeJoinStateRemoved
+
+	require.ErrorIs(t, st.Validate(), ErrInvalidState)
+}
+
 func TestValidateRejectsHashSlotGap(t *testing.T) {
 	st := testState()
 	st.HashSlots.Ranges[0].To = 7

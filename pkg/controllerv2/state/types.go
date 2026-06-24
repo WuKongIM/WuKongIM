@@ -29,6 +29,8 @@ const (
 	NodeJoinStateJoining NodeJoinState = "joining"
 	// NodeJoinStateLeaving means the node is being drained from assignments.
 	NodeJoinStateLeaving NodeJoinState = "leaving"
+	// NodeJoinStateRemoved means the node identity is retained as a tombstone and must not receive assignments.
+	NodeJoinStateRemoved NodeJoinState = "removed"
 )
 
 // NodeStatus describes durable node health as last written through Controller Raft.

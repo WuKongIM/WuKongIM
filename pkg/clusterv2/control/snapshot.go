@@ -24,6 +24,20 @@ const (
 	NodeDown NodeStatus = "down"
 )
 
+// NodeJoinState describes durable node lifecycle in the clusterv2 control read model.
+type NodeJoinState string
+
+const (
+	// NodeJoinStateActive means the node may receive new placement.
+	NodeJoinStateActive NodeJoinState = "active"
+	// NodeJoinStateJoining means the node is visible but not assignment-ready.
+	NodeJoinStateJoining NodeJoinState = "joining"
+	// NodeJoinStateLeaving means the node is draining and must not receive new placement.
+	NodeJoinStateLeaving NodeJoinState = "leaving"
+	// NodeJoinStateRemoved means the node identity is retained as a tombstone.
+	NodeJoinStateRemoved NodeJoinState = "removed"
+)
+
 // TaskKind identifies one reconcile workflow kind.
 type TaskKind = cv2.TaskKind
 
@@ -107,6 +121,10 @@ type Node struct {
 	Roles []Role
 	// Status is the durable control-plane health state.
 	Status NodeStatus
+	// JoinState is the durable membership lifecycle state.
+	JoinState NodeJoinState
+	// CapacityWeight is the relative planner capacity for future placement decisions.
+	CapacityWeight uint32
 }
 
 // SlotAssignment describes desired replicas for one physical Slot.

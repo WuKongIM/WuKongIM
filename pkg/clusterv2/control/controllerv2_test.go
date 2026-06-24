@@ -18,6 +18,9 @@ func TestControllerV2SnapshotMapping(t *testing.T) {
 	if len(snap.Nodes) != 3 || snap.Nodes[0].Roles[0] != RoleController || snap.Nodes[0].Roles[1] != RoleData {
 		t.Fatalf("nodes = %#v, want controller+data first node", snap.Nodes)
 	}
+	if snap.Nodes[0].JoinState != NodeJoinStateActive || snap.Nodes[0].CapacityWeight != 1 {
+		t.Fatalf("first node lifecycle = %q capacity=%d, want active capacity 1", snap.Nodes[0].JoinState, snap.Nodes[0].CapacityWeight)
+	}
 	if len(snap.Slots) != 1 || snap.Slots[0].SlotID != 1 || snap.Slots[0].PreferredLeader != 1 {
 		t.Fatalf("slots = %#v, want slot 1 preferred leader 1", snap.Slots)
 	}
@@ -33,6 +36,27 @@ func TestControllerV2SnapshotMapping(t *testing.T) {
 	}
 	if task.CompletionPolicy != TaskCompletionPolicyAllTargetPeers || len(task.ParticipantProgress) != 3 || task.ParticipantProgress[2].LastError != "open failed" {
 		t.Fatalf("mapped participant progress = %#v", task.ParticipantProgress)
+	}
+}
+
+func TestControllerV2SnapshotMappingPreservesNonActiveLifecycle(t *testing.T) {
+	st := controllerV2State()
+	st.Config.ReplicaCount = 1
+	st.Slots[0].DesiredPeers = []uint64{1}
+	st.Tasks = nil
+	st.Nodes[1].JoinState = cv2.NodeJoinStateJoining
+	st.Nodes[1].CapacityWeight = 7
+	st.Nodes[2].JoinState = cv2.NodeJoinStateLeaving
+
+	snap, err := SnapshotFromControllerV2(st)
+	if err != nil {
+		t.Fatalf("SnapshotFromControllerV2() error = %v", err)
+	}
+	if snap.Nodes[1].JoinState != NodeJoinStateJoining || snap.Nodes[1].CapacityWeight != 7 {
+		t.Fatalf("node 2 lifecycle = %q capacity=%d, want joining capacity 7", snap.Nodes[1].JoinState, snap.Nodes[1].CapacityWeight)
+	}
+	if snap.Nodes[2].JoinState != NodeJoinStateLeaving {
+		t.Fatalf("node 3 lifecycle = %q, want leaving", snap.Nodes[2].JoinState)
 	}
 }
 

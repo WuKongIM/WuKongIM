@@ -60,7 +60,10 @@ func validateNodes(nodes []Node) (map[uint64]Node, error) {
 		if node.JoinState == "" {
 			return nil, invalid("node join_state is required")
 		}
-		if node.JoinState != NodeJoinStateActive && node.JoinState != NodeJoinStateJoining && node.JoinState != NodeJoinStateLeaving {
+		if node.JoinState != NodeJoinStateActive &&
+			node.JoinState != NodeJoinStateJoining &&
+			node.JoinState != NodeJoinStateLeaving &&
+			node.JoinState != NodeJoinStateRemoved {
 			return nil, invalid("unknown node join_state")
 		}
 		if node.Status == "" {
@@ -107,8 +110,8 @@ func validateControllers(controllers []ControllerVoter, nodes map[uint64]Node) e
 			return invalid("controller role must be voter")
 		}
 		node, ok := nodes[controller.NodeID]
-		if !ok || !node.HasRole(NodeRoleControllerVoter) {
-			return invalid("controller voter must reference controller_voter node")
+		if !ok || !node.HasRole(NodeRoleControllerVoter) || node.JoinState != NodeJoinStateActive {
+			return invalid("controller voter must reference active controller_voter node")
 		}
 	}
 	return nil

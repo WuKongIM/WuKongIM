@@ -46,7 +46,14 @@ func SnapshotFromControllerV2(st cv2.ClusterState) (Snapshot, error) {
 		snap.ControllerID = st.Controllers[0].NodeID
 	}
 	for _, node := range st.Nodes {
-		snap.Nodes = append(snap.Nodes, Node{NodeID: node.NodeID, Addr: node.Addr, Roles: mapControllerV2Roles(node.Roles), Status: mapControllerV2Status(node.Status)})
+		snap.Nodes = append(snap.Nodes, Node{
+			NodeID:         node.NodeID,
+			Addr:           node.Addr,
+			Roles:          mapControllerV2Roles(node.Roles),
+			Status:         mapControllerV2Status(node.Status),
+			JoinState:      mapControllerV2JoinState(node.JoinState),
+			CapacityWeight: node.CapacityWeight,
+		})
 	}
 	for _, slot := range st.Slots {
 		snap.Slots = append(snap.Slots, SlotAssignment{SlotID: slot.SlotID, DesiredPeers: append([]uint64(nil), slot.DesiredPeers...), ConfigEpoch: slot.ConfigEpoch, PreferredLeader: slot.PreferredLeader})
@@ -212,6 +219,21 @@ func mapControllerV2Status(status cv2.NodeStatus) NodeStatus {
 		return NodeDown
 	default:
 		return NodeDown
+	}
+}
+
+func mapControllerV2JoinState(state cv2.NodeJoinState) NodeJoinState {
+	switch state {
+	case cv2.NodeJoinStateActive:
+		return NodeJoinStateActive
+	case cv2.NodeJoinStateJoining:
+		return NodeJoinStateJoining
+	case cv2.NodeJoinStateLeaving:
+		return NodeJoinStateLeaving
+	case cv2.NodeJoinState("removed"):
+		return NodeJoinStateRemoved
+	default:
+		return NodeJoinStateRemoved
 	}
 }
 

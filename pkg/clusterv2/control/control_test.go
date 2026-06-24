@@ -28,6 +28,14 @@ func TestSnapshotValidateRejectsSlotPeerWithoutDataNode(t *testing.T) {
 	}
 }
 
+func TestSnapshotValidateRejectsSlotPeerThatIsNotActive(t *testing.T) {
+	snap := validSnapshot()
+	snap.Nodes[1].JoinState = NodeJoinStateJoining
+	if err := snap.Validate(); err == nil {
+		t.Fatal("Validate() error = nil, want joining desired peer rejection")
+	}
+}
+
 func TestStaticControllerPublishesSnapshot(t *testing.T) {
 	initial := validSnapshot()
 	c := NewStaticController(initial)

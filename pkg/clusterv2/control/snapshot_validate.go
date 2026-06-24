@@ -17,7 +17,10 @@ func (s Snapshot) Validate() error {
 			return fmt.Errorf("control snapshot: duplicate node %d", node.NodeID)
 		}
 		seenNodes[node.NodeID] = struct{}{}
-		if hasRole(node.Roles, RoleData) {
+		if !validJoinState(node.JoinState) {
+			return fmt.Errorf("control snapshot: unknown node join_state")
+		}
+		if hasRole(node.Roles, RoleData) && effectiveJoinState(node.JoinState) == NodeJoinStateActive {
 			dataNodes[node.NodeID] = struct{}{}
 		}
 	}
@@ -64,6 +67,22 @@ func (s Snapshot) Validate() error {
 		}
 	}
 	return nil
+}
+
+func effectiveJoinState(state NodeJoinState) NodeJoinState {
+	if state == "" {
+		return NodeJoinStateActive
+	}
+	return state
+}
+
+func validJoinState(state NodeJoinState) bool {
+	switch effectiveJoinState(state) {
+	case NodeJoinStateActive, NodeJoinStateJoining, NodeJoinStateLeaving, NodeJoinStateRemoved:
+		return true
+	default:
+		return false
+	}
 }
 
 func validateHashSlotRanges(table HashSlotTable, slots map[uint32]struct{}) error {
