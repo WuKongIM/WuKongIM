@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
+	cv2 "github.com/WuKongIM/WuKongIM/pkg/controllerv2"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
@@ -33,6 +34,8 @@ var (
 	ErrNodeOnboardingUnavailable = errors.New("internalv2/usecase/management: node onboarding unavailable")
 	// ErrNodeOnboardingTargetNotActive reports that the target is not an active data node.
 	ErrNodeOnboardingTargetNotActive = errors.New("internalv2/usecase/management: node onboarding target is not active data node")
+	// ErrNodeOnboardingConflict reports a concurrent control-state change during onboarding writes.
+	ErrNodeOnboardingConflict = errors.New("internalv2/usecase/management: node onboarding conflict")
 )
 
 // SlotReplicaMoveWriter submits Controller-backed staged Slot replica move intents.
@@ -196,6 +199,7 @@ func (a *App) PlanNodeOnboarding(ctx context.Context, req NodeOnboardingPlanRequ
 	assignments := append([]control.SlotAssignment(nil), snapshot.Slots...)
 	sort.Slice(assignments, func(i, j int) bool { return assignments[i].SlotID < assignments[j].SlotID })
 	projectedReplicas := nodeOnboardingReplicaCounts(assignments)
+	applyNodeOnboardingActiveTaskProjection(snapshot.Tasks, projectedReplicas)
 	for _, assignment := range assignments {
 		if _, ok := findActiveSlotTask(snapshot.Tasks, assignment.SlotID); ok {
 			response.Skipped = append(response.Skipped, nodeOnboardingSkip(assignment.SlotID, NodeOnboardingSkipActiveTask, "slot already has an active task"))
@@ -286,22 +290,31 @@ func (a *App) NodeOnboardingStatus(ctx context.Context, req NodeOnboardingStatus
 }
 
 func (a *App) executeNodeOnboarding(ctx context.Context, targetNodeID uint64, maxSlotMoves uint32) (NodeOnboardingStartResponse, error) {
-	plan, err := a.PlanNodeOnboarding(ctx, NodeOnboardingPlanRequest{TargetNodeID: targetNodeID, MaxSlotMoves: maxSlotMoves})
-	if err != nil {
-		return NodeOnboardingStartResponse{}, err
-	}
-	if len(plan.Candidates) > 0 && (a == nil || a.slotReplicaMove == nil) {
-		return NodeOnboardingStartResponse{}, ErrNodeOnboardingUnavailable
-	}
+	maxMoves := normalizeNodeOnboardingMaxMoves(maxSlotMoves)
 	response := NodeOnboardingStartResponse{
-		GeneratedAt:   plan.GeneratedAt,
-		StateRevision: plan.StateRevision,
-		TargetNodeID:  plan.TargetNodeID,
-		MaxSlotMoves:  plan.MaxSlotMoves,
-		Results:       make([]NodeOnboardingTaskResult, 0, len(plan.Candidates)),
-		Skipped:       append([]NodeOnboardingSkip(nil), plan.Skipped...),
+		TargetNodeID: targetNodeID,
+		MaxSlotMoves: maxMoves,
+		Results:      make([]NodeOnboardingTaskResult, 0, maxMoves),
 	}
-	for _, candidate := range plan.Candidates {
+	retryBudget := int(maxMoves) * 2
+	for response.Created < maxMoves {
+		plan, err := a.PlanNodeOnboarding(ctx, NodeOnboardingPlanRequest{TargetNodeID: targetNodeID, MaxSlotMoves: 1})
+		if err != nil {
+			return NodeOnboardingStartResponse{}, err
+		}
+		if response.GeneratedAt.IsZero() {
+			response.GeneratedAt = plan.GeneratedAt
+		}
+		response.StateRevision = plan.StateRevision
+		response.TargetNodeID = plan.TargetNodeID
+		response.Skipped = append([]NodeOnboardingSkip(nil), plan.Skipped...)
+		if len(plan.Candidates) == 0 {
+			return response, nil
+		}
+		if a == nil || a.slotReplicaMove == nil {
+			return NodeOnboardingStartResponse{}, ErrNodeOnboardingUnavailable
+		}
+		candidate := plan.Candidates[0]
 		result, err := a.slotReplicaMove.RequestSlotReplicaMove(ctx, control.SlotReplicaMoveRequest{
 			SlotID:        candidate.SlotID,
 			SourceNode:    candidate.SourceNodeID,
@@ -311,6 +324,13 @@ func (a *App) executeNodeOnboarding(ctx context.Context, targetNodeID uint64, ma
 			StateRevision: plan.StateRevision,
 		})
 		if err != nil {
+			if nodeOnboardingRetryableWriteError(err) {
+				if retryBudget <= 0 {
+					return NodeOnboardingStartResponse{}, ErrNodeOnboardingConflict
+				}
+				retryBudget--
+				continue
+			}
 			return NodeOnboardingStartResponse{}, err
 		}
 		if result.Created {
@@ -321,6 +341,9 @@ func (a *App) executeNodeOnboarding(ctx context.Context, targetNodeID uint64, ma
 			Created: result.Created,
 			Task:    slotTaskFromControlPtr(result.Task),
 		})
+		if !result.Created {
+			return response, nil
+		}
 	}
 	return response, nil
 }
@@ -354,6 +377,24 @@ func nodeOnboardingReplicaCounts(assignments []control.SlotAssignment) map[uint6
 		}
 	}
 	return counts
+}
+
+func applyNodeOnboardingActiveTaskProjection(tasks []control.ReconcileTask, counts map[uint64]int) {
+	for _, task := range tasks {
+		if task.Kind != control.TaskKindSlotReplicaMove {
+			continue
+		}
+		if task.SourceNode != 0 {
+			counts[task.SourceNode]--
+		}
+		if task.TargetNode != 0 {
+			counts[task.TargetNode]++
+		}
+	}
+}
+
+func nodeOnboardingRetryableWriteError(err error) bool {
+	return errors.Is(err, cv2.ErrProposalRejected)
 }
 
 func bestReplaceableNodeOnboardingPeer(peers []uint64, targetNodeID uint64, projectedReplicas map[uint64]int) (uint64, bool) {

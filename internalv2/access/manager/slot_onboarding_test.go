@@ -129,6 +129,36 @@ func TestManagerNodeOnboardingStartReturnsAcceptedWhenCreated(t *testing.T) {
 	}
 }
 
+func TestManagerNodeOnboardingStartMapsConflict(t *testing.T) {
+	srv := New(Options{
+		Auth: testAuthConfig([]UserConfig{{
+			Username: "admin",
+			Password: "secret",
+			Permissions: []PermissionConfig{{
+				Resource: "cluster.node",
+				Actions:  []string{"w"},
+			}},
+		}}),
+		Management: managerNodesStub{
+			nodeOnboardingStartErr: managementusecase.ErrNodeOnboardingConflict,
+		},
+	})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/manager/nodes/4/onboarding/start", strings.NewReader(`{"max_slot_moves":2}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusConflict, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), `"error":"conflict"`) {
+		t.Fatalf("body = %s, want conflict error", rec.Body.String())
+	}
+}
+
 func TestManagerNodeOnboardingStatusRequiresReadPermission(t *testing.T) {
 	generatedAt := time.Date(2026, 6, 24, 9, 2, 0, 0, time.UTC)
 	var seen managementusecase.NodeOnboardingStatusRequest

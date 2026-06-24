@@ -287,6 +287,8 @@ func writeNodeOnboardingError(c *gin.Context, err error) {
 		jsonError(c, http.StatusBadRequest, "bad_request", "bad_request")
 	case errors.Is(err, managementusecase.ErrNodeOnboardingTargetNotActive):
 		jsonError(c, http.StatusConflict, "conflict", "conflict")
+	case errors.Is(err, managementusecase.ErrNodeOnboardingConflict):
+		jsonError(c, http.StatusConflict, "conflict", "conflict")
 	case errors.Is(err, managementusecase.ErrNodeOnboardingUnavailable):
 		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "service_unavailable")
 	default:
