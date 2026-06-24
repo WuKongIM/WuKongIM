@@ -26,6 +26,12 @@ type Message struct {
 	ChannelType uint8
 	// Setting carries legacy message setting bits when available from the append path.
 	Setting uint8
+	// Topic is the optional legacy message topic.
+	Topic string
+	// Expire is the legacy message expiration value.
+	Expire uint32
+	// SourceID is the node-local source identifier used by offline notifications.
+	SourceID uint64
 	// FromUID is the sender user ID.
 	FromUID string
 	// ClientMsgNo is the client idempotency key associated with the send request.

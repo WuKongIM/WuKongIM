@@ -138,6 +138,9 @@ func appendRequest(target AuthorityTarget, active []preparedSend, attempt int) A
 			MessageID:         cmd.MessageID,
 			ChannelID:         cmd.ChannelID,
 			ChannelType:       cmd.ChannelType,
+			Setting:           cmd.Setting,
+			Topic:             cmd.Topic,
+			Expire:            cmd.Expire,
 			FromUID:           cmd.FromUID,
 			ClientMsgNo:       cmd.ClientMsgNo,
 			TraceID:           cmd.TraceID,
@@ -286,6 +289,14 @@ func committedEnvelopeForAppend(item preparedSend, appended AppendBatchItemResul
 	if len(payload) == 0 {
 		payload = cmd.Payload
 	}
+	setting := cmd.Setting
+	topic := cmd.Topic
+	expire := cmd.Expire
+	if appendMessageReturned(appended.Message) {
+		setting = appended.Message.Setting
+		topic = appended.Message.Topic
+		expire = appended.Message.Expire
+	}
 	return CommittedEnvelope{
 		MessageID:         appended.MessageID,
 		MessageSeq:        appended.MessageSeq,
@@ -294,6 +305,9 @@ func committedEnvelopeForAppend(item preparedSend, appended AppendBatchItemResul
 		FromUID:           cmd.FromUID,
 		SenderNodeID:      cmd.SenderNodeID,
 		SenderSessionID:   cmd.SenderSessionID,
+		Setting:           setting,
+		Topic:             topic,
+		Expire:            expire,
 		ClientMsgNo:       cmd.ClientMsgNo,
 		ServerTimestampMS: serverTimestampMS,
 		Payload:           cloneBytes(payload),
@@ -301,6 +315,23 @@ func committedEnvelopeForAppend(item preparedSend, appended AppendBatchItemResul
 		SyncOnce:          cmd.SyncOnce,
 		MessageScopedUIDs: append([]string(nil), cmd.MessageScopedUIDs...),
 	}
+}
+
+func appendMessageReturned(msg Message) bool {
+	return msg.MessageID != 0 ||
+		msg.MessageSeq != 0 ||
+		msg.ChannelID != "" ||
+		msg.ChannelType != 0 ||
+		msg.Setting != 0 ||
+		msg.Topic != "" ||
+		msg.Expire != 0 ||
+		msg.FromUID != "" ||
+		msg.ClientMsgNo != "" ||
+		msg.TraceID != "" ||
+		msg.ChannelKey != "" ||
+		len(msg.Payload) != 0 ||
+		msg.SyncOnce ||
+		msg.ServerTimestampMS != 0
 }
 
 func observeAppendCompletion(observer AppendObserver, completion appendItemCompletion, dur time.Duration) {

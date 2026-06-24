@@ -17,6 +17,9 @@ type sendMessageRequest struct {
 	ChannelID     string                   `json:"channel_id"`
 	ChannelType   uint8                    `json:"channel_type"`
 	ClientMsgNo   string                   `json:"client_msg_no"`
+	Setting       uint8                    `json:"setting"`
+	Topic         string                   `json:"topic"`
+	Expire        uint32                   `json:"expire"`
 	Payload       string                   `json:"payload"`
 	Subscribers   []string                 `json:"subscribers"`
 	Header        sendMessageHeaderRequest `json:"header"`
@@ -95,6 +98,9 @@ func (s *Server) handleSendMessage(c *gin.Context) {
 		ChannelID:              req.ChannelID,
 		ChannelType:            req.ChannelType,
 		ClientMsgNo:            req.ClientMsgNo,
+		Setting:                req.Setting,
+		Topic:                  req.Topic,
+		Expire:                 req.Expire,
 		Payload:                payload,
 		NoPersist:              noPersist,
 		SyncOnce:               syncOnce,

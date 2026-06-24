@@ -18,6 +18,8 @@ func TestBuildNotifyBodyMapsCommittedMessages(t *testing.T) {
 		ChannelID:         "group-a",
 		ChannelType:       2,
 		Setting:           9,
+		Topic:             "topic-a",
+		Expire:            3600,
 		FromUID:           "alice",
 		ClientMsgNo:       "client-1",
 		ServerTimestampMS: time.Unix(10, 0).UnixMilli(),
@@ -41,6 +43,9 @@ func TestBuildNotifyBodyMapsCommittedMessages(t *testing.T) {
 	if msg["setting"] != float64(9) {
 		t.Fatalf("setting = %v, want 9", msg["setting"])
 	}
+	if msg["topic"] != "topic-a" || msg["expire"] != float64(3600) {
+		t.Fatalf("topic/expire = %v/%v, want topic-a/3600", msg["topic"], msg["expire"])
+	}
 	if msg["channel_id"] != "group-a" || msg["from_uid"] != "alice" {
 		t.Fatalf("channel/from = %#v", msg)
 	}
@@ -63,6 +68,10 @@ func TestBuildOfflineBodyChunksAndCompressesUIDs(t *testing.T) {
 			MessageSeq:        11,
 			ChannelID:         "group-a",
 			ChannelType:       2,
+			Setting:           9,
+			Topic:             "topic-a",
+			Expire:            3600,
+			SourceID:          7,
 			FromUID:           "alice",
 			ServerTimestampMS: time.Unix(10, 0).UnixMilli(),
 			Payload:           []byte("payload"),
@@ -81,6 +90,9 @@ func TestBuildOfflineBodyChunksAndCompressesUIDs(t *testing.T) {
 	}
 	if got["compress_to_uids"] == "" {
 		t.Fatalf("compress_to_uids is empty")
+	}
+	if got["setting"] != float64(9) || got["topic"] != "topic-a" || got["expire"] != float64(3600) || got["source_id"] != float64(7) {
+		t.Fatalf("legacy offline fields = setting:%v topic:%v expire:%v source:%v, want 9/topic-a/3600/7", got["setting"], got["topic"], got["expire"], got["source_id"])
 	}
 	compressed, ok := got["compress_to_uids"].(string)
 	if !ok {

@@ -12,6 +12,8 @@ import (
 type messageResp struct {
 	Header       messageHeader `json:"header"`
 	Setting      uint8         `json:"setting"`
+	Topic        string        `json:"topic,omitempty"`
+	Expire       uint32        `json:"expire"`
 	MessageID    uint64        `json:"message_id"`
 	MessageIDStr string        `json:"message_idstr"`
 	ClientMsgNo  string        `json:"client_msg_no"`
@@ -50,6 +52,9 @@ func buildNotifyBody(messages []Message) ([]byte, error) {
 
 func buildOfflineBody(message OfflineMessage, compressThreshold int) ([]byte, error) {
 	resp := offlineResp{MessageResp: messageRespFromMessage(message.Message)}
+	if message.Message.SourceID != 0 {
+		resp.SourceID = int64(message.Message.SourceID)
+	}
 	if compressThreshold > 0 && len(message.ToUIDs) >= compressThreshold {
 		compressed, err := gzipJSONStringSlice(message.ToUIDs)
 		if err != nil {
@@ -81,6 +86,8 @@ func messageRespFromMessage(msg Message) messageResp {
 			SyncOnce:  boolToUint8(msg.SyncOnce),
 		},
 		Setting:      msg.Setting,
+		Topic:        msg.Topic,
+		Expire:       msg.Expire,
 		MessageID:    msg.MessageID,
 		MessageIDStr: uint64String(msg.MessageID),
 		ClientMsgNo:  msg.ClientMsgNo,

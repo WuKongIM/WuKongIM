@@ -109,6 +109,12 @@ type SendCommand struct {
 	ChannelID string
 	// ChannelType is the protocol channel category.
 	ChannelType uint8
+	// Setting carries legacy message setting bits from the sender frame or compatible HTTP API.
+	Setting uint8
+	// Topic is the optional legacy message topic.
+	Topic string
+	// Expire is the legacy message expiration value.
+	Expire uint32
 	// Payload is the message body. Send-path implementations treat it as immutable.
 	Payload []byte
 	// NoPersist requests transient delivery without writing the channel log.
@@ -214,6 +220,12 @@ type Message struct {
 	ChannelID string
 	// ChannelType is the protocol channel category.
 	ChannelType uint8
+	// Setting carries legacy message setting bits from the send command.
+	Setting uint8
+	// Topic is the optional legacy message topic.
+	Topic string
+	// Expire is the legacy message expiration value.
+	Expire uint32
 	// FromUID is the sender user id.
 	FromUID string
 	// ClientMsgNo is the client idempotency key.
@@ -313,6 +325,12 @@ type CommittedEnvelope struct {
 	SenderNodeID uint64
 	// SenderSessionID is the owner-local sender session id used to suppress same-connection echo.
 	SenderSessionID uint64
+	// Setting carries legacy message setting bits from the committed append.
+	Setting uint8
+	// Topic is the optional legacy message topic.
+	Topic string
+	// Expire is the legacy message expiration value.
+	Expire uint32
 	// ClientMsgNo is the client idempotency key.
 	ClientMsgNo string
 	// ServerTimestampMS is the server append timestamp used for conversation ordering.

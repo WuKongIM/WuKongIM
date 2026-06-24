@@ -134,6 +134,86 @@ func TestAppendRequestCarriesAuthorityFence(t *testing.T) {
 	}
 }
 
+func TestAppendRequestCarriesLegacyMessageFields(t *testing.T) {
+	req := appendRequest(localTargetForAppendTest("room"), []preparedSend{{
+		Command: SendCommand{
+			FromUID:     "u1",
+			ChannelID:   "room",
+			ChannelType: 2,
+			ClientMsgNo: "client-1",
+			Setting:     9,
+			Topic:       "topic-a",
+			Expire:      3600,
+			Payload:     []byte("payload"),
+		},
+		ServerTimestampMS: 123,
+	}}, appendInitialAttempt)
+
+	if len(req.Messages) != 1 {
+		t.Fatalf("append messages = %d, want 1", len(req.Messages))
+	}
+	msg := req.Messages[0]
+	if msg.Setting != 9 || msg.Topic != "topic-a" || msg.Expire != 3600 {
+		t.Fatalf("legacy message fields = setting:%d topic:%q expire:%d, want 9/topic-a/3600", msg.Setting, msg.Topic, msg.Expire)
+	}
+}
+
+func TestCommittedEnvelopeForAppendCarriesLegacyMessageFields(t *testing.T) {
+	item := preparedSend{
+		Command: SendCommand{
+			FromUID:     "u1",
+			ChannelID:   "room",
+			ChannelType: 2,
+			ClientMsgNo: "client-1",
+			Setting:     9,
+			Topic:       "topic-from-command",
+			Expire:      3600,
+			Payload:     []byte("command-payload"),
+		},
+		ServerTimestampMS: 123,
+	}
+	appended := AppendBatchItemResult{
+		MessageID:  10,
+		MessageSeq: 2,
+		Message: Message{
+			Setting:           11,
+			Topic:             "topic-from-append",
+			Expire:            7200,
+			Payload:           []byte("append-payload"),
+			ServerTimestampMS: 456,
+		},
+	}
+
+	event := committedEnvelopeForAppend(item, appended)
+
+	if event.Setting != 11 || event.Topic != "topic-from-append" || event.Expire != 7200 {
+		t.Fatalf("legacy envelope fields = setting:%d topic:%q expire:%d, want 11/topic-from-append/7200", event.Setting, event.Topic, event.Expire)
+	}
+}
+
+func TestCommittedEnvelopeForAppendFallsBackToCommandLegacyFields(t *testing.T) {
+	item := preparedSend{
+		Command: SendCommand{
+			FromUID:     "u1",
+			ChannelID:   "room",
+			ChannelType: 2,
+			ClientMsgNo: "client-1",
+			Setting:     9,
+			Topic:       "topic-from-command",
+			Expire:      3600,
+			Payload:     []byte("command-payload"),
+		},
+		ServerTimestampMS: 123,
+	}
+	appended := AppendBatchItemResult{MessageID: 10, MessageSeq: 2}
+
+	event := committedEnvelopeForAppend(item, appended)
+
+	if event.Setting != 9 || event.Topic != "topic-from-command" || event.Expire != 3600 {
+		t.Fatalf("fallback legacy envelope fields = setting:%d topic:%q expire:%d, want 9/topic-from-command/3600", event.Setting, event.Topic, event.Expire)
+	}
+}
+
 func TestAppendSuccessCompletesItemAlignedFutures(t *testing.T) {
 	appender := newRecordingAppenderForAppendTest()
 	group := newStartedTestGroup(t, Options{

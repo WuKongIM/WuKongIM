@@ -27,9 +27,12 @@ Activate(command)
 `MarkActive` is the final local active re-check. A successful activation means
 the authority accepted the route, required owner actions were acknowledged, and
 the owner still has the session locally. Online-status observation is
-best-effort and owner-local; it emits the legacy-compatible `uid-1` status only
-after successful local activation when an active owner-local session exists and
-never adds authority traffic.
+best-effort and owner-local; it emits the legacy-compatible
+`uid-deviceFlag-1-sessionID-deviceOnlineCount-totalOnlineCount` status only
+after successful local activation when an active owner-local session exists.
+The device and total counts are computed from active owner-local sessions after
+activation, and pending sessions are not counted. Observation never adds
+authority traffic.
 
 ## Deactivate Flow
 
@@ -44,11 +47,14 @@ Deactivate(command)
 
 Local removal happens before the authority tombstone is queued so owner-local
 delivery no longer sees the route while unregister retry is pending. Offline
-status observation is best-effort and emits the legacy-compatible `uid-0` status
+status observation is best-effort and emits the legacy-compatible offline status
 only after the removed session was active and was the last active owner-local
-session for that UID. If the pre-removal session snapshot is missing, the
-observer is skipped to avoid a false offline event. Pending same-UID sessions do
-not count as online until activation succeeds.
+session for that UID. The emitted value uses
+`uid-deviceFlag-0-sessionID-deviceOnlineCount-totalOnlineCount`, with counts
+computed after removal from active owner-local sessions. If the pre-removal
+session snapshot is missing, the observer is skipped to avoid a false offline
+event. Pending same-UID sessions do not count as online until activation
+succeeds.
 
 ## Touch Flow
 

@@ -250,10 +250,13 @@ func TestOnFrameSendPacketWritesSuccessSendack(t *testing.T) {
 			SyncOnce:  true,
 			RedDot:    true,
 		},
+		Setting:     frame.SettingTopic | frame.SettingReceiptEnabled,
+		Expire:      3600,
 		ClientSeq:   7,
 		ClientMsgNo: "client-1",
 		ChannelID:   "ch1",
 		ChannelType: 2,
+		Topic:       "topic-a",
 		Payload:     []byte("hello"),
 	}
 
@@ -273,6 +276,9 @@ func TestOnFrameSendPacketWritesSuccessSendack(t *testing.T) {
 	}
 	if cmd.ClientSeq != pkt.ClientSeq || cmd.ClientMsgNo != pkt.ClientMsgNo || cmd.ChannelID != pkt.ChannelID || cmd.ChannelType != pkt.ChannelType {
 		t.Fatalf("mapped packet fields = %#v, want packet fields from %#v", cmd, pkt)
+	}
+	if cmd.Setting != pkt.Setting.Uint8() || cmd.Topic != pkt.Topic || cmd.Expire != pkt.Expire {
+		t.Fatalf("mapped legacy message fields = setting:%d topic:%q expire:%d, want %d/%q/%d", cmd.Setting, cmd.Topic, cmd.Expire, pkt.Setting.Uint8(), pkt.Topic, pkt.Expire)
 	}
 	if cmd.MessageID != 0 {
 		t.Fatalf("gateway-origin MessageID = %d, want 0", cmd.MessageID)

@@ -37,7 +37,7 @@ func (a *App) Activate(ctx context.Context, cmd ActivateCommand) error {
 		a.rollbackLocal(cmd.SessionID)
 		return err
 	}
-	a.observeOnlineStatus(ctx, cmd.UID, true)
+	a.observeOnlineStatus(ctx, routeProjection)
 	return nil
 }
 

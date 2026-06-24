@@ -171,14 +171,40 @@ func TestActivateEmitsOnlineStatusAfterSuccessfulMarkActive(t *testing.T) {
 	})
 
 	err := app.Activate(context.Background(), ActivateCommand{
-		UID:       "u1",
-		SessionID: 11,
-		Session:   fakeSessionHandle{},
+		UID:        "u1",
+		DeviceFlag: 2,
+		SessionID:  11,
+		Session:    fakeSessionHandle{},
 	})
 	require.NoError(t, err)
 
 	require.Equal(t, []string{"local.register_pending", "authority.register", "local.mark_active", "observer.online_status"}, calls)
-	require.Equal(t, []OnlineStatusEvent{{UID: "u1", Online: true, Value: "u1-1"}}, observer.events)
+	require.Equal(t, []OnlineStatusEvent{{UID: "u1", Online: true, Value: "u1-2-1-11-1-1"}}, observer.events)
+}
+
+func TestActivateOnlineStatusCountsActiveLocalSessionsAfterTransition(t *testing.T) {
+	var calls []string
+	local := newFakeLocalRegistry(&calls)
+	local.pending[10] = LocalSession{Route: OwnerRoute{UID: "u1", DeviceFlag: 2, SessionID: 10}, State: RouteStateActive}
+	local.pending[12] = LocalSession{Route: OwnerRoute{UID: "u1", DeviceFlag: 3, SessionID: 12}, State: RouteStateActive}
+	local.pending[13] = LocalSession{Route: OwnerRoute{UID: "u1", DeviceFlag: 2, SessionID: 13}, State: RouteStatePending}
+	local.pending[14] = LocalSession{Route: OwnerRoute{UID: "u2", DeviceFlag: 2, SessionID: 14}, State: RouteStateActive}
+	observer := &fakeOnlineStatusObserver{calls: &calls}
+	app := New(Options{
+		Local:                local,
+		Authority:            &fakeAuthorityClient{calls: &calls},
+		OnlineStatusObserver: observer,
+	})
+
+	err := app.Activate(context.Background(), ActivateCommand{
+		UID:        "u1",
+		DeviceFlag: 2,
+		SessionID:  11,
+		Session:    fakeSessionHandle{},
+	})
+	require.NoError(t, err)
+
+	require.Equal(t, []OnlineStatusEvent{{UID: "u1", Online: true, Value: "u1-2-1-11-2-3"}}, observer.events)
 }
 
 func TestActivateFailurePathsDoNotEmitOnlineStatus(t *testing.T) {
@@ -387,7 +413,7 @@ func TestDeactivateRemovesLocalRouteAndQueuesAuthorityTombstone(t *testing.T) {
 func TestDeactivateEmitsOfflineStatusForLastLocalSession(t *testing.T) {
 	var calls []string
 	local := newFakeLocalRegistry(&calls)
-	local.pending[11] = LocalSession{Route: OwnerRoute{UID: "u1", OwnerNodeID: 3, OwnerBootID: 4, OwnerSeq: 5, SessionID: 11}, State: RouteStateActive}
+	local.pending[11] = LocalSession{Route: OwnerRoute{UID: "u1", OwnerNodeID: 3, OwnerBootID: 4, OwnerSeq: 5, SessionID: 11, DeviceFlag: 2}, State: RouteStateActive}
 	observer := &fakeOnlineStatusObserver{calls: &calls, err: errBoom}
 	app := New(Options{
 		Local:                local,
@@ -399,7 +425,7 @@ func TestDeactivateEmitsOfflineStatusForLastLocalSession(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, []string{"local.mark_closing_unregister", "observer.online_status", "authority.enqueue_unregister"}, calls)
-	require.Equal(t, []OnlineStatusEvent{{UID: "u1", Online: false, Value: "u1-0"}}, observer.events)
+	require.Equal(t, []OnlineStatusEvent{{UID: "u1", Online: false, Value: "u1-2-0-11-0-0"}}, observer.events)
 }
 
 func TestDeactivateDoesNotEmitOfflineStatusForPendingSession(t *testing.T) {
@@ -442,8 +468,8 @@ func TestDeactivateDoesNotEmitOfflineStatusWhenSameUIDSessionRemains(t *testing.
 func TestDeactivateEmitsOfflineStatusWhenOnlySameUIDPendingSessionRemains(t *testing.T) {
 	var calls []string
 	local := newFakeLocalRegistry(&calls)
-	local.pending[11] = LocalSession{Route: OwnerRoute{UID: "u1", OwnerNodeID: 3, OwnerBootID: 4, OwnerSeq: 5, SessionID: 11}, State: RouteStateActive}
-	local.pending[12] = LocalSession{Route: OwnerRoute{UID: "u1", OwnerNodeID: 3, OwnerBootID: 4, OwnerSeq: 6, SessionID: 12}, State: RouteStatePending}
+	local.pending[11] = LocalSession{Route: OwnerRoute{UID: "u1", OwnerNodeID: 3, OwnerBootID: 4, OwnerSeq: 5, SessionID: 11, DeviceFlag: 2}, State: RouteStateActive}
+	local.pending[12] = LocalSession{Route: OwnerRoute{UID: "u1", OwnerNodeID: 3, OwnerBootID: 4, OwnerSeq: 6, SessionID: 12, DeviceFlag: 2}, State: RouteStatePending}
 	observer := &fakeOnlineStatusObserver{calls: &calls}
 	app := New(Options{
 		Local:                local,
@@ -455,7 +481,7 @@ func TestDeactivateEmitsOfflineStatusWhenOnlySameUIDPendingSessionRemains(t *tes
 	require.NoError(t, err)
 
 	require.Equal(t, []string{"local.mark_closing_unregister", "observer.online_status", "authority.enqueue_unregister"}, calls)
-	require.Equal(t, []OnlineStatusEvent{{UID: "u1", Online: false, Value: "u1-0"}}, observer.events)
+	require.Equal(t, []OnlineStatusEvent{{UID: "u1", Online: false, Value: "u1-2-0-11-0-0"}}, observer.events)
 }
 
 func TestDeactivateWithNilOnlineStatusObserverIsNoop(t *testing.T) {

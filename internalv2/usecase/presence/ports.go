@@ -32,7 +32,7 @@ type OnlineStatusEvent struct {
 	UID string
 	// Online reports whether the UID has at least one owner-local session.
 	Online bool
-	// Value carries the legacy webhook status value, such as "uid-1" or "uid-0".
+	// Value carries the legacy webhook status value: uid-deviceFlag-online-sessionID-deviceOnlineCount-totalOnlineCount.
 	Value string
 }
 

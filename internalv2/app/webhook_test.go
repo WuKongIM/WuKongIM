@@ -61,7 +61,7 @@ func TestWirePresencePassesWebhookOnlineStatusObserver(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	require.Equal(t, []presence.OnlineStatusEvent{{UID: "u1", Online: true, Value: "u1-1"}}, observer.events)
+	require.Equal(t, []presence.OnlineStatusEvent{{UID: "u1", Online: true, Value: "u1-0-1-11-1-1"}}, observer.events)
 }
 
 func TestComposePersistAfterEnqueuersCallsBoth(t *testing.T) {
@@ -106,7 +106,11 @@ func TestWebhookNotifyEnqueuerMapsCommittedEnvelopeAndCopiesSlices(t *testing.T)
 		MessageSeq:        202,
 		ChannelID:         "room-a",
 		ChannelType:       2,
+		Setting:           9,
+		Topic:             "topic-a",
+		Expire:            3600,
 		FromUID:           "sender-u1",
+		SenderNodeID:      7,
 		ClientMsgNo:       "client-1",
 		ServerTimestampMS: 123456789,
 		Payload:           []byte("payload"),
@@ -123,7 +127,10 @@ func TestWebhookNotifyEnqueuerMapsCommittedEnvelopeAndCopiesSlices(t *testing.T)
 		MessageSeq:        202,
 		ChannelID:         "room-a",
 		ChannelType:       2,
-		Setting:           0,
+		Setting:           9,
+		Topic:             "topic-a",
+		Expire:            3600,
+		SourceID:          7,
 		FromUID:           "sender-u1",
 		ClientMsgNo:       "client-1",
 		ServerTimestampMS: 123456789,

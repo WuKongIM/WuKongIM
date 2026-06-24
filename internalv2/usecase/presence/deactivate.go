@@ -21,7 +21,7 @@ func (a *App) Deactivate(ctx context.Context, cmd DeactivateCommand) error {
 	if conn.UID == "" {
 		conn.UID = cmd.UID
 	}
-	a.observeOfflineIfLastLocalSession(ctx, conn.UID, hadRemoved && removed.State == RouteStateActive)
+	a.observeOfflineIfLastLocalSession(ctx, conn, hadRemoved && removed.State == RouteStateActive)
 	route := routeFromOwnerRoute(conn)
 	a.authority.EnqueueUnregister(ctx, route.Identity(), route.OwnerSeq)
 	return nil

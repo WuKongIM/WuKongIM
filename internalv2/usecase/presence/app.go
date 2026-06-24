@@ -1,6 +1,9 @@
 package presence
 
-import "context"
+import (
+	"context"
+	"fmt"
+)
 
 // HashSlotResolver resolves the current hash slot for a UID.
 type HashSlotResolver func(uid string) (uint16, error)
@@ -54,45 +57,56 @@ func New(opts Options) *App {
 	}
 }
 
-func (a *App) observeOnlineStatus(ctx context.Context, uid string, online bool) {
-	if a.onlineStatus == nil || a.local == nil || uid == "" {
+func (a *App) observeOnlineStatus(ctx context.Context, route OwnerRoute) {
+	if a.onlineStatus == nil || a.local == nil || route.UID == "" {
 		return
 	}
-	if !a.hasActiveLocalSession(uid) {
+	deviceOnlineCount, totalOnlineCount := a.activeLocalSessionCounts(route.UID, route.DeviceFlag)
+	if totalOnlineCount == 0 {
 		return
-	}
-	value := uid + "-0"
-	if online {
-		value = uid + "-1"
 	}
 	_ = a.onlineStatus.ObserveOnlineStatus(ctx, OnlineStatusEvent{
-		UID:    uid,
-		Online: online,
-		Value:  value,
+		UID:    route.UID,
+		Online: true,
+		Value:  onlineStatusValue(route.UID, route.DeviceFlag, true, route.SessionID, deviceOnlineCount, totalOnlineCount),
 	})
 }
 
-func (a *App) observeOfflineIfLastLocalSession(ctx context.Context, uid string, removedActive bool) {
-	if !removedActive || a.onlineStatus == nil || a.local == nil || uid == "" {
+func (a *App) observeOfflineIfLastLocalSession(ctx context.Context, route OwnerRoute, removedActive bool) {
+	if !removedActive || a.onlineStatus == nil || a.local == nil || route.UID == "" {
 		return
 	}
-	if a.hasActiveLocalSession(uid) {
+	deviceOnlineCount, totalOnlineCount := a.activeLocalSessionCounts(route.UID, route.DeviceFlag)
+	if totalOnlineCount > 0 {
 		return
 	}
 	_ = a.onlineStatus.ObserveOnlineStatus(ctx, OnlineStatusEvent{
-		UID:    uid,
+		UID:    route.UID,
 		Online: false,
-		Value:  uid + "-0",
+		Value:  onlineStatusValue(route.UID, route.DeviceFlag, false, route.SessionID, deviceOnlineCount, totalOnlineCount),
 	})
 }
 
-func (a *App) hasActiveLocalSession(uid string) bool {
+func (a *App) activeLocalSessionCounts(uid string, deviceFlag uint8) (int, int) {
+	deviceOnlineCount := 0
+	totalOnlineCount := 0
 	for _, session := range a.local.LocalSessionsByUID(uid) {
 		if session.State == RouteStateActive {
-			return true
+			totalOnlineCount++
+			if session.Route.DeviceFlag == deviceFlag {
+				deviceOnlineCount++
+			}
 		}
 	}
-	return false
+	return deviceOnlineCount, totalOnlineCount
+}
+
+func onlineStatusValue(uid string, deviceFlag uint8, online bool, sessionID uint64, deviceOnlineCount, totalOnlineCount int) string {
+	onlineValue := 0
+	if online {
+		onlineValue = 1
+	}
+	return fmt.Sprintf("%s-%d-%d-%d-%d-%d", uid, deviceFlag, onlineValue, sessionID, deviceOnlineCount, totalOnlineCount)
 }
 
 func (a *App) ownerRoute(cmd ActivateCommand) (OwnerRoute, error) {

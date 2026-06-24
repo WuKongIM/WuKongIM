@@ -44,6 +44,9 @@ func mapSendCommandWithPayload(ctx *coregateway.Context, pkt *frame.SendPacket, 
 	cmd.ClientMsgNo = pkt.ClientMsgNo
 	cmd.ChannelID = pkt.ChannelID
 	cmd.ChannelType = pkt.ChannelType
+	cmd.Setting = pkt.Setting.Uint8()
+	cmd.Topic = pkt.Topic
+	cmd.Expire = pkt.Expire
 	cmd.NormalizePersonChannel = pkt.ChannelType == frame.ChannelTypePerson
 	cmd.Payload = pkt.Payload
 	cmd.NoPersist = pkt.Framer.NoPersist
