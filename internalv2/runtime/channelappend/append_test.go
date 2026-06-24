@@ -158,7 +158,7 @@ func TestAppendRequestCarriesLegacyMessageFields(t *testing.T) {
 	}
 }
 
-func TestCommittedEnvelopeForAppendCarriesLegacyMessageFields(t *testing.T) {
+func TestCommittedEnvelopeForAppendPreservesCommandLegacyMessageFields(t *testing.T) {
 	item := preparedSend{
 		Command: SendCommand{
 			FromUID:     "u1",
@@ -176,9 +176,8 @@ func TestCommittedEnvelopeForAppendCarriesLegacyMessageFields(t *testing.T) {
 		MessageID:  10,
 		MessageSeq: 2,
 		Message: Message{
-			Setting:           11,
-			Topic:             "topic-from-append",
-			Expire:            7200,
+			MessageID:         10,
+			MessageSeq:        2,
 			Payload:           []byte("append-payload"),
 			ServerTimestampMS: 456,
 		},
@@ -186,8 +185,8 @@ func TestCommittedEnvelopeForAppendCarriesLegacyMessageFields(t *testing.T) {
 
 	event := committedEnvelopeForAppend(item, appended)
 
-	if event.Setting != 11 || event.Topic != "topic-from-append" || event.Expire != 7200 {
-		t.Fatalf("legacy envelope fields = setting:%d topic:%q expire:%d, want 11/topic-from-append/7200", event.Setting, event.Topic, event.Expire)
+	if event.Setting != 9 || event.Topic != "topic-from-command" || event.Expire != 3600 {
+		t.Fatalf("legacy envelope fields = setting:%d topic:%q expire:%d, want command values 9/topic-from-command/3600", event.Setting, event.Topic, event.Expire)
 	}
 }
 
