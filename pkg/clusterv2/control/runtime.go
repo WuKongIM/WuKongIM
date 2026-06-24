@@ -334,10 +334,10 @@ func (r *Runtime) JoinNode(ctx context.Context, req JoinNodeRequest) (JoinNodeRe
 	}
 	result, err := r.backend.JoinNode(ctx, cv2JoinNodeRequest(req))
 	if shouldForwardControlWrite(err) {
-		resp, err := r.forwardControlWrite(ctx, ControlWriteRequest{
+		resp, err := r.forwardControlWriteAfterError(ctx, ControlWriteRequest{
 			Action:   ControlWriteActionJoinNode,
 			JoinNode: req,
-		})
+		}, err)
 		if err != nil {
 			return JoinNodeResult{}, err
 		}
@@ -369,10 +369,10 @@ func (r *Runtime) ActivateNode(ctx context.Context, req ActivateNodeRequest) (Ac
 	}
 	result, err := r.backend.ActivateNode(ctx, cv2ActivateNodeRequest(req))
 	if shouldForwardControlWrite(err) {
-		resp, err := r.forwardControlWrite(ctx, ControlWriteRequest{
+		resp, err := r.forwardControlWriteAfterError(ctx, ControlWriteRequest{
 			Action:       ControlWriteActionActivateNode,
 			ActivateNode: req,
-		})
+		}, err)
 		if err != nil {
 			return ActivateNodeResult{}, err
 		}
@@ -420,6 +420,24 @@ func (r *Runtime) forwardControlWrite(ctx context.Context, req ControlWriteReque
 		return ControlWriteResponse{}, cv2.ErrNotLeader
 	}
 	return r.writeClient.Submit(ctx, leaderID, req)
+}
+
+func (r *Runtime) forwardControlWriteAfterError(ctx context.Context, req ControlWriteRequest, fallback error) (ControlWriteResponse, error) {
+	if r == nil || r.writeClient == nil {
+		return ControlWriteResponse{}, fallbackControlWriteError(fallback)
+	}
+	leaderID := r.LeaderID()
+	if leaderID == 0 || leaderID == r.cfg.NodeID {
+		return ControlWriteResponse{}, fallbackControlWriteError(fallback)
+	}
+	return r.writeClient.Submit(ctx, leaderID, req)
+}
+
+func fallbackControlWriteError(fallback error) error {
+	if fallback != nil {
+		return fallback
+	}
+	return cv2.ErrNotLeader
 }
 
 func (r *Runtime) startWatchLoop() {

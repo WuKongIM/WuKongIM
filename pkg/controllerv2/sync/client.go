@@ -138,6 +138,9 @@ func (c *Client) SyncOnce(ctx context.Context) error {
 			continue
 		}
 		if resp.NotModified {
+			if resp.LeaderID != 0 {
+				c.setLeaderID(resp.LeaderID)
+			}
 			// Accept NotModified only when the local file metadata exactly matches
 			// the leader header; otherwise continue looking for a full payload.
 			if localValid && resp.Revision == local.Revision && resp.Checksum == local.Checksum {

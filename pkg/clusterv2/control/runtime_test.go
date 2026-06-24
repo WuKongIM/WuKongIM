@@ -115,6 +115,30 @@ func TestRuntimeTaskWritersWithoutBackendReturnNotStarted(t *testing.T) {
 	}
 }
 
+func TestRuntimeLifecycleWritesNotStartedWithoutForwardPreserveNotStarted(t *testing.T) {
+	runtime, err := NewRuntime(RuntimeConfig{
+		NodeID:           1,
+		Addr:             "n1",
+		StateDir:         t.TempDir(),
+		ClusterID:        "cluster-lifecycle-not-started",
+		Role:             RuntimeRoleVoter,
+		Voters:           []RuntimeVoter{{NodeID: 1, Addr: "n1"}},
+		AllowBootstrap:   true,
+		InitialSlotCount: 1,
+		HashSlotCount:    4,
+		ReplicaCount:     1,
+	})
+	if err != nil {
+		t.Fatalf("NewRuntime() error = %v", err)
+	}
+	if _, err := runtime.JoinNode(context.Background(), JoinNodeRequest{NodeID: 2, Addr: "n2"}); !errors.Is(err, cv2.ErrNotStarted) {
+		t.Fatalf("JoinNode() error = %v, want ErrNotStarted", err)
+	}
+	if _, err := runtime.ActivateNode(context.Background(), ActivateNodeRequest{NodeID: 2}); !errors.Is(err, cv2.ErrNotStarted) {
+		t.Fatalf("ActivateNode() error = %v, want ErrNotStarted", err)
+	}
+}
+
 func TestRuntimeRequestSlotLeaderTransferReturnsTaskAfterForward(t *testing.T) {
 	network := clusternet.NewLocalNetwork()
 	taskClient := NewTaskClient(network)

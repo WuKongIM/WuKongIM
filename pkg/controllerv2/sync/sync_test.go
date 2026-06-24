@@ -521,6 +521,31 @@ func TestClientRetriesAdvertisedLeader(t *testing.T) {
 	require.Equal(t, leader.Revision, got.Revision)
 }
 
+func TestClientRecordsLeaderIDFromNotModified(t *testing.T) {
+	ctx := context.Background()
+	store := newSyncStore(t)
+	local := testSyncState(2, "wk-sync")
+	require.NoError(t, store.Save(ctx, local))
+	client := NewClient(ClientConfig{
+		ClusterID: "wk-sync",
+		Store:     store,
+		Peers: fakePeerPicker{endpoints: map[uint64]Endpoint{1: &fakeEndpoint{resp: GetStateResponse{
+			NotModified: true,
+			Revision:    local.Revision,
+			Checksum:    mustChecksum(t, local),
+			LeaderID:    2,
+		}}}, ids: []uint64{1}},
+		LeaderID: 1,
+	})
+
+	require.NoError(t, client.SyncOnce(ctx))
+
+	require.Equal(t, uint64(2), client.LeaderID())
+	got, err := store.Load(ctx)
+	require.NoError(t, err)
+	require.Equal(t, local.Revision, got.Revision)
+}
+
 func TestClientPreservesLocalStateOnNotReady(t *testing.T) {
 	ctx := context.Background()
 	store := newSyncStore(t)
