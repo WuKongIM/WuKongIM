@@ -159,6 +159,36 @@ func TestRuntimeRefreshesVotersAfterConfigChange(t *testing.T) {
 	}
 }
 
+func TestRuntimeStatusIncludesLearnersConfStateAndProgress(t *testing.T) {
+	rt := newStartedRuntime(t)
+	slotID := openSingleNodeLeader(t, rt, 112)
+
+	fut, err := rt.ChangeConfig(context.Background(), slotID, ConfigChange{Type: AddLearner, NodeID: 2})
+	if err != nil {
+		t.Fatalf("ChangeConfig(AddLearner) error = %v", err)
+	}
+	if _, err := fut.Wait(context.Background()); err != nil {
+		t.Fatalf("Wait() error = %v", err)
+	}
+
+	st, err := rt.Status(slotID)
+	if err != nil {
+		t.Fatalf("Status() error = %v", err)
+	}
+	if got, want := st.CurrentLearners, []NodeID{2}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("Status().CurrentLearners = %v, want %v", got, want)
+	}
+	if got, want := st.ConfState.Learners, []uint64{2}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("Status().ConfState.Learners = %v, want %v", got, want)
+	}
+	if _, ok := st.Progress[2]; !ok {
+		t.Fatalf("Status().Progress missing learner 2: %#v", st.Progress)
+	}
+	if st.ConfigAppliedIndex == 0 {
+		t.Fatal("Status().ConfigAppliedIndex = 0, want non-zero config entry index")
+	}
+}
+
 func TestRuntimeDoesNotDoubleRefreshAfterReady(t *testing.T) {
 	g, err := newSlot(context.Background(), 1, nil, RaftOptions{ElectionTick: 10, HeartbeatTick: 1}, newInternalSlotOptions(110), nil, nil)
 	if err != nil {

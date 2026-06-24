@@ -73,6 +73,34 @@ func (m *Manager) Ensure(ctx context.Context, assignment Assignment) error {
 	return m.runtime.BootstrapSlot(ctx, multiraft.BootstrapSlotRequest{Slot: opts, Voters: nodeIDs(assignment.DesiredPeers)})
 }
 
+// OpenLearner opens local Slot runtime state for a staged learner target.
+func (m *Manager) OpenLearner(ctx context.Context, assignment Assignment) error {
+	if m == nil || m.runtime == nil || m.storage == nil || m.stateMach == nil {
+		return fmt.Errorf("slots: manager not configured")
+	}
+	if assignment.SlotID == 0 {
+		return fmt.Errorf("slots: slot id must be > 0")
+	}
+	if _, err := m.runtime.Status(multiraft.SlotID(assignment.SlotID)); err == nil {
+		return nil
+	} else if err != nil && !errors.Is(err, multiraft.ErrSlotNotFound) {
+		return err
+	}
+	storage, err := m.storage(assignment.SlotID)
+	if err != nil {
+		return err
+	}
+	stateMachine, err := m.stateMach(assignment.SlotID, assignment.HashSlots)
+	if err != nil {
+		return err
+	}
+	return m.runtime.OpenSlot(ctx, multiraft.SlotOptions{
+		ID:           multiraft.SlotID(assignment.SlotID),
+		Storage:      storage,
+		StateMachine: stateMachine,
+	})
+}
+
 // IsUnassigned reports whether Ensure observed slotID as not assigned to this node.
 func (m *Manager) IsUnassigned(slotID uint32) bool {
 	if m == nil {

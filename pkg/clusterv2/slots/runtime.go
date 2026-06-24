@@ -24,6 +24,11 @@ func (a *Adapter) BootstrapSlot(ctx context.Context, req multiraft.BootstrapSlot
 	return a.runtime.BootstrapSlot(ctx, req)
 }
 
+// ChangeConfig submits a Slot Raft membership change.
+func (a *Adapter) ChangeConfig(ctx context.Context, slotID multiraft.SlotID, change multiraft.ConfigChange) (multiraft.Future, error) {
+	return a.runtime.ChangeConfig(ctx, slotID, change)
+}
+
 // Propose submits data to a local Slot and waits for commit.
 func (a *Adapter) Propose(ctx context.Context, slotID multiraft.SlotID, payload []byte) (multiraft.Future, error) {
 	return a.runtime.Propose(ctx, slotID, payload)

@@ -749,7 +749,7 @@ func (g *slot) applyCommittedEntries(
 			latest := g.rawNode.ApplyConfChange(cc)
 			g.storageView.memory.confState = cloneConfState(*latest)
 			configChanged = true
-			g.markVotersDirty()
+			g.recordConfigChangeApplied(entry.Index)
 			resolutions = append(resolutions, futureResolution{
 				kind:  controlConfigChange,
 				index: entry.Index,
@@ -777,7 +777,7 @@ func (g *slot) applyCommittedEntries(
 			latest := g.rawNode.ApplyConfChange(cc)
 			g.storageView.memory.confState = cloneConfState(*latest)
 			configChanged = true
-			g.markVotersDirty()
+			g.recordConfigChangeApplied(entry.Index)
 			resolutions = append(resolutions, futureResolution{
 				kind:  controlConfigChange,
 				index: entry.Index,
@@ -910,6 +910,9 @@ func (g *slot) refreshFullStatus() {
 	g.votersInitialized = true
 	g.votersDirty = false
 	g.status.CurrentVoters = currentVotersFromRaftStatus(st)
+	g.status.CurrentLearners = currentLearnersFromRaftStatus(st)
+	g.status.ConfState = confStateFromRaftStatus(st)
+	g.status.Progress = progressFromRaftStatus(st)
 	leaderEvent, applyEvent := g.applyBasicStatusLocked(st.BasicStatus)
 	g.mu.Unlock()
 	leaderEvent.emit()
@@ -943,8 +946,9 @@ func (g *slot) applyBasicStatusLocked(st raft.BasicStatus) (leaderChangeEvent, a
 	return leaderEvent, applyEvent
 }
 
-func (g *slot) markVotersDirty() {
+func (g *slot) recordConfigChangeApplied(index uint64) {
 	g.mu.Lock()
+	g.status.ConfigAppliedIndex = index
 	g.votersDirty = true
 	g.mu.Unlock()
 }
@@ -978,6 +982,59 @@ func currentVotersFromRaftStatus(st raft.Status) []NodeID {
 		return voters[i] < voters[j]
 	})
 	return voters
+}
+
+func currentLearnersFromRaftStatus(st raft.Status) []NodeID {
+	if len(st.Config.Learners) == 0 {
+		return nil
+	}
+	learners := make([]NodeID, 0, len(st.Config.Learners))
+	for id := range st.Config.Learners {
+		learners = append(learners, NodeID(id))
+	}
+	sort.Slice(learners, func(i, j int) bool {
+		return learners[i] < learners[j]
+	})
+	return learners
+}
+
+func confStateFromRaftStatus(st raft.Status) raftpb.ConfState {
+	return raftpb.ConfState{
+		Voters:         sortedRaftIDs(st.Config.Voters[0]),
+		VotersOutgoing: sortedRaftIDs(st.Config.Voters[1]),
+		Learners:       sortedRaftIDs(st.Config.Learners),
+		LearnersNext:   sortedRaftIDs(st.Config.LearnersNext),
+		AutoLeave:      st.Config.AutoLeave,
+	}
+}
+
+func sortedRaftIDs(ids map[uint64]struct{}) []uint64 {
+	if len(ids) == 0 {
+		return nil
+	}
+	out := make([]uint64, 0, len(ids))
+	for id := range ids {
+		out = append(out, id)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		return out[i] < out[j]
+	})
+	return out
+}
+
+func progressFromRaftStatus(st raft.Status) map[NodeID]PeerProgress {
+	if len(st.Progress) == 0 {
+		return nil
+	}
+	progress := make(map[NodeID]PeerProgress, len(st.Progress))
+	for id, peer := range st.Progress {
+		progress[NodeID(id)] = PeerProgress{
+			Match: peer.Match,
+			Next:  peer.Next,
+			State: peer.State.String(),
+		}
+	}
+	return progress
 }
 
 func selectLeaderTransferTransferee(st raft.Status, preferred NodeID) NodeID {
@@ -1051,6 +1108,14 @@ func (g *slot) statusSnapshot() (Status, error) {
 	}
 	status := g.status
 	status.CurrentVoters = append([]NodeID(nil), g.status.CurrentVoters...)
+	status.CurrentLearners = append([]NodeID(nil), g.status.CurrentLearners...)
+	status.ConfState = cloneConfState(g.status.ConfState)
+	if len(g.status.Progress) > 0 {
+		status.Progress = make(map[NodeID]PeerProgress, len(g.status.Progress))
+		for id, progress := range g.status.Progress {
+			status.Progress[id] = progress
+		}
+	}
 	return status, nil
 }
 

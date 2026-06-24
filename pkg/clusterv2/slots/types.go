@@ -44,6 +44,8 @@ type Runtime interface {
 	OpenSlot(context.Context, multiraft.SlotOptions) error
 	// BootstrapSlot bootstraps a new local Slot runtime.
 	BootstrapSlot(context.Context, multiraft.BootstrapSlotRequest) error
+	// ChangeConfig submits a Slot Raft membership change through the local runtime.
+	ChangeConfig(context.Context, multiraft.SlotID, multiraft.ConfigChange) (multiraft.Future, error)
 	// Propose submits data to a local Slot runtime.
 	Propose(context.Context, multiraft.SlotID, []byte) (multiraft.Future, error)
 	// Status returns the latest local Slot status.

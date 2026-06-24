@@ -61,6 +61,24 @@ func TestManagerExistingHardStateAlwaysOpens(t *testing.T) {
 	}
 }
 
+func TestManagerOpenLearnerOpensNonDesiredTargetWithoutBootstrap(t *testing.T) {
+	runtime := newFakeRuntime()
+	manager := newTestManager(4, runtime, fakeStorageFactory(fakeStorage{}))
+
+	if err := manager.OpenLearner(context.Background(), Assignment{
+		SlotID:          1,
+		DesiredPeers:    []uint64{1, 2, 3},
+		PreferredLeader: 1,
+		HashSlots:       []uint16{1, 2},
+	}); err != nil {
+		t.Fatalf("OpenLearner() error = %v", err)
+	}
+
+	if runtime.openCalls != 1 || runtime.bootstrapCalls != 0 {
+		t.Fatalf("open=%d bootstrap=%d, want open=1 bootstrap=0", runtime.openCalls, runtime.bootstrapCalls)
+	}
+}
+
 func TestReconcilerSkipsUnassignedLocalNode(t *testing.T) {
 	runtime := newFakeRuntime()
 	manager := newTestManager(4, runtime, fakeStorageFactory(fakeStorage{}))
@@ -103,6 +121,9 @@ func (r *fakeRuntime) BootstrapSlot(_ context.Context, req multiraft.BootstrapSl
 	r.bootstrapCalls++
 	r.lastVoters = append([]multiraft.NodeID(nil), req.Voters...)
 	return nil
+}
+func (r *fakeRuntime) ChangeConfig(context.Context, multiraft.SlotID, multiraft.ConfigChange) (multiraft.Future, error) {
+	return nil, nil
 }
 func (r *fakeRuntime) Propose(context.Context, multiraft.SlotID, []byte) (multiraft.Future, error) {
 	return nil, nil

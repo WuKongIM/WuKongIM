@@ -162,10 +162,28 @@ type Status struct {
 	LeaderID NodeID
 	// CurrentVoters is the Raft voter set currently observed by this runtime.
 	CurrentVoters []NodeID
-	Term          uint64
-	CommitIndex   uint64
-	AppliedIndex  uint64
-	Role          Role
+	// CurrentLearners is the Raft learner set currently observed by this runtime.
+	CurrentLearners []NodeID
+	// ConfState is the full Raft membership state currently observed by this runtime.
+	ConfState raftpb.ConfState
+	// ConfigAppliedIndex is the latest applied Raft entry index that changed membership.
+	ConfigAppliedIndex uint64
+	// Progress is the leader's per-peer replication progress, keyed by node ID.
+	Progress     map[NodeID]PeerProgress
+	Term         uint64
+	CommitIndex  uint64
+	AppliedIndex uint64
+	Role         Role
+}
+
+// PeerProgress exposes the replication state tracked by the current Slot leader.
+type PeerProgress struct {
+	// Match is the highest log index known to be replicated on the peer.
+	Match uint64
+	// Next is the next log index the leader will send to the peer.
+	Next uint64
+	// State is the Raft tracker state used for peer replication.
+	State string
 }
 
 type Transport interface {
