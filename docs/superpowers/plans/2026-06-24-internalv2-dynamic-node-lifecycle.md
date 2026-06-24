@@ -41,7 +41,7 @@
 
 ## Stage Gates
 
-- [ ] **Gate 1: Stage 1 merged locally**
+- [x] **Gate 1: Stage 1 merged locally**
 
 Run:
 
@@ -105,4 +105,3 @@ Expected: leaving nodes reject new placement and scale-in status reports unsafe 
 ## Recommended Execution Mode
 
 Use subagent-driven development for Stage 2 and Stage 3 because both cross ControllerV2, clusterv2, manager, and e2ev2 boundaries. Use inline execution only for small review fixes or documentation-only adjustments.
-
