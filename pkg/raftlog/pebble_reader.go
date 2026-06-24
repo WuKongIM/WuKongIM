@@ -106,7 +106,19 @@ func (s *pebbleStore) loadAppliedIndex() (uint64, error) {
 }
 
 func (s *pebbleStore) loadAppliedIndexFrom(reader pebbleGetReader) (uint64, error) {
-	value, err := s.getValueFrom(reader, encodeAppliedIndexKey(s.scope))
+	return s.loadUint64From(reader, encodeAppliedIndexKey(s.scope), "applied index")
+}
+
+func (s *pebbleStore) loadConfigAppliedIndex() (uint64, error) {
+	return s.loadConfigAppliedIndexFrom(s.db.db)
+}
+
+func (s *pebbleStore) loadConfigAppliedIndexFrom(reader pebbleGetReader) (uint64, error) {
+	return s.loadUint64From(reader, encodeConfigAppliedIndexKey(s.scope), "config applied index")
+}
+
+func (s *pebbleStore) loadUint64From(reader pebbleGetReader, key []byte, name string) (uint64, error) {
+	value, err := s.getValueFrom(reader, key)
 	if err != nil {
 		if errors.Is(err, pebble.ErrNotFound) {
 			return 0, nil
@@ -114,7 +126,7 @@ func (s *pebbleStore) loadAppliedIndexFrom(reader pebbleGetReader) (uint64, erro
 		return 0, err
 	}
 	if len(value) != appliedIndexSize {
-		return 0, errors.New("raftstorage: invalid applied index encoding")
+		return 0, errors.New("raftstorage: invalid " + name + " encoding")
 	}
 	return binary.BigEndian.Uint64(value), nil
 }

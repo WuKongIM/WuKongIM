@@ -209,10 +209,20 @@ type Storage interface {
 	MarkApplied(ctx context.Context, index uint64) error
 }
 
+// ConfigAppliedIndexStorage persists the latest applied Raft membership entry index.
+// Storage implementations that compact applied log entries should implement this
+// so Status.ConfigAppliedIndex can be restored after the original entry is gone.
+type ConfigAppliedIndexStorage interface {
+	MarkConfigApplied(ctx context.Context, index uint64) error
+}
+
 type BootstrapState struct {
-	HardState    raftpb.HardState
-	ConfState    raftpb.ConfState
+	HardState raftpb.HardState
+	ConfState raftpb.ConfState
+	// AppliedIndex is the latest entry durably applied to the state machine.
 	AppliedIndex uint64
+	// ConfigAppliedIndex is the latest applied Raft entry index that changed membership.
+	ConfigAppliedIndex uint64
 }
 
 type PersistentState struct {

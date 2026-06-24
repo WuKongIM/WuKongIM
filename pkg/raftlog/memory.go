@@ -143,3 +143,13 @@ func (m *memoryStore) MarkApplied(ctx context.Context, index uint64) error {
 	m.state.AppliedIndex = index
 	return nil
 }
+
+func (m *memoryStore) MarkConfigApplied(ctx context.Context, index uint64) error {
+	_ = ctx
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.state.ConfigAppliedIndex = index
+	return nil
+}

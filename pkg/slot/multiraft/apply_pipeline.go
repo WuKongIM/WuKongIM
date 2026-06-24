@@ -361,6 +361,10 @@ func (g *slot) runApplyTask(ctx context.Context, task applyTask) {
 			g.fail(err)
 			return
 		}
+		if err := g.persistConfigAppliedIndex(ctx, lastApplied); err != nil {
+			g.fail(err)
+			return
+		}
 		g.setDurableAppliedIndex(lastApplied)
 	}
 

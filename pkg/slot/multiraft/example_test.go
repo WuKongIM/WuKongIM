@@ -75,6 +75,10 @@ func (noopStorage) MarkApplied(ctx context.Context, index uint64) error {
 	return nil
 }
 
+func (noopStorage) MarkConfigApplied(ctx context.Context, index uint64) error {
+	return nil
+}
+
 type noopStateMachine struct{}
 
 func (noopStateMachine) Apply(ctx context.Context, cmd multiraft.Command) ([]byte, error) {

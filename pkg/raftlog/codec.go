@@ -11,6 +11,7 @@ const (
 	recordTypeAppliedIndex byte = 0x12
 	recordTypeSnapshot     byte = 0x13
 	recordTypeMeta         byte = 0x14
+	recordTypeConfigIndex  byte = 0x15
 	recordTypeEntry        byte = 0x20
 )
 
@@ -38,6 +39,10 @@ func encodeHardStateKey(scope Scope) []byte {
 
 func encodeAppliedIndexKey(scope Scope) []byte {
 	return encodeMetaKey(scope, recordTypeAppliedIndex)
+}
+
+func encodeConfigAppliedIndexKey(scope Scope) []byte {
+	return encodeMetaKey(scope, recordTypeConfigIndex)
 }
 
 func encodeSnapshotKey(scope Scope) []byte {

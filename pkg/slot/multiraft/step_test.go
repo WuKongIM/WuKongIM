@@ -372,6 +372,76 @@ func TestConfigAppliedIndexDoesNotAdvanceOnNormalEntry(t *testing.T) {
 	}
 }
 
+func TestOpenSlotRestoresDurableConfigAppliedIndexAfterSnapshotCompaction(t *testing.T) {
+	rt := newCompactionRuntime(t, LogCompactionConfig{
+		Enabled:        true,
+		EnabledSet:     true,
+		TriggerEntries: 1000,
+		CheckInterval:  time.Hour,
+	})
+	slotID := SlotID(118)
+	store := &internalFakeStorage{}
+	fsm := &snapshottingStateMachine{}
+	if err := rt.BootstrapSlot(context.Background(), BootstrapSlotRequest{
+		Slot: SlotOptions{
+			ID:           slotID,
+			Storage:      store,
+			StateMachine: fsm,
+		},
+		Voters: []NodeID{1},
+	}); err != nil {
+		t.Fatalf("BootstrapSlot() error = %v", err)
+	}
+	waitForSingleNodeLeader(t, rt, slotID)
+
+	change, err := rt.ChangeConfig(context.Background(), slotID, ConfigChange{Type: AddLearner, NodeID: 2})
+	if err != nil {
+		t.Fatalf("ChangeConfig(AddLearner) error = %v", err)
+	}
+	changeResult := waitForFutureResult(t, change)
+	var normalResult Result
+	for i := 0; i < 3; i++ {
+		proposal, err := rt.Propose(context.Background(), slotID, proposalString("normal-after-snapshot-config"))
+		if err != nil {
+			t.Fatalf("Propose(%d) error = %v", i, err)
+		}
+		normalResult = waitForFutureResult(t, proposal)
+	}
+	if normalResult.Index <= changeResult.Index {
+		t.Fatalf("normal proposal index = %d, want > config index %d", normalResult.Index, changeResult.Index)
+	}
+
+	result, err := rt.CompactLog(context.Background(), slotID)
+	if err != nil {
+		t.Fatalf("CompactLog() error = %v", err)
+	}
+	if !result.Compacted {
+		t.Fatalf("CompactLog().Compacted = false, skipped=%q", result.SkippedReason)
+	}
+	if result.AfterSnapshotIndex <= changeResult.Index {
+		t.Fatalf("snapshot index = %d, want > config entry index %d", result.AfterSnapshotIndex, changeResult.Index)
+	}
+	if err := rt.Close(); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+
+	reopened := newStartedRuntime(t)
+	if err := reopened.OpenSlot(context.Background(), SlotOptions{
+		ID:           slotID,
+		Storage:      store,
+		StateMachine: &snapshottingStateMachine{},
+	}); err != nil {
+		t.Fatalf("OpenSlot(reopened) error = %v", err)
+	}
+	st, err := reopened.Status(slotID)
+	if err != nil {
+		t.Fatalf("Status(reopened) error = %v", err)
+	}
+	if st.ConfigAppliedIndex != changeResult.Index {
+		t.Fatalf("Status().ConfigAppliedIndex = %d, want config entry index %d", st.ConfigAppliedIndex, changeResult.Index)
+	}
+}
+
 func TestOpenSlotRestoresConfigAppliedIndexWithoutExternalPointScans(t *testing.T) {
 	store := &countingEntriesStorage{
 		internalFakeStorage: &internalFakeStorage{
@@ -411,7 +481,40 @@ func TestOpenSlotRestoresConfigAppliedIndexWithoutExternalPointScans(t *testing.
 	}
 }
 
-func TestOpenSlotRestoresConfigAppliedIndexFromSnapshotConfState(t *testing.T) {
+func TestOpenSlotPrefersRetainedConfigEntryOverStaleDurableConfigAppliedIndex(t *testing.T) {
+	store := &internalFakeStorage{
+		state: BootstrapState{
+			HardState:          raftpb.HardState{Commit: 5},
+			AppliedIndex:       5,
+			ConfigAppliedIndex: 2,
+			ConfState:          raftpb.ConfState{Voters: []uint64{1}, Learners: []uint64{2, 3}},
+		},
+		entries: []raftpb.Entry{
+			{Index: 1, Term: 1, Type: raftpb.EntryNormal},
+			{Index: 2, Term: 1, Type: raftpb.EntryConfChange},
+			{Index: 3, Term: 1, Type: raftpb.EntryNormal},
+			{Index: 4, Term: 1, Type: raftpb.EntryConfChangeV2},
+			{Index: 5, Term: 1, Type: raftpb.EntryNormal},
+		},
+	}
+	rt := newStartedRuntime(t)
+	if err := rt.OpenSlot(context.Background(), SlotOptions{
+		ID:           119,
+		Storage:      store,
+		StateMachine: &internalFakeStateMachine{},
+	}); err != nil {
+		t.Fatalf("OpenSlot() error = %v", err)
+	}
+	st, err := rt.Status(119)
+	if err != nil {
+		t.Fatalf("Status() error = %v", err)
+	}
+	if st.ConfigAppliedIndex != 4 {
+		t.Fatalf("Status().ConfigAppliedIndex = %d, want retained config entry index 4", st.ConfigAppliedIndex)
+	}
+}
+
+func TestOpenSlotDoesNotUseSnapshotIndexAsConfigAppliedIndex(t *testing.T) {
 	store := &internalFakeStorage{
 		state: BootstrapState{
 			HardState:    raftpb.HardState{Commit: 9},
@@ -440,8 +543,8 @@ func TestOpenSlotRestoresConfigAppliedIndexFromSnapshotConfState(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Status() error = %v", err)
 	}
-	if st.ConfigAppliedIndex != 9 {
-		t.Fatalf("Status().ConfigAppliedIndex = %d, want snapshot index 9", st.ConfigAppliedIndex)
+	if st.ConfigAppliedIndex != 0 {
+		t.Fatalf("Status().ConfigAppliedIndex = %d, want 0 without durable config entry index", st.ConfigAppliedIndex)
 	}
 }
 
@@ -1656,6 +1759,13 @@ func (f *internalFakeStorage) MarkApplied(ctx context.Context, index uint64) err
 	f.markAppliedCount++
 	f.lastApplied = index
 	f.state.AppliedIndex = index
+	return nil
+}
+
+func (f *internalFakeStorage) MarkConfigApplied(ctx context.Context, index uint64) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.state.ConfigAppliedIndex = index
 	return nil
 }
 

@@ -57,6 +57,8 @@ type slot struct {
 	pendingLeaderTransferTarget NodeID
 	// durableAppliedIndex is the highest index that completed FSM apply and Storage.MarkApplied.
 	durableAppliedIndex uint64
+	// durableConfigAppliedIndex is the latest applied membership entry persisted to storage metadata.
+	durableConfigAppliedIndex uint64
 	// campaignAfterReady requests a local campaign after bootstrap Ready applies membership.
 	campaignAfterReady bool
 	// votersInitialized reports whether CurrentVoters has been populated from a full Raft status.
@@ -177,7 +179,7 @@ func newSlot(ctx context.Context, nodeID NodeID, logger wklog.Logger, raftOpts R
 	if !raft.IsEmptySnap(snapshot) {
 		appliedIndex = snapshot.Metadata.Index
 	}
-	configAppliedIndex, err := restoreConfigAppliedIndex(memory, appliedIndex, snapshot)
+	configAppliedIndex, err := restoreConfigAppliedIndex(memory, appliedIndex, state.ConfigAppliedIndex)
 	if err != nil {
 		return nil, err
 	}
@@ -208,7 +210,7 @@ func newSlot(ctx context.Context, nodeID NodeID, logger wklog.Logger, raftOpts R
 			LeaderID:     NodeID(state.HardState.Vote),
 			CommitIndex:  state.HardState.Commit,
 			AppliedIndex: appliedIndex,
-			// ConfigAppliedIndex is restored from durable config entries or the snapshot ConfState fence.
+			// ConfigAppliedIndex is restored from durable metadata or already-loaded applied config entries.
 			ConfigAppliedIndex: configAppliedIndex,
 		},
 		logger:                      logger,
@@ -216,6 +218,7 @@ func newSlot(ctx context.Context, nodeID NodeID, logger wklog.Logger, raftOpts R
 		apply:                       apply,
 		rawNode:                     rawNode,
 		durableAppliedIndex:         appliedIndex,
+		durableConfigAppliedIndex:   configAppliedIndex,
 		compactor:                   newLogCompactor(raftOpts.LogCompaction, snapshot.Metadata.Index),
 		maxQueuedRequests:           raftOpts.MaxQueuedRequests,
 		maxQueuedControls:           raftOpts.MaxQueuedControls,
@@ -534,6 +537,10 @@ func (g *slot) processReadySynchronously(ctx context.Context, ready raft.Ready) 
 		err := g.storage.MarkApplied(ctx, lastApplied)
 		g.observeResolutionFutures(resolutions, "meta_create_slot_mark_applied", err, time.Since(started))
 		if err != nil {
+			g.fail(err)
+			return true, false
+		}
+		if err := g.persistConfigAppliedIndex(ctx, lastApplied); err != nil {
 			g.fail(err)
 			return true, false
 		}
@@ -1047,11 +1054,8 @@ func progressFromRaftStatus(st raft.Status) map[NodeID]PeerProgress {
 	return progress
 }
 
-func restoreConfigAppliedIndex(memory *loadedMemoryStorage, appliedIndex uint64, snapshot raftpb.Snapshot) (uint64, error) {
+func restoreConfigAppliedIndex(memory *loadedMemoryStorage, appliedIndex uint64, durableConfigAppliedIndex uint64) (uint64, error) {
 	if appliedIndex == 0 {
-		if !raft.IsEmptySnap(snapshot) && !isEmptyConfState(snapshot.Metadata.ConfState) {
-			return snapshot.Metadata.Index, nil
-		}
 		return 0, nil
 	}
 	first, err := memory.FirstIndex()
@@ -1079,22 +1083,14 @@ func restoreConfigAppliedIndex(memory *loadedMemoryStorage, appliedIndex uint64,
 			}
 		}
 	}
-	if !raft.IsEmptySnap(snapshot) && !isEmptyConfState(snapshot.Metadata.ConfState) {
-		return snapshot.Metadata.Index, nil
+	if durableConfigAppliedIndex > 0 && durableConfigAppliedIndex <= appliedIndex {
+		return durableConfigAppliedIndex, nil
 	}
 	return 0, nil
 }
 
 func isConfigChangeEntry(entry raftpb.Entry) bool {
 	return entry.Type == raftpb.EntryConfChange || entry.Type == raftpb.EntryConfChangeV2
-}
-
-func isEmptyConfState(state raftpb.ConfState) bool {
-	return len(state.Voters) == 0 &&
-		len(state.Learners) == 0 &&
-		len(state.VotersOutgoing) == 0 &&
-		len(state.LearnersNext) == 0 &&
-		!state.AutoLeave
 }
 
 func selectLeaderTransferTransferee(st raft.Status, preferred NodeID) NodeID {
@@ -1149,6 +1145,38 @@ func (g *slot) setDurableAppliedIndex(index uint64) {
 		g.durableAppliedIndex = index
 	}
 	g.status.AppliedIndex = g.durableAppliedIndex
+}
+
+func (g *slot) pendingConfigAppliedIndex(lastApplied uint64) uint64 {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	index := g.status.ConfigAppliedIndex
+	if index == 0 || index > lastApplied || index <= g.durableConfigAppliedIndex {
+		return 0
+	}
+	return index
+}
+
+func (g *slot) setDurableConfigAppliedIndex(index uint64) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if index > g.durableConfigAppliedIndex {
+		g.durableConfigAppliedIndex = index
+	}
+}
+
+func (g *slot) persistConfigAppliedIndex(ctx context.Context, lastApplied uint64) error {
+	index := g.pendingConfigAppliedIndex(lastApplied)
+	if index == 0 {
+		return nil
+	}
+	if storage, ok := g.storage.(ConfigAppliedIndexStorage); ok {
+		if err := storage.MarkConfigApplied(ctx, index); err != nil {
+			return err
+		}
+	}
+	g.setDurableConfigAppliedIndex(index)
+	return nil
 }
 
 func (g *slot) nodeID() NodeID {

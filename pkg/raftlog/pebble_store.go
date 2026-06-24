@@ -33,15 +33,20 @@ func (s *pebbleStore) InitialState(ctx context.Context) (multiraft.BootstrapStat
 	if err != nil {
 		return multiraft.BootstrapState{}, err
 	}
+	configAppliedIndex, err := s.loadConfigAppliedIndex()
+	if err != nil {
+		return multiraft.BootstrapState{}, err
+	}
 	if ok {
 		hs, err := s.loadHardState()
 		if err != nil {
 			return multiraft.BootstrapState{}, err
 		}
 		return multiraft.BootstrapState{
-			HardState:    hs,
-			ConfState:    cloneConfState(meta.ConfState),
-			AppliedIndex: meta.AppliedIndex,
+			HardState:          hs,
+			ConfState:          cloneConfState(meta.ConfState),
+			AppliedIndex:       meta.AppliedIndex,
+			ConfigAppliedIndex: configAppliedIndex,
 		}, nil
 	}
 
@@ -62,9 +67,10 @@ func (s *pebbleStore) InitialState(ctx context.Context) (multiraft.BootstrapStat
 		return multiraft.BootstrapState{}, err
 	}
 	return multiraft.BootstrapState{
-		HardState:    hs,
-		ConfState:    confState,
-		AppliedIndex: appliedIndex,
+		HardState:          hs,
+		ConfState:          confState,
+		AppliedIndex:       appliedIndex,
+		ConfigAppliedIndex: configAppliedIndex,
 	}, nil
 }
 
@@ -182,6 +188,20 @@ func (s *pebbleStore) MarkApplied(ctx context.Context, index uint64) error {
 	req := &writeRequest{
 		scope: s.scope,
 		op:    markAppliedOp{index: index},
+		done:  make(chan error, 1),
+	}
+	return s.db.submitWrite(req)
+}
+
+func (s *pebbleStore) MarkConfigApplied(ctx context.Context, index uint64) error {
+	_ = ctx
+
+	unlock := s.db.lockScopeMutation(s.scope)
+	defer unlock()
+
+	req := &writeRequest{
+		scope: s.scope,
+		op:    markConfigAppliedOp{index: index},
 		done:  make(chan error, 1),
 	}
 	return s.db.submitWrite(req)

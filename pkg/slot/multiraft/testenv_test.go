@@ -67,6 +67,11 @@ func (f *fakeStorage) MarkApplied(ctx context.Context, index uint64) error {
 	return nil
 }
 
+func (f *fakeStorage) MarkConfigApplied(ctx context.Context, index uint64) error {
+	f.state.ConfigAppliedIndex = index
+	return nil
+}
+
 type fakeStateMachine struct {
 	applied [][]byte
 }

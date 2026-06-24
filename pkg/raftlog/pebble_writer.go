@@ -64,6 +64,10 @@ type markAppliedOp struct {
 	index uint64
 }
 
+type markConfigAppliedOp struct {
+	index uint64
+}
+
 type scopeWriteState struct {
 	hardState        raftpb.HardState
 	snapshot         raftpb.Snapshot
@@ -308,6 +312,13 @@ func (op markAppliedOp) apply(batch *pebble.Batch, state *scopeWriteState, store
 
 	state.meta.AppliedIndex = op.index
 	return store.setMeta(batch, state.meta)
+}
+
+func (op markConfigAppliedOp) apply(batch *pebble.Batch, state *scopeWriteState, store *pebbleStore) error {
+	_ = state
+	value := make([]byte, appliedIndexSize)
+	binary.BigEndian.PutUint64(value, op.index)
+	return batch.Set(encodeConfigAppliedIndexKey(store.scope), value, nil)
 }
 
 func withoutSnapshotData(st multiraft.PersistentState) persistentWriteState {
