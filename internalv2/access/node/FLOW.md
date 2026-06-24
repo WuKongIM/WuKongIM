@@ -234,6 +234,28 @@ committed messages, and maps retryable not-leader, stale-route, and
 route-not-ready statuses back to typed caller errors. Origin nodes do not send
 metadata fences across this RPC boundary.
 
+## Node Lifecycle RPC
+
+```text
+joining node startup loop
+  -> encode W K V N 1 JoinNode request
+  -> clusterv2 RPCNodeLifecycle
+  -> Adapter.HandleNodeLifecycleRPC
+  -> validate cluster_id and join_token
+  -> Management JoinNode usecase
+  -> encode W K V n 1 management JoinNodeResponse
+```
+
+Node Lifecycle RPC transports pre-membership data-node join requests from a
+joining node to an existing seed node. The client carries the joining node ID,
+advertised cluster address, cluster ID, join token, and capacity weight. The
+server validates the cluster ID and token at the RPC boundary before delegating
+only the manager-facing join fields to the management usecase, which in turn
+uses the clusterv2 control lifecycle writer and its Controller-leader
+forwarding. The same service also carries a simple readiness probe DTO for
+future activation checks; this package only transports the probe and does not
+gate activation.
+
 ## Manager Channel RPC
 
 ```text

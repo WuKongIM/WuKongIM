@@ -50,16 +50,24 @@ func (a *App) Start(ctx context.Context) error {
 	}
 	a.started = true
 	a.clusterStarted = true
+	if a.seedJoinLoop != nil {
+		if err := a.seedJoinLoop.Start(ctx); err != nil {
+			a.logLifecycleError("seed_join", "start", err)
+			stopErr := a.cluster.Stop(ctx)
+			if stopErr != nil {
+				a.logLifecycleWarn("cluster", "rollback_stop", stopErr)
+			}
+			if stopErr == nil {
+				a.started = false
+				a.clusterStarted = false
+			}
+			return errors.Join(err, stopErr)
+		}
+		a.seedJoinStarted = true
+	}
 	if err := a.waitClusterWriteReady(ctx); err != nil {
-		stopErr := a.cluster.Stop(ctx)
+		stopErr := a.rollbackStarted(ctx)
 		a.logLifecycleError("cluster_write_ready", "start", err)
-		if stopErr != nil {
-			a.logLifecycleWarn("cluster", "rollback_stop", stopErr)
-		}
-		if stopErr == nil {
-			a.started = false
-			a.clusterStarted = false
-		}
 		return errors.Join(err, stopErr)
 	}
 	if a.conversationRouteLifecycle != nil {
@@ -287,6 +295,14 @@ func (a *App) Stop(ctx context.Context) error {
 			a.presenceStarted = false
 		}
 	}
+	if a.seedJoinStarted && a.seedJoinLoop != nil {
+		if stopErr := a.seedJoinLoop.Stop(ctx); stopErr != nil {
+			a.logLifecycleWarn("seed_join", "stop", stopErr)
+			err = errors.Join(err, stopErr)
+		} else {
+			a.seedJoinStarted = false
+		}
+	}
 	if a.clusterStarted && a.cluster != nil {
 		if stopErr := a.cluster.Stop(ctx); stopErr != nil {
 			a.logLifecycleWarn("cluster", "stop", stopErr)
@@ -295,7 +311,7 @@ func (a *App) Stop(ctx context.Context) error {
 			a.clusterStarted = false
 		}
 	}
-	if !a.gatewayStarted && !a.prometheusStarted && !a.managerStarted && !a.apiStarted && !a.topStarted && !a.channelAppendStarted && !a.deliveryStarted && !a.webhookStarted && !a.pluginHookStarted && !a.pluginRuntimeStarted && !a.conversationActiveStarted && !a.conversationRouteStarted && !a.presenceStarted && !a.clusterStarted {
+	if !a.gatewayStarted && !a.prometheusStarted && !a.managerStarted && !a.apiStarted && !a.topStarted && !a.channelAppendStarted && !a.deliveryStarted && !a.webhookStarted && !a.pluginHookStarted && !a.pluginRuntimeStarted && !a.conversationActiveStarted && !a.conversationRouteStarted && !a.presenceStarted && !a.seedJoinStarted && !a.clusterStarted {
 		a.started = false
 	}
 	err = errors.Join(err, a.syncLogger())
@@ -405,6 +421,14 @@ func (a *App) rollbackStarted(ctx context.Context) error {
 			err = errors.Join(err, stopErr)
 		} else {
 			a.presenceStarted = false
+		}
+	}
+	if a.seedJoinStarted && a.seedJoinLoop != nil {
+		if stopErr := a.seedJoinLoop.Stop(ctx); stopErr != nil {
+			a.logLifecycleWarn("seed_join", "rollback_stop", stopErr)
+			err = errors.Join(err, stopErr)
+		} else {
+			a.seedJoinStarted = false
 		}
 	}
 	if a.clusterStarted && a.cluster != nil {

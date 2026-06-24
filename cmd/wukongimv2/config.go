@@ -340,10 +340,16 @@ func buildConfig(values map[string]string) (app.Config, error) {
 	cfg.Cluster.ListenAddr = listenAddr
 
 	cfg.Cluster.Control.ClusterID = configValue(values, "WK_CLUSTER_ID")
-	joinConfigPresent := configKeyPresent(values, "WK_CLUSTER_SEEDS") ||
-		configKeyPresent(values, "WK_CLUSTER_ADVERTISE_ADDR") ||
-		configKeyPresent(values, "WK_CLUSTER_JOIN_TOKEN")
-	if joinConfigPresent {
+	if configKeyPresent(values, "WK_CLUSTER_JOIN_TOKEN") {
+		token := configValue(values, "WK_CLUSTER_JOIN_TOKEN")
+		if token == "" {
+			return app.Config{}, fmt.Errorf("load config: WK_CLUSTER_JOIN_TOKEN must not be empty")
+		}
+		cfg.Cluster.Join.Token = token
+	}
+	seedJoinConfigPresent := configKeyPresent(values, "WK_CLUSTER_SEEDS") ||
+		configKeyPresent(values, "WK_CLUSTER_ADVERTISE_ADDR")
+	if seedJoinConfigPresent {
 		cfg.Cluster.Control.Role = clusterv2.ControlRoleMirror
 		cfg.Cluster.Control.AllowBootstrap = false
 		if configKeyPresent(values, "WK_CLUSTER_NODES") {
@@ -358,13 +364,11 @@ func buildConfig(values map[string]string) (app.Config, error) {
 		if advertiseAddr == "" {
 			return app.Config{}, fmt.Errorf("load config: WK_CLUSTER_ADVERTISE_ADDR is required when WK_CLUSTER_SEEDS is set")
 		}
-		token := configValue(values, "WK_CLUSTER_JOIN_TOKEN")
-		if token == "" {
+		if cfg.Cluster.Join.Token == "" {
 			return app.Config{}, fmt.Errorf("load config: WK_CLUSTER_JOIN_TOKEN is required when WK_CLUSTER_SEEDS is set")
 		}
 		cfg.Cluster.Join.Seeds = seeds
 		cfg.Cluster.Join.AdvertiseAddr = advertiseAddr
-		cfg.Cluster.Join.Token = token
 	}
 	if raw := configValue(values, "WK_CLUSTER_NODES"); raw != "" {
 		nodes, err := parseClusterNodes(raw)

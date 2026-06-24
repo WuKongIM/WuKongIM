@@ -131,6 +131,12 @@ New(Config)
   -> register the manager diagnostics RPC handler when node RPC and the local
      diagnostics store are available, exposing this node's trace/message/event
      diagnostics reads and tracking-rule mutations to peer manager readers
+  -> register the node lifecycle RPC handler when node RPC and the management
+     lifecycle writer are available, exposing seed JoinNode and readiness probe
+     requests to joining peers; when seed-join config is present, create the
+     app seed join loop that resolves configured seed addresses through the
+     local control mirror and retries JoinNode until this node appears as
+     joining or active
   -> when the cluster exposes user metadata APIs:
        create internalv2/usecase/user with an infra/cluster Slot metadata
        adapter, owner-local online registry, optional presence lookup, and the
@@ -537,6 +543,7 @@ wins when set; top-level `Config.NodeID` is only the fallback.
 ```text
 Start(ctx)
   -> cluster.Start(ctx)
+  -> seed join loop Start(ctx): retry JoinNode against stable-order seeds when seed-join config is present
   -> wait for clusterv2 write routing when the cluster runtime exposes route snapshots
   -> conversation authority route lifecycle Start(ctx): watch route authorities and seed current targets
   -> conversation active flush worker Start(ctx): periodically persist dirty active rows
@@ -565,6 +572,7 @@ Stop(ctx)
   -> conversation active flush worker Stop(ctx): cancel periodic flush and persist remaining dirty active rows
   -> conversation authority route lifecycle Stop(ctx): cancel authority watcher
   -> presence touch worker Stop(ctx)
+  -> seed join loop Stop(ctx): cancel pre-membership JoinNode retries
   -> cluster.Stop(ctx)
 ```
 

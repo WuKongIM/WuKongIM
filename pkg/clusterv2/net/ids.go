@@ -70,17 +70,23 @@ const (
 	RPCManagerPlugins
 	// RPCPluginBindingScan serves clusterv2 Slot-leader plugin binding index scans.
 	RPCPluginBindingScan
-	// RPCManagerMessageRetention serves internalv2 manager message retention forwarding.
-	RPCManagerMessageRetention
 )
 
 const (
 	// RPCControlWrite serves generic ControllerV2 writes.
-	RPCControlWrite uint8 = 64
+	RPCControlWrite uint8 = 64 + iota
+	// RPCManagerMessageRetention serves internalv2 manager message retention forwarding.
+	RPCManagerMessageRetention
+	// RPCNodeLifecycle serves internalv2 seed join and readiness RPCs.
+	RPCNodeLifecycle
 )
 
 func transportServiceAlias(serviceID uint8) string {
 	switch serviceID {
+	case MsgSlotRaft:
+		return "slot raft"
+	case MsgSlotRaftBatch:
+		return "slot raft batch"
 	case RPCSlotForwardPropose:
 		return "slot propose"
 	case RPCChannelPull:
@@ -143,6 +149,8 @@ func transportServiceAlias(serviceID uint8) string {
 		return "manager plugins"
 	case RPCManagerMessageRetention:
 		return "manager message retention"
+	case RPCNodeLifecycle:
+		return "node lifecycle"
 	case RPCControlWrite:
 		return "controller write"
 	case RPCPluginBindingScan:

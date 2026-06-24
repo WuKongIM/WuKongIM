@@ -146,6 +146,16 @@ type ManagerPluginReader interface {
 	UninstallNodePlugin(context.Context, uint64, string) error
 }
 
+// NodeLifecycleManager handles validated seed-join lifecycle requests.
+type NodeLifecycleManager interface {
+	JoinNode(context.Context, managementusecase.JoinNodeRequest) (managementusecase.JoinNodeResponse, error)
+}
+
+// NodeReadinessProvider reports app-local startup readiness for a joining node.
+type NodeReadinessProvider interface {
+	NodeReadiness(context.Context, NodeReadinessRequest) (NodeReadinessResponse, error)
+}
+
 // PluginHTTPRouter invokes one node-local plugin HTTP route.
 type PluginHTTPRouter interface {
 	Route(context.Context, string, *pluginproto.HttpRequest) (*pluginproto.HttpResponse, error)
@@ -183,6 +193,14 @@ type Options struct {
 	ManagerDiagnostics ManagerDiagnostics
 	// ManagerPlugins handles node-local plugin inventory requests.
 	ManagerPlugins ManagerPluginReader
+	// NodeLifecycle handles validated seed-join lifecycle requests.
+	NodeLifecycle NodeLifecycleManager
+	// NodeReadiness reports app-local readiness for startup probes.
+	NodeReadiness NodeReadinessProvider
+	// NodeLifecycleClusterID is the cluster identity accepted by lifecycle RPCs.
+	NodeLifecycleClusterID string
+	// NodeLifecycleJoinToken is the shared token accepted by JoinNode RPCs.
+	NodeLifecycleJoinToken string
 	// PluginHTTPRoutes handles node-local plugin HTTP route requests.
 	PluginHTTPRoutes PluginHTTPRouter
 	// Logger records node RPC adapter failures that are converted into statuses.
@@ -221,6 +239,14 @@ type Adapter struct {
 	managerDiagnostics ManagerDiagnostics
 	// managerPlugins reads node-local plugin inventory for manager pages.
 	managerPlugins ManagerPluginReader
+	// nodeLifecycle submits validated seed joins through the management usecase.
+	nodeLifecycle NodeLifecycleManager
+	// nodeReadiness reports local startup readiness to seed nodes.
+	nodeReadiness NodeReadinessProvider
+	// nodeLifecycleClusterID is the cluster identity accepted by lifecycle RPCs.
+	nodeLifecycleClusterID string
+	// nodeLifecycleJoinToken is the shared token accepted by JoinNode RPCs.
+	nodeLifecycleJoinToken string
 	// pluginHTTPRoutes invokes node-local plugin HTTP route hooks.
 	pluginHTTPRoutes PluginHTTPRouter
 	// logger records adapter decode errors and rejected local operations.
@@ -248,6 +274,10 @@ func New(opts Options) *Adapter {
 		managerAppLogs:          opts.ManagerAppLogs,
 		managerDiagnostics:      opts.ManagerDiagnostics,
 		managerPlugins:          opts.ManagerPlugins,
+		nodeLifecycle:           opts.NodeLifecycle,
+		nodeReadiness:           opts.NodeReadiness,
+		nodeLifecycleClusterID:  opts.NodeLifecycleClusterID,
+		nodeLifecycleJoinToken:  opts.NodeLifecycleJoinToken,
 		pluginHTTPRoutes:        opts.PluginHTTPRoutes,
 		logger:                  opts.Logger,
 	}

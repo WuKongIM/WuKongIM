@@ -477,6 +477,56 @@ func (a *App) wireManagerDiagnosticsRPC() {
 	registrar.RegisterRPC(accessnode.ManagerDiagnosticsRPCServiceID, nodeRPCHandlerFunc(adapter.HandleManagerDiagnosticsRPC))
 }
 
+func (a *App) wireNodeLifecycleRPC() {
+	registrar, hasRegistrar := a.cluster.(nodeRPCRegistrar)
+	if !hasRegistrar {
+		return
+	}
+	management := a.newManagerManagement()
+	if management == nil {
+		return
+	}
+	adapter := accessnode.New(accessnode.Options{
+		NodeLifecycle:          management,
+		NodeReadiness:          a,
+		NodeLifecycleClusterID: strings.TrimSpace(a.cfg.Cluster.Control.ClusterID),
+		NodeLifecycleJoinToken: a.cfg.Cluster.Join.Token,
+		Logger:                 a.logger.Named("node"),
+	})
+	registrar.RegisterRPC(accessnode.NodeLifecycleRPCServiceID, nodeRPCHandlerFunc(adapter.HandleNodeLifecycleRPC))
+}
+
+func (a *App) wireSeedJoinLoop() {
+	if a.seedJoinLoop != nil || !seedJoinConfigPresent(a.cfg.Cluster.Join) {
+		return
+	}
+	node, hasNode := a.cluster.(clusterinfra.NodeLifecycleNode)
+	snapshots, hasSnapshots := a.cluster.(seedJoinSnapshotReader)
+	if !hasNode || !hasSnapshots {
+		return
+	}
+	nodeID := a.cfg.Cluster.NodeID
+	if nodeID == 0 {
+		nodeID = a.cfg.NodeID
+	}
+	snapshot, _ := snapshots.LocalControlSnapshot(context.Background())
+	a.seedJoinLoop = newSeedJoinLoop(seedJoinLoopConfig{
+		NodeID:         nodeID,
+		AdvertiseAddr:  strings.TrimSpace(a.cfg.Cluster.Join.AdvertiseAddr),
+		ClusterID:      strings.TrimSpace(a.cfg.Cluster.Control.ClusterID),
+		JoinToken:      a.cfg.Cluster.Join.Token,
+		Seeds:          seedJoinSeedIDs(snapshot, a.cfg.Cluster.Join.Seeds, nodeID),
+		SeedAddrs:      append([]string(nil), a.cfg.Cluster.Join.Seeds...),
+		CapacityWeight: 1,
+	}, clusterinfra.NewNodeLifecycleClient(node), snapshots, a.logger.Named("seed_join"))
+}
+
+func seedJoinConfigPresent(join clusterv2.JoinConfig) bool {
+	return len(join.Seeds) > 0 &&
+		strings.TrimSpace(join.AdvertiseAddr) != "" &&
+		join.Token != ""
+}
+
 func (a *App) wireManagerPluginRPC() {
 	registrar, hasRegistrar := a.cluster.(nodeRPCRegistrar)
 	if !hasRegistrar || a.plugins == nil {

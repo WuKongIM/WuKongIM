@@ -19,6 +19,9 @@ WK_CLUSTER_ID=wukongimv2-single
 # New dynamic data nodes must use WK_CLUSTER_SEEDS instead of WK_CLUSTER_NODES.
 WK_CLUSTER_NODES=[{"id":1,"addr":"127.0.0.1:7001"}]
 
+# Shared join secret accepted by seed JoinNode RPC handlers.
+WK_CLUSTER_JOIN_TOKEN=change-me
+
 # Physical Slot count created by the initial ControllerV2 snapshot.
 WK_CLUSTER_INITIAL_SLOT_COUNT=1
 

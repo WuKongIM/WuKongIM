@@ -809,6 +809,37 @@ func TestLoadConfigSeedJoinMode(t *testing.T) {
 	}
 }
 
+func TestLoadConfigStaticClusterAcceptsJoinToken(t *testing.T) {
+	unsetLoadConfigEnv(t)
+	dir := t.TempDir()
+	path := filepath.Join(dir, "wukongim.conf")
+	writeConf(t, path,
+		"WK_NODE_ID=1",
+		"WK_NODE_DATA_DIR="+filepath.Join(dir, "node-1"),
+		"WK_CLUSTER_LISTEN_ADDR=0.0.0.0:7011",
+		"WK_CLUSTER_ID=dev-three",
+		`WK_CLUSTER_NODES=[{"id":1,"addr":"wk-node1:7000"},{"id":2,"addr":"wk-node2:7000"},{"id":3,"addr":"wk-node3:7000"}]`,
+		"WK_CLUSTER_JOIN_TOKEN=join-secret",
+	)
+
+	cfg, err := loadConfig([]string{"-config", path})
+	if err != nil {
+		t.Fatalf("loadConfig() error = %v", err)
+	}
+	if cfg.Cluster.Control.Role == clusterv2.ControlRoleMirror {
+		t.Fatalf("Control.Role = %q, want token-only config not to force mirror", cfg.Cluster.Control.Role)
+	}
+	if !cfg.Cluster.Control.AllowBootstrap {
+		t.Fatal("Control.AllowBootstrap = false, want true for static seed cluster")
+	}
+	if cfg.Cluster.Join.Token != "join-secret" {
+		t.Fatalf("Join.Token = %q, want join-secret", cfg.Cluster.Join.Token)
+	}
+	if len(cfg.Cluster.Join.Seeds) != 0 || cfg.Cluster.Join.AdvertiseAddr != "" {
+		t.Fatalf("Join seed fields = %#v, want token-only lifecycle validation config", cfg.Cluster.Join)
+	}
+}
+
 func TestLoadConfigRejectsSeedJoinWithStaticNodes(t *testing.T) {
 	for _, tt := range []struct {
 		name      string
@@ -828,11 +859,6 @@ func TestLoadConfigRejectsSeedJoinWithStaticNodes(t *testing.T) {
 		{
 			name:      "advertise addr without seeds",
 			extra:     []string{"WK_CLUSTER_ADVERTISE_ADDR=127.0.0.1:7014"},
-			wantError: "WK_CLUSTER_SEEDS",
-		},
-		{
-			name:      "join token without seeds",
-			extra:     []string{"WK_CLUSTER_JOIN_TOKEN=join-secret"},
 			wantError: "WK_CLUSTER_SEEDS",
 		},
 		{

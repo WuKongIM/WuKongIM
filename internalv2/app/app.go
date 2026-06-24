@@ -99,16 +99,18 @@ type App struct {
 	// webhookPresence adapts owner-local online status transitions into webhook events.
 	webhookPresence presence.OnlineStatusObserver
 	// plugins exposes v2 plugin lifecycle and hook usecases.
-	plugins                     *pluginusecase.App
-	channels                    *channelusecase.App
-	cmdSync                     *cmdsyncusecase.App
-	conversations               *conversationusecase.App
-	users                       *userusecase.App
-	delivery                    *deliveryusecase.App
-	deliveryManager             *runtimedelivery.Manager
-	deliveryRetry               *runtimedelivery.RetryScheduler
-	deliveryWorker              WorkerRuntime
-	localOwnerPusher            *localOwnerPusher
+	plugins          *pluginusecase.App
+	channels         *channelusecase.App
+	cmdSync          *cmdsyncusecase.App
+	conversations    *conversationusecase.App
+	users            *userusecase.App
+	delivery         *deliveryusecase.App
+	deliveryManager  *runtimedelivery.Manager
+	deliveryRetry    *runtimedelivery.RetryScheduler
+	deliveryWorker   WorkerRuntime
+	localOwnerPusher *localOwnerPusher
+	// seedJoinLoop retries pre-membership JoinNode RPCs when seed-join config is present.
+	seedJoinLoop                WorkerRuntime
 	conversationRouteLifecycle  WorkerRuntime
 	conversationActiveWorker    WorkerRuntime
 	conversationAuthority       *conversationAuthority
@@ -140,6 +142,7 @@ type App struct {
 	started                   bool
 	stopped                   bool
 	clusterStarted            bool
+	seedJoinStarted           bool
 	presenceStarted           bool
 	conversationRouteStarted  bool
 	conversationActiveStarted bool
@@ -198,6 +201,8 @@ func New(cfg Config, opts ...Option) (*App, error) {
 	app.wireManagerMessageRetentionRPC()
 	app.wireManagerDBInspectRPC()
 	app.wireManagerDiagnosticsRPC()
+	app.wireNodeLifecycleRPC()
+	app.wireSeedJoinLoop()
 	app.wireUsers()
 	app.wireDelivery()
 	if err := app.wirePluginSubsystem(clusterCfg.NodeID); err != nil {

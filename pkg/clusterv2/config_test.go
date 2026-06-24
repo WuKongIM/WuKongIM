@@ -44,6 +44,29 @@ func TestConfigDefaultsSingleNodeControl(t *testing.T) {
 	}
 }
 
+func TestConfigJoinTokenOnlyDoesNotEnableSeedJoinMode(t *testing.T) {
+	cfg := Config{
+		NodeID:     1,
+		ListenAddr: "127.0.0.1:7011",
+		DataDir:    t.TempDir(),
+		Join:       JoinConfig{Token: "join-secret"},
+	}
+	cfg.applyDefaults()
+
+	if cfg.Control.Role != ControlRoleVoter {
+		t.Fatalf("Control.Role = %q, want voter", cfg.Control.Role)
+	}
+	if !cfg.Control.AllowBootstrap {
+		t.Fatal("Control.AllowBootstrap = false, want true for token-only static seed config")
+	}
+	if len(cfg.Control.Voters) != 1 || cfg.Control.Voters[0].NodeID != 1 {
+		t.Fatalf("Control.Voters = %#v, want implicit local voter", cfg.Control.Voters)
+	}
+	if err := cfg.validate(); err != nil {
+		t.Fatalf("validate() error = %v", err)
+	}
+}
+
 func TestConfigSeedJoinModeUsesMirrorAndDisablesBootstrap(t *testing.T) {
 	cfg := Config{
 		NodeID:     4,

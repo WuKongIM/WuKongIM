@@ -17,7 +17,8 @@ distributed log reads to node-local clusterv2 log storage or peer RPC, routes
 manager Slot Raft status and compaction operations to the selected node-local clusterv2
 operation or peer RPC, adapts manager Slot leader transfer intents to
 clusterv2 control, adapts manager node lifecycle join/activation writes to
-clusterv2 control, routes manager Controller Raft operations to node-local
+clusterv2 control, routes startup seed JoinNode and readiness probes over
+clusterv2 node RPC, routes manager Controller Raft operations to node-local
 clusterv2 operations or peer RPC, routes ordinary application log reads to the
 selected node's app-owned local reader or peer RPC, routes manager DB Inspect
 reads to node-local inspect readers or peer RPC, routes manager diagnostics
@@ -34,6 +35,23 @@ the local node ID for read-only manager node and Slot list rendering. Node
 lifecycle writes are exposed through the separate
 `ManagementNodeLifecycleAdapter`; scale-in, onboarding, and Slot operations
 other than explicit node-local Raft compaction stay unmigrated.
+
+## Node Lifecycle RPC Flow
+
+```text
+seed join loop
+  -> NodeLifecycleClient.JoinNode(seed_node_id, NodeJoinRequest)
+  -> access/node NodeLifecycle RPC client
+  -> clusterv2 CallRPC(seed_node_id, RPCNodeLifecycle)
+  -> seed node access/node lifecycle handler
+  -> management JoinNode usecase
+```
+
+`NodeLifecycleClient` is the narrow cluster-facing wrapper for startup seed
+join and readiness RPCs. It does not validate membership, choose activation
+timing, rebalance Slots, or call ActivateNode. The seed-side handler still
+routes durable join writes through the management usecase and clusterv2 control
+writer.
 
 ## Management Channel List Flow
 

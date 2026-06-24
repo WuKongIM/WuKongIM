@@ -253,7 +253,7 @@ func (c *Config) applyControlDefaults() {
 }
 
 func (c Config) seedJoinMode() bool {
-	return c.Join.Seeds != nil || c.Join.AdvertiseAddr != "" || c.Join.Token != ""
+	return c.Join.Seeds != nil || c.Join.AdvertiseAddr != ""
 }
 
 func (c *Config) applySlotDefaults() {

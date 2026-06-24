@@ -18,6 +18,8 @@ func TestRPCServiceIDsAreUniqueAndNonZero(t *testing.T) {
 
 func rpcServiceIDsForTest() map[string]uint8 {
 	return map[string]uint8{
+		"msg_slot_raft":             MsgSlotRaft,
+		"msg_slot_raft_batch":       MsgSlotRaftBatch,
 		"slot_forward_propose":      RPCSlotForwardPropose,
 		"channel_pull":              RPCChannelPull,
 		"channel_ack":               RPCChannelAck,
@@ -49,6 +51,7 @@ func rpcServiceIDsForTest() map[string]uint8 {
 		"manager_diagnostics":       RPCManagerDiagnostics,
 		"manager_plugins":           RPCManagerPlugins,
 		"manager_message_retention": RPCManagerMessageRetention,
+		"node_lifecycle":            RPCNodeLifecycle,
 		"plugin_binding_scan":       RPCPluginBindingScan,
 		"control_write":             RPCControlWrite,
 	}
