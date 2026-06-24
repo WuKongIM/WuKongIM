@@ -30,6 +30,12 @@ func TestWebhookConfigDefaultsWhenEndpointConfigured(t *testing.T) {
 	if cfg.NotifyBatchMaxWait != 500*time.Millisecond {
 		t.Fatalf("NotifyBatchMaxWait = %v, want 500ms", cfg.NotifyBatchMaxWait)
 	}
+	if cfg.OnlineBatchMaxItems != 512 {
+		t.Fatalf("OnlineBatchMaxItems = %d, want 512", cfg.OnlineBatchMaxItems)
+	}
+	if cfg.OnlineBatchMaxWait != 2*time.Second {
+		t.Fatalf("OnlineBatchMaxWait = %v, want 2s", cfg.OnlineBatchMaxWait)
+	}
 	if cfg.OfflineUIDBatchSize != 512 {
 		t.Fatalf("OfflineUIDBatchSize = %d, want 512", cfg.OfflineUIDBatchSize)
 	}
@@ -47,6 +53,7 @@ func TestWebhookConfigRejectsInvalidValues(t *testing.T) {
 		cfg  WebhookConfig
 	}{
 		{name: "enabled without endpoint", cfg: WebhookConfig{Enabled: true}},
+		{name: "disabled negative queue", cfg: WebhookConfig{QueueSize: -1}},
 		{name: "negative queue", cfg: WebhookConfig{HTTPAddr: "http://127.0.0.1/hook", QueueSize: -1}},
 		{name: "negative workers", cfg: WebhookConfig{HTTPAddr: "http://127.0.0.1/hook", Workers: -1}},
 		{name: "negative notify batch", cfg: WebhookConfig{HTTPAddr: "http://127.0.0.1/hook", NotifyBatchMaxItems: -1}},

@@ -432,10 +432,7 @@ func defaultWebhookConfig(cfg WebhookConfig) WebhookConfig {
 }
 
 func validateWebhookConfig(cfg WebhookConfig) error {
-	if !cfg.Enabled {
-		return nil
-	}
-	if cfg.HTTPAddr == "" {
+	if cfg.Enabled && cfg.HTTPAddr == "" {
 		return fmt.Errorf("%w: webhook HTTPAddr is required when webhook is enabled", ErrInvalidConfig)
 	}
 	if cfg.QueueSize < 0 {
@@ -444,11 +441,23 @@ func validateWebhookConfig(cfg WebhookConfig) error {
 	if cfg.Workers < 0 {
 		return fmt.Errorf("%w: webhook Workers must be >= 0", ErrInvalidConfig)
 	}
-	if cfg.NotifyBatchMaxItems < 0 || cfg.OnlineBatchMaxItems < 0 || cfg.OfflineUIDBatchSize < 0 {
-		return fmt.Errorf("%w: webhook batch sizes must be >= 0", ErrInvalidConfig)
+	if cfg.NotifyBatchMaxItems < 0 {
+		return fmt.Errorf("%w: webhook NotifyBatchMaxItems must be >= 0", ErrInvalidConfig)
 	}
-	if cfg.NotifyBatchMaxWait < 0 || cfg.OnlineBatchMaxWait < 0 || cfg.RequestTimeout < 0 {
-		return fmt.Errorf("%w: webhook durations must be >= 0", ErrInvalidConfig)
+	if cfg.NotifyBatchMaxWait < 0 {
+		return fmt.Errorf("%w: webhook NotifyBatchMaxWait must be >= 0", ErrInvalidConfig)
+	}
+	if cfg.OnlineBatchMaxItems < 0 {
+		return fmt.Errorf("%w: webhook OnlineBatchMaxItems must be >= 0", ErrInvalidConfig)
+	}
+	if cfg.OnlineBatchMaxWait < 0 {
+		return fmt.Errorf("%w: webhook OnlineBatchMaxWait must be >= 0", ErrInvalidConfig)
+	}
+	if cfg.OfflineUIDBatchSize < 0 {
+		return fmt.Errorf("%w: webhook OfflineUIDBatchSize must be >= 0", ErrInvalidConfig)
+	}
+	if cfg.RequestTimeout < 0 {
+		return fmt.Errorf("%w: webhook RequestTimeout must be >= 0", ErrInvalidConfig)
 	}
 	if cfg.RetryMaxAttempts < 0 {
 		return fmt.Errorf("%w: webhook RetryMaxAttempts must be >= 0", ErrInvalidConfig)
