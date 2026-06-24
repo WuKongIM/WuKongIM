@@ -63,15 +63,18 @@ type RuntimeConfig struct {
 	SyncPeers cv2.PeerPicker
 	// TaskClient forwards task writes and creation intents to the current Controller leader.
 	TaskClient *TaskClient
+	// ControlWriteClient forwards generic control writes to the current Controller leader.
+	ControlWriteClient *ControlWriteClient
 	// Now returns timestamps used for ControllerV2 commands.
 	Now func() time.Time
 }
 
 // Runtime adapts the root ControllerV2 runtime facade to control.Controller.
 type Runtime struct {
-	cfg        RuntimeConfig
-	backend    *cv2.Runtime
-	taskClient *TaskClient
+	cfg         RuntimeConfig
+	backend     *cv2.Runtime
+	taskClient  *TaskClient
+	writeClient *ControlWriteClient
 
 	mu       sync.RWMutex
 	snapshot Snapshot
@@ -104,7 +107,13 @@ func NewRuntime(cfg RuntimeConfig) (*Runtime, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Runtime{cfg: cfg, backend: backend, taskClient: cfg.TaskClient, watch: make(chan SnapshotEvent, 16)}, nil
+	return &Runtime{
+		cfg:         cfg,
+		backend:     backend,
+		taskClient:  cfg.TaskClient,
+		writeClient: cfg.ControlWriteClient,
+		watch:       make(chan SnapshotEvent, 16),
+	}, nil
 }
 
 // Start starts the local ControllerV2 runtime.
@@ -305,7 +314,61 @@ func (r *Runtime) RequestSlotLeaderTransfer(ctx context.Context, req SlotLeaderT
 	return SlotLeaderTransferResult{Created: result.Created, Task: &task}, nil
 }
 
+// JoinNode submits a data-node join intent.
+func (r *Runtime) JoinNode(ctx context.Context, req JoinNodeRequest) (JoinNodeResult, error) {
+	if err := ctxErr(ctx); err != nil {
+		return JoinNodeResult{}, err
+	}
+	if r == nil || r.backend == nil {
+		return JoinNodeResult{}, cv2.ErrNotStarted
+	}
+	result, err := r.backend.JoinNode(ctx, cv2JoinNodeRequest(req))
+	if shouldForwardControlWrite(err) {
+		resp, err := r.forwardControlWrite(ctx, ControlWriteRequest{
+			Action:   ControlWriteActionJoinNode,
+			JoinNode: req,
+		})
+		if err != nil {
+			return JoinNodeResult{}, err
+		}
+		return resp.JoinNode, nil
+	}
+	if err != nil {
+		return JoinNodeResult{}, err
+	}
+	return joinNodeResultFromCV2(result), nil
+}
+
+// ActivateNode submits a node activation intent.
+func (r *Runtime) ActivateNode(ctx context.Context, req ActivateNodeRequest) (ActivateNodeResult, error) {
+	if err := ctxErr(ctx); err != nil {
+		return ActivateNodeResult{}, err
+	}
+	if r == nil || r.backend == nil {
+		return ActivateNodeResult{}, cv2.ErrNotStarted
+	}
+	result, err := r.backend.ActivateNode(ctx, cv2ActivateNodeRequest(req))
+	if shouldForwardControlWrite(err) {
+		resp, err := r.forwardControlWrite(ctx, ControlWriteRequest{
+			Action:       ControlWriteActionActivateNode,
+			ActivateNode: req,
+		})
+		if err != nil {
+			return ActivateNodeResult{}, err
+		}
+		return resp.ActivateNode, nil
+	}
+	if err != nil {
+		return ActivateNodeResult{}, err
+	}
+	return activateNodeResultFromCV2(result), nil
+}
+
 func shouldForwardTaskWrite(err error) bool {
+	return errors.Is(err, cv2.ErrNotLeader) || errors.Is(err, cv2.ErrNotStarted)
+}
+
+func shouldForwardControlWrite(err error) bool {
 	return errors.Is(err, cv2.ErrNotLeader) || errors.Is(err, cv2.ErrNotStarted)
 }
 
@@ -318,6 +381,17 @@ func (r *Runtime) forwardTaskRequest(ctx context.Context, req TaskRequest) error
 		return cv2.ErrNotLeader
 	}
 	return r.taskClient.SubmitTask(ctx, leaderID, req)
+}
+
+func (r *Runtime) forwardControlWrite(ctx context.Context, req ControlWriteRequest) (ControlWriteResponse, error) {
+	if r == nil || r.writeClient == nil {
+		return ControlWriteResponse{}, cv2.ErrNotLeader
+	}
+	leaderID := r.LeaderID()
+	if leaderID == 0 || leaderID == r.cfg.NodeID {
+		return ControlWriteResponse{}, cv2.ErrNotLeader
+	}
+	return r.writeClient.Submit(ctx, leaderID, req)
 }
 
 func (r *Runtime) startWatchLoop() {

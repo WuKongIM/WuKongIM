@@ -74,6 +74,11 @@ const (
 	RPCManagerMessageRetention
 )
 
+const (
+	// RPCControlWrite serves generic ControllerV2 writes.
+	RPCControlWrite uint8 = 64
+)
+
 func transportServiceAlias(serviceID uint8) string {
 	switch serviceID {
 	case RPCSlotForwardPropose:
@@ -138,6 +143,8 @@ func transportServiceAlias(serviceID uint8) string {
 		return "manager plugins"
 	case RPCManagerMessageRetention:
 		return "manager message retention"
+	case RPCControlWrite:
+		return "controller write"
 	case RPCPluginBindingScan:
 		return "plugin binding scan"
 	default:

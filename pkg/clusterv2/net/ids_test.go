@@ -50,5 +50,6 @@ func rpcServiceIDsForTest() map[string]uint8 {
 		"manager_plugins":           RPCManagerPlugins,
 		"manager_message_retention": RPCManagerMessageRetention,
 		"plugin_binding_scan":       RPCPluginBindingScan,
+		"control_write":             RPCControlWrite,
 	}
 }

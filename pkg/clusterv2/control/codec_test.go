@@ -93,6 +93,30 @@ func TestControlTaskRequestCodecRoundTrip(t *testing.T) {
 	}
 }
 
+func TestControlWriteRequestNodeLifecycleCodecRoundTrip(t *testing.T) {
+	req := ControlWriteRequest{
+		Action: ControlWriteActionJoinNode,
+		JoinNode: JoinNodeRequest{
+			NodeID:         4,
+			Name:           "node-4",
+			Addr:           "127.0.0.1:10004",
+			Roles:          []Role{RoleData},
+			CapacityWeight: 2,
+		},
+	}
+	payload, err := EncodeControlWriteRequest(req)
+	if err != nil {
+		t.Fatalf("EncodeControlWriteRequest() error = %v", err)
+	}
+	got, err := DecodeControlWriteRequest(payload)
+	if err != nil {
+		t.Fatalf("DecodeControlWriteRequest() error = %v", err)
+	}
+	if !reflect.DeepEqual(got, req) {
+		t.Fatalf("DecodeControlWriteRequest() = %#v, want %#v", got, req)
+	}
+}
+
 func TestControlCodecRejectsWrongKind(t *testing.T) {
 	frame := []byte{controlRPCVersion, controlKindRaftBatch + 99}
 	if _, err := DecodeRaftBatch(frame); err == nil {

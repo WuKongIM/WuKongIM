@@ -1,0 +1,73 @@
+package control
+
+import (
+	"context"
+	"fmt"
+
+	clusternet "github.com/WuKongIM/WuKongIM/pkg/clusterv2/net"
+)
+
+// ControlWriteApplier applies generic ControllerV2 writes.
+type ControlWriteApplier interface {
+	// JoinNode submits a data-node join intent.
+	JoinNode(context.Context, JoinNodeRequest) (JoinNodeResult, error)
+	// ActivateNode submits a node activation intent.
+	ActivateNode(context.Context, ActivateNodeRequest) (ActivateNodeResult, error)
+}
+
+// ControlWriteClient forwards generic ControllerV2 writes to a remote node.
+type ControlWriteClient struct {
+	caller clusternet.Caller
+}
+
+// NewControlWriteClient creates a generic control write RPC client.
+func NewControlWriteClient(caller clusternet.Caller) *ControlWriteClient {
+	return &ControlWriteClient{caller: caller}
+}
+
+// Submit sends one generic control write request to nodeID.
+func (c *ControlWriteClient) Submit(ctx context.Context, nodeID uint64, req ControlWriteRequest) (ControlWriteResponse, error) {
+	if c == nil || c.caller == nil {
+		return ControlWriteResponse{}, fmt.Errorf("control write: caller is required")
+	}
+	payload, err := EncodeControlWriteRequest(req)
+	if err != nil {
+		return ControlWriteResponse{}, err
+	}
+	resp, err := clusternet.CallOwnedPayload(ctx, c.caller, nodeID, clusternet.RPCControlWrite, payload)
+	if err != nil {
+		return ControlWriteResponse{}, err
+	}
+	return DecodeControlWriteResponse(resp)
+}
+
+// NewControlWriteHandler creates an RPC handler for generic ControllerV2 writes.
+func NewControlWriteHandler(applier ControlWriteApplier) clusternet.Handler {
+	return clusternet.HandlerFunc(func(ctx context.Context, payload []byte) ([]byte, error) {
+		req, err := DecodeControlWriteRequest(payload)
+		if err != nil {
+			return nil, err
+		}
+		if applier == nil {
+			return nil, fmt.Errorf("control write: applier is required")
+		}
+		var resp ControlWriteResponse
+		switch req.Action {
+		case ControlWriteActionJoinNode:
+			result, err := applier.JoinNode(ctx, req.JoinNode)
+			if err != nil {
+				return encodeControlWriteErrorResponse(err)
+			}
+			resp.JoinNode = result
+		case ControlWriteActionActivateNode:
+			result, err := applier.ActivateNode(ctx, req.ActivateNode)
+			if err != nil {
+				return encodeControlWriteErrorResponse(err)
+			}
+			resp.ActivateNode = result
+		default:
+			return nil, fmt.Errorf("control write: unknown action %q", req.Action)
+		}
+		return EncodeControlWriteResponse(resp)
+	})
+}

@@ -2,6 +2,7 @@ package control
 
 import (
 	"encoding/json"
+	"errors"
 
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/clusterv2/net"
 	cv2 "github.com/WuKongIM/WuKongIM/pkg/controllerv2"
@@ -15,6 +16,8 @@ const (
 	controlKindStateSyncRequest
 	controlKindStateSyncResponse
 	controlKindTaskRequest
+	controlKindWriteRequest
+	controlKindWriteResponse
 )
 
 // EncodeRaftBatch encodes ControllerV2 Raft messages for clusterv2 RPC.
@@ -133,4 +136,97 @@ func DecodeTaskRequest(data []byte) (TaskRequest, error) {
 		return TaskRequest{}, err
 	}
 	return req, nil
+}
+
+// ControlWriteAction selects which generic control write the remote Controller should apply.
+type ControlWriteAction string
+
+const (
+	// ControlWriteActionJoinNode submits a data-node join intent.
+	ControlWriteActionJoinNode ControlWriteAction = "join_node"
+	// ControlWriteActionActivateNode submits a node activation intent.
+	ControlWriteActionActivateNode ControlWriteAction = "activate_node"
+)
+
+// ControlWriteRequest carries one generic ControllerV2 write.
+type ControlWriteRequest struct {
+	// Action selects which payload should be applied.
+	Action ControlWriteAction `json:"action"`
+	// JoinNode carries a data-node join intent.
+	JoinNode JoinNodeRequest `json:"join_node,omitempty"`
+	// ActivateNode carries a node activation intent.
+	ActivateNode ActivateNodeRequest `json:"activate_node,omitempty"`
+}
+
+// ControlWriteResponse carries the result of one generic ControllerV2 write.
+type ControlWriteResponse struct {
+	// JoinNode carries the result of a data-node join intent.
+	JoinNode JoinNodeResult `json:"join_node,omitempty"`
+	// ActivateNode carries the result of a node activation intent.
+	ActivateNode ActivateNodeResult `json:"activate_node,omitempty"`
+}
+
+type controlWriteResponseEnvelope struct {
+	Response ControlWriteResponse `json:"response,omitempty"`
+	Error    string               `json:"error,omitempty"`
+}
+
+// EncodeControlWriteRequest encodes one generic control write request.
+func EncodeControlWriteRequest(req ControlWriteRequest) ([]byte, error) {
+	payload, err := json.Marshal(req)
+	if err != nil {
+		return nil, err
+	}
+	out := clusternet.PutHeader(nil, controlRPCVersion, controlKindWriteRequest)
+	return append(out, payload...), nil
+}
+
+// DecodeControlWriteRequest decodes one generic control write request.
+func DecodeControlWriteRequest(data []byte) (ControlWriteRequest, error) {
+	payload, err := clusternet.CheckHeader(data, controlRPCVersion, controlKindWriteRequest)
+	if err != nil {
+		return ControlWriteRequest{}, err
+	}
+	var req ControlWriteRequest
+	if err := json.Unmarshal(payload, &req); err != nil {
+		return ControlWriteRequest{}, err
+	}
+	return req, nil
+}
+
+// EncodeControlWriteResponse encodes one generic control write response.
+func EncodeControlWriteResponse(resp ControlWriteResponse) ([]byte, error) {
+	return encodeControlWriteResponseEnvelope(controlWriteResponseEnvelope{Response: resp})
+}
+
+func encodeControlWriteErrorResponse(err error) ([]byte, error) {
+	if err == nil {
+		return EncodeControlWriteResponse(ControlWriteResponse{})
+	}
+	return encodeControlWriteResponseEnvelope(controlWriteResponseEnvelope{Error: err.Error()})
+}
+
+func encodeControlWriteResponseEnvelope(env controlWriteResponseEnvelope) ([]byte, error) {
+	payload, err := json.Marshal(env)
+	if err != nil {
+		return nil, err
+	}
+	out := clusternet.PutHeader(nil, controlRPCVersion, controlKindWriteResponse)
+	return append(out, payload...), nil
+}
+
+// DecodeControlWriteResponse decodes one generic control write response.
+func DecodeControlWriteResponse(data []byte) (ControlWriteResponse, error) {
+	payload, err := clusternet.CheckHeader(data, controlRPCVersion, controlKindWriteResponse)
+	if err != nil {
+		return ControlWriteResponse{}, err
+	}
+	var env controlWriteResponseEnvelope
+	if err := json.Unmarshal(payload, &env); err != nil {
+		return ControlWriteResponse{}, err
+	}
+	if env.Error != "" {
+		return env.Response, errors.New(env.Error)
+	}
+	return env.Response, nil
 }
