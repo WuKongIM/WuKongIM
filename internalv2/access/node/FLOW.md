@@ -123,7 +123,7 @@ The RPC boundary is deliberately narrow:
 
 ```text
 remote channel append forwarder
-  -> encode W K V A 1 request
+  -> encode W K V A 2 request
   -> clusterv2 RPCChannelAuthoritySend
   -> ChannelAppendAdapter.HandleChannelAppendRPC
   -> ChannelAppend.SubmitForAuthority

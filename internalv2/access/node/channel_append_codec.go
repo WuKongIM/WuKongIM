@@ -10,7 +10,7 @@ import (
 )
 
 var (
-	channelAppendRequestMagic  = [...]byte{'W', 'K', 'V', 'A', 1}
+	channelAppendRequestMagic  = [...]byte{'W', 'K', 'V', 'A', 2}
 	channelAppendResponseMagic = [...]byte{'W', 'K', 'V', 'a', 1}
 )
 
@@ -213,6 +213,9 @@ func appendChannelAppendSendCommand(dst []byte, cmd channelappend.SendCommand) [
 	dst = appendString(dst, cmd.ChannelKey)
 	dst = appendString(dst, cmd.ChannelID)
 	dst = append(dst, cmd.ChannelType)
+	dst = append(dst, cmd.Setting)
+	dst = appendString(dst, cmd.Topic)
+	dst = appendUvarint(dst, uint64(cmd.Expire))
 	dst = appendBytes(dst, cmd.Payload)
 	dst = appendChannelAppendBool(dst, cmd.NoPersist)
 	dst = appendChannelAppendBool(dst, cmd.SyncOnce)
@@ -263,6 +266,21 @@ func readChannelAppendSendCommand(body []byte, offset int) (channelappend.SendCo
 	if cmd.ChannelType, offset, err = readByte(body, offset, "channel append command channel type"); err != nil {
 		return channelappend.SendCommand{}, offset, err
 	}
+	if cmd.Setting, offset, err = readByte(body, offset, "channel append command setting"); err != nil {
+		return channelappend.SendCommand{}, offset, err
+	}
+	if cmd.Topic, offset, err = readString(body, offset); err != nil {
+		return channelappend.SendCommand{}, offset, err
+	}
+	expire, next, err := readUvarint(body, offset)
+	if err != nil {
+		return channelappend.SendCommand{}, offset, err
+	}
+	if expire > uint64(^uint32(0)) {
+		return channelappend.SendCommand{}, offset, fmt.Errorf("internalv2/access/node: channel append expire overflows uint32")
+	}
+	cmd.Expire = uint32(expire)
+	offset = next
 	if cmd.Payload, offset, err = readBytes(body, offset); err != nil {
 		return channelappend.SendCommand{}, offset, err
 	}
