@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"strings"
 	"sync"
@@ -93,6 +94,31 @@ func (l *seedJoinLoop) Start(ctx context.Context) error {
 	go l.run(runCtx)
 	l.mu.Unlock()
 	return nil
+}
+
+// WaitForAdmission blocks until the joining node is visible in the mirrored control snapshot.
+func (l *seedJoinLoop) WaitForAdmission(ctx context.Context) error {
+	if l == nil {
+		return nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	delay := l.cfg.Interval
+	if delay <= 0 {
+		delay = defaultSeedJoinLoopInterval
+	}
+	for {
+		if l.joinObserved(ctx) {
+			return nil
+		}
+		if !waitSeedJoinDelay(ctx, delay) {
+			if err := ctx.Err(); err != nil {
+				return fmt.Errorf("internalv2/app: seed join admission: %w", err)
+			}
+			return fmt.Errorf("internalv2/app: seed join admission canceled")
+		}
+	}
 }
 
 // Stop cancels the seed join retry loop and waits for it to exit.

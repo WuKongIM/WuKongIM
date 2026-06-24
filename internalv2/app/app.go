@@ -65,6 +65,11 @@ type WorkerRuntime interface {
 	Stop(context.Context) error
 }
 
+type seedJoinRuntime interface {
+	WorkerRuntime
+	WaitForAdmission(context.Context) error
+}
+
 // Option customizes App construction.
 type Option func(*App)
 
@@ -109,8 +114,8 @@ type App struct {
 	deliveryRetry    *runtimedelivery.RetryScheduler
 	deliveryWorker   WorkerRuntime
 	localOwnerPusher *localOwnerPusher
-	// seedJoinLoop retries pre-membership JoinNode RPCs when seed-join config is present.
-	seedJoinLoop                WorkerRuntime
+	// seedJoinLoop retries pre-membership JoinNode RPCs and gates entry startup until admission is observed.
+	seedJoinLoop                seedJoinRuntime
 	conversationRouteLifecycle  WorkerRuntime
 	conversationActiveWorker    WorkerRuntime
 	conversationAuthority       *conversationAuthority

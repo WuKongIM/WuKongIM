@@ -136,7 +136,9 @@ New(Config)
      requests to joining peers; when seed-join config is present, create the
      app seed join loop that resolves configured seed addresses through the
      local control mirror and retries JoinNode until this node appears as
-     joining or active
+     joining or active; app lifecycle treats that observed membership record as
+     an admission gate before starting HTTP, manager, gateway, or worker
+     runtimes
   -> when the cluster exposes user metadata APIs:
        create internalv2/usecase/user with an infra/cluster Slot metadata
        adapter, owner-local online registry, optional presence lookup, and the

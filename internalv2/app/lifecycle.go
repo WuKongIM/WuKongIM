@@ -64,6 +64,11 @@ func (a *App) Start(ctx context.Context) error {
 			return errors.Join(err, stopErr)
 		}
 		a.seedJoinStarted = true
+		if err := a.seedJoinLoop.WaitForAdmission(ctx); err != nil {
+			stopErr := a.rollbackStarted(ctx)
+			a.logLifecycleError("seed_join_admission", "start", err)
+			return errors.Join(err, stopErr)
+		}
 	}
 	if err := a.waitClusterWriteReady(ctx); err != nil {
 		stopErr := a.rollbackStarted(ctx)

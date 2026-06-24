@@ -170,6 +170,50 @@ func TestStartOrderIsClusterThenGateway(t *testing.T) {
 	}
 }
 
+func TestStartWaitsForSeedJoinAdmissionBeforeGateway(t *testing.T) {
+	calls := make([]string, 0, 3)
+	cluster := &fakeManagerCluster{
+		fakeCluster: fakeCluster{calls: &calls},
+		nodeID:      4,
+		snapshot: control.Snapshot{
+			Nodes: []control.Node{{
+				NodeID:    1,
+				Addr:      "10.0.0.1:11110",
+				Roles:     []control.Role{control.RoleController, control.RoleData},
+				JoinState: control.NodeJoinStateActive,
+			}},
+		},
+	}
+	gateway := &fakeGateway{calls: &calls}
+	app, err := newTestApp(t, Config{
+		NodeID: 4,
+		Cluster: clusterv2.Config{
+			NodeID: 4,
+			Control: clusterv2.ControlConfig{
+				ClusterID: "cluster-a",
+			},
+			Join: clusterv2.JoinConfig{
+				Seeds:         []string{"10.0.0.1:11110"},
+				AdvertiseAddr: "10.0.0.4:11110",
+				Token:         "wrong-token",
+			},
+		},
+	}, WithCluster(cluster), WithGateway(gateway))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond)
+	defer cancel()
+	err = app.Start(ctx)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("Start() error = %v, want context deadline while waiting for seed join admission", err)
+	}
+	if got := joinCalls(calls); got != "cluster.start,cluster.stop" {
+		t.Fatalf("calls = %s, want cluster.start,cluster.stop without gateway.start", got)
+	}
+}
+
 func TestGatewayStartFailureStopsCluster(t *testing.T) {
 	gatewayErr := errors.New("gateway start failed")
 	calls := make([]string, 0, 3)
