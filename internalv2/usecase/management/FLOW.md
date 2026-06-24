@@ -75,9 +75,12 @@ The lifecycle usecase validates manager-facing node IDs and join addresses,
 then delegates cluster-authoritative mutations to the narrow control writer
 port. Join requests always request the data role and leave capacity-weight
 defaulting to the control writer. Activation validates only the selected node
-identity before delegation. When the lifecycle writer is not configured, the
-usecase returns a dedicated unavailable error so HTTP can report
-`service_unavailable` instead of treating wiring as invalid operator input.
+identity before delegation. Control conflicts and missing-node activation
+errors are mapped to dedicated usecase errors so HTTP can distinguish operator
+input conflicts from infrastructure failures. When the lifecycle writer is not
+configured, the usecase returns a dedicated unavailable error so HTTP can
+report `service_unavailable` instead of treating wiring as invalid operator
+input.
 Lifecycle usecase methods do not seed node RPC, poll startup, rebalance Slots,
 or mutate node operation hints.
 

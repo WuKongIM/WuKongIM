@@ -174,9 +174,11 @@ type controlWriteResponseEnvelope struct {
 }
 
 const (
-	controlWriteErrorCodeNotLeader        = "controllerv2_not_leader"
-	controlWriteErrorCodeNotStarted       = "controllerv2_not_started"
-	controlWriteErrorCodeProposalRejected = "controllerv2_proposal_rejected"
+	controlWriteErrorCodeNotLeader         = "controllerv2_not_leader"
+	controlWriteErrorCodeNotStarted        = "controllerv2_not_started"
+	controlWriteErrorCodeProposalRejected  = "controllerv2_proposal_rejected"
+	controlWriteErrorCodeLifecycleConflict = "controllerv2_node_lifecycle_conflict"
+	controlWriteErrorCodeLifecycleNotFound = "controllerv2_node_lifecycle_not_found"
 )
 
 // EncodeControlWriteRequest encodes one generic control write request.
@@ -253,6 +255,10 @@ func controlWriteErrorCode(err error) string {
 		return controlWriteErrorCodeNotStarted
 	case errors.Is(err, cv2.ErrProposalRejected):
 		return controlWriteErrorCodeProposalRejected
+	case errors.Is(err, cv2.ErrNodeLifecycleConflict):
+		return controlWriteErrorCodeLifecycleConflict
+	case errors.Is(err, cv2.ErrNodeLifecycleNotFound):
+		return controlWriteErrorCodeLifecycleNotFound
 	default:
 		return ""
 	}
@@ -267,6 +273,10 @@ func controlWriteSemanticError(code, text string) error {
 		target = cv2.ErrNotStarted
 	case controlWriteErrorCodeProposalRejected:
 		target = cv2.ErrProposalRejected
+	case controlWriteErrorCodeLifecycleConflict:
+		target = cv2.ErrNodeLifecycleConflict
+	case controlWriteErrorCodeLifecycleNotFound:
+		target = cv2.ErrNodeLifecycleNotFound
 	default:
 		return nil
 	}

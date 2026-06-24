@@ -2,6 +2,7 @@ package controllerv2
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -631,8 +632,8 @@ func TestRuntimeJoinNodeRejectsAddressConflict(t *testing.T) {
 		t.Fatalf("JoinNode(first) error = %v", err)
 	}
 	_, err = runtime.JoinNode(context.Background(), JoinNodeRequest{NodeID: 5, Addr: "n4", Roles: []NodeRole{NodeRoleData}, CapacityWeight: 1})
-	if err == nil {
-		t.Fatal("JoinNode(conflicting addr) error = nil, want conflict")
+	if !errors.Is(err, ErrNodeLifecycleConflict) {
+		t.Fatalf("JoinNode(conflicting addr) error = %v, want ErrNodeLifecycleConflict", err)
 	}
 }
 
@@ -655,8 +656,8 @@ func TestRuntimeActivateNodeRejectsMissingOrNonJoiningNode(t *testing.T) {
 	if _, err := runtime.ActivateNode(context.Background(), ActivateNodeRequest{}); err == nil {
 		t.Fatal("ActivateNode(zero node) error = nil, want invalid request error")
 	}
-	if _, err := runtime.ActivateNode(context.Background(), ActivateNodeRequest{NodeID: 4}); err == nil {
-		t.Fatal("ActivateNode(missing node) error = nil, want missing node error")
+	if _, err := runtime.ActivateNode(context.Background(), ActivateNodeRequest{NodeID: 4}); !errors.Is(err, ErrNodeLifecycleNotFound) {
+		t.Fatalf("ActivateNode(missing node) error = %v, want ErrNodeLifecycleNotFound", err)
 	}
 	st, err := runtime.LocalState(context.Background())
 	if err != nil {
@@ -676,8 +677,8 @@ func TestRuntimeActivateNodeRejectsMissingOrNonJoiningNode(t *testing.T) {
 	if err := runtime.publishFromState(context.Background()); err != nil {
 		t.Fatalf("publishFromState() error = %v", err)
 	}
-	if _, err := runtime.ActivateNode(context.Background(), ActivateNodeRequest{NodeID: 5}); err == nil {
-		t.Fatal("ActivateNode(leaving node) error = nil, want non-joining error")
+	if _, err := runtime.ActivateNode(context.Background(), ActivateNodeRequest{NodeID: 5}); !errors.Is(err, ErrNodeLifecycleConflict) {
+		t.Fatalf("ActivateNode(leaving node) error = %v, want ErrNodeLifecycleConflict", err)
 	}
 }
 

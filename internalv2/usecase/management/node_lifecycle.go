@@ -3,15 +3,21 @@ package management
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
+	cv2 "github.com/WuKongIM/WuKongIM/pkg/controllerv2"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
 var (
 	// ErrNodeLifecycleUnavailable reports that node lifecycle writes are not configured.
 	ErrNodeLifecycleUnavailable = errors.New("internalv2/usecase/management: node lifecycle unavailable")
+	// ErrNodeLifecycleConflict reports that a node lifecycle write conflicts with cluster state.
+	ErrNodeLifecycleConflict = errors.New("internalv2/usecase/management: node lifecycle conflict")
+	// ErrNodeLifecycleNotFound reports that a node lifecycle write targets a missing node.
+	ErrNodeLifecycleNotFound = errors.New("internalv2/usecase/management: node lifecycle node not found")
 )
 
 // JoinNodeRequest is the manager-facing data-node join intent.
@@ -80,7 +86,7 @@ func (a *App) JoinNode(ctx context.Context, req JoinNodeRequest) (JoinNodeRespon
 		CapacityWeight: req.CapacityWeight,
 	})
 	if err != nil {
-		return JoinNodeResponse{}, err
+		return JoinNodeResponse{}, mapNodeLifecycleError(err)
 	}
 	return JoinNodeResponse{
 		Created:   result.Created,
@@ -104,7 +110,7 @@ func (a *App) ActivateNode(ctx context.Context, req ActivateNodeRequest) (Activa
 	}
 	result, err := a.nodeLifecycle.ActivateNode(ctx, control.ActivateNodeRequest{NodeID: req.NodeID})
 	if err != nil {
-		return ActivateNodeResponse{}, err
+		return ActivateNodeResponse{}, mapNodeLifecycleError(err)
 	}
 	return ActivateNodeResponse{
 		Changed:   result.Changed,
@@ -113,4 +119,15 @@ func (a *App) ActivateNode(ctx context.Context, req ActivateNodeRequest) (Activa
 		JoinState: string(result.Node.JoinState),
 		Revision:  result.Revision,
 	}, nil
+}
+
+func mapNodeLifecycleError(err error) error {
+	switch {
+	case errors.Is(err, cv2.ErrNodeLifecycleConflict):
+		return fmt.Errorf("%w: %v", ErrNodeLifecycleConflict, err)
+	case errors.Is(err, cv2.ErrNodeLifecycleNotFound):
+		return fmt.Errorf("%w: %v", ErrNodeLifecycleNotFound, err)
+	default:
+		return err
+	}
 }

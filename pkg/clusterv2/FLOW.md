@@ -53,7 +53,12 @@ Manager Slot leader transfer enters clusterv2 through
 `Node.RequestSlotLeaderTransfer`, which only foreground-checks and delegates
 the already-validated intent to the control runtime. When the
 receiving node is not the Controller leader, the existing control task RPC
-forwarding path carries the creation request to the Controller leader. The
+forwarding path carries the creation request to the Controller leader.
+Manager node join and activation writes enter clusterv2 through
+`Node.JoinNode` and `Node.ActivateNode`, which only foreground-check and
+delegate the validated lifecycle intent to the control runtime; non-leader
+Controller runtimes forward those writes through the generic control-write RPC
+path. The
 default transport-backed
 typed RPC client uses a larger per-priority write queue than the generic
 transport default so short foreground RPC fanout bursts are absorbed before

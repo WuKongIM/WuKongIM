@@ -87,7 +87,9 @@ idempotent no-op results. `/manager/nodes/:node_id/activate` parses the target
 node from the path, accepts an empty body, delegates to the same lifecycle
 usecase, and returns `202 Accepted` when activation changes state or `200 OK`
 when it is already active. These routes do not seed node RPC, poll peer
-startup, or perform Slot rebalance work.
+startup, or perform Slot rebalance work. Lifecycle conflicts return
+`409 conflict`, missing activation targets return `404 not_found`, and
+unwired or not-ready control writers return `503 service_unavailable`.
 
 `/manager/realtime-monitor` backs the unified web realtime monitor under
 cluster operations. It parses chart `window`, optional `step`, optional

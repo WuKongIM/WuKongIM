@@ -243,6 +243,10 @@ New(Config)
      trace/message/event queries and
      tracking-rule mutations use the internalv2 diagnostics store locally and
      route selected non-local nodes through the manager diagnostics RPC path;
+     node lifecycle join/activation requests wire the management lifecycle
+     writer when clusterv2 exposes Controller-backed lifecycle writes, keeping
+     validation in the management usecase and durable membership mutation in
+     clusterv2 control;
      when `Top.APIEnabled` creates a top collector,
      attach the local top provider so `/manager/runtime/workqueues` can expose
      local runtime pressure; attach one Prometheus-backed realtime monitor

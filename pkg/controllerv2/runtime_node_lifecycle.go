@@ -145,15 +145,15 @@ func buildJoinNode(st ClusterState, req JoinNodeRequest) (Node, bool, error) {
 	for _, existing := range st.Nodes {
 		if existing.NodeID == req.NodeID {
 			if existing.Addr != addr {
-				return Node{}, false, fmt.Errorf("controllerv2: node %d already uses addr %q", req.NodeID, existing.Addr)
+				return Node{}, false, fmt.Errorf("%w: node %d already uses addr %q", ErrNodeLifecycleConflict, req.NodeID, existing.Addr)
 			}
 			if existing.JoinState == NodeJoinStateActive || existing.JoinState == NodeJoinStateJoining {
 				return existing, false, nil
 			}
-			return Node{}, false, fmt.Errorf("controllerv2: node %d is %s", req.NodeID, existing.JoinState)
+			return Node{}, false, fmt.Errorf("%w: node %d is %s", ErrNodeLifecycleConflict, req.NodeID, existing.JoinState)
 		}
 		if existing.Addr == addr {
-			return Node{}, false, fmt.Errorf("controllerv2: addr %q already belongs to node %d", addr, existing.NodeID)
+			return Node{}, false, fmt.Errorf("%w: addr %q already belongs to node %d", ErrNodeLifecycleConflict, addr, existing.NodeID)
 		}
 	}
 	weight := req.CapacityWeight
@@ -183,14 +183,14 @@ func buildActivateNode(st ClusterState, req ActivateNodeRequest) (Node, bool, er
 			return existing, false, nil
 		}
 		if existing.JoinState != NodeJoinStateJoining {
-			return Node{}, false, fmt.Errorf("controllerv2: node %d is %s", req.NodeID, existing.JoinState)
+			return Node{}, false, fmt.Errorf("%w: node %d is %s", ErrNodeLifecycleConflict, req.NodeID, existing.JoinState)
 		}
 		node := existing
 		node.JoinState = NodeJoinStateActive
 		node.Status = NodeStatusAlive
 		return node, true, nil
 	}
-	return Node{}, false, fmt.Errorf("controllerv2: node %d not found", req.NodeID)
+	return Node{}, false, fmt.Errorf("%w: node %d", ErrNodeLifecycleNotFound, req.NodeID)
 }
 
 func normalizeJoinRoles(roles []NodeRole) []NodeRole {

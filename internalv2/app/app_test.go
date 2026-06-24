@@ -823,6 +823,59 @@ func TestManagerServerRequestsSlotLeaderTransferFromClusterControl(t *testing.T)
 	}
 }
 
+func TestManagerServerJoinsNodeFromClusterControl(t *testing.T) {
+	cluster := &fakeManagerCluster{
+		nodeID: 1,
+		joinNodeResult: control.JoinNodeResult{
+			Created:  true,
+			Revision: 12,
+			Node: control.Node{
+				NodeID:    4,
+				Addr:      "10.0.0.4:11110",
+				JoinState: control.NodeJoinStateJoining,
+			},
+		},
+	}
+	app, err := newTestApp(t, Config{
+		Manager: ManagerConfig{
+			ListenAddr: "127.0.0.1:0",
+			AuthOn:     true,
+			JWTSecret:  "test-secret",
+			JWTIssuer:  "wukongim-manager",
+			JWTExpire:  time.Hour,
+			Users: []ManagerUserConfig{{
+				Username: "admin",
+				Password: "secret",
+				Permissions: []ManagerPermissionConfig{{
+					Resource: "cluster.node",
+					Actions:  []string{"w"},
+				}},
+			}},
+		},
+	}, WithCluster(cluster), WithGateway(nil))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	srv, ok := app.manager.(*accessmanager.Server)
+	if !ok {
+		t.Fatalf("manager = %T, want *accessmanager.Server", app.manager)
+	}
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/manager/nodes/join", strings.NewReader(`{"node_id":4,"name":"node-4","addr":"10.0.0.4:11110","capacity_weight":2}`))
+	req.Header.Set("Authorization", "Bearer "+mustIssueManagerTokenForAppTest(t, srv, "admin"))
+	req.Header.Set("Content-Type", "application/json")
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusAccepted, rec.Body.String())
+	}
+	if cluster.joinNodeRequest.NodeID != 4 || cluster.joinNodeRequest.Name != "node-4" || cluster.joinNodeRequest.Addr != "10.0.0.4:11110" || cluster.joinNodeRequest.CapacityWeight != 2 {
+		t.Fatalf("join request = %#v, want parsed lifecycle request", cluster.joinNodeRequest)
+	}
+}
+
 func TestManagerServerReadsControllerRaftStatusFromClusterOperator(t *testing.T) {
 	cluster := &fakeManagerCluster{
 		nodeID: 1,
@@ -4989,6 +5042,10 @@ type fakeManagerCluster struct {
 
 	slotLeaderTransferRequest control.SlotLeaderTransferRequest
 	slotLeaderTransferResult  control.SlotLeaderTransferResult
+	joinNodeRequest           control.JoinNodeRequest
+	joinNodeResult            control.JoinNodeResult
+	activateNodeRequest       control.ActivateNodeRequest
+	activateNodeResult        control.ActivateNodeResult
 	retentionAdvance          metadb.ChannelRetentionAdvance
 }
 
@@ -5045,6 +5102,16 @@ func (f *fakeManagerCluster) LocalCompactSlotRaftLog(_ context.Context, slotID u
 func (f *fakeManagerCluster) RequestSlotLeaderTransfer(_ context.Context, req control.SlotLeaderTransferRequest) (control.SlotLeaderTransferResult, error) {
 	f.slotLeaderTransferRequest = req
 	return f.slotLeaderTransferResult, nil
+}
+
+func (f *fakeManagerCluster) JoinNode(_ context.Context, req control.JoinNodeRequest) (control.JoinNodeResult, error) {
+	f.joinNodeRequest = req
+	return f.joinNodeResult, nil
+}
+
+func (f *fakeManagerCluster) ActivateNode(_ context.Context, req control.ActivateNodeRequest) (control.ActivateNodeResult, error) {
+	f.activateNodeRequest = req
+	return f.activateNodeResult, nil
 }
 
 func (f *fakeManagerCluster) LocalControlSnapshot(context.Context) (control.Snapshot, error) {

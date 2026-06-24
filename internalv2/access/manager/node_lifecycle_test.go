@@ -106,6 +106,8 @@ func TestManagerJoinAndActivateNodeRoutesMapErrors(t *testing.T) {
 		code   string
 	}{
 		{name: "invalid argument", err: metadb.ErrInvalidArgument, status: http.StatusBadRequest, code: "bad_request"},
+		{name: "node not found", err: managementusecase.ErrNodeLifecycleNotFound, status: http.StatusNotFound, code: "not_found"},
+		{name: "node conflict", err: managementusecase.ErrNodeLifecycleConflict, status: http.StatusConflict, code: "conflict"},
 		{name: "lifecycle unavailable", err: managementusecase.ErrNodeLifecycleUnavailable, status: http.StatusServiceUnavailable, code: "service_unavailable"},
 		{name: "not started", err: clusterv2.ErrNotStarted, status: http.StatusServiceUnavailable, code: "service_unavailable"},
 		{name: "not leader", err: clusterv2.ErrNotLeader, status: http.StatusServiceUnavailable, code: "service_unavailable"},

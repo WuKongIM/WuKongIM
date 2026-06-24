@@ -16,6 +16,7 @@ routes manager connection reads over clusterv2 node RPC, routes manager
 distributed log reads to node-local clusterv2 log storage or peer RPC, routes
 manager Slot Raft status and compaction operations to the selected node-local clusterv2
 operation or peer RPC, adapts manager Slot leader transfer intents to
+clusterv2 control, adapts manager node lifecycle join/activation writes to
 clusterv2 control, routes manager Controller Raft operations to node-local
 clusterv2 operations or peer RPC, routes ordinary application log reads to the
 selected node's app-owned local reader or peer RPC, routes manager DB Inspect
@@ -29,9 +30,10 @@ adapts presence/delivery ports to clusterv2 routing and node RPC.
 
 `ManagementSnapshotReader` adapts `pkg/clusterv2.Node` control snapshots to the
 internalv2 management usecase. It only exposes local control snapshot reads and
-the local node ID for read-only manager node and Slot list rendering;
-lifecycle, scale-in, onboarding, and Slot operations other than explicit
-node-local Raft compaction stay unmigrated.
+the local node ID for read-only manager node and Slot list rendering. Node
+lifecycle writes are exposed through the separate
+`ManagementNodeLifecycleAdapter`; scale-in, onboarding, and Slot operations
+other than explicit node-local Raft compaction stay unmigrated.
 
 ## Management Channel List Flow
 
@@ -271,6 +273,20 @@ management.SlotLeaderTransferWriter
 The leader-transfer adapters do not implement Slot Raft mechanics. They expose
 the local Slot Raft leader/voter status needed by the management usecase
 preflight, then pass the validated control intent into clusterv2 control.
+
+## Management Node Lifecycle Flow
+
+```text
+management.NodeLifecycleWriter
+  -> clusterv2.JoinNode(control.JoinNodeRequest)
+  -> clusterv2.ActivateNode(control.ActivateNodeRequest)
+  -> clusterv2 control runtime
+```
+
+`ManagementNodeLifecycleAdapter` does not inspect readiness or rebalance Slots.
+It only passes manager-validated node join and activation intents into the
+clusterv2 control facade and preserves typed control errors for the management
+usecase to map to operator-facing responses.
 
 ## Management Application Log Flow
 

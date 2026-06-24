@@ -124,6 +124,10 @@ func writeNodeLifecycleError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, metadb.ErrInvalidArgument):
 		jsonError(c, http.StatusBadRequest, "bad_request", "bad_request")
+	case errors.Is(err, managementusecase.ErrNodeLifecycleNotFound):
+		jsonError(c, http.StatusNotFound, "not_found", "not_found")
+	case errors.Is(err, managementusecase.ErrNodeLifecycleConflict):
+		jsonError(c, http.StatusConflict, "conflict", "conflict")
 	case errors.Is(err, managementusecase.ErrNodeLifecycleUnavailable),
 		errors.Is(err, clusterv2.ErrNotStarted),
 		errors.Is(err, clusterv2.ErrNotLeader),

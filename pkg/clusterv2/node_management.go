@@ -38,3 +38,43 @@ func (n *Node) RequestSlotLeaderTransfer(ctx context.Context, req control.SlotLe
 	}
 	return writer.RequestSlotLeaderTransfer(ctx, req)
 }
+
+// JoinNode submits a Controller-backed data-node join intent.
+func (n *Node) JoinNode(ctx context.Context, req control.JoinNodeRequest) (control.JoinNodeResult, error) {
+	if err := ctxErr(ctx); err != nil {
+		return control.JoinNodeResult{}, err
+	}
+	if err := n.ensureForeground(); err != nil {
+		return control.JoinNodeResult{}, err
+	}
+	if n.control == nil {
+		return control.JoinNodeResult{}, ErrNotStarted
+	}
+	writer, ok := n.control.(interface {
+		JoinNode(context.Context, control.JoinNodeRequest) (control.JoinNodeResult, error)
+	})
+	if !ok {
+		return control.JoinNodeResult{}, ErrNotStarted
+	}
+	return writer.JoinNode(ctx, req)
+}
+
+// ActivateNode submits a Controller-backed node activation intent.
+func (n *Node) ActivateNode(ctx context.Context, req control.ActivateNodeRequest) (control.ActivateNodeResult, error) {
+	if err := ctxErr(ctx); err != nil {
+		return control.ActivateNodeResult{}, err
+	}
+	if err := n.ensureForeground(); err != nil {
+		return control.ActivateNodeResult{}, err
+	}
+	if n.control == nil {
+		return control.ActivateNodeResult{}, ErrNotStarted
+	}
+	writer, ok := n.control.(interface {
+		ActivateNode(context.Context, control.ActivateNodeRequest) (control.ActivateNodeResult, error)
+	})
+	if !ok {
+		return control.ActivateNodeResult{}, ErrNotStarted
+	}
+	return writer.ActivateNode(ctx, req)
+}

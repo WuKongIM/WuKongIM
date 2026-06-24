@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
+	cv2 "github.com/WuKongIM/WuKongIM/pkg/controllerv2"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
@@ -59,6 +60,16 @@ func TestJoinNodeRejectsInvalidInputAndMissingWriter(t *testing.T) {
 	}
 }
 
+func TestJoinNodeMapsControlLifecycleConflict(t *testing.T) {
+	app := New(Options{NodeLifecycle: &nodeLifecycleWriterStub{joinErr: cv2.ErrNodeLifecycleConflict}})
+
+	_, err := app.JoinNode(context.Background(), JoinNodeRequest{NodeID: 4, Addr: "10.0.0.4:11110"})
+
+	if !errors.Is(err, ErrNodeLifecycleConflict) {
+		t.Fatalf("JoinNode() error = %v, want ErrNodeLifecycleConflict", err)
+	}
+}
+
 func TestActivateNodeDelegates(t *testing.T) {
 	writer := &nodeLifecycleWriterStub{
 		activateResult: control.ActivateNodeResult{
@@ -92,6 +103,28 @@ func TestActivateNodeRejectsInvalidInputAndMissingWriter(t *testing.T) {
 	}
 	if _, err := New(Options{}).ActivateNode(context.Background(), ActivateNodeRequest{NodeID: 4}); !errors.Is(err, ErrNodeLifecycleUnavailable) {
 		t.Fatalf("ActivateNode() missing writer error = %v, want ErrNodeLifecycleUnavailable", err)
+	}
+}
+
+func TestActivateNodeMapsControlLifecycleErrors(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want error
+	}{
+		{name: "missing", err: cv2.ErrNodeLifecycleNotFound, want: ErrNodeLifecycleNotFound},
+		{name: "conflict", err: cv2.ErrNodeLifecycleConflict, want: ErrNodeLifecycleConflict},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			app := New(Options{NodeLifecycle: &nodeLifecycleWriterStub{activateErr: tt.err}})
+
+			_, err := app.ActivateNode(context.Background(), ActivateNodeRequest{NodeID: 4})
+
+			if !errors.Is(err, tt.want) {
+				t.Fatalf("ActivateNode() error = %v, want %v", err, tt.want)
+			}
+		})
 	}
 }
 

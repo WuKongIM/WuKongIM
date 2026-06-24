@@ -922,6 +922,9 @@ func (a *App) newManagerManagement() accessmanager.Management {
 		if leaderTransferNode, ok := a.cluster.(clusterinfra.ManagementLeaderTransferNode); ok {
 			opts.LeaderTransfer = clusterinfra.NewManagementLeaderTransferAdapter(leaderTransferNode)
 		}
+		if lifecycleNode, ok := a.cluster.(clusterinfra.ManagementNodeLifecycleNode); ok {
+			opts.NodeLifecycle = clusterinfra.NewManagementNodeLifecycleAdapter(lifecycleNode)
+		}
 		return managementusecase.New(opts)
 	}
 	return nil
