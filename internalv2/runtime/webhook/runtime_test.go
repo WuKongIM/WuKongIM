@@ -203,6 +203,10 @@ func TestRuntimeAdmissionBeforeStartAndStopAreSafe(t *testing.T) {
 	if err := nilRuntime.Stop(context.Background()); err != nil {
 		t.Fatalf("nil Stop() error = %v", err)
 	}
+	var zeroRuntime Runtime
+	if err := zeroRuntime.Stop(context.Background()); err != nil {
+		t.Fatalf("zero-value Stop() error = %v", err)
+	}
 
 	observer := &recordingObserver{}
 	rt, err := New(RuntimeOptions{
@@ -229,6 +233,40 @@ func TestRuntimeAdmissionBeforeStartAndStopAreSafe(t *testing.T) {
 	}
 	if !observer.hasResult(EventMsgNotify, "closed") {
 		t.Fatalf("pre-start admission was not observed as closed: %#v", observer.snapshot())
+	}
+}
+
+func TestRuntimeRejectsStartAndAdmissionAfterStop(t *testing.T) {
+	observer := &recordingObserver{}
+	rt, err := New(RuntimeOptions{
+		Sender:              &recordingSender{requests: make(chan SendRequest, 1)},
+		Observer:            observer,
+		QueueSize:           4,
+		Workers:             1,
+		NotifyBatchMaxItems: 1,
+		NotifyBatchMaxWait:  time.Millisecond,
+		OnlineBatchMaxItems: 1,
+		OnlineBatchMaxWait:  time.Millisecond,
+		OfflineUIDBatchSize: 1,
+		RequestTimeout:      time.Second,
+		RetryMaxAttempts:    1,
+	})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	if err := rt.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	if err := rt.Stop(context.Background()); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+	if err := rt.Start(context.Background()); err == nil {
+		t.Fatalf("Start() after Stop error = nil, want error")
+	}
+
+	rt.Notify(context.Background(), Message{MessageID: 1, MessageSeq: 1})
+	if !observer.hasResult(EventMsgNotify, "closed") {
+		t.Fatalf("post-stop admission was not observed as closed: %#v", observer.snapshot())
 	}
 }
 
@@ -280,6 +318,70 @@ func TestRuntimeSendsOfflineAndOnlineStatusEvents(t *testing.T) {
 	}
 }
 
+func TestOfflineMailboxSizingNeverExceedsQueueSize(t *testing.T) {
+	for _, queueSize := range []int{1, 2, 255, 256, 257, 1024} {
+		shards, perShard := offlineMailboxSizing(queueSize)
+		if shards <= 0 {
+			t.Fatalf("queueSize=%d shards=%d, want positive", queueSize, shards)
+		}
+		if perShard <= 0 {
+			t.Fatalf("queueSize=%d perShard=%d, want positive", queueSize, perShard)
+		}
+		if got := shards * perShard; got > queueSize {
+			t.Fatalf("queueSize=%d aggregate capacity=%d, want <= queueSize", queueSize, got)
+		}
+	}
+}
+
+func TestRuntimeStopsRetryingWhenParentContextIsCanceled(t *testing.T) {
+	parentCtx, cancel := context.WithCancel(context.Background())
+	sender := &cancelingSender{cancel: cancel}
+	rt, err := New(RuntimeOptions{
+		Sender:              sender,
+		QueueSize:           4,
+		Workers:             1,
+		NotifyBatchMaxItems: 1,
+		NotifyBatchMaxWait:  time.Millisecond,
+		OnlineBatchMaxItems: 1,
+		OnlineBatchMaxWait:  time.Millisecond,
+		OfflineUIDBatchSize: 1,
+		RequestTimeout:      time.Second,
+		RetryMaxAttempts:    3,
+	})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	rt.sendWithRetry(parentCtx, EventMsgNotify, []byte(`[]`), 1)
+	if got := sender.calls.Load(); got != 1 {
+		t.Fatalf("sender calls = %d, want 1", got)
+	}
+}
+
+func TestRuntimeRetriesPerAttemptTimeouts(t *testing.T) {
+	sender := &timeoutSender{}
+	rt, err := New(RuntimeOptions{
+		Sender:              sender,
+		QueueSize:           4,
+		Workers:             1,
+		NotifyBatchMaxItems: 1,
+		NotifyBatchMaxWait:  time.Millisecond,
+		OnlineBatchMaxItems: 1,
+		OnlineBatchMaxWait:  time.Millisecond,
+		OfflineUIDBatchSize: 1,
+		RequestTimeout:      time.Millisecond,
+		RetryMaxAttempts:    2,
+	})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	rt.sendWithRetry(context.Background(), EventMsgNotify, []byte(`[]`), 1)
+	if got := sender.calls.Load(); got != 2 {
+		t.Fatalf("sender calls = %d, want 2", got)
+	}
+}
+
 type recordingSender struct {
 	requests chan SendRequest
 }
@@ -326,6 +428,27 @@ type failingSender struct {
 func (s *failingSender) Send(context.Context, SendRequest) error {
 	s.calls.Add(1)
 	return errors.New("send failed")
+}
+
+type cancelingSender struct {
+	calls  atomic.Int64
+	cancel context.CancelFunc
+}
+
+func (s *cancelingSender) Send(context.Context, SendRequest) error {
+	s.calls.Add(1)
+	s.cancel()
+	return errors.New("parent canceled")
+}
+
+type timeoutSender struct {
+	calls atomic.Int64
+}
+
+func (s *timeoutSender) Send(ctx context.Context, _ SendRequest) error {
+	s.calls.Add(1)
+	<-ctx.Done()
+	return ctx.Err()
 }
 
 type recordingObserver struct {

@@ -28,6 +28,15 @@ const (
 	defaultOfflineShards = 256
 )
 
+type runtimeState uint8
+
+const (
+	runtimeStateNew runtimeState = iota
+	runtimeStateStarted
+	runtimeStateStopping
+	runtimeStateStopped
+)
+
 // RuntimeOptions configures the bounded webhook runtime.
 type RuntimeOptions struct {
 	// Sender delivers encoded webhook requests.
@@ -64,6 +73,8 @@ type Runtime struct {
 	focus    map[string]struct{}
 
 	mu      sync.RWMutex
+	state   runtimeState
+	stopCh  chan struct{}
 	notify  *workqueue.BoundedBatchPool[Message]
 	online  *workqueue.BoundedBatchPool[OnlineStatus]
 	offline *workqueue.ShardedMailbox[OfflineMessage]
@@ -91,6 +102,7 @@ func New(opts RuntimeOptions) (*Runtime, error) {
 		sender:   opts.Sender,
 		observer: opts.Observer,
 		focus:    make(map[string]struct{}, len(opts.FocusEvents)),
+		stopCh:   make(chan struct{}),
 	}
 	for _, event := range opts.FocusEvents {
 		if event != "" {
@@ -114,9 +126,13 @@ func (r *Runtime) Start(ctx context.Context) error {
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.notify != nil || r.online != nil || r.offline != nil {
+	switch r.state {
+	case runtimeStateStarted:
 		return nil
+	case runtimeStateStopping, runtimeStateStopped:
+		return workqueue.ErrClosed
 	}
+	r.ensureStopChLocked()
 
 	notify, err := workqueue.NewBoundedBatchPool[Message](workqueue.BoundedBatchPoolConfig[Message]{
 		Name:      webhookNotifyQueue,
@@ -160,6 +176,7 @@ func (r *Runtime) Start(ctx context.Context) error {
 	r.notify = notify
 	r.online = online
 	r.offline = offline
+	r.state = runtimeStateStarted
 	return nil
 }
 
@@ -172,19 +189,41 @@ func (r *Runtime) Stop(ctx context.Context) error {
 		ctx = context.Background()
 	}
 	r.mu.Lock()
+	switch r.state {
+	case runtimeStateNew:
+		r.state = runtimeStateStopped
+		close(r.ensureStopChLocked())
+		r.mu.Unlock()
+		return nil
+	case runtimeStateStopped:
+		r.mu.Unlock()
+		return nil
+	case runtimeStateStopping:
+		stopCh := r.ensureStopChLocked()
+		r.mu.Unlock()
+		return waitForStop(ctx, stopCh)
+	}
+	r.state = runtimeStateStopping
 	notify := r.notify
 	online := r.online
 	offline := r.offline
-	r.notify = nil
-	r.online = nil
-	r.offline = nil
+	stopCh := r.ensureStopChLocked()
 	r.mu.Unlock()
 
-	return errors.Join(
+	err := errors.Join(
 		notify.Close(ctx),
 		online.Close(ctx),
 		offline.Close(ctx),
 	)
+
+	r.mu.Lock()
+	r.notify = nil
+	r.online = nil
+	r.offline = nil
+	r.state = runtimeStateStopped
+	close(stopCh)
+	r.mu.Unlock()
+	return err
 }
 
 // Notify admits one committed message for msg.notify delivery.
@@ -192,13 +231,20 @@ func (r *Runtime) Notify(ctx context.Context, msg Message) {
 	if r == nil || !r.enabled(EventMsgNotify) {
 		return
 	}
-	notify := r.notifyQueue()
-	if notify == nil {
+	msg = cloneMessage(msg)
+
+	r.mu.RLock()
+	notify := r.notify
+	if r.state != runtimeStateStarted || notify == nil {
+		r.mu.RUnlock()
 		r.observeAdmission(EventMsgNotify, webhookNotifyQueue, resultClosed, 1, 0, r.opts.QueueSize, nil)
 		return
 	}
-	err := notify.Submit(ctx, cloneMessage(msg))
-	r.observeAdmission(EventMsgNotify, webhookNotifyQueue, admissionResult(err), 1, notify.QueueDepth(), notify.QueueCapacity(), err)
+	err := notify.Submit(ctx, msg)
+	depth := notify.QueueDepth()
+	capacity := notify.QueueCapacity()
+	r.mu.RUnlock()
+	r.observeAdmission(EventMsgNotify, webhookNotifyQueue, admissionResult(err), 1, depth, capacity, err)
 }
 
 // Offline admits one bounded recipient chunk for msg.offline delivery.
@@ -206,15 +252,20 @@ func (r *Runtime) Offline(ctx context.Context, msg OfflineMessage) {
 	if r == nil || !r.enabled(EventMsgOffline) {
 		return
 	}
-	offline := r.offlineQueue()
+	msg = cloneOfflineMessage(msg)
 	items := len(msg.ToUIDs)
-	if offline == nil {
+
+	r.mu.RLock()
+	offline := r.offline
+	if r.state != runtimeStateStarted || offline == nil {
+		r.mu.RUnlock()
 		r.observeAdmission(EventMsgOffline, webhookOfflineQueue, resultClosed, items, 0, r.opts.QueueSize, nil)
 		return
 	}
-	cloned := cloneOfflineMessage(msg)
-	err := offline.Submit(ctx, cloned.Message.ChannelID, cloned)
-	r.observeAdmission(EventMsgOffline, webhookOfflineQueue, admissionResult(err), items, offline.QueueDepth(), r.opts.QueueSize, err)
+	err := offline.Submit(ctx, msg.Message.ChannelID, msg)
+	depth := offline.QueueDepth()
+	r.mu.RUnlock()
+	r.observeAdmission(EventMsgOffline, webhookOfflineQueue, admissionResult(err), items, depth, r.opts.QueueSize, err)
 }
 
 // OnlineStatus admits one legacy-compatible status record.
@@ -222,13 +273,19 @@ func (r *Runtime) OnlineStatus(ctx context.Context, status OnlineStatus) {
 	if r == nil || !r.enabled(EventUserOnlineStatus) || status.Value == "" {
 		return
 	}
-	online := r.onlineQueue()
-	if online == nil {
+
+	r.mu.RLock()
+	online := r.online
+	if r.state != runtimeStateStarted || online == nil {
+		r.mu.RUnlock()
 		r.observeAdmission(EventUserOnlineStatus, webhookOnlineQueue, resultClosed, 1, 0, r.opts.QueueSize, nil)
 		return
 	}
 	err := online.Submit(ctx, status)
-	r.observeAdmission(EventUserOnlineStatus, webhookOnlineQueue, admissionResult(err), 1, online.QueueDepth(), online.QueueCapacity(), err)
+	depth := online.QueueDepth()
+	capacity := online.QueueCapacity()
+	r.mu.RUnlock()
+	r.observeAdmission(EventUserOnlineStatus, webhookOnlineQueue, admissionResult(err), 1, depth, capacity, err)
 }
 
 func (r *Runtime) handleNotifyBatch(ctx context.Context, batch []Message) error {
@@ -273,6 +330,10 @@ func (r *Runtime) sendWithRetry(ctx context.Context, event string, body []byte, 
 		attempts = 1
 	}
 	for attempt := 1; attempt <= attempts; attempt++ {
+		if err := ctx.Err(); err != nil {
+			r.observeSend(event, contextResult(err), items, attempt, 0, err)
+			return
+		}
 		attemptCtx := ctx
 		cancel := func() {}
 		if r.opts.RequestTimeout > 0 {
@@ -284,6 +345,10 @@ func (r *Runtime) sendWithRetry(ctx context.Context, event string, body []byte, 
 		duration := time.Since(started)
 		if err == nil {
 			r.observeSend(event, resultOK, items, attempt, duration, nil)
+			return
+		}
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			r.observeSend(event, contextResult(ctxErr), items, attempt, duration, ctxErr)
 			return
 		}
 		if attempt == attempts {
@@ -305,22 +370,11 @@ func (r *Runtime) enabled(event string) bool {
 	return ok
 }
 
-func (r *Runtime) notifyQueue() *workqueue.BoundedBatchPool[Message] {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	return r.notify
-}
-
-func (r *Runtime) onlineQueue() *workqueue.BoundedBatchPool[OnlineStatus] {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	return r.online
-}
-
-func (r *Runtime) offlineQueue() *workqueue.ShardedMailbox[OfflineMessage] {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	return r.offline
+func (r *Runtime) ensureStopChLocked() chan struct{} {
+	if r.stopCh == nil {
+		r.stopCh = make(chan struct{})
+	}
+	return r.stopCh
 }
 
 func (r *Runtime) observeAdmission(event string, queue string, result string, items int, depth int, size int, err error) {
@@ -383,6 +437,17 @@ func admissionResult(err error) string {
 	}
 }
 
+func contextResult(err error) string {
+	switch {
+	case errors.Is(err, context.Canceled):
+		return resultCanceled
+	case errors.Is(err, context.DeadlineExceeded):
+		return resultTimeout
+	default:
+		return resultError
+	}
+}
+
 func cloneMessage(msg Message) Message {
 	msg.Payload = append([]byte(nil), msg.Payload...)
 	return msg
@@ -402,9 +467,17 @@ func offlineMailboxSizing(queueSize int) (int, int) {
 	if queueSize < shards {
 		shards = queueSize
 	}
-	queueSizePerShard := (queueSize + shards - 1) / shards
-	if queueSizePerShard <= 0 {
-		queueSizePerShard = 1
+	return shards, 1
+}
+
+func waitForStop(ctx context.Context, stopCh <-chan struct{}) error {
+	if ctx == nil {
+		ctx = context.Background()
 	}
-	return shards, queueSizePerShard
+	select {
+	case <-stopCh:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
