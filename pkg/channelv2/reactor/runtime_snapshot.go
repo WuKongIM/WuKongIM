@@ -48,6 +48,7 @@ func pendingWorkViewFromChannel(rc *runtimeChannel) PendingWorkView {
 		Waiters:              len(rc.waiters),
 		PullWaiters:          len(rc.pullWaiters),
 		LookupWaiters:        len(rc.lookupWaiters),
+		RetentionWaiters:     len(rc.retentionWaiters),
 		AppendQueued:         len(rc.appendQ.pending),
 		AppendQueueBlocked:   rc.appendQ.storeBlocked,
 		AppendInflight:       rc.appendInflight != nil,

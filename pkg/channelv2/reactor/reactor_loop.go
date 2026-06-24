@@ -103,6 +103,10 @@ func (r *Reactor) handle(event Event) {
 		r.handleRuntimeProbe(event)
 	case EventRuntimeEvict:
 		r.handleRuntimeEvict(event)
+	case EventRetentionView:
+		r.handleRetentionView(event)
+	case EventApplyRetentionBoundary:
+		r.handleApplyRetentionBoundary(event)
 	case EventAppend:
 		r.handleAppend(event)
 	case EventCancelWaiter:

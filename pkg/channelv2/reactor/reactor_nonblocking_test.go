@@ -328,6 +328,18 @@ func (s *blockingLoadStore) StoreCheckpoint(ctx context.Context, checkpoint ch.C
 	return s.base.StoreCheckpoint(ctx, checkpoint)
 }
 
+func (s *blockingLoadStore) LoadRetentionState(ctx context.Context) (store.RetentionState, error) {
+	return s.base.LoadRetentionState(ctx)
+}
+
+func (s *blockingLoadStore) AdoptRetentionBoundary(ctx context.Context, throughSeq uint64, cursorName string) (uint64, error) {
+	return s.base.AdoptRetentionBoundary(ctx, throughSeq, cursorName)
+}
+
+func (s *blockingLoadStore) TrimMessagesThrough(ctx context.Context, throughSeq uint64, opts store.RetentionTrimOptions) (store.RetentionTrimResult, error) {
+	return s.base.TrimMessagesThrough(ctx, throughSeq, opts)
+}
+
 func (s *blockingLoadStore) LookupMessageByID(ctx context.Context, messageID uint64) (ch.Message, bool, error) {
 	lookup, ok := s.base.(store.MessageLookup)
 	if !ok {

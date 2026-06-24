@@ -172,8 +172,18 @@ Logical channel message compaction is represented by the caller-supplied
 `RetentionThroughSeq + 1` by clusterv2. Forward committed reads clamp their
 starting sequence to this floor, reverse/latest reads stop before crossing it,
 and message DB adapter reads filter compacted rows even when physical message
-rows still exist. ChannelV2 does not range-delete rows or reset LEO for this
-first retention slice; it only enforces logical visibility.
+rows still exist.
+
+Physical retention is applied through the ChannelV2 retention runtime facade.
+Reactors first publish the monotonic logical boundary into local state, then a
+store-apply worker adopts the boundary in storage and optionally performs one
+bounded prefix trim. Physical trim is skipped unless the requested boundary is
+covered by local HW, durable checkpoint HW, local LEO, and, for leaders, the
+minimum known ISR match offset. Skipped trims still keep the adopted logical
+boundary so later retries can advance physical progress without regressing
+replica visibility. When checkpoint HW is the only missing trim gate, the
+retention runtime can submit a bounded checkpoint from the physical GC path; the
+next retry observes the checkpoint result and performs the trim.
 
 ## Channel Runtime Lifecycle Model
 

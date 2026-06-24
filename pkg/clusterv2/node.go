@@ -34,6 +34,8 @@ type channelService interface {
 	AppendBatch(context.Context, channelv2.AppendBatchRequest) (channelv2.AppendBatchResult, error)
 	ResolveAppendAuthority(context.Context, channelv2.ChannelID) (channelv2.Meta, error)
 	ReadChannelLastVisible(context.Context, channelv2.ChannelID, uint64) (channelv2.Message, bool, error)
+	RetentionView(context.Context, channelv2.ChannelID) (channelv2.RetentionView, error)
+	ApplyRetentionBoundary(context.Context, channelv2.RetentionApplyRequest) (channelv2.RetentionApplyResult, error)
 	RuntimeSnapshot(context.Context) (channelv2.RuntimeSnapshot, error)
 	RuntimeProbe(context.Context, channelv2.RuntimeSelector) (channelv2.RuntimeProbeResult, error)
 	RuntimeEvict(context.Context, channelv2.RuntimeSelector) (channelv2.RuntimeEvictResult, error)
@@ -88,17 +90,21 @@ type Node struct {
 	}
 	group lifecycle.Group
 
-	mu                sync.RWMutex
-	snapshot          Snapshot
-	controlSnapshot   control.Snapshot
-	watchCancel       context.CancelFunc
-	watchWG           sync.WaitGroup
-	channelTickCancel context.CancelFunc
-	channelTickWG     sync.WaitGroup
-	slotLeaderCancel  context.CancelFunc
-	slotLeaderWG      sync.WaitGroup
-	started           atomic.Bool
-	stopping          atomic.Bool
+	mu                     sync.RWMutex
+	snapshot               Snapshot
+	controlSnapshot        control.Snapshot
+	watchCancel            context.CancelFunc
+	watchWG                sync.WaitGroup
+	channelTickCancel      context.CancelFunc
+	channelTickWG          sync.WaitGroup
+	channelRetentionCancel context.CancelFunc
+	channelRetentionWG     sync.WaitGroup
+	channelRetentionGCMu   sync.Mutex
+	channelRetentionCursor channelv2.ChannelKey
+	slotLeaderCancel       context.CancelFunc
+	slotLeaderWG           sync.WaitGroup
+	started                atomic.Bool
+	stopping               atomic.Bool
 }
 
 // New validates cfg and creates a clusterv2 node.

@@ -169,6 +169,7 @@ func (r *Reactor) completeApplyMetaStoreLoad(rc *runtimeChannel, loading *storeL
 	state.LEO = loaded.Initial.LEO
 	state.HW = loaded.Initial.HW
 	state.CheckpointHW = loaded.Initial.CheckpointHW
+	applyLoadedRetentionState(state, loaded.Retention)
 	rc.state = state
 	rc.store = loaded.Store
 	rc.loading = nil
@@ -291,9 +292,11 @@ func (r *Reactor) completePendingMetaStoreLoad(rc *runtimeChannel, loading *stor
 		activityVersion: req.ActivityVersion,
 		deadline:        r.pendingMetaDeadline(now),
 		initial: storeInitialState{
-			LEO:          loaded.Initial.LEO,
-			HW:           loaded.Initial.HW,
-			CheckpointHW: loaded.Initial.CheckpointHW,
+			LEO:                         loaded.Initial.LEO,
+			HW:                          loaded.Initial.HW,
+			CheckpointHW:                loaded.Initial.CheckpointHW,
+			LocalRetentionThroughSeq:    loaded.Retention.LocalRetentionThroughSeq,
+			PhysicalRetentionThroughSeq: loaded.Retention.PhysicalRetentionThroughSeq,
 		},
 	}
 	r.pendingMetaCount++
@@ -323,6 +326,7 @@ func (r *Reactor) clearFencedRuntimeWork(rc *runtimeChannel, err error) {
 	r.failPendingAppendWaiters(rc, err)
 	rc.failPendingPullWaiters(err)
 	rc.failPendingLookupWaiters(err)
+	rc.failPendingRetentionWaiters(err)
 	r.clearPullCancelChannel(rc)
 	r.clearLookupCancelChannel(rc)
 	r.clearAppendCancelContexts(rc)
@@ -462,6 +466,7 @@ func (r *Reactor) ensureChannel(meta ch.Meta) (*runtimeChannel, error) {
 	state.LEO = initial.LEO
 	state.HW = initial.HW
 	state.CheckpointHW = initial.CheckpointHW
+	applyLoadedRetentionState(state, initial.Retention)
 	rc := &runtimeChannel{state: state, store: cs}
 	r.resetLoadedRuntimeStructures(rc, time.Now(), initial.LEO)
 	r.channels[key] = rc
@@ -516,9 +521,11 @@ func (r *Reactor) ensurePendingMeta(req transport.PullHintRequest) (*runtimeChan
 			activityVersion: req.ActivityVersion,
 			deadline:        r.pendingMetaDeadline(time.Now()),
 			initial: storeInitialState{
-				LEO:          initial.LEO,
-				HW:           initial.HW,
-				CheckpointHW: initial.CheckpointHW,
+				LEO:                         initial.LEO,
+				HW:                          initial.HW,
+				CheckpointHW:                initial.CheckpointHW,
+				LocalRetentionThroughSeq:    initial.Retention.LocalRetentionThroughSeq,
+				PhysicalRetentionThroughSeq: initial.Retention.PhysicalRetentionThroughSeq,
 			},
 		},
 	}
@@ -530,16 +537,25 @@ func (r *Reactor) ensurePendingMeta(req transport.PullHintRequest) (*runtimeChan
 	return rc, nil
 }
 
-func (r *Reactor) loadChannelStore(key ch.ChannelKey, id ch.ChannelID) (store.ChannelStore, store.InitialState, error) {
+type loadedChannelStoreState struct {
+	store.InitialState
+	Retention store.RetentionState
+}
+
+func (r *Reactor) loadChannelStore(key ch.ChannelKey, id ch.ChannelID) (store.ChannelStore, loadedChannelStoreState, error) {
 	cs, err := r.cfg.Store.ChannelStore(key, id)
 	if err != nil {
-		return nil, store.InitialState{}, err
+		return nil, loadedChannelStoreState{}, err
 	}
 	initial, err := cs.Load(context.Background())
 	if err != nil {
-		return cs, store.InitialState{}, err
+		return cs, loadedChannelStoreState{}, err
 	}
-	return cs, initial, nil
+	retention, err := cs.LoadRetentionState(context.Background())
+	if err != nil {
+		return cs, loadedChannelStoreState{}, err
+	}
+	return cs, loadedChannelStoreState{InitialState: initial, Retention: retention}, nil
 }
 
 func (r *Reactor) resetLoadedRuntimeStructures(rc *runtimeChannel, loadedAt time.Time, activityLEO uint64) {
@@ -616,6 +632,8 @@ func (r *Reactor) convertPendingMeta(rc *runtimeChannel, meta ch.Meta) error {
 	state.LEO = pending.initial.LEO
 	state.HW = pending.initial.HW
 	state.CheckpointHW = pending.initial.CheckpointHW
+	state.LocalRetentionThroughSeq = pending.initial.LocalRetentionThroughSeq
+	state.PhysicalRetentionThroughSeq = pending.initial.PhysicalRetentionThroughSeq
 	decision := state.ApplyMeta(meta)
 	if decision.Err != nil {
 		return decision.Err

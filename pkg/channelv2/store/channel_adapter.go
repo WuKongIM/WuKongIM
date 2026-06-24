@@ -77,6 +77,25 @@ func (f *MessageDBFactory) ChannelStore(key ch.ChannelKey, id ch.ChannelID) (Cha
 	return &messageDBChannelStoreAdapter{store: dbStore, id: id, checkpointMu: f.checkpointLock(key)}, nil
 }
 
+// ListChannelsPage returns one ordered page from the local message channel catalog.
+func (f *MessageDBFactory) ListChannelsPage(ctx context.Context, after ch.ChannelKey, limit int) ([]ChannelCatalogEntry, ch.ChannelKey, bool, error) {
+	if f == nil || f.engine == nil {
+		return nil, "", false, ch.ErrInvalidConfig
+	}
+	entries, cursor, more, err := f.engine.ListChannelsPage(ctx, messagedb.ChannelKey(after), limit)
+	if err != nil {
+		return nil, "", false, err
+	}
+	out := make([]ChannelCatalogEntry, 0, len(entries))
+	for _, entry := range entries {
+		out = append(out, ChannelCatalogEntry{
+			Key: ch.ChannelKey(entry.Key),
+			ID:  ch.ChannelID{ID: entry.ID.ID, Type: entry.ID.Type},
+		})
+	}
+	return out, ch.ChannelKey(cursor), more, nil
+}
+
 // AppendLeaderBatch appends leader records for multiple channels through one message DB batch request when possible.
 func (f *MessageDBFactory) AppendLeaderBatch(ctx context.Context, items []AppendLeaderBatchItem) []AppendLeaderBatchResult {
 	results := make([]AppendLeaderBatchResult, len(items))
@@ -306,6 +325,53 @@ func (a *messageDBChannelStoreAdapter) ReadLog(ctx context.Context, req ReadLogR
 		out = append(out, fromDBRecord(record))
 	}
 	return ReadLogResult{Records: out}, nil
+}
+
+func (a *messageDBChannelStoreAdapter) LoadRetentionState(ctx context.Context) (RetentionState, error) {
+	if err := ctx.Err(); err != nil {
+		return RetentionState{}, err
+	}
+	state, err := a.store.LoadRetentionState()
+	if err != nil {
+		return RetentionState{}, err
+	}
+	return RetentionState{
+		LocalRetentionThroughSeq:    state.LocalRetentionThroughSeq,
+		PhysicalRetentionThroughSeq: state.PhysicalRetentionThroughSeq,
+		RetainedMaxSeq:              state.RetainedMaxSeq,
+	}, nil
+}
+
+func (a *messageDBChannelStoreAdapter) AdoptRetentionBoundary(ctx context.Context, throughSeq uint64, cursorName string) (uint64, error) {
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
+	if err := a.store.AdoptRetentionBoundary(ctx, throughSeq, cursorName); err != nil {
+		return 0, err
+	}
+	state, err := a.LoadRetentionState(ctx)
+	if err != nil {
+		return 0, err
+	}
+	return state.RetainedMaxSeq, nil
+}
+
+func (a *messageDBChannelStoreAdapter) TrimMessagesThrough(ctx context.Context, throughSeq uint64, opts RetentionTrimOptions) (RetentionTrimResult, error) {
+	if err := ctx.Err(); err != nil {
+		return RetentionTrimResult{}, err
+	}
+	result, err := a.store.TrimMessagesThroughLimit(ctx, throughSeq, messagedb.RetentionTrimOptions{
+		MaxMessages: opts.MaxMessages,
+		MaxBytes:    opts.MaxBytes,
+	})
+	if err != nil {
+		return RetentionTrimResult{}, err
+	}
+	return RetentionTrimResult{
+		DeletedThroughSeq: result.DeletedThroughSeq,
+		Deleted:           result.Deleted,
+		More:              result.More,
+	}, nil
 }
 
 func (a *messageDBChannelStoreAdapter) StoreCheckpoint(ctx context.Context, checkpoint ch.Checkpoint) error {

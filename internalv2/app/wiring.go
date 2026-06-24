@@ -39,6 +39,10 @@ func (a *App) applyConfigDefaults() error {
 	if err := validateMessageConfig(a.cfg.Message); err != nil {
 		return err
 	}
+	a.cfg.ChannelMessageRetention = defaultChannelMessageRetentionConfig(a.cfg.ChannelMessageRetention)
+	if err := validateChannelMessageRetentionConfig(a.cfg.ChannelMessageRetention); err != nil {
+		return err
+	}
 	a.cfg.Presence = defaultPresenceConfig(a.cfg.Presence)
 	if err := validatePresenceConfig(a.cfg.Presence); err != nil {
 		return err

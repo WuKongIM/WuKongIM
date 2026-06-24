@@ -18,6 +18,7 @@ import (
 type MessageRetentionNode interface {
 	NodeID() uint64
 	GetChannelRuntimeMeta(context.Context, string, int64) (metadb.ChannelRuntimeMeta, error)
+	ChannelRetentionView(context.Context, channelv2.ChannelID) (channelv2.RetentionView, error)
 	ReadChannelCommitted(context.Context, channelv2.ChannelID, channelstore.ReadCommittedRequest) (channelstore.ReadCommittedResult, error)
 	AdvanceChannelRetentionThroughSeq(context.Context, metadb.ChannelRetentionAdvance) error
 }
@@ -74,21 +75,24 @@ func (o *ManagementMessageRetentionOperator) AdvanceMessageRetention(ctx context
 		return managementusecase.AdvanceMessageRetentionResponse{}, channelappend.ErrNotLeader
 	}
 
+	channelID := channelv2.ChannelID{ID: req.ChannelID, Type: uint8(req.ChannelType)}
+	view, err := o.node.ChannelRetentionView(ctx, channelID)
+	if err != nil {
+		return managementusecase.AdvanceMessageRetentionResponse{}, mapMessageRetentionError(err)
+	}
 	latestSeq, err := o.latestCommittedSeq(ctx, req, current)
 	if err != nil {
 		return managementusecase.AdvanceMessageRetentionResponse{}, err
 	}
-	safeSeq := req.ThroughSeq
-	blockedReason := managementusecase.MessageRetentionBlockedReasonNone
-	if latestSeq < safeSeq {
-		safeSeq = latestSeq
-		blockedReason = managementusecase.MessageRetentionBlockedReasonHW
-	}
-	if safeSeq <= current {
+	safeSeq, blockedReason := retentionSafeBoundary(req.ThroughSeq, latestSeq, view)
+	if safeSeq < req.ThroughSeq {
 		if blockedReason == managementusecase.MessageRetentionBlockedReasonNone {
 			blockedReason = managementusecase.MessageRetentionBlockedReasonCurrentBoundary
 		}
-		return retentionResponse(req, current, managementusecase.MessageRetentionStatusBlocked, blockedReason), nil
+		if safeSeq < current {
+			safeSeq = current
+		}
+		return retentionResponse(req, safeSeq, managementusecase.MessageRetentionStatusBlocked, blockedReason), nil
 	}
 	if req.DryRun {
 		return retentionResponse(req, safeSeq, managementusecase.MessageRetentionStatusWouldAdvance, managementusecase.MessageRetentionBlockedReasonNone), nil
@@ -126,6 +130,27 @@ func (o *ManagementMessageRetentionOperator) latestCommittedSeq(ctx context.Cont
 		return 0, nil
 	}
 	return read.Messages[0].MessageSeq, nil
+}
+
+func retentionSafeBoundary(requestedThroughSeq uint64, latestCommittedSeq uint64, view channelv2.RetentionView) (uint64, managementusecase.MessageRetentionBlockedReason) {
+	if latestCommittedSeq == 0 {
+		return 0, managementusecase.MessageRetentionBlockedReasonNoCommittedMessage
+	}
+	safeSeq := requestedThroughSeq
+	reason := managementusecase.MessageRetentionBlockedReasonNone
+	if latestCommittedSeq < safeSeq {
+		safeSeq = latestCommittedSeq
+		reason = managementusecase.MessageRetentionBlockedReasonHW
+	}
+	if view.HW < safeSeq {
+		safeSeq = view.HW
+		reason = managementusecase.MessageRetentionBlockedReasonHW
+	}
+	if view.MinISRMatchOffset < safeSeq {
+		safeSeq = view.MinISRMatchOffset
+		reason = managementusecase.MessageRetentionBlockedReasonMinISRMatchOffset
+	}
+	return safeSeq, reason
 }
 
 func (o *ManagementMessageRetentionOperator) currentTime() time.Time {

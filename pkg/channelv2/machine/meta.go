@@ -17,6 +17,9 @@ func (s *ChannelState) ApplyMeta(meta ch.Meta) Decision {
 	s.Replicas = copyNodeIDs(meta.Replicas)
 	s.ISR = copyNodeIDs(meta.ISR)
 	s.MinISR = meta.MinISR
+	if meta.RetentionThroughSeq > s.RetentionThroughSeq {
+		s.RetentionThroughSeq = meta.RetentionThroughSeq
+	}
 	s.Status = meta.Status
 	if meta.Status == ch.StatusDeleted {
 		s.CommitReady = false

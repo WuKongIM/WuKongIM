@@ -184,6 +184,7 @@ func TestTaskRunStoreCheckpoint(t *testing.T) {
 
 	res := task.Run(context.Background(), Deps{Stores: factory})
 	require.NoError(t, res.Err)
+	require.Equal(t, uint64(4), res.StoreCheckpoint.Checkpoint.HW)
 	cs, err = factory.ChannelStore(key, id)
 	require.NoError(t, err)
 	loaded, err := cs.Load(context.Background())

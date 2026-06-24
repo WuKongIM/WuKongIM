@@ -20,6 +20,8 @@ type Result struct {
 	RuntimeActivationRejectedTotal uint64
 	RuntimeProbe                   ch.RuntimeProbeResult
 	RuntimeEvict                   ch.RuntimeEvictResult
+	RetentionView                  ch.RetentionView
+	RetentionApply                 ch.RetentionApplyResult
 	Err                            error
 }
 

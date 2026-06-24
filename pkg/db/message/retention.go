@@ -52,6 +52,15 @@ func (l *ChannelLog) StoreRetentionState(ctx context.Context, state RetentionSta
 
 // TrimPrefixThrough physically deletes message rows at or below throughSeq.
 func (l *ChannelLog) TrimPrefixThrough(ctx context.Context, throughSeq uint64) (RetentionTrimResult, error) {
+	return l.TrimPrefixThroughLimit(ctx, throughSeq, RetentionTrimOptions{})
+}
+
+// TrimPrefixThroughLimit physically deletes a bounded message prefix at or below throughSeq.
+func (l *ChannelLog) TrimPrefixThroughLimit(ctx context.Context, throughSeq uint64, opts RetentionTrimOptions) (RetentionTrimResult, error) {
+	return l.trimPrefixThroughLimit(ctx, throughSeq, opts, true)
+}
+
+func (l *ChannelLog) trimPrefixThroughLimit(ctx context.Context, throughSeq uint64, opts RetentionTrimOptions, adoptBoundary bool) (RetentionTrimResult, error) {
 	if err := ctx.Err(); err != nil {
 		return RetentionTrimResult{}, err
 	}
@@ -69,11 +78,6 @@ func (l *ChannelLog) TrimPrefixThrough(ctx context.Context, throughSeq uint64) (
 	if err != nil {
 		return RetentionTrimResult{}, err
 	}
-	messages, err := l.Read(ctx, 1, ReadOptions{})
-	if err != nil {
-		return RetentionTrimResult{}, err
-	}
-
 	state, ok, err := l.LoadRetentionState(ctx)
 	if err != nil {
 		return RetentionTrimResult{}, err
@@ -81,33 +85,61 @@ func (l *ChannelLog) TrimPrefixThrough(ctx context.Context, throughSeq uint64) (
 	if !ok {
 		state = RetentionState{}
 	}
-	if throughSeq > state.LocalRetentionThroughSeq {
-		state.LocalRetentionThroughSeq = throughSeq
-	}
-	if leo > state.RetainedMaxSeq {
-		state.RetainedMaxSeq = leo
+	if !adoptBoundary && throughSeq > state.LocalRetentionThroughSeq {
+		return RetentionTrimResult{}, dberrors.ErrCorruptState
 	}
 
+	startSeq := state.PhysicalRetentionThroughSeq + 1
+	if startSeq == 0 {
+		return RetentionTrimResult{}, dberrors.ErrCorruptState
+	}
+
+	readOpts := ReadOptions{MaxBytes: opts.MaxBytes}
+	if opts.MaxMessages > 0 {
+		readOpts.Limit = opts.MaxMessages + 1
+	}
+	rows, err := l.readRows(ctx, startSeq, throughSeq, readOpts)
+	if err != nil {
+		return RetentionTrimResult{}, err
+	}
+	deleteRows := rows
 	result := RetentionTrimResult{}
+	if opts.MaxMessages > 0 && len(deleteRows) > opts.MaxMessages {
+		result.More = true
+		deleteRows = deleteRows[:opts.MaxMessages]
+	}
+	if opts.MaxBytes > 0 && len(deleteRows) > 0 && deleteRows[len(deleteRows)-1].MessageSeq < throughSeq {
+		result.More = true
+	}
+
+	next := state
+	if adoptBoundary && throughSeq > next.LocalRetentionThroughSeq {
+		next.LocalRetentionThroughSeq = throughSeq
+	}
+	if adoptBoundary && throughSeq > next.RetainedMaxSeq {
+		next.RetainedMaxSeq = throughSeq
+	}
+	if leo > next.RetainedMaxSeq {
+		next.RetainedMaxSeq = leo
+	}
+
 	batch := l.db.engine.NewBatch()
 	defer batch.Close()
-	for _, msg := range messages {
-		if msg.MessageSeq > throughSeq {
-			break
-		}
+	for _, row := range deleteRows {
+		msg := messageFromRow(row)
 		if err := l.stageDeleteMessage(batch, msg); err != nil {
 			return RetentionTrimResult{}, err
 		}
 		result.DeletedThroughSeq = msg.MessageSeq
 		result.Deleted++
 	}
-	if result.DeletedThroughSeq > state.PhysicalRetentionThroughSeq {
-		state.PhysicalRetentionThroughSeq = result.DeletedThroughSeq
+	if result.DeletedThroughSeq > next.PhysicalRetentionThroughSeq {
+		next.PhysicalRetentionThroughSeq = result.DeletedThroughSeq
 	}
-	if err := validateRetentionState(state); err != nil {
+	if err := validateRetentionState(next); err != nil {
 		return RetentionTrimResult{}, err
 	}
-	if err := batch.Set(encodeRetentionStateKey(l.key), encodeRetentionState(state)); err != nil {
+	if err := batch.Set(encodeRetentionStateKey(l.key), encodeRetentionState(next)); err != nil {
 		return RetentionTrimResult{}, err
 	}
 	if err := l.stageCatalog(batch); err != nil {
@@ -116,7 +148,7 @@ func (l *ChannelLog) TrimPrefixThrough(ctx context.Context, throughSeq uint64) (
 	if err := batch.Commit(true); err != nil {
 		return RetentionTrimResult{}, err
 	}
-	l.leo.Store(leo)
+	l.leo.Store(maxUint64(leo, next.RetainedMaxSeq))
 	l.loaded.Store(true)
 	return result, nil
 }

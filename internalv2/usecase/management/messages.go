@@ -101,14 +101,14 @@ type MessageRetentionBlockedReason string
 const (
 	// MessageRetentionBlockedReasonNone means no safety gate blocked the request.
 	MessageRetentionBlockedReasonNone MessageRetentionBlockedReason = ""
-	// MessageRetentionBlockedReasonReplayCursor means committed replay has not durably reached the boundary.
+	// MessageRetentionBlockedReasonReplayCursor is reserved for older replay-cursor contracts and is not used by phase-1 retention.
 	MessageRetentionBlockedReasonReplayCursor MessageRetentionBlockedReason = "replay_cursor"
 	// MessageRetentionBlockedReasonMinISRMatchOffset means at least one ISR member has not reached the boundary.
 	MessageRetentionBlockedReasonMinISRMatchOffset MessageRetentionBlockedReason = "min_isr_match_offset"
 	// MessageRetentionBlockedReasonHW means the committed high watermark is below the requested boundary.
-	MessageRetentionBlockedReasonHW MessageRetentionBlockedReason = "hw"
-	// MessageRetentionBlockedReasonCheckpointHW means the durable checkpoint is below the requested boundary.
-	MessageRetentionBlockedReasonCheckpointHW MessageRetentionBlockedReason = "checkpoint_hw"
+	MessageRetentionBlockedReasonHW MessageRetentionBlockedReason = "hw_lag"
+	// MessageRetentionBlockedReasonNoCommittedMessage means no committed message is visible above the current boundary.
+	MessageRetentionBlockedReasonNoCommittedMessage MessageRetentionBlockedReason = "no_committed_message"
 	// MessageRetentionBlockedReasonCurrentBoundary means the request does not exceed the current boundary.
 	MessageRetentionBlockedReasonCurrentBoundary MessageRetentionBlockedReason = "current_boundary"
 )

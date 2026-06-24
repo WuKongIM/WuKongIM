@@ -35,6 +35,8 @@ by the executor. `PoolConfig.Workers` is the workqueue ants executor capacity.
 RPC pull and pull-hint tasks can batch when they have the same task kind and
 target node. Store append and store apply tasks can batch across different
 channel keys when the store factory exposes the optional batch interface.
+Retention tasks are single-channel store-apply-pool work: they first adopt a
+logical boundary and only call physical trim when the reactor marked it safe.
 `PoolConfig.BatchMaxWait` overrides the task-class coalescing wait for that
 pool; zero keeps the built-in default. This lets low-latency store-append
 deployments shorten the extra worker-side wait without removing batching from

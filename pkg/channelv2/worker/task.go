@@ -25,6 +25,7 @@ const (
 	TaskRPCPullHint
 	TaskStoreLookupMessage
 	TaskStoreClose
+	TaskStoreRetention
 )
 
 // Task describes blocking work submitted to a bounded pool.
@@ -44,8 +45,10 @@ type Task struct {
 	StoreCheckpoint *StoreCheckpointTask
 	// StoreClose releases a store handle after the reactor has detached it.
 	StoreClose *StoreCloseTask
-	RPCPull    *RPCPullTask
-	RPCAck     *RPCAckTask
+	// StoreRetention adopts a logical retention boundary and optionally trims a safe prefix.
+	StoreRetention *StoreRetentionTask
+	RPCPull        *RPCPullTask
+	RPCAck         *RPCAckTask
 	// RPCNotify sends legacy transport compatibility nudges.
 	RPCNotify *RPCNotifyTask
 	// RPCPullHint sends a prompt pull nudge to a follower.
@@ -99,6 +102,20 @@ type StoreCheckpointTask struct {
 type StoreCloseTask struct {
 	// Store is the detached handle to close outside the reactor loop.
 	Store store.ChannelStore
+}
+
+// StoreRetentionTask asks a worker to adopt and optionally physically trim a retention boundary.
+type StoreRetentionTask struct {
+	// ChannelID identifies the store that owns the retention boundary.
+	ChannelID ch.ChannelID
+	// ThroughSeq is the inclusive logical retention boundary.
+	ThroughSeq uint64
+	// TrimAllowed reports whether reactor-local safety checks allow physical deletion.
+	TrimAllowed bool
+	// BlockedReason explains why physical deletion was skipped when TrimAllowed is false.
+	BlockedReason string
+	// Options bounds one physical trim.
+	Options store.RetentionTrimOptions
 }
 
 // RPCPullTask asks a remote leader for records.
@@ -159,6 +176,8 @@ func (t Task) Run(ctx context.Context, deps Deps) Result {
 		res = runStoreCheckpoint(ctx, deps, t)
 	case TaskStoreClose:
 		res = runStoreClose(ctx, deps, t)
+	case TaskStoreRetention:
+		res = runStoreRetention(ctx, deps, t)
 	case TaskRPCPull:
 		res = runRPCPull(ctx, deps, t)
 	case TaskRPCAck:
@@ -229,6 +248,48 @@ func runStoreClose(ctx context.Context, deps Deps, t Task) Result {
 	return Result{Kind: t.Kind, Fence: t.Fence, Err: err, StoreClose: &StoreCloseResult{}}
 }
 
+func runStoreRetention(ctx context.Context, deps Deps, t Task) Result {
+	payload := t.StoreRetention
+	if payload == nil || deps.Stores == nil || payload.ThroughSeq == 0 {
+		return invalidResult(t)
+	}
+	cs, err := deps.Stores.ChannelStore(t.Fence.ChannelKey, payload.ChannelID)
+	if err != nil {
+		return Result{Kind: t.Kind, Fence: t.Fence, Err: err}
+	}
+	if cs == nil {
+		return invalidResult(t)
+	}
+	retainedMaxSeq, err := cs.AdoptRetentionBoundary(ctx, payload.ThroughSeq, ch.RetentionCursorCommitted)
+	if err != nil {
+		return Result{Kind: t.Kind, Fence: t.Fence, Err: err, StoreRetention: &StoreRetentionResult{ThroughSeq: payload.ThroughSeq, BlockedReason: payload.BlockedReason}}
+	}
+	result := StoreRetentionResult{
+		ThroughSeq:      payload.ThroughSeq,
+		RetainedMaxSeq:  retainedMaxSeq,
+		BlockedReason:   payload.BlockedReason,
+		TrimAllowed:     payload.TrimAllowed,
+		TrimSkippedSafe: !payload.TrimAllowed,
+	}
+	if payload.TrimAllowed {
+		trimmed, trimErr := cs.TrimMessagesThrough(ctx, payload.ThroughSeq, payload.Options)
+		if trimErr != nil {
+			return Result{Kind: t.Kind, Fence: t.Fence, Err: trimErr, StoreRetention: &result}
+		}
+		result.DeletedThroughSeq = trimmed.DeletedThroughSeq
+		result.Deleted = trimmed.Deleted
+		result.More = trimmed.More
+	}
+	retention, loadErr := cs.LoadRetentionState(ctx)
+	if loadErr != nil {
+		return Result{Kind: t.Kind, Fence: t.Fence, Err: loadErr, StoreRetention: &result}
+	}
+	result.LocalRetentionThroughSeq = retention.LocalRetentionThroughSeq
+	result.PhysicalRetentionThroughSeq = retention.PhysicalRetentionThroughSeq
+	result.RetainedMaxSeq = maxUint64(result.RetainedMaxSeq, retention.RetainedMaxSeq)
+	return Result{Kind: t.Kind, Fence: t.Fence, StoreRetention: &result}
+}
+
 func runStoreLoad(ctx context.Context, deps Deps, t Task) Result {
 	payload := t.StoreLoad
 	if payload == nil || deps.Stores == nil {
@@ -246,7 +307,12 @@ func runStoreLoad(ctx context.Context, deps Deps, t Task) Result {
 		_ = cs.Close()
 		return Result{Kind: t.Kind, Fence: t.Fence, Err: err}
 	}
-	return Result{Kind: t.Kind, Fence: t.Fence, StoreLoad: &StoreLoadResult{Store: cs, Initial: initial}}
+	retention, err := cs.LoadRetentionState(ctx)
+	if err != nil {
+		_ = cs.Close()
+		return Result{Kind: t.Kind, Fence: t.Fence, Err: err}
+	}
+	return Result{Kind: t.Kind, Fence: t.Fence, StoreLoad: &StoreLoadResult{Store: cs, Initial: initial, Retention: retention}}
 }
 
 func runStoreAppend(ctx context.Context, deps Deps, t Task) Result {
@@ -333,7 +399,7 @@ func runStoreCheckpoint(ctx context.Context, deps Deps, t Task) Result {
 		return invalidResult(t)
 	}
 	err = cs.StoreCheckpoint(ctx, payload.Checkpoint)
-	return Result{Kind: t.Kind, Fence: t.Fence, Err: err, StoreCheckpoint: &StoreCheckpointResult{}}
+	return Result{Kind: t.Kind, Fence: t.Fence, Err: err, StoreCheckpoint: &StoreCheckpointResult{Checkpoint: payload.Checkpoint}}
 }
 
 func runRPCPull(ctx context.Context, deps Deps, t Task) Result {
@@ -361,6 +427,13 @@ func runRPCAck(ctx context.Context, deps Deps, t Task) Result {
 	}
 	err := deps.Transport.Ack(ctx, payload.Node, payload.Request)
 	return Result{Kind: t.Kind, Fence: t.Fence, Err: err, RPCAck: &RPCAckResult{}}
+}
+
+func maxUint64(a uint64, b uint64) uint64 {
+	if a > b {
+		return a
+	}
+	return b
 }
 
 func runRPCNotify(ctx context.Context, deps Deps, t Task) Result {

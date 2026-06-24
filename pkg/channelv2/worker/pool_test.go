@@ -1154,6 +1154,18 @@ func (s *batchApplySingleStore) ReadLog(context.Context, store.ReadLogRequest) (
 	return store.ReadLogResult{}, nil
 }
 
+func (s *batchApplySingleStore) LoadRetentionState(context.Context) (store.RetentionState, error) {
+	return store.RetentionState{}, nil
+}
+
+func (s *batchApplySingleStore) AdoptRetentionBoundary(context.Context, uint64, string) (uint64, error) {
+	return 0, nil
+}
+
+func (s *batchApplySingleStore) TrimMessagesThrough(context.Context, uint64, store.RetentionTrimOptions) (store.RetentionTrimResult, error) {
+	return store.RetentionTrimResult{}, nil
+}
+
 func (s *batchApplySingleStore) StoreCheckpoint(context.Context, ch.Checkpoint) error { return nil }
 
 func (s *batchApplySingleStore) Close() error { return nil }
@@ -1223,6 +1235,18 @@ func (s *batchAppendSingleStore) ReadCommitted(context.Context, store.ReadCommit
 
 func (s *batchAppendSingleStore) ReadLog(context.Context, store.ReadLogRequest) (store.ReadLogResult, error) {
 	return store.ReadLogResult{}, nil
+}
+
+func (s *batchAppendSingleStore) LoadRetentionState(context.Context) (store.RetentionState, error) {
+	return store.RetentionState{}, nil
+}
+
+func (s *batchAppendSingleStore) AdoptRetentionBoundary(context.Context, uint64, string) (uint64, error) {
+	return 0, nil
+}
+
+func (s *batchAppendSingleStore) TrimMessagesThrough(context.Context, uint64, store.RetentionTrimOptions) (store.RetentionTrimResult, error) {
+	return store.RetentionTrimResult{}, nil
 }
 
 func (s *batchAppendSingleStore) StoreCheckpoint(context.Context, ch.Checkpoint) error {

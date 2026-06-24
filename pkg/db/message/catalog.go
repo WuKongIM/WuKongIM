@@ -11,43 +11,69 @@ import (
 
 // ListChannels returns all channels known to the message domain.
 func (db *MessageDB) ListChannels(ctx context.Context) ([]ChannelCatalogEntry, error) {
+	entries, _, _, err := db.ListChannelsPage(ctx, "", 0)
+	return entries, err
+}
+
+// ListChannelsPage returns one ordered catalog page after the exclusive cursor.
+func (db *MessageDB) ListChannelsPage(ctx context.Context, after ChannelKey, limit int) ([]ChannelCatalogEntry, ChannelKey, bool, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return nil, "", false, err
 	}
 	if db == nil || db.engine == nil {
-		return nil, dberrors.ErrClosed
+		return nil, "", false, dberrors.ErrClosed
 	}
 	prefix := encodeCatalogPrefix()
 	span := keycodec.NewPrefixSpan(prefix)
-	iter, err := db.engine.NewIter(engine.Span{Start: span.Start, End: span.End}, engine.IterOptions{})
+	start := span.Start
+	if after != "" {
+		start = encodeCatalogKey(after)
+	}
+	iter, err := db.engine.NewIter(engine.Span{Start: start, End: span.End}, engine.IterOptions{})
 	if err != nil {
-		return nil, err
+		return nil, "", false, err
 	}
 	defer iter.Close()
 
 	entries := make([]ChannelCatalogEntry, 0)
+	if limit > 0 {
+		entries = make([]ChannelCatalogEntry, 0, limit)
+	}
+	var last ChannelKey
+	more := false
 	for ok := iter.First(); ok; ok = iter.Next() {
 		if err := ctx.Err(); err != nil {
-			return nil, err
+			return nil, "", false, err
 		}
 		key, ok := decodeCatalogKey(iter.Key())
 		if !ok {
-			return nil, fmt.Errorf("%w: corrupt catalog key", dberrors.ErrCorruptValue)
+			return nil, "", false, fmt.Errorf("%w: corrupt catalog key", dberrors.ErrCorruptValue)
+		}
+		if after != "" && key <= after {
+			continue
 		}
 		value, err := iter.Value()
 		if err != nil {
-			return nil, err
+			return nil, "", false, err
 		}
 		id, err := decodeCatalogValue(value)
 		if err != nil {
-			return nil, err
+			return nil, "", false, err
+		}
+		if limit > 0 && len(entries) == limit {
+			more = true
+			break
 		}
 		entries = append(entries, ChannelCatalogEntry{Key: key, ID: id})
+		last = key
 	}
 	if err := iter.Error(); err != nil {
-		return nil, err
+		return nil, "", false, err
 	}
-	return entries, nil
+	if len(entries) == 0 {
+		last = ""
+	}
+	return entries, last, more, nil
 }
 
 func (l *ChannelLog) stageCatalog(batch *engine.Batch) error {

@@ -93,6 +93,7 @@ type PendingWorkView struct {
 	Waiters              int
 	PullWaiters          int
 	LookupWaiters        int
+	RetentionWaiters     int
 	AppendQueued         int
 	AppendQueueBlocked   bool
 	AppendInflight       bool
@@ -168,6 +169,7 @@ func (p PendingWorkView) hasPendingWork() bool {
 	return p.Waiters != 0 ||
 		p.PullWaiters != 0 ||
 		p.LookupWaiters != 0 ||
+		p.RetentionWaiters != 0 ||
 		p.AppendQueued != 0 ||
 		p.AppendQueueBlocked ||
 		p.AppendInflight ||

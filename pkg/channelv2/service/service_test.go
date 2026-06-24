@@ -945,6 +945,18 @@ func (s *serviceCountingStore) StoreCheckpoint(ctx context.Context, checkpoint c
 	return s.base.StoreCheckpoint(ctx, checkpoint)
 }
 
+func (s *serviceCountingStore) LoadRetentionState(ctx context.Context) (store.RetentionState, error) {
+	return s.base.LoadRetentionState(ctx)
+}
+
+func (s *serviceCountingStore) AdoptRetentionBoundary(ctx context.Context, throughSeq uint64, cursorName string) (uint64, error) {
+	return s.base.AdoptRetentionBoundary(ctx, throughSeq, cursorName)
+}
+
+func (s *serviceCountingStore) TrimMessagesThrough(ctx context.Context, throughSeq uint64, opts store.RetentionTrimOptions) (store.RetentionTrimResult, error) {
+	return s.base.TrimMessagesThrough(ctx, throughSeq, opts)
+}
+
 func (s *serviceCountingStore) Close() error {
 	return s.base.Close()
 }

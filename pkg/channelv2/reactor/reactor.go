@@ -159,6 +159,10 @@ type runtimeChannel struct {
 	pullWaiters map[ch.OpID]*pullWaiter
 	// lookupWaiters maps async committed-message lookup op ids to request futures.
 	lookupWaiters map[ch.OpID]*lookupWaiter
+	// retentionWaiters maps async retention apply op ids to request futures.
+	retentionWaiters map[ch.OpID]*retentionWaiter
+	// retentionCheckpointOp tracks the retention-owned checkpoint that unblocks future physical trim attempts.
+	retentionCheckpointOp ch.OpID
 	// due versions fence stale scheduler entries after channel state changes.
 	appendFlushDueVersion uint64
 	replicationDueVersion uint64

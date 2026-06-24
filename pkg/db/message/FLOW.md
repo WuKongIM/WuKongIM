@@ -25,9 +25,12 @@ Current flow:
 8. `ApplyFetch` applies fetched records plus optional checkpoint/history in one
    batch with an explicit base sequence conflict check.
 9. Truncate and retention deletes remove primary rows and secondary indexes
-   together; retention state preserves LEO across reopen after prefix trim.
+   together; bounded retention trims can advance physical deletion in multiple
+   batches while retention state preserves LEO across reopen after prefix trim.
 10. Catalog entries are updated by durable append/system mutations and can be
-   listed through `MessageDB.ListChannels`.
+   listed through `MessageDB.ListChannels`, paged with
+   `MessageDB.ListChannelsPage`, or paged through the compatibility
+   `Engine.ListChannelsPage` surface for Node-owned cleanup loops.
 11. Read-only inspect APIs page catalog channels directly by catalog key and
     scan channel messages for diagnostics without mutating storage or
     populating channel caches.

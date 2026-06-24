@@ -89,9 +89,11 @@ type pendingMetaState struct {
 }
 
 type storeInitialState struct {
-	LEO          uint64
-	HW           uint64
-	CheckpointHW uint64
+	LEO                         uint64
+	HW                          uint64
+	CheckpointHW                uint64
+	LocalRetentionThroughSeq    uint64
+	PhysicalRetentionThroughSeq uint64
 }
 
 func (p *pendingMetaState) fence() ch.Fence {

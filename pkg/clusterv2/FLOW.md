@@ -142,6 +142,7 @@ Stop(ctx)
   -> mark stopping and reject new foreground calls
   -> stop Controller watch loop
   -> stop ChannelV2 tick loop
+  -> stop ChannelV2 physical retention cleanup loop
   -> close hosted ChannelV2 service
   -> stop ControllerV2-backed Controller or injected Controller
   -> stop injected lifecycle resources in reverse order
@@ -173,6 +174,12 @@ channel's current hash-slot route, and `AdvanceChannelRetentionThroughSeq`
 proposes a fenced Slot FSM command that only advances the channel message
 retention boundary. Manager history deletion must use this metadata advance
 instead of deleting ChannelV2 message rows directly.
+Physical message cleanup is a separate node-local background loop and is
+disabled by default. One `RunChannelRetentionGCOnce` pass reads a bounded page
+from the local message catalog, loads the authoritative Slot metadata boundary,
+and delegates boundary adoption plus physical trim safety checks to the
+ChannelV2 retention runtime. The Node loop only keeps the catalog cursor and
+per-pass counts; HW/checkpoint/LEO/MinISR consistency remains inside ChannelV2.
 `UpsertChannelLatestBatch` first resolves each channel's real hash slot, then
 groups rows by physical Slot and submits bounded batch commands carrying
 per-row hash slots. `ScanChannelsSlotPage`,

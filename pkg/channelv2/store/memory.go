@@ -39,6 +39,7 @@ type MemoryChannelStore struct {
 	id         ch.ChannelID
 	records    []ch.Record
 	checkpoint ch.Checkpoint
+	retention  RetentionState
 }
 
 // Load returns the current in-memory offsets.
@@ -48,7 +49,7 @@ func (s *MemoryChannelStore) Load(ctx context.Context) (InitialState, error) {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	leo := uint64(len(s.records))
+	leo := s.leoLocked()
 	return InitialState{LEO: leo, HW: minUint64(s.checkpoint.HW, leo), CheckpointHW: minUint64(s.checkpoint.HW, leo)}, nil
 }
 
@@ -60,10 +61,10 @@ func (s *MemoryChannelStore) AppendLeader(ctx context.Context, req AppendLeaderR
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if len(req.Records) == 0 {
-		leo := uint64(len(s.records))
+		leo := s.leoLocked()
 		return AppendLeaderResult{BaseOffset: leo + 1, LastOffset: leo}, nil
 	}
-	base := uint64(len(s.records)) + 1
+	base := s.leoLocked() + 1
 	for i, record := range req.Records {
 		record.Index = base + uint64(i)
 		record.Payload = cloneBytes(record.Payload)
@@ -72,7 +73,7 @@ func (s *MemoryChannelStore) AppendLeader(ctx context.Context, req AppendLeaderR
 		}
 		s.records = append(s.records, record)
 	}
-	return AppendLeaderResult{BaseOffset: base, LastOffset: uint64(len(s.records))}, nil
+	return AppendLeaderResult{BaseOffset: base, LastOffset: s.leoLocked()}, nil
 }
 
 // ApplyFollower applies leader records, skipping any duplicate prefix already stored.
@@ -82,14 +83,17 @@ func (s *MemoryChannelStore) ApplyFollower(ctx context.Context, req ApplyFollowe
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	leo := uint64(len(s.records))
+	leo := s.leoLocked()
 	for _, record := range req.Records {
 		if record.Index == 0 {
 			return ApplyFollowerResult{}, ch.ErrInvalidConfig
 		}
 		if record.Index <= leo {
-			existing := s.records[record.Index-1]
-			if existing.ID != record.ID || string(existing.Payload) != string(record.Payload) {
+			existing, ok := s.recordBySeqLocked(record.Index)
+			if !ok && record.Index <= s.retention.LocalRetentionThroughSeq {
+				continue
+			}
+			if !ok || existing.ID != record.ID || string(existing.Payload) != string(record.Payload) {
 				return ApplyFollowerResult{}, ch.ErrStaleMeta
 			}
 			continue
@@ -115,6 +119,7 @@ func (s *MemoryChannelStore) ReadCommitted(ctx context.Context, req ReadCommitte
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	leo := s.leoLocked()
 	from := req.FromSeq
 	if from == 0 {
 		from = 1
@@ -134,8 +139,8 @@ func (s *MemoryChannelStore) ReadCommitted(ctx context.Context, req ReadCommitte
 		return s.readCommittedReverseLocked(req, limit, maxBytes), nil
 	}
 	maxSeq := req.MaxSeq
-	if maxSeq == 0 {
-		maxSeq = uint64(len(s.records))
+	if maxSeq == 0 || maxSeq > leo {
+		maxSeq = leo
 	}
 	if req.MinSeq > 0 && maxSeq < req.MinSeq {
 		return ReadCommittedResult{NextSeq: from}, nil
@@ -143,8 +148,12 @@ func (s *MemoryChannelStore) ReadCommitted(ctx context.Context, req ReadCommitte
 	messages := make([]ch.Message, 0, limit)
 	used := 0
 	next := from
-	for seq := from; seq <= maxSeq && seq <= uint64(len(s.records)); seq++ {
-		record := s.records[seq-1]
+	for seq := from; seq <= maxSeq; seq++ {
+		record, ok := s.recordBySeqLocked(seq)
+		if !ok {
+			next = seq + 1
+			continue
+		}
 		if len(messages) >= limit || used+record.SizeBytes > maxBytes && len(messages) > 0 {
 			break
 		}
@@ -156,9 +165,10 @@ func (s *MemoryChannelStore) ReadCommitted(ctx context.Context, req ReadCommitte
 }
 
 func (s *MemoryChannelStore) readCommittedReverseLocked(req ReadCommittedRequest, limit int, maxBytes int) ReadCommittedResult {
+	leo := s.leoLocked()
 	from := req.FromSeq
-	if from == 0 || from > uint64(len(s.records)) {
-		from = uint64(len(s.records))
+	if from == 0 || from > leo {
+		from = leo
 	}
 	if req.MaxSeq > 0 && from > req.MaxSeq {
 		from = req.MaxSeq
@@ -173,8 +183,24 @@ func (s *MemoryChannelStore) readCommittedReverseLocked(req ReadCommittedRequest
 	messages := make([]ch.Message, 0, limit)
 	used := 0
 	next := from
-	for seq := from; seq >= minSeq && seq <= uint64(len(s.records)); seq-- {
-		record := s.records[seq-1]
+	for seq := from; seq >= minSeq && seq <= leo; seq-- {
+		record, ok := s.recordBySeqLocked(seq)
+		if !ok {
+			if seq == minSeq {
+				if minSeq == 1 {
+					next = 0
+				} else {
+					next = minSeq - 1
+				}
+				break
+			}
+			if seq == 1 {
+				next = 0
+				break
+			}
+			next = seq - 1
+			continue
+		}
 		if len(messages) >= limit || used+record.SizeBytes > maxBytes && len(messages) > 0 {
 			break
 		}
@@ -222,13 +248,14 @@ func (s *MemoryChannelStore) ReadLog(ctx context.Context, req ReadLogRequest) (R
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	leo := s.leoLocked()
 	from := req.FromOffset
 	if from == 0 {
 		from = 1
 	}
 	max := req.MaxOffset
-	if max == 0 || max > uint64(len(s.records)) {
-		max = uint64(len(s.records))
+	if max == 0 || max > leo {
+		max = leo
 	}
 	maxBytes := req.MaxBytes
 	if maxBytes <= 0 {
@@ -237,7 +264,10 @@ func (s *MemoryChannelStore) ReadLog(ctx context.Context, req ReadLogRequest) (R
 	out := make([]ch.Record, 0)
 	used := 0
 	for seq := from; seq <= max; seq++ {
-		record := s.records[seq-1]
+		record, ok := s.recordBySeqLocked(seq)
+		if !ok {
+			continue
+		}
 		if used+record.SizeBytes > maxBytes && len(out) > 0 {
 			break
 		}
@@ -245,6 +275,82 @@ func (s *MemoryChannelStore) ReadLog(ctx context.Context, req ReadLogRequest) (R
 		out = append(out, cloneRecord(record))
 	}
 	return ReadLogResult{Records: out}, nil
+}
+
+// LoadRetentionState returns the in-memory local retention progress.
+func (s *MemoryChannelStore) LoadRetentionState(ctx context.Context) (RetentionState, error) {
+	if err := ctx.Err(); err != nil {
+		return RetentionState{}, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.retention, nil
+}
+
+// AdoptRetentionBoundary records a monotonic local retention boundary.
+func (s *MemoryChannelStore) AdoptRetentionBoundary(ctx context.Context, throughSeq uint64, cursorName string) (uint64, error) {
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
+	if throughSeq == 0 {
+		return 0, ch.ErrInvalidConfig
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	leo := s.leoLocked()
+	if throughSeq > s.retention.LocalRetentionThroughSeq {
+		s.retention.LocalRetentionThroughSeq = throughSeq
+	}
+	s.retention.RetainedMaxSeq = maxUint64(s.retention.RetainedMaxSeq, maxUint64(leo, throughSeq))
+	return s.retention.RetainedMaxSeq, nil
+}
+
+// TrimMessagesThrough removes a bounded in-memory prefix through an adopted boundary.
+func (s *MemoryChannelStore) TrimMessagesThrough(ctx context.Context, throughSeq uint64, opts RetentionTrimOptions) (RetentionTrimResult, error) {
+	if err := ctx.Err(); err != nil {
+		return RetentionTrimResult{}, err
+	}
+	if throughSeq == 0 {
+		return RetentionTrimResult{}, ch.ErrInvalidConfig
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if throughSeq > s.retention.LocalRetentionThroughSeq {
+		return RetentionTrimResult{}, ch.ErrInvalidConfig
+	}
+	leo := s.leoLocked()
+	s.retention.RetainedMaxSeq = maxUint64(s.retention.RetainedMaxSeq, leo)
+	result := RetentionTrimResult{}
+	deleteCount := 0
+	used := 0
+	for deleteCount < len(s.records) {
+		record := s.records[deleteCount]
+		if record.Index > throughSeq {
+			break
+		}
+		if opts.MaxMessages > 0 && result.Deleted >= opts.MaxMessages {
+			result.More = true
+			break
+		}
+		if opts.MaxBytes > 0 && result.Deleted > 0 && used+record.SizeBytes > opts.MaxBytes {
+			result.More = true
+			break
+		}
+		used += record.SizeBytes
+		result.DeletedThroughSeq = record.Index
+		result.Deleted++
+		deleteCount++
+	}
+	if deleteCount < len(s.records) && s.records[deleteCount].Index <= throughSeq {
+		result.More = true
+	}
+	if deleteCount > 0 {
+		s.records = append([]ch.Record(nil), s.records[deleteCount:]...)
+		if result.DeletedThroughSeq > s.retention.PhysicalRetentionThroughSeq {
+			s.retention.PhysicalRetentionThroughSeq = result.DeletedThroughSeq
+		}
+	}
+	return result, nil
 }
 
 // StoreCheckpoint stores the committed frontier for future loads, ignoring regressive HW.
@@ -293,8 +399,41 @@ func cloneBytes(in []byte) []byte {
 	return out
 }
 
+func (s *MemoryChannelStore) leoLocked() uint64 {
+	if len(s.records) == 0 {
+		return s.retention.RetainedMaxSeq
+	}
+	return maxUint64(s.records[len(s.records)-1].Index, s.retention.RetainedMaxSeq)
+}
+
+func (s *MemoryChannelStore) recordBySeqLocked(seq uint64) (ch.Record, bool) {
+	if len(s.records) == 0 {
+		return ch.Record{}, false
+	}
+	first := s.records[0].Index
+	if seq < first {
+		return ch.Record{}, false
+	}
+	index := seq - first
+	if index >= uint64(len(s.records)) {
+		return ch.Record{}, false
+	}
+	record := s.records[index]
+	if record.Index != seq {
+		return ch.Record{}, false
+	}
+	return record, true
+}
+
 func minUint64(left, right uint64) uint64 {
 	if left < right {
+		return left
+	}
+	return right
+}
+
+func maxUint64(left, right uint64) uint64 {
+	if left > right {
 		return left
 	}
 	return right

@@ -4894,6 +4894,7 @@ type fakeManagerCluster struct {
 	conversationPages     map[string][]metadb.ConversationState
 	conversationMessages  map[metadb.ConversationKey][]channelv2.Message
 	channelRuntimeMetas   map[metadb.ConversationKey]metadb.ChannelRuntimeMeta
+	channelRetentionViews map[metadb.ConversationKey]channelv2.RetentionView
 	pluginBindingsByUID   map[string][]metadb.PluginUserBinding
 	channelOwnerMetas     map[channelv2.ChannelID]channelv2.Meta
 	registeredHandlers    map[uint8]clusterv2.NodeRPCHandler
@@ -5305,6 +5306,23 @@ func (f *fakeManagerCluster) GetChannelRuntimeMeta(_ context.Context, channelID 
 		return metadb.ChannelRuntimeMeta{}, metadb.ErrNotFound
 	}
 	return meta, nil
+}
+
+func (f *fakeManagerCluster) ChannelRetentionView(_ context.Context, id channelv2.ChannelID) (channelv2.RetentionView, error) {
+	key := metadb.ConversationKey{ChannelID: id.ID, ChannelType: int64(id.Type)}
+	if view, ok := f.channelRetentionViews[key]; ok {
+		return view, nil
+	}
+	maxSeq := uint64(0)
+	for _, message := range f.conversationMessages[key] {
+		if message.MessageSeq > maxSeq {
+			maxSeq = message.MessageSeq
+		}
+	}
+	if maxSeq == 0 {
+		maxSeq = ^uint64(0)
+	}
+	return channelv2.RetentionView{HW: maxSeq, CheckpointHW: maxSeq, MinISRMatchOffset: maxSeq}, nil
 }
 
 func (f *fakeManagerCluster) AdvanceChannelRetentionThroughSeq(_ context.Context, req metadb.ChannelRetentionAdvance) error {

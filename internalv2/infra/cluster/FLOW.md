@@ -139,21 +139,29 @@ management.MessageRetentionOperator.AdvanceMessageRetention
   -> MessageRetentionNode.GetChannelRuntimeMeta
   -> if local node is not the ChannelV2 leader, forward once to meta.Leader
   -> leader re-reads ChannelRuntimeMeta and verifies local leadership
+  -> ChannelRetentionView reads local ChannelV2 HW/MinISR safety
   -> ReadChannelCommitted(reverse latest, min_seq = RetentionThroughSeq + 1)
   -> AdvanceChannelRetentionThroughSeq(fenced Slot metadata command)
   -> manager retention response
 ```
 
 The manager retention adapter treats history deletion as logical channel log
-compaction. It never deletes message rows. It computes a safe boundary no
-higher than the latest committed visible message, then advances
-`RetentionThroughSeq` through the Slot metadata FSM using the observed channel
-epoch, leader epoch, leader ID, and lease fence. Dry-runs return the calculated
-boundary without proposing. Requests first received on a non-leader forward to
-the metadata leader when node RPC is available; the remote leader recomputes
-all fences locally, so origin nodes never transmit stale metadata fences.
-Missing leaders, stale routes, and local-only non-leader states return typed
-retryable errors to the manager usecase.
+compaction. It never deletes message rows. It computes a safe boundary no higher
+than the requested sequence, latest committed visible message, ChannelV2 HW,
+and leader MinISR match offset. Durable checkpoint HW is deliberately left to the
+physical trim path so the manager request does not wait on local cleanup
+checkpointing. If any logical gate is below the request, the adapter returns a
+blocked response with the limiting reason instead of partially advancing. Phase 1
+intentionally does not use a replay cursor gate because internalv2 does not yet
+expose a durable committed replay-cursor contract. Successful non-dry-run
+requests advance `RetentionThroughSeq` through the Slot metadata FSM using the
+observed channel epoch, leader epoch, leader ID,
+and lease fence. Dry-runs return the calculated boundary without proposing.
+Requests first received on a non-leader forward to the metadata leader when
+node RPC is available; the remote leader recomputes all fences locally, so
+origin nodes never transmit stale metadata fences. Missing leaders, stale routes,
+and local-only non-leader states return typed retryable errors to the manager
+usecase.
 
 ## Management Channel RPC Flow
 

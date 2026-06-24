@@ -59,6 +59,7 @@ func (n *Node) Start(ctx context.Context) error {
 	n.markChannelsReady(n.channels != nil)
 	n.startChannelTickLoop()
 	n.started.Store(true)
+	n.startChannelRetentionGCLoop()
 	started = true
 	return nil
 }
@@ -89,6 +90,7 @@ func (n *Node) Stop(ctx context.Context) error {
 	n.closeRouteAuthorityWatchers()
 	n.stopSlotLeaderLoop()
 	n.stopChannelTickLoop()
+	n.stopChannelRetentionGCLoop()
 	var errs []error
 	if n.channels != nil {
 		if err := n.channels.Close(); err != nil {

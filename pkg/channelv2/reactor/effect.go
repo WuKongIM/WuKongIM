@@ -105,6 +105,27 @@ func (r *Reactor) submitStoreCheckpoint(ctx context.Context, channelID ch.Channe
 	})
 }
 
+func (r *Reactor) submitStoreRetention(ctx context.Context, channelID ch.ChannelID, fence ch.Fence, req ch.RetentionApplyRequest, trimAllowed bool, blockedReason string) error {
+	if r.cfg.Pools == nil {
+		return ch.ErrInvalidConfig
+	}
+	return r.cfg.Pools.Submit(ctx, worker.Task{
+		Kind:    worker.TaskStoreRetention,
+		Fence:   fence,
+		Context: ctx,
+		StoreRetention: &worker.StoreRetentionTask{
+			ChannelID:     channelID,
+			ThroughSeq:    req.ThroughSeq,
+			TrimAllowed:   trimAllowed,
+			BlockedReason: blockedReason,
+			Options: store.RetentionTrimOptions{
+				MaxMessages: req.Options.MaxTrimMessages,
+				MaxBytes:    req.Options.MaxTrimBytes,
+			},
+		},
+	})
+}
+
 func (r *Reactor) submitStoreClose(ctx context.Context, fence ch.Fence, cs store.ChannelStore) error {
 	if r.cfg.Pools == nil || cs == nil {
 		return ch.ErrInvalidConfig

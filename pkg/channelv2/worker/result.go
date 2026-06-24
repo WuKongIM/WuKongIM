@@ -23,6 +23,7 @@ type Result struct {
 	StoreApply         *StoreApplyResult
 	StoreCheckpoint    *StoreCheckpointResult
 	StoreClose         *StoreCloseResult
+	StoreRetention     *StoreRetentionResult
 	RPCPull            *RPCPullResult
 	RPCAck             *RPCAckResult
 	RPCNotify          *RPCNotifyResult
@@ -36,6 +37,8 @@ type StoreLoadResult struct {
 	Store store.ChannelStore
 	// Initial is the durable runtime frontier loaded before metadata is applied.
 	Initial store.InitialState
+	// Retention is the durable local retention progress loaded before metadata is applied.
+	Retention store.RetentionState
 }
 
 // StoreAppendResult returns the durable offset range for a leader append.
@@ -67,10 +70,37 @@ type StoreApplyResult struct {
 }
 
 // StoreCheckpointResult marks a completed checkpoint persistence task.
-type StoreCheckpointResult struct{}
+type StoreCheckpointResult struct {
+	// Checkpoint is the committed frontier persisted by the task.
+	Checkpoint ch.Checkpoint
+}
 
 // StoreCloseResult marks a completed asynchronous store handle close.
 type StoreCloseResult struct{}
+
+// StoreRetentionResult contains local retention progress after adoption and optional trim.
+type StoreRetentionResult struct {
+	// ThroughSeq is the requested inclusive retention boundary.
+	ThroughSeq uint64
+	// LocalRetentionThroughSeq is the local store-adopted boundary after the task.
+	LocalRetentionThroughSeq uint64
+	// PhysicalRetentionThroughSeq is the highest locally deleted sequence after the task.
+	PhysicalRetentionThroughSeq uint64
+	// RetainedMaxSeq preserves LEO when the physical tail has been fully removed.
+	RetainedMaxSeq uint64
+	// DeletedThroughSeq is the highest sequence deleted by this task.
+	DeletedThroughSeq uint64
+	// Deleted is the number of message rows removed by this task.
+	Deleted int
+	// More reports whether more rows may still be removable below ThroughSeq.
+	More bool
+	// TrimAllowed records whether reactor-local safety checks allowed physical deletion.
+	TrimAllowed bool
+	// TrimSkippedSafe reports that adoption succeeded but physical deletion was deliberately skipped.
+	TrimSkippedSafe bool
+	// BlockedReason explains why physical deletion was skipped.
+	BlockedReason string
+}
 
 // RPCPullResult contains the response returned by a remote pull RPC.
 type RPCPullResult struct {

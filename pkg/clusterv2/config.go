@@ -31,6 +31,8 @@ type Config struct {
 	Slots SlotConfig
 	// Channel contains ChannelV2 service configuration.
 	Channel ChannelConfig
+	// ChannelRetention contains node-owned ChannelV2 physical retention cleanup settings.
+	ChannelRetention ChannelRetentionConfig
 	// Storage contains node-local storage tuning.
 	Storage StorageConfig
 	// Transport contains default clusterv2 node-to-node transport tuning and observation hooks.
@@ -144,6 +146,20 @@ type ChannelConfig struct {
 	Observer reactor.Observer
 }
 
+// ChannelRetentionConfig contains node-owned ChannelV2 physical cleanup settings.
+type ChannelRetentionConfig struct {
+	// PhysicalGCEnabled enables the background local physical retention cleanup loop.
+	PhysicalGCEnabled bool
+	// ScanInterval controls how often the background cleanup loop scans one catalog page.
+	ScanInterval time.Duration
+	// ChannelBatchSize caps the number of channel catalog entries processed per cleanup pass.
+	ChannelBatchSize int
+	// MaxTrimMessages caps message rows deleted per channel apply attempt. Zero uses the default bound.
+	MaxTrimMessages int
+	// MaxTrimBytes caps payload bytes deleted per channel apply attempt. Zero means unlimited by bytes.
+	MaxTrimBytes int
+}
+
 // StorageConfig contains node-local store tuning for clusterv2-owned runtimes.
 type StorageConfig struct {
 	// CommitFlushWindow is the maximum delay for grouping adjacent channel append commits.
@@ -192,6 +208,7 @@ func (c *Config) applyDefaults() {
 	if c.Channel.ReplicaCount == 0 {
 		c.Channel.ReplicaCount = c.Slots.ReplicaCount
 	}
+	c.applyChannelRetentionDefaults()
 }
 
 func defaultChannelReactorCount() int {
@@ -238,6 +255,18 @@ func (c *Config) applySlotDefaults() {
 		c.Slots.HeartbeatTick = defaultSlotHeartbeatTick
 	}
 	c.Slots.LogCompaction = multiraft.NormalizeLogCompactionConfig(c.Slots.LogCompaction)
+}
+
+func (c *Config) applyChannelRetentionDefaults() {
+	if c.ChannelRetention.ScanInterval == 0 {
+		c.ChannelRetention.ScanInterval = time.Minute
+	}
+	if c.ChannelRetention.ChannelBatchSize == 0 {
+		c.ChannelRetention.ChannelBatchSize = 128
+	}
+	if c.ChannelRetention.MaxTrimMessages == 0 {
+		c.ChannelRetention.MaxTrimMessages = 1000
+	}
 }
 
 func (c Config) validate() error {
@@ -287,6 +316,18 @@ func (c Config) validate() error {
 		return ErrInvalidConfig
 	}
 	if c.Channel.FollowerRecoveryProbeJitter < 0 {
+		return ErrInvalidConfig
+	}
+	if c.ChannelRetention.ScanInterval < 0 {
+		return ErrInvalidConfig
+	}
+	if c.ChannelRetention.ChannelBatchSize < 0 {
+		return ErrInvalidConfig
+	}
+	if c.ChannelRetention.MaxTrimMessages < 0 {
+		return ErrInvalidConfig
+	}
+	if c.ChannelRetention.MaxTrimBytes < 0 {
 		return ErrInvalidConfig
 	}
 	if err := c.validateControl(); err != nil {

@@ -15,6 +15,8 @@ func (r *Reactor) handleWorkerResult(event Event) {
 	case worker.TaskStoreCheckpoint:
 		r.handleStoreCheckpointResult(event.Worker)
 	case worker.TaskStoreClose:
+	case worker.TaskStoreRetention:
+		r.handleStoreRetentionResult(event.Worker)
 	case worker.TaskRPCPull:
 		r.handleRPCPullResult(event.Worker)
 	case worker.TaskStoreApply:

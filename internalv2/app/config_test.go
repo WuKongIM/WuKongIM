@@ -49,3 +49,34 @@ func TestPluginConfigValidationRejectsInvalidBounds(t *testing.T) {
 		require.Error(t, app.applyConfigDefaults())
 	}
 }
+
+func TestChannelMessageRetentionConfigDefaults(t *testing.T) {
+	app := &App{cfg: Config{DataDir: t.TempDir()}}
+	require.NoError(t, app.applyConfigDefaults())
+
+	require.False(t, app.cfg.ChannelMessageRetention.PhysicalGCEnabled)
+	require.Equal(t, time.Minute, app.cfg.ChannelMessageRetention.ScanInterval)
+	require.Equal(t, 128, app.cfg.ChannelMessageRetention.ChannelBatchSize)
+	require.Equal(t, 1000, app.cfg.ChannelMessageRetention.MaxTrimMessages)
+	require.Equal(t, 0, app.cfg.ChannelMessageRetention.MaxTrimBytes)
+
+	cluster := defaultClusterConfig(app.cfg)
+	require.Equal(t, app.cfg.ChannelMessageRetention.PhysicalGCEnabled, cluster.ChannelRetention.PhysicalGCEnabled)
+	require.Equal(t, app.cfg.ChannelMessageRetention.ScanInterval, cluster.ChannelRetention.ScanInterval)
+	require.Equal(t, app.cfg.ChannelMessageRetention.ChannelBatchSize, cluster.ChannelRetention.ChannelBatchSize)
+	require.Equal(t, app.cfg.ChannelMessageRetention.MaxTrimMessages, cluster.ChannelRetention.MaxTrimMessages)
+	require.Equal(t, app.cfg.ChannelMessageRetention.MaxTrimBytes, cluster.ChannelRetention.MaxTrimBytes)
+}
+
+func TestChannelMessageRetentionConfigValidationRejectsInvalidBounds(t *testing.T) {
+	cases := []ChannelMessageRetentionConfig{
+		{ScanInterval: -time.Second},
+		{ChannelBatchSize: -1},
+		{MaxTrimMessages: -1},
+		{MaxTrimBytes: -1},
+	}
+	for _, cfg := range cases {
+		app := &App{cfg: Config{DataDir: t.TempDir(), ChannelMessageRetention: cfg}}
+		require.Error(t, app.applyConfigDefaults())
+	}
+}

@@ -155,6 +155,7 @@ func (r *Reactor) failWaiters(rc *runtimeChannel, err error) {
 	rc.appendInflight = nil
 	rc.failPendingPullWaiters(err)
 	rc.failPendingLookupWaiters(err)
+	rc.failPendingRetentionWaiters(err)
 }
 
 func (r *Reactor) evictRuntimeChannel(key ch.ChannelKey, rc *runtimeChannel, reason string) bool {
@@ -170,6 +171,7 @@ func (r *Reactor) evictRuntimeChannel(key ch.ChannelKey, rc *runtimeChannel, rea
 	r.clearAppendCancelContexts(rc)
 	r.clearPullCancelChannel(rc)
 	r.clearLookupCancelChannel(rc)
+	rc.failPendingRetentionWaiters(ch.ErrClosed)
 	storeHandle := rc.store
 	rc.store = nil
 	r.clearAppendQueuePressure(rc)

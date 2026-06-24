@@ -25,6 +25,8 @@ and protocol details stay in access packages.
 ```text
 New(Config)
   -> derive effective clusterv2 config from Config.Cluster with top-level fallbacks
+     including ChannelMessageRetention -> clusterv2.ChannelRetention physical
+     cleanup settings; background physical GC remains disabled by default
   -> create a root logger from Config.Log unless a test/harness override is supplied
   -> create metrics registry when Observability.MetricsEnabled=true and attach
      runtime observers for metrics/logging

@@ -294,7 +294,16 @@ func (r *Reactor) handleStoreCheckpointResult(result worker.Result) {
 		if rc.lifecycle.checkpoint.inflight && result.Fence.OpID == rc.lifecycle.checkpoint.opID {
 			resetLeaderCheckpointLifecycle(rc)
 		}
+		if result.Fence.OpID == rc.retentionCheckpointOp {
+			rc.retentionCheckpointOp = 0
+		}
 		return
+	}
+	if result.Fence.OpID == rc.retentionCheckpointOp {
+		rc.retentionCheckpointOp = 0
+	}
+	if result.Err == nil && result.StoreCheckpoint != nil && result.StoreCheckpoint.Checkpoint.HW > rc.state.CheckpointHW {
+		rc.state.CheckpointHW = result.StoreCheckpoint.Checkpoint.HW
 	}
 	if rc.lifecycle.followerStop.accepted &&
 		rc.lifecycle.checkpoint.inflight &&

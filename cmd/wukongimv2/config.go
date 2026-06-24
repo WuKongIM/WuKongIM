@@ -55,6 +55,11 @@ var supportedConfigKeys = []string{
 	"WK_CLUSTER_CHANNEL_APPEND_BATCH_COLD_MAX_WAIT",
 	"WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_INTERVAL",
 	"WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_JITTER",
+	"WK_CHANNEL_MESSAGE_RETENTION_PHYSICAL_GC_ENABLE",
+	"WK_CHANNEL_MESSAGE_RETENTION_SCAN_INTERVAL",
+	"WK_CHANNEL_MESSAGE_RETENTION_CHANNEL_BATCH_SIZE",
+	"WK_CHANNEL_MESSAGE_RETENTION_MAX_TRIM_MESSAGES",
+	"WK_CHANNEL_MESSAGE_RETENTION_MAX_TRIM_BYTES",
 	"WK_CLUSTER_COMMIT_COORDINATOR_SYNC",
 	"WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW",
 	"WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS",
@@ -279,6 +284,11 @@ func buildConfig(values map[string]string) (app.Config, error) {
 		},
 		Message: app.MessageConfig{
 			SystemDeviceID: "____device",
+		},
+		ChannelMessageRetention: app.ChannelMessageRetentionConfig{
+			ScanInterval:     time.Minute,
+			ChannelBatchSize: 128,
+			MaxTrimMessages:  1000,
 		},
 		Delivery: app.DeliveryConfig{
 			Enabled: true,
@@ -523,6 +533,53 @@ func buildConfig(values map[string]string) (app.Config, error) {
 			return app.Config{}, fmt.Errorf("parse WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_JITTER: value must be >= 0")
 		}
 		cfg.Cluster.Channel.FollowerRecoveryProbeJitter = jitter
+	}
+	if raw := configValue(values, "WK_CHANNEL_MESSAGE_RETENTION_PHYSICAL_GC_ENABLE"); raw != "" {
+		enabled, err := parseBool("WK_CHANNEL_MESSAGE_RETENTION_PHYSICAL_GC_ENABLE", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.ChannelMessageRetention.PhysicalGCEnabled = enabled
+	}
+	if raw := configValue(values, "WK_CHANNEL_MESSAGE_RETENTION_SCAN_INTERVAL"); raw != "" {
+		interval, err := parseDuration("WK_CHANNEL_MESSAGE_RETENTION_SCAN_INTERVAL", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if interval < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CHANNEL_MESSAGE_RETENTION_SCAN_INTERVAL: value must be >= 0")
+		}
+		cfg.ChannelMessageRetention.ScanInterval = interval
+	}
+	if raw := configValue(values, "WK_CHANNEL_MESSAGE_RETENTION_CHANNEL_BATCH_SIZE"); raw != "" {
+		batchSize, err := parseInt("WK_CHANNEL_MESSAGE_RETENTION_CHANNEL_BATCH_SIZE", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if batchSize < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CHANNEL_MESSAGE_RETENTION_CHANNEL_BATCH_SIZE: value must be >= 0")
+		}
+		cfg.ChannelMessageRetention.ChannelBatchSize = batchSize
+	}
+	if raw := configValue(values, "WK_CHANNEL_MESSAGE_RETENTION_MAX_TRIM_MESSAGES"); raw != "" {
+		maxMessages, err := parseInt("WK_CHANNEL_MESSAGE_RETENTION_MAX_TRIM_MESSAGES", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if maxMessages < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CHANNEL_MESSAGE_RETENTION_MAX_TRIM_MESSAGES: value must be >= 0")
+		}
+		cfg.ChannelMessageRetention.MaxTrimMessages = maxMessages
+	}
+	if raw := configValue(values, "WK_CHANNEL_MESSAGE_RETENTION_MAX_TRIM_BYTES"); raw != "" {
+		maxBytes, err := parseInt("WK_CHANNEL_MESSAGE_RETENTION_MAX_TRIM_BYTES", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if maxBytes < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CHANNEL_MESSAGE_RETENTION_MAX_TRIM_BYTES: value must be >= 0")
+		}
+		cfg.ChannelMessageRetention.MaxTrimBytes = maxBytes
 	}
 	if raw := configValue(values, "WK_CLUSTER_COMMIT_COORDINATOR_SYNC"); raw != "" {
 		syncCommit, err := parseBool("WK_CLUSTER_COMMIT_COORDINATOR_SYNC", raw)
@@ -1264,6 +1321,13 @@ func buildConfig(values map[string]string) (app.Config, error) {
 		cfg.Plugin.PersistAfterWorkers = workers
 	}
 	cfg.Plugin.SetExplicitFlags(configValue(values, "WK_PLUGIN_HOT_RELOAD") != "")
+	cfg.Cluster.ChannelRetention = clusterv2.ChannelRetentionConfig{
+		PhysicalGCEnabled: cfg.ChannelMessageRetention.PhysicalGCEnabled,
+		ScanInterval:      cfg.ChannelMessageRetention.ScanInterval,
+		ChannelBatchSize:  cfg.ChannelMessageRetention.ChannelBatchSize,
+		MaxTrimMessages:   cfg.ChannelMessageRetention.MaxTrimMessages,
+		MaxTrimBytes:      cfg.ChannelMessageRetention.MaxTrimBytes,
+	}
 
 	return cfg, nil
 }

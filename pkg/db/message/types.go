@@ -125,12 +125,22 @@ type RetentionState struct {
 	RetainedMaxSeq uint64
 }
 
+// RetentionTrimOptions bounds one physical prefix trim.
+type RetentionTrimOptions struct {
+	// MaxMessages caps deleted message rows when positive.
+	MaxMessages int
+	// MaxBytes caps deleted payload bytes when positive.
+	MaxBytes int
+}
+
 // RetentionTrimResult describes one prefix retention trim.
 type RetentionTrimResult struct {
 	// DeletedThroughSeq is the highest sequence deleted by this trim.
 	DeletedThroughSeq uint64
 	// Deleted is the number of message rows deleted.
 	Deleted int
+	// More reports whether another trim may still find rows below the boundary.
+	More bool
 }
 
 // ChannelCatalogEntry describes one known channel in the message domain.

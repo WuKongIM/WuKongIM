@@ -21,6 +21,11 @@ type FollowerApplyBatcher interface {
 	ApplyFollowerBatch(ctx context.Context, items []ApplyFollowerBatchItem) []ApplyFollowerBatchResult
 }
 
+// ChannelCatalogLister pages the local message-store channel catalog.
+type ChannelCatalogLister interface {
+	ListChannelsPage(ctx context.Context, after ch.ChannelKey, limit int) ([]ChannelCatalogEntry, ch.ChannelKey, bool, error)
+}
+
 // ChannelStore is the narrow persistence contract used by channelv2.
 type ChannelStore interface {
 	Load(ctx context.Context) (InitialState, error)
@@ -28,6 +33,9 @@ type ChannelStore interface {
 	ApplyFollower(ctx context.Context, req ApplyFollowerRequest) (ApplyFollowerResult, error)
 	ReadCommitted(ctx context.Context, req ReadCommittedRequest) (ReadCommittedResult, error)
 	ReadLog(ctx context.Context, req ReadLogRequest) (ReadLogResult, error)
+	LoadRetentionState(ctx context.Context) (RetentionState, error)
+	AdoptRetentionBoundary(ctx context.Context, throughSeq uint64, cursorName string) (uint64, error)
+	TrimMessagesThrough(ctx context.Context, throughSeq uint64, opts RetentionTrimOptions) (RetentionTrimResult, error)
 	// StoreCheckpoint durably records checkpoint HW and must ignore regressive HW updates.
 	StoreCheckpoint(ctx context.Context, checkpoint ch.Checkpoint) error
 	// Close releases resources owned by this store handle without deleting durable channel state.
@@ -45,6 +53,42 @@ type InitialState struct {
 	LEO          uint64
 	HW           uint64
 	CheckpointHW uint64
+}
+
+// RetentionState records local retention progress for one channel store.
+type RetentionState struct {
+	// LocalRetentionThroughSeq is the adopted logical retention boundary.
+	LocalRetentionThroughSeq uint64
+	// PhysicalRetentionThroughSeq is the highest physically deleted sequence.
+	PhysicalRetentionThroughSeq uint64
+	// RetainedMaxSeq preserves LEO when all rows at the tail are trimmed.
+	RetainedMaxSeq uint64
+}
+
+// ChannelCatalogEntry describes one locally known channel in the message store.
+type ChannelCatalogEntry struct {
+	// Key is the stable channel partition key.
+	Key ch.ChannelKey
+	// ID is the user-facing channel identity.
+	ID ch.ChannelID
+}
+
+// RetentionTrimOptions bounds one physical retention trim.
+type RetentionTrimOptions struct {
+	// MaxMessages caps deleted messages when positive.
+	MaxMessages int
+	// MaxBytes caps deleted payload bytes when positive.
+	MaxBytes int
+}
+
+// RetentionTrimResult describes one bounded physical retention trim.
+type RetentionTrimResult struct {
+	// DeletedThroughSeq is the highest sequence deleted by this trim.
+	DeletedThroughSeq uint64
+	// Deleted is the number of message rows deleted.
+	Deleted int
+	// More reports whether another trim may still find rows below the boundary.
+	More bool
 }
 
 // AppendLeaderRequest persists a leader-owned continuous record batch.

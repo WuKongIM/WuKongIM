@@ -25,6 +25,10 @@ const (
 	EventRuntimeProbe
 	// EventRuntimeEvict asks one reactor to evict selected safe runtimes.
 	EventRuntimeEvict
+	// EventRetentionView asks one reactor for one channel's retention view.
+	EventRetentionView
+	// EventApplyRetentionBoundary adopts and safely applies one local retention boundary.
+	EventApplyRetentionBoundary
 	// EventAppend is the client write event handled by the local leader.
 	EventAppend
 	// EventWorkerResult carries a blocking worker completion back to its reactor.
@@ -58,9 +62,10 @@ type Event struct {
 	Pull    transport.PullRequest
 	Ack     transport.AckRequest
 	// Notify is the legacy transport compatibility nudge payload.
-	Notify   transport.NotifyRequest
-	PullHint transport.PullHintRequest
-	OpID     ch.OpID
+	Notify         transport.NotifyRequest
+	PullHint       transport.PullHintRequest
+	RetentionApply ch.RetentionApplyRequest
+	OpID           ch.OpID
 	// MessageID selects a durable message for EventLookupCommittedMessage.
 	MessageID uint64
 	CancelOp  ch.OpID
@@ -86,6 +91,10 @@ func eventKindName(kind EventKind) string {
 		return "EventRuntimeProbe"
 	case EventRuntimeEvict:
 		return "EventRuntimeEvict"
+	case EventRetentionView:
+		return "EventRetentionView"
+	case EventApplyRetentionBoundary:
+		return "EventApplyRetentionBoundary"
 	case EventAppend:
 		return "EventAppend"
 	case EventWorkerResult:

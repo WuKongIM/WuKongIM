@@ -268,6 +268,23 @@ func (e *Engine) ForChannel(key channel.ChannelKey, id channel.ChannelID) *Chann
 	return st
 }
 
+// ListChannelsPage returns one ordered catalog page after the exclusive cursor.
+func (e *Engine) ListChannelsPage(ctx context.Context, after ChannelKey, limit int) ([]ChannelCatalogEntry, ChannelKey, bool, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, "", false, err
+	}
+	if e == nil {
+		return nil, "", false, dberrors.ErrClosed
+	}
+	e.mu.Lock()
+	db := e.db
+	e.mu.Unlock()
+	if db == nil {
+		return nil, "", false, dberrors.ErrClosed
+	}
+	return db.ListChannelsPage(ctx, after, limit)
+}
+
 // ListChannelKeys returns persisted channels with message or system state.
 func (e *Engine) ListChannelKeys() ([]channel.ChannelKey, error) {
 	if e == nil || e.db == nil {
@@ -1340,57 +1357,23 @@ func (s *ChannelStore) AdoptRetentionBoundary(ctx context.Context, throughSeq ui
 
 // TrimMessagesThrough removes rows through an already-adopted retention boundary.
 func (s *ChannelStore) TrimMessagesThrough(ctx context.Context, throughSeq uint64) error {
+	_, err := s.TrimMessagesThroughLimit(ctx, throughSeq, RetentionTrimOptions{})
+	return err
+}
+
+// TrimMessagesThroughLimit removes a bounded prefix through an already-adopted retention boundary.
+func (s *ChannelStore) TrimMessagesThroughLimit(ctx context.Context, throughSeq uint64, opts RetentionTrimOptions) (RetentionTrimResult, error) {
 	if throughSeq == 0 {
-		return channel.ErrInvalidArgument
+		return RetentionTrimResult{}, channel.ErrInvalidArgument
 	}
 	if err := s.validate(); err != nil {
-		return err
+		return RetentionTrimResult{}, err
 	}
 	if err := ctxErr(ctx); err != nil {
-		return err
+		return RetentionTrimResult{}, err
 	}
-	s.log.appendMu.Lock()
-	defer s.log.appendMu.Unlock()
-	leo, err := s.log.loadLEOLocked(ctx)
-	if err != nil {
-		return toChannelError(err)
-	}
-	state, err := s.loadRetentionState(ctx)
-	if err != nil {
-		return err
-	}
-	rows, err := s.log.readRows(ctx, 1, throughSeq, ReadOptions{})
-	if err != nil {
-		return toChannelError(err)
-	}
-	if len(rows) == 0 {
-		return nil
-	}
-	next := state
-	next.PhysicalRetentionThroughSeq = maxUint64(next.PhysicalRetentionThroughSeq, rows[len(rows)-1].MessageSeq)
-	if next.PhysicalRetentionThroughSeq > next.LocalRetentionThroughSeq {
-		return channel.ErrCorruptState
-	}
-	next.RetainedMaxSeq = maxUint64(next.RetainedMaxSeq, leo)
-	batch := s.log.db.engine.NewBatch()
-	defer batch.Close()
-	for _, row := range rows {
-		if err := s.log.stageDeleteMessage(batch, messageFromRow(row)); err != nil {
-			return toChannelError(err)
-		}
-	}
-	if err := batch.Set(encodeRetentionStateKey(s.log.key), encodeRetentionState(next)); err != nil {
-		return toChannelError(err)
-	}
-	if err := s.log.stageCatalog(batch); err != nil {
-		return toChannelError(err)
-	}
-	if err := batch.Commit(true); err != nil {
-		return toChannelError(err)
-	}
-	s.log.leo.Store(maxUint64(leo, next.RetainedMaxSeq))
-	s.log.loaded.Store(true)
-	return nil
+	result, err := s.log.trimPrefixThroughLimit(ctx, throughSeq, opts, false)
+	return result, toChannelError(err)
 }
 
 // LoadCommittedDispatchCursor loads the last dispatched sequence for a replay lane.

@@ -47,6 +47,15 @@ WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT=0
 WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_INTERVAL=2s
 WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_JITTER=1s
 
+# Channel message physical cleanup is disabled by default. Manager retention
+# first advances the cluster-authoritative logical boundary; this background
+# loop later removes local message-log prefixes with bounded batches.
+WK_CHANNEL_MESSAGE_RETENTION_PHYSICAL_GC_ENABLE=false
+WK_CHANNEL_MESSAGE_RETENTION_SCAN_INTERVAL=1m
+WK_CHANNEL_MESSAGE_RETENTION_CHANNEL_BATCH_SIZE=128
+WK_CHANNEL_MESSAGE_RETENTION_MAX_TRIM_MESSAGES=1000
+WK_CHANNEL_MESSAGE_RETENTION_MAX_TRIM_BYTES=0
+
 # Maximum time to collect adjacent ChannelV2 append requests before one durable fsync.
 WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW=200us
 # Optional caps for one grouped physical commit. 0 keeps the limit unbounded.

@@ -68,3 +68,37 @@ func (n *Node) stopChannelTickLoop() {
 	n.channelTickWG.Wait()
 	n.channelTickCancel = nil
 }
+
+func (n *Node) startChannelRetentionGCLoop() {
+	if n == nil || n.channelRetentionCancel != nil || !n.cfg.ChannelRetention.PhysicalGCEnabled {
+		return
+	}
+	if n.channels == nil || n.defaultChannelStore == nil || n.defaultSlotMetaDB == nil {
+		return
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	n.channelRetentionCancel = cancel
+	n.channelRetentionWG.Add(1)
+	go func() {
+		defer n.channelRetentionWG.Done()
+		ticker := time.NewTicker(n.cfg.ChannelRetention.ScanInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				_, _ = n.RunChannelRetentionGCOnce(ctx)
+			}
+		}
+	}()
+}
+
+func (n *Node) stopChannelRetentionGCLoop() {
+	if n == nil || n.channelRetentionCancel == nil {
+		return
+	}
+	n.channelRetentionCancel()
+	n.channelRetentionWG.Wait()
+	n.channelRetentionCancel = nil
+}

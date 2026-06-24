@@ -48,6 +48,8 @@ type Config struct {
 	Log LogConfig
 	// Message configures message send behavior.
 	Message MessageConfig
+	// ChannelMessageRetention configures asynchronous ChannelV2 message-log physical cleanup.
+	ChannelMessageRetention ChannelMessageRetentionConfig
 	// Channel configures channel management behavior.
 	Channel ChannelConfig
 	// ChannelAppend configures the local channel append authority runtime.
@@ -271,6 +273,20 @@ type MessageConfig struct {
 	PermissionCacheTTL time.Duration
 }
 
+// ChannelMessageRetentionConfig contains node-local physical cleanup settings for retained channel messages.
+type ChannelMessageRetentionConfig struct {
+	// PhysicalGCEnabled enables the background local physical cleanup loop.
+	PhysicalGCEnabled bool
+	// ScanInterval controls how often the background cleanup loop scans one channel catalog page.
+	ScanInterval time.Duration
+	// ChannelBatchSize caps the number of local channel catalog entries processed per cleanup pass.
+	ChannelBatchSize int
+	// MaxTrimMessages caps message rows deleted per channel cleanup attempt. Zero uses the default bound.
+	MaxTrimMessages int
+	// MaxTrimBytes caps payload bytes deleted per channel cleanup attempt. Zero means unlimited by bytes.
+	MaxTrimBytes int
+}
+
 // ChannelConfig contains channel management settings.
 type ChannelConfig struct {
 	// LargeGroupSubscriberThreshold marks a channel large when ordinary subscriber count exceeds it.
@@ -387,6 +403,19 @@ func defaultManagerConfig(cfg ManagerConfig) ManagerConfig {
 func defaultMessageConfig(cfg MessageConfig) MessageConfig {
 	if cfg.SystemDeviceID == "" {
 		cfg.SystemDeviceID = "____device"
+	}
+	return cfg
+}
+
+func defaultChannelMessageRetentionConfig(cfg ChannelMessageRetentionConfig) ChannelMessageRetentionConfig {
+	if cfg.ScanInterval == 0 {
+		cfg.ScanInterval = time.Minute
+	}
+	if cfg.ChannelBatchSize == 0 {
+		cfg.ChannelBatchSize = 128
+	}
+	if cfg.MaxTrimMessages == 0 {
+		cfg.MaxTrimMessages = 1000
 	}
 	return cfg
 }
@@ -725,6 +754,22 @@ func validateChannelConfig(cfg ChannelConfig) error {
 func validateMessageConfig(cfg MessageConfig) error {
 	if cfg.PermissionCacheTTL < 0 {
 		return fmt.Errorf("%w: message permission cache ttl must be non-negative", ErrInvalidConfig)
+	}
+	return nil
+}
+
+func validateChannelMessageRetentionConfig(cfg ChannelMessageRetentionConfig) error {
+	if cfg.ScanInterval < 0 {
+		return fmt.Errorf("%w: channel message retention scan interval must be non-negative", ErrInvalidConfig)
+	}
+	if cfg.ChannelBatchSize < 0 {
+		return fmt.Errorf("%w: channel message retention channel batch size must be non-negative", ErrInvalidConfig)
+	}
+	if cfg.MaxTrimMessages < 0 {
+		return fmt.Errorf("%w: channel message retention max trim messages must be non-negative", ErrInvalidConfig)
+	}
+	if cfg.MaxTrimBytes < 0 {
+		return fmt.Errorf("%w: channel message retention max trim bytes must be non-negative", ErrInvalidConfig)
 	}
 	return nil
 }

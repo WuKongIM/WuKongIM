@@ -35,6 +35,8 @@ Control
   EventApplyMeta
   EventCheckState
   EventLookupCommittedMessage
+  EventRetentionView
+  EventApplyRetentionBoundary
   EventCancelWaiter
   EventClose
 
@@ -188,6 +190,14 @@ Store worker dispatchers may batch queued `TaskStoreAppend` or
 `TaskStoreApply` items across different channels when the store factory supports
 leader-append or follower-apply batching. The ants executor only runs prepared
 blocking groups; it is not the source of worker backpressure.
+Retention apply uses the same store-apply worker pool as follower apply and
+checkpoint work. The reactor publishes the logical `RetentionThroughSeq` before
+submitting the worker task, but physical deletion is allowed only when the
+requested boundary is locally covered by HW, checkpoint HW, LEO, and leader
+minimum ISR match offset. If checkpoint HW is the only missing physical trim
+gate, the retention path submits a bounded retention-owned checkpoint and lets a
+later GC retry perform the trim after the checkpoint result updates the runtime
+view.
 When the leader serves records to a follower that is still behind, it schedules a
 bounded `PullHintReasonResume` retry. Normal lifecycle ticks can send that
 resume hint, and the append hot path opportunistically sends it when the retry is
@@ -283,6 +293,7 @@ TaskStoreReadLog       -> leader pull completion
 TaskStoreLookupMessage -> committed message lookup completion
 TaskStoreCheckpoint    -> leader checkpoint or follower stop checkpoint
 TaskStoreClose         -> detached store close completion (no state mutation)
+TaskStoreRetention     -> retention adoption and optional physical trim completion
 TaskRPCPull            -> follower pull completion
 TaskStoreApply         -> follower apply completion
 TaskRPCAck             -> follower stopped ACK completion

@@ -1561,6 +1561,15 @@ func (s *countingStore) ReadLog(ctx context.Context, req store.ReadLogRequest) (
 func (s *countingStore) StoreCheckpoint(ctx context.Context, checkpoint ch.Checkpoint) error {
 	return s.base.StoreCheckpoint(ctx, checkpoint)
 }
+func (s *countingStore) LoadRetentionState(ctx context.Context) (store.RetentionState, error) {
+	return s.base.LoadRetentionState(ctx)
+}
+func (s *countingStore) AdoptRetentionBoundary(ctx context.Context, throughSeq uint64, cursorName string) (uint64, error) {
+	return s.base.AdoptRetentionBoundary(ctx, throughSeq, cursorName)
+}
+func (s *countingStore) TrimMessagesThrough(ctx context.Context, throughSeq uint64, opts store.RetentionTrimOptions) (store.RetentionTrimResult, error) {
+	return s.base.TrimMessagesThrough(ctx, throughSeq, opts)
+}
 func (s *countingStore) Close() error { return s.base.Close() }
 
 func (s *countingStore) AppendLeader(ctx context.Context, req store.AppendLeaderRequest) (store.AppendLeaderResult, error) {

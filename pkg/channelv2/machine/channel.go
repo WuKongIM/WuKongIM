@@ -147,8 +147,14 @@ type ChannelState struct {
 	LEO          uint64
 	HW           uint64
 	CheckpointHW uint64
-	CommitReady  bool
-	Progress     map[ch.NodeID]ReplicaProgress
+	// RetentionThroughSeq is the authoritative logical compaction boundary.
+	RetentionThroughSeq uint64
+	// LocalRetentionThroughSeq is the local store-adopted logical boundary.
+	LocalRetentionThroughSeq uint64
+	// PhysicalRetentionThroughSeq is the highest locally deleted message sequence.
+	PhysicalRetentionThroughSeq uint64
+	CommitReady                 bool
+	Progress                    map[ch.NodeID]ReplicaProgress
 
 	PendingAppends map[ch.OpID]*AppendWaiter
 	// PendingAppendOrder preserves proposal order for append waiters that may complete after later quorum ACKs.
