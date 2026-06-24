@@ -26,6 +26,10 @@ type Controller interface {
 	FailTask(context.Context, TaskResult) error
 	// ReportTaskProgress submits one participant's fenced progress report.
 	ReportTaskProgress(context.Context, TaskProgress) error
+	// AdvanceSlotReplicaMovePhase submits a fenced Slot replica move phase update.
+	AdvanceSlotReplicaMovePhase(context.Context, SlotReplicaMovePhaseAdvance) error
+	// CommitSlotReplicaMove submits the final fenced Slot replica move assignment commit.
+	CommitSlotReplicaMove(context.Context, SlotReplicaMoveCommit) error
 	// RequestSlotLeaderTransfer submits a Controller-backed Slot leader transfer intent.
 	RequestSlotLeaderTransfer(context.Context, SlotLeaderTransferRequest) (SlotLeaderTransferResult, error)
 	// RequestSlotReplicaMove submits a Controller-backed staged Slot replica move intent.
@@ -51,6 +55,10 @@ type (
 	TaskResult = cv2.TaskResult
 	// TaskProgress describes one participant's local progress for a barrier task.
 	TaskProgress = cv2.TaskProgress
+	// SlotReplicaMovePhaseAdvance records an observed Slot Raft config phase.
+	SlotReplicaMovePhaseAdvance = cv2.SlotReplicaMovePhaseAdvance
+	// SlotReplicaMoveCommit fences the final durable assignment replacement.
+	SlotReplicaMoveCommit = cv2.SlotReplicaMoveCommit
 )
 
 // NodeReport contains low-frequency node status reported to the control adapter.

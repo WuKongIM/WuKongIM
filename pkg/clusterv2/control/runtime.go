@@ -263,6 +263,36 @@ func (r *Runtime) ReportTaskProgress(ctx context.Context, progress TaskProgress)
 	return err
 }
 
+// AdvanceSlotReplicaMovePhase submits one fenced Slot replica move phase observation.
+func (r *Runtime) AdvanceSlotReplicaMovePhase(ctx context.Context, phase SlotReplicaMovePhaseAdvance) error {
+	if err := ctxErr(ctx); err != nil {
+		return err
+	}
+	if r == nil || r.backend == nil {
+		return cv2.ErrNotStarted
+	}
+	err := r.backend.AdvanceSlotReplicaMovePhase(ctx, phase)
+	if shouldForwardTaskWrite(err) {
+		return r.forwardTaskRequest(ctx, TaskRequest{Action: TaskActionReplicaMovePhase, ReplicaMovePhase: phase})
+	}
+	return err
+}
+
+// CommitSlotReplicaMove submits the final fenced Slot replica move assignment commit.
+func (r *Runtime) CommitSlotReplicaMove(ctx context.Context, commit SlotReplicaMoveCommit) error {
+	if err := ctxErr(ctx); err != nil {
+		return err
+	}
+	if r == nil || r.backend == nil {
+		return cv2.ErrNotStarted
+	}
+	err := r.backend.CommitSlotReplicaMove(ctx, commit)
+	if shouldForwardTaskWrite(err) {
+		return r.forwardTaskRequest(ctx, TaskRequest{Action: TaskActionReplicaMoveCommit, ReplicaMoveCommit: commit})
+	}
+	return err
+}
+
 // RequestSlotLeaderTransfer submits a Controller-backed Slot leader transfer intent.
 func (r *Runtime) RequestSlotLeaderTransfer(ctx context.Context, req SlotLeaderTransferRequest) (SlotLeaderTransferResult, error) {
 	if err := ctxErr(ctx); err != nil {

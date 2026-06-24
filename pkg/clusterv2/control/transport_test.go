@@ -241,6 +241,8 @@ type recordingTaskApplier struct {
 	failed          []TaskResult
 	progress        []TaskProgress
 	leaderTransfers []SlotLeaderTransferRequest
+	movePhases      []SlotReplicaMovePhaseAdvance
+	moveCommits     []SlotReplicaMoveCommit
 }
 
 func (a *recordingTaskApplier) CompleteTask(ctx context.Context, result TaskResult) error {
@@ -261,6 +263,16 @@ func (a *recordingTaskApplier) ReportTaskProgress(ctx context.Context, progress 
 func (a *recordingTaskApplier) RequestSlotLeaderTransfer(ctx context.Context, req SlotLeaderTransferRequest) (SlotLeaderTransferResult, error) {
 	a.leaderTransfers = append(a.leaderTransfers, req)
 	return SlotLeaderTransferResult{Created: true}, nil
+}
+
+func (a *recordingTaskApplier) AdvanceSlotReplicaMovePhase(ctx context.Context, phase SlotReplicaMovePhaseAdvance) error {
+	a.movePhases = append(a.movePhases, phase)
+	return nil
+}
+
+func (a *recordingTaskApplier) CommitSlotReplicaMove(ctx context.Context, commit SlotReplicaMoveCommit) error {
+	a.moveCommits = append(a.moveCommits, commit)
+	return nil
 }
 
 type recordingControlWriteApplier struct {

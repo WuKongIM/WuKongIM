@@ -90,6 +90,12 @@ func (n *Node) ensureDefaultSlots() error {
 				Runtime:   runtime,
 				Writer:    n.control,
 			}),
+			tasks.NewSlotReplicaMoveExecutor(tasks.SlotReplicaMoveExecutorConfig{
+				LocalNode:  n.cfg.NodeID,
+				Runtime:    runtime,
+				Learners:   manager,
+				MoveWriter: n.control,
+			}),
 		)
 	}
 	n.defaultSlotRuntime = runtime

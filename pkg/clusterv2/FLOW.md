@@ -140,15 +140,19 @@ continues to be activation-only.
 
 ControllerV2 changes enter clusterv2 as strongly typed `controllerv2.ClusterState` events. `pkg/clusterv2/control` maps those events to `control.Snapshot`; `Node` then compares node, Slot, task, and hash-slot domains before touching discovery, Slot runtime reconciliation, or foreground routing.
 
-When a control snapshot contains active bootstrap or leader-transfer tasks, the
-Node runs task executors after Slot reconciliation. Executors only report
-participant progress or fenced completion through the control task writer
-facade; they do not mutate ControllerV2 state directly. Task writes from
-non-leader Controller runtimes are forwarded to the current Controller leader.
-Leader-transfer execution calls Slot Raft `TransferLeadership` from the current
-Slot leader and completes once the observed actual leader is any legal
-non-source Slot Raft leader; the requested `target_node` is preferred, not a
-strict completion requirement.
+When a control snapshot contains active bootstrap, leader-transfer, or staged
+slot-replica-move tasks, the Node runs task executors after Slot
+reconciliation. Executors only report participant progress, fenced phase
+advancement, fenced commit, or fenced completion through the control task
+writer facade; they do not mutate ControllerV2 state directly. Task writes
+from non-leader Controller runtimes are forwarded to the current Controller
+leader. Leader-transfer execution calls Slot Raft `TransferLeadership` from
+the current Slot leader and completes once the observed actual leader is any
+legal non-source Slot Raft leader; the requested `target_node` is preferred,
+not a strict completion requirement. Slot replica movement first opens the
+target's local learner runtime, then advances Slot Raft membership through
+add-learner, promote-learner, remove-voter, and finally commits the durable
+assignment only after observed voters match the target peer set.
 
 `Config.Control.RaftObserver` is passed through to the default ControllerV2
 runtime so composition roots can expose Controller Raft ingress queue metrics

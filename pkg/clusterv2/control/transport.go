@@ -146,6 +146,10 @@ type TaskApplier interface {
 	ReportTaskProgress(context.Context, TaskProgress) error
 	// RequestSlotLeaderTransfer submits a Controller-backed Slot leader transfer intent.
 	RequestSlotLeaderTransfer(context.Context, SlotLeaderTransferRequest) (SlotLeaderTransferResult, error)
+	// AdvanceSlotReplicaMovePhase submits a fenced Slot replica move phase update.
+	AdvanceSlotReplicaMovePhase(context.Context, SlotReplicaMovePhaseAdvance) error
+	// CommitSlotReplicaMove submits the final fenced Slot replica move commit.
+	CommitSlotReplicaMove(context.Context, SlotReplicaMoveCommit) error
 }
 
 // TaskClient forwards ControllerV2 task writes to a remote node.
@@ -185,6 +189,10 @@ func NewTaskHandler(applier TaskApplier) clusternet.Handler {
 		case TaskActionLeaderTransfer:
 			_, err := applier.RequestSlotLeaderTransfer(ctx, req.LeaderTransfer)
 			return nil, err
+		case TaskActionReplicaMovePhase:
+			return nil, applier.AdvanceSlotReplicaMovePhase(ctx, req.ReplicaMovePhase)
+		case TaskActionReplicaMoveCommit:
+			return nil, applier.CommitSlotReplicaMove(ctx, req.ReplicaMoveCommit)
 		default:
 			return nil, fmt.Errorf("control task: unknown action %q", req.Action)
 		}

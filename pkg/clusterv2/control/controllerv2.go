@@ -189,6 +189,22 @@ func (a *ControllerV2Adapter) ReportTaskProgress(ctx context.Context, progress T
 	return fmt.Errorf("control: controllerv2 adapter cannot write task progress")
 }
 
+// AdvanceSlotReplicaMovePhase is unsupported on the read-only ControllerV2 snapshot adapter.
+func (a *ControllerV2Adapter) AdvanceSlotReplicaMovePhase(ctx context.Context, phase SlotReplicaMovePhaseAdvance) error {
+	if err := ctxErr(ctx); err != nil {
+		return err
+	}
+	return fmt.Errorf("control: controllerv2 adapter cannot write slot replica move phases")
+}
+
+// CommitSlotReplicaMove is unsupported on the read-only ControllerV2 snapshot adapter.
+func (a *ControllerV2Adapter) CommitSlotReplicaMove(ctx context.Context, commit SlotReplicaMoveCommit) error {
+	if err := ctxErr(ctx); err != nil {
+		return err
+	}
+	return fmt.Errorf("control: controllerv2 adapter cannot write slot replica move commits")
+}
+
 // RequestSlotLeaderTransfer is unsupported on the read-only ControllerV2 snapshot adapter.
 func (a *ControllerV2Adapter) RequestSlotLeaderTransfer(ctx context.Context, req SlotLeaderTransferRequest) (SlotLeaderTransferResult, error) {
 	if err := ctxErr(ctx); err != nil {

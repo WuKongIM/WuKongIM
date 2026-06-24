@@ -22,7 +22,11 @@ type StaticController struct {
 	LeaderTransfers []SlotLeaderTransferRequest
 	// SlotReplicaMoves records staged Slot replica move intents for tests.
 	SlotReplicaMoves []SlotReplicaMoveRequest
-	started          bool
+	// SlotReplicaMovePhases records staged Slot replica move phase updates for tests.
+	SlotReplicaMovePhases []SlotReplicaMovePhaseAdvance
+	// SlotReplicaMoveCommits records staged Slot replica move commits for tests.
+	SlotReplicaMoveCommits []SlotReplicaMoveCommit
+	started                bool
 }
 
 // NewStaticController creates a StaticController seeded with snapshot.
@@ -123,6 +127,28 @@ func (c *StaticController) ReportTaskProgress(ctx context.Context, progress Task
 	}
 	c.mu.Lock()
 	c.ProgressReports = append(c.ProgressReports, progress)
+	c.mu.Unlock()
+	return nil
+}
+
+// AdvanceSlotReplicaMovePhase records a fenced Slot replica move phase update.
+func (c *StaticController) AdvanceSlotReplicaMovePhase(ctx context.Context, phase SlotReplicaMovePhaseAdvance) error {
+	if err := ctxErr(ctx); err != nil {
+		return err
+	}
+	c.mu.Lock()
+	c.SlotReplicaMovePhases = append(c.SlotReplicaMovePhases, phase)
+	c.mu.Unlock()
+	return nil
+}
+
+// CommitSlotReplicaMove records a fenced Slot replica move commit.
+func (c *StaticController) CommitSlotReplicaMove(ctx context.Context, commit SlotReplicaMoveCommit) error {
+	if err := ctxErr(ctx); err != nil {
+		return err
+	}
+	c.mu.Lock()
+	c.SlotReplicaMoveCommits = append(c.SlotReplicaMoveCommits, commit)
 	c.mu.Unlock()
 	return nil
 }

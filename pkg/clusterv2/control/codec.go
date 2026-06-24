@@ -103,6 +103,10 @@ const (
 	TaskActionProgress TaskAction = "progress"
 	// TaskActionLeaderTransfer submits a Slot leader transfer intent.
 	TaskActionLeaderTransfer TaskAction = "leader_transfer"
+	// TaskActionReplicaMovePhase advances a staged Slot replica move phase.
+	TaskActionReplicaMovePhase TaskAction = "replica_move_phase"
+	// TaskActionReplicaMoveCommit commits a staged Slot replica move assignment.
+	TaskActionReplicaMoveCommit TaskAction = "replica_move_commit"
 )
 
 // TaskRequest carries one ControllerV2 task result or progress write.
@@ -115,6 +119,10 @@ type TaskRequest struct {
 	Progress cv2.TaskProgress `json:"progress,omitempty"`
 	// LeaderTransfer carries a Slot leader transfer intent.
 	LeaderTransfer SlotLeaderTransferRequest `json:"leader_transfer,omitempty"`
+	// ReplicaMovePhase carries a fenced Slot replica move phase update.
+	ReplicaMovePhase cv2.SlotReplicaMovePhaseAdvance `json:"replica_move_phase,omitempty"`
+	// ReplicaMoveCommit carries a fenced Slot replica move commit.
+	ReplicaMoveCommit cv2.SlotReplicaMoveCommit `json:"replica_move_commit,omitempty"`
 }
 
 // EncodeTaskRequest encodes one task write request.

@@ -30,6 +30,22 @@ func (r *Runtime) ReportTaskProgress(ctx context.Context, progress TaskProgress)
 	})
 }
 
+// AdvanceSlotReplicaMovePhase proposes one fenced Slot replica move phase observation.
+func (r *Runtime) AdvanceSlotReplicaMovePhase(ctx context.Context, phase SlotReplicaMovePhaseAdvance) error {
+	return r.proposeTaskCommand(ctx, command.Command{
+		Kind:                 command.KindAdvanceSlotReplicaMovePhase,
+		SlotReplicaMovePhase: &phase,
+	})
+}
+
+// CommitSlotReplicaMove proposes the final fenced Slot replica move assignment replacement.
+func (r *Runtime) CommitSlotReplicaMove(ctx context.Context, commit SlotReplicaMoveCommit) error {
+	return r.proposeTaskCommand(ctx, command.Command{
+		Kind:                  command.KindCommitSlotReplicaMove,
+		SlotReplicaMoveCommit: &commit,
+	})
+}
+
 func (r *Runtime) proposeTaskCommand(ctx context.Context, cmd command.Command) error {
 	if err := ctxErr(ctx); err != nil {
 		return err
