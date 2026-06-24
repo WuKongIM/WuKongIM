@@ -74,6 +74,8 @@ const (
 	NodeJoinStateJoining = state.NodeJoinStateJoining
 	// NodeJoinStateLeaving means the node is being drained.
 	NodeJoinStateLeaving = state.NodeJoinStateLeaving
+	// NodeJoinStateRemoved means the node identity is retained as a tombstone.
+	NodeJoinStateRemoved = state.NodeJoinStateRemoved
 	// NodeStatusAlive means the node is considered available.
 	NodeStatusAlive = state.NodeStatusAlive
 	// NodeStatusSuspect means the node may be unavailable.

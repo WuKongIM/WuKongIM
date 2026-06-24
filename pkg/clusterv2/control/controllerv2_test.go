@@ -47,6 +47,14 @@ func TestControllerV2SnapshotMappingPreservesNonActiveLifecycle(t *testing.T) {
 	st.Nodes[1].JoinState = cv2.NodeJoinStateJoining
 	st.Nodes[1].CapacityWeight = 7
 	st.Nodes[2].JoinState = cv2.NodeJoinStateLeaving
+	st.Nodes = append(st.Nodes, cv2.Node{
+		NodeID:         4,
+		Addr:           "127.0.0.1:1004",
+		Roles:          []cv2.NodeRole{cv2.NodeRoleData},
+		JoinState:      cv2.NodeJoinStateRemoved,
+		Status:         cv2.NodeStatusDown,
+		CapacityWeight: 3,
+	})
 
 	snap, err := SnapshotFromControllerV2(st)
 	if err != nil {
@@ -57,6 +65,9 @@ func TestControllerV2SnapshotMappingPreservesNonActiveLifecycle(t *testing.T) {
 	}
 	if snap.Nodes[2].JoinState != NodeJoinStateLeaving {
 		t.Fatalf("node 3 lifecycle = %q, want leaving", snap.Nodes[2].JoinState)
+	}
+	if snap.Nodes[3].JoinState != NodeJoinStateRemoved || snap.Nodes[3].CapacityWeight != 3 {
+		t.Fatalf("node 4 lifecycle = %q capacity=%d, want removed capacity 3", snap.Nodes[3].JoinState, snap.Nodes[3].CapacityWeight)
 	}
 }
 

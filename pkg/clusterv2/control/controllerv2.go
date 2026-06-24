@@ -230,7 +230,7 @@ func mapControllerV2JoinState(state cv2.NodeJoinState) NodeJoinState {
 		return NodeJoinStateJoining
 	case cv2.NodeJoinStateLeaving:
 		return NodeJoinStateLeaving
-	case cv2.NodeJoinState("removed"):
+	case cv2.NodeJoinStateRemoved:
 		return NodeJoinStateRemoved
 	default:
 		return NodeJoinStateRemoved
