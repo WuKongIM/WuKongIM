@@ -82,6 +82,7 @@ type ConversationAuthority interface {
 type ManagerConnectionReader interface {
 	ListConnections(context.Context, managementusecase.ListConnectionsRequest) ([]managementusecase.Connection, error)
 	GetConnection(context.Context, managementusecase.GetConnectionRequest) (managementusecase.ConnectionDetail, error)
+	NodeRuntimeSummary(context.Context, uint64) (managementusecase.NodeRuntimeSummary, error)
 }
 
 // ManagerLogReader handles node-local manager distributed log page requests.

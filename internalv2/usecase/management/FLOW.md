@@ -44,6 +44,7 @@ manager HTTP handler
   -> ControlSnapshotReader.LocalControlSnapshot
   -> clusterv2 control snapshot
   -> SlotRuntimeStatusReader.SlotRuntimeStatus
+  -> RuntimeSummaryReader.NodeRuntimeSummary
   -> sorted manager node DTO rows
 ```
 
@@ -51,8 +52,9 @@ The projection derives node identity, health, controller role, and desired Slot
 replica counts from the local clusterv2 control snapshot. Slot leader counts
 are best-effort live Raft observations from `SlotRuntimeStatusReader`; they do
 not fall back to `PreferredLeader`, so the node list does not mix control-plane
-placement intent with actual Raft leadership. Runtime online counters are
-marked unknown until a migrated runtime summary source exists.
+placement intent with actual Raft leadership. Runtime online and gateway
+counters are read through the narrow `RuntimeSummaryReader` port. Read failures
+or an unwired runtime source mark only that node's runtime summary as unknown.
 Node operation action hints are always false because lifecycle, scale-in, and
 onboarding operation routes are intentionally outside this migration step.
 

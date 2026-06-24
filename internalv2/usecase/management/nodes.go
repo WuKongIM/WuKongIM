@@ -20,6 +20,12 @@ type ControlSnapshotReader interface {
 	LocalControlSnapshot(context.Context) (control.Snapshot, error)
 }
 
+// RuntimeSummaryReader reads local or remote node runtime counters for manager inventory.
+type RuntimeSummaryReader interface {
+	// NodeRuntimeSummary returns online and gateway counters for one cluster node.
+	NodeRuntimeSummary(ctx context.Context, nodeID uint64) (NodeRuntimeSummary, error)
+}
+
 // DiagnosticsReader reads node-local diagnostics events through an entry-agnostic adapter.
 type DiagnosticsReader interface {
 	// QueryNodeDiagnostics returns retained diagnostics events from one cluster node.
@@ -40,6 +46,8 @@ type DiagnosticsTrackingOperator interface {
 type Options struct {
 	// Cluster reads clusterv2 control state.
 	Cluster ControlSnapshotReader
+	// RuntimeSummary reads node runtime counters for the manager node list.
+	RuntimeSummary RuntimeSummaryReader
 	// Diagnostics reads local or remote node diagnostics events for manager aggregations.
 	Diagnostics DiagnosticsReader
 	// DiagnosticsTracking mutates local or remote runtime diagnostics tracking rules.
@@ -99,6 +107,7 @@ type Options struct {
 // App serves read-only manager management usecases for internalv2.
 type App struct {
 	cluster                ControlSnapshotReader
+	runtimeSummary         RuntimeSummaryReader
 	diagnostics            DiagnosticsReader
 	diagnosticsTracking    DiagnosticsTrackingOperator
 	channelRuntimeMeta     ChannelRuntimeMetaReader
@@ -136,6 +145,7 @@ func New(opts Options) *App {
 	}
 	return &App{
 		cluster:                opts.Cluster,
+		runtimeSummary:         opts.RuntimeSummary,
 		diagnostics:            opts.Diagnostics,
 		diagnosticsTracking:    opts.DiagnosticsTracking,
 		channelRuntimeMeta:     opts.ChannelRuntimeMeta,
@@ -306,6 +316,7 @@ func (a *App) ListNodes(ctx context.Context) (NodeList, error) {
 		nodes = append(nodes, buildNode(nodeBuildOptions{
 			node:               node,
 			slots:              slots,
+			runtime:            a.nodeRuntimeSummary(ctx, node.NodeID),
 			localNodeID:        a.cluster.NodeID(),
 			controllerLeaderID: snapshot.ControllerID,
 			generatedAt:        generatedAt,
@@ -345,9 +356,40 @@ func (a *App) actualSlotLeaderID(ctx context.Context, assignment control.SlotAss
 	return status.LeaderID
 }
 
+// NodeRuntimeSummary returns the best available runtime counters for one node.
+func (a *App) NodeRuntimeSummary(ctx context.Context, nodeID uint64) (NodeRuntimeSummary, error) {
+	return a.nodeRuntimeSummary(ctx, nodeID), nil
+}
+
+func (a *App) nodeRuntimeSummary(ctx context.Context, nodeID uint64) NodeRuntimeSummary {
+	if a == nil || a.runtimeSummary == nil {
+		return unknownNodeRuntimeSummary(nodeID)
+	}
+	summary, err := a.runtimeSummary.NodeRuntimeSummary(ctx, nodeID)
+	if err != nil {
+		return unknownNodeRuntimeSummary(nodeID)
+	}
+	if summary.NodeID == 0 {
+		summary.NodeID = nodeID
+	}
+	if summary.SessionsByListener == nil {
+		summary.SessionsByListener = map[string]int{}
+	}
+	return summary
+}
+
+func unknownNodeRuntimeSummary(nodeID uint64) NodeRuntimeSummary {
+	return NodeRuntimeSummary{
+		NodeID:             nodeID,
+		SessionsByListener: map[string]int{},
+		Unknown:            true,
+	}
+}
+
 type nodeBuildOptions struct {
 	node               control.Node
 	slots              slotSummary
+	runtime            NodeRuntimeSummary
 	localNodeID        uint64
 	controllerLeaderID uint64
 	generatedAt        time.Time
@@ -391,11 +433,7 @@ func buildNode(opts nodeBuildOptions) Node {
 			LeaderCount:   leaders,
 			FollowerCount: followers,
 		},
-		Runtime: NodeRuntimeSummary{
-			NodeID:             opts.node.NodeID,
-			SessionsByListener: map[string]int{},
-			Unknown:            true,
-		},
+		Runtime: opts.runtime,
 		Actions: NodeActions{},
 	}
 }

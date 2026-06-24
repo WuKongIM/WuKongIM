@@ -39,6 +39,11 @@ func (a *Adapter) HandleManagerConnectionRPC(ctx context.Context, payload []byte
 		status := managerConnectionRPCStatusForError(err)
 		a.logManagerConnectionError(req, status, err)
 		return encodeManagerConnectionResponse(managerConnectionRPCResponse{Status: status, Connection: item})
+	case managerConnectionOpRuntimeSummary:
+		summary, err := a.managerConnections.NodeRuntimeSummary(ctx, req.NodeID)
+		status := managerConnectionRPCStatusForError(err)
+		a.logManagerConnectionError(req, status, err)
+		return encodeManagerConnectionResponse(managerConnectionRPCResponse{Status: status, Summary: summary})
 	default:
 		err := fmt.Errorf("internalv2/access/node: unknown manager connection op %q", req.Op)
 		a.rpcLogger().Warn("manager connection rpc unknown operation",
@@ -72,6 +77,18 @@ func (c *Client) GetManagerConnection(ctx context.Context, nodeID, sessionID uin
 		return managementusecase.ConnectionDetail{}, err
 	}
 	return resp.Connection, nil
+}
+
+// GetManagerRuntimeSummary reads one owner-node runtime summary from nodeID.
+func (c *Client) GetManagerRuntimeSummary(ctx context.Context, nodeID uint64) (managementusecase.NodeRuntimeSummary, error) {
+	resp, err := c.callManagerConnection(ctx, nodeID, managerConnectionRPCRequest{Op: managerConnectionOpRuntimeSummary, NodeID: nodeID})
+	if err != nil {
+		return managementusecase.NodeRuntimeSummary{}, err
+	}
+	if err := managerConnectionRPCErrorForStatus(resp.Status); err != nil {
+		return managementusecase.NodeRuntimeSummary{}, err
+	}
+	return resp.Summary, nil
 }
 
 func (c *Client) callManagerConnection(ctx context.Context, nodeID uint64, req managerConnectionRPCRequest) (managerConnectionRPCResponse, error) {

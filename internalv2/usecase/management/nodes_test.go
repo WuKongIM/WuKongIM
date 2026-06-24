@@ -126,6 +126,54 @@ func TestListNodesCountsActualSlotRaftLeaders(t *testing.T) {
 	}
 }
 
+func TestListNodesAttachesRuntimeSummary(t *testing.T) {
+	app := New(Options{
+		Cluster: fakeNodeSnapshotReader{
+			nodeID: 1,
+			snapshot: control.Snapshot{
+				ControllerID: 1,
+				Nodes: []control.Node{
+					{NodeID: 1, Addr: "127.0.0.1:7011", Roles: []control.Role{control.RoleController, control.RoleData}, Status: control.NodeAlive},
+					{NodeID: 2, Addr: "127.0.0.1:7012", Roles: []control.Role{control.RoleData}, Status: control.NodeAlive},
+				},
+			},
+		},
+		RuntimeSummary: fakeNodeRuntimeSummaryReader{
+			summaries: map[uint64]NodeRuntimeSummary{
+				1: {
+					NodeID:               1,
+					ActiveOnline:         4,
+					ClosingOnline:        1,
+					TotalOnline:          5,
+					GatewaySessions:      6,
+					SessionsByListener:   map[string]int{"tcp": 6},
+					AcceptingNewSessions: false,
+					Draining:             true,
+				},
+			},
+			errs: map[uint64]error{2: errors.New("node runtime unavailable")},
+		},
+	})
+
+	got, err := app.ListNodes(context.Background())
+	if err != nil {
+		t.Fatalf("ListNodes() error = %v", err)
+	}
+	if len(got.Items) != 2 {
+		t.Fatalf("Items len = %d, want 2: %#v", len(got.Items), got.Items)
+	}
+	first := got.Items[0].Runtime
+	if first.Unknown || first.ActiveOnline != 4 || first.ClosingOnline != 1 || first.TotalOnline != 5 ||
+		first.GatewaySessions != 6 || first.SessionsByListener["tcp"] != 6 ||
+		first.AcceptingNewSessions || !first.Draining {
+		t.Fatalf("first runtime = %#v, want concrete runtime summary", first)
+	}
+	second := got.Items[1].Runtime
+	if second.NodeID != 2 || !second.Unknown || len(second.SessionsByListener) != 0 {
+		t.Fatalf("second runtime = %#v, want unknown runtime fallback for node 2", second)
+	}
+}
+
 func TestListNodesReturnsClusterSnapshotError(t *testing.T) {
 	wantErr := errors.New("control unavailable")
 	app := New(Options{Cluster: fakeNodeSnapshotReader{err: wantErr}})
@@ -146,4 +194,20 @@ func (f fakeNodeSnapshotReader) NodeID() uint64 { return f.nodeID }
 
 func (f fakeNodeSnapshotReader) LocalControlSnapshot(context.Context) (control.Snapshot, error) {
 	return f.snapshot.Clone(), f.err
+}
+
+type fakeNodeRuntimeSummaryReader struct {
+	summaries map[uint64]NodeRuntimeSummary
+	errs      map[uint64]error
+}
+
+func (f fakeNodeRuntimeSummaryReader) NodeRuntimeSummary(_ context.Context, nodeID uint64) (NodeRuntimeSummary, error) {
+	if err := f.errs[nodeID]; err != nil {
+		return NodeRuntimeSummary{}, err
+	}
+	summary := f.summaries[nodeID]
+	if summary.NodeID == 0 {
+		summary.NodeID = nodeID
+	}
+	return summary, nil
 }

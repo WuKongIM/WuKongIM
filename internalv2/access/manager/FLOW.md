@@ -73,6 +73,9 @@ invalid credentials return
 `/manager/nodes` preserves the legacy list response shape for the web node list
 view. It reads a control snapshot through `internalv2/usecase/management` and
 uses the wired Slot runtime status reader for actual Slot Raft leader counts.
+It also surfaces lightweight online/gateway runtime counters from the
+management runtime-summary reader; unavailable per-node runtime summaries stay
+explicitly marked `unknown` instead of failing the inventory response.
 Node operation action hints are false because node lifecycle/scale-in operation
 routes are intentionally not migrated in this phase.
 

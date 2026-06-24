@@ -32,6 +32,37 @@ func TestManagementConnectionReaderRoutesRemoteList(t *testing.T) {
 	}
 }
 
+func TestManagementConnectionReaderRoutesRuntimeSummary(t *testing.T) {
+	service := &fakeManagerConnectionService{
+		runtime: managementusecase.NodeRuntimeSummary{
+			NodeID:               2,
+			ActiveOnline:         3,
+			GatewaySessions:      4,
+			SessionsByListener:   map[string]int{"tcp": 4},
+			AcceptingNewSessions: true,
+		},
+	}
+	adapter := accessnode.New(accessnode.Options{ManagerConnections: service})
+	node := &fakeManagementConnectionNode{
+		nodeID:  1,
+		handler: adapter.HandleManagerConnectionRPC,
+	}
+	reader := NewManagementConnectionReader(node)
+
+	got, err := reader.NodeRuntimeSummary(context.Background(), 2)
+	if err != nil {
+		t.Fatalf("NodeRuntimeSummary() error = %v", err)
+	}
+
+	if got.NodeID != 2 || got.ActiveOnline != 3 || got.GatewaySessions != 4 ||
+		got.SessionsByListener["tcp"] != 4 || !got.AcceptingNewSessions || got.Unknown {
+		t.Fatalf("runtime summary = %#v, want concrete summary", got)
+	}
+	if node.calledNodeID != 2 || node.calledServiceID != accessnode.ManagerConnectionRPCServiceID {
+		t.Fatalf("rpc target = node:%d service:%d, want node 2 service %d", node.calledNodeID, node.calledServiceID, accessnode.ManagerConnectionRPCServiceID)
+	}
+}
+
 type fakeManagementConnectionNode struct {
 	nodeID          uint64
 	calledNodeID    uint64
@@ -50,6 +81,7 @@ func (f *fakeManagementConnectionNode) CallRPC(ctx context.Context, nodeID uint6
 type fakeManagerConnectionService struct {
 	connections []managementusecase.Connection
 	detail      managementusecase.ConnectionDetail
+	runtime     managementusecase.NodeRuntimeSummary
 }
 
 func (f *fakeManagerConnectionService) ListConnections(context.Context, managementusecase.ListConnectionsRequest) ([]managementusecase.Connection, error) {
@@ -58,6 +90,10 @@ func (f *fakeManagerConnectionService) ListConnections(context.Context, manageme
 
 func (f *fakeManagerConnectionService) GetConnection(context.Context, managementusecase.GetConnectionRequest) (managementusecase.ConnectionDetail, error) {
 	return f.detail, nil
+}
+
+func (f *fakeManagerConnectionService) NodeRuntimeSummary(context.Context, uint64) (managementusecase.NodeRuntimeSummary, error) {
+	return f.runtime, nil
 }
 
 func sameManagementConnections(left, right []managementusecase.Connection) bool {

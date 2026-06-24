@@ -44,3 +44,11 @@ func (r *ManagementConnectionReader) NodeConnection(ctx context.Context, nodeID,
 	}
 	return r.remote.GetManagerConnection(ctx, nodeID, sessionID)
 }
+
+// NodeRuntimeSummary reads aggregate runtime counters from one owner node.
+func (r *ManagementConnectionReader) NodeRuntimeSummary(ctx context.Context, nodeID uint64) (managementusecase.NodeRuntimeSummary, error) {
+	if r == nil || r.remote == nil {
+		return managementusecase.NodeRuntimeSummary{}, managementusecase.ErrConnectionReaderUnavailable
+	}
+	return r.remote.GetManagerRuntimeSummary(ctx, nodeID)
+}

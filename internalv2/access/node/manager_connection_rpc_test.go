@@ -62,11 +62,48 @@ func TestManagerConnectionRPCClientGetsConnection(t *testing.T) {
 	}
 }
 
+func TestManagerConnectionRPCClientGetsRuntimeSummary(t *testing.T) {
+	service := &fakeManagerConnectionService{
+		runtime: managementusecase.NodeRuntimeSummary{
+			NodeID:               2,
+			ActiveOnline:         7,
+			ClosingOnline:        1,
+			TotalOnline:          8,
+			GatewaySessions:      9,
+			SessionsByListener:   map[string]int{"tcp": 9},
+			AcceptingNewSessions: false,
+			Draining:             true,
+		},
+	}
+	adapter := New(Options{ManagerConnections: service})
+	node := &fakeManagerConnectionRPCNode{handler: adapter.HandleManagerConnectionRPC}
+	client := NewClient(node)
+
+	got, err := client.GetManagerRuntimeSummary(context.Background(), 2)
+	if err != nil {
+		t.Fatalf("GetManagerRuntimeSummary() error = %v", err)
+	}
+
+	if got.NodeID != 2 || got.ActiveOnline != 7 || got.ClosingOnline != 1 || got.TotalOnline != 8 ||
+		got.GatewaySessions != 9 || got.SessionsByListener["tcp"] != 9 ||
+		got.AcceptingNewSessions || !got.Draining || got.Unknown {
+		t.Fatalf("runtime summary = %#v, want concrete node 2 runtime summary", got)
+	}
+	if service.runtimeNodeID != 2 {
+		t.Fatalf("runtime request node id = %d, want 2", service.runtimeNodeID)
+	}
+	if node.nodeID != 2 || node.serviceID != ManagerConnectionRPCServiceID {
+		t.Fatalf("rpc target = node:%d service:%d, want node 2 service %d", node.nodeID, node.serviceID, ManagerConnectionRPCServiceID)
+	}
+}
+
 type fakeManagerConnectionService struct {
-	listReq     managementusecase.ListConnectionsRequest
-	detailReq   managementusecase.GetConnectionRequest
-	connections []managementusecase.Connection
-	detail      managementusecase.ConnectionDetail
+	listReq       managementusecase.ListConnectionsRequest
+	detailReq     managementusecase.GetConnectionRequest
+	runtimeNodeID uint64
+	connections   []managementusecase.Connection
+	detail        managementusecase.ConnectionDetail
+	runtime       managementusecase.NodeRuntimeSummary
 }
 
 func (f *fakeManagerConnectionService) ListConnections(_ context.Context, req managementusecase.ListConnectionsRequest) ([]managementusecase.Connection, error) {
@@ -77,6 +114,11 @@ func (f *fakeManagerConnectionService) ListConnections(_ context.Context, req ma
 func (f *fakeManagerConnectionService) GetConnection(_ context.Context, req managementusecase.GetConnectionRequest) (managementusecase.ConnectionDetail, error) {
 	f.detailReq = req
 	return f.detail, nil
+}
+
+func (f *fakeManagerConnectionService) NodeRuntimeSummary(_ context.Context, nodeID uint64) (managementusecase.NodeRuntimeSummary, error) {
+	f.runtimeNodeID = nodeID
+	return f.runtime, nil
 }
 
 type fakeManagerConnectionRPCNode struct {

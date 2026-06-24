@@ -188,10 +188,11 @@ management.RemoteConnectionReader
 ```
 
 `ManagementConnectionReader` is the narrow remote half of the manager
-connection page. It forwards non-local `node_id` list/detail reads to the owner
-node and preserves management usecase DTOs across the RPC boundary. Local
-connection filtering and DTO shaping stay in the management usecase; this
-adapter only chooses the typed node RPC client.
+connection and node-runtime summary surfaces. It forwards non-local `node_id`
+list/detail reads and aggregate runtime-summary reads to the owner node and
+preserves management usecase DTOs across the RPC boundary. Local connection
+filtering and DTO shaping stay in the management usecase; this adapter only
+chooses the typed node RPC client.
 
 ## Management Plugin Flow
 

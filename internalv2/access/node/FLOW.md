@@ -154,11 +154,13 @@ remote manager connection reader
 ```
 
 Manager Connection RPC transports the manager connection list/detail read
-requests for one owner node. The server calls the local management connection
-port, which reads the owner-local online registry; the client maps stable RPC
-statuses back to manager usecase errors. This package only transports the
-request and response DTOs. It does not decide which manager HTTP request should
-target a remote node.
+requests and lightweight runtime-summary reads for one owner node. The server
+calls the local management connection/runtime port, which reads the owner-local
+online registry and gateway counters; the client maps stable RPC statuses back
+to manager usecase errors. Summary requests return aggregate counts only and do
+not carry per-connection details. This package only transports the request and
+response DTOs. It does not decide which manager HTTP request should target a
+remote node.
 
 ## Manager Log RPC
 

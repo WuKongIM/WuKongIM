@@ -41,6 +41,7 @@ import (
 	messagedb "github.com/WuKongIM/WuKongIM/pkg/db/message"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/gateway"
+	gatewaycore "github.com/WuKongIM/WuKongIM/pkg/gateway/core"
 	"github.com/WuKongIM/WuKongIM/pkg/gateway/session"
 	gatewaytransport "github.com/WuKongIM/WuKongIM/pkg/gateway/transport"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
@@ -531,6 +532,84 @@ func TestManagerServerListsNodesFromClusterSnapshot(t *testing.T) {
 	}
 	if nodesBody.Items[0].Actions.CanDrain {
 		t.Fatalf("can_drain = true, want false while node operations are unmigrated")
+	}
+}
+
+func TestManagerServerListsLocalNodeRuntimeSummary(t *testing.T) {
+	cluster := &fakeManagerCluster{
+		nodeID: 2,
+		snapshot: control.Snapshot{
+			ControllerID: 1,
+			Nodes: []control.Node{
+				{NodeID: 1, Addr: "127.0.0.1:7011", Roles: []control.Role{control.RoleController, control.RoleData}, Status: control.NodeAlive},
+				{NodeID: 2, Addr: "127.0.0.1:7012", Roles: []control.Role{control.RoleData}, Status: control.NodeAlive},
+			},
+		},
+	}
+	onlineRegistry := online.NewRegistry(online.RegistryOptions{ShardCount: 1})
+	activeRoute := online.OwnerRoute{UID: "u1", HashSlot: 1, OwnerNodeID: 2, OwnerBootID: 1, OwnerSeq: 1, SessionID: 101, Listener: "tcp", ConnectedUnix: 100}
+	pendingRoute := online.OwnerRoute{UID: "u2", HashSlot: 2, OwnerNodeID: 2, OwnerBootID: 1, OwnerSeq: 2, SessionID: 102, Listener: "tcp", ConnectedUnix: 101}
+	if err := onlineRegistry.RegisterPending(online.LocalSession{Route: activeRoute}); err != nil {
+		t.Fatalf("RegisterPending(active) error = %v", err)
+	}
+	if err := onlineRegistry.MarkActive(activeRoute.SessionID); err != nil {
+		t.Fatalf("MarkActive() error = %v", err)
+	}
+	if err := onlineRegistry.RegisterPending(online.LocalSession{Route: pendingRoute}); err != nil {
+		t.Fatalf("RegisterPending(pending) error = %v", err)
+	}
+	gatewayRuntime := &fakeGateway{
+		calls: &[]string{},
+		sessionSummary: gatewaycore.SessionSummary{
+			GatewaySessions:      3,
+			SessionsByListener:   map[string]int{"tcp": 2, "ws": 1},
+			AcceptingNewSessions: false,
+		},
+	}
+	app, err := newTestApp(t, Config{
+		Manager: ManagerConfig{ListenAddr: ":0"},
+	}, WithCluster(cluster), WithOnlineRegistry(onlineRegistry), WithGateway(gatewayRuntime))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	srv, ok := app.manager.(*accessmanager.Server)
+	if !ok {
+		t.Fatalf("manager = %T, want *accessmanager.Server", app.manager)
+	}
+
+	rec := httptest.NewRecorder()
+	srv.Engine().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/manager/nodes", nil))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("nodes status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	var body struct {
+		Items []struct {
+			NodeID  uint64 `json:"node_id"`
+			Runtime struct {
+				ActiveOnline         int            `json:"active_online"`
+				ClosingOnline        int            `json:"closing_online"`
+				TotalOnline          int            `json:"total_online"`
+				GatewaySessions      int            `json:"gateway_sessions"`
+				SessionsByListener   map[string]int `json:"sessions_by_listener"`
+				AcceptingNewSessions bool           `json:"accepting_new_sessions"`
+				Draining             bool           `json:"draining"`
+				Unknown              bool           `json:"unknown"`
+			} `json:"runtime"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("Unmarshal nodes body error = %v", err)
+	}
+	if len(body.Items) != 2 {
+		t.Fatalf("items len = %d, want 2: %s", len(body.Items), rec.Body.String())
+	}
+	runtime := body.Items[1].Runtime
+	if body.Items[1].NodeID != 2 || runtime.Unknown || runtime.ActiveOnline != 1 ||
+		runtime.ClosingOnline != 0 || runtime.TotalOnline != 2 || runtime.GatewaySessions != 3 ||
+		runtime.SessionsByListener["tcp"] != 2 || runtime.SessionsByListener["ws"] != 1 ||
+		runtime.AcceptingNewSessions || !runtime.Draining {
+		t.Fatalf("local runtime = %+v on row %+v, want concrete runtime summary", runtime, body.Items[1])
 	}
 }
 
@@ -6492,9 +6571,10 @@ func waitUntil(t *testing.T, timeout time.Duration, ok func() bool) {
 }
 
 type fakeGateway struct {
-	calls    *[]string
-	startErr error
-	stopErr  error
+	calls          *[]string
+	startErr       error
+	stopErr        error
+	sessionSummary gatewaycore.SessionSummary
 }
 
 func (f *fakeGateway) Start() error {
@@ -6505,6 +6585,10 @@ func (f *fakeGateway) Start() error {
 func (f *fakeGateway) Stop() error {
 	*f.calls = append(*f.calls, "gateway.stop")
 	return f.stopErr
+}
+
+func (f *fakeGateway) SessionSummary() gatewaycore.SessionSummary {
+	return f.sessionSummary
 }
 
 type recordingAppLogger struct {

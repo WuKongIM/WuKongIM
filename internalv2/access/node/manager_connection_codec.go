@@ -2,6 +2,7 @@ package node
 
 import (
 	"fmt"
+	"sort"
 	"time"
 
 	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
@@ -13,11 +14,13 @@ var (
 )
 
 const (
-	managerConnectionOpList = "list_connections"
-	managerConnectionOpGet  = "get_connection"
+	managerConnectionOpList           = "list_connections"
+	managerConnectionOpGet            = "get_connection"
+	managerConnectionOpRuntimeSummary = "runtime_summary"
 
 	managerConnectionOpListID byte = iota + 1
 	managerConnectionOpGetID
+	managerConnectionOpRuntimeSummaryID
 
 	maxManagerConnectionRPCCollectionLen = 4096
 )
@@ -32,6 +35,7 @@ type managerConnectionRPCResponse struct {
 	Status      string
 	Connections []managementusecase.Connection
 	Connection  managementusecase.ConnectionDetail
+	Summary     managementusecase.NodeRuntimeSummary
 }
 
 func encodeManagerConnectionRequest(req managerConnectionRPCRequest) ([]byte, error) {
@@ -81,6 +85,7 @@ func encodeManagerConnectionResponse(resp managerConnectionRPCResponse) ([]byte,
 	dst = appendString(dst, resp.Status)
 	dst = appendManagerConnections(dst, resp.Connections)
 	dst = appendManagerConnection(dst, resp.Connection)
+	dst = appendNodeRuntimeSummary(dst, resp.Summary)
 	return dst, nil
 }
 
@@ -98,6 +103,9 @@ func decodeManagerConnectionResponse(body []byte) (managerConnectionRPCResponse,
 		return managerConnectionRPCResponse{}, err
 	}
 	if resp.Connection, offset, err = readManagerConnection(body, offset); err != nil {
+		return managerConnectionRPCResponse{}, err
+	}
+	if resp.Summary, offset, err = readNodeRuntimeSummary(body, offset); err != nil {
 		return managerConnectionRPCResponse{}, err
 	}
 	if offset != len(body) {
@@ -200,12 +208,113 @@ func readManagerConnection(body []byte, offset int) (managementusecase.Connectio
 	return item, offset, nil
 }
 
+func appendNodeRuntimeSummary(dst []byte, summary managementusecase.NodeRuntimeSummary) []byte {
+	dst = appendUvarint(dst, summary.NodeID)
+	dst = appendManagerConnectionInt(dst, summary.ActiveOnline)
+	dst = appendManagerConnectionInt(dst, summary.ClosingOnline)
+	dst = appendManagerConnectionInt(dst, summary.TotalOnline)
+	dst = appendManagerConnectionInt(dst, summary.GatewaySessions)
+	dst = appendManagerConnectionListenerMap(dst, summary.SessionsByListener)
+	dst = appendBoolByte(dst, summary.AcceptingNewSessions)
+	dst = appendBoolByte(dst, summary.Draining)
+	dst = appendBoolByte(dst, summary.Unknown)
+	return dst
+}
+
+func readNodeRuntimeSummary(body []byte, offset int) (managementusecase.NodeRuntimeSummary, int, error) {
+	var summary managementusecase.NodeRuntimeSummary
+	var value uint64
+	var err error
+	if value, offset, err = readUvarint(body, offset); err != nil {
+		return summary, offset, err
+	}
+	summary.NodeID = value
+	if summary.ActiveOnline, offset, err = readManagerConnectionInt(body, offset); err != nil {
+		return summary, offset, err
+	}
+	if summary.ClosingOnline, offset, err = readManagerConnectionInt(body, offset); err != nil {
+		return summary, offset, err
+	}
+	if summary.TotalOnline, offset, err = readManagerConnectionInt(body, offset); err != nil {
+		return summary, offset, err
+	}
+	if summary.GatewaySessions, offset, err = readManagerConnectionInt(body, offset); err != nil {
+		return summary, offset, err
+	}
+	if summary.SessionsByListener, offset, err = readManagerConnectionListenerMap(body, offset); err != nil {
+		return summary, offset, err
+	}
+	if summary.AcceptingNewSessions, offset, err = readBoolByte(body, offset, "runtime accepting new sessions"); err != nil {
+		return summary, offset, err
+	}
+	if summary.Draining, offset, err = readBoolByte(body, offset, "runtime draining"); err != nil {
+		return summary, offset, err
+	}
+	if summary.Unknown, offset, err = readBoolByte(body, offset, "runtime unknown"); err != nil {
+		return summary, offset, err
+	}
+	return summary, offset, nil
+}
+
+func appendManagerConnectionInt(dst []byte, value int) []byte {
+	return appendVarint(dst, int64(value))
+}
+
+func readManagerConnectionInt(body []byte, offset int) (int, int, error) {
+	value, next, err := readVarint(body, offset)
+	if err != nil {
+		return 0, offset, err
+	}
+	return int(value), next, nil
+}
+
+func appendManagerConnectionListenerMap(dst []byte, values map[string]int) []byte {
+	keys := make([]string, 0, len(values))
+	for key := range values {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	dst = appendUvarint(dst, uint64(len(keys)))
+	for _, key := range keys {
+		dst = appendString(dst, key)
+		dst = appendManagerConnectionInt(dst, values[key])
+	}
+	return dst
+}
+
+func readManagerConnectionListenerMap(body []byte, offset int) (map[string]int, int, error) {
+	n, offset, err := readUvarint(body, offset)
+	if err != nil {
+		return nil, offset, err
+	}
+	if n > maxManagerConnectionRPCCollectionLen {
+		return nil, offset, fmt.Errorf("internalv2/access/node: too many runtime listener counts: %d", n)
+	}
+	values := make(map[string]int, n)
+	for i := uint64(0); i < n; i++ {
+		var key string
+		var value int
+		key, offset, err = readString(body, offset)
+		if err != nil {
+			return nil, offset, err
+		}
+		value, offset, err = readManagerConnectionInt(body, offset)
+		if err != nil {
+			return nil, offset, err
+		}
+		values[key] = value
+	}
+	return values, offset, nil
+}
+
 func managerConnectionOpID(op string) (byte, error) {
 	switch op {
 	case managerConnectionOpList:
 		return managerConnectionOpListID, nil
 	case managerConnectionOpGet:
 		return managerConnectionOpGetID, nil
+	case managerConnectionOpRuntimeSummary:
+		return managerConnectionOpRuntimeSummaryID, nil
 	default:
 		return 0, fmt.Errorf("internalv2/access/node: unknown manager connection op %q", op)
 	}
@@ -217,6 +326,8 @@ func managerConnectionOpFromID(op byte) (string, error) {
 		return managerConnectionOpList, nil
 	case managerConnectionOpGetID:
 		return managerConnectionOpGet, nil
+	case managerConnectionOpRuntimeSummaryID:
+		return managerConnectionOpRuntimeSummary, nil
 	default:
 		return "", fmt.Errorf("internalv2/access/node: unknown manager connection op id %d", op)
 	}

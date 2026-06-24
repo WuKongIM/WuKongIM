@@ -368,7 +368,11 @@ func (a *App) wireManagerConnectionRPC() {
 		return
 	}
 	service := managementusecase.New(managementusecase.Options{
-		Cluster:     clusterinfra.NewManagementSnapshotReader(node),
+		Cluster: clusterinfra.NewManagementSnapshotReader(node),
+		RuntimeSummary: managementRuntimeSummaryReader{
+			app:         a,
+			localNodeID: node.NodeID(),
+		},
 		Connections: a.online,
 	})
 	adapter := accessnode.New(accessnode.Options{ManagerConnections: service, Logger: a.logger.Named("node")})
@@ -833,6 +837,7 @@ func (a *App) newManagerManagement() accessmanager.Management {
 			Cluster:       clusterinfra.NewManagementSnapshotReader(node),
 			Conversations: a.conversations,
 		}
+		var remoteConnectionReader *clusterinfra.ManagementConnectionReader
 		if rpcNode, ok := a.cluster.(clusterinfra.ManagementDiagnosticsRPCNode); ok {
 			diagnostics := clusterinfra.NewManagementDiagnosticsReader(rpcNode, a)
 			opts.Diagnostics = diagnostics
@@ -888,7 +893,13 @@ func (a *App) newManagerManagement() accessmanager.Management {
 			opts.PluginBindings = clusterinfra.NewManagementPluginBindingStore(bindingNode)
 		}
 		if connNode, ok := a.cluster.(clusterinfra.ManagementConnectionNode); ok {
-			opts.RemoteConnections = clusterinfra.NewManagementConnectionReader(connNode)
+			remoteConnectionReader = clusterinfra.NewManagementConnectionReader(connNode)
+			opts.RemoteConnections = remoteConnectionReader
+		}
+		opts.RuntimeSummary = managementRuntimeSummaryReader{
+			app:         a,
+			localNodeID: node.NodeID(),
+			remote:      remoteConnectionReader,
 		}
 		if logNode, ok := a.cluster.(clusterinfra.ManagementLogNode); ok {
 			opts.Logs = clusterinfra.NewManagementLogReader(logNode)
