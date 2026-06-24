@@ -35,14 +35,26 @@ The current codebase already has useful pieces:
 Important gaps:
 
 - `cmd/wukongimv2` still requires static `WK_CLUSTER_NODES`.
+- `clusterv2.Config.applyControlDefaults` currently defaults the local
+  Controller role to voter and implicitly bootstraps a single-node Controller
+  voter set when no voters are configured. A joining data node must not inherit
+  that bootstrap path.
 - `clusterv2.Config.validateSlots` currently couples Slot replica count to
   Controller voter count instead of active data-node capacity.
 - `pkg/clusterv2/control.Snapshot` does not expose node `join_state`, so
   internalv2 management currently hard-codes membership state as `active`.
+- ChannelV2 candidate selection currently uses alive data nodes only; it does
+  not exclude `joining` or `leaving` members because the snapshot lacks lifecycle
+  state.
 - `pkg/clusterv2.Node` exposes only Slot leader-transfer writes, not node
   join, activate, leave, or Slot replica move writes.
 - `pkg/clusterv2/slots.Runtime` does not expose `ChangeConfig`, even though
   `pkg/slot/multiraft.Runtime` supports it.
+- Slot runtime status does not expose learners, Raft conf state, or per-peer
+  catch-up progress, so a replica-move executor cannot yet prove learner
+  readiness.
+- `ReportNode` and `ReportSlots` are currently best-effort no-ops. Durable node
+  health cannot be used as a placement gate until report freshness exists.
 - There is no ControllerV2 task kind for Slot replica movement.
 
 ## 3. Goals
@@ -96,6 +108,11 @@ V1 does not have to physically delete removed nodes from `cluster-state.json`.
 A tombstone or `removed` state is safer than deleting identity immediately,
 because it prevents accidental reuse of a stale `node_id`.
 
+The durable state model must add `removed` before any API exposes
+`MarkNodeRemoved`. ControllerV2 validation, snapshot mapping, manager DTOs, and
+placement filters must understand this state even if the first shipped release
+only exercises `joining` and `active`.
+
 ## 6. Configuration
 
 Add v2 config keys:
@@ -108,14 +125,27 @@ WK_CLUSTER_JOIN_TOKEN=change-me
 
 Semantics:
 
+- Config must distinguish three concepts:
+  - Controller voters: the initial Controller Raft quorum.
+  - Seed discovery: temporary addresses used before the first valid control
+    snapshot.
+  - Data membership: durable ControllerV2 nodes that are eligible only after
+    lifecycle validation.
 - `WK_CLUSTER_SEEDS` is the startup discovery set used before ControllerV2
-  membership is available.
+  membership is available. It must not be translated into Controller voters.
 - `WK_CLUSTER_ADVERTISE_ADDR` is the node RPC address stored in ControllerV2
   membership for this node.
 - `WK_CLUSTER_JOIN_TOKEN` authenticates join requests.
 - `WK_CLUSTER_NODES` remains valid for static bootstrap and existing local
-  scripts. After a control snapshot is installed, ControllerV2 membership is
-  the runtime discovery source.
+  scripts. It describes static Controller voters during bootstrap, not the
+  dynamic data-node list. After a control snapshot is installed, ControllerV2
+  membership is the runtime discovery source.
+- A node started in seed-join mode must set `Control.Role=mirror`,
+  `Control.AllowBootstrap=false`, and must disable the implicit single-node
+  bootstrap fallback. Otherwise a new data node can accidentally form its own
+  single-node cluster or become a Controller voter.
+- Seed-join mode is entered only when seed addresses are configured and the
+  local node is not part of the static Controller voter bootstrap set.
 
 `WK_CLUSTER_HASH_SLOT_COUNT` should stay explicit in production configs and is
 normally 256. Changing hash-slot count is outside this design.
@@ -177,9 +207,11 @@ MarkNodeRemoved(ctx, NodeRemovedRequest) (NodeLifecycleResult, error)
 ```
 
 These should propose ControllerV2 commands and reuse existing leader-forwarding
-behavior used by task writes. The public clusterv2 `Node` should expose narrow
-methods that internalv2 management can call, instead of letting internalv2
-import ControllerV2 internals.
+behavior. The existing task RPCs are task-shaped, so implementation should
+factor a generic control-write forwarding path instead of hiding lifecycle
+writes inside task-only request names. The public clusterv2 `Node` should expose
+narrow methods that internalv2 management can call, instead of letting
+internalv2 import ControllerV2 internals.
 
 Extend `pkg/clusterv2/control.Node`:
 
@@ -201,6 +233,16 @@ Manager node list should derive:
   `status == alive`.
 - action hints from real wired capabilities, not hard-coded false once lifecycle
   routes are migrated.
+
+Placement candidate views must use the same lifecycle-aware filter. In
+particular, `aliveDataNodeIDs`, `channelDataNodes`, ChannelV2 initial placement,
+and Slot planning must require `role == data`, `join_state == active`, and fresh
+usable health before they select a node.
+
+If V1 cannot make `ReportNode` durable and fresh, health may be displayed in
+manager only and must not be used for placement. If health is a placement input,
+ControllerV2 needs a low-frequency report command, freshness timestamp or
+revision, TTL-to-unknown behavior, and fail-closed handling for unknown health.
 
 ## 9. Dynamic Discovery
 
@@ -246,18 +288,37 @@ Safe Slot replica move workflow:
 
 ```text
 plan source and target for one Slot
-  -> write desired assignment plus slot_replica_move task
-  -> target opens local Slot runtime
+  -> write staged slot_replica_move task while DesiredPeers stays unchanged
+  -> record target as PendingLearner or task-scoped TargetPeer
+  -> target opens learner storage without BootstrapSlot
   -> current Slot leader AddLearner(target)
   -> wait learner catch-up through Slot status
   -> PromoteLearner(target)
   -> transfer leadership if source is still leader and source is leaving
   -> RemoveVoter(source)
-  -> complete task after observed voters match DesiredPeers
+  -> commit DesiredPeers and ConfigEpoch after observed voters match target set
+  -> complete task after snapshot DesiredPeers and Raft conf state agree
 ```
 
 The executor should run through `pkg/clusterv2/tasks`, not through manager
 handlers directly. Manager `advance` only creates a bounded number of tasks.
+
+`DesiredPeers` must continue to mean the committed voter set. It must not include
+the target before learner catch-up and promotion are complete, because the
+current reconciler opens or bootstraps any local Slot listed in `DesiredPeers`.
+Staged movement therefore needs either `PendingLearners` in the control model or
+a task-local target list that the reconciler treats as learner-only. A target
+with empty Slot storage must never call `BootstrapSlot` for a staged learner.
+
+Stage 3 must extend the Slot runtime contract before implementing the executor:
+
+- expose `ChangeConfig` through `pkg/clusterv2/slots.Runtime`;
+- expose current voters, learners, Raft conf state, and enough per-peer progress
+  to prove learner catch-up before promotion;
+- expose observed config index or config epoch so `RemoveVoter` convergence can
+  be checked after restart;
+- persist task phase and fences so retry after process crash resumes at the
+  correct Raft/config step instead of replaying unsafe changes.
 
 Initial limits:
 
@@ -281,6 +342,8 @@ Removal status must fail closed. The node is safe to remove only when all of
 the following are true:
 
 - target node exists and is `leaving`
+- all alive or suspect nodes report local control revision greater than or equal
+  to the revision that marked the target `leaving`
 - target is not a Controller voter
 - no Slot DesiredPeers include target
 - no live Slot Raft leader is target
@@ -288,8 +351,10 @@ the following are true:
 - no failed task blocks convergence
 - full ChannelRuntimeMeta inventory confirms target is not leader, replica, or
   ISR for any channel
-- target runtime summary confirms no active online sessions, closing sessions,
-  or gateway sessions
+- gateway admission on the leaving node is in drain mode and rejects new
+  sessions
+- target runtime summary, collected from gateway/session inventory, confirms no
+  active sessions, closing sessions, pending activations, or gateway sessions
 - runtime summary and inventory are fresh, not unknown
 
 Removal APIs should mirror legacy scale-in semantics:
@@ -344,12 +409,16 @@ Gateway admission should become drain-aware before removal is declared safe:
 - active nodes accept new sessions.
 - leaving nodes reject or stop accepting new sessions.
 - removal waits for active and closing session counters to reach zero.
+- removal also waits for every alive or suspect node to apply the leaving
+  control revision, so stale nodes cannot keep placing new channels or sessions
+  on the target while the report is being computed.
 
 ## 14. Observability
 
 Expose low-cardinality metrics and manager fields:
 
 - node lifecycle counts by join state and status
+- node health report freshness counts by status bucket
 - join attempts by result
 - activation attempts by result
 - onboarding tasks active and failed
@@ -377,9 +446,19 @@ can show per-node and per-Slot details through APIs.
 ### Stage 1: Read Model And Config Foundation
 
 - Add seed, advertise address, and join token config parsing.
+- Split static Controller voter bootstrap from seed discovery and dynamic data
+  membership.
+- In seed-join mode, force mirror Controller role, disable `AllowBootstrap`, and
+  disable implicit single-node bootstrap.
 - Preserve static `WK_CLUSTER_NODES` bootstrap.
+- Add `removed` to ControllerV2 node lifecycle validation before exposing
+  `MarkNodeRemoved`.
 - Add join state and capacity to clusterv2 control snapshots.
 - Fix manager node DTOs to show real lifecycle state.
+- Make `aliveDataNodeIDs`, `channelDataNodes`, ChannelV2 placement, and Slot
+  planning use active-only data-node candidates.
+- Add durable low-frequency node health reporting with freshness, or keep health
+  display-only and out of placement decisions.
 - Decouple Slot replica validation from Controller voter count.
 
 ### Stage 2: Dynamic Join And Activation
@@ -392,8 +471,11 @@ can show per-node and per-Slot details through APIs.
 
 ### Stage 3: Slot Onboarding
 
+- Add staged Slot membership fields or task-local target-peer semantics so
+  learner targets do not enter `DesiredPeers` before promotion.
 - Add Slot replica move task kind and executor.
 - Expose `ChangeConfig` through clusterv2 Slot runtime interfaces.
+- Expose Slot learners, conf state, per-peer progress, and config fence fields.
 - Add bounded onboarding manager APIs.
 - Verify message send continues while one Slot replica moves.
 
@@ -402,6 +484,7 @@ can show per-node and per-Slot details through APIs.
 - Add MarkNodeLeaving and scale-in status report.
 - Stop new placement on leaving nodes.
 - Add Slot leader transfer and Slot replica drain actions.
+- Add cluster-wide control revision convergence gate.
 - Add fail-closed safety checks for unknown runtime data.
 
 ### Stage 5: Channel And Connection Drain
@@ -421,6 +504,14 @@ Focused unit tests:
 - Snapshot mapping preserves join state and capacity.
 - Manager node list reports real `joining`, `active`, and `leaving` states.
 - Config parser handles seeds and advertise address.
+- Seed-join config starts as Controller mirror, disables bootstrap, and cannot
+  silently form a single-node cluster.
+- `WK_CLUSTER_NODES` remains a static Controller voter bootstrap input, not a
+  dynamic data-node list.
+- Active-only candidate views exclude joining, leaving, removed, suspect, and
+  down nodes.
+- Node health freshness expires to unknown and fails closed when health affects
+  placement.
 - Slot replica move planner excludes joining, leaving, suspect, and down nodes.
 
 clusterv2 tests:
@@ -430,6 +521,9 @@ clusterv2 tests:
 - Mirror node syncs ControllerV2 state after joining.
 - Slot replica move executor performs AddLearner, PromoteLearner, and
   RemoveVoter in order.
+- Staged Slot movement does not add the target to `DesiredPeers` before learner
+  catch-up and does not bootstrap empty learner storage as a new Slot group.
+- Slot status exposes learners and catch-up progress needed by the executor.
 - Route authority changes include updated config epoch after Slot movement.
 
 internalv2 and e2ev2 tests:
@@ -437,10 +531,19 @@ internalv2 and e2ev2 tests:
 - Manager join/onboarding routes enforce permissions and request validation.
 - Running three-node cluster admits a fourth data node through seed join.
 - New node becomes visible as joining, then active.
+- Joining node restart before activation remains idempotent and does not create
+  a new Controller voter set.
+- Join and activation survive seed/controller leader changes.
 - New channels after activation may place replicas on the new data node.
 - SEND -> SENDACK continues during a bounded Slot replica move.
+- Slot move resumes safely after failure at AddLearner, PromoteLearner, or
+  RemoveVoter phase.
 - Leaving node is never reported safe while Slot, Channel, or connection state
   is unknown.
+- Leaving node is never reported safe while any alive or suspect node has not
+  applied the leaving control revision.
+- Gateway drain reports active, closing, and pending session counts from real
+  session inventory.
 
 Operational verification:
 
