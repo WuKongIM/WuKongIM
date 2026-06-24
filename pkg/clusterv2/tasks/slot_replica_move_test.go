@@ -146,6 +146,54 @@ func TestSlotReplicaMoveExecutorRemovesSourceVoterAfterLeadershipMoves(t *testin
 	}
 }
 
+func TestSlotReplicaMoveExecutorDoesNotAdvanceRemoveVoterWithoutCommittableFence(t *testing.T) {
+	tests := []struct {
+		name   string
+		status multiraft.Status
+	}{
+		{
+			name: "source absent but voters differ",
+			status: multiraft.Status{
+				SlotID:             1,
+				NodeID:             2,
+				LeaderID:           2,
+				CurrentVoters:      []multiraft.NodeID{2, 4},
+				ConfigAppliedIndex: 77,
+				Role:               multiraft.RoleLeader,
+			},
+		},
+		{
+			name: "source absent but config index missing",
+			status: multiraft.Status{
+				SlotID:        1,
+				NodeID:        2,
+				LeaderID:      2,
+				CurrentVoters: []multiraft.NodeID{2, 3, 4},
+				Role:          multiraft.RoleLeader,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			runtime := &fakeSlotReplicaMoveRuntime{status: tt.status}
+			writer := &fakeSlotReplicaMoveWriter{}
+			executor := NewSlotReplicaMoveExecutor(SlotReplicaMoveExecutorConfig{LocalNode: 2, Runtime: runtime, MoveWriter: writer, PollMax: 1, PollInterval: -1})
+
+			err := executor.Reconcile(context.Background(), slotReplicaMoveSnapshot(control.TaskStepRemoveVoter, 2, tt.status))
+
+			if err != nil {
+				t.Fatalf("Reconcile() error = %v", err)
+			}
+			if writer.phaseCalls != 0 {
+				t.Fatalf("phase = %#v, want no commit_assignment phase without committable fence", writer.phase)
+			}
+			if len(writer.failed) != 1 || writer.failed[0].TaskID != "slot-1-replica-move-1-to-4-r9" {
+				t.Fatalf("failed = %#v, want fenced failure", writer.failed)
+			}
+		})
+	}
+}
+
 func TestSlotReplicaMoveExecutorCommitsAfterTargetVotersObserved(t *testing.T) {
 	status := moveStatus()
 	status.LeaderID = 2

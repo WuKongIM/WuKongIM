@@ -199,7 +199,16 @@ func (e *SlotReplicaMoveExecutor) promoteLearner(ctx context.Context, task contr
 
 func (e *SlotReplicaMoveExecutor) removeVoter(ctx context.Context, task control.ReconcileTask, status multiraft.Status) error {
 	if !containsNodeID(status.CurrentVoters, task.SourceNode) {
-		return e.advancePhase(ctx, task, control.TaskStepCommitAssignment, status)
+		observed, ok, err := e.waitForStatus(ctx, task, status, func(st multiraft.Status) bool {
+			return validMoveCommitObservation(task, st)
+		})
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return e.failTask(ctx, task, "slot replica move remove voter did not observe target voters")
+		}
+		return e.advancePhase(ctx, task, control.TaskStepCommitAssignment, observed)
 	}
 	if uint64(status.LeaderID) == task.SourceNode {
 		target, ok := firstNonSourceVoter(status.CurrentVoters, task.SourceNode)
@@ -218,13 +227,13 @@ func (e *SlotReplicaMoveExecutor) removeVoter(ctx context.Context, task control.
 		return e.failTask(ctx, task, err.Error())
 	}
 	observed, ok, err := e.waitForStatus(ctx, task, status, func(st multiraft.Status) bool {
-		return !containsNodeID(st.CurrentVoters, task.SourceNode)
+		return validMoveCommitObservation(task, st)
 	})
 	if err != nil {
 		return err
 	}
 	if !ok {
-		return e.failTask(ctx, task, "slot replica move remove voter observation timed out")
+		return e.failTask(ctx, task, "slot replica move remove voter did not observe target voters")
 	}
 	return e.advancePhase(ctx, task, control.TaskStepCommitAssignment, observed)
 }
@@ -321,6 +330,12 @@ func learnerCaughtUp(status multiraft.Status, target uint64) bool {
 	}
 	progress, ok := status.Progress[multiraft.NodeID(target)]
 	return ok && progress.Match >= status.CommitIndex
+}
+
+func validMoveCommitObservation(task control.ReconcileTask, status multiraft.Status) bool {
+	return status.ConfigAppliedIndex != 0 &&
+		!containsNodeID(status.CurrentVoters, task.SourceNode) &&
+		sameUint64Set(nodeIDsToUint64(status.CurrentVoters), task.TargetPeers)
 }
 
 func containsNodeID(nodes []multiraft.NodeID, want uint64) bool {
