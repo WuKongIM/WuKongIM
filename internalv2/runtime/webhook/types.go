@@ -24,6 +24,8 @@ type Message struct {
 	ChannelID string
 	// ChannelType is the WuKong channel type for ChannelID.
 	ChannelType uint8
+	// Setting carries legacy message setting bits when available from the append path.
+	Setting uint8
 	// FromUID is the sender user ID.
 	FromUID string
 	// ClientMsgNo is the client idempotency key associated with the send request.

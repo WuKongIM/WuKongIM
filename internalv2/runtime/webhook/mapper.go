@@ -80,6 +80,7 @@ func messageRespFromMessage(msg Message) messageResp {
 			RedDot:    boolToUint8(msg.RedDot),
 			SyncOnce:  boolToUint8(msg.SyncOnce),
 		},
+		Setting:      msg.Setting,
 		MessageID:    msg.MessageID,
 		MessageIDStr: uint64String(msg.MessageID),
 		ClientMsgNo:  msg.ClientMsgNo,
