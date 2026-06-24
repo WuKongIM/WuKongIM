@@ -24,7 +24,7 @@ type JoinNodeRequest struct {
 
 // JoinNodeResult describes the durable node record observed or created by JoinNode.
 type JoinNodeResult struct {
-	// Created reports whether JoinNode proposed a new durable node record.
+	// Created reports whether JoinNode actually advanced cluster state.
 	Created bool
 	// Node is the durable node record that satisfies the request.
 	Node Node
@@ -40,7 +40,7 @@ type ActivateNodeRequest struct {
 
 // ActivateNodeResult describes the durable node record observed or activated by ActivateNode.
 type ActivateNodeResult struct {
-	// Changed reports whether ActivateNode proposed a state transition.
+	// Changed reports whether ActivateNode actually advanced cluster state.
 	Changed bool
 	// Node is the durable node record that satisfies the request.
 	Node Node
@@ -67,7 +67,20 @@ func (r *Runtime) JoinNode(ctx context.Context, req JoinNodeRequest) (JoinNodeRe
 	if !created {
 		return JoinNodeResult{Created: false, Node: node, Revision: st.Revision}, nil
 	}
-	expectedRevision := st.Revision
+	baseline, err := r.latestAppliedState(ctx, st)
+	if err != nil {
+		return JoinNodeResult{}, err
+	}
+	if baseline.Revision != st.Revision {
+		node, created, err = buildJoinNode(baseline, req)
+		if err != nil {
+			return JoinNodeResult{}, err
+		}
+		if !created {
+			return JoinNodeResult{Created: false, Node: node, Revision: baseline.Revision}, nil
+		}
+	}
+	expectedRevision := baseline.Revision
 	if err := r.raft.Propose(ctx, command.Command{
 		Kind:             command.KindUpsertNode,
 		IssuedAt:         r.cfg.Now().UTC(),
@@ -83,7 +96,12 @@ func (r *Runtime) JoinNode(ctx context.Context, req JoinNodeRequest) (JoinNodeRe
 	if err != nil {
 		return JoinNodeResult{}, err
 	}
-	return JoinNodeResult{Created: true, Node: node, Revision: updated.Revision}, nil
+	finalNode, ok := findLifecycleNode(updated, req.NodeID)
+	if !ok {
+		return JoinNodeResult{}, fmt.Errorf("controllerv2: node %d not found after join proposal", req.NodeID)
+	}
+	created = updated.Revision > baseline.Revision && equivalentLifecycleNode(finalNode, node)
+	return JoinNodeResult{Created: created, Node: finalNode, Revision: updated.Revision}, nil
 }
 
 // ActivateNode marks an existing joining node active and assignment-ready.
@@ -105,7 +123,20 @@ func (r *Runtime) ActivateNode(ctx context.Context, req ActivateNodeRequest) (Ac
 	if !changed {
 		return ActivateNodeResult{Changed: false, Node: node, Revision: st.Revision}, nil
 	}
-	expectedRevision := st.Revision
+	baseline, err := r.latestAppliedState(ctx, st)
+	if err != nil {
+		return ActivateNodeResult{}, err
+	}
+	if baseline.Revision != st.Revision {
+		node, changed, err = buildActivateNode(baseline, req)
+		if err != nil {
+			return ActivateNodeResult{}, err
+		}
+		if !changed {
+			return ActivateNodeResult{Changed: false, Node: node, Revision: baseline.Revision}, nil
+		}
+	}
+	expectedRevision := baseline.Revision
 	if err := r.raft.Propose(ctx, command.Command{
 		Kind:             command.KindUpsertNode,
 		IssuedAt:         r.cfg.Now().UTC(),
@@ -121,7 +152,26 @@ func (r *Runtime) ActivateNode(ctx context.Context, req ActivateNodeRequest) (Ac
 	if err != nil {
 		return ActivateNodeResult{}, err
 	}
-	return ActivateNodeResult{Changed: true, Node: node, Revision: updated.Revision}, nil
+	finalNode, ok := findLifecycleNode(updated, req.NodeID)
+	if !ok {
+		return ActivateNodeResult{}, fmt.Errorf("controllerv2: node %d not found after activate proposal", req.NodeID)
+	}
+	changed = updated.Revision > baseline.Revision && equivalentLifecycleNode(finalNode, node)
+	return ActivateNodeResult{Changed: changed, Node: finalNode, Revision: updated.Revision}, nil
+}
+
+func (r *Runtime) latestAppliedState(ctx context.Context, fallback ClusterState) (ClusterState, error) {
+	if r.sm == nil {
+		return fallback, nil
+	}
+	latest := r.sm.Snapshot(ctx)
+	if latest.Revision <= fallback.Revision {
+		return fallback, nil
+	}
+	if err := r.publishState(latest); err != nil {
+		return ClusterState{}, err
+	}
+	return latest, nil
 }
 
 func buildJoinNode(st ClusterState, req JoinNodeRequest) (Node, bool, error) {
@@ -190,4 +240,36 @@ func normalizeJoinRoles(roles []NodeRole) []NodeRole {
 		}
 	}
 	return []NodeRole{NodeRoleData}
+}
+
+func findLifecycleNode(st ClusterState, nodeID uint64) (Node, bool) {
+	for _, node := range st.Nodes {
+		if node.NodeID == nodeID {
+			return node, true
+		}
+	}
+	return Node{}, false
+}
+
+func equivalentLifecycleNode(left, right Node) bool {
+	if left.NodeID != right.NodeID ||
+		left.Name != right.Name ||
+		left.Addr != right.Addr ||
+		left.JoinState != right.JoinState ||
+		left.Status != right.Status ||
+		left.CapacityWeight != right.CapacityWeight ||
+		len(left.Roles) != len(right.Roles) {
+		return false
+	}
+	counts := make(map[NodeRole]int, len(left.Roles))
+	for _, role := range left.Roles {
+		counts[role]++
+	}
+	for _, role := range right.Roles {
+		counts[role]--
+		if counts[role] < 0 {
+			return false
+		}
+	}
+	return true
 }

@@ -383,6 +383,10 @@ func TestRuntimeRequestSlotLeaderTransfer(t *testing.T) {
 
 func TestRuntimeJoinNodeCreatesJoiningDataNode(t *testing.T) {
 	runtime := startSingleVoterRuntime(t, "cluster-join-node")
+	before, err := runtime.LocalState(context.Background())
+	if err != nil {
+		t.Fatalf("LocalState(before) error = %v", err)
+	}
 
 	result, err := runtime.JoinNode(context.Background(), JoinNodeRequest{
 		NodeID:         4,
@@ -396,6 +400,9 @@ func TestRuntimeJoinNodeCreatesJoiningDataNode(t *testing.T) {
 	}
 	if !result.Created || result.Node.JoinState != NodeJoinStateJoining {
 		t.Fatalf("JoinNode() = %#v, want created joining node", result)
+	}
+	if result.Revision <= before.Revision {
+		t.Fatalf("JoinNode() revision = %d, want greater than %d", result.Revision, before.Revision)
 	}
 
 	st := waitForState(t, runtime, func(st ClusterState) bool {
@@ -411,11 +418,83 @@ func TestRuntimeJoinNodeCreatesJoiningDataNode(t *testing.T) {
 	}
 }
 
+func TestRuntimeJoinNodeRepeatedCallIsIdempotent(t *testing.T) {
+	runtime := startSingleVoterRuntime(t, "cluster-join-node-idempotent")
+
+	first, err := runtime.JoinNode(context.Background(), JoinNodeRequest{
+		NodeID:         4,
+		Name:           "node-4",
+		Addr:           "n4",
+		Roles:          []NodeRole{NodeRoleControllerVoter, NodeRoleData},
+		CapacityWeight: 2,
+	})
+	if err != nil {
+		t.Fatalf("JoinNode(first) error = %v", err)
+	}
+	if !first.Created {
+		t.Fatalf("JoinNode(first) = %#v, want created", first)
+	}
+
+	second, err := runtime.JoinNode(context.Background(), JoinNodeRequest{
+		NodeID:         4,
+		Name:           "ignored",
+		Addr:           "n4",
+		Roles:          []NodeRole{NodeRoleData},
+		CapacityWeight: 9,
+	})
+	if err != nil {
+		t.Fatalf("JoinNode(second) error = %v", err)
+	}
+	if second.Created || second.Revision != first.Revision {
+		t.Fatalf("JoinNode(second) = %#v, want idempotent revision %d", second, first.Revision)
+	}
+	if second.Node.Name != "node-4" || !sameNodeRoles(second.Node.Roles, []NodeRole{NodeRoleData}) {
+		t.Fatalf("JoinNode(second) node = %#v, want existing normalized data node", second.Node)
+	}
+}
+
+func TestRuntimeJoinNodeReportsNoCreateAfterStaleEquivalentNoop(t *testing.T) {
+	runtime := startSingleVoterRuntime(t, "cluster-join-node-stale-noop")
+	stale, err := runtime.LocalState(context.Background())
+	if err != nil {
+		t.Fatalf("LocalState(stale) error = %v", err)
+	}
+	node := Node{
+		NodeID:         4,
+		Name:           "node-4",
+		Addr:           "n4",
+		Roles:          []NodeRole{NodeRoleData},
+		JoinState:      NodeJoinStateJoining,
+		Status:         NodeStatusAlive,
+		CapacityWeight: 1,
+	}
+	if err := runtime.raft.Propose(context.Background(), commandWithNode(stale.Revision, node)); err != nil {
+		t.Fatalf("Propose(join node) error = %v", err)
+	}
+	applied := runtime.sm.Snapshot(context.Background())
+	if applied.Revision <= stale.Revision {
+		t.Fatalf("applied revision = %d, want greater than stale %d", applied.Revision, stale.Revision)
+	}
+	setRuntimeStateForTest(runtime, stale)
+
+	result, err := runtime.JoinNode(context.Background(), JoinNodeRequest{NodeID: 4, Name: "node-4", Addr: "n4", Roles: []NodeRole{NodeRoleData}, CapacityWeight: 1})
+	if err != nil {
+		t.Fatalf("JoinNode(stale equivalent) error = %v", err)
+	}
+	if result.Created || result.Revision != applied.Revision {
+		t.Fatalf("JoinNode(stale equivalent) = %#v, want no create at revision %d", result, applied.Revision)
+	}
+}
+
 func TestRuntimeActivateNodeTurnsJoiningNodeActive(t *testing.T) {
 	runtime := startSingleVoterRuntime(t, "cluster-activate-node")
 	_, err := runtime.JoinNode(context.Background(), JoinNodeRequest{NodeID: 4, Addr: "n4", Roles: []NodeRole{NodeRoleData}, CapacityWeight: 1})
 	if err != nil {
 		t.Fatalf("JoinNode() error = %v", err)
+	}
+	before, err := runtime.LocalState(context.Background())
+	if err != nil {
+		t.Fatalf("LocalState(before activate) error = %v", err)
 	}
 
 	result, err := runtime.ActivateNode(context.Background(), ActivateNodeRequest{NodeID: 4})
@@ -424,6 +503,66 @@ func TestRuntimeActivateNodeTurnsJoiningNodeActive(t *testing.T) {
 	}
 	if !result.Changed || result.Node.JoinState != NodeJoinStateActive {
 		t.Fatalf("ActivateNode() = %#v, want changed active node", result)
+	}
+	if result.Revision <= before.Revision {
+		t.Fatalf("ActivateNode() revision = %d, want greater than %d", result.Revision, before.Revision)
+	}
+}
+
+func TestRuntimeActivateNodeRepeatedCallIsIdempotent(t *testing.T) {
+	runtime := startSingleVoterRuntime(t, "cluster-activate-node-idempotent")
+	_, err := runtime.JoinNode(context.Background(), JoinNodeRequest{NodeID: 4, Addr: "n4", Roles: []NodeRole{NodeRoleData}, CapacityWeight: 1})
+	if err != nil {
+		t.Fatalf("JoinNode() error = %v", err)
+	}
+	first, err := runtime.ActivateNode(context.Background(), ActivateNodeRequest{NodeID: 4})
+	if err != nil {
+		t.Fatalf("ActivateNode(first) error = %v", err)
+	}
+	if !first.Changed {
+		t.Fatalf("ActivateNode(first) = %#v, want changed", first)
+	}
+
+	second, err := runtime.ActivateNode(context.Background(), ActivateNodeRequest{NodeID: 4})
+	if err != nil {
+		t.Fatalf("ActivateNode(second) error = %v", err)
+	}
+	if second.Changed || second.Revision != first.Revision || second.Node.JoinState != NodeJoinStateActive {
+		t.Fatalf("ActivateNode(second) = %#v, want idempotent active revision %d", second, first.Revision)
+	}
+}
+
+func TestRuntimeActivateNodeReportsNoChangeAfterStaleEquivalentNoop(t *testing.T) {
+	runtime := startSingleVoterRuntime(t, "cluster-activate-node-stale-noop")
+	_, err := runtime.JoinNode(context.Background(), JoinNodeRequest{NodeID: 4, Addr: "n4", Roles: []NodeRole{NodeRoleData}, CapacityWeight: 1})
+	if err != nil {
+		t.Fatalf("JoinNode() error = %v", err)
+	}
+	stale, err := runtime.LocalState(context.Background())
+	if err != nil {
+		t.Fatalf("LocalState(stale) error = %v", err)
+	}
+	node, ok := findNodeForTest(stale, 4)
+	if !ok {
+		t.Fatalf("node 4 missing from stale state: %#v", stale.Nodes)
+	}
+	node.JoinState = NodeJoinStateActive
+	node.Status = NodeStatusAlive
+	if err := runtime.raft.Propose(context.Background(), commandWithNode(stale.Revision, node)); err != nil {
+		t.Fatalf("Propose(activate node) error = %v", err)
+	}
+	applied := runtime.sm.Snapshot(context.Background())
+	if applied.Revision <= stale.Revision {
+		t.Fatalf("applied revision = %d, want greater than stale %d", applied.Revision, stale.Revision)
+	}
+	setRuntimeStateForTest(runtime, stale)
+
+	result, err := runtime.ActivateNode(context.Background(), ActivateNodeRequest{NodeID: 4})
+	if err != nil {
+		t.Fatalf("ActivateNode(stale equivalent) error = %v", err)
+	}
+	if result.Changed || result.Revision != applied.Revision {
+		t.Fatalf("ActivateNode(stale equivalent) = %#v, want no change at revision %d", result, applied.Revision)
 	}
 }
 
@@ -437,6 +576,51 @@ func TestRuntimeJoinNodeRejectsAddressConflict(t *testing.T) {
 	_, err = runtime.JoinNode(context.Background(), JoinNodeRequest{NodeID: 5, Addr: "n4", Roles: []NodeRole{NodeRoleData}, CapacityWeight: 1})
 	if err == nil {
 		t.Fatal("JoinNode(conflicting addr) error = nil, want conflict")
+	}
+}
+
+func TestRuntimeJoinNodeRejectsInvalidRequest(t *testing.T) {
+	runtime := startSingleVoterRuntime(t, "cluster-join-invalid")
+	tests := []JoinNodeRequest{
+		{Addr: "n4", Roles: []NodeRole{NodeRoleData}},
+		{NodeID: 4, Roles: []NodeRole{NodeRoleData}},
+		{NodeID: 4, Addr: "   ", Roles: []NodeRole{NodeRoleData}},
+	}
+	for _, req := range tests {
+		if _, err := runtime.JoinNode(context.Background(), req); err == nil {
+			t.Fatalf("JoinNode(%#v) error = nil, want invalid request error", req)
+		}
+	}
+}
+
+func TestRuntimeActivateNodeRejectsMissingOrNonJoiningNode(t *testing.T) {
+	runtime := startSingleVoterRuntime(t, "cluster-activate-invalid")
+	if _, err := runtime.ActivateNode(context.Background(), ActivateNodeRequest{}); err == nil {
+		t.Fatal("ActivateNode(zero node) error = nil, want invalid request error")
+	}
+	if _, err := runtime.ActivateNode(context.Background(), ActivateNodeRequest{NodeID: 4}); err == nil {
+		t.Fatal("ActivateNode(missing node) error = nil, want missing node error")
+	}
+	st, err := runtime.LocalState(context.Background())
+	if err != nil {
+		t.Fatalf("LocalState() error = %v", err)
+	}
+	leaving := Node{
+		NodeID:         5,
+		Addr:           "n5",
+		Roles:          []NodeRole{NodeRoleData},
+		JoinState:      NodeJoinStateLeaving,
+		Status:         NodeStatusAlive,
+		CapacityWeight: 1,
+	}
+	if err := runtime.raft.Propose(context.Background(), commandWithNode(st.Revision, leaving)); err != nil {
+		t.Fatalf("Propose(leaving node) error = %v", err)
+	}
+	if err := runtime.publishFromState(context.Background()); err != nil {
+		t.Fatalf("publishFromState() error = %v", err)
+	}
+	if _, err := runtime.ActivateNode(context.Background(), ActivateNodeRequest{NodeID: 5}); err == nil {
+		t.Fatal("ActivateNode(leaving node) error = nil, want non-joining error")
 	}
 }
 
@@ -550,6 +734,38 @@ func containsUint64(values []uint64, want uint64) bool {
 		}
 	}
 	return false
+}
+
+func findNodeForTest(st ClusterState, nodeID uint64) (Node, bool) {
+	for _, node := range st.Nodes {
+		if node.NodeID == nodeID {
+			return node, true
+		}
+	}
+	return Node{}, false
+}
+
+func sameNodeRoles(left, right []NodeRole) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	seen := make(map[NodeRole]int, len(left))
+	for _, role := range left {
+		seen[role]++
+	}
+	for _, role := range right {
+		seen[role]--
+		if seen[role] < 0 {
+			return false
+		}
+	}
+	return true
+}
+
+func setRuntimeStateForTest(runtime *Runtime, st ClusterState) {
+	runtime.mu.Lock()
+	defer runtime.mu.Unlock()
+	runtime.state = st.Clone()
 }
 
 func commandWithNode(expectedRevision uint64, node Node) command.Command {
