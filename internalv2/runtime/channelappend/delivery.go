@@ -120,7 +120,8 @@ func observeOfflineRecipients(ctx context.Context, batch RecipientBatch, uids []
 			online[route.UID] = struct{}{}
 		}
 	}
-	seenOffline := make(map[string]struct{})
+	seenOffline := make(map[string]struct{}, len(uids))
+	offlineUIDs := make([]string, 0, len(uids))
 	for _, uid := range uids {
 		if uid == "" {
 			continue
@@ -132,6 +133,19 @@ func observeOfflineRecipients(ctx context.Context, batch RecipientBatch, uids []
 			continue
 		}
 		seenOffline[uid] = struct{}{}
+		offlineUIDs = append(offlineUIDs, uid)
+	}
+	if len(offlineUIDs) == 0 {
+		return
+	}
+	if batchObserver, ok := observer.(OfflineRecipientsObserver); ok {
+		batchObserver.ObserveOfflineRecipients(ctx, OfflineRecipientsEvent{
+			Event: batch.Event,
+			UIDs:  append([]string(nil), offlineUIDs...),
+		})
+		return
+	}
+	for _, uid := range offlineUIDs {
 		observer.ObserveOfflineRecipient(ctx, OfflineRecipientEvent{Event: batch.Event, UID: uid})
 	}
 }

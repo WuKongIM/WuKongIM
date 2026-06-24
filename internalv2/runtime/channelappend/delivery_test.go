@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -154,6 +155,109 @@ func TestRecipientProcessorObservesOfflineRecipientsAfterPresence(t *testing.T) 
 	}
 	if got := pusher.callCount(); got != 2 {
 		t.Fatalf("push calls = %d, want two owner groups", got)
+	}
+}
+
+func TestRecipientProcessorPrefersBatchOfflineObserver(t *testing.T) {
+	observer := &recordingBatchOfflineRecipientObserverForDeliveryTest{}
+	batch := RecipientBatch{
+		Event: CommittedEnvelope{MessageID: 10, MessageSeq: 4, ChannelID: "g1", ChannelType: 2},
+		Recipients: []Recipient{
+			{UID: "u1"},
+			{UID: "u2"},
+			{UID: "u1"},
+			{UID: "u3"},
+			{UID: "u4"},
+		},
+	}
+
+	err := processRecipientBatch(context.Background(), batch, recipientPorts{
+		presence: &recordingPresenceResolverForDeliveryTest{routes: []Route{
+			{UID: "u3", OwnerNodeID: 4, SessionID: 30},
+		}},
+		offlineRecipientObserver: observer,
+	})
+
+	if err != nil {
+		t.Fatalf("processRecipientBatch() error = %v", err)
+	}
+	if got := observer.batchCallCount(); got != 1 {
+		t.Fatalf("batch offline observer calls = %d, want 1", got)
+	}
+	if got := observer.fallbackCallCount(); got != 0 {
+		t.Fatalf("single offline observer calls = %d, want none when batch observer is available", got)
+	}
+	if got, want := observer.batchUIDs(), []string{"u1", "u2", "u4"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("batch offline uids = %#v, want %#v", got, want)
+	}
+}
+
+func TestRecipientProcessorFallsBackToSingleOfflineObserver(t *testing.T) {
+	observer := &recordingOfflineRecipientObserverForDeliveryTest{}
+
+	err := processRecipientBatch(context.Background(), RecipientBatch{
+		Event: CommittedEnvelope{MessageID: 10, MessageSeq: 4, ChannelID: "g1", ChannelType: 2},
+		Recipients: []Recipient{
+			{UID: "u1"},
+			{UID: "u2"},
+			{UID: "u1"},
+		},
+	}, recipientPorts{
+		presence:                 &recordingPresenceResolverForDeliveryTest{routes: []Route{{UID: "u2", OwnerNodeID: 3, SessionID: 20}}},
+		offlineRecipientObserver: observer,
+	})
+
+	if err != nil {
+		t.Fatalf("processRecipientBatch() error = %v", err)
+	}
+	if got, want := observer.uids(), []string{"u1"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("fallback offline uids = %#v, want %#v", got, want)
+	}
+}
+
+func TestRecipientProcessorBatchOfflineObserverReceivesCopiedUIDSlice(t *testing.T) {
+	uids := []string{"u1", "u2", "u3"}
+	observer := &recordingBatchOfflineRecipientObserverForDeliveryTest{aliasAgainst: uids}
+
+	observeOfflineRecipients(context.Background(), RecipientBatch{
+		Event: CommittedEnvelope{MessageID: 10, MessageSeq: 4, ChannelID: "g1", ChannelType: 2},
+	}, uids, []Route{{UID: "u3", OwnerNodeID: 4, SessionID: 30}}, observer)
+
+	if observer.sawUIDAlias() {
+		t.Fatalf("batch offline observer received a UID slice alias")
+	}
+	if got, want := observer.batchUIDs(), []string{"u1", "u2"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("batch offline uids = %#v, want %#v", got, want)
+	}
+}
+
+func TestRecipientProcessorBatchOfflineObserverUsesOneCallForLargeFanout(t *testing.T) {
+	const recipientCount = 100000
+	recipients := make([]Recipient, 0, recipientCount)
+	for i := 0; i < recipientCount; i++ {
+		recipients = append(recipients, Recipient{UID: "u" + strconv.Itoa(i)})
+	}
+	observer := &recordingBatchOfflineRecipientObserverForDeliveryTest{}
+
+	err := processRecipientBatch(context.Background(), RecipientBatch{
+		Event:      CommittedEnvelope{MessageID: 10, MessageSeq: 4, ChannelID: "g1", ChannelType: 2},
+		Recipients: recipients,
+	}, recipientPorts{
+		presence:                 &recordingPresenceResolverForDeliveryTest{},
+		offlineRecipientObserver: observer,
+	})
+
+	if err != nil {
+		t.Fatalf("processRecipientBatch() error = %v", err)
+	}
+	if got := observer.batchCallCount(); got != 1 {
+		t.Fatalf("batch offline observer calls = %d, want 1", got)
+	}
+	if got := observer.fallbackCallCount(); got != 0 {
+		t.Fatalf("single offline observer calls = %d, want none when batch observer is available", got)
+	}
+	if got := observer.batchUIDCount(); got != recipientCount {
+		t.Fatalf("batch offline UID count = %d, want %d", got, recipientCount)
 	}
 }
 
@@ -320,4 +424,68 @@ func (o *recordingOfflineRecipientObserverForDeliveryTest) uids() []string {
 		out = append(out, event.UID)
 	}
 	return out
+}
+
+type recordingBatchOfflineRecipientObserverForDeliveryTest struct {
+	steps          *orderedStepsForDeliveryTest
+	aliasAgainst   []string
+	mu             sync.Mutex
+	batchEvents    []OfflineRecipientsEvent
+	fallbackEvents []OfflineRecipientEvent
+	aliased        bool
+}
+
+func (o *recordingBatchOfflineRecipientObserverForDeliveryTest) ObserveOfflineRecipients(_ context.Context, event OfflineRecipientsEvent) {
+	o.steps.add("offline")
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if len(o.aliasAgainst) > 0 && len(event.UIDs) > 0 && &o.aliasAgainst[0] == &event.UIDs[0] {
+		o.aliased = true
+	}
+	copied := event
+	copied.UIDs = append([]string(nil), event.UIDs...)
+	o.batchEvents = append(o.batchEvents, copied)
+}
+
+func (o *recordingBatchOfflineRecipientObserverForDeliveryTest) ObserveOfflineRecipient(_ context.Context, event OfflineRecipientEvent) {
+	o.steps.add("offline")
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.fallbackEvents = append(o.fallbackEvents, event)
+}
+
+func (o *recordingBatchOfflineRecipientObserverForDeliveryTest) batchCallCount() int {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return len(o.batchEvents)
+}
+
+func (o *recordingBatchOfflineRecipientObserverForDeliveryTest) fallbackCallCount() int {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return len(o.fallbackEvents)
+}
+
+func (o *recordingBatchOfflineRecipientObserverForDeliveryTest) batchUIDs() []string {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if len(o.batchEvents) == 0 {
+		return nil
+	}
+	return append([]string(nil), o.batchEvents[0].UIDs...)
+}
+
+func (o *recordingBatchOfflineRecipientObserverForDeliveryTest) batchUIDCount() int {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if len(o.batchEvents) == 0 {
+		return 0
+	}
+	return len(o.batchEvents[0].UIDs)
+}
+
+func (o *recordingBatchOfflineRecipientObserverForDeliveryTest) sawUIDAlias() bool {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.aliased
 }

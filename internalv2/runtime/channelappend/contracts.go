@@ -95,6 +95,20 @@ type Recipient = contract.Recipient
 // RecipientBatch carries one committed envelope and the recipients to process together.
 type RecipientBatch = contract.RecipientBatch
 
+// OfflineRecipientsEvent reports durable recipients with no online route.
+type OfflineRecipientsEvent struct {
+	// Event is the committed message whose recipients were classified offline.
+	Event CommittedEnvelope
+	// UIDs are recipient user identifiers without online routes, in first-seen order.
+	UIDs []string
+}
+
+// OfflineRecipientsObserver receives offline recipient candidates in one batch after presence resolution.
+type OfflineRecipientsObserver interface {
+	// ObserveOfflineRecipients records durable recipients with no online route.
+	ObserveOfflineRecipients(context.Context, OfflineRecipientsEvent)
+}
+
 // OfflineRecipientEvent reports one durable recipient with no online route.
 type OfflineRecipientEvent struct {
 	// Event is the committed message whose recipient was classified offline.
