@@ -189,6 +189,200 @@ func TestRuntimeStatusIncludesLearnersConfStateAndProgress(t *testing.T) {
 	}
 }
 
+func TestRuntimeStatusRefreshesLearnerProgress(t *testing.T) {
+	cluster := newAsyncTestCluster(t, []NodeID{1, 2, 3}, asyncNetworkConfig{
+		MaxDelay: time.Millisecond,
+		Seed:     21,
+	})
+	slotID := SlotID(196)
+	voters := []NodeID{1, 2}
+	cluster.bootstrapSlot(t, slotID, voters)
+	leaderID := cluster.waitForLeaderAmong(t, slotID, voters)
+
+	learnerStore := &internalFakeStorage{}
+	learnerFSM := &internalFakeStateMachine{}
+	cluster.stores[3][slotID] = learnerStore
+	cluster.fsms[3][slotID] = learnerFSM
+	if err := cluster.runtime(3).OpenSlot(context.Background(), SlotOptions{
+		ID:           slotID,
+		Storage:      learnerStore,
+		StateMachine: learnerFSM,
+	}); err != nil {
+		t.Fatalf("OpenSlot(learner) error = %v", err)
+	}
+
+	cluster.partitionNode(3)
+	change, err := cluster.runtime(leaderID).ChangeConfig(context.Background(), slotID, ConfigChange{
+		Type:   AddLearner,
+		NodeID: 3,
+	})
+	if err != nil {
+		t.Fatalf("ChangeConfig(AddLearner) error = %v", err)
+	}
+	waitForFutureResult(t, change)
+	if st, err := cluster.runtime(leaderID).Status(slotID); err != nil {
+		t.Fatalf("Status(leader) error = %v", err)
+	} else if _, ok := st.Progress[3]; !ok {
+		t.Fatalf("Status().Progress missing learner 3 after config change: %#v", st.Progress)
+	}
+
+	cluster.healNode(3)
+	leaderID = cluster.waitForLeaderAmong(t, slotID, voters)
+	proposal, err := cluster.runtime(leaderID).Propose(context.Background(), slotID, proposalString("refresh-learner-progress"))
+	if err != nil {
+		t.Fatalf("Propose() error = %v", err)
+	}
+	proposalResult := waitForFutureResult(t, proposal)
+	cluster.waitForCondition(t, func() bool {
+		st, err := cluster.runtime(3).Status(slotID)
+		return err == nil && st.AppliedIndex >= proposalResult.Index
+	})
+
+	cluster.waitForCondition(t, func() bool {
+		st, err := cluster.runtime(leaderID).Status(slotID)
+		if err != nil {
+			return false
+		}
+		progress, ok := st.Progress[3]
+		return ok && progress.Match >= proposalResult.Index
+	})
+}
+
+func TestOpenSlotRestoresConfigAppliedIndex(t *testing.T) {
+	rt := newStartedRuntime(t)
+	slotID := SlotID(113)
+	store := &internalFakeStorage{}
+	if err := rt.BootstrapSlot(context.Background(), BootstrapSlotRequest{
+		Slot: SlotOptions{
+			ID:           slotID,
+			Storage:      store,
+			StateMachine: &internalFakeStateMachine{},
+		},
+		Voters: []NodeID{1},
+	}); err != nil {
+		t.Fatalf("BootstrapSlot() error = %v", err)
+	}
+	waitForCondition(t, func() bool {
+		st, err := rt.Status(slotID)
+		return err == nil && st.Role == RoleLeader
+	})
+
+	change, err := rt.ChangeConfig(context.Background(), slotID, ConfigChange{Type: AddLearner, NodeID: 2})
+	if err != nil {
+		t.Fatalf("ChangeConfig(AddLearner) error = %v", err)
+	}
+	changeResult := waitForFutureResult(t, change)
+	if err := rt.Close(); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+
+	reopened := newStartedRuntime(t)
+	if err := reopened.OpenSlot(context.Background(), SlotOptions{
+		ID:           slotID,
+		Storage:      store,
+		StateMachine: &internalFakeStateMachine{},
+	}); err != nil {
+		t.Fatalf("OpenSlot(reopened) error = %v", err)
+	}
+	st, err := reopened.Status(slotID)
+	if err != nil {
+		t.Fatalf("Status(reopened) error = %v", err)
+	}
+	if st.ConfigAppliedIndex != changeResult.Index {
+		t.Fatalf("Status().ConfigAppliedIndex = %d, want config entry index %d", st.ConfigAppliedIndex, changeResult.Index)
+	}
+}
+
+func TestConfigAppliedIndexDoesNotAdvanceOnNormalEntry(t *testing.T) {
+	rt := newStartedRuntime(t)
+	slotID := SlotID(114)
+	store := &internalFakeStorage{}
+	if err := rt.BootstrapSlot(context.Background(), BootstrapSlotRequest{
+		Slot: SlotOptions{
+			ID:           slotID,
+			Storage:      store,
+			StateMachine: &internalFakeStateMachine{},
+		},
+		Voters: []NodeID{1},
+	}); err != nil {
+		t.Fatalf("BootstrapSlot() error = %v", err)
+	}
+	waitForCondition(t, func() bool {
+		st, err := rt.Status(slotID)
+		return err == nil && st.Role == RoleLeader
+	})
+
+	change, err := rt.ChangeConfig(context.Background(), slotID, ConfigChange{Type: AddLearner, NodeID: 2})
+	if err != nil {
+		t.Fatalf("ChangeConfig(AddLearner) error = %v", err)
+	}
+	changeResult := waitForFutureResult(t, change)
+	proposal, err := rt.Propose(context.Background(), slotID, proposalString("normal-after-config"))
+	if err != nil {
+		t.Fatalf("Propose() error = %v", err)
+	}
+	proposalResult := waitForFutureResult(t, proposal)
+	if proposalResult.Index <= changeResult.Index {
+		t.Fatalf("normal proposal index = %d, want > config index %d", proposalResult.Index, changeResult.Index)
+	}
+	if err := rt.Close(); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+
+	reopened := newStartedRuntime(t)
+	if err := reopened.OpenSlot(context.Background(), SlotOptions{
+		ID:           slotID,
+		Storage:      store,
+		StateMachine: &internalFakeStateMachine{},
+	}); err != nil {
+		t.Fatalf("OpenSlot(reopened) error = %v", err)
+	}
+	st, err := reopened.Status(slotID)
+	if err != nil {
+		t.Fatalf("Status(reopened) error = %v", err)
+	}
+	if st.ConfigAppliedIndex != changeResult.Index {
+		t.Fatalf("Status().ConfigAppliedIndex = %d, want config entry index %d", st.ConfigAppliedIndex, changeResult.Index)
+	}
+	if st.ConfigAppliedIndex == proposalResult.Index {
+		t.Fatalf("Status().ConfigAppliedIndex advanced to normal entry index %d", proposalResult.Index)
+	}
+}
+
+func TestOpenSlotRestoresConfigAppliedIndexFromSnapshotConfState(t *testing.T) {
+	store := &internalFakeStorage{
+		state: BootstrapState{
+			HardState:    raftpb.HardState{Commit: 9},
+			AppliedIndex: 9,
+		},
+		snapshot: raftpb.Snapshot{
+			Metadata: raftpb.SnapshotMetadata{
+				Index: 9,
+				Term:  2,
+				ConfState: raftpb.ConfState{
+					Voters:   []uint64{1},
+					Learners: []uint64{2},
+				},
+			},
+		},
+	}
+	rt := newStartedRuntime(t)
+	if err := rt.OpenSlot(context.Background(), SlotOptions{
+		ID:           115,
+		Storage:      store,
+		StateMachine: &internalFakeStateMachine{},
+	}); err != nil {
+		t.Fatalf("OpenSlot() error = %v", err)
+	}
+	st, err := rt.Status(115)
+	if err != nil {
+		t.Fatalf("Status() error = %v", err)
+	}
+	if st.ConfigAppliedIndex != 9 {
+		t.Fatalf("Status().ConfigAppliedIndex = %d, want snapshot index 9", st.ConfigAppliedIndex)
+	}
+}
+
 func TestRuntimeDoesNotDoubleRefreshAfterReady(t *testing.T) {
 	g, err := newSlot(context.Background(), 1, nil, RaftOptions{ElectionTick: 10, HeartbeatTick: 1}, newInternalSlotOptions(110), nil, nil)
 	if err != nil {

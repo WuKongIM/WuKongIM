@@ -177,6 +177,10 @@ func newSlot(ctx context.Context, nodeID NodeID, logger wklog.Logger, raftOpts R
 	if !raft.IsEmptySnap(snapshot) {
 		appliedIndex = snapshot.Metadata.Index
 	}
+	configAppliedIndex, err := restoreConfigAppliedIndex(ctx, opts.Storage, appliedIndex, snapshot)
+	if err != nil {
+		return nil, err
+	}
 	rawNode, err := raft.NewRawNode(&raft.Config{
 		ID:              uint64(nodeID),
 		ElectionTick:    raftOpts.ElectionTick,
@@ -204,6 +208,8 @@ func newSlot(ctx context.Context, nodeID NodeID, logger wklog.Logger, raftOpts R
 			LeaderID:     NodeID(state.HardState.Vote),
 			CommitIndex:  state.HardState.Commit,
 			AppliedIndex: appliedIndex,
+			// ConfigAppliedIndex is restored from durable config entries or the snapshot ConfState fence.
+			ConfigAppliedIndex: configAppliedIndex,
 		},
 		logger:                      logger,
 		storageView:                 newStorageAdapter(opts.Storage),
@@ -888,7 +894,7 @@ func (g *slot) refreshStatus() {
 func (g *slot) needsFullStatusRefresh() bool {
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	return !g.votersInitialized || g.votersDirty
+	return !g.votersInitialized || g.votersDirty || g.needsLearnerProgressRefreshLocked()
 }
 
 // refreshBasicStatus updates volatile Raft status without cloning tracker progress.
@@ -944,6 +950,10 @@ func (g *slot) applyBasicStatusLocked(st raft.BasicStatus) (leaderChangeEvent, a
 		g.failLeadershipDependentLocked(ErrNotLeader)
 	}
 	return leaderEvent, applyEvent
+}
+
+func (g *slot) needsLearnerProgressRefreshLocked() bool {
+	return g.status.Role == RoleLeader && len(g.status.CurrentLearners) > 0
 }
 
 func (g *slot) recordConfigChangeApplied(index uint64) {
@@ -1035,6 +1045,53 @@ func progressFromRaftStatus(st raft.Status) map[NodeID]PeerProgress {
 		}
 	}
 	return progress
+}
+
+func restoreConfigAppliedIndex(ctx context.Context, storage Storage, appliedIndex uint64, snapshot raftpb.Snapshot) (uint64, error) {
+	first, err := storage.FirstIndex(ctx)
+	if err != nil {
+		return 0, err
+	}
+	last, err := storage.LastIndex(ctx)
+	if err != nil {
+		return 0, err
+	}
+	if appliedIndex > 0 && last > appliedIndex {
+		last = appliedIndex
+	}
+	if last >= first {
+		for index := last; ; index-- {
+			entries, err := storage.Entries(ctx, index, index+1, maxSizePerMsg(0))
+			if err != nil {
+				if errors.Is(err, raft.ErrCompacted) {
+					break
+				}
+				return 0, err
+			}
+			if len(entries) > 0 && isConfigChangeEntry(entries[0]) {
+				return entries[0].Index, nil
+			}
+			if index == first {
+				break
+			}
+		}
+	}
+	if !raft.IsEmptySnap(snapshot) && !isEmptyConfState(snapshot.Metadata.ConfState) {
+		return snapshot.Metadata.Index, nil
+	}
+	return 0, nil
+}
+
+func isConfigChangeEntry(entry raftpb.Entry) bool {
+	return entry.Type == raftpb.EntryConfChange || entry.Type == raftpb.EntryConfChangeV2
+}
+
+func isEmptyConfState(state raftpb.ConfState) bool {
+	return len(state.Voters) == 0 &&
+		len(state.Learners) == 0 &&
+		len(state.VotersOutgoing) == 0 &&
+		len(state.LearnersNext) == 0 &&
+		!state.AutoLeave
 }
 
 func selectLeaderTransferTransferee(st raft.Status, preferred NodeID) NodeID {
