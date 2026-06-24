@@ -314,6 +314,79 @@ func TestNodeDefaultControllerV2ThreeVotersConvergeOverTransport(t *testing.T) {
 	}
 }
 
+func TestNodeDefaultControllerV2ForwardsControlWriteOverTransport(t *testing.T) {
+	addrs := []string{freeTCPAddr(t), freeTCPAddr(t), freeTCPAddr(t)}
+	voters := []ControlVoter{
+		{NodeID: 1, Addr: addrs[0]},
+		{NodeID: 2, Addr: addrs[1]},
+		{NodeID: 3, Addr: addrs[2]},
+	}
+	nodes := make([]*Node, 0, len(voters))
+	for _, voter := range voters {
+		cfg := Config{NodeID: voter.NodeID, ListenAddr: voter.Addr, DataDir: t.TempDir()}
+		cfg.Control.ClusterID = "node-default-control-write"
+		cfg.Control.Voters = voters
+		cfg.Control.AllowBootstrap = true
+		cfg.Slots.InitialSlotCount = 1
+		cfg.Slots.HashSlotCount = 4
+		cfg.Slots.ReplicaCount = 3
+		node, err := New(cfg)
+		if err != nil {
+			t.Fatalf("New(node=%d) error = %v", voter.NodeID, err)
+		}
+		nodes = append(nodes, node)
+	}
+
+	startCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	startErrs := make(chan error, len(nodes))
+	for _, node := range nodes {
+		node := node
+		go func() { startErrs <- node.Start(startCtx) }()
+		t.Cleanup(func() { _ = node.Stop(context.Background()) })
+	}
+	for range nodes {
+		if err := <-startErrs; err != nil {
+			t.Fatalf("Start() error = %v", err)
+		}
+	}
+
+	readyCtx, readyCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer readyCancel()
+	if err := WaitControllerWriteReady(readyCtx, nodes...); err != nil {
+		t.Fatalf("WaitControllerWriteReady() error = %v", err)
+	}
+
+	var follower *control.Runtime
+	for _, node := range nodes {
+		runtime, ok := node.control.(*control.Runtime)
+		if !ok {
+			t.Fatalf("node %d control = %T, want *control.Runtime", node.NodeID(), node.control)
+		}
+		if runtime.LeaderID() != node.NodeID() {
+			follower = runtime
+			break
+		}
+	}
+	if follower == nil {
+		t.Fatal("no follower runtime found")
+	}
+
+	result, err := follower.JoinNode(context.Background(), control.JoinNodeRequest{
+		NodeID:         4,
+		Name:           "node-4",
+		Addr:           "n4",
+		Roles:          []control.Role{control.RoleData},
+		CapacityWeight: 2,
+	})
+	if err != nil {
+		t.Fatalf("JoinNode() error = %v", err)
+	}
+	if !result.Created || result.Node.NodeID != 4 || result.Node.JoinState != control.NodeJoinStateJoining {
+		t.Fatalf("JoinNode() = %#v, want forwarded joining node creation", result)
+	}
+}
+
 func TestNodeStartMarksDefaultChannelsReadyWithoutController(t *testing.T) {
 	node, err := New(validNodeConfig(t))
 	if err != nil {

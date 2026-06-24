@@ -1,6 +1,7 @@
 package control
 
 import (
+	"errors"
 	"reflect"
 	"testing"
 
@@ -114,6 +115,30 @@ func TestControlWriteRequestNodeLifecycleCodecRoundTrip(t *testing.T) {
 	}
 	if !reflect.DeepEqual(got, req) {
 		t.Fatalf("DecodeControlWriteRequest() = %#v, want %#v", got, req)
+	}
+}
+
+func TestControlWriteResponsePreservesSemanticErrorIdentity(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want error
+	}{
+		{name: "not leader", err: cv2.ErrNotLeader, want: cv2.ErrNotLeader},
+		{name: "not started", err: cv2.ErrNotStarted, want: cv2.ErrNotStarted},
+		{name: "proposal rejected", err: cv2.ErrProposalRejected, want: cv2.ErrProposalRejected},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			payload, err := encodeControlWriteErrorResponse(tt.err)
+			if err != nil {
+				t.Fatalf("encodeControlWriteErrorResponse() error = %v", err)
+			}
+			_, err = DecodeControlWriteResponse(payload)
+			if !errors.Is(err, tt.want) {
+				t.Fatalf("DecodeControlWriteResponse() error = %v, want errors.Is(%v)", err, tt.want)
+			}
+		})
 	}
 }
 

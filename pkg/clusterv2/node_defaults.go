@@ -21,20 +21,21 @@ func (n *Node) ensureDefaultRuntime() (bool, error) {
 		}
 		n.registerPendingRPCHandlers()
 		runtime, err := control.NewRuntime(control.RuntimeConfig{
-			NodeID:           n.cfg.NodeID,
-			Addr:             n.cfg.ListenAddr,
-			StateDir:         n.cfg.Control.StateDir,
-			ClusterID:        n.cfg.Control.ClusterID,
-			Role:             control.RuntimeRole(n.cfg.Control.Role),
-			Voters:           runtimeVoters(n.cfg.Control.Voters),
-			AllowBootstrap:   n.cfg.Control.AllowBootstrap,
-			InitialSlotCount: n.cfg.Slots.InitialSlotCount,
-			HashSlotCount:    n.cfg.Slots.HashSlotCount,
-			ReplicaCount:     n.cfg.Slots.ReplicaCount,
-			RaftTransport:    control.NewRaftTransport(n.transportClient),
-			RaftObserver:     n.cfg.Control.RaftObserver,
-			SyncPeers:        control.NewStaticPeerPicker(n.transportClient, runtimeVoters(n.cfg.Control.Voters)),
-			TaskClient:       control.NewTaskClient(n.transportClient),
+			NodeID:             n.cfg.NodeID,
+			Addr:               n.cfg.ListenAddr,
+			StateDir:           n.cfg.Control.StateDir,
+			ClusterID:          n.cfg.Control.ClusterID,
+			Role:               control.RuntimeRole(n.cfg.Control.Role),
+			Voters:             runtimeVoters(n.cfg.Control.Voters),
+			AllowBootstrap:     n.cfg.Control.AllowBootstrap,
+			InitialSlotCount:   n.cfg.Slots.InitialSlotCount,
+			HashSlotCount:      n.cfg.Slots.HashSlotCount,
+			ReplicaCount:       n.cfg.Slots.ReplicaCount,
+			RaftTransport:      control.NewRaftTransport(n.transportClient),
+			RaftObserver:       n.cfg.Control.RaftObserver,
+			SyncPeers:          control.NewStaticPeerPicker(n.transportClient, runtimeVoters(n.cfg.Control.Voters)),
+			TaskClient:         control.NewTaskClient(n.transportClient),
+			ControlWriteClient: control.NewControlWriteClient(n.transportClient),
 		})
 		if err != nil {
 			return false, err
@@ -43,6 +44,7 @@ func (n *Node) ensureDefaultRuntime() (bool, error) {
 			n.transportServer.Register(clusternet.RPCControlRaft, control.NewRaftHandler(runtime))
 			n.transportServer.Register(clusternet.RPCControlStateSync, control.NewStateSyncHandler(runtime))
 			n.transportServer.Register(clusternet.RPCControlTaskResult, control.NewTaskHandler(runtime))
+			n.transportServer.Register(clusternet.RPCControlWrite, control.NewControlWriteHandler(runtime))
 		}
 		n.control = runtime
 		n.defaultControl = true

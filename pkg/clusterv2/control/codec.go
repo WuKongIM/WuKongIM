@@ -3,6 +3,7 @@ package control
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/clusterv2/net"
 	cv2 "github.com/WuKongIM/WuKongIM/pkg/controllerv2"
@@ -167,9 +168,16 @@ type ControlWriteResponse struct {
 }
 
 type controlWriteResponseEnvelope struct {
-	Response ControlWriteResponse `json:"response,omitempty"`
-	Error    string               `json:"error,omitempty"`
+	Response  ControlWriteResponse `json:"response,omitempty"`
+	Error     string               `json:"error,omitempty"`
+	ErrorCode string               `json:"error_code,omitempty"`
 }
+
+const (
+	controlWriteErrorCodeNotLeader        = "controllerv2_not_leader"
+	controlWriteErrorCodeNotStarted       = "controllerv2_not_started"
+	controlWriteErrorCodeProposalRejected = "controllerv2_proposal_rejected"
+)
 
 // EncodeControlWriteRequest encodes one generic control write request.
 func EncodeControlWriteRequest(req ControlWriteRequest) ([]byte, error) {
@@ -203,7 +211,10 @@ func encodeControlWriteErrorResponse(err error) ([]byte, error) {
 	if err == nil {
 		return EncodeControlWriteResponse(ControlWriteResponse{})
 	}
-	return encodeControlWriteResponseEnvelope(controlWriteResponseEnvelope{Error: err.Error()})
+	return encodeControlWriteResponseEnvelope(controlWriteResponseEnvelope{
+		Error:     err.Error(),
+		ErrorCode: controlWriteErrorCode(err),
+	})
 }
 
 func encodeControlWriteResponseEnvelope(env controlWriteResponseEnvelope) ([]byte, error) {
@@ -226,7 +237,41 @@ func DecodeControlWriteResponse(data []byte) (ControlWriteResponse, error) {
 		return ControlWriteResponse{}, err
 	}
 	if env.Error != "" {
+		if semantic := controlWriteSemanticError(env.ErrorCode, env.Error); semantic != nil {
+			return env.Response, semantic
+		}
 		return env.Response, errors.New(env.Error)
 	}
 	return env.Response, nil
+}
+
+func controlWriteErrorCode(err error) string {
+	switch {
+	case errors.Is(err, cv2.ErrNotLeader):
+		return controlWriteErrorCodeNotLeader
+	case errors.Is(err, cv2.ErrNotStarted):
+		return controlWriteErrorCodeNotStarted
+	case errors.Is(err, cv2.ErrProposalRejected):
+		return controlWriteErrorCodeProposalRejected
+	default:
+		return ""
+	}
+}
+
+func controlWriteSemanticError(code, text string) error {
+	var target error
+	switch code {
+	case controlWriteErrorCodeNotLeader:
+		target = cv2.ErrNotLeader
+	case controlWriteErrorCodeNotStarted:
+		target = cv2.ErrNotStarted
+	case controlWriteErrorCodeProposalRejected:
+		target = cv2.ErrProposalRejected
+	default:
+		return nil
+	}
+	if text == "" || text == target.Error() {
+		return target
+	}
+	return fmt.Errorf("%w: %s", target, text)
 }
