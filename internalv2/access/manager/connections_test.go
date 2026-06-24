@@ -31,7 +31,7 @@ func TestManagerConnectionsReturnsList(t *testing.T) {
 	})
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/connections?node_id=2", nil)
+	req := httptest.NewRequest(http.MethodGet, "/manager/connections?node_id=2&limit=100", nil)
 	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
 
 	srv.Engine().ServeHTTP(rec, req)
@@ -39,8 +39,8 @@ func TestManagerConnectionsReturnsList(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
 	}
-	if received != (managementusecase.ListConnectionsRequest{NodeID: 2}) {
-		t.Fatalf("request = %#v, want node_id 2", received)
+	if received != (managementusecase.ListConnectionsRequest{NodeID: 2, Limit: 100}) {
+		t.Fatalf("request = %#v, want node_id 2 limit 100", received)
 	}
 	if !jsonEqual(rec.Body.String(), `{
 		"total": 1,
@@ -60,6 +60,37 @@ func TestManagerConnectionsReturnsList(t *testing.T) {
 		}]
 	}`) {
 		t.Fatalf("body = %s", rec.Body.String())
+	}
+}
+
+func TestManagerConnectionsRejectsInvalidLimit(t *testing.T) {
+	srv := New(Options{
+		Auth: testAuthConfig([]UserConfig{{
+			Username:    "admin",
+			Password:    "secret",
+			Permissions: []PermissionConfig{{Resource: "cluster.connection", Actions: []string{"r"}}},
+		}}),
+		Management: managerNodesStub{},
+	})
+
+	for _, target := range []string{
+		"/manager/connections?limit=bad",
+		"/manager/connections?limit=0",
+		"/manager/connections?limit=-1",
+		"/manager/connections?limit=101",
+	} {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, target, nil)
+		req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
+
+		srv.Engine().ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("%s status = %d, want %d; body=%s", target, rec.Code, http.StatusBadRequest, rec.Body.String())
+		}
+		if !jsonEqual(rec.Body.String(), `{"error":"bad_request","message":"invalid limit"}`) {
+			t.Fatalf("%s body = %s", target, rec.Body.String())
+		}
 	}
 }
 

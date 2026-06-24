@@ -33,7 +33,7 @@ func TestListConnectionsReturnsActiveLocalSessionsOrderedByConnectedAtDesc(t *te
 		Connections: registry,
 	})
 
-	got, err := app.ListConnections(context.Background(), ListConnectionsRequest{})
+	got, err := app.ListConnections(context.Background(), ListConnectionsRequest{Limit: 1})
 	if err != nil {
 		t.Fatalf("ListConnections() error = %v", err)
 	}
@@ -43,11 +43,6 @@ func TestListConnectionsReturnsActiveLocalSessionsOrderedByConnectedAtDesc(t *te
 			NodeID: 1, SessionID: 12, UID: "u2", DeviceID: "d2", DeviceFlag: "web", DeviceLevel: "slave",
 			SlotID: 1, State: "active", Listener: "ws", ConnectedAt: time.Unix(102, 0).UTC(),
 			RemoteAddr: "10.0.0.2:5000", LocalAddr: "127.0.0.1:7100",
-		},
-		{
-			NodeID: 1, SessionID: 11, UID: "u1", DeviceID: "d1", DeviceFlag: "app", DeviceLevel: "master",
-			SlotID: 1, State: "active", Listener: "tcp", ConnectedAt: time.Unix(101, 0).UTC(),
-			RemoteAddr: "10.0.0.1:5000", LocalAddr: "127.0.0.1:7000",
 		},
 	}
 	if !sameConnections(got, want) {
@@ -97,12 +92,12 @@ func TestConnectionsUseRemoteReaderForNonLocalNode(t *testing.T) {
 		RemoteConnections: remote,
 	})
 
-	items, err := app.ListConnections(context.Background(), ListConnectionsRequest{NodeID: 2})
+	items, err := app.ListConnections(context.Background(), ListConnectionsRequest{NodeID: 2, Limit: 100})
 	if err != nil {
 		t.Fatalf("ListConnections(remote) error = %v", err)
 	}
-	if !sameConnections(items, remote.connections) || remote.listNodeID != 2 {
-		t.Fatalf("remote list = %#v node=%d, want %#v node 2", items, remote.listNodeID, remote.connections)
+	if !sameConnections(items, remote.connections) || remote.listNodeID != 2 || remote.listLimit != 100 {
+		t.Fatalf("remote list = %#v node=%d limit=%d, want %#v node 2 limit 100", items, remote.listNodeID, remote.listLimit, remote.connections)
 	}
 
 	detail, err := app.GetConnection(context.Background(), GetConnectionRequest{NodeID: 2, SessionID: 23})
@@ -136,14 +131,16 @@ func requireNoError(t *testing.T, err error) {
 
 type fakeConnectionRemoteReader struct {
 	listNodeID      uint64
+	listLimit       int
 	detailNodeID    uint64
 	detailSessionID uint64
 	connections     []Connection
 	detail          ConnectionDetail
 }
 
-func (f *fakeConnectionRemoteReader) NodeConnections(_ context.Context, nodeID uint64) ([]Connection, error) {
+func (f *fakeConnectionRemoteReader) NodeConnections(_ context.Context, nodeID uint64, limit int) ([]Connection, error) {
 	f.listNodeID = nodeID
+	f.listLimit = limit
 	return append([]Connection(nil), f.connections...), nil
 }
 

@@ -325,11 +325,12 @@ manager HTTP handler
 ```
 
 The connection projection filters list results to active owner-local sessions,
-maps the legacy manager DTO fields from `online.LocalSession`, and sorts local
-list results by newest connection first. Remote `node_id` filters delegate to a
-narrow `RemoteConnectionReader` port so the app layer can route manager
-connection inventory reads over node RPC. When that port is not wired, the
-usecase returns `ErrConnectionReaderUnavailable`.
+maps the legacy manager DTO fields from `online.LocalSession`, applies a
+default and maximum list limit of 100 rows, and sorts local list results by
+newest connection first. Remote `node_id` filters delegate to a narrow
+`RemoteConnectionReader` port with the same limit so the app layer can route
+manager connection inventory reads over node RPC. When that port is not wired,
+the usecase returns `ErrConnectionReaderUnavailable`.
 
 ## Plugin Management Flow
 

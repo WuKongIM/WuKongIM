@@ -30,11 +30,11 @@ func NewManagementConnectionReader(node ManagementConnectionNode) *ManagementCon
 }
 
 // NodeConnections reads active connections from one owner node.
-func (r *ManagementConnectionReader) NodeConnections(ctx context.Context, nodeID uint64) ([]managementusecase.Connection, error) {
+func (r *ManagementConnectionReader) NodeConnections(ctx context.Context, nodeID uint64, limit int) ([]managementusecase.Connection, error) {
 	if r == nil || r.remote == nil {
 		return nil, managementusecase.ErrConnectionReaderUnavailable
 	}
-	return r.remote.ListManagerConnections(ctx, nodeID)
+	return r.remote.ListManagerConnections(ctx, nodeID, limit)
 }
 
 // NodeConnection reads one connection detail from one owner node.

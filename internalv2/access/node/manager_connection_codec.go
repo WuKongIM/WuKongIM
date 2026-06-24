@@ -29,6 +29,7 @@ type managerConnectionRPCRequest struct {
 	Op        string
 	NodeID    uint64
 	SessionID uint64
+	Limit     int
 }
 
 type managerConnectionRPCResponse struct {
@@ -48,6 +49,7 @@ func encodeManagerConnectionRequest(req managerConnectionRPCRequest) ([]byte, er
 	dst = append(dst, opID)
 	dst = appendUvarint(dst, req.NodeID)
 	dst = appendUvarint(dst, req.SessionID)
+	dst = appendUvarint(dst, uint64(req.Limit))
 	return dst, nil
 }
 
@@ -73,10 +75,14 @@ func decodeManagerConnectionRequest(body []byte) (managerConnectionRPCRequest, e
 	if err != nil {
 		return managerConnectionRPCRequest{}, err
 	}
+	limit, offset, err := readUvarint(body, offset)
+	if err != nil {
+		return managerConnectionRPCRequest{}, err
+	}
 	if offset != len(body) {
 		return managerConnectionRPCRequest{}, fmt.Errorf("internalv2/access/node: trailing manager connection request bytes")
 	}
-	return managerConnectionRPCRequest{Op: op, NodeID: nodeID, SessionID: sessionID}, nil
+	return managerConnectionRPCRequest{Op: op, NodeID: nodeID, SessionID: sessionID, Limit: int(limit)}, nil
 }
 
 func encodeManagerConnectionResponse(resp managerConnectionRPCResponse) ([]byte, error) {

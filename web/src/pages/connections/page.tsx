@@ -22,6 +22,8 @@ type ConnectionsState = {
   error: Error | null
 }
 
+const connectionPageLimit = 100
+
 function formatTimestamp(intl: IntlShape, value: string) {
   return new Intl.DateTimeFormat(intl.locale, {
     year: "numeric",
@@ -105,7 +107,7 @@ export function ConnectionsPage() {
     }))
 
     try {
-      const connections = await getConnections({ nodeId })
+      const connections = await getConnections({ nodeId, limit: connectionPageLimit })
       setState({ connections, loading: false, refreshing: false, error: null })
     } catch (error) {
       setState({

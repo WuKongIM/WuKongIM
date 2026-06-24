@@ -10,6 +10,11 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+const (
+	defaultConnectionListLimit = 100
+	maxConnectionListLimit     = 100
+)
+
 // ConnectionsResponse is the manager local connection list response body.
 type ConnectionsResponse struct {
 	// Total is the number of returned local connections.
@@ -23,9 +28,9 @@ func (s *Server) handleConnections(c *gin.Context) {
 		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "management not configured")
 		return
 	}
-	req, err := parseListConnectionsRequest(c)
+	req, badRequestMessage, err := parseListConnectionsRequest(c)
 	if err != nil {
-		jsonError(c, http.StatusBadRequest, "bad_request", "invalid node_id")
+		jsonError(c, http.StatusBadRequest, "bad_request", badRequestMessage)
 		return
 	}
 	items, err := s.management.ListConnections(c.Request.Context(), req)
@@ -65,12 +70,27 @@ func (s *Server) handleConnection(c *gin.Context) {
 	c.JSON(http.StatusOK, connectionDTO(item))
 }
 
-func parseListConnectionsRequest(c *gin.Context) (managementusecase.ListConnectionsRequest, error) {
+func parseListConnectionsRequest(c *gin.Context) (managementusecase.ListConnectionsRequest, string, error) {
 	nodeID, err := parseOptionalConnectionNodeID(c.Query("node_id"))
 	if err != nil {
-		return managementusecase.ListConnectionsRequest{}, err
+		return managementusecase.ListConnectionsRequest{}, "invalid node_id", err
 	}
-	return managementusecase.ListConnectionsRequest{NodeID: nodeID}, nil
+	limit, err := parseConnectionListLimit(c.Query("limit"))
+	if err != nil {
+		return managementusecase.ListConnectionsRequest{}, "invalid limit", err
+	}
+	return managementusecase.ListConnectionsRequest{NodeID: nodeID, Limit: limit}, "", nil
+}
+
+func parseConnectionListLimit(raw string) (int, error) {
+	if raw == "" {
+		return defaultConnectionListLimit, nil
+	}
+	limit, err := strconv.Atoi(raw)
+	if err != nil || limit <= 0 || limit > maxConnectionListLimit {
+		return 0, strconv.ErrSyntax
+	}
+	return limit, nil
 }
 
 func parseOptionalConnectionNodeID(raw string) (uint64, error) {

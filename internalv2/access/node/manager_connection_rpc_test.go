@@ -18,7 +18,7 @@ func TestManagerConnectionRPCListsConnections(t *testing.T) {
 		}},
 	}
 	adapter := New(Options{ManagerConnections: service})
-	req := managerConnectionRPCRequest{Op: managerConnectionOpList, NodeID: 2}
+	req := managerConnectionRPCRequest{Op: managerConnectionOpList, NodeID: 2, Limit: 100}
 	body, err := encodeManagerConnectionRequest(req)
 	if err != nil {
 		t.Fatalf("encodeManagerConnectionRequest() error = %v", err)
@@ -36,8 +36,8 @@ func TestManagerConnectionRPCListsConnections(t *testing.T) {
 	if resp.Status != rpcStatusOK || len(resp.Connections) != 1 || resp.Connections[0].SessionID != 101 {
 		t.Fatalf("response = %#v, want one ok connection", resp)
 	}
-	if service.listReq != (managementusecase.ListConnectionsRequest{NodeID: 2}) {
-		t.Fatalf("list request = %#v, want node 2", service.listReq)
+	if service.listReq != (managementusecase.ListConnectionsRequest{NodeID: 2, Limit: 100}) {
+		t.Fatalf("list request = %#v, want node 2 limit 100", service.listReq)
 	}
 }
 

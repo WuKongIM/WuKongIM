@@ -1517,6 +1517,7 @@ export type ChannelClusterUnhealthyParams = {
 
 export type ConnectionListParams = {
   nodeId?: number
+  limit?: number
 }
 
 export type ConnectionDetailParams = {

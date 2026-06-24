@@ -24,7 +24,7 @@ type ConnectionReader interface {
 // RemoteConnectionReader reads connection inventory from another owner node.
 type RemoteConnectionReader interface {
 	// NodeConnections returns active connections currently registered on one cluster node.
-	NodeConnections(ctx context.Context, nodeID uint64) ([]Connection, error)
+	NodeConnections(ctx context.Context, nodeID uint64, limit int) ([]Connection, error)
 	// NodeConnection returns one connection currently registered on one cluster node.
 	NodeConnection(ctx context.Context, nodeID, sessionID uint64) (ConnectionDetail, error)
 }
@@ -33,6 +33,8 @@ type RemoteConnectionReader interface {
 type ListConnectionsRequest struct {
 	// NodeID optionally filters to one owner node. Zero means the local node.
 	NodeID uint64
+	// Limit bounds the returned active connection rows. Zero uses the default.
+	Limit int
 }
 
 // GetConnectionRequest selects one owner-local connection detail to read.
@@ -59,31 +61,66 @@ func (a *App) ListConnections(ctx context.Context, req ListConnectionsRequest) (
 	if a == nil || a.connections == nil {
 		return nil, nil
 	}
+	limit := normalizeConnectionListLimit(req.Limit)
 	localNodeID := a.localNodeID()
 	if !a.connectionRequestTargetsLocal(req.NodeID, localNodeID) {
 		if a.remoteConnections == nil {
 			return nil, ErrConnectionReaderUnavailable
 		}
-		return a.remoteConnections.NodeConnections(ctx, req.NodeID)
+		return a.remoteConnections.NodeConnections(ctx, req.NodeID, limit)
 	}
 	snapshot, err := a.localControlSnapshot(ctx)
 	if err != nil {
 		return nil, err
 	}
-	items := make([]Connection, 0)
+	items := make([]Connection, 0, limit)
 	for _, session := range a.connections.LocalSessions() {
 		if session.State != online.RouteStateActive {
 			continue
 		}
-		items = append(items, managerConnection(localNodeID, snapshot.HashSlots, session))
+		item := managerConnection(localNodeID, snapshot.HashSlots, session)
+		if len(items) < limit {
+			items = append(items, item)
+			continue
+		}
+		worst := 0
+		for i := 1; i < len(items); i++ {
+			if connectionLessFresh(items[i], items[worst]) {
+				worst = i
+			}
+		}
+		if connectionLessFresh(items[worst], item) {
+			items[worst] = item
+		}
 	}
 	sort.Slice(items, func(i, j int) bool {
-		if items[i].ConnectedAt.Equal(items[j].ConnectedAt) {
-			return items[i].SessionID < items[j].SessionID
-		}
-		return items[i].ConnectedAt.After(items[j].ConnectedAt)
+		return connectionComesBefore(items[i], items[j])
 	})
 	return items, nil
+}
+
+func normalizeConnectionListLimit(limit int) int {
+	if limit <= 0 {
+		return 100
+	}
+	if limit > 100 {
+		return 100
+	}
+	return limit
+}
+
+func connectionComesBefore(a, b Connection) bool {
+	if a.ConnectedAt.Equal(b.ConnectedAt) {
+		return a.SessionID < b.SessionID
+	}
+	return a.ConnectedAt.After(b.ConnectedAt)
+}
+
+func connectionLessFresh(a, b Connection) bool {
+	if a.ConnectedAt.Equal(b.ConnectedAt) {
+		return a.SessionID > b.SessionID
+	}
+	return a.ConnectedAt.Before(b.ConnectedAt)
 }
 
 // GetConnection returns one manager-facing local connection detail DTO.

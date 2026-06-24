@@ -30,7 +30,7 @@ func (a *Adapter) HandleManagerConnectionRPC(ctx context.Context, payload []byte
 	}
 	switch req.Op {
 	case managerConnectionOpList:
-		items, err := a.managerConnections.ListConnections(ctx, managementusecase.ListConnectionsRequest{NodeID: req.NodeID})
+		items, err := a.managerConnections.ListConnections(ctx, managementusecase.ListConnectionsRequest{NodeID: req.NodeID, Limit: req.Limit})
 		status := managerConnectionRPCStatusForError(err)
 		a.logManagerConnectionError(req, status, err)
 		return encodeManagerConnectionResponse(managerConnectionRPCResponse{Status: status, Connections: items})
@@ -56,8 +56,8 @@ func (a *Adapter) HandleManagerConnectionRPC(ctx context.Context, payload []byte
 }
 
 // ListManagerConnections reads owner-node connection inventory from nodeID.
-func (c *Client) ListManagerConnections(ctx context.Context, nodeID uint64) ([]managementusecase.Connection, error) {
-	resp, err := c.callManagerConnection(ctx, nodeID, managerConnectionRPCRequest{Op: managerConnectionOpList, NodeID: nodeID})
+func (c *Client) ListManagerConnections(ctx context.Context, nodeID uint64, limit int) ([]managementusecase.Connection, error) {
+	resp, err := c.callManagerConnection(ctx, nodeID, managerConnectionRPCRequest{Op: managerConnectionOpList, NodeID: nodeID, Limit: limit})
 	if err != nil {
 		return nil, err
 	}

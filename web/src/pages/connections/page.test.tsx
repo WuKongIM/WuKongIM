@@ -140,12 +140,12 @@ test("defaults connection node filter to the local node and reloads when it chan
   const filter = await screen.findByLabelText("Node filter")
   expect(filter).toHaveValue("2")
   expect(await screen.findByText("u1")).toBeInTheDocument()
-  expect(getConnectionsMock).toHaveBeenCalledWith({ nodeId: 2 })
+  expect(getConnectionsMock).toHaveBeenCalledWith({ nodeId: 2, limit: 100 })
 
   await user.selectOptions(filter, "1")
 
   expect(await screen.findByText("u2")).toBeInTheDocument()
-  expect(getConnectionsMock).toHaveBeenLastCalledWith({ nodeId: 1 })
+  expect(getConnectionsMock).toHaveBeenLastCalledWith({ nodeId: 1, limit: 100 })
 })
 
 test("refreshes the connection inventory", async () => {
@@ -159,7 +159,7 @@ test("refreshes the connection inventory", async () => {
   await user.click(screen.getAllByRole("button", { name: "Refresh" })[0]!)
 
   expect(getConnectionsMock).toHaveBeenCalledTimes(2)
-  expect(getConnectionsMock).toHaveBeenLastCalledWith({ nodeId: 2 })
+  expect(getConnectionsMock).toHaveBeenLastCalledWith({ nodeId: 2, limit: 100 })
 })
 
 test("renders unavailable state when connection data cannot be loaded", async () => {

@@ -1292,11 +1292,11 @@ describe("manager api client", () => {
     fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(connectionsResponse), { status: 200 }))
     fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(connectionDetail), { status: 200 }))
 
-    await expect(getConnections({ nodeId: 2 })).resolves.toEqual(connectionsResponse)
+    await expect(getConnections({ nodeId: 2, limit: 100 })).resolves.toEqual(connectionsResponse)
     await expect(getConnection(101, { nodeId: 2 })).resolves.toEqual(connectionDetail)
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
-      "/manager/connections?node_id=2",
+      "/manager/connections?node_id=2&limit=100",
       expect.objectContaining({ headers: expect.any(Headers) }),
     )
     expect(fetchMock).toHaveBeenNthCalledWith(

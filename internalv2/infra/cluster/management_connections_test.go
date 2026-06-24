@@ -19,13 +19,16 @@ func TestManagementConnectionReaderRoutesRemoteList(t *testing.T) {
 	}
 	reader := NewManagementConnectionReader(node)
 
-	got, err := reader.NodeConnections(context.Background(), 2)
+	got, err := reader.NodeConnections(context.Background(), 2, 100)
 	if err != nil {
 		t.Fatalf("NodeConnections() error = %v", err)
 	}
 
 	if !sameManagementConnections(got, service.connections) {
 		t.Fatalf("connections = %#v, want %#v", got, service.connections)
+	}
+	if service.listReq != (managementusecase.ListConnectionsRequest{NodeID: 2, Limit: 100}) {
+		t.Fatalf("list request = %#v, want node 2 limit 100", service.listReq)
 	}
 	if node.calledNodeID != 2 || node.calledServiceID != accessnode.ManagerConnectionRPCServiceID {
 		t.Fatalf("rpc target = node:%d service:%d, want node 2 service %d", node.calledNodeID, node.calledServiceID, accessnode.ManagerConnectionRPCServiceID)
@@ -80,11 +83,13 @@ func (f *fakeManagementConnectionNode) CallRPC(ctx context.Context, nodeID uint6
 
 type fakeManagerConnectionService struct {
 	connections []managementusecase.Connection
+	listReq     managementusecase.ListConnectionsRequest
 	detail      managementusecase.ConnectionDetail
 	runtime     managementusecase.NodeRuntimeSummary
 }
 
-func (f *fakeManagerConnectionService) ListConnections(context.Context, managementusecase.ListConnectionsRequest) ([]managementusecase.Connection, error) {
+func (f *fakeManagerConnectionService) ListConnections(_ context.Context, req managementusecase.ListConnectionsRequest) ([]managementusecase.Connection, error) {
+	f.listReq = req
 	return append([]managementusecase.Connection(nil), f.connections...), nil
 }
 

@@ -223,12 +223,14 @@ is configured, the route returns `service_unavailable` instead of reporting a
 false success.
 
 `/manager/connections*` preserves the legacy connection list/detail JSON shape
-for the web connection page. In internalv2 it reads the owner-local online
-registry for local or empty `node_id` filters, routes remote `node_id` filters
-through internalv2 node RPC, and maps session details such as UID, device,
-listener, state, timestamps, and addresses when the gateway session handle
-exposes them. If a remote connection reader is not wired, non-local filters
-return `service_unavailable`.
+for the web connection page. The list route accepts optional `node_id` and
+`limit` query parameters, with the connection page bounded to at most 100 rows
+per request. In internalv2 it reads the owner-local online registry for local
+or empty `node_id` filters, routes remote `node_id` filters through
+internalv2 node RPC, and maps session details such as UID, device, listener,
+state, timestamps, and addresses when the gateway session handle exposes them.
+If a remote connection reader is not wired, non-local filters return
+`service_unavailable`.
 
 `/manager/nodes/:node_id/plugins*` exposes node-scoped plugin inventory,
 detail, desired-config update, restart, and uninstall operations for one
