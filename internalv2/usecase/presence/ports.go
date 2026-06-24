@@ -8,6 +8,7 @@ type LocalRegistry interface {
 	MarkActive(sessionID uint64) error
 	MarkClosingAndUnregister(sessionID uint64) (OwnerRoute, bool)
 	MarkTouched(sessionID uint64, activityUnix int64) (OwnerRoute, bool)
+	LocalSession(sessionID uint64) (LocalSession, bool)
 	LocalSessionsByUID(uid string) []LocalSession
 }
 

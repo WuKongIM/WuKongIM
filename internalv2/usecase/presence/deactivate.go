@@ -13,6 +13,7 @@ func (a *App) Deactivate(ctx context.Context, cmd DeactivateCommand) error {
 	if a.authority == nil {
 		return ErrAuthorityUnavailable
 	}
+	removed, hadRemoved := a.local.LocalSession(cmd.SessionID)
 	conn, ok := a.local.MarkClosingAndUnregister(cmd.SessionID)
 	if !ok {
 		return nil
@@ -20,7 +21,7 @@ func (a *App) Deactivate(ctx context.Context, cmd DeactivateCommand) error {
 	if conn.UID == "" {
 		conn.UID = cmd.UID
 	}
-	a.observeOfflineIfLastLocalSession(ctx, conn.UID)
+	a.observeOfflineIfLastLocalSession(ctx, conn.UID, hadRemoved && removed.State == RouteStateActive)
 	route := routeFromOwnerRoute(conn)
 	a.authority.EnqueueUnregister(ctx, route.Identity(), route.OwnerSeq)
 	return nil

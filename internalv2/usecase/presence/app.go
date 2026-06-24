@@ -72,8 +72,8 @@ func (a *App) observeOnlineStatus(ctx context.Context, uid string, online bool) 
 	})
 }
 
-func (a *App) observeOfflineIfLastLocalSession(ctx context.Context, uid string) {
-	if a.onlineStatus == nil || a.local == nil || uid == "" {
+func (a *App) observeOfflineIfLastLocalSession(ctx context.Context, uid string, removedActive bool) {
+	if !removedActive || a.onlineStatus == nil || a.local == nil || uid == "" {
 		return
 	}
 	if a.hasActiveLocalSession(uid) {

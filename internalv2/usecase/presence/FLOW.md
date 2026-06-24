@@ -35,16 +35,20 @@ never adds authority traffic.
 
 ```text
 Deactivate(command)
+  -> local.LocalSession(sessionID) to snapshot whether the removed session is active
   -> local.MarkClosingAndUnregister(sessionID)
-  -> observe uid offline status when no active owner-local sessions remain for the UID
+  -> observe uid offline status when the removed session was active and no active
+     owner-local sessions remain for the UID
   -> authority.EnqueueUnregister(ctx, exact route identity, owner seq)
 ```
 
 Local removal happens before the authority tombstone is queued so owner-local
 delivery no longer sees the route while unregister retry is pending. Offline
 status observation is best-effort and emits the legacy-compatible `uid-0` status
-only after the removed session was the last active owner-local session for that
-UID. Pending same-UID sessions do not count as online until activation succeeds.
+only after the removed session was active and was the last active owner-local
+session for that UID. If the pre-removal session snapshot is missing, the
+observer is skipped to avoid a false offline event. Pending same-UID sessions do
+not count as online until activation succeeds.
 
 ## Touch Flow
 

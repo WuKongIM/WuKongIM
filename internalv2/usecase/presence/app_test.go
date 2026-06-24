@@ -387,7 +387,7 @@ func TestDeactivateRemovesLocalRouteAndQueuesAuthorityTombstone(t *testing.T) {
 func TestDeactivateEmitsOfflineStatusForLastLocalSession(t *testing.T) {
 	var calls []string
 	local := newFakeLocalRegistry(&calls)
-	local.pending[11] = LocalSession{Route: OwnerRoute{UID: "u1", OwnerNodeID: 3, OwnerBootID: 4, OwnerSeq: 5, SessionID: 11}}
+	local.pending[11] = LocalSession{Route: OwnerRoute{UID: "u1", OwnerNodeID: 3, OwnerBootID: 4, OwnerSeq: 5, SessionID: 11}, State: RouteStateActive}
 	observer := &fakeOnlineStatusObserver{calls: &calls, err: errBoom}
 	app := New(Options{
 		Local:                local,
@@ -402,10 +402,28 @@ func TestDeactivateEmitsOfflineStatusForLastLocalSession(t *testing.T) {
 	require.Equal(t, []OnlineStatusEvent{{UID: "u1", Online: false, Value: "u1-0"}}, observer.events)
 }
 
+func TestDeactivateDoesNotEmitOfflineStatusForPendingSession(t *testing.T) {
+	var calls []string
+	local := newFakeLocalRegistry(&calls)
+	local.pending[11] = LocalSession{Route: OwnerRoute{UID: "u1", OwnerNodeID: 3, OwnerBootID: 4, OwnerSeq: 5, SessionID: 11}, State: RouteStatePending}
+	observer := &fakeOnlineStatusObserver{calls: &calls}
+	app := New(Options{
+		Local:                local,
+		Authority:            &fakeAuthorityClient{calls: &calls},
+		OnlineStatusObserver: observer,
+	})
+
+	err := app.Deactivate(context.Background(), DeactivateCommand{UID: "u1", SessionID: 11})
+	require.NoError(t, err)
+
+	require.Empty(t, observer.events)
+	require.Equal(t, []string{"local.mark_closing_unregister", "authority.enqueue_unregister"}, calls)
+}
+
 func TestDeactivateDoesNotEmitOfflineStatusWhenSameUIDSessionRemains(t *testing.T) {
 	var calls []string
 	local := newFakeLocalRegistry(&calls)
-	local.pending[11] = LocalSession{Route: OwnerRoute{UID: "u1", OwnerNodeID: 3, OwnerBootID: 4, OwnerSeq: 5, SessionID: 11}}
+	local.pending[11] = LocalSession{Route: OwnerRoute{UID: "u1", OwnerNodeID: 3, OwnerBootID: 4, OwnerSeq: 5, SessionID: 11}, State: RouteStateActive}
 	local.pending[12] = LocalSession{Route: OwnerRoute{UID: "u1", OwnerNodeID: 3, OwnerBootID: 4, OwnerSeq: 6, SessionID: 12}, State: RouteStateActive}
 	observer := &fakeOnlineStatusObserver{calls: &calls}
 	app := New(Options{
@@ -546,6 +564,11 @@ func (f *fakeLocalRegistry) MarkClosingAndUnregister(sessionID uint64) (OwnerRou
 	session, ok := f.pending[sessionID]
 	delete(f.pending, sessionID)
 	return session.Route, ok
+}
+
+func (f *fakeLocalRegistry) LocalSession(sessionID uint64) (LocalSession, bool) {
+	session, ok := f.pending[sessionID]
+	return session, ok
 }
 
 func (f *fakeLocalRegistry) LocalSessionsByUID(uid string) []LocalSession {
