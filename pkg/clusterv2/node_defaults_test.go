@@ -369,6 +369,86 @@ func TestNodeDefaultSeedJoinMirrorSyncsFromSeedAddresses(t *testing.T) {
 	}
 }
 
+func TestNodeDefaultSeedJoinMirrorSyncsThroughFollowerSeedRedirect(t *testing.T) {
+	addrs := []string{freeTCPAddr(t), freeTCPAddr(t), freeTCPAddr(t)}
+	voters := []ControlVoter{
+		{NodeID: 1, Addr: addrs[0]},
+		{NodeID: 2, Addr: addrs[1]},
+		{NodeID: 3, Addr: addrs[2]},
+	}
+	nodes := make([]*Node, 0, len(voters))
+	for _, voter := range voters {
+		cfg := Config{NodeID: voter.NodeID, ListenAddr: voter.Addr, DataDir: t.TempDir()}
+		cfg.Control.ClusterID = "seed-join-follower-sync"
+		cfg.Control.Voters = voters
+		cfg.Control.AllowBootstrap = true
+		cfg.Slots.InitialSlotCount = 1
+		cfg.Slots.HashSlotCount = 4
+		cfg.Slots.ReplicaCount = 3
+		node, err := New(cfg)
+		if err != nil {
+			t.Fatalf("New(seed node=%d) error = %v", voter.NodeID, err)
+		}
+		nodes = append(nodes, node)
+	}
+	startCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	startErrs := make(chan error, len(nodes))
+	for _, node := range nodes {
+		node := node
+		go func() { startErrs <- node.Start(startCtx) }()
+		t.Cleanup(func() { _ = node.Stop(context.Background()) })
+	}
+	for range nodes {
+		if err := <-startErrs; err != nil {
+			t.Fatalf("Start(seed cluster) error = %v", err)
+		}
+	}
+	readyCtx, readyCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer readyCancel()
+	if err := WaitControllerWriteReady(readyCtx, nodes...); err != nil {
+		t.Fatalf("WaitControllerWriteReady() error = %v", err)
+	}
+
+	var followerAddr string
+	for _, node := range nodes {
+		runtime, ok := node.control.(*control.Runtime)
+		if !ok {
+			t.Fatalf("node %d control = %T, want *control.Runtime", node.NodeID(), node.control)
+		}
+		if runtime.LeaderID() != node.NodeID() {
+			followerAddr = node.cfg.ListenAddr
+			break
+		}
+	}
+	if followerAddr == "" {
+		t.Fatal("no Controller follower found")
+	}
+
+	joinAddr := freeTCPAddr(t)
+	joining, err := New(Config{
+		NodeID:     4,
+		ListenAddr: joinAddr,
+		DataDir:    t.TempDir(),
+		Control:    ControlConfig{ClusterID: "seed-join-follower-sync"},
+		Join: JoinConfig{
+			Seeds:         []string{followerAddr},
+			AdvertiseAddr: joinAddr,
+			Token:         "join-secret",
+		},
+		Slots: SlotConfig{ReplicaCount: 3},
+	})
+	if err != nil {
+		t.Fatalf("New(joining) error = %v", err)
+	}
+	joinCtx, joinCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer joinCancel()
+	if err := joining.Start(joinCtx); err != nil {
+		t.Fatalf("Start(joining) error = %v", err)
+	}
+	t.Cleanup(func() { _ = joining.Stop(context.Background()) })
+}
+
 func TestNodeDefaultControllerV2ForwardsControlWriteOverTransport(t *testing.T) {
 	addrs := []string{freeTCPAddr(t), freeTCPAddr(t), freeTCPAddr(t)}
 	voters := []ControlVoter{

@@ -520,6 +520,60 @@ func TestRuntimeMirrorSyncsLeaderState(t *testing.T) {
 	}
 }
 
+func TestRuntimeMirrorRefreshesLeaderStateAfterStart(t *testing.T) {
+	network := clusternet.NewLocalNetwork()
+	leaderState := controllerV2State()
+	syncServer := cv2.NewStateSyncServer(cv2.StateSyncServerConfig{
+		NodeID:    1,
+		ClusterID: leaderState.ClusterID,
+		LeaderID:  func() uint64 { return 1 },
+		Ready:     func() bool { return true },
+		Snapshot:  func(context.Context) (cv2.ClusterState, error) { return leaderState.Clone(), nil },
+	})
+	network.Register(1, clusternet.RPCControlStateSync, NewStateSyncHandler(syncServer))
+
+	runtime, err := NewRuntime(RuntimeConfig{
+		NodeID:       4,
+		Addr:         "n4",
+		StateDir:     t.TempDir(),
+		ClusterID:    leaderState.ClusterID,
+		Role:         RuntimeRoleMirror,
+		Voters:       []RuntimeVoter{{NodeID: 1, Addr: "n1"}},
+		TickInterval: 10 * time.Millisecond,
+		SyncPeers:    NewStaticPeerPicker(network, []RuntimeVoter{{NodeID: 1, Addr: "n1"}}),
+	})
+	if err != nil {
+		t.Fatalf("NewRuntime() error = %v", err)
+	}
+	if err := runtime.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	t.Cleanup(func() { _ = runtime.Stop(context.Background()) })
+
+	leaderState.Revision++
+	leaderState.Nodes = append(leaderState.Nodes, cv2.Node{
+		NodeID:         4,
+		Addr:           "n4",
+		Roles:          []cv2.NodeRole{cv2.NodeRoleData},
+		JoinState:      cv2.NodeJoinStateJoining,
+		Status:         cv2.NodeStatusAlive,
+		CapacityWeight: 1,
+	})
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		snap, err := runtime.LocalSnapshot(context.Background())
+		if err != nil {
+			t.Fatalf("LocalSnapshot() error = %v", err)
+		}
+		if snap.Revision == leaderState.Revision && len(snap.Nodes) == len(leaderState.Nodes) {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	snap, _ := runtime.LocalSnapshot(context.Background())
+	t.Fatalf("mirror snapshot revision = %d nodes=%d, want revision %d nodes=%d", snap.Revision, len(snap.Nodes), leaderState.Revision, len(leaderState.Nodes))
+}
+
 func TestRuntimeMirrorForwardsControlWriteToSyncClientLeader(t *testing.T) {
 	network := clusternet.NewLocalNetwork()
 	leaderState := controllerV2State()

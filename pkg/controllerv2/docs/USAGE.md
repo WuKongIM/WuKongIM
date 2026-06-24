@@ -71,8 +71,9 @@ tasks.
 
 ## Non-Controller Mirror
 
-A non-controller node does not join Controller Raft. It mirrors the leader state
-file through `sync.Client` and can use `server.Server` only as a local facade.
+A non-controller node does not join Controller Raft. It mirrors Controller
+voter state files through `sync.Client` and can use `server.Server` only as a
+local facade.
 
 ```go
 store := cv2statefile.New(filepath.Join(stateDir, "cluster-state.json"))
@@ -117,8 +118,10 @@ endpoint := cv2sync.NewServer(cv2sync.ServerConfig{
 })
 ```
 
-`GetState` returns leader redirects, not-ready responses, not-modified responses,
-or a full encoded state payload.
+`GetState` returns not-ready responses, not-modified responses, or a full
+encoded state payload with the current leader ID. Ready followers may serve
+their locally committed state payload; mirrors keep refreshing and advance when
+they observe newer revisions.
 
 ## Operational Notes
 

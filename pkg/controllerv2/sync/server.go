@@ -42,7 +42,7 @@ func NewServer(cfg ServerConfig) *Server {
 	}
 }
 
-// GetState serves a canonical full-file payload only when this node is the ready Controller leader.
+// GetState serves the local full-file payload when this node has a ready Controller snapshot.
 func (s *Server) GetState(ctx context.Context, req GetStateRequest) (GetStateResponse, error) {
 	if err := ctx.Err(); err != nil {
 		return GetStateResponse{}, err
@@ -53,9 +53,6 @@ func (s *Server) GetState(ctx context.Context, req GetStateRequest) (GetStateRes
 	leaderID := callUint64(s.leaderID)
 	if leaderID == 0 {
 		return GetStateResponse{NotReady: true}, nil
-	}
-	if leaderID != 0 && leaderID != s.nodeID {
-		return GetStateResponse{NotLeader: true, LeaderID: leaderID}, nil
 	}
 	if s.ready != nil && !s.ready() {
 		return GetStateResponse{NotReady: true, LeaderID: leaderID}, nil

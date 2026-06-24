@@ -37,6 +37,9 @@ func (r *Runtime) startRefreshLoop() {
 
 // controlTick keeps bootstrap progress and local watcher state moving without bypassing Raft semantics.
 func (r *Runtime) controlTick(ctx context.Context) error {
+	if r.syncClient != nil {
+		return r.syncTick(ctx)
+	}
 	if r.sm == nil || r.server == nil {
 		return nil
 	}
@@ -58,6 +61,24 @@ func (r *Runtime) controlTick(ctx context.Context) error {
 		return nil
 	}
 	return r.publishIfChanged(ctx, st.Revision)
+}
+
+func (r *Runtime) syncTick(ctx context.Context) error {
+	if r.server == nil {
+		return nil
+	}
+	if err := r.server.SyncOnce(ctx); err != nil {
+		return err
+	}
+	st := r.server.LocalState()
+	r.mu.RLock()
+	currentRevision := r.state.Revision
+	currentChecksum := r.state.Checksum
+	r.mu.RUnlock()
+	if currentRevision == st.Revision && currentChecksum == st.Checksum {
+		return nil
+	}
+	return r.publishState(st)
 }
 
 func (r *Runtime) publishIfChanged(ctx context.Context, revision uint64) error {

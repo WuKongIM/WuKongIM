@@ -2,7 +2,7 @@
 
 ## Responsibility
 
-`pkg/controllerv2` is a parallel Controller implementation. Controller voter nodes apply committed Controller Raft commands to a canonical `cluster-state.json` file. Non-controller nodes do not join Controller Raft; they mirror the leader state file through full-file sync.
+`pkg/controllerv2` is a parallel Controller implementation. Controller voter nodes apply committed Controller Raft commands to a canonical `cluster-state.json` file. Non-controller nodes do not join Controller Raft; they mirror Controller voter state files through full-file sync.
 
 The root `pkg/controllerv2` package is the external facade. Callers should depend on its `Runtime`, strongly typed `ClusterState` / `StateEvent`, Raft message stepping, and state sync request/response contracts. Subpackages remain Controller engine implementation details and should not be imported by `pkg/clusterv2` production code.
 
@@ -18,7 +18,7 @@ The root `pkg/controllerv2` package is the external facade. Callers should depen
 | `command` | Versioned Raft command envelope. |
 | `fsm` | Applies committed command batches, persists the final state once per batch, publishes snapshots after durable save. |
 | `planner` | Pure planning. V1 only creates bootstrap assignment/task commands. |
-| `sync` | Full-file leader sync for non-controller nodes. |
+| `sync` | Full-file Controller voter state sync for non-controller nodes. |
 | `raft` | Controller Raft wrapper, WAL-backed log storage, scheduled apply, snapshots, and compaction. |
 | `server` | Thin composition facade for tests and future integration. |
 
@@ -90,7 +90,7 @@ the latest snapshot already covers the applied boundary.
 
 ```text
 Planner tick: LocalState -> planner.Next -> Raft Propose -> WAL append -> scheduled FSM apply -> statefile save -> StateEvent.
-Non-controller sync: SyncOnce -> leader GetState -> statefile save -> LocalState update -> StateEvent.
+Non-controller sync: SyncOnce -> Controller voter GetState -> statefile save -> LocalState update -> StateEvent.
 ```
 
 Task progress and task result writes enter ControllerV2 as Raft commands.
@@ -103,7 +103,7 @@ subsequent successful attempt or operator action.
 
 When a Controller voter wires the facade with an FSM-backed state source, `LocalState` reads that authoritative snapshot and planner ticks refresh it after successful proposals. Command-producing planner ticks require a state source; `InitialState`-only facades may serve local snapshots, sync updates, or non-command planner decisions only.
 
-The root `Runtime` builds one full-file state sync endpoint during voter startup. `Runtime.GetState` delegates to that endpoint instead of constructing sync server wiring on each request.
+The root `Runtime` builds one full-file state sync endpoint during voter startup. `Runtime.GetState` delegates to that endpoint instead of constructing sync server wiring on each request. Ready Controller followers may serve their locally committed state file payload with the current leader ID attached; mirrors accept the payload as a valid floor and continue refreshing through the same sync loop.
 
 ## Non-Goals
 

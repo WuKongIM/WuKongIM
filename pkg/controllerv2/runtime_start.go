@@ -88,5 +88,9 @@ func (r *Runtime) startMirror(ctx context.Context) error {
 	if err := srv.SyncOnce(ctx); err != nil {
 		return err
 	}
-	return r.publishState(srv.LocalState())
+	if err := r.publishState(srv.LocalState()); err != nil {
+		return err
+	}
+	r.startRefreshLoop()
+	return nil
 }
