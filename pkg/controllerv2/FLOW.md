@@ -101,6 +101,15 @@ active cluster-state tasks, including `leader_transfer` tasks completed through
 `complete_task`; failed tasks remain active with bounded errors until a
 subsequent successful attempt or operator action.
 
+Slot replica move intent is represented as a staged `slot_replica_move` task.
+Creating the task does not change `DesiredPeers`; it only records source,
+target, target peer set, assignment epoch, and phase progress fields. Dedicated
+phase commands advance `open_learner -> add_learner -> promote_learner ->
+remove_voter -> commit_assignment` with task, slot, epoch, attempt, and phase
+index fences plus observed Slot Raft config/voter/learner state. The final
+commit command replaces `DesiredPeers`, increments the Slot `ConfigEpoch`, and
+removes the task only after the observed voter set proves the target peer set.
+
 When a Controller voter wires the facade with an FSM-backed state source, `LocalState` reads that authoritative snapshot and planner ticks refresh it after successful proposals. Command-producing planner ticks require a state source; `InitialState`-only facades may serve local snapshots, sync updates, or non-command planner decisions only.
 
 The root `Runtime` builds one full-file state sync endpoint during voter startup. `Runtime.GetState` delegates to that endpoint instead of constructing sync server wiring on each request. Ready Controller followers may serve their locally committed state file payload with the current leader ID attached; mirrors accept the payload as a valid floor and continue refreshing through the same sync loop.

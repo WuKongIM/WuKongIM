@@ -428,6 +428,84 @@ func TestApplyAdvanceSlotReplicaMovePhaseRejectsStalePhase(t *testing.T) {
 	require.Equal(t, uint32(1), sm.Snapshot(ctx).Tasks[0].PhaseIndex)
 }
 
+func TestApplyAdvanceSlotReplicaMovePhaseRejectsFences(t *testing.T) {
+	tests := []struct {
+		name  string
+		phase command.SlotReplicaMovePhaseAdvance
+		want  ApplyResult
+	}{
+		{
+			name: "missing task",
+			phase: command.SlotReplicaMovePhaseAdvance{
+				TaskID:              "missing",
+				SlotID:              1,
+				ConfigEpoch:         7,
+				Attempt:             0,
+				ExpectedPhaseIndex:  0,
+				NextStep:            state.TaskStepAddLearner,
+				ObservedConfigIndex: 33,
+			},
+			want: ApplyResult{Noop: true, Reason: ReasonTaskMissing, Revision: 4, AppliedRaftIndex: 5},
+		},
+		{
+			name: "slot mismatch",
+			phase: command.SlotReplicaMovePhaseAdvance{
+				TaskID:              "slot-1-replica-move-1-to-4-r9",
+				SlotID:              2,
+				ConfigEpoch:         7,
+				Attempt:             0,
+				ExpectedPhaseIndex:  0,
+				NextStep:            state.TaskStepAddLearner,
+				ObservedConfigIndex: 33,
+			},
+			want: ApplyResult{Rejected: true, Reason: ReasonTaskSlotMismatch, Revision: 4, AppliedRaftIndex: 5},
+		},
+		{
+			name: "epoch mismatch",
+			phase: command.SlotReplicaMovePhaseAdvance{
+				TaskID:              "slot-1-replica-move-1-to-4-r9",
+				SlotID:              1,
+				ConfigEpoch:         8,
+				Attempt:             0,
+				ExpectedPhaseIndex:  0,
+				NextStep:            state.TaskStepAddLearner,
+				ObservedConfigIndex: 33,
+			},
+			want: ApplyResult{Noop: true, Reason: ReasonTaskEpochMismatch, Revision: 4, AppliedRaftIndex: 5},
+		},
+		{
+			name: "attempt mismatch",
+			phase: command.SlotReplicaMovePhaseAdvance{
+				TaskID:              "slot-1-replica-move-1-to-4-r9",
+				SlotID:              1,
+				ConfigEpoch:         7,
+				Attempt:             1,
+				ExpectedPhaseIndex:  0,
+				NextStep:            state.TaskStepAddLearner,
+				ObservedConfigIndex: 33,
+			},
+			want: ApplyResult{Noop: true, Reason: ReasonTaskAttemptMismatch, Revision: 4, AppliedRaftIndex: 5},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			sm := slotReplicaMoveStateMachine(t)
+			task := stagedSlotReplicaMoveTask("slot-1-replica-move-1-to-4-r9")
+			applyOK(t, sm, 4, command.Command{Kind: command.KindUpsertSlotReplicaMoveTask, Task: &task})
+
+			result, err := sm.Apply(ctx, 5, command.Command{
+				Kind:                 command.KindAdvanceSlotReplicaMovePhase,
+				SlotReplicaMovePhase: &tt.phase,
+			})
+
+			require.NoError(t, err)
+			require.Equal(t, tt.want, result)
+			require.Equal(t, state.TaskStepOpenLearner, sm.Snapshot(ctx).Tasks[0].Step)
+		})
+	}
+}
+
 func TestApplyCommitSlotReplicaMoveUpdatesAssignmentAndRemovesTask(t *testing.T) {
 	ctx := context.Background()
 	sm := slotReplicaMoveStateMachine(t)
@@ -479,6 +557,95 @@ func TestApplyCommitSlotReplicaMoveRejectsObservedVoterMismatch(t *testing.T) {
 	require.Len(t, snap.Tasks, 1)
 	require.Equal(t, []uint64{1, 2, 3}, snap.Slots[0].DesiredPeers)
 	require.Equal(t, uint64(7), snap.Slots[0].ConfigEpoch)
+}
+
+func TestApplyCommitSlotReplicaMoveRejectsFences(t *testing.T) {
+	tests := []struct {
+		name       string
+		mutateTask func(*state.ReconcileTask)
+		commit     command.SlotReplicaMoveCommit
+		want       ApplyResult
+	}{
+		{
+			name: "slot mismatch",
+			commit: command.SlotReplicaMoveCommit{
+				TaskID:      "slot-1-replica-move-1-to-4-r9",
+				SlotID:      2,
+				ConfigEpoch: 7,
+				Attempt:     0,
+			},
+			want: ApplyResult{Rejected: true, Reason: ReasonTaskSlotMismatch, Revision: 4, AppliedRaftIndex: 5},
+		},
+		{
+			name: "epoch mismatch",
+			commit: command.SlotReplicaMoveCommit{
+				TaskID:      "slot-1-replica-move-1-to-4-r9",
+				SlotID:      1,
+				ConfigEpoch: 8,
+				Attempt:     0,
+			},
+			want: ApplyResult{Noop: true, Reason: ReasonTaskEpochMismatch, Revision: 4, AppliedRaftIndex: 5},
+		},
+		{
+			name: "attempt mismatch",
+			commit: command.SlotReplicaMoveCommit{
+				TaskID:      "slot-1-replica-move-1-to-4-r9",
+				SlotID:      1,
+				ConfigEpoch: 7,
+				Attempt:     1,
+			},
+			want: ApplyResult{Noop: true, Reason: ReasonTaskAttemptMismatch, Revision: 4, AppliedRaftIndex: 5},
+		},
+		{
+			name: "wrong step",
+			mutateTask: func(task *state.ReconcileTask) {
+				task.Step = state.TaskStepRemoveVoter
+			},
+			commit: command.SlotReplicaMoveCommit{
+				TaskID:      "slot-1-replica-move-1-to-4-r9",
+				SlotID:      1,
+				ConfigEpoch: 7,
+				Attempt:     0,
+			},
+			want: ApplyResult{Rejected: true, Reason: ReasonTaskStepMismatch, Revision: 4, AppliedRaftIndex: 5},
+		},
+		{
+			name: "missing observed config",
+			mutateTask: func(task *state.ReconcileTask) {
+				task.ObservedConfigIndex = 0
+			},
+			commit: command.SlotReplicaMoveCommit{
+				TaskID:      "slot-1-replica-move-1-to-4-r9",
+				SlotID:      1,
+				ConfigEpoch: 7,
+				Attempt:     0,
+			},
+			want: ApplyResult{Rejected: true, Reason: ReasonTaskObservedConfigMissing, Revision: 4, AppliedRaftIndex: 5},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			sm := slotReplicaMoveStateMachine(t)
+			task := stagedSlotReplicaMoveTask("slot-1-replica-move-1-to-4-r9")
+			task.Step = state.TaskStepCommitAssignment
+			task.ObservedConfigIndex = 55
+			task.ObservedVoters = []uint64{4, 2, 3}
+			if tt.mutateTask != nil {
+				tt.mutateTask(&task)
+			}
+			applyOK(t, sm, 4, command.Command{Kind: command.KindUpsertSlotReplicaMoveTask, Task: &task})
+
+			result, err := sm.Apply(ctx, 5, command.Command{
+				Kind:                  command.KindCommitSlotReplicaMove,
+				SlotReplicaMoveCommit: &tt.commit,
+			})
+
+			require.NoError(t, err)
+			require.Equal(t, tt.want, result)
+			require.Len(t, sm.Snapshot(ctx).Tasks, 1)
+		})
+	}
 }
 
 func TestApplyFailTaskMissingTaskNoops(t *testing.T) {
@@ -897,5 +1064,6 @@ func baseNodes() []state.Node {
 		{NodeID: 1, Name: "n1", Addr: "n1", Roles: []state.NodeRole{state.NodeRoleControllerVoter, state.NodeRoleData}, JoinState: state.NodeJoinStateActive, Status: state.NodeStatusAlive, CapacityWeight: 10},
 		{NodeID: 2, Name: "n2", Addr: "n2", Roles: []state.NodeRole{state.NodeRoleControllerVoter, state.NodeRoleData}, JoinState: state.NodeJoinStateActive, Status: state.NodeStatusAlive, CapacityWeight: 10},
 		{NodeID: 3, Name: "n3", Addr: "n3", Roles: []state.NodeRole{state.NodeRoleData}, JoinState: state.NodeJoinStateActive, Status: state.NodeStatusAlive, CapacityWeight: 10},
+		{NodeID: 4, Name: "n4", Addr: "n4", Roles: []state.NodeRole{state.NodeRoleData}, JoinState: state.NodeJoinStateActive, Status: state.NodeStatusAlive, CapacityWeight: 10},
 	}
 }

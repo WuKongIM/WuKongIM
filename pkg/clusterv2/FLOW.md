@@ -61,7 +61,10 @@ Manager node join and activation writes enter clusterv2 through
 `Node.JoinNode` and `Node.ActivateNode`, which only foreground-check and
 delegate the validated lifecycle intent to the control runtime; non-leader
 Controller runtimes forward those writes through the generic control-write RPC
-path. The
+path. Staged Slot replica move intent uses the same generic control-write path:
+the clusterv2 control runtime forwards `slot_replica_move` creation to the
+Controller leader and keeps the durable assignment unchanged until the later
+ControllerV2 commit command. The
 default transport-backed
 typed RPC client uses a larger per-priority write queue than the generic
 transport default so short foreground RPC fanout bursts are absorbed before

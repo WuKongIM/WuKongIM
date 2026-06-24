@@ -3,6 +3,7 @@ package control
 import (
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 
 	cv2 "github.com/WuKongIM/WuKongIM/pkg/controllerv2"
@@ -129,6 +130,55 @@ func TestControlWriteRequestCodecRoundTripSlotReplicaMove(t *testing.T) {
 		}
 		if !reflect.DeepEqual(got, req) {
 			t.Fatalf("DecodeControlWriteRequest() = %#v, want %#v", got, req)
+		}
+	}
+}
+
+func TestControlWriteSlotReplicaMoveUsesSnakeCaseJSON(t *testing.T) {
+	reqPayload, err := EncodeControlWriteRequest(ControlWriteRequest{
+		Action: ControlWriteActionSlotReplicaMove,
+		SlotReplicaMove: SlotReplicaMoveRequest{
+			SlotID:        1,
+			SourceNode:    1,
+			TargetNode:    4,
+			TargetPeers:   []uint64{4, 2, 3},
+			ConfigEpoch:   7,
+			StateRevision: 9,
+		},
+	})
+	if err != nil {
+		t.Fatalf("EncodeControlWriteRequest() error = %v", err)
+	}
+	reqJSON := string(reqPayload[2:])
+	for _, want := range []string{`"slot_id":1`, `"source_node":1`, `"target_node":4`, `"target_peers":[4,2,3]`, `"config_epoch":7`, `"state_revision":9`} {
+		if !strings.Contains(reqJSON, want) {
+			t.Fatalf("encoded request JSON = %s, missing %s", reqJSON, want)
+		}
+	}
+	for _, forbidden := range []string{"SlotID", "SourceNode", "TargetNode", "TargetPeers", "ConfigEpoch", "StateRevision"} {
+		if strings.Contains(reqJSON, forbidden) {
+			t.Fatalf("encoded request JSON = %s, contains Go field name %s", reqJSON, forbidden)
+		}
+	}
+
+	respPayload, err := EncodeControlWriteResponse(ControlWriteResponse{
+		SlotReplicaMove: SlotReplicaMoveResult{
+			Created: true,
+			Task:    &ReconcileTask{TaskID: "slot-1-replica-move-1-to-4-r9"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("EncodeControlWriteResponse() error = %v", err)
+	}
+	respJSON := string(respPayload[2:])
+	for _, want := range []string{`"created":true`, `"task":`} {
+		if !strings.Contains(respJSON, want) {
+			t.Fatalf("encoded response JSON = %s, missing %s", respJSON, want)
+		}
+	}
+	for _, forbidden := range []string{`"Created"`, `"Task":`} {
+		if strings.Contains(respJSON, forbidden) {
+			t.Fatalf("encoded response JSON = %s, contains Go field name %s", respJSON, forbidden)
 		}
 	}
 }
