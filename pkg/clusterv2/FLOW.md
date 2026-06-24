@@ -104,12 +104,13 @@ New(Config)
 Start(ctx)
   -> initialize default node RPC transport / ControllerV2 runtime / proposer / ChannelV2 service when no override was provided
   -> initialize a real Slot Multi-Raft runtime for default propose
-  -> seed node RPC discovery from configured Controller voters until the first control snapshot arrives
+  -> seed node RPC discovery from configured Controller voters, or from seed-join
+     seed addresses for mirror nodes, until the first control snapshot arrives
   -> start default transport and injected lifecycle resources
   -> start ControllerV2-backed Controller or injected Controller
   -> wait for a valid initial control snapshot
   -> routing.UpdateControlSnapshot(snapshot)
-  -> discovery.Update(control node addresses)
+  -> discovery.Update(control node addresses plus seed-join seed addresses when configured)
   -> slots.Reconcile(snapshot)
   -> start Controller watch loop for later snapshots
   -> start the default Slot leader observation loop when the default Slot runtime is active
@@ -120,6 +121,13 @@ Start(ctx)
 `Start` requires cluster semantics even for one node. A single-node cluster uses a ControllerV2-backed single-voter control runtime instead of a bypass path. Multi-voter default startup uses `pkg/transportv2` one-way service messages for ControllerV2 Raft traffic and RPC responses only for state-sync requests. The ControllerV2 Raft receive handler bounds local `Step` enqueue time and may drop messages when the local Step queue is saturated; Raft retransmission is relied on instead of allowing one-way notify goroutines to accumulate indefinitely.
 
 `Node.Start` only establishes local-node readiness: the node has a valid local control snapshot, installed routes, reconciled local Slot runtime state, and started local ChannelV2 resources. Package tests use `WaitClusterReady` for converged local control snapshots, and tests that specifically require distributed Controller write readiness should add the separate Controller proposal probe gate. Slot and Channel append tests should add their own Slot leader or Channel metadata gates when those paths are part of the assertion.
+
+Seed-join mirror nodes keep `Config.Control.Voters` empty so they do not become
+Controller voters before admission. During default runtime wiring, the
+configured `Join.Seeds` addresses are converted into temporary state-sync peer
+IDs used only for transport discovery and ControllerV2 mirror sync. After the
+first real control snapshot arrives, normal membership discovery is installed
+while those seed peers remain available for later mirror refreshes.
 
 ControllerV2 changes enter clusterv2 as strongly typed `controllerv2.ClusterState` events. `pkg/clusterv2/control` maps those events to `control.Snapshot`; `Node` then compares node, Slot, task, and hash-slot domains before touching discovery, Slot runtime reconciliation, or foreground routing.
 

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/clusterv2/net"
@@ -64,7 +65,7 @@ func (n *Node) applySnapshot(ctx context.Context, snapshot control.Snapshot) err
 		}
 	}
 	if n.discovery != nil && (firstSnapshot || changes.nodes) {
-		n.discovery.Update(discoveryNodes(snapshot.Nodes))
+		n.discovery.Update(n.discoveryNodesForSnapshot(snapshot.Nodes))
 	}
 	if n.slots != nil && (firstSnapshot || changes.slots) {
 		if err := n.slots.Reconcile(ctx, snapshot); err != nil {
@@ -179,10 +180,27 @@ func discoveryNodes(nodes []control.Node) []clusternet.NodeAddress {
 	return out
 }
 
+func (n *Node) discoveryNodesForSnapshot(nodes []control.Node) []clusternet.NodeAddress {
+	out := discoveryNodes(nodes)
+	if n != nil && n.cfg.seedJoinMode() {
+		out = append(out, seedJoinDiscoveryNodes(n.cfg.Join.Seeds)...)
+	}
+	return out
+}
+
 func controlVoterNodes(voters []ControlVoter) []clusternet.NodeAddress {
 	out := make([]clusternet.NodeAddress, 0, len(voters))
 	for _, voter := range voters {
 		out = append(out, clusternet.NodeAddress{NodeID: voter.NodeID, Addr: voter.Addr})
+	}
+	return out
+}
+
+func seedJoinDiscoveryNodes(seeds []string) []clusternet.NodeAddress {
+	peers := seedJoinRuntimePeers(seeds)
+	out := make([]clusternet.NodeAddress, 0, len(peers))
+	for _, peer := range peers {
+		out = append(out, clusternet.NodeAddress{NodeID: peer.NodeID, Addr: peer.Addr})
 	}
 	return out
 }
@@ -193,6 +211,27 @@ func runtimeVoters(voters []ControlVoter) []control.RuntimeVoter {
 		out = append(out, control.RuntimeVoter{NodeID: voter.NodeID, Addr: voter.Addr})
 	}
 	return out
+}
+
+func seedJoinRuntimePeers(seeds []string) []control.RuntimeVoter {
+	out := make([]control.RuntimeVoter, 0, len(seeds))
+	seen := make(map[string]struct{}, len(seeds))
+	for _, seed := range seeds {
+		addr := strings.TrimSpace(seed)
+		if addr == "" {
+			continue
+		}
+		if _, ok := seen[addr]; ok {
+			continue
+		}
+		seen[addr] = struct{}{}
+		out = append(out, control.RuntimeVoter{NodeID: seedJoinPeerNodeID(len(out)), Addr: addr})
+	}
+	return out
+}
+
+func seedJoinPeerNodeID(index int) uint64 {
+	return ^uint64(0) - uint64(index)
 }
 
 func (n *Node) markChannelsReady(ready bool) {

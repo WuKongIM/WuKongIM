@@ -20,20 +20,21 @@ func (n *Node) ensureDefaultRuntime() (bool, error) {
 			return false, err
 		}
 		n.registerPendingRPCHandlers()
+		controlPeers := n.defaultControlRuntimePeers()
 		runtime, err := control.NewRuntime(control.RuntimeConfig{
 			NodeID:             n.cfg.NodeID,
 			Addr:               n.cfg.ListenAddr,
 			StateDir:           n.cfg.Control.StateDir,
 			ClusterID:          n.cfg.Control.ClusterID,
 			Role:               control.RuntimeRole(n.cfg.Control.Role),
-			Voters:             runtimeVoters(n.cfg.Control.Voters),
+			Voters:             controlPeers,
 			AllowBootstrap:     n.cfg.Control.AllowBootstrap,
 			InitialSlotCount:   n.cfg.Slots.InitialSlotCount,
 			HashSlotCount:      n.cfg.Slots.HashSlotCount,
 			ReplicaCount:       n.cfg.Slots.ReplicaCount,
 			RaftTransport:      control.NewRaftTransport(n.transportClient),
 			RaftObserver:       n.cfg.Control.RaftObserver,
-			SyncPeers:          control.NewStaticPeerPicker(n.transportClient, runtimeVoters(n.cfg.Control.Voters)),
+			SyncPeers:          control.NewStaticPeerPicker(n.transportClient, controlPeers),
 			TaskClient:         control.NewTaskClient(n.transportClient),
 			ControlWriteClient: control.NewControlWriteClient(n.transportClient),
 		})
@@ -120,7 +121,7 @@ func (n *Node) ensureDefaultTransport() error {
 		return nil
 	}
 	if n.discovery != nil {
-		n.discovery.Update(controlVoterNodes(n.cfg.Control.Voters))
+		n.discovery.Update(n.defaultBootstrapDiscoveryNodes())
 	}
 	n.transportServer = clusternet.NewTransportServer(clusternet.TransportServerConfig{
 		NodeID:   n.cfg.NodeID,
@@ -135,6 +136,27 @@ func (n *Node) ensureDefaultTransport() error {
 	n.defaultTransport = true
 	n.registeredRPCHandlers = make(map[uint8]struct{})
 	return nil
+}
+
+func (n *Node) defaultControlRuntimePeers() []control.RuntimeVoter {
+	if n == nil {
+		return nil
+	}
+	if n != nil && n.cfg.seedJoinMode() {
+		return seedJoinRuntimePeers(n.cfg.Join.Seeds)
+	}
+	return runtimeVoters(n.cfg.Control.Voters)
+}
+
+func (n *Node) defaultBootstrapDiscoveryNodes() []clusternet.NodeAddress {
+	if n == nil {
+		return nil
+	}
+	nodes := controlVoterNodes(n.cfg.Control.Voters)
+	if n != nil && n.cfg.seedJoinMode() {
+		nodes = append(nodes, seedJoinDiscoveryNodes(n.cfg.Join.Seeds)...)
+	}
+	return nodes
 }
 
 func (n *Node) registerPendingRPCHandlers() {

@@ -314,6 +314,61 @@ func TestNodeDefaultControllerV2ThreeVotersConvergeOverTransport(t *testing.T) {
 	}
 }
 
+func TestNodeDefaultSeedJoinMirrorSyncsFromSeedAddresses(t *testing.T) {
+	seedAddr := freeTCPAddr(t)
+	seed, err := New(Config{
+		NodeID:     1,
+		ListenAddr: seedAddr,
+		DataDir:    t.TempDir(),
+		Control: ControlConfig{
+			ClusterID:      "seed-join-sync",
+			Voters:         []ControlVoter{{NodeID: 1, Addr: seedAddr}},
+			AllowBootstrap: true,
+		},
+		Slots: SlotConfig{InitialSlotCount: 1, HashSlotCount: 4, ReplicaCount: 1},
+	})
+	if err != nil {
+		t.Fatalf("New(seed) error = %v", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	if err := seed.Start(ctx); err != nil {
+		t.Fatalf("Start(seed) error = %v", err)
+	}
+	t.Cleanup(func() { _ = seed.Stop(context.Background()) })
+
+	joinAddr := freeTCPAddr(t)
+	joining, err := New(Config{
+		NodeID:     4,
+		ListenAddr: joinAddr,
+		DataDir:    t.TempDir(),
+		Control:    ControlConfig{ClusterID: "seed-join-sync"},
+		Join: JoinConfig{
+			Seeds:         []string{seedAddr},
+			AdvertiseAddr: joinAddr,
+			Token:         "join-secret",
+		},
+		Slots: SlotConfig{ReplicaCount: 1},
+	})
+	if err != nil {
+		t.Fatalf("New(joining) error = %v", err)
+	}
+	joinCtx, joinCancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer joinCancel()
+	if err := joining.Start(joinCtx); err != nil {
+		t.Fatalf("Start(joining) error = %v", err)
+	}
+	t.Cleanup(func() { _ = joining.Stop(context.Background()) })
+
+	snapshot, err := joining.LocalControlSnapshot(context.Background())
+	if err != nil {
+		t.Fatalf("LocalControlSnapshot(joining) error = %v", err)
+	}
+	if snapshot.Revision == 0 || snapshot.ControllerID != 1 {
+		t.Fatalf("joining snapshot = %#v, want seed control snapshot", snapshot)
+	}
+}
+
 func TestNodeDefaultControllerV2ForwardsControlWriteOverTransport(t *testing.T) {
 	addrs := []string{freeTCPAddr(t), freeTCPAddr(t), freeTCPAddr(t)}
 	voters := []ControlVoter{
