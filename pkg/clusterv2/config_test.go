@@ -44,6 +44,51 @@ func TestConfigDefaultsSingleNodeControl(t *testing.T) {
 	}
 }
 
+func TestConfigSeedJoinModeUsesMirrorAndDisablesBootstrap(t *testing.T) {
+	cfg := Config{
+		NodeID:     4,
+		ListenAddr: "127.0.0.1:7014",
+		DataDir:    t.TempDir(),
+		Control: ControlConfig{
+			ClusterID: "dev-three",
+		},
+		Join: JoinConfig{
+			Seeds:         []string{"127.0.0.1:7011", "127.0.0.1:7012"},
+			AdvertiseAddr: "127.0.0.1:7014",
+			Token:         "join-secret",
+		},
+		Slots: SlotConfig{ReplicaCount: 3},
+	}
+	cfg.applyDefaults()
+
+	if cfg.Control.Role != ControlRoleMirror {
+		t.Fatalf("Control.Role = %q, want mirror", cfg.Control.Role)
+	}
+	if cfg.Control.AllowBootstrap {
+		t.Fatal("Control.AllowBootstrap = true, want false for seed-join mode")
+	}
+	if len(cfg.Control.Voters) != 0 {
+		t.Fatalf("Control.Voters = %#v, want no implicit voters in seed-join mode", cfg.Control.Voters)
+	}
+	if err := cfg.validate(); err != nil {
+		t.Fatalf("validate() error = %v", err)
+	}
+}
+
+func TestConfigRejectsSeedJoinMissingAdvertiseAddr(t *testing.T) {
+	cfg := Config{
+		NodeID:     4,
+		ListenAddr: "127.0.0.1:7014",
+		DataDir:    t.TempDir(),
+		Control:    ControlConfig{ClusterID: "dev-three"},
+		Join:       JoinConfig{Seeds: []string{"127.0.0.1:7011"}, Token: "join-secret"},
+	}
+	cfg.applyDefaults()
+	if err := cfg.validate(); !errors.Is(err, ErrInvalidConfig) {
+		t.Fatalf("validate() error = %v, want ErrInvalidConfig", err)
+	}
+}
+
 func TestConfigDefaultsChannelReactorCountFromGOMAXPROCS(t *testing.T) {
 	old := runtime.GOMAXPROCS(6)
 	t.Cleanup(func() { runtime.GOMAXPROCS(old) })

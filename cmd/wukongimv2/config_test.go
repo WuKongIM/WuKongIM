@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internalv2/app"
+	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
 	"github.com/WuKongIM/WuKongIM/pkg/gateway"
 	"github.com/WuKongIM/WuKongIM/pkg/gateway/binding"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
@@ -746,6 +747,63 @@ func TestLoadConfigStaticMultiNodeCluster(t *testing.T) {
 	}
 }
 
+func TestLoadConfigSeedJoinMode(t *testing.T) {
+	unsetLoadConfigEnv(t)
+	dir := t.TempDir()
+	path := filepath.Join(dir, "wukongim.conf")
+	writeConf(t, path,
+		"WK_NODE_ID=4",
+		"WK_NODE_DATA_DIR="+filepath.Join(dir, "node-4"),
+		"WK_CLUSTER_LISTEN_ADDR=0.0.0.0:7014",
+		"WK_CLUSTER_ID=dev-three",
+		`WK_CLUSTER_SEEDS=["127.0.0.1:7011","127.0.0.1:7012"]`,
+		"WK_CLUSTER_ADVERTISE_ADDR=127.0.0.1:7014",
+		"WK_CLUSTER_JOIN_TOKEN=join-secret",
+		"WK_CLUSTER_SLOT_REPLICA_N=3",
+	)
+
+	cfg, err := loadConfig([]string{"-config", path})
+	if err != nil {
+		t.Fatalf("loadConfig() error = %v", err)
+	}
+	if cfg.Cluster.Control.Role != clusterv2.ControlRoleMirror {
+		t.Fatalf("Control.Role = %q, want mirror", cfg.Cluster.Control.Role)
+	}
+	if cfg.Cluster.Control.AllowBootstrap {
+		t.Fatal("Control.AllowBootstrap = true, want false")
+	}
+	if len(cfg.Cluster.Control.Voters) != 0 {
+		t.Fatalf("Control.Voters = %#v, want none", cfg.Cluster.Control.Voters)
+	}
+	if got := cfg.Cluster.Join.Seeds; len(got) != 2 || got[0] != "127.0.0.1:7011" || got[1] != "127.0.0.1:7012" {
+		t.Fatalf("Join.Seeds = %#v", got)
+	}
+	if cfg.Cluster.Join.AdvertiseAddr != "127.0.0.1:7014" || cfg.Cluster.Join.Token != "join-secret" {
+		t.Fatalf("Join = %#v", cfg.Cluster.Join)
+	}
+}
+
+func TestLoadConfigRejectsSeedJoinWithStaticNodes(t *testing.T) {
+	unsetLoadConfigEnv(t)
+	dir := t.TempDir()
+	path := filepath.Join(dir, "wukongim.conf")
+	writeConf(t, path,
+		"WK_NODE_ID=4",
+		"WK_NODE_DATA_DIR="+filepath.Join(dir, "node-4"),
+		"WK_CLUSTER_LISTEN_ADDR=0.0.0.0:7014",
+		"WK_CLUSTER_ID=dev-three",
+		`WK_CLUSTER_SEEDS=["127.0.0.1:7011"]`,
+		"WK_CLUSTER_ADVERTISE_ADDR=127.0.0.1:7014",
+		"WK_CLUSTER_JOIN_TOKEN=join-secret",
+		`WK_CLUSTER_NODES=[{"id":1,"addr":"127.0.0.1:7011"}]`,
+	)
+
+	_, err := loadConfig([]string{"-config", path})
+	if err == nil || !strings.Contains(err.Error(), "WK_CLUSTER_SEEDS") {
+		t.Fatalf("loadConfig() error = %v, want WK_CLUSTER_SEEDS conflict", err)
+	}
+}
+
 func TestLoadConfigDerivesStaticMultiNodeClusterID(t *testing.T) {
 	unsetLoadConfigEnv(t)
 	dir := t.TempDir()
@@ -1194,7 +1252,7 @@ func TestLoadConfigScriptFiles(t *testing.T) {
 	}
 }
 
-func TestLoadConfigRejectsBadValues(t *testing.T) {
+func TestLoadConfigRejectsInvalidValues(t *testing.T) {
 	cases := []struct {
 		name    string
 		line    string
@@ -1235,6 +1293,7 @@ func TestLoadConfigRejectsBadValues(t *testing.T) {
 		{name: "commit coordinator shards", line: "WK_CLUSTER_COMMIT_COORDINATOR_SHARDS=many", wantKey: "WK_CLUSTER_COMMIT_COORDINATOR_SHARDS"},
 		{name: "commit coordinator shards negative", line: "WK_CLUSTER_COMMIT_COORDINATOR_SHARDS=-1", wantKey: "WK_CLUSTER_COMMIT_COORDINATOR_SHARDS"},
 		{name: "cluster nodes json", line: "WK_CLUSTER_NODES=not-json", wantKey: "WK_CLUSTER_NODES"},
+		{name: "cluster seeds json", line: "WK_CLUSTER_SEEDS=not-json", wantKey: "WK_CLUSTER_SEEDS"},
 		{name: "listener json", line: "WK_GATEWAY_LISTENERS=not-json", wantKey: "WK_GATEWAY_LISTENERS"},
 		{name: "gnet multicore", line: "WK_GATEWAY_GNET_MULTICORE=maybe", wantKey: "WK_GATEWAY_GNET_MULTICORE"},
 		{name: "gnet event loop", line: "WK_GATEWAY_GNET_NUM_EVENT_LOOP=many", wantKey: "WK_GATEWAY_GNET_NUM_EVENT_LOOP"},

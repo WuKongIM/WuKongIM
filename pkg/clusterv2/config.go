@@ -27,6 +27,8 @@ type Config struct {
 
 	// Control contains ControllerV2 adapter configuration.
 	Control ControlConfig
+	// Join contains dynamic data-node join bootstrap settings.
+	Join JoinConfig
 	// Slots contains Slot runtime sizing and placement defaults.
 	Slots SlotConfig
 	// Channel contains ChannelV2 service configuration.
@@ -59,6 +61,16 @@ type ControlConfig struct {
 	RaftObserver ControllerRaftObserver
 	// SnapshotObserver receives low-frequency locally visible control snapshots.
 	SnapshotObserver ControlSnapshotObserver
+}
+
+// JoinConfig contains dynamic data-node join bootstrap settings.
+type JoinConfig struct {
+	// Seeds lists reachable existing node addresses used before membership discovery is available.
+	Seeds []string
+	// AdvertiseAddr is the stable RPC address this node asks the cluster to store for membership.
+	AdvertiseAddr string
+	// Token authenticates the join request before the node becomes a durable member.
+	Token string
 }
 
 // ControllerRaftObserver receives low-cardinality local ControllerV2 Raft runtime metrics.
@@ -219,6 +231,13 @@ func (c *Config) applyControlDefaults() {
 	if c.Control.StateDir == "" && c.DataDir != "" {
 		c.Control.StateDir = filepath.Join(c.DataDir, "controller")
 	}
+	if c.seedJoinMode() {
+		if c.Control.Role == "" {
+			c.Control.Role = ControlRoleMirror
+		}
+		c.Control.AllowBootstrap = false
+		return
+	}
 	if c.Control.Role == "" {
 		c.Control.Role = ControlRoleVoter
 	}
@@ -230,6 +249,10 @@ func (c *Config) applyControlDefaults() {
 		}
 		c.Control.AllowBootstrap = true
 	}
+}
+
+func (c Config) seedJoinMode() bool {
+	return len(c.Join.Seeds) > 0
 }
 
 func (c *Config) applySlotDefaults() {
@@ -343,6 +366,20 @@ func (c Config) validateControl() error {
 	if c.Control.StateDir == "" || c.Control.ClusterID == "" {
 		return ErrInvalidConfig
 	}
+	if c.seedJoinMode() {
+		if c.Control.Role != ControlRoleMirror || c.Control.AllowBootstrap || len(c.Control.Voters) != 0 {
+			return ErrInvalidConfig
+		}
+		if c.Join.AdvertiseAddr == "" || c.Join.Token == "" {
+			return ErrInvalidConfig
+		}
+		for _, seed := range c.Join.Seeds {
+			if seed == "" {
+				return ErrInvalidConfig
+			}
+		}
+		return nil
+	}
 	if c.Control.Role != ControlRoleVoter && c.Control.Role != ControlRoleMirror {
 		return ErrInvalidConfig
 	}
@@ -373,7 +410,7 @@ func (c Config) validateSlots() error {
 	if c.Slots.InitialSlotCount == 0 || c.Slots.HashSlotCount == 0 || c.Slots.ReplicaCount == 0 {
 		return ErrInvalidConfig
 	}
-	if int(c.Slots.ReplicaCount) > len(c.Control.Voters) {
+	if !c.seedJoinMode() && int(c.Slots.ReplicaCount) > len(c.Control.Voters) {
 		return ErrInvalidConfig
 	}
 	if c.Slots.TickInterval <= 0 || c.Slots.ElectionTick <= 0 || c.Slots.HeartbeatTick <= 0 || c.Slots.ElectionTick <= c.Slots.HeartbeatTick {

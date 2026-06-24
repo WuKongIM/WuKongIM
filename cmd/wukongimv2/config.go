@@ -33,6 +33,9 @@ var supportedConfigKeys = []string{
 	"WK_NODE_DATA_DIR",
 	"WK_CLUSTER_LISTEN_ADDR",
 	"WK_CLUSTER_ID",
+	"WK_CLUSTER_SEEDS",
+	"WK_CLUSTER_ADVERTISE_ADDR",
+	"WK_CLUSTER_JOIN_TOKEN",
 	"WK_CLUSTER_NODES",
 	"WK_CLUSTER_INITIAL_SLOT_COUNT",
 	"WK_CLUSTER_HASH_SLOT_COUNT",
@@ -326,6 +329,20 @@ func buildConfig(values map[string]string) (app.Config, error) {
 	cfg.Cluster.ListenAddr = listenAddr
 
 	cfg.Cluster.Control.ClusterID = configValue(values, "WK_CLUSTER_ID")
+	if raw := configValue(values, "WK_CLUSTER_SEEDS"); raw != "" {
+		seeds, err := parseClusterSeeds(raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Cluster.Join.Seeds = seeds
+		cfg.Cluster.Join.AdvertiseAddr = configValue(values, "WK_CLUSTER_ADVERTISE_ADDR")
+		cfg.Cluster.Join.Token = configValue(values, "WK_CLUSTER_JOIN_TOKEN")
+		cfg.Cluster.Control.Role = clusterv2.ControlRoleMirror
+		cfg.Cluster.Control.AllowBootstrap = false
+		if configValue(values, "WK_CLUSTER_NODES") != "" {
+			return app.Config{}, fmt.Errorf("load config: WK_CLUSTER_SEEDS cannot be combined with WK_CLUSTER_NODES")
+		}
+	}
 	if raw := configValue(values, "WK_CLUSTER_NODES"); raw != "" {
 		nodes, err := parseClusterNodes(raw)
 		if err != nil {
@@ -1376,6 +1393,20 @@ func parseClusterNodes(raw string) ([]clusterNodeConfig, error) {
 		return nil, fmt.Errorf("parse WK_CLUSTER_NODES as JSON: %w", err)
 	}
 	return nodes, nil
+}
+
+func parseClusterSeeds(raw string) ([]string, error) {
+	var seeds []string
+	if err := json.Unmarshal([]byte(raw), &seeds); err != nil {
+		return nil, fmt.Errorf("parse WK_CLUSTER_SEEDS as JSON: %w", err)
+	}
+	for i, seed := range seeds {
+		seeds[i] = strings.TrimSpace(seed)
+		if seeds[i] == "" {
+			return nil, fmt.Errorf("parse WK_CLUSTER_SEEDS: seed address must not be empty")
+		}
+	}
+	return seeds, nil
 }
 
 func parseStringList(key, raw string) ([]string, error) {
