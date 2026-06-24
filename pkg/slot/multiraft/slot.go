@@ -177,7 +177,7 @@ func newSlot(ctx context.Context, nodeID NodeID, logger wklog.Logger, raftOpts R
 	if !raft.IsEmptySnap(snapshot) {
 		appliedIndex = snapshot.Metadata.Index
 	}
-	configAppliedIndex, err := restoreConfigAppliedIndex(ctx, opts.Storage, appliedIndex, snapshot)
+	configAppliedIndex, err := restoreConfigAppliedIndex(memory, appliedIndex, snapshot)
 	if err != nil {
 		return nil, err
 	}
@@ -1047,32 +1047,35 @@ func progressFromRaftStatus(st raft.Status) map[NodeID]PeerProgress {
 	return progress
 }
 
-func restoreConfigAppliedIndex(ctx context.Context, storage Storage, appliedIndex uint64, snapshot raftpb.Snapshot) (uint64, error) {
-	first, err := storage.FirstIndex(ctx)
+func restoreConfigAppliedIndex(memory *loadedMemoryStorage, appliedIndex uint64, snapshot raftpb.Snapshot) (uint64, error) {
+	if appliedIndex == 0 {
+		if !raft.IsEmptySnap(snapshot) && !isEmptyConfState(snapshot.Metadata.ConfState) {
+			return snapshot.Metadata.Index, nil
+		}
+		return 0, nil
+	}
+	first, err := memory.FirstIndex()
 	if err != nil {
 		return 0, err
 	}
-	last, err := storage.LastIndex(ctx)
+	last, err := memory.LastIndex()
 	if err != nil {
 		return 0, err
 	}
-	if appliedIndex > 0 && last > appliedIndex {
+	if last > appliedIndex {
 		last = appliedIndex
 	}
 	if last >= first {
-		for index := last; ; index-- {
-			entries, err := storage.Entries(ctx, index, index+1, maxSizePerMsg(0))
-			if err != nil {
-				if errors.Is(err, raft.ErrCompacted) {
-					break
-				}
+		entries, err := memory.Entries(first, last+1, maxSizePerMsg(0))
+		if err != nil {
+			if !errors.Is(err, raft.ErrCompacted) && !errors.Is(err, raft.ErrUnavailable) {
 				return 0, err
 			}
-			if len(entries) > 0 && isConfigChangeEntry(entries[0]) {
-				return entries[0].Index, nil
-			}
-			if index == first {
-				break
+		} else {
+			for i := len(entries) - 1; i >= 0; i-- {
+				if isConfigChangeEntry(entries[i]) {
+					return entries[i].Index, nil
+				}
 			}
 		}
 	}

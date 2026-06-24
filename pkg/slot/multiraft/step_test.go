@@ -293,6 +293,29 @@ func TestOpenSlotRestoresConfigAppliedIndex(t *testing.T) {
 	}
 }
 
+func TestOpenSlotDoesNotRestoreUnappliedConfigAppliedIndex(t *testing.T) {
+	store := &internalFakeStorage{
+		entries: []raftpb.Entry{
+			{Index: 1, Term: 1, Type: raftpb.EntryConfChange},
+		},
+	}
+	rt := newStartedRuntime(t)
+	if err := rt.OpenSlot(context.Background(), SlotOptions{
+		ID:           116,
+		Storage:      store,
+		StateMachine: &internalFakeStateMachine{},
+	}); err != nil {
+		t.Fatalf("OpenSlot() error = %v", err)
+	}
+	st, err := rt.Status(116)
+	if err != nil {
+		t.Fatalf("Status() error = %v", err)
+	}
+	if st.ConfigAppliedIndex != 0 {
+		t.Fatalf("Status().ConfigAppliedIndex = %d, want 0 for unapplied config entry", st.ConfigAppliedIndex)
+	}
+}
+
 func TestConfigAppliedIndexDoesNotAdvanceOnNormalEntry(t *testing.T) {
 	rt := newStartedRuntime(t)
 	slotID := SlotID(114)
@@ -346,6 +369,45 @@ func TestConfigAppliedIndexDoesNotAdvanceOnNormalEntry(t *testing.T) {
 	}
 	if st.ConfigAppliedIndex == proposalResult.Index {
 		t.Fatalf("Status().ConfigAppliedIndex advanced to normal entry index %d", proposalResult.Index)
+	}
+}
+
+func TestOpenSlotRestoresConfigAppliedIndexWithoutExternalPointScans(t *testing.T) {
+	store := &countingEntriesStorage{
+		internalFakeStorage: &internalFakeStorage{
+			state: BootstrapState{
+				HardState:    raftpb.HardState{Commit: 4},
+				AppliedIndex: 4,
+				ConfState:    raftpb.ConfState{Voters: []uint64{1}, Learners: []uint64{2}},
+			},
+			entries: []raftpb.Entry{
+				{Index: 1, Term: 1, Type: raftpb.EntryNormal},
+				{Index: 2, Term: 1, Type: raftpb.EntryConfChange},
+				{Index: 3, Term: 1, Type: raftpb.EntryNormal},
+				{Index: 4, Term: 1, Type: raftpb.EntryNormal},
+			},
+		},
+	}
+	rt := newStartedRuntime(t)
+	if err := rt.OpenSlot(context.Background(), SlotOptions{
+		ID:           117,
+		Storage:      store,
+		StateMachine: &internalFakeStateMachine{},
+	}); err != nil {
+		t.Fatalf("OpenSlot() error = %v", err)
+	}
+	st, err := rt.Status(117)
+	if err != nil {
+		t.Fatalf("Status() error = %v", err)
+	}
+	if st.ConfigAppliedIndex != 2 {
+		t.Fatalf("Status().ConfigAppliedIndex = %d, want config entry index 2", st.ConfigAppliedIndex)
+	}
+	if got := store.entriesCallCount(); got != 1 {
+		t.Fatalf("Entries() calls = %d, want only the load-time range read", got)
+	}
+	if got, want := store.entriesRanges(), []entryRange{{lo: 1, hi: 5}}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("Entries() ranges = %#v, want %#v", got, want)
 	}
 }
 
@@ -1453,6 +1515,36 @@ type internalFakeStorage struct {
 	lastApplied      uint64
 	markAppliedCount int
 	markAppliedErr   error
+}
+
+type entryRange struct {
+	lo uint64
+	hi uint64
+}
+
+type countingEntriesStorage struct {
+	*internalFakeStorage
+	entriesMu sync.Mutex
+	ranges    []entryRange
+}
+
+func (s *countingEntriesStorage) Entries(ctx context.Context, lo, hi, maxSize uint64) ([]raftpb.Entry, error) {
+	s.entriesMu.Lock()
+	s.ranges = append(s.ranges, entryRange{lo: lo, hi: hi})
+	s.entriesMu.Unlock()
+	return s.internalFakeStorage.Entries(ctx, lo, hi, maxSize)
+}
+
+func (s *countingEntriesStorage) entriesCallCount() int {
+	s.entriesMu.Lock()
+	defer s.entriesMu.Unlock()
+	return len(s.ranges)
+}
+
+func (s *countingEntriesStorage) entriesRanges() []entryRange {
+	s.entriesMu.Lock()
+	defer s.entriesMu.Unlock()
+	return append([]entryRange(nil), s.ranges...)
 }
 
 func (f *internalFakeStorage) InitialState(ctx context.Context) (BootstrapState, error) {
