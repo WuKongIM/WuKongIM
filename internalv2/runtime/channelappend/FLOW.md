@@ -187,21 +187,26 @@ channel high-watermark, but failed best-effort work is dropped promptly to
 avoid retaining unbounded payloads.
 
 When a PersistAfter enqueuer is configured, each successful durable committed
-envelope is cloned into the plugin side-effect worker from the same
-authority-local post-commit point. PersistAfter enqueue is best-effort and does
-not affect SENDACK, append success, recipient delivery, or conversation active
-projection. Transient NoPersist realtime sends skip PersistAfter because they
-do not create durable committed envelopes.
+envelope is cloned into the configured side-effect sinks from the same
+authority-local post-commit point. The enqueuer may represent plugin hooks,
+webhook delivery, or both. It receives only committed envelopes after durable
+append succeeds, remains best-effort, and does not affect SENDACK, append
+success, recipient delivery, or conversation active projection. Transient
+NoPersist realtime sends skip PersistAfter because they do not create durable
+committed envelopes.
 
 When an offline recipient observer is configured, recipient delivery resolves
-presence first, then reports each unique recipient UID with no online route.
-This observer runs before sender echo suppression so a sender's other online
-sessions do not hide unrelated offline recipients. It is limited to durable
-ordinary commits: zero-sequence realtime envelopes, SyncOnce command messages,
-and request-scoped `MessageScopedUIDs` batches are skipped. The observer is a
-best-effort side-effect boundary; it receives the immutable committed envelope
-plus one UID and must not influence SENDACK, append success, conversation active
-admission, or owner push delivery.
+presence first, accumulates the unique recipient UIDs with no online route for
+one durable ordinary envelope, and reports them through the batch observer when
+available. It falls back to the legacy per-UID observer only when the batch path
+is not configured. This observer runs before sender echo suppression so a
+sender's other online sessions do not hide unrelated offline recipients. It is
+limited to durable ordinary commits: zero-sequence realtime envelopes, SyncOnce
+command messages, and request-scoped `MessageScopedUIDs` batches are skipped.
+Batch offline observation avoids per-recipient webhook queue admission for large
+fanout; callers should chunk large batches at the observer boundary if needed.
+The observer is a best-effort side-effect boundary and must not influence
+SENDACK, append success, conversation active admission, or owner push delivery.
 
 Scoped `MessageScopedUIDs` dispatch directly without scanning subscribers.
 Person channels derive exactly the two canonical participants from the

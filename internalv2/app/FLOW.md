@@ -8,7 +8,7 @@ usecase, the channel management usecase, the user management usecase, the
 conversation list usecase, the manager management read usecase, the optional
 delivery usecase/runtime, the presence usecase, the gateway handler, the optional HTTP API runtime, the optional
 dedicated manager HTTP runtime, the optional plugin runtime/usecase/hook
-worker, the optional Prometheus metrics registry, the
+worker, the optional webhook runtime, the optional Prometheus metrics registry, the
 optional app-managed Prometheus child process, and the optional gateway runtime. The phase-1
 runtime supports single-node clusters and static multi-node clusters for the
 `SEND -> SENDACK` write path, legacy-compatible channel/user metadata
@@ -172,13 +172,23 @@ New(Config)
        peer managers can inspect or mutate this node's plugin lifecycle state
        and invoke this node's local /plugin/route hook for forwarded plugin
        HTTP requests
+  -> when Webhook config is enabled:
+       create the node-local webhook runtime with bounded workqueue admission,
+       finite retry, and an HTTP sender; wire webhook adapters into
+       channelappend's durable post-commit PersistAfter sink, the batch offline
+       recipient observer, and the presence online-status observer
+       Plugin hooks and webhook sinks coexist on the same side-effect surfaces.
+       Webhook failures are best-effort side effects and must not affect
+       SENDACK, durable append, recipient delivery, or conversation active
+       admission.
   -> when the cluster exposes ChannelV2 append plus channel append authority:
        create channelappend.Group with hash-sharded per-channel authority writers,
        clusterv2 ChannelAppender, node-scoped message IDs, subscriber source,
        recipient authority resolver, conversation active-batch admitter,
-       optional recipient delivery worker enqueuer, optional plugin PersistAfter
-       enqueuer, optional plugin Receive offline-recipient observer, append
-       metrics observer, and shared append/post-commit worker pools
+       optional recipient delivery worker enqueuer, optional plugin/webhook
+       PersistAfter enqueuers, optional plugin/webhook offline-recipient
+       observers, append metrics observer, and shared append/post-commit worker
+       pools
        create channelappend.Router for local authority admission and remote
        channel-authority forwarding
        register Channel Append RPC so remote nodes can submit to the local
@@ -529,6 +539,7 @@ Start(ctx)
   -> presence touch worker Start(ctx)
   -> plugin runtime Start(ctx): open the host RPC socket, scan local plugins, and start enabled processes
   -> plugin PersistAfter worker Start(ctx): accept durable commit side effects before channel append opens
+  -> webhook runtime Start(ctx): accept post-commit webhook side effects before producers open
   -> delivery worker group Start(ctx): retry scheduler, async manager, then recipient delivery worker
   -> channel append group Start(ctx): open local channel-authority writer admission
   -> api.Start()
@@ -544,6 +555,7 @@ Stop(ctx)
   -> api.Stop(ctx)
   -> channel append group Stop(ctx): close admission and drain accepted appends plus post-commit effects
   -> delivery worker group Stop(ctx): recipient delivery worker drains before async manager and retry scheduler
+  -> webhook runtime Stop(ctx): stop accepting new webhook side effects after producers drain
   -> plugin PersistAfter worker Stop(ctx): stop accepting new side effects after channel append drains
   -> plugin runtime Stop(ctx): stop plugin processes and close the host RPC socket
   -> conversation active flush worker Stop(ctx): cancel periodic flush and persist remaining dirty active rows
@@ -564,6 +576,13 @@ so accepted durable commits can enqueue plugin side effects until the append
 runtime is stopped. Desired plugin config remains node-local in this phase and
 is applied by the v2 plugin usecase during startup, local config updates, and
 hook candidate selection.
+When webhook delivery is enabled, the app also wires a node-local bounded
+workqueue runtime with an HTTP sender before delivery and channelappend
+producers open. Channelappend and presence see only small adapter ports:
+post-commit PersistAfter, batch offline recipient observation, and online-status
+observation. Webhook queue admission, retries, and HTTP failures remain
+best-effort and do not change SENDACK, durable append, plugin hooks,
+conversation active admission, or owner delivery.
 The manager drains accepted fanout before the retry scheduler stops, so queued
 retries remain available while accepted manager work completes. Stale pending
 recvacks expire during owner-local push activity.
