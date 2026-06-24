@@ -381,6 +381,65 @@ func TestRuntimeRequestSlotLeaderTransfer(t *testing.T) {
 	}
 }
 
+func TestRuntimeJoinNodeCreatesJoiningDataNode(t *testing.T) {
+	runtime := startSingleVoterRuntime(t, "cluster-join-node")
+
+	result, err := runtime.JoinNode(context.Background(), JoinNodeRequest{
+		NodeID:         4,
+		Name:           "node-4",
+		Addr:           "127.0.0.1:10004",
+		Roles:          []NodeRole{NodeRoleData},
+		CapacityWeight: 3,
+	})
+	if err != nil {
+		t.Fatalf("JoinNode() error = %v", err)
+	}
+	if !result.Created || result.Node.JoinState != NodeJoinStateJoining {
+		t.Fatalf("JoinNode() = %#v, want created joining node", result)
+	}
+
+	st := waitForState(t, runtime, func(st ClusterState) bool {
+		for _, node := range st.Nodes {
+			if node.NodeID == 4 && node.JoinState == NodeJoinStateJoining && node.Status == NodeStatusAlive {
+				return true
+			}
+		}
+		return false
+	})
+	if len(st.Slots) != 1 || containsUint64(st.Slots[0].DesiredPeers, 4) {
+		t.Fatalf("Slots after join = %#v, want unchanged assignments without node 4", st.Slots)
+	}
+}
+
+func TestRuntimeActivateNodeTurnsJoiningNodeActive(t *testing.T) {
+	runtime := startSingleVoterRuntime(t, "cluster-activate-node")
+	_, err := runtime.JoinNode(context.Background(), JoinNodeRequest{NodeID: 4, Addr: "n4", Roles: []NodeRole{NodeRoleData}, CapacityWeight: 1})
+	if err != nil {
+		t.Fatalf("JoinNode() error = %v", err)
+	}
+
+	result, err := runtime.ActivateNode(context.Background(), ActivateNodeRequest{NodeID: 4})
+	if err != nil {
+		t.Fatalf("ActivateNode() error = %v", err)
+	}
+	if !result.Changed || result.Node.JoinState != NodeJoinStateActive {
+		t.Fatalf("ActivateNode() = %#v, want changed active node", result)
+	}
+}
+
+func TestRuntimeJoinNodeRejectsAddressConflict(t *testing.T) {
+	runtime := startSingleVoterRuntime(t, "cluster-join-conflict")
+
+	_, err := runtime.JoinNode(context.Background(), JoinNodeRequest{NodeID: 4, Addr: "n4", Roles: []NodeRole{NodeRoleData}, CapacityWeight: 1})
+	if err != nil {
+		t.Fatalf("JoinNode(first) error = %v", err)
+	}
+	_, err = runtime.JoinNode(context.Background(), JoinNodeRequest{NodeID: 5, Addr: "n4", Roles: []NodeRole{NodeRoleData}, CapacityWeight: 1})
+	if err == nil {
+		t.Fatal("JoinNode(conflicting addr) error = nil, want conflict")
+	}
+}
+
 func readStateEvent(t *testing.T, watch <-chan StateEvent) StateEvent {
 	t.Helper()
 	select {
@@ -390,6 +449,34 @@ func readStateEvent(t *testing.T, watch <-chan StateEvent) StateEvent {
 		t.Fatal("timeout waiting for StateEvent")
 		return StateEvent{}
 	}
+}
+
+func startSingleVoterRuntime(t *testing.T, clusterID string) *Runtime {
+	t.Helper()
+	runtime, err := NewRuntime(RuntimeConfig{
+		NodeID:           1,
+		Addr:             "127.0.0.1:10001",
+		StateDir:         t.TempDir(),
+		ClusterID:        clusterID,
+		Role:             RuntimeRoleVoter,
+		Voters:           []Voter{{NodeID: 1, Addr: "127.0.0.1:10001"}},
+		AllowBootstrap:   true,
+		InitialSlotCount: 1,
+		HashSlotCount:    4,
+		ReplicaCount:     1,
+		TickInterval:     5 * time.Millisecond,
+	})
+	if err != nil {
+		t.Fatalf("NewRuntime() error = %v", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	t.Cleanup(cancel)
+	if err := runtime.Start(ctx); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	t.Cleanup(func() { _ = runtime.Stop(context.Background()) })
+	waitForState(t, runtime, func(st ClusterState) bool { return st.Revision > 0 })
+	return runtime
 }
 
 func newStartedSingleNodeRuntime(t *testing.T, slotCount uint32) *Runtime {
@@ -426,6 +513,11 @@ func waitForRuntimeSlots(t *testing.T, runtime *Runtime, slotCount int) ClusterS
 	})
 }
 
+func waitForState(t *testing.T, runtime *Runtime, match func(ClusterState) bool) ClusterState {
+	t.Helper()
+	return waitForRuntimeState(t, runtime, match)
+}
+
 func waitForRuntimeState(t *testing.T, runtime *Runtime, match func(ClusterState) bool) ClusterState {
 	t.Helper()
 	deadline := time.After(2 * time.Second)
@@ -449,6 +541,15 @@ func waitForRuntimeState(t *testing.T, runtime *Runtime, match func(ClusterState
 			t.Fatalf("timeout waiting for runtime state, last=%#v", st)
 		}
 	}
+}
+
+func containsUint64(values []uint64, want uint64) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
 }
 
 func commandWithNode(expectedRevision uint64, node Node) command.Command {
