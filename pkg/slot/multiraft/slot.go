@@ -1,6 +1,7 @@
 package multiraft
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 	"errors"
@@ -179,7 +180,11 @@ func newSlot(ctx context.Context, nodeID NodeID, logger wklog.Logger, raftOpts R
 	if !raft.IsEmptySnap(snapshot) {
 		appliedIndex = snapshot.Metadata.Index
 	}
-	configAppliedIndex, err := restoreConfigAppliedIndex(memory, appliedIndex, state.ConfigAppliedIndex)
+	snapshotData, snapshotConfigAppliedIndex, err := decodeSlotSnapshotData(snapshot.Data)
+	if err != nil {
+		return nil, err
+	}
+	configAppliedIndex, err := restoreConfigAppliedIndex(memory, appliedIndex, state.ConfigAppliedIndex, snapshotConfigAppliedIndex)
 	if err != nil {
 		return nil, err
 	}
@@ -231,7 +236,7 @@ func newSlot(ctx context.Context, nodeID NodeID, logger wklog.Logger, raftOpts R
 		if err := g.stateMachine.Restore(ctx, Snapshot{
 			Index: snapshot.Metadata.Index,
 			Term:  snapshot.Metadata.Term,
-			Data:  append([]byte(nil), snapshot.Data...),
+			Data:  snapshotData,
 		}); err != nil {
 			return nil, err
 		}
@@ -514,14 +519,20 @@ func (g *slot) processReadySynchronously(ctx context.Context, ready raft.Ready) 
 		g.releaseResolutionBuffer(resolutions)
 	}()
 	if !raft.IsEmptySnap(ready.Snapshot) {
+		snapshotData, snapshotConfigAppliedIndex, err := decodeSlotSnapshotData(ready.Snapshot.Data)
+		if err != nil {
+			g.fail(err)
+			return true, false
+		}
 		if err := g.stateMachine.Restore(ctx, Snapshot{
 			Index: ready.Snapshot.Metadata.Index,
 			Term:  ready.Snapshot.Metadata.Term,
-			Data:  append([]byte(nil), ready.Snapshot.Data...),
+			Data:  snapshotData,
 		}); err != nil {
 			g.fail(err)
 			return true, false
 		}
+		g.recordConfigChangeApplied(snapshotConfigAppliedIndex)
 		lastApplied = ready.Snapshot.Metadata.Index
 	}
 
@@ -964,8 +975,13 @@ func (g *slot) needsLearnerProgressRefreshLocked() bool {
 }
 
 func (g *slot) recordConfigChangeApplied(index uint64) {
+	if index == 0 {
+		return
+	}
 	g.mu.Lock()
-	g.status.ConfigAppliedIndex = index
+	if index > g.status.ConfigAppliedIndex {
+		g.status.ConfigAppliedIndex = index
+	}
 	g.votersDirty = true
 	g.mu.Unlock()
 }
@@ -1054,7 +1070,7 @@ func progressFromRaftStatus(st raft.Status) map[NodeID]PeerProgress {
 	return progress
 }
 
-func restoreConfigAppliedIndex(memory *loadedMemoryStorage, appliedIndex uint64, durableConfigAppliedIndex uint64) (uint64, error) {
+func restoreConfigAppliedIndex(memory *loadedMemoryStorage, appliedIndex uint64, durableConfigAppliedIndex uint64, snapshotConfigAppliedIndex uint64) (uint64, error) {
 	if appliedIndex == 0 {
 		return 0, nil
 	}
@@ -1083,14 +1099,52 @@ func restoreConfigAppliedIndex(memory *loadedMemoryStorage, appliedIndex uint64,
 			}
 		}
 	}
-	if durableConfigAppliedIndex > 0 && durableConfigAppliedIndex <= appliedIndex {
-		return durableConfigAppliedIndex, nil
-	}
-	return 0, nil
+	return latestValidConfigAppliedIndex(appliedIndex, durableConfigAppliedIndex, snapshotConfigAppliedIndex), nil
 }
 
 func isConfigChangeEntry(entry raftpb.Entry) bool {
 	return entry.Type == raftpb.EntryConfChange || entry.Type == raftpb.EntryConfChangeV2
+}
+
+func latestValidConfigAppliedIndex(appliedIndex uint64, indexes ...uint64) uint64 {
+	var latest uint64
+	for _, index := range indexes {
+		if index == 0 || index > appliedIndex || index <= latest {
+			continue
+		}
+		latest = index
+	}
+	return latest
+}
+
+const (
+	slotSnapshotDataMagic           = "WKSLOTSN"
+	slotSnapshotDataVersion    byte = 1
+	slotSnapshotDataHeaderSize      = len(slotSnapshotDataMagic) + 1 + 8
+)
+
+func encodeSlotSnapshotData(payload []byte, configAppliedIndex uint64) []byte {
+	out := make([]byte, 0, slotSnapshotDataHeaderSize+len(payload))
+	out = append(out, slotSnapshotDataMagic...)
+	out = append(out, slotSnapshotDataVersion)
+	out = binary.BigEndian.AppendUint64(out, configAppliedIndex)
+	out = append(out, payload...)
+	return out
+}
+
+func decodeSlotSnapshotData(data []byte) ([]byte, uint64, error) {
+	if !bytes.HasPrefix(data, []byte(slotSnapshotDataMagic)) {
+		return append([]byte(nil), data...), 0, nil
+	}
+	if len(data) < slotSnapshotDataHeaderSize {
+		return nil, 0, fmt.Errorf("slot snapshot data envelope too short: %d", len(data))
+	}
+	version := data[len(slotSnapshotDataMagic)]
+	if version != slotSnapshotDataVersion {
+		return nil, 0, fmt.Errorf("slot snapshot data envelope version %d unsupported", version)
+	}
+	configAppliedIndex := binary.BigEndian.Uint64(data[len(slotSnapshotDataMagic)+1 : slotSnapshotDataHeaderSize])
+	return append([]byte(nil), data[slotSnapshotDataHeaderSize:]...), configAppliedIndex, nil
 }
 
 func selectLeaderTransferTransferee(st raft.Status, preferred NodeID) NodeID {
@@ -1152,6 +1206,16 @@ func (g *slot) pendingConfigAppliedIndex(lastApplied uint64) uint64 {
 	defer g.mu.Unlock()
 	index := g.status.ConfigAppliedIndex
 	if index == 0 || index > lastApplied || index <= g.durableConfigAppliedIndex {
+		return 0
+	}
+	return index
+}
+
+func (g *slot) configAppliedIndexForSnapshot(applied uint64) uint64 {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	index := g.status.ConfigAppliedIndex
+	if index == 0 || index > applied {
 		return 0
 	}
 	return index

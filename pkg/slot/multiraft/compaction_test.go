@@ -52,8 +52,15 @@ func TestRuntimeLogCompactionSnapshotsAndCompactsAppliedEntries(t *testing.T) {
 		t.Fatalf("Snapshot().Index = %d, want %d", snap.Metadata.Index, last.Index)
 	}
 	wantData := fmt.Sprintf("idx=%d data=set-3", last.Index)
-	if string(snap.Data) != wantData {
-		t.Fatalf("Snapshot().Data = %q, want final applied command", snap.Data)
+	rawData, configIndex, err := decodeSlotSnapshotData(snap.Data)
+	if err != nil {
+		t.Fatalf("decode Snapshot().Data error = %v", err)
+	}
+	if string(rawData) != wantData {
+		t.Fatalf("Snapshot().Data raw payload = %q, want final applied command", rawData)
+	}
+	if configIndex != 1 {
+		t.Fatalf("Snapshot().Data config index = %d, want bootstrap config entry index 1", configIndex)
 	}
 	first, err := store.FirstIndex(context.Background())
 	if err != nil {
@@ -427,6 +434,137 @@ func TestRuntimeCompactedLeaderSendsSnapshotToNewLearner(t *testing.T) {
 	}
 }
 
+func TestRuntimeSnapshotCatchUpCarriesConfigAppliedIndexToNewLearner(t *testing.T) {
+	cluster := newAsyncTestCluster(t, []NodeID{1, 2, 3}, asyncNetworkConfig{
+		MaxDelay: time.Millisecond,
+		Seed:     23,
+	})
+	slotID := SlotID(201)
+	voters := []NodeID{1, 2}
+	for _, nodeID := range voters {
+		store := &internalFakeStorage{}
+		fsm := &snapshottingStateMachine{}
+		cluster.stores[nodeID][slotID] = store
+		if err := cluster.runtime(nodeID).BootstrapSlot(context.Background(), BootstrapSlotRequest{
+			Slot: SlotOptions{
+				ID:           slotID,
+				Storage:      store,
+				StateMachine: fsm,
+			},
+			Voters: voters,
+		}); err != nil {
+			t.Fatalf("BootstrapSlot(node=%d) error = %v", nodeID, err)
+		}
+	}
+	leaderID := cluster.waitForLeaderAmong(t, slotID, voters)
+
+	learnerStore := &internalFakeStorage{}
+	learnerFSM := &snapshottingStateMachine{}
+	cluster.stores[3][slotID] = learnerStore
+	if err := cluster.runtime(3).OpenSlot(context.Background(), SlotOptions{
+		ID:           slotID,
+		Storage:      learnerStore,
+		StateMachine: learnerFSM,
+	}); err != nil {
+		t.Fatalf("OpenSlot(learner) error = %v", err)
+	}
+	cluster.partitionNode(3)
+
+	change, err := cluster.runtime(leaderID).ChangeConfig(context.Background(), slotID, ConfigChange{
+		Type:   AddLearner,
+		NodeID: 3,
+	})
+	if err != nil {
+		t.Fatalf("ChangeConfig(AddLearner) error = %v", err)
+	}
+	changeResult := waitForFutureResult(t, change)
+
+	var normalResult Result
+	for i := 0; i < 3; i++ {
+		payload := fmt.Sprintf("after-config-%d", i)
+		fut, err := cluster.runtime(leaderID).Propose(context.Background(), slotID, proposalString(payload))
+		if err != nil {
+			t.Fatalf("Propose(%d) error = %v", i, err)
+		}
+		normalResult = waitForFutureResult(t, fut)
+	}
+	if normalResult.Index <= changeResult.Index {
+		t.Fatalf("normal proposal index = %d, want > config index %d", normalResult.Index, changeResult.Index)
+	}
+
+	compacted, err := cluster.runtime(leaderID).CompactLog(context.Background(), slotID)
+	if err != nil {
+		t.Fatalf("CompactLog() error = %v", err)
+	}
+	if !compacted.Compacted {
+		t.Fatalf("CompactLog().Compacted = false, skipped=%q", compacted.SkippedReason)
+	}
+	if compacted.AfterSnapshotIndex <= changeResult.Index {
+		t.Fatalf("snapshot index = %d, want > config entry index %d", compacted.AfterSnapshotIndex, changeResult.Index)
+	}
+
+	cluster.healNode(3)
+	cluster.waitForCondition(t, func() bool {
+		st, err := cluster.runtime(3).Status(slotID)
+		if err != nil || st.AppliedIndex < compacted.AfterSnapshotIndex {
+			return false
+		}
+		learnerFSM.mu.Lock()
+		defer learnerFSM.mu.Unlock()
+		return learnerFSM.restoreCount > 0
+	})
+
+	learnerStatus, err := cluster.runtime(3).Status(slotID)
+	if err != nil {
+		t.Fatalf("Status(learner) error = %v", err)
+	}
+	if learnerStatus.ConfigAppliedIndex != changeResult.Index {
+		t.Fatalf("learner Status().ConfigAppliedIndex = %d, want config entry index %d", learnerStatus.ConfigAppliedIndex, changeResult.Index)
+	}
+
+	learnerFSM.mu.Lock()
+	restores := append([]Snapshot(nil), learnerFSM.restores...)
+	learnerFSM.mu.Unlock()
+	if len(restores) == 0 {
+		t.Fatal("learner Restore() snapshots = 0, want snapshot restore")
+	}
+	wantData := fmt.Sprintf("idx=%d data=after-config-2", normalResult.Index)
+	if got := string(restores[len(restores)-1].Data); got != wantData {
+		t.Fatalf("learner Restore().Data = %q, want raw snapshot data %q", got, wantData)
+	}
+}
+
+func TestSlotSnapshotDataEnvelopeRoundTripAndLegacyRaw(t *testing.T) {
+	raw, configIndex, err := decodeSlotSnapshotData([]byte("legacy-raw"))
+	if err != nil {
+		t.Fatalf("decode legacy raw error = %v", err)
+	}
+	if string(raw) != "legacy-raw" || configIndex != 0 {
+		t.Fatalf("decode legacy raw = data:%q config:%d, want raw payload and config 0", raw, configIndex)
+	}
+
+	encoded := encodeSlotSnapshotData([]byte("payload"), 7)
+	raw, configIndex, err = decodeSlotSnapshotData(encoded)
+	if err != nil {
+		t.Fatalf("decode envelope error = %v", err)
+	}
+	if string(raw) != "payload" || configIndex != 7 {
+		t.Fatalf("decode envelope = data:%q config:%d, want payload/config 7", raw, configIndex)
+	}
+}
+
+func TestSlotSnapshotDataEnvelopeRejectsMalformedMagicMatch(t *testing.T) {
+	if _, _, err := decodeSlotSnapshotData(append([]byte(nil), slotSnapshotDataMagic...)); err == nil {
+		t.Fatal("decode truncated envelope error = nil")
+	}
+	data := make([]byte, slotSnapshotDataHeaderSize)
+	copy(data, slotSnapshotDataMagic)
+	data[len(slotSnapshotDataMagic)] = slotSnapshotDataVersion + 1
+	if _, _, err := decodeSlotSnapshotData(data); err == nil {
+		t.Fatal("decode unsupported envelope version error = nil")
+	}
+}
+
 func TestOpenSlotRestoresSnapshotThenReplaysPostSnapshotEntries(t *testing.T) {
 	store := &internalFakeStorage{}
 	ctx := context.Background()
@@ -525,6 +663,7 @@ type snapshottingStateMachine struct {
 	mu           sync.Mutex
 	commands     []Command
 	restoreCount int
+	restores     []Snapshot
 	snapshotErr  error
 }
 
@@ -545,6 +684,11 @@ func (s *snapshottingStateMachine) Restore(_ context.Context, snap Snapshot) err
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.restoreCount++
+	s.restores = append(s.restores, Snapshot{
+		Index: snap.Index,
+		Term:  snap.Term,
+		Data:  append([]byte(nil), snap.Data...),
+	})
 	return nil
 }
 

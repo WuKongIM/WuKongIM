@@ -93,8 +93,9 @@ func (g *slot) compactLog(ctx context.Context, applied uint64) error {
 		return err
 	}
 	confState := cloneConfState(g.storageView.memory.confState)
+	snapshotData := encodeSlotSnapshotData(stateSnap.Data, g.configAppliedIndexForSnapshot(applied))
 	snap := raftpb.Snapshot{
-		Data: append([]byte(nil), stateSnap.Data...),
+		Data: snapshotData,
 		Metadata: raftpb.SnapshotMetadata{
 			Index:     applied,
 			Term:      term,

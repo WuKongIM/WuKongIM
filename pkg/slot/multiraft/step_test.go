@@ -514,6 +514,50 @@ func TestOpenSlotPrefersRetainedConfigEntryOverStaleDurableConfigAppliedIndex(t 
 	}
 }
 
+func TestOpenSlotPrefersSnapshotConfigAppliedIndexOverStaleDurableMetadata(t *testing.T) {
+	store := &internalFakeStorage{
+		state: BootstrapState{
+			HardState:          raftpb.HardState{Commit: 5},
+			AppliedIndex:       5,
+			ConfigAppliedIndex: 2,
+			ConfState:          raftpb.ConfState{Voters: []uint64{1}, Learners: []uint64{2}},
+		},
+		snapshot: raftpb.Snapshot{
+			Data: encodeSlotSnapshotData([]byte("snapshot-payload"), 4),
+			Metadata: raftpb.SnapshotMetadata{
+				Index: 5,
+				Term:  1,
+				ConfState: raftpb.ConfState{
+					Voters:   []uint64{1},
+					Learners: []uint64{2},
+				},
+			},
+		},
+	}
+	fsm := &internalFakeStateMachine{}
+	rt := newStartedRuntime(t)
+	if err := rt.OpenSlot(context.Background(), SlotOptions{
+		ID:           120,
+		Storage:      store,
+		StateMachine: fsm,
+	}); err != nil {
+		t.Fatalf("OpenSlot() error = %v", err)
+	}
+	st, err := rt.Status(120)
+	if err != nil {
+		t.Fatalf("Status() error = %v", err)
+	}
+	if st.ConfigAppliedIndex != 4 {
+		t.Fatalf("Status().ConfigAppliedIndex = %d, want snapshot config entry index 4", st.ConfigAppliedIndex)
+	}
+	fsm.mu.Lock()
+	restored := append([]byte(nil), fsm.lastSnapshot.Data...)
+	fsm.mu.Unlock()
+	if string(restored) != "snapshot-payload" {
+		t.Fatalf("Restore().Data = %q, want raw snapshot payload", restored)
+	}
+}
+
 func TestOpenSlotDoesNotUseSnapshotIndexAsConfigAppliedIndex(t *testing.T) {
 	store := &internalFakeStorage{
 		state: BootstrapState{
