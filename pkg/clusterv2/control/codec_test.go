@@ -1,9 +1,9 @@
 package control
 
 import (
+	"encoding/json"
 	"errors"
 	"reflect"
-	"strings"
 	"testing"
 
 	cv2 "github.com/WuKongIM/WuKongIM/pkg/controllerv2"
@@ -149,36 +149,84 @@ func TestControlWriteSlotReplicaMoveUsesSnakeCaseJSON(t *testing.T) {
 	if err != nil {
 		t.Fatalf("EncodeControlWriteRequest() error = %v", err)
 	}
-	reqJSON := string(reqPayload[2:])
-	for _, want := range []string{`"slot_id":1`, `"source_node":1`, `"target_node":4`, `"target_peers":[4,2,3]`, `"config_epoch":7`, `"state_revision":9`} {
-		if !strings.Contains(reqJSON, want) {
-			t.Fatalf("encoded request JSON = %s, missing %s", reqJSON, want)
+	var reqObject map[string]json.RawMessage
+	if err := json.Unmarshal(reqPayload[2:], &reqObject); err != nil {
+		t.Fatalf("request JSON unmarshal error = %v", err)
+	}
+	requireJSONKeys(t, reqObject, "action", "slot_replica_move")
+	var moveReq map[string]json.RawMessage
+	if err := json.Unmarshal(reqObject["slot_replica_move"], &moveReq); err != nil {
+		t.Fatalf("slot_replica_move request JSON unmarshal error = %v", err)
+	}
+	for _, want := range []string{"slot_id", "source_node", "target_node", "target_peers", "config_epoch", "state_revision"} {
+		if _, ok := moveReq[want]; !ok {
+			t.Fatalf("slot_replica_move request keys = %#v, missing %s", moveReq, want)
 		}
 	}
 	for _, forbidden := range []string{"SlotID", "SourceNode", "TargetNode", "TargetPeers", "ConfigEpoch", "StateRevision"} {
-		if strings.Contains(reqJSON, forbidden) {
-			t.Fatalf("encoded request JSON = %s, contains Go field name %s", reqJSON, forbidden)
+		if _, ok := moveReq[forbidden]; ok {
+			t.Fatalf("slot_replica_move request keys = %#v, contains Go field name %s", moveReq, forbidden)
 		}
 	}
 
 	respPayload, err := EncodeControlWriteResponse(ControlWriteResponse{
 		SlotReplicaMove: SlotReplicaMoveResult{
 			Created: true,
-			Task:    &ReconcileTask{TaskID: "slot-1-replica-move-1-to-4-r9"},
+			Task: &ReconcileTask{
+				TaskID:      "slot-1-replica-move-1-to-4-r9",
+				SlotID:      1,
+				Kind:        TaskKindSlotReplicaMove,
+				Step:        TaskStepOpenLearner,
+				SourceNode:  1,
+				TargetNode:  4,
+				TargetPeers: []uint64{2, 3, 4},
+				ConfigEpoch: 7,
+				Status:      TaskStatusPending,
+			},
 		},
 	})
 	if err != nil {
 		t.Fatalf("EncodeControlWriteResponse() error = %v", err)
 	}
-	respJSON := string(respPayload[2:])
-	for _, want := range []string{`"created":true`, `"task":`} {
-		if !strings.Contains(respJSON, want) {
-			t.Fatalf("encoded response JSON = %s, missing %s", respJSON, want)
+	var envelope map[string]json.RawMessage
+	if err := json.Unmarshal(respPayload[2:], &envelope); err != nil {
+		t.Fatalf("response envelope JSON unmarshal error = %v", err)
+	}
+	requireJSONKeys(t, envelope, "response")
+	var response map[string]json.RawMessage
+	if err := json.Unmarshal(envelope["response"], &response); err != nil {
+		t.Fatalf("response JSON unmarshal error = %v", err)
+	}
+	requireJSONKeys(t, response, "slot_replica_move")
+	var moveResp map[string]json.RawMessage
+	if err := json.Unmarshal(response["slot_replica_move"], &moveResp); err != nil {
+		t.Fatalf("slot_replica_move response JSON unmarshal error = %v", err)
+	}
+	requireJSONKeys(t, moveResp, "created", "task")
+	var task map[string]json.RawMessage
+	if err := json.Unmarshal(moveResp["task"], &task); err != nil {
+		t.Fatalf("slot_replica_move task JSON unmarshal error = %v", err)
+	}
+	for _, want := range []string{"task_id", "slot_id", "kind", "step"} {
+		if _, ok := task[want]; !ok {
+			t.Fatalf("slot_replica_move task keys = %#v, missing %s", task, want)
 		}
 	}
-	for _, forbidden := range []string{`"Created"`, `"Task":`} {
-		if strings.Contains(respJSON, forbidden) {
-			t.Fatalf("encoded response JSON = %s, contains Go field name %s", respJSON, forbidden)
+	for _, forbidden := range []string{"TaskID", "SlotID", "TargetPeers"} {
+		if _, ok := task[forbidden]; ok {
+			t.Fatalf("slot_replica_move task keys = %#v, contains Go field name %s", task, forbidden)
+		}
+	}
+}
+
+func requireJSONKeys(t *testing.T, object map[string]json.RawMessage, keys ...string) {
+	t.Helper()
+	if len(object) != len(keys) {
+		t.Fatalf("JSON object keys = %#v, want exactly %v", object, keys)
+	}
+	for _, key := range keys {
+		if _, ok := object[key]; !ok {
+			t.Fatalf("JSON object keys = %#v, missing %s", object, key)
 		}
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/clusterv2/net"
 	cv2 "github.com/WuKongIM/WuKongIM/pkg/controllerv2"
@@ -163,6 +164,27 @@ type ControlWriteRequest struct {
 	SlotReplicaMove SlotReplicaMoveRequest `json:"slot_replica_move,omitempty"`
 }
 
+type controlWriteRequestJSON struct {
+	Action          ControlWriteAction      `json:"action"`
+	JoinNode        *JoinNodeRequest        `json:"join_node,omitempty"`
+	ActivateNode    *ActivateNodeRequest    `json:"activate_node,omitempty"`
+	SlotReplicaMove *SlotReplicaMoveRequest `json:"slot_replica_move,omitempty"`
+}
+
+// MarshalJSON encodes only the payload branch selected by Action.
+func (req ControlWriteRequest) MarshalJSON() ([]byte, error) {
+	wire := controlWriteRequestJSON{Action: req.Action}
+	switch req.Action {
+	case ControlWriteActionJoinNode:
+		wire.JoinNode = &req.JoinNode
+	case ControlWriteActionActivateNode:
+		wire.ActivateNode = &req.ActivateNode
+	case ControlWriteActionSlotReplicaMove:
+		wire.SlotReplicaMove = &req.SlotReplicaMove
+	}
+	return json.Marshal(wire)
+}
+
 // ControlWriteResponse carries the result of one generic ControllerV2 write.
 type ControlWriteResponse struct {
 	// JoinNode carries the result of a data-node join intent.
@@ -171,6 +193,27 @@ type ControlWriteResponse struct {
 	ActivateNode ActivateNodeResult `json:"activate_node,omitempty"`
 	// SlotReplicaMove carries the result of a staged Slot replica move intent.
 	SlotReplicaMove SlotReplicaMoveResult `json:"slot_replica_move,omitempty"`
+}
+
+type controlWriteResponseJSON struct {
+	JoinNode        *JoinNodeResult        `json:"join_node,omitempty"`
+	ActivateNode    *ActivateNodeResult    `json:"activate_node,omitempty"`
+	SlotReplicaMove *SlotReplicaMoveResult `json:"slot_replica_move,omitempty"`
+}
+
+// MarshalJSON encodes only response branches that carry a result.
+func (resp ControlWriteResponse) MarshalJSON() ([]byte, error) {
+	var wire controlWriteResponseJSON
+	if !reflect.DeepEqual(resp.JoinNode, JoinNodeResult{}) {
+		wire.JoinNode = &resp.JoinNode
+	}
+	if !reflect.DeepEqual(resp.ActivateNode, ActivateNodeResult{}) {
+		wire.ActivateNode = &resp.ActivateNode
+	}
+	if !reflect.DeepEqual(resp.SlotReplicaMove, SlotReplicaMoveResult{}) {
+		wire.SlotReplicaMove = &resp.SlotReplicaMove
+	}
+	return json.Marshal(wire)
 }
 
 type controlWriteResponseEnvelope struct {

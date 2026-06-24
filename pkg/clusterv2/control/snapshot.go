@@ -176,37 +176,37 @@ type HashSlotRange struct {
 // ReconcileTask describes one active Slot convergence task.
 type ReconcileTask struct {
 	// TaskID is the stable task identity.
-	TaskID string
+	TaskID string `json:"task_id"`
 	// SlotID is the affected physical Slot.
-	SlotID uint32
+	SlotID uint32 `json:"slot_id"`
 	// Kind identifies the reconcile workflow kind.
-	Kind TaskKind
+	Kind TaskKind `json:"kind"`
 	// Step identifies the current workflow step.
-	Step TaskStep
+	Step TaskStep `json:"step"`
 	// SourceNode is the optional node that currently owns source data.
-	SourceNode uint64
+	SourceNode uint64 `json:"source_node,omitempty"`
 	// TargetNode is the primary node that should execute this task when set.
-	TargetNode uint64
+	TargetNode uint64 `json:"target_node,omitempty"`
 	// TargetPeers are the peer IDs this task should converge.
-	TargetPeers []uint64
+	TargetPeers []uint64 `json:"target_peers,omitempty"`
 	// CompletionPolicy controls how participant progress gates completion.
-	CompletionPolicy TaskCompletionPolicy
+	CompletionPolicy TaskCompletionPolicy `json:"completion_policy,omitempty"`
 	// ParticipantProgress records per-node local progress for barrier tasks.
-	ParticipantProgress []TaskParticipantProgress
+	ParticipantProgress []TaskParticipantProgress `json:"participant_progress,omitempty"`
 	// ConfigEpoch ties this task to a Slot assignment epoch.
-	ConfigEpoch uint64
+	ConfigEpoch uint64 `json:"config_epoch,omitempty"`
 	// Attempt counts global task attempts, including failed attempts.
-	Attempt uint32
+	Attempt uint32 `json:"attempt"`
 	// Status describes whether this task is actionable.
-	Status TaskStatus
+	Status TaskStatus `json:"status"`
 	// LastError stores the bounded error from the most recent failed attempt.
-	LastError string
+	LastError string `json:"last_error,omitempty"`
 	// PhaseIndex advances after each observed Slot Raft config step.
-	PhaseIndex uint32
+	PhaseIndex uint32 `json:"phase_index,omitempty"`
 	// ObservedConfigIndex is the Slot Raft applied index that proved the current phase.
-	ObservedConfigIndex uint64
+	ObservedConfigIndex uint64 `json:"observed_config_index,omitempty"`
 	// ObservedVoters stores the voter set observed for the current phase.
-	ObservedVoters []uint64
+	ObservedVoters []uint64 `json:"observed_voters,omitempty"`
 	// ObservedLearners stores the learner set observed for the current phase.
-	ObservedLearners []uint64
+	ObservedLearners []uint64 `json:"observed_learners,omitempty"`
 }
