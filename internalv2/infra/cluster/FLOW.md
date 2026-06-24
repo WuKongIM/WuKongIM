@@ -15,9 +15,9 @@ adapts manager message retention requests to fenced Slot metadata advances, and
 routes manager connection reads over clusterv2 node RPC, routes manager
 distributed log reads to node-local clusterv2 log storage or peer RPC, routes
 manager Slot Raft status and compaction operations to the selected node-local clusterv2
-operation or peer RPC, adapts manager Slot leader transfer intents to
-clusterv2 control, adapts manager node lifecycle join/activation writes to
-clusterv2 control, routes startup seed JoinNode and readiness probes over
+operation or peer RPC, adapts manager Slot leader transfer and staged Slot
+replica-move intents to clusterv2 control, adapts manager node lifecycle
+join/activation writes to clusterv2 control, routes startup seed JoinNode and readiness probes over
 clusterv2 node RPC, routes manager Controller Raft operations to node-local
 clusterv2 operations or peer RPC, routes ordinary application log reads to the
 selected node's app-owned local reader or peer RPC, routes manager DB Inspect
@@ -33,8 +33,10 @@ adapts presence/delivery ports to clusterv2 routing and node RPC.
 internalv2 management usecase. It only exposes local control snapshot reads and
 the local node ID for read-only manager node and Slot list rendering. Node
 lifecycle writes are exposed through the separate
-`ManagementNodeLifecycleAdapter`; scale-in, onboarding, and Slot operations
-other than explicit node-local Raft compaction stay unmigrated.
+`ManagementNodeLifecycleAdapter`; bounded Slot onboarding writes are exposed
+through `ManagementSlotReplicaMoveAdapter`; scale-in and Slot operations other
+than explicit node-local Raft compaction and staged replica-move task creation
+stay unmigrated.
 
 ## Node Lifecycle RPC Flow
 
@@ -302,6 +304,19 @@ management.SlotLeaderTransferWriter
 The leader-transfer adapters do not implement Slot Raft mechanics. They expose
 the local Slot Raft leader/voter status needed by the management usecase
 preflight, then pass the validated control intent into clusterv2 control.
+
+## Management Slot Replica Move Flow
+
+```text
+management.SlotReplicaMoveWriter
+  -> clusterv2.RequestSlotReplicaMove(control.SlotReplicaMoveRequest)
+  -> clusterv2 control runtime
+```
+
+The replica-move adapter is only the infra boundary for manager onboarding task
+creation. It does not choose source peers, mutate `DesiredPeers`, or execute
+Slot Raft config changes; those stay in the management planner, ControllerV2
+task intent, and clusterv2 task executor respectively.
 
 ## Management Node Lifecycle Flow
 

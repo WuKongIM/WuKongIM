@@ -83,3 +83,29 @@ func TestNodeRequestSlotLeaderTransferRequiresForegroundNode(t *testing.T) {
 		t.Fatalf("RequestSlotLeaderTransfer() error = %v, want %v", err, ErrNotStarted)
 	}
 }
+
+func TestNodeRequestSlotReplicaMoveDelegatesToControl(t *testing.T) {
+	controller := control.NewStaticController(control.Snapshot{})
+	node := &Node{control: controller}
+	node.started.Store(true)
+
+	req := control.SlotReplicaMoveRequest{
+		SlotID:        1,
+		SourceNode:    1,
+		TargetNode:    4,
+		TargetPeers:   []uint64{4, 2, 3},
+		ConfigEpoch:   7,
+		StateRevision: 12,
+	}
+	got, err := node.RequestSlotReplicaMove(context.Background(), req)
+	if err != nil {
+		t.Fatalf("RequestSlotReplicaMove() error = %v", err)
+	}
+
+	if !got.Created || got.Task == nil || got.Task.TargetNode != 4 {
+		t.Fatalf("RequestSlotReplicaMove() = %#v, want created target-node task", got)
+	}
+	if len(controller.SlotReplicaMoves) != 1 || controller.SlotReplicaMoves[0].TargetNode != 4 {
+		t.Fatalf("controller moves = %#v, want one target node 4 request", controller.SlotReplicaMoves)
+	}
+}

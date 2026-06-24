@@ -1341,6 +1341,10 @@ type managerNodesStub struct {
 	slotLeaderTransferResponse         managementusecase.SlotLeaderTransferResponse
 	slotLeaderTransferBatchPlan        managementusecase.SlotLeaderTransferBatchPlanResponse
 	slotLeaderTransferBatchExecute     managementusecase.SlotLeaderTransferBatchExecuteResponse
+	nodeOnboardingPlan                 managementusecase.NodeOnboardingPlanResponse
+	nodeOnboardingStart                managementusecase.NodeOnboardingStartResponse
+	nodeOnboardingAdvance              managementusecase.NodeOnboardingStartResponse
+	nodeOnboardingStatus               managementusecase.NodeOnboardingStatusResponse
 	diagnosticsResponse                managementusecase.DiagnosticsQueryResponse
 	diagnosticsTrackingCreateResponse  managementusecase.DiagnosticsTrackingMutationResponse
 	diagnosticsTrackingListResponse    managementusecase.DiagnosticsTrackingListResponse
@@ -1383,6 +1387,10 @@ type managerNodesStub struct {
 	slotLeaderTransferReqSink          *managementusecase.SlotLeaderTransferRequest
 	slotLeaderTransferBatchPlanSink    *managementusecase.SlotLeaderTransferBatchPlanRequest
 	slotLeaderTransferBatchExecuteSink *managementusecase.SlotLeaderTransferBatchExecuteRequest
+	nodeOnboardingPlanReqSink          *managementusecase.NodeOnboardingPlanRequest
+	nodeOnboardingStartReqSink         *managementusecase.NodeOnboardingStartRequest
+	nodeOnboardingAdvanceReqSink       *managementusecase.NodeOnboardingAdvanceRequest
+	nodeOnboardingStatusReqSink        *managementusecase.NodeOnboardingStatusRequest
 	diagnosticsReqSink                 *managementusecase.DiagnosticsQueryRequest
 	diagnosticsTrackingCreateReqSink   *managementusecase.DiagnosticsTrackingCreateRequest
 	diagnosticsTrackingDeleteRuleSink  *string
@@ -1419,6 +1427,10 @@ type managerNodesStub struct {
 	slotLeaderTransferErr              error
 	slotLeaderTransferBatchPlanErr     error
 	slotLeaderTransferBatchExecuteErr  error
+	nodeOnboardingPlanErr              error
+	nodeOnboardingStartErr             error
+	nodeOnboardingAdvanceErr           error
+	nodeOnboardingStatusErr            error
 	diagnosticsErr                     error
 	diagnosticsTrackingCreateErr       error
 	diagnosticsTrackingListErr         error
@@ -1571,6 +1583,34 @@ func (s managerNodesStub) ExecuteSlotLeaderTransferBatch(_ context.Context, req 
 		*s.slotLeaderTransferBatchExecuteSink = req
 	}
 	return s.slotLeaderTransferBatchExecute, s.slotLeaderTransferBatchExecuteErr
+}
+
+func (s managerNodesStub) PlanNodeOnboarding(_ context.Context, req managementusecase.NodeOnboardingPlanRequest) (managementusecase.NodeOnboardingPlanResponse, error) {
+	if s.nodeOnboardingPlanReqSink != nil {
+		*s.nodeOnboardingPlanReqSink = req
+	}
+	return s.nodeOnboardingPlan, s.nodeOnboardingPlanErr
+}
+
+func (s managerNodesStub) StartNodeOnboarding(_ context.Context, req managementusecase.NodeOnboardingStartRequest) (managementusecase.NodeOnboardingStartResponse, error) {
+	if s.nodeOnboardingStartReqSink != nil {
+		*s.nodeOnboardingStartReqSink = req
+	}
+	return s.nodeOnboardingStart, s.nodeOnboardingStartErr
+}
+
+func (s managerNodesStub) AdvanceNodeOnboarding(_ context.Context, req managementusecase.NodeOnboardingAdvanceRequest) (managementusecase.NodeOnboardingStartResponse, error) {
+	if s.nodeOnboardingAdvanceReqSink != nil {
+		*s.nodeOnboardingAdvanceReqSink = req
+	}
+	return s.nodeOnboardingAdvance, s.nodeOnboardingAdvanceErr
+}
+
+func (s managerNodesStub) NodeOnboardingStatus(_ context.Context, req managementusecase.NodeOnboardingStatusRequest) (managementusecase.NodeOnboardingStatusResponse, error) {
+	if s.nodeOnboardingStatusReqSink != nil {
+		*s.nodeOnboardingStatusReqSink = req
+	}
+	return s.nodeOnboardingStatus, s.nodeOnboardingStatusErr
 }
 
 func (s managerNodesStub) QueryDiagnostics(_ context.Context, req managementusecase.DiagnosticsQueryRequest) (managementusecase.DiagnosticsQueryResponse, error) {

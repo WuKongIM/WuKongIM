@@ -15,6 +15,10 @@ POST /manager/login   (only when Auth.On=true)
 GET  /manager/nodes   (read-only node list; requires cluster.node:r when Auth.On=true)
 POST /manager/nodes/join (node lifecycle join; requires cluster.node:w when Auth.On=true)
 POST /manager/nodes/:node_id/activate (node lifecycle activation; requires cluster.node:w when Auth.On=true)
+POST /manager/nodes/:node_id/onboarding/plan (bounded Slot onboarding preview; requires cluster.node:w when Auth.On=true)
+POST /manager/nodes/:node_id/onboarding/start (bounded Slot onboarding task creation; requires cluster.node:w when Auth.On=true)
+GET  /manager/nodes/:node_id/onboarding/status (active onboarding task status; requires cluster.node:r when Auth.On=true)
+POST /manager/nodes/:node_id/onboarding/advance (bounded Slot onboarding task creation; requires cluster.node:w when Auth.On=true)
 GET  /manager/realtime-monitor (unified realtime monitor cards; requires cluster.node:r when Auth.On=true)
 GET  /manager/runtime/workqueues (local-node runtime pressure; requires cluster.node:r when Auth.On=true)
 GET  /manager/slots   (read-only Slot list; requires cluster.slot:r when Auth.On=true)
@@ -94,6 +98,16 @@ whether transport reachability, control mirror catch-up, runtime readiness,
 cluster ID, or revision fencing blocked activation. Missing activation targets
 return `404 not_found`, and unwired control writers/readiness readers return
 `503 service_unavailable`.
+
+`/manager/nodes/:node_id/onboarding/*` exposes the first bounded Slot onboarding
+surface for active data nodes. `plan`, `start`, and `advance` accept
+`max_slot_moves`, delegate all planning and task creation to
+`internalv2/usecase/management`, and never mutate Slot Raft or `DesiredPeers`
+inside HTTP handlers. `start` and `advance` return `202 Accepted` only when at
+least one Controller-backed `slot_replica_move` task is created; no-op previews
+or no-create results return `200 OK`. `status` is read-only and reports active
+replica-move tasks targeting the selected node. There is intentionally no
+`cancel` route in this stage because no fenced Controller cancel writer exists.
 
 `/manager/realtime-monitor` backs the unified web realtime monitor under
 cluster operations. It parses chart `window`, optional `step`, optional

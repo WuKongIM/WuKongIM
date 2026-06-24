@@ -965,6 +965,88 @@ func TestManagerServerRequestsSlotLeaderTransferFromClusterControl(t *testing.T)
 	}
 }
 
+func TestManagerServerStartsNodeOnboardingFromClusterControl(t *testing.T) {
+	cluster := &fakeManagerCluster{
+		nodeID: 1,
+		snapshot: control.Snapshot{
+			Revision: 12,
+			Nodes: []control.Node{
+				{NodeID: 1, Roles: []control.Role{control.RoleController, control.RoleData}, Status: control.NodeAlive, JoinState: control.NodeJoinStateActive},
+				{NodeID: 2, Roles: []control.Role{control.RoleData}, Status: control.NodeAlive, JoinState: control.NodeJoinStateActive},
+				{NodeID: 3, Roles: []control.Role{control.RoleData}, Status: control.NodeAlive, JoinState: control.NodeJoinStateActive},
+				{NodeID: 4, Roles: []control.Role{control.RoleData}, Status: control.NodeAlive, JoinState: control.NodeJoinStateActive},
+			},
+			Slots: []control.SlotAssignment{{
+				SlotID:          1,
+				DesiredPeers:    []uint64{1, 2, 3},
+				ConfigEpoch:     7,
+				PreferredLeader: 1,
+			}},
+		},
+		slotReplicaMoveResult: control.SlotReplicaMoveResult{
+			Created: true,
+			Task: &control.ReconcileTask{
+				TaskID:      "slot-1-replica-move-1-to-4-r12",
+				SlotID:      1,
+				Kind:        control.TaskKindSlotReplicaMove,
+				Step:        control.TaskStepOpenLearner,
+				SourceNode:  1,
+				TargetNode:  4,
+				TargetPeers: []uint64{4, 2, 3},
+				ConfigEpoch: 7,
+				Status:      control.TaskStatusPending,
+			},
+		},
+	}
+	app, err := newTestApp(t, Config{
+		Manager: ManagerConfig{
+			ListenAddr: "127.0.0.1:0",
+			AuthOn:     true,
+			JWTSecret:  "test-secret",
+			JWTIssuer:  "wukongim-manager",
+			JWTExpire:  time.Hour,
+			Users: []ManagerUserConfig{{
+				Username: "admin",
+				Password: "secret",
+				Permissions: []ManagerPermissionConfig{{
+					Resource: "cluster.node",
+					Actions:  []string{"w"},
+				}},
+			}},
+		},
+	}, WithCluster(cluster), WithGateway(nil))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	srv, ok := app.manager.(*accessmanager.Server)
+	if !ok {
+		t.Fatalf("manager = %T, want *accessmanager.Server", app.manager)
+	}
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/manager/nodes/4/onboarding/start", strings.NewReader(`{"max_slot_moves":1}`))
+	req.Header.Set("Authorization", "Bearer "+mustIssueManagerTokenForAppTest(t, srv, "admin"))
+	req.Header.Set("Content-Type", "application/json")
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusAccepted, rec.Body.String())
+	}
+	if cluster.slotReplicaMoveRequest.SlotID != 1 {
+		t.Fatalf("slot id = %d, want 1", cluster.slotReplicaMoveRequest.SlotID)
+	}
+	if cluster.slotReplicaMoveRequest.SourceNode != 1 || cluster.slotReplicaMoveRequest.TargetNode != 4 {
+		t.Fatalf("move request = %#v, want source 1 target 4", cluster.slotReplicaMoveRequest)
+	}
+	if cluster.slotReplicaMoveRequest.StateRevision != 12 {
+		t.Fatalf("state revision = %d, want 12", cluster.slotReplicaMoveRequest.StateRevision)
+	}
+	if !reflect.DeepEqual(cluster.slotReplicaMoveRequest.TargetPeers, []uint64{4, 2, 3}) {
+		t.Fatalf("target peers = %v, want [4 2 3]", cluster.slotReplicaMoveRequest.TargetPeers)
+	}
+}
+
 func TestManagerServerJoinsNodeFromClusterControl(t *testing.T) {
 	cluster := &fakeManagerCluster{
 		nodeID: 1,
@@ -5226,6 +5308,8 @@ type fakeManagerCluster struct {
 
 	slotLeaderTransferRequest control.SlotLeaderTransferRequest
 	slotLeaderTransferResult  control.SlotLeaderTransferResult
+	slotReplicaMoveRequest    control.SlotReplicaMoveRequest
+	slotReplicaMoveResult     control.SlotReplicaMoveResult
 	joinNodeRequest           control.JoinNodeRequest
 	joinNodeResult            control.JoinNodeResult
 	joinNodeErr               error
@@ -5288,6 +5372,11 @@ func (f *fakeManagerCluster) LocalCompactSlotRaftLog(_ context.Context, slotID u
 func (f *fakeManagerCluster) RequestSlotLeaderTransfer(_ context.Context, req control.SlotLeaderTransferRequest) (control.SlotLeaderTransferResult, error) {
 	f.slotLeaderTransferRequest = req
 	return f.slotLeaderTransferResult, nil
+}
+
+func (f *fakeManagerCluster) RequestSlotReplicaMove(_ context.Context, req control.SlotReplicaMoveRequest) (control.SlotReplicaMoveResult, error) {
+	f.slotReplicaMoveRequest = req
+	return f.slotReplicaMoveResult, nil
 }
 
 func (f *fakeManagerCluster) JoinNode(_ context.Context, req control.JoinNodeRequest) (control.JoinNodeResult, error) {

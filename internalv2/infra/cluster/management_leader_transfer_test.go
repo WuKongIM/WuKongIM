@@ -12,6 +12,7 @@ import (
 )
 
 var _ ManagementLeaderTransferNode = (*clusterv2.Node)(nil)
+var _ ManagementSlotReplicaMoveNode = (*clusterv2.Node)(nil)
 
 func TestManagementLeaderTransferAdapterUsesControlIntent(t *testing.T) {
 	node := &fakeManagementLeaderTransferNode{
@@ -32,6 +33,30 @@ func TestManagementLeaderTransferAdapterUsesControlIntent(t *testing.T) {
 	}
 	if node.request.TargetNode != 2 {
 		t.Fatalf("target node = %d, want 2", node.request.TargetNode)
+	}
+}
+
+func TestManagementSlotReplicaMoveAdapterUsesControlIntent(t *testing.T) {
+	node := &fakeManagementSlotReplicaMoveNode{
+		result: control.SlotReplicaMoveResult{Created: true},
+	}
+	adapter := NewManagementSlotReplicaMoveAdapter(node)
+
+	got, err := adapter.RequestSlotReplicaMove(context.Background(), control.SlotReplicaMoveRequest{
+		SlotID:      1,
+		SourceNode:  1,
+		TargetNode:  4,
+		TargetPeers: []uint64{4, 2, 3},
+	})
+	if err != nil {
+		t.Fatalf("RequestSlotReplicaMove() error = %v", err)
+	}
+
+	if !got.Created {
+		t.Fatalf("RequestSlotReplicaMove() = %#v, want created result", got)
+	}
+	if node.request.TargetNode != 4 {
+		t.Fatalf("target node = %d, want 4", node.request.TargetNode)
 	}
 }
 
@@ -99,6 +124,16 @@ type fakeManagementLeaderTransferNode struct {
 }
 
 func (f *fakeManagementLeaderTransferNode) RequestSlotLeaderTransfer(_ context.Context, req control.SlotLeaderTransferRequest) (control.SlotLeaderTransferResult, error) {
+	f.request = req
+	return f.result, nil
+}
+
+type fakeManagementSlotReplicaMoveNode struct {
+	request control.SlotReplicaMoveRequest
+	result  control.SlotReplicaMoveResult
+}
+
+func (f *fakeManagementSlotReplicaMoveNode) RequestSlotReplicaMove(_ context.Context, req control.SlotReplicaMoveRequest) (control.SlotReplicaMoveResult, error) {
 	f.request = req
 	return f.result, nil
 }

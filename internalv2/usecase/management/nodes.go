@@ -108,6 +108,8 @@ type Options struct {
 	SlotRaft SlotRaftOperator
 	// LeaderTransfer submits Controller-backed Slot leader transfer intents.
 	LeaderTransfer SlotLeaderTransferWriter
+	// SlotReplicaMove submits Controller-backed staged Slot replica move intents.
+	SlotReplicaMove SlotReplicaMoveWriter
 	// SlotRuntimeStatus reads the live Slot Raft status used to validate transfers and summarize node leadership.
 	SlotRuntimeStatus SlotRuntimeStatusReader
 	// ControllerRaft runs node-local Controller Raft status and compaction operations.
@@ -149,6 +151,7 @@ type App struct {
 	logs                   LogReader
 	slotRaft               SlotRaftOperator
 	leaderTransfer         SlotLeaderTransferWriter
+	slotReplicaMove        SlotReplicaMoveWriter
 	slotRuntimeStatus      SlotRuntimeStatusReader
 	controllerRaft         ControllerRaftOperator
 	applicationLogs        ApplicationLogReader
@@ -189,6 +192,7 @@ func New(opts Options) *App {
 		logs:                   opts.Logs,
 		slotRaft:               opts.SlotRaft,
 		leaderTransfer:         opts.LeaderTransfer,
+		slotReplicaMove:        opts.SlotReplicaMove,
 		slotRuntimeStatus:      opts.SlotRuntimeStatus,
 		controllerRaft:         opts.ControllerRaft,
 		applicationLogs:        opts.ApplicationLogs,

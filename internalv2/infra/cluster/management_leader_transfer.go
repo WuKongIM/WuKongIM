@@ -33,6 +33,30 @@ func (a *ManagementLeaderTransferAdapter) RequestSlotLeaderTransfer(ctx context.
 	return a.node.RequestSlotLeaderTransfer(ctx, req)
 }
 
+// ManagementSlotReplicaMoveNode exposes Controller-backed staged Slot replica move intents.
+type ManagementSlotReplicaMoveNode interface {
+	// RequestSlotReplicaMove submits a staged Slot replica move intent to cluster control.
+	RequestSlotReplicaMove(context.Context, control.SlotReplicaMoveRequest) (control.SlotReplicaMoveResult, error)
+}
+
+// ManagementSlotReplicaMoveAdapter adapts clusterv2 control writes to onboarding usecases.
+type ManagementSlotReplicaMoveAdapter struct {
+	node ManagementSlotReplicaMoveNode
+}
+
+// NewManagementSlotReplicaMoveAdapter creates a Slot replica move writer.
+func NewManagementSlotReplicaMoveAdapter(node ManagementSlotReplicaMoveNode) *ManagementSlotReplicaMoveAdapter {
+	return &ManagementSlotReplicaMoveAdapter{node: node}
+}
+
+// RequestSlotReplicaMove submits a validated staged Slot replica move request.
+func (a *ManagementSlotReplicaMoveAdapter) RequestSlotReplicaMove(ctx context.Context, req control.SlotReplicaMoveRequest) (control.SlotReplicaMoveResult, error) {
+	if a == nil || a.node == nil {
+		return control.SlotReplicaMoveResult{}, managementusecase.ErrNodeOnboardingUnavailable
+	}
+	return a.node.RequestSlotReplicaMove(ctx, req)
+}
+
 // ManagementSlotRuntimeStatusReader adapts clusterv2 local Slot Raft status to management usecases.
 type ManagementSlotRuntimeStatusReader struct {
 	operator *ManagementSlotRaftOperator

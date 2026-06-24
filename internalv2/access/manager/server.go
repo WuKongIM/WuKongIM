@@ -83,6 +83,14 @@ type Management interface {
 	PlanSlotLeaderTransfers(ctx context.Context, req managementusecase.SlotLeaderTransferBatchPlanRequest) (managementusecase.SlotLeaderTransferBatchPlanResponse, error)
 	// ExecuteSlotLeaderTransferBatch submits a fenced batch of Slot leader transfer tasks.
 	ExecuteSlotLeaderTransferBatch(ctx context.Context, req managementusecase.SlotLeaderTransferBatchExecuteRequest) (managementusecase.SlotLeaderTransferBatchExecuteResponse, error)
+	// PlanNodeOnboarding previews bounded Slot replica move tasks for a target node.
+	PlanNodeOnboarding(ctx context.Context, req managementusecase.NodeOnboardingPlanRequest) (managementusecase.NodeOnboardingPlanResponse, error)
+	// StartNodeOnboarding creates bounded Slot replica move tasks for a target node.
+	StartNodeOnboarding(ctx context.Context, req managementusecase.NodeOnboardingStartRequest) (managementusecase.NodeOnboardingStartResponse, error)
+	// AdvanceNodeOnboarding creates another bounded set of Slot replica move tasks for a target node.
+	AdvanceNodeOnboarding(ctx context.Context, req managementusecase.NodeOnboardingAdvanceRequest) (managementusecase.NodeOnboardingStartResponse, error)
+	// NodeOnboardingStatus returns active onboarding tasks for a target node.
+	NodeOnboardingStatus(ctx context.Context, req managementusecase.NodeOnboardingStatusRequest) (managementusecase.NodeOnboardingStatusResponse, error)
 	// QueryDiagnostics returns a manager-facing diagnostics aggregate query result.
 	QueryDiagnostics(ctx context.Context, req managementusecase.DiagnosticsQueryRequest) (managementusecase.DiagnosticsQueryResponse, error)
 	// CreateDiagnosticsTrackingRule installs a temporary diagnostics tracking rule.
@@ -297,6 +305,10 @@ func (s *Server) registerRoutes() {
 	}
 	nodeWrites.POST("/nodes/join", s.handleJoinNode)
 	nodeWrites.POST("/nodes/:node_id/activate", s.handleActivateNode)
+	nodeWrites.POST("/nodes/:node_id/onboarding/plan", s.handleNodeOnboardingPlan)
+	nodeWrites.POST("/nodes/:node_id/onboarding/start", s.handleNodeOnboardingStart)
+	nodeWrites.POST("/nodes/:node_id/onboarding/advance", s.handleNodeOnboardingAdvance)
+	nodes.GET("/nodes/:node_id/onboarding/status", s.handleNodeOnboardingStatus)
 
 	slots := s.engine.Group("/manager")
 	if s.auth.enabled() {

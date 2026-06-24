@@ -12,9 +12,14 @@ message retention adapter contract, local-or-remote connection list/detail
 projection, local-or-remote node plugin list/detail projection,
 cluster-authoritative plugin binding list/mutation, DB Inspect,
 diagnostics trace/message/event query orchestration and tracking-rule fan-out,
-node-local diagnostics orchestration, node lifecycle join/activation,
-user management, and system UID projections/actions used by `GET /manager/nodes`,
+node-local diagnostics orchestration, node lifecycle join/activation, bounded
+Slot onboarding, user management, and system UID projections/actions used by
+`GET /manager/nodes`,
 `POST /manager/nodes/join`, `POST /manager/nodes/:node_id/activate`,
+`POST /manager/nodes/:node_id/onboarding/plan`,
+`POST /manager/nodes/:node_id/onboarding/start`,
+`GET /manager/nodes/:node_id/onboarding/status`,
+`POST /manager/nodes/:node_id/onboarding/advance`,
 `GET /manager/slots`, `POST /manager/slots/:slot_id/leader-transfer`,
 `GET /manager/channels`,
 `GET /manager/channel-runtime-meta`, `GET /manager/controller/logs`,
@@ -91,6 +96,26 @@ dedicated unavailable error so HTTP can report `service_unavailable` instead of
 treating wiring as invalid operator input.
 Lifecycle usecase methods do not seed node RPC, poll startup, rebalance Slots,
 or mutate node operation hints.
+
+## Node Onboarding Flow
+
+```text
+manager HTTP handler
+  -> management.App.PlanNodeOnboarding/StartNodeOnboarding/AdvanceNodeOnboarding/NodeOnboardingStatus
+  -> ControlSnapshotReader.LocalControlSnapshot
+  -> SlotReplicaMoveWriter.RequestSlotReplicaMove for start/advance only
+  -> clusterv2 control slot_replica_move task intent
+```
+
+The onboarding usecase implements only the first bounded Slot-replica
+onboarding step. It requires the target to be an active data node, caps
+`max_slot_moves` to `1..5`, scans physical Slots in stable Slot ID order,
+chooses the source peer from the highest projected replica count, skips Slots
+with any active Controller task, and creates at most the requested number of
+`slot_replica_move` tasks. It does not change `DesiredPeers` directly, run Slot
+Raft, poll task completion, migrate Channel replicas, or implement operator
+cancellation without a fenced Controller writer. Status is a read-only
+projection of active `slot_replica_move` tasks targeting the selected node.
 
 ## Slot List Flow
 

@@ -237,7 +237,10 @@ New(Config)
      route through their manager operator adapters, Slot leader transfer
      requests wire the management `LeaderTransfer` and `SlotRuntimeStatus`
      ports when clusterv2 exposes them, use local Slot Raft runtime status for
-     preflight, and submit the validated intent to clusterv2 control, plugin
+     preflight, and submit the validated intent to clusterv2 control, bounded
+     node onboarding requests wire the management `SlotReplicaMove` port when
+     clusterv2 exposes Controller-backed staged replica-move writes and submit
+     only `slot_replica_move` task intents, plugin
      inventory and lifecycle mutations use the local v2 plugin usecase for the
      local node and route peer `node_id` reads/writes plus positive-node plugin
      HTTP forwarding through the manager plugin RPC path, plugin binding

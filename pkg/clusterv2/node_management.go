@@ -39,6 +39,26 @@ func (n *Node) RequestSlotLeaderTransfer(ctx context.Context, req control.SlotLe
 	return writer.RequestSlotLeaderTransfer(ctx, req)
 }
 
+// RequestSlotReplicaMove submits a Controller-backed staged Slot replica move intent.
+func (n *Node) RequestSlotReplicaMove(ctx context.Context, req control.SlotReplicaMoveRequest) (control.SlotReplicaMoveResult, error) {
+	if err := ctxErr(ctx); err != nil {
+		return control.SlotReplicaMoveResult{}, err
+	}
+	if err := n.ensureForeground(); err != nil {
+		return control.SlotReplicaMoveResult{}, err
+	}
+	if n.control == nil {
+		return control.SlotReplicaMoveResult{}, ErrNotStarted
+	}
+	writer, ok := n.control.(interface {
+		RequestSlotReplicaMove(context.Context, control.SlotReplicaMoveRequest) (control.SlotReplicaMoveResult, error)
+	})
+	if !ok {
+		return control.SlotReplicaMoveResult{}, ErrNotStarted
+	}
+	return writer.RequestSlotReplicaMove(ctx, req)
+}
+
 // JoinNode submits a Controller-backed data-node join intent.
 func (n *Node) JoinNode(ctx context.Context, req control.JoinNodeRequest) (control.JoinNodeResult, error) {
 	if err := ctxErr(ctx); err != nil {
