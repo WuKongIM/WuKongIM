@@ -92,6 +92,7 @@ func TestListNodesReportsLifecycleAndCapacity(t *testing.T) {
 					{NodeID: 2, Addr: "127.0.0.1:7012", Roles: []control.Role{control.RoleData}, Status: control.NodeAlive, JoinState: control.NodeJoinStateJoining, CapacityWeight: 2},
 					{NodeID: 3, Addr: "127.0.0.1:7013", Roles: []control.Role{control.RoleData}, Status: control.NodeAlive, JoinState: control.NodeJoinStateLeaving, CapacityWeight: 1},
 					{NodeID: 4, Addr: "127.0.0.1:7014", Roles: []control.Role{control.RoleData}, Status: control.NodeDown, JoinState: control.NodeJoinStateRemoved, CapacityWeight: 1},
+					{NodeID: 5, Addr: "127.0.0.1:7015", Roles: []control.Role{control.RoleData}, Status: control.NodeSuspect, JoinState: control.NodeJoinStateActive, CapacityWeight: 0},
 				},
 			},
 		},
@@ -101,8 +102,8 @@ func TestListNodesReportsLifecycleAndCapacity(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListNodes() error = %v", err)
 	}
-	if len(got.Items) != 4 {
-		t.Fatalf("Items len = %d, want 4", len(got.Items))
+	if len(got.Items) != 5 {
+		t.Fatalf("Items len = %d, want 5", len(got.Items))
 	}
 	want := map[uint64]struct {
 		joinState   string
@@ -113,6 +114,7 @@ func TestListNodesReportsLifecycleAndCapacity(t *testing.T) {
 		2: {joinState: "joining", schedulable: false, capacity: 2},
 		3: {joinState: "leaving", schedulable: false, capacity: 1},
 		4: {joinState: "removed", schedulable: false, capacity: 1},
+		5: {joinState: "active", schedulable: true, capacity: 1},
 	}
 	for _, item := range got.Items {
 		expect := want[item.NodeID]
