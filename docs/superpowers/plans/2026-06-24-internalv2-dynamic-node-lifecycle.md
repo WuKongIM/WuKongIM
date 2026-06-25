@@ -47,12 +47,12 @@ Run:
 
 ```bash
 git log -1 --oneline
-go test ./pkg/controllerv2/state ./pkg/clusterv2/control ./pkg/clusterv2 ./cmd/wukongimv2 ./internalv2/usecase/management
+GOWORK=off go test ./pkg/controllerv2/state ./pkg/clusterv2/control ./pkg/clusterv2 ./cmd/wukongimv2 ./internalv2/usecase/management -count=1
 ```
 
 Expected: tests pass, and the commit includes only Stage 1 foundation changes.
 
-- [ ] **Gate 2: Stage 2 starts only after Gate 1**
+- [x] **Gate 2: Stage 2 starts only after Gate 1**
 
 Confirm:
 
@@ -62,23 +62,23 @@ rg -n "JoinState|CapacityWeight|ClusterSeeds|AdvertiseAddr|JoinToken" pkg/contro
 
 Expected: lifecycle and seed-join foundation exists before adding join writes.
 
-- [ ] **Gate 3: Stage 3 starts only after Stage 2 e2ev2 join passes**
+- [x] **Gate 3: Stage 3 starts only after Stage 2 e2ev2 join passes**
 
 Run:
 
 ```bash
-go test ./test/e2ev2/cluster/dynamic_node_join -run TestDynamicJoinFourthDataNode -count=1
+GOWORK=off go test -tags=e2e ./test/e2ev2/cluster/dynamic_node_join -run TestDynamicJoinFourthDataNode -count=1 -p=1
 ```
 
 Expected: the fourth node joins and activates, while existing Slot assignments remain unchanged.
 
-- [ ] **Gate 4: Stage 4 starts only after Stage 3 Slot move passes**
+- [x] **Gate 4: Stage 4 starts only after Stage 3 Slot move passes**
 
 Run:
 
 ```bash
-go test ./pkg/clusterv2/tasks ./internalv2/usecase/management ./internalv2/access/manager
-go test ./test/e2ev2/cluster/dynamic_node_join -run TestSlotReplicaMoveKeepsSendAvailable -count=1
+GOWORK=off go test ./pkg/clusterv2/tasks ./internalv2/usecase/management ./internalv2/access/manager -count=1
+GOWORK=off go test -tags=e2e ./test/e2ev2/cluster/dynamic_node_join -run TestSlotReplicaMoveKeepsSendAvailable -count=1 -p=1
 ```
 
 Expected: one Slot replica can move to an active node without adding the learner target to `DesiredPeers` before promotion.
@@ -88,8 +88,8 @@ Expected: one Slot replica can move to an active node without adding the learner
 Run:
 
 ```bash
-go test ./internalv2/usecase/management -run 'TestScaleInStatus|TestMarkNodeLeaving' -count=1
-go test ./internalv2/access/manager -run 'TestManagerScaleIn' -count=1
+GOWORK=off go test ./internalv2/usecase/management -run 'TestScaleInStatus|TestMarkNodeLeaving' -count=1
+GOWORK=off go test ./internalv2/access/manager -run 'TestManagerScaleIn' -count=1
 ```
 
 Expected: leaving nodes reject new placement and scale-in status reports unsafe when runtime data is unknown.
