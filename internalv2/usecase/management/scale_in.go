@@ -13,6 +13,8 @@ import (
 var (
 	// ErrNodeScaleInUnavailable reports that scale-in dependencies are unavailable.
 	ErrNodeScaleInUnavailable = errors.New("internalv2/usecase/management: node scale-in unavailable")
+	// ErrNodeScaleInConflict reports a concurrent control-state change during scale-in writes.
+	ErrNodeScaleInConflict = errors.New("internalv2/usecase/management: node scale-in conflict")
 )
 
 // NodeScaleInStatusRequest identifies the data node being evaluated for scale-in.
@@ -119,7 +121,7 @@ type NodeScaleInAdvanceResponse struct {
 	StateRevision uint64
 	// Created is the number of newly accepted tasks.
 	Created uint32
-	// Skipped is the number of candidates that already had an equivalent task.
+	// Skipped is the number of candidates that did not create a new task.
 	Skipped uint32
 	// Candidates contains the submitted Slot move candidates in stable Slot ID order.
 	Candidates []NodeScaleInCandidate
@@ -249,7 +251,7 @@ func (a *App) AdvanceNodeScaleIn(ctx context.Context, req NodeScaleInAdvanceRequ
 		NodeID:        plan.NodeID,
 		GeneratedAt:   plan.GeneratedAt,
 		StateRevision: plan.StateRevision,
-		Candidates:    cloneNodeScaleInCandidates(plan.Candidates),
+		Candidates:    make([]NodeScaleInCandidate, 0, len(plan.Candidates)),
 	}
 	if len(plan.Candidates) == 0 {
 		return response, nil
@@ -257,25 +259,89 @@ func (a *App) AdvanceNodeScaleIn(ctx context.Context, req NodeScaleInAdvanceRequ
 	if a == nil || a.slotReplicaMove == nil {
 		return NodeScaleInAdvanceResponse{}, ErrNodeScaleInUnavailable
 	}
+	retryBudget := len(plan.Candidates) * 2
 	for _, candidate := range plan.Candidates {
-		result, err := a.slotReplicaMove.RequestSlotReplicaMove(ctx, control.SlotReplicaMoveRequest{
-			SlotID:        candidate.SlotID,
-			SourceNode:    candidate.SourceNodeID,
-			TargetNode:    candidate.TargetNodeID,
-			TargetPeers:   append([]uint64(nil), candidate.TargetPeers...),
-			ConfigEpoch:   candidate.ConfigEpoch,
-			StateRevision: plan.StateRevision,
-		})
-		if err != nil {
-			return NodeScaleInAdvanceResponse{}, err
-		}
-		if result.Created {
-			response.Created++
-		} else {
-			response.Skipped++
+		for {
+			fresh, stateRevision, ok, err := a.refreshScaleInCandidate(ctx, req.NodeID, candidate)
+			if err != nil {
+				return NodeScaleInAdvanceResponse{}, err
+			}
+			if !ok {
+				response.Skipped++
+				break
+			}
+			response.StateRevision = stateRevision
+			result, err := a.slotReplicaMove.RequestSlotReplicaMove(ctx, control.SlotReplicaMoveRequest{
+				SlotID:        fresh.SlotID,
+				SourceNode:    fresh.SourceNodeID,
+				TargetNode:    fresh.TargetNodeID,
+				TargetPeers:   append([]uint64(nil), fresh.TargetPeers...),
+				ConfigEpoch:   fresh.ConfigEpoch,
+				StateRevision: stateRevision,
+			})
+			if err != nil {
+				if scaleInRetryableWriteError(err) {
+					if retryBudget <= 0 {
+						if response.Created > 0 {
+							response.Skipped++
+							return response, nil
+						}
+						return NodeScaleInAdvanceResponse{}, ErrNodeScaleInConflict
+					}
+					retryBudget--
+					continue
+				}
+				return NodeScaleInAdvanceResponse{}, err
+			}
+			response.Candidates = append(response.Candidates, fresh)
+			if result.Created {
+				response.Created++
+			} else {
+				response.Skipped++
+			}
+			break
 		}
 	}
 	return response, nil
+}
+
+func (a *App) refreshScaleInCandidate(ctx context.Context, sourceNode uint64, candidate NodeScaleInCandidate) (NodeScaleInCandidate, uint64, bool, error) {
+	if a == nil || a.cluster == nil {
+		return NodeScaleInCandidate{}, 0, false, ErrNodeScaleInUnavailable
+	}
+	snapshot, err := a.cluster.LocalControlSnapshot(ctx)
+	if err != nil {
+		return NodeScaleInCandidate{}, 0, false, err
+	}
+	node, ok := findControlNode(snapshot, sourceNode)
+	if !ok || managerControlJoinState(node.JoinState) != control.NodeJoinStateLeaving || hasRole(node.Roles, control.RoleController) {
+		return NodeScaleInCandidate{}, snapshot.Revision, false, nil
+	}
+	var assignment control.SlotAssignment
+	found := false
+	for _, item := range snapshot.Slots {
+		if item.SlotID == candidate.SlotID {
+			assignment = item
+			found = true
+			break
+		}
+	}
+	if !found || !containsUint64(assignment.DesiredPeers, sourceNode) || scaleInSlotHasBlockingTask(snapshot.Tasks, assignment.SlotID) {
+		return NodeScaleInCandidate{}, snapshot.Revision, false, nil
+	}
+	activeDataNodes := scaleInActiveDataNodeIDs(snapshot.Nodes)
+	targetNodeID, ok := scaleInReplacementNodeID(activeDataNodes, assignment.DesiredPeers)
+	if !ok {
+		return NodeScaleInCandidate{}, snapshot.Revision, false, nil
+	}
+	return NodeScaleInCandidate{
+		SlotID:       assignment.SlotID,
+		SourceNodeID: sourceNode,
+		TargetNodeID: targetNodeID,
+		DesiredPeers: append([]uint64(nil), assignment.DesiredPeers...),
+		TargetPeers:  replaceNodeOnboardingPeer(assignment.DesiredPeers, sourceNode, targetNodeID),
+		ConfigEpoch:  assignment.ConfigEpoch,
+	}, snapshot.Revision, true, nil
 }
 
 func (a *App) markScaleInRuntimeRevisionBlockers(ctx context.Context, snapshot control.Snapshot, response *NodeScaleInStatusResponse) {
@@ -392,6 +458,10 @@ func scaleInSlotHasBlockingTask(tasks []control.ReconcileTask, slotID uint32) bo
 		}
 	}
 	return false
+}
+
+func scaleInRetryableWriteError(err error) bool {
+	return nodeOnboardingRetryableWriteError(err)
 }
 
 func cloneNodeScaleInCandidates(items []NodeScaleInCandidate) []NodeScaleInCandidate {

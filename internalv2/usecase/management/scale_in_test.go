@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
+	cv2 "github.com/WuKongIM/WuKongIM/pkg/controllerv2"
 )
 
 func TestScaleInStatusFailsClosedWhenRuntimeSummaryUnknown(t *testing.T) {
@@ -235,6 +236,34 @@ func TestAdvanceNodeScaleInCreatesMoveAwayFromLeavingNode(t *testing.T) {
 	}
 }
 
+func TestAdvanceNodeScaleInRefreshesRevisionBetweenCandidates(t *testing.T) {
+	snapshot := scaleInSnapshot(17)
+	snapshot.Nodes = append(snapshot.Nodes, control.Node{NodeID: 4, Roles: []control.Role{control.RoleData}, Status: control.NodeAlive, JoinState: control.NodeJoinStateActive})
+	snapshot.Slots = append(snapshot.Slots, control.SlotAssignment{SlotID: 2, DesiredPeers: []uint64{1, 2, 3}, ConfigEpoch: 8, PreferredLeader: 1})
+	cluster := &scaleInMutableSnapshotReader{snapshot: snapshot}
+	writer := &scaleInRevisionFencedMoveWriter{cluster: cluster}
+	app := New(Options{
+		Cluster:         cluster,
+		RuntimeSummary:  fakeNodeRuntimeSummaryReader{summaries: scaleInRuntimeSummariesFor(17, 1, 2, 3, 4)},
+		SlotReplicaMove: writer,
+		SlotRuntimeStatus: &fakeSlotRuntimeStatusReader{statuses: map[uint32]SlotRuntimeStatus{
+			1: {SlotID: 1, LeaderID: 1, CurrentVoters: []uint64{1, 2, 3}},
+			2: {SlotID: 2, LeaderID: 1, CurrentVoters: []uint64{1, 2, 3}},
+		}},
+	})
+
+	got, err := app.AdvanceNodeScaleIn(context.Background(), NodeScaleInAdvanceRequest{NodeID: 2, MaxSlotMoves: 2})
+	if err != nil {
+		t.Fatalf("AdvanceNodeScaleIn() error = %v", err)
+	}
+	if got.Created != 2 || len(writer.requests) != 2 {
+		t.Fatalf("advance = %#v requests=%#v, want two created moves", got, writer.requests)
+	}
+	if writer.requests[0].StateRevision != 17 || writer.requests[1].StateRevision != 18 {
+		t.Fatalf("requests = %#v, want second request to refresh control revision", writer.requests)
+	}
+}
+
 func scaleInSnapshot(revision uint64) control.Snapshot {
 	return control.Snapshot{
 		Revision: revision,
@@ -272,4 +301,39 @@ func scaleInRuntimeSummariesFor(revision uint64, nodeIDs ...uint64) map[uint64]N
 		summaries[nodeID] = NodeRuntimeSummary{NodeID: nodeID, ControlRevision: revision}
 	}
 	return summaries
+}
+
+type scaleInMutableSnapshotReader struct {
+	snapshot control.Snapshot
+}
+
+func (r *scaleInMutableSnapshotReader) NodeID() uint64 { return 1 }
+
+func (r *scaleInMutableSnapshotReader) LocalControlSnapshot(context.Context) (control.Snapshot, error) {
+	return r.snapshot.Clone(), nil
+}
+
+type scaleInRevisionFencedMoveWriter struct {
+	cluster  *scaleInMutableSnapshotReader
+	requests []control.SlotReplicaMoveRequest
+}
+
+func (w *scaleInRevisionFencedMoveWriter) RequestSlotReplicaMove(_ context.Context, req control.SlotReplicaMoveRequest) (control.SlotReplicaMoveResult, error) {
+	w.requests = append(w.requests, req)
+	if req.StateRevision != w.cluster.snapshot.Revision {
+		return control.SlotReplicaMoveResult{}, cv2.ErrExpectedRevisionMismatch
+	}
+	task := control.ReconcileTask{
+		TaskID:      "test-scale-in-move",
+		SlotID:      req.SlotID,
+		Kind:        control.TaskKindSlotReplicaMove,
+		SourceNode:  req.SourceNode,
+		TargetNode:  req.TargetNode,
+		TargetPeers: append([]uint64(nil), req.TargetPeers...),
+		ConfigEpoch: req.ConfigEpoch,
+		Status:      control.TaskStatusPending,
+	}
+	w.cluster.snapshot.Tasks = append(w.cluster.snapshot.Tasks, task)
+	w.cluster.snapshot.Revision++
+	return control.SlotReplicaMoveResult{Created: true, Task: &task}, nil
 }

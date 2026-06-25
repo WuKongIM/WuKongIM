@@ -24,7 +24,7 @@ type managementRuntimeSummaryReader struct {
 
 func (r managementRuntimeSummaryReader) NodeRuntimeSummary(ctx context.Context, nodeID uint64) (managementusecase.NodeRuntimeSummary, error) {
 	if nodeID == r.localNodeID || r.localNodeID == 0 {
-		return r.localRuntimeSummary(nodeID), nil
+		return r.localRuntimeSummary(ctx, nodeID), nil
 	}
 	if r.remote == nil {
 		return managementusecase.NodeRuntimeSummary{NodeID: nodeID, Unknown: true}, nil
@@ -32,7 +32,7 @@ func (r managementRuntimeSummaryReader) NodeRuntimeSummary(ctx context.Context, 
 	return r.remote.NodeRuntimeSummary(ctx, nodeID)
 }
 
-func (r managementRuntimeSummaryReader) localRuntimeSummary(nodeID uint64) managementusecase.NodeRuntimeSummary {
+func (r managementRuntimeSummaryReader) localRuntimeSummary(ctx context.Context, nodeID uint64) managementusecase.NodeRuntimeSummary {
 	summary := managementusecase.NodeRuntimeSummary{
 		NodeID:             nodeID,
 		SessionsByListener: map[string]int{},
@@ -42,7 +42,7 @@ func (r managementRuntimeSummaryReader) localRuntimeSummary(nodeID uint64) manag
 		if snapshots, ok := r.app.cluster.(interface {
 			LocalControlSnapshot(context.Context) (control.Snapshot, error)
 		}); ok && snapshots != nil {
-			if snapshot, err := snapshots.LocalControlSnapshot(context.Background()); err == nil {
+			if snapshot, err := snapshots.LocalControlSnapshot(ctx); err == nil {
 				summary.ControlRevision = snapshot.Revision
 			}
 		}
