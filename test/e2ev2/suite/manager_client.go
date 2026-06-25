@@ -213,6 +213,16 @@ func (m *ManagerClient) MustStartOnboarding(t testing.TB, nodeID uint64, maxSlot
 	return out
 }
 
+// NodeOnboardingStatus returns the target node's active onboarding task status.
+func (m *ManagerClient) NodeOnboardingStatus(ctx context.Context, nodeID uint64) (NodeOnboardingStatusDTO, error) {
+	var out NodeOnboardingStatusDTO
+	_, err := GetJSON(ctx, fmt.Sprintf("%s/manager/nodes/%d/onboarding/status", m.baseURL, nodeID), &out)
+	if err != nil {
+		return NodeOnboardingStatusDTO{}, err
+	}
+	return out, nil
+}
+
 // EventuallyOnboardingSafe waits until the target has no active onboarding tasks.
 func (m *ManagerClient) EventuallyOnboardingSafe(t testing.TB, nodeID uint64, timeout time.Duration) {
 	t.Helper()
@@ -227,8 +237,7 @@ func (m *ManagerClient) EventuallyOnboardingSafe(t testing.TB, nodeID uint64, ti
 		lastErr  error
 	)
 	for {
-		var resp NodeOnboardingStatusDTO
-		_, err := GetJSON(ctx, fmt.Sprintf("%s/manager/nodes/%d/onboarding/status", m.baseURL, nodeID), &resp)
+		resp, err := m.NodeOnboardingStatus(ctx, nodeID)
 		if err == nil {
 			lastResp = resp
 			if resp.Summary.TotalActive == 0 {

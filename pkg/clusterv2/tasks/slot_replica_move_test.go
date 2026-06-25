@@ -101,9 +101,11 @@ func TestSlotReplicaMoveExecutorTransfersLeadershipBeforeRemovingSourceVoter(t *
 	status := moveStatus()
 	status.CurrentVoters = []multiraft.NodeID{1, 2, 3, 4}
 	status.LeaderID = 1
-	runtime := &fakeSlotReplicaMoveRuntime{status: status}
+	afterTransfer := status
+	afterTransfer.LeaderID = 2
+	runtime := &fakeSlotReplicaMoveRuntime{statuses: []multiraft.Status{status, afterTransfer}}
 	writer := &fakeSlotReplicaMoveWriter{}
-	executor := NewSlotReplicaMoveExecutor(SlotReplicaMoveExecutorConfig{LocalNode: 1, Runtime: runtime, MoveWriter: writer})
+	executor := NewSlotReplicaMoveExecutor(SlotReplicaMoveExecutorConfig{LocalNode: 1, Runtime: runtime, MoveWriter: writer, PollInterval: -1})
 
 	err := executor.Reconcile(context.Background(), slotReplicaMoveSnapshot(control.TaskStepRemoveVoter, 2, status))
 
@@ -118,6 +120,33 @@ func TestSlotReplicaMoveExecutorTransfersLeadershipBeforeRemovingSourceVoter(t *
 	}
 	if writer.phaseCalls != 1 || writer.phase.NextStep != control.TaskStepRemoveVoter || writer.phase.ExpectedPhaseIndex != 2 {
 		t.Fatalf("phase = %#v calls=%d, want remove_voter wakeup phase", writer.phase, writer.phaseCalls)
+	}
+	if writer.phase.ObservedConfigIndex != afterTransfer.ConfigAppliedIndex || writer.phase.ObservedVoters == nil {
+		t.Fatalf("phase observed = %#v, want transferred status observation", writer.phase)
+	}
+}
+
+func TestSlotReplicaMoveExecutorFailsWhenSourceLeadershipDoesNotMove(t *testing.T) {
+	status := moveStatus()
+	status.CurrentVoters = []multiraft.NodeID{1, 2, 3, 4}
+	status.LeaderID = 1
+	runtime := &fakeSlotReplicaMoveRuntime{status: status}
+	writer := &fakeSlotReplicaMoveWriter{}
+	executor := NewSlotReplicaMoveExecutor(SlotReplicaMoveExecutorConfig{LocalNode: 1, Runtime: runtime, MoveWriter: writer, PollMax: 1, PollInterval: -1})
+
+	err := executor.Reconcile(context.Background(), slotReplicaMoveSnapshot(control.TaskStepRemoveVoter, 2, status))
+
+	if err != nil {
+		t.Fatalf("Reconcile() error = %v", err)
+	}
+	if runtime.transferCalls != 1 {
+		t.Fatalf("transfer calls=%d, want one transfer attempt", runtime.transferCalls)
+	}
+	if writer.phaseCalls != 0 {
+		t.Fatalf("phase = %#v, want no wakeup phase before leader changes", writer.phase)
+	}
+	if len(writer.failed) != 1 || writer.failed[0].Err == "" {
+		t.Fatalf("failed = %#v, want leadership transfer observation failure", writer.failed)
 	}
 }
 

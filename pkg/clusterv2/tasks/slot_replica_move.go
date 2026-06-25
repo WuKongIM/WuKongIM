@@ -218,7 +218,16 @@ func (e *SlotReplicaMoveExecutor) removeVoter(ctx context.Context, task control.
 		if err := e.cfg.Runtime.TransferLeadership(ctx, multiraft.SlotID(task.SlotID), multiraft.NodeID(target)); err != nil {
 			return e.failTask(ctx, task, err.Error())
 		}
-		return e.advancePhase(ctx, task, control.TaskStepRemoveVoter, status)
+		observed, ok, err := e.waitForStatus(ctx, task, status, func(st multiraft.Status) bool {
+			return st.LeaderID != 0 && uint64(st.LeaderID) != task.SourceNode
+		})
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return e.failTask(ctx, task, "slot replica move leader transfer observation timed out")
+		}
+		return e.advancePhase(ctx, task, control.TaskStepRemoveVoter, observed)
 	}
 	if err := e.changeConfig(ctx, task, multiraft.ConfigChange{
 		Type:   multiraft.RemoveVoter,

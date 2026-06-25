@@ -323,7 +323,11 @@ Slot Raft config changes; those stay in the management planner, ControllerV2
 task intent, and clusterv2 task executor respectively. The onboarding target is
 task-local staged state while it is opened and caught up as a learner; it is not
 added to `DesiredPeers` until the executor commits the final assignment after
-Slot Raft voters match the target set.
+Slot Raft voters match the target set. When the source replica is still the
+observed Slot leader, the executor transfers leadership and waits for a
+non-source leader observation before removing the source voter, so the next
+executor wakeup is based on observed Raft state rather than a blind control
+revision churn.
 
 ## Management Node Lifecycle Flow
 
