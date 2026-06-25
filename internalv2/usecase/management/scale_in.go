@@ -21,6 +21,22 @@ type NodeScaleInStatusRequest struct {
 	NodeID uint64
 }
 
+// NodeScaleInPlanRequest describes a bounded Slot drain preview for a leaving node.
+type NodeScaleInPlanRequest struct {
+	// NodeID is the leaving data node whose Slot replicas should move away.
+	NodeID uint64
+	// MaxSlotMoves bounds the number of Slot replica move candidates.
+	MaxSlotMoves uint32
+}
+
+// NodeScaleInAdvanceRequest describes a bounded Slot drain execute request.
+type NodeScaleInAdvanceRequest struct {
+	// NodeID is the leaving data node whose Slot replicas should move away.
+	NodeID uint64
+	// MaxSlotMoves bounds the number of Slot replica move tasks to create.
+	MaxSlotMoves uint32
+}
+
 // NodeScaleInStatusResponse describes whether a leaving node can safely proceed.
 type NodeScaleInStatusResponse struct {
 	// NodeID is the evaluated node identity.
@@ -61,6 +77,52 @@ type NodeScaleInStatusResponse struct {
 	ActiveTaskCount int
 	// FailedTaskCount counts failed Controller tasks that reference the target node.
 	FailedTaskCount int
+}
+
+// NodeScaleInCandidate describes one planned Slot replica move away from a leaving node.
+type NodeScaleInCandidate struct {
+	// SlotID is the physical Slot selected for a move.
+	SlotID uint32
+	// SourceNodeID is the leaving peer that will be replaced.
+	SourceNodeID uint64
+	// TargetNodeID is the active data node that will replace SourceNodeID.
+	TargetNodeID uint64
+	// DesiredPeers is the current desired peer set observed in control state.
+	DesiredPeers []uint64
+	// TargetPeers is the desired peer set after replacing SourceNodeID with TargetNodeID.
+	TargetPeers []uint64
+	// ConfigEpoch fences the move to the observed Slot assignment.
+	ConfigEpoch uint64
+}
+
+// NodeScaleInPlanResponse is a bounded deterministic Slot drain preview.
+type NodeScaleInPlanResponse struct {
+	// NodeID is the leaving data node being drained.
+	NodeID uint64
+	// GeneratedAt records when the plan was assembled.
+	GeneratedAt time.Time
+	// StateRevision fences the plan to the observed control snapshot.
+	StateRevision uint64
+	// Candidates contains Slot move candidates in stable Slot ID order.
+	Candidates []NodeScaleInCandidate
+	// BlockedByStatus reports that scale-in safety status blocks task creation.
+	BlockedByStatus bool
+}
+
+// NodeScaleInAdvanceResponse reports bounded Slot drain task creation results.
+type NodeScaleInAdvanceResponse struct {
+	// NodeID is the leaving data node being drained.
+	NodeID uint64
+	// GeneratedAt records when the response was assembled.
+	GeneratedAt time.Time
+	// StateRevision fences the request to the observed control snapshot.
+	StateRevision uint64
+	// Created is the number of newly accepted tasks.
+	Created uint32
+	// Skipped is the number of candidates that already had an equivalent task.
+	Skipped uint32
+	// Candidates contains the submitted Slot move candidates in stable Slot ID order.
+	Candidates []NodeScaleInCandidate
 }
 
 // NodeScaleInStatus returns a fail-closed readiness view for removing a leaving node.
@@ -108,6 +170,111 @@ func (a *App) NodeScaleInStatus(ctx context.Context, req NodeScaleInStatusReques
 		!response.BlockedBySlotRuntime &&
 		!response.BlockedByTasks &&
 		!response.UnknownRuntime
+	return response, nil
+}
+
+// PlanNodeScaleIn returns a deterministic bounded Slot replica drain preview.
+func (a *App) PlanNodeScaleIn(ctx context.Context, req NodeScaleInPlanRequest) (NodeScaleInPlanResponse, error) {
+	if err := ctxErr(ctx); err != nil {
+		return NodeScaleInPlanResponse{}, err
+	}
+	if req.NodeID == 0 {
+		return NodeScaleInPlanResponse{}, metadb.ErrInvalidArgument
+	}
+	if a == nil || a.cluster == nil {
+		return NodeScaleInPlanResponse{}, ErrNodeScaleInUnavailable
+	}
+	snapshot, err := a.cluster.LocalControlSnapshot(ctx)
+	if err != nil {
+		return NodeScaleInPlanResponse{}, err
+	}
+	maxMoves := normalizeNodeOnboardingMaxMoves(req.MaxSlotMoves)
+	response := NodeScaleInPlanResponse{
+		NodeID:        req.NodeID,
+		GeneratedAt:   a.now(),
+		StateRevision: snapshot.Revision,
+		Candidates:    make([]NodeScaleInCandidate, 0, maxMoves),
+	}
+	node, ok := findControlNode(snapshot, req.NodeID)
+	if !ok || managerControlJoinState(node.JoinState) != control.NodeJoinStateLeaving || hasRole(node.Roles, control.RoleController) {
+		response.BlockedByStatus = true
+		return response, nil
+	}
+	status, err := a.NodeScaleInStatus(ctx, NodeScaleInStatusRequest{NodeID: req.NodeID})
+	if err != nil {
+		return NodeScaleInPlanResponse{}, err
+	}
+	if scaleInStatusBlocksPlan(status) {
+		response.BlockedByStatus = true
+		return response, nil
+	}
+
+	activeDataNodes := scaleInActiveDataNodeIDs(snapshot.Nodes)
+	assignments := append([]control.SlotAssignment(nil), snapshot.Slots...)
+	sort.Slice(assignments, func(i, j int) bool { return assignments[i].SlotID < assignments[j].SlotID })
+	for _, assignment := range assignments {
+		if uint32(len(response.Candidates)) >= maxMoves {
+			break
+		}
+		if !containsUint64(assignment.DesiredPeers, req.NodeID) {
+			continue
+		}
+		if scaleInSlotHasBlockingTask(snapshot.Tasks, assignment.SlotID) {
+			continue
+		}
+		targetNodeID, ok := scaleInReplacementNodeID(activeDataNodes, assignment.DesiredPeers)
+		if !ok {
+			continue
+		}
+		response.Candidates = append(response.Candidates, NodeScaleInCandidate{
+			SlotID:       assignment.SlotID,
+			SourceNodeID: req.NodeID,
+			TargetNodeID: targetNodeID,
+			DesiredPeers: append([]uint64(nil), assignment.DesiredPeers...),
+			TargetPeers:  replaceNodeOnboardingPeer(assignment.DesiredPeers, req.NodeID, targetNodeID),
+			ConfigEpoch:  assignment.ConfigEpoch,
+		})
+	}
+	response.Candidates = cloneNodeScaleInCandidates(response.Candidates)
+	return response, nil
+}
+
+// AdvanceNodeScaleIn creates a bounded set of staged Slot replica move tasks.
+func (a *App) AdvanceNodeScaleIn(ctx context.Context, req NodeScaleInAdvanceRequest) (NodeScaleInAdvanceResponse, error) {
+	plan, err := a.PlanNodeScaleIn(ctx, NodeScaleInPlanRequest{NodeID: req.NodeID, MaxSlotMoves: req.MaxSlotMoves})
+	if err != nil {
+		return NodeScaleInAdvanceResponse{}, err
+	}
+	response := NodeScaleInAdvanceResponse{
+		NodeID:        plan.NodeID,
+		GeneratedAt:   plan.GeneratedAt,
+		StateRevision: plan.StateRevision,
+		Candidates:    cloneNodeScaleInCandidates(plan.Candidates),
+	}
+	if len(plan.Candidates) == 0 {
+		return response, nil
+	}
+	if a == nil || a.slotReplicaMove == nil {
+		return NodeScaleInAdvanceResponse{}, ErrNodeScaleInUnavailable
+	}
+	for _, candidate := range plan.Candidates {
+		result, err := a.slotReplicaMove.RequestSlotReplicaMove(ctx, control.SlotReplicaMoveRequest{
+			SlotID:        candidate.SlotID,
+			SourceNode:    candidate.SourceNodeID,
+			TargetNode:    candidate.TargetNodeID,
+			TargetPeers:   append([]uint64(nil), candidate.TargetPeers...),
+			ConfigEpoch:   candidate.ConfigEpoch,
+			StateRevision: plan.StateRevision,
+		})
+		if err != nil {
+			return NodeScaleInAdvanceResponse{}, err
+		}
+		if result.Created {
+			response.Created++
+		} else {
+			response.Skipped++
+		}
+	}
 	return response, nil
 }
 
@@ -181,4 +348,58 @@ func scaleInTaskReferencesNode(task control.ReconcileTask, targetNode uint64) bo
 	return task.SourceNode == targetNode ||
 		task.TargetNode == targetNode ||
 		containsUint64(task.TargetPeers, targetNode)
+}
+
+func scaleInStatusBlocksPlan(status NodeScaleInStatusResponse) bool {
+	return status.BlockedByMissingNode ||
+		status.BlockedByJoinState ||
+		status.BlockedByControlRevision ||
+		status.BlockedByControllerRole ||
+		status.BlockedBySlotLeadership ||
+		status.BlockedBySlotRuntime ||
+		status.BlockedByTasks ||
+		status.UnknownRuntime
+}
+
+func scaleInActiveDataNodeIDs(nodes []control.Node) []uint64 {
+	out := make([]uint64, 0, len(nodes))
+	for _, node := range nodes {
+		if isActiveDataNode(node) {
+			out = append(out, node.NodeID)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
+	return out
+}
+
+func scaleInReplacementNodeID(activeDataNodes []uint64, desiredPeers []uint64) (uint64, bool) {
+	for _, nodeID := range activeDataNodes {
+		if !containsUint64(desiredPeers, nodeID) {
+			return nodeID, true
+		}
+	}
+	return 0, false
+}
+
+func scaleInSlotHasBlockingTask(tasks []control.ReconcileTask, slotID uint32) bool {
+	for _, task := range tasks {
+		if task.SlotID != slotID {
+			continue
+		}
+		switch task.Status {
+		case control.TaskStatusPending, control.TaskStatusRunning, control.TaskStatusFailed:
+			return true
+		}
+	}
+	return false
+}
+
+func cloneNodeScaleInCandidates(items []NodeScaleInCandidate) []NodeScaleInCandidate {
+	out := make([]NodeScaleInCandidate, len(items))
+	for i, item := range items {
+		out[i] = item
+		out[i].DesiredPeers = append([]uint64(nil), item.DesiredPeers...)
+		out[i].TargetPeers = append([]uint64(nil), item.TargetPeers...)
+	}
+	return out
 }

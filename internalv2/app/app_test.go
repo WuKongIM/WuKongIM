@@ -755,6 +755,24 @@ func TestManagerServerListsLocalNodeRuntimeSummary(t *testing.T) {
 	}
 }
 
+func TestManagementRuntimeSummaryReportsLocalControlRevision(t *testing.T) {
+	app := &App{
+		cluster: &fakeManagerCluster{
+			nodeID:   2,
+			snapshot: control.Snapshot{Revision: 42},
+		},
+	}
+	reader := managementRuntimeSummaryReader{app: app, localNodeID: 2}
+
+	got, err := reader.NodeRuntimeSummary(context.Background(), 2)
+	if err != nil {
+		t.Fatalf("NodeRuntimeSummary() error = %v", err)
+	}
+	if got.ControlRevision != 42 {
+		t.Fatalf("runtime summary = %#v, want control revision 42", got)
+	}
+}
+
 func TestNewRegistersManagerLogRPCWhenClusterSupportsLogReads(t *testing.T) {
 	cluster := &fakeManagerCluster{nodeID: 1}
 

@@ -4,6 +4,7 @@ import (
 	"context"
 
 	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
+	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
 	gatewaycore "github.com/WuKongIM/WuKongIM/pkg/gateway/core"
 )
 
@@ -36,6 +37,15 @@ func (r managementRuntimeSummaryReader) localRuntimeSummary(nodeID uint64) manag
 		NodeID:             nodeID,
 		SessionsByListener: map[string]int{},
 		Unknown:            true,
+	}
+	if r.app != nil {
+		if snapshots, ok := r.app.cluster.(interface {
+			LocalControlSnapshot(context.Context) (control.Snapshot, error)
+		}); ok && snapshots != nil {
+			if snapshot, err := snapshots.LocalControlSnapshot(context.Background()); err == nil {
+				summary.ControlRevision = snapshot.Revision
+			}
+		}
 	}
 	if r.app == nil || (r.app.online == nil && r.app.gateway == nil) {
 		return summary

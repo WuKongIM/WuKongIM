@@ -216,6 +216,7 @@ func readManagerConnection(body []byte, offset int) (managementusecase.Connectio
 
 func appendNodeRuntimeSummary(dst []byte, summary managementusecase.NodeRuntimeSummary) []byte {
 	dst = appendUvarint(dst, summary.NodeID)
+	dst = appendUvarint(dst, summary.ControlRevision)
 	dst = appendManagerConnectionInt(dst, summary.ActiveOnline)
 	dst = appendManagerConnectionInt(dst, summary.ClosingOnline)
 	dst = appendManagerConnectionInt(dst, summary.TotalOnline)
@@ -235,6 +236,10 @@ func readNodeRuntimeSummary(body []byte, offset int) (managementusecase.NodeRunt
 		return summary, offset, err
 	}
 	summary.NodeID = value
+	if value, offset, err = readUvarint(body, offset); err != nil {
+		return summary, offset, err
+	}
+	summary.ControlRevision = value
 	if summary.ActiveOnline, offset, err = readManagerConnectionInt(body, offset); err != nil {
 		return summary, offset, err
 	}

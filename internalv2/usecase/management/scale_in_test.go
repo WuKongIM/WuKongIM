@@ -206,6 +206,35 @@ func TestScaleInStatusReportsSafetyBlockerCategories(t *testing.T) {
 	}
 }
 
+func TestAdvanceNodeScaleInCreatesMoveAwayFromLeavingNode(t *testing.T) {
+	snap := scaleInSnapshot(17)
+	snap.Nodes = append(snap.Nodes, control.Node{NodeID: 4, Roles: []control.Role{control.RoleData}, Status: control.NodeAlive, JoinState: control.NodeJoinStateActive})
+	writer := &fakeSlotReplicaMoveWriter{result: control.SlotReplicaMoveResult{Created: true}}
+	app := New(Options{
+		Cluster:         fakeNodeSnapshotReader{snapshot: snap},
+		RuntimeSummary:  fakeNodeRuntimeSummaryReader{summaries: scaleInRuntimeSummariesFor(17, 1, 2, 3, 4)},
+		SlotReplicaMove: writer,
+		SlotRuntimeStatus: &fakeSlotRuntimeStatusReader{
+			statuses: map[uint32]SlotRuntimeStatus{1: {SlotID: 1, LeaderID: 1, CurrentVoters: []uint64{1, 2, 3}}},
+		},
+	})
+
+	got, err := app.AdvanceNodeScaleIn(context.Background(), NodeScaleInAdvanceRequest{NodeID: 2, MaxSlotMoves: 1})
+	if err != nil {
+		t.Fatalf("AdvanceNodeScaleIn() error = %v", err)
+	}
+	if got.Created != 1 || len(writer.requests) != 1 {
+		t.Fatalf("advance = %#v requests=%#v, want one created move", got, writer.requests)
+	}
+	req := writer.requests[0]
+	if req.SlotID != 1 || req.SourceNode != 2 || req.TargetNode != 4 || req.StateRevision != 17 || req.ConfigEpoch != 7 {
+		t.Fatalf("move request = %#v, want slot 1 source 2 target 4 revision 17 epoch 7", req)
+	}
+	if !sameUint64Slice(req.TargetPeers, []uint64{1, 4, 3}) {
+		t.Fatalf("target peers = %v, want [1 4 3]", req.TargetPeers)
+	}
+}
+
 func scaleInSnapshot(revision uint64) control.Snapshot {
 	return control.Snapshot{
 		Revision: revision,
