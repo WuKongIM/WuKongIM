@@ -460,6 +460,41 @@ func (r *Runtime) ActivateNode(ctx context.Context, req ActivateNodeRequest) (Ac
 	return activateNodeResultFromCV2(result), nil
 }
 
+// MarkNodeLeaving submits a node leaving intent.
+func (r *Runtime) MarkNodeLeaving(ctx context.Context, req MarkNodeLeavingRequest) (MarkNodeLeavingResult, error) {
+	if err := ctxErr(ctx); err != nil {
+		return MarkNodeLeavingResult{}, err
+	}
+	if r == nil || r.backend == nil {
+		return MarkNodeLeavingResult{}, cv2.ErrNotStarted
+	}
+	if r.canForwardControlWriteToLeader() {
+		resp, err := r.forwardControlWrite(ctx, ControlWriteRequest{
+			Action:          ControlWriteActionMarkNodeLeaving,
+			MarkNodeLeaving: req,
+		})
+		if err != nil {
+			return MarkNodeLeavingResult{}, err
+		}
+		return resp.MarkNodeLeaving, nil
+	}
+	result, err := r.backend.MarkNodeLeaving(ctx, cv2MarkNodeLeavingRequest(req))
+	if shouldForwardControlWrite(err) {
+		resp, err := r.forwardControlWriteAfterError(ctx, ControlWriteRequest{
+			Action:          ControlWriteActionMarkNodeLeaving,
+			MarkNodeLeaving: req,
+		}, err)
+		if err != nil {
+			return MarkNodeLeavingResult{}, err
+		}
+		return resp.MarkNodeLeaving, nil
+	}
+	if err != nil {
+		return MarkNodeLeavingResult{}, err
+	}
+	return markNodeLeavingResultFromCV2(result), nil
+}
+
 func shouldForwardTaskWrite(err error) bool {
 	return errors.Is(err, cv2.ErrNotLeader) || errors.Is(err, cv2.ErrNotStarted)
 }

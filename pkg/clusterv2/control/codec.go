@@ -156,6 +156,8 @@ const (
 	ControlWriteActionJoinNode ControlWriteAction = "join_node"
 	// ControlWriteActionActivateNode submits a node activation intent.
 	ControlWriteActionActivateNode ControlWriteAction = "activate_node"
+	// ControlWriteActionMarkNodeLeaving submits a node leaving intent.
+	ControlWriteActionMarkNodeLeaving ControlWriteAction = "mark_node_leaving"
 	// ControlWriteActionSlotReplicaMove submits a staged Slot replica move intent.
 	ControlWriteActionSlotReplicaMove ControlWriteAction = "slot_replica_move"
 )
@@ -168,6 +170,8 @@ type ControlWriteRequest struct {
 	JoinNode JoinNodeRequest `json:"join_node,omitempty"`
 	// ActivateNode carries a node activation intent.
 	ActivateNode ActivateNodeRequest `json:"activate_node,omitempty"`
+	// MarkNodeLeaving carries a node leaving intent.
+	MarkNodeLeaving MarkNodeLeavingRequest `json:"mark_node_leaving,omitempty"`
 	// SlotReplicaMove carries a staged Slot replica move intent.
 	SlotReplicaMove SlotReplicaMoveRequest `json:"slot_replica_move,omitempty"`
 }
@@ -176,6 +180,7 @@ type controlWriteRequestJSON struct {
 	Action          ControlWriteAction      `json:"action"`
 	JoinNode        *JoinNodeRequest        `json:"join_node,omitempty"`
 	ActivateNode    *ActivateNodeRequest    `json:"activate_node,omitempty"`
+	MarkNodeLeaving *MarkNodeLeavingRequest `json:"mark_node_leaving,omitempty"`
 	SlotReplicaMove *SlotReplicaMoveRequest `json:"slot_replica_move,omitempty"`
 }
 
@@ -187,6 +192,8 @@ func (req ControlWriteRequest) MarshalJSON() ([]byte, error) {
 		wire.JoinNode = &req.JoinNode
 	case ControlWriteActionActivateNode:
 		wire.ActivateNode = &req.ActivateNode
+	case ControlWriteActionMarkNodeLeaving:
+		wire.MarkNodeLeaving = &req.MarkNodeLeaving
 	case ControlWriteActionSlotReplicaMove:
 		wire.SlotReplicaMove = &req.SlotReplicaMove
 	}
@@ -199,6 +206,8 @@ type ControlWriteResponse struct {
 	JoinNode JoinNodeResult `json:"join_node,omitempty"`
 	// ActivateNode carries the result of a node activation intent.
 	ActivateNode ActivateNodeResult `json:"activate_node,omitempty"`
+	// MarkNodeLeaving carries the result of a node leaving intent.
+	MarkNodeLeaving MarkNodeLeavingResult `json:"mark_node_leaving,omitempty"`
 	// SlotReplicaMove carries the result of a staged Slot replica move intent.
 	SlotReplicaMove SlotReplicaMoveResult `json:"slot_replica_move,omitempty"`
 }
@@ -206,6 +215,7 @@ type ControlWriteResponse struct {
 type controlWriteResponseJSON struct {
 	JoinNode        *JoinNodeResult        `json:"join_node,omitempty"`
 	ActivateNode    *ActivateNodeResult    `json:"activate_node,omitempty"`
+	MarkNodeLeaving *MarkNodeLeavingResult `json:"mark_node_leaving,omitempty"`
 	SlotReplicaMove *SlotReplicaMoveResult `json:"slot_replica_move,omitempty"`
 }
 
@@ -217,6 +227,9 @@ func (resp ControlWriteResponse) MarshalJSON() ([]byte, error) {
 	}
 	if !reflect.DeepEqual(resp.ActivateNode, ActivateNodeResult{}) {
 		wire.ActivateNode = &resp.ActivateNode
+	}
+	if !reflect.DeepEqual(resp.MarkNodeLeaving, MarkNodeLeavingResult{}) {
+		wire.MarkNodeLeaving = &resp.MarkNodeLeaving
 	}
 	if !reflect.DeepEqual(resp.SlotReplicaMove, SlotReplicaMoveResult{}) {
 		wire.SlotReplicaMove = &resp.SlotReplicaMove

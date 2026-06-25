@@ -236,6 +236,40 @@ func TestControlWriteClientPreservesWrappedSemanticErrorIdentity(t *testing.T) {
 	}
 }
 
+func TestNewControlWriteHandlerCallsMarkNodeLeaving(t *testing.T) {
+	network := clusternet.NewLocalNetwork()
+	applier := &recordingControlWriteApplier{
+		markNodeLeavingResult: MarkNodeLeavingResult{
+			Changed: true,
+			Node: Node{
+				NodeID:         4,
+				Addr:           "n4",
+				Roles:          []Role{RoleData},
+				JoinState:      NodeJoinStateLeaving,
+				Status:         NodeAlive,
+				CapacityWeight: 1,
+			},
+			Revision: 9,
+		},
+	}
+	network.Register(1, clusternet.RPCControlWrite, NewControlWriteHandler(applier))
+	client := NewControlWriteClient(network)
+
+	result, err := client.Submit(context.Background(), 1, ControlWriteRequest{
+		Action:          ControlWriteActionMarkNodeLeaving,
+		MarkNodeLeaving: MarkNodeLeavingRequest{NodeID: 4},
+	})
+	if err != nil {
+		t.Fatalf("Submit(mark node leaving) error = %v", err)
+	}
+	if len(applier.markNodeLeaving) != 1 || applier.markNodeLeaving[0].NodeID != 4 {
+		t.Fatalf("markNodeLeaving = %#v, want node 4", applier.markNodeLeaving)
+	}
+	if !result.MarkNodeLeaving.Changed || result.MarkNodeLeaving.Node.JoinState != NodeJoinStateLeaving {
+		t.Fatalf("Submit(mark node leaving) = %#v, want leaving result", result.MarkNodeLeaving)
+	}
+}
+
 type recordingTaskApplier struct {
 	completed       []TaskResult
 	failed          []TaskResult
@@ -283,6 +317,9 @@ type recordingControlWriteApplier struct {
 	activateCalls         int
 	activateResult        ActivateNodeResult
 	activateErr           error
+	markNodeLeaving       []MarkNodeLeavingRequest
+	markNodeLeavingResult MarkNodeLeavingResult
+	markNodeLeavingErr    error
 	slotReplicaMoves      []SlotReplicaMoveRequest
 	slotReplicaMoveResult SlotReplicaMoveResult
 	slotReplicaMoveErr    error
@@ -303,6 +340,14 @@ func (a *recordingControlWriteApplier) ActivateNode(ctx context.Context, req Act
 		return ActivateNodeResult{}, a.activateErr
 	}
 	return a.activateResult, nil
+}
+
+func (a *recordingControlWriteApplier) MarkNodeLeaving(ctx context.Context, req MarkNodeLeavingRequest) (MarkNodeLeavingResult, error) {
+	a.markNodeLeaving = append(a.markNodeLeaving, req)
+	if a.markNodeLeavingErr != nil {
+		return MarkNodeLeavingResult{}, a.markNodeLeavingErr
+	}
+	return a.markNodeLeavingResult, nil
 }
 
 func (a *recordingControlWriteApplier) RequestSlotReplicaMove(ctx context.Context, req SlotReplicaMoveRequest) (SlotReplicaMoveResult, error) {

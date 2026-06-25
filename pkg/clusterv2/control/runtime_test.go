@@ -137,6 +137,9 @@ func TestRuntimeLifecycleWritesNotStartedWithoutForwardPreserveNotStarted(t *tes
 	if _, err := runtime.ActivateNode(context.Background(), ActivateNodeRequest{NodeID: 2}); !errors.Is(err, cv2.ErrNotStarted) {
 		t.Fatalf("ActivateNode() error = %v, want ErrNotStarted", err)
 	}
+	if _, err := runtime.MarkNodeLeaving(context.Background(), MarkNodeLeavingRequest{NodeID: 2}); !errors.Is(err, cv2.ErrNotStarted) {
+		t.Fatalf("MarkNodeLeaving() error = %v, want ErrNotStarted", err)
+	}
 }
 
 func TestRuntimeRequestSlotLeaderTransferReturnsTaskAfterForward(t *testing.T) {
@@ -431,6 +434,120 @@ func TestRuntimeActivateNodeReturnsControlWriteAfterForward(t *testing.T) {
 	}
 	if !result.Changed || result.Node.NodeID != 4 || result.Node.JoinState != NodeJoinStateActive {
 		t.Fatalf("ActivateNode() = %#v, want forwarded active node change", result)
+	}
+}
+
+func TestRuntimeMarkNodeLeavingReturnsControlWriteAfterForward(t *testing.T) {
+	network := clusternet.NewLocalNetwork()
+	controlWriteClient := NewControlWriteClient(network)
+	voters := []RuntimeVoter{{NodeID: 1, Addr: "n1"}, {NodeID: 2, Addr: "n2"}, {NodeID: 3, Addr: "n3"}}
+	runtimes := make([]*Runtime, 0, len(voters))
+	for _, voter := range voters {
+		rt, err := NewRuntime(RuntimeConfig{
+			NodeID:             voter.NodeID,
+			Addr:               voter.Addr,
+			StateDir:           t.TempDir(),
+			ClusterID:          "cluster-forward-mark-node-leaving",
+			Role:               RuntimeRoleVoter,
+			Voters:             voters,
+			AllowBootstrap:     true,
+			InitialSlotCount:   1,
+			HashSlotCount:      4,
+			ReplicaCount:       3,
+			TickInterval:       10 * time.Millisecond,
+			RaftTransport:      NewRaftTransport(network),
+			ControlWriteClient: controlWriteClient,
+		})
+		if err != nil {
+			t.Fatalf("NewRuntime(%d) error = %v", voter.NodeID, err)
+		}
+		network.Register(voter.NodeID, clusternet.RPCControlRaft, NewRaftHandler(rt))
+		runtimes = append(runtimes, rt)
+	}
+	startCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	startErrs := make(chan error, len(runtimes))
+	for _, rt := range runtimes {
+		rt := rt
+		go func() { startErrs <- rt.Start(startCtx) }()
+		t.Cleanup(func() { _ = rt.Stop(context.Background()) })
+	}
+	for range runtimes {
+		if err := <-startErrs; err != nil {
+			t.Fatalf("Start() error = %v", err)
+		}
+	}
+
+	var leaderID uint64
+	var leader *Runtime
+	var follower *Runtime
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		for _, rt := range runtimes {
+			leaderID = rt.LeaderID()
+			if leaderID == 0 {
+				continue
+			}
+			for _, candidate := range runtimes {
+				if candidate.cfg.NodeID == leaderID {
+					leader = candidate
+				} else {
+					follower = candidate
+				}
+			}
+			if leader != nil {
+				snap, err := leader.LocalSnapshot(context.Background())
+				if err != nil || snap.Revision == 0 {
+					leader = nil
+					follower = nil
+					continue
+				}
+			}
+			if leader != nil && follower != nil {
+				break
+			}
+		}
+		if leader != nil && follower != nil {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if follower == nil || leader == nil {
+		t.Fatal("timeout waiting for leader and follower runtime")
+	}
+
+	network.Register(leaderID, clusternet.RPCControlWrite, NewControlWriteHandler(leader))
+	if _, err := leader.JoinNode(context.Background(), JoinNodeRequest{NodeID: 4, Addr: "n4", Roles: []Role{RoleData}, CapacityWeight: 1}); err != nil {
+		t.Fatalf("leader JoinNode() error = %v", err)
+	}
+	if _, err := leader.ActivateNode(context.Background(), ActivateNodeRequest{NodeID: 4}); err != nil {
+		t.Fatalf("leader ActivateNode() error = %v", err)
+	}
+	observedActive := false
+	deadline = time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) && !observedActive {
+		snap, err := follower.LocalSnapshot(context.Background())
+		if err == nil {
+			for _, node := range snap.Nodes {
+				if node.NodeID == 4 && node.JoinState == NodeJoinStateActive {
+					observedActive = true
+					break
+				}
+			}
+		}
+		if !observedActive {
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+	if !observedActive {
+		t.Fatal("timeout waiting for follower to observe active node")
+	}
+	result, err := follower.MarkNodeLeaving(context.Background(), MarkNodeLeavingRequest{NodeID: 4})
+	if err != nil {
+		t.Fatalf("MarkNodeLeaving() error = %v", err)
+	}
+	if !result.Changed || result.Node.NodeID != 4 || result.Node.JoinState != NodeJoinStateLeaving {
+		t.Fatalf("MarkNodeLeaving() = %#v, want forwarded leaving node change", result)
 	}
 }
 

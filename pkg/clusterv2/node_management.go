@@ -98,3 +98,23 @@ func (n *Node) ActivateNode(ctx context.Context, req control.ActivateNodeRequest
 	}
 	return writer.ActivateNode(ctx, req)
 }
+
+// MarkNodeLeaving submits a Controller-backed node leaving intent.
+func (n *Node) MarkNodeLeaving(ctx context.Context, req control.MarkNodeLeavingRequest) (control.MarkNodeLeavingResult, error) {
+	if err := ctxErr(ctx); err != nil {
+		return control.MarkNodeLeavingResult{}, err
+	}
+	if err := n.ensureForeground(); err != nil {
+		return control.MarkNodeLeavingResult{}, err
+	}
+	if n.control == nil {
+		return control.MarkNodeLeavingResult{}, ErrNotStarted
+	}
+	writer, ok := n.control.(interface {
+		MarkNodeLeaving(context.Context, control.MarkNodeLeavingRequest) (control.MarkNodeLeavingResult, error)
+	})
+	if !ok {
+		return control.MarkNodeLeavingResult{}, ErrNotStarted
+	}
+	return writer.MarkNodeLeaving(ctx, req)
+}

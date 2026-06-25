@@ -42,6 +42,22 @@ type ActivateNodeResult struct {
 	Revision uint64 `json:"revision"`
 }
 
+// MarkNodeLeavingRequest identifies a data node that should stop receiving new assignments.
+type MarkNodeLeavingRequest struct {
+	// NodeID is the stable node identity to mark leaving.
+	NodeID uint64 `json:"node_id"`
+}
+
+// MarkNodeLeavingResult describes the node record after the transition.
+type MarkNodeLeavingResult struct {
+	// Changed reports whether the request changed ControllerV2 state.
+	Changed bool `json:"changed"`
+	// Node is the durable node record after the request.
+	Node Node `json:"node"`
+	// Revision is the observed ControllerV2 state revision after the write.
+	Revision uint64 `json:"revision"`
+}
+
 func cv2JoinNodeRequest(req JoinNodeRequest) cv2.JoinNodeRequest {
 	return cv2.JoinNodeRequest{
 		NodeID:         req.NodeID,
@@ -56,6 +72,10 @@ func cv2ActivateNodeRequest(req ActivateNodeRequest) cv2.ActivateNodeRequest {
 	return cv2.ActivateNodeRequest{NodeID: req.NodeID}
 }
 
+func cv2MarkNodeLeavingRequest(req MarkNodeLeavingRequest) cv2.MarkNodeLeavingRequest {
+	return cv2.MarkNodeLeavingRequest{NodeID: req.NodeID}
+}
+
 func joinNodeResultFromCV2(result cv2.JoinNodeResult) JoinNodeResult {
 	return JoinNodeResult{
 		Created:  result.Created,
@@ -66,6 +86,14 @@ func joinNodeResultFromCV2(result cv2.JoinNodeResult) JoinNodeResult {
 
 func activateNodeResultFromCV2(result cv2.ActivateNodeResult) ActivateNodeResult {
 	return ActivateNodeResult{
+		Changed:  result.Changed,
+		Node:     controlNodeFromControllerNode(result.Node),
+		Revision: result.Revision,
+	}
+}
+
+func markNodeLeavingResultFromCV2(result cv2.MarkNodeLeavingResult) MarkNodeLeavingResult {
+	return MarkNodeLeavingResult{
 		Changed:  result.Changed,
 		Node:     controlNodeFromControllerNode(result.Node),
 		Revision: result.Revision,

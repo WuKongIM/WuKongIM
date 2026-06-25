@@ -745,6 +745,56 @@ func TestRuntimeActivateNodeRejectsMissingOrNonJoiningNode(t *testing.T) {
 	}
 }
 
+func TestRuntimeMarkNodeLeavingTurnsActiveDataNodeLeaving(t *testing.T) {
+	runtime := startSingleVoterRuntime(t, "cluster-mark-leaving")
+	if _, err := runtime.JoinNode(context.Background(), JoinNodeRequest{
+		NodeID:         4,
+		Name:           "n4",
+		Addr:           "n4",
+		Roles:          []NodeRole{NodeRoleData},
+		CapacityWeight: 1,
+	}); err != nil {
+		t.Fatalf("JoinNode() error = %v", err)
+	}
+	if _, err := runtime.ActivateNode(context.Background(), ActivateNodeRequest{NodeID: 4}); err != nil {
+		t.Fatalf("ActivateNode() error = %v", err)
+	}
+
+	result, err := runtime.MarkNodeLeaving(context.Background(), MarkNodeLeavingRequest{NodeID: 4})
+	if err != nil {
+		t.Fatalf("MarkNodeLeaving() error = %v", err)
+	}
+	if !result.Changed || result.Node.JoinState != NodeJoinStateLeaving {
+		t.Fatalf("MarkNodeLeaving() = %#v, want changed leaving node", result)
+	}
+
+	second, err := runtime.MarkNodeLeaving(context.Background(), MarkNodeLeavingRequest{NodeID: 4})
+	if err != nil {
+		t.Fatalf("MarkNodeLeaving() second error = %v", err)
+	}
+	if second.Changed || second.Revision != result.Revision || second.Node.JoinState != NodeJoinStateLeaving {
+		t.Fatalf("MarkNodeLeaving() second = %#v, want idempotent unchanged leaving node", second)
+	}
+}
+
+func TestRuntimeMarkNodeLeavingRejectsControllerVoter(t *testing.T) {
+	runtime := startSingleVoterRuntime(t, "cluster-mark-controller-leaving")
+
+	_, err := runtime.MarkNodeLeaving(context.Background(), MarkNodeLeavingRequest{NodeID: 1})
+	if !errors.Is(err, ErrNodeLifecycleConflict) {
+		t.Fatalf("MarkNodeLeaving(controller voter) error = %v, want %v", err, ErrNodeLifecycleConflict)
+	}
+}
+
+func TestRuntimeMarkNodeLeavingRejectsMissingNode(t *testing.T) {
+	runtime := startSingleVoterRuntime(t, "cluster-mark-missing-leaving")
+
+	_, err := runtime.MarkNodeLeaving(context.Background(), MarkNodeLeavingRequest{NodeID: 99})
+	if !errors.Is(err, ErrNodeLifecycleNotFound) {
+		t.Fatalf("MarkNodeLeaving(missing) error = %v, want %v", err, ErrNodeLifecycleNotFound)
+	}
+}
+
 func readStateEvent(t *testing.T, watch <-chan StateEvent) StateEvent {
 	t.Helper()
 	select {
