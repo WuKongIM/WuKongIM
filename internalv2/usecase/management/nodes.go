@@ -64,7 +64,7 @@ type Options struct {
 	Cluster ControlSnapshotReader
 	// RuntimeSummary reads node runtime counters for the manager node list.
 	RuntimeSummary RuntimeSummaryReader
-	// NodeLifecycle submits cluster-authoritative node join and activation requests.
+	// NodeLifecycle submits cluster-authoritative node join, activation, and leaving requests.
 	NodeLifecycle NodeLifecycleWriter
 	// NodeReadiness reads selected-node readiness before activation writes.
 	NodeReadiness NodeReadinessReader

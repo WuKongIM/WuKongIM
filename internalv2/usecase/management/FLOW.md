@@ -12,14 +12,17 @@ message retention adapter contract, local-or-remote connection list/detail
 projection, local-or-remote node plugin list/detail projection,
 cluster-authoritative plugin binding list/mutation, DB Inspect,
 diagnostics trace/message/event query orchestration and tracking-rule fan-out,
-node-local diagnostics orchestration, node lifecycle join/activation, bounded
-Slot onboarding, user management, and system UID projections/actions used by
+node-local diagnostics orchestration, node lifecycle join/activation/leaving,
+bounded Slot onboarding, scale-in preparation status, user management, and
+system UID projections/actions used by
 `GET /manager/nodes`,
 `POST /manager/nodes/join`, `POST /manager/nodes/:node_id/activate`,
 `POST /manager/nodes/:node_id/onboarding/plan`,
 `POST /manager/nodes/:node_id/onboarding/start`,
 `GET /manager/nodes/:node_id/onboarding/status`,
 `POST /manager/nodes/:node_id/onboarding/advance`,
+future scale-in preparation routes backed by `MarkNodeLeaving` and
+`NodeScaleInStatus`,
 `GET /manager/slots`, `POST /manager/slots/:slot_id/leader-transfer`,
 `GET /manager/channels`,
 `GET /manager/channel-runtime-meta`, `GET /manager/controller/logs`,
@@ -71,7 +74,7 @@ activate flow below.
 
 ```text
 manager HTTP handler
-  -> management.App.JoinNode/ActivateNode
+  -> management.App.JoinNode/ActivateNode/MarkNodeLeaving
   -> NodeReadinessReader for activation only
   -> NodeLifecycleWriter
   -> clusterv2 control lifecycle writer
@@ -85,6 +88,9 @@ snapshot, requires the target node to exist in `joining` state, probes the
 target node through `NodeReadinessReader`, and only delegates the active write
 when the target is reachable, transport/control/runtime ready, mirrored to the
 expected cluster ID, and caught up to at least the observed control revision.
+Leaving requests validate only the manager-facing node ID and delegate the
+durable transition to the control writer; ControllerV2 remains responsible for
+rejecting controller voters and invalid lifecycle transitions.
 Control conflicts, missing-node activation errors, and not-ready activation
 checks are mapped to dedicated usecase errors so HTTP can distinguish operator
 input conflicts, infrastructure failures, and readiness gates. Not-ready errors
@@ -96,6 +102,27 @@ dedicated unavailable error so HTTP can report `service_unavailable` instead of
 treating wiring as invalid operator input.
 Lifecycle usecase methods do not seed node RPC, poll startup, rebalance Slots,
 or mutate node operation hints.
+
+## Node Scale-In Status Flow
+
+```text
+manager HTTP handler
+  -> management.App.NodeScaleInStatus
+  -> ControlSnapshotReader.LocalControlSnapshot
+  -> RuntimeSummaryReader.NodeRuntimeSummary
+  -> SlotRuntimeStatusReader.SlotRuntimeStatus
+  -> fail-closed scale-in preparation report
+```
+
+The scale-in status usecase is read-only in this stage. It requires the target
+node to exist in durable `leaving` state, rejects controller-role targets, and
+fails closed when eligible nodes have unknown runtime summaries, missing or
+stale control revisions, live Slot leadership on the target, live Slot voters
+that still contain the target after desired placement moved, Slot runtime read
+failures, or active/failed Controller tasks that still reference the target.
+Desired Slot peers containing the target are reported as the Slot drain work
+remaining; the status path does not mutate `DesiredPeers`, retry failed tasks,
+or mark nodes removed.
 
 ## Node Onboarding Flow
 

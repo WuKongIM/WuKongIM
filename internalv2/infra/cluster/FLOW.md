@@ -17,7 +17,7 @@ distributed log reads to node-local clusterv2 log storage or peer RPC, routes
 manager Slot Raft status and compaction operations to the selected node-local clusterv2
 operation or peer RPC, adapts manager Slot leader transfer and staged Slot
 replica-move intents to clusterv2 control, adapts manager node lifecycle
-join/activation writes to clusterv2 control, routes startup seed JoinNode and readiness probes over
+join/activation/leaving writes to clusterv2 control, routes startup seed JoinNode and readiness probes over
 clusterv2 node RPC, routes manager Controller Raft operations to node-local
 clusterv2 operations or peer RPC, routes ordinary application log reads to the
 selected node's app-owned local reader or peer RPC, routes manager DB Inspect
@@ -33,10 +33,11 @@ adapts presence/delivery ports to clusterv2 routing and node RPC.
 internalv2 management usecase. It only exposes local control snapshot reads and
 the local node ID for read-only manager node and Slot list rendering. Node
 lifecycle writes are exposed through the separate
-`ManagementNodeLifecycleAdapter`; bounded Slot onboarding writes are exposed
-through `ManagementSlotReplicaMoveAdapter`; scale-in and Slot operations other
-than explicit node-local Raft compaction and staged replica-move task creation
-stay unmigrated.
+`ManagementNodeLifecycleAdapter` for join, activation, and leaving
+transitions; bounded Slot onboarding and scale-in drain task writes are exposed
+through `ManagementSlotReplicaMoveAdapter`; final scale-in removal, gateway
+drain, channel migration, and Slot operations other than explicit node-local
+Raft compaction or staged replica-move task creation stay unmigrated.
 
 ## Node Lifecycle RPC Flow
 

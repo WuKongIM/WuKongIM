@@ -80,6 +80,132 @@ func TestScaleInStatusBlocksWhenRuntimeVotersStillContainTargetAfterDesiredPeers
 	}
 }
 
+func TestScaleInStatusReportsSafetyBlockerCategories(t *testing.T) {
+	tests := []struct {
+		name                string
+		nodeID              uint64
+		mutate              func(*control.Snapshot, *SlotRuntimeStatus)
+		wantSafe            bool
+		wantMissingNode     bool
+		wantJoinState       bool
+		wantControllerRole  bool
+		wantSlotLeadership  bool
+		wantTaskBlocker     bool
+		wantActiveTaskCount int
+		wantFailedTaskCount int
+	}{
+		{
+			name:            "missing target",
+			nodeID:          99,
+			wantMissingNode: true,
+		},
+		{
+			name:   "non leaving target",
+			nodeID: 2,
+			mutate: func(snapshot *control.Snapshot, _ *SlotRuntimeStatus) {
+				snapshot.Nodes[1].JoinState = control.NodeJoinStateActive
+			},
+			wantJoinState: true,
+		},
+		{
+			name:   "controller role target",
+			nodeID: 2,
+			mutate: func(snapshot *control.Snapshot, _ *SlotRuntimeStatus) {
+				snapshot.Nodes[1].Roles = []control.Role{control.RoleController, control.RoleData}
+			},
+			wantControllerRole: true,
+		},
+		{
+			name:   "live slot leadership",
+			nodeID: 2,
+			mutate: func(_ *control.Snapshot, runtime *SlotRuntimeStatus) {
+				runtime.LeaderID = 2
+			},
+			wantSlotLeadership: true,
+		},
+		{
+			name:   "active task references target",
+			nodeID: 2,
+			mutate: func(snapshot *control.Snapshot, _ *SlotRuntimeStatus) {
+				snapshot.Tasks = []control.ReconcileTask{{
+					TaskID:     "slot-1-replica-move-2-to-4-r17",
+					SlotID:     1,
+					Kind:       control.TaskKindSlotReplicaMove,
+					SourceNode: 2,
+					TargetNode: 4,
+					Status:     control.TaskStatusPending,
+				}}
+			},
+			wantTaskBlocker:     true,
+			wantActiveTaskCount: 1,
+		},
+		{
+			name:   "failed task references target",
+			nodeID: 2,
+			mutate: func(snapshot *control.Snapshot, _ *SlotRuntimeStatus) {
+				snapshot.Tasks = []control.ReconcileTask{{
+					TaskID:      "slot-1-replica-move-4-to-5-r17",
+					SlotID:      1,
+					Kind:        control.TaskKindSlotReplicaMove,
+					SourceNode:  4,
+					TargetNode:  5,
+					TargetPeers: []uint64{1, 2, 5},
+					Status:      control.TaskStatusFailed,
+				}}
+			},
+			wantTaskBlocker:     true,
+			wantFailedTaskCount: 1,
+		},
+		{
+			name:     "safe after slot drain",
+			nodeID:   2,
+			wantSafe: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			snap := scaleInDrainedSnapshot(17)
+			runtime := SlotRuntimeStatus{SlotID: 1, LeaderID: 1, CurrentVoters: []uint64{1, 3, 4}}
+			if tt.mutate != nil {
+				tt.mutate(&snap, &runtime)
+			}
+			app := New(Options{
+				Cluster:        fakeNodeSnapshotReader{snapshot: snap},
+				RuntimeSummary: fakeNodeRuntimeSummaryReader{summaries: scaleInRuntimeSummariesFor(17, scaleInSnapshotNodeIDs(snap)...)},
+				SlotRuntimeStatus: &fakeSlotRuntimeStatusReader{statuses: map[uint32]SlotRuntimeStatus{
+					1: runtime,
+				}},
+			})
+
+			status, err := app.NodeScaleInStatus(context.Background(), NodeScaleInStatusRequest{NodeID: tt.nodeID})
+			if err != nil {
+				t.Fatalf("NodeScaleInStatus() error = %v", err)
+			}
+			if status.SafeToProceed != tt.wantSafe ||
+				status.BlockedByMissingNode != tt.wantMissingNode ||
+				status.BlockedByJoinState != tt.wantJoinState ||
+				status.BlockedByControllerRole != tt.wantControllerRole ||
+				status.BlockedBySlotLeadership != tt.wantSlotLeadership ||
+				status.BlockedByTasks != tt.wantTaskBlocker ||
+				status.ActiveTaskCount != tt.wantActiveTaskCount ||
+				status.FailedTaskCount != tt.wantFailedTaskCount {
+				t.Fatalf("status = %#v, want safe=%v missing=%v join=%v controller=%v leadership=%v tasks=%v active=%d failed=%d",
+					status,
+					tt.wantSafe,
+					tt.wantMissingNode,
+					tt.wantJoinState,
+					tt.wantControllerRole,
+					tt.wantSlotLeadership,
+					tt.wantTaskBlocker,
+					tt.wantActiveTaskCount,
+					tt.wantFailedTaskCount,
+				)
+			}
+		})
+	}
+}
+
 func scaleInSnapshot(revision uint64) control.Snapshot {
 	return control.Snapshot{
 		Revision: revision,
@@ -90,6 +216,21 @@ func scaleInSnapshot(revision uint64) control.Snapshot {
 		},
 		Slots: []control.SlotAssignment{{SlotID: 1, DesiredPeers: []uint64{1, 2, 3}, ConfigEpoch: 7, PreferredLeader: 1}},
 	}
+}
+
+func scaleInDrainedSnapshot(revision uint64) control.Snapshot {
+	snapshot := scaleInSnapshot(revision)
+	snapshot.Nodes = append(snapshot.Nodes, control.Node{NodeID: 4, Roles: []control.Role{control.RoleData}, Status: control.NodeAlive, JoinState: control.NodeJoinStateActive})
+	snapshot.Slots[0].DesiredPeers = []uint64{1, 3, 4}
+	return snapshot
+}
+
+func scaleInSnapshotNodeIDs(snapshot control.Snapshot) []uint64 {
+	nodeIDs := make([]uint64, 0, len(snapshot.Nodes))
+	for _, node := range snapshot.Nodes {
+		nodeIDs = append(nodeIDs, node.NodeID)
+	}
+	return nodeIDs
 }
 
 func scaleInRuntimeSummaries(revision uint64) map[uint64]NodeRuntimeSummary {
