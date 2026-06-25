@@ -12,7 +12,7 @@ func TestScaleInStatusFailsClosedWhenRuntimeSummaryUnknown(t *testing.T) {
 		Cluster: fakeNodeSnapshotReader{snapshot: scaleInSnapshot(17)},
 		RuntimeSummary: fakeNodeRuntimeSummaryReader{summaries: map[uint64]NodeRuntimeSummary{
 			1: {NodeID: 1, ControlRevision: 17},
-			2: {NodeID: 2, Unknown: true, ControlRevision: 17},
+			2: {NodeID: 2, Unknown: true},
 			3: {NodeID: 3, ControlRevision: 17},
 		}},
 	})
@@ -20,7 +20,7 @@ func TestScaleInStatusFailsClosedWhenRuntimeSummaryUnknown(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NodeScaleInStatus() error = %v", err)
 	}
-	if status.SafeToProceed || !status.UnknownRuntime || status.BlockedByControlRevision {
+	if status.SafeToProceed || !status.UnknownRuntime || status.BlockedByControlRevision || status.UnknownControlRevision {
 		t.Fatalf("status = %#v, want fail-closed unknown runtime without stale control revision blocker", status)
 	}
 }

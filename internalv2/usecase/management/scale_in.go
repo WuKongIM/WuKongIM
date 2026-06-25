@@ -119,6 +119,7 @@ func (a *App) markScaleInRuntimeRevisionBlockers(ctx context.Context, snapshot c
 		summary := a.nodeRuntimeSummary(ctx, node.NodeID)
 		if summary.Unknown {
 			response.UnknownRuntime = true
+			continue
 		}
 		if summary.ControlRevision == 0 {
 			response.UnknownControlRevision = true
