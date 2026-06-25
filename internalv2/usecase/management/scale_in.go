@@ -142,15 +142,19 @@ func (a *App) NodeScaleInStatus(ctx context.Context, req NodeScaleInStatusReques
 	if err != nil {
 		return NodeScaleInStatusResponse{}, err
 	}
+	return a.nodeScaleInStatusFromSnapshot(ctx, snapshot, req.NodeID, nil), nil
+}
+
+func (a *App) nodeScaleInStatusFromSnapshot(ctx context.Context, snapshot control.Snapshot, nodeID uint64, ignoreTask func(control.ReconcileTask) bool) NodeScaleInStatusResponse {
 	response := NodeScaleInStatusResponse{
-		NodeID:        req.NodeID,
+		NodeID:        nodeID,
 		GeneratedAt:   a.now(),
 		StateRevision: snapshot.Revision,
 	}
-	node, ok := findControlNode(snapshot, req.NodeID)
+	node, ok := findControlNode(snapshot, nodeID)
 	if !ok {
 		response.BlockedByMissingNode = true
-		return response, nil
+		return response
 	}
 	joinState := managerControlJoinState(node.JoinState)
 	response.JoinState = string(joinState)
@@ -161,8 +165,8 @@ func (a *App) NodeScaleInStatus(ctx context.Context, req NodeScaleInStatusReques
 		response.BlockedByJoinState = true
 	}
 	a.markScaleInRuntimeRevisionBlockers(ctx, snapshot, &response)
-	a.markScaleInSlotBlockers(ctx, snapshot.Slots, req.NodeID, &response)
-	markScaleInTaskBlockers(snapshot.Tasks, req.NodeID, &response)
+	a.markScaleInSlotBlockers(ctx, snapshot.Slots, nodeID, &response)
+	markScaleInTaskBlockersWithFilter(snapshot.Tasks, nodeID, &response, ignoreTask)
 	response.SafeToProceed = !response.BlockedByMissingNode &&
 		!response.BlockedByJoinState &&
 		!response.BlockedByControlRevision &&
@@ -172,7 +176,7 @@ func (a *App) NodeScaleInStatus(ctx context.Context, req NodeScaleInStatusReques
 		!response.BlockedBySlotRuntime &&
 		!response.BlockedByTasks &&
 		!response.UnknownRuntime
-	return response, nil
+	return response
 }
 
 // PlanNodeScaleIn returns a deterministic bounded Slot replica drain preview.
@@ -262,15 +266,18 @@ func (a *App) AdvanceNodeScaleIn(ctx context.Context, req NodeScaleInAdvanceRequ
 	retryBudget := len(plan.Candidates) * 2
 	for _, candidate := range plan.Candidates {
 		for {
-			fresh, stateRevision, ok, err := a.refreshScaleInCandidate(ctx, req.NodeID, candidate)
+			fresh, stateRevision, ok, blocked, err := a.refreshScaleInCandidate(ctx, req.NodeID, candidate, responseOwnTaskSlots(response.Candidates))
 			if err != nil {
 				return NodeScaleInAdvanceResponse{}, err
+			}
+			response.StateRevision = stateRevision
+			if blocked {
+				return response, nil
 			}
 			if !ok {
 				response.Skipped++
 				break
 			}
-			response.StateRevision = stateRevision
 			result, err := a.slotReplicaMove.RequestSlotReplicaMove(ctx, control.SlotReplicaMoveRequest{
 				SlotID:        fresh.SlotID,
 				SourceNode:    fresh.SourceNodeID,
@@ -305,17 +312,20 @@ func (a *App) AdvanceNodeScaleIn(ctx context.Context, req NodeScaleInAdvanceRequ
 	return response, nil
 }
 
-func (a *App) refreshScaleInCandidate(ctx context.Context, sourceNode uint64, candidate NodeScaleInCandidate) (NodeScaleInCandidate, uint64, bool, error) {
+func (a *App) refreshScaleInCandidate(ctx context.Context, sourceNode uint64, candidate NodeScaleInCandidate, ownTaskSlots map[uint32]struct{}) (NodeScaleInCandidate, uint64, bool, bool, error) {
 	if a == nil || a.cluster == nil {
-		return NodeScaleInCandidate{}, 0, false, ErrNodeScaleInUnavailable
+		return NodeScaleInCandidate{}, 0, false, false, ErrNodeScaleInUnavailable
 	}
 	snapshot, err := a.cluster.LocalControlSnapshot(ctx)
 	if err != nil {
-		return NodeScaleInCandidate{}, 0, false, err
+		return NodeScaleInCandidate{}, 0, false, false, err
 	}
-	node, ok := findControlNode(snapshot, sourceNode)
-	if !ok || managerControlJoinState(node.JoinState) != control.NodeJoinStateLeaving || hasRole(node.Roles, control.RoleController) {
-		return NodeScaleInCandidate{}, snapshot.Revision, false, nil
+	status := a.nodeScaleInStatusFromSnapshot(ctx, snapshot, sourceNode, func(task control.ReconcileTask) bool {
+		_, ok := ownTaskSlots[task.SlotID]
+		return ok
+	})
+	if scaleInStatusBlocksPlan(status) {
+		return NodeScaleInCandidate{}, snapshot.Revision, false, true, nil
 	}
 	var assignment control.SlotAssignment
 	found := false
@@ -327,12 +337,12 @@ func (a *App) refreshScaleInCandidate(ctx context.Context, sourceNode uint64, ca
 		}
 	}
 	if !found || !containsUint64(assignment.DesiredPeers, sourceNode) || scaleInSlotHasBlockingTask(snapshot.Tasks, assignment.SlotID) {
-		return NodeScaleInCandidate{}, snapshot.Revision, false, nil
+		return NodeScaleInCandidate{}, snapshot.Revision, false, false, nil
 	}
 	activeDataNodes := scaleInActiveDataNodeIDs(snapshot.Nodes)
 	targetNodeID, ok := scaleInReplacementNodeID(activeDataNodes, assignment.DesiredPeers)
 	if !ok {
-		return NodeScaleInCandidate{}, snapshot.Revision, false, nil
+		return NodeScaleInCandidate{}, snapshot.Revision, false, false, nil
 	}
 	return NodeScaleInCandidate{
 		SlotID:       assignment.SlotID,
@@ -341,7 +351,7 @@ func (a *App) refreshScaleInCandidate(ctx context.Context, sourceNode uint64, ca
 		DesiredPeers: append([]uint64(nil), assignment.DesiredPeers...),
 		TargetPeers:  replaceNodeOnboardingPeer(assignment.DesiredPeers, sourceNode, targetNodeID),
 		ConfigEpoch:  assignment.ConfigEpoch,
-	}, snapshot.Revision, true, nil
+	}, snapshot.Revision, true, false, nil
 }
 
 func (a *App) markScaleInRuntimeRevisionBlockers(ctx context.Context, snapshot control.Snapshot, response *NodeScaleInStatusResponse) {
@@ -395,7 +405,14 @@ func (a *App) markScaleInSlotBlockers(ctx context.Context, assignments []control
 }
 
 func markScaleInTaskBlockers(tasks []control.ReconcileTask, targetNode uint64, response *NodeScaleInStatusResponse) {
+	markScaleInTaskBlockersWithFilter(tasks, targetNode, response, nil)
+}
+
+func markScaleInTaskBlockersWithFilter(tasks []control.ReconcileTask, targetNode uint64, response *NodeScaleInStatusResponse, ignore func(control.ReconcileTask) bool) {
 	for _, task := range tasks {
+		if ignore != nil && ignore(task) {
+			continue
+		}
 		if !scaleInTaskReferencesNode(task, targetNode) {
 			continue
 		}
@@ -408,6 +425,17 @@ func markScaleInTaskBlockers(tasks []control.ReconcileTask, targetNode uint64, r
 			response.BlockedByTasks = true
 		}
 	}
+}
+
+func responseOwnTaskSlots(candidates []NodeScaleInCandidate) map[uint32]struct{} {
+	if len(candidates) == 0 {
+		return nil
+	}
+	out := make(map[uint32]struct{}, len(candidates))
+	for _, candidate := range candidates {
+		out[candidate.SlotID] = struct{}{}
+	}
+	return out
 }
 
 func scaleInTaskReferencesNode(task control.ReconcileTask, targetNode uint64) bool {

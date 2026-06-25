@@ -244,7 +244,7 @@ func TestAdvanceNodeScaleInRefreshesRevisionBetweenCandidates(t *testing.T) {
 	writer := &scaleInRevisionFencedMoveWriter{cluster: cluster}
 	app := New(Options{
 		Cluster:         cluster,
-		RuntimeSummary:  fakeNodeRuntimeSummaryReader{summaries: scaleInRuntimeSummariesFor(17, 1, 2, 3, 4)},
+		RuntimeSummary:  scaleInSnapshotRuntimeSummaryReader{cluster: cluster},
 		SlotReplicaMove: writer,
 		SlotRuntimeStatus: &fakeSlotRuntimeStatusReader{statuses: map[uint32]SlotRuntimeStatus{
 			1: {SlotID: 1, LeaderID: 1, CurrentVoters: []uint64{1, 2, 3}},
@@ -261,6 +261,44 @@ func TestAdvanceNodeScaleInRefreshesRevisionBetweenCandidates(t *testing.T) {
 	}
 	if writer.requests[0].StateRevision != 17 || writer.requests[1].StateRevision != 18 {
 		t.Fatalf("requests = %#v, want second request to refresh control revision", writer.requests)
+	}
+}
+
+func TestAdvanceNodeScaleInStopsWhenFreshStatusBecomesBlocked(t *testing.T) {
+	snapshot := scaleInSnapshot(17)
+	snapshot.Nodes = append(snapshot.Nodes, control.Node{NodeID: 4, Roles: []control.Role{control.RoleData}, Status: control.NodeAlive, JoinState: control.NodeJoinStateActive})
+	snapshot.Slots = append(snapshot.Slots, control.SlotAssignment{SlotID: 2, DesiredPeers: []uint64{1, 2, 3}, ConfigEpoch: 8, PreferredLeader: 1})
+	cluster := &scaleInMutableSnapshotReader{snapshot: snapshot}
+	writer := &scaleInRevisionFencedMoveWriter{
+		cluster: cluster,
+		afterCreate: func(snapshot *control.Snapshot) {
+			snapshot.Tasks = append(snapshot.Tasks, control.ReconcileTask{
+				TaskID:      "external-failed-scale-in-task",
+				SlotID:      99,
+				Kind:        control.TaskKindSlotReplicaMove,
+				SourceNode:  5,
+				TargetNode:  6,
+				TargetPeers: []uint64{1, 2, 6},
+				Status:      control.TaskStatusFailed,
+			})
+		},
+	}
+	app := New(Options{
+		Cluster:         cluster,
+		RuntimeSummary:  scaleInSnapshotRuntimeSummaryReader{cluster: cluster},
+		SlotReplicaMove: writer,
+		SlotRuntimeStatus: &fakeSlotRuntimeStatusReader{statuses: map[uint32]SlotRuntimeStatus{
+			1: {SlotID: 1, LeaderID: 1, CurrentVoters: []uint64{1, 2, 3}},
+			2: {SlotID: 2, LeaderID: 1, CurrentVoters: []uint64{1, 2, 3}},
+		}},
+	})
+
+	got, err := app.AdvanceNodeScaleIn(context.Background(), NodeScaleInAdvanceRequest{NodeID: 2, MaxSlotMoves: 2})
+	if err != nil {
+		t.Fatalf("AdvanceNodeScaleIn() error = %v", err)
+	}
+	if got.Created != 1 || len(writer.requests) != 1 {
+		t.Fatalf("advance = %#v requests=%#v, want one created move before fresh status blocker", got, writer.requests)
 	}
 }
 
@@ -314,8 +352,9 @@ func (r *scaleInMutableSnapshotReader) LocalControlSnapshot(context.Context) (co
 }
 
 type scaleInRevisionFencedMoveWriter struct {
-	cluster  *scaleInMutableSnapshotReader
-	requests []control.SlotReplicaMoveRequest
+	cluster     *scaleInMutableSnapshotReader
+	requests    []control.SlotReplicaMoveRequest
+	afterCreate func(*control.Snapshot)
 }
 
 func (w *scaleInRevisionFencedMoveWriter) RequestSlotReplicaMove(_ context.Context, req control.SlotReplicaMoveRequest) (control.SlotReplicaMoveResult, error) {
@@ -335,5 +374,16 @@ func (w *scaleInRevisionFencedMoveWriter) RequestSlotReplicaMove(_ context.Conte
 	}
 	w.cluster.snapshot.Tasks = append(w.cluster.snapshot.Tasks, task)
 	w.cluster.snapshot.Revision++
+	if w.afterCreate != nil {
+		w.afterCreate(&w.cluster.snapshot)
+	}
 	return control.SlotReplicaMoveResult{Created: true, Task: &task}, nil
+}
+
+type scaleInSnapshotRuntimeSummaryReader struct {
+	cluster *scaleInMutableSnapshotReader
+}
+
+func (r scaleInSnapshotRuntimeSummaryReader) NodeRuntimeSummary(_ context.Context, nodeID uint64) (NodeRuntimeSummary, error) {
+	return NodeRuntimeSummary{NodeID: nodeID, ControlRevision: r.cluster.snapshot.Revision}, nil
 }
