@@ -106,9 +106,12 @@ Creating the task does not change `DesiredPeers`; it only records source,
 target, target peer set, assignment epoch, and phase progress fields. Dedicated
 phase commands advance `open_learner -> add_learner -> promote_learner ->
 remove_voter -> commit_assignment` with task, slot, epoch, attempt, and phase
-index fences plus observed Slot Raft config/voter/learner state. The final
-commit command replaces `DesiredPeers`, increments the Slot `ConfigEpoch`, and
-removes the task only after the observed voter set proves the target peer set.
+index fences. Except for the local `open_learner -> add_learner` preparation
+step, phase commands also carry observed Slot Raft config/voter/learner state.
+The final commit command carries the committing executor's live observed voter
+proof, replaces `DesiredPeers`, increments the Slot `ConfigEpoch`, and removes
+the task only after both the cached phase observation and commit observation
+prove the target peer set.
 
 When a Controller voter wires the facade with an FSM-backed state source, `LocalState` reads that authoritative snapshot and planner ticks refresh it after successful proposals. Command-producing planner ticks require a state source; `InitialState`-only facades may serve local snapshots, sync updates, or non-command planner decisions only.
 
