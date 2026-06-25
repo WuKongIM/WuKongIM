@@ -103,7 +103,9 @@ New(Config)
        create the presence touch worker
   -> register the manager connection RPC handler when node RPC and local control
      snapshots are available, exposing this node's owner-local online registry
-     to peer manager readers
+     and gateway admission drain writer to peer manager readers/operators;
+     runtime summaries include active and pending owner-local online counts plus
+     gateway session/admission counters
   -> register the manager distributed log RPC handler when node RPC and local
      log readers are available, exposing this node's Controller/Slot Raft log
      pages to peer manager readers

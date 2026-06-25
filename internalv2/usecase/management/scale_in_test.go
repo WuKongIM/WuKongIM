@@ -124,6 +124,92 @@ func TestScaleInStatusBlocksWhenChannelInventoryUnknown(t *testing.T) {
 	}
 }
 
+func TestScaleInStatusBlocksWhenRuntimeDrainIsNotEmpty(t *testing.T) {
+	snap := scaleInReadyNoSlotReplicaSnapshot()
+	summaries := scaleInRuntimeSummariesFor(snap.Revision, scaleInSnapshotNodeIDs(snap)...)
+	summaries[4] = NodeRuntimeSummary{
+		NodeID:               4,
+		ControlRevision:      snap.Revision,
+		Draining:             true,
+		AcceptingNewSessions: false,
+		GatewaySessions:      1,
+		ActiveOnline:         1,
+		TotalOnline:          2,
+		PendingActivations:   1,
+	}
+	app := New(Options{
+		Cluster:            fakeNodeSnapshotReader{snapshot: snap},
+		RuntimeSummary:     fakeNodeRuntimeSummaryReader{summaries: summaries},
+		SlotRuntimeStatus:  scaleInSafeSlotRuntimeReader{},
+		ChannelRuntimeMeta: newChannelDrainMetaReader(),
+	})
+
+	status, err := app.NodeScaleInStatus(context.Background(), NodeScaleInStatusRequest{NodeID: 4})
+	if err != nil {
+		t.Fatalf("NodeScaleInStatus() error = %v", err)
+	}
+	if !status.SafeToProceed || status.SafeToRemove || !status.BlockedByRuntimeDrain || status.RuntimeUnknown ||
+		!status.GatewayDraining || status.AcceptingNewSessions ||
+		status.GatewaySessions != 1 || status.ActiveOnline != 1 || status.TotalOnline != 2 ||
+		status.PendingActivations != 1 {
+		t.Fatalf("status = %#v, want progress-safe but remove-blocked runtime drain counters", status)
+	}
+}
+
+func TestScaleInStatusBlocksRemoveWhenOnlyPendingActivationsRemain(t *testing.T) {
+	snap := scaleInReadyNoSlotReplicaSnapshot()
+	summaries := scaleInRuntimeSummariesFor(snap.Revision, scaleInSnapshotNodeIDs(snap)...)
+	summaries[4] = NodeRuntimeSummary{
+		NodeID:             4,
+		ControlRevision:    snap.Revision,
+		Draining:           true,
+		PendingActivations: 1,
+	}
+	app := New(Options{
+		Cluster:            fakeNodeSnapshotReader{snapshot: snap},
+		RuntimeSummary:     fakeNodeRuntimeSummaryReader{summaries: summaries},
+		SlotRuntimeStatus:  scaleInSafeSlotRuntimeReader{},
+		ChannelRuntimeMeta: newChannelDrainMetaReader(),
+	})
+
+	status, err := app.NodeScaleInStatus(context.Background(), NodeScaleInStatusRequest{NodeID: 4})
+	if err != nil {
+		t.Fatalf("NodeScaleInStatus() error = %v", err)
+	}
+	if !status.SafeToProceed || status.SafeToRemove || !status.BlockedByRuntimeDrain ||
+		status.PendingActivations != 1 || status.GatewaySessions != 0 || status.ActiveOnline != 0 {
+		t.Fatalf("status = %#v, want pending activation to block final removal only", status)
+	}
+}
+
+func TestScaleInStatusSafeToRemoveAfterChannelAndRuntimeDrainClear(t *testing.T) {
+	snap := scaleInReadyNoSlotReplicaSnapshot()
+	summaries := scaleInRuntimeSummariesFor(snap.Revision, scaleInSnapshotNodeIDs(snap)...)
+	summaries[4] = NodeRuntimeSummary{
+		NodeID:               4,
+		ControlRevision:      snap.Revision,
+		Draining:             true,
+		AcceptingNewSessions: false,
+	}
+	app := New(Options{
+		Cluster:            fakeNodeSnapshotReader{snapshot: snap},
+		RuntimeSummary:     fakeNodeRuntimeSummaryReader{summaries: summaries},
+		SlotRuntimeStatus:  scaleInSafeSlotRuntimeReader{},
+		ChannelRuntimeMeta: newChannelDrainMetaReader(),
+	})
+
+	status, err := app.NodeScaleInStatus(context.Background(), NodeScaleInStatusRequest{NodeID: 4})
+	if err != nil {
+		t.Fatalf("NodeScaleInStatus() error = %v", err)
+	}
+	if !status.SafeToProceed || !status.SafeToRemove || status.BlockedByRuntimeDrain ||
+		!status.GatewayDraining || status.AcceptingNewSessions ||
+		status.GatewaySessions != 0 || status.ActiveOnline != 0 || status.TotalOnline != 0 ||
+		status.PendingActivations != 0 {
+		t.Fatalf("status = %#v, want final remove-safe state", status)
+	}
+}
+
 func TestScaleInStatusReportsSafetyBlockerCategories(t *testing.T) {
 	tests := []struct {
 		name                string
@@ -425,7 +511,7 @@ func scaleInRuntimeSummaries(revision uint64) map[uint64]NodeRuntimeSummary {
 func scaleInRuntimeSummariesFor(revision uint64, nodeIDs ...uint64) map[uint64]NodeRuntimeSummary {
 	summaries := make(map[uint64]NodeRuntimeSummary, len(nodeIDs))
 	for _, nodeID := range nodeIDs {
-		summaries[nodeID] = NodeRuntimeSummary{NodeID: nodeID, ControlRevision: revision}
+		summaries[nodeID] = NodeRuntimeSummary{NodeID: nodeID, ControlRevision: revision, Draining: true}
 	}
 	return summaries
 }

@@ -64,6 +64,8 @@ type Options struct {
 	Cluster ControlSnapshotReader
 	// RuntimeSummary reads node runtime counters for the manager node list.
 	RuntimeSummary RuntimeSummaryReader
+	// GatewayDrain mutates gateway admission drain mode locally or remotely.
+	GatewayDrain GatewayDrainWriter
 	// NodeLifecycle submits cluster-authoritative node join, activation, and leaving requests.
 	NodeLifecycle NodeLifecycleWriter
 	// NodeReadiness reads selected-node readiness before activation writes.
@@ -130,6 +132,7 @@ type Options struct {
 type App struct {
 	cluster                ControlSnapshotReader
 	runtimeSummary         RuntimeSummaryReader
+	gatewayDrain           GatewayDrainWriter
 	nodeLifecycle          NodeLifecycleWriter
 	nodeReadiness          NodeReadinessReader
 	diagnostics            DiagnosticsReader
@@ -171,6 +174,7 @@ func New(opts Options) *App {
 	return &App{
 		cluster:                opts.Cluster,
 		runtimeSummary:         opts.RuntimeSummary,
+		gatewayDrain:           opts.GatewayDrain,
 		nodeLifecycle:          opts.NodeLifecycle,
 		nodeReadiness:          opts.NodeReadiness,
 		diagnostics:            opts.Diagnostics,
@@ -308,6 +312,8 @@ type NodeRuntimeSummary struct {
 	TotalOnline int
 	// GatewaySessions counts all gateway sessions, including unauthenticated sessions.
 	GatewaySessions int
+	// PendingActivations counts local sessions accepted but not yet authority-active.
+	PendingActivations int
 	// SessionsByListener groups gateway sessions by listener name or address.
 	SessionsByListener map[string]int
 	// AcceptingNewSessions reports whether gateway admission currently accepts new sessions.
@@ -320,9 +326,9 @@ type NodeRuntimeSummary struct {
 
 // NodeActions contains backend business capability hints for UI actions.
 type NodeActions struct {
-	// CanDrain reports whether the node can be marked draining.
+	// CanDrain reports whether the legacy node-drain action can be used.
 	CanDrain bool
-	// CanResume reports whether the node can be resumed from draining.
+	// CanResume reports whether the legacy node-resume action can be used.
 	CanResume bool
 	// CanScaleIn reports whether the data-node scale-in flow can be considered.
 	CanScaleIn bool

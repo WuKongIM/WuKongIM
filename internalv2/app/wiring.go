@@ -381,6 +381,10 @@ func (a *App) wireManagerConnectionRPC() {
 			app:         a,
 			localNodeID: node.NodeID(),
 		},
+		GatewayDrain: managementGatewayDrainWriter{
+			app:         a,
+			localNodeID: node.NodeID(),
+		},
 		Connections: a.online,
 	})
 	adapter := accessnode.New(accessnode.Options{ManagerConnections: service, Logger: a.logger.Named("node")})
@@ -955,6 +959,11 @@ func (a *App) newManagerManagement() accessmanager.Management {
 			opts.RemoteConnections = remoteConnectionReader
 		}
 		opts.RuntimeSummary = managementRuntimeSummaryReader{
+			app:         a,
+			localNodeID: node.NodeID(),
+			remote:      remoteConnectionReader,
+		}
+		opts.GatewayDrain = managementGatewayDrainWriter{
 			app:         a,
 			localNodeID: node.NodeID(),
 			remote:      remoteConnectionReader,

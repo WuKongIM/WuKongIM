@@ -204,6 +204,7 @@ func TestManagerNodesReturnsReadOnlyInventory(t *testing.T) {
 				"closing_online": 0,
 				"total_online": 0,
 				"gateway_sessions": 0,
+				"pending_activations": 0,
 				"sessions_by_listener": {},
 				"accepting_new_sessions": false,
 				"draining": false,
@@ -1349,6 +1350,7 @@ type managerNodesStub struct {
 	scaleInPlan                        managementusecase.NodeScaleInPlanResponse
 	scaleInAdvance                     managementusecase.NodeScaleInAdvanceResponse
 	scaleInStatus                      managementusecase.NodeScaleInStatusResponse
+	scaleInDrain                       managementusecase.SetNodeDrainModeResponse
 	diagnosticsResponse                managementusecase.DiagnosticsQueryResponse
 	diagnosticsTrackingCreateResponse  managementusecase.DiagnosticsTrackingMutationResponse
 	diagnosticsTrackingListResponse    managementusecase.DiagnosticsTrackingListResponse
@@ -1399,6 +1401,7 @@ type managerNodesStub struct {
 	scaleInPlanReqSink                 *managementusecase.NodeScaleInPlanRequest
 	scaleInAdvanceReqSink              *managementusecase.NodeScaleInAdvanceRequest
 	scaleInStatusReqSink               *managementusecase.NodeScaleInStatusRequest
+	scaleInDrainReqSink                *managementusecase.SetNodeDrainModeRequest
 	diagnosticsReqSink                 *managementusecase.DiagnosticsQueryRequest
 	diagnosticsTrackingCreateReqSink   *managementusecase.DiagnosticsTrackingCreateRequest
 	diagnosticsTrackingDeleteRuleSink  *string
@@ -1443,6 +1446,7 @@ type managerNodesStub struct {
 	scaleInPlanErr                     error
 	scaleInAdvanceErr                  error
 	scaleInStatusErr                   error
+	scaleInDrainErr                    error
 	diagnosticsErr                     error
 	diagnosticsTrackingCreateErr       error
 	diagnosticsTrackingListErr         error
@@ -1651,6 +1655,13 @@ func (s managerNodesStub) NodeScaleInStatus(_ context.Context, req managementuse
 		*s.scaleInStatusReqSink = req
 	}
 	return s.scaleInStatus, s.scaleInStatusErr
+}
+
+func (s managerNodesStub) SetNodeDrainMode(_ context.Context, req managementusecase.SetNodeDrainModeRequest) (managementusecase.SetNodeDrainModeResponse, error) {
+	if s.scaleInDrainReqSink != nil {
+		*s.scaleInDrainReqSink = req
+	}
+	return s.scaleInDrain, s.scaleInDrainErr
 }
 
 func (s managerNodesStub) QueryDiagnostics(_ context.Context, req managementusecase.DiagnosticsQueryRequest) (managementusecase.DiagnosticsQueryResponse, error) {

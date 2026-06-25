@@ -44,6 +44,11 @@ func (a *Adapter) HandleManagerConnectionRPC(ctx context.Context, payload []byte
 		status := managerConnectionRPCStatusForError(err)
 		a.logManagerConnectionError(req, status, err)
 		return encodeManagerConnectionResponse(managerConnectionRPCResponse{Status: status, Summary: summary})
+	case managerConnectionOpSetDrainMode:
+		drain, err := a.managerConnections.SetNodeDrainMode(ctx, managementusecase.SetNodeDrainModeRequest{NodeID: req.NodeID, Draining: req.Draining})
+		status := managerConnectionRPCStatusForError(err)
+		a.logManagerConnectionError(req, status, err)
+		return encodeManagerConnectionResponse(managerConnectionRPCResponse{Status: status, Summary: managerConnectionDrainSummary(drain)})
 	default:
 		err := fmt.Errorf("internalv2/access/node: unknown manager connection op %q", req.Op)
 		a.rpcLogger().Warn("manager connection rpc unknown operation",
@@ -52,6 +57,20 @@ func (a *Adapter) HandleManagerConnectionRPC(ctx context.Context, payload []byte
 			wklog.Error(err),
 		)
 		return nil, err
+	}
+}
+
+func managerConnectionDrainSummary(resp managementusecase.SetNodeDrainModeResponse) managementusecase.NodeRuntimeSummary {
+	return managementusecase.NodeRuntimeSummary{
+		NodeID:               resp.NodeID,
+		ActiveOnline:         resp.ActiveOnline,
+		ClosingOnline:        resp.ClosingOnline,
+		TotalOnline:          resp.TotalOnline,
+		GatewaySessions:      resp.GatewaySessions,
+		PendingActivations:   resp.PendingActivations,
+		AcceptingNewSessions: resp.AcceptingNewSessions,
+		Draining:             resp.Draining,
+		Unknown:              resp.Unknown,
 	}
 }
 
@@ -91,6 +110,18 @@ func (c *Client) GetManagerRuntimeSummary(ctx context.Context, nodeID uint64) (m
 	return resp.Summary, nil
 }
 
+// SetManagerDrainMode toggles gateway drain mode on one owner node.
+func (c *Client) SetManagerDrainMode(ctx context.Context, nodeID uint64, draining bool) (managementusecase.NodeRuntimeSummary, error) {
+	resp, err := c.callManagerConnection(ctx, nodeID, managerConnectionRPCRequest{Op: managerConnectionOpSetDrainMode, NodeID: nodeID, Draining: draining})
+	if err != nil {
+		return managementusecase.NodeRuntimeSummary{}, err
+	}
+	if err := managerConnectionRPCDrainErrorForStatus(resp.Status); err != nil {
+		return managementusecase.NodeRuntimeSummary{}, err
+	}
+	return resp.Summary, nil
+}
+
 func (c *Client) callManagerConnection(ctx context.Context, nodeID uint64, req managerConnectionRPCRequest) (managerConnectionRPCResponse, error) {
 	if c == nil || c.node == nil {
 		return managerConnectionRPCResponse{}, fmt.Errorf("internalv2/access/node: manager connection rpc client not configured")
@@ -117,8 +148,8 @@ func managerConnectionRPCStatusForError(err error) string {
 	case errors.Is(err, metadb.ErrNotFound):
 		return rpcStatusNotFound
 	case errors.Is(err, metadb.ErrInvalidArgument):
-		return rpcStatusRejected
-	case errors.Is(err, managementusecase.ErrConnectionReaderUnavailable):
+		return rpcStatusInvalidArgument
+	case errors.Is(err, managementusecase.ErrConnectionReaderUnavailable), errors.Is(err, managementusecase.ErrNodeScaleInUnavailable):
 		return rpcStatusRejected
 	default:
 		return rpcStatusRejected
@@ -135,11 +166,20 @@ func managerConnectionRPCErrorForStatus(status string) error {
 		return context.DeadlineExceeded
 	case rpcStatusNotFound:
 		return metadb.ErrNotFound
+	case rpcStatusInvalidArgument:
+		return metadb.ErrInvalidArgument
 	case rpcStatusRejected:
 		return managementusecase.ErrConnectionReaderUnavailable
 	default:
 		return fmt.Errorf("internalv2/access/node: unknown manager connection rpc status %q", status)
 	}
+}
+
+func managerConnectionRPCDrainErrorForStatus(status string) error {
+	if status == rpcStatusRejected {
+		return managementusecase.ErrNodeScaleInUnavailable
+	}
+	return managerConnectionRPCErrorForStatus(status)
 }
 
 func (a *Adapter) logManagerConnectionError(req managerConnectionRPCRequest, status string, err error) {

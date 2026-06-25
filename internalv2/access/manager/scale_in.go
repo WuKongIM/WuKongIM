@@ -76,6 +76,34 @@ type ManagerNodeScaleInStartResponse struct {
 	Revision uint64 `json:"revision"`
 }
 
+// ManagerNodeScaleInDrainRequest is the JSON body for gateway drain mode changes.
+type ManagerNodeScaleInDrainRequest struct {
+	// Draining disables new gateway admission when true.
+	Draining bool `json:"draining"`
+}
+
+// ManagerNodeScaleInDrainResponse reports target-node runtime state after a drain mode change.
+type ManagerNodeScaleInDrainResponse struct {
+	// NodeID is the target cluster node.
+	NodeID uint64 `json:"node_id"`
+	// Draining reports whether gateway drain mode is enabled.
+	Draining bool `json:"draining"`
+	// AcceptingNewSessions reports whether gateway admission currently accepts new sessions.
+	AcceptingNewSessions bool `json:"accepting_new_sessions"`
+	// GatewaySessions counts all gateway sessions, including unauthenticated sessions.
+	GatewaySessions int `json:"gateway_sessions"`
+	// ActiveOnline counts active authenticated online connections.
+	ActiveOnline int `json:"active_online"`
+	// ClosingOnline counts authenticated online connections that are closing but not fully removed.
+	ClosingOnline int `json:"closing_online"`
+	// TotalOnline counts all authenticated online connections tracked by the node.
+	TotalOnline int `json:"total_online"`
+	// PendingActivations counts local sessions accepted but not yet authority-active.
+	PendingActivations int `json:"pending_activations"`
+	// Unknown means runtime counters could not be read.
+	Unknown bool `json:"unknown"`
+}
+
 // ManagerNodeScaleInStatusResponse exposes every scale-in safety bit.
 type ManagerNodeScaleInStatusResponse struct {
 	// NodeID is the evaluated node identity.
@@ -86,8 +114,10 @@ type ManagerNodeScaleInStatusResponse struct {
 	GeneratedAt string `json:"generated_at"`
 	// StateRevision is the control-state revision used for this status.
 	StateRevision uint64 `json:"state_revision"`
-	// SafeToProceed reports that no known or unknown blocker remains.
+	// SafeToProceed reports that no Slot, task, Channel, or control blocker remains.
 	SafeToProceed bool `json:"safe_to_proceed"`
+	// SafeToRemove reports that no final removal blocker remains.
+	SafeToRemove bool `json:"safe_to_remove"`
 	// BlockedByMissingNode reports that control state no longer contains the target node.
 	BlockedByMissingNode bool `json:"blocked_by_missing_node"`
 	// BlockedByJoinState reports that the target node is not marked leaving.
@@ -106,8 +136,12 @@ type ManagerNodeScaleInStatusResponse struct {
 	BlockedByTasks bool `json:"blocked_by_tasks"`
 	// BlockedByChannels reports Channel leader, replica, ISR, or unknown inventory blockers.
 	BlockedByChannels bool `json:"blocked_by_channels"`
+	// BlockedByRuntimeDrain reports gateway admission or runtime counters still block final removal.
+	BlockedByRuntimeDrain bool `json:"blocked_by_runtime_drain"`
 	// UnknownRuntime reports that one or more eligible nodes lacked runtime summary data.
 	UnknownRuntime bool `json:"unknown_runtime"`
+	// RuntimeUnknown reports that the target node runtime drain counters could not be read.
+	RuntimeUnknown bool `json:"runtime_unknown"`
 	// UnknownControlRevision reports missing control revision observations.
 	UnknownControlRevision bool `json:"unknown_control_revision"`
 	// UnknownChannelInventory reports that Channel inventory could not be proven.
@@ -126,6 +160,20 @@ type ManagerNodeScaleInStatusResponse struct {
 	ChannelReplicaCount int `json:"channel_replica_count"`
 	// ChannelISRCount counts Channels where the target is in ISR.
 	ChannelISRCount int `json:"channel_isr_count"`
+	// GatewayDraining reports whether the target gateway is in drain mode.
+	GatewayDraining bool `json:"gateway_draining"`
+	// AcceptingNewSessions reports whether the target gateway still admits new sessions.
+	AcceptingNewSessions bool `json:"accepting_new_sessions"`
+	// GatewaySessions counts all target gateway sessions, including unauthenticated sessions.
+	GatewaySessions int `json:"gateway_sessions"`
+	// ActiveOnline counts active authenticated online connections on the target node.
+	ActiveOnline int `json:"active_online"`
+	// ClosingOnline counts authenticated online connections that are closing on the target node.
+	ClosingOnline int `json:"closing_online"`
+	// TotalOnline counts authenticated online connections tracked by the target node.
+	TotalOnline int `json:"total_online"`
+	// PendingActivations counts target sessions accepted but not yet authority-active.
+	PendingActivations int `json:"pending_activations"`
 }
 
 func (s *Server) handleNodeScaleInPlan(c *gin.Context) {
@@ -172,6 +220,27 @@ func (s *Server) handleNodeScaleInStatus(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, nodeScaleInStatusResponseDTO(response))
+}
+
+func (s *Server) handleNodeScaleInDrain(c *gin.Context) {
+	nodeID, ok := s.parseNodeScaleInNodeID(c)
+	if !ok {
+		return
+	}
+	var body ManagerNodeScaleInDrainRequest
+	if err := c.ShouldBindJSON(&body); err != nil {
+		jsonError(c, http.StatusBadRequest, "bad_request", "bad_request")
+		return
+	}
+	response, err := s.management.SetNodeDrainMode(c.Request.Context(), managementusecase.SetNodeDrainModeRequest{
+		NodeID:   nodeID,
+		Draining: body.Draining,
+	})
+	if err != nil {
+		writeNodeScaleInError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, nodeScaleInDrainResponseDTO(response))
 }
 
 func (s *Server) handleNodeScaleInAdvance(c *gin.Context) {
@@ -239,6 +308,7 @@ func nodeScaleInStatusResponseDTO(response managementusecase.NodeScaleInStatusRe
 		GeneratedAt:              managerTimeString(response.GeneratedAt),
 		StateRevision:            response.StateRevision,
 		SafeToProceed:            response.SafeToProceed,
+		SafeToRemove:             response.SafeToRemove,
 		BlockedByMissingNode:     response.BlockedByMissingNode,
 		BlockedByJoinState:       response.BlockedByJoinState,
 		BlockedByControlRevision: response.BlockedByControlRevision,
@@ -248,7 +318,9 @@ func nodeScaleInStatusResponseDTO(response managementusecase.NodeScaleInStatusRe
 		BlockedBySlotRuntime:     response.BlockedBySlotRuntime,
 		BlockedByTasks:           response.BlockedByTasks,
 		BlockedByChannels:        response.BlockedByChannels,
+		BlockedByRuntimeDrain:    response.BlockedByRuntimeDrain,
 		UnknownRuntime:           response.UnknownRuntime,
+		RuntimeUnknown:           response.RuntimeUnknown,
 		UnknownControlRevision:   response.UnknownControlRevision,
 		UnknownChannelInventory:  response.UnknownChannelInventory,
 		SlotReplicaCount:         response.SlotReplicaCount,
@@ -258,6 +330,27 @@ func nodeScaleInStatusResponseDTO(response managementusecase.NodeScaleInStatusRe
 		ChannelLeaderCount:       response.ChannelLeaderCount,
 		ChannelReplicaCount:      response.ChannelReplicaCount,
 		ChannelISRCount:          response.ChannelISRCount,
+		GatewayDraining:          response.GatewayDraining,
+		AcceptingNewSessions:     response.AcceptingNewSessions,
+		GatewaySessions:          response.GatewaySessions,
+		ActiveOnline:             response.ActiveOnline,
+		ClosingOnline:            response.ClosingOnline,
+		TotalOnline:              response.TotalOnline,
+		PendingActivations:       response.PendingActivations,
+	}
+}
+
+func nodeScaleInDrainResponseDTO(response managementusecase.SetNodeDrainModeResponse) ManagerNodeScaleInDrainResponse {
+	return ManagerNodeScaleInDrainResponse{
+		NodeID:               response.NodeID,
+		Draining:             response.Draining,
+		AcceptingNewSessions: response.AcceptingNewSessions,
+		GatewaySessions:      response.GatewaySessions,
+		ActiveOnline:         response.ActiveOnline,
+		ClosingOnline:        response.ClosingOnline,
+		TotalOnline:          response.TotalOnline,
+		PendingActivations:   response.PendingActivations,
+		Unknown:              response.Unknown,
 	}
 }
 

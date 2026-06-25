@@ -21,6 +21,7 @@ GET  /manager/nodes/:node_id/onboarding/status (active onboarding task status; r
 POST /manager/nodes/:node_id/onboarding/advance (bounded Slot onboarding task creation; requires cluster.node:w when Auth.On=true)
 POST /manager/nodes/:node_id/scale-in/plan (bounded Slot scale-in drain preview; requires cluster.node:w when Auth.On=true)
 POST /manager/nodes/:node_id/scale-in/start (mark node leaving for scale-in preparation; requires cluster.node:w when Auth.On=true)
+POST /manager/nodes/:node_id/scale-in/drain (toggle target gateway drain mode; requires cluster.node:w when Auth.On=true)
 GET  /manager/nodes/:node_id/scale-in/status (fail-closed scale-in safety status; requires cluster.node:r when Auth.On=true)
 POST /manager/nodes/:node_id/scale-in/advance (bounded Slot scale-in drain task creation; requires cluster.node:w when Auth.On=true)
 GET  /manager/realtime-monitor (unified realtime monitor cards; requires cluster.node:r when Auth.On=true)
@@ -86,8 +87,12 @@ uses the wired Slot runtime status reader for actual Slot Raft leader counts.
 It also surfaces lightweight online/gateway runtime counters from the
 management runtime-summary reader; unavailable per-node runtime summaries stay
 explicitly marked `unknown` instead of failing the inventory response.
-Node list action hints remain read-model hints. Node lifecycle writes are
-exposed as separate join and activate routes under `cluster.node:w`.
+Node list action hints remain read-model hints; `can_drain` and `can_resume`
+stay tied to the legacy node-operation routes and remain disabled in
+internalv2 until those routes are migrated. Stage 5C gateway drain mode is
+exposed through `/manager/nodes/:node_id/scale-in/drain` and scale-in status
+instead of these node-list action hints. Node lifecycle writes are exposed as
+separate join and activate routes under `cluster.node:w`.
 `/manager/nodes/join` parses `node_id`, optional `name`, `addr`, and optional
 `capacity_weight`, delegates to `internalv2/usecase/management`, returns
 `202 Accepted` when the control writer creates state, and returns `200 OK` for
@@ -120,29 +125,35 @@ ControllerV2 assignment commit`; HTTP never treats target learners as
 `/manager/nodes/:node_id/scale-in/*` exposes scale-in preparation for
 data nodes. `start` marks the target node `leaving` through
 `management.App.MarkNodeLeaving`, causing future planners to stop assigning new
-work to it. `status` delegates to `management.App.NodeScaleInStatus` and returns
-every fail-closed safety bit from the control snapshot, per-node runtime
-summaries, Slot runtime summaries, active Controller tasks, and bounded
-Channel runtime metadata inventory. `plan` and `advance` accept `max_slot_moves`
-and delegate to
+work to it. `drain` toggles the target node gateway's new-session admission
+through `management.App.SetNodeDrainMode` and returns the target runtime
+counters after the change; it does not close existing sessions. `status`
+delegates to `management.App.NodeScaleInStatus` and returns every fail-closed
+safety bit from the control snapshot, per-node runtime summaries, target
+gateway drain counters, Slot runtime summaries, active Controller tasks, and
+bounded Channel runtime metadata inventory. `plan` and `advance` accept
+`max_slot_moves` and delegate to
 `management.App.PlanNodeScaleIn` / `AdvanceNodeScaleIn`; HTTP only creates
 bounded Stage 3 `slot_replica_move` task intents through the usecase's
 `SlotReplicaMoveWriter` path. The downstream flow is:
 
 ```text
 manager scale-in route
-  -> management.App.MarkNodeLeaving / NodeScaleInStatus / PlanNodeScaleIn / AdvanceNodeScaleIn
-  -> control snapshot + runtime summaries + ChannelRuntimeMeta inventory for status
+  -> management.App.MarkNodeLeaving / SetNodeDrainMode / NodeScaleInStatus / PlanNodeScaleIn / AdvanceNodeScaleIn
+  -> control snapshot + runtime summaries + gateway drain counters + ChannelRuntimeMeta inventory for status
   -> SlotReplicaMoveWriter
   -> Stage 3 slot_replica_move tasks
 ```
 
-This scale-in surface cannot remove a node, drain gateway sessions, migrate
-Channel replicas, clear Channel metadata, or cancel drain tasks. Unknown runtime
-or control-revision data keeps status unsafe and keeps planning/advancement at
-no candidates rather than guessing. Unknown Channel inventory keeps status
-unsafe, but HTTP still allows Slot drain `plan`/`advance` while desired Slot
-peers contain the target so operators can continue the first drain phase.
+This scale-in surface cannot remove a node, close existing gateway sessions,
+migrate Channel replicas, clear Channel metadata, or cancel drain tasks.
+Unknown runtime or control-revision data keeps status unsafe and keeps
+planning/advancement at no candidates rather than guessing. Unknown Channel
+inventory keeps status unsafe, but HTTP still allows Slot drain `plan`/`advance`
+while desired Slot peers contain the target so operators can continue the first
+drain phase. Final `safe_to_remove` remains false until the target gateway is in
+drain mode, no longer accepts new sessions, and reports zero gateway, online,
+closing, and pending-activation counters.
 
 `/manager/realtime-monitor` backs the unified web realtime monitor under
 cluster operations. It parses chart `window`, optional `step`, optional

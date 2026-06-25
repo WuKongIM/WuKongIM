@@ -23,6 +23,7 @@ system UID projections/actions used by
 `POST /manager/nodes/:node_id/onboarding/advance`,
 `POST /manager/nodes/:node_id/scale-in/plan`,
 `POST /manager/nodes/:node_id/scale-in/start`,
+`POST /manager/nodes/:node_id/scale-in/drain`,
 `GET /manager/nodes/:node_id/scale-in/status`,
 `POST /manager/nodes/:node_id/scale-in/advance`,
 `GET /manager/slots`, `POST /manager/slots/:slot_id/leader-transfer`,
@@ -69,8 +70,11 @@ the node list does not mix control-plane placement intent with actual Raft
 leadership. Runtime online and gateway counters are read through the narrow
 `RuntimeSummaryReader` port. Read failures or an unwired runtime source mark
 only that node's runtime summary as unknown. Node list action hints remain
-read-model hints; lifecycle writes are exposed separately by the join and
-activate flow below.
+read-model hints; `can_drain` and `can_resume` stay tied to the legacy
+node-operation routes and remain disabled in internalv2 until those routes are
+migrated. Stage 5C gateway drain mode is exposed through the scale-in route and
+status instead of these node-list action hints. Lifecycle writes are exposed
+separately by the join and activate flow below.
 
 ## Node Lifecycle Flow
 
@@ -109,9 +113,10 @@ or mutate node operation hints.
 
 ```text
 manager scale-in route
-  -> management.App.MarkNodeLeaving / NodeScaleInStatus / PlanNodeScaleIn / AdvanceNodeScaleIn
+  -> management.App.MarkNodeLeaving / SetNodeDrainMode / NodeScaleInStatus / PlanNodeScaleIn / AdvanceNodeScaleIn
   -> ControlSnapshotReader.LocalControlSnapshot
   -> RuntimeSummaryReader.NodeRuntimeSummary
+  -> GatewayDrainWriter.SetNodeDrainMode for gateway drain writes
   -> SlotRuntimeStatusReader.SlotRuntimeStatus
   -> ChannelRuntimeMetaReader.ScanChannelRuntimeMetaSlotPage for status only
   -> SlotReplicaMoveWriter.RequestSlotReplicaMove for advance only
@@ -120,17 +125,23 @@ manager scale-in route
 
 The scale-in preparation routes are live under the manager node permission
 surface. `MarkNodeLeaving` validates only the manager-facing node ID and
-delegates the durable transition to the lifecycle writer. The status, plan, and
-advance usecases require the target node to exist in durable `leaving` state,
-reject controller-role targets, and fail closed when eligible nodes have unknown
-runtime summaries, missing or stale control revisions, live Slot leadership on
-the target, live Slot voters that still contain the target after desired
-placement moved, Slot runtime read failures, or active/failed Controller tasks
-that still reference the target. After Slot/task checks, status performs a
-bounded scan of authoritative `ChannelRuntimeMeta` by physical Slot and fails
-closed when the target is still a Channel leader, configured replica, ISR member,
-or when Channel inventory is unavailable. Desired Slot peers containing the
-target are reported as the Slot drain work remaining and are the only status
+delegates the durable transition to the lifecycle writer. `SetNodeDrainMode`
+validates only the target node ID and delegates gateway admission changes to the
+narrow `GatewayDrainWriter`; it returns the fresh target runtime counters but
+does not close existing sessions. The status, plan, and advance usecases require
+the target node to exist in durable `leaving` state, reject controller-role
+targets, and fail closed when eligible nodes have unknown runtime summaries,
+missing or stale control revisions, live Slot leadership on the target, live
+Slot voters that still contain the target after desired placement moved, Slot
+runtime read failures, or active/failed Controller tasks that still reference
+the target. After Slot/task checks, status performs a bounded scan of
+authoritative `ChannelRuntimeMeta` by physical Slot and fails closed when the
+target is still a Channel leader, configured replica, ISR member, or when
+Channel inventory is unavailable. Status also reads the target runtime summary
+as the final gateway drain gate: `safe_to_remove` stays false while gateway
+drain mode is off, admission still accepts new sessions, or gateway/online/
+closing/pending-activation counters are non-zero. Desired Slot peers containing
+the target are reported as the Slot drain work remaining and are the only status
 blocker that `PlanNodeScaleIn` may advance. `AdvanceNodeScaleIn` scans Slots in
 stable Slot ID order, chooses the lowest durable active data replacement not
 already in the peer set, and submits bounded `slot_replica_move` intents through
@@ -138,9 +149,10 @@ the existing Controller writer. Unknown runtime, control revision, Slot runtime,
 or task data keeps status unsafe and keeps planning or advancement at no
 candidates. Unknown Channel inventory keeps final scale-in status unsafe, but it
 does not block Slot drain advancement while desired Slot peers still contain the
-target. It does not mutate `DesiredPeers` directly, retry failed tasks,
-implement cancellation, drain gateway sessions, migrate Channel replicas, clear
-Channel metadata, or mark nodes removed.
+target. Runtime drain blockers keep final status unsafe but do not block Slot
+drain advancement. It does not mutate `DesiredPeers` directly, retry failed
+tasks, implement cancellation, close gateway sessions, migrate Channel replicas,
+clear Channel metadata, or mark nodes removed.
 
 ## Node Onboarding Flow
 

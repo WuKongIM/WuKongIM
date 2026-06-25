@@ -49,8 +49,10 @@ type NodeScaleInStatusResponse struct {
 	GeneratedAt time.Time
 	// StateRevision is the control-state revision used for this status.
 	StateRevision uint64
-	// SafeToProceed reports that no known or unknown blocker remains.
+	// SafeToProceed reports that no Slot, task, Channel, or control blocker remains.
 	SafeToProceed bool
+	// SafeToRemove reports that the target has no known control, Slot, Channel, or runtime drain blockers.
+	SafeToRemove bool
 	// BlockedByMissingNode reports that control state no longer contains the target node.
 	BlockedByMissingNode bool
 	// BlockedByJoinState reports that the target node is not marked leaving.
@@ -69,8 +71,12 @@ type NodeScaleInStatusResponse struct {
 	BlockedByTasks bool
 	// BlockedByChannels reports Channel leader, replica, ISR, or unknown inventory blockers.
 	BlockedByChannels bool
+	// BlockedByRuntimeDrain reports gateway admission or runtime counters still block final removal.
+	BlockedByRuntimeDrain bool
 	// UnknownRuntime reports that one or more eligible nodes could not provide runtime summary data.
 	UnknownRuntime bool
+	// RuntimeUnknown reports that the target node runtime drain counters could not be read.
+	RuntimeUnknown bool
 	// UnknownControlRevision reports that one or more eligible nodes did not report a control revision.
 	UnknownControlRevision bool
 	// UnknownChannelInventory reports that Channel inventory could not be proven.
@@ -89,6 +95,20 @@ type NodeScaleInStatusResponse struct {
 	ChannelReplicaCount int
 	// ChannelISRCount counts Channels where the target is in ISR.
 	ChannelISRCount int
+	// GatewayDraining reports whether the target gateway is in drain mode.
+	GatewayDraining bool
+	// AcceptingNewSessions reports whether the target gateway still admits new sessions.
+	AcceptingNewSessions bool
+	// GatewaySessions counts all target gateway sessions, including unauthenticated sessions.
+	GatewaySessions int
+	// ActiveOnline counts active authenticated online connections on the target node.
+	ActiveOnline int
+	// ClosingOnline counts authenticated online connections that are closing on the target node.
+	ClosingOnline int
+	// TotalOnline counts authenticated online connections tracked by the target node.
+	TotalOnline int
+	// PendingActivations counts target sessions accepted but not yet authority-active.
+	PendingActivations int
 }
 
 // NodeScaleInCandidate describes one planned Slot replica move away from a leaving node.
@@ -180,6 +200,7 @@ func (a *App) nodeScaleInStatusFromSnapshot(ctx context.Context, snapshot contro
 	if !response.BlockedByJoinState && !response.BlockedByControllerRole {
 		a.markScaleInChannelBlockers(ctx, snapshot, nodeID, &response)
 	}
+	a.markScaleInRuntimeDrainBlockers(ctx, nodeID, &response)
 	response.SafeToProceed = !response.BlockedByMissingNode &&
 		!response.BlockedByJoinState &&
 		!response.BlockedByControlRevision &&
@@ -194,6 +215,9 @@ func (a *App) nodeScaleInStatusFromSnapshot(ctx context.Context, snapshot contro
 		response.ChannelLeaderCount == 0 &&
 		response.ChannelReplicaCount == 0 &&
 		response.ChannelISRCount == 0
+	response.SafeToRemove = response.SafeToProceed &&
+		!response.BlockedByRuntimeDrain &&
+		!response.RuntimeUnknown
 	return response
 }
 
@@ -455,6 +479,30 @@ func (a *App) markScaleInChannelBlockers(ctx context.Context, snapshot control.S
 		inventory.LeaderCount > 0 ||
 		inventory.ReplicaCount > 0 ||
 		inventory.ISRCount > 0
+}
+
+func (a *App) markScaleInRuntimeDrainBlockers(ctx context.Context, targetNode uint64, response *NodeScaleInStatusResponse) {
+	summary := a.nodeRuntimeSummary(ctx, targetNode)
+	if summary.Unknown {
+		response.UnknownRuntime = true
+		response.RuntimeUnknown = true
+		response.BlockedByRuntimeDrain = true
+		return
+	}
+	response.GatewayDraining = summary.Draining
+	response.AcceptingNewSessions = summary.AcceptingNewSessions
+	response.GatewaySessions = summary.GatewaySessions
+	response.ActiveOnline = summary.ActiveOnline
+	response.ClosingOnline = summary.ClosingOnline
+	response.TotalOnline = summary.TotalOnline
+	response.PendingActivations = summary.PendingActivations
+	response.BlockedByRuntimeDrain = !summary.Draining ||
+		summary.AcceptingNewSessions ||
+		summary.GatewaySessions > 0 ||
+		summary.ActiveOnline > 0 ||
+		summary.ClosingOnline > 0 ||
+		summary.TotalOnline > 0 ||
+		summary.PendingActivations > 0
 }
 
 func responseOwnTaskSlots(candidates []NodeScaleInCandidate) map[uint32]struct{} {

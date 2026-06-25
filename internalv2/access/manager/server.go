@@ -99,6 +99,8 @@ type Management interface {
 	AdvanceNodeScaleIn(ctx context.Context, req managementusecase.NodeScaleInAdvanceRequest) (managementusecase.NodeScaleInAdvanceResponse, error)
 	// NodeScaleInStatus returns scale-in safety status for a leaving node.
 	NodeScaleInStatus(ctx context.Context, req managementusecase.NodeScaleInStatusRequest) (managementusecase.NodeScaleInStatusResponse, error)
+	// SetNodeDrainMode toggles gateway admission drain mode for a target node.
+	SetNodeDrainMode(ctx context.Context, req managementusecase.SetNodeDrainModeRequest) (managementusecase.SetNodeDrainModeResponse, error)
 	// QueryDiagnostics returns a manager-facing diagnostics aggregate query result.
 	QueryDiagnostics(ctx context.Context, req managementusecase.DiagnosticsQueryRequest) (managementusecase.DiagnosticsQueryResponse, error)
 	// CreateDiagnosticsTrackingRule installs a temporary diagnostics tracking rule.
@@ -318,6 +320,7 @@ func (s *Server) registerRoutes() {
 	nodeWrites.POST("/nodes/:node_id/onboarding/advance", s.handleNodeOnboardingAdvance)
 	nodeWrites.POST("/nodes/:node_id/scale-in/plan", s.handleNodeScaleInPlan)
 	nodeWrites.POST("/nodes/:node_id/scale-in/start", s.handleNodeScaleInStart)
+	nodeWrites.POST("/nodes/:node_id/scale-in/drain", s.handleNodeScaleInDrain)
 	nodeWrites.POST("/nodes/:node_id/scale-in/advance", s.handleNodeScaleInAdvance)
 	nodes.GET("/nodes/:node_id/onboarding/status", s.handleNodeOnboardingStatus)
 	nodes.GET("/nodes/:node_id/scale-in/status", s.handleNodeScaleInStatus)

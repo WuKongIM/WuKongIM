@@ -146,21 +146,23 @@ active item order in returned item-aligned results.
 
 ```text
 remote manager connection reader
-  -> encode W K V M 1 request
+  -> encode W K V M 2 request
   -> clusterv2 RPCManagerConnection
   -> Adapter.HandleManagerConnectionRPC
   -> Management connection reader port
-  -> encode W K V m 1 response
+  -> encode W K V m 2 response
 ```
 
 Manager Connection RPC transports the manager connection list/detail read
-requests and lightweight runtime-summary reads for one owner node. The server
-calls the local management connection/runtime port, which reads the owner-local
-online registry and gateway counters; the client maps stable RPC statuses back
-to manager usecase errors. Summary requests return aggregate counts only and do
-not carry per-connection details. This package only transports the request and
-response DTOs. It does not decide which manager HTTP request should target a
-remote node.
+requests, lightweight runtime-summary reads, and `set_drain_mode` gateway
+admission writes for one owner node. The server calls the local management
+connection/runtime/drain port, which reads the owner-local online registry and
+gateway counters and can toggle only that node's new-session admission; the
+client maps stable RPC statuses back to manager usecase errors. Summary and
+drain responses return aggregate counts only and do not carry per-connection
+details. This package only transports the request and response DTOs. It does
+not decide which manager HTTP request should target a remote node, and it does
+not close gateway sessions.
 
 ## Manager Log RPC
 

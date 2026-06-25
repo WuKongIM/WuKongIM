@@ -16,10 +16,20 @@ type gatewaySummaryRuntime interface {
 	SessionSummary() gatewaycore.SessionSummary
 }
 
+type gatewayDrainRuntime interface {
+	SetAcceptingNewSessions(bool)
+}
+
 type managementRuntimeSummaryReader struct {
 	app         *App
 	localNodeID uint64
 	remote      nodeRuntimeSummaryReader
+}
+
+type managementGatewayDrainWriter struct {
+	app         *App
+	localNodeID uint64
+	remote      managementusecase.GatewayDrainWriter
 }
 
 func (r managementRuntimeSummaryReader) NodeRuntimeSummary(ctx context.Context, nodeID uint64) (managementusecase.NodeRuntimeSummary, error) {
@@ -53,6 +63,7 @@ func (r managementRuntimeSummaryReader) localRuntimeSummary(ctx context.Context,
 	if r.app.online != nil {
 		onlineSummary := r.app.online.Snapshot()
 		summary.ActiveOnline = onlineSummary.Active
+		summary.PendingActivations = onlineSummary.Pending
 		summary.TotalOnline = onlineSummary.Active + onlineSummary.Pending
 	}
 	if gatewayRuntime, ok := r.app.gateway.(gatewaySummaryRuntime); ok && gatewayRuntime != nil {
@@ -67,6 +78,28 @@ func (r managementRuntimeSummaryReader) localRuntimeSummary(ctx context.Context,
 	}
 	summary.Unknown = false
 	return summary
+}
+
+func (w managementGatewayDrainWriter) SetNodeDrainMode(ctx context.Context, nodeID uint64, draining bool) (managementusecase.NodeRuntimeSummary, error) {
+	if nodeID == w.localNodeID || w.localNodeID == 0 {
+		return w.setLocalDrainMode(ctx, nodeID, draining)
+	}
+	if w.remote == nil {
+		return managementusecase.NodeRuntimeSummary{NodeID: nodeID, Unknown: true}, managementusecase.ErrNodeScaleInUnavailable
+	}
+	return w.remote.SetNodeDrainMode(ctx, nodeID, draining)
+}
+
+func (w managementGatewayDrainWriter) setLocalDrainMode(ctx context.Context, nodeID uint64, draining bool) (managementusecase.NodeRuntimeSummary, error) {
+	if w.app == nil || w.app.gateway == nil {
+		return managementusecase.NodeRuntimeSummary{NodeID: nodeID, Unknown: true}, managementusecase.ErrNodeScaleInUnavailable
+	}
+	gatewayRuntime, ok := w.app.gateway.(gatewayDrainRuntime)
+	if !ok || gatewayRuntime == nil {
+		return managementusecase.NodeRuntimeSummary{NodeID: nodeID, Unknown: true}, managementusecase.ErrNodeScaleInUnavailable
+	}
+	gatewayRuntime.SetAcceptingNewSessions(!draining)
+	return managementRuntimeSummaryReader{app: w.app, localNodeID: w.localNodeID}.localRuntimeSummary(ctx, nodeID), nil
 }
 
 func cloneRuntimeListenerCounts(values map[string]int) map[string]int {

@@ -52,3 +52,11 @@ func (r *ManagementConnectionReader) NodeRuntimeSummary(ctx context.Context, nod
 	}
 	return r.remote.GetManagerRuntimeSummary(ctx, nodeID)
 }
+
+// SetNodeDrainMode toggles gateway drain mode on the selected node through manager connection RPC.
+func (r *ManagementConnectionReader) SetNodeDrainMode(ctx context.Context, nodeID uint64, draining bool) (managementusecase.NodeRuntimeSummary, error) {
+	if r == nil || r.remote == nil {
+		return managementusecase.NodeRuntimeSummary{}, managementusecase.ErrNodeScaleInUnavailable
+	}
+	return r.remote.SetManagerDrainMode(ctx, nodeID, draining)
+}

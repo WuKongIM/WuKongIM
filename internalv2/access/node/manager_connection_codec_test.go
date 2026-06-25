@@ -11,6 +11,7 @@ func TestManagerConnectionRuntimeSummaryCodecCarriesControlRevision(t *testing.T
 		NodeID:               2,
 		ActiveOnline:         7,
 		GatewaySessions:      9,
+		PendingActivations:   3,
 		SessionsByListener:   map[string]int{"tcp": 9},
 		AcceptingNewSessions: true,
 		ControlRevision:      42,
@@ -26,5 +27,24 @@ func TestManagerConnectionRuntimeSummaryCodecCarriesControlRevision(t *testing.T
 	}
 	if got.Summary.ControlRevision != 42 || got.Summary.NodeID != 2 {
 		t.Fatalf("summary = %#v, want control revision 42 for node 2", got.Summary)
+	}
+	if got.Summary.PendingActivations != 3 {
+		t.Fatalf("summary = %#v, want pending activations 3", got.Summary)
+	}
+}
+
+func TestManagerConnectionDrainModeCodecRoundTrip(t *testing.T) {
+	encoded, err := encodeManagerConnectionRequest(managerConnectionRPCRequest{
+		Op: managerConnectionOpSetDrainMode, NodeID: 4, Draining: true,
+	})
+	if err != nil {
+		t.Fatalf("encode request error = %v", err)
+	}
+	got, err := decodeManagerConnectionRequest(encoded)
+	if err != nil {
+		t.Fatalf("decode request error = %v", err)
+	}
+	if got.Op != managerConnectionOpSetDrainMode || got.NodeID != 4 || !got.Draining {
+		t.Fatalf("request = %#v, want set drain mode node 4", got)
 	}
 }

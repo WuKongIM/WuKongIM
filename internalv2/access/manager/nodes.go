@@ -125,6 +125,8 @@ type NodeRuntimeDTO struct {
 	TotalOnline int `json:"total_online"`
 	// GatewaySessions counts all gateway sessions, including unauthenticated sessions.
 	GatewaySessions int `json:"gateway_sessions"`
+	// PendingActivations counts local sessions accepted but not yet authority-active.
+	PendingActivations int `json:"pending_activations"`
 	// SessionsByListener groups gateway sessions by listener name or address.
 	SessionsByListener map[string]int `json:"sessions_by_listener"`
 	// AcceptingNewSessions reports whether gateway admission currently accepts new sessions.
@@ -137,9 +139,9 @@ type NodeRuntimeDTO struct {
 
 // NodeActionsDTO contains backend business capability hints for UI actions.
 type NodeActionsDTO struct {
-	// CanDrain reports whether the node can be marked draining.
+	// CanDrain reports whether the legacy node-drain action can be used.
 	CanDrain bool `json:"can_drain"`
-	// CanResume reports whether the node can be resumed from draining.
+	// CanResume reports whether the legacy node-resume action can be used.
 	CanResume bool `json:"can_resume"`
 	// CanScaleIn reports whether the data-node scale-in flow can be considered.
 	CanScaleIn bool `json:"can_scale_in"`
@@ -225,6 +227,7 @@ func nodeDTO(item managementusecase.Node) NodeDTO {
 			ClosingOnline:        item.Runtime.ClosingOnline,
 			TotalOnline:          item.Runtime.TotalOnline,
 			GatewaySessions:      item.Runtime.GatewaySessions,
+			PendingActivations:   item.Runtime.PendingActivations,
 			SessionsByListener:   sessionsByListener,
 			AcceptingNewSessions: item.Runtime.AcceptingNewSessions,
 			Draining:             item.Runtime.Draining,

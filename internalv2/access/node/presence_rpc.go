@@ -27,6 +27,7 @@ const (
 	rpcStatusContextCanceled         = "context_canceled"
 	rpcStatusContextDeadlineExceeded = "context_deadline_exceeded"
 	rpcStatusNotFound                = "not_found"
+	rpcStatusInvalidArgument         = "invalid_argument"
 	rpcStatusRejected                = "rejected"
 
 	presenceOpRegisterRoute    = "register_route"
@@ -83,6 +84,7 @@ type ManagerConnectionReader interface {
 	ListConnections(context.Context, managementusecase.ListConnectionsRequest) ([]managementusecase.Connection, error)
 	GetConnection(context.Context, managementusecase.GetConnectionRequest) (managementusecase.ConnectionDetail, error)
 	NodeRuntimeSummary(context.Context, uint64) (managementusecase.NodeRuntimeSummary, error)
+	SetNodeDrainMode(context.Context, managementusecase.SetNodeDrainModeRequest) (managementusecase.SetNodeDrainModeResponse, error)
 }
 
 // ManagerLogReader handles node-local manager distributed log page requests.

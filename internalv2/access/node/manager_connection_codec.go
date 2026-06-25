@@ -9,18 +9,20 @@ import (
 )
 
 var (
-	managerConnectionRequestMagic  = [...]byte{'W', 'K', 'V', 'M', 1}
-	managerConnectionResponseMagic = [...]byte{'W', 'K', 'V', 'm', 1}
+	managerConnectionRequestMagic  = [...]byte{'W', 'K', 'V', 'M', 2}
+	managerConnectionResponseMagic = [...]byte{'W', 'K', 'V', 'm', 2}
 )
 
 const (
 	managerConnectionOpList           = "list_connections"
 	managerConnectionOpGet            = "get_connection"
 	managerConnectionOpRuntimeSummary = "runtime_summary"
+	managerConnectionOpSetDrainMode   = "set_drain_mode"
 
 	managerConnectionOpListID byte = iota + 1
 	managerConnectionOpGetID
 	managerConnectionOpRuntimeSummaryID
+	managerConnectionOpSetDrainModeID
 
 	maxManagerConnectionRPCCollectionLen = 4096
 )
@@ -30,6 +32,7 @@ type managerConnectionRPCRequest struct {
 	NodeID    uint64
 	SessionID uint64
 	Limit     int
+	Draining  bool
 }
 
 type managerConnectionRPCResponse struct {
@@ -50,6 +53,7 @@ func encodeManagerConnectionRequest(req managerConnectionRPCRequest) ([]byte, er
 	dst = appendUvarint(dst, req.NodeID)
 	dst = appendUvarint(dst, req.SessionID)
 	dst = appendUvarint(dst, uint64(req.Limit))
+	dst = appendBoolByte(dst, req.Draining)
 	return dst, nil
 }
 
@@ -79,10 +83,14 @@ func decodeManagerConnectionRequest(body []byte) (managerConnectionRPCRequest, e
 	if err != nil {
 		return managerConnectionRPCRequest{}, err
 	}
+	draining, offset, err := readBoolByte(body, offset, "manager connection draining")
+	if err != nil {
+		return managerConnectionRPCRequest{}, err
+	}
 	if offset != len(body) {
 		return managerConnectionRPCRequest{}, fmt.Errorf("internalv2/access/node: trailing manager connection request bytes")
 	}
-	return managerConnectionRPCRequest{Op: op, NodeID: nodeID, SessionID: sessionID, Limit: int(limit)}, nil
+	return managerConnectionRPCRequest{Op: op, NodeID: nodeID, SessionID: sessionID, Limit: int(limit), Draining: draining}, nil
 }
 
 func encodeManagerConnectionResponse(resp managerConnectionRPCResponse) ([]byte, error) {
@@ -221,6 +229,7 @@ func appendNodeRuntimeSummary(dst []byte, summary managementusecase.NodeRuntimeS
 	dst = appendManagerConnectionInt(dst, summary.ClosingOnline)
 	dst = appendManagerConnectionInt(dst, summary.TotalOnline)
 	dst = appendManagerConnectionInt(dst, summary.GatewaySessions)
+	dst = appendManagerConnectionInt(dst, summary.PendingActivations)
 	dst = appendManagerConnectionListenerMap(dst, summary.SessionsByListener)
 	dst = appendBoolByte(dst, summary.AcceptingNewSessions)
 	dst = appendBoolByte(dst, summary.Draining)
@@ -250,6 +259,9 @@ func readNodeRuntimeSummary(body []byte, offset int) (managementusecase.NodeRunt
 		return summary, offset, err
 	}
 	if summary.GatewaySessions, offset, err = readManagerConnectionInt(body, offset); err != nil {
+		return summary, offset, err
+	}
+	if summary.PendingActivations, offset, err = readManagerConnectionInt(body, offset); err != nil {
 		return summary, offset, err
 	}
 	if summary.SessionsByListener, offset, err = readManagerConnectionListenerMap(body, offset); err != nil {
@@ -326,6 +338,8 @@ func managerConnectionOpID(op string) (byte, error) {
 		return managerConnectionOpGetID, nil
 	case managerConnectionOpRuntimeSummary:
 		return managerConnectionOpRuntimeSummaryID, nil
+	case managerConnectionOpSetDrainMode:
+		return managerConnectionOpSetDrainModeID, nil
 	default:
 		return 0, fmt.Errorf("internalv2/access/node: unknown manager connection op %q", op)
 	}
@@ -339,6 +353,8 @@ func managerConnectionOpFromID(op byte) (string, error) {
 		return managerConnectionOpGet, nil
 	case managerConnectionOpRuntimeSummaryID:
 		return managerConnectionOpRuntimeSummary, nil
+	case managerConnectionOpSetDrainModeID:
+		return managerConnectionOpSetDrainMode, nil
 	default:
 		return "", fmt.Errorf("internalv2/access/node: unknown manager connection op id %d", op)
 	}

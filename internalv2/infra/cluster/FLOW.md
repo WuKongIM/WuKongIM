@@ -34,12 +34,14 @@ internalv2 management usecase. It only exposes local control snapshot reads and
 the local node ID for read-only manager node and Slot list rendering. Node
 lifecycle writes are exposed through the separate
 `ManagementNodeLifecycleAdapter` for join, activation, and leaving
-transitions. Bounded Slot onboarding and Stage 4 scale-in drain writes are
+transitions. Bounded Slot onboarding and Stage 4 scale-in Slot drain writes are
 exposed through `ManagementSlotReplicaMoveAdapter`, which submits Stage 3
 `slot_replica_move` task intents and never mutates assignments directly. Final
-scale-in removal, gateway drain, channel migration, and Slot operations other
-than explicit node-local Raft compaction or staged replica-move task creation
-stay unmigrated.
+scale-in removal, gateway session closure, channel migration, and Slot
+operations other than explicit node-local Raft compaction or staged
+replica-move task creation stay unmigrated. Gateway drain mode itself is routed
+through the manager connection RPC remote writer below because it is a
+target-node gateway admission toggle, not a control-plane assignment write.
 
 ## Node Lifecycle RPC Flow
 
@@ -224,11 +226,12 @@ management.RemoteConnectionReader
 ```
 
 `ManagementConnectionReader` is the narrow remote half of the manager
-connection and node-runtime summary surfaces. It forwards non-local `node_id`
-list/detail reads and aggregate runtime-summary reads to the owner node and
-preserves management usecase DTOs across the RPC boundary. Local connection
-filtering and DTO shaping stay in the management usecase; this adapter only
-chooses the typed node RPC client.
+connection, node-runtime summary, and gateway drain-mode surfaces. It forwards
+non-local `node_id` list/detail reads, aggregate runtime-summary reads, and
+gateway admission drain toggles to the owner node and preserves management
+usecase DTOs across the RPC boundary. Local connection filtering, runtime
+counter interpretation, and DTO shaping stay in the management usecase; this
+adapter only chooses the typed node RPC client.
 
 ## Management Plugin Flow
 

@@ -733,6 +733,7 @@ func TestManagerServerListsLocalNodeRuntimeSummary(t *testing.T) {
 				ClosingOnline        int            `json:"closing_online"`
 				TotalOnline          int            `json:"total_online"`
 				GatewaySessions      int            `json:"gateway_sessions"`
+				PendingActivations   int            `json:"pending_activations"`
 				SessionsByListener   map[string]int `json:"sessions_by_listener"`
 				AcceptingNewSessions bool           `json:"accepting_new_sessions"`
 				Draining             bool           `json:"draining"`
@@ -749,6 +750,7 @@ func TestManagerServerListsLocalNodeRuntimeSummary(t *testing.T) {
 	runtime := body.Items[1].Runtime
 	if body.Items[1].NodeID != 2 || runtime.Unknown || runtime.ActiveOnline != 1 ||
 		runtime.ClosingOnline != 0 || runtime.TotalOnline != 2 || runtime.GatewaySessions != 3 ||
+		runtime.PendingActivations != 1 ||
 		runtime.SessionsByListener["tcp"] != 2 || runtime.SessionsByListener["ws"] != 1 ||
 		runtime.AcceptingNewSessions || !runtime.Draining {
 		t.Fatalf("local runtime = %+v on row %+v, want concrete runtime summary", runtime, body.Items[1])
@@ -770,6 +772,50 @@ func TestManagementRuntimeSummaryReportsLocalControlRevision(t *testing.T) {
 	}
 	if got.ControlRevision != 42 {
 		t.Fatalf("runtime summary = %#v, want control revision 42", got)
+	}
+}
+
+func TestManagementGatewayDrainWriterTogglesLocalGateway(t *testing.T) {
+	gateway := &gatewayAdmissionStub{accepting: true}
+	app := &App{gateway: gateway}
+	writer := managementGatewayDrainWriter{app: app, localNodeID: 1}
+
+	summary, err := writer.SetNodeDrainMode(context.Background(), 1, true)
+	if err != nil {
+		t.Fatalf("SetNodeDrainMode() error = %v", err)
+	}
+	if gateway.AcceptingNewSessions() || !summary.Draining || summary.AcceptingNewSessions {
+		t.Fatalf("gateway accepting=%v summary=%#v, want local drain", gateway.AcceptingNewSessions(), summary)
+	}
+}
+
+func TestManagementGatewayDrainWriterResumesLocalGateway(t *testing.T) {
+	gateway := &gatewayAdmissionStub{accepting: false}
+	app := &App{gateway: gateway}
+	writer := managementGatewayDrainWriter{app: app, localNodeID: 1}
+
+	summary, err := writer.SetNodeDrainMode(context.Background(), 1, false)
+	if err != nil {
+		t.Fatalf("SetNodeDrainMode(resume) error = %v", err)
+	}
+	if !gateway.AcceptingNewSessions() || summary.Draining || !summary.AcceptingNewSessions {
+		t.Fatalf("gateway accepting=%v summary=%#v, want local resume", gateway.AcceptingNewSessions(), summary)
+	}
+}
+
+func TestManagementGatewayDrainWriterFailsClosedWhenRemoteMissing(t *testing.T) {
+	local := &gatewayAdmissionStub{accepting: true}
+	writer := managementGatewayDrainWriter{app: &App{gateway: local}, localNodeID: 1}
+
+	summary, err := writer.SetNodeDrainMode(context.Background(), 4, true)
+	if !errors.Is(err, managementusecase.ErrNodeScaleInUnavailable) {
+		t.Fatalf("SetNodeDrainMode(remote missing) error = %v, want ErrNodeScaleInUnavailable", err)
+	}
+	if !summary.Unknown || summary.NodeID != 4 {
+		t.Fatalf("summary = %#v, want unknown target node 4", summary)
+	}
+	if local.acceptingChanged {
+		t.Fatalf("remote drain unexpectedly changed local gateway admission")
 	}
 }
 
@@ -6975,6 +7021,32 @@ func (f *fakeGateway) Stop() error {
 
 func (f *fakeGateway) SessionSummary() gatewaycore.SessionSummary {
 	return f.sessionSummary
+}
+
+type gatewayAdmissionStub struct {
+	accepting        bool
+	acceptingChanged bool
+}
+
+func (g *gatewayAdmissionStub) Start() error {
+	return nil
+}
+
+func (g *gatewayAdmissionStub) Stop() error {
+	return nil
+}
+
+func (g *gatewayAdmissionStub) SetAcceptingNewSessions(accepting bool) {
+	g.acceptingChanged = true
+	g.accepting = accepting
+}
+
+func (g *gatewayAdmissionStub) AcceptingNewSessions() bool {
+	return g.accepting
+}
+
+func (g *gatewayAdmissionStub) SessionSummary() gatewaycore.SessionSummary {
+	return gatewaycore.SessionSummary{AcceptingNewSessions: g.accepting}
 }
 
 type recordingAppLogger struct {

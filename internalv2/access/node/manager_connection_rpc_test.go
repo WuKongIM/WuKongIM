@@ -6,6 +6,7 @@ import (
 	"time"
 
 	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
 func TestManagerConnectionRPCListsConnections(t *testing.T) {
@@ -70,6 +71,7 @@ func TestManagerConnectionRPCClientGetsRuntimeSummary(t *testing.T) {
 			ClosingOnline:        1,
 			TotalOnline:          8,
 			GatewaySessions:      9,
+			PendingActivations:   3,
 			SessionsByListener:   map[string]int{"tcp": 9},
 			AcceptingNewSessions: false,
 			Draining:             true,
@@ -85,7 +87,7 @@ func TestManagerConnectionRPCClientGetsRuntimeSummary(t *testing.T) {
 	}
 
 	if got.NodeID != 2 || got.ActiveOnline != 7 || got.ClosingOnline != 1 || got.TotalOnline != 8 ||
-		got.GatewaySessions != 9 || got.SessionsByListener["tcp"] != 9 ||
+		got.GatewaySessions != 9 || got.PendingActivations != 3 || got.SessionsByListener["tcp"] != 9 ||
 		got.AcceptingNewSessions || !got.Draining || got.Unknown {
 		t.Fatalf("runtime summary = %#v, want concrete node 2 runtime summary", got)
 	}
@@ -97,13 +99,63 @@ func TestManagerConnectionRPCClientGetsRuntimeSummary(t *testing.T) {
 	}
 }
 
+func TestManagerConnectionRPCSetDrainMode(t *testing.T) {
+	service := &fakeManagerConnectionService{runtime: managementusecase.NodeRuntimeSummary{
+		NodeID: 4, Draining: true, AcceptingNewSessions: false, PendingActivations: 1,
+	}}
+	adapter := New(Options{ManagerConnections: service})
+	body, err := encodeManagerConnectionRequest(managerConnectionRPCRequest{Op: managerConnectionOpSetDrainMode, NodeID: 4, Draining: true})
+	if err != nil {
+		t.Fatalf("encode request error = %v", err)
+	}
+
+	respBody, err := adapter.HandleManagerConnectionRPC(context.Background(), body)
+	if err != nil {
+		t.Fatalf("HandleManagerConnectionRPC() error = %v", err)
+	}
+	resp, err := decodeManagerConnectionResponse(respBody)
+	if err != nil {
+		t.Fatalf("decode response error = %v", err)
+	}
+	if service.drainReq != (managementusecase.SetNodeDrainModeRequest{NodeID: 4, Draining: true}) ||
+		!resp.Summary.Draining || resp.Summary.PendingActivations != 1 {
+		t.Fatalf("service=%#v response=%#v, want drain summary", service, resp.Summary)
+	}
+}
+
+func TestManagerConnectionRPCClientMapsDrainUnavailable(t *testing.T) {
+	service := &fakeManagerConnectionService{err: managementusecase.ErrNodeScaleInUnavailable}
+	adapter := New(Options{ManagerConnections: service})
+	node := &fakeManagerConnectionRPCNode{handler: adapter.HandleManagerConnectionRPC}
+	client := NewClient(node)
+
+	_, err := client.SetManagerDrainMode(context.Background(), 4, true)
+	if err != managementusecase.ErrNodeScaleInUnavailable {
+		t.Fatalf("SetManagerDrainMode() error = %v, want ErrNodeScaleInUnavailable", err)
+	}
+}
+
+func TestManagerConnectionRPCClientMapsDrainInvalidArgument(t *testing.T) {
+	service := &fakeManagerConnectionService{err: metadb.ErrInvalidArgument}
+	adapter := New(Options{ManagerConnections: service})
+	node := &fakeManagerConnectionRPCNode{handler: adapter.HandleManagerConnectionRPC}
+	client := NewClient(node)
+
+	_, err := client.SetManagerDrainMode(context.Background(), 4, true)
+	if err != metadb.ErrInvalidArgument {
+		t.Fatalf("SetManagerDrainMode() error = %v, want ErrInvalidArgument", err)
+	}
+}
+
 type fakeManagerConnectionService struct {
 	listReq       managementusecase.ListConnectionsRequest
 	detailReq     managementusecase.GetConnectionRequest
 	runtimeNodeID uint64
+	drainReq      managementusecase.SetNodeDrainModeRequest
 	connections   []managementusecase.Connection
 	detail        managementusecase.ConnectionDetail
 	runtime       managementusecase.NodeRuntimeSummary
+	err           error
 }
 
 func (f *fakeManagerConnectionService) ListConnections(_ context.Context, req managementusecase.ListConnectionsRequest) ([]managementusecase.Connection, error) {
@@ -119,6 +171,24 @@ func (f *fakeManagerConnectionService) GetConnection(_ context.Context, req mana
 func (f *fakeManagerConnectionService) NodeRuntimeSummary(_ context.Context, nodeID uint64) (managementusecase.NodeRuntimeSummary, error) {
 	f.runtimeNodeID = nodeID
 	return f.runtime, nil
+}
+
+func (f *fakeManagerConnectionService) SetNodeDrainMode(_ context.Context, req managementusecase.SetNodeDrainModeRequest) (managementusecase.SetNodeDrainModeResponse, error) {
+	if f.err != nil {
+		return managementusecase.SetNodeDrainModeResponse{}, f.err
+	}
+	f.drainReq = req
+	return managementusecase.SetNodeDrainModeResponse{
+		NodeID:               f.runtime.NodeID,
+		Draining:             f.runtime.Draining,
+		AcceptingNewSessions: f.runtime.AcceptingNewSessions,
+		GatewaySessions:      f.runtime.GatewaySessions,
+		ActiveOnline:         f.runtime.ActiveOnline,
+		ClosingOnline:        f.runtime.ClosingOnline,
+		TotalOnline:          f.runtime.TotalOnline,
+		PendingActivations:   f.runtime.PendingActivations,
+		Unknown:              f.runtime.Unknown,
+	}, nil
 }
 
 type fakeManagerConnectionRPCNode struct {

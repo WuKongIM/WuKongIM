@@ -41,6 +41,7 @@ func TestManagementConnectionReaderRoutesRuntimeSummary(t *testing.T) {
 			NodeID:               2,
 			ActiveOnline:         3,
 			GatewaySessions:      4,
+			PendingActivations:   1,
 			SessionsByListener:   map[string]int{"tcp": 4},
 			AcceptingNewSessions: true,
 		},
@@ -58,11 +59,38 @@ func TestManagementConnectionReaderRoutesRuntimeSummary(t *testing.T) {
 	}
 
 	if got.NodeID != 2 || got.ActiveOnline != 3 || got.GatewaySessions != 4 ||
-		got.SessionsByListener["tcp"] != 4 || !got.AcceptingNewSessions || got.Unknown {
+		got.PendingActivations != 1 || got.SessionsByListener["tcp"] != 4 || !got.AcceptingNewSessions || got.Unknown {
 		t.Fatalf("runtime summary = %#v, want concrete summary", got)
 	}
 	if node.calledNodeID != 2 || node.calledServiceID != accessnode.ManagerConnectionRPCServiceID {
 		t.Fatalf("rpc target = node:%d service:%d, want node 2 service %d", node.calledNodeID, node.calledServiceID, accessnode.ManagerConnectionRPCServiceID)
+	}
+}
+
+func TestManagementConnectionReaderRoutesDrainMode(t *testing.T) {
+	service := &fakeManagerConnectionService{
+		runtime: managementusecase.NodeRuntimeSummary{
+			NodeID: 4, Draining: true, AcceptingNewSessions: false, PendingActivations: 2,
+		},
+	}
+	adapter := accessnode.New(accessnode.Options{ManagerConnections: service})
+	node := &fakeManagementConnectionNode{
+		nodeID:  1,
+		handler: adapter.HandleManagerConnectionRPC,
+	}
+	reader := NewManagementConnectionReader(node)
+
+	got, err := reader.SetNodeDrainMode(context.Background(), 4, true)
+	if err != nil {
+		t.Fatalf("SetNodeDrainMode() error = %v", err)
+	}
+
+	if service.drainReq != (managementusecase.SetNodeDrainModeRequest{NodeID: 4, Draining: true}) ||
+		!got.Draining || got.PendingActivations != 2 {
+		t.Fatalf("service=%#v summary=%#v, want remote drain summary", service, got)
+	}
+	if node.calledNodeID != 4 || node.calledServiceID != accessnode.ManagerConnectionRPCServiceID {
+		t.Fatalf("rpc target = node:%d service:%d, want node 4 service %d", node.calledNodeID, node.calledServiceID, accessnode.ManagerConnectionRPCServiceID)
 	}
 }
 
@@ -84,6 +112,7 @@ func (f *fakeManagementConnectionNode) CallRPC(ctx context.Context, nodeID uint6
 type fakeManagerConnectionService struct {
 	connections []managementusecase.Connection
 	listReq     managementusecase.ListConnectionsRequest
+	drainReq    managementusecase.SetNodeDrainModeRequest
 	detail      managementusecase.ConnectionDetail
 	runtime     managementusecase.NodeRuntimeSummary
 }
@@ -99,6 +128,21 @@ func (f *fakeManagerConnectionService) GetConnection(context.Context, management
 
 func (f *fakeManagerConnectionService) NodeRuntimeSummary(context.Context, uint64) (managementusecase.NodeRuntimeSummary, error) {
 	return f.runtime, nil
+}
+
+func (f *fakeManagerConnectionService) SetNodeDrainMode(_ context.Context, req managementusecase.SetNodeDrainModeRequest) (managementusecase.SetNodeDrainModeResponse, error) {
+	f.drainReq = req
+	return managementusecase.SetNodeDrainModeResponse{
+		NodeID:               f.runtime.NodeID,
+		Draining:             f.runtime.Draining,
+		AcceptingNewSessions: f.runtime.AcceptingNewSessions,
+		GatewaySessions:      f.runtime.GatewaySessions,
+		ActiveOnline:         f.runtime.ActiveOnline,
+		ClosingOnline:        f.runtime.ClosingOnline,
+		TotalOnline:          f.runtime.TotalOnline,
+		PendingActivations:   f.runtime.PendingActivations,
+		Unknown:              f.runtime.Unknown,
+	}, nil
 }
 
 func sameManagementConnections(left, right []managementusecase.Connection) bool {

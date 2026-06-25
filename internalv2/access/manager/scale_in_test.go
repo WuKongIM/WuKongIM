@@ -175,6 +175,82 @@ func TestManagerScaleInStartReturnsOKWhenAlreadyLeaving(t *testing.T) {
 	}
 }
 
+func TestManagerScaleInDrainRequiresWritePermissionAndReturnsRuntimeCounters(t *testing.T) {
+	var seen managementusecase.SetNodeDrainModeRequest
+	srv := New(Options{
+		Auth: testAuthConfig([]UserConfig{
+			{
+				Username: "reader",
+				Password: "secret",
+				Permissions: []PermissionConfig{{
+					Resource: "cluster.node",
+					Actions:  []string{"r"},
+				}},
+			},
+			{
+				Username: "admin",
+				Password: "secret",
+				Permissions: []PermissionConfig{{
+					Resource: "cluster.node",
+					Actions:  []string{"w"},
+				}},
+			},
+		}),
+		Management: managerNodesStub{
+			scaleInDrainReqSink: &seen,
+			scaleInDrain: managementusecase.SetNodeDrainModeResponse{
+				NodeID:               4,
+				Draining:             true,
+				AcceptingNewSessions: false,
+				GatewaySessions:      3,
+				ActiveOnline:         1,
+				ClosingOnline:        0,
+				TotalOnline:          2,
+				PendingActivations:   1,
+			},
+		},
+	})
+
+	denied := httptest.NewRecorder()
+	deniedReq := httptest.NewRequest(http.MethodPost, "/manager/nodes/4/scale-in/drain", strings.NewReader(`{"draining":true}`))
+	deniedReq.Header.Set("Content-Type", "application/json")
+	deniedReq.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "reader"))
+	srv.Engine().ServeHTTP(denied, deniedReq)
+	if denied.Code != http.StatusForbidden {
+		t.Fatalf("denied status = %d body=%s, want %d", denied.Code, denied.Body.String(), http.StatusForbidden)
+	}
+	if seen.NodeID != 0 {
+		t.Fatalf("denied request reached management: %#v", seen)
+	}
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/manager/nodes/4/scale-in/drain", strings.NewReader(`{"draining":true}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s, want %d", rec.Code, rec.Body.String(), http.StatusOK)
+	}
+	if seen != (managementusecase.SetNodeDrainModeRequest{NodeID: 4, Draining: true}) {
+		t.Fatalf("request = %#v, want node 4 draining true", seen)
+	}
+	if !jsonEqual(rec.Body.String(), `{
+		"node_id": 4,
+		"draining": true,
+		"accepting_new_sessions": false,
+		"gateway_sessions": 3,
+		"active_online": 1,
+		"closing_online": 0,
+		"total_online": 2,
+		"pending_activations": 1,
+		"unknown": false
+	}`) {
+		t.Fatalf("body = %s", rec.Body.String())
+	}
+}
+
 func TestManagerScaleInStatusRequiresReadPermission(t *testing.T) {
 	generatedAt := time.Date(2026, 6, 24, 12, 0, 0, 0, time.UTC)
 	var seen managementusecase.NodeScaleInStatusRequest
@@ -195,10 +271,13 @@ func TestManagerScaleInStatusRequiresReadPermission(t *testing.T) {
 				GeneratedAt:             generatedAt,
 				StateRevision:           22,
 				SafeToProceed:           false,
+				SafeToRemove:            false,
 				BlockedBySlots:          true,
 				BlockedBySlotRuntime:    true,
 				BlockedByChannels:       true,
+				BlockedByRuntimeDrain:   true,
 				UnknownRuntime:          true,
+				RuntimeUnknown:          true,
 				SlotReplicaCount:        1,
 				SlotLeaderCount:         2,
 				ActiveTaskCount:         3,
@@ -208,6 +287,13 @@ func TestManagerScaleInStatusRequiresReadPermission(t *testing.T) {
 				ChannelLeaderCount:      5,
 				ChannelReplicaCount:     6,
 				ChannelISRCount:         7,
+				GatewayDraining:         true,
+				AcceptingNewSessions:    false,
+				GatewaySessions:         8,
+				ActiveOnline:            9,
+				ClosingOnline:           10,
+				TotalOnline:             11,
+				PendingActivations:      12,
 			},
 		},
 	})
@@ -230,6 +316,7 @@ func TestManagerScaleInStatusRequiresReadPermission(t *testing.T) {
 		"generated_at": "2026-06-24T12:00:00Z",
 		"state_revision": 22,
 		"safe_to_proceed": false,
+		"safe_to_remove": false,
 		"blocked_by_missing_node": false,
 		"blocked_by_join_state": false,
 		"blocked_by_control_revision": false,
@@ -239,7 +326,9 @@ func TestManagerScaleInStatusRequiresReadPermission(t *testing.T) {
 		"blocked_by_slot_runtime": true,
 		"blocked_by_tasks": false,
 		"blocked_by_channels": true,
+		"blocked_by_runtime_drain": true,
 		"unknown_runtime": true,
+		"runtime_unknown": true,
 		"unknown_control_revision": true,
 		"unknown_channel_inventory": true,
 		"slot_replica_count": 1,
@@ -248,7 +337,14 @@ func TestManagerScaleInStatusRequiresReadPermission(t *testing.T) {
 		"failed_task_count": 4,
 		"channel_leader_count": 5,
 		"channel_replica_count": 6,
-		"channel_isr_count": 7
+		"channel_isr_count": 7,
+		"gateway_draining": true,
+		"accepting_new_sessions": false,
+		"gateway_sessions": 8,
+		"active_online": 9,
+		"closing_online": 10,
+		"total_online": 11,
+		"pending_activations": 12
 	}`) {
 		t.Fatalf("body = %s", rec.Body.String())
 	}
