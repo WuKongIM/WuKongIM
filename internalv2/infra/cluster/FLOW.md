@@ -327,7 +327,10 @@ Slot Raft voters match the target set. When the source replica is still the
 observed Slot leader, the executor transfers leadership and waits for a
 non-source leader observation before removing the source voter, so the next
 executor wakeup is based on observed Raft state rather than a blind control
-revision churn.
+revision churn. The final assignment commit also carries the executor's live
+observed Slot Raft voter proof, and failed replica-move tasks remain visible in
+control state without automatic executor retry until a later explicit operator
+advance or cancellation path handles them.
 
 ## Management Node Lifecycle Flow
 

@@ -96,6 +96,10 @@ type SlotReplicaMoveCommit struct {
 	ConfigEpoch uint64 `json:"config_epoch"`
 	// Attempt fences the commit to the active global task attempt.
 	Attempt uint32 `json:"attempt"`
+	// ObservedConfigIndex is the Slot Raft applied index proving the final voter set.
+	ObservedConfigIndex uint64 `json:"observed_config_index"`
+	// ObservedVoters is the Slot Raft voter set observed by the committing executor.
+	ObservedVoters []uint64 `json:"observed_voters,omitempty"`
 }
 
 // InitClusterState is the committed payload that creates the first cluster state.

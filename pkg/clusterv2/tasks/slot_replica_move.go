@@ -82,6 +82,9 @@ func (e *SlotReplicaMoveExecutor) Reconcile(ctx context.Context, snapshot contro
 		if task.Kind != control.TaskKindSlotReplicaMove || task.CompletionPolicy != control.TaskCompletionPolicySingleObserver {
 			continue
 		}
+		if task.Status == control.TaskStatusFailed {
+			continue
+		}
 		_, ok := findSlot(snapshot.Slots, task.SlotID)
 		if !ok {
 			continue
@@ -252,10 +255,12 @@ func (e *SlotReplicaMoveExecutor) commitAssignment(ctx context.Context, task con
 		return nil
 	}
 	return e.cfg.MoveWriter.CommitSlotReplicaMove(ctx, control.SlotReplicaMoveCommit{
-		TaskID:      task.TaskID,
-		SlotID:      task.SlotID,
-		ConfigEpoch: task.ConfigEpoch,
-		Attempt:     task.Attempt,
+		TaskID:              task.TaskID,
+		SlotID:              task.SlotID,
+		ConfigEpoch:         task.ConfigEpoch,
+		Attempt:             task.Attempt,
+		ObservedConfigIndex: status.ConfigAppliedIndex,
+		ObservedVoters:      nodeIDsToUint64(status.CurrentVoters),
 	})
 }
 

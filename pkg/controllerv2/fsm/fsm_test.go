@@ -379,6 +379,7 @@ func TestApplyAdvanceSlotReplicaMovePhasePersistsFence(t *testing.T) {
 	ctx := context.Background()
 	sm := slotReplicaMoveStateMachine(t)
 	task := stagedSlotReplicaMoveTask("slot-1-replica-move-1-to-4-r9")
+	task.Step = state.TaskStepAddLearner
 	applyOK(t, sm, 4, command.Command{Kind: command.KindUpsertSlotReplicaMoveTask, Task: &task})
 
 	result, err := sm.Apply(ctx, 5, command.Command{
@@ -426,6 +427,57 @@ func TestApplyAdvanceSlotReplicaMovePhaseRejectsStalePhase(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, ApplyResult{Rejected: true, Reason: ReasonTaskPhaseMismatch, Revision: 4, AppliedRaftIndex: 5}, result)
 	require.Equal(t, uint32(1), sm.Snapshot(ctx).Tasks[0].PhaseIndex)
+}
+
+func TestApplyAdvanceSlotReplicaMovePhaseRejectsIllegalStepJump(t *testing.T) {
+	ctx := context.Background()
+	sm := slotReplicaMoveStateMachine(t)
+	task := stagedSlotReplicaMoveTask("slot-1-replica-move-1-to-4-r9")
+	applyOK(t, sm, 4, command.Command{Kind: command.KindUpsertSlotReplicaMoveTask, Task: &task})
+
+	result, err := sm.Apply(ctx, 5, command.Command{
+		Kind: command.KindAdvanceSlotReplicaMovePhase,
+		SlotReplicaMovePhase: &command.SlotReplicaMovePhaseAdvance{
+			TaskID:              task.TaskID,
+			SlotID:              1,
+			ConfigEpoch:         7,
+			Attempt:             0,
+			ExpectedPhaseIndex:  0,
+			NextStep:            state.TaskStepCommitAssignment,
+			ObservedConfigIndex: 55,
+			ObservedVoters:      []uint64{2, 3, 4},
+		},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, ApplyResult{Rejected: true, Reason: ReasonTaskStepMismatch, Revision: 4, AppliedRaftIndex: 5}, result)
+	require.Equal(t, state.TaskStepOpenLearner, sm.Snapshot(ctx).Tasks[0].Step)
+}
+
+func TestApplyAdvanceSlotReplicaMovePhaseRejectsMissingLearnerObservation(t *testing.T) {
+	ctx := context.Background()
+	sm := slotReplicaMoveStateMachine(t)
+	task := stagedSlotReplicaMoveTask("slot-1-replica-move-1-to-4-r9")
+	task.Step = state.TaskStepAddLearner
+	applyOK(t, sm, 4, command.Command{Kind: command.KindUpsertSlotReplicaMoveTask, Task: &task})
+
+	result, err := sm.Apply(ctx, 5, command.Command{
+		Kind: command.KindAdvanceSlotReplicaMovePhase,
+		SlotReplicaMovePhase: &command.SlotReplicaMovePhaseAdvance{
+			TaskID:              task.TaskID,
+			SlotID:              1,
+			ConfigEpoch:         7,
+			Attempt:             0,
+			ExpectedPhaseIndex:  0,
+			NextStep:            state.TaskStepPromoteLearner,
+			ObservedConfigIndex: 55,
+			ObservedVoters:      []uint64{1, 2, 3},
+		},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, ApplyResult{Rejected: true, Reason: ReasonTaskObservedLearnersMismatch, Revision: 4, AppliedRaftIndex: 5}, result)
+	require.Equal(t, state.TaskStepAddLearner, sm.Snapshot(ctx).Tasks[0].Step)
 }
 
 func TestApplyAdvanceSlotReplicaMovePhaseRejectsFences(t *testing.T) {
@@ -519,10 +571,12 @@ func TestApplyCommitSlotReplicaMoveUpdatesAssignmentAndRemovesTask(t *testing.T)
 	result, err := sm.Apply(ctx, 5, command.Command{
 		Kind: command.KindCommitSlotReplicaMove,
 		SlotReplicaMoveCommit: &command.SlotReplicaMoveCommit{
-			TaskID:      task.TaskID,
-			SlotID:      1,
-			ConfigEpoch: 7,
-			Attempt:     0,
+			TaskID:              task.TaskID,
+			SlotID:              1,
+			ConfigEpoch:         7,
+			Attempt:             0,
+			ObservedConfigIndex: 55,
+			ObservedVoters:      []uint64{4, 2, 3},
 		},
 	})
 	require.NoError(t, err)
@@ -545,10 +599,12 @@ func TestApplyCommitSlotReplicaMoveRejectsObservedVoterMismatch(t *testing.T) {
 	result, err := sm.Apply(ctx, 5, command.Command{
 		Kind: command.KindCommitSlotReplicaMove,
 		SlotReplicaMoveCommit: &command.SlotReplicaMoveCommit{
-			TaskID:      task.TaskID,
-			SlotID:      1,
-			ConfigEpoch: 7,
-			Attempt:     0,
+			TaskID:              task.TaskID,
+			SlotID:              1,
+			ConfigEpoch:         7,
+			Attempt:             0,
+			ObservedConfigIndex: 55,
+			ObservedVoters:      []uint64{4, 2, 3},
 		},
 	})
 	require.NoError(t, err)
@@ -557,6 +613,32 @@ func TestApplyCommitSlotReplicaMoveRejectsObservedVoterMismatch(t *testing.T) {
 	require.Len(t, snap.Tasks, 1)
 	require.Equal(t, []uint64{1, 2, 3}, snap.Slots[0].DesiredPeers)
 	require.Equal(t, uint64(7), snap.Slots[0].ConfigEpoch)
+}
+
+func TestApplyCommitSlotReplicaMoveRejectsMissingCommitObservation(t *testing.T) {
+	ctx := context.Background()
+	sm := slotReplicaMoveStateMachine(t)
+	task := stagedSlotReplicaMoveTask("slot-1-replica-move-1-to-4-r9")
+	task.Step = state.TaskStepCommitAssignment
+	task.ObservedConfigIndex = 55
+	task.ObservedVoters = []uint64{4, 2, 3}
+	applyOK(t, sm, 4, command.Command{Kind: command.KindUpsertSlotReplicaMoveTask, Task: &task})
+
+	result, err := sm.Apply(ctx, 5, command.Command{
+		Kind: command.KindCommitSlotReplicaMove,
+		SlotReplicaMoveCommit: &command.SlotReplicaMoveCommit{
+			TaskID:      task.TaskID,
+			SlotID:      1,
+			ConfigEpoch: 7,
+			Attempt:     0,
+		},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, ApplyResult{Rejected: true, Reason: ReasonTaskObservedConfigMissing, Revision: 4, AppliedRaftIndex: 5}, result)
+	snap := sm.Snapshot(ctx)
+	require.Len(t, snap.Tasks, 1)
+	require.Equal(t, []uint64{1, 2, 3}, snap.Slots[0].DesiredPeers)
 }
 
 func TestApplyCommitSlotReplicaMoveRejectsFences(t *testing.T) {
@@ -569,30 +651,36 @@ func TestApplyCommitSlotReplicaMoveRejectsFences(t *testing.T) {
 		{
 			name: "slot mismatch",
 			commit: command.SlotReplicaMoveCommit{
-				TaskID:      "slot-1-replica-move-1-to-4-r9",
-				SlotID:      2,
-				ConfigEpoch: 7,
-				Attempt:     0,
+				TaskID:              "slot-1-replica-move-1-to-4-r9",
+				SlotID:              2,
+				ConfigEpoch:         7,
+				Attempt:             0,
+				ObservedConfigIndex: 55,
+				ObservedVoters:      []uint64{4, 2, 3},
 			},
 			want: ApplyResult{Rejected: true, Reason: ReasonTaskSlotMismatch, Revision: 4, AppliedRaftIndex: 5},
 		},
 		{
 			name: "epoch mismatch",
 			commit: command.SlotReplicaMoveCommit{
-				TaskID:      "slot-1-replica-move-1-to-4-r9",
-				SlotID:      1,
-				ConfigEpoch: 8,
-				Attempt:     0,
+				TaskID:              "slot-1-replica-move-1-to-4-r9",
+				SlotID:              1,
+				ConfigEpoch:         8,
+				Attempt:             0,
+				ObservedConfigIndex: 55,
+				ObservedVoters:      []uint64{4, 2, 3},
 			},
 			want: ApplyResult{Noop: true, Reason: ReasonTaskEpochMismatch, Revision: 4, AppliedRaftIndex: 5},
 		},
 		{
 			name: "attempt mismatch",
 			commit: command.SlotReplicaMoveCommit{
-				TaskID:      "slot-1-replica-move-1-to-4-r9",
-				SlotID:      1,
-				ConfigEpoch: 7,
-				Attempt:     1,
+				TaskID:              "slot-1-replica-move-1-to-4-r9",
+				SlotID:              1,
+				ConfigEpoch:         7,
+				Attempt:             1,
+				ObservedConfigIndex: 55,
+				ObservedVoters:      []uint64{4, 2, 3},
 			},
 			want: ApplyResult{Noop: true, Reason: ReasonTaskAttemptMismatch, Revision: 4, AppliedRaftIndex: 5},
 		},
@@ -602,10 +690,12 @@ func TestApplyCommitSlotReplicaMoveRejectsFences(t *testing.T) {
 				task.Step = state.TaskStepRemoveVoter
 			},
 			commit: command.SlotReplicaMoveCommit{
-				TaskID:      "slot-1-replica-move-1-to-4-r9",
-				SlotID:      1,
-				ConfigEpoch: 7,
-				Attempt:     0,
+				TaskID:              "slot-1-replica-move-1-to-4-r9",
+				SlotID:              1,
+				ConfigEpoch:         7,
+				Attempt:             0,
+				ObservedConfigIndex: 55,
+				ObservedVoters:      []uint64{4, 2, 3},
 			},
 			want: ApplyResult{Rejected: true, Reason: ReasonTaskStepMismatch, Revision: 4, AppliedRaftIndex: 5},
 		},
@@ -615,10 +705,12 @@ func TestApplyCommitSlotReplicaMoveRejectsFences(t *testing.T) {
 				task.ObservedConfigIndex = 0
 			},
 			commit: command.SlotReplicaMoveCommit{
-				TaskID:      "slot-1-replica-move-1-to-4-r9",
-				SlotID:      1,
-				ConfigEpoch: 7,
-				Attempt:     0,
+				TaskID:              "slot-1-replica-move-1-to-4-r9",
+				SlotID:              1,
+				ConfigEpoch:         7,
+				Attempt:             0,
+				ObservedConfigIndex: 55,
+				ObservedVoters:      []uint64{4, 2, 3},
 			},
 			want: ApplyResult{Rejected: true, Reason: ReasonTaskObservedConfigMissing, Revision: 4, AppliedRaftIndex: 5},
 		},

@@ -42,6 +42,8 @@ const (
 	ReasonTaskStepMismatch = "task_step_mismatch"
 	// ReasonTaskObservedVotersMismatch marks a commit whose observed voters do not match target peers.
 	ReasonTaskObservedVotersMismatch = "task_observed_voters_mismatch"
+	// ReasonTaskObservedLearnersMismatch marks a phase whose observed learners do not prove the next step.
+	ReasonTaskObservedLearnersMismatch = "task_observed_learners_mismatch"
 	// ReasonTaskObservedConfigMissing marks a commit without a durable Slot Raft config observation.
 	ReasonTaskObservedConfigMissing = "task_observed_config_missing"
 	// ReasonInitConflict marks an init command that does not match existing state.

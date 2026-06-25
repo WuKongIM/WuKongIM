@@ -34,6 +34,26 @@ func TestSlotReplicaMoveExecutorOpensTargetLearnerBeforeDesiredPeersChange(t *te
 	}
 }
 
+func TestSlotReplicaMoveExecutorSkipsFailedTask(t *testing.T) {
+	runtime := &fakeSlotReplicaMoveRuntime{status: moveStatus()}
+	writer := &fakeSlotReplicaMoveWriter{}
+	snapshot := slotReplicaMoveSnapshot(control.TaskStepAddLearner, 0, moveStatus())
+	snapshot.Tasks[0].Status = control.TaskStatusFailed
+	executor := NewSlotReplicaMoveExecutor(SlotReplicaMoveExecutorConfig{LocalNode: 1, Runtime: runtime, MoveWriter: writer})
+
+	err := executor.Reconcile(context.Background(), snapshot)
+
+	if err != nil {
+		t.Fatalf("Reconcile() error = %v", err)
+	}
+	if runtime.statusCalls != 0 || len(runtime.changes) != 0 {
+		t.Fatalf("runtime statusCalls=%d changes=%#v, want failed task skipped", runtime.statusCalls, runtime.changes)
+	}
+	if writer.phaseCalls != 0 || writer.commitCalls != 0 || len(writer.failed) != 0 {
+		t.Fatalf("writer phase=%d commit=%d failed=%#v, want no writes for failed task", writer.phaseCalls, writer.commitCalls, writer.failed)
+	}
+}
+
 func TestSlotReplicaMoveExecutorAddsLearnerBeforeDesiredPeersChange(t *testing.T) {
 	initial := moveStatus()
 	afterAdd := initial

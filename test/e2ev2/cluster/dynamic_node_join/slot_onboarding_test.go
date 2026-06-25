@@ -43,22 +43,18 @@ func TestSlotReplicaMoveKeepsSendAvailable(t *testing.T) {
 
 	plan := manager.MustPlanOnboarding(t, 4, 1)
 	require.Len(t, plan.Candidates, 1, cluster.DumpDiagnostics())
+	activeSender := requireGatewaySender(t, cluster, node4, "slot-onboarding-move")
+	defer func() { _ = activeSender.Close() }()
 	start := manager.MustStartOnboarding(t, 4, 1)
 	require.Equal(t, uint32(1), start.Created, cluster.DumpDiagnostics())
 
-	requireGatewaySendDuringOnboardingActive(t, cluster, manager, node4, 4, "slot-onboarding-move", 5, 20*time.Second)
+	requireGatewaySendDuringOnboardingActive(t, cluster, manager, activeSender, 4, "slot-onboarding-move", 5, 20*time.Second)
 	manager.EventuallyOnboardingSafe(t, 4, 45*time.Second)
 	requireGatewaySendLoop(t, cluster, node4, "slot-onboarding-move-safe", 100)
 }
 
-func requireGatewaySendDuringOnboardingActive(t *testing.T, cluster *suite.StartedCluster, manager *suite.ManagerClient, node *suite.StartedNode, nodeID uint64, prefix string, count int, timeout time.Duration) {
+func requireGatewaySendDuringOnboardingActive(t *testing.T, cluster *suite.StartedCluster, manager *suite.ManagerClient, sender *suite.WKProtoClient, nodeID uint64, prefix string, count int, timeout time.Duration) {
 	t.Helper()
-
-	sender, err := suite.NewWKProtoClient()
-	require.NoError(t, err)
-	defer func() { _ = sender.Close() }()
-
-	require.NoError(t, sender.Connect(node.GatewayAddr(), prefix+"-sender", prefix+"-sender-device"), cluster.DumpDiagnostics())
 
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
@@ -98,14 +94,21 @@ func requireGatewaySendDuringOnboardingActive(t *testing.T, cluster *suite.Start
 func requireGatewaySendLoop(t *testing.T, cluster *suite.StartedCluster, node *suite.StartedNode, prefix string, count int) {
 	t.Helper()
 
-	sender, err := suite.NewWKProtoClient()
-	require.NoError(t, err)
+	sender := requireGatewaySender(t, cluster, node, prefix)
 	defer func() { _ = sender.Close() }()
 
-	require.NoError(t, sender.Connect(node.GatewayAddr(), prefix+"-sender", prefix+"-sender-device"), cluster.DumpDiagnostics())
 	for i := 0; i < count; i++ {
 		sendGatewayMessage(t, cluster, sender, prefix, i)
 	}
+}
+
+func requireGatewaySender(t *testing.T, cluster *suite.StartedCluster, node *suite.StartedNode, prefix string) *suite.WKProtoClient {
+	t.Helper()
+
+	sender, err := suite.NewWKProtoClient()
+	require.NoError(t, err)
+	require.NoError(t, sender.Connect(node.GatewayAddr(), prefix+"-sender", prefix+"-sender-device"), cluster.DumpDiagnostics())
+	return sender
 }
 
 func sendGatewayMessage(t *testing.T, cluster *suite.StartedCluster, sender *suite.WKProtoClient, prefix string, index int) {

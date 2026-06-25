@@ -121,6 +121,9 @@ func (sm *StateMachine) applyAdvanceSlotReplicaMovePhase(next *state.ClusterStat
 	if task.PhaseIndex != phase.ExpectedPhaseIndex {
 		return reject(ReasonTaskPhaseMismatch)
 	}
+	if reason := validateSlotReplicaMovePhaseAdvance(task, phase); reason != "" {
+		return reject(reason)
+	}
 	before := next.Clone()
 	next.Tasks[idx].Step = phase.NextStep
 	next.Tasks[idx].PhaseIndex++
@@ -155,6 +158,12 @@ func (sm *StateMachine) applyCommitSlotReplicaMove(next *state.ClusterState, cmd
 	}
 	if task.Step != state.TaskStepCommitAssignment {
 		return reject(ReasonTaskStepMismatch)
+	}
+	if commit.ObservedConfigIndex == 0 {
+		return reject(ReasonTaskObservedConfigMissing)
+	}
+	if !sameUint64Set(commit.ObservedVoters, task.TargetPeers) {
+		return reject(ReasonTaskObservedVotersMismatch)
 	}
 	if task.ObservedConfigIndex == 0 {
 		return reject(ReasonTaskObservedConfigMissing)
@@ -191,6 +200,70 @@ func (sm *StateMachine) applyCommitSlotReplicaMove(next *state.ClusterState, cmd
 	next.Tasks = append(next.Tasks[:idx], next.Tasks[idx+1:]...)
 	next.Normalize()
 	return validateChanged(next, before, cmd)
+}
+
+func validateSlotReplicaMovePhaseAdvance(task state.ReconcileTask, phase *command.SlotReplicaMovePhaseAdvance) string {
+	switch task.Step {
+	case state.TaskStepOpenLearner:
+		if phase.NextStep != state.TaskStepAddLearner {
+			return ReasonTaskStepMismatch
+		}
+		return ""
+	case state.TaskStepAddLearner:
+		if phase.NextStep != state.TaskStepPromoteLearner && phase.NextStep != state.TaskStepRemoveVoter {
+			return ReasonTaskStepMismatch
+		}
+		if phase.ObservedConfigIndex == 0 {
+			return ReasonTaskObservedConfigMissing
+		}
+		if phase.NextStep == state.TaskStepPromoteLearner {
+			if !sameUint64Set(phase.ObservedVoters, sourcePeersForSlotReplicaMove(task)) {
+				return ReasonTaskObservedVotersMismatch
+			}
+			if !containsUint64(phase.ObservedLearners, task.TargetNode) {
+				return ReasonTaskObservedLearnersMismatch
+			}
+			return ""
+		}
+		if !containsUint64(phase.ObservedVoters, task.TargetNode) {
+			return ReasonTaskObservedVotersMismatch
+		}
+		return ""
+	case state.TaskStepPromoteLearner:
+		if phase.NextStep != state.TaskStepRemoveVoter {
+			return ReasonTaskStepMismatch
+		}
+		if phase.ObservedConfigIndex == 0 {
+			return ReasonTaskObservedConfigMissing
+		}
+		if !containsUint64(phase.ObservedVoters, task.TargetNode) {
+			return ReasonTaskObservedVotersMismatch
+		}
+		return ""
+	case state.TaskStepRemoveVoter:
+		if phase.NextStep != state.TaskStepRemoveVoter && phase.NextStep != state.TaskStepCommitAssignment {
+			return ReasonTaskStepMismatch
+		}
+		if phase.ObservedConfigIndex == 0 {
+			return ReasonTaskObservedConfigMissing
+		}
+		if phase.NextStep == state.TaskStepCommitAssignment {
+			if !sameUint64Set(phase.ObservedVoters, task.TargetPeers) {
+				return ReasonTaskObservedVotersMismatch
+			}
+			return ""
+		}
+		if !containsUint64(phase.ObservedVoters, task.SourceNode) || !containsUint64(phase.ObservedVoters, task.TargetNode) {
+			return ReasonTaskObservedVotersMismatch
+		}
+		return ""
+	default:
+		return ReasonTaskStepMismatch
+	}
+}
+
+func sourcePeersForSlotReplicaMove(task state.ReconcileTask) []uint64 {
+	return replacePeer(task.TargetPeers, task.TargetNode, task.SourceNode)
 }
 
 func (sm *StateMachine) applyCompleteTask(next *state.ClusterState, cmd command.Command) ApplyResult {
