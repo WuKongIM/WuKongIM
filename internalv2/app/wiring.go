@@ -375,18 +375,21 @@ func (a *App) wireManagerConnectionRPC() {
 	if !hasNode || !hasRegistrar || a.online == nil {
 		return
 	}
-	service := managementusecase.New(managementusecase.Options{
+	readService := managementusecase.New(managementusecase.Options{
 		Cluster: clusterinfra.NewManagementSnapshotReader(node),
 		RuntimeSummary: managementRuntimeSummaryReader{
 			app:         a,
 			localNodeID: node.NodeID(),
 		},
-		GatewayDrain: managementGatewayDrainWriter{
+		Connections: a.online,
+	})
+	service := managerConnectionRPCService{
+		reads: readService,
+		drain: managementGatewayDrainWriter{
 			app:         a,
 			localNodeID: node.NodeID(),
 		},
-		Connections: a.online,
-	})
+	}
 	adapter := accessnode.New(accessnode.Options{ManagerConnections: service, Logger: a.logger.Named("node")})
 	registrar.RegisterRPC(accessnode.ManagerConnectionRPCServiceID, nodeRPCHandlerFunc(adapter.HandleManagerConnectionRPC))
 }

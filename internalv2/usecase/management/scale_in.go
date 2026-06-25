@@ -81,6 +81,8 @@ type NodeScaleInStatusResponse struct {
 	BlockedByControlRevision bool
 	// BlockedByControllerRole reports that the target node still has the Controller role.
 	BlockedByControllerRole bool
+	// BlockedByDataRole reports that the target node does not have the Data role.
+	BlockedByDataRole bool
 	// BlockedBySlots reports that desired Slot assignments still include the target node.
 	BlockedBySlots bool
 	// BlockedBySlotLeadership reports that live Slot runtime still shows the target node as leader.
@@ -214,17 +216,17 @@ func (a *App) MarkNodeRemoved(ctx context.Context, req MarkNodeRemovedRequest) (
 		return MarkNodeRemovedResponse{}, err
 	}
 	if node, ok := findControlNode(snapshot, req.NodeID); ok && managerControlJoinState(node.JoinState) == control.NodeJoinStateRemoved {
-		return a.markNodeRemoved(ctx, req.NodeID)
+		return a.markNodeRemoved(ctx, req.NodeID, 0)
 	}
 	status := a.nodeScaleInStatusFromSnapshot(ctx, snapshot, req.NodeID, nil)
 	if !status.SafeToRemove {
 		return MarkNodeRemovedResponse{}, ErrNodeScaleInUnsafe
 	}
-	return a.markNodeRemoved(ctx, req.NodeID)
+	return a.markNodeRemoved(ctx, req.NodeID, status.StateRevision)
 }
 
-func (a *App) markNodeRemoved(ctx context.Context, nodeID uint64) (MarkNodeRemovedResponse, error) {
-	result, err := a.nodeLifecycle.MarkNodeRemoved(ctx, control.MarkNodeRemovedRequest{NodeID: nodeID})
+func (a *App) markNodeRemoved(ctx context.Context, nodeID uint64, stateRevision uint64) (MarkNodeRemovedResponse, error) {
+	result, err := a.nodeLifecycle.MarkNodeRemoved(ctx, control.MarkNodeRemovedRequest{NodeID: nodeID, StateRevision: stateRevision})
 	if err != nil {
 		return MarkNodeRemovedResponse{}, mapNodeLifecycleError(err)
 	}
@@ -252,13 +254,16 @@ func (a *App) nodeScaleInStatusFromSnapshot(ctx context.Context, snapshot contro
 	if hasRole(node.Roles, control.RoleController) {
 		response.BlockedByControllerRole = true
 	}
+	if !hasRole(node.Roles, control.RoleData) {
+		response.BlockedByDataRole = true
+	}
 	if joinState != control.NodeJoinStateLeaving {
 		response.BlockedByJoinState = true
 	}
 	a.markScaleInRuntimeRevisionBlockers(ctx, snapshot, &response)
 	a.markScaleInSlotBlockers(ctx, snapshot.Slots, nodeID, &response)
 	markScaleInTaskBlockersWithFilter(snapshot.Tasks, nodeID, &response, ignoreTask)
-	if !response.BlockedByJoinState && !response.BlockedByControllerRole {
+	if !response.BlockedByJoinState && !response.BlockedByControllerRole && !response.BlockedByDataRole {
 		a.markScaleInChannelBlockers(ctx, snapshot, nodeID, &response)
 	}
 	a.markScaleInRuntimeDrainBlockers(ctx, nodeID, &response)
@@ -266,6 +271,7 @@ func (a *App) nodeScaleInStatusFromSnapshot(ctx context.Context, snapshot contro
 		!response.BlockedByJoinState &&
 		!response.BlockedByControlRevision &&
 		!response.BlockedByControllerRole &&
+		!response.BlockedByDataRole &&
 		!response.BlockedBySlots &&
 		!response.BlockedBySlotLeadership &&
 		!response.BlockedBySlotRuntime &&
@@ -588,6 +594,7 @@ func scaleInStatusBlocksPlan(status NodeScaleInStatusResponse) bool {
 		status.BlockedByJoinState ||
 		status.BlockedByControlRevision ||
 		status.BlockedByControllerRole ||
+		status.BlockedByDataRole ||
 		status.BlockedBySlotLeadership ||
 		status.BlockedBySlotRuntime ||
 		status.BlockedByTasks ||

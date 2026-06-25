@@ -869,6 +869,69 @@ func TestRuntimeMarkNodeRemovedRejectsMissingNode(t *testing.T) {
 	}
 }
 
+func TestRuntimeMarkNodeRemovedRejectsStaleExpectedRevision(t *testing.T) {
+	runtime := startSingleVoterRuntime(t, "cluster-mark-removed-stale-revision")
+	if _, err := runtime.JoinNode(context.Background(), JoinNodeRequest{
+		NodeID:         4,
+		Name:           "n4",
+		Addr:           "n4",
+		Roles:          []NodeRole{NodeRoleData},
+		CapacityWeight: 1,
+	}); err != nil {
+		t.Fatalf("JoinNode() error = %v", err)
+	}
+	if _, err := runtime.ActivateNode(context.Background(), ActivateNodeRequest{NodeID: 4}); err != nil {
+		t.Fatalf("ActivateNode() error = %v", err)
+	}
+	if _, err := runtime.MarkNodeLeaving(context.Background(), MarkNodeLeavingRequest{NodeID: 4}); err != nil {
+		t.Fatalf("MarkNodeLeaving() error = %v", err)
+	}
+	state, err := runtime.LocalState(context.Background())
+	if err != nil {
+		t.Fatalf("LocalState() error = %v", err)
+	}
+
+	_, err = runtime.MarkNodeRemoved(context.Background(), MarkNodeRemovedRequest{NodeID: 4, ExpectedRevision: state.Revision + 1})
+	if !errors.Is(err, ErrExpectedRevisionMismatch) {
+		t.Fatalf("MarkNodeRemoved(stale revision) error = %v, want %v", err, ErrExpectedRevisionMismatch)
+	}
+}
+
+func TestRuntimeMarkNodeRemovedAllowsStaleExpectedRevisionWhenAlreadyRemoved(t *testing.T) {
+	runtime := startSingleVoterRuntime(t, "cluster-mark-removed-idempotent-stale-revision")
+	if _, err := runtime.JoinNode(context.Background(), JoinNodeRequest{
+		NodeID:         4,
+		Name:           "n4",
+		Addr:           "n4",
+		Roles:          []NodeRole{NodeRoleData},
+		CapacityWeight: 1,
+	}); err != nil {
+		t.Fatalf("JoinNode() error = %v", err)
+	}
+	if _, err := runtime.ActivateNode(context.Background(), ActivateNodeRequest{NodeID: 4}); err != nil {
+		t.Fatalf("ActivateNode() error = %v", err)
+	}
+	if _, err := runtime.MarkNodeLeaving(context.Background(), MarkNodeLeavingRequest{NodeID: 4}); err != nil {
+		t.Fatalf("MarkNodeLeaving() error = %v", err)
+	}
+	state, err := runtime.LocalState(context.Background())
+	if err != nil {
+		t.Fatalf("LocalState() error = %v", err)
+	}
+	removed, err := runtime.MarkNodeRemoved(context.Background(), MarkNodeRemovedRequest{NodeID: 4, ExpectedRevision: state.Revision})
+	if err != nil {
+		t.Fatalf("MarkNodeRemoved() error = %v", err)
+	}
+
+	second, err := runtime.MarkNodeRemoved(context.Background(), MarkNodeRemovedRequest{NodeID: 4, ExpectedRevision: state.Revision})
+	if err != nil {
+		t.Fatalf("MarkNodeRemoved(already removed stale revision) error = %v", err)
+	}
+	if second.Changed || second.Revision != removed.Revision || second.Node.JoinState != NodeJoinStateRemoved {
+		t.Fatalf("MarkNodeRemoved(already removed stale revision) = %#v, want idempotent removed node", second)
+	}
+}
+
 func readStateEvent(t *testing.T, watch <-chan StateEvent) StateEvent {
 	t.Helper()
 	select {

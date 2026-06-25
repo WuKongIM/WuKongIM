@@ -128,19 +128,22 @@ manager scale-in route
 The scale-in preparation routes are live under the manager node permission
 surface. `MarkNodeLeaving` validates only the manager-facing node ID and
 delegates the durable transition to the lifecycle writer. `SetNodeDrainMode`
-validates only the target node ID and delegates gateway admission changes to the
-narrow `GatewayDrainWriter`; it returns the fresh target runtime counters but
-does not close existing sessions. The status, plan, and advance usecases require
-the target node to exist in durable `leaving` state, reject controller-role
-targets, and fail closed when eligible nodes have unknown runtime summaries,
+validates that the target exists as a durable Data-role, non-Controller
+`leaving` node before delegating gateway admission changes to the narrow
+`GatewayDrainWriter`; it returns the fresh target runtime counters but does not
+close existing sessions. The status, plan, and advance usecases require the
+target node to exist in durable `leaving` state with the Data role, reject
+controller-role targets, and fail closed when eligible nodes have unknown runtime summaries,
 missing or stale control revisions, live Slot leadership on the target, live
 Slot voters that still contain the target after desired placement moved, Slot
 runtime read failures, or active/failed Controller tasks that still reference
 the target. After Slot/task checks, status performs a bounded scan of
 authoritative `ChannelRuntimeMeta` by physical Slot and fails closed when the
 target is still a Channel leader, configured replica, ISR member, or when
-Channel inventory is unavailable. Status also reads the target runtime summary
-as the final gateway drain gate: `safe_to_remove` stays false while gateway
+Channel inventory is unavailable. The inventory scan is bounded by both
+per-page size and a total page budget; budget exhaustion is treated as unknown
+inventory and keeps final removal unsafe. Status also reads the target runtime
+summary as the final gateway drain gate: `safe_to_remove` stays false while gateway
 drain mode is off, admission still accepts new sessions, or gateway/online/
 closing/pending-activation counters are non-zero. Desired Slot peers containing
 the target are reported as the Slot drain work remaining and are the only status
@@ -155,10 +158,14 @@ target. Runtime drain blockers keep final status unsafe but do not block Slot
 drain advancement. The final safety decision is a conjunction of the Controller
 snapshot, Slot runtime status, Controller task state, bounded
 `ChannelRuntimeMeta` inventory, and target gateway/runtime drain counters.
-`MarkNodeRemoved` reuses the same status report and delegates
-to the lifecycle writer only when `safe_to_remove=true`; unsafe attempts fail
-closed before reaching the writer. Already-removed tombstones are delegated to
-the same writer for idempotent `changed=false` results. It does not mutate
+`MarkNodeRemoved` reuses the same status report and delegates to the lifecycle
+writer with the status `StateRevision` only when `safe_to_remove=true`; unsafe
+attempts fail closed before reaching the writer, and concurrent control-state
+revision changes are reported as scale-in conflicts. Already-removed tombstones
+are delegated to the same writer without the safety revision fence for
+idempotent `changed=false` results, and lower ControllerV2 also preserves this
+terminal-state idempotency when a retried remove still carries a stale fence.
+It does not mutate
 `DesiredPeers` directly, retry failed tasks, implement cancellation, close
 gateway sessions, migrate Channel replicas, clear Channel metadata, or mark
 nodes removed outside that safe final gate or idempotent tombstone path.

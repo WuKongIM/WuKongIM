@@ -819,6 +819,42 @@ func TestManagementGatewayDrainWriterFailsClosedWhenRemoteMissing(t *testing.T) 
 	}
 }
 
+func TestManagerConnectionRPCDrainUsesOwnerLocalGatewayPrimitive(t *testing.T) {
+	cluster := &fakeManagerCluster{nodeID: 4}
+	gateway := &gatewayAdmissionStub{accepting: true}
+
+	_, err := newTestApp(t, Config{}, WithCluster(cluster), WithGateway(gateway))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	summary, err := accessnode.NewClient(cluster).SetManagerDrainMode(context.Background(), 4, true)
+	if err != nil {
+		t.Fatalf("SetManagerDrainMode() error = %v", err)
+	}
+	if !gateway.acceptingChanged || gateway.AcceptingNewSessions() {
+		t.Fatalf("gateway accepting=%v changed=%v, want local drain", gateway.AcceptingNewSessions(), gateway.acceptingChanged)
+	}
+	if summary.NodeID != 4 || !summary.Draining || summary.AcceptingNewSessions {
+		t.Fatalf("summary = %#v, want drained node 4", summary)
+	}
+}
+
+func TestManagerConnectionRPCDrainRejectsNonLocalTarget(t *testing.T) {
+	gateway := &gatewayAdmissionStub{accepting: true}
+	service := managerConnectionRPCService{
+		drain: managementGatewayDrainWriter{app: &App{gateway: gateway}, localNodeID: 4},
+	}
+
+	_, err := service.SetNodeDrainMode(context.Background(), managementusecase.SetNodeDrainModeRequest{NodeID: 5, Draining: true})
+	if !errors.Is(err, managementusecase.ErrNodeScaleInUnavailable) {
+		t.Fatalf("SetNodeDrainMode(non-local) error = %v, want ErrNodeScaleInUnavailable", err)
+	}
+	if gateway.acceptingChanged {
+		t.Fatalf("non-local drain unexpectedly changed gateway admission")
+	}
+}
+
 func TestNewRegistersManagerLogRPCWhenClusterSupportsLogReads(t *testing.T) {
 	cluster := &fakeManagerCluster{nodeID: 1}
 
@@ -5406,7 +5442,7 @@ func (f *fakeManagerCluster) RegisterRPC(serviceID uint8, handler clusterv2.Node
 func (f *fakeManagerCluster) CallRPC(ctx context.Context, nodeID uint64, serviceID uint8, payload []byte) ([]byte, error) {
 	f.rpcNodeID = nodeID
 	f.rpcServiceID = serviceID
-	if (serviceID == accessnode.ManagerPluginRPCServiceID || serviceID == accessnode.ManagerMessageRetentionRPCServiceID) && f.registeredHandlers != nil {
+	if (serviceID == accessnode.ManagerConnectionRPCServiceID || serviceID == accessnode.ManagerPluginRPCServiceID || serviceID == accessnode.ManagerMessageRetentionRPCServiceID) && f.registeredHandlers != nil {
 		if handler, ok := f.registeredHandlers[serviceID]; ok {
 			return handler.HandleRPC(ctx, payload)
 		}

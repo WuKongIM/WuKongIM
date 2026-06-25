@@ -124,7 +124,7 @@ func TestControlWriteRequestCodecRoundTripSlotReplicaMove(t *testing.T) {
 		},
 		{
 			Action:          ControlWriteActionMarkNodeRemoved,
-			MarkNodeRemoved: MarkNodeRemovedRequest{NodeID: 4},
+			MarkNodeRemoved: MarkNodeRemovedRequest{NodeID: 4, StateRevision: 9},
 		},
 	}
 	for _, req := range requests {
@@ -201,7 +201,7 @@ func TestEncodeControlWriteMarkNodeLeavingUsesSnakeCaseJSON(t *testing.T) {
 func TestEncodeControlWriteMarkNodeRemovedUsesSnakeCaseJSON(t *testing.T) {
 	reqPayload, err := EncodeControlWriteRequest(ControlWriteRequest{
 		Action:          ControlWriteActionMarkNodeRemoved,
-		MarkNodeRemoved: MarkNodeRemovedRequest{NodeID: 4},
+		MarkNodeRemoved: MarkNodeRemovedRequest{NodeID: 4, StateRevision: 9},
 	})
 	if err != nil {
 		t.Fatalf("EncodeControlWriteRequest() error = %v", err)
@@ -215,9 +215,12 @@ func TestEncodeControlWriteMarkNodeRemovedUsesSnakeCaseJSON(t *testing.T) {
 	if err := json.Unmarshal(reqObject["mark_node_removed"], &removedReq); err != nil {
 		t.Fatalf("mark_node_removed request JSON unmarshal error = %v", err)
 	}
-	requireJSONKeys(t, removedReq, "node_id")
+	requireJSONKeys(t, removedReq, "node_id", "state_revision")
 	if _, ok := removedReq["NodeID"]; ok {
 		t.Fatalf("mark_node_removed request keys = %#v, contains Go field name NodeID", removedReq)
+	}
+	if _, ok := removedReq["StateRevision"]; ok {
+		t.Fatalf("mark_node_removed request keys = %#v, contains Go field name StateRevision", removedReq)
 	}
 
 	respPayload, err := EncodeControlWriteResponse(ControlWriteResponse{

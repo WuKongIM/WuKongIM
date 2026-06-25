@@ -273,6 +273,8 @@ func mapNodeLifecycleError(err error) error {
 		return fmt.Errorf("%w: %v", ErrNodeLifecycleConflict, err)
 	case errors.Is(err, cv2.ErrNodeLifecycleNotFound):
 		return fmt.Errorf("%w: %v", ErrNodeLifecycleNotFound, err)
+	case cv2.IsExpectedRevisionMismatch(err):
+		return fmt.Errorf("%w: %v", ErrNodeScaleInConflict, err)
 	default:
 		return err
 	}

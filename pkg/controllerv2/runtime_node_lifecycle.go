@@ -68,6 +68,8 @@ type MarkNodeLeavingResult struct {
 type MarkNodeRemovedRequest struct {
 	// NodeID is the stable node identity to tombstone.
 	NodeID uint64
+	// ExpectedRevision fences a remove write to the control revision used by the safety check.
+	ExpectedRevision uint64
 }
 
 // MarkNodeRemovedResult describes the node record after the transition.
@@ -227,6 +229,9 @@ func (r *Runtime) MarkNodeRemoved(ctx context.Context, req MarkNodeRemovedReques
 	}
 	if !changed {
 		return MarkNodeRemovedResult{Changed: false, Node: node, Revision: st.Revision}, nil
+	}
+	if req.ExpectedRevision != 0 && st.Revision != req.ExpectedRevision {
+		return MarkNodeRemovedResult{}, ErrExpectedRevisionMismatch
 	}
 	expectedRevision := st.Revision
 	proposal, err := r.raft.ProposeResult(ctx, command.Command{

@@ -321,6 +321,7 @@ func TestManagerScaleInStatusRequiresReadPermission(t *testing.T) {
 		"blocked_by_join_state": false,
 		"blocked_by_control_revision": false,
 		"blocked_by_controller_role": false,
+		"blocked_by_data_role": false,
 		"blocked_by_slots": true,
 		"blocked_by_slot_leadership": false,
 		"blocked_by_slot_runtime": true,

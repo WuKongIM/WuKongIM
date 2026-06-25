@@ -252,7 +252,7 @@ func TestMarkNodeRemovedDelegatesWhenSafe(t *testing.T) {
 	if err != nil {
 		t.Fatalf("MarkNodeRemoved() error = %v", err)
 	}
-	if !resp.Changed || resp.NodeID != 4 || resp.JoinState != "removed" || writer.removedReq.NodeID != 4 {
+	if !resp.Changed || resp.NodeID != 4 || resp.JoinState != "removed" || writer.removedReq.NodeID != 4 || writer.removedReq.StateRevision != snap.Revision {
 		t.Fatalf("response=%#v request=%#v, want removed node 4", resp, writer.removedReq)
 	}
 }
@@ -275,8 +275,27 @@ func TestMarkNodeRemovedDelegatesWhenAlreadyRemoved(t *testing.T) {
 	if err != nil {
 		t.Fatalf("MarkNodeRemoved() error = %v", err)
 	}
-	if resp.Changed || resp.NodeID != 4 || resp.JoinState != "removed" || writer.removedReq.NodeID != 4 {
+	if resp.Changed || resp.NodeID != 4 || resp.JoinState != "removed" || writer.removedReq.NodeID != 4 || writer.removedReq.StateRevision != 0 {
 		t.Fatalf("response=%#v request=%#v, want idempotent removed node 4", resp, writer.removedReq)
+	}
+}
+
+func TestScaleInStatusRequiresDataNodeRole(t *testing.T) {
+	snap := scaleInReadyNoSlotReplicaSnapshot()
+	snap.Nodes[3].Roles = nil
+	app := New(Options{
+		Cluster:            fakeNodeSnapshotReader{snapshot: snap},
+		RuntimeSummary:     fakeNodeRuntimeSummaryReader{summaries: scaleInRuntimeSummariesFor(snap.Revision, scaleInSnapshotNodeIDs(snap)...)},
+		SlotRuntimeStatus:  scaleInSafeSlotRuntimeReader{},
+		ChannelRuntimeMeta: newChannelDrainMetaReader(),
+	})
+
+	status, err := app.NodeScaleInStatus(context.Background(), NodeScaleInStatusRequest{NodeID: 4})
+	if err != nil {
+		t.Fatalf("NodeScaleInStatus() error = %v", err)
+	}
+	if status.SafeToProceed || status.SafeToRemove || !status.BlockedByDataRole {
+		t.Fatalf("status = %#v, want non-data node blocked from scale-in", status)
 	}
 }
 

@@ -126,6 +126,8 @@ type ManagerNodeScaleInStatusResponse struct {
 	BlockedByControlRevision bool `json:"blocked_by_control_revision"`
 	// BlockedByControllerRole reports that the target node still has the Controller role.
 	BlockedByControllerRole bool `json:"blocked_by_controller_role"`
+	// BlockedByDataRole reports that the target node does not have the Data role.
+	BlockedByDataRole bool `json:"blocked_by_data_role"`
 	// BlockedBySlots reports that desired Slot assignments still include the target node.
 	BlockedBySlots bool `json:"blocked_by_slots"`
 	// BlockedBySlotLeadership reports live Slot leadership still on the target node.
@@ -313,6 +315,7 @@ func nodeScaleInStatusResponseDTO(response managementusecase.NodeScaleInStatusRe
 		BlockedByJoinState:       response.BlockedByJoinState,
 		BlockedByControlRevision: response.BlockedByControlRevision,
 		BlockedByControllerRole:  response.BlockedByControllerRole,
+		BlockedByDataRole:        response.BlockedByDataRole,
 		BlockedBySlots:           response.BlockedBySlots,
 		BlockedBySlotLeadership:  response.BlockedBySlotLeadership,
 		BlockedBySlotRuntime:     response.BlockedBySlotRuntime,

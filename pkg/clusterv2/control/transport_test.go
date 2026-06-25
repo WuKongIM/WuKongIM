@@ -291,13 +291,13 @@ func TestNewControlWriteHandlerCallsMarkNodeRemoved(t *testing.T) {
 
 	result, err := client.Submit(context.Background(), 1, ControlWriteRequest{
 		Action:          ControlWriteActionMarkNodeRemoved,
-		MarkNodeRemoved: MarkNodeRemovedRequest{NodeID: 4},
+		MarkNodeRemoved: MarkNodeRemovedRequest{NodeID: 4, StateRevision: 9},
 	})
 	if err != nil {
 		t.Fatalf("Submit(mark node removed) error = %v", err)
 	}
-	if len(applier.markNodeRemoved) != 1 || applier.markNodeRemoved[0].NodeID != 4 {
-		t.Fatalf("markNodeRemoved = %#v, want node 4", applier.markNodeRemoved)
+	if len(applier.markNodeRemoved) != 1 || applier.markNodeRemoved[0].NodeID != 4 || applier.markNodeRemoved[0].StateRevision != 9 {
+		t.Fatalf("markNodeRemoved = %#v, want node 4 revision 9", applier.markNodeRemoved)
 	}
 	if !result.MarkNodeRemoved.Changed || result.MarkNodeRemoved.Node.JoinState != NodeJoinStateRemoved {
 		t.Fatalf("Submit(mark node removed) = %#v, want removed result", result.MarkNodeRemoved)

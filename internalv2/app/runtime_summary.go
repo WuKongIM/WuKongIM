@@ -5,6 +5,7 @@ import (
 
 	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	gatewaycore "github.com/WuKongIM/WuKongIM/pkg/gateway/core"
 )
 
@@ -30,6 +31,12 @@ type managementGatewayDrainWriter struct {
 	app         *App
 	localNodeID uint64
 	remote      managementusecase.GatewayDrainWriter
+}
+
+// managerConnectionRPCService exposes owner-local manager connection reads and gateway admission writes.
+type managerConnectionRPCService struct {
+	reads *managementusecase.App
+	drain managementGatewayDrainWriter
 }
 
 func (r managementRuntimeSummaryReader) NodeRuntimeSummary(ctx context.Context, nodeID uint64) (managementusecase.NodeRuntimeSummary, error) {
@@ -91,6 +98,9 @@ func (w managementGatewayDrainWriter) SetNodeDrainMode(ctx context.Context, node
 }
 
 func (w managementGatewayDrainWriter) setLocalDrainMode(ctx context.Context, nodeID uint64, draining bool) (managementusecase.NodeRuntimeSummary, error) {
+	if w.localNodeID != 0 && nodeID != w.localNodeID {
+		return managementusecase.NodeRuntimeSummary{NodeID: nodeID, Unknown: true}, managementusecase.ErrNodeScaleInUnavailable
+	}
 	if w.app == nil || w.app.gateway == nil {
 		return managementusecase.NodeRuntimeSummary{NodeID: nodeID, Unknown: true}, managementusecase.ErrNodeScaleInUnavailable
 	}
@@ -100,6 +110,55 @@ func (w managementGatewayDrainWriter) setLocalDrainMode(ctx context.Context, nod
 	}
 	gatewayRuntime.SetAcceptingNewSessions(!draining)
 	return managementRuntimeSummaryReader{app: w.app, localNodeID: w.localNodeID}.localRuntimeSummary(ctx, nodeID), nil
+}
+
+func (s managerConnectionRPCService) ListConnections(ctx context.Context, req managementusecase.ListConnectionsRequest) ([]managementusecase.Connection, error) {
+	if s.reads == nil {
+		return nil, managementusecase.ErrConnectionReaderUnavailable
+	}
+	return s.reads.ListConnections(ctx, req)
+}
+
+func (s managerConnectionRPCService) GetConnection(ctx context.Context, req managementusecase.GetConnectionRequest) (managementusecase.ConnectionDetail, error) {
+	if s.reads == nil {
+		return managementusecase.ConnectionDetail{}, managementusecase.ErrConnectionReaderUnavailable
+	}
+	return s.reads.GetConnection(ctx, req)
+}
+
+func (s managerConnectionRPCService) NodeRuntimeSummary(ctx context.Context, nodeID uint64) (managementusecase.NodeRuntimeSummary, error) {
+	if s.reads == nil {
+		return managementusecase.NodeRuntimeSummary{NodeID: nodeID, Unknown: true}, managementusecase.ErrConnectionReaderUnavailable
+	}
+	return s.reads.NodeRuntimeSummary(ctx, nodeID)
+}
+
+func (s managerConnectionRPCService) SetNodeDrainMode(ctx context.Context, req managementusecase.SetNodeDrainModeRequest) (managementusecase.SetNodeDrainModeResponse, error) {
+	if req.NodeID == 0 {
+		return managementusecase.SetNodeDrainModeResponse{}, metadb.ErrInvalidArgument
+	}
+	summary, err := s.drain.setLocalDrainMode(ctx, req.NodeID, req.Draining)
+	if err != nil {
+		return managementusecase.SetNodeDrainModeResponse{}, err
+	}
+	if summary.NodeID == 0 {
+		summary.NodeID = req.NodeID
+	}
+	return setNodeDrainModeResponseFromSummary(summary), nil
+}
+
+func setNodeDrainModeResponseFromSummary(summary managementusecase.NodeRuntimeSummary) managementusecase.SetNodeDrainModeResponse {
+	return managementusecase.SetNodeDrainModeResponse{
+		NodeID:               summary.NodeID,
+		Draining:             summary.Draining,
+		AcceptingNewSessions: summary.AcceptingNewSessions,
+		GatewaySessions:      summary.GatewaySessions,
+		ActiveOnline:         summary.ActiveOnline,
+		ClosingOnline:        summary.ClosingOnline,
+		TotalOnline:          summary.TotalOnline,
+		PendingActivations:   summary.PendingActivations,
+		Unknown:              summary.Unknown,
+	}
 }
 
 func cloneRuntimeListenerCounts(values map[string]int) map[string]int {

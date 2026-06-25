@@ -119,6 +119,34 @@ func TestNodeChannelDrainInventoryFailsClosedWhenCursorDoesNotAdvance(t *testing
 	}
 }
 
+func TestNodeChannelDrainInventoryFailsClosedWhenPageBudgetExceeded(t *testing.T) {
+	reader := newChannelDrainMetaReader()
+	reader.pages[1] = map[metadb.ChannelRuntimeMetaCursor]channelDrainMetaPage{
+		{}: {
+			items:  []metadb.ChannelRuntimeMeta{{ChannelID: "a", ChannelType: 1}},
+			cursor: metadb.ChannelRuntimeMetaCursor{ChannelID: "a", ChannelType: 1},
+			done:   false,
+		},
+		{ChannelID: "a", ChannelType: 1}: {
+			items:  []metadb.ChannelRuntimeMeta{{ChannelID: "b", ChannelType: 1}},
+			cursor: metadb.ChannelRuntimeMetaCursor{ChannelID: "b", ChannelType: 1},
+			done:   false,
+		},
+	}
+	app := New(Options{
+		Cluster:            fakeNodeSnapshotReader{snapshot: control.Snapshot{Slots: []control.SlotAssignment{{SlotID: 1}}}},
+		ChannelRuntimeMeta: reader,
+	})
+
+	inv, err := app.NodeChannelDrainInventory(context.Background(), NodeChannelDrainInventoryRequest{NodeID: 4, PageLimit: 1, MaxPages: 1})
+	if err != nil {
+		t.Fatalf("NodeChannelDrainInventory() error = %v", err)
+	}
+	if !inv.Unknown || inv.Safe || inv.LastError == "" || inv.ScannedPageCount != 1 || reader.calls != 1 {
+		t.Fatalf("inventory = %#v calls=%d, want unknown unsafe after one-page budget", inv, reader.calls)
+	}
+}
+
 type channelDrainMetaReader struct {
 	pages map[uint32]map[metadb.ChannelRuntimeMetaCursor]channelDrainMetaPage
 	err   error

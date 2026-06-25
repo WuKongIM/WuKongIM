@@ -128,11 +128,14 @@ data nodes. `start` marks the target node `leaving` through
 `management.App.MarkNodeLeaving`, causing future planners to stop assigning new
 work to it. `drain` toggles the target node gateway's new-session admission
 through `management.App.SetNodeDrainMode` and returns the target runtime
-counters after the change; it does not close existing sessions. `status`
+counters after the change; it is rejected unless the target is already a
+durable Data-role, non-Controller `leaving` node, and it does not close existing sessions. `status`
 delegates to `management.App.NodeScaleInStatus` and returns every fail-closed
 safety bit from the control snapshot, per-node runtime summaries, target
 gateway drain counters, Slot runtime summaries, active Controller tasks, and
-bounded Channel runtime metadata inventory. `plan` and `advance` accept
+bounded Channel runtime metadata inventory. Channel inventory is bounded by a
+per-page limit plus a total page budget and fails closed when the budget is
+exceeded. `plan` and `advance` accept
 `max_slot_moves` and delegate to
 `management.App.PlanNodeScaleIn` / `AdvanceNodeScaleIn`; HTTP only creates
 bounded Stage 3 `slot_replica_move` task intents through the usecase's
@@ -140,7 +143,8 @@ bounded Stage 3 `slot_replica_move` task intents through the usecase's
 permission checks, and response mapping only; safety and lifecycle decisions
 stay in the management usecase. `remove` delegates to
 `management.App.MarkNodeRemoved`, which calls the control lifecycle writer only
-when the same fail-closed status reports `safe_to_remove=true`; unsafe attempts
+when the same fail-closed status reports `safe_to_remove=true` and carries that
+status revision as the final write fence; unsafe attempts and revision conflicts
 return `409 conflict`. The downstream flow is:
 
 ```text
@@ -164,7 +168,7 @@ drain mode, no longer accepts new sessions, and reports zero gateway, online,
 closing, and pending-activation counters; the remove route is the only manager
 entrypoint that can submit the removed tombstone. A repeated remove on an
 already-removed tombstone returns the writer's idempotent `changed=false`
-result.
+result even when the original safe-remove fence is stale.
 
 `/manager/realtime-monitor` backs the unified web realtime monitor under
 cluster operations. It parses chart `window`, optional `step`, optional

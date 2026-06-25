@@ -511,6 +511,7 @@ type NodeScaleInStatusDTO struct {
 	SafeToProceed           bool   `json:"safe_to_proceed"`
 	SafeToRemove            bool   `json:"safe_to_remove"`
 	BlockedBySlots          bool   `json:"blocked_by_slots"`
+	BlockedByDataRole       bool   `json:"blocked_by_data_role"`
 	BlockedByTasks          bool   `json:"blocked_by_tasks"`
 	BlockedByChannels       bool   `json:"blocked_by_channels"`
 	BlockedByRuntimeDrain   bool   `json:"blocked_by_runtime_drain"`

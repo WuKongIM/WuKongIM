@@ -13,9 +13,16 @@ const (
 	DefaultChannelDrainScanLimit = 256
 	// MaxChannelDrainScanLimit caps operator-provided Channel inventory page sizes.
 	MaxChannelDrainScanLimit = 1024
+	// DefaultChannelDrainScanMaxPages bounds total Channel inventory pages per status/remove check.
+	DefaultChannelDrainScanMaxPages = 4096
+	// MaxChannelDrainScanMaxPages caps operator-provided total Channel inventory page budgets.
+	MaxChannelDrainScanMaxPages = 16384
 )
 
-var errChannelDrainCursorStalled = errors.New("channel drain inventory cursor did not advance")
+var (
+	errChannelDrainCursorStalled  = errors.New("channel drain inventory cursor did not advance")
+	errChannelDrainBudgetExceeded = errors.New("channel drain inventory scan budget exceeded")
+)
 
 // NodeChannelDrainInventoryRequest configures a target-node Channel drain scan.
 type NodeChannelDrainInventoryRequest struct {
@@ -23,6 +30,8 @@ type NodeChannelDrainInventoryRequest struct {
 	NodeID uint64
 	// PageLimit bounds each physical Slot metadata scan page.
 	PageLimit int
+	// MaxPages bounds total physical Slot metadata pages scanned across all Slots.
+	MaxPages int
 }
 
 // NodeChannelDrainInventoryResponse reports Channel blockers for target-node removal.
@@ -35,6 +44,8 @@ type NodeChannelDrainInventoryResponse struct {
 	Unknown bool
 	// ScannedSlotCount counts physical Slots scanned before the result was produced.
 	ScannedSlotCount int
+	// ScannedPageCount counts physical Slot metadata pages scanned before the result was produced.
+	ScannedPageCount int
 	// LeaderCount counts Channels led by the target node.
 	LeaderCount int
 	// ReplicaCount counts Channels where the target is a configured replica.
@@ -72,11 +83,19 @@ func (a *App) nodeChannelDrainInventoryFromSnapshot(ctx context.Context, snapsho
 		return resp
 	}
 	limit := normalizeChannelDrainLimit(req.PageLimit)
+	maxPages := normalizeChannelDrainMaxPages(req.MaxPages)
 	for _, slotID := range sortedSnapshotSlotIDs(snapshot.Slots) {
 		resp.ScannedSlotCount++
 		after := metadb.ChannelRuntimeMetaCursor{}
 		for {
+			if resp.ScannedPageCount >= maxPages {
+				resp.Unknown = true
+				resp.Safe = false
+				resp.LastError = errChannelDrainBudgetExceeded.Error()
+				return resp
+			}
 			page, nextCursor, done, err := a.channelRuntimeMeta.ScanChannelRuntimeMetaSlotPage(ctx, slotID, after, limit)
+			resp.ScannedPageCount++
 			if err != nil {
 				resp.Unknown = true
 				resp.Safe = false
@@ -110,6 +129,16 @@ func normalizeChannelDrainLimit(limit int) int {
 		return MaxChannelDrainScanLimit
 	}
 	return limit
+}
+
+func normalizeChannelDrainMaxPages(maxPages int) int {
+	if maxPages <= 0 {
+		return DefaultChannelDrainScanMaxPages
+	}
+	if maxPages > MaxChannelDrainScanMaxPages {
+		return MaxChannelDrainScanMaxPages
+	}
+	return maxPages
 }
 
 func countChannelDrainMeta(resp *NodeChannelDrainInventoryResponse, targetNode uint64, meta metadb.ChannelRuntimeMeta) {

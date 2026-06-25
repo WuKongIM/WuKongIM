@@ -155,16 +155,18 @@ remote manager connection reader
 
 Manager Connection RPC transports the manager connection list/detail read
 requests, lightweight runtime-summary reads, and `set_drain_mode` gateway
-admission writes for one owner node. The server calls the local management
-connection/runtime/drain port, which reads the owner-local online registry and
+admission writes for one owner node. The server calls the owner-local
+management connection/runtime/drain port, which reads the online registry and
 gateway counters and can toggle only that node's new-session admission; the
-client maps stable RPC statuses back to manager usecase errors. Summary and
-drain responses return aggregate counts only and do not carry per-connection
-details. This package only transports the request and response DTOs. It does
-not decide which manager HTTP request should target a remote node, and it does
-not close gateway sessions. It also does not decide scale-in safety or mark
-node lifecycle tombstones; those decisions stay in the manager access and
-management usecase layers.
+client maps stable RPC statuses back to manager usecase errors. The server-side
+drain port is deliberately a local runtime primitive and does not re-run
+durable cluster lifecycle checks that the origin manager usecase has already
+performed. Summary and drain responses return aggregate counts only and do not
+carry per-connection details. This package only transports the request and
+response DTOs. It does not decide which manager HTTP request should target a
+remote node, and it does not close gateway sessions. It also does not decide
+scale-in safety or mark node lifecycle tombstones; those decisions stay in the
+manager access and management usecase layers.
 
 ## Manager Log RPC
 

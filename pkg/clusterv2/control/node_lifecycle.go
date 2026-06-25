@@ -62,6 +62,8 @@ type MarkNodeLeavingResult struct {
 type MarkNodeRemovedRequest struct {
 	// NodeID is the stable node identity to mark removed.
 	NodeID uint64 `json:"node_id"`
+	// StateRevision fences the remove write to the safety-check control revision.
+	StateRevision uint64 `json:"state_revision,omitempty"`
 }
 
 // MarkNodeRemovedResult describes the removed node record.
@@ -93,7 +95,7 @@ func cv2MarkNodeLeavingRequest(req MarkNodeLeavingRequest) cv2.MarkNodeLeavingRe
 }
 
 func cv2MarkNodeRemovedRequest(req MarkNodeRemovedRequest) cv2.MarkNodeRemovedRequest {
-	return cv2.MarkNodeRemovedRequest{NodeID: req.NodeID}
+	return cv2.MarkNodeRemovedRequest{NodeID: req.NodeID, ExpectedRevision: req.StateRevision}
 }
 
 func joinNodeResultFromCV2(result cv2.JoinNodeResult) JoinNodeResult {

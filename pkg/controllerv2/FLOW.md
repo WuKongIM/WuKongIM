@@ -105,7 +105,11 @@ Node lifecycle writes are also ControllerV2-authoritative Raft commands.
 `JoinNode`, `ActivateNode`, `MarkNodeLeaving`, and `MarkNodeRemoved` update the
 durable node record through `KindUpsertNode`. `MarkNodeRemoved` only tombstones
 an already leaving data node as `removed` and `down`; higher layers must prove
-Slot, Channel, task, gateway, and runtime drain safety before calling it.
+Slot, Channel, task, gateway, and runtime drain safety before calling it. When
+the caller provides `ExpectedRevision`, a changed remove write is rejected
+unless the current ControllerV2 state still matches the safety-check revision;
+an already-removed tombstone remains idempotent and returns `changed=false`
+even when a retried request carries a stale revision fence.
 
 Slot replica move intent is represented as a staged `slot_replica_move` task.
 Creating the task does not change `DesiredPeers`; it only records source,
