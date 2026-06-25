@@ -57,11 +57,12 @@ Manager Slot leader transfer enters clusterv2 through
 the already-validated intent to the control runtime. When the
 receiving node is not the Controller leader, the existing control task RPC
 forwarding path carries the creation request to the Controller leader.
-Manager node join and activation writes enter clusterv2 through
-`Node.JoinNode` and `Node.ActivateNode`, which only foreground-check and
-delegate the validated lifecycle intent to the control runtime; non-leader
-Controller runtimes forward those writes through the generic control-write RPC
-path. Staged Slot replica move intent enters clusterv2 through
+Manager node join, activation, and scale-in leaving writes enter clusterv2
+through `Node.JoinNode`, `Node.ActivateNode`, and `Node.MarkNodeLeaving`, which
+only foreground-check and delegate the validated lifecycle intent to the control
+runtime; non-leader Controller runtimes forward those writes through the generic
+control-write RPC path as `join_node`, `activate_node`, or
+`mark_node_leaving`. Staged Slot replica move intent enters clusterv2 through
 `Node.RequestSlotReplicaMove`, which only foreground-checks and delegates the
 already-planned intent to the control runtime. It uses the same generic
 control-write path: the clusterv2 control runtime forwards `slot_replica_move`

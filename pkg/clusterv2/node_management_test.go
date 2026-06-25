@@ -109,3 +109,53 @@ func TestNodeRequestSlotReplicaMoveDelegatesToControl(t *testing.T) {
 		t.Fatalf("controller moves = %#v, want one target node 4 request", controller.SlotReplicaMoves)
 	}
 }
+
+func TestNodeMarkNodeLeavingDelegatesToControl(t *testing.T) {
+	controller := &recordingMarkNodeLeavingController{
+		StaticController: control.NewStaticController(control.Snapshot{}),
+		result: control.MarkNodeLeavingResult{
+			Changed:  true,
+			Node:     control.Node{NodeID: 4, JoinState: control.NodeJoinStateLeaving},
+			Revision: 12,
+		},
+	}
+	node := &Node{control: controller}
+	node.started.Store(true)
+
+	got, err := node.MarkNodeLeaving(context.Background(), control.MarkNodeLeavingRequest{NodeID: 4})
+	if err != nil {
+		t.Fatalf("MarkNodeLeaving() error = %v", err)
+	}
+
+	if !got.Changed || got.Node.NodeID != 4 || got.Node.JoinState != control.NodeJoinStateLeaving || got.Revision != 12 {
+		t.Fatalf("MarkNodeLeaving() = %#v, want changed leaving node revision 12", got)
+	}
+	if len(controller.requests) != 1 || controller.requests[0].NodeID != 4 {
+		t.Fatalf("controller mark-leaving requests = %#v, want one node 4 request", controller.requests)
+	}
+}
+
+func TestNodeMarkNodeLeavingRequiresForegroundNode(t *testing.T) {
+	controller := &recordingMarkNodeLeavingController{StaticController: control.NewStaticController(control.Snapshot{})}
+	node := &Node{control: controller}
+
+	_, err := node.MarkNodeLeaving(context.Background(), control.MarkNodeLeavingRequest{NodeID: 4})
+	if err != ErrNotStarted {
+		t.Fatalf("MarkNodeLeaving() error = %v, want %v", err, ErrNotStarted)
+	}
+}
+
+type recordingMarkNodeLeavingController struct {
+	*control.StaticController
+	requests []control.MarkNodeLeavingRequest
+	result   control.MarkNodeLeavingResult
+	err      error
+}
+
+func (c *recordingMarkNodeLeavingController) MarkNodeLeaving(_ context.Context, req control.MarkNodeLeavingRequest) (control.MarkNodeLeavingResult, error) {
+	c.requests = append(c.requests, req)
+	if c.err != nil {
+		return control.MarkNodeLeavingResult{}, c.err
+	}
+	return c.result, nil
+}
