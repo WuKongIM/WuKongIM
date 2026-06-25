@@ -22,6 +22,7 @@ POST /manager/nodes/:node_id/onboarding/advance (bounded Slot onboarding task cr
 POST /manager/nodes/:node_id/scale-in/plan (bounded Slot scale-in drain preview; requires cluster.node:w when Auth.On=true)
 POST /manager/nodes/:node_id/scale-in/start (mark node leaving for scale-in preparation; requires cluster.node:w when Auth.On=true)
 POST /manager/nodes/:node_id/scale-in/drain (toggle target gateway drain mode; requires cluster.node:w when Auth.On=true)
+POST /manager/nodes/:node_id/scale-in/remove (mark a fully drained node removed; requires cluster.node:w when Auth.On=true)
 GET  /manager/nodes/:node_id/scale-in/status (fail-closed scale-in safety status; requires cluster.node:r when Auth.On=true)
 POST /manager/nodes/:node_id/scale-in/advance (bounded Slot scale-in drain task creation; requires cluster.node:w when Auth.On=true)
 GET  /manager/realtime-monitor (unified realtime monitor cards; requires cluster.node:r when Auth.On=true)
@@ -135,25 +136,33 @@ bounded Channel runtime metadata inventory. `plan` and `advance` accept
 `max_slot_moves` and delegate to
 `management.App.PlanNodeScaleIn` / `AdvanceNodeScaleIn`; HTTP only creates
 bounded Stage 3 `slot_replica_move` task intents through the usecase's
-`SlotReplicaMoveWriter` path. The downstream flow is:
+`SlotReplicaMoveWriter` path. `remove` delegates to
+`management.App.MarkNodeRemoved`, which calls the control lifecycle writer only
+when the same fail-closed status reports `safe_to_remove=true`; unsafe attempts
+return `409 conflict`. The downstream flow is:
 
 ```text
 manager scale-in route
-  -> management.App.MarkNodeLeaving / SetNodeDrainMode / NodeScaleInStatus / PlanNodeScaleIn / AdvanceNodeScaleIn
+  -> management.App.MarkNodeLeaving / SetNodeDrainMode / NodeScaleInStatus / PlanNodeScaleIn / AdvanceNodeScaleIn / MarkNodeRemoved
   -> control snapshot + runtime summaries + gateway drain counters + ChannelRuntimeMeta inventory for status
   -> SlotReplicaMoveWriter
   -> Stage 3 slot_replica_move tasks
+  -> NodeLifecycleWriter.MarkNodeRemoved for final safe removal
 ```
 
-This scale-in surface cannot remove a node, close existing gateway sessions,
-migrate Channel replicas, clear Channel metadata, or cancel drain tasks.
+This scale-in surface cannot close existing gateway sessions, migrate Channel
+replicas, clear Channel metadata, or cancel drain tasks. It can mark a node
+removed only through the final `remove` route after `safe_to_remove=true`.
 Unknown runtime or control-revision data keeps status unsafe and keeps
 planning/advancement at no candidates rather than guessing. Unknown Channel
 inventory keeps status unsafe, but HTTP still allows Slot drain `plan`/`advance`
 while desired Slot peers contain the target so operators can continue the first
 drain phase. Final `safe_to_remove` remains false until the target gateway is in
 drain mode, no longer accepts new sessions, and reports zero gateway, online,
-closing, and pending-activation counters.
+closing, and pending-activation counters; the remove route is the only manager
+entrypoint that can submit the removed tombstone. A repeated remove on an
+already-removed tombstone returns the writer's idempotent `changed=false`
+result.
 
 `/manager/realtime-monitor` backs the unified web realtime monitor under
 cluster operations. It parses chart `window`, optional `step`, optional

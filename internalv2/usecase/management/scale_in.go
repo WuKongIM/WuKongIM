@@ -15,6 +15,8 @@ var (
 	ErrNodeScaleInUnavailable = errors.New("internalv2/usecase/management: node scale-in unavailable")
 	// ErrNodeScaleInConflict reports a concurrent control-state change during scale-in writes.
 	ErrNodeScaleInConflict = errors.New("internalv2/usecase/management: node scale-in conflict")
+	// ErrNodeScaleInUnsafe reports that final removal is blocked by scale-in safety status.
+	ErrNodeScaleInUnsafe = errors.New("internalv2/usecase/management: node scale-in unsafe")
 )
 
 // NodeScaleInStatusRequest identifies the data node being evaluated for scale-in.
@@ -37,6 +39,24 @@ type NodeScaleInAdvanceRequest struct {
 	NodeID uint64
 	// MaxSlotMoves bounds the number of Slot replica move tasks to create.
 	MaxSlotMoves uint32
+}
+
+// MarkNodeRemovedRequest is the final remove intent for a fully drained node.
+type MarkNodeRemovedRequest struct {
+	// NodeID is the non-zero stable identity of the fully drained node.
+	NodeID uint64
+}
+
+// MarkNodeRemovedResponse is returned after submitting or observing node removal.
+type MarkNodeRemovedResponse struct {
+	// Changed reports whether the control writer advanced cluster state.
+	Changed bool
+	// NodeID is the durable node identity returned by control state.
+	NodeID uint64
+	// JoinState is the durable membership lifecycle state.
+	JoinState string
+	// Revision is the control-state revision observed by the writer.
+	Revision uint64
 }
 
 // NodeScaleInStatusResponse describes whether a leaving node can safely proceed.
@@ -173,6 +193,47 @@ func (a *App) NodeScaleInStatus(ctx context.Context, req NodeScaleInStatusReques
 		return NodeScaleInStatusResponse{}, err
 	}
 	return a.nodeScaleInStatusFromSnapshot(ctx, snapshot, req.NodeID, nil), nil
+}
+
+// MarkNodeRemoved marks a fully drained leaving node as removed after fail-closed safety checks.
+func (a *App) MarkNodeRemoved(ctx context.Context, req MarkNodeRemovedRequest) (MarkNodeRemovedResponse, error) {
+	if err := ctxErr(ctx); err != nil {
+		return MarkNodeRemovedResponse{}, err
+	}
+	if req.NodeID == 0 {
+		return MarkNodeRemovedResponse{}, metadb.ErrInvalidArgument
+	}
+	if a == nil || a.nodeLifecycle == nil {
+		return MarkNodeRemovedResponse{}, ErrNodeLifecycleUnavailable
+	}
+	if a.cluster == nil {
+		return MarkNodeRemovedResponse{}, ErrNodeScaleInUnavailable
+	}
+	snapshot, err := a.cluster.LocalControlSnapshot(ctx)
+	if err != nil {
+		return MarkNodeRemovedResponse{}, err
+	}
+	if node, ok := findControlNode(snapshot, req.NodeID); ok && managerControlJoinState(node.JoinState) == control.NodeJoinStateRemoved {
+		return a.markNodeRemoved(ctx, req.NodeID)
+	}
+	status := a.nodeScaleInStatusFromSnapshot(ctx, snapshot, req.NodeID, nil)
+	if !status.SafeToRemove {
+		return MarkNodeRemovedResponse{}, ErrNodeScaleInUnsafe
+	}
+	return a.markNodeRemoved(ctx, req.NodeID)
+}
+
+func (a *App) markNodeRemoved(ctx context.Context, nodeID uint64) (MarkNodeRemovedResponse, error) {
+	result, err := a.nodeLifecycle.MarkNodeRemoved(ctx, control.MarkNodeRemovedRequest{NodeID: nodeID})
+	if err != nil {
+		return MarkNodeRemovedResponse{}, mapNodeLifecycleError(err)
+	}
+	return MarkNodeRemovedResponse{
+		Changed:   result.Changed,
+		NodeID:    result.Node.NodeID,
+		JoinState: string(result.Node.JoinState),
+		Revision:  result.Revision,
+	}, nil
 }
 
 func (a *App) nodeScaleInStatusFromSnapshot(ctx context.Context, snapshot control.Snapshot, nodeID uint64, ignoreTask func(control.ReconcileTask) bool) NodeScaleInStatusResponse {

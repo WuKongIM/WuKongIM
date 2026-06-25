@@ -15,6 +15,8 @@ type ManagementNodeLifecycleNode interface {
 	ActivateNode(context.Context, control.ActivateNodeRequest) (control.ActivateNodeResult, error)
 	// MarkNodeLeaving submits a node leaving intent to cluster control.
 	MarkNodeLeaving(context.Context, control.MarkNodeLeavingRequest) (control.MarkNodeLeavingResult, error)
+	// MarkNodeRemoved submits a node removed intent to cluster control.
+	MarkNodeRemoved(context.Context, control.MarkNodeRemovedRequest) (control.MarkNodeRemovedResult, error)
 }
 
 // ManagementNodeLifecycleAdapter adapts clusterv2 lifecycle writes to management usecases.
@@ -49,4 +51,12 @@ func (a *ManagementNodeLifecycleAdapter) MarkNodeLeaving(ctx context.Context, re
 		return control.MarkNodeLeavingResult{}, managementusecase.ErrNodeLifecycleUnavailable
 	}
 	return a.node.MarkNodeLeaving(ctx, req)
+}
+
+// MarkNodeRemoved submits a validated node removed request.
+func (a *ManagementNodeLifecycleAdapter) MarkNodeRemoved(ctx context.Context, req control.MarkNodeRemovedRequest) (control.MarkNodeRemovedResult, error) {
+	if a == nil || a.node == nil {
+		return control.MarkNodeRemovedResult{}, managementusecase.ErrNodeLifecycleUnavailable
+	}
+	return a.node.MarkNodeRemoved(ctx, req)
 }

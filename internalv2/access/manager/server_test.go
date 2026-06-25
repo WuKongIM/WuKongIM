@@ -1340,6 +1340,7 @@ type managerNodesStub struct {
 	joinNodeResponse                   managementusecase.JoinNodeResponse
 	activateNodeResponse               managementusecase.ActivateNodeResponse
 	markNodeLeaving                    managementusecase.MarkNodeLeavingResponse
+	markNodeRemoved                    managementusecase.MarkNodeRemovedResponse
 	slotLeaderTransferResponse         managementusecase.SlotLeaderTransferResponse
 	slotLeaderTransferBatchPlan        managementusecase.SlotLeaderTransferBatchPlanResponse
 	slotLeaderTransferBatchExecute     managementusecase.SlotLeaderTransferBatchExecuteResponse
@@ -1391,6 +1392,7 @@ type managerNodesStub struct {
 	joinNodeReqSink                    *managementusecase.JoinNodeRequest
 	activateNodeReqSink                *managementusecase.ActivateNodeRequest
 	markNodeLeavingReqSink             *managementusecase.MarkNodeLeavingRequest
+	markNodeRemovedReqSink             *managementusecase.MarkNodeRemovedRequest
 	slotLeaderTransferReqSink          *managementusecase.SlotLeaderTransferRequest
 	slotLeaderTransferBatchPlanSink    *managementusecase.SlotLeaderTransferBatchPlanRequest
 	slotLeaderTransferBatchExecuteSink *managementusecase.SlotLeaderTransferBatchExecuteRequest
@@ -1436,6 +1438,7 @@ type managerNodesStub struct {
 	joinNodeErr                        error
 	activateNodeErr                    error
 	markNodeLeavingErr                 error
+	markNodeRemovedErr                 error
 	slotLeaderTransferErr              error
 	slotLeaderTransferBatchPlanErr     error
 	slotLeaderTransferBatchExecuteErr  error
@@ -1515,6 +1518,13 @@ func (s managerNodesStub) MarkNodeLeaving(_ context.Context, req managementuseca
 		*s.markNodeLeavingReqSink = req
 	}
 	return s.markNodeLeaving, s.markNodeLeavingErr
+}
+
+func (s managerNodesStub) MarkNodeRemoved(_ context.Context, req managementusecase.MarkNodeRemovedRequest) (managementusecase.MarkNodeRemovedResponse, error) {
+	if s.markNodeRemovedReqSink != nil {
+		*s.markNodeRemovedReqSink = req
+	}
+	return s.markNodeRemoved, s.markNodeRemovedErr
 }
 
 func (s managerNodesStub) ListSlots(_ context.Context, opts managementusecase.ListSlotsOptions) ([]managementusecase.Slot, error) {

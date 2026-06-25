@@ -310,6 +310,9 @@ type nodeLifecycleWriterStub struct {
 	leavingReq     control.MarkNodeLeavingRequest
 	leavingResult  control.MarkNodeLeavingResult
 	leavingErr     error
+	removedReq     control.MarkNodeRemovedRequest
+	removedResult  control.MarkNodeRemovedResult
+	removedErr     error
 }
 
 func (s *nodeLifecycleWriterStub) JoinNode(_ context.Context, req control.JoinNodeRequest) (control.JoinNodeResult, error) {
@@ -325,6 +328,11 @@ func (s *nodeLifecycleWriterStub) ActivateNode(_ context.Context, req control.Ac
 func (s *nodeLifecycleWriterStub) MarkNodeLeaving(_ context.Context, req control.MarkNodeLeavingRequest) (control.MarkNodeLeavingResult, error) {
 	s.leavingReq = req
 	return s.leavingResult, s.leavingErr
+}
+
+func (s *nodeLifecycleWriterStub) MarkNodeRemoved(_ context.Context, req control.MarkNodeRemovedRequest) (control.MarkNodeRemovedResult, error) {
+	s.removedReq = req
+	return s.removedResult, s.removedErr
 }
 
 type fakeNodeReadinessReader struct {

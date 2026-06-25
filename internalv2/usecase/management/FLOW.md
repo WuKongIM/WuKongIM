@@ -13,8 +13,8 @@ projection, local-or-remote node plugin list/detail projection,
 cluster-authoritative plugin binding list/mutation, DB Inspect,
 diagnostics trace/message/event query orchestration and tracking-rule fan-out,
 node-local diagnostics orchestration, node lifecycle join/activation/leaving,
-bounded Slot onboarding, scale-in preparation status, user management, and
-system UID projections/actions used by
+bounded Slot onboarding, scale-in preparation status and final safe removal,
+user management, and system UID projections/actions used by
 `GET /manager/nodes`,
 `POST /manager/nodes/join`, `POST /manager/nodes/:node_id/activate`,
 `POST /manager/nodes/:node_id/onboarding/plan`,
@@ -24,6 +24,7 @@ system UID projections/actions used by
 `POST /manager/nodes/:node_id/scale-in/plan`,
 `POST /manager/nodes/:node_id/scale-in/start`,
 `POST /manager/nodes/:node_id/scale-in/drain`,
+`POST /manager/nodes/:node_id/scale-in/remove`,
 `GET /manager/nodes/:node_id/scale-in/status`,
 `POST /manager/nodes/:node_id/scale-in/advance`,
 `GET /manager/slots`, `POST /manager/slots/:slot_id/leader-transfer`,
@@ -80,7 +81,7 @@ separately by the join and activate flow below.
 
 ```text
 manager HTTP handler
-  -> management.App.JoinNode/ActivateNode/MarkNodeLeaving
+  -> management.App.JoinNode/ActivateNode/MarkNodeLeaving/MarkNodeRemoved
   -> NodeReadinessReader for activation only
   -> NodeLifecycleWriter
   -> clusterv2 control lifecycle writer
@@ -113,13 +114,14 @@ or mutate node operation hints.
 
 ```text
 manager scale-in route
-  -> management.App.MarkNodeLeaving / SetNodeDrainMode / NodeScaleInStatus / PlanNodeScaleIn / AdvanceNodeScaleIn
+  -> management.App.MarkNodeLeaving / SetNodeDrainMode / NodeScaleInStatus / PlanNodeScaleIn / AdvanceNodeScaleIn / MarkNodeRemoved
   -> ControlSnapshotReader.LocalControlSnapshot
   -> RuntimeSummaryReader.NodeRuntimeSummary
   -> GatewayDrainWriter.SetNodeDrainMode for gateway drain writes
   -> SlotRuntimeStatusReader.SlotRuntimeStatus
   -> ChannelRuntimeMetaReader.ScanChannelRuntimeMetaSlotPage for status only
   -> SlotReplicaMoveWriter.RequestSlotReplicaMove for advance only
+  -> NodeLifecycleWriter.MarkNodeRemoved for final safe removal only
   -> Stage 3 slot_replica_move task intent
 ```
 
@@ -150,9 +152,13 @@ or task data keeps status unsafe and keeps planning or advancement at no
 candidates. Unknown Channel inventory keeps final scale-in status unsafe, but it
 does not block Slot drain advancement while desired Slot peers still contain the
 target. Runtime drain blockers keep final status unsafe but do not block Slot
-drain advancement. It does not mutate `DesiredPeers` directly, retry failed
-tasks, implement cancellation, close gateway sessions, migrate Channel replicas,
-clear Channel metadata, or mark nodes removed.
+drain advancement. `MarkNodeRemoved` reuses the same status report and delegates
+to the lifecycle writer only when `safe_to_remove=true`; unsafe attempts fail
+closed before reaching the writer. Already-removed tombstones are delegated to
+the same writer for idempotent `changed=false` results. It does not mutate
+`DesiredPeers` directly, retry failed tasks, implement cancellation, close
+gateway sessions, migrate Channel replicas, clear Channel metadata, or mark
+nodes removed outside that safe final gate or idempotent tombstone path.
 
 ## Node Onboarding Flow
 

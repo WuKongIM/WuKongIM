@@ -24,6 +24,10 @@ func TestManagementNodeLifecycleAdapterUsesControlWriter(t *testing.T) {
 			Changed: true,
 			Node:    control.Node{NodeID: 4, Addr: "10.0.0.4:11110", JoinState: control.NodeJoinStateLeaving},
 		},
+		removedResult: control.MarkNodeRemovedResult{
+			Changed: true,
+			Node:    control.Node{NodeID: 4, Addr: "10.0.0.4:11110", JoinState: control.NodeJoinStateRemoved},
+		},
 	}
 	adapter := NewManagementNodeLifecycleAdapter(node)
 
@@ -50,6 +54,14 @@ func TestManagementNodeLifecycleAdapterUsesControlWriter(t *testing.T) {
 	if !leaving.Changed || node.leavingRequest.NodeID != 4 || leaving.Node.JoinState != control.NodeJoinStateLeaving {
 		t.Fatalf("MarkNodeLeaving() = %#v request=%#v, want changed leaving node 4", leaving, node.leavingRequest)
 	}
+
+	removed, err := adapter.MarkNodeRemoved(context.Background(), control.MarkNodeRemovedRequest{NodeID: 4})
+	if err != nil {
+		t.Fatalf("MarkNodeRemoved() error = %v", err)
+	}
+	if !removed.Changed || node.removedRequest.NodeID != 4 || removed.Node.JoinState != control.NodeJoinStateRemoved {
+		t.Fatalf("MarkNodeRemoved() = %#v request=%#v, want changed removed node 4", removed, node.removedRequest)
+	}
 }
 
 type fakeManagementNodeLifecycleNode struct {
@@ -59,6 +71,8 @@ type fakeManagementNodeLifecycleNode struct {
 	activateResult  control.ActivateNodeResult
 	leavingRequest  control.MarkNodeLeavingRequest
 	leavingResult   control.MarkNodeLeavingResult
+	removedRequest  control.MarkNodeRemovedRequest
+	removedResult   control.MarkNodeRemovedResult
 }
 
 func (f *fakeManagementNodeLifecycleNode) JoinNode(_ context.Context, req control.JoinNodeRequest) (control.JoinNodeResult, error) {
@@ -74,4 +88,9 @@ func (f *fakeManagementNodeLifecycleNode) ActivateNode(_ context.Context, req co
 func (f *fakeManagementNodeLifecycleNode) MarkNodeLeaving(_ context.Context, req control.MarkNodeLeavingRequest) (control.MarkNodeLeavingResult, error) {
 	f.leavingRequest = req
 	return f.leavingResult, nil
+}
+
+func (f *fakeManagementNodeLifecycleNode) MarkNodeRemoved(_ context.Context, req control.MarkNodeRemovedRequest) (control.MarkNodeRemovedResult, error) {
+	f.removedRequest = req
+	return f.removedResult, nil
 }

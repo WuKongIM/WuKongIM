@@ -34,6 +34,8 @@ type NodeLifecycleWriter interface {
 	ActivateNode(context.Context, control.ActivateNodeRequest) (control.ActivateNodeResult, error)
 	// MarkNodeLeaving submits a node leaving request to the control writer.
 	MarkNodeLeaving(context.Context, control.MarkNodeLeavingRequest) (control.MarkNodeLeavingResult, error)
+	// MarkNodeRemoved submits a node removed request to the control writer.
+	MarkNodeRemoved(context.Context, control.MarkNodeRemovedRequest) (control.MarkNodeRemovedResult, error)
 }
 
 // NodeReadinessReader reads app-local readiness for activation gates.

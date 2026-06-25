@@ -397,7 +397,8 @@ func writeNodeScaleInError(c *gin.Context, err error) {
 	case errors.Is(err, managementusecase.ErrNodeLifecycleNotFound):
 		jsonError(c, http.StatusNotFound, "not_found", "not_found")
 	case errors.Is(err, managementusecase.ErrNodeLifecycleConflict),
-		errors.Is(err, managementusecase.ErrNodeScaleInConflict):
+		errors.Is(err, managementusecase.ErrNodeScaleInConflict),
+		errors.Is(err, managementusecase.ErrNodeScaleInUnsafe):
 		jsonError(c, http.StatusConflict, "conflict", "conflict")
 	case errors.Is(err, managementusecase.ErrNodeLifecycleUnavailable),
 		errors.Is(err, managementusecase.ErrNodeScaleInUnavailable),

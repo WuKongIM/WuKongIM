@@ -2,6 +2,7 @@ package management
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
@@ -207,6 +208,75 @@ func TestScaleInStatusSafeToRemoveAfterChannelAndRuntimeDrainClear(t *testing.T)
 		status.GatewaySessions != 0 || status.ActiveOnline != 0 || status.TotalOnline != 0 ||
 		status.PendingActivations != 0 {
 		t.Fatalf("status = %#v, want final remove-safe state", status)
+	}
+}
+
+func TestMarkNodeRemovedRequiresSafeToRemove(t *testing.T) {
+	writer := &nodeLifecycleWriterStub{}
+	snap := scaleInSnapshot(17)
+	app := New(Options{
+		Cluster:       fakeNodeSnapshotReader{snapshot: snap},
+		NodeLifecycle: writer,
+	})
+
+	_, err := app.MarkNodeRemoved(context.Background(), MarkNodeRemovedRequest{NodeID: 2})
+	if !errors.Is(err, ErrNodeScaleInUnsafe) {
+		t.Fatalf("MarkNodeRemoved() error = %v, want ErrNodeScaleInUnsafe", err)
+	}
+	if writer.removedReq.NodeID != 0 {
+		t.Fatalf("writer removed request = %#v, want not called", writer.removedReq)
+	}
+}
+
+func TestMarkNodeRemovedDelegatesWhenSafe(t *testing.T) {
+	snap := scaleInReadyNoSlotReplicaSnapshot()
+	writer := &nodeLifecycleWriterStub{removedResult: control.MarkNodeRemovedResult{
+		Changed:  true,
+		Node:     control.Node{NodeID: 4, JoinState: control.NodeJoinStateRemoved},
+		Revision: snap.Revision + 1,
+	}}
+	app := New(Options{
+		Cluster: fakeNodeSnapshotReader{snapshot: snap},
+		RuntimeSummary: fakeNodeRuntimeSummaryReader{summaries: map[uint64]NodeRuntimeSummary{
+			1: {NodeID: 1, ControlRevision: snap.Revision},
+			2: {NodeID: 2, ControlRevision: snap.Revision},
+			3: {NodeID: 3, ControlRevision: snap.Revision},
+			4: {NodeID: 4, ControlRevision: snap.Revision, Draining: true, AcceptingNewSessions: false},
+		}},
+		SlotRuntimeStatus:  scaleInSafeSlotRuntimeReader{},
+		ChannelRuntimeMeta: newChannelDrainMetaReader(),
+		NodeLifecycle:      writer,
+	})
+
+	resp, err := app.MarkNodeRemoved(context.Background(), MarkNodeRemovedRequest{NodeID: 4})
+	if err != nil {
+		t.Fatalf("MarkNodeRemoved() error = %v", err)
+	}
+	if !resp.Changed || resp.NodeID != 4 || resp.JoinState != "removed" || writer.removedReq.NodeID != 4 {
+		t.Fatalf("response=%#v request=%#v, want removed node 4", resp, writer.removedReq)
+	}
+}
+
+func TestMarkNodeRemovedDelegatesWhenAlreadyRemoved(t *testing.T) {
+	snap := scaleInReadyNoSlotReplicaSnapshot()
+	snap.Nodes[3].JoinState = control.NodeJoinStateRemoved
+	snap.Nodes[3].Status = control.NodeDown
+	writer := &nodeLifecycleWriterStub{removedResult: control.MarkNodeRemovedResult{
+		Changed:  false,
+		Node:     control.Node{NodeID: 4, JoinState: control.NodeJoinStateRemoved},
+		Revision: snap.Revision,
+	}}
+	app := New(Options{
+		Cluster:       fakeNodeSnapshotReader{snapshot: snap},
+		NodeLifecycle: writer,
+	})
+
+	resp, err := app.MarkNodeRemoved(context.Background(), MarkNodeRemovedRequest{NodeID: 4})
+	if err != nil {
+		t.Fatalf("MarkNodeRemoved() error = %v", err)
+	}
+	if resp.Changed || resp.NodeID != 4 || resp.JoinState != "removed" || writer.removedReq.NodeID != 4 {
+		t.Fatalf("response=%#v request=%#v, want idempotent removed node 4", resp, writer.removedReq)
 	}
 }
 

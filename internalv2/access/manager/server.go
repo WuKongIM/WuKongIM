@@ -61,6 +61,8 @@ type Management interface {
 	ActivateNode(ctx context.Context, req managementusecase.ActivateNodeRequest) (managementusecase.ActivateNodeResponse, error)
 	// MarkNodeLeaving submits a manager node leaving intent.
 	MarkNodeLeaving(ctx context.Context, req managementusecase.MarkNodeLeavingRequest) (managementusecase.MarkNodeLeavingResponse, error)
+	// MarkNodeRemoved marks a fully drained node removed.
+	MarkNodeRemoved(ctx context.Context, req managementusecase.MarkNodeRemovedRequest) (managementusecase.MarkNodeRemovedResponse, error)
 	// ListSlots returns manager-facing slot DTOs.
 	ListSlots(ctx context.Context, opts managementusecase.ListSlotsOptions) ([]managementusecase.Slot, error)
 	// ListSlotLogEntries returns one node-local Slot Raft log page.
@@ -321,6 +323,7 @@ func (s *Server) registerRoutes() {
 	nodeWrites.POST("/nodes/:node_id/scale-in/plan", s.handleNodeScaleInPlan)
 	nodeWrites.POST("/nodes/:node_id/scale-in/start", s.handleNodeScaleInStart)
 	nodeWrites.POST("/nodes/:node_id/scale-in/drain", s.handleNodeScaleInDrain)
+	nodeWrites.POST("/nodes/:node_id/scale-in/remove", s.handleNodeScaleInRemove)
 	nodeWrites.POST("/nodes/:node_id/scale-in/advance", s.handleNodeScaleInAdvance)
 	nodes.GET("/nodes/:node_id/onboarding/status", s.handleNodeOnboardingStatus)
 	nodes.GET("/nodes/:node_id/scale-in/status", s.handleNodeScaleInStatus)
