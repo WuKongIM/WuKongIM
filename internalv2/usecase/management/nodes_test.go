@@ -65,8 +65,8 @@ func TestListNodesBuildsReadOnlyNodeInventory(t *testing.T) {
 	if first.Runtime.NodeID != 1 || !first.Runtime.Unknown {
 		t.Fatalf("first runtime = %#v, want unknown runtime for node 1", first.Runtime)
 	}
-	if first.Actions.CanDrain || first.Actions.CanResume || first.Actions.CanScaleIn || first.Actions.CanOnboard {
-		t.Fatalf("first actions = %#v, want read-only actions disabled", first.Actions)
+	if first.Actions.CanScaleIn || first.Actions.CanOnboard {
+		t.Fatalf("first lifecycle actions = %#v, want controller-voter lifecycle actions disabled", first.Actions)
 	}
 
 	second := got.Items[1]
@@ -121,6 +121,45 @@ func TestListNodesReportsLifecycleAndCapacity(t *testing.T) {
 		if item.Membership.JoinState != expect.joinState || item.Membership.Schedulable != expect.schedulable || item.CapacityWeight != expect.capacity {
 			t.Fatalf("node %d membership=%#v capacity=%d, want %#v", item.NodeID, item.Membership, item.CapacityWeight, expect)
 		}
+	}
+}
+
+func TestListNodesReportsLifecycleActionHints(t *testing.T) {
+	app := New(Options{
+		Cluster: fakeNodeSnapshotReader{
+			nodeID: 1,
+			snapshot: control.Snapshot{
+				ControllerID: 1,
+				Nodes: []control.Node{
+					{NodeID: 1, Roles: []control.Role{control.RoleController, control.RoleData}, Status: control.NodeAlive, JoinState: control.NodeJoinStateActive},
+					{NodeID: 2, Roles: []control.Role{control.RoleData}, Status: control.NodeAlive, JoinState: control.NodeJoinStateActive},
+					{NodeID: 3, Roles: []control.Role{control.RoleData}, Status: control.NodeAlive, JoinState: control.NodeJoinStateLeaving},
+					{NodeID: 4, Roles: []control.Role{control.RoleData}, Status: control.NodeAlive, JoinState: control.NodeJoinStateJoining},
+					{NodeID: 5, Roles: []control.Role{control.RoleData}, Status: control.NodeAlive, JoinState: control.NodeJoinStateRemoved},
+				},
+			},
+		},
+	})
+
+	got, err := app.ListNodes(context.Background())
+	if err != nil {
+		t.Fatalf("ListNodes() error = %v", err)
+	}
+	actions := map[uint64]NodeActions{}
+	for _, item := range got.Items {
+		actions[item.NodeID] = item.Actions
+	}
+	if actions[1].CanScaleIn || actions[1].CanOnboard {
+		t.Fatalf("controller voter actions = %#v, want lifecycle actions disabled", actions[1])
+	}
+	if !actions[2].CanScaleIn || !actions[2].CanOnboard {
+		t.Fatalf("active data actions = %#v, want scale-in and onboard enabled", actions[2])
+	}
+	if !actions[3].CanScaleIn || actions[3].CanOnboard {
+		t.Fatalf("leaving data actions = %#v, want scale-in enabled and onboard disabled", actions[3])
+	}
+	if actions[4].CanScaleIn || actions[4].CanOnboard || actions[5].CanScaleIn || actions[5].CanOnboard {
+		t.Fatalf("inactive data actions = %#v/%#v, want lifecycle actions disabled", actions[4], actions[5])
 	}
 }
 

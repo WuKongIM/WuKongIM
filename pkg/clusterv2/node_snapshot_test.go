@@ -218,6 +218,21 @@ func TestNodeAppliesActiveDataNodesForChannelPlacement(t *testing.T) {
 	})
 }
 
+func TestActiveDataNodeIDsExcludeLeavingAndRemovedNodes(t *testing.T) {
+	got := activeDataNodeIDs([]control.Node{
+		{NodeID: 1, Roles: []control.Role{control.RoleData}, Status: control.NodeAlive, JoinState: control.NodeJoinStateActive},
+		{NodeID: 2, Roles: []control.Role{control.RoleData}, Status: control.NodeAlive, JoinState: control.NodeJoinStateJoining},
+		{NodeID: 3, Roles: []control.Role{control.RoleData}, Status: control.NodeAlive, JoinState: control.NodeJoinStateLeaving},
+		{NodeID: 4, Roles: []control.Role{control.RoleData}, Status: control.NodeAlive, JoinState: control.NodeJoinStateRemoved},
+		{NodeID: 5, Roles: []control.Role{control.RoleData}, Status: control.NodeSuspect, JoinState: control.NodeJoinStateActive},
+		{NodeID: 6, Roles: []control.Role{control.RoleController}, Status: control.NodeAlive, JoinState: control.NodeJoinStateActive},
+	})
+	want := []uint64{1, 5}
+	if !equalUint64s(got, want) {
+		t.Fatalf("activeDataNodeIDs() = %v, want %v", got, want)
+	}
+}
+
 func TestNodeControlWatchSlotChangeReconcilesSlots(t *testing.T) {
 	controller := control.NewStaticController(nodeControlSnapshot())
 	reconciler := &recordingReconciler{}

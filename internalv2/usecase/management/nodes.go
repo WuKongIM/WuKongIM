@@ -462,7 +462,18 @@ func buildNode(opts nodeBuildOptions) Node {
 			FollowerCount: followers,
 		},
 		Runtime: opts.runtime,
-		Actions: NodeActions{},
+		Actions: nodeActions(opts.node, controllerVoter),
+	}
+}
+
+// nodeActions derives read-model lifecycle action hints from durable membership state.
+func nodeActions(node control.Node, controllerVoter bool) NodeActions {
+	role := managerNodeRole(node.Roles)
+	joinState := managerNodeJoinState(node.JoinState)
+	dataOnly := role == "data" && !controllerVoter
+	return NodeActions{
+		CanScaleIn: dataOnly && (joinState == "active" || joinState == "leaving"),
+		CanOnboard: dataOnly && joinState == "active",
 	}
 }
 
