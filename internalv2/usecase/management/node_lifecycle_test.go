@@ -242,6 +242,64 @@ func TestActivateNodeMapsControlAvailabilityErrors(t *testing.T) {
 	}
 }
 
+func TestMarkNodeLeavingDelegates(t *testing.T) {
+	writer := &nodeLifecycleWriterStub{
+		leavingResult: control.MarkNodeLeavingResult{
+			Changed:  true,
+			Revision: 23,
+			Node: control.Node{
+				NodeID:    4,
+				Addr:      "10.0.0.4:11110",
+				JoinState: control.NodeJoinStateLeaving,
+			},
+		},
+	}
+	app := New(Options{NodeLifecycle: writer})
+
+	response, err := app.MarkNodeLeaving(context.Background(), MarkNodeLeavingRequest{NodeID: 4})
+	if err != nil {
+		t.Fatalf("MarkNodeLeaving() error = %v", err)
+	}
+	if !response.Changed || response.NodeID != 4 || response.JoinState != "leaving" || response.Revision != 23 {
+		t.Fatalf("MarkNodeLeaving() = %#v, want changed leaving node response", response)
+	}
+	if writer.leavingReq.NodeID != 4 {
+		t.Fatalf("writer leaving request = %#v, want node 4", writer.leavingReq)
+	}
+}
+
+func TestMarkNodeLeavingRejectsInvalidInputAndMissingWriter(t *testing.T) {
+	app := New(Options{NodeLifecycle: &nodeLifecycleWriterStub{}})
+	if _, err := app.MarkNodeLeaving(context.Background(), MarkNodeLeavingRequest{}); !errors.Is(err, metadb.ErrInvalidArgument) {
+		t.Fatalf("MarkNodeLeaving() invalid error = %v, want ErrInvalidArgument", err)
+	}
+	if _, err := New(Options{}).MarkNodeLeaving(context.Background(), MarkNodeLeavingRequest{NodeID: 4}); !errors.Is(err, ErrNodeLifecycleUnavailable) {
+		t.Fatalf("MarkNodeLeaving() missing writer error = %v, want ErrNodeLifecycleUnavailable", err)
+	}
+}
+
+func TestMarkNodeLeavingMapsControlLifecycleErrors(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want error
+	}{
+		{name: "missing", err: cv2.ErrNodeLifecycleNotFound, want: ErrNodeLifecycleNotFound},
+		{name: "conflict", err: cv2.ErrNodeLifecycleConflict, want: ErrNodeLifecycleConflict},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			app := New(Options{NodeLifecycle: &nodeLifecycleWriterStub{leavingErr: tt.err}})
+
+			_, err := app.MarkNodeLeaving(context.Background(), MarkNodeLeavingRequest{NodeID: 4})
+
+			if !errors.Is(err, tt.want) {
+				t.Fatalf("MarkNodeLeaving() error = %v, want %v", err, tt.want)
+			}
+		})
+	}
+}
+
 type nodeLifecycleWriterStub struct {
 	joinReq        control.JoinNodeRequest
 	joinResult     control.JoinNodeResult
@@ -249,6 +307,9 @@ type nodeLifecycleWriterStub struct {
 	activateReq    control.ActivateNodeRequest
 	activateResult control.ActivateNodeResult
 	activateErr    error
+	leavingReq     control.MarkNodeLeavingRequest
+	leavingResult  control.MarkNodeLeavingResult
+	leavingErr     error
 }
 
 func (s *nodeLifecycleWriterStub) JoinNode(_ context.Context, req control.JoinNodeRequest) (control.JoinNodeResult, error) {
@@ -259,6 +320,11 @@ func (s *nodeLifecycleWriterStub) JoinNode(_ context.Context, req control.JoinNo
 func (s *nodeLifecycleWriterStub) ActivateNode(_ context.Context, req control.ActivateNodeRequest) (control.ActivateNodeResult, error) {
 	s.activateReq = req
 	return s.activateResult, s.activateErr
+}
+
+func (s *nodeLifecycleWriterStub) MarkNodeLeaving(_ context.Context, req control.MarkNodeLeavingRequest) (control.MarkNodeLeavingResult, error) {
+	s.leavingReq = req
+	return s.leavingResult, s.leavingErr
 }
 
 type fakeNodeReadinessReader struct {

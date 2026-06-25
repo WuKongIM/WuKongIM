@@ -32,6 +32,8 @@ type NodeLifecycleWriter interface {
 	JoinNode(context.Context, control.JoinNodeRequest) (control.JoinNodeResult, error)
 	// ActivateNode submits a node activation request to the control writer.
 	ActivateNode(context.Context, control.ActivateNodeRequest) (control.ActivateNodeResult, error)
+	// MarkNodeLeaving submits a node leaving request to the control writer.
+	MarkNodeLeaving(context.Context, control.MarkNodeLeavingRequest) (control.MarkNodeLeavingResult, error)
 }
 
 // NodeReadinessReader reads app-local readiness for activation gates.
@@ -296,6 +298,8 @@ type NodeSlotSummary struct {
 type NodeRuntimeSummary struct {
 	// NodeID identifies the cluster node described by this summary.
 	NodeID uint64
+	// ControlRevision is the local control snapshot revision observed by the node.
+	ControlRevision uint64
 	// ActiveOnline counts active authenticated online connections.
 	ActiveOnline int
 	// ClosingOnline counts authenticated online connections that are closing but not fully removed.

@@ -13,6 +13,8 @@ type ManagementNodeLifecycleNode interface {
 	JoinNode(context.Context, control.JoinNodeRequest) (control.JoinNodeResult, error)
 	// ActivateNode submits a node activation intent to cluster control.
 	ActivateNode(context.Context, control.ActivateNodeRequest) (control.ActivateNodeResult, error)
+	// MarkNodeLeaving submits a node leaving intent to cluster control.
+	MarkNodeLeaving(context.Context, control.MarkNodeLeavingRequest) (control.MarkNodeLeavingResult, error)
 }
 
 // ManagementNodeLifecycleAdapter adapts clusterv2 lifecycle writes to management usecases.
@@ -39,4 +41,12 @@ func (a *ManagementNodeLifecycleAdapter) ActivateNode(ctx context.Context, req c
 		return control.ActivateNodeResult{}, managementusecase.ErrNodeLifecycleUnavailable
 	}
 	return a.node.ActivateNode(ctx, req)
+}
+
+// MarkNodeLeaving submits a validated node leaving request.
+func (a *ManagementNodeLifecycleAdapter) MarkNodeLeaving(ctx context.Context, req control.MarkNodeLeavingRequest) (control.MarkNodeLeavingResult, error) {
+	if a == nil || a.node == nil {
+		return control.MarkNodeLeavingResult{}, managementusecase.ErrNodeLifecycleUnavailable
+	}
+	return a.node.MarkNodeLeaving(ctx, req)
 }

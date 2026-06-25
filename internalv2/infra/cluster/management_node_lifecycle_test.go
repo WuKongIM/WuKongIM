@@ -20,6 +20,10 @@ func TestManagementNodeLifecycleAdapterUsesControlWriter(t *testing.T) {
 			Changed: true,
 			Node:    control.Node{NodeID: 4, Addr: "10.0.0.4:11110", JoinState: control.NodeJoinStateActive},
 		},
+		leavingResult: control.MarkNodeLeavingResult{
+			Changed: true,
+			Node:    control.Node{NodeID: 4, Addr: "10.0.0.4:11110", JoinState: control.NodeJoinStateLeaving},
+		},
 	}
 	adapter := NewManagementNodeLifecycleAdapter(node)
 
@@ -38,6 +42,14 @@ func TestManagementNodeLifecycleAdapterUsesControlWriter(t *testing.T) {
 	if !activate.Changed || node.activateRequest.NodeID != 4 {
 		t.Fatalf("ActivateNode() = %#v request=%#v, want changed node 4", activate, node.activateRequest)
 	}
+
+	leaving, err := adapter.MarkNodeLeaving(context.Background(), control.MarkNodeLeavingRequest{NodeID: 4})
+	if err != nil {
+		t.Fatalf("MarkNodeLeaving() error = %v", err)
+	}
+	if !leaving.Changed || node.leavingRequest.NodeID != 4 || leaving.Node.JoinState != control.NodeJoinStateLeaving {
+		t.Fatalf("MarkNodeLeaving() = %#v request=%#v, want changed leaving node 4", leaving, node.leavingRequest)
+	}
 }
 
 type fakeManagementNodeLifecycleNode struct {
@@ -45,6 +57,8 @@ type fakeManagementNodeLifecycleNode struct {
 	joinResult      control.JoinNodeResult
 	activateRequest control.ActivateNodeRequest
 	activateResult  control.ActivateNodeResult
+	leavingRequest  control.MarkNodeLeavingRequest
+	leavingResult   control.MarkNodeLeavingResult
 }
 
 func (f *fakeManagementNodeLifecycleNode) JoinNode(_ context.Context, req control.JoinNodeRequest) (control.JoinNodeResult, error) {
@@ -55,4 +69,9 @@ func (f *fakeManagementNodeLifecycleNode) JoinNode(_ context.Context, req contro
 func (f *fakeManagementNodeLifecycleNode) ActivateNode(_ context.Context, req control.ActivateNodeRequest) (control.ActivateNodeResult, error) {
 	f.activateRequest = req
 	return f.activateResult, nil
+}
+
+func (f *fakeManagementNodeLifecycleNode) MarkNodeLeaving(_ context.Context, req control.MarkNodeLeavingRequest) (control.MarkNodeLeavingResult, error) {
+	f.leavingRequest = req
+	return f.leavingResult, nil
 }

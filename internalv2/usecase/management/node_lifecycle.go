@@ -68,6 +68,26 @@ type ActivateNodeResponse struct {
 	Revision uint64
 }
 
+// MarkNodeLeavingRequest is the manager-facing node leaving intent.
+type MarkNodeLeavingRequest struct {
+	// NodeID is the non-zero stable identity of the node that should leave placement.
+	NodeID uint64
+}
+
+// MarkNodeLeavingResponse is returned after submitting or observing node leaving.
+type MarkNodeLeavingResponse struct {
+	// Changed reports whether the control writer advanced cluster state.
+	Changed bool
+	// NodeID is the durable node identity returned by control state.
+	NodeID uint64
+	// Addr is the durable cluster control-plane address returned by control state.
+	Addr string
+	// JoinState is the durable membership lifecycle state.
+	JoinState string
+	// Revision is the control-state revision observed by the writer.
+	Revision uint64
+}
+
 // NodeReadiness is the manager-facing activation readiness view for one node.
 type NodeReadiness struct {
 	// NodeID is the node identity that reported readiness.
@@ -157,6 +177,30 @@ func (a *App) ActivateNode(ctx context.Context, req ActivateNodeRequest) (Activa
 		return ActivateNodeResponse{}, mapNodeLifecycleError(err)
 	}
 	return ActivateNodeResponse{
+		Changed:   result.Changed,
+		NodeID:    result.Node.NodeID,
+		Addr:      result.Node.Addr,
+		JoinState: string(result.Node.JoinState),
+		Revision:  result.Revision,
+	}, nil
+}
+
+// MarkNodeLeaving validates and submits a node leaving intent.
+func (a *App) MarkNodeLeaving(ctx context.Context, req MarkNodeLeavingRequest) (MarkNodeLeavingResponse, error) {
+	if err := ctxErr(ctx); err != nil {
+		return MarkNodeLeavingResponse{}, err
+	}
+	if req.NodeID == 0 {
+		return MarkNodeLeavingResponse{}, metadb.ErrInvalidArgument
+	}
+	if a == nil || a.nodeLifecycle == nil {
+		return MarkNodeLeavingResponse{}, ErrNodeLifecycleUnavailable
+	}
+	result, err := a.nodeLifecycle.MarkNodeLeaving(ctx, control.MarkNodeLeavingRequest{NodeID: req.NodeID})
+	if err != nil {
+		return MarkNodeLeavingResponse{}, mapNodeLifecycleError(err)
+	}
+	return MarkNodeLeavingResponse{
 		Changed:   result.Changed,
 		NodeID:    result.Node.NodeID,
 		Addr:      result.Node.Addr,
