@@ -136,7 +136,9 @@ bounded Channel runtime metadata inventory. `plan` and `advance` accept
 `max_slot_moves` and delegate to
 `management.App.PlanNodeScaleIn` / `AdvanceNodeScaleIn`; HTTP only creates
 bounded Stage 3 `slot_replica_move` task intents through the usecase's
-`SlotReplicaMoveWriter` path. `remove` delegates to
+`SlotReplicaMoveWriter` path. Manager HTTP owns operator intent routing,
+permission checks, and response mapping only; safety and lifecycle decisions
+stay in the management usecase. `remove` delegates to
 `management.App.MarkNodeRemoved`, which calls the control lifecycle writer only
 when the same fail-closed status reports `safe_to_remove=true`; unsafe attempts
 return `409 conflict`. The downstream flow is:

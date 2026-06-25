@@ -162,7 +162,9 @@ client maps stable RPC statuses back to manager usecase errors. Summary and
 drain responses return aggregate counts only and do not carry per-connection
 details. This package only transports the request and response DTOs. It does
 not decide which manager HTTP request should target a remote node, and it does
-not close gateway sessions.
+not close gateway sessions. It also does not decide scale-in safety or mark
+node lifecycle tombstones; those decisions stay in the manager access and
+management usecase layers.
 
 ## Manager Log RPC
 

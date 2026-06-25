@@ -152,7 +152,10 @@ or task data keeps status unsafe and keeps planning or advancement at no
 candidates. Unknown Channel inventory keeps final scale-in status unsafe, but it
 does not block Slot drain advancement while desired Slot peers still contain the
 target. Runtime drain blockers keep final status unsafe but do not block Slot
-drain advancement. `MarkNodeRemoved` reuses the same status report and delegates
+drain advancement. The final safety decision is a conjunction of the Controller
+snapshot, Slot runtime status, Controller task state, bounded
+`ChannelRuntimeMeta` inventory, and target gateway/runtime drain counters.
+`MarkNodeRemoved` reuses the same status report and delegates
 to the lifecycle writer only when `safe_to_remove=true`; unsafe attempts fail
 closed before reaching the writer. Already-removed tombstones are delegated to
 the same writer for idempotent `changed=false` results. It does not mutate

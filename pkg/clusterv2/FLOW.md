@@ -62,7 +62,9 @@ future removed tombstone operations enter clusterv2 through `Node.JoinNode`,
 `Node.ActivateNode`, `Node.MarkNodeLeaving`, and `Node.MarkNodeRemoved`, which
 only foreground-check and delegate the validated lifecycle intent to the control
 runtime. Drain safety for removal stays in upper management usecases; clusterv2
-only exposes the lower-level lifecycle primitive. Non-leader Controller
+only exposes the lower-level lifecycle primitive. The `removed` state remains a
+durable control-plane tombstone; clusterv2 does not physically delete node
+identity or decide that a leaving node is safe to remove. Non-leader Controller
 runtimes forward those writes through the generic control-write RPC path as
 `join_node`, `activate_node`, `mark_node_leaving`, or `mark_node_removed`.
 Staged Slot replica move intent enters clusterv2 through

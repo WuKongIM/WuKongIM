@@ -256,6 +256,102 @@ func (m *ManagerClient) EventuallyOnboardingSafe(t testing.TB, nodeID uint64, ti
 	}
 }
 
+// MustStartScaleIn marks a data node leaving through manager HTTP.
+func (m *ManagerClient) MustStartScaleIn(t testing.TB, nodeID uint64) NodeScaleInStartDTO {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	var out NodeScaleInStartDTO
+	status, body, err := postJSONStatus(ctx, fmt.Sprintf("%s/manager/nodes/%d/scale-in/start", m.baseURL, nodeID), nil, &out)
+	if err != nil || status/100 != 2 {
+		if err == nil {
+			err = fmt.Errorf("start scale-in node %d returned %d: %s", nodeID, status, strings.TrimSpace(string(body)))
+		}
+		t.Fatalf("%v\n%s", err, m.cluster.DumpDiagnostics())
+	}
+	return out
+}
+
+// MustSetScaleInDrain sets gateway drain mode through manager HTTP.
+func (m *ManagerClient) MustSetScaleInDrain(t testing.TB, nodeID uint64, drain bool) NodeScaleInDrainDTO {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	var out NodeScaleInDrainDTO
+	status, body, err := postJSONStatus(ctx, fmt.Sprintf("%s/manager/nodes/%d/scale-in/drain", m.baseURL, nodeID), map[string]any{
+		"draining": drain,
+	}, &out)
+	if err != nil || status/100 != 2 {
+		if err == nil {
+			err = fmt.Errorf("set scale-in drain node %d returned %d: %s", nodeID, status, strings.TrimSpace(string(body)))
+		}
+		t.Fatalf("%v\n%s", err, m.cluster.DumpDiagnostics())
+	}
+	return out
+}
+
+// NodeScaleInStatus returns the target node scale-in status.
+func (m *ManagerClient) NodeScaleInStatus(ctx context.Context, nodeID uint64) (NodeScaleInStatusDTO, error) {
+	var out NodeScaleInStatusDTO
+	_, err := GetJSON(ctx, fmt.Sprintf("%s/manager/nodes/%d/scale-in/status", m.baseURL, nodeID), &out)
+	if err != nil {
+		return NodeScaleInStatusDTO{}, err
+	}
+	return out, nil
+}
+
+// EventuallyScaleInSafeToRemove waits until scale-in status reports final removal safety.
+func (m *ManagerClient) EventuallyScaleInSafeToRemove(t testing.TB, nodeID uint64, timeout time.Duration) NodeScaleInStatusDTO {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	ticker := time.NewTicker(managerPollInterval)
+	defer ticker.Stop()
+
+	var (
+		lastResp NodeScaleInStatusDTO
+		lastErr  error
+	)
+	for {
+		resp, err := m.NodeScaleInStatus(ctx, nodeID)
+		if err == nil {
+			lastResp = resp
+			if resp.SafeToRemove {
+				return resp
+			}
+			lastErr = fmt.Errorf("safe_to_remove=false status=%#v", resp)
+		} else {
+			lastErr = err
+		}
+
+		select {
+		case <-ctx.Done():
+			t.Fatalf("node %d scale-in did not become safe to remove: last=%#v lastErr=%v\n%s", nodeID, lastResp, lastErr, m.cluster.DumpDiagnostics())
+		case <-ticker.C:
+		}
+	}
+}
+
+// MustRemoveScaleInNode marks a fully drained node removed through manager HTTP.
+func (m *ManagerClient) MustRemoveScaleInNode(t testing.TB, nodeID uint64) NodeScaleInRemoveDTO {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	var out NodeScaleInRemoveDTO
+	status, body, err := postJSONStatus(ctx, fmt.Sprintf("%s/manager/nodes/%d/scale-in/remove", m.baseURL, nodeID), nil, &out)
+	if err != nil || status/100 != 2 {
+		if err == nil {
+			err = fmt.Errorf("remove scale-in node %d returned %d: %s", nodeID, status, strings.TrimSpace(string(body)))
+		}
+		t.Fatalf("%v\n%s", err, m.cluster.DumpDiagnostics())
+	}
+	return out
+}
+
 func (m *ManagerClient) localNodeTCPStatus(nodeID uint64) string {
 	node, ok := m.cluster.Node(nodeID)
 	if !ok {
@@ -405,6 +501,61 @@ type NodeOnboardingStatusTaskDTO struct {
 	TargetNode  uint64   `json:"target_node"`
 	TargetPeers []uint64 `json:"target_peers"`
 	ConfigEpoch uint64   `json:"config_epoch"`
+}
+
+// NodeScaleInStatusDTO is the manager scale-in status subset used by e2ev2.
+type NodeScaleInStatusDTO struct {
+	NodeID                  uint64 `json:"node_id"`
+	JoinState               string `json:"join_state"`
+	StateRevision           uint64 `json:"state_revision"`
+	SafeToProceed           bool   `json:"safe_to_proceed"`
+	SafeToRemove            bool   `json:"safe_to_remove"`
+	BlockedBySlots          bool   `json:"blocked_by_slots"`
+	BlockedByTasks          bool   `json:"blocked_by_tasks"`
+	BlockedByChannels       bool   `json:"blocked_by_channels"`
+	BlockedByRuntimeDrain   bool   `json:"blocked_by_runtime_drain"`
+	RuntimeUnknown          bool   `json:"runtime_unknown"`
+	UnknownChannelInventory bool   `json:"unknown_channel_inventory"`
+	GatewayDraining         bool   `json:"gateway_draining"`
+	AcceptingNewSessions    bool   `json:"accepting_new_sessions"`
+	SlotReplicaCount        int    `json:"slot_replica_count"`
+	ChannelLeaderCount      int    `json:"channel_leader_count"`
+	ChannelReplicaCount     int    `json:"channel_replica_count"`
+	ChannelISRCount         int    `json:"channel_isr_count"`
+	GatewaySessions         int    `json:"gateway_sessions"`
+	ActiveOnline            int    `json:"active_online"`
+	ClosingOnline           int    `json:"closing_online"`
+	TotalOnline             int    `json:"total_online"`
+	PendingActivations      int    `json:"pending_activations"`
+}
+
+// NodeScaleInStartDTO is the manager leaving transition subset used by e2ev2.
+type NodeScaleInStartDTO struct {
+	Changed   bool   `json:"changed"`
+	NodeID    uint64 `json:"node_id"`
+	JoinState string `json:"join_state"`
+	Revision  uint64 `json:"revision"`
+}
+
+// NodeScaleInDrainDTO is the manager gateway drain response subset used by e2ev2.
+type NodeScaleInDrainDTO struct {
+	NodeID               uint64 `json:"node_id"`
+	Draining             bool   `json:"draining"`
+	AcceptingNewSessions bool   `json:"accepting_new_sessions"`
+	GatewaySessions      int    `json:"gateway_sessions"`
+	ActiveOnline         int    `json:"active_online"`
+	ClosingOnline        int    `json:"closing_online"`
+	TotalOnline          int    `json:"total_online"`
+	PendingActivations   int    `json:"pending_activations"`
+	Unknown              bool   `json:"unknown"`
+}
+
+// NodeScaleInRemoveDTO is the manager removed transition subset used by e2ev2.
+type NodeScaleInRemoveDTO struct {
+	Changed   bool   `json:"changed"`
+	NodeID    uint64 `json:"node_id"`
+	JoinState string `json:"join_state"`
+	Revision  uint64 `json:"revision"`
 }
 
 func stableSlotInventory(resp managerSlotsResponse) error {

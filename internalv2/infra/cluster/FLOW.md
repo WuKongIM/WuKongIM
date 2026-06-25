@@ -39,6 +39,9 @@ exposed through `ManagementSlotReplicaMoveAdapter`, which submits Stage 3
 `slot_replica_move` task intents and never mutates assignments directly. Final
 scale-in removal is exposed as a lifecycle writer primitive but remains gated by
 the management usecase's `safe_to_remove` status before this adapter is called.
+The adapter forwards the final `MarkNodeRemoved` request to clusterv2 control
+only after that gate and treats the resulting `removed` state as a durable
+control-plane tombstone, not a node-local cleanup command.
 Gateway session closure, channel migration, and Slot operations other than
 explicit node-local Raft compaction or staged replica-move task creation stay
 unmigrated. Gateway drain mode itself is routed through the manager connection
