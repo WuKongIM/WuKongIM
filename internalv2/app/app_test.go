@@ -5334,6 +5334,9 @@ type fakeManagerCluster struct {
 	activateNodeRequest       control.ActivateNodeRequest
 	activateNodeResult        control.ActivateNodeResult
 	activateNodeErr           error
+	markNodeLeavingRequest    control.MarkNodeLeavingRequest
+	markNodeLeavingResult     control.MarkNodeLeavingResult
+	markNodeLeavingErr        error
 	retentionAdvance          metadb.ChannelRetentionAdvance
 }
 
@@ -5405,6 +5408,11 @@ func (f *fakeManagerCluster) JoinNode(_ context.Context, req control.JoinNodeReq
 func (f *fakeManagerCluster) ActivateNode(_ context.Context, req control.ActivateNodeRequest) (control.ActivateNodeResult, error) {
 	f.activateNodeRequest = req
 	return f.activateNodeResult, f.activateNodeErr
+}
+
+func (f *fakeManagerCluster) MarkNodeLeaving(_ context.Context, req control.MarkNodeLeavingRequest) (control.MarkNodeLeavingResult, error) {
+	f.markNodeLeavingRequest = req
+	return f.markNodeLeavingResult, f.markNodeLeavingErr
 }
 
 func (f *fakeManagerCluster) LocalControlSnapshot(context.Context) (control.Snapshot, error) {
