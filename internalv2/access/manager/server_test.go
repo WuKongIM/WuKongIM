@@ -1338,6 +1338,7 @@ type managerNodesStub struct {
 	slotRaftCompactSummary             managementusecase.SlotRaftCompactionSummary
 	joinNodeResponse                   managementusecase.JoinNodeResponse
 	activateNodeResponse               managementusecase.ActivateNodeResponse
+	markNodeLeaving                    managementusecase.MarkNodeLeavingResponse
 	slotLeaderTransferResponse         managementusecase.SlotLeaderTransferResponse
 	slotLeaderTransferBatchPlan        managementusecase.SlotLeaderTransferBatchPlanResponse
 	slotLeaderTransferBatchExecute     managementusecase.SlotLeaderTransferBatchExecuteResponse
@@ -1345,6 +1346,9 @@ type managerNodesStub struct {
 	nodeOnboardingStart                managementusecase.NodeOnboardingStartResponse
 	nodeOnboardingAdvance              managementusecase.NodeOnboardingStartResponse
 	nodeOnboardingStatus               managementusecase.NodeOnboardingStatusResponse
+	scaleInPlan                        managementusecase.NodeScaleInPlanResponse
+	scaleInAdvance                     managementusecase.NodeScaleInAdvanceResponse
+	scaleInStatus                      managementusecase.NodeScaleInStatusResponse
 	diagnosticsResponse                managementusecase.DiagnosticsQueryResponse
 	diagnosticsTrackingCreateResponse  managementusecase.DiagnosticsTrackingMutationResponse
 	diagnosticsTrackingListResponse    managementusecase.DiagnosticsTrackingListResponse
@@ -1384,6 +1388,7 @@ type managerNodesStub struct {
 	slotRaftCompactSlotSink            *uint32
 	joinNodeReqSink                    *managementusecase.JoinNodeRequest
 	activateNodeReqSink                *managementusecase.ActivateNodeRequest
+	markNodeLeavingReqSink             *managementusecase.MarkNodeLeavingRequest
 	slotLeaderTransferReqSink          *managementusecase.SlotLeaderTransferRequest
 	slotLeaderTransferBatchPlanSink    *managementusecase.SlotLeaderTransferBatchPlanRequest
 	slotLeaderTransferBatchExecuteSink *managementusecase.SlotLeaderTransferBatchExecuteRequest
@@ -1391,6 +1396,9 @@ type managerNodesStub struct {
 	nodeOnboardingStartReqSink         *managementusecase.NodeOnboardingStartRequest
 	nodeOnboardingAdvanceReqSink       *managementusecase.NodeOnboardingAdvanceRequest
 	nodeOnboardingStatusReqSink        *managementusecase.NodeOnboardingStatusRequest
+	scaleInPlanReqSink                 *managementusecase.NodeScaleInPlanRequest
+	scaleInAdvanceReqSink              *managementusecase.NodeScaleInAdvanceRequest
+	scaleInStatusReqSink               *managementusecase.NodeScaleInStatusRequest
 	diagnosticsReqSink                 *managementusecase.DiagnosticsQueryRequest
 	diagnosticsTrackingCreateReqSink   *managementusecase.DiagnosticsTrackingCreateRequest
 	diagnosticsTrackingDeleteRuleSink  *string
@@ -1424,6 +1432,7 @@ type managerNodesStub struct {
 	slotRaftCompactErr                 error
 	joinNodeErr                        error
 	activateNodeErr                    error
+	markNodeLeavingErr                 error
 	slotLeaderTransferErr              error
 	slotLeaderTransferBatchPlanErr     error
 	slotLeaderTransferBatchExecuteErr  error
@@ -1431,6 +1440,9 @@ type managerNodesStub struct {
 	nodeOnboardingStartErr             error
 	nodeOnboardingAdvanceErr           error
 	nodeOnboardingStatusErr            error
+	scaleInPlanErr                     error
+	scaleInAdvanceErr                  error
+	scaleInStatusErr                   error
 	diagnosticsErr                     error
 	diagnosticsTrackingCreateErr       error
 	diagnosticsTrackingListErr         error
@@ -1492,6 +1504,13 @@ func (s managerNodesStub) ActivateNode(_ context.Context, req managementusecase.
 		*s.activateNodeReqSink = req
 	}
 	return s.activateNodeResponse, s.activateNodeErr
+}
+
+func (s managerNodesStub) MarkNodeLeaving(_ context.Context, req managementusecase.MarkNodeLeavingRequest) (managementusecase.MarkNodeLeavingResponse, error) {
+	if s.markNodeLeavingReqSink != nil {
+		*s.markNodeLeavingReqSink = req
+	}
+	return s.markNodeLeaving, s.markNodeLeavingErr
 }
 
 func (s managerNodesStub) ListSlots(_ context.Context, opts managementusecase.ListSlotsOptions) ([]managementusecase.Slot, error) {
@@ -1611,6 +1630,27 @@ func (s managerNodesStub) NodeOnboardingStatus(_ context.Context, req management
 		*s.nodeOnboardingStatusReqSink = req
 	}
 	return s.nodeOnboardingStatus, s.nodeOnboardingStatusErr
+}
+
+func (s managerNodesStub) PlanNodeScaleIn(_ context.Context, req managementusecase.NodeScaleInPlanRequest) (managementusecase.NodeScaleInPlanResponse, error) {
+	if s.scaleInPlanReqSink != nil {
+		*s.scaleInPlanReqSink = req
+	}
+	return s.scaleInPlan, s.scaleInPlanErr
+}
+
+func (s managerNodesStub) AdvanceNodeScaleIn(_ context.Context, req managementusecase.NodeScaleInAdvanceRequest) (managementusecase.NodeScaleInAdvanceResponse, error) {
+	if s.scaleInAdvanceReqSink != nil {
+		*s.scaleInAdvanceReqSink = req
+	}
+	return s.scaleInAdvance, s.scaleInAdvanceErr
+}
+
+func (s managerNodesStub) NodeScaleInStatus(_ context.Context, req managementusecase.NodeScaleInStatusRequest) (managementusecase.NodeScaleInStatusResponse, error) {
+	if s.scaleInStatusReqSink != nil {
+		*s.scaleInStatusReqSink = req
+	}
+	return s.scaleInStatus, s.scaleInStatusErr
 }
 
 func (s managerNodesStub) QueryDiagnostics(_ context.Context, req managementusecase.DiagnosticsQueryRequest) (managementusecase.DiagnosticsQueryResponse, error) {

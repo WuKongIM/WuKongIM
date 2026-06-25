@@ -19,6 +19,10 @@ POST /manager/nodes/:node_id/onboarding/plan (bounded Slot onboarding preview; r
 POST /manager/nodes/:node_id/onboarding/start (bounded Slot onboarding task creation; requires cluster.node:w when Auth.On=true)
 GET  /manager/nodes/:node_id/onboarding/status (active onboarding task status; requires cluster.node:r when Auth.On=true)
 POST /manager/nodes/:node_id/onboarding/advance (bounded Slot onboarding task creation; requires cluster.node:w when Auth.On=true)
+POST /manager/nodes/:node_id/scale-in/plan (bounded Slot scale-in drain preview; requires cluster.node:w when Auth.On=true)
+POST /manager/nodes/:node_id/scale-in/start (mark node leaving for scale-in preparation; requires cluster.node:w when Auth.On=true)
+GET  /manager/nodes/:node_id/scale-in/status (fail-closed scale-in safety status; requires cluster.node:r when Auth.On=true)
+POST /manager/nodes/:node_id/scale-in/advance (bounded Slot scale-in drain task creation; requires cluster.node:w when Auth.On=true)
 GET  /manager/realtime-monitor (unified realtime monitor cards; requires cluster.node:r when Auth.On=true)
 GET  /manager/runtime/workqueues (local-node runtime pressure; requires cluster.node:r when Auth.On=true)
 GET  /manager/slots   (read-only Slot list; requires cluster.slot:r when Auth.On=true)
@@ -112,6 +116,29 @@ The downstream flow is `SlotReplicaMoveWriter -> ControllerV2 slot_replica_move
 task -> clusterv2 task executor -> Slot Raft learner/config-change flow -> final
 ControllerV2 assignment commit`; HTTP never treats target learners as
 `DesiredPeers` before that final commit.
+
+`/manager/nodes/:node_id/scale-in/*` exposes Stage 4 scale-in preparation for
+data nodes. `start` marks the target node `leaving` through
+`management.App.MarkNodeLeaving`, causing future planners to stop assigning new
+work to it. `status` delegates to `management.App.NodeScaleInStatus` and returns
+every fail-closed safety bit from the control snapshot, per-node runtime
+summaries, Slot runtime summaries, and active Controller tasks. `plan` and
+`advance` accept `max_slot_moves` and delegate to
+`management.App.PlanNodeScaleIn` / `AdvanceNodeScaleIn`; HTTP only creates
+bounded Stage 3 `slot_replica_move` task intents through the usecase's
+`SlotReplicaMoveWriter` path. The downstream flow is:
+
+```text
+manager scale-in route
+  -> management.App.MarkNodeLeaving / NodeScaleInStatus / PlanNodeScaleIn / AdvanceNodeScaleIn
+  -> control snapshot + runtime summaries
+  -> SlotReplicaMoveWriter
+  -> Stage 3 slot_replica_move tasks
+```
+
+Stage 4 cannot remove a node, drain gateway sessions, migrate Channel replicas,
+or cancel drain tasks. Unknown runtime or control-revision data keeps status
+unsafe and keeps planning/advancement at no candidates rather than guessing.
 
 `/manager/realtime-monitor` backs the unified web realtime monitor under
 cluster operations. It parses chart `window`, optional `step`, optional

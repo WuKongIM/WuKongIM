@@ -34,10 +34,12 @@ internalv2 management usecase. It only exposes local control snapshot reads and
 the local node ID for read-only manager node and Slot list rendering. Node
 lifecycle writes are exposed through the separate
 `ManagementNodeLifecycleAdapter` for join, activation, and leaving
-transitions; bounded Slot onboarding and scale-in drain task writes are exposed
-through `ManagementSlotReplicaMoveAdapter`; final scale-in removal, gateway
-drain, channel migration, and Slot operations other than explicit node-local
-Raft compaction or staged replica-move task creation stay unmigrated.
+transitions. Bounded Slot onboarding and Stage 4 scale-in drain writes are
+exposed through `ManagementSlotReplicaMoveAdapter`, which submits Stage 3
+`slot_replica_move` task intents and never mutates assignments directly. Final
+scale-in removal, gateway drain, channel migration, and Slot operations other
+than explicit node-local Raft compaction or staged replica-move task creation
+stay unmigrated.
 
 ## Node Lifecycle RPC Flow
 

@@ -21,8 +21,10 @@ system UID projections/actions used by
 `POST /manager/nodes/:node_id/onboarding/start`,
 `GET /manager/nodes/:node_id/onboarding/status`,
 `POST /manager/nodes/:node_id/onboarding/advance`,
-future scale-in preparation routes backed by `MarkNodeLeaving` and
-`NodeScaleInStatus` / `AdvanceNodeScaleIn`,
+`POST /manager/nodes/:node_id/scale-in/plan`,
+`POST /manager/nodes/:node_id/scale-in/start`,
+`GET /manager/nodes/:node_id/scale-in/status`,
+`POST /manager/nodes/:node_id/scale-in/advance`,
 `GET /manager/slots`, `POST /manager/slots/:slot_id/leader-transfer`,
 `GET /manager/channels`,
 `GET /manager/channel-runtime-meta`, `GET /manager/controller/logs`,
@@ -106,27 +108,32 @@ or mutate node operation hints.
 ## Node Scale-In Preparation Flow
 
 ```text
-manager HTTP handler
-  -> management.App.NodeScaleInStatus / PlanNodeScaleIn / AdvanceNodeScaleIn
+manager scale-in route
+  -> management.App.MarkNodeLeaving / NodeScaleInStatus / PlanNodeScaleIn / AdvanceNodeScaleIn
   -> ControlSnapshotReader.LocalControlSnapshot
   -> RuntimeSummaryReader.NodeRuntimeSummary
   -> SlotRuntimeStatusReader.SlotRuntimeStatus
-  -> fail-closed scale-in preparation report or bounded Slot drain task intent
+  -> SlotReplicaMoveWriter.RequestSlotReplicaMove for advance only
+  -> Stage 3 slot_replica_move task intent
 ```
 
-The scale-in preparation usecase requires the target node to exist in durable
-`leaving` state, rejects controller-role targets, and fails closed when eligible
-nodes have unknown runtime summaries, missing or stale control revisions, live
-Slot leadership on the target, live Slot voters that still contain the target
-after desired placement moved, Slot runtime read failures, or active/failed
-Controller tasks that still reference the target. Desired Slot peers containing
-the target are reported as the Slot drain work remaining and are the only status
-blocker that `PlanNodeScaleIn` may advance. `AdvanceNodeScaleIn` scans Slots in
-stable Slot ID order, chooses the lowest durable active data replacement not
-already in the peer set, and submits bounded `slot_replica_move` intents through
-the existing Controller writer. It does not mutate `DesiredPeers` directly,
-retry failed tasks, implement cancellation, drain gateway sessions, or mark
-nodes removed.
+The scale-in preparation routes are live under the manager node permission
+surface. `MarkNodeLeaving` validates only the manager-facing node ID and
+delegates the durable transition to the lifecycle writer. The status, plan, and
+advance usecases require the target node to exist in durable `leaving` state,
+reject controller-role targets, and fail closed when eligible nodes have unknown
+runtime summaries, missing or stale control revisions, live Slot leadership on
+the target, live Slot voters that still contain the target after desired
+placement moved, Slot runtime read failures, or active/failed Controller tasks
+that still reference the target. Desired Slot peers containing the target are
+reported as the Slot drain work remaining and are the only status blocker that
+`PlanNodeScaleIn` may advance. `AdvanceNodeScaleIn` scans Slots in stable Slot
+ID order, chooses the lowest durable active data replacement not already in the
+peer set, and submits bounded `slot_replica_move` intents through the existing
+Controller writer. Unknown data keeps status unsafe and keeps planning or
+advancement at no candidates. It does not mutate `DesiredPeers` directly, retry
+failed tasks, implement cancellation, drain gateway sessions, migrate Channel
+replicas, or mark nodes removed.
 
 ## Node Onboarding Flow
 

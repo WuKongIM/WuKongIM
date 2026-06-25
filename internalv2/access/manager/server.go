@@ -59,6 +59,8 @@ type Management interface {
 	JoinNode(ctx context.Context, req managementusecase.JoinNodeRequest) (managementusecase.JoinNodeResponse, error)
 	// ActivateNode submits a manager node activation intent.
 	ActivateNode(ctx context.Context, req managementusecase.ActivateNodeRequest) (managementusecase.ActivateNodeResponse, error)
+	// MarkNodeLeaving submits a manager node leaving intent.
+	MarkNodeLeaving(ctx context.Context, req managementusecase.MarkNodeLeavingRequest) (managementusecase.MarkNodeLeavingResponse, error)
 	// ListSlots returns manager-facing slot DTOs.
 	ListSlots(ctx context.Context, opts managementusecase.ListSlotsOptions) ([]managementusecase.Slot, error)
 	// ListSlotLogEntries returns one node-local Slot Raft log page.
@@ -91,6 +93,12 @@ type Management interface {
 	AdvanceNodeOnboarding(ctx context.Context, req managementusecase.NodeOnboardingAdvanceRequest) (managementusecase.NodeOnboardingStartResponse, error)
 	// NodeOnboardingStatus returns active onboarding tasks for a target node.
 	NodeOnboardingStatus(ctx context.Context, req managementusecase.NodeOnboardingStatusRequest) (managementusecase.NodeOnboardingStatusResponse, error)
+	// PlanNodeScaleIn previews bounded Slot replica move tasks away from a leaving node.
+	PlanNodeScaleIn(ctx context.Context, req managementusecase.NodeScaleInPlanRequest) (managementusecase.NodeScaleInPlanResponse, error)
+	// AdvanceNodeScaleIn creates bounded Slot replica move tasks away from a leaving node.
+	AdvanceNodeScaleIn(ctx context.Context, req managementusecase.NodeScaleInAdvanceRequest) (managementusecase.NodeScaleInAdvanceResponse, error)
+	// NodeScaleInStatus returns scale-in safety status for a leaving node.
+	NodeScaleInStatus(ctx context.Context, req managementusecase.NodeScaleInStatusRequest) (managementusecase.NodeScaleInStatusResponse, error)
 	// QueryDiagnostics returns a manager-facing diagnostics aggregate query result.
 	QueryDiagnostics(ctx context.Context, req managementusecase.DiagnosticsQueryRequest) (managementusecase.DiagnosticsQueryResponse, error)
 	// CreateDiagnosticsTrackingRule installs a temporary diagnostics tracking rule.
@@ -308,7 +316,11 @@ func (s *Server) registerRoutes() {
 	nodeWrites.POST("/nodes/:node_id/onboarding/plan", s.handleNodeOnboardingPlan)
 	nodeWrites.POST("/nodes/:node_id/onboarding/start", s.handleNodeOnboardingStart)
 	nodeWrites.POST("/nodes/:node_id/onboarding/advance", s.handleNodeOnboardingAdvance)
+	nodeWrites.POST("/nodes/:node_id/scale-in/plan", s.handleNodeScaleInPlan)
+	nodeWrites.POST("/nodes/:node_id/scale-in/start", s.handleNodeScaleInStart)
+	nodeWrites.POST("/nodes/:node_id/scale-in/advance", s.handleNodeScaleInAdvance)
 	nodes.GET("/nodes/:node_id/onboarding/status", s.handleNodeOnboardingStatus)
+	nodes.GET("/nodes/:node_id/scale-in/status", s.handleNodeScaleInStatus)
 
 	slots := s.engine.Group("/manager")
 	if s.auth.enabled() {
