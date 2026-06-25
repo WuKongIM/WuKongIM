@@ -113,8 +113,11 @@ func TestSlotReplicaMoveExecutorTransfersLeadershipBeforeRemovingSourceVoter(t *
 	if runtime.transferCalls != 1 || runtime.transferSlot != 1 || runtime.transferTarget == 1 {
 		t.Fatalf("transfer slot=%d target=%d calls=%d, want one transfer away from source", runtime.transferSlot, runtime.transferTarget, runtime.transferCalls)
 	}
-	if len(runtime.changes) != 0 || writer.phaseCalls != 0 {
-		t.Fatalf("changes=%#v phase calls=%d, want no removal while source remains leader", runtime.changes, writer.phaseCalls)
+	if len(runtime.changes) != 0 {
+		t.Fatalf("changes=%#v, want no removal while source remains leader", runtime.changes)
+	}
+	if writer.phaseCalls != 1 || writer.phase.NextStep != control.TaskStepRemoveVoter || writer.phase.ExpectedPhaseIndex != 2 {
+		t.Fatalf("phase = %#v calls=%d, want remove_voter wakeup phase", writer.phase, writer.phaseCalls)
 	}
 }
 

@@ -105,6 +105,9 @@ manager HTTP handler
   -> ControlSnapshotReader.LocalControlSnapshot
   -> SlotReplicaMoveWriter.RequestSlotReplicaMove for start/advance only
   -> clusterv2 control slot_replica_move task intent
+  -> clusterv2 task executor
+  -> Slot Raft learner/config-change flow
+  -> final ControllerV2 Slot assignment commit
 ```
 
 The onboarding usecase implements only the first bounded Slot-replica
@@ -116,6 +119,9 @@ with any active Controller task, and creates at most the requested number of
 Raft, poll task completion, migrate Channel replicas, or implement operator
 cancellation without a fenced Controller writer. Status is a read-only
 projection of active `slot_replica_move` tasks targeting the selected node.
+Targets being onboarded are task-local learners before promotion; the durable
+`DesiredPeers` assignment changes only after the clusterv2 executor observes the
+target voter set and commits the final ControllerV2 assignment update.
 
 ## Slot List Flow
 

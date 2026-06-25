@@ -175,6 +175,78 @@ func (m *ManagerClient) MustActivateNode(t testing.TB, nodeID uint64) {
 	}
 }
 
+// MustPlanOnboarding returns one bounded Slot onboarding preview through manager HTTP.
+func (m *ManagerClient) MustPlanOnboarding(t testing.TB, nodeID uint64, maxSlotMoves uint32) NodeOnboardingPlanDTO {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	var out NodeOnboardingPlanDTO
+	status, body, err := postJSONStatus(ctx, fmt.Sprintf("%s/manager/nodes/%d/onboarding/plan", m.baseURL, nodeID), map[string]any{
+		"max_slot_moves": maxSlotMoves,
+	}, &out)
+	if err != nil || status/100 != 2 {
+		if err == nil {
+			err = fmt.Errorf("plan onboarding node %d returned %d: %s", nodeID, status, strings.TrimSpace(string(body)))
+		}
+		t.Fatalf("%v\n%s", err, m.cluster.DumpDiagnostics())
+	}
+	return out
+}
+
+// MustStartOnboarding creates bounded Slot onboarding tasks through manager HTTP.
+func (m *ManagerClient) MustStartOnboarding(t testing.TB, nodeID uint64, maxSlotMoves uint32) NodeOnboardingStartDTO {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	var out NodeOnboardingStartDTO
+	status, body, err := postJSONStatus(ctx, fmt.Sprintf("%s/manager/nodes/%d/onboarding/start", m.baseURL, nodeID), map[string]any{
+		"max_slot_moves": maxSlotMoves,
+	}, &out)
+	if err != nil || status/100 != 2 {
+		if err == nil {
+			err = fmt.Errorf("start onboarding node %d returned %d: %s", nodeID, status, strings.TrimSpace(string(body)))
+		}
+		t.Fatalf("%v\n%s", err, m.cluster.DumpDiagnostics())
+	}
+	return out
+}
+
+// EventuallyOnboardingSafe waits until the target has no active onboarding tasks.
+func (m *ManagerClient) EventuallyOnboardingSafe(t testing.TB, nodeID uint64, timeout time.Duration) {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	ticker := time.NewTicker(managerPollInterval)
+	defer ticker.Stop()
+
+	var (
+		lastResp NodeOnboardingStatusDTO
+		lastErr  error
+	)
+	for {
+		var resp NodeOnboardingStatusDTO
+		_, err := GetJSON(ctx, fmt.Sprintf("%s/manager/nodes/%d/onboarding/status", m.baseURL, nodeID), &resp)
+		if err == nil {
+			lastResp = resp
+			if resp.Summary.TotalActive == 0 {
+				return
+			}
+			lastErr = fmt.Errorf("onboarding active=%d pending=%d running=%d failed=%d", resp.Summary.TotalActive, resp.Summary.Pending, resp.Summary.Running, resp.Summary.Failed)
+		} else {
+			lastErr = err
+		}
+
+		select {
+		case <-ctx.Done():
+			t.Fatalf("node %d onboarding did not become safe: last=%#v lastErr=%v\n%s", nodeID, lastResp, lastErr, m.cluster.DumpDiagnostics())
+		case <-ticker.C:
+		}
+	}
+}
+
 func (m *ManagerClient) localNodeTCPStatus(nodeID uint64) string {
 	node, ok := m.cluster.Node(nodeID)
 	if !ok {
@@ -253,6 +325,77 @@ type managerNodeDTO struct {
 
 type managerNodeMembershipDTO struct {
 	JoinState string `json:"join_state"`
+}
+
+// NodeOnboardingPlanDTO is the manager onboarding preview subset used by e2ev2.
+type NodeOnboardingPlanDTO struct {
+	StateRevision uint64                         `json:"state_revision"`
+	TargetNodeID  uint64                         `json:"target_node_id"`
+	MaxSlotMoves  uint32                         `json:"max_slot_moves"`
+	Candidates    []NodeOnboardingCandidateDTO   `json:"candidates"`
+	Skipped       []NodeOnboardingSkippedSlotDTO `json:"skipped"`
+}
+
+// NodeOnboardingStartDTO is the manager onboarding start subset used by e2ev2.
+type NodeOnboardingStartDTO struct {
+	StateRevision uint64                         `json:"state_revision"`
+	TargetNodeID  uint64                         `json:"target_node_id"`
+	MaxSlotMoves  uint32                         `json:"max_slot_moves"`
+	Created       uint32                         `json:"created"`
+	Results       []NodeOnboardingTaskResultDTO  `json:"results"`
+	Skipped       []NodeOnboardingSkippedSlotDTO `json:"skipped"`
+}
+
+// NodeOnboardingStatusDTO is the manager onboarding status subset used by e2ev2.
+type NodeOnboardingStatusDTO struct {
+	StateRevision uint64                        `json:"state_revision"`
+	TargetNodeID  uint64                        `json:"target_node_id"`
+	Summary       NodeOnboardingStatusSummary   `json:"summary"`
+	Tasks         []NodeOnboardingStatusTaskDTO `json:"tasks"`
+}
+
+// NodeOnboardingCandidateDTO describes one Slot move preview.
+type NodeOnboardingCandidateDTO struct {
+	SlotID       uint32   `json:"slot_id"`
+	SourceNodeID uint64   `json:"source_node_id"`
+	TargetNodeID uint64   `json:"target_node_id"`
+	TargetPeers  []uint64 `json:"target_peers"`
+	ConfigEpoch  uint64   `json:"config_epoch"`
+}
+
+// NodeOnboardingSkippedSlotDTO describes one skipped Slot in onboarding responses.
+type NodeOnboardingSkippedSlotDTO struct {
+	SlotID  uint32 `json:"slot_id"`
+	Reason  string `json:"reason"`
+	Message string `json:"message"`
+}
+
+// NodeOnboardingTaskResultDTO describes one submitted onboarding task.
+type NodeOnboardingTaskResultDTO struct {
+	SlotID  uint32                       `json:"slot_id"`
+	Created bool                         `json:"created"`
+	Task    *NodeOnboardingStatusTaskDTO `json:"task,omitempty"`
+}
+
+// NodeOnboardingStatusSummary contains aggregate active onboarding task counts.
+type NodeOnboardingStatusSummary struct {
+	TotalActive int `json:"total_active"`
+	Pending     int `json:"pending"`
+	Running     int `json:"running"`
+	Failed      int `json:"failed"`
+}
+
+// NodeOnboardingStatusTaskDTO is an active onboarding task row.
+type NodeOnboardingStatusTaskDTO struct {
+	TaskID      string   `json:"task_id"`
+	SlotID      uint32   `json:"slot_id"`
+	Kind        string   `json:"kind"`
+	Step        string   `json:"step"`
+	Status      string   `json:"status"`
+	SourceNode  uint64   `json:"source_node"`
+	TargetNode  uint64   `json:"target_node"`
+	TargetPeers []uint64 `json:"target_peers"`
+	ConfigEpoch uint64   `json:"config_epoch"`
 }
 
 func stableSlotInventory(resp managerSlotsResponse) error {

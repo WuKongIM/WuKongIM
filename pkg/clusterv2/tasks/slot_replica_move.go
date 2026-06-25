@@ -218,7 +218,7 @@ func (e *SlotReplicaMoveExecutor) removeVoter(ctx context.Context, task control.
 		if err := e.cfg.Runtime.TransferLeadership(ctx, multiraft.SlotID(task.SlotID), multiraft.NodeID(target)); err != nil {
 			return e.failTask(ctx, task, err.Error())
 		}
-		return nil
+		return e.advancePhase(ctx, task, control.TaskStepRemoveVoter, status)
 	}
 	if err := e.changeConfig(ctx, task, multiraft.ConfigChange{
 		Type:   multiraft.RemoveVoter,

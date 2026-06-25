@@ -108,6 +108,10 @@ least one Controller-backed `slot_replica_move` task is created; no-op previews
 or no-create results return `200 OK`. `status` is read-only and reports active
 replica-move tasks targeting the selected node. There is intentionally no
 `cancel` route in this stage because no fenced Controller cancel writer exists.
+The downstream flow is `SlotReplicaMoveWriter -> ControllerV2 slot_replica_move
+task -> clusterv2 task executor -> Slot Raft learner/config-change flow -> final
+ControllerV2 assignment commit`; HTTP never treats target learners as
+`DesiredPeers` before that final commit.
 
 `/manager/realtime-monitor` backs the unified web realtime monitor under
 cluster operations. It parses chart `window`, optional `step`, optional

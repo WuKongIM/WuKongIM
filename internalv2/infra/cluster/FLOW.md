@@ -311,12 +311,19 @@ preflight, then pass the validated control intent into clusterv2 control.
 management.SlotReplicaMoveWriter
   -> clusterv2.RequestSlotReplicaMove(control.SlotReplicaMoveRequest)
   -> clusterv2 control runtime
+  -> ControllerV2 slot_replica_move task
+  -> clusterv2 task executor
+  -> Slot Raft OpenLearner/ChangeConfig
+  -> final ControllerV2 assignment commit
 ```
 
 The replica-move adapter is only the infra boundary for manager onboarding task
 creation. It does not choose source peers, mutate `DesiredPeers`, or execute
 Slot Raft config changes; those stay in the management planner, ControllerV2
-task intent, and clusterv2 task executor respectively.
+task intent, and clusterv2 task executor respectively. The onboarding target is
+task-local staged state while it is opened and caught up as a learner; it is not
+added to `DesiredPeers` until the executor commits the final assignment after
+Slot Raft voters match the target set.
 
 ## Management Node Lifecycle Flow
 
