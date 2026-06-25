@@ -104,10 +104,14 @@ type ManagerNodeScaleInStatusResponse struct {
 	BlockedBySlotRuntime bool `json:"blocked_by_slot_runtime"`
 	// BlockedByTasks reports active or failed Controller tasks referencing the target.
 	BlockedByTasks bool `json:"blocked_by_tasks"`
+	// BlockedByChannels reports Channel leader, replica, ISR, or unknown inventory blockers.
+	BlockedByChannels bool `json:"blocked_by_channels"`
 	// UnknownRuntime reports that one or more eligible nodes lacked runtime summary data.
 	UnknownRuntime bool `json:"unknown_runtime"`
 	// UnknownControlRevision reports missing control revision observations.
 	UnknownControlRevision bool `json:"unknown_control_revision"`
+	// UnknownChannelInventory reports that Channel inventory could not be proven.
+	UnknownChannelInventory bool `json:"unknown_channel_inventory"`
 	// SlotReplicaCount counts Slot replicas that still block removing the target node.
 	SlotReplicaCount int `json:"slot_replica_count"`
 	// SlotLeaderCount counts live Slot leaders still observed on the target node.
@@ -116,6 +120,12 @@ type ManagerNodeScaleInStatusResponse struct {
 	ActiveTaskCount int `json:"active_task_count"`
 	// FailedTaskCount counts failed Controller tasks that reference the target.
 	FailedTaskCount int `json:"failed_task_count"`
+	// ChannelLeaderCount counts Channels led by the target node.
+	ChannelLeaderCount int `json:"channel_leader_count"`
+	// ChannelReplicaCount counts Channels where the target is a configured replica.
+	ChannelReplicaCount int `json:"channel_replica_count"`
+	// ChannelISRCount counts Channels where the target is in ISR.
+	ChannelISRCount int `json:"channel_isr_count"`
 }
 
 func (s *Server) handleNodeScaleInPlan(c *gin.Context) {
@@ -237,12 +247,17 @@ func nodeScaleInStatusResponseDTO(response managementusecase.NodeScaleInStatusRe
 		BlockedBySlotLeadership:  response.BlockedBySlotLeadership,
 		BlockedBySlotRuntime:     response.BlockedBySlotRuntime,
 		BlockedByTasks:           response.BlockedByTasks,
+		BlockedByChannels:        response.BlockedByChannels,
 		UnknownRuntime:           response.UnknownRuntime,
 		UnknownControlRevision:   response.UnknownControlRevision,
+		UnknownChannelInventory:  response.UnknownChannelInventory,
 		SlotReplicaCount:         response.SlotReplicaCount,
 		SlotLeaderCount:          response.SlotLeaderCount,
 		ActiveTaskCount:          response.ActiveTaskCount,
 		FailedTaskCount:          response.FailedTaskCount,
+		ChannelLeaderCount:       response.ChannelLeaderCount,
+		ChannelReplicaCount:      response.ChannelReplicaCount,
+		ChannelISRCount:          response.ChannelISRCount,
 	}
 }
 

@@ -67,10 +67,14 @@ type NodeScaleInStatusResponse struct {
 	BlockedBySlotRuntime bool
 	// BlockedByTasks reports that active or failed Controller tasks still reference the target node.
 	BlockedByTasks bool
+	// BlockedByChannels reports Channel leader, replica, ISR, or unknown inventory blockers.
+	BlockedByChannels bool
 	// UnknownRuntime reports that one or more eligible nodes could not provide runtime summary data.
 	UnknownRuntime bool
 	// UnknownControlRevision reports that one or more eligible nodes did not report a control revision.
 	UnknownControlRevision bool
+	// UnknownChannelInventory reports that Channel inventory could not be proven.
+	UnknownChannelInventory bool
 	// SlotReplicaCount counts Slot replicas that still block removing the target node.
 	SlotReplicaCount int
 	// SlotLeaderCount counts live Slot leaders still observed on the target node.
@@ -79,6 +83,12 @@ type NodeScaleInStatusResponse struct {
 	ActiveTaskCount int
 	// FailedTaskCount counts failed Controller tasks that reference the target node.
 	FailedTaskCount int
+	// ChannelLeaderCount counts Channels led by the target node.
+	ChannelLeaderCount int
+	// ChannelReplicaCount counts Channels where the target is a configured replica.
+	ChannelReplicaCount int
+	// ChannelISRCount counts Channels where the target is in ISR.
+	ChannelISRCount int
 }
 
 // NodeScaleInCandidate describes one planned Slot replica move away from a leaving node.
@@ -167,6 +177,9 @@ func (a *App) nodeScaleInStatusFromSnapshot(ctx context.Context, snapshot contro
 	a.markScaleInRuntimeRevisionBlockers(ctx, snapshot, &response)
 	a.markScaleInSlotBlockers(ctx, snapshot.Slots, nodeID, &response)
 	markScaleInTaskBlockersWithFilter(snapshot.Tasks, nodeID, &response, ignoreTask)
+	if !response.BlockedByJoinState && !response.BlockedByControllerRole {
+		a.markScaleInChannelBlockers(ctx, snapshot, nodeID, &response)
+	}
 	response.SafeToProceed = !response.BlockedByMissingNode &&
 		!response.BlockedByJoinState &&
 		!response.BlockedByControlRevision &&
@@ -175,7 +188,12 @@ func (a *App) nodeScaleInStatusFromSnapshot(ctx context.Context, snapshot contro
 		!response.BlockedBySlotLeadership &&
 		!response.BlockedBySlotRuntime &&
 		!response.BlockedByTasks &&
-		!response.UnknownRuntime
+		!response.BlockedByChannels &&
+		!response.UnknownRuntime &&
+		!response.UnknownChannelInventory &&
+		response.ChannelLeaderCount == 0 &&
+		response.ChannelReplicaCount == 0 &&
+		response.ChannelISRCount == 0
 	return response
 }
 
@@ -425,6 +443,18 @@ func markScaleInTaskBlockersWithFilter(tasks []control.ReconcileTask, targetNode
 			response.BlockedByTasks = true
 		}
 	}
+}
+
+func (a *App) markScaleInChannelBlockers(ctx context.Context, snapshot control.Snapshot, targetNode uint64, response *NodeScaleInStatusResponse) {
+	inventory := a.nodeChannelDrainInventoryFromSnapshot(ctx, snapshot, NodeChannelDrainInventoryRequest{NodeID: targetNode})
+	response.UnknownChannelInventory = inventory.Unknown
+	response.ChannelLeaderCount = inventory.LeaderCount
+	response.ChannelReplicaCount = inventory.ReplicaCount
+	response.ChannelISRCount = inventory.ISRCount
+	response.BlockedByChannels = inventory.Unknown ||
+		inventory.LeaderCount > 0 ||
+		inventory.ReplicaCount > 0 ||
+		inventory.ISRCount > 0
 }
 
 func responseOwnTaskSlots(candidates []NodeScaleInCandidate) map[uint32]struct{} {

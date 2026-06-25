@@ -6,6 +6,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
 	cv2 "github.com/WuKongIM/WuKongIM/pkg/controllerv2"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
 func TestScaleInStatusFailsClosedWhenRuntimeSummaryUnknown(t *testing.T) {
@@ -78,6 +79,48 @@ func TestScaleInStatusBlocksWhenRuntimeVotersStillContainTargetAfterDesiredPeers
 	}
 	if status.SafeToProceed || !status.BlockedBySlotRuntime || status.SlotReplicaCount != 1 {
 		t.Fatalf("status = %#v, want unsafe with live runtime voter blocker", status)
+	}
+}
+
+func TestScaleInStatusBlocksWhenChannelInventoryReferencesTarget(t *testing.T) {
+	reader := newChannelDrainMetaReader()
+	reader.pages[1] = map[metadb.ChannelRuntimeMetaCursor]channelDrainMetaPage{
+		{}: {
+			items: []metadb.ChannelRuntimeMeta{{ChannelID: "ch", ChannelType: 1, Leader: 4, Replicas: []uint64{2, 4}, ISR: []uint64{4}}},
+			done:  true,
+		},
+	}
+	snap := scaleInReadyNoSlotReplicaSnapshot()
+	app := New(Options{
+		Cluster:            fakeNodeSnapshotReader{snapshot: snap},
+		RuntimeSummary:     fakeNodeRuntimeSummaryReader{summaries: scaleInRuntimeSummariesFor(snap.Revision, scaleInSnapshotNodeIDs(snap)...)},
+		SlotRuntimeStatus:  scaleInSafeSlotRuntimeReader{},
+		ChannelRuntimeMeta: reader,
+	})
+
+	status, err := app.NodeScaleInStatus(context.Background(), NodeScaleInStatusRequest{NodeID: 4})
+	if err != nil {
+		t.Fatalf("NodeScaleInStatus() error = %v", err)
+	}
+	if status.SafeToProceed || !status.BlockedByChannels || status.ChannelLeaderCount != 1 || status.ChannelReplicaCount != 1 || status.ChannelISRCount != 1 {
+		t.Fatalf("status = %#v, want channel blockers", status)
+	}
+}
+
+func TestScaleInStatusBlocksWhenChannelInventoryUnknown(t *testing.T) {
+	snap := scaleInReadyNoSlotReplicaSnapshot()
+	app := New(Options{
+		Cluster:           fakeNodeSnapshotReader{snapshot: snap},
+		RuntimeSummary:    fakeNodeRuntimeSummaryReader{summaries: scaleInRuntimeSummariesFor(snap.Revision, scaleInSnapshotNodeIDs(snap)...)},
+		SlotRuntimeStatus: scaleInSafeSlotRuntimeReader{},
+	})
+
+	status, err := app.NodeScaleInStatus(context.Background(), NodeScaleInStatusRequest{NodeID: 4})
+	if err != nil {
+		t.Fatalf("NodeScaleInStatus() error = %v", err)
+	}
+	if status.SafeToProceed || !status.BlockedByChannels || !status.UnknownChannelInventory {
+		t.Fatalf("status = %#v, want unknown channel inventory blocker", status)
 	}
 }
 
@@ -172,8 +215,9 @@ func TestScaleInStatusReportsSafetyBlockerCategories(t *testing.T) {
 				tt.mutate(&snap, &runtime)
 			}
 			app := New(Options{
-				Cluster:        fakeNodeSnapshotReader{snapshot: snap},
-				RuntimeSummary: fakeNodeRuntimeSummaryReader{summaries: scaleInRuntimeSummariesFor(17, scaleInSnapshotNodeIDs(snap)...)},
+				Cluster:            fakeNodeSnapshotReader{snapshot: snap},
+				RuntimeSummary:     fakeNodeRuntimeSummaryReader{summaries: scaleInRuntimeSummariesFor(17, scaleInSnapshotNodeIDs(snap)...)},
+				ChannelRuntimeMeta: newChannelDrainMetaReader(),
 				SlotRuntimeStatus: &fakeSlotRuntimeStatusReader{statuses: map[uint32]SlotRuntimeStatus{
 					1: runtime,
 				}},
@@ -233,6 +277,36 @@ func TestAdvanceNodeScaleInCreatesMoveAwayFromLeavingNode(t *testing.T) {
 	}
 	if !sameUint64Slice(req.TargetPeers, []uint64{1, 4, 3}) {
 		t.Fatalf("target peers = %v, want [1 4 3]", req.TargetPeers)
+	}
+}
+
+func TestAdvanceNodeScaleInAllowsSlotDrainWhenChannelInventoryUnknown(t *testing.T) {
+	snap := scaleInSnapshot(17)
+	snap.Nodes = append(snap.Nodes, control.Node{NodeID: 4, Roles: []control.Role{control.RoleData}, Status: control.NodeAlive, JoinState: control.NodeJoinStateActive})
+	writer := &fakeSlotReplicaMoveWriter{result: control.SlotReplicaMoveResult{Created: true}}
+	app := New(Options{
+		Cluster:         fakeNodeSnapshotReader{snapshot: snap},
+		RuntimeSummary:  fakeNodeRuntimeSummaryReader{summaries: scaleInRuntimeSummariesFor(17, 1, 2, 3, 4)},
+		SlotReplicaMove: writer,
+		SlotRuntimeStatus: &fakeSlotRuntimeStatusReader{
+			statuses: map[uint32]SlotRuntimeStatus{1: {SlotID: 1, LeaderID: 1, CurrentVoters: []uint64{1, 2, 3}}},
+		},
+	})
+
+	status, err := app.NodeScaleInStatus(context.Background(), NodeScaleInStatusRequest{NodeID: 2})
+	if err != nil {
+		t.Fatalf("NodeScaleInStatus() error = %v", err)
+	}
+	if status.SafeToProceed || !status.UnknownChannelInventory {
+		t.Fatalf("status = %#v, want final status blocked by unknown channel inventory", status)
+	}
+
+	got, err := app.AdvanceNodeScaleIn(context.Background(), NodeScaleInAdvanceRequest{NodeID: 2, MaxSlotMoves: 1})
+	if err != nil {
+		t.Fatalf("AdvanceNodeScaleIn() error = %v", err)
+	}
+	if got.Created != 1 || len(writer.requests) != 1 {
+		t.Fatalf("advance = %#v requests=%#v, want slot drain to continue", got, writer.requests)
 	}
 }
 
@@ -321,6 +395,21 @@ func scaleInDrainedSnapshot(revision uint64) control.Snapshot {
 	return snapshot
 }
 
+func scaleInReadyNoSlotReplicaSnapshot() control.Snapshot {
+	return control.Snapshot{
+		Revision: 11,
+		Nodes: []control.Node{
+			{NodeID: 1, Roles: []control.Role{control.RoleController}, Status: control.NodeAlive, JoinState: control.NodeJoinStateActive},
+			{NodeID: 2, Roles: []control.Role{control.RoleData}, Status: control.NodeAlive, JoinState: control.NodeJoinStateActive},
+			{NodeID: 3, Roles: []control.Role{control.RoleData}, Status: control.NodeAlive, JoinState: control.NodeJoinStateActive},
+			{NodeID: 4, Roles: []control.Role{control.RoleData}, Status: control.NodeAlive, JoinState: control.NodeJoinStateLeaving},
+		},
+		Slots: []control.SlotAssignment{
+			{SlotID: 1, DesiredPeers: []uint64{2, 3}, PreferredLeader: 2, ConfigEpoch: 7},
+		},
+	}
+}
+
 func scaleInSnapshotNodeIDs(snapshot control.Snapshot) []uint64 {
 	nodeIDs := make([]uint64, 0, len(snapshot.Nodes))
 	for _, node := range snapshot.Nodes {
@@ -386,4 +475,10 @@ type scaleInSnapshotRuntimeSummaryReader struct {
 
 func (r scaleInSnapshotRuntimeSummaryReader) NodeRuntimeSummary(_ context.Context, nodeID uint64) (NodeRuntimeSummary, error) {
 	return NodeRuntimeSummary{NodeID: nodeID, ControlRevision: r.cluster.snapshot.Revision}, nil
+}
+
+type scaleInSafeSlotRuntimeReader struct{}
+
+func (scaleInSafeSlotRuntimeReader) SlotRuntimeStatus(_ context.Context, slotID uint32, _ []uint64) (SlotRuntimeStatus, error) {
+	return SlotRuntimeStatus{SlotID: slotID, LeaderID: 2, CurrentVoters: []uint64{2, 3}}, nil
 }

@@ -113,6 +113,7 @@ manager scale-in route
   -> ControlSnapshotReader.LocalControlSnapshot
   -> RuntimeSummaryReader.NodeRuntimeSummary
   -> SlotRuntimeStatusReader.SlotRuntimeStatus
+  -> ChannelRuntimeMetaReader.ScanChannelRuntimeMetaSlotPage for status only
   -> SlotReplicaMoveWriter.RequestSlotReplicaMove for advance only
   -> Stage 3 slot_replica_move task intent
 ```
@@ -125,15 +126,21 @@ reject controller-role targets, and fail closed when eligible nodes have unknown
 runtime summaries, missing or stale control revisions, live Slot leadership on
 the target, live Slot voters that still contain the target after desired
 placement moved, Slot runtime read failures, or active/failed Controller tasks
-that still reference the target. Desired Slot peers containing the target are
-reported as the Slot drain work remaining and are the only status blocker that
-`PlanNodeScaleIn` may advance. `AdvanceNodeScaleIn` scans Slots in stable Slot
-ID order, chooses the lowest durable active data replacement not already in the
-peer set, and submits bounded `slot_replica_move` intents through the existing
-Controller writer. Unknown data keeps status unsafe and keeps planning or
-advancement at no candidates. It does not mutate `DesiredPeers` directly, retry
-failed tasks, implement cancellation, drain gateway sessions, migrate Channel
-replicas, or mark nodes removed.
+that still reference the target. After Slot/task checks, status performs a
+bounded scan of authoritative `ChannelRuntimeMeta` by physical Slot and fails
+closed when the target is still a Channel leader, configured replica, ISR member,
+or when Channel inventory is unavailable. Desired Slot peers containing the
+target are reported as the Slot drain work remaining and are the only status
+blocker that `PlanNodeScaleIn` may advance. `AdvanceNodeScaleIn` scans Slots in
+stable Slot ID order, chooses the lowest durable active data replacement not
+already in the peer set, and submits bounded `slot_replica_move` intents through
+the existing Controller writer. Unknown runtime, control revision, Slot runtime,
+or task data keeps status unsafe and keeps planning or advancement at no
+candidates. Unknown Channel inventory keeps final scale-in status unsafe, but it
+does not block Slot drain advancement while desired Slot peers still contain the
+target. It does not mutate `DesiredPeers` directly, retry failed tasks,
+implement cancellation, drain gateway sessions, migrate Channel replicas, clear
+Channel metadata, or mark nodes removed.
 
 ## Node Onboarding Flow
 

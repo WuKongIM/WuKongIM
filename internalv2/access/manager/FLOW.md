@@ -117,13 +117,14 @@ task -> clusterv2 task executor -> Slot Raft learner/config-change flow -> final
 ControllerV2 assignment commit`; HTTP never treats target learners as
 `DesiredPeers` before that final commit.
 
-`/manager/nodes/:node_id/scale-in/*` exposes Stage 4 scale-in preparation for
+`/manager/nodes/:node_id/scale-in/*` exposes scale-in preparation for
 data nodes. `start` marks the target node `leaving` through
 `management.App.MarkNodeLeaving`, causing future planners to stop assigning new
 work to it. `status` delegates to `management.App.NodeScaleInStatus` and returns
 every fail-closed safety bit from the control snapshot, per-node runtime
-summaries, Slot runtime summaries, and active Controller tasks. `plan` and
-`advance` accept `max_slot_moves` and delegate to
+summaries, Slot runtime summaries, active Controller tasks, and bounded
+Channel runtime metadata inventory. `plan` and `advance` accept `max_slot_moves`
+and delegate to
 `management.App.PlanNodeScaleIn` / `AdvanceNodeScaleIn`; HTTP only creates
 bounded Stage 3 `slot_replica_move` task intents through the usecase's
 `SlotReplicaMoveWriter` path. The downstream flow is:
@@ -131,14 +132,17 @@ bounded Stage 3 `slot_replica_move` task intents through the usecase's
 ```text
 manager scale-in route
   -> management.App.MarkNodeLeaving / NodeScaleInStatus / PlanNodeScaleIn / AdvanceNodeScaleIn
-  -> control snapshot + runtime summaries
+  -> control snapshot + runtime summaries + ChannelRuntimeMeta inventory for status
   -> SlotReplicaMoveWriter
   -> Stage 3 slot_replica_move tasks
 ```
 
-Stage 4 cannot remove a node, drain gateway sessions, migrate Channel replicas,
-or cancel drain tasks. Unknown runtime or control-revision data keeps status
-unsafe and keeps planning/advancement at no candidates rather than guessing.
+This scale-in surface cannot remove a node, drain gateway sessions, migrate
+Channel replicas, clear Channel metadata, or cancel drain tasks. Unknown runtime
+or control-revision data keeps status unsafe and keeps planning/advancement at
+no candidates rather than guessing. Unknown Channel inventory keeps status
+unsafe, but HTTP still allows Slot drain `plan`/`advance` while desired Slot
+peers contain the target so operators can continue the first drain phase.
 
 `/manager/realtime-monitor` backs the unified web realtime monitor under
 cluster operations. It parses chart `window`, optional `step`, optional
