@@ -8,6 +8,7 @@ import (
 	"time"
 
 	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
+	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
 )
 
 func TestManagerScaleInPlanRequiresWritePermissionAndReturnsPreview(t *testing.T) {
@@ -334,6 +335,58 @@ func TestManagerScaleInAdvanceMapsConflict(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), `"error":"conflict"`) {
 		t.Fatalf("body = %s, want conflict error", rec.Body.String())
+	}
+}
+
+func TestManagerScaleInMapsClusterUnavailable(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		method string
+		path   string
+		body   string
+		stub   managerNodesStub
+	}{
+		{
+			name:   "status",
+			method: http.MethodGet,
+			path:   "/manager/nodes/4/scale-in/status",
+			stub:   managerNodesStub{scaleInStatusErr: clusterv2.ErrNotStarted},
+		},
+		{
+			name:   "advance",
+			method: http.MethodPost,
+			path:   "/manager/nodes/4/scale-in/advance",
+			body:   `{"max_slot_moves":1}`,
+			stub:   managerNodesStub{scaleInAdvanceErr: clusterv2.ErrNotLeader},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			srv := New(Options{
+				Auth: testAuthConfig([]UserConfig{{
+					Username: "admin",
+					Password: "secret",
+					Permissions: []PermissionConfig{{
+						Resource: "cluster.node",
+						Actions:  []string{"r", "w"},
+					}},
+				}}),
+				Management: tc.stub,
+			})
+
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest(tc.method, tc.path, strings.NewReader(tc.body))
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
+
+			srv.Engine().ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusServiceUnavailable {
+				t.Fatalf("status = %d body=%s, want %d", rec.Code, rec.Body.String(), http.StatusServiceUnavailable)
+			}
+			if !jsonEqual(rec.Body.String(), `{"error":"service_unavailable","message":"service_unavailable"}`) {
+				t.Fatalf("body = %s, want stable service_unavailable", rec.Body.String())
+			}
+		})
 	}
 }
 
