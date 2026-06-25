@@ -795,6 +795,80 @@ func TestRuntimeMarkNodeLeavingRejectsMissingNode(t *testing.T) {
 	}
 }
 
+func TestRuntimeMarkNodeRemovedTurnsLeavingNodeRemoved(t *testing.T) {
+	runtime := startSingleVoterRuntime(t, "cluster-mark-removed")
+	if _, err := runtime.JoinNode(context.Background(), JoinNodeRequest{
+		NodeID:         4,
+		Name:           "n4",
+		Addr:           "n4",
+		Roles:          []NodeRole{NodeRoleData},
+		CapacityWeight: 1,
+	}); err != nil {
+		t.Fatalf("JoinNode() error = %v", err)
+	}
+	if _, err := runtime.ActivateNode(context.Background(), ActivateNodeRequest{NodeID: 4}); err != nil {
+		t.Fatalf("ActivateNode() error = %v", err)
+	}
+	if _, err := runtime.MarkNodeLeaving(context.Background(), MarkNodeLeavingRequest{NodeID: 4}); err != nil {
+		t.Fatalf("MarkNodeLeaving() error = %v", err)
+	}
+
+	result, err := runtime.MarkNodeRemoved(context.Background(), MarkNodeRemovedRequest{NodeID: 4})
+	if err != nil {
+		t.Fatalf("MarkNodeRemoved() error = %v", err)
+	}
+	if !result.Changed || result.Node.JoinState != NodeJoinStateRemoved || result.Node.Status != NodeStatusDown {
+		t.Fatalf("MarkNodeRemoved() = %#v, want changed removed down node", result)
+	}
+
+	second, err := runtime.MarkNodeRemoved(context.Background(), MarkNodeRemovedRequest{NodeID: 4})
+	if err != nil {
+		t.Fatalf("MarkNodeRemoved() second error = %v", err)
+	}
+	if second.Changed || second.Revision != result.Revision || second.Node.JoinState != NodeJoinStateRemoved {
+		t.Fatalf("MarkNodeRemoved() second = %#v, want idempotent removed node", second)
+	}
+}
+
+func TestRuntimeMarkNodeRemovedRejectsActiveNode(t *testing.T) {
+	runtime := startSingleVoterRuntime(t, "cluster-mark-removed-active")
+	if _, err := runtime.JoinNode(context.Background(), JoinNodeRequest{
+		NodeID:         4,
+		Name:           "n4",
+		Addr:           "n4",
+		Roles:          []NodeRole{NodeRoleData},
+		CapacityWeight: 1,
+	}); err != nil {
+		t.Fatalf("JoinNode() error = %v", err)
+	}
+	if _, err := runtime.ActivateNode(context.Background(), ActivateNodeRequest{NodeID: 4}); err != nil {
+		t.Fatalf("ActivateNode() error = %v", err)
+	}
+
+	_, err := runtime.MarkNodeRemoved(context.Background(), MarkNodeRemovedRequest{NodeID: 4})
+	if !errors.Is(err, ErrNodeLifecycleConflict) {
+		t.Fatalf("MarkNodeRemoved(active) error = %v, want %v", err, ErrNodeLifecycleConflict)
+	}
+}
+
+func TestRuntimeMarkNodeRemovedRejectsControllerVoter(t *testing.T) {
+	runtime := startSingleVoterRuntime(t, "cluster-mark-removed-controller")
+
+	_, err := runtime.MarkNodeRemoved(context.Background(), MarkNodeRemovedRequest{NodeID: 1})
+	if !errors.Is(err, ErrNodeLifecycleConflict) {
+		t.Fatalf("MarkNodeRemoved(controller voter) error = %v, want %v", err, ErrNodeLifecycleConflict)
+	}
+}
+
+func TestRuntimeMarkNodeRemovedRejectsMissingNode(t *testing.T) {
+	runtime := startSingleVoterRuntime(t, "cluster-mark-removed-missing")
+
+	_, err := runtime.MarkNodeRemoved(context.Background(), MarkNodeRemovedRequest{NodeID: 99})
+	if !errors.Is(err, ErrNodeLifecycleNotFound) {
+		t.Fatalf("MarkNodeRemoved(missing) error = %v, want %v", err, ErrNodeLifecycleNotFound)
+	}
+}
+
 func readStateEvent(t *testing.T, watch <-chan StateEvent) StateEvent {
 	t.Helper()
 	select {

@@ -270,6 +270,40 @@ func TestNewControlWriteHandlerCallsMarkNodeLeaving(t *testing.T) {
 	}
 }
 
+func TestNewControlWriteHandlerCallsMarkNodeRemoved(t *testing.T) {
+	network := clusternet.NewLocalNetwork()
+	applier := &recordingControlWriteApplier{
+		markNodeRemovedResult: MarkNodeRemovedResult{
+			Changed: true,
+			Node: Node{
+				NodeID:         4,
+				Addr:           "n4",
+				Roles:          []Role{RoleData},
+				JoinState:      NodeJoinStateRemoved,
+				Status:         NodeDown,
+				CapacityWeight: 1,
+			},
+			Revision: 10,
+		},
+	}
+	network.Register(1, clusternet.RPCControlWrite, NewControlWriteHandler(applier))
+	client := NewControlWriteClient(network)
+
+	result, err := client.Submit(context.Background(), 1, ControlWriteRequest{
+		Action:          ControlWriteActionMarkNodeRemoved,
+		MarkNodeRemoved: MarkNodeRemovedRequest{NodeID: 4},
+	})
+	if err != nil {
+		t.Fatalf("Submit(mark node removed) error = %v", err)
+	}
+	if len(applier.markNodeRemoved) != 1 || applier.markNodeRemoved[0].NodeID != 4 {
+		t.Fatalf("markNodeRemoved = %#v, want node 4", applier.markNodeRemoved)
+	}
+	if !result.MarkNodeRemoved.Changed || result.MarkNodeRemoved.Node.JoinState != NodeJoinStateRemoved {
+		t.Fatalf("Submit(mark node removed) = %#v, want removed result", result.MarkNodeRemoved)
+	}
+}
+
 type recordingTaskApplier struct {
 	completed       []TaskResult
 	failed          []TaskResult
@@ -320,6 +354,9 @@ type recordingControlWriteApplier struct {
 	markNodeLeaving       []MarkNodeLeavingRequest
 	markNodeLeavingResult MarkNodeLeavingResult
 	markNodeLeavingErr    error
+	markNodeRemoved       []MarkNodeRemovedRequest
+	markNodeRemovedResult MarkNodeRemovedResult
+	markNodeRemovedErr    error
 	slotReplicaMoves      []SlotReplicaMoveRequest
 	slotReplicaMoveResult SlotReplicaMoveResult
 	slotReplicaMoveErr    error
@@ -348,6 +385,14 @@ func (a *recordingControlWriteApplier) MarkNodeLeaving(ctx context.Context, req 
 		return MarkNodeLeavingResult{}, a.markNodeLeavingErr
 	}
 	return a.markNodeLeavingResult, nil
+}
+
+func (a *recordingControlWriteApplier) MarkNodeRemoved(ctx context.Context, req MarkNodeRemovedRequest) (MarkNodeRemovedResult, error) {
+	a.markNodeRemoved = append(a.markNodeRemoved, req)
+	if a.markNodeRemovedErr != nil {
+		return MarkNodeRemovedResult{}, a.markNodeRemovedErr
+	}
+	return a.markNodeRemovedResult, nil
 }
 
 func (a *recordingControlWriteApplier) RequestSlotReplicaMove(ctx context.Context, req SlotReplicaMoveRequest) (SlotReplicaMoveResult, error) {

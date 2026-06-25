@@ -18,6 +18,11 @@
 - Stage 3 plan: `docs/superpowers/plans/2026-06-24-internalv2-dynamic-node-stage3.md`
 - Stage 4 plan: `docs/superpowers/plans/2026-06-24-internalv2-dynamic-node-stage4.md`
 - Stage 5 plan: `docs/superpowers/plans/2026-06-24-internalv2-dynamic-node-stage5.md`
+  - Stage 5A plan: `docs/superpowers/plans/2026-06-24-internalv2-dynamic-node-stage5a-removed-lifecycle.md`
+  - Stage 5B plan: `docs/superpowers/plans/2026-06-24-internalv2-dynamic-node-stage5b-channel-drain-inventory.md`
+  - Stage 5C plan: `docs/superpowers/plans/2026-06-24-internalv2-dynamic-node-stage5c-gateway-drain-mode.md`
+  - Stage 5D plan: `docs/superpowers/plans/2026-06-24-internalv2-dynamic-node-stage5d-safe-remove-route.md`
+  - Stage 5E plan: `docs/superpowers/plans/2026-06-24-internalv2-dynamic-node-stage5e-remove-smoke-flow.md`
 
 ## Execution Order
 
@@ -27,7 +32,7 @@
 | 2 | Dynamic Join And Activation | `2026-06-24-internalv2-dynamic-node-stage2.md` | Joining nodes can enter ControllerV2 state and become active without Slot moves |
 | 3 | Slot Onboarding | `2026-06-24-internalv2-dynamic-node-stage3.md` | Bounded Slot replica movement to active nodes |
 | 4 | Scale-In Preparation | `2026-06-24-internalv2-dynamic-node-stage4.md` | Leaving state, no-new-placement guarantee, Slot drain status |
-| 5 | Channel And Connection Drain | `2026-06-24-internalv2-dynamic-node-stage5.md` | Safe-to-remove gate and explicit `removed` transition |
+| 5 | Channel And Connection Drain | `2026-06-24-internalv2-dynamic-node-stage5.md` plus Stage 5A-5E subplans | Safe-to-remove gate and explicit `removed` transition |
 
 ## Cross-Stage Invariants
 
@@ -83,7 +88,7 @@ GOWORK=off go test -tags=e2e ./test/e2ev2/cluster/dynamic_node_join -run TestSlo
 
 Expected: one Slot replica can move to an active node without adding the learner target to `DesiredPeers` before promotion.
 
-- [ ] **Gate 5: Stage 5 starts only after leaving-state status fails closed**
+- [x] **Gate 5: Stage 5 starts only after leaving-state status fails closed**
 
 Run:
 
@@ -93,6 +98,18 @@ GOWORK=off go test ./internalv2/access/manager -run 'TestManagerScaleIn' -count=
 ```
 
 Expected: leaving nodes reject new placement and scale-in status reports unsafe when runtime data is unknown.
+
+## Stage 5 Sub-Stage Chain
+
+Run Stage 5 as five separate branches or commits unless the user explicitly asks to combine them:
+
+| Order | Sub-stage | Plan | Completion proof |
+| --- | --- | --- | --- |
+| 5A | Removed Lifecycle Tombstone | `2026-06-24-internalv2-dynamic-node-stage5a-removed-lifecycle.md` | ControllerV2 and clusterv2 can mark an already-drained leaving data node `removed` |
+| 5B | Channel Drain Inventory | `2026-06-24-internalv2-dynamic-node-stage5b-channel-drain-inventory.md` | Scale-in status fails closed on unknown Channel inventory or target Channel ownership |
+| 5C | Gateway Drain Mode | `2026-06-24-internalv2-dynamic-node-stage5c-gateway-drain-mode.md` | Manager can set gateway drain mode and runtime drain blockers affect safety |
+| 5D | Safe Remove Route | `2026-06-24-internalv2-dynamic-node-stage5d-safe-remove-route.md` | Manager remove route calls `MarkNodeRemoved` only when `safe_to_remove=true` |
+| 5E | Remove Smoke And FLOW Docs | `2026-06-24-internalv2-dynamic-node-stage5e-remove-smoke-flow.md` | e2ev2 proves drained node removal and FLOW docs describe the path |
 
 ## Handoff Rules
 

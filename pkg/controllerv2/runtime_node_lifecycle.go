@@ -64,6 +64,22 @@ type MarkNodeLeavingResult struct {
 	Revision uint64
 }
 
+// MarkNodeRemovedRequest identifies a leaving node that passed external drain safety.
+type MarkNodeRemovedRequest struct {
+	// NodeID is the stable node identity to tombstone.
+	NodeID uint64
+}
+
+// MarkNodeRemovedResult describes the node record after the transition.
+type MarkNodeRemovedResult struct {
+	// Changed reports whether the request changed ControllerV2 state.
+	Changed bool
+	// Node is the durable node record after the request.
+	Node Node
+	// Revision is the observed ControllerV2 state revision after the write.
+	Revision uint64
+}
+
 // JoinNode adds a data-capable node in joining state without changing Slot assignments.
 func (r *Runtime) JoinNode(ctx context.Context, req JoinNodeRequest) (JoinNodeResult, error) {
 	if err := ctxErr(ctx); err != nil {
@@ -193,6 +209,49 @@ func (r *Runtime) MarkNodeLeaving(ctx context.Context, req MarkNodeLeavingReques
 	return MarkNodeLeavingResult{Changed: proposal.Changed, Node: finalNode, Revision: updated.Revision}, nil
 }
 
+// MarkNodeRemoved marks an already-drained leaving data node as a removed tombstone.
+func (r *Runtime) MarkNodeRemoved(ctx context.Context, req MarkNodeRemovedRequest) (MarkNodeRemovedResult, error) {
+	if err := ctxErr(ctx); err != nil {
+		return MarkNodeRemovedResult{}, err
+	}
+	if r == nil || r.raft == nil {
+		return MarkNodeRemovedResult{}, ErrNotStarted
+	}
+	st, err := r.LocalState(ctx)
+	if err != nil {
+		return MarkNodeRemovedResult{}, err
+	}
+	node, changed, err := buildMarkNodeRemoved(st, req)
+	if err != nil {
+		return MarkNodeRemovedResult{}, err
+	}
+	if !changed {
+		return MarkNodeRemovedResult{Changed: false, Node: node, Revision: st.Revision}, nil
+	}
+	expectedRevision := st.Revision
+	proposal, err := r.raft.ProposeResult(ctx, command.Command{
+		Kind:             command.KindUpsertNode,
+		IssuedAt:         r.cfg.Now().UTC(),
+		ExpectedRevision: &expectedRevision,
+		Node:             &node,
+	})
+	if err != nil {
+		return MarkNodeRemovedResult{}, err
+	}
+	if err := r.publishFromState(ctx); err != nil {
+		return MarkNodeRemovedResult{}, err
+	}
+	updated, err := r.LocalState(ctx)
+	if err != nil {
+		return MarkNodeRemovedResult{}, err
+	}
+	finalNode, ok := findLifecycleNode(updated, req.NodeID)
+	if !ok {
+		return MarkNodeRemovedResult{}, fmt.Errorf("controllerv2: node %d not found after removed proposal", req.NodeID)
+	}
+	return MarkNodeRemovedResult{Changed: proposal.Changed, Node: finalNode, Revision: updated.Revision}, nil
+}
+
 func buildJoinNode(st ClusterState, req JoinNodeRequest) (Node, bool, error) {
 	if req.NodeID == 0 {
 		return Node{}, false, fmt.Errorf("controllerv2: join node requires node id")
@@ -271,6 +330,31 @@ func buildMarkNodeLeaving(st ClusterState, req MarkNodeLeavingRequest) (Node, bo
 		}
 		next := existing
 		next.JoinState = NodeJoinStateLeaving
+		return next, true, nil
+	}
+	return Node{}, false, fmt.Errorf("%w: node %d", ErrNodeLifecycleNotFound, req.NodeID)
+}
+
+func buildMarkNodeRemoved(st ClusterState, req MarkNodeRemovedRequest) (Node, bool, error) {
+	if req.NodeID == 0 {
+		return Node{}, false, fmt.Errorf("controllerv2: mark node removed requires node id")
+	}
+	for _, existing := range st.Nodes {
+		if existing.NodeID != req.NodeID {
+			continue
+		}
+		if existing.HasRole(NodeRoleControllerVoter) {
+			return Node{}, false, fmt.Errorf("%w: controller voter %d cannot be marked removed", ErrNodeLifecycleConflict, req.NodeID)
+		}
+		if existing.JoinState == NodeJoinStateRemoved {
+			return existing, false, nil
+		}
+		if existing.JoinState != NodeJoinStateLeaving {
+			return Node{}, false, fmt.Errorf("%w: node %d is %s", ErrNodeLifecycleConflict, req.NodeID, existing.JoinState)
+		}
+		next := existing
+		next.JoinState = NodeJoinStateRemoved
+		next.Status = NodeStatusDown
 		return next, true, nil
 	}
 	return Node{}, false, fmt.Errorf("%w: node %d", ErrNodeLifecycleNotFound, req.NodeID)

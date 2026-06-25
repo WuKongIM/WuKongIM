@@ -140,6 +140,9 @@ func TestRuntimeLifecycleWritesNotStartedWithoutForwardPreserveNotStarted(t *tes
 	if _, err := runtime.MarkNodeLeaving(context.Background(), MarkNodeLeavingRequest{NodeID: 2}); !errors.Is(err, cv2.ErrNotStarted) {
 		t.Fatalf("MarkNodeLeaving() error = %v, want ErrNotStarted", err)
 	}
+	if _, err := runtime.MarkNodeRemoved(context.Background(), MarkNodeRemovedRequest{NodeID: 2}); !errors.Is(err, cv2.ErrNotStarted) {
+		t.Fatalf("MarkNodeRemoved() error = %v, want ErrNotStarted", err)
+	}
 }
 
 func TestRuntimeRequestSlotLeaderTransferReturnsTaskAfterForward(t *testing.T) {
@@ -551,6 +554,123 @@ func TestRuntimeMarkNodeLeavingReturnsControlWriteAfterForward(t *testing.T) {
 	}
 }
 
+func TestRuntimeMarkNodeRemovedReturnsControlWriteAfterForward(t *testing.T) {
+	network := clusternet.NewLocalNetwork()
+	controlWriteClient := NewControlWriteClient(network)
+	voters := []RuntimeVoter{{NodeID: 1, Addr: "n1"}, {NodeID: 2, Addr: "n2"}, {NodeID: 3, Addr: "n3"}}
+	runtimes := make([]*Runtime, 0, len(voters))
+	for _, voter := range voters {
+		rt, err := NewRuntime(RuntimeConfig{
+			NodeID:             voter.NodeID,
+			Addr:               voter.Addr,
+			StateDir:           t.TempDir(),
+			ClusterID:          "cluster-forward-mark-node-removed",
+			Role:               RuntimeRoleVoter,
+			Voters:             voters,
+			AllowBootstrap:     true,
+			InitialSlotCount:   1,
+			HashSlotCount:      4,
+			ReplicaCount:       3,
+			TickInterval:       10 * time.Millisecond,
+			RaftTransport:      NewRaftTransport(network),
+			ControlWriteClient: controlWriteClient,
+		})
+		if err != nil {
+			t.Fatalf("NewRuntime(%d) error = %v", voter.NodeID, err)
+		}
+		network.Register(voter.NodeID, clusternet.RPCControlRaft, NewRaftHandler(rt))
+		runtimes = append(runtimes, rt)
+	}
+	startCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	startErrs := make(chan error, len(runtimes))
+	for _, rt := range runtimes {
+		rt := rt
+		go func() { startErrs <- rt.Start(startCtx) }()
+		t.Cleanup(func() { _ = rt.Stop(context.Background()) })
+	}
+	for range runtimes {
+		if err := <-startErrs; err != nil {
+			t.Fatalf("Start() error = %v", err)
+		}
+	}
+
+	var leaderID uint64
+	var leader *Runtime
+	var follower *Runtime
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		for _, rt := range runtimes {
+			leaderID = rt.LeaderID()
+			if leaderID == 0 {
+				continue
+			}
+			for _, candidate := range runtimes {
+				if candidate.cfg.NodeID == leaderID {
+					leader = candidate
+				} else {
+					follower = candidate
+				}
+			}
+			if leader != nil {
+				snap, err := leader.LocalSnapshot(context.Background())
+				if err != nil || snap.Revision == 0 {
+					leader = nil
+					follower = nil
+					continue
+				}
+			}
+			if leader != nil && follower != nil {
+				break
+			}
+		}
+		if leader != nil && follower != nil {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if follower == nil || leader == nil {
+		t.Fatal("timeout waiting for leader and follower runtime")
+	}
+
+	network.Register(leaderID, clusternet.RPCControlWrite, NewControlWriteHandler(leader))
+	if _, err := leader.JoinNode(context.Background(), JoinNodeRequest{NodeID: 4, Addr: "n4", Roles: []Role{RoleData}, CapacityWeight: 1}); err != nil {
+		t.Fatalf("leader JoinNode() error = %v", err)
+	}
+	if _, err := leader.ActivateNode(context.Background(), ActivateNodeRequest{NodeID: 4}); err != nil {
+		t.Fatalf("leader ActivateNode() error = %v", err)
+	}
+	if _, err := leader.MarkNodeLeaving(context.Background(), MarkNodeLeavingRequest{NodeID: 4}); err != nil {
+		t.Fatalf("leader MarkNodeLeaving() error = %v", err)
+	}
+	observedLeaving := false
+	deadline = time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) && !observedLeaving {
+		snap, err := follower.LocalSnapshot(context.Background())
+		if err == nil {
+			for _, node := range snap.Nodes {
+				if node.NodeID == 4 && node.JoinState == NodeJoinStateLeaving {
+					observedLeaving = true
+					break
+				}
+			}
+		}
+		if !observedLeaving {
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+	if !observedLeaving {
+		t.Fatal("timeout waiting for follower to observe leaving node")
+	}
+	result, err := follower.MarkNodeRemoved(context.Background(), MarkNodeRemovedRequest{NodeID: 4})
+	if err != nil {
+		t.Fatalf("MarkNodeRemoved() error = %v", err)
+	}
+	if !result.Changed || result.Node.NodeID != 4 || result.Node.JoinState != NodeJoinStateRemoved || result.Node.Status != NodeDown {
+		t.Fatalf("MarkNodeRemoved() = %#v, want forwarded removed down node change", result)
+	}
+}
+
 func TestRuntimeRequestSlotReplicaMoveReturnsControlWriteAfterForward(t *testing.T) {
 	network := clusternet.NewLocalNetwork()
 	controlWriteClient := NewControlWriteClient(network)
@@ -852,6 +972,70 @@ func TestRuntimeMirrorForwardsControlWriteToSyncClientLeader(t *testing.T) {
 	}
 	if applier.activateCalls != 1 || !result.Changed || result.Node.NodeID != 4 {
 		t.Fatalf("ActivateNode() = %#v, activateCalls=%d, want forwarded result from leader 2", result, applier.activateCalls)
+	}
+}
+
+func TestRuntimeMirrorForwardsMarkNodeRemovedToSyncClientLeader(t *testing.T) {
+	network := clusternet.NewLocalNetwork()
+	leaderState := controllerV2State()
+	leaderState.Controllers = append(leaderState.Controllers,
+		cv2.ControllerVoter{NodeID: 2, Addr: "127.0.0.1:1002", Role: cv2.ControllerRoleVoter})
+	for i := range leaderState.Nodes {
+		if leaderState.Nodes[i].NodeID == 2 {
+			leaderState.Nodes[i].Roles = []cv2.NodeRole{cv2.NodeRoleControllerVoter, cv2.NodeRoleData}
+		}
+	}
+	syncServer := cv2.NewStateSyncServer(cv2.StateSyncServerConfig{
+		NodeID:    2,
+		ClusterID: leaderState.ClusterID,
+		LeaderID:  func() uint64 { return 2 },
+		Ready:     func() bool { return true },
+		Snapshot:  func(context.Context) (cv2.ClusterState, error) { return leaderState, nil },
+	})
+	network.Register(1, clusternet.RPCControlStateSync, NewStateSyncHandler(syncServer))
+	applier := &recordingControlWriteApplier{
+		markNodeRemovedResult: MarkNodeRemovedResult{
+			Changed: true,
+			Node: Node{
+				NodeID:         4,
+				Addr:           "n4",
+				Roles:          []Role{RoleData},
+				JoinState:      NodeJoinStateRemoved,
+				Status:         NodeDown,
+				CapacityWeight: 1,
+			},
+			Revision: leaderState.Revision + 1,
+		},
+	}
+	network.Register(2, clusternet.RPCControlWrite, NewControlWriteHandler(applier))
+
+	runtime, err := NewRuntime(RuntimeConfig{
+		NodeID:             4,
+		Addr:               "n4",
+		StateDir:           t.TempDir(),
+		ClusterID:          leaderState.ClusterID,
+		Role:               RuntimeRoleMirror,
+		Voters:             []RuntimeVoter{{NodeID: 1, Addr: "n1"}, {NodeID: 2, Addr: "n2"}},
+		SyncPeers:          NewStaticPeerPicker(network, []RuntimeVoter{{NodeID: 1, Addr: "n1"}}),
+		ControlWriteClient: NewControlWriteClient(network),
+	})
+	if err != nil {
+		t.Fatalf("NewRuntime() error = %v", err)
+	}
+	if err := runtime.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	t.Cleanup(func() { _ = runtime.Stop(context.Background()) })
+
+	result, err := runtime.MarkNodeRemoved(context.Background(), MarkNodeRemovedRequest{NodeID: 4})
+	if err != nil {
+		t.Fatalf("MarkNodeRemoved() error = %v", err)
+	}
+	if runtime.LeaderID() != 2 {
+		t.Fatalf("LeaderID() = %d, want sync client leader 2", runtime.LeaderID())
+	}
+	if len(applier.markNodeRemoved) != 1 || applier.markNodeRemoved[0].NodeID != 4 || !result.Changed || result.Node.JoinState != NodeJoinStateRemoved {
+		t.Fatalf("MarkNodeRemoved() = %#v removed=%#v, want forwarded removed result from leader 2", result, applier.markNodeRemoved)
 	}
 }
 

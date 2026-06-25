@@ -122,6 +122,10 @@ func TestControlWriteRequestCodecRoundTripSlotReplicaMove(t *testing.T) {
 			Action:          ControlWriteActionMarkNodeLeaving,
 			MarkNodeLeaving: MarkNodeLeavingRequest{NodeID: 4},
 		},
+		{
+			Action:          ControlWriteActionMarkNodeRemoved,
+			MarkNodeRemoved: MarkNodeRemovedRequest{NodeID: 4},
+		},
 	}
 	for _, req := range requests {
 		payload, err := EncodeControlWriteRequest(req)
@@ -192,6 +196,62 @@ func TestEncodeControlWriteMarkNodeLeavingUsesSnakeCaseJSON(t *testing.T) {
 		t.Fatalf("mark_node_leaving response JSON unmarshal error = %v", err)
 	}
 	requireJSONKeys(t, leavingResp, "changed", "node", "revision")
+}
+
+func TestEncodeControlWriteMarkNodeRemovedUsesSnakeCaseJSON(t *testing.T) {
+	reqPayload, err := EncodeControlWriteRequest(ControlWriteRequest{
+		Action:          ControlWriteActionMarkNodeRemoved,
+		MarkNodeRemoved: MarkNodeRemovedRequest{NodeID: 4},
+	})
+	if err != nil {
+		t.Fatalf("EncodeControlWriteRequest() error = %v", err)
+	}
+	var reqObject map[string]json.RawMessage
+	if err := json.Unmarshal(reqPayload[2:], &reqObject); err != nil {
+		t.Fatalf("request JSON unmarshal error = %v", err)
+	}
+	requireJSONKeys(t, reqObject, "action", "mark_node_removed")
+	var removedReq map[string]json.RawMessage
+	if err := json.Unmarshal(reqObject["mark_node_removed"], &removedReq); err != nil {
+		t.Fatalf("mark_node_removed request JSON unmarshal error = %v", err)
+	}
+	requireJSONKeys(t, removedReq, "node_id")
+	if _, ok := removedReq["NodeID"]; ok {
+		t.Fatalf("mark_node_removed request keys = %#v, contains Go field name NodeID", removedReq)
+	}
+
+	respPayload, err := EncodeControlWriteResponse(ControlWriteResponse{
+		MarkNodeRemoved: MarkNodeRemovedResult{
+			Changed: true,
+			Node: Node{
+				NodeID:         4,
+				Addr:           "n4",
+				Roles:          []Role{RoleData},
+				JoinState:      NodeJoinStateRemoved,
+				Status:         NodeDown,
+				CapacityWeight: 1,
+			},
+			Revision: 9,
+		},
+	})
+	if err != nil {
+		t.Fatalf("EncodeControlWriteResponse() error = %v", err)
+	}
+	var envelope map[string]json.RawMessage
+	if err := json.Unmarshal(respPayload[2:], &envelope); err != nil {
+		t.Fatalf("response envelope JSON unmarshal error = %v", err)
+	}
+	requireJSONKeys(t, envelope, "response")
+	var response map[string]json.RawMessage
+	if err := json.Unmarshal(envelope["response"], &response); err != nil {
+		t.Fatalf("response JSON unmarshal error = %v", err)
+	}
+	requireJSONKeys(t, response, "mark_node_removed")
+	var removedResp map[string]json.RawMessage
+	if err := json.Unmarshal(response["mark_node_removed"], &removedResp); err != nil {
+		t.Fatalf("mark_node_removed response JSON unmarshal error = %v", err)
+	}
+	requireJSONKeys(t, removedResp, "changed", "node", "revision")
 }
 
 func TestControlWriteSlotReplicaMoveUsesSnakeCaseJSON(t *testing.T) {

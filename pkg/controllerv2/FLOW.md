@@ -101,6 +101,12 @@ active cluster-state tasks, including `leader_transfer` tasks completed through
 `complete_task`; failed tasks remain active with bounded errors until a
 subsequent successful attempt or operator action.
 
+Node lifecycle writes are also ControllerV2-authoritative Raft commands.
+`JoinNode`, `ActivateNode`, `MarkNodeLeaving`, and `MarkNodeRemoved` update the
+durable node record through `KindUpsertNode`. `MarkNodeRemoved` only tombstones
+an already leaving data node as `removed` and `down`; higher layers must prove
+Slot, Channel, task, gateway, and runtime drain safety before calling it.
+
 Slot replica move intent is represented as a staged `slot_replica_move` task.
 Creating the task does not change `DesiredPeers`; it only records source,
 target, target peer set, assignment epoch, and phase progress fields. Dedicated

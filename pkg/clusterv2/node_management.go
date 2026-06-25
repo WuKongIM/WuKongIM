@@ -118,3 +118,23 @@ func (n *Node) MarkNodeLeaving(ctx context.Context, req control.MarkNodeLeavingR
 	}
 	return writer.MarkNodeLeaving(ctx, req)
 }
+
+// MarkNodeRemoved submits a Controller-backed node removed intent.
+func (n *Node) MarkNodeRemoved(ctx context.Context, req control.MarkNodeRemovedRequest) (control.MarkNodeRemovedResult, error) {
+	if err := ctxErr(ctx); err != nil {
+		return control.MarkNodeRemovedResult{}, err
+	}
+	if err := n.ensureForeground(); err != nil {
+		return control.MarkNodeRemovedResult{}, err
+	}
+	if n.control == nil {
+		return control.MarkNodeRemovedResult{}, ErrNotStarted
+	}
+	writer, ok := n.control.(interface {
+		MarkNodeRemoved(context.Context, control.MarkNodeRemovedRequest) (control.MarkNodeRemovedResult, error)
+	})
+	if !ok {
+		return control.MarkNodeRemovedResult{}, ErrNotStarted
+	}
+	return writer.MarkNodeRemoved(ctx, req)
+}

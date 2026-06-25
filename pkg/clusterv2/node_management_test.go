@@ -145,6 +145,41 @@ func TestNodeMarkNodeLeavingRequiresForegroundNode(t *testing.T) {
 	}
 }
 
+func TestNodeMarkNodeRemovedDelegatesToControl(t *testing.T) {
+	controller := &recordingMarkNodeRemovedController{
+		StaticController: control.NewStaticController(control.Snapshot{}),
+		result: control.MarkNodeRemovedResult{
+			Changed:  true,
+			Node:     control.Node{NodeID: 4, JoinState: control.NodeJoinStateRemoved, Status: control.NodeDown},
+			Revision: 22,
+		},
+	}
+	node := &Node{control: controller}
+	node.started.Store(true)
+
+	got, err := node.MarkNodeRemoved(context.Background(), control.MarkNodeRemovedRequest{NodeID: 4})
+	if err != nil {
+		t.Fatalf("MarkNodeRemoved() error = %v", err)
+	}
+
+	if !got.Changed || got.Node.NodeID != 4 || got.Node.JoinState != control.NodeJoinStateRemoved || got.Revision != 22 {
+		t.Fatalf("MarkNodeRemoved() = %#v, want changed removed node revision 22", got)
+	}
+	if len(controller.requests) != 1 || controller.requests[0].NodeID != 4 {
+		t.Fatalf("controller mark-removed requests = %#v, want one node 4 request", controller.requests)
+	}
+}
+
+func TestNodeMarkNodeRemovedRequiresForegroundNode(t *testing.T) {
+	controller := &recordingMarkNodeRemovedController{StaticController: control.NewStaticController(control.Snapshot{})}
+	node := &Node{control: controller}
+
+	_, err := node.MarkNodeRemoved(context.Background(), control.MarkNodeRemovedRequest{NodeID: 4})
+	if err != ErrNotStarted {
+		t.Fatalf("MarkNodeRemoved() error = %v, want %v", err, ErrNotStarted)
+	}
+}
+
 type recordingMarkNodeLeavingController struct {
 	*control.StaticController
 	requests []control.MarkNodeLeavingRequest
@@ -156,6 +191,21 @@ func (c *recordingMarkNodeLeavingController) MarkNodeLeaving(_ context.Context, 
 	c.requests = append(c.requests, req)
 	if c.err != nil {
 		return control.MarkNodeLeavingResult{}, c.err
+	}
+	return c.result, nil
+}
+
+type recordingMarkNodeRemovedController struct {
+	*control.StaticController
+	requests []control.MarkNodeRemovedRequest
+	result   control.MarkNodeRemovedResult
+	err      error
+}
+
+func (c *recordingMarkNodeRemovedController) MarkNodeRemoved(_ context.Context, req control.MarkNodeRemovedRequest) (control.MarkNodeRemovedResult, error) {
+	c.requests = append(c.requests, req)
+	if c.err != nil {
+		return control.MarkNodeRemovedResult{}, c.err
 	}
 	return c.result, nil
 }
