@@ -181,6 +181,8 @@ func (e *SlotReplicaMoveExecutor) promoteLearner(ctx context.Context, task contr
 	if !caughtUp {
 		return nil
 	}
+	// gofail: var wkSlotReplicaMovePromoteLearnerDelay string
+	// if err := sleepSlotReplicaMoveFailpoint(ctx, wkSlotReplicaMovePromoteLearnerDelay); err != nil { return err }
 	if err := e.changeConfig(ctx, task, multiraft.ConfigChange{
 		Type:   multiraft.PromoteLearner,
 		NodeID: multiraft.NodeID(task.TargetNode),
@@ -217,6 +219,8 @@ func (e *SlotReplicaMoveExecutor) removeVoter(ctx context.Context, task control.
 		if !ok {
 			return e.failTask(ctx, task, "slot replica move has no non-source voter for leadership transfer")
 		}
+		// gofail: var wkSlotReplicaMoveTransferLeaderDelay string
+		// if err := sleepSlotReplicaMoveFailpoint(ctx, wkSlotReplicaMoveTransferLeaderDelay); err != nil { return err }
 		if err := e.cfg.Runtime.TransferLeadership(ctx, multiraft.SlotID(task.SlotID), multiraft.NodeID(target)); err != nil {
 			return e.failTask(ctx, task, err.Error())
 		}
@@ -232,6 +236,8 @@ func (e *SlotReplicaMoveExecutor) removeVoter(ctx context.Context, task control.
 		}
 		return e.advancePhase(ctx, task, control.TaskStepRemoveVoter, observed)
 	}
+	// gofail: var wkSlotReplicaMoveRemoveVoterDelay string
+	// if err := sleepSlotReplicaMoveFailpoint(ctx, wkSlotReplicaMoveRemoveVoterDelay); err != nil { return err }
 	if err := e.changeConfig(ctx, task, multiraft.ConfigChange{
 		Type:   multiraft.RemoveVoter,
 		NodeID: multiraft.NodeID(task.SourceNode),
@@ -281,6 +287,24 @@ func (e *SlotReplicaMoveExecutor) changeConfig(ctx context.Context, task control
 	}
 	_, err = fut.Wait(ctx)
 	return err
+}
+
+func sleepSlotReplicaMoveFailpoint(ctx context.Context, raw string) error {
+	if raw == "" {
+		return nil
+	}
+	delay, err := time.ParseDuration(raw)
+	if err != nil || delay <= 0 {
+		return nil
+	}
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }
 
 func (e *SlotReplicaMoveExecutor) waitForStatus(ctx context.Context, task control.ReconcileTask, current multiraft.Status, predicate func(multiraft.Status) bool) (multiraft.Status, bool, error) {
