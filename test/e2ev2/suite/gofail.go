@@ -95,7 +95,7 @@ func (e GofailEndpoint) WaitListed(ctx context.Context, names ...string) (string
 		if err != nil {
 			return "", err
 		}
-		want = append(want, cleaned+"=")
+		want = append(want, cleaned)
 	}
 
 	var lastBody string
@@ -105,8 +105,9 @@ func (e GofailEndpoint) WaitListed(ctx context.Context, names ...string) (string
 		if err == nil {
 			lastBody = body
 			allListed := true
+			listed := parseGofailListNames(body)
 			for _, name := range want {
-				if !strings.Contains(body, name) {
+				if _, ok := listed[name]; !ok {
 					allListed = false
 					break
 				}
@@ -139,6 +140,21 @@ func cleanFailpointName(name string) (string, error) {
 		return "", fmt.Errorf("gofail failpoint name is empty")
 	}
 	return name, nil
+}
+
+func parseGofailListNames(body string) map[string]struct{} {
+	names := make(map[string]struct{})
+	for _, line := range strings.Split(body, "\n") {
+		name, _, ok := strings.Cut(line, "=")
+		if !ok {
+			continue
+		}
+		name = strings.TrimSpace(name)
+		if name != "" {
+			names[name] = struct{}{}
+		}
+	}
+	return names
 }
 
 func doGofailRequest(req *http.Request) error {

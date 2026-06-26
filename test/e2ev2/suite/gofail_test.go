@@ -16,6 +16,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type gofailRequest struct {
+	Method string
+	Path   string
+	Body   string
+}
+
 func TestGofailEndpointEnvUsesLoopbackHTTP(t *testing.T) {
 	endpoint := ReserveGofailEndpoint(t)
 	require.True(t, strings.HasPrefix(endpoint.Env(), "GOFAIL_HTTP=127.0.0.1:"))
@@ -36,9 +42,9 @@ func TestReserveGofailEndpointReturnsFreePort(t *testing.T) {
 }
 
 func TestGofailEndpointWaitListedFindsAllNames(t *testing.T) {
+	requests := make(chan gofailRequest, 1)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, http.MethodGet, r.Method)
-		require.Equal(t, "/", r.URL.Path)
+		requests <- gofailRequest{Method: r.Method, Path: r.URL.Path}
 		_, _ = w.Write([]byte("first=return\nsecond=return\n"))
 	}))
 	defer server.Close()
@@ -47,12 +53,16 @@ func TestGofailEndpointWaitListedFindsAllNames(t *testing.T) {
 	body, err := endpoint.WaitListed(context.Background(), "first", "second")
 	require.NoError(t, err)
 	require.Equal(t, "first=return\nsecond=return\n", body)
+	require.Equal(t, gofailRequest{Method: http.MethodGet, Path: "/"}, <-requests)
 }
 
 func TestGofailEndpointWaitListedReportsTimeout(t *testing.T) {
+	requests := make(chan gofailRequest, 4)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, http.MethodGet, r.Method)
-		require.Equal(t, "/", r.URL.Path)
+		select {
+		case requests <- gofailRequest{Method: r.Method, Path: r.URL.Path}:
+		default:
+		}
 		_, _ = w.Write([]byte("other=return\n"))
 	}))
 	defer server.Close()
@@ -66,20 +76,34 @@ func TestGofailEndpointWaitListedReportsTimeout(t *testing.T) {
 	require.Contains(t, err.Error(), "wait gofail list")
 	require.Contains(t, err.Error(), "missing")
 	require.Contains(t, err.Error(), "other=return")
+	require.Equal(t, gofailRequest{Method: http.MethodGet, Path: "/"}, <-requests)
+}
+
+func TestGofailEndpointWaitListedDoesNotMatchOverlappingNames(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("foobar=return\n"))
+	}))
+	defer server.Close()
+
+	endpoint := GofailEndpoint{Addr: strings.TrimPrefix(server.URL, "http://")}
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+
+	_, err := endpoint.WaitListed(ctx, "bar")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "wait gofail list")
+	require.Contains(t, err.Error(), "bar")
+	require.Contains(t, err.Error(), "foobar=return")
 }
 
 func TestGofailEndpointEnableDisableUseHTTPMethods(t *testing.T) {
 	var mu sync.Mutex
-	var calls []string
-	var putBody string
+	var requests []gofailRequest
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
 		mu.Lock()
 		defer mu.Unlock()
-		calls = append(calls, r.Method+" "+r.URL.Path)
-		if r.Method == http.MethodPut {
-			body, _ := io.ReadAll(r.Body)
-			putBody = string(body)
-		}
+		requests = append(requests, gofailRequest{Method: r.Method, Path: r.URL.Path, Body: string(body)})
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
@@ -90,6 +114,8 @@ func TestGofailEndpointEnableDisableUseHTTPMethods(t *testing.T) {
 
 	mu.Lock()
 	defer mu.Unlock()
-	require.Equal(t, []string{"PUT /failpoint", "DELETE /failpoint"}, calls)
-	require.Equal(t, `return("boom")`, putBody)
+	require.Equal(t, []gofailRequest{
+		{Method: http.MethodPut, Path: "/failpoint", Body: `return("boom")`},
+		{Method: http.MethodDelete, Path: "/failpoint"},
+	}, requests)
 }
