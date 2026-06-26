@@ -168,7 +168,7 @@ func TestSlotReplicaMoveExecutorTransfersLeadershipBeforeRemovingSourceVoter(t *
 	}
 }
 
-func TestSlotReplicaMoveExecutorFailsWhenSourceLeadershipDoesNotMove(t *testing.T) {
+func TestSlotReplicaMoveExecutorDefersRemoveVoterWhenSourceLeadershipTransferStillPending(t *testing.T) {
 	status := moveStatus()
 	status.CurrentVoters = []multiraft.NodeID{1, 2, 3, 4}
 	status.LeaderID = 1
@@ -187,8 +187,8 @@ func TestSlotReplicaMoveExecutorFailsWhenSourceLeadershipDoesNotMove(t *testing.
 	if writer.phaseCalls != 0 {
 		t.Fatalf("phase = %#v, want no wakeup phase before leader changes", writer.phase)
 	}
-	if len(writer.failed) != 1 || writer.failed[0].Err == "" {
-		t.Fatalf("failed = %#v, want leadership transfer observation failure", writer.failed)
+	if len(writer.failed) != 0 {
+		t.Fatalf("failed = %#v, want leadership transfer to remain pending", writer.failed)
 	}
 }
 

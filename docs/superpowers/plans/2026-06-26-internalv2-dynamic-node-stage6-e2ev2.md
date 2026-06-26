@@ -550,6 +550,11 @@ Expected final result:
    - Root cause: learner catch-up is an asynchronous progress gate, but the executor treated a bounded 300ms poll miss as terminal `FailTask`. Under real e2ev2 startup and SEND traffic, node 4 can legitimately need more than one reconcile window to catch up.
    - Fix: `promoteLearner` now leaves the task active when learner catch-up is not observed in the current bounded poll window, allowing the next fresh reconcile pass to continue.
 
+3. Slot replica onboarding could fail during `remove_voter` with `slot replica move leader transfer observation timed out`.
+   - Evidence: post-merge serial e2ev2 failed `TestSlotReplicaMoveKeepsSendAvailable`; manager status showed the active task failed at `remove_voter` while node 4 and the original voters were healthy.
+   - Root cause: `TransferLeadership` only enqueues a Slot Raft control action and returns before the leader change is necessarily observable. The replica move executor treated one bounded 300ms observation miss as a terminal `FailTask`, permanently failing a move that a later reconcile pass could continue.
+   - Fix: `removeVoter` now leaves the task active when the leader change is not observed in the current bounded poll window, preserving retry semantics for the next fresh reconcile pass.
+
 ### Verification Completed
 
 ```bash
@@ -583,6 +588,16 @@ Additional verification after review fixes:
 ```bash
 GOWORK=off go test ./pkg/clusterv2 -run 'TestTaskReconcileLoopBacksOffFreshSnapshotWhenNoCachedTasks|TestTaskReconcileLoopRecordsLocalSnapshotError|TestTaskReconcileLoopRecordsNonRetryableReconcileError|TestTaskReconcileLoopUsesFreshLocalSnapshotWhenWatchMissesTaskProgress|TestNodeStartRetriesTaskReconcileAfterRetryableControlWrite|TestRetryableTaskReconcileErrorMatchesRemoteControllerNotLeader' -count=1
 GOWORK=off go test -tags=e2e ./test/e2ev2/cluster/dynamic_node_join -run TestActivatedDynamicNodeDeliversCrossNodeTraffic -count=1 -timeout 4m -p=1
+GOWORK=off go test ./pkg/clusterv2 ./pkg/clusterv2/control ./pkg/clusterv2/tasks ./pkg/controllerv2 ./internalv2/usecase/management ./internalv2/access/manager -count=1
+GOWORK=off go test -tags=e2e ./test/e2ev2/cluster/dynamic_node_join -count=1 -timeout 10m -p=1
+GOWORK=off go test -tags=e2e ./test/e2ev2/... -count=1 -timeout 10m -p=1
+```
+
+Additional verification after post-merge `remove_voter` leader-transfer fix:
+
+```bash
+GOWORK=off go test ./pkg/clusterv2/tasks -run TestSlotReplicaMoveExecutorDefersRemoveVoterWhenSourceLeadershipTransferStillPending -count=1
+GOWORK=off go test ./pkg/clusterv2/tasks -count=1
 GOWORK=off go test ./pkg/clusterv2 ./pkg/clusterv2/control ./pkg/clusterv2/tasks ./pkg/controllerv2 ./internalv2/usecase/management ./internalv2/access/manager -count=1
 GOWORK=off go test -tags=e2e ./test/e2ev2/cluster/dynamic_node_join -count=1 -timeout 10m -p=1
 GOWORK=off go test -tags=e2e ./test/e2ev2/... -count=1 -timeout 10m -p=1

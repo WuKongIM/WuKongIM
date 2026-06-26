@@ -227,7 +227,8 @@ func (e *SlotReplicaMoveExecutor) removeVoter(ctx context.Context, task control.
 			return err
 		}
 		if !ok {
-			return e.failTask(ctx, task, "slot replica move leader transfer observation timed out")
+			// Slot leadership transfer is asynchronous; keep the task active for the next reconcile.
+			return nil
 		}
 		return e.advancePhase(ctx, task, control.TaskStepRemoveVoter, observed)
 	}
