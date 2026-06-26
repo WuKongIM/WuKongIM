@@ -160,29 +160,29 @@ func (c *TransportClient) CallOwned(ctx context.Context, nodeID uint64, serviceI
 
 // CallShard invokes serviceID on nodeID using shardKey for connection selection.
 func (c *TransportClient) CallShard(ctx context.Context, nodeID uint64, serviceID uint8, shardKey uint64, payload []byte) ([]byte, error) {
-	// gofail: var wkClusterNetCallFault string
-	// if err := gofailClusterNetServiceFault(wkClusterNetCallFault, serviceID); err != nil { return nil, err }
+	// gofail: var wkClusterNetCallShardFault string
+	// if err := gofailClusterNetServiceFault(wkClusterNetCallShardFault, serviceID); err != nil { return nil, err }
 	return c.client.Call(ctx, transportv2.NodeID(nodeID), shardKey, servicePriority(serviceID), uint16(serviceID), payload)
 }
 
 // CallShardOwned invokes serviceID on nodeID using shardKey and transfers payload ownership.
 func (c *TransportClient) CallShardOwned(ctx context.Context, nodeID uint64, serviceID uint8, shardKey uint64, payload transportv2.OwnedBuffer) ([]byte, error) {
-	// gofail: var wkClusterNetCallFault string
-	// if err := gofailClusterNetServiceFault(wkClusterNetCallFault, serviceID); err != nil { return nil, err }
+	// gofail: var wkClusterNetCallShardOwnedFault string
+	// if err := gofailClusterNetServiceFault(wkClusterNetCallShardOwnedFault, serviceID); err != nil { return nil, err }
 	return c.client.CallOwned(ctx, transportv2.NodeID(nodeID), shardKey, servicePriority(serviceID), uint16(serviceID), payload)
 }
 
 // Send sends serviceID to nodeID without waiting for a response.
 func (c *TransportClient) Send(ctx context.Context, nodeID uint64, serviceID uint8, payload []byte) error {
-	// gofail: var wkClusterNetNotifyFault string
-	// if err := gofailClusterNetServiceFault(wkClusterNetNotifyFault, serviceID); err != nil { return err }
+	// gofail: var wkClusterNetSendFault string
+	// if err := gofailClusterNetServiceFault(wkClusterNetSendFault, serviceID); err != nil { return err }
 	return c.client.Notify(ctx, transportv2.NodeID(nodeID), serviceShardKey(serviceID), servicePriority(serviceID), uint16(serviceID), payload)
 }
 
 // SendOwned sends serviceID to nodeID and transfers payload ownership.
 func (c *TransportClient) SendOwned(ctx context.Context, nodeID uint64, serviceID uint8, payload transportv2.OwnedBuffer) error {
-	// gofail: var wkClusterNetNotifyFault string
-	// if err := gofailClusterNetServiceFault(wkClusterNetNotifyFault, serviceID); err != nil { return err }
+	// gofail: var wkClusterNetSendOwnedFault string
+	// if err := gofailClusterNetServiceFault(wkClusterNetSendOwnedFault, serviceID); err != nil { return err }
 	return c.client.NotifyOwned(ctx, transportv2.NodeID(nodeID), serviceShardKey(serviceID), servicePriority(serviceID), uint16(serviceID), payload)
 }
 
@@ -270,7 +270,11 @@ func transportServiceFailpointAlias(serviceID uint8) string {
 	if serviceID == RPCControlWrite {
 		return "control_write"
 	}
-	return strings.ReplaceAll(transportServiceAlias(serviceID), " ", "_")
+	alias := transportServiceAlias(serviceID)
+	if alias == "unknown service" {
+		return ""
+	}
+	return strings.ReplaceAll(alias, " ", "_")
 }
 
 func (s *TransportServer) serviceOptions(serviceID uint8) transportv2.ServiceOptions {

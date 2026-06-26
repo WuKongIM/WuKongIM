@@ -8,7 +8,6 @@ WORK_DIR=""
 KEEP_WORK=0
 DRY_RUN=0
 FAILPOINT_PACKAGES=("pkg/transport")
-COPY_EXCLUDES=(".git" ".worktrees")
 
 usage() {
   cat <<'USAGE'
@@ -99,8 +98,11 @@ print_plan() {
   echo "gofail_version=$GOFAIL_VERSION"
   echo "command_package=$CMD_PACKAGE"
   echo "failpoint_packages=$(join_by_space "${FAILPOINT_PACKAGES[@]}")"
-  echo "copy_excludes=$(join_by_space "${COPY_EXCLUDES[@]}")"
+  echo "copy_manifest_cmd=git ls-files -z --cached --others --exclude-standard"
+  echo "copy_cmd=tar --null -T - -cf -"
   echo "enable_cmd=gofail enable $(join_by_space "${FAILPOINT_PACKAGES[@]}")"
+  echo "package_name_cmd=GOWORK=off go list -f '{{.Name}}'"
+  echo "postprocess_cmd=scripts/gofail-postprocess-generated.sh"
   echo "runtime_dep_cmd=GOWORK=off go get $GOFAIL_RUNTIME_DEP"
   echo "build_cmd=GOWORK=off go build -o $OUT_PATH $CMD_PACKAGE"
 }
@@ -126,15 +128,10 @@ if [[ "$KEEP_WORK" -eq 0 ]]; then
   trap cleanup EXIT
 fi
 
-copy_args=()
-for exclude in "${COPY_EXCLUDES[@]}"; do
-  copy_args+=("--exclude=$exclude")
-done
-
 echo "copying source to $WORK_DIR"
 (
   cd "$repo_root"
-  LC_ALL=C tar "${copy_args[@]}" -cf - .
+  git ls-files -z --cached --others --exclude-standard | LC_ALL=C tar --null -T - -cf -
 ) | (
   cd "$WORK_DIR"
   LC_ALL=C tar -xf -
@@ -146,11 +143,24 @@ trap 'rm -rf "$gofail_bin_dir"; [[ "$KEEP_WORK" -eq 0 ]] && rm -rf "$WORK_DIR"' 
 echo "installing $GOFAIL_VERSION"
 GOWORK=off GOBIN="$gofail_bin_dir" go install "$GOFAIL_VERSION"
 
+package_specs=()
+for failpoint_package in "${FAILPOINT_PACKAGES[@]}"; do
+  package_path="${failpoint_package#./}"
+  package_name="$(
+    cd "$WORK_DIR"
+    GOWORK=off go list -f '{{.Name}}' "./$package_path"
+  )"
+  package_specs+=("$package_path:$package_name")
+done
+
 echo "enabling failpoints: $(join_by_space "${FAILPOINT_PACKAGES[@]}")"
 (
   cd "$WORK_DIR"
   PATH="$gofail_bin_dir:$PATH" gofail enable "${FAILPOINT_PACKAGES[@]}"
 )
+
+echo "postprocessing generated failpoint packages"
+bash "$WORK_DIR/scripts/gofail-postprocess-generated.sh" "$WORK_DIR" "${package_specs[@]}"
 
 echo "pinning failpoint runtime: $GOFAIL_RUNTIME_DEP"
 (
