@@ -86,6 +86,7 @@ func TestGofailPostprocessGeneratedRejectsMalformedSpecs(t *testing.T) {
 	for _, spec := range []string{
 		"pkg/clusterv2/net:bad:name",
 		"pkg/clusterv2/net:bad-name",
+		"pkg/clusterv2/net:func",
 	} {
 		cmd := exec.Command("bash", "scripts/gofail-postprocess-generated.sh", workDir, spec)
 		cmd.Dir = root

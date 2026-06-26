@@ -24,6 +24,12 @@ for spec in "$@"; do
     echo "invalid package name: $package_name" >&2
     exit 2
   fi
+  case "$package_name" in
+    break|default|func|interface|select|case|defer|go|map|struct|chan|else|goto|package|switch|const|fallthrough|if|range|type|continue|for|import|return|var)
+      echo "invalid package name: $package_name" >&2
+      exit 2
+      ;;
+  esac
   target_dir="$work_dir/$package_dir"
   if [[ ! -d "$target_dir" ]]; then
     echo "failpoint package directory not found: $target_dir" >&2
