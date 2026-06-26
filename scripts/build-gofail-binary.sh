@@ -2,6 +2,7 @@
 set -euo pipefail
 
 GOFAIL_VERSION="go.etcd.io/gofail@v0.2.0"
+CMD_PACKAGE="./cmd/wukongim"
 OUT_PATH=""
 WORK_DIR=""
 KEEP_WORK=0
@@ -18,6 +19,7 @@ Builds a failpoint-enabled cmd/wukongim binary from a temporary source copy.
 Options:
   --out PATH              Output binary path. Defaults to /tmp/wukongim-gofail-<pid>.
   --work-dir DIR          Use DIR as the temporary source copy. Must not already exist.
+  --cmd PACKAGE           Go command package to build. Defaults to ./cmd/wukongim.
   --package DIR           Add a directory passed to `gofail enable`. Repeatable.
   --gofail-version VER    gofail module version. Default: go.etcd.io/gofail@v0.2.0.
   --keep-work             Keep the temporary source copy after the build.
@@ -34,6 +36,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --work-dir)
       WORK_DIR="${2:?missing value for --work-dir}"
+      shift 2
+      ;;
+    --cmd)
+      CMD_PACKAGE="${2:?missing value for --cmd}"
       shift 2
       ;;
     --package)
@@ -91,11 +97,12 @@ print_plan() {
   echo "source_dir=$WORK_DIR"
   echo "output=$OUT_PATH"
   echo "gofail_version=$GOFAIL_VERSION"
+  echo "command_package=$CMD_PACKAGE"
   echo "failpoint_packages=$(join_by_space "${FAILPOINT_PACKAGES[@]}")"
   echo "copy_excludes=$(join_by_space "${COPY_EXCLUDES[@]}")"
   echo "enable_cmd=gofail enable $(join_by_space "${FAILPOINT_PACKAGES[@]}")"
   echo "runtime_dep_cmd=GOWORK=off go get $GOFAIL_RUNTIME_DEP"
-  echo "build_cmd=GOWORK=off go build -o $OUT_PATH ./cmd/wukongim"
+  echo "build_cmd=GOWORK=off go build -o $OUT_PATH $CMD_PACKAGE"
 }
 
 if [[ "$DRY_RUN" -eq 1 ]]; then
@@ -155,7 +162,7 @@ echo "building failpoint binary: $OUT_PATH"
 mkdir -p "$(dirname "$OUT_PATH")"
 (
   cd "$WORK_DIR"
-  GOWORK=off go build -o "$OUT_PATH" ./cmd/wukongim
+  GOWORK=off go build -o "$OUT_PATH" "$CMD_PACKAGE"
 )
 
 echo "gofail binary built: $OUT_PATH"
