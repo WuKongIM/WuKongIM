@@ -15,7 +15,6 @@ import (
 const (
 	defaultSlotReplicaMovePollMax      = 30
 	defaultSlotReplicaMovePollInterval = 10 * time.Millisecond
-	slotReplicaMoveCatchUpTimeoutError = "slot replica move learner catch-up timed out"
 	maxSlotReplicaMoveLastErrorBytes   = 1024
 )
 
@@ -180,7 +179,7 @@ func (e *SlotReplicaMoveExecutor) promoteLearner(ctx context.Context, task contr
 		return err
 	}
 	if !caughtUp {
-		return e.failTask(ctx, task, slotReplicaMoveCatchUpTimeoutError)
+		return nil
 	}
 	if err := e.changeConfig(ctx, task, multiraft.ConfigChange{
 		Type:   multiraft.PromoteLearner,

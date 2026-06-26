@@ -12,3 +12,9 @@ This domain owns black-box multi-node cluster lifecycle coverage for
   describe lifecycle assertions only.
 - Dynamic join coverage must prove the joining node calls seed join itself; do
   not shortcut by calling manager `JoinNode` directly from the test.
+
+## Scenario Catalog
+
+- `dynamic_node_join`: dynamic data-node seed join, activation, delivery,
+  onboarding, scale-in drain, safety gates, negative join/activation paths, and
+  concurrent task guards.

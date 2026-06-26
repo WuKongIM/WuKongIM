@@ -143,8 +143,8 @@ func validateSlots(config ClusterConfig, slots []SlotAssignment, nodes map[uint6
 			}
 			seenPeers[peerID] = struct{}{}
 			node, ok := nodes[peerID]
-			if !ok || node.JoinState != NodeJoinStateActive || !node.HasRole(NodeRoleData) {
-				return nil, invalid("slot peer must be an active data node")
+			if !ok || !slotDesiredPeerNodeAllowed(node) {
+				return nil, invalid("slot peer must be an active or leaving data node")
 			}
 		}
 		if slot.PreferredLeader != 0 {
@@ -155,6 +155,11 @@ func validateSlots(config ClusterConfig, slots []SlotAssignment, nodes map[uint6
 		byID[slot.SlotID] = slot
 	}
 	return byID, nil
+}
+
+func slotDesiredPeerNodeAllowed(node Node) bool {
+	return node.HasRole(NodeRoleData) &&
+		(node.JoinState == NodeJoinStateActive || node.JoinState == NodeJoinStateLeaving)
 }
 
 func validateHashSlots(config ClusterConfig, table HashSlotTable) error {

@@ -203,7 +203,7 @@ type Node struct {
 type SlotAssignment struct {
 	// SlotID is the physical slot ID in the range 1..ClusterConfig.SlotCount.
 	SlotID uint32 `json:"slot_id"`
-	// DesiredPeers are unique active data-capable node IDs.
+	// DesiredPeers are unique data-capable node IDs that are active or being drained.
 	DesiredPeers []uint64 `json:"desired_peers"`
 	// ConfigEpoch changes whenever the desired assignment changes.
 	ConfigEpoch uint64 `json:"config_epoch"`

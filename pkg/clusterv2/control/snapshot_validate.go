@@ -20,7 +20,7 @@ func (s Snapshot) Validate() error {
 		if !validJoinState(node.JoinState) {
 			return fmt.Errorf("control snapshot: unknown node join_state")
 		}
-		if hasRole(node.Roles, RoleData) && effectiveJoinState(node.JoinState) == NodeJoinStateActive {
+		if hasRole(node.Roles, RoleData) && desiredPeerJoinStateAllowed(effectiveJoinState(node.JoinState)) {
 			dataNodes[node.NodeID] = struct{}{}
 		}
 	}
@@ -67,6 +67,10 @@ func (s Snapshot) Validate() error {
 		}
 	}
 	return nil
+}
+
+func desiredPeerJoinStateAllowed(state NodeJoinState) bool {
+	return state == NodeJoinStateActive || state == NodeJoinStateLeaving
 }
 
 func effectiveJoinState(state NodeJoinState) NodeJoinState {

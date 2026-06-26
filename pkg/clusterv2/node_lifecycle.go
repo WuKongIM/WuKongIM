@@ -55,6 +55,7 @@ func (n *Node) Start(ctx context.Context) error {
 		}
 		n.startWatchLoop()
 	}
+	n.startTaskReconcileLoop()
 	n.startSlotLeaderLoop()
 	n.markChannelsReady(n.channels != nil)
 	n.startChannelTickLoop()
@@ -87,6 +88,7 @@ func (n *Node) Stop(ctx context.Context) error {
 	}
 	n.stopping.Store(true)
 	n.stopWatchLoop()
+	n.stopTaskReconcileLoop()
 	n.closeRouteAuthorityWatchers()
 	n.stopSlotLeaderLoop()
 	n.stopChannelTickLoop()

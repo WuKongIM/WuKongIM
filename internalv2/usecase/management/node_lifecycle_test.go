@@ -79,6 +79,7 @@ func TestJoinNodeMapsControlAvailabilityErrors(t *testing.T) {
 		{name: "not leader", err: cv2.ErrNotLeader},
 		{name: "not started", err: cv2.ErrNotStarted},
 		{name: "stopped", err: cv2.ErrStopped},
+		{name: "revision mismatch", err: cv2.ErrExpectedRevisionMismatch},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -221,6 +222,7 @@ func TestActivateNodeMapsControlAvailabilityErrors(t *testing.T) {
 		{name: "not leader", err: cv2.ErrNotLeader},
 		{name: "not started", err: cv2.ErrNotStarted},
 		{name: "stopped", err: cv2.ErrStopped},
+		{name: "revision mismatch", err: cv2.ErrExpectedRevisionMismatch},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -295,6 +297,32 @@ func TestMarkNodeLeavingMapsControlLifecycleErrors(t *testing.T) {
 
 			if !errors.Is(err, tt.want) {
 				t.Fatalf("MarkNodeLeaving() error = %v, want %v", err, tt.want)
+			}
+		})
+	}
+}
+
+func TestMarkNodeLeavingMapsControlAvailabilityErrors(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+	}{
+		{name: "not leader", err: cv2.ErrNotLeader},
+		{name: "not started", err: cv2.ErrNotStarted},
+		{name: "stopped", err: cv2.ErrStopped},
+		{name: "revision mismatch", err: cv2.ErrExpectedRevisionMismatch},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			app := New(Options{NodeLifecycle: &nodeLifecycleWriterStub{leavingErr: tt.err}})
+
+			_, err := app.MarkNodeLeaving(context.Background(), MarkNodeLeavingRequest{NodeID: 4})
+
+			if !errors.Is(err, ErrNodeLifecycleUnavailable) {
+				t.Fatalf("MarkNodeLeaving() error = %v, want ErrNodeLifecycleUnavailable", err)
+			}
+			if !errors.Is(err, tt.err) {
+				t.Fatalf("MarkNodeLeaving() error = %v, want wrapped %v", err, tt.err)
 			}
 		})
 	}

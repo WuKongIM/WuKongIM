@@ -86,6 +86,13 @@ func TestValidateRejectsRemovedSlotPeer(t *testing.T) {
 	require.ErrorIs(t, st.Validate(), ErrInvalidState)
 }
 
+func TestValidateAllowsLeavingDataSlotPeer(t *testing.T) {
+	st := testState()
+	st.Nodes[2].JoinState = NodeJoinStateLeaving
+
+	require.NoError(t, st.Validate())
+}
+
 func TestValidateRejectsHashSlotGap(t *testing.T) {
 	st := testState()
 	st.HashSlots.Ranges[0].To = 7

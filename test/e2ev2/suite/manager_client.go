@@ -50,8 +50,9 @@ func (m *ManagerClient) MustSlots(t testing.TB) []SlotDTO {
 	defer ticker.Stop()
 
 	var (
-		lastResp managerSlotsResponse
-		lastErr  error
+		lastResp     managerSlotsResponse
+		lastErr      error
+		lastCheckErr error
 	)
 	for {
 		var resp managerSlotsResponse
@@ -64,6 +65,7 @@ func (m *ManagerClient) MustSlots(t testing.TB) []SlotDTO {
 			} else {
 				lastResp = resp
 				lastErr = checkErr
+				lastCheckErr = checkErr
 			}
 		} else {
 			lastErr = err
@@ -71,6 +73,9 @@ func (m *ManagerClient) MustSlots(t testing.TB) []SlotDTO {
 
 		select {
 		case <-ctx.Done():
+			if lastCheckErr != nil {
+				lastErr = lastCheckErr
+			}
 			t.Fatalf("manager slots did not stabilize: last=%#v lastErr=%v\n%s", lastResp, lastErr, m.cluster.DumpDiagnostics())
 		case <-ticker.C:
 		}
@@ -115,6 +120,19 @@ func (m *ManagerClient) EventuallyNodeJoinState(t testing.TB, nodeID uint64, sta
 	}
 }
 
+// NodeJoinState returns the manager-observed lifecycle state for a node when present.
+func (m *ManagerClient) NodeJoinState(ctx context.Context, nodeID uint64) (string, bool, error) {
+	var resp managerNodesResponse
+	if _, err := GetJSON(ctx, m.baseURL+"/manager/nodes", &resp); err != nil {
+		return "", false, err
+	}
+	node, ok := findManagerNode(resp, nodeID)
+	if !ok {
+		return "", false, nil
+	}
+	return node.Membership.JoinState, true, nil
+}
+
 // EventuallyNodeReadiness waits until the target node satisfies public app readiness.
 func (m *ManagerClient) EventuallyNodeReadiness(t testing.TB, nodeID uint64, ready bool, timeout time.Duration) {
 	t.Helper()
@@ -147,7 +165,7 @@ func (m *ManagerClient) MustActivateNode(t testing.TB, nodeID uint64) {
 	var lastErr error
 	for {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		status, body, err := postJSONStatus(ctx, fmt.Sprintf("%s/manager/nodes/%d/activate", m.baseURL, nodeID), nil, nil)
+		status, body, err := m.ActivateNodeStatus(ctx, nodeID)
 		cancel()
 		if err == nil && status/100 == 2 {
 			return
@@ -175,6 +193,11 @@ func (m *ManagerClient) MustActivateNode(t testing.TB, nodeID uint64) {
 	}
 }
 
+// ActivateNodeStatus posts a node activation request and returns the raw manager response.
+func (m *ManagerClient) ActivateNodeStatus(ctx context.Context, nodeID uint64) (int, []byte, error) {
+	return postJSONStatus(ctx, fmt.Sprintf("%s/manager/nodes/%d/activate", m.baseURL, nodeID), nil, nil)
+}
+
 // MustPlanOnboarding returns one bounded Slot onboarding preview through manager HTTP.
 func (m *ManagerClient) MustPlanOnboarding(t testing.TB, nodeID uint64, maxSlotMoves uint32) NodeOnboardingPlanDTO {
 	t.Helper()
@@ -200,10 +223,7 @@ func (m *ManagerClient) MustStartOnboarding(t testing.TB, nodeID uint64, maxSlot
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	var out NodeOnboardingStartDTO
-	status, body, err := postJSONStatus(ctx, fmt.Sprintf("%s/manager/nodes/%d/onboarding/start", m.baseURL, nodeID), map[string]any{
-		"max_slot_moves": maxSlotMoves,
-	}, &out)
+	out, status, body, err := m.StartOnboarding(ctx, nodeID, maxSlotMoves)
 	if err != nil || status/100 != 2 {
 		if err == nil {
 			err = fmt.Errorf("start onboarding node %d returned %d: %s", nodeID, status, strings.TrimSpace(string(body)))
@@ -211,6 +231,15 @@ func (m *ManagerClient) MustStartOnboarding(t testing.TB, nodeID uint64, maxSlot
 		t.Fatalf("%v\n%s", err, m.cluster.DumpDiagnostics())
 	}
 	return out
+}
+
+// StartOnboarding creates bounded Slot onboarding tasks and returns the raw manager response.
+func (m *ManagerClient) StartOnboarding(ctx context.Context, nodeID uint64, maxSlotMoves uint32) (NodeOnboardingStartDTO, int, []byte, error) {
+	var out NodeOnboardingStartDTO
+	status, body, err := postJSONStatus(ctx, fmt.Sprintf("%s/manager/nodes/%d/onboarding/start", m.baseURL, nodeID), map[string]any{
+		"max_slot_moves": maxSlotMoves,
+	}, &out)
+	return out, status, body, err
 }
 
 // NodeOnboardingStatus returns the target node's active onboarding task status.
@@ -256,6 +285,25 @@ func (m *ManagerClient) EventuallyOnboardingSafe(t testing.TB, nodeID uint64, ti
 	}
 }
 
+// MustPlanScaleIn returns one bounded Slot scale-in drain preview through manager HTTP.
+func (m *ManagerClient) MustPlanScaleIn(t testing.TB, nodeID uint64, maxSlotMoves uint32) NodeScaleInPlanDTO {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	var out NodeScaleInPlanDTO
+	status, body, err := postJSONStatus(ctx, fmt.Sprintf("%s/manager/nodes/%d/scale-in/plan", m.baseURL, nodeID), map[string]any{
+		"max_slot_moves": maxSlotMoves,
+	}, &out)
+	if err != nil || status/100 != 2 {
+		if err == nil {
+			err = fmt.Errorf("plan scale-in node %d returned %d: %s", nodeID, status, strings.TrimSpace(string(body)))
+		}
+		t.Fatalf("%v\n%s", err, m.cluster.DumpDiagnostics())
+	}
+	return out
+}
+
 // MustStartScaleIn marks a data node leaving through manager HTTP.
 func (m *ManagerClient) MustStartScaleIn(t testing.TB, nodeID uint64) NodeScaleInStartDTO {
 	t.Helper()
@@ -271,6 +319,11 @@ func (m *ManagerClient) MustStartScaleIn(t testing.TB, nodeID uint64) NodeScaleI
 		t.Fatalf("%v\n%s", err, m.cluster.DumpDiagnostics())
 	}
 	return out
+}
+
+// StartScaleInStatus posts a scale-in start request and returns the raw manager response.
+func (m *ManagerClient) StartScaleInStatus(ctx context.Context, nodeID uint64) (int, []byte, error) {
+	return postJSONStatus(ctx, fmt.Sprintf("%s/manager/nodes/%d/scale-in/start", m.baseURL, nodeID), nil, nil)
 }
 
 // MustSetScaleInDrain sets gateway drain mode through manager HTTP.
@@ -290,6 +343,13 @@ func (m *ManagerClient) MustSetScaleInDrain(t testing.TB, nodeID uint64, drain b
 		t.Fatalf("%v\n%s", err, m.cluster.DumpDiagnostics())
 	}
 	return out
+}
+
+// SetScaleInDrainStatus posts a drain-mode request and returns the raw manager response.
+func (m *ManagerClient) SetScaleInDrainStatus(ctx context.Context, nodeID uint64, drain bool) (int, []byte, error) {
+	return postJSONStatus(ctx, fmt.Sprintf("%s/manager/nodes/%d/scale-in/drain", m.baseURL, nodeID), map[string]any{
+		"draining": drain,
+	}, nil)
 }
 
 // NodeScaleInStatus returns the target node scale-in status.
@@ -335,6 +395,31 @@ func (m *ManagerClient) EventuallyScaleInSafeToRemove(t testing.TB, nodeID uint6
 	}
 }
 
+// MustAdvanceScaleIn creates bounded Slot scale-in drain tasks through manager HTTP.
+func (m *ManagerClient) MustAdvanceScaleIn(t testing.TB, nodeID uint64, maxSlotMoves uint32) NodeScaleInAdvanceDTO {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	out, status, body, err := m.AdvanceScaleIn(ctx, nodeID, maxSlotMoves)
+	if err != nil || status/100 != 2 {
+		if err == nil {
+			err = fmt.Errorf("advance scale-in node %d returned %d: %s", nodeID, status, strings.TrimSpace(string(body)))
+		}
+		t.Fatalf("%v\n%s", err, m.cluster.DumpDiagnostics())
+	}
+	return out
+}
+
+// AdvanceScaleIn creates bounded Slot scale-in drain tasks and returns the raw manager response.
+func (m *ManagerClient) AdvanceScaleIn(ctx context.Context, nodeID uint64, maxSlotMoves uint32) (NodeScaleInAdvanceDTO, int, []byte, error) {
+	var out NodeScaleInAdvanceDTO
+	status, body, err := postJSONStatus(ctx, fmt.Sprintf("%s/manager/nodes/%d/scale-in/advance", m.baseURL, nodeID), map[string]any{
+		"max_slot_moves": maxSlotMoves,
+	}, &out)
+	return out, status, body, err
+}
+
 // MustRemoveScaleInNode marks a fully drained node removed through manager HTTP.
 func (m *ManagerClient) MustRemoveScaleInNode(t testing.TB, nodeID uint64) NodeScaleInRemoveDTO {
 	t.Helper()
@@ -350,6 +435,11 @@ func (m *ManagerClient) MustRemoveScaleInNode(t testing.TB, nodeID uint64) NodeS
 		t.Fatalf("%v\n%s", err, m.cluster.DumpDiagnostics())
 	}
 	return out
+}
+
+// RemoveScaleInStatus posts a final scale-in removal request and returns the raw manager response.
+func (m *ManagerClient) RemoveScaleInStatus(ctx context.Context, nodeID uint64) (int, []byte, error) {
+	return postJSONStatus(ctx, fmt.Sprintf("%s/manager/nodes/%d/scale-in/remove", m.baseURL, nodeID), nil, nil)
 }
 
 func (m *ManagerClient) localNodeTCPStatus(nodeID uint64) string {
@@ -395,6 +485,7 @@ type SlotDTO struct {
 	SlotID     uint32            `json:"slot_id"`
 	Assignment SlotAssignmentDTO `json:"assignment"`
 	Task       *SlotTaskDTO      `json:"task,omitempty"`
+	Runtime    SlotRuntimeDTO    `json:"runtime"`
 }
 
 // SlotAssignmentDTO contains desired Slot placement fields returned by manager HTTP.
@@ -405,12 +496,33 @@ type SlotAssignmentDTO struct {
 	BalanceVersion    uint64   `json:"balance_version"`
 }
 
+// SlotRuntimeDTO contains the manager-observed Slot runtime subset used by tests.
+type SlotRuntimeDTO struct {
+	CurrentPeers        []uint64 `json:"current_peers"`
+	CurrentVoters       []uint64 `json:"current_voters"`
+	PreferredLeaderID   uint64   `json:"preferred_leader_id"`
+	HealthyVoters       uint32   `json:"healthy_voters"`
+	HasQuorum           bool     `json:"has_quorum"`
+	ObservedConfigEpoch uint64   `json:"observed_config_epoch"`
+}
+
 // SlotTaskDTO is the active Slot task subset used only to wait for stable inventory.
 type SlotTaskDTO struct {
-	TaskID string `json:"task_id"`
-	Kind   string `json:"kind"`
-	Step   string `json:"step"`
-	Status string `json:"status"`
+	TaskID           string                   `json:"task_id"`
+	Kind             string                   `json:"kind"`
+	Step             string                   `json:"step"`
+	Status           string                   `json:"status"`
+	CompletionPolicy string                   `json:"completion_policy"`
+	TargetPeers      []uint64                 `json:"target_peers"`
+	Participants     []SlotTaskParticipantDTO `json:"participants,omitempty"`
+}
+
+// SlotTaskParticipantDTO contains one node's task progress in manager Slot reads.
+type SlotTaskParticipantDTO struct {
+	NodeID    uint64 `json:"node_id"`
+	Attempt   uint32 `json:"attempt"`
+	Status    string `json:"status"`
+	LastError string `json:"last_error,omitempty"`
 }
 
 type managerSlotsResponse struct {
@@ -501,33 +613,76 @@ type NodeOnboardingStatusTaskDTO struct {
 	TargetNode  uint64   `json:"target_node"`
 	TargetPeers []uint64 `json:"target_peers"`
 	ConfigEpoch uint64   `json:"config_epoch"`
+	Attempt     uint32   `json:"attempt"`
+	LastError   string   `json:"last_error,omitempty"`
+}
+
+// NodeScaleInCandidateDTO describes one Slot replica move selected for scale-in drain.
+type NodeScaleInCandidateDTO struct {
+	SlotID       uint32   `json:"slot_id"`
+	SourceNodeID uint64   `json:"source_node_id"`
+	TargetNodeID uint64   `json:"target_node_id"`
+	DesiredPeers []uint64 `json:"desired_peers"`
+	TargetPeers  []uint64 `json:"target_peers"`
+	ConfigEpoch  uint64   `json:"config_epoch"`
+}
+
+// NodeScaleInPlanDTO is the manager scale-in drain preview subset used by e2ev2.
+type NodeScaleInPlanDTO struct {
+	GeneratedAt     string                    `json:"generated_at"`
+	StateRevision   uint64                    `json:"state_revision"`
+	NodeID          uint64                    `json:"node_id"`
+	Candidates      []NodeScaleInCandidateDTO `json:"candidates"`
+	BlockedByStatus bool                      `json:"blocked_by_status"`
+}
+
+// NodeScaleInAdvanceDTO is the manager scale-in drain submit subset used by e2ev2.
+type NodeScaleInAdvanceDTO struct {
+	GeneratedAt   string                    `json:"generated_at"`
+	StateRevision uint64                    `json:"state_revision"`
+	NodeID        uint64                    `json:"node_id"`
+	Created       uint32                    `json:"created"`
+	Skipped       uint32                    `json:"skipped"`
+	Candidates    []NodeScaleInCandidateDTO `json:"candidates"`
 }
 
 // NodeScaleInStatusDTO is the manager scale-in status subset used by e2ev2.
 type NodeScaleInStatusDTO struct {
-	NodeID                  uint64 `json:"node_id"`
-	JoinState               string `json:"join_state"`
-	StateRevision           uint64 `json:"state_revision"`
-	SafeToProceed           bool   `json:"safe_to_proceed"`
-	SafeToRemove            bool   `json:"safe_to_remove"`
-	BlockedBySlots          bool   `json:"blocked_by_slots"`
-	BlockedByDataRole       bool   `json:"blocked_by_data_role"`
-	BlockedByTasks          bool   `json:"blocked_by_tasks"`
-	BlockedByChannels       bool   `json:"blocked_by_channels"`
-	BlockedByRuntimeDrain   bool   `json:"blocked_by_runtime_drain"`
-	RuntimeUnknown          bool   `json:"runtime_unknown"`
-	UnknownChannelInventory bool   `json:"unknown_channel_inventory"`
-	GatewayDraining         bool   `json:"gateway_draining"`
-	AcceptingNewSessions    bool   `json:"accepting_new_sessions"`
-	SlotReplicaCount        int    `json:"slot_replica_count"`
-	ChannelLeaderCount      int    `json:"channel_leader_count"`
-	ChannelReplicaCount     int    `json:"channel_replica_count"`
-	ChannelISRCount         int    `json:"channel_isr_count"`
-	GatewaySessions         int    `json:"gateway_sessions"`
-	ActiveOnline            int    `json:"active_online"`
-	ClosingOnline           int    `json:"closing_online"`
-	TotalOnline             int    `json:"total_online"`
-	PendingActivations      int    `json:"pending_activations"`
+	NodeID                   uint64 `json:"node_id"`
+	JoinState                string `json:"join_state"`
+	GeneratedAt              string `json:"generated_at"`
+	StateRevision            uint64 `json:"state_revision"`
+	SafeToProceed            bool   `json:"safe_to_proceed"`
+	SafeToRemove             bool   `json:"safe_to_remove"`
+	BlockedByMissingNode     bool   `json:"blocked_by_missing_node"`
+	BlockedByJoinState       bool   `json:"blocked_by_join_state"`
+	BlockedByControlRevision bool   `json:"blocked_by_control_revision"`
+	BlockedByControllerRole  bool   `json:"blocked_by_controller_role"`
+	BlockedBySlots           bool   `json:"blocked_by_slots"`
+	BlockedBySlotLeadership  bool   `json:"blocked_by_slot_leadership"`
+	BlockedBySlotRuntime     bool   `json:"blocked_by_slot_runtime"`
+	BlockedByDataRole        bool   `json:"blocked_by_data_role"`
+	BlockedByTasks           bool   `json:"blocked_by_tasks"`
+	BlockedByChannels        bool   `json:"blocked_by_channels"`
+	BlockedByRuntimeDrain    bool   `json:"blocked_by_runtime_drain"`
+	UnknownRuntime           bool   `json:"unknown_runtime"`
+	RuntimeUnknown           bool   `json:"runtime_unknown"`
+	UnknownControlRevision   bool   `json:"unknown_control_revision"`
+	UnknownChannelInventory  bool   `json:"unknown_channel_inventory"`
+	GatewayDraining          bool   `json:"gateway_draining"`
+	AcceptingNewSessions     bool   `json:"accepting_new_sessions"`
+	SlotReplicaCount         int    `json:"slot_replica_count"`
+	SlotLeaderCount          int    `json:"slot_leader_count"`
+	ActiveTaskCount          int    `json:"active_task_count"`
+	FailedTaskCount          int    `json:"failed_task_count"`
+	ChannelLeaderCount       int    `json:"channel_leader_count"`
+	ChannelReplicaCount      int    `json:"channel_replica_count"`
+	ChannelISRCount          int    `json:"channel_isr_count"`
+	GatewaySessions          int    `json:"gateway_sessions"`
+	ActiveOnline             int    `json:"active_online"`
+	ClosingOnline            int    `json:"closing_online"`
+	TotalOnline              int    `json:"total_online"`
+	PendingActivations       int    `json:"pending_activations"`
 }
 
 // NodeScaleInStartDTO is the manager leaving transition subset used by e2ev2.
@@ -568,7 +723,7 @@ func stableSlotInventory(resp managerSlotsResponse) error {
 	}
 	for _, item := range resp.Items {
 		if item.Task != nil {
-			return fmt.Errorf("slot %d still has active task %#v", item.SlotID, item.Task)
+			return fmt.Errorf("slot %d still has active task %#v runtime=%#v", item.SlotID, item.Task, item.Runtime)
 		}
 		if len(item.Assignment.DesiredPeers) == 0 {
 			return fmt.Errorf("slot %d has empty desired peers", item.SlotID)

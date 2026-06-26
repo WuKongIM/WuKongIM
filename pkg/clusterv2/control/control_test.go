@@ -36,6 +36,15 @@ func TestSnapshotValidateRejectsSlotPeerThatIsNotActive(t *testing.T) {
 	}
 }
 
+func TestSnapshotValidateAllowsLeavingDataSlotPeer(t *testing.T) {
+	snap := validSnapshot()
+	snap.Nodes[1].JoinState = NodeJoinStateLeaving
+
+	if err := snap.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v, want leaving desired peer allowed", err)
+	}
+}
+
 func TestStaticControllerPublishesSnapshot(t *testing.T) {
 	initial := validSnapshot()
 	c := NewStaticController(initial)

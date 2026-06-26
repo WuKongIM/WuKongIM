@@ -92,6 +92,68 @@ func TestRuntimeProbeProposeSingleVoter(t *testing.T) {
 	}
 }
 
+func TestRuntimeLocalSnapshotRefreshesFromBackendWhenWatchMissesLifecycleWrite(t *testing.T) {
+	runtime, err := NewRuntime(RuntimeConfig{
+		NodeID:           1,
+		Addr:             "127.0.0.1:10001",
+		StateDir:         t.TempDir(),
+		ClusterID:        "cluster-local-snapshot-refresh",
+		Role:             RuntimeRoleVoter,
+		Voters:           []RuntimeVoter{{NodeID: 1, Addr: "127.0.0.1:10001"}},
+		AllowBootstrap:   true,
+		InitialSlotCount: 1,
+		HashSlotCount:    4,
+		ReplicaCount:     1,
+		TickInterval:     5 * time.Millisecond,
+	})
+	if err != nil {
+		t.Fatalf("NewRuntime() error = %v", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	if err := runtime.Start(ctx); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	t.Cleanup(func() { _ = runtime.Stop(context.Background()) })
+
+	if _, err := runtime.JoinNode(ctx, JoinNodeRequest{NodeID: 4, Addr: "n4", Roles: []Role{RoleData}, CapacityWeight: 1}); err != nil {
+		t.Fatalf("JoinNode() error = %v", err)
+	}
+	if _, err := runtime.ActivateNode(ctx, ActivateNodeRequest{NodeID: 4}); err != nil {
+		t.Fatalf("ActivateNode() error = %v", err)
+	}
+	activeState, err := runtime.backend.LocalState(ctx)
+	if err != nil {
+		t.Fatalf("backend LocalState(active) error = %v", err)
+	}
+	activeSnapshot, err := SnapshotFromControllerV2(activeState)
+	if err != nil {
+		t.Fatalf("SnapshotFromControllerV2(active) error = %v", err)
+	}
+	if got := snapshotJoinState(activeSnapshot, 4); got != NodeJoinStateActive {
+		t.Fatalf("backend node 4 join_state = %q, want active", got)
+	}
+	runtime.mu.Lock()
+	runtime.snapshot = activeSnapshot.Clone()
+	runtime.mu.Unlock()
+	if runtime.watchCancel != nil {
+		runtime.watchCancel()
+		runtime.watchWG.Wait()
+		runtime.watchCancel = nil
+	}
+
+	if _, err := runtime.MarkNodeLeaving(ctx, MarkNodeLeavingRequest{NodeID: 4}); err != nil {
+		t.Fatalf("MarkNodeLeaving() error = %v", err)
+	}
+	got, err := runtime.LocalSnapshot(context.Background())
+	if err != nil {
+		t.Fatalf("LocalSnapshot() error = %v", err)
+	}
+	if state := snapshotJoinState(got, 4); state != NodeJoinStateLeaving {
+		t.Fatalf("LocalSnapshot node 4 join_state = %q, want leaving after backend write", state)
+	}
+}
+
 func TestRuntimeProbeProposeWithoutRaftReturnsNotStarted(t *testing.T) {
 	var runtime Runtime
 	if err := runtime.ProbePropose(context.Background()); !errors.Is(err, cv2.ErrNotStarted) {
@@ -1218,4 +1280,13 @@ func TestRuntimeThreeVotersConverge(t *testing.T) {
 		t.Logf("runtime %d snapshot: %#v", rt.cfg.NodeID, snap)
 	}
 	t.Fatal("runtimes did not converge")
+}
+
+func snapshotJoinState(snapshot Snapshot, nodeID uint64) NodeJoinState {
+	for _, node := range snapshot.Nodes {
+		if node.NodeID == nodeID {
+			return node.JoinState
+		}
+	}
+	return ""
 }

@@ -163,6 +163,25 @@ func (r *Runtime) LocalSnapshot(ctx context.Context) (Snapshot, error) {
 	if err := ctxErr(ctx); err != nil {
 		return Snapshot{}, err
 	}
+	if r == nil {
+		return Snapshot{}, cv2.ErrNotStarted
+	}
+	if r.backend != nil {
+		st, err := r.backend.LocalState(ctx)
+		if err != nil && !errors.Is(err, cv2.ErrNotStarted) {
+			return Snapshot{}, err
+		}
+		if err == nil && !emptyControllerV2State(st) {
+			snap, err := SnapshotFromControllerV2(st)
+			if err != nil {
+				return Snapshot{}, err
+			}
+			r.mu.Lock()
+			r.snapshot = snap.Clone()
+			r.mu.Unlock()
+			return snap.Clone(), nil
+		}
+	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	return r.snapshot.Clone(), nil

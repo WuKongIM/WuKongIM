@@ -117,6 +117,28 @@ func TestSlotReplicaMoveExecutorResumesFromPersistedPromotePhase(t *testing.T) {
 	}
 }
 
+func TestSlotReplicaMoveExecutorDefersPromotionUntilLearnerCatchesUp(t *testing.T) {
+	status := moveStatus()
+	status.CurrentLearners = []multiraft.NodeID{4}
+	status.CommitIndex = 44
+	status.Progress = map[multiraft.NodeID]multiraft.PeerProgress{4: {Match: 40}}
+	runtime := &fakeSlotReplicaMoveRuntime{status: status}
+	writer := &fakeSlotReplicaMoveWriter{}
+	executor := NewSlotReplicaMoveExecutor(SlotReplicaMoveExecutorConfig{LocalNode: 1, Runtime: runtime, MoveWriter: writer, PollMax: 1, PollInterval: -1})
+
+	err := executor.Reconcile(context.Background(), slotReplicaMoveSnapshot(control.TaskStepPromoteLearner, 1, status))
+
+	if err != nil {
+		t.Fatalf("Reconcile() error = %v", err)
+	}
+	if len(writer.failed) != 0 {
+		t.Fatalf("failed = %#v, want learner catch-up to remain pending", writer.failed)
+	}
+	if len(runtime.changes) != 0 || writer.phaseCalls != 0 {
+		t.Fatalf("changes=%#v phaseCalls=%d, want no promotion before catch-up", runtime.changes, writer.phaseCalls)
+	}
+}
+
 func TestSlotReplicaMoveExecutorTransfersLeadershipBeforeRemovingSourceVoter(t *testing.T) {
 	status := moveStatus()
 	status.CurrentVoters = []multiraft.NodeID{1, 2, 3, 4}

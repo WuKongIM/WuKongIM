@@ -257,6 +257,28 @@ func TestMarkNodeRemovedDelegatesWhenSafe(t *testing.T) {
 	}
 }
 
+func TestMarkNodeRemovedMapsRevisionMismatchToConflict(t *testing.T) {
+	snap := scaleInReadyNoSlotReplicaSnapshot()
+	writer := &nodeLifecycleWriterStub{removedErr: cv2.ErrExpectedRevisionMismatch}
+	app := New(Options{
+		Cluster: fakeNodeSnapshotReader{snapshot: snap},
+		RuntimeSummary: fakeNodeRuntimeSummaryReader{summaries: map[uint64]NodeRuntimeSummary{
+			1: {NodeID: 1, ControlRevision: snap.Revision},
+			2: {NodeID: 2, ControlRevision: snap.Revision},
+			3: {NodeID: 3, ControlRevision: snap.Revision},
+			4: {NodeID: 4, ControlRevision: snap.Revision, Draining: true, AcceptingNewSessions: false},
+		}},
+		SlotRuntimeStatus:  scaleInSafeSlotRuntimeReader{},
+		ChannelRuntimeMeta: newChannelDrainMetaReader(),
+		NodeLifecycle:      writer,
+	})
+
+	_, err := app.MarkNodeRemoved(context.Background(), MarkNodeRemovedRequest{NodeID: 4})
+	if !errors.Is(err, ErrNodeLifecycleConflict) {
+		t.Fatalf("MarkNodeRemoved() error = %v, want ErrNodeLifecycleConflict", err)
+	}
+}
+
 func TestMarkNodeRemovedDelegatesWhenAlreadyRemoved(t *testing.T) {
 	snap := scaleInReadyNoSlotReplicaSnapshot()
 	snap.Nodes[3].JoinState = control.NodeJoinStateRemoved
@@ -482,6 +504,58 @@ func TestAdvanceNodeScaleInAllowsSlotDrainWhenChannelInventoryUnknown(t *testing
 	}
 	if got.Created != 1 || len(writer.requests) != 1 {
 		t.Fatalf("advance = %#v requests=%#v, want slot drain to continue", got, writer.requests)
+	}
+}
+
+func TestAdvanceNodeScaleInAllowsSlotDrainWhenLeavingNodeIsSlotLeader(t *testing.T) {
+	snap := scaleInSnapshot(17)
+	snap.Nodes = append(snap.Nodes, control.Node{NodeID: 4, Roles: []control.Role{control.RoleData}, Status: control.NodeAlive, JoinState: control.NodeJoinStateActive})
+	writer := &fakeSlotReplicaMoveWriter{result: control.SlotReplicaMoveResult{Created: true}}
+	app := New(Options{
+		Cluster:         fakeNodeSnapshotReader{snapshot: snap},
+		RuntimeSummary:  fakeNodeRuntimeSummaryReader{summaries: scaleInRuntimeSummariesFor(17, 1, 2, 3, 4)},
+		SlotReplicaMove: writer,
+		SlotRuntimeStatus: &fakeSlotRuntimeStatusReader{
+			statuses: map[uint32]SlotRuntimeStatus{1: {SlotID: 1, LeaderID: 2, CurrentVoters: []uint64{1, 2, 3}}},
+		},
+	})
+
+	status, err := app.NodeScaleInStatus(context.Background(), NodeScaleInStatusRequest{NodeID: 2})
+	if err != nil {
+		t.Fatalf("NodeScaleInStatus() error = %v", err)
+	}
+	if !status.BlockedBySlotLeadership {
+		t.Fatalf("status = %#v, want source Slot leadership blocker visible", status)
+	}
+
+	got, err := app.AdvanceNodeScaleIn(context.Background(), NodeScaleInAdvanceRequest{NodeID: 2, MaxSlotMoves: 1})
+	if err != nil {
+		t.Fatalf("AdvanceNodeScaleIn() error = %v", err)
+	}
+	if got.Created != 1 || len(writer.requests) != 1 {
+		t.Fatalf("advance = %#v requests=%#v, want slot drain task despite source Slot leadership", got, writer.requests)
+	}
+}
+
+func TestAdvanceNodeScaleInMapsActiveTaskConflictToScaleInConflict(t *testing.T) {
+	snap := scaleInSnapshot(17)
+	snap.Nodes = append(snap.Nodes, control.Node{NodeID: 4, Roles: []control.Role{control.RoleData}, Status: control.NodeAlive, JoinState: control.NodeJoinStateActive})
+	writer := &fakeSlotReplicaMoveWriter{err: cv2.ErrSlotActiveTaskConflict}
+	app := New(Options{
+		Cluster:         fakeNodeSnapshotReader{snapshot: snap},
+		RuntimeSummary:  fakeNodeRuntimeSummaryReader{summaries: scaleInRuntimeSummariesFor(17, 1, 2, 3, 4)},
+		SlotReplicaMove: writer,
+		SlotRuntimeStatus: &fakeSlotRuntimeStatusReader{
+			statuses: map[uint32]SlotRuntimeStatus{1: {SlotID: 1, LeaderID: 1, CurrentVoters: []uint64{1, 2, 3}}},
+		},
+	})
+
+	_, err := app.AdvanceNodeScaleIn(context.Background(), NodeScaleInAdvanceRequest{NodeID: 2, MaxSlotMoves: 1})
+	if !errors.Is(err, ErrNodeScaleInConflict) {
+		t.Fatalf("AdvanceNodeScaleIn() error = %v, want %v", err, ErrNodeScaleInConflict)
+	}
+	if len(writer.requests) < 2 {
+		t.Fatalf("requests = %d, want active-task conflict to retry before bounded conflict", len(writer.requests))
 	}
 }
 

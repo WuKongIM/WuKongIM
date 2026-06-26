@@ -276,6 +276,21 @@ func (c *StartedCluster) NodeAddr(nodeID uint64) string {
 // StartSeedJoinNode starts one dynamic data node that joins through configured seeds.
 func (c *StartedCluster) StartSeedJoinNode(t testing.TB, cfg SeedJoinNodeConfig) *StartedNode {
 	t.Helper()
+
+	started := c.StartSeedJoinNodeNoWait(t, cfg)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	observation, err := waitHTTPReadyDetailed(ctx, started.Spec.APIAddr, "/readyz")
+	c.lastReadyz[started.Spec.ID] = observation
+	require.NoError(t, err, c.DumpDiagnostics())
+
+	return started
+}
+
+// StartSeedJoinNodeNoWait starts one dynamic data node without waiting for readiness.
+func (c *StartedCluster) StartSeedJoinNodeNoWait(t testing.TB, cfg SeedJoinNodeConfig) *StartedNode {
+	t.Helper()
 	require.NotNil(t, c, "started cluster is nil")
 	require.NotEmpty(t, c.binaryPath, "started cluster binary path is empty")
 	require.NotZero(t, cfg.NodeID, "seed join node id must be non-zero")
@@ -309,15 +324,7 @@ func (c *StartedCluster) StartSeedJoinNode(t testing.TB, cfg SeedJoinNodeConfig)
 	if c.lastReadyz == nil {
 		c.lastReadyz = make(map[uint64]HTTPObservation)
 	}
-	started := &c.Nodes[len(c.Nodes)-1]
-
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	observation, err := waitHTTPReadyDetailed(ctx, started.Spec.APIAddr, "/readyz")
-	c.lastReadyz[started.Spec.ID] = observation
-	require.NoError(t, err, c.DumpDiagnostics())
-
-	return started
+	return &c.Nodes[len(c.Nodes)-1]
 }
 
 // WaitHTTPReady waits until every cluster node satisfies the public HTTP readiness contract.

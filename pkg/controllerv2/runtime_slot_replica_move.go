@@ -93,7 +93,7 @@ func validateSlotReplicaMoveRequest(st state.ClusterState, assignment state.Slot
 	}
 	for _, task := range st.Tasks {
 		if task.SlotID == req.SlotID {
-			return fmt.Errorf("controllerv2: slot %d already has active task %s", req.SlotID, task.TaskID)
+			return fmt.Errorf("%w: slot %d task %s", ErrSlotActiveTaskConflict, req.SlotID, task.TaskID)
 		}
 	}
 	return nil

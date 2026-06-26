@@ -10,6 +10,8 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/clusterv2/net"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/routing"
+	cv2 "github.com/WuKongIM/WuKongIM/pkg/controllerv2"
+	"github.com/WuKongIM/WuKongIM/pkg/transportv2"
 )
 
 func (n *Node) initialControlSnapshot(ctx context.Context) (control.Snapshot, error) {
@@ -86,7 +88,7 @@ func (n *Node) applySnapshot(ctx context.Context, snapshot control.Snapshot) err
 		n.publishRouteAuthorityChanges(routeAuthorityBefore, n.router.Table())
 	}
 	if n.tasks != nil && (firstSnapshot || changes.tasks || changes.slots) {
-		if err := n.tasks.Reconcile(ctx, snapshot); err != nil {
+		if err := n.reconcileTasks(ctx, snapshot); err != nil {
 			return err
 		}
 	}
@@ -101,6 +103,52 @@ func (n *Node) applySnapshot(ctx context.Context, snapshot control.Snapshot) err
 		observer.ObserveControlSnapshot(snapshot.Clone())
 	}
 	return nil
+}
+
+func (n *Node) reconcileTasks(ctx context.Context, snapshot control.Snapshot) error {
+	if n == nil || n.tasks == nil {
+		return nil
+	}
+	n.taskReconcileMu.Lock()
+	defer n.taskReconcileMu.Unlock()
+	err := n.tasks.Reconcile(ctx, snapshot)
+	if retryableTaskReconcileError(err) {
+		return nil
+	}
+	return err
+}
+
+func (n *Node) recordTaskReconcileError(phase string, err error) {
+	if n == nil || err == nil {
+		return
+	}
+	n.mu.Lock()
+	n.snapshot.LastTaskReconcileError = fmt.Sprintf("%s: %v", phase, err)
+	n.mu.Unlock()
+}
+
+func (n *Node) clearTaskReconcileError() {
+	if n == nil {
+		return
+	}
+	n.mu.Lock()
+	n.snapshot.LastTaskReconcileError = ""
+	n.mu.Unlock()
+}
+
+func retryableTaskReconcileError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, cv2.ErrNotLeader) || errors.Is(err, cv2.ErrNotStarted) {
+		return true
+	}
+	var remoteErr transportv2.RemoteError
+	if errors.As(err, &remoteErr) {
+		return strings.Contains(remoteErr.Message, cv2.ErrNotLeader.Error()) ||
+			strings.Contains(remoteErr.Message, cv2.ErrNotStarted.Error())
+	}
+	return false
 }
 
 type routeAuthorityKey struct {

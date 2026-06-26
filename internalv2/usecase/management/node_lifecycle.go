@@ -132,7 +132,7 @@ func (a *App) JoinNode(ctx context.Context, req JoinNodeRequest) (JoinNodeRespon
 		CapacityWeight: req.CapacityWeight,
 	})
 	if err != nil {
-		return JoinNodeResponse{}, mapNodeLifecycleError(err)
+		return JoinNodeResponse{}, mapRetryableNodeLifecycleWriteError(err)
 	}
 	return JoinNodeResponse{
 		Created:   result.Created,
@@ -174,7 +174,7 @@ func (a *App) ActivateNode(ctx context.Context, req ActivateNodeRequest) (Activa
 	}
 	result, err := a.nodeLifecycle.ActivateNode(ctx, control.ActivateNodeRequest{NodeID: req.NodeID})
 	if err != nil {
-		return ActivateNodeResponse{}, mapNodeLifecycleError(err)
+		return ActivateNodeResponse{}, mapRetryableNodeLifecycleWriteError(err)
 	}
 	return ActivateNodeResponse{
 		Changed:   result.Changed,
@@ -198,7 +198,7 @@ func (a *App) MarkNodeLeaving(ctx context.Context, req MarkNodeLeavingRequest) (
 	}
 	result, err := a.nodeLifecycle.MarkNodeLeaving(ctx, control.MarkNodeLeavingRequest{NodeID: req.NodeID})
 	if err != nil {
-		return MarkNodeLeavingResponse{}, mapNodeLifecycleError(err)
+		return MarkNodeLeavingResponse{}, mapRetryableNodeLifecycleWriteError(err)
 	}
 	return MarkNodeLeavingResponse{
 		Changed:   result.Changed,
@@ -274,8 +274,15 @@ func mapNodeLifecycleError(err error) error {
 	case errors.Is(err, cv2.ErrNodeLifecycleNotFound):
 		return fmt.Errorf("%w: %v", ErrNodeLifecycleNotFound, err)
 	case cv2.IsExpectedRevisionMismatch(err):
-		return fmt.Errorf("%w: %v", ErrNodeScaleInConflict, err)
+		return fmt.Errorf("%w: %v", ErrNodeLifecycleConflict, err)
 	default:
 		return err
 	}
+}
+
+func mapRetryableNodeLifecycleWriteError(err error) error {
+	if cv2.IsExpectedRevisionMismatch(err) {
+		return fmt.Errorf("%w: %w", ErrNodeLifecycleUnavailable, err)
+	}
+	return mapNodeLifecycleError(err)
 }

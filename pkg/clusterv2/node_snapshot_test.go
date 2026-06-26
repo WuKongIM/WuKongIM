@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -11,6 +12,8 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/clusterv2/net"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/routing"
+	"github.com/WuKongIM/WuKongIM/pkg/controllerv2"
+	"github.com/WuKongIM/WuKongIM/pkg/transportv2"
 )
 
 func TestNodeStartAppliesControlSnapshot(t *testing.T) {
@@ -309,6 +312,151 @@ func TestNodeControlWatchTaskChangeRunsTaskExecutor(t *testing.T) {
 	}
 }
 
+func TestNodeStartRetriesTaskReconcileAfterRetryableControlWrite(t *testing.T) {
+	snapshot := nodeControlSnapshot()
+	snapshot.Tasks = []control.ReconcileTask{{
+		TaskID:           "slot-1-bootstrap-1",
+		SlotID:           1,
+		Kind:             control.TaskKindBootstrap,
+		Step:             control.TaskStepCreateSlot,
+		TargetNode:       1,
+		TargetPeers:      []uint64{1, 2, 3},
+		CompletionPolicy: control.TaskCompletionPolicyAllTargetPeers,
+		ParticipantProgress: []control.TaskParticipantProgress{
+			{NodeID: 1, Status: control.TaskParticipantStatusPending},
+			{NodeID: 2, Status: control.TaskParticipantStatusPending},
+			{NodeID: 3, Status: control.TaskParticipantStatusPending},
+		},
+		ConfigEpoch: 1,
+		Status:      control.TaskStatusPending,
+	}}
+	controller := control.NewStaticController(snapshot)
+	executor := &flakyTaskExecutor{errs: []error{controllerv2.ErrNotLeader}}
+	cfg := validNodeConfig(t)
+	cfg.Slots.TickInterval = 10 * time.Millisecond
+	node, err := New(cfg, withController(controller), withSlotReconciler(&recordingReconciler{}), withTaskExecutor(executor))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	if err := node.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v, want retryable task write to stay background", err)
+	}
+	t.Cleanup(func() { _ = node.Stop(context.Background()) })
+	waitUntil(t, func() bool {
+		return executor.Calls() >= 2
+	})
+}
+
+func TestTaskReconcileLoopUsesFreshLocalSnapshotWhenWatchMissesTaskProgress(t *testing.T) {
+	initial := nodeControlSnapshot()
+	initial.Tasks = []control.ReconcileTask{bootstrapTaskForNodeSnapshotTest()}
+	fresh := initial.Clone()
+	fresh.Revision = 2
+	for i := range fresh.Tasks[0].ParticipantProgress {
+		fresh.Tasks[0].ParticipantProgress[i].Status = control.TaskParticipantStatusDone
+	}
+	controller := &advancingLocalSnapshotController{
+		snapshots: []control.Snapshot{initial, fresh},
+		watch:     make(chan control.SnapshotEvent),
+	}
+	executor := &recordingTaskExecutor{}
+	cfg := validNodeConfig(t)
+	cfg.Slots.TickInterval = 10 * time.Millisecond
+	node, err := New(cfg, withController(controller), withSlotReconciler(&recordingReconciler{}), withTaskExecutor(executor))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	if err := node.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	t.Cleanup(func() { _ = node.Stop(context.Background()) })
+	waitUntil(t, func() bool {
+		last := executor.Last()
+		return last.Revision == 2 && len(last.Tasks) == 1 && participantStatuses(last.Tasks[0], control.TaskParticipantStatusDone)
+	})
+}
+
+func TestTaskReconcileLoopBacksOffFreshSnapshotWhenNoCachedTasks(t *testing.T) {
+	controller := &advancingLocalSnapshotController{
+		snapshots: []control.Snapshot{nodeControlSnapshot()},
+		watch:     make(chan control.SnapshotEvent),
+	}
+	cfg := validNodeConfig(t)
+	cfg.Slots.TickInterval = 5 * time.Millisecond
+	node, err := New(cfg, withController(controller), withSlotReconciler(&recordingReconciler{}), withTaskExecutor(&recordingTaskExecutor{}))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	if err := node.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	t.Cleanup(func() { _ = node.Stop(context.Background()) })
+	initialCalls := controller.LocalSnapshotCalls()
+	time.Sleep(120 * time.Millisecond)
+	if got := controller.LocalSnapshotCalls(); got != initialCalls {
+		t.Fatalf("LocalSnapshot calls = %d after idle wait, want %d with no cached tasks", got, initialCalls)
+	}
+}
+
+func TestTaskReconcileLoopRecordsLocalSnapshotError(t *testing.T) {
+	initial := nodeControlSnapshot()
+	initial.Tasks = []control.ReconcileTask{bootstrapTaskForNodeSnapshotTest()}
+	controller := &advancingLocalSnapshotController{
+		snapshots:        []control.Snapshot{initial},
+		watch:            make(chan control.SnapshotEvent),
+		snapshotErrAfter: 1,
+		snapshotErr:      errors.New("control read failed"),
+	}
+	cfg := validNodeConfig(t)
+	cfg.Slots.TickInterval = 5 * time.Millisecond
+	node, err := New(cfg, withController(controller), withSlotReconciler(&recordingReconciler{}), withTaskExecutor(&recordingTaskExecutor{}))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	if err := node.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	t.Cleanup(func() { _ = node.Stop(context.Background()) })
+	waitUntil(t, func() bool {
+		return strings.Contains(node.Snapshot().LastTaskReconcileError, "snapshot: control read failed")
+	})
+}
+
+func TestTaskReconcileLoopRecordsNonRetryableReconcileError(t *testing.T) {
+	initial := nodeControlSnapshot()
+	initial.Tasks = []control.ReconcileTask{bootstrapTaskForNodeSnapshotTest()}
+	controller := &advancingLocalSnapshotController{
+		snapshots: []control.Snapshot{initial},
+		watch:     make(chan control.SnapshotEvent),
+	}
+	executor := &flakyTaskExecutor{errs: []error{nil, errors.New("executor boom")}}
+	cfg := validNodeConfig(t)
+	cfg.Slots.TickInterval = 5 * time.Millisecond
+	node, err := New(cfg, withController(controller), withSlotReconciler(&recordingReconciler{}), withTaskExecutor(executor))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	if err := node.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	t.Cleanup(func() { _ = node.Stop(context.Background()) })
+	waitUntil(t, func() bool {
+		return strings.Contains(node.Snapshot().LastTaskReconcileError, "reconcile: executor boom")
+	})
+}
+
+func TestRetryableTaskReconcileErrorMatchesRemoteControllerNotLeader(t *testing.T) {
+	err := transportv2.RemoteError{Code: "remote_error", Message: controllerv2.ErrNotLeader.Error()}
+	if !retryableTaskReconcileError(err) {
+		t.Fatalf("retryableTaskReconcileError(%v) = false, want true", err)
+	}
+}
+
 func TestNodeStopWaitsForControlWatchApplySnapshot(t *testing.T) {
 	controller := control.NewStaticController(nodeControlSnapshot())
 	executor := newBlockingTaskExecutor(2)
@@ -403,6 +551,37 @@ func equalUint64s(a []uint64, b []uint64) bool {
 	return true
 }
 
+func bootstrapTaskForNodeSnapshotTest() control.ReconcileTask {
+	return control.ReconcileTask{
+		TaskID:           "slot-1-bootstrap-1",
+		SlotID:           1,
+		Kind:             control.TaskKindBootstrap,
+		Step:             control.TaskStepCreateSlot,
+		TargetNode:       1,
+		TargetPeers:      []uint64{1, 2, 3},
+		CompletionPolicy: control.TaskCompletionPolicyAllTargetPeers,
+		ParticipantProgress: []control.TaskParticipantProgress{
+			{NodeID: 1, Status: control.TaskParticipantStatusPending},
+			{NodeID: 2, Status: control.TaskParticipantStatusPending},
+			{NodeID: 3, Status: control.TaskParticipantStatusPending},
+		},
+		ConfigEpoch: 1,
+		Status:      control.TaskStatusPending,
+	}
+}
+
+func participantStatuses(task control.ReconcileTask, status control.TaskParticipantStatus) bool {
+	if len(task.ParticipantProgress) == 0 {
+		return false
+	}
+	for _, progress := range task.ParticipantProgress {
+		if progress.Status != status {
+			return false
+		}
+	}
+	return true
+}
+
 type recordingReconciler struct {
 	mu    sync.Mutex
 	calls int
@@ -478,6 +657,110 @@ func (e *recordingTaskExecutor) Last() control.Snapshot {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	return e.last.Clone()
+}
+
+type flakyTaskExecutor struct {
+	mu    sync.Mutex
+	calls int
+	errs  []error
+	last  control.Snapshot
+}
+
+func (e *flakyTaskExecutor) Reconcile(_ context.Context, snap control.Snapshot) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.calls++
+	e.last = snap.Clone()
+	if len(e.errs) == 0 {
+		return nil
+	}
+	err := e.errs[0]
+	e.errs = e.errs[1:]
+	return err
+}
+
+func (e *flakyTaskExecutor) Calls() int {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.calls
+}
+
+type advancingLocalSnapshotController struct {
+	mu               sync.Mutex
+	snapshots        []control.Snapshot
+	watch            chan control.SnapshotEvent
+	snapshotErrAfter int
+	snapshotErr      error
+	calls            int
+}
+
+func (c *advancingLocalSnapshotController) Start(context.Context) error { return nil }
+
+func (c *advancingLocalSnapshotController) Stop(context.Context) error { return nil }
+
+func (c *advancingLocalSnapshotController) LocalSnapshot(context.Context) (control.Snapshot, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.calls++
+	if c.snapshotErr != nil && c.snapshotErrAfter > 0 && c.calls > c.snapshotErrAfter {
+		return control.Snapshot{}, c.snapshotErr
+	}
+	if len(c.snapshots) == 0 {
+		return control.Snapshot{}, nil
+	}
+	snapshot := c.snapshots[0]
+	if len(c.snapshots) > 1 {
+		c.snapshots = c.snapshots[1:]
+	}
+	return snapshot.Clone(), nil
+}
+
+func (c *advancingLocalSnapshotController) LocalSnapshotCalls() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.calls
+}
+
+func (c *advancingLocalSnapshotController) LeaderID() uint64 { return 1 }
+
+func (c *advancingLocalSnapshotController) ReportNode(context.Context, control.NodeReport) error {
+	return nil
+}
+
+func (c *advancingLocalSnapshotController) ReportSlots(context.Context, control.SlotRuntimeReport) error {
+	return nil
+}
+
+func (c *advancingLocalSnapshotController) CompleteTask(context.Context, control.TaskResult) error {
+	return nil
+}
+
+func (c *advancingLocalSnapshotController) FailTask(context.Context, control.TaskResult) error {
+	return nil
+}
+
+func (c *advancingLocalSnapshotController) ReportTaskProgress(context.Context, control.TaskProgress) error {
+	return nil
+}
+
+func (c *advancingLocalSnapshotController) AdvanceSlotReplicaMovePhase(context.Context, control.SlotReplicaMovePhaseAdvance) error {
+	return nil
+}
+
+func (c *advancingLocalSnapshotController) CommitSlotReplicaMove(context.Context, control.SlotReplicaMoveCommit) error {
+	return nil
+}
+
+func (c *advancingLocalSnapshotController) RequestSlotLeaderTransfer(context.Context, control.SlotLeaderTransferRequest) (control.SlotLeaderTransferResult, error) {
+	return control.SlotLeaderTransferResult{}, nil
+}
+
+func (c *advancingLocalSnapshotController) RequestSlotReplicaMove(context.Context, control.SlotReplicaMoveRequest) (control.SlotReplicaMoveResult, error) {
+	return control.SlotReplicaMoveResult{}, nil
+}
+
+func (c *advancingLocalSnapshotController) Watch() <-chan control.SnapshotEvent {
+	return c.watch
 }
 
 type blockingWatchTaskExecutor struct {

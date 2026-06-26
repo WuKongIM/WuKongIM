@@ -94,4 +94,6 @@ type Snapshot struct {
 	SlotCount uint32
 	// HashSlotCount is the number of logical hash slots in the current route table.
 	HashSlotCount uint16
+	// LastTaskReconcileError records the latest background task reconcile error for diagnostics.
+	LastTaskReconcileError string
 }

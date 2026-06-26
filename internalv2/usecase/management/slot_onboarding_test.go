@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
+	cv2 "github.com/WuKongIM/WuKongIM/pkg/controllerv2"
 	cv2raft "github.com/WuKongIM/WuKongIM/pkg/controllerv2/raft"
 )
 
@@ -152,6 +153,22 @@ func TestStartNodeOnboardingDoesNotRetryNonRevisionProposalRejection(t *testing.
 	}
 	if len(writer.requests) != 1 {
 		t.Fatalf("requests = %d, want no retry for invalid_state", len(writer.requests))
+	}
+}
+
+func TestStartNodeOnboardingMapsActiveTaskConflictToControlConflict(t *testing.T) {
+	writer := &fakeSlotReplicaMoveWriter{err: cv2.ErrSlotActiveTaskConflict}
+	app := New(Options{
+		Cluster:         fakeNodeSnapshotReader{snapshot: nodeOnboardingSnapshot()},
+		SlotReplicaMove: writer,
+	})
+
+	_, err := app.StartNodeOnboarding(context.Background(), NodeOnboardingStartRequest{TargetNodeID: 4, MaxSlotMoves: 1})
+	if !errors.Is(err, ErrNodeOnboardingConflict) {
+		t.Fatalf("StartNodeOnboarding() error = %v, want %v", err, ErrNodeOnboardingConflict)
+	}
+	if len(writer.requests) < 2 {
+		t.Fatalf("requests = %d, want active-task conflict to retry before bounded conflict", len(writer.requests))
 	}
 }
 

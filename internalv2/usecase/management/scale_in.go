@@ -595,7 +595,6 @@ func scaleInStatusBlocksPlan(status NodeScaleInStatusResponse) bool {
 		status.BlockedByControlRevision ||
 		status.BlockedByControllerRole ||
 		status.BlockedByDataRole ||
-		status.BlockedBySlotLeadership ||
 		status.BlockedBySlotRuntime ||
 		status.BlockedByTasks ||
 		status.UnknownRuntime

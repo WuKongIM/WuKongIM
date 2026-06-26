@@ -94,6 +94,9 @@ type Node struct {
 	mu                     sync.RWMutex
 	snapshot               Snapshot
 	controlSnapshot        control.Snapshot
+	taskReconcileMu        sync.Mutex
+	taskReconcileCancel    context.CancelFunc
+	taskReconcileWG        sync.WaitGroup
 	watchCancel            context.CancelFunc
 	watchWG                sync.WaitGroup
 	channelTickCancel      context.CancelFunc

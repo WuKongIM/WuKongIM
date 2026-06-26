@@ -145,7 +145,7 @@ type Node struct {
 type SlotAssignment struct {
 	// SlotID is the non-zero physical Slot ID.
 	SlotID uint32
-	// DesiredPeers are node IDs that should host this Slot.
+	// DesiredPeers are active or leaving data node IDs that should host this Slot.
 	DesiredPeers []uint64
 	// ConfigEpoch changes when DesiredPeers changes.
 	ConfigEpoch uint64

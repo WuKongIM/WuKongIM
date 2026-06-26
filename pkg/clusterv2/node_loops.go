@@ -5,6 +5,11 @@ import (
 	"time"
 )
 
+const (
+	defaultTaskReconcileIdleInterval = time.Second
+	maxTaskReconcileIdleInterval     = 5 * time.Second
+)
+
 func (n *Node) startWatchLoop() {
 	if n == nil || n.control == nil || n.watchCancel != nil {
 		return
@@ -36,6 +41,95 @@ func (n *Node) stopWatchLoop() {
 	n.watchCancel()
 	n.watchWG.Wait()
 	n.watchCancel = nil
+}
+
+func (n *Node) startTaskReconcileLoop() {
+	if n == nil || n.control == nil || n.tasks == nil || n.taskReconcileCancel != nil {
+		return
+	}
+	fastInterval := n.taskReconcileFastInterval()
+	idleInterval := taskReconcileIdleInterval(fastInterval)
+	ctx, cancel := context.WithCancel(context.Background())
+	n.taskReconcileCancel = cancel
+	n.taskReconcileWG.Add(1)
+	go func() {
+		defer n.taskReconcileWG.Done()
+		timer := time.NewTimer(n.nextTaskReconcileInterval(fastInterval, idleInterval))
+		defer timer.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-timer.C:
+				nextInterval := idleInterval
+				snapshot, err := n.control.LocalSnapshot(ctx)
+				if err != nil {
+					n.recordTaskReconcileError("snapshot", err)
+					if n.hasCachedControlTasks() {
+						nextInterval = fastInterval
+					}
+					timer.Reset(nextInterval)
+					continue
+				}
+				if len(snapshot.Tasks) == 0 {
+					n.clearTaskReconcileError()
+					timer.Reset(nextInterval)
+					continue
+				}
+				nextInterval = fastInterval
+				if err := n.reconcileTasks(ctx, snapshot); err != nil {
+					n.recordTaskReconcileError("reconcile", err)
+				} else {
+					n.clearTaskReconcileError()
+				}
+				timer.Reset(nextInterval)
+			}
+		}
+	}()
+}
+
+func (n *Node) taskReconcileFastInterval() time.Duration {
+	interval := n.cfg.Slots.TickInterval * 5
+	if interval <= 0 {
+		return 100 * time.Millisecond
+	}
+	return interval
+}
+
+func taskReconcileIdleInterval(fast time.Duration) time.Duration {
+	interval := fast * 20
+	if interval < defaultTaskReconcileIdleInterval {
+		return defaultTaskReconcileIdleInterval
+	}
+	if interval > maxTaskReconcileIdleInterval {
+		return maxTaskReconcileIdleInterval
+	}
+	return interval
+}
+
+func (n *Node) nextTaskReconcileInterval(fast, idle time.Duration) time.Duration {
+	if n.hasCachedControlTasks() {
+		return fast
+	}
+	return idle
+}
+
+func (n *Node) hasCachedControlTasks() bool {
+	if n == nil {
+		return false
+	}
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+	return len(n.controlSnapshot.Tasks) > 0
+}
+
+func (n *Node) stopTaskReconcileLoop() {
+	if n == nil || n.taskReconcileCancel == nil {
+		return
+	}
+	n.taskReconcileCancel()
+	n.taskReconcileWG.Wait()
+	n.taskReconcileCancel = nil
 }
 
 func (n *Node) startChannelTickLoop() {
