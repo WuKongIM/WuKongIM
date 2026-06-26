@@ -277,7 +277,7 @@ func transportServiceFailpointAlias(serviceID uint8) string {
 	if alias == "unknown service" {
 		return ""
 	}
-	return strings.ReplaceAll(alias, " ", "_")
+	return strings.ReplaceAll(strings.ToLower(alias), " ", "_")
 }
 
 func (s *TransportServer) serviceOptions(serviceID uint8) transportv2.ServiceOptions {

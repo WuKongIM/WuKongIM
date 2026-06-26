@@ -67,6 +67,9 @@ func TestGofailClusterNetServiceFaultMatchesAlias(t *testing.T) {
 	if err := gofailClusterNetServiceFault("control_write:controller write unavailable", RPCControlWrite); err == nil || !strings.Contains(err.Error(), "controller write unavailable") {
 		t.Fatalf("control_write error = %v, want controller write unavailable", err)
 	}
+	if err := gofailClusterNetServiceFault("manager_db_inspect:down", RPCManagerDBInspect); err == nil || !strings.Contains(err.Error(), "down") {
+		t.Fatalf("manager_db_inspect error = %v, want down", err)
+	}
 	if err := gofailClusterNetServiceFault("all:boom", RPCControlWrite); err == nil || !strings.Contains(err.Error(), "boom") {
 		t.Fatalf("all match error = %v, want boom", err)
 	}

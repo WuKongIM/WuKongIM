@@ -10,10 +10,18 @@ work_dir="$1"
 shift
 
 for spec in "$@"; do
+  if [[ "$spec" != *:* || "$spec" == *:*:* ]]; then
+    echo "invalid package spec: $spec" >&2
+    exit 2
+  fi
   package_dir="${spec%%:*}"
   package_name="${spec#*:}"
   if [[ -z "$package_dir" || -z "$package_name" || "$package_dir" == "$spec" ]]; then
     echo "invalid package spec: $spec" >&2
+    exit 2
+  fi
+  if [[ ! "$package_name" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
+    echo "invalid package name: $package_name" >&2
     exit 2
   fi
   target_dir="$work_dir/$package_dir"
