@@ -76,6 +76,9 @@ func TestGofailClusterNetServiceFaultMatchesAlias(t *testing.T) {
 	if err := gofailClusterNetServiceFault("unknown_service:boom", 255); err != nil {
 		t.Fatalf("unknown service named alias error = %v, want nil", err)
 	}
+	if err := gofailClusterNetServiceFault(":boom", 255); err != nil {
+		t.Fatalf("unknown service blank alias error = %v, want nil", err)
+	}
 	if err := gofailClusterNetServiceFault("all:unknown", 255); err == nil || !strings.Contains(err.Error(), "unknown") {
 		t.Fatalf("unknown service all error = %v, want unknown", err)
 	}

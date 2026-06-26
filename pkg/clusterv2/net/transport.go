@@ -257,6 +257,9 @@ func gofailClusterNetServiceFault(raw string, serviceID uint8) error {
 	}
 	alias = strings.TrimSpace(alias)
 	message = strings.TrimSpace(message)
+	if alias == "" {
+		return nil
+	}
 	if alias != "all" && alias != transportServiceFailpointAlias(serviceID) {
 		return nil
 	}
