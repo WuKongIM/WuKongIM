@@ -34,10 +34,13 @@ func ReserveGofailEndpoint(t testing.TB) GofailEndpoint {
 	return GofailEndpoint{Addr: addr}
 }
 
+// Env returns the GOFAIL_HTTP environment assignment for this endpoint.
 func (e GofailEndpoint) Env() string { return "GOFAIL_HTTP=" + e.Addr }
 
+// BaseURL returns the HTTP base URL for this endpoint.
 func (e GofailEndpoint) BaseURL() string { return "http://" + e.Addr }
 
+// Enable configures one failpoint with the provided gofail expression.
 func (e GofailEndpoint) Enable(ctx context.Context, name string, expression string) error {
 	name, err := cleanFailpointName(name)
 	if err != nil {
@@ -50,6 +53,7 @@ func (e GofailEndpoint) Enable(ctx context.Context, name string, expression stri
 	return doGofailRequest(req)
 }
 
+// Disable clears one configured failpoint.
 func (e GofailEndpoint) Disable(ctx context.Context, name string) error {
 	name, err := cleanFailpointName(name)
 	if err != nil {
@@ -62,6 +66,7 @@ func (e GofailEndpoint) Disable(ctx context.Context, name string) error {
 	return doGofailRequest(req)
 }
 
+// List returns the raw failpoint listing body from the gofail HTTP server.
 func (e GofailEndpoint) List(ctx context.Context) (string, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, e.BaseURL()+"/", nil)
 	if err != nil {
@@ -82,6 +87,7 @@ func (e GofailEndpoint) List(ctx context.Context) (string, error) {
 	return string(body), nil
 }
 
+// WaitListed polls until all requested failpoint names appear in the listing.
 func (e GofailEndpoint) WaitListed(ctx context.Context, names ...string) (string, error) {
 	want := make([]string, 0, len(names))
 	for _, name := range names {
