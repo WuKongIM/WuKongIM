@@ -5,6 +5,7 @@ package dynamic_node_faults
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
@@ -125,6 +126,7 @@ func TestOnboardingControlWriteRetriesThroughInjectedRPCFault(t *testing.T) {
 	faulted, status, body, err := remoteManager.StartOnboarding(ctx, 4, 1)
 	cancel()
 	requireBoundedFaultedOnboardingStart(t, cluster, faulted, status, body, err)
+	requireAnyGofailCountAtLeast(t, cluster, failpoints, clusterNetCallShardOwnedFault, 1)
 	requireNoOnboardingTasksLeaked(t, cluster, remoteManager, 4, status)
 
 	for _, endpoint := range failpoints {
@@ -161,6 +163,44 @@ func requireGofailContains(t testing.TB, cluster *suite.StartedCluster, endpoint
 	require.NoError(t, err, cluster.DumpDiagnostics())
 	require.Contains(t, body, failpoint, "gofail body:\n%s\n%s", body, cluster.DumpDiagnostics())
 	require.Contains(t, body, marker, "gofail body:\n%s\n%s", body, cluster.DumpDiagnostics())
+}
+
+func requireAnyGofailCountAtLeast(t testing.TB, cluster *suite.StartedCluster, endpoints []suite.GofailEndpoint, failpoint string, min int) int {
+	t.Helper()
+
+	total := 0
+	counts := make([]string, 0, len(endpoints))
+	for _, endpoint := range endpoints {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		count, err := endpoint.Count(ctx, failpoint)
+		cancel()
+		require.NoError(t, err, "failpoint=%s counts=%v\n%s", failpoint, counts, cluster.DumpDiagnostics())
+		total += count
+		counts = append(counts, fmt.Sprintf("%s=%d", endpoint.Addr, count))
+	}
+	require.GreaterOrEqual(t, total, min, "failpoint=%s counts=%v\n%s", failpoint, counts, cluster.DumpDiagnostics())
+	return total
+}
+
+func TestBoundedFaultedOnboardingStartRejectsSuccessfulNoopWithoutMarker(t *testing.T) {
+	err := boundedFaultedOnboardingStartError(
+		suite.NodeOnboardingStartDTO{},
+		http.StatusOK,
+		[]byte(`{"created":0}`),
+		nil,
+	)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "without injected marker")
+}
+
+func TestBoundedFaultedOnboardingStartAcceptsHTTPFaultWithMarker(t *testing.T) {
+	err := boundedFaultedOnboardingStartError(
+		suite.NodeOnboardingStartDTO{},
+		http.StatusServiceUnavailable,
+		[]byte(`{"error":"control_write:temporary control write fault"}`),
+		nil,
+	)
+	require.NoError(t, err)
 }
 
 func controlWriteForwardingNodeID(t testing.TB, cluster *suite.StartedCluster) uint64 {
@@ -470,31 +510,58 @@ func requireBoundedFaultedOnboardingStart(
 ) {
 	t.Helper()
 
+	if checkErr := boundedFaultedOnboardingStartError(response, status, body, err); checkErr != nil {
+		t.Fatalf("%v\n%s", checkErr, cluster.DumpDiagnostics())
+	}
+}
+
+func boundedFaultedOnboardingStartError(
+	response suite.NodeOnboardingStartDTO,
+	status int,
+	body []byte,
+	err error,
+) error {
+	bodyText := strings.TrimSpace(string(body))
+	responseText := formatOnboardingStart(response)
+
 	if err != nil {
-		text := strings.TrimSpace(string(body))
-		if strings.Contains(text, controlWriteFaultMarker) || strings.Contains(err.Error(), controlWriteFaultMarker) {
-			t.Fatalf("faulted onboarding start surfaced injected marker through transport/decode error instead of HTTP status/body: status=%d body=%s err=%v\n%s",
+		if strings.Contains(bodyText, controlWriteFaultMarker) || strings.Contains(err.Error(), controlWriteFaultMarker) {
+			return fmt.Errorf("faulted onboarding start surfaced injected marker through transport/decode error instead of HTTP status/body: status=%d body=%s err=%v",
 				status,
-				text,
+				bodyText,
 				err,
-				cluster.DumpDiagnostics(),
 			)
 		}
-		require.NoError(t, err, "faulted onboarding start returned transport/decode error without injected marker or HTTP status/body: status=%d body=%s\n%s", status, text, cluster.DumpDiagnostics())
+		return fmt.Errorf("faulted onboarding start returned transport/decode error without injected marker or HTTP status/body: status=%d body=%s err=%v",
+			status,
+			bodyText,
+			err,
+		)
 	}
+
 	if status/100 != 2 {
-		bodyText := strings.TrimSpace(string(body))
-		require.Contains(t, bodyText, controlWriteFaultMarker, "faulted onboarding start failed without injected marker: status=%d body=%s\n%s", status, bodyText, cluster.DumpDiagnostics())
-		return
+		if !strings.Contains(bodyText, controlWriteFaultMarker) {
+			return fmt.Errorf("faulted onboarding start failed without injected marker: status=%d body=%s",
+				status,
+				bodyText,
+			)
+		}
+		return nil
 	}
 	if response.Created == 0 {
-		return
+		if strings.Contains(bodyText, controlWriteFaultMarker) || strings.Contains(responseText, controlWriteFaultMarker) {
+			return nil
+		}
+		return fmt.Errorf("faulted onboarding start returned successful no-op without injected marker: status=%d body=%s response=%s",
+			status,
+			bodyText,
+			responseText,
+		)
 	}
-	t.Fatalf("onboarding start created tasks while control_write RPC fault was enabled: status=%d body=%s response=%s\n%s",
+	return fmt.Errorf("onboarding start created tasks while control_write RPC fault was enabled: status=%d body=%s response=%s",
 		status,
-		strings.TrimSpace(string(body)),
-		formatOnboardingStart(response),
-		cluster.DumpDiagnostics(),
+		bodyText,
+		responseText,
 	)
 }
 

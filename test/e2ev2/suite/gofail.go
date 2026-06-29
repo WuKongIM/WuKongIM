@@ -9,6 +9,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -85,6 +86,35 @@ func (e GofailEndpoint) List(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("gofail list: status=%s body=%q", res.Status, string(body))
 	}
 	return string(body), nil
+}
+
+// Count returns how many times one failpoint has executed in the node process.
+func (e GofailEndpoint) Count(ctx context.Context, name string) (int, error) {
+	name, err := cleanFailpointName(name)
+	if err != nil {
+		return 0, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, e.BaseURL()+"/"+name+"/count", nil)
+	if err != nil {
+		return 0, err
+	}
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return 0, err
+	}
+	defer res.Body.Close()
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return 0, err
+	}
+	if res.StatusCode != http.StatusOK {
+		return 0, fmt.Errorf("gofail count %s: status=%s body=%q", name, res.Status, string(body))
+	}
+	count, err := strconv.Atoi(strings.TrimSpace(string(body)))
+	if err != nil {
+		return 0, fmt.Errorf("gofail count %s parse %q: %w", name, string(body), err)
+	}
+	return count, nil
 }
 
 // WaitListed polls until all requested failpoint names appear in the listing.

@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add opt-in gofail-backed failure injection for internalv2 dynamic node join, onboarding, scale-in, and removal so asynchronous fault windows are reproducible instead of flaky.
+**Goal:** Add opt-in gofail-backed failure injection for internalv2 dynamic node join and onboarding so asynchronous fault windows are reproducible instead of flaky.
 
 **Architecture:** Keep normal builds untouched by adding gofail marker comments only at narrow clusterv2 boundaries, then enabling them in a temporary source copy through the existing gofail build script. Run fault scenarios as opt-in e2ev2 black-box tests using `WK_E2EV2_BINARY` and per-node `GOFAIL_HTTP` loopback endpoints. Stage 7A builds the harness and one deterministic Slot replica move fault; Stage 7B adds targeted clusterv2 RPC faults and process restart coverage.
 
@@ -525,10 +525,14 @@ func TestTransportGofailMarkersStayInSource(t *testing.T) {
 	}
 	text := string(source)
 	required := []string{
-		"// gofail: var wkClusterNetCallFault string",
-		"// if err := gofailClusterNetServiceFault(wkClusterNetCallFault, serviceID); err != nil { return nil, err }",
-		"// gofail: var wkClusterNetNotifyFault string",
-		"// if err := gofailClusterNetServiceFault(wkClusterNetNotifyFault, serviceID); err != nil { return err }",
+		"// gofail: var wkClusterNetCallShardFault string",
+		"// if err := gofailClusterNetServiceFault(wkClusterNetCallShardFault, serviceID); err != nil { return nil, err }",
+		"// gofail: var wkClusterNetCallShardOwnedFault string",
+		"// if err := gofailClusterNetServiceFault(wkClusterNetCallShardOwnedFault, serviceID); err != nil { return nil, err }",
+		"// gofail: var wkClusterNetSendFault string",
+		"// if err := gofailClusterNetServiceFault(wkClusterNetSendFault, serviceID); err != nil { return err }",
+		"// gofail: var wkClusterNetSendOwnedFault string",
+		"// if err := gofailClusterNetServiceFault(wkClusterNetSendOwnedFault, serviceID); err != nil { return err }",
 	}
 	for _, marker := range required {
 		if !strings.Contains(text, marker) {
@@ -611,22 +615,29 @@ func gofailClusterNetServiceFault(raw string, serviceID uint8) error {
 At the start of `CallShard`, before `c.client.Call(...)`:
 
 ```go
-// gofail: var wkClusterNetCallFault string
-// if err := gofailClusterNetServiceFault(wkClusterNetCallFault, serviceID); err != nil { return nil, err }
+// gofail: var wkClusterNetCallShardFault string
+// if err := gofailClusterNetServiceFault(wkClusterNetCallShardFault, serviceID); err != nil { return nil, err }
 ```
 
 At the start of `CallShardOwned`, before `c.client.CallOwned(...)`:
 
 ```go
-// gofail: var wkClusterNetCallFault string
-// if err := gofailClusterNetServiceFault(wkClusterNetCallFault, serviceID); err != nil { return nil, err }
+// gofail: var wkClusterNetCallShardOwnedFault string
+// if err := gofailClusterNetServiceFault(wkClusterNetCallShardOwnedFault, serviceID); err != nil { return nil, err }
 ```
 
-At the start of `Send` and `SendOwned`, before notify calls:
+At the start of `Send`, before notify calls:
 
 ```go
-// gofail: var wkClusterNetNotifyFault string
-// if err := gofailClusterNetServiceFault(wkClusterNetNotifyFault, serviceID); err != nil { return err }
+// gofail: var wkClusterNetSendFault string
+// if err := gofailClusterNetServiceFault(wkClusterNetSendFault, serviceID); err != nil { return err }
+```
+
+At the start of `SendOwned`, before notify calls:
+
+```go
+// gofail: var wkClusterNetSendOwnedFault string
+// if err := gofailClusterNetServiceFault(wkClusterNetSendOwnedFault, serviceID); err != nil { return err }
 ```
 
 - [ ] **Step 5: Verify normal clusterv2 net tests**
@@ -729,10 +740,13 @@ func TestGofailDynamicNodeBinaryExposesFailpoints(t *testing.T) {
 		"wkSlotReplicaMovePromoteLearnerDelay",
 		"wkSlotReplicaMoveTransferLeaderDelay",
 		"wkSlotReplicaMoveRemoveVoterDelay",
-		"wkClusterNetCallFault",
+		"wkClusterNetCallShardFault",
+		"wkClusterNetCallShardOwnedFault",
+		"wkClusterNetSendFault",
+		"wkClusterNetSendOwnedFault",
 	)
 	require.NoError(t, err, cluster.DumpDiagnostics())
-	require.Contains(t, body, "wkClusterNetNotifyFault=")
+	require.Contains(t, body, "wkClusterNetSendOwnedFault=")
 }
 ```
 
@@ -943,7 +957,7 @@ func TestSeedJoinRetriesThroughInjectedNodeLifecycleRPCFault(t *testing.T) {
 
 	failCtx, cancelFail := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancelFail()
-	require.NoError(t, node1Fail.Enable(failCtx, "wkClusterNetCallFault", `return("node_lifecycle:temporary join rpc fault")`), cluster.DumpDiagnostics())
+	require.NoError(t, node1Fail.Enable(failCtx, "wkClusterNetCallShardFault", `return("node_lifecycle:temporary join rpc fault")`), cluster.DumpDiagnostics())
 
 	manager := cluster.ManagerClient(t, 1)
 	node4 := cluster.StartSeedJoinNodeNoWait(t, suite.SeedJoinNodeConfig{
@@ -955,7 +969,7 @@ func TestSeedJoinRetriesThroughInjectedNodeLifecycleRPCFault(t *testing.T) {
 	time.Sleep(700 * time.Millisecond)
 	disableCtx, cancelDisable := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancelDisable()
-	require.NoError(t, node1Fail.Disable(disableCtx, "wkClusterNetCallFault"), cluster.DumpDiagnostics())
+	require.NoError(t, node1Fail.Disable(disableCtx, "wkClusterNetCallShardFault"), cluster.DumpDiagnostics())
 
 	httpCtx, cancelHTTP := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancelHTTP()
@@ -998,7 +1012,7 @@ func TestOnboardingControlWriteRetriesThroughInjectedRPCFault(t *testing.T) {
 	failCtx, cancelFail := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancelFail()
 	for _, endpoint := range []suite.GofailEndpoint{node1Fail, node2Fail, node3Fail} {
-		require.NoError(t, endpoint.Enable(failCtx, "wkClusterNetCallFault", `return("control_write:temporary control write fault")`), cluster.DumpDiagnostics())
+		require.NoError(t, endpoint.Enable(failCtx, "wkClusterNetCallShardOwnedFault", `return("control_write:temporary control write fault")`), cluster.DumpDiagnostics())
 	}
 
 	start := manager.MustStartOnboarding(t, 4, 1)
@@ -1007,7 +1021,7 @@ func TestOnboardingControlWriteRetriesThroughInjectedRPCFault(t *testing.T) {
 	disableCtx, cancelDisable := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancelDisable()
 	for _, endpoint := range []suite.GofailEndpoint{node1Fail, node2Fail, node3Fail} {
-		require.NoError(t, endpoint.Disable(disableCtx, "wkClusterNetCallFault"), cluster.DumpDiagnostics())
+		require.NoError(t, endpoint.Disable(disableCtx, "wkClusterNetCallShardOwnedFault"), cluster.DumpDiagnostics())
 	}
 
 	start = manager.MustStartOnboarding(t, 4, 1)

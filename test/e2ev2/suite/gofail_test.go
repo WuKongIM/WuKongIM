@@ -119,3 +119,18 @@ func TestGofailEndpointEnableDisableUseHTTPMethods(t *testing.T) {
 		{Method: http.MethodDelete, Path: "/failpoint"},
 	}, requests)
 }
+
+func TestGofailEndpointCountReadsExecutionCount(t *testing.T) {
+	requests := make(chan gofailRequest, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests <- gofailRequest{Method: r.Method, Path: r.URL.Path}
+		_, _ = w.Write([]byte("7"))
+	}))
+	defer server.Close()
+
+	endpoint := GofailEndpoint{Addr: strings.TrimPrefix(server.URL, "http://")}
+	count, err := endpoint.Count(context.Background(), "failpoint")
+	require.NoError(t, err)
+	require.Equal(t, 7, count)
+	require.Equal(t, gofailRequest{Method: http.MethodGet, Path: "/failpoint/count"}, <-requests)
+}

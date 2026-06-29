@@ -93,6 +93,7 @@ func TestSlotReplicaMoveSurvivesDelayedLeaderTransfer(t *testing.T) {
 	require.Equal(t, uint32(1), start.Created, cluster.DumpDiagnostics())
 
 	manager.EventuallyOnboardingSafe(t, 4, 90*time.Second)
+	requireAnyGofailCountAtLeast(t, cluster, []suite.GofailEndpoint{node1Fail, node2Fail, node3Fail}, "wkSlotReplicaMoveTransferLeaderDelay", 1)
 	statusCtx, cancelStatus := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancelStatus()
 	status, err := manager.NodeOnboardingStatus(statusCtx, 4)
