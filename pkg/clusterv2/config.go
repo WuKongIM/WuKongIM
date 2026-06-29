@@ -37,6 +37,8 @@ type Config struct {
 	Channel ChannelConfig
 	// ChannelRetention contains node-owned ChannelV2 physical retention cleanup settings.
 	ChannelRetention ChannelRetentionConfig
+	// HealthReport controls low-frequency node health reporting to ControllerV2.
+	HealthReport HealthReportConfig
 	// Storage contains node-local storage tuning.
 	Storage StorageConfig
 	// Transport contains default clusterv2 node-to-node transport tuning and observation hooks.
@@ -176,6 +178,14 @@ type ChannelRetentionConfig struct {
 	MaxTrimBytes int
 }
 
+// HealthReportConfig controls low-frequency node health reporting to ControllerV2.
+type HealthReportConfig struct {
+	// Interval controls how often a node reports compact health evidence.
+	Interval time.Duration
+	// TTL bounds how long the control plane may trust the latest report.
+	TTL time.Duration
+}
+
 // StorageConfig contains node-local store tuning for clusterv2-owned runtimes.
 type StorageConfig struct {
 	// CommitFlushWindow is the maximum delay for grouping adjacent channel append commits.
@@ -225,6 +235,7 @@ func (c *Config) applyDefaults() {
 		c.Channel.ReplicaCount = c.Slots.ReplicaCount
 	}
 	c.applyChannelRetentionDefaults()
+	c.applyHealthReportDefaults()
 }
 
 func defaultChannelReactorCount() int {
@@ -296,6 +307,15 @@ func (c *Config) applyChannelRetentionDefaults() {
 	}
 }
 
+func (c *Config) applyHealthReportDefaults() {
+	if c.HealthReport.Interval == 0 {
+		c.HealthReport.Interval = 5 * time.Second
+	}
+	if c.HealthReport.TTL == 0 {
+		c.HealthReport.TTL = 30 * time.Second
+	}
+}
+
 func (c Config) validate() error {
 	if c.NodeID == 0 || c.ListenAddr == "" || c.DataDir == "" {
 		return ErrInvalidConfig
@@ -355,6 +375,9 @@ func (c Config) validate() error {
 		return ErrInvalidConfig
 	}
 	if c.ChannelRetention.MaxTrimBytes < 0 {
+		return ErrInvalidConfig
+	}
+	if c.HealthReport.Interval <= 0 || c.HealthReport.TTL <= 0 || c.HealthReport.TTL < c.HealthReport.Interval {
 		return ErrInvalidConfig
 	}
 	if err := c.validateControl(); err != nil {

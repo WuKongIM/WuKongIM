@@ -44,6 +44,23 @@ func TestConfigDefaultsSingleNodeControl(t *testing.T) {
 	}
 }
 
+func TestConfigAppliesHealthReportDefaults(t *testing.T) {
+	cfg := Config{NodeID: 1, ListenAddr: "127.0.0.1:7001", DataDir: t.TempDir()}
+	cfg.applyDefaults()
+	if cfg.HealthReport.Interval != 5*time.Second || cfg.HealthReport.TTL != 30*time.Second {
+		t.Fatalf("HealthReport defaults = %s/%s, want 5s/30s", cfg.HealthReport.Interval, cfg.HealthReport.TTL)
+	}
+}
+
+func TestConfigRejectsInvalidHealthReportTTL(t *testing.T) {
+	cfg := validConfig(t)
+	cfg.HealthReport.Interval = 5 * time.Second
+	cfg.HealthReport.TTL = time.Second
+	if err := cfg.validate(); err == nil {
+		t.Fatal("validate() error = nil, want TTL below interval rejected")
+	}
+}
+
 func TestConfigJoinTokenOnlyDoesNotEnableSeedJoinMode(t *testing.T) {
 	cfg := Config{
 		NodeID:     1,
@@ -110,6 +127,13 @@ func TestConfigRejectsSeedJoinMissingAdvertiseAddr(t *testing.T) {
 	if err := cfg.validate(); !errors.Is(err, ErrInvalidConfig) {
 		t.Fatalf("validate() error = %v, want ErrInvalidConfig", err)
 	}
+}
+
+func validConfig(t *testing.T) Config {
+	t.Helper()
+	cfg := Config{NodeID: 1, ListenAddr: "127.0.0.1:7001", DataDir: t.TempDir()}
+	cfg.applyDefaults()
+	return cfg
 }
 
 func TestConfigRejectsSeedJoinWhitespaceValues(t *testing.T) {

@@ -60,6 +60,7 @@ func (n *Node) Start(ctx context.Context) error {
 	n.markChannelsReady(n.channels != nil)
 	n.startChannelTickLoop()
 	n.started.Store(true)
+	n.startHealthReportLoop()
 	n.startChannelRetentionGCLoop()
 	started = true
 	return nil
@@ -87,6 +88,7 @@ func (n *Node) Stop(ctx context.Context) error {
 		return err
 	}
 	n.stopping.Store(true)
+	n.stopHealthReportLoop()
 	n.stopWatchLoop()
 	n.stopTaskReconcileLoop()
 	n.closeRouteAuthorityWatchers()

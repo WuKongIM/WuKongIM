@@ -161,6 +161,39 @@ func TestLoadConfigDefaultPathSearch(t *testing.T) {
 	}
 }
 
+func TestConfigParsesClusterNodeHealthReportTuning(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "wukongim.conf")
+	writeConf(t, path,
+		"WK_NODE_ID=1",
+		"WK_NODE_DATA_DIR="+filepath.Join(dir, "data"),
+		"WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7001",
+		"WK_CLUSTER_ID=health-config",
+		`WK_CLUSTER_NODES=[{"id":1,"addr":"127.0.0.1:7001"}]`,
+		"WK_CLUSTER_NODE_HEALTH_REPORT_INTERVAL=3s",
+		"WK_CLUSTER_NODE_HEALTH_REPORT_TTL=15s",
+	)
+	cfg, err := loadConfig([]string{"-config", path})
+	if err != nil {
+		t.Fatalf("loadConfig() error = %v", err)
+	}
+	if cfg.Cluster.HealthReport.Interval != 3*time.Second || cfg.Cluster.HealthReport.TTL != 15*time.Second {
+		t.Fatalf("HealthReport = %s/%s, want 3s/15s", cfg.Cluster.HealthReport.Interval, cfg.Cluster.HealthReport.TTL)
+	}
+}
+
+func TestConfigRejectsClusterNodeHealthReportTTLBelowInterval(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "wukongim.conf")
+	writeConf(t, path, append(requiredConfigLines(dir),
+		"WK_CLUSTER_NODE_HEALTH_REPORT_INTERVAL=5s",
+		"WK_CLUSTER_NODE_HEALTH_REPORT_TTL=1s",
+	)...)
+	if _, err := loadConfig([]string{"-config", path}); err == nil || !strings.Contains(err.Error(), "WK_CLUSTER_NODE_HEALTH_REPORT_TTL") {
+		t.Fatalf("loadConfig() error = %v, want WK_CLUSTER_NODE_HEALTH_REPORT_TTL", err)
+	}
+}
+
 func TestLoadConfigExplicitConfigFile(t *testing.T) {
 	unsetLoadConfigEnv(t)
 	dir := t.TempDir()
@@ -1424,6 +1457,12 @@ func TestLoadConfigRejectsInvalidValues(t *testing.T) {
 		{name: "append batch cold max wait", line: "WK_CLUSTER_CHANNEL_APPEND_BATCH_COLD_MAX_WAIT=soon", wantKey: "WK_CLUSTER_CHANNEL_APPEND_BATCH_COLD_MAX_WAIT"},
 		{name: "follower recovery probe interval", line: "WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_INTERVAL=soon", wantKey: "WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_INTERVAL"},
 		{name: "follower recovery probe jitter", line: "WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_JITTER=soon", wantKey: "WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_JITTER"},
+		{name: "health report interval", line: "WK_CLUSTER_NODE_HEALTH_REPORT_INTERVAL=soon", wantKey: "WK_CLUSTER_NODE_HEALTH_REPORT_INTERVAL"},
+		{name: "health report interval zero", line: "WK_CLUSTER_NODE_HEALTH_REPORT_INTERVAL=0s", wantKey: "WK_CLUSTER_NODE_HEALTH_REPORT_INTERVAL"},
+		{name: "health report interval negative", line: "WK_CLUSTER_NODE_HEALTH_REPORT_INTERVAL=-1s", wantKey: "WK_CLUSTER_NODE_HEALTH_REPORT_INTERVAL"},
+		{name: "health report ttl", line: "WK_CLUSTER_NODE_HEALTH_REPORT_TTL=soon", wantKey: "WK_CLUSTER_NODE_HEALTH_REPORT_TTL"},
+		{name: "health report ttl zero", line: "WK_CLUSTER_NODE_HEALTH_REPORT_TTL=0s", wantKey: "WK_CLUSTER_NODE_HEALTH_REPORT_TTL"},
+		{name: "health report ttl negative", line: "WK_CLUSTER_NODE_HEALTH_REPORT_TTL=-1s", wantKey: "WK_CLUSTER_NODE_HEALTH_REPORT_TTL"},
 		{name: "commit coordinator sync", line: "WK_CLUSTER_COMMIT_COORDINATOR_SYNC=maybe", wantKey: "WK_CLUSTER_COMMIT_COORDINATOR_SYNC"},
 		{name: "commit coordinator flush window", line: "WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW=soon", wantKey: "WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW"},
 		{name: "commit coordinator flush window zero", line: "WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW=0s", wantKey: "WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW"},

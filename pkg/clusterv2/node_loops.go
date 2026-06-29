@@ -3,6 +3,8 @@ package clusterv2
 import (
 	"context"
 	"time"
+
+	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/observe"
 )
 
 const (
@@ -41,6 +43,92 @@ func (n *Node) stopWatchLoop() {
 	n.watchCancel()
 	n.watchWG.Wait()
 	n.watchCancel = nil
+}
+
+func (n *Node) startHealthReportLoop() {
+	if n == nil || n.control == nil || n.healthReportCancel != nil {
+		return
+	}
+	reporter := observe.NewReporter(observe.ReporterConfig{
+		NodeID:                  n.cfg.NodeID,
+		Addr:                    n.cfg.ListenAddr,
+		Controller:              n.control,
+		RuntimeReady:            n.runtimeReadyForHealthReport,
+		ObservedControlRevision: n.observedControlRevision,
+		ObservedSlotRevision:    n.observedSlotRevision,
+		SlotStatus:              n.localSlotStatuses,
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	n.healthReportCancel = cancel
+	n.healthReportWG.Add(1)
+	go func() {
+		defer n.healthReportWG.Done()
+		_ = reporter.ReportNode(ctx)
+		loop := observe.NewLoop(n.cfg.HealthReport.Interval, func(ctx context.Context) error {
+			return reporter.ReportNode(ctx)
+		})
+		loop.Start(ctx)
+		<-ctx.Done()
+		loop.Stop()
+	}()
+}
+
+func (n *Node) stopHealthReportLoop() {
+	if n == nil || n.healthReportCancel == nil {
+		return
+	}
+	n.healthReportCancel()
+	n.healthReportWG.Wait()
+	n.healthReportCancel = nil
+}
+
+func (n *Node) runtimeReadyForHealthReport() bool {
+	if n == nil || !n.started.Load() {
+		return false
+	}
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+	return n.snapshot.RoutesReady && n.snapshot.SlotsReady && n.snapshot.ChannelsReady
+}
+
+func (n *Node) observedControlRevision() uint64 {
+	if n == nil {
+		return 0
+	}
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+	return n.controlSnapshot.Revision
+}
+
+func (n *Node) observedSlotRevision() uint64 {
+	if n == nil || n.defaultSlotRuntime == nil {
+		return 0
+	}
+	var revision uint64
+	for _, slotID := range n.defaultSlotRuntime.Slots() {
+		status, err := n.defaultSlotRuntime.Status(slotID)
+		if err != nil {
+			continue
+		}
+		revision = max(revision, status.ConfigAppliedIndex, status.AppliedIndex, status.CommitIndex)
+	}
+	return revision
+}
+
+func (n *Node) localSlotStatuses() []observe.SlotStatus {
+	if n == nil || n.defaultSlotRuntime == nil {
+		return nil
+	}
+	slotIDs := n.defaultSlotRuntime.Slots()
+	statuses := make([]observe.SlotStatus, 0, len(slotIDs))
+	for _, slotID := range slotIDs {
+		status, err := n.defaultSlotRuntime.Status(slotID)
+		if err != nil {
+			continue
+		}
+		statuses = append(statuses, observe.SlotStatus{SlotID: uint32(slotID), Leader: uint64(status.LeaderID)})
+	}
+	return statuses
 }
 
 func (n *Node) startTaskReconcileLoop() {

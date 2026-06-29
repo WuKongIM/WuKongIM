@@ -105,10 +105,14 @@ type Node struct {
 	channelRetentionWG     sync.WaitGroup
 	channelRetentionGCMu   sync.Mutex
 	channelRetentionCursor channelv2.ChannelKey
-	slotLeaderCancel       context.CancelFunc
-	slotLeaderWG           sync.WaitGroup
-	started                atomic.Bool
-	stopping               atomic.Bool
+	// healthReportCancel stops the low-frequency ControllerV2 health reporter.
+	healthReportCancel context.CancelFunc
+	// healthReportWG waits for the low-frequency health reporter to exit.
+	healthReportWG   sync.WaitGroup
+	slotLeaderCancel context.CancelFunc
+	slotLeaderWG     sync.WaitGroup
+	started          atomic.Bool
+	stopping         atomic.Bool
 }
 
 // New validates cfg and creates a clusterv2 node.

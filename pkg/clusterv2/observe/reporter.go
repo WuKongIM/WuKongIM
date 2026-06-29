@@ -2,6 +2,7 @@ package observe
 
 import (
 	"context"
+	"sync/atomic"
 
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
 )
@@ -30,13 +31,20 @@ type ReporterConfig struct {
 	Addr string
 	// Controller receives reports.
 	Controller Controller
+	// RuntimeReady reports whether foreground cluster traffic can be served.
+	RuntimeReady func() bool
+	// ObservedControlRevision returns the latest observed control-plane revision.
+	ObservedControlRevision func() uint64
+	// ObservedSlotRevision returns the latest observed local Slot runtime revision.
+	ObservedSlotRevision func() uint64
 	// SlotStatus returns current local Slot statuses.
 	SlotStatus func() []SlotStatus
 }
 
 // Reporter sends low-frequency runtime reports to the control adapter.
 type Reporter struct {
-	cfg ReporterConfig
+	cfg       ReporterConfig
+	reportSeq atomic.Uint64
 }
 
 // NewReporter creates a Reporter.
@@ -47,7 +55,17 @@ func (r *Reporter) ReportNode(ctx context.Context) error {
 	if r == nil || r.cfg.Controller == nil {
 		return nil
 	}
-	return r.cfg.Controller.ReportNode(ctx, control.NodeReport{NodeID: r.cfg.NodeID, Addr: r.cfg.Addr, Status: control.NodeAlive})
+	seq := r.reportSeq.Add(1)
+	report := control.NodeReport{
+		NodeID:                  r.cfg.NodeID,
+		Addr:                    r.cfg.Addr,
+		Status:                  control.NodeAlive,
+		RuntimeReady:            callBool(r.cfg.RuntimeReady),
+		ObservedControlRevision: callUint64(r.cfg.ObservedControlRevision),
+		ObservedSlotRevision:    callUint64(r.cfg.ObservedSlotRevision),
+		ReportSeq:               seq,
+	}
+	return r.cfg.Controller.ReportNode(ctx, report)
 }
 
 // ReportSlots reports local Slot runtime state.
@@ -64,4 +82,18 @@ func (r *Reporter) ReportSlots(ctx context.Context) error {
 		views = append(views, control.SlotRuntimeView{SlotID: status.SlotID, Leader: status.Leader})
 	}
 	return r.cfg.Controller.ReportSlots(ctx, control.SlotRuntimeReport{NodeID: r.cfg.NodeID, Slots: views})
+}
+
+func callBool(fn func() bool) bool {
+	if fn == nil {
+		return false
+	}
+	return fn()
+}
+
+func callUint64(fn func() uint64) uint64 {
+	if fn == nil {
+		return 0
+	}
+	return fn()
 }

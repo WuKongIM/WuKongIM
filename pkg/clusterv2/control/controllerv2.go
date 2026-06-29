@@ -21,24 +21,32 @@ type ControllerV2StateSource interface {
 type ControllerV2Config struct {
 	// Source returns ControllerV2 state snapshots.
 	Source ControllerV2StateSource
+	// HealthReportTTL bounds how long adapted node health reports remain fresh.
+	HealthReportTTL time.Duration
 }
 
 // ControllerV2Adapter adapts ControllerV2 state snapshots to clusterv2 control snapshots.
 type ControllerV2Adapter struct {
-	mu       sync.RWMutex
-	source   ControllerV2StateSource
-	snapshot Snapshot
-	watch    chan SnapshotEvent
-	started  bool
+	mu        sync.RWMutex
+	source    ControllerV2StateSource
+	healthTTL time.Duration
+	snapshot  Snapshot
+	watch     chan SnapshotEvent
+	started   bool
 }
 
 // NewControllerV2Adapter creates a ControllerV2Adapter.
 func NewControllerV2Adapter(cfg ControllerV2Config) *ControllerV2Adapter {
-	return &ControllerV2Adapter{source: cfg.Source, watch: make(chan SnapshotEvent, 16)}
+	return &ControllerV2Adapter{source: cfg.Source, healthTTL: normalizeNodeHealthReportTTL(cfg.HealthReportTTL), watch: make(chan SnapshotEvent, 16)}
 }
 
 // SnapshotFromControllerV2 maps ControllerV2 durable state into the clusterv2 control model.
 func SnapshotFromControllerV2(st cv2.ClusterState) (Snapshot, error) {
+	return SnapshotFromControllerV2WithHealthTTL(st, defaultNodeHealthReportTTL)
+}
+
+// SnapshotFromControllerV2WithHealthTTL maps ControllerV2 state using an explicit node health TTL.
+func SnapshotFromControllerV2WithHealthTTL(st cv2.ClusterState, healthTTL time.Duration) (Snapshot, error) {
 	if err := st.Validate(); err != nil {
 		return Snapshot{}, err
 	}
@@ -48,11 +56,18 @@ func SnapshotFromControllerV2(st cv2.ClusterState) (Snapshot, error) {
 	if len(st.Controllers) > 0 {
 		leaderID = st.Controllers[0].NodeID
 	}
-	snap := snapshotFromControllerState(st, leaderID, time.Now().UTC(), defaultNodeHealthReportTTL)
+	snap := snapshotFromControllerState(st, leaderID, time.Now().UTC(), normalizeNodeHealthReportTTL(healthTTL))
 	if err := snap.Validate(); err != nil {
 		return Snapshot{}, err
 	}
 	return snap, nil
+}
+
+func normalizeNodeHealthReportTTL(ttl time.Duration) time.Duration {
+	if ttl <= 0 {
+		return defaultNodeHealthReportTTL
+	}
+	return ttl
 }
 
 func snapshotFromControllerState(st cv2.ClusterState, leaderID uint64, now time.Time, healthTTL time.Duration) Snapshot {
@@ -112,7 +127,7 @@ func (a *ControllerV2Adapter) Start(ctx context.Context) error {
 	if a == nil || a.source == nil {
 		return fmt.Errorf("control: controllerv2 source is required")
 	}
-	snap, err := SnapshotFromControllerV2(a.source.Snapshot(ctx))
+	snap, err := SnapshotFromControllerV2WithHealthTTL(a.source.Snapshot(ctx), a.healthTTL)
 	if err != nil {
 		return err
 	}
@@ -139,7 +154,7 @@ func (a *ControllerV2Adapter) Refresh(ctx context.Context) error {
 	if err := ctxErr(ctx); err != nil {
 		return err
 	}
-	snap, err := SnapshotFromControllerV2(a.source.Snapshot(ctx))
+	snap, err := SnapshotFromControllerV2WithHealthTTL(a.source.Snapshot(ctx), a.healthTTL)
 	if err != nil {
 		return err
 	}

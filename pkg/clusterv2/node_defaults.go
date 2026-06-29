@@ -38,6 +38,7 @@ func (n *Node) ensureDefaultRuntime() (bool, error) {
 			SyncPeers:              control.NewStaticPeerPicker(n.transportClient, controlPeers),
 			TaskClient:             control.NewTaskClient(n.transportClient),
 			ControlWriteClient:     control.NewControlWriteClient(n.transportClient),
+			HealthReportTTL:        n.cfg.HealthReport.TTL,
 		})
 		if err != nil {
 			return false, err

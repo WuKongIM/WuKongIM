@@ -30,7 +30,15 @@ func TestLoopRunsUntilStopped(t *testing.T) {
 
 func TestReporterCallsController(t *testing.T) {
 	controller := &fakeController{}
-	reporter := NewReporter(ReporterConfig{NodeID: 2, Addr: "127.0.0.1:1002", Controller: controller, SlotStatus: func() []SlotStatus { return []SlotStatus{{SlotID: 1, Leader: 2}} }})
+	reporter := NewReporter(ReporterConfig{
+		NodeID:                  2,
+		Addr:                    "127.0.0.1:1002",
+		Controller:              controller,
+		RuntimeReady:            func() bool { return true },
+		ObservedControlRevision: func() uint64 { return 9 },
+		ObservedSlotRevision:    func() uint64 { return 12 },
+		SlotStatus:              func() []SlotStatus { return []SlotStatus{{SlotID: 1, Leader: 2}} },
+	})
 	if err := reporter.ReportNode(context.Background()); err != nil {
 		t.Fatalf("ReportNode() error = %v", err)
 	}
@@ -39,6 +47,12 @@ func TestReporterCallsController(t *testing.T) {
 	}
 	if controller.node.NodeID != 2 || controller.node.Addr == "" {
 		t.Fatalf("node report = %#v, want node 2", controller.node)
+	}
+	if controller.node.RuntimeReady != true ||
+		controller.node.ObservedControlRevision != 9 ||
+		controller.node.ObservedSlotRevision != 12 ||
+		controller.node.ReportSeq != 1 {
+		t.Fatalf("ReportNode() = %#v, want bounded health fields", controller.node)
 	}
 	if controller.slots.NodeID != 2 || len(controller.slots.Slots) != 1 {
 		t.Fatalf("slot report = %#v, want one slot for node 2", controller.slots)

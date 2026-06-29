@@ -58,6 +58,8 @@ var supportedConfigKeys = []string{
 	"WK_CLUSTER_CHANNEL_APPEND_BATCH_COLD_MAX_WAIT",
 	"WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_INTERVAL",
 	"WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_JITTER",
+	"WK_CLUSTER_NODE_HEALTH_REPORT_INTERVAL",
+	"WK_CLUSTER_NODE_HEALTH_REPORT_TTL",
 	"WK_CHANNEL_MESSAGE_RETENTION_PHYSICAL_GC_ENABLE",
 	"WK_CHANNEL_MESSAGE_RETENTION_SCAN_INTERVAL",
 	"WK_CHANNEL_MESSAGE_RETENTION_CHANNEL_BATCH_SIZE",
@@ -577,6 +579,29 @@ func buildConfig(values map[string]string) (app.Config, error) {
 			return app.Config{}, fmt.Errorf("parse WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_JITTER: value must be >= 0")
 		}
 		cfg.Cluster.Channel.FollowerRecoveryProbeJitter = jitter
+	}
+	if raw := configValue(values, "WK_CLUSTER_NODE_HEALTH_REPORT_INTERVAL"); raw != "" {
+		interval, err := parseDuration("WK_CLUSTER_NODE_HEALTH_REPORT_INTERVAL", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if interval <= 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CLUSTER_NODE_HEALTH_REPORT_INTERVAL: value must be > 0")
+		}
+		cfg.Cluster.HealthReport.Interval = interval
+	}
+	if raw := configValue(values, "WK_CLUSTER_NODE_HEALTH_REPORT_TTL"); raw != "" {
+		ttl, err := parseDuration("WK_CLUSTER_NODE_HEALTH_REPORT_TTL", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if ttl <= 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CLUSTER_NODE_HEALTH_REPORT_TTL: value must be > 0")
+		}
+		cfg.Cluster.HealthReport.TTL = ttl
+	}
+	if err := validateClusterHealthReportConfig(cfg.Cluster.HealthReport); err != nil {
+		return app.Config{}, err
 	}
 	if raw := configValue(values, "WK_CHANNEL_MESSAGE_RETENTION_PHYSICAL_GC_ENABLE"); raw != "" {
 		enabled, err := parseBool("WK_CHANNEL_MESSAGE_RETENTION_PHYSICAL_GC_ENABLE", raw)
@@ -1668,6 +1693,21 @@ func parseDuration(key, raw string) (time.Duration, error) {
 		return 0, fmt.Errorf("parse %s: %w", key, err)
 	}
 	return value, nil
+}
+
+func validateClusterHealthReportConfig(cfg clusterv2.HealthReportConfig) error {
+	interval := cfg.Interval
+	if interval == 0 {
+		interval = 5 * time.Second
+	}
+	ttl := cfg.TTL
+	if ttl == 0 {
+		ttl = 30 * time.Second
+	}
+	if ttl < interval {
+		return fmt.Errorf("parse WK_CLUSTER_NODE_HEALTH_REPORT_TTL: value must be >= WK_CLUSTER_NODE_HEALTH_REPORT_INTERVAL")
+	}
+	return nil
 }
 
 func configValue(values map[string]string, key string) string {

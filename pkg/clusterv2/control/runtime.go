@@ -67,6 +67,8 @@ type RuntimeConfig struct {
 	TaskClient *TaskClient
 	// ControlWriteClient forwards generic control writes to the current Controller leader.
 	ControlWriteClient *ControlWriteClient
+	// HealthReportTTL bounds how long adapted node health reports remain fresh.
+	HealthReportTTL time.Duration
 	// Now returns timestamps used for ControllerV2 commands.
 	Now func() time.Time
 }
@@ -175,7 +177,7 @@ func (r *Runtime) LocalSnapshot(ctx context.Context) (Snapshot, error) {
 			return Snapshot{}, err
 		}
 		if err == nil && !emptyControllerV2State(st) {
-			snap, err := SnapshotFromControllerV2(st)
+			snap, err := SnapshotFromControllerV2WithHealthTTL(st, r.cfg.HealthReportTTL)
 			if err != nil {
 				return Snapshot{}, err
 			}
@@ -662,7 +664,7 @@ func (r *Runtime) startWatchLoop() {
 }
 
 func (r *Runtime) publishState(st cv2.ClusterState) error {
-	snap, err := SnapshotFromControllerV2(st)
+	snap, err := SnapshotFromControllerV2WithHealthTTL(st, r.cfg.HealthReportTTL)
 	if err != nil {
 		return err
 	}

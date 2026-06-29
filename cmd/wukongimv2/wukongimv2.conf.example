@@ -31,6 +31,10 @@ WK_CLUSTER_HASH_SLOT_COUNT=16
 # Desired Slot replica count for this single-node cluster.
 WK_CLUSTER_SLOT_REPLICA_N=1
 
+# Low-frequency durable node health report cadence. TTL must be >= interval.
+WK_CLUSTER_NODE_HEALTH_REPORT_INTERVAL=5s
+WK_CLUSTER_NODE_HEALTH_REPORT_TTL=30s
+
 # ChannelV2 reactor partitions. 0 derives max(4, GOMAXPROCS).
 WK_CLUSTER_CHANNEL_REACTOR_COUNT=0
 
