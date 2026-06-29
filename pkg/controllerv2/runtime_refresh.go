@@ -84,11 +84,16 @@ func (r *Runtime) syncTick(ctx context.Context) error {
 func (r *Runtime) publishIfChanged(ctx context.Context, revision uint64) error {
 	r.mu.RLock()
 	currentRevision := r.state.Revision
+	currentChecksum := r.state.Checksum
 	r.mu.RUnlock()
-	if currentRevision == revision {
+	if currentRevision != revision {
+		return r.publishFromState(ctx)
+	}
+	st := r.sm.Snapshot(ctx)
+	if currentChecksum == st.Checksum {
 		return nil
 	}
-	return r.publishFromState(ctx)
+	return r.publishState(st)
 }
 
 func (r *Runtime) publishFromState(ctx context.Context) error {

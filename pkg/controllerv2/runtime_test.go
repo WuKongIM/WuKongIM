@@ -4,10 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/controllerv2/command"
+	"github.com/WuKongIM/WuKongIM/pkg/controllerv2/fsm"
+	"github.com/WuKongIM/WuKongIM/pkg/controllerv2/server"
+	cv2state "github.com/WuKongIM/WuKongIM/pkg/controllerv2/state"
 	"github.com/WuKongIM/WuKongIM/pkg/controllerv2/statefile"
 	cv2sync "github.com/WuKongIM/WuKongIM/pkg/controllerv2/sync"
 )
@@ -265,6 +269,63 @@ func TestRuntimeProbeProposeDoesNotMutateRevision(t *testing.T) {
 	}
 	if before.Revision != after.Revision || len(before.Slots) != len(after.Slots) {
 		t.Fatalf("ProbePropose mutated state: before=%#v after=%#v", before, after)
+	}
+}
+
+func TestRuntimePublishIfChangedRefreshesSameRevisionChecksumDrift(t *testing.T) {
+	ctx := context.Background()
+	visible := runtimeBootstrapVisibleState(t, 7, true)
+	durable := runtimeBootstrapVisibleState(t, 7, false)
+	sm := restoredRuntimeStateMachine(t, durable)
+	runtime := &Runtime{
+		state: visible.Clone(),
+		sm:    sm,
+		watch: make(chan StateEvent, 1),
+	}
+
+	if err := runtime.publishIfChanged(ctx, durable.Revision); err != nil {
+		t.Fatalf("publishIfChanged() error = %v", err)
+	}
+
+	got, err := runtime.LocalState(ctx)
+	if err != nil {
+		t.Fatalf("LocalState() error = %v", err)
+	}
+	if got.Revision != durable.Revision || len(got.Tasks) != 0 || got.Checksum != durable.Checksum {
+		t.Fatalf("LocalState() = %#v, want same revision refreshed to durable task-free state %#v", got, durable)
+	}
+}
+
+func TestRuntimeControlTickRefreshesSameRevisionChecksumDriftAfterBootstrapComplete(t *testing.T) {
+	ctx := context.Background()
+	visible := runtimeBootstrapVisibleState(t, 7, true)
+	durable := runtimeBootstrapVisibleState(t, 7, false)
+	sm := restoredRuntimeStateMachine(t, durable)
+	srv, err := server.New(server.Config{StateSource: sm})
+	if err != nil {
+		t.Fatalf("server.New() error = %v", err)
+	}
+	runtime := &Runtime{
+		cfg: RuntimeConfig{
+			NodeID:           1,
+			InitialSlotCount: 1,
+		},
+		state:  visible.Clone(),
+		sm:     sm,
+		server: srv,
+		watch:  make(chan StateEvent, 1),
+	}
+
+	if err := runtime.controlTick(ctx); err != nil {
+		t.Fatalf("controlTick() error = %v", err)
+	}
+
+	got, err := runtime.LocalState(ctx)
+	if err != nil {
+		t.Fatalf("LocalState() error = %v", err)
+	}
+	if got.Revision != durable.Revision || len(got.Tasks) != 0 {
+		t.Fatalf("LocalState() = %#v, want bootstrap-complete durable state %#v", got, durable)
 	}
 }
 
@@ -1042,6 +1103,82 @@ func containsUint64(values []uint64, want uint64) bool {
 		}
 	}
 	return false
+}
+
+func restoredRuntimeStateMachine(t *testing.T, st ClusterState) *fsm.StateMachine {
+	t.Helper()
+	sm, err := fsm.New(statefile.New(filepath.Join(t.TempDir(), "cluster-state.json")))
+	if err != nil {
+		t.Fatalf("fsm.New() error = %v", err)
+	}
+	if err := sm.Restore(context.Background(), st); err != nil {
+		t.Fatalf("Restore() error = %v", err)
+	}
+	return sm
+}
+
+func runtimeBootstrapVisibleState(t *testing.T, revision uint64, withTask bool) ClusterState {
+	t.Helper()
+	st := ClusterState{
+		SchemaVersion: CurrentSchemaVersion,
+		ClusterID:     "cluster-runtime-visible",
+		Revision:      revision,
+		Config: ClusterConfig{
+			SlotCount:             2,
+			HashSlotCount:         4,
+			ReplicaCount:          1,
+			DefaultCapacityWeight: 1,
+		},
+		Controllers: []ControllerVoter{{NodeID: 1, Addr: "n1", Role: ControllerRoleVoter}},
+		Nodes: []Node{{
+			NodeID:         1,
+			Addr:           "n1",
+			Roles:          []NodeRole{NodeRoleControllerVoter, NodeRoleData},
+			JoinState:      NodeJoinStateActive,
+			Status:         NodeStatusAlive,
+			CapacityWeight: 1,
+		}},
+		Slots: []SlotAssignment{{
+			SlotID:          1,
+			DesiredPeers:    []uint64{1},
+			ConfigEpoch:     1,
+			PreferredLeader: 1,
+		}},
+		HashSlots: HashSlotTable{
+			Version:   CurrentHashSlotTableVersion,
+			SlotCount: 4,
+			Ranges: []HashSlotRange{
+				{From: 0, To: 1, SlotID: 1},
+				{From: 2, To: 3, SlotID: 2},
+			},
+		},
+	}
+	if withTask {
+		st.Tasks = []ReconcileTask{{
+			TaskID:           "slot-1-bootstrap-1",
+			SlotID:           1,
+			Kind:             TaskKindBootstrap,
+			Step:             TaskStepCreateSlot,
+			TargetNode:       1,
+			TargetPeers:      []uint64{1},
+			CompletionPolicy: TaskCompletionPolicyAllTargetPeers,
+			ParticipantProgress: []TaskParticipantProgress{{
+				NodeID: 1,
+				Status: TaskParticipantStatusDone,
+			}},
+			ConfigEpoch: 1,
+			Status:      TaskStatusPending,
+		}}
+	}
+	if err := st.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v", err)
+	}
+	checksum, err := cv2state.Checksum(st)
+	if err != nil {
+		t.Fatalf("Checksum() error = %v", err)
+	}
+	st.Checksum = checksum
+	return st
 }
 
 func findNodeForTest(st ClusterState, nodeID uint64) (Node, bool) {
