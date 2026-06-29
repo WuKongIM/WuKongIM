@@ -26,6 +26,7 @@ func TestSlotReplicaMoveSurvivesDelayedLeaderTransfer(t *testing.T) {
 	node2Fail := suite.ReserveGofailEndpoint(t)
 	node3Fail := suite.ReserveGofailEndpoint(t)
 	node4Fail := suite.ReserveGofailEndpoint(t)
+	failpoints := []suite.GofailEndpoint{node1Fail, node2Fail, node3Fail, node4Fail}
 
 	s := suite.New(t)
 	cluster := s.StartThreeNodeCluster(
@@ -71,16 +72,16 @@ func TestSlotReplicaMoveSurvivesDelayedLeaderTransfer(t *testing.T) {
 	require.Equal(t, candidate.SourceNodeID, replanCandidate.SourceNodeID, cluster.DumpDiagnostics())
 	ensureSlotLeaderForReplicaMoveSource(t, cluster, replanCandidate.SlotID, replanCandidate.SourceNodeID, 45*time.Second)
 
-	for _, endpoint := range []suite.GofailEndpoint{node1Fail, node2Fail, node3Fail} {
+	for _, endpoint := range failpoints {
 		listCtx, cancelList := context.WithTimeout(context.Background(), 10*time.Second)
 		body, err := endpoint.WaitListed(listCtx, "wkSlotReplicaMoveTransferLeaderDelay")
 		cancelList()
 		require.NoError(t, err, "gofail body:\n%s\n%s", body, cluster.DumpDiagnostics())
 	}
 
-	for _, endpoint := range []suite.GofailEndpoint{node1Fail, node2Fail, node3Fail} {
+	for _, endpoint := range failpoints {
 		failCtx, cancelFail := context.WithTimeout(context.Background(), 10*time.Second)
-		err := endpoint.Enable(failCtx, "wkSlotReplicaMoveTransferLeaderDelay", `return("700ms")`)
+		err := endpoint.Enable(failCtx, "wkSlotReplicaMoveTransferLeaderDelay", `return("5s")`)
 		cancelFail()
 		require.NoError(t, err, cluster.DumpDiagnostics())
 		defer func(endpoint suite.GofailEndpoint) {
@@ -93,8 +94,10 @@ func TestSlotReplicaMoveSurvivesDelayedLeaderTransfer(t *testing.T) {
 	start := manager.MustStartOnboarding(t, 4, 1)
 	require.Equal(t, uint32(1), start.Created, cluster.DumpDiagnostics())
 
+	active := waitOnboardingTaskActive(t, cluster, manager, 4, 10*time.Second)
+	require.Equal(t, 0, active.Summary.Failed, "active=%#v\n%s", active, cluster.DumpDiagnostics())
+	waitGofailCountWhileOnboardingActive(t, cluster, manager, 4, failpoints, "wkSlotReplicaMoveTransferLeaderDelay", 1, 15*time.Second)
 	manager.EventuallyOnboardingSafe(t, 4, 90*time.Second)
-	requireAnyGofailCountAtLeast(t, cluster, []suite.GofailEndpoint{node1Fail, node2Fail, node3Fail}, "wkSlotReplicaMoveTransferLeaderDelay", 1)
 	statusCtx, cancelStatus := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancelStatus()
 	status, err := manager.NodeOnboardingStatus(statusCtx, 4)
@@ -105,6 +108,86 @@ func TestSlotReplicaMoveSurvivesDelayedLeaderTransfer(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { _ = sender.Close() }()
 	require.NoError(t, sender.Connect(node4.GatewayAddr(), "gofail-slot-move-sender", "gofail-slot-move-device"), cluster.DumpDiagnostics())
+}
+
+func waitGofailCountWhileOnboardingActive(
+	t testing.TB,
+	cluster *suite.StartedCluster,
+	manager *suite.ManagerClient,
+	nodeID uint64,
+	endpoints []suite.GofailEndpoint,
+	failpoint string,
+	min int,
+	timeout time.Duration,
+) int {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+
+	var (
+		lastStatus suite.NodeOnboardingStatusDTO
+		lastCounts []string
+		lastErr    error
+	)
+	for {
+		total := 0
+		counts := make([]string, 0, len(endpoints))
+		for _, endpoint := range endpoints {
+			countCtx, countCancel := context.WithTimeout(ctx, 2*time.Second)
+			count, err := endpoint.Count(countCtx, failpoint)
+			countCancel()
+			if err != nil {
+				lastErr = err
+				continue
+			}
+			total += count
+			counts = append(counts, fmt.Sprintf("%s=%d", endpoint.Addr, count))
+		}
+		lastCounts = counts
+
+		statusCtx, statusCancel := context.WithTimeout(ctx, 2*time.Second)
+		status, err := manager.NodeOnboardingStatus(statusCtx, nodeID)
+		statusCancel()
+		if err != nil {
+			lastErr = err
+		} else {
+			lastStatus = status
+			if status.Summary.Failed > 0 {
+				t.Fatalf("node %d onboarding failed before %s active proof was observed: counts=%v status=%s\n%s",
+					nodeID,
+					failpoint,
+					counts,
+					formatOnboardingStatus(status),
+					cluster.DumpDiagnostics(),
+				)
+			}
+			active := status.Summary.TotalActive > 0 &&
+				(status.Summary.Pending > 0 || status.Summary.Running > 0 || len(status.Tasks) > 0)
+			if total >= min && active {
+				return total
+			}
+			if total >= min && !active {
+				lastErr = fmt.Errorf("failpoint observed after onboarding task stopped being active: counts=%v status=%s", counts, formatOnboardingStatus(status))
+			} else {
+				lastErr = fmt.Errorf("waiting for %s count while onboarding active: counts=%v status=%s", failpoint, counts, formatOnboardingStatus(status))
+			}
+		}
+
+		select {
+		case <-ctx.Done():
+			t.Fatalf("failpoint %s was not observed while onboarding was active: counts=%v lastStatus=%s lastErr=%v\n%s",
+				failpoint,
+				lastCounts,
+				formatOnboardingStatus(lastStatus),
+				lastErr,
+				cluster.DumpDiagnostics(),
+			)
+		case <-ticker.C:
+		}
+	}
 }
 
 func ensureSlotLeaderForReplicaMoveSource(t *testing.T, cluster *suite.StartedCluster, slotID uint32, sourceNodeID uint64, timeout time.Duration) {
