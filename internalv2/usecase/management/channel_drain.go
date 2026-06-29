@@ -3,6 +3,7 @@ package management
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
@@ -94,6 +95,13 @@ func (a *App) nodeChannelDrainInventoryFromSnapshot(ctx context.Context, snapsho
 				resp.LastError = errChannelDrainBudgetExceeded.Error()
 				return resp
 			}
+			// gofail: var wkScaleInChannelDrainInventoryFault string
+			// if err := gofailScaleInChannelDrainInventoryFault(wkScaleInChannelDrainInventoryFault); err != nil {
+			// 	resp.Unknown = true
+			// 	resp.Safe = false
+			// 	resp.LastError = err.Error()
+			// 	return resp
+			// }
 			page, nextCursor, done, err := a.channelRuntimeMeta.ScanChannelRuntimeMetaSlotPage(ctx, slotID, after, limit)
 			resp.ScannedPageCount++
 			if err != nil {
@@ -119,6 +127,14 @@ func (a *App) nodeChannelDrainInventoryFromSnapshot(ctx context.Context, snapsho
 	}
 	resp.Safe = !resp.Unknown && resp.LeaderCount == 0 && resp.ReplicaCount == 0 && resp.ISRCount == 0
 	return resp
+}
+
+func gofailScaleInChannelDrainInventoryFault(raw string) error {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+	return errors.New(raw)
 }
 
 func normalizeChannelDrainLimit(limit int) int {
