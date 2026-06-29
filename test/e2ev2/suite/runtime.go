@@ -397,6 +397,18 @@ func (c *StartedCluster) MustNode(nodeID uint64) *StartedNode {
 	return node
 }
 
+// RestartNode restarts one currently running node using the cluster binary path.
+func (c *StartedCluster) RestartNode(nodeID uint64) error {
+	if c == nil {
+		return fmt.Errorf("started cluster is nil")
+	}
+	node, ok := c.Node(nodeID)
+	if !ok {
+		return fmt.Errorf("node %d not found in started cluster", nodeID)
+	}
+	return node.Restart(c.binaryPath)
+}
+
 // APIAddr returns the public HTTP API listen address for the started node.
 func (n StartedNode) APIAddr() string {
 	return n.Spec.APIAddr
@@ -430,6 +442,34 @@ func (n *StartedNode) Stop() error {
 		n.Process = nil
 	}
 	return err
+}
+
+// Restart stops the current node process and starts it again with the same spec.
+func (n *StartedNode) Restart(binaryPath string) error {
+	if n == nil {
+		return fmt.Errorf("started node is nil")
+	}
+	if strings.TrimSpace(binaryPath) == "" {
+		return fmt.Errorf("node %d restart binary path is empty", n.Spec.ID)
+	}
+	if n.Process == nil || n.Process.Cmd == nil || n.Process.Cmd.Process == nil {
+		return fmt.Errorf("node %d is not running", n.Spec.ID)
+	}
+	if n.Process.Cmd.ProcessState != nil && n.Process.Cmd.ProcessState.Exited() {
+		return fmt.Errorf("node %d is not running", n.Spec.ID)
+	}
+
+	spec := n.Spec
+	if err := n.Process.Stop(); err != nil {
+		return fmt.Errorf("stop node %d before restart: %w", spec.ID, err)
+	}
+
+	process := &NodeProcess{Spec: spec, BinaryPath: binaryPath}
+	if err := process.Start(); err != nil {
+		return fmt.Errorf("start node %d after restart: %w", spec.ID, err)
+	}
+	n.Process = process
+	return nil
 }
 
 func buildNodeSpec(nodeID uint64, ports PortSet, workspace Workspace, options suiteOptions) NodeSpec {
