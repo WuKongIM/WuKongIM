@@ -1,6 +1,10 @@
 package control
 
-import cv2 "github.com/WuKongIM/WuKongIM/pkg/controllerv2"
+import (
+	"time"
+
+	cv2 "github.com/WuKongIM/WuKongIM/pkg/controllerv2"
+)
 
 // Role describes one durable node capability in clusterv2 control state.
 type Role string
@@ -23,6 +27,42 @@ const (
 	// NodeDown means the node is considered unavailable.
 	NodeDown NodeStatus = "down"
 )
+
+// NodeHealthFreshness describes whether a health report is usable for decisions.
+type NodeHealthFreshness string
+
+const (
+	// NodeHealthFresh means the latest durable report is within its TTL.
+	NodeHealthFresh NodeHealthFreshness = "fresh"
+	// NodeHealthStale means the latest durable report exists but exceeded its TTL.
+	NodeHealthStale NodeHealthFreshness = "stale"
+	// NodeHealthMissing means no durable report exists for the node.
+	NodeHealthMissing NodeHealthFreshness = "missing"
+)
+
+// NodeHealth describes durable low-frequency health evidence for one node.
+type NodeHealth struct {
+	// Status is the reported runtime health state.
+	Status NodeStatus
+	// Freshness reports whether the durable health evidence is usable.
+	Freshness NodeHealthFreshness
+	// RuntimeReady reports whether the node can serve foreground cluster traffic.
+	RuntimeReady bool
+	// ObservedControlRevision is the latest ControllerV2 revision observed by the node.
+	ObservedControlRevision uint64
+	// ObservedSlotRevision is the latest local Slot runtime revision observed by the node.
+	ObservedSlotRevision uint64
+	// ReportSeq is a node-local sequence used for diagnostics.
+	ReportSeq uint64
+	// ReportedAt is the Controller leader timestamp for the report.
+	ReportedAt time.Time
+	// ReportAge is the age of the report at snapshot build time.
+	ReportAge time.Duration
+	// ReportTTL is the TTL used to classify freshness.
+	ReportTTL time.Duration
+	// ErrorCode is a bounded machine-readable runtime reason.
+	ErrorCode string
+}
 
 // NodeJoinState describes durable node lifecycle in the clusterv2 control read model.
 type NodeJoinState string
@@ -135,6 +175,8 @@ type Node struct {
 	Roles []Role
 	// Status is the durable control-plane health state.
 	Status NodeStatus
+	// Health contains durable low-frequency runtime health evidence.
+	Health NodeHealth
 	// JoinState is the durable membership lifecycle state.
 	JoinState NodeJoinState
 	// CapacityWeight is the relative planner capacity for future placement decisions.
@@ -209,4 +251,29 @@ type ReconcileTask struct {
 	ObservedVoters []uint64 `json:"observed_voters,omitempty"`
 	// ObservedLearners stores the learner set observed for the current phase.
 	ObservedLearners []uint64 `json:"observed_learners,omitempty"`
+}
+
+// BuildNodeHealth maps durable ControllerV2 health evidence into the control snapshot read model.
+func BuildNodeHealth(report cv2.NodeHealthReport, exists bool, now time.Time, ttl time.Duration) NodeHealth {
+	if !exists {
+		return NodeHealth{Freshness: NodeHealthMissing, ReportTTL: ttl}
+	}
+	reportedAt := time.UnixMilli(report.ReportedAtUnixMilli).UTC()
+	age := now.Sub(reportedAt)
+	freshness := NodeHealthFresh
+	if ttl <= 0 || age > ttl {
+		freshness = NodeHealthStale
+	}
+	return NodeHealth{
+		Status:                  NodeStatus(report.Status),
+		Freshness:               freshness,
+		RuntimeReady:            report.RuntimeReady,
+		ObservedControlRevision: report.ObservedControlRevision,
+		ObservedSlotRevision:    report.ObservedSlotRevision,
+		ReportSeq:               report.ReportSeq,
+		ReportedAt:              reportedAt,
+		ReportAge:               age,
+		ReportTTL:               ttl,
+		ErrorCode:               report.ErrorCode,
+	}
 }

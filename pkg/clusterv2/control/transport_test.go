@@ -344,6 +344,8 @@ func (a *recordingTaskApplier) CommitSlotReplicaMove(ctx context.Context, commit
 }
 
 type recordingControlWriteApplier struct {
+	nodeReports           []NodeReport
+	nodeReportErr         error
 	joinNodes             []JoinNodeRequest
 	joinResult            JoinNodeResult
 	joinErr               error
@@ -360,6 +362,11 @@ type recordingControlWriteApplier struct {
 	slotReplicaMoves      []SlotReplicaMoveRequest
 	slotReplicaMoveResult SlotReplicaMoveResult
 	slotReplicaMoveErr    error
+}
+
+func (a *recordingControlWriteApplier) ReportNode(ctx context.Context, req NodeReport) error {
+	a.nodeReports = append(a.nodeReports, req)
+	return a.nodeReportErr
 }
 
 func (a *recordingControlWriteApplier) JoinNode(ctx context.Context, req JoinNodeRequest) (JoinNodeResult, error) {

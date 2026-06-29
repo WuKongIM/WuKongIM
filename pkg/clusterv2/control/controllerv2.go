@@ -4,9 +4,12 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	cv2 "github.com/WuKongIM/WuKongIM/pkg/controllerv2"
 )
+
+const defaultNodeHealthReportTTL = 30 * time.Second
 
 // ControllerV2StateSource provides locally visible ControllerV2 state snapshots.
 type ControllerV2StateSource interface {
@@ -41,16 +44,31 @@ func SnapshotFromControllerV2(st cv2.ClusterState) (Snapshot, error) {
 	}
 	st = st.Clone()
 	st.Normalize()
-	snap := Snapshot{ClusterID: st.ClusterID, Revision: st.Revision, Nodes: make([]Node, 0, len(st.Nodes)), Slots: make([]SlotAssignment, 0, len(st.Slots)), Tasks: make([]ReconcileTask, 0, len(st.Tasks))}
+	leaderID := uint64(0)
 	if len(st.Controllers) > 0 {
-		snap.ControllerID = st.Controllers[0].NodeID
+		leaderID = st.Controllers[0].NodeID
+	}
+	snap := snapshotFromControllerState(st, leaderID, time.Now().UTC(), defaultNodeHealthReportTTL)
+	if err := snap.Validate(); err != nil {
+		return Snapshot{}, err
+	}
+	return snap, nil
+}
+
+func snapshotFromControllerState(st cv2.ClusterState, leaderID uint64, now time.Time, healthTTL time.Duration) Snapshot {
+	snap := Snapshot{ClusterID: st.ClusterID, Revision: st.Revision, ControllerID: leaderID, Nodes: make([]Node, 0, len(st.Nodes)), Slots: make([]SlotAssignment, 0, len(st.Slots)), Tasks: make([]ReconcileTask, 0, len(st.Tasks))}
+	healthByNode := make(map[uint64]cv2.NodeHealthReport, len(st.NodeHealthReports))
+	for _, report := range st.NodeHealthReports {
+		healthByNode[report.NodeID] = report
 	}
 	for _, node := range st.Nodes {
+		health, hasHealth := healthByNode[node.NodeID]
 		snap.Nodes = append(snap.Nodes, Node{
 			NodeID:         node.NodeID,
 			Addr:           node.Addr,
 			Roles:          mapControllerV2Roles(node.Roles),
 			Status:         mapControllerV2Status(node.Status),
+			Health:         BuildNodeHealth(health, hasHealth, now, healthTTL),
 			JoinState:      mapControllerV2JoinState(node.JoinState),
 			CapacityWeight: node.CapacityWeight,
 		})
@@ -83,10 +101,7 @@ func SnapshotFromControllerV2(st cv2.ClusterState) (Snapshot, error) {
 			ObservedLearners:    append([]uint64(nil), task.ObservedLearners...),
 		})
 	}
-	if err := snap.Validate(); err != nil {
-		return Snapshot{}, err
-	}
-	return snap, nil
+	return snap
 }
 
 // Start loads the initial ControllerV2 snapshot without emitting a watch event.

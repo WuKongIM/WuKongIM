@@ -92,6 +92,49 @@ func TestRuntimeProbeProposeSingleVoter(t *testing.T) {
 	}
 }
 
+func TestRuntimeReportNodePersistsHealth(t *testing.T) {
+	runtime, err := NewRuntime(RuntimeConfig{
+		NodeID:           1,
+		Addr:             "127.0.0.1:10001",
+		StateDir:         t.TempDir(),
+		ClusterID:        "cluster-report-node-health",
+		Role:             RuntimeRoleVoter,
+		Voters:           []RuntimeVoter{{NodeID: 1, Addr: "127.0.0.1:10001"}},
+		AllowBootstrap:   true,
+		InitialSlotCount: 1,
+		HashSlotCount:    4,
+		ReplicaCount:     1,
+		TickInterval:     5 * time.Millisecond,
+	})
+	if err != nil {
+		t.Fatalf("NewRuntime() error = %v", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	if err := runtime.Start(ctx); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	t.Cleanup(func() { _ = runtime.Stop(context.Background()) })
+
+	if err := runtime.ReportNode(context.Background(), NodeReport{
+		NodeID:                  1,
+		Status:                  NodeAlive,
+		RuntimeReady:            true,
+		ObservedControlRevision: 1,
+		ObservedSlotRevision:    2,
+		ReportSeq:               7,
+	}); err != nil {
+		t.Fatalf("ReportNode() error = %v", err)
+	}
+	snap, err := runtime.LocalSnapshot(context.Background())
+	if err != nil {
+		t.Fatalf("LocalSnapshot() error = %v", err)
+	}
+	if len(snap.Nodes) != 1 || snap.Nodes[0].Health.Freshness != NodeHealthFresh || snap.Nodes[0].Health.ReportSeq != 7 {
+		t.Fatalf("snapshot nodes = %#v, want fresh report seq 7", snap.Nodes)
+	}
+}
+
 func TestRuntimePassesTaskTransitionObserver(t *testing.T) {
 	observed := make(chan []cv2.TaskTransition, 1)
 	observer := cv2.TaskTransitionObserverFunc(func(items []cv2.TaskTransition) {

@@ -162,6 +162,8 @@ const (
 	ControlWriteActionMarkNodeRemoved ControlWriteAction = "mark_node_removed"
 	// ControlWriteActionSlotReplicaMove submits a staged Slot replica move intent.
 	ControlWriteActionSlotReplicaMove ControlWriteAction = "slot_replica_move"
+	// ControlWriteActionReportNodeHealth submits a low-frequency runtime health report.
+	ControlWriteActionReportNodeHealth ControlWriteAction = "report_node_health"
 )
 
 // ControlWriteRequest carries one generic ControllerV2 write.
@@ -178,15 +180,18 @@ type ControlWriteRequest struct {
 	MarkNodeRemoved MarkNodeRemovedRequest `json:"mark_node_removed,omitempty"`
 	// SlotReplicaMove carries a staged Slot replica move intent.
 	SlotReplicaMove SlotReplicaMoveRequest `json:"slot_replica_move,omitempty"`
+	// ReportNodeHealth carries a low-frequency runtime health report.
+	ReportNodeHealth NodeReport `json:"report_node_health,omitempty"`
 }
 
 type controlWriteRequestJSON struct {
-	Action          ControlWriteAction      `json:"action"`
-	JoinNode        *JoinNodeRequest        `json:"join_node,omitempty"`
-	ActivateNode    *ActivateNodeRequest    `json:"activate_node,omitempty"`
-	MarkNodeLeaving *MarkNodeLeavingRequest `json:"mark_node_leaving,omitempty"`
-	MarkNodeRemoved *MarkNodeRemovedRequest `json:"mark_node_removed,omitempty"`
-	SlotReplicaMove *SlotReplicaMoveRequest `json:"slot_replica_move,omitempty"`
+	Action           ControlWriteAction      `json:"action"`
+	JoinNode         *JoinNodeRequest        `json:"join_node,omitempty"`
+	ActivateNode     *ActivateNodeRequest    `json:"activate_node,omitempty"`
+	MarkNodeLeaving  *MarkNodeLeavingRequest `json:"mark_node_leaving,omitempty"`
+	MarkNodeRemoved  *MarkNodeRemovedRequest `json:"mark_node_removed,omitempty"`
+	SlotReplicaMove  *SlotReplicaMoveRequest `json:"slot_replica_move,omitempty"`
+	ReportNodeHealth *NodeReport             `json:"report_node_health,omitempty"`
 }
 
 // MarshalJSON encodes only the payload branch selected by Action.
@@ -203,6 +208,8 @@ func (req ControlWriteRequest) MarshalJSON() ([]byte, error) {
 		wire.MarkNodeRemoved = &req.MarkNodeRemoved
 	case ControlWriteActionSlotReplicaMove:
 		wire.SlotReplicaMove = &req.SlotReplicaMove
+	case ControlWriteActionReportNodeHealth:
+		wire.ReportNodeHealth = &req.ReportNodeHealth
 	}
 	return json.Marshal(wire)
 }

@@ -1,6 +1,7 @@
 package control
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"reflect"
@@ -126,6 +127,18 @@ func TestControlWriteRequestCodecRoundTripSlotReplicaMove(t *testing.T) {
 			Action:          ControlWriteActionMarkNodeRemoved,
 			MarkNodeRemoved: MarkNodeRemovedRequest{NodeID: 4, StateRevision: 9},
 		},
+		{
+			Action: ControlWriteActionReportNodeHealth,
+			ReportNodeHealth: NodeReport{
+				NodeID:                  1,
+				Status:                  NodeAlive,
+				RuntimeReady:            true,
+				ObservedControlRevision: 9,
+				ObservedSlotRevision:    12,
+				ReportSeq:               3,
+				ErrorCode:               "warming",
+			},
+		},
 	}
 	for _, req := range requests {
 		payload, err := EncodeControlWriteRequest(req)
@@ -139,6 +152,75 @@ func TestControlWriteRequestCodecRoundTripSlotReplicaMove(t *testing.T) {
 		if !reflect.DeepEqual(got, req) {
 			t.Fatalf("DecodeControlWriteRequest() = %#v, want %#v", got, req)
 		}
+	}
+}
+
+func TestControlWriteReportNodeHealthUsesSnakeCaseJSON(t *testing.T) {
+	reqPayload, err := EncodeControlWriteRequest(ControlWriteRequest{
+		Action: ControlWriteActionReportNodeHealth,
+		ReportNodeHealth: NodeReport{
+			NodeID:                  1,
+			Status:                  NodeAlive,
+			RuntimeReady:            true,
+			ObservedControlRevision: 9,
+			ObservedSlotRevision:    12,
+			ReportSeq:               3,
+			ErrorCode:               "warming",
+		},
+	})
+	if err != nil {
+		t.Fatalf("EncodeControlWriteRequest() error = %v", err)
+	}
+	var reqObject map[string]json.RawMessage
+	if err := json.Unmarshal(reqPayload[2:], &reqObject); err != nil {
+		t.Fatalf("request JSON unmarshal error = %v", err)
+	}
+	requireJSONKeys(t, reqObject, "action", "report_node_health")
+	var reportReq map[string]json.RawMessage
+	if err := json.Unmarshal(reqObject["report_node_health"], &reportReq); err != nil {
+		t.Fatalf("report_node_health request JSON unmarshal error = %v", err)
+	}
+	for _, want := range []string{"node_id", "status", "runtime_ready", "observed_control_revision", "observed_slot_revision", "report_seq", "error_code"} {
+		if _, ok := reportReq[want]; !ok {
+			t.Fatalf("report_node_health request keys = %#v, missing %s", reportReq, want)
+		}
+	}
+	for _, forbidden := range []string{"NodeID", "RuntimeReady", "ObservedControlRevision", "ObservedSlotRevision", "ReportSeq", "ErrorCode"} {
+		if _, ok := reportReq[forbidden]; ok {
+			t.Fatalf("report_node_health request keys = %#v, contains Go field name %s", reportReq, forbidden)
+		}
+	}
+}
+
+func TestControlWriteHandlerAppliesReportNodeHealthWithoutResponsePayload(t *testing.T) {
+	applier := &recordingControlWriteApplier{}
+	handler := NewControlWriteHandler(applier)
+	req, err := EncodeControlWriteRequest(ControlWriteRequest{
+		Action: ControlWriteActionReportNodeHealth,
+		ReportNodeHealth: NodeReport{
+			NodeID:                  1,
+			Status:                  NodeAlive,
+			RuntimeReady:            true,
+			ObservedControlRevision: 9,
+			ReportSeq:               3,
+		},
+	})
+	if err != nil {
+		t.Fatalf("EncodeControlWriteRequest() error = %v", err)
+	}
+	payload, err := handler.HandleRPC(context.Background(), req)
+	if err != nil {
+		t.Fatalf("Handle() error = %v", err)
+	}
+	resp, err := DecodeControlWriteResponse(payload)
+	if err != nil {
+		t.Fatalf("DecodeControlWriteResponse() error = %v", err)
+	}
+	if !reflect.DeepEqual(resp, ControlWriteResponse{}) {
+		t.Fatalf("ControlWriteResponse = %#v, want empty response", resp)
+	}
+	if len(applier.nodeReports) != 1 || applier.nodeReports[0].ReportSeq != 3 {
+		t.Fatalf("nodeReports = %#v, want one report seq 3", applier.nodeReports)
 	}
 }
 

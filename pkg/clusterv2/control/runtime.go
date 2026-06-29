@@ -230,9 +230,38 @@ func (r *Runtime) GetState(ctx context.Context, req cv2.GetStateRequest) (cv2.Ge
 // Watch returns snapshot update events.
 func (r *Runtime) Watch() <-chan SnapshotEvent { return r.watch }
 
-// ReportNode is currently a best-effort no-op until ControllerV2 exposes report commands.
+// ReportNode submits a bounded low-frequency node health report.
 func (r *Runtime) ReportNode(ctx context.Context, report NodeReport) error {
-	return ctxErr(ctx)
+	if err := ctxErr(ctx); err != nil {
+		return err
+	}
+	if r == nil || r.backend == nil {
+		return cv2.ErrNotStarted
+	}
+	if r.canForwardControlWriteToLeader() {
+		_, err := r.forwardControlWrite(ctx, ControlWriteRequest{
+			Action:           ControlWriteActionReportNodeHealth,
+			ReportNodeHealth: report,
+		})
+		return err
+	}
+	_, err := r.backend.ReportNodeHealth(ctx, cv2.ReportNodeHealthRequest{
+		NodeID:                  report.NodeID,
+		Status:                  cv2.NodeStatus(report.Status),
+		RuntimeReady:            report.RuntimeReady,
+		ObservedControlRevision: report.ObservedControlRevision,
+		ObservedSlotRevision:    report.ObservedSlotRevision,
+		ReportSeq:               report.ReportSeq,
+		ErrorCode:               report.ErrorCode,
+	})
+	if shouldForwardControlWrite(err) {
+		_, forwardErr := r.forwardControlWriteAfterError(ctx, ControlWriteRequest{
+			Action:           ControlWriteActionReportNodeHealth,
+			ReportNodeHealth: report,
+		}, err)
+		return forwardErr
+	}
+	return err
 }
 
 // ReportSlots is currently a best-effort no-op until ControllerV2 exposes report commands.
@@ -662,6 +691,7 @@ func emptyControllerV2State(st cv2.ClusterState) bool {
 		st.AppliedRaftIndex == 0 &&
 		len(st.Controllers) == 0 &&
 		len(st.Nodes) == 0 &&
+		len(st.NodeHealthReports) == 0 &&
 		len(st.Slots) == 0 &&
 		st.HashSlots.SlotCount == 0 &&
 		len(st.HashSlots.Ranges) == 0 &&

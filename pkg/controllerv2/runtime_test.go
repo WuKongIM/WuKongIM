@@ -272,6 +272,32 @@ func TestRuntimeProbeProposeDoesNotMutateRevision(t *testing.T) {
 	}
 }
 
+func TestRuntimeReportNodeHealthUsesLeaderTimestamp(t *testing.T) {
+	runtime := startSingleVoterRuntime(t, "cluster-node-health")
+	_ = readStateEvent(t, runtime.Watch())
+
+	result, err := runtime.ReportNodeHealth(context.Background(), ReportNodeHealthRequest{
+		NodeID:                  1,
+		Status:                  NodeStatusAlive,
+		RuntimeReady:            true,
+		ObservedControlRevision: 1,
+		ReportSeq:               7,
+	})
+	if err != nil {
+		t.Fatalf("ReportNodeHealth() error = %v", err)
+	}
+	if !result.Updated || result.Changed {
+		t.Fatalf("ReportNodeHealth() = %#v, want updated without changed", result)
+	}
+	st, err := runtime.LocalState(context.Background())
+	if err != nil {
+		t.Fatalf("LocalState() error = %v", err)
+	}
+	if len(st.NodeHealthReports) != 1 || st.NodeHealthReports[0].ReportedAtUnixMilli == 0 {
+		t.Fatalf("NodeHealthReports = %#v, want leader-side timestamp", st.NodeHealthReports)
+	}
+}
+
 func TestRuntimePublishIfChangedRefreshesSameRevisionChecksumDrift(t *testing.T) {
 	ctx := context.Background()
 	visible := runtimeBootstrapVisibleState(t, 7, true)

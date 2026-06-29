@@ -9,6 +9,8 @@ import (
 
 // ControlWriteApplier applies generic ControllerV2 writes.
 type ControlWriteApplier interface {
+	// ReportNode reports low-frequency local node state.
+	ReportNode(context.Context, NodeReport) error
 	// JoinNode submits a data-node join intent.
 	JoinNode(context.Context, JoinNodeRequest) (JoinNodeResult, error)
 	// ActivateNode submits a node activation intent.
@@ -89,6 +91,10 @@ func NewControlWriteHandler(applier ControlWriteApplier) clusternet.Handler {
 				return encodeControlWriteErrorResponse(err)
 			}
 			resp.SlotReplicaMove = result
+		case ControlWriteActionReportNodeHealth:
+			if err := applier.ReportNode(ctx, req.ReportNodeHealth); err != nil {
+				return encodeControlWriteErrorResponse(err)
+			}
 		default:
 			return nil, fmt.Errorf("control write: unknown action %q", req.Action)
 		}

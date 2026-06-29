@@ -36,6 +36,8 @@ type (
 	NodeJoinState = state.NodeJoinState
 	// NodeStatus describes durable node health.
 	NodeStatus = state.NodeStatus
+	// NodeHealthReport stores one bounded low-frequency runtime health report.
+	NodeHealthReport = state.NodeHealthReport
 	// SlotAssignment describes desired placement for one physical Slot.
 	SlotAssignment = state.SlotAssignment
 	// HashSlotTable maps hash slots to physical Slot IDs.

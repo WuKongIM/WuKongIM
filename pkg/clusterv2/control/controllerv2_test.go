@@ -3,6 +3,7 @@ package control
 import (
 	"context"
 	"testing"
+	"time"
 
 	cv2 "github.com/WuKongIM/WuKongIM/pkg/controllerv2"
 )
@@ -68,6 +69,26 @@ func TestControllerV2SnapshotMappingPreservesNonActiveLifecycle(t *testing.T) {
 	}
 	if snap.Nodes[3].JoinState != NodeJoinStateRemoved || snap.Nodes[3].CapacityWeight != 3 {
 		t.Fatalf("node 4 lifecycle = %q capacity=%d, want removed capacity 3", snap.Nodes[3].JoinState, snap.Nodes[3].CapacityWeight)
+	}
+}
+
+func TestControllerV2AdapterMapsNodeHealthFreshness(t *testing.T) {
+	now := time.Date(2026, 6, 29, 10, 0, 0, 0, time.UTC)
+	st := cv2.ClusterState{
+		Revision: 9,
+		Nodes: []cv2.Node{{NodeID: 1, Addr: "n1", Roles: []cv2.NodeRole{cv2.NodeRoleData}, JoinState: cv2.NodeJoinStateActive, Status: cv2.NodeStatusAlive}},
+		NodeHealthReports: []cv2.NodeHealthReport{{
+			NodeID:                  1,
+			Status:                  cv2.NodeStatusAlive,
+			RuntimeReady:            true,
+			ObservedControlRevision: 9,
+			ReportSeq:               3,
+			ReportedAtUnixMilli:     now.Add(-5 * time.Second).UnixMilli(),
+		}},
+	}
+	snap := snapshotFromControllerState(st, 1, now, 30*time.Second)
+	if len(snap.Nodes) != 1 || snap.Nodes[0].Health.Freshness != NodeHealthFresh {
+		t.Fatalf("snapshot nodes = %#v, want fresh health", snap.Nodes)
 	}
 }
 

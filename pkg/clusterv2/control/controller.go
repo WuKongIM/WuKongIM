@@ -64,11 +64,21 @@ type (
 // NodeReport contains low-frequency node status reported to the control adapter.
 type NodeReport struct {
 	// NodeID is the reporting node ID.
-	NodeID uint64
+	NodeID uint64 `json:"node_id"`
 	// Addr is the reporting node cluster RPC address.
-	Addr string
+	Addr string `json:"addr,omitempty"`
 	// Status is the reporting node health state.
-	Status NodeStatus
+	Status NodeStatus `json:"status"`
+	// RuntimeReady reports whether the node can serve foreground cluster traffic.
+	RuntimeReady bool `json:"runtime_ready"`
+	// ObservedControlRevision is the latest ControllerV2 revision observed by the node.
+	ObservedControlRevision uint64 `json:"observed_control_revision"`
+	// ObservedSlotRevision is the latest local Slot runtime revision observed by the node.
+	ObservedSlotRevision uint64 `json:"observed_slot_revision,omitempty"`
+	// ReportSeq is a node-local sequence used for diagnostics.
+	ReportSeq uint64 `json:"report_seq"`
+	// ErrorCode is a bounded machine-readable runtime reason.
+	ErrorCode string `json:"error_code,omitempty"`
 }
 
 // SlotRuntimeReport contains local Slot runtime observations for one node.
