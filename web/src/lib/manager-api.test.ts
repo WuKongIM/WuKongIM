@@ -15,6 +15,10 @@ import {
   getDBInspectTables,
   getControllerLogs,
   getControllerRaftStatus,
+  getControllerTask,
+  getControllerTaskAuditEvents,
+  getControllerTaskAudits,
+  getControllerTasks,
   compactControllerRaftLogOnNode,
   compactControllerRaftLogs,
   compactSlotRaftLogOnNode,
@@ -1596,6 +1600,86 @@ describe("manager api client", () => {
     expect(fetchMock).toHaveBeenNthCalledWith(1, "/manager/distributed-tasks/summary", expect.anything())
     expect(fetchMock).toHaveBeenNthCalledWith(2, "/manager/distributed-tasks?domain=slot_reconcile&status=retrying&node_id=3&scope=slot&keyword=repair&limit=25&cursor=abc", expect.anything())
     expect(fetchMock).toHaveBeenNthCalledWith(3, "/manager/distributed-tasks/slot_reconcile/slot-reconcile%3A1", expect.anything())
+  })
+
+  it("fetches ControllerV2 active tasks and retained task audit history", async () => {
+    const activeTasks = {
+      total: 1,
+      items: [{
+        task_id: "slot-1-replica-move-2-to-4-r9",
+        slot_id: 1,
+        kind: "slot_replica_move",
+        step: "promote_learner",
+        status: "running",
+        source_node: 2,
+        target_node: 4,
+        target_peers: [1, 3, 4],
+        completion_policy: "all_target_peers",
+        config_epoch: 9,
+        attempt: 1,
+        last_error: "",
+        participants: [{ node_id: 4, attempt: 1, status: "done", last_error: "" }],
+      }],
+    }
+    const auditList = {
+      total: 1,
+      limit: 200,
+      truncated: false,
+      items: [{
+        task_id: "slot-1-replica-move-2-to-4-r9",
+        kind: "slot_replica_move",
+        status: "completed",
+        slot_id: 1,
+        leader_id: 0,
+        source_node: 2,
+        target_node: 4,
+        first_applied_raft_index: 11,
+        last_applied_raft_index: 18,
+        started_at: "2026-06-29T08:00:00Z",
+        completed_at: "2026-06-29T08:01:00Z",
+        event_count: 4,
+        truncated: false,
+        summary: "completed slot_replica_move task for slot 1",
+        last_reason: "",
+      }],
+    }
+    const auditEvents = {
+      task: auditList.items[0],
+      events: [{
+        event_id: "event-1",
+        task_id: "slot-1-replica-move-2-to-4-r9",
+        type: "completed",
+        kind: "slot_replica_move",
+        status: "completed",
+        slot_id: 1,
+        leader_id: 0,
+        source_node: 2,
+        target_node: 4,
+        applied_raft_index: 18,
+        applied_raft_term: 2,
+        command_kind: "complete_task",
+        participant_node: 0,
+        occurred_at: "2026-06-29T08:01:00Z",
+        summary: "completed slot_replica_move task for slot 1",
+        reason: "",
+      }],
+      truncated: false,
+    }
+
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(activeTasks), { status: 200 }))
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(activeTasks.items[0]), { status: 200 }))
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(auditList), { status: 200 }))
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(auditEvents), { status: 200 }))
+
+    await expect(getControllerTasks({ kind: "slot_replica_move", status: "running", slotId: 1, nodeId: 4, limit: 50 })).resolves.toEqual(activeTasks)
+    await expect(getControllerTask("slot-1-replica-move-2-to-4-r9")).resolves.toEqual(activeTasks.items[0])
+    await expect(getControllerTaskAudits({ kind: "slot_replica_move", status: "completed", slotId: 1, nodeId: 4, keyword: "completed", limit: 200 })).resolves.toEqual(auditList)
+    await expect(getControllerTaskAuditEvents("slot-1-replica-move-2-to-4-r9")).resolves.toEqual(auditEvents)
+
+    expect(fetchMock).toHaveBeenNthCalledWith(1, "/manager/controller/tasks?kind=slot_replica_move&status=running&slot_id=1&node_id=4&limit=50", expect.anything())
+    expect(fetchMock).toHaveBeenNthCalledWith(2, "/manager/controller/tasks/slot-1-replica-move-2-to-4-r9", expect.anything())
+    expect(fetchMock).toHaveBeenNthCalledWith(3, "/manager/controller/task-audits?kind=slot_replica_move&status=completed&slot_id=1&node_id=4&keyword=completed&limit=200", expect.anything())
+    expect(fetchMock).toHaveBeenNthCalledWith(4, "/manager/controller/task-audits/slot-1-replica-move-2-to-4-r9/events", expect.anything())
   })
 
   it("fetches channel runtime metadata list and detail data", async () => {

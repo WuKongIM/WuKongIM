@@ -1,5 +1,4 @@
-import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react"
-import { type IntlShape, useIntl } from "react-intl"
+import { useCallback, useEffect, useMemo, useState } from "react"
 
 import { DetailSheet } from "@/components/manager/detail-sheet"
 import { KeyValueList } from "@/components/manager/key-value-list"
@@ -11,34 +10,39 @@ import { PageHeader } from "@/components/shell/page-header"
 import { SectionCard } from "@/components/shell/section-card"
 import {
   ManagerApiError,
-  getDistributedTask,
-  getDistributedTasks,
-  getDistributedTasksSummary,
+  getControllerTaskAuditEvents,
+  getControllerTaskAudits,
+  getControllerTasks,
 } from "@/lib/manager-api"
 import type {
-  DistributedTaskListParams,
-  ManagerDistributedTask,
-  ManagerDistributedTaskDetailResponse,
-  ManagerDistributedTasksResponse,
-  ManagerDistributedTasksSummaryResponse,
+  ControllerTaskAuditListParams,
+  ControllerTaskAuditStatus,
+  ControllerTaskKind,
+  ControllerTaskListParams,
+  ControllerTaskStatus,
+  ManagerControllerTask,
+  ManagerControllerTaskAuditEventsResponse,
+  ManagerControllerTaskAuditSnapshot,
+  ManagerControllerTaskAuditsResponse,
+  ManagerControllerTasksResponse,
 } from "@/lib/manager-api.types"
+import { useIntl } from "react-intl"
 
 type TasksState = {
-  summary: ManagerDistributedTasksSummaryResponse | null
-  tasks: ManagerDistributedTasksResponse | null
+  active: ManagerControllerTasksResponse | null
+  audits: ManagerControllerTaskAuditsResponse | null
   loading: boolean
   refreshing: boolean
   error: Error | null
 }
 
-const domainOptions = ["slot_reconcile", "node_onboarding", "node_scale_in", "channel_migration"] as const
-const statusOptions = ["pending", "running", "retrying", "blocked", "failed", "completed", "cancelled", "unknown"] as const
-const scopeOptions = ["slot", "node", "channel", "job"] as const
+const kindOptions: ControllerTaskKind[] = ["bootstrap", "leader_transfer", "slot_replica_move"]
+const statusOptions: ControllerTaskAuditStatus[] = ["pending", "running", "failed", "completed"]
 
 function emptyTasksState(): TasksState {
   return {
-    summary: null,
-    tasks: null,
+    active: null,
+    audits: null,
     loading: true,
     refreshing: false,
     error: null,
@@ -58,151 +62,77 @@ function mapErrorKind(error: Error | null) {
   return "error" as const
 }
 
-function formatTaskScope(task: ManagerDistributedTask) {
-  if (task.scope.type === "slot") {
-    return `Slot ${task.scope.slot_id}`
-  }
-  if (task.scope.type === "node") {
-    return `Node ${task.scope.node_id}`
-  }
-  if (task.scope.type === "channel") {
-    return `${task.scope.channel_type}/${task.scope.channel_id}`
-  }
-  return task.scope.id || "-"
+function parsePositiveInt(raw: string) {
+  const value = Number(raw)
+  return Number.isFinite(value) && value > 0 ? value : undefined
 }
 
-function formatNodePair(task: ManagerDistributedTask) {
-  if (!task.source_node && !task.target_node) {
+function formatNodePair(sourceNode: number, targetNode: number) {
+  if (!sourceNode && !targetNode) {
     return "-"
   }
-  return `${task.source_node || "-"} -> ${task.target_node || "-"}`
-}
-
-function formatTaskTime(task: ManagerDistributedTask) {
-  return task.next_run_at ?? task.updated_at ?? task.created_at ?? "-"
-}
-
-function formatCount(value: number | undefined) {
-  return String(value ?? 0)
+  return `${sourceNode || "-"} -> ${targetNode || "-"}`
 }
 
 function formatNodeList(nodes?: number[] | null) {
   return nodes && nodes.length > 0 ? nodes.join(", ") : "-"
 }
 
-function formatBoolean(intl: IntlShape, value?: boolean | null) {
-  if (typeof value !== "boolean") {
+function formatTime(value?: string | null) {
+  return value || "-"
+}
+
+function formatCount(value: number | undefined) {
+  return String(value ?? 0)
+}
+
+function formatParticipants(task: ManagerControllerTask) {
+  if (!task.participants || task.participants.length === 0) {
     return "-"
   }
-  return intl.formatMessage({ id: value ? "tasks.boolean.yes" : "tasks.boolean.no" })
+  return task.participants.map((item) => `${item.node_id}:${item.status}`).join(", ")
 }
 
-function DetailSection({ children, title }: { children: ReactNode; title: string }) {
-  return (
-    <section className="space-y-3 rounded-lg border border-border bg-muted/20 p-3">
-      <h3 className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">{title}</h3>
-      {children}
-    </section>
-  )
-}
-
-function SourceSpecificDetail({ detail, intl }: { detail: ManagerDistributedTaskDetailResponse; intl: IntlShape }) {
-  const source = detail.detail
-
-  if (source.slot) {
-    return (
-      <DetailSection title={intl.formatMessage({ id: "tasks.detail.slotContext" })}>
-        <KeyValueList
-          items={[
-            { label: intl.formatMessage({ id: "tasks.detail.quorum" }), value: <StatusBadge value={source.slot.slot.state.quorum} /> },
-            { label: intl.formatMessage({ id: "tasks.detail.sync" }), value: <StatusBadge value={source.slot.slot.state.sync} /> },
-            { label: intl.formatMessage({ id: "tasks.detail.leader" }), value: source.slot.slot.runtime.preferred_leader_id },
-            { label: intl.formatMessage({ id: "tasks.detail.desiredPeers" }), value: formatNodeList(source.slot.slot.assignment.desired_peers) },
-            { label: intl.formatMessage({ id: "tasks.detail.currentPeers" }), value: formatNodeList(source.slot.slot.runtime.current_peers) },
-            { label: intl.formatMessage({ id: "tasks.detail.observedEpoch" }), value: source.slot.slot.runtime.observed_config_epoch },
-          ]}
-        />
-      </DetailSection>
-    )
+function taskAuditStatusForActive(status: ControllerTaskAuditStatus | ""): ControllerTaskStatus | undefined {
+  if (status === "pending" || status === "running" || status === "failed") {
+    return status
   }
-
-  if (source.node_onboarding) {
-    const counts = source.node_onboarding.result_counts
-    return (
-      <DetailSection title={intl.formatMessage({ id: "tasks.detail.nodeOnboardingContext" })}>
-        <KeyValueList
-          items={[
-            { label: intl.formatMessage({ id: "tasks.detail.targetNode" }), value: source.node_onboarding.target_node_id },
-            { label: intl.formatMessage({ id: "tasks.detail.planVersion" }), value: source.node_onboarding.plan_version },
-            { label: intl.formatMessage({ id: "tasks.detail.currentMove" }), value: source.node_onboarding.current_move_index },
-            {
-              label: intl.formatMessage({ id: "tasks.detail.resultCounts" }),
-              value: `running ${counts.running}, completed ${counts.completed}, failed ${counts.failed}`,
-            },
-          ]}
-        />
-      </DetailSection>
-    )
-  }
-
-  if (source.node_scale_in) {
-    const progress = source.node_scale_in.progress
-    return (
-      <DetailSection title={intl.formatMessage({ id: "tasks.detail.nodeScaleInContext" })}>
-        <KeyValueList
-          items={[
-            { label: intl.formatMessage({ id: "tasks.detail.targetNode" }), value: source.node_scale_in.node_id },
-            { label: intl.formatMessage({ id: "tasks.detail.safeToRemove" }), value: formatBoolean(intl, source.node_scale_in.safe_to_remove) },
-            { label: intl.formatMessage({ id: "tasks.detail.slotLeaders" }), value: progress.slot_leaders },
-            { label: intl.formatMessage({ id: "tasks.detail.activeTasks" }), value: progress.active_tasks_involving_node },
-            {
-              label: intl.formatMessage({ id: "tasks.detail.channelMigrations" }),
-              value: progress.active_channel_migrations_involving_node ?? progress.active_migrations_involving_node,
-            },
-            { label: intl.formatMessage({ id: "tasks.detail.activeConnections" }), value: progress.active_connections },
-          ]}
-        />
-      </DetailSection>
-    )
-  }
-
-  if (source.channel_migration) {
-    return (
-      <DetailSection title={intl.formatMessage({ id: "tasks.detail.channelMigrationContext" })}>
-        <pre className="max-h-80 overflow-auto rounded-md bg-background p-3 text-xs text-muted-foreground">
-          {JSON.stringify(source.channel_migration, null, 2)}
-        </pre>
-      </DetailSection>
-    )
-  }
-
-  return null
+  return undefined
 }
 
 export function TasksPage() {
   const intl = useIntl()
   const [state, setState] = useState<TasksState>(emptyTasksState)
-  const [domain, setDomain] = useState("")
-  const [status, setStatus] = useState("")
-  const [scope, setScope] = useState("")
+  const [kind, setKind] = useState<ControllerTaskKind | "">("")
+  const [status, setStatus] = useState<ControllerTaskAuditStatus | "">("")
+  const [slotIdText, setSlotIdText] = useState("")
   const [nodeIdText, setNodeIdText] = useState("")
   const [keyword, setKeyword] = useState("")
-  const [detailTask, setDetailTask] = useState<ManagerDistributedTask | null>(null)
-  const [detail, setDetail] = useState<ManagerDistributedTaskDetailResponse | null>(null)
-  const [detailLoading, setDetailLoading] = useState(false)
-  const [detailError, setDetailError] = useState("")
+  const [timelineTask, setTimelineTask] = useState<ManagerControllerTaskAuditSnapshot | null>(null)
+  const [timeline, setTimeline] = useState<ManagerControllerTaskAuditEventsResponse | null>(null)
+  const [timelineLoading, setTimelineLoading] = useState(false)
+  const [timelineError, setTimelineError] = useState("")
 
-  const buildQuery = useCallback((): DistributedTaskListParams => {
-    const nodeId = Number(nodeIdText)
-    return {
-      domain: domain ? (domain as DistributedTaskListParams["domain"]) : undefined,
-      status: status ? (status as DistributedTaskListParams["status"]) : undefined,
-      nodeId: Number.isFinite(nodeId) && nodeId > 0 ? nodeId : undefined,
-      scope: scope ? (scope as DistributedTaskListParams["scope"]) : undefined,
-      keyword: keyword.trim() || undefined,
+  const buildQueries = useCallback((): { active: ControllerTaskListParams; audits: ControllerTaskAuditListParams } => {
+    const slotId = parsePositiveInt(slotIdText)
+    const nodeId = parsePositiveInt(nodeIdText)
+    const active: ControllerTaskListParams = {
+      kind: kind || undefined,
+      status: taskAuditStatusForActive(status),
+      slotId,
+      nodeId,
       limit: 50,
     }
-  }, [domain, keyword, nodeIdText, scope, status])
+    const audits: ControllerTaskAuditListParams = {
+      kind: kind || undefined,
+      status: status || undefined,
+      slotId,
+      nodeId,
+      keyword: keyword.trim() || undefined,
+      limit: 200,
+    }
+    return { active, audits }
+  }, [kind, keyword, nodeIdText, slotIdText, status])
 
   const loadTasks = useCallback(async (refreshing = false) => {
     setState((current) => ({
@@ -212,21 +142,22 @@ export function TasksPage() {
       error: null,
     }))
     try {
-      const [summary, tasks] = await Promise.all([
-        getDistributedTasksSummary(),
-        getDistributedTasks(buildQuery()),
+      const query = buildQueries()
+      const [active, audits] = await Promise.all([
+        getControllerTasks(query.active),
+        getControllerTaskAudits(query.audits),
       ])
-      setState({ summary, tasks, loading: false, refreshing: false, error: null })
+      setState({ active, audits, loading: false, refreshing: false, error: null })
     } catch (error) {
       setState({
-        summary: null,
-        tasks: null,
+        active: null,
+        audits: null,
         loading: false,
         refreshing: false,
-        error: error instanceof Error ? error : new Error("distributed task request failed"),
+        error: error instanceof Error ? error : new Error("controller task request failed"),
       })
     }
-  }, [buildQuery])
+  }, [buildQueries])
 
   useEffect(() => {
     void loadTasks(false)
@@ -234,32 +165,39 @@ export function TasksPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const openDetail = useCallback(async (task: ManagerDistributedTask) => {
-    setDetailTask(task)
-    setDetail(null)
-    setDetailError("")
-    setDetailLoading(true)
+  const openTimeline = useCallback(async (task: ManagerControllerTaskAuditSnapshot) => {
+    setTimelineTask(task)
+    setTimeline(null)
+    setTimelineError("")
+    setTimelineLoading(true)
     try {
-      const response = await getDistributedTask(task.domain, task.id)
-      setDetail(response)
+      const response = await getControllerTaskAuditEvents(task.task_id)
+      setTimeline(response)
     } catch (error) {
-      setDetailError(error instanceof Error ? error.message : "task detail request failed")
+      setTimelineError(error instanceof Error ? error.message : "task audit request failed")
     } finally {
-      setDetailLoading(false)
+      setTimelineLoading(false)
     }
   }, [])
 
-  const warnings = state.tasks?.warnings ?? []
-  const summary = state.summary
-  const tasks = state.tasks?.items ?? []
+  const activeTasks = state.active?.items ?? []
+  const auditTasks = state.audits?.items ?? []
 
-  const summaryCards = useMemo(() => [
-    { label: intl.formatMessage({ id: "tasks.summary.total" }), value: summary?.total },
-    { label: intl.formatMessage({ id: "tasks.summary.running" }), value: summary?.by_status.running },
-    { label: intl.formatMessage({ id: "tasks.summary.retrying" }), value: summary?.by_status.retrying },
-    { label: intl.formatMessage({ id: "tasks.summary.failed" }), value: summary?.by_status.failed },
-    { label: intl.formatMessage({ id: "tasks.summary.blocked" }), value: summary?.by_status.blocked },
-  ], [intl, summary])
+  const summaryCards = useMemo(() => {
+    const activeTotal = state.active?.total ?? activeTasks.length
+    const activeRunning = activeTasks.filter((task) => task.status === "running").length
+    const activeFailed = activeTasks.filter((task) => task.status === "failed").length
+    const completed = auditTasks.filter((task) => task.status === "completed").length
+    return [
+      { label: intl.formatMessage({ id: "tasks.summary.total" }), value: activeTotal },
+      { label: intl.formatMessage({ id: "tasks.summary.running" }), value: activeRunning },
+      { label: intl.formatMessage({ id: "tasks.summary.failed" }), value: activeFailed },
+      { label: intl.formatMessage({ id: "tasks.summary.history" }), value: state.audits?.total },
+      { label: intl.formatMessage({ id: "tasks.summary.completed" }), value: completed },
+    ]
+  }, [activeTasks, auditTasks, intl, state.active?.total, state.audits?.total])
+
+  const hasRows = activeTasks.length > 0 || auditTasks.length > 0
 
   return (
     <PageContainer>
@@ -289,9 +227,9 @@ export function TasksPage() {
             ))}
           </div>
 
-          {state.tasks?.partial || warnings.length > 0 ? (
+          {state.audits?.truncated ? (
             <div className="rounded-lg border border-border bg-secondary/40 px-4 py-3 text-sm text-foreground">
-              {intl.formatMessage({ id: "tasks.partialWarning" })}
+              {intl.formatMessage({ id: "tasks.auditTruncated" })}
             </div>
           ) : null}
 
@@ -306,25 +244,22 @@ export function TasksPage() {
           >
             <div className="mb-4 grid gap-3 md:grid-cols-5">
               <label className="text-sm font-medium text-foreground">
-                {intl.formatMessage({ id: "tasks.filters.domain" })}
-                <select className="mt-1 h-8 w-full rounded-md border border-border bg-background px-2 text-sm" onChange={(event) => setDomain(event.target.value)} value={domain}>
+                {intl.formatMessage({ id: "tasks.filters.kind" })}
+                <select className="mt-1 h-8 w-full rounded-md border border-border bg-background px-2 text-sm" onChange={(event) => setKind(event.target.value as ControllerTaskKind | "")} value={kind}>
                   <option value="">{intl.formatMessage({ id: "tasks.filters.all" })}</option>
-                  {domainOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+                  {kindOptions.map((option) => <option key={option} value={option}>{option}</option>)}
                 </select>
               </label>
               <label className="text-sm font-medium text-foreground">
                 {intl.formatMessage({ id: "tasks.filters.status" })}
-                <select className="mt-1 h-8 w-full rounded-md border border-border bg-background px-2 text-sm" onChange={(event) => setStatus(event.target.value)} value={status}>
+                <select className="mt-1 h-8 w-full rounded-md border border-border bg-background px-2 text-sm" onChange={(event) => setStatus(event.target.value as ControllerTaskAuditStatus | "")} value={status}>
                   <option value="">{intl.formatMessage({ id: "tasks.filters.all" })}</option>
                   {statusOptions.map((option) => <option key={option} value={option}>{option}</option>)}
                 </select>
               </label>
               <label className="text-sm font-medium text-foreground">
-                {intl.formatMessage({ id: "tasks.filters.scope" })}
-                <select className="mt-1 h-8 w-full rounded-md border border-border bg-background px-2 text-sm" onChange={(event) => setScope(event.target.value)} value={scope}>
-                  <option value="">{intl.formatMessage({ id: "tasks.filters.all" })}</option>
-                  {scopeOptions.map((option) => <option key={option} value={option}>{option}</option>)}
-                </select>
+                {intl.formatMessage({ id: "tasks.filters.slot" })}
+                <input className="mt-1 h-8 w-full rounded-md border border-border bg-background px-2 text-sm" onChange={(event) => setSlotIdText(event.target.value)} value={slotIdText} />
               </label>
               <label className="text-sm font-medium text-foreground">
                 {intl.formatMessage({ id: "tasks.filters.node" })}
@@ -336,44 +271,101 @@ export function TasksPage() {
               </label>
             </div>
 
-            {tasks.length === 0 ? (
+            {!hasRows ? (
               <ResourceState
                 kind="empty"
                 title={intl.formatMessage({ id: "tasks.empty.title" })}
                 description={intl.formatMessage({ id: "tasks.empty.description" })}
               />
+            ) : null}
+          </SectionCard>
+
+          <SectionCard
+            description={intl.formatMessage({ id: "tasks.activeDescription" })}
+            title={intl.formatMessage({ id: "tasks.activeTitle" })}
+          >
+            {activeTasks.length === 0 ? (
+              <ResourceState
+                kind="empty"
+                title={intl.formatMessage({ id: "tasks.activeEmpty.title" })}
+                description={intl.formatMessage({ id: "tasks.activeEmpty.description" })}
+              />
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[920px] border-collapse text-left">
+                <table className="w-full min-w-[960px] border-collapse text-left">
                   <thead className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
                     <tr>
-                      <th className="px-3 py-3">{intl.formatMessage({ id: "tasks.table.domain" })}</th>
+                      <th className="px-3 py-3">{intl.formatMessage({ id: "tasks.table.id" })}</th>
                       <th className="px-3 py-3">{intl.formatMessage({ id: "tasks.table.kind" })}</th>
-                      <th className="px-3 py-3">{intl.formatMessage({ id: "tasks.table.scope" })}</th>
+                      <th className="px-3 py-3">{intl.formatMessage({ id: "tasks.table.slot" })}</th>
                       <th className="px-3 py-3">{intl.formatMessage({ id: "tasks.table.status" })}</th>
-                      <th className="px-3 py-3">{intl.formatMessage({ id: "tasks.table.phase" })}</th>
+                      <th className="px-3 py-3">{intl.formatMessage({ id: "tasks.table.step" })}</th>
                       <th className="px-3 py-3">{intl.formatMessage({ id: "tasks.table.nodes" })}</th>
-                      <th className="px-3 py-3">{intl.formatMessage({ id: "tasks.table.attempt" })}</th>
-                      <th className="px-3 py-3">{intl.formatMessage({ id: "tasks.table.updated" })}</th>
+                      <th className="px-3 py-3">{intl.formatMessage({ id: "tasks.table.peers" })}</th>
+                      <th className="px-3 py-3">{intl.formatMessage({ id: "tasks.table.participants" })}</th>
                       <th className="px-3 py-3">{intl.formatMessage({ id: "tasks.table.error" })}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {activeTasks.map((task) => (
+                      <tr className="border-t border-border" key={task.task_id}>
+                        <td className="px-3 py-3 font-mono text-xs text-foreground">{task.task_id}</td>
+                        <td className="px-3 py-3 text-sm text-foreground">{task.kind}</td>
+                        <td className="px-3 py-3 text-sm text-muted-foreground">{task.slot_id}</td>
+                        <td className="px-3 py-3"><StatusBadge value={task.status} /></td>
+                        <td className="px-3 py-3 text-sm text-muted-foreground">{task.step || "-"}</td>
+                        <td className="px-3 py-3 text-sm text-muted-foreground">{formatNodePair(task.source_node, task.target_node)}</td>
+                        <td className="px-3 py-3 text-sm text-muted-foreground">{formatNodeList(task.target_peers)}</td>
+                        <td className="px-3 py-3 text-sm text-muted-foreground">{formatParticipants(task)}</td>
+                        <td className="px-3 py-3 text-sm text-muted-foreground">{task.last_error || "-"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </SectionCard>
+
+          <SectionCard
+            description={intl.formatMessage({ id: "tasks.auditDescription" })}
+            title={intl.formatMessage({ id: "tasks.auditTitle" })}
+          >
+            {auditTasks.length === 0 ? (
+              <ResourceState
+                kind="empty"
+                title={intl.formatMessage({ id: "tasks.auditEmpty.title" })}
+                description={intl.formatMessage({ id: "tasks.auditEmpty.description" })}
+              />
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[980px] border-collapse text-left">
+                  <thead className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
+                    <tr>
+                      <th className="px-3 py-3">{intl.formatMessage({ id: "tasks.table.id" })}</th>
+                      <th className="px-3 py-3">{intl.formatMessage({ id: "tasks.table.kind" })}</th>
+                      <th className="px-3 py-3">{intl.formatMessage({ id: "tasks.table.status" })}</th>
+                      <th className="px-3 py-3">{intl.formatMessage({ id: "tasks.table.slot" })}</th>
+                      <th className="px-3 py-3">{intl.formatMessage({ id: "tasks.table.nodes" })}</th>
+                      <th className="px-3 py-3">{intl.formatMessage({ id: "tasks.table.raft" })}</th>
+                      <th className="px-3 py-3">{intl.formatMessage({ id: "tasks.table.updated" })}</th>
+                      <th className="px-3 py-3">{intl.formatMessage({ id: "tasks.table.summary" })}</th>
                       <th className="px-3 py-3">{intl.formatMessage({ id: "tasks.table.actions" })}</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {tasks.map((task) => (
-                      <tr className="border-t border-border" key={`${task.domain}-${task.id}`}>
-                        <td className="px-3 py-3 text-sm text-foreground">{task.domain}</td>
+                    {auditTasks.map((task) => (
+                      <tr className="border-t border-border" key={task.task_id}>
+                        <td className="px-3 py-3 font-mono text-xs text-foreground">{task.task_id}</td>
                         <td className="px-3 py-3 text-sm text-foreground">{task.kind}</td>
-                        <td className="px-3 py-3 text-sm text-foreground">{formatTaskScope(task)}</td>
                         <td className="px-3 py-3"><StatusBadge value={task.status} /></td>
-                        <td className="px-3 py-3 text-sm text-muted-foreground">{task.phase || "-"}</td>
-                        <td className="px-3 py-3 text-sm text-muted-foreground">{formatNodePair(task)}</td>
-                        <td className="px-3 py-3 text-sm text-muted-foreground">{task.attempt}</td>
-                        <td className="px-3 py-3 text-sm text-muted-foreground">{formatTaskTime(task)}</td>
-                        <td className="px-3 py-3 text-sm text-muted-foreground">{task.last_error || "-"}</td>
+                        <td className="px-3 py-3 text-sm text-muted-foreground">{task.slot_id}</td>
+                        <td className="px-3 py-3 text-sm text-muted-foreground">{formatNodePair(task.source_node, task.target_node)}</td>
+                        <td className="px-3 py-3 text-sm text-muted-foreground">{task.first_applied_raft_index}{" -> "}{task.last_applied_raft_index}</td>
+                        <td className="px-3 py-3 text-sm text-muted-foreground">{formatTime(task.completed_at ?? task.started_at)}</td>
+                        <td className="px-3 py-3 text-sm text-muted-foreground">{task.summary || task.last_reason || "-"}</td>
                         <td className="px-3 py-3">
-                          <Button onClick={() => void openDetail(task)} size="sm" type="button" variant="outline">
-                            {intl.formatMessage({ id: "tasks.actions.viewDetail" })}
+                          <Button onClick={() => void openTimeline(task)} size="sm" type="button" variant="outline">
+                            {intl.formatMessage({ id: "tasks.actions.viewTimeline" })}
                           </Button>
                         </td>
                       </tr>
@@ -387,36 +379,46 @@ export function TasksPage() {
       )}
 
       <DetailSheet
-        description={detailTask ? formatTaskScope(detailTask) : undefined}
+        description={timelineTask ? `${timelineTask.kind} / slot ${timelineTask.slot_id}` : undefined}
         onOpenChange={(open) => {
           if (!open) {
-            setDetailTask(null)
-            setDetail(null)
-            setDetailError("")
+            setTimelineTask(null)
+            setTimeline(null)
+            setTimelineError("")
           }
         }}
-        open={detailTask !== null}
-        title={intl.formatMessage({ id: "tasks.detailTitle" })}
+        open={timelineTask !== null}
+        title={intl.formatMessage({ id: "tasks.timelineTitle" })}
       >
-        {detailLoading ? <ResourceState kind="loading" title={intl.formatMessage({ id: "tasks.detailTitle" })} /> : null}
-        {detailError ? <p className="text-sm text-destructive">{detailError}</p> : null}
-        {detail ? (
+        {timelineLoading ? <ResourceState kind="loading" title={intl.formatMessage({ id: "tasks.timelineTitle" })} /> : null}
+        {timelineError ? <p className="text-sm text-destructive">{timelineError}</p> : null}
+        {timeline ? (
           <div className="space-y-4 text-sm">
-            <div className="rounded-lg border border-border bg-muted/30 p-3">
-              <div className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">ID</div>
-              <div className="mt-1 font-mono text-foreground">{detail.task.id}</div>
+            <KeyValueList
+              items={[
+                { label: "ID", value: timeline.task.task_id },
+                { label: intl.formatMessage({ id: "tasks.table.status" }), value: <StatusBadge value={timeline.task.status} /> },
+                { label: intl.formatMessage({ id: "tasks.table.nodes" }), value: formatNodePair(timeline.task.source_node, timeline.task.target_node) },
+                { label: intl.formatMessage({ id: "tasks.table.raft" }), value: `${timeline.task.first_applied_raft_index} -> ${timeline.task.last_applied_raft_index}` },
+              ]}
+            />
+            <div className="space-y-3">
+              {timeline.events.map((event) => (
+                <div className="rounded-lg border border-border bg-muted/30 p-3" key={event.event_id}>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="font-mono text-xs text-foreground">{event.event_id}</div>
+                    <StatusBadge value={event.type} />
+                  </div>
+                  <div className="mt-2 grid gap-2 text-xs text-muted-foreground md:grid-cols-2">
+                    <div>{intl.formatMessage({ id: "tasks.table.status" })}: {event.status || "-"}</div>
+                    <div>{intl.formatMessage({ id: "tasks.table.raft" })}: {event.applied_raft_index}/{event.applied_raft_term}</div>
+                    <div>{intl.formatMessage({ id: "tasks.timeline.command" })}: {event.command_kind || "-"}</div>
+                    <div>{intl.formatMessage({ id: "tasks.timeline.participant" })}: {event.participant_node || "-"}</div>
+                  </div>
+                  <div className="mt-2 text-sm text-foreground">{event.summary || event.reason || "-"}</div>
+                </div>
+              ))}
             </div>
-            <div className="grid gap-3 md:grid-cols-2">
-              <div><span className="text-muted-foreground">{intl.formatMessage({ id: "tasks.table.domain" })}: </span>{detail.task.domain}</div>
-              <div><span className="text-muted-foreground">{intl.formatMessage({ id: "tasks.table.status" })}: </span>{detail.task.status}</div>
-              <div><span className="text-muted-foreground">{intl.formatMessage({ id: "tasks.table.phase" })}: </span>{detail.task.phase || "-"}</div>
-              <div><span className="text-muted-foreground">{intl.formatMessage({ id: "tasks.table.nodes" })}: </span>{formatNodePair(detail.task)}</div>
-            </div>
-            <div className="rounded-lg border border-border bg-muted/30 p-3">
-              <div className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">{intl.formatMessage({ id: "tasks.detailRawStatus" })}</div>
-              <div className="mt-1 text-foreground">{detail.detail.raw_status || "-"}</div>
-            </div>
-            <SourceSpecificDetail detail={detail} intl={intl} />
           </div>
         ) : null}
       </DetailSheet>

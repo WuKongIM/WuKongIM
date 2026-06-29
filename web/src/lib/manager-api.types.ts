@@ -997,6 +997,108 @@ export type ManagerTaskDetailResponse = ManagerTask & {
   }
 }
 
+export type ControllerTaskKind = "bootstrap" | "leader_transfer" | "slot_replica_move"
+
+export type ControllerTaskStatus = "pending" | "running" | "failed"
+
+export type ControllerTaskAuditStatus = ControllerTaskStatus | "completed"
+
+export type ControllerTaskListParams = {
+  kind?: ControllerTaskKind
+  status?: ControllerTaskStatus
+  slotId?: number
+  nodeId?: number
+  limit?: number
+}
+
+export type ControllerTaskAuditListParams = {
+  kind?: ControllerTaskKind
+  status?: ControllerTaskAuditStatus
+  keyword?: string
+  slotId?: number
+  nodeId?: number
+  limit?: number
+}
+
+export type ManagerControllerTaskParticipant = {
+  node_id: number
+  attempt: number
+  status: string
+  last_error: string
+}
+
+export type ManagerControllerTask = {
+  task_id: string
+  slot_id: number
+  kind: string
+  step: string
+  status: string
+  source_node: number
+  target_node: number
+  target_peers: number[]
+  completion_policy: string
+  config_epoch: number
+  attempt: number
+  last_error: string
+  participants: ManagerControllerTaskParticipant[]
+}
+
+export type ManagerControllerTasksResponse = {
+  total: number
+  items: ManagerControllerTask[]
+}
+
+export type ManagerControllerTaskAuditSnapshot = {
+  task_id: string
+  kind: string
+  status: string
+  slot_id: number
+  leader_id: number
+  source_node: number
+  target_node: number
+  first_applied_raft_index: number
+  last_applied_raft_index: number
+  started_at: string | null
+  completed_at: string | null
+  event_count: number
+  truncated: boolean
+  summary: string
+  last_reason: string
+}
+
+export type ManagerControllerTaskAuditsResponse = {
+  total: number
+  limit: number
+  truncated: boolean
+  items: ManagerControllerTaskAuditSnapshot[]
+}
+
+export type ManagerControllerTaskAuditEvent = {
+  event_id: string
+  task_id: string
+  type: string
+  kind: string
+  status: string
+  slot_id: number
+  leader_id: number
+  source_node: number
+  target_node: number
+  applied_raft_index: number
+  applied_raft_term: number
+  command_kind: string
+  participant_node: number
+  occurred_at: string
+  summary: string
+  reason: string
+  details?: Record<string, unknown>
+}
+
+export type ManagerControllerTaskAuditEventsResponse = {
+  task: ManagerControllerTaskAuditSnapshot
+  events: ManagerControllerTaskAuditEvent[]
+  truncated: boolean
+}
+
 export type ManagerDistributedTaskStatus =
   | "pending"
   | "running"

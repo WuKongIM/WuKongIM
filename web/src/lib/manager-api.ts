@@ -2,6 +2,8 @@ import { getManagerApiBaseUrl } from "@/lib/env"
 import type {
   ChannelRuntimeMetaListParams,
   ChannelClusterUnhealthyParams,
+  ControllerTaskAuditListParams,
+  ControllerTaskListParams,
   ControllerLogListParams,
   ConnectionDetailParams,
   ConnectionListParams,
@@ -23,6 +25,10 @@ import type {
   ManagerControllerLogsResponse,
   ManagerControllerRaftCompactResponse,
   ManagerControllerRaftStatusResponse,
+  ManagerControllerTask,
+  ManagerControllerTaskAuditEventsResponse,
+  ManagerControllerTaskAuditsResponse,
+  ManagerControllerTasksResponse,
   ManagerConnectionsResponse,
   ManagerDBInspectDescribeResponse,
   ManagerDBInspectQueryInput,
@@ -358,6 +364,44 @@ function buildNodeOnboardingJobsPath(params?: NodeOnboardingJobsParams) {
 
   const query = search.toString()
   return query ? `/manager/node-onboarding/jobs?${query}` : "/manager/node-onboarding/jobs"
+}
+
+function appendControllerTaskSearch(search: URLSearchParams, params?: ControllerTaskListParams | ControllerTaskAuditListParams) {
+  if (params?.kind) {
+    search.set("kind", params.kind)
+  }
+  if (params?.status) {
+    search.set("status", params.status)
+  }
+  if (typeof params?.slotId === "number") {
+    search.set("slot_id", String(params.slotId))
+  }
+  if (typeof params?.nodeId === "number") {
+    search.set("node_id", String(params.nodeId))
+  }
+}
+
+function buildControllerTasksPath(params?: ControllerTaskListParams) {
+  const search = new URLSearchParams()
+  appendControllerTaskSearch(search, params)
+  if (typeof params?.limit === "number") {
+    search.set("limit", String(params.limit))
+  }
+  const query = search.toString()
+  return query ? `/manager/controller/tasks?${query}` : "/manager/controller/tasks"
+}
+
+function buildControllerTaskAuditsPath(params?: ControllerTaskAuditListParams) {
+  const search = new URLSearchParams()
+  appendControllerTaskSearch(search, params)
+  if (params?.keyword !== undefined) {
+    search.set("keyword", params.keyword)
+  }
+  if (typeof params?.limit === "number") {
+    search.set("limit", String(params.limit))
+  }
+  const query = search.toString()
+  return query ? `/manager/controller/task-audits?${query}` : "/manager/controller/task-audits"
 }
 
 function buildDistributedTasksPath(params?: DistributedTaskListParams) {
@@ -773,6 +817,24 @@ export function getTasks() {
 
 export function getTask(slotId: number) {
   return jsonManagerFetch<ManagerTaskDetailResponse>(`/manager/tasks/${slotId}`)
+}
+
+export function getControllerTasks(params?: ControllerTaskListParams) {
+  return jsonManagerFetch<ManagerControllerTasksResponse>(buildControllerTasksPath(params))
+}
+
+export function getControllerTask(taskId: string) {
+  return jsonManagerFetch<ManagerControllerTask>(`/manager/controller/tasks/${encodeURIComponent(taskId)}`)
+}
+
+export function getControllerTaskAudits(params?: ControllerTaskAuditListParams) {
+  return jsonManagerFetch<ManagerControllerTaskAuditsResponse>(buildControllerTaskAuditsPath(params))
+}
+
+export function getControllerTaskAuditEvents(taskId: string) {
+  return jsonManagerFetch<ManagerControllerTaskAuditEventsResponse>(
+    `/manager/controller/task-audits/${encodeURIComponent(taskId)}/events`,
+  )
 }
 
 export function getDistributedTasksSummary() {

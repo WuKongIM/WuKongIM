@@ -29,6 +29,9 @@ const getDiagnosticsEventsMock = vi.fn()
 const getDistributedTasksSummaryMock = vi.fn()
 const getDistributedTasksMock = vi.fn()
 const getDistributedTaskMock = vi.fn()
+const getControllerTasksMock = vi.fn()
+const getControllerTaskAuditsMock = vi.fn()
+const getControllerTaskAuditEventsMock = vi.fn()
 const getUsersMock = vi.fn()
 const getBusinessChannelsMock = vi.fn()
 const getSystemUsersMock = vi.fn()
@@ -67,6 +70,9 @@ vi.mock("@/lib/manager-api", async (importOriginal) => {
     getDistributedTasksSummary: (...args: unknown[]) => getDistributedTasksSummaryMock(...args),
     getDistributedTasks: (...args: unknown[]) => getDistributedTasksMock(...args),
     getDistributedTask: (...args: unknown[]) => getDistributedTaskMock(...args),
+    getControllerTasks: (...args: unknown[]) => getControllerTasksMock(...args),
+    getControllerTaskAudits: (...args: unknown[]) => getControllerTaskAuditsMock(...args),
+    getControllerTaskAuditEvents: (...args: unknown[]) => getControllerTaskAuditEventsMock(...args),
     getUsers: (...args: unknown[]) => getUsersMock(...args),
     getBusinessChannels: (...args: unknown[]) => getBusinessChannelsMock(...args),
     getSystemUsers: (...args: unknown[]) => getSystemUsersMock(...args),
@@ -99,6 +105,9 @@ beforeEach(() => {
   getDistributedTasksSummaryMock.mockReset()
   getDistributedTasksMock.mockReset()
   getDistributedTaskMock.mockReset()
+  getControllerTasksMock.mockReset()
+  getControllerTaskAuditsMock.mockReset()
+  getControllerTaskAuditEventsMock.mockReset()
   getUsersMock.mockReset()
   getBusinessChannelsMock.mockReset()
   getSystemUsersMock.mockReset()
@@ -140,6 +149,9 @@ beforeEach(() => {
   })
   getDistributedTasksMock.mockResolvedValue({ total: 0, items: [], next_cursor: "", has_more: false, partial: false, warnings: [] })
   getDistributedTaskMock.mockResolvedValue({ task: null, detail: { domain: "slot_reconcile", raw_status: "" } })
+  getControllerTasksMock.mockResolvedValue({ total: 0, items: [] })
+  getControllerTaskAuditsMock.mockResolvedValue({ total: 0, limit: 200, truncated: false, items: [] })
+  getControllerTaskAuditEventsMock.mockResolvedValue({ task: null, events: [], truncated: false })
   getUsersMock.mockResolvedValue({ items: [], has_more: false })
   getBusinessChannelsMock.mockResolvedValue({ items: [], has_more: false })
   getSystemUsersMock.mockResolvedValue({ items: [], total: 0 })
@@ -352,7 +364,7 @@ it.each([
   ["/cluster/slots", "Slots", "Slot 9"],
   ["/cluster/channels", "Channel Cluster", "No manager data is available for this view yet."],
   ["/cluster/plugins", "Plugins", "Node plugin inventory"],
-  ["/cluster/tasks", "Distributed Tasks", "Task queue"],
+  ["/cluster/tasks", "Controller Tasks", "Task audit history"],
   ["/cluster/topology", "Topology", "Topology Summary"],
   ["/cluster/diagnostics", "Diagnostics", "Message Diagnostics"],
   ["/business/users", "User Management", "Users"],
@@ -383,7 +395,7 @@ it.each([
   ["/cluster/slots", "CLUSTER / SLOTS"],
   ["/cluster/channels", "CLUSTER / CHANNELS"],
   ["/cluster/plugins", "CLUSTER / PLUGINS"],
-  ["/cluster/tasks", "Task queue"],
+  ["/cluster/tasks", "Controller Tasks"],
   ["/cluster/topology", "CLUSTER / TOPOLOGY"],
   ["/cluster/diagnostics", "CLUSTER / DIAGNOSTICS"],
   ["/business/dashboard", "BUSINESS / DASHBOARD"],
@@ -414,7 +426,7 @@ it.each([
   ["/cluster/slots", "槽位", "槽位 9"],
   ["/cluster/channels", "频道集群", "当前视图还没有可用的管理面数据。"],
   ["/cluster/plugins", "插件管理", "节点插件清单"],
-  ["/cluster/tasks", "分布式任务", "任务队列"],
+  ["/cluster/tasks", "Controller 任务", "任务审计历史"],
   ["/cluster/topology", "拓扑", "拓扑摘要"],
   ["/cluster/diagnostics", "诊断", "消息诊断"],
   ["/business/users", "用户管理", "用户"],
