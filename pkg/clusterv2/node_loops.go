@@ -10,6 +10,7 @@ import (
 const (
 	defaultTaskReconcileIdleInterval = time.Second
 	maxTaskReconcileIdleInterval     = 5 * time.Second
+	minHealthReportTimeout           = 10 * time.Millisecond
 )
 
 func (n *Node) startWatchLoop() {
@@ -63,9 +64,9 @@ func (n *Node) startHealthReportLoop() {
 	n.healthReportWG.Add(1)
 	go func() {
 		defer n.healthReportWG.Done()
-		_ = reporter.ReportNode(ctx)
+		_ = n.reportNodeHealth(ctx, reporter)
 		loop := observe.NewLoop(n.cfg.HealthReport.Interval, func(ctx context.Context) error {
-			return reporter.ReportNode(ctx)
+			return n.reportNodeHealth(ctx, reporter)
 		})
 		loop.Start(ctx)
 		<-ctx.Done()
@@ -82,8 +83,28 @@ func (n *Node) stopHealthReportLoop() {
 	n.healthReportCancel = nil
 }
 
+func (n *Node) reportNodeHealth(ctx context.Context, reporter *observe.Reporter) error {
+	if reporter == nil {
+		return nil
+	}
+	reportCtx, cancel := context.WithTimeout(ctx, healthReportTimeout(n.cfg.HealthReport.Interval, n.cfg.HealthReport.TTL))
+	defer cancel()
+	return reporter.ReportNode(reportCtx)
+}
+
+func healthReportTimeout(interval, ttl time.Duration) time.Duration {
+	timeout := interval
+	if timeout <= 0 || (ttl > 0 && ttl < timeout) {
+		timeout = ttl
+	}
+	if timeout <= 0 {
+		return minHealthReportTimeout
+	}
+	return timeout
+}
+
 func (n *Node) runtimeReadyForHealthReport() bool {
-	if n == nil || !n.started.Load() {
+	if n == nil || !n.started.Load() || n.stopping.Load() {
 		return false
 	}
 	n.mu.RLock()

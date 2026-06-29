@@ -131,6 +131,7 @@ Start(ctx)
   -> start the default Slot leader observation loop when the default Slot runtime is active
   -> mark ChannelV2 ready and start the tick loop
   -> mark node started
+  -> start low-frequency ControllerV2 health reporting
 ```
 
 `Start` requires cluster semantics even for one node. A single-node cluster uses a ControllerV2-backed single-voter control runtime instead of a bypass path. Multi-voter default startup uses `pkg/transportv2` one-way service messages for ControllerV2 Raft traffic and RPC responses only for state-sync requests. The ControllerV2 Raft receive handler bounds local `Step` enqueue time and may drop messages when the local Step queue is saturated; Raft retransmission is relied on instead of allowing one-way notify goroutines to accumulate indefinitely.
@@ -185,6 +186,7 @@ composition roots.
 ```text
 Stop(ctx)
   -> mark stopping and reject new foreground calls
+  -> stop low-frequency ControllerV2 health reporting
   -> stop Controller watch loop
   -> stop ChannelV2 tick loop
   -> stop ChannelV2 physical retention cleanup loop
