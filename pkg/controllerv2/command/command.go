@@ -30,6 +30,8 @@ const (
 	KindFailTask Kind = "fail_task"
 	// KindReportTaskProgress records one participant's local progress.
 	KindReportTaskProgress Kind = "report_task_progress"
+	// KindReportNodeHealth stores a bounded low-frequency node health report.
+	KindReportNodeHealth Kind = "report_node_health"
 	// KindReplaceHashSlotTable replaces the hash-slot routing table.
 	KindReplaceHashSlotTable Kind = "replace_hash_slot_table"
 )
@@ -60,6 +62,8 @@ type Command struct {
 	TaskResult *TaskResult `json:"task_result,omitempty"`
 	// TaskProgress records one participant's local progress for barrier tasks.
 	TaskProgress *TaskProgress `json:"task_progress,omitempty"`
+	// NodeHealth contains a health report for KindReportNodeHealth.
+	NodeHealth *state.NodeHealthReport `json:"node_health,omitempty"`
 	// HashSlots contains a replacement hash-slot table.
 	HashSlots *state.HashSlotTable `json:"hash_slots,omitempty"`
 }

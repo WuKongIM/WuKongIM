@@ -38,6 +38,16 @@ func upsertTask(st *state.ClusterState, task state.ReconcileTask) {
 	st.Tasks = append(st.Tasks, task)
 }
 
+func upsertNodeHealthReport(st *state.ClusterState, report state.NodeHealthReport) {
+	for i := range st.NodeHealthReports {
+		if st.NodeHealthReports[i].NodeID == report.NodeID {
+			st.NodeHealthReports[i] = report
+			return
+		}
+	}
+	st.NodeHealthReports = append(st.NodeHealthReports, report)
+}
+
 func equivalentInit(current state.ClusterState, initial state.ClusterState) bool {
 	current = current.Clone()
 	initial = initial.Clone()

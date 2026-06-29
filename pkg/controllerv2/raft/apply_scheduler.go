@@ -260,6 +260,7 @@ func (s *applyScheduler) applyEntries(ctx context.Context, entries []raftpb.Entr
 func proposalResultFromApplyResult(result fsm.ApplyResult) ProposalResult {
 	return ProposalResult{
 		Changed:          result.Changed,
+		Updated:          result.Updated,
 		Noop:             result.Noop,
 		Rejected:         result.Rejected,
 		Reason:           result.Reason,

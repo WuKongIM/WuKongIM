@@ -90,6 +90,10 @@ func (sm *StateMachine) applyMutation(next *state.ClusterState, raftIndex uint64
 		if stale, handled := handleTaskProgressRevisionMismatch(next, cmd); handled {
 			return stale
 		}
+	case command.KindReportNodeHealth:
+		if cmd.ExpectedRevision != nil && *cmd.ExpectedRevision != currentRevision {
+			return reject(ReasonExpectedRevisionMismatch)
+		}
 	default:
 		if cmd.ExpectedRevision != nil && *cmd.ExpectedRevision != currentRevision {
 			if isNonBootstrapIdempotent(*next, cmd) {
@@ -122,6 +126,8 @@ func (sm *StateMachine) applyMutation(next *state.ClusterState, raftIndex uint64
 		result = sm.applyFailTask(next, cmd)
 	case command.KindReportTaskProgress:
 		result = sm.applyReportTaskProgress(next, cmd)
+	case command.KindReportNodeHealth:
+		result = sm.applyReportNodeHealth(next, raftIndex, cmd)
 	default:
 		result = reject(ReasonInvalidCommand)
 	}

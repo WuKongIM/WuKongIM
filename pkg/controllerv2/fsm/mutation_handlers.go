@@ -343,6 +343,25 @@ func (sm *StateMachine) applyReportTaskProgress(next *state.ClusterState, cmd co
 	return validateChanged(next, before, cmd)
 }
 
+func (sm *StateMachine) applyReportNodeHealth(next *state.ClusterState, raftIndex uint64, cmd command.Command) ApplyResult {
+	if next.Revision == 0 || cmd.NodeHealth == nil {
+		return reject(ReasonInvalidCommand)
+	}
+	before := next.Clone()
+	report := *cmd.NodeHealth
+	report.AppliedRaftIndex = raftIndex
+	upsertNodeHealthReport(next, report)
+	next.Normalize()
+	if err := next.Validate(); err != nil {
+		*next = before
+		return reject(ReasonInvalidState)
+	}
+	if reflect.DeepEqual(before.NodeHealthReports, next.NodeHealthReports) {
+		return noop(ReasonNoChange)
+	}
+	return ApplyResult{Updated: true}
+}
+
 func taskResultGuard(task state.ReconcileTask, result *command.TaskResult) ApplyResult {
 	if result == nil || result.TaskID == "" || result.SlotID == 0 || result.TaskKind == "" || result.ConfigEpoch == 0 {
 		return reject(ReasonInvalidTaskResult)

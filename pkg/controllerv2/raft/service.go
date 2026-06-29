@@ -45,6 +45,8 @@ func (e ProposalRejectedError) Unwrap() error { return ErrProposalRejected }
 type ProposalResult struct {
 	// Changed is true when the proposal advanced the logical cluster-state revision.
 	Changed bool
+	// Updated is true when the command changed durable state without advancing the logical cluster-state revision.
+	Updated bool
 	// Noop is true when the proposal was committed but idempotent or obsolete.
 	Noop bool
 	// Rejected is true when the FSM rejected the committed proposal.

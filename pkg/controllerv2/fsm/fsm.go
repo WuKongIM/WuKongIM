@@ -15,6 +15,8 @@ import (
 type ApplyResult struct {
 	// Changed is true when the command advanced the logical state revision.
 	Changed bool
+	// Updated is true when the command changed durable state without advancing the logical cluster-state revision.
+	Updated bool
 	// Noop is true when the command was idempotent or obsolete.
 	Noop bool
 	// Rejected is true when the command is semantically invalid for the current state.

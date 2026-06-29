@@ -67,6 +67,50 @@ func TestApplyUpsertNodeNoopDoesNotIncrementRevisionButAdvancesAppliedIndex(t *t
 	require.Equal(t, uint64(2), persisted.AppliedRaftIndex)
 }
 
+func TestApplyReportNodeHealthPersistsWithoutLogicalRevisionBump(t *testing.T) {
+	sm := newLoadedStateMachine(t)
+	before := sm.Snapshot(context.Background())
+
+	report := state.NodeHealthReport{
+		NodeID:                  1,
+		Status:                  state.NodeStatusAlive,
+		RuntimeReady:            true,
+		ObservedControlRevision: before.Revision,
+		ObservedSlotRevision:    12,
+		ReportSeq:               1,
+		ReportedAtUnixMilli:     1710000000000,
+	}
+	result, err := sm.Apply(context.Background(), before.AppliedRaftIndex+1, command.Command{
+		Kind:       command.KindReportNodeHealth,
+		NodeHealth: &report,
+	})
+	if err != nil {
+		t.Fatalf("Apply() error = %v", err)
+	}
+	if !result.Updated || result.Changed || result.Revision != before.Revision {
+		t.Fatalf("Apply() = %#v, want Updated without logical revision bump from %d", result, before.Revision)
+	}
+	after := sm.Snapshot(context.Background())
+	if after.Revision != before.Revision {
+		t.Fatalf("Revision = %d, want unchanged %d", after.Revision, before.Revision)
+	}
+	if len(after.NodeHealthReports) != 1 || after.NodeHealthReports[0].AppliedRaftIndex != result.AppliedRaftIndex {
+		t.Fatalf("NodeHealthReports = %#v, result = %#v", after.NodeHealthReports, result)
+	}
+}
+
+func TestApplyReportNodeHealthRejectsUnknownNode(t *testing.T) {
+	sm := newLoadedStateMachine(t)
+	report := state.NodeHealthReport{NodeID: 99, Status: state.NodeStatusAlive, ReportedAtUnixMilli: 1710000000000}
+	result, err := sm.Apply(context.Background(), 2, command.Command{Kind: command.KindReportNodeHealth, NodeHealth: &report})
+	if err != nil {
+		t.Fatalf("Apply() error = %v", err)
+	}
+	if !result.Rejected || result.Reason != ReasonInvalidState {
+		t.Fatalf("Apply() = %#v, want invalid state reject", result)
+	}
+}
+
 func TestApplyBatchPersistsOnceAndReturnsPerEntryResults(t *testing.T) {
 	ctx := context.Background()
 	dir := t.TempDir()
@@ -1017,6 +1061,12 @@ func initializedStateMachine(t *testing.T, raftIndex uint64) (*StateMachine, *st
 	sm, store := newTestStateMachine(t)
 	applyOK(t, sm, raftIndex, initCommand())
 	return sm, store
+}
+
+func newLoadedStateMachine(t *testing.T) *StateMachine {
+	t.Helper()
+	sm, _ := initializedStateMachine(t, 1)
+	return sm
 }
 
 func applyOK(t *testing.T, sm *StateMachine, raftIndex uint64, cmd command.Command) ApplyResult {
