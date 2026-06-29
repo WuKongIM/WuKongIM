@@ -170,7 +170,7 @@ func (a *ControllerV2Adapter) LeaderID() uint64 {
 	return a.snapshot.ControllerID
 }
 
-// ReportNode is currently a best-effort no-op until ControllerV2 exposes report commands.
+// ReportNode is a best-effort no-op on the read-only snapshot adapter.
 func (a *ControllerV2Adapter) ReportNode(ctx context.Context, report NodeReport) error {
 	return ctxErr(ctx)
 }

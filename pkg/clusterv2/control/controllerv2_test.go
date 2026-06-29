@@ -76,7 +76,7 @@ func TestControllerV2AdapterMapsNodeHealthFreshness(t *testing.T) {
 	now := time.Date(2026, 6, 29, 10, 0, 0, 0, time.UTC)
 	st := cv2.ClusterState{
 		Revision: 9,
-		Nodes: []cv2.Node{{NodeID: 1, Addr: "n1", Roles: []cv2.NodeRole{cv2.NodeRoleData}, JoinState: cv2.NodeJoinStateActive, Status: cv2.NodeStatusAlive}},
+		Nodes:    []cv2.Node{{NodeID: 1, Addr: "n1", Roles: []cv2.NodeRole{cv2.NodeRoleData}, JoinState: cv2.NodeJoinStateActive, Status: cv2.NodeStatusAlive}},
 		NodeHealthReports: []cv2.NodeHealthReport{{
 			NodeID:                  1,
 			Status:                  cv2.NodeStatusAlive,
@@ -89,6 +89,52 @@ func TestControllerV2AdapterMapsNodeHealthFreshness(t *testing.T) {
 	snap := snapshotFromControllerState(st, 1, now, 30*time.Second)
 	if len(snap.Nodes) != 1 || snap.Nodes[0].Health.Freshness != NodeHealthFresh {
 		t.Fatalf("snapshot nodes = %#v, want fresh health", snap.Nodes)
+	}
+}
+
+func TestControllerV2AdapterMapsMissingNodeHealth(t *testing.T) {
+	now := time.Date(2026, 6, 29, 10, 0, 0, 0, time.UTC)
+	st := cv2.ClusterState{
+		Revision: 9,
+		Nodes:    []cv2.Node{{NodeID: 1, Addr: "n1", Roles: []cv2.NodeRole{cv2.NodeRoleData}, JoinState: cv2.NodeJoinStateActive, Status: cv2.NodeStatusAlive}},
+	}
+	snap := snapshotFromControllerState(st, 1, now, 30*time.Second)
+	if len(snap.Nodes) != 1 || snap.Nodes[0].Health.Freshness != NodeHealthMissing {
+		t.Fatalf("snapshot nodes = %#v, want missing health", snap.Nodes)
+	}
+}
+
+func TestControllerV2AdapterMapsStaleNodeHealth(t *testing.T) {
+	now := time.Date(2026, 6, 29, 10, 0, 0, 0, time.UTC)
+	st := cv2.ClusterState{
+		Revision: 9,
+		Nodes:    []cv2.Node{{NodeID: 1, Addr: "n1", Roles: []cv2.NodeRole{cv2.NodeRoleData}, JoinState: cv2.NodeJoinStateActive, Status: cv2.NodeStatusAlive}},
+		NodeHealthReports: []cv2.NodeHealthReport{{
+			NodeID:              1,
+			Status:              cv2.NodeStatusAlive,
+			ReportedAtUnixMilli: now.Add(-31 * time.Second).UnixMilli(),
+		}},
+	}
+	snap := snapshotFromControllerState(st, 1, now, 30*time.Second)
+	if len(snap.Nodes) != 1 || snap.Nodes[0].Health.Freshness != NodeHealthStale {
+		t.Fatalf("snapshot nodes = %#v, want stale health", snap.Nodes)
+	}
+}
+
+func TestControllerV2AdapterMapsFutureNodeHealthAsStale(t *testing.T) {
+	now := time.Date(2026, 6, 29, 10, 0, 0, 0, time.UTC)
+	st := cv2.ClusterState{
+		Revision: 9,
+		Nodes:    []cv2.Node{{NodeID: 1, Addr: "n1", Roles: []cv2.NodeRole{cv2.NodeRoleData}, JoinState: cv2.NodeJoinStateActive, Status: cv2.NodeStatusAlive}},
+		NodeHealthReports: []cv2.NodeHealthReport{{
+			NodeID:              1,
+			Status:              cv2.NodeStatusAlive,
+			ReportedAtUnixMilli: now.Add(5 * time.Second).UnixMilli(),
+		}},
+	}
+	snap := snapshotFromControllerState(st, 1, now, 30*time.Second)
+	if len(snap.Nodes) != 1 || snap.Nodes[0].Health.Freshness != NodeHealthStale || snap.Nodes[0].Health.ReportAge < 0 {
+		t.Fatalf("snapshot nodes = %#v, want future health stale with non-negative age", snap.Nodes)
 	}
 }
 

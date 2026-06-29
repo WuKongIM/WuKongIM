@@ -261,7 +261,10 @@ func BuildNodeHealth(report cv2.NodeHealthReport, exists bool, now time.Time, tt
 	reportedAt := time.UnixMilli(report.ReportedAtUnixMilli).UTC()
 	age := now.Sub(reportedAt)
 	freshness := NodeHealthFresh
-	if ttl <= 0 || age > ttl {
+	if age < 0 {
+		age = 0
+		freshness = NodeHealthStale
+	} else if ttl <= 0 || age > ttl {
 		freshness = NodeHealthStale
 	}
 	return NodeHealth{
