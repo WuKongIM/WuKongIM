@@ -35,6 +35,8 @@ POST /manager/nodes/:node_id/slots/:slot_id/compact (manual node-local Slot Raft
 GET  /manager/controller/logs (Controller distributed log page; requires cluster.controller:r when Auth.On=true)
 GET  /manager/controller/tasks (active Controller task list; requires cluster.controller:r when Auth.On=true)
 GET  /manager/controller/tasks/:task_id (active Controller task detail; requires cluster.controller:r when Auth.On=true)
+GET  /manager/controller/task-audits (retained Controller task history; requires cluster.controller:r when Auth.On=true)
+GET  /manager/controller/task-audits/:task_id/events (retained Controller task event timeline; requires cluster.controller:r when Auth.On=true)
 GET  /manager/nodes/:node_id/controller-raft (node-local Controller Raft status; requires cluster.controller:r when Auth.On=true)
 POST /manager/nodes/:node_id/controller-raft/compact (manual node-local Controller Raft compaction; requires cluster.controller:w when Auth.On=true)
 POST /manager/controller-raft/compact (manual Controller voter compaction fan-out; requires cluster.controller:w when Auth.On=true)
@@ -254,6 +256,15 @@ local control snapshot. The HTTP layer validates `kind`, `status`, `slot_id`,
 enabled, and delegates projection/filtering to `internalv2/usecase/management`.
 The route is read-only and intentionally omits completed task history because
 completed tasks are removed from active cluster state.
+
+`/manager/controller/task-audits*` exposes bounded retained ControllerV2 task
+history from the internalv2 task audit reader. The HTTP layer validates `kind`,
+`status`, `slot_id`, `node_id`, `keyword`, and `limit`, requires
+`cluster.controller:r` when manager auth is enabled, and delegates list and
+exact task timeline reads to `internalv2/usecase/management`. The route is
+read-only and uses applied Raft index ordering from the backend audit store, so
+completed or failed historical tasks remain inspectable after they disappear
+from active control state.
 
 `/manager/nodes/:node_id/slots/:slot_id/compact` is the explicit Slot Raft
 operator action paired with the read-only Slot log page and list-row Slot Raft

@@ -73,6 +73,10 @@ type Management interface {
 	ListControllerTasks(ctx context.Context, req managementusecase.ListControllerTasksRequest) (managementusecase.ListControllerTasksResponse, error)
 	// ControllerTask returns one active Controller task by ID.
 	ControllerTask(ctx context.Context, taskID string) (managementusecase.ControllerTask, error)
+	// ListControllerTaskAudits returns retained Controller task histories.
+	ListControllerTaskAudits(ctx context.Context, req managementusecase.ControllerTaskAuditListRequest) (managementusecase.ControllerTaskAuditListResponse, error)
+	// ControllerTaskAuditEvents returns retained events for one Controller task.
+	ControllerTaskAuditEvents(ctx context.Context, taskID string) (managementusecase.ControllerTaskAuditEventsResponse, error)
 	// ControllerRaftStatus returns one node-local Controller Raft status snapshot.
 	ControllerRaftStatus(ctx context.Context, nodeID uint64) (managementusecase.ControllerRaftStatus, error)
 	// CompactControllerRaftLog forces one node-local Controller Raft log compaction attempt.
@@ -351,6 +355,8 @@ func (s *Server) registerRoutes() {
 	controllerReads.GET("/controller/logs", s.handleControllerLogs)
 	controllerReads.GET("/controller/tasks", s.handleControllerTasks)
 	controllerReads.GET("/controller/tasks/:task_id", s.handleControllerTask)
+	controllerReads.GET("/controller/task-audits", s.handleControllerTaskAudits)
+	controllerReads.GET("/controller/task-audits/:task_id/events", s.handleControllerTaskAuditEvents)
 	controllerReads.GET("/nodes/:node_id/controller-raft", s.handleControllerRaftStatus)
 
 	controllerRaftWrites := s.engine.Group("/manager")

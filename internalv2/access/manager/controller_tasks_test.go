@@ -163,6 +163,22 @@ func TestManagerControllerTasksRejectInvalidQueries(t *testing.T) {
 	}
 }
 
+func TestManagerControllerTaskKindAcceptsSlotReplicaMove(t *testing.T) {
+	var seen managementusecase.ListControllerTasksRequest
+	srv := New(Options{Management: managerNodesStub{controllerTasksReqSink: &seen}})
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/manager/controller/tasks?kind=slot_replica_move", nil)
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	if seen.Kind != "slot_replica_move" {
+		t.Fatalf("kind = %q, want slot_replica_move", seen.Kind)
+	}
+}
+
 func TestManagerControllerTaskMapsErrors(t *testing.T) {
 	tests := []struct {
 		name   string

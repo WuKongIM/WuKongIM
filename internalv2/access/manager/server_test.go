@@ -1333,6 +1333,8 @@ type managerNodesStub struct {
 	controllerLogEntriesPage           managementusecase.ControllerLogEntriesResponse
 	controllerTasksResponse            managementusecase.ListControllerTasksResponse
 	controllerTask                     managementusecase.ControllerTask
+	controllerTaskAuditsResponse       managementusecase.ControllerTaskAuditListResponse
+	controllerTaskAuditEventsResponse  managementusecase.ControllerTaskAuditEventsResponse
 	controllerRaftStatus               managementusecase.ControllerRaftStatus
 	controllerRaftCompactResult        managementusecase.ControllerRaftCompactionResult
 	controllerRaftCompactSummary       managementusecase.ControllerRaftCompactionSummary
@@ -1385,6 +1387,8 @@ type managerNodesStub struct {
 	controllerLogEntriesReqSink        *managementusecase.ListControllerLogEntriesRequest
 	controllerTasksReqSink             *managementusecase.ListControllerTasksRequest
 	controllerTaskIDSink               *string
+	controllerTaskAuditsReqSink        *managementusecase.ControllerTaskAuditListRequest
+	controllerTaskAuditEventsIDSink    *string
 	controllerRaftStatusNodeSink       *uint64
 	controllerRaftCompactNodeSink      *uint64
 	slotRaftCompactNodeSink            *uint64
@@ -1431,6 +1435,8 @@ type managerNodesStub struct {
 	controllerLogEntriesErr            error
 	controllerTasksErr                 error
 	controllerTaskErr                  error
+	controllerTaskAuditsErr            error
+	controllerTaskAuditEventsErr       error
 	controllerRaftStatusErr            error
 	controllerRaftCompactErr           error
 	controllerRaftCompactAllErr        error
@@ -1567,6 +1573,20 @@ func (s managerNodesStub) ControllerTask(_ context.Context, taskID string) (mana
 		*s.controllerTaskIDSink = taskID
 	}
 	return s.controllerTask, s.controllerTaskErr
+}
+
+func (s managerNodesStub) ListControllerTaskAudits(_ context.Context, req managementusecase.ControllerTaskAuditListRequest) (managementusecase.ControllerTaskAuditListResponse, error) {
+	if s.controllerTaskAuditsReqSink != nil {
+		*s.controllerTaskAuditsReqSink = req
+	}
+	return s.controllerTaskAuditsResponse, s.controllerTaskAuditsErr
+}
+
+func (s managerNodesStub) ControllerTaskAuditEvents(_ context.Context, taskID string) (managementusecase.ControllerTaskAuditEventsResponse, error) {
+	if s.controllerTaskAuditEventsIDSink != nil {
+		*s.controllerTaskAuditEventsIDSink = taskID
+	}
+	return s.controllerTaskAuditEventsResponse, s.controllerTaskAuditEventsErr
 }
 
 func (s managerNodesStub) ControllerRaftStatus(_ context.Context, nodeID uint64) (managementusecase.ControllerRaftStatus, error) {

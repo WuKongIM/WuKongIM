@@ -120,6 +120,8 @@ type Options struct {
 	SlotRuntimeStatus SlotRuntimeStatusReader
 	// ControllerRaft runs node-local Controller Raft status and compaction operations.
 	ControllerRaft ControllerRaftOperator
+	// ControllerTaskAudit reads retained ControllerV2 task audit history.
+	ControllerTaskAudit ControllerTaskAuditReader
 	// ApplicationLogs reads selected-node ordinary application log pages.
 	ApplicationLogs ApplicationLogReader
 	// DBInspect runs read-only node-local DB inspect queries.
@@ -161,6 +163,7 @@ type App struct {
 	slotReplicaMove        SlotReplicaMoveWriter
 	slotRuntimeStatus      SlotRuntimeStatusReader
 	controllerRaft         ControllerRaftOperator
+	controllerTaskAudit    ControllerTaskAuditReader
 	applicationLogs        ApplicationLogReader
 	dbInspect              DBInspectReader
 	remoteDBInspect        RemoteDBInspectReader
@@ -203,6 +206,7 @@ func New(opts Options) *App {
 		slotReplicaMove:        opts.SlotReplicaMove,
 		slotRuntimeStatus:      opts.SlotRuntimeStatus,
 		controllerRaft:         opts.ControllerRaft,
+		controllerTaskAudit:    opts.ControllerTaskAudit,
 		applicationLogs:        opts.ApplicationLogs,
 		dbInspect:              opts.DBInspect,
 		remoteDBInspect:        opts.RemoteDBInspect,

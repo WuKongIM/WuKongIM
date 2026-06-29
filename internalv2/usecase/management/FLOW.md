@@ -5,7 +5,7 @@
 `internalv2/usecase/management` builds entry-independent read models for the
 new manager API. It currently owns the node list, Slot list, business channel
 list, channel runtime metadata list, Controller/Slot distributed log pages,
-Controller Raft status and explicit compaction orchestration, Slot Raft
+Controller task audit history, Controller Raft status and explicit compaction orchestration, Slot Raft
 explicit compaction orchestration, Slot leader-transfer intent
 validation/submission, recent conversation list, channel message list,
 message retention adapter contract, local-or-remote connection list/detail
@@ -31,6 +31,8 @@ user management, and system UID projections/actions used by
 `GET /manager/channels`,
 `GET /manager/channel-runtime-meta`, `GET /manager/controller/logs`,
 `GET /manager/controller/tasks`, `GET /manager/controller/tasks/:task_id`,
+`GET /manager/controller/task-audits`,
+`GET /manager/controller/task-audits/:task_id/events`,
 `GET /manager/slots/:slot_id/logs`,
 `GET /manager/nodes/:node_id/controller-raft`,
 `POST /manager/nodes/:node_id/controller-raft/compact`,

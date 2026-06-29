@@ -130,7 +130,7 @@ func parseControllerTasksRequest(c *gin.Context) (managementusecase.ListControll
 
 func validControllerTaskKind(kind string) bool {
 	switch kind {
-	case "", string(control.TaskKindBootstrap), string(control.TaskKindLeaderTransfer):
+	case "", string(control.TaskKindBootstrap), string(control.TaskKindLeaderTransfer), string(control.TaskKindSlotReplicaMove):
 		return true
 	default:
 		return false
