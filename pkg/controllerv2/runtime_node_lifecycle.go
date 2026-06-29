@@ -82,6 +82,14 @@ type MarkNodeRemovedResult struct {
 	Revision uint64
 }
 
+func gofailMarkNodeRemovedPostCommitFault(raw string) error {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+	return fmt.Errorf("controllerv2: %s", raw)
+}
+
 // JoinNode adds a data-capable node in joining state without changing Slot assignments.
 func (r *Runtime) JoinNode(ctx context.Context, req JoinNodeRequest) (JoinNodeResult, error) {
 	if err := ctxErr(ctx); err != nil {
@@ -246,6 +254,8 @@ func (r *Runtime) MarkNodeRemoved(ctx context.Context, req MarkNodeRemovedReques
 	if err := r.publishFromState(ctx); err != nil {
 		return MarkNodeRemovedResult{}, err
 	}
+	// gofail: var wkMarkNodeRemovedPostCommitFault string
+	// if err := gofailMarkNodeRemovedPostCommitFault(wkMarkNodeRemovedPostCommitFault); err != nil { return MarkNodeRemovedResult{}, err }
 	updated, err := r.LocalState(ctx)
 	if err != nil {
 		return MarkNodeRemovedResult{}, err
