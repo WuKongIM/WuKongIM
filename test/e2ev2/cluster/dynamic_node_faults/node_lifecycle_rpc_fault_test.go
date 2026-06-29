@@ -13,7 +13,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const clusterNetCallShardFault = "wkClusterNetCallShardFault"
+const (
+	clusterNetCallShardFault      = "wkClusterNetCallShardFault"
+	clusterNetCallShardOwnedFault = "wkClusterNetCallShardOwnedFault"
+)
 
 func TestSeedJoinRetriesThroughInjectedNodeLifecycleRPCFault(t *testing.T) {
 	requireGofailDynamicNodeEnabled(t)
@@ -31,15 +34,14 @@ func TestSeedJoinRetriesThroughInjectedNodeLifecycleRPCFault(t *testing.T) {
 		suite.WithNodeEnv(1, node1Fail.Env()),
 		suite.WithNodeEnv(2, node2Fail.Env()),
 		suite.WithNodeEnv(3, node3Fail.Env()),
-		suite.WithNodeEnv(4, node4Fail.Env()),
+		suite.WithNodeEnv(4,
+			node4Fail.Env(),
+			`GOFAIL_FAILPOINTS=wkClusterNetCallShardFault=return("node_lifecycle:temporary join rpc fault")`,
+		),
 	)
 	readyCtx, readyCancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer readyCancel()
 	require.NoError(t, cluster.WaitClusterReady(readyCtx), cluster.DumpDiagnostics())
-
-	waitGofailListed(t, cluster, node1Fail)
-	enableGofail(t, cluster, node1Fail, `return("node_lifecycle:temporary join rpc fault")`)
-	defer disableGofail(t, node1Fail)
 
 	manager := cluster.ManagerClient(t, 1)
 	node4 := cluster.StartSeedJoinNodeNoWait(t, suite.SeedJoinNodeConfig{
@@ -47,9 +49,12 @@ func TestSeedJoinRetriesThroughInjectedNodeLifecycleRPCFault(t *testing.T) {
 		Seeds:     []string{cluster.NodeAddr(1)},
 		JoinToken: joinToken,
 	})
+
+	waitGofailListed(t, cluster, node4Fail, clusterNetCallShardFault)
+	defer disableGofail(t, node4Fail, clusterNetCallShardFault)
 	requireNodeNotReadyFor(t, cluster, node4, 750*time.Millisecond)
 
-	disableGofail(t, node1Fail)
+	disableGofail(t, node4Fail, clusterNetCallShardFault)
 
 	node4ReadyCtx, node4ReadyCancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer node4ReadyCancel()
@@ -100,11 +105,11 @@ func TestOnboardingControlWriteRetriesThroughInjectedRPCFault(t *testing.T) {
 
 	failpoints := []suite.GofailEndpoint{node1Fail, node2Fail, node3Fail}
 	for _, endpoint := range failpoints {
-		waitGofailListed(t, cluster, endpoint)
+		waitGofailListed(t, cluster, endpoint, clusterNetCallShardOwnedFault)
 	}
 	for _, endpoint := range failpoints {
-		enableGofail(t, cluster, endpoint, `return("control_write:temporary control write fault")`)
-		defer disableGofail(t, endpoint)
+		enableGofail(t, cluster, endpoint, clusterNetCallShardOwnedFault, `return("control_write:temporary control write fault")`)
+		defer disableGofail(t, endpoint, clusterNetCallShardOwnedFault)
 	}
 
 	remoteManager := cluster.ManagerClient(t, controlWriteForwardingNodeID(t, cluster))
@@ -114,7 +119,7 @@ func TestOnboardingControlWriteRetriesThroughInjectedRPCFault(t *testing.T) {
 	requireBoundedFaultedOnboardingStart(t, cluster, faulted, status, body, err)
 
 	for _, endpoint := range failpoints {
-		disableGofail(t, endpoint)
+		disableGofail(t, endpoint, clusterNetCallShardOwnedFault)
 	}
 
 	start := manager.MustStartOnboarding(t, 4, 1)
@@ -128,14 +133,14 @@ func TestOnboardingControlWriteRetriesThroughInjectedRPCFault(t *testing.T) {
 	require.Equal(t, 0, onboardingStatus.Summary.Failed, "status=%#v\n%s", onboardingStatus, cluster.DumpDiagnostics())
 }
 
-func waitGofailListed(t testing.TB, cluster *suite.StartedCluster, endpoint suite.GofailEndpoint) {
+func waitGofailListed(t testing.TB, cluster *suite.StartedCluster, endpoint suite.GofailEndpoint, failpoint string) {
 	t.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	body, err := endpoint.WaitListed(ctx, clusterNetCallShardFault)
+	body, err := endpoint.WaitListed(ctx, failpoint)
 	require.NoError(t, err, "gofail body:\n%s\n%s", body, cluster.DumpDiagnostics())
-	require.Contains(t, body, clusterNetCallShardFault, cluster.DumpDiagnostics())
+	require.Contains(t, body, failpoint, cluster.DumpDiagnostics())
 }
 
 func controlWriteForwardingNodeID(t testing.TB, cluster *suite.StartedCluster) uint64 {
@@ -184,20 +189,20 @@ func fetchManagerNodes(ctx context.Context, managerAddr string) (nodeFaultManage
 	return out, err
 }
 
-func enableGofail(t testing.TB, cluster *suite.StartedCluster, endpoint suite.GofailEndpoint, expression string) {
+func enableGofail(t testing.TB, cluster *suite.StartedCluster, endpoint suite.GofailEndpoint, failpoint string, expression string) {
 	t.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	require.NoError(t, endpoint.Enable(ctx, clusterNetCallShardFault, expression), cluster.DumpDiagnostics())
+	require.NoError(t, endpoint.Enable(ctx, failpoint, expression), cluster.DumpDiagnostics())
 }
 
-func disableGofail(t testing.TB, endpoint suite.GofailEndpoint) {
+func disableGofail(t testing.TB, endpoint suite.GofailEndpoint, failpoint string) {
 	t.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	_ = endpoint.Disable(ctx, clusterNetCallShardFault)
+	_ = endpoint.Disable(ctx, failpoint)
 }
 
 func requireNodeNotReadyFor(t testing.TB, cluster *suite.StartedCluster, node *suite.StartedNode, window time.Duration) {
