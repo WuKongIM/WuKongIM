@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -94,6 +95,15 @@ func onboardOneSlotToNode4(t testing.TB, f faultableDynamicCluster) suite.NodeOn
 	start := f.manager.MustStartOnboarding(t, 4, 1)
 	require.Equal(t, uint32(1), start.Created, f.cluster.DumpDiagnostics())
 	f.manager.EventuallyOnboardingSafe(t, 4, 90*time.Second)
+
+	statusCtx, statusCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer statusCancel()
+	status, err := f.manager.NodeOnboardingStatus(statusCtx, 4)
+	require.NoError(t, err, f.cluster.DumpDiagnostics())
+	require.Zero(t, status.Summary.Failed, "onboarding status=%#v\n%s", status, f.cluster.DumpDiagnostics())
+
+	slots := f.manager.MustSlots(t)
+	require.True(t, slotInventoryContainsDesiredPeer(slots, 4), "manager Slot inventory does not contain node 4 in any desired peer set: %#v\n%s", slots, f.cluster.DumpDiagnostics())
 	return plan
 }
 
@@ -172,15 +182,14 @@ func waitScaleInTaskActive(t testing.TB, f faultableDynamicCluster, nodeID uint6
 		status, err := f.manager.NodeScaleInStatus(ctx, nodeID)
 		if err == nil {
 			lastStatus = status
-			if status.ActiveTaskCount > 0 || status.BlockedByTasks {
+			if checkErr := scaleInTaskActiveStatusError(status); checkErr == nil {
 				return status
+			} else {
+				lastErr = checkErr
 			}
-			lastErr = fmt.Errorf("scale-in task inactive: active=%d blocked_by_tasks=%t failed=%d status=%#v",
-				status.ActiveTaskCount,
-				status.BlockedByTasks,
-				status.FailedTaskCount,
-				status,
-			)
+			if status.FailedTaskCount > 0 {
+				t.Fatalf("node %d scale-in task failed before becoming active: status=%#v err=%v\n%s", nodeID, status, lastErr, f.cluster.DumpDiagnostics())
+			}
 		} else {
 			lastErr = err
 		}
@@ -191,6 +200,57 @@ func waitScaleInTaskActive(t testing.TB, f faultableDynamicCluster, nodeID uint6
 		case <-ticker.C:
 		}
 	}
+}
+
+func scaleInTaskActiveStatusError(status suite.NodeScaleInStatusDTO) error {
+	if status.FailedTaskCount > 0 {
+		return fmt.Errorf("scale-in task failed: active=%d blocked_by_tasks=%t failed=%d status=%#v",
+			status.ActiveTaskCount,
+			status.BlockedByTasks,
+			status.FailedTaskCount,
+			status,
+		)
+	}
+	if status.ActiveTaskCount > 0 {
+		return nil
+	}
+	return fmt.Errorf("scale-in task inactive: active=%d blocked_by_tasks=%t failed=%d status=%#v",
+		status.ActiveTaskCount,
+		status.BlockedByTasks,
+		status.FailedTaskCount,
+		status,
+	)
+}
+
+func TestScaleInTaskActiveStatusRejectsFailedBlockedTasks(t *testing.T) {
+	status := suite.NodeScaleInStatusDTO{
+		BlockedByTasks:  true,
+		FailedTaskCount: 1,
+	}
+
+	err := scaleInTaskActiveStatusError(status)
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "failed=1")
+}
+
+func TestSlotInventoryContainsDesiredPeer(t *testing.T) {
+	slots := []suite.SlotDTO{
+		{SlotID: 1, Assignment: suite.SlotAssignmentDTO{DesiredPeers: []uint64{1, 2, 3}}},
+		{SlotID: 2, Assignment: suite.SlotAssignmentDTO{DesiredPeers: []uint64{2, 3, 4}}},
+	}
+
+	require.True(t, slotInventoryContainsDesiredPeer(slots, 4))
+	require.False(t, slotInventoryContainsDesiredPeer(slots, 5))
+}
+
+func slotInventoryContainsDesiredPeer(slots []suite.SlotDTO, nodeID uint64) bool {
+	for _, slot := range slots {
+		if slices.Contains(slot.Assignment.DesiredPeers, nodeID) {
+			return true
+		}
+	}
+	return false
 }
 
 func requireScaleInStatus(t testing.TB, f faultableDynamicCluster, nodeID uint64, check func(suite.NodeScaleInStatusDTO) error) suite.NodeScaleInStatusDTO {
