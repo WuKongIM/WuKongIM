@@ -156,3 +156,7 @@ func noop(reason string) ApplyResult {
 func reject(reason string) ApplyResult {
 	return ApplyResult{Rejected: true, Reason: reason}
 }
+
+func hasApplyOutcome(result ApplyResult) bool {
+	return result.Changed || result.Noop || result.Rejected || result.Reason != ""
+}

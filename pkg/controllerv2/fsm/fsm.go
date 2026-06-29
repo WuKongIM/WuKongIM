@@ -25,6 +25,8 @@ type ApplyResult struct {
 	Revision uint64
 	// AppliedRaftIndex is the resulting durable Raft applied index.
 	AppliedRaftIndex uint64
+	// TaskTransitions lists active task state edges produced by this command.
+	TaskTransitions []TaskTransition
 }
 
 // AppliedCommand binds a decoded ControllerV2 command to its committed Raft position.
@@ -138,6 +140,8 @@ func (sm *StateMachine) IsDegraded() bool {
 }
 
 // Apply applies one committed Raft command and saves the resulting state before publishing it.
+//
+// Use ApplyBatch when the caller needs task transition audit facts.
 func (sm *StateMachine) Apply(ctx context.Context, raftIndex uint64, cmd command.Command) (ApplyResult, error) {
 	result, err := sm.ApplyBatch(ctx, []AppliedCommand{{Index: raftIndex, Command: cmd}})
 	if err != nil {
@@ -149,7 +153,9 @@ func (sm *StateMachine) Apply(ctx context.Context, raftIndex uint64, cmd command
 	if len(result.Results) == 0 {
 		return ApplyResult{}, nil
 	}
-	return result.Results[0], nil
+	single := result.Results[0]
+	single.TaskTransitions = nil
+	return single, nil
 }
 
 // ApplyBatch applies committed Raft commands and saves the final state once before publishing it.
@@ -172,7 +178,7 @@ func (sm *StateMachine) ApplyBatch(ctx context.Context, entries []AppliedCommand
 			continue
 		}
 
-		result := sm.applyMutation(&next, entry.Index, entry.Command)
+		result := sm.applyMutation(&next, entry.Index, entry.Term, entry.Command)
 		if next.Revision != 0 && entry.Index > next.AppliedRaftIndex {
 			next.AppliedRaftIndex = entry.Index
 		}

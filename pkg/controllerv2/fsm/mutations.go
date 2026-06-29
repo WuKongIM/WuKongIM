@@ -52,7 +52,7 @@ const (
 	MaxTaskLastErrorBytes = 1024
 )
 
-func (sm *StateMachine) applyMutation(next *state.ClusterState, raftIndex uint64, cmd command.Command) ApplyResult {
+func (sm *StateMachine) applyMutation(next *state.ClusterState, raftIndex uint64, raftTerm uint64, cmd command.Command) ApplyResult {
 	currentRevision := next.Revision
 	switch cmd.Kind {
 	case command.KindInitClusterState:
@@ -99,28 +99,37 @@ func (sm *StateMachine) applyMutation(next *state.ClusterState, raftIndex uint64
 		}
 	}
 
+	beforeTasks := cloneTasks(next.Tasks)
+	var result ApplyResult
 	switch cmd.Kind {
 	case command.KindUpsertNode:
-		return sm.applyUpsertNode(next, cmd)
+		result = sm.applyUpsertNode(next, cmd)
 	case command.KindUpdateControllerVoters:
-		return sm.applyUpdateControllerVoters(next, cmd)
+		result = sm.applyUpdateControllerVoters(next, cmd)
 	case command.KindReplaceHashSlotTable:
-		return sm.applyReplaceHashSlotTable(next, cmd)
+		result = sm.applyReplaceHashSlotTable(next, cmd)
 	case command.KindUpsertSlotAssignmentAndTask:
-		return sm.applyUpsertSlotAssignmentAndTask(next, cmd)
+		result = sm.applyUpsertSlotAssignmentAndTask(next, cmd)
 	case command.KindUpsertSlotReplicaMoveTask:
-		return sm.applyUpsertSlotReplicaMoveTask(next, cmd)
+		result = sm.applyUpsertSlotReplicaMoveTask(next, cmd)
 	case command.KindAdvanceSlotReplicaMovePhase:
-		return sm.applyAdvanceSlotReplicaMovePhase(next, cmd)
+		result = sm.applyAdvanceSlotReplicaMovePhase(next, cmd)
 	case command.KindCommitSlotReplicaMove:
-		return sm.applyCommitSlotReplicaMove(next, cmd)
+		result = sm.applyCommitSlotReplicaMove(next, cmd)
 	case command.KindCompleteTask:
-		return sm.applyCompleteTask(next, cmd)
+		result = sm.applyCompleteTask(next, cmd)
 	case command.KindFailTask:
-		return sm.applyFailTask(next, cmd)
+		result = sm.applyFailTask(next, cmd)
 	case command.KindReportTaskProgress:
-		return sm.applyReportTaskProgress(next, cmd)
+		result = sm.applyReportTaskProgress(next, cmd)
 	default:
-		return reject(ReasonInvalidCommand)
+		result = reject(ReasonInvalidCommand)
 	}
+	if result.Changed {
+		transitions := taskTransitionsForCommand(raftIndex, raftTerm, cmd, beforeTasks, next.Tasks)
+		if len(transitions) > 0 {
+			result.TaskTransitions = transitions
+		}
+	}
+	return result
 }

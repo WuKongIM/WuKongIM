@@ -274,7 +274,7 @@ func (sm *StateMachine) applyCompleteTask(next *state.ClusterState, cmd command.
 	if idx < 0 {
 		return noop(ReasonTaskMissing)
 	}
-	if guard := taskResultGuard(next.Tasks[idx], cmd.TaskResult); guard != (ApplyResult{}) {
+	if guard := taskResultGuard(next.Tasks[idx], cmd.TaskResult); hasApplyOutcome(guard) {
 		return guard
 	}
 	before := next.Clone()
@@ -291,7 +291,7 @@ func (sm *StateMachine) applyFailTask(next *state.ClusterState, cmd command.Comm
 	if idx < 0 {
 		return noop(ReasonTaskMissing)
 	}
-	if guard := taskResultGuard(next.Tasks[idx], cmd.TaskResult); guard != (ApplyResult{}) {
+	if guard := taskResultGuard(next.Tasks[idx], cmd.TaskResult); hasApplyOutcome(guard) {
 		return guard
 	}
 	before := next.Clone()
@@ -316,7 +316,7 @@ func (sm *StateMachine) applyReportTaskProgress(next *state.ClusterState, cmd co
 	if idx < 0 {
 		return noop(ReasonTaskMissing)
 	}
-	if guard := taskProgressGuard(next.Tasks[idx], cmd.TaskProgress); guard != (ApplyResult{}) {
+	if guard := taskProgressGuard(next.Tasks[idx], cmd.TaskProgress); hasApplyOutcome(guard) {
 		return guard
 	}
 	participantIdx := findParticipant(next.Tasks[idx].ParticipantProgress, cmd.TaskProgress.ParticipantNodeID)
