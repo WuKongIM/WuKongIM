@@ -3,8 +3,14 @@
 package dynamic_node_faults
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
+	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -50,26 +56,32 @@ func TestSlotReplicaMoveSurvivesDelayedLeaderTransfer(t *testing.T) {
 	require.NoError(t, cluster.WaitClusterReady(readyCtx), cluster.DumpDiagnostics())
 
 	plan := manager.MustPlanOnboarding(t, 4, 1)
+	require.Equal(t, uint64(4), plan.TargetNodeID, "plan=%#v\n%s", plan, cluster.DumpDiagnostics())
 	require.Len(t, plan.Candidates, 1, cluster.DumpDiagnostics())
 	candidate := plan.Candidates[0]
+	require.Equal(t, uint64(4), candidate.TargetNodeID, "candidate=%#v\n%s", candidate, cluster.DumpDiagnostics())
 	ensureSlotLeaderForReplicaMoveSource(t, cluster, candidate.SlotID, candidate.SourceNodeID, 45*time.Second)
 
 	plan = manager.MustPlanOnboarding(t, 4, 1)
+	require.Equal(t, uint64(4), plan.TargetNodeID, "replan=%#v\n%s", plan, cluster.DumpDiagnostics())
 	require.Len(t, plan.Candidates, 1, cluster.DumpDiagnostics())
-	require.Equal(t, candidate.SlotID, plan.Candidates[0].SlotID, cluster.DumpDiagnostics())
-	require.Equal(t, candidate.SourceNodeID, plan.Candidates[0].SourceNodeID, cluster.DumpDiagnostics())
+	replanCandidate := plan.Candidates[0]
+	require.Equal(t, uint64(4), replanCandidate.TargetNodeID, "replan candidate=%#v\n%s", replanCandidate, cluster.DumpDiagnostics())
+	require.Equal(t, candidate.SlotID, replanCandidate.SlotID, cluster.DumpDiagnostics())
+	require.Equal(t, candidate.SourceNodeID, replanCandidate.SourceNodeID, cluster.DumpDiagnostics())
 
-	listCtx, cancelList := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancelList()
 	for _, endpoint := range []suite.GofailEndpoint{node1Fail, node2Fail, node3Fail} {
+		listCtx, cancelList := context.WithTimeout(context.Background(), 10*time.Second)
 		body, err := endpoint.WaitListed(listCtx, "wkSlotReplicaMoveTransferLeaderDelay")
+		cancelList()
 		require.NoError(t, err, "gofail body:\n%s\n%s", body, cluster.DumpDiagnostics())
 	}
 
-	failCtx, cancelFail := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancelFail()
 	for _, endpoint := range []suite.GofailEndpoint{node1Fail, node2Fail, node3Fail} {
-		require.NoError(t, endpoint.Enable(failCtx, "wkSlotReplicaMoveTransferLeaderDelay", `return("700ms")`), cluster.DumpDiagnostics())
+		failCtx, cancelFail := context.WithTimeout(context.Background(), 10*time.Second)
+		err := endpoint.Enable(failCtx, "wkSlotReplicaMoveTransferLeaderDelay", `return("700ms")`)
+		cancelFail()
+		require.NoError(t, err, cluster.DumpDiagnostics())
 		defer func(endpoint suite.GofailEndpoint) {
 			disableCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 			defer cancel()
@@ -111,12 +123,29 @@ func ensureSlotLeaderForReplicaMoveSource(t *testing.T, cluster *suite.StartedCl
 func postSlotLeaderTransferToSource(t *testing.T, ctx context.Context, cluster *suite.StartedCluster, slotID uint32, sourceNodeID uint64) managerSlotLeaderTransferResponse {
 	t.Helper()
 
-	var out managerSlotLeaderTransferResponse
-	_, err := suite.PostJSON(ctx, fmt.Sprintf("http://%s/manager/slots/%d/leader-transfer", cluster.MustNode(sourceNodeID).ManagerAddr(), slotID), map[string]any{
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+
+	req := map[string]any{
 		"target_node": sourceNodeID,
-	}, &out)
-	require.NoError(t, err, "slot=%d source=%d response=%#v\n%s", slotID, sourceNodeID, out, cluster.DumpDiagnostics())
-	return out
+	}
+	nodeErrors := make(map[string]string)
+	for {
+		for _, node := range cluster.Nodes {
+			var out managerSlotLeaderTransferResponse
+			status, body, err := postManagerJSON(ctx, fmt.Sprintf("http://%s/manager/slots/%d/leader-transfer", node.ManagerAddr(), slotID), req, &out)
+			if err == nil && status/100 == 2 {
+				return out
+			}
+			nodeErrors[managerNodeErrorKey(node)] = formatManagerPostError(status, body, err)
+		}
+
+		select {
+		case <-ctx.Done():
+			t.Fatalf("no manager node accepted slot leader transfer slot=%d source=%d req=%#v errors=%s\n%s", slotID, sourceNodeID, req, formatNodeErrors(nodeErrors), cluster.DumpDiagnostics())
+		case <-ticker.C:
+		}
+	}
 }
 
 func waitSlotLeaderOnSource(t *testing.T, ctx context.Context, cluster *suite.StartedCluster, slotID uint32, sourceNodeID uint64, transferResp *managerSlotLeaderTransferResponse) {
@@ -175,6 +204,73 @@ func checkSlotLeaderOnSource(item managerSlotItem, sourceNodeID uint64) error {
 		return fmt.Errorf("slot %d leader=%d, want source=%d", item.SlotID, item.NodeLog.LeaderID, sourceNodeID)
 	}
 	return nil
+}
+
+func postManagerJSON(ctx context.Context, url string, body any, out any) (int, []byte, error) {
+	data, err := json.Marshal(body)
+	if err != nil {
+		return 0, nil, err
+	}
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(data))
+	if err != nil {
+		return 0, nil, err
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(httpReq)
+	if err != nil {
+		return 0, nil, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return resp.StatusCode, nil, err
+	}
+	if resp.StatusCode/100 != 2 {
+		return resp.StatusCode, respBody, fmt.Errorf("POST %s returned %d: %s", url, resp.StatusCode, strings.TrimSpace(string(respBody)))
+	}
+	if out != nil {
+		if err := json.Unmarshal(respBody, out); err != nil {
+			return resp.StatusCode, respBody, fmt.Errorf("decode POST %s: %w body=%s", url, err, strings.TrimSpace(string(respBody)))
+		}
+	}
+	return resp.StatusCode, respBody, nil
+}
+
+func managerNodeErrorKey(node suite.StartedNode) string {
+	return fmt.Sprintf("node %d (%s)", node.Spec.ID, node.ManagerAddr())
+}
+
+func formatManagerPostError(status int, body []byte, err error) string {
+	statusText := "status=<none>"
+	if status != 0 {
+		statusText = fmt.Sprintf("status=%d", status)
+	}
+	bodyText := strings.TrimSpace(string(body))
+	if bodyText != "" {
+		statusText += " body=" + bodyText
+	}
+	if err == nil {
+		return statusText
+	}
+	return fmt.Sprintf("%s err=%v", statusText, err)
+}
+
+func formatNodeErrors(nodeErrors map[string]string) string {
+	if len(nodeErrors) == 0 {
+		return "<none>"
+	}
+	keys := make([]string, 0, len(nodeErrors))
+	for key := range nodeErrors {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	lines := make([]string, 0, len(keys))
+	for _, key := range keys {
+		lines = append(lines, fmt.Sprintf("%s: %s", key, nodeErrors[key]))
+	}
+	return strings.Join(lines, "; ")
 }
 
 type managerSlotsResponse struct {
