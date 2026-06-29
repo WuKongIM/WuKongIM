@@ -4,6 +4,7 @@ package suite
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -152,6 +153,66 @@ func TestStartedClusterWaitHTTPReadyRecordsReadyzObservations(t *testing.T) {
 
 	require.Equal(t, HTTPObservation{StatusCode: http.StatusOK, Body: `{"status":"ok"}`}, cluster.lastReadyz[1])
 	require.Equal(t, HTTPObservation{StatusCode: http.StatusOK, Body: `{"status":"ok"}`}, cluster.lastReadyz[2])
+}
+
+func TestStartedNodeCleanupStopsCurrentProcessAfterRestart(t *testing.T) {
+	binaryPath := writeFakeNodeBinary(t)
+	first := startFakeNodeProcess(t, binaryPath, "first")
+	defer func() { _ = first.Stop() }()
+	second := startFakeNodeProcess(t, binaryPath, "second")
+	defer func() { _ = second.Stop() }()
+
+	node := &StartedNode{Spec: first.Spec, Process: first}
+	cleanupTB := &recordedCleanupTB{}
+	registerStartedNodeCleanup(cleanupTB, node)
+
+	node.Process = second
+	for _, cleanup := range cleanupTB.cleanups {
+		cleanup()
+	}
+
+	require.Empty(t, cleanupTB.errors)
+	require.NotNil(t, second.Cmd.ProcessState)
+}
+
+func startFakeNodeProcess(t *testing.T, binaryPath string, name string) *NodeProcess {
+	t.Helper()
+
+	rootDir := filepath.Join(t.TempDir(), name)
+	process := &NodeProcess{
+		Spec: NodeSpec{
+			ID:         1,
+			RootDir:    rootDir,
+			ConfigPath: filepath.Join(rootDir, "wukongim.conf"),
+			StdoutPath: filepath.Join(rootDir, "stdout.log"),
+			StderrPath: filepath.Join(rootDir, "stderr.log"),
+		},
+		BinaryPath: binaryPath,
+	}
+	require.NoError(t, os.MkdirAll(rootDir, 0o755))
+	require.NoError(t, os.WriteFile(process.Spec.ConfigPath, []byte("WK_NODE_ID=1\n"), 0o644))
+	require.NoError(t, process.Start())
+	return process
+}
+
+type recordedCleanupTB struct {
+	cleanups []func()
+	errors   []string
+	failed   bool
+}
+
+func (t *recordedCleanupTB) Helper() {}
+
+func (t *recordedCleanupTB) Cleanup(cleanup func()) {
+	t.cleanups = append(t.cleanups, cleanup)
+}
+
+func (t *recordedCleanupTB) Errorf(format string, args ...any) {
+	t.errors = append(t.errors, fmt.Sprintf(format, args...))
+}
+
+func (t *recordedCleanupTB) FailNow() {
+	t.failed = true
 }
 
 func writeFakeNodeBinary(t *testing.T) string {

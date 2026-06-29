@@ -5,6 +5,8 @@ package dynamic_node_faults
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -23,7 +25,8 @@ func TestJoiningNodeRestartDuringOnboardingRecovers(t *testing.T) {
 	node2Fail := suite.ReserveGofailEndpoint(t)
 	node3Fail := suite.ReserveGofailEndpoint(t)
 	node4Fail := suite.ReserveGofailEndpoint(t)
-	promoteDelayEndpoints := []suite.GofailEndpoint{node1Fail, node2Fail, node3Fail, node4Fail}
+	stablePromoteDelayEndpoints := []suite.GofailEndpoint{node1Fail, node2Fail, node3Fail}
+	promoteDelayEndpoints := append(append([]suite.GofailEndpoint(nil), stablePromoteDelayEndpoints...), node4Fail)
 
 	s := suite.New(t)
 	cluster := s.StartThreeNodeCluster(
@@ -65,7 +68,7 @@ func TestJoiningNodeRestartDuringOnboardingRecovers(t *testing.T) {
 	require.NoError(t, cluster.RestartNode(4), cluster.DumpDiagnostics())
 
 	waitGofailListed(t, cluster, node4Fail, slotReplicaMovePromoteLearnerDelay)
-	requireDisablePromoteDelay(t, cluster, promoteDelayEndpoints)
+	requireDisablePromoteDelay(t, cluster, stablePromoteDelayEndpoints, node4Fail)
 
 	restartedReadyCtx, restartedReadyCancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer restartedReadyCancel()
@@ -83,6 +86,22 @@ func TestJoiningNodeRestartDuringOnboardingRecovers(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { _ = client.Close() }()
 	require.NoError(t, client.Connect(node4.GatewayAddr(), "gofail-restart-onboarding-user", "gofail-restart-onboarding-device"), cluster.DumpDiagnostics())
+}
+
+func TestDisablePromoteDelayEndpointOnlyToleratesDisabledAfterRestart(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, http.MethodDelete, r.Method)
+		require.Equal(t, "/"+slotReplicaMovePromoteLearnerDelay, r.URL.Path)
+		http.Error(w, "failed to delete failpoint failpoint: failpoint is disabled", http.StatusBadRequest)
+	}))
+	defer server.Close()
+
+	endpoint := suite.GofailEndpoint{Addr: strings.TrimPrefix(server.URL, "http://")}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	require.Error(t, disablePromoteDelayEndpoint(ctx, endpoint, false))
+	require.NoError(t, disablePromoteDelayEndpoint(ctx, endpoint, true))
 }
 
 func waitPromoteDelayListed(t testing.TB, cluster *suite.StartedCluster, endpoints []suite.GofailEndpoint) {
@@ -109,18 +128,31 @@ func disablePromoteDelayBestEffort(t testing.TB, endpoints []suite.GofailEndpoin
 	}
 }
 
-func requireDisablePromoteDelay(t testing.TB, cluster *suite.StartedCluster, endpoints []suite.GofailEndpoint) {
+func requireDisablePromoteDelay(t testing.TB, cluster *suite.StartedCluster, stableEndpoints []suite.GofailEndpoint, restartedEndpoint suite.GofailEndpoint) {
 	t.Helper()
 
-	for _, endpoint := range endpoints {
+	for _, endpoint := range stableEndpoints {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		err := endpoint.Disable(ctx, slotReplicaMovePromoteLearnerDelay)
+		err := disablePromoteDelayEndpoint(ctx, endpoint, false)
 		cancel()
-		if err == nil || strings.Contains(err.Error(), "failpoint is disabled") {
-			continue
-		}
 		require.NoError(t, err, cluster.DumpDiagnostics())
 	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	err := disablePromoteDelayEndpoint(ctx, restartedEndpoint, true)
+	cancel()
+	require.NoError(t, err, cluster.DumpDiagnostics())
+}
+
+func disablePromoteDelayEndpoint(ctx context.Context, endpoint suite.GofailEndpoint, tolerateDisabled bool) error {
+	err := endpoint.Disable(ctx, slotReplicaMovePromoteLearnerDelay)
+	if err == nil {
+		return nil
+	}
+	if tolerateDisabled && strings.Contains(err.Error(), "failpoint is disabled") {
+		return nil
+	}
+	return err
 }
 
 func waitOnboardingTaskActive(

@@ -172,16 +172,15 @@ func (s *Suite) StartSingleNodeCluster(opts ...Option) *StartedNode {
 		BinaryPath: s.binaryPath,
 	}
 	require.NoError(s.t, process.Start())
-	s.t.Cleanup(func() {
-		require.NoError(s.t, process.Stop())
-	})
+	node := &StartedNode{Spec: spec, Process: process}
+	registerStartedNodeCleanup(s.t, node)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	require.NoError(s.t, WaitHTTPReady(ctx, spec.APIAddr, "/readyz"), process.DumpDiagnostics())
 	require.NoError(s.t, WaitWKProtoReady(ctx, spec.GatewayAddr), process.DumpDiagnostics())
 
-	return &StartedNode{Spec: spec, Process: process}
+	return node
 }
 
 // StartThreeNodeCluster starts three static wukongimv2 child processes.
@@ -442,6 +441,19 @@ func (n *StartedNode) Stop() error {
 		n.Process = nil
 	}
 	return err
+}
+
+type startedNodeCleanupTB interface {
+	Helper()
+	Cleanup(func())
+	require.TestingT
+}
+
+func registerStartedNodeCleanup(t startedNodeCleanupTB, node *StartedNode) {
+	t.Helper()
+	t.Cleanup(func() {
+		require.NoError(t, node.Stop())
+	})
 }
 
 // Restart stops the current node process and starts it again with the same spec.
