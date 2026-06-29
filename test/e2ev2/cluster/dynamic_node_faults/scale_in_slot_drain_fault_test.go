@@ -28,12 +28,13 @@ func TestScaleInSlotDrainSurvivesDelayedLeaderTransfer(t *testing.T) {
 		waitGofailListed(t, f.cluster, endpoint, slotReplicaMoveTransferLeaderDelay)
 	}
 	for _, endpoint := range f.allFailpoints() {
-		enableGofail(t, f.cluster, endpoint, slotReplicaMoveTransferLeaderDelay, `return("2s")`)
+		enableGofail(t, f.cluster, endpoint, slotReplicaMoveTransferLeaderDelay, `return("5s")`)
 		defer disableGofail(t, endpoint, slotReplicaMoveTransferLeaderDelay)
 	}
 
 	advance := f.manager.MustAdvanceScaleIn(t, 4, 1)
 	require.Equal(t, uint32(1), advance.Created, "advance=%#v\n%s", advance, f.cluster.DumpDiagnostics())
+	requireScaleInAdvanceMatchesCandidate(t, advance, candidate, f.cluster.DumpDiagnostics())
 	active := waitScaleInTaskActive(t, f, 4, 10*time.Second)
 	require.False(t, active.SafeToRemove, "status=%#v\n%s", active, f.cluster.DumpDiagnostics())
 	waitGofailCountWhileScaleInBlocked(t, f, 4, slotReplicaMoveTransferLeaderDelay, 1, 10*time.Second)
@@ -77,12 +78,29 @@ func onboardOneSlotToNode4ForDelayedScaleIn(t testing.TB, f faultableDynamicClus
 	status, err := manager.NodeOnboardingStatus(statusCtx, 4)
 	require.NoError(t, err, f.cluster.DumpDiagnostics())
 	require.Zero(t, status.Summary.Failed, "onboarding status=%#v\n%s", status, f.cluster.DumpDiagnostics())
-	waitManagerSlotPeerReady(t, f.cluster, candidate.SlotID, 4, 30*time.Second)
+	waitAnyManagerSlotPeerReady(t, f.cluster, candidate.SlotID, 4, 30*time.Second)
 	ensureSlotLeaderForReplicaMoveSourceTB(t, f.cluster, candidate.SlotID, 4, 45*time.Second)
 	return plan
 }
 
-func waitManagerSlotPeerReady(t testing.TB, cluster *suite.StartedCluster, slotID uint32, nodeID uint64, timeout time.Duration) {
+func requireScaleInAdvanceMatchesCandidate(
+	t testing.TB,
+	advance suite.NodeScaleInAdvanceDTO,
+	candidate suite.NodeScaleInCandidateDTO,
+	diagnostics string,
+) {
+	t.Helper()
+
+	require.Len(t, advance.Candidates, 1, "advance=%#v\n%s", advance, diagnostics)
+	actual := advance.Candidates[0]
+	require.Equal(t, candidate.SlotID, actual.SlotID, "advance=%#v candidate=%#v\n%s", advance, candidate, diagnostics)
+	require.Equal(t, candidate.SourceNodeID, actual.SourceNodeID, "advance=%#v candidate=%#v\n%s", advance, candidate, diagnostics)
+	require.Equal(t, candidate.TargetNodeID, actual.TargetNodeID, "advance=%#v candidate=%#v\n%s", advance, candidate, diagnostics)
+	require.Equal(t, candidate.ConfigEpoch, actual.ConfigEpoch, "advance=%#v candidate=%#v\n%s", advance, candidate, diagnostics)
+	require.Equal(t, candidate.TargetPeers, actual.TargetPeers, "advance=%#v candidate=%#v\n%s", advance, candidate, diagnostics)
+}
+
+func waitAnyManagerSlotPeerReady(t testing.TB, cluster *suite.StartedCluster, slotID uint32, nodeID uint64, timeout time.Duration) {
 	t.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
@@ -125,6 +143,34 @@ func waitManagerSlotPeerReady(t testing.TB, cluster *suite.StartedCluster, slotI
 	}
 }
 
+func scaleInBlockedProofStatusError(status suite.NodeScaleInStatusDTO) error {
+	if status.SafeToRemove {
+		return fmt.Errorf("safe_to_remove=true before delayed Slot drain blocker was observed")
+	}
+	if status.FailedTaskCount > 0 {
+		return fmt.Errorf("scale-in task failed before delayed Slot drain blocker was observed: failed=%d status=%#v", status.FailedTaskCount, status)
+	}
+	if !status.BlockedBySlots && !status.BlockedByTasks {
+		return fmt.Errorf("expected Slot or task blocker while delayed Slot drain is active: status=%#v", status)
+	}
+	return nil
+}
+
+func TestScaleInBlockedProofStatusRequiresBlockedNotSafe(t *testing.T) {
+	require.NoError(t, scaleInBlockedProofStatusError(suite.NodeScaleInStatusDTO{
+		BlockedBySlots: true,
+	}))
+
+	require.Error(t, scaleInBlockedProofStatusError(suite.NodeScaleInStatusDTO{
+		SafeToRemove: true,
+	}))
+	require.Error(t, scaleInBlockedProofStatusError(suite.NodeScaleInStatusDTO{
+		FailedTaskCount: 1,
+		BlockedByTasks:  true,
+	}))
+	require.Error(t, scaleInBlockedProofStatusError(suite.NodeScaleInStatusDTO{}))
+}
+
 func waitGofailCountWhileScaleInBlocked(
 	t testing.TB,
 	f faultableDynamicCluster,
@@ -160,9 +206,6 @@ func waitGofailCountWhileScaleInBlocked(
 			counts = append(counts, fmt.Sprintf("%s=%d", endpoint.Addr, count))
 		}
 		lastCounts = counts
-		if total >= min {
-			return total
-		}
 
 		statusCtx, statusCancel := context.WithTimeout(ctx, 2*time.Second)
 		status, err := f.manager.NodeScaleInStatus(statusCtx, nodeID)
@@ -171,23 +214,20 @@ func waitGofailCountWhileScaleInBlocked(
 			lastErr = err
 		} else {
 			lastStatus = status
-			if status.SafeToRemove {
-				t.Fatalf("node %d became safe_to_remove before %s was observed: counts=%v status=%#v\n%s",
-					nodeID,
-					failpoint,
-					counts,
-					status,
-					f.cluster.DumpDiagnostics(),
-				)
-			}
-			if status.FailedTaskCount > 0 {
-				t.Fatalf("node %d scale-in task failed before %s was observed: counts=%v status=%#v\n%s",
-					nodeID,
-					failpoint,
-					counts,
-					status,
-					f.cluster.DumpDiagnostics(),
-				)
+			if statusErr := scaleInBlockedProofStatusError(status); statusErr != nil {
+				if status.SafeToRemove || status.FailedTaskCount > 0 {
+					t.Fatalf("node %d reached terminal scale-in state before %s blocked proof was observed: counts=%v err=%v status=%#v\n%s",
+						nodeID,
+						failpoint,
+						counts,
+						statusErr,
+						status,
+						f.cluster.DumpDiagnostics(),
+					)
+				}
+				lastErr = statusErr
+			} else if total >= min {
+				return total
 			}
 		}
 
