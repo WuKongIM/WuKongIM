@@ -81,6 +81,8 @@ const (
 	RPCNodeLifecycle
 	// RPCSlotStatus serves clusterv2 Slot leader status snapshots.
 	RPCSlotStatus
+	// RPCManagerTaskAudit serves internalv2 retained ControllerV2 task audit reads.
+	RPCManagerTaskAudit
 )
 
 func transportServiceAlias(serviceID uint8) string {
@@ -159,6 +161,8 @@ func transportServiceAlias(serviceID uint8) string {
 		return "plugin binding scan"
 	case RPCSlotStatus:
 		return "slot status"
+	case RPCManagerTaskAudit:
+		return "manager task audit"
 	default:
 		return "unknown service"
 	}

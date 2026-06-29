@@ -328,6 +328,26 @@ usecase and infra/cluster adapter. The payload preserves JSON-friendly dynamic
 rows and stats, but it does not merge rows across nodes, expose filesystem
 paths, or mutate storage.
 
+## Manager Task Audit RPC
+
+```text
+remote manager task audit reader
+  -> encode W K V U 1 request
+  -> clusterv2 RPCManagerTaskAudit
+  -> Adapter.HandleManagerTaskAuditRPC
+  -> Management ControllerV2 task audit reader port
+  -> encode W K V u 1 response
+```
+
+Manager Task Audit RPC transports retained ControllerV2 task history list and
+single-task event timeline reads to the selected node. The server calls only
+the configured local task audit reader; JSONL retention, default limits,
+corrupt-line replay policy, and audit event construction stay in the
+observability and management usecase layers. The codec uses strict JSON after
+the stable magic prefix so unknown fields and trailing bytes fail closed. This
+RPC does not inspect legacy `pkg/controller` state and does not mutate
+ControllerV2 task state.
+
 ## Manager Diagnostics RPC
 
 ```text

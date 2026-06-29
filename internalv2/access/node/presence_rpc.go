@@ -134,6 +134,14 @@ type ManagerDiagnostics interface {
 	DeleteDiagnosticsTrackingRule(ctx context.Context, ruleID string) error
 }
 
+// ManagerTaskAuditReader handles node-local ControllerV2 task audit reads.
+type ManagerTaskAuditReader interface {
+	// ListControllerTaskAudits returns retained ControllerV2 task histories.
+	ListControllerTaskAudits(context.Context, managementusecase.ControllerTaskAuditListRequest) (managementusecase.ControllerTaskAuditListResponse, error)
+	// ControllerTaskAuditEvents returns retained events for one ControllerV2 task.
+	ControllerTaskAuditEvents(context.Context, string) (managementusecase.ControllerTaskAuditEventsResponse, error)
+}
+
 // ManagerPluginReader handles node-local manager plugin inventory requests.
 type ManagerPluginReader interface {
 	// ListNodePlugins returns this node's plugin inventory projection.
@@ -193,6 +201,8 @@ type Options struct {
 	ManagerAppLogs ManagerAppLogReader
 	// ManagerDiagnostics handles node-local diagnostics query and tracking requests.
 	ManagerDiagnostics ManagerDiagnostics
+	// ManagerTaskAudit handles node-local ControllerV2 task audit reads.
+	ManagerTaskAudit ManagerTaskAuditReader
 	// ManagerPlugins handles node-local plugin inventory requests.
 	ManagerPlugins ManagerPluginReader
 	// NodeLifecycle handles validated seed-join lifecycle requests.
@@ -239,6 +249,8 @@ type Adapter struct {
 	managerAppLogs ManagerAppLogReader
 	// managerDiagnostics queries diagnostics events and mutates temporary tracking rules.
 	managerDiagnostics ManagerDiagnostics
+	// managerTaskAudit reads retained ControllerV2 task audit history.
+	managerTaskAudit ManagerTaskAuditReader
 	// managerPlugins reads node-local plugin inventory for manager pages.
 	managerPlugins ManagerPluginReader
 	// nodeLifecycle submits validated seed joins through the management usecase.
@@ -275,6 +287,7 @@ func New(opts Options) *Adapter {
 		managerDBInspect:        opts.ManagerDBInspect,
 		managerAppLogs:          opts.ManagerAppLogs,
 		managerDiagnostics:      opts.ManagerDiagnostics,
+		managerTaskAudit:        opts.ManagerTaskAudit,
 		managerPlugins:          opts.ManagerPlugins,
 		nodeLifecycle:           opts.NodeLifecycle,
 		nodeReadiness:           opts.NodeReadiness,

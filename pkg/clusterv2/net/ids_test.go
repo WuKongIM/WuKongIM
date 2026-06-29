@@ -55,5 +55,15 @@ func rpcServiceIDsForTest() map[string]uint8 {
 		"plugin_binding_scan":       RPCPluginBindingScan,
 		"slot_status":               RPCSlotStatus,
 		"control_write":             RPCControlWrite,
+		"manager_task_audit":        RPCManagerTaskAudit,
+	}
+}
+
+func TestRPCManagerTaskAuditServiceAlias(t *testing.T) {
+	if got := transportServiceAlias(RPCManagerTaskAudit); got != "manager task audit" {
+		t.Fatalf("task audit service alias = %q, want manager task audit", got)
+	}
+	if got := transportServiceFailpointAlias(RPCManagerTaskAudit); got != "manager_task_audit" {
+		t.Fatalf("task audit failpoint alias = %q, want manager_task_audit", got)
 	}
 }
