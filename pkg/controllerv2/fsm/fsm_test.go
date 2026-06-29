@@ -99,6 +99,46 @@ func TestApplyReportNodeHealthPersistsWithoutLogicalRevisionBump(t *testing.T) {
 	}
 }
 
+func TestApplyReportNodeHealthDuplicateNoopsAndAdvancesAppliedIndex(t *testing.T) {
+	sm := newLoadedStateMachine(t)
+	before := sm.Snapshot(context.Background())
+	report := state.NodeHealthReport{
+		NodeID:                  1,
+		Status:                  state.NodeStatusAlive,
+		RuntimeReady:            true,
+		ObservedControlRevision: before.Revision,
+		ObservedSlotRevision:    12,
+		ReportSeq:               1,
+		ReportedAtUnixMilli:     1710000000000,
+	}
+
+	first, err := sm.Apply(context.Background(), before.AppliedRaftIndex+1, command.Command{
+		Kind:       command.KindReportNodeHealth,
+		NodeHealth: &report,
+	})
+	require.NoError(t, err)
+	require.True(t, first.Updated)
+	require.False(t, first.Changed)
+
+	second, err := sm.Apply(context.Background(), first.AppliedRaftIndex+1, command.Command{
+		Kind:       command.KindReportNodeHealth,
+		NodeHealth: &report,
+	})
+	require.NoError(t, err)
+	require.Equal(t, ApplyResult{
+		Noop:             true,
+		Reason:           ReasonNoChange,
+		Revision:         before.Revision,
+		AppliedRaftIndex: first.AppliedRaftIndex + 1,
+	}, second)
+
+	after := sm.Snapshot(context.Background())
+	require.Equal(t, before.Revision, after.Revision)
+	require.Equal(t, first.AppliedRaftIndex+1, after.AppliedRaftIndex)
+	require.Len(t, after.NodeHealthReports, 1)
+	require.Equal(t, first.AppliedRaftIndex, after.NodeHealthReports[0].AppliedRaftIndex)
+}
+
 func TestApplyReportNodeHealthRejectsUnknownNode(t *testing.T) {
 	sm := newLoadedStateMachine(t)
 	report := state.NodeHealthReport{NodeID: 99, Status: state.NodeStatusAlive, ReportedAtUnixMilli: 1710000000000}

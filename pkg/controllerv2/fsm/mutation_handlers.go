@@ -356,7 +356,8 @@ func (sm *StateMachine) applyReportNodeHealth(next *state.ClusterState, raftInde
 		*next = before
 		return reject(ReasonInvalidState)
 	}
-	if reflect.DeepEqual(before.NodeHealthReports, next.NodeHealthReports) {
+	if equivalentNodeHealthReports(before.NodeHealthReports, next.NodeHealthReports) {
+		next.NodeHealthReports = append([]state.NodeHealthReport(nil), before.NodeHealthReports...)
 		return noop(ReasonNoChange)
 	}
 	return ApplyResult{Updated: true}

@@ -48,6 +48,18 @@ func upsertNodeHealthReport(st *state.ClusterState, report state.NodeHealthRepor
 	st.NodeHealthReports = append(st.NodeHealthReports, report)
 }
 
+func equivalentNodeHealthReports(a, b []state.NodeHealthReport) bool {
+	left := append([]state.NodeHealthReport(nil), a...)
+	right := append([]state.NodeHealthReport(nil), b...)
+	for i := range left {
+		left[i].AppliedRaftIndex = 0
+	}
+	for i := range right {
+		right[i].AppliedRaftIndex = 0
+	}
+	return reflect.DeepEqual(left, right)
+}
+
 func equivalentInit(current state.ClusterState, initial state.ClusterState) bool {
 	current = current.Clone()
 	initial = initial.Clone()
