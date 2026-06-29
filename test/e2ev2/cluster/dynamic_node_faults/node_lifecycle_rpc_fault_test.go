@@ -5,6 +5,9 @@ package dynamic_node_faults
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -16,6 +19,8 @@ import (
 const (
 	clusterNetCallShardFault      = "wkClusterNetCallShardFault"
 	clusterNetCallShardOwnedFault = "wkClusterNetCallShardOwnedFault"
+	controlWriteFaultMarker       = "temporary control write fault"
+	nodeLifecycleFaultMarker      = "temporary join rpc fault"
 )
 
 func TestSeedJoinRetriesThroughInjectedNodeLifecycleRPCFault(t *testing.T) {
@@ -53,8 +58,9 @@ func TestSeedJoinRetriesThroughInjectedNodeLifecycleRPCFault(t *testing.T) {
 	waitGofailListed(t, cluster, node4Fail, clusterNetCallShardFault)
 	defer disableGofail(t, node4Fail, clusterNetCallShardFault)
 	requireNodeNotReadyFor(t, cluster, node4, 750*time.Millisecond)
+	requireNodeArtifactsContain(t, cluster, node4, nodeLifecycleFaultMarker, 10*time.Second)
 
-	disableGofail(t, node4Fail, clusterNetCallShardFault)
+	requireDisableGofail(t, node4Fail, clusterNetCallShardFault)
 
 	node4ReadyCtx, node4ReadyCancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer node4ReadyCancel()
@@ -100,7 +106,9 @@ func TestOnboardingControlWriteRetriesThroughInjectedRPCFault(t *testing.T) {
 	defer activeReadyCancel()
 	require.NoError(t, cluster.WaitClusterReady(activeReadyCtx), cluster.DumpDiagnostics())
 
-	plan := manager.MustPlanOnboarding(t, 4, 1)
+	forwardingNodeID := controlWriteForwardingNodeID(t, cluster)
+	remoteManager := cluster.ManagerClient(t, forwardingNodeID)
+	plan := requireStableFaultableOnboardingPlan(t, cluster, forwardingNodeID, 4, 15*time.Second)
 	require.Len(t, plan.Candidates, 1, "plan=%#v\n%s", plan, cluster.DumpDiagnostics())
 
 	failpoints := []suite.GofailEndpoint{node1Fail, node2Fail, node3Fail}
@@ -109,18 +117,18 @@ func TestOnboardingControlWriteRetriesThroughInjectedRPCFault(t *testing.T) {
 	}
 	for _, endpoint := range failpoints {
 		enableGofail(t, cluster, endpoint, clusterNetCallShardOwnedFault, `return("control_write:temporary control write fault")`)
+		requireGofailContains(t, cluster, endpoint, clusterNetCallShardOwnedFault, controlWriteFaultMarker)
 		defer disableGofail(t, endpoint, clusterNetCallShardOwnedFault)
 	}
 
-	remoteManager := cluster.ManagerClient(t, controlWriteForwardingNodeID(t, cluster))
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	faulted, status, body, err := remoteManager.StartOnboarding(ctx, 4, 1)
 	cancel()
 	requireBoundedFaultedOnboardingStart(t, cluster, faulted, status, body, err)
-	requireNoOnboardingTasksLeaked(t, cluster, manager, 4, status)
+	requireNoOnboardingTasksLeaked(t, cluster, remoteManager, 4, status)
 
 	for _, endpoint := range failpoints {
-		disableGofail(t, endpoint, clusterNetCallShardOwnedFault)
+		requireDisableGofail(t, endpoint, clusterNetCallShardOwnedFault)
 	}
 
 	start := manager.MustStartOnboarding(t, 4, 1)
@@ -144,44 +152,188 @@ func waitGofailListed(t testing.TB, cluster *suite.StartedCluster, endpoint suit
 	require.Contains(t, body, failpoint, cluster.DumpDiagnostics())
 }
 
+func requireGofailContains(t testing.TB, cluster *suite.StartedCluster, endpoint suite.GofailEndpoint, failpoint string, marker string) {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	body, err := endpoint.List(ctx)
+	require.NoError(t, err, cluster.DumpDiagnostics())
+	require.Contains(t, body, failpoint, "gofail body:\n%s\n%s", body, cluster.DumpDiagnostics())
+	require.Contains(t, body, marker, "gofail body:\n%s\n%s", body, cluster.DumpDiagnostics())
+}
+
 func controlWriteForwardingNodeID(t testing.TB, cluster *suite.StartedCluster) uint64 {
 	t.Helper()
 
-	leaderID := eventuallyControllerLeaderID(t, cluster, 10*time.Second)
-	for _, node := range cluster.Nodes {
-		if node.Spec.ID != leaderID {
-			return node.Spec.ID
+	deadline := time.Now().Add(10 * time.Second)
+	var last []string
+	for time.Now().Before(deadline) {
+		last = last[:0]
+		for _, node := range cluster.Nodes {
+			if node.Spec.ID > 3 {
+				continue
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			resp, err := fetchManagerNodes(ctx, node.ManagerAddr())
+			cancel()
+			if err != nil {
+				last = append(last, fmt.Sprintf("node %d manager read error: %v", node.Spec.ID, err))
+				continue
+			}
+			if resp.ControllerLeaderID != 0 && resp.ControllerLeaderID != node.Spec.ID {
+				t.Logf("using manager node %d to forward control_write to controller leader %d", node.Spec.ID, resp.ControllerLeaderID)
+				return node.Spec.ID
+			}
+			last = append(last, fmt.Sprintf("node %d reports controller_leader_id=%d", node.Spec.ID, resp.ControllerLeaderID))
 		}
+		time.Sleep(100 * time.Millisecond)
 	}
-	t.Fatalf("no non-leader manager node found for controller leader %d\n%s", leaderID, cluster.DumpDiagnostics())
+	t.Fatalf("no failpoint-enabled static manager node reported a remote controller leader: last=%s\n%s", strings.Join(last, "; "), cluster.DumpDiagnostics())
 	return 0
 }
 
-func eventuallyControllerLeaderID(t testing.TB, cluster *suite.StartedCluster, timeout time.Duration) uint64 {
+func requireStableFaultableOnboardingPlan(t testing.TB, cluster *suite.StartedCluster, managerNodeID uint64, targetNodeID uint64, timeout time.Duration) suite.NodeOnboardingPlanDTO {
 	t.Helper()
 
+	manager := cluster.ManagerClient(t, managerNodeID)
 	deadline := time.Now().Add(timeout)
 	var (
-		lastResp nodeFaultManagerNodesResponse
+		previous *suite.NodeOnboardingPlanDTO
+		lastPlan suite.NodeOnboardingPlanDTO
 		lastErr  error
 	)
 	for time.Now().Before(deadline) {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		resp, err := fetchManagerNodes(ctx, cluster.MustNode(1).ManagerAddr())
+		nodes, err := fetchManagerNodes(ctx, cluster.MustNode(managerNodeID).ManagerAddr())
 		cancel()
-		if err == nil {
-			lastResp = resp
-			if resp.ControllerLeaderID != 0 {
-				return resp.ControllerLeaderID
-			}
-			lastErr = fmt.Errorf("controller_leader_id is zero")
-		} else {
+		if err != nil {
 			lastErr = err
+			time.Sleep(100 * time.Millisecond)
+			continue
 		}
+		if nodes.ControllerLeaderID == 0 || nodes.ControllerLeaderID == managerNodeID {
+			lastErr = fmt.Errorf("manager node %d is not observing a remote controller leader: %#v", managerNodeID, nodes)
+			time.Sleep(100 * time.Millisecond)
+			continue
+		}
+
+		ctx, cancel = context.WithTimeout(context.Background(), 2*time.Second)
+		status, err := manager.NodeOnboardingStatus(ctx, targetNodeID)
+		cancel()
+		if err != nil {
+			lastErr = err
+			time.Sleep(100 * time.Millisecond)
+			continue
+		}
+		if !onboardingStatusEmpty(status) {
+			lastErr = fmt.Errorf("manager node %d reports active onboarding status=%#v", managerNodeID, status)
+			time.Sleep(100 * time.Millisecond)
+			continue
+		}
+
+		leaderManager := cluster.ManagerClient(t, nodes.ControllerLeaderID)
+		ctx, cancel = context.WithTimeout(context.Background(), 2*time.Second)
+		leaderStatus, err := leaderManager.NodeOnboardingStatus(ctx, targetNodeID)
+		cancel()
+		if err != nil {
+			lastErr = err
+			time.Sleep(100 * time.Millisecond)
+			continue
+		}
+		if !onboardingStatusEmpty(leaderStatus) {
+			lastErr = fmt.Errorf("controller leader node %d reports active onboarding status=%#v", nodes.ControllerLeaderID, leaderStatus)
+			time.Sleep(100 * time.Millisecond)
+			continue
+		}
+
+		ctx, cancel = context.WithTimeout(context.Background(), 2*time.Second)
+		plan, err := fetchOnboardingPlan(ctx, cluster.MustNode(managerNodeID).ManagerAddr(), targetNodeID, 1)
+		cancel()
+		if err != nil {
+			lastErr = err
+			time.Sleep(100 * time.Millisecond)
+			continue
+		}
+		lastPlan = plan
+		ctx, cancel = context.WithTimeout(context.Background(), 2*time.Second)
+		leaderPlan, err := fetchOnboardingPlan(ctx, cluster.MustNode(nodes.ControllerLeaderID).ManagerAddr(), targetNodeID, 1)
+		cancel()
+		if err != nil {
+			lastErr = err
+			time.Sleep(100 * time.Millisecond)
+			continue
+		}
+		if len(plan.Candidates) != 1 || plan.Candidates[0].TargetNodeID != targetNodeID {
+			lastErr = fmt.Errorf("manager node %d plan is not faultable: %#v", managerNodeID, plan)
+			previous = nil
+			time.Sleep(100 * time.Millisecond)
+			continue
+		}
+		if !sameOnboardingPlan(plan, leaderPlan) {
+			lastErr = fmt.Errorf("manager node %d plan is behind controller leader %d: plan=%#v leaderPlan=%#v", managerNodeID, nodes.ControllerLeaderID, plan, leaderPlan)
+			previous = nil
+			time.Sleep(100 * time.Millisecond)
+			continue
+		}
+		if previous != nil && sameOnboardingPlan(*previous, plan) {
+			return plan
+		}
+		copied := plan
+		previous = &copied
+		lastErr = fmt.Errorf("manager node %d observed one candidate plan, waiting for repeat: %#v", managerNodeID, plan)
 		time.Sleep(100 * time.Millisecond)
 	}
-	t.Fatalf("manager did not report controller leader: last=%#v lastErr=%v\n%s", lastResp, lastErr, cluster.DumpDiagnostics())
-	return 0
+	t.Fatalf("manager node %d did not expose a stable faultable onboarding plan for node %d within %s: lastPlan=%#v lastErr=%v\n%s",
+		managerNodeID,
+		targetNodeID,
+		timeout,
+		lastPlan,
+		lastErr,
+		cluster.DumpDiagnostics(),
+	)
+	return suite.NodeOnboardingPlanDTO{}
+}
+
+func fetchOnboardingPlan(ctx context.Context, managerAddr string, nodeID uint64, maxSlotMoves uint32) (suite.NodeOnboardingPlanDTO, error) {
+	var out suite.NodeOnboardingPlanDTO
+	_, err := suite.PostJSON(ctx, fmt.Sprintf("http://%s/manager/nodes/%d/onboarding/plan", managerAddr, nodeID), map[string]any{
+		"max_slot_moves": maxSlotMoves,
+	}, &out)
+	return out, err
+}
+
+func onboardingStatusEmpty(status suite.NodeOnboardingStatusDTO) bool {
+	return status.Summary.TotalActive == 0 &&
+		status.Summary.Pending == 0 &&
+		status.Summary.Running == 0 &&
+		status.Summary.Failed == 0 &&
+		len(status.Tasks) == 0
+}
+
+func sameOnboardingPlan(left, right suite.NodeOnboardingPlanDTO) bool {
+	if left.StateRevision != right.StateRevision || len(left.Candidates) != 1 || len(right.Candidates) != 1 {
+		return false
+	}
+	leftCandidate := left.Candidates[0]
+	rightCandidate := right.Candidates[0]
+	return leftCandidate.SlotID == rightCandidate.SlotID &&
+		leftCandidate.SourceNodeID == rightCandidate.SourceNodeID &&
+		leftCandidate.TargetNodeID == rightCandidate.TargetNodeID &&
+		leftCandidate.ConfigEpoch == rightCandidate.ConfigEpoch &&
+		equalUint64s(leftCandidate.TargetPeers, rightCandidate.TargetPeers)
+}
+
+func equalUint64s(left, right []uint64) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for i := range left {
+		if left[i] != right[i] {
+			return false
+		}
+	}
+	return true
 }
 
 func fetchManagerNodes(ctx context.Context, managerAddr string) (nodeFaultManagerNodesResponse, error) {
@@ -206,6 +358,14 @@ func disableGofail(t testing.TB, endpoint suite.GofailEndpoint, failpoint string
 	_ = endpoint.Disable(ctx, failpoint)
 }
 
+func requireDisableGofail(t testing.TB, endpoint suite.GofailEndpoint, failpoint string) {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	require.NoError(t, endpoint.Disable(ctx, failpoint))
+}
+
 func requireNodeNotReadyFor(t testing.TB, cluster *suite.StartedCluster, node *suite.StartedNode, window time.Duration) {
 	t.Helper()
 
@@ -219,6 +379,87 @@ func requireNodeNotReadyFor(t testing.TB, cluster *suite.StartedCluster, node *s
 	}
 }
 
+func requireNodeArtifactsContain(t testing.TB, cluster *suite.StartedCluster, node *suite.StartedNode, marker string, timeout time.Duration) {
+	t.Helper()
+
+	paths := nodeArtifactPaths(node)
+	deadline := time.Now().Add(timeout)
+	var last nodeArtifactSearchResult
+	for time.Now().Before(deadline) {
+		last = searchNodeArtifacts(paths, marker)
+		if last.Found {
+			return
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	t.Fatalf("node %d artifacts did not contain %q within %s; paths=%s; last=%s\n%s",
+		node.Spec.ID,
+		marker,
+		timeout,
+		strings.Join(paths, ", "),
+		last.String(),
+		cluster.DumpDiagnostics(),
+	)
+}
+
+func nodeArtifactPaths(node *suite.StartedNode) []string {
+	if node == nil {
+		return nil
+	}
+	paths := []string{node.Spec.StdoutPath, node.Spec.StderrPath}
+	if node.Spec.LogDir != "" {
+		paths = append(paths,
+			filepath.Join(node.Spec.LogDir, "app.log"),
+			filepath.Join(node.Spec.LogDir, "error.log"),
+		)
+	}
+	return paths
+}
+
+func searchNodeArtifacts(paths []string, marker string) nodeArtifactSearchResult {
+	result := nodeArtifactSearchResult{Checked: make(map[string]string, len(paths))}
+	for _, path := range paths {
+		if strings.TrimSpace(path) == "" {
+			continue
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			result.Checked[path] = err.Error()
+			continue
+		}
+		text := string(data)
+		if strings.Contains(text, marker) {
+			result.Found = true
+			result.Checked[path] = "found"
+			return result
+		}
+		result.Checked[path] = fmt.Sprintf("read %d bytes", len(data))
+	}
+	return result
+}
+
+type nodeArtifactSearchResult struct {
+	Found   bool
+	Checked map[string]string
+}
+
+func (r nodeArtifactSearchResult) String() string {
+	if len(r.Checked) == 0 {
+		return "<no artifacts checked>"
+	}
+	paths := make([]string, 0, len(r.Checked))
+	for path := range r.Checked {
+		paths = append(paths, path)
+	}
+	sort.Strings(paths)
+	parts := make([]string, 0, len(paths))
+	for _, path := range paths {
+		state := r.Checked[path]
+		parts = append(parts, fmt.Sprintf("%s: %s", path, state))
+	}
+	return strings.Join(parts, "; ")
+}
+
 func requireBoundedFaultedOnboardingStart(
 	t testing.TB,
 	cluster *suite.StartedCluster,
@@ -230,9 +471,20 @@ func requireBoundedFaultedOnboardingStart(
 	t.Helper()
 
 	if err != nil {
-		return
+		text := strings.TrimSpace(string(body))
+		if strings.Contains(text, controlWriteFaultMarker) || strings.Contains(err.Error(), controlWriteFaultMarker) {
+			t.Fatalf("faulted onboarding start surfaced injected marker through transport/decode error instead of HTTP status/body: status=%d body=%s err=%v\n%s",
+				status,
+				text,
+				err,
+				cluster.DumpDiagnostics(),
+			)
+		}
+		require.NoError(t, err, "faulted onboarding start returned transport/decode error without injected marker or HTTP status/body: status=%d body=%s\n%s", status, text, cluster.DumpDiagnostics())
 	}
 	if status/100 != 2 {
+		bodyText := strings.TrimSpace(string(body))
+		require.Contains(t, bodyText, controlWriteFaultMarker, "faulted onboarding start failed without injected marker: status=%d body=%s\n%s", status, bodyText, cluster.DumpDiagnostics())
 		return
 	}
 	if response.Created == 0 {
