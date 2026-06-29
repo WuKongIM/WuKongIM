@@ -117,6 +117,7 @@ func TestOnboardingControlWriteRetriesThroughInjectedRPCFault(t *testing.T) {
 	faulted, status, body, err := remoteManager.StartOnboarding(ctx, 4, 1)
 	cancel()
 	requireBoundedFaultedOnboardingStart(t, cluster, faulted, status, body, err)
+	requireNoOnboardingTasksLeaked(t, cluster, manager, 4, status)
 
 	for _, endpoint := range failpoints {
 		disableGofail(t, endpoint, clusterNetCallShardOwnedFault)
@@ -243,6 +244,20 @@ func requireBoundedFaultedOnboardingStart(
 		formatOnboardingStart(response),
 		cluster.DumpDiagnostics(),
 	)
+}
+
+func requireNoOnboardingTasksLeaked(t testing.TB, cluster *suite.StartedCluster, manager *suite.ManagerClient, nodeID uint64, startStatus int) {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	status, err := manager.NodeOnboardingStatus(ctx, nodeID)
+	require.NoError(t, err, "start_status=%d\n%s", startStatus, cluster.DumpDiagnostics())
+	require.Equal(t, 0, status.Summary.TotalActive, "start_status=%d status=%#v\n%s", startStatus, status, cluster.DumpDiagnostics())
+	require.Equal(t, 0, status.Summary.Pending, "start_status=%d status=%#v\n%s", startStatus, status, cluster.DumpDiagnostics())
+	require.Equal(t, 0, status.Summary.Running, "start_status=%d status=%#v\n%s", startStatus, status, cluster.DumpDiagnostics())
+	require.Equal(t, 0, status.Summary.Failed, "start_status=%d status=%#v\n%s", startStatus, status, cluster.DumpDiagnostics())
+	require.Empty(t, status.Tasks, "start_status=%d status=%#v\n%s", startStatus, status, cluster.DumpDiagnostics())
 }
 
 func formatOnboardingStart(response suite.NodeOnboardingStartDTO) string {
