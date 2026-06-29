@@ -23,6 +23,9 @@
   - Stage 5C plan: `docs/superpowers/plans/2026-06-24-internalv2-dynamic-node-stage5c-gateway-drain-mode.md`
   - Stage 5D plan: `docs/superpowers/plans/2026-06-24-internalv2-dynamic-node-stage5d-safe-remove-route.md`
   - Stage 5E plan: `docs/superpowers/plans/2026-06-24-internalv2-dynamic-node-stage5e-remove-smoke-flow.md`
+- Stage 6 plan: `docs/superpowers/plans/2026-06-26-internalv2-dynamic-node-stage6-e2ev2.md`
+- Stage 7 plan: `docs/superpowers/plans/2026-06-26-internalv2-dynamic-node-stage7-gofail-fault-injection.md`
+- Stage 8 plan: `docs/superpowers/plans/2026-06-29-internalv2-dynamic-node-stage8-scale-in-fault-injection.md`
 
 ## Execution Order
 
@@ -33,6 +36,9 @@
 | 3 | Slot Onboarding | `2026-06-24-internalv2-dynamic-node-stage3.md` | Bounded Slot replica movement to active nodes |
 | 4 | Scale-In Preparation | `2026-06-24-internalv2-dynamic-node-stage4.md` | Leaving state, no-new-placement guarantee, Slot drain status |
 | 5 | Channel And Connection Drain | `2026-06-24-internalv2-dynamic-node-stage5.md` plus Stage 5A-5E subplans | Safe-to-remove gate and explicit `removed` transition |
+| 6 | Expanded E2EV2 Coverage | `2026-06-26-internalv2-dynamic-node-stage6-e2ev2.md` | Real-process dynamic node delivery, drain, safety, negative, and concurrency scenarios |
+| 7 | Gofail Join And Onboarding Faults | `2026-06-26-internalv2-dynamic-node-stage7-gofail-fault-injection.md` | Opt-in gofail coverage for join, onboarding control writes, Slot movement, and restart recovery |
+| 8 | Scale-In Fault Injection | `2026-06-29-internalv2-dynamic-node-stage8-scale-in-fault-injection.md` | Scale-in/remove fail-closed and post-commit retry proofs |
 
 ## Cross-Stage Invariants
 
@@ -99,6 +105,40 @@ GOWORK=off go test ./internalv2/access/manager -run 'TestManagerScaleIn' -count=
 
 Expected: leaving nodes reject new placement and scale-in status reports unsafe when runtime data is unknown.
 
+- [x] **Gate 6: Stage 6 starts only after Stage 5 safe remove smoke passes**
+
+Run:
+
+```bash
+GOWORK=off go test -tags=e2e ./test/e2ev2/cluster/dynamic_node_join -run TestLeavingNodeCanBeRemovedAfterDrain -count=1 -timeout 5m -p=1
+```
+
+Expected: an activated, drained dynamic node reaches `removed` through manager
+HTTP without internal shortcuts.
+
+- [x] **Gate 7: Stage 7 starts only after Stage 6 dynamic-node e2ev2 suite passes**
+
+Run:
+
+```bash
+GOWORK=off go test -tags=e2e ./test/e2ev2/cluster/dynamic_node_join -count=1 -timeout 10m -p=1
+```
+
+Expected: dynamic join, online delivery, onboarding, scale-in drain, live-session
+drain, safety gates, negative joins, and concurrency scenarios pass.
+
+- [ ] **Gate 8: Stage 8 starts only after Stage 7 gofail dynamic-node suite passes**
+
+Run:
+
+```bash
+scripts/build-gofail-binary.sh --cmd ./cmd/wukongimv2 --package pkg/clusterv2/tasks --package pkg/clusterv2/net --out /tmp/wukongimv2-gofail
+WK_E2EV2_BINARY=/tmp/wukongimv2-gofail WK_E2EV2_GOFAIL_DYNAMIC_NODE=1 GOWORK=off go test -tags=e2e ./test/e2ev2/cluster/dynamic_node_faults -count=1 -timeout 10m -p=1
+```
+
+Expected: existing Stage 7 gofail join, onboarding, Slot movement, and restart
+coverage passes before Stage 8 adds scale-in/remove-specific faults.
+
 ## Stage 5 Sub-Stage Chain
 
 Run Stage 5 as five separate branches or commits unless the user explicitly asks to combine them:
@@ -121,4 +161,6 @@ Run Stage 5 as five separate branches or commits unless the user explicitly asks
 
 ## Recommended Execution Mode
 
-Use subagent-driven development for Stage 2 and Stage 3 because both cross ControllerV2, clusterv2, manager, and e2ev2 boundaries. Use inline execution only for small review fixes or documentation-only adjustments.
+Use subagent-driven development for Stage 2, Stage 3, and Stage 8 because they
+cross ControllerV2, clusterv2, manager, gofail, and e2ev2 boundaries. Use inline
+execution only for small review fixes or documentation-only adjustments.
