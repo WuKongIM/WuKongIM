@@ -1218,4 +1218,4 @@ repository.
 - [x] Task 6: Delayed scale-in Slot drain e2ev2
 - [x] Task 7: Restart during scale-in Slot drain e2ev2
 - [x] Task 8: Catalog and stage links
-- [ ] Task 9: Final verification and review
+- [x] Task 9: Final verification and review
