@@ -139,6 +139,10 @@ WK_E2EV2_BINARY=/tmp/wukongimv2-gofail WK_E2EV2_GOFAIL_DYNAMIC_NODE=1 GOWORK=off
 Expected: existing Stage 7 gofail join, onboarding, Slot movement, and restart
 coverage passes before Stage 8 adds scale-in/remove-specific faults.
 
+This is the Stage 7 pre-gate command. The full Stage 8 gofail command, including
+scale-in/remove fault packages, lives in the Stage 8 plan and
+`test/e2ev2/cluster/dynamic_node_faults/AGENTS.md`.
+
 ## Stage 5 Sub-Stage Chain
 
 Run Stage 5 as five separate branches or commits unless the user explicitly asks to combine them:

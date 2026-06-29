@@ -91,7 +91,7 @@ Stage 8 should reuse existing markers where they reach the real fault window:
 - `wkSlotReplicaMoveTransferLeaderDelay` and
   `wkSlotReplicaMoveRemoveVoterDelay` for scale-in Slot drain tasks, because
   scale-in uses the same `slot_replica_move` task kind as onboarding.
-- `wkClusterNetCallShardFault` with `return("manager_connection:...")` for
+- `wkClusterNetCallShardFault` with `return("manager_connections:...")` for
   manager runtime-summary or drain-mode RPC failures.
 
 Two scale-in/remove-specific windows need narrow markers because generic
@@ -147,8 +147,10 @@ The test must prove:
 ### Scenario C: Gateway Runtime Summary Fails Closed
 
 Use existing `wkClusterNetCallShardFault` with
-`return("manager_connection:temporary runtime summary fault")` to fault the
+`return("manager_connections:temporary runtime summary fault")` to fault the
 owner-node manager connection RPC used for drain mode and runtime summary.
+The alias is plural because it comes from the manager connections RPC/service
+alias used by the clusterv2 network fault injector.
 Activate node 4, mark it leaving, then request drain/status/remove through
 manager HTTP while the RPC is faulted.
 
@@ -193,6 +195,11 @@ The test must prove:
 - scale-in status eventually reaches `safe_to_remove=true`.
 - final status has zero failed tasks and no active task blockers.
 - final remove reaches `removed`.
+
+This scenario proves durable Slot task recovery across a leaving-node restart.
+Gateway drain admission is runtime state and may need to be re-applied after
+restart before final remove; that must not be confused with recreating Slot
+drain tasks.
 
 ## 7. Evidence Rules
 

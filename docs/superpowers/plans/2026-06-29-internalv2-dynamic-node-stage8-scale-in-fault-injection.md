@@ -18,6 +18,15 @@
 - Stage 6 e2ev2 plan: `docs/superpowers/plans/2026-06-26-internalv2-dynamic-node-stage6-e2ev2.md`
 - Stage 7 gofail plan: `docs/superpowers/plans/2026-06-26-internalv2-dynamic-node-stage7-gofail-fault-injection.md`
 
+## Implementation Notes
+
+- Runtime summary faults use the `manager_connections` alias because the
+  clusterv2 network fault injector matches the manager connections RPC/service
+  alias.
+- Restart-during-scale-in proves durable Slot task recovery. Gateway drain
+  admission is runtime state and may be re-applied after restart before final
+  remove without recreating Slot drain tasks.
+
 ## File Map
 
 - Create: `test/e2ev2/cluster/dynamic_node_faults/scale_in_fault_helpers_test.go`
@@ -40,6 +49,8 @@
   - Catalog Stage 8 scenarios and update the runtime command timeout.
 - Modify: `docs/superpowers/plans/2026-06-24-internalv2-dynamic-node-lifecycle.md`
   - Link Stage 6, Stage 7, and Stage 8 in the master stage chain.
+- Modify: `docs/superpowers/specs/2026-06-29-internalv2-dynamic-node-stage8-scale-in-fault-injection-design.md`
+  - Correct proven fault-alias and restart evidence notes.
 
 Production changes are limited to narrow gofail markers and helper functions
 that are inert in normal builds. Do not change scale-in semantics unless a
@@ -631,7 +642,7 @@ func TestScaleInRuntimeSummaryFaultFailsClosed(t *testing.T) {
 		waitGofailListed(t, f.cluster, endpoint, clusterNetCallShardFault)
 	}
 	for _, endpoint := range f.allFailpoints() {
-		enableGofail(t, f.cluster, endpoint, clusterNetCallShardFault, `return("manager_connection:`+scaleInRuntimeSummaryFaultMarker+`")`)
+		enableGofail(t, f.cluster, endpoint, clusterNetCallShardFault, `return("manager_connections:`+scaleInRuntimeSummaryFaultMarker+`")`)
 		requireGofailContains(t, f.cluster, endpoint, clusterNetCallShardFault, scaleInRuntimeSummaryFaultMarker)
 		defer disableGofail(t, endpoint, clusterNetCallShardFault)
 	}
@@ -690,7 +701,7 @@ Expected: PASS with skips when `WK_E2EV2_GOFAIL_DYNAMIC_NODE` is unset.
 Run:
 
 ```bash
-scripts/build-gofail-binary.sh --cmd ./cmd/wukongimv2 --package internalv2/usecase/management --package pkg/clusterv2/tasks --package pkg/clusterv2/net --package pkg/controllerv2 --out /tmp/wukongimv2-gofail
+scripts/build-gofail-binary.sh --cmd ./cmd/wukongimv2 --package internalv2/usecase/management --package pkg/controllerv2 --package pkg/clusterv2/tasks --package pkg/clusterv2/net --out /tmp/wukongimv2-gofail
 ```
 
 Expected: script exits 0 and writes `/tmp/wukongimv2-gofail`.
@@ -867,7 +878,7 @@ func TestScaleInSlotDrainSurvivesDelayedLeaderTransfer(t *testing.T) {
 		waitGofailListed(t, f.cluster, endpoint, slotReplicaMoveTransferLeaderDelay)
 	}
 	for _, endpoint := range f.allFailpoints() {
-		enableGofail(t, f.cluster, endpoint, slotReplicaMoveTransferLeaderDelay, `return("2s")`)
+		enableGofail(t, f.cluster, endpoint, slotReplicaMoveTransferLeaderDelay, `return("5s")`)
 		defer disableGofail(t, endpoint, slotReplicaMoveTransferLeaderDelay)
 	}
 
@@ -875,7 +886,7 @@ func TestScaleInSlotDrainSurvivesDelayedLeaderTransfer(t *testing.T) {
 	require.Equal(t, uint32(1), advance.Created, "advance=%#v\n%s", advance, f.cluster.DumpDiagnostics())
 	active := waitScaleInTaskActive(t, f, 4, 10*time.Second)
 	require.False(t, active.SafeToRemove, "status=%#v\n%s", active, f.cluster.DumpDiagnostics())
-	requireAnyGofailCountAtLeast(t, f.cluster, f.allFailpoints(), slotReplicaMoveTransferLeaderDelay, 1)
+	waitGofailCountWhileScaleInBlocked(t, f, 4, slotReplicaMoveTransferLeaderDelay, 1, 10*time.Second)
 	requireScaleInStatus(t, f, 4, func(status suite.NodeScaleInStatusDTO) error {
 		if status.SafeToRemove {
 			return fmt.Errorf("safe_to_remove=true while delayed Slot drain is still active")
@@ -917,7 +928,10 @@ Run:
 WK_E2EV2_BINARY=/tmp/wukongimv2-gofail WK_E2EV2_GOFAIL_DYNAMIC_NODE=1 GOWORK=off go test -tags=e2e ./test/e2ev2/cluster/dynamic_node_faults -run TestScaleInSlotDrainSurvivesDelayedLeaderTransfer -count=1 -timeout 7m -p=1
 ```
 
-Expected: PASS. The test must observe `wkSlotReplicaMoveTransferLeaderDelay` count and show `safe_to_remove=false` while the delayed Slot drain is active.
+Expected: PASS. The test must observe `wkSlotReplicaMoveTransferLeaderDelay`
+count and show `safe_to_remove=false` while the delayed Slot drain is active.
+The count and blocked-status evidence must be proven in the same polling path
+so the failure count cannot be observed after the task has already recovered.
 
 - [ ] **Step 4: Commit Task 6**
 
@@ -980,11 +994,10 @@ func TestLeavingNodeRestartDuringScaleInSlotDrainRecovers(t *testing.T) {
 
 	advance := f.manager.MustAdvanceScaleIn(t, 4, 1)
 	require.Equal(t, uint32(1), advance.Created, "advance=%#v\n%s", advance, f.cluster.DumpDiagnostics())
-	active := waitScaleInTaskActive(t, f, 4, 30*time.Second)
+	active := waitScaleInTaskActive(t, f, 4, 10*time.Second)
 	require.False(t, active.SafeToRemove, "status=%#v\n%s", active, f.cluster.DumpDiagnostics())
-	requireAnyGofailCountAtLeast(t, f.cluster, f.allFailpoints(), slotReplicaMoveTransferLeaderDelay, 1)
+	waitGofailCountWhileScaleInBlocked(t, f, 4, slotReplicaMoveTransferLeaderDelay, 1, 20*time.Second)
 
-	t.Logf("restarting node 4 during scale-in Slot drain: status=%#v", active)
 	require.NoError(t, f.cluster.RestartNode(4), f.cluster.DumpDiagnostics())
 	waitGofailListed(t, f.cluster, f.nodeFails[4], slotReplicaMoveTransferLeaderDelay)
 
@@ -993,10 +1006,9 @@ func TestLeavingNodeRestartDuringScaleInSlotDrainRecovers(t *testing.T) {
 	}
 	requireDisableDelayFailpoint(t, f.nodeFails[4], slotReplicaMoveTransferLeaderDelay, true)
 
-	readyCtx, readyCancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer readyCancel()
-	require.NoError(t, f.cluster.WaitClusterReady(readyCtx), f.cluster.DumpDiagnostics())
+	waitStableFaultableClusterReady(t, f, 30*time.Second)
 	f.manager.EventuallyNodeJoinState(t, 4, "leaving", 20*time.Second)
+	eventuallyReapplyScaleInDrain(t, f, 4, 120*time.Second)
 
 	safe := f.manager.EventuallyScaleInSafeToRemove(t, 4, 90*time.Second)
 	require.True(t, safe.SafeToRemove, "status=%#v\n%s", safe, f.cluster.DumpDiagnostics())
@@ -1027,7 +1039,14 @@ Run:
 WK_E2EV2_BINARY=/tmp/wukongimv2-gofail WK_E2EV2_GOFAIL_DYNAMIC_NODE=1 GOWORK=off go test -tags=e2e ./test/e2ev2/cluster/dynamic_node_faults -run TestLeavingNodeRestartDuringScaleInSlotDrainRecovers -count=1 -timeout 8m -p=1
 ```
 
-Expected: PASS. The test must prove node 4 stays `leaving` after restart, the Slot drain task recovers, and final remove reaches `removed` with zero failed tasks.
+Expected: PASS. The test must prove node 4 stays `leaving` after restart, the
+Slot drain task recovers, and final remove reaches `removed` with zero failed
+tasks. Do not use full `WaitClusterReady` as the only post-restart gate for
+node 4 because a still-leaving seed-join node can report lifecycle conflict;
+wait stable nodes and assert node 4 still `leaving` through manager inventory.
+After restart, gateway drain admission may reset because it is runtime state.
+Re-POST `/scale-in/drain=true` is acceptable for this scenario and must not
+recreate Slot tasks; do not call `/scale-in/advance` after restart.
 
 - [ ] **Step 5: Commit Task 7**
 
@@ -1044,6 +1063,7 @@ git commit -m "test: cover restart during scale-in slot drain"
 - Modify: `test/e2ev2/cluster/dynamic_node_faults/AGENTS.md`
 - Modify: `docs/superpowers/plans/2026-06-24-internalv2-dynamic-node-lifecycle.md`
 - Modify: `docs/superpowers/plans/2026-06-29-internalv2-dynamic-node-stage8-scale-in-fault-injection.md`
+- Modify: `docs/superpowers/specs/2026-06-29-internalv2-dynamic-node-stage8-scale-in-fault-injection-design.md`
 
 - [ ] **Step 1: Update dynamic_node_faults catalog**
 
@@ -1101,8 +1121,8 @@ commits land. Keep the checklist in task order.
 - [ ] **Step 4: Commit Task 8**
 
 ```bash
-git add test/e2ev2/cluster/dynamic_node_faults/AGENTS.md docs/superpowers/plans/2026-06-24-internalv2-dynamic-node-lifecycle.md docs/superpowers/plans/2026-06-29-internalv2-dynamic-node-stage8-scale-in-fault-injection.md
-git commit -m "docs: link dynamic node stage 8 fault plan"
+git add test/e2ev2/cluster/dynamic_node_faults/AGENTS.md docs/superpowers/plans/2026-06-24-internalv2-dynamic-node-lifecycle.md docs/superpowers/plans/2026-06-29-internalv2-dynamic-node-stage8-scale-in-fault-injection.md docs/superpowers/specs/2026-06-29-internalv2-dynamic-node-stage8-scale-in-fault-injection-design.md
+git commit -m "docs: link dynamic node stage 8 fault coverage"
 ```
 
 ---
@@ -1190,12 +1210,12 @@ repository.
 
 ## Execution Progress
 
-- [ ] Task 1: Shared scale-in fault helpers
-- [ ] Task 2: Channel inventory failpoint
-- [ ] Task 3: Mark-removed post-commit failpoint
-- [ ] Task 4: Channel/runtime fail-closed e2ev2
-- [ ] Task 5: Removed post-commit idempotency e2ev2
-- [ ] Task 6: Delayed scale-in Slot drain e2ev2
-- [ ] Task 7: Restart during scale-in Slot drain e2ev2
+- [x] Task 1: Shared scale-in fault helpers
+- [x] Task 2: Channel inventory failpoint
+- [x] Task 3: Mark-removed post-commit failpoint
+- [x] Task 4: Channel/runtime fail-closed e2ev2
+- [x] Task 5: Removed post-commit idempotency e2ev2
+- [x] Task 6: Delayed scale-in Slot drain e2ev2
+- [x] Task 7: Restart during scale-in Slot drain e2ev2
 - [ ] Task 8: Catalog and stage links
 - [ ] Task 9: Final verification and review

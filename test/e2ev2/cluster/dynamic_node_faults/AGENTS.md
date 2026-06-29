@@ -9,10 +9,16 @@ This package contains opt-in gofail-backed internalv2 dynamic-node fault tests.
 - Each node gets its own loopback `GOFAIL_HTTP` endpoint through `suite.WithNodeEnv`.
 - Faults are controlled through the gofail HTTP endpoint and disabled before test cleanup when possible.
 - Tests remain black-box: use manager HTTP, WKProto, and process handles only.
+- Stage 8 scale-in coverage must prove scale-in Slot drain remains fail-closed while Slot replica movement is delayed and recovers after the delay clears.
+- Stage 8 scale-in coverage must prove Channel drain inventory and manager runtime-summary faults keep `safe_to_remove=false` and final remove bounded-conflict.
+- Stage 8 scale-in coverage must prove final remove is idempotent when the `removed` commit succeeds but the response is lost.
+- Stage 8 scale-in coverage must prove a leaving node restart during scale-in Slot drain keeps the durable task recoverable and reaches `removed` after drain.
+- Runtime summary faults use `wkClusterNetCallShardFault` with the `manager_connections` alias. The alias is plural because it comes from the manager connection service alias.
+- Restart-during-scale-in proves durable Slot task recovery. Gateway drain admission is runtime state, so the scenario may re-apply drain after restart before final remove.
 
 ## Running
 
 ```bash
-scripts/build-gofail-binary.sh --cmd ./cmd/wukongimv2 --package pkg/clusterv2/tasks --package pkg/clusterv2/net --out /tmp/wukongimv2-gofail
-WK_E2EV2_BINARY=/tmp/wukongimv2-gofail WK_E2EV2_GOFAIL_DYNAMIC_NODE=1 GOWORK=off go test -tags=e2e ./test/e2ev2/cluster/dynamic_node_faults -count=1 -timeout 10m -p=1
+scripts/build-gofail-binary.sh --cmd ./cmd/wukongimv2 --package internalv2/usecase/management --package pkg/controllerv2 --package pkg/clusterv2/tasks --package pkg/clusterv2/net --out /tmp/wukongimv2-gofail
+WK_E2EV2_BINARY=/tmp/wukongimv2-gofail WK_E2EV2_GOFAIL_DYNAMIC_NODE=1 GOWORK=off go test -tags=e2e ./test/e2ev2/cluster/dynamic_node_faults -count=1 -timeout 12m -p=1
 ```
