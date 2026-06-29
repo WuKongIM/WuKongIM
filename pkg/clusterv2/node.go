@@ -11,6 +11,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/internal/lifecycle"
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/clusterv2/net"
+	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/observe"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/propose"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/routing"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
@@ -107,6 +108,8 @@ type Node struct {
 	channelRetentionCursor channelv2.ChannelKey
 	// healthReportCancel stops the low-frequency ControllerV2 health reporter.
 	healthReportCancel context.CancelFunc
+	// healthReporter sends low-frequency ControllerV2 node health reports.
+	healthReporter *observe.Reporter
 	// healthReportWG waits for the low-frequency health reporter to exit.
 	healthReportWG   sync.WaitGroup
 	slotLeaderCancel context.CancelFunc

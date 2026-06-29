@@ -59,6 +59,7 @@ func (n *Node) startHealthReportLoop() {
 		ObservedSlotRevision:    n.observedSlotRevision,
 		SlotStatus:              n.localSlotStatuses,
 	})
+	n.healthReporter = reporter
 	ctx, cancel := context.WithCancel(context.Background())
 	n.healthReportCancel = cancel
 	n.healthReportWG.Add(1)
@@ -78,9 +79,12 @@ func (n *Node) stopHealthReportLoop() {
 	if n == nil || n.healthReportCancel == nil {
 		return
 	}
+	reporter := n.healthReporter
 	n.healthReportCancel()
 	n.healthReportWG.Wait()
+	_ = n.reportNodeHealth(context.Background(), reporter)
 	n.healthReportCancel = nil
+	n.healthReporter = nil
 }
 
 func (n *Node) reportNodeHealth(ctx context.Context, reporter *observe.Reporter) error {
