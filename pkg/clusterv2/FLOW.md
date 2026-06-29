@@ -181,6 +181,16 @@ are exposed through `Node.StorageMetricsSnapshot` as low-cardinality
 storage packages; clusterv2 only publishes the neutral metrics shape used by
 composition roots.
 
+### Health Report Loop
+
+The node health report loop sends compact runtime evidence through
+`control.ReportNode`: `status`, `runtime_ready`, observed control revision,
+observed Slot revision, and a node-local report sequence. Each report uses a
+bounded per-report context, and `runtime_ready` is false while the node is
+stopping. ControllerV2 fills the leader-side report timestamp, stores the report
+durably, and control snapshots derive `fresh`, `stale`, or `missing` health from
+the configured TTL.
+
 ## Stop Flow
 
 ```text

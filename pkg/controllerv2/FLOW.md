@@ -91,6 +91,15 @@ to the raftstore, and compacts WAL entries older than
 not started, no applied index exists, no materialized state has been written, or
 the latest snapshot already covers the applied boundary.
 
+### Node Health Reports
+
+`ReportNodeHealth` is a low-frequency Controller Raft write that stores one
+bounded `NodeHealthReport` per node. It updates durable health evidence and
+`AppliedRaftIndex`, but it does not advance the logical cluster-state
+`Revision`; placement and lifecycle compare-and-set fences must not race with
+heartbeat churn. Consumers that need health freshness compare report age against
+the configured TTL instead of interpreting membership `JoinState` as liveness.
+
 ## Server Facade Flow
 
 ```text
