@@ -337,6 +337,55 @@ func TestChecksumIncludesNodeHealthReports(t *testing.T) {
 	require.NotEqual(t, leftChecksum, rightChecksum, "Checksum() ignored NodeHealthReports")
 }
 
+func TestEncodeDecodePreservesNodeHealthReports(t *testing.T) {
+	st := testState()
+	st.NodeHealthReports = []NodeHealthReport{
+		{NodeID: 3, Status: NodeStatusDown, RuntimeReady: false, ObservedControlRevision: 8, ObservedSlotRevision: 13, ReportSeq: 5, ReportedAtUnixMilli: 1710000003000, AppliedRaftIndex: 21, ErrorCode: "disk_full"},
+		{NodeID: 1, Status: NodeStatusAlive, RuntimeReady: true, ObservedControlRevision: 9, ObservedSlotRevision: 14, ReportSeq: 6, ReportedAtUnixMilli: 1710000001000, AppliedRaftIndex: 22},
+	}
+
+	data, err := Encode(st)
+	require.NoError(t, err)
+	require.Contains(t, string(data), `"node_health_reports":[`)
+
+	decoded, err := Decode(data)
+	require.NoError(t, err)
+	require.Equal(t, []NodeHealthReport{
+		{NodeID: 1, Status: NodeStatusAlive, RuntimeReady: true, ObservedControlRevision: 9, ObservedSlotRevision: 14, ReportSeq: 6, ReportedAtUnixMilli: 1710000001000, AppliedRaftIndex: 22},
+		{NodeID: 3, Status: NodeStatusDown, RuntimeReady: false, ObservedControlRevision: 8, ObservedSlotRevision: 13, ReportSeq: 5, ReportedAtUnixMilli: 1710000003000, AppliedRaftIndex: 21, ErrorCode: "disk_full"},
+	}, decoded.NodeHealthReports)
+	require.NotEmpty(t, decoded.Checksum)
+}
+
+func TestChecksumNormalizesNodeHealthReportsOrder(t *testing.T) {
+	left := testState()
+	left.NodeHealthReports = []NodeHealthReport{
+		{NodeID: 3, Status: NodeStatusSuspect, RuntimeReady: false, ReportSeq: 2, ReportedAtUnixMilli: 1710000003000, ErrorCode: "runtime_starting"},
+		{NodeID: 1, Status: NodeStatusAlive, RuntimeReady: true, ReportSeq: 1, ReportedAtUnixMilli: 1710000001000},
+	}
+	right := testState()
+	right.NodeHealthReports = []NodeHealthReport{
+		{NodeID: 1, Status: NodeStatusAlive, RuntimeReady: true, ReportSeq: 1, ReportedAtUnixMilli: 1710000001000},
+		{NodeID: 3, Status: NodeStatusSuspect, RuntimeReady: false, ReportSeq: 2, ReportedAtUnixMilli: 1710000003000, ErrorCode: "runtime_starting"},
+	}
+
+	leftChecksum, err := Checksum(left)
+	require.NoError(t, err)
+	rightChecksum, err := Checksum(right)
+	require.NoError(t, err)
+	require.Equal(t, leftChecksum, rightChecksum)
+}
+
+func TestDecodeAcceptsStateWithoutNodeHealthReports(t *testing.T) {
+	data, err := Encode(testState())
+	require.NoError(t, err)
+	require.NotContains(t, string(data), `"node_health_reports"`)
+
+	decoded, err := Decode(data)
+	require.NoError(t, err)
+	require.Empty(t, decoded.NodeHealthReports)
+}
+
 func TestBuildInitialHashSlotTableDistributesRanges(t *testing.T) {
 	table, err := BuildInitialHashSlotTable(16, 16384)
 	require.NoError(t, err)
@@ -412,6 +461,7 @@ func TestEncodeEmptyRepeatedFieldsAsArrays(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, string(data), `"slots":[]`)
 	require.Contains(t, string(data), `"tasks":[]`)
+	require.NotContains(t, string(data), `"node_health_reports"`)
 }
 
 func TestValidateRejectsDesiredPeersLengthPastUint16Boundary(t *testing.T) {
