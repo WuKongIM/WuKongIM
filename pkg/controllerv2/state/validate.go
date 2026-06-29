@@ -33,6 +33,9 @@ func (s ClusterState) Validate() error {
 	if err := validateControllers(s.Controllers, nodes); err != nil {
 		return err
 	}
+	if err := validateNodeHealthReports(s.NodeHealthReports, nodes); err != nil {
+		return err
+	}
 	assignments, err := validateSlots(s.Config, s.Slots, nodes)
 	if err != nil {
 		return err
@@ -70,7 +73,7 @@ func validateNodes(nodes []Node) (map[uint64]Node, error) {
 		if node.Status == "" {
 			return nil, invalid("node status is required")
 		}
-		if node.Status != NodeStatusAlive && node.Status != NodeStatusSuspect && node.Status != NodeStatusDown {
+		if !validNodeStatus(node.Status) {
 			return nil, invalid("unknown node status")
 		}
 		seenRoles := make(map[NodeRole]struct{}, len(node.Roles))
@@ -323,6 +326,36 @@ func validateTasks(tasks []ReconcileTask, assignments map[uint32]SlotAssignment,
 		}
 	}
 	return nil
+}
+
+func validateNodeHealthReports(reports []NodeHealthReport, nodes map[uint64]Node) error {
+	seen := make(map[uint64]struct{}, len(reports))
+	for _, report := range reports {
+		if report.NodeID == 0 {
+			return invalid("node health report node_id must be non-zero")
+		}
+		if _, exists := seen[report.NodeID]; exists {
+			return invalid("duplicate node health report")
+		}
+		seen[report.NodeID] = struct{}{}
+		if _, ok := nodes[report.NodeID]; !ok {
+			return invalid("node health report must reference a node")
+		}
+		if !validNodeStatus(report.Status) {
+			return invalid("unknown node health report status")
+		}
+		if report.ReportedAtUnixMilli < 0 {
+			return invalid("node health report reported_at_unix_milli must not be negative")
+		}
+		if len(report.ErrorCode) > 128 {
+			return invalid("node health report error_code is too long")
+		}
+	}
+	return nil
+}
+
+func validNodeStatus(status NodeStatus) bool {
+	return status == NodeStatusAlive || status == NodeStatusSuspect || status == NodeStatusDown
 }
 
 func containsUint64(items []uint64, want uint64) bool {

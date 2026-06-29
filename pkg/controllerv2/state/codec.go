@@ -10,17 +10,18 @@ import (
 )
 
 type checksumClusterState struct {
-	SchemaVersion    uint32            `json:"schema_version"`
-	ClusterID        string            `json:"cluster_id"`
-	Revision         uint64            `json:"revision"`
-	AppliedRaftIndex uint64            `json:"applied_raft_index"`
-	UpdatedAt        time.Time         `json:"updated_at"`
-	Config           ClusterConfig     `json:"config"`
-	Controllers      []ControllerVoter `json:"controllers"`
-	Nodes            []Node            `json:"nodes"`
-	Slots            []SlotAssignment  `json:"slots"`
-	HashSlots        HashSlotTable     `json:"hash_slots"`
-	Tasks            []ReconcileTask   `json:"tasks"`
+	SchemaVersion     uint32             `json:"schema_version"`
+	ClusterID         string             `json:"cluster_id"`
+	Revision          uint64             `json:"revision"`
+	AppliedRaftIndex  uint64             `json:"applied_raft_index"`
+	UpdatedAt         time.Time          `json:"updated_at"`
+	Config            ClusterConfig      `json:"config"`
+	Controllers       []ControllerVoter  `json:"controllers"`
+	Nodes             []Node             `json:"nodes"`
+	Slots             []SlotAssignment   `json:"slots"`
+	NodeHealthReports []NodeHealthReport `json:"node_health_reports,omitempty"`
+	HashSlots         HashSlotTable      `json:"hash_slots"`
+	Tasks             []ReconcileTask    `json:"tasks"`
 }
 
 // Encode returns normalized canonical JSON with a CRC32C checksum.
@@ -91,16 +92,17 @@ func Checksum(st ClusterState) (string, error) {
 
 func checksumView(st ClusterState) checksumClusterState {
 	return checksumClusterState{
-		SchemaVersion:    st.SchemaVersion,
-		ClusterID:        st.ClusterID,
-		Revision:         st.Revision,
-		AppliedRaftIndex: st.AppliedRaftIndex,
-		UpdatedAt:        st.UpdatedAt,
-		Config:           st.Config,
-		Controllers:      st.Controllers,
-		Nodes:            st.Nodes,
-		Slots:            st.Slots,
-		HashSlots:        st.HashSlots,
-		Tasks:            st.Tasks,
+		SchemaVersion:     st.SchemaVersion,
+		ClusterID:         st.ClusterID,
+		Revision:          st.Revision,
+		AppliedRaftIndex:  st.AppliedRaftIndex,
+		UpdatedAt:         st.UpdatedAt,
+		Config:            st.Config,
+		Controllers:       st.Controllers,
+		Nodes:             st.Nodes,
+		Slots:             st.Slots,
+		NodeHealthReports: st.NodeHealthReports,
+		HashSlots:         st.HashSlots,
+		Tasks:             st.Tasks,
 	}
 }

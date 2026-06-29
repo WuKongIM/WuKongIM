@@ -267,6 +267,76 @@ func TestClusterStateCloneCopiesParticipantProgress(t *testing.T) {
 	require.Equal(t, TaskParticipantStatusPending, st.Tasks[0].ParticipantProgress[0].Status)
 }
 
+func TestClusterStateNodeHealthReportsCloneNormalizeValidate(t *testing.T) {
+	st := testState()
+	st.NodeHealthReports = []NodeHealthReport{
+		{NodeID: 2, Status: NodeStatusAlive, RuntimeReady: true, ObservedControlRevision: 7, ObservedSlotRevision: 11, ReportSeq: 3, ReportedAtUnixMilli: 1710000002000},
+		{NodeID: 1, Status: NodeStatusSuspect, RuntimeReady: false, ObservedControlRevision: 6, ReportSeq: 4, ReportedAtUnixMilli: 1710000001000, ErrorCode: "runtime_starting"},
+	}
+
+	clone := st.Clone()
+	clone.NodeHealthReports[0].Status = NodeStatusDown
+	require.Equal(t, NodeStatusAlive, st.NodeHealthReports[0].Status, "Clone() shared NodeHealthReports backing array")
+
+	st.Normalize()
+	require.Equal(t, uint64(1), st.NodeHealthReports[0].NodeID)
+	require.NoError(t, st.Validate())
+}
+
+func TestClusterStateRejectsInvalidNodeHealthReports(t *testing.T) {
+	tests := []struct {
+		name    string
+		reports []NodeHealthReport
+	}{
+		{
+			name:    "unknown node",
+			reports: []NodeHealthReport{{NodeID: 99, Status: NodeStatusAlive, ReportedAtUnixMilli: 1710000000000}},
+		},
+		{
+			name:    "invalid status",
+			reports: []NodeHealthReport{{NodeID: 1, Status: NodeStatus("bad"), ReportedAtUnixMilli: 1710000000000}},
+		},
+		{
+			name:    "duplicate node",
+			reports: []NodeHealthReport{{NodeID: 1, Status: NodeStatusAlive, ReportedAtUnixMilli: 1710000000000}, {NodeID: 1, Status: NodeStatusSuspect, ReportedAtUnixMilli: 1710000001000}},
+		},
+		{
+			name:    "zero node id",
+			reports: []NodeHealthReport{{NodeID: 0, Status: NodeStatusAlive, ReportedAtUnixMilli: 1710000000000}},
+		},
+		{
+			name:    "negative timestamp",
+			reports: []NodeHealthReport{{NodeID: 1, Status: NodeStatusAlive, ReportedAtUnixMilli: -1}},
+		},
+		{
+			name:    "oversized error code",
+			reports: []NodeHealthReport{{NodeID: 1, Status: NodeStatusAlive, ReportedAtUnixMilli: 1710000000000, ErrorCode: strings.Repeat("x", 129)}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			st := testState()
+			st.NodeHealthReports = tt.reports
+
+			require.ErrorIs(t, st.Validate(), ErrInvalidState)
+		})
+	}
+}
+
+func TestChecksumIncludesNodeHealthReports(t *testing.T) {
+	left := testState()
+	right := left.Clone()
+	left.NodeHealthReports = []NodeHealthReport{{NodeID: 1, Status: NodeStatusAlive, RuntimeReady: true, ReportSeq: 1, ReportedAtUnixMilli: 1710000000000}}
+	right.NodeHealthReports = []NodeHealthReport{{NodeID: 1, Status: NodeStatusDown, RuntimeReady: false, ReportSeq: 2, ReportedAtUnixMilli: 1710000001000}}
+
+	leftChecksum, err := Checksum(left)
+	require.NoError(t, err)
+	rightChecksum, err := Checksum(right)
+	require.NoError(t, err)
+	require.NotEqual(t, leftChecksum, rightChecksum, "Checksum() ignored NodeHealthReports")
+}
+
 func TestBuildInitialHashSlotTableDistributesRanges(t *testing.T) {
 	table, err := BuildInitialHashSlotTable(16, 16384)
 	require.NoError(t, err)

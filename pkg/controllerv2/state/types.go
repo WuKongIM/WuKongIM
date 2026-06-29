@@ -45,6 +45,28 @@ const (
 	NodeStatusDown NodeStatus = "down"
 )
 
+// NodeHealthReport stores one bounded low-frequency runtime health report.
+type NodeHealthReport struct {
+	// NodeID is the reporting node identity.
+	NodeID uint64 `json:"node_id"`
+	// Status is the reported runtime health status.
+	Status NodeStatus `json:"status"`
+	// RuntimeReady reports whether the node can serve foreground cluster traffic.
+	RuntimeReady bool `json:"runtime_ready"`
+	// ObservedControlRevision is the latest logical ControllerV2 revision observed by the node.
+	ObservedControlRevision uint64 `json:"observed_control_revision"`
+	// ObservedSlotRevision is the latest local Slot runtime revision observed by the node.
+	ObservedSlotRevision uint64 `json:"observed_slot_revision,omitempty"`
+	// ReportSeq is a node-local sequence used for diagnostics.
+	ReportSeq uint64 `json:"report_seq"`
+	// ReportedAtUnixMilli is filled by the Controller leader when the report is proposed.
+	ReportedAtUnixMilli int64 `json:"reported_at_unix_milli"`
+	// AppliedRaftIndex is the Controller Raft index that stored this report.
+	AppliedRaftIndex uint64 `json:"applied_raft_index,omitempty"`
+	// ErrorCode is a bounded machine-readable runtime reason.
+	ErrorCode string `json:"error_code,omitempty"`
+}
+
 // ControllerRole describes a Controller Raft membership role.
 type ControllerRole string
 
@@ -151,6 +173,8 @@ type ClusterState struct {
 	Nodes []Node `json:"nodes"`
 	// Slots lists desired physical slot assignments.
 	Slots []SlotAssignment `json:"slots"`
+	// NodeHealthReports stores one compact health report per node.
+	NodeHealthReports []NodeHealthReport `json:"node_health_reports,omitempty"`
 	// HashSlots maps hash-slot ranges to physical slot IDs.
 	HashSlots HashSlotTable `json:"hash_slots"`
 	// Tasks lists active reconcile tasks required to converge the desired state.

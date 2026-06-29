@@ -32,6 +32,7 @@ func (s *ClusterState) Normalize() {
 	for i := range s.Slots {
 		sort.Slice(s.Slots[i].DesiredPeers, func(a, b int) bool { return s.Slots[i].DesiredPeers[a] < s.Slots[i].DesiredPeers[b] })
 	}
+	sort.Slice(s.NodeHealthReports, func(i, j int) bool { return s.NodeHealthReports[i].NodeID < s.NodeHealthReports[j].NodeID })
 	for i := range s.Tasks {
 		sort.Slice(s.Tasks[i].TargetPeers, func(a, b int) bool { return s.Tasks[i].TargetPeers[a] < s.Tasks[i].TargetPeers[b] })
 		sort.Slice(s.Tasks[i].ObservedVoters, func(a, b int) bool { return s.Tasks[i].ObservedVoters[a] < s.Tasks[i].ObservedVoters[b] })
@@ -67,6 +68,7 @@ func (s ClusterState) Clone() ClusterState {
 	for i := range out.Slots {
 		out.Slots[i].DesiredPeers = cloneUint64s(s.Slots[i].DesiredPeers)
 	}
+	out.NodeHealthReports = cloneNodeHealthReports(s.NodeHealthReports)
 	out.HashSlots.Ranges = cloneSlice(s.HashSlots.Ranges)
 	out.Tasks = cloneSlice(s.Tasks)
 	for i := range out.Tasks {
@@ -114,6 +116,15 @@ func (n Node) HasRole(role NodeRole) bool {
 
 func cloneUint64s(in []uint64) []uint64 {
 	return cloneSlice(in)
+}
+
+func cloneNodeHealthReports(in []NodeHealthReport) []NodeHealthReport {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]NodeHealthReport, len(in))
+	copy(out, in)
+	return out
 }
 
 func cloneSlice[T any](in []T) []T {
