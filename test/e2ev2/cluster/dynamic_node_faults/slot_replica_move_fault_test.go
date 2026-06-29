@@ -69,6 +69,7 @@ func TestSlotReplicaMoveSurvivesDelayedLeaderTransfer(t *testing.T) {
 	require.Equal(t, uint64(4), replanCandidate.TargetNodeID, "replan candidate=%#v\n%s", replanCandidate, cluster.DumpDiagnostics())
 	require.Equal(t, candidate.SlotID, replanCandidate.SlotID, cluster.DumpDiagnostics())
 	require.Equal(t, candidate.SourceNodeID, replanCandidate.SourceNodeID, cluster.DumpDiagnostics())
+	ensureSlotLeaderForReplicaMoveSource(t, cluster, replanCandidate.SlotID, replanCandidate.SourceNodeID, 45*time.Second)
 
 	for _, endpoint := range []suite.GofailEndpoint{node1Fail, node2Fail, node3Fail} {
 		listCtx, cancelList := context.WithTimeout(context.Background(), 10*time.Second)
@@ -155,20 +156,29 @@ func waitSlotLeaderOnSource(t *testing.T, ctx context.Context, cluster *suite.St
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 
+	const stableWindow = time.Second
 	var (
-		lastRow managerSlotItem
-		lastErr error
+		firstObserved time.Time
+		lastRow       managerSlotItem
+		lastErr       error
 	)
 	for {
 		row, err := fetchSlotRowForNode(ctx, cluster, slotID, sourceNodeID)
 		if err == nil {
 			lastRow = row
 			if checkErr := checkSlotLeaderOnSource(row, sourceNodeID); checkErr == nil {
-				return
+				if firstObserved.IsZero() {
+					firstObserved = time.Now()
+				}
+				if time.Since(firstObserved) >= stableWindow {
+					return
+				}
 			} else {
+				firstObserved = time.Time{}
 				lastErr = checkErr
 			}
 		} else {
+			firstObserved = time.Time{}
 			lastErr = err
 		}
 
