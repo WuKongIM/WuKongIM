@@ -127,7 +127,7 @@ GOWORK=off go test -tags=e2e ./test/e2ev2/cluster/dynamic_node_join -count=1 -ti
 Expected: dynamic join, online delivery, onboarding, scale-in drain, live-session
 drain, safety gates, negative joins, and concurrency scenarios pass.
 
-- [ ] **Gate 8: Stage 8 starts only after Stage 7 gofail dynamic-node suite passes**
+- [x] **Gate 8: Stage 8 starts only after Stage 7 gofail dynamic-node suite passes**
 
 Run:
 
@@ -142,6 +142,26 @@ coverage passes before Stage 8 adds scale-in/remove-specific faults.
 This is the Stage 7 pre-gate command. The full Stage 8 gofail command, including
 scale-in/remove fault packages, lives in the Stage 8 plan and
 `test/e2ev2/cluster/dynamic_node_faults/AGENTS.md`.
+
+## Stage 8 Completion
+
+- [x] **Stage 8 scale-in/remove fault injection merged locally**
+
+Run on merged local `main`:
+
+```bash
+GOWORK=off go test ./internalv2/usecase/management ./pkg/controllerv2 ./pkg/clusterv2/tasks ./pkg/clusterv2/net -count=1
+GOWORK=off go test -tags=e2e ./test/e2ev2/suite ./test/e2ev2/cluster/dynamic_node_faults -count=1 -timeout 2m -p=1
+scripts/build-gofail-binary.sh --cmd ./cmd/wukongimv2 --package internalv2/usecase/management --package pkg/controllerv2 --package pkg/clusterv2/tasks --package pkg/clusterv2/net --out /tmp/wukongimv2-gofail
+WK_E2EV2_BINARY=/tmp/wukongimv2-gofail WK_E2EV2_GOFAIL_DYNAMIC_NODE=1 GOWORK=off go test -tags=e2e ./test/e2ev2/cluster/dynamic_node_faults -count=1 -timeout 12m -p=1
+git diff --check
+```
+
+Expected: Stage 8 package tests, opt-out e2ev2, gofail binary build, full
+opt-in scale-in/remove fault suite, and whitespace checks pass.
+
+Evidence: Stage 8 was fast-forward merged into local `main` at `ef408158` on
+2026-06-29, then the commands above passed on merged `main`.
 
 ## Stage 5 Sub-Stage Chain
 
