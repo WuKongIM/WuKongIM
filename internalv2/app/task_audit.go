@@ -386,10 +386,8 @@ func controllerTaskAuditSummary(eventType taskaudit.EventType, task cv2.Reconcil
 }
 
 func controllerTaskAuditReason(eventType taskaudit.EventType, task cv2.ReconcileTask, participantNode uint64) string {
-	if eventType == taskaudit.EventParticipantProgress {
-		if progress, ok := controllerTaskAuditParticipant(task, participantNode); ok && progress.LastError != "" {
-			return progress.LastError
-		}
+	if progress, ok := controllerTaskAuditParticipant(task, participantNode); ok && progress.LastError != "" {
+		return progress.LastError
 	}
 	if task.Status == cv2.TaskStatusFailed || eventType == taskaudit.EventFailed {
 		return task.LastError

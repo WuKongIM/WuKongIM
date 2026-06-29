@@ -6,6 +6,7 @@ import (
 	accessnode "github.com/WuKongIM/WuKongIM/internalv2/access/node"
 	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
+	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
 )
 
 // ManagementTaskAuditNode exposes Controller Raft status and task-audit peer RPC.
@@ -16,6 +17,8 @@ type ManagementTaskAuditNode interface {
 	CallRPC(context.Context, uint64, uint8, []byte) ([]byte, error)
 	// LocalControllerRaftStatus reads this node's local Controller Raft status.
 	LocalControllerRaftStatus(context.Context) (clusterv2.ControllerRaftStatus, error)
+	// LocalControlSnapshot returns the latest locally visible control snapshot.
+	LocalControlSnapshot(context.Context) (control.Snapshot, error)
 }
 
 // ManagementTaskAuditReader routes retained ControllerV2 task audit reads to the Controller leader.
@@ -70,6 +73,10 @@ func (r *ManagementTaskAuditReader) controllerLeaderNodeID(ctx context.Context) 
 	}
 	status, err := r.node.LocalControllerRaftStatus(ctx)
 	if err != nil {
+		snapshot, snapshotErr := r.node.LocalControlSnapshot(ctx)
+		if snapshotErr == nil && snapshot.ControllerID != 0 {
+			return snapshot.ControllerID, nil
+		}
 		return 0, err
 	}
 	if status.LeaderID != 0 {

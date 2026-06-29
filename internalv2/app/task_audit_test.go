@@ -105,6 +105,7 @@ func TestControllerTaskAuditParticipantFailureEmitsFailedEvent(t *testing.T) {
 	after := before
 	after.Status = cv2.TaskStatusFailed
 	after.ParticipantProgress[0].Status = cv2.TaskParticipantStatusFailed
+	after.ParticipantProgress[0].LastError = "learner apply timed out"
 
 	event, ok := controllerTaskAuditEventForTransition(cv2.TaskTransition{
 		AppliedRaftIndex: 18,
@@ -125,6 +126,9 @@ func TestControllerTaskAuditParticipantFailureEmitsFailedEvent(t *testing.T) {
 	}
 	if event.Status != string(cv2.TaskStatusFailed) || event.ParticipantNode != 4 {
 		t.Fatalf("event = %+v, want failed status from participant node 4", event)
+	}
+	if event.Reason != "learner apply timed out" {
+		t.Fatalf("event reason = %q, want participant failure reason", event.Reason)
 	}
 }
 

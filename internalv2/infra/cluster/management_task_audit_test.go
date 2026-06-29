@@ -2,11 +2,13 @@ package cluster
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	accessnode "github.com/WuKongIM/WuKongIM/internalv2/access/node"
 	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
+	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
 )
 
 func TestManagementTaskAuditReaderRoutesToControllerLeaderRPC(t *testing.T) {
@@ -91,12 +93,42 @@ func TestManagementTaskAuditReaderUsesLocalStoreWhenLocalNodeIsLeader(t *testing
 	}
 }
 
+func TestManagementTaskAuditReaderUsesSnapshotLeaderWhenRaftStatusUnavailable(t *testing.T) {
+	service := &fakeRemoteTaskAuditService{
+		list: managementusecase.ControllerTaskAuditListResponse{
+			Total: 1,
+			Items: []managementusecase.ControllerTaskAuditSnapshot{{TaskID: "mirror-task"}},
+		},
+	}
+	adapter := accessnode.New(accessnode.Options{ManagerTaskAudit: service})
+	node := &fakeManagementTaskAuditNode{
+		nodeID:    3,
+		statusErr: errors.New("local raft unavailable"),
+		snapshot:  control.Snapshot{ControllerID: 2},
+		handler:   adapter.HandleManagerTaskAuditRPC,
+	}
+	reader := NewManagementTaskAuditReader(node, nil)
+
+	list, err := reader.ListControllerTaskAudits(context.Background(), managementusecase.ControllerTaskAuditListRequest{})
+	if err != nil {
+		t.Fatalf("ListControllerTaskAudits() error = %v", err)
+	}
+	if list.Total != 1 || list.Items[0].TaskID != "mirror-task" {
+		t.Fatalf("list = %+v, want mirror read routed to snapshot controller", list)
+	}
+	if node.calledNodeID != 2 || node.calledServiceID != accessnode.ManagerTaskAuditRPCServiceID {
+		t.Fatalf("rpc target = node:%d service:%d, want snapshot controller node 2 service %d", node.calledNodeID, node.calledServiceID, accessnode.ManagerTaskAuditRPCServiceID)
+	}
+}
+
 type fakeManagementTaskAuditNode struct {
 	nodeID          uint64
 	calledNodeID    uint64
 	calledServiceID uint8
 	handler         func(context.Context, []byte) ([]byte, error)
 	status          clusterv2.ControllerRaftStatus
+	statusErr       error
+	snapshot        control.Snapshot
 }
 
 func (f *fakeManagementTaskAuditNode) NodeID() uint64 { return f.nodeID }
@@ -108,7 +140,14 @@ func (f *fakeManagementTaskAuditNode) CallRPC(ctx context.Context, nodeID uint64
 }
 
 func (f *fakeManagementTaskAuditNode) LocalControllerRaftStatus(context.Context) (clusterv2.ControllerRaftStatus, error) {
+	if f.statusErr != nil {
+		return clusterv2.ControllerRaftStatus{}, f.statusErr
+	}
 	return f.status, nil
+}
+
+func (f *fakeManagementTaskAuditNode) LocalControlSnapshot(context.Context) (control.Snapshot, error) {
+	return f.snapshot, nil
 }
 
 type fakeRemoteTaskAuditService struct {
