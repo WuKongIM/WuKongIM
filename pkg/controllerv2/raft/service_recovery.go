@@ -89,6 +89,9 @@ func (s *Service) recoverStartup(ctx context.Context, store *raftstore.Store) (r
 			return runStartupState{}, err
 		}
 		replayer := newApplyScheduler(applySchedulerConfig{MaxEntries: s.cfg.MaxApplyBatchEntries, MaxBytes: s.cfg.MaxApplyBatchBytes, MaxDelay: s.cfg.MaxApplyDelay}, s.cfg.StateMachine, store, nil)
+		if s.cfg.TaskTransitionObserver != nil {
+			replayer.onTaskTransitions = s.cfg.TaskTransitionObserver.ObserveControllerTaskTransitions
+		}
 		if err := replayer.applyEntries(ctx, entries, nil); err != nil {
 			return runStartupState{}, err
 		}

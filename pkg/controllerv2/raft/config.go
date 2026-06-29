@@ -52,6 +52,21 @@ type ApplyStateObserver interface {
 	SetApplyState(commitIndex, appliedIndex uint64)
 }
 
+// TaskTransitionObserver receives ControllerV2 task edges after applied metadata is durable.
+type TaskTransitionObserver interface {
+	ObserveControllerTaskTransitions([]fsm.TaskTransition)
+}
+
+// TaskTransitionObserverFunc adapts a function to TaskTransitionObserver.
+type TaskTransitionObserverFunc func([]fsm.TaskTransition)
+
+// ObserveControllerTaskTransitions calls f with items.
+func (f TaskTransitionObserverFunc) ObserveControllerTaskTransitions(items []fsm.TaskTransition) {
+	if f != nil {
+		f(items)
+	}
+}
+
 type stateMachine interface {
 	Load(context.Context) error
 	Reset()
@@ -77,6 +92,8 @@ type Config struct {
 	Transport Transport
 	// Observer receives local Raft queue metrics.
 	Observer Observer
+	// TaskTransitionObserver receives task edges after applied metadata is persisted.
+	TaskTransitionObserver TaskTransitionObserver
 	// TickInterval controls the wall-clock interval between Raft ticks; zero uses the default.
 	TickInterval time.Duration
 	// MaxApplyBatchEntries limits how many committed command entries one FSM batch may contain.

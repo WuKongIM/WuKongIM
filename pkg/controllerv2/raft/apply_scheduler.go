@@ -50,11 +50,12 @@ type confChangeResult struct {
 }
 
 type applyScheduler struct {
-	cfg       applySchedulerConfig
-	applier   batchApplier
-	marker    appliedMarker
-	complete  applyCompletion
-	onApplied func(context.Context, uint64) error
+	cfg               applySchedulerConfig
+	applier           batchApplier
+	marker            appliedMarker
+	complete          applyCompletion
+	onApplied         func(context.Context, uint64) error
+	onTaskTransitions func([]fsm.TaskTransition)
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -168,6 +169,7 @@ func (s *applyScheduler) applyEntries(ctx context.Context, entries []raftpb.Entr
 		if len(result.Results) != len(batch) {
 			return fmt.Errorf("controllerv2/raft: apply result count %d does not match command count %d", len(result.Results), len(batch))
 		}
+		transitions := collectTaskTransitions(result.Results)
 		last := indexes[len(indexes)-1]
 		if err := s.marker.MarkAppliedBatch(ctx, last); err != nil {
 			return err
@@ -175,6 +177,7 @@ func (s *applyScheduler) applyEntries(ctx context.Context, entries []raftpb.Entr
 		if err := s.notifyApplied(ctx, last); err != nil {
 			return err
 		}
+		s.notifyTaskTransitions(transitions)
 		for i, applyResult := range result.Results {
 			var proposalErr error
 			if applyResult.Rejected {
@@ -270,6 +273,21 @@ func (s *applyScheduler) notifyApplied(ctx context.Context, index uint64) error 
 		return nil
 	}
 	return s.onApplied(ctx, index)
+}
+
+func (s *applyScheduler) notifyTaskTransitions(items []fsm.TaskTransition) {
+	if s.onTaskTransitions == nil || len(items) == 0 {
+		return
+	}
+	s.onTaskTransitions(items)
+}
+
+func collectTaskTransitions(results []fsm.ApplyResult) []fsm.TaskTransition {
+	var out []fsm.TaskTransition
+	for _, result := range results {
+		out = append(out, result.TaskTransitions...)
+	}
+	return out
 }
 
 func (s *applyScheduler) setError(err error) {

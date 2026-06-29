@@ -38,6 +38,9 @@ func (s *Service) run(store *raftstore.Store, startup runStartupState, stopCh <-
 	}
 	scheduler := newApplyScheduler(applySchedulerConfig{MaxEntries: s.cfg.MaxApplyBatchEntries, MaxBytes: s.cfg.MaxApplyBatchBytes, MaxDelay: s.cfg.MaxApplyDelay}, s.cfg.StateMachine, store, complete)
 	scheduler.onApplied = func(ctx context.Context, index uint64) error { return s.maybeSnapshot(ctx, store, index) }
+	if s.cfg.TaskTransitionObserver != nil {
+		scheduler.onTaskTransitions = s.cfg.TaskTransitionObserver.ObserveControllerTaskTransitions
+	}
 	scheduler.start(context.Background())
 	defer scheduler.stop()
 

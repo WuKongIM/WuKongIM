@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/controllerv2/command"
+	"github.com/WuKongIM/WuKongIM/pkg/controllerv2/fsm"
 	"github.com/WuKongIM/WuKongIM/pkg/controllerv2/raft"
 	"github.com/WuKongIM/WuKongIM/pkg/controllerv2/state"
 	cv2sync "github.com/WuKongIM/WuKongIM/pkg/controllerv2/sync"
@@ -59,6 +60,8 @@ type (
 	TaskResult = command.TaskResult
 	// TaskProgress describes one participant's local progress for a barrier task.
 	TaskProgress = command.TaskProgress
+	// TaskTransition describes one durable ControllerV2 task state edge.
+	TaskTransition = fsm.TaskTransition
 	// SlotReplicaMovePhaseAdvance records an observed Slot Raft config phase.
 	SlotReplicaMovePhaseAdvance = command.SlotReplicaMovePhaseAdvance
 	// SlotReplicaMoveCommit fences the final durable assignment replacement.
@@ -127,6 +130,10 @@ const (
 type (
 	// RaftObserver receives low-cardinality local ControllerV2 Raft runtime metrics.
 	RaftObserver = raft.Observer
+	// TaskTransitionObserver receives ControllerV2 task edges after applied metadata is durable.
+	TaskTransitionObserver = raft.TaskTransitionObserver
+	// TaskTransitionObserverFunc adapts a function to TaskTransitionObserver.
+	TaskTransitionObserverFunc = raft.TaskTransitionObserverFunc
 	// RaftStatus is a goroutine-safe local ControllerV2 Raft status snapshot.
 	RaftStatus = raft.Status
 	// LogCompactionResult describes one local ControllerV2 Raft compaction attempt.
@@ -217,6 +224,8 @@ type RuntimeConfig struct {
 	RaftTransport Transport
 	// RaftObserver receives local ControllerV2 Raft queue metrics.
 	RaftObserver RaftObserver
+	// TaskTransitionObserver receives task edges after applied metadata is persisted.
+	TaskTransitionObserver TaskTransitionObserver
 	// SyncClient mirrors ControllerV2 state for non-voter nodes.
 	SyncClient *SyncClient
 	// SyncPeers resolves ControllerV2 state sync endpoints for mirror nodes.

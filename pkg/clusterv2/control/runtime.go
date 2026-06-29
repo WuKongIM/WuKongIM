@@ -57,6 +57,8 @@ type RuntimeConfig struct {
 	RaftTransport cv2.Transport
 	// RaftObserver receives local ControllerV2 Raft queue metrics.
 	RaftObserver cv2.RaftObserver
+	// TaskTransitionObserver receives task edges after applied metadata is persisted.
+	TaskTransitionObserver cv2.TaskTransitionObserver
 	// SyncClient mirrors ControllerV2 state for non-voter nodes.
 	SyncClient *cv2.SyncClient
 	// SyncPeers resolves ControllerV2 state sync endpoints for mirror nodes.
@@ -87,22 +89,23 @@ type Runtime struct {
 // NewRuntime creates a ControllerV2-backed control runtime.
 func NewRuntime(cfg RuntimeConfig) (*Runtime, error) {
 	backend, err := cv2.NewRuntime(cv2.RuntimeConfig{
-		NodeID:           cfg.NodeID,
-		Addr:             cfg.Addr,
-		StateDir:         cfg.StateDir,
-		ClusterID:        cfg.ClusterID,
-		Role:             cv2.RuntimeRole(cfg.Role),
-		Voters:           runtimeFacadeVoters(cfg.Voters),
-		AllowBootstrap:   cfg.AllowBootstrap,
-		InitialSlotCount: cfg.InitialSlotCount,
-		HashSlotCount:    cfg.HashSlotCount,
-		ReplicaCount:     cfg.ReplicaCount,
-		TickInterval:     cfg.TickInterval,
-		RaftTransport:    cfg.RaftTransport,
-		RaftObserver:     cfg.RaftObserver,
-		SyncClient:       cfg.SyncClient,
-		SyncPeers:        cfg.SyncPeers,
-		Now:              cfg.Now,
+		NodeID:                 cfg.NodeID,
+		Addr:                   cfg.Addr,
+		StateDir:               cfg.StateDir,
+		ClusterID:              cfg.ClusterID,
+		Role:                   cv2.RuntimeRole(cfg.Role),
+		Voters:                 runtimeFacadeVoters(cfg.Voters),
+		AllowBootstrap:         cfg.AllowBootstrap,
+		InitialSlotCount:       cfg.InitialSlotCount,
+		HashSlotCount:          cfg.HashSlotCount,
+		ReplicaCount:           cfg.ReplicaCount,
+		TickInterval:           cfg.TickInterval,
+		RaftTransport:          cfg.RaftTransport,
+		RaftObserver:           cfg.RaftObserver,
+		TaskTransitionObserver: cfg.TaskTransitionObserver,
+		SyncClient:             cfg.SyncClient,
+		SyncPeers:              cfg.SyncPeers,
+		Now:                    cfg.Now,
 	})
 	if err != nil {
 		return nil, err

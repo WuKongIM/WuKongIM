@@ -21,14 +21,15 @@ func (r *Runtime) startVoter(ctx context.Context) error {
 		transport = noopRaftTransport{}
 	}
 	service, err := cv2raft.NewService(cv2raft.Config{
-		NodeID:         r.cfg.NodeID,
-		Peers:          r.raftPeers(),
-		AllowBootstrap: r.cfg.AllowBootstrap,
-		RaftDir:        filepath.Join(r.cfg.StateDir, "raft"),
-		StateMachine:   sm,
-		Transport:      transport,
-		Observer:       r.cfg.RaftObserver,
-		TickInterval:   r.cfg.TickInterval,
+		NodeID:                 r.cfg.NodeID,
+		Peers:                  r.raftPeers(),
+		AllowBootstrap:         r.cfg.AllowBootstrap,
+		RaftDir:                filepath.Join(r.cfg.StateDir, "raft"),
+		StateMachine:           sm,
+		Transport:              transport,
+		Observer:               r.cfg.RaftObserver,
+		TaskTransitionObserver: r.cfg.TaskTransitionObserver,
+		TickInterval:           r.cfg.TickInterval,
 	})
 	if err != nil {
 		return err

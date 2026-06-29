@@ -19,6 +19,7 @@ type fakeBatchApplier struct {
 	mu      sync.Mutex
 	batches [][]fsm.AppliedCommand
 	reject  map[uint64]string
+	results []fsm.ApplyResult
 }
 
 func (f *fakeBatchApplier) ApplyBatch(ctx context.Context, cmds []fsm.AppliedCommand) (fsm.BatchApplyResult, error) {
@@ -26,6 +27,9 @@ func (f *fakeBatchApplier) ApplyBatch(ctx context.Context, cmds []fsm.AppliedCom
 	f.mu.Lock()
 	f.batches = append(f.batches, append([]fsm.AppliedCommand(nil), cmds...))
 	f.mu.Unlock()
+	if len(f.results) > 0 {
+		return fsm.BatchApplyResult{Results: append([]fsm.ApplyResult(nil), f.results...)}, nil
+	}
 	results := make([]fsm.ApplyResult, len(cmds))
 	for i, cmd := range cmds {
 		if reason := f.reject[cmd.Index]; reason != "" {
@@ -38,12 +42,16 @@ func (f *fakeBatchApplier) ApplyBatch(ctx context.Context, cmds []fsm.AppliedCom
 }
 
 type fakeAppliedStore struct {
-	marks []uint64
+	marks  []uint64
+	onMark func(uint64)
 }
 
 func (s *fakeAppliedStore) MarkAppliedBatch(ctx context.Context, index uint64) error {
 	_ = ctx
 	s.marks = append(s.marks, index)
+	if s.onMark != nil {
+		s.onMark(index)
+	}
 	return nil
 }
 
@@ -86,6 +94,33 @@ func TestApplySchedulerCompletesSemanticRejectForMatchingIndex(t *testing.T) {
 	require.ErrorIs(t, completions[2].err, ErrProposalRejected)
 	require.True(t, completions[2].result.Rejected)
 	require.Equal(t, "bad", completions[2].result.Reason)
+}
+
+func TestApplySchedulerDispatchesTaskTransitionsAfterMarkApplied(t *testing.T) {
+	applier := &fakeBatchApplier{results: []fsm.ApplyResult{{
+		Changed:          true,
+		AppliedRaftIndex: 7,
+		TaskTransitions:  []fsm.TaskTransition{{AppliedRaftIndex: 7}},
+	}}}
+	store := &fakeAppliedStore{}
+	var observed []string
+	store.onMark = func(index uint64) {
+		require.Equal(t, uint64(7), index)
+		observed = append(observed, "mark")
+	}
+	sched := newApplyScheduler(applySchedulerConfig{}, applier, store, nil)
+	sched.onTaskTransitions = func(items []fsm.TaskTransition) {
+		require.Len(t, items, 1)
+		require.Equal(t, uint64(7), items[0].AppliedRaftIndex)
+		observed = append(observed, "observer")
+	}
+
+	err := sched.applyJob(context.Background(), toApply{
+		entries: []raftpb.Entry{{Index: 7, Term: 2, Type: raftpb.EntryNormal, Data: mustEncodeSchedulerCommand(t)}},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, []string{"mark", "observer"}, observed)
 }
 
 func TestApplySchedulerRestoresReadySnapshot(t *testing.T) {

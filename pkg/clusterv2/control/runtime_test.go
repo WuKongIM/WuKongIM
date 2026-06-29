@@ -92,6 +92,51 @@ func TestRuntimeProbeProposeSingleVoter(t *testing.T) {
 	}
 }
 
+func TestRuntimePassesTaskTransitionObserver(t *testing.T) {
+	observed := make(chan []cv2.TaskTransition, 1)
+	observer := cv2.TaskTransitionObserverFunc(func(items []cv2.TaskTransition) {
+		if len(items) == 0 {
+			return
+		}
+		select {
+		case observed <- items:
+		default:
+		}
+	})
+	runtime, err := NewRuntime(RuntimeConfig{
+		NodeID:                 1,
+		Addr:                   "127.0.0.1:10001",
+		StateDir:               t.TempDir(),
+		ClusterID:              "cluster-task-transition-observer",
+		Role:                   RuntimeRoleVoter,
+		Voters:                 []RuntimeVoter{{NodeID: 1, Addr: "127.0.0.1:10001"}},
+		AllowBootstrap:         true,
+		InitialSlotCount:       1,
+		HashSlotCount:          4,
+		ReplicaCount:           1,
+		TickInterval:           5 * time.Millisecond,
+		TaskTransitionObserver: observer,
+	})
+	if err != nil {
+		t.Fatalf("NewRuntime() error = %v", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	if err := runtime.Start(ctx); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	t.Cleanup(func() { _ = runtime.Stop(context.Background()) })
+
+	select {
+	case items := <-observed:
+		if len(items) == 0 || !items[0].AfterValid || items[0].After.Kind != cv2.TaskKindBootstrap {
+			t.Fatalf("observed task transitions = %#v, want bootstrap creation", items)
+		}
+	case <-ctx.Done():
+		t.Fatalf("observer did not receive task transition: %v", ctx.Err())
+	}
+}
+
 func TestRuntimeLocalSnapshotRefreshesFromBackendWhenWatchMissesLifecycleWrite(t *testing.T) {
 	runtime, err := NewRuntime(RuntimeConfig{
 		NodeID:           1,
