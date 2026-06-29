@@ -26,6 +26,12 @@
 - Stage 6 plan: `docs/superpowers/plans/2026-06-26-internalv2-dynamic-node-stage6-e2ev2.md`
 - Stage 7 plan: `docs/superpowers/plans/2026-06-26-internalv2-dynamic-node-stage7-gofail-fault-injection.md`
 - Stage 8 plan: `docs/superpowers/plans/2026-06-29-internalv2-dynamic-node-stage8-scale-in-fault-injection.md`
+- Stage 9 spec: `docs/superpowers/specs/2026-06-29-internalv2-dynamic-node-stage9-production-readiness-design.md`
+- Stage 9 plan: `docs/superpowers/plans/2026-06-29-internalv2-dynamic-node-stage9-production-readiness.md`
+  - Stage 9A plan: `docs/superpowers/plans/2026-06-29-internalv2-dynamic-node-stage9a-health-report-model.md`
+  - Stage 9B plan: `docs/superpowers/plans/2026-06-29-internalv2-dynamic-node-stage9b-health-gated-placement-remove.md`
+  - Stage 9C plan: `docs/superpowers/plans/2026-06-29-internalv2-dynamic-node-stage9c-observability-manager-evidence.md`
+  - Stage 9D plan: `docs/superpowers/plans/2026-06-29-internalv2-dynamic-node-stage9d-real-traffic-smoke.md`
 
 ## Execution Order
 
@@ -39,6 +45,7 @@
 | 6 | Expanded E2EV2 Coverage | `2026-06-26-internalv2-dynamic-node-stage6-e2ev2.md` | Real-process dynamic node delivery, drain, safety, negative, and concurrency scenarios |
 | 7 | Gofail Join And Onboarding Faults | `2026-06-26-internalv2-dynamic-node-stage7-gofail-fault-injection.md` | Opt-in gofail coverage for join, onboarding control writes, Slot movement, and restart recovery |
 | 8 | Scale-In Fault Injection | `2026-06-29-internalv2-dynamic-node-stage8-scale-in-fault-injection.md` | Scale-in/remove fail-closed and post-commit retry proofs |
+| 9 | Production Readiness | `2026-06-29-internalv2-dynamic-node-stage9-production-readiness.md` plus Stage 9A-9D subplans | Durable health freshness, health-gated placement/remove, operator evidence, and real-traffic readiness smoke |
 
 ## Cross-Stage Invariants
 
@@ -162,6 +169,23 @@ opt-in scale-in/remove fault suite, and whitespace checks pass.
 
 Evidence: Stage 8 was fast-forward merged into local `main` at `ef408158` on
 2026-06-29, then the commands above passed on merged `main`.
+
+- [ ] **Gate 9: Stage 9 starts only after Stage 8 completion**
+
+Run Stage 9 through its four subplans in order:
+
+```bash
+GOWORK=off go test ./pkg/controllerv2/state ./pkg/controllerv2/fsm ./pkg/controllerv2 ./pkg/clusterv2/control ./pkg/clusterv2/observe ./pkg/clusterv2 -run 'Health|ReportNode|ControlWrite|Config' -count=1
+GOWORK=off go test ./pkg/clusterv2 ./internalv2/usecase/management ./internalv2/access/manager -run 'Health|Placement|ScaleIn|Remove|NodeList' -count=1
+GOWORK=off go test ./pkg/metrics ./internalv2/usecase/management ./internalv2/access/manager ./internalv2/app -run 'Lifecycle|Health|Metrics|Manager|ScaleIn' -count=1
+GOWORK=off go test -tags=e2e ./test/e2ev2/cluster/dynamic_node_readiness -run TestDynamicNodeLifecycleWithContinuousTraffic -count=1 -timeout 12m -p=1
+git diff --check
+```
+
+Expected: health reports are durable without logical revision churn, placement
+and remove gates fail closed on stale health, manager/metrics expose bounded
+evidence, and real traffic continues through join, onboarding, scale-in, and
+remove.
 
 ## Stage 5 Sub-Stage Chain
 
