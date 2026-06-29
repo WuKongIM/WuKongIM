@@ -484,6 +484,15 @@ func (a *App) wireManagerDiagnosticsRPC() {
 	registrar.RegisterRPC(accessnode.ManagerDiagnosticsRPCServiceID, nodeRPCHandlerFunc(adapter.HandleManagerDiagnosticsRPC))
 }
 
+func (a *App) wireManagerTaskAuditRPC() {
+	registrar, hasRegistrar := a.cluster.(nodeRPCRegistrar)
+	if !hasRegistrar || a.controllerTaskAudit == nil {
+		return
+	}
+	adapter := accessnode.New(accessnode.Options{ManagerTaskAudit: a.controllerTaskAudit, Logger: a.logger.Named("node")})
+	registrar.RegisterRPC(accessnode.ManagerTaskAuditRPCServiceID, nodeRPCHandlerFunc(adapter.HandleManagerTaskAuditRPC))
+}
+
 func (a *App) wireNodeLifecycleRPC() {
 	registrar, hasRegistrar := a.cluster.(nodeRPCRegistrar)
 	if !hasRegistrar {
@@ -976,6 +985,9 @@ func (a *App) newManagerManagement() accessmanager.Management {
 		}
 		if raftNode, ok := a.cluster.(clusterinfra.ManagementControllerRaftNode); ok {
 			opts.ControllerRaft = clusterinfra.NewManagementControllerRaftOperator(raftNode)
+		}
+		if a.controllerTaskAudit != nil {
+			opts.ControllerTaskAudit = a.controllerTaskAudit
 		}
 		if slotRaftNode, ok := a.cluster.(clusterinfra.ManagementSlotRaftNode); ok {
 			opts.SlotRaft = clusterinfra.NewManagementSlotRaftOperator(slotRaftNode)

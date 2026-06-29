@@ -75,6 +75,12 @@ New(Config)
        sampler, and sendtrace sink; install the process-wide sendtrace sink
        and expose local diagnostics debug APIs only when
        Observability.DebugAPIEnabled=true
+  -> when an effective node data dir is configured:
+       create the app-owned ControllerV2 task audit runtime at
+       `observability/task-audit/controller-v2-tasks.jsonl`, combine its
+       bounded nonblocking `TaskTransitionObserver` into clusterv2 control
+       config, and keep JSONL retention local to internalv2 observability
+       rather than `pkg/db/meta` or legacy `pkg/controller`
   -> create clusterv2.Node when no ClusterRuntime override is provided
   -> when the cluster exposes channel metadata APIs:
        create internalv2/usecase/channel with an infra/cluster Slot metadata adapter
@@ -137,6 +143,10 @@ New(Config)
   -> register the manager diagnostics RPC handler when node RPC and the local
      diagnostics store are available, exposing this node's trace/message/event
      diagnostics reads and tracking-rule mutations to peer manager readers
+  -> register the manager task audit RPC handler when node RPC and the local
+     ControllerV2 task audit reader are available, exposing this node's retained
+     task history and per-task timeline to peer manager readers without
+     mutating ControllerV2 state
   -> register the node lifecycle RPC handler when node RPC and the management
      lifecycle writer are available, exposing seed JoinNode and readiness probe
      requests to joining peers; when seed-join config is present, create the
@@ -268,7 +278,8 @@ New(Config)
      node lifecycle join/activation requests wire the management lifecycle
      writer when clusterv2 exposes Controller-backed lifecycle writes, keeping
      validation in the management usecase and durable membership mutation in
-     clusterv2 control;
+     clusterv2 control; ControllerV2 task audit list and event timeline reads
+     use the app-owned JSONL task audit reader when it is available;
      when `Top.APIEnabled` creates a top collector,
      attach the local top provider so `/manager/runtime/workqueues` can expose
      local runtime pressure; attach one Prometheus-backed realtime monitor
@@ -559,6 +570,9 @@ wins when set; top-level `Config.NodeID` is only the fallback.
 ```text
 Start(ctx)
   -> cluster.Start(ctx)
+  -> task audit startup backfill: append one snapshot event for each active
+     ControllerV2 task in the local control snapshot; failures are logged and
+     do not block service startup
   -> seed join loop Start(ctx): retry JoinNode against stable-order seeds when seed-join config is present
   -> wait for clusterv2 write routing when the cluster runtime exposes route snapshots
   -> conversation authority route lifecycle Start(ctx): watch route authorities and seed current targets
@@ -590,6 +604,8 @@ Stop(ctx)
   -> presence touch worker Stop(ctx)
   -> seed join loop Stop(ctx): cancel pre-membership JoinNode retries
   -> cluster.Stop(ctx)
+  -> controller task audit Stop(ctx): drain queued audit events and close the
+     JSONL file after the Controller runtime can no longer emit observer calls
 ```
 
 `Start` and `Stop` are serialized by a lifecycle mutex. If API, manager, Prometheus, or gateway

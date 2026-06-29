@@ -1,0 +1,197 @@
+package app
+
+import (
+	"context"
+	"testing"
+	"time"
+
+	accessnode "github.com/WuKongIM/WuKongIM/internalv2/access/node"
+	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
+	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
+	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
+	cv2 "github.com/WuKongIM/WuKongIM/pkg/controllerv2"
+	"github.com/WuKongIM/WuKongIM/pkg/controllerv2/command"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+)
+
+func TestControllerTaskAuditRuntimeObservesTransitionsAndServesManagementReads(t *testing.T) {
+	ctx := context.Background()
+	audit := newControllerTaskAuditRuntime(t.TempDir()+"/controller-v2-tasks.jsonl", wklog.NewNop())
+	t.Cleanup(func() {
+		if err := audit.Close(); err != nil {
+			t.Fatalf("audit Close() error = %v", err)
+		}
+	})
+
+	task := cv2.ReconcileTask{
+		TaskID:           "slot-1-replica-move-1-to-4-r12",
+		SlotID:           1,
+		Kind:             cv2.TaskKindSlotReplicaMove,
+		Step:             cv2.TaskStepOpenLearner,
+		SourceNode:       1,
+		TargetNode:       4,
+		TargetPeers:      []uint64{2, 3, 4},
+		CompletionPolicy: cv2.TaskCompletionPolicyAllTargetPeers,
+		ConfigEpoch:      7,
+		Status:           cv2.TaskStatusRunning,
+		ParticipantProgress: []cv2.TaskParticipantProgress{{
+			NodeID: 4,
+			Status: cv2.TaskParticipantStatusPending,
+		}},
+	}
+	progress := task
+	progress.Step = cv2.TaskStepPromoteLearner
+	progress.ParticipantProgress[0].Status = cv2.TaskParticipantStatusDone
+
+	audit.ObserveControllerTaskTransitions([]cv2.TaskTransition{{
+		AppliedRaftIndex: 12,
+		AppliedRaftTerm:  3,
+		CommandKind:      command.KindUpsertSlotReplicaMoveTask,
+		IssuedAt:         time.Unix(12, 0),
+		After:            task,
+		AfterValid:       true,
+	}, {
+		AppliedRaftIndex: 13,
+		AppliedRaftTerm:  3,
+		CommandKind:      command.KindReportTaskProgress,
+		IssuedAt:         time.Unix(13, 0),
+		Before:           task,
+		BeforeValid:      true,
+		After:            progress,
+		AfterValid:       true,
+		ParticipantNode:  4,
+	}})
+
+	list := waitForControllerTaskAuditList(t, audit, managementusecase.ControllerTaskAuditListRequest{
+		Kind:   string(cv2.TaskKindSlotReplicaMove),
+		NodeID: 4,
+	})
+	if len(list.Items) != 1 {
+		t.Fatalf("list items = %d, want 1", len(list.Items))
+	}
+	if list.Items[0].TaskID != task.TaskID || list.Items[0].Status != string(cv2.TaskStatusRunning) {
+		t.Fatalf("snapshot = %+v, want running task %s", list.Items[0], task.TaskID)
+	}
+
+	timeline, err := audit.ControllerTaskAuditEvents(ctx, task.TaskID)
+	if err != nil {
+		t.Fatalf("ControllerTaskAuditEvents() error = %v", err)
+	}
+	if len(timeline.Events) != 2 {
+		t.Fatalf("events = %d, want 2", len(timeline.Events))
+	}
+	if timeline.Events[0].Type != "created" {
+		t.Fatalf("first event type = %q, want created", timeline.Events[0].Type)
+	}
+	if timeline.Events[1].Type != "participant_progress" || timeline.Events[1].ParticipantNode != 4 {
+		t.Fatalf("second event = %+v, want participant_progress from node 4", timeline.Events[1])
+	}
+}
+
+func TestWireControllerTaskAuditConfiguresObserverAndManagerReader(t *testing.T) {
+	app := &App{
+		cfg: Config{
+			DataDir: t.TempDir(),
+			Cluster: clusterv2.Config{
+				NodeID: 1,
+			},
+		},
+		logger: wklog.NewNop(),
+	}
+	clusterCfg := defaultClusterConfig(app.cfg)
+
+	app.wireControllerTaskAudit(&clusterCfg)
+
+	if app.controllerTaskAudit == nil {
+		t.Fatal("controller task audit was not wired")
+	}
+	t.Cleanup(func() {
+		if err := app.controllerTaskAudit.Close(); err != nil {
+			t.Fatalf("audit Close() error = %v", err)
+		}
+	})
+	if clusterCfg.Control.TaskTransitionObserver == nil {
+		t.Fatal("cluster task transition observer was not configured")
+	}
+	app.cluster = &fakeManagerCluster{nodeID: 1}
+	management := app.newManagerManagement()
+	if management == nil {
+		t.Fatal("manager management was not wired")
+	}
+	if _, err := management.ListControllerTaskAudits(context.Background(), managementusecase.ControllerTaskAuditListRequest{}); err != nil {
+		t.Fatalf("manager task audit reader returned error = %v", err)
+	}
+}
+
+func TestWireManagerTaskAuditRPCRegistersHandler(t *testing.T) {
+	cluster := &fakeManagerCluster{nodeID: 1}
+	_, err := newTestApp(t, Config{DataDir: t.TempDir()}, WithCluster(cluster), WithGateway(nil))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	if _, ok := cluster.registeredHandlers[accessnode.ManagerTaskAuditRPCServiceID]; !ok {
+		t.Fatalf("manager task audit RPC handler was not registered")
+	}
+}
+
+func TestControllerTaskAuditBackfillsActiveTasksFromSnapshot(t *testing.T) {
+	cluster := &fakeManagerCluster{
+		nodeID: 1,
+		snapshot: control.Snapshot{
+			Revision: 99,
+			Tasks: []control.ReconcileTask{{
+				TaskID:      "slot-2-bootstrap-1",
+				SlotID:      2,
+				Kind:        control.TaskKindBootstrap,
+				Step:        control.TaskStepCreateSlot,
+				TargetNode:  1,
+				TargetPeers: []uint64{1, 2, 3},
+				ConfigEpoch: 5,
+				Status:      control.TaskStatusPending,
+			}},
+		},
+	}
+	app := &App{
+		cluster:             cluster,
+		controllerTaskAudit: newControllerTaskAuditRuntime(t.TempDir()+"/controller-v2-tasks.jsonl", wklog.NewNop()),
+		logger:              wklog.NewNop(),
+	}
+	t.Cleanup(func() {
+		if err := app.controllerTaskAudit.Close(); err != nil {
+			t.Fatalf("audit Close() error = %v", err)
+		}
+	})
+
+	if err := app.backfillControllerTaskAudit(context.Background()); err != nil {
+		t.Fatalf("backfillControllerTaskAudit() error = %v", err)
+	}
+	timeline, err := app.controllerTaskAudit.ControllerTaskAuditEvents(context.Background(), "slot-2-bootstrap-1")
+	if err != nil {
+		t.Fatalf("ControllerTaskAuditEvents() error = %v", err)
+	}
+	if len(timeline.Events) != 1 {
+		t.Fatalf("events = %d, want 1", len(timeline.Events))
+	}
+	if timeline.Events[0].Type != "snapshot" || timeline.Events[0].AppliedRaftIndex != 99 {
+		t.Fatalf("backfill event = %+v, want revision snapshot", timeline.Events[0])
+	}
+}
+
+func waitForControllerTaskAuditList(t *testing.T, audit *controllerTaskAuditRuntime, req managementusecase.ControllerTaskAuditListRequest) managementusecase.ControllerTaskAuditListResponse {
+	t.Helper()
+	deadline := time.Now().Add(time.Second)
+	var last managementusecase.ControllerTaskAuditListResponse
+	var lastErr error
+	for time.Now().Before(deadline) {
+		last, lastErr = audit.ListControllerTaskAudits(context.Background(), req)
+		if lastErr == nil && len(last.Items) > 0 {
+			return last
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if lastErr != nil {
+		t.Fatalf("ListControllerTaskAudits() error = %v", lastErr)
+	}
+	t.Fatalf("ListControllerTaskAudits() items = %d, want > 0", len(last.Items))
+	return managementusecase.ControllerTaskAuditListResponse{}
+}

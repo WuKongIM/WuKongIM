@@ -169,6 +169,10 @@ assignment only after observed voters match the target peer set.
 `Config.Control.RaftObserver` is passed through to the default ControllerV2
 runtime so composition roots can expose Controller Raft ingress queue metrics
 without changing control-plane semantics.
+`Config.Control.TaskTransitionObserver` is also passed through to the default
+ControllerV2 runtime. Clusterv2 only transports the already-durable task edges;
+it does not store audit history, inspect legacy `pkg/controller` state, or
+reinterpret task lifecycle policy.
 
 Default ChannelV2 message, Slot metadata, and Slot Raft Pebble-backed stores
 are exposed through `Node.StorageMetricsSnapshot` as low-cardinality

@@ -9,6 +9,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
+	cv2 "github.com/WuKongIM/WuKongIM/pkg/controllerv2"
 	messagedb "github.com/WuKongIM/WuKongIM/pkg/db/message"
 	gorutine "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
@@ -60,6 +61,8 @@ type ControlConfig struct {
 	AllowBootstrap bool
 	// RaftObserver receives local ControllerV2 Raft queue metrics.
 	RaftObserver ControllerRaftObserver
+	// TaskTransitionObserver receives ControllerV2 task edges after applied metadata is persisted.
+	TaskTransitionObserver cv2.TaskTransitionObserver
 	// SnapshotObserver receives low-frequency locally visible control snapshots.
 	SnapshotObserver ControlSnapshotObserver
 }

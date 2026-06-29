@@ -141,7 +141,9 @@ type App struct {
 	diagnosticsTracking *obsdiagnostics.TrackingRules
 	// diagnosticsRestore restores the process-wide sendtrace sink installed by this app.
 	diagnosticsRestore func()
-	logger             wklog.Logger
+	// controllerTaskAudit stores retained ControllerV2 task history for manager reads.
+	controllerTaskAudit *controllerTaskAuditRuntime
+	logger              wklog.Logger
 
 	lifecycleMu               sync.Mutex
 	started                   bool
@@ -182,6 +184,7 @@ func New(cfg Config, opts ...Option) (*App, error) {
 	}
 
 	clusterCfg := defaultClusterConfig(app.cfg)
+	app.wireControllerTaskAudit(&clusterCfg)
 	app.configureObservability(&clusterCfg)
 	if err := app.ensureCluster(clusterCfg); err != nil {
 		return nil, err
@@ -206,6 +209,7 @@ func New(cfg Config, opts ...Option) (*App, error) {
 	app.wireManagerMessageRetentionRPC()
 	app.wireManagerDBInspectRPC()
 	app.wireManagerDiagnosticsRPC()
+	app.wireManagerTaskAuditRPC()
 	app.wireNodeLifecycleRPC()
 	app.wireSeedJoinLoop()
 	app.wireUsers()

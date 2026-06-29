@@ -25,6 +25,11 @@ The root `pkg/controllerv2` package is the external facade. Callers should depen
 Runtime composition may provide a `RaftObserver` to record queue and enqueue
 latency telemetry from the Controller Raft ingress path. The observer is
 read-only and must not affect Raft stepping, WAL persistence, or apply order.
+Runtime composition may also provide a `TaskTransitionObserver`; the apply
+scheduler emits task edges only after FSM state changes have been saved,
+in-memory snapshots have been published, and the applied Raft boundary has been
+persisted. Observer failures are intentionally outside Raft apply semantics, so
+composition roots must keep their observer work bounded and nonblocking.
 
 `Runtime.LogEntries` is a read-only diagnostics facade over the Controller Raft
 WAL. It returns newest-first, cursor-paginated entry summaries for manager UI

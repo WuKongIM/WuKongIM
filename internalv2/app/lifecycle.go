@@ -50,6 +50,9 @@ func (a *App) Start(ctx context.Context) error {
 	}
 	a.started = true
 	a.clusterStarted = true
+	if err := a.backfillControllerTaskAudit(ctx); err != nil {
+		a.logLifecycleWarn("controller_task_audit", "backfill", err)
+	}
 	if a.seedJoinLoop != nil {
 		if err := a.seedJoinLoop.Start(ctx); err != nil {
 			a.logLifecycleError("seed_join", "start", err)
@@ -195,7 +198,11 @@ func (a *App) Stop(ctx context.Context) error {
 	a.stopped = true
 	a.restoreDiagnosticsSink()
 	if !a.started {
-		return a.syncLogger()
+		err := a.closeControllerTaskAudit()
+		if err != nil {
+			a.logLifecycleWarn("controller_task_audit", "stop", err)
+		}
+		return errors.Join(err, a.syncLogger())
 	}
 	var err error
 	if a.gatewayStarted && a.gateway != nil {
@@ -317,6 +324,10 @@ func (a *App) Stop(ctx context.Context) error {
 		} else {
 			a.clusterStarted = false
 		}
+	}
+	if stopErr := a.closeControllerTaskAudit(); stopErr != nil {
+		a.logLifecycleWarn("controller_task_audit", "stop", stopErr)
+		err = errors.Join(err, stopErr)
 	}
 	if !a.gatewayStarted && !a.prometheusStarted && !a.managerStarted && !a.apiStarted && !a.topStarted && !a.channelAppendStarted && !a.deliveryStarted && !a.webhookStarted && !a.pluginHookStarted && !a.pluginRuntimeStarted && !a.conversationActiveStarted && !a.conversationRouteStarted && !a.presenceStarted && !a.seedJoinStarted && !a.clusterStarted {
 		a.started = false
@@ -445,6 +456,10 @@ func (a *App) rollbackStarted(ctx context.Context) error {
 		} else {
 			a.clusterStarted = false
 		}
+	}
+	if stopErr := a.closeControllerTaskAudit(); stopErr != nil {
+		a.logLifecycleWarn("controller_task_audit", "rollback_stop", stopErr)
+		err = errors.Join(err, stopErr)
 	}
 	if err == nil {
 		a.started = false

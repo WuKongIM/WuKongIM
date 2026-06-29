@@ -22,21 +22,22 @@ func (n *Node) ensureDefaultRuntime() (bool, error) {
 		n.registerPendingRPCHandlers()
 		controlPeers := n.defaultControlRuntimePeers()
 		runtime, err := control.NewRuntime(control.RuntimeConfig{
-			NodeID:             n.cfg.NodeID,
-			Addr:               n.cfg.ListenAddr,
-			StateDir:           n.cfg.Control.StateDir,
-			ClusterID:          n.cfg.Control.ClusterID,
-			Role:               control.RuntimeRole(n.cfg.Control.Role),
-			Voters:             controlPeers,
-			AllowBootstrap:     n.cfg.Control.AllowBootstrap,
-			InitialSlotCount:   n.cfg.Slots.InitialSlotCount,
-			HashSlotCount:      n.cfg.Slots.HashSlotCount,
-			ReplicaCount:       n.cfg.Slots.ReplicaCount,
-			RaftTransport:      control.NewRaftTransport(n.transportClient),
-			RaftObserver:       n.cfg.Control.RaftObserver,
-			SyncPeers:          control.NewStaticPeerPicker(n.transportClient, controlPeers),
-			TaskClient:         control.NewTaskClient(n.transportClient),
-			ControlWriteClient: control.NewControlWriteClient(n.transportClient),
+			NodeID:                 n.cfg.NodeID,
+			Addr:                   n.cfg.ListenAddr,
+			StateDir:               n.cfg.Control.StateDir,
+			ClusterID:              n.cfg.Control.ClusterID,
+			Role:                   control.RuntimeRole(n.cfg.Control.Role),
+			Voters:                 controlPeers,
+			AllowBootstrap:         n.cfg.Control.AllowBootstrap,
+			InitialSlotCount:       n.cfg.Slots.InitialSlotCount,
+			HashSlotCount:          n.cfg.Slots.HashSlotCount,
+			ReplicaCount:           n.cfg.Slots.ReplicaCount,
+			RaftTransport:          control.NewRaftTransport(n.transportClient),
+			RaftObserver:           n.cfg.Control.RaftObserver,
+			TaskTransitionObserver: n.cfg.Control.TaskTransitionObserver,
+			SyncPeers:              control.NewStaticPeerPicker(n.transportClient, controlPeers),
+			TaskClient:             control.NewTaskClient(n.transportClient),
+			ControlWriteClient:     control.NewControlWriteClient(n.transportClient),
 		})
 		if err != nil {
 			return false, err
