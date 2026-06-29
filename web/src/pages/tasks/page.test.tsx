@@ -171,6 +171,8 @@ test("filters ControllerV2 tasks by kind, status, slot, node, and keyword", asyn
   renderTasksPage()
 
   await screen.findAllByText("slot-1-replica-move-2-to-4-r9")
+  getControllerTasksMock.mockClear()
+  getControllerTaskAuditsMock.mockClear()
   await user.selectOptions(screen.getByLabelText("Kind"), "slot_replica_move")
   await user.selectOptions(screen.getByLabelText("Status"), "completed")
   await user.type(screen.getByLabelText("Slot ID"), "1")
@@ -178,13 +180,7 @@ test("filters ControllerV2 tasks by kind, status, slot, node, and keyword", asyn
   await user.type(screen.getByLabelText("Keyword"), "completed")
   await user.click(screen.getByRole("button", { name: "Refresh" }))
 
-  expect(getControllerTasksMock).toHaveBeenLastCalledWith({
-    kind: "slot_replica_move",
-    status: undefined,
-    slotId: 1,
-    nodeId: 4,
-    limit: 50,
-  })
+  expect(getControllerTasksMock).not.toHaveBeenCalled()
   expect(getControllerTaskAuditsMock).toHaveBeenLastCalledWith({
     kind: "slot_replica_move",
     status: "completed",

@@ -423,7 +423,7 @@ export const enMessages: AppMessages = {
   "tasks.activeEmpty.title": "No active tasks",
   "tasks.activeEmpty.description": "ControllerV2 has no active tasks for the current filters.",
   "tasks.auditTitle": "Task audit history",
-  "tasks.auditDescription": "Recently retained task transitions from the local JSONL audit store.",
+  "tasks.auditDescription": "Recently retained ControllerV2 task transitions.",
   "tasks.auditEmpty.title": "No task history",
   "tasks.auditEmpty.description": "No retained task audit records match the current filters.",
   "tasks.table.domain": "Domain",

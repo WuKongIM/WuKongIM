@@ -2,16 +2,19 @@ package taskaudit
 
 import "sort"
 
-func (s *Store) enforceRetentionLocked() {
-	s.enforceEventRetentionLocked()
-	s.enforceTaskRetentionLocked()
+func (s *Store) enforceRetentionLocked() bool {
+	eventsDropped := s.enforceEventRetentionLocked()
+	tasksDropped := s.enforceTaskRetentionLocked()
+	return eventsDropped || tasksDropped
 }
 
-func (s *Store) enforceEventRetentionLocked() {
+func (s *Store) enforceEventRetentionLocked() bool {
+	var dropped bool
 	for taskID, events := range s.events {
 		if len(events) <= s.opts.MaxEventsPerTask {
 			continue
 		}
+		dropped = true
 		sortEventsAsc(events)
 		drop := len(events) - s.opts.MaxEventsPerTask
 		for _, event := range events[:drop] {
@@ -23,11 +26,12 @@ func (s *Store) enforceEventRetentionLocked() {
 		snapshot.Truncated = true
 		s.snapshots[taskID] = snapshot
 	}
+	return dropped
 }
 
-func (s *Store) enforceTaskRetentionLocked() {
+func (s *Store) enforceTaskRetentionLocked() bool {
 	if len(s.snapshots) <= s.opts.MaxTasks {
-		return
+		return false
 	}
 	items := make([]Snapshot, 0, len(s.snapshots))
 	for _, snapshot := range s.snapshots {
@@ -47,6 +51,7 @@ func (s *Store) enforceTaskRetentionLocked() {
 		delete(s.events, snapshot.TaskID)
 		delete(s.snapshots, snapshot.TaskID)
 	}
+	return true
 }
 
 func rebuildSnapshot(taskID string, events []Event) Snapshot {

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	accessnode "github.com/WuKongIM/WuKongIM/internalv2/access/node"
+	"github.com/WuKongIM/WuKongIM/internalv2/observability/taskaudit"
 	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
@@ -85,6 +86,45 @@ func TestControllerTaskAuditRuntimeObservesTransitionsAndServesManagementReads(t
 	}
 	if timeline.Events[1].Type != "participant_progress" || timeline.Events[1].ParticipantNode != 4 {
 		t.Fatalf("second event = %+v, want participant_progress from node 4", timeline.Events[1])
+	}
+}
+
+func TestControllerTaskAuditParticipantFailureEmitsFailedEvent(t *testing.T) {
+	before := cv2.ReconcileTask{
+		TaskID:     "slot-1-replica-move-2-to-4-r9",
+		Kind:       cv2.TaskKindSlotReplicaMove,
+		SlotID:     1,
+		SourceNode: 2,
+		TargetNode: 4,
+		Status:     cv2.TaskStatusRunning,
+		ParticipantProgress: []cv2.TaskParticipantProgress{{
+			NodeID: 4,
+			Status: cv2.TaskParticipantStatusPending,
+		}},
+	}
+	after := before
+	after.Status = cv2.TaskStatusFailed
+	after.ParticipantProgress[0].Status = cv2.TaskParticipantStatusFailed
+
+	event, ok := controllerTaskAuditEventForTransition(cv2.TaskTransition{
+		AppliedRaftIndex: 18,
+		AppliedRaftTerm:  3,
+		CommandKind:      command.KindReportTaskProgress,
+		Before:           before,
+		BeforeValid:      true,
+		After:            after,
+		AfterValid:       true,
+		ParticipantNode:  4,
+	})
+
+	if !ok {
+		t.Fatal("controllerTaskAuditEventForTransition() ok = false, want true")
+	}
+	if event.Type != taskaudit.EventFailed {
+		t.Fatalf("event type = %q, want failed", event.Type)
+	}
+	if event.Status != string(cv2.TaskStatusFailed) || event.ParticipantNode != 4 {
+		t.Fatalf("event = %+v, want failed status from participant node 4", event)
 	}
 }
 

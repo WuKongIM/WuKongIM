@@ -67,6 +67,30 @@ func TestStoreRetentionKeepsLatestTasksAndEvents(t *testing.T) {
 	require.Equal(t, uint64(1051), events.Events[len(events.Events)-1].AppliedRaftIndex)
 }
 
+func TestStoreRetentionCompactsJSONLWhenTasksAreDropped(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "controller-v2-events.jsonl")
+	store, err := Open(path, Options{MaxTasks: 2, MaxEventsPerTask: 5})
+	require.NoError(t, err)
+
+	require.NoError(t, store.Append(ctx, testEvent("task-001", 1, EventCreated)))
+	require.NoError(t, store.Append(ctx, testEvent("task-002", 2, EventCreated)))
+	require.NoError(t, store.Append(ctx, testEvent("task-003", 3, EventCreated)))
+	require.NoError(t, store.Close())
+
+	require.Equal(t, 2, countLines(t, path))
+	body, err := os.ReadFile(path)
+	require.NoError(t, err)
+	require.NotContains(t, string(body), "task-001")
+
+	reopened, err := Open(path, Options{MaxTasks: 2, MaxEventsPerTask: 5})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, reopened.Close()) })
+	list, err := reopened.List(ctx, ListRequest{Limit: 10})
+	require.NoError(t, err)
+	require.Equal(t, []string{"task-003", "task-002"}, snapshotIDs(list.Items))
+}
+
 func TestStoreSkipsCorruptJSONLLines(t *testing.T) {
 	ctx := context.Background()
 	path := filepath.Join(t.TempDir(), "controller-v2-events.jsonl")

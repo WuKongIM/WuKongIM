@@ -986,7 +986,9 @@ func (a *App) newManagerManagement() accessmanager.Management {
 		if raftNode, ok := a.cluster.(clusterinfra.ManagementControllerRaftNode); ok {
 			opts.ControllerRaft = clusterinfra.NewManagementControllerRaftOperator(raftNode)
 		}
-		if a.controllerTaskAudit != nil {
+		if taskAuditNode, ok := a.cluster.(clusterinfra.ManagementTaskAuditNode); ok {
+			opts.ControllerTaskAudit = clusterinfra.NewManagementTaskAuditReader(taskAuditNode, a.controllerTaskAudit)
+		} else if a.controllerTaskAudit != nil {
 			opts.ControllerTaskAudit = a.controllerTaskAudit
 		}
 		if slotRaftNode, ok := a.cluster.(clusterinfra.ManagementSlotRaftNode); ok {

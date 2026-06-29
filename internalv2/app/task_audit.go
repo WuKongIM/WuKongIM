@@ -271,10 +271,10 @@ func controllerTaskAuditEventForTransition(transition cv2.TaskTransition) (taska
 		eventType = taskaudit.EventCreated
 	case transition.BeforeValid && !transition.AfterValid:
 		eventType = taskaudit.EventCompleted
-	case transition.ParticipantNode != 0 || transition.CommandKind == command.KindReportTaskProgress:
-		eventType = taskaudit.EventParticipantProgress
 	case task.Status == cv2.TaskStatusFailed:
 		eventType = taskaudit.EventFailed
+	case transition.ParticipantNode != 0 || transition.CommandKind == command.KindReportTaskProgress:
+		eventType = taskaudit.EventParticipantProgress
 	}
 	event := controllerTaskAuditEventBase(task, eventType)
 	event.AppliedRaftIndex = transition.AppliedRaftIndex

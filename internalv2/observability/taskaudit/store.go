@@ -79,7 +79,9 @@ func (s *Store) Append(ctx context.Context, event Event) error {
 		return err
 	}
 	s.applyEventLocked(event)
-	s.enforceRetentionLocked()
+	if s.enforceRetentionLocked() {
+		return s.compactLocked()
+	}
 	return nil
 }
 
@@ -146,6 +148,10 @@ func (s *Store) Compact(ctx context.Context) error {
 	if s.closed || s.file == nil {
 		return ErrUnavailable
 	}
+	return s.compactLocked()
+}
+
+func (s *Store) compactLocked() error {
 	events := s.retainedEventsLocked()
 	tmpPath := s.path + ".tmp"
 	tmp, err := os.OpenFile(tmpPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
@@ -214,7 +220,7 @@ func (s *Store) replay() error {
 			return
 		}
 		s.applyEventLocked(event)
-		s.enforceRetentionLocked()
+		_ = s.enforceRetentionLocked()
 	})
 }
 

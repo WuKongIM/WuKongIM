@@ -422,7 +422,7 @@ export const zhCNMessages: AppMessages = {
   "tasks.activeEmpty.title": "暂无活跃任务",
   "tasks.activeEmpty.description": "当前筛选条件下 ControllerV2 没有活跃任务。",
   "tasks.auditTitle": "任务审计历史",
-  "tasks.auditDescription": "本节点 JSONL 审计存储中最近保留的任务变更。",
+  "tasks.auditDescription": "最近保留的 ControllerV2 任务变更。",
   "tasks.auditEmpty.title": "暂无任务历史",
   "tasks.auditEmpty.description": "当前筛选条件下没有保留的任务审计记录。",
   "tasks.table.domain": "来源",

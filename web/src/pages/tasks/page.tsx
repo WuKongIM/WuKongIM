@@ -38,6 +38,7 @@ type TasksState = {
 
 const kindOptions: ControllerTaskKind[] = ["bootstrap", "leader_transfer", "slot_replica_move"]
 const statusOptions: ControllerTaskAuditStatus[] = ["pending", "running", "failed", "completed"]
+const emptyActiveTasksResponse: ManagerControllerTasksResponse = { total: 0, items: [] }
 
 function emptyTasksState(): TasksState {
   return {
@@ -113,16 +114,19 @@ export function TasksPage() {
   const [timelineLoading, setTimelineLoading] = useState(false)
   const [timelineError, setTimelineError] = useState("")
 
-  const buildQueries = useCallback((): { active: ControllerTaskListParams; audits: ControllerTaskAuditListParams } => {
+  const buildQueries = useCallback((): { active: ControllerTaskListParams | null; audits: ControllerTaskAuditListParams } => {
     const slotId = parsePositiveInt(slotIdText)
     const nodeId = parsePositiveInt(nodeIdText)
-    const active: ControllerTaskListParams = {
-      kind: kind || undefined,
-      status: taskAuditStatusForActive(status),
-      slotId,
-      nodeId,
-      limit: 50,
-    }
+    const activeStatus = taskAuditStatusForActive(status)
+    const active: ControllerTaskListParams | null = status === "completed"
+      ? null
+      : {
+          kind: kind || undefined,
+          status: activeStatus,
+          slotId,
+          nodeId,
+          limit: 50,
+        }
     const audits: ControllerTaskAuditListParams = {
       kind: kind || undefined,
       status: status || undefined,
@@ -143,8 +147,9 @@ export function TasksPage() {
     }))
     try {
       const query = buildQueries()
+      const activeRequest = query.active ? getControllerTasks(query.active) : Promise.resolve(emptyActiveTasksResponse)
       const [active, audits] = await Promise.all([
-        getControllerTasks(query.active),
+        activeRequest,
         getControllerTaskAudits(query.audits),
       ])
       setState({ active, audits, loading: false, refreshing: false, error: null })

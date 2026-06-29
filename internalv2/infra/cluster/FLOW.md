@@ -24,8 +24,10 @@ selected node's app-owned local reader or peer RPC, routes manager DB Inspect
 reads to node-local inspect readers or peer RPC, routes manager diagnostics
 reads and tracking-rule mutations to the selected node's internalv2 diagnostics
 store or peer RPC, routes manager plugin inventory reads and lifecycle
-mutations to the selected node's plugin lifecycle usecase over peer RPC, and
-adapts presence/delivery ports to clusterv2 routing and node RPC.
+mutations to the selected node's plugin lifecycle usecase over peer RPC, routes
+manager ControllerV2 task audit reads to the current Controller leader's
+node-local audit store over peer RPC when needed, and adapts presence/delivery
+ports to clusterv2 routing and node RPC.
 
 ## Management Snapshot Flow
 
