@@ -133,6 +133,15 @@ func (m *ManagerClient) NodeJoinState(ctx context.Context, nodeID uint64) (strin
 	return node.Membership.JoinState, true, nil
 }
 
+// ListNodes returns the manager-observed node inventory.
+func (m *ManagerClient) ListNodes(ctx context.Context) (NodeListDTO, error) {
+	var out NodeListDTO
+	if _, err := GetJSON(ctx, m.baseURL+"/manager/nodes", &out); err != nil {
+		return NodeListDTO{}, err
+	}
+	return out, nil
+}
+
 // EventuallyNodeReadiness waits until the target node satisfies public app readiness.
 func (m *ManagerClient) EventuallyNodeReadiness(t testing.TB, nodeID uint64, ready bool, timeout time.Duration) {
 	t.Helper()
@@ -531,17 +540,41 @@ type managerSlotsResponse struct {
 }
 
 type managerNodesResponse struct {
-	Total int              `json:"total"`
-	Items []managerNodeDTO `json:"items"`
+	Total int       `json:"total"`
+	Items []NodeDTO `json:"items"`
 }
 
-type managerNodeDTO struct {
-	NodeID     uint64                   `json:"node_id"`
-	Membership managerNodeMembershipDTO `json:"membership"`
+// NodeListDTO is the manager node inventory subset used by e2ev2 scenarios.
+type NodeListDTO struct {
+	Total int       `json:"total"`
+	Items []NodeDTO `json:"items"`
 }
 
-type managerNodeMembershipDTO struct {
-	JoinState string `json:"join_state"`
+// NodeDTO is the manager-facing node row subset used by e2ev2 scenarios.
+type NodeDTO struct {
+	NodeID     uint64            `json:"node_id"`
+	Membership NodeMembershipDTO `json:"membership"`
+	Health     NodeHealthDTO     `json:"health"`
+}
+
+// NodeMembershipDTO contains manager membership flags relevant to e2ev2 lifecycle tests.
+type NodeMembershipDTO struct {
+	JoinState   string `json:"join_state"`
+	Schedulable bool   `json:"schedulable"`
+}
+
+// NodeHealthDTO contains manager health evidence relevant to e2ev2 lifecycle tests.
+type NodeHealthDTO struct {
+	Status                  string `json:"status"`
+	LastHeartbeatAt         string `json:"last_heartbeat_at"`
+	Fresh                   bool   `json:"fresh"`
+	Freshness               string `json:"freshness"`
+	RuntimeReady            bool   `json:"runtime_ready"`
+	ReportAgeMS             int64  `json:"report_age_ms"`
+	ReportTTLMS             int64  `json:"report_ttl_ms"`
+	ObservedControlRevision uint64 `json:"observed_control_revision"`
+	ObservedSlotRevision    uint64 `json:"observed_slot_revision"`
+	ErrorCode               string `json:"error_code"`
 }
 
 // NodeOnboardingPlanDTO is the manager onboarding preview subset used by e2ev2.
@@ -648,41 +681,51 @@ type NodeScaleInAdvanceDTO struct {
 
 // NodeScaleInStatusDTO is the manager scale-in status subset used by e2ev2.
 type NodeScaleInStatusDTO struct {
-	NodeID                   uint64 `json:"node_id"`
-	JoinState                string `json:"join_state"`
-	GeneratedAt              string `json:"generated_at"`
-	StateRevision            uint64 `json:"state_revision"`
-	SafeToProceed            bool   `json:"safe_to_proceed"`
-	SafeToRemove             bool   `json:"safe_to_remove"`
-	BlockedByMissingNode     bool   `json:"blocked_by_missing_node"`
-	BlockedByJoinState       bool   `json:"blocked_by_join_state"`
-	BlockedByControlRevision bool   `json:"blocked_by_control_revision"`
-	BlockedByControllerRole  bool   `json:"blocked_by_controller_role"`
-	BlockedBySlots           bool   `json:"blocked_by_slots"`
-	BlockedBySlotLeadership  bool   `json:"blocked_by_slot_leadership"`
-	BlockedBySlotRuntime     bool   `json:"blocked_by_slot_runtime"`
-	BlockedByDataRole        bool   `json:"blocked_by_data_role"`
-	BlockedByTasks           bool   `json:"blocked_by_tasks"`
-	BlockedByChannels        bool   `json:"blocked_by_channels"`
-	BlockedByRuntimeDrain    bool   `json:"blocked_by_runtime_drain"`
-	UnknownRuntime           bool   `json:"unknown_runtime"`
-	RuntimeUnknown           bool   `json:"runtime_unknown"`
-	UnknownControlRevision   bool   `json:"unknown_control_revision"`
-	UnknownChannelInventory  bool   `json:"unknown_channel_inventory"`
-	GatewayDraining          bool   `json:"gateway_draining"`
-	AcceptingNewSessions     bool   `json:"accepting_new_sessions"`
-	SlotReplicaCount         int    `json:"slot_replica_count"`
-	SlotLeaderCount          int    `json:"slot_leader_count"`
-	ActiveTaskCount          int    `json:"active_task_count"`
-	FailedTaskCount          int    `json:"failed_task_count"`
-	ChannelLeaderCount       int    `json:"channel_leader_count"`
-	ChannelReplicaCount      int    `json:"channel_replica_count"`
-	ChannelISRCount          int    `json:"channel_isr_count"`
-	GatewaySessions          int    `json:"gateway_sessions"`
-	ActiveOnline             int    `json:"active_online"`
-	ClosingOnline            int    `json:"closing_online"`
-	TotalOnline              int    `json:"total_online"`
-	PendingActivations       int    `json:"pending_activations"`
+	NodeID                   uint64   `json:"node_id"`
+	JoinState                string   `json:"join_state"`
+	GeneratedAt              string   `json:"generated_at"`
+	StateRevision            uint64   `json:"state_revision"`
+	SafeToProceed            bool     `json:"safe_to_proceed"`
+	SafeToRemove             bool     `json:"safe_to_remove"`
+	BlockedByMissingNode     bool     `json:"blocked_by_missing_node"`
+	BlockedByJoinState       bool     `json:"blocked_by_join_state"`
+	BlockedByControlRevision bool     `json:"blocked_by_control_revision"`
+	BlockedByHealth          bool     `json:"blocked_by_health"`
+	BlockedByStaleRevision   bool     `json:"blocked_by_stale_revision"`
+	BlockedByControllerRole  bool     `json:"blocked_by_controller_role"`
+	BlockedBySlots           bool     `json:"blocked_by_slots"`
+	BlockedBySlotLeadership  bool     `json:"blocked_by_slot_leadership"`
+	BlockedBySlotRuntime     bool     `json:"blocked_by_slot_runtime"`
+	BlockedByDataRole        bool     `json:"blocked_by_data_role"`
+	BlockedByTasks           bool     `json:"blocked_by_tasks"`
+	BlockedByChannels        bool     `json:"blocked_by_channels"`
+	BlockedByRuntimeDrain    bool     `json:"blocked_by_runtime_drain"`
+	UnknownRuntime           bool     `json:"unknown_runtime"`
+	RuntimeUnknown           bool     `json:"runtime_unknown"`
+	UnknownControlRevision   bool     `json:"unknown_control_revision"`
+	UnknownChannelInventory  bool     `json:"unknown_channel_inventory"`
+	HealthFresh              bool     `json:"health_fresh"`
+	HealthStatus             string   `json:"health_status"`
+	HealthFreshness          string   `json:"health_freshness"`
+	HealthReportAgeMS        int64    `json:"health_report_age_ms"`
+	HealthReportTTLMS        int64    `json:"health_report_ttl_ms"`
+	ObservedControlRevision  uint64   `json:"observed_control_revision"`
+	RequiredControlRevision  uint64   `json:"required_control_revision"`
+	BlockedReasons           []string `json:"blocked_reasons"`
+	GatewayDraining          bool     `json:"gateway_draining"`
+	AcceptingNewSessions     bool     `json:"accepting_new_sessions"`
+	SlotReplicaCount         int      `json:"slot_replica_count"`
+	SlotLeaderCount          int      `json:"slot_leader_count"`
+	ActiveTaskCount          int      `json:"active_task_count"`
+	FailedTaskCount          int      `json:"failed_task_count"`
+	ChannelLeaderCount       int      `json:"channel_leader_count"`
+	ChannelReplicaCount      int      `json:"channel_replica_count"`
+	ChannelISRCount          int      `json:"channel_isr_count"`
+	GatewaySessions          int      `json:"gateway_sessions"`
+	ActiveOnline             int      `json:"active_online"`
+	ClosingOnline            int      `json:"closing_online"`
+	TotalOnline              int      `json:"total_online"`
+	PendingActivations       int      `json:"pending_activations"`
 }
 
 // NodeScaleInStartDTO is the manager leaving transition subset used by e2ev2.
@@ -732,13 +775,13 @@ func stableSlotInventory(resp managerSlotsResponse) error {
 	return nil
 }
 
-func findManagerNode(resp managerNodesResponse, nodeID uint64) (managerNodeDTO, bool) {
+func findManagerNode(resp managerNodesResponse, nodeID uint64) (NodeDTO, bool) {
 	for _, item := range resp.Items {
 		if item.NodeID == nodeID {
 			return item, true
 		}
 	}
-	return managerNodeDTO{}, false
+	return NodeDTO{}, false
 }
 
 func postJSONStatus(ctx context.Context, url string, body any, out any) (int, []byte, error) {
