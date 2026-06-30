@@ -3,6 +3,7 @@ package nodeops
 import (
 	"context"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -53,6 +54,145 @@ func TestClientTrimsServerWhitespaceAndTrailingSlash(t *testing.T) {
 	}
 	if !got.OK {
 		t.Fatalf("ListNodes() ok = false, want true")
+	}
+}
+
+func TestClientRejectsOversizedSuccessResponses(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+		run  func(*Client) error
+	}{
+		{
+			name: "json decode",
+			body: `{"data":"` + strings.Repeat("x", 1<<20) + `"}`,
+			run: func(client *Client) error {
+				var out map[string]string
+				return client.ListNodes(context.Background(), &out)
+			},
+		},
+		{
+			name: "discard",
+			body: strings.Repeat("x", 1<<20+1),
+			run: func(client *Client) error {
+				return client.ListNodes(context.Background(), nil)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				_, _ = w.Write([]byte(tt.body))
+			}))
+			defer server.Close()
+
+			client := NewClient(Config{Server: server.URL})
+			err := tt.run(client)
+			if err == nil {
+				t.Fatal("request error = nil, want oversized body error")
+			}
+			if !strings.Contains(err.Error(), "manager response body exceeds 1MiB") {
+				t.Fatalf("request error = %v, want oversized body error", err)
+			}
+		})
+	}
+}
+
+func TestClientJSONBodyRoutesUseManagerBasePath(t *testing.T) {
+	tests := []struct {
+		name     string
+		path     string
+		body     string
+		callFunc func(context.Context, *Client, any) error
+	}{
+		{
+			name: "onboarding plan",
+			path: "/admin/manager/nodes/4/onboarding/plan",
+			body: `{"max_slot_moves":7}`,
+			callFunc: func(ctx context.Context, client *Client, out any) error {
+				return client.OnboardingPlan(ctx, 4, 7, out)
+			},
+		},
+		{
+			name: "onboarding start",
+			path: "/admin/manager/nodes/4/onboarding/start",
+			body: `{"max_slot_moves":7}`,
+			callFunc: func(ctx context.Context, client *Client, out any) error {
+				return client.OnboardingStart(ctx, 4, 7, out)
+			},
+		},
+		{
+			name: "onboarding advance",
+			path: "/admin/manager/nodes/4/onboarding/advance",
+			body: `{"max_slot_moves":7}`,
+			callFunc: func(ctx context.Context, client *Client, out any) error {
+				return client.OnboardingAdvance(ctx, 4, 7, out)
+			},
+		},
+		{
+			name: "scale-in plan",
+			path: "/admin/manager/nodes/4/scale-in/plan",
+			body: `{"max_slot_moves":7}`,
+			callFunc: func(ctx context.Context, client *Client, out any) error {
+				return client.ScaleInPlan(ctx, 4, 7, out)
+			},
+		},
+		{
+			name: "scale-in advance",
+			path: "/admin/manager/nodes/4/scale-in/advance",
+			body: `{"max_slot_moves":7}`,
+			callFunc: func(ctx context.Context, client *Client, out any) error {
+				return client.ScaleInAdvance(ctx, 4, 7, out)
+			},
+		},
+		{
+			name: "scale-in drain",
+			path: "/admin/manager/nodes/4/scale-in/drain",
+			body: `{"draining":true}`,
+			callFunc: func(ctx context.Context, client *Client, out any) error {
+				return client.SetScaleInDrain(ctx, 4, true, out)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method != http.MethodPost {
+					t.Fatalf("method = %s, want POST", r.Method)
+				}
+				if r.URL.Path != tt.path {
+					t.Fatalf("path = %s, want %s", r.URL.Path, tt.path)
+				}
+				if got := r.Header.Get("Content-Type"); got != "application/json" {
+					t.Fatalf("Content-Type = %q, want application/json", got)
+				}
+				if got := r.Header.Get("Authorization"); got != "Bearer secret" {
+					t.Fatalf("Authorization = %q, want Bearer secret", got)
+				}
+				body, err := io.ReadAll(r.Body)
+				if err != nil {
+					t.Fatalf("read request body: %v", err)
+				}
+				if got := strings.TrimSpace(string(body)); got != tt.body {
+					t.Fatalf("body = %s, want %s", got, tt.body)
+				}
+				_, _ = w.Write([]byte(`{"ok":true}`))
+			}))
+			defer server.Close()
+
+			client := NewClient(Config{Server: server.URL + "/admin/", Token: "secret"})
+			var out struct {
+				OK bool `json:"ok"`
+			}
+			if err := tt.callFunc(context.Background(), client, &out); err != nil {
+				t.Fatalf("%s error = %v", tt.name, err)
+			}
+			if !out.OK {
+				t.Fatalf("%s ok = false, want true", tt.name)
+			}
+		})
 	}
 }
 

@@ -13,7 +13,10 @@ import (
 	"time"
 )
 
-const defaultTimeout = 10 * time.Second
+const (
+	defaultTimeout  = 10 * time.Second
+	maxResponseBody = 1 << 20
+)
 
 // Config controls manager HTTP access for node operations.
 type Config struct {
@@ -135,16 +138,16 @@ func (c *Client) doJSON(ctx context.Context, method, path string, in any, out an
 		return err
 	}
 
-	var body io.Reader
+	var reqBody io.Reader
 	if in != nil {
 		payload, err := json.Marshal(in)
 		if err != nil {
 			return fmt.Errorf("marshal request body: %w", err)
 		}
-		body = bytes.NewReader(payload)
+		reqBody = bytes.NewReader(payload)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, method, endpoint, body)
+	req, err := http.NewRequestWithContext(ctx, method, endpoint, reqBody)
 	if err != nil {
 		return fmt.Errorf("build request %s %s: %w", method, endpoint, err)
 	}
@@ -161,21 +164,32 @@ func (c *Client) doJSON(ctx context.Context, method, path string, in any, out an
 	}
 	defer resp.Body.Close()
 
+	respBody, readErr := readResponseBody(resp.Body)
+	if readErr != nil {
+		return readErr
+	}
+
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		body, readErr := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
-		if readErr != nil {
-			return fmt.Errorf("read manager error response: %w", readErr)
-		}
-		return &APIError{StatusCode: resp.StatusCode, Body: string(body)}
+		return &APIError{StatusCode: resp.StatusCode, Body: string(respBody)}
 	}
 	if out == nil {
-		_, _ = io.Copy(io.Discard, resp.Body)
 		return nil
 	}
-	if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
+	if err := json.NewDecoder(bytes.NewReader(respBody)).Decode(out); err != nil {
 		return fmt.Errorf("decode manager response: %w", err)
 	}
 	return nil
+}
+
+func readResponseBody(body io.Reader) ([]byte, error) {
+	payload, err := io.ReadAll(io.LimitReader(body, maxResponseBody+1))
+	if err != nil {
+		return nil, fmt.Errorf("read manager response: %w", err)
+	}
+	if len(payload) > maxResponseBody {
+		return nil, errors.New("manager response body exceeds 1MiB")
+	}
+	return payload, nil
 }
 
 func (c *Client) endpoint(path string) (string, error) {
