@@ -215,7 +215,7 @@ Evidence: Stage 10A was fast-forward merged into local `main` at `7766c647` on
 
 ## Stage 10B Completion
 
-- [ ] **Stage 10B readiness gate script merged locally**
+- [x] **Stage 10B readiness gate script merged locally**
 
 Run on merged local `main`:
 
@@ -229,6 +229,19 @@ git diff --check
 Expected: the script tests pass, quick profile proves Stage10A gofail recovery,
 full profile additionally proves Stage9D continuous-traffic lifecycle, and the
 worktree remains clean.
+
+Evidence: Stage 10B was fast-forward merged into local `main` through
+`f7c471f7` on 2026-06-30. The merged-main validation passed:
+
+```bash
+GOWORK=off go test ./scripts -run DynamicNodeReadinessGate -count=1
+GOWORK=off go test -tags=e2e ./test/e2ev2/cluster/dynamic_node_readiness -run TestRequireMetricSamplesWaitsForTransientMissingLabels -count=1
+scripts/e2ev2/dynamic-node-readiness-gate.sh --profile full --reuse-binary --binary data/dynamic-node-readiness-gate/20260630-220151/wukongimv2-gofail
+git diff --check HEAD~4..HEAD
+```
+
+Final gate evidence directory:
+`data/dynamic-node-readiness-gate/20260630-223500`.
 
 ## Stage 5 Sub-Stage Chain
 
