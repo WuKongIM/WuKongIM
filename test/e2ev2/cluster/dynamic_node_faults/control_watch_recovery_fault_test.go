@@ -16,8 +16,7 @@ func TestStage10AControllerV2StateEventDropRecoversAfterHealthWakeup(t *testing.
 	requireGofailDynamicNodeEnabled(t)
 
 	const joinToken = "e2ev2-stage10a-watch-drop-token"
-	f := startStage10AHealthFaultCluster(t, joinToken)
-	waitNodesSchedulable(t, f, []uint64{1, 2, 3}, 30*time.Second)
+	f := startFaultableDynamicCluster(t, joinToken)
 	startActiveNode4(t, f, joinToken)
 	waitNodeSchedulable(t, f, 4, 30*time.Second)
 
