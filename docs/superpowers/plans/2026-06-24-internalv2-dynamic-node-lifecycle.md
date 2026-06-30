@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Execute internalv2 dynamic node lifecycle support in five ordered, reviewable stages from safe read models through future-safe node removal.
+**Goal:** Execute internalv2 dynamic node lifecycle support in ordered, reviewable stages from safe read models through future-safe node removal and operator-ready workflows.
 
 **Architecture:** This is the master execution index for the staged plans. Each stage produces a testable increment and must pass its exit gate before the next stage starts, so dynamic join, Slot onboarding, scale-in preparation, and drain safety do not blur together.
 
@@ -34,6 +34,7 @@
   - Stage 9D plan: `docs/superpowers/plans/2026-06-29-internalv2-dynamic-node-stage9d-real-traffic-smoke.md`
 - Stage 10A plan: `docs/superpowers/plans/2026-06-30-internalv2-dynamic-node-stage10a-gofail-readiness-recovery.md`
 - Stage 10B plan: `docs/superpowers/plans/2026-06-30-internalv2-dynamic-node-stage10b-readiness-gate.md`
+- Stage 11 plan: `docs/superpowers/plans/2026-06-30-internalv2-dynamic-node-stage11-operations-productization.md`
 
 ## Execution Order
 
@@ -50,6 +51,7 @@
 | 9 | Production Readiness | `2026-06-29-internalv2-dynamic-node-stage9-production-readiness.md` plus Stage 9A-9D subplans | Durable health freshness, health-gated placement/remove, operator evidence, and real-traffic readiness smoke |
 | 10A | Gofail Readiness Recovery | `2026-06-30-internalv2-dynamic-node-stage10a-gofail-readiness-recovery.md` | Reproducible recovery proofs for stale health, controller watch drops, and bounded scale-in retry |
 | 10B | Readiness Gate Automation | `2026-06-30-internalv2-dynamic-node-stage10b-readiness-gate.md` | One local command for Stage10A gofail recovery plus Stage9D release-gate verification |
+| 11 | Operations Productization | `2026-06-30-internalv2-dynamic-node-stage11-operations-productization.md` | Operator-safe `wkcli node`, runbook, and real CLI rehearsal gate |
 
 ## Cross-Stage Invariants
 
@@ -242,6 +244,35 @@ git diff --check HEAD~4..HEAD
 
 Final gate evidence directory:
 `data/dynamic-node-readiness-gate/20260630-223500`.
+
+## Gate 11: Stage 11 starts only after Stage 10B readiness gate passes
+
+Run:
+
+```bash
+GOWORK=off go test ./scripts -run DynamicNodeReadinessGate -count=1
+scripts/e2ev2/dynamic-node-readiness-gate.sh --profile full
+git diff --check
+```
+
+Expected: Stage10B gate remains green before adding the operations layer.
+
+## Stage 11 Completion
+
+- [ ] **Stage 11 operations productization merged locally**
+
+Run on merged local `main`:
+
+```bash
+GOWORK=off go test ./cmd/wkcli ./cmd/wkcli/internal/... -count=1
+GOWORK=off go test ./scripts -run DynamicNodeReadinessGate -count=1
+GOWORK=off go test -tags=e2e ./test/e2ev2/cluster/dynamic_node_operations -count=1 -timeout 12m -p=1
+scripts/e2ev2/dynamic-node-readiness-gate.sh --profile ops
+git diff --check
+```
+
+Expected: CLI unit tests, script tests, real CLI operations e2e, full operations
+gate, and whitespace checks pass on merged local `main`.
 
 ## Stage 5 Sub-Stage Chain
 
