@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
 	cv2 "github.com/WuKongIM/WuKongIM/pkg/controllerv2"
@@ -46,6 +47,52 @@ func TestScaleInStatusBlocksWhenControlRevisionIsStale(t *testing.T) {
 	}
 }
 
+func TestScaleInStatusBlocksWhenTargetHealthIsStale(t *testing.T) {
+	snap := scaleInReadyNoSlotReplicaSnapshot()
+	snap.Nodes[3].Health.Freshness = control.NodeHealthStale
+	app := New(Options{
+		Cluster:            fakeNodeSnapshotReader{snapshot: snap},
+		RuntimeSummary:     fakeNodeRuntimeSummaryReader{summaries: scaleInRuntimeSummariesFor(snap.Revision, scaleInSnapshotNodeIDs(snap)...)},
+		SlotRuntimeStatus:  scaleInSafeSlotRuntimeReader{},
+		ChannelRuntimeMeta: newChannelDrainMetaReader(),
+	})
+
+	status, err := app.NodeScaleInStatus(context.Background(), NodeScaleInStatusRequest{NodeID: 4})
+	if err != nil {
+		t.Fatalf("NodeScaleInStatus() error = %v", err)
+	}
+	if status.SafeToProceed || !status.BlockedByHealth || status.HealthFresh ||
+		status.HealthStatus != string(control.NodeAlive) ||
+		!containsString(status.BlockedReasons, "target_health_stale") {
+		t.Fatalf("status = %#v, want target stale health blocker", status)
+	}
+}
+
+func TestScaleInStatusBlocksWhenEligibleNodeHasNotObservedRevision(t *testing.T) {
+	snap := scaleInReadyNoSlotReplicaSnapshot()
+	snap.Revision = 22
+	snap.Nodes[0].Roles = []control.Role{control.RoleController, control.RoleData}
+	snap.Nodes[0].Health.ObservedControlRevision = 21
+	snap.Nodes[1].Health.ObservedControlRevision = 22
+	snap.Nodes[2].Health.ObservedControlRevision = 22
+	snap.Nodes[3].Health.ObservedControlRevision = 22
+	app := New(Options{
+		Cluster:            fakeNodeSnapshotReader{snapshot: snap},
+		RuntimeSummary:     fakeNodeRuntimeSummaryReader{summaries: scaleInRuntimeSummariesFor(snap.Revision, scaleInSnapshotNodeIDs(snap)...)},
+		SlotRuntimeStatus:  scaleInSafeSlotRuntimeReader{},
+		ChannelRuntimeMeta: newChannelDrainMetaReader(),
+	})
+
+	status, err := app.NodeScaleInStatus(context.Background(), NodeScaleInStatusRequest{NodeID: 4})
+	if err != nil {
+		t.Fatalf("NodeScaleInStatus() error = %v", err)
+	}
+	if status.SafeToProceed || !status.BlockedByHealth || !status.BlockedByStaleRevision ||
+		!containsString(status.BlockedReasons, "eligible_node_health_revision_stale") {
+		t.Fatalf("status = %#v, want eligible stale health revision blocker", status)
+	}
+}
+
 func TestScaleInStatusBlocksWhenSlotDesiredPeersContainTarget(t *testing.T) {
 	app := New(Options{
 		Cluster:        fakeNodeSnapshotReader{snapshot: scaleInSnapshot(17)},
@@ -65,7 +112,7 @@ func TestScaleInStatusBlocksWhenSlotDesiredPeersContainTarget(t *testing.T) {
 
 func TestScaleInStatusBlocksWhenRuntimeVotersStillContainTargetAfterDesiredPeersMoved(t *testing.T) {
 	snap := scaleInSnapshot(17)
-	snap.Nodes = append(snap.Nodes, control.Node{NodeID: 4, Roles: []control.Role{control.RoleData}, Status: control.NodeAlive, JoinState: control.NodeJoinStateActive})
+	snap.Nodes = append(snap.Nodes, scaleInHealthNode(4, []control.Role{control.RoleData}, control.NodeJoinStateActive, snap.Revision))
 	snap.Slots[0].DesiredPeers = []uint64{1, 3, 4}
 	app := New(Options{
 		Cluster:        fakeNodeSnapshotReader{snapshot: snap},
@@ -450,7 +497,7 @@ func TestScaleInStatusReportsSafetyBlockerCategories(t *testing.T) {
 
 func TestAdvanceNodeScaleInCreatesMoveAwayFromLeavingNode(t *testing.T) {
 	snap := scaleInSnapshot(17)
-	snap.Nodes = append(snap.Nodes, control.Node{NodeID: 4, Roles: []control.Role{control.RoleData}, Status: control.NodeAlive, JoinState: control.NodeJoinStateActive})
+	snap.Nodes = append(snap.Nodes, scaleInHealthNode(4, []control.Role{control.RoleData}, control.NodeJoinStateActive, snap.Revision))
 	writer := &fakeSlotReplicaMoveWriter{result: control.SlotReplicaMoveResult{Created: true}}
 	app := New(Options{
 		Cluster:         fakeNodeSnapshotReader{snapshot: snap},
@@ -479,7 +526,7 @@ func TestAdvanceNodeScaleInCreatesMoveAwayFromLeavingNode(t *testing.T) {
 
 func TestAdvanceNodeScaleInAllowsSlotDrainWhenChannelInventoryUnknown(t *testing.T) {
 	snap := scaleInSnapshot(17)
-	snap.Nodes = append(snap.Nodes, control.Node{NodeID: 4, Roles: []control.Role{control.RoleData}, Status: control.NodeAlive, JoinState: control.NodeJoinStateActive})
+	snap.Nodes = append(snap.Nodes, scaleInHealthNode(4, []control.Role{control.RoleData}, control.NodeJoinStateActive, snap.Revision))
 	writer := &fakeSlotReplicaMoveWriter{result: control.SlotReplicaMoveResult{Created: true}}
 	app := New(Options{
 		Cluster:         fakeNodeSnapshotReader{snapshot: snap},
@@ -509,7 +556,7 @@ func TestAdvanceNodeScaleInAllowsSlotDrainWhenChannelInventoryUnknown(t *testing
 
 func TestAdvanceNodeScaleInAllowsSlotDrainWhenLeavingNodeIsSlotLeader(t *testing.T) {
 	snap := scaleInSnapshot(17)
-	snap.Nodes = append(snap.Nodes, control.Node{NodeID: 4, Roles: []control.Role{control.RoleData}, Status: control.NodeAlive, JoinState: control.NodeJoinStateActive})
+	snap.Nodes = append(snap.Nodes, scaleInHealthNode(4, []control.Role{control.RoleData}, control.NodeJoinStateActive, snap.Revision))
 	writer := &fakeSlotReplicaMoveWriter{result: control.SlotReplicaMoveResult{Created: true}}
 	app := New(Options{
 		Cluster:         fakeNodeSnapshotReader{snapshot: snap},
@@ -539,7 +586,7 @@ func TestAdvanceNodeScaleInAllowsSlotDrainWhenLeavingNodeIsSlotLeader(t *testing
 
 func TestAdvanceNodeScaleInMapsActiveTaskConflictToScaleInConflict(t *testing.T) {
 	snap := scaleInSnapshot(17)
-	snap.Nodes = append(snap.Nodes, control.Node{NodeID: 4, Roles: []control.Role{control.RoleData}, Status: control.NodeAlive, JoinState: control.NodeJoinStateActive})
+	snap.Nodes = append(snap.Nodes, scaleInHealthNode(4, []control.Role{control.RoleData}, control.NodeJoinStateActive, snap.Revision))
 	writer := &fakeSlotReplicaMoveWriter{err: cv2.ErrSlotActiveTaskConflict}
 	app := New(Options{
 		Cluster:         fakeNodeSnapshotReader{snapshot: snap},
@@ -561,7 +608,7 @@ func TestAdvanceNodeScaleInMapsActiveTaskConflictToScaleInConflict(t *testing.T)
 
 func TestAdvanceNodeScaleInRefreshesRevisionBetweenCandidates(t *testing.T) {
 	snapshot := scaleInSnapshot(17)
-	snapshot.Nodes = append(snapshot.Nodes, control.Node{NodeID: 4, Roles: []control.Role{control.RoleData}, Status: control.NodeAlive, JoinState: control.NodeJoinStateActive})
+	snapshot.Nodes = append(snapshot.Nodes, scaleInHealthNode(4, []control.Role{control.RoleData}, control.NodeJoinStateActive, snapshot.Revision))
 	snapshot.Slots = append(snapshot.Slots, control.SlotAssignment{SlotID: 2, DesiredPeers: []uint64{1, 2, 3}, ConfigEpoch: 8, PreferredLeader: 1})
 	cluster := &scaleInMutableSnapshotReader{snapshot: snapshot}
 	writer := &scaleInRevisionFencedMoveWriter{cluster: cluster}
@@ -589,7 +636,7 @@ func TestAdvanceNodeScaleInRefreshesRevisionBetweenCandidates(t *testing.T) {
 
 func TestAdvanceNodeScaleInStopsWhenFreshStatusBecomesBlocked(t *testing.T) {
 	snapshot := scaleInSnapshot(17)
-	snapshot.Nodes = append(snapshot.Nodes, control.Node{NodeID: 4, Roles: []control.Role{control.RoleData}, Status: control.NodeAlive, JoinState: control.NodeJoinStateActive})
+	snapshot.Nodes = append(snapshot.Nodes, scaleInHealthNode(4, []control.Role{control.RoleData}, control.NodeJoinStateActive, snapshot.Revision))
 	snapshot.Slots = append(snapshot.Slots, control.SlotAssignment{SlotID: 2, DesiredPeers: []uint64{1, 2, 3}, ConfigEpoch: 8, PreferredLeader: 1})
 	cluster := &scaleInMutableSnapshotReader{snapshot: snapshot}
 	writer := &scaleInRevisionFencedMoveWriter{
@@ -629,9 +676,9 @@ func scaleInSnapshot(revision uint64) control.Snapshot {
 	return control.Snapshot{
 		Revision: revision,
 		Nodes: []control.Node{
-			{NodeID: 1, Roles: []control.Role{control.RoleController, control.RoleData}, Status: control.NodeAlive, JoinState: control.NodeJoinStateActive},
-			{NodeID: 2, Roles: []control.Role{control.RoleData}, Status: control.NodeAlive, JoinState: control.NodeJoinStateLeaving},
-			{NodeID: 3, Roles: []control.Role{control.RoleData}, Status: control.NodeAlive, JoinState: control.NodeJoinStateActive},
+			scaleInHealthNode(1, []control.Role{control.RoleController, control.RoleData}, control.NodeJoinStateActive, revision),
+			scaleInHealthNode(2, []control.Role{control.RoleData}, control.NodeJoinStateLeaving, revision),
+			scaleInHealthNode(3, []control.Role{control.RoleData}, control.NodeJoinStateActive, revision),
 		},
 		Slots: []control.SlotAssignment{{SlotID: 1, DesiredPeers: []uint64{1, 2, 3}, ConfigEpoch: 7, PreferredLeader: 1}},
 	}
@@ -639,7 +686,7 @@ func scaleInSnapshot(revision uint64) control.Snapshot {
 
 func scaleInDrainedSnapshot(revision uint64) control.Snapshot {
 	snapshot := scaleInSnapshot(revision)
-	snapshot.Nodes = append(snapshot.Nodes, control.Node{NodeID: 4, Roles: []control.Role{control.RoleData}, Status: control.NodeAlive, JoinState: control.NodeJoinStateActive})
+	snapshot.Nodes = append(snapshot.Nodes, scaleInHealthNode(4, []control.Role{control.RoleData}, control.NodeJoinStateActive, revision))
 	snapshot.Slots[0].DesiredPeers = []uint64{1, 3, 4}
 	return snapshot
 }
@@ -648,13 +695,30 @@ func scaleInReadyNoSlotReplicaSnapshot() control.Snapshot {
 	return control.Snapshot{
 		Revision: 11,
 		Nodes: []control.Node{
-			{NodeID: 1, Roles: []control.Role{control.RoleController}, Status: control.NodeAlive, JoinState: control.NodeJoinStateActive},
-			{NodeID: 2, Roles: []control.Role{control.RoleData}, Status: control.NodeAlive, JoinState: control.NodeJoinStateActive},
-			{NodeID: 3, Roles: []control.Role{control.RoleData}, Status: control.NodeAlive, JoinState: control.NodeJoinStateActive},
-			{NodeID: 4, Roles: []control.Role{control.RoleData}, Status: control.NodeAlive, JoinState: control.NodeJoinStateLeaving},
+			scaleInHealthNode(1, []control.Role{control.RoleController}, control.NodeJoinStateActive, 11),
+			scaleInHealthNode(2, []control.Role{control.RoleData}, control.NodeJoinStateActive, 11),
+			scaleInHealthNode(3, []control.Role{control.RoleData}, control.NodeJoinStateActive, 11),
+			scaleInHealthNode(4, []control.Role{control.RoleData}, control.NodeJoinStateLeaving, 11),
 		},
 		Slots: []control.SlotAssignment{
 			{SlotID: 1, DesiredPeers: []uint64{2, 3}, PreferredLeader: 2, ConfigEpoch: 7},
+		},
+	}
+}
+
+func scaleInHealthNode(nodeID uint64, roles []control.Role, joinState control.NodeJoinState, revision uint64) control.Node {
+	return control.Node{
+		NodeID:    nodeID,
+		Roles:     append([]control.Role(nil), roles...),
+		Status:    control.NodeAlive,
+		JoinState: joinState,
+		Health: control.NodeHealth{
+			Status:                  control.NodeAlive,
+			Freshness:               control.NodeHealthFresh,
+			RuntimeReady:            true,
+			ObservedControlRevision: revision,
+			ReportAge:               time.Second,
+			ReportTTL:               30 * time.Second,
 		},
 	}
 }
@@ -677,6 +741,15 @@ func scaleInRuntimeSummariesFor(revision uint64, nodeIDs ...uint64) map[uint64]N
 		summaries[nodeID] = NodeRuntimeSummary{NodeID: nodeID, ControlRevision: revision, Draining: true}
 	}
 	return summaries
+}
+
+func containsString(items []string, want string) bool {
+	for _, item := range items {
+		if item == want {
+			return true
+		}
+	}
+	return false
 }
 
 type scaleInMutableSnapshotReader struct {
@@ -712,6 +785,9 @@ func (w *scaleInRevisionFencedMoveWriter) RequestSlotReplicaMove(_ context.Conte
 	}
 	w.cluster.snapshot.Tasks = append(w.cluster.snapshot.Tasks, task)
 	w.cluster.snapshot.Revision++
+	for i := range w.cluster.snapshot.Nodes {
+		w.cluster.snapshot.Nodes[i].Health.ObservedControlRevision = w.cluster.snapshot.Revision
+	}
 	if w.afterCreate != nil {
 		w.afterCreate(&w.cluster.snapshot)
 	}

@@ -19,6 +19,17 @@ var (
 	ErrNodeScaleInUnsafe = errors.New("internalv2/usecase/management: node scale-in unsafe")
 )
 
+const (
+	scaleInReasonTargetHealthMissing             = "target_health_missing"
+	scaleInReasonTargetHealthStale               = "target_health_stale"
+	scaleInReasonTargetHealthNotAlive            = "target_health_not_alive"
+	scaleInReasonTargetRuntimeNotReady           = "target_runtime_not_ready"
+	scaleInReasonEligibleNodeHealthMissing       = "eligible_node_health_missing"
+	scaleInReasonEligibleNodeHealthStale         = "eligible_node_health_stale"
+	scaleInReasonEligibleNodeHealthRevisionStale = "eligible_node_health_revision_stale"
+	scaleInReasonEligibleNodeRuntimeNotReady     = "eligible_node_runtime_not_ready"
+)
+
 // NodeScaleInStatusRequest identifies the data node being evaluated for scale-in.
 type NodeScaleInStatusRequest struct {
 	// NodeID is the non-zero stable identity of the node being evaluated.
@@ -79,6 +90,10 @@ type NodeScaleInStatusResponse struct {
 	BlockedByJoinState bool
 	// BlockedByControlRevision reports that an eligible node has not observed the current control revision.
 	BlockedByControlRevision bool
+	// BlockedByHealth reports that durable node health is missing, stale, unhealthy, or runtime-not-ready.
+	BlockedByHealth bool
+	// BlockedByStaleRevision reports that fresh durable node health has not observed the required control revision.
+	BlockedByStaleRevision bool
 	// BlockedByControllerRole reports that the target node still has the Controller role.
 	BlockedByControllerRole bool
 	// BlockedByDataRole reports that the target node does not have the Data role.
@@ -103,6 +118,22 @@ type NodeScaleInStatusResponse struct {
 	UnknownControlRevision bool
 	// UnknownChannelInventory reports that Channel inventory could not be proven.
 	UnknownChannelInventory bool
+	// HealthFresh reports whether the target durable health report is fresh.
+	HealthFresh bool
+	// HealthStatus is the target health status reported by durable node health.
+	HealthStatus string
+	// HealthFreshness is the target durable health freshness classification.
+	HealthFreshness string
+	// HealthReportAgeMS is the target health report age in milliseconds at snapshot build time.
+	HealthReportAgeMS int64
+	// HealthReportTTLMS is the freshness TTL in milliseconds used for the target health report.
+	HealthReportTTLMS int64
+	// ObservedControlRevision is the latest control revision observed by the target health report.
+	ObservedControlRevision uint64
+	// RequiredControlRevision is the control revision required for scale-in safety decisions.
+	RequiredControlRevision uint64
+	// BlockedReasons contains bounded machine-readable health blocker reasons.
+	BlockedReasons []string
 	// SlotReplicaCount counts Slot replicas that still block removing the target node.
 	SlotReplicaCount int
 	// SlotLeaderCount counts live Slot leaders still observed on the target node.
@@ -240,9 +271,10 @@ func (a *App) markNodeRemoved(ctx context.Context, nodeID uint64, stateRevision 
 
 func (a *App) nodeScaleInStatusFromSnapshot(ctx context.Context, snapshot control.Snapshot, nodeID uint64, ignoreTask func(control.ReconcileTask) bool) NodeScaleInStatusResponse {
 	response := NodeScaleInStatusResponse{
-		NodeID:        nodeID,
-		GeneratedAt:   a.now(),
-		StateRevision: snapshot.Revision,
+		NodeID:                  nodeID,
+		GeneratedAt:             a.now(),
+		StateRevision:           snapshot.Revision,
+		RequiredControlRevision: snapshot.Revision,
 	}
 	node, ok := findControlNode(snapshot, nodeID)
 	if !ok {
@@ -260,6 +292,7 @@ func (a *App) nodeScaleInStatusFromSnapshot(ctx context.Context, snapshot contro
 	if joinState != control.NodeJoinStateLeaving {
 		response.BlockedByJoinState = true
 	}
+	markScaleInHealthBlockers(snapshot, node, &response)
 	a.markScaleInRuntimeRevisionBlockers(ctx, snapshot, &response)
 	a.markScaleInSlotBlockers(ctx, snapshot.Slots, nodeID, &response)
 	markScaleInTaskBlockersWithFilter(snapshot.Tasks, nodeID, &response, ignoreTask)
@@ -270,6 +303,8 @@ func (a *App) nodeScaleInStatusFromSnapshot(ctx context.Context, snapshot contro
 	response.SafeToProceed = !response.BlockedByMissingNode &&
 		!response.BlockedByJoinState &&
 		!response.BlockedByControlRevision &&
+		!response.BlockedByHealth &&
+		!response.BlockedByStaleRevision &&
 		!response.BlockedByControllerRole &&
 		!response.BlockedByDataRole &&
 		!response.BlockedBySlots &&
@@ -484,6 +519,68 @@ func (a *App) markScaleInRuntimeRevisionBlockers(ctx context.Context, snapshot c
 	}
 }
 
+func markScaleInHealthBlockers(snapshot control.Snapshot, targetNode control.Node, response *NodeScaleInStatusResponse) {
+	targetHealth := targetNode.Health
+	response.HealthFresh = targetHealth.Freshness == control.NodeHealthFresh
+	response.HealthStatus = string(targetHealth.Status)
+	response.HealthFreshness = string(targetHealth.Freshness)
+	response.HealthReportAgeMS = targetHealth.ReportAge.Milliseconds()
+	response.HealthReportTTLMS = targetHealth.ReportTTL.Milliseconds()
+	response.ObservedControlRevision = targetHealth.ObservedControlRevision
+
+	markScaleInNodeHealthFreshness(response, targetHealth, scaleInReasonTargetHealthMissing, scaleInReasonTargetHealthStale)
+	if targetHealth.Status != control.NodeAlive {
+		response.BlockedByHealth = true
+		markBlockedReason(response, scaleInReasonTargetHealthNotAlive)
+	}
+	if !targetHealth.RuntimeReady {
+		response.BlockedByHealth = true
+		markBlockedReason(response, scaleInReasonTargetRuntimeNotReady)
+	}
+
+	for _, node := range snapshot.Nodes {
+		if node.NodeID == targetNode.NodeID || !isActiveDataNode(node) {
+			continue
+		}
+		health := node.Health
+		markScaleInNodeHealthFreshness(response, health, scaleInReasonEligibleNodeHealthMissing, scaleInReasonEligibleNodeHealthStale)
+		if !health.RuntimeReady {
+			response.BlockedByHealth = true
+			markBlockedReason(response, scaleInReasonEligibleNodeRuntimeNotReady)
+		}
+		if health.Freshness == control.NodeHealthFresh && health.ObservedControlRevision < snapshot.Revision {
+			response.BlockedByHealth = true
+			response.BlockedByStaleRevision = true
+			markBlockedReason(response, scaleInReasonEligibleNodeHealthRevisionStale)
+		}
+	}
+}
+
+func markScaleInNodeHealthFreshness(response *NodeScaleInStatusResponse, health control.NodeHealth, missingReason string, staleReason string) {
+	switch health.Freshness {
+	case control.NodeHealthFresh:
+		return
+	case "", control.NodeHealthMissing:
+		response.BlockedByHealth = true
+		markBlockedReason(response, missingReason)
+	default:
+		response.BlockedByHealth = true
+		markBlockedReason(response, staleReason)
+	}
+}
+
+func markBlockedReason(response *NodeScaleInStatusResponse, reason string) {
+	if response == nil || reason == "" {
+		return
+	}
+	for _, existing := range response.BlockedReasons {
+		if existing == reason {
+			return
+		}
+	}
+	response.BlockedReasons = append(response.BlockedReasons, reason)
+}
+
 func (a *App) markScaleInSlotBlockers(ctx context.Context, assignments []control.SlotAssignment, targetNode uint64, response *NodeScaleInStatusResponse) {
 	slots := append([]control.SlotAssignment(nil), assignments...)
 	sort.Slice(slots, func(i, j int) bool { return slots[i].SlotID < slots[j].SlotID })
@@ -593,6 +690,8 @@ func scaleInStatusBlocksPlan(status NodeScaleInStatusResponse) bool {
 	return status.BlockedByMissingNode ||
 		status.BlockedByJoinState ||
 		status.BlockedByControlRevision ||
+		status.BlockedByHealth ||
+		status.BlockedByStaleRevision ||
 		status.BlockedByControllerRole ||
 		status.BlockedByDataRole ||
 		status.BlockedBySlotRuntime ||
