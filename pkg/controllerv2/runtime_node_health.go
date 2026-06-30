@@ -2,6 +2,9 @@ package controllerv2
 
 import (
 	"context"
+	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/controllerv2/command"
@@ -46,6 +49,8 @@ func (r *Runtime) ReportNodeHealth(ctx context.Context, req ReportNodeHealthRequ
 	if r == nil || r.raft == nil {
 		return ReportNodeHealthResult{}, ErrNotStarted
 	}
+	// gofail: var wkReportNodeHealthFault string
+	// if err := gofailReportNodeHealthFault(wkReportNodeHealthFault, req.NodeID); err != nil { return ReportNodeHealthResult{}, err }
 	nowFunc := r.cfg.Now
 	if nowFunc == nil {
 		nowFunc = time.Now
@@ -81,4 +86,28 @@ func (r *Runtime) ReportNodeHealth(ctx context.Context, req ReportNodeHealthRequ
 		Revision:         result.Revision,
 		AppliedRaftIndex: result.AppliedRaftIndex,
 	}, nil
+}
+
+func gofailReportNodeHealthFault(raw string, nodeID uint64) error {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+	target, message, ok := strings.Cut(raw, ":")
+	if !ok {
+		return fmt.Errorf("controllerv2: %s", raw)
+	}
+	target = strings.TrimSpace(target)
+	message = strings.TrimSpace(message)
+	if message == "" {
+		message = "node health report fault"
+	}
+	if target == "all" {
+		return fmt.Errorf("controllerv2: %s", message)
+	}
+	want, err := strconv.ParseUint(target, 10, 64)
+	if err != nil || want != nodeID {
+		return nil
+	}
+	return fmt.Errorf("controllerv2: %s", message)
 }

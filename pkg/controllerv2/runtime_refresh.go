@@ -3,6 +3,8 @@ package controllerv2
 import (
 	"context"
 	"errors"
+	"strconv"
+	"strings"
 	"time"
 
 	cv2raft "github.com/WuKongIM/WuKongIM/pkg/controllerv2/raft"
@@ -117,6 +119,8 @@ func publishLatestStateEvent(ch chan StateEvent, st ClusterState) {
 	if ch == nil {
 		return
 	}
+	// gofail: var wkControllerV2StateEventDrop string
+	// if gofailDropControllerV2StateEvent(wkControllerV2StateEventDrop, st.Revision) { return }
 	event := StateEvent{State: st.Clone()}
 	select {
 	case ch <- event:
@@ -131,4 +135,20 @@ func publishLatestStateEvent(ch chan StateEvent, st ClusterState) {
 	case ch <- event:
 	default:
 	}
+}
+
+func gofailDropControllerV2StateEvent(raw string, revision uint64) bool {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return false
+	}
+	if raw == "all" {
+		return true
+	}
+	target, value, ok := strings.Cut(raw, ":")
+	if !ok || strings.TrimSpace(target) != "revision" {
+		return false
+	}
+	want, err := strconv.ParseUint(strings.TrimSpace(value), 10, 64)
+	return err == nil && want == revision
 }
