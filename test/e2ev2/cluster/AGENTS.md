@@ -21,6 +21,9 @@ This domain owns black-box multi-node cluster lifecycle coverage for
 - `dynamic_node_readiness`: Stage 9 dynamic-node production-readiness smoke
   with health freshness, manager/metrics evidence, and join/onboard/scale-in/
   remove while real WKProto traffic continues.
+- `dynamic_node_operations`: Stage 11 operator rehearsal that drives dynamic
+  activation, onboarding, scale-in, drain, and remove through `wkcli node`
+  while real WKProto traffic continues.
 - `dynamic_node_faults`: opt-in gofail-backed dynamic-node join, onboarding,
   scale-in, and remove fault recovery through public manager and WKProto
   entrypoints.
