@@ -99,7 +99,7 @@ Environment overrides for script tests:
 - Create: `scripts/dynamic_node_readiness_gate_script_test.go`
 - Create later in Task 2: `scripts/e2ev2/dynamic-node-readiness-gate.sh`
 
-- [ ] **Step 1: Write the dry-run tests first**
+- [x] **Step 1: Write the dry-run tests first**
 
 Add a new Go test file with these tests:
 
@@ -180,7 +180,7 @@ func TestDynamicNodeReadinessGateDryRunFullProfileIncludesStage9D(t *testing.T) 
 }
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run:
 
@@ -196,7 +196,7 @@ Expected: fail because `scripts/e2ev2/dynamic-node-readiness-gate.sh` does not e
 
 - Create: `scripts/e2ev2/dynamic-node-readiness-gate.sh`
 
-- [ ] **Step 1: Add the script**
+- [x] **Step 1: Add the script**
 
 Implement a Bash script with:
 
@@ -228,7 +228,7 @@ BUILD_GOFAIL_CMD=("$BUILD_GOFAIL_SCRIPT" --cmd ./cmd/wukongimv2 --package intern
 
 `run_step` must append the command to `commands.log`, tee output to the step log, and write `PASS` or `FAIL` to `summary.md`.
 
-- [ ] **Step 2: Run dry-run tests to verify they pass**
+- [x] **Step 2: Run dry-run tests to verify they pass**
 
 Run:
 
@@ -238,7 +238,7 @@ GOWORK=off go test ./scripts -run 'TestDynamicNodeReadinessGateDryRun' -count=1
 
 Expected: pass.
 
-- [ ] **Step 3: Run manual dry-runs**
+- [x] **Step 3: Run manual dry-runs**
 
 Run:
 
@@ -255,7 +255,7 @@ Expected: quick omits `stage9d_cmd`; full includes it.
 
 - Modify: `scripts/dynamic_node_readiness_gate_script_test.go`
 
-- [ ] **Step 1: Add a fake failing go test path**
+- [x] **Step 1: Add a fake failing go test path**
 
 Append this test:
 
@@ -304,7 +304,7 @@ func TestDynamicNodeReadinessGateWritesEvidenceWhenStepFails(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run the failure evidence test**
+- [x] **Step 2: Run the failure evidence test**
 
 Run:
 
@@ -320,7 +320,7 @@ Expected: pass.
 
 - Modify: `docs/superpowers/plans/2026-06-24-internalv2-dynamic-node-lifecycle.md`
 
-- [ ] **Step 1: Add Stage 10A and Stage 10B to source plans**
+- [x] **Step 1: Add Stage 10A and Stage 10B to source plans**
 
 Add:
 
@@ -329,7 +329,7 @@ Add:
 - Stage 10B plan: `docs/superpowers/plans/2026-06-30-internalv2-dynamic-node-stage10b-readiness-gate.md`
 ```
 
-- [ ] **Step 2: Add execution-order rows**
+- [x] **Step 2: Add execution-order rows**
 
 Add after Stage 9:
 
@@ -338,7 +338,7 @@ Add after Stage 9:
 | 10B | Readiness Gate Automation | `2026-06-30-internalv2-dynamic-node-stage10b-readiness-gate.md` | One local command for Stage10A plus Stage9D release-gate verification |
 ```
 
-- [ ] **Step 3: Add Stage 10B completion gate**
+- [x] **Step 3: Add Stage 10B completion gate**
 
 Add this new section:
 
@@ -365,7 +365,7 @@ Expected: the gate script tests pass, quick profile proves Stage10A gofail recov
 
 - All files touched by Tasks 1-4.
 
-- [ ] **Step 1: Run script tests**
+- [x] **Step 1: Run script tests**
 
 Run:
 
@@ -375,7 +375,7 @@ GOWORK=off go test ./scripts -run DynamicNodeReadinessGate -count=1
 
 Expected: pass.
 
-- [ ] **Step 2: Run quick profile**
+- [x] **Step 2: Run quick profile**
 
 Run:
 
@@ -385,7 +385,7 @@ scripts/e2ev2/dynamic-node-readiness-gate.sh --profile quick
 
 Expected: pass; summary lists `controllerv2`, `dynamic-node-faults-default`, `build-gofail`, `stage10a-gofail`, and `diff-check` as `PASS`.
 
-- [ ] **Step 3: Run full profile**
+- [x] **Step 3: Run full profile**
 
 Run:
 
@@ -395,7 +395,7 @@ scripts/e2ev2/dynamic-node-readiness-gate.sh --profile full
 
 Expected: pass; summary additionally lists `stage9d-real-traffic` as `PASS`.
 
-- [ ] **Step 4: Check formatting and diff hygiene**
+- [x] **Step 4: Check formatting and diff hygiene**
 
 Run:
 
@@ -406,12 +406,13 @@ git status --short
 
 Expected: no whitespace errors; only Stage10B files are modified before commit.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 Run:
 
 ```bash
-git add scripts/e2ev2/dynamic-node-readiness-gate.sh scripts/dynamic_node_readiness_gate_script_test.go docs/superpowers/plans/2026-06-24-internalv2-dynamic-node-lifecycle.md docs/superpowers/plans/2026-06-30-internalv2-dynamic-node-stage10b-readiness-gate.md
+git add scripts/e2ev2/dynamic-node-readiness-gate.sh scripts/dynamic_node_readiness_gate_script_test.go docs/superpowers/plans/2026-06-30-internalv2-dynamic-node-stage10b-readiness-gate.md
+git diff --cached --check
 git commit -m "test: add dynamic node readiness gate"
 ```
 
