@@ -63,11 +63,13 @@ func TestWKCLINodeOperationsLifecycleWithTraffic(t *testing.T) {
 	eventuallyWKCLIContains(t, contextDir, 30*time.Second,
 		[]string{"node", "ls", "--context", "ops"},
 		[]string{"node=4", "join_state=joining", "schedulable=false", "health=fresh/alive", "control_rev="},
+		cluster.DumpDiagnostics,
 	)
 
 	eventuallyWKCLIContains(t, contextDir, 30*time.Second,
 		[]string{"node", "activate", "4", "--context", "ops"},
 		[]string{"node=4", "join_state=active"},
+		cluster.DumpDiagnostics,
 	)
 	manager.EventuallyNodeJoinState(t, 4, "active", 30*time.Second)
 	eventuallyNodeSchedulable(t, cluster, manager, 4, 120*time.Second)
@@ -76,6 +78,7 @@ func TestWKCLINodeOperationsLifecycleWithTraffic(t *testing.T) {
 	onboardingOut := eventuallyWKCLIContains(t, contextDir, 60*time.Second,
 		[]string{"node", "onboarding", "start", "4", "--context", "ops", "--max-slot-moves", "1", "--json"},
 		[]string{`"created":`, `"target_node_id": 4`},
+		cluster.DumpDiagnostics,
 	)
 	require.GreaterOrEqual(t, requireJSONUintField(t, onboardingOut, "created"), uint64(1), onboardingOut)
 	require.Equal(t, uint64(4), requireJSONUintField(t, onboardingOut, "target_node_id"), onboardingOut)
@@ -85,18 +88,21 @@ func TestWKCLINodeOperationsLifecycleWithTraffic(t *testing.T) {
 	eventuallyWKCLIContains(t, contextDir, 45*time.Second,
 		[]string{"node", "scale-in", "start", "4", "--context", "ops"},
 		[]string{"node=4", "join_state=leaving"},
+		cluster.DumpDiagnostics,
 	)
 	manager.EventuallyNodeJoinState(t, 4, "leaving", 30*time.Second)
 
 	eventuallyWKCLIContains(t, contextDir, 30*time.Second,
 		[]string{"node", "scale-in", "drain", "4", "--context", "ops", "--draining=true"},
 		[]string{"draining=true", "gateway_sessions=", "active_online=", "pending_activations="},
+		cluster.DumpDiagnostics,
 	)
 	requireTrafficProgress(t, cluster, traffic, 3, 10*time.Second)
 
 	advanceOut := eventuallyWKCLIContains(t, contextDir, 60*time.Second,
 		[]string{"node", "scale-in", "advance", "4", "--context", "ops", "--max-slot-moves", "1", "--json"},
 		[]string{`"node_id": 4`, `"created":`, `"state_revision":`},
+		cluster.DumpDiagnostics,
 	)
 	requireJSONFieldPresent(t, advanceOut, "created")
 	require.Equal(t, uint64(4), requireJSONUintField(t, advanceOut, "node_id"), advanceOut)
@@ -106,15 +112,66 @@ func TestWKCLINodeOperationsLifecycleWithTraffic(t *testing.T) {
 	statusOut := eventuallyWKCLIContains(t, contextDir, 30*time.Second,
 		[]string{"node", "scale-in", "status", "4", "--context", "ops"},
 		[]string{"safe_to_remove=true", "control_rev=", "gateway_sessions=0", "blocked_reasons="},
+		cluster.DumpDiagnostics,
 	)
 	require.Contains(t, statusOut, "health=")
 
 	eventuallyWKCLIContains(t, contextDir, 60*time.Second,
 		[]string{"node", "scale-in", "remove", "4", "--context", "ops"},
 		[]string{"node=4", "join_state=removed"},
+		cluster.DumpDiagnostics,
 	)
 	manager.EventuallyNodeJoinState(t, 4, "removed", 30*time.Second)
 	requireTrafficProgress(t, cluster, traffic, 3, 10*time.Second)
+}
+
+func TestIsRetryableWKCLIResult(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name   string
+		result wkcliResult
+	}{
+		{
+			name: "context deadline exceeded",
+			result: wkcliResult{
+				stderr: `call manager POST http://127.0.0.1:56353/manager/nodes/4/scale-in/remove: Post "http://127.0.0.1:56353/manager/nodes/4/scale-in/remove": context deadline exceeded`,
+				err:    errors.New("exit status 3"),
+			},
+		},
+		{
+			name: "client timeout awaiting headers",
+			result: wkcliResult{
+				stderr: `Client.Timeout exceeded while awaiting headers`,
+				err:    errors.New("exit status 3"),
+			},
+		},
+		{
+			name: "connection refused",
+			result: wkcliResult{
+				stderr: `dial tcp 127.0.0.1:56353: connect: connection refused`,
+				err:    errors.New("exit status 3"),
+			},
+		},
+		{
+			name: "io timeout",
+			result: wkcliResult{
+				stderr: `read tcp 127.0.0.1:56123->127.0.0.1:56353: i/o timeout`,
+				err:    errors.New("exit status 3"),
+			},
+		},
+		{
+			name: "controller proposal invalid state",
+			result: wkcliResult{
+				stderr: `manager API status 500: {"error":"internal_error","message":"controllerv2/raft: proposal rejected at index 188: invalid_state"}`,
+				err:    errors.New("exit status 2"),
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			require.True(t, isRetryableWKCLIResult(tc.result), "result=%#v", tc.result)
+		})
+	}
 }
 
 func readinessOverrides() map[string]string {
@@ -367,7 +424,7 @@ func runWKCLIResult(t testing.TB, contextDir string, args ...string) wkcliResult
 	return wkcliResult{stdout: stdout.String(), stderr: stderr.String(), err: err}
 }
 
-func eventuallyWKCLIContains(t testing.TB, contextDir string, timeout time.Duration, args []string, wants []string) string {
+func eventuallyWKCLIContains(t testing.TB, contextDir string, timeout time.Duration, args []string, wants []string, diagnostics ...func() string) string {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
@@ -390,18 +447,30 @@ func eventuallyWKCLIContains(t testing.TB, contextDir string, timeout time.Durat
 		} else {
 			lastResult = result
 			if !isRetryableWKCLIResult(result) {
-				t.Fatalf("wkcli %s failed without retryable evidence: %v\nstdout:\n%s\nstderr:\n%s",
-					strings.Join(args, " "), result.err, result.stdout, result.stderr)
+				t.Fatalf("wkcli %s failed without retryable evidence: %v\nstdout:\n%s\nstderr:\n%s%s",
+					strings.Join(args, " "), result.err, result.stdout, result.stderr, formatDiagnostics(diagnostics))
 			}
 		}
 
 		select {
 		case <-ctx.Done():
-			t.Fatalf("wkcli %s did not reach expected output before timeout: missing=%v err=%v\nstdout:\n%s\nstderr:\n%s",
-				strings.Join(args, " "), lastMissing, lastResult.err, lastResult.stdout, lastResult.stderr)
+			t.Fatalf("wkcli %s did not reach expected output before timeout: missing=%v err=%v\nstdout:\n%s\nstderr:\n%s%s",
+				strings.Join(args, " "), lastMissing, lastResult.err, lastResult.stdout, lastResult.stderr, formatDiagnostics(diagnostics))
 		case <-ticker.C:
 		}
 	}
+}
+
+func formatDiagnostics(diagnostics []func() string) string {
+	for _, dump := range diagnostics {
+		if dump == nil {
+			continue
+		}
+		if text := strings.TrimSpace(dump()); text != "" {
+			return "\ndiagnostics:\n" + text + "\n"
+		}
+	}
+	return ""
 }
 
 func missingSubstrings(haystack string, wants []string) []string {
@@ -416,7 +485,20 @@ func missingSubstrings(haystack string, wants []string) []string {
 
 func isRetryableWKCLIResult(result wkcliResult) bool {
 	text := strings.ToLower(result.stdout + "\n" + result.stderr + "\n" + fmt.Sprint(result.err))
-	for _, token := range []string{"409", "503", "conflict", "service_unavailable", "blocked"} {
+	for _, token := range []string{
+		"409",
+		"503",
+		"conflict",
+		"service_unavailable",
+		"blocked",
+		"context deadline exceeded",
+		"client.timeout exceeded",
+		"awaiting headers",
+		"connection refused",
+		"i/o timeout",
+		"proposal rejected",
+		"invalid_state",
+	} {
 		if strings.Contains(text, token) {
 			return true
 		}
