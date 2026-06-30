@@ -112,6 +112,13 @@ func newActivateCommand(deps command.Deps, cfg *commandConfig) *cobra.Command {
 			if err != nil {
 				return command.Exit{Code: command.ExitConfig, Message: err.Error()}
 			}
+			if cfg.JSON {
+				var out map[string]any
+				if err := client.doJSON(cmd.Context(), http.MethodPost, nodePath(nodeID, "activate"), nil, &out); err != nil {
+					return clientExit(err)
+				}
+				return writePrettyJSON(deps.Stdout, out)
+			}
 			out, err := client.ActivateNode(cmd.Context(), nodeID)
 			if err != nil {
 				return clientExit(err)
@@ -244,6 +251,13 @@ func newScaleInStartCommand(deps command.Deps, cfg *commandConfig) *cobra.Comman
 			if err != nil {
 				return command.Exit{Code: command.ExitConfig, Message: err.Error()}
 			}
+			if cfg.JSON {
+				var out map[string]any
+				if err := client.doJSON(cmd.Context(), http.MethodPost, nodePath(nodeID, "scale-in/start"), nil, &out); err != nil {
+					return clientExit(err)
+				}
+				return writePrettyJSON(deps.Stdout, out)
+			}
 			out, err := client.ScaleInStart(cmd.Context(), nodeID)
 			if err != nil {
 				return clientExit(err)
@@ -365,6 +379,13 @@ func newScaleInRemoveCommand(deps command.Deps, cfg *commandConfig) *cobra.Comma
 			client, err := clientFromConfig(deps, *cfg)
 			if err != nil {
 				return command.Exit{Code: command.ExitConfig, Message: err.Error()}
+			}
+			if cfg.JSON {
+				var out map[string]any
+				if err := client.doJSON(cmd.Context(), http.MethodPost, nodePath(nodeID, "scale-in/remove"), nil, &out); err != nil {
+					return clientExit(err)
+				}
+				return writePrettyJSON(deps.Stdout, out)
 			}
 			out, err := client.RemoveScaleInNode(cmd.Context(), nodeID)
 			if err != nil {

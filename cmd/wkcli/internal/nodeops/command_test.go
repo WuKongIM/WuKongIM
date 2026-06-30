@@ -170,6 +170,33 @@ func TestNodeActivateCommandPostsManagerRoute(t *testing.T) {
 	}
 }
 
+func TestNodeActivateCommandJSONPreservesManagerFields(t *testing.T) {
+	manager := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Fatalf("method = %s, want POST", r.Method)
+		}
+		if r.URL.Path != "/manager/nodes/4/activate" {
+			t.Fatalf("path = %s, want /manager/nodes/4/activate", r.URL.Path)
+		}
+		_, _ = w.Write([]byte(`{"node_id":4,"changed":true,"join_state":"active","revision":20,"state_revision":9007199254740993,"manager_extra":"kept"}`))
+	}))
+	defer manager.Close()
+
+	stdout, stderr, err := executeNodeCommand("activate", "4", "--server", manager.URL, "--json")
+	if err != nil {
+		t.Fatalf("node activate --json error = %v stdout %q stderr %q", err, stdout, stderr)
+	}
+	if !strings.Contains(stdout, `"manager_extra": "kept"`) {
+		t.Fatalf("node activate --json did not preserve manager_extra: %q", stdout)
+	}
+	if !strings.Contains(stdout, `"state_revision": 9007199254740993`) {
+		t.Fatalf("node activate --json did not preserve exact state_revision: %q", stdout)
+	}
+	if strings.Contains(stdout, "9007199254740992") || strings.Contains(stdout, "9.007199254740992e+15") {
+		t.Fatalf("node activate --json rounded state_revision: %q", stdout)
+	}
+}
+
 func TestNodeScaleInRemoveReturnsConflictWithBody(t *testing.T) {
 	manager := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
