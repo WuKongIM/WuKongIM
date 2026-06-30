@@ -2,7 +2,9 @@ package nodeops
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -145,6 +147,156 @@ func TestNodeScaleInStatusCommandPrintsRootCauseBlockers(t *testing.T) {
 	}
 }
 
+func TestNodeActivateCommandPostsManagerRoute(t *testing.T) {
+	manager := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Fatalf("method = %s, want POST", r.Method)
+		}
+		if r.URL.Path != "/manager/nodes/4/activate" {
+			t.Fatalf("path = %s, want /manager/nodes/4/activate", r.URL.Path)
+		}
+		_, _ = w.Write([]byte(`{"node_id":4,"changed":true,"join_state":"active","revision":20}`))
+	}))
+	defer manager.Close()
+
+	stdout, stderr, err := executeNodeCommand("activate", "4", "--server", manager.URL)
+	if err != nil {
+		t.Fatalf("node activate error = %v stdout %q stderr %q", err, stdout, stderr)
+	}
+	for _, want := range []string{"node=4", "join_state=active", "changed=true", "revision=20"} {
+		if !strings.Contains(stdout, want) {
+			t.Fatalf("node activate stdout missing %q: %q", want, stdout)
+		}
+	}
+}
+
+func TestNodeScaleInRemoveReturnsConflictWithBody(t *testing.T) {
+	manager := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Fatalf("method = %s, want POST", r.Method)
+		}
+		if r.URL.Path != "/manager/nodes/4/scale-in/remove" {
+			t.Fatalf("path = %s, want /manager/nodes/4/scale-in/remove", r.URL.Path)
+		}
+		http.Error(w, `{"error":"blocked_by_channels"}`, http.StatusConflict)
+	}))
+	defer manager.Close()
+
+	stdout, stderr, err := executeNodeCommand("scale-in", "remove", "4", "--server", manager.URL)
+	if err == nil {
+		t.Fatalf("node scale-in remove error = nil stdout %q stderr %q", stdout, stderr)
+	}
+	if !strings.Contains(err.Error(), "blocked_by_channels") {
+		t.Fatalf("node scale-in remove error missing manager body: %v", err)
+	}
+}
+
+func TestNodeOnboardingStartPostsBoundedMoveRequest(t *testing.T) {
+	manager := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Fatalf("method = %s, want POST", r.Method)
+		}
+		if r.URL.Path != "/manager/nodes/4/onboarding/start" {
+			t.Fatalf("path = %s, want /manager/nodes/4/onboarding/start", r.URL.Path)
+		}
+		assertJSONBody(t, r.Body, map[string]any{"max_slot_moves": float64(1)})
+		_, _ = w.Write([]byte(`{"node_id":4,"state_revision":9007199254740993,"operator_note":"kept"}`))
+	}))
+	defer manager.Close()
+
+	stdout, stderr, err := executeNodeCommand("onboarding", "start", "4", "--server", manager.URL, "--max-slot-moves", "1")
+	if err != nil {
+		t.Fatalf("node onboarding start error = %v stdout %q stderr %q", err, stdout, stderr)
+	}
+	if !strings.Contains(stdout, `"operator_note": "kept"`) {
+		t.Fatalf("node onboarding start stdout missing manager JSON: %q", stdout)
+	}
+	if !strings.Contains(stdout, `"state_revision": 9007199254740993`) {
+		t.Fatalf("node onboarding start stdout rounded manager number: %q", stdout)
+	}
+}
+
+func TestNodeScaleInAdvancePostsBoundedMoveRequest(t *testing.T) {
+	manager := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Fatalf("method = %s, want POST", r.Method)
+		}
+		if r.URL.Path != "/manager/nodes/4/scale-in/advance" {
+			t.Fatalf("path = %s, want /manager/nodes/4/scale-in/advance", r.URL.Path)
+		}
+		assertJSONBody(t, r.Body, map[string]any{"max_slot_moves": float64(1)})
+		_, _ = w.Write([]byte(`{"node_id":4,"advanced":true,"moves":[{"slot":1}]}`))
+	}))
+	defer manager.Close()
+
+	stdout, stderr, err := executeNodeCommand("scale-in", "advance", "4", "--server", manager.URL, "--max-slot-moves", "1")
+	if err != nil {
+		t.Fatalf("node scale-in advance error = %v stdout %q stderr %q", err, stdout, stderr)
+	}
+	if !strings.Contains(stdout, `"advanced": true`) || !strings.Contains(stdout, `"slot": 1`) {
+		t.Fatalf("node scale-in advance stdout missing manager JSON: %q", stdout)
+	}
+}
+
+func TestNodeMoveCommandRejectsMaxSlotMovesBeforeSending(t *testing.T) {
+	called := false
+	manager := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		http.Error(w, "must not be called", http.StatusInternalServerError)
+	}))
+	defer manager.Close()
+
+	stdout, stderr, err := executeNodeCommand("onboarding", "plan", "4", "--server", manager.URL, "--max-slot-moves", "6")
+	if err == nil {
+		t.Fatalf("node onboarding plan error = nil stdout %q stderr %q", stdout, stderr)
+	}
+	if called {
+		t.Fatal("manager was called; want local validation failure")
+	}
+	if !strings.Contains(err.Error(), "--max-slot-moves must be between 1 and 5") {
+		t.Fatalf("node onboarding plan error = %v, want max-slot-moves validation", err)
+	}
+}
+
+func TestNodeScaleInDrainPostsRequestAndPrintsCounters(t *testing.T) {
+	manager := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Fatalf("method = %s, want POST", r.Method)
+		}
+		if r.URL.Path != "/manager/nodes/4/scale-in/drain" {
+			t.Fatalf("path = %s, want /manager/nodes/4/scale-in/drain", r.URL.Path)
+		}
+		assertJSONBody(t, r.Body, map[string]any{"draining": true})
+		_, _ = w.Write([]byte(`{
+			"draining":true,
+			"accepting_new_sessions":false,
+			"gateway_sessions":2,
+			"active_online":3,
+			"closing_online":1,
+			"pending_activations":4,
+			"ignored_extra":"kept"
+		}`))
+	}))
+	defer manager.Close()
+
+	stdout, stderr, err := executeNodeCommand("scale-in", "drain", "4", "--server", manager.URL, "--draining=true")
+	if err != nil {
+		t.Fatalf("node scale-in drain error = %v stdout %q stderr %q", err, stdout, stderr)
+	}
+	for _, want := range []string{
+		"draining=true",
+		"accepting_new_sessions=false",
+		"gateway_sessions=2",
+		"active_online=3",
+		"closing_online=1",
+		"pending_activations=4",
+	} {
+		if !strings.Contains(stdout, want) {
+			t.Fatalf("node scale-in drain stdout missing %q: %q", want, stdout)
+		}
+	}
+}
+
 func TestNodeCommandUsesFirstContextServerAndPrintsEvidence(t *testing.T) {
 	first := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
@@ -230,4 +382,15 @@ func executeNodeCommand(args ...string) (string, string, error) {
 	cmd.SetArgs(args)
 	err := cmd.Execute()
 	return stdout.String(), stderr.String(), err
+}
+
+func assertJSONBody(t *testing.T, body io.Reader, want map[string]any) {
+	t.Helper()
+	var got map[string]any
+	if err := json.NewDecoder(body).Decode(&got); err != nil {
+		t.Fatalf("decode request body: %v", err)
+	}
+	if fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Fatalf("request body = %#v, want %#v", got, want)
+	}
 }

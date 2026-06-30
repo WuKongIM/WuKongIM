@@ -44,12 +44,12 @@ type nodeListItem struct {
 	} `json:"health"`
 }
 
-// NewCommand builds read-only manager-backed node operation commands.
+// NewCommand builds manager-backed node operation commands.
 func NewCommand(deps command.Deps) *cobra.Command {
 	cfg := commandConfig{Timeout: defaultTimeout}
 	cmd := &cobra.Command{
 		Use:          "node",
-		Short:        "Inspect WuKongIM cluster nodes",
+		Short:        "Operate WuKongIM cluster nodes",
 		Args:         cobra.NoArgs,
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -66,7 +66,7 @@ func NewCommand(deps command.Deps) *cobra.Command {
 	cmd.PersistentFlags().StringVar(&cfg.Token, "token", "", "Manager bearer token")
 	cmd.PersistentFlags().DurationVar(&cfg.Timeout, "timeout", defaultTimeout, "HTTP request timeout")
 	cmd.PersistentFlags().BoolVar(&cfg.JSON, "json", false, "Render raw JSON output")
-	cmd.AddCommand(newNodeListCommand(deps, &cfg), newScaleInCommand(deps, &cfg))
+	cmd.AddCommand(newNodeListCommand(deps, &cfg), newActivateCommand(deps, &cfg), newOnboardingCommand(deps, &cfg), newScaleInCommand(deps, &cfg))
 	return cmd
 }
 
@@ -98,10 +98,34 @@ func newNodeListCommand(deps command.Deps, cfg *commandConfig) *cobra.Command {
 	}
 }
 
-func newScaleInCommand(deps command.Deps, cfg *commandConfig) *cobra.Command {
+func newActivateCommand(deps command.Deps, cfg *commandConfig) *cobra.Command {
+	return &cobra.Command{
+		Use:   "activate NODE_ID",
+		Short: "Activate a joined node",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			nodeID, err := parseNodeID(args[0])
+			if err != nil {
+				return command.Exit{Code: command.ExitConfig, Message: err.Error()}
+			}
+			client, err := clientFromConfig(deps, *cfg)
+			if err != nil {
+				return command.Exit{Code: command.ExitConfig, Message: err.Error()}
+			}
+			out, err := client.ActivateNode(cmd.Context(), nodeID)
+			if err != nil {
+				return clientExit(err)
+			}
+			printLifecycle(deps.Stdout, out)
+			return nil
+		},
+	}
+}
+
+func newOnboardingCommand(deps command.Deps, cfg *commandConfig) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:          "scale-in",
-		Short:        "Inspect node scale-in state",
+		Use:          "onboarding",
+		Short:        "Operate node onboarding",
 		Args:         cobra.NoArgs,
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -111,7 +135,189 @@ func newScaleInCommand(deps command.Deps, cfg *commandConfig) *cobra.Command {
 			return command.Exit{Code: command.ExitConfig}
 		},
 	}
-	cmd.AddCommand(newScaleInStatusCommand(deps, cfg))
+	cmd.AddCommand(
+		newOnboardingMoveCommand(deps, cfg, "plan"),
+		newOnboardingMoveCommand(deps, cfg, "start"),
+		newOnboardingMoveCommand(deps, cfg, "advance"),
+		newOnboardingStatusCommand(deps, cfg),
+	)
+	return cmd
+}
+
+func newOnboardingMoveCommand(deps command.Deps, cfg *commandConfig, action string) *cobra.Command {
+	var maxSlotMoves uint32 = 1
+	cmd := &cobra.Command{
+		Use:   action + " NODE_ID",
+		Short: "Run onboarding " + action + " for a node",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			nodeID, err := parseNodeID(args[0])
+			if err != nil {
+				return command.Exit{Code: command.ExitConfig, Message: err.Error()}
+			}
+			if err := validateMaxSlotMoves(maxSlotMoves); err != nil {
+				return err
+			}
+			client, err := clientFromConfig(deps, *cfg)
+			if err != nil {
+				return command.Exit{Code: command.ExitConfig, Message: err.Error()}
+			}
+			out := map[string]any{}
+			switch action {
+			case "plan":
+				err = client.OnboardingPlan(cmd.Context(), nodeID, maxSlotMoves, &out)
+			case "start":
+				err = client.OnboardingStart(cmd.Context(), nodeID, maxSlotMoves, &out)
+			case "advance":
+				err = client.OnboardingAdvance(cmd.Context(), nodeID, maxSlotMoves, &out)
+			default:
+				err = fmt.Errorf("unknown onboarding action %q", action)
+			}
+			if err != nil {
+				return clientExit(err)
+			}
+			return writePrettyJSON(deps.Stdout, out)
+		},
+	}
+	cmd.Flags().Uint32Var(&maxSlotMoves, "max-slot-moves", 1, "Maximum slot moves to request")
+	return cmd
+}
+
+func newOnboardingStatusCommand(deps command.Deps, cfg *commandConfig) *cobra.Command {
+	return &cobra.Command{
+		Use:   "status NODE_ID",
+		Short: "Show onboarding status for a node",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			nodeID, err := parseNodeID(args[0])
+			if err != nil {
+				return command.Exit{Code: command.ExitConfig, Message: err.Error()}
+			}
+			client, err := clientFromConfig(deps, *cfg)
+			if err != nil {
+				return command.Exit{Code: command.ExitConfig, Message: err.Error()}
+			}
+			out := map[string]any{}
+			if err := client.OnboardingStatus(cmd.Context(), nodeID, &out); err != nil {
+				return clientExit(err)
+			}
+			return writePrettyJSON(deps.Stdout, out)
+		},
+	}
+}
+
+func newScaleInCommand(deps command.Deps, cfg *commandConfig) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:          "scale-in",
+		Short:        "Operate node scale-in lifecycle",
+		Args:         cobra.NoArgs,
+		SilenceUsage: true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := cmd.Help(); err != nil {
+				return command.Exit{Code: command.ExitInternal, Message: err.Error()}
+			}
+			return command.Exit{Code: command.ExitConfig}
+		},
+	}
+	cmd.AddCommand(
+		newScaleInStartCommand(deps, cfg),
+		newScaleInMoveCommand(deps, cfg, "plan"),
+		newScaleInMoveCommand(deps, cfg, "advance"),
+		newScaleInDrainCommand(deps, cfg),
+		newScaleInStatusCommand(deps, cfg),
+		newScaleInRemoveCommand(deps, cfg),
+	)
+	return cmd
+}
+
+func newScaleInStartCommand(deps command.Deps, cfg *commandConfig) *cobra.Command {
+	return &cobra.Command{
+		Use:   "start NODE_ID",
+		Short: "Start node scale-in",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			nodeID, err := parseNodeID(args[0])
+			if err != nil {
+				return command.Exit{Code: command.ExitConfig, Message: err.Error()}
+			}
+			client, err := clientFromConfig(deps, *cfg)
+			if err != nil {
+				return command.Exit{Code: command.ExitConfig, Message: err.Error()}
+			}
+			out, err := client.ScaleInStart(cmd.Context(), nodeID)
+			if err != nil {
+				return clientExit(err)
+			}
+			printLifecycle(deps.Stdout, out)
+			return nil
+		},
+	}
+}
+
+func newScaleInMoveCommand(deps command.Deps, cfg *commandConfig, action string) *cobra.Command {
+	var maxSlotMoves uint32 = 1
+	cmd := &cobra.Command{
+		Use:   action + " NODE_ID",
+		Short: "Run scale-in " + action + " for a node",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			nodeID, err := parseNodeID(args[0])
+			if err != nil {
+				return command.Exit{Code: command.ExitConfig, Message: err.Error()}
+			}
+			if err := validateMaxSlotMoves(maxSlotMoves); err != nil {
+				return err
+			}
+			client, err := clientFromConfig(deps, *cfg)
+			if err != nil {
+				return command.Exit{Code: command.ExitConfig, Message: err.Error()}
+			}
+			out := map[string]any{}
+			switch action {
+			case "plan":
+				err = client.ScaleInPlan(cmd.Context(), nodeID, maxSlotMoves, &out)
+			case "advance":
+				err = client.ScaleInAdvance(cmd.Context(), nodeID, maxSlotMoves, &out)
+			default:
+				err = fmt.Errorf("unknown scale-in action %q", action)
+			}
+			if err != nil {
+				return clientExit(err)
+			}
+			return writePrettyJSON(deps.Stdout, out)
+		},
+	}
+	cmd.Flags().Uint32Var(&maxSlotMoves, "max-slot-moves", 1, "Maximum slot moves to request")
+	return cmd
+}
+
+func newScaleInDrainCommand(deps command.Deps, cfg *commandConfig) *cobra.Command {
+	var draining bool = true
+	cmd := &cobra.Command{
+		Use:   "drain NODE_ID",
+		Short: "Set node scale-in gateway draining",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			nodeID, err := parseNodeID(args[0])
+			if err != nil {
+				return command.Exit{Code: command.ExitConfig, Message: err.Error()}
+			}
+			client, err := clientFromConfig(deps, *cfg)
+			if err != nil {
+				return command.Exit{Code: command.ExitConfig, Message: err.Error()}
+			}
+			out := map[string]any{}
+			if err := client.SetScaleInDrain(cmd.Context(), nodeID, draining, &out); err != nil {
+				return clientExit(err)
+			}
+			if cfg.JSON {
+				return writePrettyJSON(deps.Stdout, out)
+			}
+			printScaleInDrain(deps.Stdout, out)
+			return nil
+		},
+	}
+	cmd.Flags().BoolVar(&draining, "draining", true, "Whether the node should drain gateway sessions")
 	return cmd
 }
 
@@ -141,6 +347,30 @@ func newScaleInStatusCommand(deps command.Deps, cfg *commandConfig) *cobra.Comma
 				return clientExit(err)
 			}
 			printScaleInStatus(deps.Stdout, out)
+			return nil
+		},
+	}
+}
+
+func newScaleInRemoveCommand(deps command.Deps, cfg *commandConfig) *cobra.Command {
+	return &cobra.Command{
+		Use:   "remove NODE_ID",
+		Short: "Remove a fully drained scale-in node",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			nodeID, err := parseNodeID(args[0])
+			if err != nil {
+				return command.Exit{Code: command.ExitConfig, Message: err.Error()}
+			}
+			client, err := clientFromConfig(deps, *cfg)
+			if err != nil {
+				return command.Exit{Code: command.ExitConfig, Message: err.Error()}
+			}
+			out, err := client.RemoveScaleInNode(cmd.Context(), nodeID)
+			if err != nil {
+				return clientExit(err)
+			}
+			printLifecycle(deps.Stdout, out)
 			return nil
 		},
 	}
@@ -228,6 +458,13 @@ func parseNodeID(raw string) (uint64, error) {
 	return nodeID, nil
 }
 
+func validateMaxSlotMoves(value uint32) error {
+	if value < 1 || value > 5 {
+		return command.Exit{Code: command.ExitConfig, Message: "--max-slot-moves must be between 1 and 5"}
+	}
+	return nil
+}
+
 func clientExit(err error) error {
 	var apiErr *APIError
 	if AsAPIError(err, &apiErr) {
@@ -263,6 +500,39 @@ func printNodeList(w io.Writer, out nodeListResponse) {
 			item.Health.ObservedControlRevision,
 		)
 	}
+}
+
+func printLifecycle(w io.Writer, out LifecycleResponse) {
+	fmt.Fprintf(w, "node=%d changed=%t join_state=%s revision=%d\n",
+		out.NodeID,
+		out.Changed,
+		dash(out.JoinState),
+		out.Revision,
+	)
+}
+
+func printScaleInDrain(w io.Writer, out map[string]any) {
+	fmt.Fprintf(w, "draining=%t accepting_new_sessions=%t gateway_sessions=%s active_online=%s closing_online=%s pending_activations=%s\n",
+		mapBool(out, "draining"),
+		mapBool(out, "accepting_new_sessions"),
+		mapValue(out, "gateway_sessions"),
+		mapValue(out, "active_online"),
+		mapValue(out, "closing_online"),
+		mapValue(out, "pending_activations"),
+	)
+}
+
+func mapBool(out map[string]any, key string) bool {
+	value, _ := out[key].(bool)
+	return value
+}
+
+func mapValue(out map[string]any, key string) string {
+	value, ok := out[key]
+	if !ok || value == nil {
+		return "0"
+	}
+	return fmt.Sprint(value)
 }
 
 func printScaleInStatus(w io.Writer, status NodeScaleInStatus) {
