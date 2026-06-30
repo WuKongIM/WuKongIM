@@ -342,7 +342,7 @@ func TestManagerScaleInStatusRequiresReadPermission(t *testing.T) {
 		"health_report_ttl_ms": 0,
 		"observed_control_revision": 0,
 		"required_control_revision": 0,
-		"blocked_reasons": null,
+		"blocked_reasons": [],
 		"slot_replica_count": 1,
 		"slot_leader_count": 2,
 		"active_task_count": 3,

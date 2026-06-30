@@ -355,7 +355,7 @@ func nodeScaleInStatusResponseDTO(response managementusecase.NodeScaleInStatusRe
 		HealthReportTTLMS:        response.HealthReportTTLMS,
 		ObservedControlRevision:  response.ObservedControlRevision,
 		RequiredControlRevision:  response.RequiredControlRevision,
-		BlockedReasons:           append([]string(nil), response.BlockedReasons...),
+		BlockedReasons:           append(make([]string, 0, len(response.BlockedReasons)), response.BlockedReasons...),
 		SlotReplicaCount:         response.SlotReplicaCount,
 		SlotLeaderCount:          response.SlotLeaderCount,
 		ActiveTaskCount:          response.ActiveTaskCount,
