@@ -128,6 +128,35 @@ func TestScaleInStatusAndPlanBlockWhenEligibleNodeHealthIsNotAlive(t *testing.T)
 	}
 }
 
+func TestScaleInActiveDataNodeIDsRequireFreshHealth(t *testing.T) {
+	const revision = 17
+	missingHealth := scaleInHealthNode(5, []control.Role{control.RoleData}, control.NodeJoinStateActive, revision)
+	missingHealth.Health = control.NodeHealth{Freshness: control.NodeHealthMissing}
+	staleHealth := scaleInHealthNode(6, []control.Role{control.RoleData}, control.NodeJoinStateActive, revision)
+	staleHealth.Health.Freshness = control.NodeHealthStale
+	suspectHealth := scaleInHealthNode(7, []control.Role{control.RoleData}, control.NodeJoinStateActive, revision)
+	suspectHealth.Health.Status = control.NodeSuspect
+	downHealth := scaleInHealthNode(8, []control.Role{control.RoleData}, control.NodeJoinStateActive, revision)
+	downHealth.Health.Status = control.NodeDown
+	notReady := scaleInHealthNode(4, []control.Role{control.RoleData}, control.NodeJoinStateActive, revision)
+	notReady.Health.RuntimeReady = false
+
+	got := scaleInActiveDataNodeIDs([]control.Node{
+		scaleInHealthNode(9, []control.Role{control.RoleData}, control.NodeJoinStateActive, revision),
+		missingHealth,
+		staleHealth,
+		suspectHealth,
+		downHealth,
+		notReady,
+		scaleInHealthNode(1, []control.Role{control.RoleController}, control.NodeJoinStateActive, revision),
+		scaleInHealthNode(3, []control.Role{control.RoleData}, control.NodeJoinStateLeaving, revision),
+		scaleInHealthNode(2, []control.Role{control.RoleData}, control.NodeJoinStateActive, revision),
+	})
+	if !sameUint64Slice(got, []uint64{2, 9}) {
+		t.Fatalf("scaleInActiveDataNodeIDs() = %v, want fresh alive runtime-ready active data nodes [2 9]", got)
+	}
+}
+
 func TestScaleInStatusTargetMissingHealthDoesNotEmitDerivedZeroValueReasons(t *testing.T) {
 	snap := scaleInReadyNoSlotReplicaSnapshot()
 	snap.Nodes[3].Health = control.NodeHealth{Freshness: control.NodeHealthMissing}

@@ -714,7 +714,7 @@ func scaleInStatusBlocksPlan(status NodeScaleInStatusResponse) bool {
 func scaleInActiveDataNodeIDs(nodes []control.Node) []uint64 {
 	out := make([]uint64, 0, len(nodes))
 	for _, node := range nodes {
-		if isActiveDataNode(node) {
+		if control.NodeSchedulableForPlacement(node) {
 			out = append(out, node.NodeID)
 		}
 	}
