@@ -248,6 +248,7 @@ func TestActiveDataNodeIDsRequireFreshAliveHealth(t *testing.T) {
 		healthNode(7, control.NodeJoinStateActive, control.NodeAlive, control.NodeHealthMissing, true),
 		healthNode(4, control.NodeJoinStateJoining, control.NodeAlive, control.NodeHealthFresh, true),
 		healthNode(2, control.NodeJoinStateRemoved, control.NodeAlive, control.NodeHealthFresh, true),
+		healthNode(9, control.NodeJoinStateActive, control.NodeDown, control.NodeHealthFresh, true),
 	})
 	want := []uint64{1}
 	if !equalUint64s(got, want) {

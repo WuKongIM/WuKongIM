@@ -70,6 +70,7 @@ func TestNodeReadChannelCommittedHonorsRetentionThroughSeq(t *testing.T) {
 	node := newDefaultSingleNode(t)
 	startNode(t, node)
 	t.Cleanup(func() { stopNodes(t, node) })
+	waitChannelDataNode(t, node, 1)
 
 	id := channelv2.ChannelID{ID: "retained-read", Type: 1}
 	route := waitRouteKeyLeaderReady(t, node, id.ID)
