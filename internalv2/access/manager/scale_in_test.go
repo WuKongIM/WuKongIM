@@ -1,6 +1,7 @@
 package manager
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -320,6 +321,8 @@ func TestManagerScaleInStatusRequiresReadPermission(t *testing.T) {
 		"blocked_by_missing_node": false,
 		"blocked_by_join_state": false,
 		"blocked_by_control_revision": false,
+		"blocked_by_health": false,
+		"blocked_by_stale_revision": false,
 		"blocked_by_controller_role": false,
 		"blocked_by_data_role": false,
 		"blocked_by_slots": true,
@@ -332,6 +335,14 @@ func TestManagerScaleInStatusRequiresReadPermission(t *testing.T) {
 		"runtime_unknown": true,
 		"unknown_control_revision": true,
 		"unknown_channel_inventory": true,
+		"health_fresh": false,
+		"health_status": "",
+		"health_freshness": "",
+		"health_report_age_ms": 0,
+		"health_report_ttl_ms": 0,
+		"observed_control_revision": 0,
+		"required_control_revision": 0,
+		"blocked_reasons": null,
 		"slot_replica_count": 1,
 		"slot_leader_count": 2,
 		"active_task_count": 3,
@@ -348,6 +359,77 @@ func TestManagerScaleInStatusRequiresReadPermission(t *testing.T) {
 		"pending_activations": 12
 	}`) {
 		t.Fatalf("body = %s", rec.Body.String())
+	}
+}
+
+func TestManagerScaleInStatusMapsHealthBlockers(t *testing.T) {
+	body, err := json.Marshal(nodeScaleInStatusResponseDTO(managementusecase.NodeScaleInStatusResponse{
+		NodeID:                  4,
+		JoinState:               "leaving",
+		StateRevision:           22,
+		BlockedByHealth:         true,
+		BlockedByStaleRevision:  true,
+		HealthFresh:             false,
+		HealthStatus:            "alive",
+		HealthFreshness:         "stale",
+		HealthReportAgeMS:       31000,
+		HealthReportTTLMS:       30000,
+		ObservedControlRevision: 21,
+		RequiredControlRevision: 22,
+		BlockedReasons:          []string{"target_health_stale", "eligible_node_health_revision_stale"},
+	}))
+	if err != nil {
+		t.Fatalf("marshal DTO: %v", err)
+	}
+
+	if !jsonEqual(string(body), `{
+		"node_id": 4,
+		"join_state": "leaving",
+		"generated_at": "",
+		"state_revision": 22,
+		"safe_to_proceed": false,
+		"safe_to_remove": false,
+		"blocked_by_missing_node": false,
+		"blocked_by_join_state": false,
+		"blocked_by_control_revision": false,
+		"blocked_by_health": true,
+		"blocked_by_stale_revision": true,
+		"blocked_by_controller_role": false,
+		"blocked_by_data_role": false,
+		"blocked_by_slots": false,
+		"blocked_by_slot_leadership": false,
+		"blocked_by_slot_runtime": false,
+		"blocked_by_tasks": false,
+		"blocked_by_channels": false,
+		"blocked_by_runtime_drain": false,
+		"unknown_runtime": false,
+		"runtime_unknown": false,
+		"unknown_control_revision": false,
+		"unknown_channel_inventory": false,
+		"health_fresh": false,
+		"health_status": "alive",
+		"health_freshness": "stale",
+		"health_report_age_ms": 31000,
+		"health_report_ttl_ms": 30000,
+		"observed_control_revision": 21,
+		"required_control_revision": 22,
+		"blocked_reasons": ["target_health_stale", "eligible_node_health_revision_stale"],
+		"slot_replica_count": 0,
+		"slot_leader_count": 0,
+		"active_task_count": 0,
+		"failed_task_count": 0,
+		"channel_leader_count": 0,
+		"channel_replica_count": 0,
+		"channel_isr_count": 0,
+		"gateway_draining": false,
+		"accepting_new_sessions": false,
+		"gateway_sessions": 0,
+		"active_online": 0,
+		"closing_online": 0,
+		"total_online": 0,
+		"pending_activations": 0
+	}`) {
+		t.Fatalf("body = %s", string(body))
 	}
 }
 

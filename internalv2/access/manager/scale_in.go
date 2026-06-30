@@ -124,6 +124,10 @@ type ManagerNodeScaleInStatusResponse struct {
 	BlockedByJoinState bool `json:"blocked_by_join_state"`
 	// BlockedByControlRevision reports stale control revision observations.
 	BlockedByControlRevision bool `json:"blocked_by_control_revision"`
+	// BlockedByHealth reports missing, stale, or unhealthy durable node health.
+	BlockedByHealth bool `json:"blocked_by_health"`
+	// BlockedByStaleRevision reports health that has not observed the required control revision.
+	BlockedByStaleRevision bool `json:"blocked_by_stale_revision"`
 	// BlockedByControllerRole reports that the target node still has the Controller role.
 	BlockedByControllerRole bool `json:"blocked_by_controller_role"`
 	// BlockedByDataRole reports that the target node does not have the Data role.
@@ -148,6 +152,22 @@ type ManagerNodeScaleInStatusResponse struct {
 	UnknownControlRevision bool `json:"unknown_control_revision"`
 	// UnknownChannelInventory reports that Channel inventory could not be proven.
 	UnknownChannelInventory bool `json:"unknown_channel_inventory"`
+	// HealthFresh reports whether the target durable health report is fresh.
+	HealthFresh bool `json:"health_fresh"`
+	// HealthStatus is the target durable health status.
+	HealthStatus string `json:"health_status"`
+	// HealthFreshness is the target health freshness classification.
+	HealthFreshness string `json:"health_freshness"`
+	// HealthReportAgeMS is the target health report age in milliseconds.
+	HealthReportAgeMS int64 `json:"health_report_age_ms"`
+	// HealthReportTTLMS is the target health freshness TTL in milliseconds.
+	HealthReportTTLMS int64 `json:"health_report_ttl_ms"`
+	// ObservedControlRevision is the latest control revision observed by target health.
+	ObservedControlRevision uint64 `json:"observed_control_revision"`
+	// RequiredControlRevision is the revision required for scale-in safety.
+	RequiredControlRevision uint64 `json:"required_control_revision"`
+	// BlockedReasons contains bounded machine-readable health blocker reasons.
+	BlockedReasons []string `json:"blocked_reasons"`
 	// SlotReplicaCount counts Slot replicas that still block removing the target node.
 	SlotReplicaCount int `json:"slot_replica_count"`
 	// SlotLeaderCount counts live Slot leaders still observed on the target node.
@@ -314,6 +334,8 @@ func nodeScaleInStatusResponseDTO(response managementusecase.NodeScaleInStatusRe
 		BlockedByMissingNode:     response.BlockedByMissingNode,
 		BlockedByJoinState:       response.BlockedByJoinState,
 		BlockedByControlRevision: response.BlockedByControlRevision,
+		BlockedByHealth:          response.BlockedByHealth,
+		BlockedByStaleRevision:   response.BlockedByStaleRevision,
 		BlockedByControllerRole:  response.BlockedByControllerRole,
 		BlockedByDataRole:        response.BlockedByDataRole,
 		BlockedBySlots:           response.BlockedBySlots,
@@ -326,6 +348,14 @@ func nodeScaleInStatusResponseDTO(response managementusecase.NodeScaleInStatusRe
 		RuntimeUnknown:           response.RuntimeUnknown,
 		UnknownControlRevision:   response.UnknownControlRevision,
 		UnknownChannelInventory:  response.UnknownChannelInventory,
+		HealthFresh:              response.HealthFresh,
+		HealthStatus:             response.HealthStatus,
+		HealthFreshness:          response.HealthFreshness,
+		HealthReportAgeMS:        response.HealthReportAgeMS,
+		HealthReportTTLMS:        response.HealthReportTTLMS,
+		ObservedControlRevision:  response.ObservedControlRevision,
+		RequiredControlRevision:  response.RequiredControlRevision,
+		BlockedReasons:           append([]string(nil), response.BlockedReasons...),
 		SlotReplicaCount:         response.SlotReplicaCount,
 		SlotLeaderCount:          response.SlotLeaderCount,
 		ActiveTaskCount:          response.ActiveTaskCount,
