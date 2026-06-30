@@ -101,6 +101,32 @@ func TestDynamicNodeReadinessGateDryRunNormalizesRelativeOutDirFromAbsoluteScrip
 	}
 }
 
+func TestDynamicNodeReadinessGateDryRunNormalizesRelativeBinaryPath(t *testing.T) {
+	root := repoRoot(t)
+	relativeBinary := filepath.Join("data", "manual", "wukongimv2-gofail")
+	normalizedBinary := filepath.Join(root, relativeBinary)
+
+	cmd := exec.Command("bash", "scripts/e2ev2/dynamic-node-readiness-gate.sh",
+		"--dry-run",
+		"--profile", "quick",
+		"--binary", relativeBinary,
+	)
+	cmd.Dir = root
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("dry-run failed: %v\n%s", err, output)
+	}
+	text := string(output)
+	for _, want := range []string{
+		"gofail_binary=" + normalizedBinary,
+		"stage10a_cmd=WK_E2EV2_BINARY=" + normalizedBinary,
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("dry-run output missing %q:\n%s", want, text)
+		}
+	}
+}
+
 func TestDynamicNodeReadinessGateWritesEvidenceWhenStepFails(t *testing.T) {
 	root := repoRoot(t)
 	outDir := t.TempDir()

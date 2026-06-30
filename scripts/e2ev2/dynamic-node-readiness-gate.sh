@@ -92,6 +92,8 @@ fi
 
 if [[ -z "$BINARY" ]]; then
   BINARY="$OUT_DIR/wukongimv2-gofail"
+elif [[ "$BINARY" != /* ]]; then
+  BINARY="$ROOT_DIR/$BINARY"
 fi
 
 SUMMARY_FILE="$OUT_DIR/summary.md"
