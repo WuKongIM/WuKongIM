@@ -182,7 +182,9 @@ func (c *Client) doJSON(ctx context.Context, method, path string, in any, out an
 	if out == nil {
 		return nil
 	}
-	if err := json.NewDecoder(bytes.NewReader(respBody)).Decode(out); err != nil {
+	decoder := json.NewDecoder(bytes.NewReader(respBody))
+	decoder.UseNumber()
+	if err := decoder.Decode(out); err != nil {
 		return fmt.Errorf("decode manager response: %w", err)
 	}
 	return nil

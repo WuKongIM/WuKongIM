@@ -64,7 +64,12 @@ func TestNodeScaleInStatusCommandPrintsRootCauseBlockers(t *testing.T) {
 			"blocked_by_data_role":true,
 			"blocked_by_health":true,
 			"blocked_by_runtime_drain":true,
+			"blocked_by_stale_revision":true,
 			"blocked_by_control_revision":true,
+			"blocked_by_slots":true,
+			"blocked_by_slot_leadership":true,
+			"blocked_by_slot_runtime":true,
+			"blocked_by_tasks":true,
 			"blocked_by_channels":true,
 			"unknown_runtime":true,
 			"unknown_control_revision":true,
@@ -89,6 +94,7 @@ func TestNodeScaleInStatusCommandPrintsRootCauseBlockers(t *testing.T) {
 			"gateway_sessions":2,
 			"active_online":2,
 			"closing_online":1,
+			"total_online":3,
 			"pending_activations":4
 		}`))
 	}))
@@ -112,20 +118,26 @@ func TestNodeScaleInStatusCommandPrintsRootCauseBlockers(t *testing.T) {
 		"slots replicas=12 leaders=1",
 		"tasks active=3 failed=1",
 		"channels leader=5 replica=9 isr=8",
-		"gateway draining=true accepting_new_sessions=false gateway_sessions=2 active_online=2 closing_online=1 pending_activations=4",
+		"gateway draining=true accepting_new_sessions=false gateway_sessions=2 active_online=2 closing_online=1 total_online=3 pending_activations=4",
 		"missing_node=true",
 		"join_state_blocked=true",
 		"controller_role=true",
 		"data_role=true",
 		"blocked_by_health=true",
 		"blocked_by_runtime_drain=true",
+		"blocked_by_stale_revision=true",
 		"blocked_by_control_revision=true",
+		"blocked_by_slots=true",
+		"blocked_by_slot_leadership=true",
+		"blocked_by_slot_runtime=true",
+		"blocked_by_tasks=true",
 		"blocked_by_channels=true",
 		"unknown_runtime=true",
 		"unknown_control_revision=true",
 		"unknown_channel_inventory=true",
 		"health_report_age_ms=1234",
 		"health_report_ttl_ms=5000",
+		"total_online=3",
 	} {
 		if !strings.Contains(stdout, want) {
 			t.Fatalf("scale-in status stdout missing %q: %q", want, stdout)
@@ -182,7 +194,7 @@ func TestNodeCommandJSONPreservesDecodedManagerFields(t *testing.T) {
 		case "/manager/nodes":
 			_, _ = w.Write([]byte(`{"items":[],"total":0,"manager_extra":"kept"}`))
 		case "/manager/nodes/4/scale-in/status":
-			_, _ = w.Write([]byte(`{"node_id":4,"safe_to_remove":false,"operator_note":"kept"}`))
+			_, _ = w.Write([]byte(`{"node_id":4,"state_revision":9007199254740993,"safe_to_remove":false,"operator_note":"kept"}`))
 		default:
 			t.Fatalf("path = %s, want node read endpoint", r.URL.Path)
 		}
@@ -203,6 +215,12 @@ func TestNodeCommandJSONPreservesDecodedManagerFields(t *testing.T) {
 	}
 	if !strings.Contains(stdout, `"operator_note": "kept"`) {
 		t.Fatalf("node scale-in status --json did not preserve operator_note: %q", stdout)
+	}
+	if !strings.Contains(stdout, `"state_revision": 9007199254740993`) {
+		t.Fatalf("node scale-in status --json did not preserve exact state_revision: %q", stdout)
+	}
+	if strings.Contains(stdout, "9007199254740992") || strings.Contains(stdout, "9.007199254740992e+15") {
+		t.Fatalf("node scale-in status --json rounded state_revision: %q", stdout)
 	}
 }
 
