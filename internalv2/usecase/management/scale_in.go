@@ -718,7 +718,7 @@ func scaleInActiveDataNodeIDs(nodes []control.Node) []uint64 {
 			out = append(out, node.NodeID)
 		}
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
+	sort.SliceStable(out, func(i, j int) bool { return out[i] < out[j] })
 	return out
 }
 
