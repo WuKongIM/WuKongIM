@@ -54,7 +54,7 @@ Expected: health report commands persist report data and advance applied index, 
 
 Evidence (2026-06-30): PASS with `GOWORK=off go test ./pkg/controllerv2/state ./pkg/controllerv2/fsm ./pkg/controllerv2 ./pkg/clusterv2/control ./pkg/clusterv2/observe ./pkg/clusterv2 -run 'Health|ReportNode|ControlWrite|Config' -count=1`, `GOWORK=off go test ./cmd/wukongimv2 -run 'Config|HealthReport' -count=1`, and `git diff --check`.
 
-- [ ] **Gate 9B: placement and removal fail closed on stale or missing health**
+- [x] **Gate 9B: placement and removal fail closed on stale or missing health**
 
 Run:
 
@@ -64,6 +64,8 @@ git diff --check
 ```
 
 Expected: active data nodes without fresh `alive` health are excluded from new placement, and manager scale-in status exposes health blockers.
+
+Evidence (2026-06-30): PASS with `GOWORK=off go test ./pkg/clusterv2 ./internalv2/usecase/management ./internalv2/access/manager -run 'Health|Placement|ScaleIn|Remove|NodeList' -count=1` and `git diff --check`.
 
 - [ ] **Gate 9C: operator evidence is visible and low-cardinality**
 

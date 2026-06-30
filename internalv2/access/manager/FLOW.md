@@ -131,11 +131,15 @@ data nodes. `start` marks the target node `leaving` through
 work to it. `drain` toggles the target node gateway's new-session admission
 through `management.App.SetNodeDrainMode` and returns the target runtime
 counters after the change; it is rejected unless the target is already a
-durable Data-role, non-Controller `leaving` node, and it does not close existing sessions. `status`
-delegates to `management.App.NodeScaleInStatus` and returns every fail-closed
-safety bit from the control snapshot, per-node runtime summaries, target
-gateway drain counters, Slot runtime summaries, active Controller tasks, and
-bounded Channel runtime metadata inventory. Channel inventory is bounded by a
+durable Data-role, non-Controller `leaving` node, and it does not close existing
+sessions. `status` delegates to `management.App.NodeScaleInStatus` and returns
+every fail-closed safety bit from the control snapshot, target and eligible-node
+health freshness, per-node runtime summaries, target gateway drain counters,
+Slot runtime summaries, active Controller tasks, and bounded Channel runtime
+metadata inventory. It includes bounded health blocker fields such as
+`blocked_by_health`, `blocked_by_stale_revision`, `health_fresh`,
+`health_freshness`, `observed_control_revision`, `required_control_revision`,
+and `blocked_reasons` for operator diagnosis. Channel inventory is bounded by a
 per-page limit plus a total page budget and fails closed when the budget is
 exceeded. `plan` and `advance` accept
 `max_slot_moves` and delegate to
@@ -161,16 +165,18 @@ manager scale-in route
 This scale-in surface cannot close existing gateway sessions, migrate Channel
 replicas, clear Channel metadata, or cancel drain tasks. It can mark a node
 removed only through the final `remove` route after `safe_to_remove=true`.
-Unknown runtime or control-revision data keeps status unsafe and keeps
-planning/advancement at no candidates rather than guessing. Unknown Channel
-inventory keeps status unsafe, but HTTP still allows Slot drain `plan`/`advance`
-while desired Slot peers contain the target so operators can continue the first
-drain phase. Final `safe_to_remove` remains false until the target gateway is in
-drain mode, no longer accepts new sessions, and reports zero gateway, online,
-closing, and pending-activation counters; the remove route is the only manager
-entrypoint that can submit the removed tombstone. A repeated remove on an
-already-removed tombstone returns the writer's idempotent `changed=false`
-result even when the original safe-remove fence is stale.
+Unknown runtime, target/eligible-node health, or control-revision data keeps
+status unsafe and keeps planning/advancement at no candidates rather than
+guessing. Unknown Channel inventory keeps status unsafe, but HTTP still allows
+Slot drain `plan`/`advance` while desired Slot peers contain the target so
+operators can continue the first drain phase. Final `safe_to_remove` remains
+false until target health is fresh, `alive`, and runtime-ready; eligible active
+data replacement health has observed the required control revision; the target
+gateway is in drain mode, no longer accepts new sessions, and reports zero
+gateway, online, closing, and pending-activation counters; the remove route is
+the only manager entrypoint that can submit the removed tombstone. A repeated
+remove on an already-removed tombstone returns the writer's idempotent
+`changed=false` result even when the original safe-remove fence is stale.
 
 `/manager/realtime-monitor` backs the unified web realtime monitor under
 cluster operations. It parses chart `window`, optional `step`, optional

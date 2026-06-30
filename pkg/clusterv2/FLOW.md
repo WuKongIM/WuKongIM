@@ -373,10 +373,12 @@ fan-out is owned by `internalv2/usecase/management`, not clusterv2.
 Initial ChannelV2 placement is data-plane placement, not Slot metadata
 placement. Slot routing identifies the authoritative metadata Slot and its
 leader/peers; the default ChannelV2 placement resolver chooses replicas from
-effective-active data-role nodes using deterministic rendezvous ranking and
+health-schedulable data-role nodes using deterministic rendezvous ranking and
 uses the route preferred leader only when that node is selected as a ChannelV2
-replica. Placement intentionally ignores `NodeStatus` until health reports have
-freshness; joining, leaving, and removed data nodes remain visible but are not
+replica. New Slot and Channel placement uses
+`control.NodeSchedulableForPlacement`: a node must be data-role, effectively
+`active`, fresh `alive`, and runtime-ready. Joining, leaving, removed, suspect,
+down, stale-health, missing-health, and runtime-not-ready nodes fail closed for
 new placement candidates. Existing `ChannelRuntimeMeta` rows remain
 authoritative for established channels.
 
