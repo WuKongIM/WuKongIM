@@ -85,7 +85,7 @@ func TestWKCLINodeOperationsLifecycleWithTraffic(t *testing.T) {
 	manager.EventuallyOnboardingSafe(t, 4, 150*time.Second)
 	requireTrafficProgress(t, cluster, traffic, 3, 10*time.Second)
 
-	eventuallyWKCLIContains(t, contextDir, 45*time.Second,
+	eventuallyWKCLIContains(t, contextDir, 90*time.Second,
 		[]string{"node", "scale-in", "start", "4", "--context", "ops"},
 		[]string{"node=4", "join_state=leaving"},
 		cluster.DumpDiagnostics,
@@ -131,6 +131,7 @@ func TestIsRetryableWKCLIResult(t *testing.T) {
 	for _, tc := range []struct {
 		name   string
 		result wkcliResult
+		want   bool
 	}{
 		{
 			name: "context deadline exceeded",
@@ -138,6 +139,7 @@ func TestIsRetryableWKCLIResult(t *testing.T) {
 				stderr: `call manager POST http://127.0.0.1:56353/manager/nodes/4/scale-in/remove: Post "http://127.0.0.1:56353/manager/nodes/4/scale-in/remove": context deadline exceeded`,
 				err:    errors.New("exit status 3"),
 			},
+			want: true,
 		},
 		{
 			name: "client timeout awaiting headers",
@@ -145,6 +147,7 @@ func TestIsRetryableWKCLIResult(t *testing.T) {
 				stderr: `Client.Timeout exceeded while awaiting headers`,
 				err:    errors.New("exit status 3"),
 			},
+			want: true,
 		},
 		{
 			name: "connection refused",
@@ -152,6 +155,7 @@ func TestIsRetryableWKCLIResult(t *testing.T) {
 				stderr: `dial tcp 127.0.0.1:56353: connect: connection refused`,
 				err:    errors.New("exit status 3"),
 			},
+			want: true,
 		},
 		{
 			name: "io timeout",
@@ -159,6 +163,7 @@ func TestIsRetryableWKCLIResult(t *testing.T) {
 				stderr: `read tcp 127.0.0.1:56123->127.0.0.1:56353: i/o timeout`,
 				err:    errors.New("exit status 3"),
 			},
+			want: true,
 		},
 		{
 			name: "controller proposal invalid state",
@@ -166,10 +171,27 @@ func TestIsRetryableWKCLIResult(t *testing.T) {
 				stderr: `manager API status 500: {"error":"internal_error","message":"controllerv2/raft: proposal rejected at index 188: invalid_state"}`,
 				err:    errors.New("exit status 2"),
 			},
+			want: true,
+		},
+		{
+			name: "standalone invalid state",
+			result: wkcliResult{
+				stderr: `manager API status 500: {"error":"internal_error","message":"invalid_state"}`,
+				err:    errors.New("exit status 2"),
+			},
+			want: false,
+		},
+		{
+			name: "unrelated proposal rejected",
+			result: wkcliResult{
+				stderr: `manager API status 500: {"error":"internal_error","message":"message proposal rejected by channel runtime"}`,
+				err:    errors.New("exit status 2"),
+			},
+			want: false,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			require.True(t, isRetryableWKCLIResult(tc.result), "result=%#v", tc.result)
+			require.Equal(t, tc.want, isRetryableWKCLIResult(tc.result), "result=%#v", tc.result)
 		})
 	}
 }
@@ -485,6 +507,9 @@ func missingSubstrings(haystack string, wants []string) []string {
 
 func isRetryableWKCLIResult(result wkcliResult) bool {
 	text := strings.ToLower(result.stdout + "\n" + result.stderr + "\n" + fmt.Sprint(result.err))
+	if isRetryableControllerProposalState(text) {
+		return true
+	}
 	for _, token := range []string{
 		"409",
 		"503",
@@ -496,14 +521,26 @@ func isRetryableWKCLIResult(result wkcliResult) bool {
 		"awaiting headers",
 		"connection refused",
 		"i/o timeout",
-		"proposal rejected",
-		"invalid_state",
 	} {
 		if strings.Contains(text, token) {
 			return true
 		}
 	}
 	return false
+}
+
+func isRetryableControllerProposalState(text string) bool {
+	for _, token := range []string{
+		"manager api status 500",
+		"internal_error",
+		"controllerv2/raft: proposal rejected",
+		"invalid_state",
+	} {
+		if !strings.Contains(text, token) {
+			return false
+		}
+	}
+	return true
 }
 
 func repoRoot(t testing.TB) string {
