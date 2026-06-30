@@ -184,6 +184,7 @@ type Node struct {
 }
 
 // NodeSchedulableForPlacement reports whether a node can receive new data placement.
+// A schedulable node must be data-role, effectively active, fresh alive, and runtime-ready.
 func NodeSchedulableForPlacement(node Node) bool {
 	if !hasRole(node.Roles, RoleData) {
 		return false

@@ -61,6 +61,7 @@ func TestNodeSchedulableForPlacementRequiresFreshAliveHealth(t *testing.T) {
 		want bool
 	}{
 		{name: "fresh alive active data", node: base, want: true},
+		{name: "zero join state is active compatible", node: withJoinState(base, ""), want: true},
 		{name: "missing health", node: withHealth(base, NodeHealth{}), want: false},
 		{name: "stale health", node: withHealth(base, NodeHealth{Freshness: NodeHealthStale, Status: NodeAlive, RuntimeReady: true}), want: false},
 		{name: "suspect health", node: withHealth(base, NodeHealth{Freshness: NodeHealthFresh, Status: NodeSuspect, RuntimeReady: true}), want: false},
