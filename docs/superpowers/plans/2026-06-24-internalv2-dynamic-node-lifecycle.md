@@ -32,6 +32,8 @@
   - Stage 9B plan: `docs/superpowers/plans/2026-06-29-internalv2-dynamic-node-stage9b-health-gated-placement-remove.md`
   - Stage 9C plan: `docs/superpowers/plans/2026-06-29-internalv2-dynamic-node-stage9c-observability-manager-evidence.md`
   - Stage 9D plan: `docs/superpowers/plans/2026-06-29-internalv2-dynamic-node-stage9d-real-traffic-smoke.md`
+- Stage 10A plan: `docs/superpowers/plans/2026-06-30-internalv2-dynamic-node-stage10a-gofail-readiness-recovery.md`
+- Stage 10B plan: `docs/superpowers/plans/2026-06-30-internalv2-dynamic-node-stage10b-readiness-gate.md`
 
 ## Execution Order
 
@@ -46,6 +48,8 @@
 | 7 | Gofail Join And Onboarding Faults | `2026-06-26-internalv2-dynamic-node-stage7-gofail-fault-injection.md` | Opt-in gofail coverage for join, onboarding control writes, Slot movement, and restart recovery |
 | 8 | Scale-In Fault Injection | `2026-06-29-internalv2-dynamic-node-stage8-scale-in-fault-injection.md` | Scale-in/remove fail-closed and post-commit retry proofs |
 | 9 | Production Readiness | `2026-06-29-internalv2-dynamic-node-stage9-production-readiness.md` plus Stage 9A-9D subplans | Durable health freshness, health-gated placement/remove, operator evidence, and real-traffic readiness smoke |
+| 10A | Gofail Readiness Recovery | `2026-06-30-internalv2-dynamic-node-stage10a-gofail-readiness-recovery.md` | Reproducible recovery proofs for stale health, controller watch drops, and bounded scale-in retry |
+| 10B | Readiness Gate Automation | `2026-06-30-internalv2-dynamic-node-stage10b-readiness-gate.md` | One local command for Stage10A gofail recovery plus Stage9D release-gate verification |
 
 ## Cross-Stage Invariants
 
@@ -186,6 +190,45 @@ Expected: health reports are durable without logical revision churn, placement
 and remove gates fail closed on stale health, manager/metrics expose bounded
 evidence, and real traffic continues through join, onboarding, scale-in, and
 remove.
+
+## Stage 10A Completion
+
+- [x] **Stage 10A gofail readiness recovery merged locally**
+
+Run on merged local `main`:
+
+```bash
+GOWORK=off go test ./pkg/controllerv2 -count=1
+GOWORK=off go test -tags=e2e ./test/e2ev2/cluster/dynamic_node_faults -count=1 -timeout 2m -p=1
+scripts/build-gofail-binary.sh --cmd ./cmd/wukongimv2 --package internalv2/usecase/management --package pkg/controllerv2 --package pkg/clusterv2/tasks --package pkg/clusterv2/net --out /tmp/wukongimv2-gofail
+WK_E2EV2_BINARY=/tmp/wukongimv2-gofail WK_E2EV2_GOFAIL_DYNAMIC_NODE=1 GOWORK=off go test -tags=e2e ./test/e2ev2/cluster/dynamic_node_faults -run 'TestStage10A|TestGofailDynamicNodeBinaryExposesFailpoints' -count=1 -timeout 15m -p=1
+GOWORK=off go test -tags=e2e ./test/e2ev2/cluster/dynamic_node_readiness -run TestDynamicNodeLifecycleWithContinuousTraffic -count=1 -timeout 12m -p=1
+git diff --check
+```
+
+Expected: ControllerV2 health/watch failpoints are preserved, opt-out e2ev2
+still compiles and skips quickly, opt-in gofail proves Stage10A recovery, Stage9D
+traffic still passes, and whitespace checks pass.
+
+Evidence: Stage 10A was fast-forward merged into local `main` at `7766c647` on
+2026-06-30, then the commands above passed on merged `main`.
+
+## Stage 10B Completion
+
+- [ ] **Stage 10B readiness gate script merged locally**
+
+Run on merged local `main`:
+
+```bash
+GOWORK=off go test ./scripts -run DynamicNodeReadinessGate -count=1
+scripts/e2ev2/dynamic-node-readiness-gate.sh --profile quick
+scripts/e2ev2/dynamic-node-readiness-gate.sh --profile full
+git diff --check
+```
+
+Expected: the script tests pass, quick profile proves Stage10A gofail recovery,
+full profile additionally proves Stage9D continuous-traffic lifecycle, and the
+worktree remains clean.
 
 ## Stage 5 Sub-Stage Chain
 
