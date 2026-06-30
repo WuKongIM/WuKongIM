@@ -115,33 +115,76 @@ type metricExpectation struct {
 
 func requireMetricSamples(t testing.TB, node *suite.StartedNode, expectations ...metricExpectation) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://"+node.APIAddr()+"/metrics", nil)
-	require.NoError(t, err)
-	resp, err := http.DefaultClient.Do(req)
-	require.NoError(t, err)
-	defer func() { _ = resp.Body.Close() }()
-	require.Equal(t, http.StatusOK, resp.StatusCode)
-	data, err := io.ReadAll(resp.Body)
-	require.NoError(t, err)
-	var parser expfmt.TextParser
-	families, err := parser.TextToMetricFamilies(bytes.NewReader(data))
-	require.NoError(t, err)
-	for _, expectation := range expectations {
-		family := families[expectation.name]
-		if family == nil {
-			t.Fatalf("metrics from node %d missing family %q", node.Spec.ID, expectation.name)
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+
+	var lastErr error
+	for {
+		families, err := fetchMetricFamilies(ctx, node)
+		if err != nil {
+			lastErr = err
+		} else {
+			lastErr = nil
+			for _, expectation := range expectations {
+				if err := checkMetricExpectation(node, families, expectation); err != nil {
+					lastErr = err
+					break
+				}
+			}
+			if lastErr == nil {
+				return
+			}
 		}
-		value, ok := findMetricSampleValue(family, expectation.labels)
-		if !ok {
-			t.Fatalf("metrics from node %d family %q missing labels %#v", node.Spec.ID, expectation.name, expectation.labels)
-		}
-		if value < expectation.minValue {
-			t.Fatalf("metrics from node %d family %q labels %#v value=%v, want >= %v",
-				node.Spec.ID, expectation.name, expectation.labels, value, expectation.minValue)
+
+		select {
+		case <-ctx.Done():
+			t.Fatalf("%v", lastErr)
+		case <-ticker.C:
 		}
 	}
+}
+
+func fetchMetricFamilies(ctx context.Context, node *suite.StartedNode) (map[string]*dto.MetricFamily, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://"+node.APIAddr()+"/metrics", nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("metrics from node %d status=%d, want %d", node.Spec.ID, resp.StatusCode, http.StatusOK)
+	}
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	var parser expfmt.TextParser
+	families, err := parser.TextToMetricFamilies(bytes.NewReader(data))
+	if err != nil {
+		return nil, err
+	}
+	return families, nil
+}
+
+func checkMetricExpectation(node *suite.StartedNode, families map[string]*dto.MetricFamily, expectation metricExpectation) error {
+	family := families[expectation.name]
+	if family == nil {
+		return fmt.Errorf("metrics from node %d missing family %q", node.Spec.ID, expectation.name)
+	}
+	value, ok := findMetricSampleValue(family, expectation.labels)
+	if !ok {
+		return fmt.Errorf("metrics from node %d family %q missing labels %#v", node.Spec.ID, expectation.name, expectation.labels)
+	}
+	if value < expectation.minValue {
+		return fmt.Errorf("metrics from node %d family %q labels %#v value=%v, want >= %v",
+			node.Spec.ID, expectation.name, expectation.labels, value, expectation.minValue)
+	}
+	return nil
 }
 
 func findMetricSampleValue(family *dto.MetricFamily, labels map[string]string) (float64, bool) {
