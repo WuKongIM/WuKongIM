@@ -1071,10 +1071,10 @@ func TestManagerServerStartsNodeOnboardingFromClusterControl(t *testing.T) {
 		snapshot: control.Snapshot{
 			Revision: 12,
 			Nodes: []control.Node{
-				{NodeID: 1, Roles: []control.Role{control.RoleController, control.RoleData}, Status: control.NodeAlive, JoinState: control.NodeJoinStateActive},
-				{NodeID: 2, Roles: []control.Role{control.RoleData}, Status: control.NodeAlive, JoinState: control.NodeJoinStateActive},
-				{NodeID: 3, Roles: []control.Role{control.RoleData}, Status: control.NodeAlive, JoinState: control.NodeJoinStateActive},
-				{NodeID: 4, Roles: []control.Role{control.RoleData}, Status: control.NodeAlive, JoinState: control.NodeJoinStateActive},
+				{NodeID: 1, Roles: []control.Role{control.RoleController, control.RoleData}, Status: control.NodeAlive, JoinState: control.NodeJoinStateActive, Health: freshReadyAppNodeHealth(12)},
+				{NodeID: 2, Roles: []control.Role{control.RoleData}, Status: control.NodeAlive, JoinState: control.NodeJoinStateActive, Health: freshReadyAppNodeHealth(12)},
+				{NodeID: 3, Roles: []control.Role{control.RoleData}, Status: control.NodeAlive, JoinState: control.NodeJoinStateActive, Health: freshReadyAppNodeHealth(12)},
+				{NodeID: 4, Roles: []control.Role{control.RoleData}, Status: control.NodeAlive, JoinState: control.NodeJoinStateActive, Health: freshReadyAppNodeHealth(12)},
 			},
 			Slots: []control.SlotAssignment{{
 				SlotID:          1,
@@ -7029,6 +7029,16 @@ func requireConversationEventually(t *testing.T, app *App, uid, channelID string
 		t.Fatalf("conversation list for %s = %#v, want dense row for %s/%d", uid, got, channelID, channelType)
 	}
 	return item
+}
+
+func freshReadyAppNodeHealth(revision uint64) control.NodeHealth {
+	return control.NodeHealth{
+		Status:                  control.NodeAlive,
+		Freshness:               control.NodeHealthFresh,
+		RuntimeReady:            true,
+		ObservedControlRevision: revision,
+		ReportTTL:               30 * time.Second,
+	}
 }
 
 func waitUntil(t *testing.T, timeout time.Duration, ok func() bool) {

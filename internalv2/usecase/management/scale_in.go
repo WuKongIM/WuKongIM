@@ -226,7 +226,9 @@ func (a *App) NodeScaleInStatus(ctx context.Context, req NodeScaleInStatusReques
 	if err != nil {
 		return NodeScaleInStatusResponse{}, err
 	}
-	return a.nodeScaleInStatusFromSnapshot(ctx, snapshot, req.NodeID, nil), nil
+	status := a.nodeScaleInStatusFromSnapshot(ctx, snapshot, req.NodeID, nil)
+	a.observeScaleInStatus(status)
+	return status, nil
 }
 
 // MarkNodeRemoved marks a fully drained leaving node as removed after fail-closed safety checks.
@@ -591,6 +593,13 @@ func markBlockedReason(response *NodeScaleInStatusResponse, reason string) {
 		}
 	}
 	response.BlockedReasons = append(response.BlockedReasons, reason)
+}
+
+func (a *App) observeScaleInStatus(status NodeScaleInStatusResponse) {
+	if a == nil || a.scaleInStatusObserver == nil {
+		return
+	}
+	a.scaleInStatusObserver.ObserveScaleInStatus(status)
 }
 
 func (a *App) markScaleInSlotBlockers(ctx context.Context, assignments []control.SlotAssignment, targetNode uint64, response *NodeScaleInStatusResponse) {

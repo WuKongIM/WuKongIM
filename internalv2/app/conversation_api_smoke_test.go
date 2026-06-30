@@ -42,6 +42,7 @@ func TestConversationListAPIReadsAuthorityCacheAfterRecipientDispatch(t *testing
 	}
 	waitSingleNodeClusterRouteLeader(t, node, "sender-cache", cfg.NodeID)
 	waitSingleNodeClusterRouteLeader(t, node, "receiver-cache", cfg.NodeID)
+	waitSingleNodeClusterNodeSchedulable(t, node, cfg.NodeID)
 	apiSrv, ok := app.api.(*accessapi.Server)
 	if !ok {
 		t.Fatalf("api runtime = %T, want *accessapi.Server", app.api)
@@ -106,6 +107,7 @@ func TestConversationListAPIReadsActiveRowAndLastVisibleMessage(t *testing.T) {
 	}
 	waitSingleNodeClusterRouteLeader(t, node, "sender", cfg.NodeID)
 	waitSingleNodeClusterRouteLeader(t, node, "receiver", cfg.NodeID)
+	waitSingleNodeClusterNodeSchedulable(t, node, cfg.NodeID)
 	apiSrv, ok := app.api.(*accessapi.Server)
 	if !ok {
 		t.Fatalf("api runtime = %T, want *accessapi.Server", app.api)
@@ -208,6 +210,7 @@ func TestConversationListAPIPaginatesWithNextCursor(t *testing.T) {
 	}
 	waitSingleNodeClusterRouteLeader(t, node, firstChannel.ID, cfg.NodeID)
 	waitSingleNodeClusterRouteLeader(t, node, secondChannel.ID, cfg.NodeID)
+	waitSingleNodeClusterNodeSchedulable(t, node, cfg.NodeID)
 	seedGroupSendPermission(t, node, firstChannel, "sender")
 	seedGroupSendPermission(t, node, secondChannel, "sender")
 	apiSrv, ok := app.api.(*accessapi.Server)

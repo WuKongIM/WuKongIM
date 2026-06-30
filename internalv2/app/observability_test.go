@@ -18,6 +18,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/conversationactive"
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internalv2/runtime/delivery"
 	conversationusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/conversation"
+	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
 	messageusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/message"
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/reactor"
@@ -659,6 +660,27 @@ func TestControlSnapshotMetricsObserverMapsNodeLifecycleHealth(t *testing.T) {
 	revision := requireAppMetricFamily(t, families, "wukongim_discovery_membership_revision")
 	if got := revision.GetMetric()[0].GetGauge().GetValue(); got != 42 {
 		t.Fatalf("membership revision = %v, want 42", got)
+	}
+}
+
+func TestNodeLifecycleMetricsObserverCountsScaleInBlockers(t *testing.T) {
+	reg := obsmetrics.New(1, "n1")
+	observer := nodeLifecycleMetricsObserver{metrics: reg}
+
+	observer.ObserveScaleInStatus(managementusecase.NodeScaleInStatusResponse{
+		BlockedReasons: []string{"target_health_stale", "eligible_node_health_revision_stale"},
+	})
+
+	families, err := reg.Gather()
+	if err != nil {
+		t.Fatalf("Gather() error = %v", err)
+	}
+	blockers := requireAppMetricFamily(t, families, "wukongim_node_scale_in_blockers_total")
+	if got := findAppMetricByLabels(t, blockers, map[string]string{"reason": "target_health_stale"}).GetCounter().GetValue(); got != 1 {
+		t.Fatalf("target_health_stale blockers = %v, want 1", got)
+	}
+	if got := findAppMetricByLabels(t, blockers, map[string]string{"reason": "eligible_node_health_revision_stale"}).GetCounter().GetValue(); got != 1 {
+		t.Fatalf("eligible stale revision blockers = %v, want 1", got)
 	}
 }
 

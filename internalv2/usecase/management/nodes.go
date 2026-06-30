@@ -60,6 +60,12 @@ type DiagnosticsTrackingOperator interface {
 	DeleteNodeDiagnosticsTrackingRule(ctx context.Context, nodeID uint64, ruleID string) error
 }
 
+// ScaleInStatusObserver observes completed scale-in status projections.
+type ScaleInStatusObserver interface {
+	// ObserveScaleInStatus observes one scale-in status response after construction.
+	ObserveScaleInStatus(NodeScaleInStatusResponse)
+}
+
 // Options configures the manager management usecase.
 type Options struct {
 	// Cluster reads clusterv2 control state.
@@ -76,6 +82,8 @@ type Options struct {
 	Diagnostics DiagnosticsReader
 	// DiagnosticsTracking mutates local or remote runtime diagnostics tracking rules.
 	DiagnosticsTracking DiagnosticsTrackingOperator
+	// ScaleInStatusObserver observes generated scale-in safety statuses.
+	ScaleInStatusObserver ScaleInStatusObserver
 	// ChannelRuntimeMeta scans channel runtime metadata for cluster channel pages.
 	ChannelRuntimeMeta ChannelRuntimeMetaReader
 	// ChannelBusinessReader scans durable channel metadata for manager channel pages.
@@ -141,6 +149,7 @@ type App struct {
 	nodeReadiness          NodeReadinessReader
 	diagnostics            DiagnosticsReader
 	diagnosticsTracking    DiagnosticsTrackingOperator
+	scaleInStatusObserver  ScaleInStatusObserver
 	channelRuntimeMeta     ChannelRuntimeMetaReader
 	channelBusinessReader  ChannelBusinessReader
 	remoteBusinessChannels RemoteBusinessChannelReader
@@ -184,6 +193,7 @@ func New(opts Options) *App {
 		nodeReadiness:          opts.NodeReadiness,
 		diagnostics:            opts.Diagnostics,
 		diagnosticsTracking:    opts.DiagnosticsTracking,
+		scaleInStatusObserver:  opts.ScaleInStatusObserver,
 		channelRuntimeMeta:     opts.ChannelRuntimeMeta,
 		channelBusinessReader:  opts.ChannelBusinessReader,
 		remoteBusinessChannels: opts.RemoteBusinessChannels,

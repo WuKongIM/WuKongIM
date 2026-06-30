@@ -11,6 +11,7 @@ import (
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channelv2/store"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/channels"
+	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	coregateway "github.com/WuKongIM/WuKongIM/pkg/gateway"
 	"github.com/WuKongIM/WuKongIM/pkg/gateway/session"
@@ -39,6 +40,7 @@ func TestSingleNodeClusterSendToSendack(t *testing.T) {
 	}
 
 	waitSingleNodeClusterRouteLeader(t, node, channelID.ID, cfg.NodeID)
+	waitSingleNodeClusterNodeSchedulable(t, node, cfg.NodeID)
 	seedGroupSendPermission(t, node, channelID, "u1")
 
 	writes := &sendackSmokeSessionWrites{}
@@ -97,6 +99,7 @@ func TestSingleNodeClusterSendWithChannelMetaAndSendack(t *testing.T) {
 		t.Fatalf("cluster runtime = %T, want *clusterv2.Node", app.cluster)
 	}
 	waitSingleNodeClusterRouteLeader(t, node, channelID.ID, cfg.NodeID)
+	waitSingleNodeClusterNodeSchedulable(t, node, cfg.NodeID)
 	seedGroupSendPermission(t, node, channelID, "u1")
 
 	first := sendDefaultMetaSmokePacket(t, app, channelID, 1, "client-default-meta-1")
@@ -195,6 +198,10 @@ func singleNodeClusterAppConfig(t *testing.T) Config {
 				ReplicaCount:     1,
 			},
 			Channel: clusterv2.ChannelConfig{TickInterval: time.Millisecond},
+			HealthReport: clusterv2.HealthReportConfig{
+				Interval: 20 * time.Millisecond,
+				TTL:      500 * time.Millisecond,
+			},
 		},
 		Gateway: GatewayConfig{SendTimeout: time.Second},
 	}
@@ -251,6 +258,31 @@ func waitSingleNodeClusterRouteLeader(t *testing.T, node *clusterv2.Node, key st
 		time.Sleep(time.Millisecond)
 	}
 	t.Fatalf("route leader for key %q did not become %d; last route=%#v lastErr=%v", key, want, lastRoute, lastErr)
+}
+
+func waitSingleNodeClusterNodeSchedulable(t *testing.T, node *clusterv2.Node, want uint64) {
+	t.Helper()
+	deadline := time.Now().Add(3 * time.Second)
+	var lastNode control.Node
+	var lastErr error
+	for time.Now().Before(deadline) {
+		snapshot, err := node.LocalControlSnapshot(context.Background())
+		if err == nil {
+			for _, item := range snapshot.Nodes {
+				if item.NodeID != want {
+					continue
+				}
+				lastNode = item
+				if control.NodeSchedulableForPlacement(item) {
+					return
+				}
+			}
+		} else {
+			lastErr = err
+		}
+		time.Sleep(time.Millisecond)
+	}
+	t.Fatalf("node %d did not become schedulable; lastNode=%#v lastErr=%v", want, lastNode, lastErr)
 }
 
 func freeSendackSmokeTCPAddr(t *testing.T) string {

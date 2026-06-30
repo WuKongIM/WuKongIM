@@ -68,6 +68,30 @@ func TestScaleInStatusBlocksWhenTargetHealthIsStale(t *testing.T) {
 	}
 }
 
+func TestScaleInStatusNotifiesObserverWithBlockedReasons(t *testing.T) {
+	snap := scaleInReadyNoSlotReplicaSnapshot()
+	snap.Nodes[3].Health.Freshness = control.NodeHealthStale
+	observer := &recordingScaleInStatusObserver{}
+	app := New(Options{
+		Cluster:               fakeNodeSnapshotReader{snapshot: snap},
+		RuntimeSummary:        fakeNodeRuntimeSummaryReader{summaries: scaleInRuntimeSummariesFor(snap.Revision, scaleInSnapshotNodeIDs(snap)...)},
+		SlotRuntimeStatus:     scaleInSafeSlotRuntimeReader{},
+		ChannelRuntimeMeta:    newChannelDrainMetaReader(),
+		ScaleInStatusObserver: observer,
+	})
+
+	status, err := app.NodeScaleInStatus(context.Background(), NodeScaleInStatusRequest{NodeID: 4})
+	if err != nil {
+		t.Fatalf("NodeScaleInStatus() error = %v", err)
+	}
+	if len(observer.statuses) != 1 {
+		t.Fatalf("observed statuses = %d, want 1", len(observer.statuses))
+	}
+	if observer.statuses[0].NodeID != status.NodeID || !containsString(observer.statuses[0].BlockedReasons, "target_health_stale") {
+		t.Fatalf("observed status = %#v, want target stale blocker", observer.statuses[0])
+	}
+}
+
 func TestScaleInStatusBlocksWhenEligibleNodeHasNotObservedRevision(t *testing.T) {
 	snap := scaleInReadyNoSlotReplicaSnapshot()
 	snap.Revision = 22
@@ -892,4 +916,12 @@ type scaleInSafeSlotRuntimeReader struct{}
 
 func (scaleInSafeSlotRuntimeReader) SlotRuntimeStatus(_ context.Context, slotID uint32, _ []uint64) (SlotRuntimeStatus, error) {
 	return SlotRuntimeStatus{SlotID: slotID, LeaderID: 2, CurrentVoters: []uint64{2, 3}}, nil
+}
+
+type recordingScaleInStatusObserver struct {
+	statuses []NodeScaleInStatusResponse
+}
+
+func (o *recordingScaleInStatusObserver) ObserveScaleInStatus(status NodeScaleInStatusResponse) {
+	o.statuses = append(o.statuses, status)
 }

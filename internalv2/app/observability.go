@@ -14,6 +14,7 @@ import (
 	gatewayadapter "github.com/WuKongIM/WuKongIM/internalv2/access/gateway"
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/conversationactive"
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internalv2/runtime/delivery"
+	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
 	messageusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/message"
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/reactor"
@@ -63,6 +64,10 @@ type controllerRaftMetricsObserver struct {
 }
 
 type controlSnapshotMetricsObserver struct {
+	metrics *obsmetrics.Registry
+}
+
+type nodeLifecycleMetricsObserver struct {
 	metrics *obsmetrics.Registry
 }
 
@@ -1041,6 +1046,15 @@ func controllerEffectiveJoinState(state control.NodeJoinState) control.NodeJoinS
 		return control.NodeJoinStateActive
 	}
 	return state
+}
+
+func (o nodeLifecycleMetricsObserver) ObserveScaleInStatus(status managementusecase.NodeScaleInStatusResponse) {
+	if o.metrics == nil || o.metrics.NodeLifecycle == nil {
+		return
+	}
+	for _, reason := range status.BlockedReasons {
+		o.metrics.NodeLifecycle.ObserveScaleInBlocker(reason)
+	}
 }
 
 func controllerPreferredLeaderSkew(nodes []control.Node, slots []control.SlotAssignment) int {

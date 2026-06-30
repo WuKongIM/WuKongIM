@@ -911,6 +911,9 @@ func (a *App) newManagerManagement() accessmanager.Management {
 			Cluster:       clusterinfra.NewManagementSnapshotReader(node),
 			Conversations: a.conversations,
 		}
+		if a.metrics != nil {
+			opts.ScaleInStatusObserver = nodeLifecycleMetricsObserver{metrics: a.metrics}
+		}
 		var remoteConnectionReader *clusterinfra.ManagementConnectionReader
 		if rpcNode, ok := a.cluster.(clusterinfra.ManagementDiagnosticsRPCNode); ok {
 			diagnostics := clusterinfra.NewManagementDiagnosticsReader(rpcNode, a)
