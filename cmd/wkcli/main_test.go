@@ -18,7 +18,7 @@ func TestRootCommandHelpListsPlannedSubcommands(t *testing.T) {
 	if code != exitOK {
 		t.Fatalf("expected help exit code %d, got %d stderr %q", exitOK, code, stderr.String())
 	}
-	for _, want := range []string{"wkcli", "context", "top", "bench", "sim"} {
+	for _, want := range []string{"wkcli", "  context", "  top", "  bench", "  sim", "  node"} {
 		if !strings.Contains(stdout.String(), want) {
 			t.Fatalf("expected help to contain %q, got %q", want, stdout.String())
 		}
