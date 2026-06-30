@@ -183,6 +183,19 @@ type Node struct {
 	CapacityWeight uint32
 }
 
+// NodeSchedulableForPlacement reports whether a node can receive new data placement.
+func NodeSchedulableForPlacement(node Node) bool {
+	if !hasRole(node.Roles, RoleData) {
+		return false
+	}
+	if effectiveJoinState(node.JoinState) != NodeJoinStateActive {
+		return false
+	}
+	return node.Health.Freshness == NodeHealthFresh &&
+		node.Health.Status == NodeAlive &&
+		node.Health.RuntimeReady
+}
+
 // SlotAssignment describes desired replicas for one physical Slot.
 type SlotAssignment struct {
 	// SlotID is the non-zero physical Slot ID.

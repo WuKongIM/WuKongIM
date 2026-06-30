@@ -45,6 +45,42 @@ func TestSnapshotValidateAllowsLeavingDataSlotPeer(t *testing.T) {
 	}
 }
 
+func TestNodeSchedulableForPlacementRequiresFreshAliveHealth(t *testing.T) {
+	freshAliveReady := NodeHealth{Freshness: NodeHealthFresh, Status: NodeAlive, RuntimeReady: true}
+	base := Node{
+		NodeID:    1,
+		Roles:     []Role{RoleData},
+		Status:    NodeAlive,
+		Health:    freshAliveReady,
+		JoinState: NodeJoinStateActive,
+	}
+
+	tests := []struct {
+		name string
+		node Node
+		want bool
+	}{
+		{name: "fresh alive active data", node: base, want: true},
+		{name: "missing health", node: withHealth(base, NodeHealth{}), want: false},
+		{name: "stale health", node: withHealth(base, NodeHealth{Freshness: NodeHealthStale, Status: NodeAlive, RuntimeReady: true}), want: false},
+		{name: "suspect health", node: withHealth(base, NodeHealth{Freshness: NodeHealthFresh, Status: NodeSuspect, RuntimeReady: true}), want: false},
+		{name: "down health", node: withHealth(base, NodeHealth{Freshness: NodeHealthFresh, Status: NodeDown, RuntimeReady: true}), want: false},
+		{name: "not runtime ready", node: withHealth(base, NodeHealth{Freshness: NodeHealthFresh, Status: NodeAlive}), want: false},
+		{name: "joining", node: withJoinState(base, NodeJoinStateJoining), want: false},
+		{name: "leaving", node: withJoinState(base, NodeJoinStateLeaving), want: false},
+		{name: "removed", node: withJoinState(base, NodeJoinStateRemoved), want: false},
+		{name: "controller only", node: withRoles(base, RoleController), want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := NodeSchedulableForPlacement(tt.node); got != tt.want {
+				t.Fatalf("NodeSchedulableForPlacement() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestStaticControllerPublishesSnapshot(t *testing.T) {
 	initial := validSnapshot()
 	c := NewStaticController(initial)
@@ -133,6 +169,21 @@ func TestStaticControllerRecordsTaskWrites(t *testing.T) {
 	if !transferResult.Created || transferResult.Task == nil || transferResult.Task.TaskID != "slot-1-leader-transfer-7-r9" {
 		t.Fatalf("RequestSlotLeaderTransfer() = %#v, want deterministic task", transferResult)
 	}
+}
+
+func withHealth(node Node, health NodeHealth) Node {
+	node.Health = health
+	return node
+}
+
+func withJoinState(node Node, state NodeJoinState) Node {
+	node.JoinState = state
+	return node
+}
+
+func withRoles(node Node, roles ...Role) Node {
+	node.Roles = roles
+	return node
 }
 
 func validSnapshot() Snapshot {
