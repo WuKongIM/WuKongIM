@@ -117,11 +117,37 @@ function formatBooleanValue(intl: IntlShape, value: boolean) {
 }
 
 function nodeHealthStatus(node: ManagerNode) {
-  return node.health?.status ?? node.status
+  const health = node.health
+  if (!health) {
+    return node.status
+  }
+  if (health.freshness && health.freshness !== "fresh") {
+    return health.freshness
+  }
+  if (health.runtime_ready === false) {
+    return "not_ready"
+  }
+  return health.status ?? node.status
 }
 
 function nodeLastHeartbeat(node: ManagerNode) {
   return node.health?.last_heartbeat_at ?? node.last_heartbeat_at
+}
+
+function nodeHealthEvidenceText(intl: IntlShape, node: ManagerNode) {
+  const health = node.health
+  if (!health?.freshness) {
+    return null
+  }
+  return intl.formatMessage(
+    { id: "nodes.healthEvidence" },
+    {
+      freshness: health.freshness,
+      runtimeReady: formatBooleanValue(intl, health.runtime_ready ?? false),
+      age: health.report_age_ms ?? 0,
+      ttl: health.report_ttl_ms ?? 0,
+    },
+  )
 }
 
 function nodeSlotSummary(node: ManagerNode) {
@@ -731,6 +757,7 @@ export function NodeClusterListPanel() {
                 <tbody>
                   {state.nodes.items.map((node) => {
                     const healthStatus = nodeHealthStatus(node)
+                    const healthEvidence = nodeHealthEvidenceText(intl, node)
                     const isDraining = healthStatus === "draining"
                     const lifecycleActionAllowed = isDraining
                       ? canResumeNode(node, canWriteNodes)
@@ -754,6 +781,9 @@ export function NodeClusterListPanel() {
                           <div className="mt-2 text-xs text-muted-foreground">
                             {formatTimestamp(intl, nodeLastHeartbeat(node))}
                           </div>
+                          {healthEvidence ? (
+                            <div className="mt-1 text-xs text-muted-foreground">{healthEvidence}</div>
+                          ) : null}
                         </td>
                         <td className="px-3 py-3 text-sm text-muted-foreground">
                           <div className="font-medium text-foreground">{node.controller.role}</div>

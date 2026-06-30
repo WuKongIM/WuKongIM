@@ -270,6 +270,22 @@ type NodeHealth struct {
 	Status string
 	// LastHeartbeatAt is the best available control snapshot timestamp for this node.
 	LastHeartbeatAt time.Time
+	// Fresh reports whether the latest durable health report is within its TTL.
+	Fresh bool
+	// Freshness is fresh, stale, or missing.
+	Freshness string
+	// RuntimeReady reports whether the node can serve foreground traffic.
+	RuntimeReady bool
+	// ReportAgeMS is the current health report age in milliseconds.
+	ReportAgeMS int64
+	// ReportTTLMS is the configured freshness TTL in milliseconds.
+	ReportTTLMS int64
+	// ObservedControlRevision is the latest ControllerV2 revision observed by the node.
+	ObservedControlRevision uint64
+	// ObservedSlotRevision is the latest local Slot observation revision.
+	ObservedSlotRevision uint64
+	// ErrorCode is a bounded machine-readable runtime reason.
+	ErrorCode string
 }
 
 // NodeController describes Controller role and voter context.
@@ -441,7 +457,16 @@ func buildNode(opts nodeBuildOptions) Node {
 	status := managerNodeStatus(opts.node.Status)
 	role := managerNodeRole(opts.node.Roles)
 	joinState := managerNodeJoinState(opts.node.JoinState)
-	schedulable := role == "data" && joinState == "active"
+	health := opts.node.Health
+	healthStatus := health.Status
+	if healthStatus == "" {
+		healthStatus = opts.node.Status
+	}
+	lastHeartbeatAt := health.ReportedAt
+	if lastHeartbeatAt.IsZero() {
+		lastHeartbeatAt = opts.generatedAt
+	}
+	schedulable := control.NodeSchedulableForPlacement(opts.node)
 	controllerVoter := hasRole(opts.node.Roles, control.RoleController)
 	replicas := opts.slots.replicas[opts.node.NodeID]
 	leaders := opts.slots.leaders[opts.node.NodeID]
@@ -463,8 +488,16 @@ func buildNode(opts nodeBuildOptions) Node {
 			Schedulable: schedulable,
 		},
 		Health: NodeHealth{
-			Status:          status,
-			LastHeartbeatAt: opts.generatedAt,
+			Status:                  managerNodeStatus(healthStatus),
+			LastHeartbeatAt:         lastHeartbeatAt,
+			Fresh:                   health.Freshness == control.NodeHealthFresh,
+			Freshness:               managerNodeHealthFreshness(health.Freshness),
+			RuntimeReady:            health.RuntimeReady,
+			ReportAgeMS:             health.ReportAge.Milliseconds(),
+			ReportTTLMS:             health.ReportTTL.Milliseconds(),
+			ObservedControlRevision: health.ObservedControlRevision,
+			ObservedSlotRevision:    health.ObservedSlotRevision,
+			ErrorCode:               health.ErrorCode,
 		},
 		Controller: NodeController{
 			Role:       managerControllerRole(opts.node.NodeID, opts.controllerLeaderID, controllerVoter),
@@ -523,6 +556,19 @@ func managerNodeStatus(status control.NodeStatus) string {
 		return "suspect"
 	case control.NodeDown:
 		return "dead"
+	default:
+		return "unknown"
+	}
+}
+
+func managerNodeHealthFreshness(freshness control.NodeHealthFreshness) string {
+	switch freshness {
+	case control.NodeHealthFresh:
+		return "fresh"
+	case control.NodeHealthStale:
+		return "stale"
+	case control.NodeHealthMissing, "":
+		return "missing"
 	default:
 		return "unknown"
 	}

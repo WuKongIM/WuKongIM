@@ -24,6 +24,9 @@ function resolveVariant(value: string) {
     case "snapshot_required":
     case "snapshot_transferring":
     case "compaction_degraded":
+    case "missing":
+    case "not_ready":
+    case "stale":
       return "warning"
     case "failed":
     case "dead":

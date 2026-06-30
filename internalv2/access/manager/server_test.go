@@ -125,8 +125,16 @@ func TestManagerNodesReturnsReadOnlyInventory(t *testing.T) {
 						Schedulable: true,
 					},
 					Health: managementusecase.NodeHealth{
-						Status:          "alive",
-						LastHeartbeatAt: generatedAt,
+						Status:                  "alive",
+						LastHeartbeatAt:         generatedAt,
+						Fresh:                   true,
+						Freshness:               "fresh",
+						RuntimeReady:            true,
+						ReportAgeMS:             4000,
+						ReportTTLMS:             30000,
+						ObservedControlRevision: 12,
+						ObservedSlotRevision:    21,
+						ErrorCode:               "runtime_starting",
 					},
 					Controller: managementusecase.NodeController{
 						Role:       "leader",
@@ -176,7 +184,15 @@ func TestManagerNodesReturnsReadOnlyInventory(t *testing.T) {
 			},
 			"health": {
 				"status": "alive",
-				"last_heartbeat_at": "2026-06-16T10:00:00Z"
+				"last_heartbeat_at": "2026-06-16T10:00:00Z",
+				"fresh": true,
+				"freshness": "fresh",
+				"runtime_ready": true,
+				"report_age_ms": 4000,
+				"report_ttl_ms": 30000,
+				"observed_control_revision": 12,
+				"observed_slot_revision": 21,
+				"error_code": "runtime_starting"
 			},
 			"controller": {
 				"role": "leader",

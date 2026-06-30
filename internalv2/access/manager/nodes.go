@@ -71,6 +71,22 @@ type NodeHealthDTO struct {
 	Status string `json:"status"`
 	// LastHeartbeatAt is the best available control snapshot timestamp for this node.
 	LastHeartbeatAt time.Time `json:"last_heartbeat_at"`
+	// Fresh reports whether the latest durable health report is within its TTL.
+	Fresh bool `json:"fresh"`
+	// Freshness is fresh, stale, or missing.
+	Freshness string `json:"freshness"`
+	// RuntimeReady reports whether the node can serve foreground traffic.
+	RuntimeReady bool `json:"runtime_ready"`
+	// ReportAgeMS is the current health report age in milliseconds.
+	ReportAgeMS int64 `json:"report_age_ms"`
+	// ReportTTLMS is the configured freshness TTL in milliseconds.
+	ReportTTLMS int64 `json:"report_ttl_ms"`
+	// ObservedControlRevision is the latest ControllerV2 revision observed by the node.
+	ObservedControlRevision uint64 `json:"observed_control_revision"`
+	// ObservedSlotRevision is the latest local Slot observation revision.
+	ObservedSlotRevision uint64 `json:"observed_slot_revision"`
+	// ErrorCode is a bounded machine-readable runtime reason.
+	ErrorCode string `json:"error_code,omitempty"`
 }
 
 // NodeControllerDTO contains controller-facing node state.
@@ -198,8 +214,16 @@ func nodeDTO(item managementusecase.Node) NodeDTO {
 			Schedulable: item.Membership.Schedulable,
 		},
 		Health: NodeHealthDTO{
-			Status:          item.Health.Status,
-			LastHeartbeatAt: item.Health.LastHeartbeatAt,
+			Status:                  item.Health.Status,
+			LastHeartbeatAt:         item.Health.LastHeartbeatAt,
+			Fresh:                   item.Health.Fresh,
+			Freshness:               item.Health.Freshness,
+			RuntimeReady:            item.Health.RuntimeReady,
+			ReportAgeMS:             item.Health.ReportAgeMS,
+			ReportTTLMS:             item.Health.ReportTTLMS,
+			ObservedControlRevision: item.Health.ObservedControlRevision,
+			ObservedSlotRevision:    item.Health.ObservedSlotRevision,
+			ErrorCode:               item.Health.ErrorCode,
 		},
 		Controller: NodeControllerDTO{
 			Role:          item.Controller.Role,

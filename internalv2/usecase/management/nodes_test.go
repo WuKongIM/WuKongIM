@@ -18,7 +18,7 @@ func TestListNodesBuildsReadOnlyNodeInventory(t *testing.T) {
 				ControllerID: 1,
 				Nodes: []control.Node{
 					{NodeID: 2, Addr: "127.0.0.1:7012", Roles: []control.Role{control.RoleData}, Status: control.NodeSuspect, JoinState: control.NodeJoinStateJoining},
-					{NodeID: 1, Addr: "127.0.0.1:7011", Roles: []control.Role{control.RoleController, control.RoleData}, Status: control.NodeAlive},
+					{NodeID: 1, Addr: "127.0.0.1:7011", Roles: []control.Role{control.RoleController, control.RoleData}, Status: control.NodeAlive, Health: freshReadyNodeHealth()},
 				},
 				Slots: []control.SlotAssignment{
 					{SlotID: 2, DesiredPeers: []uint64{2}, PreferredLeader: 2},
@@ -88,7 +88,7 @@ func TestListNodesReportsLifecycleAndCapacity(t *testing.T) {
 			snapshot: control.Snapshot{
 				ControllerID: 1,
 				Nodes: []control.Node{
-					{NodeID: 1, Addr: "127.0.0.1:7011", Roles: []control.Role{control.RoleController, control.RoleData}, Status: control.NodeAlive, JoinState: control.NodeJoinStateActive, CapacityWeight: 3},
+					{NodeID: 1, Addr: "127.0.0.1:7011", Roles: []control.Role{control.RoleController, control.RoleData}, Status: control.NodeAlive, Health: freshReadyNodeHealth(), JoinState: control.NodeJoinStateActive, CapacityWeight: 3},
 					{NodeID: 2, Addr: "127.0.0.1:7012", Roles: []control.Role{control.RoleData}, Status: control.NodeAlive, JoinState: control.NodeJoinStateJoining, CapacityWeight: 2},
 					{NodeID: 3, Addr: "127.0.0.1:7013", Roles: []control.Role{control.RoleData}, Status: control.NodeAlive, JoinState: control.NodeJoinStateLeaving, CapacityWeight: 1},
 					{NodeID: 4, Addr: "127.0.0.1:7014", Roles: []control.Role{control.RoleData}, Status: control.NodeDown, JoinState: control.NodeJoinStateRemoved, CapacityWeight: 1},
@@ -114,13 +114,83 @@ func TestListNodesReportsLifecycleAndCapacity(t *testing.T) {
 		2: {joinState: "joining", schedulable: false, capacity: 2},
 		3: {joinState: "leaving", schedulable: false, capacity: 1},
 		4: {joinState: "removed", schedulable: false, capacity: 1},
-		5: {joinState: "active", schedulable: true, capacity: 1},
+		5: {joinState: "active", schedulable: false, capacity: 1},
 	}
 	for _, item := range got.Items {
 		expect := want[item.NodeID]
 		if item.Membership.JoinState != expect.joinState || item.Membership.Schedulable != expect.schedulable || item.CapacityWeight != expect.capacity {
 			t.Fatalf("node %d membership=%#v capacity=%d, want %#v", item.NodeID, item.Membership, item.CapacityWeight, expect)
 		}
+	}
+}
+
+func TestListNodesIncludesHealthFreshnessFields(t *testing.T) {
+	generatedAt := time.Date(2026, 6, 30, 12, 0, 0, 0, time.UTC)
+	reportedAt := generatedAt.Add(-4 * time.Second)
+	app := New(Options{
+		Cluster: fakeNodeSnapshotReader{
+			nodeID: 4,
+			snapshot: control.Snapshot{
+				ControllerID: 1,
+				Nodes: []control.Node{
+					{
+						NodeID:    4,
+						Addr:      "127.0.0.1:7004",
+						Roles:     []control.Role{control.RoleData},
+						JoinState: control.NodeJoinStateActive,
+						Status:    control.NodeAlive,
+						Health: control.NodeHealth{
+							Status:                  control.NodeAlive,
+							Freshness:               control.NodeHealthFresh,
+							RuntimeReady:            true,
+							ObservedControlRevision: 12,
+							ObservedSlotRevision:    21,
+							ReportedAt:              reportedAt,
+							ReportAge:               4 * time.Second,
+							ReportTTL:               30 * time.Second,
+							ErrorCode:               "ok",
+						},
+					},
+					{
+						NodeID:    5,
+						Addr:      "127.0.0.1:7005",
+						Roles:     []control.Role{control.RoleData},
+						JoinState: control.NodeJoinStateActive,
+						Status:    control.NodeAlive,
+						Health: control.NodeHealth{
+							Status:       control.NodeAlive,
+							Freshness:    control.NodeHealthStale,
+							RuntimeReady: true,
+							ReportAge:    31 * time.Second,
+							ReportTTL:    30 * time.Second,
+						},
+					},
+				},
+			},
+		},
+		Now: func() time.Time { return generatedAt },
+	})
+
+	resp, err := app.ListNodes(context.Background())
+	if err != nil {
+		t.Fatalf("ListNodes() error = %v", err)
+	}
+	if len(resp.Items) != 2 {
+		t.Fatalf("Items len = %d, want 2: %#v", len(resp.Items), resp.Items)
+	}
+	fresh := resp.Items[0]
+	if !fresh.Health.Fresh || fresh.Health.Freshness != "fresh" || !fresh.Health.RuntimeReady ||
+		fresh.Health.ReportAgeMS != 4000 || fresh.Health.ReportTTLMS != 30000 ||
+		fresh.Health.ObservedControlRevision != 12 || fresh.Health.ObservedSlotRevision != 21 ||
+		fresh.Health.ErrorCode != "ok" || !fresh.Health.LastHeartbeatAt.Equal(reportedAt) {
+		t.Fatalf("fresh node health = %#v, want fresh health evidence fields", fresh.Health)
+	}
+	if !fresh.Membership.Schedulable {
+		t.Fatalf("fresh membership = %#v, want schedulable from shared health predicate", fresh.Membership)
+	}
+	stale := resp.Items[1]
+	if stale.Health.Fresh || stale.Health.Freshness != "stale" || stale.Health.ReportAgeMS != 31000 || stale.Membership.Schedulable {
+		t.Fatalf("stale node health/membership = %#v/%#v, want stale non-schedulable health", stale.Health, stale.Membership)
 	}
 }
 
@@ -292,4 +362,12 @@ func (f fakeNodeRuntimeSummaryReader) NodeRuntimeSummary(_ context.Context, node
 		summary.NodeID = nodeID
 	}
 	return summary, nil
+}
+
+func freshReadyNodeHealth() control.NodeHealth {
+	return control.NodeHealth{
+		Status:       control.NodeAlive,
+		Freshness:    control.NodeHealthFresh,
+		RuntimeReady: true,
+	}
 }

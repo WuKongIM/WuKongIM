@@ -611,6 +611,7 @@ export const enMessages: AppMessages = {
   "nodes.controllerNonVoter": "controller non-voter",
   "nodes.schedulable": "schedulable",
   "nodes.notSchedulable": "not schedulable",
+  "nodes.healthEvidence": "freshness {freshness} / ready {runtimeReady} / age {age} ms / ttl {ttl} ms",
   "nodes.runtimeSummary": "sessions {sessions} / online {online}",
   "nodes.runtimeUnknown": "runtime unknown",
   "nodes.slotLayerSummary": "replicas {replicas} / leaders {leaders} / followers {followers}",

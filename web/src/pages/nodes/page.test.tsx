@@ -510,6 +510,37 @@ test("renders layered node inventory fields and honors backend action hints", as
   expect(screen.getByRole("button", { name: "Drain" })).toBeDisabled()
 })
 
+test("renders dynamic node health freshness evidence", async () => {
+  getNodesMock.mockResolvedValueOnce({
+    generated_at: "2026-04-23T08:00:01Z",
+    controller_leader_id: 1,
+    total: 1,
+    items: [{
+      ...nodeRow,
+      membership: { ...nodeRow.membership, schedulable: false },
+      health: {
+        status: "alive",
+        last_heartbeat_at: "2026-04-23T08:00:00Z",
+        fresh: false,
+        freshness: "missing",
+        runtime_ready: false,
+        report_age_ms: 0,
+        report_ttl_ms: 30000,
+        observed_control_revision: 0,
+        observed_slot_revision: 0,
+        error_code: "health_report_missing",
+      },
+    }],
+  })
+
+  renderNodesPage()
+
+  expect(await screen.findByText("127.0.0.1:7000")).toBeInTheDocument()
+  expect(screen.getByText("missing")).toBeInTheDocument()
+  expect(screen.getByText("freshness missing / ready no / age 0 ms / ttl 30000 ms")).toBeInTheDocument()
+  expect(screen.getByText("not schedulable")).toBeInTheDocument()
+})
+
 test("renders controller raft health summary in the node list and detail", async () => {
   const controller = {
     ...nodeRow.controller,

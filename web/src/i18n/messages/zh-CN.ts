@@ -610,6 +610,7 @@ export const zhCNMessages: AppMessages = {
   "nodes.controllerNonVoter": "控制器非投票者",
   "nodes.schedulable": "可调度",
   "nodes.notSchedulable": "不可调度",
+  "nodes.healthEvidence": "新鲜度 {freshness} / 就绪 {runtimeReady} / age {age} ms / ttl {ttl} ms",
   "nodes.runtimeSummary": "会话 {sessions} / 在线 {online}",
   "nodes.runtimeUnknown": "运行时未知",
   "nodes.slotLayerSummary": "副本 {replicas} / Leader {leaders} / Follower {followers}",

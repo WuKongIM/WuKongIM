@@ -405,6 +405,14 @@ export type ManagerNodeMembership = {
 export type ManagerNodeHealth = {
   status: string
   last_heartbeat_at: string
+  fresh?: boolean
+  freshness?: string
+  runtime_ready?: boolean
+  report_age_ms?: number
+  report_ttl_ms?: number
+  observed_control_revision?: number
+  observed_slot_revision?: number
+  error_code?: string
 }
 
 export type ManagerNodeController = {
