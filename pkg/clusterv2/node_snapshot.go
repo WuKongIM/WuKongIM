@@ -198,14 +198,10 @@ func routeAuthorityFromTable(table *routing.Table, hashSlot uint16) (routeAuthor
 	return routeAuthorityKey{slotID: slotID, leaderNodeID: table.SlotLeaders[slotID], leaderTerm: table.SlotLeaderTerms[slotID], configEpoch: table.SlotConfigEpochs[slotID], revision: table.Revision}, true
 }
 
-// activeDataNodeIDs intentionally ignores NodeStatus until health reports have freshness.
 func activeDataNodeIDs(nodes []control.Node) []uint64 {
 	out := make([]uint64, 0, len(nodes))
 	for _, node := range nodes {
-		if !hasControlRole(node.Roles, control.RoleData) {
-			continue
-		}
-		if controlNodeJoinState(node.JoinState) != control.NodeJoinStateActive {
+		if !control.NodeSchedulableForPlacement(node) {
 			continue
 		}
 		out = append(out, node.NodeID)
@@ -219,15 +215,6 @@ func controlNodeJoinState(state control.NodeJoinState) control.NodeJoinState {
 		return control.NodeJoinStateActive
 	}
 	return state
-}
-
-func hasControlRole(roles []control.Role, role control.Role) bool {
-	for _, item := range roles {
-		if item == role {
-			return true
-		}
-	}
-	return false
 }
 
 func discoveryNodes(nodes []control.Node) []clusternet.NodeAddress {

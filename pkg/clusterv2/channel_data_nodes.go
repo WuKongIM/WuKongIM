@@ -2,8 +2,7 @@ package clusterv2
 
 import "sync"
 
-// dataNodeView stores the latest active data-node IDs from control snapshots.
-// NodeStatus is intentionally ignored until health reports have freshness.
+// dataNodeView stores the latest schedulable data-node IDs from control snapshots.
 type dataNodeView struct {
 	mu    sync.RWMutex
 	nodes []uint64

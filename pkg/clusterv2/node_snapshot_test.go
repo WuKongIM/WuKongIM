@@ -187,7 +187,9 @@ func TestNodeControlWatchNodeOnlyChangeSkipsSlotReconcile(t *testing.T) {
 }
 
 func TestNodeAppliesActiveDataNodesForChannelPlacement(t *testing.T) {
-	controller := control.NewStaticController(nodeControlSnapshot())
+	snapshot := nodeControlSnapshot()
+	markFreshAliveReady(snapshot.Nodes)
+	controller := control.NewStaticController(snapshot)
 	node, err := New(validNodeConfig(t), withController(controller), withSlotReconciler(&recordingReconciler{}))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
@@ -203,36 +205,70 @@ func TestNodeAppliesActiveDataNodesForChannelPlacement(t *testing.T) {
 		t.Fatalf("DataNodes() = %v, want %v", got, want)
 	}
 
-	next := nodeControlSnapshot()
+	next := snapshot.Clone()
 	next.Revision = 2
 	next.Nodes = append(next.Nodes,
-		control.Node{NodeID: 4, Addr: "127.0.0.1:1004", Roles: []control.Role{control.RoleData}, Status: control.NodeAlive, JoinState: control.NodeJoinStateActive},
-		control.Node{NodeID: 5, Addr: "127.0.0.1:1005", Roles: []control.Role{control.RoleData}, Status: control.NodeAlive, JoinState: control.NodeJoinStateJoining},
-		control.Node{NodeID: 6, Addr: "127.0.0.1:1006", Roles: []control.Role{control.RoleData}, Status: control.NodeAlive, JoinState: control.NodeJoinStateLeaving},
-		control.Node{NodeID: 7, Addr: "127.0.0.1:1007", Roles: []control.Role{control.RoleData}, Status: control.NodeAlive, JoinState: control.NodeJoinStateRemoved},
-		control.Node{NodeID: 8, Addr: "127.0.0.1:1008", Roles: []control.Role{control.RoleData}, Status: control.NodeSuspect, JoinState: control.NodeJoinStateActive},
+		healthNode(4, control.NodeJoinStateActive, control.NodeAlive, control.NodeHealthFresh, true),
+		healthNode(5, control.NodeJoinStateJoining, control.NodeAlive, control.NodeHealthFresh, true),
+		healthNode(6, control.NodeJoinStateLeaving, control.NodeAlive, control.NodeHealthFresh, true),
+		healthNode(7, control.NodeJoinStateRemoved, control.NodeAlive, control.NodeHealthFresh, true),
+		healthNode(8, control.NodeJoinStateActive, control.NodeSuspect, control.NodeHealthFresh, true),
 	)
 	if err := controller.Publish(next); err != nil {
 		t.Fatalf("Publish() error = %v", err)
 	}
 	waitUntil(t, func() bool {
 		got = node.channelDataNodes.DataNodes()
-		return equalUint64s(got, []uint64{1, 2, 3, 4, 8})
+		return equalUint64s(got, []uint64{1, 2, 3, 4})
 	})
 }
 
 func TestActiveDataNodeIDsExcludeLeavingAndRemovedNodes(t *testing.T) {
 	got := activeDataNodeIDs([]control.Node{
-		{NodeID: 1, Roles: []control.Role{control.RoleData}, Status: control.NodeAlive, JoinState: control.NodeJoinStateActive},
-		{NodeID: 2, Roles: []control.Role{control.RoleData}, Status: control.NodeAlive, JoinState: control.NodeJoinStateJoining},
-		{NodeID: 3, Roles: []control.Role{control.RoleData}, Status: control.NodeAlive, JoinState: control.NodeJoinStateLeaving},
-		{NodeID: 4, Roles: []control.Role{control.RoleData}, Status: control.NodeAlive, JoinState: control.NodeJoinStateRemoved},
-		{NodeID: 5, Roles: []control.Role{control.RoleData}, Status: control.NodeSuspect, JoinState: control.NodeJoinStateActive},
-		{NodeID: 6, Roles: []control.Role{control.RoleController}, Status: control.NodeAlive, JoinState: control.NodeJoinStateActive},
+		healthNode(1, control.NodeJoinStateActive, control.NodeAlive, control.NodeHealthFresh, true),
+		healthNode(2, control.NodeJoinStateJoining, control.NodeAlive, control.NodeHealthFresh, true),
+		healthNode(3, control.NodeJoinStateLeaving, control.NodeAlive, control.NodeHealthFresh, true),
+		healthNode(4, control.NodeJoinStateRemoved, control.NodeAlive, control.NodeHealthFresh, true),
+		healthNode(5, control.NodeJoinStateActive, control.NodeSuspect, control.NodeHealthFresh, true),
+		{NodeID: 6, Roles: []control.Role{control.RoleController}, Status: control.NodeAlive, Health: control.NodeHealth{Status: control.NodeAlive, Freshness: control.NodeHealthFresh, RuntimeReady: true}, JoinState: control.NodeJoinStateActive},
 	})
-	want := []uint64{1, 5}
+	want := []uint64{1}
 	if !equalUint64s(got, want) {
 		t.Fatalf("activeDataNodeIDs() = %v, want %v", got, want)
+	}
+}
+
+func TestActiveDataNodeIDsRequireFreshAliveHealth(t *testing.T) {
+	got := activeDataNodeIDs([]control.Node{
+		healthNode(6, control.NodeJoinStateActive, control.NodeSuspect, control.NodeHealthFresh, true),
+		healthNode(3, control.NodeJoinStateActive, control.NodeAlive, control.NodeHealthStale, true),
+		healthNode(8, control.NodeJoinStateActive, control.NodeAlive, control.NodeHealthFresh, false),
+		healthNode(1, control.NodeJoinStateActive, control.NodeAlive, control.NodeHealthFresh, true),
+		healthNode(5, control.NodeJoinStateLeaving, control.NodeAlive, control.NodeHealthFresh, true),
+		healthNode(7, control.NodeJoinStateActive, control.NodeAlive, control.NodeHealthMissing, true),
+		healthNode(4, control.NodeJoinStateJoining, control.NodeAlive, control.NodeHealthFresh, true),
+		healthNode(2, control.NodeJoinStateRemoved, control.NodeAlive, control.NodeHealthFresh, true),
+	})
+	want := []uint64{1}
+	if !equalUint64s(got, want) {
+		t.Fatalf("activeDataNodeIDs() = %v, want %v", got, want)
+	}
+}
+
+func healthNode(nodeID uint64, joinState control.NodeJoinState, status control.NodeStatus, freshness control.NodeHealthFreshness, ready bool) control.Node {
+	return control.Node{
+		NodeID:    nodeID,
+		Addr:      fmt.Sprintf("127.0.0.1:%d", 1000+nodeID),
+		Roles:     []control.Role{control.RoleData},
+		Status:    status,
+		Health:    control.NodeHealth{Status: status, Freshness: freshness, RuntimeReady: ready},
+		JoinState: joinState,
+	}
+}
+
+func markFreshAliveReady(nodes []control.Node) {
+	for i := range nodes {
+		nodes[i].Health = control.NodeHealth{Status: control.NodeAlive, Freshness: control.NodeHealthFresh, RuntimeReady: true}
 	}
 }
 

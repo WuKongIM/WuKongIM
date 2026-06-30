@@ -14,6 +14,8 @@ import (
 
 func TestNodeDefaultChannelsUseDurableMessageDBStore(t *testing.T) {
 	cfg := validNodeConfig(t)
+	cfg.HealthReport.Interval = 20 * time.Millisecond
+	cfg.HealthReport.TTL = 500 * time.Millisecond
 	node, err := New(cfg)
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
@@ -21,6 +23,7 @@ func TestNodeDefaultChannelsUseDurableMessageDBStore(t *testing.T) {
 	if err := node.Start(context.Background()); err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
+	waitChannelDataNode(t, node, 1)
 	channelID := channelv2.ChannelID{ID: "durable", Type: 1}
 	applyDefaultChannelMeta(t, node, channelID)
 	if _, err := node.AppendChannel(context.Background(), channelv2.AppendRequest{
@@ -37,6 +40,7 @@ func TestNodeDefaultChannelsUseDurableMessageDBStore(t *testing.T) {
 		t.Fatalf("restart Start() error = %v", err)
 	}
 	t.Cleanup(func() { _ = node.Stop(context.Background()) })
+	waitChannelDataNode(t, node, 1)
 	applyDefaultChannelMeta(t, node, channelID)
 	second, err := node.AppendChannel(context.Background(), channelv2.AppendRequest{
 		ChannelID: channelID,
@@ -48,6 +52,18 @@ func TestNodeDefaultChannelsUseDurableMessageDBStore(t *testing.T) {
 	if second.MessageSeq != 2 {
 		t.Fatalf("restart AppendChannel() MessageSeq = %d, want 2 from durable message DB LEO", second.MessageSeq)
 	}
+}
+
+func waitChannelDataNode(t *testing.T, node *Node, nodeID uint64) {
+	t.Helper()
+	waitUntil(t, func() bool {
+		for _, candidate := range node.channelDataNodes.DataNodes() {
+			if candidate == nodeID {
+				return true
+			}
+		}
+		return false
+	})
 }
 
 func TestNodeReadChannelCommittedHonorsRetentionThroughSeq(t *testing.T) {
