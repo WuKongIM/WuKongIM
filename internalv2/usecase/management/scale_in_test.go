@@ -93,6 +93,63 @@ func TestScaleInStatusBlocksWhenEligibleNodeHasNotObservedRevision(t *testing.T)
 	}
 }
 
+func TestScaleInStatusAndPlanBlockWhenEligibleNodeHealthIsNotAlive(t *testing.T) {
+	for _, healthStatus := range []control.NodeStatus{control.NodeSuspect, control.NodeDown} {
+		t.Run(string(healthStatus), func(t *testing.T) {
+			snap := scaleInSnapshot(17)
+			eligible := scaleInHealthNode(4, []control.Role{control.RoleData}, control.NodeJoinStateActive, snap.Revision)
+			eligible.Health.Status = healthStatus
+			snap.Nodes = append(snap.Nodes, eligible)
+			app := New(Options{
+				Cluster:        fakeNodeSnapshotReader{snapshot: snap},
+				RuntimeSummary: fakeNodeRuntimeSummaryReader{summaries: scaleInRuntimeSummariesFor(snap.Revision, 1, 2, 3, 4)},
+				SlotRuntimeStatus: &fakeSlotRuntimeStatusReader{statuses: map[uint32]SlotRuntimeStatus{
+					1: {SlotID: 1, LeaderID: 1, CurrentVoters: []uint64{1, 2, 3}},
+				}},
+			})
+
+			status, err := app.NodeScaleInStatus(context.Background(), NodeScaleInStatusRequest{NodeID: 2})
+			if err != nil {
+				t.Fatalf("NodeScaleInStatus() error = %v", err)
+			}
+			if status.SafeToProceed || !status.BlockedByHealth ||
+				!containsString(status.BlockedReasons, "eligible_node_health_not_alive") {
+				t.Fatalf("status = %#v, want eligible not-alive health blocker", status)
+			}
+
+			plan, err := app.PlanNodeScaleIn(context.Background(), NodeScaleInPlanRequest{NodeID: 2, MaxSlotMoves: 1})
+			if err != nil {
+				t.Fatalf("PlanNodeScaleIn() error = %v", err)
+			}
+			if !plan.BlockedByStatus || len(plan.Candidates) != 0 {
+				t.Fatalf("plan = %#v, want status-blocked without candidates", plan)
+			}
+		})
+	}
+}
+
+func TestScaleInStatusTargetMissingHealthDoesNotEmitDerivedZeroValueReasons(t *testing.T) {
+	snap := scaleInReadyNoSlotReplicaSnapshot()
+	snap.Nodes[3].Health = control.NodeHealth{Freshness: control.NodeHealthMissing}
+	app := New(Options{
+		Cluster:            fakeNodeSnapshotReader{snapshot: snap},
+		RuntimeSummary:     fakeNodeRuntimeSummaryReader{summaries: scaleInRuntimeSummariesFor(snap.Revision, scaleInSnapshotNodeIDs(snap)...)},
+		SlotRuntimeStatus:  scaleInSafeSlotRuntimeReader{},
+		ChannelRuntimeMeta: newChannelDrainMetaReader(),
+	})
+
+	status, err := app.NodeScaleInStatus(context.Background(), NodeScaleInStatusRequest{NodeID: 4})
+	if err != nil {
+		t.Fatalf("NodeScaleInStatus() error = %v", err)
+	}
+	if status.SafeToProceed || !status.BlockedByHealth ||
+		!containsString(status.BlockedReasons, "target_health_missing") ||
+		containsString(status.BlockedReasons, "target_health_not_alive") ||
+		containsString(status.BlockedReasons, "target_runtime_not_ready") {
+		t.Fatalf("status = %#v, want only target missing health blocker", status)
+	}
+}
+
 func TestScaleInStatusBlocksWhenSlotDesiredPeersContainTarget(t *testing.T) {
 	app := New(Options{
 		Cluster:        fakeNodeSnapshotReader{snapshot: scaleInSnapshot(17)},

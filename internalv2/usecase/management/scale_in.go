@@ -26,6 +26,7 @@ const (
 	scaleInReasonTargetRuntimeNotReady           = "target_runtime_not_ready"
 	scaleInReasonEligibleNodeHealthMissing       = "eligible_node_health_missing"
 	scaleInReasonEligibleNodeHealthStale         = "eligible_node_health_stale"
+	scaleInReasonEligibleNodeHealthNotAlive      = "eligible_node_health_not_alive"
 	scaleInReasonEligibleNodeHealthRevisionStale = "eligible_node_health_revision_stale"
 	scaleInReasonEligibleNodeRuntimeNotReady     = "eligible_node_runtime_not_ready"
 )
@@ -528,7 +529,9 @@ func markScaleInHealthBlockers(snapshot control.Snapshot, targetNode control.Nod
 	response.HealthReportTTLMS = targetHealth.ReportTTL.Milliseconds()
 	response.ObservedControlRevision = targetHealth.ObservedControlRevision
 
-	markScaleInNodeHealthFreshness(response, targetHealth, scaleInReasonTargetHealthMissing, scaleInReasonTargetHealthStale)
+	if !markScaleInNodeHealthFreshness(response, targetHealth, scaleInReasonTargetHealthMissing, scaleInReasonTargetHealthStale) {
+		return
+	}
 	if targetHealth.Status != control.NodeAlive {
 		response.BlockedByHealth = true
 		markBlockedReason(response, scaleInReasonTargetHealthNotAlive)
@@ -543,12 +546,20 @@ func markScaleInHealthBlockers(snapshot control.Snapshot, targetNode control.Nod
 			continue
 		}
 		health := node.Health
-		markScaleInNodeHealthFreshness(response, health, scaleInReasonEligibleNodeHealthMissing, scaleInReasonEligibleNodeHealthStale)
+		if !markScaleInNodeHealthFreshness(response, health, scaleInReasonEligibleNodeHealthMissing, scaleInReasonEligibleNodeHealthStale) {
+			continue
+		}
+		if health.Status != control.NodeAlive {
+			response.BlockedByHealth = true
+			markBlockedReason(response, scaleInReasonEligibleNodeHealthNotAlive)
+			continue
+		}
 		if !health.RuntimeReady {
 			response.BlockedByHealth = true
 			markBlockedReason(response, scaleInReasonEligibleNodeRuntimeNotReady)
+			continue
 		}
-		if health.Freshness == control.NodeHealthFresh && health.ObservedControlRevision < snapshot.Revision {
+		if health.ObservedControlRevision < snapshot.Revision {
 			response.BlockedByHealth = true
 			response.BlockedByStaleRevision = true
 			markBlockedReason(response, scaleInReasonEligibleNodeHealthRevisionStale)
@@ -556,10 +567,10 @@ func markScaleInHealthBlockers(snapshot control.Snapshot, targetNode control.Nod
 	}
 }
 
-func markScaleInNodeHealthFreshness(response *NodeScaleInStatusResponse, health control.NodeHealth, missingReason string, staleReason string) {
+func markScaleInNodeHealthFreshness(response *NodeScaleInStatusResponse, health control.NodeHealth, missingReason string, staleReason string) bool {
 	switch health.Freshness {
 	case control.NodeHealthFresh:
-		return
+		return true
 	case "", control.NodeHealthMissing:
 		response.BlockedByHealth = true
 		markBlockedReason(response, missingReason)
@@ -567,6 +578,7 @@ func markScaleInNodeHealthFreshness(response *NodeScaleInStatusResponse, health 
 		response.BlockedByHealth = true
 		markBlockedReason(response, staleReason)
 	}
+	return false
 }
 
 func markBlockedReason(response *NodeScaleInStatusResponse, reason string) {
