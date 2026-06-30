@@ -67,7 +67,7 @@ Expected: active data nodes without fresh `alive` health are excluded from new p
 
 Evidence (2026-06-30): PASS with `GOWORK=off go test ./pkg/clusterv2 ./internalv2/usecase/management ./internalv2/access/manager -run 'Health|Placement|ScaleIn|Remove|NodeList' -count=1` and `git diff --check`.
 
-- [ ] **Gate 9C: operator evidence is visible and low-cardinality**
+- [x] **Gate 9C: operator evidence is visible and low-cardinality**
 
 Run:
 
@@ -77,6 +77,8 @@ git diff --check
 ```
 
 Expected: Prometheus families and manager JSON fields expose lifecycle and health freshness without high-cardinality labels.
+
+Evidence (2026-06-30): PASS with `GOWORK=off go test ./pkg/metrics ./internalv2/usecase/management ./internalv2/access/manager ./internalv2/app -run 'Lifecycle|Health|Metrics|Manager|ScaleIn' -count=1` and `git diff --check`.
 
 - [ ] **Gate 9D: public real-traffic lifecycle smoke passes**
 

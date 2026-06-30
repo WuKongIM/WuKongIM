@@ -87,9 +87,13 @@ invalid credentials return
 `/manager/nodes` preserves the legacy list response shape for the web node list
 view. It reads a control snapshot through `internalv2/usecase/management` and
 uses the wired Slot runtime status reader for actual Slot Raft leader counts.
-It also surfaces lightweight online/gateway runtime counters from the
-management runtime-summary reader; unavailable per-node runtime summaries stay
-explicitly marked `unknown` instead of failing the inventory response.
+It exposes control-snapshot health evidence in each node's `health` object:
+`fresh`, `freshness`, `runtime_ready`, report age/TTL, observed control and Slot
+revisions, and an optional bounded `error_code`. `membership.schedulable` is the
+shared health-gated placement predicate rather than an HTTP-only hint. It also
+surfaces lightweight online/gateway runtime counters from the management
+runtime-summary reader; unavailable per-node runtime summaries stay explicitly
+marked `unknown` instead of failing the inventory response.
 Node list action hints remain read-model hints; `can_drain` and `can_resume`
 stay tied to the legacy node-operation routes and remain disabled in
 internalv2 until those routes are migrated. Stage 5C gateway drain mode is
@@ -139,9 +143,12 @@ Slot runtime summaries, active Controller tasks, and bounded Channel runtime
 metadata inventory. It includes bounded health blocker fields such as
 `blocked_by_health`, `blocked_by_stale_revision`, `health_fresh`,
 `health_freshness`, `observed_control_revision`, `required_control_revision`,
-and `blocked_reasons` for operator diagnosis. Channel inventory is bounded by a
-per-page limit plus a total page budget and fails closed when the budget is
-exceeded. `plan` and `advance` accept
+and `blocked_reasons` for operator diagnosis. `blocked_reasons` are bounded
+machine-readable strings shared with the app metrics observer, which aggregates
+scale-in blockers by reason only, deduplicated per node/control revision/reason,
+and never by task, channel, UID, node address, or session. Channel inventory is
+bounded by a per-page limit plus a total page budget and fails closed when the
+budget is exceeded. `plan` and `advance` accept
 `max_slot_moves` and delegate to
 `management.App.PlanNodeScaleIn` / `AdvanceNodeScaleIn`; HTTP only creates
 bounded Stage 3 `slot_replica_move` task intents through the usecase's

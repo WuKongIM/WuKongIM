@@ -38,6 +38,9 @@ New(Config)
      counters, recipient delivery worker queue/admission/process metrics,
      plugin PersistAfter and Receive hook enqueue/invoke counters and
      histograms, and synchronous plugin Send hook invoke counters and histograms
+     plus node lifecycle gauges/counters from control snapshots and scale-in
+     status blockers (lifecycle state, health freshness, health report age,
+     onboarding task state, membership revision, and bounded blocker reasons)
      plus node resource pressure gauges backed by the local resource sampler;
      when Top.APIEnabled=false this sampler runs only for Prometheus metrics and
      does not expose the Top snapshot provider

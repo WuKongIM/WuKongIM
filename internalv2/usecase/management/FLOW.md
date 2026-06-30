@@ -65,13 +65,16 @@ manager HTTP handler
 
 The projection derives node identity, health, durable lifecycle, capacity
 weight, controller role, and desired Slot replica counts from the local
-clusterv2 control snapshot. `membership.schedulable` is true only for active
-data nodes in this Stage 9B read model; Stage 9C will align the node-list flag
-with the shared health-schedulable placement predicate. Slot leader counts are
-best-effort live Raft observations from `SlotRuntimeStatusReader`; they do not
-fall back to `PreferredLeader`, so the node list does not mix control-plane
-placement intent with actual Raft leadership. Runtime online and gateway
-counters are read through the narrow
+clusterv2 control snapshot. Health fields are copied from `control.Node.Health`
+so operators can see whether evidence is fresh, stale, or missing, whether
+runtime readiness is true, the report age/TTL, observed control and Slot
+revisions, and the bounded health error code. `membership.schedulable` uses
+`control.NodeSchedulableForPlacement`, so it matches the actual placement
+predicate: data role, active lifecycle, fresh `alive` health, and
+`runtime_ready=true`. Slot leader counts are best-effort live Raft observations
+from `SlotRuntimeStatusReader`; they do not fall back to `PreferredLeader`, so
+the node list does not mix control-plane placement intent with actual Raft
+leadership. Runtime online and gateway counters are read through the narrow
 `RuntimeSummaryReader` port. Read failures or an unwired runtime source mark
 only that node's runtime summary as unknown. Node list action hints remain
 read-model hints; `can_drain` and `can_resume` stay tied to the legacy
@@ -167,6 +170,12 @@ Runtime drain blockers keep final status unsafe but do not block Slot drain
 advancement. The final safety decision is a conjunction of the Controller
 snapshot, health freshness, Slot runtime status, Controller task state, bounded
 `ChannelRuntimeMeta` inventory, and target gateway/runtime drain counters.
+After `NodeScaleInStatus` constructs a status response, the optional
+`ScaleInStatusObserver` receives the bounded `blocked_reasons` list so app-level
+metrics can aggregate blocker counts by reason only, with app-local
+deduplication by node, control-state revision, and reason to keep status polling
+from inflating counters. The observer hook does not own safety decisions and
+does not add task ID, channel, UID, address, or node labels.
 `MarkNodeRemoved` reuses the same status report and delegates to the lifecycle
 writer with the status `StateRevision` only when `safe_to_remove=true`; unsafe
 attempts fail closed before reaching the writer, and concurrent control-state
