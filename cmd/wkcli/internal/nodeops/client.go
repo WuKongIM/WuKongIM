@@ -76,12 +76,17 @@ type DrainRequest struct {
 type NodeScaleInStatus struct {
 	NodeID                   uint64   `json:"node_id"`
 	JoinState                string   `json:"join_state"`
+	GeneratedAt              string   `json:"generated_at"`
 	StateRevision            uint64   `json:"state_revision"`
 	SafeToProceed            bool     `json:"safe_to_proceed"`
 	SafeToRemove             bool     `json:"safe_to_remove"`
+	BlockedByMissingNode     bool     `json:"blocked_by_missing_node"`
+	BlockedByJoinState       bool     `json:"blocked_by_join_state"`
 	BlockedByHealth          bool     `json:"blocked_by_health"`
 	BlockedByStaleRevision   bool     `json:"blocked_by_stale_revision"`
 	BlockedByControlRevision bool     `json:"blocked_by_control_revision"`
+	BlockedByControllerRole  bool     `json:"blocked_by_controller_role"`
+	BlockedByDataRole        bool     `json:"blocked_by_data_role"`
 	BlockedBySlots           bool     `json:"blocked_by_slots"`
 	BlockedBySlotLeadership  bool     `json:"blocked_by_slot_leadership"`
 	BlockedBySlotRuntime     bool     `json:"blocked_by_slot_runtime"`
@@ -95,6 +100,8 @@ type NodeScaleInStatus struct {
 	HealthFresh              bool     `json:"health_fresh"`
 	HealthStatus             string   `json:"health_status"`
 	HealthFreshness          string   `json:"health_freshness"`
+	HealthReportAgeMS        int64    `json:"health_report_age_ms"`
+	HealthReportTTLMS        int64    `json:"health_report_ttl_ms"`
 	ObservedControlRevision  uint64   `json:"observed_control_revision"`
 	RequiredControlRevision  uint64   `json:"required_control_revision"`
 	BlockedReasons           []string `json:"blocked_reasons"`

@@ -207,11 +207,18 @@ func TestClientScaleInStatusPreservesBlockers(t *testing.T) {
 		_, _ = w.Write([]byte(`{
 			"node_id":4,
 			"join_state":"leaving",
+			"generated_at":"2026-06-30T10:11:12Z",
 			"state_revision":88,
 			"safe_to_proceed":false,
 			"safe_to_remove":false,
+			"blocked_by_missing_node":true,
+			"blocked_by_join_state":true,
 			"blocked_by_health":true,
+			"blocked_by_controller_role":true,
+			"blocked_by_data_role":true,
 			"blocked_by_runtime_drain":true,
+			"health_report_age_ms":1234,
+			"health_report_ttl_ms":5000,
 			"blocked_reasons":["target_health_stale","gateway_sessions_present"],
 			"observed_control_revision":80,
 			"required_control_revision":88,
@@ -225,8 +232,18 @@ func TestClientScaleInStatusPreservesBlockers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ScaleInStatus() error = %v", err)
 	}
+	if got.GeneratedAt != "2026-06-30T10:11:12Z" {
+		t.Fatalf("ScaleInStatus() generated_at = %q, want 2026-06-30T10:11:12Z", got.GeneratedAt)
+	}
+	if !got.BlockedByMissingNode || !got.BlockedByJoinState || !got.BlockedByControllerRole || !got.BlockedByDataRole {
+		t.Fatalf("ScaleInStatus() manager blockers = missing:%t join:%t controller:%t data:%t, want all true",
+			got.BlockedByMissingNode, got.BlockedByJoinState, got.BlockedByControllerRole, got.BlockedByDataRole)
+	}
 	if !got.BlockedByHealth || !got.BlockedByRuntimeDrain {
 		t.Fatalf("ScaleInStatus() blockers = health:%t runtime_drain:%t, want both true", got.BlockedByHealth, got.BlockedByRuntimeDrain)
+	}
+	if got.HealthReportAgeMS != 1234 || got.HealthReportTTLMS != 5000 {
+		t.Fatalf("ScaleInStatus() health report timing = age:%d ttl:%d, want 1234/5000", got.HealthReportAgeMS, got.HealthReportTTLMS)
 	}
 	if got.ObservedControlRevision != 80 || got.RequiredControlRevision != 88 {
 		t.Fatalf("ScaleInStatus() revisions = observed:%d required:%d, want 80/88", got.ObservedControlRevision, got.RequiredControlRevision)
