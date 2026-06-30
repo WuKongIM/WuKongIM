@@ -948,6 +948,12 @@ func (o controlSnapshotMetricsObserver) ObserveControlSnapshot(snapshot control.
 	o.metrics.Controller.SetTaskActive(activeTasks)
 	o.metrics.Controller.SetTaskFailed(failedTasks)
 	o.metrics.Controller.SetSlotLeaderSkew(controllerPreferredLeaderSkew(snapshot.Nodes, snapshot.Slots))
+	o.metrics.NodeLifecycle.SetDiscoveryMembershipRevision(snapshot.Revision)
+	o.metrics.NodeLifecycle.SetLifecycleNodes(controllerLifecycleCounts(snapshot.Nodes))
+	freshnessCounts, ageMax := controllerHealthFreshnessCounts(snapshot.Nodes)
+	o.metrics.NodeLifecycle.SetHealthFreshnessNodes(freshnessCounts)
+	o.metrics.NodeLifecycle.SetHealthReportAgeMax(ageMax)
+	o.metrics.NodeLifecycle.SetOnboardingTasks(controllerOnboardingTaskCounts(snapshot.Tasks))
 }
 
 func controllerNodeCounts(nodes []control.Node) (alive, suspect, dead int) {
@@ -979,6 +985,62 @@ func controllerTaskCounts(tasks []control.ReconcileTask) (map[string]int, map[st
 		active[kind]++
 	}
 	return active, failed
+}
+
+func controllerLifecycleCounts(nodes []control.Node) map[obsmetrics.NodeLifecycleKey]int {
+	counts := make(map[obsmetrics.NodeLifecycleKey]int)
+	for _, node := range nodes {
+		counts[obsmetrics.NodeLifecycleKey{
+			JoinState: string(controllerEffectiveJoinState(node.JoinState)),
+			Status:    string(node.Status),
+		}]++
+	}
+	return counts
+}
+
+func controllerHealthFreshnessCounts(nodes []control.Node) (map[obsmetrics.NodeHealthFreshnessKey]int, map[obsmetrics.NodeHealthFreshnessKey]float64) {
+	counts := make(map[obsmetrics.NodeHealthFreshnessKey]int)
+	ageMax := make(map[obsmetrics.NodeHealthFreshnessKey]float64)
+	for _, node := range nodes {
+		key := obsmetrics.NodeHealthFreshnessKey{
+			Freshness: string(node.Health.Freshness),
+			Status:    string(node.Health.Status),
+		}
+		if key.Freshness == "" {
+			key.Freshness = string(control.NodeHealthMissing)
+		}
+		if key.Status == "" {
+			key.Status = string(node.Status)
+		}
+		counts[key]++
+		age := node.Health.ReportAge.Seconds()
+		if existing, ok := ageMax[key]; !ok || age > existing {
+			ageMax[key] = age
+		}
+	}
+	return counts, ageMax
+}
+
+func controllerOnboardingTaskCounts(tasks []control.ReconcileTask) map[string]int {
+	counts := map[string]int{
+		string(control.TaskStatusPending): 0,
+		string(control.TaskStatusRunning): 0,
+		string(control.TaskStatusFailed):  0,
+	}
+	for _, task := range tasks {
+		if task.Kind != control.TaskKindSlotReplicaMove {
+			continue
+		}
+		counts[string(task.Status)]++
+	}
+	return counts
+}
+
+func controllerEffectiveJoinState(state control.NodeJoinState) control.NodeJoinState {
+	if state == "" {
+		return control.NodeJoinStateActive
+	}
+	return state
 }
 
 func controllerPreferredLeaderSkew(nodes []control.Node, slots []control.SlotAssignment) int {

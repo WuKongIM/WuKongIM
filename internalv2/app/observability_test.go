@@ -584,6 +584,84 @@ func TestControlSnapshotMetricsObserverMapsControllerHealth(t *testing.T) {
 	}
 }
 
+func TestControlSnapshotMetricsObserverMapsNodeLifecycleHealth(t *testing.T) {
+	reg := obsmetrics.New(1, "n1")
+	observer := controlSnapshotMetricsObserver{metrics: reg}
+
+	observer.ObserveControlSnapshot(control.Snapshot{
+		Revision: 42,
+		Nodes: []control.Node{
+			{
+				NodeID:    1,
+				Roles:     []control.Role{control.RoleData},
+				JoinState: control.NodeJoinStateActive,
+				Status:    control.NodeAlive,
+				Health: control.NodeHealth{
+					Status:       control.NodeAlive,
+					Freshness:    control.NodeHealthFresh,
+					RuntimeReady: true,
+					ReportAge:    4 * time.Second,
+				},
+			},
+			{
+				NodeID:    2,
+				Roles:     []control.Role{control.RoleData},
+				JoinState: control.NodeJoinStateLeaving,
+				Status:    control.NodeAlive,
+				Health: control.NodeHealth{
+					Status:       control.NodeAlive,
+					Freshness:    control.NodeHealthStale,
+					RuntimeReady: true,
+					ReportAge:    31 * time.Second,
+				},
+			},
+			{
+				NodeID:    3,
+				Roles:     []control.Role{control.RoleData},
+				JoinState: control.NodeJoinStateActive,
+				Status:    control.NodeDown,
+				Health: control.NodeHealth{
+					Status:       control.NodeDown,
+					Freshness:    control.NodeHealthFresh,
+					RuntimeReady: false,
+					ReportAge:    time.Second,
+				},
+			},
+		},
+		Tasks: []control.ReconcileTask{
+			{Kind: control.TaskKindSlotReplicaMove, Status: control.TaskStatusPending},
+			{Kind: control.TaskKindSlotReplicaMove, Status: control.TaskStatusRunning},
+			{Kind: control.TaskKindSlotReplicaMove, Status: control.TaskStatusFailed},
+			{Kind: control.TaskKindLeaderTransfer, Status: control.TaskStatusRunning},
+		},
+	})
+
+	families, err := reg.Gather()
+	if err != nil {
+		t.Fatalf("Gather() error = %v", err)
+	}
+	lifecycle := requireAppMetricFamily(t, families, "wukongim_node_lifecycle_nodes")
+	if got := findAppMetricByLabels(t, lifecycle, map[string]string{"join_state": "active", "status": "alive"}).GetGauge().GetValue(); got != 1 {
+		t.Fatalf("active alive lifecycle nodes = %v, want 1", got)
+	}
+	freshness := requireAppMetricFamily(t, families, "wukongim_node_health_freshness_nodes")
+	if got := findAppMetricByLabels(t, freshness, map[string]string{"freshness": "stale", "status": "alive"}).GetGauge().GetValue(); got != 1 {
+		t.Fatalf("stale alive health nodes = %v, want 1", got)
+	}
+	age := requireAppMetricFamily(t, families, "wukongim_node_health_report_age_seconds")
+	if got := findAppMetricByLabels(t, age, map[string]string{"freshness": "stale", "status": "alive"}).GetGauge().GetValue(); got != 31 {
+		t.Fatalf("stale alive health age = %v, want 31", got)
+	}
+	tasks := requireAppMetricFamily(t, families, "wukongim_node_onboarding_tasks")
+	if got := findAppMetricByLabels(t, tasks, map[string]string{"state": "running"}).GetGauge().GetValue(); got != 1 {
+		t.Fatalf("running onboarding tasks = %v, want 1", got)
+	}
+	revision := requireAppMetricFamily(t, families, "wukongim_discovery_membership_revision")
+	if got := revision.GetMetric()[0].GetGauge().GetValue(); got != 42 {
+		t.Fatalf("membership revision = %v, want 42", got)
+	}
+}
+
 func TestTransportV2MetricsObserverAggregatesConnectionLocalGauges(t *testing.T) {
 	reg := obsmetrics.New(1, "n1")
 	observer := &transportV2MetricsObserver{metrics: reg}
