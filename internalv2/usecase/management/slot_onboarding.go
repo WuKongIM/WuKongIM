@@ -402,7 +402,7 @@ func applyNodeOnboardingActiveTaskProjection(tasks []control.ReconcileTask, coun
 }
 
 func nodeOnboardingRetryableWriteError(err error) bool {
-	return cv2.IsExpectedRevisionMismatch(err) || errors.Is(err, cv2.ErrSlotActiveTaskConflict)
+	return cv2.IsExpectedRevisionMismatch(err) || cv2.IsTaskPhaseMismatch(err) || errors.Is(err, cv2.ErrSlotActiveTaskConflict)
 }
 
 func bestReplaceableNodeOnboardingPeer(peers []uint64, targetNodeID uint64, projectedReplicas map[uint64]int) (uint64, bool) {

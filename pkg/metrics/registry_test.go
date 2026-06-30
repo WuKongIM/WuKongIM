@@ -168,6 +168,18 @@ func TestClusterMonitorGaugesStayAbsentUntilObserved(t *testing.T) {
 	requireNoMetricFamily(t, families, "wukongim_channelv2_isr_anomaly_channels")
 }
 
+func TestNodeScaleInBlockerMetricsExposeKnownReasonsBeforeObserved(t *testing.T) {
+	reg := New(1, "node-1")
+
+	families, err := reg.Gather()
+	require.NoError(t, err)
+
+	blockers := requireMetricFamily(t, families, "wukongim_node_scale_in_blockers_total")
+	require.Equal(t, float64(0), findMetricByLabels(t, blockers, map[string]string{
+		"node_id": "1", "node_name": "node-1", "reason": "target_health_stale",
+	}).GetCounter().GetValue())
+}
+
 func TestNodeLifecycleMetricsTrackHealthFreshnessAndBlockers(t *testing.T) {
 	reg := New(1, "node-1")
 

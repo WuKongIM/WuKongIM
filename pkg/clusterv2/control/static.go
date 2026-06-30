@@ -10,6 +10,7 @@ type StaticController struct {
 	mu         sync.RWMutex
 	snapshot   Snapshot
 	watch      chan SnapshotEvent
+	publisher  *snapshotWatchPublisher
 	nodeReport NodeReport
 	slotReport SlotRuntimeReport
 	// CompletedTasks records fenced completion writes for tests.
@@ -31,7 +32,8 @@ type StaticController struct {
 
 // NewStaticController creates a StaticController seeded with snapshot.
 func NewStaticController(snapshot Snapshot) *StaticController {
-	return &StaticController{snapshot: snapshot.Clone(), watch: make(chan SnapshotEvent, 16)}
+	watch := make(chan SnapshotEvent, 16)
+	return &StaticController{snapshot: snapshot.Clone(), watch: watch, publisher: newSnapshotWatchPublisher(watch)}
 }
 
 // Start validates the initial snapshot and marks the controller started.
@@ -189,10 +191,7 @@ func (c *StaticController) Publish(snapshot Snapshot) error {
 	c.mu.Lock()
 	c.snapshot = clone
 	c.mu.Unlock()
-	select {
-	case c.watch <- SnapshotEvent{Snapshot: clone.Clone()}:
-	default:
-	}
+	c.publisher.publish(clone)
 	return nil
 }
 

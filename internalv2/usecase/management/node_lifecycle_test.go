@@ -127,6 +127,28 @@ func TestActivateNodeDelegates(t *testing.T) {
 	}
 }
 
+func TestActivateNodeIsIdempotentWhenControlAlreadyActive(t *testing.T) {
+	snapshot := activationReadinessSnapshot()
+	snapshot.Nodes[0].JoinState = control.NodeJoinStateActive
+	writer := &nodeLifecycleWriterStub{}
+	app := New(Options{
+		Cluster:       fakeNodeSnapshotReader{snapshot: snapshot},
+		NodeLifecycle: writer,
+		NodeReadiness: fakeNodeReadinessReader{resp: activationReadyReadiness()},
+	})
+
+	response, err := app.ActivateNode(context.Background(), ActivateNodeRequest{NodeID: 4})
+	if err != nil {
+		t.Fatalf("ActivateNode(active) error = %v", err)
+	}
+	if response.Changed || response.NodeID != 4 || response.JoinState != "active" || response.Revision != snapshot.Revision {
+		t.Fatalf("ActivateNode(active) = %#v, want idempotent active response at revision %d", response, snapshot.Revision)
+	}
+	if writer.activateReq.NodeID != 0 {
+		t.Fatalf("writer activate request = %#v, want no write for already-active node", writer.activateReq)
+	}
+}
+
 func TestActivateNodeRejectsWhenReadinessIsUnknown(t *testing.T) {
 	writer := &nodeLifecycleWriterStub{}
 	app := New(Options{
@@ -244,6 +266,52 @@ func TestActivateNodeMapsControlAvailabilityErrors(t *testing.T) {
 	}
 }
 
+func TestNodeLifecycleAttemptObserverRecordsActivateResults(t *testing.T) {
+	observer := &recordingNodeLifecycleAttemptObserver{}
+	app := New(Options{
+		Cluster:                      fakeNodeSnapshotReader{snapshot: activationReadinessSnapshot()},
+		NodeLifecycle:                &nodeLifecycleWriterStub{activateResult: control.ActivateNodeResult{Changed: true, Node: control.Node{NodeID: 4, JoinState: control.NodeJoinStateActive}}},
+		NodeReadiness:                fakeNodeReadinessReader{resp: activationReadyReadiness()},
+		NodeLifecycleAttemptObserver: observer,
+	})
+
+	if _, err := app.ActivateNode(context.Background(), ActivateNodeRequest{NodeID: 4}); err != nil {
+		t.Fatalf("ActivateNode() error = %v", err)
+	}
+	if got := observer.attempts; len(got) != 1 || got[0] != (nodeLifecycleAttempt{operation: "activate", result: "ok"}) {
+		t.Fatalf("attempts after success = %#v, want activate ok", got)
+	}
+
+	observer.attempts = nil
+	alreadyActive := activationReadinessSnapshot()
+	alreadyActive.Nodes[0].JoinState = control.NodeJoinStateActive
+	app = New(Options{
+		Cluster:                      fakeNodeSnapshotReader{snapshot: alreadyActive},
+		NodeLifecycle:                &nodeLifecycleWriterStub{},
+		NodeLifecycleAttemptObserver: observer,
+	})
+	if _, err := app.ActivateNode(context.Background(), ActivateNodeRequest{NodeID: 4}); err != nil {
+		t.Fatalf("ActivateNode(already active) error = %v", err)
+	}
+	if got := observer.attempts; len(got) != 1 || got[0] != (nodeLifecycleAttempt{operation: "activate", result: "ok"}) {
+		t.Fatalf("attempts after already-active = %#v, want activate ok", got)
+	}
+
+	observer.attempts = nil
+	app = New(Options{
+		Cluster:                      fakeNodeSnapshotReader{snapshot: activationReadinessSnapshot()},
+		NodeLifecycle:                &nodeLifecycleWriterStub{},
+		NodeReadiness:                fakeNodeReadinessReader{resp: NodeReadiness{NodeID: 4, Unknown: true}},
+		NodeLifecycleAttemptObserver: observer,
+	})
+	if _, err := app.ActivateNode(context.Background(), ActivateNodeRequest{NodeID: 4}); !errors.Is(err, ErrNodeNotReadyForActivation) {
+		t.Fatalf("ActivateNode(not ready) error = %v, want ErrNodeNotReadyForActivation", err)
+	}
+	if got := observer.attempts; len(got) != 1 || got[0] != (nodeLifecycleAttempt{operation: "activate", result: "not_ready"}) {
+		t.Fatalf("attempts after not-ready = %#v, want activate not_ready", got)
+	}
+}
+
 func TestMarkNodeLeavingDelegates(t *testing.T) {
 	writer := &nodeLifecycleWriterStub{
 		leavingResult: control.MarkNodeLeavingResult{
@@ -341,6 +409,19 @@ type nodeLifecycleWriterStub struct {
 	removedReq     control.MarkNodeRemovedRequest
 	removedResult  control.MarkNodeRemovedResult
 	removedErr     error
+}
+
+type nodeLifecycleAttempt struct {
+	operation string
+	result    string
+}
+
+type recordingNodeLifecycleAttemptObserver struct {
+	attempts []nodeLifecycleAttempt
+}
+
+func (o *recordingNodeLifecycleAttemptObserver) ObserveNodeLifecycleAttempt(operation, result string) {
+	o.attempts = append(o.attempts, nodeLifecycleAttempt{operation: operation, result: result})
 }
 
 func (s *nodeLifecycleWriterStub) JoinNode(_ context.Context, req control.JoinNodeRequest) (control.JoinNodeResult, error) {

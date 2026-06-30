@@ -8,6 +8,8 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
 	cv2 "github.com/WuKongIM/WuKongIM/pkg/controllerv2"
+	"github.com/WuKongIM/WuKongIM/pkg/controllerv2/fsm"
+	cv2raft "github.com/WuKongIM/WuKongIM/pkg/controllerv2/raft"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
@@ -92,7 +94,7 @@ func TestScaleInStatusNotifiesObserverWithBlockedReasons(t *testing.T) {
 	}
 }
 
-func TestScaleInStatusBlocksWhenEligibleNodeHasNotObservedRevision(t *testing.T) {
+func TestScaleInStatusDoesNotBlockWhenEligibleHealthRevisionLagsRuntimeRevision(t *testing.T) {
 	snap := scaleInReadyNoSlotReplicaSnapshot()
 	snap.Revision = 22
 	snap.Nodes[0].Roles = []control.Role{control.RoleController, control.RoleData}
@@ -111,9 +113,9 @@ func TestScaleInStatusBlocksWhenEligibleNodeHasNotObservedRevision(t *testing.T)
 	if err != nil {
 		t.Fatalf("NodeScaleInStatus() error = %v", err)
 	}
-	if status.SafeToProceed || !status.BlockedByHealth || !status.BlockedByStaleRevision ||
-		!containsString(status.BlockedReasons, "eligible_node_health_revision_stale") {
-		t.Fatalf("status = %#v, want eligible stale health revision blocker", status)
+	if !status.SafeToProceed || status.BlockedByHealth || status.BlockedByStaleRevision ||
+		containsString(status.BlockedReasons, "eligible_node_health_revision_stale") {
+		t.Fatalf("status = %#v, want current runtime revision to override stale low-frequency health revision", status)
 	}
 }
 
@@ -459,6 +461,31 @@ func TestMarkNodeRemovedDelegatesWhenAlreadyRemoved(t *testing.T) {
 	}
 }
 
+func TestMarkNodeRemovedObserverTreatsAlreadyRemovedAsOK(t *testing.T) {
+	snap := scaleInReadyNoSlotReplicaSnapshot()
+	snap.Nodes[3].JoinState = control.NodeJoinStateRemoved
+	snap.Nodes[3].Status = control.NodeDown
+	observer := &recordingNodeLifecycleAttemptObserver{}
+	writer := &nodeLifecycleWriterStub{removedResult: control.MarkNodeRemovedResult{
+		Changed:  false,
+		Node:     control.Node{NodeID: 4, JoinState: control.NodeJoinStateRemoved},
+		Revision: snap.Revision,
+	}}
+	app := New(Options{
+		Cluster:                      fakeNodeSnapshotReader{snapshot: snap},
+		NodeLifecycle:                writer,
+		NodeLifecycleAttemptObserver: observer,
+	})
+
+	_, err := app.MarkNodeRemoved(context.Background(), MarkNodeRemovedRequest{NodeID: 4})
+	if err != nil {
+		t.Fatalf("MarkNodeRemoved() error = %v", err)
+	}
+	if got := observer.attempts; len(got) != 1 || got[0] != (nodeLifecycleAttempt{operation: "scale_in_remove", result: "ok"}) {
+		t.Fatalf("attempts = %#v, want scale_in_remove ok", got)
+	}
+}
+
 func TestScaleInStatusRequiresDataNodeRole(t *testing.T) {
 	snap := scaleInReadyNoSlotReplicaSnapshot()
 	snap.Nodes[3].Roles = nil
@@ -713,6 +740,25 @@ func TestAdvanceNodeScaleInMapsActiveTaskConflictToScaleInConflict(t *testing.T)
 	}
 	if len(writer.requests) < 2 {
 		t.Fatalf("requests = %d, want active-task conflict to retry before bounded conflict", len(writer.requests))
+	}
+}
+
+func TestAdvanceNodeScaleInMapsTaskPhaseMismatchToScaleInConflict(t *testing.T) {
+	snap := scaleInSnapshot(17)
+	snap.Nodes = append(snap.Nodes, scaleInHealthNode(4, []control.Role{control.RoleData}, control.NodeJoinStateActive, snap.Revision))
+	writer := &fakeSlotReplicaMoveWriter{err: cv2raft.ProposalRejectedError{Reason: fsm.ReasonTaskPhaseMismatch}}
+	app := New(Options{
+		Cluster:         fakeNodeSnapshotReader{snapshot: snap},
+		RuntimeSummary:  fakeNodeRuntimeSummaryReader{summaries: scaleInRuntimeSummariesFor(17, 1, 2, 3, 4)},
+		SlotReplicaMove: writer,
+		SlotRuntimeStatus: &fakeSlotRuntimeStatusReader{
+			statuses: map[uint32]SlotRuntimeStatus{1: {SlotID: 1, LeaderID: 1, CurrentVoters: []uint64{1, 2, 3}}},
+		},
+	})
+
+	_, err := app.AdvanceNodeScaleIn(context.Background(), NodeScaleInAdvanceRequest{NodeID: 2, MaxSlotMoves: 1})
+	if !errors.Is(err, ErrNodeScaleInConflict) {
+		t.Fatalf("AdvanceNodeScaleIn() error = %v, want %v", err, ErrNodeScaleInConflict)
 	}
 }
 

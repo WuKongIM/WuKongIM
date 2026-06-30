@@ -154,6 +154,10 @@ func newNodeLifecycleMetrics(registry prometheus.Registerer, labels prometheus.L
 		}),
 	}
 
+	for reason := range nodeScaleInBlockerReasons {
+		m.scaleInBlockers.WithLabelValues(reason).Add(0)
+	}
+
 	registry.MustRegister(
 		m.lifecycleNodes,
 		m.healthFreshness,

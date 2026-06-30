@@ -1154,9 +1154,6 @@ func selectLeaderTransferTransferee(st raft.Status, preferred NodeID) NodeID {
 	}
 	lead := st.Lead
 	requiredMatch := st.Commit
-	if progress, ok := st.Progress[lead]; ok && progress.Match > requiredMatch {
-		requiredMatch = progress.Match
-	}
 	isEligible := func(id uint64) bool {
 		if id == 0 || id == lead {
 			return false

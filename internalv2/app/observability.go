@@ -1068,6 +1068,16 @@ func (o *nodeLifecycleMetricsObserver) ObserveScaleInStatus(status managementuse
 	}
 }
 
+func (o *nodeLifecycleMetricsObserver) ObserveNodeLifecycleAttempt(operation, result string) {
+	if o == nil {
+		return
+	}
+	if o.metrics == nil || o.metrics.NodeLifecycle == nil {
+		return
+	}
+	o.metrics.NodeLifecycle.ObserveLifecycleAttempt(operation, result)
+}
+
 func (o *nodeLifecycleMetricsObserver) markScaleInBlockerObserved(nodeID, stateRevision uint64, reason string) bool {
 	if o == nil {
 		return false

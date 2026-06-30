@@ -126,7 +126,7 @@ type ManagerNodeScaleInStatusResponse struct {
 	BlockedByControlRevision bool `json:"blocked_by_control_revision"`
 	// BlockedByHealth reports missing, stale, or unhealthy durable node health.
 	BlockedByHealth bool `json:"blocked_by_health"`
-	// BlockedByStaleRevision reports health that has not observed the required control revision.
+	// BlockedByStaleRevision is reserved for durable health revision diagnostics; live runtime revision gates safety.
 	BlockedByStaleRevision bool `json:"blocked_by_stale_revision"`
 	// BlockedByControllerRole reports that the target node still has the Controller role.
 	BlockedByControllerRole bool `json:"blocked_by_controller_role"`

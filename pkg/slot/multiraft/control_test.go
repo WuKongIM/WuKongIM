@@ -103,7 +103,7 @@ func TestSelectLeaderTransferTransfereeFallsBackWhenPreferredBehind(t *testing.T
 	}
 }
 
-func TestSelectLeaderTransferTransfereeFallsBackWhenPreferredOnlyHasCommit(t *testing.T) {
+func TestSelectLeaderTransferTransfereePrefersCommittedPreferredWithActiveLeaderTail(t *testing.T) {
 	st := raft.Status{
 		BasicStatus: raft.BasicStatus{
 			SoftState: raft.SoftState{Lead: 1},
@@ -119,8 +119,29 @@ func TestSelectLeaderTransferTransfereeFallsBackWhenPreferredOnlyHasCommit(t *te
 		},
 	}
 
-	if got := selectLeaderTransferTransferee(st, 2); got != 3 {
-		t.Fatalf("selectLeaderTransferTransferee() = %d, want fully caught-up voter 3", got)
+	if got := selectLeaderTransferTransferee(st, 2); got != 2 {
+		t.Fatalf("selectLeaderTransferTransferee() = %d, want committed preferred voter 2", got)
+	}
+}
+
+func TestSelectLeaderTransferTransfereeAllowsCommittedPreferredWithoutFullyCaughtUpPeer(t *testing.T) {
+	st := raft.Status{
+		BasicStatus: raft.BasicStatus{
+			SoftState: raft.SoftState{Lead: 1},
+			HardState: raftpb.HardState{Commit: 10},
+		},
+		Config: tracker.Config{Voters: quorum.JointConfig{
+			quorum.MajorityConfig{1: {}, 2: {}, 3: {}},
+		}},
+		Progress: map[uint64]tracker.Progress{
+			1: {Match: 12},
+			2: {Match: 10},
+			3: {Match: 9},
+		},
+	}
+
+	if got := selectLeaderTransferTransferee(st, 2); got != 2 {
+		t.Fatalf("selectLeaderTransferTransferee() = %d, want committed preferred voter 2", got)
 	}
 }
 

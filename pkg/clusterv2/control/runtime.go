@@ -80,9 +80,10 @@ type Runtime struct {
 	taskClient  *TaskClient
 	writeClient *ControlWriteClient
 
-	mu       sync.RWMutex
-	snapshot Snapshot
-	watch    chan SnapshotEvent
+	mu        sync.RWMutex
+	snapshot  Snapshot
+	watch     chan SnapshotEvent
+	publisher *snapshotWatchPublisher
 
 	watchCancel context.CancelFunc
 	watchWG     sync.WaitGroup
@@ -112,12 +113,14 @@ func NewRuntime(cfg RuntimeConfig) (*Runtime, error) {
 	if err != nil {
 		return nil, err
 	}
+	watch := make(chan SnapshotEvent, 16)
 	return &Runtime{
 		cfg:         cfg,
 		backend:     backend,
 		taskClient:  cfg.TaskClient,
 		writeClient: cfg.ControlWriteClient,
-		watch:       make(chan SnapshotEvent, 16),
+		watch:       watch,
+		publisher:   newSnapshotWatchPublisher(watch),
 	}, nil
 }
 
@@ -671,10 +674,7 @@ func (r *Runtime) publishState(st cv2.ClusterState) error {
 	r.mu.Lock()
 	r.snapshot = snap.Clone()
 	r.mu.Unlock()
-	select {
-	case r.watch <- SnapshotEvent{Snapshot: snap.Clone()}:
-	default:
-	}
+	r.publisher.publish(snap)
 	return nil
 }
 

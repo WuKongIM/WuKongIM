@@ -66,6 +66,12 @@ type ScaleInStatusObserver interface {
 	ObserveScaleInStatus(NodeScaleInStatusResponse)
 }
 
+// NodeLifecycleAttemptObserver observes node lifecycle write attempts.
+type NodeLifecycleAttemptObserver interface {
+	// ObserveNodeLifecycleAttempt observes one lifecycle operation attempt with a bounded result class.
+	ObserveNodeLifecycleAttempt(operation, result string)
+}
+
 // Options configures the manager management usecase.
 type Options struct {
 	// Cluster reads clusterv2 control state.
@@ -84,6 +90,8 @@ type Options struct {
 	DiagnosticsTracking DiagnosticsTrackingOperator
 	// ScaleInStatusObserver observes generated scale-in safety statuses.
 	ScaleInStatusObserver ScaleInStatusObserver
+	// NodeLifecycleAttemptObserver observes lifecycle write attempts for metrics.
+	NodeLifecycleAttemptObserver NodeLifecycleAttemptObserver
 	// ChannelRuntimeMeta scans channel runtime metadata for cluster channel pages.
 	ChannelRuntimeMeta ChannelRuntimeMetaReader
 	// ChannelBusinessReader scans durable channel metadata for manager channel pages.
@@ -150,6 +158,7 @@ type App struct {
 	diagnostics            DiagnosticsReader
 	diagnosticsTracking    DiagnosticsTrackingOperator
 	scaleInStatusObserver  ScaleInStatusObserver
+	lifecycleAttempts      NodeLifecycleAttemptObserver
 	channelRuntimeMeta     ChannelRuntimeMetaReader
 	channelBusinessReader  ChannelBusinessReader
 	remoteBusinessChannels RemoteBusinessChannelReader
@@ -194,6 +203,7 @@ func New(opts Options) *App {
 		diagnostics:            opts.Diagnostics,
 		diagnosticsTracking:    opts.DiagnosticsTracking,
 		scaleInStatusObserver:  opts.ScaleInStatusObserver,
+		lifecycleAttempts:      opts.NodeLifecycleAttemptObserver,
 		channelRuntimeMeta:     opts.ChannelRuntimeMeta,
 		channelBusinessReader:  opts.ChannelBusinessReader,
 		remoteBusinessChannels: opts.RemoteBusinessChannels,

@@ -322,6 +322,36 @@ func TestRuntimePublishIfChangedRefreshesSameRevisionChecksumDrift(t *testing.T)
 	}
 }
 
+func TestRuntimePublishStateCoalescesLatestEventWhenWatchFull(t *testing.T) {
+	first := runtimeBootstrapVisibleState(t, 7, false)
+	latest := runtimeBootstrapVisibleState(t, 8, false)
+	runtime := &Runtime{
+		state: first.Clone(),
+		watch: make(chan StateEvent, 1),
+	}
+	runtime.watch <- StateEvent{State: first.Clone()}
+
+	if err := runtime.publishState(latest); err != nil {
+		t.Fatalf("publishState() error = %v", err)
+	}
+
+	select {
+	case event := <-runtime.Watch():
+		if event.State.Revision != latest.Revision {
+			t.Fatalf("published revision = %d, want latest revision %d", event.State.Revision, latest.Revision)
+		}
+	default:
+		t.Fatal("watch channel empty, want latest event")
+	}
+	got, err := runtime.LocalState(context.Background())
+	if err != nil {
+		t.Fatalf("LocalState() error = %v", err)
+	}
+	if got.Revision != latest.Revision {
+		t.Fatalf("LocalState revision = %d, want %d", got.Revision, latest.Revision)
+	}
+}
+
 func TestRuntimeControlTickRefreshesSameRevisionChecksumDriftAfterBootstrapComplete(t *testing.T) {
 	ctx := context.Background()
 	visible := runtimeBootstrapVisibleState(t, 7, true)

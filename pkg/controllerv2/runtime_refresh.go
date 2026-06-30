@@ -108,10 +108,27 @@ func (r *Runtime) publishState(st ClusterState) error {
 	clone := st.Clone()
 	r.mu.Lock()
 	r.state = clone.Clone()
+	publishLatestStateEvent(r.watch, clone)
 	r.mu.Unlock()
+	return nil
+}
+
+func publishLatestStateEvent(ch chan StateEvent, st ClusterState) {
+	if ch == nil {
+		return
+	}
+	event := StateEvent{State: st.Clone()}
 	select {
-	case r.watch <- StateEvent{State: clone.Clone()}:
+	case ch <- event:
+		return
 	default:
 	}
-	return nil
+	select {
+	case <-ch:
+	default:
+	}
+	select {
+	case ch <- event:
+	default:
+	}
 }

@@ -22,10 +22,10 @@
 
 ## Entry Gate
 
-- [ ] Stage 9C has been implemented and its gate has passed.
-- [ ] Manager node list exposes health freshness fields.
-- [ ] Manager scale-in status exposes health blocker fields and `blocked_reasons`.
-- [ ] `/metrics` exposes Stage 9 lifecycle and health metric families.
+- [x] Stage 9C has been implemented and its gate has passed.
+- [x] Manager node list exposes health freshness fields.
+- [x] Manager scale-in status exposes health blocker fields and `blocked_reasons`.
+- [x] `/metrics` exposes Stage 9 lifecycle and health metric families.
 
 ## File Map
 
@@ -52,7 +52,7 @@
 - Create: `test/e2ev2/cluster/dynamic_node_readiness/AGENTS.md`
 - Modify: `test/e2ev2/AGENTS.md`
 
-- [ ] **Step 1: Add package AGENTS**
+- [x] **Step 1: Add package AGENTS**
 
 Create `test/e2ev2/cluster/dynamic_node_readiness/AGENTS.md`:
 
@@ -93,7 +93,7 @@ GOWORK=off go test -tags=e2e ./test/e2ev2/cluster/dynamic_node_readiness -count=
 ```
 ```
 
-- [ ] **Step 2: Add e2ev2 catalog entry**
+- [x] **Step 2: Add e2ev2 catalog entry**
 
 Add one row to `test/e2ev2/AGENTS.md`:
 
@@ -101,7 +101,7 @@ Add one row to `test/e2ev2/AGENTS.md`:
 | `cluster` | `test/e2ev2/cluster/dynamic_node_readiness` | Prove Stage 9 dynamic-node production readiness: health freshness, manager/metrics evidence, and join/onboard/scale-in/remove while real WKProto traffic continues. | `GOWORK=off go test -tags=e2e ./test/e2ev2/cluster/dynamic_node_readiness -count=1 -timeout 12m -p=1` |
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add test/e2ev2/cluster/dynamic_node_readiness/AGENTS.md test/e2ev2/AGENTS.md
@@ -115,7 +115,7 @@ git commit -m "test: add dynamic node readiness scenario contract"
 **Files:**
 - Create: `test/e2ev2/cluster/dynamic_node_readiness/traffic_helpers_test.go`
 
-- [ ] **Step 1: Write helper file**
+- [x] **Step 1: Write helper file**
 
 Create `traffic_helpers_test.go`:
 
@@ -204,7 +204,7 @@ func stopTrafficWorker(t testing.TB, worker *trafficWorker) {
 }
 ```
 
-- [ ] **Step 2: Add assertions**
+- [x] **Step 2: Add assertions**
 
 Append:
 
@@ -245,7 +245,7 @@ func requireMetricsContain(t testing.TB, node *suite.StartedNode, names ...strin
 
 Add the missing `io` import.
 
-- [ ] **Step 3: Run package compile and verify helper issues**
+- [x] **Step 3: Run package compile and verify helper issues**
 
 Run:
 
@@ -255,7 +255,7 @@ GOWORK=off go test -tags=e2e ./test/e2ev2/cluster/dynamic_node_readiness -run Te
 
 Expected: package compiles or fails only because no tests exist yet. Fix helper compile errors before continuing.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add test/e2ev2/cluster/dynamic_node_readiness/traffic_helpers_test.go
@@ -270,7 +270,7 @@ git commit -m "test: add dynamic node readiness traffic helpers"
 - Create: `test/e2ev2/cluster/dynamic_node_readiness/lifecycle_helpers_test.go`
 - Modify: `test/e2ev2/suite/manager_client.go`
 
-- [ ] **Step 1: Extend suite DTOs for health fields**
+- [x] **Step 1: Extend suite DTOs for health fields**
 
 In `test/e2ev2/suite/manager_client.go`, extend node and scale-in DTOs with Stage 9 fields:
 
@@ -304,7 +304,7 @@ RequiredControlRevision uint64   `json:"required_control_revision"`
 BlockedReasons          []string `json:"blocked_reasons"`
 ```
 
-- [ ] **Step 2: Create lifecycle helpers**
+- [x] **Step 2: Create lifecycle helpers**
 
 Create `lifecycle_helpers_test.go`:
 
@@ -365,7 +365,7 @@ func eventuallyNodeHealthFresh(t testing.TB, cluster *suite.StartedCluster, mana
 }
 ```
 
-- [ ] **Step 3: Add Slot and scale-in helper snippets**
+- [x] **Step 3: Add Slot and scale-in helper snippets**
 
 Append helpers adapted from `dynamic_node_join/scale_in_slot_drain_test.go`:
 
@@ -435,7 +435,7 @@ func eventuallyScaleInSlotsDrained(t testing.TB, cluster *suite.StartedCluster, 
 }
 ```
 
-- [ ] **Step 4: Compile helper package**
+- [x] **Step 4: Compile helper package**
 
 Run:
 
@@ -445,7 +445,7 @@ GOWORK=off go test -tags=e2e ./test/e2ev2/cluster/dynamic_node_readiness -run Te
 
 Expected: package compiles or reports no tests to run.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add test/e2ev2/suite/manager_client.go test/e2ev2/cluster/dynamic_node_readiness/lifecycle_helpers_test.go
@@ -459,7 +459,7 @@ git commit -m "test: add dynamic node readiness lifecycle helpers"
 **Files:**
 - Create: `test/e2ev2/cluster/dynamic_node_readiness/production_readiness_test.go`
 
-- [ ] **Step 1: Write the test**
+- [x] **Step 1: Write the test**
 
 Create `production_readiness_test.go`:
 
@@ -556,7 +556,7 @@ func TestDynamicNodeLifecycleWithContinuousTraffic(t *testing.T) {
 
 If the suite method name for scale-in planning differs, use the existing name from `test/e2ev2/suite/manager_client.go`.
 
-- [ ] **Step 2: Run the test and verify the first failure**
+- [x] **Step 2: Run the test and verify the first failure**
 
 Run:
 
@@ -566,7 +566,7 @@ GOWORK=off go test -tags=e2e ./test/e2ev2/cluster/dynamic_node_readiness -run Te
 
 Expected before all Stage 9 implementation is complete: failure points to the first missing helper/API/metric. Fix only the root cause shown by the failure, then rerun.
 
-- [ ] **Step 3: Keep debugging evidence**
+- [x] **Step 3: Keep debugging evidence**
 
 For every failure, capture the concrete reason in the test log or commit message:
 
@@ -576,7 +576,7 @@ evidence=<manager JSON field | metrics family | cluster diagnostics | sendack re
 fix=<single code path changed>
 ```
 
-- [ ] **Step 4: Commit passing test**
+- [x] **Step 4: Commit passing test**
 
 ```bash
 git add test/e2ev2/cluster/dynamic_node_readiness
@@ -590,7 +590,7 @@ git commit -m "test: prove dynamic node lifecycle under continuous traffic"
 **Files:**
 - Create: `docs/superpowers/runbooks/internalv2-dynamic-node-stage9-wkcli-sim-smoke.md`
 
-- [ ] **Step 1: Write the runbook**
+- [x] **Step 1: Write the runbook**
 
 Create:
 
@@ -637,7 +637,7 @@ While the simulator is running, use manager HTTP to:
   `wukongim_node_scale_in_blockers_total`
 ```
 
-- [ ] **Step 2: Commit runbook**
+- [x] **Step 2: Commit runbook**
 
 ```bash
 git add docs/superpowers/runbooks/internalv2-dynamic-node-stage9-wkcli-sim-smoke.md
@@ -651,7 +651,7 @@ git commit -m "docs: add dynamic node wkcli sim readiness runbook"
 **Files:**
 - Modify: `docs/superpowers/plans/2026-06-29-internalv2-dynamic-node-stage9-production-readiness.md`
 
-- [ ] **Step 1: Run the Stage 9D gate**
+- [x] **Step 1: Run the Stage 9D gate**
 
 Run:
 
@@ -662,7 +662,7 @@ git diff --check
 
 Expected: PASS and no whitespace errors.
 
-- [ ] **Step 2: Run the dynamic-node e2ev2 regression subset**
+- [x] **Step 2: Run the dynamic-node e2ev2 regression subset**
 
 Run:
 
@@ -672,13 +672,88 @@ GOWORK=off go test -tags=e2e ./test/e2ev2/cluster/dynamic_node_join ./test/e2ev2
 
 Expected: PASS. This proves Stage 9 did not regress existing dynamic join/onboarding/scale-in scenarios.
 
-- [ ] **Step 3: Update the Stage 9 master gate**
+- [x] **Step 3: Update the Stage 9 master gate**
 
 In `docs/superpowers/plans/2026-06-29-internalv2-dynamic-node-stage9-production-readiness.md`, check Gate 9D only after both commands pass.
 
-- [ ] **Step 4: Commit gate update**
+- [x] **Step 4: Commit gate update**
 
 ```bash
 git add docs/superpowers/plans/2026-06-29-internalv2-dynamic-node-stage9-production-readiness.md
 git commit -m "docs: record dynamic node readiness smoke gate"
+```
+
+---
+
+## Execution Evidence
+
+2026-06-30 implementation notes:
+
+- Root cause: `pkg/slot/multiraft` selected a leader-transfer transferee only
+  when a follower had caught up to the leader's local tail. Under continuous
+  traffic, the leader tail can keep advancing beyond committed index, so
+  Slot replica move `remove_voter` could repeatedly request a no-op transfer
+  and remain pending. Fix: allow a committed voter to become the transfer
+  target and let Raft finish catch-up during leadership transfer.
+- Root cause: manager lifecycle metrics defined
+  `wukongim_node_lifecycle_attempts_total`, but no management lifecycle write
+  path observed attempts. Prometheus omitted the family until a sample existed.
+  Fix: wire a lifecycle attempt observer through management usecases to
+  `pkg/metrics`.
+- Root cause: several e2ev2 manager helpers used a single long context for
+  repeated public HTTP calls, and the final remove helper used one 5s POST.
+  Under real control-plane writes and continuous traffic, this produced false
+  timeouts. Fix: use bounded per-request contexts and idempotent state polling.
+- Root cause: scale-in status also treated eligible replacement nodes whose
+  low-frequency health report had not yet observed the newest control revision
+  as unsafe, even when the live runtime summary had already observed it. Fix:
+  leave health reports as freshness/readiness evidence and keep revision
+  safety on the live runtime-summary gate.
+- Root cause: control snapshot watchers used a non-blocking publish that could
+  permanently drop the newest state event when a subscriber channel was full.
+  Scale-in polling could then stay behind the durable ControllerV2 revision.
+  Fix: make the upstream ControllerV2 runtime watcher replace stale buffered
+  events with the newest locally visible state, and make clusterv2 control
+  watcher publication reject older revisions after a newer revision has been
+  published.
+- Root cause: existing dynamic-node join tests started onboarding immediately
+  after activation, before Stage 9 fresh health made the target schedulable.
+  Fix: add public manager polling for health-schedulable nodes before
+  onboarding and scale-in advancement.
+- Root cause: concurrent scale-in advancement can race on ControllerV2 task
+  phase progress and return `task_phase_mismatch`, which is an expected stale
+  intent conflict rather than a server fault. Fix: classify it as retryable and
+  map it to scale-in conflict.
+- Root cause: lifecycle attempt metrics classified target-state-achieved
+  activation no-ops as `noop`, so an idempotent successful operator activation
+  could fail the public `activate/ok` metrics assertion. Fix: count lifecycle
+  attempts as `ok` when the requested target state is reached.
+
+Verified:
+
+```bash
+GOWORK=off go test ./pkg/metrics -count=1
+GOWORK=off go test ./pkg/controllerv2 -run 'TestRuntimePublishStateCoalescesLatestEventWhenWatchFull|TestRuntimeRequestSlotReplicaMoveCreatesTaskWithoutChangingDesiredPeers|TestRuntimeMarkNodeRemovedTurnsLeavingNodeRemoved' -count=1
+GOWORK=off go test ./pkg/clusterv2/control -count=1
+GOWORK=off go test ./pkg/clusterv2 -count=1
+GOWORK=off go test ./internalv2/usecase/management -count=1
+GOWORK=off go test ./internalv2/app -run 'Test(ControlSnapshotMetricsObserverMapsNodeLifecycleHealth|NodeLifecycleMetricsObserverCountsScaleInBlockers|NodeLifecycleMetricsObserverDeduplicatesScaleInBlockersPerRevision)' -count=1
+GOWORK=off go test ./pkg/slot/multiraft -count=1
+GOWORK=off go test -tags=e2e ./test/e2ev2/cluster/dynamic_node_join -run 'TestConcurrentScaleInAdvanceCreatesAtMostOneSlotTask|TestConcurrentOnboardingStartCreatesAtMostOneTask|TestScaleInSlotDrainMovesReplicasBeforeRemove|TestNodeOnboardingMovesSlotReplicaToActiveNode' -count=1 -timeout 8m -p=1
+GOWORK=off go test -tags=e2e ./test/e2ev2/cluster/dynamic_node_readiness -run TestDynamicNodeLifecycleWithContinuousTraffic -count=1 -timeout 12m -p=1
+GOWORK=off go test -tags=e2e ./test/e2ev2/cluster/dynamic_node_join ./test/e2ev2/cluster/dynamic_node_readiness -count=1 -timeout 15m -p=1
+git diff --check
+```
+
+Observed pass for the real-traffic smoke:
+
+```text
+ok  	github.com/WuKongIM/WuKongIM/test/e2ev2/cluster/dynamic_node_readiness	241.625s
+```
+
+Observed pass for the serial dynamic-node regression subset:
+
+```text
+ok  	github.com/WuKongIM/WuKongIM/test/e2ev2/cluster/dynamic_node_join	164.029s
+ok  	github.com/WuKongIM/WuKongIM/test/e2ev2/cluster/dynamic_node_readiness	208.090s
 ```

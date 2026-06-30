@@ -22,6 +22,12 @@ var (
 	ErrNodeNotReadyForActivation = errors.New("internalv2/usecase/management: node not ready for activation")
 )
 
+const (
+	nodeLifecycleOperationJoin        = "join"
+	nodeLifecycleOperationActivate    = "activate"
+	nodeLifecycleOperationMarkLeaving = "mark_leaving"
+)
+
 // JoinNodeRequest is the manager-facing data-node join intent.
 type JoinNodeRequest struct {
 	// NodeID is the non-zero stable identity of the joining node.
@@ -113,7 +119,10 @@ type NodeReadiness struct {
 }
 
 // JoinNode validates and submits a data-node join intent.
-func (a *App) JoinNode(ctx context.Context, req JoinNodeRequest) (JoinNodeResponse, error) {
+func (a *App) JoinNode(ctx context.Context, req JoinNodeRequest) (resp JoinNodeResponse, err error) {
+	defer func() {
+		a.observeNodeLifecycleAttempt(nodeLifecycleOperationJoin, err, resp.Created || nodeLifecycleReached(resp.JoinState, control.NodeJoinStateJoining, control.NodeJoinStateActive))
+	}()
 	if err := ctxErr(ctx); err != nil {
 		return JoinNodeResponse{}, err
 	}
@@ -144,7 +153,10 @@ func (a *App) JoinNode(ctx context.Context, req JoinNodeRequest) (JoinNodeRespon
 }
 
 // ActivateNode validates and submits a node activation intent.
-func (a *App) ActivateNode(ctx context.Context, req ActivateNodeRequest) (ActivateNodeResponse, error) {
+func (a *App) ActivateNode(ctx context.Context, req ActivateNodeRequest) (resp ActivateNodeResponse, err error) {
+	defer func() {
+		a.observeNodeLifecycleAttempt(nodeLifecycleOperationActivate, err, resp.Changed || nodeLifecycleReached(resp.JoinState, control.NodeJoinStateActive))
+	}()
 	if err := ctxErr(ctx); err != nil {
 		return ActivateNodeResponse{}, err
 	}
@@ -161,6 +173,15 @@ func (a *App) ActivateNode(ctx context.Context, req ActivateNodeRequest) (Activa
 	node, ok := findControlNode(snapshot, req.NodeID)
 	if !ok {
 		return ActivateNodeResponse{}, ErrNodeLifecycleNotFound
+	}
+	if node.JoinState == control.NodeJoinStateActive {
+		return ActivateNodeResponse{
+			Changed:   false,
+			NodeID:    node.NodeID,
+			Addr:      node.Addr,
+			JoinState: string(node.JoinState),
+			Revision:  snapshot.Revision,
+		}, nil
 	}
 	if node.JoinState != control.NodeJoinStateJoining {
 		return ActivateNodeResponse{}, ErrNodeLifecycleConflict
@@ -186,7 +207,10 @@ func (a *App) ActivateNode(ctx context.Context, req ActivateNodeRequest) (Activa
 }
 
 // MarkNodeLeaving validates and submits a node leaving intent.
-func (a *App) MarkNodeLeaving(ctx context.Context, req MarkNodeLeavingRequest) (MarkNodeLeavingResponse, error) {
+func (a *App) MarkNodeLeaving(ctx context.Context, req MarkNodeLeavingRequest) (resp MarkNodeLeavingResponse, err error) {
+	defer func() {
+		a.observeNodeLifecycleAttempt(nodeLifecycleOperationMarkLeaving, err, resp.Changed || nodeLifecycleReached(resp.JoinState, control.NodeJoinStateLeaving))
+	}()
 	if err := ctxErr(ctx); err != nil {
 		return MarkNodeLeavingResponse{}, err
 	}
@@ -285,4 +309,45 @@ func mapRetryableNodeLifecycleWriteError(err error) error {
 		return fmt.Errorf("%w: %w", ErrNodeLifecycleUnavailable, err)
 	}
 	return mapNodeLifecycleError(err)
+}
+
+func (a *App) observeNodeLifecycleAttempt(operation string, err error, changed bool) {
+	if a == nil || a.lifecycleAttempts == nil {
+		return
+	}
+	a.lifecycleAttempts.ObserveNodeLifecycleAttempt(operation, nodeLifecycleAttemptResult(err, changed))
+}
+
+func nodeLifecycleReached(joinState string, targets ...control.NodeJoinState) bool {
+	for _, target := range targets {
+		if joinState == string(target) {
+			return true
+		}
+	}
+	return false
+}
+
+func nodeLifecycleAttemptResult(err error, changed bool) string {
+	if err == nil {
+		if changed {
+			return "ok"
+		}
+		return "noop"
+	}
+	switch {
+	case errors.Is(err, context.DeadlineExceeded), errors.Is(err, context.Canceled):
+		return "timeout"
+	case errors.Is(err, metadb.ErrInvalidArgument):
+		return "invalid"
+	case errors.Is(err, ErrNodeNotReadyForActivation):
+		return "not_ready"
+	case errors.Is(err, ErrNodeLifecycleConflict), errors.Is(err, ErrNodeLifecycleNotFound):
+		return "conflict"
+	case errors.Is(err, ErrNodeLifecycleUnavailable):
+		return "unavailable"
+	case errors.Is(err, ErrNodeScaleInUnsafe):
+		return "unsafe"
+	default:
+		return "error"
+	}
 }

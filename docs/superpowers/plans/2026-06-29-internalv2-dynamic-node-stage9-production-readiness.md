@@ -80,24 +80,27 @@ Expected: Prometheus families and manager JSON fields expose lifecycle and healt
 
 Evidence (2026-06-30): PASS with `GOWORK=off go test ./pkg/metrics ./internalv2/usecase/management ./internalv2/access/manager ./internalv2/app -run 'Lifecycle|Health|Metrics|Manager|ScaleIn' -count=1` and `git diff --check`.
 
-- [ ] **Gate 9D: public real-traffic lifecycle smoke passes**
+- [x] **Gate 9D: public real-traffic lifecycle smoke passes**
 
 Run:
 
 ```bash
 GOWORK=off go test -tags=e2e ./test/e2ev2/cluster/dynamic_node_readiness -run TestDynamicNodeLifecycleWithContinuousTraffic -count=1 -timeout 12m -p=1
+GOWORK=off go test -tags=e2e ./test/e2ev2/cluster/dynamic_node_join ./test/e2ev2/cluster/dynamic_node_readiness -count=1 -timeout 15m -p=1
 git diff --check
 ```
 
 Expected: the test starts a three-node cluster, runs real traffic, adds and activates node 4, onboards one Slot replica, marks node 4 leaving, drains it, removes it, and proves traffic continues without send errors.
 
+Evidence (2026-06-30): PASS with `GOWORK=off go test -tags=e2e ./test/e2ev2/cluster/dynamic_node_readiness -run TestDynamicNodeLifecycleWithContinuousTraffic -count=1 -timeout 12m -p=1` (`ok ... 241.625s`), `GOWORK=off go test -tags=e2e ./test/e2ev2/cluster/dynamic_node_join ./test/e2ev2/cluster/dynamic_node_readiness -count=1 -timeout 15m -p=1` (`dynamic_node_join` `164.029s`, `dynamic_node_readiness` `208.090s`), focused package tests for metrics, ControllerV2, clusterv2 control/runtime, management, app observability, Slot multiraft, and `git diff --check`.
+
 ## Handoff Rules
 
-- [ ] Execute sub-stages in order: 9A, 9B, 9C, then 9D.
-- [ ] Use one focused branch or commit per sub-stage unless the user explicitly asks to combine them.
-- [ ] Read each touched package's `FLOW.md` before editing and update it when behavior changes.
-- [ ] Keep health report writes bounded and do not introduce any cluster-bypass path for a single-node deployment.
-- [ ] After each sub-stage, update this master plan gate only after the gate command passes.
+- [x] Execute sub-stages in order: 9A, 9B, 9C, then 9D.
+- [x] Use one focused branch or commit per sub-stage unless the user explicitly asks to combine them.
+- [x] Read each touched package's `FLOW.md` before editing and update it when behavior changes.
+- [x] Keep health report writes bounded and do not introduce any cluster-bypass path for a single-node deployment.
+- [x] After each sub-stage, update this master plan gate only after the gate command passes.
 
 ## Recommended Execution Mode
 

@@ -177,12 +177,12 @@ status unsafe and keeps planning/advancement at no candidates rather than
 guessing. Unknown Channel inventory keeps status unsafe, but HTTP still allows
 Slot drain `plan`/`advance` while desired Slot peers contain the target so
 operators can continue the first drain phase. Final `safe_to_remove` remains
-false until target health is fresh, `alive`, and runtime-ready; eligible active
-data replacement health has observed the required control revision; the target
-gateway is in drain mode, no longer accepts new sessions, and reports zero
-gateway, online, closing, and pending-activation counters; the remove route is
-the only manager entrypoint that can submit the removed tombstone. A repeated
-remove on an already-removed tombstone returns the writer's idempotent
+false until target health is fresh, `alive`, and runtime-ready; live runtime
+summaries have observed the required control revision; the target gateway is
+in drain mode, no longer accepts new sessions, and reports zero gateway,
+online, closing, and pending-activation counters; the remove route is the only
+manager entrypoint that can submit the removed tombstone. A repeated remove on
+an already-removed tombstone returns the writer's idempotent
 `changed=false` result even when the original safe-remove fence is stale.
 
 `/manager/realtime-monitor` backs the unified web realtime monitor under

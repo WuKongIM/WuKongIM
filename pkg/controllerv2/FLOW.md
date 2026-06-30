@@ -30,6 +30,12 @@ scheduler emits task edges only after FSM state changes have been saved,
 in-memory snapshots have been published, and the applied Raft boundary has been
 persisted. Observer failures are intentionally outside Raft apply semantics, so
 composition roots must keep their observer work bounded and nonblocking.
+`Runtime.Watch` is a latest-state notification stream: when a watcher buffer
+is full, publication replaces one stale buffered event with the newest locally
+visible state instead of permanently dropping that state. Consumers should
+still treat events as wakeups and call `LocalState` when they need the current
+snapshot; same-revision checksum drift, such as health-only refreshes, may be
+published again.
 
 `Runtime.LogEntries` is a read-only diagnostics facade over the Controller Raft
 WAL. It returns newest-first, cursor-paginated entry summaries for manager UI

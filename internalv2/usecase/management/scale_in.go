@@ -31,6 +31,8 @@ const (
 	scaleInReasonEligibleNodeRuntimeNotReady     = "eligible_node_runtime_not_ready"
 )
 
+const nodeLifecycleOperationScaleInRemove = "scale_in_remove"
+
 // NodeScaleInStatusRequest identifies the data node being evaluated for scale-in.
 type NodeScaleInStatusRequest struct {
 	// NodeID is the non-zero stable identity of the node being evaluated.
@@ -93,7 +95,7 @@ type NodeScaleInStatusResponse struct {
 	BlockedByControlRevision bool
 	// BlockedByHealth reports that durable node health is missing, stale, unhealthy, or runtime-not-ready.
 	BlockedByHealth bool
-	// BlockedByStaleRevision reports that fresh durable node health has not observed the required control revision.
+	// BlockedByStaleRevision is reserved for durable health revision diagnostics; live runtime revision gates safety.
 	BlockedByStaleRevision bool
 	// BlockedByControllerRole reports that the target node still has the Controller role.
 	BlockedByControllerRole bool
@@ -232,7 +234,10 @@ func (a *App) NodeScaleInStatus(ctx context.Context, req NodeScaleInStatusReques
 }
 
 // MarkNodeRemoved marks a fully drained leaving node as removed after fail-closed safety checks.
-func (a *App) MarkNodeRemoved(ctx context.Context, req MarkNodeRemovedRequest) (MarkNodeRemovedResponse, error) {
+func (a *App) MarkNodeRemoved(ctx context.Context, req MarkNodeRemovedRequest) (resp MarkNodeRemovedResponse, err error) {
+	defer func() {
+		a.observeNodeLifecycleAttempt(nodeLifecycleOperationScaleInRemove, err, resp.Changed || resp.JoinState == string(control.NodeJoinStateRemoved))
+	}()
 	if err := ctxErr(ctx); err != nil {
 		return MarkNodeRemovedResponse{}, err
 	}
@@ -560,11 +565,6 @@ func markScaleInHealthBlockers(snapshot control.Snapshot, targetNode control.Nod
 			response.BlockedByHealth = true
 			markBlockedReason(response, scaleInReasonEligibleNodeRuntimeNotReady)
 			continue
-		}
-		if health.ObservedControlRevision < snapshot.Revision {
-			response.BlockedByHealth = true
-			response.BlockedByStaleRevision = true
-			markBlockedReason(response, scaleInReasonEligibleNodeHealthRevisionStale)
 		}
 	}
 }

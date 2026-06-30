@@ -3,11 +3,11 @@
 package dynamic_node_readiness
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -15,6 +15,8 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/WuKongIM/WuKongIM/test/e2ev2/suite"
+	dto "github.com/prometheus/client_model/go"
+	"github.com/prometheus/common/expfmt"
 	"github.com/stretchr/testify/require"
 )
 
@@ -37,6 +39,7 @@ func startTrafficWorker(t testing.TB, cluster *suite.StartedCluster, node *suite
 	require.NoError(t, client.Connect(node.GatewayAddr(), uid, uid+"-device"), node.DumpDiagnostics())
 
 	worker := &trafficWorker{client: client, stop: make(chan struct{}), done: make(chan struct{})}
+	channelID := prefix + "-recipient"
 	go func() {
 		defer close(worker.done)
 		defer func() { _ = client.Close() }()
@@ -50,7 +53,7 @@ func startTrafficWorker(t testing.TB, cluster *suite.StartedCluster, node *suite
 			}
 			msgNo := fmt.Sprintf("%s-%06d", prefix, seq)
 			if err := client.SendFrame(&frame.SendPacket{
-				ChannelID:   uid,
+				ChannelID:   channelID,
 				ChannelType: frame.ChannelTypePerson,
 				ClientSeq:   seq,
 				ClientMsgNo: msgNo,
@@ -104,7 +107,13 @@ func requireTrafficProgress(t testing.TB, cluster *suite.StartedCluster, worker 
 	t.Fatalf("traffic worker sent=%d, want at least %d more\n%s", worker.sent.Load(), additional, cluster.DumpDiagnostics())
 }
 
-func requireMetricsContain(t testing.TB, node *suite.StartedNode, names ...string) {
+type metricExpectation struct {
+	name     string
+	labels   map[string]string
+	minValue float64
+}
+
+func requireMetricSamples(t testing.TB, node *suite.StartedNode, expectations ...metricExpectation) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -116,11 +125,68 @@ func requireMetricsContain(t testing.TB, node *suite.StartedNode, names ...strin
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 	data, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
-	body := string(data)
-	for _, name := range names {
-		if !strings.Contains(body, name) {
-			t.Fatalf("metrics from node %d missing %q", node.Spec.ID, name)
+	var parser expfmt.TextParser
+	families, err := parser.TextToMetricFamilies(bytes.NewReader(data))
+	require.NoError(t, err)
+	for _, expectation := range expectations {
+		family := families[expectation.name]
+		if family == nil {
+			t.Fatalf("metrics from node %d missing family %q", node.Spec.ID, expectation.name)
 		}
+		value, ok := findMetricSampleValue(family, expectation.labels)
+		if !ok {
+			t.Fatalf("metrics from node %d family %q missing labels %#v", node.Spec.ID, expectation.name, expectation.labels)
+		}
+		if value < expectation.minValue {
+			t.Fatalf("metrics from node %d family %q labels %#v value=%v, want >= %v",
+				node.Spec.ID, expectation.name, expectation.labels, value, expectation.minValue)
+		}
+	}
+}
+
+func findMetricSampleValue(family *dto.MetricFamily, labels map[string]string) (float64, bool) {
+	for _, metric := range family.GetMetric() {
+		if !metricHasLabels(metric, labels) {
+			continue
+		}
+		value, ok := metricValue(metric)
+		if ok {
+			return value, true
+		}
+	}
+	return 0, false
+}
+
+func metricHasLabels(metric *dto.Metric, want map[string]string) bool {
+	for name, value := range want {
+		found := false
+		for _, label := range metric.GetLabel() {
+			if label.GetName() == name && label.GetValue() == value {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	return true
+}
+
+func metricValue(metric *dto.Metric) (float64, bool) {
+	switch {
+	case metric.GetCounter() != nil:
+		return metric.GetCounter().GetValue(), true
+	case metric.GetGauge() != nil:
+		return metric.GetGauge().GetValue(), true
+	case metric.GetUntyped() != nil:
+		return metric.GetUntyped().GetValue(), true
+	case metric.GetHistogram() != nil:
+		return float64(metric.GetHistogram().GetSampleCount()), true
+	case metric.GetSummary() != nil:
+		return float64(metric.GetSummary().GetSampleCount()), true
+	default:
+		return 0, false
 	}
 }
 

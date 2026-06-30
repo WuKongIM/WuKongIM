@@ -36,6 +36,7 @@ func TestSlotReplicaMoveKeepsSendAvailable(t *testing.T) {
 	manager.EventuallyNodeReadiness(t, 4, true, 20*time.Second)
 	manager.MustActivateNode(t, 4)
 	manager.EventuallyNodeJoinState(t, 4, "active", 20*time.Second)
+	eventuallyNodeSchedulable(t, cluster, manager, 4, 45*time.Second)
 
 	activeReadyCtx, cancelActiveReady := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancelActiveReady()

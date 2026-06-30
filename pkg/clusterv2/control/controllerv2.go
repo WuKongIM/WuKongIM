@@ -32,12 +32,14 @@ type ControllerV2Adapter struct {
 	healthTTL time.Duration
 	snapshot  Snapshot
 	watch     chan SnapshotEvent
+	publisher *snapshotWatchPublisher
 	started   bool
 }
 
 // NewControllerV2Adapter creates a ControllerV2Adapter.
 func NewControllerV2Adapter(cfg ControllerV2Config) *ControllerV2Adapter {
-	return &ControllerV2Adapter{source: cfg.Source, healthTTL: normalizeNodeHealthReportTTL(cfg.HealthReportTTL), watch: make(chan SnapshotEvent, 16)}
+	watch := make(chan SnapshotEvent, 16)
+	return &ControllerV2Adapter{source: cfg.Source, healthTTL: normalizeNodeHealthReportTTL(cfg.HealthReportTTL), watch: watch, publisher: newSnapshotWatchPublisher(watch)}
 }
 
 // SnapshotFromControllerV2 maps ControllerV2 durable state into the clusterv2 control model.
@@ -161,10 +163,7 @@ func (a *ControllerV2Adapter) Refresh(ctx context.Context) error {
 	a.mu.Lock()
 	a.snapshot = snap.Clone()
 	a.mu.Unlock()
-	select {
-	case a.watch <- SnapshotEvent{Snapshot: snap.Clone()}:
-	default:
-	}
+	a.publisher.publish(snap)
 	return nil
 }
 

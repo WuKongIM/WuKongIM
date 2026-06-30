@@ -146,9 +146,10 @@ when runtime summaries are unknown or report missing or stale control
 revisions; when there is live Slot leadership on the target, live Slot voters
 that still contain the target after desired placement moved, Slot runtime read
 failures, or active/failed Controller tasks that still reference the target.
-Eligible active data replacement health reports must also have observed the
-required control revision before scale-in can proceed. After Slot/task checks,
-status performs a bounded scan of
+Eligible active data replacement nodes do not use low-frequency health report
+revision as the scale-in fence; the live runtime summary revision gate below
+owns that safety check so health report cadence cannot falsely block drain
+progress. After Slot/task checks, status performs a bounded scan of
 authoritative `ChannelRuntimeMeta` by physical Slot and fails closed when the
 target is still a Channel leader, configured replica, ISR member, or when
 Channel inventory is unavailable. The inventory scan is bounded by both

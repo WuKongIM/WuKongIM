@@ -22,3 +22,9 @@ func IsExpectedRevisionMismatch(err error) bool {
 	var rejected cv2raft.ProposalRejectedError
 	return errors.As(err, &rejected) && rejected.Reason == fsm.ReasonExpectedRevisionMismatch
 }
+
+// IsTaskPhaseMismatch reports whether err is an obsolete task phase write rejection.
+func IsTaskPhaseMismatch(err error) bool {
+	var rejected cv2raft.ProposalRejectedError
+	return errors.As(err, &rejected) && rejected.Reason == fsm.ReasonTaskPhaseMismatch
+}
