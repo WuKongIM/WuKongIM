@@ -68,7 +68,10 @@ type controlSnapshotMetricsObserver struct {
 }
 
 type nodeLifecycleMetricsObserver struct {
-	metrics *obsmetrics.Registry
+	metrics             *obsmetrics.Registry
+	mu                  sync.Mutex
+	scaleInBlockerSeen  map[string]struct{}
+	scaleInBlockerOrder []string
 }
 
 type storageCommitMetricsObserver struct {
@@ -1048,13 +1051,45 @@ func controllerEffectiveJoinState(state control.NodeJoinState) control.NodeJoinS
 	return state
 }
 
-func (o nodeLifecycleMetricsObserver) ObserveScaleInStatus(status managementusecase.NodeScaleInStatusResponse) {
+const nodeLifecycleScaleInBlockerDedupLimit = 4096
+
+func (o *nodeLifecycleMetricsObserver) ObserveScaleInStatus(status managementusecase.NodeScaleInStatusResponse) {
+	if o == nil {
+		return
+	}
 	if o.metrics == nil || o.metrics.NodeLifecycle == nil {
 		return
 	}
 	for _, reason := range status.BlockedReasons {
+		if !o.markScaleInBlockerObserved(status.NodeID, status.StateRevision, reason) {
+			continue
+		}
 		o.metrics.NodeLifecycle.ObserveScaleInBlocker(reason)
 	}
+}
+
+func (o *nodeLifecycleMetricsObserver) markScaleInBlockerObserved(nodeID, stateRevision uint64, reason string) bool {
+	if o == nil {
+		return false
+	}
+	key := fmt.Sprintf("%d/%d/%s", nodeID, stateRevision, reason)
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if _, ok := o.scaleInBlockerSeen[key]; ok {
+		return false
+	}
+	if o.scaleInBlockerSeen == nil {
+		o.scaleInBlockerSeen = make(map[string]struct{}, nodeLifecycleScaleInBlockerDedupLimit)
+	}
+	if len(o.scaleInBlockerOrder) >= nodeLifecycleScaleInBlockerDedupLimit {
+		oldest := o.scaleInBlockerOrder[0]
+		copy(o.scaleInBlockerOrder, o.scaleInBlockerOrder[1:])
+		o.scaleInBlockerOrder = o.scaleInBlockerOrder[:len(o.scaleInBlockerOrder)-1]
+		delete(o.scaleInBlockerSeen, oldest)
+	}
+	o.scaleInBlockerSeen[key] = struct{}{}
+	o.scaleInBlockerOrder = append(o.scaleInBlockerOrder, key)
+	return true
 }
 
 func controllerPreferredLeaderSkew(nodes []control.Node, slots []control.SlotAssignment) int {

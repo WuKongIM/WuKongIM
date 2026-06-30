@@ -912,7 +912,7 @@ func (a *App) newManagerManagement() accessmanager.Management {
 			Conversations: a.conversations,
 		}
 		if a.metrics != nil {
-			opts.ScaleInStatusObserver = nodeLifecycleMetricsObserver{metrics: a.metrics}
+			opts.ScaleInStatusObserver = &nodeLifecycleMetricsObserver{metrics: a.metrics}
 		}
 		var remoteConnectionReader *clusterinfra.ManagementConnectionReader
 		if rpcNode, ok := a.cluster.(clusterinfra.ManagementDiagnosticsRPCNode); ok {

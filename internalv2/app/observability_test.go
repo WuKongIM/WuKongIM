@@ -665,9 +665,11 @@ func TestControlSnapshotMetricsObserverMapsNodeLifecycleHealth(t *testing.T) {
 
 func TestNodeLifecycleMetricsObserverCountsScaleInBlockers(t *testing.T) {
 	reg := obsmetrics.New(1, "n1")
-	observer := nodeLifecycleMetricsObserver{metrics: reg}
+	observer := &nodeLifecycleMetricsObserver{metrics: reg}
 
 	observer.ObserveScaleInStatus(managementusecase.NodeScaleInStatusResponse{
+		NodeID:         4,
+		StateRevision:  21,
 		BlockedReasons: []string{"target_health_stale", "eligible_node_health_revision_stale"},
 	})
 
@@ -681,6 +683,30 @@ func TestNodeLifecycleMetricsObserverCountsScaleInBlockers(t *testing.T) {
 	}
 	if got := findAppMetricByLabels(t, blockers, map[string]string{"reason": "eligible_node_health_revision_stale"}).GetCounter().GetValue(); got != 1 {
 		t.Fatalf("eligible stale revision blockers = %v, want 1", got)
+	}
+}
+
+func TestNodeLifecycleMetricsObserverDeduplicatesScaleInBlockersPerRevision(t *testing.T) {
+	reg := obsmetrics.New(1, "n1")
+	observer := &nodeLifecycleMetricsObserver{metrics: reg}
+	status := managementusecase.NodeScaleInStatusResponse{
+		NodeID:         4,
+		StateRevision:  21,
+		BlockedReasons: []string{"target_health_stale"},
+	}
+
+	observer.ObserveScaleInStatus(status)
+	observer.ObserveScaleInStatus(status)
+	status.StateRevision = 22
+	observer.ObserveScaleInStatus(status)
+
+	families, err := reg.Gather()
+	if err != nil {
+		t.Fatalf("Gather() error = %v", err)
+	}
+	blockers := requireAppMetricFamily(t, families, "wukongim_node_scale_in_blockers_total")
+	if got := findAppMetricByLabels(t, blockers, map[string]string{"reason": "target_health_stale"}).GetCounter().GetValue(); got != 2 {
+		t.Fatalf("target_health_stale blockers = %v, want one count per node/revision/reason", got)
 	}
 }
 
