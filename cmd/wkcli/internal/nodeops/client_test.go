@@ -35,6 +35,27 @@ func TestClientActivateNodePostsManagerRoute(t *testing.T) {
 	}
 }
 
+func TestClientTrimsServerWhitespaceAndTrailingSlash(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/manager/nodes" {
+			t.Fatalf("path = %s, want /manager/nodes", r.URL.Path)
+		}
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	defer server.Close()
+
+	client := NewClient(Config{Server: " " + server.URL + "/ "})
+	var got struct {
+		OK bool `json:"ok"`
+	}
+	if err := client.ListNodes(context.Background(), &got); err != nil {
+		t.Fatalf("ListNodes() error = %v", err)
+	}
+	if !got.OK {
+		t.Fatalf("ListNodes() ok = false, want true")
+	}
+}
+
 func TestClientScaleInStatusPreservesBlockers(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {

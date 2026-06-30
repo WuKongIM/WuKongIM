@@ -118,7 +118,7 @@ func NewClient(cfg Config) *Client {
 		timeout = defaultTimeout
 	}
 	return &Client{
-		baseURL: strings.TrimRight(cfg.Server, "/"),
+		baseURL: strings.TrimRight(strings.TrimSpace(cfg.Server), "/"),
 		token:   strings.TrimSpace(cfg.Token),
 		httpClient: &http.Client{
 			Timeout: timeout,
