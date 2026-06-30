@@ -34,8 +34,8 @@ const (
 var (
 	// ErrNodeOnboardingUnavailable reports that node onboarding dependencies are unavailable.
 	ErrNodeOnboardingUnavailable = errors.New("internalv2/usecase/management: node onboarding unavailable")
-	// ErrNodeOnboardingTargetNotActive reports that the target is not an active data node.
-	ErrNodeOnboardingTargetNotActive = errors.New("internalv2/usecase/management: node onboarding target is not active data node")
+	// ErrNodeOnboardingTargetNotActive reports that the target is not a schedulable active data node.
+	ErrNodeOnboardingTargetNotActive = errors.New("internalv2/usecase/management: node onboarding target is not schedulable active data node")
 	// ErrNodeOnboardingConflict reports a concurrent control-state change during onboarding writes.
 	ErrNodeOnboardingConflict = errors.New("internalv2/usecase/management: node onboarding conflict")
 )
@@ -48,7 +48,7 @@ type SlotReplicaMoveWriter interface {
 
 // NodeOnboardingPlanRequest describes a bounded Slot onboarding preview request.
 type NodeOnboardingPlanRequest struct {
-	// TargetNodeID is the active data node that should receive Slot replicas.
+	// TargetNodeID is the schedulable active data node that should receive Slot replicas.
 	TargetNodeID uint64
 	// MaxSlotMoves bounds the number of Slot replica move candidates.
 	MaxSlotMoves uint32
@@ -56,7 +56,7 @@ type NodeOnboardingPlanRequest struct {
 
 // NodeOnboardingStartRequest describes a bounded Slot onboarding execute request.
 type NodeOnboardingStartRequest struct {
-	// TargetNodeID is the active data node that should receive Slot replicas.
+	// TargetNodeID is the schedulable active data node that should receive Slot replicas.
 	TargetNodeID uint64
 	// MaxSlotMoves bounds the number of Slot replica move tasks to create.
 	MaxSlotMoves uint32
@@ -64,7 +64,7 @@ type NodeOnboardingStartRequest struct {
 
 // NodeOnboardingAdvanceRequest describes a bounded manual onboarding advance request.
 type NodeOnboardingAdvanceRequest struct {
-	// TargetNodeID is the active data node that should receive Slot replicas.
+	// TargetNodeID is the schedulable active data node that should receive Slot replicas.
 	TargetNodeID uint64
 	// MaxSlotMoves bounds the number of additional Slot replica move tasks to create.
 	MaxSlotMoves uint32
@@ -106,7 +106,7 @@ type NodeOnboardingPlanResponse struct {
 	GeneratedAt time.Time
 	// StateRevision fences the plan to the observed control snapshot.
 	StateRevision uint64
-	// TargetNodeID is the active data node that should receive Slot replicas.
+	// TargetNodeID is the schedulable active data node that should receive Slot replicas.
 	TargetNodeID uint64
 	// MaxSlotMoves is the normalized request bound.
 	MaxSlotMoves uint32
@@ -185,7 +185,7 @@ func (a *App) PlanNodeOnboarding(ctx context.Context, req NodeOnboardingPlanRequ
 	if err != nil {
 		return NodeOnboardingPlanResponse{}, err
 	}
-	if !nodeOnboardingTargetActive(snapshot.Nodes, req.TargetNodeID) {
+	if !nodeOnboardingTargetSchedulable(snapshot.Nodes, req.TargetNodeID) {
 		return NodeOnboardingPlanResponse{}, ErrNodeOnboardingTargetNotActive
 	}
 	maxMoves := normalizeNodeOnboardingMaxMoves(req.MaxSlotMoves)
@@ -366,10 +366,10 @@ func normalizeNodeOnboardingMaxMoves(maxMoves uint32) uint32 {
 	return maxMoves
 }
 
-func nodeOnboardingTargetActive(nodes []control.Node, targetNodeID uint64) bool {
+func nodeOnboardingTargetSchedulable(nodes []control.Node, targetNodeID uint64) bool {
 	for _, node := range nodes {
 		if node.NodeID == targetNodeID {
-			return isActiveDataNode(node)
+			return control.NodeSchedulableForPlacement(node)
 		}
 	}
 	return false

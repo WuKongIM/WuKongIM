@@ -47,6 +47,33 @@ func TestPlanNodeOnboardingRejectsNonActiveTarget(t *testing.T) {
 	}
 }
 
+func TestPlanNodeOnboardingRejectsUnschedulableHealthTarget(t *testing.T) {
+	tests := []struct {
+		name   string
+		health control.NodeHealth
+	}{
+		{name: "missing health", health: control.NodeHealth{}},
+		{name: "stale health", health: control.NodeHealth{Freshness: control.NodeHealthStale, Status: control.NodeAlive, RuntimeReady: true}},
+		{name: "suspect health", health: control.NodeHealth{Freshness: control.NodeHealthFresh, Status: control.NodeSuspect, RuntimeReady: true}},
+		{name: "down health", health: control.NodeHealth{Freshness: control.NodeHealthFresh, Status: control.NodeDown, RuntimeReady: true}},
+		{name: "not runtime ready", health: control.NodeHealth{Freshness: control.NodeHealthFresh, Status: control.NodeAlive}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			snap := nodeOnboardingSnapshot()
+			snap.Nodes[3].Health = tt.health
+			app := New(Options{Cluster: fakeNodeSnapshotReader{snapshot: snap}})
+
+			_, err := app.PlanNodeOnboarding(context.Background(), NodeOnboardingPlanRequest{TargetNodeID: 4})
+
+			if !errors.Is(err, ErrNodeOnboardingTargetNotActive) {
+				t.Fatalf("PlanNodeOnboarding() error = %v, want %v", err, ErrNodeOnboardingTargetNotActive)
+			}
+		})
+	}
+}
+
 func TestStartNodeOnboardingCreatesBoundedMoveTask(t *testing.T) {
 	writer := &fakeSlotReplicaMoveWriter{
 		result: control.SlotReplicaMoveResult{Created: true},
@@ -200,15 +227,30 @@ func nodeOnboardingSnapshot() control.Snapshot {
 	return control.Snapshot{
 		Revision: 12,
 		Nodes: []control.Node{
-			{NodeID: 1, Roles: []control.Role{control.RoleData}, Status: control.NodeAlive, JoinState: control.NodeJoinStateActive},
-			{NodeID: 2, Roles: []control.Role{control.RoleData}, Status: control.NodeAlive, JoinState: control.NodeJoinStateActive},
-			{NodeID: 3, Roles: []control.Role{control.RoleData}, Status: control.NodeAlive, JoinState: control.NodeJoinStateActive},
-			{NodeID: 4, Roles: []control.Role{control.RoleData}, Status: control.NodeAlive, JoinState: control.NodeJoinStateActive},
+			nodeOnboardingActiveNode(1),
+			nodeOnboardingActiveNode(2),
+			nodeOnboardingActiveNode(3),
+			nodeOnboardingActiveNode(4),
 		},
 		Slots: []control.SlotAssignment{
 			{SlotID: 1, DesiredPeers: []uint64{1, 2, 3}, ConfigEpoch: 7, PreferredLeader: 1},
 			{SlotID: 2, DesiredPeers: []uint64{1, 2, 3}, ConfigEpoch: 8, PreferredLeader: 2},
 			{SlotID: 3, DesiredPeers: []uint64{1, 2, 3}, ConfigEpoch: 9, PreferredLeader: 3},
+		},
+	}
+}
+
+func nodeOnboardingActiveNode(nodeID uint64) control.Node {
+	return control.Node{
+		NodeID:    nodeID,
+		Roles:     []control.Role{control.RoleData},
+		Status:    control.NodeAlive,
+		JoinState: control.NodeJoinStateActive,
+		Health: control.NodeHealth{
+			Freshness:               control.NodeHealthFresh,
+			Status:                  control.NodeAlive,
+			RuntimeReady:            true,
+			ObservedControlRevision: 12,
 		},
 	}
 }
@@ -288,8 +330,25 @@ func activateNodeOnboardingTarget(t *testing.T, rt *control.Runtime, nodeID uint
 			t.Fatalf("CompleteTask(%s) error = %v", task.TaskID, err)
 		}
 	}
+	if err := rt.ReportNode(context.Background(), control.NodeReport{
+		NodeID:                  nodeID,
+		Status:                  control.NodeAlive,
+		RuntimeReady:            true,
+		ObservedControlRevision: snap.Revision,
+		ReportSeq:               1,
+	}); err != nil {
+		t.Fatalf("ReportNode(%d) error = %v", nodeID, err)
+	}
 	waitForNodeOnboardingSnapshot(t, rt, func(snap control.Snapshot) bool {
-		return len(snap.Tasks) == 0
+		if len(snap.Tasks) != 0 {
+			return false
+		}
+		for _, node := range snap.Nodes {
+			if node.NodeID == nodeID {
+				return control.NodeSchedulableForPlacement(node)
+			}
+		}
+		return false
 	})
 }
 

@@ -21,7 +21,7 @@ type ManagerNodeOnboardingPlanResponse struct {
 	GeneratedAt string `json:"generated_at"`
 	// StateRevision fences the plan to the observed control snapshot.
 	StateRevision uint64 `json:"state_revision"`
-	// TargetNodeID is the active data node selected for onboarding.
+	// TargetNodeID is the schedulable active data node selected for onboarding.
 	TargetNodeID uint64 `json:"target_node_id"`
 	// MaxSlotMoves is the normalized request bound.
 	MaxSlotMoves uint32 `json:"max_slot_moves"`
@@ -61,7 +61,7 @@ type ManagerNodeOnboardingStartResponse struct {
 	GeneratedAt string `json:"generated_at"`
 	// StateRevision fences the request to the observed control snapshot.
 	StateRevision uint64 `json:"state_revision"`
-	// TargetNodeID is the active data node selected for onboarding.
+	// TargetNodeID is the schedulable active data node selected for onboarding.
 	TargetNodeID uint64 `json:"target_node_id"`
 	// MaxSlotMoves is the normalized request bound.
 	MaxSlotMoves uint32 `json:"max_slot_moves"`
