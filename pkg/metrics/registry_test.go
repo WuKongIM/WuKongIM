@@ -168,6 +168,111 @@ func TestClusterMonitorGaugesStayAbsentUntilObserved(t *testing.T) {
 	requireNoMetricFamily(t, families, "wukongim_channelv2_isr_anomaly_channels")
 }
 
+func TestNodeLifecycleMetricsTrackHealthFreshnessAndBlockers(t *testing.T) {
+	reg := New(1, "node-1")
+
+	reg.NodeLifecycle.SetLifecycleNodes(map[NodeLifecycleKey]int{
+		{JoinState: "active", Status: "alive"}:    2,
+		{JoinState: "leaving", Status: "alive"}:   1,
+		{JoinState: "mystery-a", Status: "alive"}: 3,
+		{JoinState: "mystery-b", Status: "alive"}: 4,
+	})
+	reg.NodeLifecycle.SetHealthFreshnessNodes(map[NodeHealthFreshnessKey]int{
+		{Freshness: "fresh", Status: "alive"}: 2,
+		{Freshness: "stale", Status: "alive"}: 1,
+		{Freshness: "", Status: ""}:           1,
+	})
+	reg.NodeLifecycle.SetHealthReportAgeMax(map[NodeHealthFreshnessKey]float64{
+		{Freshness: "fresh", Status: "alive"}:       4.5,
+		{Freshness: "fresh", Status: "suspect"}:     0,
+		{Freshness: "stale", Status: "alive"}:       31,
+		{Freshness: "mystery-a", Status: "mystery"}: 9,
+		{Freshness: "mystery-b", Status: "mystery"}: 17,
+	})
+	reg.NodeLifecycle.ObserveLifecycleAttempt("activate", "ok")
+	reg.NodeLifecycle.ObserveLifecycleAttempt("uid-123", "raw-error-text")
+	reg.NodeLifecycle.ObserveScaleInBlocker("target_health_stale")
+	reg.NodeLifecycle.ObserveScaleInBlocker("channel-123")
+	reg.NodeLifecycle.SetOnboardingTasks(map[string]int{"pending": 1, "running": 2, "failed": 0})
+	reg.NodeLifecycle.ObserveSlotReplicaMove("ok", 250*time.Millisecond)
+	reg.NodeLifecycle.ObserveSlotReplicaMoveFailure("proposal_rejected")
+	reg.NodeLifecycle.ObserveSlotReplicaMoveFailure("slot-123")
+	reg.NodeLifecycle.SetDiscoveryMembershipRevision(42)
+
+	families, err := reg.Gather()
+	require.NoError(t, err)
+
+	lifecycle := requireMetricFamily(t, families, "wukongim_node_lifecycle_nodes")
+	require.Equal(t, float64(2), findMetricByLabels(t, lifecycle, map[string]string{
+		"node_id": "1", "node_name": "node-1", "join_state": "active", "status": "alive",
+	}).GetGauge().GetValue())
+	require.Equal(t, float64(7), findMetricByLabels(t, lifecycle, map[string]string{
+		"node_id": "1", "node_name": "node-1", "join_state": "other", "status": "alive",
+	}).GetGauge().GetValue())
+
+	freshness := requireMetricFamily(t, families, "wukongim_node_health_freshness_nodes")
+	require.Equal(t, float64(1), findMetricByLabels(t, freshness, map[string]string{
+		"node_id": "1", "node_name": "node-1", "freshness": "stale", "status": "alive",
+	}).GetGauge().GetValue())
+	require.Equal(t, float64(1), findMetricByLabels(t, freshness, map[string]string{
+		"node_id": "1", "node_name": "node-1", "freshness": "unknown", "status": "unknown",
+	}).GetGauge().GetValue())
+
+	age := requireMetricFamily(t, families, "wukongim_node_health_report_age_seconds")
+	require.Equal(t, float64(31), findMetricByLabels(t, age, map[string]string{
+		"node_id": "1", "node_name": "node-1", "freshness": "stale", "status": "alive",
+	}).GetGauge().GetValue())
+	require.Equal(t, float64(0), findMetricByLabels(t, age, map[string]string{
+		"node_id": "1", "node_name": "node-1", "freshness": "fresh", "status": "suspect",
+	}).GetGauge().GetValue())
+	require.Equal(t, float64(17), findMetricByLabels(t, age, map[string]string{
+		"node_id": "1", "node_name": "node-1", "freshness": "other", "status": "other",
+	}).GetGauge().GetValue())
+
+	attempts := requireMetricFamily(t, families, "wukongim_node_lifecycle_attempts_total")
+	require.Equal(t, float64(1), findMetricByLabels(t, attempts, map[string]string{
+		"node_id": "1", "node_name": "node-1", "operation": "activate", "result": "ok",
+	}).GetCounter().GetValue())
+	require.Equal(t, float64(1), findMetricByLabels(t, attempts, map[string]string{
+		"node_id": "1", "node_name": "node-1", "operation": "other", "result": "other",
+	}).GetCounter().GetValue())
+
+	blockers := requireMetricFamily(t, families, "wukongim_node_scale_in_blockers_total")
+	require.Equal(t, float64(1), findMetricByLabels(t, blockers, map[string]string{
+		"node_id": "1", "node_name": "node-1", "reason": "target_health_stale",
+	}).GetCounter().GetValue())
+	require.Equal(t, float64(1), findMetricByLabels(t, blockers, map[string]string{
+		"node_id": "1", "node_name": "node-1", "reason": "other",
+	}).GetCounter().GetValue())
+
+	tasks := requireMetricFamily(t, families, "wukongim_node_onboarding_tasks")
+	require.Equal(t, float64(2), findMetricByLabels(t, tasks, map[string]string{
+		"node_id": "1", "node_name": "node-1", "state": "running",
+	}).GetGauge().GetValue())
+
+	slotMoves := requireMetricFamily(t, families, "wukongim_slot_replica_move_duration_seconds")
+	slotMove := findMetricByLabels(t, slotMoves, map[string]string{
+		"node_id": "1", "node_name": "node-1", "result": "ok",
+	}).GetHistogram()
+	require.Equal(t, uint64(1), slotMove.GetSampleCount())
+	require.Contains(t, histogramUpperBounds(slotMove), 60.0)
+
+	slotMoveFailures := requireMetricFamily(t, families, "wukongim_slot_replica_move_failures_total")
+	require.Equal(t, float64(1), findMetricByLabels(t, slotMoveFailures, map[string]string{
+		"node_id": "1", "node_name": "node-1", "reason": "proposal_rejected",
+	}).GetCounter().GetValue())
+	require.Equal(t, float64(1), findMetricByLabels(t, slotMoveFailures, map[string]string{
+		"node_id": "1", "node_name": "node-1", "reason": "other",
+	}).GetCounter().GetValue())
+
+	revision := requireMetricFamily(t, families, "wukongim_discovery_membership_revision")
+	requireMetricLabels(t, revision.GetMetric()[0], map[string]string{
+		"node_id":   "1",
+		"node_name": "node-1",
+	})
+	require.Equal(t, float64(42), revision.GetMetric()[0].GetGauge().GetValue())
+}
+
 func TestNodeResourceMetricsTrackProcessPressure(t *testing.T) {
 	reg := New(3, "node-3")
 
@@ -1818,6 +1923,17 @@ func requireMetricLabels(t *testing.T, metric *dto.Metric, want map[string]strin
 	for key, value := range want {
 		require.Equal(t, value, got[key], "label %s", key)
 	}
+}
+
+func histogramUpperBounds(histogram *dto.Histogram) []float64 {
+	if histogram == nil {
+		return nil
+	}
+	out := make([]float64, 0, len(histogram.GetBucket()))
+	for _, bucket := range histogram.GetBucket() {
+		out = append(out, bucket.GetUpperBound())
+	}
+	return out
 }
 
 func requireNoMetricLabel(t *testing.T, metric *dto.Metric, name string) {
