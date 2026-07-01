@@ -73,6 +73,35 @@ func TestDynamicNodeReadinessGateDryRunFullProfileIncludesStage9D(t *testing.T) 
 	}
 }
 
+func TestDynamicNodeReadinessGateDryRunOpsProfileIncludesStage11(t *testing.T) {
+	root := repoRoot(t)
+	outDir := t.TempDir()
+	binary := filepath.Join(outDir, "wukongimv2-gofail")
+
+	cmd := exec.Command("bash", "scripts/e2ev2/dynamic-node-readiness-gate.sh",
+		"--dry-run",
+		"--profile", "ops",
+		"--out-dir", outDir,
+		"--binary", binary,
+	)
+	cmd.Dir = root
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("dry-run failed: %v\n%s", err, output)
+	}
+	text := string(output)
+	for _, want := range []string{
+		"profile=ops",
+		"wkcli_cmd=GOWORK=off go test ./cmd/wkcli ./cmd/wkcli/internal/... -count=1",
+		"stage11_ops_cmd=GOWORK=off go test -tags=e2e ./test/e2ev2/cluster/dynamic_node_operations -count=1 -timeout 12m -p=1",
+		"stage9d_cmd=GOWORK=off go test -tags=e2e ./test/e2ev2/cluster/dynamic_node_readiness -run TestDynamicNodeLifecycleWithContinuousTraffic -count=1 -timeout 12m -p=1",
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("dry-run output missing %q:\n%s", want, text)
+		}
+	}
+}
+
 func TestDynamicNodeReadinessGateDryRunNormalizesRelativeOutDirFromAbsoluteScriptPath(t *testing.T) {
 	root := repoRoot(t)
 	callerDir := t.TempDir()

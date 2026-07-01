@@ -21,7 +21,8 @@ Runs the dynamic-node readiness gate test sequence and writes evidence into a
 dedicated output directory.
 
 Options:
-  --profile quick|full    Gate profile. quick skips Stage9D. Default: quick.
+  --profile quick|full|ops
+                          Gate profile. quick skips Stage9D. Default: quick.
   --dry-run               Print resolved commands without executing them.
   --reuse-binary          Reuse an existing gofail binary and skip rebuilding it.
   --out-dir DIR           Evidence output directory.
@@ -41,9 +42,9 @@ die() {
 
 validate_profile() {
   case "$1" in
-    quick|full) ;;
+    quick|full|ops) ;;
     *)
-      die "profile must be one of: quick, full (got: $1)"
+      die "profile must be one of: quick, full, ops (got: $1)"
       ;;
   esac
 }
@@ -105,6 +106,8 @@ FAULTS_DEFAULT_CMD=(env GOWORK=off "$GO_BIN" test -tags=e2e ./test/e2ev2/cluster
 BUILD_GOFAIL_CMD=("$BUILD_GOFAIL_SCRIPT" --cmd ./cmd/wukongimv2 --package internalv2/usecase/management --package pkg/controllerv2 --package pkg/clusterv2/tasks --package pkg/clusterv2/net --out "$BINARY")
 STAGE10A_CMD=(env WK_E2EV2_BINARY="$BINARY" WK_E2EV2_GOFAIL_DYNAMIC_NODE=1 GOWORK=off "$GO_BIN" test -tags=e2e ./test/e2ev2/cluster/dynamic_node_faults -run "TestStage10A|TestGofailDynamicNodeBinaryExposesFailpoints" -count=1 -timeout 15m -p=1)
 STAGE9D_CMD=(env GOWORK=off "$GO_BIN" test -tags=e2e ./test/e2ev2/cluster/dynamic_node_readiness -run TestDynamicNodeLifecycleWithContinuousTraffic -count=1 -timeout 12m -p=1)
+WKCLI_CMD=(env GOWORK=off "$GO_BIN" test ./cmd/wkcli ./cmd/wkcli/internal/... -count=1)
+STAGE11_OPS_CMD=(env GOWORK=off "$GO_BIN" test -tags=e2e ./test/e2ev2/cluster/dynamic_node_operations -count=1 -timeout 12m -p=1)
 DIFF_CHECK_CMD=(git diff --check)
 
 CONTROLLERV2_CMD_TEXT="GOWORK=off $GO_BIN test ./pkg/controllerv2 -count=1"
@@ -112,6 +115,8 @@ FAULTS_DEFAULT_CMD_TEXT="GOWORK=off $GO_BIN test -tags=e2e ./test/e2ev2/cluster/
 BUILD_GOFAIL_CMD_TEXT="$BUILD_GOFAIL_SCRIPT --cmd ./cmd/wukongimv2 --package internalv2/usecase/management --package pkg/controllerv2 --package pkg/clusterv2/tasks --package pkg/clusterv2/net --out $BINARY"
 STAGE10A_CMD_TEXT="WK_E2EV2_BINARY=$BINARY WK_E2EV2_GOFAIL_DYNAMIC_NODE=1 GOWORK=off $GO_BIN test -tags=e2e ./test/e2ev2/cluster/dynamic_node_faults -run 'TestStage10A|TestGofailDynamicNodeBinaryExposesFailpoints' -count=1 -timeout 15m -p=1"
 STAGE9D_CMD_TEXT="GOWORK=off $GO_BIN test -tags=e2e ./test/e2ev2/cluster/dynamic_node_readiness -run TestDynamicNodeLifecycleWithContinuousTraffic -count=1 -timeout 12m -p=1"
+WKCLI_CMD_TEXT="GOWORK=off $GO_BIN test ./cmd/wkcli ./cmd/wkcli/internal/... -count=1"
+STAGE11_OPS_CMD_TEXT="GOWORK=off $GO_BIN test -tags=e2e ./test/e2ev2/cluster/dynamic_node_operations -count=1 -timeout 12m -p=1"
 DIFF_CHECK_CMD_TEXT="git diff --check"
 
 print_plan() {
@@ -128,8 +133,12 @@ print_plan() {
   printf 'faults_default_cmd=%s\n' "$FAULTS_DEFAULT_CMD_TEXT"
   printf 'build_gofail_cmd=%s\n' "$BUILD_GOFAIL_CMD_TEXT"
   printf 'stage10a_cmd=%s\n' "$STAGE10A_CMD_TEXT"
-  if [[ "$PROFILE" == "full" ]]; then
+  if [[ "$PROFILE" == "full" || "$PROFILE" == "ops" ]]; then
     printf 'stage9d_cmd=%s\n' "$STAGE9D_CMD_TEXT"
+  fi
+  if [[ "$PROFILE" == "ops" ]]; then
+    printf 'wkcli_cmd=%s\n' "$WKCLI_CMD_TEXT"
+    printf 'stage11_ops_cmd=%s\n' "$STAGE11_OPS_CMD_TEXT"
   fi
   printf 'diff_check_cmd=%s\n' "$DIFF_CHECK_CMD_TEXT"
 }
@@ -196,8 +205,12 @@ else
   printf -- '- %s: SKIP (reuse-binary)\n' "build-gofail" >>"$SUMMARY_FILE"
 fi
 run_step "stage10a-gofail" "$STAGE10A_CMD_TEXT" "${STAGE10A_CMD[@]}"
-if [[ "$PROFILE" == "full" ]]; then
+if [[ "$PROFILE" == "full" || "$PROFILE" == "ops" ]]; then
   run_step "stage9d-real-traffic" "$STAGE9D_CMD_TEXT" "${STAGE9D_CMD[@]}"
+fi
+if [[ "$PROFILE" == "ops" ]]; then
+  run_step "wkcli" "$WKCLI_CMD_TEXT" "${WKCLI_CMD[@]}"
+  run_step "stage11-ops" "$STAGE11_OPS_CMD_TEXT" "${STAGE11_OPS_CMD[@]}"
 fi
 run_step "diff-check" "$DIFF_CHECK_CMD_TEXT" "${DIFF_CHECK_CMD[@]}"
 
