@@ -244,56 +244,53 @@ manager route
   -> all voters apply state with Controllers and node role updated
 ```
 
-PlantUML sequence view:
+Mermaid sequence view:
 
-```plantuml
-@startuml
-title Online Controller voter promotion
+```mermaid
+sequenceDiagram
+    title Online Controller voter promotion
+    actor Operator
+    participant Web as Web node list
+    participant HTTP as Manager HTTP
+    participant Usecase as management.App
+    participant Control as clusterv2 control writer
+    participant Leader as Controller leader
+    participant Target as Target node
+    participant Raft as Controller Raft
 
-actor Operator
-participant "Web node list" as Web
-participant "Manager HTTP" as HTTP
-participant "management.App" as Usecase
-participant "clusterv2 control writer" as Control
-participant "Controller leader" as Leader
-participant "Target node" as Target
-participant "Controller Raft" as Raft
+    Operator->>Web: confirm promote node N
+    Web->>HTTP: POST /manager/nodes/N/controller-voter/promote
+    HTTP->>Usecase: PromoteControllerVoter(N, expected_revision)
+    Usecase->>Usecase: read control snapshot<br/>validate active, fresh, runtime-ready
 
-Operator -> Web: confirm promote node N
-Web -> HTTP: POST /manager/nodes/N/controller-voter/promote
-HTTP -> Usecase: PromoteControllerVoter(N, expected_revision)
-Usecase -> Usecase: read control snapshot\nvalidate active, fresh, runtime-ready
-
-alt target already consistent voter
-    Usecase --> HTTP: changed=false, current voters
-    HTTP --> Web: 200 OK
-else safety blocker
-    Usecase --> HTTP: bounded blocker code
-    HTTP --> Web: 409 Conflict
-else eligible non-voter
-    Usecase -> Target: ControllerVoterReadiness(N)
-    Target --> Usecase: reachable, cluster_id, can_prepare
-    Usecase -> Control: PromoteControllerVoter(N, revision)
-    Control -> Leader: forward control write
-    Leader -> Target: PrepareControllerVoter(cluster_id, revision, next_voters)
-    Target -> Target: stop mirror sync\nmove mirror state aside\nstart learner Raft
-    Target --> Leader: prepared
-    Leader -> Raft: ConfChangeAddLearnerNode(N)
-    Raft -> Target: replicate log or snapshot
-    Leader -> Target: poll ControllerRaftStatus
-    Target --> Leader: learner caught up
-    Leader -> Raft: ConfChangeAddNode(N)
-    Leader -> Raft: KindPromoteControllerVoter
-    Raft --> Leader: state revision advanced
-    Leader --> Control: changed=true, next voters
-    Control --> Usecase: promotion result
-    Usecase --> HTTP: promotion response
-    HTTP --> Web: 202 Accepted
-    Web -> HTTP: GET /manager/nodes
-    HTTP --> Web: controller.voter=true
-end
-
-@enduml
+    alt target already consistent voter
+        Usecase-->>HTTP: changed=false, current voters
+        HTTP-->>Web: 200 OK
+    else safety blocker
+        Usecase-->>HTTP: bounded blocker code
+        HTTP-->>Web: 409 Conflict
+    else eligible non-voter
+        Usecase->>Target: ControllerVoterReadiness(N)
+        Target-->>Usecase: reachable, cluster_id, can_prepare
+        Usecase->>Control: PromoteControllerVoter(N, revision)
+        Control->>Leader: forward control write
+        Leader->>Target: PrepareControllerVoter(cluster_id, revision, next_voters)
+        Target->>Target: stop mirror sync<br/>move mirror state aside<br/>start learner Raft
+        Target-->>Leader: prepared
+        Leader->>Raft: ConfChangeAddLearnerNode(N)
+        Raft->>Target: replicate log or snapshot
+        Leader->>Target: poll ControllerRaftStatus
+        Target-->>Leader: learner caught up
+        Leader->>Raft: ConfChangeAddNode(N)
+        Leader->>Raft: KindPromoteControllerVoter
+        Raft-->>Leader: state revision advanced
+        Leader-->>Control: changed=true, next voters
+        Control-->>Usecase: promotion result
+        Usecase-->>HTTP: promotion response
+        HTTP-->>Web: 202 Accepted
+        Web->>HTTP: GET /manager/nodes
+        HTTP-->>Web: controller.voter=true
+    end
 ```
 
 The learner phase is required because adding a voter directly can raise quorum
@@ -439,38 +436,36 @@ Retries should be monotonic:
 - retry after voter ConfChange but before state command proposes only the final
   state command when live proof is present.
 
-PlantUML retry state view:
+Mermaid retry state view:
 
-```plantuml
-@startuml
-title Controller voter promotion retry states
+```mermaid
+stateDiagram-v2
+    title Controller voter promotion retry states
 
-[*] --> Eligible
+    [*] --> Eligible
 
-Eligible --> Rejected: safety blocker
-Eligible --> PreparingTarget: readiness ok
+    Eligible --> Rejected: safety blocker
+    Eligible --> PreparingTarget: readiness ok
 
-PreparingTarget --> Retryable: prepare failed before ConfChange
-PreparingTarget --> LearnerAdded: target prepared\nAddLearner committed
+    PreparingTarget --> Retryable: prepare failed before ConfChange
+    PreparingTarget --> LearnerAdded: target prepared / AddLearner committed
 
-LearnerAdded --> CatchingUp: target receives log or snapshot
-CatchingUp --> Retryable: timeout or transient target unavailable
-CatchingUp --> PromotingVoter: applied index caught up
+    LearnerAdded --> CatchingUp: target receives log or snapshot
+    CatchingUp --> Retryable: timeout or transient target unavailable
+    CatchingUp --> PromotingVoter: applied index caught up
 
-PromotingVoter --> Retryable: leader changed before state command
-PromotingVoter --> StateCommitted: AddNode committed
+    PromotingVoter --> Retryable: leader changed before state command
+    PromotingVoter --> StateCommitted: AddNode committed
 
-StateCommitted --> Complete: KindPromoteControllerVoter applied
-StateCommitted --> Retryable: final state command rejected transiently
+    StateCommitted --> Complete: KindPromoteControllerVoter applied
+    StateCommitted --> Retryable: final state command rejected transiently
 
-Retryable --> PreparingTarget: retry sees no learner
-Retryable --> CatchingUp: retry sees learner
-Retryable --> StateCommitted: retry sees voter ConfState
+    Retryable --> PreparingTarget: retry sees no learner
+    Retryable --> CatchingUp: retry sees learner
+    Retryable --> StateCommitted: retry sees voter ConfState
 
-Rejected --> [*]
-Complete --> [*]
-
-@enduml
+    Rejected --> [*]
+    Complete --> [*]
 ```
 
 ## 14. Observability
