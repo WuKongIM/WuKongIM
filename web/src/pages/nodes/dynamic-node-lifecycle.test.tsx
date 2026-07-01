@@ -9,7 +9,7 @@ import { createAnonymousAuthState, useAuthStore } from "@/auth/auth-store"
 import { I18nProvider } from "@/i18n/provider"
 import { resetLocale } from "@/i18n/locale-store"
 import { ManagerApiError } from "@/lib/manager-api"
-import type { ManagerNode, ManagerSlotTask } from "@/lib/manager-api.types"
+import type { ManagerDynamicNodeDiagnosticsResponse, ManagerNode, ManagerSlotTask } from "@/lib/manager-api.types"
 import { DynamicNodeLifecycleSheet } from "@/pages/nodes/dynamic-node-lifecycle"
 
 const joinNodeMock = vi.fn()
@@ -873,6 +873,86 @@ test("does not reuse safe scale-in status when the mounted sheet switches nodes"
     root.unmount()
   })
   container.remove()
+})
+
+test("dynamic node diagnostics renders bounded read-only evidence", async () => {
+  const diagnostics: ManagerDynamicNodeDiagnosticsResponse = {
+    generated_at: "2026-07-01T08:02:00Z",
+    state_revision: 49,
+    node_id: 4,
+    node: activeNode,
+    scale_in: null,
+    onboarding: null,
+    active_tasks: [{
+      task_id: "task-1",
+      slot_id: 7,
+      kind: "slot_replica_move",
+      step: "add_learner",
+      status: "running",
+      source_node: 1,
+      target_node: 4,
+      target_peers: [2, 3, 4],
+      completion_policy: "all_target_peers",
+      config_epoch: 9,
+      attempt: 1,
+      last_error: "",
+      participants: [{
+        node_id: 4,
+        attempt: 1,
+        status: "running",
+        last_error: "",
+      }],
+    }],
+    task_audits: [],
+    slots: [{
+      slot_id: 7,
+      desired_peers: [2, 3, 4],
+      preferred_leader: 2,
+      config_epoch: 9,
+      task_id: "task-1",
+      task_kind: "slot_replica_move",
+      task_step: "add_learner",
+      task_status: "running",
+      current_leader: 2,
+      current_voters: [2, 3],
+    }],
+    summary: {
+      safe_to_remove: false,
+      blocked_reasons: ["blocked_by_tasks"],
+      active_task_count: 1,
+      failed_task_count: 0,
+      slot_replica_count: 1,
+      slot_leader_count: 0,
+      control_revision_gap: 0,
+      slot_replica_move_state: "moving",
+      oldest_task_age_seconds: 12,
+      audit_available: true,
+      runtime_unknown: false,
+      slot_runtime_unknown: false,
+      recommended_next_action: "inspect_active_tasks",
+      blocked_by_control_revision: false,
+      blocked_by_slots: false,
+      blocked_by_tasks: true,
+    },
+    sources: {
+      control_snapshot: { available: true, last_error: "" },
+      task_audit: { available: true, last_error: "" },
+      slot_runtime: { available: true, last_error: "slot runtime evidence is bounded" },
+    },
+    warnings: ["slot runtime evidence is bounded"],
+  }
+  getDynamicNodeDiagnosticsMock.mockResolvedValueOnce(diagnostics)
+  const user = userEvent.setup()
+
+  renderLifecycle("node", activeNode)
+
+  await user.click(screen.getByRole("button", { name: "Diagnostics" }))
+
+  expect(getDynamicNodeDiagnosticsMock).toHaveBeenCalledWith(4, { taskLimit: 10, auditLimit: 10, slotLimit: 20 })
+  expect(await screen.findByText("Recommended next action: inspect_active_tasks")).toBeInTheDocument()
+  expect(screen.getByText("blocked_by_tasks")).toBeInTheDocument()
+  expect(screen.getByText("task-1")).toBeInTheDocument()
+  expect(screen.getAllByText("slot runtime evidence is bounded").length).toBeGreaterThan(0)
 })
 
 test("disables scale-in actions while node is joining", async () => {

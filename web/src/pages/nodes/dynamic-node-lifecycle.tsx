@@ -8,6 +8,7 @@ import {
   activateNode,
   advanceNodeScaleIn,
   advanceNodeOnboarding,
+  getDynamicNodeDiagnostics,
   getNodeOnboardingStatus,
   getNodeScaleInStatus,
   joinNode,
@@ -20,6 +21,7 @@ import {
 } from "@/lib/manager-api"
 import type {
   ManagerActivateNodeResponse,
+  ManagerDynamicNodeDiagnosticsResponse,
   ManagerJoinNodeResponse,
   ManagerNode,
   ManagerNodeOnboardingPlanResponse,
@@ -101,6 +103,7 @@ export function DynamicNodeLifecycleSheet({
   const [scaleInStatus, setScaleInStatus] = useState<ManagerNodeScaleInStatusResponse | null>(null)
   const [scaleInAdvance, setScaleInAdvance] = useState<ManagerNodeScaleInAdvanceResponse | null>(null)
   const [scaleInRemove, setScaleInRemove] = useState<ManagerNodeScaleInRemoveResponse | null>(null)
+  const [diagnostics, setDiagnostics] = useState<ManagerDynamicNodeDiagnosticsResponse | null>(null)
   const lifecycleIdentity = `${mode}:${node?.node_id ?? "join"}`
   const previousLifecycleIdentity = useRef(lifecycleIdentity)
   const wasOpen = useRef(open)
@@ -140,6 +143,7 @@ export function DynamicNodeLifecycleSheet({
     setScaleInStatus(null)
     setScaleInAdvance(null)
     setScaleInRemove(null)
+    setDiagnostics(null)
   }, [])
 
   useEffect(() => {
@@ -556,6 +560,33 @@ export function DynamicNodeLifecycleSheet({
     }
   }, [beginOperation, canRemoveScaleInNode, isCurrentOperation, node, onCompleted])
 
+  const loadDiagnostics = useCallback(async () => {
+    if (!node) {
+      return
+    }
+    setPending(true)
+    setError("")
+    setDiagnostics(null)
+    const generation = beginOperation()
+
+    try {
+      const result = await getDynamicNodeDiagnostics(node.node_id, { taskLimit: 10, auditLimit: 10, slotLimit: 20 })
+      if (!isCurrentOperation(generation)) {
+        return
+      }
+      setDiagnostics(result)
+    } catch (err) {
+      if (!isCurrentOperation(generation)) {
+        return
+      }
+      setError(err instanceof Error ? err.message : "node diagnostics load failed")
+    } finally {
+      if (isCurrentOperation(generation)) {
+        setPending(false)
+      }
+    }
+  }, [beginOperation, isCurrentOperation, node])
+
   const title = mode === "join" ? "Add node" : "Node lifecycle"
 
   return (
@@ -861,9 +892,90 @@ export function DynamicNodeLifecycleSheet({
                 ) : null}
               </div>
             ) : null}
-            <Button size="sm" type="button" variant="outline">
+            <Button disabled={pending} onClick={() => void loadDiagnostics()} size="sm" type="button" variant="outline">
               Diagnostics
             </Button>
+            {diagnostics ? (
+              <div className="space-y-3 rounded-lg border border-border bg-muted/20 p-3 text-sm">
+                <div className="space-y-1 text-muted-foreground">
+                  <div>Recommended next action: {diagnostics.summary.recommended_next_action}</div>
+                  <div>Safe to remove: {yesNo(diagnostics.summary.safe_to_remove)}</div>
+                  <div>
+                    Tasks: active {diagnostics.summary.active_task_count} / failed {diagnostics.summary.failed_task_count}
+                  </div>
+                  <div>
+                    Slots: replicas {diagnostics.summary.slot_replica_count} / leaders {diagnostics.summary.slot_leader_count}
+                  </div>
+                  <div>Oldest task age seconds: {diagnostics.summary.oldest_task_age_seconds}</div>
+                </div>
+
+                <div className="space-y-1">
+                  <div className="font-medium text-foreground">Blocked reasons</div>
+                  {diagnostics.summary.blocked_reasons.length > 0 ? (
+                    diagnostics.summary.blocked_reasons.map((reason) => (
+                      <div className="text-muted-foreground" key={reason}>{reason}</div>
+                    ))
+                  ) : (
+                    <div className="text-muted-foreground">none</div>
+                  )}
+                </div>
+
+                <div className="space-y-1 text-muted-foreground">
+                  <div className="font-medium text-foreground">Sources</div>
+                  <div>
+                    Control snapshot: {diagnostics.sources.control_snapshot.available ? "available" : "unavailable"}
+                    {diagnostics.sources.control_snapshot.last_error
+                      ? ` / ${diagnostics.sources.control_snapshot.last_error}`
+                      : ""}
+                  </div>
+                  <div>
+                    Task audit: {diagnostics.sources.task_audit.available ? "available" : "unavailable"}
+                    {diagnostics.sources.task_audit.last_error ? ` / ${diagnostics.sources.task_audit.last_error}` : ""}
+                  </div>
+                  <div>
+                    Slot runtime: {diagnostics.sources.slot_runtime.available ? "available" : "unavailable"}
+                    {diagnostics.sources.slot_runtime.last_error ? ` / ${diagnostics.sources.slot_runtime.last_error}` : ""}
+                  </div>
+                </div>
+
+                {diagnostics.active_tasks.length > 0 ? (
+                  <div className="space-y-2">
+                    <div className="font-medium text-foreground">Active tasks</div>
+                    {diagnostics.active_tasks.map((task) => (
+                      <div className="rounded-md border border-border bg-background px-3 py-2" key={task.task_id}>
+                        <div className="font-medium text-foreground">{task.task_id}</div>
+                        <div className="text-muted-foreground">
+                          {task.kind} / {task.step} / {task.status}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+
+                {diagnostics.slots.length > 0 ? (
+                  <div className="space-y-2">
+                    <div className="font-medium text-foreground">Diagnostic slots</div>
+                    {diagnostics.slots.map((slot) => (
+                      <div className="rounded-md border border-border bg-background px-3 py-2" key={slot.slot_id}>
+                        <div className="font-medium text-foreground">Slot {slot.slot_id}</div>
+                        <div className="text-muted-foreground">
+                          Desired peers: {slot.desired_peers.join(", ")}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+
+                {diagnostics.warnings.length > 0 ? (
+                  <div className="space-y-1">
+                    <div className="font-medium text-foreground">Warnings</div>
+                    {diagnostics.warnings.map((warning) => (
+                      <div className="text-muted-foreground" key={warning}>{warning}</div>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
           </div>
         ) : null}
       </div>
