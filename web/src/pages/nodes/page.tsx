@@ -3,6 +3,7 @@ import { useIntl, type IntlShape } from "react-intl"
 import { Link, useSearchParams } from "react-router-dom"
 
 import { DetailSheet } from "@/components/manager/detail-sheet"
+import { ConfirmDialog } from "@/components/manager/confirm-dialog"
 import { KeyValueList } from "@/components/manager/key-value-list"
 import { ResourceState } from "@/components/manager/resource-state"
 import { StatusBadge } from "@/components/manager/status-badge"
@@ -17,6 +18,7 @@ import {
   ManagerApiError,
   getNode,
   getNodes,
+  promoteControllerVoter,
 } from "@/lib/manager-api"
 import type {
   ManagerNode,
@@ -205,6 +207,10 @@ function isUnhealthyNode(node: ManagerNode) {
   )
 }
 
+function canPromoteControllerVoter(node: ManagerNode) {
+  return node.actions?.can_promote_controller_voter === true && node.controller.voter !== true
+}
+
 function nodeRuntimeTotals(nodes: ManagerNode[]) {
   return nodes.reduce(
     (totals, node) => ({
@@ -248,6 +254,9 @@ export function NodeClusterListPanel() {
   const [lifecycleOpen, setLifecycleOpen] = useState(false)
   const [lifecycleMode, setLifecycleMode] = useState<DynamicNodeLifecycleMode>("join")
   const [lifecycleNode, setLifecycleNode] = useState<ManagerNode | null>(null)
+  const [promoteTarget, setPromoteTarget] = useState<ManagerNode | null>(null)
+  const [promotePending, setPromotePending] = useState(false)
+  const [promoteError, setPromoteError] = useState<string | undefined>(undefined)
 
   const loadNodes = useCallback(async (refreshing: boolean) => {
     setState((current) => ({
@@ -336,6 +345,37 @@ export function NodeClusterListPanel() {
       setLifecycleOpen(false)
     }
   }, [lifecycleNode, loadNodes])
+
+  const openPromoteControllerVoter = useCallback((node: ManagerNode) => {
+    setPromoteTarget(node)
+    setPromoteError(undefined)
+  }, [])
+
+  const closePromoteControllerVoter = useCallback((open: boolean) => {
+    if (open) {
+      return
+    }
+    setPromoteTarget(null)
+    setPromoteError(undefined)
+  }, [])
+
+  const confirmPromoteControllerVoter = useCallback(async () => {
+    if (!promoteTarget || promotePending) {
+      return
+    }
+    setPromotePending(true)
+    setPromoteError(undefined)
+    try {
+      await promoteControllerVoter(promoteTarget.node_id)
+      setPromoteTarget(null)
+      setPromoteError(undefined)
+      await loadNodes(true)
+    } catch (error) {
+      setPromoteError(error instanceof Error ? error.message : "promote Controller voter failed")
+    } finally {
+      setPromotePending(false)
+    }
+  }, [loadNodes, promotePending, promoteTarget])
 
   return (
     <>
@@ -454,6 +494,19 @@ export function NodeClusterListPanel() {
                             >
                               {intl.formatMessage({ id: "nodes.lifecycle.title" })}
                             </Button>
+                            {canPromoteControllerVoter(node) ? (
+                              <Button
+                                aria-label={intl.formatMessage(
+                                  { id: "nodes.action.promoteControllerVoterForNode" },
+                                  { id: node.node_id },
+                                )}
+                                onClick={() => openPromoteControllerVoter(node)}
+                                size="sm"
+                                variant="outline"
+                              >
+                                {intl.formatMessage({ id: "nodes.action.promoteControllerVoter" })}
+                              </Button>
+                            ) : null}
                             <Button
                               aria-label={intl.formatMessage(
                                 { id: "nodes.inspectNode" },
@@ -488,6 +541,19 @@ export function NodeClusterListPanel() {
         onCompleted={refreshAfterLifecycleAction}
         onOpenChange={setLifecycleOpen}
         open={lifecycleOpen}
+      />
+
+      <ConfirmDialog
+        confirmLabel={intl.formatMessage({ id: "nodes.promoteControllerVoter.confirm" })}
+        description={intl.formatMessage({ id: "nodes.promoteControllerVoter.confirmBody" })}
+        error={promoteError}
+        onConfirm={() => {
+          void confirmPromoteControllerVoter()
+        }}
+        onOpenChange={closePromoteControllerVoter}
+        open={promoteTarget !== null}
+        pending={promotePending}
+        title={intl.formatMessage({ id: "nodes.promoteControllerVoter.confirmTitle" })}
       />
 
       <DetailSheet

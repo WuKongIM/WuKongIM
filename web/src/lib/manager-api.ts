@@ -118,6 +118,7 @@ import type {
   ManagerBusinessChannelsResponse,
   MutateBusinessChannelMembersInput,
   MutateBusinessChannelMembersResponse,
+  PromoteControllerVoterResponse,
   RepairChannelClusterLeaderInput,
   TransferChannelClusterLeaderInput,
   UpsertBusinessChannelInput,
@@ -571,6 +572,14 @@ export function getNodePlugins(nodeId: number) {
 
 export function getNodePlugin(nodeId: number, pluginNo: string) {
   return jsonManagerFetch<ManagerPlugin>(`/manager/nodes/${nodeId}/plugins/${encodeURIComponent(pluginNo)}`)
+}
+
+export function promoteControllerVoter(nodeId: number, expectedRevision?: number) {
+  const body = typeof expectedRevision === "number" ? { expected_revision: expectedRevision } : {}
+  return jsonManagerFetch<PromoteControllerVoterResponse>(`/manager/nodes/${nodeId}/controller-voter/promote`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  })
 }
 
 export function updateNodePluginConfig(nodeId: number, pluginNo: string, config: Record<string, unknown>) {

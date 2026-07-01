@@ -454,6 +454,7 @@ export type ManagerNodeActions = {
   can_resume: boolean
   can_scale_in: boolean
   can_onboard: boolean
+  can_promote_controller_voter: boolean
 }
 
 export type ManagerNodesResponse = {
@@ -496,6 +497,15 @@ export type ManagerActivateNodeResponse = {
   addr?: string
   join_state: string
   revision: number
+}
+
+export type PromoteControllerVoterResponse = {
+  changed: boolean
+  node_id: number
+  state_revision: number
+  previous_voters: number[]
+  next_voters: number[]
+  warnings?: string[]
 }
 
 export type ManagerNodeOnboardingActionInput = {

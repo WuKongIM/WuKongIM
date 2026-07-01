@@ -48,6 +48,7 @@ import {
   getNodePlugins,
   getNodeScaleInStatus,
   getOverview,
+  promoteControllerVoter,
   getPermissions,
   getPluginBindings,
   getSlot,
@@ -388,6 +389,41 @@ describe("manager api client", () => {
       5,
       "/manager/nodes/2/plugins/wk.echo",
       expect.objectContaining({ method: "DELETE", headers: expect.any(Headers) }),
+    )
+  })
+
+  it("promotes a node to a Controller voter with optional expected revision", async () => {
+    const promotion = {
+      changed: true,
+      node_id: 4,
+      state_revision: 10,
+      previous_voters: [1],
+      next_voters: [1, 4],
+      warnings: [],
+    }
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(promotion), { status: 200 }))
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ ...promotion, changed: false }), { status: 200 }))
+
+    await expect(promoteControllerVoter(4, 9)).resolves.toEqual(promotion)
+    await expect(promoteControllerVoter(4)).resolves.toEqual({ ...promotion, changed: false })
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "/manager/nodes/4/controller-voter/promote",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ expected_revision: 9 }),
+        headers: expect.any(Headers),
+      }),
+    )
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "/manager/nodes/4/controller-voter/promote",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({}),
+        headers: expect.any(Headers),
+      }),
     )
   })
 
@@ -736,6 +772,7 @@ describe("manager api client", () => {
           can_resume: false,
           can_scale_in: true,
           can_onboard: false,
+          can_promote_controller_voter: false,
         },
       }],
     }
@@ -2035,7 +2072,13 @@ describe("manager api client", () => {
         slot_stats: { count: 0, leader_count: 0 },
         slots: { replica_count: 0, leader_count: 0, follower_count: 0, quorum_lost_count: 0, unreported_count: 0 },
         runtime: { node_id: 4, active_online: 0, closing_online: 0, total_online: 0, gateway_sessions: 0, sessions_by_listener: {}, accepting_new_sessions: false, draining: true, unknown: false },
-        actions: { can_drain: false, can_resume: false, can_scale_in: false, can_onboard: false },
+        actions: {
+          can_drain: false,
+          can_resume: false,
+          can_scale_in: false,
+          can_onboard: false,
+          can_promote_controller_voter: false,
+        },
       },
       scale_in: null,
       onboarding: null,

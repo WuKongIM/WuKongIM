@@ -16,6 +16,7 @@ const getControllerLogsMock = vi.fn()
 const getControllerRaftStatusMock = vi.fn()
 const compactControllerRaftLogOnNodeMock = vi.fn()
 const compactControllerRaftLogsMock = vi.fn()
+const promoteControllerVoterMock = vi.fn()
 
 vi.mock("@/lib/manager-api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/manager-api")>()
@@ -28,6 +29,7 @@ vi.mock("@/lib/manager-api", async (importOriginal) => {
     getControllerRaftStatus: (...args: unknown[]) => getControllerRaftStatusMock(...args),
     compactControllerRaftLogOnNode: (...args: unknown[]) => compactControllerRaftLogOnNodeMock(...args),
     compactControllerRaftLogs: (...args: unknown[]) => compactControllerRaftLogsMock(...args),
+    promoteControllerVoter: (...args: unknown[]) => promoteControllerVoterMock(...args),
   }
 })
 
@@ -66,6 +68,7 @@ const nodeRow = {
     can_resume: false,
     can_scale_in: true,
     can_onboard: false,
+    can_promote_controller_voter: false,
   },
 }
 
@@ -147,6 +150,7 @@ beforeEach(() => {
   getControllerRaftStatusMock.mockReset()
   compactControllerRaftLogOnNodeMock.mockReset()
   compactControllerRaftLogsMock.mockReset()
+  promoteControllerVoterMock.mockReset()
   useAuthStore.setState({
     ...createAnonymousAuthState(),
     isHydrated: true,
@@ -287,9 +291,139 @@ test("renders layered node inventory fields and lifecycle row actions", async ()
   expect(screen.getByText("sessions 5 / online 4")).toBeInTheDocument()
   expect(screen.getByRole("button", { name: "Open lifecycle for node 1" })).toBeInTheDocument()
   expect(screen.getByRole("button", { name: "Inspect node 1" })).toBeInTheDocument()
+  expect(screen.queryByRole("button", { name: "Set node 1 as Controller voter" })).not.toBeInTheDocument()
   expect(screen.queryByRole("button", { name: "Drain" })).not.toBeInTheDocument()
   expect(screen.queryByRole("button", { name: "Resume" })).not.toBeInTheDocument()
   expect(screen.queryByRole("button", { name: "Review scale-in for node 1" })).not.toBeInTheDocument()
+})
+
+test("shows Controller voter promotion only for eligible non-voter node rows", async () => {
+  const eligibleNode = {
+    ...nodeRow,
+    node_id: 4,
+    name: "node-4",
+    addr: "127.0.0.1:7004",
+    is_local: false,
+    controller: { role: "follower", voter: false, leader_id: 1 },
+    actions: { ...nodeRow.actions, can_promote_controller_voter: true },
+  }
+  const alreadyVoter = {
+    ...nodeRow,
+    node_id: 5,
+    name: "node-5",
+    addr: "127.0.0.1:7005",
+    is_local: false,
+    controller: { role: "follower", voter: true, leader_id: 1 },
+    actions: { ...nodeRow.actions, can_promote_controller_voter: true },
+  }
+  const missingHint = {
+    ...nodeRow,
+    node_id: 6,
+    name: "node-6",
+    addr: "127.0.0.1:7006",
+    is_local: false,
+    controller: { role: "learner", voter: false, leader_id: 1 },
+    actions: { ...nodeRow.actions, can_promote_controller_voter: false },
+  }
+  getNodesMock.mockResolvedValueOnce({
+    generated_at: "2026-07-01T08:00:00Z",
+    controller_leader_id: 1,
+    total: 3,
+    items: [eligibleNode, alreadyVoter, missingHint],
+  })
+
+  renderNodesPage()
+
+  expect(await screen.findByText("127.0.0.1:7004")).toBeInTheDocument()
+  expect(screen.getByRole("button", { name: "Set node 4 as Controller voter" })).toBeEnabled()
+  expect(screen.queryByRole("button", { name: "Set node 5 as Controller voter" })).not.toBeInTheDocument()
+  expect(screen.queryByRole("button", { name: "Set node 6 as Controller voter" })).not.toBeInTheDocument()
+})
+
+test("confirms Controller voter promotion with no expected revision and refreshes the node list", async () => {
+  const eligibleNode = {
+    ...nodeRow,
+    node_id: 4,
+    name: "node-4",
+    addr: "127.0.0.1:7004",
+    is_local: false,
+    controller: { role: "follower", voter: false, leader_id: 1 },
+    actions: { ...nodeRow.actions, can_promote_controller_voter: true },
+  }
+  const promotedNode = {
+    ...eligibleNode,
+    controller: { ...eligibleNode.controller, voter: true },
+    actions: { ...eligibleNode.actions, can_promote_controller_voter: false },
+  }
+  getNodesMock
+    .mockResolvedValueOnce({
+      generated_at: "2026-07-01T08:00:00Z",
+      controller_leader_id: 1,
+      total: 1,
+      items: [eligibleNode],
+    })
+    .mockResolvedValueOnce({
+      generated_at: "2026-07-01T08:00:01Z",
+      controller_leader_id: 1,
+      total: 1,
+      items: [promotedNode],
+    })
+  promoteControllerVoterMock.mockResolvedValueOnce({
+    changed: true,
+    node_id: 4,
+    state_revision: 10,
+    previous_voters: [1],
+    next_voters: [1, 4],
+  })
+
+  const user = userEvent.setup()
+  renderNodesPage()
+
+  await user.click(await screen.findByRole("button", { name: "Set node 4 as Controller voter" }))
+
+  expect(await screen.findByText("Set node as Controller voter?")).toBeInTheDocument()
+  expect(screen.getByText(/This changes Controller Raft quorum membership/)).toBeInTheDocument()
+  await user.click(screen.getByRole("button", { name: "Set as Controller voter" }))
+
+  expect(promoteControllerVoterMock).toHaveBeenCalledWith(4)
+  await waitFor(() => {
+    expect(screen.queryByText("Set node as Controller voter?")).not.toBeInTheDocument()
+  })
+  expect(getNodesMock).toHaveBeenCalledTimes(2)
+  expect(screen.getByText("controller voter")).toBeInTheDocument()
+  expect(screen.queryByRole("button", { name: "Set node 4 as Controller voter" })).not.toBeInTheDocument()
+})
+
+test("keeps Controller voter promotion dialog open when the backend reports a stale target", async () => {
+  const eligibleNode = {
+    ...nodeRow,
+    node_id: 4,
+    name: "node-4",
+    addr: "127.0.0.1:7004",
+    is_local: false,
+    controller: { role: "follower", voter: false, leader_id: 1 },
+    actions: { ...nodeRow.actions, can_promote_controller_voter: true },
+  }
+  getNodesMock.mockResolvedValueOnce({
+    generated_at: "2026-07-01T08:00:00Z",
+    controller_leader_id: 1,
+    total: 1,
+    items: [eligibleNode],
+  })
+  promoteControllerVoterMock.mockRejectedValueOnce(
+    new ManagerApiError(409, "target_health_stale", "target_health_stale"),
+  )
+
+  const user = userEvent.setup()
+  renderNodesPage()
+
+  await user.click(await screen.findByRole("button", { name: "Set node 4 as Controller voter" }))
+  await user.click(screen.getByRole("button", { name: "Set as Controller voter" }))
+
+  expect(promoteControllerVoterMock).toHaveBeenCalledWith(4)
+  expect(await screen.findByText("target_health_stale")).toBeInTheDocument()
+  expect(screen.getByText("Set node as Controller voter?")).toBeInTheDocument()
+  expect(getNodesMock).toHaveBeenCalledTimes(1)
 })
 
 test("renders dynamic node health freshness evidence", async () => {
