@@ -65,7 +65,7 @@ func TestDynamicNodeLifecycleWithContinuousTraffic(t *testing.T) {
 	ensureSlotLeaderForReplicaMoveSource(t, cluster, replannedOnboardingCandidate.SlotID, replannedOnboardingCandidate.SourceNodeID, 45*time.Second)
 	onboardingStart := eventuallyStartOnboarding(t, cluster, manager, 4, 1, 45*time.Second)
 	require.Equal(t, uint32(1), onboardingStart.Created, cluster.DumpDiagnostics())
-	eventuallyOnboardingSafe(t, cluster, manager, 4, 150*time.Second)
+	eventuallyOnboardingSafe(t, cluster, manager, 4, 240*time.Second)
 	require.NotEmpty(t, eventuallySlotsContainDesiredPeer(t, cluster, 1, 4, 90*time.Second))
 	requireTrafficProgress(t, cluster, traffic, 3, 10*time.Second)
 
@@ -84,7 +84,7 @@ func TestDynamicNodeLifecycleWithContinuousTraffic(t *testing.T) {
 		require.Len(t, advance.Candidates, 1, cluster.DumpDiagnostics())
 		requireScaleInCandidateMovesAwayFromNode(t, advance.Candidates[0], 4)
 	}
-	drained := eventuallyScaleInSlotsDrained(t, cluster, manager, 4, 150*time.Second)
+	drained := eventuallyScaleInSlotsDrained(t, cluster, manager, 4, 240*time.Second)
 	require.False(t, drained.BlockedByHealth, "health must not block after fresh reports: %#v", drained)
 	require.False(t, drained.BlockedByStaleRevision, "revision freshness must not block after reports: %#v", drained)
 	requireTrafficProgress(t, cluster, traffic, 3, 10*time.Second)

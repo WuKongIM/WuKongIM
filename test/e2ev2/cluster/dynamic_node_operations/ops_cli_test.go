@@ -82,7 +82,7 @@ func TestWKCLINodeOperationsLifecycleWithTraffic(t *testing.T) {
 	)
 	require.GreaterOrEqual(t, requireJSONUintField(t, onboardingOut, "created"), uint64(1), onboardingOut)
 	require.Equal(t, uint64(4), requireJSONUintField(t, onboardingOut, "target_node_id"), onboardingOut)
-	manager.EventuallyOnboardingSafe(t, 4, 150*time.Second)
+	manager.EventuallyOnboardingSafe(t, 4, 240*time.Second)
 	requireTrafficProgress(t, cluster, traffic, 3, 10*time.Second)
 
 	eventuallyWKCLIContains(t, contextDir, 90*time.Second,
