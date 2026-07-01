@@ -19,8 +19,6 @@ const getSlotLogsMock = vi.fn()
 const getMessagesMock = vi.fn()
 const getRecentConversationsMock = vi.fn()
 const getSlotsMock = vi.fn()
-const getNodeOnboardingCandidatesMock = vi.fn()
-const getNodeOnboardingJobsMock = vi.fn()
 const getNetworkSummaryMock = vi.fn()
 const getDashboardMetricsMock = vi.fn()
 const getDiagnosticsTraceMock = vi.fn()
@@ -60,8 +58,6 @@ vi.mock("@/lib/manager-api", async (importOriginal) => {
     getMessages: (...args: unknown[]) => getMessagesMock(...args),
     getRecentConversations: (...args: unknown[]) => getRecentConversationsMock(...args),
     getSlots: (...args: unknown[]) => getSlotsMock(...args),
-    getNodeOnboardingCandidates: (...args: unknown[]) => getNodeOnboardingCandidatesMock(...args),
-    getNodeOnboardingJobs: (...args: unknown[]) => getNodeOnboardingJobsMock(...args),
     getNetworkSummary: (...args: unknown[]) => getNetworkSummaryMock(...args),
     getDashboardMetrics: (...args: unknown[]) => getDashboardMetricsMock(...args),
     getDiagnosticsTrace: (...args: unknown[]) => getDiagnosticsTraceMock(...args),
@@ -95,8 +91,6 @@ beforeEach(() => {
   getMessagesMock.mockReset()
   getRecentConversationsMock.mockReset()
   getSlotsMock.mockReset()
-  getNodeOnboardingCandidatesMock.mockReset()
-  getNodeOnboardingJobsMock.mockReset()
   getNetworkSummaryMock.mockReset()
   getDashboardMetricsMock.mockReset()
   getDiagnosticsTraceMock.mockReset()
@@ -248,21 +242,6 @@ beforeEach(() => {
       local_addr: "127.0.0.1:7000",
     }],
   })
-  getNodeOnboardingCandidatesMock.mockResolvedValue({
-    total: 1,
-    items: [{
-      node_id: 4,
-      name: "node-4",
-      addr: "127.0.0.1:7004",
-      role: "data",
-      join_state: "active",
-      status: "alive",
-      slot_count: 0,
-      leader_count: 0,
-      recommended: true,
-    }],
-  })
-  getNodeOnboardingJobsMock.mockResolvedValue({ items: [], next_cursor: "", has_more: false })
   getSlotsMock.mockResolvedValue({
     total: 1,
     items: [{

@@ -16,12 +16,6 @@ const getControllerLogsMock = vi.fn()
 const getControllerRaftStatusMock = vi.fn()
 const compactControllerRaftLogOnNodeMock = vi.fn()
 const compactControllerRaftLogsMock = vi.fn()
-const getNodeOnboardingCandidatesMock = vi.fn()
-const getNodeOnboardingJobsMock = vi.fn()
-const getNodeOnboardingJobMock = vi.fn()
-const createNodeOnboardingPlanMock = vi.fn()
-const startNodeOnboardingJobMock = vi.fn()
-const retryNodeOnboardingJobMock = vi.fn()
 
 vi.mock("@/lib/manager-api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/manager-api")>()
@@ -34,12 +28,6 @@ vi.mock("@/lib/manager-api", async (importOriginal) => {
     getControllerRaftStatus: (...args: unknown[]) => getControllerRaftStatusMock(...args),
     compactControllerRaftLogOnNode: (...args: unknown[]) => compactControllerRaftLogOnNodeMock(...args),
     compactControllerRaftLogs: (...args: unknown[]) => compactControllerRaftLogsMock(...args),
-    getNodeOnboardingCandidates: (...args: unknown[]) => getNodeOnboardingCandidatesMock(...args),
-    getNodeOnboardingJobs: (...args: unknown[]) => getNodeOnboardingJobsMock(...args),
-    getNodeOnboardingJob: (...args: unknown[]) => getNodeOnboardingJobMock(...args),
-    createNodeOnboardingPlan: (...args: unknown[]) => createNodeOnboardingPlanMock(...args),
-    startNodeOnboardingJob: (...args: unknown[]) => startNodeOnboardingJobMock(...args),
-    retryNodeOnboardingJob: (...args: unknown[]) => retryNodeOnboardingJobMock(...args),
   }
 })
 
@@ -159,14 +147,6 @@ beforeEach(() => {
   getControllerRaftStatusMock.mockReset()
   compactControllerRaftLogOnNodeMock.mockReset()
   compactControllerRaftLogsMock.mockReset()
-  getNodeOnboardingCandidatesMock.mockReset()
-  getNodeOnboardingJobsMock.mockReset()
-  getNodeOnboardingJobMock.mockReset()
-  createNodeOnboardingPlanMock.mockReset()
-  startNodeOnboardingJobMock.mockReset()
-  retryNodeOnboardingJobMock.mockReset()
-  getNodeOnboardingCandidatesMock.mockResolvedValue({ total: 0, items: [] })
-  getNodeOnboardingJobsMock.mockResolvedValue({ items: [], next_cursor: "", has_more: false })
   useAuthStore.setState({
     ...createAnonymousAuthState(),
     isHydrated: true,

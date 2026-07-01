@@ -53,9 +53,6 @@ import type {
   ManagerRuntimeWorkqueuesResponse,
   ManagerNetworkSummaryResponse,
   ManagerNodeOnboardingActionInput,
-  ManagerNodeOnboardingCandidatesResponse,
-  ManagerNodeOnboardingJob,
-  ManagerNodeOnboardingJobsResponse,
   ManagerNodeOnboardingPlanResponse,
   ManagerNodeOnboardingStartResponse,
   ManagerNodeOnboardingStatusResponse,
@@ -65,7 +62,6 @@ import type {
   ManagerNodeScaleInDrainResponse,
   ManagerNodeScaleInPlanResponse,
   ManagerNodeScaleInRemoveResponse,
-  ManagerNodeScaleInReport,
   ManagerNodeScaleInStartResponse,
   ManagerNodeScaleInStatusResponse,
   ManagerNodesResponse,
@@ -98,7 +94,6 @@ import type {
   MutateSystemUsersInput,
   MutateSystemUsersResponse,
   MutatePluginBindingInput,
-  NodeOnboardingJobsParams,
   ExecuteSlotLeaderTransferBatchInput,
   PluginBindingListParams,
   SlotListParams,
@@ -110,7 +105,6 @@ import type {
   RealtimeMonitorResponse,
   TransferSlotLeaderInput,
   SlotLeaderTransferBatchInput,
-  CreateNodeOnboardingPlanInput,
   AdvanceMessageRetentionInput,
   AdvanceMessageRetentionResponse,
   ApplicationLogListParams,
@@ -367,19 +361,6 @@ function buildBusinessChannelMembersPath(
   return query ? `${path}?${query}` : path
 }
 
-function buildNodeOnboardingJobsPath(params?: NodeOnboardingJobsParams) {
-  const search = new URLSearchParams()
-  if (typeof params?.limit === "number") {
-    search.set("limit", String(params.limit))
-  }
-  if (params?.cursor) {
-    search.set("cursor", params.cursor)
-  }
-
-  const query = search.toString()
-  return query ? `/manager/node-onboarding/jobs?${query}` : "/manager/node-onboarding/jobs"
-}
-
 function appendControllerTaskSearch(search: URLSearchParams, params?: ControllerTaskListParams | ControllerTaskAuditListParams) {
   if (params?.kind) {
     search.set("kind", params.kind)
@@ -617,18 +598,6 @@ export async function deleteNodePlugin(nodeId: number, pluginNo: string) {
   })
 }
 
-export function markNodeDraining(nodeId: number) {
-  return jsonManagerFetch<ManagerNodeDetailResponse>(`/manager/nodes/${nodeId}/draining`, {
-    method: "POST",
-  })
-}
-
-export function resumeNode(nodeId: number) {
-  return jsonManagerFetch<ManagerNodeDetailResponse>(`/manager/nodes/${nodeId}/resume`, {
-    method: "POST",
-  })
-}
-
 function buildNodeLifecycleMoveBody(input: { maxSlotMoves?: number } = {}) {
   return JSON.stringify({
     max_slot_moves: input.maxSlotMoves,
@@ -731,12 +700,6 @@ export function advanceNodeScaleIn(nodeId: number, input: ManagerNodeScaleInActi
   return jsonManagerFetch<ManagerNodeScaleInAdvanceResponse>(`/manager/nodes/${nodeId}/scale-in/advance`, {
     method: "POST",
     body: buildNodeLifecycleMoveBody(input),
-  })
-}
-
-export function cancelNodeScaleIn(nodeId: number) {
-  return jsonManagerFetch<ManagerNodeScaleInReport>(`/manager/nodes/${nodeId}/scale-in/cancel`, {
-    method: "POST",
   })
 }
 
@@ -1217,37 +1180,6 @@ export function transferChannelClusterLeader(
     `/manager/channel-cluster/${channelType}/${encodeURIComponent(channelId)}/leader/transfer`,
     { method: "POST", body: JSON.stringify(input) },
   )
-}
-
-export function getNodeOnboardingCandidates() {
-  return jsonManagerFetch<ManagerNodeOnboardingCandidatesResponse>("/manager/node-onboarding/candidates")
-}
-
-export function createNodeOnboardingPlan(input: CreateNodeOnboardingPlanInput) {
-  return jsonManagerFetch<ManagerNodeOnboardingJob>("/manager/node-onboarding/plan", {
-    method: "POST",
-    body: JSON.stringify({ target_node_id: input.targetNodeId }),
-  })
-}
-
-export function startNodeOnboardingJob(jobId: string) {
-  return jsonManagerFetch<ManagerNodeOnboardingJob>(`/manager/node-onboarding/jobs/${encodeURIComponent(jobId)}/start`, {
-    method: "POST",
-  })
-}
-
-export function getNodeOnboardingJobs(params?: NodeOnboardingJobsParams) {
-  return jsonManagerFetch<ManagerNodeOnboardingJobsResponse>(buildNodeOnboardingJobsPath(params))
-}
-
-export function getNodeOnboardingJob(jobId: string) {
-  return jsonManagerFetch<ManagerNodeOnboardingJob>(`/manager/node-onboarding/jobs/${encodeURIComponent(jobId)}`)
-}
-
-export function retryNodeOnboardingJob(jobId: string) {
-  return jsonManagerFetch<ManagerNodeOnboardingJob>(`/manager/node-onboarding/jobs/${encodeURIComponent(jobId)}/retry`, {
-    method: "POST",
-  })
 }
 
 export type DashboardMetricsSeriesDTO = {

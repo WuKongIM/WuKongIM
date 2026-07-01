@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useIntl } from "react-intl"
 
 import { useAuthStore } from "@/auth/auth-store"
 import { DetailSheet } from "@/components/manager/detail-sheet"
@@ -83,6 +84,7 @@ export function DynamicNodeLifecycleSheet({
   onOpenChange,
   onCompleted,
 }: DynamicNodeLifecycleSheetProps) {
+  const intl = useIntl()
   const permissions = useAuthStore((state) => state.permissions)
   const canWriteNodes = useMemo(() => hasPermission(permissions, "cluster.node", "w"), [permissions])
   const [nodeId, setNodeId] = useState("")
@@ -587,7 +589,7 @@ export function DynamicNodeLifecycleSheet({
     }
   }, [beginOperation, isCurrentOperation, node])
 
-  const title = mode === "join" ? "Add node" : "Node lifecycle"
+  const title = intl.formatMessage({ id: mode === "join" ? "nodes.lifecycle.addNode" : "nodes.lifecycle.title" })
 
   return (
     <DetailSheet onOpenChange={onOpenChange} open={open} title={title}>
@@ -636,7 +638,7 @@ export function DynamicNodeLifecycleSheet({
               />
             </label>
             <Button disabled={pending || !canWriteNodes} onClick={() => void submitJoin()}>
-              Join node
+              {intl.formatMessage({ id: "nodes.lifecycle.join" })}
             </Button>
             {joinResult ? (
               <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm text-muted-foreground">
@@ -657,7 +659,7 @@ export function DynamicNodeLifecycleSheet({
             </div>
             {nodeJoinState(node) === "joining" ? (
               <Button disabled={pending || !canWriteNodes} onClick={() => void submitActivate()}>
-                Activate node
+                {intl.formatMessage({ id: "nodes.lifecycle.activate" })}
               </Button>
             ) : null}
             {activateResult ? (
@@ -684,7 +686,7 @@ export function DynamicNodeLifecycleSheet({
                     type="button"
                     variant="outline"
                   >
-                    Plan slot onboarding
+                    {intl.formatMessage({ id: "nodes.lifecycle.planOnboarding" })}
                   </Button>
                   <Button
                     disabled={pending || !canWriteNodes || !onboardingPlan}
@@ -692,7 +694,7 @@ export function DynamicNodeLifecycleSheet({
                     size="sm"
                     type="button"
                   >
-                    Start onboarding
+                    {intl.formatMessage({ id: "nodes.lifecycle.startOnboarding" })}
                   </Button>
                   <Button
                     disabled={pending || !canWriteNodes}
@@ -701,7 +703,7 @@ export function DynamicNodeLifecycleSheet({
                     type="button"
                     variant="outline"
                   >
-                    Refresh onboarding status
+                    {intl.formatMessage({ id: "nodes.lifecycle.refreshOnboarding" })}
                   </Button>
                   <Button
                     disabled={pending || !canWriteNodes}
@@ -710,7 +712,7 @@ export function DynamicNodeLifecycleSheet({
                     type="button"
                     variant="outline"
                   >
-                    Advance onboarding
+                    {intl.formatMessage({ id: "nodes.lifecycle.advanceOnboarding" })}
                   </Button>
                 </div>
                 {onboardingPlan ? (
@@ -767,7 +769,7 @@ export function DynamicNodeLifecycleSheet({
                     type="button"
                     variant="outline"
                   >
-                    Plan scale-in
+                    {intl.formatMessage({ id: "nodes.lifecycle.planScaleIn" })}
                   </Button>
                   <Button
                     disabled={pending || !canUseScaleInActions}
@@ -776,7 +778,7 @@ export function DynamicNodeLifecycleSheet({
                     type="button"
                     variant="outline"
                   >
-                    Mark leaving
+                    {intl.formatMessage({ id: "nodes.lifecycle.markLeaving" })}
                   </Button>
                   <Button
                     disabled={pending || !canUseScaleInActions}
@@ -785,7 +787,7 @@ export function DynamicNodeLifecycleSheet({
                     type="button"
                     variant="outline"
                   >
-                    Enable drain mode
+                    {intl.formatMessage({ id: "nodes.lifecycle.enableDrain" })}
                   </Button>
                   <Button
                     disabled={pending || !canUseScaleInActions}
@@ -794,7 +796,7 @@ export function DynamicNodeLifecycleSheet({
                     type="button"
                     variant="outline"
                   >
-                    Refresh scale-in status
+                    {intl.formatMessage({ id: "nodes.lifecycle.refreshScaleIn" })}
                   </Button>
                   <Button
                     disabled={pending || !canUseScaleInActions}
@@ -803,7 +805,7 @@ export function DynamicNodeLifecycleSheet({
                     type="button"
                     variant="outline"
                   >
-                    Advance scale-in
+                    {intl.formatMessage({ id: "nodes.lifecycle.advanceScaleIn" })}
                   </Button>
                   <Button
                     disabled={pending || !canRemoveScaleInNode}
@@ -812,9 +814,12 @@ export function DynamicNodeLifecycleSheet({
                     type="button"
                     variant="outline"
                   >
-                    Remove node
+                    {intl.formatMessage({ id: "nodes.lifecycle.remove" })}
                   </Button>
                 </div>
+                <p className="text-sm text-muted-foreground">
+                  {intl.formatMessage({ id: "nodes.lifecycle.drainCopy" })}
+                </p>
                 {scaleInPlan ? (
                   <div className="space-y-2 text-sm">
                     <div>State revision: {scaleInPlan.state_revision}</div>
@@ -893,7 +898,7 @@ export function DynamicNodeLifecycleSheet({
               </div>
             ) : null}
             <Button disabled={pending} onClick={() => void loadDiagnostics()} size="sm" type="button" variant="outline">
-              Diagnostics
+              {intl.formatMessage({ id: "nodes.lifecycle.diagnostics" })}
             </Button>
             {diagnostics ? (
               <div className="space-y-3 rounded-lg border border-border bg-muted/20 p-3 text-sm">

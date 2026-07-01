@@ -231,7 +231,7 @@ export const pageMetadata = new Map(
 export const legacyRouteRedirects: Record<string, string> = {
   "/dashboard": "/cluster/dashboard",
   "/nodes": "/cluster/nodes",
-  "/onboarding": "/cluster/nodes?panel=onboarding",
+  "/onboarding": "/cluster/nodes",
   "/slots": "/cluster/slots",
   "/tasks": "/cluster/tasks",
   "/workqueues": "/cluster/workqueues",

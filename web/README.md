@@ -26,7 +26,7 @@ The web app provides the authenticated manager shell for WuKongIM operations:
 |------|----------------------|--------|
 | `/cluster/dashboard` | `GET /manager/overview`, `GET /manager/tasks`, `GET /manager/nodes`, `GET /manager/channel-cluster/summary`, `GET /manager/network/summary` | Implemented |
 | `/cluster/monitor` | `GET /manager/realtime-monitor`, optional `node_id` and `category` filters | Implemented |
-| `/cluster/nodes` | `GET /manager/nodes`, `GET /manager/nodes/:id`, node lifecycle and scale-in APIs; `?panel=onboarding` also uses node onboarding APIs | Implemented |
+| `/cluster/nodes` | `GET /manager/nodes`, `GET /manager/nodes/:id`, `POST /manager/nodes/join`, `POST /manager/nodes/:id/activate`, per-node onboarding APIs, per-node scale-in APIs, and `GET /manager/nodes/:id/diagnostics` | Implemented |
 | `/cluster/slots` | `GET /manager/nodes`, `GET /manager/slots`, `GET /manager/slots/:id`, Slot leader single/batch transfer, recovery, and rebalance APIs | Implemented |
 | `/cluster/channels?tab=overview` | `GET /manager/channel-cluster/summary` | Implemented |
 | `/cluster/channels?tab=list` | `GET /manager/channel-runtime-meta`, `GET /manager/channel-runtime-meta/:type/:id` | Implemented |
@@ -53,7 +53,7 @@ The web app provides the authenticated manager shell for WuKongIM operations:
 Old bookmarks are kept as `replace` redirects into the redesigned sections:
 
 - Dashboard routes: `/dashboard` -> `/cluster/dashboard`.
-- Cluster routes: `/nodes`, `/onboarding`, `/slots`, `/tasks`, `/topology`, `/channel-cluster`, `/channel-cluster/list`, `/channel-cluster/unhealthy`, `/channels`.
+- Cluster routes: `/nodes`, `/onboarding` (legacy redirect to `/cluster/nodes`), `/slots`, `/tasks`, `/topology`, `/channel-cluster`, `/channel-cluster/list`, `/channel-cluster/unhealthy`, `/channels`.
 - Diagnostics routes: `/diagnostics`, `/network`, `/controller`, `/slot-logs`; log redirects preserve existing query parameters such as `node_id` and `slot_id`.
 - Business routes: `/users`, `/channels-biz`, `/messages`, `/system-users`.
 - System routes: `/settings/permissions`, `/settings/webhooks`, `/connections`, `/db-inspect` -> `/system/db`.

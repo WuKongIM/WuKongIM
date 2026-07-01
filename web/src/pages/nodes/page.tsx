@@ -352,7 +352,7 @@ export function NodeClusterListPanel() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Button onClick={openJoinLifecycle} size="sm" variant="outline">
-            Add node
+            {intl.formatMessage({ id: "nodes.lifecycle.addNode" })}
           </Button>
           <Button
             onClick={() => {
@@ -444,12 +444,15 @@ export function NodeClusterListPanel() {
                         <td className="px-3 py-3 text-sm text-foreground">
                           <div className="flex items-center gap-2">
                             <Button
-                              aria-label={`Open lifecycle for node ${node.node_id}`}
+                              aria-label={intl.formatMessage(
+                                { id: "nodes.lifecycle.openForNode" },
+                                { id: node.node_id },
+                              )}
                               onClick={() => openNodeLifecycle(node)}
                               size="sm"
                               variant="outline"
                             >
-                              Lifecycle
+                              {intl.formatMessage({ id: "nodes.lifecycle.title" })}
                             </Button>
                             <Button
                               aria-label={intl.formatMessage(

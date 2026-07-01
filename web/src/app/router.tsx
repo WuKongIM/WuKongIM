@@ -80,7 +80,7 @@ export const routes: RouteObject[] = [
       // Legacy redirects
       { path: "dashboard", element: <Navigate replace to="/cluster/dashboard" /> },
       { path: "nodes", element: <Navigate replace to="/cluster/nodes" /> },
-      { path: "onboarding", element: <Navigate replace to="/cluster/nodes?panel=onboarding" /> },
+      { path: "onboarding", element: <Navigate replace to="/cluster/nodes" /> },
       { path: "slots", element: <Navigate replace to="/cluster/slots" /> },
       { path: "tasks", element: <Navigate replace to="/cluster/tasks" /> },
       { path: "workqueues", element: <Navigate replace to="/cluster/workqueues" /> },
