@@ -475,6 +475,277 @@ export type ManagerNodeDetailResponse = ManagerNode & {
   }
 }
 
+export type ManagerJoinNodeInput = {
+  nodeId: number
+  name?: string
+  addr: string
+  capacityWeight?: number
+}
+
+export type ManagerJoinNodeResponse = {
+  created: boolean
+  node_id: number
+  addr: string
+  join_state: string
+  revision: number
+}
+
+export type ManagerActivateNodeResponse = {
+  changed: boolean
+  node_id: number
+  addr?: string
+  join_state: string
+  revision: number
+}
+
+export type ManagerNodeOnboardingActionInput = {
+  maxSlotMoves?: number
+}
+
+export type ManagerNodeOnboardingSlotCandidate = {
+  slot_id: number
+  source_node_id: number
+  target_node_id: number
+  target_peers: number[]
+  config_epoch: number
+}
+
+export type ManagerNodeOnboardingSkip = {
+  slot_id: number
+  reason: string
+  message: string
+}
+
+export type ManagerNodeOnboardingPlanResponse = {
+  generated_at: string
+  state_revision: number
+  target_node_id: number
+  max_slot_moves: number
+  candidates: ManagerNodeOnboardingSlotCandidate[]
+  skipped: ManagerNodeOnboardingSkip[]
+}
+
+export type ManagerSlotTaskParticipant = {
+  node_id: number
+  attempt: number
+  status: string
+  last_error?: string
+}
+
+export type ManagerSlotTask = {
+  task_id: string
+  slot_id?: number
+  kind: string
+  step: string
+  status: string
+  source_node?: number
+  target_node?: number
+  target_peers?: number[]
+  completion_policy: string
+  config_epoch?: number
+  attempt: number
+  last_error?: string
+  phase_index?: number
+  observed_config_index?: number
+  observed_voters?: number[]
+  observed_learners?: number[]
+  participants?: ManagerSlotTaskParticipant[]
+}
+
+export type ManagerNodeOnboardingTaskResult = {
+  slot_id: number
+  created: boolean
+  task?: ManagerSlotTask
+}
+
+export type ManagerNodeOnboardingStartResponse = {
+  generated_at: string
+  state_revision: number
+  target_node_id: number
+  max_slot_moves: number
+  created: number
+  results: ManagerNodeOnboardingTaskResult[]
+  skipped: ManagerNodeOnboardingSkip[]
+}
+
+export type ManagerNodeOnboardingStatusResponse = {
+  generated_at: string
+  state_revision: number
+  target_node_id: number
+  summary: {
+    total_active: number
+    pending: number
+    running: number
+    failed: number
+  }
+  tasks: ManagerSlotTask[]
+}
+
+export type ManagerNodeScaleInActionInput = {
+  maxSlotMoves?: number
+}
+
+export type ManagerNodeScaleInCandidate = {
+  slot_id: number
+  source_node_id: number
+  target_node_id: number
+  desired_peers: number[]
+  target_peers: number[]
+  config_epoch: number
+}
+
+export type ManagerNodeScaleInPlanResponse = {
+  generated_at: string
+  state_revision: number
+  node_id: number
+  candidates: ManagerNodeScaleInCandidate[]
+  blocked_by_status: boolean
+}
+
+export type ManagerNodeScaleInStartResponse = {
+  changed: boolean
+  node_id: number
+  addr: string
+  join_state: string
+  revision: number
+}
+
+export type ManagerNodeScaleInDrainResponse = {
+  node_id: number
+  draining: boolean
+  accepting_new_sessions: boolean
+  gateway_sessions: number
+  active_online: number
+  closing_online: number
+  total_online: number
+  pending_activations: number
+  unknown: boolean
+}
+
+export type ManagerNodeScaleInStatusResponse = {
+  node_id: number
+  join_state: string
+  generated_at: string
+  state_revision: number
+  safe_to_proceed: boolean
+  safe_to_remove: boolean
+  blocked_by_missing_node: boolean
+  blocked_by_join_state: boolean
+  blocked_by_control_revision: boolean
+  blocked_by_health: boolean
+  blocked_by_stale_revision: boolean
+  blocked_by_controller_role: boolean
+  blocked_by_data_role: boolean
+  blocked_by_slots: boolean
+  blocked_by_slot_leadership: boolean
+  blocked_by_slot_runtime: boolean
+  blocked_by_tasks: boolean
+  blocked_by_channels: boolean
+  blocked_by_runtime_drain: boolean
+  unknown_runtime: boolean
+  runtime_unknown: boolean
+  unknown_control_revision: boolean
+  unknown_channel_inventory: boolean
+  health_fresh: boolean
+  health_status: string
+  health_freshness: string
+  health_report_age_ms: number
+  health_report_ttl_ms: number
+  observed_control_revision: number
+  required_control_revision: number
+  blocked_reasons: string[]
+  slot_replica_count: number
+  slot_leader_count: number
+  active_task_count: number
+  failed_task_count: number
+  channel_leader_count: number
+  channel_replica_count: number
+  channel_isr_count: number
+  gateway_draining: boolean
+  accepting_new_sessions: boolean
+  gateway_sessions: number
+  active_online: number
+  closing_online: number
+  total_online: number
+  pending_activations: number
+}
+
+export type ManagerNodeScaleInAdvanceResponse = {
+  generated_at: string
+  state_revision: number
+  node_id: number
+  created: number
+  skipped: number
+  candidates: ManagerNodeScaleInCandidate[]
+}
+
+export type ManagerNodeScaleInRemoveResponse = {
+  changed: boolean
+  node_id: number
+  join_state: string
+  revision: number
+}
+
+export type ManagerDynamicNodeDiagnosticsLimits = {
+  taskLimit?: number
+  auditLimit?: number
+  slotLimit?: number
+}
+
+export type ManagerDynamicNodeDiagnosticSource = {
+  available: boolean
+  last_error: string
+}
+
+export type ManagerDynamicNodeDiagnosticSlot = {
+  slot_id: number
+  desired_peers: number[]
+  preferred_leader: number
+  config_epoch: number
+  task_id: string
+  task_kind: string
+  task_step: string
+  task_status: string
+  current_leader: number
+  current_voters: number[]
+}
+
+export type ManagerDynamicNodeDiagnosticsResponse = {
+  generated_at: string
+  state_revision: number
+  node_id: number
+  node: ManagerNode
+  scale_in: ManagerNodeScaleInStatusResponse | null
+  onboarding: ManagerNodeOnboardingStatusResponse | null
+  active_tasks: ManagerControllerTask[]
+  task_audits: ManagerControllerTaskAuditSnapshot[]
+  slots: ManagerDynamicNodeDiagnosticSlot[]
+  summary: {
+    safe_to_remove: boolean
+    blocked_reasons: string[]
+    active_task_count: number
+    failed_task_count: number
+    slot_replica_count: number
+    slot_leader_count: number
+    control_revision_gap: number
+    slot_replica_move_state: string
+    oldest_task_age_seconds: number
+    audit_available: boolean
+    runtime_unknown: boolean
+    slot_runtime_unknown: boolean
+    recommended_next_action: string
+    blocked_by_control_revision: boolean
+    blocked_by_slots: boolean
+    blocked_by_tasks: boolean
+  }
+  sources: {
+    control_snapshot: ManagerDynamicNodeDiagnosticSource
+    task_audit: ManagerDynamicNodeDiagnosticSource
+    slot_runtime: ManagerDynamicNodeDiagnosticSource
+  }
+  warnings: string[]
+}
+
 // ManagerNodeScaleInReport describes the backend-manager safety report for one node scale-in flow.
 export type ManagerNodeScaleInReport = {
   node_id: number

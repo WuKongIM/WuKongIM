@@ -1,9 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import type {
+  ManagerNodeOnboardingStartResponse,
+  ManagerNodeOnboardingStatusResponse,
+} from "@/lib/manager-api.types"
 import {
+  activateNode,
+  advanceNodeOnboarding,
   configureManagerAuth,
   createPluginBinding,
   deletePluginBinding,
+  getDynamicNodeDiagnostics,
   getChannelClusterSummary,
   getChannelClusterUnhealthy,
   getChannelClusterReplicas,
@@ -36,6 +43,7 @@ import {
   createNodeOnboardingPlan,
   deleteNodePlugin,
   getNode,
+  getNodeOnboardingStatus,
   getNodeOnboardingCandidates,
   getNodeOnboardingJob,
   getNodeOnboardingJobs,
@@ -58,6 +66,7 @@ import {
   getUser,
   getSystemUsers,
   kickUser,
+  joinNode,
   loginManager,
   managerFetch,
   ManagerApiError,
@@ -73,11 +82,15 @@ import {
   removeSystemUsers,
   restartNodePlugin,
   retryNodeOnboardingJob,
+  planNodeOnboarding,
   planNodeScaleIn,
+  removeNodeAfterScaleIn,
   startNodeScaleIn,
   advanceNodeScaleIn,
   cancelNodeScaleIn,
+  setNodeScaleInDrain,
   startNodeOnboardingJob,
+  startNodeOnboarding,
   planSlotLeaderTransfers,
   transferSlotLeader,
   advanceMessageRetention,
@@ -2008,6 +2021,173 @@ describe("manager api client", () => {
     }))
   })
 
+
+  it("calls current dynamic node lifecycle manager endpoints", async () => {
+    const joinResponse = { created: true, node_id: 4, addr: "127.0.0.1:7004", join_state: "joining", revision: 41 }
+    const activateResponse = { changed: true, node_id: 4, addr: "127.0.0.1:7004", join_state: "active", revision: 42 }
+    const onboardingPlan = {
+      generated_at: "2026-07-01T08:00:00Z",
+      state_revision: 42,
+      target_node_id: 4,
+      max_slot_moves: 1,
+      candidates: [{ slot_id: 7, source_node_id: 1, target_node_id: 4, target_peers: [2, 3, 4], config_epoch: 9 }],
+      skipped: [{ slot_id: 8, reason: "active_task", message: "slot already has an active task" }],
+    }
+    const onboardingStart: ManagerNodeOnboardingStartResponse = {
+      generated_at: "2026-07-01T08:00:01Z",
+      state_revision: 43,
+      target_node_id: 4,
+      max_slot_moves: 1,
+      created: 1,
+      results: [{
+        slot_id: 7,
+        created: true,
+        task: {
+          task_id: "slot-replica-move-7-4",
+          slot_id: 7,
+          kind: "slot_replica_move",
+          step: "add_learner",
+          status: "pending",
+          source_node: 1,
+          target_node: 4,
+          target_peers: [2, 3, 4],
+          completion_policy: "all",
+          config_epoch: 9,
+          attempt: 0,
+          last_error: "",
+          phase_index: 1,
+          observed_config_index: 12,
+          observed_voters: [1, 2, 3],
+          observed_learners: [4],
+          participants: [{ node_id: 4, attempt: 0, status: "pending", last_error: "" }],
+        },
+      }],
+      skipped: [],
+    }
+    const onboardingStatus: ManagerNodeOnboardingStatusResponse = {
+      generated_at: "2026-07-01T08:00:02Z",
+      state_revision: 44,
+      target_node_id: 4,
+      summary: { total_active: 1, pending: 1, running: 0, failed: 0 },
+      tasks: [onboardingStart.results[0].task!],
+    }
+    const drain = {
+      node_id: 4,
+      draining: true,
+      accepting_new_sessions: false,
+      gateway_sessions: 0,
+      active_online: 0,
+      closing_online: 0,
+      total_online: 0,
+      pending_activations: 0,
+      unknown: false,
+    }
+    const remove = { changed: true, node_id: 4, join_state: "removed", revision: 49 }
+    const diagnostics = {
+      generated_at: "2026-07-01T08:02:00Z",
+      state_revision: 49,
+      node_id: 4,
+      node: {
+        node_id: 4,
+        name: "node-4",
+        addr: "127.0.0.1:7004",
+        status: "alive",
+        last_heartbeat_at: "2026-07-01T08:00:00Z",
+        is_local: false,
+        capacity_weight: 1,
+        membership: { role: "data", join_state: "removed", schedulable: false },
+        health: { status: "alive", last_heartbeat_at: "2026-07-01T08:00:00Z" },
+        controller: { role: "follower", voter: false, leader_id: 1 },
+        slot_stats: { count: 0, leader_count: 0 },
+        slots: { replica_count: 0, leader_count: 0, follower_count: 0, quorum_lost_count: 0, unreported_count: 0 },
+        runtime: { node_id: 4, active_online: 0, closing_online: 0, total_online: 0, gateway_sessions: 0, sessions_by_listener: {}, accepting_new_sessions: false, draining: true, unknown: false },
+        actions: { can_drain: false, can_resume: false, can_scale_in: false, can_onboard: false },
+      },
+      scale_in: null,
+      onboarding: null,
+      active_tasks: [],
+      task_audits: [],
+      slots: [],
+      summary: {
+        safe_to_remove: true,
+        blocked_reasons: [],
+        active_task_count: 0,
+        failed_task_count: 0,
+        slot_replica_count: 0,
+        slot_leader_count: 0,
+        control_revision_gap: 0,
+        slot_replica_move_state: "idle",
+        oldest_task_age_seconds: 0,
+        audit_available: true,
+        runtime_unknown: false,
+        slot_runtime_unknown: false,
+        recommended_next_action: "remove_node",
+        blocked_by_control_revision: false,
+        blocked_by_slots: false,
+        blocked_by_tasks: false,
+      },
+      sources: {
+        control_snapshot: { available: true, last_error: "" },
+        task_audit: { available: true, last_error: "" },
+        slot_runtime: { available: true, last_error: "" },
+      },
+      warnings: [],
+    }
+
+    fetchMock
+      .mockResolvedValueOnce(new Response(JSON.stringify(joinResponse), { status: 202 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(activateResponse), { status: 202 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(onboardingPlan), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(onboardingStart), { status: 202 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(onboardingStatus), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(onboardingStart), { status: 202 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(drain), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(remove), { status: 202 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(diagnostics), { status: 200 }))
+
+    await expect(joinNode({ nodeId: 4, addr: "127.0.0.1:7004", name: "node-4", capacityWeight: 1 })).resolves.toEqual(joinResponse)
+    await expect(activateNode(4)).resolves.toEqual(activateResponse)
+    await expect(planNodeOnboarding(4, { maxSlotMoves: 1 })).resolves.toEqual(onboardingPlan)
+    await expect(startNodeOnboarding(4, { maxSlotMoves: 1 })).resolves.toEqual(onboardingStart)
+    await expect(getNodeOnboardingStatus(4)).resolves.toEqual(onboardingStatus)
+    await expect(advanceNodeOnboarding(4, { maxSlotMoves: 1 })).resolves.toEqual(onboardingStart)
+    await expect(setNodeScaleInDrain(4, { draining: true })).resolves.toEqual(drain)
+    await expect(removeNodeAfterScaleIn(4)).resolves.toEqual(remove)
+    await expect(getDynamicNodeDiagnostics(4, { taskLimit: 10, auditLimit: 10, slotLimit: 20 })).resolves.toEqual(diagnostics)
+
+    expect(fetchMock.mock.calls.map((call) => call[0])).toEqual([
+      "/manager/nodes/join",
+      "/manager/nodes/4/activate",
+      "/manager/nodes/4/onboarding/plan",
+      "/manager/nodes/4/onboarding/start",
+      "/manager/nodes/4/onboarding/status",
+      "/manager/nodes/4/onboarding/advance",
+      "/manager/nodes/4/scale-in/drain",
+      "/manager/nodes/4/scale-in/remove",
+      "/manager/nodes/4/diagnostics?task_limit=10&audit_limit=10&slot_limit=20",
+    ])
+    expect(fetchMock.mock.calls.map((call) => (call[1] as { method?: string } | undefined)?.method)).toEqual([
+      "POST",
+      "POST",
+      "POST",
+      "POST",
+      undefined,
+      "POST",
+      "POST",
+      "POST",
+      undefined,
+    ])
+    expect(JSON.parse((fetchMock.mock.calls[0]?.[1] as { body: string }).body)).toEqual({
+      node_id: 4,
+      name: "node-4",
+      addr: "127.0.0.1:7004",
+      capacity_weight: 1,
+    })
+    expect(JSON.parse((fetchMock.mock.calls[2]?.[1] as { body: string }).body)).toEqual({ max_slot_moves: 1 })
+    expect(JSON.parse((fetchMock.mock.calls[3]?.[1] as { body: string }).body)).toEqual({ max_slot_moves: 1 })
+    expect(JSON.parse((fetchMock.mock.calls[5]?.[1] as { body: string }).body)).toEqual({ max_slot_moves: 1 })
+    expect(JSON.parse((fetchMock.mock.calls[6]?.[1] as { body: string }).body)).toEqual({ draining: true })
+  })
 
   it("calls node onboarding manager endpoints", async () => {
     const candidates = {

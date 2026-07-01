@@ -42,15 +42,26 @@ import type {
   ManagerDistributedTaskDomain,
   ManagerDistributedTasksResponse,
   ManagerDistributedTasksSummaryResponse,
+  ManagerDynamicNodeDiagnosticsLimits,
+  ManagerDynamicNodeDiagnosticsResponse,
+  ManagerJoinNodeInput,
+  ManagerJoinNodeResponse,
+  ManagerActivateNodeResponse,
   ManagerLoginResponse,
   ManagerMessagesResponse,
   ManagerRecentConversationsResponse,
   ManagerRuntimeWorkqueuesResponse,
   ManagerNetworkSummaryResponse,
+  ManagerNodeOnboardingActionInput,
   ManagerNodeOnboardingCandidatesResponse,
   ManagerNodeOnboardingJob,
   ManagerNodeOnboardingJobsResponse,
+  ManagerNodeOnboardingPlanResponse,
+  ManagerNodeOnboardingStartResponse,
+  ManagerNodeOnboardingStatusResponse,
   ManagerNodeDetailResponse,
+  ManagerNodeScaleInDrainResponse,
+  ManagerNodeScaleInRemoveResponse,
   ManagerNodeScaleInReport,
   ManagerNodesResponse,
   ManagerOverviewResponse,
@@ -613,6 +624,87 @@ export function resumeNode(nodeId: number) {
   return jsonManagerFetch<ManagerNodeDetailResponse>(`/manager/nodes/${nodeId}/resume`, {
     method: "POST",
   })
+}
+
+function buildNodeLifecycleMoveBody(input: { maxSlotMoves?: number } = {}) {
+  return JSON.stringify({
+    max_slot_moves: input.maxSlotMoves,
+  })
+}
+
+function buildDynamicNodeDiagnosticsPath(nodeId: number, limits?: ManagerDynamicNodeDiagnosticsLimits) {
+  const search = new URLSearchParams()
+  if (typeof limits?.taskLimit === "number") {
+    search.set("task_limit", String(limits.taskLimit))
+  }
+  if (typeof limits?.auditLimit === "number") {
+    search.set("audit_limit", String(limits.auditLimit))
+  }
+  if (typeof limits?.slotLimit === "number") {
+    search.set("slot_limit", String(limits.slotLimit))
+  }
+  const query = search.toString()
+  return `/manager/nodes/${nodeId}/diagnostics${query ? `?${query}` : ""}`
+}
+
+export function joinNode(input: ManagerJoinNodeInput) {
+  return jsonManagerFetch<ManagerJoinNodeResponse>("/manager/nodes/join", {
+    method: "POST",
+    body: JSON.stringify({
+      node_id: input.nodeId,
+      name: input.name ?? "",
+      addr: input.addr,
+      capacity_weight: input.capacityWeight,
+    }),
+  })
+}
+
+export function activateNode(nodeId: number) {
+  return jsonManagerFetch<ManagerActivateNodeResponse>(`/manager/nodes/${nodeId}/activate`, {
+    method: "POST",
+  })
+}
+
+export function planNodeOnboarding(nodeId: number, input: ManagerNodeOnboardingActionInput = {}) {
+  return jsonManagerFetch<ManagerNodeOnboardingPlanResponse>(`/manager/nodes/${nodeId}/onboarding/plan`, {
+    method: "POST",
+    body: buildNodeLifecycleMoveBody(input),
+  })
+}
+
+export function startNodeOnboarding(nodeId: number, input: ManagerNodeOnboardingActionInput = {}) {
+  return jsonManagerFetch<ManagerNodeOnboardingStartResponse>(`/manager/nodes/${nodeId}/onboarding/start`, {
+    method: "POST",
+    body: buildNodeLifecycleMoveBody(input),
+  })
+}
+
+export function getNodeOnboardingStatus(nodeId: number) {
+  return jsonManagerFetch<ManagerNodeOnboardingStatusResponse>(`/manager/nodes/${nodeId}/onboarding/status`)
+}
+
+export function advanceNodeOnboarding(nodeId: number, input: ManagerNodeOnboardingActionInput = {}) {
+  return jsonManagerFetch<ManagerNodeOnboardingStartResponse>(`/manager/nodes/${nodeId}/onboarding/advance`, {
+    method: "POST",
+    body: buildNodeLifecycleMoveBody(input),
+  })
+}
+
+export function setNodeScaleInDrain(nodeId: number, input: { draining: boolean }) {
+  return jsonManagerFetch<ManagerNodeScaleInDrainResponse>(`/manager/nodes/${nodeId}/scale-in/drain`, {
+    method: "POST",
+    body: JSON.stringify({ draining: input.draining }),
+  })
+}
+
+export function removeNodeAfterScaleIn(nodeId: number) {
+  return jsonManagerFetch<ManagerNodeScaleInRemoveResponse>(`/manager/nodes/${nodeId}/scale-in/remove`, {
+    method: "POST",
+  })
+}
+
+export function getDynamicNodeDiagnostics(nodeId: number, limits?: ManagerDynamicNodeDiagnosticsLimits) {
+  return jsonManagerFetch<ManagerDynamicNodeDiagnosticsResponse>(buildDynamicNodeDiagnosticsPath(nodeId, limits))
 }
 
 function buildNodeScaleInPlanBody(input: CreateNodeScaleInPlanInput) {
