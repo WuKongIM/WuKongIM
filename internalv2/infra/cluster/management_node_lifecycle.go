@@ -17,6 +17,8 @@ type ManagementNodeLifecycleNode interface {
 	MarkNodeLeaving(context.Context, control.MarkNodeLeavingRequest) (control.MarkNodeLeavingResult, error)
 	// MarkNodeRemoved submits a node removed intent to cluster control.
 	MarkNodeRemoved(context.Context, control.MarkNodeRemovedRequest) (control.MarkNodeRemovedResult, error)
+	// PromoteControllerVoter submits a Controller voter promotion intent to cluster control.
+	PromoteControllerVoter(context.Context, control.PromoteControllerVoterRequest) (control.PromoteControllerVoterResult, error)
 }
 
 // ManagementNodeLifecycleAdapter adapts clusterv2 lifecycle writes to management usecases.
@@ -59,4 +61,12 @@ func (a *ManagementNodeLifecycleAdapter) MarkNodeRemoved(ctx context.Context, re
 		return control.MarkNodeRemovedResult{}, managementusecase.ErrNodeLifecycleUnavailable
 	}
 	return a.node.MarkNodeRemoved(ctx, req)
+}
+
+// PromoteControllerVoter submits a validated Controller voter promotion request.
+func (a *ManagementNodeLifecycleAdapter) PromoteControllerVoter(ctx context.Context, req control.PromoteControllerVoterRequest) (control.PromoteControllerVoterResult, error) {
+	if a == nil || a.node == nil {
+		return control.PromoteControllerVoterResult{}, managementusecase.ErrControllerVoterPromotionUnavailable
+	}
+	return a.node.PromoteControllerVoter(ctx, req)
 }

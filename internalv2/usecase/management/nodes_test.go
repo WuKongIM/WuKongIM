@@ -222,13 +222,14 @@ func TestListNodesReportsLifecycleActionHints(t *testing.T) {
 	if actions[1].CanScaleIn || actions[1].CanOnboard {
 		t.Fatalf("controller voter actions = %#v, want lifecycle actions disabled", actions[1])
 	}
-	if !actions[2].CanScaleIn || !actions[2].CanOnboard {
-		t.Fatalf("active data actions = %#v, want scale-in and onboard enabled", actions[2])
+	if !actions[2].CanScaleIn || !actions[2].CanOnboard || !actions[2].CanPromoteControllerVoter {
+		t.Fatalf("active data actions = %#v, want scale-in, onboard, and controller promotion enabled", actions[2])
 	}
-	if !actions[3].CanScaleIn || actions[3].CanOnboard {
-		t.Fatalf("leaving data actions = %#v, want scale-in enabled and onboard disabled", actions[3])
+	if !actions[3].CanScaleIn || actions[3].CanOnboard || actions[3].CanPromoteControllerVoter {
+		t.Fatalf("leaving data actions = %#v, want scale-in enabled and onboarding/promotion disabled", actions[3])
 	}
-	if actions[4].CanScaleIn || actions[4].CanOnboard || actions[5].CanScaleIn || actions[5].CanOnboard {
+	if actions[4].CanScaleIn || actions[4].CanOnboard || actions[4].CanPromoteControllerVoter ||
+		actions[5].CanScaleIn || actions[5].CanOnboard || actions[5].CanPromoteControllerVoter {
 		t.Fatalf("inactive data actions = %#v/%#v, want lifecycle actions disabled", actions[4], actions[5])
 	}
 }

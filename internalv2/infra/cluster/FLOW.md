@@ -17,7 +17,8 @@ distributed log reads to node-local clusterv2 log storage or peer RPC, routes
 manager Slot Raft status and compaction operations to the selected node-local clusterv2
 operation or peer RPC, adapts manager Slot leader transfer and staged Slot
 replica-move intents to clusterv2 control, adapts manager node lifecycle
-join/activation/leaving/removal writes to clusterv2 control, routes startup seed JoinNode and readiness probes over
+join/activation/leaving/removal and Controller voter promotion writes to
+clusterv2 control, routes startup seed JoinNode and readiness probes over
 clusterv2 node RPC, routes manager Controller Raft operations to node-local
 clusterv2 operations or peer RPC, routes ordinary application log reads to the
 selected node's app-owned local reader or peer RPC, routes manager DB Inspect
@@ -35,8 +36,8 @@ ports to clusterv2 routing and node RPC.
 internalv2 management usecase. It only exposes local control snapshot reads and
 the local node ID for read-only manager node and Slot list rendering. Node
 lifecycle writes are exposed through the separate
-`ManagementNodeLifecycleAdapter` for join, activation, leaving, and removal
-transitions. Bounded Slot onboarding and Stage 4 scale-in Slot drain writes are
+`ManagementNodeLifecycleAdapter` for join, activation, leaving, removal, and
+Controller voter promotion transitions. Bounded Slot onboarding and Stage 4 scale-in Slot drain writes are
 exposed through `ManagementSlotReplicaMoveAdapter`, which submits Stage 3
 `slot_replica_move` task intents and never mutates assignments directly. Final
 scale-in removal is exposed as a lifecycle writer primitive but remains gated by
@@ -50,6 +51,11 @@ explicit node-local Raft compaction or staged replica-move task creation stay
 unmigrated. Gateway drain mode itself is routed through the manager connection
 RPC remote writer below because it is a target-node gateway admission toggle,
 not a control-plane assignment write.
+Controller voter promotion is only delegated here after the management usecase
+has validated the target, target readiness, live preparation proof, expected
+revision, previous durable voters, and observed Controller Raft voter set. This
+adapter does not perform promotion safety decisions and does not implement the
+target-node preparation RPC codec.
 
 ## Node Lifecycle RPC Flow
 

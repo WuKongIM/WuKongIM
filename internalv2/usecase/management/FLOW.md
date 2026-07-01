@@ -5,7 +5,8 @@
 `internalv2/usecase/management` builds entry-independent read models for the
 new manager API. It currently owns the node list, Slot list, business channel
 list, channel runtime metadata list, Controller/Slot distributed log pages,
-Controller task audit history, Controller Raft status and explicit compaction orchestration, Slot Raft
+Controller task audit history, Controller Raft status and explicit compaction orchestration,
+Controller voter promotion validation, Slot Raft
 explicit compaction orchestration, Slot leader-transfer intent
 validation/submission, recent conversation list, channel message list,
 message retention adapter contract, local-or-remote connection list/detail
@@ -79,11 +80,40 @@ the node list does not mix control-plane placement intent with actual Raft
 leadership. Runtime online and gateway counters are read through the narrow
 `RuntimeSummaryReader` port. Read failures or an unwired runtime source mark
 only that node's runtime summary as unknown. Node list action hints remain
-read-model hints; `can_drain` and `can_resume` stay tied to the legacy
+read-model hints. `can_promote_controller_voter` only marks active data-only
+nodes as candidates; the promotion usecase still rechecks durable health,
+target readiness, live preparation proof, and Controller writer fences before
+any durable mutation. `can_drain` and `can_resume` stay tied to the legacy
 node-operation routes and remain disabled in internalv2 until those routes are
 migrated. Stage 5C gateway drain mode is exposed through the scale-in route and
 status instead of these node-list action hints. Lifecycle writes are exposed
 separately by the join and activate flow below.
+
+## Controller Voter Promotion Flow
+
+```text
+manager HTTP handler
+  -> management.App.PromoteControllerVoter
+  -> ControlSnapshotReader.LocalControlSnapshot
+  -> ControllerVoterReadinessReader for target readiness
+  -> ControllerVoterPreparer for target-side live Controller Raft proof
+  -> ControllerVoterPromoter for clusterv2 control promotion write
+```
+
+Controller voter promotion uses one local control snapshot as the durable
+decision base. The usecase fails closed before target preparation when the
+target is missing, not an active data-only node, lacks a cluster address, has
+stale or non-alive health, is not runtime-ready, or has not observed the
+snapshot revision. Existing Controller voters are treated as idempotent no-ops.
+For non-voters, the usecase builds the previous durable Controller voter set
+and next voter endpoints from that snapshot, then requires target readiness and
+target-side preparation proof. The final control writer request carries the
+snapshot revision, the previous durable voter set as a non-nil fence, and the
+observed Controller Raft config index and voter set returned by preparation.
+Missing promotion ports are reported as unavailable; failed safety gates are
+reported as blocked with bounded machine-readable reasons. This usecase does
+not implement HTTP routing, node RPC codecs, or app wiring for the target
+preparer.
 
 ## Node Lifecycle Flow
 

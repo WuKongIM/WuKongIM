@@ -62,6 +62,25 @@ func TestManagementNodeLifecycleAdapterUsesControlWriter(t *testing.T) {
 	if !removed.Changed || node.removedRequest.NodeID != 4 || removed.Node.JoinState != control.NodeJoinStateRemoved {
 		t.Fatalf("MarkNodeRemoved() = %#v request=%#v, want changed removed node 4", removed, node.removedRequest)
 	}
+
+	promote, err := adapter.PromoteControllerVoter(context.Background(), control.PromoteControllerVoterRequest{
+		NodeID:              4,
+		ExpectedRevision:    9,
+		ExpectedVoters:      []uint64{1, 2},
+		ObservedConfigIndex: 77,
+		ObservedVoters:      []uint64{1, 2, 4},
+	})
+	if err != nil {
+		t.Fatalf("PromoteControllerVoter() error = %v", err)
+	}
+	if !promote.Changed ||
+		node.promoteRequest.NodeID != 4 ||
+		node.promoteRequest.ExpectedRevision != 9 ||
+		!sameUint64s(node.promoteRequest.ExpectedVoters, []uint64{1, 2}) ||
+		node.promoteRequest.ObservedConfigIndex != 77 ||
+		!sameUint64s(node.promoteRequest.ObservedVoters, []uint64{1, 2, 4}) {
+		t.Fatalf("PromoteControllerVoter() = %#v request=%#v, want proof request passed through", promote, node.promoteRequest)
+	}
 }
 
 type fakeManagementNodeLifecycleNode struct {
@@ -73,6 +92,8 @@ type fakeManagementNodeLifecycleNode struct {
 	leavingResult   control.MarkNodeLeavingResult
 	removedRequest  control.MarkNodeRemovedRequest
 	removedResult   control.MarkNodeRemovedResult
+	promoteRequest  control.PromoteControllerVoterRequest
+	promoteResult   control.PromoteControllerVoterResult
 }
 
 func (f *fakeManagementNodeLifecycleNode) JoinNode(_ context.Context, req control.JoinNodeRequest) (control.JoinNodeResult, error) {
@@ -93,4 +114,24 @@ func (f *fakeManagementNodeLifecycleNode) MarkNodeLeaving(_ context.Context, req
 func (f *fakeManagementNodeLifecycleNode) MarkNodeRemoved(_ context.Context, req control.MarkNodeRemovedRequest) (control.MarkNodeRemovedResult, error) {
 	f.removedRequest = req
 	return f.removedResult, nil
+}
+
+func (f *fakeManagementNodeLifecycleNode) PromoteControllerVoter(_ context.Context, req control.PromoteControllerVoterRequest) (control.PromoteControllerVoterResult, error) {
+	f.promoteRequest = req
+	if f.promoteResult.Node.NodeID == 0 {
+		f.promoteResult = control.PromoteControllerVoterResult{Changed: true, Node: control.Node{NodeID: req.NodeID}, Revision: req.ExpectedRevision + 1}
+	}
+	return f.promoteResult, nil
+}
+
+func sameUint64s(left, right []uint64) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for i := range left {
+		if left[i] != right[i] {
+			return false
+		}
+	}
+	return true
 }

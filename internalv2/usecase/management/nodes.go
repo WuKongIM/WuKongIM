@@ -38,6 +38,21 @@ type NodeLifecycleWriter interface {
 	MarkNodeRemoved(context.Context, control.MarkNodeRemovedRequest) (control.MarkNodeRemovedResult, error)
 }
 
+// ControllerVoterPromoter submits cluster-authoritative Controller voter promotion writes.
+type ControllerVoterPromoter interface {
+	PromoteControllerVoter(context.Context, control.PromoteControllerVoterRequest) (control.PromoteControllerVoterResult, error)
+}
+
+// ControllerVoterReadinessReader reads target readiness before Controller voter promotion.
+type ControllerVoterReadinessReader interface {
+	ControllerVoterReadiness(context.Context, uint64) (ControllerVoterReadiness, error)
+}
+
+// ControllerVoterPreparer prepares a target node and returns live Controller Raft proof.
+type ControllerVoterPreparer interface {
+	PrepareControllerVoter(context.Context, PrepareControllerVoterRequest) (PrepareControllerVoterResponse, error)
+}
+
 // NodeReadinessReader reads app-local readiness for activation gates.
 type NodeReadinessReader interface {
 	// NodeReadiness returns the selected node's activation readiness view.
@@ -82,6 +97,12 @@ type Options struct {
 	GatewayDrain GatewayDrainWriter
 	// NodeLifecycle submits cluster-authoritative node join, activation, and leaving requests.
 	NodeLifecycle NodeLifecycleWriter
+	// ControllerVoterPromoter submits cluster-authoritative Controller voter promotion writes.
+	ControllerVoterPromoter ControllerVoterPromoter
+	// ControllerVoterReadiness reads selected-node readiness before Controller voter promotion.
+	ControllerVoterReadiness ControllerVoterReadinessReader
+	// ControllerVoterPreparer prepares a target node and returns live Controller Raft proof.
+	ControllerVoterPreparer ControllerVoterPreparer
 	// NodeReadiness reads selected-node readiness before activation writes.
 	NodeReadiness NodeReadinessReader
 	// Diagnostics reads local or remote node diagnostics events for manager aggregations.
@@ -150,42 +171,45 @@ type Options struct {
 
 // App serves read-only manager management usecases for internalv2.
 type App struct {
-	cluster                ControlSnapshotReader
-	runtimeSummary         RuntimeSummaryReader
-	gatewayDrain           GatewayDrainWriter
-	nodeLifecycle          NodeLifecycleWriter
-	nodeReadiness          NodeReadinessReader
-	diagnostics            DiagnosticsReader
-	diagnosticsTracking    DiagnosticsTrackingOperator
-	scaleInStatusObserver  ScaleInStatusObserver
-	lifecycleAttempts      NodeLifecycleAttemptObserver
-	channelRuntimeMeta     ChannelRuntimeMetaReader
-	channelBusinessReader  ChannelBusinessReader
-	remoteBusinessChannels RemoteBusinessChannelReader
-	users                  UserReader
-	userOperator           UserOperator
-	userPresence           UserPresenceDirectory
-	userActions            UserRouteActionDispatcher
-	systemUsers            SystemUserOperator
-	conversations          ConversationSyncer
-	messages               MessageReader
-	messageRetention       MessageRetentionOperator
-	connections            ConnectionReader
-	remoteConnections      RemoteConnectionReader
-	plugins                PluginReader
-	remotePlugins          RemotePluginReader
-	pluginBindings         PluginBindingStore
-	logs                   LogReader
-	slotRaft               SlotRaftOperator
-	leaderTransfer         SlotLeaderTransferWriter
-	slotReplicaMove        SlotReplicaMoveWriter
-	slotRuntimeStatus      SlotRuntimeStatusReader
-	controllerRaft         ControllerRaftOperator
-	controllerTaskAudit    ControllerTaskAuditReader
-	applicationLogs        ApplicationLogReader
-	dbInspect              DBInspectReader
-	remoteDBInspect        RemoteDBInspectReader
-	now                    func() time.Time
+	cluster                  ControlSnapshotReader
+	runtimeSummary           RuntimeSummaryReader
+	gatewayDrain             GatewayDrainWriter
+	nodeLifecycle            NodeLifecycleWriter
+	controllerVoterPromoter  ControllerVoterPromoter
+	controllerVoterReadiness ControllerVoterReadinessReader
+	controllerVoterPreparer  ControllerVoterPreparer
+	nodeReadiness            NodeReadinessReader
+	diagnostics              DiagnosticsReader
+	diagnosticsTracking      DiagnosticsTrackingOperator
+	scaleInStatusObserver    ScaleInStatusObserver
+	lifecycleAttempts        NodeLifecycleAttemptObserver
+	channelRuntimeMeta       ChannelRuntimeMetaReader
+	channelBusinessReader    ChannelBusinessReader
+	remoteBusinessChannels   RemoteBusinessChannelReader
+	users                    UserReader
+	userOperator             UserOperator
+	userPresence             UserPresenceDirectory
+	userActions              UserRouteActionDispatcher
+	systemUsers              SystemUserOperator
+	conversations            ConversationSyncer
+	messages                 MessageReader
+	messageRetention         MessageRetentionOperator
+	connections              ConnectionReader
+	remoteConnections        RemoteConnectionReader
+	plugins                  PluginReader
+	remotePlugins            RemotePluginReader
+	pluginBindings           PluginBindingStore
+	logs                     LogReader
+	slotRaft                 SlotRaftOperator
+	leaderTransfer           SlotLeaderTransferWriter
+	slotReplicaMove          SlotReplicaMoveWriter
+	slotRuntimeStatus        SlotRuntimeStatusReader
+	controllerRaft           ControllerRaftOperator
+	controllerTaskAudit      ControllerTaskAuditReader
+	applicationLogs          ApplicationLogReader
+	dbInspect                DBInspectReader
+	remoteDBInspect          RemoteDBInspectReader
+	now                      func() time.Time
 }
 
 // New constructs the manager management usecase.
@@ -195,42 +219,45 @@ func New(opts Options) *App {
 		now = time.Now
 	}
 	return &App{
-		cluster:                opts.Cluster,
-		runtimeSummary:         opts.RuntimeSummary,
-		gatewayDrain:           opts.GatewayDrain,
-		nodeLifecycle:          opts.NodeLifecycle,
-		nodeReadiness:          opts.NodeReadiness,
-		diagnostics:            opts.Diagnostics,
-		diagnosticsTracking:    opts.DiagnosticsTracking,
-		scaleInStatusObserver:  opts.ScaleInStatusObserver,
-		lifecycleAttempts:      opts.NodeLifecycleAttemptObserver,
-		channelRuntimeMeta:     opts.ChannelRuntimeMeta,
-		channelBusinessReader:  opts.ChannelBusinessReader,
-		remoteBusinessChannels: opts.RemoteBusinessChannels,
-		users:                  opts.Users,
-		userOperator:           opts.UserOperator,
-		userPresence:           opts.UserPresence,
-		userActions:            opts.UserActions,
-		systemUsers:            opts.SystemUsers,
-		conversations:          opts.Conversations,
-		messages:               opts.Messages,
-		messageRetention:       opts.MessageRetention,
-		connections:            opts.Connections,
-		remoteConnections:      opts.RemoteConnections,
-		plugins:                opts.Plugins,
-		remotePlugins:          opts.RemotePlugins,
-		pluginBindings:         opts.PluginBindings,
-		logs:                   opts.Logs,
-		slotRaft:               opts.SlotRaft,
-		leaderTransfer:         opts.LeaderTransfer,
-		slotReplicaMove:        opts.SlotReplicaMove,
-		slotRuntimeStatus:      opts.SlotRuntimeStatus,
-		controllerRaft:         opts.ControllerRaft,
-		controllerTaskAudit:    opts.ControllerTaskAudit,
-		applicationLogs:        opts.ApplicationLogs,
-		dbInspect:              opts.DBInspect,
-		remoteDBInspect:        opts.RemoteDBInspect,
-		now:                    now,
+		cluster:                  opts.Cluster,
+		runtimeSummary:           opts.RuntimeSummary,
+		gatewayDrain:             opts.GatewayDrain,
+		nodeLifecycle:            opts.NodeLifecycle,
+		controllerVoterPromoter:  opts.ControllerVoterPromoter,
+		controllerVoterReadiness: opts.ControllerVoterReadiness,
+		controllerVoterPreparer:  opts.ControllerVoterPreparer,
+		nodeReadiness:            opts.NodeReadiness,
+		diagnostics:              opts.Diagnostics,
+		diagnosticsTracking:      opts.DiagnosticsTracking,
+		scaleInStatusObserver:    opts.ScaleInStatusObserver,
+		lifecycleAttempts:        opts.NodeLifecycleAttemptObserver,
+		channelRuntimeMeta:       opts.ChannelRuntimeMeta,
+		channelBusinessReader:    opts.ChannelBusinessReader,
+		remoteBusinessChannels:   opts.RemoteBusinessChannels,
+		users:                    opts.Users,
+		userOperator:             opts.UserOperator,
+		userPresence:             opts.UserPresence,
+		userActions:              opts.UserActions,
+		systemUsers:              opts.SystemUsers,
+		conversations:            opts.Conversations,
+		messages:                 opts.Messages,
+		messageRetention:         opts.MessageRetention,
+		connections:              opts.Connections,
+		remoteConnections:        opts.RemoteConnections,
+		plugins:                  opts.Plugins,
+		remotePlugins:            opts.RemotePlugins,
+		pluginBindings:           opts.PluginBindings,
+		logs:                     opts.Logs,
+		slotRaft:                 opts.SlotRaft,
+		leaderTransfer:           opts.LeaderTransfer,
+		slotReplicaMove:          opts.SlotReplicaMove,
+		slotRuntimeStatus:        opts.SlotRuntimeStatus,
+		controllerRaft:           opts.ControllerRaft,
+		controllerTaskAudit:      opts.ControllerTaskAudit,
+		applicationLogs:          opts.ApplicationLogs,
+		dbInspect:                opts.DBInspect,
+		remoteDBInspect:          opts.RemoteDBInspect,
+		now:                      now,
 	}
 }
 
@@ -376,6 +403,8 @@ type NodeActions struct {
 	CanScaleIn bool
 	// CanOnboard reports whether the node can be considered for explicit resource allocation.
 	CanOnboard bool
+	// CanPromoteControllerVoter reports whether the node can be considered for Controller voter promotion.
+	CanPromoteControllerVoter bool
 }
 
 // ListNodes returns the manager node list DTOs ordered by node ID.
@@ -541,8 +570,9 @@ func nodeActions(node control.Node, controllerVoter bool) NodeActions {
 	joinState := managerNodeJoinState(node.JoinState)
 	dataOnly := role == "data" && !controllerVoter
 	return NodeActions{
-		CanScaleIn: dataOnly && (joinState == "active" || joinState == "leaving"),
-		CanOnboard: dataOnly && joinState == "active",
+		CanScaleIn:                dataOnly && (joinState == "active" || joinState == "leaving"),
+		CanOnboard:                dataOnly && joinState == "active",
+		CanPromoteControllerVoter: dataOnly && joinState == "active",
 	}
 }
 
