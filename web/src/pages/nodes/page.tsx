@@ -322,7 +322,12 @@ export function NodeClusterListPanel() {
 
   const refreshAfterLifecycleAction = useCallback(async () => {
     const nodes = await loadNodes(true)
-    if (!nodes || !lifecycleNode) {
+    if (!nodes) {
+      setLifecycleNode(null)
+      setLifecycleOpen(false)
+      return
+    }
+    if (!lifecycleNode) {
       return
     }
     const nextLifecycleNode = nodes.items.find((node) => node.node_id === lifecycleNode.node_id) ?? null

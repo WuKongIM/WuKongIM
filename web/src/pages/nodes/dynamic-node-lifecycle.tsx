@@ -240,6 +240,16 @@ export function DynamicNodeLifecycleSheet({
     return { maxSlotMoves: parsedMaxSlotMoves }
   }, [maxSlotMoves])
 
+  const currentJoinState = nodeJoinState(node)
+  const showScaleInActions = Boolean(node && node.membership?.role === "data" && currentJoinState !== "removed")
+  const canUseScaleInActions = Boolean(
+    node
+      && canWriteNodes
+      && showScaleInActions
+      && (currentJoinState === "active" || currentJoinState === "leaving")
+      && (node.actions?.can_scale_in ?? true),
+  )
+
   const runOnboardingPlan = useCallback(async () => {
     if (!node || !canWriteNodes) {
       return
@@ -361,7 +371,7 @@ export function DynamicNodeLifecycleSheet({
   }, [beginOperation, boundedMovesInput, canWriteNodes, isCurrentOperation, node, onCompleted])
 
   const runScaleInPlan = useCallback(async () => {
-    if (!node || !canWriteNodes) {
+    if (!node || !canUseScaleInActions) {
       return
     }
     const input = boundedMovesInput()
@@ -393,10 +403,10 @@ export function DynamicNodeLifecycleSheet({
         setPending(false)
       }
     }
-  }, [beginOperation, boundedMovesInput, canWriteNodes, isCurrentOperation, node])
+  }, [beginOperation, boundedMovesInput, canUseScaleInActions, isCurrentOperation, node])
 
   const runScaleInStart = useCallback(async () => {
-    if (!node || !canWriteNodes) {
+    if (!node || !canUseScaleInActions) {
       return
     }
     setScaleInStatus(null)
@@ -422,10 +432,10 @@ export function DynamicNodeLifecycleSheet({
         setPending(false)
       }
     }
-  }, [beginOperation, canWriteNodes, isCurrentOperation, node, onCompleted])
+  }, [beginOperation, canUseScaleInActions, isCurrentOperation, node, onCompleted])
 
   const enableDrainMode = useCallback(async () => {
-    if (!node || !canWriteNodes) {
+    if (!node || !canUseScaleInActions) {
       return
     }
     setScaleInStatus(null)
@@ -451,10 +461,10 @@ export function DynamicNodeLifecycleSheet({
         setPending(false)
       }
     }
-  }, [beginOperation, canWriteNodes, isCurrentOperation, node, onCompleted])
+  }, [beginOperation, canUseScaleInActions, isCurrentOperation, node, onCompleted])
 
   const refreshScaleInStatus = useCallback(async () => {
-    if (!node || !canWriteNodes) {
+    if (!node || !canUseScaleInActions) {
       return
     }
     setPending(true)
@@ -477,14 +487,14 @@ export function DynamicNodeLifecycleSheet({
         setPending(false)
       }
     }
-  }, [beginOperation, canWriteNodes, isCurrentOperation, node])
+  }, [beginOperation, canUseScaleInActions, isCurrentOperation, node])
 
   const canRemoveScaleInNode = Boolean(
-    node && scaleInStatus?.node_id === node.node_id && scaleInStatus.safe_to_remove === true,
+    canUseScaleInActions && node && scaleInStatus?.node_id === node.node_id && scaleInStatus.safe_to_remove === true,
   )
 
   const runScaleInAdvance = useCallback(async () => {
-    if (!node || !canWriteNodes) {
+    if (!node || !canUseScaleInActions) {
       return
     }
     const input = boundedMovesInput()
@@ -514,10 +524,10 @@ export function DynamicNodeLifecycleSheet({
         setPending(false)
       }
     }
-  }, [beginOperation, boundedMovesInput, canWriteNodes, isCurrentOperation, node, onCompleted])
+  }, [beginOperation, boundedMovesInput, canUseScaleInActions, isCurrentOperation, node, onCompleted])
 
   const runScaleInRemove = useCallback(async () => {
-    if (!node || !canWriteNodes || !canRemoveScaleInNode) {
+    if (!node || !canRemoveScaleInNode) {
       return
     }
     setScaleInStatus(null)
@@ -543,7 +553,7 @@ export function DynamicNodeLifecycleSheet({
         setPending(false)
       }
     }
-  }, [beginOperation, canRemoveScaleInNode, canWriteNodes, isCurrentOperation, node, onCompleted])
+  }, [beginOperation, canRemoveScaleInNode, isCurrentOperation, node, onCompleted])
 
   const title = mode === "join" ? "Add node" : "Node lifecycle"
 
@@ -707,7 +717,7 @@ export function DynamicNodeLifecycleSheet({
                 ) : null}
               </div>
             ) : null}
-            {node.membership?.role === "data" && nodeJoinState(node) !== "removed" ? (
+            {showScaleInActions ? (
               <div className="space-y-3 rounded-lg border border-border bg-muted/20 p-3">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
                   <label className="text-sm font-medium text-foreground">
@@ -719,7 +729,7 @@ export function DynamicNodeLifecycleSheet({
                     />
                   </label>
                   <Button
-                    disabled={pending || !canWriteNodes}
+                    disabled={pending || !canUseScaleInActions}
                     onClick={() => void runScaleInPlan()}
                     size="sm"
                     type="button"
@@ -728,7 +738,7 @@ export function DynamicNodeLifecycleSheet({
                     Plan scale-in
                   </Button>
                   <Button
-                    disabled={pending || !canWriteNodes}
+                    disabled={pending || !canUseScaleInActions}
                     onClick={() => void runScaleInStart()}
                     size="sm"
                     type="button"
@@ -737,7 +747,7 @@ export function DynamicNodeLifecycleSheet({
                     Mark leaving
                   </Button>
                   <Button
-                    disabled={pending || !canWriteNodes}
+                    disabled={pending || !canUseScaleInActions}
                     onClick={() => void enableDrainMode()}
                     size="sm"
                     type="button"
@@ -746,7 +756,7 @@ export function DynamicNodeLifecycleSheet({
                     Enable drain mode
                   </Button>
                   <Button
-                    disabled={pending || !canWriteNodes}
+                    disabled={pending || !canUseScaleInActions}
                     onClick={() => void refreshScaleInStatus()}
                     size="sm"
                     type="button"
@@ -755,7 +765,7 @@ export function DynamicNodeLifecycleSheet({
                     Refresh scale-in status
                   </Button>
                   <Button
-                    disabled={pending || !canWriteNodes}
+                    disabled={pending || !canUseScaleInActions}
                     onClick={() => void runScaleInAdvance()}
                     size="sm"
                     type="button"
@@ -764,7 +774,7 @@ export function DynamicNodeLifecycleSheet({
                     Advance scale-in
                   </Button>
                   <Button
-                    disabled={pending || !canWriteNodes || !canRemoveScaleInNode}
+                    disabled={pending || !canRemoveScaleInNode}
                     onClick={() => void runScaleInRemove()}
                     size="sm"
                     type="button"

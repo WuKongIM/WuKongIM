@@ -594,3 +594,36 @@ test("closes the open lifecycle sheet when the refreshed node is missing", async
     expect(screen.queryByRole("dialog", { name: "Node lifecycle" })).not.toBeInTheDocument()
   })
 })
+
+test("closes the open lifecycle sheet when the post-action refresh fails", async () => {
+  getNodesMock
+    .mockResolvedValueOnce({
+      generated_at: "2026-07-01T08:00:00Z",
+      controller_leader_id: 1,
+      total: 1,
+      items: [nodeRow],
+    })
+    .mockRejectedValueOnce(new ManagerApiError(503, "service_unavailable", "controller leader unavailable"))
+  startNodeScaleInMock.mockResolvedValueOnce({
+    changed: true,
+    node_id: 1,
+    addr: "127.0.0.1:7000",
+    join_state: "leaving",
+    revision: 49,
+  })
+
+  const user = userEvent.setup()
+  renderNodesPage()
+
+  expect(await screen.findByText("127.0.0.1:7000")).toBeInTheDocument()
+  await user.click(screen.getByRole("button", { name: "Open lifecycle for node 1" }))
+
+  const dialog = await screen.findByRole("dialog", { name: "Node lifecycle" })
+  await user.click(within(dialog).getByRole("button", { name: "Mark leaving" }))
+
+  expect(startNodeScaleInMock).toHaveBeenCalledWith(1)
+  expect(await screen.findByText(/currently unavailable/i)).toBeInTheDocument()
+  await waitFor(() => {
+    expect(screen.queryByRole("dialog", { name: "Node lifecycle" })).not.toBeInTheDocument()
+  })
+})
