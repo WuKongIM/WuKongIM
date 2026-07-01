@@ -1,5 +1,7 @@
 import { act, render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
+import { flushSync } from "react-dom"
+import { createRoot } from "react-dom/client"
 import { MemoryRouter } from "react-router-dom"
 import { beforeEach, expect, test, vi } from "vitest"
 
@@ -121,6 +123,22 @@ function renderLifecycle(mode: "join" | "node", node: ManagerNode | null = null,
         />
       </MemoryRouter>
     </I18nProvider>,
+  )
+}
+
+function lifecycleElement(mode: "join" | "node", node: ManagerNode | null = null, onCompleted = vi.fn()) {
+  return (
+    <I18nProvider>
+      <MemoryRouter>
+        <DynamicNodeLifecycleSheet
+          mode={mode}
+          node={node}
+          onCompleted={onCompleted}
+          onOpenChange={() => undefined}
+          open
+        />
+      </MemoryRouter>
+    </I18nProvider>
   )
 }
 
@@ -720,4 +738,52 @@ test("invalidates safe scale-in status before a failed mutating action", async (
   expect(advanceNodeScaleInMock).toHaveBeenCalledWith(4, { maxSlotMoves: 1 })
   expect(await screen.findByRole("alert")).toHaveTextContent("advance rejected")
   expect(screen.getByRole("button", { name: "Remove node" })).toBeDisabled()
+})
+
+test("does not reuse safe scale-in status when the mounted sheet switches nodes", async () => {
+  const leavingNode: ManagerNode = {
+    ...activeNode,
+    membership: { role: "data", join_state: "leaving", schedulable: false },
+    runtime: { ...activeNode.runtime, accepting_new_sessions: false, draining: true },
+    actions: { ...activeNode.actions, can_onboard: false, can_scale_in: true },
+  }
+  const nextLeavingNode: ManagerNode = {
+    ...leavingNode,
+    node_id: 5,
+    name: "node-5",
+    addr: "127.0.0.1:7005",
+    runtime: leavingNode.runtime ? { ...leavingNode.runtime, node_id: 5 } : leavingNode.runtime,
+  }
+  getNodeScaleInStatusMock.mockResolvedValueOnce(createSafeScaleInStatus(4))
+  const user = userEvent.setup()
+  const container = document.createElement("div")
+  document.body.appendChild(container)
+  const root = createRoot(container)
+
+  await act(async () => {
+    root.render(lifecycleElement("node", leavingNode))
+  })
+
+  await user.click(screen.getByRole("button", { name: "Refresh scale-in status" }))
+
+  expect(await screen.findByText("Safe to remove: yes")).toBeInTheDocument()
+  expect(screen.getByRole("button", { name: "Remove node" })).toBeEnabled()
+
+  let removeButton: HTMLElement | null = null
+  act(() => {
+    flushSync(() => {
+      root.render(lifecycleElement("node", nextLeavingNode))
+    })
+    removeButton = screen.getByRole("button", { name: "Remove node" })
+    expect(removeButton).toBeDisabled()
+  })
+
+  await user.click(removeButton!)
+
+  expect(removeNodeAfterScaleInMock).not.toHaveBeenCalled()
+
+  await act(async () => {
+    root.unmount()
+  })
+  container.remove()
 })
