@@ -13,8 +13,8 @@ import { PageContainer } from "@/components/shell/page-container"
 import { PageHeader } from "@/components/shell/page-header"
 import { PageTabs } from "@/components/shell/page-tabs"
 import { SectionCard } from "@/components/shell/section-card"
-import { NodeOnboardingPanel } from "@/pages/onboarding/page"
 import { ControllerLogsPanel } from "@/pages/controller/page"
+import { DynamicNodeLifecycleSheet, type DynamicNodeLifecycleMode } from "@/pages/nodes/dynamic-node-lifecycle"
 import {
   ManagerApiError,
   advanceNodeScaleIn,
@@ -492,6 +492,9 @@ export function NodeClusterListPanel() {
   const [scaleInAction, setScaleInAction] = useState<ScaleInAction>(null)
   const [scaleInError, setScaleInError] = useState("")
   const [scaleInConfirmAction, setScaleInConfirmAction] = useState<ScaleInConfirmAction>(null)
+  const [lifecycleOpen, setLifecycleOpen] = useState(false)
+  const [lifecycleMode, setLifecycleMode] = useState<DynamicNodeLifecycleMode>("join")
+  const [lifecycleNode, setLifecycleNode] = useState<ManagerNode | null>(null)
 
   const loadNodes = useCallback(async (refreshing: boolean) => {
     setState((current) => ({
@@ -562,6 +565,22 @@ export function NodeClusterListPanel() {
     setScaleInAction(null)
     setScaleInConfirmAction(null)
   }, [])
+
+  const openJoinLifecycle = useCallback(() => {
+    setLifecycleMode("join")
+    setLifecycleNode(null)
+    setLifecycleOpen(true)
+  }, [])
+
+  const openNodeLifecycle = useCallback((node: ManagerNode) => {
+    setLifecycleMode("node")
+    setLifecycleNode(node)
+    setLifecycleOpen(true)
+  }, [])
+
+  const refreshAfterLifecycleAction = useCallback(() => {
+    void loadNodes(true)
+  }, [loadNodes])
 
   const applyScaleInError = useCallback((error: unknown) => {
     if (error instanceof ManagerApiError && isNodeScaleInReport(error.report)) {
@@ -708,10 +727,8 @@ export function NodeClusterListPanel() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button asChild size="sm" variant="outline">
-            <Link to="/cluster/nodes?tab=list&panel=onboarding">
-              {intl.formatMessage({ id: "nav.onboarding.title" })}
-            </Link>
+          <Button onClick={openJoinLifecycle} size="sm" variant="outline">
+            Add node
           </Button>
           <Button
             onClick={() => {
@@ -807,6 +824,14 @@ export function NodeClusterListPanel() {
                         <td className="px-3 py-3 text-sm text-foreground">
                           <div className="flex items-center gap-2">
                             <Button
+                              aria-label={`Open lifecycle for node ${node.node_id}`}
+                              onClick={() => openNodeLifecycle(node)}
+                              size="sm"
+                              variant="outline"
+                            >
+                              Lifecycle
+                            </Button>
+                            <Button
                               aria-label={intl.formatMessage(
                                 { id: "nodes.inspectNode" },
                                 { id: node.node_id },
@@ -861,6 +886,14 @@ export function NodeClusterListPanel() {
         </div>
       ) : null}
 
+
+      <DynamicNodeLifecycleSheet
+        mode={lifecycleMode}
+        node={lifecycleNode}
+        onCompleted={refreshAfterLifecycleAction}
+        onOpenChange={setLifecycleOpen}
+        open={lifecycleOpen}
+      />
 
       <DetailSheet
         description={
@@ -1390,8 +1423,7 @@ export function NodeClusterUnhealthyPanel() {
 export function NodesPage() {
   const intl = useIntl()
   const [searchParams, setSearchParams] = useSearchParams()
-  const activeTab = searchParams.get("panel") === "onboarding" ? "list" : normalizeTab(searchParams.get("tab"))
-  const showOnboardingPanel = activeTab === "list" && searchParams.get("panel") === "onboarding"
+  const activeTab = normalizeTab(searchParams.get("tab"))
 
   function setTab(tab: string) {
     const next = new URLSearchParams(searchParams)
@@ -1416,7 +1448,6 @@ export function NodesPage() {
         onTabChange={setTab}
       />
       {activeTab === "list" ? <NodeClusterListPanel /> : null}
-      {showOnboardingPanel ? <NodeOnboardingPanel /> : null}
       {activeTab === "logs" ? <ControllerLogsPanel /> : null}
     </PageContainer>
   )

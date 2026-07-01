@@ -919,31 +919,27 @@ test("cancels an active scale-in report", async () => {
   expect(getNodesMock).toHaveBeenCalledTimes(2)
 })
 
-test("opens the onboarding operation panel from the nodes page", async () => {
+test("opens lifecycle sheets from the nodes page entry points", async () => {
   getNodesMock.mockResolvedValueOnce({
     generated_at: "2026-04-23T08:00:01Z",
     controller_leader_id: 1,
     total: 1,
     items: [nodeRow],
   })
-  getNodeOnboardingCandidatesMock.mockResolvedValueOnce({
-    total: 1,
-    items: [{
-      node_id: 4,
-      name: "node-4",
-      addr: "127.0.0.1:7004",
-      role: "data",
-      join_state: "active",
-      status: "alive",
-      slot_count: 0,
-      leader_count: 0,
-      recommended: true,
-    }],
-  })
+  const user = userEvent.setup()
 
-  renderNodesPage("/cluster/nodes?panel=onboarding")
+  renderNodesPage()
 
   expect(await screen.findByText("127.0.0.1:7000")).toBeInTheDocument()
-  expect(await screen.findByText("Candidate Nodes")).toBeInTheDocument()
-  expect(getNodeOnboardingCandidatesMock).toHaveBeenCalled()
+  await user.click(screen.getByRole("button", { name: "Add node" }))
+
+  let dialog = screen.getByRole("dialog", { name: "Add node" })
+  expect(within(dialog).getByLabelText("Node ID")).toBeInTheDocument()
+
+  await user.click(within(dialog).getByRole("button", { name: "Close" }))
+  await user.click(screen.getByRole("button", { name: "Open lifecycle for node 1" }))
+
+  dialog = screen.getByRole("dialog", { name: "Node lifecycle" })
+  expect(within(dialog).getByText("Node 1")).toBeInTheDocument()
+  expect(within(dialog).getByText("127.0.0.1:7000")).toBeInTheDocument()
 })
