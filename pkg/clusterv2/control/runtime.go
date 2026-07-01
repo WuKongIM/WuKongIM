@@ -446,6 +446,47 @@ func (r *Runtime) RequestSlotReplicaMove(ctx context.Context, req SlotReplicaMov
 	return SlotReplicaMoveResult{Created: result.Created, Task: &task}, nil
 }
 
+// PromoteControllerVoter promotes one active node into ControllerV2 voting membership.
+func (r *Runtime) PromoteControllerVoter(ctx context.Context, req PromoteControllerVoterRequest) (PromoteControllerVoterResult, error) {
+	if err := ctxErr(ctx); err != nil {
+		return PromoteControllerVoterResult{}, err
+	}
+	if r == nil || r.backend == nil {
+		return PromoteControllerVoterResult{}, cv2.ErrNotStarted
+	}
+	if r.canForwardControlWriteToLeader() {
+		resp, err := r.forwardControlWrite(ctx, ControlWriteRequest{
+			Action:                 ControlWriteActionPromoteControllerVoter,
+			PromoteControllerVoter: req,
+		})
+		if err != nil {
+			return PromoteControllerVoterResult{}, err
+		}
+		return resp.PromoteControllerVoter, nil
+	}
+	result, err := r.backend.PromoteControllerVoter(ctx, cv2.PromoteControllerVoterRequest{
+		NodeID:              req.NodeID,
+		ExpectedRevision:    req.ExpectedRevision,
+		ExpectedVoters:      copyOptionalUint64Slice(req.ExpectedVoters),
+		ObservedConfigIndex: req.ObservedConfigIndex,
+		ObservedVoters:      append([]uint64(nil), req.ObservedVoters...),
+	})
+	if shouldForwardControlWrite(err) {
+		resp, err := r.forwardControlWriteAfterError(ctx, ControlWriteRequest{
+			Action:                 ControlWriteActionPromoteControllerVoter,
+			PromoteControllerVoter: req,
+		}, err)
+		if err != nil {
+			return PromoteControllerVoterResult{}, err
+		}
+		return resp.PromoteControllerVoter, nil
+	}
+	if err != nil {
+		return PromoteControllerVoterResult{}, err
+	}
+	return promoteControllerVoterResultFromCV2(result), nil
+}
+
 // JoinNode submits a data-node join intent.
 func (r *Runtime) JoinNode(ctx context.Context, req JoinNodeRequest) (JoinNodeResult, error) {
 	if err := ctxErr(ctx); err != nil {

@@ -21,6 +21,8 @@ type ControlWriteApplier interface {
 	MarkNodeRemoved(context.Context, MarkNodeRemovedRequest) (MarkNodeRemovedResult, error)
 	// RequestSlotReplicaMove submits a staged Slot replica move intent.
 	RequestSlotReplicaMove(context.Context, SlotReplicaMoveRequest) (SlotReplicaMoveResult, error)
+	// PromoteControllerVoter submits an online Controller voter promotion.
+	PromoteControllerVoter(context.Context, PromoteControllerVoterRequest) (PromoteControllerVoterResult, error)
 }
 
 // ControlWriteClient forwards generic ControllerV2 writes to a remote node.
@@ -91,6 +93,12 @@ func NewControlWriteHandler(applier ControlWriteApplier) clusternet.Handler {
 				return encodeControlWriteErrorResponse(err)
 			}
 			resp.SlotReplicaMove = result
+		case ControlWriteActionPromoteControllerVoter:
+			result, err := applier.PromoteControllerVoter(ctx, req.PromoteControllerVoter)
+			if err != nil {
+				return encodeControlWriteErrorResponse(err)
+			}
+			resp.PromoteControllerVoter = result
 		case ControlWriteActionReportNodeHealth:
 			if err := applier.ReportNode(ctx, req.ReportNodeHealth); err != nil {
 				return encodeControlWriteErrorResponse(err)

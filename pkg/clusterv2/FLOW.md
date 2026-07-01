@@ -59,18 +59,23 @@ receiving node is not the Controller leader, the existing control task RPC
 forwarding path carries the creation request to the Controller leader.
 Lifecycle write primitives for node join, activation, scale-in leaving, and
 future removed tombstone operations enter clusterv2 through `Node.JoinNode`,
-`Node.ActivateNode`, `Node.MarkNodeLeaving`, and `Node.MarkNodeRemoved`, which
-only foreground-check and delegate the validated lifecycle intent to the control
-runtime. Drain safety for removal stays in upper management usecases; clusterv2
-only exposes the lower-level lifecycle primitive. The `removed` state remains a
-durable control-plane tombstone; clusterv2 does not physically delete node
-identity or decide that a leaving node is safe to remove. `MarkNodeRemoved`
-transports an optional `state_revision` fence supplied by the management
-safe-to-remove check to ControllerV2, but it does not compute that safety
-itself. The fence guards changed remove writes; already-removed tombstones
-remain idempotent in ControllerV2. Non-leader Controller runtimes forward those
-writes through the generic control-write RPC path as `join_node`,
-`activate_node`, `mark_node_leaving`, or `mark_node_removed`.
+`Node.ActivateNode`, `Node.MarkNodeLeaving`, `Node.MarkNodeRemoved`, and
+`Node.PromoteControllerVoter`, which only foreground-check and delegate the
+validated lifecycle or Controller voter intent to the control runtime.
+`PromoteControllerVoter` finalizes an already live-proven Controller Raft voter
+promotion by transporting the previous voter fence plus observed Raft config
+index and voter set; target-side mirror preparation stays outside this
+clusterv2 final write. Drain safety for removal stays in upper management
+usecases; clusterv2 only exposes the lower-level lifecycle primitive. The
+`removed` state remains a durable control-plane tombstone; clusterv2 does not
+physically delete node identity or decide that a leaving node is safe to remove.
+`MarkNodeRemoved` transports an optional `state_revision` fence supplied by the
+management safe-to-remove check to ControllerV2, but it does not compute that
+safety itself. The fence guards changed remove writes; already-removed
+tombstones remain idempotent in ControllerV2. Non-leader Controller runtimes
+forward those writes through the generic control-write RPC path as `join_node`,
+`activate_node`, `mark_node_leaving`, `mark_node_removed`, or
+`promote_controller_voter`.
 Staged Slot replica move intent enters clusterv2 through
 `Node.RequestSlotReplicaMove`, which only foreground-checks and delegates the
 already-planned intent to the control runtime. It uses the same generic

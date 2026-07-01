@@ -138,3 +138,23 @@ func (n *Node) MarkNodeRemoved(ctx context.Context, req control.MarkNodeRemovedR
 	}
 	return writer.MarkNodeRemoved(ctx, req)
 }
+
+// PromoteControllerVoter promotes one active non-Controller node into Controller Raft voting membership.
+func (n *Node) PromoteControllerVoter(ctx context.Context, req control.PromoteControllerVoterRequest) (control.PromoteControllerVoterResult, error) {
+	if err := ctxErr(ctx); err != nil {
+		return control.PromoteControllerVoterResult{}, err
+	}
+	if err := n.ensureForeground(); err != nil {
+		return control.PromoteControllerVoterResult{}, err
+	}
+	if n.control == nil {
+		return control.PromoteControllerVoterResult{}, ErrNotStarted
+	}
+	writer, ok := n.control.(interface {
+		PromoteControllerVoter(context.Context, control.PromoteControllerVoterRequest) (control.PromoteControllerVoterResult, error)
+	})
+	if !ok {
+		return control.PromoteControllerVoterResult{}, ErrNotStarted
+	}
+	return writer.PromoteControllerVoter(ctx, req)
+}

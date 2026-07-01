@@ -155,6 +155,170 @@ func TestControlWriteRequestCodecRoundTripSlotReplicaMove(t *testing.T) {
 	}
 }
 
+func TestControlWriteRequestCodecRoundTripPromoteControllerVoter(t *testing.T) {
+	req := ControlWriteRequest{
+		Action: ControlWriteActionPromoteControllerVoter,
+		PromoteControllerVoter: PromoteControllerVoterRequest{
+			NodeID:              4,
+			ExpectedRevision:    9,
+			ExpectedVoters:      []uint64{1, 2, 3},
+			ObservedConfigIndex: 11,
+			ObservedVoters:      []uint64{1, 2, 3, 4},
+		},
+	}
+	payload, err := EncodeControlWriteRequest(req)
+	if err != nil {
+		t.Fatalf("EncodeControlWriteRequest() error = %v", err)
+	}
+	got, err := DecodeControlWriteRequest(payload)
+	if err != nil {
+		t.Fatalf("DecodeControlWriteRequest() error = %v", err)
+	}
+	if !reflect.DeepEqual(got, req) {
+		t.Fatalf("DecodeControlWriteRequest() = %#v, want %#v", got, req)
+	}
+
+	var reqObject map[string]json.RawMessage
+	if err := json.Unmarshal(payload[2:], &reqObject); err != nil {
+		t.Fatalf("request JSON unmarshal error = %v", err)
+	}
+	requireJSONKeys(t, reqObject, "action", "promote_controller_voter")
+	var promoteReq map[string]json.RawMessage
+	if err := json.Unmarshal(reqObject["promote_controller_voter"], &promoteReq); err != nil {
+		t.Fatalf("promote_controller_voter request JSON unmarshal error = %v", err)
+	}
+	requireJSONKeys(t, promoteReq, "node_id", "expected_revision", "expected_voters", "observed_config_index", "observed_voters")
+	for _, forbidden := range []string{"NodeID", "ExpectedRevision", "ExpectedVoters", "ObservedConfigIndex", "ObservedVoters"} {
+		if _, ok := promoteReq[forbidden]; ok {
+			t.Fatalf("promote_controller_voter request keys = %#v, contains Go field name %s", promoteReq, forbidden)
+		}
+	}
+
+	respPayload, err := EncodeControlWriteResponse(ControlWriteResponse{
+		PromoteControllerVoter: PromoteControllerVoterResult{
+			Changed: true,
+			Node: Node{
+				NodeID:         4,
+				Addr:           "n4",
+				Roles:          []Role{RoleData, RoleController},
+				JoinState:      NodeJoinStateActive,
+				Status:         NodeAlive,
+				CapacityWeight: 1,
+			},
+			Revision:       10,
+			PreviousVoters: []uint64{1, 2, 3},
+			NextVoters:     []uint64{1, 2, 3, 4},
+			Warnings:       []string{"controller_voter_count_even"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("EncodeControlWriteResponse() error = %v", err)
+	}
+	var envelope map[string]json.RawMessage
+	if err := json.Unmarshal(respPayload[2:], &envelope); err != nil {
+		t.Fatalf("response envelope JSON unmarshal error = %v", err)
+	}
+	requireJSONKeys(t, envelope, "response")
+	var response map[string]json.RawMessage
+	if err := json.Unmarshal(envelope["response"], &response); err != nil {
+		t.Fatalf("response JSON unmarshal error = %v", err)
+	}
+	requireJSONKeys(t, response, "promote_controller_voter")
+	var promoteResp map[string]json.RawMessage
+	if err := json.Unmarshal(response["promote_controller_voter"], &promoteResp); err != nil {
+		t.Fatalf("promote_controller_voter response JSON unmarshal error = %v", err)
+	}
+	for _, want := range []string{"changed", "node", "revision", "previous_voters", "next_voters", "warnings"} {
+		if _, ok := promoteResp[want]; !ok {
+			t.Fatalf("promote_controller_voter response keys = %#v, missing %s", promoteResp, want)
+		}
+	}
+	for _, forbidden := range []string{"PreviousVoters", "NextVoters"} {
+		if _, ok := promoteResp[forbidden]; ok {
+			t.Fatalf("promote_controller_voter response keys = %#v, contains Go field name %s", promoteResp, forbidden)
+		}
+	}
+}
+
+func TestControlWriteRequestCodecPreservesExplicitEmptyPromoteControllerVoterExpectedVoters(t *testing.T) {
+	req := ControlWriteRequest{
+		Action: ControlWriteActionPromoteControllerVoter,
+		PromoteControllerVoter: PromoteControllerVoterRequest{
+			NodeID:              4,
+			ExpectedRevision:    9,
+			ExpectedVoters:      []uint64{},
+			ObservedConfigIndex: 11,
+			ObservedVoters:      []uint64{1, 4},
+		},
+	}
+	payload, err := EncodeControlWriteRequest(req)
+	if err != nil {
+		t.Fatalf("EncodeControlWriteRequest() error = %v", err)
+	}
+	got, err := DecodeControlWriteRequest(payload)
+	if err != nil {
+		t.Fatalf("DecodeControlWriteRequest() error = %v", err)
+	}
+	if got.PromoteControllerVoter.ExpectedVoters == nil || len(got.PromoteControllerVoter.ExpectedVoters) != 0 {
+		t.Fatalf("ExpectedVoters = %#v, want non-nil empty slice", got.PromoteControllerVoter.ExpectedVoters)
+	}
+
+	var reqObject map[string]json.RawMessage
+	if err := json.Unmarshal(payload[2:], &reqObject); err != nil {
+		t.Fatalf("request JSON unmarshal error = %v", err)
+	}
+	var promoteReq map[string]json.RawMessage
+	if err := json.Unmarshal(reqObject["promote_controller_voter"], &promoteReq); err != nil {
+		t.Fatalf("promote_controller_voter request JSON unmarshal error = %v", err)
+	}
+	raw, ok := promoteReq["expected_voters"]
+	if !ok {
+		t.Fatalf("promote_controller_voter request keys = %#v, missing expected_voters", promoteReq)
+	}
+	var voters []uint64
+	if err := json.Unmarshal(raw, &voters); err != nil {
+		t.Fatalf("expected_voters JSON unmarshal error = %v", err)
+	}
+	if voters == nil || len(voters) != 0 {
+		t.Fatalf("expected_voters JSON = %s, want []", raw)
+	}
+}
+
+func TestControlWriteRequestCodecPreservesNilPromoteControllerVoterExpectedVoters(t *testing.T) {
+	req := ControlWriteRequest{
+		Action: ControlWriteActionPromoteControllerVoter,
+		PromoteControllerVoter: PromoteControllerVoterRequest{
+			NodeID:              4,
+			ExpectedRevision:    9,
+			ObservedConfigIndex: 11,
+			ObservedVoters:      []uint64{1, 4},
+		},
+	}
+	payload, err := EncodeControlWriteRequest(req)
+	if err != nil {
+		t.Fatalf("EncodeControlWriteRequest() error = %v", err)
+	}
+	got, err := DecodeControlWriteRequest(payload)
+	if err != nil {
+		t.Fatalf("DecodeControlWriteRequest() error = %v", err)
+	}
+	if got.PromoteControllerVoter.ExpectedVoters != nil {
+		t.Fatalf("ExpectedVoters = %#v, want nil", got.PromoteControllerVoter.ExpectedVoters)
+	}
+
+	var reqObject map[string]json.RawMessage
+	if err := json.Unmarshal(payload[2:], &reqObject); err != nil {
+		t.Fatalf("request JSON unmarshal error = %v", err)
+	}
+	var promoteReq map[string]json.RawMessage
+	if err := json.Unmarshal(reqObject["promote_controller_voter"], &promoteReq); err != nil {
+		t.Fatalf("promote_controller_voter request JSON unmarshal error = %v", err)
+	}
+	if raw, ok := promoteReq["expected_voters"]; ok && string(raw) != "null" {
+		t.Fatalf("expected_voters JSON = %s, want null or omitted for nil", raw)
+	}
+}
+
 func TestControlWriteReportNodeHealthUsesSnakeCaseJSON(t *testing.T) {
 	reqPayload, err := EncodeControlWriteRequest(ControlWriteRequest{
 		Action: ControlWriteActionReportNodeHealth,

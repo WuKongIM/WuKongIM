@@ -2,6 +2,7 @@ package clusterv2
 
 import (
 	"context"
+	"reflect"
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
@@ -180,6 +181,51 @@ func TestNodeMarkNodeRemovedRequiresForegroundNode(t *testing.T) {
 	}
 }
 
+func TestNodePromoteControllerVoterDelegatesToControl(t *testing.T) {
+	controller := &recordingPromoteControllerVoterController{
+		StaticController: control.NewStaticController(control.Snapshot{}),
+		result: control.PromoteControllerVoterResult{
+			Changed:        true,
+			Node:           control.Node{NodeID: 4, Roles: []control.Role{control.RoleData, control.RoleController}, JoinState: control.NodeJoinStateActive},
+			Revision:       22,
+			PreviousVoters: []uint64{1, 2, 3},
+			NextVoters:     []uint64{1, 2, 3, 4},
+			Warnings:       []string{"controller_voter_count_even"},
+		},
+	}
+	node := &Node{control: controller}
+	node.started.Store(true)
+
+	req := control.PromoteControllerVoterRequest{
+		NodeID:              4,
+		ExpectedRevision:    21,
+		ExpectedVoters:      []uint64{1, 2, 3},
+		ObservedConfigIndex: 11,
+		ObservedVoters:      []uint64{1, 2, 3, 4},
+	}
+	got, err := node.PromoteControllerVoter(context.Background(), req)
+	if err != nil {
+		t.Fatalf("PromoteControllerVoter() error = %v", err)
+	}
+
+	if !got.Changed || got.Node.NodeID != 4 || got.Revision != 22 || len(got.Warnings) != 1 {
+		t.Fatalf("PromoteControllerVoter() = %#v, want changed promoted node revision 22", got)
+	}
+	if len(controller.requests) != 1 || !reflect.DeepEqual(controller.requests[0], req) {
+		t.Fatalf("controller promote requests = %#v, want %#v", controller.requests, req)
+	}
+}
+
+func TestNodePromoteControllerVoterRequiresForegroundNode(t *testing.T) {
+	controller := &recordingPromoteControllerVoterController{StaticController: control.NewStaticController(control.Snapshot{})}
+	node := &Node{control: controller}
+
+	_, err := node.PromoteControllerVoter(context.Background(), control.PromoteControllerVoterRequest{NodeID: 4})
+	if err != ErrNotStarted {
+		t.Fatalf("PromoteControllerVoter() error = %v, want %v", err, ErrNotStarted)
+	}
+}
+
 type recordingMarkNodeLeavingController struct {
 	*control.StaticController
 	requests []control.MarkNodeLeavingRequest
@@ -206,6 +252,21 @@ func (c *recordingMarkNodeRemovedController) MarkNodeRemoved(_ context.Context, 
 	c.requests = append(c.requests, req)
 	if c.err != nil {
 		return control.MarkNodeRemovedResult{}, c.err
+	}
+	return c.result, nil
+}
+
+type recordingPromoteControllerVoterController struct {
+	*control.StaticController
+	requests []control.PromoteControllerVoterRequest
+	result   control.PromoteControllerVoterResult
+	err      error
+}
+
+func (c *recordingPromoteControllerVoterController) PromoteControllerVoter(_ context.Context, req control.PromoteControllerVoterRequest) (control.PromoteControllerVoterResult, error) {
+	c.requests = append(c.requests, req)
+	if c.err != nil {
+		return control.PromoteControllerVoterResult{}, c.err
 	}
 	return c.result, nil
 }

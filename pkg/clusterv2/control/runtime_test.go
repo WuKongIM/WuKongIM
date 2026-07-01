@@ -5,6 +5,8 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -921,6 +923,126 @@ func TestRuntimeRequestSlotReplicaMoveReturnsControlWriteAfterForward(t *testing
 	}
 }
 
+func TestRuntimePromoteControllerVoterCommitsLocalStateAfterProof(t *testing.T) {
+	runtime, err := NewRuntime(RuntimeConfig{
+		NodeID:           1,
+		Addr:             "n1",
+		StateDir:         t.TempDir(),
+		ClusterID:        "cluster-promote-controller-voter-local",
+		Role:             RuntimeRoleVoter,
+		Voters:           []RuntimeVoter{{NodeID: 1, Addr: "n1"}},
+		AllowBootstrap:   true,
+		InitialSlotCount: 1,
+		HashSlotCount:    4,
+		ReplicaCount:     1,
+		TickInterval:     5 * time.Millisecond,
+	})
+	if err != nil {
+		t.Fatalf("NewRuntime() error = %v", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	if err := runtime.Start(ctx); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	t.Cleanup(func() { _ = runtime.Stop(context.Background()) })
+	if _, err := runtime.JoinNode(context.Background(), JoinNodeRequest{NodeID: 4, Addr: "n4", Roles: []Role{RoleData}, CapacityWeight: 1}); err != nil {
+		t.Fatalf("JoinNode() error = %v", err)
+	}
+	if _, err := runtime.ActivateNode(context.Background(), ActivateNodeRequest{NodeID: 4}); err != nil {
+		t.Fatalf("ActivateNode() error = %v", err)
+	}
+	before, err := runtime.LocalSnapshot(context.Background())
+	if err != nil {
+		t.Fatalf("LocalSnapshot(before) error = %v", err)
+	}
+
+	result, err := runtime.PromoteControllerVoter(context.Background(), PromoteControllerVoterRequest{
+		NodeID:              4,
+		ExpectedRevision:    before.Revision,
+		ExpectedVoters:      []uint64{1},
+		ObservedConfigIndex: 11,
+		ObservedVoters:      []uint64{1, 4},
+	})
+	if err != nil {
+		t.Fatalf("PromoteControllerVoter() error = %v", err)
+	}
+	if !result.Changed || result.Node.NodeID != 4 || !controlNodeHasRole(result.Node, RoleController) || result.Revision <= before.Revision {
+		t.Fatalf("PromoteControllerVoter() = %#v, want changed controller node revision > %d", result, before.Revision)
+	}
+	if !sameUint64Set(result.PreviousVoters, []uint64{1}) || !sameUint64Set(result.NextVoters, []uint64{1, 4}) {
+		t.Fatalf("voters previous=%v next=%v, want [1] -> [1 4]", result.PreviousVoters, result.NextVoters)
+	}
+	if len(result.Warnings) != 1 || result.Warnings[0] != "controller_voter_count_even" {
+		t.Fatalf("warnings = %#v, want even controller voter count warning", result.Warnings)
+	}
+	after, err := runtime.LocalSnapshot(context.Background())
+	if err != nil {
+		t.Fatalf("LocalSnapshot(after) error = %v", err)
+	}
+	node, ok := controlNodeByID(after.Nodes, 4)
+	if !ok || !controlNodeHasRole(node, RoleController) {
+		t.Fatalf("node 4 after promotion = %#v ok=%v, want controller role", node, ok)
+	}
+}
+
+func TestRuntimePromoteControllerVoterRejectsExplicitEmptyExpectedVoters(t *testing.T) {
+	runtime, err := NewRuntime(RuntimeConfig{
+		NodeID:           1,
+		Addr:             "n1",
+		StateDir:         t.TempDir(),
+		ClusterID:        "cluster-promote-controller-voter-empty-fence",
+		Role:             RuntimeRoleVoter,
+		Voters:           []RuntimeVoter{{NodeID: 1, Addr: "n1"}},
+		AllowBootstrap:   true,
+		InitialSlotCount: 1,
+		HashSlotCount:    4,
+		ReplicaCount:     1,
+		TickInterval:     5 * time.Millisecond,
+	})
+	if err != nil {
+		t.Fatalf("NewRuntime() error = %v", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	if err := runtime.Start(ctx); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	t.Cleanup(func() { _ = runtime.Stop(context.Background()) })
+	if _, err := runtime.JoinNode(context.Background(), JoinNodeRequest{NodeID: 4, Addr: "n4", Roles: []Role{RoleData}, CapacityWeight: 1}); err != nil {
+		t.Fatalf("JoinNode() error = %v", err)
+	}
+	if _, err := runtime.ActivateNode(context.Background(), ActivateNodeRequest{NodeID: 4}); err != nil {
+		t.Fatalf("ActivateNode() error = %v", err)
+	}
+	before, err := runtime.LocalSnapshot(context.Background())
+	if err != nil {
+		t.Fatalf("LocalSnapshot(before) error = %v", err)
+	}
+
+	_, err = runtime.PromoteControllerVoter(context.Background(), PromoteControllerVoterRequest{
+		NodeID:              4,
+		ExpectedRevision:    before.Revision,
+		ExpectedVoters:      []uint64{},
+		ObservedConfigIndex: 11,
+		ObservedVoters:      []uint64{1, 4},
+	})
+	if !errors.Is(err, cv2.ErrProposalRejected) || !strings.Contains(err.Error(), "controller_voter_set_mismatch") {
+		t.Fatalf("PromoteControllerVoter(explicit empty fence) error = %v, want proposal rejected controller_voter_set_mismatch", err)
+	}
+	after, err := runtime.LocalSnapshot(context.Background())
+	if err != nil {
+		t.Fatalf("LocalSnapshot(after) error = %v", err)
+	}
+	if after.Revision != before.Revision {
+		t.Fatalf("revision after rejected promotion = %d, want unchanged %d", after.Revision, before.Revision)
+	}
+	node, ok := controlNodeByID(after.Nodes, 4)
+	if !ok || controlNodeHasRole(node, RoleController) {
+		t.Fatalf("node 4 after rejected promotion = %#v ok=%v, want active data node without controller role", node, ok)
+	}
+}
+
 func TestRuntimeRestartReusesExistingState(t *testing.T) {
 	dir := t.TempDir()
 	cfg := RuntimeConfig{
@@ -1189,6 +1311,158 @@ func TestRuntimeMirrorForwardsMarkNodeRemovedToSyncClientLeader(t *testing.T) {
 	}
 }
 
+func TestRuntimeMirrorForwardsPromoteControllerVoterToSyncClientLeader(t *testing.T) {
+	network := clusternet.NewLocalNetwork()
+	leaderState := controllerV2State()
+	leaderState.Controllers = append(leaderState.Controllers,
+		cv2.ControllerVoter{NodeID: 2, Addr: "127.0.0.1:1002", Role: cv2.ControllerRoleVoter})
+	for i := range leaderState.Nodes {
+		if leaderState.Nodes[i].NodeID == 2 {
+			leaderState.Nodes[i].Roles = []cv2.NodeRole{cv2.NodeRoleControllerVoter, cv2.NodeRoleData}
+		}
+	}
+	syncServer := cv2.NewStateSyncServer(cv2.StateSyncServerConfig{
+		NodeID:    2,
+		ClusterID: leaderState.ClusterID,
+		LeaderID:  func() uint64 { return 2 },
+		Ready:     func() bool { return true },
+		Snapshot:  func(context.Context) (cv2.ClusterState, error) { return leaderState, nil },
+	})
+	network.Register(1, clusternet.RPCControlStateSync, NewStateSyncHandler(syncServer))
+	applier := &recordingControlWriteApplier{
+		promoteControllerVoterResult: PromoteControllerVoterResult{
+			Changed: true,
+			Node: Node{
+				NodeID:         3,
+				Addr:           "127.0.0.1:1003",
+				Roles:          []Role{RoleData, RoleController},
+				JoinState:      NodeJoinStateActive,
+				Status:         NodeAlive,
+				CapacityWeight: 1,
+			},
+			Revision:       leaderState.Revision + 1,
+			PreviousVoters: []uint64{1, 2},
+			NextVoters:     []uint64{1, 2, 3},
+		},
+	}
+	network.Register(2, clusternet.RPCControlWrite, NewControlWriteHandler(applier))
+
+	runtime, err := NewRuntime(RuntimeConfig{
+		NodeID:             3,
+		Addr:               "127.0.0.1:1003",
+		StateDir:           t.TempDir(),
+		ClusterID:          leaderState.ClusterID,
+		Role:               RuntimeRoleMirror,
+		Voters:             []RuntimeVoter{{NodeID: 1, Addr: "n1"}, {NodeID: 2, Addr: "n2"}},
+		SyncPeers:          NewStaticPeerPicker(network, []RuntimeVoter{{NodeID: 1, Addr: "n1"}}),
+		ControlWriteClient: NewControlWriteClient(network),
+	})
+	if err != nil {
+		t.Fatalf("NewRuntime() error = %v", err)
+	}
+	if err := runtime.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	t.Cleanup(func() { _ = runtime.Stop(context.Background()) })
+
+	req := PromoteControllerVoterRequest{
+		NodeID:              3,
+		ExpectedRevision:    leaderState.Revision,
+		ExpectedVoters:      []uint64{1, 2},
+		ObservedConfigIndex: 11,
+		ObservedVoters:      []uint64{1, 2, 3},
+	}
+	result, err := runtime.PromoteControllerVoter(context.Background(), req)
+	if err != nil {
+		t.Fatalf("PromoteControllerVoter() error = %v", err)
+	}
+	if runtime.LeaderID() != 2 {
+		t.Fatalf("LeaderID() = %d, want sync client leader 2", runtime.LeaderID())
+	}
+	if len(applier.promoteControllerVoters) != 1 || !reflect.DeepEqual(applier.promoteControllerVoters[0], req) || !result.Changed || result.Node.NodeID != 3 {
+		t.Fatalf("PromoteControllerVoter() = %#v requests=%#v, want forwarded promotion result from leader 2", result, applier.promoteControllerVoters)
+	}
+}
+
+func TestRuntimePromoteControllerVoterPreservesForwardedSemanticError(t *testing.T) {
+	network := clusternet.NewLocalNetwork()
+	leaderState := controllerV2State()
+	leaderState.Controllers = append(leaderState.Controllers,
+		cv2.ControllerVoter{NodeID: 2, Addr: "127.0.0.1:1002", Role: cv2.ControllerRoleVoter})
+	for i := range leaderState.Nodes {
+		if leaderState.Nodes[i].NodeID == 2 {
+			leaderState.Nodes[i].Roles = []cv2.NodeRole{cv2.NodeRoleControllerVoter, cv2.NodeRoleData}
+		}
+	}
+	syncServer := cv2.NewStateSyncServer(cv2.StateSyncServerConfig{
+		NodeID:    2,
+		ClusterID: leaderState.ClusterID,
+		LeaderID:  func() uint64 { return 2 },
+		Ready:     func() bool { return true },
+		Snapshot:  func(context.Context) (cv2.ClusterState, error) { return leaderState, nil },
+	})
+	network.Register(1, clusternet.RPCControlStateSync, NewStateSyncHandler(syncServer))
+	applier := &recordingControlWriteApplier{promoteControllerVoterErr: cv2.ErrExpectedRevisionMismatch}
+	network.Register(2, clusternet.RPCControlWrite, NewControlWriteHandler(applier))
+
+	runtime, err := NewRuntime(RuntimeConfig{
+		NodeID:             3,
+		Addr:               "127.0.0.1:1003",
+		StateDir:           t.TempDir(),
+		ClusterID:          leaderState.ClusterID,
+		Role:               RuntimeRoleMirror,
+		Voters:             []RuntimeVoter{{NodeID: 1, Addr: "n1"}, {NodeID: 2, Addr: "n2"}},
+		SyncPeers:          NewStaticPeerPicker(network, []RuntimeVoter{{NodeID: 1, Addr: "n1"}}),
+		ControlWriteClient: NewControlWriteClient(network),
+	})
+	if err != nil {
+		t.Fatalf("NewRuntime() error = %v", err)
+	}
+	if err := runtime.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	t.Cleanup(func() { _ = runtime.Stop(context.Background()) })
+
+	_, err = runtime.PromoteControllerVoter(context.Background(), PromoteControllerVoterRequest{
+		NodeID:           3,
+		ExpectedRevision: leaderState.Revision + 1,
+	})
+	if !errors.Is(err, cv2.ErrExpectedRevisionMismatch) {
+		t.Fatalf("PromoteControllerVoter() error = %v, want errors.Is(ErrExpectedRevisionMismatch)", err)
+	}
+}
+
+func TestPromoteControllerVoterResultFromCV2AddsEvenVoterWarning(t *testing.T) {
+	previous := []uint64{1, 2, 3}
+	next := []uint64{1, 2, 3, 4}
+	result := promoteControllerVoterResultFromCV2(cv2.PromoteControllerVoterResult{
+		Changed: true,
+		Node: cv2.Node{
+			NodeID:         4,
+			Addr:           "n4",
+			Roles:          []cv2.NodeRole{cv2.NodeRoleData, cv2.NodeRoleControllerVoter},
+			JoinState:      cv2.NodeJoinStateActive,
+			Status:         cv2.NodeStatusAlive,
+			CapacityWeight: 1,
+		},
+		Revision:       10,
+		PreviousVoters: previous,
+		NextVoters:     next,
+	})
+
+	if !result.Changed || result.Node.NodeID != 4 || result.Node.Roles[1] != RoleController || result.Revision != 10 {
+		t.Fatalf("promoteControllerVoterResultFromCV2() = %#v, want mapped controller node", result)
+	}
+	if len(result.Warnings) != 1 || result.Warnings[0] != "controller_voter_count_even" {
+		t.Fatalf("warnings = %#v, want controller_voter_count_even", result.Warnings)
+	}
+	result.PreviousVoters[0] = 99
+	result.NextVoters[0] = 99
+	if previous[0] != 1 || next[0] != 1 {
+		t.Fatalf("promoteControllerVoterResultFromCV2 did not copy voter slices: previous=%v next=%v", previous, next)
+	}
+}
+
 func TestRuntimeActivateNodeForwardsBeforeFollowerLocalValidation(t *testing.T) {
 	network := clusternet.NewLocalNetwork()
 	controlWriteClient := NewControlWriteClient(network)
@@ -1377,4 +1651,39 @@ func snapshotJoinState(snapshot Snapshot, nodeID uint64) NodeJoinState {
 		}
 	}
 	return ""
+}
+
+func controlNodeByID(nodes []Node, nodeID uint64) (Node, bool) {
+	for _, node := range nodes {
+		if node.NodeID == nodeID {
+			return node, true
+		}
+	}
+	return Node{}, false
+}
+
+func controlNodeHasRole(node Node, role Role) bool {
+	for _, candidate := range node.Roles {
+		if candidate == role {
+			return true
+		}
+	}
+	return false
+}
+
+func sameUint64Set(left, right []uint64) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	seen := make(map[uint64]int, len(left))
+	for _, value := range left {
+		seen[value]++
+	}
+	for _, value := range right {
+		if seen[value] == 0 {
+			return false
+		}
+		seen[value]--
+	}
+	return true
 }

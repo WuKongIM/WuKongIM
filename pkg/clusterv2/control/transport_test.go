@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"sync"
 	"testing"
 	"time"
@@ -304,6 +305,56 @@ func TestNewControlWriteHandlerCallsMarkNodeRemoved(t *testing.T) {
 	}
 }
 
+func TestNewControlWriteHandlerCallsPromoteControllerVoter(t *testing.T) {
+	network := clusternet.NewLocalNetwork()
+	applier := &recordingControlWriteApplier{
+		promoteControllerVoterResult: PromoteControllerVoterResult{
+			Changed: true,
+			Node: Node{
+				NodeID:         4,
+				Addr:           "n4",
+				Roles:          []Role{RoleData, RoleController},
+				JoinState:      NodeJoinStateActive,
+				Status:         NodeAlive,
+				CapacityWeight: 1,
+			},
+			Revision:       10,
+			PreviousVoters: []uint64{1, 2, 3},
+			NextVoters:     []uint64{1, 2, 3, 4},
+			Warnings:       []string{"controller_voter_count_even"},
+		},
+	}
+	network.Register(1, clusternet.RPCControlWrite, NewControlWriteHandler(applier))
+	client := NewControlWriteClient(network)
+
+	result, err := client.Submit(context.Background(), 1, ControlWriteRequest{
+		Action: ControlWriteActionPromoteControllerVoter,
+		PromoteControllerVoter: PromoteControllerVoterRequest{
+			NodeID:              4,
+			ExpectedRevision:    9,
+			ExpectedVoters:      []uint64{1, 2, 3},
+			ObservedConfigIndex: 11,
+			ObservedVoters:      []uint64{1, 2, 3, 4},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Submit(promote controller voter) error = %v", err)
+	}
+	wantReq := PromoteControllerVoterRequest{
+		NodeID:              4,
+		ExpectedRevision:    9,
+		ExpectedVoters:      []uint64{1, 2, 3},
+		ObservedConfigIndex: 11,
+		ObservedVoters:      []uint64{1, 2, 3, 4},
+	}
+	if len(applier.promoteControllerVoters) != 1 || !reflect.DeepEqual(applier.promoteControllerVoters[0], wantReq) {
+		t.Fatalf("promoteControllerVoters = %#v, want %#v", applier.promoteControllerVoters, wantReq)
+	}
+	if !reflect.DeepEqual(result.PromoteControllerVoter, applier.promoteControllerVoterResult) {
+		t.Fatalf("Submit(promote controller voter) = %#v, want %#v", result.PromoteControllerVoter, applier.promoteControllerVoterResult)
+	}
+}
+
 type recordingTaskApplier struct {
 	completed       []TaskResult
 	failed          []TaskResult
@@ -344,24 +395,27 @@ func (a *recordingTaskApplier) CommitSlotReplicaMove(ctx context.Context, commit
 }
 
 type recordingControlWriteApplier struct {
-	nodeReports           []NodeReport
-	nodeReportErr         error
-	joinNodes             []JoinNodeRequest
-	joinResult            JoinNodeResult
-	joinErr               error
-	activateNodes         []ActivateNodeRequest
-	activateCalls         int
-	activateResult        ActivateNodeResult
-	activateErr           error
-	markNodeLeaving       []MarkNodeLeavingRequest
-	markNodeLeavingResult MarkNodeLeavingResult
-	markNodeLeavingErr    error
-	markNodeRemoved       []MarkNodeRemovedRequest
-	markNodeRemovedResult MarkNodeRemovedResult
-	markNodeRemovedErr    error
-	slotReplicaMoves      []SlotReplicaMoveRequest
-	slotReplicaMoveResult SlotReplicaMoveResult
-	slotReplicaMoveErr    error
+	nodeReports                  []NodeReport
+	nodeReportErr                error
+	joinNodes                    []JoinNodeRequest
+	joinResult                   JoinNodeResult
+	joinErr                      error
+	activateNodes                []ActivateNodeRequest
+	activateCalls                int
+	activateResult               ActivateNodeResult
+	activateErr                  error
+	markNodeLeaving              []MarkNodeLeavingRequest
+	markNodeLeavingResult        MarkNodeLeavingResult
+	markNodeLeavingErr           error
+	markNodeRemoved              []MarkNodeRemovedRequest
+	markNodeRemovedResult        MarkNodeRemovedResult
+	markNodeRemovedErr           error
+	slotReplicaMoves             []SlotReplicaMoveRequest
+	slotReplicaMoveResult        SlotReplicaMoveResult
+	slotReplicaMoveErr           error
+	promoteControllerVoters      []PromoteControllerVoterRequest
+	promoteControllerVoterResult PromoteControllerVoterResult
+	promoteControllerVoterErr    error
 }
 
 func (a *recordingControlWriteApplier) ReportNode(ctx context.Context, req NodeReport) error {
@@ -408,6 +462,14 @@ func (a *recordingControlWriteApplier) RequestSlotReplicaMove(ctx context.Contex
 		return SlotReplicaMoveResult{}, a.slotReplicaMoveErr
 	}
 	return a.slotReplicaMoveResult, nil
+}
+
+func (a *recordingControlWriteApplier) PromoteControllerVoter(ctx context.Context, req PromoteControllerVoterRequest) (PromoteControllerVoterResult, error) {
+	a.promoteControllerVoters = append(a.promoteControllerVoters, req)
+	if a.promoteControllerVoterErr != nil {
+		return PromoteControllerVoterResult{}, a.promoteControllerVoterErr
+	}
+	return a.promoteControllerVoterResult, nil
 }
 
 type recordingRaftStepper struct {
