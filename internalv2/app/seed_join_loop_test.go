@@ -10,8 +10,12 @@ import (
 	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
+	cv2 "github.com/WuKongIM/WuKongIM/pkg/controllerv2"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
+
+var _ accessnode.ControllerVoterReadinessProvider = (*App)(nil)
+var _ accessnode.ControllerVoterPreparer = (*App)(nil)
 
 func TestAppWiresSeedJoinLoopWhenJoinConfigPresent(t *testing.T) {
 	cluster := &fakeManagerCluster{
@@ -114,6 +118,126 @@ func TestAppNodeReadinessReportsMirrorClusterAndRuntimeGates(t *testing.T) {
 	}
 	if !got.TransportReady || !got.ControlReady || !got.RuntimeReady || got.ExpectedClusterID != "cluster-a" {
 		t.Fatalf("NodeReadiness() = %#v, want transport/control/runtime ready and expected cluster-a", got)
+	}
+}
+
+func TestAppControllerVoterReadinessMapsNodeReadiness(t *testing.T) {
+	cluster := &fakeReadinessCluster{
+		fakeManagerCluster: fakeManagerCluster{
+			nodeID: 4,
+			snapshot: control.Snapshot{
+				ClusterID: "cluster-a",
+				Revision:  22,
+				Nodes: []control.Node{{
+					NodeID:    4,
+					Addr:      "10.0.0.4:11110",
+					Roles:     []control.Role{control.RoleData},
+					JoinState: control.NodeJoinStateJoining,
+				}},
+			},
+			controllerRaftStatus: clusterv2.ControllerRaftStatus{
+				NodeID:       4,
+				Role:         "follower",
+				LeaderID:     1,
+				AppliedIndex: 77,
+				Voters:       []uint64{1, 2, 4},
+			},
+		},
+		snapshot: clusterv2.Snapshot{
+			RoutesReady:   true,
+			SlotsReady:    true,
+			ChannelsReady: true,
+			HashSlotCount: 1,
+		},
+		routes: map[uint16]clusterv2.Route{
+			0: {HashSlot: 0, SlotID: 1, Leader: 4},
+		},
+	}
+	app, err := newTestApp(t, Config{
+		NodeID: 4,
+		Cluster: clusterv2.Config{
+			NodeID:  4,
+			Control: clusterv2.ControlConfig{ClusterID: "cluster-a"},
+		},
+	}, WithCluster(cluster), WithGateway(nil))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	app.lifecycleMu.Lock()
+	app.clusterStarted = true
+	app.gatewayStarted = true
+	app.lifecycleMu.Unlock()
+
+	got, err := app.ControllerVoterReadiness(context.Background(), accessnode.ControllerVoterReadinessRequest{NodeID: 4, ClusterID: "cluster-a"})
+	if err != nil {
+		t.Fatalf("ControllerVoterReadiness() error = %v", err)
+	}
+	if got.NodeID != 4 || got.ClusterID != "cluster-a" || !got.CanPrepare || got.MirrorRevision != 22 {
+		t.Fatalf("ControllerVoterReadiness() = %#v, want node 4 cluster-a ready revision 22", got)
+	}
+	if !got.IsVoter || got.ControlLeaderID != 1 || got.ConfigIndex != 77 || !sameSeedJoinUint64s(got.Voters, []uint64{1, 2, 4}) {
+		t.Fatalf("ControllerVoterReadiness() = %#v, want Controller Raft proof fields", got)
+	}
+	if !got.Reachable || !got.TransportReady || !got.ControlReady || !got.RuntimeReady || got.Unknown || got.LastError != "" {
+		t.Fatalf("ControllerVoterReadiness() = %#v, want all readiness gates true without error", got)
+	}
+}
+
+func TestAppPrepareControllerVoterReturnsControllerRaftProof(t *testing.T) {
+	cluster := &fakeControllerVoterPreparationCluster{
+		fakeManagerCluster: fakeManagerCluster{
+			nodeID: 4,
+			controllerRaftStatus: clusterv2.ControllerRaftStatus{
+				AppliedIndex: 77,
+				Voters:       []uint64{1, 2, 4},
+			},
+		},
+		prepareResult: cv2.PrepareControllerVoterResult{
+			Prepared:      true,
+			StateRevision: 22,
+		},
+	}
+	app, err := newTestApp(t, Config{
+		NodeID: 4,
+		Cluster: clusterv2.Config{
+			NodeID:  4,
+			Control: clusterv2.ControlConfig{ClusterID: "cluster-a"},
+		},
+	}, WithCluster(cluster), WithGateway(nil))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	got, err := app.PrepareControllerVoter(context.Background(), accessnode.PrepareControllerVoterRequest{
+		NodeID:           4,
+		ClusterID:        "cluster-a",
+		ExpectedRevision: 22,
+		NextVoters: []accessnode.ControllerVoter{
+			{NodeID: 1, Addr: "10.0.0.1:11110"},
+			{NodeID: 2, Addr: "10.0.0.2:11110"},
+			{NodeID: 4, Addr: "10.0.0.4:11110"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("PrepareControllerVoter() error = %v", err)
+	}
+
+	if got.NodeID != 4 || !got.Prepared || got.StateRevision != 22 ||
+		got.ObservedConfigIndex != 77 || !sameSeedJoinUint64s(got.ObservedVoters, []uint64{1, 2, 4}) {
+		t.Fatalf("PrepareControllerVoter() = %#v, want status proof fields", got)
+	}
+	if cluster.prepareRequest.NodeID != 4 || cluster.prepareRequest.ClusterID != "cluster-a" ||
+		cluster.prepareRequest.ExpectedRevision != 22 ||
+		!sameSeedJoinControllerVoters(cluster.prepareRequest.NextVoters, []cv2.Voter{
+			{NodeID: 1, Addr: "10.0.0.1:11110"},
+			{NodeID: 2, Addr: "10.0.0.2:11110"},
+			{NodeID: 4, Addr: "10.0.0.4:11110"},
+		}) {
+		t.Fatalf("prepare request = %#v, want converted ControllerV2 voters", cluster.prepareRequest)
+	}
+	got.ObservedVoters[0] = 99
+	if cluster.controllerRaftStatus.Voters[0] != 1 {
+		t.Fatalf("ObservedVoters was not cloned from Controller Raft status")
 	}
 }
 
@@ -459,4 +583,40 @@ func (f *fakeReadinessCluster) RouteHashSlot(hashSlot uint16) (clusterv2.Route, 
 		return clusterv2.Route{}, clusterv2.ErrRouteNotReady
 	}
 	return route, nil
+}
+
+type fakeControllerVoterPreparationCluster struct {
+	fakeManagerCluster
+	prepareRequest cv2.PrepareControllerVoterRequest
+	prepareResult  cv2.PrepareControllerVoterResult
+	prepareErr     error
+}
+
+func (f *fakeControllerVoterPreparationCluster) PrepareControllerVoter(_ context.Context, req cv2.PrepareControllerVoterRequest) (cv2.PrepareControllerVoterResult, error) {
+	f.prepareRequest = req
+	return f.prepareResult, f.prepareErr
+}
+
+func sameSeedJoinControllerVoters(left, right []cv2.Voter) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for i := range left {
+		if left[i] != right[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func sameSeedJoinUint64s(left, right []uint64) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for i := range left {
+		if left[i] != right[i] {
+			return false
+		}
+	}
+	return true
 }

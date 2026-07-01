@@ -60,6 +60,14 @@ type ControllerVoterReadiness struct {
 	CanPrepare bool
 	// MirrorRevision is the latest control-state revision observed by the target node.
 	MirrorRevision uint64
+	// IsVoter reports whether the target currently observes itself in the Controller Raft voter set.
+	IsVoter bool
+	// ControlLeaderID is the Controller Raft leader observed by the target when known.
+	ControlLeaderID uint64
+	// ConfigIndex is the target's observed Controller Raft applied config index.
+	ConfigIndex uint64
+	// Voters is the Controller Raft voter set observed by the target.
+	Voters []uint64
 	// Unknown reports that readiness could not be determined.
 	Unknown bool
 	// LastError carries a compact diagnostic for failed readiness checks.
@@ -317,6 +325,8 @@ func mapControllerVoterPromotionPrepareError(err error) error {
 	switch {
 	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
 		return err
+	case errors.Is(err, ErrControllerVoterPromotionBlocked):
+		return fmt.Errorf("%w: %w", ErrControllerVoterPromotionBlocked, err)
 	case errors.Is(err, cv2.ErrNotLeader),
 		errors.Is(err, cv2.ErrNotStarted),
 		errors.Is(err, cv2.ErrStopped):

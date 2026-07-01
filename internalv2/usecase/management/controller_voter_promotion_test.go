@@ -230,6 +230,11 @@ func TestPromoteControllerVoterPrepareErrorMapping(t *testing.T) {
 			wantErr:         ErrControllerVoterPromotionBlocked,
 			wantExpectedRev: true,
 		},
+		{
+			name:    "remote blocked remains blocked",
+			err:     ErrControllerVoterPromotionBlocked,
+			wantErr: ErrControllerVoterPromotionBlocked,
+		},
 		{name: "canceled", err: context.Canceled, wantErr: context.Canceled},
 		{name: "deadline", err: context.DeadlineExceeded, wantErr: context.DeadlineExceeded},
 	}
@@ -247,6 +252,9 @@ func TestPromoteControllerVoterPrepareErrorMapping(t *testing.T) {
 			_, err := app.PromoteControllerVoter(context.Background(), PromoteControllerVoterRequest{NodeID: 4})
 			if !errors.Is(err, tt.wantErr) {
 				t.Fatalf("PromoteControllerVoter() error = %v, want %v", err, tt.wantErr)
+			}
+			if tt.wantErr == ErrControllerVoterPromotionBlocked && errors.Is(err, ErrControllerVoterPromotionUnavailable) {
+				t.Fatalf("PromoteControllerVoter() error = %v, want blocked without unavailable", err)
 			}
 			if tt.wantExpectedRev && !cv2.IsExpectedRevisionMismatch(err) {
 				t.Fatalf("PromoteControllerVoter() error = %v, want expected revision mismatch preserved", err)

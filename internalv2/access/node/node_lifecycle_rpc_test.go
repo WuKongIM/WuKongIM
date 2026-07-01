@@ -2,9 +2,11 @@ package node
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
+	cv2 "github.com/WuKongIM/WuKongIM/pkg/controllerv2"
 )
 
 func TestNodeLifecycleRPCJoinForwardsTokenAndClusterID(t *testing.T) {
@@ -127,6 +129,132 @@ func TestNodeLifecycleRPCReadinessPreservesActivationFields(t *testing.T) {
 	}
 }
 
+func TestNodeLifecycleRPCControllerVoterReadinessPreservesFields(t *testing.T) {
+	readiness := &fakeControllerVoterReadinessProvider{
+		response: ControllerVoterReadinessResponse{
+			NodeID:          4,
+			ClusterID:       "cluster-a",
+			Reachable:       true,
+			TransportReady:  true,
+			ControlReady:    true,
+			RuntimeReady:    true,
+			CanPrepare:      true,
+			MirrorRevision:  22,
+			IsVoter:         true,
+			ControlLeaderID: 1,
+			ConfigIndex:     77,
+			Voters:          []uint64{1, 2, 4},
+		},
+	}
+	adapter := New(Options{
+		ControllerVoterReadiness: readiness,
+		NodeLifecycleClusterID:   "cluster-a",
+	})
+	node := &fakeNodeLifecycleRPCNode{handler: adapter.HandleNodeLifecycleRPC}
+	client := NewClient(node)
+
+	req := ControllerVoterReadinessRequest{NodeID: 4, ClusterID: "cluster-a"}
+	got, err := client.ControllerVoterReadiness(context.Background(), 4, req)
+	if err != nil {
+		t.Fatalf("ControllerVoterReadiness() error = %v", err)
+	}
+
+	if got.NodeID != 4 || got.ClusterID != "cluster-a" || !got.Reachable || !got.TransportReady ||
+		!got.ControlReady || !got.RuntimeReady || !got.CanPrepare || got.MirrorRevision != 22 ||
+		!got.IsVoter || got.ControlLeaderID != 1 || got.ConfigIndex != 77 ||
+		!sameNodeLifecycleUint64s(got.Voters, []uint64{1, 2, 4}) {
+		t.Fatalf("ControllerVoterReadiness() = %#v, want readiness and Controller Raft fields preserved", got)
+	}
+	got.Voters[0] = 99
+	if readiness.response.Voters[0] != 1 {
+		t.Fatalf("ControllerVoterReadiness() aliased provider voters: provider=%v", readiness.response.Voters)
+	}
+	if readiness.request != req {
+		t.Fatalf("readiness request = %#v, want %#v", readiness.request, req)
+	}
+	wireReq, err := decodeNodeLifecycleRequest(node.payload)
+	if err != nil {
+		t.Fatalf("decodeNodeLifecycleRequest() error = %v", err)
+	}
+	if wireReq.Op != nodeLifecycleOpControllerVoterReadiness || wireReq.ControllerVoterReadiness != req {
+		t.Fatalf("wire request = %#v, want controller voter readiness %#v", wireReq, req)
+	}
+}
+
+func TestNodeLifecycleRPCPrepareControllerVoterPreservesProofFields(t *testing.T) {
+	preparer := &fakeControllerVoterPreparer{
+		response: PrepareControllerVoterResponse{
+			NodeID:              4,
+			Prepared:            true,
+			StateRevision:       22,
+			ObservedConfigIndex: 77,
+			ObservedVoters:      []uint64{1, 2, 4},
+		},
+	}
+	adapter := New(Options{
+		ControllerVoterPreparer: preparer,
+		NodeLifecycleClusterID:  "cluster-a",
+	})
+	node := &fakeNodeLifecycleRPCNode{handler: adapter.HandleNodeLifecycleRPC}
+	client := NewClient(node)
+
+	req := PrepareControllerVoterRequest{
+		NodeID:           4,
+		ClusterID:        "cluster-a",
+		ExpectedRevision: 22,
+		NextVoters: []ControllerVoter{
+			{NodeID: 1, Addr: "10.0.0.1:11110"},
+			{NodeID: 4, Addr: "10.0.0.4:11110"},
+		},
+	}
+	got, err := client.PrepareControllerVoter(context.Background(), 4, req)
+	if err != nil {
+		t.Fatalf("PrepareControllerVoter() error = %v", err)
+	}
+
+	if got.NodeID != 4 || !got.Prepared || got.StateRevision != 22 ||
+		got.ObservedConfigIndex != 77 || !sameNodeLifecycleUint64s(got.ObservedVoters, []uint64{1, 2, 4}) {
+		t.Fatalf("PrepareControllerVoter() = %#v, want proof fields preserved", got)
+	}
+	if preparer.request.NodeID != req.NodeID || preparer.request.ClusterID != req.ClusterID ||
+		preparer.request.ExpectedRevision != req.ExpectedRevision ||
+		!sameControllerVoters(preparer.request.NextVoters, req.NextVoters) {
+		t.Fatalf("prepare request = %#v, want %#v", preparer.request, req)
+	}
+	wireReq, err := decodeNodeLifecycleRequest(node.payload)
+	if err != nil {
+		t.Fatalf("decodeNodeLifecycleRequest() error = %v", err)
+	}
+	if wireReq.Op != nodeLifecycleOpPrepareControllerVoter || !sameControllerVoters(wireReq.PrepareControllerVoter.NextVoters, req.NextVoters) {
+		t.Fatalf("wire request = %#v, want prepare controller voter %#v", wireReq, req)
+	}
+}
+
+func TestNodeLifecycleRPCPrepareControllerVoterConflictMapsToPromotionBlocked(t *testing.T) {
+	for _, errFromProvider := range []error{
+		managementusecase.ErrControllerVoterPromotionBlocked,
+		cv2.ErrExpectedRevisionMismatch,
+	} {
+		preparer := &fakeControllerVoterPreparer{err: errFromProvider}
+		adapter := New(Options{
+			ControllerVoterPreparer: preparer,
+			NodeLifecycleClusterID:  "cluster-a",
+		})
+		node := &fakeNodeLifecycleRPCNode{handler: adapter.HandleNodeLifecycleRPC}
+		client := NewClient(node)
+
+		_, err := client.PrepareControllerVoter(context.Background(), 4, PrepareControllerVoterRequest{
+			NodeID:           4,
+			ClusterID:        "cluster-a",
+			ExpectedRevision: 22,
+			NextVoters:       []ControllerVoter{{NodeID: 1, Addr: "n1"}, {NodeID: 4, Addr: "n4"}},
+		})
+		if !errors.Is(err, managementusecase.ErrControllerVoterPromotionBlocked) {
+			t.Fatalf("PrepareControllerVoter(%v) error = %v, want promotion blocked", errFromProvider, err)
+		}
+	}
+}
+
 type fakeNodeLifecycleService struct {
 	joinRequest  managementusecase.JoinNodeRequest
 	joinResponse managementusecase.JoinNodeResponse
@@ -147,6 +275,28 @@ func (f *fakeNodeReadinessProvider) NodeReadiness(_ context.Context, req NodeRea
 	return f.response, nil
 }
 
+type fakeControllerVoterReadinessProvider struct {
+	request  ControllerVoterReadinessRequest
+	response ControllerVoterReadinessResponse
+	err      error
+}
+
+func (f *fakeControllerVoterReadinessProvider) ControllerVoterReadiness(_ context.Context, req ControllerVoterReadinessRequest) (ControllerVoterReadinessResponse, error) {
+	f.request = req
+	return f.response, f.err
+}
+
+type fakeControllerVoterPreparer struct {
+	request  PrepareControllerVoterRequest
+	response PrepareControllerVoterResponse
+	err      error
+}
+
+func (f *fakeControllerVoterPreparer) PrepareControllerVoter(_ context.Context, req PrepareControllerVoterRequest) (PrepareControllerVoterResponse, error) {
+	f.request = req
+	return f.response, f.err
+}
+
 type fakeNodeLifecycleRPCNode struct {
 	handler   func(context.Context, []byte) ([]byte, error)
 	nodeID    uint64
@@ -159,4 +309,28 @@ func (f *fakeNodeLifecycleRPCNode) CallRPC(ctx context.Context, nodeID uint64, s
 	f.serviceID = serviceID
 	f.payload = append([]byte(nil), payload...)
 	return f.handler(ctx, payload)
+}
+
+func sameControllerVoters(left, right []ControllerVoter) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for i := range left {
+		if left[i] != right[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func sameNodeLifecycleUint64s(left, right []uint64) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for i := range left {
+		if left[i] != right[i] {
+			return false
+		}
+	}
+	return true
 }

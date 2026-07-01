@@ -166,6 +166,16 @@ type NodeReadinessProvider interface {
 	NodeReadiness(context.Context, NodeReadinessRequest) (NodeReadinessResponse, error)
 }
 
+// ControllerVoterReadinessProvider reports target readiness before Controller voter preparation.
+type ControllerVoterReadinessProvider interface {
+	ControllerVoterReadiness(context.Context, ControllerVoterReadinessRequest) (ControllerVoterReadinessResponse, error)
+}
+
+// ControllerVoterPreparer prepares a target node for Controller Raft voter promotion.
+type ControllerVoterPreparer interface {
+	PrepareControllerVoter(context.Context, PrepareControllerVoterRequest) (PrepareControllerVoterResponse, error)
+}
+
 // PluginHTTPRouter invokes one node-local plugin HTTP route.
 type PluginHTTPRouter interface {
 	Route(context.Context, string, *pluginproto.HttpRequest) (*pluginproto.HttpResponse, error)
@@ -209,6 +219,10 @@ type Options struct {
 	NodeLifecycle NodeLifecycleManager
 	// NodeReadiness reports app-local readiness for startup probes.
 	NodeReadiness NodeReadinessProvider
+	// ControllerVoterReadiness reports app-local readiness for Controller voter preparation.
+	ControllerVoterReadiness ControllerVoterReadinessProvider
+	// ControllerVoterPreparer prepares this node for Controller voter promotion.
+	ControllerVoterPreparer ControllerVoterPreparer
 	// NodeLifecycleClusterID is the cluster identity accepted by lifecycle RPCs.
 	NodeLifecycleClusterID string
 	// NodeLifecycleJoinToken is the shared token accepted by JoinNode RPCs.
@@ -257,6 +271,10 @@ type Adapter struct {
 	nodeLifecycle NodeLifecycleManager
 	// nodeReadiness reports local startup readiness to seed nodes.
 	nodeReadiness NodeReadinessProvider
+	// controllerVoterReadiness reports local readiness before Controller voter preparation.
+	controllerVoterReadiness ControllerVoterReadinessProvider
+	// controllerVoterPreparer prepares this node for Controller voter promotion.
+	controllerVoterPreparer ControllerVoterPreparer
 	// nodeLifecycleClusterID is the cluster identity accepted by lifecycle RPCs.
 	nodeLifecycleClusterID string
 	// nodeLifecycleJoinToken is the shared token accepted by JoinNode RPCs.
@@ -273,28 +291,30 @@ func New(opts Options) *Adapter {
 		opts.Logger = wklog.NewNop()
 	}
 	return &Adapter{
-		authority:               opts.Authority,
-		owner:                   opts.Owner,
-		delivery:                opts.Delivery,
-		deliveryFanout:          opts.DeliveryFanout,
-		conversation:            opts.ConversationAuthority,
-		managerConnections:      opts.ManagerConnections,
-		managerLogs:             opts.ManagerLogs,
-		managerControllerRaft:   opts.ManagerControllerRaft,
-		managerSlotRaft:         opts.ManagerSlotRaft,
-		managerChannels:         opts.ManagerChannels,
-		managerMessageRetention: opts.ManagerMessageRetention,
-		managerDBInspect:        opts.ManagerDBInspect,
-		managerAppLogs:          opts.ManagerAppLogs,
-		managerDiagnostics:      opts.ManagerDiagnostics,
-		managerTaskAudit:        opts.ManagerTaskAudit,
-		managerPlugins:          opts.ManagerPlugins,
-		nodeLifecycle:           opts.NodeLifecycle,
-		nodeReadiness:           opts.NodeReadiness,
-		nodeLifecycleClusterID:  opts.NodeLifecycleClusterID,
-		nodeLifecycleJoinToken:  opts.NodeLifecycleJoinToken,
-		pluginHTTPRoutes:        opts.PluginHTTPRoutes,
-		logger:                  opts.Logger,
+		authority:                opts.Authority,
+		owner:                    opts.Owner,
+		delivery:                 opts.Delivery,
+		deliveryFanout:           opts.DeliveryFanout,
+		conversation:             opts.ConversationAuthority,
+		managerConnections:       opts.ManagerConnections,
+		managerLogs:              opts.ManagerLogs,
+		managerControllerRaft:    opts.ManagerControllerRaft,
+		managerSlotRaft:          opts.ManagerSlotRaft,
+		managerChannels:          opts.ManagerChannels,
+		managerMessageRetention:  opts.ManagerMessageRetention,
+		managerDBInspect:         opts.ManagerDBInspect,
+		managerAppLogs:           opts.ManagerAppLogs,
+		managerDiagnostics:       opts.ManagerDiagnostics,
+		managerTaskAudit:         opts.ManagerTaskAudit,
+		managerPlugins:           opts.ManagerPlugins,
+		nodeLifecycle:            opts.NodeLifecycle,
+		nodeReadiness:            opts.NodeReadiness,
+		controllerVoterReadiness: opts.ControllerVoterReadiness,
+		controllerVoterPreparer:  opts.ControllerVoterPreparer,
+		nodeLifecycleClusterID:   opts.NodeLifecycleClusterID,
+		nodeLifecycleJoinToken:   opts.NodeLifecycleJoinToken,
+		pluginHTTPRoutes:         opts.PluginHTTPRoutes,
+		logger:                   opts.Logger,
 	}
 }
 

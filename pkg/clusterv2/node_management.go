@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
+	cv2 "github.com/WuKongIM/WuKongIM/pkg/controllerv2"
 )
 
 // LocalControlSnapshot returns the latest locally visible control snapshot.
@@ -157,4 +158,24 @@ func (n *Node) PromoteControllerVoter(ctx context.Context, req control.PromoteCo
 		return control.PromoteControllerVoterResult{}, ErrNotStarted
 	}
 	return writer.PromoteControllerVoter(ctx, req)
+}
+
+// PrepareControllerVoter prepares this node's local ControllerV2 runtime for voter promotion.
+func (n *Node) PrepareControllerVoter(ctx context.Context, req cv2.PrepareControllerVoterRequest) (cv2.PrepareControllerVoterResult, error) {
+	if err := ctxErr(ctx); err != nil {
+		return cv2.PrepareControllerVoterResult{}, err
+	}
+	if err := n.ensureForeground(); err != nil {
+		return cv2.PrepareControllerVoterResult{}, err
+	}
+	if n.control == nil {
+		return cv2.PrepareControllerVoterResult{}, ErrNotStarted
+	}
+	writer, ok := n.control.(interface {
+		PrepareControllerVoter(context.Context, cv2.PrepareControllerVoterRequest) (cv2.PrepareControllerVoterResult, error)
+	})
+	if !ok {
+		return cv2.PrepareControllerVoterResult{}, ErrNotStarted
+	}
+	return writer.PrepareControllerVoter(ctx, req)
 }

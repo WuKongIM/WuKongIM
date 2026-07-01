@@ -1,6 +1,10 @@
 package control
 
-import cv2 "github.com/WuKongIM/WuKongIM/pkg/controllerv2"
+import (
+	"context"
+
+	cv2 "github.com/WuKongIM/WuKongIM/pkg/controllerv2"
+)
 
 const controllerVoterCountEvenWarning = "controller_voter_count_even"
 
@@ -32,6 +36,17 @@ type PromoteControllerVoterResult struct {
 	NextVoters []uint64 `json:"next_voters,omitempty"`
 	// Warnings contains bounded operator warnings.
 	Warnings []string `json:"warnings,omitempty"`
+}
+
+// PrepareControllerVoter prepares the local ControllerV2 backend for Controller voter promotion.
+func (r *Runtime) PrepareControllerVoter(ctx context.Context, req cv2.PrepareControllerVoterRequest) (cv2.PrepareControllerVoterResult, error) {
+	if err := ctxErr(ctx); err != nil {
+		return cv2.PrepareControllerVoterResult{}, err
+	}
+	if r == nil || r.backend == nil {
+		return cv2.PrepareControllerVoterResult{}, cv2.ErrNotStarted
+	}
+	return r.backend.PrepareControllerVoter(ctx, req)
 }
 
 func promoteControllerVoterResultFromCV2(result cv2.PromoteControllerVoterResult) PromoteControllerVoterResult {

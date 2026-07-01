@@ -507,11 +507,13 @@ func (a *App) wireNodeLifecycleRPC() {
 		return
 	}
 	adapter := accessnode.New(accessnode.Options{
-		NodeLifecycle:          management,
-		NodeReadiness:          a,
-		NodeLifecycleClusterID: strings.TrimSpace(a.cfg.Cluster.Control.ClusterID),
-		NodeLifecycleJoinToken: a.cfg.Cluster.Join.Token,
-		Logger:                 a.logger.Named("node"),
+		NodeLifecycle:            management,
+		NodeReadiness:            a,
+		ControllerVoterReadiness: a,
+		ControllerVoterPreparer:  a,
+		NodeLifecycleClusterID:   strings.TrimSpace(a.cfg.Cluster.Control.ClusterID),
+		NodeLifecycleJoinToken:   a.cfg.Cluster.Join.Token,
+		Logger:                   a.logger.Named("node"),
 	})
 	registrar.RegisterRPC(accessnode.NodeLifecycleRPCServiceID, nodeRPCHandlerFunc(adapter.HandleNodeLifecycleRPC))
 }
@@ -1011,10 +1013,15 @@ func (a *App) newManagerManagement() accessmanager.Management {
 			opts.SlotReplicaMove = clusterinfra.NewManagementSlotReplicaMoveAdapter(slotReplicaMoveNode)
 		}
 		if lifecycleNode, ok := a.cluster.(clusterinfra.ManagementNodeLifecycleNode); ok {
-			opts.NodeLifecycle = clusterinfra.NewManagementNodeLifecycleAdapter(lifecycleNode)
+			lifecycleAdapter := clusterinfra.NewManagementNodeLifecycleAdapter(lifecycleNode)
+			opts.NodeLifecycle = lifecycleAdapter
+			opts.ControllerVoterPromoter = lifecycleAdapter
 		}
 		if lifecycleNode, ok := a.cluster.(clusterinfra.NodeLifecycleNode); ok {
-			opts.NodeReadiness = clusterinfra.NewNodeLifecycleClient(lifecycleNode, strings.TrimSpace(a.cfg.Cluster.Control.ClusterID))
+			lifecycleClient := clusterinfra.NewNodeLifecycleClient(lifecycleNode, strings.TrimSpace(a.cfg.Cluster.Control.ClusterID))
+			opts.NodeReadiness = lifecycleClient
+			opts.ControllerVoterReadiness = lifecycleClient
+			opts.ControllerVoterPreparer = lifecycleClient
 		}
 		return managementusecase.New(opts)
 	}

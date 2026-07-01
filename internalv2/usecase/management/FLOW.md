@@ -111,9 +111,10 @@ target-side preparation proof. The final control writer request carries the
 snapshot revision, the previous durable voter set as a non-nil fence, and the
 observed Controller Raft config index and voter set returned by preparation.
 Missing promotion ports are reported as unavailable; failed safety gates are
-reported as blocked with bounded machine-readable reasons. This usecase does
-not implement HTTP routing, node RPC codecs, or app wiring for the target
-preparer.
+reported as blocked with bounded machine-readable reasons. HTTP routing stays
+outside this usecase. The target readiness and preparation ports are supplied
+by the node lifecycle RPC/app wiring path, and this usecase consumes only their
+entry-independent readiness and live-proof DTOs.
 
 ## Node Lifecycle Flow
 

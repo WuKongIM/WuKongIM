@@ -262,7 +262,14 @@ forwarding. The same service carries the activation readiness probe DTO:
 expected cluster ID, mirrored cluster ID/revision, reachability, transport,
 control, runtime, unknown, and last-error fields. This package only preserves
 that wire shape and maps stable statuses; the management usecase owns the
-activation gate.
+activation gate. The service also carries Controller voter promotion readiness
+and target preparation requests. Those operations validate the configured
+cluster ID at the RPC boundary, preserve the next Controller voter endpoints,
+and return the target-side live proof fields (`observed_config_index` and
+`observed_voters`) produced after preparation. Prepare conflicts and
+ControllerV2 expected-revision mismatches map back to the management
+Controller voter promotion blocked error; generic lifecycle conflict mapping is
+not reused for these promotion safety failures.
 
 ## Manager Channel RPC
 

@@ -12,6 +12,7 @@ import (
 
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/clusterv2/net"
 	cv2 "github.com/WuKongIM/WuKongIM/pkg/controllerv2"
+	"github.com/WuKongIM/WuKongIM/pkg/controllerv2/statefile"
 )
 
 func TestRuntimeSingleVoterBootstrapsSnapshot(t *testing.T) {
@@ -1040,6 +1041,43 @@ func TestRuntimePromoteControllerVoterRejectsExplicitEmptyExpectedVoters(t *test
 	node, ok := controlNodeByID(after.Nodes, 4)
 	if !ok || controlNodeHasRole(node, RoleController) {
 		t.Fatalf("node 4 after rejected promotion = %#v ok=%v, want active data node without controller role", node, ok)
+	}
+}
+
+func TestRuntimePrepareControllerVoterDelegatesToBackend(t *testing.T) {
+	stateDir := t.TempDir()
+	mirrorState := controllerV2State()
+	if err := statefile.New(filepath.Join(stateDir, "cluster-state.json")).Save(context.Background(), mirrorState); err != nil {
+		t.Fatalf("Save(mirror state) error = %v", err)
+	}
+	runtime, err := NewRuntime(RuntimeConfig{
+		NodeID:       2,
+		Addr:         "127.0.0.1:1002",
+		StateDir:     stateDir,
+		ClusterID:    mirrorState.ClusterID,
+		Role:         RuntimeRoleMirror,
+		Voters:       []RuntimeVoter{{NodeID: 1, Addr: "127.0.0.1:1001"}, {NodeID: 2, Addr: "127.0.0.1:1002"}},
+		TickInterval: 5 * time.Millisecond,
+	})
+	if err != nil {
+		t.Fatalf("NewRuntime() error = %v", err)
+	}
+	t.Cleanup(func() { _ = runtime.Stop(context.Background()) })
+
+	result, err := runtime.PrepareControllerVoter(context.Background(), cv2.PrepareControllerVoterRequest{
+		NodeID:           2,
+		ClusterID:        mirrorState.ClusterID,
+		ExpectedRevision: mirrorState.Revision,
+		NextVoters: []cv2.Voter{
+			{NodeID: 1, Addr: "127.0.0.1:1001"},
+			{NodeID: 2, Addr: "127.0.0.1:1002"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("PrepareControllerVoter() error = %v", err)
+	}
+	if !result.Prepared || result.StateRevision != mirrorState.Revision {
+		t.Fatalf("PrepareControllerVoter() = %#v, want prepared revision %d", result, mirrorState.Revision)
 	}
 }
 

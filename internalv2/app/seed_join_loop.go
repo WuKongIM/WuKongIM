@@ -11,6 +11,7 @@ import (
 	accessnode "github.com/WuKongIM/WuKongIM/internalv2/access/node"
 	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
+	cv2 "github.com/WuKongIM/WuKongIM/pkg/controllerv2"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
@@ -44,6 +45,15 @@ type seedJoinClient interface {
 
 type seedJoinSnapshotReader interface {
 	LocalControlSnapshot(context.Context) (control.Snapshot, error)
+}
+
+type controllerVoterPreparationNode interface {
+	PrepareControllerVoter(context.Context, cv2.PrepareControllerVoterRequest) (cv2.PrepareControllerVoterResult, error)
+	LocalControllerRaftStatus(context.Context) (control.ControllerRaftStatus, error)
+}
+
+type controllerRaftStatusNode interface {
+	LocalControllerRaftStatus(context.Context) (control.ControllerRaftStatus, error)
 }
 
 type seedJoinLoop struct {
@@ -321,6 +331,99 @@ func (a *App) NodeReadiness(ctx context.Context, req accessnode.NodeReadinessReq
 	return resp, nil
 }
 
+// ControllerVoterReadiness reports local readiness for Controller voter preparation.
+func (a *App) ControllerVoterReadiness(ctx context.Context, req accessnode.ControllerVoterReadinessRequest) (accessnode.ControllerVoterReadinessResponse, error) {
+	base, err := a.NodeReadiness(ctx, accessnode.NodeReadinessRequest{
+		NodeID:    req.NodeID,
+		ClusterID: req.ClusterID,
+	})
+	if err != nil {
+		return accessnode.ControllerVoterReadinessResponse{}, err
+	}
+	clusterID := strings.TrimSpace(base.MirrorClusterID)
+	if clusterID == "" {
+		clusterID = strings.TrimSpace(base.ClusterID)
+	}
+	resp := accessnode.ControllerVoterReadinessResponse{
+		NodeID:         base.NodeID,
+		ClusterID:      clusterID,
+		Reachable:      base.Reachable,
+		TransportReady: base.TransportReady,
+		ControlReady:   base.ControlReady,
+		RuntimeReady:   base.RuntimeReady,
+		CanPrepare:     base.Ready,
+		MirrorRevision: base.MirrorRevision,
+		Unknown:        base.Unknown,
+		LastError:      base.LastError,
+	}
+	if a == nil {
+		resp.ControlReady = false
+		resp.CanPrepare = false
+		resp.Unknown = true
+		resp.LastError = "app not configured"
+		return resp, nil
+	}
+	statusNode, ok := a.cluster.(controllerRaftStatusNode)
+	if !ok || statusNode == nil {
+		resp.ControlReady = false
+		resp.CanPrepare = false
+		resp.Unknown = true
+		resp.LastError = "controller raft status unavailable"
+		return resp, nil
+	}
+	status, err := statusNode.LocalControllerRaftStatus(ctx)
+	if err != nil {
+		resp.ControlReady = false
+		resp.CanPrepare = false
+		resp.Unknown = true
+		resp.LastError = err.Error()
+		return resp, nil
+	}
+	resp.IsVoter = seedJoinContainsUint64(status.Voters, resp.NodeID)
+	resp.ControlLeaderID = status.LeaderID
+	resp.ConfigIndex = status.AppliedIndex
+	resp.Voters = append([]uint64(nil), status.Voters...)
+	return resp, nil
+}
+
+// PrepareControllerVoter prepares this node for Controller Raft learner traffic and returns live proof.
+func (a *App) PrepareControllerVoter(ctx context.Context, req accessnode.PrepareControllerVoterRequest) (accessnode.PrepareControllerVoterResponse, error) {
+	if a == nil || a.cluster == nil {
+		return accessnode.PrepareControllerVoterResponse{}, fmt.Errorf("internalv2/app: cluster not configured")
+	}
+	node, ok := a.cluster.(controllerVoterPreparationNode)
+	if !ok || node == nil {
+		return accessnode.PrepareControllerVoterResponse{}, managementusecase.ErrControllerVoterPromotionUnavailable
+	}
+	nextVoters := make([]cv2.Voter, 0, len(req.NextVoters))
+	for _, voter := range req.NextVoters {
+		nextVoters = append(nextVoters, cv2.Voter{
+			NodeID: voter.NodeID,
+			Addr:   voter.Addr,
+		})
+	}
+	result, err := node.PrepareControllerVoter(ctx, cv2.PrepareControllerVoterRequest{
+		NodeID:           req.NodeID,
+		ClusterID:        req.ClusterID,
+		ExpectedRevision: req.ExpectedRevision,
+		NextVoters:       nextVoters,
+	})
+	if err != nil {
+		return accessnode.PrepareControllerVoterResponse{}, err
+	}
+	status, err := node.LocalControllerRaftStatus(ctx)
+	if err != nil {
+		return accessnode.PrepareControllerVoterResponse{}, err
+	}
+	return accessnode.PrepareControllerVoterResponse{
+		NodeID:              req.NodeID,
+		Prepared:            result.Prepared,
+		StateRevision:       result.StateRevision,
+		ObservedConfigIndex: status.AppliedIndex,
+		ObservedVoters:      append([]uint64(nil), status.Voters...),
+	}, nil
+}
+
 func (a *App) seedJoinPreActivationMode(ctx context.Context) bool {
 	node, ok := a.seedJoinLocalControlNode(ctx)
 	return ok && node.JoinState == control.NodeJoinStateJoining
@@ -374,6 +477,15 @@ func clusterDefaultSlotsReady(routes clusterWriteReadyRuntime) (bool, string) {
 		}
 	}
 	return true, ""
+}
+
+func seedJoinContainsUint64(values []uint64, want uint64) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
 }
 
 func waitSeedJoinDelay(ctx context.Context, delay time.Duration) bool {

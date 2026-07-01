@@ -73,17 +73,31 @@ management activation gate
   -> clusterv2 CallRPC(node_id, RPCNodeLifecycle)
   -> target node app-local readiness provider
   -> management NodeReadiness DTO
+
+controller voter promotion gate
+  -> NodeLifecycleClient.ControllerVoterReadiness(node_id)
+  -> NodeLifecycleClient.PrepareControllerVoter(request)
+  -> access/node NodeLifecycle RPC client
+  -> clusterv2 CallRPC(node_id, RPCNodeLifecycle)
+  -> target node app-local readiness / preparation providers
+  -> management readiness and preparation proof DTOs
 ```
 
 `NodeLifecycleClient` is the narrow cluster-facing wrapper for startup seed
-join and readiness RPCs. It maps the readiness wire DTO into the management
-usecase's entry-independent `NodeReadiness` shape, but it does not validate
-membership, choose activation timing, rebalance Slots, or call ActivateNode.
+join, readiness, and Controller voter preparation RPCs. It maps readiness wire
+DTOs into the management usecase's entry-independent readiness shapes and maps
+Controller voter preparation endpoints/proof fields without making promotion
+safety decisions. It does not validate membership, choose activation timing,
+rebalance Slots, call ActivateNode, or submit final Controller voter promotion
+writes.
 The seed-side handler still routes durable join writes through the management
 usecase and clusterv2 control writer. Activation readiness is checked through
 the typed node lifecycle RPC; callers should not substitute raw TCP probes for
 the transport-ready gate because the RPC response also carries the target
-mirror cluster ID, mirror revision, and app runtime readiness.
+mirror cluster ID, mirror revision, and app runtime readiness. Controller voter
+preparation responses preserve the target node's observed Controller Raft
+applied index and voter set as the live proof consumed by the management
+usecase before the final clusterv2 control write.
 
 ## Management Channel List Flow
 
