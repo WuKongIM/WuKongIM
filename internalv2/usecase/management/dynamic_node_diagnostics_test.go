@@ -334,6 +334,7 @@ func TestDynamicNodeDiagnosticsUsesSingleControlSnapshotForActiveOnboarding(t *t
 	require.Equal(t, uint64(77), resp.StateRevision)
 	require.Equal(t, uint64(77), resp.Onboarding.StateRevision)
 	require.Equal(t, 1, resp.Onboarding.Summary.TotalActive)
+	require.True(t, resp.Summary.BlockedByTasks)
 	require.Equal(t, 1, reader.calls)
 }
 

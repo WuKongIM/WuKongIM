@@ -204,6 +204,7 @@ func (a *App) DynamicNodeDiagnostics(ctx context.Context, req DynamicNodeDiagnos
 	taskSnapshots := joinedTasks.snapshots()
 	response.ActiveTasks = joinedTasks.controllerTasks(taskLimit)
 	response.Summary.ActiveTaskCount, response.Summary.FailedTaskCount = dynamicNodeDiagnosticTaskCounts(taskSnapshots)
+	response.Summary.BlockedByTasks = response.Summary.ActiveTaskCount > 0 || response.Summary.FailedTaskCount > 0
 	taskRowsBySlot := tasksBySlot(taskSnapshots)
 	slotRows, slotRuntimeSourceAvailable, slotRuntimeSourceError := buildDynamicNodeDiagnosticSlots(ctx, req.NodeID, snapshot.Slots, taskRowsBySlot, a.slotRuntimeStatus, slotLimit)
 	response.Slots = slotRows
