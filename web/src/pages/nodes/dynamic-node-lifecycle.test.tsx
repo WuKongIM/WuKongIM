@@ -7,7 +7,7 @@ import { createAnonymousAuthState, useAuthStore } from "@/auth/auth-store"
 import { I18nProvider } from "@/i18n/provider"
 import { resetLocale } from "@/i18n/locale-store"
 import { ManagerApiError } from "@/lib/manager-api"
-import type { ManagerNode } from "@/lib/manager-api.types"
+import type { ManagerNode, ManagerSlotTask } from "@/lib/manager-api.types"
 import { DynamicNodeLifecycleSheet } from "@/pages/nodes/dynamic-node-lifecycle"
 
 const joinNodeMock = vi.fn()
@@ -350,4 +350,154 @@ test("ignores join completion after close before reopening same lifecycle", asyn
   expect(screen.getByLabelText("Node ID")).toHaveValue(null)
   expect(screen.getByLabelText("Address")).toHaveValue("")
   expect(screen.getByLabelText("Name")).toHaveValue("")
+})
+
+test("plans starts and advances bounded slot onboarding for an active node", async () => {
+  const slotTask = {
+    task_id: "slot-replica-move-7-4",
+    slot_id: 7,
+    kind: "slot_replica_move",
+    step: "add_learner",
+    status: "pending",
+    source_node: 1,
+    target_node: 4,
+    target_peers: [2, 3, 4],
+    completion_policy: "all_target_peers",
+    config_epoch: 9,
+    attempt: 0,
+    last_error: "",
+    phase_index: 0,
+    observed_config_index: 0,
+    observed_voters: [2, 3],
+    observed_learners: [],
+    participants: [],
+  } satisfies ManagerSlotTask
+  planNodeOnboardingMock.mockResolvedValueOnce({
+    generated_at: "2026-07-01T08:00:00Z",
+    state_revision: 42,
+    target_node_id: 4,
+    max_slot_moves: 1,
+    candidates: [{
+      slot_id: 7,
+      source_node_id: 1,
+      target_node_id: 4,
+      target_peers: [2, 3, 4],
+      config_epoch: 9,
+    }],
+    skipped: [{ slot_id: 8, reason: "active_task", message: "slot already has an active task" }],
+  })
+  planNodeOnboardingMock.mockResolvedValueOnce({
+    generated_at: "2026-07-01T08:00:04Z",
+    state_revision: 46,
+    target_node_id: 4,
+    max_slot_moves: 1,
+    candidates: [{
+      slot_id: 9,
+      source_node_id: 2,
+      target_node_id: 4,
+      target_peers: [1, 3, 4],
+      config_epoch: 10,
+    }],
+    skipped: [],
+  })
+  startNodeOnboardingMock.mockResolvedValueOnce({
+    generated_at: "2026-07-01T08:00:01Z",
+    state_revision: 43,
+    target_node_id: 4,
+    max_slot_moves: 1,
+    created: 1,
+    results: [{ slot_id: 7, created: true, task: slotTask }],
+    skipped: [],
+  })
+  getNodeOnboardingStatusMock.mockResolvedValueOnce({
+    generated_at: "2026-07-01T08:00:02Z",
+    state_revision: 44,
+    target_node_id: 4,
+    summary: { total_active: 0, pending: 0, running: 0, failed: 0 },
+    tasks: [],
+  })
+  advanceNodeOnboardingMock.mockResolvedValueOnce({
+    generated_at: "2026-07-01T08:00:03Z",
+    state_revision: 45,
+    target_node_id: 4,
+    max_slot_moves: 1,
+    created: 0,
+    results: [],
+    skipped: [{ slot_id: 7, reason: "already_hosted", message: "target node already hosts the slot" }],
+  })
+  const onCompleted = vi.fn()
+  const user = userEvent.setup()
+
+  renderLifecycle("node", activeNode, onCompleted)
+
+  await user.click(screen.getByRole("button", { name: "Plan slot onboarding" }))
+
+  expect(planNodeOnboardingMock).toHaveBeenCalledWith(4, { maxSlotMoves: 1 })
+  expect(await screen.findByText("Slot 7")).toBeInTheDocument()
+  expect(screen.getByText("slot already has an active task")).toBeInTheDocument()
+
+  await user.click(screen.getByRole("button", { name: "Start onboarding" }))
+
+  expect(startNodeOnboardingMock).toHaveBeenCalledWith(4, { maxSlotMoves: 1 })
+  expect(await screen.findByText("Created tasks: 1")).toBeInTheDocument()
+  expect(onCompleted).toHaveBeenCalledTimes(1)
+
+  await user.click(screen.getByRole("button", { name: "Refresh onboarding status" }))
+
+  expect(getNodeOnboardingStatusMock).toHaveBeenCalledWith(4)
+  expect(await screen.findByText("Active tasks: 0")).toBeInTheDocument()
+
+  await user.click(screen.getByRole("button", { name: "Plan slot onboarding" }))
+
+  expect(planNodeOnboardingMock).toHaveBeenLastCalledWith(4, { maxSlotMoves: 1 })
+  expect(await screen.findByText("Slot 9")).toBeInTheDocument()
+  expect(screen.queryByText("Created tasks: 1")).not.toBeInTheDocument()
+  expect(screen.queryByText("Active tasks: 0")).not.toBeInTheDocument()
+
+  await user.click(screen.getByRole("button", { name: "Advance onboarding" }))
+
+  expect(advanceNodeOnboardingMock).toHaveBeenCalledWith(4, { maxSlotMoves: 1 })
+  expect(await screen.findByText("target node already hosts the slot")).toBeInTheDocument()
+  expect(onCompleted).toHaveBeenCalledTimes(2)
+})
+
+test("invalid onboarding move bounds do not call plan and blank defaults to one", async () => {
+  planNodeOnboardingMock.mockResolvedValueOnce({
+    generated_at: "2026-07-01T08:00:00Z",
+    state_revision: 42,
+    target_node_id: 4,
+    max_slot_moves: 1,
+    candidates: [{
+      slot_id: 7,
+      source_node_id: 1,
+      target_node_id: 4,
+      target_peers: [2, 3, 4],
+      config_epoch: 9,
+    }],
+    skipped: [],
+  })
+  const user = userEvent.setup()
+
+  renderLifecycle("node", activeNode)
+
+  await user.clear(screen.getByLabelText("Max slot moves"))
+  await user.type(screen.getByLabelText("Max slot moves"), "-1")
+  await user.click(screen.getByRole("button", { name: "Plan slot onboarding" }))
+
+  expect(planNodeOnboardingMock).not.toHaveBeenCalled()
+  expect(screen.getByRole("alert")).toHaveTextContent("Max slot moves must be a positive safe integer.")
+
+  await user.clear(screen.getByLabelText("Max slot moves"))
+  await user.type(screen.getByLabelText("Max slot moves"), "1.5")
+  await user.click(screen.getByRole("button", { name: "Plan slot onboarding" }))
+
+  expect(planNodeOnboardingMock).not.toHaveBeenCalled()
+  expect(screen.getByRole("alert")).toHaveTextContent("Max slot moves must be a positive safe integer.")
+
+  await user.clear(screen.getByLabelText("Max slot moves"))
+  await user.click(screen.getByRole("button", { name: "Plan slot onboarding" }))
+
+  expect(planNodeOnboardingMock).toHaveBeenCalledWith(4, { maxSlotMoves: 1 })
+  expect(await screen.findByText("Slot 7")).toBeInTheDocument()
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument()
 })

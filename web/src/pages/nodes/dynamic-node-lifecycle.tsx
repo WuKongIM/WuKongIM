@@ -6,12 +6,19 @@ import { StatusBadge } from "@/components/manager/status-badge"
 import { Button } from "@/components/ui/button"
 import {
   activateNode,
+  advanceNodeOnboarding,
+  getNodeOnboardingStatus,
   joinNode,
+  planNodeOnboarding,
+  startNodeOnboarding,
 } from "@/lib/manager-api"
 import type {
   ManagerActivateNodeResponse,
   ManagerJoinNodeResponse,
   ManagerNode,
+  ManagerNodeOnboardingPlanResponse,
+  ManagerNodeOnboardingStartResponse,
+  ManagerNodeOnboardingStatusResponse,
 } from "@/lib/manager-api.types"
 
 export type DynamicNodeLifecycleMode = "join" | "node"
@@ -42,6 +49,15 @@ function parsePositiveFiniteNumber(value: string) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null
 }
 
+function parsePositiveSafeInteger(value: string, defaultValue: number) {
+  const trimmed = value.trim()
+  if (!trimmed) {
+    return defaultValue
+  }
+  const parsed = Number(trimmed)
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null
+}
+
 export function DynamicNodeLifecycleSheet({
   open,
   mode,
@@ -59,6 +75,10 @@ export function DynamicNodeLifecycleSheet({
   const [error, setError] = useState("")
   const [joinResult, setJoinResult] = useState<ManagerJoinNodeResponse | null>(null)
   const [activateResult, setActivateResult] = useState<ManagerActivateNodeResponse | null>(null)
+  const [maxSlotMoves, setMaxSlotMoves] = useState("1")
+  const [onboardingPlan, setOnboardingPlan] = useState<ManagerNodeOnboardingPlanResponse | null>(null)
+  const [onboardingStart, setOnboardingStart] = useState<ManagerNodeOnboardingStartResponse | null>(null)
+  const [onboardingStatus, setOnboardingStatus] = useState<ManagerNodeOnboardingStatusResponse | null>(null)
   const lifecycleIdentity = `${mode}:${node?.node_id ?? "join"}`
   const previousLifecycleIdentity = useRef(lifecycleIdentity)
   const wasOpen = useRef(open)
@@ -88,6 +108,10 @@ export function DynamicNodeLifecycleSheet({
     setError("")
     setJoinResult(null)
     setActivateResult(null)
+    setMaxSlotMoves("1")
+    setOnboardingPlan(null)
+    setOnboardingStart(null)
+    setOnboardingStatus(null)
   }, [])
 
   useEffect(() => {
@@ -179,6 +203,135 @@ export function DynamicNodeLifecycleSheet({
     }
   }, [beginOperation, canWriteNodes, isCurrentOperation, node, onCompleted])
 
+  const boundedMovesInput = useCallback(() => {
+    const parsedMaxSlotMoves = parsePositiveSafeInteger(maxSlotMoves, 1)
+    if (parsedMaxSlotMoves === null) {
+      setError("Max slot moves must be a positive safe integer.")
+      return null
+    }
+    return { maxSlotMoves: parsedMaxSlotMoves }
+  }, [maxSlotMoves])
+
+  const runOnboardingPlan = useCallback(async () => {
+    if (!node || !canWriteNodes) {
+      return
+    }
+    const input = boundedMovesInput()
+    if (!input) {
+      return
+    }
+    setPending(true)
+    setError("")
+    const generation = beginOperation()
+
+    try {
+      const result = await planNodeOnboarding(node.node_id, input)
+      if (!isCurrentOperation(generation)) {
+        return
+      }
+      setOnboardingPlan(result)
+      setOnboardingStart(null)
+      setOnboardingStatus(null)
+    } catch (err) {
+      if (!isCurrentOperation(generation)) {
+        return
+      }
+      setError(err instanceof Error ? err.message : "node onboarding plan failed")
+    } finally {
+      if (isCurrentOperation(generation)) {
+        setPending(false)
+      }
+    }
+  }, [beginOperation, boundedMovesInput, canWriteNodes, isCurrentOperation, node])
+
+  const runOnboardingStart = useCallback(async () => {
+    if (!node || !canWriteNodes) {
+      return
+    }
+    const input = boundedMovesInput()
+    if (!input) {
+      return
+    }
+    setPending(true)
+    setError("")
+    const generation = beginOperation()
+
+    try {
+      const result = await startNodeOnboarding(node.node_id, input)
+      if (!isCurrentOperation(generation)) {
+        return
+      }
+      setOnboardingStart(result)
+      onCompleted()
+    } catch (err) {
+      if (!isCurrentOperation(generation)) {
+        return
+      }
+      setError(err instanceof Error ? err.message : "node onboarding start failed")
+    } finally {
+      if (isCurrentOperation(generation)) {
+        setPending(false)
+      }
+    }
+  }, [beginOperation, boundedMovesInput, canWriteNodes, isCurrentOperation, node, onCompleted])
+
+  const refreshOnboardingStatus = useCallback(async () => {
+    if (!node || !canWriteNodes) {
+      return
+    }
+    setPending(true)
+    setError("")
+    const generation = beginOperation()
+
+    try {
+      const result = await getNodeOnboardingStatus(node.node_id)
+      if (!isCurrentOperation(generation)) {
+        return
+      }
+      setOnboardingStatus(result)
+    } catch (err) {
+      if (!isCurrentOperation(generation)) {
+        return
+      }
+      setError(err instanceof Error ? err.message : "node onboarding status refresh failed")
+    } finally {
+      if (isCurrentOperation(generation)) {
+        setPending(false)
+      }
+    }
+  }, [beginOperation, canWriteNodes, isCurrentOperation, node])
+
+  const runOnboardingAdvance = useCallback(async () => {
+    if (!node || !canWriteNodes) {
+      return
+    }
+    const input = boundedMovesInput()
+    if (!input) {
+      return
+    }
+    setPending(true)
+    setError("")
+    const generation = beginOperation()
+
+    try {
+      const result = await advanceNodeOnboarding(node.node_id, input)
+      if (!isCurrentOperation(generation)) {
+        return
+      }
+      setOnboardingStart(result)
+      onCompleted()
+    } catch (err) {
+      if (!isCurrentOperation(generation)) {
+        return
+      }
+      setError(err instanceof Error ? err.message : "node onboarding advance failed")
+    } finally {
+      if (isCurrentOperation(generation)) {
+        setPending(false)
+      }
+    }
+  }, [beginOperation, boundedMovesInput, canWriteNodes, isCurrentOperation, node, onCompleted])
+
   const title = mode === "join" ? "Add node" : "Node lifecycle"
 
   return (
@@ -256,6 +409,89 @@ export function DynamicNodeLifecycleSheet({
               <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm text-muted-foreground">
                 <div>Join state: {activateResult.join_state}</div>
                 <div>Revision: {activateResult.revision}</div>
+              </div>
+            ) : null}
+            {nodeJoinState(node) === "active" && node.membership?.schedulable ? (
+              <div className="space-y-3 rounded-lg border border-border bg-muted/20 p-3">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                  <label className="text-sm font-medium text-foreground">
+                    Max slot moves
+                    <input
+                      className="mt-1 h-9 w-32 rounded-md border border-border bg-background px-3 text-sm"
+                      onChange={(event) => setMaxSlotMoves(event.target.value)}
+                      value={maxSlotMoves}
+                    />
+                  </label>
+                  <Button
+                    disabled={pending || !canWriteNodes}
+                    onClick={() => void runOnboardingPlan()}
+                    size="sm"
+                    type="button"
+                    variant="outline"
+                  >
+                    Plan slot onboarding
+                  </Button>
+                  <Button
+                    disabled={pending || !canWriteNodes || !onboardingPlan}
+                    onClick={() => void runOnboardingStart()}
+                    size="sm"
+                    type="button"
+                  >
+                    Start onboarding
+                  </Button>
+                  <Button
+                    disabled={pending || !canWriteNodes}
+                    onClick={() => void refreshOnboardingStatus()}
+                    size="sm"
+                    type="button"
+                    variant="outline"
+                  >
+                    Refresh onboarding status
+                  </Button>
+                  <Button
+                    disabled={pending || !canWriteNodes}
+                    onClick={() => void runOnboardingAdvance()}
+                    size="sm"
+                    type="button"
+                    variant="outline"
+                  >
+                    Advance onboarding
+                  </Button>
+                </div>
+                {onboardingPlan ? (
+                  <div className="space-y-2 text-sm">
+                    <div>State revision: {onboardingPlan.state_revision}</div>
+                    {onboardingPlan.candidates.map((candidate) => (
+                      <div className="rounded-md border border-border bg-background px-3 py-2" key={candidate.slot_id}>
+                        <div className="font-medium text-foreground">Slot {candidate.slot_id}</div>
+                        <div className="text-muted-foreground">
+                          {candidate.source_node_id} -&gt; {candidate.target_node_id}
+                        </div>
+                        <div className="text-muted-foreground">
+                          Target peers: {candidate.target_peers.join(", ")}
+                        </div>
+                      </div>
+                    ))}
+                    {onboardingPlan.skipped.map((skip) => (
+                      <div className="text-muted-foreground" key={`${skip.slot_id}-${skip.reason}`}>
+                        {skip.message || skip.reason}
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+                {onboardingStart ? (
+                  <div className="space-y-1 text-sm text-muted-foreground">
+                    <div>Created tasks: {onboardingStart.created}</div>
+                    {onboardingStart.skipped.map((skip) => (
+                      <div key={`${skip.slot_id}-${skip.reason}`}>{skip.message || skip.reason}</div>
+                    ))}
+                  </div>
+                ) : null}
+                {onboardingStatus ? (
+                  <div className="text-sm text-muted-foreground">
+                    Active tasks: {onboardingStatus.summary.total_active}
+                  </div>
+                ) : null}
               </div>
             ) : null}
             <Button size="sm" type="button" variant="outline">
