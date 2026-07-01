@@ -122,6 +122,9 @@
 
 ## Cluster Membership
 
+- `wkcli node` is an operations client for public manager HTTP only; dynamic
+  node process startup remains seed-join driven and outside the CLI.
+
 ### Discovery baseline
 - Static `WK_CLUSTER_NODES` remain a discovery baseline; controller node snapshots overlay them so early empty metadata reads do not break existing static clusters.
 - Static `WK_CLUSTER_NODES` addresses must be unique advertised endpoints; `0.0.0.0` is only a listen bind address and must not be published as a peer address.

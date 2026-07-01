@@ -18,6 +18,7 @@ Current commands:
 | `bench send` | Runs a lightweight WKProto SEND/SENDACK benchmark using `pkg/client`. |
 | `top` | Reads live internalv2 runtime pressure snapshots. |
 | `sim` | Runs a long-lived internalv2 real-traffic simulator. |
+| `node` | Operates internalv2 dynamic nodes through manager HTTP. |
 
 ## Top
 
@@ -153,6 +154,28 @@ go run ./cmd/wkcli sim --server http://127.0.0.1:5001 --status-listen 127.0.0.1:
 go run ./cmd/wkcli sim --server http://127.0.0.1:5001 --json --status-interval 5s
 go run ./cmd/wkcli sim --server http://127.0.0.1:5001 --max-runtime 30s
 ```
+
+## Node Operations
+
+`node` operates internalv2 dynamic data nodes through manager HTTP. It does not
+start or stop server processes and does not write ControllerV2 or Slot state
+directly.
+
+```bash
+go run ./cmd/wkcli node ls --context dev
+go run ./cmd/wkcli node activate 4 --context dev
+go run ./cmd/wkcli node onboarding start 4 --context dev --max-slot-moves 1
+go run ./cmd/wkcli node scale-in start 4 --context dev
+go run ./cmd/wkcli node scale-in drain 4 --context dev --draining=true
+go run ./cmd/wkcli node scale-in status 4 --context dev
+go run ./cmd/wkcli node scale-in remove 4 --context dev
+```
+
+The command preserves manager safety evidence in output, including health
+freshness, control revision, `blocked_reasons`, `safe_to_remove`, and gateway
+drain counters. Use
+`docs/superpowers/runbooks/internalv2-dynamic-node-operations.md` for the full
+operator procedure.
 
 ## Extending
 

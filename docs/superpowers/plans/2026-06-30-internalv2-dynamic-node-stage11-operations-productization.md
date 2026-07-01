@@ -1893,7 +1893,7 @@ git commit -m "test: add dynamic node operations gate"
 - Modify: `docs/superpowers/plans/2026-06-24-internalv2-dynamic-node-lifecycle.md`
 - Modify: `docs/superpowers/plans/2026-06-30-internalv2-dynamic-node-stage11-operations-productization.md`
 
-- [ ] **Step 1: Write the operations runbook**
+- [x] **Step 1: Write the operations runbook**
 
 Create `docs/superpowers/runbooks/internalv2-dynamic-node-operations.md`:
 
@@ -2051,7 +2051,7 @@ data/dynamic-node-readiness-gate/<timestamp>/
 ```
 ````
 
-- [ ] **Step 2: Update `cmd/wkcli/README.md`**
+- [x] **Step 2: Update `cmd/wkcli/README.md`**
 
 Add a `Node Operations` section after `Sim`:
 
@@ -2085,7 +2085,7 @@ Also update the command table to include:
 | `node` | Operates internalv2 dynamic nodes through manager HTTP. |
 ```
 
-- [ ] **Step 3: Update project knowledge**
+- [x] **Step 3: Update project knowledge**
 
 Add one concise bullet under `## Cluster Membership` in `docs/development/PROJECT_KNOWLEDGE.md`:
 
@@ -2094,7 +2094,7 @@ Add one concise bullet under `## Cluster Membership` in `docs/development/PROJEC
   node process startup remains seed-join driven and outside the CLI.
 ```
 
-- [ ] **Step 4: Verify and maintain Stage 11 links in the master lifecycle plan**
+- [x] **Step 4: Verify and maintain Stage 11 links in the master lifecycle plan**
 
 Modify `docs/superpowers/plans/2026-06-24-internalv2-dynamic-node-lifecycle.md`.
 
@@ -2149,7 +2149,15 @@ Expected: CLI unit tests, script tests, real CLI operations e2e, full operations
 gate, and whitespace checks pass on merged local `main`.
 ````
 
-- [ ] **Step 5: Run docs and focused tests**
+- [x] **Step 5: Run docs and focused tests**
+
+Evidence note: Task 6 adds the operations runbook, `wkcli node` README section,
+project knowledge link, and confirms the master lifecycle plan already links
+Stage 11 after Stage 10B with the required completion gate commands.
+
+Verification evidence: `GOWORK=off go test ./cmd/wkcli ./cmd/wkcli/internal/... -count=1`,
+`GOWORK=off go test ./scripts -run DynamicNodeReadinessGate -count=1`, and
+`git diff --check` passed for Task 6.
 
 Run:
 
@@ -2161,7 +2169,7 @@ git diff --check
 
 Expected: focused tests pass and docs have no whitespace errors.
 
-- [ ] **Step 6: Commit Task 6**
+- [x] **Step 6: Commit Task 6**
 
 ```bash
 git add cmd/wkcli/README.md docs/development/PROJECT_KNOWLEDGE.md docs/superpowers/runbooks/internalv2-dynamic-node-operations.md docs/superpowers/plans/2026-06-24-internalv2-dynamic-node-lifecycle.md docs/superpowers/plans/2026-06-30-internalv2-dynamic-node-stage11-operations-productization.md
