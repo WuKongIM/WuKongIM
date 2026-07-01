@@ -124,6 +124,39 @@ func findNode(nodes []state.Node, nodeID uint64) int {
 	return -1
 }
 
+func controllerVoterNodeIDs(controllers []state.ControllerVoter) []uint64 {
+	out := make([]uint64, 0, len(controllers))
+	for _, controller := range controllers {
+		out = append(out, controller.NodeID)
+	}
+	return out
+}
+
+func controllerVoterByNodeID(controllers []state.ControllerVoter, nodeID uint64) (state.ControllerVoter, bool) {
+	for _, controller := range controllers {
+		if controller.NodeID == nodeID {
+			return controller, true
+		}
+	}
+	return state.ControllerVoter{}, false
+}
+
+func hasNodeRole(roles []state.NodeRole, role state.NodeRole) bool {
+	for _, existing := range roles {
+		if existing == role {
+			return true
+		}
+	}
+	return false
+}
+
+func appendNodeRoleIfMissing(roles []state.NodeRole, role state.NodeRole) []state.NodeRole {
+	if hasNodeRole(roles, role) {
+		return roles
+	}
+	return append(append([]state.NodeRole(nil), roles...), role)
+}
+
 func findAssignment(assignments []state.SlotAssignment, slotID uint32) (state.SlotAssignment, bool) {
 	for _, assignment := range assignments {
 		if assignment.SlotID == slotID {

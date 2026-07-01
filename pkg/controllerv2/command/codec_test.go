@@ -1,6 +1,7 @@
 package command
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -138,7 +139,91 @@ func TestCommandLeaderTransferTaskCodecRoundTrip(t *testing.T) {
 	require.Equal(t, want, got)
 }
 
+func TestControllerVoterPromotionCommandRoundTrip(t *testing.T) {
+	expectedRevision := uint64(11)
+	now := time.Date(2026, 5, 24, 14, 0, 0, 0, time.UTC)
+	want := Command{
+		Kind:             KindPromoteControllerVoter,
+		IssuedAt:         now,
+		ExpectedRevision: &expectedRevision,
+		ControllerVoterPromotion: &ControllerVoterPromotion{
+			TargetNodeID:           3,
+			TargetAddr:             "n3",
+			ExpectedPreviousVoters: []uint64{1, 2},
+			ObservedConfigIndex:    42,
+			ObservedVoters:         []uint64{1, 2, 3},
+		},
+	}
+
+	data, err := Encode(want)
+	require.NoError(t, err)
+	require.Contains(t, string(data), `"controller_voter_promotion"`)
+
+	got, err := Decode(data)
+	require.NoError(t, err)
+	require.Equal(t, want, got)
+}
+
+func TestControllerVoterPromotionCommandPreservesExplicitEmptyExpectedVoters(t *testing.T) {
+	now := time.Date(2026, 5, 24, 15, 0, 0, 0, time.UTC)
+	want := Command{
+		Kind:     KindPromoteControllerVoter,
+		IssuedAt: now,
+		ControllerVoterPromotion: &ControllerVoterPromotion{
+			TargetNodeID:           3,
+			TargetAddr:             "n3",
+			ExpectedPreviousVoters: []uint64{},
+			ObservedConfigIndex:    42,
+			ObservedVoters:         []uint64{1, 2, 3},
+		},
+	}
+
+	data, err := Encode(want)
+	require.NoError(t, err)
+	requireJSONPathEqual(t, data, []string{"command", "controller_voter_promotion", "expected_previous_voters"}, []any{})
+
+	got, err := Decode(data)
+	require.NoError(t, err)
+	require.NotNil(t, got.ControllerVoterPromotion.ExpectedPreviousVoters)
+	require.Empty(t, got.ControllerVoterPromotion.ExpectedPreviousVoters)
+}
+
+func TestControllerVoterPromotionCommandPreservesNilExpectedVoters(t *testing.T) {
+	now := time.Date(2026, 5, 24, 16, 0, 0, 0, time.UTC)
+	want := Command{
+		Kind:     KindPromoteControllerVoter,
+		IssuedAt: now,
+		ControllerVoterPromotion: &ControllerVoterPromotion{
+			TargetNodeID:        3,
+			TargetAddr:          "n3",
+			ObservedConfigIndex: 42,
+			ObservedVoters:      []uint64{1, 2, 3},
+		},
+	}
+
+	data, err := Encode(want)
+	require.NoError(t, err)
+	requireJSONPathEqual(t, data, []string{"command", "controller_voter_promotion", "expected_previous_voters"}, nil)
+
+	got, err := Decode(data)
+	require.NoError(t, err)
+	require.Nil(t, got.ControllerVoterPromotion.ExpectedPreviousVoters)
+}
+
 func TestCommandDecodeRejectsUnknownVersion(t *testing.T) {
 	_, err := Decode([]byte(`{"version":2,"command":{"kind":"init_cluster_state"}}`))
 	require.ErrorIs(t, err, ErrUnsupportedVersion)
+}
+
+func requireJSONPathEqual(t *testing.T, data []byte, path []string, want any) {
+	t.Helper()
+	var got any
+	require.NoError(t, json.Unmarshal(data, &got))
+	for _, key := range path {
+		object, ok := got.(map[string]any)
+		require.True(t, ok, "expected object while resolving %v", path)
+		got, ok = object[key]
+		require.True(t, ok, "missing JSON key %q while resolving %v", key, path)
+	}
+	require.Equal(t, want, got)
 }

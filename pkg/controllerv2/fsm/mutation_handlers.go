@@ -53,6 +53,57 @@ func (sm *StateMachine) applyUpdateControllerVoters(next *state.ClusterState, cm
 	return validateChanged(next, before, cmd)
 }
 
+func (sm *StateMachine) applyPromoteControllerVoter(next *state.ClusterState, cmd command.Command) ApplyResult {
+	promotion := cmd.ControllerVoterPromotion
+	if next.Revision == 0 || promotion == nil || promotion.TargetNodeID == 0 || promotion.TargetAddr == "" {
+		return reject(ReasonInvalidCommand)
+	}
+	currentVoters := controllerVoterNodeIDs(next.Controllers)
+	controller, controllerExists := controllerVoterByNodeID(next.Controllers, promotion.TargetNodeID)
+	expectedNextVoters := append([]uint64(nil), currentVoters...)
+	if !controllerExists {
+		expectedNextVoters = append(expectedNextVoters, promotion.TargetNodeID)
+	}
+	if promotion.ObservedConfigIndex == 0 || !sameUint64Set(promotion.ObservedVoters, expectedNextVoters) {
+		return reject(ReasonControllerVoterProofMissing)
+	}
+	if promotion.ExpectedPreviousVoters != nil && !sameUint64Set(promotion.ExpectedPreviousVoters, currentVoters) {
+		return reject(ReasonControllerVoterSetMismatch)
+	}
+	nodeIdx := findNode(next.Nodes, promotion.TargetNodeID)
+	if nodeIdx < 0 {
+		return reject(ReasonInvalidState)
+	}
+	node := next.Nodes[nodeIdx]
+	if node.Addr != promotion.TargetAddr || node.JoinState != state.NodeJoinStateActive {
+		return reject(ReasonInvalidState)
+	}
+	if controllerExists {
+		if controller.Addr != promotion.TargetAddr || controller.Role != state.ControllerRoleVoter {
+			return reject(ReasonInvalidState)
+		}
+		if !hasNodeRole(node.Roles, state.NodeRoleControllerVoter) {
+			return reject(ReasonInvalidState)
+		}
+		return noop(ReasonNoChange)
+	}
+
+	before := next.Clone()
+	if !controllerExists {
+		next.Controllers = append(next.Controllers, state.ControllerVoter{
+			NodeID: promotion.TargetNodeID,
+			Addr:   promotion.TargetAddr,
+			Role:   state.ControllerRoleVoter,
+		})
+	}
+	next.Nodes[nodeIdx].Roles = appendNodeRoleIfMissing(next.Nodes[nodeIdx].Roles, state.NodeRoleControllerVoter)
+	next.Normalize()
+	if reflect.DeepEqual(before.Controllers, next.Controllers) && reflect.DeepEqual(before.Nodes, next.Nodes) {
+		return noop(ReasonNoChange)
+	}
+	return validateChanged(next, before, cmd)
+}
+
 func (sm *StateMachine) applyReplaceHashSlotTable(next *state.ClusterState, cmd command.Command) ApplyResult {
 	if next.Revision == 0 || cmd.HashSlots == nil {
 		return reject(ReasonInvalidCommand)

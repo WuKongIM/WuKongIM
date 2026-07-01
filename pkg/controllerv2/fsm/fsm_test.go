@@ -151,6 +151,248 @@ func TestApplyReportNodeHealthRejectsUnknownNode(t *testing.T) {
 	}
 }
 
+func TestApplyPromoteControllerVoterAddsControllerAndNodeRole(t *testing.T) {
+	ctx := context.Background()
+	sm, store := initializedStateMachine(t, 1)
+
+	result, err := sm.Apply(ctx, 2, promoteControllerVoterCommand())
+	require.NoError(t, err)
+	require.Equal(t, ApplyResult{Changed: true, Revision: 2, AppliedRaftIndex: 2}, result)
+
+	snap := sm.Snapshot(ctx)
+	controller, ok := controllerVoterByNodeID(snap.Controllers, 3)
+	require.True(t, ok)
+	require.Equal(t, state.ControllerVoter{NodeID: 3, Addr: "n3", Role: state.ControllerRoleVoter}, controller)
+	nodeIdx := findNode(snap.Nodes, 3)
+	require.NotEqual(t, -1, nodeIdx)
+	require.True(t, hasNodeRole(snap.Nodes[nodeIdx].Roles, state.NodeRoleControllerVoter))
+	require.True(t, hasNodeRole(snap.Nodes[nodeIdx].Roles, state.NodeRoleData))
+	require.NoError(t, snap.Validate())
+
+	persisted, err := store.Load(ctx)
+	require.NoError(t, err)
+	require.Len(t, persisted.Controllers, 3)
+	require.Equal(t, uint64(2), persisted.Revision)
+}
+
+func TestApplyPromoteControllerVoterNoopsWhenAlreadyConsistent(t *testing.T) {
+	ctx := context.Background()
+	sm, _ := initializedStateMachine(t, 1)
+	applyOK(t, sm, 2, promoteControllerVoterCommand())
+
+	cmd := promoteControllerVoterCommand()
+	cmd.ControllerVoterPromotion.ExpectedPreviousVoters = []uint64{1, 2, 3}
+	result, err := sm.Apply(ctx, 3, cmd)
+	require.NoError(t, err)
+	require.Equal(t, ApplyResult{Noop: true, Reason: ReasonNoChange, Revision: 2, AppliedRaftIndex: 3}, result)
+
+	snap := sm.Snapshot(ctx)
+	require.Len(t, snap.Controllers, 3)
+	nodeIdx := findNode(snap.Nodes, 3)
+	require.NotEqual(t, -1, nodeIdx)
+	require.True(t, hasNodeRole(snap.Nodes[nodeIdx].Roles, state.NodeRoleControllerVoter))
+}
+
+func TestApplyPromoteControllerVoterRejectsMissingRaftProof(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func(*command.ControllerVoterPromotion)
+	}{
+		{
+			name: "missing config index",
+			mutate: func(p *command.ControllerVoterPromotion) {
+				p.ObservedConfigIndex = 0
+			},
+		},
+		{
+			name: "observed voters missing target",
+			mutate: func(p *command.ControllerVoterPromotion) {
+				p.ObservedVoters = []uint64{1, 2}
+			},
+		},
+		{
+			name: "observed voters missing existing voters",
+			mutate: func(p *command.ControllerVoterPromotion) {
+				p.ObservedVoters = []uint64{3}
+			},
+		},
+		{
+			name: "observed voters contains extra voter",
+			mutate: func(p *command.ControllerVoterPromotion) {
+				p.ObservedVoters = []uint64{1, 2, 3, 99}
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			sm, _ := initializedStateMachine(t, 1)
+			cmd := promoteControllerVoterCommand()
+			tt.mutate(cmd.ControllerVoterPromotion)
+
+			result, err := sm.Apply(ctx, 2, cmd)
+			require.NoError(t, err)
+			require.Equal(t, ApplyResult{Rejected: true, Reason: ReasonControllerVoterProofMissing, Revision: 1, AppliedRaftIndex: 2}, result)
+			_, ok := controllerVoterByNodeID(sm.Snapshot(ctx).Controllers, 3)
+			require.False(t, ok)
+		})
+	}
+}
+
+func TestApplyPromoteControllerVoterRejectsExpectedVoterSetMismatch(t *testing.T) {
+	ctx := context.Background()
+	sm, _ := initializedStateMachine(t, 1)
+	cmd := promoteControllerVoterCommand()
+	cmd.ControllerVoterPromotion.ExpectedPreviousVoters = []uint64{1}
+
+	result, err := sm.Apply(ctx, 2, cmd)
+	require.NoError(t, err)
+	require.Equal(t, ApplyResult{Rejected: true, Reason: ReasonControllerVoterSetMismatch, Revision: 1, AppliedRaftIndex: 2}, result)
+	_, ok := controllerVoterByNodeID(sm.Snapshot(ctx).Controllers, 3)
+	require.False(t, ok)
+}
+
+func TestApplyPromoteControllerVoterRejectsExplicitEmptyExpectedVoterFence(t *testing.T) {
+	ctx := context.Background()
+	sm, _ := initializedStateMachine(t, 1)
+	expected := uint64(1)
+
+	result, err := sm.Apply(ctx, 2, command.Command{
+		Kind:             command.KindPromoteControllerVoter,
+		ExpectedRevision: &expected,
+		ControllerVoterPromotion: &command.ControllerVoterPromotion{
+			TargetNodeID:           3,
+			TargetAddr:             "n3",
+			ExpectedPreviousVoters: []uint64{},
+			ObservedConfigIndex:    11,
+			ObservedVoters:         []uint64{1, 2, 3},
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, ApplyResult{Rejected: true, Reason: ReasonControllerVoterSetMismatch, Revision: 1, AppliedRaftIndex: 2}, result)
+}
+
+func TestApplyPromoteControllerVoterAllowsNilExpectedVoterFence(t *testing.T) {
+	ctx := context.Background()
+	sm, _ := initializedStateMachine(t, 1)
+	cmd := promoteControllerVoterCommand()
+	cmd.ControllerVoterPromotion.ExpectedPreviousVoters = nil
+
+	result, err := sm.Apply(ctx, 2, cmd)
+	require.NoError(t, err)
+	require.Equal(t, ApplyResult{Changed: true, Revision: 2, AppliedRaftIndex: 2}, result)
+
+	snap := sm.Snapshot(ctx)
+	_, ok := controllerVoterByNodeID(snap.Controllers, 3)
+	require.True(t, ok)
+	nodeIdx := findNode(snap.Nodes, 3)
+	require.NotEqual(t, -1, nodeIdx)
+	require.True(t, hasNodeRole(snap.Nodes[nodeIdx].Roles, state.NodeRoleControllerVoter))
+}
+
+func TestApplyPromoteControllerVoterRejectsAlreadyConsistentStaleExpectedVoters(t *testing.T) {
+	ctx := context.Background()
+	sm, _ := initializedStateMachine(t, 1)
+	applyOK(t, sm, 2, promoteControllerVoterCommand())
+
+	result, err := sm.Apply(ctx, 3, promoteControllerVoterCommand())
+	require.NoError(t, err)
+	require.Equal(t, ApplyResult{Rejected: true, Reason: ReasonControllerVoterSetMismatch, Revision: 2, AppliedRaftIndex: 3}, result)
+}
+
+func TestApplyPromoteControllerVoterRejectsExistingControllerAddressMismatch(t *testing.T) {
+	ctx := context.Background()
+	sm, _ := initializedStateMachine(t, 1)
+	applyOK(t, sm, 2, promoteControllerVoterCommand())
+	snap := sm.Snapshot(ctx)
+	controllers := append([]state.ControllerVoter(nil), snap.Controllers...)
+	for i := range controllers {
+		if controllers[i].NodeID == 3 {
+			controllers[i].Addr = "wrong"
+		}
+	}
+	applyOK(t, sm, 3, command.Command{Kind: command.KindUpdateControllerVoters, Controllers: controllers})
+
+	cmd := promoteControllerVoterCommand()
+	cmd.ControllerVoterPromotion.ExpectedPreviousVoters = []uint64{1, 2, 3}
+	result, err := sm.Apply(ctx, 4, cmd)
+	require.NoError(t, err)
+	require.Equal(t, ApplyResult{Rejected: true, Reason: ReasonInvalidState, Revision: 3, AppliedRaftIndex: 4}, result)
+}
+
+func TestApplyPromoteControllerVoterRejectsExistingControllerWithMissingNodeRole(t *testing.T) {
+	ctx := context.Background()
+	sm, _ := initializedStateMachine(t, 1)
+	applyOK(t, sm, 2, promoteControllerVoterCommand())
+	snap := sm.Snapshot(ctx)
+	nodeIdx := findNode(snap.Nodes, 3)
+	require.NotEqual(t, -1, nodeIdx)
+	snap.Nodes[nodeIdx].Roles = []state.NodeRole{state.NodeRoleData}
+
+	cmd := promoteControllerVoterCommand()
+	cmd.ControllerVoterPromotion.ExpectedPreviousVoters = []uint64{1, 2, 3}
+	result := sm.applyPromoteControllerVoter(&snap, cmd)
+	require.Equal(t, reject(ReasonInvalidState), result)
+	require.Equal(t, []state.NodeRole{state.NodeRoleData}, snap.Nodes[nodeIdx].Roles)
+}
+
+func TestApplyPromoteControllerVoterRejectsInactiveOrAddressMismatch(t *testing.T) {
+	tests := []struct {
+		name       string
+		targetID   uint64
+		targetAddr string
+		mutateNode func(*state.Node)
+	}{
+		{
+			name:       "missing node",
+			targetID:   99,
+			targetAddr: "n99",
+		},
+		{
+			name:       "address mismatch",
+			targetID:   3,
+			targetAddr: "wrong",
+		},
+		{
+			name:       "inactive node",
+			targetID:   3,
+			targetAddr: "n3",
+			mutateNode: func(node *state.Node) {
+				node.JoinState = state.NodeJoinStateLeaving
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			sm, _ := initializedStateMachine(t, 1)
+			if tt.mutateNode != nil {
+				snap := sm.Snapshot(ctx)
+				nodeIdx := findNode(snap.Nodes, tt.targetID)
+				require.NotEqual(t, -1, nodeIdx)
+				tt.mutateNode(&snap.Nodes[nodeIdx])
+				applyOK(t, sm, 2, command.Command{Kind: command.KindUpsertNode, Node: &snap.Nodes[nodeIdx]})
+			}
+			cmd := promoteControllerVoterCommand()
+			cmd.ControllerVoterPromotion.TargetNodeID = tt.targetID
+			cmd.ControllerVoterPromotion.TargetAddr = tt.targetAddr
+			cmd.ControllerVoterPromotion.ObservedVoters = []uint64{1, 2, tt.targetID}
+
+			raftIndex := uint64(2)
+			revision := uint64(1)
+			if tt.mutateNode != nil {
+				raftIndex = 3
+				revision = 2
+			}
+			result, err := sm.Apply(ctx, raftIndex, cmd)
+			require.NoError(t, err)
+			require.Equal(t, ApplyResult{Rejected: true, Reason: ReasonInvalidState, Revision: revision, AppliedRaftIndex: raftIndex}, result)
+			_, ok := controllerVoterByNodeID(sm.Snapshot(ctx).Controllers, tt.targetID)
+			require.False(t, ok)
+		})
+	}
+}
+
 func TestApplyBatchPersistsOnceAndReturnsPerEntryResults(t *testing.T) {
 	ctx := context.Background()
 	dir := t.TempDir()
@@ -1125,6 +1367,19 @@ func initCommand() command.Command {
 			Config:      testConfig(),
 			Controllers: baseControllers(),
 			Nodes:       baseNodes(),
+		},
+	}
+}
+
+func promoteControllerVoterCommand() command.Command {
+	return command.Command{
+		Kind: command.KindPromoteControllerVoter,
+		ControllerVoterPromotion: &command.ControllerVoterPromotion{
+			TargetNodeID:           3,
+			TargetAddr:             "n3",
+			ExpectedPreviousVoters: []uint64{1, 2},
+			ObservedConfigIndex:    42,
+			ObservedVoters:         []uint64{1, 2, 3},
 		},
 	}
 }

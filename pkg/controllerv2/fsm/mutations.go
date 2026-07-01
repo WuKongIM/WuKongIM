@@ -46,6 +46,10 @@ const (
 	ReasonTaskObservedLearnersMismatch = "task_observed_learners_mismatch"
 	// ReasonTaskObservedConfigMissing marks a commit without a durable Slot Raft config observation.
 	ReasonTaskObservedConfigMissing = "task_observed_config_missing"
+	// ReasonControllerVoterProofMissing marks a promotion without live Controller Raft voter evidence.
+	ReasonControllerVoterProofMissing = "controller_voter_proof_missing"
+	// ReasonControllerVoterSetMismatch marks a promotion fenced to a stale Controller voter set.
+	ReasonControllerVoterSetMismatch = "controller_voter_set_mismatch"
 	// ReasonInitConflict marks an init command that does not match existing state.
 	ReasonInitConflict = "init_conflict"
 	// MaxTaskLastErrorBytes bounds the durable LastError field for failed tasks.
@@ -110,6 +114,8 @@ func (sm *StateMachine) applyMutation(next *state.ClusterState, raftIndex uint64
 		result = sm.applyUpsertNode(next, cmd)
 	case command.KindUpdateControllerVoters:
 		result = sm.applyUpdateControllerVoters(next, cmd)
+	case command.KindPromoteControllerVoter:
+		result = sm.applyPromoteControllerVoter(next, cmd)
 	case command.KindReplaceHashSlotTable:
 		result = sm.applyReplaceHashSlotTable(next, cmd)
 	case command.KindUpsertSlotAssignmentAndTask:

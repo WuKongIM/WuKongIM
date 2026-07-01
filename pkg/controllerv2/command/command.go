@@ -16,6 +16,8 @@ const (
 	KindUpsertNode Kind = "upsert_node"
 	// KindUpdateControllerVoters replaces the desired Controller voter set.
 	KindUpdateControllerVoters Kind = "update_controller_voters"
+	// KindPromoteControllerVoter atomically declares a live Controller Raft voter in durable cluster state.
+	KindPromoteControllerVoter Kind = "promote_controller_voter"
 	// KindUpsertSlotAssignmentAndTask atomically writes a slot assignment and reconcile task.
 	KindUpsertSlotAssignmentAndTask Kind = "upsert_slot_assignment_and_task"
 	// KindUpsertSlotReplicaMoveTask writes a staged Slot replica move task without changing assignment peers.
@@ -50,6 +52,8 @@ type Command struct {
 	Node *state.Node `json:"node,omitempty"`
 	// Controllers contains the replacement Controller voter set.
 	Controllers []state.ControllerVoter `json:"controllers,omitempty"`
+	// ControllerVoterPromotion carries a proven Controller Raft membership promotion.
+	ControllerVoterPromotion *ControllerVoterPromotion `json:"controller_voter_promotion,omitempty"`
 	// Assignment contains the desired slot assignment to upsert.
 	Assignment *state.SlotAssignment `json:"assignment,omitempty"`
 	// Task contains the active reconcile task to upsert.
@@ -66,6 +70,20 @@ type Command struct {
 	NodeHealth *state.NodeHealthReport `json:"node_health,omitempty"`
 	// HashSlots contains a replacement hash-slot table.
 	HashSlots *state.HashSlotTable `json:"hash_slots,omitempty"`
+}
+
+// ControllerVoterPromotion records a proven promotion of one node into Controller Raft voting membership.
+type ControllerVoterPromotion struct {
+	// TargetNodeID is the active cluster node that has been promoted in live Controller Raft.
+	TargetNodeID uint64 `json:"target_node_id"`
+	// TargetAddr is the stable control-plane address expected in durable node state.
+	TargetAddr string `json:"target_addr"`
+	// ExpectedPreviousVoters fences the state command to the voter set observed before the promotion.
+	ExpectedPreviousVoters []uint64 `json:"expected_previous_voters"`
+	// ObservedConfigIndex is the Controller Raft config index that proved the target voter.
+	ObservedConfigIndex uint64 `json:"observed_config_index"`
+	// ObservedVoters is the live Controller Raft voter set observed after learner promotion.
+	ObservedVoters []uint64 `json:"observed_voters,omitempty"`
 }
 
 // SlotReplicaMovePhaseAdvance records an observed Slot Raft config phase.
