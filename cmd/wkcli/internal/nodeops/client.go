@@ -72,6 +72,13 @@ type DrainRequest struct {
 	Draining bool `json:"draining"`
 }
 
+// DiagnosticRequest bounds manager diagnostic evidence returned per section.
+type DiagnosticRequest struct {
+	TaskLimit  int
+	AuditLimit int
+	SlotLimit  int
+}
+
 // NodeScaleInStatus preserves manager root-cause fields for scale-in decisions.
 type NodeScaleInStatus struct {
 	NodeID                   uint64   `json:"node_id"`
@@ -137,10 +144,14 @@ func NewClient(cfg Config) *Client {
 }
 
 func (c *Client) doJSON(ctx context.Context, method, path string, in any, out any) error {
+	return c.doJSONWithQuery(ctx, method, path, "", in, out)
+}
+
+func (c *Client) doJSONWithQuery(ctx context.Context, method, path, rawQuery string, in any, out any) error {
 	if c == nil || strings.TrimSpace(c.baseURL) == "" {
 		return errors.New("manager server must be configured")
 	}
-	endpoint, err := c.endpoint(path)
+	endpoint, err := c.endpointWithQuery(path, rawQuery)
 	if err != nil {
 		return err
 	}
@@ -202,6 +213,10 @@ func readResponseBody(body io.Reader) ([]byte, error) {
 }
 
 func (c *Client) endpoint(path string) (string, error) {
+	return c.endpointWithQuery(path, "")
+}
+
+func (c *Client) endpointWithQuery(path, rawQuery string) (string, error) {
 	parsed, err := url.Parse(c.baseURL)
 	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
 		return "", fmt.Errorf("manager server %q must be an absolute http or https URL", c.baseURL)
@@ -210,7 +225,7 @@ func (c *Client) endpoint(path string) (string, error) {
 		return "", fmt.Errorf("manager server %q must use http or https", c.baseURL)
 	}
 	parsed.Path = strings.TrimRight(parsed.Path, "/") + "/" + strings.TrimLeft(path, "/")
-	parsed.RawQuery = ""
+	parsed.RawQuery = rawQuery
 	parsed.Fragment = ""
 	return parsed.String(), nil
 }
@@ -267,6 +282,14 @@ func (c *Client) ScaleInStatus(ctx context.Context, nodeID uint64) (NodeScaleInS
 	var out NodeScaleInStatus
 	err := c.doJSON(ctx, http.MethodGet, nodePath(nodeID, "scale-in/status"), nil, &out)
 	return out, err
+}
+
+func (c *Client) DynamicNodeDiagnostics(ctx context.Context, nodeID uint64, req DiagnosticRequest, out any) error {
+	query := url.Values{}
+	query.Set("audit_limit", fmt.Sprintf("%d", req.AuditLimit))
+	query.Set("slot_limit", fmt.Sprintf("%d", req.SlotLimit))
+	query.Set("task_limit", fmt.Sprintf("%d", req.TaskLimit))
+	return c.doJSONWithQuery(ctx, http.MethodGet, nodePath(nodeID, "diagnostics"), query.Encode(), nil, out)
 }
 
 func (c *Client) RemoveScaleInNode(ctx context.Context, nodeID uint64) (LifecycleResponse, error) {

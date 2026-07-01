@@ -3,6 +3,7 @@ package nodeops
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -253,6 +254,36 @@ func TestClientScaleInStatusPreservesBlockers(t *testing.T) {
 	}
 	if len(got.BlockedReasons) != 2 || got.BlockedReasons[0] != "target_health_stale" || got.BlockedReasons[1] != "gateway_sessions_present" {
 		t.Fatalf("ScaleInStatus() blocked_reasons = %#v, want target_health_stale/gateway_sessions_present", got.BlockedReasons)
+	}
+}
+
+func TestClientDynamicNodeDiagnosticsCallsManagerRoute(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			t.Fatalf("method = %s, want GET", r.Method)
+		}
+		if r.URL.Path != "/manager/nodes/4/diagnostics" {
+			t.Fatalf("path = %s, want /manager/nodes/4/diagnostics", r.URL.Path)
+		}
+		if r.URL.RawQuery != "audit_limit=10&slot_limit=256&task_limit=20" {
+			t.Fatalf("query = %q, want audit_limit=10&slot_limit=256&task_limit=20", r.URL.RawQuery)
+		}
+		_, _ = w.Write([]byte(`{"node_id":4}`))
+	}))
+	defer server.Close()
+
+	client := NewClient(Config{Server: server.URL})
+	var out map[string]any
+	err := client.DynamicNodeDiagnostics(context.Background(), 4, DiagnosticRequest{
+		TaskLimit:  20,
+		AuditLimit: 10,
+		SlotLimit:  256,
+	}, &out)
+	if err != nil {
+		t.Fatalf("DynamicNodeDiagnostics() error = %v", err)
+	}
+	if got := out["node_id"]; fmt.Sprint(got) != "4" {
+		t.Fatalf("DynamicNodeDiagnostics() node_id = %#v, want 4", got)
 	}
 }
 

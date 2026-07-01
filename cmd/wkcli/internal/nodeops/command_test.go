@@ -147,6 +147,154 @@ func TestNodeScaleInStatusCommandPrintsRootCauseBlockers(t *testing.T) {
 	}
 }
 
+func TestNodeDiagnoseCommandPrintsRootCauseSummary(t *testing.T) {
+	manager := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			t.Fatalf("method = %s, want GET", r.Method)
+		}
+		if r.URL.Path != "/manager/nodes/4/diagnostics" {
+			t.Fatalf("path = %s, want /manager/nodes/4/diagnostics", r.URL.Path)
+		}
+		if r.URL.RawQuery != "audit_limit=10&slot_limit=256&task_limit=20" {
+			t.Fatalf("query = %q, want audit_limit=10&slot_limit=256&task_limit=20", r.URL.RawQuery)
+		}
+		_, _ = w.Write([]byte(`{
+			"node_id":4,
+			"membership":{"join_state":"leaving"},
+			"summary":{
+				"safe_to_remove":false,
+				"recommended_next_action":"inspect_controller_task",
+				"active_tasks":1
+			},
+			"active_tasks":[
+				{
+					"task_id":"slot-7-replica-move-4-to-2",
+					"kind":"slot_replica_move",
+					"step":"remove_voter",
+					"status":"running",
+					"phase_index":3,
+					"observed_config_index":101,
+					"observed_voters":[1,2,4]
+				}
+			],
+			"task_audits":[
+				{
+					"task_id":"slot-7-replica-move-4-to-2",
+					"last_reason":"waiting for source leadership transfer"
+				}
+			],
+			"slots":[
+				{
+					"slot_id":7,
+					"desired_peers":[1,2,4],
+					"preferred_leader":1
+				}
+			],
+			"warnings":["controller task has not advanced since last audit"]
+		}`))
+	}))
+	defer manager.Close()
+
+	stdout, stderr, err := executeNodeCommand("diagnose", "4", "--server", manager.URL)
+	if err != nil {
+		t.Fatalf("node diagnose error = %v stdout %q stderr %q", err, stdout, stderr)
+	}
+	for _, want := range []string{
+		"node=4",
+		"join_state=leaving",
+		"safe_to_remove=false",
+		"recommended_next_action=inspect_controller_task",
+		"active_tasks=1",
+		"task=slot-7-replica-move-4-to-2 kind=slot_replica_move step=remove_voter status=running phase_index=3 observed_config_index=101 observed_voters=[1 2 4]",
+		"audit=slot-7-replica-move-4-to-2 last_reason=waiting for source leadership transfer",
+		"slot=7 desired_peers=[1 2 4] preferred_leader=1",
+		"warning=controller task has not advanced since last audit",
+	} {
+		if !strings.Contains(stdout, want) {
+			t.Fatalf("node diagnose stdout missing %q: %q", want, stdout)
+		}
+	}
+}
+
+func TestNodeDiagnoseCommandRendersJSON(t *testing.T) {
+	manager := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			t.Fatalf("method = %s, want GET", r.Method)
+		}
+		if r.URL.Path != "/manager/nodes/4/diagnostics" {
+			t.Fatalf("path = %s, want /manager/nodes/4/diagnostics", r.URL.Path)
+		}
+		_, _ = w.Write([]byte(`{
+			"node_id":4,
+			"state_revision":9007199254740993,
+			"summary":{"recommended_next_action":"inspect_controller_task"},
+			"manager_extra":"kept"
+		}`))
+	}))
+	defer manager.Close()
+
+	stdout, stderr, err := executeNodeCommand("diagnose", "4", "--server", manager.URL, "--json")
+	if err != nil {
+		t.Fatalf("node diagnose --json error = %v stdout %q stderr %q", err, stdout, stderr)
+	}
+	if !strings.Contains(stdout, `"manager_extra": "kept"`) {
+		t.Fatalf("node diagnose --json did not preserve manager_extra: %q", stdout)
+	}
+	if !strings.Contains(stdout, `"state_revision": 9007199254740993`) {
+		t.Fatalf("node diagnose --json did not preserve exact state_revision: %q", stdout)
+	}
+	if strings.Contains(stdout, "9007199254740992") || strings.Contains(stdout, "9.007199254740992e+15") {
+		t.Fatalf("node diagnose --json rounded state_revision: %q", stdout)
+	}
+}
+
+func TestNodeDiagnoseCommandRejectsInvalidLimits(t *testing.T) {
+	tests := []struct {
+		name    string
+		args    []string
+		wantErr string
+	}{
+		{
+			name:    "task zero",
+			args:    []string{"diagnose", "4", "--task-limit", "0"},
+			wantErr: "--task-limit must be between 1 and 50",
+		},
+		{
+			name:    "audit over max",
+			args:    []string{"diagnose", "4", "--audit-limit", "21"},
+			wantErr: "--audit-limit must be between 1 and 20",
+		},
+		{
+			name:    "slot negative",
+			args:    []string{"diagnose", "4", "--slot-limit", "-1"},
+			wantErr: "--slot-limit must be between 1 and 256",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			called := false
+			manager := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				called = true
+				http.Error(w, "must not be called", http.StatusInternalServerError)
+			}))
+			defer manager.Close()
+
+			args := append(tt.args, "--server", manager.URL)
+			stdout, stderr, err := executeNodeCommand(args...)
+			if err == nil {
+				t.Fatalf("node diagnose error = nil stdout %q stderr %q", stdout, stderr)
+			}
+			if called {
+				t.Fatal("manager was called; want local validation failure")
+			}
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("node diagnose error = %v, want %q", err, tt.wantErr)
+			}
+		})
+	}
+}
+
 func TestNodeActivateCommandPostsManagerRoute(t *testing.T) {
 	manager := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {

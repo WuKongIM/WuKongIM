@@ -44,6 +44,44 @@ type nodeListItem struct {
 	} `json:"health"`
 }
 
+// nodeDiagnosticsResponse keeps the manager-only fields needed for human output.
+type nodeDiagnosticsResponse struct {
+	NodeID     uint64 `json:"node_id"`
+	Membership struct {
+		JoinState string `json:"join_state"`
+	} `json:"membership"`
+	Summary struct {
+		SafeToRemove          bool   `json:"safe_to_remove"`
+		RecommendedNextAction string `json:"recommended_next_action"`
+		ActiveTasks           int    `json:"active_tasks"`
+	} `json:"summary"`
+	ActiveTasks []nodeDiagnosticTask  `json:"active_tasks"`
+	TaskAudits  []nodeDiagnosticAudit `json:"task_audits"`
+	Slots       []nodeDiagnosticSlot  `json:"slots"`
+	Warnings    []string              `json:"warnings"`
+}
+
+type nodeDiagnosticTask struct {
+	TaskID              string   `json:"task_id"`
+	Kind                string   `json:"kind"`
+	Step                string   `json:"step"`
+	Status              string   `json:"status"`
+	PhaseIndex          int      `json:"phase_index"`
+	ObservedConfigIndex uint64   `json:"observed_config_index"`
+	ObservedVoters      []uint64 `json:"observed_voters"`
+}
+
+type nodeDiagnosticAudit struct {
+	TaskID     string `json:"task_id"`
+	LastReason string `json:"last_reason"`
+}
+
+type nodeDiagnosticSlot struct {
+	SlotID          uint32   `json:"slot_id"`
+	DesiredPeers    []uint64 `json:"desired_peers"`
+	PreferredLeader uint64   `json:"preferred_leader"`
+}
+
 // NewCommand builds manager-backed node operation commands.
 func NewCommand(deps command.Deps) *cobra.Command {
 	cfg := commandConfig{Timeout: defaultTimeout}
@@ -66,7 +104,7 @@ func NewCommand(deps command.Deps) *cobra.Command {
 	cmd.PersistentFlags().StringVar(&cfg.Token, "token", "", "Manager bearer token")
 	cmd.PersistentFlags().DurationVar(&cfg.Timeout, "timeout", defaultTimeout, "HTTP request timeout")
 	cmd.PersistentFlags().BoolVar(&cfg.JSON, "json", false, "Render raw JSON output")
-	cmd.AddCommand(newNodeListCommand(deps, &cfg), newActivateCommand(deps, &cfg), newOnboardingCommand(deps, &cfg), newScaleInCommand(deps, &cfg))
+	cmd.AddCommand(newNodeListCommand(deps, &cfg), newActivateCommand(deps, &cfg), newDiagnoseCommand(deps, &cfg), newOnboardingCommand(deps, &cfg), newScaleInCommand(deps, &cfg))
 	return cmd
 }
 
@@ -127,6 +165,49 @@ func newActivateCommand(deps command.Deps, cfg *commandConfig) *cobra.Command {
 			return nil
 		},
 	}
+}
+
+func newDiagnoseCommand(deps command.Deps, cfg *commandConfig) *cobra.Command {
+	req := DiagnosticRequest{
+		TaskLimit:  20,
+		AuditLimit: 10,
+		SlotLimit:  256,
+	}
+	cmd := &cobra.Command{
+		Use:   "diagnose NODE_ID",
+		Short: "Inspect dynamic node root-cause diagnostics",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			nodeID, err := parseNodeID(args[0])
+			if err != nil {
+				return command.Exit{Code: command.ExitConfig, Message: err.Error()}
+			}
+			if err := validateDiagnosticRequest(req); err != nil {
+				return err
+			}
+			client, err := clientFromConfig(deps, *cfg)
+			if err != nil {
+				return command.Exit{Code: command.ExitConfig, Message: err.Error()}
+			}
+			if cfg.JSON {
+				var out any
+				if err := client.DynamicNodeDiagnostics(cmd.Context(), nodeID, req, &out); err != nil {
+					return clientExit(err)
+				}
+				return writePrettyJSON(deps.Stdout, out)
+			}
+			var out nodeDiagnosticsResponse
+			if err := client.DynamicNodeDiagnostics(cmd.Context(), nodeID, req, &out); err != nil {
+				return clientExit(err)
+			}
+			printNodeDiagnostics(deps.Stdout, out)
+			return nil
+		},
+	}
+	cmd.Flags().IntVar(&req.TaskLimit, "task-limit", 20, "Maximum active tasks to request")
+	cmd.Flags().IntVar(&req.AuditLimit, "audit-limit", 10, "Maximum task audits to request")
+	cmd.Flags().IntVar(&req.SlotLimit, "slot-limit", 256, "Maximum slots to request")
+	return cmd
 }
 
 func newOnboardingCommand(deps command.Deps, cfg *commandConfig) *cobra.Command {
@@ -486,6 +567,19 @@ func validateMaxSlotMoves(value uint32) error {
 	return nil
 }
 
+func validateDiagnosticRequest(req DiagnosticRequest) error {
+	if req.TaskLimit < 1 || req.TaskLimit > 50 {
+		return command.Exit{Code: command.ExitConfig, Message: "--task-limit must be between 1 and 50"}
+	}
+	if req.AuditLimit < 1 || req.AuditLimit > 20 {
+		return command.Exit{Code: command.ExitConfig, Message: "--audit-limit must be between 1 and 20"}
+	}
+	if req.SlotLimit < 1 || req.SlotLimit > 256 {
+		return command.Exit{Code: command.ExitConfig, Message: "--slot-limit must be between 1 and 256"}
+	}
+	return nil
+}
+
 func clientExit(err error) error {
 	var apiErr *APIError
 	if AsAPIError(err, &apiErr) {
@@ -606,6 +700,46 @@ func printScaleInStatus(w io.Writer, status NodeScaleInStatus) {
 		status.HealthReportAgeMS,
 		status.HealthReportTTLMS,
 	)
+}
+
+func printNodeDiagnostics(w io.Writer, out nodeDiagnosticsResponse) {
+	fmt.Fprintf(w, "node=%d join_state=%s safe_to_remove=%t recommended_next_action=%s active_tasks=%d task_audits=%d slots=%d warnings=%d\n",
+		out.NodeID,
+		dash(out.Membership.JoinState),
+		out.Summary.SafeToRemove,
+		dash(out.Summary.RecommendedNextAction),
+		diagnosticActiveTaskCount(out),
+		len(out.TaskAudits),
+		len(out.Slots),
+		len(out.Warnings),
+	)
+	for _, task := range out.ActiveTasks {
+		fmt.Fprintf(w, "task=%s kind=%s step=%s status=%s phase_index=%d observed_config_index=%d observed_voters=%v\n",
+			dash(task.TaskID),
+			dash(task.Kind),
+			dash(task.Step),
+			dash(task.Status),
+			task.PhaseIndex,
+			task.ObservedConfigIndex,
+			task.ObservedVoters,
+		)
+	}
+	for _, audit := range out.TaskAudits {
+		fmt.Fprintf(w, "audit=%s last_reason=%s\n", dash(audit.TaskID), dash(audit.LastReason))
+	}
+	for _, slot := range out.Slots {
+		fmt.Fprintf(w, "slot=%d desired_peers=%v preferred_leader=%d\n", slot.SlotID, slot.DesiredPeers, slot.PreferredLeader)
+	}
+	for _, warning := range out.Warnings {
+		fmt.Fprintf(w, "warning=%s\n", dash(warning))
+	}
+}
+
+func diagnosticActiveTaskCount(out nodeDiagnosticsResponse) int {
+	if out.Summary.ActiveTasks > 0 {
+		return out.Summary.ActiveTasks
+	}
+	return len(out.ActiveTasks)
 }
 
 func dash(value string) string {
