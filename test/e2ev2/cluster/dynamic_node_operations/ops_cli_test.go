@@ -94,11 +94,16 @@ func TestWKCLINodeOperationsLifecycleWithTraffic(t *testing.T) {
 
 	eventuallyWKCLIContains(t, contextDir, 30*time.Second,
 		[]string{"node", "scale-in", "drain", "4", "--context", "ops", "--draining=true"},
-		[]string{"draining=true", "gateway_sessions=", "active_online=", "pending_activations="},
+		[]string{"draining=true", "gateway_sessions=", "active_online=", "total_online=", "pending_activations=", "unknown="},
 		cluster.DumpDiagnostics,
 	)
 	requireTrafficProgress(t, cluster, traffic, 3, 10*time.Second)
 
+	eventuallyWKCLIContains(t, contextDir, 60*time.Second,
+		[]string{"node", "scale-in", "plan", "4", "--context", "ops", "--max-slot-moves", "1", "--json"},
+		[]string{`"node_id": 4`, `"blocked_by_status": false`, `"source_node_id": 4`, `"candidates": [`},
+		cluster.DumpDiagnostics,
+	)
 	advanceOut := eventuallyWKCLIContains(t, contextDir, 60*time.Second,
 		[]string{"node", "scale-in", "advance", "4", "--context", "ops", "--max-slot-moves", "1", "--json"},
 		[]string{`"node_id": 4`, `"created":`, `"state_revision":`},
@@ -107,6 +112,11 @@ func TestWKCLINodeOperationsLifecycleWithTraffic(t *testing.T) {
 	requireJSONFieldPresent(t, advanceOut, "created")
 	require.Equal(t, uint64(4), requireJSONUintField(t, advanceOut, "node_id"), advanceOut)
 
+	drained := eventuallyScaleInSlotsDrained(t, cluster, manager, 4, 240*time.Second)
+	require.False(t, drained.BlockedBySlots, "status=%#v", drained)
+	require.False(t, drained.BlockedByTasks, "status=%#v", drained)
+	require.False(t, drained.BlockedByControlRevision, "status=%#v", drained)
+	require.Zero(t, drained.SlotReplicaCount, "status=%#v", drained)
 	safe := manager.EventuallyScaleInSafeToRemove(t, 4, 150*time.Second)
 	require.True(t, safe.SafeToRemove, "status=%#v", safe)
 	statusOut := eventuallyWKCLIContains(t, contextDir, 30*time.Second,
@@ -390,6 +400,64 @@ func eventuallyNodeSchedulable(t testing.TB, cluster *suite.StartedCluster, mana
 		select {
 		case <-ctx.Done():
 			t.Fatalf("node %d did not become schedulable: last=%#v lastErr=%v\n%s", nodeID, last, lastErr, cluster.DumpDiagnostics())
+		case <-ticker.C:
+		}
+	}
+}
+
+func eventuallyScaleInSlotsDrained(t testing.TB, cluster *suite.StartedCluster, manager *suite.ManagerClient, nodeID uint64, timeout time.Duration) suite.NodeScaleInStatusDTO {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+
+	var (
+		last    suite.NodeScaleInStatusDTO
+		lastErr error
+	)
+	for {
+		reqCtx, cancelReq := context.WithTimeout(ctx, 5*time.Second)
+		status, err := manager.NodeScaleInStatus(reqCtx, nodeID)
+		cancelReq()
+		if err == nil {
+			last = status
+			if !status.BlockedBySlots &&
+				!status.BlockedBySlotLeadership &&
+				!status.BlockedBySlotRuntime &&
+				!status.BlockedByControlRevision &&
+				!status.BlockedByHealth &&
+				!status.BlockedByStaleRevision &&
+				!status.BlockedByTasks &&
+				status.SlotReplicaCount == 0 &&
+				status.SlotLeaderCount == 0 &&
+				status.ActiveTaskCount == 0 &&
+				status.FailedTaskCount == 0 {
+				return status
+			}
+			lastErr = fmt.Errorf("blocked_by_slots=%t blocked_by_slot_leadership=%t blocked_by_slot_runtime=%t blocked_by_control_revision=%t blocked_by_health=%t blocked_by_stale_revision=%t blocked_by_tasks=%t slot_replica_count=%d slot_leader_count=%d active_task_count=%d failed_task_count=%d observed_control_revision=%d required_control_revision=%d blocked_reasons=%v",
+				status.BlockedBySlots,
+				status.BlockedBySlotLeadership,
+				status.BlockedBySlotRuntime,
+				status.BlockedByControlRevision,
+				status.BlockedByHealth,
+				status.BlockedByStaleRevision,
+				status.BlockedByTasks,
+				status.SlotReplicaCount,
+				status.SlotLeaderCount,
+				status.ActiveTaskCount,
+				status.FailedTaskCount,
+				status.ObservedControlRevision,
+				status.RequiredControlRevision,
+				status.BlockedReasons,
+			)
+		} else {
+			lastErr = err
+		}
+
+		select {
+		case <-ctx.Done():
+			t.Fatalf("node %d scale-in Slots did not drain: last=%#v lastErr=%v\n%s", nodeID, last, lastErr, cluster.DumpDiagnostics())
 		case <-ticker.C:
 		}
 	}
