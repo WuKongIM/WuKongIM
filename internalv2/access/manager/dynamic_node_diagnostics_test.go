@@ -133,8 +133,11 @@ func TestManagerDynamicNodeDiagnosticsRouteReturnsEvidence(t *testing.T) {
 
 func TestManagerDynamicNodeDiagnosticsRouteValidatesLimits(t *testing.T) {
 	tests := []string{
+		"/manager/nodes/4/diagnostics?task_limit=0",
 		"/manager/nodes/4/diagnostics?task_limit=51",
+		"/manager/nodes/4/diagnostics?audit_limit=0",
 		"/manager/nodes/4/diagnostics?audit_limit=21",
+		"/manager/nodes/4/diagnostics?slot_limit=0",
 		"/manager/nodes/4/diagnostics?slot_limit=257",
 	}
 

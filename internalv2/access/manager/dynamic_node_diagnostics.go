@@ -253,7 +253,7 @@ func parseDynamicNodeDiagnosticsLimit(raw string, max int) (int, error) {
 		return 0, nil
 	}
 	value, err := strconv.Atoi(raw)
-	if err != nil || value < 0 || value > max {
+	if err != nil || value <= 0 || value > max {
 		return 0, metadb.ErrInvalidArgument
 	}
 	return value, nil
