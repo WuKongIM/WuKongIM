@@ -69,6 +69,23 @@ var (
 		"timeout":  {},
 		"canceled": {},
 	}
+	slotReplicaMovePhaseSteps = map[string]struct{}{
+		"create_slot":       {},
+		"transfer_leader":   {},
+		"open_learner":      {},
+		"add_learner":       {},
+		"promote_learner":   {},
+		"remove_voter":      {},
+		"commit_assignment": {},
+		"unknown":           {},
+	}
+	slotReplicaMovePhaseResults = map[string]struct{}{
+		"ok":       {},
+		"fail":     {},
+		"deferred": {},
+		"timeout":  {},
+		"conflict": {},
+	}
 	slotReplicaMoveFailureReasons = map[string]struct{}{
 		"proposal_rejected": {},
 		"control_conflict":  {},
@@ -101,6 +118,8 @@ type NodeLifecycleMetrics struct {
 	scaleInBlockers    *prometheus.CounterVec
 	slotMoveDuration   *prometheus.HistogramVec
 	slotMoveFailures   *prometheus.CounterVec
+	slotMovePhaseTotal *prometheus.CounterVec
+	slotMovePhaseTime  *prometheus.HistogramVec
 	membershipRevision prometheus.Gauge
 }
 
@@ -147,6 +166,17 @@ func newNodeLifecycleMetrics(registry prometheus.Registerer, labels prometheus.L
 			Help:        "Total Slot replica move failures grouped by bounded reason.",
 			ConstLabels: labels,
 		}, []string{"reason"}),
+		slotMovePhaseTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name:        "wukongim_slot_replica_move_phase_observed_total",
+			Help:        "Total observed Slot replica move phase outcomes grouped by bounded step and result.",
+			ConstLabels: labels,
+		}, []string{"step", "result"}),
+		slotMovePhaseTime: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:        "wukongim_slot_replica_move_phase_duration_seconds",
+			Help:        "Slot replica move phase observation duration in seconds grouped by bounded step and result.",
+			ConstLabels: labels,
+			Buckets:     slotReplicaMoveDurationBuckets,
+		}, []string{"step", "result"}),
 		membershipRevision: prometheus.NewGauge(prometheus.GaugeOpts{
 			Name:        "wukongim_discovery_membership_revision",
 			Help:        "Latest locally visible dynamic-node membership revision.",
@@ -167,6 +197,8 @@ func newNodeLifecycleMetrics(registry prometheus.Registerer, labels prometheus.L
 		m.scaleInBlockers,
 		m.slotMoveDuration,
 		m.slotMoveFailures,
+		m.slotMovePhaseTotal,
+		m.slotMovePhaseTime,
 		m.membershipRevision,
 	)
 
@@ -292,6 +324,20 @@ func (m *NodeLifecycleMetrics) ObserveSlotReplicaMoveFailure(reason string) {
 	m.slotMoveFailures.WithLabelValues(normalizeBoundedMetricLabel(reason, slotReplicaMoveFailureReasons)).Inc()
 }
 
+// ObserveSlotReplicaMovePhase records one bounded Slot replica move phase observation.
+func (m *NodeLifecycleMetrics) ObserveSlotReplicaMovePhase(step, result string, d time.Duration) {
+	if m == nil {
+		return
+	}
+	if d < 0 {
+		d = 0
+	}
+	step = normalizeBoundedMetricLabel(step, slotReplicaMovePhaseSteps)
+	result = normalizeSlotReplicaMovePhaseResult(result)
+	m.slotMovePhaseTotal.WithLabelValues(step, result).Inc()
+	m.slotMovePhaseTime.WithLabelValues(step, result).Observe(d.Seconds())
+}
+
 // SetDiscoveryMembershipRevision records the latest locally visible membership revision.
 func (m *NodeLifecycleMetrics) SetDiscoveryMembershipRevision(revision uint64) {
 	if m == nil {
@@ -308,4 +354,11 @@ func normalizeBoundedMetricLabel(value string, allowed map[string]struct{}) stri
 		return "other"
 	}
 	return value
+}
+
+func normalizeSlotReplicaMovePhaseResult(result string) string {
+	if _, ok := slotReplicaMovePhaseResults[result]; ok {
+		return result
+	}
+	return "other"
 }

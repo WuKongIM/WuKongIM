@@ -3,6 +3,7 @@ package tasks
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/slots"
@@ -220,6 +221,67 @@ func TestSlotReplicaMoveExecutorRemovesSourceVoterAfterLeadershipMoves(t *testin
 	}
 }
 
+func TestSlotReplicaMoveExecutorObservesPhaseOutcome(t *testing.T) {
+	status := moveStatus()
+	status.CurrentVoters = []multiraft.NodeID{1, 2, 3, 4}
+	status.LeaderID = 2
+	afterRemove := status
+	afterRemove.CurrentVoters = []multiraft.NodeID{2, 3, 4}
+	afterRemove.ConfigAppliedIndex = 77
+	runtime := &fakeSlotReplicaMoveRuntime{statuses: []multiraft.Status{status, afterRemove}}
+	writer := &fakeSlotReplicaMoveWriter{}
+	observer := &recordingSlotReplicaMoveObserver{}
+	executor := NewSlotReplicaMoveExecutor(SlotReplicaMoveExecutorConfig{
+		LocalNode:    2,
+		Runtime:      runtime,
+		MoveWriter:   writer,
+		Observer:     observer,
+		PollInterval: -1,
+	})
+
+	err := executor.Reconcile(context.Background(), slotReplicaMoveSnapshot(control.TaskStepRemoveVoter, 2, status))
+
+	if err != nil {
+		t.Fatalf("Reconcile() error = %v", err)
+	}
+	if len(observer.phases) != 1 {
+		t.Fatalf("phases = %#v, want one observation", observer.phases)
+	}
+	if observer.phases[0].step != "remove_voter" || observer.phases[0].result != "ok" {
+		t.Fatalf("phase = %#v, want remove_voter ok", observer.phases[0])
+	}
+}
+
+func TestSlotReplicaMoveExecutorObservesDeferredPhaseOutcome(t *testing.T) {
+	status := moveStatus()
+	status.CurrentLearners = []multiraft.NodeID{4}
+	status.CommitIndex = 44
+	status.Progress = map[multiraft.NodeID]multiraft.PeerProgress{4: {Match: 40}}
+	runtime := &fakeSlotReplicaMoveRuntime{status: status}
+	writer := &fakeSlotReplicaMoveWriter{}
+	observer := &recordingSlotReplicaMoveObserver{}
+	executor := NewSlotReplicaMoveExecutor(SlotReplicaMoveExecutorConfig{
+		LocalNode:    1,
+		Runtime:      runtime,
+		MoveWriter:   writer,
+		Observer:     observer,
+		PollMax:      1,
+		PollInterval: -1,
+	})
+
+	err := executor.Reconcile(context.Background(), slotReplicaMoveSnapshot(control.TaskStepPromoteLearner, 1, status))
+
+	if err != nil {
+		t.Fatalf("Reconcile() error = %v", err)
+	}
+	if len(observer.phases) != 1 {
+		t.Fatalf("phases = %#v, want one observation", observer.phases)
+	}
+	if observer.phases[0].step != "promote_learner" || observer.phases[0].result != "deferred" {
+		t.Fatalf("phase = %#v, want promote_learner deferred", observer.phases[0])
+	}
+}
+
 func TestSlotReplicaMoveExecutorDoesNotAdvanceRemoveVoterWithoutCommittableFence(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -392,6 +454,20 @@ type fakeSlotReplicaMoveWriter struct {
 	commitErr   error
 	failed      []cv2.TaskResult
 	failErr     error
+}
+
+type slotReplicaMovePhaseObservation struct {
+	step   string
+	result string
+	d      time.Duration
+}
+
+type recordingSlotReplicaMoveObserver struct {
+	phases []slotReplicaMovePhaseObservation
+}
+
+func (o *recordingSlotReplicaMoveObserver) ObserveSlotReplicaMovePhase(step, result string, d time.Duration) {
+	o.phases = append(o.phases, slotReplicaMovePhaseObservation{step: step, result: result, d: d})
 }
 
 func (w *fakeSlotReplicaMoveWriter) AdvanceSlotReplicaMovePhase(_ context.Context, phase control.SlotReplicaMovePhaseAdvance) error {

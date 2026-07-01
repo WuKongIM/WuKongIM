@@ -663,6 +663,19 @@ func TestControlSnapshotMetricsObserverMapsNodeLifecycleHealth(t *testing.T) {
 	}
 }
 
+func TestConfigureObservabilityWiresSlotReplicaMovePhaseObserver(t *testing.T) {
+	app := &App{
+		cfg: Config{Observability: ObservabilityConfig{MetricsEnabled: true}},
+	}
+	clusterCfg := clusterv2.Config{NodeID: 1}
+
+	app.configureObservability(&clusterCfg)
+
+	if clusterCfg.Slots.ReplicaMoveObserver == nil {
+		t.Fatal("Slot replica move phase observer was not wired")
+	}
+}
+
 func TestNodeLifecycleMetricsObserverCountsScaleInBlockers(t *testing.T) {
 	reg := obsmetrics.New(1, "n1")
 	observer := &nodeLifecycleMetricsObserver{metrics: reg}

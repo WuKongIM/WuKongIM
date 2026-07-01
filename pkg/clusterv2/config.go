@@ -90,6 +90,11 @@ type ControlSnapshotObserver interface {
 	ObserveControlSnapshot(control.Snapshot)
 }
 
+// SlotReplicaMoveObserver receives low-cardinality local Slot replica move phase observations.
+type SlotReplicaMoveObserver interface {
+	ObserveSlotReplicaMovePhase(step, result string, d time.Duration)
+}
+
 // ControlRole declares how this node participates in ControllerV2.
 type ControlRole string
 
@@ -126,6 +131,8 @@ type SlotConfig struct {
 	LogCompaction multiraft.LogCompactionConfig
 	// Observer receives low-cardinality Slot scheduler pressure observations.
 	Observer multiraft.SchedulerObserver
+	// ReplicaMoveObserver receives low-cardinality Slot replica move phase observations.
+	ReplicaMoveObserver SlotReplicaMoveObserver
 }
 
 // ChannelConfig contains ChannelV2 service configuration.

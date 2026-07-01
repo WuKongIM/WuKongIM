@@ -2,6 +2,7 @@ package tasks
 
 import (
 	"context"
+	"errors"
 	"sort"
 	"time"
 	"unicode/utf8"
@@ -47,10 +48,17 @@ type SlotReplicaMoveExecutorConfig struct {
 	Learners SlotLearnerOpener
 	// MoveWriter persists task phase and commit commands.
 	MoveWriter SlotReplicaMoveWriter
+	// Observer receives bounded local phase observations for metrics.
+	Observer SlotReplicaMoveObserver
 	// PollMax bounds status polls while waiting for learner catch-up.
 	PollMax int
 	// PollInterval waits between learner catch-up polls.
 	PollInterval time.Duration
+}
+
+// SlotReplicaMoveObserver receives low-cardinality local Slot replica move phase observations.
+type SlotReplicaMoveObserver interface {
+	ObserveSlotReplicaMovePhase(step, result string, d time.Duration)
 }
 
 // SlotReplicaMoveExecutor executes staged Slot replica move tasks.
@@ -100,10 +108,17 @@ func (e *SlotReplicaMoveExecutor) reconcileTask(ctx context.Context, table contr
 		if e.cfg.LocalNode != task.TargetNode || e.cfg.Learners == nil {
 			return nil
 		}
+		started := time.Now()
 		if err := e.openLearner(ctx, table, task); err != nil {
+			e.observePhase(task.Step, slotReplicaMovePhaseResultForError(err), started)
 			return e.failTask(ctx, task, err.Error())
 		}
-		return e.advancePhase(ctx, task, control.TaskStepAddLearner, multiraft.Status{SlotID: multiraft.SlotID(task.SlotID)})
+		if err := e.advancePhase(ctx, task, control.TaskStepAddLearner, multiraft.Status{SlotID: multiraft.SlotID(task.SlotID)}); err != nil {
+			e.observePhase(task.Step, slotReplicaMovePhaseResultForError(err), started)
+			return err
+		}
+		e.observePhase(task.Step, "ok", started)
+		return nil
 	}
 	if e.cfg.LocalNode == task.TargetNode && e.cfg.Learners != nil {
 		if err := e.openLearner(ctx, table, task); err != nil {
@@ -142,7 +157,15 @@ func (e *SlotReplicaMoveExecutor) openLearner(ctx context.Context, table control
 	})
 }
 
-func (e *SlotReplicaMoveExecutor) addLearner(ctx context.Context, task control.ReconcileTask, status multiraft.Status) error {
+func (e *SlotReplicaMoveExecutor) addLearner(ctx context.Context, task control.ReconcileTask, status multiraft.Status) (err error) {
+	started := time.Now()
+	result := "ok"
+	defer func() {
+		if err != nil && result == "ok" {
+			result = slotReplicaMovePhaseResultForError(err)
+		}
+		e.observePhase(task.Step, result, started)
+	}()
 	if containsNodeID(status.CurrentVoters, task.TargetNode) {
 		return e.advancePhase(ctx, task, control.TaskStepRemoveVoter, status)
 	}
@@ -153,6 +176,7 @@ func (e *SlotReplicaMoveExecutor) addLearner(ctx context.Context, task control.R
 		Type:   multiraft.AddLearner,
 		NodeID: multiraft.NodeID(task.TargetNode),
 	}); err != nil {
+		result = slotReplicaMovePhaseResultForError(err)
 		return e.failTask(ctx, task, err.Error())
 	}
 	observed, ok, err := e.waitForStatus(ctx, task, status, func(st multiraft.Status) bool {
@@ -162,6 +186,7 @@ func (e *SlotReplicaMoveExecutor) addLearner(ctx context.Context, task control.R
 		return err
 	}
 	if !ok {
+		result = "timeout"
 		return e.failTask(ctx, task, "slot replica move add learner observation timed out")
 	}
 	if containsNodeID(observed.CurrentVoters, task.TargetNode) {
@@ -170,7 +195,15 @@ func (e *SlotReplicaMoveExecutor) addLearner(ctx context.Context, task control.R
 	return e.advancePhase(ctx, task, control.TaskStepPromoteLearner, observed)
 }
 
-func (e *SlotReplicaMoveExecutor) promoteLearner(ctx context.Context, task control.ReconcileTask, status multiraft.Status) error {
+func (e *SlotReplicaMoveExecutor) promoteLearner(ctx context.Context, task control.ReconcileTask, status multiraft.Status) (err error) {
+	started := time.Now()
+	result := "ok"
+	defer func() {
+		if err != nil && result == "ok" {
+			result = slotReplicaMovePhaseResultForError(err)
+		}
+		e.observePhase(task.Step, result, started)
+	}()
 	if containsNodeID(status.CurrentVoters, task.TargetNode) {
 		return e.advancePhase(ctx, task, control.TaskStepRemoveVoter, status)
 	}
@@ -179,6 +212,7 @@ func (e *SlotReplicaMoveExecutor) promoteLearner(ctx context.Context, task contr
 		return err
 	}
 	if !caughtUp {
+		result = "deferred"
 		return nil
 	}
 	// gofail: var wkSlotReplicaMovePromoteLearnerDelay string
@@ -187,6 +221,7 @@ func (e *SlotReplicaMoveExecutor) promoteLearner(ctx context.Context, task contr
 		Type:   multiraft.PromoteLearner,
 		NodeID: multiraft.NodeID(task.TargetNode),
 	}); err != nil {
+		result = slotReplicaMovePhaseResultForError(err)
 		return e.failTask(ctx, task, err.Error())
 	}
 	observed, ok, err := e.waitForStatus(ctx, task, latest, func(st multiraft.Status) bool {
@@ -196,12 +231,21 @@ func (e *SlotReplicaMoveExecutor) promoteLearner(ctx context.Context, task contr
 		return err
 	}
 	if !ok {
+		result = "timeout"
 		return e.failTask(ctx, task, "slot replica move promote learner observation timed out")
 	}
 	return e.advancePhase(ctx, task, control.TaskStepRemoveVoter, observed)
 }
 
-func (e *SlotReplicaMoveExecutor) removeVoter(ctx context.Context, task control.ReconcileTask, status multiraft.Status) error {
+func (e *SlotReplicaMoveExecutor) removeVoter(ctx context.Context, task control.ReconcileTask, status multiraft.Status) (err error) {
+	started := time.Now()
+	result := "ok"
+	defer func() {
+		if err != nil && result == "ok" {
+			result = slotReplicaMovePhaseResultForError(err)
+		}
+		e.observePhase(task.Step, result, started)
+	}()
 	if !containsNodeID(status.CurrentVoters, task.SourceNode) {
 		observed, ok, err := e.waitForStatus(ctx, task, status, func(st multiraft.Status) bool {
 			return validMoveCommitObservation(task, st)
@@ -210,6 +254,7 @@ func (e *SlotReplicaMoveExecutor) removeVoter(ctx context.Context, task control.
 			return err
 		}
 		if !ok {
+			result = "timeout"
 			return e.failTask(ctx, task, "slot replica move remove voter did not observe target voters")
 		}
 		return e.advancePhase(ctx, task, control.TaskStepCommitAssignment, observed)
@@ -222,6 +267,7 @@ func (e *SlotReplicaMoveExecutor) removeVoter(ctx context.Context, task control.
 		// gofail: var wkSlotReplicaMoveTransferLeaderDelay string
 		// if err := sleepSlotReplicaMoveFailpoint(ctx, wkSlotReplicaMoveTransferLeaderDelay); err != nil { return err }
 		if err := e.cfg.Runtime.TransferLeadership(ctx, multiraft.SlotID(task.SlotID), multiraft.NodeID(target)); err != nil {
+			result = slotReplicaMovePhaseResultForError(err)
 			return e.failTask(ctx, task, err.Error())
 		}
 		observed, ok, err := e.waitForStatus(ctx, task, status, func(st multiraft.Status) bool {
@@ -232,6 +278,7 @@ func (e *SlotReplicaMoveExecutor) removeVoter(ctx context.Context, task control.
 		}
 		if !ok {
 			// Slot leadership transfer is asynchronous; keep the task active for the next reconcile.
+			result = "deferred"
 			return nil
 		}
 		return e.advancePhase(ctx, task, control.TaskStepRemoveVoter, observed)
@@ -242,6 +289,7 @@ func (e *SlotReplicaMoveExecutor) removeVoter(ctx context.Context, task control.
 		Type:   multiraft.RemoveVoter,
 		NodeID: multiraft.NodeID(task.SourceNode),
 	}); err != nil {
+		result = slotReplicaMovePhaseResultForError(err)
 		return e.failTask(ctx, task, err.Error())
 	}
 	observed, ok, err := e.waitForStatus(ctx, task, status, func(st multiraft.Status) bool {
@@ -251,13 +299,23 @@ func (e *SlotReplicaMoveExecutor) removeVoter(ctx context.Context, task control.
 		return err
 	}
 	if !ok {
+		result = "timeout"
 		return e.failTask(ctx, task, "slot replica move remove voter did not observe target voters")
 	}
 	return e.advancePhase(ctx, task, control.TaskStepCommitAssignment, observed)
 }
 
-func (e *SlotReplicaMoveExecutor) commitAssignment(ctx context.Context, task control.ReconcileTask, status multiraft.Status) error {
+func (e *SlotReplicaMoveExecutor) commitAssignment(ctx context.Context, task control.ReconcileTask, status multiraft.Status) (err error) {
+	started := time.Now()
+	result := "ok"
+	defer func() {
+		if err != nil && result == "ok" {
+			result = slotReplicaMovePhaseResultForError(err)
+		}
+		e.observePhase(task.Step, result, started)
+	}()
 	if status.ConfigAppliedIndex == 0 || !sameUint64Set(nodeIDsToUint64(status.CurrentVoters), task.TargetPeers) {
+		result = "deferred"
 		return nil
 	}
 	return e.cfg.MoveWriter.CommitSlotReplicaMove(ctx, control.SlotReplicaMoveCommit{
@@ -268,6 +326,26 @@ func (e *SlotReplicaMoveExecutor) commitAssignment(ctx context.Context, task con
 		ObservedConfigIndex: status.ConfigAppliedIndex,
 		ObservedVoters:      nodeIDsToUint64(status.CurrentVoters),
 	})
+}
+
+func (e *SlotReplicaMoveExecutor) observePhase(step control.TaskStep, result string, started time.Time) {
+	if e == nil || e.cfg.Observer == nil {
+		return
+	}
+	e.cfg.Observer.ObserveSlotReplicaMovePhase(string(step), result, time.Since(started))
+}
+
+func slotReplicaMovePhaseResultForError(err error) string {
+	switch {
+	case err == nil:
+		return "ok"
+	case errors.Is(err, context.DeadlineExceeded), errors.Is(err, context.Canceled):
+		return "timeout"
+	case errors.Is(err, cv2.ErrExpectedRevisionMismatch), errors.Is(err, cv2.ErrSlotActiveTaskConflict):
+		return "conflict"
+	default:
+		return "fail"
+	}
 }
 
 func (e *SlotReplicaMoveExecutor) waitLearnerCaughtUp(ctx context.Context, task control.ReconcileTask, current multiraft.Status) (bool, multiraft.Status, error) {

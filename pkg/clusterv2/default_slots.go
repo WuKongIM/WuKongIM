@@ -95,6 +95,7 @@ func (n *Node) ensureDefaultSlots() error {
 				Runtime:    runtime,
 				Learners:   manager,
 				MoveWriter: n.control,
+				Observer:   n.cfg.Slots.ReplicaMoveObserver,
 			}),
 		)
 	}

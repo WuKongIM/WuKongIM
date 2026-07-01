@@ -101,6 +101,7 @@ type multiSlotObserver []multiraft.SchedulerObserver
 type multiTransportV2Observer []transportv2.Observer
 type multiControllerRaftObserver []cv2raft.Observer
 type multiControlSnapshotObserver []clusterv2.ControlSnapshotObserver
+type multiSlotReplicaMoveObserver []clusterv2.SlotReplicaMoveObserver
 type multiCommitCoordinatorObserver []messagedb.CommitCoordinatorObserver
 type multiGatewayObserver []accessgateway.Observer
 type multiSendackObserver []gatewayadapter.SendackObserver
@@ -1395,6 +1396,16 @@ func combineControlSnapshotObservers(first, second clusterv2.ControlSnapshotObse
 	return multiControlSnapshotObserver{first, second}
 }
 
+func combineSlotReplicaMoveObservers(first, second clusterv2.SlotReplicaMoveObserver) clusterv2.SlotReplicaMoveObserver {
+	if first == nil {
+		return second
+	}
+	if second == nil {
+		return first
+	}
+	return multiSlotReplicaMoveObserver{first, second}
+}
+
 func combineCommitCoordinatorObservers(first, second messagedb.CommitCoordinatorObserver) messagedb.CommitCoordinatorObserver {
 	if first == nil {
 		return second
@@ -1891,6 +1902,14 @@ func (o multiControlSnapshotObserver) ObserveControlSnapshot(snapshot control.Sn
 	for _, observer := range o {
 		if observer != nil {
 			observer.ObserveControlSnapshot(snapshot)
+		}
+	}
+}
+
+func (o multiSlotReplicaMoveObserver) ObserveSlotReplicaMovePhase(step, result string, d time.Duration) {
+	for _, observer := range o {
+		if observer != nil {
+			observer.ObserveSlotReplicaMovePhase(step, result, d)
 		}
 	}
 }

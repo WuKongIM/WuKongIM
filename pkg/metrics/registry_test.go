@@ -234,6 +234,32 @@ func TestNodeScaleInBlockerMetricsExposeKnownReasonsBeforeObserved(t *testing.T)
 	}).GetCounter().GetValue())
 }
 
+func TestNodeLifecycleMetricsTrackSlotReplicaMovePhases(t *testing.T) {
+	reg := New(1, "node-1")
+
+	reg.NodeLifecycle.ObserveSlotReplicaMovePhase("remove_voter", "ok", 150*time.Millisecond)
+	reg.NodeLifecycle.ObserveSlotReplicaMovePhase("raw-step", "raw-result", 90*time.Millisecond)
+
+	families, err := reg.Gather()
+	require.NoError(t, err)
+
+	total := requireMetricFamily(t, families, "wukongim_slot_replica_move_phase_observed_total")
+	require.Equal(t, float64(1), findMetricByLabels(t, total, map[string]string{
+		"node_id":   "1",
+		"node_name": "node-1",
+		"step":      "remove_voter",
+		"result":    "ok",
+	}).GetCounter().GetValue())
+	require.Equal(t, float64(1), findMetricByLabels(t, total, map[string]string{
+		"node_id":   "1",
+		"node_name": "node-1",
+		"step":      "other",
+		"result":    "other",
+	}).GetCounter().GetValue())
+
+	requireMetricFamily(t, families, "wukongim_slot_replica_move_phase_duration_seconds")
+}
+
 func TestNodeLifecycleMetricsTrackHealthFreshnessAndBlockers(t *testing.T) {
 	reg := New(1, "node-1")
 
