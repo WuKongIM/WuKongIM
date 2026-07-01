@@ -71,7 +71,7 @@ func TestManagerDynamicNodeDiagnosticsRouteReturnsEvidence(t *testing.T) {
 					SlotReplicaCount:      1,
 					SlotLeaderCount:       0,
 					ControlRevisionGap:    0,
-					SlotReplicaMoveState:  "running",
+					SlotReplicaMoveState:  "waiting_leader_transfer",
 					OldestTaskAgeSeconds:  90,
 					AuditAvailable:        true,
 					RuntimeUnknown:        false,
