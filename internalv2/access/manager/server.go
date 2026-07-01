@@ -107,6 +107,8 @@ type Management interface {
 	NodeScaleInStatus(ctx context.Context, req managementusecase.NodeScaleInStatusRequest) (managementusecase.NodeScaleInStatusResponse, error)
 	// SetNodeDrainMode toggles gateway admission drain mode for a target node.
 	SetNodeDrainMode(ctx context.Context, req managementusecase.SetNodeDrainModeRequest) (managementusecase.SetNodeDrainModeResponse, error)
+	// DynamicNodeDiagnostics returns bounded diagnostics evidence for one node.
+	DynamicNodeDiagnostics(ctx context.Context, req managementusecase.DynamicNodeDiagnosticsRequest) (managementusecase.DynamicNodeDiagnosticsResponse, error)
 	// QueryDiagnostics returns a manager-facing diagnostics aggregate query result.
 	QueryDiagnostics(ctx context.Context, req managementusecase.DiagnosticsQueryRequest) (managementusecase.DiagnosticsQueryResponse, error)
 	// CreateDiagnosticsTrackingRule installs a temporary diagnostics tracking rule.
@@ -331,6 +333,7 @@ func (s *Server) registerRoutes() {
 	nodeWrites.POST("/nodes/:node_id/scale-in/advance", s.handleNodeScaleInAdvance)
 	nodes.GET("/nodes/:node_id/onboarding/status", s.handleNodeOnboardingStatus)
 	nodes.GET("/nodes/:node_id/scale-in/status", s.handleNodeScaleInStatus)
+	nodes.GET("/nodes/:node_id/diagnostics", s.handleDynamicNodeDiagnostics)
 
 	slots := s.engine.Group("/manager")
 	if s.auth.enabled() {

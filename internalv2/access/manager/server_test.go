@@ -1370,6 +1370,7 @@ type managerNodesStub struct {
 	scaleInAdvance                     managementusecase.NodeScaleInAdvanceResponse
 	scaleInStatus                      managementusecase.NodeScaleInStatusResponse
 	scaleInDrain                       managementusecase.SetNodeDrainModeResponse
+	dynamicNodeDiagnostics             managementusecase.DynamicNodeDiagnosticsResponse
 	diagnosticsResponse                managementusecase.DiagnosticsQueryResponse
 	diagnosticsTrackingCreateResponse  managementusecase.DiagnosticsTrackingMutationResponse
 	diagnosticsTrackingListResponse    managementusecase.DiagnosticsTrackingListResponse
@@ -1424,6 +1425,7 @@ type managerNodesStub struct {
 	scaleInAdvanceReqSink              *managementusecase.NodeScaleInAdvanceRequest
 	scaleInStatusReqSink               *managementusecase.NodeScaleInStatusRequest
 	scaleInDrainReqSink                *managementusecase.SetNodeDrainModeRequest
+	dynamicNodeDiagnosticsReqSink      *managementusecase.DynamicNodeDiagnosticsRequest
 	diagnosticsReqSink                 *managementusecase.DiagnosticsQueryRequest
 	diagnosticsTrackingCreateReqSink   *managementusecase.DiagnosticsTrackingCreateRequest
 	diagnosticsTrackingDeleteRuleSink  *string
@@ -1472,6 +1474,7 @@ type managerNodesStub struct {
 	scaleInAdvanceErr                  error
 	scaleInStatusErr                   error
 	scaleInDrainErr                    error
+	dynamicNodeDiagnosticsErr          error
 	diagnosticsErr                     error
 	diagnosticsTrackingCreateErr       error
 	diagnosticsTrackingListErr         error
@@ -1708,6 +1711,13 @@ func (s managerNodesStub) SetNodeDrainMode(_ context.Context, req managementusec
 		*s.scaleInDrainReqSink = req
 	}
 	return s.scaleInDrain, s.scaleInDrainErr
+}
+
+func (s managerNodesStub) DynamicNodeDiagnostics(_ context.Context, req managementusecase.DynamicNodeDiagnosticsRequest) (managementusecase.DynamicNodeDiagnosticsResponse, error) {
+	if s.dynamicNodeDiagnosticsReqSink != nil {
+		*s.dynamicNodeDiagnosticsReqSink = req
+	}
+	return s.dynamicNodeDiagnostics, s.dynamicNodeDiagnosticsErr
 }
 
 func (s managerNodesStub) QueryDiagnostics(_ context.Context, req managementusecase.DiagnosticsQueryRequest) (managementusecase.DiagnosticsQueryResponse, error) {
