@@ -25,6 +25,7 @@ const (
 	MaxDynamicNodeDiagnosticSlotLimit = 256
 )
 
+// ErrDynamicNodeDiagnosticsNotFound is returned when the requested node is not present in control state.
 var ErrDynamicNodeDiagnosticsNotFound = errors.New("internalv2/usecase/management: dynamic node diagnostics not found")
 
 // DynamicNodeDiagnosticsRequest selects one node and bounded projection fields for a diagnostics read.
@@ -201,6 +202,7 @@ func (a *App) DynamicNodeDiagnostics(ctx context.Context, req DynamicNodeDiagnos
 
 	joinedTasks := joinStateTasksForNode(snapshot.Tasks, req.NodeID)
 	response.ActiveTasks = joinedTasks.controllerTasks(taskLimit)
+	response.Summary.ActiveTaskCount, response.Summary.FailedTaskCount = dynamicNodeDiagnosticTaskCounts(response.ActiveTasks)
 	taskRowsBySlot := tasksBySlot(joinedTasks.snapshots())
 	slotRows, slotRuntimeSourceAvailable, slotRuntimeSourceError := buildDynamicNodeDiagnosticSlots(ctx, req.NodeID, snapshot.Slots, taskRowsBySlot, a.slotRuntimeStatus, slotLimit)
 	response.Slots = slotRows
@@ -213,12 +215,16 @@ func (a *App) DynamicNodeDiagnostics(ctx context.Context, req DynamicNodeDiagnos
 		response.Sources.SlotRuntime.Available = true
 	}
 
-	response.TaskAudits, response.Sources.TaskAudit = a.dynamicNodeDiagnosticAudits(ctx, req.NodeID, auditLimit)
+	var sourceAuditError error
+	response.TaskAudits, response.Sources.TaskAudit, sourceAuditError = a.dynamicNodeDiagnosticAudits(ctx, req.NodeID, auditLimit)
+	if sourceAuditError != nil {
+		return DynamicNodeDiagnosticsResponse{}, sourceAuditError
+	}
 	response.Summary.AuditAvailable = response.Sources.TaskAudit.Available
 	if !response.Summary.AuditAvailable && response.Sources.TaskAudit.LastError != "" {
 		response.Warnings = append(response.Warnings, response.Sources.TaskAudit.LastError)
 	}
-	response.Summary.OldestTaskAgeSeconds = dynamicNodeDiagnosticOldestTaskAgeSeconds(response.GeneratedAt, response.TaskAudits)
+	response.Summary.OldestTaskAgeSeconds = dynamicNodeDiagnosticOldestTaskAgeSeconds(response.GeneratedAt, response.ActiveTasks, response.TaskAudits)
 
 	response.Summary.SlotReplicaMoveState = joinStateTaskReplicaMoveState(joinedTasks.snapshots())
 
@@ -231,8 +237,6 @@ func (a *App) DynamicNodeDiagnostics(ctx context.Context, req DynamicNodeDiagnos
 			appendDynamicNodeDiagnosticBlockedReason(&response.Summary, "blocked_by_tasks")
 		}
 		response.Summary.SafeToRemove = scaleInStatus.SafeToRemove
-		response.Summary.ActiveTaskCount = scaleInStatus.ActiveTaskCount
-		response.Summary.FailedTaskCount = scaleInStatus.FailedTaskCount
 		response.Summary.SlotReplicaCount = scaleInStatus.SlotReplicaCount
 		response.Summary.SlotLeaderCount = scaleInStatus.SlotLeaderCount
 		response.Summary.RuntimeUnknown = scaleInStatus.RuntimeUnknown || scaleInStatus.UnknownRuntime
@@ -242,13 +246,13 @@ func (a *App) DynamicNodeDiagnostics(ctx context.Context, req DynamicNodeDiagnos
 		response.Summary.SlotRuntimeUnknown = response.Summary.SlotRuntimeUnknown || scaleInStatus.BlockedBySlotRuntime
 		response.Summary.ControlRevisionGap = nodeScaleInStatusControlRevisionGap(scaleInStatus)
 	} else {
-		onboardingStatus, err := a.NodeOnboardingStatus(ctx, NodeOnboardingStatusRequest{TargetNodeID: req.NodeID})
-		if err != nil {
-			return DynamicNodeDiagnosticsResponse{}, err
+		if isActiveDataNode(node) {
+			onboardingStatus, err := a.NodeOnboardingStatus(ctx, NodeOnboardingStatusRequest{TargetNodeID: req.NodeID})
+			if err != nil {
+				return DynamicNodeDiagnosticsResponse{}, err
+			}
+			response.Onboarding = &onboardingStatus
 		}
-		response.Onboarding = &onboardingStatus
-		response.Summary.ActiveTaskCount = onboardingStatus.Summary.TotalActive
-		response.Summary.FailedTaskCount = onboardingStatus.Summary.Failed
 		response.Summary.SlotReplicaCount = countSlotReplicas(snapshot.Slots, req.NodeID)
 		response.Summary.BlockedBySlots = response.Summary.SlotReplicaCount > 0
 	}
@@ -411,29 +415,79 @@ func buildDynamicNodeDiagnosticSlots(
 	return out, slotRuntimeAvailable, slotRuntimeError
 }
 
-func (a *App) dynamicNodeDiagnosticAudits(ctx context.Context, nodeID uint64, limit int) ([]ControllerTaskAuditSnapshot, DynamicNodeDiagnosticSource) {
+func (a *App) dynamicNodeDiagnosticAudits(ctx context.Context, nodeID uint64, limit int) ([]ControllerTaskAuditSnapshot, DynamicNodeDiagnosticSource, error) {
 	if a == nil || a.controllerTaskAudit == nil {
 		return nil, DynamicNodeDiagnosticSource{
 			Available: false,
 			LastError: "task audit unavailable",
-		}
+		}, nil
 	}
 	response, err := a.controllerTaskAudit.ListControllerTaskAudits(ctx, ControllerTaskAuditListRequest{
 		NodeID: nodeID,
 		Limit:  limit,
 	})
 	if err != nil {
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return nil, DynamicNodeDiagnosticSource{}, err
+		}
 		if errors.Is(err, ErrControllerTaskAuditUnavailable) {
 			return nil, DynamicNodeDiagnosticSource{
 				Available: false,
 				LastError: "task audit unavailable",
-			}
+			}, nil
 		}
-		return nil, DynamicNodeDiagnosticSource{Available: false, LastError: "task audit unavailable: " + err.Error()}
+		return nil, DynamicNodeDiagnosticSource{Available: false, LastError: "task audit unavailable: " + err.Error()}, nil
 	}
-	return response.Items, DynamicNodeDiagnosticSource{
-		Available: true,
+	return response.Items, DynamicNodeDiagnosticSource{Available: true}, nil
+}
+
+func dynamicNodeDiagnosticTaskCounts(tasks []ControllerTask) (active int, failed int) {
+	for _, task := range tasks {
+		switch task.Status {
+		case string(control.TaskStatusPending), string(control.TaskStatusRunning):
+			active++
+		case string(control.TaskStatusFailed):
+			failed++
+		}
 	}
+	return active, failed
+}
+
+func dynamicNodeDiagnosticOldestTaskAgeSeconds(generatedAt time.Time, tasks []ControllerTask, audits []ControllerTaskAuditSnapshot) int64 {
+	if generatedAt.IsZero() {
+		return 0
+	}
+	relevantTasks := make(map[string]struct{}, len(tasks))
+	for _, task := range tasks {
+		switch task.Status {
+		case string(control.TaskStatusPending), string(control.TaskStatusRunning), string(control.TaskStatusFailed):
+			relevantTasks[task.TaskID] = struct{}{}
+		}
+	}
+	if len(relevantTasks) == 0 {
+		return 0
+	}
+	var oldest *time.Time
+	for _, item := range audits {
+		if item.TaskID == "" || item.StartedAt.IsZero() {
+			continue
+		}
+		if _, ok := relevantTasks[item.TaskID]; !ok {
+			continue
+		}
+		if oldest == nil || item.StartedAt.Before(*oldest) {
+			at := item.StartedAt
+			oldest = &at
+		}
+	}
+	if oldest == nil {
+		return 0
+	}
+	age := generatedAt.Sub(*oldest).Seconds()
+	if age < 0 {
+		return 0
+	}
+	return int64(age)
 }
 
 func summarizeDynamicNodeDiagnosticNextAction(hasScaleIn bool, summary DynamicNodeDiagnosticSummary) string {
@@ -499,30 +553,6 @@ func joinStateTaskReplicaMoveState(tasks []control.ReconcileTask) string {
 
 func isActiveDiagnosticTask(status control.TaskStatus) bool {
 	return status == control.TaskStatusPending || status == control.TaskStatusRunning
-}
-
-func dynamicNodeDiagnosticOldestTaskAgeSeconds(generatedAt time.Time, items []ControllerTaskAuditSnapshot) int64 {
-	if generatedAt.IsZero() {
-		return 0
-	}
-	var oldest *time.Time
-	for _, item := range items {
-		if item.StartedAt.IsZero() {
-			continue
-		}
-		if oldest == nil || item.StartedAt.Before(*oldest) {
-			at := item.StartedAt
-			oldest = &at
-		}
-	}
-	if oldest == nil {
-		return 0
-	}
-	age := generatedAt.Sub(*oldest).Seconds()
-	if age < 0 {
-		return 0
-	}
-	return int64(age)
 }
 
 func appendDynamicNodeDiagnosticBlockedReason(summary *DynamicNodeDiagnosticSummary, reason string) {

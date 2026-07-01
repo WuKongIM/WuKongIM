@@ -102,6 +102,106 @@ func TestDynamicNodeDiagnosticsTreatsAuditUnavailableAsWarning(t *testing.T) {
 	require.Contains(t, resp.Warnings[0], "task audit unavailable")
 }
 
+func TestDynamicNodeDiagnosticsPropagatesAuditCancellationAndDeadlines(t *testing.T) {
+	t.Run("context_canceled", func(t *testing.T) {
+		app := New(Options{
+			Cluster: fakeNodeSnapshotReader{snapshot: dynamicNodeDiagnosticsLeavingSnapshot()},
+			RuntimeSummary: fakeNodeRuntimeSummaryReader{
+				summaries: scaleInRuntimeSummariesFor(88, 1, 2, 3, 4),
+			},
+			SlotRuntimeStatus:  scaleInSafeSlotRuntimeReader{},
+			ChannelRuntimeMeta: newChannelDrainMetaReader(),
+			ControllerTaskAudit: &dynamicNodeDiagnosticsAuditReader{
+				err: context.Canceled,
+			},
+		})
+
+		_, err := app.DynamicNodeDiagnostics(context.Background(), DynamicNodeDiagnosticsRequest{NodeID: 4})
+		require.ErrorIs(t, err, context.Canceled)
+	})
+
+	t.Run("context_deadline", func(t *testing.T) {
+		app := New(Options{
+			Cluster: fakeNodeSnapshotReader{snapshot: dynamicNodeDiagnosticsLeavingSnapshot()},
+			RuntimeSummary: fakeNodeRuntimeSummaryReader{
+				summaries: scaleInRuntimeSummariesFor(88, 1, 2, 3, 4),
+			},
+			SlotRuntimeStatus:  scaleInSafeSlotRuntimeReader{},
+			ChannelRuntimeMeta: newChannelDrainMetaReader(),
+			ControllerTaskAudit: &dynamicNodeDiagnosticsAuditReader{
+				err: context.DeadlineExceeded,
+			},
+		})
+
+		_, err := app.DynamicNodeDiagnostics(context.Background(), DynamicNodeDiagnosticsRequest{NodeID: 4})
+		require.ErrorIs(t, err, context.DeadlineExceeded)
+	})
+}
+
+func TestDynamicNodeDiagnosticOldestTaskAgeFiltersToMatchingTasks(t *testing.T) {
+	generatedAt := time.Date(2026, 7, 1, 10, 0, 0, 0, time.UTC)
+	app := New(Options{
+		Cluster: fakeNodeSnapshotReader{snapshot: dynamicNodeDiagnosticsLeavingSnapshot()},
+		RuntimeSummary: fakeNodeRuntimeSummaryReader{
+			summaries: scaleInRuntimeSummariesFor(88, 1, 2, 3, 4),
+		},
+		SlotRuntimeStatus: &fakeSlotRuntimeStatusReader{
+			statuses: map[uint32]SlotRuntimeStatus{
+				7: {SlotID: 7, LeaderID: 1, CurrentVoters: []uint64{1, 2, 4}},
+			},
+		},
+		ChannelRuntimeMeta: newChannelDrainMetaReader(),
+		ControllerTaskAudit: &dynamicNodeDiagnosticsAuditReader{
+			items: []ControllerTaskAuditSnapshot{
+				{
+					TaskID:     "unrelated-old-audit",
+					Kind:       "slot_replica_move",
+					Status:     "running",
+					SlotID:     3,
+					SourceNode: 4,
+					StartedAt:  generatedAt.Add(-10 * time.Minute),
+				},
+				{
+					TaskID:     "slot-7-replica-move-4-to-3-r88",
+					Kind:       "slot_replica_move",
+					Status:     "running",
+					SlotID:     7,
+					SourceNode: 4,
+					StartedAt:  generatedAt.Add(-2 * time.Minute),
+				},
+			},
+		},
+		Now: func() time.Time { return generatedAt },
+	})
+
+	resp, err := app.DynamicNodeDiagnostics(context.Background(), DynamicNodeDiagnosticsRequest{NodeID: 4})
+	require.NoError(t, err)
+	require.Equal(t, int64(120), resp.Summary.OldestTaskAgeSeconds)
+}
+
+func TestDynamicNodeDiagnosticsSummaryTaskCountsFromBoundedActiveTasks(t *testing.T) {
+	snapshot := dynamicNodeDiagnosticsLargeSnapshot()
+	if len(snapshot.Tasks) <= 0 {
+		t.Fatalf("invalid fixture")
+	}
+	snapshot.Tasks[10].Status = control.TaskStatusFailed
+	app := New(Options{
+		Cluster: fakeNodeSnapshotReader{snapshot: snapshot},
+		RuntimeSummary: fakeNodeRuntimeSummaryReader{
+			summaries: scaleInRuntimeSummariesFor(snapshot.Revision, 1, 2, 3, 4),
+		},
+		ControllerTaskAudit: &dynamicNodeDiagnosticsAuditReader{items: nil},
+		SlotRuntimeStatus:   scaleInSafeSlotRuntimeReader{},
+		ChannelRuntimeMeta:  newChannelDrainMetaReader(),
+	})
+
+	resp, err := app.DynamicNodeDiagnostics(context.Background(), DynamicNodeDiagnosticsRequest{NodeID: 4, TaskLimit: 5, SlotLimit: 5, AuditLimit: 0})
+	require.NoError(t, err)
+	require.Len(t, resp.ActiveTasks, 5)
+	require.Equal(t, 5, resp.Summary.ActiveTaskCount)
+	require.Equal(t, 0, resp.Summary.FailedTaskCount)
+}
+
 func TestDynamicNodeDiagnosticsCopiesScaleInSummaryFields(t *testing.T) {
 	snapshot := dynamicNodeDiagnosticsLeavingSnapshot()
 	snapshot.Nodes[3].Health.Freshness = control.NodeHealthStale
@@ -132,6 +232,48 @@ func TestDynamicNodeDiagnosticsCopiesScaleInSummaryFields(t *testing.T) {
 	require.Contains(t, resp.Summary.BlockedReasons, "blocked_by_tasks")
 	require.Contains(t, resp.Summary.BlockedReasons, "target_health_stale")
 	require.Equal(t, 1, resp.Summary.SlotLeaderCount)
+}
+
+func TestDynamicNodeDiagnosticsOnboardingOnlyForActiveData(t *testing.T) {
+	t.Run("joining_data_node", func(t *testing.T) {
+		snapshot := dynamicNodeDiagnosticsReadyToRemoveSnapshot()
+		snapshot.Nodes[3].JoinState = control.NodeJoinStateJoining
+		reader := &dynamicNodeDiagnosticsCountingSnapshotReader{snapshot: snapshot, nodeID: 1}
+		app := New(Options{
+			Cluster: reader,
+			RuntimeSummary: fakeNodeRuntimeSummaryReader{
+				summaries: scaleInRuntimeSummariesFor(snapshot.Revision, 1, 2, 3, 4),
+			},
+			SlotRuntimeStatus:   scaleInSafeSlotRuntimeReader{},
+			ChannelRuntimeMeta:  newChannelDrainMetaReader(),
+			ControllerTaskAudit: &dynamicNodeDiagnosticsAuditReader{items: nil},
+		})
+
+		resp, err := app.DynamicNodeDiagnostics(context.Background(), DynamicNodeDiagnosticsRequest{NodeID: 4})
+		require.NoError(t, err)
+		require.Nil(t, resp.Onboarding)
+		require.Equal(t, 1, reader.calls)
+	})
+
+	t.Run("active_controller_only_node", func(t *testing.T) {
+		snapshot := dynamicNodeDiagnosticsReadyToRemoveSnapshot()
+		snapshot.Nodes[3].Roles = []control.Role{control.RoleController}
+		reader := &dynamicNodeDiagnosticsCountingSnapshotReader{snapshot: snapshot, nodeID: 1}
+		app := New(Options{
+			Cluster: reader,
+			RuntimeSummary: fakeNodeRuntimeSummaryReader{
+				summaries: scaleInRuntimeSummariesFor(snapshot.Revision, 1, 2, 3, 4),
+			},
+			SlotRuntimeStatus:   scaleInSafeSlotRuntimeReader{},
+			ChannelRuntimeMeta:  newChannelDrainMetaReader(),
+			ControllerTaskAudit: &dynamicNodeDiagnosticsAuditReader{items: nil},
+		})
+
+		resp, err := app.DynamicNodeDiagnostics(context.Background(), DynamicNodeDiagnosticsRequest{NodeID: 4})
+		require.NoError(t, err)
+		require.Nil(t, resp.Onboarding)
+		require.Equal(t, 1, reader.calls)
+	})
 }
 
 func TestDynamicNodeDiagnosticsUsesSingleControlSnapshotForLeaving(t *testing.T) {
