@@ -67,7 +67,7 @@ function mapErrorKind(error: Error | null) {
 }
 
 function formatBooleanValue(intl: IntlShape, value: boolean) {
-  return intl.formatMessage({ id: value ? "nodes.scaleIn.yes" : "nodes.scaleIn.no" })
+  return intl.formatMessage({ id: value ? "nodes.boolean.yes" : "nodes.boolean.no" })
 }
 
 function nodeHealthStatus(node: ManagerNode) {
