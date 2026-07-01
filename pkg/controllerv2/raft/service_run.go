@@ -31,12 +31,20 @@ func (s *Service) run(store *raftstore.Store, startup runStartupState, stopCh <-
 
 	tracker := newProposalTracker()
 	var trackerMu sync.Mutex
+	membershipInFlight := false
 	complete := func(index uint64, result ProposalResult, err error) {
 		trackerMu.Lock()
 		defer trackerMu.Unlock()
 		tracker.complete(index, result, err)
 	}
+	completeMembership := func(index uint64, result MembershipChangeResult, err error) {
+		trackerMu.Lock()
+		defer trackerMu.Unlock()
+		tracker.completeMembership(index, result, err)
+		membershipInFlight = false
+	}
 	scheduler := newApplyScheduler(applySchedulerConfig{MaxEntries: s.cfg.MaxApplyBatchEntries, MaxBytes: s.cfg.MaxApplyBatchBytes, MaxDelay: s.cfg.MaxApplyDelay}, s.cfg.StateMachine, store, complete)
+	scheduler.completeMembership = completeMembership
 	scheduler.onApplied = func(ctx context.Context, index uint64) error { return s.maybeSnapshot(ctx, store, index) }
 	if s.cfg.TaskTransitionObserver != nil {
 		scheduler.onTaskTransitions = s.cfg.TaskTransitionObserver.ObserveControllerTaskTransitions
@@ -53,6 +61,7 @@ func (s *Service) run(store *raftstore.Store, startup runStartupState, stopCh <-
 	failAll := func(err error) {
 		trackerMu.Lock()
 		tracker.failAll(err)
+		membershipInFlight = false
 		trackerMu.Unlock()
 	}
 	failOnLeaderLoss := func() {
@@ -61,6 +70,7 @@ func (s *Service) run(store *raftstore.Store, startup runStartupState, stopCh <-
 		}
 		trackerMu.Lock()
 		tracker.failAll(ErrNotLeader)
+		membershipInFlight = false
 		trackerMu.Unlock()
 	}
 	processReady := func() error {
@@ -75,7 +85,10 @@ func (s *Service) run(store *raftstore.Store, startup runStartupState, stopCh <-
 				return err
 			}
 			trackerMu.Lock()
-			tracker.bindAppended(ready.Entries)
+			bindResult := tracker.bindAppended(ready.Entries)
+			if bindResult.membershipRejected {
+				membershipInFlight = false
+			}
 			trackerMu.Unlock()
 			if !isLeader {
 				s.sendReadyMessages(ready.Messages)
@@ -129,6 +142,27 @@ func (s *Service) run(store *raftstore.Store, startup runStartupState, stopCh <-
 			}
 			if rawNode.Status().RaftState != etcdraft.StateLeader {
 				req.resp <- proposalResponse{err: ErrNotLeader}
+				continue
+			}
+			if req.confChange != nil {
+				trackerMu.Lock()
+				if membershipInFlight {
+					trackerMu.Unlock()
+					req.resp <- proposalResponse{err: ErrMembershipChangePending}
+					continue
+				}
+				membershipInFlight = true
+				trackerMu.Unlock()
+				if err := rawNode.ProposeConfChange(*req.confChange); err != nil {
+					trackerMu.Lock()
+					membershipInFlight = false
+					trackerMu.Unlock()
+					req.resp <- proposalResponse{err: err}
+					continue
+				}
+				trackerMu.Lock()
+				tracker.enqueue(trackedProposal{resp: req.resp, confChange: true})
+				trackerMu.Unlock()
 				continue
 			}
 			var data []byte

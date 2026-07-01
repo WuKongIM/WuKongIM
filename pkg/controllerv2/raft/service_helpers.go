@@ -1,6 +1,8 @@
 package raft
 
 import (
+	"slices"
+
 	etcdraft "go.etcd.io/raft/v3"
 	"go.etcd.io/raft/v3/raftpb"
 )
@@ -87,6 +89,8 @@ func (s *Service) updateStatus(rawNode *etcdraft.RawNode, err error) {
 	st.Term = status.Term
 	st.CommitIndex = status.Commit
 	st.AppliedIndex = status.Applied
+	st.Voters = raftStatusVoters(status)
+	st.Learners = raftStatusLearners(status)
 	if err != nil {
 		st.Degraded = true
 		st.ErrorReason = err.Error()
@@ -94,6 +98,25 @@ func (s *Service) updateStatus(rawNode *etcdraft.RawNode, err error) {
 	s.status = st
 	s.statusMu.Unlock()
 	s.observeApplyState(status.Commit, status.Applied)
+}
+
+func raftStatusVoters(status etcdraft.Status) []uint64 {
+	ids := status.Config.Voters.IDs()
+	voters := make([]uint64, 0, len(ids))
+	for id := range ids {
+		voters = append(voters, id)
+	}
+	slices.Sort(voters)
+	return voters
+}
+
+func raftStatusLearners(status etcdraft.Status) []uint64 {
+	learners := make([]uint64, 0, len(status.Config.Learners))
+	for id := range status.Config.Learners {
+		learners = append(learners, id)
+	}
+	slices.Sort(learners)
+	return learners
 }
 
 func (s *Service) observeApplyState(commitIndex, appliedIndex uint64) {

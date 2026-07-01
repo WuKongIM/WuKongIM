@@ -2,6 +2,7 @@ package raft
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"go.etcd.io/raft/v3/raftpb"
@@ -51,6 +52,39 @@ func TestProposalTrackerBindsProbeToEmptyEntry(t *testing.T) {
 	require.NoError(t, got.err)
 	require.True(t, got.result.Noop)
 	require.Equal(t, uint64(7), got.result.AppliedRaftIndex)
+}
+
+func TestProposalTrackerFailsConfChangeOnEmptyNormalEntryAndBindsLaterProposals(t *testing.T) {
+	tracker := newProposalTracker()
+	membershipResp := make(chan proposalResponse, 1)
+	cmdResp := make(chan proposalResponse, 1)
+	probeResp := make(chan proposalResponse, 1)
+	tracker.enqueue(trackedProposal{resp: membershipResp, confChange: true})
+	tracker.enqueue(trackedProposal{resp: cmdResp})
+	tracker.enqueue(trackedProposal{resp: probeResp, probe: true})
+
+	tracker.bindAppended([]raftpb.Entry{
+		{Index: 7, Type: raftpb.EntryNormal},
+		{Index: 8, Type: raftpb.EntryNormal, Data: []byte("cmd")},
+		{Index: 9, Type: raftpb.EntryNormal},
+	})
+	select {
+	case got := <-membershipResp:
+		require.ErrorIs(t, got.err, ErrMembershipChangePending)
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("membership proposal was not failed on rewritten empty normal entry")
+	}
+
+	tracker.complete(8, ProposalResult{Changed: true, AppliedRaftIndex: 8}, nil)
+	tracker.complete(9, ProposalResult{Noop: true, AppliedRaftIndex: 9}, nil)
+
+	require.NoError(t, (<-cmdResp).err)
+	select {
+	case got := <-probeResp:
+		require.NoError(t, got.err)
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("probe proposal did not bind after rejected membership proposal")
+	}
 }
 
 func TestProposalTrackerSkipsLeaderNoopForCommandProposal(t *testing.T) {

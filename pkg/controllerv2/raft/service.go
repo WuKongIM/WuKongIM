@@ -23,6 +23,8 @@ var (
 	ErrStopped = errors.New("controllerv2/raft: stopped")
 	// ErrNotLeader indicates that proposals must be sent to the current leader.
 	ErrNotLeader = errors.New("controllerv2/raft: not leader")
+	// ErrMembershipChangePending indicates that a Controller Raft membership change is already in flight.
+	ErrMembershipChangePending = errors.New("controllerv2/raft: membership change pending")
 	// ErrProposalRejected indicates that a committed proposal was semantically rejected by the state machine.
 	ErrProposalRejected = errors.New("controllerv2/raft: proposal rejected")
 )
@@ -84,10 +86,11 @@ type Service struct {
 }
 
 type proposalRequest struct {
-	ctx   context.Context
-	cmd   command.Command
-	probe bool
-	resp  chan proposalResponse
+	ctx        context.Context
+	cmd        command.Command
+	confChange *raftpb.ConfChange
+	probe      bool
+	resp       chan proposalResponse
 }
 
 type compactRequest struct {
@@ -101,13 +104,15 @@ type compactResponse struct {
 }
 
 type trackedProposal struct {
-	resp  chan proposalResponse
-	probe bool
+	resp       chan proposalResponse
+	probe      bool
+	confChange bool
 }
 
 type proposalResponse struct {
-	result ProposalResult
-	err    error
+	result     ProposalResult
+	membership MembershipChangeResult
+	err        error
 }
 
 // NewService validates cfg and creates a ControllerV2 Raft service. Call Start before use.
@@ -243,6 +248,14 @@ func (s *Service) ProbePropose(ctx context.Context) error {
 	return err
 }
 
+func (s *Service) submitMembershipChange(ctx context.Context, cc raftpb.ConfChange) (MembershipChangeResult, error) {
+	if cc.NodeID == 0 {
+		return MembershipChangeResult{}, ErrInvalidConfig
+	}
+	_, membership, err := s.submitProposalRequest(ctx, proposalRequest{confChange: &cc})
+	return membership, err
+}
+
 // CompactLog forces a local ControllerV2 Raft log compaction attempt.
 func (s *Service) CompactLog(ctx context.Context) (LogCompactionResult, error) {
 	if ctx == nil {
@@ -307,6 +320,11 @@ func (s *Service) CompactLog(ctx context.Context) (LogCompactionResult, error) {
 }
 
 func (s *Service) submitProposal(ctx context.Context, req proposalRequest) (ProposalResult, error) {
+	result, _, err := s.submitProposalRequest(ctx, req)
+	return result, err
+}
+
+func (s *Service) submitProposalRequest(ctx context.Context, req proposalRequest) (ProposalResult, MembershipChangeResult, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -315,13 +333,13 @@ func (s *Service) submitProposal(ctx context.Context, req proposalRequest) (Prop
 		stopped := s.stopped
 		s.mu.Unlock()
 		if stopped {
-			return ProposalResult{}, ErrStopped
+			return ProposalResult{}, MembershipChangeResult{}, ErrStopped
 		}
-		return ProposalResult{}, ErrNotStarted
+		return ProposalResult{}, MembershipChangeResult{}, ErrNotStarted
 	}
 	if s.stopping {
 		s.mu.Unlock()
-		return ProposalResult{}, ErrStopped
+		return ProposalResult{}, MembershipChangeResult{}, ErrStopped
 	}
 	proposalCh := s.proposal
 	stopCh := s.stopCh
@@ -333,22 +351,22 @@ func (s *Service) submitProposal(ctx context.Context, req proposalRequest) (Prop
 	select {
 	case proposalCh <- req:
 	case <-ctx.Done():
-		return ProposalResult{}, ctx.Err()
+		return ProposalResult{}, MembershipChangeResult{}, ctx.Err()
 	case <-doneCh:
-		return ProposalResult{}, s.currentError()
+		return ProposalResult{}, MembershipChangeResult{}, s.currentError()
 	case <-stopCh:
-		return ProposalResult{}, ErrStopped
+		return ProposalResult{}, MembershipChangeResult{}, ErrStopped
 	}
 
 	select {
 	case resp := <-req.resp:
-		return resp.result, resp.err
+		return resp.result, resp.membership, resp.err
 	case <-ctx.Done():
-		return ProposalResult{}, ctx.Err()
+		return ProposalResult{}, MembershipChangeResult{}, ctx.Err()
 	case <-doneCh:
-		return ProposalResult{}, s.currentError()
+		return ProposalResult{}, MembershipChangeResult{}, s.currentError()
 	case <-stopCh:
-		return ProposalResult{}, ErrStopped
+		return ProposalResult{}, MembershipChangeResult{}, ErrStopped
 	}
 }
 

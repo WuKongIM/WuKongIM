@@ -97,6 +97,10 @@ type Status struct {
 	CommitIndex uint64
 	// AppliedIndex is the local volatile Raft applied index.
 	AppliedIndex uint64
+	// Voters is the current Controller Raft voting set observed by the local RawNode.
+	Voters []uint64
+	// Learners is the current Controller Raft learner set observed by the local RawNode.
+	Learners []uint64
 	// FirstIndex is the first available local ControllerV2 Raft log index after snapshot compaction.
 	FirstIndex uint64
 	// LastIndex is the last available local ControllerV2 Raft log index or snapshot index.
@@ -129,6 +133,8 @@ func cloneStatus(st Status) Status {
 	if st.Role == "" {
 		st.Role = RoleUnknown
 	}
+	st.Voters = append([]uint64(nil), st.Voters...)
+	st.Learners = append([]uint64(nil), st.Learners...)
 	return st
 }
 

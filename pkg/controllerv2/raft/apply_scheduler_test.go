@@ -2,6 +2,7 @@ package raft
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"sync"
 	"testing"
@@ -44,6 +45,7 @@ func (f *fakeBatchApplier) ApplyBatch(ctx context.Context, cmds []fsm.AppliedCom
 type fakeAppliedStore struct {
 	marks  []uint64
 	onMark func(uint64)
+	err    error
 }
 
 func (s *fakeAppliedStore) MarkAppliedBatch(ctx context.Context, index uint64) error {
@@ -51,6 +53,9 @@ func (s *fakeAppliedStore) MarkAppliedBatch(ctx context.Context, index uint64) e
 	s.marks = append(s.marks, index)
 	if s.onMark != nil {
 		s.onMark(index)
+	}
+	if s.err != nil {
+		return s.err
 	}
 	return nil
 }
@@ -121,6 +126,55 @@ func TestApplySchedulerDispatchesTaskTransitionsAfterMarkApplied(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Equal(t, []string{"mark", "observer"}, observed)
+}
+
+func TestApplySchedulerCompletesMembershipOnPostApplyFailure(t *testing.T) {
+	tests := []struct {
+		name  string
+		setup func(*applyScheduler, *fakeAppliedStore) error
+	}{
+		{
+			name: "mark applied",
+			setup: func(_ *applyScheduler, store *fakeAppliedStore) error {
+				err := errors.New("mark failed")
+				store.err = err
+				return err
+			},
+		},
+		{
+			name: "notify applied",
+			setup: func(sched *applyScheduler, _ *fakeAppliedStore) error {
+				err := errors.New("notify failed")
+				sched.onApplied = func(context.Context, uint64) error {
+					return err
+				}
+				return err
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			store := &fakeAppliedStore{}
+			sched := newApplyScheduler(applySchedulerConfig{}, &fakeBatchApplier{}, store, nil)
+			expectedErr := tt.setup(sched, store)
+			var completed proposalResponse
+			sched.completeMembership = func(_ uint64, result MembershipChangeResult, err error) {
+				completed = proposalResponse{membership: result, err: err}
+			}
+			confChangeC := make(chan confChangeRequest, 1)
+			go func() {
+				req := <-confChangeC
+				req.resp <- confChangeResult{state: raftpb.ConfState{Voters: []uint64{1, 2, 3}, Learners: []uint64{4}}}
+			}()
+
+			err := sched.applyEntries(context.Background(), []raftpb.Entry{{Index: 7, Term: 2, Type: raftpb.EntryConfChange}}, confChangeC)
+
+			require.ErrorIs(t, err, expectedErr)
+			require.ErrorIs(t, completed.err, expectedErr)
+			require.Equal(t, uint64(7), completed.membership.Index)
+			require.Equal(t, []uint64{4}, completed.membership.ConfState.Learners)
+		})
+	}
 }
 
 func TestApplySchedulerRestoresReadySnapshot(t *testing.T) {

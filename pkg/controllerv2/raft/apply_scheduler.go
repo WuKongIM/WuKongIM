@@ -26,6 +26,7 @@ type appliedMarker interface {
 }
 
 type applyCompletion func(index uint64, result ProposalResult, err error)
+type membershipCompletion func(index uint64, result MembershipChangeResult, err error)
 
 type applySchedulerConfig struct {
 	MaxEntries int
@@ -50,12 +51,13 @@ type confChangeResult struct {
 }
 
 type applyScheduler struct {
-	cfg               applySchedulerConfig
-	applier           batchApplier
-	marker            appliedMarker
-	complete          applyCompletion
-	onApplied         func(context.Context, uint64) error
-	onTaskTransitions func([]fsm.TaskTransition)
+	cfg                applySchedulerConfig
+	applier            batchApplier
+	marker             appliedMarker
+	complete           applyCompletion
+	completeMembership membershipCompletion
+	onApplied          func(context.Context, uint64) error
+	onTaskTransitions  func([]fsm.TaskTransition)
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -230,6 +232,7 @@ func (s *applyScheduler) applyEntries(ctx context.Context, entries []raftpb.Entr
 			if err := flush(); err != nil {
 				return err
 			}
+			membership := MembershipChangeResult{Index: entry.Index}
 			if confChangeC != nil {
 				req := confChangeRequest{entry: entry, resp: make(chan confChangeResult, 1)}
 				select {
@@ -239,7 +242,11 @@ func (s *applyScheduler) applyEntries(ctx context.Context, entries []raftpb.Entr
 				}
 				select {
 				case result := <-req.resp:
+					membership.ConfState = result.state
 					if result.err != nil {
+						if s.completeMembership != nil {
+							s.completeMembership(entry.Index, membership, result.err)
+						}
 						return result.err
 					}
 				case <-ctx.Done():
@@ -247,10 +254,19 @@ func (s *applyScheduler) applyEntries(ctx context.Context, entries []raftpb.Entr
 				}
 			}
 			if err := s.marker.MarkAppliedBatch(ctx, entry.Index); err != nil {
+				if s.completeMembership != nil {
+					s.completeMembership(entry.Index, membership, err)
+				}
 				return err
 			}
 			if err := s.notifyApplied(ctx, entry.Index); err != nil {
+				if s.completeMembership != nil {
+					s.completeMembership(entry.Index, membership, err)
+				}
 				return err
+			}
+			if s.completeMembership != nil {
+				s.completeMembership(entry.Index, membership, nil)
 			}
 		}
 	}

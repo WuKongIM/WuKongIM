@@ -110,6 +110,122 @@ func TestThreeControllerVotersCommitInitClusterStateToIdenticalChecksum(t *testi
 	}
 }
 
+func TestControllerRaftAddsLearnerThenPromotesVoter(t *testing.T) {
+	cluster := newRaftTestCluster(t, []uint64{1, 2, 3})
+	cluster.start(t)
+	cluster.propose(t, testInitCommand("wk-raft-membership", cluster.peers))
+	cluster.waitForRevision(t, 1)
+
+	target := cluster.addNode(t, 4)
+	require.NoError(t, target.service.Start(context.Background()))
+	leader := cluster.waitForLeader(t)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	learner, err := leader.service.AddLearner(ctx, 4)
+	cancel()
+	require.NoError(t, err)
+	require.Contains(t, learner.ConfState.Learners, uint64(4))
+
+	require.Eventually(t, func() bool {
+		st := target.service.Status()
+		return containsUint64ForRaftTest(st.Learners, 4)
+	}, 5*time.Second, 10*time.Millisecond)
+
+	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
+	voter, err := leader.service.PromoteLearner(ctx, 4)
+	cancel()
+	require.NoError(t, err)
+	require.Contains(t, voter.ConfState.Voters, uint64(4))
+
+	require.Eventually(t, func() bool {
+		st := target.service.Status()
+		return containsUint64ForRaftTest(st.Voters, 4) && !containsUint64ForRaftTest(st.Learners, 4)
+	}, 5*time.Second, 10*time.Millisecond)
+}
+
+func TestControllerRaftMembershipStatusReportsVotersAndLearners(t *testing.T) {
+	cluster := newRaftTestCluster(t, []uint64{1})
+	cluster.start(t)
+	cluster.propose(t, testInitCommand("wk-raft-status-confstate", cluster.peers))
+	cluster.waitForRevision(t, 1)
+
+	status := cluster.nodes[0].service.Status()
+	require.Equal(t, []uint64{1}, status.Voters)
+	require.Empty(t, status.Learners)
+}
+
+func TestControllerRaftConcurrentMembershipChangeRejectsPending(t *testing.T) {
+	cluster := newRaftTestCluster(t, []uint64{1, 2, 3})
+	cluster.start(t)
+	cluster.propose(t, testInitCommand("wk-raft-membership-pending", cluster.peers))
+	cluster.waitForRevision(t, 1)
+
+	target := cluster.addNode(t, 4)
+	require.NoError(t, target.service.Start(context.Background()))
+	leader := cluster.waitForLeader(t)
+
+	held := make(chan raftpb.Message, 32)
+	firstAppendHeld := make(chan struct{})
+	var firstAppendOnce sync.Once
+	cluster.transport.setInterceptor(func(msg raftpb.Message) bool {
+		if msg.From == leader.id && msg.Type == raftpb.MsgApp && len(msg.Entries) > 0 {
+			firstAppendOnce.Do(func() { close(firstAppendHeld) })
+			select {
+			case held <- msg:
+			default:
+			}
+			return true
+		}
+		return false
+	})
+	defer cluster.transport.setInterceptor(nil)
+
+	firstDone := make(chan error, 1)
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_, err := leader.service.AddLearner(ctx, 4)
+		firstDone <- err
+	}()
+
+	select {
+	case <-firstAppendHeld:
+	case err := <-firstDone:
+		require.NoError(t, err)
+		t.Fatal("first membership change completed before the append was held")
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for first membership append")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	_, err := leader.service.AddLearner(ctx, 5)
+	cancel()
+	require.ErrorIs(t, err, ErrMembershipChangePending)
+
+	cluster.transport.setInterceptor(nil)
+	drainHeldMessages(cluster.transport, held)
+	select {
+	case err := <-firstDone:
+		require.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for first membership change")
+	}
+
+	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
+	err = leader.service.ProbePropose(ctx)
+	cancel()
+	require.NoError(t, err)
+}
+
+func containsUint64ForRaftTest(items []uint64, item uint64) bool {
+	for _, existing := range items {
+		if existing == item {
+			return true
+		}
+	}
+	return false
+}
+
 func TestThreeControllerVotersRejectFollowerProposal(t *testing.T) {
 	cluster := newRaftTestCluster(t, []uint64{1, 2, 3})
 	cluster.start(t)
@@ -494,6 +610,23 @@ func newRaftTestCluster(t *testing.T, ids []uint64) *testRaftCluster {
 	return cluster
 }
 
+func (c *testRaftCluster) addNode(t *testing.T, id uint64) *testRaftNode {
+	t.Helper()
+	c.peers = append(c.peers, Peer{NodeID: id, Addr: fmt.Sprintf("n%d", id)})
+	dir := t.TempDir()
+	statePath := filepath.Join(dir, "cluster-state.json")
+	node := &testRaftNode{
+		id:           id,
+		dir:          dir,
+		raftDir:      filepath.Join(dir, "controller-raft"),
+		statePath:    statePath,
+		stateMachine: newTestStateMachine(t, statePath),
+	}
+	c.rebuildService(t, node)
+	c.nodes = append(c.nodes, node)
+	return node
+}
+
 func (c *testRaftCluster) rebuildService(t *testing.T, node *testRaftNode) {
 	t.Helper()
 	service, err := NewService(Config{
@@ -589,8 +722,9 @@ func (c *testRaftCluster) waitForRevision(t *testing.T, revision uint64) []state
 }
 
 type memoryRaftTransport struct {
-	mu       sync.RWMutex
-	services map[uint64]*Service
+	mu          sync.RWMutex
+	services    map[uint64]*Service
+	interceptor func(raftpb.Message) bool
 }
 
 type stepObserver struct {
@@ -636,19 +770,46 @@ func (t *memoryRaftTransport) register(nodeID uint64, service *Service) {
 	t.services[nodeID] = service
 }
 
+func (t *memoryRaftTransport) setInterceptor(interceptor func(raftpb.Message) bool) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.interceptor = interceptor
+}
+
 func (t *memoryRaftTransport) Send(batch []raftpb.Message) {
 	for _, msg := range batch {
 		t.mu.RLock()
-		service := t.services[msg.To]
+		interceptor := t.interceptor
 		t.mu.RUnlock()
-		if service == nil {
+		if interceptor != nil && interceptor(msg) {
 			continue
 		}
-		// The test transport must not let one slow peer stall the sender's Raft loop.
-		ctx, cancel := context.WithTimeout(context.Background(), testRaftStepTimeout)
-		err := service.Step(ctx, msg)
-		cancel()
-		if err != nil && !errors.Is(err, ErrNotStarted) && !errors.Is(err, ErrStopped) && !errors.Is(err, context.DeadlineExceeded) {
+		t.deliver(msg)
+	}
+}
+
+func (t *memoryRaftTransport) deliver(msg raftpb.Message) {
+	t.mu.RLock()
+	service := t.services[msg.To]
+	t.mu.RUnlock()
+	if service == nil {
+		return
+	}
+	// The test transport must not let one slow peer stall the sender's Raft loop.
+	ctx, cancel := context.WithTimeout(context.Background(), testRaftStepTimeout)
+	err := service.Step(ctx, msg)
+	cancel()
+	if err != nil && !errors.Is(err, ErrNotStarted) && !errors.Is(err, ErrStopped) && !errors.Is(err, context.DeadlineExceeded) {
+		return
+	}
+}
+
+func drainHeldMessages(transport *memoryRaftTransport, held <-chan raftpb.Message) {
+	for {
+		select {
+		case msg := <-held:
+			transport.deliver(msg)
+		default:
 			return
 		}
 	}
