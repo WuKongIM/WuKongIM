@@ -2010,6 +2010,7 @@ go run ./cmd/wkcli node ls --context prod-a --token "$WK_MANAGER_TOKEN"
    gateway_sessions=0
    active_online=0
    closing_online=0
+   total_online=0
    pending_activations=0
    ```
 
@@ -2023,7 +2024,7 @@ go run ./cmd/wkcli node ls --context prod-a --token "$WK_MANAGER_TOKEN"
 
 - `target_health_stale`: check node process liveness, `/readyz`, manager
   health freshness, and control revision catch-up.
-- `eligible_health_stale`: replacement nodes are not fresh enough for safe
+- `eligible_node_health_stale`: replacement nodes are not fresh enough for safe
   placement; inspect `wkcli node ls`.
 - `blocked_by_slots`: run `scale-in plan` and `scale-in advance` with
   `--max-slot-moves 1`; wait for tasks to clear.
