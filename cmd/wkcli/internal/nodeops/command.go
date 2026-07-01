@@ -46,14 +46,16 @@ type nodeListItem struct {
 
 // nodeDiagnosticsResponse keeps the manager-only fields needed for human output.
 type nodeDiagnosticsResponse struct {
-	NodeID     uint64 `json:"node_id"`
-	Membership struct {
-		JoinState string `json:"join_state"`
-	} `json:"membership"`
+	NodeID uint64 `json:"node_id"`
+	Node   struct {
+		Membership struct {
+			JoinState string `json:"join_state"`
+		} `json:"membership"`
+	} `json:"node"`
 	Summary struct {
 		SafeToRemove          bool   `json:"safe_to_remove"`
 		RecommendedNextAction string `json:"recommended_next_action"`
-		ActiveTasks           int    `json:"active_tasks"`
+		ActiveTaskCount       int    `json:"active_task_count"`
 	} `json:"summary"`
 	ActiveTasks []nodeDiagnosticTask  `json:"active_tasks"`
 	TaskAudits  []nodeDiagnosticAudit `json:"task_audits"`
@@ -705,7 +707,7 @@ func printScaleInStatus(w io.Writer, status NodeScaleInStatus) {
 func printNodeDiagnostics(w io.Writer, out nodeDiagnosticsResponse) {
 	fmt.Fprintf(w, "node=%d join_state=%s safe_to_remove=%t recommended_next_action=%s active_tasks=%d task_audits=%d slots=%d warnings=%d\n",
 		out.NodeID,
-		dash(out.Membership.JoinState),
+		dash(out.Node.Membership.JoinState),
 		out.Summary.SafeToRemove,
 		dash(out.Summary.RecommendedNextAction),
 		diagnosticActiveTaskCount(out),
@@ -736,8 +738,8 @@ func printNodeDiagnostics(w io.Writer, out nodeDiagnosticsResponse) {
 }
 
 func diagnosticActiveTaskCount(out nodeDiagnosticsResponse) int {
-	if out.Summary.ActiveTasks > 0 {
-		return out.Summary.ActiveTasks
+	if out.Summary.ActiveTaskCount > 0 {
+		return out.Summary.ActiveTaskCount
 	}
 	return len(out.ActiveTasks)
 }

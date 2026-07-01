@@ -160,11 +160,11 @@ func TestNodeDiagnoseCommandPrintsRootCauseSummary(t *testing.T) {
 		}
 		_, _ = w.Write([]byte(`{
 			"node_id":4,
-			"membership":{"join_state":"leaving"},
+			"node":{"membership":{"join_state":"leaving"}},
 			"summary":{
 				"safe_to_remove":false,
 				"recommended_next_action":"inspect_controller_task",
-				"active_tasks":1
+				"active_task_count":1
 			},
 			"active_tasks":[
 				{
