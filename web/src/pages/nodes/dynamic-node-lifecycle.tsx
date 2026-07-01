@@ -73,10 +73,6 @@ function parsePositiveSafeInteger(value: string, defaultValue: number) {
   return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null
 }
 
-function yesNo(value: boolean) {
-  return value ? "yes" : "no"
-}
-
 export function DynamicNodeLifecycleSheet({
   open,
   mode,
@@ -85,6 +81,10 @@ export function DynamicNodeLifecycleSheet({
   onCompleted,
 }: DynamicNodeLifecycleSheetProps) {
   const intl = useIntl()
+  const formatBooleanValue = useCallback(
+    (value: boolean) => intl.formatMessage({ id: value ? "nodes.boolean.yes" : "nodes.boolean.no" }),
+    [intl],
+  )
   const permissions = useAuthStore((state) => state.permissions)
   const canWriteNodes = useMemo(() => hasPermission(permissions, "cluster.node", "w"), [permissions])
   const [nodeId, setNodeId] = useState("")
@@ -823,7 +823,7 @@ export function DynamicNodeLifecycleSheet({
                 {scaleInPlan ? (
                   <div className="space-y-2 text-sm">
                     <div>State revision: {scaleInPlan.state_revision}</div>
-                    <div>Blocked by status: {yesNo(scaleInPlan.blocked_by_status)}</div>
+                    <div>Blocked by status: {formatBooleanValue(scaleInPlan.blocked_by_status)}</div>
                     {scaleInPlan.candidates.map((candidate) => (
                       <div className="rounded-md border border-border bg-background px-3 py-2" key={candidate.slot_id}>
                         <div className="font-medium text-foreground">Slot {candidate.slot_id}</div>
@@ -848,8 +848,8 @@ export function DynamicNodeLifecycleSheet({
                 ) : null}
                 {scaleInDrain ? (
                   <div className="space-y-1 text-sm text-muted-foreground">
-                    <div>Draining: {yesNo(scaleInDrain.draining)}</div>
-                    <div>Accepting new sessions: {yesNo(scaleInDrain.accepting_new_sessions)}</div>
+                    <div>Draining: {formatBooleanValue(scaleInDrain.draining)}</div>
+                    <div>Accepting new sessions: {formatBooleanValue(scaleInDrain.accepting_new_sessions)}</div>
                     <div>Gateway sessions: {scaleInDrain.gateway_sessions}</div>
                     <div>Active online: {scaleInDrain.active_online}</div>
                     <div>Closing online: {scaleInDrain.closing_online}</div>
@@ -858,8 +858,8 @@ export function DynamicNodeLifecycleSheet({
                 ) : null}
                 {scaleInStatus ? (
                   <div className="space-y-2 text-sm text-muted-foreground">
-                    <div>Safe to proceed: {yesNo(scaleInStatus.safe_to_proceed)}</div>
-                    <div>Safe to remove: {yesNo(scaleInStatus.safe_to_remove)}</div>
+                    <div>Safe to proceed: {formatBooleanValue(scaleInStatus.safe_to_proceed)}</div>
+                    <div>Safe to remove: {formatBooleanValue(scaleInStatus.safe_to_remove)}</div>
                     <div>Join state: {scaleInStatus.join_state}</div>
                     <div>
                       Slots: replicas {scaleInStatus.slot_replica_count} / leaders {scaleInStatus.slot_leader_count}
@@ -870,8 +870,8 @@ export function DynamicNodeLifecycleSheet({
                     <div>
                       Channels: leaders {scaleInStatus.channel_leader_count} / replicas {scaleInStatus.channel_replica_count}
                     </div>
-                    <div>Gateway draining: {yesNo(scaleInStatus.gateway_draining)}</div>
-                    <div>Accepting new sessions: {yesNo(scaleInStatus.accepting_new_sessions)}</div>
+                    <div>Gateway draining: {formatBooleanValue(scaleInStatus.gateway_draining)}</div>
+                    <div>Accepting new sessions: {formatBooleanValue(scaleInStatus.accepting_new_sessions)}</div>
                     {scaleInStatus.blocked_reasons.length > 0 ? (
                       <div>
                         Blockers: {scaleInStatus.blocked_reasons.join(", ")}
@@ -904,7 +904,7 @@ export function DynamicNodeLifecycleSheet({
               <div className="space-y-3 rounded-lg border border-border bg-muted/20 p-3 text-sm">
                 <div className="space-y-1 text-muted-foreground">
                   <div>Recommended next action: {diagnostics.summary.recommended_next_action}</div>
-                  <div>Safe to remove: {yesNo(diagnostics.summary.safe_to_remove)}</div>
+                  <div>Safe to remove: {formatBooleanValue(diagnostics.summary.safe_to_remove)}</div>
                   <div>
                     Tasks: active {diagnostics.summary.active_task_count} / failed {diagnostics.summary.failed_task_count}
                   </div>
