@@ -164,6 +164,56 @@ type (
 	StateSyncServer = cv2sync.Server
 )
 
+// PromoteControllerVoterRequest finalizes one proven Controller voter promotion in ControllerV2 state.
+type PromoteControllerVoterRequest struct {
+	// NodeID is the target node promoted into Controller Raft voting membership.
+	NodeID uint64
+	// Addr is the target Controller address; empty uses the durable node address.
+	Addr string
+	// ExpectedRevision fences the state write to the caller's observed revision.
+	ExpectedRevision uint64
+	// ExpectedVoters fences the state write to the previous durable Controller voter set.
+	ExpectedVoters []uint64
+	// ObservedConfigIndex is the live Controller Raft config index proving the promotion.
+	ObservedConfigIndex uint64
+	// ObservedVoters is the live Controller Raft voter set observed after promotion.
+	ObservedVoters []uint64
+}
+
+// PromoteControllerVoterResult describes the durable state after final promotion.
+type PromoteControllerVoterResult struct {
+	// Changed reports whether the promotion advanced ControllerV2 state.
+	Changed bool
+	// Node is the durable node record after final promotion.
+	Node Node
+	// Revision is the observed ControllerV2 state revision after the write.
+	Revision uint64
+	// PreviousVoters is the durable Controller voter set before the promotion request.
+	PreviousVoters []uint64
+	// NextVoters is the durable Controller voter set after final promotion.
+	NextVoters []uint64
+}
+
+// PrepareControllerVoterRequest asks a mirror node to become ready for Controller Raft learner traffic.
+type PrepareControllerVoterRequest struct {
+	// NodeID is the local node identity that should prepare for Controller Raft.
+	NodeID uint64
+	// ClusterID is the stable cluster identity expected in the mirrored state.
+	ClusterID string
+	// ExpectedRevision is the minimum mirrored ControllerV2 revision required before preparing.
+	ExpectedRevision uint64
+	// NextVoters is the Controller voter set that includes the preparing node.
+	NextVoters []Voter
+}
+
+// PrepareControllerVoterResult reports target-side preparation state.
+type PrepareControllerVoterResult struct {
+	// Prepared reports whether the node is ready to receive Controller Raft traffic.
+	Prepared bool
+	// StateRevision is the mirrored state revision preserved before Raft startup.
+	StateRevision uint64
+}
+
 var (
 	// ErrNotStarted indicates that the ControllerV2 runtime has not started.
 	ErrNotStarted = raft.ErrNotStarted

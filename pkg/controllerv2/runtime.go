@@ -80,11 +80,7 @@ func (r *Runtime) Stop(ctx context.Context) error {
 	if err := ctxErr(ctx); err != nil {
 		return err
 	}
-	if r.refreshCancel != nil {
-		r.refreshCancel()
-		r.refreshWG.Wait()
-		r.refreshCancel = nil
-	}
+	r.stopRefreshLoop()
 	if r.raft != nil {
 		return r.raft.Stop()
 	}
@@ -170,6 +166,15 @@ func (r *Runtime) GetState(ctx context.Context, req GetStateRequest) (GetStateRe
 
 // Watch returns state update events.
 func (r *Runtime) Watch() <-chan StateEvent { return r.watch }
+
+func (r *Runtime) stopRefreshLoop() {
+	if r.refreshCancel == nil {
+		return
+	}
+	r.refreshCancel()
+	r.refreshWG.Wait()
+	r.refreshCancel = nil
+}
 
 func ctxErr(ctx context.Context) error {
 	if ctx == nil {

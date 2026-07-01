@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -1049,6 +1050,629 @@ func TestRuntimeMarkNodeRemovedAllowsStaleExpectedRevisionWhenAlreadyRemoved(t *
 	}
 }
 
+func TestRuntimePromoteControllerVoterRequiresLiveVoterProof(t *testing.T) {
+	runtime := startSingleVoterRuntime(t, "cluster-controller-voter-proof")
+	if _, err := runtime.JoinNode(context.Background(), JoinNodeRequest{NodeID: 4, Addr: "n4", Roles: []NodeRole{NodeRoleData}, CapacityWeight: 1}); err != nil {
+		t.Fatalf("JoinNode() error = %v", err)
+	}
+	if _, err := runtime.ActivateNode(context.Background(), ActivateNodeRequest{NodeID: 4}); err != nil {
+		t.Fatalf("ActivateNode() error = %v", err)
+	}
+
+	_, err := runtime.PromoteControllerVoter(context.Background(), PromoteControllerVoterRequest{
+		NodeID:              4,
+		ObservedConfigIndex: 0,
+		ObservedVoters:      []uint64{1, 4},
+	})
+	if !errors.Is(err, ErrProposalRejected) {
+		t.Fatalf("PromoteControllerVoter() error = %v, want %v", err, ErrProposalRejected)
+	}
+}
+
+func TestRuntimePromoteControllerVoterCommitsStateAfterProof(t *testing.T) {
+	runtime := startSingleVoterRuntime(t, "cluster-controller-voter-commit")
+	if _, err := runtime.JoinNode(context.Background(), JoinNodeRequest{NodeID: 4, Addr: "n4", Roles: []NodeRole{NodeRoleData}, CapacityWeight: 1}); err != nil {
+		t.Fatalf("JoinNode() error = %v", err)
+	}
+	if _, err := runtime.ActivateNode(context.Background(), ActivateNodeRequest{NodeID: 4}); err != nil {
+		t.Fatalf("ActivateNode() error = %v", err)
+	}
+	before, err := runtime.LocalState(context.Background())
+	if err != nil {
+		t.Fatalf("LocalState(before) error = %v", err)
+	}
+
+	result, err := runtime.PromoteControllerVoter(context.Background(), PromoteControllerVoterRequest{
+		NodeID:              4,
+		ExpectedRevision:    before.Revision,
+		ExpectedVoters:      []uint64{1},
+		ObservedConfigIndex: 11,
+		ObservedVoters:      []uint64{1, 4},
+	})
+	if err != nil {
+		t.Fatalf("PromoteControllerVoter() error = %v", err)
+	}
+	if !result.Changed || result.Revision <= before.Revision {
+		t.Fatalf("PromoteControllerVoter() = %#v, want changed revision > %d", result, before.Revision)
+	}
+	if !sameUint64SetForTest(result.NextVoters, []uint64{1, 4}) {
+		t.Fatalf("NextVoters = %v, want [1 4]", result.NextVoters)
+	}
+
+	after := waitForState(t, runtime, func(st ClusterState) bool {
+		node, ok := findNodeForTest(st, 4)
+		return ok && node.HasRole(NodeRoleControllerVoter)
+	})
+	node, ok := findNodeForTest(after, 4)
+	if !ok || !node.HasRole(NodeRoleControllerVoter) {
+		t.Fatalf("node 4 after promotion = %#v, want controller_voter role", node)
+	}
+}
+
+func TestRuntimePromoteControllerVoterRejectsStaleExpectedRevision(t *testing.T) {
+	runtime := startSingleVoterRuntime(t, "cluster-controller-voter-stale-revision")
+	if _, err := runtime.JoinNode(context.Background(), JoinNodeRequest{NodeID: 4, Addr: "n4", Roles: []NodeRole{NodeRoleData}, CapacityWeight: 1}); err != nil {
+		t.Fatalf("JoinNode() error = %v", err)
+	}
+	if _, err := runtime.ActivateNode(context.Background(), ActivateNodeRequest{NodeID: 4}); err != nil {
+		t.Fatalf("ActivateNode() error = %v", err)
+	}
+	before, err := runtime.LocalState(context.Background())
+	if err != nil {
+		t.Fatalf("LocalState(before) error = %v", err)
+	}
+
+	_, err = runtime.PromoteControllerVoter(context.Background(), PromoteControllerVoterRequest{
+		NodeID:              4,
+		ExpectedRevision:    before.Revision + 1,
+		ExpectedVoters:      []uint64{1},
+		ObservedConfigIndex: 11,
+		ObservedVoters:      []uint64{1, 4},
+	})
+	if !errors.Is(err, ErrProposalRejected) || !IsExpectedRevisionMismatch(err) {
+		t.Fatalf("PromoteControllerVoter(stale revision) error = %v, want proposal rejected expected revision mismatch", err)
+	}
+	after, err := runtime.LocalState(context.Background())
+	if err != nil {
+		t.Fatalf("LocalState(after) error = %v", err)
+	}
+	node, ok := findNodeForTest(after, 4)
+	if !ok {
+		t.Fatalf("node 4 missing after stale promotion rejection")
+	}
+	if node.HasRole(NodeRoleControllerVoter) || !sameUint64SetForTest(controllerNodeIDsForRuntime(after.Controllers), []uint64{1}) || after.Revision != before.Revision {
+		t.Fatalf("LocalState(after stale promotion rejection) = %#v, before revision %d, want unchanged data-only node 4", after, before.Revision)
+	}
+}
+
+func TestRuntimePromoteControllerVoterRetryIsIdempotent(t *testing.T) {
+	runtime := startSingleVoterRuntime(t, "cluster-controller-voter-idempotent")
+	if _, err := runtime.JoinNode(context.Background(), JoinNodeRequest{NodeID: 4, Addr: "n4", Roles: []NodeRole{NodeRoleData}, CapacityWeight: 1}); err != nil {
+		t.Fatalf("JoinNode() error = %v", err)
+	}
+	if _, err := runtime.ActivateNode(context.Background(), ActivateNodeRequest{NodeID: 4}); err != nil {
+		t.Fatalf("ActivateNode() error = %v", err)
+	}
+	req := PromoteControllerVoterRequest{
+		NodeID:              4,
+		ObservedConfigIndex: 11,
+		ObservedVoters:      []uint64{1, 4},
+	}
+
+	first, err := runtime.PromoteControllerVoter(context.Background(), req)
+	if err != nil {
+		t.Fatalf("PromoteControllerVoter(first) error = %v", err)
+	}
+	if !first.Changed || !sameUint64SetForTest(first.NextVoters, []uint64{1, 4}) {
+		t.Fatalf("PromoteControllerVoter(first) = %#v, want changed voters [1 4]", first)
+	}
+
+	second, err := runtime.PromoteControllerVoter(context.Background(), req)
+	if err != nil {
+		t.Fatalf("PromoteControllerVoter(second) error = %v", err)
+	}
+	if second.Changed || second.Revision != first.Revision {
+		t.Fatalf("PromoteControllerVoter(second) = %#v, want unchanged revision %d", second, first.Revision)
+	}
+	if !second.Node.HasRole(NodeRoleControllerVoter) {
+		t.Fatalf("PromoteControllerVoter(second) node roles = %v, want controller voter", second.Node.Roles)
+	}
+	if !sameUint64SetForTest(second.PreviousVoters, []uint64{1, 4}) || !sameUint64SetForTest(second.NextVoters, []uint64{1, 4}) {
+		t.Fatalf("PromoteControllerVoter(second) voters previous=%v next=%v, want stable [1 4]", second.PreviousVoters, second.NextVoters)
+	}
+	after, err := runtime.LocalState(context.Background())
+	if err != nil {
+		t.Fatalf("LocalState(after retry) error = %v", err)
+	}
+	node, ok := findNodeForTest(after, 4)
+	if !ok || !node.HasRole(NodeRoleControllerVoter) || !sameUint64SetForTest(controllerNodeIDsForRuntime(after.Controllers), []uint64{1, 4}) {
+		t.Fatalf("LocalState(after retry) = %#v, want node 4 controller voter and voters [1 4]", after)
+	}
+}
+
+func TestRuntimePromoteControllerVoterPreservesExplicitEmptyExpectedVoterFence(t *testing.T) {
+	runtime := startSingleVoterRuntime(t, "cluster-controller-voter-empty-fence")
+	if _, err := runtime.JoinNode(context.Background(), JoinNodeRequest{NodeID: 4, Addr: "n4", Roles: []NodeRole{NodeRoleData}, CapacityWeight: 1}); err != nil {
+		t.Fatalf("JoinNode() error = %v", err)
+	}
+	if _, err := runtime.ActivateNode(context.Background(), ActivateNodeRequest{NodeID: 4}); err != nil {
+		t.Fatalf("ActivateNode() error = %v", err)
+	}
+
+	_, err := runtime.PromoteControllerVoter(context.Background(), PromoteControllerVoterRequest{
+		NodeID:              4,
+		ExpectedVoters:      []uint64{},
+		ObservedConfigIndex: 11,
+		ObservedVoters:      []uint64{1, 4},
+	})
+	if !errors.Is(err, ErrProposalRejected) {
+		t.Fatalf("PromoteControllerVoter(explicit empty fence) error = %v, want %v", err, ErrProposalRejected)
+	}
+}
+
+func TestRuntimePrepareControllerVoterMovesMirrorStateAside(t *testing.T) {
+	stateDir := t.TempDir()
+	mirrorState := mirroredPrepareDataNodeStateForTest(t, "wk-prepare", 9)
+	store := statefile.New(filepath.Join(stateDir, "cluster-state.json"))
+	if err := store.Save(context.Background(), mirrorState); err != nil {
+		t.Fatalf("Save(mirror state) error = %v", err)
+	}
+	runtime := newPrepareControllerVoterRuntimeForTest(t, stateDir, "wk-prepare")
+
+	result, err := runtime.PrepareControllerVoter(context.Background(), prepareControllerVoterRequestForTest("wk-prepare", mirrorState.Revision))
+	if err != nil {
+		t.Fatalf("PrepareControllerVoter() error = %v", err)
+	}
+	t.Cleanup(func() { _ = runtime.Stop(context.Background()) })
+	if !result.Prepared || result.StateRevision != mirrorState.Revision {
+		t.Fatalf("PrepareControllerVoter() = %#v, want prepared revision %d", result, mirrorState.Revision)
+	}
+	if runtime.raft == nil {
+		t.Fatalf("PrepareControllerVoter() did not start Controller Raft service")
+	}
+	if runtime.syncClient != nil {
+		t.Fatalf("PrepareControllerVoter() kept mirror sync client")
+	}
+	activePath := filepath.Join(stateDir, "cluster-state.json")
+	if _, err := os.Stat(activePath); !os.IsNotExist(err) {
+		t.Fatalf("active mirror state stat error = %v, want not exist", err)
+	}
+	backupPath := filepath.Join(stateDir, mirrorBeforeControllerVoterPromotionFile)
+	if _, err := os.Stat(backupPath); err != nil {
+		t.Fatalf("backup mirror state stat error = %v", err)
+	}
+	assertStateFileRevisionForTest(t, backupPath, mirrorState.Revision)
+}
+
+func TestRuntimePrepareControllerVoterFromStartedMirrorRuntime(t *testing.T) {
+	stateDir := t.TempDir()
+	clusterID := "wk-prepare-started-mirror"
+	leaderState := mirroredPrepareDataNodeStateForTest(t, clusterID, 9)
+	leader := NewStateSyncServer(StateSyncServerConfig{
+		NodeID:    1,
+		ClusterID: clusterID,
+		LeaderID:  func() uint64 { return 1 },
+		Ready:     func() bool { return true },
+		Snapshot: func(context.Context) (ClusterState, error) {
+			return leaderState, nil
+		},
+	})
+	runtime, err := NewRuntime(RuntimeConfig{
+		NodeID:       4,
+		Addr:         "n4",
+		StateDir:     stateDir,
+		ClusterID:    clusterID,
+		Role:         RuntimeRoleMirror,
+		Voters:       []Voter{{NodeID: 1, Addr: "n1"}},
+		SyncPeers:    fixedPeerPicker{ids: []uint64{1}, endpoints: map[uint64]Endpoint{1: leader}},
+		TickInterval: 5 * time.Millisecond,
+	})
+	if err != nil {
+		t.Fatalf("NewRuntime() error = %v", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	if err := runtime.Start(ctx); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	t.Cleanup(func() { _ = runtime.Stop(context.Background()) })
+	if runtime.server == nil || runtime.syncClient == nil || runtime.refreshCancel == nil {
+		t.Fatalf("Start() mirror fields server=%p syncClient=%p refreshCancel=%v, want started mirror", runtime.server, runtime.syncClient, runtime.refreshCancel)
+	}
+	synced, err := runtime.LocalState(context.Background())
+	if err != nil {
+		t.Fatalf("LocalState(synced) error = %v", err)
+	}
+	node, ok := findNodeForTest(synced, 4)
+	if !ok || !sameUint64SetForTest(controllerNodeIDsForRuntime(synced.Controllers), []uint64{1}) || !sameNodeRoles(node.Roles, []NodeRole{NodeRoleData}) {
+		t.Fatalf("LocalState(synced) = %#v, want node 4 active data-only mirror state with controller 1", synced)
+	}
+
+	result, err := runtime.PrepareControllerVoter(context.Background(), prepareControllerVoterRequestForTest(clusterID, leaderState.Revision))
+	if err != nil {
+		t.Fatalf("PrepareControllerVoter() error = %v", err)
+	}
+	if !result.Prepared || result.StateRevision != leaderState.Revision {
+		t.Fatalf("PrepareControllerVoter() = %#v, want prepared revision %d", result, leaderState.Revision)
+	}
+	if runtime.cfg.Role != RuntimeRoleVoter || runtime.cfg.AllowBootstrap {
+		t.Fatalf("runtime role=%s allowBootstrap=%v, want voter without bootstrap", runtime.cfg.Role, runtime.cfg.AllowBootstrap)
+	}
+	if runtime.syncClient != nil || runtime.raft == nil || runtime.server == nil || runtime.syncServer == nil {
+		t.Fatalf("runtime fields after prepare syncClient=%p raft=%p server=%p syncServer=%p, want voter runtime", runtime.syncClient, runtime.raft, runtime.server, runtime.syncServer)
+	}
+	activePath := filepath.Join(stateDir, "cluster-state.json")
+	if _, err := os.Stat(activePath); !os.IsNotExist(err) {
+		t.Fatalf("active mirror state stat error = %v, want not exist", err)
+	}
+	backupPath := filepath.Join(stateDir, mirrorBeforeControllerVoterPromotionFile)
+	assertStateFileRevisionForTest(t, backupPath, leaderState.Revision)
+}
+
+func TestRuntimePrepareControllerVoterRetryIsIdempotent(t *testing.T) {
+	stateDir := t.TempDir()
+	mirrorState := mirroredPrepareDataNodeStateForTest(t, "wk-prepare-idempotent", 9)
+	activePath := filepath.Join(stateDir, "cluster-state.json")
+	if err := statefile.New(activePath).Save(context.Background(), mirrorState); err != nil {
+		t.Fatalf("Save(active mirror state) error = %v", err)
+	}
+	runtime := newPrepareControllerVoterRuntimeForTest(t, stateDir, "wk-prepare-idempotent")
+	req := prepareControllerVoterRequestForTest("wk-prepare-idempotent", mirrorState.Revision)
+
+	first, err := runtime.PrepareControllerVoter(context.Background(), req)
+	if err != nil {
+		t.Fatalf("PrepareControllerVoter(first) error = %v", err)
+	}
+	t.Cleanup(func() { _ = runtime.Stop(context.Background()) })
+	if !first.Prepared || first.StateRevision != mirrorState.Revision {
+		t.Fatalf("PrepareControllerVoter(first) = %#v, want prepared revision %d", first, mirrorState.Revision)
+	}
+	raftBefore := runtime.raft
+	serverBefore := runtime.server
+	syncServerBefore := runtime.syncServer
+	if raftBefore == nil || serverBefore == nil || syncServerBefore == nil {
+		t.Fatalf("PrepareControllerVoter(first) runtime fields raft=%p server=%p syncServer=%p, want initialized", raftBefore, serverBefore, syncServerBefore)
+	}
+
+	second, err := runtime.PrepareControllerVoter(context.Background(), req)
+	if err != nil {
+		t.Fatalf("PrepareControllerVoter(second) error = %v", err)
+	}
+	if !second.Prepared || second.StateRevision != first.StateRevision {
+		t.Fatalf("PrepareControllerVoter(second) = %#v, want prepared revision %d", second, first.StateRevision)
+	}
+	if runtime.raft != raftBefore || runtime.server != serverBefore || runtime.syncServer != syncServerBefore {
+		t.Fatalf("PrepareControllerVoter(second) recreated runtime fields raft=%p/%p server=%p/%p syncServer=%p/%p", runtime.raft, raftBefore, runtime.server, serverBefore, runtime.syncServer, syncServerBefore)
+	}
+	if runtime.cfg.Role != RuntimeRoleVoter || runtime.syncClient != nil {
+		t.Fatalf("PrepareControllerVoter(second) role=%s syncClient=%p, want voter with no mirror client", runtime.cfg.Role, runtime.syncClient)
+	}
+	if _, err := os.Stat(activePath); !os.IsNotExist(err) {
+		t.Fatalf("active mirror state stat error = %v, want not exist", err)
+	}
+	backupPath := filepath.Join(stateDir, mirrorBeforeControllerVoterPromotionFile)
+	assertStateFileRevisionForTest(t, backupPath, mirrorState.Revision)
+}
+
+func TestRuntimePrepareControllerVoterLoadsMirrorStateFromBackupOnly(t *testing.T) {
+	stateDir := t.TempDir()
+	backupState := mirroredPrepareDataNodeStateForTest(t, "wk-prepare-backup-only", 12)
+	backupPath := filepath.Join(stateDir, mirrorBeforeControllerVoterPromotionFile)
+	if err := statefile.New(backupPath).Save(context.Background(), backupState); err != nil {
+		t.Fatalf("Save(backup mirror state) error = %v", err)
+	}
+	runtime := newPrepareControllerVoterRuntimeForTest(t, stateDir, "wk-prepare-backup-only")
+
+	result, err := runtime.PrepareControllerVoter(context.Background(), prepareControllerVoterRequestForTest("wk-prepare-backup-only", backupState.Revision))
+	if err != nil {
+		t.Fatalf("PrepareControllerVoter() error = %v", err)
+	}
+	t.Cleanup(func() { _ = runtime.Stop(context.Background()) })
+	if !result.Prepared || result.StateRevision != backupState.Revision {
+		t.Fatalf("PrepareControllerVoter() = %#v, want prepared revision %d", result, backupState.Revision)
+	}
+	assertStateFileRevisionForTest(t, backupPath, backupState.Revision)
+	if _, err := os.Stat(filepath.Join(stateDir, "cluster-state.json")); !os.IsNotExist(err) {
+		t.Fatalf("active mirror state stat error = %v, want not exist", err)
+	}
+}
+
+func TestRuntimePrepareControllerVoterKeepsNewerActiveMirrorStateOverBackup(t *testing.T) {
+	stateDir := t.TempDir()
+	backupState := mirroredPrepareDataNodeStateForTest(t, "wk-prepare-newer-active", 7)
+	activeState := mirroredPrepareDataNodeStateForTest(t, "wk-prepare-newer-active", 11)
+	backupPath := filepath.Join(stateDir, mirrorBeforeControllerVoterPromotionFile)
+	if err := statefile.New(backupPath).Save(context.Background(), backupState); err != nil {
+		t.Fatalf("Save(backup mirror state) error = %v", err)
+	}
+	if err := statefile.New(filepath.Join(stateDir, "cluster-state.json")).Save(context.Background(), activeState); err != nil {
+		t.Fatalf("Save(active mirror state) error = %v", err)
+	}
+	runtime := newPrepareControllerVoterRuntimeForTest(t, stateDir, "wk-prepare-newer-active")
+
+	result, err := runtime.PrepareControllerVoter(context.Background(), prepareControllerVoterRequestForTest("wk-prepare-newer-active", activeState.Revision))
+	if err != nil {
+		t.Fatalf("PrepareControllerVoter() error = %v", err)
+	}
+	t.Cleanup(func() { _ = runtime.Stop(context.Background()) })
+	if !result.Prepared || result.StateRevision != activeState.Revision {
+		t.Fatalf("PrepareControllerVoter() = %#v, want prepared revision %d", result, activeState.Revision)
+	}
+	assertStateFileRevisionForTest(t, backupPath, activeState.Revision)
+	if _, err := os.Stat(filepath.Join(stateDir, "cluster-state.json")); !os.IsNotExist(err) {
+		t.Fatalf("active mirror state stat error = %v, want not exist", err)
+	}
+}
+
+func TestRuntimePrepareControllerVoterUsesPreservedStateOverStaleMemory(t *testing.T) {
+	stateDir := t.TempDir()
+	staleMemory := mirroredPrepareDataNodeStateForTest(t, "wk-prepare-stale-memory", 1)
+	backupState := mirroredPrepareDataNodeStateForTest(t, "wk-prepare-stale-memory", 9)
+	backupPath := filepath.Join(stateDir, mirrorBeforeControllerVoterPromotionFile)
+	if err := statefile.New(backupPath).Save(context.Background(), backupState); err != nil {
+		t.Fatalf("Save(backup mirror state) error = %v", err)
+	}
+	runtime := newPrepareControllerVoterRuntimeForTest(t, stateDir, "wk-prepare-stale-memory")
+	setRuntimeStateForTest(runtime, staleMemory)
+
+	result, err := runtime.PrepareControllerVoter(context.Background(), prepareControllerVoterRequestForTest("wk-prepare-stale-memory", backupState.Revision))
+	if err != nil {
+		t.Fatalf("PrepareControllerVoter() error = %v", err)
+	}
+	t.Cleanup(func() { _ = runtime.Stop(context.Background()) })
+	if !result.Prepared || result.StateRevision != backupState.Revision {
+		t.Fatalf("PrepareControllerVoter() = %#v, want prepared revision %d", result, backupState.Revision)
+	}
+	assertStateFileRevisionForTest(t, backupPath, backupState.Revision)
+}
+
+func TestRuntimePrepareControllerVoterDoesNotPublishFailedPreservedState(t *testing.T) {
+	tests := []struct {
+		name               string
+		runtimeClusterID   string
+		preservedClusterID string
+		expectedRevision   uint64
+		wantErr            error
+	}{
+		{
+			name:               "cluster mismatch",
+			runtimeClusterID:   "wk-prepare-local",
+			preservedClusterID: "wk-prepare-foreign",
+			expectedRevision:   9,
+		},
+		{
+			name:               "expected revision mismatch",
+			runtimeClusterID:   "wk-prepare-revision",
+			preservedClusterID: "wk-prepare-revision",
+			expectedRevision:   10,
+			wantErr:            ErrExpectedRevisionMismatch,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			stateDir := t.TempDir()
+			staleMemory := mirroredPrepareDataNodeStateForTest(t, tt.runtimeClusterID, 1)
+			preservedState := mirroredPrepareDataNodeStateForTest(t, tt.preservedClusterID, 9)
+			activePath := filepath.Join(stateDir, "cluster-state.json")
+			if err := statefile.New(activePath).Save(context.Background(), preservedState); err != nil {
+				t.Fatalf("Save(active mirror state) error = %v", err)
+			}
+			runtime := newPrepareControllerVoterRuntimeForTest(t, stateDir, tt.runtimeClusterID)
+			setRuntimeStateForTest(runtime, staleMemory)
+
+			_, err := runtime.PrepareControllerVoter(context.Background(), prepareControllerVoterRequestForTest(tt.runtimeClusterID, tt.expectedRevision))
+			if tt.wantErr != nil {
+				if !errors.Is(err, tt.wantErr) {
+					t.Fatalf("PrepareControllerVoter() error = %v, want %v", err, tt.wantErr)
+				}
+			} else if err == nil {
+				t.Fatalf("PrepareControllerVoter() error = nil, want validation error")
+			}
+			visible, err := runtime.LocalState(context.Background())
+			if err != nil {
+				t.Fatalf("LocalState() error = %v", err)
+			}
+			if visible.ClusterID != staleMemory.ClusterID || visible.Revision != staleMemory.Revision {
+				t.Fatalf("LocalState() = cluster %q revision %d, want stale cluster %q revision %d", visible.ClusterID, visible.Revision, staleMemory.ClusterID, staleMemory.Revision)
+			}
+		})
+	}
+}
+
+func TestRuntimePrepareControllerVoterRestartsMirrorRefreshAfterValidationFailure(t *testing.T) {
+	stateDir := t.TempDir()
+	mirrorState := mirroredPrepareDataNodeStateForTest(t, "wk-prepare-refresh-restart", 9)
+	activePath := filepath.Join(stateDir, "cluster-state.json")
+	if err := statefile.New(activePath).Save(context.Background(), mirrorState); err != nil {
+		t.Fatalf("Save(active mirror state) error = %v", err)
+	}
+	runtime := newPrepareControllerVoterRuntimeForTest(t, stateDir, "wk-prepare-refresh-restart")
+	runtime.syncClient = runtime.cfg.SyncClient
+	runtime.startRefreshLoop()
+	t.Cleanup(func() { _ = runtime.Stop(context.Background()) })
+	if runtime.refreshCancel == nil {
+		t.Fatalf("refresh loop was not started for test")
+	}
+
+	_, err := runtime.PrepareControllerVoter(context.Background(), prepareControllerVoterRequestForTest("wk-prepare-refresh-restart", mirrorState.Revision+1))
+	if !errors.Is(err, ErrExpectedRevisionMismatch) {
+		t.Fatalf("PrepareControllerVoter() error = %v, want %v", err, ErrExpectedRevisionMismatch)
+	}
+	if runtime.refreshCancel == nil {
+		t.Fatalf("PrepareControllerVoter() stopped mirror refresh after validation failure")
+	}
+}
+
+func TestRuntimePrepareControllerVoterRestartsMirrorRefreshAfterMoveFailure(t *testing.T) {
+	stateDir := t.TempDir()
+	backupState := mirroredPrepareDataNodeStateForTest(t, "wk-prepare-move-failure", 7)
+	activeState := mirroredPrepareDataNodeStateForTest(t, "wk-prepare-move-failure", 11)
+	activePath := filepath.Join(stateDir, "cluster-state.json")
+	backupPath := filepath.Join(stateDir, mirrorBeforeControllerVoterPromotionFile)
+	if err := statefile.New(activePath).Save(context.Background(), activeState); err != nil {
+		t.Fatalf("Save(active mirror state) error = %v", err)
+	}
+	if err := statefile.New(backupPath).Save(context.Background(), backupState); err != nil {
+		t.Fatalf("Save(backup mirror state) error = %v", err)
+	}
+	oldBackupPath := backupPath + ".old"
+	if err := os.MkdirAll(oldBackupPath, 0o755); err != nil {
+		t.Fatalf("MkdirAll(old backup dir) error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(oldBackupPath, "busy"), []byte("busy"), 0o644); err != nil {
+		t.Fatalf("WriteFile(old backup marker) error = %v", err)
+	}
+	runtime := newPrepareControllerVoterRuntimeForTest(t, stateDir, "wk-prepare-move-failure")
+	runtime.syncClient = runtime.cfg.SyncClient
+	runtime.startRefreshLoop()
+	t.Cleanup(func() { _ = runtime.Stop(context.Background()) })
+
+	_, err := runtime.PrepareControllerVoter(context.Background(), prepareControllerVoterRequestForTest("wk-prepare-move-failure", activeState.Revision))
+	if err == nil {
+		t.Fatalf("PrepareControllerVoter() error = nil, want move failure")
+	}
+	if runtime.refreshCancel == nil {
+		t.Fatalf("PrepareControllerVoter() stopped mirror refresh after move failure")
+	}
+	if runtime.cfg.Role != RuntimeRoleMirror {
+		t.Fatalf("runtime role = %s, want %s", runtime.cfg.Role, RuntimeRoleMirror)
+	}
+	if runtime.syncClient == nil {
+		t.Fatalf("syncClient = nil, want mirror sync client retained")
+	}
+	assertStateFileRevisionForTest(t, activePath, activeState.Revision)
+	assertStateFileRevisionForTest(t, backupPath, backupState.Revision)
+}
+
+func TestRuntimePrepareControllerVoterValidatesNextVotersBeforeMovingState(t *testing.T) {
+	stateDir := t.TempDir()
+	mirrorState := mirroredPrepareDataNodeStateForTest(t, "wk-prepare-invalid-voters", 9)
+	activePath := filepath.Join(stateDir, "cluster-state.json")
+	if err := statefile.New(activePath).Save(context.Background(), mirrorState); err != nil {
+		t.Fatalf("Save(active mirror state) error = %v", err)
+	}
+	runtime := newPrepareControllerVoterRuntimeForTest(t, stateDir, "wk-prepare-invalid-voters")
+
+	_, err := runtime.PrepareControllerVoter(context.Background(), PrepareControllerVoterRequest{
+		NodeID:           4,
+		ClusterID:        "wk-prepare-invalid-voters",
+		ExpectedRevision: mirrorState.Revision,
+		NextVoters:       []Voter{{NodeID: 1, Addr: "n1"}},
+	})
+	if err == nil {
+		t.Fatalf("PrepareControllerVoter(invalid voters) error = nil, want validation error")
+	}
+	if _, statErr := os.Stat(activePath); statErr != nil {
+		t.Fatalf("active mirror state stat error = %v, want still present", statErr)
+	}
+	backupPath := filepath.Join(stateDir, mirrorBeforeControllerVoterPromotionFile)
+	if _, statErr := os.Stat(backupPath); !os.IsNotExist(statErr) {
+		t.Fatalf("backup mirror state stat error = %v, want not exist", statErr)
+	}
+}
+
+func TestRuntimePrepareControllerVoterValidatesNextVotersAgainstPreservedStateBeforeMovingState(t *testing.T) {
+	tests := []struct {
+		name       string
+		nextVoters []Voter
+	}{
+		{
+			name:       "omits existing controller",
+			nextVoters: []Voter{{NodeID: 4, Addr: "n4"}},
+		},
+		{
+			name:       "changes existing controller addr",
+			nextVoters: []Voter{{NodeID: 1, Addr: "n1-wrong"}, {NodeID: 4, Addr: "n4"}},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			stateDir := t.TempDir()
+			mirrorState := mirroredPrepareDataNodeStateForTest(t, "wk-prepare-semantic-voters", 9)
+			activePath := filepath.Join(stateDir, "cluster-state.json")
+			if err := statefile.New(activePath).Save(context.Background(), mirrorState); err != nil {
+				t.Fatalf("Save(active mirror state) error = %v", err)
+			}
+			runtime := newPrepareControllerVoterRuntimeForTest(t, stateDir, "wk-prepare-semantic-voters")
+			req := prepareControllerVoterRequestForTest("wk-prepare-semantic-voters", mirrorState.Revision)
+			req.NextVoters = tt.nextVoters
+
+			if _, err := runtime.PrepareControllerVoter(context.Background(), req); err == nil {
+				t.Fatalf("PrepareControllerVoter(%s) error = nil, want validation error", tt.name)
+			}
+			if _, statErr := os.Stat(activePath); statErr != nil {
+				t.Fatalf("active mirror state stat error = %v, want still present", statErr)
+			}
+			backupPath := filepath.Join(stateDir, mirrorBeforeControllerVoterPromotionFile)
+			if _, statErr := os.Stat(backupPath); !os.IsNotExist(statErr) {
+				t.Fatalf("backup mirror state stat error = %v, want not exist", statErr)
+			}
+		})
+	}
+}
+
+func TestRuntimePrepareControllerVoterValidatesLocalNodeAgainstPreservedStateBeforeMovingState(t *testing.T) {
+	tests := []struct {
+		name       string
+		mutate     func(ClusterState) ClusterState
+		nextVoters []Voter
+	}{
+		{
+			name: "missing local node",
+			mutate: func(st ClusterState) ClusterState {
+				st.Controllers = []ControllerVoter{{NodeID: 1, Addr: "n1", Role: ControllerRoleVoter}}
+				st.Nodes = []Node{st.Nodes[0]}
+				return checksumClusterStateForTest(t, st)
+			},
+			nextVoters: []Voter{{NodeID: 1, Addr: "n1"}, {NodeID: 4, Addr: "n4"}},
+		},
+		{
+			name: "inactive local node",
+			mutate: func(st ClusterState) ClusterState {
+				st.Controllers = []ControllerVoter{{NodeID: 1, Addr: "n1", Role: ControllerRoleVoter}}
+				st.Nodes[1].Roles = []NodeRole{NodeRoleData}
+				st.Nodes[1].JoinState = NodeJoinStateLeaving
+				return checksumClusterStateForTest(t, st)
+			},
+			nextVoters: []Voter{{NodeID: 1, Addr: "n1"}, {NodeID: 4, Addr: "n4"}},
+		},
+		{
+			name: "local durable addr mismatch",
+			mutate: func(st ClusterState) ClusterState {
+				st.Controllers = []ControllerVoter{{NodeID: 1, Addr: "n1", Role: ControllerRoleVoter}}
+				st.Nodes[1].Roles = []NodeRole{NodeRoleData}
+				st.Nodes[1].Addr = "n4-durable"
+				return checksumClusterStateForTest(t, st)
+			},
+			nextVoters: []Voter{{NodeID: 1, Addr: "n1"}, {NodeID: 4, Addr: "n4"}},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			stateDir := t.TempDir()
+			mirrorState := tt.mutate(mirroredPrepareDataNodeStateForTest(t, "wk-prepare-local-node", 9))
+			activePath := filepath.Join(stateDir, "cluster-state.json")
+			if err := statefile.New(activePath).Save(context.Background(), mirrorState); err != nil {
+				t.Fatalf("Save(active mirror state) error = %v", err)
+			}
+			runtime := newPrepareControllerVoterRuntimeForTest(t, stateDir, "wk-prepare-local-node")
+			req := prepareControllerVoterRequestForTest("wk-prepare-local-node", mirrorState.Revision)
+			req.NextVoters = tt.nextVoters
+
+			if _, err := runtime.PrepareControllerVoter(context.Background(), req); err == nil {
+				t.Fatalf("PrepareControllerVoter(%s) error = nil, want validation error", tt.name)
+			}
+			if _, statErr := os.Stat(activePath); statErr != nil {
+				t.Fatalf("active mirror state stat error = %v, want still present", statErr)
+			}
+			backupPath := filepath.Join(stateDir, mirrorBeforeControllerVoterPromotionFile)
+			if _, statErr := os.Stat(backupPath); !os.IsNotExist(statErr) {
+				t.Fatalf("backup mirror state stat error = %v, want not exist", statErr)
+			}
+		})
+	}
+}
+
 func readStateEvent(t *testing.T, watch <-chan StateEvent) StateEvent {
 	t.Helper()
 	select {
@@ -1235,6 +1859,90 @@ func runtimeBootstrapVisibleState(t *testing.T, revision uint64, withTask bool) 
 	}
 	st.Checksum = checksum
 	return st
+}
+
+func mirroredPrepareDataNodeStateForTest(t *testing.T, clusterID string, revision uint64) ClusterState {
+	t.Helper()
+	st := ClusterState{
+		SchemaVersion:    CurrentSchemaVersion,
+		ClusterID:        clusterID,
+		Revision:         revision,
+		AppliedRaftIndex: 22,
+		UpdatedAt:        time.Unix(1710000000, 0).UTC(),
+		Config: ClusterConfig{
+			SlotCount:             1,
+			HashSlotCount:         4,
+			ReplicaCount:          1,
+			DefaultCapacityWeight: 1,
+		},
+		Controllers: []ControllerVoter{{NodeID: 1, Addr: "n1", Role: ControllerRoleVoter}},
+		Nodes: []Node{
+			{NodeID: 1, Addr: "n1", Roles: []NodeRole{NodeRoleControllerVoter, NodeRoleData}, JoinState: NodeJoinStateActive, Status: NodeStatusAlive, CapacityWeight: 1},
+			{NodeID: 4, Addr: "n4", Roles: []NodeRole{NodeRoleData}, JoinState: NodeJoinStateActive, Status: NodeStatusAlive, CapacityWeight: 1},
+		},
+		Slots:     []SlotAssignment{{SlotID: 1, DesiredPeers: []uint64{1}, ConfigEpoch: 1, PreferredLeader: 1}},
+		HashSlots: HashSlotTable{Version: CurrentHashSlotTableVersion, SlotCount: 4, Ranges: []HashSlotRange{{From: 0, To: 3, SlotID: 1}}},
+	}
+	if err := st.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v", err)
+	}
+	checksum, err := cv2state.Checksum(st)
+	if err != nil {
+		t.Fatalf("Checksum() error = %v", err)
+	}
+	st.Checksum = checksum
+	return st
+}
+
+func checksumClusterStateForTest(t *testing.T, st ClusterState) ClusterState {
+	t.Helper()
+	if err := st.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v", err)
+	}
+	checksum, err := cv2state.Checksum(st)
+	if err != nil {
+		t.Fatalf("Checksum() error = %v", err)
+	}
+	st.Checksum = checksum
+	return st
+}
+
+func newPrepareControllerVoterRuntimeForTest(t *testing.T, stateDir string, clusterID string) *Runtime {
+	t.Helper()
+	runtime, err := NewRuntime(RuntimeConfig{
+		NodeID:       4,
+		Addr:         "n4",
+		StateDir:     stateDir,
+		ClusterID:    clusterID,
+		Role:         RuntimeRoleMirror,
+		Voters:       []Voter{{NodeID: 1, Addr: "n1"}, {NodeID: 4, Addr: "n4"}},
+		SyncClient:   &SyncClient{},
+		TickInterval: 5 * time.Millisecond,
+	})
+	if err != nil {
+		t.Fatalf("NewRuntime() error = %v", err)
+	}
+	return runtime
+}
+
+func prepareControllerVoterRequestForTest(clusterID string, expectedRevision uint64) PrepareControllerVoterRequest {
+	return PrepareControllerVoterRequest{
+		NodeID:           4,
+		ClusterID:        clusterID,
+		ExpectedRevision: expectedRevision,
+		NextVoters:       []Voter{{NodeID: 1, Addr: "n1"}, {NodeID: 4, Addr: "n4"}},
+	}
+}
+
+func assertStateFileRevisionForTest(t *testing.T, path string, revision uint64) {
+	t.Helper()
+	backup, err := statefile.New(path).Load(context.Background())
+	if err != nil {
+		t.Fatalf("Load(%s) error = %v", path, err)
+	}
+	if backup.Revision != revision {
+		t.Fatalf("%s revision = %d, want %d", path, backup.Revision, revision)
+	}
 }
 
 func findNodeForTest(st ClusterState, nodeID uint64) (Node, bool) {
