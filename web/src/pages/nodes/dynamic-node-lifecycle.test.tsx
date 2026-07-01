@@ -740,6 +740,32 @@ test("invalidates safe scale-in status before a failed mutating action", async (
   expect(screen.getByRole("button", { name: "Remove node" })).toBeDisabled()
 })
 
+test("invalidates safe scale-in status before a failed status refresh", async () => {
+  const leavingNode: ManagerNode = {
+    ...activeNode,
+    membership: { role: "data", join_state: "leaving", schedulable: false },
+    runtime: { ...activeNode.runtime, accepting_new_sessions: false, draining: true },
+    actions: { ...activeNode.actions, can_onboard: false, can_scale_in: true },
+  }
+  getNodeScaleInStatusMock
+    .mockResolvedValueOnce(createSafeScaleInStatus())
+    .mockRejectedValueOnce(new Error("status rejected"))
+  const user = userEvent.setup()
+
+  renderLifecycle("node", leavingNode)
+
+  await user.click(screen.getByRole("button", { name: "Refresh scale-in status" }))
+
+  expect(await screen.findByText("Safe to remove: yes")).toBeInTheDocument()
+  expect(screen.getByRole("button", { name: "Remove node" })).toBeEnabled()
+
+  await user.click(screen.getByRole("button", { name: "Refresh scale-in status" }))
+
+  expect(getNodeScaleInStatusMock).toHaveBeenCalledTimes(2)
+  expect(await screen.findByRole("alert")).toHaveTextContent("status rejected")
+  expect(screen.getByRole("button", { name: "Remove node" })).toBeDisabled()
+})
+
 test("does not reuse safe scale-in status when the mounted sheet switches nodes", async () => {
   const leavingNode: ManagerNode = {
     ...activeNode,

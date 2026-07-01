@@ -467,6 +467,7 @@ export function DynamicNodeLifecycleSheet({
     if (!node || !canUseScaleInActions) {
       return
     }
+    setScaleInStatus(null)
     setPending(true)
     setError("")
     const generation = beginOperation()
