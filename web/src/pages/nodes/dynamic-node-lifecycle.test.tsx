@@ -124,6 +124,56 @@ function renderLifecycle(mode: "join" | "node", node: ManagerNode | null = null,
   )
 }
 
+function createSafeScaleInStatus(nodeId = 4) {
+  return {
+    node_id: nodeId,
+    join_state: "leaving",
+    generated_at: "2026-07-01T08:00:01Z",
+    state_revision: 44,
+    safe_to_proceed: true,
+    safe_to_remove: true,
+    blocked_by_missing_node: false,
+    blocked_by_join_state: false,
+    blocked_by_control_revision: false,
+    blocked_by_health: false,
+    blocked_by_stale_revision: false,
+    blocked_by_controller_role: false,
+    blocked_by_data_role: false,
+    blocked_by_slots: false,
+    blocked_by_slot_leadership: false,
+    blocked_by_slot_runtime: false,
+    blocked_by_tasks: false,
+    blocked_by_channels: false,
+    blocked_by_runtime_drain: false,
+    unknown_runtime: false,
+    runtime_unknown: false,
+    unknown_control_revision: false,
+    unknown_channel_inventory: false,
+    health_fresh: true,
+    health_status: "alive",
+    health_freshness: "fresh",
+    health_report_age_ms: 10,
+    health_report_ttl_ms: 30000,
+    observed_control_revision: 44,
+    required_control_revision: 44,
+    blocked_reasons: [],
+    slot_replica_count: 0,
+    slot_leader_count: 0,
+    active_task_count: 0,
+    failed_task_count: 0,
+    channel_leader_count: 0,
+    channel_replica_count: 0,
+    channel_isr_count: 0,
+    gateway_draining: true,
+    accepting_new_sessions: false,
+    gateway_sessions: 0,
+    active_online: 0,
+    closing_online: 0,
+    total_online: 0,
+    pending_activations: 0,
+  }
+}
+
 test("joins a new data node and reports joining state", async () => {
   const onCompleted = vi.fn()
   joinNodeMock.mockResolvedValueOnce({
@@ -645,4 +695,29 @@ test("runs scale-in stages through leaving drain status advance and remove", asy
   expect(removeNodeAfterScaleInMock).toHaveBeenCalledWith(4)
   expect(await screen.findByText("Removed revision: 49")).toBeInTheDocument()
   expect(onCompleted).toHaveBeenCalledTimes(4)
+})
+
+test("invalidates safe scale-in status before a failed mutating action", async () => {
+  const leavingNode: ManagerNode = {
+    ...activeNode,
+    membership: { role: "data", join_state: "leaving", schedulable: false },
+    runtime: { ...activeNode.runtime, accepting_new_sessions: false, draining: true },
+    actions: { ...activeNode.actions, can_onboard: false, can_scale_in: true },
+  }
+  getNodeScaleInStatusMock.mockResolvedValueOnce(createSafeScaleInStatus())
+  advanceNodeScaleInMock.mockRejectedValueOnce(new Error("advance rejected"))
+  const user = userEvent.setup()
+
+  renderLifecycle("node", leavingNode)
+
+  await user.click(screen.getByRole("button", { name: "Refresh scale-in status" }))
+
+  expect(await screen.findByText("Safe to remove: yes")).toBeInTheDocument()
+  expect(screen.getByRole("button", { name: "Remove node" })).toBeEnabled()
+
+  await user.click(screen.getByRole("button", { name: "Advance scale-in" }))
+
+  expect(advanceNodeScaleInMock).toHaveBeenCalledWith(4, { maxSlotMoves: 1 })
+  expect(await screen.findByRole("alert")).toHaveTextContent("advance rejected")
+  expect(screen.getByRole("button", { name: "Remove node" })).toBeDisabled()
 })

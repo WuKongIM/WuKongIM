@@ -399,6 +399,7 @@ export function DynamicNodeLifecycleSheet({
     if (!node || !canWriteNodes) {
       return
     }
+    setScaleInStatus(null)
     setPending(true)
     setError("")
     const generation = beginOperation()
@@ -427,6 +428,7 @@ export function DynamicNodeLifecycleSheet({
     if (!node || !canWriteNodes) {
       return
     }
+    setScaleInStatus(null)
     setPending(true)
     setError("")
     const generation = beginOperation()
@@ -485,6 +487,7 @@ export function DynamicNodeLifecycleSheet({
     if (!input) {
       return
     }
+    setScaleInStatus(null)
     setPending(true)
     setError("")
     const generation = beginOperation()
@@ -513,6 +516,7 @@ export function DynamicNodeLifecycleSheet({
     if (!node || !canWriteNodes || scaleInStatus?.safe_to_remove !== true) {
       return
     }
+    setScaleInStatus(null)
     setPending(true)
     setError("")
     const generation = beginOperation()
