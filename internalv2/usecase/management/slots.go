@@ -106,6 +106,14 @@ type SlotTask struct {
 	Attempt uint32
 	// LastError is the latest task-level error.
 	LastError string
+	// PhaseIndex is the externally observed Slot Raft phase index for this task.
+	PhaseIndex uint32
+	// ObservedConfigIndex is the Slot Raft applied index that proved the current phase.
+	ObservedConfigIndex uint64
+	// ObservedVoters is the Slot Raft voter set observed for the current phase.
+	ObservedVoters []uint64
+	// ObservedLearners is the Slot Raft learner set observed for the current phase.
+	ObservedLearners []uint64
 	// Participants contains per-node task progress.
 	Participants []SlotTaskParticipant
 }
@@ -204,18 +212,22 @@ func slotTaskFromControl(task control.ReconcileTask) *SlotTask {
 		})
 	}
 	return &SlotTask{
-		TaskID:           task.TaskID,
-		Kind:             string(task.Kind),
-		Step:             string(task.Step),
-		Status:           string(task.Status),
-		SourceNode:       task.SourceNode,
-		TargetNode:       task.TargetNode,
-		TargetPeers:      append([]uint64(nil), task.TargetPeers...),
-		CompletionPolicy: string(task.CompletionPolicy),
-		ConfigEpoch:      task.ConfigEpoch,
-		Attempt:          task.Attempt,
-		LastError:        task.LastError,
-		Participants:     participants,
+		TaskID:              task.TaskID,
+		Kind:                string(task.Kind),
+		Step:                string(task.Step),
+		Status:              string(task.Status),
+		SourceNode:          task.SourceNode,
+		TargetNode:          task.TargetNode,
+		TargetPeers:         append([]uint64(nil), task.TargetPeers...),
+		CompletionPolicy:    string(task.CompletionPolicy),
+		ConfigEpoch:         task.ConfigEpoch,
+		Attempt:             task.Attempt,
+		LastError:           task.LastError,
+		PhaseIndex:          task.PhaseIndex,
+		ObservedConfigIndex: task.ObservedConfigIndex,
+		ObservedVoters:      append([]uint64(nil), task.ObservedVoters...),
+		ObservedLearners:    append([]uint64(nil), task.ObservedLearners...),
+		Participants:        participants,
 	}
 }
 

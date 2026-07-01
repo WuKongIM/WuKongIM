@@ -26,18 +26,22 @@ func TestManagerControllerTasksReturnsFilteredList(t *testing.T) {
 			controllerTasksResponse: managementusecase.ListControllerTasksResponse{
 				Total: 1,
 				Items: []managementusecase.ControllerTask{{
-					TaskID:           "slot-1-leader-transfer-7-r9",
-					SlotID:           1,
-					Kind:             "leader_transfer",
-					Step:             "transfer_leader",
-					Status:           "pending",
-					SourceNode:       1,
-					TargetNode:       2,
-					TargetPeers:      []uint64{1, 2, 3},
-					CompletionPolicy: "single_observer",
-					ConfigEpoch:      7,
-					Attempt:          1,
-					LastError:        "not leader",
+					TaskID:              "slot-1-leader-transfer-7-r9",
+					SlotID:              1,
+					Kind:                "leader_transfer",
+					Step:                "transfer_leader",
+					Status:              "pending",
+					SourceNode:          1,
+					TargetNode:          2,
+					TargetPeers:         []uint64{1, 2, 3},
+					CompletionPolicy:    "single_observer",
+					ConfigEpoch:         7,
+					Attempt:             1,
+					LastError:           "not leader",
+					PhaseIndex:          2,
+					ObservedConfigIndex: 55,
+					ObservedVoters:      []uint64{1, 2, 3},
+					ObservedLearners:    []uint64{4},
 					Participants: []managementusecase.ControllerTaskParticipant{
 						{NodeID: 2, Attempt: 1, Status: "failed", LastError: "not leader"},
 					},
@@ -73,6 +77,10 @@ func TestManagerControllerTasksReturnsFilteredList(t *testing.T) {
 			"config_epoch": 7,
 			"attempt": 1,
 			"last_error": "not leader",
+			"phase_index": 2,
+			"observed_config_index": 55,
+			"observed_voters": [1,2,3],
+			"observed_learners": [4],
 			"participants": [{
 				"node_id": 2,
 				"attempt": 1,
@@ -90,16 +98,20 @@ func TestManagerControllerTaskReturnsDetail(t *testing.T) {
 	srv := New(Options{Management: managerNodesStub{
 		controllerTaskIDSink: &seen,
 		controllerTask: managementusecase.ControllerTask{
-			TaskID:           "slot-1-bootstrap-1",
-			SlotID:           1,
-			Kind:             "bootstrap",
-			Step:             "create_slot",
-			Status:           "running",
-			TargetNode:       1,
-			TargetPeers:      []uint64{1, 2, 3},
-			CompletionPolicy: "all_target_peers",
-			ConfigEpoch:      1,
-			Participants:     []managementusecase.ControllerTaskParticipant{},
+			TaskID:              "slot-1-bootstrap-1",
+			SlotID:              1,
+			Kind:                "bootstrap",
+			Step:                "create_slot",
+			Status:              "running",
+			TargetNode:          1,
+			TargetPeers:         []uint64{1, 2, 3},
+			CompletionPolicy:    "all_target_peers",
+			ConfigEpoch:         1,
+			PhaseIndex:          3,
+			ObservedConfigIndex: 66,
+			ObservedVoters:      []uint64{1, 2, 3},
+			ObservedLearners:    []uint64{4},
+			Participants:        []managementusecase.ControllerTaskParticipant{},
 		},
 	}})
 
@@ -127,9 +139,39 @@ func TestManagerControllerTaskReturnsDetail(t *testing.T) {
 		"config_epoch": 1,
 		"attempt": 0,
 		"last_error": "",
+		"phase_index": 3,
+		"observed_config_index": 66,
+		"observed_voters": [1,2,3],
+		"observed_learners": [4],
 		"participants": []
 	}`) {
 		t.Fatalf("body = %s", rec.Body.String())
+	}
+}
+
+func TestManagerControllerTaskDTOClonesProofSlices(t *testing.T) {
+	task := managementusecase.ControllerTask{
+		TaskID:              "slot-9-replica-move-7",
+		SlotID:              9,
+		Kind:                "slot_replica_move",
+		Step:                "promote_learner",
+		Status:              "running",
+		ObservedVoters:      []uint64{1, 2, 3},
+		ObservedLearners:    []uint64{4},
+		ObservedConfigIndex: 77,
+		PhaseIndex:          2,
+	}
+
+	first := controllerTaskDTO(task)
+	first.ObservedVoters[0] = 99
+	first.ObservedLearners[0] = 99
+
+	second := controllerTaskDTO(task)
+	if !sameUint64Slice(second.ObservedVoters, []uint64{1, 2, 3}) {
+		t.Fatalf("ObservedVoters = %#v, want cloned [1 2 3]", second.ObservedVoters)
+	}
+	if !sameUint64Slice(second.ObservedLearners, []uint64{4}) {
+		t.Fatalf("ObservedLearners = %#v, want cloned [4]", second.ObservedLearners)
 	}
 }
 

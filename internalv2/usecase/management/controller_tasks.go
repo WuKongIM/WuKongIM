@@ -68,6 +68,14 @@ type ControllerTask struct {
 	Attempt uint32
 	// LastError is the latest task-level error.
 	LastError string
+	// PhaseIndex is the externally observed Slot Raft phase index for this task.
+	PhaseIndex uint32
+	// ObservedConfigIndex is the Slot Raft applied index that proved the current phase.
+	ObservedConfigIndex uint64
+	// ObservedVoters is the Slot Raft voter set observed for the current phase.
+	ObservedVoters []uint64
+	// ObservedLearners is the Slot Raft learner set observed for the current phase.
+	ObservedLearners []uint64
 	// Participants contains per-node task progress.
 	Participants []ControllerTaskParticipant
 }
@@ -195,18 +203,22 @@ func controllerTaskFromControl(task control.ReconcileTask) ControllerTask {
 		})
 	}
 	return ControllerTask{
-		TaskID:           slotTask.TaskID,
-		SlotID:           task.SlotID,
-		Kind:             slotTask.Kind,
-		Step:             slotTask.Step,
-		Status:           slotTask.Status,
-		SourceNode:       slotTask.SourceNode,
-		TargetNode:       slotTask.TargetNode,
-		TargetPeers:      append([]uint64(nil), slotTask.TargetPeers...),
-		CompletionPolicy: slotTask.CompletionPolicy,
-		ConfigEpoch:      slotTask.ConfigEpoch,
-		Attempt:          slotTask.Attempt,
-		LastError:        slotTask.LastError,
-		Participants:     participants,
+		TaskID:              slotTask.TaskID,
+		SlotID:              task.SlotID,
+		Kind:                slotTask.Kind,
+		Step:                slotTask.Step,
+		Status:              slotTask.Status,
+		SourceNode:          slotTask.SourceNode,
+		TargetNode:          slotTask.TargetNode,
+		TargetPeers:         append([]uint64(nil), slotTask.TargetPeers...),
+		CompletionPolicy:    slotTask.CompletionPolicy,
+		ConfigEpoch:         slotTask.ConfigEpoch,
+		Attempt:             slotTask.Attempt,
+		LastError:           slotTask.LastError,
+		PhaseIndex:          slotTask.PhaseIndex,
+		ObservedConfigIndex: slotTask.ObservedConfigIndex,
+		ObservedVoters:      append([]uint64(nil), slotTask.ObservedVoters...),
+		ObservedLearners:    append([]uint64(nil), slotTask.ObservedLearners...),
+		Participants:        participants,
 	}
 }

@@ -157,9 +157,13 @@ func TestControllerTaskReturnsDetailAndClonesSlices(t *testing.T) {
 		ParticipantProgress: []control.TaskParticipantProgress{
 			{NodeID: 1, Attempt: 2, Status: control.TaskParticipantStatusDone},
 		},
-		ConfigEpoch: 7,
-		Attempt:     2,
-		Status:      control.TaskStatusRunning,
+		ConfigEpoch:         7,
+		Attempt:             2,
+		Status:              control.TaskStatusRunning,
+		PhaseIndex:          3,
+		ObservedConfigIndex: 55,
+		ObservedVoters:      []uint64{1, 2, 3},
+		ObservedLearners:    []uint64{4},
 	}}}}})
 
 	first, err := app.ControllerTask(context.Background(), "slot-1-bootstrap-1")
@@ -168,6 +172,8 @@ func TestControllerTaskReturnsDetailAndClonesSlices(t *testing.T) {
 	}
 	first.TargetPeers[0] = 99
 	first.Participants[0].NodeID = 99
+	first.ObservedVoters[0] = 99
+	first.ObservedLearners[0] = 99
 
 	second, err := app.ControllerTask(context.Background(), "slot-1-bootstrap-1")
 	if err != nil {
@@ -183,8 +189,50 @@ func TestControllerTaskReturnsDetailAndClonesSlices(t *testing.T) {
 	if second.Participants[0].NodeID != 1 {
 		t.Fatalf("Participants = %#v, want cloned node 1", second.Participants)
 	}
+	if second.PhaseIndex != 3 || second.ObservedConfigIndex != 55 {
+		t.Fatalf("proof indexes = phase %d config %d, want phase 3 config 55", second.PhaseIndex, second.ObservedConfigIndex)
+	}
+	if !sameUint64Slice(second.ObservedVoters, []uint64{1, 2, 3}) {
+		t.Fatalf("ObservedVoters = %#v, want cloned [1 2 3]", second.ObservedVoters)
+	}
+	if !sameUint64Slice(second.ObservedLearners, []uint64{4}) {
+		t.Fatalf("ObservedLearners = %#v, want cloned [4]", second.ObservedLearners)
+	}
 	if second.Kind != "bootstrap" || second.Step != "create_slot" || second.Status != "running" || second.ConfigEpoch != 7 || second.Attempt != 2 {
 		t.Fatalf("detail = %#v, want bootstrap running detail", second)
+	}
+}
+
+func TestControllerTaskFromControlPreservesProofFieldsAndClonesSlices(t *testing.T) {
+	task := control.ReconcileTask{
+		TaskID:              "slot-9-replica-move-7",
+		SlotID:              9,
+		Kind:                control.TaskKindSlotReplicaMove,
+		Step:                control.TaskStepPromoteLearner,
+		TargetPeers:         []uint64{1, 2, 3},
+		PhaseIndex:          4,
+		ObservedConfigIndex: 88,
+		ObservedVoters:      []uint64{1, 2, 3},
+		ObservedLearners:    []uint64{4},
+		Status:              control.TaskStatusRunning,
+	}
+
+	first := controllerTaskFromControl(task)
+	if first.PhaseIndex != 4 ||
+		first.ObservedConfigIndex != 88 ||
+		!sameUint64Slice(first.ObservedVoters, []uint64{1, 2, 3}) ||
+		!sameUint64Slice(first.ObservedLearners, []uint64{4}) {
+		t.Fatalf("first proof = %#v, want copied proof fields", first)
+	}
+	first.ObservedVoters[0] = 99
+	first.ObservedLearners[0] = 99
+
+	second := controllerTaskFromControl(task)
+	if !sameUint64Slice(second.ObservedVoters, []uint64{1, 2, 3}) {
+		t.Fatalf("ObservedVoters = %#v, want cloned [1 2 3]", second.ObservedVoters)
+	}
+	if !sameUint64Slice(second.ObservedLearners, []uint64{4}) {
+		t.Fatalf("ObservedLearners = %#v, want cloned [4]", second.ObservedLearners)
 	}
 }
 

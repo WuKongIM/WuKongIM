@@ -109,6 +109,14 @@ type SlotTaskDTO struct {
 	Attempt uint32 `json:"attempt"`
 	// LastError is the latest task-level error.
 	LastError string `json:"last_error,omitempty"`
+	// PhaseIndex is the externally observed Slot Raft phase index for this task.
+	PhaseIndex uint32 `json:"phase_index,omitempty"`
+	// ObservedConfigIndex is the Slot Raft applied index that proved the current phase.
+	ObservedConfigIndex uint64 `json:"observed_config_index,omitempty"`
+	// ObservedVoters is the Slot Raft voter set observed for the current phase.
+	ObservedVoters []uint64 `json:"observed_voters,omitempty"`
+	// ObservedLearners is the Slot Raft learner set observed for the current phase.
+	ObservedLearners []uint64 `json:"observed_learners,omitempty"`
 	// Participants contains per-node task progress.
 	Participants []SlotTaskParticipantDTO `json:"participants,omitempty"`
 }
@@ -227,18 +235,22 @@ func slotTaskDTO(item *managementusecase.SlotTask) *SlotTaskDTO {
 		})
 	}
 	return &SlotTaskDTO{
-		TaskID:           item.TaskID,
-		Kind:             item.Kind,
-		Step:             item.Step,
-		Status:           item.Status,
-		SourceNode:       item.SourceNode,
-		TargetNode:       item.TargetNode,
-		TargetPeers:      append([]uint64(nil), item.TargetPeers...),
-		CompletionPolicy: item.CompletionPolicy,
-		ConfigEpoch:      item.ConfigEpoch,
-		Attempt:          item.Attempt,
-		LastError:        item.LastError,
-		Participants:     participants,
+		TaskID:              item.TaskID,
+		Kind:                item.Kind,
+		Step:                item.Step,
+		Status:              item.Status,
+		SourceNode:          item.SourceNode,
+		TargetNode:          item.TargetNode,
+		TargetPeers:         append([]uint64(nil), item.TargetPeers...),
+		CompletionPolicy:    item.CompletionPolicy,
+		ConfigEpoch:         item.ConfigEpoch,
+		Attempt:             item.Attempt,
+		LastError:           item.LastError,
+		PhaseIndex:          item.PhaseIndex,
+		ObservedConfigIndex: item.ObservedConfigIndex,
+		ObservedVoters:      append([]uint64(nil), item.ObservedVoters...),
+		ObservedLearners:    append([]uint64(nil), item.ObservedLearners...),
+		Participants:        participants,
 	}
 }
 

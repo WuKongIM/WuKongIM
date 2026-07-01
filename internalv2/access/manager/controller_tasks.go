@@ -46,6 +46,14 @@ type ManagerControllerTask struct {
 	Attempt uint32 `json:"attempt"`
 	// LastError is the latest task-level error.
 	LastError string `json:"last_error"`
+	// PhaseIndex is the externally observed Slot Raft phase index for this task.
+	PhaseIndex uint32 `json:"phase_index"`
+	// ObservedConfigIndex is the Slot Raft applied index that proved the current phase.
+	ObservedConfigIndex uint64 `json:"observed_config_index"`
+	// ObservedVoters is the Slot Raft voter set observed for the current phase.
+	ObservedVoters []uint64 `json:"observed_voters"`
+	// ObservedLearners is the Slot Raft learner set observed for the current phase.
+	ObservedLearners []uint64 `json:"observed_learners"`
 	// Participants contains per-node task progress.
 	Participants []ManagerControllerTaskParticipant `json:"participants"`
 }
@@ -191,19 +199,23 @@ func controllerTaskDTO(task managementusecase.ControllerTask) ManagerControllerT
 	targetPeers := make([]uint64, 0, len(task.TargetPeers))
 	targetPeers = append(targetPeers, task.TargetPeers...)
 	return ManagerControllerTask{
-		TaskID:           task.TaskID,
-		SlotID:           task.SlotID,
-		Kind:             task.Kind,
-		Step:             task.Step,
-		Status:           task.Status,
-		SourceNode:       task.SourceNode,
-		TargetNode:       task.TargetNode,
-		TargetPeers:      targetPeers,
-		CompletionPolicy: task.CompletionPolicy,
-		ConfigEpoch:      task.ConfigEpoch,
-		Attempt:          task.Attempt,
-		LastError:        task.LastError,
-		Participants:     controllerTaskParticipantDTOs(task.Participants),
+		TaskID:              task.TaskID,
+		SlotID:              task.SlotID,
+		Kind:                task.Kind,
+		Step:                task.Step,
+		Status:              task.Status,
+		SourceNode:          task.SourceNode,
+		TargetNode:          task.TargetNode,
+		TargetPeers:         targetPeers,
+		CompletionPolicy:    task.CompletionPolicy,
+		ConfigEpoch:         task.ConfigEpoch,
+		Attempt:             task.Attempt,
+		LastError:           task.LastError,
+		PhaseIndex:          task.PhaseIndex,
+		ObservedConfigIndex: task.ObservedConfigIndex,
+		ObservedVoters:      append([]uint64(nil), task.ObservedVoters...),
+		ObservedLearners:    append([]uint64(nil), task.ObservedLearners...),
+		Participants:        controllerTaskParticipantDTOs(task.Participants),
 	}
 }
 
