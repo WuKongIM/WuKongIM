@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useIntl } from "react-intl"
 
 import { useAuthStore } from "@/auth/auth-store"
+import { ConfirmDialog } from "@/components/manager/confirm-dialog"
 import { DetailSheet } from "@/components/manager/detail-sheet"
 import { StatusBadge } from "@/components/manager/status-badge"
 import { Button } from "@/components/ui/button"
@@ -45,6 +46,14 @@ export type DynamicNodeLifecycleSheetProps = {
   onOpenChange: (open: boolean) => void
   onCompleted: () => void | Promise<void>
 }
+
+type LifecycleConfirmAction =
+  | "onboarding-start"
+  | "onboarding-advance"
+  | "scale-in-start"
+  | "scale-in-drain"
+  | "scale-in-advance"
+  | "scale-in-remove"
 
 function hasPermission(permissions: { resource: string; actions: string[] }[], resource: string, action: string) {
   return permissions.some((permission) => {
@@ -106,6 +115,8 @@ export function DynamicNodeLifecycleSheet({
   const [scaleInAdvance, setScaleInAdvance] = useState<ManagerNodeScaleInAdvanceResponse | null>(null)
   const [scaleInRemove, setScaleInRemove] = useState<ManagerNodeScaleInRemoveResponse | null>(null)
   const [diagnostics, setDiagnostics] = useState<ManagerDynamicNodeDiagnosticsResponse | null>(null)
+  const [confirmAction, setConfirmAction] = useState<LifecycleConfirmAction | null>(null)
+  const [confirmError, setConfirmError] = useState("")
   const lifecycleIdentity = `${mode}:${node?.node_id ?? "join"}`
   const previousLifecycleIdentity = useRef(lifecycleIdentity)
   const wasOpen = useRef(open)
@@ -146,6 +157,8 @@ export function DynamicNodeLifecycleSheet({
     setScaleInAdvance(null)
     setScaleInRemove(null)
     setDiagnostics(null)
+    setConfirmAction(null)
+    setConfirmError("")
   }, [])
 
   useEffect(() => {
@@ -247,6 +260,13 @@ export function DynamicNodeLifecycleSheet({
   }, [maxSlotMoves])
 
   const currentJoinState = nodeJoinState(node)
+  const canUseOnboardingActions = Boolean(
+    node
+      && canWriteNodes
+      && currentJoinState === "active"
+      && node.membership?.schedulable === true
+      && node.actions?.can_onboard === true,
+  )
   const showScaleInActions = Boolean(node && node.membership?.role === "data" && currentJoinState !== "removed")
   const canUseScaleInActions = Boolean(
     node
@@ -257,7 +277,7 @@ export function DynamicNodeLifecycleSheet({
   )
 
   const runOnboardingPlan = useCallback(async () => {
-    if (!node || !canWriteNodes) {
+    if (!node || !canUseOnboardingActions) {
       return
     }
     const input = boundedMovesInput()
@@ -286,41 +306,49 @@ export function DynamicNodeLifecycleSheet({
         setPending(false)
       }
     }
-  }, [beginOperation, boundedMovesInput, canWriteNodes, isCurrentOperation, node])
+  }, [beginOperation, boundedMovesInput, canUseOnboardingActions, isCurrentOperation, node])
 
   const runOnboardingStart = useCallback(async () => {
-    if (!node || !canWriteNodes) {
-      return
+    if (!node || !canUseOnboardingActions) {
+      return false
     }
     const input = boundedMovesInput()
     if (!input) {
-      return
+      return false
     }
     setPending(true)
     setError("")
+    setConfirmError("")
     const generation = beginOperation()
 
     try {
       const result = await startNodeOnboarding(node.node_id, input)
       if (!isCurrentOperation(generation)) {
-        return
+        return false
       }
       setOnboardingStart(result)
       await onCompleted()
+      if (!isCurrentOperation(generation)) {
+        return false
+      }
+      return true
     } catch (err) {
       if (!isCurrentOperation(generation)) {
-        return
+        return false
       }
-      setError(err instanceof Error ? err.message : "node onboarding start failed")
+      const message = err instanceof Error ? err.message : "node onboarding start failed"
+      setError(message)
+      setConfirmError(message)
+      return false
     } finally {
       if (isCurrentOperation(generation)) {
         setPending(false)
       }
     }
-  }, [beginOperation, boundedMovesInput, canWriteNodes, isCurrentOperation, node, onCompleted])
+  }, [beginOperation, boundedMovesInput, canUseOnboardingActions, isCurrentOperation, node, onCompleted])
 
   const refreshOnboardingStatus = useCallback(async () => {
-    if (!node || !canWriteNodes) {
+    if (!node || !canUseOnboardingActions) {
       return
     }
     setPending(true)
@@ -343,38 +371,46 @@ export function DynamicNodeLifecycleSheet({
         setPending(false)
       }
     }
-  }, [beginOperation, canWriteNodes, isCurrentOperation, node])
+  }, [beginOperation, canUseOnboardingActions, isCurrentOperation, node])
 
   const runOnboardingAdvance = useCallback(async () => {
-    if (!node || !canWriteNodes) {
-      return
+    if (!node || !canUseOnboardingActions) {
+      return false
     }
     const input = boundedMovesInput()
     if (!input) {
-      return
+      return false
     }
     setPending(true)
     setError("")
+    setConfirmError("")
     const generation = beginOperation()
 
     try {
       const result = await advanceNodeOnboarding(node.node_id, input)
       if (!isCurrentOperation(generation)) {
-        return
+        return false
       }
       setOnboardingStart(result)
       await onCompleted()
+      if (!isCurrentOperation(generation)) {
+        return false
+      }
+      return true
     } catch (err) {
       if (!isCurrentOperation(generation)) {
-        return
+        return false
       }
-      setError(err instanceof Error ? err.message : "node onboarding advance failed")
+      const message = err instanceof Error ? err.message : "node onboarding advance failed"
+      setError(message)
+      setConfirmError(message)
+      return false
     } finally {
       if (isCurrentOperation(generation)) {
         setPending(false)
       }
     }
-  }, [beginOperation, boundedMovesInput, canWriteNodes, isCurrentOperation, node, onCompleted])
+  }, [beginOperation, boundedMovesInput, canUseOnboardingActions, isCurrentOperation, node, onCompleted])
 
   const runScaleInPlan = useCallback(async () => {
     if (!node || !canUseScaleInActions) {
@@ -413,26 +449,34 @@ export function DynamicNodeLifecycleSheet({
 
   const runScaleInStart = useCallback(async () => {
     if (!node || !canUseScaleInActions) {
-      return
+      return false
     }
     setScaleInStatus(null)
     setPending(true)
     setError("")
+    setConfirmError("")
     const generation = beginOperation()
 
     try {
       const result = await startNodeScaleIn(node.node_id)
       if (!isCurrentOperation(generation)) {
-        return
+        return false
       }
       setScaleInStart(result)
       setScaleInStatus(null)
       await onCompleted()
+      if (!isCurrentOperation(generation)) {
+        return false
+      }
+      return true
     } catch (err) {
       if (!isCurrentOperation(generation)) {
-        return
+        return false
       }
-      setError(err instanceof Error ? err.message : "node scale-in start failed")
+      const message = err instanceof Error ? err.message : "node scale-in start failed"
+      setError(message)
+      setConfirmError(message)
+      return false
     } finally {
       if (isCurrentOperation(generation)) {
         setPending(false)
@@ -442,26 +486,34 @@ export function DynamicNodeLifecycleSheet({
 
   const enableDrainMode = useCallback(async () => {
     if (!node || !canUseScaleInActions) {
-      return
+      return false
     }
     setScaleInStatus(null)
     setPending(true)
     setError("")
+    setConfirmError("")
     const generation = beginOperation()
 
     try {
       const result = await setNodeScaleInDrain(node.node_id, { draining: true })
       if (!isCurrentOperation(generation)) {
-        return
+        return false
       }
       setScaleInDrain(result)
       setScaleInStatus(null)
       await onCompleted()
+      if (!isCurrentOperation(generation)) {
+        return false
+      }
+      return true
     } catch (err) {
       if (!isCurrentOperation(generation)) {
-        return
+        return false
       }
-      setError(err instanceof Error ? err.message : "node scale-in drain failed")
+      const message = err instanceof Error ? err.message : "node scale-in drain failed"
+      setError(message)
+      setConfirmError(message)
+      return false
     } finally {
       if (isCurrentOperation(generation)) {
         setPending(false)
@@ -502,30 +554,38 @@ export function DynamicNodeLifecycleSheet({
 
   const runScaleInAdvance = useCallback(async () => {
     if (!node || !canUseScaleInActions) {
-      return
+      return false
     }
     const input = boundedMovesInput()
     if (!input) {
-      return
+      return false
     }
     setScaleInStatus(null)
     setPending(true)
     setError("")
+    setConfirmError("")
     const generation = beginOperation()
 
     try {
       const result = await advanceNodeScaleIn(node.node_id, input)
       if (!isCurrentOperation(generation)) {
-        return
+        return false
       }
       setScaleInAdvance(result)
       setScaleInStatus(null)
       await onCompleted()
+      if (!isCurrentOperation(generation)) {
+        return false
+      }
+      return true
     } catch (err) {
       if (!isCurrentOperation(generation)) {
-        return
+        return false
       }
-      setError(err instanceof Error ? err.message : "node scale-in advance failed")
+      const message = err instanceof Error ? err.message : "node scale-in advance failed"
+      setError(message)
+      setConfirmError(message)
+      return false
     } finally {
       if (isCurrentOperation(generation)) {
         setPending(false)
@@ -535,32 +595,106 @@ export function DynamicNodeLifecycleSheet({
 
   const runScaleInRemove = useCallback(async () => {
     if (!node || !canRemoveScaleInNode) {
-      return
+      return false
     }
     setScaleInStatus(null)
     setPending(true)
     setError("")
+    setConfirmError("")
     const generation = beginOperation()
 
     try {
       const result = await removeNodeAfterScaleIn(node.node_id)
       if (!isCurrentOperation(generation)) {
-        return
+        return false
       }
       setScaleInRemove(result)
       setScaleInStatus(null)
       await onCompleted()
+      if (!isCurrentOperation(generation)) {
+        return false
+      }
+      return true
     } catch (err) {
       if (!isCurrentOperation(generation)) {
-        return
+        return false
       }
-      setError(err instanceof Error ? err.message : "node scale-in remove failed")
+      const message = err instanceof Error ? err.message : "node scale-in remove failed"
+      setError(message)
+      setConfirmError(message)
+      return false
     } finally {
       if (isCurrentOperation(generation)) {
         setPending(false)
       }
     }
   }, [beginOperation, canRemoveScaleInNode, isCurrentOperation, node, onCompleted])
+
+  const openConfirmAction = useCallback((action: LifecycleConfirmAction) => {
+    setConfirmAction(action)
+    setConfirmError("")
+  }, [])
+
+  const closeConfirmAction = useCallback((nextOpen: boolean) => {
+    if (nextOpen || pending) {
+      return
+    }
+    setConfirmAction(null)
+    setConfirmError("")
+  }, [pending])
+
+  const confirmConfig = useMemo(() => {
+    if (!confirmAction) {
+      return null
+    }
+    const titleIds: Record<LifecycleConfirmAction, string> = {
+      "onboarding-start": "nodes.lifecycle.confirm.startOnboarding.title",
+      "onboarding-advance": "nodes.lifecycle.confirm.advanceOnboarding.title",
+      "scale-in-start": "nodes.lifecycle.confirm.markLeaving.title",
+      "scale-in-drain": "nodes.lifecycle.confirm.drain.title",
+      "scale-in-advance": "nodes.lifecycle.confirm.advanceScaleIn.title",
+      "scale-in-remove": "nodes.lifecycle.confirm.remove.title",
+    }
+    const descriptionIds: Record<LifecycleConfirmAction, string> = {
+      "onboarding-start": "nodes.lifecycle.confirm.startOnboarding.description",
+      "onboarding-advance": "nodes.lifecycle.confirm.advanceOnboarding.description",
+      "scale-in-start": "nodes.lifecycle.confirm.markLeaving.description",
+      "scale-in-drain": "nodes.lifecycle.confirm.drain.description",
+      "scale-in-advance": "nodes.lifecycle.confirm.advanceScaleIn.description",
+      "scale-in-remove": "nodes.lifecycle.confirm.remove.description",
+    }
+    return {
+      title: intl.formatMessage({ id: titleIds[confirmAction] }),
+      description: intl.formatMessage({ id: descriptionIds[confirmAction] }, { id: node?.node_id ?? "" }),
+    }
+  }, [confirmAction, intl, node?.node_id])
+
+  const confirmLifecycleAction = useCallback(async () => {
+    if (!confirmAction) {
+      return
+    }
+    const runners: Record<LifecycleConfirmAction, () => Promise<boolean>> = {
+      "onboarding-start": runOnboardingStart,
+      "onboarding-advance": runOnboardingAdvance,
+      "scale-in-start": runScaleInStart,
+      "scale-in-drain": enableDrainMode,
+      "scale-in-advance": runScaleInAdvance,
+      "scale-in-remove": runScaleInRemove,
+    }
+    const succeeded = await runners[confirmAction]()
+    if (succeeded) {
+      setConfirmAction(null)
+      setConfirmError("")
+    }
+  }, [
+    confirmAction,
+    enableDrainMode,
+    runOnboardingAdvance,
+    runOnboardingStart,
+    runScaleInAdvance,
+    runScaleInRemove,
+    runScaleInStart,
+  ])
 
   const loadDiagnostics = useCallback(async () => {
     if (!node) {
@@ -680,7 +814,7 @@ export function DynamicNodeLifecycleSheet({
                     />
                   </label>
                   <Button
-                    disabled={pending || !canWriteNodes}
+                    disabled={pending || !canUseOnboardingActions}
                     onClick={() => void runOnboardingPlan()}
                     size="sm"
                     type="button"
@@ -689,15 +823,15 @@ export function DynamicNodeLifecycleSheet({
                     {intl.formatMessage({ id: "nodes.lifecycle.planOnboarding" })}
                   </Button>
                   <Button
-                    disabled={pending || !canWriteNodes || !onboardingPlan}
-                    onClick={() => void runOnboardingStart()}
+                    disabled={pending || !canUseOnboardingActions || !onboardingPlan}
+                    onClick={() => openConfirmAction("onboarding-start")}
                     size="sm"
                     type="button"
                   >
                     {intl.formatMessage({ id: "nodes.lifecycle.startOnboarding" })}
                   </Button>
                   <Button
-                    disabled={pending || !canWriteNodes}
+                    disabled={pending || !canUseOnboardingActions}
                     onClick={() => void refreshOnboardingStatus()}
                     size="sm"
                     type="button"
@@ -706,8 +840,8 @@ export function DynamicNodeLifecycleSheet({
                     {intl.formatMessage({ id: "nodes.lifecycle.refreshOnboarding" })}
                   </Button>
                   <Button
-                    disabled={pending || !canWriteNodes}
-                    onClick={() => void runOnboardingAdvance()}
+                    disabled={pending || !canUseOnboardingActions}
+                    onClick={() => openConfirmAction("onboarding-advance")}
                     size="sm"
                     type="button"
                     variant="outline"
@@ -773,7 +907,7 @@ export function DynamicNodeLifecycleSheet({
                   </Button>
                   <Button
                     disabled={pending || !canUseScaleInActions}
-                    onClick={() => void runScaleInStart()}
+                    onClick={() => openConfirmAction("scale-in-start")}
                     size="sm"
                     type="button"
                     variant="outline"
@@ -782,7 +916,7 @@ export function DynamicNodeLifecycleSheet({
                   </Button>
                   <Button
                     disabled={pending || !canUseScaleInActions}
-                    onClick={() => void enableDrainMode()}
+                    onClick={() => openConfirmAction("scale-in-drain")}
                     size="sm"
                     type="button"
                     variant="outline"
@@ -800,7 +934,7 @@ export function DynamicNodeLifecycleSheet({
                   </Button>
                   <Button
                     disabled={pending || !canUseScaleInActions}
-                    onClick={() => void runScaleInAdvance()}
+                    onClick={() => openConfirmAction("scale-in-advance")}
                     size="sm"
                     type="button"
                     variant="outline"
@@ -809,7 +943,7 @@ export function DynamicNodeLifecycleSheet({
                   </Button>
                   <Button
                     disabled={pending || !canRemoveScaleInNode}
-                    onClick={() => void runScaleInRemove()}
+                    onClick={() => openConfirmAction("scale-in-remove")}
                     size="sm"
                     type="button"
                     variant="outline"
@@ -984,6 +1118,18 @@ export function DynamicNodeLifecycleSheet({
           </div>
         ) : null}
       </div>
+      {confirmConfig ? (
+        <ConfirmDialog
+          confirmLabel={intl.formatMessage({ id: "common.confirm" })}
+          description={confirmConfig.description}
+          error={confirmError}
+          onConfirm={() => void confirmLifecycleAction()}
+          onOpenChange={closeConfirmAction}
+          open={confirmAction !== null}
+          pending={pending}
+          title={confirmConfig.title}
+        />
+      ) : null}
     </DetailSheet>
   )
 }

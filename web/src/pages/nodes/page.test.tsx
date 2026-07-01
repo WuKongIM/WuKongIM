@@ -531,6 +531,9 @@ test("refreshes the open lifecycle node after a lifecycle action completes", asy
 
   await user.click(within(dialog).getByRole("button", { name: "Mark leaving" }))
 
+  expect(startNodeScaleInMock).not.toHaveBeenCalled()
+  expect(await screen.findByText("Confirm mark leaving")).toBeInTheDocument()
+  await user.click(screen.getByRole("button", { name: "Confirm" }))
   expect(startNodeScaleInMock).toHaveBeenCalledWith(1)
   await waitFor(() => {
     expect(within(dialog).queryByRole("button", { name: "Plan slot onboarding" })).not.toBeInTheDocument()
@@ -569,6 +572,9 @@ test("closes the open lifecycle sheet when the refreshed node is missing", async
   const dialog = await screen.findByRole("dialog", { name: "Node lifecycle" })
   await user.click(within(dialog).getByRole("button", { name: "Mark leaving" }))
 
+  expect(startNodeScaleInMock).not.toHaveBeenCalled()
+  expect(await screen.findByText("Confirm mark leaving")).toBeInTheDocument()
+  await user.click(screen.getByRole("button", { name: "Confirm" }))
   expect(startNodeScaleInMock).toHaveBeenCalledWith(1)
   await waitFor(() => {
     expect(screen.queryByRole("dialog", { name: "Node lifecycle" })).not.toBeInTheDocument()
@@ -601,6 +607,9 @@ test("closes the open lifecycle sheet when the post-action refresh fails", async
   const dialog = await screen.findByRole("dialog", { name: "Node lifecycle" })
   await user.click(within(dialog).getByRole("button", { name: "Mark leaving" }))
 
+  expect(startNodeScaleInMock).not.toHaveBeenCalled()
+  expect(await screen.findByText("Confirm mark leaving")).toBeInTheDocument()
+  await user.click(screen.getByRole("button", { name: "Confirm" }))
   expect(startNodeScaleInMock).toHaveBeenCalledWith(1)
   expect(await screen.findByText(/currently unavailable/i)).toBeInTheDocument()
   await waitFor(() => {

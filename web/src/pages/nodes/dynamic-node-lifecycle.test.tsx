@@ -165,6 +165,30 @@ async function expectScaleInActionsDisabled(user: ReturnType<typeof userEvent.se
   expect(removeNodeAfterScaleInMock).not.toHaveBeenCalled()
 }
 
+async function expectOnboardingActionsDisabled(user: ReturnType<typeof userEvent.setup>) {
+  const actionNames = [
+    "Plan slot onboarding",
+    "Start onboarding",
+    "Refresh onboarding status",
+    "Advance onboarding",
+  ]
+  for (const actionName of actionNames) {
+    const button = screen.getByRole("button", { name: actionName })
+    expect(button).toBeDisabled()
+    await user.click(button)
+  }
+
+  expect(planNodeOnboardingMock).not.toHaveBeenCalled()
+  expect(startNodeOnboardingMock).not.toHaveBeenCalled()
+  expect(getNodeOnboardingStatusMock).not.toHaveBeenCalled()
+  expect(advanceNodeOnboardingMock).not.toHaveBeenCalled()
+}
+
+async function confirmLifecycleAction(title: string, user: ReturnType<typeof userEvent.setup>) {
+  expect(await screen.findByText(title)).toBeInTheDocument()
+  await user.click(screen.getByRole("button", { name: "Confirm" }))
+}
+
 function createSafeScaleInStatus(nodeId = 4) {
   return {
     node_id: nodeId,
@@ -526,6 +550,8 @@ test("plans starts and advances bounded slot onboarding for an active node", asy
 
   await user.click(screen.getByRole("button", { name: "Start onboarding" }))
 
+  expect(startNodeOnboardingMock).not.toHaveBeenCalled()
+  await confirmLifecycleAction("Confirm start onboarding", user)
   expect(startNodeOnboardingMock).toHaveBeenCalledWith(4, { maxSlotMoves: 1 })
   expect(await screen.findByText("Created tasks: 1")).toBeInTheDocument()
   expect(onCompleted).toHaveBeenCalledTimes(1)
@@ -544,9 +570,23 @@ test("plans starts and advances bounded slot onboarding for an active node", asy
 
   await user.click(screen.getByRole("button", { name: "Advance onboarding" }))
 
+  expect(advanceNodeOnboardingMock).not.toHaveBeenCalled()
+  await confirmLifecycleAction("Confirm advance onboarding", user)
   expect(advanceNodeOnboardingMock).toHaveBeenCalledWith(4, { maxSlotMoves: 1 })
   expect(await screen.findByText("target node already hosts the slot")).toBeInTheDocument()
   expect(onCompleted).toHaveBeenCalledTimes(2)
+})
+
+test("requires backend can_onboard before onboarding controls run", async () => {
+  const onboardBlockedNode: ManagerNode = {
+    ...activeNode,
+    actions: { ...activeNode.actions, can_onboard: false },
+  }
+  const user = userEvent.setup()
+
+  renderLifecycle("node", onboardBlockedNode)
+
+  await expectOnboardingActionsDisabled(user)
 })
 
 test("invalid onboarding move bounds do not call plan and blank defaults to one", async () => {
@@ -706,11 +746,15 @@ test("runs scale-in stages through leaving drain status advance and remove", asy
 
   await user.click(screen.getByRole("button", { name: "Mark leaving" }))
 
+  expect(startNodeScaleInMock).not.toHaveBeenCalled()
+  await confirmLifecycleAction("Confirm mark leaving", user)
   expect(startNodeScaleInMock).toHaveBeenCalledWith(4)
   expect(await screen.findByText("Join state: leaving")).toBeInTheDocument()
 
   await user.click(screen.getByRole("button", { name: "Enable drain mode" }))
 
+  expect(setNodeScaleInDrainMock).not.toHaveBeenCalled()
+  await confirmLifecycleAction("Confirm drain mode", user)
   expect(setNodeScaleInDrainMock).toHaveBeenCalledWith(4, { draining: true })
   expect(await screen.findByText("Accepting new sessions: no")).toBeInTheDocument()
 
@@ -721,6 +765,8 @@ test("runs scale-in stages through leaving drain status advance and remove", asy
 
   await user.click(screen.getByRole("button", { name: "Advance scale-in" }))
 
+  expect(advanceNodeScaleInMock).not.toHaveBeenCalled()
+  await confirmLifecycleAction("Confirm advance scale-in", user)
   expect(advanceNodeScaleInMock).toHaveBeenCalledWith(4, { maxSlotMoves: 1 })
   expect(await screen.findByText("Created tasks: 1 / skipped: 0")).toBeInTheDocument()
   expect(screen.getByRole("button", { name: "Remove node" })).toBeDisabled()
@@ -733,6 +779,8 @@ test("runs scale-in stages through leaving drain status advance and remove", asy
 
   await user.click(screen.getByRole("button", { name: "Remove node" }))
 
+  expect(removeNodeAfterScaleInMock).not.toHaveBeenCalled()
+  await confirmLifecycleAction("Confirm remove node", user)
   expect(removeNodeAfterScaleInMock).toHaveBeenCalledWith(4)
   expect(await screen.findByText("Removed revision: 49")).toBeInTheDocument()
   expect(onCompleted).toHaveBeenCalledTimes(4)
@@ -758,8 +806,11 @@ test("invalidates safe scale-in status before a failed mutating action", async (
 
   await user.click(screen.getByRole("button", { name: "Advance scale-in" }))
 
+  expect(advanceNodeScaleInMock).not.toHaveBeenCalled()
+  await confirmLifecycleAction("Confirm advance scale-in", user)
   expect(advanceNodeScaleInMock).toHaveBeenCalledWith(4, { maxSlotMoves: 1 })
-  expect(await screen.findByRole("alert")).toHaveTextContent("advance rejected")
+  await screen.findByRole("alert")
+  expect(screen.getAllByText("advance rejected")).toHaveLength(2)
   expect(screen.getByRole("button", { name: "Remove node" })).toBeDisabled()
 })
 
@@ -782,6 +833,8 @@ test("keeps scale-in controls disabled while lifecycle completion refresh is pen
 
   await user.click(screen.getByRole("button", { name: "Mark leaving" }))
 
+  expect(startNodeScaleInMock).not.toHaveBeenCalled()
+  await confirmLifecycleAction("Confirm mark leaving", user)
   expect(startNodeScaleInMock).toHaveBeenCalledWith(4)
   expect(await screen.findByText("Join state: leaving")).toBeInTheDocument()
   expect(onCompleted).toHaveBeenCalledTimes(1)
