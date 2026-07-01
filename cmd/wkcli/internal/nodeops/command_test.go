@@ -174,7 +174,8 @@ func TestNodeDiagnoseCommandPrintsRootCauseSummary(t *testing.T) {
 					"status":"running",
 					"phase_index":3,
 					"observed_config_index":101,
-					"observed_voters":[1,2,4]
+					"observed_voters":[1,2,4],
+					"observed_learners":[3]
 				}
 			],
 			"task_audits":[
@@ -205,7 +206,7 @@ func TestNodeDiagnoseCommandPrintsRootCauseSummary(t *testing.T) {
 		"safe_to_remove=false",
 		"recommended_next_action=inspect_controller_task",
 		"active_tasks=1",
-		"task=slot-7-replica-move-4-to-2 kind=slot_replica_move step=remove_voter status=running phase_index=3 observed_config_index=101 observed_voters=[1 2 4]",
+		"task=slot-7-replica-move-4-to-2 kind=slot_replica_move step=remove_voter status=running phase_index=3 observed_config_index=101 observed_voters=[1 2 4] observed_learners=[3]",
 		"audit=slot-7-replica-move-4-to-2 last_reason=waiting for source leadership transfer",
 		"slot=7 desired_peers=[1 2 4] preferred_leader=1",
 		"warning=controller task has not advanced since last audit",

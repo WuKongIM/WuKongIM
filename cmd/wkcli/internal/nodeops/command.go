@@ -71,6 +71,7 @@ type nodeDiagnosticTask struct {
 	PhaseIndex          int      `json:"phase_index"`
 	ObservedConfigIndex uint64   `json:"observed_config_index"`
 	ObservedVoters      []uint64 `json:"observed_voters"`
+	ObservedLearners    []uint64 `json:"observed_learners"`
 }
 
 type nodeDiagnosticAudit struct {
@@ -716,7 +717,7 @@ func printNodeDiagnostics(w io.Writer, out nodeDiagnosticsResponse) {
 		len(out.Warnings),
 	)
 	for _, task := range out.ActiveTasks {
-		fmt.Fprintf(w, "task=%s kind=%s step=%s status=%s phase_index=%d observed_config_index=%d observed_voters=%v\n",
+		fmt.Fprintf(w, "task=%s kind=%s step=%s status=%s phase_index=%d observed_config_index=%d observed_voters=%v observed_learners=%v\n",
 			dash(task.TaskID),
 			dash(task.Kind),
 			dash(task.Step),
@@ -724,6 +725,7 @@ func printNodeDiagnostics(w io.Writer, out nodeDiagnosticsResponse) {
 			task.PhaseIndex,
 			task.ObservedConfigIndex,
 			task.ObservedVoters,
+			task.ObservedLearners,
 		)
 	}
 	for _, audit := range out.TaskAudits {

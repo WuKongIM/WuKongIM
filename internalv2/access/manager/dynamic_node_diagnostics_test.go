@@ -64,19 +64,22 @@ func TestManagerDynamicNodeDiagnosticsRouteReturnsEvidence(t *testing.T) {
 					CurrentVoters:   []uint64{4, 5, 6},
 				}},
 				Summary: managementusecase.DynamicNodeDiagnosticSummary{
-					SafeToRemove:          false,
-					BlockedReasons:        []string{"blocked_by_tasks"},
-					ActiveTaskCount:       1,
-					FailedTaskCount:       0,
-					SlotReplicaCount:      1,
-					SlotLeaderCount:       0,
-					ControlRevisionGap:    0,
-					SlotReplicaMoveState:  "waiting_leader_transfer",
-					OldestTaskAgeSeconds:  90,
-					AuditAvailable:        true,
-					RuntimeUnknown:        false,
-					SlotRuntimeUnknown:    false,
-					RecommendedNextAction: "inspect_controller_task",
+					SafeToRemove:             false,
+					BlockedReasons:           []string{"blocked_by_tasks"},
+					ActiveTaskCount:          1,
+					FailedTaskCount:          0,
+					SlotReplicaCount:         1,
+					SlotLeaderCount:          0,
+					ControlRevisionGap:       0,
+					SlotReplicaMoveState:     "waiting_leader_transfer",
+					OldestTaskAgeSeconds:     90,
+					AuditAvailable:           true,
+					RuntimeUnknown:           false,
+					SlotRuntimeUnknown:       false,
+					RecommendedNextAction:    "inspect_controller_task",
+					BlockedByControlRevision: true,
+					BlockedBySlots:           true,
+					BlockedByTasks:           true,
 				},
 				Sources: managementusecase.DynamicNodeDiagnosticSources{
 					ControlSnapshot: managementusecase.DynamicNodeDiagnosticSource{Available: true},
@@ -117,6 +120,15 @@ func TestManagerDynamicNodeDiagnosticsRouteReturnsEvidence(t *testing.T) {
 	}
 	if got := summary["recommended_next_action"]; got != "inspect_controller_task" {
 		t.Fatalf("recommended_next_action = %#v, want inspect_controller_task", got)
+	}
+	if got := summary["blocked_by_control_revision"]; got != true {
+		t.Fatalf("blocked_by_control_revision = %#v, want true", got)
+	}
+	if got := summary["blocked_by_slots"]; got != true {
+		t.Fatalf("blocked_by_slots = %#v, want true", got)
+	}
+	if got := summary["blocked_by_tasks"]; got != true {
+		t.Fatalf("blocked_by_tasks = %#v, want true", got)
 	}
 	sources, ok := body["sources"].(map[string]any)
 	if !ok {

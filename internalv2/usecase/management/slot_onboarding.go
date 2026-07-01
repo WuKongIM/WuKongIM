@@ -259,10 +259,14 @@ func (a *App) NodeOnboardingStatus(ctx context.Context, req NodeOnboardingStatus
 	if err != nil {
 		return NodeOnboardingStatusResponse{}, err
 	}
+	return nodeOnboardingStatusFromSnapshot(snapshot, req.TargetNodeID, a.now()), nil
+}
+
+func nodeOnboardingStatusFromSnapshot(snapshot control.Snapshot, targetNodeID uint64, generatedAt time.Time) NodeOnboardingStatusResponse {
 	response := NodeOnboardingStatusResponse{
-		GeneratedAt:   a.now(),
+		GeneratedAt:   generatedAt,
 		StateRevision: snapshot.Revision,
-		TargetNodeID:  req.TargetNodeID,
+		TargetNodeID:  targetNodeID,
 		Tasks:         make([]SlotTask, 0),
 	}
 	tasks := append([]control.ReconcileTask(nil), snapshot.Tasks...)
@@ -273,7 +277,7 @@ func (a *App) NodeOnboardingStatus(ctx context.Context, req NodeOnboardingStatus
 		return tasks[i].TaskID < tasks[j].TaskID
 	})
 	for _, task := range tasks {
-		if task.Kind != control.TaskKindSlotReplicaMove || task.TargetNode != req.TargetNodeID {
+		if task.Kind != control.TaskKindSlotReplicaMove || task.TargetNode != targetNodeID {
 			continue
 		}
 		response.Tasks = append(response.Tasks, *slotTaskFromControl(task))
@@ -288,7 +292,7 @@ func (a *App) NodeOnboardingStatus(ctx context.Context, req NodeOnboardingStatus
 	}
 	response.Summary.TotalActive = len(response.Tasks)
 	response.Tasks = cloneSlotTasks(response.Tasks)
-	return response, nil
+	return response
 }
 
 func (a *App) executeNodeOnboarding(ctx context.Context, targetNodeID uint64, maxSlotMoves uint32) (NodeOnboardingStartResponse, error) {

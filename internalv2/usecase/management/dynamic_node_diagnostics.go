@@ -201,9 +201,10 @@ func (a *App) DynamicNodeDiagnostics(ctx context.Context, req DynamicNodeDiagnos
 	})
 
 	joinedTasks := joinStateTasksForNode(snapshot.Tasks, req.NodeID)
+	taskSnapshots := joinedTasks.snapshots()
 	response.ActiveTasks = joinedTasks.controllerTasks(taskLimit)
-	response.Summary.ActiveTaskCount, response.Summary.FailedTaskCount = dynamicNodeDiagnosticTaskCounts(response.ActiveTasks)
-	taskRowsBySlot := tasksBySlot(joinedTasks.snapshots())
+	response.Summary.ActiveTaskCount, response.Summary.FailedTaskCount = dynamicNodeDiagnosticTaskCounts(taskSnapshots)
+	taskRowsBySlot := tasksBySlot(taskSnapshots)
 	slotRows, slotRuntimeSourceAvailable, slotRuntimeSourceError := buildDynamicNodeDiagnosticSlots(ctx, req.NodeID, snapshot.Slots, taskRowsBySlot, a.slotRuntimeStatus, slotLimit)
 	response.Slots = slotRows
 	response.Summary.SlotRuntimeUnknown = !slotRuntimeSourceAvailable
@@ -224,9 +225,9 @@ func (a *App) DynamicNodeDiagnostics(ctx context.Context, req DynamicNodeDiagnos
 	if !response.Summary.AuditAvailable && response.Sources.TaskAudit.LastError != "" {
 		response.Warnings = append(response.Warnings, response.Sources.TaskAudit.LastError)
 	}
-	response.Summary.OldestTaskAgeSeconds = dynamicNodeDiagnosticOldestTaskAgeSeconds(response.GeneratedAt, response.ActiveTasks, response.TaskAudits)
+	response.Summary.OldestTaskAgeSeconds = dynamicNodeDiagnosticOldestTaskAgeSeconds(response.GeneratedAt, taskSnapshots, response.TaskAudits)
 
-	response.Summary.SlotReplicaMoveState = joinStateTaskReplicaMoveState(joinedTasks.snapshots())
+	response.Summary.SlotReplicaMoveState = joinStateTaskReplicaMoveState(taskSnapshots)
 
 	joinState := managerControlJoinState(node.JoinState)
 	if joinState == control.NodeJoinStateLeaving {
@@ -247,10 +248,7 @@ func (a *App) DynamicNodeDiagnostics(ctx context.Context, req DynamicNodeDiagnos
 		response.Summary.ControlRevisionGap = nodeScaleInStatusControlRevisionGap(scaleInStatus)
 	} else {
 		if isActiveDataNode(node) {
-			onboardingStatus, err := a.NodeOnboardingStatus(ctx, NodeOnboardingStatusRequest{TargetNodeID: req.NodeID})
-			if err != nil {
-				return DynamicNodeDiagnosticsResponse{}, err
-			}
+			onboardingStatus := nodeOnboardingStatusFromSnapshot(snapshot, req.NodeID, response.GeneratedAt)
 			response.Onboarding = &onboardingStatus
 		}
 		response.Summary.SlotReplicaCount = countSlotReplicas(snapshot.Slots, req.NodeID)
@@ -441,26 +439,26 @@ func (a *App) dynamicNodeDiagnosticAudits(ctx context.Context, nodeID uint64, li
 	return response.Items, DynamicNodeDiagnosticSource{Available: true}, nil
 }
 
-func dynamicNodeDiagnosticTaskCounts(tasks []ControllerTask) (active int, failed int) {
+func dynamicNodeDiagnosticTaskCounts(tasks []control.ReconcileTask) (active int, failed int) {
 	for _, task := range tasks {
 		switch task.Status {
-		case string(control.TaskStatusPending), string(control.TaskStatusRunning):
+		case control.TaskStatusPending, control.TaskStatusRunning:
 			active++
-		case string(control.TaskStatusFailed):
+		case control.TaskStatusFailed:
 			failed++
 		}
 	}
 	return active, failed
 }
 
-func dynamicNodeDiagnosticOldestTaskAgeSeconds(generatedAt time.Time, tasks []ControllerTask, audits []ControllerTaskAuditSnapshot) int64 {
+func dynamicNodeDiagnosticOldestTaskAgeSeconds(generatedAt time.Time, tasks []control.ReconcileTask, audits []ControllerTaskAuditSnapshot) int64 {
 	if generatedAt.IsZero() {
 		return 0
 	}
 	relevantTasks := make(map[string]struct{}, len(tasks))
 	for _, task := range tasks {
 		switch task.Status {
-		case string(control.TaskStatusPending), string(control.TaskStatusRunning), string(control.TaskStatusFailed):
+		case control.TaskStatusPending, control.TaskStatusRunning, control.TaskStatusFailed:
 			relevantTasks[task.TaskID] = struct{}{}
 		}
 	}

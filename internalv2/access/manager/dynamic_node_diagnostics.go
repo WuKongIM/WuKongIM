@@ -90,6 +90,12 @@ type ManagerDynamicNodeDiagnosticSummary struct {
 	SlotRuntimeUnknown bool `json:"slot_runtime_unknown"`
 	// RecommendedNextAction is the compact operator recommendation.
 	RecommendedNextAction string `json:"recommended_next_action"`
+	// BlockedByControlRevision reports that the node still has control-revision staleness.
+	BlockedByControlRevision bool `json:"blocked_by_control_revision"`
+	// BlockedBySlots reports that desired Slot replicas still reference this node.
+	BlockedBySlots bool `json:"blocked_by_slots"`
+	// BlockedByTasks reports active or failed task blockers are present.
+	BlockedByTasks bool `json:"blocked_by_tasks"`
 }
 
 // ManagerDynamicNodeDiagnosticSources reports dependency source availability.
@@ -193,19 +199,22 @@ func dynamicNodeDiagnosticsDTO(resp managementusecase.DynamicNodeDiagnosticsResp
 		TaskAudits:    taskAudits,
 		Slots:         slots,
 		Summary: ManagerDynamicNodeDiagnosticSummary{
-			SafeToRemove:          resp.Summary.SafeToRemove,
-			BlockedReasons:        append([]string(nil), resp.Summary.BlockedReasons...),
-			ActiveTaskCount:       resp.Summary.ActiveTaskCount,
-			FailedTaskCount:       resp.Summary.FailedTaskCount,
-			SlotReplicaCount:      resp.Summary.SlotReplicaCount,
-			SlotLeaderCount:       resp.Summary.SlotLeaderCount,
-			ControlRevisionGap:    resp.Summary.ControlRevisionGap,
-			SlotReplicaMoveState:  resp.Summary.SlotReplicaMoveState,
-			OldestTaskAgeSeconds:  resp.Summary.OldestTaskAgeSeconds,
-			AuditAvailable:        resp.Summary.AuditAvailable,
-			RuntimeUnknown:        resp.Summary.RuntimeUnknown,
-			SlotRuntimeUnknown:    resp.Summary.SlotRuntimeUnknown,
-			RecommendedNextAction: resp.Summary.RecommendedNextAction,
+			SafeToRemove:             resp.Summary.SafeToRemove,
+			BlockedReasons:           append([]string(nil), resp.Summary.BlockedReasons...),
+			ActiveTaskCount:          resp.Summary.ActiveTaskCount,
+			FailedTaskCount:          resp.Summary.FailedTaskCount,
+			SlotReplicaCount:         resp.Summary.SlotReplicaCount,
+			SlotLeaderCount:          resp.Summary.SlotLeaderCount,
+			ControlRevisionGap:       resp.Summary.ControlRevisionGap,
+			SlotReplicaMoveState:     resp.Summary.SlotReplicaMoveState,
+			OldestTaskAgeSeconds:     resp.Summary.OldestTaskAgeSeconds,
+			AuditAvailable:           resp.Summary.AuditAvailable,
+			RuntimeUnknown:           resp.Summary.RuntimeUnknown,
+			SlotRuntimeUnknown:       resp.Summary.SlotRuntimeUnknown,
+			RecommendedNextAction:    resp.Summary.RecommendedNextAction,
+			BlockedByControlRevision: resp.Summary.BlockedByControlRevision,
+			BlockedBySlots:           resp.Summary.BlockedBySlots,
+			BlockedByTasks:           resp.Summary.BlockedByTasks,
 		},
 		Sources: ManagerDynamicNodeDiagnosticSources{
 			ControlSnapshot: dynamicNodeDiagnosticSourceDTO(resp.Sources.ControlSnapshot),
