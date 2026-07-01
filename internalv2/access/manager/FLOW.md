@@ -40,6 +40,7 @@ GET  /manager/controller/task-audits (retained Controller task history; requires
 GET  /manager/controller/task-audits/:task_id/events (retained Controller task event timeline; requires cluster.controller:r when Auth.On=true)
 GET  /manager/nodes/:node_id/controller-raft (node-local Controller Raft status; requires cluster.controller:r when Auth.On=true)
 POST /manager/nodes/:node_id/controller-raft/compact (manual node-local Controller Raft compaction; requires cluster.controller:w when Auth.On=true)
+POST /manager/nodes/:node_id/controller-voter/promote (online Controller voter promotion; requires cluster.controller:w when Auth.On=true)
 POST /manager/controller-raft/compact (manual Controller voter compaction fan-out; requires cluster.controller:w when Auth.On=true)
 GET  /manager/slots/:slot_id/logs (Slot distributed log page; requires cluster.slot:r when Auth.On=true)
 GET  /manager/app-logs/sources (ordinary app log fixed source list; requires cluster.log:r when Auth.On=true)
@@ -99,7 +100,9 @@ Node list action hints remain read-model hints; `can_drain` and `can_resume`
 stay tied to the legacy node-operation routes and remain disabled in
 internalv2 until those routes are migrated. Stage 5C gateway drain mode is
 exposed through `/manager/nodes/:node_id/scale-in/drain` and scale-in status
-instead of these node-list action hints. Node lifecycle writes are exposed as
+instead of these node-list action hints. `can_promote_controller_voter` is a
+read-model hint for active data nodes that can be considered for the dedicated
+Controller membership write route. Node lifecycle writes are exposed as
 separate join and activate routes under `cluster.node:w`.
 `/manager/nodes/join` parses `node_id`, optional `name`, `addr`, and optional
 `capacity_weight`, delegates to `internalv2/usecase/management`, returns
@@ -115,6 +118,16 @@ whether transport reachability, control mirror catch-up, runtime readiness,
 cluster ID, or revision fencing blocked activation. Missing activation targets
 return `404 not_found`, and unwired control writers/readiness readers return
 `503 service_unavailable`.
+
+`/manager/nodes/:node_id/controller-voter/promote` is a Controller membership
+write guarded by `cluster.controller:w`, not a generic node lifecycle write. It
+parses the positive path `node_id` and optional `expected_revision`, delegates
+all safety gates, target readiness checks, and control writes to
+`management.App.PromoteControllerVoter`, returns `202 Accepted` when Controller
+state changed, and returns `200 OK` for idempotent already-voter results.
+Blocked safety gates return `409 conflict` with compact usecase detail, missing
+targets return `404 not_found`, and unavailable cluster/control dependencies
+return `503 service_unavailable`.
 
 `/manager/nodes/:node_id/onboarding/*` exposes the first bounded Slot onboarding
 surface for active data nodes. `plan`, `start`, and `advance` accept

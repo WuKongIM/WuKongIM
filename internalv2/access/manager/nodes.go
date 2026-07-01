@@ -163,6 +163,8 @@ type NodeActionsDTO struct {
 	CanScaleIn bool `json:"can_scale_in"`
 	// CanOnboard reports whether the node can be considered for explicit resource allocation.
 	CanOnboard bool `json:"can_onboard"`
+	// CanPromoteControllerVoter reports whether Controller voter promotion can be considered.
+	CanPromoteControllerVoter bool `json:"can_promote_controller_voter"`
 }
 
 func (s *Server) handleNodes(c *gin.Context) {
@@ -258,10 +260,11 @@ func nodeDTO(item managementusecase.Node) NodeDTO {
 			Unknown:              item.Runtime.Unknown,
 		},
 		Actions: NodeActionsDTO{
-			CanDrain:   item.Actions.CanDrain,
-			CanResume:  item.Actions.CanResume,
-			CanScaleIn: item.Actions.CanScaleIn,
-			CanOnboard: item.Actions.CanOnboard,
+			CanDrain:                  item.Actions.CanDrain,
+			CanResume:                 item.Actions.CanResume,
+			CanScaleIn:                item.Actions.CanScaleIn,
+			CanOnboard:                item.Actions.CanOnboard,
+			CanPromoteControllerVoter: item.Actions.CanPromoteControllerVoter,
 		},
 	}
 }

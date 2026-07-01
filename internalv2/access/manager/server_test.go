@@ -150,7 +150,9 @@ func TestManagerNodesReturnsReadOnlyInventory(t *testing.T) {
 						NodeID:  1,
 						Unknown: true,
 					},
-					Actions: managementusecase.NodeActions{},
+					Actions: managementusecase.NodeActions{
+						CanPromoteControllerVoter: true,
+					},
 				}},
 			},
 		},
@@ -230,7 +232,8 @@ func TestManagerNodesReturnsReadOnlyInventory(t *testing.T) {
 				"can_drain": false,
 				"can_resume": false,
 				"can_scale_in": false,
-				"can_onboard": false
+				"can_onboard": false,
+				"can_promote_controller_voter": true
 			}
 		}]
 	}`) {
@@ -1359,6 +1362,7 @@ type managerNodesStub struct {
 	activateNodeResponse               managementusecase.ActivateNodeResponse
 	markNodeLeaving                    managementusecase.MarkNodeLeavingResponse
 	markNodeRemoved                    managementusecase.MarkNodeRemovedResponse
+	promoteControllerVoterResponse     managementusecase.PromoteControllerVoterResponse
 	slotLeaderTransferResponse         managementusecase.SlotLeaderTransferResponse
 	slotLeaderTransferBatchPlan        managementusecase.SlotLeaderTransferBatchPlanResponse
 	slotLeaderTransferBatchExecute     managementusecase.SlotLeaderTransferBatchExecuteResponse
@@ -1414,6 +1418,7 @@ type managerNodesStub struct {
 	activateNodeReqSink                *managementusecase.ActivateNodeRequest
 	markNodeLeavingReqSink             *managementusecase.MarkNodeLeavingRequest
 	markNodeRemovedReqSink             *managementusecase.MarkNodeRemovedRequest
+	promoteControllerVoterReqSink      *managementusecase.PromoteControllerVoterRequest
 	slotLeaderTransferReqSink          *managementusecase.SlotLeaderTransferRequest
 	slotLeaderTransferBatchPlanSink    *managementusecase.SlotLeaderTransferBatchPlanRequest
 	slotLeaderTransferBatchExecuteSink *managementusecase.SlotLeaderTransferBatchExecuteRequest
@@ -1463,6 +1468,7 @@ type managerNodesStub struct {
 	activateNodeErr                    error
 	markNodeLeavingErr                 error
 	markNodeRemovedErr                 error
+	promoteControllerVoterErr          error
 	slotLeaderTransferErr              error
 	slotLeaderTransferBatchPlanErr     error
 	slotLeaderTransferBatchExecuteErr  error
@@ -1550,6 +1556,13 @@ func (s managerNodesStub) MarkNodeRemoved(_ context.Context, req managementuseca
 		*s.markNodeRemovedReqSink = req
 	}
 	return s.markNodeRemoved, s.markNodeRemovedErr
+}
+
+func (s managerNodesStub) PromoteControllerVoter(_ context.Context, req managementusecase.PromoteControllerVoterRequest) (managementusecase.PromoteControllerVoterResponse, error) {
+	if s.promoteControllerVoterReqSink != nil {
+		*s.promoteControllerVoterReqSink = req
+	}
+	return s.promoteControllerVoterResponse, s.promoteControllerVoterErr
 }
 
 func (s managerNodesStub) ListSlots(_ context.Context, opts managementusecase.ListSlotsOptions) ([]managementusecase.Slot, error) {

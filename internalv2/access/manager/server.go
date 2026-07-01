@@ -63,6 +63,8 @@ type Management interface {
 	MarkNodeLeaving(ctx context.Context, req managementusecase.MarkNodeLeavingRequest) (managementusecase.MarkNodeLeavingResponse, error)
 	// MarkNodeRemoved marks a fully drained node removed.
 	MarkNodeRemoved(ctx context.Context, req managementusecase.MarkNodeRemovedRequest) (managementusecase.MarkNodeRemovedResponse, error)
+	// PromoteControllerVoter promotes an active data node into Controller voting membership.
+	PromoteControllerVoter(ctx context.Context, req managementusecase.PromoteControllerVoterRequest) (managementusecase.PromoteControllerVoterResponse, error)
 	// ListSlots returns manager-facing slot DTOs.
 	ListSlots(ctx context.Context, opts managementusecase.ListSlotsOptions) ([]managementusecase.Slot, error)
 	// ListSlotLogEntries returns one node-local Slot Raft log page.
@@ -367,6 +369,7 @@ func (s *Server) registerRoutes() {
 		controllerRaftWrites.Use(s.requirePermission("cluster.controller", "w"))
 	}
 	controllerRaftWrites.POST("/nodes/:node_id/controller-raft/compact", s.handleCompactControllerRaftLog)
+	controllerRaftWrites.POST("/nodes/:node_id/controller-voter/promote", s.handlePromoteControllerVoter)
 	controllerRaftWrites.POST("/controller-raft/compact", s.handleCompactControllerRaftLogs)
 
 	diagnostics := s.engine.Group("/manager")
