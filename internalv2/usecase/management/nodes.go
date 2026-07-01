@@ -87,6 +87,22 @@ type NodeLifecycleAttemptObserver interface {
 	ObserveNodeLifecycleAttempt(operation, result string)
 }
 
+// ControllerVoterPromotionObserver observes Controller voter promotion attempts and phases.
+type ControllerVoterPromotionObserver interface {
+	// ObserveControllerVoterPromotionAttempt observes one promotion attempt result.
+	ObserveControllerVoterPromotionAttempt(result string)
+	// ObserveControllerVoterPromotionBlocker observes one bounded promotion blocker reason.
+	ObserveControllerVoterPromotionBlocker(reason string)
+	// ObserveControllerVoterPromotionPhase observes one promotion phase duration.
+	ObserveControllerVoterPromotionPhase(phase string, duration time.Duration)
+}
+
+// ControllerRaftStatusObserver observes Controller Raft status collection.
+type ControllerRaftStatusObserver interface {
+	// ObserveControllerRaftStatus observes one successfully collected Controller Raft status.
+	ObserveControllerRaftStatus(ControllerRaftStatus)
+}
+
 // Options configures the manager management usecase.
 type Options struct {
 	// Cluster reads clusterv2 control state.
@@ -113,6 +129,10 @@ type Options struct {
 	ScaleInStatusObserver ScaleInStatusObserver
 	// NodeLifecycleAttemptObserver observes lifecycle write attempts for metrics.
 	NodeLifecycleAttemptObserver NodeLifecycleAttemptObserver
+	// ControllerVoterPromotionObserver observes Controller voter promotion attempts for metrics.
+	ControllerVoterPromotionObserver ControllerVoterPromotionObserver
+	// ControllerRaftStatusObserver observes Controller Raft status collection for metrics.
+	ControllerRaftStatusObserver ControllerRaftStatusObserver
 	// ChannelRuntimeMeta scans channel runtime metadata for cluster channel pages.
 	ChannelRuntimeMeta ChannelRuntimeMetaReader
 	// ChannelBusinessReader scans durable channel metadata for manager channel pages.
@@ -171,45 +191,47 @@ type Options struct {
 
 // App serves read-only manager management usecases for internalv2.
 type App struct {
-	cluster                  ControlSnapshotReader
-	runtimeSummary           RuntimeSummaryReader
-	gatewayDrain             GatewayDrainWriter
-	nodeLifecycle            NodeLifecycleWriter
-	controllerVoterPromoter  ControllerVoterPromoter
-	controllerVoterReadiness ControllerVoterReadinessReader
-	controllerVoterPreparer  ControllerVoterPreparer
-	nodeReadiness            NodeReadinessReader
-	diagnostics              DiagnosticsReader
-	diagnosticsTracking      DiagnosticsTrackingOperator
-	scaleInStatusObserver    ScaleInStatusObserver
-	lifecycleAttempts        NodeLifecycleAttemptObserver
-	channelRuntimeMeta       ChannelRuntimeMetaReader
-	channelBusinessReader    ChannelBusinessReader
-	remoteBusinessChannels   RemoteBusinessChannelReader
-	users                    UserReader
-	userOperator             UserOperator
-	userPresence             UserPresenceDirectory
-	userActions              UserRouteActionDispatcher
-	systemUsers              SystemUserOperator
-	conversations            ConversationSyncer
-	messages                 MessageReader
-	messageRetention         MessageRetentionOperator
-	connections              ConnectionReader
-	remoteConnections        RemoteConnectionReader
-	plugins                  PluginReader
-	remotePlugins            RemotePluginReader
-	pluginBindings           PluginBindingStore
-	logs                     LogReader
-	slotRaft                 SlotRaftOperator
-	leaderTransfer           SlotLeaderTransferWriter
-	slotReplicaMove          SlotReplicaMoveWriter
-	slotRuntimeStatus        SlotRuntimeStatusReader
-	controllerRaft           ControllerRaftOperator
-	controllerTaskAudit      ControllerTaskAuditReader
-	applicationLogs          ApplicationLogReader
-	dbInspect                DBInspectReader
-	remoteDBInspect          RemoteDBInspectReader
-	now                      func() time.Time
+	cluster                      ControlSnapshotReader
+	runtimeSummary               RuntimeSummaryReader
+	gatewayDrain                 GatewayDrainWriter
+	nodeLifecycle                NodeLifecycleWriter
+	controllerVoterPromoter      ControllerVoterPromoter
+	controllerVoterReadiness     ControllerVoterReadinessReader
+	controllerVoterPreparer      ControllerVoterPreparer
+	nodeReadiness                NodeReadinessReader
+	diagnostics                  DiagnosticsReader
+	diagnosticsTracking          DiagnosticsTrackingOperator
+	scaleInStatusObserver        ScaleInStatusObserver
+	lifecycleAttempts            NodeLifecycleAttemptObserver
+	controllerVoterPromotion     ControllerVoterPromotionObserver
+	controllerRaftStatusObserver ControllerRaftStatusObserver
+	channelRuntimeMeta           ChannelRuntimeMetaReader
+	channelBusinessReader        ChannelBusinessReader
+	remoteBusinessChannels       RemoteBusinessChannelReader
+	users                        UserReader
+	userOperator                 UserOperator
+	userPresence                 UserPresenceDirectory
+	userActions                  UserRouteActionDispatcher
+	systemUsers                  SystemUserOperator
+	conversations                ConversationSyncer
+	messages                     MessageReader
+	messageRetention             MessageRetentionOperator
+	connections                  ConnectionReader
+	remoteConnections            RemoteConnectionReader
+	plugins                      PluginReader
+	remotePlugins                RemotePluginReader
+	pluginBindings               PluginBindingStore
+	logs                         LogReader
+	slotRaft                     SlotRaftOperator
+	leaderTransfer               SlotLeaderTransferWriter
+	slotReplicaMove              SlotReplicaMoveWriter
+	slotRuntimeStatus            SlotRuntimeStatusReader
+	controllerRaft               ControllerRaftOperator
+	controllerTaskAudit          ControllerTaskAuditReader
+	applicationLogs              ApplicationLogReader
+	dbInspect                    DBInspectReader
+	remoteDBInspect              RemoteDBInspectReader
+	now                          func() time.Time
 }
 
 // New constructs the manager management usecase.
@@ -219,45 +241,47 @@ func New(opts Options) *App {
 		now = time.Now
 	}
 	return &App{
-		cluster:                  opts.Cluster,
-		runtimeSummary:           opts.RuntimeSummary,
-		gatewayDrain:             opts.GatewayDrain,
-		nodeLifecycle:            opts.NodeLifecycle,
-		controllerVoterPromoter:  opts.ControllerVoterPromoter,
-		controllerVoterReadiness: opts.ControllerVoterReadiness,
-		controllerVoterPreparer:  opts.ControllerVoterPreparer,
-		nodeReadiness:            opts.NodeReadiness,
-		diagnostics:              opts.Diagnostics,
-		diagnosticsTracking:      opts.DiagnosticsTracking,
-		scaleInStatusObserver:    opts.ScaleInStatusObserver,
-		lifecycleAttempts:        opts.NodeLifecycleAttemptObserver,
-		channelRuntimeMeta:       opts.ChannelRuntimeMeta,
-		channelBusinessReader:    opts.ChannelBusinessReader,
-		remoteBusinessChannels:   opts.RemoteBusinessChannels,
-		users:                    opts.Users,
-		userOperator:             opts.UserOperator,
-		userPresence:             opts.UserPresence,
-		userActions:              opts.UserActions,
-		systemUsers:              opts.SystemUsers,
-		conversations:            opts.Conversations,
-		messages:                 opts.Messages,
-		messageRetention:         opts.MessageRetention,
-		connections:              opts.Connections,
-		remoteConnections:        opts.RemoteConnections,
-		plugins:                  opts.Plugins,
-		remotePlugins:            opts.RemotePlugins,
-		pluginBindings:           opts.PluginBindings,
-		logs:                     opts.Logs,
-		slotRaft:                 opts.SlotRaft,
-		leaderTransfer:           opts.LeaderTransfer,
-		slotReplicaMove:          opts.SlotReplicaMove,
-		slotRuntimeStatus:        opts.SlotRuntimeStatus,
-		controllerRaft:           opts.ControllerRaft,
-		controllerTaskAudit:      opts.ControllerTaskAudit,
-		applicationLogs:          opts.ApplicationLogs,
-		dbInspect:                opts.DBInspect,
-		remoteDBInspect:          opts.RemoteDBInspect,
-		now:                      now,
+		cluster:                      opts.Cluster,
+		runtimeSummary:               opts.RuntimeSummary,
+		gatewayDrain:                 opts.GatewayDrain,
+		nodeLifecycle:                opts.NodeLifecycle,
+		controllerVoterPromoter:      opts.ControllerVoterPromoter,
+		controllerVoterReadiness:     opts.ControllerVoterReadiness,
+		controllerVoterPreparer:      opts.ControllerVoterPreparer,
+		nodeReadiness:                opts.NodeReadiness,
+		diagnostics:                  opts.Diagnostics,
+		diagnosticsTracking:          opts.DiagnosticsTracking,
+		scaleInStatusObserver:        opts.ScaleInStatusObserver,
+		lifecycleAttempts:            opts.NodeLifecycleAttemptObserver,
+		controllerVoterPromotion:     opts.ControllerVoterPromotionObserver,
+		controllerRaftStatusObserver: opts.ControllerRaftStatusObserver,
+		channelRuntimeMeta:           opts.ChannelRuntimeMeta,
+		channelBusinessReader:        opts.ChannelBusinessReader,
+		remoteBusinessChannels:       opts.RemoteBusinessChannels,
+		users:                        opts.Users,
+		userOperator:                 opts.UserOperator,
+		userPresence:                 opts.UserPresence,
+		userActions:                  opts.UserActions,
+		systemUsers:                  opts.SystemUsers,
+		conversations:                opts.Conversations,
+		messages:                     opts.Messages,
+		messageRetention:             opts.MessageRetention,
+		connections:                  opts.Connections,
+		remoteConnections:            opts.RemoteConnections,
+		plugins:                      opts.Plugins,
+		remotePlugins:                opts.RemotePlugins,
+		pluginBindings:               opts.PluginBindings,
+		logs:                         opts.Logs,
+		slotRaft:                     opts.SlotRaft,
+		leaderTransfer:               opts.LeaderTransfer,
+		slotReplicaMove:              opts.SlotReplicaMove,
+		slotRuntimeStatus:            opts.SlotRuntimeStatus,
+		controllerRaft:               opts.ControllerRaft,
+		controllerTaskAudit:          opts.ControllerTaskAudit,
+		applicationLogs:              opts.ApplicationLogs,
+		dbInspect:                    opts.DBInspect,
+		remoteDBInspect:              opts.RemoteDBInspect,
+		now:                          now,
 	}
 }
 

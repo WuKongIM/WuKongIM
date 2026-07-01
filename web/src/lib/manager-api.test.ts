@@ -912,6 +912,8 @@ describe("manager api client", () => {
       last_index: 42,
       commit_index: 40,
       applied_index: 39,
+      voters: [1, 2],
+      learners: [4],
       snapshot_index: 9,
       snapshot_term: 3,
       compaction: {

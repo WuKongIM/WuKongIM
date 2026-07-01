@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
 	cv2 "github.com/WuKongIM/WuKongIM/pkg/controllerv2"
@@ -31,11 +32,13 @@ func TestPromoteControllerVoterHappyPathCarriesLiveProof(t *testing.T) {
 			ObservedVoters:      []uint64{4, 2, 1},
 		},
 	}
+	observer := &recordingControllerVoterPromotionObserver{}
 	app := New(Options{
-		Cluster:                  fakeNodeSnapshotReader{snapshot: snapshot},
-		ControllerVoterPromoter:  promoter,
-		ControllerVoterReadiness: fakeControllerVoterReadiness{readiness: readyControllerVoterReadiness(4, snapshot.ClusterID, snapshot.Revision)},
-		ControllerVoterPreparer:  preparer,
+		Cluster:                          fakeNodeSnapshotReader{snapshot: snapshot},
+		ControllerVoterPromoter:          promoter,
+		ControllerVoterReadiness:         fakeControllerVoterReadiness{readiness: readyControllerVoterReadiness(4, snapshot.ClusterID, snapshot.Revision)},
+		ControllerVoterPreparer:          preparer,
+		ControllerVoterPromotionObserver: observer,
 	})
 
 	resp, err := app.PromoteControllerVoter(context.Background(), PromoteControllerVoterRequest{NodeID: 4, ExpectedRevision: 9})
@@ -75,6 +78,12 @@ func TestPromoteControllerVoterHappyPathCarriesLiveProof(t *testing.T) {
 			t.Fatalf("prepare endpoint[%d] = %#v, want %#v", i, preparer.request.NextVoters[i], wantEndpoints[i])
 		}
 	}
+	if !sameControllerVoterPromotionStrings(observer.attempts, []string{"changed"}) {
+		t.Fatalf("attempts = %v, want [changed]", observer.attempts)
+	}
+	if !sameControllerVoterPromotionStrings(observer.phases, []string{"readiness", "prepare", "commit_state"}) {
+		t.Fatalf("phases = %v, want readiness/prepare/commit_state", observer.phases)
+	}
 }
 
 func TestPromoteControllerVoterBlocksStaleHealthBeforePrepare(t *testing.T) {
@@ -82,17 +91,22 @@ func TestPromoteControllerVoterBlocksStaleHealthBeforePrepare(t *testing.T) {
 	snapshot.Nodes[2].Health.Freshness = control.NodeHealthStale
 	promoter := &fakeControllerVoterPromoter{}
 	preparer := &fakeControllerVoterPreparer{}
+	observer := &recordingControllerVoterPromotionObserver{}
 	app := New(Options{
-		Cluster:                  fakeNodeSnapshotReader{snapshot: snapshot},
-		ControllerVoterPromoter:  promoter,
-		ControllerVoterReadiness: fakeControllerVoterReadiness{readiness: readyControllerVoterReadiness(4, snapshot.ClusterID, snapshot.Revision)},
-		ControllerVoterPreparer:  preparer,
+		Cluster:                          fakeNodeSnapshotReader{snapshot: snapshot},
+		ControllerVoterPromoter:          promoter,
+		ControllerVoterReadiness:         fakeControllerVoterReadiness{readiness: readyControllerVoterReadiness(4, snapshot.ClusterID, snapshot.Revision)},
+		ControllerVoterPreparer:          preparer,
+		ControllerVoterPromotionObserver: observer,
 	})
 
 	_, err := app.PromoteControllerVoter(context.Background(), PromoteControllerVoterRequest{NodeID: 4})
 	assertControllerVoterBlocked(t, err, "target_health_stale")
 	if preparer.calls != 0 || promoter.calls != 0 {
 		t.Fatalf("preparer/promoter calls = %d/%d, want 0/0", preparer.calls, promoter.calls)
+	}
+	if !sameControllerVoterPromotionStrings(observer.attempts, []string{"blocked"}) || !sameControllerVoterPromotionStrings(observer.blockers, []string{"target_health_stale"}) {
+		t.Fatalf("observer attempts=%v blockers=%v, want blocked target_health_stale", observer.attempts, observer.blockers)
 	}
 }
 
@@ -350,6 +364,36 @@ func assertControllerVoterBlocked(t *testing.T, err error, reason string) {
 	if !strings.Contains(err.Error(), reason) {
 		t.Fatalf("error = %v, want reason %q", err, reason)
 	}
+}
+
+func sameControllerVoterPromotionStrings(left, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for i := range left {
+		if left[i] != right[i] {
+			return false
+		}
+	}
+	return true
+}
+
+type recordingControllerVoterPromotionObserver struct {
+	attempts []string
+	blockers []string
+	phases   []string
+}
+
+func (o *recordingControllerVoterPromotionObserver) ObserveControllerVoterPromotionAttempt(result string) {
+	o.attempts = append(o.attempts, result)
+}
+
+func (o *recordingControllerVoterPromotionObserver) ObserveControllerVoterPromotionBlocker(reason string) {
+	o.blockers = append(o.blockers, reason)
+}
+
+func (o *recordingControllerVoterPromotionObserver) ObserveControllerVoterPromotionPhase(phase string, _ time.Duration) {
+	o.phases = append(o.phases, phase)
 }
 
 type fakeControllerVoterPromoter struct {

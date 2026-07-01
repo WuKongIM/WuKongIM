@@ -129,6 +129,13 @@ Blocked safety gates return `409 conflict` with compact usecase detail, missing
 targets return `404 not_found`, and unavailable cluster/control dependencies
 return `503 service_unavailable`.
 
+`/manager/nodes/:node_id/controller-raft` returns the selected node's local
+Controller Raft status, including live voter and learner sets in addition to
+role, leader, term, commit/apply, log, snapshot, compaction, restore, and peer
+progress fields. HTTP does not derive membership from durable node roles; it
+only serializes the usecase status DTO so app-level metrics and operators can
+compare live Raft membership with the durable Controller role view.
+
 `/manager/nodes/:node_id/onboarding/*` exposes the first bounded Slot onboarding
 surface for active data nodes. `plan`, `start`, and `advance` accept
 `max_slot_moves`, delegate all planning and task creation to

@@ -88,6 +88,10 @@ type ManagerControllerRaftStatusResponse struct {
 	CommitIndex uint64 `json:"commit_index"`
 	// AppliedIndex is the queried node's applied Controller Raft watermark.
 	AppliedIndex uint64 `json:"applied_index"`
+	// Voters is the Controller Raft voter set observed by the queried node.
+	Voters []uint64 `json:"voters"`
+	// Learners is the Controller Raft learner set observed by the queried node.
+	Learners []uint64 `json:"learners"`
 	// SnapshotIndex is the latest persisted Controller Raft snapshot index.
 	SnapshotIndex uint64 `json:"snapshot_index"`
 	// SnapshotTerm is the latest persisted Controller Raft snapshot term.
@@ -200,6 +204,8 @@ func controllerRaftStatusDTO(status managementusecase.ControllerRaftStatus) Mana
 		LastIndex:     status.LastIndex,
 		CommitIndex:   status.CommitIndex,
 		AppliedIndex:  status.AppliedIndex,
+		Voters:        append([]uint64(nil), status.Voters...),
+		Learners:      append([]uint64(nil), status.Learners...),
 		SnapshotIndex: status.SnapshotIndex,
 		SnapshotTerm:  status.SnapshotTerm,
 		Compaction:    controllerRaftCompactionDTO(status.Compaction),

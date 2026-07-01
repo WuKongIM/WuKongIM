@@ -79,6 +79,8 @@ func controllerRaftStatusFromCluster(status clusterv2.ControllerRaftStatus) mana
 		LastIndex:     status.LastIndex,
 		CommitIndex:   status.CommitIndex,
 		AppliedIndex:  status.AppliedIndex,
+		Voters:        append([]uint64(nil), status.Voters...),
+		Learners:      append([]uint64(nil), status.Learners...),
 		SnapshotIndex: status.SnapshotIndex,
 		SnapshotTerm:  status.SnapshotTerm,
 		Compaction: managementusecase.ControllerRaftCompaction{

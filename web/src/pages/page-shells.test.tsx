@@ -193,6 +193,8 @@ beforeEach(() => {
     last_index: 4,
     commit_index: 4,
     applied_index: 3,
+    voters: [1],
+    learners: [],
     snapshot_index: 0,
     snapshot_term: 0,
     compaction: {

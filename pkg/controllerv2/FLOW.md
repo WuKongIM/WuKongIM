@@ -131,6 +131,20 @@ unless the current ControllerV2 state still matches the safety-check revision;
 an already-removed tombstone remains idempotent and returns `changed=false`
 even when a retried request carries a stale revision fence.
 
+Controller voter promotion is split into live Raft preparation and one final
+durable state command. `PrepareControllerVoter` runs only on the target node:
+it stops mirror refresh, selects the newest valid mirrored `cluster-state.json`
+or `cluster-state.mirror-before-controller-voter-promotion.json`, moves the
+active mirror state aside, publishes the preserved state, and starts the local
+runtime in voter mode with the requested Controller voter set. The Raft package
+exposes learner-first membership APIs (`AddLearner`, `PromoteLearner`) for
+callers that need to build live membership proof before finalizing durable
+metadata. `KindPromoteControllerVoter` is the atomic ControllerV2 state command:
+it requires the expected revision/voter fence plus observed Controller Raft
+config index and voter set, then adds the Controller voter role to the node,
+updates the durable Controller voter table, and remains idempotent when the
+node is already consistently promoted.
+
 Slot replica move intent is represented as a staged `slot_replica_move` task.
 Creating the task does not change `DesiredPeers`; it only records source,
 target, target peer set, assignment epoch, and phase progress fields. Dedicated

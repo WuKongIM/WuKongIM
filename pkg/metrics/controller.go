@@ -10,9 +10,28 @@ import (
 )
 
 var (
-	controllerTaskKinds        = []string{"bootstrap", "repair", "rebalance", "leader_transfer", "slot_replica_move"}
-	controllerTaskResults      = []string{"ok", "fail", "timeout", "safety_check"}
-	controllerMigrationResults = []string{"ok", "fail", "abort"}
+	controllerTaskKinds             = []string{"bootstrap", "repair", "rebalance", "leader_transfer", "slot_replica_move"}
+	controllerTaskResults           = []string{"ok", "fail", "timeout", "safety_check"}
+	controllerMigrationResults      = []string{"ok", "fail", "abort"}
+	controllerVoterPromotionResults = map[string]struct{}{
+		"changed":     {},
+		"noop":        {},
+		"blocked":     {},
+		"unavailable": {},
+	}
+	controllerVoterPromotionBlockerReasons = map[string]struct{}{
+		"target_health_stale":        {},
+		"target_revision_stale":      {},
+		"expected_revision_mismatch": {},
+	}
+	controllerVoterPromotionPhases = map[string]struct{}{
+		"readiness":     {},
+		"prepare":       {},
+		"add_learner":   {},
+		"catch_up":      {},
+		"promote_voter": {},
+		"commit_state":  {},
+	}
 )
 
 // ControllerTaskAgeKey groups retained task audit age without high-cardinality task identifiers.
@@ -24,24 +43,29 @@ type ControllerTaskAgeKey struct {
 }
 
 type ControllerMetrics struct {
-	decisionsTotal   *prometheus.CounterVec
-	decisionDuration prometheus.Histogram
-	tasksActive      *prometheus.GaugeVec
-	tasksFailed      *prometheus.GaugeVec
-	taskOldestAge    *controllerTaskOldestAgeCollector
-	tasksCompleted   *prometheus.CounterVec
-	migrationsActive prometheus.Gauge
-	migrationsTotal  *prometheus.CounterVec
-	nodesAlive       prometheus.Gauge
-	nodesSuspect     prometheus.Gauge
-	nodesDead        prometheus.Gauge
-	slotLeaderSkew   prometheus.Gauge
-	stateRevision    prometheus.Gauge
-	leaderPresent    prometheus.Gauge
-	applyGap         *prometheus.GaugeVec
-	raftStepDepth    prometheus.Gauge
-	raftStepCapacity prometheus.Gauge
-	raftStepEnqueue  *prometheus.HistogramVec
+	decisionsTotal         *prometheus.CounterVec
+	decisionDuration       prometheus.Histogram
+	tasksActive            *prometheus.GaugeVec
+	tasksFailed            *prometheus.GaugeVec
+	taskOldestAge          *controllerTaskOldestAgeCollector
+	tasksCompleted         *prometheus.CounterVec
+	migrationsActive       prometheus.Gauge
+	migrationsTotal        *prometheus.CounterVec
+	nodesAlive             prometheus.Gauge
+	nodesSuspect           prometheus.Gauge
+	nodesDead              prometheus.Gauge
+	slotLeaderSkew         prometheus.Gauge
+	stateRevision          prometheus.Gauge
+	leaderPresent          prometheus.Gauge
+	applyGap               *prometheus.GaugeVec
+	raftStepDepth          prometheus.Gauge
+	raftStepCapacity       prometheus.Gauge
+	raftStepEnqueue        *prometheus.HistogramVec
+	raftVoters             prometheus.Gauge
+	raftLearners           prometheus.Gauge
+	voterPromotionAttempts *prometheus.CounterVec
+	voterPromotionBlockers *prometheus.CounterVec
+	voterPromotionPhase    *prometheus.HistogramVec
 }
 
 func newControllerMetrics(registry prometheus.Registerer, labels prometheus.Labels) *ControllerMetrics {
@@ -134,6 +158,32 @@ func newControllerMetrics(registry prometheus.Registerer, labels prometheus.Labe
 			ConstLabels: labels,
 			Buckets:     gatewayFrameDurationBuckets,
 		}, []string{"result"}),
+		raftVoters: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name:        "wukongimv2_controller_raft_voters",
+			Help:        "Current Controller Raft voter count observed from local status collection.",
+			ConstLabels: labels,
+		}),
+		raftLearners: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name:        "wukongimv2_controller_raft_learners",
+			Help:        "Current Controller Raft learner count observed from local status collection.",
+			ConstLabels: labels,
+		}),
+		voterPromotionAttempts: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name:        "wukongimv2_controller_voter_promotion_attempts_total",
+			Help:        "Total Controller voter promotion attempts grouped by bounded result.",
+			ConstLabels: labels,
+		}, []string{"result"}),
+		voterPromotionBlockers: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name:        "wukongimv2_controller_voter_promotion_blockers_total",
+			Help:        "Total Controller voter promotion safety blockers grouped by bounded reason.",
+			ConstLabels: labels,
+		}, []string{"reason"}),
+		voterPromotionPhase: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:        "wukongimv2_controller_voter_promotion_phase_seconds",
+			Help:        "Controller voter promotion phase duration in seconds grouped by bounded phase.",
+			ConstLabels: labels,
+			Buckets:     slotReplicaMoveDurationBuckets,
+		}, []string{"phase"}),
 	}
 
 	registry.MustRegister(
@@ -155,6 +205,11 @@ func newControllerMetrics(registry prometheus.Registerer, labels prometheus.Labe
 		m.raftStepDepth,
 		m.raftStepCapacity,
 		m.raftStepEnqueue,
+		m.raftVoters,
+		m.raftLearners,
+		m.voterPromotionAttempts,
+		m.voterPromotionBlockers,
+		m.voterPromotionPhase,
 	)
 
 	for _, kind := range controllerTaskKinds {
@@ -169,6 +224,15 @@ func newControllerMetrics(registry prometheus.Registerer, labels prometheus.Labe
 	m.slotLeaderSkew.Set(0)
 	for _, result := range controllerMigrationResults {
 		m.migrationsTotal.WithLabelValues(result)
+	}
+	for result := range controllerVoterPromotionResults {
+		m.voterPromotionAttempts.WithLabelValues(result)
+	}
+	for reason := range controllerVoterPromotionBlockerReasons {
+		m.voterPromotionBlockers.WithLabelValues(reason)
+	}
+	for phase := range controllerVoterPromotionPhases {
+		m.voterPromotionPhase.WithLabelValues(phase)
 	}
 
 	return m
@@ -403,4 +467,40 @@ func (m *ControllerMetrics) ObserveControllerRaftStepEnqueue(result string, d ti
 		return
 	}
 	m.raftStepEnqueue.WithLabelValues(result).Observe(d.Seconds())
+}
+
+// SetControllerRaftMembership records the latest locally observed Controller Raft membership size.
+func (m *ControllerMetrics) SetControllerRaftMembership(voters, learners int) {
+	if m == nil {
+		return
+	}
+	m.raftVoters.Set(float64(voters))
+	m.raftLearners.Set(float64(learners))
+}
+
+// ObserveControllerVoterPromotionAttempt increments one bounded promotion attempt result.
+func (m *ControllerMetrics) ObserveControllerVoterPromotionAttempt(result string) {
+	if m == nil {
+		return
+	}
+	m.voterPromotionAttempts.WithLabelValues(normalizeBoundedMetricLabel(result, controllerVoterPromotionResults)).Inc()
+}
+
+// ObserveControllerVoterPromotionBlocker increments one bounded promotion blocker reason.
+func (m *ControllerMetrics) ObserveControllerVoterPromotionBlocker(reason string) {
+	if m == nil {
+		return
+	}
+	m.voterPromotionBlockers.WithLabelValues(normalizeBoundedMetricLabel(reason, controllerVoterPromotionBlockerReasons)).Inc()
+}
+
+// ObserveControllerVoterPromotionPhase records one bounded promotion phase duration.
+func (m *ControllerMetrics) ObserveControllerVoterPromotionPhase(phase string, d time.Duration) {
+	if m == nil {
+		return
+	}
+	if d < 0 {
+		d = 0
+	}
+	m.voterPromotionPhase.WithLabelValues(normalizeBoundedMetricLabel(phase, controllerVoterPromotionPhases)).Observe(d.Seconds())
 }

@@ -166,9 +166,10 @@ When a control snapshot contains active bootstrap, leader-transfer, or staged
 slot-replica-move tasks, the Node runs task executors after Slot
 reconciliation. Executors only report participant progress, fenced phase
 advancement, fenced commit, or fenced completion through the control task
-writer facade; they do not mutate ControllerV2 state directly. Task writes
-from non-leader Controller runtimes are forwarded to the current Controller
-leader. Leader-transfer execution calls Slot Raft `TransferLeadership` from
+writer facade; they do not mutate ControllerV2 state directly. Task and
+generic control writes from non-leader Controller runtimes, including
+`PromoteControllerVoter`, are forwarded to the current Controller leader.
+Leader-transfer execution calls Slot Raft `TransferLeadership` from
 the current Slot leader and completes once the observed actual leader is any
 legal non-source Slot Raft leader; the requested `target_node` is preferred,
 not a strict completion requirement. Slot replica movement first opens the
@@ -373,12 +374,15 @@ not route writes, replay entries, or mutate Raft storage.
 `Node.LocalControllerRaftStatus`, `Node.LocalCompactControllerRaftLog`, and
 `Node.PrepareControllerVoter` are separate node-local ControllerV2 Raft
 management facades. Status reports local role, term, commit/apply, and durable
-log/snapshot watermarks. Manual compaction calls the local ControllerV2
-runtime's materialized-state snapshot path and returns whether a snapshot was
-created, skipped, or failed. Controller voter preparation delegates only to the
-target node's local ControllerV2 runtime and does not submit the final durable
-promotion write. Cluster fan-out is owned by `internalv2/usecase/management`,
-not clusterv2.
+log/snapshot watermarks plus the live Controller Raft voter and learner sets.
+Manual compaction calls the local ControllerV2 runtime's materialized-state
+snapshot path and returns whether a snapshot was created, skipped, or failed.
+Controller voter preparation delegates only to the target node's local
+ControllerV2 runtime and does not submit the final durable promotion write.
+`Node.PromoteControllerVoter` routes the final control write through the same
+leader-forwarding control facade as other Controller writes. Cluster fan-out,
+target readiness checks, and safety fences are owned by
+`internalv2/usecase/management`, not clusterv2.
 
 `channels.Service` keeps a combined runtime interface because the public ChannelV2 `Cluster` surface and replication `transport.Server` surface are separate. `StaticMetaSource` is available for tests and smoke runs. `SlotMetaSource` adapts authoritative `pkg/db/meta` `ChannelRuntimeMeta` records into ChannelV2 metadata for production wiring. `ResolveChannelMeta` remains read-only; `EnsureChannelMeta` is the append-only path that may create the initial ChannelRuntimeMeta through the Slot-owned metadata writer before any ChannelV2 append is attempted. `SlotMetaSource` emits low-cardinality metadata resolve sub-stages for Slot meta read, initial placement/build, missing-meta write/propose, aggregate create/write, and final reread so cold activation tail latency can be attributed before pprof. In the default runtime, `meta_create_propose` wraps the Slot metadata writer call; `meta_create_propose_local` and `meta_create_propose_forward` split origin-side routing, `meta_create_slot_propose_submit` times local `Runtime.Propose`, and `meta_create_slot_propose_wait` times the subsequent Multi-Raft future wait. The default proposer also bridges the append stage observer into `pkg/slot/multiraft`, allowing the same ChannelV2 stage histogram to report `meta_create_slot_control_wait`, `meta_create_slot_raft_commit_wait`, `meta_create_slot_fsm_apply`, `meta_create_slot_fsm_commit`, and `meta_create_slot_mark_applied`.
 

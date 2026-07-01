@@ -5406,23 +5406,26 @@ type fakeManagerCluster struct {
 	slotRaftCompact       clusterv2.SlotRaftCompactionResult
 	slotRaftCompactSlotID uint32
 
-	slotLeaderTransferRequest control.SlotLeaderTransferRequest
-	slotLeaderTransferResult  control.SlotLeaderTransferResult
-	slotReplicaMoveRequest    control.SlotReplicaMoveRequest
-	slotReplicaMoveResult     control.SlotReplicaMoveResult
-	joinNodeRequest           control.JoinNodeRequest
-	joinNodeResult            control.JoinNodeResult
-	joinNodeErr               error
-	activateNodeRequest       control.ActivateNodeRequest
-	activateNodeResult        control.ActivateNodeResult
-	activateNodeErr           error
-	markNodeLeavingRequest    control.MarkNodeLeavingRequest
-	markNodeLeavingResult     control.MarkNodeLeavingResult
-	markNodeLeavingErr        error
-	markNodeRemovedRequest    control.MarkNodeRemovedRequest
-	markNodeRemovedResult     control.MarkNodeRemovedResult
-	markNodeRemovedErr        error
-	retentionAdvance          metadb.ChannelRetentionAdvance
+	slotLeaderTransferRequest     control.SlotLeaderTransferRequest
+	slotLeaderTransferResult      control.SlotLeaderTransferResult
+	slotReplicaMoveRequest        control.SlotReplicaMoveRequest
+	slotReplicaMoveResult         control.SlotReplicaMoveResult
+	joinNodeRequest               control.JoinNodeRequest
+	joinNodeResult                control.JoinNodeResult
+	joinNodeErr                   error
+	activateNodeRequest           control.ActivateNodeRequest
+	activateNodeResult            control.ActivateNodeResult
+	activateNodeErr               error
+	markNodeLeavingRequest        control.MarkNodeLeavingRequest
+	markNodeLeavingResult         control.MarkNodeLeavingResult
+	markNodeLeavingErr            error
+	markNodeRemovedRequest        control.MarkNodeRemovedRequest
+	markNodeRemovedResult         control.MarkNodeRemovedResult
+	markNodeRemovedErr            error
+	promoteControllerVoterRequest control.PromoteControllerVoterRequest
+	promoteControllerVoterResult  control.PromoteControllerVoterResult
+	promoteControllerVoterErr     error
+	retentionAdvance              metadb.ChannelRetentionAdvance
 }
 
 type fakeManagerDeviceKey struct {
@@ -5503,6 +5506,11 @@ func (f *fakeManagerCluster) MarkNodeLeaving(_ context.Context, req control.Mark
 func (f *fakeManagerCluster) MarkNodeRemoved(_ context.Context, req control.MarkNodeRemovedRequest) (control.MarkNodeRemovedResult, error) {
 	f.markNodeRemovedRequest = req
 	return f.markNodeRemovedResult, f.markNodeRemovedErr
+}
+
+func (f *fakeManagerCluster) PromoteControllerVoter(_ context.Context, req control.PromoteControllerVoterRequest) (control.PromoteControllerVoterResult, error) {
+	f.promoteControllerVoterRequest = req
+	return f.promoteControllerVoterResult, f.promoteControllerVoterErr
 }
 
 func (f *fakeManagerCluster) LocalControlSnapshot(context.Context) (control.Snapshot, error) {

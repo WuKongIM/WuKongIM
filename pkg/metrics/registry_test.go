@@ -1155,6 +1155,50 @@ func TestControllerMetricsTrackDecisionStateAndTaskCounts(t *testing.T) {
 	require.Equal(t, float64(7), applyGap.GetMetric()[0].GetGauge().GetValue())
 }
 
+func TestControllerMetricsTrackVoterPromotionWithBoundedLabels(t *testing.T) {
+	reg := New(11, "node-11")
+
+	reg.Controller.SetControllerRaftMembership(3, 1)
+	reg.Controller.ObserveControllerVoterPromotionAttempt("changed")
+	reg.Controller.ObserveControllerVoterPromotionAttempt("surprising-node-4-result")
+	reg.Controller.ObserveControllerVoterPromotionBlocker("target_health_stale")
+	reg.Controller.ObserveControllerVoterPromotionBlocker("node-4-health-timeout")
+	reg.Controller.ObserveControllerVoterPromotionPhase("readiness", 20*time.Millisecond)
+	reg.Controller.ObserveControllerVoterPromotionPhase("raw-node-4-phase", 30*time.Millisecond)
+
+	families, err := reg.Gather()
+	require.NoError(t, err)
+
+	voters := requireMetricFamily(t, families, "wukongimv2_controller_raft_voters")
+	require.Len(t, voters.GetMetric(), 1)
+	requireMetricLabels(t, voters.GetMetric()[0], map[string]string{
+		"node_id":   "11",
+		"node_name": "node-11",
+	})
+	require.Equal(t, float64(3), voters.GetMetric()[0].GetGauge().GetValue())
+
+	learners := requireMetricFamily(t, families, "wukongimv2_controller_raft_learners")
+	require.Len(t, learners.GetMetric(), 1)
+	require.Equal(t, float64(1), learners.GetMetric()[0].GetGauge().GetValue())
+
+	attempts := requireMetricFamily(t, families, "wukongimv2_controller_voter_promotion_attempts_total")
+	require.Equal(t, float64(1), findMetricByLabels(t, attempts, map[string]string{"result": "changed"}).GetCounter().GetValue())
+	require.Equal(t, float64(1), findMetricByLabels(t, attempts, map[string]string{"result": "other"}).GetCounter().GetValue())
+
+	blockers := requireMetricFamily(t, families, "wukongimv2_controller_voter_promotion_blockers_total")
+	require.Equal(t, float64(1), findMetricByLabels(t, blockers, map[string]string{"reason": "target_health_stale"}).GetCounter().GetValue())
+	require.Equal(t, float64(1), findMetricByLabels(t, blockers, map[string]string{"reason": "other"}).GetCounter().GetValue())
+	findMetricByLabels(t, blockers, map[string]string{"reason": "target_revision_stale"})
+	findMetricByLabels(t, blockers, map[string]string{"reason": "expected_revision_mismatch"})
+
+	phases := requireMetricFamily(t, families, "wukongimv2_controller_voter_promotion_phase_seconds")
+	require.Equal(t, uint64(1), findMetricByLabels(t, phases, map[string]string{"phase": "readiness"}).GetHistogram().GetSampleCount())
+	require.Equal(t, uint64(1), findMetricByLabels(t, phases, map[string]string{"phase": "other"}).GetHistogram().GetSampleCount())
+	for _, phase := range []string{"prepare", "add_learner", "catch_up", "promote_voter", "commit_state"} {
+		findMetricByLabels(t, phases, map[string]string{"phase": phase})
+	}
+}
+
 func TestControllerMetricsIncludeLeaderTransferAndLeaderSkew(t *testing.T) {
 	reg := New(1, "node-1")
 	reg.Controller.ObserveDecision("leader_transfer", time.Millisecond)

@@ -75,11 +75,43 @@ func TestControllerRaftCompactLogsPreservesPartialFailure(t *testing.T) {
 	}
 }
 
+func TestControllerRaftStatusObserverSeesMembership(t *testing.T) {
+	observer := &recordingControllerRaftStatusObserver{}
+	app := New(Options{
+		ControllerRaft: &fakeControllerRaftOperator{
+			status: map[uint64]ControllerRaftStatus{
+				1: {NodeID: 1, Voters: []uint64{1, 2, 4}, Learners: []uint64{5}},
+			},
+		},
+		ControllerRaftStatusObserver: observer,
+	})
+
+	status, err := app.ControllerRaftStatus(context.Background(), 1)
+
+	if err != nil {
+		t.Fatalf("ControllerRaftStatus() error = %v", err)
+	}
+	if len(status.Voters) != 3 || len(status.Learners) != 1 {
+		t.Fatalf("status membership voters=%v learners=%v, want 3 voters and 1 learner", status.Voters, status.Learners)
+	}
+	if len(observer.statuses) != 1 || len(observer.statuses[0].Voters) != 3 || len(observer.statuses[0].Learners) != 1 {
+		t.Fatalf("observer statuses = %#v, want one status with membership", observer.statuses)
+	}
+}
+
 type fakeControllerRaftOperator struct {
 	called  []uint64
 	status  map[uint64]ControllerRaftStatus
 	results map[uint64]ControllerRaftCompactionResult
 	errors  map[uint64]error
+}
+
+type recordingControllerRaftStatusObserver struct {
+	statuses []ControllerRaftStatus
+}
+
+func (o *recordingControllerRaftStatusObserver) ObserveControllerRaftStatus(status ControllerRaftStatus) {
+	o.statuses = append(o.statuses, status)
 }
 
 func (f *fakeControllerRaftOperator) ControllerRaftStatus(_ context.Context, nodeID uint64) (ControllerRaftStatus, error) {

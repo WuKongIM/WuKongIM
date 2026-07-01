@@ -22,6 +22,8 @@ func TestManagementControllerRaftOperatorUsesLocalStatus(t *testing.T) {
 			LastIndex:     12,
 			CommitIndex:   8,
 			AppliedIndex:  7,
+			Voters:        []uint64{1, 2, 4},
+			Learners:      []uint64{5},
 			SnapshotIndex: 3,
 			SnapshotTerm:  2,
 		},
@@ -46,6 +48,9 @@ func TestManagementControllerRaftOperatorUsesLocalStatus(t *testing.T) {
 	}
 	if got.FirstIndex != 4 || got.LastIndex != 12 || got.SnapshotIndex != 3 || got.SnapshotTerm != 2 {
 		t.Fatalf("watermarks = first:%d last:%d snapshot:%d/%d, want 4 12 3/2", got.FirstIndex, got.LastIndex, got.SnapshotIndex, got.SnapshotTerm)
+	}
+	if !sameUint64s(got.Voters, []uint64{1, 2, 4}) || !sameUint64s(got.Learners, []uint64{5}) {
+		t.Fatalf("membership voters=%v learners=%v, want voters [1 2 4] learners [5]", got.Voters, got.Learners)
 	}
 	if !got.Compaction.Enabled || got.Compaction.TriggerEntries != 1000 || got.Compaction.CheckInterval != 15*time.Second || got.Compaction.LastSnapshotIndex != 3 || !got.Compaction.Degraded || got.Compaction.LastErrorAt.IsZero() {
 		t.Fatalf("compaction = %#v, want mapped policy and latest error", got.Compaction)

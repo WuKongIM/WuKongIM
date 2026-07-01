@@ -523,6 +523,45 @@ func TestControllerRaftMetricsObserverMapsApplyGap(t *testing.T) {
 	}
 }
 
+func TestControllerRaftMetricsObserverMapsMembershipAndPromotion(t *testing.T) {
+	reg := obsmetrics.New(1, "n1")
+	observer := controllerRaftMetricsObserver{metrics: reg}
+
+	observer.ObserveControllerRaftStatus(managementusecase.ControllerRaftStatus{
+		NodeID:   1,
+		Voters:   []uint64{1, 2, 4},
+		Learners: []uint64{5},
+	})
+	observer.ObserveControllerVoterPromotionAttempt("blocked")
+	observer.ObserveControllerVoterPromotionBlocker("target_revision_stale")
+	observer.ObserveControllerVoterPromotionPhase("commit_state", 25*time.Millisecond)
+
+	families, err := reg.Gather()
+	if err != nil {
+		t.Fatalf("Gather() error = %v", err)
+	}
+	voters := requireAppMetricFamily(t, families, "wukongimv2_controller_raft_voters")
+	if got := voters.GetMetric()[0].GetGauge().GetValue(); got != 3 {
+		t.Fatalf("controller raft voters = %v, want 3", got)
+	}
+	learners := requireAppMetricFamily(t, families, "wukongimv2_controller_raft_learners")
+	if got := learners.GetMetric()[0].GetGauge().GetValue(); got != 1 {
+		t.Fatalf("controller raft learners = %v, want 1", got)
+	}
+	attempts := requireAppMetricFamily(t, families, "wukongimv2_controller_voter_promotion_attempts_total")
+	if got := findAppMetricByLabels(t, attempts, map[string]string{"result": "blocked"}).GetCounter().GetValue(); got != 1 {
+		t.Fatalf("blocked promotion attempts = %v, want 1", got)
+	}
+	blockers := requireAppMetricFamily(t, families, "wukongimv2_controller_voter_promotion_blockers_total")
+	if got := findAppMetricByLabels(t, blockers, map[string]string{"reason": "target_revision_stale"}).GetCounter().GetValue(); got != 1 {
+		t.Fatalf("target_revision_stale blockers = %v, want 1", got)
+	}
+	phases := requireAppMetricFamily(t, families, "wukongimv2_controller_voter_promotion_phase_seconds")
+	if got := findAppMetricByLabels(t, phases, map[string]string{"phase": "commit_state"}).GetHistogram().GetSampleCount(); got != 1 {
+		t.Fatalf("commit_state phase samples = %v, want 1", got)
+	}
+}
+
 func TestControlSnapshotMetricsObserverMapsControllerHealth(t *testing.T) {
 	reg := obsmetrics.New(1, "n1")
 	observer := controlSnapshotMetricsObserver{metrics: reg}

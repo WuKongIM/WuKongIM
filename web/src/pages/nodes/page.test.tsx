@@ -115,6 +115,8 @@ function controllerRaftStatus(nodeId: number) {
     last_index: 2,
     commit_index: 2,
     applied_index: 2,
+    voters: [nodeId],
+    learners: [],
     snapshot_index: 0,
     snapshot_term: 0,
     compaction: {

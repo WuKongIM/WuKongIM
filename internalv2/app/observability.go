@@ -938,6 +938,34 @@ func (o controllerRaftMetricsObserver) SetApplyState(commitIndex, appliedIndex u
 	o.metrics.Controller.SetApplyGap(controllerApplyGap(commitIndex, appliedIndex))
 }
 
+func (o controllerRaftMetricsObserver) ObserveControllerRaftStatus(status managementusecase.ControllerRaftStatus) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.Controller.SetControllerRaftMembership(len(status.Voters), len(status.Learners))
+}
+
+func (o controllerRaftMetricsObserver) ObserveControllerVoterPromotionAttempt(result string) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.Controller.ObserveControllerVoterPromotionAttempt(result)
+}
+
+func (o controllerRaftMetricsObserver) ObserveControllerVoterPromotionBlocker(reason string) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.Controller.ObserveControllerVoterPromotionBlocker(reason)
+}
+
+func (o controllerRaftMetricsObserver) ObserveControllerVoterPromotionPhase(phase string, d time.Duration) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.Controller.ObserveControllerVoterPromotionPhase(phase, d)
+}
+
 func controllerApplyGap(commitIndex, appliedIndex uint64) uint64 {
 	if commitIndex <= appliedIndex {
 		return 0

@@ -99,6 +99,10 @@ type ControllerRaftStatus struct {
 	CommitIndex uint64
 	// AppliedIndex is the queried node's applied Controller Raft watermark.
 	AppliedIndex uint64
+	// Voters is the Controller Raft voter set observed by the queried node.
+	Voters []uint64
+	// Learners is the Controller Raft learner set observed by the queried node.
+	Learners []uint64
 	// SnapshotIndex is the latest persisted Controller Raft snapshot index.
 	SnapshotIndex uint64
 	// SnapshotTerm is the latest persisted Controller Raft snapshot term.
@@ -174,7 +178,14 @@ func (a *App) ControllerRaftStatus(ctx context.Context, nodeID uint64) (Controll
 	if a == nil || a.controllerRaft == nil {
 		return ControllerRaftStatus{}, ErrControllerRaftOperatorUnavailable
 	}
-	return a.controllerRaft.ControllerRaftStatus(ctx, nodeID)
+	status, err := a.controllerRaft.ControllerRaftStatus(ctx, nodeID)
+	if err != nil {
+		return ControllerRaftStatus{}, err
+	}
+	if a.controllerRaftStatusObserver != nil {
+		a.controllerRaftStatusObserver.ObserveControllerRaftStatus(status)
+	}
+	return status, nil
 }
 
 // CompactControllerRaftLog forces one selected node's local Controller Raft log compaction.

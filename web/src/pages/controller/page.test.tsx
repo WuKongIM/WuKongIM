@@ -90,6 +90,8 @@ function controllerRaftStatus(nodeId: number, health = "healthy") {
     last_index: nodeId * 10 + 5,
     commit_index: nodeId * 10 + 4,
     applied_index: nodeId * 10 + 3,
+    voters: [1, 2],
+    learners: [],
     snapshot_index: nodeId * 10 - 1,
     snapshot_term: 3,
     compaction: {
@@ -150,6 +152,8 @@ test("renders controller raft status and peer snapshot progress", async () => {
     last_index: 42,
     commit_index: 40,
     applied_index: 39,
+    voters: [1, 2],
+    learners: [],
     snapshot_index: 9,
     snapshot_term: 3,
     compaction: {

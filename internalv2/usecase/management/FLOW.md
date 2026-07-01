@@ -40,6 +40,7 @@ user management, and system UID projections/actions used by
 `GET /manager/nodes/:node_id/controller-raft`,
 `POST /manager/nodes/:node_id/controller-raft/compact`,
 `POST /manager/controller-raft/compact`,
+`POST /manager/nodes/:node_id/controller-voter/promote`,
 `POST /manager/nodes/:node_id/slots/:slot_id/compact`,
 `GET /manager/conversations`, `GET /manager/messages`,
 `POST /manager/messages/retention`, `/manager/connections*`,
@@ -115,6 +116,22 @@ reported as blocked with bounded machine-readable reasons. HTTP routing stays
 outside this usecase. The target readiness and preparation ports are supplied
 by the node lifecycle RPC/app wiring path, and this usecase consumes only their
 entry-independent readiness and live-proof DTOs.
+
+After each promotion attempt, the optional
+`ControllerVoterPromotionObserver` receives one bounded result
+(`changed`, `noop`, `blocked`, or `unavailable`), one bounded blocker reason
+when the result is blocked, and phase durations for the real usecase
+boundaries (`readiness`, `prepare`, and `commit_state`). Metrics consumers may
+predeclare the full Controller membership flow phases, including
+`add_learner`, `catch_up`, and `promote_voter`, but the usecase only records
+phases it actually executes. The observer never receives target node IDs,
+addresses, task IDs, or cluster IDs as metric labels.
+
+`ControllerRaftStatus` returns live Controller Raft membership evidence from
+the selected node, including voter and learner sets. A successful status read
+is passed to the optional `ControllerRaftStatusObserver` so app-level metrics
+can publish current voter/learner counts from status collection rather than
+from durable role hints.
 
 ## Node Lifecycle Flow
 

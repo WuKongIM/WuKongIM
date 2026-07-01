@@ -33,6 +33,8 @@ func TestManagerControllerRaftStatusReturnsNodeScopedStatus(t *testing.T) {
 				LastIndex:     48,
 				CommitIndex:   47,
 				AppliedIndex:  46,
+				Voters:        []uint64{1, 2},
+				Learners:      []uint64{4},
 				SnapshotIndex: 30,
 				SnapshotTerm:  5,
 				Compaction: managementusecase.ControllerRaftCompaction{
@@ -87,6 +89,8 @@ func TestManagerControllerRaftStatusReturnsNodeScopedStatus(t *testing.T) {
 		"last_index": 48,
 		"commit_index": 47,
 		"applied_index": 46,
+		"voters": [1, 2],
+		"learners": [4],
 		"snapshot_index": 30,
 		"snapshot_term": 5,
 		"compaction": {

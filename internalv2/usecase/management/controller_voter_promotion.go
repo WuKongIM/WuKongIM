@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
 	cv2 "github.com/WuKongIM/WuKongIM/pkg/controllerv2"
@@ -108,8 +109,25 @@ type PrepareControllerVoterResponse struct {
 	ObservedVoters []uint64
 }
 
+type controllerVoterPromotionBlockedError struct {
+	reason string
+}
+
+func (e *controllerVoterPromotionBlockedError) Error() string {
+	return fmt.Sprintf("%s: %s", ErrControllerVoterPromotionBlocked, e.reason)
+}
+
+func (e *controllerVoterPromotionBlockedError) Unwrap() error {
+	return ErrControllerVoterPromotionBlocked
+}
+
 // PromoteControllerVoter validates and submits an online Controller voter promotion.
-func (a *App) PromoteControllerVoter(ctx context.Context, req PromoteControllerVoterRequest) (PromoteControllerVoterResponse, error) {
+func (a *App) PromoteControllerVoter(ctx context.Context, req PromoteControllerVoterRequest) (resp PromoteControllerVoterResponse, err error) {
+	if a != nil {
+		defer func() {
+			a.observeControllerVoterPromotionAttempt(resp, err)
+		}()
+	}
 	if err := ctxErr(ctx); err != nil {
 		return PromoteControllerVoterResponse{}, err
 	}
@@ -154,25 +172,30 @@ func (a *App) PromoteControllerVoter(ctx context.Context, req PromoteControllerV
 	if a.controllerVoterPromoter == nil || a.controllerVoterReadiness == nil || a.controllerVoterPreparer == nil {
 		return PromoteControllerVoterResponse{}, ErrControllerVoterPromotionUnavailable
 	}
+	phaseStarted := time.Now()
 	readiness, err := a.controllerVoterReadiness.ControllerVoterReadiness(ctx, req.NodeID)
+	a.observeControllerVoterPromotionPhase("readiness", phaseStarted)
 	if err != nil {
 		return PromoteControllerVoterResponse{}, mapControllerVoterPromotionReadinessError(err)
 	}
 	if err := validateControllerVoterReadiness(snapshot, req.NodeID, readiness); err != nil {
 		return PromoteControllerVoterResponse{}, err
 	}
+	phaseStarted = time.Now()
 	prep, err := a.controllerVoterPreparer.PrepareControllerVoter(ctx, PrepareControllerVoterRequest{
 		NodeID:           req.NodeID,
 		ClusterID:        snapshot.ClusterID,
 		ExpectedRevision: snapshot.Revision,
 		NextVoters:       cloneControllerVoterEndpoints(endpoints),
 	})
+	a.observeControllerVoterPromotionPhase("prepare", phaseStarted)
 	if err != nil {
 		return PromoteControllerVoterResponse{}, mapControllerVoterPromotionPrepareError(err)
 	}
 	if err := validatePrepareControllerVoterProof(snapshot, req.NodeID, expectedNextVoters, prep); err != nil {
 		return PromoteControllerVoterResponse{}, err
 	}
+	phaseStarted = time.Now()
 	result, err := a.controllerVoterPromoter.PromoteControllerVoter(ctx, control.PromoteControllerVoterRequest{
 		NodeID:              req.NodeID,
 		ExpectedRevision:    snapshot.Revision,
@@ -180,6 +203,7 @@ func (a *App) PromoteControllerVoter(ctx context.Context, req PromoteControllerV
 		ObservedConfigIndex: prep.ObservedConfigIndex,
 		ObservedVoters:      append([]uint64(nil), prep.ObservedVoters...),
 	})
+	a.observeControllerVoterPromotionPhase("commit_state", phaseStarted)
 	if err != nil {
 		return PromoteControllerVoterResponse{}, mapControllerVoterPromotionWriteError(err)
 	}
@@ -305,7 +329,65 @@ func cloneControllerVoterEndpoints(in []ControllerVoterEndpoint) []ControllerVot
 }
 
 func controllerVoterPromotionBlocked(reason string) error {
-	return fmt.Errorf("%w: %s", ErrControllerVoterPromotionBlocked, reason)
+	return &controllerVoterPromotionBlockedError{reason: reason}
+}
+
+func (a *App) observeControllerVoterPromotionAttempt(resp PromoteControllerVoterResponse, err error) {
+	if a == nil || a.controllerVoterPromotion == nil {
+		return
+	}
+	result := controllerVoterPromotionAttemptResult(resp, err)
+	a.controllerVoterPromotion.ObserveControllerVoterPromotionAttempt(result)
+	if result != "blocked" {
+		return
+	}
+	reason := controllerVoterPromotionBlockerReason(err)
+	if reason == "" {
+		reason = "other"
+	}
+	a.controllerVoterPromotion.ObserveControllerVoterPromotionBlocker(reason)
+}
+
+func (a *App) observeControllerVoterPromotionPhase(phase string, started time.Time) {
+	if a == nil || a.controllerVoterPromotion == nil {
+		return
+	}
+	a.controllerVoterPromotion.ObserveControllerVoterPromotionPhase(phase, time.Since(started))
+}
+
+func controllerVoterPromotionAttemptResult(resp PromoteControllerVoterResponse, err error) string {
+	if err == nil {
+		if resp.Changed {
+			return "changed"
+		}
+		return "noop"
+	}
+	if errors.Is(err, ErrControllerVoterPromotionUnavailable) ||
+		errors.Is(err, context.Canceled) ||
+		errors.Is(err, context.DeadlineExceeded) {
+		return "unavailable"
+	}
+	return "blocked"
+}
+
+func controllerVoterPromotionBlockerReason(err error) string {
+	if err == nil {
+		return ""
+	}
+	var blocked *controllerVoterPromotionBlockedError
+	if errors.As(err, &blocked) {
+		return blocked.reason
+	}
+	if cv2.IsExpectedRevisionMismatch(err) {
+		return "expected_revision_mismatch"
+	}
+	msg := err.Error()
+	for _, reason := range []string{"target_health_stale", "target_revision_stale", "expected_revision_mismatch"} {
+		if strings.Contains(msg, reason) {
+			return reason
+		}
+	}
+	return ""
 }
 
 func mapControllerVoterPromotionReadinessError(err error) error {

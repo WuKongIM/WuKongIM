@@ -1014,6 +1014,10 @@ export type ManagerControllerRaftStatusResponse = {
   commit_index: number
   // applied_index is the queried node's applied Controller Raft watermark.
   applied_index: number
+  // voters is the Controller Raft voter set observed by the queried node.
+  voters: number[]
+  // learners is the Controller Raft learner set observed by the queried node.
+  learners: number[]
   // snapshot_index is the latest persisted Controller Raft snapshot index.
   snapshot_index: number
   // snapshot_term is the latest persisted Controller Raft snapshot term.
