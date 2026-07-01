@@ -40,7 +40,7 @@ export type DynamicNodeLifecycleSheetProps = {
   mode: DynamicNodeLifecycleMode
   node: ManagerNode | null
   onOpenChange: (open: boolean) => void
-  onCompleted: () => void
+  onCompleted: () => void | Promise<void>
 }
 
 function hasPermission(permissions: { resource: string; actions: string[] }[], resource: string, action: string) {
@@ -191,7 +191,7 @@ export function DynamicNodeLifecycleSheet({
         return
       }
       setJoinResult(result)
-      onCompleted()
+      await onCompleted()
     } catch (err) {
       if (!isCurrentOperation(generation)) {
         return
@@ -218,7 +218,7 @@ export function DynamicNodeLifecycleSheet({
         return
       }
       setActivateResult(result)
-      onCompleted()
+      await onCompleted()
     } catch (err) {
       if (!isCurrentOperation(generation)) {
         return
@@ -247,7 +247,7 @@ export function DynamicNodeLifecycleSheet({
       && canWriteNodes
       && showScaleInActions
       && (currentJoinState === "active" || currentJoinState === "leaving")
-      && (node.actions?.can_scale_in ?? true),
+      && node.actions?.can_scale_in === true,
   )
 
   const runOnboardingPlan = useCallback(async () => {
@@ -300,7 +300,7 @@ export function DynamicNodeLifecycleSheet({
         return
       }
       setOnboardingStart(result)
-      onCompleted()
+      await onCompleted()
     } catch (err) {
       if (!isCurrentOperation(generation)) {
         return
@@ -357,7 +357,7 @@ export function DynamicNodeLifecycleSheet({
         return
       }
       setOnboardingStart(result)
-      onCompleted()
+      await onCompleted()
     } catch (err) {
       if (!isCurrentOperation(generation)) {
         return
@@ -421,7 +421,7 @@ export function DynamicNodeLifecycleSheet({
       }
       setScaleInStart(result)
       setScaleInStatus(null)
-      onCompleted()
+      await onCompleted()
     } catch (err) {
       if (!isCurrentOperation(generation)) {
         return
@@ -450,7 +450,7 @@ export function DynamicNodeLifecycleSheet({
       }
       setScaleInDrain(result)
       setScaleInStatus(null)
-      onCompleted()
+      await onCompleted()
     } catch (err) {
       if (!isCurrentOperation(generation)) {
         return
@@ -514,7 +514,7 @@ export function DynamicNodeLifecycleSheet({
       }
       setScaleInAdvance(result)
       setScaleInStatus(null)
-      onCompleted()
+      await onCompleted()
     } catch (err) {
       if (!isCurrentOperation(generation)) {
         return
@@ -543,7 +543,7 @@ export function DynamicNodeLifecycleSheet({
       }
       setScaleInRemove(result)
       setScaleInStatus(null)
-      onCompleted()
+      await onCompleted()
     } catch (err) {
       if (!isCurrentOperation(generation)) {
         return
