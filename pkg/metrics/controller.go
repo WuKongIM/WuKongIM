@@ -1,6 +1,8 @@
 package metrics
 
 import (
+	"math"
+	"strings"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -12,11 +14,20 @@ var (
 	controllerMigrationResults = []string{"ok", "fail", "abort"}
 )
 
+// ControllerTaskAgeKey groups retained task audit age without high-cardinality task identifiers.
+type ControllerTaskAgeKey struct {
+	Kind   string
+	Status string
+	Step   string
+	Source string
+}
+
 type ControllerMetrics struct {
 	decisionsTotal   *prometheus.CounterVec
 	decisionDuration prometheus.Histogram
 	tasksActive      *prometheus.GaugeVec
 	tasksFailed      *prometheus.GaugeVec
+	taskOldestAge    *prometheus.GaugeVec
 	tasksCompleted   *prometheus.CounterVec
 	migrationsActive prometheus.Gauge
 	migrationsTotal  *prometheus.CounterVec
@@ -55,6 +66,11 @@ func newControllerMetrics(registry prometheus.Registerer, labels prometheus.Labe
 			Help:        "Number of active failed controller tasks grouped by type.",
 			ConstLabels: labels,
 		}, []string{"type"}),
+		taskOldestAge: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name:        "wukongim_controller_task_oldest_age_seconds",
+			Help:        "Oldest retained ControllerV2 task age in seconds grouped by bounded audit labels.",
+			ConstLabels: labels,
+		}, []string{"kind", "status", "step", "source"}),
 		tasksCompleted: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name:        "wukongim_controller_tasks_completed_total",
 			Help:        "Total number of completed controller tasks.",
@@ -128,6 +144,7 @@ func newControllerMetrics(registry prometheus.Registerer, labels prometheus.Labe
 		m.decisionDuration,
 		m.tasksActive,
 		m.tasksFailed,
+		m.taskOldestAge,
 		m.tasksCompleted,
 		m.migrationsActive,
 		m.migrationsTotal,
@@ -213,6 +230,78 @@ func (m *ControllerMetrics) SetTaskFailed(counts map[string]int) {
 	}
 	for _, kind := range controllerTaskKinds {
 		m.tasksFailed.WithLabelValues(kind).Set(float64(counts[kind]))
+	}
+}
+
+func (m *ControllerMetrics) SetTaskOldestAge(ages map[ControllerTaskAgeKey]float64) {
+	if m == nil {
+		return
+	}
+	m.taskOldestAge.Reset()
+	normalized := make(map[ControllerTaskAgeKey]float64, len(ages))
+	for key, age := range ages {
+		if math.IsNaN(age) || math.IsInf(age, 0) {
+			continue
+		}
+		if age < 0 {
+			age = 0
+		}
+		key = normalizeControllerTaskAgeKey(key)
+		if existing, ok := normalized[key]; !ok || age > existing {
+			normalized[key] = age
+		}
+	}
+	for key, age := range normalized {
+		m.taskOldestAge.WithLabelValues(key.Kind, key.Status, key.Step, key.Source).Set(age)
+	}
+}
+
+func normalizeControllerTaskAgeKey(key ControllerTaskAgeKey) ControllerTaskAgeKey {
+	return ControllerTaskAgeKey{
+		Kind:   normalizeControllerTaskAgeKind(key.Kind),
+		Status: normalizeControllerTaskAgeStatus(key.Status),
+		Step:   normalizeControllerTaskAgeStep(key.Step),
+		Source: normalizeControllerTaskAgeSource(key.Source),
+	}
+}
+
+func normalizeControllerTaskAgeKind(kind string) string {
+	switch strings.TrimSpace(kind) {
+	case "bootstrap", "leader_transfer", "slot_replica_move":
+		return strings.TrimSpace(kind)
+	default:
+		return "other"
+	}
+}
+
+func normalizeControllerTaskAgeStatus(status string) string {
+	switch strings.TrimSpace(status) {
+	case "":
+		return "unknown"
+	case "pending", "running", "failed", "completed", "unknown":
+		return strings.TrimSpace(status)
+	default:
+		return "other"
+	}
+}
+
+func normalizeControllerTaskAgeStep(step string) string {
+	switch strings.TrimSpace(step) {
+	case "":
+		return "unknown"
+	case "create_slot", "transfer_leader", "open_learner", "add_learner", "promote_learner", "remove_voter", "commit_assignment", "unknown":
+		return strings.TrimSpace(step)
+	default:
+		return "other"
+	}
+}
+
+func normalizeControllerTaskAgeSource(source string) string {
+	switch strings.TrimSpace(source) {
+	case "audit":
+		return "audit"
+	default:
+		return "unknown"
 	}
 }
 

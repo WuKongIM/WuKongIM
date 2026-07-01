@@ -12,6 +12,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
 	cv2 "github.com/WuKongIM/WuKongIM/pkg/controllerv2"
 	"github.com/WuKongIM/WuKongIM/pkg/controllerv2/command"
+	obsmetrics "github.com/WuKongIM/WuKongIM/pkg/metrics"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
@@ -218,6 +219,54 @@ func TestControllerTaskAuditBackfillsActiveTasksFromSnapshot(t *testing.T) {
 	}
 	if timeline.Events[0].Type != "snapshot" || timeline.Events[0].AppliedRaftIndex != 99 {
 		t.Fatalf("backfill event = %+v, want revision snapshot", timeline.Events[0])
+	}
+}
+
+func TestControllerTaskAuditRuntimeReportsOldestTaskAgeMetric(t *testing.T) {
+	ctx := context.Background()
+	reg := obsmetrics.New(1, "node-1")
+	now := time.Unix(100, 0).UTC()
+	audit := newControllerTaskAuditRuntime(t.TempDir()+"/controller-v2-tasks.jsonl", wklog.NewNop())
+	audit.metrics = reg
+	audit.opts.Now = func() time.Time { return now }
+	t.Cleanup(func() {
+		if err := audit.Close(); err != nil {
+			t.Fatalf("audit Close() error = %v", err)
+		}
+	})
+
+	err := audit.AppendSnapshotTasks(ctx, control.Snapshot{
+		Revision: 7,
+		Tasks: []control.ReconcileTask{{
+			TaskID: "slot-1-replica-move-2-to-4-r7",
+			Kind:   control.TaskKindSlotReplicaMove,
+			Status: control.TaskStatusRunning,
+			Step:   control.TaskStepRemoveVoter,
+			SlotID: 1,
+		}},
+	})
+	if err != nil {
+		t.Fatalf("AppendSnapshotTasks() error = %v", err)
+	}
+	now = now.Add(42 * time.Second)
+	if _, err := audit.ListControllerTaskAudits(ctx, managementusecase.ControllerTaskAuditListRequest{}); err != nil {
+		t.Fatalf("ListControllerTaskAudits() error = %v", err)
+	}
+
+	families, err := reg.Gather()
+	if err != nil {
+		t.Fatalf("Gather() error = %v", err)
+	}
+	age := requireAppMetricFamily(t, families, "wukongim_controller_task_oldest_age_seconds")
+	if got := findAppMetricByLabels(t, age, map[string]string{
+		"node_id":   "1",
+		"node_name": "node-1",
+		"kind":      "slot_replica_move",
+		"status":    "running",
+		"step":      "remove_voter",
+		"source":    "audit",
+	}).GetGauge().GetValue(); got != 42 {
+		t.Fatalf("oldest task age = %v, want 42", got)
 	}
 }
 

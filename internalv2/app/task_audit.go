@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/internalv2/observability/taskaudit"
 	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
@@ -15,6 +16,7 @@ import (
 	cv2 "github.com/WuKongIM/WuKongIM/pkg/controllerv2"
 	"github.com/WuKongIM/WuKongIM/pkg/controllerv2/command"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	obsmetrics "github.com/WuKongIM/WuKongIM/pkg/metrics"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
@@ -22,9 +24,10 @@ const controllerTaskAuditQueueSize = 1024
 
 // controllerTaskAuditRuntime adapts ControllerV2 task transitions to a bounded JSONL audit store.
 type controllerTaskAuditRuntime struct {
-	path   string
-	opts   taskaudit.Options
-	logger wklog.Logger
+	path    string
+	opts    taskaudit.Options
+	logger  wklog.Logger
+	metrics *obsmetrics.Registry
 
 	mu     sync.Mutex
 	store  *taskaudit.Store
@@ -58,6 +61,9 @@ func (a *App) wireControllerTaskAudit(clusterCfg *clusterv2.Config) {
 	}
 	if a.controllerTaskAudit == nil {
 		a.controllerTaskAudit = newControllerTaskAuditRuntime(path, a.logger)
+	}
+	if a.metrics != nil {
+		a.controllerTaskAudit.metrics = a.metrics
 	}
 	clusterCfg.Control.TaskTransitionObserver = combineControllerTaskTransitionObservers(clusterCfg.Control.TaskTransitionObserver, a.controllerTaskAudit)
 }
@@ -120,6 +126,7 @@ func (r *controllerTaskAuditRuntime) ListControllerTaskAudits(ctx context.Contex
 	if err != nil {
 		return managementusecase.ControllerTaskAuditListResponse{}, controllerTaskAuditManagementError(err)
 	}
+	r.observeTaskOldestAge(ctx, store)
 	return controllerTaskAuditListResponse(resp), nil
 }
 
@@ -200,6 +207,7 @@ func (r *controllerTaskAuditRuntime) appendEvents(ctx context.Context, events []
 			return err
 		}
 	}
+	r.observeTaskOldestAge(ctx, store)
 	return nil
 }
 
@@ -475,6 +483,54 @@ func controllerTaskAuditEventsResponse(resp taskaudit.EventsResponse) management
 		Events:    events,
 		Truncated: resp.Truncated,
 	}
+}
+
+func (r *controllerTaskAuditRuntime) observeTaskOldestAge(ctx context.Context, store *taskaudit.Store) {
+	if r == nil || r.metrics == nil || store == nil {
+		return
+	}
+	resp, err := store.List(ctx, taskaudit.ListRequest{Limit: controllerTaskAuditMetricListLimit(r)})
+	if err != nil {
+		return
+	}
+	r.metrics.Controller.SetTaskOldestAge(controllerTaskAuditOldestAges(resp.Items, controllerTaskAuditNow(r)))
+}
+
+func controllerTaskAuditMetricListLimit(r *controllerTaskAuditRuntime) int {
+	if r != nil && r.opts.MaxTasks > 0 {
+		return r.opts.MaxTasks
+	}
+	return taskaudit.DefaultMaxTasks
+}
+
+func controllerTaskAuditNow(r *controllerTaskAuditRuntime) time.Time {
+	if r != nil && r.opts.Now != nil {
+		return r.opts.Now().UTC()
+	}
+	return time.Now().UTC()
+}
+
+func controllerTaskAuditOldestAges(snapshots []taskaudit.Snapshot, now time.Time) map[obsmetrics.ControllerTaskAgeKey]float64 {
+	ages := make(map[obsmetrics.ControllerTaskAgeKey]float64)
+	for _, snapshot := range snapshots {
+		if snapshot.StartedAt.IsZero() {
+			continue
+		}
+		age := now.Sub(snapshot.StartedAt).Seconds()
+		if age < 0 {
+			age = 0
+		}
+		key := obsmetrics.ControllerTaskAgeKey{
+			Kind:   snapshot.Kind,
+			Status: snapshot.Status,
+			Step:   snapshot.Step,
+			Source: "audit",
+		}
+		if existing, ok := ages[key]; !ok || age > existing {
+			ages[key] = age
+		}
+	}
+	return ages
 }
 
 func controllerTaskAuditSnapshot(snapshot taskaudit.Snapshot) managementusecase.ControllerTaskAuditSnapshot {

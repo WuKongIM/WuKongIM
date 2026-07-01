@@ -126,6 +126,9 @@ func (a *App) configureObservability(clusterCfg *clusterv2.Config) {
 	}
 	if a.cfg.Observability.MetricsEnabled {
 		a.metrics = obsmetrics.New(clusterCfg.NodeID, fmt.Sprintf("node-%d", clusterCfg.NodeID))
+		if a.controllerTaskAudit != nil {
+			a.controllerTaskAudit.metrics = a.metrics
+		}
 		if top == nil {
 			top = a.ensureTopCollector(clusterCfg.NodeID, false)
 		}
