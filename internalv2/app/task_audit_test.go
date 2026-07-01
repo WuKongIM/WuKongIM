@@ -70,8 +70,8 @@ func TestControllerTaskAuditRuntimeObservesTransitionsAndServesManagementReads(t
 	if len(list.Items) != 1 {
 		t.Fatalf("list items = %d, want 1", len(list.Items))
 	}
-	if list.Items[0].TaskID != task.TaskID || list.Items[0].Status != string(cv2.TaskStatusRunning) {
-		t.Fatalf("snapshot = %+v, want running task %s", list.Items[0], task.TaskID)
+	if list.Items[0].TaskID != task.TaskID || list.Items[0].Status != string(cv2.TaskStatusRunning) || list.Items[0].Step != string(cv2.TaskStepPromoteLearner) {
+		t.Fatalf("snapshot = %+v, want running task %s at promote_learner", list.Items[0], task.TaskID)
 	}
 
 	timeline, err := audit.ControllerTaskAuditEvents(ctx, task.TaskID)

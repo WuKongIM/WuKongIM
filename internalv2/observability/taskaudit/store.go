@@ -275,6 +275,9 @@ func updateSnapshotFromEvent(snapshot *Snapshot, event Event) {
 	if event.Status != "" {
 		snapshot.Status = event.Status
 	}
+	if step := snapshotStep(event); step != "" {
+		snapshot.Step = step
+	}
 	if event.SlotID != 0 {
 		snapshot.SlotID = event.SlotID
 	}
@@ -296,6 +299,17 @@ func updateSnapshotFromEvent(snapshot *Snapshot, event Event) {
 	if event.Type == EventCompleted {
 		snapshot.CompletedAt = event.OccurredAt
 	}
+}
+
+func snapshotStep(event Event) string {
+	if len(event.Details) == 0 {
+		return ""
+	}
+	step, ok := event.Details["step"].(string)
+	if !ok {
+		return ""
+	}
+	return step
 }
 
 func (s *Store) normalizeLimit(limit int) int {

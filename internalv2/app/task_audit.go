@@ -482,6 +482,7 @@ func controllerTaskAuditSnapshot(snapshot taskaudit.Snapshot) managementusecase.
 		TaskID:                snapshot.TaskID,
 		Kind:                  snapshot.Kind,
 		Status:                snapshot.Status,
+		Step:                  snapshot.Step,
 		SlotID:                snapshot.SlotID,
 		LeaderID:              snapshot.LeaderID,
 		SourceNode:            snapshot.SourceNode,

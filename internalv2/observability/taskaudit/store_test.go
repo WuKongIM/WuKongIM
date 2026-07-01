@@ -38,6 +38,25 @@ func TestStoreAppendReplayAndQuery(t *testing.T) {
 	require.Equal(t, uint64(10), events.Events[0].AppliedRaftIndex)
 }
 
+func TestStoreRetainedSnapshotKeepsLatestStep(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "controller-v2-events.jsonl")
+	store, err := Open(path, Options{})
+	require.NoError(t, err)
+	require.NoError(t, store.Append(ctx, testEventWithStep("task-a", 10, EventCreated, "open_learner")))
+	require.NoError(t, store.Append(ctx, testEventWithStep("task-a", 11, EventParticipantProgress, "promote_learner")))
+	require.NoError(t, store.Close())
+
+	reopened, err := Open(path, Options{})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, reopened.Close()) })
+
+	list, err := reopened.List(ctx, ListRequest{Limit: 10})
+	require.NoError(t, err)
+	require.Len(t, list.Items, 1)
+	require.Equal(t, "promote_learner", list.Items[0].Step)
+}
+
 func TestStoreRetentionKeepsLatestTasksAndEvents(t *testing.T) {
 	ctx := context.Background()
 	store, err := Open(filepath.Join(t.TempDir(), "controller-v2-events.jsonl"), Options{})
@@ -167,6 +186,12 @@ func testEvent(taskID string, index uint64, typ EventType) Event {
 		OccurredAt:       time.Date(2026, 6, 29, 10, 0, 0, int(index), time.UTC),
 		Summary:          "test event",
 	}
+}
+
+func testEventWithStep(taskID string, index uint64, typ EventType, step string) Event {
+	event := testEvent(taskID, index, typ)
+	event.Details = map[string]any{"step": step}
+	return event
 }
 
 func snapshotIDs(items []Snapshot) []string {

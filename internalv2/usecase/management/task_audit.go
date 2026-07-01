@@ -66,6 +66,8 @@ type ControllerTaskAuditSnapshot struct {
 	Kind string
 	// Status is the latest retained task status.
 	Status string
+	// Step is the latest retained workflow step.
+	Step string
 	// SlotID identifies the physical Slot affected by this task.
 	SlotID uint32
 	// LeaderID is the preferred or observed leader associated with the task.

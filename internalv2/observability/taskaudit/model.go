@@ -97,6 +97,8 @@ type Snapshot struct {
 	Kind string `json:"kind,omitempty"`
 	// Status is the latest retained task status.
 	Status string `json:"status,omitempty"`
+	// Step is the latest retained workflow step.
+	Step string `json:"step,omitempty"`
 	// SlotID identifies the physical Slot affected by this task.
 	SlotID uint32 `json:"slot_id,omitempty"`
 	// LeaderID is the preferred or observed leader associated with the task.

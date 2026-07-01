@@ -33,6 +33,8 @@ type ManagerControllerTaskAuditSnapshot struct {
 	Kind string `json:"kind"`
 	// Status is the latest retained task status.
 	Status string `json:"status"`
+	// Step is the latest retained workflow step.
+	Step string `json:"step"`
 	// SlotID identifies the physical Slot affected by this task.
 	SlotID uint32 `json:"slot_id"`
 	// LeaderID is the preferred or observed leader associated with the task.
@@ -215,6 +217,7 @@ func controllerTaskAuditSnapshotDTO(item managementusecase.ControllerTaskAuditSn
 		TaskID:                item.TaskID,
 		Kind:                  item.Kind,
 		Status:                item.Status,
+		Step:                  item.Step,
 		SlotID:                item.SlotID,
 		LeaderID:              item.LeaderID,
 		SourceNode:            item.SourceNode,
