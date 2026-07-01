@@ -297,12 +297,14 @@ func TestNodeScaleInDrainPostsRequestAndPrintsCounters(t *testing.T) {
 		_, _ = w.Write([]byte(`{
 			"draining":true,
 			"accepting_new_sessions":false,
-			"gateway_sessions":2,
-			"active_online":3,
-			"closing_online":1,
-			"pending_activations":4,
-			"ignored_extra":"kept"
-		}`))
+				"gateway_sessions":2,
+				"active_online":3,
+				"closing_online":1,
+				"total_online":4,
+				"pending_activations":4,
+				"unknown":false,
+				"ignored_extra":"kept"
+			}`))
 	}))
 	defer manager.Close()
 
@@ -316,7 +318,41 @@ func TestNodeScaleInDrainPostsRequestAndPrintsCounters(t *testing.T) {
 		"gateway_sessions=2",
 		"active_online=3",
 		"closing_online=1",
+		"total_online=4",
 		"pending_activations=4",
+		"unknown=false",
+	} {
+		if !strings.Contains(stdout, want) {
+			t.Fatalf("node scale-in drain stdout missing %q: %q", want, stdout)
+		}
+	}
+}
+
+func TestNodeScaleInDrainDoesNotRenderMissingRuntimeCountersAsZero(t *testing.T) {
+	manager := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Fatalf("method = %s, want POST", r.Method)
+		}
+		if r.URL.Path != "/manager/nodes/4/scale-in/drain" {
+			t.Fatalf("path = %s, want /manager/nodes/4/scale-in/drain", r.URL.Path)
+		}
+		_, _ = w.Write([]byte(`{"draining":true,"unknown":true}`))
+	}))
+	defer manager.Close()
+
+	stdout, stderr, err := executeNodeCommand("scale-in", "drain", "4", "--server", manager.URL, "--draining=true")
+	if err != nil {
+		t.Fatalf("node scale-in drain error = %v stdout %q stderr %q", err, stdout, stderr)
+	}
+	for _, want := range []string{
+		"draining=true",
+		"unknown=true",
+		"accepting_new_sessions=-",
+		"gateway_sessions=-",
+		"active_online=-",
+		"closing_online=-",
+		"total_online=-",
+		"pending_activations=-",
 	} {
 		if !strings.Contains(stdout, want) {
 			t.Fatalf("node scale-in drain stdout missing %q: %q", want, stdout)

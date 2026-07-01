@@ -533,25 +533,22 @@ func printLifecycle(w io.Writer, out LifecycleResponse) {
 }
 
 func printScaleInDrain(w io.Writer, out map[string]any) {
-	fmt.Fprintf(w, "draining=%t accepting_new_sessions=%t gateway_sessions=%s active_online=%s closing_online=%s pending_activations=%s\n",
-		mapBool(out, "draining"),
-		mapBool(out, "accepting_new_sessions"),
+	fmt.Fprintf(w, "draining=%s accepting_new_sessions=%s gateway_sessions=%s active_online=%s closing_online=%s total_online=%s pending_activations=%s unknown=%s\n",
+		mapValue(out, "draining"),
+		mapValue(out, "accepting_new_sessions"),
 		mapValue(out, "gateway_sessions"),
 		mapValue(out, "active_online"),
 		mapValue(out, "closing_online"),
+		mapValue(out, "total_online"),
 		mapValue(out, "pending_activations"),
+		mapValue(out, "unknown"),
 	)
-}
-
-func mapBool(out map[string]any, key string) bool {
-	value, _ := out[key].(bool)
-	return value
 }
 
 func mapValue(out map[string]any, key string) string {
 	value, ok := out[key]
 	if !ok || value == nil {
-		return "0"
+		return "-"
 	}
 	return fmt.Sprint(value)
 }
