@@ -60,9 +60,14 @@ import type {
   ManagerNodeOnboardingStartResponse,
   ManagerNodeOnboardingStatusResponse,
   ManagerNodeDetailResponse,
+  ManagerNodeScaleInActionInput,
+  ManagerNodeScaleInAdvanceResponse,
   ManagerNodeScaleInDrainResponse,
+  ManagerNodeScaleInPlanResponse,
   ManagerNodeScaleInRemoveResponse,
   ManagerNodeScaleInReport,
+  ManagerNodeScaleInStartResponse,
+  ManagerNodeScaleInStatusResponse,
   ManagerNodesResponse,
   ManagerOverviewResponse,
   ManagerPermission,
@@ -106,8 +111,6 @@ import type {
   TransferSlotLeaderInput,
   SlotLeaderTransferBatchInput,
   CreateNodeOnboardingPlanInput,
-  CreateNodeScaleInPlanInput,
-  AdvanceNodeScaleInInput,
   AdvanceMessageRetentionInput,
   AdvanceMessageRetentionResponse,
   ApplicationLogListParams,
@@ -707,39 +710,27 @@ export function getDynamicNodeDiagnostics(nodeId: number, limits?: ManagerDynami
   return jsonManagerFetch<ManagerDynamicNodeDiagnosticsResponse>(buildDynamicNodeDiagnosticsPath(nodeId, limits))
 }
 
-function buildNodeScaleInPlanBody(input: CreateNodeScaleInPlanInput) {
-  return JSON.stringify({
-    confirm_statefulset_tail: input.confirmStatefulSetTail,
-    expected_tail_node_id: input.expectedTailNodeId,
+export function planNodeScaleIn(nodeId: number, input: ManagerNodeScaleInActionInput = {}) {
+  return jsonManagerFetch<ManagerNodeScaleInPlanResponse>(`/manager/nodes/${nodeId}/scale-in/plan`, {
+    method: "POST",
+    body: buildNodeLifecycleMoveBody(input),
   })
 }
 
-export function planNodeScaleIn(nodeId: number, input: CreateNodeScaleInPlanInput) {
-  return jsonManagerFetch<ManagerNodeScaleInReport>(`/manager/nodes/${nodeId}/scale-in/plan`, {
+export function startNodeScaleIn(nodeId: number) {
+  return jsonManagerFetch<ManagerNodeScaleInStartResponse>(`/manager/nodes/${nodeId}/scale-in/start`, {
     method: "POST",
-    body: buildNodeScaleInPlanBody(input),
-  })
-}
-
-export function startNodeScaleIn(nodeId: number, input: CreateNodeScaleInPlanInput) {
-  return jsonManagerFetch<ManagerNodeScaleInReport>(`/manager/nodes/${nodeId}/scale-in/start`, {
-    method: "POST",
-    body: buildNodeScaleInPlanBody(input),
   })
 }
 
 export function getNodeScaleInStatus(nodeId: number) {
-  return jsonManagerFetch<ManagerNodeScaleInReport>(`/manager/nodes/${nodeId}/scale-in/status`)
+  return jsonManagerFetch<ManagerNodeScaleInStatusResponse>(`/manager/nodes/${nodeId}/scale-in/status`)
 }
 
-export function advanceNodeScaleIn(nodeId: number, input: AdvanceNodeScaleInInput = {}) {
-  return jsonManagerFetch<ManagerNodeScaleInReport>(`/manager/nodes/${nodeId}/scale-in/advance`, {
+export function advanceNodeScaleIn(nodeId: number, input: ManagerNodeScaleInActionInput = {}) {
+  return jsonManagerFetch<ManagerNodeScaleInAdvanceResponse>(`/manager/nodes/${nodeId}/scale-in/advance`, {
     method: "POST",
-    body: JSON.stringify({
-      max_leader_transfers: input.maxLeaderTransfers,
-      max_channel_migrations: input.maxChannelMigrations ?? 1,
-      force_close_connections: input.forceCloseConnections ?? false,
-    }),
+    body: buildNodeLifecycleMoveBody(input),
   })
 }
 

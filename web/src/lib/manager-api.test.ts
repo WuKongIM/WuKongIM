@@ -2280,97 +2280,105 @@ describe("manager api client", () => {
     expect(fetchMock.mock.calls[5]?.[0]).toBe("/manager/node-onboarding/jobs/onboard-1/retry")
   })
 
-  it("calls node scale-in manager endpoints using backend request field names", async () => {
-    const report = {
-      node_id: 3,
-      status: "migrating_replicas",
+  it("calls current node scale-in stage endpoints", async () => {
+    const plan = {
+      generated_at: "2026-07-01T08:00:00Z",
+      state_revision: 42,
+      node_id: 4,
+      candidates: [{
+        slot_id: 7,
+        source_node_id: 4,
+        target_node_id: 1,
+        desired_peers: [1, 2, 3],
+        target_peers: [1, 2, 3],
+        config_epoch: 9,
+      }],
+      blocked_by_status: false,
+    }
+    const start = {
+      changed: true,
+      node_id: 4,
+      addr: "127.0.0.1:7004",
+      join_state: "leaving",
+      revision: 43,
+    }
+    const status = {
+      node_id: 4,
+      join_state: "leaving",
+      generated_at: "2026-07-01T08:00:01Z",
+      state_revision: 44,
+      safe_to_proceed: true,
       safe_to_remove: false,
-      can_start: false,
-      can_advance: true,
-      can_cancel: true,
-      connection_safety_verified: true,
-      blocked_reasons: [],
-      checks: {
-        target_exists: true,
-        target_is_data_node: true,
-        target_is_active_or_draining: true,
-        target_is_not_controller_voter: true,
-        tail_node_mapping_verified: true,
-        remaining_data_nodes_enough: true,
-        controller_leader_available: true,
-        slot_replica_count_known: true,
-        no_other_draining_node: true,
-        no_active_hashslot_migrations: true,
-        no_running_onboarding: true,
-        no_active_reconcile_tasks_involving_target: true,
-        no_failed_reconcile_tasks: true,
-        runtime_views_complete_and_fresh: true,
-        all_slots_have_quorum: true,
-        target_not_unique_healthy_replica: true,
-      },
-      progress: {
-        assigned_slot_replicas: 4,
-        observed_slot_replicas: 4,
-        slot_leaders: 1,
-        active_tasks_involving_node: 2,
-        active_migrations_involving_node: 0,
-        active_connections: 128,
-        closing_connections: 0,
-        gateway_sessions: 128,
-        active_connections_unknown: false,
-      },
-      runtime: {
-        node_id: 3,
-        active_online: 128,
-        closing_online: 0,
-        total_online: 128,
-        gateway_sessions: 128,
-        sessions_by_listener: { tcp: 128 },
-        accepting_new_sessions: false,
-        draining: true,
-        unknown: false,
-      },
-      leaders: [],
-      next_action: "wait_reconcile_tasks",
+      blocked_by_missing_node: false,
+      blocked_by_join_state: false,
+      blocked_by_control_revision: false,
+      blocked_by_health: false,
+      blocked_by_stale_revision: false,
+      blocked_by_controller_role: false,
+      blocked_by_data_role: false,
+      blocked_by_slots: true,
+      blocked_by_slot_leadership: false,
+      blocked_by_slot_runtime: false,
+      blocked_by_tasks: false,
+      blocked_by_channels: false,
+      blocked_by_runtime_drain: false,
+      unknown_runtime: false,
+      runtime_unknown: false,
+      unknown_control_revision: false,
+      unknown_channel_inventory: false,
+      health_fresh: true,
+      health_status: "alive",
+      health_freshness: "fresh",
+      health_report_age_ms: 10,
+      health_report_ttl_ms: 30000,
+      observed_control_revision: 44,
+      required_control_revision: 44,
+      blocked_reasons: ["slot replicas remain"],
+      slot_replica_count: 1,
+      slot_leader_count: 0,
+      active_task_count: 0,
+      failed_task_count: 0,
+      channel_leader_count: 0,
+      channel_replica_count: 0,
+      channel_isr_count: 0,
+      gateway_draining: true,
+      accepting_new_sessions: false,
+      gateway_sessions: 0,
+      active_online: 0,
+      closing_online: 0,
+      total_online: 0,
+      pending_activations: 0,
+    }
+    const advance = {
+      generated_at: "2026-07-01T08:00:02Z",
+      state_revision: 45,
+      node_id: 4,
+      created: 1,
+      skipped: 0,
+      candidates: plan.candidates,
     }
 
-    fetchMock.mockImplementation(() => Promise.resolve(new Response(JSON.stringify(report), { status: 200 })))
+    fetchMock
+      .mockResolvedValueOnce(new Response(JSON.stringify(plan), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(start), { status: 202 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(status), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(advance), { status: 202 }))
 
-    await expect(planNodeScaleIn(3, {
-      confirmStatefulSetTail: true,
-      expectedTailNodeId: 3,
-    })).resolves.toEqual(report)
-    await expect(startNodeScaleIn(3, {
-      confirmStatefulSetTail: true,
-      expectedTailNodeId: 3,
-    })).resolves.toEqual(report)
-    await expect(getNodeScaleInStatus(3)).resolves.toEqual(report)
-    await expect(advanceNodeScaleIn(3, {
-      maxLeaderTransfers: 2,
-      maxChannelMigrations: 4,
-    })).resolves.toEqual(report)
-    await expect(cancelNodeScaleIn(3)).resolves.toEqual(report)
+    await expect(planNodeScaleIn(4, { maxSlotMoves: 1 })).resolves.toEqual(plan)
+    await expect(startNodeScaleIn(4)).resolves.toEqual(start)
+    await expect(getNodeScaleInStatus(4)).resolves.toEqual(status)
+    await expect(advanceNodeScaleIn(4, { maxSlotMoves: 1 })).resolves.toEqual(advance)
 
-    expect(fetchMock.mock.calls[0]?.[0]).toBe("/manager/nodes/3/scale-in/plan")
-    expect(JSON.parse((fetchMock.mock.calls[0]?.[1] as { body: string }).body)).toEqual({
-      confirm_statefulset_tail: true,
-      expected_tail_node_id: 3,
-    })
-    expect(fetchMock.mock.calls[1]?.[0]).toBe("/manager/nodes/3/scale-in/start")
-    expect(JSON.parse((fetchMock.mock.calls[1]?.[1] as { body: string }).body)).toEqual({
-      confirm_statefulset_tail: true,
-      expected_tail_node_id: 3,
-    })
-    expect(fetchMock.mock.calls[2]?.[0]).toBe("/manager/nodes/3/scale-in/status")
-    expect((fetchMock.mock.calls[2]?.[1] as { method?: string }).method).toBeUndefined()
-    expect(fetchMock.mock.calls[3]?.[0]).toBe("/manager/nodes/3/scale-in/advance")
-    expect(JSON.parse((fetchMock.mock.calls[3]?.[1] as { body: string }).body)).toEqual({
-      max_leader_transfers: 2,
-      max_channel_migrations: 4,
-      force_close_connections: false,
-    })
-    expect(fetchMock.mock.calls[4]?.[0]).toBe("/manager/nodes/3/scale-in/cancel")
-    expect((fetchMock.mock.calls[4]?.[1] as { method: string }).method).toBe("POST")
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("/manager/nodes/4/scale-in/plan")
+    expect((fetchMock.mock.calls[0]?.[1] as { method: string }).method).toBe("POST")
+    expect(JSON.parse((fetchMock.mock.calls[0]?.[1] as { body: string }).body)).toEqual({ max_slot_moves: 1 })
+    expect(fetchMock.mock.calls[1]?.[0]).toBe("/manager/nodes/4/scale-in/start")
+    expect((fetchMock.mock.calls[1]?.[1] as { method: string }).method).toBe("POST")
+    expect(fetchMock.mock.calls[2]?.[0]).toBe("/manager/nodes/4/scale-in/status")
+    expect((fetchMock.mock.calls[2]?.[1] as { method?: string } | undefined)?.method).toBeUndefined()
+    expect(fetchMock.mock.calls[3]?.[0]).toBe("/manager/nodes/4/scale-in/advance")
+    expect((fetchMock.mock.calls[3]?.[1] as { method: string }).method).toBe("POST")
+    expect(JSON.parse((fetchMock.mock.calls[3]?.[1] as { body: string }).body)).toEqual({ max_slot_moves: 1 })
   })
 
   it("keeps a scale-in block report on ManagerApiError", async () => {
@@ -2393,10 +2401,7 @@ describe("manager api client", () => {
       new Response(JSON.stringify({ error: "scale_in_blocked", message: "blocked", report }), { status: 409 }),
     )
 
-    await expect(startNodeScaleIn(3, {
-      confirmStatefulSetTail: true,
-      expectedTailNodeId: 3,
-    })).rejects.toMatchObject({
+    await expect(startNodeScaleIn(3)).rejects.toMatchObject({
       status: 409,
       error: "scale_in_blocked",
       message: "blocked",

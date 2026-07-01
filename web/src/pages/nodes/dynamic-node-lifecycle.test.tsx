@@ -501,3 +501,141 @@ test("invalid onboarding move bounds do not call plan and blank defaults to one"
   expect(await screen.findByText("Slot 7")).toBeInTheDocument()
   expect(screen.queryByRole("alert")).not.toBeInTheDocument()
 })
+
+test("runs scale-in stages through leaving drain status advance and remove", async () => {
+  const leavingNode: ManagerNode = {
+    ...activeNode,
+    membership: { role: "data", join_state: "leaving", schedulable: false },
+    runtime: { ...activeNode.runtime, accepting_new_sessions: false, draining: true },
+    actions: { ...activeNode.actions, can_onboard: false, can_scale_in: true },
+  }
+  const scaleInCandidate = {
+    slot_id: 7,
+    source_node_id: 4,
+    target_node_id: 1,
+    desired_peers: [1, 2, 3],
+    target_peers: [1, 2, 3],
+    config_epoch: 9,
+  }
+  planNodeScaleInMock.mockResolvedValueOnce({
+    generated_at: "2026-07-01T08:00:00Z",
+    state_revision: 42,
+    node_id: 4,
+    candidates: [scaleInCandidate],
+    blocked_by_status: false,
+  })
+  startNodeScaleInMock.mockResolvedValueOnce({
+    changed: true,
+    node_id: 4,
+    addr: "127.0.0.1:7004",
+    join_state: "leaving",
+    revision: 43,
+  })
+  setNodeScaleInDrainMock.mockResolvedValueOnce({
+    node_id: 4,
+    draining: true,
+    accepting_new_sessions: false,
+    gateway_sessions: 0,
+    active_online: 0,
+    closing_online: 0,
+    total_online: 0,
+    pending_activations: 0,
+    unknown: false,
+  })
+  getNodeScaleInStatusMock.mockResolvedValueOnce({
+    node_id: 4,
+    join_state: "leaving",
+    generated_at: "2026-07-01T08:00:01Z",
+    state_revision: 44,
+    safe_to_proceed: true,
+    safe_to_remove: true,
+    blocked_by_missing_node: false,
+    blocked_by_join_state: false,
+    blocked_by_control_revision: false,
+    blocked_by_health: false,
+    blocked_by_stale_revision: false,
+    blocked_by_controller_role: false,
+    blocked_by_data_role: false,
+    blocked_by_slots: false,
+    blocked_by_slot_leadership: false,
+    blocked_by_slot_runtime: false,
+    blocked_by_tasks: false,
+    blocked_by_channels: false,
+    blocked_by_runtime_drain: false,
+    unknown_runtime: false,
+    runtime_unknown: false,
+    unknown_control_revision: false,
+    unknown_channel_inventory: false,
+    health_fresh: true,
+    health_status: "alive",
+    health_freshness: "fresh",
+    health_report_age_ms: 10,
+    health_report_ttl_ms: 30000,
+    observed_control_revision: 44,
+    required_control_revision: 44,
+    blocked_reasons: [],
+    slot_replica_count: 0,
+    slot_leader_count: 0,
+    active_task_count: 0,
+    failed_task_count: 0,
+    channel_leader_count: 0,
+    channel_replica_count: 0,
+    channel_isr_count: 0,
+    gateway_draining: true,
+    accepting_new_sessions: false,
+    gateway_sessions: 0,
+    active_online: 0,
+    closing_online: 0,
+    total_online: 0,
+    pending_activations: 0,
+  })
+  advanceNodeScaleInMock.mockResolvedValueOnce({
+    generated_at: "2026-07-01T08:00:02Z",
+    state_revision: 45,
+    node_id: 4,
+    created: 1,
+    skipped: 0,
+    candidates: [scaleInCandidate],
+  })
+  removeNodeAfterScaleInMock.mockResolvedValueOnce({
+    changed: true,
+    node_id: 4,
+    join_state: "removed",
+    revision: 49,
+  })
+  const onCompleted = vi.fn()
+  const user = userEvent.setup()
+
+  renderLifecycle("node", leavingNode, onCompleted)
+
+  await user.click(screen.getByRole("button", { name: "Plan scale-in" }))
+
+  expect(planNodeScaleInMock).toHaveBeenCalledWith(4, { maxSlotMoves: 1 })
+  expect(await screen.findByText("Target peers: 1, 2, 3")).toBeInTheDocument()
+
+  await user.click(screen.getByRole("button", { name: "Mark leaving" }))
+
+  expect(startNodeScaleInMock).toHaveBeenCalledWith(4)
+  expect(await screen.findByText("Join state: leaving")).toBeInTheDocument()
+
+  await user.click(screen.getByRole("button", { name: "Enable drain mode" }))
+
+  expect(setNodeScaleInDrainMock).toHaveBeenCalledWith(4, { draining: true })
+  expect(await screen.findByText("Accepting new sessions: no")).toBeInTheDocument()
+
+  await user.click(screen.getByRole("button", { name: "Refresh scale-in status" }))
+
+  expect(getNodeScaleInStatusMock).toHaveBeenCalledWith(4)
+  expect(await screen.findByText("Safe to remove: yes")).toBeInTheDocument()
+
+  await user.click(screen.getByRole("button", { name: "Advance scale-in" }))
+
+  expect(advanceNodeScaleInMock).toHaveBeenCalledWith(4, { maxSlotMoves: 1 })
+  expect(await screen.findByText("Created tasks: 1 / skipped: 0")).toBeInTheDocument()
+
+  await user.click(screen.getByRole("button", { name: "Remove node" }))
+
+  expect(removeNodeAfterScaleInMock).toHaveBeenCalledWith(4)
+  expect(await screen.findByText("Removed revision: 49")).toBeInTheDocument()
+  expect(onCompleted).toHaveBeenCalledTimes(4)
+})
