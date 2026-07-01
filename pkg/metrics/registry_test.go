@@ -168,6 +168,30 @@ func TestClusterMonitorGaugesStayAbsentUntilObserved(t *testing.T) {
 	requireNoMetricFamily(t, families, "wukongim_channelv2_isr_anomaly_channels")
 }
 
+func TestControllerMetricsIncludeSlotReplicaMoveTasks(t *testing.T) {
+	reg := New(1, "node-1")
+
+	reg.Controller.SetTaskActive(map[string]int{"slot_replica_move": 2})
+	reg.Controller.SetTaskFailed(map[string]int{"slot_replica_move": 1})
+
+	families, err := reg.Gather()
+	require.NoError(t, err)
+
+	active := requireMetricFamily(t, families, "wukongim_controller_tasks_active")
+	require.Equal(t, float64(2), findMetricByLabels(t, active, map[string]string{
+		"node_id":   "1",
+		"node_name": "node-1",
+		"type":      "slot_replica_move",
+	}).GetGauge().GetValue())
+
+	failed := requireMetricFamily(t, families, "wukongim_controller_tasks_failed")
+	require.Equal(t, float64(1), findMetricByLabels(t, failed, map[string]string{
+		"node_id":   "1",
+		"node_name": "node-1",
+		"type":      "slot_replica_move",
+	}).GetGauge().GetValue())
+}
+
 func TestNodeScaleInBlockerMetricsExposeKnownReasonsBeforeObserved(t *testing.T) {
 	reg := New(1, "node-1")
 
@@ -974,7 +998,7 @@ func TestControllerMetricsTrackDecisionStateAndTaskCounts(t *testing.T) {
 	require.NoError(t, err)
 
 	decisions := requireMetricFamily(t, families, "wukongim_controller_decisions_total")
-	require.Len(t, decisions.GetMetric(), 4)
+	require.Len(t, decisions.GetMetric(), 5)
 	foundRepair := false
 	for _, metric := range decisions.GetMetric() {
 		labels := metric.GetLabel()
@@ -997,7 +1021,7 @@ func TestControllerMetricsTrackDecisionStateAndTaskCounts(t *testing.T) {
 	require.Equal(t, float64(2), nodesAlive.GetMetric()[0].GetGauge().GetValue())
 
 	tasksActive := requireMetricFamily(t, families, "wukongim_controller_tasks_active")
-	require.Len(t, tasksActive.GetMetric(), 4)
+	require.Len(t, tasksActive.GetMetric(), 5)
 
 	migrationsActive := requireMetricFamily(t, families, "wukongim_controller_hashslot_migrations_active")
 	require.Len(t, migrationsActive.GetMetric(), 1)

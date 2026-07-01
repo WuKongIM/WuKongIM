@@ -7,7 +7,7 @@ import (
 )
 
 var (
-	controllerTaskKinds        = []string{"bootstrap", "repair", "rebalance", "leader_transfer"}
+	controllerTaskKinds        = []string{"bootstrap", "repair", "rebalance", "leader_transfer", "slot_replica_move"}
 	controllerTaskResults      = []string{"ok", "fail", "timeout", "safety_check"}
 	controllerMigrationResults = []string{"ok", "fail", "abort"}
 )
