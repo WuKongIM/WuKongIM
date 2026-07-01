@@ -148,7 +148,8 @@ func TestSlotReplicaMoveExecutorTransfersLeadershipBeforeRemovingSourceVoter(t *
 	afterTransfer.LeaderID = 2
 	runtime := &fakeSlotReplicaMoveRuntime{statuses: []multiraft.Status{status, afterTransfer}}
 	writer := &fakeSlotReplicaMoveWriter{}
-	executor := NewSlotReplicaMoveExecutor(SlotReplicaMoveExecutorConfig{LocalNode: 1, Runtime: runtime, MoveWriter: writer, PollInterval: -1})
+	observer := &recordingSlotReplicaMoveObserver{}
+	executor := NewSlotReplicaMoveExecutor(SlotReplicaMoveExecutorConfig{LocalNode: 1, Runtime: runtime, MoveWriter: writer, Observer: observer, PollInterval: -1})
 
 	err := executor.Reconcile(context.Background(), slotReplicaMoveSnapshot(control.TaskStepRemoveVoter, 2, status))
 
@@ -166,6 +167,12 @@ func TestSlotReplicaMoveExecutorTransfersLeadershipBeforeRemovingSourceVoter(t *
 	}
 	if writer.phase.ObservedConfigIndex != afterTransfer.ConfigAppliedIndex || writer.phase.ObservedVoters == nil {
 		t.Fatalf("phase observed = %#v, want transferred status observation", writer.phase)
+	}
+	if len(observer.phases) != 1 {
+		t.Fatalf("phases = %#v, want one observation", observer.phases)
+	}
+	if observer.phases[0].step != "transfer_leader" || observer.phases[0].result != "ok" {
+		t.Fatalf("phase = %#v, want transfer_leader ok", observer.phases[0])
 	}
 }
 

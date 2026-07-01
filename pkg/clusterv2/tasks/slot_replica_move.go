@@ -240,11 +240,12 @@ func (e *SlotReplicaMoveExecutor) promoteLearner(ctx context.Context, task contr
 func (e *SlotReplicaMoveExecutor) removeVoter(ctx context.Context, task control.ReconcileTask, status multiraft.Status) (err error) {
 	started := time.Now()
 	result := "ok"
+	observedStep := task.Step
 	defer func() {
 		if err != nil && result == "ok" {
 			result = slotReplicaMovePhaseResultForError(err)
 		}
-		e.observePhase(task.Step, result, started)
+		e.observePhase(observedStep, result, started)
 	}()
 	if !containsNodeID(status.CurrentVoters, task.SourceNode) {
 		observed, ok, err := e.waitForStatus(ctx, task, status, func(st multiraft.Status) bool {
@@ -260,6 +261,7 @@ func (e *SlotReplicaMoveExecutor) removeVoter(ctx context.Context, task control.
 		return e.advancePhase(ctx, task, control.TaskStepCommitAssignment, observed)
 	}
 	if uint64(status.LeaderID) == task.SourceNode {
+		observedStep = control.TaskStepTransferLeader
 		target, ok := firstNonSourceVoter(status.CurrentVoters, task.SourceNode)
 		if !ok {
 			return e.failTask(ctx, task, "slot replica move has no non-source voter for leadership transfer")

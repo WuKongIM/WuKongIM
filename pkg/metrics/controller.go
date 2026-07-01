@@ -3,6 +3,7 @@ package metrics
 import (
 	"math"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -27,7 +28,7 @@ type ControllerMetrics struct {
 	decisionDuration prometheus.Histogram
 	tasksActive      *prometheus.GaugeVec
 	tasksFailed      *prometheus.GaugeVec
-	taskOldestAge    *prometheus.GaugeVec
+	taskOldestAge    *controllerTaskOldestAgeCollector
 	tasksCompleted   *prometheus.CounterVec
 	migrationsActive prometheus.Gauge
 	migrationsTotal  *prometheus.CounterVec
@@ -66,11 +67,7 @@ func newControllerMetrics(registry prometheus.Registerer, labels prometheus.Labe
 			Help:        "Number of active failed controller tasks grouped by type.",
 			ConstLabels: labels,
 		}, []string{"type"}),
-		taskOldestAge: prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			Name:        "wukongim_controller_task_oldest_age_seconds",
-			Help:        "Oldest retained ControllerV2 task age in seconds grouped by bounded audit labels.",
-			ConstLabels: labels,
-		}, []string{"kind", "status", "step", "source"}),
+		taskOldestAge: newControllerTaskOldestAgeCollector(labels),
 		tasksCompleted: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name:        "wukongim_controller_tasks_completed_total",
 			Help:        "Total number of completed controller tasks.",
@@ -237,23 +234,7 @@ func (m *ControllerMetrics) SetTaskOldestAge(ages map[ControllerTaskAgeKey]float
 	if m == nil {
 		return
 	}
-	m.taskOldestAge.Reset()
-	normalized := make(map[ControllerTaskAgeKey]float64, len(ages))
-	for key, age := range ages {
-		if math.IsNaN(age) || math.IsInf(age, 0) {
-			continue
-		}
-		if age < 0 {
-			age = 0
-		}
-		key = normalizeControllerTaskAgeKey(key)
-		if existing, ok := normalized[key]; !ok || age > existing {
-			normalized[key] = age
-		}
-	}
-	for key, age := range normalized {
-		m.taskOldestAge.WithLabelValues(key.Kind, key.Status, key.Step, key.Source).Set(age)
-	}
+	m.taskOldestAge.SetAges(ages)
 }
 
 func normalizeControllerTaskAgeKey(key ControllerTaskAgeKey) ControllerTaskAgeKey {
@@ -303,6 +284,77 @@ func normalizeControllerTaskAgeSource(source string) string {
 	default:
 		return "unknown"
 	}
+}
+
+type controllerTaskOldestAgeCollector struct {
+	desc      *prometheus.Desc
+	now       func() time.Time
+	mu        sync.RWMutex
+	startedAt map[ControllerTaskAgeKey]time.Time
+}
+
+func newControllerTaskOldestAgeCollector(labels prometheus.Labels) *controllerTaskOldestAgeCollector {
+	return &controllerTaskOldestAgeCollector{
+		desc: prometheus.NewDesc(
+			"wukongim_controller_task_oldest_age_seconds",
+			"Oldest retained ControllerV2 task age in seconds grouped by bounded audit labels.",
+			[]string{"kind", "status", "step", "source"},
+			labels,
+		),
+		now:       time.Now,
+		startedAt: make(map[ControllerTaskAgeKey]time.Time),
+	}
+}
+
+func (c *controllerTaskOldestAgeCollector) Describe(ch chan<- *prometheus.Desc) {
+	if c == nil {
+		return
+	}
+	ch <- c.desc
+}
+
+func (c *controllerTaskOldestAgeCollector) Collect(ch chan<- prometheus.Metric) {
+	if c == nil {
+		return
+	}
+	c.mu.RLock()
+	startedAt := make(map[ControllerTaskAgeKey]time.Time, len(c.startedAt))
+	for key, value := range c.startedAt {
+		startedAt[key] = value
+	}
+	now := c.now()
+	c.mu.RUnlock()
+	for key, started := range startedAt {
+		age := now.Sub(started).Seconds()
+		if age < 0 {
+			age = 0
+		}
+		ch <- prometheus.MustNewConstMetric(c.desc, prometheus.GaugeValue, age, key.Kind, key.Status, key.Step, key.Source)
+	}
+}
+
+func (c *controllerTaskOldestAgeCollector) SetAges(ages map[ControllerTaskAgeKey]float64) {
+	if c == nil {
+		return
+	}
+	now := c.now()
+	normalized := make(map[ControllerTaskAgeKey]time.Time, len(ages))
+	for key, age := range ages {
+		if math.IsNaN(age) || math.IsInf(age, 0) {
+			continue
+		}
+		if age < 0 {
+			age = 0
+		}
+		key = normalizeControllerTaskAgeKey(key)
+		started := now.Add(-time.Duration(age * float64(time.Second)))
+		if existing, ok := normalized[key]; !ok || started.Before(existing) {
+			normalized[key] = started
+		}
+	}
+	c.mu.Lock()
+	c.startedAt = normalized
+	c.mu.Unlock()
 }
 
 func (m *ControllerMetrics) SetSlotLeaderSkew(skew int) {

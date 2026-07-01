@@ -265,8 +265,8 @@ func TestControllerTaskAuditRuntimeReportsOldestTaskAgeMetric(t *testing.T) {
 		"status":    "running",
 		"step":      "remove_voter",
 		"source":    "audit",
-	}).GetGauge().GetValue(); got != 42 {
-		t.Fatalf("oldest task age = %v, want 42", got)
+	}).GetGauge().GetValue(); got < 42 || got > 42.1 {
+		t.Fatalf("oldest task age = %v, want about 42", got)
 	}
 }
 

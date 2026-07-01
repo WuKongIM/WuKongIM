@@ -194,6 +194,8 @@ func TestControllerMetricsIncludeSlotReplicaMoveTasks(t *testing.T) {
 
 func TestControllerMetricsTrackAuditDerivedOldestTaskAge(t *testing.T) {
 	reg := New(1, "node-1")
+	now := time.Unix(1000, 0)
+	reg.Controller.taskOldestAge.now = func() time.Time { return now }
 
 	reg.Controller.SetTaskOldestAge(map[ControllerTaskAgeKey]float64{
 		{Kind: "slot_replica_move", Status: "running", Step: "remove_voter", Source: "audit"}: 42,
@@ -220,6 +222,40 @@ func TestControllerMetricsTrackAuditDerivedOldestTaskAge(t *testing.T) {
 		"step":      "other",
 		"source":    "audit",
 	}).GetGauge().GetValue())
+}
+
+func TestControllerMetricsOldestTaskAgeAdvancesBetweenGathers(t *testing.T) {
+	reg := New(1, "node-1")
+	now := time.Unix(1000, 0)
+	reg.Controller.taskOldestAge.now = func() time.Time { return now }
+
+	reg.Controller.SetTaskOldestAge(map[ControllerTaskAgeKey]float64{
+		{Kind: "slot_replica_move", Status: "running", Step: "remove_voter", Source: "audit"}: 42,
+	})
+
+	families, err := reg.Gather()
+	require.NoError(t, err)
+	age := requireMetricFamily(t, families, "wukongim_controller_task_oldest_age_seconds")
+	first := findMetricByLabels(t, age, map[string]string{
+		"kind":   "slot_replica_move",
+		"status": "running",
+		"step":   "remove_voter",
+		"source": "audit",
+	}).GetGauge().GetValue()
+
+	now = now.Add(10 * time.Second)
+
+	families, err = reg.Gather()
+	require.NoError(t, err)
+	age = requireMetricFamily(t, families, "wukongim_controller_task_oldest_age_seconds")
+	second := findMetricByLabels(t, age, map[string]string{
+		"kind":   "slot_replica_move",
+		"status": "running",
+		"step":   "remove_voter",
+		"source": "audit",
+	}).GetGauge().GetValue()
+	require.Equal(t, float64(42), first)
+	require.Equal(t, float64(52), second)
 }
 
 func TestNodeScaleInBlockerMetricsExposeKnownReasonsBeforeObserved(t *testing.T) {
