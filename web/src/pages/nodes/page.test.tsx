@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react"
+import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { MemoryRouter } from "react-router-dom"
 import { beforeEach, expect, test, vi } from "vitest"
@@ -11,6 +11,7 @@ import { NodesPage } from "@/pages/nodes/page"
 
 const getNodesMock = vi.fn()
 const getNodeMock = vi.fn()
+const startNodeScaleInMock = vi.fn()
 const getControllerLogsMock = vi.fn()
 const getControllerRaftStatusMock = vi.fn()
 const compactControllerRaftLogOnNodeMock = vi.fn()
@@ -28,6 +29,7 @@ vi.mock("@/lib/manager-api", async (importOriginal) => {
     ...actual,
     getNodes: (...args: unknown[]) => getNodesMock(...args),
     getNode: (...args: unknown[]) => getNodeMock(...args),
+    startNodeScaleIn: (...args: unknown[]) => startNodeScaleInMock(...args),
     getControllerLogs: (...args: unknown[]) => getControllerLogsMock(...args),
     getControllerRaftStatus: (...args: unknown[]) => getControllerRaftStatusMock(...args),
     compactControllerRaftLogOnNode: (...args: unknown[]) => compactControllerRaftLogOnNodeMock(...args),
@@ -152,6 +154,7 @@ beforeEach(() => {
   resetLocale()
   getNodesMock.mockReset()
   getNodeMock.mockReset()
+  startNodeScaleInMock.mockReset()
   getControllerLogsMock.mockReset()
   getControllerRaftStatusMock.mockReset()
   compactControllerRaftLogOnNodeMock.mockReset()
@@ -508,4 +511,49 @@ test("opens lifecycle sheet from an active node row", async () => {
   await user.click(screen.getByRole("button", { name: "Open lifecycle for node 1" }))
 
   expect(await screen.findByRole("dialog", { name: "Node lifecycle" })).toBeInTheDocument()
+})
+
+test("refreshes the open lifecycle node after a lifecycle action completes", async () => {
+  const leavingNodeRow = {
+    ...nodeRow,
+    membership: { role: "data", join_state: "leaving", schedulable: false },
+    actions: { ...nodeRow.actions, can_onboard: false },
+  }
+  getNodesMock
+    .mockResolvedValueOnce({
+      generated_at: "2026-07-01T08:00:00Z",
+      controller_leader_id: 1,
+      total: 1,
+      items: [nodeRow],
+    })
+    .mockResolvedValueOnce({
+      generated_at: "2026-07-01T08:00:01Z",
+      controller_leader_id: 1,
+      total: 1,
+      items: [leavingNodeRow],
+    })
+  startNodeScaleInMock.mockResolvedValueOnce({
+    changed: true,
+    node_id: 1,
+    addr: "127.0.0.1:7000",
+    join_state: "leaving",
+    revision: 49,
+  })
+
+  const user = userEvent.setup()
+  renderNodesPage()
+
+  expect(await screen.findByText("127.0.0.1:7000")).toBeInTheDocument()
+  await user.click(screen.getByRole("button", { name: "Open lifecycle for node 1" }))
+
+  const dialog = await screen.findByRole("dialog", { name: "Node lifecycle" })
+  expect(within(dialog).getByRole("button", { name: "Plan slot onboarding" })).toBeInTheDocument()
+
+  await user.click(within(dialog).getByRole("button", { name: "Mark leaving" }))
+
+  expect(startNodeScaleInMock).toHaveBeenCalledWith(1)
+  await waitFor(() => {
+    expect(within(dialog).queryByRole("button", { name: "Plan slot onboarding" })).not.toBeInTheDocument()
+  })
+  expect(within(dialog).getAllByText("leaving")).not.toHaveLength(0)
 })

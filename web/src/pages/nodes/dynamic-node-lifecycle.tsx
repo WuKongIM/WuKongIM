@@ -409,6 +409,7 @@ export function DynamicNodeLifecycleSheet({
         return
       }
       setScaleInStart(result)
+      setScaleInStatus(null)
       onCompleted()
     } catch (err) {
       if (!isCurrentOperation(generation)) {
@@ -436,6 +437,7 @@ export function DynamicNodeLifecycleSheet({
         return
       }
       setScaleInDrain(result)
+      setScaleInStatus(null)
       onCompleted()
     } catch (err) {
       if (!isCurrentOperation(generation)) {
@@ -493,6 +495,7 @@ export function DynamicNodeLifecycleSheet({
         return
       }
       setScaleInAdvance(result)
+      setScaleInStatus(null)
       onCompleted()
     } catch (err) {
       if (!isCurrentOperation(generation)) {
@@ -520,6 +523,7 @@ export function DynamicNodeLifecycleSheet({
         return
       }
       setScaleInRemove(result)
+      setScaleInStatus(null)
       onCompleted()
     } catch (err) {
       if (!isCurrentOperation(generation)) {

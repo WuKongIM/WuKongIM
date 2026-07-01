@@ -260,6 +260,7 @@ export function NodeClusterListPanel() {
     try {
       const nodes = await getNodes()
       setState({ nodes, loading: false, refreshing: false, error: null })
+      return nodes
     } catch (error) {
       setState({
         nodes: null,
@@ -267,6 +268,7 @@ export function NodeClusterListPanel() {
         refreshing: false,
         error: error instanceof Error ? error : new Error("node request failed"),
       })
+      return null
     }
   }, [])
 
@@ -318,9 +320,17 @@ export function NodeClusterListPanel() {
     setLifecycleOpen(true)
   }, [])
 
-  const refreshAfterLifecycleAction = useCallback(() => {
-    void loadNodes(true)
-  }, [loadNodes])
+  const refreshAfterLifecycleAction = useCallback(async () => {
+    const nodes = await loadNodes(true)
+    if (!nodes || !lifecycleNode) {
+      return
+    }
+    const nextLifecycleNode = nodes.items.find((node) => node.node_id === lifecycleNode.node_id) ?? null
+    setLifecycleNode(nextLifecycleNode)
+    if (!nextLifecycleNode) {
+      setLifecycleOpen(false)
+    }
+  }, [lifecycleNode, loadNodes])
 
   return (
     <>

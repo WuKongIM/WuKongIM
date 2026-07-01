@@ -21,7 +21,6 @@ const startNodeScaleInMock = vi.fn()
 const setNodeScaleInDrainMock = vi.fn()
 const getNodeScaleInStatusMock = vi.fn()
 const advanceNodeScaleInMock = vi.fn()
-const cancelNodeScaleInMock = vi.fn()
 const removeNodeAfterScaleInMock = vi.fn()
 const getDynamicNodeDiagnosticsMock = vi.fn()
 
@@ -40,7 +39,6 @@ vi.mock("@/lib/manager-api", async (importOriginal) => {
     setNodeScaleInDrain: (...args: unknown[]) => setNodeScaleInDrainMock(...args),
     getNodeScaleInStatus: (...args: unknown[]) => getNodeScaleInStatusMock(...args),
     advanceNodeScaleIn: (...args: unknown[]) => advanceNodeScaleInMock(...args),
-    cancelNodeScaleIn: (...args: unknown[]) => cancelNodeScaleInMock(...args),
     removeNodeAfterScaleIn: (...args: unknown[]) => removeNodeAfterScaleInMock(...args),
     getDynamicNodeDiagnostics: (...args: unknown[]) => getDynamicNodeDiagnosticsMock(...args),
   }
@@ -93,7 +91,6 @@ beforeEach(() => {
   setNodeScaleInDrainMock.mockReset()
   getNodeScaleInStatusMock.mockReset()
   advanceNodeScaleInMock.mockReset()
-  cancelNodeScaleInMock.mockReset()
   removeNodeAfterScaleInMock.mockReset()
   getDynamicNodeDiagnosticsMock.mockReset()
   useAuthStore.setState({
@@ -542,7 +539,7 @@ test("runs scale-in stages through leaving drain status advance and remove", asy
     pending_activations: 0,
     unknown: false,
   })
-  getNodeScaleInStatusMock.mockResolvedValueOnce({
+  const safeScaleInStatus = {
     node_id: 4,
     join_state: "leaving",
     generated_at: "2026-07-01T08:00:01Z",
@@ -588,7 +585,10 @@ test("runs scale-in stages through leaving drain status advance and remove", asy
     closing_online: 0,
     total_online: 0,
     pending_activations: 0,
-  })
+  }
+  getNodeScaleInStatusMock
+    .mockResolvedValueOnce(safeScaleInStatus)
+    .mockResolvedValueOnce(safeScaleInStatus)
   advanceNodeScaleInMock.mockResolvedValueOnce({
     generated_at: "2026-07-01T08:00:02Z",
     state_revision: 45,
@@ -632,6 +632,13 @@ test("runs scale-in stages through leaving drain status advance and remove", asy
 
   expect(advanceNodeScaleInMock).toHaveBeenCalledWith(4, { maxSlotMoves: 1 })
   expect(await screen.findByText("Created tasks: 1 / skipped: 0")).toBeInTheDocument()
+  expect(screen.getByRole("button", { name: "Remove node" })).toBeDisabled()
+
+  await user.click(screen.getByRole("button", { name: "Refresh scale-in status" }))
+
+  expect(getNodeScaleInStatusMock).toHaveBeenCalledTimes(2)
+  expect(await screen.findByText("Safe to remove: yes")).toBeInTheDocument()
+  expect(screen.getByRole("button", { name: "Remove node" })).toBeEnabled()
 
   await user.click(screen.getByRole("button", { name: "Remove node" }))
 
