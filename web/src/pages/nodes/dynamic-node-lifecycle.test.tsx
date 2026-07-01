@@ -814,7 +814,7 @@ test("does not reuse safe scale-in status when the mounted sheet switches nodes"
   container.remove()
 })
 
-test("disables scale-in actions when backend gating disallows scale-in", async () => {
+test("disables scale-in actions while node is joining", async () => {
   const user = userEvent.setup()
 
   renderLifecycle("node", joiningNode)
@@ -834,6 +834,37 @@ test("disables scale-in actions when backend gating disallows scale-in", async (
   }
 
   expect(screen.getByRole("button", { name: "Diagnostics" })).toBeInTheDocument()
+  expect(planNodeScaleInMock).not.toHaveBeenCalled()
+  expect(startNodeScaleInMock).not.toHaveBeenCalled()
+  expect(setNodeScaleInDrainMock).not.toHaveBeenCalled()
+  expect(getNodeScaleInStatusMock).not.toHaveBeenCalled()
+  expect(advanceNodeScaleInMock).not.toHaveBeenCalled()
+  expect(removeNodeAfterScaleInMock).not.toHaveBeenCalled()
+})
+
+test("disables scale-in actions when backend can_scale_in is false", async () => {
+  const scaleInBlockedNode: ManagerNode = {
+    ...activeNode,
+    actions: { ...activeNode.actions, can_scale_in: false },
+  }
+  const user = userEvent.setup()
+
+  renderLifecycle("node", scaleInBlockedNode)
+
+  const actionNames = [
+    "Plan scale-in",
+    "Mark leaving",
+    "Enable drain mode",
+    "Refresh scale-in status",
+    "Advance scale-in",
+    "Remove node",
+  ]
+  for (const actionName of actionNames) {
+    const button = screen.getByRole("button", { name: actionName })
+    expect(button).toBeDisabled()
+    await user.click(button)
+  }
+
   expect(planNodeScaleInMock).not.toHaveBeenCalled()
   expect(startNodeScaleInMock).not.toHaveBeenCalled()
   expect(setNodeScaleInDrainMock).not.toHaveBeenCalled()
