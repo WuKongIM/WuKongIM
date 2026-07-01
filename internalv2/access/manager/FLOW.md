@@ -25,6 +25,7 @@ POST /manager/nodes/:node_id/scale-in/drain (toggle target gateway drain mode; r
 POST /manager/nodes/:node_id/scale-in/remove (mark a fully drained node removed; requires cluster.node:w when Auth.On=true)
 GET  /manager/nodes/:node_id/scale-in/status (fail-closed scale-in safety status; requires cluster.node:r when Auth.On=true)
 POST /manager/nodes/:node_id/scale-in/advance (bounded Slot scale-in drain task creation; requires cluster.node:w when Auth.On=true)
+GET  /manager/nodes/:node_id/diagnostics (read-only dynamic-node diagnostics; requires cluster.node:r when Auth.On=true)
 GET  /manager/realtime-monitor (unified realtime monitor cards; requires cluster.node:r when Auth.On=true)
 GET  /manager/runtime/workqueues (local-node runtime pressure; requires cluster.node:r when Auth.On=true)
 GET  /manager/slots   (read-only Slot list; requires cluster.slot:r when Auth.On=true)
@@ -184,6 +185,17 @@ online, closing, and pending-activation counters; the remove route is the only
 manager entrypoint that can submit the removed tombstone. A repeated remove on
 an already-removed tombstone returns the writer's idempotent
 `changed=false` result even when the original safe-remove fence is stale.
+
+`/manager/nodes/:node_id/diagnostics` is the read-only root-cause surface for
+dynamic add/remove operations. It parses bounded task, audit, and Slot evidence
+limits, delegates all evidence assembly to
+`management.App.DynamicNodeDiagnostics`, and maps the usecase response to a
+single manager JSON document with `node`, optional `scale_in` or `onboarding`,
+`active_tasks`, `task_audits`, `slots`, `summary`, `sources`, and `warnings`.
+The handler does not create Controller tasks, retry task failures, mutate Slot
+assignments, change gateway drain mode, or mark nodes removed. When manager
+auth is enabled it uses the same `cluster.node:r` permission as node inventory
+and scale-in status because it only reads cluster-node lifecycle evidence.
 
 `/manager/realtime-monitor` backs the unified web realtime monitor under
 cluster operations. It parses chart `window`, optional `step`, optional

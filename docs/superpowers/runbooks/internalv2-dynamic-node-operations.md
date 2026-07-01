@@ -114,7 +114,19 @@ go run ./cmd/wkcli node ls --context prod-a --token "$WK_MANAGER_TOKEN"
    pending_activations=0
    ```
 
-5. Remove the node:
+5. When `safe_to_remove=false`, collect root-cause diagnostics before retrying
+   more work:
+
+   ```bash
+   go run ./cmd/wkcli node diagnose 4 --context prod-a
+   go run ./cmd/wkcli node diagnose 4 --context prod-a --json
+   ```
+
+   Use the text view for the compact recommendation and the JSON view when an
+   incident record needs the exact `scale_in`, `active_tasks`, `task_audits`,
+   `slots`, `sources`, and `warnings` fields.
+
+6. Remove the node:
 
    ```bash
    go run ./cmd/wkcli node scale-in remove 4 --context prod-a
@@ -130,8 +142,10 @@ go run ./cmd/wkcli node ls --context prod-a --token "$WK_MANAGER_TOKEN"
   `--max-slot-moves 1`; wait for tasks to clear.
 - `blocked_by_slot_leadership`: wait for Slot leadership to move or inspect
   manager Slot status.
-- `blocked_by_tasks`: inspect `/manager/controller/tasks` before submitting
-  more work.
+- `blocked_by_tasks`: run `wkcli node diagnose 4 --context prod-a` and inspect
+  the `task=`, `audit=`, and `slot=` rows before submitting more work. If the
+  compact output is not enough, rerun with `--json` and preserve the
+  `active_tasks`, `task_audits`, and `slots` arrays.
 - `blocked_by_channels` or `unknown_channel_inventory`: do not remove; channel
   runtime inventory could not prove the target is empty.
 - `blocked_by_runtime_drain`: keep drain enabled and wait until gateway and

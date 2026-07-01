@@ -165,6 +165,7 @@ directly.
 go run ./cmd/wkcli node ls --context dev
 go run ./cmd/wkcli node activate 4 --context dev
 go run ./cmd/wkcli node diagnose 4 --context dev
+go run ./cmd/wkcli node diagnose 4 --context dev --json
 go run ./cmd/wkcli node onboarding start 4 --context dev --max-slot-moves 1
 go run ./cmd/wkcli node scale-in start 4 --context dev
 go run ./cmd/wkcli node scale-in drain 4 --context dev --draining=true

@@ -14,6 +14,7 @@ cluster-authoritative plugin binding list/mutation, DB Inspect,
 diagnostics trace/message/event query orchestration and tracking-rule fan-out,
 node-local diagnostics orchestration, node lifecycle join/activation/leaving,
 bounded Slot onboarding, scale-in preparation status and final safe removal,
+dynamic node root-cause diagnostics,
 user management, and system UID projections/actions used by
 `GET /manager/nodes`,
 `POST /manager/nodes/join`, `POST /manager/nodes/:node_id/activate`,
@@ -27,6 +28,7 @@ user management, and system UID projections/actions used by
 `POST /manager/nodes/:node_id/scale-in/remove`,
 `GET /manager/nodes/:node_id/scale-in/status`,
 `POST /manager/nodes/:node_id/scale-in/advance`,
+`GET /manager/nodes/:node_id/diagnostics`,
 `GET /manager/slots`, `POST /manager/slots/:slot_id/leader-transfer`,
 `GET /manager/channels`,
 `GET /manager/channel-runtime-meta`, `GET /manager/controller/logs`,
@@ -188,6 +190,35 @@ It does not mutate
 `DesiredPeers` directly, retry failed tasks, implement cancellation, close
 gateway sessions, migrate Channel replicas, clear Channel metadata, or mark
 nodes removed outside that safe final gate or idempotent tombstone path.
+
+## Dynamic Node Diagnostics Flow
+
+```text
+manager diagnostics route
+  -> management.App.DynamicNodeDiagnostics
+  -> ControlSnapshotReader.LocalControlSnapshot
+  -> existing scale-in/onboarding/task/audit/Slot projections
+  -> bounded diagnostic DTO
+```
+
+Dynamic node diagnostics is read-only and uses one control snapshot as the
+primary evidence source for node membership, Slot assignments, and active
+Controller tasks. Leaving nodes reuse the scale-in status projection so
+`safe_to_remove`, gateway drain counters, runtime unknowns, and
+`blocked_reasons` match the removal gate. Active onboarding targets reuse the
+onboarding status projection. The diagnostics response then attaches bounded
+active task rows, retained task-audit snapshots, and Slot rows related to the
+target node or its `slot_replica_move` tasks. The summary chooses a compact
+`recommended_next_action` from the same evidence: inspect active Controller
+tasks first, then task audits, Slot/runtime blockers, gateway drain blockers,
+or removal readiness.
+
+Task-audit and Slot-runtime readers are optional evidence sources. Read
+failures are reported in `sources` and as bounded warnings rather than hidden
+behind empty arrays; unknown runtime evidence keeps recommendations
+conservative. The usecase never creates Controller tasks, mutates
+`DesiredPeers`, retries failed work, or removes nodes from the diagnostics
+path.
 
 ## Node Onboarding Flow
 
