@@ -204,17 +204,24 @@ func (s *MigrationStore) Claim(ctx context.Context, task metadb.ChannelMigration
 
 // Advance updates task phase/status using expectedVersion as the task UpdatedAtMS guard.
 func (s *MigrationStore) Advance(ctx context.Context, task metadb.ChannelMigrationTask, expectedVersion int64, phase metadb.ChannelMigrationPhase, status metadb.ChannelMigrationStatus, reason string) error {
+	return s.AdvanceWithProof(ctx, task, expectedVersion, phase, status, reason, metadb.ChannelMigrationProgress{}, metadb.ChannelMigrationCutoverProof{})
+}
+
+// AdvanceWithProof updates task phase/status and optional progress/proof fields using an expected task version guard.
+func (s *MigrationStore) AdvanceWithProof(ctx context.Context, task metadb.ChannelMigrationTask, expectedVersion int64, phase metadb.ChannelMigrationPhase, status metadb.ChannelMigrationStatus, reason string, progress metadb.ChannelMigrationProgress, proof metadb.ChannelMigrationCutoverProof) error {
 	route, err := s.routeTask(ctx, task)
 	if err != nil {
 		return err
 	}
 	updatedAtMS := nextMigrationVersion(s.nowMS(), expectedVersion)
 	req := metadb.ChannelMigrationTaskAdvance{
-		Guard:       migrationTaskGuard(task, expectedVersion),
-		Status:      status,
-		Phase:       phase,
-		Attempt:     task.Attempt + 1,
-		UpdatedAtMS: updatedAtMS,
+		Guard:        migrationTaskGuard(task, expectedVersion),
+		Status:       status,
+		Phase:        phase,
+		Attempt:      task.Attempt + 1,
+		UpdatedAtMS:  updatedAtMS,
+		Progress:     progress,
+		CutoverProof: proof,
 	}
 	if status == metadb.ChannelMigrationStatusBlocked {
 		req.BlockerMessage = reason
@@ -223,6 +230,32 @@ func (s *MigrationStore) Advance(ctx context.Context, task metadb.ChannelMigrati
 		req.CompletedAtMS = updatedAtMS
 	}
 	return s.propose(ctx, route, metafsm.EncodeAdvanceChannelMigrationTaskCommand(req))
+}
+
+// CommitLeaderTransfer commits the task-owned fenced leader metadata change.
+func (s *MigrationStore) CommitLeaderTransfer(ctx context.Context, task metadb.ChannelMigrationTask) error {
+	id, err := migrationTaskChannelID(task)
+	if err != nil {
+		return err
+	}
+	route, meta, err := s.readRuntimeMeta(ctx, id)
+	if err != nil {
+		return err
+	}
+	now := s.now()
+	updatedAtMS := nextMigrationVersion(now.UnixMilli(), task.UpdatedAtMS)
+	req := metadb.ChannelMigrationLeaderTransferRequest{
+		Guard:           migrationTaskGuard(task, task.UpdatedAtMS),
+		RuntimeGuard:    migrationRuntimeGuard(meta),
+		Status:          metadb.ChannelMigrationStatusRunning,
+		Phase:           metadb.ChannelMigrationPhaseVerifyNewLeader,
+		DesiredLeader:   channelMigrationDesiredLeader(task),
+		NextLeaderEpoch: meta.LeaderEpoch + 1,
+		LeaseUntilMS:    now.Add(s.fenceTTL).UnixMilli(),
+		NowMS:           now.UnixMilli(),
+		UpdatedAtMS:     updatedAtMS,
+	}
+	return s.propose(ctx, route, metafsm.EncodeCommitChannelLeaderTransferCommand(req))
 }
 
 // SetWriteFence sets or renews the task-owned channel write fence.
@@ -457,6 +490,16 @@ func migrationClearFenceTransition(task metadb.ChannelMigrationTask, updatedAtMS
 		return metadb.ChannelMigrationStatusRunning, metadb.ChannelMigrationPhaseAddLearner, 0
 	}
 	return metadb.ChannelMigrationStatusCompleted, metadb.ChannelMigrationPhaseClearFence, updatedAtMS
+}
+
+func channelMigrationDesiredLeader(task metadb.ChannelMigrationTask) uint64 {
+	if task.EmbeddedLeaderTransfer && task.EmbeddedDesiredLeader != 0 {
+		return task.EmbeddedDesiredLeader
+	}
+	if task.DesiredLeader != 0 {
+		return task.DesiredLeader
+	}
+	return task.TargetNode
 }
 
 func validateLeaderTransferTarget(meta metadb.ChannelRuntimeMeta, desiredLeader uint64) error {

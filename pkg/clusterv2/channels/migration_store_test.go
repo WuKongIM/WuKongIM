@@ -226,6 +226,98 @@ func TestMigrationStoreAdvanceUsesExpectedTaskVersion(t *testing.T) {
 	require.Equal(t, metafsm.EncodeAdvanceChannelMigrationTaskCommand(want), proposer.lastCommand)
 }
 
+func TestMigrationStoreAdvanceWithProofStoresCutoverProof(t *testing.T) {
+	ctx := context.Background()
+	now := time.UnixMilli(1750000003500).UTC()
+	id := ch.ChannelID{ID: "migration-advance-proof", Type: 1}
+	task := testMigrationTask(id, "task-advance-proof")
+	proposer := &fakeMigrationProposer{}
+	store := NewMigrationStore(MigrationStoreConfig{
+		LocalNode: 2,
+		Router:    fakeMigrationRouter{routes: map[string]routing.Route{id.ID: {HashSlot: 11, SlotID: 15, Leader: 2}}},
+		Proposer:  proposer,
+		Reader:    &fakeMigrationReader{},
+		Now:       func() time.Time { return now },
+	})
+	proof := metadb.ChannelMigrationCutoverProof{
+		CutoverLEO:               9,
+		CutoverHW:                9,
+		DrainedLeaderNode:        1,
+		DrainedRuntimeGeneration: 30,
+		DrainedChannelEpoch:      10,
+		DrainedLeaderEpoch:       20,
+		DrainedFenceVersion:      6,
+	}
+	progress := metadb.ChannelMigrationProgress{LeaderLEO: 9, LeaderHW: 9, TargetCheckpointHW: 9}
+
+	err := store.AdvanceWithProof(ctx, task, task.UpdatedAtMS, metadb.ChannelMigrationPhaseFinalTargetCatchUp, metadb.ChannelMigrationStatusRunning, "", progress, proof)
+
+	require.NoError(t, err)
+	want := metadb.ChannelMigrationTaskAdvance{
+		Guard:        migrationTaskGuard(task, task.UpdatedAtMS),
+		Status:       metadb.ChannelMigrationStatusRunning,
+		Phase:        metadb.ChannelMigrationPhaseFinalTargetCatchUp,
+		Attempt:      task.Attempt + 1,
+		UpdatedAtMS:  now.UnixMilli(),
+		Progress:     progress,
+		CutoverProof: proof,
+	}
+	require.Equal(t, metafsm.EncodeAdvanceChannelMigrationTaskCommand(want), proposer.lastCommand)
+}
+
+func TestMigrationStoreCommitLeaderTransferUsesRuntimeGuard(t *testing.T) {
+	ctx := context.Background()
+	now := time.UnixMilli(1750000003600).UTC()
+	id := ch.ChannelID{ID: "migration-commit-leader", Type: 1}
+	task := testMigrationTask(id, "task-commit-leader")
+	task.Kind = metadb.ChannelMigrationKindLeaderTransfer
+	task.Status = metadb.ChannelMigrationStatusRunning
+	task.Phase = metadb.ChannelMigrationPhaseCommitLeaderMeta
+	task.TargetNode = 3
+	task.DesiredLeader = 3
+	task.FenceToken = task.TaskID
+	task.FenceVersion = 6
+	task.UpdatedAtMS = 1750000003000
+	task.CutoverLEO = 9
+	task.CutoverHW = 9
+	task.DrainedLeaderNode = 1
+	task.DrainedRuntimeGeneration = 30
+	task.DrainedChannelEpoch = 10
+	task.DrainedLeaderEpoch = 20
+	task.DrainedFenceVersion = 6
+	meta := testMigrationRuntimeMeta(id)
+	meta.WriteFenceToken = task.TaskID
+	meta.WriteFenceVersion = 6
+	meta.WriteFenceReason = uint8(ch.WriteFenceReasonLeaderTransfer)
+	meta.WriteFenceUntilMS = now.Add(30 * time.Second).UnixMilli()
+	reader := &fakeMigrationReader{runtimeMeta: map[uint16]metadb.ChannelRuntimeMeta{12: meta}}
+	proposer := &fakeMigrationProposer{}
+	store := NewMigrationStore(MigrationStoreConfig{
+		LocalNode: 2,
+		Router:    fakeMigrationRouter{routes: map[string]routing.Route{id.ID: {HashSlot: 12, SlotID: 16, Leader: 2}}},
+		Proposer:  proposer,
+		Reader:    reader,
+		Now:       func() time.Time { return now },
+		FenceTTL:  30 * time.Second,
+	})
+
+	err := store.CommitLeaderTransfer(ctx, task)
+
+	require.NoError(t, err)
+	want := metadb.ChannelMigrationLeaderTransferRequest{
+		Guard:           migrationTaskGuard(task, task.UpdatedAtMS),
+		RuntimeGuard:    migrationRuntimeGuard(meta),
+		Status:          metadb.ChannelMigrationStatusRunning,
+		Phase:           metadb.ChannelMigrationPhaseVerifyNewLeader,
+		DesiredLeader:   3,
+		NextLeaderEpoch: meta.LeaderEpoch + 1,
+		LeaseUntilMS:    now.Add(30 * time.Second).UnixMilli(),
+		NowMS:           now.UnixMilli(),
+		UpdatedAtMS:     now.UnixMilli(),
+	}
+	require.Equal(t, metafsm.EncodeCommitChannelLeaderTransferCommand(want), proposer.lastCommand)
+}
+
 func TestMigrationStoreSetAndClearWriteFenceUseTaskToken(t *testing.T) {
 	ctx := context.Background()
 	now := time.UnixMilli(1750000004000).UTC()
