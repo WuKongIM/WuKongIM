@@ -356,3 +356,26 @@ func TestManagerV2ListActiveViewPagination(t *testing.T) {
 		t.Error("page.Done should be false (more data available)")
 	}
 }
+
+func TestManagerV2Metrics(t *testing.T) {
+	ctx := context.Background()
+	m := NewManagerV2(Options{})
+
+	// 初始指标应该为 0
+	snapshot := m.GetMetrics()
+	if snapshot.MarkActiveOps != 0 {
+		t.Errorf("initial MarkActiveOps = %d, want 0", snapshot.MarkActiveOps)
+	}
+
+	// 执行一些操作
+	patches := []ActivePatch{
+		{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "ch1", ChannelType: 2, ActiveAtMS: 1000},
+	}
+	m.MarkActive(ctx, patches)
+
+	// 验证指标可以正常获取
+	snapshot = m.GetMetrics()
+	if snapshot.CacheHitRate < 0 || snapshot.CacheHitRate > 1 {
+		t.Errorf("invalid cache hit rate: %f", snapshot.CacheHitRate)
+	}
+}

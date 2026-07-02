@@ -35,6 +35,8 @@ type ManagerV2 struct {
 	flushWorker *FlushWorker
 	// flushInterval 刷盘间隔
 	flushInterval time.Duration
+	// metrics 运行时指标
+	metrics *Metrics
 }
 
 // NewManagerV2 创建一个新的 ManagerV2 实例
@@ -68,6 +70,7 @@ func NewManagerV2(opts Options) *ManagerV2 {
 		nowMS:         nowMS,
 		observer:      opts.Observer,
 		flushInterval: opts.FlushInterval,
+		metrics:       NewMetrics(),
 	}
 }
 
@@ -207,6 +210,11 @@ func (m *ManagerV2) SignalFlush() {
 	if m.flushWorker != nil {
 		m.flushWorker.Signal()
 	}
+}
+
+// GetMetrics 获取当前运行时指标
+func (m *ManagerV2) GetMetrics() MetricsSnapshot {
+	return m.metrics.GetSnapshot()
 }
 
 // ListActiveView 查询活跃会话列表（三路合并：热+冷+DB）
