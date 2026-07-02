@@ -163,6 +163,10 @@ type NodeActionsDTO struct {
 	CanScaleIn bool `json:"can_scale_in"`
 	// CanOnboard reports whether the node can be considered for explicit resource allocation.
 	CanOnboard bool `json:"can_onboard"`
+	// CanMoveSlotsIn reports whether Slot replicas can be moved into this data node.
+	CanMoveSlotsIn bool `json:"can_move_slots_in"`
+	// CanMoveSlotsOut reports whether Slot replicas can be moved out of this data node without changing node lifecycle.
+	CanMoveSlotsOut bool `json:"can_move_slots_out"`
 	// CanPromoteControllerVoter reports whether Controller voter promotion can be considered.
 	CanPromoteControllerVoter bool `json:"can_promote_controller_voter"`
 }
@@ -264,6 +268,8 @@ func nodeDTO(item managementusecase.Node) NodeDTO {
 			CanResume:                 item.Actions.CanResume,
 			CanScaleIn:                item.Actions.CanScaleIn,
 			CanOnboard:                item.Actions.CanOnboard,
+			CanMoveSlotsIn:            item.Actions.CanMoveSlotsIn,
+			CanMoveSlotsOut:           item.Actions.CanMoveSlotsOut,
 			CanPromoteControllerVoter: item.Actions.CanPromoteControllerVoter,
 		},
 	}

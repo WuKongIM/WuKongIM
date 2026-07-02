@@ -20,6 +20,7 @@ import {
   ManagerApiError,
   activateNode,
   advanceNodeScaleIn,
+  advanceNodeSlotMoveOut,
   getNode,
   getNodeOnboardingStatus,
   getNodes,
@@ -45,6 +46,7 @@ type NodesState = {
 type RowLifecycleAction =
   | "activate"
   | "onboard"
+  | "slot-move-out"
   | "scale-in-start"
   | "scale-in-drain"
   | "scale-in-advance"
@@ -272,10 +274,18 @@ function controllerRaftPath(nodeId: number) {
   return `/cluster/diagnostics?tab=controller-logs&node_id=${nodeId}`
 }
 
-function canOnboardNode(node: ManagerNode) {
+function canMoveSlotsIn(node: ManagerNode) {
   return nodeJoinState(node) === "active" &&
     node.membership?.schedulable === true &&
-    node.actions?.can_onboard === true
+    (node.actions?.can_move_slots_in === true || node.actions?.can_onboard === true)
+}
+
+function canOnboardNode(node: ManagerNode) {
+  return canMoveSlotsIn(node)
+}
+
+function canMoveSlotsOut(node: ManagerNode) {
+  return nodeJoinState(node) === "active" && node.actions?.can_move_slots_out === true
 }
 
 function canStartScaleIn(node: ManagerNode) {
@@ -294,6 +304,8 @@ function rowActionConfirmTitleId(action: RowLifecycleAction) {
   switch (action) {
     case "onboard":
       return "nodes.rowAction.confirm.onboard.title"
+    case "slot-move-out":
+      return "nodes.rowAction.confirm.moveOut.title"
     case "scale-in-start":
       return "nodes.lifecycle.confirm.markLeaving.title"
     case "scale-in-drain":
@@ -311,6 +323,8 @@ function rowActionConfirmDescriptionId(action: RowLifecycleAction) {
   switch (action) {
     case "onboard":
       return "nodes.rowAction.confirm.onboard.description"
+    case "slot-move-out":
+      return "nodes.rowAction.confirm.moveOut.description"
     case "scale-in-start":
       return "nodes.lifecycle.confirm.markLeaving.description"
     case "scale-in-drain":
@@ -498,6 +512,16 @@ export function NodeClusterListPanel() {
             await startNodeOnboarding(target.node.node_id, { maxSlotMoves })
           }
           break
+        case "slot-move-out":
+          {
+            const maxSlotMoves = parsePositiveSafeInteger(rowOnboardingMoves, 1)
+            if (maxSlotMoves === null) {
+              setRowActionError(new Error(intl.formatMessage({ id: "nodes.rowAction.invalidMoveCount" })))
+              return false
+            }
+            await advanceNodeSlotMoveOut(target.node.node_id, { maxSlotMoves })
+          }
+          break
         case "scale-in-start":
           await startNodeScaleIn(target.node.node_id)
           break
@@ -523,7 +547,7 @@ export function NodeClusterListPanel() {
 
   const openRowConfirmAction = useCallback((target: RowActionTarget) => {
     setRowActionError(null)
-    if (target.action === "onboard") {
+    if (target.action === "onboard" || target.action === "slot-move-out") {
       setRowOnboardingMoves("1")
     }
     setRowConfirmAction(target)
@@ -643,6 +667,8 @@ export function NodeClusterListPanel() {
                       rowActionPending.action === "activate"
                     const pendingOnboard = rowActionPending?.node.node_id === node.node_id &&
                       rowActionPending.action === "onboard"
+                    const pendingMoveOut = rowActionPending?.node.node_id === node.node_id &&
+                      rowActionPending.action === "slot-move-out"
                     const pendingAdvanceScaleIn = rowActionPending?.node.node_id === node.node_id &&
                       rowActionPending.action === "scale-in-advance"
                     const onboardingStatus = onboardingStatusByNode[node.node_id]
@@ -724,6 +750,22 @@ export function NodeClusterListPanel() {
                                   : pendingOnboard || onboardingStatusLoading
                                     ? intl.formatMessage({ id: "common.refreshing" })
                                     : intl.formatMessage({ id: "nodes.rowAction.onboard" })}
+                              </Button>
+                            ) : null}
+                            {canMoveSlotsOut(node) ? (
+                              <Button
+                                aria-label={intl.formatMessage(
+                                  { id: "nodes.rowAction.moveOutForNode" },
+                                  { id: node.node_id },
+                                )}
+                                disabled={rowActionDisabled}
+                                onClick={() => openRowConfirmAction({ action: "slot-move-out", node })}
+                                size="sm"
+                                variant="outline"
+                              >
+                                {pendingMoveOut
+                                  ? intl.formatMessage({ id: "common.refreshing" })
+                                  : intl.formatMessage({ id: "nodes.rowAction.moveOut" })}
                               </Button>
                             ) : null}
                             {canAdvanceScaleIn(node) ? (
@@ -882,7 +924,7 @@ export function NodeClusterListPanel() {
           )
           : ""}
       >
-        {rowConfirmAction?.action === "onboard" ? (
+        {rowConfirmAction?.action === "onboard" || rowConfirmAction?.action === "slot-move-out" ? (
           <label className="block text-sm font-medium text-foreground">
             {intl.formatMessage({ id: "nodes.rowAction.moveCountLabel" })}
             <input

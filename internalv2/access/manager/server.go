@@ -101,6 +101,10 @@ type Management interface {
 	AdvanceNodeOnboarding(ctx context.Context, req managementusecase.NodeOnboardingAdvanceRequest) (managementusecase.NodeOnboardingStartResponse, error)
 	// NodeOnboardingStatus returns active onboarding tasks for a target node.
 	NodeOnboardingStatus(ctx context.Context, req managementusecase.NodeOnboardingStatusRequest) (managementusecase.NodeOnboardingStatusResponse, error)
+	// PlanNodeSlotMoveOut previews bounded Slot replica move tasks away from an active data node.
+	PlanNodeSlotMoveOut(ctx context.Context, req managementusecase.NodeSlotMoveOutPlanRequest) (managementusecase.NodeSlotMoveOutPlanResponse, error)
+	// AdvanceNodeSlotMoveOut creates bounded Slot replica move tasks away from an active data node.
+	AdvanceNodeSlotMoveOut(ctx context.Context, req managementusecase.NodeSlotMoveOutAdvanceRequest) (managementusecase.NodeSlotMoveOutAdvanceResponse, error)
 	// PlanNodeScaleIn previews bounded Slot replica move tasks away from a leaving node.
 	PlanNodeScaleIn(ctx context.Context, req managementusecase.NodeScaleInPlanRequest) (managementusecase.NodeScaleInPlanResponse, error)
 	// AdvanceNodeScaleIn creates bounded Slot replica move tasks away from a leaving node.
@@ -328,6 +332,8 @@ func (s *Server) registerRoutes() {
 	nodeWrites.POST("/nodes/:node_id/onboarding/plan", s.handleNodeOnboardingPlan)
 	nodeWrites.POST("/nodes/:node_id/onboarding/start", s.handleNodeOnboardingStart)
 	nodeWrites.POST("/nodes/:node_id/onboarding/advance", s.handleNodeOnboardingAdvance)
+	nodeWrites.POST("/nodes/:node_id/slot-move-out/plan", s.handleNodeSlotMoveOutPlan)
+	nodeWrites.POST("/nodes/:node_id/slot-move-out/advance", s.handleNodeSlotMoveOutAdvance)
 	nodeWrites.POST("/nodes/:node_id/scale-in/plan", s.handleNodeScaleInPlan)
 	nodeWrites.POST("/nodes/:node_id/scale-in/start", s.handleNodeScaleInStart)
 	nodeWrites.POST("/nodes/:node_id/scale-in/drain", s.handleNodeScaleInDrain)

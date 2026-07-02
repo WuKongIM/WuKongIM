@@ -454,6 +454,8 @@ export type ManagerNodeActions = {
   can_resume: boolean
   can_scale_in: boolean
   can_onboard: boolean
+  can_move_slots_in: boolean
+  can_move_slots_out: boolean
   can_promote_controller_voter: boolean
 }
 
@@ -595,6 +597,8 @@ export type ManagerNodeScaleInActionInput = {
   maxSlotMoves?: number
 }
 
+export type ManagerNodeSlotMoveOutActionInput = ManagerNodeScaleInActionInput
+
 export type ManagerNodeScaleInCandidate = {
   slot_id: number
   source_node_id: number
@@ -611,6 +615,8 @@ export type ManagerNodeScaleInPlanResponse = {
   candidates: ManagerNodeScaleInCandidate[]
   blocked_by_status: boolean
 }
+
+export type ManagerNodeSlotMoveOutPlanResponse = ManagerNodeScaleInPlanResponse
 
 export type ManagerNodeScaleInStartResponse = {
   changed: boolean
@@ -688,6 +694,8 @@ export type ManagerNodeScaleInAdvanceResponse = {
   skipped: number
   candidates: ManagerNodeScaleInCandidate[]
 }
+
+export type ManagerNodeSlotMoveOutAdvanceResponse = ManagerNodeScaleInAdvanceResponse
 
 export type ManagerNodeScaleInRemoveResponse = {
   changed: boolean

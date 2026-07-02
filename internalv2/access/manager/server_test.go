@@ -151,6 +151,9 @@ func TestManagerNodesReturnsReadOnlyInventory(t *testing.T) {
 						Unknown: true,
 					},
 					Actions: managementusecase.NodeActions{
+						CanOnboard:                true,
+						CanMoveSlotsIn:            true,
+						CanMoveSlotsOut:           true,
 						CanPromoteControllerVoter: true,
 					},
 				}},
@@ -229,13 +232,15 @@ func TestManagerNodesReturnsReadOnlyInventory(t *testing.T) {
 				"unknown": true
 			},
 			"actions": {
-				"can_drain": false,
-				"can_resume": false,
-				"can_scale_in": false,
-				"can_onboard": false,
-				"can_promote_controller_voter": true
-			}
-		}]
+					"can_drain": false,
+					"can_resume": false,
+					"can_scale_in": false,
+					"can_onboard": true,
+					"can_move_slots_in": true,
+					"can_move_slots_out": true,
+					"can_promote_controller_voter": true
+				}
+			}]
 	}`) {
 		t.Fatalf("body = %s", rec.Body.String())
 	}
@@ -1370,6 +1375,8 @@ type managerNodesStub struct {
 	nodeOnboardingStart                managementusecase.NodeOnboardingStartResponse
 	nodeOnboardingAdvance              managementusecase.NodeOnboardingStartResponse
 	nodeOnboardingStatus               managementusecase.NodeOnboardingStatusResponse
+	slotMoveOutPlan                    managementusecase.NodeSlotMoveOutPlanResponse
+	slotMoveOutAdvance                 managementusecase.NodeSlotMoveOutAdvanceResponse
 	scaleInPlan                        managementusecase.NodeScaleInPlanResponse
 	scaleInAdvance                     managementusecase.NodeScaleInAdvanceResponse
 	scaleInStatus                      managementusecase.NodeScaleInStatusResponse
@@ -1426,6 +1433,8 @@ type managerNodesStub struct {
 	nodeOnboardingStartReqSink         *managementusecase.NodeOnboardingStartRequest
 	nodeOnboardingAdvanceReqSink       *managementusecase.NodeOnboardingAdvanceRequest
 	nodeOnboardingStatusReqSink        *managementusecase.NodeOnboardingStatusRequest
+	slotMoveOutPlanReqSink             *managementusecase.NodeSlotMoveOutPlanRequest
+	slotMoveOutAdvanceReqSink          *managementusecase.NodeSlotMoveOutAdvanceRequest
 	scaleInPlanReqSink                 *managementusecase.NodeScaleInPlanRequest
 	scaleInAdvanceReqSink              *managementusecase.NodeScaleInAdvanceRequest
 	scaleInStatusReqSink               *managementusecase.NodeScaleInStatusRequest
@@ -1476,6 +1485,8 @@ type managerNodesStub struct {
 	nodeOnboardingStartErr             error
 	nodeOnboardingAdvanceErr           error
 	nodeOnboardingStatusErr            error
+	slotMoveOutPlanErr                 error
+	slotMoveOutAdvanceErr              error
 	scaleInPlanErr                     error
 	scaleInAdvanceErr                  error
 	scaleInStatusErr                   error
@@ -1696,6 +1707,20 @@ func (s managerNodesStub) NodeOnboardingStatus(_ context.Context, req management
 		*s.nodeOnboardingStatusReqSink = req
 	}
 	return s.nodeOnboardingStatus, s.nodeOnboardingStatusErr
+}
+
+func (s managerNodesStub) PlanNodeSlotMoveOut(_ context.Context, req managementusecase.NodeSlotMoveOutPlanRequest) (managementusecase.NodeSlotMoveOutPlanResponse, error) {
+	if s.slotMoveOutPlanReqSink != nil {
+		*s.slotMoveOutPlanReqSink = req
+	}
+	return s.slotMoveOutPlan, s.slotMoveOutPlanErr
+}
+
+func (s managerNodesStub) AdvanceNodeSlotMoveOut(_ context.Context, req managementusecase.NodeSlotMoveOutAdvanceRequest) (managementusecase.NodeSlotMoveOutAdvanceResponse, error) {
+	if s.slotMoveOutAdvanceReqSink != nil {
+		*s.slotMoveOutAdvanceReqSink = req
+	}
+	return s.slotMoveOutAdvance, s.slotMoveOutAdvanceErr
 }
 
 func (s managerNodesStub) PlanNodeScaleIn(_ context.Context, req managementusecase.NodeScaleInPlanRequest) (managementusecase.NodeScaleInPlanResponse, error) {

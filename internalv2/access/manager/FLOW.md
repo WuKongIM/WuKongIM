@@ -19,6 +19,8 @@ POST /manager/nodes/:node_id/onboarding/plan (bounded Slot onboarding preview; r
 POST /manager/nodes/:node_id/onboarding/start (bounded Slot onboarding task creation; requires cluster.node:w when Auth.On=true)
 GET  /manager/nodes/:node_id/onboarding/status (active onboarding task status; requires cluster.node:r when Auth.On=true)
 POST /manager/nodes/:node_id/onboarding/advance (bounded Slot onboarding task creation; requires cluster.node:w when Auth.On=true)
+POST /manager/nodes/:node_id/slot-move-out/plan (bounded pure Slot move-out preview; requires cluster.node:w when Auth.On=true)
+POST /manager/nodes/:node_id/slot-move-out/advance (bounded pure Slot move-out task creation; requires cluster.node:w when Auth.On=true)
 POST /manager/nodes/:node_id/scale-in/plan (bounded Slot scale-in drain preview; requires cluster.node:w when Auth.On=true)
 POST /manager/nodes/:node_id/scale-in/start (mark node leaving for scale-in preparation; requires cluster.node:w when Auth.On=true)
 POST /manager/nodes/:node_id/scale-in/drain (toggle target gateway drain mode; requires cluster.node:w when Auth.On=true)
@@ -100,10 +102,13 @@ Node list action hints remain read-model hints; `can_drain` and `can_resume`
 stay tied to the legacy node-operation routes and remain disabled in
 internalv2 until those routes are migrated. Stage 5C gateway drain mode is
 exposed through `/manager/nodes/:node_id/scale-in/drain` and scale-in status
-instead of these node-list action hints. `can_promote_controller_voter` is a
-read-model hint for active data nodes that can be considered for the dedicated
-Controller membership write route. Node lifecycle writes are exposed as
-separate join and activate routes under `cluster.node:w`.
+instead of these node-list action hints. `can_move_slots_in` and
+`can_move_slots_out` are Slot migration hints for active Data-role nodes,
+including Controller voters; they do not imply that the node can be scaled in
+or removed. `can_scale_in` and `can_promote_controller_voter` remain separate
+read-model hints for data-only lifecycle and Controller membership routes.
+Node lifecycle writes are exposed as separate join and activate routes under
+`cluster.node:w`.
 `/manager/nodes/join` parses `node_id`, optional `name`, `addr`, and optional
 `capacity_weight`, delegates to `internalv2/usecase/management`, returns
 `202 Accepted` when the control writer creates state, and returns `200 OK` for
@@ -149,6 +154,17 @@ The downstream flow is `SlotReplicaMoveWriter -> ControllerV2 slot_replica_move
 task -> clusterv2 task executor -> Slot Raft learner/config-change flow -> final
 ControllerV2 assignment commit`; HTTP never treats target learners as
 `DesiredPeers` before that final commit.
+
+`/manager/nodes/:node_id/slot-move-out/*` exposes bounded Slot replica
+migration away from an active Data-role node without entering the scale-in
+lifecycle. `plan` and `advance` accept `max_slot_moves`, delegate source
+eligibility, replacement selection, task conflict checks, and fenced writer
+calls to `management.App.PlanNodeSlotMoveOut` /
+`AdvanceNodeSlotMoveOut`, and reuse the scale-in candidate response shape.
+Controller-voter nodes are allowed as sources because this route does not mark
+the node `leaving`, toggle gateway drain, remove the node, or change Controller
+membership. `advance` returns `202 Accepted` when at least one
+`slot_replica_move` task is created and `200 OK` for no-create results.
 
 `/manager/nodes/:node_id/scale-in/*` exposes scale-in preparation for
 data nodes. `start` marks the target node `leaving` through

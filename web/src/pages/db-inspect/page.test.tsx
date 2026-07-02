@@ -81,7 +81,15 @@ function nodesResponse() {
           draining: false,
           unknown: false,
         },
-        actions: { can_drain: false, can_resume: false, can_scale_in: false, can_onboard: false },
+        actions: {
+          can_drain: false,
+          can_resume: false,
+          can_scale_in: false,
+          can_onboard: false,
+          can_move_slots_in: false,
+          can_move_slots_out: false,
+          can_promote_controller_voter: false,
+        },
       },
     ],
   }

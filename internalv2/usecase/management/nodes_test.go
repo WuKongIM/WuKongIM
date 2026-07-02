@@ -65,8 +65,9 @@ func TestListNodesBuildsReadOnlyNodeInventory(t *testing.T) {
 	if first.Runtime.NodeID != 1 || !first.Runtime.Unknown {
 		t.Fatalf("first runtime = %#v, want unknown runtime for node 1", first.Runtime)
 	}
-	if first.Actions.CanScaleIn || first.Actions.CanOnboard {
-		t.Fatalf("first lifecycle actions = %#v, want controller-voter lifecycle actions disabled", first.Actions)
+	if first.Actions.CanScaleIn || first.Actions.CanPromoteControllerVoter ||
+		!first.Actions.CanOnboard || !first.Actions.CanMoveSlotsIn || !first.Actions.CanMoveSlotsOut {
+		t.Fatalf("first lifecycle actions = %#v, want controller-voter slot migration enabled and scale-in disabled", first.Actions)
 	}
 
 	second := got.Items[1]
@@ -219,17 +220,22 @@ func TestListNodesReportsLifecycleActionHints(t *testing.T) {
 	for _, item := range got.Items {
 		actions[item.NodeID] = item.Actions
 	}
-	if actions[1].CanScaleIn || actions[1].CanOnboard {
-		t.Fatalf("controller voter actions = %#v, want lifecycle actions disabled", actions[1])
+	if actions[1].CanScaleIn || actions[1].CanPromoteControllerVoter ||
+		!actions[1].CanOnboard || !actions[1].CanMoveSlotsIn || !actions[1].CanMoveSlotsOut {
+		t.Fatalf("controller voter actions = %#v, want slot move actions enabled and scale-in disabled", actions[1])
 	}
-	if !actions[2].CanScaleIn || !actions[2].CanOnboard || !actions[2].CanPromoteControllerVoter {
-		t.Fatalf("active data actions = %#v, want scale-in, onboard, and controller promotion enabled", actions[2])
+	if !actions[2].CanScaleIn || !actions[2].CanOnboard || !actions[2].CanMoveSlotsIn ||
+		!actions[2].CanMoveSlotsOut || !actions[2].CanPromoteControllerVoter {
+		t.Fatalf("active data actions = %#v, want scale-in, slot move, and controller promotion enabled", actions[2])
 	}
-	if !actions[3].CanScaleIn || actions[3].CanOnboard || actions[3].CanPromoteControllerVoter {
-		t.Fatalf("leaving data actions = %#v, want scale-in enabled and onboarding/promotion disabled", actions[3])
+	if !actions[3].CanScaleIn || actions[3].CanOnboard || actions[3].CanMoveSlotsIn ||
+		actions[3].CanMoveSlotsOut || actions[3].CanPromoteControllerVoter {
+		t.Fatalf("leaving data actions = %#v, want scale-in enabled and slot move/promotion disabled", actions[3])
 	}
-	if actions[4].CanScaleIn || actions[4].CanOnboard || actions[4].CanPromoteControllerVoter ||
-		actions[5].CanScaleIn || actions[5].CanOnboard || actions[5].CanPromoteControllerVoter {
+	if actions[4].CanScaleIn || actions[4].CanOnboard || actions[4].CanMoveSlotsIn ||
+		actions[4].CanMoveSlotsOut || actions[4].CanPromoteControllerVoter ||
+		actions[5].CanScaleIn || actions[5].CanOnboard || actions[5].CanMoveSlotsIn ||
+		actions[5].CanMoveSlotsOut || actions[5].CanPromoteControllerVoter {
 		t.Fatalf("inactive data actions = %#v/%#v, want lifecycle actions disabled", actions[4], actions[5])
 	}
 }

@@ -78,9 +78,11 @@ import {
   restartNodePlugin,
   planNodeOnboarding,
   planNodeScaleIn,
+  planNodeSlotMoveOut,
   removeNodeAfterScaleIn,
   startNodeScaleIn,
   advanceNodeScaleIn,
+  advanceNodeSlotMoveOut,
   setNodeScaleInDrain,
   startNodeOnboarding,
   planSlotLeaderTransfers,
@@ -772,6 +774,8 @@ describe("manager api client", () => {
           can_resume: false,
           can_scale_in: true,
           can_onboard: false,
+          can_move_slots_in: false,
+          can_move_slots_out: false,
           can_promote_controller_voter: false,
         },
       }],
@@ -2079,6 +2083,8 @@ describe("manager api client", () => {
           can_resume: false,
           can_scale_in: false,
           can_onboard: false,
+          can_move_slots_in: false,
+          can_move_slots_out: false,
           can_promote_controller_voter: false,
         },
       },
@@ -2286,6 +2292,45 @@ describe("manager api client", () => {
     expect(fetchMock.mock.calls[3]?.[0]).toBe("/manager/nodes/4/scale-in/advance")
     expect((fetchMock.mock.calls[3]?.[1] as { method: string }).method).toBe("POST")
     expect(JSON.parse((fetchMock.mock.calls[3]?.[1] as { body: string }).body)).toEqual({ max_slot_moves: 1 })
+  })
+
+  it("calls node slot move-out stage endpoints", async () => {
+    const plan = {
+      generated_at: "2026-07-02T08:00:00Z",
+      state_revision: 42,
+      node_id: 1,
+      candidates: [{
+        slot_id: 7,
+        source_node_id: 1,
+        target_node_id: 4,
+        desired_peers: [1, 2, 3],
+        target_peers: [4, 2, 3],
+        config_epoch: 9,
+      }],
+      blocked_by_status: false,
+    }
+    const advance = {
+      generated_at: "2026-07-02T08:00:01Z",
+      state_revision: 43,
+      node_id: 1,
+      created: 1,
+      skipped: 0,
+      candidates: plan.candidates,
+    }
+
+    fetchMock
+      .mockResolvedValueOnce(new Response(JSON.stringify(plan), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(advance), { status: 202 }))
+
+    await expect(planNodeSlotMoveOut(1, { maxSlotMoves: 2 })).resolves.toEqual(plan)
+    await expect(advanceNodeSlotMoveOut(1, { maxSlotMoves: 1 })).resolves.toEqual(advance)
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("/manager/nodes/1/slot-move-out/plan")
+    expect((fetchMock.mock.calls[0]?.[1] as { method: string }).method).toBe("POST")
+    expect(JSON.parse((fetchMock.mock.calls[0]?.[1] as { body: string }).body)).toEqual({ max_slot_moves: 2 })
+    expect(fetchMock.mock.calls[1]?.[0]).toBe("/manager/nodes/1/slot-move-out/advance")
+    expect((fetchMock.mock.calls[1]?.[1] as { method: string }).method).toBe("POST")
+    expect(JSON.parse((fetchMock.mock.calls[1]?.[1] as { body: string }).body)).toEqual({ max_slot_moves: 1 })
   })
 
   it("keeps a scale-in block report on ManagerApiError", async () => {

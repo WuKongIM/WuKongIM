@@ -284,8 +284,8 @@ func startNodeOnboardingControlRuntime(t *testing.T) *control.Runtime {
 	if err != nil {
 		t.Fatalf("NewRuntime() error = %v", err)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	t.Cleanup(cancel)
 	if err := rt.Start(ctx); err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}

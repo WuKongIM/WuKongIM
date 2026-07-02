@@ -14,7 +14,7 @@ projection, local-or-remote node plugin list/detail projection,
 cluster-authoritative plugin binding list/mutation, DB Inspect,
 diagnostics trace/message/event query orchestration and tracking-rule fan-out,
 node-local diagnostics orchestration, node lifecycle join/activation/leaving,
-bounded Slot onboarding, scale-in preparation status and final safe removal,
+bounded Slot onboarding, pure Slot move-out, scale-in preparation status and final safe removal,
 dynamic node root-cause diagnostics,
 user management, and system UID projections/actions used by
 `GET /manager/nodes`,
@@ -23,6 +23,8 @@ user management, and system UID projections/actions used by
 `POST /manager/nodes/:node_id/onboarding/start`,
 `GET /manager/nodes/:node_id/onboarding/status`,
 `POST /manager/nodes/:node_id/onboarding/advance`,
+`POST /manager/nodes/:node_id/slot-move-out/plan`,
+`POST /manager/nodes/:node_id/slot-move-out/advance`,
 `POST /manager/nodes/:node_id/scale-in/plan`,
 `POST /manager/nodes/:node_id/scale-in/start`,
 `POST /manager/nodes/:node_id/scale-in/drain`,
@@ -81,14 +83,16 @@ the node list does not mix control-plane placement intent with actual Raft
 leadership. Runtime online and gateway counters are read through the narrow
 `RuntimeSummaryReader` port. Read failures or an unwired runtime source mark
 only that node's runtime summary as unknown. Node list action hints remain
-read-model hints. `can_promote_controller_voter` only marks active data-only
-nodes as candidates; the promotion usecase still rechecks durable health,
-target readiness, live preparation proof, and Controller writer fences before
-any durable mutation. `can_drain` and `can_resume` stay tied to the legacy
-node-operation routes and remain disabled in internalv2 until those routes are
-migrated. Stage 5C gateway drain mode is exposed through the scale-in route and
-status instead of these node-list action hints. Lifecycle writes are exposed
-separately by the join and activate flow below.
+read-model hints. `can_move_slots_in` and `can_move_slots_out` are enabled for
+active Data-role nodes, including nodes that are also Controller voters, because
+Slot replica migration is separate from node removal. `can_scale_in` and
+`can_promote_controller_voter` stay limited to active or leaving data-only
+nodes as appropriate; scale-in/remove and Controller membership changes still
+run their own usecase safety gates. `can_drain` and `can_resume` stay tied to
+the legacy node-operation routes and remain disabled in internalv2 until those
+routes are migrated. Stage 5C gateway drain mode is exposed through the
+scale-in route and status instead of these node-list action hints. Lifecycle
+writes are exposed separately by the join and activate flow below.
 
 ## Controller Voter Promotion Flow
 
@@ -294,6 +298,29 @@ Controller writer. Status is a read-only projection of active
 Targets being onboarded are task-local learners before promotion; the durable
 `DesiredPeers` assignment changes only after the clusterv2 executor observes the
 target voter set and commits the final ControllerV2 assignment update.
+
+## Node Slot Move-Out Flow
+
+```text
+manager slot-move-out route
+  -> management.App.PlanNodeSlotMoveOut/AdvanceNodeSlotMoveOut
+  -> ControlSnapshotReader.LocalControlSnapshot
+  -> SlotReplicaMoveWriter.RequestSlotReplicaMove for advance only
+  -> clusterv2 control slot_replica_move task intent
+```
+
+Pure Slot move-out lets operators rebalance replicas away from an active Data
+node without changing that node's lifecycle. The source node only needs to be
+present, Data-role, and durable `active`; Controller-voter membership is not a
+blocker because the operation does not mark the node `leaving`, toggle gateway
+drain, or remove it. Planning scans physical Slots in stable Slot ID order,
+skips Slots where the source is not in `DesiredPeers`, skips Slots with active
+or failed blocking tasks, and chooses the lowest health-schedulable active Data
+replacement not already in the peer set. Advance refreshes the control snapshot
+per candidate and submits fenced `slot_replica_move` intents through the same
+writer path as scale-in. It does not mutate `DesiredPeers` directly, run Slot
+Raft, close sessions, migrate Channel replicas, mark the source node leaving,
+or submit node removal.
 
 ## Slot List Flow
 

@@ -17,6 +17,7 @@ const getNodeOnboardingStatusMock = vi.fn()
 const startNodeScaleInMock = vi.fn()
 const setNodeScaleInDrainMock = vi.fn()
 const advanceNodeScaleInMock = vi.fn()
+const advanceNodeSlotMoveOutMock = vi.fn()
 const removeNodeAfterScaleInMock = vi.fn()
 const getControllerLogsMock = vi.fn()
 const getControllerRaftStatusMock = vi.fn()
@@ -36,6 +37,7 @@ vi.mock("@/lib/manager-api", async (importOriginal) => {
     startNodeScaleIn: (...args: unknown[]) => startNodeScaleInMock(...args),
     setNodeScaleInDrain: (...args: unknown[]) => setNodeScaleInDrainMock(...args),
     advanceNodeScaleIn: (...args: unknown[]) => advanceNodeScaleInMock(...args),
+    advanceNodeSlotMoveOut: (...args: unknown[]) => advanceNodeSlotMoveOutMock(...args),
     removeNodeAfterScaleIn: (...args: unknown[]) => removeNodeAfterScaleInMock(...args),
     getControllerLogs: (...args: unknown[]) => getControllerLogsMock(...args),
     getControllerRaftStatus: (...args: unknown[]) => getControllerRaftStatusMock(...args),
@@ -78,8 +80,10 @@ const nodeRow = {
   actions: {
     can_drain: true,
     can_resume: false,
-    can_scale_in: true,
-    can_onboard: false,
+    can_scale_in: false,
+    can_onboard: true,
+    can_move_slots_in: true,
+    can_move_slots_out: true,
     can_promote_controller_voter: false,
   },
 }
@@ -166,6 +170,7 @@ beforeEach(() => {
   startNodeScaleInMock.mockReset()
   setNodeScaleInDrainMock.mockReset()
   advanceNodeScaleInMock.mockReset()
+  advanceNodeSlotMoveOutMock.mockReset()
   removeNodeAfterScaleInMock.mockReset()
   getControllerLogsMock.mockReset()
   getControllerRaftStatusMock.mockReset()
@@ -301,7 +306,7 @@ test("omits distributed log health from the node list and detail", async () => {
   expect(screen.queryByText("leader commit 100 / lag 7")).not.toBeInTheDocument()
 })
 
-test("renders layered node inventory fields and lifecycle row actions", async () => {
+test("renders layered node inventory fields and slot move row actions", async () => {
   getNodesMock.mockResolvedValueOnce({
     generated_at: "2026-04-23T08:00:01Z",
     controller_leader_id: 1,
@@ -323,9 +328,10 @@ test("renders layered node inventory fields and lifecycle row actions", async ()
   expect(screen.getByText("replicas 3 / leaders 2 / followers 1")).toBeInTheDocument()
   expect(screen.getByText("sessions 5 / online 4")).toBeInTheDocument()
   expect(screen.getByRole("button", { name: "Inspect node 1" })).toBeInTheDocument()
-  expect(screen.getByRole("button", { name: "More actions for node 1" })).toBeInTheDocument()
-  await user.click(screen.getByRole("button", { name: "More actions for node 1" }))
-  expect(screen.getByRole("button", { name: "Start scale-in for node 1" })).toBeInTheDocument()
+  expect(screen.getByRole("button", { name: "Move slots in for node 1" })).toBeInTheDocument()
+  expect(screen.getByRole("button", { name: "Move slots out for node 1" })).toBeInTheDocument()
+  expect(screen.queryByRole("button", { name: "More actions for node 1" })).not.toBeInTheDocument()
+  expect(screen.queryByRole("button", { name: "Start scale-in for node 1" })).not.toBeInTheDocument()
   expect(screen.queryByRole("button", { name: "Set node 1 as Controller voter" })).not.toBeInTheDocument()
   expect(screen.queryByRole("button", { name: "Drain" })).not.toBeInTheDocument()
   expect(screen.queryByRole("button", { name: "Resume" })).not.toBeInTheDocument()
@@ -339,14 +345,15 @@ test("renders lifecycle actions directly in node rows by state", async () => {
     name: "node-4",
     addr: "127.0.0.1:7004",
     membership: { role: "data", join_state: "joining", schedulable: false },
-    actions: { ...nodeRow.actions, can_onboard: false, can_scale_in: false },
+    actions: { ...nodeRow.actions, can_onboard: false, can_move_slots_in: false, can_move_slots_out: false, can_scale_in: false },
   }
   const onboardNode = {
     ...nodeRow,
     node_id: 5,
     name: "node-5",
     addr: "127.0.0.1:7005",
-    actions: { ...nodeRow.actions, can_onboard: true, can_scale_in: true },
+    controller: { role: "follower", voter: false, leader_id: 1 },
+    actions: { ...nodeRow.actions, can_onboard: true, can_move_slots_in: true, can_move_slots_out: true, can_scale_in: true },
   }
   const leavingNode = {
     ...nodeRow,
@@ -354,7 +361,8 @@ test("renders lifecycle actions directly in node rows by state", async () => {
     name: "node-6",
     addr: "127.0.0.1:7006",
     membership: { role: "data", join_state: "leaving", schedulable: false },
-    actions: { ...nodeRow.actions, can_onboard: false, can_scale_in: true },
+    controller: { role: "follower", voter: false, leader_id: 1 },
+    actions: { ...nodeRow.actions, can_onboard: false, can_move_slots_in: false, can_move_slots_out: false, can_scale_in: true },
   }
   getNodesMock.mockResolvedValueOnce({
     generated_at: "2026-07-01T08:00:00Z",
@@ -368,6 +376,7 @@ test("renders lifecycle actions directly in node rows by state", async () => {
   expect(await screen.findByText("127.0.0.1:7004")).toBeInTheDocument()
   expect(screen.getByRole("button", { name: "Activate node 4" })).toBeInTheDocument()
   expect(screen.getByRole("button", { name: "Move slots in for node 5" })).toBeInTheDocument()
+  expect(screen.getByRole("button", { name: "Move slots out for node 5" })).toBeInTheDocument()
   expect(screen.getByRole("button", { name: "Advance scale-in for node 6" })).toBeInTheDocument()
   expect(screen.queryByRole("button", { name: "Start scale-in for node 4" })).not.toBeInTheDocument()
   expect(screen.queryByRole("button", { name: "Open lifecycle for node 4" })).not.toBeInTheDocument()
@@ -724,12 +733,12 @@ test("activates a joining node directly from the row and refreshes the list", as
     name: "node-4",
     addr: "127.0.0.1:7004",
     membership: { role: "data", join_state: "joining", schedulable: false },
-    actions: { ...nodeRow.actions, can_onboard: false, can_scale_in: false },
+    actions: { ...nodeRow.actions, can_onboard: false, can_move_slots_in: false, can_move_slots_out: false, can_scale_in: false },
   }
   const activeNode = {
     ...joiningNode,
     membership: { role: "data", join_state: "active", schedulable: true },
-    actions: { ...nodeRow.actions, can_onboard: true, can_scale_in: true },
+    actions: { ...nodeRow.actions, can_onboard: true, can_move_slots_in: true, can_move_slots_out: true, can_scale_in: true },
   }
   getNodesMock
     .mockResolvedValueOnce({
@@ -767,7 +776,7 @@ test("activates a joining node directly from the row and refreshes the list", as
 test("starts onboarding from the row with a user-specified move count", async () => {
   const onboardNode = {
     ...nodeRow,
-    actions: { ...nodeRow.actions, can_onboard: true, can_scale_in: true },
+    actions: { ...nodeRow.actions, can_onboard: true, can_move_slots_in: true, can_move_slots_out: true, can_scale_in: true },
   }
   getNodesMock
     .mockResolvedValueOnce({
@@ -810,10 +819,51 @@ test("starts onboarding from the row with a user-specified move count", async ()
   })
 })
 
+test("moves slots out from a controller voter row with a user-specified move count", async () => {
+  getNodesMock
+    .mockResolvedValueOnce({
+      generated_at: "2026-07-01T08:00:00Z",
+      controller_leader_id: 1,
+      total: 1,
+      items: [nodeRow],
+    })
+    .mockResolvedValueOnce({
+      generated_at: "2026-07-01T08:00:01Z",
+      controller_leader_id: 1,
+      total: 1,
+      items: [nodeRow],
+    })
+  advanceNodeSlotMoveOutMock.mockResolvedValueOnce({
+    generated_at: "2026-07-01T08:00:01Z",
+    state_revision: 49,
+    node_id: 1,
+    created: 1,
+    skipped: 0,
+    candidates: [],
+  })
+
+  const user = userEvent.setup()
+  renderNodesPage()
+
+  expect(await screen.findByText("127.0.0.1:7000")).toBeInTheDocument()
+  await user.click(screen.getByRole("button", { name: "Move slots out for node 1" }))
+
+  expect(advanceNodeSlotMoveOutMock).not.toHaveBeenCalled()
+  expect(await screen.findByText("Confirm move slots out")).toBeInTheDocument()
+  await user.clear(screen.getByLabelText("Slot move count"))
+  await user.type(screen.getByLabelText("Slot move count"), "2")
+  await user.click(screen.getByRole("button", { name: "Confirm" }))
+
+  expect(advanceNodeSlotMoveOutMock).toHaveBeenCalledWith(1, { maxSlotMoves: 2 })
+  await waitFor(() => {
+    expect(getNodesMock).toHaveBeenCalledTimes(2)
+  })
+})
+
 test("disables slot move-in while onboarding tasks are active", async () => {
   const onboardNode = {
     ...nodeRow,
-    actions: { ...nodeRow.actions, can_onboard: true, can_scale_in: true },
+    actions: { ...nodeRow.actions, can_onboard: true, can_move_slots_in: true, can_move_slots_out: true, can_scale_in: true },
   }
   getNodeOnboardingStatusMock.mockResolvedValueOnce(onboardingStatus(1))
   getNodesMock.mockResolvedValueOnce({
@@ -839,7 +889,7 @@ test("disables slot move-in while onboarding tasks are active", async () => {
 test("ignores stale onboarding status responses after a newer node refresh", async () => {
   const onboardNode = {
     ...nodeRow,
-    actions: { ...nodeRow.actions, can_onboard: true, can_scale_in: true },
+    actions: { ...nodeRow.actions, can_onboard: true, can_move_slots_in: true, can_move_slots_out: true, can_scale_in: true },
   }
   let resolveFirstStatus: ((value: ReturnType<typeof onboardingStatus>) => void) | undefined
   getNodeOnboardingStatusMock
@@ -880,17 +930,22 @@ test("ignores stale onboarding status responses after a newer node refresh", asy
 })
 
 test("starts scale-in from the row actions menu and refreshes the list", async () => {
-  const leavingNodeRow = {
+  const scalableNode = {
     ...nodeRow,
+    controller: { role: "follower", voter: false, leader_id: 1 },
+    actions: { ...nodeRow.actions, can_scale_in: true },
+  }
+  const leavingNodeRow = {
+    ...scalableNode,
     membership: { role: "data", join_state: "leaving", schedulable: false },
-    actions: { ...nodeRow.actions, can_onboard: false },
+    actions: { ...nodeRow.actions, can_onboard: false, can_move_slots_in: false, can_move_slots_out: false, can_scale_in: true },
   }
   getNodesMock
     .mockResolvedValueOnce({
       generated_at: "2026-07-01T08:00:00Z",
       controller_leader_id: 1,
       total: 1,
-      items: [nodeRow],
+      items: [scalableNode],
     })
     .mockResolvedValueOnce({
       generated_at: "2026-07-01T08:00:01Z",
@@ -923,12 +978,17 @@ test("starts scale-in from the row actions menu and refreshes the list", async (
 })
 
 test("shows a row action error when the post-action refresh fails", async () => {
+  const scalableNode = {
+    ...nodeRow,
+    controller: { role: "follower", voter: false, leader_id: 1 },
+    actions: { ...nodeRow.actions, can_scale_in: true },
+  }
   getNodesMock
     .mockResolvedValueOnce({
       generated_at: "2026-07-01T08:00:00Z",
       controller_leader_id: 1,
       total: 1,
-      items: [nodeRow],
+      items: [scalableNode],
     })
     .mockRejectedValueOnce(new ManagerApiError(503, "service_unavailable", "controller leader unavailable"))
   startNodeScaleInMock.mockResolvedValueOnce({

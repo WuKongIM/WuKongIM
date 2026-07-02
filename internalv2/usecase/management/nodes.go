@@ -427,6 +427,10 @@ type NodeActions struct {
 	CanScaleIn bool
 	// CanOnboard reports whether the node can be considered for explicit resource allocation.
 	CanOnboard bool
+	// CanMoveSlotsIn reports whether Slot replicas can be moved into this data node.
+	CanMoveSlotsIn bool
+	// CanMoveSlotsOut reports whether Slot replicas can be moved out of this data node without changing node lifecycle.
+	CanMoveSlotsOut bool
 	// CanPromoteControllerVoter reports whether the node can be considered for Controller voter promotion.
 	CanPromoteControllerVoter bool
 }
@@ -590,12 +594,15 @@ func buildNode(opts nodeBuildOptions) Node {
 
 // nodeActions derives read-model lifecycle action hints from durable membership state.
 func nodeActions(node control.Node, controllerVoter bool) NodeActions {
-	role := managerNodeRole(node.Roles)
 	joinState := managerNodeJoinState(node.JoinState)
-	dataOnly := role == "data" && !controllerVoter
+	dataNode := hasRole(node.Roles, control.RoleData)
+	activeData := dataNode && joinState == "active"
+	dataOnly := dataNode && !controllerVoter
 	return NodeActions{
 		CanScaleIn:                dataOnly && (joinState == "active" || joinState == "leaving"),
-		CanOnboard:                dataOnly && joinState == "active",
+		CanOnboard:                activeData,
+		CanMoveSlotsIn:            activeData,
+		CanMoveSlotsOut:           activeData,
 		CanPromoteControllerVoter: dataOnly && joinState == "active",
 	}
 }

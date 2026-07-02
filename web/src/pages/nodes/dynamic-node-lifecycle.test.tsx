@@ -70,13 +70,29 @@ const activeNode: ManagerNode = {
     draining: false,
     unknown: false,
   },
-  actions: { can_drain: false, can_resume: false, can_scale_in: true, can_onboard: true },
+  actions: {
+    can_drain: false,
+    can_resume: false,
+    can_scale_in: true,
+    can_onboard: true,
+    can_move_slots_in: true,
+    can_move_slots_out: true,
+    can_promote_controller_voter: true,
+  },
 }
 
 const joiningNode: ManagerNode = {
   ...activeNode,
   membership: { role: "data", join_state: "joining", schedulable: false },
-  actions: { can_drain: false, can_resume: false, can_scale_in: false, can_onboard: false },
+  actions: {
+    can_drain: false,
+    can_resume: false,
+    can_scale_in: false,
+    can_onboard: false,
+    can_move_slots_in: false,
+    can_move_slots_out: false,
+    can_promote_controller_voter: false,
+  },
 }
 
 beforeEach(() => {

@@ -64,6 +64,9 @@ import type {
   ManagerNodeScaleInRemoveResponse,
   ManagerNodeScaleInStartResponse,
   ManagerNodeScaleInStatusResponse,
+  ManagerNodeSlotMoveOutActionInput,
+  ManagerNodeSlotMoveOutAdvanceResponse,
+  ManagerNodeSlotMoveOutPlanResponse,
   ManagerNodesResponse,
   ManagerOverviewResponse,
   ManagerPermission,
@@ -707,6 +710,20 @@ export function getNodeScaleInStatus(nodeId: number) {
 
 export function advanceNodeScaleIn(nodeId: number, input: ManagerNodeScaleInActionInput = {}) {
   return jsonManagerFetch<ManagerNodeScaleInAdvanceResponse>(`/manager/nodes/${nodeId}/scale-in/advance`, {
+    method: "POST",
+    body: buildNodeLifecycleMoveBody(input),
+  })
+}
+
+export function planNodeSlotMoveOut(nodeId: number, input: ManagerNodeSlotMoveOutActionInput = {}) {
+  return jsonManagerFetch<ManagerNodeSlotMoveOutPlanResponse>(`/manager/nodes/${nodeId}/slot-move-out/plan`, {
+    method: "POST",
+    body: buildNodeLifecycleMoveBody(input),
+  })
+}
+
+export function advanceNodeSlotMoveOut(nodeId: number, input: ManagerNodeSlotMoveOutActionInput = {}) {
+  return jsonManagerFetch<ManagerNodeSlotMoveOutAdvanceResponse>(`/manager/nodes/${nodeId}/slot-move-out/advance`, {
     method: "POST",
     body: buildNodeLifecycleMoveBody(input),
   })

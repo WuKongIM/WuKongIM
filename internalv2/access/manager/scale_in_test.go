@@ -591,3 +591,93 @@ func TestManagerScaleInCancelIsNotRegistered(t *testing.T) {
 		t.Fatalf("status = %d body=%s, want %d", rec.Code, rec.Body.String(), http.StatusNotFound)
 	}
 }
+
+func TestManagerNodeSlotMoveOutPlanAndAdvance(t *testing.T) {
+	generatedAt := time.Date(2026, 7, 2, 8, 0, 0, 0, time.UTC)
+	var seenPlan managementusecase.NodeSlotMoveOutPlanRequest
+	var seenAdvance managementusecase.NodeSlotMoveOutAdvanceRequest
+	srv := New(Options{
+		Auth: testAuthConfig([]UserConfig{{
+			Username: "admin",
+			Password: "secret",
+			Permissions: []PermissionConfig{{
+				Resource: "cluster.node",
+				Actions:  []string{"w"},
+			}},
+		}}),
+		Management: managerNodesStub{
+			slotMoveOutPlanReqSink:    &seenPlan,
+			slotMoveOutAdvanceReqSink: &seenAdvance,
+			slotMoveOutPlan: managementusecase.NodeSlotMoveOutPlanResponse{
+				NodeID:        1,
+				GeneratedAt:   generatedAt,
+				StateRevision: 22,
+				Candidates: []managementusecase.NodeSlotMoveOutCandidate{{
+					SlotID:       9,
+					SourceNodeID: 1,
+					TargetNodeID: 4,
+					DesiredPeers: []uint64{1, 2, 3},
+					TargetPeers:  []uint64{4, 2, 3},
+					ConfigEpoch:  7,
+				}},
+			},
+			slotMoveOutAdvance: managementusecase.NodeSlotMoveOutAdvanceResponse{
+				NodeID:        1,
+				GeneratedAt:   generatedAt,
+				StateRevision: 22,
+				Created:       1,
+				Candidates: []managementusecase.NodeSlotMoveOutCandidate{{
+					SlotID:       9,
+					SourceNodeID: 1,
+					TargetNodeID: 4,
+					DesiredPeers: []uint64{1, 2, 3},
+					TargetPeers:  []uint64{4, 2, 3},
+					ConfigEpoch:  7,
+				}},
+			},
+		},
+	})
+
+	planRec := httptest.NewRecorder()
+	planReq := httptest.NewRequest(http.MethodPost, "/manager/nodes/1/slot-move-out/plan", strings.NewReader(`{"max_slot_moves":2}`))
+	planReq.Header.Set("Content-Type", "application/json")
+	planReq.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
+	srv.Engine().ServeHTTP(planRec, planReq)
+	if planRec.Code != http.StatusOK {
+		t.Fatalf("plan status = %d body=%s, want %d", planRec.Code, planRec.Body.String(), http.StatusOK)
+	}
+	if seenPlan.NodeID != 1 || seenPlan.MaxSlotMoves != 2 {
+		t.Fatalf("plan request = %#v, want node 1 max 2", seenPlan)
+	}
+	if !jsonEqual(planRec.Body.String(), `{
+		"generated_at": "2026-07-02T08:00:00Z",
+		"state_revision": 22,
+		"node_id": 1,
+		"candidates": [{
+			"slot_id": 9,
+			"source_node_id": 1,
+			"target_node_id": 4,
+			"desired_peers": [1,2,3],
+			"target_peers": [4,2,3],
+			"config_epoch": 7
+		}],
+		"blocked_by_status": false
+	}`) {
+		t.Fatalf("plan body = %s", planRec.Body.String())
+	}
+
+	advanceRec := httptest.NewRecorder()
+	advanceReq := httptest.NewRequest(http.MethodPost, "/manager/nodes/1/slot-move-out/advance", strings.NewReader(`{"max_slot_moves":1}`))
+	advanceReq.Header.Set("Content-Type", "application/json")
+	advanceReq.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
+	srv.Engine().ServeHTTP(advanceRec, advanceReq)
+	if advanceRec.Code != http.StatusAccepted {
+		t.Fatalf("advance status = %d body=%s, want %d", advanceRec.Code, advanceRec.Body.String(), http.StatusAccepted)
+	}
+	if seenAdvance.NodeID != 1 || seenAdvance.MaxSlotMoves != 1 {
+		t.Fatalf("advance request = %#v, want node 1 max 1", seenAdvance)
+	}
+	if !strings.Contains(advanceRec.Body.String(), `"created":1`) || !strings.Contains(advanceRec.Body.String(), `"source_node_id":1`) {
+		t.Fatalf("advance body = %s, want created move-out response", advanceRec.Body.String())
+	}
+}
