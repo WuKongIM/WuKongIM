@@ -35,6 +35,8 @@ type Config struct {
 	Slots SlotConfig
 	// Channel contains ChannelV2 service configuration.
 	Channel ChannelConfig
+	// ChannelMigration contains bounded ChannelV2 failover and repair worker settings.
+	ChannelMigration ChannelMigrationConfig
 	// ChannelRetention contains node-owned ChannelV2 physical retention cleanup settings.
 	ChannelRetention ChannelRetentionConfig
 	// HealthReport controls low-frequency node health reporting to ControllerV2.
@@ -171,6 +173,24 @@ type ChannelConfig struct {
 	Observer reactor.Observer
 }
 
+// ChannelMigrationConfig contains node-owned ChannelV2 migration worker settings.
+type ChannelMigrationConfig struct {
+	// Enabled starts the bounded background worker that advances migration tasks and creates repair work.
+	Enabled bool
+	// EnabledSet records whether Enabled was explicitly configured.
+	EnabledSet bool
+	// ScanInterval controls how often the node scans and advances ChannelV2 migration work.
+	ScanInterval time.Duration
+	// ScanLimit caps channel runtime metadata rows read from one Slot page per scanner tick.
+	ScanLimit int
+	// MaxPagesPerTick caps physical Slot pages scanned per worker tick.
+	MaxPagesPerTick int
+	// MaxTasksPerTick caps repair tasks created per scanner tick.
+	MaxTasksPerTick int
+	// TaskLimit caps active migration tasks inspected by the executor per tick.
+	TaskLimit int
+}
+
 // ChannelRetentionConfig contains node-owned ChannelV2 physical cleanup settings.
 type ChannelRetentionConfig struct {
 	// PhysicalGCEnabled enables the background local physical retention cleanup loop.
@@ -241,6 +261,7 @@ func (c *Config) applyDefaults() {
 	if c.Channel.ReplicaCount == 0 {
 		c.Channel.ReplicaCount = c.Slots.ReplicaCount
 	}
+	c.applyChannelMigrationDefaults()
 	c.applyChannelRetentionDefaults()
 	c.applyHealthReportDefaults()
 }
@@ -314,6 +335,27 @@ func (c *Config) applyChannelRetentionDefaults() {
 	}
 }
 
+func (c *Config) applyChannelMigrationDefaults() {
+	if !c.ChannelMigration.EnabledSet {
+		c.ChannelMigration.Enabled = true
+	}
+	if c.ChannelMigration.ScanInterval == 0 {
+		c.ChannelMigration.ScanInterval = time.Second
+	}
+	if c.ChannelMigration.ScanLimit == 0 {
+		c.ChannelMigration.ScanLimit = 64
+	}
+	if c.ChannelMigration.MaxPagesPerTick == 0 {
+		c.ChannelMigration.MaxPagesPerTick = 1
+	}
+	if c.ChannelMigration.MaxTasksPerTick == 0 {
+		c.ChannelMigration.MaxTasksPerTick = 1
+	}
+	if c.ChannelMigration.TaskLimit == 0 {
+		c.ChannelMigration.TaskLimit = 1
+	}
+}
+
 func (c *Config) applyHealthReportDefaults() {
 	if c.HealthReport.Interval == 0 {
 		c.HealthReport.Interval = 5 * time.Second
@@ -370,6 +412,21 @@ func (c Config) validate() error {
 		return ErrInvalidConfig
 	}
 	if c.Channel.FollowerRecoveryProbeJitter < 0 {
+		return ErrInvalidConfig
+	}
+	if c.ChannelMigration.ScanInterval < 0 {
+		return ErrInvalidConfig
+	}
+	if c.ChannelMigration.ScanLimit < 0 {
+		return ErrInvalidConfig
+	}
+	if c.ChannelMigration.MaxPagesPerTick < 0 {
+		return ErrInvalidConfig
+	}
+	if c.ChannelMigration.MaxTasksPerTick < 0 {
+		return ErrInvalidConfig
+	}
+	if c.ChannelMigration.TaskLimit < 0 {
 		return ErrInvalidConfig
 	}
 	if c.ChannelRetention.ScanInterval < 0 {

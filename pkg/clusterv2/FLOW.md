@@ -24,7 +24,7 @@ The root `Node` stays thin: it owns lifecycle, readiness, public API delegation,
 | `net` | Typed node-to-node RPC and discovery glue; Go package name is `clusternet`. |
 | `slots` | Slot Multi-Raft runtime open/bootstrap/reconcile/status. |
 | `propose` | Slot metadata propose path and leader forwarding. |
-| `channels` | ChannelV2 service construction, metadata resolve/ensure, append leader forwarding, and replication transport. |
+| `channels` | ChannelV2 service construction, metadata resolve/ensure, append leader forwarding, replication transport, and channel migration planning/execution primitives. |
 | `observe` | Low-frequency background loops and readiness snapshots. |
 
 ## Route Authority And Node RPC Surface
@@ -141,6 +141,8 @@ Start(ctx)
   -> mark ChannelV2 ready and start the tick loop
   -> mark node started
   -> start low-frequency ControllerV2 health reporting
+  -> start ChannelV2 physical retention cleanup loop when enabled
+  -> start the bounded ChannelV2 migration executor/repair scanner loop when enabled
 ```
 
 `Start` requires cluster semantics even for one node. A single-node cluster uses a ControllerV2-backed single-voter control runtime instead of a bypass path. Multi-voter default startup uses `pkg/transportv2` one-way service messages for ControllerV2 Raft traffic and RPC responses only for state-sync requests. The ControllerV2 Raft receive handler bounds local `Step` enqueue time and may drop messages when the local Step queue is saturated; Raft retransmission is relied on instead of allowing one-way notify goroutines to accumulate indefinitely.
@@ -221,6 +223,7 @@ Stop(ctx)
   -> stop Controller watch loop
   -> stop ChannelV2 tick loop
   -> stop ChannelV2 physical retention cleanup loop
+  -> stop ChannelV2 migration executor/repair scanner loop
   -> close hosted ChannelV2 service
   -> stop ControllerV2-backed Controller or injected Controller
   -> stop injected lifecycle resources in reverse order
@@ -295,9 +298,10 @@ observations include pages scanned, blocked backlog, failover result, and
 replica-repair result. Observers must aggregate by bounded kind/phase/reason or
 result only; task IDs, channel IDs, node addresses, and UIDs are not metric
 labels.
-Default hosting remains disabled until the three-node e2ev2 kill-node coverage
-is green, so foreground SEND paths still only read local channel state and the
-node-local data-plane lease.
+Default hosting starts the bounded migration executor/repair scanner loop unless
+`Config.ChannelMigration.Enabled` is explicitly false. Each tick runs at most the
+configured number of task executor steps and Slot-owned runtime-meta scan pages,
+so failover and repair work cannot turn into an unbounded foreground SEND tax.
 Internalv2 callers should use this facade instead of depending on Slot FSM
 command payloads or unscoped migration table reads. `Node.ChannelMigrationStore`
 exposes the hosted facade for internalv2 app wiring and returns nil when the

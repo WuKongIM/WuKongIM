@@ -60,6 +60,12 @@ var supportedConfigKeys = []string{
 	"WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_JITTER",
 	"WK_CLUSTER_NODE_HEALTH_REPORT_INTERVAL",
 	"WK_CLUSTER_NODE_HEALTH_REPORT_TTL",
+	"WK_CHANNEL_MIGRATION_ENABLE",
+	"WK_CHANNEL_MIGRATION_SCAN_INTERVAL",
+	"WK_CHANNEL_MIGRATION_SCAN_LIMIT",
+	"WK_CHANNEL_MIGRATION_MAX_PAGES_PER_TICK",
+	"WK_CHANNEL_MIGRATION_MAX_TASKS_PER_TICK",
+	"WK_CHANNEL_MIGRATION_TASK_LIMIT",
 	"WK_CHANNEL_MESSAGE_RETENTION_PHYSICAL_GC_ENABLE",
 	"WK_CHANNEL_MESSAGE_RETENTION_SCAN_INTERVAL",
 	"WK_CHANNEL_MESSAGE_RETENTION_CHANNEL_BATCH_SIZE",
@@ -602,6 +608,64 @@ func buildConfig(values map[string]string) (app.Config, error) {
 	}
 	if err := validateClusterHealthReportConfig(cfg.Cluster.HealthReport); err != nil {
 		return app.Config{}, err
+	}
+	if raw := configValue(values, "WK_CHANNEL_MIGRATION_ENABLE"); raw != "" {
+		enabled, err := parseBool("WK_CHANNEL_MIGRATION_ENABLE", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Cluster.ChannelMigration.Enabled = enabled
+		cfg.Cluster.ChannelMigration.EnabledSet = true
+	}
+	if raw := configValue(values, "WK_CHANNEL_MIGRATION_SCAN_INTERVAL"); raw != "" {
+		interval, err := parseDuration("WK_CHANNEL_MIGRATION_SCAN_INTERVAL", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if interval <= 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CHANNEL_MIGRATION_SCAN_INTERVAL: value must be > 0")
+		}
+		cfg.Cluster.ChannelMigration.ScanInterval = interval
+	}
+	if raw := configValue(values, "WK_CHANNEL_MIGRATION_SCAN_LIMIT"); raw != "" {
+		limit, err := parseInt("WK_CHANNEL_MIGRATION_SCAN_LIMIT", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if limit <= 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CHANNEL_MIGRATION_SCAN_LIMIT: value must be > 0")
+		}
+		cfg.Cluster.ChannelMigration.ScanLimit = limit
+	}
+	if raw := configValue(values, "WK_CHANNEL_MIGRATION_MAX_PAGES_PER_TICK"); raw != "" {
+		limit, err := parseInt("WK_CHANNEL_MIGRATION_MAX_PAGES_PER_TICK", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if limit <= 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CHANNEL_MIGRATION_MAX_PAGES_PER_TICK: value must be > 0")
+		}
+		cfg.Cluster.ChannelMigration.MaxPagesPerTick = limit
+	}
+	if raw := configValue(values, "WK_CHANNEL_MIGRATION_MAX_TASKS_PER_TICK"); raw != "" {
+		limit, err := parseInt("WK_CHANNEL_MIGRATION_MAX_TASKS_PER_TICK", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if limit <= 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CHANNEL_MIGRATION_MAX_TASKS_PER_TICK: value must be > 0")
+		}
+		cfg.Cluster.ChannelMigration.MaxTasksPerTick = limit
+	}
+	if raw := configValue(values, "WK_CHANNEL_MIGRATION_TASK_LIMIT"); raw != "" {
+		limit, err := parseInt("WK_CHANNEL_MIGRATION_TASK_LIMIT", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if limit <= 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CHANNEL_MIGRATION_TASK_LIMIT: value must be > 0")
+		}
+		cfg.Cluster.ChannelMigration.TaskLimit = limit
 	}
 	if raw := configValue(values, "WK_CHANNEL_MESSAGE_RETENTION_PHYSICAL_GC_ENABLE"); raw != "" {
 		enabled, err := parseBool("WK_CHANNEL_MESSAGE_RETENTION_PHYSICAL_GC_ENABLE", raw)

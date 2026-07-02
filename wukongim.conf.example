@@ -160,21 +160,15 @@ WK_CHANNEL_PLANE_REACTOR_COUNT=0
 WK_CHANNEL_PLANE_PEER_LANE_COUNT=0
 WK_CHANNEL_PLANE_PEER_BATCH_MAX_WAIT=500us
 
-# Channel migration runs on local slot leaders and advances durable channel leader-transfer
-# or replica-replacement tasks created through the manager API.
+# Channel migration runs on local Slot leaders and advances durable ChannelV2
+# leader failover, leader-transfer, and replica-replacement tasks. Keep per-tick
+# bounds small on large clusters; the SEND hot path never performs these scans.
+WK_CHANNEL_MIGRATION_ENABLE=true
 WK_CHANNEL_MIGRATION_SCAN_INTERVAL=1s
 WK_CHANNEL_MIGRATION_SCAN_LIMIT=64
-WK_CHANNEL_MIGRATION_OWNER_LEASE_TTL=30s
-WK_CHANNEL_MIGRATION_RETRY_BACKOFF=1m
-WK_CHANNEL_MIGRATION_FENCE_TTL=1m
-WK_CHANNEL_MIGRATION_LEADER_LEASE_TTL=1m
-WK_CHANNEL_MIGRATION_CATCH_UP_STABLE_WINDOW=1s
-WK_CHANNEL_MIGRATION_CATCH_UP_LAG_THRESHOLD=0
-WK_CHANNEL_MIGRATION_MAX_CONCURRENT=64
-WK_CHANNEL_MIGRATION_MAX_CONCURRENT_PER_SOURCE=1
-WK_CHANNEL_MIGRATION_MAX_CONCURRENT_PER_TARGET=1
-WK_CHANNEL_MIGRATION_COMPLETED_RETENTION_TTL=24h
-WK_CHANNEL_MIGRATION_GC_LIMIT=128
+WK_CHANNEL_MIGRATION_MAX_PAGES_PER_TICK=1
+WK_CHANNEL_MIGRATION_MAX_TASKS_PER_TICK=1
+WK_CHANNEL_MIGRATION_TASK_LIMIT=1
 
 # Channel message retention is disabled by default. Set a positive TTL to allow
 # the leader-driven retention worker to hide and trim expired channel message prefixes.

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/clusterv2/net"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/propose"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
@@ -16,10 +17,12 @@ import (
 const (
 	channelMigrationMetaRPCVersion = uint8(1)
 
-	channelMigrationMetaOpGetRuntime = "get_runtime"
-	channelMigrationMetaOpGetActive  = "get_active"
-	channelMigrationMetaOpGetTask    = "get_task"
-	channelMigrationMetaOpListActive = "list_active"
+	channelMigrationMetaOpGetRuntime   = "get_runtime"
+	channelMigrationMetaOpGetActive    = "get_active"
+	channelMigrationMetaOpGetTask      = "get_task"
+	channelMigrationMetaOpListActive   = "list_active"
+	channelMigrationMetaOpRuntimeProbe = "runtime_probe"
+	channelMigrationMetaOpRuntimeDrain = "runtime_drain"
 )
 
 func (n *Node) readChannelMigrationRuntimeMeta(ctx context.Context, hashSlot uint16, channelID string, channelType int64) (metadb.ChannelRuntimeMeta, error) {
@@ -246,6 +249,9 @@ func mapChannelMigrationRemoteError(err error) error {
 		return ErrNotLeader
 	case errors.Is(err, ErrNotLeader),
 		errors.Is(err, ErrNotStarted),
+		errors.Is(err, ch.ErrChannelNotFound),
+		errors.Is(err, ch.ErrNotReady),
+		errors.Is(err, ch.ErrInvalidConfig),
 		errors.Is(err, metadb.ErrStaleMeta),
 		errors.Is(err, metadb.ErrInvalidArgument),
 		errors.Is(err, metadb.ErrNotFound):
@@ -261,6 +267,12 @@ func mapChannelMigrationRemoteError(err error) error {
 		return ErrNotLeader
 	case strings.Contains(msg, ErrNotStarted.Error()):
 		return ErrNotStarted
+	case strings.Contains(msg, ch.ErrChannelNotFound.Error()):
+		return ch.ErrChannelNotFound
+	case strings.Contains(msg, ch.ErrNotReady.Error()):
+		return ch.ErrNotReady
+	case strings.Contains(msg, ch.ErrInvalidConfig.Error()):
+		return ch.ErrInvalidConfig
 	case strings.Contains(msg, metadb.ErrStaleMeta.Error()):
 		return metadb.ErrStaleMeta
 	case strings.Contains(msg, metadb.ErrInvalidArgument.Error()):
@@ -317,6 +329,21 @@ func (h channelMigrationMetaHandler) HandleRPC(ctx context.Context, payload []by
 			return nil, err
 		}
 		resp.Tasks = tasks
+	case channelMigrationMetaOpRuntimeProbe:
+		probe, err := h.node.probeLocalChannelRuntime(ctx, req.ChannelID, uint8(req.ChannelType))
+		if err != nil {
+			return nil, err
+		}
+		resp.RuntimeProbe = &probe
+	case channelMigrationMetaOpRuntimeDrain:
+		if req.DrainRequest == nil {
+			return nil, fmt.Errorf("%w: drain request is required", metadb.ErrInvalidArgument)
+		}
+		result, err := h.node.drainLocalChannelRuntime(ctx, *req.DrainRequest)
+		if err != nil {
+			return nil, err
+		}
+		resp.DrainResult = &result
 	default:
 		return nil, fmt.Errorf("%w: channel migration meta op %q", metadb.ErrInvalidArgument, req.Op)
 	}
@@ -324,20 +351,23 @@ func (h channelMigrationMetaHandler) HandleRPC(ctx context.Context, payload []by
 }
 
 type channelMigrationMetaRPCRequest struct {
-	Version     uint8  `json:"version"`
-	Op          string `json:"op"`
-	HashSlot    uint16 `json:"hash_slot"`
-	ChannelID   string `json:"channel_id,omitempty"`
-	ChannelType int64  `json:"channel_type,omitempty"`
-	TaskID      string `json:"task_id,omitempty"`
-	Limit       int    `json:"limit,omitempty"`
+	Version      uint8                   `json:"version"`
+	Op           string                  `json:"op"`
+	HashSlot     uint16                  `json:"hash_slot"`
+	ChannelID    string                  `json:"channel_id,omitempty"`
+	ChannelType  int64                   `json:"channel_type,omitempty"`
+	TaskID       string                  `json:"task_id,omitempty"`
+	Limit        int                     `json:"limit,omitempty"`
+	DrainRequest *ch.DrainChannelRequest `json:"drain_request,omitempty"`
 }
 
 type channelMigrationMetaRPCResponse struct {
-	Version     uint8                         `json:"version"`
-	RuntimeMeta *metadb.ChannelRuntimeMeta    `json:"runtime_meta,omitempty"`
-	Task        *metadb.ChannelMigrationTask  `json:"task,omitempty"`
-	Tasks       []metadb.ChannelMigrationTask `json:"tasks,omitempty"`
+	Version      uint8                         `json:"version"`
+	RuntimeMeta  *metadb.ChannelRuntimeMeta    `json:"runtime_meta,omitempty"`
+	Task         *metadb.ChannelMigrationTask  `json:"task,omitempty"`
+	Tasks        []metadb.ChannelMigrationTask `json:"tasks,omitempty"`
+	RuntimeProbe *ch.RuntimeProbeChannel       `json:"runtime_probe,omitempty"`
+	DrainResult  *ch.DrainChannelResult        `json:"drain_result,omitempty"`
 }
 
 func encodeChannelMigrationMetaRPCRequest(req channelMigrationMetaRPCRequest) ([]byte, error) {

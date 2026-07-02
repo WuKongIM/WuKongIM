@@ -175,6 +175,35 @@ func TestStartedNodeCleanupStopsCurrentProcessAfterRestart(t *testing.T) {
 	require.NotNil(t, second.Cmd.ProcessState)
 }
 
+func TestStartedClusterStartStoppedNodeStartsDetachedProcess(t *testing.T) {
+	binaryPath := writeFakeNodeBinary(t)
+	rootDir := filepath.Join(t.TempDir(), "node-1")
+	spec := NodeSpec{
+		ID:         1,
+		RootDir:    rootDir,
+		ConfigPath: filepath.Join(rootDir, "wukongim.conf"),
+		StdoutPath: filepath.Join(rootDir, "stdout.log"),
+		StderrPath: filepath.Join(rootDir, "stderr.log"),
+	}
+	require.NoError(t, os.MkdirAll(rootDir, 0o755))
+	require.NoError(t, os.WriteFile(spec.ConfigPath, []byte("WK_NODE_ID=1\n"), 0o644))
+
+	cluster := &StartedCluster{
+		Nodes:      []StartedNode{{Spec: spec}},
+		binaryPath: binaryPath,
+	}
+
+	require.NoError(t, cluster.StartStoppedNode(1))
+	defer func() { _ = cluster.MustNode(1).Stop() }()
+
+	node := cluster.MustNode(1)
+	require.NotNil(t, node.Process)
+	require.NotNil(t, node.Process.Cmd)
+	require.NotNil(t, node.Process.Cmd.Process)
+	require.Nil(t, node.Process.Cmd.ProcessState)
+	require.Equal(t, spec.ConfigPath, node.Process.Spec.ConfigPath)
+}
+
 func startFakeNodeProcess(t *testing.T, binaryPath string, name string) *NodeProcess {
 	t.Helper()
 

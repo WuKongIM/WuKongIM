@@ -197,7 +197,7 @@ func TestMigrationExecutorObservesBlockedPhaseAndActiveCounts(t *testing.T) {
 	require.Equal(t, metadb.ChannelMigrationPhaseProbeTarget, observer.durations[0].phase)
 }
 
-func TestLeaderTransferExecutorBlocksNewLeaderWithoutCutoverProof(t *testing.T) {
+func TestLeaderTransferExecutorRetriesLaggingNewLeaderWithoutBlocking(t *testing.T) {
 	ctx := context.Background()
 	now := time.UnixMilli(1750000220000).UTC()
 	id := ch.ChannelID{ID: "executor-new-leader-lagging", Type: 1}
@@ -225,10 +225,16 @@ func TestLeaderTransferExecutorBlocksNewLeaderWithoutCutoverProof(t *testing.T) 
 	store := newFakeMigrationExecutorStore(task, &meta, now)
 	runtime := &fakeMigrationExecutorRuntime{
 		probes: map[uint64][]ch.RuntimeProbeChannel{
-			3: {{
-				ChannelID: id, ChannelEpoch: 10, LeaderEpoch: 21, Role: ch.RoleLeader, Status: ch.StatusActive, HW: 9, LEO: 9,
-				WriteFence: ch.WriteFence{Token: task.TaskID, Version: 4, Reason: ch.WriteFenceReasonLeaderTransfer},
-			}},
+			3: {
+				{
+					ChannelID: id, ChannelEpoch: 10, LeaderEpoch: 21, Role: ch.RoleLeader, Status: ch.StatusActive, HW: 9, LEO: 9,
+					WriteFence: ch.WriteFence{Token: task.TaskID, Version: 4, Reason: ch.WriteFenceReasonLeaderTransfer},
+				},
+				{
+					ChannelID: id, ChannelEpoch: 10, LeaderEpoch: 21, Role: ch.RoleLeader, Status: ch.StatusActive, HW: 10, LEO: 10,
+					WriteFence: ch.WriteFence{Token: task.TaskID, Version: 4, Reason: ch.WriteFenceReasonLeaderTransfer},
+				},
+			},
 		},
 	}
 	executor := NewMigrationExecutor(MigrationExecutorConfig{
@@ -242,10 +248,19 @@ func TestLeaderTransferExecutorBlocksNewLeaderWithoutCutoverProof(t *testing.T) 
 
 	require.NoError(t, executor.RunOnce(ctx))
 
-	require.Equal(t, metadb.ChannelMigrationStatusBlocked, store.task.Status)
+	require.Equal(t, metadb.ChannelMigrationStatusRunning, store.task.Status)
 	require.Equal(t, metadb.ChannelMigrationPhaseVerifyNewLeader, store.task.Phase)
-	require.Equal(t, "new_leader_not_ready", store.lastReason)
+	require.Empty(t, store.lastReason)
+	require.Empty(t, store.ops)
 	require.NotContains(t, store.ops, "clear_fence")
+	require.Equal(t, []string{"probe:3"}, runtime.ops)
+
+	require.NoError(t, executor.RunOnce(ctx))
+
+	require.Equal(t, metadb.ChannelMigrationStatusCompleted, store.task.Status)
+	require.Equal(t, metadb.ChannelMigrationPhaseClearFence, store.task.Phase)
+	require.Equal(t, []string{"clear_fence"}, store.ops)
+	require.Equal(t, []string{"probe:3", "probe:3"}, runtime.ops)
 }
 
 func TestMigrationExecutorRenewsExpiredLocalOwnerLease(t *testing.T) {

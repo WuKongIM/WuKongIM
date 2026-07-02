@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	channelwrapper "github.com/WuKongIM/WuKongIM/pkg/clusterv2/channels"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/observe"
 )
 
@@ -315,4 +316,71 @@ func (n *Node) stopChannelRetentionGCLoop() {
 	n.channelRetentionCancel()
 	n.channelRetentionWG.Wait()
 	n.channelRetentionCancel = nil
+}
+
+func (n *Node) startChannelMigrationLoop() {
+	if n == nil || n.channelMigrationCancel != nil || !n.cfg.ChannelMigration.Enabled {
+		return
+	}
+	store := n.ChannelMigrationStore()
+	if n.channels == nil || store == nil {
+		return
+	}
+	interval := n.cfg.ChannelMigration.ScanInterval
+	if interval <= 0 {
+		return
+	}
+	metaReader := defaultChannelRuntimeMetaStore{node: n}
+	var migrationObserver channelwrapper.MigrationObserver
+	if observer, ok := n.cfg.Channel.Observer.(channelwrapper.MigrationObserver); ok {
+		migrationObserver = observer
+	}
+	var repairObserver channelwrapper.RepairObserver
+	if observer, ok := n.cfg.Channel.Observer.(channelwrapper.RepairObserver); ok {
+		repairObserver = observer
+	}
+	executor := channelwrapper.NewMigrationExecutor(channelwrapper.MigrationExecutorConfig{
+		LocalNode: n.cfg.NodeID,
+		Source:    n,
+		Store:     store,
+		Runtime:   n,
+		Meta:      metaReader,
+		Observer:  migrationObserver,
+		TaskLimit: n.cfg.ChannelMigration.TaskLimit,
+	})
+	scanner := channelwrapper.NewRepairScanner(channelwrapper.RepairScannerConfig{
+		Enabled:         true,
+		PageLimit:       n.cfg.ChannelMigration.ScanLimit,
+		MaxPagesPerTick: n.cfg.ChannelMigration.MaxPagesPerTick,
+		MaxTasksPerTick: n.cfg.ChannelMigration.MaxTasksPerTick,
+		TickInterval:    interval,
+		Observer:        repairObserver,
+	}, n, store)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	n.channelMigrationCancel = cancel
+	n.channelMigrationWG.Add(1)
+	go func() {
+		defer n.channelMigrationWG.Done()
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				_ = executor.RunOnce(ctx)
+				_, _ = scanner.RunOnce(ctx)
+			}
+		}
+	}()
+}
+
+func (n *Node) stopChannelMigrationLoop() {
+	if n == nil || n.channelMigrationCancel == nil {
+		return
+	}
+	n.channelMigrationCancel()
+	n.channelMigrationWG.Wait()
+	n.channelMigrationCancel = nil
 }

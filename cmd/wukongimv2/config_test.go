@@ -194,6 +194,37 @@ func TestConfigRejectsClusterNodeHealthReportTTLBelowInterval(t *testing.T) {
 	}
 }
 
+func TestConfigParsesChannelMigrationTuning(t *testing.T) {
+	unsetLoadConfigEnv(t)
+	dir := t.TempDir()
+	path := filepath.Join(dir, "wukongim.conf")
+	writeConf(t, path, append(requiredConfigLines(dir),
+		"WK_CHANNEL_MIGRATION_ENABLE=false",
+		"WK_CHANNEL_MIGRATION_SCAN_INTERVAL=250ms",
+		"WK_CHANNEL_MIGRATION_SCAN_LIMIT=7",
+		"WK_CHANNEL_MIGRATION_MAX_PAGES_PER_TICK=2",
+		"WK_CHANNEL_MIGRATION_MAX_TASKS_PER_TICK=3",
+		"WK_CHANNEL_MIGRATION_TASK_LIMIT=4",
+	)...)
+
+	cfg, err := loadConfig([]string{"-config", path})
+	if err != nil {
+		t.Fatalf("loadConfig() error = %v", err)
+	}
+
+	migration := cfg.Cluster.ChannelMigration
+	if migration.Enabled || !migration.EnabledSet {
+		t.Fatalf("ChannelMigration enabled fields = %t/%t, want false/true", migration.Enabled, migration.EnabledSet)
+	}
+	if migration.ScanInterval != 250*time.Millisecond ||
+		migration.ScanLimit != 7 ||
+		migration.MaxPagesPerTick != 2 ||
+		migration.MaxTasksPerTick != 3 ||
+		migration.TaskLimit != 4 {
+		t.Fatalf("ChannelMigration = %#v, want parsed tuning", migration)
+	}
+}
+
 func TestLoadConfigExplicitConfigFile(t *testing.T) {
 	unsetLoadConfigEnv(t)
 	dir := t.TempDir()

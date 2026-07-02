@@ -452,6 +452,59 @@ func TestChannelReplicaCountPreservesExplicitValue(t *testing.T) {
 	}
 }
 
+func TestChannelMigrationDefaultsEnabledWithBoundedWork(t *testing.T) {
+	cfg := Config{}
+	cfg.applyDefaults()
+
+	if !cfg.ChannelMigration.Enabled {
+		t.Fatal("ChannelMigration.Enabled = false, want enabled by default")
+	}
+	if cfg.ChannelMigration.ScanInterval <= 0 {
+		t.Fatalf("ChannelMigration.ScanInterval = %v, want positive", cfg.ChannelMigration.ScanInterval)
+	}
+	if cfg.ChannelMigration.ScanLimit <= 0 {
+		t.Fatalf("ChannelMigration.ScanLimit = %d, want positive", cfg.ChannelMigration.ScanLimit)
+	}
+	if cfg.ChannelMigration.MaxTasksPerTick <= 0 {
+		t.Fatalf("ChannelMigration.MaxTasksPerTick = %d, want positive", cfg.ChannelMigration.MaxTasksPerTick)
+	}
+}
+
+func TestChannelMigrationConfigRejectsNegativeBounds(t *testing.T) {
+	cfg := validNodeConfig(t)
+	cfg.ChannelMigration.ScanInterval = -time.Second
+
+	if _, err := New(cfg); !errors.Is(err, ErrInvalidConfig) {
+		t.Fatalf("New() error = %v, want ErrInvalidConfig", err)
+	}
+}
+
+func TestNodeStartHostsChannelMigrationLoopWhenEnabled(t *testing.T) {
+	cfg := validNodeConfig(t)
+	cfg.Channel.TickInterval = time.Hour
+	cfg.ChannelMigration.Enabled = true
+	cfg.ChannelMigration.ScanInterval = time.Hour
+	cfg.ChannelMigration.ScanLimit = 1
+	cfg.ChannelMigration.MaxTasksPerTick = 1
+
+	node, err := New(cfg)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	if err := node.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	if node.channelMigrationCancel == nil {
+		t.Fatal("channelMigrationCancel = nil, want migration loop running")
+	}
+	if err := node.Stop(context.Background()); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+	if node.channelMigrationCancel != nil {
+		t.Fatal("channelMigrationCancel retained after Stop, want nil")
+	}
+}
+
 func TestNodeInitializesDefaultControllerV2WhenOptionMissing(t *testing.T) {
 	cfg := validNodeConfig(t)
 	cfg.Channel.TickInterval = time.Millisecond
@@ -923,6 +976,10 @@ func (noopChannelService) RuntimeProbe(context.Context, channelv2.RuntimeSelecto
 
 func (noopChannelService) RuntimeEvict(context.Context, channelv2.RuntimeSelector) (channelv2.RuntimeEvictResult, error) {
 	return channelv2.RuntimeEvictResult{}, nil
+}
+
+func (noopChannelService) DrainChannel(context.Context, channelv2.DrainChannelRequest) (channelv2.DrainChannelResult, error) {
+	return channelv2.DrainChannelResult{}, nil
 }
 
 func (noopChannelService) Tick(context.Context) error { return nil }

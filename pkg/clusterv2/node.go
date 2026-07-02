@@ -41,6 +41,7 @@ type channelService interface {
 	RuntimeSnapshot(context.Context) (channelv2.RuntimeSnapshot, error)
 	RuntimeProbe(context.Context, channelv2.RuntimeSelector) (channelv2.RuntimeProbeResult, error)
 	RuntimeEvict(context.Context, channelv2.RuntimeSelector) (channelv2.RuntimeEvictResult, error)
+	DrainChannel(context.Context, channelv2.DrainChannelRequest) (channelv2.DrainChannelResult, error)
 	Tick(context.Context) error
 	Close() error
 }
@@ -111,6 +112,8 @@ type Node struct {
 	channelRetentionWG     sync.WaitGroup
 	channelRetentionGCMu   sync.Mutex
 	channelRetentionCursor channelv2.ChannelKey
+	channelMigrationCancel context.CancelFunc
+	channelMigrationWG     sync.WaitGroup
 	// healthReportCancel stops the low-frequency ControllerV2 health reporter.
 	healthReportCancel context.CancelFunc
 	// healthReporter sends low-frequency ControllerV2 node health reports.

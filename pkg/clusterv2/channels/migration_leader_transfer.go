@@ -132,6 +132,12 @@ func (e *MigrationExecutor) runLeaderTransferVerifyNewLeader(ctx context.Context
 	if err != nil {
 		return err
 	}
+	if !taskHasCutoverProof(task) || task.DrainedFenceVersion != task.FenceVersion {
+		return e.blockTask(ctx, task, migrationBlockInvalidLeaderTransfer)
+	}
+	if meta.WriteFenceToken != task.TaskID || meta.WriteFenceVersion != task.FenceVersion {
+		return e.blockTask(ctx, task, migrationBlockNewLeaderNotReady)
+	}
 	probe, err := e.runtime.ProbeChannel(ctx, task.TargetNode, id.ID, id.Type)
 	if err != nil {
 		return err
@@ -142,13 +148,13 @@ func (e *MigrationExecutor) runLeaderTransferVerifyNewLeader(ctx context.Context
 		probe.Role != ch.RoleLeader ||
 		probe.Status != ch.StatusActive ||
 		meta.Leader != task.TargetNode ||
-		!taskHasCutoverProof(task) ||
 		probe.HW < task.CutoverLEO ||
 		probe.LEO < task.CutoverLEO ||
-		!writeFenceMatchesTask(probe.WriteFence, task) ||
-		meta.WriteFenceToken != task.TaskID ||
-		meta.WriteFenceVersion != task.FenceVersion {
-		return e.blockTask(ctx, task, migrationBlockNewLeaderNotReady)
+		!writeFenceMatchesTask(probe.WriteFence, task) {
+		// The committed leader metadata may reach the new runtime before its HW,
+		// LEO, and fence snapshot are fully visible. Keep the task runnable so
+		// the executor can clear the fence once the new leader catches up.
+		return nil
 	}
 	return e.clearWriteFenceAndObserve(ctx, task)
 }

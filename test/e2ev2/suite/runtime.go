@@ -408,6 +408,30 @@ func (c *StartedCluster) RestartNode(nodeID uint64) error {
 	return node.Restart(c.binaryPath)
 }
 
+// StartStoppedNode starts one detached or already exited cluster node with its original spec.
+func (c *StartedCluster) StartStoppedNode(nodeID uint64) error {
+	if c == nil {
+		return fmt.Errorf("started cluster is nil")
+	}
+	if strings.TrimSpace(c.binaryPath) == "" {
+		return fmt.Errorf("cluster binary path is empty")
+	}
+	node, ok := c.Node(nodeID)
+	if !ok {
+		return fmt.Errorf("node %d not found in started cluster", nodeID)
+	}
+	if node.Process != nil && node.Process.Cmd != nil && node.Process.Cmd.Process != nil &&
+		(node.Process.Cmd.ProcessState == nil || !node.Process.Cmd.ProcessState.Exited()) {
+		return fmt.Errorf("node %d is already running", nodeID)
+	}
+	process := &NodeProcess{Spec: node.Spec, BinaryPath: c.binaryPath}
+	if err := process.Start(); err != nil {
+		return fmt.Errorf("start stopped node %d: %w", nodeID, err)
+	}
+	node.Process = process
+	return nil
+}
+
 // APIAddr returns the public HTTP API listen address for the started node.
 func (n StartedNode) APIAddr() string {
 	return n.Spec.APIAddr

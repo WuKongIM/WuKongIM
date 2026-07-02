@@ -127,6 +127,7 @@ func mapChannelAppendRouteError(err error) error {
 	case appendErrorMatches(err, channelv2.ErrStaleMeta):
 		return fmt.Errorf("%w: %w", channelappend.ErrStaleRoute, err)
 	case appendErrorMatches(err, channelv2.ErrNotReady),
+		appendErrorIsChannelPlacementUnavailable(err),
 		errors.Is(err, clusterv2.ErrRouteNotReady),
 		errors.Is(err, clusterv2.ErrNoSlotLeader),
 		errors.Is(err, clusterv2.ErrNotStarted),
