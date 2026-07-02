@@ -943,6 +943,9 @@ func (a *App) newManagerManagement() accessmanager.Management {
 		if runtimeNode, ok := a.cluster.(clusterinfra.ChannelRuntimeMetaScanNode); ok {
 			opts.ChannelRuntimeMeta = clusterinfra.NewChannelRuntimeMetaReader(runtimeNode)
 		}
+		if migrationNode, ok := a.cluster.(clusterinfra.ChannelMigrationStoreNode); ok {
+			opts.ChannelMigration = clusterinfra.NewChannelMigrationStore(migrationNode)
+		}
 		if channelNode, ok := a.cluster.(clusterinfra.ChannelBusinessScanNode); ok {
 			opts.ChannelBusinessReader = clusterinfra.NewChannelBusinessReader(channelNode)
 		}

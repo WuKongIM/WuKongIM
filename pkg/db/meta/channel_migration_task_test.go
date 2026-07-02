@@ -38,6 +38,56 @@ func TestChannelMigrationTaskCreateGetActiveAndList(t *testing.T) {
 	}
 }
 
+func TestChannelMigrationTaskListActiveUsesActiveIndexLimit(t *testing.T) {
+	store := openTestMetaStore(t)
+	defer store.close(t)
+	shard := store.db.HashSlot(8)
+	ctx := context.Background()
+	activeA := testChannelMigrationTask("task-active-a", "channel-active-a")
+	activeB := testChannelMigrationTask("task-active-b", "channel-active-b")
+	activeC := testChannelMigrationTask("task-active-c", "channel-active-c")
+	terminal := testChannelMigrationTask("task-terminal", "channel-active-terminal")
+
+	for _, task := range []ChannelMigrationTask{activeA, terminal, activeB, activeC} {
+		if err := shard.CreateChannelMigrationTask(ctx, task); err != nil {
+			t.Fatalf("CreateChannelMigrationTask(%s): %v", task.TaskID, err)
+		}
+	}
+	if err := shard.AdvanceChannelMigrationTask(ctx, ChannelMigrationTaskAdvance{
+		Guard:         channelMigrationTaskGuard(terminal),
+		Status:        ChannelMigrationStatusCompleted,
+		Phase:         ChannelMigrationPhaseClearFence,
+		UpdatedAtMS:   terminal.UpdatedAtMS + 1,
+		CompletedAtMS: terminal.UpdatedAtMS + 2,
+	}); err != nil {
+		t.Fatalf("AdvanceChannelMigrationTask(terminal): %v", err)
+	}
+
+	list, err := shard.ListActiveChannelMigrationTasks(ctx, 2)
+	if err != nil {
+		t.Fatalf("ListActiveChannelMigrationTasks(): %v", err)
+	}
+	if len(list) != 2 {
+		t.Fatalf("active list len = %d, want 2: %+v", len(list), list)
+	}
+	if list[0].TaskID != activeA.TaskID || list[1].TaskID != activeB.TaskID {
+		t.Fatalf("active list = %+v, want first two active tasks", list)
+	}
+	for _, task := range list {
+		if !task.IsActive() {
+			t.Fatalf("active list contains terminal task: %+v", task)
+		}
+	}
+
+	empty, err := shard.ListActiveChannelMigrationTasks(ctx, 0)
+	if err != nil {
+		t.Fatalf("ListActiveChannelMigrationTasks(limit=0): %v", err)
+	}
+	if len(empty) != 0 {
+		t.Fatalf("limit=0 active list = %+v, want empty", empty)
+	}
+}
+
 func TestChannelMigrationTaskKeepsLegacyRowIndexLayouts(t *testing.T) {
 	store := openTestMetaStore(t)
 	defer store.close(t)
@@ -124,6 +174,7 @@ func TestChannelMigrationTaskClaimAdvanceAndTerminalIndex(t *testing.T) {
 		Phase:             ChannelMigrationPhaseWriteFence,
 		OwnerNodeID:       3,
 		OwnerLeaseUntilMS: 1750000005000,
+		NowMS:             1750000001000,
 		UpdatedAtMS:       1750000001000,
 	}
 	if err := shard.ClaimChannelMigrationTask(ctx, claim); err != nil {
@@ -163,6 +214,78 @@ func TestChannelMigrationTaskClaimAdvanceAndTerminalIndex(t *testing.T) {
 	count, err := shard.CountTerminalChannelMigrationTasksBefore(ctx, 1750000004000, 10)
 	if err != nil || count != 1 {
 		t.Fatalf("CountTerminalChannelMigrationTasksBefore() = %d err %v, want 1", count, err)
+	}
+}
+
+func TestChannelMigrationTaskClaimRequiresSameOwnerOrExpiredLease(t *testing.T) {
+	store := openTestMetaStore(t)
+	defer store.close(t)
+	shard := store.db.HashSlot(8)
+	ctx := context.Background()
+	task := testChannelMigrationTask("task-lease", "channel-lease")
+	if err := shard.CreateChannelMigrationTask(ctx, task); err != nil {
+		t.Fatalf("CreateChannelMigrationTask(): %v", err)
+	}
+
+	firstClaim := ChannelMigrationTaskClaim{
+		Guard:             channelMigrationTaskGuard(task),
+		Status:            ChannelMigrationStatusRunning,
+		Phase:             ChannelMigrationPhaseValidate,
+		OwnerNodeID:       1,
+		OwnerLeaseUntilMS: 1750000005000,
+		NowMS:             1750000001000,
+		UpdatedAtMS:       1750000001000,
+	}
+	if err := shard.ClaimChannelMigrationTask(ctx, firstClaim); err != nil {
+		t.Fatalf("ClaimChannelMigrationTask(first): %v", err)
+	}
+	claimed, ok, err := shard.GetChannelMigrationTask(ctx, task.ChannelID, task.ChannelType, task.TaskID)
+	if err != nil || !ok {
+		t.Fatalf("GetChannelMigrationTask(claimed) ok=%v err=%v", ok, err)
+	}
+
+	steal := ChannelMigrationTaskClaim{
+		Guard:             channelMigrationTaskGuard(claimed),
+		Status:            ChannelMigrationStatusRunning,
+		Phase:             claimed.Phase,
+		OwnerNodeID:       2,
+		OwnerLeaseUntilMS: 1750000006000,
+		NowMS:             1750000002000,
+		UpdatedAtMS:       1750000002000,
+	}
+	if err := shard.ClaimChannelMigrationTask(ctx, steal); !errors.Is(err, dberrors.ErrConflict) {
+		t.Fatalf("ClaimChannelMigrationTask(steal) err = %v, want conflict", err)
+	}
+
+	renew := steal
+	renew.OwnerNodeID = 1
+	renew.OwnerLeaseUntilMS = 1750000007000
+	if err := shard.ClaimChannelMigrationTask(ctx, renew); err != nil {
+		t.Fatalf("ClaimChannelMigrationTask(renew): %v", err)
+	}
+	renewed, ok, err := shard.GetChannelMigrationTask(ctx, task.ChannelID, task.ChannelType, task.TaskID)
+	if err != nil || !ok {
+		t.Fatalf("GetChannelMigrationTask(renewed) ok=%v err=%v", ok, err)
+	}
+
+	takeover := ChannelMigrationTaskClaim{
+		Guard:             channelMigrationTaskGuard(renewed),
+		Status:            ChannelMigrationStatusRunning,
+		Phase:             renewed.Phase,
+		OwnerNodeID:       2,
+		OwnerLeaseUntilMS: 1750000009000,
+		NowMS:             renewed.OwnerLeaseUntilMS,
+		UpdatedAtMS:       renewed.UpdatedAtMS + 1,
+	}
+	if err := shard.ClaimChannelMigrationTask(ctx, takeover); err != nil {
+		t.Fatalf("ClaimChannelMigrationTask(expired takeover): %v", err)
+	}
+	taken, ok, err := shard.GetChannelMigrationTask(ctx, task.ChannelID, task.ChannelType, task.TaskID)
+	if err != nil || !ok {
+		t.Fatalf("GetChannelMigrationTask(taken) ok=%v err=%v", ok, err)
+	}
+	if taken.OwnerNodeID != 2 {
+		t.Fatalf("taken owner = %d, want 2", taken.OwnerNodeID)
 	}
 }
 
@@ -207,6 +330,121 @@ func TestMetaBatchCreateChannelMigrationTaskWithRuntimeGuard(t *testing.T) {
 	err := second.Commit(ctx)
 	if !errors.Is(err, dberrors.ErrAlreadyExists) {
 		t.Fatalf("second Commit() err = %v, want already exists", err)
+	}
+}
+
+func TestMetaBatchReplicaReplaceAllowsSourceOutsideISRWhenMinISRSatisfied(t *testing.T) {
+	db, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("Open(): %v", err)
+	}
+	defer func() {
+		if err := db.Close(); err != nil {
+			t.Fatalf("Close(): %v", err)
+		}
+	}()
+	ctx := context.Background()
+	shard := db.MetaDB().HashSlot(8)
+	meta := testRuntimeMeta("channel-non-isr-source", 1)
+	task := testChannelMigrationTask("task-non-isr-source", meta.ChannelID)
+	task.SourceNode = 3
+	task.TargetNode = 4
+	task.Status = ChannelMigrationStatusRunning
+	task.Phase = ChannelMigrationPhaseAddLearner
+	if _, err := shard.UpsertChannelRuntimeMeta(ctx, meta); err != nil {
+		t.Fatalf("UpsertChannelRuntimeMeta(): %v", err)
+	}
+	if err := shard.CreateChannelMigrationTask(ctx, task); err != nil {
+		t.Fatalf("CreateChannelMigrationTask(): %v", err)
+	}
+
+	add := db.NewWriteBatch()
+	if err := add.AddChannelLearner(8, ChannelMigrationAddLearnerRequest{
+		Guard:        channelMigrationTaskGuard(task),
+		RuntimeGuard: channelMigrationRuntimeGuard(meta),
+		Status:       ChannelMigrationStatusRunning,
+		Phase:        ChannelMigrationPhaseBootstrapTarget,
+		TargetNode:   4,
+		UpdatedAtMS:  task.UpdatedAtMS + 1,
+	}); err != nil {
+		t.Fatalf("AddChannelLearner(stage): %v", err)
+	}
+	if err := add.Commit(); err != nil {
+		t.Fatalf("AddChannelLearner Commit(): %v", err)
+	}
+	added, ok, err := shard.GetChannelRuntimeMeta(ctx, meta.ChannelID, meta.ChannelType)
+	if err != nil || !ok {
+		t.Fatalf("GetChannelRuntimeMeta(after add) ok=%v err=%v", ok, err)
+	}
+	if !containsUint64(added.Replicas, 4) || containsUint64(added.ISR, 4) {
+		t.Fatalf("after add meta replicas=%v isr=%v, want learner replica outside ISR", added.Replicas, added.ISR)
+	}
+}
+
+func TestMetaBatchPromoteLearnerAddsTargetToISRWhenSourceAlreadyOutsideISR(t *testing.T) {
+	db, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("Open(): %v", err)
+	}
+	defer func() {
+		if err := db.Close(); err != nil {
+			t.Fatalf("Close(): %v", err)
+		}
+	}()
+	ctx := context.Background()
+	shard := db.MetaDB().HashSlot(8)
+	meta := testRuntimeMeta("channel-promote-non-isr-source", 1)
+	meta.Replicas = []uint64{1, 2, 3, 4}
+	meta.ISR = []uint64{1, 2}
+	meta.WriteFenceToken = "task-promote-non-isr-source"
+	meta.WriteFenceVersion = 6
+	meta.WriteFenceReason = 2
+	meta.WriteFenceUntilMS = 1750000009000
+	meta = normalizeChannelRuntimeMeta(meta)
+	task := testChannelMigrationTask(meta.WriteFenceToken, meta.ChannelID)
+	task.SourceNode = 3
+	task.TargetNode = 4
+	task.Status = ChannelMigrationStatusRunning
+	task.Phase = ChannelMigrationPhasePromoteAndRemove
+	task.FenceToken = task.TaskID
+	task.FenceVersion = meta.WriteFenceVersion
+	task.FenceUntilMS = meta.WriteFenceUntilMS
+	task.CutoverLEO = 9
+	task.CutoverHW = 9
+	task.DrainedLeaderNode = meta.Leader
+	task.DrainedRuntimeGeneration = meta.RouteGeneration
+	task.DrainedChannelEpoch = meta.ChannelEpoch
+	task.DrainedLeaderEpoch = meta.LeaderEpoch
+	task.DrainedFenceVersion = meta.WriteFenceVersion
+	if _, err := shard.UpsertChannelRuntimeMeta(ctx, meta); err != nil {
+		t.Fatalf("UpsertChannelRuntimeMeta(): %v", err)
+	}
+	if err := shard.CreateChannelMigrationTask(ctx, task); err != nil {
+		t.Fatalf("CreateChannelMigrationTask(): %v", err)
+	}
+
+	promote := db.NewWriteBatch()
+	if err := promote.PromoteLearnerAndRemoveReplica(8, ChannelMigrationPromoteLearnerRequest{
+		Guard:        channelMigrationTaskGuard(task),
+		RuntimeGuard: channelMigrationRuntimeGuard(meta),
+		Status:       ChannelMigrationStatusRunning,
+		Phase:        ChannelMigrationPhaseVerifyMembership,
+		SourceNode:   3,
+		TargetNode:   4,
+		NowMS:        1750000002000,
+		UpdatedAtMS:  task.UpdatedAtMS + 1,
+	}); err != nil {
+		t.Fatalf("PromoteLearnerAndRemoveReplica(stage): %v", err)
+	}
+	if err := promote.Commit(); err != nil {
+		t.Fatalf("PromoteLearnerAndRemoveReplica Commit(): %v", err)
+	}
+	got, ok, err := shard.GetChannelRuntimeMeta(ctx, meta.ChannelID, meta.ChannelType)
+	if err != nil || !ok {
+		t.Fatalf("GetChannelRuntimeMeta(after promote) ok=%v err=%v", ok, err)
+	}
+	if containsUint64(got.Replicas, 3) || containsUint64(got.ISR, 3) || !containsUint64(got.Replicas, 4) || !containsUint64(got.ISR, 4) {
+		t.Fatalf("after promote meta replicas=%v isr=%v, want source removed and target promoted", got.Replicas, got.ISR)
 	}
 }
 

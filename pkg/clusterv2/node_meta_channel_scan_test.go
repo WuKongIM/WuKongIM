@@ -63,6 +63,13 @@ func TestClusterV2SingleNodeScanChannelRuntimeMetaSlotPagePaginatesMetadata(t *t
 	if len(page) != 1 || page[0].ChannelID != "g1" || done {
 		t.Fatalf("page1 = %#v cursor=%#v done=%t, want g1 and more", page, cursor, done)
 	}
+	repairPage, _, _, err := node.ListRepairScannerRuntimeMetaPage(ctx, route.SlotID, metadb.ChannelRuntimeMetaCursor{}, 1)
+	if err != nil {
+		t.Fatalf("ListRepairScannerRuntimeMetaPage() error = %v", err)
+	}
+	if len(repairPage) != 1 || repairPage[0].HashSlot != route.HashSlot || repairPage[0].Meta.ChannelID != "g1" {
+		t.Fatalf("repair page = %#v, want g1 with hash slot %d", repairPage, route.HashSlot)
+	}
 	page, _, done, err = node.ScanChannelRuntimeMetaSlotPage(ctx, route.SlotID, cursor, 10)
 	if err != nil {
 		t.Fatalf("ScanChannelRuntimeMetaSlotPage(page2) error = %v", err)

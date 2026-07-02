@@ -14,8 +14,8 @@ import (
 
 func TestNodeDefaultChannelsUseDurableMessageDBStore(t *testing.T) {
 	cfg := validNodeConfig(t)
-	cfg.HealthReport.Interval = 20 * time.Millisecond
-	cfg.HealthReport.TTL = 500 * time.Millisecond
+	cfg.HealthReport.Interval = 500 * time.Millisecond
+	cfg.HealthReport.TTL = 2 * time.Second
 	node, err := New(cfg)
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
@@ -23,6 +23,12 @@ func TestNodeDefaultChannelsUseDurableMessageDBStore(t *testing.T) {
 	if err := node.Start(context.Background()); err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
+	readyCtx, readyCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	if err := WaitNodeReady(readyCtx, node); err != nil {
+		readyCancel()
+		t.Fatalf("WaitNodeReady() error = %v", err)
+	}
+	readyCancel()
 	waitChannelDataNode(t, node, 1)
 	channelID := channelv2.ChannelID{ID: "durable", Type: 1}
 	applyDefaultChannelMeta(t, node, channelID)
@@ -40,6 +46,12 @@ func TestNodeDefaultChannelsUseDurableMessageDBStore(t *testing.T) {
 		t.Fatalf("restart Start() error = %v", err)
 	}
 	t.Cleanup(func() { _ = node.Stop(context.Background()) })
+	restartReadyCtx, restartReadyCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	if err := WaitNodeReady(restartReadyCtx, node); err != nil {
+		restartReadyCancel()
+		t.Fatalf("restart WaitNodeReady() error = %v", err)
+	}
+	restartReadyCancel()
 	waitChannelDataNode(t, node, 1)
 	applyDefaultChannelMeta(t, node, channelID)
 	second, err := node.AppendChannel(context.Background(), channelv2.AppendRequest{

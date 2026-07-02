@@ -1,6 +1,7 @@
 package channelv2
 
 import (
+	"context"
 	"strconv"
 	"time"
 )
@@ -47,6 +48,59 @@ const (
 	CommitModeLocal
 )
 
+// WriteFenceReason identifies the control-plane operation that is blocking new writes.
+type WriteFenceReason uint8
+
+const (
+	WriteFenceReasonUnknown WriteFenceReason = iota
+	WriteFenceReasonLeaderTransfer
+	WriteFenceReasonReplicaReplace
+	WriteFenceReasonFailover
+)
+
+// WriteFence is durable control-plane metadata that prevents new leader appends.
+type WriteFence struct {
+	Token   string
+	Version uint64
+	Reason  WriteFenceReason
+	Until   time.Time
+}
+
+// Set reports whether the authoritative metadata currently fences writes.
+func (f WriteFence) Set() bool {
+	return f.Token != "" && f.Version != 0
+}
+
+// AppendAdmissionRequest describes a leader append admission decision.
+type AppendAdmissionRequest struct {
+	// ChannelID is the client-visible channel identity.
+	ChannelID ChannelID
+	// ChannelKey is the stable runtime key used for reactor routing.
+	ChannelKey ChannelKey
+	// Epoch is the current channel membership epoch.
+	Epoch uint64
+	// LeaderEpoch is the current leader epoch within the channel epoch.
+	LeaderEpoch uint64
+	// Leader is the authoritative channel leader node.
+	Leader NodeID
+}
+
+// AppendAdmissionGuard can fail closed before a leader append enters the reactor.
+type AppendAdmissionGuard interface {
+	AllowChannelAppend(context.Context, AppendAdmissionRequest) error
+}
+
+// AppendAdmissionGuardFunc adapts a function to AppendAdmissionGuard.
+type AppendAdmissionGuardFunc func(context.Context, AppendAdmissionRequest) error
+
+// AllowChannelAppend calls fn for the append admission decision.
+func (fn AppendAdmissionGuardFunc) AllowChannelAppend(ctx context.Context, req AppendAdmissionRequest) error {
+	if fn == nil {
+		return ErrNotReady
+	}
+	return fn(ctx, req)
+}
+
 // Meta is the authoritative control-plane projection for a channel.
 type Meta struct {
 	// Key is the channel runtime key. If empty, service may derive it from ID.
@@ -69,6 +123,8 @@ type Meta struct {
 	LeaseUntil time.Time
 	// RetentionThroughSeq is the highest sequence hidden by authoritative compaction.
 	RetentionThroughSeq uint64
+	// WriteFence blocks new leader appends while control-plane migration is active.
+	WriteFence WriteFence
 	// Status controls local serving behavior.
 	Status Status
 }

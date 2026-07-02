@@ -19,6 +19,7 @@ type Result struct {
 	// RuntimeActivationRejectedTotal carries reactor-local rejection counts for node snapshots.
 	RuntimeActivationRejectedTotal uint64
 	RuntimeProbe                   ch.RuntimeProbeResult
+	DrainChannel                   ch.DrainChannelResult
 	RuntimeEvict                   ch.RuntimeEvictResult
 	RetentionView                  ch.RetentionView
 	RetentionApply                 ch.RetentionApplyResult

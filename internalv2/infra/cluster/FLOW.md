@@ -46,11 +46,13 @@ The adapter forwards the final `MarkNodeRemoved` request, including the
 management usecase's safety-check state revision when provided, to clusterv2
 control only after that gate and treats the resulting `removed` state as a
 durable control-plane tombstone, not a node-local cleanup command.
-Gateway session closure, channel migration, and Slot operations other than
-explicit node-local Raft compaction or staged replica-move task creation stay
-unmigrated. Gateway drain mode itself is routed through the manager connection
-RPC remote writer below because it is a target-node gateway admission toggle,
-not a control-plane assignment write.
+Gateway session closure and Slot operations other than explicit node-local Raft
+compaction or staged replica-move task creation stay unmigrated. Channel
+migration manager APIs use the dedicated clusterv2 migration store adapter,
+which only exposes the Slot-owned ChannelV2 migration facade. Gateway drain mode
+itself is routed through the manager connection RPC remote writer below because
+it is a target-node gateway admission toggle, not a control-plane assignment
+write.
 Controller voter promotion is only delegated here after the management usecase
 has validated the target, target readiness, live preparation proof, expected
 revision, previous durable voters, and observed Controller Raft voter set. This
@@ -139,6 +141,13 @@ are cloned before entering `channelv2`, and inbound result payloads are cloned
 unless the channelappend runtime marks them unnecessary for SENDACK-only flows.
 Commit mode, expected authority epoch fences, and typed errors are mapped at
 this boundary so the channelappend runtime stays cluster-agnostic.
+`channelv2.ErrWriteFenced` is treated as a retryable route-not-ready condition:
+the durable control-plane fence owns the decision, and upper send orchestration
+should retry after metadata refresh or migration completion rather than treating
+the write as a permanent append failure.
+ChannelV2 placement candidate shortage is also mapped to route-not-ready, so a
+node loss that makes new channel replica placement impossible fails closed and
+can be retried after the cluster regains enough schedulable data nodes.
 The adapter records channel append sendtrace events only when tracing is enabled
 and the request carries trace metadata, so untraced appends do not pay extra
 timing or event-allocation cost.

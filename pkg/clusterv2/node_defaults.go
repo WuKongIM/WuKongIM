@@ -94,9 +94,11 @@ func (n *Node) ensureDefaultRuntime() (bool, error) {
 			FollowerRecoveryProbeInterval: n.cfg.Channel.FollowerRecoveryProbeInterval,
 			FollowerRecoveryProbeJitter:   n.cfg.Channel.FollowerRecoveryProbeJitter,
 			Observer:                      n.cfg.Channel.Observer,
+			AppendAdmissionGuard:          n.channelDataPlaneLease,
 			Store:                         storeFactory,
 			Transport:                     transport,
 			MetaSource:                    n.defaultChannelMetaSource(),
+			MigrationStore:                n.defaultChannelMigrationStore(),
 		})
 		if err != nil {
 			_ = storeFactory.Close()
@@ -243,6 +245,19 @@ func (n *Node) defaultChannelMetaSource() channels.ChannelMetaSource {
 	})
 }
 
+func (n *Node) defaultChannelMigrationStore() *channels.MigrationStore {
+	if n == nil || n.defaultSlotMetaDB == nil {
+		return nil
+	}
+	adapter := defaultChannelMigrationStore{node: n}
+	return channels.NewMigrationStore(channels.MigrationStoreConfig{
+		LocalNode: n.cfg.NodeID,
+		Router:    n.router,
+		Proposer:  adapter,
+		Reader:    adapter,
+	})
+}
+
 // defaultChannelRuntimeMetaStore reads Slot-owned channel metadata and writes through Node.Propose.
 type defaultChannelRuntimeMetaStore struct {
 	node     *Node
@@ -275,6 +290,64 @@ func (s defaultChannelRuntimeMetaStore) UpsertChannelRuntimeMeta(ctx context.Con
 		Key:     meta.ChannelID,
 		Command: metafsm.EncodeUpsertChannelRuntimeMetaCommand(meta),
 	})
+}
+
+// defaultChannelMigrationStore adapts Slot-owned migration commands to Node.Propose.
+type defaultChannelMigrationStore struct {
+	node *Node
+}
+
+func (s defaultChannelMigrationStore) ProposeChannelMigrationCommand(ctx context.Context, slotID uint32, hashSlot uint16, command []byte) error {
+	if err := ctxErr(ctx); err != nil {
+		return err
+	}
+	if s.node == nil {
+		return ErrNotStarted
+	}
+	return mapChannelMigrationRemoteError(s.node.Propose(ctx, ProposeRequest{
+		Command: command,
+		Target:  ProposeTarget{HashSlot: hashSlot, HasHashSlot: true, SlotID: slotID, HasSlotID: true},
+	}))
+}
+
+func (s defaultChannelMigrationStore) GetChannelRuntimeMeta(ctx context.Context, hashSlot uint16, channelID string, channelType int64) (metadb.ChannelRuntimeMeta, error) {
+	if err := ctxErr(ctx); err != nil {
+		return metadb.ChannelRuntimeMeta{}, err
+	}
+	if s.node == nil {
+		return metadb.ChannelRuntimeMeta{}, ErrNotStarted
+	}
+	return s.node.readChannelMigrationRuntimeMeta(ctx, hashSlot, channelID, channelType)
+}
+
+func (s defaultChannelMigrationStore) GetActiveChannelMigrationTask(ctx context.Context, hashSlot uint16, channelID string, channelType int64) (metadb.ChannelMigrationTask, bool, error) {
+	if err := ctxErr(ctx); err != nil {
+		return metadb.ChannelMigrationTask{}, false, err
+	}
+	if s.node == nil {
+		return metadb.ChannelMigrationTask{}, false, ErrNotStarted
+	}
+	return s.node.getActiveChannelMigrationTask(ctx, hashSlot, channelID, channelType)
+}
+
+func (s defaultChannelMigrationStore) GetChannelMigrationTask(ctx context.Context, hashSlot uint16, channelID string, channelType int64, taskID string) (metadb.ChannelMigrationTask, bool, error) {
+	if err := ctxErr(ctx); err != nil {
+		return metadb.ChannelMigrationTask{}, false, err
+	}
+	if s.node == nil {
+		return metadb.ChannelMigrationTask{}, false, ErrNotStarted
+	}
+	return s.node.getChannelMigrationTask(ctx, hashSlot, channelID, channelType, taskID)
+}
+
+func (s defaultChannelMigrationStore) ListActiveChannelMigrationTasks(ctx context.Context, hashSlot uint16, limit int) ([]metadb.ChannelMigrationTask, error) {
+	if err := ctxErr(ctx); err != nil {
+		return nil, err
+	}
+	if s.node == nil {
+		return nil, ErrNotStarted
+	}
+	return s.node.listActiveChannelMigrationTasks(ctx, hashSlot, limit)
 }
 
 func (n *Node) discardDefaultChannels() {

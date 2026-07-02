@@ -63,6 +63,8 @@ type ReactorConfig struct {
 	LeaderRecentRecordCacheSize int
 	// LeaderRecentRecordCacheBytes is a retained payload-byte soft cap for the per-channel leader log cache; the newest oversized record may exceed it.
 	LeaderRecentRecordCacheBytes int
+	// AppendAdmissionGuard can reject local leader appends before reactor admission.
+	AppendAdmissionGuard ch.AppendAdmissionGuard
 	// IdleSlowdownAfter is the idle duration after the last Append before follower pull intervals begin increasing.
 	IdleSlowdownAfter time.Duration
 	// IdleEvictAfter is the idle duration after the last Append before a leader may ask caught-up followers to stop.
@@ -125,6 +127,8 @@ type Reactor struct {
 	appendQueuePressure appendQueuePressureState
 	// asyncEffects is set after start so direct handler unit tests keep their synchronous fixtures.
 	asyncEffects atomic.Bool
+	// appendAdmissionGuard can reject local leader appends before they enter the append queue.
+	appendAdmissionGuard ch.AppendAdmissionGuard
 }
 
 type runtimeChannel struct {
@@ -215,7 +219,7 @@ type pullWaiter struct {
 // NewReactor constructs a reactor.
 func NewReactor(cfg ReactorConfig) *Reactor {
 	cfg = defaultReactorConfig(cfg)
-	r := &Reactor{cfg: cfg, mailbox: NewMailbox(MailboxConfig{HighSize: cfg.MailboxSize, NormalSize: cfg.MailboxSize, LowSize: cfg.MailboxSize}), drainBuf: make([]Event, 0, defaultReactorDrain), channels: make(map[ch.ChannelKey]*runtimeChannel), stop: make(chan struct{}), done: make(chan struct{})}
+	r := &Reactor{cfg: cfg, mailbox: NewMailbox(MailboxConfig{HighSize: cfg.MailboxSize, NormalSize: cfg.MailboxSize, LowSize: cfg.MailboxSize}), drainBuf: make([]Event, 0, defaultReactorDrain), channels: make(map[ch.ChannelKey]*runtimeChannel), stop: make(chan struct{}), done: make(chan struct{}), appendAdmissionGuard: cfg.AppendAdmissionGuard}
 	r.observeAllMailboxCapacities()
 	return r
 }

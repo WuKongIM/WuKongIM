@@ -4,11 +4,37 @@ import (
 	"container/heap"
 	"context"
 
+	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/channels"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
 // ScanChannelRuntimeMetaSlotPage reads one channel runtime metadata page for a physical Slot.
 func (n *Node) ScanChannelRuntimeMetaSlotPage(ctx context.Context, slotID uint32, after metadb.ChannelRuntimeMetaCursor, limit int) ([]metadb.ChannelRuntimeMeta, metadb.ChannelRuntimeMetaCursor, bool, error) {
+	items, cursor, done, err := n.scanChannelRuntimeMetaSlotPage(ctx, slotID, after, limit)
+	if err != nil {
+		return nil, metadb.ChannelRuntimeMetaCursor{}, false, err
+	}
+	metas := make([]metadb.ChannelRuntimeMeta, 0, len(items))
+	for _, item := range items {
+		metas = append(metas, item.Meta)
+	}
+	return metas, cursor, done, nil
+}
+
+// ListRepairScannerRuntimeMetaPage reads one repair-scanner page and preserves each row's owning hash slot.
+func (n *Node) ListRepairScannerRuntimeMetaPage(ctx context.Context, slotID uint32, after metadb.ChannelRuntimeMetaCursor, limit int) ([]channels.RepairScannerRuntimeMeta, metadb.ChannelRuntimeMetaCursor, bool, error) {
+	items, cursor, done, err := n.scanChannelRuntimeMetaSlotPage(ctx, slotID, after, limit)
+	if err != nil {
+		return nil, metadb.ChannelRuntimeMetaCursor{}, false, err
+	}
+	out := make([]channels.RepairScannerRuntimeMeta, 0, len(items))
+	for _, item := range items {
+		out = append(out, channels.RepairScannerRuntimeMeta{HashSlot: item.HashSlot, Meta: item.Meta})
+	}
+	return out, cursor, done, nil
+}
+
+func (n *Node) scanChannelRuntimeMetaSlotPage(ctx context.Context, slotID uint32, after metadb.ChannelRuntimeMetaCursor, limit int) ([]channelRuntimeMetaMergeItem, metadb.ChannelRuntimeMetaCursor, bool, error) {
 	if err := ctxErr(ctx); err != nil {
 		return nil, metadb.ChannelRuntimeMetaCursor{}, false, err
 	}
@@ -41,11 +67,11 @@ func (n *Node) ScanChannelRuntimeMetaSlotPage(ctx context.Context, slotID uint32
 		}
 	}
 
-	metas := make([]metadb.ChannelRuntimeMeta, 0, limit)
+	items := make([]channelRuntimeMetaMergeItem, 0, limit)
 	cursor := after
-	for len(metas) < limit && queue.Len() > 0 {
+	for len(items) < limit && queue.Len() > 0 {
 		item := heap.Pop(&queue).(channelRuntimeMetaMergeItem)
-		metas = append(metas, item.Meta)
+		items = append(items, item)
 		cursor = metadb.ChannelRuntimeMetaCursor{ChannelID: item.Meta.ChannelID, ChannelType: item.Meta.ChannelType}
 		if item.Done {
 			continue
@@ -58,10 +84,10 @@ func (n *Node) ScanChannelRuntimeMetaSlotPage(ctx context.Context, slotID uint32
 			heap.Push(&queue, next)
 		}
 	}
-	if len(metas) == 0 {
+	if len(items) == 0 {
 		cursor = after
 	}
-	return metas, cursor, queue.Len() == 0, nil
+	return items, cursor, queue.Len() == 0, nil
 }
 
 func (n *Node) loadChannelRuntimeMetaMergeItem(ctx context.Context, hashSlot uint16, after metadb.ChannelRuntimeMetaCursor) (channelRuntimeMetaMergeItem, bool, error) {

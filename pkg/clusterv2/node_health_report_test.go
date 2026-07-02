@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
+	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/observe"
 )
 
 func TestRuntimeReadyForHealthReportFalseWhileStopping(t *testing.T) {
@@ -63,7 +64,8 @@ func TestStopHealthReportLoopReportsNotReadyAfterStopping(t *testing.T) {
 				TTL:      50 * time.Millisecond,
 			},
 		},
-		control: controller,
+		control:               controller,
+		channelDataPlaneLease: newChannelDataPlaneLeaseGuard(time.Now, time.Hour),
 		snapshot: Snapshot{
 			RoutesReady:   true,
 			SlotsReady:    true,
@@ -78,6 +80,10 @@ func TestStopHealthReportLoopReportsNotReadyAfterStopping(t *testing.T) {
 	if !initial.RuntimeReady {
 		t.Fatalf("initial RuntimeReady = false, want true")
 	}
+	visibleBeforeStop := node.channelDataPlaneLease.snapshot().lastVisibleAt
+	if visibleBeforeStop.IsZero() {
+		t.Fatal("channel data-plane lease lastVisibleAt is zero after ready health report")
+	}
 	node.stopping.Store(true)
 	node.stopHealthReportLoop()
 
@@ -88,6 +94,50 @@ func TestStopHealthReportLoopReportsNotReadyAfterStopping(t *testing.T) {
 	final := reports[len(reports)-1]
 	if final.RuntimeReady {
 		t.Fatalf("final RuntimeReady = true, want false after stopping; reports=%#v", reports)
+	}
+	visibleAfterStop := node.channelDataPlaneLease.snapshot().lastVisibleAt
+	if !visibleAfterStop.Equal(visibleBeforeStop) {
+		t.Fatalf("channel data-plane lease refreshed during not-ready stop report: before=%s after=%s", visibleBeforeStop, visibleAfterStop)
+	}
+}
+
+func TestReportNodeHealthDoesNotRefreshLeaseWhenReportFails(t *testing.T) {
+	reportErr := errors.New("report failed")
+	controller := &failingHealthReportController{err: reportErr}
+	node := &Node{
+		cfg: Config{
+			NodeID:     1,
+			ListenAddr: "127.0.0.1:7001",
+			HealthReport: HealthReportConfig{
+				Interval: time.Second,
+				TTL:      time.Second,
+			},
+		},
+		channelDataPlaneLease: newChannelDataPlaneLeaseGuard(time.Now, time.Hour),
+		snapshot: Snapshot{
+			RoutesReady:   true,
+			SlotsReady:    true,
+			ChannelsReady: true,
+		},
+	}
+	node.started.Store(true)
+	reporter := observe.NewReporter(observe.ReporterConfig{
+		NodeID:       node.cfg.NodeID,
+		Addr:         node.cfg.ListenAddr,
+		Controller:   controller,
+		RuntimeReady: node.runtimeReadyForHealthReport,
+	})
+
+	err := node.reportNodeHealth(context.Background(), reporter)
+
+	if !errors.Is(err, reportErr) {
+		t.Fatalf("reportNodeHealth() error = %v, want %v", err, reportErr)
+	}
+	if got := node.channelDataPlaneLease.snapshot().lastVisibleAt; !got.IsZero() {
+		t.Fatalf("lease lastVisibleAt = %s, want zero after failed report", got)
+	}
+	if len(controller.reports) != 1 || !controller.reports[0].RuntimeReady {
+		t.Fatalf("reports = %#v, want one ready report attempt", controller.reports)
 	}
 }
 
@@ -253,4 +303,18 @@ func (c *recordingHealthReportController) reportsSnapshot() []control.NodeReport
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return append([]control.NodeReport(nil), c.stored...)
+}
+
+type failingHealthReportController struct {
+	err     error
+	reports []control.NodeReport
+}
+
+func (c *failingHealthReportController) ReportNode(_ context.Context, report control.NodeReport) error {
+	c.reports = append(c.reports, report)
+	return c.err
+}
+
+func (c *failingHealthReportController) ReportSlots(context.Context, control.SlotRuntimeReport) error {
+	return nil
 }

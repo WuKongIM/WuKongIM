@@ -24,6 +24,15 @@ func (s *Service) RuntimeProbe(ctx context.Context, selector ch.RuntimeSelector)
 	return bench.RuntimeProbe(ctx, selector)
 }
 
+// DrainChannel waits for a fenced local leader runtime to drain accepted appends.
+func (s *Service) DrainChannel(ctx context.Context, req ch.DrainChannelRequest) (ch.DrainChannelResult, error) {
+	drain, ok := s.runtime.(ch.RuntimeDrain)
+	if !ok {
+		return ch.DrainChannelResult{}, ch.ErrInvalidConfig
+	}
+	return drain.DrainChannel(ctx, req)
+}
+
 // RuntimeEvict evicts selected local runtime state when the wrapped runtime supports it.
 func (s *Service) RuntimeEvict(ctx context.Context, selector ch.RuntimeSelector) (ch.RuntimeEvictResult, error) {
 	bench, ok := s.runtime.(ch.RuntimeBench)

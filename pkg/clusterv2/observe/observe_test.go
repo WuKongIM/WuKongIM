@@ -39,7 +39,8 @@ func TestReporterCallsController(t *testing.T) {
 		ObservedSlotRevision:    func() uint64 { return 12 },
 		SlotStatus:              func() []SlotStatus { return []SlotStatus{{SlotID: 1, Leader: 2}} },
 	})
-	if err := reporter.ReportNode(context.Background()); err != nil {
+	report, err := reporter.ReportNode(context.Background())
+	if err != nil {
 		t.Fatalf("ReportNode() error = %v", err)
 	}
 	if err := reporter.ReportSlots(context.Background()); err != nil {
@@ -53,6 +54,9 @@ func TestReporterCallsController(t *testing.T) {
 		controller.node.ObservedSlotRevision != 12 ||
 		controller.node.ReportSeq != 1 {
 		t.Fatalf("ReportNode() = %#v, want bounded health fields", controller.node)
+	}
+	if report != controller.node {
+		t.Fatalf("ReportNode() returned %#v, want submitted report %#v", report, controller.node)
 	}
 	if controller.slots.NodeID != 2 || len(controller.slots.Slots) != 1 {
 		t.Fatalf("slot report = %#v, want one slot for node 2", controller.slots)

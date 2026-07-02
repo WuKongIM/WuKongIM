@@ -62,6 +62,7 @@ func (n *Node) Start(ctx context.Context) error {
 	n.started.Store(true)
 	n.startHealthReportLoop()
 	n.startChannelRetentionGCLoop()
+	n.startChannelMigrationLoop()
 	started = true
 	return nil
 }
@@ -95,6 +96,7 @@ func (n *Node) Stop(ctx context.Context) error {
 	n.stopSlotLeaderLoop()
 	n.stopChannelTickLoop()
 	n.stopChannelRetentionGCLoop()
+	n.stopChannelMigrationLoop()
 	var errs []error
 	if n.channels != nil {
 		if err := n.channels.Close(); err != nil {

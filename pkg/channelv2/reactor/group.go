@@ -66,6 +66,8 @@ type Config struct {
 	LeaderRecentRecordCacheSize int
 	// LeaderRecentRecordCacheBytes is a retained payload-byte soft cap for the per-channel leader log cache; the newest oversized record may exceed it.
 	LeaderRecentRecordCacheBytes int
+	// AppendAdmissionGuard can reject local leader appends before reactor admission.
+	AppendAdmissionGuard ch.AppendAdmissionGuard
 	// IdleSlowdownAfter is the idle duration after the last Append before follower pull intervals begin increasing.
 	IdleSlowdownAfter time.Duration
 	// IdleEvictAfter is the idle duration after the last Append before a leader may ask caught-up followers to stop.
@@ -138,6 +140,7 @@ func NewGroup(cfg Config) (*Group, error) {
 			PullMaxBytes:                  cfg.PullMaxBytes,
 			LeaderRecentRecordCacheSize:   cfg.LeaderRecentRecordCacheSize,
 			LeaderRecentRecordCacheBytes:  cfg.LeaderRecentRecordCacheBytes,
+			AppendAdmissionGuard:          cfg.AppendAdmissionGuard,
 			IdleSlowdownAfter:             cfg.IdleSlowdownAfter,
 			IdleEvictAfter:                cfg.IdleEvictAfter,
 			IdlePullMinInterval:           cfg.IdlePullMinInterval,

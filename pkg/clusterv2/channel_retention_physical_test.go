@@ -156,6 +156,10 @@ func (s *recordingRetentionChannelService) RuntimeEvict(context.Context, channel
 	return channelv2.RuntimeEvictResult{}, nil
 }
 
+func (s *recordingRetentionChannelService) DrainChannel(context.Context, channelv2.DrainChannelRequest) (channelv2.DrainChannelResult, error) {
+	return channelv2.DrainChannelResult{}, nil
+}
+
 func (s *recordingRetentionChannelService) RetentionView(context.Context, channelv2.ChannelID) (channelv2.RetentionView, error) {
 	return channelv2.RetentionView{}, nil
 }

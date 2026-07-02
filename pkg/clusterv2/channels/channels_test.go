@@ -56,6 +56,10 @@ func TestSlotMetaSourceResolvesAuthoritativeRuntimeMeta(t *testing.T) {
 		MinISR:              2,
 		LeaseUntilMS:        leaseUntil.UnixMilli(),
 		RetentionThroughSeq: 9,
+		WriteFenceToken:     "migration-1",
+		WriteFenceVersion:   7,
+		WriteFenceReason:    uint8(ch.WriteFenceReasonLeaderTransfer),
+		WriteFenceUntilMS:   leaseUntil.Add(time.Second).UnixMilli(),
 		Status:              uint8(ch.StatusActive),
 	}})
 
@@ -78,6 +82,34 @@ func TestSlotMetaSourceResolvesAuthoritativeRuntimeMeta(t *testing.T) {
 	if meta.RetentionThroughSeq != 9 {
 		t.Fatalf("RetentionThroughSeq = %d, want 9", meta.RetentionThroughSeq)
 	}
+	require.Equal(t, ch.WriteFence{
+		Token:   "migration-1",
+		Version: 7,
+		Reason:  ch.WriteFenceReasonLeaderTransfer,
+		Until:   leaseUntil.Add(time.Second),
+	}, meta.WriteFence)
+}
+
+func TestSlotMetaSourceProjectsClearedWriteFenceVersion(t *testing.T) {
+	id := ch.ChannelID{ID: "cleared-fence", Type: 1}
+	source := NewSlotMetaSource(runtimeMetaReaderFake{meta: metadb.ChannelRuntimeMeta{
+		ChannelID:         id.ID,
+		ChannelType:       int64(id.Type),
+		ChannelEpoch:      2,
+		LeaderEpoch:       3,
+		Leader:            1,
+		Replicas:          []uint64{1, 2},
+		ISR:               []uint64{1, 2},
+		MinISR:            1,
+		Status:            uint8(ch.StatusActive),
+		WriteFenceVersion: 8,
+	}})
+
+	meta, err := source.ResolveChannelMeta(context.Background(), id)
+
+	require.NoError(t, err)
+	require.Equal(t, ch.WriteFence{Version: 8}, meta.WriteFence)
+	require.False(t, meta.WriteFence.Set())
 }
 
 func TestServicePassesAppendBatchTuningToRuntime(t *testing.T) {
@@ -1221,6 +1253,93 @@ func TestServiceInvalidatesAppendMetaCacheOnTextualRetryableErrors(t *testing.T)
 	require.Equal(t, 3, runtime.appendCalls)
 }
 
+func TestServiceInvalidatesAppendMetaCacheAndRetriesWhenWriteFenceClears(t *testing.T) {
+	id := ch.ChannelID{ID: "write-fence-clears", Type: 1}
+	fenced := ch.Meta{
+		Key:         ch.ChannelKeyForID(id),
+		ID:          id,
+		Epoch:       1,
+		LeaderEpoch: 1,
+		Leader:      1,
+		Replicas:    []ch.NodeID{1},
+		ISR:         []ch.NodeID{1},
+		MinISR:      1,
+		Status:      ch.StatusActive,
+		WriteFence:  ch.WriteFence{Token: "migration-1", Version: 1, Reason: ch.WriteFenceReasonLeaderTransfer},
+	}
+	clear := fenced
+	clear.LeaderEpoch = 2
+	clear.WriteFence = ch.WriteFence{}
+	source := &countingMetaSource{metas: []ch.Meta{fenced, clear}}
+	runtime := &writeFenceRuntime{}
+	svc, err := NewService(Config{Runtime: runtime, LocalNode: 1, MetaSource: source})
+	require.NoError(t, err)
+
+	_, err = svc.AppendBatch(context.Background(), ch.AppendBatchRequest{ChannelID: id, Messages: []ch.Message{{Payload: []byte("retry")}}})
+
+	require.NoError(t, err)
+	require.Equal(t, 2, source.ensureCalls)
+	require.Equal(t, 2, runtime.applyCalls)
+	require.Equal(t, 2, runtime.appendCalls)
+}
+
+func TestServiceInvalidatesSingleAppendMetaCacheAndRetriesWhenWriteFenceClears(t *testing.T) {
+	id := ch.ChannelID{ID: "single-write-fence-clears", Type: 1}
+	fenced := ch.Meta{
+		Key:         ch.ChannelKeyForID(id),
+		ID:          id,
+		Epoch:       1,
+		LeaderEpoch: 1,
+		Leader:      1,
+		Replicas:    []ch.NodeID{1},
+		ISR:         []ch.NodeID{1},
+		MinISR:      1,
+		Status:      ch.StatusActive,
+		WriteFence:  ch.WriteFence{Token: "migration-1", Version: 1, Reason: ch.WriteFenceReasonLeaderTransfer},
+	}
+	clear := fenced
+	clear.LeaderEpoch = 2
+	clear.WriteFence = ch.WriteFence{}
+	source := &countingMetaSource{metas: []ch.Meta{fenced, clear}}
+	runtime := &writeFenceRuntime{}
+	svc, err := NewService(Config{Runtime: runtime, LocalNode: 1, MetaSource: source})
+	require.NoError(t, err)
+
+	_, err = svc.Append(context.Background(), ch.AppendRequest{ChannelID: id, Message: ch.Message{Payload: []byte("retry")}})
+
+	require.NoError(t, err)
+	require.Equal(t, 2, source.ensureCalls)
+	require.Equal(t, 2, runtime.applyCalls)
+	require.Equal(t, 2, runtime.singleAppendCalls)
+}
+
+func TestServiceReturnsWriteFencedAfterAuthoritativeReloadStaysFenced(t *testing.T) {
+	id := ch.ChannelID{ID: "write-fence-stays", Type: 1}
+	fenced := ch.Meta{
+		Key:         ch.ChannelKeyForID(id),
+		ID:          id,
+		Epoch:       1,
+		LeaderEpoch: 1,
+		Leader:      1,
+		Replicas:    []ch.NodeID{1},
+		ISR:         []ch.NodeID{1},
+		MinISR:      1,
+		Status:      ch.StatusActive,
+		WriteFence:  ch.WriteFence{Token: "failover-1", Version: 1, Reason: ch.WriteFenceReasonFailover},
+	}
+	source := &countingMetaSource{metas: []ch.Meta{fenced, fenced}}
+	runtime := &writeFenceRuntime{}
+	svc, err := NewService(Config{Runtime: runtime, LocalNode: 1, MetaSource: source})
+	require.NoError(t, err)
+
+	_, err = svc.AppendBatch(context.Background(), ch.AppendBatchRequest{ChannelID: id, Messages: []ch.Message{{Payload: []byte("fenced")}}})
+
+	require.ErrorIs(t, err, ch.ErrWriteFenced)
+	require.Equal(t, 2, source.ensureCalls)
+	require.Equal(t, 2, runtime.applyCalls)
+	require.Equal(t, 2, runtime.appendCalls)
+}
+
 func TestServiceDoesNotCacheInvalidAppendMeta(t *testing.T) {
 	id := ch.ChannelID{ID: "invalid-cache", Type: 1}
 	invalid := ch.Meta{Key: ch.ChannelKeyForID(id), ID: id, Epoch: 1, LeaderEpoch: 1, Leader: 1, Replicas: []ch.NodeID{1}, ISR: []ch.NodeID{1}, Status: ch.StatusActive}
@@ -1829,6 +1948,47 @@ func (r *retryableOnceRuntime) HandleNotify(context.Context, channeltransport.No
 	return nil
 }
 func (r *retryableOnceRuntime) HandlePullHint(context.Context, channeltransport.PullHintRequest) error {
+	return nil
+}
+
+type writeFenceRuntime struct {
+	fenced            bool
+	applyCalls        int
+	appendCalls       int
+	singleAppendCalls int
+}
+
+func (r *writeFenceRuntime) ApplyMeta(meta ch.Meta) error {
+	r.applyCalls++
+	r.fenced = meta.WriteFence.Set()
+	return nil
+}
+func (r *writeFenceRuntime) Append(context.Context, ch.AppendRequest) (ch.AppendResult, error) {
+	r.singleAppendCalls++
+	if r.fenced {
+		return ch.AppendResult{}, ch.ErrWriteFenced
+	}
+	return ch.AppendResult{MessageSeq: uint64(r.singleAppendCalls)}, nil
+}
+func (r *writeFenceRuntime) AppendBatch(context.Context, ch.AppendBatchRequest) (ch.AppendBatchResult, error) {
+	r.appendCalls++
+	if r.fenced {
+		return ch.AppendBatchResult{}, ch.ErrWriteFenced
+	}
+	return ch.AppendBatchResult{Items: []ch.AppendBatchItemResult{{MessageSeq: uint64(r.appendCalls)}}}, nil
+}
+func (r *writeFenceRuntime) Tick(context.Context) error { return nil }
+func (r *writeFenceRuntime) Close() error               { return nil }
+func (r *writeFenceRuntime) HandlePull(context.Context, channeltransport.PullRequest) (channeltransport.PullResponse, error) {
+	return channeltransport.PullResponse{}, nil
+}
+func (r *writeFenceRuntime) HandleAck(context.Context, channeltransport.AckRequest) error {
+	return nil
+}
+func (r *writeFenceRuntime) HandleNotify(context.Context, channeltransport.NotifyRequest) error {
+	return nil
+}
+func (r *writeFenceRuntime) HandlePullHint(context.Context, channeltransport.PullHintRequest) error {
 	return nil
 }
 

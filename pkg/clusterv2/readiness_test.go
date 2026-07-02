@@ -15,10 +15,11 @@ import (
 const controllerProbeAttemptTimeout = time.Second
 
 type nodeReadinessState struct {
-	NodeID         uint64
-	Snapshot       Snapshot
-	ProbeSupported bool
-	ProbeError     string
+	NodeID                uint64
+	Snapshot              Snapshot
+	ChannelDataPlaneLease control.ChannelDataPlaneLease
+	ProbeSupported        bool
+	ProbeError            string
 }
 
 // WaitNodeReady waits until one started node has consumed a valid local control snapshot and runtime gates.
@@ -120,6 +121,15 @@ func nodeLocalReady(node *Node, latest *nodeReadinessState) bool {
 	snap := node.Snapshot()
 	latest.NodeID = node.NodeID()
 	latest.Snapshot = snap
+	latest.ChannelDataPlaneLease = control.ChannelDataPlaneLease{}
+	if node.channelDataPlaneLease != nil {
+		lease := node.channelDataPlaneLease.snapshot()
+		latest.ChannelDataPlaneLease = control.ChannelDataPlaneLease{
+			LastVisibleAt: lease.lastVisibleAt,
+			TTL:           lease.ttl,
+			Ready:         lease.ready,
+		}
+	}
 	if !node.started.Load() || node.stopping.Load() {
 		return false
 	}
@@ -130,6 +140,9 @@ func nodeLocalReady(node *Node, latest *nodeReadinessState) bool {
 		return false
 	}
 	if node.channels != nil && !snap.ChannelsReady {
+		return false
+	}
+	if node.channels != nil && node.channelDataPlaneLease != nil && !latest.ChannelDataPlaneLease.Ready {
 		return false
 	}
 	return true
@@ -213,7 +226,7 @@ func readinessTimeoutError(cause error, latest []nodeReadinessState) error {
 	var b strings.Builder
 	fmt.Fprintf(&b, "clusterv2 readiness: %v", cause)
 	for _, item := range latest {
-		fmt.Fprintf(&b, "\nnode=%d snapshot=%+v probe_supported=%t", item.NodeID, item.Snapshot, item.ProbeSupported)
+		fmt.Fprintf(&b, "\nnode=%d snapshot=%+v channel_data_plane_lease=%+v probe_supported=%t", item.NodeID, item.Snapshot, item.ChannelDataPlaneLease, item.ProbeSupported)
 		if item.ProbeError != "" {
 			fmt.Fprintf(&b, " probe_error=%q", item.ProbeError)
 		}

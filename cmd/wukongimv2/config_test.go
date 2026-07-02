@@ -194,6 +194,37 @@ func TestConfigRejectsClusterNodeHealthReportTTLBelowInterval(t *testing.T) {
 	}
 }
 
+func TestConfigParsesChannelMigrationTuning(t *testing.T) {
+	unsetLoadConfigEnv(t)
+	dir := t.TempDir()
+	path := filepath.Join(dir, "wukongim.conf")
+	writeConf(t, path, append(requiredConfigLines(dir),
+		"WK_CHANNEL_MIGRATION_ENABLE=false",
+		"WK_CHANNEL_MIGRATION_SCAN_INTERVAL=250ms",
+		"WK_CHANNEL_MIGRATION_SCAN_LIMIT=7",
+		"WK_CHANNEL_MIGRATION_MAX_PAGES_PER_TICK=2",
+		"WK_CHANNEL_MIGRATION_MAX_TASKS_PER_TICK=3",
+		"WK_CHANNEL_MIGRATION_TASK_LIMIT=4",
+	)...)
+
+	cfg, err := loadConfig([]string{"-config", path})
+	if err != nil {
+		t.Fatalf("loadConfig() error = %v", err)
+	}
+
+	migration := cfg.Cluster.ChannelMigration
+	if migration.Enabled || !migration.EnabledSet {
+		t.Fatalf("ChannelMigration enabled fields = %t/%t, want false/true", migration.Enabled, migration.EnabledSet)
+	}
+	if migration.ScanInterval != 250*time.Millisecond ||
+		migration.ScanLimit != 7 ||
+		migration.MaxPagesPerTick != 2 ||
+		migration.MaxTasksPerTick != 3 ||
+		migration.TaskLimit != 4 {
+		t.Fatalf("ChannelMigration = %#v, want parsed tuning", migration)
+	}
+}
+
 func TestLoadConfigExplicitConfigFile(t *testing.T) {
 	unsetLoadConfigEnv(t)
 	dir := t.TempDir()
@@ -803,6 +834,31 @@ func TestLoadConfigStaticMultiNodeCluster(t *testing.T) {
 	}
 	if cfg.Cluster.Slots.ReplicaCount != 3 {
 		t.Fatalf("Slots.ReplicaCount = %d, want 3", cfg.Cluster.Slots.ReplicaCount)
+	}
+}
+
+func TestLoadConfigParsesChannelReplicaCount(t *testing.T) {
+	unsetLoadConfigEnv(t)
+	dir := t.TempDir()
+	path := filepath.Join(dir, "wukongim.conf")
+	writeConf(t, path,
+		"WK_NODE_ID=1",
+		"WK_NODE_DATA_DIR="+filepath.Join(dir, "node-1"),
+		"WK_CLUSTER_LISTEN_ADDR=0.0.0.0:7000",
+		"WK_CLUSTER_SLOT_REPLICA_N=4",
+		"WK_CLUSTER_CHANNEL_REPLICA_N=3",
+	)
+
+	cfg, err := loadConfig([]string{"-config", path})
+	if err != nil {
+		t.Fatalf("loadConfig() error = %v", err)
+	}
+
+	if cfg.Cluster.Slots.ReplicaCount != 4 {
+		t.Fatalf("Slots.ReplicaCount = %d, want 4", cfg.Cluster.Slots.ReplicaCount)
+	}
+	if cfg.Cluster.Channel.ReplicaCount != 3 {
+		t.Fatalf("Channel.ReplicaCount = %d, want 3", cfg.Cluster.Channel.ReplicaCount)
 	}
 }
 

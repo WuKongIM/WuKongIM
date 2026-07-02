@@ -1,6 +1,7 @@
 package reactor
 
 import (
+	"context"
 	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
@@ -14,7 +15,7 @@ func (r *Reactor) handleAppend(event Event) {
 		event.Future.Complete(Result{Err: err})
 		return
 	}
-	if err := validateAppendEvent(rc, event); err != nil {
+	if err := r.validateAppendEvent(event.Context, rc, event); err != nil {
 		event.Future.Complete(Result{Err: err})
 		return
 	}
@@ -30,9 +31,9 @@ func (r *Reactor) handleAppend(event Event) {
 	r.tryFlushAppend(rc, admittedAt)
 }
 
-func validateAppendEvent(rc *runtimeChannel, event Event) error {
-	if event.Context != nil {
-		if err := event.Context.Err(); err != nil {
+func (r *Reactor) validateAppendEvent(ctx context.Context, rc *runtimeChannel, event Event) error {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
 			return err
 		}
 	}
@@ -48,11 +49,26 @@ func validateAppendEvent(rc *runtimeChannel, event Event) error {
 	if !rc.state.CommitReady {
 		return ch.ErrNotReady
 	}
+	if rc.state.WriteFence.Set() {
+		return ch.ErrWriteFenced
+	}
 	if event.Append.ExpectedChannelEpoch != 0 && event.Append.ExpectedChannelEpoch != rc.state.Epoch {
 		return ch.ErrStaleMeta
 	}
 	if event.Append.ExpectedLeaderEpoch != 0 && event.Append.ExpectedLeaderEpoch != rc.state.LeaderEpoch {
 		return ch.ErrStaleMeta
+	}
+	if r.appendAdmissionGuard != nil {
+		err := r.appendAdmissionGuard.AllowChannelAppend(ctx, ch.AppendAdmissionRequest{
+			ChannelID:   rc.state.ID,
+			ChannelKey:  rc.state.Key,
+			Epoch:       rc.state.Epoch,
+			LeaderEpoch: rc.state.LeaderEpoch,
+			Leader:      rc.state.Leader,
+		})
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }

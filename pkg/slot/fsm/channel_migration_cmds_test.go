@@ -1703,6 +1703,7 @@ func fsmTestChannelMigrationClaim(task metadb.ChannelMigrationTask, owner uint64
 		Phase:             task.Phase,
 		OwnerNodeID:       owner,
 		OwnerLeaseUntilMS: leaseUntilMS,
+		NowMS:             updatedAtMS,
 		UpdatedAtMS:       updatedAtMS,
 	}
 }

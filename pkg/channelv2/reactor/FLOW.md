@@ -37,6 +37,8 @@ Control
   EventLookupCommittedMessage
   EventRetentionView
   EventApplyRetentionBoundary
+  EventRuntimeProbe
+  EventDrainChannel
   EventCancelWaiter
   EventClose
 
@@ -68,6 +70,13 @@ The loop drains mailbox events in priority order and runs ready due work after
 each drained batch as well as while idle. This keeps append flushes, follower
 replication retries, lifecycle checks, and pending-meta deadlines from waiting
 for the mailbox to become completely empty during sustained load.
+
+`EventRuntimeProbe` and `EventDrainChannel` are read-only migration/diagnostic
+control events. Probe copies only bounded scalar proof fields from
+`ChannelState`; drain checks the expected leader epoch and durable write-fence
+version, then reports drained only when no machine append is in flight, no
+pending append waiters remain, and HW covers LEO. Neither event mutates channel
+state or performs store/RPC work.
 
 Append queues flush by record count, payload bytes, or the oldest request's
 wait deadline. `AppendBatchAdaptiveFlush` keeps the default behavior off, but

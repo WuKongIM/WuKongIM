@@ -184,9 +184,13 @@ func encodeChannelMigrationTaskRowKey(hashSlot HashSlot, channelID string, chann
 }
 
 func encodeChannelMigrationActiveIndexKey(hashSlot HashSlot, channelID string, channelType int64) []byte {
-	key := encodeIndexPrefix(hashSlot, TableIDChannelMigration, channelMigrationActiveIndexID)
+	key := encodeChannelMigrationActiveIndexPrefix(hashSlot)
 	key = keycodec.AppendString(key, channelID)
 	return keycodec.AppendInt64Ordered(key, int64(channelType))
+}
+
+func encodeChannelMigrationActiveIndexPrefix(hashSlot HashSlot) []byte {
+	return encodeIndexPrefix(hashSlot, TableIDChannelMigration, channelMigrationActiveIndexID)
 }
 
 func encodeChannelMigrationTerminalIndexPrefix(hashSlot HashSlot) []byte {

@@ -13,6 +13,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channelv2/store"
+	channelwrapper "github.com/WuKongIM/WuKongIM/pkg/clusterv2/channels"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/propose"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/routing"
@@ -254,6 +255,86 @@ func TestNodeInitializesDefaultChannelsWhenOptionMissing(t *testing.T) {
 	}
 }
 
+func TestNodeDefaultChannelsReceiveDataPlaneLeaseGuard(t *testing.T) {
+	node, err := New(validNodeConfig(t), withController(control.NewStaticController(nodeControlSnapshot())), WithProposer(&recordingProposer{}))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	_, err = node.ensureDefaultRuntime()
+	if err != nil {
+		t.Fatalf("ensureDefaultRuntime() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if node.channels != nil {
+			_ = node.channels.Close()
+		}
+		if node.defaultChannelStore != nil {
+			_ = node.defaultChannelStore.Close()
+		}
+	})
+	service, ok := node.channels.(*channelwrapper.Service)
+	if !ok {
+		t.Fatalf("default channels = %T, want *channels.Service", node.channels)
+	}
+	meta := channelv2.Meta{
+		Key:         channelv2.ChannelKey("1:lease-default"),
+		ID:          channelv2.ChannelID{ID: "lease-default", Type: 1},
+		Epoch:       1,
+		LeaderEpoch: 1,
+		Leader:      1,
+		Replicas:    []channelv2.NodeID{1},
+		ISR:         []channelv2.NodeID{1},
+		MinISR:      1,
+		Status:      channelv2.StatusActive,
+	}
+	if err := service.ApplyMeta(meta); err != nil {
+		t.Fatalf("ApplyMeta() error = %v", err)
+	}
+
+	_, err = service.Runtime().Append(context.Background(), channelv2.AppendRequest{ChannelID: meta.ID, Message: channelv2.Message{MessageID: 1, Payload: []byte("blocked")}, CommitMode: channelv2.CommitModeLocal})
+	if !errors.Is(err, channelv2.ErrNotReady) {
+		t.Fatalf("Append() before lease mark error = %v, want ErrNotReady", err)
+	}
+
+	node.channelDataPlaneLease.MarkVisible(time.Now())
+	res, err := service.Runtime().Append(context.Background(), channelv2.AppendRequest{ChannelID: meta.ID, Message: channelv2.Message{MessageID: 2, Payload: []byte("allowed")}, CommitMode: channelv2.CommitModeLocal})
+	if err != nil {
+		t.Fatalf("Append() after lease mark error = %v", err)
+	}
+	if res.MessageSeq != 1 {
+		t.Fatalf("Append() seq = %d, want 1", res.MessageSeq)
+	}
+}
+
+func TestNodeDefaultChannelsExposeMigrationStore(t *testing.T) {
+	node, err := New(validNodeConfig(t), withController(control.NewStaticController(nodeControlSnapshot())))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	_, err = node.ensureDefaultRuntime()
+	if err != nil {
+		t.Fatalf("ensureDefaultRuntime() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if node.channels != nil {
+			_ = node.channels.Close()
+		}
+		if node.defaultChannelStore != nil {
+			_ = node.defaultChannelStore.Close()
+		}
+	})
+	service, ok := node.channels.(*channelwrapper.Service)
+	if !ok {
+		t.Fatalf("default channels = %T, want *channels.Service", node.channels)
+	}
+	if service.MigrationStore() == nil {
+		t.Fatal("MigrationStore() = nil, want default Slot-backed migration facade")
+	}
+	if got := node.ChannelMigrationStore(); got != service.MigrationStore() {
+		t.Fatalf("ChannelMigrationStore() = %p, want service migration store %p", got, service.MigrationStore())
+	}
+}
+
 func TestStorageConfigDoesNotExposeCommitNoSync(t *testing.T) {
 	_, ok := reflect.TypeOf(StorageConfig{}).FieldByName("CommitNoSync")
 	if ok {
@@ -368,6 +449,59 @@ func TestChannelReplicaCountPreservesExplicitValue(t *testing.T) {
 	cfg.applyDefaults()
 	if cfg.Channel.ReplicaCount != 2 {
 		t.Fatalf("Channel.ReplicaCount = %d, want explicit value 2", cfg.Channel.ReplicaCount)
+	}
+}
+
+func TestChannelMigrationDefaultsEnabledWithBoundedWork(t *testing.T) {
+	cfg := Config{}
+	cfg.applyDefaults()
+
+	if !cfg.ChannelMigration.Enabled {
+		t.Fatal("ChannelMigration.Enabled = false, want enabled by default")
+	}
+	if cfg.ChannelMigration.ScanInterval <= 0 {
+		t.Fatalf("ChannelMigration.ScanInterval = %v, want positive", cfg.ChannelMigration.ScanInterval)
+	}
+	if cfg.ChannelMigration.ScanLimit <= 0 {
+		t.Fatalf("ChannelMigration.ScanLimit = %d, want positive", cfg.ChannelMigration.ScanLimit)
+	}
+	if cfg.ChannelMigration.MaxTasksPerTick <= 0 {
+		t.Fatalf("ChannelMigration.MaxTasksPerTick = %d, want positive", cfg.ChannelMigration.MaxTasksPerTick)
+	}
+}
+
+func TestChannelMigrationConfigRejectsNegativeBounds(t *testing.T) {
+	cfg := validNodeConfig(t)
+	cfg.ChannelMigration.ScanInterval = -time.Second
+
+	if _, err := New(cfg); !errors.Is(err, ErrInvalidConfig) {
+		t.Fatalf("New() error = %v, want ErrInvalidConfig", err)
+	}
+}
+
+func TestNodeStartHostsChannelMigrationLoopWhenEnabled(t *testing.T) {
+	cfg := validNodeConfig(t)
+	cfg.Channel.TickInterval = time.Hour
+	cfg.ChannelMigration.Enabled = true
+	cfg.ChannelMigration.ScanInterval = time.Hour
+	cfg.ChannelMigration.ScanLimit = 1
+	cfg.ChannelMigration.MaxTasksPerTick = 1
+
+	node, err := New(cfg)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	if err := node.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	if node.channelMigrationCancel == nil {
+		t.Fatal("channelMigrationCancel = nil, want migration loop running")
+	}
+	if err := node.Stop(context.Background()); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+	if node.channelMigrationCancel != nil {
+		t.Fatal("channelMigrationCancel retained after Stop, want nil")
 	}
 }
 
@@ -842,6 +976,10 @@ func (noopChannelService) RuntimeProbe(context.Context, channelv2.RuntimeSelecto
 
 func (noopChannelService) RuntimeEvict(context.Context, channelv2.RuntimeSelector) (channelv2.RuntimeEvictResult, error) {
 	return channelv2.RuntimeEvictResult{}, nil
+}
+
+func (noopChannelService) DrainChannel(context.Context, channelv2.DrainChannelRequest) (channelv2.DrainChannelResult, error) {
+	return channelv2.DrainChannelResult{}, nil
 }
 
 func (noopChannelService) Tick(context.Context) error { return nil }

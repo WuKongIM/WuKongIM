@@ -99,6 +99,8 @@ type Config struct {
 	FollowerRecoveryProbeJitter time.Duration
 	// Observer receives lightweight ChannelV2 reactor and worker metrics.
 	Observer reactor.Observer
+	// AppendAdmissionGuard can reject local leader appends before ChannelV2 reactor admission.
+	AppendAdmissionGuard ch.AppendAdmissionGuard
 	// Store opens ChannelV2 stores when constructing Runtime.
 	Store channelstore.Factory
 	// Transport sends ChannelV2 replication RPCs when constructing Runtime.
@@ -107,6 +109,8 @@ type Config struct {
 	MetaSource ChannelMetaSource
 	// Forward sends client append calls to the resolved channel leader.
 	Forward ForwardClient
+	// MigrationStore exposes Slot-backed migration task and fence commands.
+	MigrationStore *MigrationStore
 }
 
 // Service wraps ChannelV2 and exposes both client and replication surfaces.
@@ -119,6 +123,7 @@ type Service struct {
 	store      channelstore.Factory
 	metaCache  channelMetaCache
 	observer   any
+	migration  *MigrationStore
 }
 
 // NewService creates a Service from cfg.
@@ -145,6 +150,7 @@ func NewService(cfg Config) (*Service, error) {
 			AppendBatchColdMaxWait:        cfg.AppendBatchColdMaxWait,
 			FollowerRecoveryProbeInterval: cfg.FollowerRecoveryProbeInterval,
 			FollowerRecoveryProbeJitter:   cfg.FollowerRecoveryProbeJitter,
+			AppendAdmissionGuard:          cfg.AppendAdmissionGuard,
 			Store:                         cfg.Store,
 			Transport:                     cfg.Transport,
 			Observer:                      cfg.Observer,
@@ -159,7 +165,7 @@ func NewService(cfg Config) (*Service, error) {
 		return nil, fmt.Errorf("channels: runtime must implement channelv2.Cluster and channelv2/transport.Server")
 	}
 	ensurer, _ := cfg.MetaSource.(ChannelMetaEnsurer)
-	return &Service{runtime: combined, localNode: cfg.LocalNode, metaSource: cfg.MetaSource, ensurer: ensurer, forward: cfg.Forward, store: cfg.Store, observer: cfg.Observer}, nil
+	return &Service{runtime: combined, localNode: cfg.LocalNode, metaSource: cfg.MetaSource, ensurer: ensurer, forward: cfg.Forward, store: cfg.Store, observer: cfg.Observer, migration: cfg.MigrationStore}, nil
 }
 
 // Runtime returns the ChannelV2 public cluster surface.
@@ -167,6 +173,14 @@ func (s *Service) Runtime() ch.Cluster { return s.runtime }
 
 // Server returns the ChannelV2 replication server surface.
 func (s *Service) Server() channeltransport.Server { return s.runtime }
+
+// MigrationStore returns the Slot-backed migration facade, when configured.
+func (s *Service) MigrationStore() *MigrationStore {
+	if s == nil {
+		return nil
+	}
+	return s.migration
+}
 
 // ApplyMeta applies authoritative metadata to the local ChannelV2 runtime.
 func (s *Service) ApplyMeta(meta ch.Meta) error { return s.runtime.ApplyMeta(meta) }
@@ -517,7 +531,8 @@ func retryableMetaCacheError(err error) bool {
 		channelErrorMatches(err, ch.ErrChannelNotFound) ||
 		channelErrorMatches(err, ch.ErrNotLeader) ||
 		channelErrorMatches(err, ch.ErrNotReplica) ||
-		channelErrorMatches(err, ch.ErrNotReady)
+		channelErrorMatches(err, ch.ErrNotReady) ||
+		channelErrorMatches(err, ch.ErrWriteFenced)
 }
 
 func channelErrorMatches(err error, sentinel error) bool {

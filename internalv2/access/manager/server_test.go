@@ -1130,17 +1130,19 @@ func TestManagerChannelRuntimeMetaReturnsClusterRuntimeList(t *testing.T) {
 			lastChannelRuntimeMetaRequest: &gotReq,
 			channelRuntimeMeta: managementusecase.ListChannelRuntimeMetaResponse{
 				Items: []managementusecase.ChannelRuntimeMeta{{
-					ChannelID:     "g1",
-					ChannelType:   2,
-					SlotID:        9,
-					ChannelEpoch:  11,
-					LeaderEpoch:   5,
-					Leader:        2,
-					Replicas:      []uint64{1, 2, 3},
-					ISR:           []uint64{1, 2},
-					MinISR:        2,
-					MaxMessageSeq: &maxSeq,
-					Status:        "active",
+					ChannelID:       "g1",
+					ChannelType:     2,
+					SlotID:          9,
+					ChannelEpoch:    11,
+					LeaderEpoch:     5,
+					Leader:          2,
+					SlotLeader:      3,
+					PreferredLeader: 1,
+					Replicas:        []uint64{1, 2, 3},
+					ISR:             []uint64{1, 2},
+					MinISR:          2,
+					MaxMessageSeq:   &maxSeq,
+					Status:          "active",
 				}},
 				HasMore:    true,
 				NextCursor: nextCursor,
@@ -1164,7 +1166,7 @@ func TestManagerChannelRuntimeMetaReturnsClusterRuntimeList(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
 		t.Fatalf("Unmarshal() error = %v", err)
 	}
-	if len(body.Items) != 1 || body.Items[0].ChannelID != "g1" || body.Items[0].Leader != 2 || body.Items[0].MaxMessageSeq == nil || *body.Items[0].MaxMessageSeq != 88 {
+	if len(body.Items) != 1 || body.Items[0].ChannelID != "g1" || body.Items[0].Leader != 2 || body.Items[0].SlotLeader != 3 || body.Items[0].PreferredLeader != 1 || body.Items[0].MaxMessageSeq == nil || *body.Items[0].MaxMessageSeq != 88 {
 		t.Fatalf("items = %#v, want runtime meta row with max seq", body.Items)
 	}
 	if !body.HasMore || body.NextCursor == "" {
@@ -1341,6 +1343,8 @@ type managerNodesStub struct {
 	nodes                              managementusecase.NodeList
 	slots                              []managementusecase.Slot
 	channelRuntimeMeta                 managementusecase.ListChannelRuntimeMetaResponse
+	channelMigrationSummary            managementusecase.ChannelMigrationSummary
+	channelMigrationList               managementusecase.ChannelMigrationListResponse
 	businessChannels                   managementusecase.ListBusinessChannelsResponse
 	recentConversations                managementusecase.RecentConversationsResponse
 	messagesPage                       managementusecase.ListMessagesResponse
@@ -1393,6 +1397,11 @@ type managerNodesStub struct {
 	systemUsersMutation                managementusecase.MutateSystemUsersResponse
 	lastSlotsOptions                   *managementusecase.ListSlotsOptions
 	lastChannelRuntimeMetaRequest      *managementusecase.ListChannelRuntimeMetaRequest
+	lastChannelLeaderTransferRequest   *managementusecase.LeaderTransferInput
+	lastChannelReplicaReplaceRequest   *managementusecase.ReplicaReplaceInput
+	lastChannelMigrationListRequest    *managementusecase.ChannelMigrationListInput
+	lastChannelMigrationLookupRequest  *managementusecase.ChannelMigrationLookupInput
+	lastChannelMigrationAbortRequest   *managementusecase.ChannelMigrationAbortInput
 	lastBusinessChannelsRequest        *managementusecase.ListBusinessChannelsRequest
 	recentConversationsReqSink         *managementusecase.RecentConversationsRequest
 	messagesReqSink                    *managementusecase.ListMessagesRequest
@@ -1452,6 +1461,7 @@ type managerNodesStub struct {
 	err                                error
 	slotsErr                           error
 	channelRuntimeMetaErr              error
+	channelMigrationErr                error
 	businessChannelsErr                error
 	recentConversationsErr             error
 	messagesErr                        error
@@ -1588,6 +1598,48 @@ func (s managerNodesStub) ListChannelRuntimeMeta(_ context.Context, req manageme
 		*s.lastChannelRuntimeMetaRequest = req
 	}
 	return s.channelRuntimeMeta, s.channelRuntimeMetaErr
+}
+
+func (s managerNodesStub) RequestChannelLeaderTransfer(_ context.Context, req managementusecase.LeaderTransferInput) (managementusecase.ChannelMigrationSummary, error) {
+	if s.lastChannelLeaderTransferRequest != nil {
+		*s.lastChannelLeaderTransferRequest = req
+	}
+	return s.channelMigrationSummary, s.channelMigrationErr
+}
+
+func (s managerNodesStub) RequestChannelReplicaReplace(_ context.Context, req managementusecase.ReplicaReplaceInput) (managementusecase.ChannelMigrationSummary, error) {
+	if s.lastChannelReplicaReplaceRequest != nil {
+		*s.lastChannelReplicaReplaceRequest = req
+	}
+	return s.channelMigrationSummary, s.channelMigrationErr
+}
+
+func (s managerNodesStub) ActiveChannelMigration(_ context.Context, req managementusecase.ChannelMigrationListInput) (managementusecase.ChannelMigrationSummary, bool, error) {
+	if s.lastChannelMigrationListRequest != nil {
+		*s.lastChannelMigrationListRequest = req
+	}
+	return s.channelMigrationSummary, s.channelMigrationSummary.TaskID != "", s.channelMigrationErr
+}
+
+func (s managerNodesStub) ListActiveChannelMigrations(_ context.Context, req managementusecase.ChannelMigrationListInput) (managementusecase.ChannelMigrationListResponse, error) {
+	if s.lastChannelMigrationListRequest != nil {
+		*s.lastChannelMigrationListRequest = req
+	}
+	return s.channelMigrationList, s.channelMigrationErr
+}
+
+func (s managerNodesStub) ChannelMigration(_ context.Context, req managementusecase.ChannelMigrationLookupInput) (managementusecase.ChannelMigrationSummary, error) {
+	if s.lastChannelMigrationLookupRequest != nil {
+		*s.lastChannelMigrationLookupRequest = req
+	}
+	return s.channelMigrationSummary, s.channelMigrationErr
+}
+
+func (s managerNodesStub) AbortChannelMigration(_ context.Context, req managementusecase.ChannelMigrationAbortInput) (managementusecase.ChannelMigrationSummary, error) {
+	if s.lastChannelMigrationAbortRequest != nil {
+		*s.lastChannelMigrationAbortRequest = req
+	}
+	return s.channelMigrationSummary, s.channelMigrationErr
 }
 
 func (s managerNodesStub) ListSlotLogEntries(_ context.Context, req managementusecase.ListSlotLogEntriesRequest) (managementusecase.SlotLogEntriesResponse, error) {

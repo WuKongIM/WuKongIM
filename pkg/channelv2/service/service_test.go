@@ -36,6 +36,61 @@ func TestSingleNodeAppendStoresMessage(t *testing.T) {
 	require.Equal(t, uint64(1), messages[0].MessageSeq)
 }
 
+func TestAppendAdmissionGuardRejectsLeaderAppend(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	meta := ch.Meta{Key: ch.ChannelKey("1:guarded"), ID: ch.ChannelID{ID: "guarded", Type: 1}, Epoch: 2, LeaderEpoch: 3, Leader: 1, Replicas: []ch.NodeID{1}, ISR: []ch.NodeID{1}, MinISR: 1, Status: ch.StatusActive}
+	var got ch.AppendAdmissionRequest
+	cluster, err := New(Config{
+		LocalNode:    1,
+		Store:        factory,
+		ReactorCount: 1,
+		AppendAdmissionGuard: ch.AppendAdmissionGuardFunc(func(ctx context.Context, req ch.AppendAdmissionRequest) error {
+			got = req
+			return ch.ErrNotReady
+		}),
+	})
+	require.NoError(t, err)
+	defer cluster.Close()
+	require.NoError(t, cluster.ApplyMeta(meta))
+
+	_, err = cluster.Append(context.Background(), ch.AppendRequest{ChannelID: meta.ID, Message: ch.Message{Payload: []byte("hello")}})
+	require.ErrorIs(t, err, ch.ErrNotReady)
+	require.Equal(t, ch.AppendAdmissionRequest{
+		ChannelID:   meta.ID,
+		ChannelKey:  meta.Key,
+		Epoch:       meta.Epoch,
+		LeaderEpoch: meta.LeaderEpoch,
+		Leader:      meta.Leader,
+	}, got)
+	require.Empty(t, readServiceStoreMessages(t, factory, meta, 10))
+}
+
+func TestAppendAdmissionGuardRunsAfterExpectedEpochCheck(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	meta := ch.Meta{Key: ch.ChannelKey("1:stale-before-guard"), ID: ch.ChannelID{ID: "stale-before-guard", Type: 1}, Epoch: 2, LeaderEpoch: 3, Leader: 1, Replicas: []ch.NodeID{1}, ISR: []ch.NodeID{1}, MinISR: 1, Status: ch.StatusActive}
+	guardCalled := false
+	cluster, err := New(Config{
+		LocalNode:    1,
+		Store:        factory,
+		ReactorCount: 1,
+		AppendAdmissionGuard: ch.AppendAdmissionGuardFunc(func(ctx context.Context, req ch.AppendAdmissionRequest) error {
+			guardCalled = true
+			return ch.ErrNotReady
+		}),
+	})
+	require.NoError(t, err)
+	defer cluster.Close()
+	require.NoError(t, cluster.ApplyMeta(meta))
+
+	_, err = cluster.Append(context.Background(), ch.AppendRequest{
+		ChannelID:           meta.ID,
+		ExpectedLeaderEpoch: meta.LeaderEpoch - 1,
+		Message:             ch.Message{Payload: []byte("hello")},
+	})
+	require.ErrorIs(t, err, ch.ErrStaleMeta)
+	require.False(t, guardCalled)
+}
+
 func TestNewLimitsStoreAppendWorkersWhenConfigured(t *testing.T) {
 	factory := newServiceBlockingAppendFactory()
 	observer := &serviceWorkerInflightObserver{}

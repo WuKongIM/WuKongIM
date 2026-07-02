@@ -120,6 +120,8 @@ WK_CLUSTER_CONTROLLER_REQUEST_TIMEOUT=2s
 WK_CLUSTER_CONTROLLER_LEADER_WAIT_TIMEOUT=10s
 # Startup waits this long for controller-managed physical slots to recover leaders before exiting.
 WK_CLUSTER_MANAGED_SLOTS_READY_TIMEOUT=30s
+# Optional ChannelV2 data replica count for new channel placement. 0 keeps the Slot replica count.
+WK_CLUSTER_CHANNEL_REPLICA_N=0
 # Enables local Controller Raft log snapshot compaction. Enabled by default.
 WK_CLUSTER_CONTROLLER_LOG_COMPACTION_ENABLED=true
 # Number of newly applied Controller Raft entries after the last snapshot before creating a new snapshot.
@@ -160,21 +162,15 @@ WK_CHANNEL_PLANE_REACTOR_COUNT=0
 WK_CHANNEL_PLANE_PEER_LANE_COUNT=0
 WK_CHANNEL_PLANE_PEER_BATCH_MAX_WAIT=500us
 
-# Channel migration runs on local slot leaders and advances durable channel leader-transfer
-# or replica-replacement tasks created through the manager API.
+# Channel migration runs on local Slot leaders and advances durable ChannelV2
+# leader failover, leader-transfer, and replica-replacement tasks. Keep per-tick
+# bounds small on large clusters; the SEND hot path never performs these scans.
+WK_CHANNEL_MIGRATION_ENABLE=true
 WK_CHANNEL_MIGRATION_SCAN_INTERVAL=1s
 WK_CHANNEL_MIGRATION_SCAN_LIMIT=64
-WK_CHANNEL_MIGRATION_OWNER_LEASE_TTL=30s
-WK_CHANNEL_MIGRATION_RETRY_BACKOFF=1m
-WK_CHANNEL_MIGRATION_FENCE_TTL=1m
-WK_CHANNEL_MIGRATION_LEADER_LEASE_TTL=1m
-WK_CHANNEL_MIGRATION_CATCH_UP_STABLE_WINDOW=1s
-WK_CHANNEL_MIGRATION_CATCH_UP_LAG_THRESHOLD=0
-WK_CHANNEL_MIGRATION_MAX_CONCURRENT=64
-WK_CHANNEL_MIGRATION_MAX_CONCURRENT_PER_SOURCE=1
-WK_CHANNEL_MIGRATION_MAX_CONCURRENT_PER_TARGET=1
-WK_CHANNEL_MIGRATION_COMPLETED_RETENTION_TTL=24h
-WK_CHANNEL_MIGRATION_GC_LIMIT=128
+WK_CHANNEL_MIGRATION_MAX_PAGES_PER_TICK=1
+WK_CHANNEL_MIGRATION_MAX_TASKS_PER_TICK=1
+WK_CHANNEL_MIGRATION_TASK_LIMIT=1
 
 # Channel message retention is disabled by default. Set a positive TTL to allow
 # the leader-driven retention worker to hide and trim expired channel message prefixes.

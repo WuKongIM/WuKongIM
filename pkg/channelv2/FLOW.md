@@ -36,8 +36,8 @@ sequenceDiagram
     end
     Service->>Reactor: submit append event
     Note over Service,Reactor: runtime_append_submit observes mailbox admission
-    Reactor->>Reactor: validate leader, epoch, capacity
-    alt not leader, stale meta, or queue full
+    Reactor->>Reactor: validate leader, write fence, epoch, append admission guard, capacity
+    alt not leader, write fenced, stale meta, admission rejected, or queue full
         Reactor-->>Service: complete future with typed error
         Service-->>Caller: error
     else accepted
@@ -134,6 +134,26 @@ failure, and RPC latency path.
 Append callers may set `OmitResultPayload` when they only need assigned message
 ids and sequences; the leader then avoids cloning payload bytes into successful
 append replies.
+Authoritative metadata may also carry a durable channel write fence. A fenced
+leader rejects new append admission with `ErrWriteFenced`; already accepted
+in-flight append bookkeeping is not cleared by the fence-only metadata update
+so migration executors can drain it explicitly before changing leadership or
+membership.
+The hosted runtime may also provide an `AppendAdmissionGuard`. ChannelV2 calls
+it only after local leader, write-fence, and epoch checks and before enqueueing
+new leader appends. The guard is an external readiness fence: it must not mutate
+channel state, and rejection completes the caller's append future without
+disturbing already accepted in-flight batches.
+
+Runtime probes are read-only control events owned by the channel's reactor. In
+addition to loaded leader/follower/missing counts, `RuntimeProbe` returns a
+bounded per-loaded-channel proof record: channel epoch, leader epoch, role,
+status, LEO, HW, checkpoint HW, current write fence, in-flight append boolean,
+and pending append count. It never copies pending append entries or payloads.
+`DrainChannel` is a migration-only service boundary. It polls the owning reactor
+until the requested local leader is still fenced by the expected fence version,
+has no accepted in-flight or pending append work, and local HW covers local LEO;
+leader epoch or fence-version changes return `ErrStaleMeta`.
 Append callers may also carry `TraceID`, diagnostics `ChannelKey`, per-message
 trace metadata, and `Attempt` through `AppendBatchRequest`. These fields are
 transient diagnostics data for sendtrace and RPC forwarding only. The reactor

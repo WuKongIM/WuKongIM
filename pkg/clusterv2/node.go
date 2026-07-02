@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channelv2/store"
@@ -40,6 +41,7 @@ type channelService interface {
 	RuntimeSnapshot(context.Context) (channelv2.RuntimeSnapshot, error)
 	RuntimeProbe(context.Context, channelv2.RuntimeSelector) (channelv2.RuntimeProbeResult, error)
 	RuntimeEvict(context.Context, channelv2.RuntimeSelector) (channelv2.RuntimeEvictResult, error)
+	DrainChannel(context.Context, channelv2.DrainChannelRequest) (channelv2.DrainChannelResult, error)
 	Tick(context.Context) error
 	Close() error
 }
@@ -59,6 +61,8 @@ type Node struct {
 	channels         channelService
 	// channelDataNodes tracks health-schedulable data nodes for default ChannelV2 placement.
 	channelDataNodes dataNodeView
+	// channelDataPlaneLease gates local ChannelV2 leader appends on fresh control visibility.
+	channelDataPlaneLease *channelDataPlaneLeaseGuard
 	// defaultControl reports whether Node constructed the Controller runtime.
 	defaultControl bool
 	// defaultTransport reports whether Node constructed the node RPC transport.
@@ -108,6 +112,8 @@ type Node struct {
 	channelRetentionWG     sync.WaitGroup
 	channelRetentionGCMu   sync.Mutex
 	channelRetentionCursor channelv2.ChannelKey
+	channelMigrationCancel context.CancelFunc
+	channelMigrationWG     sync.WaitGroup
 	// healthReportCancel stops the low-frequency ControllerV2 health reporter.
 	healthReportCancel context.CancelFunc
 	// healthReporter sends low-frequency ControllerV2 node health reports.
@@ -126,7 +132,7 @@ func New(cfg Config, opts ...Option) (*Node, error) {
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
-	node := &Node{cfg: cfg, router: routing.NewRouter(), discovery: clusternet.NewDiscovery(), snapshot: Snapshot{NodeID: cfg.NodeID}}
+	node := &Node{cfg: cfg, router: routing.NewRouter(), discovery: clusternet.NewDiscovery(), snapshot: Snapshot{NodeID: cfg.NodeID}, channelDataPlaneLease: newChannelDataPlaneLeaseGuard(time.Now, cfg.HealthReport.TTL)}
 	for _, opt := range opts {
 		if opt != nil {
 			opt(node)

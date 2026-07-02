@@ -81,6 +81,8 @@ const (
 	ChannelMigrationKindLeaderTransfer ChannelMigrationKind = 1
 	// ChannelMigrationKindReplicaReplace replaces one replica with another.
 	ChannelMigrationKindReplicaReplace ChannelMigrationKind = 2
+	// ChannelMigrationKindLeaderFailover recovers leadership when the current leader is unavailable.
+	ChannelMigrationKindLeaderFailover ChannelMigrationKind = 3
 )
 
 // ChannelMigrationStatus is the durable lifecycle state for a task.
@@ -173,7 +175,9 @@ type ChannelMigrationTaskClaim struct {
 	Phase             ChannelMigrationPhase
 	OwnerNodeID       uint64
 	OwnerLeaseUntilMS int64
-	UpdatedAtMS       int64
+	// NowMS is the claimant's observed wall-clock time used for lease-expiry checks.
+	NowMS       int64
+	UpdatedAtMS int64
 }
 
 // ChannelMigrationTaskAdvance describes a guarded phase/progress update.
@@ -388,6 +392,57 @@ func (s *Shard) GetActiveChannelMigrationTask(ctx context.Context, channelID str
 	return task, true, nil
 }
 
+// ListActiveChannelMigrationTasks returns active migration tasks in active-index order.
+func (s *Shard) ListActiveChannelMigrationTasks(ctx context.Context, limit int) ([]ChannelMigrationTask, error) {
+	if err := s.check(ctx); err != nil {
+		return nil, err
+	}
+	if limit <= 0 {
+		return nil, nil
+	}
+	prefix := encodeChannelMigrationActiveIndexPrefix(s.hashSlot)
+	span := keycodec.NewPrefixSpan(prefix)
+	iter, err := s.db.engine.NewIter(engine.Span{Start: span.Start, End: span.End}, engine.IterOptions{})
+	if err != nil {
+		return nil, err
+	}
+	defer iter.Close()
+
+	tasks := make([]ChannelMigrationTask, 0, limit)
+	for ok := iter.First(); ok; ok = iter.Next() {
+		if err := contextErr(ctx); err != nil {
+			return nil, err
+		}
+		channelID, channelType, ok := decodeChannelMigrationActiveIndexKey(prefix, iter.Key())
+		if !ok {
+			return nil, dberrors.ErrCorruptValue
+		}
+		value, err := iter.Value()
+		if err != nil {
+			return nil, err
+		}
+		taskID := string(value)
+		if err := validateKeyString(taskID); err != nil {
+			return nil, dberrors.ErrCorruptValue
+		}
+		task, exists, err := s.GetChannelMigrationTask(ctx, channelID, channelType, taskID)
+		if err != nil {
+			return nil, err
+		}
+		if !exists || !task.IsActive() {
+			continue
+		}
+		tasks = append(tasks, task)
+		if len(tasks) >= limit {
+			break
+		}
+	}
+	if err := iter.Error(); err != nil {
+		return nil, err
+	}
+	return tasks, nil
+}
+
 // ListChannelMigrationTasks returns all migration tasks in primary-key order.
 func (s *Shard) ListChannelMigrationTasks(ctx context.Context) ([]ChannelMigrationTask, error) {
 	if err := s.check(ctx); err != nil {
@@ -477,7 +532,7 @@ func (s *Shard) stageCreateChannelMigrationTask(ctx context.Context, batch *engi
 }
 
 func (s *Shard) stageClaimChannelMigrationTask(ctx context.Context, batch *engine.Batch, req ChannelMigrationTaskClaim) error {
-	if err := validateChannelMigrationTaskGuard(req.Guard); err != nil {
+	if err := validateChannelMigrationTaskClaim(req); err != nil {
 		return err
 	}
 	task, ok, err := s.GetChannelMigrationTask(ctx, req.Guard.ChannelID, req.Guard.ChannelType, req.Guard.TaskID)
@@ -487,12 +542,22 @@ func (s *Shard) stageClaimChannelMigrationTask(ctx context.Context, batch *engin
 	if !req.Guard.matches(task) {
 		return dberrors.ErrConflict
 	}
+	if !canClaimChannelMigrationTask(task, req) {
+		return dberrors.ErrConflict
+	}
 	task.Status = req.Status
 	task.Phase = req.Phase
 	task.OwnerNodeID = req.OwnerNodeID
 	task.OwnerLeaseUntilMS = req.OwnerLeaseUntilMS
 	task.UpdatedAtMS = req.UpdatedAtMS
 	return s.stageUpsertChannelMigrationTask(ctx, batch, task)
+}
+
+func canClaimChannelMigrationTask(task ChannelMigrationTask, req ChannelMigrationTaskClaim) bool {
+	if task.OwnerNodeID == 0 || task.OwnerNodeID == req.OwnerNodeID {
+		return true
+	}
+	return task.OwnerLeaseUntilMS > 0 && task.OwnerLeaseUntilMS <= req.NowMS
 }
 
 func (s *Shard) stageAdvanceChannelMigrationTask(ctx context.Context, batch *engine.Batch, req ChannelMigrationTaskAdvance) error {
@@ -649,13 +714,13 @@ func validateChannelMigrationTask(task ChannelMigrationTask) error {
 	if err := validateChannelMigrationIdentity(task.ChannelID, task.TaskID); err != nil {
 		return err
 	}
-	if task.Kind != ChannelMigrationKindLeaderTransfer && task.Kind != ChannelMigrationKindReplicaReplace {
+	if !isLeaderTransferTaskKind(task.Kind) && task.Kind != ChannelMigrationKindReplicaReplace {
 		return dberrors.ErrInvalidArgument
 	}
 	if task.Status < ChannelMigrationStatusPending || task.Status > ChannelMigrationStatusAborted || task.Phase == 0 {
 		return dberrors.ErrInvalidArgument
 	}
-	if task.Kind == ChannelMigrationKindLeaderTransfer && task.DesiredLeader != 0 && task.DesiredLeader != task.TargetNode {
+	if isLeaderTransferTaskKind(task.Kind) && task.DesiredLeader != 0 && task.DesiredLeader != task.TargetNode {
 		return dberrors.ErrInvalidArgument
 	}
 	if task.IsTerminal() && task.CompletedAtMS <= 0 {
@@ -676,6 +741,16 @@ func validateChannelMigrationTaskGuard(guard ChannelMigrationTaskGuard) error {
 		return err
 	}
 	if guard.ExpectedStatus == 0 || guard.ExpectedPhase == 0 {
+		return dberrors.ErrInvalidArgument
+	}
+	return nil
+}
+
+func validateChannelMigrationTaskClaim(req ChannelMigrationTaskClaim) error {
+	if err := validateChannelMigrationTaskGuard(req.Guard); err != nil {
+		return err
+	}
+	if req.OwnerNodeID == 0 || req.NowMS <= 0 || req.OwnerLeaseUntilMS <= req.NowMS {
 		return dberrors.ErrInvalidArgument
 	}
 	return nil
@@ -743,6 +818,21 @@ func decodeChannelMigrationTaskRowKey(prefix []byte, key []byte) (string, int64,
 		return "", 0, "", 0, false
 	}
 	return channelID, channelTypeValue, taskID, binary.BigEndian.Uint16(rest), true
+}
+
+func decodeChannelMigrationActiveIndexKey(prefix []byte, key []byte) (string, int64, bool) {
+	if !bytes.HasPrefix(key, prefix) {
+		return "", 0, false
+	}
+	channelID, rest, err := keycodec.ReadString(key[len(prefix):])
+	if err != nil {
+		return "", 0, false
+	}
+	channelTypeValue, rest, err := readKeyInt64Ordered(rest)
+	if err != nil || len(rest) != 0 {
+		return "", 0, false
+	}
+	return channelID, channelTypeValue, true
 }
 
 func decodeChannelMigrationTerminalIndexKey(prefix []byte, key []byte) (int64, string, int64, string, bool) {

@@ -1963,18 +1963,24 @@ func (b *WriteBatch) CreateChannelMigrationTaskWithRuntimeGuard(hashSlot uint16,
 }
 
 func (b *WriteBatch) ClaimChannelMigrationTask(hashSlot uint16, req ChannelMigrationTaskClaim) error {
-	return b.stageChannelMigrationTask(hashSlot, req.Guard, func(task ChannelMigrationTask) ChannelMigrationTask {
+	if err := validateChannelMigrationTaskClaim(req); err != nil {
+		return err
+	}
+	return b.stageChannelMigrationTask(hashSlot, req.Guard, func(task ChannelMigrationTask) (ChannelMigrationTask, error) {
+		if !canClaimChannelMigrationTask(task, req) {
+			return ChannelMigrationTask{}, dberrors.ErrConflict
+		}
 		task.Status = req.Status
 		task.Phase = req.Phase
 		task.OwnerNodeID = req.OwnerNodeID
 		task.OwnerLeaseUntilMS = req.OwnerLeaseUntilMS
 		task.UpdatedAtMS = req.UpdatedAtMS
-		return task
+		return task, nil
 	})
 }
 
 func (b *WriteBatch) AdvanceChannelMigrationTask(hashSlot uint16, req ChannelMigrationTaskAdvance) error {
-	return b.stageChannelMigrationTask(hashSlot, req.Guard, func(task ChannelMigrationTask) ChannelMigrationTask {
+	return b.stageChannelMigrationTask(hashSlot, req.Guard, func(task ChannelMigrationTask) (ChannelMigrationTask, error) {
 		task.Status = req.Status
 		task.Phase = req.Phase
 		task.Attempt = req.Attempt
@@ -1998,11 +2004,11 @@ func (b *WriteBatch) AdvanceChannelMigrationTask(hashSlot uint16, req ChannelMig
 			task.EmbeddedLeaderTransfer = true
 			task.EmbeddedDesiredLeader = req.EmbeddedDesiredLeader
 		}
-		return task
+		return task, nil
 	})
 }
 
-func (b *WriteBatch) stageChannelMigrationTask(hashSlot uint16, guard ChannelMigrationTaskGuard, mutate func(ChannelMigrationTask) ChannelMigrationTask) error {
+func (b *WriteBatch) stageChannelMigrationTask(hashSlot uint16, guard ChannelMigrationTaskGuard, mutate func(ChannelMigrationTask) (ChannelMigrationTask, error)) error {
 	if err := b.ensure(); err != nil {
 		return err
 	}
@@ -2023,7 +2029,10 @@ func (b *WriteBatch) stageChannelMigrationTask(hashSlot uint16, guard ChannelMig
 		if !guard.matches(task) {
 			return dberrors.ErrConflict
 		}
-		next := mutate(task)
+		next, err := mutate(task)
+		if err != nil {
+			return err
+		}
 		if err := shard.stageUpsertChannelMigrationTask(ctx, batch, next); err != nil {
 			return err
 		}
@@ -2129,10 +2138,11 @@ func (b *WriteBatch) AddChannelLearner(hashSlot uint16, req ChannelMigrationAddL
 		if err := requireChannelMigrationAddLearnerTransition(task, req); err != nil {
 			return ChannelMigrationTask{}, ChannelRuntimeMeta{}, err
 		}
+		sourceInISR := containsUint64(meta.ISR, task.SourceNode)
 		if req.TargetNode != task.TargetNode ||
 			meta.Leader == task.SourceNode ||
 			!containsUint64(meta.Replicas, task.SourceNode) ||
-			!containsUint64(meta.ISR, task.SourceNode) ||
+			(!sourceInISR && int64(len(meta.ISR)) < meta.MinISR) ||
 			containsUint64(meta.Replicas, req.TargetNode) ||
 			containsUint64(meta.ISR, req.TargetNode) {
 			return ChannelMigrationTask{}, ChannelRuntimeMeta{}, dberrors.ErrConflict
@@ -2168,12 +2178,13 @@ func (b *WriteBatch) PromoteLearnerAndRemoveReplica(hashSlot uint16, req Channel
 		if err := requireChannelMigrationCutoverProof(task, meta, req.RuntimeGuard.ExpectedFenceVersion); err != nil {
 			return ChannelMigrationTask{}, ChannelRuntimeMeta{}, err
 		}
+		sourceInISR := containsUint64(meta.ISR, req.SourceNode)
 		if req.SourceNode != task.SourceNode ||
 			req.TargetNode != task.TargetNode ||
 			meta.Leader == req.SourceNode ||
 			!containsUint64(meta.Replicas, req.SourceNode) ||
 			!containsUint64(meta.Replicas, req.TargetNode) ||
-			!containsUint64(meta.ISR, req.SourceNode) ||
+			(!sourceInISR && int64(len(meta.ISR)) < meta.MinISR) ||
 			containsUint64(meta.ISR, req.TargetNode) {
 			return ChannelMigrationTask{}, ChannelRuntimeMeta{}, dberrors.ErrConflict
 		}
@@ -2184,7 +2195,11 @@ func (b *WriteBatch) PromoteLearnerAndRemoveReplica(hashSlot uint16, req Channel
 
 		nextMeta := meta
 		nextMeta.Replicas = replaceUint64Member(nextMeta.Replicas, req.SourceNode, req.TargetNode)
-		nextMeta.ISR = replaceUint64Member(nextMeta.ISR, req.SourceNode, req.TargetNode)
+		if sourceInISR {
+			nextMeta.ISR = replaceUint64Member(nextMeta.ISR, req.SourceNode, req.TargetNode)
+		} else {
+			nextMeta.ISR = normalizeUint64Set(append(nextMeta.ISR, req.TargetNode))
+		}
 		nextMeta.ChannelEpoch++
 		return nextTask, nextMeta, nil
 	})
@@ -2446,6 +2461,13 @@ func (s *ShardStore) GetActiveChannelMigrationTask(ctx context.Context, channelI
 		return ChannelMigrationTask{}, false, err
 	}
 	return s.shard.GetActiveChannelMigrationTask(ctx, channelID, channelType)
+}
+
+func (s *ShardStore) ListActiveChannelMigrationTasks(ctx context.Context, limit int) ([]ChannelMigrationTask, error) {
+	if err := s.validate(); err != nil {
+		return nil, err
+	}
+	return s.shard.ListActiveChannelMigrationTasks(ctx, limit)
 }
 
 func (s *ShardStore) ListChannelMigrationTasks(ctx context.Context) ([]ChannelMigrationTask, error) {

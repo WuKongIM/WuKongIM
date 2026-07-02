@@ -3,6 +3,7 @@ package cluster
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/internalv2/contracts/channelappend"
@@ -408,6 +409,8 @@ func TestChannelAppenderMapsTypedErrors(t *testing.T) {
 		{name: "clusterv2 route not ready", err: clusterv2.ErrRouteNotReady, want: channelappend.ErrRouteNotReady},
 		{name: "clusterv2 no slot leader", err: clusterv2.ErrNoSlotLeader, want: channelappend.ErrRouteNotReady},
 		{name: "channelv2 not ready", err: channelv2.ErrNotReady, want: channelappend.ErrRouteNotReady},
+		{name: "channelv2 write fenced", err: channelv2.ErrWriteFenced, want: channelappend.ErrRouteNotReady},
+		{name: "channelv2 placement candidates unavailable", err: fmt.Errorf("%w: channel replica candidates 2 below replica count 3", channelv2.ErrInvalidConfig), want: channelappend.ErrRouteNotReady},
 		{name: "context canceled", err: context.Canceled, want: context.Canceled, unchanged: true},
 		{name: "context deadline", err: context.DeadlineExceeded, want: context.DeadlineExceeded, unchanged: true},
 		{name: "unknown", err: unknown, want: channelappend.ErrAppendFailed},

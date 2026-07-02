@@ -41,6 +41,10 @@ type ChannelRuntimeMetaDTO struct {
 	LeaderEpoch uint64 `json:"leader_epoch"`
 	// Leader is the current leader node ID.
 	Leader uint64 `json:"leader"`
+	// SlotLeader is the currently observed physical Slot Raft leader.
+	SlotLeader uint64 `json:"slot_leader,omitempty"`
+	// PreferredLeader is the control-plane preferred physical Slot leader.
+	PreferredLeader uint64 `json:"preferred_leader,omitempty"`
 	// Replicas is the configured replica set.
 	Replicas []uint64 `json:"replicas"`
 	// ISR is the in-sync replica set.
@@ -51,6 +55,18 @@ type ChannelRuntimeMetaDTO struct {
 	MaxMessageSeq *uint64 `json:"max_message_seq,omitempty"`
 	// Status is the stable runtime status string.
 	Status string `json:"status"`
+	// WriteFenceToken identifies the active migration write fence when present.
+	WriteFenceToken string `json:"write_fence_token,omitempty"`
+	// WriteFenceVersion is the active migration write-fence generation.
+	WriteFenceVersion uint64 `json:"write_fence_version,omitempty"`
+	// WriteFenceReason is the stable write-fence reason.
+	WriteFenceReason string `json:"write_fence_reason,omitempty"`
+	// ActiveTaskID is the active ChannelV2 migration task when present.
+	ActiveTaskID string `json:"active_task_id,omitempty"`
+	// Degraded reports whether the channel has fewer ISR than replicas.
+	Degraded bool `json:"degraded"`
+	// DegradedReason is a bounded explanation for degraded channels.
+	DegradedReason string `json:"degraded_reason,omitempty"`
 }
 
 func (s *Server) handleChannelRuntimeMeta(c *gin.Context) {
@@ -163,16 +179,24 @@ func channelRuntimeMetaDTOs(items []managementusecase.ChannelRuntimeMeta) []Chan
 
 func channelRuntimeMetaDTO(item managementusecase.ChannelRuntimeMeta) ChannelRuntimeMetaDTO {
 	return ChannelRuntimeMetaDTO{
-		ChannelID:     item.ChannelID,
-		ChannelType:   item.ChannelType,
-		SlotID:        item.SlotID,
-		ChannelEpoch:  item.ChannelEpoch,
-		LeaderEpoch:   item.LeaderEpoch,
-		Leader:        item.Leader,
-		Replicas:      append([]uint64(nil), item.Replicas...),
-		ISR:           append([]uint64(nil), item.ISR...),
-		MinISR:        item.MinISR,
-		MaxMessageSeq: item.MaxMessageSeq,
-		Status:        item.Status,
+		ChannelID:         item.ChannelID,
+		ChannelType:       item.ChannelType,
+		SlotID:            item.SlotID,
+		ChannelEpoch:      item.ChannelEpoch,
+		LeaderEpoch:       item.LeaderEpoch,
+		Leader:            item.Leader,
+		SlotLeader:        item.SlotLeader,
+		PreferredLeader:   item.PreferredLeader,
+		Replicas:          append([]uint64(nil), item.Replicas...),
+		ISR:               append([]uint64(nil), item.ISR...),
+		MinISR:            item.MinISR,
+		MaxMessageSeq:     item.MaxMessageSeq,
+		Status:            item.Status,
+		WriteFenceToken:   item.WriteFenceToken,
+		WriteFenceVersion: item.WriteFenceVersion,
+		WriteFenceReason:  item.WriteFenceReason,
+		ActiveTaskID:      item.ActiveTaskID,
+		Degraded:          item.Degraded,
+		DegradedReason:    item.DegradedReason,
 	}
 }

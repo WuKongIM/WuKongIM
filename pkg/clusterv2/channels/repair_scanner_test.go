@@ -1,0 +1,283 @@
+package channels
+
+import (
+	"context"
+	"slices"
+	"testing"
+	"time"
+
+	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
+	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	"github.com/stretchr/testify/require"
+)
+
+func TestRepairScannerScansOnlyLocalLeaderSlots(t *testing.T) {
+	id := ch.ChannelID{ID: "scan-local", Type: 1}
+	source := newFakeRepairScannerSource(id)
+	source.localSlots = []uint32{2}
+	source.slotPages[2] = [][]metadb.ChannelRuntimeMeta{{failoverPlannerMeta(id)}}
+	store := &fakeRepairScannerStore{}
+
+	scanner := NewRepairScanner(RepairScannerConfig{Enabled: true, PageLimit: 10, MaxPagesPerTick: 10, MaxTasksPerTick: 10}, source, store)
+	_, err := scanner.RunOnce(context.Background())
+
+	require.NoError(t, err)
+	require.Equal(t, []uint32{2}, source.scannedSlots)
+	require.Len(t, store.requests, 1)
+}
+
+func TestRepairScannerUsesBoundedPageSizeAndMaxPages(t *testing.T) {
+	id := ch.ChannelID{ID: "scan-pages", Type: 1}
+	source := newFakeRepairScannerSource(id)
+	source.localSlots = []uint32{1}
+	source.slotPages[1] = [][]metadb.ChannelRuntimeMeta{
+		{failoverPlannerMeta(ch.ChannelID{ID: "scan-page-a", Type: 1})},
+		{failoverPlannerMeta(ch.ChannelID{ID: "scan-page-b", Type: 1})},
+		{failoverPlannerMeta(ch.ChannelID{ID: "scan-page-c", Type: 1})},
+	}
+
+	scanner := NewRepairScanner(RepairScannerConfig{Enabled: true, PageLimit: 3, MaxPagesPerTick: 2, MaxTasksPerTick: 10}, source, &fakeRepairScannerStore{})
+	result, err := scanner.RunOnce(context.Background())
+
+	require.NoError(t, err)
+	require.Equal(t, 2, result.PagesScanned)
+	require.Equal(t, []int{3, 3}, source.pageLimits)
+}
+
+func TestRepairScannerSuppressesDuplicateActiveMigration(t *testing.T) {
+	id := ch.ChannelID{ID: "scan-active", Type: 1}
+	source := newFakeRepairScannerSource(id)
+	source.active[id] = true
+	source.slotPages[1] = [][]metadb.ChannelRuntimeMeta{{failoverPlannerMeta(id)}}
+	store := &fakeRepairScannerStore{}
+
+	scanner := NewRepairScanner(RepairScannerConfig{Enabled: true, PageLimit: 10, MaxPagesPerTick: 10, MaxTasksPerTick: 10}, source, store)
+	result, err := scanner.RunOnce(context.Background())
+
+	require.NoError(t, err)
+	require.Zero(t, result.TasksCreated)
+	require.Empty(t, store.requests)
+}
+
+func TestRepairScannerEmitsBlockedReasonsWithoutCreatingTasks(t *testing.T) {
+	id := ch.ChannelID{ID: "scan-blocked", Type: 1}
+	source := newFakeRepairScannerSource(id)
+	source.slotPages[1] = [][]metadb.ChannelRuntimeMeta{{failoverPlannerMeta(id)}}
+	source.probes[2] = ch.RuntimeProbeChannel{}
+	source.probes[3] = ch.RuntimeProbeChannel{}
+	store := &fakeRepairScannerStore{}
+	observer := &fakeRepairScannerObserver{}
+
+	scanner := NewRepairScanner(RepairScannerConfig{Enabled: true, PageLimit: 10, MaxPagesPerTick: 10, MaxTasksPerTick: 10, Observer: observer}, source, store)
+	result, err := scanner.RunOnce(context.Background())
+
+	require.NoError(t, err)
+	require.Zero(t, result.TasksCreated)
+	require.Len(t, result.Blocked, 1)
+	require.Equal(t, "no_safe_candidate", result.Blocked[0].Reason)
+	require.Empty(t, store.requests)
+	require.Equal(t, []int{1}, observer.scanPages)
+	require.Equal(t, []int{1}, observer.scanBacklog)
+	require.Equal(t, []string{"blocked"}, observer.failoverResults)
+}
+
+func TestRepairScannerRespectsMaxTasksPerTick(t *testing.T) {
+	first := ch.ChannelID{ID: "scan-limit-a", Type: 1}
+	second := ch.ChannelID{ID: "scan-limit-b", Type: 1}
+	source := newFakeRepairScannerSource(first, second)
+	source.slotPages[1] = [][]metadb.ChannelRuntimeMeta{{failoverPlannerMeta(first), failoverPlannerMeta(second)}}
+	store := &fakeRepairScannerStore{}
+
+	scanner := NewRepairScanner(RepairScannerConfig{Enabled: true, PageLimit: 10, MaxPagesPerTick: 10, MaxTasksPerTick: 1}, source, store)
+	result, err := scanner.RunOnce(context.Background())
+
+	require.NoError(t, err)
+	require.Equal(t, 1, result.TasksCreated)
+	require.Len(t, store.requests, 1)
+}
+
+func TestRepairScannerCreatesReplicaReplacementAfterLeaderHealthy(t *testing.T) {
+	id := ch.ChannelID{ID: "scan-replica-repair", Type: 1}
+	source := newFakeRepairScannerSource(id)
+	source.nodes = repairPlannerNodes([]uint64{1, 2, 4}, []uint64{3})
+	meta := replicaRepairMeta(id)
+	meta.ISR = []uint64{1, 2}
+	source.slotPages[1] = [][]metadb.ChannelRuntimeMeta{{meta}}
+	store := &fakeRepairScannerStore{}
+	observer := &fakeRepairScannerObserver{}
+
+	scanner := NewRepairScanner(RepairScannerConfig{Enabled: true, PageLimit: 10, MaxPagesPerTick: 10, MaxTasksPerTick: 10, Observer: observer}, source, store)
+	result, err := scanner.RunOnce(context.Background())
+
+	require.NoError(t, err)
+	require.Equal(t, 1, result.TasksCreated)
+	require.Empty(t, store.requests)
+	require.Len(t, store.replicaRequests, 1)
+	require.Equal(t, ch.NodeID(3), store.replicaRequests[0].SourceNode)
+	require.Equal(t, ch.NodeID(4), store.replicaRequests[0].TargetNode)
+	require.Equal(t, []int{1}, observer.scanPages)
+	require.Equal(t, []int{0}, observer.scanBacklog)
+	require.Equal(t, []string{"created"}, observer.replicaRepairResults)
+}
+
+func TestRepairScannerChecksActiveMigrationInScannedHashSlot(t *testing.T) {
+	id := ch.ChannelID{ID: "scan-active-hash-slot", Type: 1}
+	source := newFakeRepairScannerSource(id)
+	source.nodes = repairPlannerNodes([]uint64{1, 2, 4}, []uint64{3})
+	source.hashSlotByID[id] = 77
+	meta := replicaRepairMeta(id)
+	meta.ISR = []uint64{1, 2}
+	source.slotPages[1] = [][]metadb.ChannelRuntimeMeta{{meta}}
+	store := &fakeRepairScannerStore{}
+
+	scanner := NewRepairScanner(RepairScannerConfig{Enabled: true, PageLimit: 10, MaxPagesPerTick: 10, MaxTasksPerTick: 10}, source, store)
+	result, err := scanner.RunOnce(context.Background())
+
+	require.NoError(t, err)
+	require.Equal(t, 1, result.TasksCreated)
+	require.Empty(t, source.routedActiveCalls)
+	require.Equal(t, []fakeRepairScannerActiveCall{{HashSlot: 77, ChannelID: id}}, source.hashSlotActiveCalls)
+}
+
+func TestRepairScannerPrioritizesLeaderFailoverBeforeReplicaRepair(t *testing.T) {
+	id := ch.ChannelID{ID: "scan-repair-leader-first", Type: 1}
+	source := newFakeRepairScannerSource(id)
+	source.nodes = repairPlannerNodes([]uint64{1, 2, 4}, []uint64{3})
+	meta := replicaRepairMeta(id)
+	meta.Leader = 3
+	source.slotPages[1] = [][]metadb.ChannelRuntimeMeta{{meta}}
+	store := &fakeRepairScannerStore{}
+
+	scanner := NewRepairScanner(RepairScannerConfig{Enabled: true, PageLimit: 10, MaxPagesPerTick: 10, MaxTasksPerTick: 10}, source, store)
+	result, err := scanner.RunOnce(context.Background())
+
+	require.NoError(t, err)
+	require.Equal(t, 1, result.TasksCreated)
+	require.Len(t, store.requests, 1)
+	require.Empty(t, store.replicaRequests)
+}
+
+func TestRepairScannerConfigKeepsTickIntervalForSchedulerLoop(t *testing.T) {
+	scanner := NewRepairScanner(RepairScannerConfig{Enabled: true, TickInterval: 3 * time.Second}, newFakeRepairScannerSource(), &fakeRepairScannerStore{})
+
+	require.Equal(t, 3*time.Second, scanner.cfg.TickInterval)
+}
+
+type fakeRepairScannerSource struct {
+	localSlots   []uint32
+	slotPages    map[uint32][][]metadb.ChannelRuntimeMeta
+	active       map[ch.ChannelID]bool
+	probes       map[uint64]ch.RuntimeProbeChannel
+	nodes        []control.Node
+	hashSlotByID map[ch.ChannelID]uint16
+	scannedSlots []uint32
+	pageLimits   []int
+
+	routedActiveCalls   []ch.ChannelID
+	hashSlotActiveCalls []fakeRepairScannerActiveCall
+}
+
+type fakeRepairScannerActiveCall struct {
+	HashSlot  uint16
+	ChannelID ch.ChannelID
+}
+
+func newFakeRepairScannerSource(ids ...ch.ChannelID) *fakeRepairScannerSource {
+	source := &fakeRepairScannerSource{
+		localSlots:   []uint32{1},
+		slotPages:    make(map[uint32][][]metadb.ChannelRuntimeMeta),
+		active:       make(map[ch.ChannelID]bool),
+		probes:       make(map[uint64]ch.RuntimeProbeChannel),
+		hashSlotByID: make(map[ch.ChannelID]uint16),
+	}
+	for _, id := range ids {
+		source.probes[2] = failoverProbe(id, 2, 11, 20, 10, 10).Probe
+		source.probes[3] = failoverProbe(id, 3, 11, 20, 9, 9).Probe
+	}
+	return source
+}
+
+func (s *fakeRepairScannerSource) LocalLeaderSlotIDs(context.Context) ([]uint32, error) {
+	return append([]uint32(nil), s.localSlots...), nil
+}
+
+func (s *fakeRepairScannerSource) ListRepairScannerRuntimeMetaPage(_ context.Context, slotID uint32, cursor metadb.ChannelRuntimeMetaCursor, limit int) ([]RepairScannerRuntimeMeta, metadb.ChannelRuntimeMetaCursor, bool, error) {
+	if !slices.Contains(s.scannedSlots, slotID) {
+		s.scannedSlots = append(s.scannedSlots, slotID)
+	}
+	s.pageLimits = append(s.pageLimits, limit)
+	pages := s.slotPages[slotID]
+	index := int(cursor.ChannelType)
+	if index >= len(pages) {
+		return nil, metadb.ChannelRuntimeMetaCursor{}, true, nil
+	}
+	next := metadb.ChannelRuntimeMetaCursor{ChannelType: int64(index + 1)}
+	items := make([]RepairScannerRuntimeMeta, 0, len(pages[index]))
+	for _, meta := range pages[index] {
+		id := ch.ChannelID{ID: meta.ChannelID, Type: uint8(meta.ChannelType)}
+		items = append(items, RepairScannerRuntimeMeta{HashSlot: s.hashSlotByID[id], Meta: meta})
+	}
+	return items, next, index == len(pages)-1, nil
+}
+
+func (s *fakeRepairScannerSource) ActiveChannelMigration(_ context.Context, id ch.ChannelID) (bool, error) {
+	s.routedActiveCalls = append(s.routedActiveCalls, id)
+	return s.active[id], nil
+}
+
+func (s *fakeRepairScannerSource) ActiveChannelMigrationInHashSlot(_ context.Context, hashSlot uint16, id ch.ChannelID) (bool, error) {
+	s.hashSlotActiveCalls = append(s.hashSlotActiveCalls, fakeRepairScannerActiveCall{HashSlot: hashSlot, ChannelID: id})
+	return s.active[id], nil
+}
+
+func (s *fakeRepairScannerSource) ProbeChannel(_ context.Context, nodeID uint64, channelID string, channelType uint8) (ch.RuntimeProbeChannel, error) {
+	probe := s.probes[nodeID]
+	probe.ChannelID = ch.ChannelID{ID: channelID, Type: channelType}
+	return probe, nil
+}
+
+func (s *fakeRepairScannerSource) ControlSnapshot(context.Context) (control.Snapshot, error) {
+	if s.nodes != nil {
+		return control.Snapshot{Nodes: append([]control.Node(nil), s.nodes...)}, nil
+	}
+	return control.Snapshot{Nodes: failoverHealthyNodes(2, 3)}, nil
+}
+
+type fakeRepairScannerStore struct {
+	requests        []CreateLeaderFailoverRequest
+	replicaRequests []CreateReplicaReplaceRequest
+}
+
+func (s *fakeRepairScannerStore) CreateLeaderFailover(_ context.Context, req CreateLeaderFailoverRequest) (metadb.ChannelMigrationTask, error) {
+	s.requests = append(s.requests, req)
+	return metadb.ChannelMigrationTask{TaskID: "task-" + req.ChannelID.ID}, nil
+}
+
+func (s *fakeRepairScannerStore) CreateReplicaReplace(_ context.Context, req CreateReplicaReplaceRequest) (metadb.ChannelMigrationTask, error) {
+	s.replicaRequests = append(s.replicaRequests, req)
+	return metadb.ChannelMigrationTask{TaskID: "task-repair-" + req.ChannelID.ID}, nil
+}
+
+type fakeRepairScannerObserver struct {
+	scanPages            []int
+	scanBacklog          []int
+	failoverResults      []string
+	replicaRepairResults []string
+}
+
+func (o *fakeRepairScannerObserver) RepairScanPages(pages int) {
+	o.scanPages = append(o.scanPages, pages)
+}
+
+func (o *fakeRepairScannerObserver) RepairScanBacklog(backlog int) {
+	o.scanBacklog = append(o.scanBacklog, backlog)
+}
+
+func (o *fakeRepairScannerObserver) FailoverResult(result string) {
+	o.failoverResults = append(o.failoverResults, result)
+}
+
+func (o *fakeRepairScannerObserver) ReplicaRepairResult(result string) {
+	o.replicaRepairResults = append(o.replicaRepairResults, result)
+}

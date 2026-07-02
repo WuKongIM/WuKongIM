@@ -546,9 +546,17 @@ func SameSlotAssignments(a, b []SlotDTO) bool {
 // SlotDTO is the manager-facing Slot row subset used by e2ev2 scenarios.
 type SlotDTO struct {
 	SlotID     uint32            `json:"slot_id"`
+	HashSlots  *SlotHashSlotsDTO `json:"hash_slots,omitempty"`
 	Assignment SlotAssignmentDTO `json:"assignment"`
 	Task       *SlotTaskDTO      `json:"task,omitempty"`
 	Runtime    SlotRuntimeDTO    `json:"runtime"`
+	NodeLog    *SlotNodeLogDTO   `json:"node_log,omitempty"`
+}
+
+// SlotHashSlotsDTO contains the logical hash-slot IDs owned by one physical Slot.
+type SlotHashSlotsDTO struct {
+	Count int      `json:"count"`
+	Items []uint16 `json:"items"`
 }
 
 // SlotAssignmentDTO contains desired Slot placement fields returned by manager HTTP.
@@ -567,6 +575,16 @@ type SlotRuntimeDTO struct {
 	HealthyVoters       uint32   `json:"healthy_voters"`
 	HasQuorum           bool     `json:"has_quorum"`
 	ObservedConfigEpoch uint64   `json:"observed_config_epoch"`
+}
+
+// SlotNodeLogDTO contains one node's local Slot Raft leader observation.
+type SlotNodeLogDTO struct {
+	NodeID        uint64   `json:"node_id"`
+	LeaderID      uint64   `json:"leader_id"`
+	Role          string   `json:"role"`
+	CurrentVoters []uint64 `json:"current_voters,omitempty"`
+	CommitIndex   uint64   `json:"commit_index"`
+	AppliedIndex  uint64   `json:"applied_index"`
 }
 
 // SlotTaskDTO is the active Slot task subset used only to wait for stable inventory.

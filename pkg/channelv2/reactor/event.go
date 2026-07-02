@@ -23,6 +23,8 @@ const (
 	EventRuntimeSnapshot
 	// EventRuntimeProbe asks one reactor to inspect selected loaded runtimes.
 	EventRuntimeProbe
+	// EventDrainChannel asks one reactor to check whether a fenced local leader has drained accepted appends.
+	EventDrainChannel
 	// EventRuntimeEvict asks one reactor to evict selected safe runtimes.
 	EventRuntimeEvict
 	// EventRetentionView asks one reactor for one channel's retention view.
@@ -65,6 +67,7 @@ type Event struct {
 	Notify         transport.NotifyRequest
 	PullHint       transport.PullHintRequest
 	RetentionApply ch.RetentionApplyRequest
+	DrainChannel   ch.DrainChannelRequest
 	OpID           ch.OpID
 	// MessageID selects a durable message for EventLookupCommittedMessage.
 	MessageID uint64
@@ -89,6 +92,8 @@ func eventKindName(kind EventKind) string {
 		return "EventRuntimeSnapshot"
 	case EventRuntimeProbe:
 		return "EventRuntimeProbe"
+	case EventDrainChannel:
+		return "EventDrainChannel"
 	case EventRuntimeEvict:
 		return "EventRuntimeEvict"
 	case EventRetentionView:

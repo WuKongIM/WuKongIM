@@ -27,7 +27,7 @@ func mapAppendError(err error) error {
 		return fmt.Errorf("%w: %w", channelappend.ErrChannelNotFound, err)
 	case appendErrorMatches(err, channelv2.ErrBackpressured):
 		return fmt.Errorf("%w: %w", channelappend.ErrBackpressured, err)
-	case errors.Is(err, clusterv2.ErrRouteNotReady), errors.Is(err, clusterv2.ErrNoSlotLeader), appendErrorMatches(err, channelv2.ErrNotReady):
+	case errors.Is(err, clusterv2.ErrRouteNotReady), errors.Is(err, clusterv2.ErrNoSlotLeader), appendErrorMatches(err, channelv2.ErrNotReady), appendErrorMatches(err, channelv2.ErrWriteFenced), appendErrorIsChannelPlacementUnavailable(err):
 		return fmt.Errorf("%w: %w", channelappend.ErrRouteNotReady, err)
 	default:
 		return fmt.Errorf("%w: %w", channelappend.ErrAppendFailed, err)
@@ -36,4 +36,12 @@ func mapAppendError(err error) error {
 
 func appendErrorMatches(err error, sentinel error) bool {
 	return errors.Is(err, sentinel) || (err != nil && sentinel != nil && strings.Contains(err.Error(), sentinel.Error()))
+}
+
+func appendErrorIsChannelPlacementUnavailable(err error) bool {
+	if !appendErrorMatches(err, channelv2.ErrInvalidConfig) {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "channel replica candidates") && strings.Contains(msg, "below replica count")
 }

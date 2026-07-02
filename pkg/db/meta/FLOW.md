@@ -51,8 +51,12 @@ Current flow:
    delete-barrier checks, and floor merges happen in one shard-locked mutation.
 14. Channel migration tasks use the table runtime for primary rows and terminal
    indexes while keeping the active-task index custom because its legacy value
-   stores the active `task_id`; guarded task/runtime-meta mutations keep
-   read-your-writes overlays before committing both records atomically.
+   stores the active `task_id`; slot-scoped active-task reads page through that
+   active index instead of scanning the primary table. Guarded
+   task/runtime-meta mutations keep read-your-writes overlays before committing
+   both records atomically, and task owner claims are fenced so only the same
+   owner, an unowned task, or a task whose previous owner lease has expired at
+   the claim request's `now_ms` can take ownership.
 15. Hash-slot migration state uses the table runtime with a legacy primary key
    that omits the family suffix; applied-delta dedup rows and outbox rows stay
    as custom records under the same hash-slot partition, and typed values repeat

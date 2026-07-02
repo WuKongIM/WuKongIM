@@ -50,10 +50,10 @@ type Reporter struct {
 // NewReporter creates a Reporter.
 func NewReporter(cfg ReporterConfig) *Reporter { return &Reporter{cfg: cfg} }
 
-// ReportNode reports local node state.
-func (r *Reporter) ReportNode(ctx context.Context) error {
+// ReportNode reports local node state and returns the report that was submitted.
+func (r *Reporter) ReportNode(ctx context.Context) (control.NodeReport, error) {
 	if r == nil || r.cfg.Controller == nil {
-		return nil
+		return control.NodeReport{}, nil
 	}
 	seq := r.reportSeq.Add(1)
 	report := control.NodeReport{
@@ -65,7 +65,7 @@ func (r *Reporter) ReportNode(ctx context.Context) error {
 		ObservedSlotRevision:    callUint64(r.cfg.ObservedSlotRevision),
 		ReportSeq:               seq,
 	}
-	return r.cfg.Controller.ReportNode(ctx, report)
+	return report, r.cfg.Controller.ReportNode(ctx, report)
 }
 
 // ReportSlots reports local Slot runtime state.

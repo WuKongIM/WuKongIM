@@ -135,6 +135,30 @@ func (c *garbageCollectMigrationTasksCmd) applyResult() []byte {
 	return EncodeGarbageCollectTerminalChannelMigrationTasksResult(c.deleted)
 }
 
+// IsChannelMigrationCommand reports whether data is a ChannelV2 migration FSM command.
+func IsChannelMigrationCommand(data []byte) bool {
+	if len(data) < headerSize {
+		return false
+	}
+	switch data[1] {
+	case cmdTypeCreateChannelMigrationTask,
+		cmdTypeClaimChannelMigrationTask,
+		cmdTypeAdvanceChannelMigrationTask,
+		cmdTypeSetChannelWriteFence,
+		cmdTypeResetChannelWriteFence,
+		cmdTypeCommitChannelLeaderTransfer,
+		cmdTypeAddChannelLearner,
+		cmdTypePromoteLearnerAndRemoveReplica,
+		cmdTypeClearChannelWriteFence,
+		cmdTypeAbortChannelMigration,
+		cmdTypeGarbageCollectMigrationTasks,
+		cmdTypeCreateChannelMigrationGuarded:
+		return true
+	default:
+		return false
+	}
+}
+
 // EncodeCreateChannelMigrationTaskCommand encodes a durable migration task create command.
 func EncodeCreateChannelMigrationTaskCommand(task metadb.ChannelMigrationTask) []byte {
 	return encodeChannelMigrationJSONCommand(cmdTypeCreateChannelMigrationTask, task)

@@ -135,6 +135,8 @@ type Options struct {
 	ControllerRaftStatusObserver ControllerRaftStatusObserver
 	// ChannelRuntimeMeta scans channel runtime metadata for cluster channel pages.
 	ChannelRuntimeMeta ChannelRuntimeMetaReader
+	// ChannelMigration creates and reads ChannelV2 migration tasks.
+	ChannelMigration ChannelMigrationStore
 	// ChannelBusinessReader scans durable channel metadata for manager channel pages.
 	ChannelBusinessReader ChannelBusinessReader
 	// RemoteBusinessChannels reads manager channel pages from peer nodes.
@@ -206,6 +208,7 @@ type App struct {
 	controllerVoterPromotion     ControllerVoterPromotionObserver
 	controllerRaftStatusObserver ControllerRaftStatusObserver
 	channelRuntimeMeta           ChannelRuntimeMetaReader
+	channelMigration             ChannelMigrationStore
 	channelBusinessReader        ChannelBusinessReader
 	remoteBusinessChannels       RemoteBusinessChannelReader
 	users                        UserReader
@@ -256,6 +259,7 @@ func New(opts Options) *App {
 		controllerVoterPromotion:     opts.ControllerVoterPromotionObserver,
 		controllerRaftStatusObserver: opts.ControllerRaftStatusObserver,
 		channelRuntimeMeta:           opts.ChannelRuntimeMeta,
+		channelMigration:             opts.ChannelMigration,
 		channelBusinessReader:        opts.ChannelBusinessReader,
 		remoteBusinessChannels:       opts.RemoteBusinessChannels,
 		users:                        opts.Users,

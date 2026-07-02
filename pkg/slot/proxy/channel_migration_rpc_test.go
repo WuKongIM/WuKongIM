@@ -986,6 +986,7 @@ func proxyTestChannelMigrationClaim(task metadb.ChannelMigrationTask, owner uint
 		Phase:             task.Phase,
 		OwnerNodeID:       owner,
 		OwnerLeaseUntilMS: leaseUntilMS,
+		NowMS:             updatedAtMS,
 		UpdatedAtMS:       updatedAtMS,
 	}
 }

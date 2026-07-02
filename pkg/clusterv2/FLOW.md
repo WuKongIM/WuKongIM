@@ -24,7 +24,7 @@ The root `Node` stays thin: it owns lifecycle, readiness, public API delegation,
 | `net` | Typed node-to-node RPC and discovery glue; Go package name is `clusternet`. |
 | `slots` | Slot Multi-Raft runtime open/bootstrap/reconcile/status. |
 | `propose` | Slot metadata propose path and leader forwarding. |
-| `channels` | ChannelV2 service construction, metadata resolve/ensure, append leader forwarding, and replication transport. |
+| `channels` | ChannelV2 service construction, metadata resolve/ensure, append leader forwarding, replication transport, and channel migration planning/execution primitives. |
 | `observe` | Low-frequency background loops and readiness snapshots. |
 
 ## Route Authority And Node RPC Surface
@@ -141,6 +141,8 @@ Start(ctx)
   -> mark ChannelV2 ready and start the tick loop
   -> mark node started
   -> start low-frequency ControllerV2 health reporting
+  -> start ChannelV2 physical retention cleanup loop when enabled
+  -> start the bounded ChannelV2 migration executor/repair scanner loop when enabled
 ```
 
 `Start` requires cluster semantics even for one node. A single-node cluster uses a ControllerV2-backed single-voter control runtime instead of a bypass path. Multi-voter default startup uses `pkg/transportv2` one-way service messages for ControllerV2 Raft traffic and RPC responses only for state-sync requests. The ControllerV2 Raft receive handler bounds local `Step` enqueue time and may drop messages when the local Step queue is saturated; Raft retransmission is relied on instead of allowing one-way notify goroutines to accumulate indefinitely.
@@ -201,6 +203,16 @@ and clean Stop sends one final best-effort bounded not-ready report after the
 periodic loop is canceled and before Controller/watch shutdown. ControllerV2
 fills the leader-side report timestamp, stores the report durably, and control
 snapshots derive `fresh`, `stale`, or `missing` health from the configured TTL.
+The default ChannelV2 runtime also receives a node-local data-plane lease guard
+derived from this loop. A successful health report refreshes the lease only
+when `runtime_ready` is still true; final not-ready stop reports do not extend
+foreground append eligibility. Local ChannelV2 leader appends fail closed with
+`channelv2.ErrNotReady` when the lease is missing or older than the configured
+health-report TTL, so a partitioned node that can no longer make itself visible
+to the control plane stops accepting new data-plane writes before stale leaders
+can accumulate divergent log tails. `LocalControlSnapshot` includes the local
+lease timestamp, TTL, and readiness as diagnostics; it is not a distributed
+authority source.
 
 ## Stop Flow
 
@@ -211,6 +223,7 @@ Stop(ctx)
   -> stop Controller watch loop
   -> stop ChannelV2 tick loop
   -> stop ChannelV2 physical retention cleanup loop
+  -> stop ChannelV2 migration executor/repair scanner loop
   -> close hosted ChannelV2 service
   -> stop ControllerV2-backed Controller or injected Controller
   -> stop injected lifecycle resources in reverse order
@@ -242,6 +255,66 @@ channel's current hash-slot route, and `AdvanceChannelRetentionThroughSeq`
 proposes a fenced Slot FSM command that only advances the channel message
 retention boundary. Manager history deletion must use this metadata advance
 instead of deleting ChannelV2 message rows directly.
+`pkg/clusterv2/channels.MigrationStore` is the ChannelV2 migration facade at
+this same boundary. It resolves the channel-owned hash slot and physical Slot,
+reads runtime metadata and migration tasks through the hash slot's current Slot
+leader via the `RPCChannelMigrationMeta` reader path, and submits only typed
+migration intents as encoded Slot FSM commands. Non-leader nodes must not make
+migration decisions from their local Slot metadata shard; the RPC target also
+revalidates that its local Slot runtime is still the actual Slot leader before
+serving migration state. When the local Slot runtime already reports actual
+leadership for the routed Slot, migration metadata reads use the local shard
+even if the foreground control route has not yet observed that Slot leader.
+Automatic dead-leader recovery uses `channels.RepairScanner` as a bounded
+RunOnce scheduler primitive over Slot-leader-owned runtime metadata pages. It
+detects stale or unschedulable ChannelV2 leaders from the control snapshot,
+probes surviving ISR replicas, checks duplicate active migration tasks in the
+same hash-slot shard that produced the scanned runtime metadata row, asks
+`FailoverPlanner` for a safe target, and creates `leader_failover` migration
+tasks through `MigrationStore`. The hash-slot-scoped active check avoids
+re-routing scanner work through a stale foreground Slot leader after failover.
+A failover task sets `WriteFenceReasonFailover` and uses the target replica's
+committed HW as the cutover proof; it does not drain the unavailable source
+leader.
+After leader recovery is ruled out for a channel, the same scanner asks
+`ReplicaRepairPlanner` whether an unhealthy non-leader replica can be replaced.
+Follower repair only creates a `replica_replace` task when the remaining
+health-schedulable ISR still satisfies `MinISR` and a replacement node passes
+the same placement predicate used for new ChannelV2 channels. If the source
+replica has already fallen out of ISR, Slot metadata commands may still add the
+learner and later promote it, but only while the current ISR already satisfies
+`MinISR`; the promote step appends the target to ISR while removing the source
+from replicas.
+Channel migration execution keeps one durable operation order. Manual leader
+transfer validates metadata, proves the target follower, sets the task-owned
+write fence, drains the source leader, waits for final target catch-up, commits
+leader metadata, verifies the new leader runtime, and only then clears the
+fence. Automatic leader failover uses the same fenced commit/verify/clear tail
+but skips source drain and synthesizes the cutover proof from the selected
+target replica because the old leader is considered unavailable. Replica
+replacement validates the non-leader source, adds the target learner, applies
+the updated runtime metadata to the current leader and target runtime before
+waiting for warm catch-up, sets the write fence, reapplies the fenced runtime
+metadata to the current leader and target before draining the current leader for
+a cutover proof, waits for final target catch-up, promotes the learner while
+removing the source, applies the final runtime metadata to the current leader
+and target before verifying membership, and clears the fence. Any blocked phase
+is persisted on the task before observer events are emitted.
+`MigrationObserver` and `RepairObserver` are low-cardinality hooks for app-level
+metrics. Migration observations include active task count, active write-fence
+count, phase duration, blocked reason, and write-fence duration. Repair-scan
+observations include pages scanned, blocked backlog, failover result, and
+replica-repair result. Observers must aggregate by bounded kind/phase/reason or
+result only; task IDs, channel IDs, node addresses, and UIDs are not metric
+labels.
+Default hosting starts the bounded migration executor/repair scanner loop unless
+`Config.ChannelMigration.Enabled` is explicitly false. Each tick runs at most the
+configured number of task executor steps and Slot-owned runtime-meta scan pages,
+so failover and repair work cannot turn into an unbounded foreground SEND tax.
+Internalv2 callers should use this facade instead of depending on Slot FSM
+command payloads or unscoped migration table reads. `Node.ChannelMigrationStore`
+exposes the hosted facade for internalv2 app wiring and returns nil when the
+hosted ChannelV2 service does not provide manual migration task management.
 Physical message cleanup is a separate node-local background loop and is
 disabled by default. One `RunChannelRetentionGCOnce` pass reads a bounded page
 from the local message catalog, loads the authoritative Slot metadata boundary,
@@ -301,6 +374,7 @@ Node.AppendChannel / AppendChannelBatch
       -> if missing: derive initial replicas/leader from Slot placement and persist through RuntimeMetaWriter
       -> reread final authoritative ChannelRuntimeMeta when local Slot state has caught up; otherwise return the deterministic initial Meta after a successful write
       -> if local node is channel leader: ApplyMeta to local ChannelV2 runtime, then Append locally
+         (durable ChannelRuntimeMeta write fences and the node-local data-plane lease guard reject new local appends)
       -> else: RPCChannelAppend / RPCChannelAppendBatch forward to the resolved channel leader
   -> local reactor and store worker pools
   -> clusterv2 channel RPC client
@@ -348,7 +422,7 @@ floor and `RetentionThroughSeq`. Channel not found or no visible tail returns
 `ok=false`; route, not-ready, not-leader, and stale-route errors propagate to
 the caller.
 
-`WithProposer` and `WithChannels` are public override options for tests, smoke harnesses, and app-level composition. If callers do not provide them, `Node.Start` creates a default ControllerV2 runtime, proposer, and ChannelV2 service, backs ChannelV2 with the message DB under `DataDir/channellog`, registers ChannelV2 replication/append-forward handlers on the default node RPC transport, and owns the ChannelV2 tick loop plus default store factory cleanup. The default proposer is backed by a real local Slot Multi-Raft runtime, durable Slot Raft log storage under `DataDir/slotraft`, metadata FSM storage under `DataDir/slotmeta`, and clusterv2 typed RPC transport for multi-replica Slot Raft traffic.
+`WithProposer` and `WithChannels` are public override options for tests, smoke harnesses, and app-level composition. If callers do not provide them, `Node.Start` creates a default ControllerV2 runtime, proposer, and ChannelV2 service, backs ChannelV2 with the message DB under `DataDir/channellog`, wires the node-local data-plane lease as ChannelV2 append admission, registers ChannelV2 replication/append-forward handlers on the default node RPC transport, and owns the ChannelV2 tick loop plus default store factory cleanup. The default proposer is backed by a real local Slot Multi-Raft runtime, durable Slot Raft log storage under `DataDir/slotraft`, metadata FSM storage under `DataDir/slotmeta`, and clusterv2 typed RPC transport for multi-replica Slot Raft traffic.
 `Config.Slots.Observer` is passed to the default Slot Multi-Raft runtime so composition roots can expose scheduler pressure without changing Slot processing semantics.
 `Config.Slots.LogCompaction` is also passed through to the default Slot
 Multi-Raft runtime so composition roots can tune local Slot Raft snapshot
@@ -384,7 +458,7 @@ leader-forwarding control facade as other Controller writes. Cluster fan-out,
 target readiness checks, and safety fences are owned by
 `internalv2/usecase/management`, not clusterv2.
 
-`channels.Service` keeps a combined runtime interface because the public ChannelV2 `Cluster` surface and replication `transport.Server` surface are separate. `StaticMetaSource` is available for tests and smoke runs. `SlotMetaSource` adapts authoritative `pkg/db/meta` `ChannelRuntimeMeta` records into ChannelV2 metadata for production wiring. `ResolveChannelMeta` remains read-only; `EnsureChannelMeta` is the append-only path that may create the initial ChannelRuntimeMeta through the Slot-owned metadata writer before any ChannelV2 append is attempted. `SlotMetaSource` emits low-cardinality metadata resolve sub-stages for Slot meta read, initial placement/build, missing-meta write/propose, aggregate create/write, and final reread so cold activation tail latency can be attributed before pprof. In the default runtime, `meta_create_propose` wraps the Slot metadata writer call; `meta_create_propose_local` and `meta_create_propose_forward` split origin-side routing, `meta_create_slot_propose_submit` times local `Runtime.Propose`, and `meta_create_slot_propose_wait` times the subsequent Multi-Raft future wait. The default proposer also bridges the append stage observer into `pkg/slot/multiraft`, allowing the same ChannelV2 stage histogram to report `meta_create_slot_control_wait`, `meta_create_slot_raft_commit_wait`, `meta_create_slot_fsm_apply`, `meta_create_slot_fsm_commit`, and `meta_create_slot_mark_applied`.
+`channels.Service` keeps a combined runtime interface because the public ChannelV2 `Cluster` surface and replication `transport.Server` surface are separate. `StaticMetaSource` is available for tests and smoke runs. `SlotMetaSource` adapts authoritative `pkg/db/meta` `ChannelRuntimeMeta` records into ChannelV2 metadata for production wiring, including the durable write-fence token/version/reason/deadline used to block new leader appends. `ResolveChannelMeta` remains read-only; `EnsureChannelMeta` is the append-only path that may create the initial ChannelRuntimeMeta through the Slot-owned metadata writer before any ChannelV2 append is attempted. `SlotMetaSource` emits low-cardinality metadata resolve sub-stages for Slot meta read, initial placement/build, missing-meta write/propose, aggregate create/write, and final reread so cold activation tail latency can be attributed before pprof. In the default runtime, `meta_create_propose` wraps the Slot metadata writer call; `meta_create_propose_local` and `meta_create_propose_forward` split origin-side routing, `meta_create_slot_propose_submit` times local `Runtime.Propose`, and `meta_create_slot_propose_wait` times the subsequent Multi-Raft future wait. The default proposer also bridges the append stage observer into `pkg/slot/multiraft`, allowing the same ChannelV2 stage histogram to report `meta_create_slot_control_wait`, `meta_create_slot_raft_commit_wait`, `meta_create_slot_fsm_apply`, `meta_create_slot_fsm_commit`, and `meta_create_slot_mark_applied`.
 
 Initial ChannelV2 placement is data-plane placement, not Slot metadata
 placement. Slot routing identifies the authoritative metadata Slot and its
