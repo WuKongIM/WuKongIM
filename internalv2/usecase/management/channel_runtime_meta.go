@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
+	channelv2 "github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
@@ -46,6 +47,18 @@ type ChannelRuntimeMeta struct {
 	MaxMessageSeq *uint64
 	// Status is the stable manager-facing runtime status string.
 	Status string
+	// WriteFenceToken identifies the active write-fence owner when present.
+	WriteFenceToken string
+	// WriteFenceVersion is the active write-fence generation when present.
+	WriteFenceVersion uint64
+	// WriteFenceReason is the stable manager-facing write-fence reason.
+	WriteFenceReason string
+	// ActiveTaskID is the active migration task for this channel when available.
+	ActiveTaskID string
+	// Degraded reports whether the channel runtime metadata has fewer ISR than replicas.
+	Degraded bool
+	// DegradedReason is a bounded manager-facing degraded explanation.
+	DegradedReason string
 }
 
 // ChannelRuntimeMetaListCursor identifies the next manager runtime meta list position.
@@ -217,25 +230,50 @@ func (a *App) managerChannelRuntimeMetaItems(ctx context.Context, slotID uint32,
 			}
 			maxMessageSeq = &value
 		}
-		out = append(out, managerChannelRuntimeMetaWithMaxSeq(slotID, meta, maxMessageSeq))
+		activeTaskID, err := a.channelRuntimeMetaActiveTaskID(ctx, meta)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, managerChannelRuntimeMetaWithMaxSeq(slotID, meta, maxMessageSeq, activeTaskID))
 	}
 	return out, nil
 }
 
-func managerChannelRuntimeMetaWithMaxSeq(slotID uint32, meta metadb.ChannelRuntimeMeta, maxMessageSeq *uint64) ChannelRuntimeMeta {
+func managerChannelRuntimeMetaWithMaxSeq(slotID uint32, meta metadb.ChannelRuntimeMeta, maxMessageSeq *uint64, activeTaskID string) ChannelRuntimeMeta {
+	degraded, degradedReason := managerChannelRuntimeDegraded(meta)
 	return ChannelRuntimeMeta{
-		ChannelID:     meta.ChannelID,
-		ChannelType:   meta.ChannelType,
-		SlotID:        slotID,
-		ChannelEpoch:  meta.ChannelEpoch,
-		LeaderEpoch:   meta.LeaderEpoch,
-		Leader:        meta.Leader,
-		Replicas:      append([]uint64(nil), meta.Replicas...),
-		ISR:           append([]uint64(nil), meta.ISR...),
-		MinISR:        meta.MinISR,
-		MaxMessageSeq: maxMessageSeq,
-		Status:        managerChannelRuntimeStatus(meta.Status),
+		ChannelID:         meta.ChannelID,
+		ChannelType:       meta.ChannelType,
+		SlotID:            slotID,
+		ChannelEpoch:      meta.ChannelEpoch,
+		LeaderEpoch:       meta.LeaderEpoch,
+		Leader:            meta.Leader,
+		Replicas:          append([]uint64(nil), meta.Replicas...),
+		ISR:               append([]uint64(nil), meta.ISR...),
+		MinISR:            meta.MinISR,
+		MaxMessageSeq:     maxMessageSeq,
+		Status:            managerChannelRuntimeStatus(meta.Status),
+		WriteFenceToken:   meta.WriteFenceToken,
+		WriteFenceVersion: meta.WriteFenceVersion,
+		WriteFenceReason:  managerChannelWriteFenceReason(meta.WriteFenceReason),
+		ActiveTaskID:      activeTaskID,
+		Degraded:          degraded,
+		DegradedReason:    degradedReason,
 	}
+}
+
+func (a *App) channelRuntimeMetaActiveTaskID(ctx context.Context, meta metadb.ChannelRuntimeMeta) (string, error) {
+	if a == nil || a.channelMigration == nil || meta.ChannelID == "" || meta.ChannelType < 0 || meta.ChannelType > int64(^uint8(0)) {
+		return "", nil
+	}
+	task, ok, err := a.channelMigration.GetActive(ctx, channelv2.ChannelID{ID: meta.ChannelID, Type: uint8(meta.ChannelType)})
+	if err != nil {
+		return "", mapChannelMigrationError(err)
+	}
+	if !ok {
+		return "", nil
+	}
+	return task.TaskID, nil
 }
 
 func (a *App) channelMaxMessageSeqForMeta(ctx context.Context, meta metadb.ChannelRuntimeMeta) (uint64, error) {
@@ -304,6 +342,29 @@ func managerChannelRuntimeStatus(status uint8) string {
 	default:
 		return "unknown"
 	}
+}
+
+func managerChannelWriteFenceReason(reason uint8) string {
+	switch channelv2.WriteFenceReason(reason) {
+	case channelv2.WriteFenceReasonLeaderTransfer:
+		return "leader_transfer"
+	case channelv2.WriteFenceReasonReplicaReplace:
+		return "replica_replace"
+	case channelv2.WriteFenceReasonFailover:
+		return "failover"
+	default:
+		return ""
+	}
+}
+
+func managerChannelRuntimeDegraded(meta metadb.ChannelRuntimeMeta) (bool, string) {
+	if meta.MinISR > 0 && int64(len(meta.ISR)) < meta.MinISR {
+		return true, "min_isr_not_met"
+	}
+	if len(meta.Replicas) > 0 && len(meta.ISR) < len(meta.Replicas) {
+		return true, "isr_below_replicas"
+	}
+	return false, ""
 }
 
 func channelRuntimeMetaListCursorForItem(item ChannelRuntimeMeta) ChannelRuntimeMetaListCursor {

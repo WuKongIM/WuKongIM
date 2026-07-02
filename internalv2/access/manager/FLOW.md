@@ -55,6 +55,11 @@ GET  /manager/diagnostics/tracking-rules (diagnostics tracking rule list; requir
 POST /manager/diagnostics/tracking-rules (create diagnostics tracking rule; requires cluster.diagnostics:w when Auth.On=true)
 DELETE /manager/diagnostics/tracking-rules/:rule_id (delete diagnostics tracking rule; requires cluster.diagnostics:w when Auth.On=true)
 GET  /manager/channel-runtime-meta (read-only channel runtime metadata list; requires cluster.channel:r when Auth.On=true)
+POST /manager/channel-migrations/leader-transfer (manual ChannelV2 leader-transfer task creation; requires cluster.channel:w when Auth.On=true)
+POST /manager/channel-migrations/replica-replace (manual ChannelV2 replica-replacement task creation; requires cluster.channel:w when Auth.On=true)
+GET  /manager/channel-migrations/active (active ChannelV2 migration task list scoped by channel_id/channel_type; requires cluster.channel:r when Auth.On=true)
+GET  /manager/channel-migrations/:task_id (ChannelV2 migration task detail scoped by channel_id/channel_type; requires cluster.channel:r when Auth.On=true)
+POST /manager/channel-migrations/:task_id/abort (abort ChannelV2 migration task scoped by channel_id/channel_type; requires cluster.channel:w when Auth.On=true)
 GET  /manager/channels (read-only business channel list; requires cluster.channel:r when Auth.On=true)
 GET  /manager/conversations (recent conversation list; requires cluster.channel:r when Auth.On=true)
 GET  /manager/messages (channel message list; requires cluster.channel:r when Auth.On=true)
@@ -367,9 +372,18 @@ usecase.
 `/manager/channel-runtime-meta` preserves the legacy channel cluster list
 response shape for the web cluster channel page, including `node_id`,
 `node_scope`, `channel_id`, `include_max_message_seq`, `limit`, and `cursor`
-query parameters. It exposes read-only runtime metadata only; channel detail,
-replica, leader-transfer, repair, and mutation operation routes remain
-unmigrated in internalv2.
+query parameters. It exposes read-only runtime metadata and augments rows with
+ChannelV2 write-fence and active migration hints. Channel detail, repair, and
+generic mutation operation routes remain unmigrated in internalv2.
+
+`/manager/channel-migrations/*` exposes the narrow manual ChannelV2 migration
+surface. HTTP parses operator intent, requires positive node IDs where
+applicable, maps duplicate active tasks to `409 conflict`, maps missing tasks
+to `404 not_found`, and delegates all runtime metadata validation, fence
+creation, and Slot-owned persistence to `internalv2/usecase/management`.
+Read and abort routes require `channel_id` and optional `channel_type` because
+migration tasks are stored in the channel-owned hash slot rather than in a
+global task index.
 
 `/manager/conversations` preserves the legacy recent conversation manager
 response shape for the web recent-conversation list view, including `uid`,

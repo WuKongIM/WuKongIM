@@ -127,6 +127,18 @@ type Management interface {
 	ListBusinessChannels(ctx context.Context, req managementusecase.ListBusinessChannelsRequest) (managementusecase.ListBusinessChannelsResponse, error)
 	// ListChannelRuntimeMeta returns manager-facing channel runtime metadata rows.
 	ListChannelRuntimeMeta(ctx context.Context, req managementusecase.ListChannelRuntimeMetaRequest) (managementusecase.ListChannelRuntimeMetaResponse, error)
+	// RequestChannelLeaderTransfer submits a manual ChannelV2 leader transfer.
+	RequestChannelLeaderTransfer(ctx context.Context, req managementusecase.LeaderTransferInput) (managementusecase.ChannelMigrationSummary, error)
+	// RequestChannelReplicaReplace submits a manual ChannelV2 replica replacement.
+	RequestChannelReplicaReplace(ctx context.Context, req managementusecase.ReplicaReplaceInput) (managementusecase.ChannelMigrationSummary, error)
+	// ActiveChannelMigration returns the active migration task for one channel.
+	ActiveChannelMigration(ctx context.Context, req managementusecase.ChannelMigrationListInput) (managementusecase.ChannelMigrationSummary, bool, error)
+	// ListActiveChannelMigrations returns active migration tasks for one channel.
+	ListActiveChannelMigrations(ctx context.Context, req managementusecase.ChannelMigrationListInput) (managementusecase.ChannelMigrationListResponse, error)
+	// ChannelMigration returns one channel-scoped migration task.
+	ChannelMigration(ctx context.Context, req managementusecase.ChannelMigrationLookupInput) (managementusecase.ChannelMigrationSummary, error)
+	// AbortChannelMigration aborts one channel-scoped migration task.
+	AbortChannelMigration(ctx context.Context, req managementusecase.ChannelMigrationAbortInput) (managementusecase.ChannelMigrationSummary, error)
 	// ListRecentConversations returns manager-facing recent conversations for one UID.
 	ListRecentConversations(ctx context.Context, req managementusecase.RecentConversationsRequest) (managementusecase.RecentConversationsResponse, error)
 	// ListMessages returns manager-facing channel messages.
@@ -449,6 +461,12 @@ func (s *Server) registerRoutes() {
 		channelWrites.Use(s.requirePermission("cluster.channel", "w"))
 	}
 	channelWrites.POST("/messages/retention", s.handleAdvanceMessageRetention)
+	channelWrites.POST("/channel-migrations/leader-transfer", s.handleChannelMigrationLeaderTransfer)
+	channelWrites.POST("/channel-migrations/replica-replace", s.handleChannelMigrationReplicaReplace)
+	channelWrites.POST("/channel-migrations/:task_id/abort", s.handleChannelMigrationAbort)
+
+	channels.GET("/channel-migrations/active", s.handleActiveChannelMigrations)
+	channels.GET("/channel-migrations/:task_id", s.handleChannelMigration)
 
 	userReads := s.engine.Group("/manager")
 	if s.auth.enabled() {

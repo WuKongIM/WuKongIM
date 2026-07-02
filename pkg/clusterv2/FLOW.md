@@ -261,7 +261,9 @@ migration decisions from their local Slot metadata shard; the RPC target also
 revalidates that its local Slot runtime is still the actual Slot leader before
 serving migration state.
 Internalv2 callers should use this facade instead of depending on Slot FSM
-command payloads or unscoped migration table reads.
+command payloads or unscoped migration table reads. `Node.ChannelMigrationStore`
+exposes the hosted facade for internalv2 app wiring and returns nil when the
+hosted ChannelV2 service does not provide manual migration task management.
 Physical message cleanup is a separate node-local background loop and is
 disabled by default. One `RunChannelRetentionGCOnce` pass reads a bounded page
 from the local message catalog, loads the authoritative Slot metadata boundary,

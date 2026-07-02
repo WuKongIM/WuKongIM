@@ -330,6 +330,9 @@ func TestNodeDefaultChannelsExposeMigrationStore(t *testing.T) {
 	if service.MigrationStore() == nil {
 		t.Fatal("MigrationStore() = nil, want default Slot-backed migration facade")
 	}
+	if got := node.ChannelMigrationStore(); got != service.MigrationStore() {
+		t.Fatalf("ChannelMigrationStore() = %p, want service migration store %p", got, service.MigrationStore())
+	}
 }
 
 func TestStorageConfigDoesNotExposeCommitNoSync(t *testing.T) {
