@@ -6,6 +6,8 @@ import (
 	"net"
 	"path/filepath"
 	"reflect"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -65,6 +67,7 @@ func TestNodeProbeWriteReadyProposesOneNoopPerPhysicalSlot(t *testing.T) {
 	}
 	node.router.UpdateSlotLeaders([]routing.SlotStatus{{SlotID: 1, Leader: 1}, {SlotID: 2, Leader: 2}})
 	node.snapshot = Snapshot{NodeID: 1, RoutesReady: true, SlotsReady: true, ChannelsReady: true, SlotCount: 2, HashSlotCount: 4}
+	node.channelDataNodes.Update([]uint64{1})
 	node.started.Store(true)
 
 	if err := node.ProbeWriteReady(context.Background()); err != nil {
@@ -87,6 +90,135 @@ func TestNodeProbeWriteReadyProposesOneNoopPerPhysicalSlot(t *testing.T) {
 	want := map[uint32]uint16{1: 0, 2: 2}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("probe targets = %#v, want %#v", got, want)
+	}
+}
+
+func TestNodeProbeWriteReadyBoundsPhysicalSlotProbes(t *testing.T) {
+	proposer := &recordingProposer{}
+	node, err := New(validNodeConfig(t), WithProposer(proposer))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	slots := make([]control.SlotAssignment, 0, 6)
+	ranges := make([]control.HashSlotRange, 0, 6)
+	statuses := make([]routing.SlotStatus, 0, 6)
+	for slotID := uint32(1); slotID <= 6; slotID++ {
+		slots = append(slots, control.SlotAssignment{SlotID: slotID, DesiredPeers: []uint64{1, 2}, ConfigEpoch: 1, PreferredLeader: 2})
+		ranges = append(ranges, control.HashSlotRange{From: uint16(slotID - 1), To: uint16(slotID - 1), SlotID: slotID})
+		leader := uint64(2)
+		if slotID == 3 {
+			leader = 1
+		}
+		statuses = append(statuses, routing.SlotStatus{SlotID: slotID, Leader: leader})
+	}
+	snapshot := control.Snapshot{
+		Revision:     1,
+		ControllerID: 1,
+		Nodes: []control.Node{
+			{NodeID: 1, Addr: "127.0.0.1:1001", Roles: []control.Role{control.RoleData}, Status: control.NodeAlive},
+			{NodeID: 2, Addr: "127.0.0.1:1002", Roles: []control.Role{control.RoleData}, Status: control.NodeAlive},
+		},
+		Slots:     slots,
+		HashSlots: control.HashSlotTable{Revision: 1, Count: 6, Ranges: ranges},
+	}
+	if err := node.router.UpdateControlSnapshot(snapshot); err != nil {
+		t.Fatalf("UpdateControlSnapshot() error = %v", err)
+	}
+	node.router.UpdateSlotLeaders(statuses)
+	node.snapshot = Snapshot{NodeID: 1, RoutesReady: true, SlotsReady: true, ChannelsReady: true, SlotCount: 6, HashSlotCount: 6}
+	node.channelDataNodes.Update([]uint64{1})
+	node.started.Store(true)
+
+	if err := node.ProbeWriteReady(context.Background()); err != nil {
+		t.Fatalf("ProbeWriteReady() error = %v", err)
+	}
+	if proposer.calls != maxWriteProbePhysicalSlots {
+		t.Fatalf("proposer calls=%d, want bounded probe count %d", proposer.calls, maxWriteProbePhysicalSlots)
+	}
+	got := make([]uint32, 0, len(proposer.requests))
+	for _, req := range proposer.requests {
+		got = append(got, req.Target.SlotID)
+	}
+	want := []uint32{1, 2, 3, 4}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("probe slot ids = %v, want %v", got, want)
+	}
+}
+
+func TestNodeProbeWriteReadyRequiresChannelPlacementDataNodes(t *testing.T) {
+	proposer := &recordingProposer{}
+	node, err := New(validNodeConfig(t), WithProposer(proposer))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	snapshot := control.Snapshot{
+		Revision:     1,
+		ControllerID: 1,
+		Nodes: []control.Node{
+			{NodeID: 1, Addr: "127.0.0.1:1001", Roles: []control.Role{control.RoleData}, Status: control.NodeAlive},
+		},
+		Slots: []control.SlotAssignment{
+			{SlotID: 1, DesiredPeers: []uint64{1}, ConfigEpoch: 1, PreferredLeader: 1},
+		},
+		HashSlots: control.HashSlotTable{Revision: 1, Count: 1, Ranges: []control.HashSlotRange{
+			{From: 0, To: 0, SlotID: 1},
+		}},
+	}
+	if err := node.router.UpdateControlSnapshot(snapshot); err != nil {
+		t.Fatalf("UpdateControlSnapshot() error = %v", err)
+	}
+	node.router.UpdateSlotLeaders([]routing.SlotStatus{{SlotID: 1, Leader: 1}})
+	node.snapshot = Snapshot{NodeID: 1, RoutesReady: true, SlotsReady: true, ChannelsReady: true, SlotCount: 1, HashSlotCount: 1}
+	node.started.Store(true)
+
+	err = node.ProbeWriteReady(context.Background())
+	if err == nil || !strings.Contains(err.Error(), "channel placement candidates 0 below replica count 1") {
+		t.Fatalf("ProbeWriteReady() error = %v, want channel placement candidate readiness error", err)
+	}
+	if proposer.calls != 0 {
+		t.Fatalf("proposer calls = %d, want no Slot probe before channel placement candidates are ready", proposer.calls)
+	}
+}
+
+func TestNodeProbeWriteReadyRefreshesControlSnapshotForChannelPlacementDataNodes(t *testing.T) {
+	proposer := &recordingProposer{}
+	snapshot := control.Snapshot{
+		Revision:     1,
+		ControllerID: 1,
+		Nodes: []control.Node{
+			{NodeID: 1, Addr: "127.0.0.1:1001", Roles: []control.Role{control.RoleData}, Status: control.NodeAlive},
+		},
+		Slots: []control.SlotAssignment{
+			{SlotID: 1, DesiredPeers: []uint64{1}, ConfigEpoch: 1, PreferredLeader: 1},
+		},
+		HashSlots: control.HashSlotTable{Revision: 1, Count: 1, Ranges: []control.HashSlotRange{
+			{From: 0, To: 0, SlotID: 1},
+		}},
+	}
+	controller := newLocalSnapshotController(snapshot)
+	node, err := New(validNodeConfig(t), WithProposer(proposer), withController(controller), withSlotReconciler(&recordingReconciler{}))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	node.channels = noopChannelService{}
+	if err := node.applySnapshot(context.Background(), snapshot); err != nil {
+		t.Fatalf("applySnapshot() error = %v", err)
+	}
+	node.router.UpdateSlotLeaders([]routing.SlotStatus{{SlotID: 1, Leader: 1}})
+	node.started.Store(true)
+
+	ready := snapshot.Clone()
+	ready.Nodes[0].Health = control.NodeHealth{Status: control.NodeAlive, Freshness: control.NodeHealthFresh, RuntimeReady: true}
+	controller.setSnapshot(ready)
+
+	if err := node.ProbeWriteReady(context.Background()); err != nil {
+		t.Fatalf("ProbeWriteReady() error = %v", err)
+	}
+	if proposer.calls != 1 {
+		t.Fatalf("proposer calls = %d, want Slot probe after refreshed channel placement candidates", proposer.calls)
+	}
+	if got := node.channelDataNodes.DataNodes(); !reflect.DeepEqual(got, []uint64{1}) {
+		t.Fatalf("channel data nodes = %v, want refreshed candidate", got)
 	}
 }
 
@@ -609,3 +741,109 @@ func (p *recordingProposer) Propose(ctx context.Context, req propose.Request) er
 	p.requests = append(p.requests, req)
 	return nil
 }
+
+type localSnapshotController struct {
+	mu       sync.Mutex
+	snapshot control.Snapshot
+	watch    chan control.SnapshotEvent
+}
+
+func newLocalSnapshotController(snapshot control.Snapshot) *localSnapshotController {
+	return &localSnapshotController{snapshot: snapshot.Clone(), watch: make(chan control.SnapshotEvent)}
+}
+
+func (c *localSnapshotController) setSnapshot(snapshot control.Snapshot) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.snapshot = snapshot.Clone()
+}
+
+func (c *localSnapshotController) Start(context.Context) error { return nil }
+
+func (c *localSnapshotController) Stop(context.Context) error { return nil }
+
+func (c *localSnapshotController) LocalSnapshot(context.Context) (control.Snapshot, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.snapshot.Clone(), nil
+}
+
+func (c *localSnapshotController) LeaderID() uint64 {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.snapshot.ControllerID
+}
+
+func (c *localSnapshotController) ReportNode(context.Context, control.NodeReport) error { return nil }
+
+func (c *localSnapshotController) ReportSlots(context.Context, control.SlotRuntimeReport) error {
+	return nil
+}
+
+func (c *localSnapshotController) CompleteTask(context.Context, control.TaskResult) error { return nil }
+
+func (c *localSnapshotController) FailTask(context.Context, control.TaskResult) error { return nil }
+
+func (c *localSnapshotController) ReportTaskProgress(context.Context, control.TaskProgress) error {
+	return nil
+}
+
+func (c *localSnapshotController) AdvanceSlotReplicaMovePhase(context.Context, control.SlotReplicaMovePhaseAdvance) error {
+	return nil
+}
+
+func (c *localSnapshotController) CommitSlotReplicaMove(context.Context, control.SlotReplicaMoveCommit) error {
+	return nil
+}
+
+func (c *localSnapshotController) RequestSlotLeaderTransfer(context.Context, control.SlotLeaderTransferRequest) (control.SlotLeaderTransferResult, error) {
+	return control.SlotLeaderTransferResult{}, nil
+}
+
+func (c *localSnapshotController) RequestSlotReplicaMove(context.Context, control.SlotReplicaMoveRequest) (control.SlotReplicaMoveResult, error) {
+	return control.SlotReplicaMoveResult{}, nil
+}
+
+func (c *localSnapshotController) Watch() <-chan control.SnapshotEvent { return c.watch }
+
+type noopChannelService struct{}
+
+func (noopChannelService) Append(context.Context, channelv2.AppendRequest) (channelv2.AppendResult, error) {
+	return channelv2.AppendResult{}, nil
+}
+
+func (noopChannelService) AppendBatch(context.Context, channelv2.AppendBatchRequest) (channelv2.AppendBatchResult, error) {
+	return channelv2.AppendBatchResult{}, nil
+}
+
+func (noopChannelService) ResolveAppendAuthority(context.Context, channelv2.ChannelID) (channelv2.Meta, error) {
+	return channelv2.Meta{}, nil
+}
+
+func (noopChannelService) ReadChannelLastVisible(context.Context, channelv2.ChannelID, uint64) (channelv2.Message, bool, error) {
+	return channelv2.Message{}, false, nil
+}
+
+func (noopChannelService) RetentionView(context.Context, channelv2.ChannelID) (channelv2.RetentionView, error) {
+	return channelv2.RetentionView{}, nil
+}
+
+func (noopChannelService) ApplyRetentionBoundary(context.Context, channelv2.RetentionApplyRequest) (channelv2.RetentionApplyResult, error) {
+	return channelv2.RetentionApplyResult{}, nil
+}
+
+func (noopChannelService) RuntimeSnapshot(context.Context) (channelv2.RuntimeSnapshot, error) {
+	return channelv2.RuntimeSnapshot{}, nil
+}
+
+func (noopChannelService) RuntimeProbe(context.Context, channelv2.RuntimeSelector) (channelv2.RuntimeProbeResult, error) {
+	return channelv2.RuntimeProbeResult{}, nil
+}
+
+func (noopChannelService) RuntimeEvict(context.Context, channelv2.RuntimeSelector) (channelv2.RuntimeEvictResult, error) {
+	return channelv2.RuntimeEvictResult{}, nil
+}
+
+func (noopChannelService) Tick(context.Context) error { return nil }
+
+func (noopChannelService) Close() error { return nil }

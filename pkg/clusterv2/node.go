@@ -92,9 +92,11 @@ type Node struct {
 	}
 	group lifecycle.Group
 
-	mu                     sync.RWMutex
-	snapshot               Snapshot
-	controlSnapshot        control.Snapshot
+	mu              sync.RWMutex
+	snapshot        Snapshot
+	controlSnapshot control.Snapshot
+	// controlApplyMu serializes control snapshot application from startup, watches, and probes.
+	controlApplyMu         sync.Mutex
 	taskReconcileMu        sync.Mutex
 	taskReconcileCancel    context.CancelFunc
 	taskReconcileWG        sync.WaitGroup

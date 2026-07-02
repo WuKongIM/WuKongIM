@@ -54,6 +54,9 @@ func emptyControlSnapshot(snapshot control.Snapshot) bool {
 }
 
 func (n *Node) applySnapshot(ctx context.Context, snapshot control.Snapshot) error {
+	n.controlApplyMu.Lock()
+	defer n.controlApplyMu.Unlock()
+
 	n.mu.RLock()
 	previous := n.controlSnapshot.Clone()
 	firstSnapshot := emptyControlSnapshot(previous)
@@ -103,6 +106,23 @@ func (n *Node) applySnapshot(ctx context.Context, snapshot control.Snapshot) err
 		observer.ObserveControlSnapshot(snapshot.Clone())
 	}
 	return nil
+}
+
+func (n *Node) refreshControlSnapshot(ctx context.Context) error {
+	if n == nil || n.control == nil {
+		return nil
+	}
+	snapshot, err := n.control.LocalSnapshot(ctx)
+	if err != nil {
+		return err
+	}
+	if emptyControlSnapshot(snapshot) {
+		return nil
+	}
+	if err := snapshot.Validate(); err != nil {
+		return err
+	}
+	return n.applySnapshot(ctx, snapshot)
 }
 
 func (n *Node) reconcileTasks(ctx context.Context, snapshot control.Snapshot) error {

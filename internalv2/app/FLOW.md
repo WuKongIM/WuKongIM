@@ -577,7 +577,7 @@ Start(ctx)
      ControllerV2 task in the local control snapshot; failures are logged and
      do not block service startup
   -> seed join loop Start(ctx): retry JoinNode against stable-order seeds when seed-join config is present
-  -> wait for clusterv2 write routing when the cluster runtime exposes route snapshots
+  -> wait for clusterv2 write routing when the cluster runtime exposes route snapshots; the gate also runs the cluster write probe, which proves Slot metadata writes and ChannelV2 placement data-node candidates before gateway SEND admission
   -> conversation authority route lifecycle Start(ctx): watch route authorities and seed current targets
   -> conversation active flush worker Start(ctx): periodically persist dirty active rows
   -> presence touch worker Start(ctx)

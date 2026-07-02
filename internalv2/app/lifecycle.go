@@ -14,6 +14,7 @@ const (
 	defaultClusterWriteReadyTimeout = 10 * time.Second
 	clusterWriteReadyPollInterval   = 10 * time.Millisecond
 	clusterWriteReadyProbeTimeout   = time.Second
+	clusterWriteReadyProbePerSlot   = 500 * time.Millisecond
 )
 
 // clusterWriteReadyRuntime exposes the clusterv2 route state needed before gateway sends are admitted.
@@ -579,7 +580,7 @@ func clusterWriteReady(ctx context.Context, routes clusterWriteReadyRuntime, las
 		}
 	}
 	if probe, ok := routes.(clusterWriteProbeRuntime); ok {
-		probeCtx, cancel := context.WithTimeout(ctx, clusterWriteReadyProbeTimeout)
+		probeCtx, cancel := context.WithTimeout(ctx, clusterWriteReadyProbeBudget(snapshot))
 		err := probe.ProbeWriteReady(probeCtx)
 		cancel()
 		if err != nil {
@@ -588,4 +589,15 @@ func clusterWriteReady(ctx context.Context, routes clusterWriteReadyRuntime, las
 		}
 	}
 	return true
+}
+
+func clusterWriteReadyProbeBudget(snapshot clusterv2.Snapshot) time.Duration {
+	budget := clusterWriteReadyProbeTimeout
+	if snapshot.SlotCount > 0 {
+		scaled := time.Duration(snapshot.SlotCount) * clusterWriteReadyProbePerSlot
+		if scaled > budget {
+			budget = scaled
+		}
+	}
+	return budget
 }

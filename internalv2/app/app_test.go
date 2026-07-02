@@ -5127,6 +5127,28 @@ func TestStartWaitsForClusterWriteProbeBeforeGateway(t *testing.T) {
 	}
 }
 
+func TestClusterWriteReadyScalesProbeTimeoutByPhysicalSlotCount(t *testing.T) {
+	cluster := &fakeWriteReadyCluster{
+		snapshots: []clusterv2.Snapshot{
+			{RoutesReady: true, SlotsReady: true, ChannelsReady: true, SlotCount: 10, HashSlotCount: 1},
+		},
+		routes: map[uint16]clusterv2.Route{
+			0: {Leader: 1, Peers: []uint64{1}},
+		},
+	}
+	var lastErr error
+
+	if !clusterWriteReady(context.Background(), cluster, &lastErr) {
+		t.Fatalf("clusterWriteReady() = false error=%v, want true", lastErr)
+	}
+	if len(cluster.probeTimeouts) != 1 {
+		t.Fatalf("probe timeouts = %d, want 1", len(cluster.probeTimeouts))
+	}
+	if got := cluster.probeTimeouts[0]; got < 4*time.Second {
+		t.Fatalf("probe timeout = %s, want budget scaled for 10 physical slots", got)
+	}
+}
+
 func TestClusterWriteReadinessFailureStopsClusterBeforeGateway(t *testing.T) {
 	calls := make([]string, 0, 2)
 	cluster := &fakeWriteReadyCluster{
@@ -5925,9 +5947,10 @@ func (f *fakeRuntimeBenchCluster) ChannelRuntimeEvict(context.Context, channelv2
 
 type fakeWriteReadyCluster struct {
 	fakeCluster
-	snapshots   []clusterv2.Snapshot
-	routes      map[uint16]clusterv2.Route
-	probeErrors []error
+	snapshots     []clusterv2.Snapshot
+	routes        map[uint16]clusterv2.Route
+	probeErrors   []error
+	probeTimeouts []time.Duration
 }
 
 func (f *fakeWriteReadyCluster) Snapshot() clusterv2.Snapshot {
@@ -5948,9 +5971,12 @@ func (f *fakeWriteReadyCluster) RouteHashSlot(hashSlot uint16) (clusterv2.Route,
 	return route, nil
 }
 
-func (f *fakeWriteReadyCluster) ProbeWriteReady(context.Context) error {
+func (f *fakeWriteReadyCluster) ProbeWriteReady(ctx context.Context) error {
 	if f.calls != nil {
 		*f.calls = append(*f.calls, "cluster.probe")
+	}
+	if deadline, ok := ctx.Deadline(); ok {
+		f.probeTimeouts = append(f.probeTimeouts, time.Until(deadline))
 	}
 	if len(f.probeErrors) == 0 {
 		return nil
