@@ -15,6 +15,21 @@ MAX_HANDOFF_ERROR_TOTAL="${WK_WKCLI_SIM_THREE_SMOKE_MAX_HANDOFF_ERROR_TOTAL:-0}"
 MAX_HANDOFF_TIMEOUT_TOTAL="${WK_WKCLI_SIM_THREE_SMOKE_MAX_HANDOFF_TIMEOUT_TOTAL:-0}"
 MAX_GOROUTINES="${WK_WKCLI_SIM_THREE_SMOKE_MAX_GOROUTINES:-2000}"
 MAX_HEAP_ALLOC_BYTES="${WK_WKCLI_SIM_THREE_SMOKE_MAX_HEAP_ALLOC_BYTES:-4294967296}"
+AUTO_JOIN_NODE="${WK_WKCLI_SIM_THREE_SMOKE_AUTO_JOIN_NODE:-false}"
+AUTO_JOIN_AFTER="${WK_WKCLI_SIM_THREE_SMOKE_AUTO_JOIN_AFTER:-2}"
+AUTO_JOIN_NODE_ID="${WK_WKCLI_SIM_THREE_SMOKE_AUTO_JOIN_NODE_ID:-4}"
+AUTO_JOIN_API_ADDR="${WK_WKCLI_SIM_THREE_SMOKE_AUTO_JOIN_API_ADDR:-http://127.0.0.1:5014}"
+AUTO_JOIN_GATEWAY_ADDR="${WK_WKCLI_SIM_THREE_SMOKE_AUTO_JOIN_GATEWAY_ADDR:-127.0.0.1:5114}"
+AUTO_JOIN_CLUSTER_ADDR="${WK_WKCLI_SIM_THREE_SMOKE_AUTO_JOIN_CLUSTER_ADDR:-127.0.0.1:7014}"
+AUTO_JOIN_SEEDS="${WK_WKCLI_SIM_THREE_SMOKE_AUTO_JOIN_SEEDS:-127.0.0.1:7011,127.0.0.1:7012,127.0.0.1:7013}"
+AUTO_JOIN_TOKEN="${WK_WKCLI_SIM_THREE_SMOKE_AUTO_JOIN_TOKEN:-change-me}"
+AUTO_JOIN_CLUSTER_ID="${WK_WKCLI_SIM_THREE_SMOKE_AUTO_JOIN_CLUSTER_ID:-wukongimv2-dev-three}"
+AUTO_JOIN_CONFIG_PATH="${WK_WKCLI_SIM_THREE_SMOKE_AUTO_JOIN_CONFIG:-$OUT_DIR/wukongimv2-node4.conf}"
+AUTO_JOIN_DATA_DIR="${WK_WKCLI_SIM_THREE_SMOKE_AUTO_JOIN_DATA_DIR:-$OUT_DIR/node4-data}"
+AUTO_JOIN_CONFIG_PATH_SET=0
+AUTO_JOIN_DATA_DIR_SET=0
+[[ -n "${WK_WKCLI_SIM_THREE_SMOKE_AUTO_JOIN_CONFIG-}" ]] && AUTO_JOIN_CONFIG_PATH_SET=1
+[[ -n "${WK_WKCLI_SIM_THREE_SMOKE_AUTO_JOIN_DATA_DIR-}" ]] && AUTO_JOIN_DATA_DIR_SET=1
 
 USERS="${WK_WKCLI_SIM_THREE_SMOKE_USERS:-30}"
 GROUP_COUNT="${WK_WKCLI_SIM_THREE_SMOKE_GROUPS:-6}"
@@ -29,8 +44,12 @@ CLEAN_CLUSTER=1
 BUILD_CLUSTER=1
 DRY_RUN=0
 CLUSTER_PID=""
+AUTO_JOIN_PID=""
+AUTO_JOIN_TIMER_PID=""
+AUTO_JOIN_STARTED=0
 API_VALUES=()
 GATEWAY_VALUES=()
+AUTO_JOIN_SEED_VALUES=()
 
 usage() {
   cat <<'USAGE'
@@ -60,6 +79,17 @@ Options:
   --payload-size SIZE       Sim payload size. Default: 128B.
   --ready-timeout SECS      Cluster ready wait timeout. Default: 90.
   --poll SECS               Ready polling interval. Default: 1.
+  --auto-join-node          Start one seed-join data node while wkcli sim is sending.
+  --auto-join-after SECS    Seconds after the send phase starts before starting the new node. Default: 2.
+  --auto-join-node-id N     Joining node ID. Default: 4.
+  --auto-join-api URL       Joining node HTTP API base URL. Default: http://127.0.0.1:5014.
+  --auto-join-gateway ADDR  Joining node WKProto gateway address. Default: 127.0.0.1:5114.
+  --auto-join-cluster ADDR  Joining node cluster RPC address. Default: 127.0.0.1:7014.
+  --auto-join-seeds LIST    Comma-separated seed cluster RPC addresses. Default: node1-node3 local RPC addresses.
+  --auto-join-token TOKEN   Join token accepted by the seed nodes. Default: change-me.
+  --auto-join-cluster-id ID Cluster ID expected by the joining node. Default: wukongimv2-dev-three.
+  --auto-join-config PATH   Generated joining node config path. Default: OUT_DIR/wukongimv2-node4.conf.
+  --auto-join-data-dir DIR  Joining node data directory. Default: OUT_DIR/node4-data.
   --dry-run                 Print resolved commands without starting anything.
   -h, --help                Show this help.
 USAGE
@@ -86,6 +116,21 @@ require_positive_uint() {
   local value="$2"
   require_uint "$name" "$value"
   (( value > 0 )) || die "$name must be greater than zero: $value"
+}
+
+require_bool() {
+  local name="$1"
+  local value="$2"
+  case "$value" in
+    true|false) ;;
+    *) die "$name must be true or false: $value" ;;
+  esac
+}
+
+require_nonempty() {
+  local name="$1"
+  local value="$2"
+  [[ -n "$value" ]] || die "$name must not be empty"
 }
 
 split_csv() {
@@ -144,6 +189,44 @@ node_file() {
   printf '%s/node%s.json' "$dir" "$index"
 }
 
+auto_join_log() {
+  printf '%s/node%s.log' "$(node_log_dir)" "$AUTO_JOIN_NODE_ID"
+}
+
+auto_join_pid_file() {
+  printf '%s/auto-join-node.pid' "$OUT_DIR"
+}
+
+auto_join_ready_file() {
+  printf '%s/auto-join-node.ready' "$OUT_DIR"
+}
+
+sim_done_file() {
+  printf '%s/sim.done' "$OUT_DIR"
+}
+
+auto_join_api_listen_addr() {
+  local raw="$AUTO_JOIN_API_ADDR"
+  raw="${raw#http://}"
+  raw="${raw#https://}"
+  raw="${raw%%/*}"
+  printf '%s' "$raw"
+}
+
+json_string_list() {
+  local item
+  local sep=""
+  printf '['
+  for item in "$@"; do
+    case "$item" in
+      *\"*|*\\*) die "JSON list item must not contain quote or backslash: $item" ;;
+    esac
+    printf '%s"%s"' "$sep" "$item"
+    sep=","
+  done
+  printf ']'
+}
+
 print_start_cmd() {
   if [[ "$START_CLUSTER" -eq 0 ]]; then
     printf 'start_cmd=<disabled>\n'
@@ -174,6 +257,14 @@ print_sim_cmd() {
     "$USERS" "$GROUP_COUNT" "$GROUP_MEMBERS" "$RATE" "$DURATION" "$PAYLOAD_SIZE" "$STATUS_LISTEN" "$STATUS_INTERVAL"
 }
 
+print_auto_join_cmd() {
+  if [[ "$AUTO_JOIN_NODE" != "true" ]]; then
+    printf 'auto_join_cmd=<disabled>\n'
+    return
+  fi
+  printf 'auto_join_cmd=env WK_DEBUG_API_ENABLE=%s %s -config %s\n' "$DEBUG_API_ENABLE" "$(cluster_bin)" "$AUTO_JOIN_CONFIG_PATH"
+}
+
 print_plan() {
   printf 'repo_root=%s\n' "$ROOT_DIR"
   printf 'out_dir=%s\n' "$OUT_DIR"
@@ -190,8 +281,19 @@ print_plan() {
   printf 'max_handoff_timeout_total=%s\n' "$MAX_HANDOFF_TIMEOUT_TOTAL"
   printf 'max_goroutines=%s\n' "$MAX_GOROUTINES"
   printf 'max_heap_alloc_bytes=%s\n' "$MAX_HEAP_ALLOC_BYTES"
+  printf 'auto_join_node=%s\n' "$AUTO_JOIN_NODE"
+  printf 'auto_join_after_secs=%s\n' "$AUTO_JOIN_AFTER"
+  printf 'auto_join_node_id=%s\n' "$AUTO_JOIN_NODE_ID"
+  printf 'auto_join_api=%s\n' "$AUTO_JOIN_API_ADDR"
+  printf 'auto_join_gateway=%s\n' "$AUTO_JOIN_GATEWAY_ADDR"
+  printf 'auto_join_cluster=%s\n' "$AUTO_JOIN_CLUSTER_ADDR"
+  printf 'auto_join_seeds=%s\n' "$(IFS=','; printf '%s' "${AUTO_JOIN_SEED_VALUES[*]}")"
+  printf 'auto_join_config=%s\n' "$AUTO_JOIN_CONFIG_PATH"
+  printf 'auto_join_data_dir=%s\n' "$AUTO_JOIN_DATA_DIR"
+  printf 'auto_join_log=%s\n' "$(auto_join_log)"
   print_start_cmd
   print_sim_cmd
+  print_auto_join_cmd
 }
 
 tail_evidence() {
@@ -230,7 +332,30 @@ stop_cluster() {
   CLUSTER_PID=""
 }
 
+stop_auto_join_node() {
+  if [[ -n "$AUTO_JOIN_TIMER_PID" ]]; then
+    if kill -0 "$AUTO_JOIN_TIMER_PID" 2>/dev/null; then
+      kill "$AUTO_JOIN_TIMER_PID" 2>/dev/null || true
+    fi
+    wait "$AUTO_JOIN_TIMER_PID" 2>/dev/null || true
+    AUTO_JOIN_TIMER_PID=""
+  fi
+  if [[ -z "$AUTO_JOIN_PID" && -f "$(auto_join_pid_file)" ]]; then
+    AUTO_JOIN_PID="$(tr -d '[:space:]' <"$(auto_join_pid_file)")"
+  fi
+  if [[ -z "$AUTO_JOIN_PID" ]]; then
+    return
+  fi
+  if kill -0 "$AUTO_JOIN_PID" 2>/dev/null; then
+    log "stopping auto-join node${AUTO_JOIN_NODE_ID}"
+    kill "$AUTO_JOIN_PID" 2>/dev/null || true
+  fi
+  wait "$AUTO_JOIN_PID" 2>/dev/null || true
+  AUTO_JOIN_PID=""
+}
+
 cleanup() {
+  stop_auto_join_node
   stop_cluster
 }
 
@@ -317,6 +442,66 @@ while [[ $# -gt 0 ]]; do
       POLL_INTERVAL="$2"
       shift 2
       ;;
+    --auto-join-node)
+      AUTO_JOIN_NODE=true
+      shift
+      ;;
+    --no-auto-join-node)
+      AUTO_JOIN_NODE=false
+      shift
+      ;;
+    --auto-join-after)
+      [[ $# -ge 2 ]] || die '--auto-join-after requires a value'
+      AUTO_JOIN_AFTER="$2"
+      shift 2
+      ;;
+    --auto-join-node-id)
+      [[ $# -ge 2 ]] || die '--auto-join-node-id requires a value'
+      AUTO_JOIN_NODE_ID="$2"
+      shift 2
+      ;;
+    --auto-join-api)
+      [[ $# -ge 2 ]] || die '--auto-join-api requires a value'
+      AUTO_JOIN_API_ADDR="$2"
+      shift 2
+      ;;
+    --auto-join-gateway)
+      [[ $# -ge 2 ]] || die '--auto-join-gateway requires a value'
+      AUTO_JOIN_GATEWAY_ADDR="$2"
+      shift 2
+      ;;
+    --auto-join-cluster)
+      [[ $# -ge 2 ]] || die '--auto-join-cluster requires a value'
+      AUTO_JOIN_CLUSTER_ADDR="$2"
+      shift 2
+      ;;
+    --auto-join-seeds)
+      [[ $# -ge 2 ]] || die '--auto-join-seeds requires a value'
+      AUTO_JOIN_SEEDS="$2"
+      shift 2
+      ;;
+    --auto-join-token)
+      [[ $# -ge 2 ]] || die '--auto-join-token requires a value'
+      AUTO_JOIN_TOKEN="$2"
+      shift 2
+      ;;
+    --auto-join-cluster-id)
+      [[ $# -ge 2 ]] || die '--auto-join-cluster-id requires a value'
+      AUTO_JOIN_CLUSTER_ID="$2"
+      shift 2
+      ;;
+    --auto-join-config)
+      [[ $# -ge 2 ]] || die '--auto-join-config requires a value'
+      AUTO_JOIN_CONFIG_PATH="$2"
+      AUTO_JOIN_CONFIG_PATH_SET=1
+      shift 2
+      ;;
+    --auto-join-data-dir)
+      [[ $# -ge 2 ]] || die '--auto-join-data-dir requires a value'
+      AUTO_JOIN_DATA_DIR="$2"
+      AUTO_JOIN_DATA_DIR_SET=1
+      shift 2
+      ;;
     --dry-run)
       DRY_RUN=1
       shift
@@ -331,13 +516,24 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+if [[ "$AUTO_JOIN_CONFIG_PATH_SET" -eq 0 ]]; then
+  AUTO_JOIN_CONFIG_PATH="$OUT_DIR/wukongimv2-node${AUTO_JOIN_NODE_ID}.conf"
+fi
+if [[ "$AUTO_JOIN_DATA_DIR_SET" -eq 0 ]]; then
+  AUTO_JOIN_DATA_DIR="$OUT_DIR/node${AUTO_JOIN_NODE_ID}-data"
+fi
+
 split_csv "$API_ADDRS" API_VALUES
 split_csv "$GATEWAY_ADDRS" GATEWAY_VALUES
+split_csv "$AUTO_JOIN_SEEDS" AUTO_JOIN_SEED_VALUES
 require_positive_uint '--ready-timeout' "$READY_TIMEOUT"
 require_uint '--poll' "$POLL_INTERVAL"
 require_positive_uint '--users' "$USERS"
 require_positive_uint '--groups' "$GROUP_COUNT"
 require_positive_uint '--members' "$GROUP_MEMBERS"
+require_bool 'WK_WKCLI_SIM_THREE_SMOKE_AUTO_JOIN_NODE' "$AUTO_JOIN_NODE"
+require_uint '--auto-join-after' "$AUTO_JOIN_AFTER"
+require_positive_uint '--auto-join-node-id' "$AUTO_JOIN_NODE_ID"
 require_uint 'WK_WKCLI_SIM_THREE_SMOKE_MAX_FLUSH_ERROR_SELECTED_ROWS' "$MAX_FLUSH_ERROR_SELECTED_ROWS"
 require_uint 'WK_WKCLI_SIM_THREE_SMOKE_MAX_HANDOFF_ERROR_TOTAL' "$MAX_HANDOFF_ERROR_TOTAL"
 require_uint 'WK_WKCLI_SIM_THREE_SMOKE_MAX_HANDOFF_TIMEOUT_TOTAL' "$MAX_HANDOFF_TIMEOUT_TOTAL"
@@ -352,6 +548,16 @@ if [[ "${#GATEWAY_VALUES[@]}" -eq 0 ]]; then
 fi
 if [[ "${#API_VALUES[@]}" -ne "${#GATEWAY_VALUES[@]}" ]]; then
   die "--api and --gateway must contain the same number of items: ${#API_VALUES[@]} != ${#GATEWAY_VALUES[@]}"
+fi
+if [[ "$AUTO_JOIN_NODE" == "true" ]]; then
+  require_nonempty '--auto-join-api' "$AUTO_JOIN_API_ADDR"
+  require_nonempty '--auto-join-gateway' "$AUTO_JOIN_GATEWAY_ADDR"
+  require_nonempty '--auto-join-cluster' "$AUTO_JOIN_CLUSTER_ADDR"
+  require_nonempty '--auto-join-token' "$AUTO_JOIN_TOKEN"
+  require_nonempty '--auto-join-cluster-id' "$AUTO_JOIN_CLUSTER_ID"
+  require_nonempty '--auto-join-config' "$AUTO_JOIN_CONFIG_PATH"
+  require_nonempty '--auto-join-data-dir' "$AUTO_JOIN_DATA_DIR"
+  [[ "${#AUTO_JOIN_SEED_VALUES[@]}" -gt 0 ]] || die 'at least one --auto-join-seeds value is required'
 fi
 
 if [[ "$DRY_RUN" -eq 1 ]]; then
@@ -375,6 +581,22 @@ check_cluster_process() {
   fi
 }
 
+check_auto_join_process() {
+  if [[ -z "$AUTO_JOIN_PID" && -f "$(auto_join_pid_file)" ]]; then
+    AUTO_JOIN_PID="$(tr -d '[:space:]' <"$(auto_join_pid_file)")"
+    AUTO_JOIN_STARTED=1
+  fi
+  if [[ "$AUTO_JOIN_STARTED" -eq 0 || -z "$AUTO_JOIN_PID" ]]; then
+    return
+  fi
+  if ! kill -0 "$AUTO_JOIN_PID" 2>/dev/null; then
+    local status=0
+    wait "$AUTO_JOIN_PID" 2>/dev/null || status=$?
+    AUTO_JOIN_PID=""
+    die "auto-join node${AUTO_JOIN_NODE_ID} exited before smoke completed with status ${status}"
+  fi
+}
+
 start_cluster() {
   if [[ "$START_CLUSTER" -eq 0 ]]; then
     log 'using already-running cluster'
@@ -395,6 +617,98 @@ start_cluster() {
   ) >"$(cluster_log)" 2>&1 &
   CLUSTER_PID="$!"
   log "cluster pid=${CLUSTER_PID} log=$(cluster_log)"
+}
+
+render_auto_join_config() {
+  local api_listen
+  local seed_json
+  api_listen="$(auto_join_api_listen_addr)"
+  seed_json="$(json_string_list "${AUTO_JOIN_SEED_VALUES[@]}")"
+  mkdir -p "$(dirname "$AUTO_JOIN_CONFIG_PATH")" "$AUTO_JOIN_DATA_DIR" "$(node_log_dir)"
+  cat >"$AUTO_JOIN_CONFIG_PATH" <<CONFIG
+# WuKongIM v2 seed-join node config generated by smoke-wkcli-sim-wukongimv2-three-nodes.sh.
+WK_NODE_ID=${AUTO_JOIN_NODE_ID}
+WK_NODE_DATA_DIR=${AUTO_JOIN_DATA_DIR}
+WK_CLUSTER_LISTEN_ADDR=${AUTO_JOIN_CLUSTER_ADDR}
+WK_CLUSTER_ADVERTISE_ADDR=${AUTO_JOIN_CLUSTER_ADDR}
+WK_CLUSTER_ID=${AUTO_JOIN_CLUSTER_ID}
+WK_CLUSTER_SEEDS=${seed_json}
+WK_CLUSTER_JOIN_TOKEN=${AUTO_JOIN_TOKEN}
+WK_CLUSTER_INITIAL_SLOT_COUNT=10
+WK_CLUSTER_HASH_SLOT_COUNT=256
+WK_CLUSTER_SLOT_REPLICA_N=3
+WK_API_LISTEN_ADDR=${api_listen}
+WK_BENCH_API_ENABLE=true
+WK_BENCH_API_MAX_BATCH_SIZE=10000
+WK_BENCH_API_MAX_PAYLOAD_BYTES=10485760
+WK_METRICS_ENABLE=true
+WK_PROMETHEUS_ENABLE=false
+WK_DEBUG_API_ENABLE=${DEBUG_API_ENABLE}
+WK_TOP_API_ENABLE=true
+WK_LOG_LEVEL=info
+WK_LOG_DIR=${AUTO_JOIN_DATA_DIR}/logs
+WK_LOG_CONSOLE=true
+WK_LOG_FORMAT=console
+WK_EXTERNAL_TCPADDR=${AUTO_JOIN_GATEWAY_ADDR}
+WK_GATEWAY_LISTENERS=[{"name":"tcp-wkproto","network":"tcp","address":"${AUTO_JOIN_GATEWAY_ADDR}","transport":"gnet","protocol":"wkproto"}]
+WK_GATEWAY_SEND_TIMEOUT=5s
+WK_DELIVERY_ENABLE=true
+CONFIG
+}
+
+start_auto_join_node() {
+  if [[ "$AUTO_JOIN_NODE" != "true" || "$AUTO_JOIN_STARTED" -eq 1 ]]; then
+    return
+  fi
+  local bin
+  bin="$(cluster_bin)"
+  [[ -x "$bin" ]] || die "auto-join requires executable cluster binary: $bin"
+  render_auto_join_config
+  : >"$(auto_join_log)"
+  log "starting auto-join node${AUTO_JOIN_NODE_ID}: delay=${AUTO_JOIN_AFTER}s config=${AUTO_JOIN_CONFIG_PATH}"
+  (
+    cd "$ROOT_DIR"
+    exec env "WK_DEBUG_API_ENABLE=$DEBUG_API_ENABLE" "$bin" -config "$AUTO_JOIN_CONFIG_PATH"
+  ) >"$(auto_join_log)" 2>&1 &
+  AUTO_JOIN_PID="$!"
+  printf '%s\n' "$AUTO_JOIN_PID" >"$(auto_join_pid_file)"
+  AUTO_JOIN_STARTED=1
+  log "auto-join node${AUTO_JOIN_NODE_ID} pid=${AUTO_JOIN_PID} log=$(auto_join_log)"
+}
+
+wait_auto_join_ready() {
+  if [[ "$AUTO_JOIN_STARTED" -eq 0 ]]; then
+    return
+  fi
+  local deadline=$((SECONDS + READY_TIMEOUT))
+  while (( SECONDS <= deadline )); do
+    check_cluster_process
+    check_auto_join_process
+    if curl -fsS --max-time 2 "$AUTO_JOIN_API_ADDR/readyz" >/dev/null 2>&1; then
+      log "auto join node${AUTO_JOIN_NODE_ID} ready: $AUTO_JOIN_API_ADDR/readyz"
+      return
+    fi
+    sleep "$POLL_INTERVAL"
+  done
+  die "auto-join node${AUTO_JOIN_NODE_ID} did not become ready within ${READY_TIMEOUT}s"
+}
+
+schedule_auto_join_node() {
+  if [[ "$AUTO_JOIN_NODE" != "true" ]]; then
+    return
+  fi
+  rm -f "$(auto_join_pid_file)" "$(auto_join_ready_file)"
+  (
+    sleep "$AUTO_JOIN_AFTER"
+    if [[ -f "$(sim_done_file)" ]]; then
+      exit 0
+    fi
+    start_auto_join_node
+    wait_auto_join_ready
+    touch "$(auto_join_ready_file)"
+  ) &
+  AUTO_JOIN_TIMER_PID="$!"
+  log "auto-join node${AUTO_JOIN_NODE_ID} scheduled after ${AUTO_JOIN_AFTER}s"
 }
 
 wait_ready() {
@@ -430,22 +744,28 @@ wait_ready() {
   die "cluster did not become ready within ${READY_TIMEOUT}s"
 }
 
+capture_one_target_evidence() {
+  local node="$1"
+  local api="$2"
+  local gateway="$3"
+  local caps
+  local capacity
+  caps="$(node_file "$(capabilities_dir)" "$node")"
+  capacity="$(node_file "$(capacity_dir)" "$node")"
+  curl -fsS "$api/bench/v1/capabilities" >"$caps"
+  curl -fsS "$api/bench/v1/capacity-target" >"$capacity"
+  grep -q '"channels_batch":true' "$caps" || die "node${node} bench capabilities missing channels_batch=true"
+  grep -q '"channel_subscribers_batch":true' "$caps" || die "node${node} bench capabilities missing channel_subscribers_batch=true"
+  grep -q '"snapshot":true' "$caps" || die "node${node} bench capabilities missing snapshot=true"
+  grep -q '"group"' "$caps" || die "node${node} bench capabilities missing group channel type"
+  grep -q "\"tcp_addr\":\"${gateway}\"" "$capacity" || die "node${node} capacity target did not publish expected gateway ${gateway}"
+}
+
 capture_target_evidence() {
   local idx=0
   local api
   for api in "${API_VALUES[@]}"; do
-    local node=$((idx + 1))
-    local caps
-    local capacity
-    caps="$(node_file "$(capabilities_dir)" "$node")"
-    capacity="$(node_file "$(capacity_dir)" "$node")"
-    curl -fsS "$api/bench/v1/capabilities" >"$caps"
-    curl -fsS "$api/bench/v1/capacity-target" >"$capacity"
-    grep -q '"channels_batch":true' "$caps" || die "node${node} bench capabilities missing channels_batch=true"
-    grep -q '"channel_subscribers_batch":true' "$caps" || die "node${node} bench capabilities missing channel_subscribers_batch=true"
-    grep -q '"snapshot":true' "$caps" || die "node${node} bench capabilities missing snapshot=true"
-    grep -q '"group"' "$caps" || die "node${node} bench capabilities missing group channel type"
-    grep -q "\"tcp_addr\":\"${GATEWAY_VALUES[$idx]}\"" "$capacity" || die "node${node} capacity target did not publish expected gateway ${GATEWAY_VALUES[$idx]}"
+    capture_one_target_evidence "$((idx + 1))" "$api" "${GATEWAY_VALUES[$idx]}"
     idx=$((idx + 1))
   done
 }
@@ -471,12 +791,35 @@ run_sim() {
   cmd+=(--json)
   log "running wkcli sim: users=${USERS} groups=${GROUP_COUNT} members=${GROUP_MEMBERS} gateways=${#GATEWAY_VALUES[@]}"
   local status=0
+  rm -f "$(sim_done_file)"
   (
+    set -o pipefail
     cd "$ROOT_DIR"
-    "${cmd[@]}"
-  ) | tee "$(sim_output)" || status=$?
+    "${cmd[@]}" | tee "$(sim_output)"
+  ) &
+  local sim_pid="$!"
+  schedule_auto_join_node
+  wait "$sim_pid" || status=$?
+  touch "$(sim_done_file)"
   if [[ "$status" -ne 0 ]]; then
+    stop_auto_join_node
     die "wkcli sim failed with status ${status}"
+  fi
+  if [[ "$AUTO_JOIN_NODE" == "true" ]]; then
+    if [[ ! -f "$(auto_join_pid_file)" ]]; then
+      stop_auto_join_node
+      die "auto-join node${AUTO_JOIN_NODE_ID} did not start before wkcli sim completed; increase --duration or lower --auto-join-after"
+    fi
+    local timer_status=0
+    if [[ -n "$AUTO_JOIN_TIMER_PID" ]]; then
+      wait "$AUTO_JOIN_TIMER_PID" || timer_status=$?
+      AUTO_JOIN_TIMER_PID=""
+    fi
+    if [[ "$timer_status" -ne 0 ]]; then
+      die "auto-join node${AUTO_JOIN_NODE_ID} failed with status ${timer_status}"
+    fi
+    [[ -f "$(auto_join_ready_file)" ]] || die "auto-join node${AUTO_JOIN_NODE_ID} did not report ready"
+    check_auto_join_process
   fi
 }
 
@@ -520,6 +863,20 @@ capture_snapshots() {
   done
   (( snapshots_with_counts > 0 )) || die 'bench snapshots missing accepted_channels on every node'
   log "bench snapshots: $(snapshot_dir)"
+}
+
+capture_auto_join_evidence() {
+  if [[ "$AUTO_JOIN_NODE" != "true" || "$AUTO_JOIN_STARTED" -eq 0 ]]; then
+    return
+  fi
+  check_auto_join_process
+  capture_one_target_evidence "$AUTO_JOIN_NODE_ID" "$AUTO_JOIN_API_ADDR" "$AUTO_JOIN_GATEWAY_ADDR"
+  local snapshot
+  snapshot="$(node_file "$(snapshot_dir)" "$AUTO_JOIN_NODE_ID")"
+  curl -fsS "$AUTO_JOIN_API_ADDR/bench/v1/snapshot" >"$snapshot"
+  grep -q '"version":"bench/v1"' "$snapshot" || die "node${AUTO_JOIN_NODE_ID} bench snapshot missing version=bench/v1"
+  curl -fsS "$AUTO_JOIN_API_ADDR/metrics" >"$(metric_file after "$AUTO_JOIN_NODE_ID")"
+  log "auto-join node${AUTO_JOIN_NODE_ID} evidence captured"
 }
 
 metric_file() {
@@ -630,6 +987,14 @@ write_summary() {
     printf '%s\n' "- max_handoff_timeout_total: ${MAX_HANDOFF_TIMEOUT_TOTAL}"
     printf '%s\n' "- max_goroutines: ${MAX_GOROUTINES}"
     printf '%s\n' "- max_heap_alloc_bytes: ${MAX_HEAP_ALLOC_BYTES}"
+    printf '%s\n' "- auto_join_node: ${AUTO_JOIN_NODE}"
+    printf '%s\n' "- auto_join_after_secs: ${AUTO_JOIN_AFTER}"
+    if [[ "$AUTO_JOIN_NODE" == "true" ]]; then
+      printf '%s\n' "- auto_join_node_id: ${AUTO_JOIN_NODE_ID}"
+      printf '%s\n' "- auto_join_api: ${AUTO_JOIN_API_ADDR}"
+      printf '%s\n' "- auto_join_gateway: ${AUTO_JOIN_GATEWAY_ADDR}"
+      printf '%s\n' "- auto_join_config: ${AUTO_JOIN_CONFIG_PATH}"
+    fi
   } >"$(summary_output)"
 }
 
@@ -642,5 +1007,6 @@ verify_sim_output
 capture_metrics after
 verify_metrics_health
 capture_snapshots
+capture_auto_join_evidence
 write_summary
 log "smoke passed; evidence_dir=$OUT_DIR"
