@@ -183,6 +183,7 @@ beforeEach(() => {
     permissions: [
       { resource: "cluster.node", actions: ["r", "w"] },
       { resource: "cluster.slot", actions: ["r", "w"] },
+      { resource: "cluster.controller", actions: ["r", "w"] },
     ],
   })
 })
@@ -413,6 +414,41 @@ test("shows Controller voter promotion only for eligible non-voter node rows", a
   expect(screen.getByRole("button", { name: "Set node 4 as Controller voter" })).toBeEnabled()
   expect(screen.queryByRole("button", { name: "Set node 5 as Controller voter" })).not.toBeInTheDocument()
   expect(screen.queryByRole("button", { name: "Set node 6 as Controller voter" })).not.toBeInTheDocument()
+})
+
+test("disables Controller voter promotion without Controller write permission", async () => {
+  const eligibleNode = {
+    ...nodeRow,
+    node_id: 4,
+    name: "node-4",
+    addr: "127.0.0.1:7004",
+    is_local: false,
+    controller: { role: "follower", voter: false, leader_id: 1 },
+    actions: { ...nodeRow.actions, can_promote_controller_voter: true },
+  }
+  getNodesMock.mockResolvedValueOnce({
+    generated_at: "2026-07-01T08:00:00Z",
+    controller_leader_id: 1,
+    total: 1,
+    items: [eligibleNode],
+  })
+  useAuthStore.setState((state) => ({
+    ...state,
+    permissions: [
+      { resource: "cluster.node", actions: ["r", "w"] },
+      { resource: "cluster.slot", actions: ["r", "w"] },
+    ],
+  }))
+
+  const user = userEvent.setup()
+  renderNodesPage()
+
+  const promoteButton = await screen.findByRole("button", { name: "Set node 4 as Controller voter" })
+  expect(promoteButton).toBeDisabled()
+  await user.click(promoteButton)
+
+  expect(screen.queryByText("Set node as Controller voter?")).not.toBeInTheDocument()
+  expect(promoteControllerVoterMock).not.toHaveBeenCalled()
 })
 
 test("confirms Controller voter promotion with no expected revision and refreshes the node list", async () => {

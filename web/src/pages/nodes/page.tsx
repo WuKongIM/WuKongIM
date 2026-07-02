@@ -341,6 +341,7 @@ export function NodeClusterListPanel() {
   const intl = useIntl()
   const permissions = useAuthStore((store) => store.permissions)
   const canWriteNodes = useMemo(() => hasPermission(permissions, "cluster.node", "w"), [permissions])
+  const canWriteController = useMemo(() => hasPermission(permissions, "cluster.controller", "w"), [permissions])
   const [state, setState] = useState<NodesState>({
     nodes: null,
     loading: true,
@@ -552,7 +553,7 @@ export function NodeClusterListPanel() {
   }, [])
 
   const confirmPromoteControllerVoter = useCallback(async () => {
-    if (!promoteTarget || promotePending) {
+    if (!promoteTarget || promotePending || !canWriteController) {
       return
     }
     setPromotePending(true)
@@ -567,7 +568,7 @@ export function NodeClusterListPanel() {
     } finally {
       setPromotePending(false)
     }
-  }, [loadNodes, promotePending, promoteTarget])
+  }, [canWriteController, loadNodes, promotePending, promoteTarget])
 
   return (
     <>
@@ -810,7 +811,7 @@ export function NodeClusterListPanel() {
                                   { id: "nodes.action.promoteControllerVoterForNode" },
                                   { id: node.node_id },
                                 )}
-                                disabled={!canWriteNodes}
+                                disabled={!canWriteController}
                                 onClick={() => openPromoteControllerVoter(node)}
                                 size="sm"
                                 variant="outline"
