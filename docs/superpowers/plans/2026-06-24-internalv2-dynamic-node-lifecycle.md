@@ -35,6 +35,11 @@
 - Stage 10A plan: `docs/superpowers/plans/2026-06-30-internalv2-dynamic-node-stage10a-gofail-readiness-recovery.md`
 - Stage 10B plan: `docs/superpowers/plans/2026-06-30-internalv2-dynamic-node-stage10b-readiness-gate.md`
 - Stage 11 plan: `docs/superpowers/plans/2026-06-30-internalv2-dynamic-node-stage11-operations-productization.md`
+- Stage 12 spec: `docs/superpowers/specs/2026-07-01-internalv2-dynamic-node-stage12-diagnostics-design.md`
+- Stage 12 plan: `docs/superpowers/plans/2026-07-01-internalv2-dynamic-node-stage12-diagnostics.md`
+  - Stage 12A plan: `docs/superpowers/plans/2026-07-01-internalv2-dynamic-node-stage12a-diagnostic-surface.md`
+  - Stage 12B plan: `docs/superpowers/plans/2026-07-01-internalv2-dynamic-node-stage12b-metrics.md`
+  - Stage 12C plan: `docs/superpowers/plans/2026-07-01-internalv2-dynamic-node-stage12c-e2ev2-runbook.md`
 
 ## Execution Order
 
@@ -52,6 +57,7 @@
 | 10A | Gofail Readiness Recovery | `2026-06-30-internalv2-dynamic-node-stage10a-gofail-readiness-recovery.md` | Reproducible recovery proofs for stale health, controller watch drops, and bounded scale-in retry |
 | 10B | Readiness Gate Automation | `2026-06-30-internalv2-dynamic-node-stage10b-readiness-gate.md` | One local command for Stage10A gofail recovery plus Stage9D release-gate verification |
 | 11 | Operations Productization | `2026-06-30-internalv2-dynamic-node-stage11-operations-productization.md` | Operator-safe `wkcli node`, runbook, and real CLI rehearsal gate |
+| 12 | Diagnostics Productization | `2026-07-01-internalv2-dynamic-node-stage12-diagnostics.md` plus Stage 12A-12C subplans | Read-only diagnostic route, `wkcli node diagnose`, task/Slot move metrics, and e2ev2 diagnostic artifacts |
 
 ## Cross-Stage Invariants
 
@@ -259,7 +265,7 @@ Expected: Stage10B gate remains green before adding the operations layer.
 
 ## Stage 11 Completion
 
-- [ ] **Stage 11 operations productization merged locally**
+- [x] **Stage 11 operations productization merged locally**
 
 Run on merged local `main`:
 
@@ -273,6 +279,36 @@ git diff --check
 
 Expected: CLI unit tests, script tests, real CLI operations e2e, full operations
 gate, and whitespace checks pass on merged local `main`.
+
+Evidence: Stage 11 was merged into local `main` through `a5d4603c` on
+2026-07-01. The merged-main validation passed with the `ops` readiness gate,
+including CLI unit tests, Stage9D real traffic, Stage10A gofail recovery,
+Stage11 real CLI operations, and `git diff --check`.
+
+## Gate 12: Stage 12 starts only after Stage 11 ops gate passes
+
+Run:
+
+```bash
+GOWORK=off go test ./cmd/wkcli ./cmd/wkcli/internal/... -count=1
+GOWORK=off go test ./scripts -run DynamicNodeReadinessGate -count=1
+scripts/e2ev2/dynamic-node-readiness-gate.sh --profile ops
+git diff --check
+```
+
+Expected: Stage 11 CLI and operations gate remain green before adding the
+diagnostics layer.
+
+## Stage 12 Sub-Stage Chain
+
+Run Stage 12 as three separate branches or commits unless the user explicitly
+asks to combine them:
+
+| Order | Sub-stage | Plan | Completion proof |
+| --- | --- | --- | --- |
+| 12A | Diagnostic Surface | `2026-07-01-internalv2-dynamic-node-stage12a-diagnostic-surface.md` | Active task proof fields plus `GET /manager/nodes/:node_id/diagnostics` and `wkcli node diagnose` |
+| 12B | Metrics | `2026-07-01-internalv2-dynamic-node-stage12b-metrics.md` | `slot_replica_move` task metrics, audit-derived task age, and Slot replica move phase metrics |
+| 12C | E2EV2 And Runbook | `2026-07-01-internalv2-dynamic-node-stage12c-e2ev2-runbook.md` | Operations e2ev2 writes diagnostic bundles, ops gate links evidence, and runbook maps blockers to commands |
 
 ## Stage 5 Sub-Stage Chain
 
