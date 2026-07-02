@@ -144,6 +144,16 @@ it only after local leader, write-fence, and epoch checks and before enqueueing
 new leader appends. The guard is an external readiness fence: it must not mutate
 channel state, and rejection completes the caller's append future without
 disturbing already accepted in-flight batches.
+
+Runtime probes are read-only control events owned by the channel's reactor. In
+addition to loaded leader/follower/missing counts, `RuntimeProbe` returns a
+bounded per-loaded-channel proof record: channel epoch, leader epoch, role,
+status, LEO, HW, checkpoint HW, current write fence, in-flight append boolean,
+and pending append count. It never copies pending append entries or payloads.
+`DrainChannel` is a migration-only service boundary. It polls the owning reactor
+until the requested local leader is still fenced by the expected fence version,
+has no accepted in-flight or pending append work, and local HW covers local LEO;
+leader epoch or fence-version changes return `ErrStaleMeta`.
 Append callers may also carry `TraceID`, diagnostics `ChannelKey`, per-message
 trace metadata, and `Attempt` through `AppendBatchRequest`. These fields are
 transient diagnostics data for sendtrace and RPC forwarding only. The reactor

@@ -2,10 +2,13 @@ package reactor
 
 import (
 	"context"
+	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/worker"
 )
+
+const runtimeDrainPollInterval = 10 * time.Millisecond
 
 // RuntimeSnapshot summarizes loaded ChannelV2 runtimes across all reactors.
 func (g *Group) RuntimeSnapshot(ctx context.Context) (ch.RuntimeSnapshot, error) {
@@ -59,6 +62,7 @@ func (g *Group) RuntimeProbe(ctx context.Context, selector ch.RuntimeSelector) (
 	}
 	submissions, submitErr := g.submitRuntimeSelected(ctx, EventRuntimeProbe, ids)
 	missingCounts := make(map[ch.ChannelID]int)
+	loadedByID := make(map[ch.ChannelID][]ch.RuntimeProbeChannel)
 	for _, submission := range submissions {
 		future := submission.future
 		reactorResult, err := future.Await(ctx)
@@ -69,18 +73,83 @@ func (g *Group) RuntimeProbe(ctx context.Context, selector ch.RuntimeSelector) (
 		result.Checked += probe.Checked
 		result.LoadedLeader += probe.LoadedLeader
 		result.LoadedFollower += probe.LoadedFollower
+		for _, channel := range probe.Channels {
+			loadedByID[channel.ChannelID] = append(loadedByID[channel.ChannelID], channel)
+		}
 		for _, missing := range probe.Missing {
 			missingCounts[missing]++
 		}
 	}
 	for _, id := range ids {
 		if missingCounts[id] == 0 {
+			if loaded := loadedByID[id]; len(loaded) > 0 {
+				result.Channels = append(result.Channels, loaded[0])
+				loadedByID[id] = loaded[1:]
+			}
 			continue
 		}
 		result.Missing = append(result.Missing, id)
 		missingCounts[id]--
 	}
 	return result, submitErr
+}
+
+// DrainChannel waits until a fenced local leader has no admitted append work and HW covers LEO.
+func (g *Group) DrainChannel(ctx context.Context, req ch.DrainChannelRequest) (ch.DrainChannelResult, error) {
+	if g == nil || g.closed.Load() {
+		return ch.DrainChannelResult{}, ch.ErrClosed
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if req.ChannelID.ID == "" || req.LeaderEpoch == 0 || req.FenceVersion == 0 {
+		return ch.DrainChannelResult{}, ch.ErrInvalidConfig
+	}
+	deadline := time.Time{}
+	if req.Timeout > 0 {
+		deadline = time.Now().Add(req.Timeout)
+	}
+	for {
+		result, err := g.checkDrainChannel(ctx, req)
+		if err != nil || result.Drained {
+			return result, err
+		}
+		if deadline.IsZero() {
+			return result, nil
+		}
+		wait := time.Until(deadline)
+		if wait <= 0 {
+			return result, nil
+		}
+		if wait > runtimeDrainPollInterval {
+			wait = runtimeDrainPollInterval
+		}
+		timer := time.NewTimer(wait)
+		select {
+		case <-timer.C:
+		case <-ctx.Done():
+			if !timer.Stop() {
+				select {
+				case <-timer.C:
+				default:
+				}
+			}
+			return result, ctx.Err()
+		}
+	}
+}
+
+func (g *Group) checkDrainChannel(ctx context.Context, req ch.DrainChannelRequest) (ch.DrainChannelResult, error) {
+	key := ch.ChannelKeyForID(req.ChannelID)
+	future, err := g.Submit(ctx, key, Event{Kind: EventDrainChannel, Key: key, DrainChannel: req})
+	if err != nil {
+		return ch.DrainChannelResult{}, err
+	}
+	result, err := future.Await(ctx)
+	if err != nil {
+		return ch.DrainChannelResult{}, err
+	}
+	return result.DrainChannel, nil
 }
 
 // RuntimeEvict evicts selected safe channel runtimes on their owning reactors.
@@ -189,10 +258,55 @@ func (r *Reactor) handleRuntimeProbe(event Event) {
 		case ch.RoleFollower:
 			result.LoadedFollower++
 		}
+		result.Channels = append(result.Channels, ch.RuntimeProbeChannel{
+			ChannelID:          rc.state.ID,
+			LeaderEpoch:        rc.state.LeaderEpoch,
+			ChannelEpoch:       rc.state.Epoch,
+			Role:               rc.state.Role,
+			Status:             rc.state.Status,
+			LEO:                rc.state.LEO,
+			HW:                 rc.state.HW,
+			CheckpointHW:       rc.state.CheckpointHW,
+			WriteFence:         rc.state.WriteFence,
+			InflightAppend:     rc.state.InflightAppend != nil,
+			PendingAppendCount: len(rc.state.PendingAppends),
+		})
 	}
 	if event.Future != nil {
 		event.Future.Complete(Result{RuntimeProbe: result})
 	}
+}
+
+func (r *Reactor) handleDrainChannel(event Event) {
+	result, err := r.checkDrainChannel(event)
+	if event.Future != nil {
+		event.Future.Complete(Result{DrainChannel: result, Err: err})
+	}
+}
+
+func (r *Reactor) checkDrainChannel(event Event) (ch.DrainChannelResult, error) {
+	req := event.DrainChannel
+	key := event.Key
+	if key == "" {
+		key = ch.ChannelKeyForID(req.ChannelID)
+	}
+	rc := r.channels[key]
+	if rc == nil || rc.state == nil {
+		return ch.DrainChannelResult{}, ch.ErrChannelNotFound
+	}
+	state := rc.state
+	result := ch.DrainChannelResult{LEO: state.LEO, HW: state.HW}
+	if state.ID != req.ChannelID || state.LeaderEpoch != req.LeaderEpoch {
+		return result, ch.ErrStaleMeta
+	}
+	if state.Role != ch.RoleLeader {
+		return result, ch.ErrNotLeader
+	}
+	if !state.WriteFence.Set() || state.WriteFence.Version != req.FenceVersion {
+		return result, ch.ErrStaleMeta
+	}
+	result.Drained = state.InflightAppend == nil && len(state.PendingAppends) == 0 && state.HW >= state.LEO
+	return result, nil
 }
 
 func (r *Reactor) handleRuntimeEvict(event Event) {

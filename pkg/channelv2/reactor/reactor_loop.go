@@ -101,6 +101,8 @@ func (r *Reactor) handle(event Event) {
 		r.handleRuntimeSnapshot(event)
 	case EventRuntimeProbe:
 		r.handleRuntimeProbe(event)
+	case EventDrainChannel:
+		r.handleDrainChannel(event)
 	case EventRuntimeEvict:
 		r.handleRuntimeEvict(event)
 	case EventRetentionView:

@@ -47,6 +47,26 @@ func TestServiceRuntimeProbeDelegatesToRuntimeBench(t *testing.T) {
 	}
 }
 
+func TestServiceDrainChannelDelegatesToRuntime(t *testing.T) {
+	id := ch.ChannelID{ID: "drain", Type: 1}
+	runtime := &benchRuntimeFake{drain: ch.DrainChannelResult{Drained: true, LEO: 3, HW: 3}}
+	svc, err := NewService(Config{Runtime: runtime})
+	if err != nil {
+		t.Fatalf("NewService() error = %v", err)
+	}
+
+	got, err := svc.DrainChannel(context.Background(), ch.DrainChannelRequest{ChannelID: id, LeaderEpoch: 2, FenceVersion: 4})
+	if err != nil {
+		t.Fatalf("DrainChannel() error = %v", err)
+	}
+	if got.LEO != 3 || got.HW != 3 || !got.Drained {
+		t.Fatalf("DrainChannel() = %#v, want delegated drain result", got)
+	}
+	if runtime.drainCalls != 1 || runtime.lastDrain.ChannelID != id || runtime.lastDrain.LeaderEpoch != 2 || runtime.lastDrain.FenceVersion != 4 {
+		t.Fatalf("drain calls=%d req=%#v, want request forwarded", runtime.drainCalls, runtime.lastDrain)
+	}
+}
+
 func TestServiceRuntimeEvictDelegatesToRuntimeBench(t *testing.T) {
 	id := ch.ChannelID{ID: "evict", Type: 1}
 	runtime := &benchRuntimeFake{evict: ch.RuntimeEvictResult{Requested: 1, Evicted: 1}}
@@ -89,6 +109,14 @@ func TestServiceRuntimeBenchUnsupported(t *testing.T) {
 		t.Fatalf("RuntimeProbe() = %#v, want zero value", probe)
 	}
 
+	drain, err := svc.DrainChannel(context.Background(), ch.DrainChannelRequest{ChannelID: ch.ChannelID{ID: "drain", Type: 1}})
+	if !errors.Is(err, ch.ErrInvalidConfig) {
+		t.Fatalf("DrainChannel() error = %v, want ErrInvalidConfig", err)
+	}
+	if drain != (ch.DrainChannelResult{}) {
+		t.Fatalf("DrainChannel() = %#v, want zero value", drain)
+	}
+
 	evict, err := svc.RuntimeEvict(context.Background(), ch.RuntimeSelector{})
 	if !errors.Is(err, ch.ErrInvalidConfig) {
 		t.Fatalf("RuntimeEvict() error = %v, want ErrInvalidConfig", err)
@@ -103,13 +131,16 @@ type benchRuntimeFake struct {
 
 	snapshot ch.RuntimeSnapshot
 	probe    ch.RuntimeProbeResult
+	drain    ch.DrainChannelResult
 	evict    ch.RuntimeEvictResult
 
 	lastProbe ch.RuntimeSelector
+	lastDrain ch.DrainChannelRequest
 	lastEvict ch.RuntimeSelector
 
 	snapshotCalls int
 	probeCalls    int
+	drainCalls    int
 	evictCalls    int
 }
 
@@ -122,6 +153,12 @@ func (f *benchRuntimeFake) RuntimeProbe(_ context.Context, selector ch.RuntimeSe
 	f.probeCalls++
 	f.lastProbe = selector
 	return f.probe, nil
+}
+
+func (f *benchRuntimeFake) DrainChannel(_ context.Context, req ch.DrainChannelRequest) (ch.DrainChannelResult, error) {
+	f.drainCalls++
+	f.lastDrain = req
+	return f.drain, nil
 }
 
 func (f *benchRuntimeFake) RuntimeEvict(_ context.Context, selector ch.RuntimeSelector) (ch.RuntimeEvictResult, error) {

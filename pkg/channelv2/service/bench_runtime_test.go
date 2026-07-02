@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"testing"
+	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/store"
@@ -49,6 +50,27 @@ func TestServiceRuntimeProbeDelegatesToGroup(t *testing.T) {
 	require.Equal(t, 1, result.LoadedLeader)
 	require.Equal(t, 1, result.LoadedFollower)
 	require.Equal(t, []ch.ChannelID{missing}, result.Missing)
+}
+
+func TestServiceDrainChannelDelegatesToGroup(t *testing.T) {
+	cluster, err := New(Config{LocalNode: 1, Store: store.NewMemoryFactory(), ReactorCount: 1})
+	require.NoError(t, err)
+	defer cluster.Close()
+
+	meta := serviceBenchRuntimeMeta("service-runtime-drain", 1, 1)
+	meta.WriteFence = ch.WriteFence{Token: "migration-1", Version: 1, Reason: ch.WriteFenceReasonLeaderTransfer}
+	require.NoError(t, cluster.ApplyMeta(meta))
+
+	drain, ok := cluster.(ch.RuntimeDrain)
+	require.True(t, ok)
+	result, err := drain.DrainChannel(context.Background(), ch.DrainChannelRequest{
+		ChannelID:    meta.ID,
+		LeaderEpoch:  meta.LeaderEpoch,
+		FenceVersion: meta.WriteFence.Version,
+		Timeout:      time.Millisecond,
+	})
+	require.NoError(t, err)
+	require.True(t, result.Drained)
 }
 
 func TestServiceRuntimeEvictDelegatesToGroup(t *testing.T) {

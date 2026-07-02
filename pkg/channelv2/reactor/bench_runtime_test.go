@@ -7,6 +7,7 @@ import (
 	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
+	"github.com/WuKongIM/WuKongIM/pkg/channelv2/machine"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/store"
 	"github.com/stretchr/testify/require"
 )
@@ -52,6 +53,94 @@ func TestRuntimeProbeReportsLoadedAndMissingChannels(t *testing.T) {
 	require.Equal(t, 1, result.LoadedLeader)
 	require.Equal(t, 1, result.LoadedFollower)
 	require.Equal(t, []ch.ChannelID{missingID}, result.Missing)
+}
+
+func TestRuntimeProbeReportsMigrationProofFields(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 1, Store: factory, MailboxSize: 16})
+
+	meta := testMeta("runtime-probe-migration-proof", 1, 1)
+	meta.Epoch = 3
+	meta.LeaderEpoch = 9
+	meta.WriteFence = ch.WriteFence{
+		Token:   "migration-7",
+		Version: 7,
+		Reason:  ch.WriteFenceReasonLeaderTransfer,
+	}
+	require.NoError(t, applyMetaDirect(t, r, meta))
+
+	rc := r.channels[meta.Key]
+	require.NotNil(t, rc)
+	rc.state.LEO = 11
+	rc.state.HW = 10
+	rc.state.CheckpointHW = 8
+	rc.state.PendingAppends[1] = &machine.AppendWaiter{OpID: 1}
+	rc.state.InflightAppend = &machine.AppendOp{OpID: 2}
+
+	future := NewFuture()
+	r.handleRuntimeProbe(Event{Kind: EventRuntimeProbe, RuntimeChannelIDs: []ch.ChannelID{meta.ID}, Future: future})
+	result := awaitFutureResult(t, future).RuntimeProbe
+
+	require.Len(t, result.Channels, 1)
+	proof := result.Channels[0]
+	require.Equal(t, meta.ID, proof.ChannelID)
+	require.Equal(t, meta.LeaderEpoch, proof.LeaderEpoch)
+	require.Equal(t, meta.Epoch, proof.ChannelEpoch)
+	require.Equal(t, ch.RoleLeader, proof.Role)
+	require.Equal(t, ch.StatusActive, proof.Status)
+	require.Equal(t, uint64(11), proof.LEO)
+	require.Equal(t, uint64(10), proof.HW)
+	require.Equal(t, uint64(8), proof.CheckpointHW)
+	require.Equal(t, meta.WriteFence, proof.WriteFence)
+	require.True(t, proof.InflightAppend)
+	require.Equal(t, 1, proof.PendingAppendCount)
+}
+
+func TestDrainChannelReturnsDrainedLeaderWhenFenceMatches(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	g, err := NewGroup(Config{LocalNode: 1, ReactorCount: 1, MailboxSize: 16, Store: factory})
+	require.NoError(t, err)
+	defer g.Close()
+
+	meta := testMeta("runtime-drain-ready", 1, 1)
+	meta.WriteFence = ch.WriteFence{Token: "migration-8", Version: 8, Reason: ch.WriteFenceReasonLeaderTransfer}
+	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventApplyMeta, Key: meta.Key, Meta: meta}))
+	rc := g.reactors[0].channels[meta.Key]
+	require.NotNil(t, rc)
+	rc.state.LEO = 4
+	rc.state.HW = 4
+
+	result, err := g.DrainChannel(context.Background(), ch.DrainChannelRequest{
+		ChannelID:    meta.ID,
+		LeaderEpoch:  meta.LeaderEpoch,
+		FenceVersion: meta.WriteFence.Version,
+		Timeout:      time.Millisecond,
+	})
+
+	require.NoError(t, err)
+	require.True(t, result.Drained)
+	require.Equal(t, uint64(4), result.LEO)
+	require.Equal(t, uint64(4), result.HW)
+}
+
+func TestDrainChannelReturnsStaleMetaWhenFenceVersionChanges(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	g, err := NewGroup(Config{LocalNode: 1, ReactorCount: 1, MailboxSize: 16, Store: factory})
+	require.NoError(t, err)
+	defer g.Close()
+
+	meta := testMeta("runtime-drain-stale-fence", 1, 1)
+	meta.WriteFence = ch.WriteFence{Token: "migration-9", Version: 9, Reason: ch.WriteFenceReasonLeaderTransfer}
+	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventApplyMeta, Key: meta.Key, Meta: meta}))
+
+	_, err = g.DrainChannel(context.Background(), ch.DrainChannelRequest{
+		ChannelID:    meta.ID,
+		LeaderEpoch:  meta.LeaderEpoch,
+		FenceVersion: 8,
+		Timeout:      time.Millisecond,
+	})
+
+	require.ErrorIs(t, err, ch.ErrStaleMeta)
 }
 
 func TestRuntimeEvictEvictsSafeRuntimeAndSkipsBusyRuntime(t *testing.T) {
