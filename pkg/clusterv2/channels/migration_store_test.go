@@ -318,6 +318,93 @@ func TestMigrationStoreCommitLeaderTransferUsesRuntimeGuard(t *testing.T) {
 	require.Equal(t, metafsm.EncodeCommitChannelLeaderTransferCommand(want), proposer.lastCommand)
 }
 
+func TestMigrationStoreAddLearnerUsesRuntimeGuard(t *testing.T) {
+	ctx := context.Background()
+	now := time.UnixMilli(1750000003700).UTC()
+	id := ch.ChannelID{ID: "migration-add-learner", Type: 1}
+	task := testMigrationTask(id, "task-add-learner")
+	task.Status = metadb.ChannelMigrationStatusRunning
+	task.Phase = metadb.ChannelMigrationPhaseAddLearner
+	task.SourceNode = 3
+	task.TargetNode = 4
+	task.UpdatedAtMS = 1750000003000
+	meta := testMigrationRuntimeMeta(id)
+	reader := &fakeMigrationReader{runtimeMeta: map[uint16]metadb.ChannelRuntimeMeta{13: meta}}
+	proposer := &fakeMigrationProposer{}
+	store := NewMigrationStore(MigrationStoreConfig{
+		LocalNode: 2,
+		Router:    fakeMigrationRouter{routes: map[string]routing.Route{id.ID: {HashSlot: 13, SlotID: 17, Leader: 2}}},
+		Proposer:  proposer,
+		Reader:    reader,
+		Now:       func() time.Time { return now },
+	})
+
+	err := store.AddLearner(ctx, task)
+
+	require.NoError(t, err)
+	want := metadb.ChannelMigrationAddLearnerRequest{
+		Guard:        migrationTaskGuard(task, task.UpdatedAtMS),
+		RuntimeGuard: migrationRuntimeGuard(meta),
+		Status:       metadb.ChannelMigrationStatusRunning,
+		Phase:        metadb.ChannelMigrationPhaseBootstrapTarget,
+		TargetNode:   task.TargetNode,
+		UpdatedAtMS:  now.UnixMilli(),
+	}
+	require.Equal(t, metafsm.EncodeAddChannelLearnerCommand(want), proposer.lastCommand)
+}
+
+func TestMigrationStorePromoteLearnerAndRemoveSourceUsesRuntimeGuard(t *testing.T) {
+	ctx := context.Background()
+	now := time.UnixMilli(1750000003800).UTC()
+	id := ch.ChannelID{ID: "migration-promote-learner", Type: 1}
+	task := testMigrationTask(id, "task-promote-learner")
+	task.Status = metadb.ChannelMigrationStatusRunning
+	task.Phase = metadb.ChannelMigrationPhasePromoteAndRemove
+	task.SourceNode = 3
+	task.TargetNode = 4
+	task.FenceToken = task.TaskID
+	task.FenceVersion = 6
+	task.UpdatedAtMS = 1750000003000
+	task.CutoverLEO = 9
+	task.CutoverHW = 9
+	task.DrainedLeaderNode = 1
+	task.DrainedRuntimeGeneration = 30
+	task.DrainedChannelEpoch = 10
+	task.DrainedLeaderEpoch = 20
+	task.DrainedFenceVersion = 6
+	meta := testMigrationRuntimeMeta(id)
+	meta.Replicas = []uint64{1, 2, 3, 4}
+	meta.ISR = []uint64{1, 2, 3}
+	meta.WriteFenceToken = task.TaskID
+	meta.WriteFenceVersion = 6
+	meta.WriteFenceReason = uint8(ch.WriteFenceReasonReplicaReplace)
+	meta.WriteFenceUntilMS = now.Add(30 * time.Second).UnixMilli()
+	reader := &fakeMigrationReader{runtimeMeta: map[uint16]metadb.ChannelRuntimeMeta{14: meta}}
+	proposer := &fakeMigrationProposer{}
+	store := NewMigrationStore(MigrationStoreConfig{
+		LocalNode: 2,
+		Router:    fakeMigrationRouter{routes: map[string]routing.Route{id.ID: {HashSlot: 14, SlotID: 18, Leader: 2}}},
+		Proposer:  proposer,
+		Reader:    reader,
+		Now:       func() time.Time { return now },
+	})
+
+	err := store.PromoteLearnerAndRemoveSource(ctx, task)
+
+	require.NoError(t, err)
+	want := metadb.ChannelMigrationPromoteLearnerRequest{
+		Guard:        migrationTaskGuard(task, task.UpdatedAtMS),
+		RuntimeGuard: migrationRuntimeGuard(meta),
+		Status:       metadb.ChannelMigrationStatusRunning,
+		Phase:        metadb.ChannelMigrationPhaseVerifyMembership,
+		SourceNode:   task.SourceNode,
+		TargetNode:   task.TargetNode,
+		NowMS:        now.UnixMilli(),
+		UpdatedAtMS:  now.UnixMilli(),
+	}
+	require.Equal(t, metafsm.EncodePromoteLearnerAndRemoveReplicaCommand(want), proposer.lastCommand)
+}
+
 func TestMigrationStoreSetAndClearWriteFenceUseTaskToken(t *testing.T) {
 	ctx := context.Background()
 	now := time.UnixMilli(1750000004000).UTC()

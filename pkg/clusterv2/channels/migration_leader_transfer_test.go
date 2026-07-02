@@ -358,8 +358,11 @@ func (s *fakeMigrationExecutorStore) SetWriteFence(_ context.Context, task metad
 	s.ops = append(s.ops, "set_fence")
 	s.bump()
 	s.task.Status = metadb.ChannelMigrationStatusRunning
-	if s.task.Phase == metadb.ChannelMigrationPhaseWriteFence {
+	if s.task.Kind == metadb.ChannelMigrationKindLeaderTransfer && s.task.Phase == metadb.ChannelMigrationPhaseWriteFence {
 		s.task.Phase = metadb.ChannelMigrationPhaseDrainLeader
+	}
+	if s.task.Kind == metadb.ChannelMigrationKindReplicaReplace && s.task.Phase == metadb.ChannelMigrationPhaseWarmCatchUp {
+		s.task.Phase = metadb.ChannelMigrationPhaseCutoverFence
 	}
 	s.task.FenceToken = s.task.TaskID
 	s.task.FenceVersion = s.meta.WriteFenceVersion + 1
@@ -378,6 +381,19 @@ func (s *fakeMigrationExecutorStore) SetWriteFence(_ context.Context, task metad
 	return nil
 }
 
+func (s *fakeMigrationExecutorStore) AddLearner(_ context.Context, task metadb.ChannelMigrationTask) error {
+	s.expectTask(task, task.UpdatedAtMS)
+	s.ops = append(s.ops, "add_learner")
+	s.bump()
+	s.task.Status = metadb.ChannelMigrationStatusRunning
+	s.task.Phase = metadb.ChannelMigrationPhaseBootstrapTarget
+	if !migrationNodeInList(s.meta.Replicas, task.TargetNode) {
+		s.meta.Replicas = append(s.meta.Replicas, task.TargetNode)
+		s.meta.ChannelEpoch++
+	}
+	return nil
+}
+
 func (s *fakeMigrationExecutorStore) CommitLeaderTransfer(_ context.Context, task metadb.ChannelMigrationTask) error {
 	s.expectTask(task, task.UpdatedAtMS)
 	s.ops = append(s.ops, "commit_leader")
@@ -386,6 +402,18 @@ func (s *fakeMigrationExecutorStore) CommitLeaderTransfer(_ context.Context, tas
 	s.task.Phase = metadb.ChannelMigrationPhaseVerifyNewLeader
 	s.meta.Leader = s.task.TargetNode
 	s.meta.LeaderEpoch++
+	return nil
+}
+
+func (s *fakeMigrationExecutorStore) PromoteLearnerAndRemoveSource(_ context.Context, task metadb.ChannelMigrationTask) error {
+	s.expectTask(task, task.UpdatedAtMS)
+	s.ops = append(s.ops, "promote_learner")
+	s.bump()
+	s.task.Status = metadb.ChannelMigrationStatusRunning
+	s.task.Phase = metadb.ChannelMigrationPhaseVerifyMembership
+	s.meta.Replicas = replaceMigrationNode(s.meta.Replicas, task.SourceNode, task.TargetNode)
+	s.meta.ISR = replaceMigrationNode(s.meta.ISR, task.SourceNode, task.TargetNode)
+	s.meta.ChannelEpoch++
 	return nil
 }
 
@@ -414,6 +442,25 @@ func (s *fakeMigrationExecutorStore) bump() {
 	s.version++
 	s.task.UpdatedAtMS = s.version
 	s.task.Attempt++
+}
+
+func replaceMigrationNode(nodes []uint64, oldNode uint64, newNode uint64) []uint64 {
+	out := make([]uint64, 0, len(nodes))
+	replaced := false
+	for _, node := range nodes {
+		if node == oldNode {
+			if !migrationNodeInList(out, newNode) {
+				out = append(out, newNode)
+			}
+			replaced = true
+			continue
+		}
+		if node == newNode && replaced {
+			continue
+		}
+		out = append(out, node)
+	}
+	return out
 }
 
 type fakeMigrationExecutorMetaReader struct {

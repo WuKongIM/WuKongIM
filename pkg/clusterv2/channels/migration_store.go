@@ -258,6 +258,53 @@ func (s *MigrationStore) CommitLeaderTransfer(ctx context.Context, task metadb.C
 	return s.propose(ctx, route, metafsm.EncodeCommitChannelLeaderTransferCommand(req))
 }
 
+// AddLearner adds the replacement target as a non-ISR learner replica.
+func (s *MigrationStore) AddLearner(ctx context.Context, task metadb.ChannelMigrationTask) error {
+	id, err := migrationTaskChannelID(task)
+	if err != nil {
+		return err
+	}
+	route, meta, err := s.readRuntimeMeta(ctx, id)
+	if err != nil {
+		return err
+	}
+	updatedAtMS := nextMigrationVersion(s.nowMS(), task.UpdatedAtMS)
+	req := metadb.ChannelMigrationAddLearnerRequest{
+		Guard:        migrationTaskGuard(task, task.UpdatedAtMS),
+		RuntimeGuard: migrationRuntimeGuard(meta),
+		Status:       metadb.ChannelMigrationStatusRunning,
+		Phase:        metadb.ChannelMigrationPhaseBootstrapTarget,
+		TargetNode:   task.TargetNode,
+		UpdatedAtMS:  updatedAtMS,
+	}
+	return s.propose(ctx, route, metafsm.EncodeAddChannelLearnerCommand(req))
+}
+
+// PromoteLearnerAndRemoveSource atomically promotes target into ISR and removes source.
+func (s *MigrationStore) PromoteLearnerAndRemoveSource(ctx context.Context, task metadb.ChannelMigrationTask) error {
+	id, err := migrationTaskChannelID(task)
+	if err != nil {
+		return err
+	}
+	route, meta, err := s.readRuntimeMeta(ctx, id)
+	if err != nil {
+		return err
+	}
+	nowMS := s.nowMS()
+	updatedAtMS := nextMigrationVersion(nowMS, task.UpdatedAtMS)
+	req := metadb.ChannelMigrationPromoteLearnerRequest{
+		Guard:        migrationTaskGuard(task, task.UpdatedAtMS),
+		RuntimeGuard: migrationRuntimeGuard(meta),
+		Status:       metadb.ChannelMigrationStatusRunning,
+		Phase:        metadb.ChannelMigrationPhaseVerifyMembership,
+		SourceNode:   task.SourceNode,
+		TargetNode:   task.TargetNode,
+		NowMS:        nowMS,
+		UpdatedAtMS:  updatedAtMS,
+	}
+	return s.propose(ctx, route, metafsm.EncodePromoteLearnerAndRemoveReplicaCommand(req))
+}
+
 // SetWriteFence sets or renews the task-owned channel write fence.
 func (s *MigrationStore) SetWriteFence(ctx context.Context, task metadb.ChannelMigrationTask, reason ch.WriteFenceReason) error {
 	id, err := migrationTaskChannelID(task)

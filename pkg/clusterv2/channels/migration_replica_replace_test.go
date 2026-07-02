@@ -1,0 +1,106 @@
+package channels
+
+import (
+	"context"
+	"testing"
+	"time"
+
+	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	"github.com/stretchr/testify/require"
+)
+
+func TestReplicaReplaceExecutorRunsNonLeaderSourcePhaseOrder(t *testing.T) {
+	ctx := context.Background()
+	now := time.UnixMilli(1750000300000).UTC()
+	id := ch.ChannelID{ID: "executor-replica-replace", Type: 1}
+	task := testReplicaReplaceExecutorTask(id)
+	meta := testMigrationRuntimeMeta(id)
+	meta.Leader = 1
+	meta.LeaderEpoch = 20
+	meta.Replicas = []uint64{1, 2, 3}
+	meta.ISR = []uint64{1, 2, 3}
+	store := newFakeMigrationExecutorStore(task, &meta, now)
+	runtime := &fakeMigrationExecutorRuntime{
+		probes: map[uint64][]ch.RuntimeProbeChannel{
+			4: {
+				{ChannelID: id, ChannelEpoch: 11, LeaderEpoch: 20, Role: ch.RoleFollower, Status: ch.StatusActive, HW: 8, LEO: 8, CheckpointHW: 8},
+				{ChannelID: id, ChannelEpoch: 11, LeaderEpoch: 20, Role: ch.RoleFollower, Status: ch.StatusActive, HW: 9, LEO: 9, CheckpointHW: 9},
+				{
+					ChannelID: id, ChannelEpoch: 12, LeaderEpoch: 20, Role: ch.RoleFollower, Status: ch.StatusActive, HW: 9, LEO: 9, CheckpointHW: 9,
+					WriteFence: ch.WriteFence{Token: task.TaskID, Version: 1, Reason: ch.WriteFenceReasonReplicaReplace},
+				},
+			},
+		},
+		drain: ch.DrainChannelResult{Drained: true, LEO: 9, HW: 9},
+	}
+	executor := NewMigrationExecutor(MigrationExecutorConfig{
+		LocalNode: 2,
+		Source:    fakeMigrationExecutorSource{store: store},
+		Store:     store,
+		Runtime:   runtime,
+		Meta:      fakeMigrationExecutorMetaReader{meta: &meta},
+		Clock:     func() time.Time { return now },
+	})
+
+	for i := 0; i < 20 && !store.task.IsTerminal(); i++ {
+		require.NoError(t, executor.RunOnce(ctx))
+	}
+
+	require.True(t, store.task.IsTerminal())
+	require.Equal(t, metadb.ChannelMigrationStatusCompleted, store.task.Status)
+	require.Equal(t, metadb.ChannelMigrationPhaseClearFence, store.task.Phase)
+	require.Equal(t, []string{
+		"claim",
+		"advance:20:2",
+		"add_learner",
+		"advance:22:2",
+		"set_fence",
+		"advance_proof:5:2",
+		"advance_proof:25:2",
+		"promote_learner",
+		"clear_fence",
+	}, store.ops)
+	require.Equal(t, []string{"probe:4", "drain:1", "probe:4", "probe:4"}, runtime.ops)
+	require.Equal(t, []uint64{1, 2, 4}, meta.Replicas)
+	require.Equal(t, []uint64{1, 2, 4}, meta.ISR)
+}
+
+func TestReplicaReplaceExecutorBlocksWhenSourceIsLeader(t *testing.T) {
+	ctx := context.Background()
+	now := time.UnixMilli(1750000310000).UTC()
+	id := ch.ChannelID{ID: "executor-replace-source-leader", Type: 1}
+	task := testReplicaReplaceExecutorTask(id)
+	task.SourceNode = 1
+	meta := testMigrationRuntimeMeta(id)
+	meta.Leader = 1
+	store := newFakeMigrationExecutorStore(task, &meta, now)
+	executor := NewMigrationExecutor(MigrationExecutorConfig{
+		LocalNode: 2,
+		Source:    fakeMigrationExecutorSource{store: store},
+		Store:     store,
+		Runtime:   &fakeMigrationExecutorRuntime{},
+		Meta:      fakeMigrationExecutorMetaReader{meta: &meta},
+		Clock:     func() time.Time { return now },
+	})
+
+	for i := 0; i < 3 && store.task.Status != metadb.ChannelMigrationStatusBlocked; i++ {
+		require.NoError(t, executor.RunOnce(ctx))
+	}
+
+	require.Equal(t, metadb.ChannelMigrationStatusBlocked, store.task.Status)
+	require.Equal(t, metadb.ChannelMigrationPhaseValidate, store.task.Phase)
+	require.Equal(t, "source_is_leader", store.lastReason)
+}
+
+func testReplicaReplaceExecutorTask(id ch.ChannelID) metadb.ChannelMigrationTask {
+	task := testMigrationTask(id, "task-"+id.ID)
+	task.Kind = metadb.ChannelMigrationKindReplicaReplace
+	task.Status = metadb.ChannelMigrationStatusPending
+	task.Phase = metadb.ChannelMigrationPhaseValidate
+	task.SourceNode = 3
+	task.TargetNode = 4
+	task.BaseChannelEpoch = 10
+	task.BaseLeaderEpoch = 20
+	return task
+}

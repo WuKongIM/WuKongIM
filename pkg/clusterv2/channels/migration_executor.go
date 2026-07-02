@@ -24,6 +24,8 @@ type MigrationTaskStore interface {
 	AdvanceWithProof(ctx context.Context, task metadb.ChannelMigrationTask, expectedVersion int64, phase metadb.ChannelMigrationPhase, status metadb.ChannelMigrationStatus, reason string, progress metadb.ChannelMigrationProgress, proof metadb.ChannelMigrationCutoverProof) error
 	SetWriteFence(ctx context.Context, task metadb.ChannelMigrationTask, reason ch.WriteFenceReason) error
 	CommitLeaderTransfer(ctx context.Context, task metadb.ChannelMigrationTask) error
+	AddLearner(ctx context.Context, task metadb.ChannelMigrationTask) error
+	PromoteLearnerAndRemoveSource(ctx context.Context, task metadb.ChannelMigrationTask) error
 	ClearWriteFence(ctx context.Context, task metadb.ChannelMigrationTask) error
 }
 
@@ -108,7 +110,7 @@ func (e *MigrationExecutor) RunOnce(ctx context.Context) error {
 	}
 	nowMS := e.clock().UnixMilli()
 	for _, task := range tasks {
-		if task.IsTerminal() || task.Kind != metadb.ChannelMigrationKindLeaderTransfer {
+		if task.IsTerminal() {
 			continue
 		}
 		if task.Status == metadb.ChannelMigrationStatusBlocked {
@@ -131,14 +133,14 @@ func (e *MigrationExecutor) RunOnce(ctx context.Context) error {
 			}
 			return err
 		}
-		if shouldRenewLeaderTransferFence(task, nowMS) {
-			err := e.store.SetWriteFence(ctx, task, ch.WriteFenceReasonLeaderTransfer)
+		if shouldRenewMigrationFence(task, nowMS) {
+			err := e.store.SetWriteFence(ctx, task, migrationFenceReasonForTask(task))
 			if isMigrationVersionConflict(err) {
 				return nil
 			}
 			return err
 		}
-		err := e.runLeaderTransferPhase(ctx, task)
+		err := e.runTaskPhase(ctx, task)
 		if isMigrationVersionConflict(err) {
 			return nil
 		}
@@ -155,16 +157,47 @@ func migrationChannelIDFromTask(task metadb.ChannelMigrationTask) (ch.ChannelID,
 	return migrationTaskChannelID(task)
 }
 
-func shouldRenewLeaderTransferFence(task metadb.ChannelMigrationTask, nowMS int64) bool {
+func (e *MigrationExecutor) runTaskPhase(ctx context.Context, task metadb.ChannelMigrationTask) error {
+	switch task.Kind {
+	case metadb.ChannelMigrationKindLeaderTransfer:
+		return e.runLeaderTransferPhase(ctx, task)
+	case metadb.ChannelMigrationKindReplicaReplace:
+		return e.runReplicaReplacePhase(ctx, task)
+	default:
+		return fmt.Errorf("%w: unknown migration task kind %d", ch.ErrInvalidConfig, task.Kind)
+	}
+}
+
+func shouldRenewMigrationFence(task metadb.ChannelMigrationTask, nowMS int64) bool {
 	if task.FenceToken != task.TaskID || task.FenceVersion == 0 || task.FenceUntilMS <= 0 || task.FenceUntilMS > nowMS {
 		return false
 	}
-	switch task.Phase {
-	case metadb.ChannelMigrationPhaseDrainLeader,
-		metadb.ChannelMigrationPhaseFinalTargetCatchUp,
-		metadb.ChannelMigrationPhaseCommitLeaderMeta:
-		return true
-	default:
-		return false
+	if task.Kind == metadb.ChannelMigrationKindLeaderTransfer {
+		switch task.Phase {
+		case metadb.ChannelMigrationPhaseDrainLeader,
+			metadb.ChannelMigrationPhaseFinalTargetCatchUp,
+			metadb.ChannelMigrationPhaseCommitLeaderMeta:
+			return true
+		default:
+			return false
+		}
 	}
+	if task.Kind == metadb.ChannelMigrationKindReplicaReplace {
+		switch task.Phase {
+		case metadb.ChannelMigrationPhaseCutoverFence,
+			metadb.ChannelMigrationPhaseFinalTargetCatchUp,
+			metadb.ChannelMigrationPhasePromoteAndRemove:
+			return true
+		default:
+			return false
+		}
+	}
+	return false
+}
+
+func migrationFenceReasonForTask(task metadb.ChannelMigrationTask) ch.WriteFenceReason {
+	if task.Kind == metadb.ChannelMigrationKindReplicaReplace {
+		return ch.WriteFenceReasonReplicaReplace
+	}
+	return ch.WriteFenceReasonLeaderTransfer
 }
