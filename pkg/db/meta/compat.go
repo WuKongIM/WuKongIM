@@ -1963,18 +1963,24 @@ func (b *WriteBatch) CreateChannelMigrationTaskWithRuntimeGuard(hashSlot uint16,
 }
 
 func (b *WriteBatch) ClaimChannelMigrationTask(hashSlot uint16, req ChannelMigrationTaskClaim) error {
-	return b.stageChannelMigrationTask(hashSlot, req.Guard, func(task ChannelMigrationTask) ChannelMigrationTask {
+	if err := validateChannelMigrationTaskClaim(req); err != nil {
+		return err
+	}
+	return b.stageChannelMigrationTask(hashSlot, req.Guard, func(task ChannelMigrationTask) (ChannelMigrationTask, error) {
+		if !canClaimChannelMigrationTask(task, req) {
+			return ChannelMigrationTask{}, dberrors.ErrConflict
+		}
 		task.Status = req.Status
 		task.Phase = req.Phase
 		task.OwnerNodeID = req.OwnerNodeID
 		task.OwnerLeaseUntilMS = req.OwnerLeaseUntilMS
 		task.UpdatedAtMS = req.UpdatedAtMS
-		return task
+		return task, nil
 	})
 }
 
 func (b *WriteBatch) AdvanceChannelMigrationTask(hashSlot uint16, req ChannelMigrationTaskAdvance) error {
-	return b.stageChannelMigrationTask(hashSlot, req.Guard, func(task ChannelMigrationTask) ChannelMigrationTask {
+	return b.stageChannelMigrationTask(hashSlot, req.Guard, func(task ChannelMigrationTask) (ChannelMigrationTask, error) {
 		task.Status = req.Status
 		task.Phase = req.Phase
 		task.Attempt = req.Attempt
@@ -1998,11 +2004,11 @@ func (b *WriteBatch) AdvanceChannelMigrationTask(hashSlot uint16, req ChannelMig
 			task.EmbeddedLeaderTransfer = true
 			task.EmbeddedDesiredLeader = req.EmbeddedDesiredLeader
 		}
-		return task
+		return task, nil
 	})
 }
 
-func (b *WriteBatch) stageChannelMigrationTask(hashSlot uint16, guard ChannelMigrationTaskGuard, mutate func(ChannelMigrationTask) ChannelMigrationTask) error {
+func (b *WriteBatch) stageChannelMigrationTask(hashSlot uint16, guard ChannelMigrationTaskGuard, mutate func(ChannelMigrationTask) (ChannelMigrationTask, error)) error {
 	if err := b.ensure(); err != nil {
 		return err
 	}
@@ -2023,7 +2029,10 @@ func (b *WriteBatch) stageChannelMigrationTask(hashSlot uint16, guard ChannelMig
 		if !guard.matches(task) {
 			return dberrors.ErrConflict
 		}
-		next := mutate(task)
+		next, err := mutate(task)
+		if err != nil {
+			return err
+		}
 		if err := shard.stageUpsertChannelMigrationTask(ctx, batch, next); err != nil {
 			return err
 		}
@@ -2446,6 +2455,13 @@ func (s *ShardStore) GetActiveChannelMigrationTask(ctx context.Context, channelI
 		return ChannelMigrationTask{}, false, err
 	}
 	return s.shard.GetActiveChannelMigrationTask(ctx, channelID, channelType)
+}
+
+func (s *ShardStore) ListActiveChannelMigrationTasks(ctx context.Context, limit int) ([]ChannelMigrationTask, error) {
+	if err := s.validate(); err != nil {
+		return nil, err
+	}
+	return s.shard.ListActiveChannelMigrationTasks(ctx, limit)
 }
 
 func (s *ShardStore) ListChannelMigrationTasks(ctx context.Context) ([]ChannelMigrationTask, error) {

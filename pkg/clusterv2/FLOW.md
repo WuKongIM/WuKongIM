@@ -252,6 +252,16 @@ channel's current hash-slot route, and `AdvanceChannelRetentionThroughSeq`
 proposes a fenced Slot FSM command that only advances the channel message
 retention boundary. Manager history deletion must use this metadata advance
 instead of deleting ChannelV2 message rows directly.
+`pkg/clusterv2/channels.MigrationStore` is the ChannelV2 migration facade at
+this same boundary. It resolves the channel-owned hash slot and physical Slot,
+reads runtime metadata and migration tasks through the hash slot's current Slot
+leader via the `RPCChannelMigrationMeta` reader path, and submits only typed
+migration intents as encoded Slot FSM commands. Non-leader nodes must not make
+migration decisions from their local Slot metadata shard; the RPC target also
+revalidates that its local Slot runtime is still the actual Slot leader before
+serving migration state.
+Internalv2 callers should use this facade instead of depending on Slot FSM
+command payloads or unscoped migration table reads.
 Physical message cleanup is a separate node-local background loop and is
 disabled by default. One `RunChannelRetentionGCOnce` pass reads a bounded page
 from the local message catalog, loads the authoritative Slot metadata boundary,

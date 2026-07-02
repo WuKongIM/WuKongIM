@@ -83,6 +83,8 @@ const (
 	RPCSlotStatus
 	// RPCManagerTaskAudit serves internalv2 retained ControllerV2 task audit reads.
 	RPCManagerTaskAudit
+	// RPCChannelMigrationMeta serves clusterv2 Slot-leader channel migration state reads.
+	RPCChannelMigrationMeta
 )
 
 func transportServiceAlias(serviceID uint8) string {
@@ -163,6 +165,8 @@ func transportServiceAlias(serviceID uint8) string {
 		return "slot status"
 	case RPCManagerTaskAudit:
 		return "manager task audit"
+	case RPCChannelMigrationMeta:
+		return "channel migration meta"
 	default:
 		return "unknown service"
 	}

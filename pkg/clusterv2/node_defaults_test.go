@@ -306,6 +306,32 @@ func TestNodeDefaultChannelsReceiveDataPlaneLeaseGuard(t *testing.T) {
 	}
 }
 
+func TestNodeDefaultChannelsExposeMigrationStore(t *testing.T) {
+	node, err := New(validNodeConfig(t), withController(control.NewStaticController(nodeControlSnapshot())))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	_, err = node.ensureDefaultRuntime()
+	if err != nil {
+		t.Fatalf("ensureDefaultRuntime() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if node.channels != nil {
+			_ = node.channels.Close()
+		}
+		if node.defaultChannelStore != nil {
+			_ = node.defaultChannelStore.Close()
+		}
+	})
+	service, ok := node.channels.(*channelwrapper.Service)
+	if !ok {
+		t.Fatalf("default channels = %T, want *channels.Service", node.channels)
+	}
+	if service.MigrationStore() == nil {
+		t.Fatal("MigrationStore() = nil, want default Slot-backed migration facade")
+	}
+}
+
 func TestStorageConfigDoesNotExposeCommitNoSync(t *testing.T) {
 	_, ok := reflect.TypeOf(StorageConfig{}).FieldByName("CommitNoSync")
 	if ok {

@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/propose"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	metafsm "github.com/WuKongIM/WuKongIM/pkg/slot/fsm"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 )
 
@@ -62,8 +64,13 @@ func (p defaultSlotProposer) Propose(ctx context.Context, slotID uint32, payload
 		return mapMultiraftProposeError(err)
 	}
 	started = time.Now()
-	_, err = future.Wait(ctx)
+	result, err := future.Wait(ctx)
 	propose.ObserveStage(ctx, defaultSlotStageMetaCreateWait, err, time.Since(started))
+	if err == nil {
+		if applyErr := mapSlotApplyResult(command, result.Data); applyErr != nil {
+			return applyErr
+		}
+	}
 	return mapMultiraftProposeError(err)
 }
 
@@ -91,6 +98,18 @@ func mapMultiraftProposeError(err error) error {
 		return propose.ErrProposalBackpressure
 	default:
 		return err
+	}
+}
+
+func mapSlotApplyResult(command []byte, result []byte) error {
+	switch string(result) {
+	case metafsm.ApplyResultStaleMeta:
+		if !metafsm.IsChannelMigrationCommand(command) {
+			return nil
+		}
+		return metadb.ErrStaleMeta
+	default:
+		return nil
 	}
 }
 
