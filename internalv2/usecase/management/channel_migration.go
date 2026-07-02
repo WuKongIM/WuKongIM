@@ -340,6 +340,8 @@ func managerChannelMigrationKind(kind metadb.ChannelMigrationKind) string {
 	switch kind {
 	case metadb.ChannelMigrationKindLeaderTransfer:
 		return "leader_transfer"
+	case metadb.ChannelMigrationKindLeaderFailover:
+		return "leader_failover"
 	case metadb.ChannelMigrationKindReplicaReplace:
 		return "replica_replace"
 	default:

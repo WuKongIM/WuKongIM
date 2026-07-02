@@ -112,7 +112,7 @@ func requireChannelMigrationSetFenceTransition(task ChannelMigrationTask, req Ch
 	if req.Status != ChannelMigrationStatusRunning {
 		return dberrors.ErrConflict
 	}
-	if task.Kind == ChannelMigrationKindLeaderTransfer || (task.Kind == ChannelMigrationKindReplicaReplace && task.EmbeddedLeaderTransfer && isLeaderTransferPhase(task.Phase)) {
+	if isLeaderTransferTaskKind(task.Kind) || (task.Kind == ChannelMigrationKindReplicaReplace && task.EmbeddedLeaderTransfer && isLeaderTransferPhase(task.Phase)) {
 		if (task.Phase == ChannelMigrationPhaseWriteFence && req.Phase == ChannelMigrationPhaseDrainLeader) ||
 			(isLeaderTransferFencePhase(task.Phase) && req.Phase == task.Phase) {
 			return nil
@@ -132,7 +132,7 @@ func requireChannelMigrationResetFenceTransition(task ChannelMigrationTask, req 
 	if req.Status != ChannelMigrationStatusRunning || !isChannelMigrationFencePhaseAllowed(task) {
 		return dberrors.ErrConflict
 	}
-	if task.Kind == ChannelMigrationKindLeaderTransfer || (task.Kind == ChannelMigrationKindReplicaReplace && task.EmbeddedLeaderTransfer && isLeaderTransferFencePhase(task.Phase)) {
+	if isLeaderTransferTaskKind(task.Kind) || (task.Kind == ChannelMigrationKindReplicaReplace && task.EmbeddedLeaderTransfer && isLeaderTransferFencePhase(task.Phase)) {
 		if req.Phase == ChannelMigrationPhaseProbeTarget || req.Phase == ChannelMigrationPhaseWriteFence {
 			return nil
 		}
@@ -148,7 +148,7 @@ func requireChannelMigrationLeaderTransferTransition(task ChannelMigrationTask, 
 	if req.Status != ChannelMigrationStatusRunning || task.Phase != ChannelMigrationPhaseCommitLeaderMeta || req.Phase != ChannelMigrationPhaseVerifyNewLeader {
 		return dberrors.ErrConflict
 	}
-	if task.Kind == ChannelMigrationKindLeaderTransfer {
+	if isLeaderTransferTaskKind(task.Kind) {
 		return nil
 	}
 	if task.Kind == ChannelMigrationKindReplicaReplace && task.EmbeddedLeaderTransfer {
@@ -183,7 +183,7 @@ func requireChannelMigrationClearFenceTransition(task ChannelMigrationTask, req 
 	}
 	if req.Status == ChannelMigrationStatusCompleted && req.Phase == ChannelMigrationPhaseClearFence && req.CompletedAtMS > 0 {
 		switch task.Kind {
-		case ChannelMigrationKindLeaderTransfer:
+		case ChannelMigrationKindLeaderTransfer, ChannelMigrationKindLeaderFailover:
 			if task.Phase == ChannelMigrationPhaseVerifyNewLeader || (task.IsTerminal() && task.Phase == ChannelMigrationPhaseClearFence) {
 				return nil
 			}
@@ -241,7 +241,7 @@ func isChannelMigrationClearFenceIdempotent(task ChannelMigrationTask, meta Chan
 
 func requireChannelMigrationAbortTransition(task ChannelMigrationTask) error {
 	switch task.Kind {
-	case ChannelMigrationKindLeaderTransfer:
+	case ChannelMigrationKindLeaderTransfer, ChannelMigrationKindLeaderFailover:
 		if isLeaderTransferAbortPhase(task.Phase) {
 			return nil
 		}
@@ -474,7 +474,7 @@ func isLeaderTransferPhase(phase ChannelMigrationPhase) bool {
 
 func isChannelMigrationFencePhaseAllowed(task ChannelMigrationTask) bool {
 	switch task.Kind {
-	case ChannelMigrationKindLeaderTransfer:
+	case ChannelMigrationKindLeaderTransfer, ChannelMigrationKindLeaderFailover:
 		return isLeaderTransferFencePhase(task.Phase)
 	case ChannelMigrationKindReplicaReplace:
 		if isReplicaReplaceFencePhase(task.Phase) {
@@ -484,6 +484,10 @@ func isChannelMigrationFencePhaseAllowed(task ChannelMigrationTask) bool {
 	default:
 		return false
 	}
+}
+
+func isLeaderTransferTaskKind(kind ChannelMigrationKind) bool {
+	return kind == ChannelMigrationKindLeaderTransfer || kind == ChannelMigrationKindLeaderFailover
 }
 
 func isLeaderTransferFencePhase(phase ChannelMigrationPhase) bool {

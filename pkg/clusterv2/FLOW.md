@@ -260,6 +260,16 @@ migration intents as encoded Slot FSM commands. Non-leader nodes must not make
 migration decisions from their local Slot metadata shard; the RPC target also
 revalidates that its local Slot runtime is still the actual Slot leader before
 serving migration state.
+Automatic dead-leader recovery uses `channels.RepairScanner` as a bounded
+RunOnce scheduler primitive over Slot-leader-owned runtime metadata pages. It
+detects stale or unschedulable ChannelV2 leaders from the control snapshot,
+probes surviving ISR replicas, asks `FailoverPlanner` for a safe target, and
+creates `leader_failover` migration tasks through `MigrationStore`. A failover
+task sets `WriteFenceReasonFailover` and uses the target replica's committed
+HW as the cutover proof; it does not drain the unavailable source leader.
+Default hosting remains disabled until the three-node e2ev2 kill-node coverage
+is green, so foreground SEND paths still only read local channel state and the
+node-local data-plane lease.
 Internalv2 callers should use this facade instead of depending on Slot FSM
 command payloads or unscoped migration table reads. `Node.ChannelMigrationStore`
 exposes the hosted facade for internalv2 app wiring and returns nil when the

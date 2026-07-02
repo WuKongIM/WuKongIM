@@ -81,6 +81,8 @@ const (
 	ChannelMigrationKindLeaderTransfer ChannelMigrationKind = 1
 	// ChannelMigrationKindReplicaReplace replaces one replica with another.
 	ChannelMigrationKindReplicaReplace ChannelMigrationKind = 2
+	// ChannelMigrationKindLeaderFailover recovers leadership when the current leader is unavailable.
+	ChannelMigrationKindLeaderFailover ChannelMigrationKind = 3
 )
 
 // ChannelMigrationStatus is the durable lifecycle state for a task.
@@ -712,13 +714,13 @@ func validateChannelMigrationTask(task ChannelMigrationTask) error {
 	if err := validateChannelMigrationIdentity(task.ChannelID, task.TaskID); err != nil {
 		return err
 	}
-	if task.Kind != ChannelMigrationKindLeaderTransfer && task.Kind != ChannelMigrationKindReplicaReplace {
+	if !isLeaderTransferTaskKind(task.Kind) && task.Kind != ChannelMigrationKindReplicaReplace {
 		return dberrors.ErrInvalidArgument
 	}
 	if task.Status < ChannelMigrationStatusPending || task.Status > ChannelMigrationStatusAborted || task.Phase == 0 {
 		return dberrors.ErrInvalidArgument
 	}
-	if task.Kind == ChannelMigrationKindLeaderTransfer && task.DesiredLeader != 0 && task.DesiredLeader != task.TargetNode {
+	if isLeaderTransferTaskKind(task.Kind) && task.DesiredLeader != 0 && task.DesiredLeader != task.TargetNode {
 		return dberrors.ErrInvalidArgument
 	}
 	if task.IsTerminal() && task.CompletedAtMS <= 0 {

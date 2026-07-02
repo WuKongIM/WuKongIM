@@ -116,6 +116,33 @@ func TestChannelMigrationListActiveClampsLimit(t *testing.T) {
 	}
 }
 
+func TestChannelMigrationListActiveLabelsLeaderFailover(t *testing.T) {
+	store := &fakeChannelMigrationStore{task: metadb.ChannelMigrationTask{
+		TaskID:      "task-failover-g1",
+		Kind:        metadb.ChannelMigrationKindLeaderFailover,
+		Status:      metadb.ChannelMigrationStatusRunning,
+		Phase:       metadb.ChannelMigrationPhaseDrainLeader,
+		ChannelID:   "g1",
+		ChannelType: 1,
+		SourceNode:  1,
+		TargetNode:  3,
+	}}
+	app := New(Options{ChannelMigration: store})
+
+	got, err := app.ListActiveChannelMigrations(context.Background(), ChannelMigrationListInput{
+		ChannelID:   "g1",
+		ChannelType: 1,
+		Limit:       20,
+	})
+
+	if err != nil {
+		t.Fatalf("ListActiveChannelMigrations() error = %v", err)
+	}
+	if len(got.Items) != 1 || got.Items[0].Kind != "leader_failover" {
+		t.Fatalf("items = %#v, want leader_failover summary", got.Items)
+	}
+}
+
 type fakeChannelMigrationStore struct {
 	task                 metadb.ChannelMigrationTask
 	err                  error

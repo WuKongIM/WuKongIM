@@ -74,6 +74,20 @@ type CreateLeaderTransferRequest struct {
 	DesiredLeader ch.NodeID
 }
 
+// CreateLeaderFailoverRequest creates an automatic dead-leader failover task.
+type CreateLeaderFailoverRequest struct {
+	// ChannelID identifies the ChannelV2 runtime metadata row.
+	ChannelID ch.ChannelID
+	// TaskID is the durable migration task identity.
+	TaskID string
+	// DesiredLeader is the healthy ISR replica that should become leader.
+	DesiredLeader ch.NodeID
+	// ObservedHW is the selected target's observed high watermark.
+	ObservedHW uint64
+	// ObservedLeaderEpoch is the selected target's observed leader epoch.
+	ObservedLeaderEpoch uint64
+}
+
 // CreateReplicaReplaceRequest creates a manual replica-replacement migration task.
 type CreateReplicaReplaceRequest struct {
 	// ChannelID identifies the ChannelV2 runtime metadata row.
@@ -138,6 +152,47 @@ func (s *MigrationStore) CreateLeaderTransfer(ctx context.Context, req CreateLea
 		BaseLeaderEpoch:  meta.LeaderEpoch,
 		CreatedAtMS:      nowMS,
 		UpdatedAtMS:      nowMS,
+	}
+	return task, s.propose(ctx, route, metafsm.EncodeCreateChannelMigrationTaskWithRuntimeGuardCommand(metadb.ChannelMigrationTaskCreate{
+		Task:         task,
+		RuntimeGuard: migrationRuntimeGuard(meta),
+	}))
+}
+
+// CreateLeaderFailover creates a runtime-guarded automatic leader failover task.
+func (s *MigrationStore) CreateLeaderFailover(ctx context.Context, req CreateLeaderFailoverRequest) (metadb.ChannelMigrationTask, error) {
+	if req.DesiredLeader == 0 {
+		return metadb.ChannelMigrationTask{}, fmt.Errorf("%w: desired leader is required", ch.ErrInvalidConfig)
+	}
+	route, meta, err := s.readRuntimeMeta(ctx, req.ChannelID)
+	if err != nil {
+		return metadb.ChannelMigrationTask{}, err
+	}
+	if err := validateLeaderTransferTarget(meta, uint64(req.DesiredLeader)); err != nil {
+		return metadb.ChannelMigrationTask{}, err
+	}
+	if !leaderFailoverEpochCompatible(req.ObservedLeaderEpoch, meta.LeaderEpoch) {
+		return metadb.ChannelMigrationTask{}, fmt.Errorf("%w: incompatible failover leader epoch", ch.ErrInvalidConfig)
+	}
+	nowMS := s.nowMS()
+	task := metadb.ChannelMigrationTask{
+		TaskID:           migrationTaskID(req.TaskID, "leader-failover", req.ChannelID, nowMS),
+		Kind:             metadb.ChannelMigrationKindLeaderFailover,
+		Status:           metadb.ChannelMigrationStatusPending,
+		Phase:            metadb.ChannelMigrationPhaseValidate,
+		ChannelID:        req.ChannelID.ID,
+		ChannelType:      int64(req.ChannelID.Type),
+		SourceNode:       meta.Leader,
+		TargetNode:       uint64(req.DesiredLeader),
+		DesiredLeader:    uint64(req.DesiredLeader),
+		BaseChannelEpoch: meta.ChannelEpoch,
+		BaseLeaderEpoch:  meta.LeaderEpoch,
+		CreatedAtMS:      nowMS,
+		UpdatedAtMS:      nowMS,
+		Progress: metadb.ChannelMigrationProgress{
+			TargetCheckpointHW: req.ObservedHW,
+			LeaderHW:           req.ObservedHW,
+		},
 	}
 	return task, s.propose(ctx, route, metafsm.EncodeCreateChannelMigrationTaskWithRuntimeGuardCommand(metadb.ChannelMigrationTaskCreate{
 		Task:         task,
@@ -518,7 +573,7 @@ func migrationRuntimeGuard(meta metadb.ChannelRuntimeMeta) metadb.ChannelMigrati
 }
 
 func migrationFencePhase(task metadb.ChannelMigrationTask) metadb.ChannelMigrationPhase {
-	if task.Kind == metadb.ChannelMigrationKindLeaderTransfer || task.EmbeddedLeaderTransfer {
+	if task.Kind == metadb.ChannelMigrationKindLeaderTransfer || task.Kind == metadb.ChannelMigrationKindLeaderFailover || task.EmbeddedLeaderTransfer {
 		if task.Phase == metadb.ChannelMigrationPhaseWriteFence {
 			return metadb.ChannelMigrationPhaseDrainLeader
 		}

@@ -49,6 +49,65 @@ func TestMigrationStoreCreateLeaderTransferUsesGuardedCommandAndRoutesSlot(t *te
 	}), proposer.lastCommand)
 }
 
+func TestMigrationStoreCreateLeaderFailoverUsesGuardedCommandAndRecordsProof(t *testing.T) {
+	ctx := context.Background()
+	now := time.UnixMilli(1750000000100).UTC()
+	id := ch.ChannelID{ID: "migration-create-failover", Type: 1}
+	meta := testMigrationRuntimeMeta(id)
+	reader := &fakeMigrationReader{runtimeMeta: map[uint16]metadb.ChannelRuntimeMeta{7: meta}}
+	proposer := &fakeMigrationProposer{}
+	store := NewMigrationStore(MigrationStoreConfig{
+		LocalNode: 2,
+		Router:    fakeMigrationRouter{routes: map[string]routing.Route{id.ID: {HashSlot: 7, SlotID: 11, Leader: 2}}},
+		Proposer:  proposer,
+		Reader:    reader,
+		Now:       func() time.Time { return now },
+	})
+
+	task, err := store.CreateLeaderFailover(ctx, CreateLeaderFailoverRequest{
+		ChannelID:           id,
+		TaskID:              "task-leader-failover",
+		DesiredLeader:       3,
+		ObservedHW:          42,
+		ObservedLeaderEpoch: meta.LeaderEpoch,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, metadb.ChannelMigrationKindLeaderFailover, task.Kind)
+	require.Equal(t, uint64(1), task.SourceNode)
+	require.Equal(t, uint64(3), task.TargetNode)
+	require.Equal(t, uint64(42), task.Progress.LeaderHW)
+	require.Equal(t, uint64(42), task.Progress.TargetCheckpointHW)
+	require.Equal(t, metafsm.EncodeCreateChannelMigrationTaskWithRuntimeGuardCommand(metadb.ChannelMigrationTaskCreate{
+		Task:         task,
+		RuntimeGuard: migrationRuntimeGuard(meta),
+	}), proposer.lastCommand)
+}
+
+func TestMigrationStoreCreateLeaderFailoverRejectsIncompatibleObservedEpoch(t *testing.T) {
+	ctx := context.Background()
+	id := ch.ChannelID{ID: "migration-failover-epoch", Type: 1}
+	meta := testMigrationRuntimeMeta(id)
+	proposer := &fakeMigrationProposer{}
+	store := NewMigrationStore(MigrationStoreConfig{
+		LocalNode: 2,
+		Router:    fakeMigrationRouter{routes: map[string]routing.Route{id.ID: {HashSlot: 7, SlotID: 11, Leader: 2}}},
+		Proposer:  proposer,
+		Reader:    &fakeMigrationReader{runtimeMeta: map[uint16]metadb.ChannelRuntimeMeta{7: meta}},
+	})
+
+	_, err := store.CreateLeaderFailover(ctx, CreateLeaderFailoverRequest{
+		ChannelID:           id,
+		TaskID:              "task-bad-failover-epoch",
+		DesiredLeader:       3,
+		ObservedHW:          42,
+		ObservedLeaderEpoch: meta.LeaderEpoch + 2,
+	})
+
+	require.ErrorIs(t, err, ch.ErrInvalidConfig)
+	require.Empty(t, proposer.lastCommand)
+}
+
 func TestMigrationStoreCreateLeaderTransferValidatesDesiredLeader(t *testing.T) {
 	ctx := context.Background()
 	id := ch.ChannelID{ID: "migration-leader-validation", Type: 1}

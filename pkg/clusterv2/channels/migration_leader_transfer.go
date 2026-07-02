@@ -23,7 +23,7 @@ func (e *MigrationExecutor) runLeaderTransferPhase(ctx context.Context, task met
 	case metadb.ChannelMigrationPhaseProbeTarget:
 		return e.runLeaderTransferProbeTarget(ctx, task)
 	case metadb.ChannelMigrationPhaseWriteFence:
-		return e.store.SetWriteFence(ctx, task, ch.WriteFenceReasonLeaderTransfer)
+		return e.store.SetWriteFence(ctx, task, migrationFenceReasonForTask(task))
 	case metadb.ChannelMigrationPhaseDrainLeader:
 		return e.runLeaderTransferDrainLeader(ctx, task)
 	case metadb.ChannelMigrationPhaseFinalTargetCatchUp:
@@ -52,6 +52,9 @@ func (e *MigrationExecutor) runLeaderTransferProbeTarget(ctx context.Context, ta
 	meta, id, err := e.readLeaderTransferMeta(ctx, task)
 	if err != nil {
 		return err
+	}
+	if task.Kind == metadb.ChannelMigrationKindLeaderFailover {
+		return e.runLeaderFailoverProbeTarget(ctx, task, meta, id)
 	}
 	source, err := e.runtime.ProbeChannel(ctx, task.SourceNode, id.ID, id.Type)
 	if err != nil {
@@ -83,6 +86,9 @@ func (e *MigrationExecutor) runLeaderTransferDrainLeader(ctx context.Context, ta
 	}
 	if meta.Leader != task.SourceNode {
 		return e.blockTask(ctx, task, migrationBlockInvalidLeaderTransfer)
+	}
+	if task.Kind == metadb.ChannelMigrationKindLeaderFailover {
+		return e.advanceLeaderFailoverTargetProof(ctx, task, meta, id)
 	}
 	return e.advanceLeaderTransferDrainProof(ctx, task, meta, id, metadb.ChannelMigrationPhaseFinalTargetCatchUp)
 }
@@ -178,6 +184,50 @@ func (e *MigrationExecutor) advanceLeaderTransferDrainProof(ctx context.Context,
 	return e.store.AdvanceWithProof(ctx, task, task.UpdatedAtMS, phase, metadb.ChannelMigrationStatusRunning, "", progress, proof)
 }
 
+func (e *MigrationExecutor) runLeaderFailoverProbeTarget(ctx context.Context, task metadb.ChannelMigrationTask, meta metadb.ChannelRuntimeMeta, id ch.ChannelID) error {
+	probe, err := e.runtime.ProbeChannel(ctx, task.TargetNode, id.ID, id.Type)
+	if err != nil {
+		return err
+	}
+	if err := validateLeaderFailoverRuntimeProbe(probe, meta, ch.RoleFollower); err != nil {
+		return e.blockTask(ctx, task, migrationBlockTargetNotReady)
+	}
+	if leaderFailoverTargetLagging(task, probe) {
+		return e.blockTask(ctx, task, migrationBlockTargetLagging)
+	}
+	return e.store.Advance(ctx, task, task.UpdatedAtMS, metadb.ChannelMigrationPhaseWriteFence, metadb.ChannelMigrationStatusRunning, "")
+}
+
+func (e *MigrationExecutor) advanceLeaderFailoverTargetProof(ctx context.Context, task metadb.ChannelMigrationTask, meta metadb.ChannelRuntimeMeta, id ch.ChannelID) error {
+	probe, err := e.runtime.ProbeChannel(ctx, task.TargetNode, id.ID, id.Type)
+	if err != nil {
+		return err
+	}
+	if err := validateLeaderFailoverRuntimeProbe(probe, meta, ch.RoleFollower); err != nil {
+		return e.blockTask(ctx, task, migrationBlockTargetNotReady)
+	}
+	if leaderFailoverTargetLagging(task, probe) {
+		return e.blockTask(ctx, task, migrationBlockTargetLagging)
+	}
+	cutoverHW := probe.HW
+	proof := metadb.ChannelMigrationCutoverProof{
+		CutoverLEO:               cutoverHW,
+		CutoverHW:                cutoverHW,
+		DrainedLeaderNode:        task.SourceNode,
+		DrainedRuntimeGeneration: meta.RouteGeneration,
+		DrainedChannelEpoch:      meta.ChannelEpoch,
+		DrainedLeaderEpoch:       meta.LeaderEpoch,
+		DrainedFenceVersion:      task.FenceVersion,
+	}
+	progress := metadb.ChannelMigrationProgress{
+		LeaderLEO:          cutoverHW,
+		LeaderHW:           cutoverHW,
+		TargetLEO:          probe.LEO,
+		TargetCheckpointHW: probe.CheckpointHW,
+	}
+	return e.store.AdvanceWithProof(ctx, task, task.UpdatedAtMS, metadb.ChannelMigrationPhaseCommitLeaderMeta, metadb.ChannelMigrationStatusRunning, "", progress, proof)
+}
+
 func (e *MigrationExecutor) readLeaderTransferMeta(ctx context.Context, task metadb.ChannelMigrationTask) (metadb.ChannelRuntimeMeta, ch.ChannelID, error) {
 	id, err := migrationChannelIDFromTask(task)
 	if err != nil {
@@ -223,6 +273,34 @@ func validateLeaderTransferRuntimeProbe(probe ch.RuntimeProbeChannel, meta metad
 		return fmt.Errorf("%w: target runtime proof mismatch", ch.ErrNotReady)
 	}
 	return nil
+}
+
+func validateLeaderFailoverRuntimeProbe(probe ch.RuntimeProbeChannel, meta metadb.ChannelRuntimeMeta, role ch.Role) error {
+	if probe.ChannelID.ID != meta.ChannelID ||
+		int64(probe.ChannelID.Type) != meta.ChannelType ||
+		probe.ChannelEpoch != meta.ChannelEpoch ||
+		probe.Role != role ||
+		probe.Status != ch.StatusActive {
+		return fmt.Errorf("%w: failover runtime proof mismatch", ch.ErrNotReady)
+	}
+	if leaderFailoverEpochCompatible(probe.LeaderEpoch, meta.LeaderEpoch) {
+		return nil
+	}
+	return fmt.Errorf("%w: failover leader epoch mismatch", ch.ErrNotReady)
+}
+
+func leaderFailoverEpochCompatible(observed uint64, current uint64) bool {
+	if observed == 0 {
+		return false
+	}
+	if observed == current {
+		return true
+	}
+	return current > 0 && observed+1 == current
+}
+
+func leaderFailoverTargetLagging(task metadb.ChannelMigrationTask, probe ch.RuntimeProbeChannel) bool {
+	return task.Progress.LeaderHW > 0 && probe.HW < task.Progress.LeaderHW
 }
 
 func taskHasCutoverProof(task metadb.ChannelMigrationTask) bool {

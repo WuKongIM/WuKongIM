@@ -276,6 +276,120 @@ func TestLeaderTransferExecutorRenewsExpiredFenceBeforeCatchUp(t *testing.T) {
 	require.Greater(t, store.task.FenceUntilMS, now.UnixMilli())
 }
 
+func TestFailoverExecutorSetsFailoverFenceReason(t *testing.T) {
+	ctx := context.Background()
+	now := time.UnixMilli(1750000250000).UTC()
+	id := ch.ChannelID{ID: "executor-failover-fence", Type: 1}
+	task := testLeaderFailoverExecutorTask(id)
+	task.Status = metadb.ChannelMigrationStatusRunning
+	task.Phase = metadb.ChannelMigrationPhaseWriteFence
+	task.OwnerNodeID = 2
+	task.OwnerLeaseUntilMS = now.Add(time.Minute).UnixMilli()
+	meta := testMigrationRuntimeMeta(id)
+	meta.Leader = 1
+	meta.LeaderEpoch = 20
+	store := newFakeMigrationExecutorStore(task, &meta, now)
+	executor := NewMigrationExecutor(MigrationExecutorConfig{
+		LocalNode: 2,
+		Source:    fakeMigrationExecutorSource{store: store},
+		Store:     store,
+		Runtime:   &fakeMigrationExecutorRuntime{},
+		Meta:      fakeMigrationExecutorMetaReader{meta: &meta},
+		Clock:     func() time.Time { return now },
+	})
+
+	require.NoError(t, executor.RunOnce(ctx))
+
+	require.Equal(t, []string{"set_fence"}, store.ops)
+	require.Equal(t, uint8(ch.WriteFenceReasonFailover), meta.WriteFenceReason)
+}
+
+func TestFailoverExecutorProbesTargetWithoutSourceBeforeFence(t *testing.T) {
+	ctx := context.Background()
+	now := time.UnixMilli(1750000260000).UTC()
+	id := ch.ChannelID{ID: "executor-failover-prefence", Type: 1}
+	task := testLeaderFailoverExecutorTask(id)
+	task.Status = metadb.ChannelMigrationStatusRunning
+	task.Phase = metadb.ChannelMigrationPhaseProbeTarget
+	task.OwnerNodeID = 2
+	task.OwnerLeaseUntilMS = now.Add(time.Minute).UnixMilli()
+	task.Progress.LeaderHW = 9
+	meta := testMigrationRuntimeMeta(id)
+	meta.Leader = 1
+	meta.LeaderEpoch = 20
+	store := newFakeMigrationExecutorStore(task, &meta, now)
+	runtime := &fakeMigrationExecutorRuntime{
+		probes: map[uint64][]ch.RuntimeProbeChannel{
+			3: {{ChannelID: id, ChannelEpoch: 10, LeaderEpoch: 20, Role: ch.RoleFollower, Status: ch.StatusActive, HW: 9, LEO: 11, CheckpointHW: 9}},
+		},
+	}
+	executor := NewMigrationExecutor(MigrationExecutorConfig{
+		LocalNode: 2,
+		Source:    fakeMigrationExecutorSource{store: store},
+		Store:     store,
+		Runtime:   runtime,
+		Meta:      fakeMigrationExecutorMetaReader{meta: &meta},
+		Clock:     func() time.Time { return now },
+	})
+
+	require.NoError(t, executor.RunOnce(ctx))
+
+	require.Equal(t, metadb.ChannelMigrationPhaseWriteFence, store.task.Phase)
+	require.Equal(t, []string{"advance:3:2"}, store.ops)
+	require.Equal(t, []string{"probe:3"}, runtime.ops)
+}
+
+func TestFailoverExecutorSynthesizesCutoverProofFromTarget(t *testing.T) {
+	ctx := context.Background()
+	now := time.UnixMilli(1750000270000).UTC()
+	id := ch.ChannelID{ID: "executor-failover-proof", Type: 1}
+	task := testLeaderFailoverExecutorTask(id)
+	task.Status = metadb.ChannelMigrationStatusRunning
+	task.Phase = metadb.ChannelMigrationPhaseDrainLeader
+	task.OwnerNodeID = 2
+	task.OwnerLeaseUntilMS = now.Add(time.Minute).UnixMilli()
+	task.FenceToken = task.TaskID
+	task.FenceVersion = 4
+	task.FenceUntilMS = now.Add(time.Minute).UnixMilli()
+	task.Progress.LeaderHW = 9
+	meta := testMigrationRuntimeMeta(id)
+	meta.Leader = 1
+	meta.LeaderEpoch = 20
+	meta.WriteFenceToken = task.TaskID
+	meta.WriteFenceVersion = 4
+	meta.WriteFenceReason = uint8(ch.WriteFenceReasonFailover)
+	meta.WriteFenceUntilMS = task.FenceUntilMS
+	store := newFakeMigrationExecutorStore(task, &meta, now)
+	runtime := &fakeMigrationExecutorRuntime{
+		probes: map[uint64][]ch.RuntimeProbeChannel{
+			3: {{ChannelID: id, ChannelEpoch: 10, LeaderEpoch: 20, Role: ch.RoleFollower, Status: ch.StatusActive, HW: 9, LEO: 11, CheckpointHW: 9}},
+		},
+	}
+	executor := NewMigrationExecutor(MigrationExecutorConfig{
+		LocalNode: 2,
+		Source:    fakeMigrationExecutorSource{store: store},
+		Store:     store,
+		Runtime:   runtime,
+		Meta:      fakeMigrationExecutorMetaReader{meta: &meta},
+		Clock:     func() time.Time { return now },
+	})
+
+	require.NoError(t, executor.RunOnce(ctx))
+
+	require.Equal(t, metadb.ChannelMigrationPhaseCommitLeaderMeta, store.task.Phase)
+	require.Equal(t, metadb.ChannelMigrationStatusRunning, store.task.Status)
+	require.Equal(t, []string{"advance_proof:6:2"}, store.ops)
+	require.Equal(t, []string{"probe:3"}, runtime.ops)
+	require.Equal(t, uint64(9), store.lastProof.CutoverLEO)
+	require.Equal(t, uint64(9), store.lastProof.CutoverHW)
+	require.Equal(t, uint64(1), store.lastProof.DrainedLeaderNode)
+	require.Equal(t, uint64(10), store.lastProof.DrainedChannelEpoch)
+	require.Equal(t, uint64(20), store.lastProof.DrainedLeaderEpoch)
+	require.Equal(t, uint64(4), store.lastProof.DrainedFenceVersion)
+	require.Equal(t, uint64(11), store.task.Progress.TargetLEO)
+	require.Equal(t, uint64(9), store.task.Progress.TargetCheckpointHW)
+}
+
 func testLeaderTransferExecutorTask(id ch.ChannelID) metadb.ChannelMigrationTask {
 	task := testMigrationTask(id, "task-"+id.ID)
 	task.Kind = metadb.ChannelMigrationKindLeaderTransfer
@@ -286,6 +400,13 @@ func testLeaderTransferExecutorTask(id ch.ChannelID) metadb.ChannelMigrationTask
 	task.DesiredLeader = 3
 	task.BaseChannelEpoch = 10
 	task.BaseLeaderEpoch = 20
+	return task
+}
+
+func testLeaderFailoverExecutorTask(id ch.ChannelID) metadb.ChannelMigrationTask {
+	task := testLeaderTransferExecutorTask(id)
+	task.Kind = metadb.ChannelMigrationKindLeaderFailover
+	task.TaskID = "task-failover-" + id.ID
 	return task
 }
 
@@ -358,7 +479,7 @@ func (s *fakeMigrationExecutorStore) SetWriteFence(_ context.Context, task metad
 	s.ops = append(s.ops, "set_fence")
 	s.bump()
 	s.task.Status = metadb.ChannelMigrationStatusRunning
-	if s.task.Kind == metadb.ChannelMigrationKindLeaderTransfer && s.task.Phase == metadb.ChannelMigrationPhaseWriteFence {
+	if (s.task.Kind == metadb.ChannelMigrationKindLeaderTransfer || s.task.Kind == metadb.ChannelMigrationKindLeaderFailover) && s.task.Phase == metadb.ChannelMigrationPhaseWriteFence {
 		s.task.Phase = metadb.ChannelMigrationPhaseDrainLeader
 	}
 	if s.task.Kind == metadb.ChannelMigrationKindReplicaReplace && s.task.Phase == metadb.ChannelMigrationPhaseWarmCatchUp {

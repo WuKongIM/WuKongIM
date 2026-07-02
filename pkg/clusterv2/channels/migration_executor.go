@@ -159,7 +159,7 @@ func migrationChannelIDFromTask(task metadb.ChannelMigrationTask) (ch.ChannelID,
 
 func (e *MigrationExecutor) runTaskPhase(ctx context.Context, task metadb.ChannelMigrationTask) error {
 	switch task.Kind {
-	case metadb.ChannelMigrationKindLeaderTransfer:
+	case metadb.ChannelMigrationKindLeaderTransfer, metadb.ChannelMigrationKindLeaderFailover:
 		return e.runLeaderTransferPhase(ctx, task)
 	case metadb.ChannelMigrationKindReplicaReplace:
 		return e.runReplicaReplacePhase(ctx, task)
@@ -172,7 +172,7 @@ func shouldRenewMigrationFence(task metadb.ChannelMigrationTask, nowMS int64) bo
 	if task.FenceToken != task.TaskID || task.FenceVersion == 0 || task.FenceUntilMS <= 0 || task.FenceUntilMS > nowMS {
 		return false
 	}
-	if task.Kind == metadb.ChannelMigrationKindLeaderTransfer {
+	if task.Kind == metadb.ChannelMigrationKindLeaderTransfer || task.Kind == metadb.ChannelMigrationKindLeaderFailover {
 		switch task.Phase {
 		case metadb.ChannelMigrationPhaseDrainLeader,
 			metadb.ChannelMigrationPhaseFinalTargetCatchUp,
@@ -198,6 +198,9 @@ func shouldRenewMigrationFence(task metadb.ChannelMigrationTask, nowMS int64) bo
 func migrationFenceReasonForTask(task metadb.ChannelMigrationTask) ch.WriteFenceReason {
 	if task.Kind == metadb.ChannelMigrationKindReplicaReplace {
 		return ch.WriteFenceReasonReplicaReplace
+	}
+	if task.Kind == metadb.ChannelMigrationKindLeaderFailover {
+		return ch.WriteFenceReasonFailover
 	}
 	return ch.WriteFenceReasonLeaderTransfer
 }
