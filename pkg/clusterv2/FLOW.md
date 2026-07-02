@@ -201,6 +201,16 @@ and clean Stop sends one final best-effort bounded not-ready report after the
 periodic loop is canceled and before Controller/watch shutdown. ControllerV2
 fills the leader-side report timestamp, stores the report durably, and control
 snapshots derive `fresh`, `stale`, or `missing` health from the configured TTL.
+The default ChannelV2 runtime also receives a node-local data-plane lease guard
+derived from this loop. A successful health report refreshes the lease only
+when `runtime_ready` is still true; final not-ready stop reports do not extend
+foreground append eligibility. Local ChannelV2 leader appends fail closed with
+`channelv2.ErrNotReady` when the lease is missing or older than the configured
+health-report TTL, so a partitioned node that can no longer make itself visible
+to the control plane stops accepting new data-plane writes before stale leaders
+can accumulate divergent log tails. `LocalControlSnapshot` includes the local
+lease timestamp, TTL, and readiness as diagnostics; it is not a distributed
+authority source.
 
 ## Stop Flow
 
@@ -301,7 +311,7 @@ Node.AppendChannel / AppendChannelBatch
       -> if missing: derive initial replicas/leader from Slot placement and persist through RuntimeMetaWriter
       -> reread final authoritative ChannelRuntimeMeta when local Slot state has caught up; otherwise return the deterministic initial Meta after a successful write
       -> if local node is channel leader: ApplyMeta to local ChannelV2 runtime, then Append locally
-         (durable ChannelRuntimeMeta write fences are projected and reject new local appends)
+         (durable ChannelRuntimeMeta write fences and the node-local data-plane lease guard reject new local appends)
       -> else: RPCChannelAppend / RPCChannelAppendBatch forward to the resolved channel leader
   -> local reactor and store worker pools
   -> clusterv2 channel RPC client
@@ -349,7 +359,7 @@ floor and `RetentionThroughSeq`. Channel not found or no visible tail returns
 `ok=false`; route, not-ready, not-leader, and stale-route errors propagate to
 the caller.
 
-`WithProposer` and `WithChannels` are public override options for tests, smoke harnesses, and app-level composition. If callers do not provide them, `Node.Start` creates a default ControllerV2 runtime, proposer, and ChannelV2 service, backs ChannelV2 with the message DB under `DataDir/channellog`, registers ChannelV2 replication/append-forward handlers on the default node RPC transport, and owns the ChannelV2 tick loop plus default store factory cleanup. The default proposer is backed by a real local Slot Multi-Raft runtime, durable Slot Raft log storage under `DataDir/slotraft`, metadata FSM storage under `DataDir/slotmeta`, and clusterv2 typed RPC transport for multi-replica Slot Raft traffic.
+`WithProposer` and `WithChannels` are public override options for tests, smoke harnesses, and app-level composition. If callers do not provide them, `Node.Start` creates a default ControllerV2 runtime, proposer, and ChannelV2 service, backs ChannelV2 with the message DB under `DataDir/channellog`, wires the node-local data-plane lease as ChannelV2 append admission, registers ChannelV2 replication/append-forward handlers on the default node RPC transport, and owns the ChannelV2 tick loop plus default store factory cleanup. The default proposer is backed by a real local Slot Multi-Raft runtime, durable Slot Raft log storage under `DataDir/slotraft`, metadata FSM storage under `DataDir/slotmeta`, and clusterv2 typed RPC transport for multi-replica Slot Raft traffic.
 `Config.Slots.Observer` is passed to the default Slot Multi-Raft runtime so composition roots can expose scheduler pressure without changing Slot processing semantics.
 `Config.Slots.LogCompaction` is also passed through to the default Slot
 Multi-Raft runtime so composition roots can tune local Slot Raft snapshot

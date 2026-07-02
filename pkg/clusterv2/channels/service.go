@@ -99,6 +99,8 @@ type Config struct {
 	FollowerRecoveryProbeJitter time.Duration
 	// Observer receives lightweight ChannelV2 reactor and worker metrics.
 	Observer reactor.Observer
+	// AppendAdmissionGuard can reject local leader appends before ChannelV2 reactor admission.
+	AppendAdmissionGuard ch.AppendAdmissionGuard
 	// Store opens ChannelV2 stores when constructing Runtime.
 	Store channelstore.Factory
 	// Transport sends ChannelV2 replication RPCs when constructing Runtime.
@@ -145,6 +147,7 @@ func NewService(cfg Config) (*Service, error) {
 			AppendBatchColdMaxWait:        cfg.AppendBatchColdMaxWait,
 			FollowerRecoveryProbeInterval: cfg.FollowerRecoveryProbeInterval,
 			FollowerRecoveryProbeJitter:   cfg.FollowerRecoveryProbeJitter,
+			AppendAdmissionGuard:          cfg.AppendAdmissionGuard,
 			Store:                         cfg.Store,
 			Transport:                     cfg.Transport,
 			Observer:                      cfg.Observer,

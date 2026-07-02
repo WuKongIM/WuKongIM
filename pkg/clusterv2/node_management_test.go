@@ -51,6 +51,32 @@ func TestLocalControlSnapshotReturnsClone(t *testing.T) {
 	}
 }
 
+func TestLocalControlSnapshotIncludesChannelDataPlaneLease(t *testing.T) {
+	now := time.Unix(200, 0).UTC()
+	ttl := 30 * time.Second
+	guard := newChannelDataPlaneLeaseGuard(func() time.Time { return now }, ttl)
+	guard.MarkVisible(now.Add(-5 * time.Second))
+	node := &Node{
+		controlSnapshot:       control.Snapshot{ControllerID: 1},
+		channelDataPlaneLease: guard,
+	}
+	node.started.Store(true)
+
+	got, err := node.LocalControlSnapshot(context.Background())
+	if err != nil {
+		t.Fatalf("LocalControlSnapshot() error = %v", err)
+	}
+	if !got.ChannelDataPlaneLease.Ready {
+		t.Fatalf("ChannelDataPlaneLease.Ready = false, want true")
+	}
+	if !got.ChannelDataPlaneLease.LastVisibleAt.Equal(now.Add(-5 * time.Second)) {
+		t.Fatalf("ChannelDataPlaneLease.LastVisibleAt = %s, want %s", got.ChannelDataPlaneLease.LastVisibleAt, now.Add(-5*time.Second))
+	}
+	if got.ChannelDataPlaneLease.TTL != ttl {
+		t.Fatalf("ChannelDataPlaneLease.TTL = %s, want %s", got.ChannelDataPlaneLease.TTL, ttl)
+	}
+}
+
 func TestLocalControlSnapshotRequiresForegroundNode(t *testing.T) {
 	node := &Node{}
 

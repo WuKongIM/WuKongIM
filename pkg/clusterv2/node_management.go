@@ -17,7 +17,14 @@ func (n *Node) LocalControlSnapshot(ctx context.Context) (control.Snapshot, erro
 	}
 	n.mu.RLock()
 	defer n.mu.RUnlock()
-	return n.controlSnapshot.Clone(), nil
+	snapshot := n.controlSnapshot.Clone()
+	lease := n.channelDataPlaneLease.snapshot()
+	snapshot.ChannelDataPlaneLease = control.ChannelDataPlaneLease{
+		LastVisibleAt: lease.lastVisibleAt,
+		TTL:           lease.ttl,
+		Ready:         lease.ready,
+	}
+	return snapshot, nil
 }
 
 // RequestSlotLeaderTransfer submits a Controller-backed Slot leader transfer intent.

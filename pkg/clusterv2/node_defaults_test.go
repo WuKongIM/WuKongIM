@@ -13,6 +13,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channelv2/store"
+	channelwrapper "github.com/WuKongIM/WuKongIM/pkg/clusterv2/channels"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/propose"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/routing"
@@ -251,6 +252,57 @@ func TestNodeInitializesDefaultChannelsWhenOptionMissing(t *testing.T) {
 	_, err = node.AppendChannel(context.Background(), channelv2.AppendRequest{ChannelID: channelv2.ChannelID{ID: "missing", Type: 1}})
 	if errors.Is(err, ErrNotStarted) {
 		t.Fatalf("AppendChannel() error = %v, want default channel service initialized", err)
+	}
+}
+
+func TestNodeDefaultChannelsReceiveDataPlaneLeaseGuard(t *testing.T) {
+	node, err := New(validNodeConfig(t), withController(control.NewStaticController(nodeControlSnapshot())), WithProposer(&recordingProposer{}))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	_, err = node.ensureDefaultRuntime()
+	if err != nil {
+		t.Fatalf("ensureDefaultRuntime() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if node.channels != nil {
+			_ = node.channels.Close()
+		}
+		if node.defaultChannelStore != nil {
+			_ = node.defaultChannelStore.Close()
+		}
+	})
+	service, ok := node.channels.(*channelwrapper.Service)
+	if !ok {
+		t.Fatalf("default channels = %T, want *channels.Service", node.channels)
+	}
+	meta := channelv2.Meta{
+		Key:         channelv2.ChannelKey("1:lease-default"),
+		ID:          channelv2.ChannelID{ID: "lease-default", Type: 1},
+		Epoch:       1,
+		LeaderEpoch: 1,
+		Leader:      1,
+		Replicas:    []channelv2.NodeID{1},
+		ISR:         []channelv2.NodeID{1},
+		MinISR:      1,
+		Status:      channelv2.StatusActive,
+	}
+	if err := service.ApplyMeta(meta); err != nil {
+		t.Fatalf("ApplyMeta() error = %v", err)
+	}
+
+	_, err = service.Runtime().Append(context.Background(), channelv2.AppendRequest{ChannelID: meta.ID, Message: channelv2.Message{MessageID: 1, Payload: []byte("blocked")}, CommitMode: channelv2.CommitModeLocal})
+	if !errors.Is(err, channelv2.ErrNotReady) {
+		t.Fatalf("Append() before lease mark error = %v, want ErrNotReady", err)
+	}
+
+	node.channelDataPlaneLease.MarkVisible(time.Now())
+	res, err := service.Runtime().Append(context.Background(), channelv2.AppendRequest{ChannelID: meta.ID, Message: channelv2.Message{MessageID: 2, Payload: []byte("allowed")}, CommitMode: channelv2.CommitModeLocal})
+	if err != nil {
+		t.Fatalf("Append() after lease mark error = %v", err)
+	}
+	if res.MessageSeq != 1 {
+		t.Fatalf("Append() seq = %d, want 1", res.MessageSeq)
 	}
 }
 

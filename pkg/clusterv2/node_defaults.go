@@ -94,6 +94,7 @@ func (n *Node) ensureDefaultRuntime() (bool, error) {
 			FollowerRecoveryProbeInterval: n.cfg.Channel.FollowerRecoveryProbeInterval,
 			FollowerRecoveryProbeJitter:   n.cfg.Channel.FollowerRecoveryProbeJitter,
 			Observer:                      n.cfg.Channel.Observer,
+			AppendAdmissionGuard:          n.channelDataPlaneLease,
 			Store:                         storeFactory,
 			Transport:                     transport,
 			MetaSource:                    n.defaultChannelMetaSource(),

@@ -36,8 +36,8 @@ sequenceDiagram
     end
     Service->>Reactor: submit append event
     Note over Service,Reactor: runtime_append_submit observes mailbox admission
-    Reactor->>Reactor: validate leader, write fence, epoch, capacity
-    alt not leader, write fenced, stale meta, or queue full
+    Reactor->>Reactor: validate leader, write fence, epoch, append admission guard, capacity
+    alt not leader, write fenced, stale meta, admission rejected, or queue full
         Reactor-->>Service: complete future with typed error
         Service-->>Caller: error
     else accepted
@@ -139,6 +139,11 @@ leader rejects new append admission with `ErrWriteFenced`; already accepted
 in-flight append bookkeeping is not cleared by the fence-only metadata update
 so migration executors can drain it explicitly before changing leadership or
 membership.
+The hosted runtime may also provide an `AppendAdmissionGuard`. ChannelV2 calls
+it only after local leader, write-fence, and epoch checks and before enqueueing
+new leader appends. The guard is an external readiness fence: it must not mutate
+channel state, and rejection completes the caller's append future without
+disturbing already accepted in-flight batches.
 Append callers may also carry `TraceID`, diagnostics `ChannelKey`, per-message
 trace metadata, and `Attempt` through `AppendBatchRequest`. These fields are
 transient diagnostics data for sendtrace and RPC forwarding only. The reactor

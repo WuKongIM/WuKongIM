@@ -36,6 +36,8 @@ type Config struct {
 	Transport   any
 	// MetaResolver is ignored by channelv2 service PullHint handling.
 	MetaResolver any
+	// AppendAdmissionGuard can reject local leader appends before reactor admission.
+	AppendAdmissionGuard AppendAdmissionGuard
 	// Observer carries a reactor metrics observer for adapters that construct the service facade.
 	Observer any
 	// AppendBatchMaxRecords is the queued record count that triggers a store append flush.

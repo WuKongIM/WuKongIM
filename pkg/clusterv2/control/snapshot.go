@@ -64,6 +64,16 @@ type NodeHealth struct {
 	ErrorCode string
 }
 
+// ChannelDataPlaneLease describes this node's local ChannelV2 append visibility lease.
+type ChannelDataPlaneLease struct {
+	// LastVisibleAt is the last successful control visibility timestamp for local append admission.
+	LastVisibleAt time.Time
+	// TTL is the maximum age accepted for local append admission.
+	TTL time.Duration
+	// Ready reports whether LastVisibleAt is currently within TTL.
+	Ready bool
+}
+
 // NodeJoinState describes durable node lifecycle in the clusterv2 control read model.
 type NodeJoinState string
 
@@ -163,6 +173,8 @@ type Snapshot struct {
 	HashSlots HashSlotTable
 	// Tasks lists active reconcile tasks.
 	Tasks []ReconcileTask
+	// ChannelDataPlaneLease is this node's local append-admission visibility lease.
+	ChannelDataPlaneLease ChannelDataPlaneLease
 }
 
 // Node describes one cluster member in the control snapshot.

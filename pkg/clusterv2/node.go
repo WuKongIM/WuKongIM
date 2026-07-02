@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channelv2/store"
@@ -59,6 +60,8 @@ type Node struct {
 	channels         channelService
 	// channelDataNodes tracks health-schedulable data nodes for default ChannelV2 placement.
 	channelDataNodes dataNodeView
+	// channelDataPlaneLease gates local ChannelV2 leader appends on fresh control visibility.
+	channelDataPlaneLease *channelDataPlaneLeaseGuard
 	// defaultControl reports whether Node constructed the Controller runtime.
 	defaultControl bool
 	// defaultTransport reports whether Node constructed the node RPC transport.
@@ -126,7 +129,7 @@ func New(cfg Config, opts ...Option) (*Node, error) {
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
-	node := &Node{cfg: cfg, router: routing.NewRouter(), discovery: clusternet.NewDiscovery(), snapshot: Snapshot{NodeID: cfg.NodeID}}
+	node := &Node{cfg: cfg, router: routing.NewRouter(), discovery: clusternet.NewDiscovery(), snapshot: Snapshot{NodeID: cfg.NodeID}, channelDataPlaneLease: newChannelDataPlaneLeaseGuard(time.Now, cfg.HealthReport.TTL)}
 	for _, opt := range opts {
 		if opt != nil {
 			opt(node)

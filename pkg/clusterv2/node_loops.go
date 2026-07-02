@@ -93,7 +93,14 @@ func (n *Node) reportNodeHealth(ctx context.Context, reporter *observe.Reporter)
 	}
 	reportCtx, cancel := context.WithTimeout(ctx, healthReportTimeout(n.cfg.HealthReport.Interval, n.cfg.HealthReport.TTL))
 	defer cancel()
-	return reporter.ReportNode(reportCtx)
+	report, err := reporter.ReportNode(reportCtx)
+	if err != nil {
+		return err
+	}
+	if n.channelDataPlaneLease != nil && report.RuntimeReady {
+		n.channelDataPlaneLease.MarkVisible(time.Now())
+	}
+	return nil
 }
 
 func healthReportTimeout(interval, ttl time.Duration) time.Duration {

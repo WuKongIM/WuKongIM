@@ -58,6 +58,18 @@ func (r *Reactor) validateAppendEvent(ctx context.Context, rc *runtimeChannel, e
 	if event.Append.ExpectedLeaderEpoch != 0 && event.Append.ExpectedLeaderEpoch != rc.state.LeaderEpoch {
 		return ch.ErrStaleMeta
 	}
+	if r.appendAdmissionGuard != nil {
+		err := r.appendAdmissionGuard.AllowChannelAppend(ctx, ch.AppendAdmissionRequest{
+			ChannelID:   rc.state.ID,
+			ChannelKey:  rc.state.Key,
+			Epoch:       rc.state.Epoch,
+			LeaderEpoch: rc.state.LeaderEpoch,
+			Leader:      rc.state.Leader,
+		})
+		if err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

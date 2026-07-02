@@ -30,6 +30,8 @@ type Config struct {
 	Transport   transport.Client
 	// MetaResolver is ignored; PullHint metadata bootstrap now uses NeedMeta pulls from the channel leader.
 	MetaResolver ch.MetaResolver
+	// AppendAdmissionGuard can reject local leader appends before reactor admission.
+	AppendAdmissionGuard ch.AppendAdmissionGuard
 	// ReplicationIdlePollInterval delays the next follower poll when a leader has no new records; defaults to 100ms.
 	ReplicationIdlePollInterval time.Duration
 	// ReplicationMinBackoff is the first retry delay after pull, apply, or ack failures; defaults to 1ms.
@@ -113,6 +115,7 @@ func New(cfg Config) (ch.Cluster, error) {
 		PullMaxBytes:                  cfg.PullMaxBytes,
 		LeaderRecentRecordCacheSize:   cfg.LeaderRecentRecordCacheSize,
 		LeaderRecentRecordCacheBytes:  cfg.LeaderRecentRecordCacheBytes,
+		AppendAdmissionGuard:          cfg.AppendAdmissionGuard,
 		IdleSlowdownAfter:             cfg.IdleSlowdownAfter,
 		IdleEvictAfter:                cfg.IdleEvictAfter,
 		IdlePullMinInterval:           cfg.IdlePullMinInterval,
