@@ -28,6 +28,10 @@ type ManagerV2 struct {
 	nextVersion atomic.Uint64
 	// observer 观察者接口
 	observer Observer
+	// flushWorker 异步刷盘协程
+	flushWorker *FlushWorker
+	// flushInterval 刷盘间隔
+	flushInterval time.Duration
 }
 
 // NewManagerV2 创建一个新的 ManagerV2 实例
@@ -52,14 +56,15 @@ func NewManagerV2(opts Options) *ManagerV2 {
 	}
 
 	return &ManagerV2{
-		shards:     shards,
-		shardMask:  uint32(numShards - 1),
-		hot:        newHotCache(numShards, maxCachedRows),
-		cold:       newColdCache(),
-		dirtyIndex: newDirtyIndex(),
-		store:      opts.Store,
-		nowMS:      nowMS,
-		observer:   opts.Observer,
+		shards:        shards,
+		shardMask:     uint32(numShards - 1),
+		hot:           newHotCache(numShards, maxCachedRows),
+		cold:          newColdCache(),
+		dirtyIndex:    newDirtyIndex(),
+		store:         opts.Store,
+		nowMS:         nowMS,
+		observer:      opts.Observer,
+		flushInterval: opts.FlushInterval,
 	}
 }
 
@@ -176,5 +181,27 @@ func (m *ManagerV2) moveHotToCold(addrs []cacheAddress) {
 
 		// 从热缓存删除
 		m.hot.remove(addr.uid, addr.key)
+	}
+}
+
+// StartFlushWorker 启动异步刷盘协程
+func (m *ManagerV2) StartFlushWorker() {
+	if m.flushWorker == nil {
+		m.flushWorker = newFlushWorker(m, m.flushInterval)
+	}
+	m.flushWorker.Start()
+}
+
+// StopFlushWorker 停止异步刷盘协程
+func (m *ManagerV2) StopFlushWorker() {
+	if m.flushWorker != nil {
+		m.flushWorker.Stop()
+	}
+}
+
+// SignalFlush 触发立即刷盘
+func (m *ManagerV2) SignalFlush() {
+	if m.flushWorker != nil {
+		m.flushWorker.Signal()
 	}
 }

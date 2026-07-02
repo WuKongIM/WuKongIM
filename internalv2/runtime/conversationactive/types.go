@@ -26,6 +26,8 @@ type Options struct {
 	MaxCachedRows int
 	// Observer receives low-cardinality cache and flush observations.
 	Observer Observer
+	// FlushInterval 异步刷盘间隔
+	FlushInterval time.Duration
 }
 
 // Observer receives conversation active cache and flush observations.
