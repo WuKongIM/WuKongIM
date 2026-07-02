@@ -43,11 +43,8 @@ func (n *Node) ensureDefaultRuntime() (bool, error) {
 		if err != nil {
 			return false, err
 		}
-		if n.cfg.Control.Role == ControlRoleVoter && n.transportServer != nil {
-			n.transportServer.Register(clusternet.RPCControlRaft, control.NewRaftHandler(runtime))
-			n.transportServer.Register(clusternet.RPCControlStateSync, control.NewStateSyncHandler(runtime))
-			n.transportServer.Register(clusternet.RPCControlTaskResult, control.NewTaskHandler(runtime))
-			n.transportServer.Register(clusternet.RPCControlWrite, control.NewControlWriteHandler(runtime))
+		if n.cfg.Control.Role == ControlRoleVoter {
+			n.registerControlRuntimeRPCHandlers(runtime)
 		}
 		n.control = runtime
 		n.defaultControl = true
@@ -186,6 +183,44 @@ func (n *Node) registerPendingRPCHandlers() {
 	n.mu.Unlock()
 	for serviceID, handler := range handlers {
 		server.Register(serviceID, handler)
+	}
+}
+
+type controlRuntimeRPCHandler struct {
+	serviceID uint8
+	handler   clusternet.Handler
+}
+
+func (n *Node) registerControlRuntimeRPCHandlers(runtime *control.Runtime) {
+	if n == nil || runtime == nil {
+		return
+	}
+	n.mu.Lock()
+	server := n.transportServer
+	if server == nil {
+		n.mu.Unlock()
+		return
+	}
+	if n.registeredRPCHandlers == nil {
+		n.registeredRPCHandlers = make(map[uint8]struct{})
+	}
+	candidates := []controlRuntimeRPCHandler{
+		{serviceID: clusternet.RPCControlRaft, handler: control.NewRaftHandler(runtime)},
+		{serviceID: clusternet.RPCControlStateSync, handler: control.NewStateSyncHandler(runtime)},
+		{serviceID: clusternet.RPCControlTaskResult, handler: control.NewTaskHandler(runtime)},
+		{serviceID: clusternet.RPCControlWrite, handler: control.NewControlWriteHandler(runtime)},
+	}
+	handlers := make([]controlRuntimeRPCHandler, 0, len(candidates))
+	for _, candidate := range candidates {
+		if _, ok := n.registeredRPCHandlers[candidate.serviceID]; ok {
+			continue
+		}
+		n.registeredRPCHandlers[candidate.serviceID] = struct{}{}
+		handlers = append(handlers, candidate)
+	}
+	n.mu.Unlock()
+	for _, candidate := range handlers {
+		server.Register(candidate.serviceID, candidate.handler)
 	}
 }
 

@@ -83,7 +83,7 @@ type ControllerVoterEndpoint struct {
 	Addr string
 }
 
-// PrepareControllerVoterRequest asks the target node to join Controller Raft as a voter.
+// PrepareControllerVoterRequest asks the target node to prepare local Controller Raft runtime.
 type PrepareControllerVoterRequest struct {
 	// NodeID is the target node being prepared.
 	NodeID uint64
@@ -95,7 +95,7 @@ type PrepareControllerVoterRequest struct {
 	NextVoters []ControllerVoterEndpoint
 }
 
-// PrepareControllerVoterResponse reports target-side preparation and live Controller Raft proof.
+// PrepareControllerVoterResponse reports target-side preparation and best-effort local Controller Raft status.
 type PrepareControllerVoterResponse struct {
 	// NodeID is the node that handled preparation.
 	NodeID uint64
@@ -103,9 +103,9 @@ type PrepareControllerVoterResponse struct {
 	Prepared bool
 	// StateRevision is the mirrored control-state revision preserved before Raft startup.
 	StateRevision uint64
-	// ObservedConfigIndex is the live Controller Raft config index proving the new voter set.
+	// ObservedConfigIndex is the local Controller Raft applied config index when already visible.
 	ObservedConfigIndex uint64
-	// ObservedVoters is the live Controller Raft voter set observed after preparation.
+	// ObservedVoters is the local Controller Raft voter set when already visible.
 	ObservedVoters []uint64
 }
 
@@ -168,7 +168,6 @@ func (a *App) PromoteControllerVoter(ctx context.Context, req PromoteControllerV
 	if err != nil {
 		return PromoteControllerVoterResponse{}, err
 	}
-	expectedNextVoters := controllerVoterEndpointIDs(endpoints)
 	if a.controllerVoterPromoter == nil || a.controllerVoterReadiness == nil || a.controllerVoterPreparer == nil {
 		return PromoteControllerVoterResponse{}, ErrControllerVoterPromotionUnavailable
 	}
@@ -192,16 +191,14 @@ func (a *App) PromoteControllerVoter(ctx context.Context, req PromoteControllerV
 	if err != nil {
 		return PromoteControllerVoterResponse{}, mapControllerVoterPromotionPrepareError(err)
 	}
-	if err := validatePrepareControllerVoterProof(snapshot, req.NodeID, expectedNextVoters, prep); err != nil {
+	if err := validatePrepareControllerVoterPrepared(snapshot, req.NodeID, prep); err != nil {
 		return PromoteControllerVoterResponse{}, err
 	}
 	phaseStarted = time.Now()
 	result, err := a.controllerVoterPromoter.PromoteControllerVoter(ctx, control.PromoteControllerVoterRequest{
-		NodeID:              req.NodeID,
-		ExpectedRevision:    snapshot.Revision,
-		ExpectedVoters:      append([]uint64(nil), previousVoters...),
-		ObservedConfigIndex: prep.ObservedConfigIndex,
-		ObservedVoters:      append([]uint64(nil), prep.ObservedVoters...),
+		NodeID:           req.NodeID,
+		ExpectedRevision: snapshot.Revision,
+		ExpectedVoters:   append([]uint64(nil), previousVoters...),
 	})
 	a.observeControllerVoterPromotionPhase("commit_state", phaseStarted)
 	if err != nil {
@@ -262,7 +259,7 @@ func validateControllerVoterReadiness(snapshot control.Snapshot, expectedNodeID 
 	}
 }
 
-func validatePrepareControllerVoterProof(snapshot control.Snapshot, expectedNodeID uint64, expectedVoters []uint64, prep PrepareControllerVoterResponse) error {
+func validatePrepareControllerVoterPrepared(snapshot control.Snapshot, expectedNodeID uint64, prep PrepareControllerVoterResponse) error {
 	switch {
 	case prep.NodeID != expectedNodeID:
 		return controllerVoterPromotionBlocked("target_prepare_node_mismatch")
@@ -270,10 +267,6 @@ func validatePrepareControllerVoterProof(snapshot control.Snapshot, expectedNode
 		return controllerVoterPromotionBlocked("target_prepare_not_ready")
 	case prep.StateRevision < snapshot.Revision:
 		return controllerVoterPromotionBlocked("target_prepare_revision_stale")
-	case prep.ObservedConfigIndex == 0:
-		return controllerVoterPromotionBlocked("target_controller_raft_proof_missing")
-	case !sameUint64Set(prep.ObservedVoters, expectedVoters):
-		return controllerVoterPromotionBlocked("target_controller_raft_voters_mismatch")
 	default:
 		return nil
 	}

@@ -142,7 +142,7 @@ type PrepareControllerVoterRequest struct {
 	NextVoters []ControllerVoter `json:"next_voters"`
 }
 
-// PrepareControllerVoterResponse reports target preparation and live Controller Raft proof.
+// PrepareControllerVoterResponse reports target preparation and best-effort local Controller Raft status.
 type PrepareControllerVoterResponse struct {
 	// NodeID is the node that handled preparation.
 	NodeID uint64 `json:"node_id"`
@@ -150,9 +150,9 @@ type PrepareControllerVoterResponse struct {
 	Prepared bool `json:"prepared"`
 	// StateRevision is the mirrored control-state revision preserved before Raft startup.
 	StateRevision uint64 `json:"state_revision"`
-	// ObservedConfigIndex is the live Controller Raft config index proving the new voter set.
+	// ObservedConfigIndex is the local Controller Raft applied config index when already visible.
 	ObservedConfigIndex uint64 `json:"observed_config_index"`
-	// ObservedVoters is the live Controller Raft voter set observed after preparation.
+	// ObservedVoters is the local Controller Raft voter set when already visible.
 	ObservedVoters []uint64 `json:"observed_voters"`
 }
 

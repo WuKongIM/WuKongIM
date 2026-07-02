@@ -5389,22 +5389,25 @@ type fakeManagerCluster struct {
 	devices      map[fakeManagerDeviceKey]metadb.Device
 	systemUIDs   []string
 
-	conversationPages     map[string][]metadb.ConversationState
-	conversationMessages  map[metadb.ConversationKey][]channelv2.Message
-	channelRuntimeMetas   map[metadb.ConversationKey]metadb.ChannelRuntimeMeta
-	channelRetentionViews map[metadb.ConversationKey]channelv2.RetentionView
-	pluginBindingsByUID   map[string][]metadb.PluginUserBinding
-	channelOwnerMetas     map[channelv2.ChannelID]channelv2.Meta
-	registeredHandlers    map[uint8]clusterv2.NodeRPCHandler
-	rpcNodeID             uint64
-	rpcServiceID          uint8
-	controllerLogs        clusterv2.ControllerLogEntries
-	slotLogs              clusterv2.SlotLogEntries
-	slotRaftStatus        clusterv2.SlotRaftStatus
-	controllerRaftStatus  clusterv2.ControllerRaftStatus
-	controllerRaftCompact clusterv2.ControllerRaftCompactionResult
-	slotRaftCompact       clusterv2.SlotRaftCompactionResult
-	slotRaftCompactSlotID uint32
+	conversationPages         map[string][]metadb.ConversationState
+	conversationMessages      map[metadb.ConversationKey][]channelv2.Message
+	channelRuntimeMetas       map[metadb.ConversationKey]metadb.ChannelRuntimeMeta
+	channelRetentionViews     map[metadb.ConversationKey]channelv2.RetentionView
+	pluginBindingsByUID       map[string][]metadb.PluginUserBinding
+	channelOwnerMetas         map[channelv2.ChannelID]channelv2.Meta
+	registeredHandlers        map[uint8]clusterv2.NodeRPCHandler
+	rpcNodeID                 uint64
+	rpcServiceID              uint8
+	controllerLogs            clusterv2.ControllerLogEntries
+	slotLogs                  clusterv2.SlotLogEntries
+	slotRaftStatus            clusterv2.SlotRaftStatus
+	controllerRaftStatus      clusterv2.ControllerRaftStatus
+	controllerRaftStatusErr   error
+	controllerRaftStatuses    []clusterv2.ControllerRaftStatus
+	controllerRaftStatusCalls int
+	controllerRaftCompact     clusterv2.ControllerRaftCompactionResult
+	slotRaftCompact           clusterv2.SlotRaftCompactionResult
+	slotRaftCompactSlotID     uint32
 
 	slotLeaderTransferRequest     control.SlotLeaderTransferRequest
 	slotLeaderTransferResult      control.SlotLeaderTransferResult
@@ -5466,6 +5469,17 @@ func (f *fakeManagerCluster) LocalSlotRaftStatus(context.Context, uint32) (clust
 }
 
 func (f *fakeManagerCluster) LocalControllerRaftStatus(context.Context) (clusterv2.ControllerRaftStatus, error) {
+	if f.controllerRaftStatusErr != nil {
+		return clusterv2.ControllerRaftStatus{}, f.controllerRaftStatusErr
+	}
+	f.controllerRaftStatusCalls++
+	if len(f.controllerRaftStatuses) > 0 {
+		index := f.controllerRaftStatusCalls - 1
+		if index >= len(f.controllerRaftStatuses) {
+			index = len(f.controllerRaftStatuses) - 1
+		}
+		return f.controllerRaftStatuses[index], nil
+	}
 	return f.controllerRaftStatus, nil
 }
 

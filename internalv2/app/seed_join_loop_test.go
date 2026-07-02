@@ -183,6 +183,62 @@ func TestAppControllerVoterReadinessMapsNodeReadiness(t *testing.T) {
 	}
 }
 
+func TestAppControllerVoterReadinessAllowsMirrorBeforePrepare(t *testing.T) {
+	cluster := &fakeReadinessCluster{
+		fakeManagerCluster: fakeManagerCluster{
+			nodeID: 4,
+			snapshot: control.Snapshot{
+				ClusterID: "cluster-a",
+				Revision:  22,
+				Nodes: []control.Node{{
+					NodeID:    4,
+					Addr:      "10.0.0.4:11110",
+					Roles:     []control.Role{control.RoleData},
+					JoinState: control.NodeJoinStateActive,
+				}},
+			},
+			controllerRaftStatusErr: cv2.ErrNotStarted,
+		},
+		snapshot: clusterv2.Snapshot{
+			RoutesReady:   true,
+			SlotsReady:    true,
+			ChannelsReady: true,
+			HashSlotCount: 1,
+		},
+		routes: map[uint16]clusterv2.Route{
+			0: {HashSlot: 0, SlotID: 1, Leader: 4},
+		},
+	}
+	app, err := newTestApp(t, Config{
+		NodeID: 4,
+		Cluster: clusterv2.Config{
+			NodeID:  4,
+			Control: clusterv2.ControlConfig{ClusterID: "cluster-a"},
+		},
+	}, WithCluster(cluster), WithGateway(nil))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	app.lifecycleMu.Lock()
+	app.clusterStarted = true
+	app.gatewayStarted = true
+	app.lifecycleMu.Unlock()
+
+	got, err := app.ControllerVoterReadiness(context.Background(), accessnode.ControllerVoterReadinessRequest{NodeID: 4, ClusterID: "cluster-a"})
+	if err != nil {
+		t.Fatalf("ControllerVoterReadiness() error = %v", err)
+	}
+	if got.Unknown || got.LastError != "" || !got.CanPrepare {
+		t.Fatalf("ControllerVoterReadiness() = %#v, want mirror node ready for prepare without pre-existing Raft status", got)
+	}
+	if !got.Reachable || !got.TransportReady || !got.ControlReady || !got.RuntimeReady || got.MirrorRevision != 22 {
+		t.Fatalf("ControllerVoterReadiness() = %#v, want node readiness fields preserved", got)
+	}
+	if got.IsVoter || got.ConfigIndex != 0 || len(got.Voters) != 0 {
+		t.Fatalf("ControllerVoterReadiness() = %#v, want no Raft proof before prepare", got)
+	}
+}
+
 func TestAppPrepareControllerVoterReturnsControllerRaftProof(t *testing.T) {
 	cluster := &fakeControllerVoterPreparationCluster{
 		fakeManagerCluster: fakeManagerCluster{
@@ -238,6 +294,45 @@ func TestAppPrepareControllerVoterReturnsControllerRaftProof(t *testing.T) {
 	got.ObservedVoters[0] = 99
 	if cluster.controllerRaftStatus.Voters[0] != 1 {
 		t.Fatalf("ObservedVoters was not cloned from Controller Raft status")
+	}
+}
+
+func TestAppPrepareControllerVoterAllowsPendingControllerRaftProof(t *testing.T) {
+	cluster := &fakeControllerVoterPreparationCluster{
+		fakeManagerCluster: fakeManagerCluster{
+			nodeID: 4,
+			controllerRaftStatuses: []clusterv2.ControllerRaftStatus{
+				{NodeID: 4, Role: "follower", LeaderID: 1},
+			},
+		},
+		prepareResult: cv2.PrepareControllerVoterResult{
+			Prepared:      true,
+			StateRevision: 22,
+		},
+	}
+	app, err := newTestApp(t, Config{}, WithCluster(cluster), WithGateway(nil))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	got, err := app.PrepareControllerVoter(context.Background(), accessnode.PrepareControllerVoterRequest{
+		NodeID:           4,
+		ClusterID:        "cluster-a",
+		ExpectedRevision: 22,
+		NextVoters: []accessnode.ControllerVoter{
+			{NodeID: 1, Addr: "10.0.0.1:11110"},
+			{NodeID: 2, Addr: "10.0.0.2:11110"},
+			{NodeID: 4, Addr: "10.0.0.4:11110"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("PrepareControllerVoter() error = %v", err)
+	}
+	if !got.Prepared || got.StateRevision != 22 || got.ObservedConfigIndex != 0 || len(got.ObservedVoters) != 0 {
+		t.Fatalf("PrepareControllerVoter() = %#v, want prepared response without waiting for final Raft proof", got)
+	}
+	if cluster.controllerRaftStatusCalls != 1 {
+		t.Fatalf("LocalControllerRaftStatus calls = %d, want 1", cluster.controllerRaftStatusCalls)
 	}
 }
 

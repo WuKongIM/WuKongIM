@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -373,6 +374,9 @@ func (a *App) ControllerVoterReadiness(ctx context.Context, req accessnode.Contr
 	}
 	status, err := statusNode.LocalControllerRaftStatus(ctx)
 	if err != nil {
+		if errors.Is(err, cv2.ErrNotStarted) && resp.CanPrepare {
+			return resp, nil
+		}
 		resp.ControlReady = false
 		resp.CanPrepare = false
 		resp.Unknown = true
@@ -386,7 +390,7 @@ func (a *App) ControllerVoterReadiness(ctx context.Context, req accessnode.Contr
 	return resp, nil
 }
 
-// PrepareControllerVoter prepares this node for Controller Raft learner traffic and returns live proof.
+// PrepareControllerVoter prepares this node for Controller Raft traffic and returns best-effort local status.
 func (a *App) PrepareControllerVoter(ctx context.Context, req accessnode.PrepareControllerVoterRequest) (accessnode.PrepareControllerVoterResponse, error) {
 	if a == nil || a.cluster == nil {
 		return accessnode.PrepareControllerVoterResponse{}, fmt.Errorf("internalv2/app: cluster not configured")
@@ -411,17 +415,16 @@ func (a *App) PrepareControllerVoter(ctx context.Context, req accessnode.Prepare
 	if err != nil {
 		return accessnode.PrepareControllerVoterResponse{}, err
 	}
-	status, err := node.LocalControllerRaftStatus(ctx)
-	if err != nil {
-		return accessnode.PrepareControllerVoterResponse{}, err
+	resp := accessnode.PrepareControllerVoterResponse{
+		NodeID:        req.NodeID,
+		Prepared:      result.Prepared,
+		StateRevision: result.StateRevision,
 	}
-	return accessnode.PrepareControllerVoterResponse{
-		NodeID:              req.NodeID,
-		Prepared:            result.Prepared,
-		StateRevision:       result.StateRevision,
-		ObservedConfigIndex: status.AppliedIndex,
-		ObservedVoters:      append([]uint64(nil), status.Voters...),
-	}, nil
+	if status, err := node.LocalControllerRaftStatus(ctx); err == nil {
+		resp.ObservedConfigIndex = status.AppliedIndex
+		resp.ObservedVoters = append([]uint64(nil), status.Voters...)
+	}
+	return resp, nil
 }
 
 func (a *App) seedJoinPreActivationMode(ctx context.Context) bool {

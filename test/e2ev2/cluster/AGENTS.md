@@ -24,6 +24,9 @@ This domain owns black-box multi-node cluster lifecycle coverage for
 - `dynamic_node_operations`: Stage 11 operator rehearsal that drives dynamic
   activation, onboarding, scale-in, drain, and remove through `wkcli node`
   while real WKProto traffic continues.
+- `controller_voter_promotion`: activated dynamic data node promotion through
+  manager HTTP into Controller Raft voting membership while real WKProto
+  traffic remains available.
 - `dynamic_node_faults`: opt-in gofail-backed dynamic-node join, onboarding,
   scale-in, and remove fault recovery through public manager and WKProto
   entrypoints.

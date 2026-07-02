@@ -4,8 +4,10 @@ import (
 	"context"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
+	clusternet "github.com/WuKongIM/WuKongIM/pkg/clusterv2/net"
 	cv2 "github.com/WuKongIM/WuKongIM/pkg/controllerv2"
 )
 
@@ -271,6 +273,44 @@ func TestNodePrepareControllerVoterRequiresForegroundNode(t *testing.T) {
 	_, err := node.PrepareControllerVoter(context.Background(), cv2.PrepareControllerVoterRequest{NodeID: 4})
 	if err != ErrNotStarted {
 		t.Fatalf("PrepareControllerVoter() error = %v, want %v", err, ErrNotStarted)
+	}
+}
+
+func TestNodeRegistersControlRuntimeRPCHandlersIdempotently(t *testing.T) {
+	runtime, err := control.NewRuntime(control.RuntimeConfig{
+		NodeID:           4,
+		Addr:             "n4",
+		StateDir:         t.TempDir(),
+		ClusterID:        "cluster-a",
+		Role:             control.RuntimeRoleVoter,
+		Voters:           []control.RuntimeVoter{{NodeID: 1, Addr: "n1"}, {NodeID: 4, Addr: "n4"}},
+		InitialSlotCount: 1,
+		HashSlotCount:    4,
+		ReplicaCount:     1,
+		TickInterval:     5 * time.Millisecond,
+	})
+	if err != nil {
+		t.Fatalf("NewRuntime() error = %v", err)
+	}
+	node := &Node{
+		transportServer: clusternet.NewTransportServer(clusternet.TransportServerConfig{NodeID: 4}),
+	}
+
+	node.registerControlRuntimeRPCHandlers(runtime)
+	node.registerControlRuntimeRPCHandlers(runtime)
+
+	for _, serviceID := range []uint8{
+		clusternet.RPCControlRaft,
+		clusternet.RPCControlStateSync,
+		clusternet.RPCControlTaskResult,
+		clusternet.RPCControlWrite,
+	} {
+		if _, ok := node.registeredRPCHandlers[serviceID]; !ok {
+			t.Fatalf("registeredRPCHandlers missing service %d: %#v", serviceID, node.registeredRPCHandlers)
+		}
+	}
+	if len(node.registeredRPCHandlers) != 4 {
+		t.Fatalf("registeredRPCHandlers len = %d, want 4: %#v", len(node.registeredRPCHandlers), node.registeredRPCHandlers)
 	}
 }
 

@@ -48,7 +48,7 @@ type ControllerVoterReadinessReader interface {
 	ControllerVoterReadiness(context.Context, uint64) (ControllerVoterReadiness, error)
 }
 
-// ControllerVoterPreparer prepares a target node and returns live Controller Raft proof.
+// ControllerVoterPreparer prepares a target node and may return best-effort local Controller Raft status.
 type ControllerVoterPreparer interface {
 	PrepareControllerVoter(context.Context, PrepareControllerVoterRequest) (PrepareControllerVoterResponse, error)
 }
@@ -117,7 +117,7 @@ type Options struct {
 	ControllerVoterPromoter ControllerVoterPromoter
 	// ControllerVoterReadiness reads selected-node readiness before Controller voter promotion.
 	ControllerVoterReadiness ControllerVoterReadinessReader
-	// ControllerVoterPreparer prepares a target node and returns live Controller Raft proof.
+	// ControllerVoterPreparer prepares a target node and may return best-effort local Controller Raft status.
 	ControllerVoterPreparer ControllerVoterPreparer
 	// NodeReadiness reads selected-node readiness before activation writes.
 	NodeReadiness NodeReadinessReader

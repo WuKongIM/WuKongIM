@@ -207,6 +207,60 @@ func (m *ManagerClient) ActivateNodeStatus(ctx context.Context, nodeID uint64) (
 	return postJSONStatus(ctx, fmt.Sprintf("%s/manager/nodes/%d/activate", m.baseURL, nodeID), nil, nil)
 }
 
+// PromoteControllerVoter promotes an active data node through manager HTTP and returns the raw response.
+func (m *ManagerClient) PromoteControllerVoter(ctx context.Context, nodeID uint64, expectedRevision uint64) (PromoteControllerVoterDTO, int, []byte, error) {
+	var body any
+	if expectedRevision != 0 {
+		body = map[string]any{"expected_revision": expectedRevision}
+	}
+	var out PromoteControllerVoterDTO
+	status, respBody, err := postJSONStatus(ctx, fmt.Sprintf("%s/manager/nodes/%d/controller-voter/promote", m.baseURL, nodeID), body, &out)
+	return out, status, respBody, err
+}
+
+// ControllerRaftStatus returns one node-scoped Controller Raft status through manager HTTP.
+func (m *ManagerClient) ControllerRaftStatus(ctx context.Context, nodeID uint64) (ControllerRaftStatusDTO, error) {
+	var out ControllerRaftStatusDTO
+	_, err := GetJSON(ctx, fmt.Sprintf("%s/manager/nodes/%d/controller-raft", m.baseURL, nodeID), &out)
+	if err != nil {
+		return ControllerRaftStatusDTO{}, err
+	}
+	return out, nil
+}
+
+// EventuallyControllerRaftVoters waits until the queried node observes the expected Controller voter set.
+func (m *ManagerClient) EventuallyControllerRaftVoters(t testing.TB, nodeID uint64, voters []uint64, timeout time.Duration) ControllerRaftStatusDTO {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	ticker := time.NewTicker(managerPollInterval)
+	defer ticker.Stop()
+
+	var (
+		lastResp ControllerRaftStatusDTO
+		lastErr  error
+	)
+	for {
+		resp, err := m.ControllerRaftStatus(ctx, nodeID)
+		if err == nil {
+			lastResp = resp
+			if sameUint64Set(resp.Voters, voters) {
+				return resp
+			}
+			lastErr = fmt.Errorf("controller raft voters=%v, want %v", resp.Voters, voters)
+		} else {
+			lastErr = err
+		}
+
+		select {
+		case <-ctx.Done():
+			t.Fatalf("node %d Controller Raft voters did not converge: last=%#v lastErr=%v\n%s", nodeID, lastResp, lastErr, m.cluster.DumpDiagnostics())
+		case <-ticker.C:
+		}
+	}
+}
+
 // MustPlanOnboarding returns one bounded Slot onboarding preview through manager HTTP.
 func (m *ManagerClient) MustPlanOnboarding(t testing.TB, nodeID uint64, maxSlotMoves uint32) NodeOnboardingPlanDTO {
 	t.Helper()
@@ -555,10 +609,13 @@ type NodeDTO struct {
 	NodeID     uint64            `json:"node_id"`
 	Membership NodeMembershipDTO `json:"membership"`
 	Health     NodeHealthDTO     `json:"health"`
+	Controller NodeControllerDTO `json:"controller"`
+	Actions    NodeActionsDTO    `json:"actions"`
 }
 
 // NodeMembershipDTO contains manager membership flags relevant to e2ev2 lifecycle tests.
 type NodeMembershipDTO struct {
+	Role        string `json:"role"`
 	JoinState   string `json:"join_state"`
 	Schedulable bool   `json:"schedulable"`
 }
@@ -575,6 +632,45 @@ type NodeHealthDTO struct {
 	ObservedControlRevision uint64 `json:"observed_control_revision"`
 	ObservedSlotRevision    uint64 `json:"observed_slot_revision"`
 	ErrorCode               string `json:"error_code"`
+}
+
+// NodeControllerDTO contains manager Controller role evidence for one node.
+type NodeControllerDTO struct {
+	Role          string `json:"role"`
+	Voter         bool   `json:"voter"`
+	LeaderID      uint64 `json:"leader_id"`
+	RaftHealth    string `json:"raft_health"`
+	FirstIndex    uint64 `json:"first_index"`
+	AppliedIndex  uint64 `json:"applied_index"`
+	SnapshotIndex uint64 `json:"snapshot_index"`
+}
+
+// NodeActionsDTO contains backend action hints used by e2ev2 operator scenarios.
+type NodeActionsDTO struct {
+	CanPromoteControllerVoter bool `json:"can_promote_controller_voter"`
+}
+
+// PromoteControllerVoterDTO is the manager promotion response subset used by e2ev2.
+type PromoteControllerVoterDTO struct {
+	Changed        bool     `json:"changed"`
+	NodeID         uint64   `json:"node_id"`
+	StateRevision  uint64   `json:"state_revision"`
+	PreviousVoters []uint64 `json:"previous_voters"`
+	NextVoters     []uint64 `json:"next_voters"`
+	Warnings       []string `json:"warnings,omitempty"`
+}
+
+// ControllerRaftStatusDTO is the manager Controller Raft status subset used by e2ev2.
+type ControllerRaftStatusDTO struct {
+	NodeID       uint64   `json:"node_id"`
+	Role         string   `json:"role"`
+	LeaderID     uint64   `json:"leader_id"`
+	Term         uint64   `json:"term"`
+	Health       string   `json:"health"`
+	CommitIndex  uint64   `json:"commit_index"`
+	AppliedIndex uint64   `json:"applied_index"`
+	Voters       []uint64 `json:"voters"`
+	Learners     []uint64 `json:"learners"`
 }
 
 // NodeOnboardingPlanDTO is the manager onboarding preview subset used by e2ev2.
@@ -782,6 +878,22 @@ func findManagerNode(resp managerNodesResponse, nodeID uint64) (NodeDTO, bool) {
 		}
 	}
 	return NodeDTO{}, false
+}
+
+func sameUint64Set(left, right []uint64) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	leftCopy := append([]uint64(nil), left...)
+	rightCopy := append([]uint64(nil), right...)
+	sort.Slice(leftCopy, func(i, j int) bool { return leftCopy[i] < leftCopy[j] })
+	sort.Slice(rightCopy, func(i, j int) bool { return rightCopy[i] < rightCopy[j] })
+	for i := range leftCopy {
+		if leftCopy[i] != rightCopy[i] {
+			return false
+		}
+	}
+	return true
 }
 
 func postJSONStatus(ctx context.Context, url string, body any, out any) (int, []byte, error) {

@@ -11,7 +11,7 @@ import (
 	cv2 "github.com/WuKongIM/WuKongIM/pkg/controllerv2"
 )
 
-func TestPromoteControllerVoterHappyPathCarriesLiveProof(t *testing.T) {
+func TestPromoteControllerVoterHappyPathDelegatesLiveProofToWriter(t *testing.T) {
 	snapshot := controllerVoterPromotionSnapshot()
 	promoter := &fakeControllerVoterPromoter{
 		result: control.PromoteControllerVoterResult{
@@ -25,11 +25,9 @@ func TestPromoteControllerVoterHappyPathCarriesLiveProof(t *testing.T) {
 	}
 	preparer := &fakeControllerVoterPreparer{
 		response: PrepareControllerVoterResponse{
-			NodeID:              4,
-			Prepared:            true,
-			StateRevision:       9,
-			ObservedConfigIndex: 77,
-			ObservedVoters:      []uint64{4, 2, 1},
+			NodeID:        4,
+			Prepared:      true,
+			StateRevision: 9,
 		},
 	}
 	observer := &recordingControllerVoterPromotionObserver{}
@@ -56,9 +54,9 @@ func TestPromoteControllerVoterHappyPathCarriesLiveProof(t *testing.T) {
 	}
 	if promoter.request.NodeID != 4 || promoter.request.ExpectedRevision != 9 ||
 		!sameUint64Slice(promoter.request.ExpectedVoters, []uint64{1, 2}) ||
-		promoter.request.ObservedConfigIndex != 77 ||
-		!sameUint64Slice(promoter.request.ObservedVoters, []uint64{4, 2, 1}) {
-		t.Fatalf("writer request = %#v, want expected voters and live proof preserved", promoter.request)
+		promoter.request.ObservedConfigIndex != 0 ||
+		len(promoter.request.ObservedVoters) != 0 {
+		t.Fatalf("writer request = %#v, want expected voters with writer-side live proof delegated", promoter.request)
 	}
 	if promoter.request.ExpectedVoters == nil {
 		t.Fatal("writer ExpectedVoters is nil, want explicit previous voter set")
@@ -163,21 +161,26 @@ func TestPromoteControllerVoterBlocksExpectedRevisionMismatch(t *testing.T) {
 	assertControllerVoterBlocked(t, err, "expected_revision_mismatch")
 }
 
-func TestPromoteControllerVoterBlocksInvalidPrepareProof(t *testing.T) {
+func TestPromoteControllerVoterBlocksInvalidPreparation(t *testing.T) {
 	tests := []struct {
 		name     string
 		response PrepareControllerVoterResponse
 		reason   string
 	}{
 		{
-			name:     "missing config index",
-			response: PrepareControllerVoterResponse{NodeID: 4, Prepared: true, StateRevision: 9, ObservedVoters: []uint64{1, 2, 4}},
-			reason:   "target_controller_raft_proof_missing",
+			name:     "node mismatch",
+			response: PrepareControllerVoterResponse{NodeID: 3, Prepared: true, StateRevision: 9},
+			reason:   "target_prepare_node_mismatch",
 		},
 		{
-			name:     "voter mismatch",
-			response: PrepareControllerVoterResponse{NodeID: 4, Prepared: true, StateRevision: 9, ObservedConfigIndex: 77, ObservedVoters: []uint64{1, 2}},
-			reason:   "target_controller_raft_voters_mismatch",
+			name:     "not prepared",
+			response: PrepareControllerVoterResponse{NodeID: 4, StateRevision: 9},
+			reason:   "target_prepare_not_ready",
+		},
+		{
+			name:     "stale revision",
+			response: PrepareControllerVoterResponse{NodeID: 4, Prepared: true, StateRevision: 8},
+			reason:   "target_prepare_revision_stale",
 		},
 	}
 	for _, tt := range tests {

@@ -1050,7 +1050,7 @@ func TestRuntimeMarkNodeRemovedAllowsStaleExpectedRevisionWhenAlreadyRemoved(t *
 	}
 }
 
-func TestRuntimePromoteControllerVoterRequiresLiveVoterProof(t *testing.T) {
+func TestRuntimePromoteControllerVoterRejectsMismatchedLiveVoterProof(t *testing.T) {
 	runtime := startSingleVoterRuntime(t, "cluster-controller-voter-proof")
 	if _, err := runtime.JoinNode(context.Background(), JoinNodeRequest{NodeID: 4, Addr: "n4", Roles: []NodeRole{NodeRoleData}, CapacityWeight: 1}); err != nil {
 		t.Fatalf("JoinNode() error = %v", err)
@@ -1061,8 +1061,8 @@ func TestRuntimePromoteControllerVoterRequiresLiveVoterProof(t *testing.T) {
 
 	_, err := runtime.PromoteControllerVoter(context.Background(), PromoteControllerVoterRequest{
 		NodeID:              4,
-		ObservedConfigIndex: 0,
-		ObservedVoters:      []uint64{1, 4},
+		ObservedConfigIndex: 11,
+		ObservedVoters:      []uint64{1},
 	})
 	if !errors.Is(err, ErrProposalRejected) {
 		t.Fatalf("PromoteControllerVoter() error = %v, want %v", err, ErrProposalRejected)

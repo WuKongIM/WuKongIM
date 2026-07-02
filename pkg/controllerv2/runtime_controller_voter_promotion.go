@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 
 	"github.com/WuKongIM/WuKongIM/pkg/controllerv2/command"
+	"github.com/WuKongIM/WuKongIM/pkg/controllerv2/fsm"
 	"github.com/WuKongIM/WuKongIM/pkg/controllerv2/statefile"
 )
 
@@ -55,6 +57,20 @@ func (r *Runtime) PromoteControllerVoter(ctx context.Context, req PromoteControl
 		expectedRevision = st.Revision
 	}
 	previousVoters := controllerNodeIDsForRuntime(st.Controllers)
+	if req.ExpectedRevision != 0 && req.ExpectedRevision != st.Revision {
+		return PromoteControllerVoterResult{}, fmt.Errorf("%w: %w: %s", ErrProposalRejected, ErrExpectedRevisionMismatch, fsm.ReasonExpectedRevisionMismatch)
+	}
+	if req.ExpectedVoters != nil && !sameRuntimeUint64Set(req.ExpectedVoters, previousVoters) {
+		return PromoteControllerVoterResult{}, fmt.Errorf("%w: %s", ErrProposalRejected, fsm.ReasonControllerVoterSetMismatch)
+	}
+	observedConfigIndex := req.ObservedConfigIndex
+	observedVoters := append([]uint64(nil), req.ObservedVoters...)
+	if observedConfigIndex == 0 || len(observedVoters) == 0 {
+		observedConfigIndex, observedVoters, err = r.ensureControllerRaftVoter(ctx, req.NodeID)
+		if err != nil {
+			return PromoteControllerVoterResult{}, err
+		}
+	}
 	proposal, err := r.raft.ProposeResult(ctx, command.Command{
 		Kind:             command.KindPromoteControllerVoter,
 		IssuedAt:         r.cfg.Now().UTC(),
@@ -63,8 +79,8 @@ func (r *Runtime) PromoteControllerVoter(ctx context.Context, req PromoteControl
 			TargetNodeID:           req.NodeID,
 			TargetAddr:             addr,
 			ExpectedPreviousVoters: copyOptionalUint64s(req.ExpectedVoters),
-			ObservedConfigIndex:    req.ObservedConfigIndex,
-			ObservedVoters:         append([]uint64(nil), req.ObservedVoters...),
+			ObservedConfigIndex:    observedConfigIndex,
+			ObservedVoters:         observedVoters,
 		},
 	})
 	if err != nil {
@@ -88,6 +104,33 @@ func (r *Runtime) PromoteControllerVoter(ctx context.Context, req PromoteControl
 		PreviousVoters: previousVoters,
 		NextVoters:     controllerNodeIDsForRuntime(updated.Controllers),
 	}, nil
+}
+
+func (r *Runtime) ensureControllerRaftVoter(ctx context.Context, nodeID uint64) (uint64, []uint64, error) {
+	status := r.raft.Status()
+	if containsRuntimeUint64(status.Voters, nodeID) {
+		return controllerRaftStatusProofIndex(status), cloneSortedUint64s(status.Voters), nil
+	}
+	if !containsRuntimeUint64(status.Learners, nodeID) {
+		if _, err := r.raft.AddLearner(ctx, nodeID); err != nil {
+			status = r.raft.Status()
+			if containsRuntimeUint64(status.Voters, nodeID) {
+				return controllerRaftStatusProofIndex(status), cloneSortedUint64s(status.Voters), nil
+			}
+			if !containsRuntimeUint64(status.Learners, nodeID) {
+				return 0, nil, err
+			}
+		}
+	}
+	membership, err := r.raft.PromoteLearner(ctx, nodeID)
+	if err != nil {
+		status = r.raft.Status()
+		if containsRuntimeUint64(status.Voters, nodeID) {
+			return controllerRaftStatusProofIndex(status), cloneSortedUint64s(status.Voters), nil
+		}
+		return 0, nil, err
+	}
+	return membership.Index, cloneSortedUint64s(membership.ConfState.Voters), nil
 }
 
 // PrepareControllerVoter moves mirrored state aside and starts voter-mode Raft plumbing.
@@ -391,4 +434,46 @@ func controllerNodeIDsForRuntime(in []ControllerVoter) []uint64 {
 		out = append(out, voter.NodeID)
 	}
 	return out
+}
+
+func containsRuntimeUint64(values []uint64, want uint64) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
+}
+
+func sameRuntimeUint64Set(left, right []uint64) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	seen := make(map[uint64]struct{}, len(left))
+	for _, value := range left {
+		seen[value] = struct{}{}
+	}
+	for _, value := range right {
+		if _, ok := seen[value]; !ok {
+			return false
+		}
+	}
+	return true
+}
+
+func cloneSortedUint64s(in []uint64) []uint64 {
+	out := append([]uint64(nil), in...)
+	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
+	return out
+}
+
+func controllerRaftStatusProofIndex(status RaftStatus) uint64 {
+	switch {
+	case status.AppliedIndex != 0:
+		return status.AppliedIndex
+	case status.CommitIndex != 0:
+		return status.CommitIndex
+	default:
+		return status.LastIndex
+	}
 }

@@ -177,5 +177,12 @@ func (n *Node) PrepareControllerVoter(ctx context.Context, req cv2.PrepareContro
 	if !ok {
 		return cv2.PrepareControllerVoterResult{}, ErrNotStarted
 	}
-	return writer.PrepareControllerVoter(ctx, req)
+	result, err := writer.PrepareControllerVoter(ctx, req)
+	if err != nil {
+		return cv2.PrepareControllerVoterResult{}, err
+	}
+	if runtime, ok := n.control.(*control.Runtime); ok {
+		n.registerControlRuntimeRPCHandlers(runtime)
+	}
+	return result, nil
 }
