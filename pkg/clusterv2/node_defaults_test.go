@@ -181,6 +181,45 @@ func TestNodeProbeWriteReadyRequiresChannelPlacementDataNodes(t *testing.T) {
 	}
 }
 
+func TestNodeProbeWriteReadyMarksChannelDataPlaneLeaseAfterSuccessfulProbe(t *testing.T) {
+	proposer := &recordingProposer{}
+	node, err := New(validNodeConfig(t), WithProposer(proposer))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	snapshot := control.Snapshot{
+		Revision:     1,
+		ControllerID: 1,
+		Nodes: []control.Node{
+			{NodeID: 1, Addr: "127.0.0.1:1001", Roles: []control.Role{control.RoleData}, Status: control.NodeAlive},
+		},
+		Slots: []control.SlotAssignment{
+			{SlotID: 1, DesiredPeers: []uint64{1}, ConfigEpoch: 1, PreferredLeader: 1},
+		},
+		HashSlots: control.HashSlotTable{Revision: 1, Count: 1, Ranges: []control.HashSlotRange{
+			{From: 0, To: 0, SlotID: 1},
+		}},
+	}
+	if err := node.router.UpdateControlSnapshot(snapshot); err != nil {
+		t.Fatalf("UpdateControlSnapshot() error = %v", err)
+	}
+	node.router.UpdateSlotLeaders([]routing.SlotStatus{{SlotID: 1, Leader: 1}})
+	node.snapshot = Snapshot{NodeID: 1, RoutesReady: true, SlotsReady: true, ChannelsReady: true, SlotCount: 1, HashSlotCount: 1}
+	node.channelDataNodes.Update([]uint64{1})
+	node.channels = noopChannelService{}
+	node.started.Store(true)
+
+	if err := node.ProbeWriteReady(context.Background()); err != nil {
+		t.Fatalf("ProbeWriteReady() error = %v", err)
+	}
+	if proposer.calls != 1 {
+		t.Fatalf("proposer calls = %d, want one Slot probe before marking channel data plane lease", proposer.calls)
+	}
+	if lease := node.channelDataPlaneLease.snapshot(); !lease.ready {
+		t.Fatalf("channel data plane lease ready = false, want ProbeWriteReady to mark it visible")
+	}
+}
+
 func TestNodeProbeWriteReadyRefreshesControlSnapshotForChannelPlacementDataNodes(t *testing.T) {
 	proposer := &recordingProposer{}
 	snapshot := control.Snapshot{
@@ -206,6 +245,7 @@ func TestNodeProbeWriteReadyRefreshesControlSnapshotForChannelPlacementDataNodes
 		t.Fatalf("applySnapshot() error = %v", err)
 	}
 	node.router.UpdateSlotLeaders([]routing.SlotStatus{{SlotID: 1, Leader: 1}})
+	node.channelDataPlaneLease.MarkVisible(time.Now())
 	node.started.Store(true)
 
 	ready := snapshot.Clone()

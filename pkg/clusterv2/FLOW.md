@@ -147,7 +147,7 @@ Start(ctx)
 
 `Start` requires cluster semantics even for one node. A single-node cluster uses a ControllerV2-backed single-voter control runtime instead of a bypass path. Multi-voter default startup uses `pkg/transportv2` one-way service messages for ControllerV2 Raft traffic and RPC responses only for state-sync requests. The ControllerV2 Raft receive handler bounds local `Step` enqueue time and may drop messages when the local Step queue is saturated; Raft retransmission is relied on instead of allowing one-way notify goroutines to accumulate indefinitely.
 
-`Node.Start` only establishes local-node readiness: the node has a valid local control snapshot, installed routes, reconciled local Slot runtime state, and started local ChannelV2 resources. Package tests use `WaitClusterReady` for converged local control snapshots, and tests that specifically require distributed Controller write readiness should add the separate Controller proposal probe gate. Slot and Channel append tests should add their own Slot leader or Channel metadata gates when those paths are part of the assertion. `ProbeWriteReady` is the foreground app gate: it verifies all hash slots have leaders, refreshes health-only control snapshots when ChannelV2 placement candidates are stale, runs a bounded representative Slot metadata write probe, and verifies ChannelV2 has enough health-schedulable data nodes to create new channel placement.
+`Node.Start` only establishes local-node readiness: the node has a valid local control snapshot, installed routes, reconciled local Slot runtime state, and started local ChannelV2 resources. Package tests use `WaitClusterReady` for converged local control snapshots, and tests that specifically require distributed Controller write readiness should add the separate Controller proposal probe gate. Slot and Channel append tests should add their own Slot leader or Channel metadata gates when those paths are part of the assertion. `ProbeWriteReady` is the foreground app gate: it verifies all hash slots have leaders, refreshes health-only control snapshots when ChannelV2 placement candidates are stale, verifies ChannelV2 has enough health-schedulable data nodes to create new channel placement, runs a bounded representative Slot metadata write probe, and refreshes the node-local ChannelV2 data-plane lease after the probe succeeds.
 
 Seed-join mirror nodes keep `Config.Control.Voters` empty so they do not become
 Controller voters before admission. During default runtime wiring, the
@@ -203,10 +203,11 @@ and clean Stop sends one final best-effort bounded not-ready report after the
 periodic loop is canceled and before Controller/watch shutdown. ControllerV2
 fills the leader-side report timestamp, stores the report durably, and control
 snapshots derive `fresh`, `stale`, or `missing` health from the configured TTL.
-The default ChannelV2 runtime also receives a node-local data-plane lease guard
-derived from this loop. A successful health report refreshes the lease only
-when `runtime_ready` is still true; final not-ready stop reports do not extend
-foreground append eligibility. Local ChannelV2 leader appends fail closed with
+The default ChannelV2 runtime also receives a node-local data-plane lease guard.
+A successful health report refreshes the lease only when `runtime_ready` is
+still true, and `ProbeWriteReady` refreshes the same local lease after it proves
+foreground Slot write readiness during startup/readiness gates; final not-ready
+stop reports do not extend foreground append eligibility. Local ChannelV2 leader appends fail closed with
 `channelv2.ErrNotReady` when the lease is missing or older than the configured
 health-report TTL, so a partitioned node that can no longer make itself visible
 to the control plane stops accepting new data-plane writes before stale leaders

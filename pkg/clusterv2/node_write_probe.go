@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"time"
 
 	metafsm "github.com/WuKongIM/WuKongIM/pkg/slot/fsm"
 )
@@ -34,7 +35,6 @@ func (n *Node) ProbeWriteReady(ctx context.Context) error {
 			return err
 		}
 	}
-
 	slotHashSlots := make(map[uint32]uint16)
 	slotLeaders := make(map[uint32]uint64)
 	for hashSlot := uint16(0); hashSlot < snapshot.HashSlotCount; hashSlot++ {
@@ -69,7 +69,15 @@ func (n *Node) ProbeWriteReady(ctx context.Context) error {
 			return fmt.Errorf("write probe slot=%d hash_slot=%d: %w", slotID, hashSlot, err)
 		}
 	}
+	n.markChannelDataPlaneLeaseVisible()
 	return nil
+}
+
+func (n *Node) markChannelDataPlaneLeaseVisible() {
+	if n == nil || n.channels == nil || n.channelDataPlaneLease == nil {
+		return
+	}
+	n.channelDataPlaneLease.MarkVisible(time.Now())
 }
 
 func selectWriteProbeSlotIDs(slotHashSlots map[uint32]uint16, slotLeaders map[uint32]uint64, localNodeID uint64) []uint32 {
