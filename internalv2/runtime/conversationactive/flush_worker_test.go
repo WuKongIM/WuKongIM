@@ -2,6 +2,7 @@ package conversationactive
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -147,5 +148,53 @@ func TestFlushWorkerStop(t *testing.T) {
 	// 停止后不应该有新的刷盘（允许有一次刷盘在停止前已经启动）
 	if countAfterStop > countBeforeStop+1 {
 		t.Errorf("flush continued after stop: before=%d, after=%d", countBeforeStop, countAfterStop)
+	}
+}
+
+func TestFlushWorkerAdaptiveInterval(t *testing.T) {
+	store := &mockFlushStore{}
+	m := NewManagerV2(Options{
+		Store:         store,
+		FlushInterval: 100 * time.Millisecond,
+	})
+
+	worker := newFlushWorker(m, 100*time.Millisecond)
+
+	// 测试无脏数据：应该返回最大间隔
+	interval := worker.adjustInterval()
+	if interval != worker.maxInterval {
+		t.Errorf("no dirty: interval = %v, want %v", interval, worker.maxInterval)
+	}
+
+	// 添加少量脏数据 (< 100)
+	patches := []ActivePatch{{
+		UID:         "u1",
+		Kind:        metadb.ConversationKindNormal,
+		ChannelID:   "ch1",
+		ChannelType: 2,
+		ActiveAtMS:  1000,
+	}}
+	m.MarkActiveForHashSlot(context.Background(), 1, patches)
+
+	interval = worker.adjustInterval()
+	if interval != worker.interval*2 {
+		t.Errorf("< 100 dirty: interval = %v, want %v", interval, worker.interval*2)
+	}
+
+	// 添加大量脏数据 (> 1000)
+	for i := 0; i < 1500; i++ {
+		patch := ActivePatch{
+			UID:         fmt.Sprintf("u%d", i),
+			Kind:        metadb.ConversationKindNormal,
+			ChannelID:   fmt.Sprintf("ch%d", i),
+			ChannelType: 2,
+			ActiveAtMS:  int64(1000 + i),
+		}
+		m.MarkActiveForHashSlot(context.Background(), uint16(i%100), []ActivePatch{patch})
+	}
+
+	interval = worker.adjustInterval()
+	if interval != worker.minInterval {
+		t.Errorf("> 1000 dirty: interval = %v, want %v", interval, worker.minInterval)
 	}
 }

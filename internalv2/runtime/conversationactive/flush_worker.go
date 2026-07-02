@@ -10,11 +10,15 @@ import (
 type FlushWorker struct {
 	manager       *ManagerV2
 	interval      time.Duration
+	minInterval   time.Duration
+	maxInterval   time.Duration
 	stopCh        chan struct{}
 	signalCh      chan struct{}
 	wg            sync.WaitGroup
 	mu            sync.Mutex
 	running       bool
+	adaptive      bool
+	currentInterval time.Duration
 }
 
 func newFlushWorker(m *ManagerV2, interval time.Duration) *FlushWorker {
@@ -23,10 +27,14 @@ func newFlushWorker(m *ManagerV2, interval time.Duration) *FlushWorker {
 	}
 
 	return &FlushWorker{
-		manager:  m,
-		interval: interval,
-		stopCh:   make(chan struct{}),
-		signalCh: make(chan struct{}, 1),
+		manager:         m,
+		interval:        interval,
+		minInterval:     interval / 2,   // 最小间隔：默认的一半
+		maxInterval:     interval * 4,   // 最大间隔：默认的 4 倍
+		currentInterval: interval,
+		stopCh:          make(chan struct{}),
+		signalCh:        make(chan struct{}, 1),
+		adaptive:        true, // 默认启用自适应
 	}
 }
 
@@ -73,7 +81,7 @@ func (w *FlushWorker) Signal() {
 func (w *FlushWorker) run() {
 	defer w.wg.Done()
 
-	ticker := time.NewTicker(w.interval)
+	ticker := time.NewTicker(w.currentInterval)
 	defer ticker.Stop()
 
 	for {
@@ -83,10 +91,42 @@ func (w *FlushWorker) run() {
 
 		case <-ticker.C:
 			w.flush()
+			// 自适应调整间隔
+			if w.adaptive {
+				newInterval := w.adjustInterval()
+				if newInterval != w.currentInterval {
+					w.currentInterval = newInterval
+					ticker.Reset(newInterval)
+				}
+			}
 
 		case <-w.signalCh:
 			w.flush()
 		}
+	}
+}
+
+// adjustInterval 根据脏数据量调整刷盘间隔
+func (w *FlushWorker) adjustInterval() time.Duration {
+	totalDirty := w.manager.dirtyIndex.totalCount()
+
+	// 根据脏数据量调整间隔
+	// 0 条：最大间隔（放松刷盘）
+	// 100-1000 条：正常间隔
+	// >1000 条：最小间隔（加快刷盘）
+	// >10000 条：立即刷盘
+
+	if totalDirty == 0 {
+		return w.maxInterval
+	} else if totalDirty < 100 {
+		return w.interval * 2
+	} else if totalDirty < 1000 {
+		return w.interval
+	} else if totalDirty < 10000 {
+		return w.minInterval
+	} else {
+		// 超过 10000 条，使用最小间隔
+		return w.minInterval
 	}
 }
 
