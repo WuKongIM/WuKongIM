@@ -22,8 +22,18 @@ type RepairScannerConfig struct {
 	PageLimit       int
 	MaxPagesPerTick int
 	MaxTasksPerTick int
+	// Observer records low-cardinality scan and repair-decision events. Nil is allowed.
+	Observer RepairObserver
 	// TickInterval is the intended delay between scheduler ticks when a loop hosts this scanner.
 	TickInterval time.Duration
+}
+
+// RepairObserver receives low-cardinality ChannelV2 repair scanner observations.
+type RepairObserver interface {
+	RepairScanPages(pages int)
+	RepairScanBacklog(backlog int)
+	FailoverResult(result string)
+	ReplicaRepairResult(result string)
 }
 
 // RepairScannerSource supplies repair scanner reads from clusterv2-owned state.
@@ -82,7 +92,7 @@ func NewRepairScanner(cfg RepairScannerConfig, source RepairScannerSource, store
 	return &RepairScanner{cfg: cfg, source: source, store: store, planner: NewFailoverPlanner(), repair: NewReplicaRepairPlanner()}
 }
 
-// RunOnce scans bounded local Slot-leader pages and creates failover tasks.
+// RunOnce scans bounded local Slot-leader pages and creates repair tasks.
 func (s *RepairScanner) RunOnce(ctx context.Context) (RepairScannerResult, error) {
 	var result RepairScannerResult
 	if err := ctxErr(ctx); err != nil {
@@ -112,7 +122,7 @@ func (s *RepairScanner) RunOnce(ctx context.Context) (RepairScannerResult, error
 			result.PagesScanned++
 			for _, meta := range page {
 				if result.TasksCreated >= s.cfg.MaxTasksPerTick {
-					return result, nil
+					return s.observeRepairScan(result), nil
 				}
 				if err := s.scanMeta(ctx, snapshot, meta, &result); err != nil {
 					return result, err
@@ -127,7 +137,7 @@ func (s *RepairScanner) RunOnce(ctx context.Context) (RepairScannerResult, error
 			break
 		}
 	}
-	return result, nil
+	return s.observeRepairScan(result), nil
 }
 
 func (s *RepairScanner) scanMeta(ctx context.Context, snapshot control.Snapshot, raw metadb.ChannelRuntimeMeta, result *RepairScannerResult) error {
@@ -191,6 +201,7 @@ func (s *RepairScanner) scanLeaderFailover(ctx context.Context, snapshot control
 			return err
 		}
 		result.TasksCreated++
+		s.observeFailoverResult("created")
 		return nil
 	}
 	if decision.Action == FailoverActionBlocked {
@@ -202,6 +213,7 @@ func (s *RepairScanner) scanLeaderFailover(ctx context.Context, snapshot control
 			LeaderNode:  meta.Leader,
 			LeaderEpoch: meta.LeaderEpoch,
 		})
+		s.observeFailoverResult("blocked")
 	}
 	return nil
 }
@@ -218,6 +230,7 @@ func (s *RepairScanner) scanReplicaRepair(ctx context.Context, meta metadb.Chann
 			return err
 		}
 		result.TasksCreated++
+		s.observeReplicaRepairResult("created")
 	case ReplicaRepairActionBlocked:
 		result.Blocked = append(result.Blocked, RepairScannerBlocked{
 			ChannelID:   id,
@@ -226,6 +239,7 @@ func (s *RepairScanner) scanReplicaRepair(ctx context.Context, meta metadb.Chann
 			LeaderNode:  meta.Leader,
 			LeaderEpoch: meta.LeaderEpoch,
 		})
+		s.observeReplicaRepairResult("blocked")
 	case ReplicaRepairActionWaitForLeaderFailover:
 		result.Blocked = append(result.Blocked, RepairScannerBlocked{
 			ChannelID:   id,
@@ -234,8 +248,30 @@ func (s *RepairScanner) scanReplicaRepair(ctx context.Context, meta metadb.Chann
 			LeaderNode:  meta.Leader,
 			LeaderEpoch: meta.LeaderEpoch,
 		})
+		s.observeReplicaRepairResult("waiting_leader_failover")
 	}
 	return nil
+}
+
+func (s *RepairScanner) observeRepairScan(result RepairScannerResult) RepairScannerResult {
+	if s == nil || s.cfg.Observer == nil {
+		return result
+	}
+	s.cfg.Observer.RepairScanPages(result.PagesScanned)
+	s.cfg.Observer.RepairScanBacklog(len(result.Blocked))
+	return result
+}
+
+func (s *RepairScanner) observeFailoverResult(result string) {
+	if s != nil && s.cfg.Observer != nil {
+		s.cfg.Observer.FailoverResult(result)
+	}
+}
+
+func (s *RepairScanner) observeReplicaRepairResult(result string) {
+	if s != nil && s.cfg.Observer != nil {
+		s.cfg.Observer.ReplicaRepairResult(result)
+	}
 }
 
 func repairScannerLeaderSuspect(nodes []control.Node, leader uint64) bool {

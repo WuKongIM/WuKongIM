@@ -67,8 +67,9 @@ func TestRepairScannerEmitsBlockedReasonsWithoutCreatingTasks(t *testing.T) {
 	source.probes[2] = ch.RuntimeProbeChannel{}
 	source.probes[3] = ch.RuntimeProbeChannel{}
 	store := &fakeRepairScannerStore{}
+	observer := &fakeRepairScannerObserver{}
 
-	scanner := NewRepairScanner(RepairScannerConfig{Enabled: true, PageLimit: 10, MaxPagesPerTick: 10, MaxTasksPerTick: 10}, source, store)
+	scanner := NewRepairScanner(RepairScannerConfig{Enabled: true, PageLimit: 10, MaxPagesPerTick: 10, MaxTasksPerTick: 10, Observer: observer}, source, store)
 	result, err := scanner.RunOnce(context.Background())
 
 	require.NoError(t, err)
@@ -76,6 +77,9 @@ func TestRepairScannerEmitsBlockedReasonsWithoutCreatingTasks(t *testing.T) {
 	require.Len(t, result.Blocked, 1)
 	require.Equal(t, "no_safe_candidate", result.Blocked[0].Reason)
 	require.Empty(t, store.requests)
+	require.Equal(t, []int{1}, observer.scanPages)
+	require.Equal(t, []int{1}, observer.scanBacklog)
+	require.Equal(t, []string{"blocked"}, observer.failoverResults)
 }
 
 func TestRepairScannerRespectsMaxTasksPerTick(t *testing.T) {
@@ -101,8 +105,9 @@ func TestRepairScannerCreatesReplicaReplacementAfterLeaderHealthy(t *testing.T) 
 	meta.ISR = []uint64{1, 2}
 	source.slotPages[1] = [][]metadb.ChannelRuntimeMeta{{meta}}
 	store := &fakeRepairScannerStore{}
+	observer := &fakeRepairScannerObserver{}
 
-	scanner := NewRepairScanner(RepairScannerConfig{Enabled: true, PageLimit: 10, MaxPagesPerTick: 10, MaxTasksPerTick: 10}, source, store)
+	scanner := NewRepairScanner(RepairScannerConfig{Enabled: true, PageLimit: 10, MaxPagesPerTick: 10, MaxTasksPerTick: 10, Observer: observer}, source, store)
 	result, err := scanner.RunOnce(context.Background())
 
 	require.NoError(t, err)
@@ -111,6 +116,9 @@ func TestRepairScannerCreatesReplicaReplacementAfterLeaderHealthy(t *testing.T) 
 	require.Len(t, store.replicaRequests, 1)
 	require.Equal(t, ch.NodeID(3), store.replicaRequests[0].SourceNode)
 	require.Equal(t, ch.NodeID(4), store.replicaRequests[0].TargetNode)
+	require.Equal(t, []int{1}, observer.scanPages)
+	require.Equal(t, []int{0}, observer.scanBacklog)
+	require.Equal(t, []string{"created"}, observer.replicaRepairResults)
 }
 
 func TestRepairScannerPrioritizesLeaderFailoverBeforeReplicaRepair(t *testing.T) {
@@ -209,4 +217,27 @@ func (s *fakeRepairScannerStore) CreateLeaderFailover(_ context.Context, req Cre
 func (s *fakeRepairScannerStore) CreateReplicaReplace(_ context.Context, req CreateReplicaReplaceRequest) (metadb.ChannelMigrationTask, error) {
 	s.replicaRequests = append(s.replicaRequests, req)
 	return metadb.ChannelMigrationTask{TaskID: "task-repair-" + req.ChannelID.ID}, nil
+}
+
+type fakeRepairScannerObserver struct {
+	scanPages            []int
+	scanBacklog          []int
+	failoverResults      []string
+	replicaRepairResults []string
+}
+
+func (o *fakeRepairScannerObserver) RepairScanPages(pages int) {
+	o.scanPages = append(o.scanPages, pages)
+}
+
+func (o *fakeRepairScannerObserver) RepairScanBacklog(backlog int) {
+	o.scanBacklog = append(o.scanBacklog, backlog)
+}
+
+func (o *fakeRepairScannerObserver) FailoverResult(result string) {
+	o.failoverResults = append(o.failoverResults, result)
+}
+
+func (o *fakeRepairScannerObserver) ReplicaRepairResult(result string) {
+	o.replicaRepairResults = append(o.replicaRepairResults, result)
 }

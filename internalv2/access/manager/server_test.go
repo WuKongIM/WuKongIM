@@ -1130,17 +1130,19 @@ func TestManagerChannelRuntimeMetaReturnsClusterRuntimeList(t *testing.T) {
 			lastChannelRuntimeMetaRequest: &gotReq,
 			channelRuntimeMeta: managementusecase.ListChannelRuntimeMetaResponse{
 				Items: []managementusecase.ChannelRuntimeMeta{{
-					ChannelID:     "g1",
-					ChannelType:   2,
-					SlotID:        9,
-					ChannelEpoch:  11,
-					LeaderEpoch:   5,
-					Leader:        2,
-					Replicas:      []uint64{1, 2, 3},
-					ISR:           []uint64{1, 2},
-					MinISR:        2,
-					MaxMessageSeq: &maxSeq,
-					Status:        "active",
+					ChannelID:       "g1",
+					ChannelType:     2,
+					SlotID:          9,
+					ChannelEpoch:    11,
+					LeaderEpoch:     5,
+					Leader:          2,
+					SlotLeader:      3,
+					PreferredLeader: 1,
+					Replicas:        []uint64{1, 2, 3},
+					ISR:             []uint64{1, 2},
+					MinISR:          2,
+					MaxMessageSeq:   &maxSeq,
+					Status:          "active",
 				}},
 				HasMore:    true,
 				NextCursor: nextCursor,
@@ -1164,7 +1166,7 @@ func TestManagerChannelRuntimeMetaReturnsClusterRuntimeList(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
 		t.Fatalf("Unmarshal() error = %v", err)
 	}
-	if len(body.Items) != 1 || body.Items[0].ChannelID != "g1" || body.Items[0].Leader != 2 || body.Items[0].MaxMessageSeq == nil || *body.Items[0].MaxMessageSeq != 88 {
+	if len(body.Items) != 1 || body.Items[0].ChannelID != "g1" || body.Items[0].Leader != 2 || body.Items[0].SlotLeader != 3 || body.Items[0].PreferredLeader != 1 || body.Items[0].MaxMessageSeq == nil || *body.Items[0].MaxMessageSeq != 88 {
 		t.Fatalf("items = %#v, want runtime meta row with max seq", body.Items)
 	}
 	if !body.HasMore || body.NextCursor == "" {

@@ -150,7 +150,7 @@ func (e *MigrationExecutor) runLeaderTransferVerifyNewLeader(ctx context.Context
 		meta.WriteFenceVersion != task.FenceVersion {
 		return e.blockTask(ctx, task, migrationBlockNewLeaderNotReady)
 	}
-	return e.store.ClearWriteFence(ctx, task)
+	return e.clearWriteFenceAndObserve(ctx, task)
 }
 
 func (e *MigrationExecutor) advanceLeaderTransferDrainProof(ctx context.Context, task metadb.ChannelMigrationTask, meta metadb.ChannelRuntimeMeta, id ch.ChannelID, phase metadb.ChannelMigrationPhase) error {
@@ -241,7 +241,11 @@ func (e *MigrationExecutor) readLeaderTransferMeta(ctx context.Context, task met
 }
 
 func (e *MigrationExecutor) blockTask(ctx context.Context, task metadb.ChannelMigrationTask, reason string) error {
-	return e.store.Advance(ctx, task, task.UpdatedAtMS, task.Phase, metadb.ChannelMigrationStatusBlocked, reason)
+	if err := e.store.Advance(ctx, task, task.UpdatedAtMS, task.Phase, metadb.ChannelMigrationStatusBlocked, reason); err != nil {
+		return err
+	}
+	e.observeMigrationBlocked(task, reason)
+	return nil
 }
 
 func validateLeaderTransferTask(task metadb.ChannelMigrationTask, meta metadb.ChannelRuntimeMeta) error {

@@ -131,7 +131,7 @@ func (e *MigrationExecutor) runReplicaReplaceVerifyMembership(ctx context.Contex
 		meta.WriteFenceVersion != task.FenceVersion {
 		return e.blockTask(ctx, task, migrationBlockInvalidReplicaReplace)
 	}
-	return e.store.ClearWriteFence(ctx, task)
+	return e.clearWriteFenceAndObserve(ctx, task)
 }
 
 func (e *MigrationExecutor) advanceReplicaReplaceDrainProof(ctx context.Context, task metadb.ChannelMigrationTask, meta metadb.ChannelRuntimeMeta, id ch.ChannelID, phase metadb.ChannelMigrationPhase) error {

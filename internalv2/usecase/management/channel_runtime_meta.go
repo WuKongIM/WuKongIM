@@ -6,6 +6,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelv2 "github.com/WuKongIM/WuKongIM/pkg/channelv2"
+	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
@@ -37,6 +38,10 @@ type ChannelRuntimeMeta struct {
 	LeaderEpoch uint64
 	// Leader is the current leader node ID.
 	Leader uint64
+	// SlotLeader is the currently observed physical Slot Raft leader.
+	SlotLeader uint64
+	// PreferredLeader is the control-plane preferred physical Slot leader.
+	PreferredLeader uint64
 	// Replicas is the configured replica set.
 	Replicas []uint64
 	// ISR is the current in-sync replica set.
@@ -135,6 +140,7 @@ func (a *App) ListChannelRuntimeMeta(ctx context.Context, req ListChannelRuntime
 		return ListChannelRuntimeMetaResponse{}, err
 	}
 	slotIDs := sortedSnapshotSlotIDs(snapshot.Slots)
+	slotAssignments := channelRuntimeSlotAssignmentsByID(snapshot.Slots)
 	startIndex, err := channelStartSlotIndex(slotIDs, req.Cursor.SlotID)
 	if err != nil {
 		return ListChannelRuntimeMetaResponse{}, err
@@ -146,7 +152,7 @@ func (a *App) ListChannelRuntimeMeta(ctx context.Context, req ListChannelRuntime
 		nodeScope:            nodeScope,
 		includeMaxMessageSeq: req.IncludeMaxMessageSeq,
 	}
-	return a.listChannelRuntimeMetaFiltered(ctx, slotIDs, startIndex, req.Cursor, req.Limit, filter)
+	return a.listChannelRuntimeMetaFiltered(ctx, slotIDs, slotAssignments, startIndex, req.Cursor, req.Limit, filter)
 }
 
 type channelRuntimeMetaListFilter struct {
@@ -159,6 +165,7 @@ type channelRuntimeMetaListFilter struct {
 func (a *App) listChannelRuntimeMetaFiltered(
 	ctx context.Context,
 	slotIDs []uint32,
+	slotAssignments map[uint32]control.SlotAssignment,
 	startIndex int,
 	cursor ChannelRuntimeMetaListCursor,
 	limit int,
@@ -176,7 +183,7 @@ func (a *App) listChannelRuntimeMetaFiltered(
 			if err != nil {
 				return ListChannelRuntimeMetaResponse{}, err
 			}
-			items, err := a.managerChannelRuntimeMetaItems(ctx, slotID, page, filter.includeMaxMessageSeq)
+			items, err := a.managerChannelRuntimeMetaItems(ctx, slotID, slotAssignments[slotID], page, filter.includeMaxMessageSeq)
 			if err != nil {
 				return ListChannelRuntimeMetaResponse{}, err
 			}
@@ -219,8 +226,9 @@ func validateChannelRuntimeMetaListCursor(cursor ChannelRuntimeMetaListCursor) e
 	return nil
 }
 
-func (a *App) managerChannelRuntimeMetaItems(ctx context.Context, slotID uint32, metas []metadb.ChannelRuntimeMeta, includeMaxMessageSeq bool) ([]ChannelRuntimeMeta, error) {
+func (a *App) managerChannelRuntimeMetaItems(ctx context.Context, slotID uint32, assignment control.SlotAssignment, metas []metadb.ChannelRuntimeMeta, includeMaxMessageSeq bool) ([]ChannelRuntimeMeta, error) {
 	out := make([]ChannelRuntimeMeta, 0, len(metas))
+	slotLeader := a.actualSlotLeaderID(ctx, assignment)
 	for _, meta := range metas {
 		var maxMessageSeq *uint64
 		if includeMaxMessageSeq {
@@ -234,12 +242,12 @@ func (a *App) managerChannelRuntimeMetaItems(ctx context.Context, slotID uint32,
 		if err != nil {
 			return nil, err
 		}
-		out = append(out, managerChannelRuntimeMetaWithMaxSeq(slotID, meta, maxMessageSeq, activeTaskID))
+		out = append(out, managerChannelRuntimeMetaWithMaxSeq(slotID, slotLeader, assignment.PreferredLeader, meta, maxMessageSeq, activeTaskID))
 	}
 	return out, nil
 }
 
-func managerChannelRuntimeMetaWithMaxSeq(slotID uint32, meta metadb.ChannelRuntimeMeta, maxMessageSeq *uint64, activeTaskID string) ChannelRuntimeMeta {
+func managerChannelRuntimeMetaWithMaxSeq(slotID uint32, slotLeader uint64, preferredLeader uint64, meta metadb.ChannelRuntimeMeta, maxMessageSeq *uint64, activeTaskID string) ChannelRuntimeMeta {
 	degraded, degradedReason := managerChannelRuntimeDegraded(meta)
 	return ChannelRuntimeMeta{
 		ChannelID:         meta.ChannelID,
@@ -248,6 +256,8 @@ func managerChannelRuntimeMetaWithMaxSeq(slotID uint32, meta metadb.ChannelRunti
 		ChannelEpoch:      meta.ChannelEpoch,
 		LeaderEpoch:       meta.LeaderEpoch,
 		Leader:            meta.Leader,
+		SlotLeader:        slotLeader,
+		PreferredLeader:   preferredLeader,
 		Replicas:          append([]uint64(nil), meta.Replicas...),
 		ISR:               append([]uint64(nil), meta.ISR...),
 		MinISR:            meta.MinISR,
@@ -260,6 +270,14 @@ func managerChannelRuntimeMetaWithMaxSeq(slotID uint32, meta metadb.ChannelRunti
 		Degraded:          degraded,
 		DegradedReason:    degradedReason,
 	}
+}
+
+func channelRuntimeSlotAssignmentsByID(items []control.SlotAssignment) map[uint32]control.SlotAssignment {
+	out := make(map[uint32]control.SlotAssignment, len(items))
+	for _, item := range items {
+		out[item.SlotID] = item
+	}
+	return out
 }
 
 func (a *App) channelRuntimeMetaActiveTaskID(ctx context.Context, meta metadb.ChannelRuntimeMeta) (string, error) {

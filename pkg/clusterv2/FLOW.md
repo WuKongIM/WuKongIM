@@ -276,6 +276,25 @@ replica has already fallen out of ISR, Slot metadata commands may still add the
 learner and later promote it, but only while the current ISR already satisfies
 `MinISR`; the promote step appends the target to ISR while removing the source
 from replicas.
+Channel migration execution keeps one durable operation order. Manual leader
+transfer validates metadata, proves the target follower, sets the task-owned
+write fence, drains the source leader, waits for final target catch-up, commits
+leader metadata, verifies the new leader runtime, and only then clears the
+fence. Automatic leader failover uses the same fenced commit/verify/clear tail
+but skips source drain and synthesizes the cutover proof from the selected
+target replica because the old leader is considered unavailable. Replica
+replacement validates the non-leader source, adds the target learner, waits for
+warm catch-up, sets the write fence, drains the current leader for a cutover
+proof, waits for final target catch-up, promotes the learner while removing the
+source, verifies membership, and clears the fence. Any blocked phase is
+persisted on the task before observer events are emitted.
+`MigrationObserver` and `RepairObserver` are low-cardinality hooks for app-level
+metrics. Migration observations include active task count, active write-fence
+count, phase duration, blocked reason, and write-fence duration. Repair-scan
+observations include pages scanned, blocked backlog, failover result, and
+replica-repair result. Observers must aggregate by bounded kind/phase/reason or
+result only; task IDs, channel IDs, node addresses, and UIDs are not metric
+labels.
 Default hosting remains disabled until the three-node e2ev2 kill-node coverage
 is green, so foreground SEND paths still only read local channel state and the
 node-local data-plane lease.

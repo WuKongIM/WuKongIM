@@ -157,6 +157,46 @@ func TestLeaderTransferExecutorBlocksPreFenceLaggingTarget(t *testing.T) {
 	require.Equal(t, []string{"probe:1", "probe:3"}, runtime.ops)
 }
 
+func TestMigrationExecutorObservesBlockedPhaseAndActiveCounts(t *testing.T) {
+	ctx := context.Background()
+	now := time.UnixMilli(1750000215000).UTC()
+	id := ch.ChannelID{ID: "executor-observe-blocked", Type: 1}
+	task := testLeaderTransferExecutorTask(id)
+	task.Status = metadb.ChannelMigrationStatusRunning
+	task.Phase = metadb.ChannelMigrationPhaseProbeTarget
+	task.OwnerNodeID = 2
+	task.OwnerLeaseUntilMS = now.Add(time.Minute).UnixMilli()
+	meta := testMigrationRuntimeMeta(id)
+	meta.Leader = 1
+	meta.LeaderEpoch = 20
+	store := newFakeMigrationExecutorStore(task, &meta, now)
+	runtime := &fakeMigrationExecutorRuntime{
+		probes: map[uint64][]ch.RuntimeProbeChannel{
+			1: {{ChannelID: id, ChannelEpoch: 10, LeaderEpoch: 20, Role: ch.RoleLeader, Status: ch.StatusActive, HW: 10, LEO: 10, CheckpointHW: 10}},
+			3: {{ChannelID: id, ChannelEpoch: 10, LeaderEpoch: 20, Role: ch.RoleFollower, Status: ch.StatusActive, HW: 9, LEO: 9, CheckpointHW: 9}},
+		},
+	}
+	observer := &fakeMigrationObserver{}
+	executor := NewMigrationExecutor(MigrationExecutorConfig{
+		LocalNode: 2,
+		Source:    fakeMigrationExecutorSource{store: store},
+		Store:     store,
+		Runtime:   runtime,
+		Meta:      fakeMigrationExecutorMetaReader{meta: &meta},
+		Observer:  observer,
+		Clock:     func() time.Time { return now },
+	})
+
+	require.NoError(t, executor.RunOnce(ctx))
+
+	require.Equal(t, []int{1}, observer.activeTaskCounts)
+	require.Equal(t, []int{0}, observer.writeFenceActiveCounts)
+	require.Equal(t, []string{"target_lagging"}, observer.blockedReasons)
+	require.Len(t, observer.durations, 1)
+	require.Equal(t, metadb.ChannelMigrationKindLeaderTransfer, observer.durations[0].kind)
+	require.Equal(t, metadb.ChannelMigrationPhaseProbeTarget, observer.durations[0].phase)
+}
+
 func TestLeaderTransferExecutorBlocksNewLeaderWithoutCutoverProof(t *testing.T) {
 	ctx := context.Background()
 	now := time.UnixMilli(1750000220000).UTC()
@@ -612,4 +652,42 @@ func (r *fakeMigrationExecutorRuntime) ProbeChannel(_ context.Context, nodeID ui
 func (r *fakeMigrationExecutorRuntime) DrainChannel(_ context.Context, nodeID uint64, req ch.DrainChannelRequest) (ch.DrainChannelResult, error) {
 	r.ops = append(r.ops, fmt.Sprintf("drain:%d", nodeID))
 	return r.drain, nil
+}
+
+type fakeMigrationObserver struct {
+	activeTaskCounts       []int
+	writeFenceActiveCounts []int
+	blockedReasons         []string
+	durations              []migrationDurationObservation
+	writeFenceDurations    []uint64
+	phases                 []metadb.ChannelMigrationPhase
+}
+
+type migrationDurationObservation struct {
+	kind  metadb.ChannelMigrationKind
+	phase metadb.ChannelMigrationPhase
+}
+
+func (o *fakeMigrationObserver) MigrationActiveTasks(count int) {
+	o.activeTaskCounts = append(o.activeTaskCounts, count)
+}
+
+func (o *fakeMigrationObserver) MigrationBlocked(reason string) {
+	o.blockedReasons = append(o.blockedReasons, reason)
+}
+
+func (o *fakeMigrationObserver) WriteFenceActive(count int) {
+	o.writeFenceActiveCounts = append(o.writeFenceActiveCounts, count)
+}
+
+func (o *fakeMigrationObserver) MigrationPhase(_ string, _ metadb.ChannelMigrationKind, phase metadb.ChannelMigrationPhase, _ metadb.ChannelMigrationStatus, _ string) {
+	o.phases = append(o.phases, phase)
+}
+
+func (o *fakeMigrationObserver) MigrationDuration(kind metadb.ChannelMigrationKind, phase metadb.ChannelMigrationPhase, _ time.Duration) {
+	o.durations = append(o.durations, migrationDurationObservation{kind: kind, phase: phase})
+}
+
+func (o *fakeMigrationObserver) WriteFenceDuration(_ string, fenceVersion uint64, _ time.Duration) {
+	o.writeFenceDurations = append(o.writeFenceDurations, fenceVersion)
 }

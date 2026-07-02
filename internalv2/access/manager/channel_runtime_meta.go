@@ -41,6 +41,10 @@ type ChannelRuntimeMetaDTO struct {
 	LeaderEpoch uint64 `json:"leader_epoch"`
 	// Leader is the current leader node ID.
 	Leader uint64 `json:"leader"`
+	// SlotLeader is the currently observed physical Slot Raft leader.
+	SlotLeader uint64 `json:"slot_leader,omitempty"`
+	// PreferredLeader is the control-plane preferred physical Slot leader.
+	PreferredLeader uint64 `json:"preferred_leader,omitempty"`
 	// Replicas is the configured replica set.
 	Replicas []uint64 `json:"replicas"`
 	// ISR is the in-sync replica set.
@@ -181,6 +185,8 @@ func channelRuntimeMetaDTO(item managementusecase.ChannelRuntimeMeta) ChannelRun
 		ChannelEpoch:      item.ChannelEpoch,
 		LeaderEpoch:       item.LeaderEpoch,
 		Leader:            item.Leader,
+		SlotLeader:        item.SlotLeader,
+		PreferredLeader:   item.PreferredLeader,
 		Replicas:          append([]uint64(nil), item.Replicas...),
 		ISR:               append([]uint64(nil), item.ISR...),
 		MinISR:            item.MinISR,

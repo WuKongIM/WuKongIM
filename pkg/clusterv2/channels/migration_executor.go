@@ -37,8 +37,11 @@ type MigrationRuntime interface {
 
 // MigrationObserver receives low-cardinality migration executor observations.
 type MigrationObserver interface {
+	MigrationActiveTasks(count int)
 	MigrationPhase(taskID string, taskType metadb.ChannelMigrationKind, phase metadb.ChannelMigrationPhase, status metadb.ChannelMigrationStatus, reason string)
 	MigrationDuration(taskType metadb.ChannelMigrationKind, phase metadb.ChannelMigrationPhase, d time.Duration)
+	MigrationBlocked(reason string)
+	WriteFenceActive(count int)
 	WriteFenceDuration(taskID string, fenceVersion uint64, d time.Duration)
 }
 
@@ -108,6 +111,7 @@ func (e *MigrationExecutor) RunOnce(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	e.observeMigrationTaskCounts(tasks)
 	nowMS := e.clock().UnixMilli()
 	for _, task := range tasks {
 		if task.IsTerminal() {
@@ -140,7 +144,9 @@ func (e *MigrationExecutor) RunOnce(ctx context.Context) error {
 			}
 			return err
 		}
+		start := e.clock()
 		err := e.runTaskPhase(ctx, task)
+		e.observeMigrationDuration(task.Kind, task.Phase, start)
 		if isMigrationVersionConflict(err) {
 			return nil
 		}
@@ -166,6 +172,68 @@ func (e *MigrationExecutor) runTaskPhase(ctx context.Context, task metadb.Channe
 	default:
 		return fmt.Errorf("%w: unknown migration task kind %d", ch.ErrInvalidConfig, task.Kind)
 	}
+}
+
+func (e *MigrationExecutor) clearWriteFenceAndObserve(ctx context.Context, task metadb.ChannelMigrationTask) error {
+	fenceVersion := task.FenceVersion
+	fenceStartedAt := migrationObservedFenceStart(task, e.clock())
+	if err := e.store.ClearWriteFence(ctx, task); err != nil {
+		return err
+	}
+	if e.observer != nil {
+		if fenceVersion != 0 {
+			e.observer.WriteFenceDuration(task.TaskID, fenceVersion, nonNegativeDuration(e.clock().Sub(fenceStartedAt)))
+		}
+		e.observer.MigrationPhase(task.TaskID, task.Kind, metadb.ChannelMigrationPhaseClearFence, metadb.ChannelMigrationStatusCompleted, "")
+	}
+	return nil
+}
+
+func (e *MigrationExecutor) observeMigrationTaskCounts(tasks []metadb.ChannelMigrationTask) {
+	if e.observer == nil {
+		return
+	}
+	active := 0
+	fenced := 0
+	for _, task := range tasks {
+		if !task.IsTerminal() {
+			active++
+		}
+		if task.FenceToken == task.TaskID && task.FenceVersion != 0 {
+			fenced++
+		}
+	}
+	e.observer.MigrationActiveTasks(active)
+	e.observer.WriteFenceActive(fenced)
+}
+
+func (e *MigrationExecutor) observeMigrationDuration(kind metadb.ChannelMigrationKind, phase metadb.ChannelMigrationPhase, start time.Time) {
+	if e.observer == nil {
+		return
+	}
+	e.observer.MigrationDuration(kind, phase, nonNegativeDuration(e.clock().Sub(start)))
+}
+
+func (e *MigrationExecutor) observeMigrationBlocked(task metadb.ChannelMigrationTask, reason string) {
+	if e.observer == nil {
+		return
+	}
+	e.observer.MigrationBlocked(reason)
+	e.observer.MigrationPhase(task.TaskID, task.Kind, task.Phase, metadb.ChannelMigrationStatusBlocked, reason)
+}
+
+func migrationObservedFenceStart(task metadb.ChannelMigrationTask, now time.Time) time.Time {
+	if task.UpdatedAtMS <= 0 {
+		return now
+	}
+	return time.UnixMilli(task.UpdatedAtMS)
+}
+
+func nonNegativeDuration(d time.Duration) time.Duration {
+	if d < 0 {
+		return 0
+	}
+	return d
 }
 
 func shouldRenewMigrationFence(task metadb.ChannelMigrationTask, nowMS int64) bool {

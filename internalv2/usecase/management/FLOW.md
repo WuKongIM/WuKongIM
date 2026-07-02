@@ -534,10 +534,15 @@ manager HTTP handler
 The channel runtime projection scans authoritative runtime metadata by
 physical Slot, applies optional `node_id`/`node_scope` and channel ID filters,
 and returns legacy-compatible leader, replica, ISR, epoch, status, and optional
-max-message-sequence fields. When the ChannelV2 migration store is wired, each
-row also includes the active migration task ID, task-owned write-fence token,
-write-fence version, bounded write-fence reason, and degraded hints such as
-`min_isr_not_met` or `isr_below_replicas`. The `node_id` filter is a runtime
+max-message-sequence fields. `leader` remains the ChannelV2 data leader from
+the runtime metadata row. `slot_leader` is the best-effort live physical Slot
+Raft leader read through `SlotRuntimeStatusReader`, and `preferred_leader` is
+the control-plane preferred leader from the Slot assignment. These fields are
+separate because Slot leadership controls metadata writes while ChannelV2
+leadership controls data appends. When the ChannelV2 migration store is wired,
+each row also includes the active migration task ID, task-owned write-fence
+token, write-fence version, bounded write-fence reason, and degraded hints such
+as `min_isr_not_met` or `isr_below_replicas`. The `node_id` filter is a runtime
 metadata membership filter, not a business channel metadata read. Generic
 channel runtime mutations remain outside this migration step.
 

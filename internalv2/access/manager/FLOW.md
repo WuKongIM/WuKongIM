@@ -373,8 +373,10 @@ usecase.
 response shape for the web cluster channel page, including `node_id`,
 `node_scope`, `channel_id`, `include_max_message_seq`, `limit`, and `cursor`
 query parameters. It exposes read-only runtime metadata and augments rows with
-ChannelV2 write-fence and active migration hints. Channel detail, repair, and
-generic mutation operation routes remain unmigrated in internalv2.
+the physical `slot_leader`, control-plane `preferred_leader`, ChannelV2
+write-fence, degraded, and active migration hints. The existing `leader` field
+continues to mean ChannelV2 data leader. Channel detail, repair, and generic
+mutation operation routes remain unmigrated in internalv2.
 
 `/manager/channel-migrations/*` exposes the narrow manual ChannelV2 migration
 surface. HTTP parses operator intent, requires positive node IDs where

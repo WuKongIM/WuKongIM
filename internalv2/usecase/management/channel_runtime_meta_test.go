@@ -12,7 +12,7 @@ import (
 func TestListChannelRuntimeMetaFiltersByNodeAndChannelID(t *testing.T) {
 	snapshot := control.Snapshot{
 		Slots: []control.SlotAssignment{
-			{SlotID: 1, DesiredPeers: []uint64{1, 2}},
+			{SlotID: 1, DesiredPeers: []uint64{1, 2}, PreferredLeader: 2},
 			{SlotID: 2, DesiredPeers: []uint64{2, 3}},
 		},
 		HashSlots: control.HashSlotTable{Count: 4, Ranges: []control.HashSlotRange{
@@ -33,6 +33,9 @@ func TestListChannelRuntimeMetaFiltersByNodeAndChannelID(t *testing.T) {
 	app := New(Options{
 		Cluster:            fakeNodeSnapshotReader{snapshot: snapshot},
 		ChannelRuntimeMeta: reader,
+		SlotRuntimeStatus: &fakeSlotRuntimeStatusReader{statuses: map[uint32]SlotRuntimeStatus{
+			1: {SlotID: 1, LeaderID: 2, CurrentVoters: []uint64{1, 2}},
+		}},
 	})
 
 	got, err := app.ListChannelRuntimeMeta(context.Background(), ListChannelRuntimeMetaRequest{
@@ -49,6 +52,9 @@ func TestListChannelRuntimeMetaFiltersByNodeAndChannelID(t *testing.T) {
 	item := got.Items[0]
 	if item.ChannelID != "alpha" || item.ChannelType != 1 || item.SlotID != 1 || item.Leader != 1 || item.Status != "active" {
 		t.Fatalf("item = %#v, want alpha runtime row", item)
+	}
+	if item.SlotLeader != 2 || item.PreferredLeader != 2 {
+		t.Fatalf("slot leaders = actual:%d preferred:%d, want 2/2", item.SlotLeader, item.PreferredLeader)
 	}
 	if got.HasMore {
 		t.Fatalf("HasMore = true, want false")
