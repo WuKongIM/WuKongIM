@@ -140,11 +140,19 @@ func TestWkcliSimThreeNodeSmokeScriptStartsAutoJoinNodeDuringSimulation(t *testi
 	binDir := t.TempDir()
 	callsDir := t.TempDir()
 	outDir := t.TempDir()
+	staleDataDir := filepath.Join(outDir, "node4-data")
+	staleFile := filepath.Join(staleDataDir, "stale")
 	startScript := filepath.Join(binDir, "start-three.sh")
 	writeFakeThreeNodeSimGo(t, filepath.Join(binDir, "go"), callsDir)
 	writeFakeThreeNodeSimCurl(t, filepath.Join(binDir, "curl"), callsDir)
 	writeFakeThreeNodeSimStartScript(t, startScript, callsDir)
 	writeFakeThreeNodeDynamicBinary(t, filepath.Join(outDir, "wukongimv2"), callsDir)
+	if err := os.MkdirAll(staleDataDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(staleFile, []byte("stale"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	t.Cleanup(func() {
 		terminateRecordedProcess(t, filepath.Join(callsDir, "start.pid"))
 		terminateRecordedProcess(t, filepath.Join(callsDir, "dynamic.pid"))
@@ -185,6 +193,11 @@ func TestWkcliSimThreeNodeSmokeScriptStartsAutoJoinNodeDuringSimulation(t *testi
 	}
 	if !waitForFile(filepath.Join(callsDir, "dynamic.term")) {
 		t.Fatalf("dynamic node did not receive TERM; calls dir: %s", callsDir)
+	}
+	if _, err := os.Stat(staleFile); err == nil {
+		t.Fatalf("stale auto-join data file was not removed: %s", staleFile)
+	} else if !os.IsNotExist(err) {
+		t.Fatalf("stat stale auto-join data file: %v", err)
 	}
 	config := readFile(t, filepath.Join(outDir, "wukongimv2-node4.conf"))
 	for _, want := range []string{

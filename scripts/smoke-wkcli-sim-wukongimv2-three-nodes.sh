@@ -205,6 +205,21 @@ sim_done_file() {
   printf '%s/sim.done' "$OUT_DIR"
 }
 
+prepare_auto_join_state() {
+  if [[ "$AUTO_JOIN_NODE" != "true" ]]; then
+    return
+  fi
+  rm -f "$(auto_join_pid_file)" "$(auto_join_ready_file)" "$(sim_done_file)"
+  if [[ "$CLEAN_CLUSTER" -eq 0 ]]; then
+    return
+  fi
+  case "$AUTO_JOIN_DATA_DIR" in
+    ""|"/"|".") die "refusing to clean unsafe auto-join data dir: ${AUTO_JOIN_DATA_DIR:-<empty>}" ;;
+  esac
+  rm -rf "$AUTO_JOIN_DATA_DIR"
+  rm -f "$AUTO_JOIN_CONFIG_PATH" "$(auto_join_log)"
+}
+
 auto_join_api_listen_addr() {
   local raw="$AUTO_JOIN_API_ADDR"
   raw="${raw#http://}"
@@ -568,6 +583,7 @@ fi
 mkdir -p "$OUT_DIR" "$(node_log_dir)" "$(capabilities_dir)" "$(capacity_dir)" "$(snapshot_dir)" "$(metrics_dir)"
 : >"$(cluster_log)"
 : >"$(sim_output)"
+prepare_auto_join_state
 
 check_cluster_process() {
   if [[ "$START_CLUSTER" -eq 0 || -z "$CLUSTER_PID" ]]; then
