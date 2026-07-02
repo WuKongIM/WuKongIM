@@ -5149,6 +5149,15 @@ func TestClusterWriteReadyScalesProbeTimeoutByPhysicalSlotCount(t *testing.T) {
 	}
 }
 
+func TestDefaultClusterWriteReadyTimeoutAllowsMultipleScaledWriteProbeAttempts(t *testing.T) {
+	snapshot := clusterv2.Snapshot{SlotCount: 10}
+	minimum := 3 * clusterWriteReadyProbeBudget(snapshot)
+
+	if got := defaultClusterWriteReadyTimeout; got < minimum {
+		t.Fatalf("default cluster write-ready timeout = %s, want at least %s for multiple scaled write-probe attempts", got, minimum)
+	}
+}
+
 func TestClusterWriteReadinessFailureStopsClusterBeforeGateway(t *testing.T) {
 	calls := make([]string, 0, 2)
 	cluster := &fakeWriteReadyCluster{

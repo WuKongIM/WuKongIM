@@ -52,6 +52,17 @@ func TestConfigAppliesHealthReportDefaults(t *testing.T) {
 	}
 }
 
+func TestConfigDefaultStartTimeoutAllowsMultipleScaledWriteProbeAttempts(t *testing.T) {
+	cfg := Config{NodeID: 1, ListenAddr: "127.0.0.1:7001", DataDir: t.TempDir()}
+	cfg.applyDefaults()
+	scaledProbeBudget := 10 * 500 * time.Millisecond
+	minimum := 3 * scaledProbeBudget
+
+	if got := cfg.Timeouts.Start; got < minimum {
+		t.Fatalf("Timeouts.Start default = %s, want at least %s for multiple scaled write-probe attempts", got, minimum)
+	}
+}
+
 func TestConfigRejectsInvalidHealthReportTTL(t *testing.T) {
 	cfg := validConfig(t)
 	cfg.HealthReport.Interval = 5 * time.Second

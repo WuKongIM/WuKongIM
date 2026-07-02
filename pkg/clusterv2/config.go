@@ -225,7 +225,7 @@ type TimeoutConfig struct {
 
 func (c *Config) applyDefaults() {
 	if c.Timeouts.Start == 0 {
-		c.Timeouts.Start = 10 * time.Second
+		c.Timeouts.Start = 30 * time.Second
 	}
 	if c.Timeouts.Stop == 0 {
 		c.Timeouts.Stop = 5 * time.Second

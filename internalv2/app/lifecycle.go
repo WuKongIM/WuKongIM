@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	defaultClusterWriteReadyTimeout = 10 * time.Second
+	defaultClusterWriteReadyTimeout = 30 * time.Second
 	clusterWriteReadyPollInterval   = 10 * time.Millisecond
 	clusterWriteReadyProbeTimeout   = time.Second
 	clusterWriteReadyProbePerSlot   = 500 * time.Millisecond

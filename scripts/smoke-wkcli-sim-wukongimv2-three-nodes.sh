@@ -30,6 +30,11 @@ AUTO_JOIN_CONFIG_PATH_SET=0
 AUTO_JOIN_DATA_DIR_SET=0
 [[ -n "${WK_WKCLI_SIM_THREE_SMOKE_AUTO_JOIN_CONFIG-}" ]] && AUTO_JOIN_CONFIG_PATH_SET=1
 [[ -n "${WK_WKCLI_SIM_THREE_SMOKE_AUTO_JOIN_DATA_DIR-}" ]] && AUTO_JOIN_DATA_DIR_SET=1
+AUTO_PROMOTE_CONTROLLER_VOTER="${WK_WKCLI_SIM_THREE_SMOKE_AUTO_PROMOTE_CONTROLLER_VOTER:-false}"
+AUTO_PROMOTE_MANAGER_API="${WK_WKCLI_SIM_THREE_SMOKE_AUTO_PROMOTE_MANAGER_API:-http://127.0.0.1:5311}"
+AUTO_PROMOTE_MANAGER_AUTH="${WK_WKCLI_SIM_THREE_SMOKE_AUTO_PROMOTE_MANAGER_AUTH:-true}"
+AUTO_PROMOTE_MANAGER_USERNAME="${WK_WKCLI_SIM_THREE_SMOKE_AUTO_PROMOTE_MANAGER_USERNAME:-admin}"
+AUTO_PROMOTE_MANAGER_PASSWORD="${WK_WKCLI_SIM_THREE_SMOKE_AUTO_PROMOTE_MANAGER_PASSWORD:-a1234567}"
 
 USERS="${WK_WKCLI_SIM_THREE_SMOKE_USERS:-30}"
 GROUP_COUNT="${WK_WKCLI_SIM_THREE_SMOKE_GROUPS:-6}"
@@ -90,6 +95,16 @@ Options:
   --auto-join-cluster-id ID Cluster ID expected by the joining node. Default: wukongimv2-dev-three.
   --auto-join-config PATH   Generated joining node config path. Default: OUT_DIR/wukongimv2-node4.conf.
   --auto-join-data-dir DIR  Joining node data directory. Default: OUT_DIR/node4-data.
+  --auto-promote-controller-voter
+                           After the auto-join node is ready, activate it and promote it to a Controller voter while sim is running.
+  --auto-promote-manager-api URL
+                           Manager API base URL used for activation and promotion. Default: http://127.0.0.1:5311.
+  --no-auto-promote-manager-auth
+                           Skip manager login and Authorization header for clusters with manager auth disabled.
+  --auto-promote-manager-user USER
+                           Manager username used when auth is enabled. Default: admin.
+  --auto-promote-manager-password PASSWORD
+                           Manager password used when auth is enabled. Default: a1234567.
   --dry-run                 Print resolved commands without starting anything.
   -h, --help                Show this help.
 USAGE
@@ -201,6 +216,34 @@ auto_join_ready_file() {
   printf '%s/auto-join-node.ready' "$OUT_DIR"
 }
 
+auto_promote_ready_file() {
+  printf '%s/controller-voter-promotion-node%s.ready' "$OUT_DIR" "$AUTO_JOIN_NODE_ID"
+}
+
+auto_promote_login_response_file() {
+  printf '%s/manager-login.json' "$OUT_DIR"
+}
+
+auto_promote_token_file() {
+  printf '%s/manager-token' "$OUT_DIR"
+}
+
+auto_promote_activate_response_file() {
+  printf '%s/node%s-activate.json' "$OUT_DIR" "$AUTO_JOIN_NODE_ID"
+}
+
+auto_promote_nodes_response_file() {
+  printf '%s/nodes-after-node%s-activate.json' "$OUT_DIR" "$AUTO_JOIN_NODE_ID"
+}
+
+auto_promote_response_file() {
+  printf '%s/controller-voter-promotion-node%s.json' "$OUT_DIR" "$AUTO_JOIN_NODE_ID"
+}
+
+auto_promote_controller_raft_status_file() {
+  printf '%s/controller-raft-node%s.json' "$OUT_DIR" "$AUTO_JOIN_NODE_ID"
+}
+
 sim_done_file() {
   printf '%s/sim.done' "$OUT_DIR"
 }
@@ -209,7 +252,9 @@ prepare_auto_join_state() {
   if [[ "$AUTO_JOIN_NODE" != "true" ]]; then
     return
   fi
-  rm -f "$(auto_join_pid_file)" "$(auto_join_ready_file)" "$(sim_done_file)"
+  rm -f "$(auto_join_pid_file)" "$(auto_join_ready_file)" "$(auto_promote_ready_file)" "$(sim_done_file)"
+  rm -f "$(auto_promote_login_response_file)" "$(auto_promote_token_file)"
+  rm -f "$(auto_promote_activate_response_file)" "$(auto_promote_nodes_response_file)" "$(auto_promote_response_file)" "$(auto_promote_controller_raft_status_file)"
   if [[ "$CLEAN_CLUSTER" -eq 0 ]]; then
     return
   fi
@@ -280,6 +325,25 @@ print_auto_join_cmd() {
   printf 'auto_join_cmd=env WK_DEBUG_API_ENABLE=%s %s -config %s\n' "$DEBUG_API_ENABLE" "$(cluster_bin)" "$AUTO_JOIN_CONFIG_PATH"
 }
 
+print_auto_promote_cmd() {
+  if [[ "$AUTO_PROMOTE_CONTROLLER_VOTER" != "true" ]]; then
+    printf 'auto_promote_login_cmd=<disabled>\n'
+    printf 'auto_promote_activate_cmd=<disabled>\n'
+    printf 'auto_promote_cmd=<disabled>\n'
+    return
+  fi
+  if [[ "$AUTO_PROMOTE_MANAGER_AUTH" == "true" ]]; then
+    printf 'auto_promote_login_cmd=curl -fsS -H Content-Type: application/json -d {"username":"%s","password":"%s"} %s/manager/login\n' \
+      "$AUTO_PROMOTE_MANAGER_USERNAME" "$AUTO_PROMOTE_MANAGER_PASSWORD" "$AUTO_PROMOTE_MANAGER_API"
+    printf 'auto_promote_activate_cmd=curl -fsS -H Authorization: Bearer <token> -X POST %s/manager/nodes/%s/activate\n' "$AUTO_PROMOTE_MANAGER_API" "$AUTO_JOIN_NODE_ID"
+    printf 'auto_promote_cmd=curl -fsS -H Authorization: Bearer <token> -X POST %s/manager/nodes/%s/controller-voter/promote\n' "$AUTO_PROMOTE_MANAGER_API" "$AUTO_JOIN_NODE_ID"
+    return
+  fi
+  printf 'auto_promote_login_cmd=<disabled>\n'
+  printf 'auto_promote_activate_cmd=curl -fsS -X POST %s/manager/nodes/%s/activate\n' "$AUTO_PROMOTE_MANAGER_API" "$AUTO_JOIN_NODE_ID"
+  printf 'auto_promote_cmd=curl -fsS -X POST %s/manager/nodes/%s/controller-voter/promote\n' "$AUTO_PROMOTE_MANAGER_API" "$AUTO_JOIN_NODE_ID"
+}
+
 print_plan() {
   printf 'repo_root=%s\n' "$ROOT_DIR"
   printf 'out_dir=%s\n' "$OUT_DIR"
@@ -306,9 +370,19 @@ print_plan() {
   printf 'auto_join_config=%s\n' "$AUTO_JOIN_CONFIG_PATH"
   printf 'auto_join_data_dir=%s\n' "$AUTO_JOIN_DATA_DIR"
   printf 'auto_join_log=%s\n' "$(auto_join_log)"
+  printf 'auto_promote_controller_voter=%s\n' "$AUTO_PROMOTE_CONTROLLER_VOTER"
+  printf 'auto_promote_node_id=%s\n' "$AUTO_JOIN_NODE_ID"
+  printf 'auto_promote_manager_api=%s\n' "$AUTO_PROMOTE_MANAGER_API"
+  printf 'auto_promote_manager_auth=%s\n' "$AUTO_PROMOTE_MANAGER_AUTH"
+  printf 'auto_promote_login_response=%s\n' "$(auto_promote_login_response_file)"
+  printf 'auto_promote_activate_response=%s\n' "$(auto_promote_activate_response_file)"
+  printf 'auto_promote_nodes_response=%s\n' "$(auto_promote_nodes_response_file)"
+  printf 'auto_promote_response=%s\n' "$(auto_promote_response_file)"
+  printf 'auto_promote_controller_raft_status=%s\n' "$(auto_promote_controller_raft_status_file)"
   print_start_cmd
   print_sim_cmd
   print_auto_join_cmd
+  print_auto_promote_cmd
 }
 
 tail_evidence() {
@@ -517,6 +591,37 @@ while [[ $# -gt 0 ]]; do
       AUTO_JOIN_DATA_DIR_SET=1
       shift 2
       ;;
+    --auto-promote-controller-voter)
+      AUTO_PROMOTE_CONTROLLER_VOTER=true
+      shift
+      ;;
+    --no-auto-promote-controller-voter)
+      AUTO_PROMOTE_CONTROLLER_VOTER=false
+      shift
+      ;;
+    --auto-promote-manager-api)
+      [[ $# -ge 2 ]] || die '--auto-promote-manager-api requires a value'
+      AUTO_PROMOTE_MANAGER_API="$2"
+      shift 2
+      ;;
+    --auto-promote-manager-auth)
+      AUTO_PROMOTE_MANAGER_AUTH=true
+      shift
+      ;;
+    --no-auto-promote-manager-auth)
+      AUTO_PROMOTE_MANAGER_AUTH=false
+      shift
+      ;;
+    --auto-promote-manager-user)
+      [[ $# -ge 2 ]] || die '--auto-promote-manager-user requires a value'
+      AUTO_PROMOTE_MANAGER_USERNAME="$2"
+      shift 2
+      ;;
+    --auto-promote-manager-password)
+      [[ $# -ge 2 ]] || die '--auto-promote-manager-password requires a value'
+      AUTO_PROMOTE_MANAGER_PASSWORD="$2"
+      shift 2
+      ;;
     --dry-run)
       DRY_RUN=1
       shift
@@ -547,6 +652,8 @@ require_positive_uint '--users' "$USERS"
 require_positive_uint '--groups' "$GROUP_COUNT"
 require_positive_uint '--members' "$GROUP_MEMBERS"
 require_bool 'WK_WKCLI_SIM_THREE_SMOKE_AUTO_JOIN_NODE' "$AUTO_JOIN_NODE"
+require_bool 'WK_WKCLI_SIM_THREE_SMOKE_AUTO_PROMOTE_CONTROLLER_VOTER' "$AUTO_PROMOTE_CONTROLLER_VOTER"
+require_bool 'WK_WKCLI_SIM_THREE_SMOKE_AUTO_PROMOTE_MANAGER_AUTH' "$AUTO_PROMOTE_MANAGER_AUTH"
 require_uint '--auto-join-after' "$AUTO_JOIN_AFTER"
 require_positive_uint '--auto-join-node-id' "$AUTO_JOIN_NODE_ID"
 require_uint 'WK_WKCLI_SIM_THREE_SMOKE_MAX_FLUSH_ERROR_SELECTED_ROWS' "$MAX_FLUSH_ERROR_SELECTED_ROWS"
@@ -564,6 +671,7 @@ fi
 if [[ "${#API_VALUES[@]}" -ne "${#GATEWAY_VALUES[@]}" ]]; then
   die "--api and --gateway must contain the same number of items: ${#API_VALUES[@]} != ${#GATEWAY_VALUES[@]}"
 fi
+AUTO_PROMOTE_MANAGER_API="${AUTO_PROMOTE_MANAGER_API%/}"
 if [[ "$AUTO_JOIN_NODE" == "true" ]]; then
   require_nonempty '--auto-join-api' "$AUTO_JOIN_API_ADDR"
   require_nonempty '--auto-join-gateway' "$AUTO_JOIN_GATEWAY_ADDR"
@@ -573,6 +681,14 @@ if [[ "$AUTO_JOIN_NODE" == "true" ]]; then
   require_nonempty '--auto-join-config' "$AUTO_JOIN_CONFIG_PATH"
   require_nonempty '--auto-join-data-dir' "$AUTO_JOIN_DATA_DIR"
   [[ "${#AUTO_JOIN_SEED_VALUES[@]}" -gt 0 ]] || die 'at least one --auto-join-seeds value is required'
+fi
+if [[ "$AUTO_PROMOTE_CONTROLLER_VOTER" == "true" ]]; then
+  [[ "$AUTO_JOIN_NODE" == "true" ]] || die '--auto-promote-controller-voter requires --auto-join-node'
+  require_nonempty '--auto-promote-manager-api' "$AUTO_PROMOTE_MANAGER_API"
+  if [[ "$AUTO_PROMOTE_MANAGER_AUTH" == "true" ]]; then
+    require_nonempty '--auto-promote-manager-user' "$AUTO_PROMOTE_MANAGER_USERNAME"
+    require_nonempty '--auto-promote-manager-password' "$AUTO_PROMOTE_MANAGER_PASSWORD"
+  fi
 fi
 
 if [[ "$DRY_RUN" -eq 1 ]]; then
@@ -709,11 +825,202 @@ wait_auto_join_ready() {
   die "auto-join node${AUTO_JOIN_NODE_ID} did not become ready within ${READY_TIMEOUT}s"
 }
 
+compact_json_file() {
+  tr -d '[:space:]' <"$1"
+}
+
+json_array_file_contains_int() {
+  local file="$1"
+  local key="$2"
+  local value="$3"
+  local compact
+  compact="$(compact_json_file "$file")"
+  printf '%s\n' "$compact" | grep -Eq "\"${key}\":\\[[^]]*(^|[^0-9])${value}([^0-9]|\\])"
+}
+
+nodes_response_has_promotable_auto_join_node() {
+  local file="$1"
+  local compact
+  local tail
+  local node
+  compact="$(compact_json_file "$file")"
+  tail="${compact#*\"node_id\":${AUTO_JOIN_NODE_ID}}"
+  [[ "$tail" != "$compact" ]] || return 1
+  node="${tail%%},{\"node_id\":*}"
+  printf '%s\n' "$node" | grep -q '"join_state":"active"' || return 1
+  printf '%s\n' "$node" | grep -q '"can_promote_controller_voter":true'
+}
+
+auto_promote_manager_login() {
+  if [[ "$AUTO_PROMOTE_MANAGER_AUTH" != "true" ]]; then
+    rm -f "$(auto_promote_token_file)"
+    return
+  fi
+  local url
+  local file
+  local tmp
+  local body
+  local token
+  local deadline
+  url="${AUTO_PROMOTE_MANAGER_API}/manager/login"
+  file="$(auto_promote_login_response_file)"
+  tmp="${file}.tmp"
+  body="{\"username\":\"${AUTO_PROMOTE_MANAGER_USERNAME}\",\"password\":\"${AUTO_PROMOTE_MANAGER_PASSWORD}\"}"
+  deadline=$((SECONDS + READY_TIMEOUT))
+  while (( SECONDS <= deadline )); do
+    check_cluster_process
+    check_auto_join_process
+    if curl -fsS -H 'Content-Type: application/json' -d "$body" "$url" >"$tmp"; then
+      mv "$tmp" "$file"
+      token="$(json_string access_token <"$file" | head -n 1)"
+      [[ -n "$token" ]] || die 'auto-promote manager login response missing access_token'
+      printf '%s\n' "$token" >"$(auto_promote_token_file)"
+      log 'auto-promote manager login ok'
+      return
+    fi
+    rm -f "$tmp"
+    sleep "$POLL_INTERVAL"
+  done
+  die "auto-promote manager login did not succeed within ${READY_TIMEOUT}s"
+}
+
+manager_curl() {
+  local method="$1"
+  local url="$2"
+  local output="$3"
+  local args=(-fsS)
+  if [[ "$AUTO_PROMOTE_MANAGER_AUTH" == "true" ]]; then
+    local token
+    [[ -f "$(auto_promote_token_file)" ]] || die 'auto-promote manager token is missing'
+    token="$(tr -d '[:space:]' <"$(auto_promote_token_file)")"
+    [[ -n "$token" ]] || die 'auto-promote manager token is empty'
+    args+=(-H "Authorization: Bearer ${token}")
+  fi
+  if [[ "$method" != "GET" ]]; then
+    args+=(-X "$method")
+  fi
+  curl "${args[@]}" "$url" >"$output"
+}
+
+wait_auto_promote_activation() {
+  local url
+  local file
+  local tmp
+  local deadline
+  url="${AUTO_PROMOTE_MANAGER_API}/manager/nodes/${AUTO_JOIN_NODE_ID}/activate"
+  file="$(auto_promote_activate_response_file)"
+  tmp="${file}.tmp"
+  deadline=$((SECONDS + READY_TIMEOUT))
+  while (( SECONDS <= deadline )); do
+    check_cluster_process
+    check_auto_join_process
+    if manager_curl POST "$url" "$tmp"; then
+      mv "$tmp" "$file"
+      grep -q "\"node_id\":${AUTO_JOIN_NODE_ID}" "$file" || die "auto-promote activation response missing node_id=${AUTO_JOIN_NODE_ID}"
+      grep -q '"join_state":"active"' "$file" || die "auto-promote activation response missing join_state=active"
+      log "auto-promote controller voter node${AUTO_JOIN_NODE_ID} activated"
+      return
+    fi
+    rm -f "$tmp"
+    sleep "$POLL_INTERVAL"
+  done
+  die "auto-promote controller voter node${AUTO_JOIN_NODE_ID} activation did not succeed within ${READY_TIMEOUT}s"
+}
+
+wait_auto_promote_promotable() {
+  local url
+  local file
+  local tmp
+  local deadline
+  url="${AUTO_PROMOTE_MANAGER_API}/manager/nodes"
+  file="$(auto_promote_nodes_response_file)"
+  tmp="${file}.tmp"
+  deadline=$((SECONDS + READY_TIMEOUT))
+  while (( SECONDS <= deadline )); do
+    check_cluster_process
+    check_auto_join_process
+    if manager_curl GET "$url" "$tmp"; then
+      mv "$tmp" "$file"
+      if nodes_response_has_promotable_auto_join_node "$file"; then
+        log "auto-promote controller voter node${AUTO_JOIN_NODE_ID} promotable"
+        return
+      fi
+    else
+      rm -f "$tmp"
+    fi
+    sleep "$POLL_INTERVAL"
+  done
+  die "auto-promote controller voter node${AUTO_JOIN_NODE_ID} did not become promotable within ${READY_TIMEOUT}s"
+}
+
+wait_auto_promote_write() {
+  local url
+  local file
+  local tmp
+  local deadline
+  url="${AUTO_PROMOTE_MANAGER_API}/manager/nodes/${AUTO_JOIN_NODE_ID}/controller-voter/promote"
+  file="$(auto_promote_response_file)"
+  tmp="${file}.tmp"
+  deadline=$((SECONDS + READY_TIMEOUT))
+  while (( SECONDS <= deadline )); do
+    check_cluster_process
+    check_auto_join_process
+    if manager_curl POST "$url" "$tmp"; then
+      mv "$tmp" "$file"
+      grep -q "\"node_id\":${AUTO_JOIN_NODE_ID}" "$file" || die "auto-promote response missing node_id=${AUTO_JOIN_NODE_ID}"
+      json_array_file_contains_int "$file" next_voters "$AUTO_JOIN_NODE_ID" || die "auto-promote response next_voters missing node${AUTO_JOIN_NODE_ID}"
+      log "auto-promote controller voter node${AUTO_JOIN_NODE_ID} accepted"
+      return
+    fi
+    rm -f "$tmp"
+    sleep "$POLL_INTERVAL"
+  done
+  die "auto-promote controller voter node${AUTO_JOIN_NODE_ID} write did not succeed within ${READY_TIMEOUT}s"
+}
+
+wait_auto_promote_controller_raft() {
+  local url
+  local file
+  local tmp
+  local deadline
+  url="${AUTO_PROMOTE_MANAGER_API}/manager/nodes/${AUTO_JOIN_NODE_ID}/controller-raft"
+  file="$(auto_promote_controller_raft_status_file)"
+  tmp="${file}.tmp"
+  deadline=$((SECONDS + READY_TIMEOUT))
+  while (( SECONDS <= deadline )); do
+    check_cluster_process
+    check_auto_join_process
+    if manager_curl GET "$url" "$tmp"; then
+      mv "$tmp" "$file"
+      if json_array_file_contains_int "$file" voters "$AUTO_JOIN_NODE_ID"; then
+        log "auto-promote controller raft node${AUTO_JOIN_NODE_ID} voters include node${AUTO_JOIN_NODE_ID}"
+        return
+      fi
+    else
+      rm -f "$tmp"
+    fi
+    sleep "$POLL_INTERVAL"
+  done
+  die "auto-promote controller raft node${AUTO_JOIN_NODE_ID} voters did not include node${AUTO_JOIN_NODE_ID} within ${READY_TIMEOUT}s"
+}
+
+promote_auto_join_controller_voter() {
+  if [[ "$AUTO_PROMOTE_CONTROLLER_VOTER" != "true" ]]; then
+    return
+  fi
+  auto_promote_manager_login
+  wait_auto_promote_activation
+  wait_auto_promote_promotable
+  wait_auto_promote_write
+  wait_auto_promote_controller_raft
+  touch "$(auto_promote_ready_file)"
+}
+
 schedule_auto_join_node() {
   if [[ "$AUTO_JOIN_NODE" != "true" ]]; then
     return
   fi
-  rm -f "$(auto_join_pid_file)" "$(auto_join_ready_file)"
+  rm -f "$(auto_join_pid_file)" "$(auto_join_ready_file)" "$(auto_promote_ready_file)"
   (
     sleep "$AUTO_JOIN_AFTER"
     if [[ -f "$(sim_done_file)" ]]; then
@@ -722,6 +1029,7 @@ schedule_auto_join_node() {
     start_auto_join_node
     wait_auto_join_ready
     touch "$(auto_join_ready_file)"
+    promote_auto_join_controller_voter
   ) &
   AUTO_JOIN_TIMER_PID="$!"
   log "auto-join node${AUTO_JOIN_NODE_ID} scheduled after ${AUTO_JOIN_AFTER}s"
@@ -835,6 +1143,9 @@ run_sim() {
       die "auto-join node${AUTO_JOIN_NODE_ID} failed with status ${timer_status}"
     fi
     [[ -f "$(auto_join_ready_file)" ]] || die "auto-join node${AUTO_JOIN_NODE_ID} did not report ready"
+    if [[ "$AUTO_PROMOTE_CONTROLLER_VOTER" == "true" ]]; then
+      [[ -f "$(auto_promote_ready_file)" ]] || die "auto-promote controller voter node${AUTO_JOIN_NODE_ID} did not complete"
+    fi
     check_auto_join_process
   fi
 }
@@ -1010,6 +1321,19 @@ write_summary() {
       printf '%s\n' "- auto_join_api: ${AUTO_JOIN_API_ADDR}"
       printf '%s\n' "- auto_join_gateway: ${AUTO_JOIN_GATEWAY_ADDR}"
       printf '%s\n' "- auto_join_config: ${AUTO_JOIN_CONFIG_PATH}"
+    fi
+    printf '%s\n' "- auto_promote_controller_voter: ${AUTO_PROMOTE_CONTROLLER_VOTER}"
+    if [[ "$AUTO_PROMOTE_CONTROLLER_VOTER" == "true" ]]; then
+      printf '%s\n' "- auto_promote_node_id: ${AUTO_JOIN_NODE_ID}"
+      printf '%s\n' "- auto_promote_manager_api: ${AUTO_PROMOTE_MANAGER_API}"
+      printf '%s\n' "- auto_promote_manager_auth: ${AUTO_PROMOTE_MANAGER_AUTH}"
+      if [[ "$AUTO_PROMOTE_MANAGER_AUTH" == "true" ]]; then
+        printf '%s\n' "- auto_promote_login_response: $(basename "$(auto_promote_login_response_file)")"
+      fi
+      printf '%s\n' "- auto_promote_activate_response: $(basename "$(auto_promote_activate_response_file)")"
+      printf '%s\n' "- auto_promote_nodes_response: $(basename "$(auto_promote_nodes_response_file)")"
+      printf '%s\n' "- auto_promote_response: $(basename "$(auto_promote_response_file)")"
+      printf '%s\n' "- auto_promote_controller_raft_status: $(basename "$(auto_promote_controller_raft_status_file)")"
     fi
   } >"$(summary_output)"
 }

@@ -135,6 +135,47 @@ func TestWkcliSimThreeNodeSmokeScriptDryRunPrintsAutoJoinNodePlan(t *testing.T) 
 	}
 }
 
+func TestWkcliSimThreeNodeSmokeScriptDryRunPrintsAutoPromotePlan(t *testing.T) {
+	root := repoRoot(t)
+	outDir := t.TempDir()
+	startScript := filepath.Join(t.TempDir(), "start-three.sh")
+
+	cmd := exec.Command("bash", "scripts/smoke-wkcli-sim-wukongimv2-three-nodes.sh",
+		"--dry-run",
+		"--out-dir", outDir,
+		"--start-script", startScript,
+		"--auto-join-node",
+		"--auto-promote-controller-voter",
+		"--api", "http://127.0.0.1:5011,http://127.0.0.1:5012,http://127.0.0.1:5013",
+		"--gateway", "127.0.0.1:5111,127.0.0.1:5112,127.0.0.1:5113",
+	)
+	cmd.Dir = root
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("dry-run failed: %v\n%s", err, output)
+	}
+	text := string(output)
+	for _, want := range []string{
+		"auto_promote_controller_voter=true",
+		"auto_promote_node_id=4",
+		"auto_promote_manager_api=http://127.0.0.1:5311",
+		"auto_promote_manager_auth=true",
+		"auto_promote_login_response=" + filepath.Join(outDir, "manager-login.json"),
+		"auto_promote_activate_response=" + filepath.Join(outDir, "node4-activate.json"),
+		"auto_promote_nodes_response=" + filepath.Join(outDir, "nodes-after-node4-activate.json"),
+		"auto_promote_response=" + filepath.Join(outDir, "controller-voter-promotion-node4.json"),
+		"auto_promote_controller_raft_status=" + filepath.Join(outDir, "controller-raft-node4.json"),
+		"auto_promote_login_cmd=curl -fsS",
+		"http://127.0.0.1:5311/manager/login",
+		"auto_promote_activate_cmd=curl -fsS -H Authorization: Bearer <token> -X POST http://127.0.0.1:5311/manager/nodes/4/activate",
+		"auto_promote_cmd=curl -fsS -H Authorization: Bearer <token> -X POST http://127.0.0.1:5311/manager/nodes/4/controller-voter/promote",
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("dry-run output missing %q:\n%s", want, text)
+		}
+	}
+}
+
 func TestWkcliSimThreeNodeSmokeScriptStartsAutoJoinNodeDuringSimulation(t *testing.T) {
 	root := repoRoot(t)
 	binDir := t.TempDir()
@@ -230,6 +271,93 @@ func TestWkcliSimThreeNodeSmokeScriptStartsAutoJoinNodeDuringSimulation(t *testi
 	} {
 		if _, err := os.Stat(path); err != nil {
 			t.Fatalf("expected auto join evidence file %s: %v", path, err)
+		}
+	}
+}
+
+func TestWkcliSimThreeNodeSmokeScriptPromotesAutoJoinNodeDuringSimulation(t *testing.T) {
+	root := repoRoot(t)
+	binDir := t.TempDir()
+	callsDir := t.TempDir()
+	outDir := t.TempDir()
+	startScript := filepath.Join(binDir, "start-three.sh")
+	writeFakeThreeNodeSimGo(t, filepath.Join(binDir, "go"), callsDir)
+	writeFakeThreeNodeSimCurl(t, filepath.Join(binDir, "curl"), callsDir)
+	writeFakeThreeNodeSimStartScript(t, startScript, callsDir)
+	writeFakeThreeNodeDynamicBinary(t, filepath.Join(outDir, "wukongimv2"), callsDir)
+	t.Cleanup(func() {
+		terminateRecordedProcess(t, filepath.Join(callsDir, "start.pid"))
+		terminateRecordedProcess(t, filepath.Join(callsDir, "dynamic.pid"))
+	})
+
+	cmd := exec.Command("bash", "scripts/smoke-wkcli-sim-wukongimv2-three-nodes.sh",
+		"--out-dir", outDir,
+		"--start-script", startScript,
+		"--auto-join-node",
+		"--auto-promote-controller-voter",
+		"--auto-join-after", "0",
+		"--api", "http://127.0.0.1:5011,http://127.0.0.1:5012,http://127.0.0.1:5013",
+		"--gateway", "127.0.0.1:5111,127.0.0.1:5112,127.0.0.1:5113",
+		"--users", "12",
+		"--groups", "3",
+		"--members", "4",
+		"--rate", "6/s",
+		"--duration", "4s",
+		"--ready-timeout", "2",
+		"--poll", "0",
+	)
+	cmd.Dir = root
+	cmd.Env = append(os.Environ(), "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("script failed: %v\n%s", err, output)
+	}
+	text := string(output)
+	for _, want := range []string{
+		"auto-promote controller voter node4 promotable",
+		"auto-promote controller voter node4 accepted",
+		"auto-promote controller raft node4 voters include node4",
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("script output missing %q:\n%s", want, text)
+		}
+	}
+	curlCalls := readFile(t, filepath.Join(callsDir, "curl.calls"))
+	for _, want := range []string{
+		"-d {\"username\":\"admin\",\"password\":\"a1234567\"} http://127.0.0.1:5311/manager/login",
+		"-H Authorization: Bearer test-token -X POST http://127.0.0.1:5311/manager/nodes/4/activate",
+		"-H Authorization: Bearer test-token http://127.0.0.1:5311/manager/nodes",
+		"-H Authorization: Bearer test-token -X POST http://127.0.0.1:5311/manager/nodes/4/controller-voter/promote",
+		"-H Authorization: Bearer test-token http://127.0.0.1:5311/manager/nodes/4/controller-raft",
+	} {
+		if !strings.Contains(curlCalls, want) {
+			t.Fatalf("curl calls missing %q:\n%s", want, curlCalls)
+		}
+	}
+	summary := readFile(t, filepath.Join(outDir, "summary.md"))
+	for _, want := range []string{
+		"- auto_promote_controller_voter: true",
+		"- auto_promote_node_id: 4",
+		"- auto_promote_manager_api: http://127.0.0.1:5311",
+		"- auto_promote_manager_auth: true",
+		"- auto_promote_login_response: manager-login.json",
+		"- auto_promote_activate_response: node4-activate.json",
+		"- auto_promote_response: controller-voter-promotion-node4.json",
+		"- auto_promote_controller_raft_status: controller-raft-node4.json",
+	} {
+		if !strings.Contains(summary, want) {
+			t.Fatalf("summary missing %q:\n%s", want, summary)
+		}
+	}
+	for _, path := range []string{
+		filepath.Join(outDir, "manager-login.json"),
+		filepath.Join(outDir, "node4-activate.json"),
+		filepath.Join(outDir, "nodes-after-node4-activate.json"),
+		filepath.Join(outDir, "controller-voter-promotion-node4.json"),
+		filepath.Join(outDir, "controller-raft-node4.json"),
+	} {
+		if _, err := os.Stat(path); err != nil {
+			t.Fatalf("expected auto-promote evidence file %s: %v", path, err)
 		}
 	}
 }
@@ -622,6 +750,21 @@ case "$url" in
       exit 0
     fi
     exit 1
+    ;;
+  http://127.0.0.1:5311/manager/login)
+    echo '{"username":"admin","token_type":"Bearer","access_token":"test-token","expires_in":86400,"expires_at":"2026-07-02T00:00:00Z","permissions":[{"resource":"*","actions":["*"]}]}'
+    ;;
+  http://127.0.0.1:5311/manager/nodes/4/activate)
+    echo '{"changed":true,"node_id":4,"join_state":"active"}'
+    ;;
+  http://127.0.0.1:5311/manager/nodes)
+    echo '{"nodes":[{"node_id":1,"join_state":"active","controller_voter":true},{"node_id":2,"join_state":"active","controller_voter":true},{"node_id":3,"join_state":"active","controller_voter":true},{"node_id":4,"join_state":"active","controller_voter":false,"can_promote_controller_voter":true}]}'
+    ;;
+  http://127.0.0.1:5311/manager/nodes/4/controller-voter/promote)
+    echo '{"changed":true,"node_id":4,"state_revision":12,"previous_voters":[1,2,3],"next_voters":[1,2,3,4]}'
+    ;;
+  http://127.0.0.1:5311/manager/nodes/4/controller-raft)
+    echo '{"node_id":4,"role":"follower","leader_id":1,"voters":[1,2,3,4],"learners":[],"applied_index":42}'
     ;;
   */readyz)
     echo ok
