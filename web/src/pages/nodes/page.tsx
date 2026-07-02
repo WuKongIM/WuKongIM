@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { MoreHorizontalIcon } from "lucide-react"
 import { useIntl, type IntlShape } from "react-intl"
 import { Link, useSearchParams } from "react-router-dom"
 
+import { useAuthStore } from "@/auth/auth-store"
 import { DetailSheet } from "@/components/manager/detail-sheet"
 import { ConfirmDialog } from "@/components/manager/confirm-dialog"
 import { KeyValueList } from "@/components/manager/key-value-list"
@@ -13,12 +15,19 @@ import { PageHeader } from "@/components/shell/page-header"
 import { PageTabs } from "@/components/shell/page-tabs"
 import { SectionCard } from "@/components/shell/section-card"
 import { ControllerLogsPanel } from "@/pages/controller/page"
-import { DynamicNodeLifecycleSheet, type DynamicNodeLifecycleMode } from "@/pages/nodes/dynamic-node-lifecycle"
+import { DynamicNodeLifecycleSheet } from "@/pages/nodes/dynamic-node-lifecycle"
 import {
   ManagerApiError,
+  activateNode,
+  advanceNodeScaleIn,
   getNode,
+  getNodeOnboardingStatus,
   getNodes,
   promoteControllerVoter,
+  removeNodeAfterScaleIn,
+  setNodeScaleInDrain,
+  startNodeOnboarding,
+  startNodeScaleIn,
 } from "@/lib/manager-api"
 import type {
   ManagerNode,
@@ -31,6 +40,25 @@ type NodesState = {
   loading: boolean
   refreshing: boolean
   error: Error | null
+}
+
+type RowLifecycleAction =
+  | "activate"
+  | "onboard"
+  | "scale-in-start"
+  | "scale-in-drain"
+  | "scale-in-advance"
+  | "scale-in-remove"
+
+type RowActionTarget = {
+  action: RowLifecycleAction
+  node: ManagerNode
+}
+
+type RowOnboardingStatusState = {
+  loading: boolean
+  totalActive: number
+  error: string | null
 }
 
 const tabs = [
@@ -68,8 +96,26 @@ function mapErrorKind(error: Error | null) {
   return "error" as const
 }
 
+function hasPermission(permissions: { resource: string; actions: string[] }[], resource: string, action: string) {
+  return permissions.some((permission) => {
+    if (permission.resource !== resource && permission.resource !== "*") {
+      return false
+    }
+    return permission.actions.includes(action) || permission.actions.includes("*")
+  })
+}
+
 function formatBooleanValue(intl: IntlShape, value: boolean) {
   return intl.formatMessage({ id: value ? "nodes.boolean.yes" : "nodes.boolean.no" })
+}
+
+function parsePositiveSafeInteger(value: string, defaultValue: number) {
+  const trimmed = value.trim()
+  if (!trimmed) {
+    return defaultValue
+  }
+  const parsed = Number(trimmed)
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null
 }
 
 function nodeHealthStatus(node: ManagerNode) {
@@ -226,6 +272,58 @@ function controllerRaftPath(nodeId: number) {
   return `/cluster/diagnostics?tab=controller-logs&node_id=${nodeId}`
 }
 
+function canOnboardNode(node: ManagerNode) {
+  return nodeJoinState(node) === "active" &&
+    node.membership?.schedulable === true &&
+    node.actions?.can_onboard === true
+}
+
+function canStartScaleIn(node: ManagerNode) {
+  return nodeJoinState(node) === "active" && node.actions?.can_scale_in === true
+}
+
+function canAdvanceScaleIn(node: ManagerNode) {
+  return nodeJoinState(node) === "leaving" && node.actions?.can_scale_in === true
+}
+
+function canShowRowActionMenu(node: ManagerNode) {
+  return canStartScaleIn(node) || canAdvanceScaleIn(node)
+}
+
+function rowActionConfirmTitleId(action: RowLifecycleAction) {
+  switch (action) {
+    case "onboard":
+      return "nodes.rowAction.confirm.onboard.title"
+    case "scale-in-start":
+      return "nodes.lifecycle.confirm.markLeaving.title"
+    case "scale-in-drain":
+      return "nodes.lifecycle.confirm.drain.title"
+    case "scale-in-advance":
+      return "nodes.lifecycle.confirm.advanceScaleIn.title"
+    case "scale-in-remove":
+      return "nodes.lifecycle.confirm.remove.title"
+    case "activate":
+      return "nodes.lifecycle.activate"
+  }
+}
+
+function rowActionConfirmDescriptionId(action: RowLifecycleAction) {
+  switch (action) {
+    case "onboard":
+      return "nodes.rowAction.confirm.onboard.description"
+    case "scale-in-start":
+      return "nodes.lifecycle.confirm.markLeaving.description"
+    case "scale-in-drain":
+      return "nodes.lifecycle.confirm.drain.description"
+    case "scale-in-advance":
+      return "nodes.lifecycle.confirm.advanceScaleIn.description"
+    case "scale-in-remove":
+      return "nodes.lifecycle.confirm.remove.description"
+    case "activate":
+      return "nodes.lifecycle.activate"
+  }
+}
+
 function controllerRaftLink(intl: IntlShape, nodeId: number) {
   return (
     <Button asChild className="h-auto px-0" size="xs" variant="link">
@@ -241,6 +339,8 @@ function controllerRaftLink(intl: IntlShape, nodeId: number) {
 
 export function NodeClusterListPanel() {
   const intl = useIntl()
+  const permissions = useAuthStore((store) => store.permissions)
+  const canWriteNodes = useMemo(() => hasPermission(permissions, "cluster.node", "w"), [permissions])
   const [state, setState] = useState<NodesState>({
     nodes: null,
     loading: true,
@@ -252,11 +352,59 @@ export function NodeClusterListPanel() {
   const [detailLoading, setDetailLoading] = useState(false)
   const [detailError, setDetailError] = useState<Error | null>(null)
   const [lifecycleOpen, setLifecycleOpen] = useState(false)
-  const [lifecycleMode, setLifecycleMode] = useState<DynamicNodeLifecycleMode>("join")
-  const [lifecycleNode, setLifecycleNode] = useState<ManagerNode | null>(null)
+  const [rowActionPending, setRowActionPending] = useState<RowActionTarget | null>(null)
+  const [rowConfirmAction, setRowConfirmAction] = useState<RowActionTarget | null>(null)
+  const [rowActionError, setRowActionError] = useState<Error | null>(null)
+  const [rowOnboardingMoves, setRowOnboardingMoves] = useState("1")
+  const [onboardingStatusByNode, setOnboardingStatusByNode] = useState<Record<number, RowOnboardingStatusState>>({})
+  const onboardingStatusRequestSeq = useRef(0)
   const [promoteTarget, setPromoteTarget] = useState<ManagerNode | null>(null)
   const [promotePending, setPromotePending] = useState(false)
   const [promoteError, setPromoteError] = useState<string | undefined>(undefined)
+
+  const loadOnboardingStatuses = useCallback(async (nodes: ManagerNode[]) => {
+    const requestSeq = onboardingStatusRequestSeq.current + 1
+    onboardingStatusRequestSeq.current = requestSeq
+    const ids = nodes.filter(canOnboardNode).map((node) => node.node_id)
+    if (ids.length === 0) {
+      setOnboardingStatusByNode({})
+      return
+    }
+    setOnboardingStatusByNode((current) => {
+      const next: Record<number, RowOnboardingStatusState> = {}
+      for (const id of ids) {
+        next[id] = {
+          loading: true,
+          totalActive: current[id]?.totalActive ?? 0,
+          error: null,
+        }
+      }
+      return next
+    })
+    const results = await Promise.all(ids.map(async (id) => {
+      try {
+        const status = await getNodeOnboardingStatus(id)
+        return { id, totalActive: status.summary.total_active, error: null }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "node onboarding status failed"
+        return { id, totalActive: 0, error: message }
+      }
+    }))
+    if (onboardingStatusRequestSeq.current !== requestSeq) {
+      return
+    }
+    setOnboardingStatusByNode(() => {
+      const next: Record<number, RowOnboardingStatusState> = {}
+      for (const result of results) {
+        next[result.id] = {
+          loading: false,
+          totalActive: result.totalActive,
+          error: result.error,
+        }
+      }
+      return next
+    })
+  }, [])
 
   const loadNodes = useCallback(async (refreshing: boolean) => {
     setState((current) => ({
@@ -269,8 +417,11 @@ export function NodeClusterListPanel() {
     try {
       const nodes = await getNodes()
       setState({ nodes, loading: false, refreshing: false, error: null })
+      void loadOnboardingStatuses(nodes.items)
       return nodes
     } catch (error) {
+      onboardingStatusRequestSeq.current += 1
+      setOnboardingStatusByNode({})
       setState({
         nodes: null,
         loading: false,
@@ -279,7 +430,7 @@ export function NodeClusterListPanel() {
       })
       return null
     }
-  }, [])
+  }, [loadOnboardingStatuses])
 
   const loadNodeDetail = useCallback(async (nodeId: number) => {
     setDetailLoading(true)
@@ -318,33 +469,74 @@ export function NodeClusterListPanel() {
   }, [])
 
   const openJoinLifecycle = useCallback(() => {
-    setLifecycleMode("join")
-    setLifecycleNode(null)
-    setLifecycleOpen(true)
-  }, [])
-
-  const openNodeLifecycle = useCallback((node: ManagerNode) => {
-    setLifecycleMode("node")
-    setLifecycleNode(node)
     setLifecycleOpen(true)
   }, [])
 
   const refreshAfterLifecycleAction = useCallback(async () => {
-    const nodes = await loadNodes(true)
-    if (!nodes) {
-      setLifecycleNode(null)
-      setLifecycleOpen(false)
+    await loadNodes(true)
+  }, [loadNodes])
+
+  const runRowLifecycleAction = useCallback(async (target: RowActionTarget) => {
+    if (!canWriteNodes) {
+      return false
+    }
+    setRowActionError(null)
+    setRowActionPending(target)
+    try {
+      switch (target.action) {
+        case "activate":
+          await activateNode(target.node.node_id)
+          break
+        case "onboard":
+          {
+            const maxSlotMoves = parsePositiveSafeInteger(rowOnboardingMoves, 1)
+            if (maxSlotMoves === null) {
+              setRowActionError(new Error(intl.formatMessage({ id: "nodes.rowAction.invalidMoveCount" })))
+              return false
+            }
+            await startNodeOnboarding(target.node.node_id, { maxSlotMoves })
+          }
+          break
+        case "scale-in-start":
+          await startNodeScaleIn(target.node.node_id)
+          break
+        case "scale-in-drain":
+          await setNodeScaleInDrain(target.node.node_id, { draining: true })
+          break
+        case "scale-in-advance":
+          await advanceNodeScaleIn(target.node.node_id, { maxSlotMoves: 1 })
+          break
+        case "scale-in-remove":
+          await removeNodeAfterScaleIn(target.node.node_id)
+          break
+      }
+      await loadNodes(true)
+      return true
+    } catch (error) {
+      setRowActionError(error instanceof Error ? error : new Error("node lifecycle action failed"))
+      return false
+    } finally {
+      setRowActionPending(null)
+    }
+  }, [canWriteNodes, intl, loadNodes, rowOnboardingMoves])
+
+  const openRowConfirmAction = useCallback((target: RowActionTarget) => {
+    setRowActionError(null)
+    if (target.action === "onboard") {
+      setRowOnboardingMoves("1")
+    }
+    setRowConfirmAction(target)
+  }, [])
+
+  const confirmRowAction = useCallback(async () => {
+    if (!rowConfirmAction) {
       return
     }
-    if (!lifecycleNode) {
-      return
+    const completed = await runRowLifecycleAction(rowConfirmAction)
+    if (completed) {
+      setRowConfirmAction(null)
     }
-    const nextLifecycleNode = nodes.items.find((node) => node.node_id === lifecycleNode.node_id) ?? null
-    setLifecycleNode(nextLifecycleNode)
-    if (!nextLifecycleNode) {
-      setLifecycleOpen(false)
-    }
-  }, [lifecycleNode, loadNodes])
+  }, [rowConfirmAction, runRowLifecycleAction])
 
   const openPromoteControllerVoter = useCallback((node: ManagerNode) => {
     setPromoteTarget(node)
@@ -418,6 +610,11 @@ export function NodeClusterListPanel() {
           title={intl.formatMessage({ id: "nav.nodes.title" })}
         />
       ) : null}
+      {rowActionError && !state.error ? (
+        <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">
+          {rowActionError.message}
+        </div>
+      ) : null}
       {!state.loading && !state.error && state.nodes ? (
         <div className="rounded-xl border border-border bg-card p-3 shadow-none">
           {state.nodes.items.length > 0 ? (
@@ -439,6 +636,17 @@ export function NodeClusterListPanel() {
                   {state.nodes.items.map((node) => {
                     const healthStatus = nodeHealthStatus(node)
                     const healthEvidence = nodeHealthEvidenceText(intl, node)
+                    const currentJoinState = nodeJoinState(node)
+                    const rowActionDisabled = !canWriteNodes || rowActionPending !== null
+                    const pendingActivate = rowActionPending?.node.node_id === node.node_id &&
+                      rowActionPending.action === "activate"
+                    const pendingOnboard = rowActionPending?.node.node_id === node.node_id &&
+                      rowActionPending.action === "onboard"
+                    const pendingAdvanceScaleIn = rowActionPending?.node.node_id === node.node_id &&
+                      rowActionPending.action === "scale-in-advance"
+                    const onboardingStatus = onboardingStatusByNode[node.node_id]
+                    const onboardingInProgress = (onboardingStatus?.totalActive ?? 0) > 0
+                    const onboardingStatusLoading = onboardingStatus?.loading === true
                     return (
                       <tr className="border-t border-border" key={node.node_id}>
                         <td className="px-3 py-3 text-sm font-medium text-foreground">
@@ -483,23 +691,126 @@ export function NodeClusterListPanel() {
                         </td>
                         <td className="px-3 py-3 text-sm text-foreground">
                           <div className="flex items-center gap-2">
-                            <Button
-                              aria-label={intl.formatMessage(
-                                { id: "nodes.lifecycle.openForNode" },
-                                { id: node.node_id },
-                              )}
-                              onClick={() => openNodeLifecycle(node)}
-                              size="sm"
-                              variant="outline"
-                            >
-                              {intl.formatMessage({ id: "nodes.lifecycle.title" })}
-                            </Button>
+                            {currentJoinState === "joining" ? (
+                              <Button
+                                aria-label={intl.formatMessage(
+                                  { id: "nodes.rowAction.activateForNode" },
+                                  { id: node.node_id },
+                                )}
+                                disabled={rowActionDisabled}
+                                onClick={() => {
+                                  void runRowLifecycleAction({ action: "activate", node })
+                                }}
+                                size="sm"
+                              >
+                                {pendingActivate
+                                  ? intl.formatMessage({ id: "common.refreshing" })
+                                  : intl.formatMessage({ id: "nodes.rowAction.activate" })}
+                              </Button>
+                            ) : null}
+                            {canOnboardNode(node) ? (
+                              <Button
+                                aria-label={intl.formatMessage(
+                                  { id: "nodes.rowAction.onboardForNode" },
+                                  { id: node.node_id },
+                                )}
+                                disabled={rowActionDisabled || onboardingStatusLoading || onboardingInProgress}
+                                onClick={() => openRowConfirmAction({ action: "onboard", node })}
+                                size="sm"
+                              >
+                                {onboardingInProgress
+                                  ? intl.formatMessage({ id: "nodes.rowAction.onboardingInProgress" })
+                                  : pendingOnboard || onboardingStatusLoading
+                                    ? intl.formatMessage({ id: "common.refreshing" })
+                                    : intl.formatMessage({ id: "nodes.rowAction.onboard" })}
+                              </Button>
+                            ) : null}
+                            {canAdvanceScaleIn(node) ? (
+                              <Button
+                                aria-label={intl.formatMessage(
+                                  { id: "nodes.rowAction.advanceScaleInForNode" },
+                                  { id: node.node_id },
+                                )}
+                                disabled={rowActionDisabled}
+                                onClick={() => openRowConfirmAction({ action: "scale-in-advance", node })}
+                                size="sm"
+                              >
+                                {pendingAdvanceScaleIn
+                                  ? intl.formatMessage({ id: "common.refreshing" })
+                                  : intl.formatMessage({ id: "nodes.rowAction.advanceScaleIn" })}
+                              </Button>
+                            ) : null}
+                            {canShowRowActionMenu(node) ? (
+                              <details className="relative">
+                                <summary
+                                  aria-label={intl.formatMessage(
+                                    { id: "nodes.rowAction.moreForNode" },
+                                    { id: node.node_id },
+                                  )}
+                                  className="inline-flex size-7 cursor-pointer list-none items-center justify-center rounded-lg border border-border bg-background text-muted-foreground transition-colors hover:bg-muted hover:text-foreground [&::-webkit-details-marker]:hidden"
+                                  role="button"
+                                >
+                                  <MoreHorizontalIcon aria-hidden="true" className="size-4" />
+                                </summary>
+                                <div className="absolute right-0 z-20 mt-1 flex min-w-44 flex-col gap-1 rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-lg">
+                                  {canStartScaleIn(node) ? (
+                                    <Button
+                                      aria-label={intl.formatMessage(
+                                        { id: "nodes.rowAction.startScaleInForNode" },
+                                        { id: node.node_id },
+                                      )}
+                                      className="w-full justify-start"
+                                      disabled={rowActionDisabled}
+                                      onClick={() => openRowConfirmAction({ action: "scale-in-start", node })}
+                                      size="sm"
+                                      type="button"
+                                      variant="ghost"
+                                    >
+                                      {intl.formatMessage({ id: "nodes.rowAction.startScaleIn" })}
+                                    </Button>
+                                  ) : null}
+                                  {canAdvanceScaleIn(node) ? (
+                                    <>
+                                      <Button
+                                        aria-label={intl.formatMessage(
+                                          { id: "nodes.rowAction.enableDrainForNode" },
+                                          { id: node.node_id },
+                                        )}
+                                        className="w-full justify-start"
+                                        disabled={rowActionDisabled}
+                                        onClick={() => openRowConfirmAction({ action: "scale-in-drain", node })}
+                                        size="sm"
+                                        type="button"
+                                        variant="ghost"
+                                      >
+                                        {intl.formatMessage({ id: "nodes.rowAction.enableDrain" })}
+                                      </Button>
+                                      <Button
+                                        aria-label={intl.formatMessage(
+                                          { id: "nodes.rowAction.removeForNode" },
+                                          { id: node.node_id },
+                                        )}
+                                        className="w-full justify-start"
+                                        disabled={rowActionDisabled}
+                                        onClick={() => openRowConfirmAction({ action: "scale-in-remove", node })}
+                                        size="sm"
+                                        type="button"
+                                        variant="ghost"
+                                      >
+                                        {intl.formatMessage({ id: "nodes.rowAction.remove" })}
+                                      </Button>
+                                    </>
+                                  ) : null}
+                                </div>
+                              </details>
+                            ) : null}
                             {canPromoteControllerVoter(node) ? (
                               <Button
                                 aria-label={intl.formatMessage(
                                   { id: "nodes.action.promoteControllerVoterForNode" },
                                   { id: node.node_id },
                                 )}
+                                disabled={!canWriteNodes}
                                 onClick={() => openPromoteControllerVoter(node)}
                                 size="sm"
                                 variant="outline"
@@ -536,12 +847,57 @@ export function NodeClusterListPanel() {
 
 
       <DynamicNodeLifecycleSheet
-        mode={lifecycleMode}
-        node={lifecycleNode}
+        mode="join"
+        node={null}
         onCompleted={refreshAfterLifecycleAction}
         onOpenChange={setLifecycleOpen}
         open={lifecycleOpen}
       />
+
+      <ConfirmDialog
+        confirmLabel={intl.formatMessage({ id: "common.confirm" })}
+        description={rowConfirmAction
+          ? intl.formatMessage(
+            { id: rowActionConfirmDescriptionId(rowConfirmAction.action) },
+            { id: rowConfirmAction.node.node_id },
+          )
+          : ""}
+        error={rowActionError?.message}
+        onConfirm={() => {
+          void confirmRowAction()
+        }}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) {
+            setRowConfirmAction(null)
+            setRowActionError(null)
+          }
+        }}
+        open={rowConfirmAction !== null}
+        pending={rowActionPending !== null}
+        title={rowConfirmAction
+          ? intl.formatMessage(
+            { id: rowActionConfirmTitleId(rowConfirmAction.action) },
+            { id: rowConfirmAction.node.node_id },
+          )
+          : ""}
+      >
+        {rowConfirmAction?.action === "onboard" ? (
+          <label className="block text-sm font-medium text-foreground">
+            {intl.formatMessage({ id: "nodes.rowAction.moveCountLabel" })}
+            <input
+              aria-label={intl.formatMessage({ id: "nodes.rowAction.moveCountLabel" })}
+              className="mt-1 h-9 w-full rounded-md border border-border bg-background px-3 text-sm"
+              min={1}
+              onChange={(event) => setRowOnboardingMoves(event.target.value)}
+              type="number"
+              value={rowOnboardingMoves}
+            />
+            <span className="mt-1 block text-xs font-normal text-muted-foreground">
+              {intl.formatMessage({ id: "nodes.rowAction.moveCountHelp" })}
+            </span>
+          </label>
+        ) : null}
+      </ConfirmDialog>
 
       <ConfirmDialog
         confirmLabel={intl.formatMessage({ id: "nodes.promoteControllerVoter.confirm" })}

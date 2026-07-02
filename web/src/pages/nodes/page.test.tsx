@@ -11,7 +11,13 @@ import { NodesPage } from "@/pages/nodes/page"
 
 const getNodesMock = vi.fn()
 const getNodeMock = vi.fn()
+const activateNodeMock = vi.fn()
+const startNodeOnboardingMock = vi.fn()
+const getNodeOnboardingStatusMock = vi.fn()
 const startNodeScaleInMock = vi.fn()
+const setNodeScaleInDrainMock = vi.fn()
+const advanceNodeScaleInMock = vi.fn()
+const removeNodeAfterScaleInMock = vi.fn()
 const getControllerLogsMock = vi.fn()
 const getControllerRaftStatusMock = vi.fn()
 const compactControllerRaftLogOnNodeMock = vi.fn()
@@ -24,7 +30,13 @@ vi.mock("@/lib/manager-api", async (importOriginal) => {
     ...actual,
     getNodes: (...args: unknown[]) => getNodesMock(...args),
     getNode: (...args: unknown[]) => getNodeMock(...args),
+    activateNode: (...args: unknown[]) => activateNodeMock(...args),
+    startNodeOnboarding: (...args: unknown[]) => startNodeOnboardingMock(...args),
+    getNodeOnboardingStatus: (...args: unknown[]) => getNodeOnboardingStatusMock(...args),
     startNodeScaleIn: (...args: unknown[]) => startNodeScaleInMock(...args),
+    setNodeScaleInDrain: (...args: unknown[]) => setNodeScaleInDrainMock(...args),
+    advanceNodeScaleIn: (...args: unknown[]) => advanceNodeScaleInMock(...args),
+    removeNodeAfterScaleIn: (...args: unknown[]) => removeNodeAfterScaleInMock(...args),
     getControllerLogs: (...args: unknown[]) => getControllerLogsMock(...args),
     getControllerRaftStatus: (...args: unknown[]) => getControllerRaftStatusMock(...args),
     compactControllerRaftLogOnNode: (...args: unknown[]) => compactControllerRaftLogOnNodeMock(...args),
@@ -147,7 +159,14 @@ beforeEach(() => {
   resetLocale()
   getNodesMock.mockReset()
   getNodeMock.mockReset()
+  activateNodeMock.mockReset()
+  startNodeOnboardingMock.mockReset()
+  getNodeOnboardingStatusMock.mockReset()
+  getNodeOnboardingStatusMock.mockResolvedValue(onboardingStatus(0))
   startNodeScaleInMock.mockReset()
+  setNodeScaleInDrainMock.mockReset()
+  advanceNodeScaleInMock.mockReset()
+  removeNodeAfterScaleInMock.mockReset()
   getControllerLogsMock.mockReset()
   getControllerRaftStatusMock.mockReset()
   compactControllerRaftLogOnNodeMock.mockReset()
@@ -167,6 +186,16 @@ beforeEach(() => {
     ],
   })
 })
+
+function onboardingStatus(totalActive: number) {
+  return {
+    generated_at: "2026-07-01T08:00:00Z",
+    state_revision: 42,
+    target_node_id: 1,
+    summary: { total_active: totalActive, pending: totalActive, running: 0, failed: 0 },
+    tasks: [],
+  }
+}
 
 function renderNodesPage(path = "/cluster/nodes?tab=list") {
   return render(
@@ -281,6 +310,7 @@ test("renders layered node inventory fields and lifecycle row actions", async ()
       actions: { ...nodeRow.actions, can_drain: false },
     }],
   })
+  const user = userEvent.setup()
 
   renderNodesPage()
 
@@ -291,12 +321,55 @@ test("renders layered node inventory fields and lifecycle row actions", async ()
   expect(screen.getByText("controller voter")).toBeInTheDocument()
   expect(screen.getByText("replicas 3 / leaders 2 / followers 1")).toBeInTheDocument()
   expect(screen.getByText("sessions 5 / online 4")).toBeInTheDocument()
-  expect(screen.getByRole("button", { name: "Open lifecycle for node 1" })).toBeInTheDocument()
   expect(screen.getByRole("button", { name: "Inspect node 1" })).toBeInTheDocument()
+  expect(screen.getByRole("button", { name: "More actions for node 1" })).toBeInTheDocument()
+  await user.click(screen.getByRole("button", { name: "More actions for node 1" }))
+  expect(screen.getByRole("button", { name: "Start scale-in for node 1" })).toBeInTheDocument()
   expect(screen.queryByRole("button", { name: "Set node 1 as Controller voter" })).not.toBeInTheDocument()
   expect(screen.queryByRole("button", { name: "Drain" })).not.toBeInTheDocument()
   expect(screen.queryByRole("button", { name: "Resume" })).not.toBeInTheDocument()
   expect(screen.queryByRole("button", { name: "Review scale-in for node 1" })).not.toBeInTheDocument()
+})
+
+test("renders lifecycle actions directly in node rows by state", async () => {
+  const joiningNode = {
+    ...nodeRow,
+    node_id: 4,
+    name: "node-4",
+    addr: "127.0.0.1:7004",
+    membership: { role: "data", join_state: "joining", schedulable: false },
+    actions: { ...nodeRow.actions, can_onboard: false, can_scale_in: false },
+  }
+  const onboardNode = {
+    ...nodeRow,
+    node_id: 5,
+    name: "node-5",
+    addr: "127.0.0.1:7005",
+    actions: { ...nodeRow.actions, can_onboard: true, can_scale_in: true },
+  }
+  const leavingNode = {
+    ...nodeRow,
+    node_id: 6,
+    name: "node-6",
+    addr: "127.0.0.1:7006",
+    membership: { role: "data", join_state: "leaving", schedulable: false },
+    actions: { ...nodeRow.actions, can_onboard: false, can_scale_in: true },
+  }
+  getNodesMock.mockResolvedValueOnce({
+    generated_at: "2026-07-01T08:00:00Z",
+    controller_leader_id: 1,
+    total: 3,
+    items: [joiningNode, onboardNode, leavingNode],
+  })
+
+  renderNodesPage()
+
+  expect(await screen.findByText("127.0.0.1:7004")).toBeInTheDocument()
+  expect(screen.getByRole("button", { name: "Activate node 4" })).toBeInTheDocument()
+  expect(screen.getByRole("button", { name: "Move slots in for node 5" })).toBeInTheDocument()
+  expect(screen.getByRole("button", { name: "Advance scale-in for node 6" })).toBeInTheDocument()
+  expect(screen.queryByRole("button", { name: "Start scale-in for node 4" })).not.toBeInTheDocument()
+  expect(screen.queryByRole("button", { name: "Open lifecycle for node 4" })).not.toBeInTheDocument()
 })
 
 test("shows Controller voter promotion only for eligible non-voter node rows", async () => {
@@ -587,7 +660,7 @@ test("shows an unavailable state when the manager node list is unavailable", asy
   expect(await screen.findByText(/currently unavailable/i)).toBeInTheDocument()
 })
 
-test("opens lifecycle sheets from the nodes page entry points", async () => {
+test("opens the add-node lifecycle sheet from the toolbar only", async () => {
   getNodesMock.mockResolvedValueOnce({
     generated_at: "2026-04-23T08:00:01Z",
     controller_leader_id: 1,
@@ -605,31 +678,172 @@ test("opens lifecycle sheets from the nodes page entry points", async () => {
   expect(within(dialog).getByLabelText("Node ID")).toBeInTheDocument()
 
   await user.click(within(dialog).getByRole("button", { name: "Close" }))
-  await user.click(screen.getByRole("button", { name: "Open lifecycle for node 1" }))
-
-  dialog = screen.getByRole("dialog", { name: "Node lifecycle" })
-  expect(within(dialog).getByText("Node 1")).toBeInTheDocument()
-  expect(within(dialog).getByText("127.0.0.1:7000")).toBeInTheDocument()
+  expect(screen.queryByRole("button", { name: "Open lifecycle for node 1" })).not.toBeInTheDocument()
 })
 
-test("opens lifecycle sheet from an active node row", async () => {
-  getNodesMock.mockResolvedValueOnce({
-    generated_at: "2026-07-01T08:00:00Z",
-    controller_leader_id: 1,
-    total: 1,
-    items: [nodeRow],
+test("activates a joining node directly from the row and refreshes the list", async () => {
+  const joiningNode = {
+    ...nodeRow,
+    node_id: 4,
+    name: "node-4",
+    addr: "127.0.0.1:7004",
+    membership: { role: "data", join_state: "joining", schedulable: false },
+    actions: { ...nodeRow.actions, can_onboard: false, can_scale_in: false },
+  }
+  const activeNode = {
+    ...joiningNode,
+    membership: { role: "data", join_state: "active", schedulable: true },
+    actions: { ...nodeRow.actions, can_onboard: true, can_scale_in: true },
+  }
+  getNodesMock
+    .mockResolvedValueOnce({
+      generated_at: "2026-07-01T08:00:00Z",
+      controller_leader_id: 1,
+      total: 1,
+      items: [joiningNode],
+    })
+    .mockResolvedValueOnce({
+      generated_at: "2026-07-01T08:00:01Z",
+      controller_leader_id: 1,
+      total: 1,
+      items: [activeNode],
+    })
+  activateNodeMock.mockResolvedValueOnce({
+    changed: true,
+    node_id: 4,
+    addr: "127.0.0.1:7004",
+    join_state: "active",
+    revision: 49,
+  })
+
+  const user = userEvent.setup()
+  renderNodesPage()
+
+  expect(await screen.findByText("127.0.0.1:7004")).toBeInTheDocument()
+  await user.click(screen.getByRole("button", { name: "Activate node 4" }))
+
+  expect(activateNodeMock).toHaveBeenCalledWith(4)
+  await waitFor(() => {
+    expect(screen.getByRole("button", { name: "Move slots in for node 4" })).toBeInTheDocument()
+  })
+})
+
+test("starts onboarding from the row with a user-specified move count", async () => {
+  const onboardNode = {
+    ...nodeRow,
+    actions: { ...nodeRow.actions, can_onboard: true, can_scale_in: true },
+  }
+  getNodesMock
+    .mockResolvedValueOnce({
+      generated_at: "2026-07-01T08:00:00Z",
+      controller_leader_id: 1,
+      total: 1,
+      items: [onboardNode],
+    })
+    .mockResolvedValueOnce({
+      generated_at: "2026-07-01T08:00:01Z",
+      controller_leader_id: 1,
+      total: 1,
+      items: [onboardNode],
+    })
+  startNodeOnboardingMock.mockResolvedValueOnce({
+    generated_at: "2026-07-01T08:00:01Z",
+    state_revision: 49,
+    target_node_id: 1,
+    max_slot_moves: 1,
+    created: 1,
+    results: [],
+    skipped: [],
   })
 
   const user = userEvent.setup()
   renderNodesPage()
 
   expect(await screen.findByText("127.0.0.1:7000")).toBeInTheDocument()
-  await user.click(screen.getByRole("button", { name: "Open lifecycle for node 1" }))
+  await user.click(screen.getByRole("button", { name: "Move slots in for node 1" }))
 
-  expect(await screen.findByRole("dialog", { name: "Node lifecycle" })).toBeInTheDocument()
+  expect(startNodeOnboardingMock).not.toHaveBeenCalled()
+  expect(await screen.findByText("Confirm move slots in")).toBeInTheDocument()
+  await user.clear(screen.getByLabelText("Slot move count"))
+  await user.type(screen.getByLabelText("Slot move count"), "3")
+  await user.click(screen.getByRole("button", { name: "Confirm" }))
+
+  expect(startNodeOnboardingMock).toHaveBeenCalledWith(1, { maxSlotMoves: 3 })
+  await waitFor(() => {
+    expect(getNodesMock).toHaveBeenCalledTimes(2)
+  })
 })
 
-test("refreshes the open lifecycle node after a lifecycle action completes", async () => {
+test("disables slot move-in while onboarding tasks are active", async () => {
+  const onboardNode = {
+    ...nodeRow,
+    actions: { ...nodeRow.actions, can_onboard: true, can_scale_in: true },
+  }
+  getNodeOnboardingStatusMock.mockResolvedValueOnce(onboardingStatus(1))
+  getNodesMock.mockResolvedValueOnce({
+    generated_at: "2026-07-01T08:00:00Z",
+    controller_leader_id: 1,
+    total: 1,
+    items: [onboardNode],
+  })
+
+  const user = userEvent.setup()
+  renderNodesPage()
+
+  const moveButton = await screen.findByRole("button", { name: "Move slots in for node 1" })
+  await waitFor(() => {
+    expect(moveButton).toBeDisabled()
+  })
+  await user.click(moveButton)
+
+  expect(screen.queryByText("Confirm move slots in")).not.toBeInTheDocument()
+  expect(startNodeOnboardingMock).not.toHaveBeenCalled()
+})
+
+test("ignores stale onboarding status responses after a newer node refresh", async () => {
+  const onboardNode = {
+    ...nodeRow,
+    actions: { ...nodeRow.actions, can_onboard: true, can_scale_in: true },
+  }
+  let resolveFirstStatus: ((value: ReturnType<typeof onboardingStatus>) => void) | undefined
+  getNodeOnboardingStatusMock
+    .mockImplementationOnce(() => new Promise((resolve) => {
+      resolveFirstStatus = resolve
+    }))
+    .mockResolvedValueOnce(onboardingStatus(0))
+  getNodesMock
+    .mockResolvedValueOnce({
+      generated_at: "2026-07-01T08:00:00Z",
+      controller_leader_id: 1,
+      total: 1,
+      items: [onboardNode],
+    })
+    .mockResolvedValueOnce({
+      generated_at: "2026-07-01T08:00:01Z",
+      controller_leader_id: 1,
+      total: 1,
+      items: [onboardNode],
+    })
+
+  const user = userEvent.setup()
+  renderNodesPage()
+
+  expect(await screen.findByText("127.0.0.1:7000")).toBeInTheDocument()
+  await user.click(screen.getByRole("button", { name: "Refresh" }))
+
+  const moveButton = await screen.findByRole("button", { name: "Move slots in for node 1" })
+  await waitFor(() => {
+    expect(moveButton).toBeEnabled()
+  })
+  resolveFirstStatus?.(onboardingStatus(1))
+
+  await waitFor(() => {
+    expect(screen.getByRole("button", { name: "Move slots in for node 1" })).toBeEnabled()
+  })
+  expect(screen.queryByText("Migrating")).not.toBeInTheDocument()
+})
+
+test("starts scale-in from the row actions menu and refreshes the list", async () => {
   const leavingNodeRow = {
     ...nodeRow,
     membership: { role: "data", join_state: "leaving", schedulable: false },
@@ -660,64 +874,19 @@ test("refreshes the open lifecycle node after a lifecycle action completes", asy
   renderNodesPage()
 
   expect(await screen.findByText("127.0.0.1:7000")).toBeInTheDocument()
-  await user.click(screen.getByRole("button", { name: "Open lifecycle for node 1" }))
-
-  const dialog = await screen.findByRole("dialog", { name: "Node lifecycle" })
-  expect(within(dialog).getByRole("button", { name: "Plan slot onboarding" })).toBeInTheDocument()
-
-  await user.click(within(dialog).getByRole("button", { name: "Mark leaving" }))
+  await user.click(screen.getByRole("button", { name: "More actions for node 1" }))
+  await user.click(screen.getByRole("button", { name: "Start scale-in for node 1" }))
 
   expect(startNodeScaleInMock).not.toHaveBeenCalled()
   expect(await screen.findByText("Confirm mark leaving")).toBeInTheDocument()
   await user.click(screen.getByRole("button", { name: "Confirm" }))
   expect(startNodeScaleInMock).toHaveBeenCalledWith(1)
   await waitFor(() => {
-    expect(within(dialog).queryByRole("button", { name: "Plan slot onboarding" })).not.toBeInTheDocument()
-  })
-  expect(within(dialog).getAllByText("leaving")).not.toHaveLength(0)
-})
-
-test("closes the open lifecycle sheet when the refreshed node is missing", async () => {
-  getNodesMock
-    .mockResolvedValueOnce({
-      generated_at: "2026-07-01T08:00:00Z",
-      controller_leader_id: 1,
-      total: 1,
-      items: [nodeRow],
-    })
-    .mockResolvedValueOnce({
-      generated_at: "2026-07-01T08:00:01Z",
-      controller_leader_id: 1,
-      total: 0,
-      items: [],
-    })
-  startNodeScaleInMock.mockResolvedValueOnce({
-    changed: true,
-    node_id: 1,
-    addr: "127.0.0.1:7000",
-    join_state: "leaving",
-    revision: 49,
-  })
-
-  const user = userEvent.setup()
-  renderNodesPage()
-
-  expect(await screen.findByText("127.0.0.1:7000")).toBeInTheDocument()
-  await user.click(screen.getByRole("button", { name: "Open lifecycle for node 1" }))
-
-  const dialog = await screen.findByRole("dialog", { name: "Node lifecycle" })
-  await user.click(within(dialog).getByRole("button", { name: "Mark leaving" }))
-
-  expect(startNodeScaleInMock).not.toHaveBeenCalled()
-  expect(await screen.findByText("Confirm mark leaving")).toBeInTheDocument()
-  await user.click(screen.getByRole("button", { name: "Confirm" }))
-  expect(startNodeScaleInMock).toHaveBeenCalledWith(1)
-  await waitFor(() => {
-    expect(screen.queryByRole("dialog", { name: "Node lifecycle" })).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Advance scale-in for node 1" })).toBeInTheDocument()
   })
 })
 
-test("closes the open lifecycle sheet when the post-action refresh fails", async () => {
+test("shows a row action error when the post-action refresh fails", async () => {
   getNodesMock
     .mockResolvedValueOnce({
       generated_at: "2026-07-01T08:00:00Z",
@@ -738,17 +907,12 @@ test("closes the open lifecycle sheet when the post-action refresh fails", async
   renderNodesPage()
 
   expect(await screen.findByText("127.0.0.1:7000")).toBeInTheDocument()
-  await user.click(screen.getByRole("button", { name: "Open lifecycle for node 1" }))
-
-  const dialog = await screen.findByRole("dialog", { name: "Node lifecycle" })
-  await user.click(within(dialog).getByRole("button", { name: "Mark leaving" }))
+  await user.click(screen.getByRole("button", { name: "More actions for node 1" }))
+  await user.click(screen.getByRole("button", { name: "Start scale-in for node 1" }))
 
   expect(startNodeScaleInMock).not.toHaveBeenCalled()
   expect(await screen.findByText("Confirm mark leaving")).toBeInTheDocument()
   await user.click(screen.getByRole("button", { name: "Confirm" }))
   expect(startNodeScaleInMock).toHaveBeenCalledWith(1)
   expect(await screen.findByText(/currently unavailable/i)).toBeInTheDocument()
-  await waitFor(() => {
-    expect(screen.queryByRole("dialog", { name: "Node lifecycle" })).not.toBeInTheDocument()
-  })
 })
