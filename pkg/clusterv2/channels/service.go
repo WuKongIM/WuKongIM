@@ -517,7 +517,8 @@ func retryableMetaCacheError(err error) bool {
 		channelErrorMatches(err, ch.ErrChannelNotFound) ||
 		channelErrorMatches(err, ch.ErrNotLeader) ||
 		channelErrorMatches(err, ch.ErrNotReplica) ||
-		channelErrorMatches(err, ch.ErrNotReady)
+		channelErrorMatches(err, ch.ErrNotReady) ||
+		channelErrorMatches(err, ch.ErrWriteFenced)
 }
 
 func channelErrorMatches(err error, sentinel error) bool {

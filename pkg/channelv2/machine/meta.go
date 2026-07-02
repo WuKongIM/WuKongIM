@@ -20,6 +20,7 @@ func (s *ChannelState) ApplyMeta(meta ch.Meta) Decision {
 	if meta.RetentionThroughSeq > s.RetentionThroughSeq {
 		s.RetentionThroughSeq = meta.RetentionThroughSeq
 	}
+	s.WriteFence = meta.WriteFence
 	s.Status = meta.Status
 	if meta.Status == ch.StatusDeleted {
 		s.CommitReady = false

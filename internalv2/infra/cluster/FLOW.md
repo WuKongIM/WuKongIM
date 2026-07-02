@@ -139,6 +139,10 @@ are cloned before entering `channelv2`, and inbound result payloads are cloned
 unless the channelappend runtime marks them unnecessary for SENDACK-only flows.
 Commit mode, expected authority epoch fences, and typed errors are mapped at
 this boundary so the channelappend runtime stays cluster-agnostic.
+`channelv2.ErrWriteFenced` is treated as a retryable route-not-ready condition:
+the durable control-plane fence owns the decision, and upper send orchestration
+should retry after metadata refresh or migration completion rather than treating
+the write as a permanent append failure.
 The adapter records channel append sendtrace events only when tracing is enabled
 and the request carries trace metadata, so untraced appends do not pay extra
 timing or event-allocation cost.

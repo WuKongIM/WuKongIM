@@ -57,3 +57,33 @@ func TestApplyMetaLeaderEpochChangeClearsAppendStateWithoutReplies(t *testing.T)
 	require.NoError(t, next.Err)
 	require.Len(t, next.Tasks, 1)
 }
+
+func TestApplyMetaCopiesWriteFenceWithoutClearingInflight(t *testing.T) {
+	state := leaderState(t, 1, []ch.NodeID{1, 2, 3}, []ch.NodeID{1, 2, 3}, 2)
+	state.PendingAppends[1] = &AppendWaiter{OpID: 1}
+	state.InflightAppend = &AppendOp{OpID: 2}
+
+	meta := ch.Meta{
+		Key:         state.Key,
+		ID:          state.ID,
+		Epoch:       state.Epoch,
+		LeaderEpoch: state.LeaderEpoch,
+		Leader:      state.Leader,
+		Replicas:    []ch.NodeID{1, 2, 3},
+		ISR:         []ch.NodeID{1, 2, 3},
+		MinISR:      2,
+		Status:      ch.StatusActive,
+		WriteFence: ch.WriteFence{
+			Token:   "migration-1",
+			Version: 7,
+			Reason:  ch.WriteFenceReasonLeaderTransfer,
+		},
+	}
+
+	decision := state.ApplyMeta(meta)
+
+	require.NoError(t, decision.Err)
+	require.Equal(t, meta.WriteFence, state.WriteFence)
+	require.Len(t, state.PendingAppends, 1)
+	require.NotNil(t, state.InflightAppend)
+}

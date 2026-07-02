@@ -47,6 +47,29 @@ const (
 	CommitModeLocal
 )
 
+// WriteFenceReason identifies the control-plane operation that is blocking new writes.
+type WriteFenceReason uint8
+
+const (
+	WriteFenceReasonUnknown WriteFenceReason = iota
+	WriteFenceReasonLeaderTransfer
+	WriteFenceReasonReplicaReplace
+	WriteFenceReasonFailover
+)
+
+// WriteFence is durable control-plane metadata that prevents new leader appends.
+type WriteFence struct {
+	Token   string
+	Version uint64
+	Reason  WriteFenceReason
+	Until   time.Time
+}
+
+// Set reports whether the authoritative metadata currently fences writes.
+func (f WriteFence) Set() bool {
+	return f.Token != "" && f.Version != 0
+}
+
 // Meta is the authoritative control-plane projection for a channel.
 type Meta struct {
 	// Key is the channel runtime key. If empty, service may derive it from ID.
@@ -69,6 +92,8 @@ type Meta struct {
 	LeaseUntil time.Time
 	// RetentionThroughSeq is the highest sequence hidden by authoritative compaction.
 	RetentionThroughSeq uint64
+	// WriteFence blocks new leader appends while control-plane migration is active.
+	WriteFence WriteFence
 	// Status controls local serving behavior.
 	Status Status
 }

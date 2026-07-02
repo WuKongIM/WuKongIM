@@ -36,8 +36,8 @@ sequenceDiagram
     end
     Service->>Reactor: submit append event
     Note over Service,Reactor: runtime_append_submit observes mailbox admission
-    Reactor->>Reactor: validate leader, epoch, capacity
-    alt not leader, stale meta, or queue full
+    Reactor->>Reactor: validate leader, write fence, epoch, capacity
+    alt not leader, write fenced, stale meta, or queue full
         Reactor-->>Service: complete future with typed error
         Service-->>Caller: error
     else accepted
@@ -134,6 +134,11 @@ failure, and RPC latency path.
 Append callers may set `OmitResultPayload` when they only need assigned message
 ids and sequences; the leader then avoids cloning payload bytes into successful
 append replies.
+Authoritative metadata may also carry a durable channel write fence. A fenced
+leader rejects new append admission with `ErrWriteFenced`; already accepted
+in-flight append bookkeeping is not cleared by the fence-only metadata update
+so migration executors can drain it explicitly before changing leadership or
+membership.
 Append callers may also carry `TraceID`, diagnostics `ChannelKey`, per-message
 trace metadata, and `Attempt` through `AppendBatchRequest`. These fields are
 transient diagnostics data for sendtrace and RPC forwarding only. The reactor

@@ -13,6 +13,8 @@ var (
 	ErrNotReady = errors.New("channelv2: not ready")
 	// ErrStaleMeta reports that a request was fenced by newer channel metadata.
 	ErrStaleMeta = errors.New("channelv2: stale meta")
+	// ErrWriteFenced reports that durable control-plane metadata is blocking new writes.
+	ErrWriteFenced = errors.New("channelv2: write fenced")
 	// ErrChannelNotFound reports that a channel is unknown or deleted locally.
 	ErrChannelNotFound = errors.New("channelv2: channel not found")
 	// ErrNotReplica reports that the local or requesting node is outside the channel replica set.

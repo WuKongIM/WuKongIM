@@ -149,6 +149,8 @@ type ChannelState struct {
 	CheckpointHW uint64
 	// RetentionThroughSeq is the authoritative logical compaction boundary.
 	RetentionThroughSeq uint64
+	// WriteFence is the durable control-plane write fence applied to this channel.
+	WriteFence ch.WriteFence
 	// LocalRetentionThroughSeq is the local store-adopted logical boundary.
 	LocalRetentionThroughSeq uint64
 	// PhysicalRetentionThroughSeq is the highest locally deleted message sequence.

@@ -27,7 +27,7 @@ func mapAppendError(err error) error {
 		return fmt.Errorf("%w: %w", channelappend.ErrChannelNotFound, err)
 	case appendErrorMatches(err, channelv2.ErrBackpressured):
 		return fmt.Errorf("%w: %w", channelappend.ErrBackpressured, err)
-	case errors.Is(err, clusterv2.ErrRouteNotReady), errors.Is(err, clusterv2.ErrNoSlotLeader), appendErrorMatches(err, channelv2.ErrNotReady):
+	case errors.Is(err, clusterv2.ErrRouteNotReady), errors.Is(err, clusterv2.ErrNoSlotLeader), appendErrorMatches(err, channelv2.ErrNotReady), appendErrorMatches(err, channelv2.ErrWriteFenced):
 		return fmt.Errorf("%w: %w", channelappend.ErrRouteNotReady, err)
 	default:
 		return fmt.Errorf("%w: %w", channelappend.ErrAppendFailed, err)

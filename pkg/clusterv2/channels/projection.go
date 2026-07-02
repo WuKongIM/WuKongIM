@@ -20,6 +20,17 @@ func projectRuntimeMeta(meta metadb.ChannelRuntimeMeta) ch.Meta {
 	if meta.LeaseUntilMS > 0 {
 		leaseUntil = time.UnixMilli(meta.LeaseUntilMS).UTC()
 	}
+	var writeFence ch.WriteFence
+	if meta.WriteFenceToken != "" || meta.WriteFenceVersion != 0 || meta.WriteFenceReason != 0 || meta.WriteFenceUntilMS != 0 {
+		writeFence = ch.WriteFence{
+			Token:   meta.WriteFenceToken,
+			Version: meta.WriteFenceVersion,
+			Reason:  ch.WriteFenceReason(meta.WriteFenceReason),
+		}
+		if meta.WriteFenceUntilMS > 0 {
+			writeFence.Until = time.UnixMilli(meta.WriteFenceUntilMS).UTC()
+		}
+	}
 	return ch.Meta{
 		Key:                 ch.ChannelKeyForID(id),
 		ID:                  id,
@@ -31,6 +42,7 @@ func projectRuntimeMeta(meta metadb.ChannelRuntimeMeta) ch.Meta {
 		MinISR:              int(meta.MinISR),
 		LeaseUntil:          leaseUntil,
 		RetentionThroughSeq: meta.RetentionThroughSeq,
+		WriteFence:          writeFence,
 		Status:              ch.Status(meta.Status),
 	}
 }
