@@ -287,3 +287,72 @@ func TestManagerV2ColdToHotPromotion(t *testing.T) {
 		t.Error("entry still in cold cache after promotion")
 	}
 }
+
+func TestManagerV2ListActiveViewBasic(t *testing.T) {
+	ctx := context.Background()
+	m := NewManagerV2(Options{})
+
+	// 添加热数据
+	patches := []ActivePatch{
+		{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "hot1", ChannelType: 2, ActiveAtMS: 3000},
+		{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "hot2", ChannelType: 2, ActiveAtMS: 2000},
+	}
+	m.MarkActive(ctx, patches)
+
+	// 添加冷数据
+	m.cold.set(ActivePatch{
+		UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "cold1", ChannelType: 2, ActiveAtMS: 1000,
+	})
+
+	// 查询
+	page, err := m.ListActiveView(ctx, metadb.ConversationKindNormal, "u1",
+		metadb.ConversationActiveCursor{}, 10)
+	if err != nil {
+		t.Fatalf("ListActiveView error: %v", err)
+	}
+
+	// 验证返回了所有数据
+	if len(page.Rows) != 3 {
+		t.Fatalf("got %d rows, want 3", len(page.Rows))
+	}
+
+	// 验证按 ActiveAt 降序排序
+	if page.Rows[0].ActiveAt < page.Rows[1].ActiveAt {
+		t.Error("rows not sorted by ActiveAt descending")
+	}
+	if page.Rows[1].ActiveAt < page.Rows[2].ActiveAt {
+		t.Error("rows not sorted by ActiveAt descending")
+	}
+}
+
+func TestManagerV2ListActiveViewPagination(t *testing.T) {
+	ctx := context.Background()
+	m := NewManagerV2(Options{})
+
+	// 添加多个会话
+	for i := 0; i < 20; i++ {
+		patch := ActivePatch{
+			UID:         "u1",
+			Kind:        metadb.ConversationKindNormal,
+			ChannelID:   fmt.Sprintf("ch%d", i),
+			ChannelType: 2,
+			ActiveAtMS:  int64(1000 + i),
+		}
+		m.MarkActive(ctx, []ActivePatch{patch})
+	}
+
+	// 查询第一页（限制 10 条）
+	page, err := m.ListActiveView(ctx, metadb.ConversationKindNormal, "u1",
+		metadb.ConversationActiveCursor{}, 10)
+	if err != nil {
+		t.Fatalf("ListActiveView error: %v", err)
+	}
+
+	// 验证分页
+	if len(page.Rows) != 10 {
+		t.Errorf("got %d rows, want 10", len(page.Rows))
+	}
+	if page.Done {
+		t.Error("page.Done should be false (more data available)")
+	}
+}

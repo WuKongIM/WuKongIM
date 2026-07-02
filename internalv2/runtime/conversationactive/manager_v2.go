@@ -2,8 +2,11 @@ package conversationactive
 
 import (
 	"context"
+	"fmt"
 	"sync/atomic"
 	"time"
+
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
 const defaultNumShards = 16
@@ -204,4 +207,134 @@ func (m *ManagerV2) SignalFlush() {
 	if m.flushWorker != nil {
 		m.flushWorker.Signal()
 	}
+}
+
+// ListActiveView 查询活跃会话列表（三路合并：热+冷+DB）
+func (m *ManagerV2) ListActiveView(ctx context.Context, kind metadb.ConversationKind, uid string, after metadb.ConversationActiveCursor, limit int) (ActiveViewPage, error) {
+	var allRows []metadb.ConversationState
+
+	// 1. 从热缓存收集
+	hotRows := m.collectFromHot(uid, kind)
+	allRows = append(allRows, hotRows...)
+
+	// 2. 从冷缓存收集
+	coldRows := m.collectFromCold(uid, kind)
+	allRows = append(allRows, coldRows...)
+
+	// 3. 从 DB 收集（如果有 store）
+	if m.store != nil {
+		dbRows, _, _, err := m.store.ListConversationActivePage(ctx, kind, uid, after, limit*2)
+		if err == nil {
+			allRows = append(allRows, dbRows...)
+		}
+	}
+
+	// 去重和排序（按 ActiveAt 降序）
+	allRows = m.deduplicateAndSort(allRows)
+
+	// 分页
+	if len(allRows) > limit {
+		allRows = allRows[:limit]
+	}
+
+	// 构造返回结果
+	var cursor metadb.ConversationActiveCursor
+	done := len(allRows) < limit
+	if len(allRows) > 0 {
+		last := allRows[len(allRows)-1]
+		cursor = metadb.ConversationActiveCursor{
+			ActiveAt:    last.ActiveAt,
+			ChannelID:   last.ChannelID,
+			ChannelType: last.ChannelType,
+		}
+	}
+
+	return ActiveViewPage{
+		Rows:   allRows,
+		Cursor: cursor,
+		Done:   done,
+	}, nil
+}
+
+func (m *ManagerV2) collectFromHot(uid string, kind metadb.ConversationKind) []metadb.ConversationState {
+	var rows []metadb.ConversationState
+
+	// 遍历所有分片查找该用户的数据
+	for _, shard := range m.hot.shards {
+		shard.mu.RLock()
+		byChannel := shard.entries[uid]
+		if byChannel != nil {
+			for key, entry := range byChannel {
+				if key.kind == kind {
+					rows = append(rows, metadb.ConversationState{
+						UID:         uid,
+						Kind:        kind,
+						ChannelID:   key.channelID,
+						ChannelType: int64(key.channelType),
+						ActiveAt:    entry.patch.ActiveAtMS,
+						ReadSeq:     entry.patch.ReadSeq,
+					})
+				}
+			}
+		}
+		shard.mu.RUnlock()
+	}
+
+	return rows
+}
+
+func (m *ManagerV2) collectFromCold(uid string, kind metadb.ConversationKind) []metadb.ConversationState {
+	var rows []metadb.ConversationState
+
+	m.cold.mu.RLock()
+	defer m.cold.mu.RUnlock()
+
+	for addr, patch := range m.cold.entries {
+		if addr.uid == uid && addr.key.kind == kind {
+			rows = append(rows, metadb.ConversationState{
+				UID:         uid,
+				Kind:        kind,
+				ChannelID:   addr.key.channelID,
+				ChannelType: int64(addr.key.channelType),
+				ActiveAt:    patch.ActiveAtMS,
+				ReadSeq:     patch.ReadSeq,
+			})
+		}
+	}
+
+	return rows
+}
+
+func (m *ManagerV2) deduplicateAndSort(rows []metadb.ConversationState) []metadb.ConversationState {
+	if len(rows) == 0 {
+		return rows
+	}
+
+	// 去重：使用 map 保留最新的
+	unique := make(map[string]metadb.ConversationState)
+	for _, row := range rows {
+		key := fmt.Sprintf("%s|%s|%d", row.UID, row.ChannelID, row.ChannelType)
+
+		existing, ok := unique[key]
+		if !ok || row.ActiveAt > existing.ActiveAt {
+			unique[key] = row
+		}
+	}
+
+	// 转换回切片
+	result := make([]metadb.ConversationState, 0, len(unique))
+	for _, row := range unique {
+		result = append(result, row)
+	}
+
+	// 按 ActiveAt 降序排序（冒泡排序，简化实现）
+	for i := 0; i < len(result); i++ {
+		for j := i + 1; j < len(result); j++ {
+			if result[i].ActiveAt < result[j].ActiveAt {
+				result[i], result[j] = result[j], result[i]
+			}
+		}
+	}
+
+	return result
 }
