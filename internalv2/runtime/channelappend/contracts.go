@@ -157,7 +157,7 @@ type PushResult = contract.PushResult
 var (
 	// ErrNotChannelAuthority reports that the local node is not the channel authority.
 	ErrNotChannelAuthority = contract.ErrNotChannelAuthority
-	// ErrBackpressured reports bounded runtime pressure or closed admission.
+	// ErrBackpressured reports bounded runtime pressure.
 	ErrBackpressured = contract.ErrBackpressured
 	// ErrChannelBusy reports that channel-level write flow control is saturated.
 	ErrChannelBusy = contract.ErrChannelBusy

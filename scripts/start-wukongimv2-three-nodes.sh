@@ -16,6 +16,8 @@ PROMETHEUS_SCRAPE_INTERVAL="${WK_WUKONGIMV2_THREE_NODES_PROMETHEUS_SCRAPE_INTERV
 PROMETHEUS_SOURCE_REF="${WK_PROMETHEUS_SOURCE_REF:-${WK_PROMETHEUS_EMBED_VERSION:-v3.12.0}}"
 PROMETHEUS_REPO="${WK_PROMETHEUS_REPO:-https://github.com/prometheus/prometheus.git}"
 PROMETHEUS_EMBED_DIR="${WK_PROMETHEUS_EMBED_DIR:-$ROOT_DIR/internalv2/app/prometheus_embedded}"
+PID_DIR="${WK_WUKONGIMV2_THREE_NODES_PID_DIR:-}"
+ALLOW_NODE_EXIT="${WK_WUKONGIMV2_THREE_NODES_ALLOW_NODE_EXIT:-}"
 BUILD=1
 CLEAN=0
 DRY_RUN=0
@@ -32,6 +34,7 @@ METRICS_TARGETS=(
   "127.0.0.1:5013"
 )
 PIDS=()
+ALLOW_NODE_EXIT_VALUES=()
 
 usage() {
   cat <<'USAGE'
@@ -59,6 +62,8 @@ Options:
                          Prometheus data dir. Default: data/wukongimv2-three-nodes/prometheus.
   --prometheus-scrape-interval DURATION
                          Prometheus scrape interval. Default: 15s.
+  --pid-dir DIR          Write node PID files as node1.pid, node2.pid, node3.pid.
+  --allow-node-exit LIST Comma-separated node IDs allowed to exit without failing this supervisor.
   --dry-run              Print resolved commands without starting nodes.
   --exit-after-ready     Stop nodes and exit after readiness passes. Useful for smoke tests.
   -h, --help             Show this help.
@@ -94,6 +99,39 @@ require_bool() {
     true|false) ;;
     *) die "$name must be true or false: $value" ;;
   esac
+}
+
+parse_allow_node_exit() {
+  local item
+  local values=()
+  ALLOW_NODE_EXIT_VALUES=()
+  if [[ -z "$ALLOW_NODE_EXIT" ]]; then
+    return 0
+  fi
+  IFS=',' read -ra values <<<"$ALLOW_NODE_EXIT"
+  for item in "${values[@]}"; do
+    item="${item//[[:space:]]/}"
+    [[ -n "$item" ]] || die "allow-node-exit contains an empty item: $ALLOW_NODE_EXIT"
+    case "$item" in
+      1|2|3) ;;
+      *) die "allow-node-exit only supports node IDs 1, 2, or 3: $item" ;;
+    esac
+    ALLOW_NODE_EXIT_VALUES+=("$item")
+  done
+}
+
+node_exit_allowed() {
+  local node="$1"
+  local allowed
+  for allowed in "${ALLOW_NODE_EXIT_VALUES[@]}"; do
+    [[ "$allowed" == "$node" ]] && return 0
+  done
+  return 1
+}
+
+pid_file() {
+  local node="$1"
+  printf '%s/node%s.pid' "$PID_DIR" "$node"
 }
 
 config_path() {
@@ -149,6 +187,13 @@ print_plan() {
   fi
   printf 'bin=%s\n' "$BIN_PATH"
   printf 'log_dir=%s\n' "$LOG_DIR"
+  if [[ -n "$PID_DIR" ]]; then
+    printf 'pid_dir=%s\n' "$PID_DIR"
+    printf 'allow_node_exit=%s\n' "${ALLOW_NODE_EXIT:-<none>}"
+  else
+    printf 'pid_dir=<disabled>\n'
+    printf 'allow_node_exit=%s\n' "${ALLOW_NODE_EXIT:-<none>}"
+  fi
   printf 'prometheus_enable=%s\n' "$PROMETHEUS_ENABLE"
   if [[ "$PROMETHEUS_ENABLE" == "true" ]]; then
     printf 'prometheus_listen_addr=%s\n' "$PROMETHEUS_LISTEN_ADDR"
@@ -161,6 +206,9 @@ print_plan() {
     local node="${NODES[$i]}"
     printf 'node%s_config=%s\n' "$node" "$(config_path "$node")"
     printf 'node%s_log=%s\n' "$node" "$(log_path "$node")"
+    if [[ -n "$PID_DIR" ]]; then
+      printf 'node%s_pid_file=%s\n' "$node" "$(pid_file "$node")"
+    fi
     printf 'node%s_ready=%s\n' "$node" "${READY_URLS[$i]}"
     printf 'node%s_env=%s\n' "$node" "$(prometheus_node_env_preview "$node")"
     printf 'node%s_cmd=%s -config %s\n' "$node" "$BIN_PATH" "$(config_path "$node")"
@@ -184,11 +232,13 @@ stop_nodes() {
   fi
   log 'stopping nodes'
   for pid in "${PIDS[@]}"; do
+    [[ -n "$pid" ]] || continue
     if kill -0 "$pid" 2>/dev/null; then
       kill "$pid" 2>/dev/null || true
     fi
   done
   for pid in "${PIDS[@]}"; do
+    [[ -n "$pid" ]] || continue
     wait "$pid" 2>/dev/null || true
   done
   PIDS=()
@@ -251,6 +301,16 @@ while [[ $# -gt 0 ]]; do
       PROMETHEUS_SCRAPE_INTERVAL="$2"
       shift 2
       ;;
+    --pid-dir)
+      [[ $# -ge 2 ]] || die '--pid-dir requires a value'
+      PID_DIR="$2"
+      shift 2
+      ;;
+    --allow-node-exit)
+      [[ $# -ge 2 ]] || die '--allow-node-exit requires a value'
+      ALLOW_NODE_EXIT="$2"
+      shift 2
+      ;;
     --dry-run)
       DRY_RUN=1
       shift
@@ -272,6 +332,7 @@ done
 require_positive_uint '--ready-timeout' "$READY_TIMEOUT"
 require_uint '--poll' "$POLL_INTERVAL"
 require_bool 'prometheus enable' "$PROMETHEUS_ENABLE"
+parse_allow_node_exit
 
 if [[ "$DRY_RUN" -eq 1 ]]; then
   print_plan
@@ -291,6 +352,10 @@ if [[ "$CLEAN" -eq 1 ]]; then
 fi
 
 mkdir -p "$(dirname "$BIN_PATH")" "$LOG_DIR"
+if [[ -n "$PID_DIR" ]]; then
+  mkdir -p "$PID_DIR"
+  rm -f "$PID_DIR"/node*.pid
+fi
 
 ensure_embedded_prometheus() {
   local goos goarch suffix embed_name embed_path tmp src_dir gobin_path
@@ -340,9 +405,15 @@ check_processes() {
   for i in "${!PIDS[@]}"; do
     local pid="${PIDS[$i]}"
     local node="${NODES[$i]}"
+    [[ -n "$pid" ]] || continue
     if ! kill -0 "$pid" 2>/dev/null; then
       local status=0
       wait "$pid" 2>/dev/null || status=$?
+      if node_exit_allowed "$node"; then
+        log "node${node} exited as allowed with status ${status}"
+        PIDS[$i]=""
+        continue
+      fi
       tail_logs
       die "node${node} exited early with status ${status}"
     fi
@@ -384,6 +455,9 @@ start_node() {
   env "${env_args[@]}" "$BIN_PATH" -config "$config" >"$log_file" 2>&1 &
   local pid="$!"
   PIDS+=("$pid")
+  if [[ -n "$PID_DIR" ]]; then
+    printf '%s\n' "$pid" >"$(pid_file "$node")"
+  fi
   log "node${node} pid=${pid} log=$log_file"
 }
 

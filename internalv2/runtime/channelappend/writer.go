@@ -409,6 +409,7 @@ func (w *channelWriter) applyAppendCompletion(event appendCompletedEvent) {
 		w.ports.metrics.addAppendInflightItems(-len(next.items))
 		for _, completion := range next.items {
 			if w.ports.commit.hasPostCommitWork() &&
+				completion.committed &&
 				completion.traceErr == nil &&
 				completion.result.Err == nil &&
 				completion.result.Result.Reason == ReasonSuccess {

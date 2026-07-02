@@ -457,8 +457,9 @@ func preparePortsFromOptions(opts Options) preparePorts {
 
 func appendPortsFromOptions(opts Options) appendPorts {
 	return appendPorts{
-		appender: opts.Appender,
-		observer: opts.Observer,
+		appender:    opts.Appender,
+		idempotency: opts.Idempotency,
+		observer:    opts.Observer,
 	}
 }
 

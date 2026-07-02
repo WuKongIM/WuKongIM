@@ -71,6 +71,13 @@ RECVACK still return `ErrUnsupportedFrame`. Stale or malformed RECVACK frames
 are treated as best-effort delivery feedback and ignored without protocol
 noise.
 
+Known route-authority errors (`ErrRouteNotReady`, stale route, not leader) and
+send deadline expiry are written as `ReasonNodeNotMatch` so WKProto clients can
+retry through a fresher route during ChannelV2 migration or failover windows.
+The sendack observer still records deadline expiry with error class `timeout`
+to keep route-wait and timeout diagnostics separate from durable append
+successes.
+
 Missing UID during session activation returns `ErrUnauthenticatedSession` to
 gateway core; the adapter does not write CONNACK directly.
 

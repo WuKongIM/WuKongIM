@@ -532,6 +532,7 @@ func TestOnFrameMapsMessageErrorsToSendackReasons(t *testing.T) {
 		{name: "route not ready", err: message.ErrRouteNotReady, want: frame.ReasonNodeNotMatch},
 		{name: "not leader", err: message.ErrNotLeader, want: frame.ReasonNodeNotMatch},
 		{name: "stale route", err: message.ErrStaleRoute, want: frame.ReasonNodeNotMatch},
+		{name: "send deadline exceeded", err: context.DeadlineExceeded, want: frame.ReasonNodeNotMatch},
 		{name: "channel missing", err: message.ErrChannelNotFound, want: frame.ReasonChannelNotExist},
 	}
 	for _, tt := range tests {
@@ -835,6 +836,7 @@ func TestOnSendBatchMapsMessageErrorsToSendackReasons(t *testing.T) {
 			{Err: message.ErrRouteNotReady},
 			{Err: message.ErrNotLeader},
 			{Err: message.ErrChannelNotFound},
+			{Err: context.DeadlineExceeded},
 		},
 	}
 	handler := New(Options{Messages: usecase, SendTimeout: time.Second})
@@ -852,6 +854,10 @@ func TestOnSendBatchMapsMessageErrorsToSendackReasons(t *testing.T) {
 			Context: coregateway.Context{Session: sess, RequestContext: context.Background()},
 			Frame:   &frame.SendPacket{ClientSeq: 3, ClientMsgNo: "c", ChannelID: "ch1", ChannelType: 2, Payload: []byte("three")},
 		},
+		{
+			Context: coregateway.Context{Session: sess, RequestContext: context.Background()},
+			Frame:   &frame.SendPacket{ClientSeq: 4, ClientMsgNo: "d", ChannelID: "ch1", ChannelType: 2, Payload: []byte("four")},
+		},
 	})
 	if err != nil {
 		t.Fatalf("OnSendBatch() error = %v", err)
@@ -867,6 +873,10 @@ func TestOnSendBatchMapsMessageErrorsToSendackReasons(t *testing.T) {
 	third := requireSendack(t, written, 2)
 	if third.ReasonCode != frame.ReasonChannelNotExist {
 		t.Fatalf("third ack reason = %v, want %v", third.ReasonCode, frame.ReasonChannelNotExist)
+	}
+	fourth := requireSendack(t, written, 3)
+	if fourth.ReasonCode != frame.ReasonNodeNotMatch {
+		t.Fatalf("fourth ack reason = %v, want %v", fourth.ReasonCode, frame.ReasonNodeNotMatch)
 	}
 }
 
@@ -904,7 +914,7 @@ func TestOnSendBatchObservesSendackSourcesAndReasons(t *testing.T) {
 		t.Fatalf("written sendacks = %d, want 3", len(written))
 	}
 	want := []SendackEvent{
-		{Reason: message.ReasonSystemError, Source: sendackSourceBatchResultError, ErrorClass: sendackErrorClassTimeout},
+		{Reason: message.ReasonNodeNotMatch, Source: sendackSourceBatchResultError, ErrorClass: sendackErrorClassTimeout},
 		{Reason: message.ReasonSuccess, Source: sendackSourceBatchResult, ErrorClass: sendackErrorClassNone},
 		{Reason: message.ReasonSystemError, Source: sendackSourceBatchMissingRequestContext, ErrorClass: sendackErrorClassMissingRequestContext},
 	}

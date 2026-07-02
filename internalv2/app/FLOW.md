@@ -216,6 +216,7 @@ New(Config)
   -> when the cluster exposes ChannelV2 append plus channel append authority:
        create channelappend.Group with hash-sharded per-channel authority writers,
        clusterv2 ChannelAppender, node-scoped message IDs, subscriber source,
+       clusterv2-backed idempotency lookup when the cluster exposes it,
        recipient authority resolver, conversation active-batch admitter,
        optional recipient delivery worker enqueuer, optional plugin/webhook
        PersistAfter enqueuers, optional plugin/webhook offline-recipient

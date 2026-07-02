@@ -26,8 +26,9 @@ const (
 )
 
 type appendPorts struct {
-	appender Appender
-	observer AppendObserver
+	appender    Appender
+	idempotency IdempotencyStore
+	observer    AppendObserver
 }
 
 type appendEffect struct {
@@ -45,10 +46,11 @@ type appendCompletedEvent struct {
 }
 
 type appendItemCompletion struct {
-	item     preparedSend
-	result   SendBatchItemResult
-	appended AppendBatchItemResult
-	traceErr error
+	item      preparedSend
+	result    SendBatchItemResult
+	appended  AppendBatchItemResult
+	committed bool
+	traceErr  error
 }
 
 func (e appendEffect) run(runtimeCtx context.Context, ports appendPorts) appendCompletedEvent {
@@ -84,8 +86,8 @@ func (e appendEffect) run(runtimeCtx context.Context, ports appendPorts) appendC
 	cancel()
 	completion.duration = appendDur
 	if err != nil {
-		effectResult = errorClass(err)
-		completion.items = append(completion.items, appendBatchErrorCompletions(active, err)...)
+		completion.items = append(completion.items, appendBatchErrorCompletionsOrRecoveries(runtimeCtx, active, err, ports)...)
+		effectResult = appendCompletionsResultClass(completion.items)
 		return completion
 	}
 	completion.items = append(completion.items, appendResultCompletions(active, res)...)
@@ -224,8 +226,34 @@ func appendResultCompletions(items []preparedSend, res AppendBatchResult) []appe
 				MessageSeq: appended.MessageSeq,
 				Reason:     ReasonSuccess,
 			}},
-			appended: appended,
+			appended:  appended,
+			committed: true,
 		})
+	}
+	return out
+}
+
+func appendBatchErrorCompletionsOrRecoveries(ctx context.Context, items []preparedSend, err error, ports appendPorts) []appendItemCompletion {
+	if !errors.Is(err, ErrAppendFailed) || ports.idempotency == nil {
+		return appendBatchErrorCompletions(items, err)
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	out := make([]appendItemCompletion, 0, len(items))
+	for _, item := range items {
+		result, ok, lookupErr := lookupIdempotentSend(ctx, item.Command, preparePorts{idempotency: ports.idempotency})
+		switch {
+		case lookupErr != nil:
+			out = append(out, appendItemErrorCompletion(item, lookupErr))
+		case ok:
+			out = append(out, appendItemCompletion{
+				item:   item,
+				result: SendBatchItemResult{Result: result},
+			})
+		default:
+			out = append(out, appendItemErrorCompletion(item, err))
+		}
 	}
 	return out
 }

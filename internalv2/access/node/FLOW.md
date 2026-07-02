@@ -139,8 +139,11 @@ metadata again. The server only submits to the local channel authority port; it
 does not resolve routes, create proxy channel state, append directly outside
 the authority reactor, or run post-commit side effects outside that reactor.
 The client skips canceled or expired items before transport, normalizes
-transport canceled/timeout errors to standard context errors, and preserves
-active item order in returned item-aligned results.
+transport canceled/timeout errors to standard context errors, maps unavailable
+target-node transport errors (`ErrDialFailed`, `ErrNodeNotFound`, `ErrStopped`,
+connection reset/refused/closed, broken pipe, and EOF) to
+`channelappend.ErrRouteNotReady`, and preserves active item order in returned
+item-aligned results.
 
 ## Manager Connection RPC
 

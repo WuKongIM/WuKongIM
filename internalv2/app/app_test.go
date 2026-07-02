@@ -2801,6 +2801,63 @@ func TestNewWiresChannelAppendCommitEffectsWhenDeliveryDisabled(t *testing.T) {
 	}
 }
 
+func TestNewWiresChannelAppendIdempotencyStore(t *testing.T) {
+	cluster := newFakePresenceCluster(3, nil)
+	cluster.snapshot = readyFakeClusterSnapshot(3, 16)
+	cluster.idempotencyOK = true
+	cluster.idempotencyHit = channelstore.IdempotencyHit{
+		Message:     channelv2.Message{MessageID: 42, MessageSeq: 7},
+		PayloadHash: appTestPayloadHash([]byte("payload")),
+	}
+	app, err := newTestApp(t,
+		Config{
+			Cluster:  clusterv2.Config{NodeID: 3},
+			Delivery: DeliveryConfig{Enabled: false},
+		},
+		WithCluster(cluster),
+		WithGateway(&fakeGateway{calls: &[]string{}}),
+	)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	startTestApp(t, app)
+
+	result, err := app.messages.Send(context.Background(), message.SendCommand{
+		FromUID:     "u1",
+		ChannelID:   "room",
+		ChannelType: 2,
+		ClientMsgNo: "client-1",
+		Payload:     []byte("payload"),
+	})
+	if err != nil {
+		t.Fatalf("Send() error = %v", err)
+	}
+	if result.MessageID != 42 || result.MessageSeq != 7 || result.Reason != message.ReasonSuccess {
+		t.Fatalf("send result = %#v, want idempotent success", result)
+	}
+	cluster.mu.Lock()
+	defer cluster.mu.Unlock()
+	if cluster.idempotencyLookups != 1 {
+		t.Fatalf("idempotency lookups = %d, want 1", cluster.idempotencyLookups)
+	}
+	if cluster.appendSeq != 0 {
+		t.Fatalf("append seq = %d, want idempotency hit to bypass append", cluster.appendSeq)
+	}
+}
+
+func appTestPayloadHash(payload []byte) uint64 {
+	const (
+		offset = 14695981039346656037
+		prime  = 1099511628211
+	)
+	hash := uint64(offset)
+	for _, b := range payload {
+		hash ^= uint64(b)
+		hash *= prime
+	}
+	return hash
+}
+
 func TestNewWiresConversationMutationsWhenAuthorityEnabled(t *testing.T) {
 	cluster := newFakePresenceCluster(3, nil)
 	cluster.messages = map[metadb.ConversationKey][]channelv2.Message{
@@ -6023,6 +6080,10 @@ type fakePresenceCluster struct {
 	registeredHandlers        map[uint8]clusterv2.NodeRPCHandler
 	appendSeq                 uint64
 	mu                        sync.Mutex
+	idempotencyHit            channelstore.IdempotencyHit
+	idempotencyOK             bool
+	idempotencyErr            error
+	idempotencyLookups        int
 	messages                  map[metadb.ConversationKey][]channelv2.Message
 	conversationStateBatches  [][]metadb.ConversationState
 	conversationDeleteBatches [][]metadb.ConversationDelete
@@ -6505,6 +6566,13 @@ func (f *fakePresenceCluster) AppendChannelBatch(_ context.Context, req channelv
 		})
 	}
 	return channelv2.AppendBatchResult{Items: fakeItems}, nil
+}
+
+func (f *fakePresenceCluster) LookupChannelIdempotency(_ context.Context, _ channelv2.ChannelID, _ string, _ string) (channelstore.IdempotencyHit, bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.idempotencyLookups++
+	return f.idempotencyHit, f.idempotencyOK, f.idempotencyErr
 }
 
 func (f *fakePresenceCluster) UpsertConversationStatesBatch(_ context.Context, states []metadb.ConversationState) error {

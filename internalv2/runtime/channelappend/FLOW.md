@@ -40,10 +40,13 @@ The local path is the only path that may enter `SubmitLocal`; remote targets are
 forwarded and must not create local `channelWriter` state. Route movement errors
 (`ErrStaleRoute`, `ErrNotChannelAuthority`, `ErrNotLeader`,
 `ErrRouteNotReady`) are retried with bounded backoff while item deadlines allow
-it. Retry sleeps wake when pending item cancellation or deadlines arrive, so
-expired work does not wait for the whole backoff. Remote outbound admission is
-bounded per `LeaderNodeID`, not per channel, so different channels to the same
-remote authority share the same pressure limit.
+it. A downstream `context.Canceled` is also retried when the item itself is
+still active, covering authority-node shutdown or transport cancellation during
+leader movement without hiding caller/session cancellation. Retry sleeps wake
+when pending item cancellation or deadlines arrive, so expired work does not
+wait for the whole backoff. Remote outbound admission is bounded per
+`LeaderNodeID`, not per channel, so different channels to the same remote
+authority share the same pressure limit.
 
 Router submit contexts are neutral batch transport contexts. Per-item contexts
 and deadlines are checked before route lookup, before submission, and while
@@ -97,9 +100,10 @@ The runtime implements local authority validation, hash-sharded writer lookup,
 lifecycle, pre-append preparation, channel-level append flow control, durable
 append scheduling, committed-message handoff, and item-aligned futures.
 Submission checks caller cancellation before admission. After that check,
-bounded local admission is shard-local, non-blocking, and returns
-`ErrBackpressured` when the group is closed or the target shard's outstanding
-accepted work is at capacity. Once a submit event is accepted into a writer,
+bounded local admission is shard-local and non-blocking. It returns
+`ErrRouteNotReady` when the group is not accepting writes because it has not
+started, is stopping, or has stopped, and returns `ErrBackpressured` only when
+the target shard's outstanding accepted work is at capacity. Once a submit event is accepted into a writer,
 caller cancellation no longer turns the accepted event into a rejected submit.
 
 Each active channel has one `channelWriter`. The writer owns one
@@ -152,10 +156,15 @@ leader epoch as append fences; concrete storage adapters clone payloads when
 they cross into durable ownership.
 
 Batch-level append errors are returned to all active items from that single
-append attempt without retry. Short append results complete missing items with
+append attempt without retry. When an unexpected append failure races with a
+previous durable commit for the same sender/client/channel key, the writer may
+perform one payload-hash-checked idempotency lookup and complete that item from
+the existing committed result. Recovered idempotency hits do not enqueue
+post-commit side effects because they are not new commits from this append
+attempt. Short append results complete missing items with
 `ErrAppendResultMissing`; per-item append errors map to SENDACK reasons;
 successful append results complete `SENDACK` futures immediately with
-`ReasonSuccess`, message id, and channel sequence. Successful append items also
+`ReasonSuccess`, message id, and channel sequence. Newly successful append items also
 enqueue `CommittedEnvelope` values in the same `channelState` as the handoff
 point for best-effort post-commit recipient work. Post-commit side effects are
 not checkpointed and not replayed after authority restart.

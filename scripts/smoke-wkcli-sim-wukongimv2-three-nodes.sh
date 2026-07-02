@@ -35,6 +35,23 @@ AUTO_PROMOTE_MANAGER_API="${WK_WKCLI_SIM_THREE_SMOKE_AUTO_PROMOTE_MANAGER_API:-h
 AUTO_PROMOTE_MANAGER_AUTH="${WK_WKCLI_SIM_THREE_SMOKE_AUTO_PROMOTE_MANAGER_AUTH:-true}"
 AUTO_PROMOTE_MANAGER_USERNAME="${WK_WKCLI_SIM_THREE_SMOKE_AUTO_PROMOTE_MANAGER_USERNAME:-admin}"
 AUTO_PROMOTE_MANAGER_PASSWORD="${WK_WKCLI_SIM_THREE_SMOKE_AUTO_PROMOTE_MANAGER_PASSWORD:-a1234567}"
+FAULT_KILL_NODE="${WK_WKCLI_SIM_THREE_SMOKE_FAULT_KILL_NODE:-false}"
+FAULT_NODE_ID="${WK_WKCLI_SIM_THREE_SMOKE_FAULT_NODE_ID:-2}"
+FAULT_AFTER="${WK_WKCLI_SIM_THREE_SMOKE_FAULT_AFTER:-2}"
+FAULT_SIGNAL="${WK_WKCLI_SIM_THREE_SMOKE_FAULT_SIGNAL:-TERM}"
+FAULT_PID_DIR="${WK_WKCLI_SIM_THREE_SMOKE_FAULT_PID_DIR:-$OUT_DIR/node-pids}"
+FAULT_HEALTH_REPORT_INTERVAL="${WK_WKCLI_SIM_THREE_SMOKE_FAULT_HEALTH_REPORT_INTERVAL:-}"
+FAULT_HEALTH_REPORT_TTL="${WK_WKCLI_SIM_THREE_SMOKE_FAULT_HEALTH_REPORT_TTL:-}"
+FAULT_CHANNEL_MIGRATION_SCAN_INTERVAL="${WK_WKCLI_SIM_THREE_SMOKE_FAULT_CHANNEL_MIGRATION_SCAN_INTERVAL:-}"
+FAULT_CHANNEL_MIGRATION_SCAN_LIMIT="${WK_WKCLI_SIM_THREE_SMOKE_FAULT_CHANNEL_MIGRATION_SCAN_LIMIT:-}"
+FAULT_CHANNEL_MIGRATION_MAX_PAGES_PER_TICK="${WK_WKCLI_SIM_THREE_SMOKE_FAULT_CHANNEL_MIGRATION_MAX_PAGES_PER_TICK:-}"
+FAULT_CHANNEL_MIGRATION_MAX_TASKS_PER_TICK="${WK_WKCLI_SIM_THREE_SMOKE_FAULT_CHANNEL_MIGRATION_MAX_TASKS_PER_TICK:-}"
+FAULT_CHANNEL_MIGRATION_TASK_LIMIT="${WK_WKCLI_SIM_THREE_SMOKE_FAULT_CHANNEL_MIGRATION_TASK_LIMIT:-}"
+FAULT_GATEWAY_SEND_TIMEOUT="${WK_WKCLI_SIM_THREE_SMOKE_FAULT_GATEWAY_SEND_TIMEOUT:-}"
+FAULT_SIM_ACK_TIMEOUT="${WK_WKCLI_SIM_THREE_SMOKE_FAULT_SIM_ACK_TIMEOUT:-}"
+FAULT_MAX_SEND_ERRORS="${WK_WKCLI_SIM_THREE_SMOKE_FAULT_MAX_SEND_ERRORS:-0}"
+FAULT_PID_DIR_SET=0
+[[ -n "${WK_WKCLI_SIM_THREE_SMOKE_FAULT_PID_DIR-}" ]] && FAULT_PID_DIR_SET=1
 
 USERS="${WK_WKCLI_SIM_THREE_SMOKE_USERS:-30}"
 GROUP_COUNT="${WK_WKCLI_SIM_THREE_SMOKE_GROUPS:-6}"
@@ -51,6 +68,7 @@ DRY_RUN=0
 CLUSTER_PID=""
 AUTO_JOIN_PID=""
 AUTO_JOIN_TIMER_PID=""
+FAULT_TIMER_PID=""
 AUTO_JOIN_STARTED=0
 API_VALUES=()
 GATEWAY_VALUES=()
@@ -74,7 +92,7 @@ Options:
   --no-clean                Keep existing node data when starting the cluster.
   --no-build                Reuse the evidence-dir cluster binary when starting.
   --api LIST                Comma-separated HTTP API base URLs.
-  --gateway LIST            Comma-separated WKProto gateway addresses.
+  --gateway LIST            Comma-separated WKProto gateway addresses used by wkcli sim. Fault drills may use a survivor subset.
   --status-listen HOST:PORT Local wkcli sim status address. Default: 127.0.0.1:19109.
   --users N                 Simulated users. Default: 30.
   --groups N                Simulated group channels. Default: 6.
@@ -105,6 +123,31 @@ Options:
                            Manager username used when auth is enabled. Default: admin.
   --auto-promote-manager-password PASSWORD
                            Manager password used when auth is enabled. Default: a1234567.
+  --fault-kill-node        Kill one static three-node-cluster node while wkcli sim is sending.
+  --fault-node-id N        Static node ID to kill. Must be 1, 2, or 3. Default: 2.
+  --fault-after SECS       Seconds after the send phase starts before killing the node. Default: 2.
+  --fault-signal SIGNAL    Signal used for the kill. Supported: TERM, KILL. Default: TERM.
+  --fault-pid-dir DIR      Directory containing node PID files. Default: OUT_DIR/node-pids.
+  --fault-health-report-interval DURATION
+                           Optional WK_CLUSTER_NODE_HEALTH_REPORT_INTERVAL override for the started cluster during fault drills.
+  --fault-health-report-ttl DURATION
+                           Optional WK_CLUSTER_NODE_HEALTH_REPORT_TTL override for the started cluster during fault drills.
+  --fault-channel-migration-scan-interval DURATION
+                           Optional WK_CHANNEL_MIGRATION_SCAN_INTERVAL override for the started cluster during fault drills.
+  --fault-channel-migration-scan-limit N
+                           Optional WK_CHANNEL_MIGRATION_SCAN_LIMIT override for the started cluster during fault drills.
+  --fault-channel-migration-max-pages-per-tick N
+                           Optional WK_CHANNEL_MIGRATION_MAX_PAGES_PER_TICK override for the started cluster during fault drills.
+  --fault-channel-migration-max-tasks-per-tick N
+                           Optional WK_CHANNEL_MIGRATION_MAX_TASKS_PER_TICK override for the started cluster during fault drills.
+  --fault-channel-migration-task-limit N
+                           Optional WK_CHANNEL_MIGRATION_TASK_LIMIT override for the started cluster during fault drills.
+  --fault-gateway-send-timeout DURATION
+                           Optional WK_GATEWAY_SEND_TIMEOUT override for the started cluster during fault drills.
+  --fault-sim-ack-timeout DURATION
+                           Optional wkcli sim --ack-timeout override for fault drill runs.
+  --fault-max-send-errors N
+                           Allowed final wkcli sim send_errors. Default: 0.
   --dry-run                 Print resolved commands without starting anything.
   -h, --help                Show this help.
 USAGE
@@ -244,8 +287,27 @@ auto_promote_controller_raft_status_file() {
   printf '%s/controller-raft-node%s.json' "$OUT_DIR" "$AUTO_JOIN_NODE_ID"
 }
 
+fault_pid_file() {
+  printf '%s/node%s.pid' "$FAULT_PID_DIR" "$FAULT_NODE_ID"
+}
+
+fault_event_file() {
+  printf '%s/fault-node%s-kill.env' "$OUT_DIR" "$FAULT_NODE_ID"
+}
+
 sim_done_file() {
   printf '%s/sim.done' "$OUT_DIR"
+}
+
+prepare_fault_state() {
+  rm -f "$(fault_event_file)"
+  if [[ "$FAULT_KILL_NODE" != "true" ]]; then
+    return
+  fi
+  mkdir -p "$FAULT_PID_DIR"
+  if [[ "$START_CLUSTER" -eq 1 && "$CLEAN_CLUSTER" -eq 1 ]]; then
+    rm -f "$FAULT_PID_DIR"/node*.pid
+  fi
 }
 
 prepare_auto_join_state() {
@@ -287,18 +349,36 @@ json_string_list() {
   printf ']'
 }
 
+cluster_start_env_preview() {
+  local envs=("WK_DEBUG_API_ENABLE=$DEBUG_API_ENABLE")
+  if [[ "$FAULT_KILL_NODE" == "true" ]]; then
+    [[ -n "$FAULT_HEALTH_REPORT_INTERVAL" ]] && envs+=("WK_CLUSTER_NODE_HEALTH_REPORT_INTERVAL=$FAULT_HEALTH_REPORT_INTERVAL")
+    [[ -n "$FAULT_HEALTH_REPORT_TTL" ]] && envs+=("WK_CLUSTER_NODE_HEALTH_REPORT_TTL=$FAULT_HEALTH_REPORT_TTL")
+    [[ -n "$FAULT_CHANNEL_MIGRATION_SCAN_INTERVAL" ]] && envs+=("WK_CHANNEL_MIGRATION_SCAN_INTERVAL=$FAULT_CHANNEL_MIGRATION_SCAN_INTERVAL")
+    [[ -n "$FAULT_CHANNEL_MIGRATION_SCAN_LIMIT" ]] && envs+=("WK_CHANNEL_MIGRATION_SCAN_LIMIT=$FAULT_CHANNEL_MIGRATION_SCAN_LIMIT")
+    [[ -n "$FAULT_CHANNEL_MIGRATION_MAX_PAGES_PER_TICK" ]] && envs+=("WK_CHANNEL_MIGRATION_MAX_PAGES_PER_TICK=$FAULT_CHANNEL_MIGRATION_MAX_PAGES_PER_TICK")
+    [[ -n "$FAULT_CHANNEL_MIGRATION_MAX_TASKS_PER_TICK" ]] && envs+=("WK_CHANNEL_MIGRATION_MAX_TASKS_PER_TICK=$FAULT_CHANNEL_MIGRATION_MAX_TASKS_PER_TICK")
+    [[ -n "$FAULT_CHANNEL_MIGRATION_TASK_LIMIT" ]] && envs+=("WK_CHANNEL_MIGRATION_TASK_LIMIT=$FAULT_CHANNEL_MIGRATION_TASK_LIMIT")
+    [[ -n "$FAULT_GATEWAY_SEND_TIMEOUT" ]] && envs+=("WK_GATEWAY_SEND_TIMEOUT=$FAULT_GATEWAY_SEND_TIMEOUT")
+  fi
+  printf '%s' "${envs[*]}"
+}
+
 print_start_cmd() {
   if [[ "$START_CLUSTER" -eq 0 ]]; then
     printf 'start_cmd=<disabled>\n'
     return
   fi
-  printf 'start_cmd=env WK_DEBUG_API_ENABLE=%s %s' "$DEBUG_API_ENABLE" "$START_SCRIPT"
+  printf 'start_cmd=env %s %s' "$(cluster_start_env_preview)" "$START_SCRIPT"
   if [[ "$CLEAN_CLUSTER" -eq 1 ]]; then
     printf ' --clean'
   fi
   printf ' --ready-timeout %s --bin %s --log-dir %s' "$READY_TIMEOUT" "$(cluster_bin)" "$(node_log_dir)"
   if [[ "$BUILD_CLUSTER" -eq 0 ]]; then
     printf ' --no-build'
+  fi
+  if [[ "$FAULT_KILL_NODE" == "true" ]]; then
+    printf ' --pid-dir %s --allow-node-exit %s' "$FAULT_PID_DIR" "$FAULT_NODE_ID"
   fi
   printf '\n'
 }
@@ -313,8 +393,12 @@ print_sim_cmd() {
   for gateway in "${GATEWAY_VALUES[@]}"; do
     printf ' --gateway %s' "$gateway"
   done
-  printf ' --users %s --groups %s --group-members %s --rate %s --max-runtime %s --payload-size %s --status-listen %s --status-interval %s --json\n' \
+  printf ' --users %s --groups %s --group-members %s --rate %s --max-runtime %s --payload-size %s --status-listen %s --status-interval %s' \
     "$USERS" "$GROUP_COUNT" "$GROUP_MEMBERS" "$RATE" "$DURATION" "$PAYLOAD_SIZE" "$STATUS_LISTEN" "$STATUS_INTERVAL"
+  if [[ -n "$FAULT_SIM_ACK_TIMEOUT" ]]; then
+    printf ' --ack-timeout %s' "$FAULT_SIM_ACK_TIMEOUT"
+  fi
+  printf ' --json\n'
 }
 
 print_auto_join_cmd() {
@@ -342,6 +426,14 @@ print_auto_promote_cmd() {
   printf 'auto_promote_login_cmd=<disabled>\n'
   printf 'auto_promote_activate_cmd=curl -fsS -X POST %s/manager/nodes/%s/activate\n' "$AUTO_PROMOTE_MANAGER_API" "$AUTO_JOIN_NODE_ID"
   printf 'auto_promote_cmd=curl -fsS -X POST %s/manager/nodes/%s/controller-voter/promote\n' "$AUTO_PROMOTE_MANAGER_API" "$AUTO_JOIN_NODE_ID"
+}
+
+print_fault_cmd() {
+  if [[ "$FAULT_KILL_NODE" != "true" ]]; then
+    printf 'fault_cmd=<disabled>\n'
+    return
+  fi
+  printf 'fault_cmd=kill -s %s $(cat %s)\n' "$FAULT_SIGNAL" "$(fault_pid_file)"
 }
 
 print_plan() {
@@ -379,10 +471,27 @@ print_plan() {
   printf 'auto_promote_nodes_response=%s\n' "$(auto_promote_nodes_response_file)"
   printf 'auto_promote_response=%s\n' "$(auto_promote_response_file)"
   printf 'auto_promote_controller_raft_status=%s\n' "$(auto_promote_controller_raft_status_file)"
+  printf 'fault_kill_node=%s\n' "$FAULT_KILL_NODE"
+  printf 'fault_node_id=%s\n' "$FAULT_NODE_ID"
+  printf 'fault_after_secs=%s\n' "$FAULT_AFTER"
+  printf 'fault_signal=%s\n' "$FAULT_SIGNAL"
+  printf 'fault_pid_dir=%s\n' "$FAULT_PID_DIR"
+  printf 'fault_event_file=%s\n' "$(fault_event_file)"
+  printf 'fault_health_report_interval=%s\n' "${FAULT_HEALTH_REPORT_INTERVAL:-<default>}"
+  printf 'fault_health_report_ttl=%s\n' "${FAULT_HEALTH_REPORT_TTL:-<default>}"
+  printf 'fault_channel_migration_scan_interval=%s\n' "${FAULT_CHANNEL_MIGRATION_SCAN_INTERVAL:-<default>}"
+  printf 'fault_channel_migration_scan_limit=%s\n' "${FAULT_CHANNEL_MIGRATION_SCAN_LIMIT:-<default>}"
+  printf 'fault_channel_migration_max_pages_per_tick=%s\n' "${FAULT_CHANNEL_MIGRATION_MAX_PAGES_PER_TICK:-<default>}"
+  printf 'fault_channel_migration_max_tasks_per_tick=%s\n' "${FAULT_CHANNEL_MIGRATION_MAX_TASKS_PER_TICK:-<default>}"
+  printf 'fault_channel_migration_task_limit=%s\n' "${FAULT_CHANNEL_MIGRATION_TASK_LIMIT:-<default>}"
+  printf 'fault_gateway_send_timeout=%s\n' "${FAULT_GATEWAY_SEND_TIMEOUT:-<default>}"
+  printf 'fault_sim_ack_timeout=%s\n' "${FAULT_SIM_ACK_TIMEOUT:-<default>}"
+  printf 'fault_max_send_errors=%s\n' "$FAULT_MAX_SEND_ERRORS"
   print_start_cmd
   print_sim_cmd
   print_auto_join_cmd
   print_auto_promote_cmd
+  print_fault_cmd
 }
 
 tail_evidence() {
@@ -443,7 +552,19 @@ stop_auto_join_node() {
   AUTO_JOIN_PID=""
 }
 
+stop_fault_timer() {
+  if [[ -z "$FAULT_TIMER_PID" ]]; then
+    return
+  fi
+  if kill -0 "$FAULT_TIMER_PID" 2>/dev/null; then
+    kill "$FAULT_TIMER_PID" 2>/dev/null || true
+  fi
+  wait "$FAULT_TIMER_PID" 2>/dev/null || true
+  FAULT_TIMER_PID=""
+}
+
 cleanup() {
+  stop_fault_timer
   stop_auto_join_node
   stop_cluster
 }
@@ -622,6 +743,90 @@ while [[ $# -gt 0 ]]; do
       AUTO_PROMOTE_MANAGER_PASSWORD="$2"
       shift 2
       ;;
+    --fault-kill-node)
+      FAULT_KILL_NODE=true
+      shift
+      ;;
+    --no-fault-kill-node)
+      FAULT_KILL_NODE=false
+      shift
+      ;;
+    --fault-node-id)
+      [[ $# -ge 2 ]] || die '--fault-node-id requires a value'
+      FAULT_NODE_ID="$2"
+      shift 2
+      ;;
+    --fault-after)
+      [[ $# -ge 2 ]] || die '--fault-after requires a value'
+      FAULT_AFTER="$2"
+      shift 2
+      ;;
+    --fault-signal)
+      [[ $# -ge 2 ]] || die '--fault-signal requires a value'
+      FAULT_SIGNAL="$2"
+      shift 2
+      ;;
+    --fault-pid-dir)
+      [[ $# -ge 2 ]] || die '--fault-pid-dir requires a value'
+      FAULT_PID_DIR="$2"
+      FAULT_PID_DIR_SET=1
+      shift 2
+      ;;
+    --fault-health-report-interval)
+      [[ $# -ge 2 ]] || die '--fault-health-report-interval requires a value'
+      require_nonempty '--fault-health-report-interval' "$2"
+      FAULT_HEALTH_REPORT_INTERVAL="$2"
+      shift 2
+      ;;
+    --fault-health-report-ttl)
+      [[ $# -ge 2 ]] || die '--fault-health-report-ttl requires a value'
+      require_nonempty '--fault-health-report-ttl' "$2"
+      FAULT_HEALTH_REPORT_TTL="$2"
+      shift 2
+      ;;
+    --fault-channel-migration-scan-interval)
+      [[ $# -ge 2 ]] || die '--fault-channel-migration-scan-interval requires a value'
+      require_nonempty '--fault-channel-migration-scan-interval' "$2"
+      FAULT_CHANNEL_MIGRATION_SCAN_INTERVAL="$2"
+      shift 2
+      ;;
+    --fault-channel-migration-scan-limit)
+      [[ $# -ge 2 ]] || die '--fault-channel-migration-scan-limit requires a value'
+      FAULT_CHANNEL_MIGRATION_SCAN_LIMIT="$2"
+      shift 2
+      ;;
+    --fault-channel-migration-max-pages-per-tick)
+      [[ $# -ge 2 ]] || die '--fault-channel-migration-max-pages-per-tick requires a value'
+      FAULT_CHANNEL_MIGRATION_MAX_PAGES_PER_TICK="$2"
+      shift 2
+      ;;
+    --fault-channel-migration-max-tasks-per-tick)
+      [[ $# -ge 2 ]] || die '--fault-channel-migration-max-tasks-per-tick requires a value'
+      FAULT_CHANNEL_MIGRATION_MAX_TASKS_PER_TICK="$2"
+      shift 2
+      ;;
+    --fault-channel-migration-task-limit)
+      [[ $# -ge 2 ]] || die '--fault-channel-migration-task-limit requires a value'
+      FAULT_CHANNEL_MIGRATION_TASK_LIMIT="$2"
+      shift 2
+      ;;
+    --fault-gateway-send-timeout)
+      [[ $# -ge 2 ]] || die '--fault-gateway-send-timeout requires a value'
+      require_nonempty '--fault-gateway-send-timeout' "$2"
+      FAULT_GATEWAY_SEND_TIMEOUT="$2"
+      shift 2
+      ;;
+    --fault-sim-ack-timeout)
+      [[ $# -ge 2 ]] || die '--fault-sim-ack-timeout requires a value'
+      require_nonempty '--fault-sim-ack-timeout' "$2"
+      FAULT_SIM_ACK_TIMEOUT="$2"
+      shift 2
+      ;;
+    --fault-max-send-errors)
+      [[ $# -ge 2 ]] || die '--fault-max-send-errors requires a value'
+      FAULT_MAX_SEND_ERRORS="$2"
+      shift 2
+      ;;
     --dry-run)
       DRY_RUN=1
       shift
@@ -642,6 +847,9 @@ fi
 if [[ "$AUTO_JOIN_DATA_DIR_SET" -eq 0 ]]; then
   AUTO_JOIN_DATA_DIR="$OUT_DIR/node${AUTO_JOIN_NODE_ID}-data"
 fi
+if [[ "$FAULT_PID_DIR_SET" -eq 0 ]]; then
+  FAULT_PID_DIR="$OUT_DIR/node-pids"
+fi
 
 split_csv "$API_ADDRS" API_VALUES
 split_csv "$GATEWAY_ADDRS" GATEWAY_VALUES
@@ -654,13 +862,20 @@ require_positive_uint '--members' "$GROUP_MEMBERS"
 require_bool 'WK_WKCLI_SIM_THREE_SMOKE_AUTO_JOIN_NODE' "$AUTO_JOIN_NODE"
 require_bool 'WK_WKCLI_SIM_THREE_SMOKE_AUTO_PROMOTE_CONTROLLER_VOTER' "$AUTO_PROMOTE_CONTROLLER_VOTER"
 require_bool 'WK_WKCLI_SIM_THREE_SMOKE_AUTO_PROMOTE_MANAGER_AUTH' "$AUTO_PROMOTE_MANAGER_AUTH"
+require_bool 'WK_WKCLI_SIM_THREE_SMOKE_FAULT_KILL_NODE' "$FAULT_KILL_NODE"
 require_uint '--auto-join-after' "$AUTO_JOIN_AFTER"
 require_positive_uint '--auto-join-node-id' "$AUTO_JOIN_NODE_ID"
+require_uint '--fault-after' "$FAULT_AFTER"
+require_uint '--fault-max-send-errors' "$FAULT_MAX_SEND_ERRORS"
 require_uint 'WK_WKCLI_SIM_THREE_SMOKE_MAX_FLUSH_ERROR_SELECTED_ROWS' "$MAX_FLUSH_ERROR_SELECTED_ROWS"
 require_uint 'WK_WKCLI_SIM_THREE_SMOKE_MAX_HANDOFF_ERROR_TOTAL' "$MAX_HANDOFF_ERROR_TOTAL"
 require_uint 'WK_WKCLI_SIM_THREE_SMOKE_MAX_HANDOFF_TIMEOUT_TOTAL' "$MAX_HANDOFF_TIMEOUT_TOTAL"
 require_uint 'WK_WKCLI_SIM_THREE_SMOKE_MAX_GOROUTINES' "$MAX_GOROUTINES"
 require_uint 'WK_WKCLI_SIM_THREE_SMOKE_MAX_HEAP_ALLOC_BYTES' "$MAX_HEAP_ALLOC_BYTES"
+[[ -z "$FAULT_CHANNEL_MIGRATION_SCAN_LIMIT" ]] || require_positive_uint '--fault-channel-migration-scan-limit' "$FAULT_CHANNEL_MIGRATION_SCAN_LIMIT"
+[[ -z "$FAULT_CHANNEL_MIGRATION_MAX_PAGES_PER_TICK" ]] || require_positive_uint '--fault-channel-migration-max-pages-per-tick' "$FAULT_CHANNEL_MIGRATION_MAX_PAGES_PER_TICK"
+[[ -z "$FAULT_CHANNEL_MIGRATION_MAX_TASKS_PER_TICK" ]] || require_positive_uint '--fault-channel-migration-max-tasks-per-tick' "$FAULT_CHANNEL_MIGRATION_MAX_TASKS_PER_TICK"
+[[ -z "$FAULT_CHANNEL_MIGRATION_TASK_LIMIT" ]] || require_positive_uint '--fault-channel-migration-task-limit' "$FAULT_CHANNEL_MIGRATION_TASK_LIMIT"
 
 if [[ "${#API_VALUES[@]}" -eq 0 ]]; then
   die 'at least one --api value is required'
@@ -668,8 +883,8 @@ fi
 if [[ "${#GATEWAY_VALUES[@]}" -eq 0 ]]; then
   die 'at least one --gateway value is required'
 fi
-if [[ "${#API_VALUES[@]}" -ne "${#GATEWAY_VALUES[@]}" ]]; then
-  die "--api and --gateway must contain the same number of items: ${#API_VALUES[@]} != ${#GATEWAY_VALUES[@]}"
+if [[ "${#GATEWAY_VALUES[@]}" -gt "${#API_VALUES[@]}" ]]; then
+  die "--gateway must not contain more items than --api: ${#GATEWAY_VALUES[@]} > ${#API_VALUES[@]}"
 fi
 AUTO_PROMOTE_MANAGER_API="${AUTO_PROMOTE_MANAGER_API%/}"
 if [[ "$AUTO_JOIN_NODE" == "true" ]]; then
@@ -690,6 +905,18 @@ if [[ "$AUTO_PROMOTE_CONTROLLER_VOTER" == "true" ]]; then
     require_nonempty '--auto-promote-manager-password' "$AUTO_PROMOTE_MANAGER_PASSWORD"
   fi
 fi
+if [[ "$FAULT_KILL_NODE" == "true" ]]; then
+  case "$FAULT_NODE_ID" in
+    1|2|3) ;;
+    *) die "--fault-node-id must be 1, 2, or 3: $FAULT_NODE_ID" ;;
+  esac
+  (( FAULT_NODE_ID <= ${#API_VALUES[@]} )) || die "--fault-node-id ${FAULT_NODE_ID} exceeds configured --api node count ${#API_VALUES[@]}"
+  case "$FAULT_SIGNAL" in
+    TERM|KILL) ;;
+    *) die "--fault-signal must be TERM or KILL: $FAULT_SIGNAL" ;;
+  esac
+  require_nonempty '--fault-pid-dir' "$FAULT_PID_DIR"
+fi
 
 if [[ "$DRY_RUN" -eq 1 ]]; then
   print_plan
@@ -700,6 +927,7 @@ mkdir -p "$OUT_DIR" "$(node_log_dir)" "$(capabilities_dir)" "$(capacity_dir)" "$
 : >"$(cluster_log)"
 : >"$(sim_output)"
 prepare_auto_join_state
+prepare_fault_state
 
 check_cluster_process() {
   if [[ "$START_CLUSTER" -eq 0 || -z "$CLUSTER_PID" ]]; then
@@ -735,6 +963,7 @@ start_cluster() {
     return
   fi
   local args=("$START_SCRIPT")
+  local env_args=("WK_DEBUG_API_ENABLE=$DEBUG_API_ENABLE")
   if [[ "$CLEAN_CLUSTER" -eq 1 ]]; then
     args+=(--clean)
   fi
@@ -742,10 +971,21 @@ start_cluster() {
   if [[ "$BUILD_CLUSTER" -eq 0 ]]; then
     args+=(--no-build)
   fi
+  if [[ "$FAULT_KILL_NODE" == "true" ]]; then
+    args+=(--pid-dir "$FAULT_PID_DIR" --allow-node-exit "$FAULT_NODE_ID")
+    [[ -n "$FAULT_HEALTH_REPORT_INTERVAL" ]] && env_args+=("WK_CLUSTER_NODE_HEALTH_REPORT_INTERVAL=$FAULT_HEALTH_REPORT_INTERVAL")
+    [[ -n "$FAULT_HEALTH_REPORT_TTL" ]] && env_args+=("WK_CLUSTER_NODE_HEALTH_REPORT_TTL=$FAULT_HEALTH_REPORT_TTL")
+    [[ -n "$FAULT_CHANNEL_MIGRATION_SCAN_INTERVAL" ]] && env_args+=("WK_CHANNEL_MIGRATION_SCAN_INTERVAL=$FAULT_CHANNEL_MIGRATION_SCAN_INTERVAL")
+    [[ -n "$FAULT_CHANNEL_MIGRATION_SCAN_LIMIT" ]] && env_args+=("WK_CHANNEL_MIGRATION_SCAN_LIMIT=$FAULT_CHANNEL_MIGRATION_SCAN_LIMIT")
+    [[ -n "$FAULT_CHANNEL_MIGRATION_MAX_PAGES_PER_TICK" ]] && env_args+=("WK_CHANNEL_MIGRATION_MAX_PAGES_PER_TICK=$FAULT_CHANNEL_MIGRATION_MAX_PAGES_PER_TICK")
+    [[ -n "$FAULT_CHANNEL_MIGRATION_MAX_TASKS_PER_TICK" ]] && env_args+=("WK_CHANNEL_MIGRATION_MAX_TASKS_PER_TICK=$FAULT_CHANNEL_MIGRATION_MAX_TASKS_PER_TICK")
+    [[ -n "$FAULT_CHANNEL_MIGRATION_TASK_LIMIT" ]] && env_args+=("WK_CHANNEL_MIGRATION_TASK_LIMIT=$FAULT_CHANNEL_MIGRATION_TASK_LIMIT")
+    [[ -n "$FAULT_GATEWAY_SEND_TIMEOUT" ]] && env_args+=("WK_GATEWAY_SEND_TIMEOUT=$FAULT_GATEWAY_SEND_TIMEOUT")
+  fi
   log "starting three-node cluster: $START_SCRIPT"
   (
     cd "$ROOT_DIR"
-    exec env "WK_DEBUG_API_ENABLE=$DEBUG_API_ENABLE" "${args[@]}"
+    exec env "${env_args[@]}" "${args[@]}"
   ) >"$(cluster_log)" 2>&1 &
   CLUSTER_PID="$!"
   log "cluster pid=${CLUSTER_PID} log=$(cluster_log)"
@@ -1035,6 +1275,95 @@ schedule_auto_join_node() {
   log "auto-join node${AUTO_JOIN_NODE_ID} scheduled after ${AUTO_JOIN_AFTER}s"
 }
 
+node_faulted() {
+  local node="$1"
+  [[ "$FAULT_KILL_NODE" == "true" ]] || return 1
+  [[ "$node" == "$FAULT_NODE_ID" ]] || return 1
+  [[ -f "$(fault_event_file)" ]]
+}
+
+wait_fault_survivors_ready() {
+  local deadline=$((SECONDS + READY_TIMEOUT))
+  local ready=()
+  local idx
+  local api
+  for idx in "${!API_VALUES[@]}"; do
+    ready+=(0)
+  done
+  while (( SECONDS <= deadline )); do
+    check_cluster_process
+    local all_ready=1
+    idx=0
+    for api in "${API_VALUES[@]}"; do
+      local node=$((idx + 1))
+      if [[ "$node" == "$FAULT_NODE_ID" ]]; then
+        idx=$((idx + 1))
+        continue
+      fi
+      if [[ "${ready[$idx]}" -eq 1 ]]; then
+        idx=$((idx + 1))
+        continue
+      fi
+      if curl -fsS --max-time 2 "$api/readyz" >/dev/null 2>&1; then
+        ready[$idx]=1
+        log "fault survivor node${node} ready: $api/readyz"
+      else
+        all_ready=0
+      fi
+      idx=$((idx + 1))
+    done
+    if [[ "$all_ready" -eq 1 ]]; then
+      return
+    fi
+    sleep "$POLL_INTERVAL"
+  done
+  die "fault survivor nodes did not become ready within ${READY_TIMEOUT}s after killing node${FAULT_NODE_ID}"
+}
+
+kill_fault_node() {
+  local file
+  local pid
+  local deadline
+  file="$(fault_pid_file)"
+  deadline=$((SECONDS + READY_TIMEOUT))
+  while [[ ! -f "$file" && SECONDS -le deadline ]]; do
+    check_cluster_process
+    sleep "$POLL_INTERVAL"
+  done
+  [[ -f "$file" ]] || die "fault pid file missing for node${FAULT_NODE_ID}: $file"
+  pid="$(tr -d '[:space:]' <"$file")"
+  [[ -n "$pid" ]] || die "fault pid file is empty for node${FAULT_NODE_ID}: $file"
+  if ! kill -0 "$pid" 2>/dev/null; then
+    die "fault target node${FAULT_NODE_ID} pid is not running: $pid"
+  fi
+  log "fault kill node${FAULT_NODE_ID}: pid=${pid} signal=${FAULT_SIGNAL}"
+  kill -s "$FAULT_SIGNAL" "$pid"
+  {
+    printf 'node_id=%s\n' "$FAULT_NODE_ID"
+    printf 'pid=%s\n' "$pid"
+    printf 'signal=%s\n' "$FAULT_SIGNAL"
+    printf 'killed_at=%s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+    printf 'pid_file=%s\n' "$file"
+  } >"$(fault_event_file)"
+}
+
+schedule_fault_kill_node() {
+  if [[ "$FAULT_KILL_NODE" != "true" ]]; then
+    return
+  fi
+  rm -f "$(fault_event_file)"
+  (
+    sleep "$FAULT_AFTER"
+    if [[ -f "$(sim_done_file)" ]]; then
+      exit 0
+    fi
+    kill_fault_node
+    wait_fault_survivors_ready
+  ) &
+  FAULT_TIMER_PID="$!"
+  log "fault kill node${FAULT_NODE_ID} scheduled after ${FAULT_AFTER}s"
+}
+
 wait_ready() {
   local deadline=$((SECONDS + READY_TIMEOUT))
   local ready=()
@@ -1082,14 +1411,20 @@ capture_one_target_evidence() {
   grep -q '"channel_subscribers_batch":true' "$caps" || die "node${node} bench capabilities missing channel_subscribers_batch=true"
   grep -q '"snapshot":true' "$caps" || die "node${node} bench capabilities missing snapshot=true"
   grep -q '"group"' "$caps" || die "node${node} bench capabilities missing group channel type"
-  grep -q "\"tcp_addr\":\"${gateway}\"" "$capacity" || die "node${node} capacity target did not publish expected gateway ${gateway}"
+  if [[ -n "$gateway" ]]; then
+    grep -q "\"tcp_addr\":\"${gateway}\"" "$capacity" || die "node${node} capacity target did not publish expected gateway ${gateway}"
+  fi
 }
 
 capture_target_evidence() {
   local idx=0
   local api
   for api in "${API_VALUES[@]}"; do
-    capture_one_target_evidence "$((idx + 1))" "$api" "${GATEWAY_VALUES[$idx]}"
+    local gateway=""
+    if (( idx < ${#GATEWAY_VALUES[@]} )); then
+      gateway="${GATEWAY_VALUES[$idx]}"
+    fi
+    capture_one_target_evidence "$((idx + 1))" "$api" "$gateway"
     idx=$((idx + 1))
   done
 }
@@ -1112,6 +1447,9 @@ run_sim() {
   cmd+=(--max-runtime "$DURATION")
   cmd+=(--status-listen "$STATUS_LISTEN")
   cmd+=(--status-interval "$STATUS_INTERVAL")
+  if [[ -n "$FAULT_SIM_ACK_TIMEOUT" ]]; then
+    cmd+=(--ack-timeout "$FAULT_SIM_ACK_TIMEOUT")
+  fi
   cmd+=(--json)
   log "running wkcli sim: users=${USERS} groups=${GROUP_COUNT} members=${GROUP_MEMBERS} gateways=${#GATEWAY_VALUES[@]}"
   local status=0
@@ -1123,11 +1461,28 @@ run_sim() {
   ) &
   local sim_pid="$!"
   schedule_auto_join_node
+  schedule_fault_kill_node
   wait "$sim_pid" || status=$?
   touch "$(sim_done_file)"
   if [[ "$status" -ne 0 ]]; then
+    stop_fault_timer
+    capture_failure_metrics after-failure
     stop_auto_join_node
     die "wkcli sim failed with status ${status}"
+  fi
+  if [[ "$FAULT_KILL_NODE" == "true" ]]; then
+    if [[ ! -f "$(fault_event_file)" ]]; then
+      stop_fault_timer
+      die "fault kill node${FAULT_NODE_ID} did not run before wkcli sim completed; increase --duration or lower --fault-after"
+    fi
+    local fault_status=0
+    if [[ -n "$FAULT_TIMER_PID" ]]; then
+      wait "$FAULT_TIMER_PID" || fault_status=$?
+      FAULT_TIMER_PID=""
+    fi
+    if [[ "$fault_status" -ne 0 ]]; then
+      die "fault kill node${FAULT_NODE_ID} failed with status ${fault_status}"
+    fi
   fi
   if [[ "$AUTO_JOIN_NODE" == "true" ]]; then
     if [[ ! -f "$(auto_join_pid_file)" ]]; then
@@ -1160,16 +1515,27 @@ json_string() {
   sed -n "s/.*\"${key}\":\"\\([^\"]*\\)\".*/\\1/p"
 }
 
+die_after_sim_verification_failure() {
+  capture_failure_metrics after-failure
+  die "$@"
+}
+
 verify_sim_output() {
   local final state sent errors
   final="$(grep '"state"' "$(sim_output)" | tail -n 1 || true)"
-  [[ -n "$final" ]] || die 'wkcli sim produced no status snapshots'
+  [[ -n "$final" ]] || die_after_sim_verification_failure 'wkcli sim produced no status snapshots'
   state="$(printf '%s\n' "$final" | json_string state)"
   sent="$(printf '%s\n' "$final" | json_int messages_sent)"
   errors="$(printf '%s\n' "$final" | json_int send_errors)"
-  [[ "$state" == "stopped" ]] || die "final sim state is ${state:-<empty>}, want stopped"
-  [[ -n "$sent" && "$sent" =~ ^[0-9]+$ && "$sent" -gt 0 ]] || die "messages_sent=${sent:-<empty>}, want >0"
-  [[ "${errors:-}" == "0" ]] || die "send_errors=${errors:-<empty>}, want 0"
+  [[ "$state" == "stopped" ]] || die_after_sim_verification_failure "final sim state is ${state:-<empty>}, want stopped"
+  [[ -n "$sent" && "$sent" =~ ^[0-9]+$ && "$sent" -gt 0 ]] || die_after_sim_verification_failure "messages_sent=${sent:-<empty>}, want >0"
+  [[ -n "${errors:-}" && "$errors" =~ ^[0-9]+$ ]] || die_after_sim_verification_failure "send_errors=${errors:-<empty>}, want integer"
+  if (( errors > FAULT_MAX_SEND_ERRORS )); then
+    if (( FAULT_MAX_SEND_ERRORS == 0 )); then
+      die_after_sim_verification_failure "send_errors=${errors}, want 0"
+    fi
+    die_after_sim_verification_failure "send_errors=${errors}, want <= ${FAULT_MAX_SEND_ERRORS}"
+  fi
   log "wkcli sim passed: messages_sent=${sent} send_errors=${errors}"
 }
 
@@ -1179,6 +1545,10 @@ capture_snapshots() {
   local snapshots_with_counts=0
   for api in "${API_VALUES[@]}"; do
     local node=$((idx + 1))
+    if node_faulted "$node"; then
+      idx=$((idx + 1))
+      continue
+    fi
     local snapshot
     snapshot="$(node_file "$(snapshot_dir)" "$node")"
     curl -fsS "$api/bench/v1/snapshot" >"$snapshot"
@@ -1218,10 +1588,35 @@ capture_metrics() {
   local api
   for api in "${API_VALUES[@]}"; do
     local node=$((idx + 1))
+    if [[ "$phase" == "after" ]] && node_faulted "$node"; then
+      idx=$((idx + 1))
+      continue
+    fi
     curl -fsS "$api/metrics" >"$(metric_file "$phase" "$node")"
     idx=$((idx + 1))
   done
   log "metrics ${phase}: $(metrics_dir)"
+}
+
+capture_failure_metrics() {
+  local phase="$1"
+  local idx=0
+  local api
+  for api in "${API_VALUES[@]}"; do
+    local node=$((idx + 1))
+    local output
+    if node_faulted "$node"; then
+      idx=$((idx + 1))
+      continue
+    fi
+    output="$(metric_file "$phase" "$node")"
+    if ! curl -fsS --max-time 2 "$api/metrics" >"$output"; then
+      rm -f "$output"
+      log "failure metrics node${node} unavailable: $api/metrics"
+    fi
+    idx=$((idx + 1))
+  done
+  log "failure metrics ${phase}: $(metrics_dir)"
 }
 
 metric_sum() {
@@ -1269,6 +1664,10 @@ verify_metrics_health() {
   local idx=0
   while (( idx < ${#API_VALUES[@]} )); do
     local node=$((idx + 1))
+    if node_faulted "$node"; then
+      idx=$((idx + 1))
+      continue
+    fi
     local before
     local after
     before="$(metric_file before "$node")"
@@ -1334,6 +1733,24 @@ write_summary() {
       printf '%s\n' "- auto_promote_nodes_response: $(basename "$(auto_promote_nodes_response_file)")"
       printf '%s\n' "- auto_promote_response: $(basename "$(auto_promote_response_file)")"
       printf '%s\n' "- auto_promote_controller_raft_status: $(basename "$(auto_promote_controller_raft_status_file)")"
+    fi
+    printf '%s\n' "- fault_kill_node: ${FAULT_KILL_NODE}"
+    printf '%s\n' "- fault_node_id: ${FAULT_NODE_ID}"
+    printf '%s\n' "- fault_after_secs: ${FAULT_AFTER}"
+    printf '%s\n' "- fault_signal: ${FAULT_SIGNAL}"
+    printf '%s\n' "- fault_pid_dir: ${FAULT_PID_DIR}"
+    printf '%s\n' "- fault_health_report_interval: ${FAULT_HEALTH_REPORT_INTERVAL:-<default>}"
+    printf '%s\n' "- fault_health_report_ttl: ${FAULT_HEALTH_REPORT_TTL:-<default>}"
+    printf '%s\n' "- fault_channel_migration_scan_interval: ${FAULT_CHANNEL_MIGRATION_SCAN_INTERVAL:-<default>}"
+    printf '%s\n' "- fault_channel_migration_scan_limit: ${FAULT_CHANNEL_MIGRATION_SCAN_LIMIT:-<default>}"
+    printf '%s\n' "- fault_channel_migration_max_pages_per_tick: ${FAULT_CHANNEL_MIGRATION_MAX_PAGES_PER_TICK:-<default>}"
+    printf '%s\n' "- fault_channel_migration_max_tasks_per_tick: ${FAULT_CHANNEL_MIGRATION_MAX_TASKS_PER_TICK:-<default>}"
+    printf '%s\n' "- fault_channel_migration_task_limit: ${FAULT_CHANNEL_MIGRATION_TASK_LIMIT:-<default>}"
+    printf '%s\n' "- fault_gateway_send_timeout: ${FAULT_GATEWAY_SEND_TIMEOUT:-<default>}"
+    printf '%s\n' "- fault_sim_ack_timeout: ${FAULT_SIM_ACK_TIMEOUT:-<default>}"
+    printf '%s\n' "- fault_max_send_errors: ${FAULT_MAX_SEND_ERRORS}"
+    if [[ "$FAULT_KILL_NODE" == "true" ]]; then
+      printf '%s\n' "- fault_event_file: $(basename "$(fault_event_file)")"
     fi
   } >"$(summary_output)"
 }

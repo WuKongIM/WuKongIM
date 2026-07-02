@@ -3,6 +3,7 @@ package channelappend
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -362,6 +363,42 @@ func TestAppendBatchRouteErrorsFailWithoutRetry(t *testing.T) {
 	}
 }
 
+func TestAppendBatchAppendFailedRecoversCommittedIdempotencyHit(t *testing.T) {
+	appender := newRecordingAppenderForAppendTest()
+	appender.err = fmt.Errorf("%w: channel: corrupt state: db: conflict: idempotency key already stored at seq 7", ErrAppendFailed)
+	idempotency := &sequencedIdempotencyForAppendTest{
+		results: []idempotencyResultForAppendTest{
+			{},
+			{result: SendResult{MessageID: 42, MessageSeq: 7, Reason: ReasonSuccess}, ok: true},
+		},
+	}
+	group := newStartedTestGroup(t, Options{
+		LocalNodeID: 1,
+		MessageID:   newSequenceIDsForPrepare(300),
+		Appender:    appender,
+		Idempotency: idempotency,
+	})
+	target := localTargetForAppendTest("room")
+
+	future, err := group.SubmitLocal(context.Background(), target, []SendBatchItem{
+		appendSendItemForTest("u1", "room", "payload"),
+	})
+	if err != nil {
+		t.Fatalf("SubmitLocal() error = %v", err)
+	}
+
+	results := waitFutureForTest(t, future)
+	requireAppendSuccess(t, results, 0, 42, 7)
+	if got := appender.Calls(); got != 1 {
+		t.Fatalf("append calls = %d, want one failed append before idempotency recovery", got)
+	}
+	if gotQueries := idempotency.queriesSnapshot(); len(gotQueries) != 2 {
+		t.Fatalf("idempotency queries = %d, want prepare miss plus post-append recovery hit", len(gotQueries))
+	} else if gotQueries[1] != (IdempotencyQuery{FromUID: "u1", ClientMsgNo: "u1-payload", ChannelID: "room", ChannelType: 2, PayloadHash: idempotencyPayloadHash([]byte("payload"))}) {
+		t.Fatalf("recovery query = %#v, want canonical sender/client/channel", gotQueries[1])
+	}
+}
+
 func TestActiveAppendItemsDoesNotAllocateForAllActiveItems(t *testing.T) {
 	items := make([]preparedSend, 16)
 	allocs := testing.AllocsPerRun(100, func() {
@@ -634,6 +671,36 @@ func (a *recordingAppenderForAppendTest) successResult(req AppendBatchRequest, i
 		a.nextSeq++
 	}
 	return AppendBatchResult{Items: items}
+}
+
+type idempotencyResultForAppendTest struct {
+	result SendResult
+	ok     bool
+	err    error
+}
+
+type sequencedIdempotencyForAppendTest struct {
+	mu      sync.Mutex
+	results []idempotencyResultForAppendTest
+	queries []IdempotencyQuery
+}
+
+func (i *sequencedIdempotencyForAppendTest) LookupSend(_ context.Context, query IdempotencyQuery) (SendResult, bool, error) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	i.queries = append(i.queries, query)
+	index := len(i.queries) - 1
+	if index >= len(i.results) {
+		return SendResult{}, false, nil
+	}
+	result := i.results[index]
+	return result.result, result.ok, result.err
+}
+
+func (i *sequencedIdempotencyForAppendTest) queriesSnapshot() []IdempotencyQuery {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	return append([]IdempotencyQuery(nil), i.queries...)
 }
 
 func (a *recordingAppenderForAppendTest) Calls() int {

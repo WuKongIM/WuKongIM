@@ -541,6 +541,28 @@ func (n *Node) ReadChannelCommitted(ctx context.Context, id channelv2.ChannelID,
 	return store.ReadCommitted(ctx, req)
 }
 
+// LookupChannelIdempotency reads one local ChannelV2 idempotency index entry.
+func (n *Node) LookupChannelIdempotency(ctx context.Context, id channelv2.ChannelID, fromUID string, clientMsgNo string) (channelstore.IdempotencyHit, bool, error) {
+	if err := ctxErr(ctx); err != nil {
+		return channelstore.IdempotencyHit{}, false, err
+	}
+	if err := n.ensureForeground(); err != nil {
+		return channelstore.IdempotencyHit{}, false, err
+	}
+	if n.defaultChannelStore == nil {
+		return channelstore.IdempotencyHit{}, false, ErrNotStarted
+	}
+	store, err := n.defaultChannelStore.ChannelStore(channelv2.ChannelKeyForID(id), id)
+	if err != nil {
+		return channelstore.IdempotencyHit{}, false, err
+	}
+	lookup, ok := store.(channelstore.IdempotencyLookup)
+	if !ok {
+		return channelstore.IdempotencyHit{}, false, channelv2.ErrInvalidConfig
+	}
+	return lookup.LookupIdempotency(ctx, fromUID, clientMsgNo)
+}
+
 // ReadChannelLastVisible reads the newest visible message from the authoritative channel leader.
 func (n *Node) ReadChannelLastVisible(ctx context.Context, id channelv2.ChannelID, visibleAfterSeq uint64) (channelv2.Message, bool, error) {
 	if err := ctxErr(ctx); err != nil {

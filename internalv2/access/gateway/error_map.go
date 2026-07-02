@@ -49,7 +49,9 @@ func reasonForError(err error) message.Reason {
 		return message.ReasonNodeNotMatch
 	case errors.Is(err, message.ErrInvalidCommand):
 		return message.ReasonInvalidRequest
-	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
+	case errors.Is(err, context.DeadlineExceeded):
+		return message.ReasonNodeNotMatch
+	case errors.Is(err, context.Canceled):
 		return message.ReasonSystemError
 	default:
 		return message.ReasonSystemError

@@ -208,6 +208,8 @@ type IdempotencyQuery struct {
 	ChannelID string
 	// ChannelType is the canonical channel type.
 	ChannelType uint8
+	// PayloadHash is the FNV-64a hash of the raw message payload used to reject conflicting key reuse.
+	PayloadHash uint64
 }
 
 // Message is the durable append payload used by the channel appender port.

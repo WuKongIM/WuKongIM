@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"net"
+	"syscall"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internalv2/contracts/channelappend"
@@ -142,8 +145,27 @@ func channelAppendRPCError(err error) error {
 		return context.Canceled
 	case errors.Is(err, transportv2.ErrTimeout):
 		return context.DeadlineExceeded
+	case channelAppendTransportUnavailable(err):
+		return fmt.Errorf("%w: %w", channelappend.ErrRouteNotReady, err)
 	default:
 		return err
+	}
+}
+
+func channelAppendTransportUnavailable(err error) bool {
+	switch {
+	case errors.Is(err, transportv2.ErrDialFailed),
+		errors.Is(err, transportv2.ErrNodeNotFound),
+		errors.Is(err, transportv2.ErrStopped),
+		errors.Is(err, net.ErrClosed),
+		errors.Is(err, io.EOF),
+		errors.Is(err, io.ErrUnexpectedEOF),
+		errors.Is(err, syscall.ECONNRESET),
+		errors.Is(err, syscall.ECONNREFUSED),
+		errors.Is(err, syscall.EPIPE):
+		return true
+	default:
+		return false
 	}
 }
 

@@ -448,7 +448,8 @@ func shouldRetryRouterError(err error) bool {
 	return errors.Is(err, ErrStaleRoute) ||
 		errors.Is(err, ErrNotChannelAuthority) ||
 		errors.Is(err, ErrNotLeader) ||
-		errors.Is(err, ErrRouteNotReady)
+		errors.Is(err, ErrRouteNotReady) ||
+		errors.Is(err, context.Canceled)
 }
 
 func canRetryRouterItem(item SendBatchItem, attempts int, maxAttempts int, now time.Time) bool {

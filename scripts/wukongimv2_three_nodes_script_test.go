@@ -143,6 +143,48 @@ func TestWukongIMV2ThreeNodeScriptDryRunPrintsCommands(t *testing.T) {
 	}
 }
 
+func TestWukongIMV2ThreeNodeScriptDryRunPrintsPidDirAndAllowedNodeExit(t *testing.T) {
+	root := repoRoot(t)
+	outputBin := filepath.Join(t.TempDir(), "wukongimv2")
+	logDir := filepath.Join(t.TempDir(), "logs")
+	pidDir := filepath.Join(t.TempDir(), "pids")
+
+	cmd := exec.Command("bash", "scripts/start-wukongimv2-three-nodes.sh",
+		"--dry-run",
+		"--bin", outputBin,
+		"--log-dir", logDir,
+		"--pid-dir", pidDir,
+		"--allow-node-exit", "2",
+	)
+	cmd.Dir = root
+	cmd.Env = envWithout(
+		"WK_PROMETHEUS_ENABLE",
+		"WK_PROMETHEUS_LISTEN_ADDR",
+		"WK_WUKONGIMV2_THREE_NODES_PROMETHEUS_ENABLE",
+		"WK_WUKONGIMV2_THREE_NODES_PROMETHEUS_LISTEN_ADDR",
+		"WK_WUKONGIMV2_THREE_NODES_PROMETHEUS_DATA_DIR",
+		"WK_WUKONGIMV2_THREE_NODES_PROMETHEUS_SCRAPE_INTERVAL",
+		"WK_WUKONGIMV2_THREE_NODES_PID_DIR",
+		"WK_WUKONGIMV2_THREE_NODES_ALLOW_NODE_EXIT",
+	)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("dry-run failed: %v\n%s", err, output)
+	}
+	text := string(output)
+	for _, want := range []string{
+		"pid_dir=" + pidDir,
+		"allow_node_exit=2",
+		"node1_pid_file=" + filepath.Join(pidDir, "node1.pid"),
+		"node2_pid_file=" + filepath.Join(pidDir, "node2.pid"),
+		"node3_pid_file=" + filepath.Join(pidDir, "node3.pid"),
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("dry-run output missing %q:\n%s", want, text)
+		}
+	}
+}
+
 func writeFakeGoWukongIMV2Starter(t *testing.T, path string, callsDir string) {
 	t.Helper()
 	script := `#!/usr/bin/env bash

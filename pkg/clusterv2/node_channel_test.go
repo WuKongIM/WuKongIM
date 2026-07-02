@@ -173,6 +173,43 @@ func TestNodeWithChannelsOptionOverridesDefault(t *testing.T) {
 	}
 }
 
+func TestNodeLookupChannelIdempotencyUsesDefaultStore(t *testing.T) {
+	node := newDefaultSingleNode(t)
+	startNode(t, node)
+	t.Cleanup(func() { stopNodes(t, node) })
+	waitChannelDataNode(t, node, 1)
+
+	id := channelv2.ChannelID{ID: "idempotency-read", Type: 1}
+	applyDefaultChannelMeta(t, node, id)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	if _, err := node.AppendChannel(ctx, channelv2.AppendRequest{
+		ChannelID: id,
+		Message: channelv2.Message{
+			MessageID:   501,
+			FromUID:     "u1",
+			ClientMsgNo: "client-1",
+			Payload:     []byte("payload"),
+		},
+	}); err != nil {
+		t.Fatalf("AppendChannel() error = %v", err)
+	}
+
+	hit, ok, err := node.LookupChannelIdempotency(ctx, id, "u1", "client-1")
+	if err != nil {
+		t.Fatalf("LookupChannelIdempotency() error = %v", err)
+	}
+	if !ok {
+		t.Fatal("LookupChannelIdempotency() ok = false, want true")
+	}
+	if hit.Message.MessageID != 501 || hit.Message.MessageSeq != 1 || hit.Message.FromUID != "u1" || hit.Message.ClientMsgNo != "client-1" {
+		t.Fatalf("LookupChannelIdempotency() hit = %#v, want committed message", hit)
+	}
+	if hit.PayloadHash == 0 {
+		t.Fatalf("LookupChannelIdempotency() payload hash = 0, want persisted hash")
+	}
+}
+
 func nodeMessageSeqs(messages []channelv2.Message) []uint64 {
 	out := make([]uint64, 0, len(messages))
 	for _, msg := range messages {

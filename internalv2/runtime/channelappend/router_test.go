@@ -245,6 +245,25 @@ func TestRouterRetriesRouteErrorsWithinDeadline(t *testing.T) {
 	}
 }
 
+func TestRouterRetriesRemoteCanceledWhenItemStillActive(t *testing.T) {
+	remoteTarget := routerTarget("retry-remote-cancel", 2, 8)
+	localTarget := routerTarget("retry-remote-cancel", 2, 7)
+	resolver := &routerResolverForTest{targets: []AuthorityTarget{remoteTarget, localTarget}}
+	remote := &routerRemoteForTest{results: []SendBatchItemResult{{Err: context.Canceled}}}
+	local := &routerLocalSubmitterForTest{
+		results: []SendBatchItemResult{{Result: SendResult{MessageID: 31, MessageSeq: 4, Reason: ReasonSuccess}}},
+	}
+	router := NewRouter(RouterOptions{LocalNodeID: 7, Resolver: resolver, Local: local, Remote: remote, RetryBackoff: time.Millisecond})
+
+	results := router.SendBatch([]SendBatchItem{routerItem("u1", "retry-remote-cancel", 2)})
+	if len(results) != 1 || results[0].Err != nil || results[0].Result.MessageID != 31 {
+		t.Fatalf("results = %#v, want retry through refreshed local authority", results)
+	}
+	if resolver.calls != 2 || remote.calls != 1 || local.calls != 1 {
+		t.Fatalf("resolver/remote/local calls = %d/%d/%d, want retry resolve, one remote failure, one local success", resolver.calls, remote.calls, local.calls)
+	}
+}
+
 func TestRouterItemCancellationDoesNotPoisonSameAuthorityBatch(t *testing.T) {
 	target := routerTarget("ctx-batch", 2, 7)
 	resolver := &routerResolverForTest{targetsByChannel: map[ChannelID]AuthorityTarget{target.ChannelID: target}}

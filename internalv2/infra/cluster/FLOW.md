@@ -156,6 +156,11 @@ adapter logs `internalv2.infra.cluster.channel_append_batch_failed` at ERROR
 level with the channel identity, authority fence, attempt, record count,
 mapped error result, and raw source error before returning the mapped
 channelappend error.
+`ChannelIdempotencyStore` adapts the node-local ChannelV2 idempotency lookup
+facade for the channelappend runtime. It only returns a prior successful send
+when the sender UID, client message number, canonical channel, and raw payload
+hash match the durable index entry; hash mismatches are treated as lookup
+misses so callers cannot turn conflicting key reuse into a false success.
 
 ## Message Sync Read Flow
 

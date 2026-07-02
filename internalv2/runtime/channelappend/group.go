@@ -218,7 +218,7 @@ func (g *Group) SubmitLocal(ctx context.Context, target AuthorityTarget, items [
 	g.mu.RLock()
 	if !g.started || g.stopping || g.stopped {
 		g.mu.RUnlock()
-		return nil, ErrBackpressured
+		return nil, ErrRouteNotReady
 	}
 	shard := g.shardForTarget(target)
 	if !shard.tryAcquireAdmission() {

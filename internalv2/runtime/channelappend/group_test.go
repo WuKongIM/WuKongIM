@@ -130,8 +130,8 @@ func TestStartAfterStopKeepsAdmissionClosed(t *testing.T) {
 		t.Fatalf("Start() error = %v, want ErrBackpressured", err)
 	}
 	target := AuthorityTarget{ChannelID: ChannelID{ID: "room", Type: 2}, LeaderNodeID: 1}
-	if _, err := group.SubmitLocal(context.Background(), target, []SendBatchItem{testSendItem("u1", "room")}); !errors.Is(err, ErrBackpressured) {
-		t.Fatalf("SubmitLocal() error = %v, want ErrBackpressured", err)
+	if _, err := group.SubmitLocal(context.Background(), target, []SendBatchItem{testSendItem("u1", "room")}); !errors.Is(err, ErrRouteNotReady) {
+		t.Fatalf("SubmitLocal() error = %v, want ErrRouteNotReady", err)
 	}
 }
 
@@ -271,8 +271,8 @@ func TestStopCancelsAcceptedAppendAndClosesAdmission(t *testing.T) {
 	if err := group.Start(context.Background()); !errors.Is(err, ErrBackpressured) {
 		t.Fatalf("Start() error = %v, want ErrBackpressured", err)
 	}
-	if _, err := group.SubmitLocal(context.Background(), target, []SendBatchItem{testSendItem("u2", "room")}); !errors.Is(err, ErrBackpressured) {
-		t.Fatalf("SubmitLocal() error = %v, want ErrBackpressured", err)
+	if _, err := group.SubmitLocal(context.Background(), target, []SendBatchItem{testSendItem("u2", "room")}); !errors.Is(err, ErrRouteNotReady) {
+		t.Fatalf("SubmitLocal() error = %v, want ErrRouteNotReady", err)
 	}
 
 	results := waitFutureForTest(t, future)
@@ -307,8 +307,8 @@ func TestSubmitLocalFullMailboxReturnsBackpressureAndDoesNotBlockStop(t *testing
 	if err := group.Stop(stopCtx); err != nil {
 		t.Fatalf("Stop() error = %v", err)
 	}
-	if _, err := group.SubmitLocal(context.Background(), target, []SendBatchItem{testSendItem("u3", "room")}); !errors.Is(err, ErrBackpressured) {
-		t.Fatalf("SubmitLocal() after Stop error = %v, want ErrBackpressured", err)
+	if _, err := group.SubmitLocal(context.Background(), target, []SendBatchItem{testSendItem("u3", "room")}); !errors.Is(err, ErrRouteNotReady) {
+		t.Fatalf("SubmitLocal() after Stop error = %v, want ErrRouteNotReady", err)
 	}
 
 	results := waitFutureForTest(t, queuedFuture)
@@ -338,8 +338,8 @@ func TestStopKeepsAdmissionClosedAfterCancelingAcceptedWork(t *testing.T) {
 	if err := group.Start(context.Background()); !errors.Is(err, ErrBackpressured) {
 		t.Fatalf("Start() error = %v, want ErrBackpressured", err)
 	}
-	if _, err := group.SubmitLocal(context.Background(), target, []SendBatchItem{testSendItem("u1", "room")}); !errors.Is(err, ErrBackpressured) {
-		t.Fatalf("SubmitLocal() error = %v, want ErrBackpressured", err)
+	if _, err := group.SubmitLocal(context.Background(), target, []SendBatchItem{testSendItem("u1", "room")}); !errors.Is(err, ErrRouteNotReady) {
+		t.Fatalf("SubmitLocal() error = %v, want ErrRouteNotReady", err)
 	}
 
 	results := waitFutureForTest(t, future)

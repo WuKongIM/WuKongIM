@@ -305,6 +305,30 @@ func (a *messageDBChannelStoreAdapter) LookupMessageByID(ctx context.Context, me
 	return fromDBMessage(msg), true, nil
 }
 
+func (a *messageDBChannelStoreAdapter) LookupIdempotency(ctx context.Context, fromUID string, clientMsgNo string) (IdempotencyHit, bool, error) {
+	if err := ctx.Err(); err != nil {
+		return IdempotencyHit{}, false, err
+	}
+	if fromUID == "" || clientMsgNo == "" {
+		return IdempotencyHit{}, false, nil
+	}
+	entry, payloadHash, ok, err := a.store.LookupIdempotency(channel.IdempotencyKey{
+		ChannelID:   channel.ChannelID{ID: a.id.ID, Type: a.id.Type},
+		FromUID:     fromUID,
+		ClientMsgNo: clientMsgNo,
+	})
+	if err != nil || !ok {
+		return IdempotencyHit{}, ok, err
+	}
+	msg, ok, err := a.store.GetMessageBySeq(entry.MessageSeq)
+	if err != nil || !ok {
+		return IdempotencyHit{}, ok, err
+	}
+	msg.MessageSeq = entry.MessageSeq
+	msg.MessageID = entry.MessageID
+	return IdempotencyHit{Message: fromDBMessage(msg), PayloadHash: payloadHash}, true, nil
+}
+
 func (a *messageDBChannelStoreAdapter) ReadLog(ctx context.Context, req ReadLogRequest) (ReadLogResult, error) {
 	if err := ctx.Err(); err != nil {
 		return ReadLogResult{}, err

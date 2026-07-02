@@ -186,6 +186,11 @@ Committed-message lookup is a read-only recovery/diagnostic path. It asks the
 owning reactor to read a durable row by message id, then returns it only when
 the row has a positive sequence and the local HW covers that sequence. It never
 advances HW, creates rows, or turns an uncommitted local write into success.
+The store contract also has an optional local `IdempotencyLookup` surface for
+sender/client-message recovery. MessageDB-backed stores resolve it through the
+durable idempotency index and return the stored raw-payload hash with the
+message row so upper layers can reject conflicting key reuse without parsing
+append errors.
 
 Logical channel message compaction is represented by the caller-supplied
 `ReadCommittedRequest.MinSeq` floor, normally derived from Slot metadata

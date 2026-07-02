@@ -107,6 +107,43 @@ func TestMessageDBStoreAdapterPreservesConversationDisplayFields(t *testing.T) {
 	require.Equal(t, int64(1234), msg.ServerTimestampMS)
 }
 
+func TestMessageDBStoreAdapterLookupIdempotency(t *testing.T) {
+	ctx := context.Background()
+	factory := NewMessageDBFactory(t.TempDir())
+	t.Cleanup(func() { _ = factory.Close() })
+	id := ch.ChannelID{ID: "idempotency", Type: 2}
+	cs, err := factory.ChannelStore(ch.ChannelKeyForID(id), id)
+	require.NoError(t, err)
+
+	_, err = cs.AppendLeader(ctx, AppendLeaderRequest{
+		Records: []ch.Record{{
+			ID:          10,
+			FromUID:     "u1",
+			ClientMsgNo: "client-1",
+			Payload:     []byte("payload"),
+			SizeBytes:   len("payload"),
+		}},
+		Sync: true,
+	})
+	require.NoError(t, err)
+
+	lookup, ok := cs.(IdempotencyLookup)
+	require.True(t, ok)
+	hit, found, err := lookup.LookupIdempotency(ctx, "u1", "client-1")
+	require.NoError(t, err)
+	require.True(t, found)
+	require.Equal(t, uint64(10), hit.Message.MessageID)
+	require.Equal(t, uint64(1), hit.Message.MessageSeq)
+	require.Equal(t, "u1", hit.Message.FromUID)
+	require.Equal(t, "client-1", hit.Message.ClientMsgNo)
+	require.Equal(t, []byte("payload"), hit.Message.Payload)
+	require.Equal(t, hashPayload([]byte("payload")), hit.PayloadHash)
+
+	_, found, err = lookup.LookupIdempotency(ctx, "u1", "missing")
+	require.NoError(t, err)
+	require.False(t, found)
+}
+
 func TestMessageDBStoreAdapterPreservesSyncOnceFlag(t *testing.T) {
 	ctx := context.Background()
 	factory := NewMessageDBFactory(t.TempDir())

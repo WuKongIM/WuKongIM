@@ -3,7 +3,11 @@ package node
 import (
 	"context"
 	"errors"
+	"fmt"
+	"net"
+	"os"
 	"reflect"
+	"syscall"
 	"testing"
 	"time"
 
@@ -179,6 +183,12 @@ func TestChannelAppendClientMapsStatusesAndErrorsToItemAlignedResults(t *testing
 		{name: "rejected status", node: &fakeChannelAppendRPCNode{response: channelAppendResponse{Status: rpcStatusRejected}}, wantString: "internalv2/access/node: channel append rpc rejected"},
 		{name: "transport canceled", node: &fakeChannelAppendRPCNode{err: transportv2.ErrCanceled}, wantIs: context.Canceled},
 		{name: "transport timeout", node: &fakeChannelAppendRPCNode{err: transportv2.ErrTimeout}, wantIs: context.DeadlineExceeded},
+		{name: "transport dial failed", node: &fakeChannelAppendRPCNode{err: fmt.Errorf("%w: connection refused", transportv2.ErrDialFailed)}, wantIs: channelappend.ErrRouteNotReady},
+		{name: "transport node not found", node: &fakeChannelAppendRPCNode{err: transportv2.ErrNodeNotFound}, wantIs: channelappend.ErrRouteNotReady},
+		{name: "transport stopped", node: &fakeChannelAppendRPCNode{err: transportv2.ErrStopped}, wantIs: channelappend.ErrRouteNotReady},
+		{name: "transport connection reset", node: &fakeChannelAppendRPCNode{err: channelAppendNetOpError(syscall.ECONNRESET)}, wantIs: channelappend.ErrRouteNotReady},
+		{name: "transport connection refused", node: &fakeChannelAppendRPCNode{err: channelAppendNetOpError(syscall.ECONNREFUSED)}, wantIs: channelappend.ErrRouteNotReady},
+		{name: "transport broken pipe", node: &fakeChannelAppendRPCNode{err: channelAppendNetOpError(syscall.EPIPE)}, wantIs: channelappend.ErrRouteNotReady},
 		{name: "transport error", node: &fakeChannelAppendRPCNode{err: errors.New("transport down")}, wantString: "transport down"},
 		{name: "short response", node: &fakeChannelAppendRPCNode{response: channelAppendResponse{Status: rpcStatusOK, Results: []channelappend.SendBatchItemResult{{}}}}, wantIs: channelappend.ErrAppendResultMissing},
 		{name: "item error", node: &fakeChannelAppendRPCNode{response: channelAppendResponse{Status: rpcStatusOK, Results: []channelappend.SendBatchItemResult{{Err: channelappend.ErrChannelBusy}, {Err: channelappend.ErrChannelBusy}}}}, wantIs: channelappend.ErrChannelBusy},
@@ -205,6 +215,14 @@ func TestChannelAppendClientMapsStatusesAndErrorsToItemAlignedResults(t *testing
 				}
 			}
 		})
+	}
+}
+
+func channelAppendNetOpError(errno syscall.Errno) error {
+	return &net.OpError{
+		Op:  "read",
+		Net: "tcp",
+		Err: &os.SyscallError{Syscall: "read", Err: errno},
 	}
 }
 

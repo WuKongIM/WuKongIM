@@ -296,7 +296,7 @@ func TestPrepareIdempotencyHitBypassesAllocationAndPendingAppend(t *testing.T) {
 	}
 	if gotQueries := idempotency.queriesSnapshot(); len(gotQueries) != 1 {
 		t.Fatalf("idempotency queries = %d, want 1", len(gotQueries))
-	} else if gotQueries[0] != (IdempotencyQuery{FromUID: "u1", ClientMsgNo: "client-1", ChannelID: "room", ChannelType: 2}) {
+	} else if gotQueries[0] != (IdempotencyQuery{FromUID: "u1", ClientMsgNo: "client-1", ChannelID: "room", ChannelType: 2, PayloadHash: idempotencyPayloadHash([]byte("payload"))}) {
 		t.Fatalf("idempotency query = %#v, want canonical sender/client/channel", gotQueries[0])
 	}
 }

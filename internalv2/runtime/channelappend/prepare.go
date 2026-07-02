@@ -10,6 +10,11 @@ import (
 
 const channelTypePerson uint8 = 1
 
+const (
+	idempotencyFNV64aOffset = 14695981039346656037
+	idempotencyFNV64aPrime  = 1099511628211
+)
+
 // preparedSend is one validated send item ready to enter the channel pending queue.
 type preparedSend struct {
 	// Index is the original item index inside the submitted batch.
@@ -271,5 +276,15 @@ func lookupIdempotentSend(ctx context.Context, cmd SendCommand, ports preparePor
 		ClientMsgNo: cmd.ClientMsgNo,
 		ChannelID:   cmd.ChannelID,
 		ChannelType: cmd.ChannelType,
+		PayloadHash: idempotencyPayloadHash(cmd.Payload),
 	})
+}
+
+func idempotencyPayloadHash(payload []byte) uint64 {
+	hash := uint64(idempotencyFNV64aOffset)
+	for _, b := range payload {
+		hash ^= uint64(b)
+		hash *= idempotencyFNV64aPrime
+	}
+	return hash
 }

@@ -97,6 +97,126 @@ func TestWkcliSimThreeNodeSmokeScriptDryRunPrintsClusterAndSimulatorCommands(t *
 	}
 }
 
+func TestWkcliSimThreeNodeSmokeScriptDryRunPrintsFaultKillPlan(t *testing.T) {
+	root := repoRoot(t)
+	outDir := t.TempDir()
+	startScript := filepath.Join(t.TempDir(), "start-three.sh")
+
+	cmd := exec.Command("bash", "scripts/smoke-wkcli-sim-wukongimv2-three-nodes.sh",
+		"--dry-run",
+		"--out-dir", outDir,
+		"--start-script", startScript,
+		"--fault-kill-node",
+		"--fault-node-id", "2",
+		"--fault-after", "3",
+		"--fault-signal", "KILL",
+		"--api", "http://127.0.0.1:5011,http://127.0.0.1:5012,http://127.0.0.1:5013",
+		"--gateway", "127.0.0.1:5111,127.0.0.1:5112,127.0.0.1:5113",
+	)
+	cmd.Dir = root
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("dry-run failed: %v\n%s", err, output)
+	}
+	text := string(output)
+	for _, want := range []string{
+		"fault_kill_node=true",
+		"fault_node_id=2",
+		"fault_after_secs=3",
+		"fault_signal=KILL",
+		"fault_pid_dir=" + filepath.Join(outDir, "node-pids"),
+		"fault_event_file=" + filepath.Join(outDir, "fault-node2-kill.env"),
+		"fault_cmd=kill -s KILL $(cat " + filepath.Join(outDir, "node-pids", "node2.pid") + ")",
+		"start_cmd=env WK_DEBUG_API_ENABLE=true " + startScript + " --clean --ready-timeout 90 --bin " + filepath.Join(outDir, "wukongimv2") + " --log-dir " + filepath.Join(outDir, "node-logs") + " --pid-dir " + filepath.Join(outDir, "node-pids") + " --allow-node-exit 2",
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("dry-run output missing %q:\n%s", want, text)
+		}
+	}
+}
+
+func TestWkcliSimThreeNodeSmokeScriptDryRunPrintsFaultDrillTuning(t *testing.T) {
+	root := repoRoot(t)
+	outDir := t.TempDir()
+	startScript := filepath.Join(t.TempDir(), "start-three.sh")
+
+	cmd := exec.Command("bash", "scripts/smoke-wkcli-sim-wukongimv2-three-nodes.sh",
+		"--dry-run",
+		"--out-dir", outDir,
+		"--start-script", startScript,
+		"--fault-kill-node",
+		"--fault-node-id", "2",
+		"--fault-health-report-interval", "1s",
+		"--fault-health-report-ttl", "6s",
+		"--fault-channel-migration-scan-interval", "500ms",
+		"--fault-channel-migration-scan-limit", "128",
+		"--fault-channel-migration-max-pages-per-tick", "10",
+		"--fault-channel-migration-max-tasks-per-tick", "10",
+		"--fault-channel-migration-task-limit", "10",
+		"--fault-gateway-send-timeout", "15s",
+		"--fault-sim-ack-timeout", "35s",
+		"--fault-max-send-errors", "6",
+		"--api", "http://127.0.0.1:5011,http://127.0.0.1:5012,http://127.0.0.1:5013",
+		"--gateway", "127.0.0.1:5111,127.0.0.1:5112,127.0.0.1:5113",
+	)
+	cmd.Dir = root
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("dry-run failed: %v\n%s", err, output)
+	}
+	text := string(output)
+	for _, want := range []string{
+		"fault_health_report_interval=1s",
+		"fault_health_report_ttl=6s",
+		"fault_channel_migration_scan_interval=500ms",
+		"fault_channel_migration_scan_limit=128",
+		"fault_channel_migration_max_pages_per_tick=10",
+		"fault_channel_migration_max_tasks_per_tick=10",
+		"fault_channel_migration_task_limit=10",
+		"fault_gateway_send_timeout=15s",
+		"fault_sim_ack_timeout=35s",
+		"fault_max_send_errors=6",
+		"start_cmd=env WK_DEBUG_API_ENABLE=true WK_CLUSTER_NODE_HEALTH_REPORT_INTERVAL=1s WK_CLUSTER_NODE_HEALTH_REPORT_TTL=6s WK_CHANNEL_MIGRATION_SCAN_INTERVAL=500ms WK_CHANNEL_MIGRATION_SCAN_LIMIT=128 WK_CHANNEL_MIGRATION_MAX_PAGES_PER_TICK=10 WK_CHANNEL_MIGRATION_MAX_TASKS_PER_TICK=10 WK_CHANNEL_MIGRATION_TASK_LIMIT=10 WK_GATEWAY_SEND_TIMEOUT=15s " + startScript,
+		"sim_cmd=go run ./cmd/wkcli sim --server http://127.0.0.1:5011 --server http://127.0.0.1:5012 --server http://127.0.0.1:5013 --gateway 127.0.0.1:5111 --gateway 127.0.0.1:5112 --gateway 127.0.0.1:5113 --users 30 --groups 6 --group-members 10 --rate 10/s --max-runtime 10s --payload-size 128B --status-listen 127.0.0.1:19109 --status-interval 1s --ack-timeout 35s --json",
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("dry-run output missing %q:\n%s", want, text)
+		}
+	}
+}
+
+func TestWkcliSimThreeNodeSmokeScriptDryRunAllowsGatewaySubsetForFaultDrill(t *testing.T) {
+	root := repoRoot(t)
+	outDir := t.TempDir()
+	startScript := filepath.Join(t.TempDir(), "start-three.sh")
+
+	cmd := exec.Command("bash", "scripts/smoke-wkcli-sim-wukongimv2-three-nodes.sh",
+		"--dry-run",
+		"--out-dir", outDir,
+		"--start-script", startScript,
+		"--fault-kill-node",
+		"--fault-node-id", "2",
+		"--api", "http://127.0.0.1:5011,http://127.0.0.1:5012,http://127.0.0.1:5013",
+		"--gateway", "127.0.0.1:5111",
+	)
+	cmd.Dir = root
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("dry-run failed: %v\n%s", err, output)
+	}
+	text := string(output)
+	for _, want := range []string{
+		"api_addrs=http://127.0.0.1:5011,http://127.0.0.1:5012,http://127.0.0.1:5013",
+		"gateway_addrs=127.0.0.1:5111",
+		"fault_kill_node=true",
+		"sim_cmd=go run ./cmd/wkcli sim --server http://127.0.0.1:5011 --server http://127.0.0.1:5012 --server http://127.0.0.1:5013 --gateway 127.0.0.1:5111",
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("dry-run output missing %q:\n%s", want, text)
+		}
+	}
+}
+
 func TestWkcliSimThreeNodeSmokeScriptDryRunPrintsAutoJoinNodePlan(t *testing.T) {
 	root := repoRoot(t)
 	outDir := t.TempDir()
@@ -362,6 +482,92 @@ func TestWkcliSimThreeNodeSmokeScriptPromotesAutoJoinNodeDuringSimulation(t *tes
 	}
 }
 
+func TestWkcliSimThreeNodeSmokeScriptKillsConfiguredNodeDuringSimulation(t *testing.T) {
+	root := repoRoot(t)
+	binDir := t.TempDir()
+	callsDir := t.TempDir()
+	outDir := t.TempDir()
+	startScript := filepath.Join(binDir, "start-three.sh")
+	writeFakeThreeNodeSimGo(t, filepath.Join(binDir, "go"), callsDir)
+	writeFakeThreeNodeSimCurl(t, filepath.Join(binDir, "curl"), callsDir)
+	writeFakeThreeNodeSimStartScript(t, startScript, callsDir)
+	t.Cleanup(func() {
+		terminateRecordedProcess(t, filepath.Join(callsDir, "start.pid"))
+		for _, name := range []string{"node1.pid", "node2.pid", "node3.pid"} {
+			terminateRecordedProcess(t, filepath.Join(callsDir, name))
+		}
+	})
+
+	cmd := exec.Command("bash", "scripts/smoke-wkcli-sim-wukongimv2-three-nodes.sh",
+		"--out-dir", outDir,
+		"--start-script", startScript,
+		"--fault-kill-node",
+		"--fault-node-id", "2",
+		"--fault-after", "0",
+		"--fault-signal", "TERM",
+		"--api", "http://127.0.0.1:5011,http://127.0.0.1:5012,http://127.0.0.1:5013",
+		"--gateway", "127.0.0.1:5111,127.0.0.1:5112,127.0.0.1:5113",
+		"--users", "12",
+		"--groups", "3",
+		"--members", "4",
+		"--rate", "6/s",
+		"--duration", "4s",
+		"--ready-timeout", "2",
+		"--poll", "0",
+	)
+	cmd.Dir = root
+	cmd.Env = append(os.Environ(), "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("script failed: %v\n%s", err, output)
+	}
+	text := string(output)
+	for _, want := range []string{
+		"fault kill node2",
+		"fault survivor node1 ready",
+		"fault survivor node3 ready",
+		"smoke passed",
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("script output missing %q:\n%s", want, text)
+		}
+	}
+	if !waitForFile(filepath.Join(callsDir, "node2.term")) {
+		t.Fatalf("node2 did not receive TERM; calls dir: %s", callsDir)
+	}
+	startCalls := readFile(t, filepath.Join(callsDir, "start.calls"))
+	for _, want := range []string{
+		"--pid-dir " + filepath.Join(outDir, "node-pids"),
+		"--allow-node-exit 2",
+	} {
+		if !strings.Contains(startCalls, want) {
+			t.Fatalf("start call missing %q:\n%s", want, startCalls)
+		}
+	}
+	summary := readFile(t, filepath.Join(outDir, "summary.md"))
+	for _, want := range []string{
+		"- fault_kill_node: true",
+		"- fault_node_id: 2",
+		"- fault_after_secs: 0",
+		"- fault_signal: TERM",
+		"- fault_event_file: fault-node2-kill.env",
+	} {
+		if !strings.Contains(summary, want) {
+			t.Fatalf("summary missing %q:\n%s", want, summary)
+		}
+	}
+	event := readFile(t, filepath.Join(outDir, "fault-node2-kill.env"))
+	for _, want := range []string{
+		"node_id=2",
+		"signal=TERM",
+		"pid=",
+	} {
+		if !strings.Contains(event, want) {
+			t.Fatalf("fault event missing %q:\n%s", want, event)
+		}
+	}
+}
+
 func TestWkcliSimThreeNodeSmokeScriptAllowsFollowerSnapshotsWithoutCounts(t *testing.T) {
 	root := repoRoot(t)
 	binDir := t.TempDir()
@@ -479,6 +685,101 @@ func TestWkcliSimThreeNodeSmokeScriptFailsOnConversationActiveMetricGate(t *test
 	}
 }
 
+func TestWkcliSimThreeNodeSmokeScriptCapturesFailureMetricsWhenSimReportsSendErrors(t *testing.T) {
+	root := repoRoot(t)
+	binDir := t.TempDir()
+	callsDir := t.TempDir()
+	outDir := t.TempDir()
+	writeFakeThreeNodeSimGo(t, filepath.Join(binDir, "go"), callsDir)
+	writeFakeThreeNodeSimCurl(t, filepath.Join(binDir, "curl"), callsDir)
+
+	cmd := exec.Command("bash", "scripts/smoke-wkcli-sim-wukongimv2-three-nodes.sh",
+		"--no-start",
+		"--out-dir", outDir,
+		"--api", "http://127.0.0.1:5011,http://127.0.0.1:5012,http://127.0.0.1:5013",
+		"--gateway", "127.0.0.1:5111,127.0.0.1:5112,127.0.0.1:5113",
+		"--users", "12",
+		"--groups", "3",
+		"--members", "4",
+		"--rate", "6/s",
+		"--duration", "4s",
+		"--ready-timeout", "2",
+		"--poll", "0",
+	)
+	cmd.Dir = root
+	cmd.Env = append(envWithout("WK_DEBUG_API_ENABLE"),
+		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
+		"WK_FAKE_THREE_NODE_SIM_SEND_ERRORS=1",
+	)
+	output, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatalf("script should fail when wkcli sim reports send errors:\n%s", output)
+	}
+	text := string(output)
+	for _, want := range []string{
+		"send_errors=1, want 0",
+		"failure metrics after-failure:",
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("failure output missing %q:\n%s", want, text)
+		}
+	}
+	for _, path := range []string{
+		filepath.Join(outDir, "metrics", "node1-after-failure.prom"),
+		filepath.Join(outDir, "metrics", "node2-after-failure.prom"),
+		filepath.Join(outDir, "metrics", "node3-after-failure.prom"),
+	} {
+		if _, err := os.Stat(path); err != nil {
+			t.Fatalf("expected failure metrics file %s: %v", path, err)
+		}
+	}
+}
+
+func TestWkcliSimThreeNodeSmokeScriptAllowsConfiguredFaultSendErrors(t *testing.T) {
+	root := repoRoot(t)
+	binDir := t.TempDir()
+	callsDir := t.TempDir()
+	outDir := t.TempDir()
+	writeFakeThreeNodeSimGo(t, filepath.Join(binDir, "go"), callsDir)
+	writeFakeThreeNodeSimCurl(t, filepath.Join(binDir, "curl"), callsDir)
+
+	cmd := exec.Command("bash", "scripts/smoke-wkcli-sim-wukongimv2-three-nodes.sh",
+		"--no-start",
+		"--out-dir", outDir,
+		"--fault-max-send-errors", "1",
+		"--api", "http://127.0.0.1:5011,http://127.0.0.1:5012,http://127.0.0.1:5013",
+		"--gateway", "127.0.0.1:5111,127.0.0.1:5112,127.0.0.1:5113",
+		"--users", "12",
+		"--groups", "3",
+		"--members", "4",
+		"--rate", "6/s",
+		"--duration", "4s",
+		"--ready-timeout", "2",
+		"--poll", "0",
+	)
+	cmd.Dir = root
+	cmd.Env = append(envWithout("WK_DEBUG_API_ENABLE"),
+		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
+		"WK_FAKE_THREE_NODE_SIM_SEND_ERRORS=1",
+	)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("script should allow configured fault send errors: %v\n%s", err, output)
+	}
+	if !strings.Contains(string(output), "wkcli sim passed: messages_sent=9 send_errors=1") {
+		t.Fatalf("script output missing bounded send-error success:\n%s", output)
+	}
+	summary := readFile(t, filepath.Join(outDir, "summary.md"))
+	for _, want := range []string{
+		"- send_errors: 1",
+		"- fault_max_send_errors: 1",
+	} {
+		if !strings.Contains(summary, want) {
+			t.Fatalf("summary missing %q:\n%s", want, summary)
+		}
+	}
+}
+
 func TestWkcliSimThreeNodeSmokeScriptStopsClusterAndPrintsEvidenceWhenSimFails(t *testing.T) {
 	root := repoRoot(t)
 	binDir := t.TempDir()
@@ -514,6 +815,7 @@ func TestWkcliSimThreeNodeSmokeScriptStopsClusterAndPrintsEvidenceWhenSimFails(t
 	text := string(output)
 	for _, want := range []string{
 		"wkcli sim failed with status 3",
+		"failure metrics after-failure:",
 		"--- cluster log:",
 		"fake cluster running",
 		"--- node log:",
@@ -529,6 +831,15 @@ func TestWkcliSimThreeNodeSmokeScriptStopsClusterAndPrintsEvidenceWhenSimFails(t
 	debugAPI := strings.TrimSpace(readFile(t, filepath.Join(callsDir, "start.debug_api")))
 	if debugAPI != "true" {
 		t.Fatalf("start script WK_DEBUG_API_ENABLE=%q, want true", debugAPI)
+	}
+	for _, path := range []string{
+		filepath.Join(outDir, "metrics", "node1-after-failure.prom"),
+		filepath.Join(outDir, "metrics", "node2-after-failure.prom"),
+		filepath.Join(outDir, "metrics", "node3-after-failure.prom"),
+	} {
+		if _, err := os.Stat(path); err != nil {
+			t.Fatalf("expected failure metrics file %s: %v", path, err)
+		}
 	}
 }
 
@@ -585,10 +896,16 @@ set -euo pipefail
 mkdir -p "` + callsDir + `"
 printf '%s\n' "$*" >> "` + callsDir + `/go.calls"
 if [[ "${1:-}" == "run" && "${2:-}" == "./cmd/wkcli" && "${3:-}" == "sim" ]]; then
+  send_errors=0
+  last_error=""
+  if [[ "${WK_FAKE_THREE_NODE_SIM_SEND_ERRORS:-}" == "1" ]]; then
+    send_errors=1
+    last_error="fake send error"
+  fi
   cat <<'JSON'
 {"state":"running","run_id":"test-run","target_servers":["http://127.0.0.1:5011","http://127.0.0.1:5012","http://127.0.0.1:5013"],"gateway_tcp_addrs":["127.0.0.1:5111","127.0.0.1:5112","127.0.0.1:5113"],"users":12,"active_users":12,"groups":3,"group_members":4,"messages_sent":3,"send_errors":0,"recv_messages":0,"recv_dropped":0,"reconnects":0,"last_error":"","last_transition_at":"2026-06-17T00:00:00Z"}
-{"state":"stopped","run_id":"test-run","target_servers":["http://127.0.0.1:5011","http://127.0.0.1:5012","http://127.0.0.1:5013"],"gateway_tcp_addrs":["127.0.0.1:5111","127.0.0.1:5112","127.0.0.1:5113"],"users":12,"active_users":12,"groups":3,"group_members":4,"messages_sent":9,"send_errors":0,"recv_messages":0,"recv_dropped":0,"reconnects":0,"last_error":"","last_transition_at":"2026-06-17T00:00:04Z"}
 JSON
+  printf '{"state":"stopped","run_id":"test-run","target_servers":["http://127.0.0.1:5011","http://127.0.0.1:5012","http://127.0.0.1:5013"],"gateway_tcp_addrs":["127.0.0.1:5111","127.0.0.1:5112","127.0.0.1:5113"],"users":12,"active_users":12,"groups":3,"group_members":4,"messages_sent":9,"send_errors":%s,"recv_messages":0,"recv_dropped":0,"reconnects":0,"last_error":"%s","last_transition_at":"2026-06-17T00:00:04Z"}\n' "$send_errors" "$last_error"
   exit 0
 fi
 echo "unexpected go args: $*" >&2
@@ -664,6 +981,7 @@ printf '%s\n' "${WK_DEBUG_API_ENABLE-}" > "` + callsDir + `/start.debug_api"
 printf '%s\n' "$*" >> "` + callsDir + `/start.calls"
 log_dir=""
 bin_path=""
+pid_dir=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --log-dir)
@@ -674,6 +992,16 @@ while [[ $# -gt 0 ]]; do
       bin_path="$2"
       shift 2
       ;;
+    --pid-dir)
+      pid_dir="$2"
+      shift 2
+      ;;
+    --ready-timeout|--poll|--allow-node-exit)
+      shift 2
+      ;;
+    --clean|--no-build)
+      shift
+      ;;
     *)
       shift
       ;;
@@ -683,6 +1011,26 @@ mkdir -p "$log_dir"
 printf 'fake node1 log\n' > "$log_dir/node1.log"
 printf 'fake node2 log\n' > "$log_dir/node2.log"
 printf 'fake node3 log\n' > "$log_dir/node3.log"
+node_pids=()
+if [[ -n "$pid_dir" ]]; then
+  mkdir -p "$pid_dir"
+  for node in 1 2 3; do
+    (
+      case "$node" in
+        1) trap 'printf term > "` + callsDir + `/node1.term"; exit 0' TERM INT ;;
+        2) trap 'printf term > "` + callsDir + `/node2.term"; exit 0' TERM INT ;;
+        3) trap 'printf term > "` + callsDir + `/node3.term"; exit 0' TERM INT ;;
+      esac
+      while true; do
+        sleep 1
+      done
+    ) &
+    pid="$!"
+    node_pids+=("$pid")
+    printf '%s\n' "$pid" > "$pid_dir/node${node}.pid"
+    printf '%s\n' "$pid" > "` + callsDir + `/node${node}.pid"
+  done
+fi
 if [[ -n "$bin_path" ]]; then
   mkdir -p "$(dirname "$bin_path")"
   cat > "$bin_path" <<'BIN'
@@ -699,7 +1047,7 @@ done
 BIN
   chmod 0755 "$bin_path"
 fi
-trap 'printf term > "` + callsDir + `/start.term"; exit 0' TERM INT
+trap 'printf term > "` + callsDir + `/start.term"; for pid in "${node_pids[@]}"; do kill "$pid" 2>/dev/null || true; done; exit 0' TERM INT
 echo fake cluster running
 while true; do
   sleep 1

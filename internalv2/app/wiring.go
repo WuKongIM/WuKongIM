@@ -695,6 +695,9 @@ func (a *App) wireChannelAppend(nodeID uint64) error {
 				RecipientBatchSize:                    a.cfg.Delivery.PushBatchSize,
 				SubscriberScanPageSize:                a.cfg.Delivery.FanoutPageSize,
 			}
+			if idempotencyNode, ok := a.cluster.(clusterinfra.ChannelIdempotencyNode); ok {
+				opts.Idempotency = clusterinfra.NewChannelIdempotencyStore(idempotencyNode)
+			}
 			if a.deliveryMeta != nil {
 				opts.Subscribers = channelAppendDeliverySubscriberSource{source: a.deliveryMeta}
 			} else if a.deliverySubscribers != nil {

@@ -48,6 +48,20 @@ type MessageLookup interface {
 	LookupMessageByID(ctx context.Context, messageID uint64) (ch.Message, bool, error)
 }
 
+// IdempotencyLookup is an optional committed-message lookup by sender/client key.
+type IdempotencyLookup interface {
+	// LookupIdempotency returns the durable row and raw payload hash for one sender/client key.
+	LookupIdempotency(ctx context.Context, fromUID string, clientMsgNo string) (IdempotencyHit, bool, error)
+}
+
+// IdempotencyHit is the durable message selected by an idempotency key.
+type IdempotencyHit struct {
+	// Message is the durable committed row selected by the sender/client key.
+	Message ch.Message
+	// PayloadHash is the FNV-64a hash persisted with the idempotency index.
+	PayloadHash uint64
+}
+
 // InitialState is the durable state loaded before a channel becomes ready.
 type InitialState struct {
 	LEO          uint64

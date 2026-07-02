@@ -412,6 +412,11 @@ delegates to `channelv2/store.ReadCommitted`; it does not replace ChannelV2
 append, replication, or metadata routing. Callers that override the
 ChannelV2 service without using the Node-created default store do not
 automatically get this read facade.
+`Node.LookupChannelIdempotency` is a local-only read facade for SEND retry
+recovery. It opens the same Node-created default ChannelV2 store and delegates
+to the optional `channelv2/store.IdempotencyLookup` index without creating
+messages, advancing HW, or routing to another node. Internalv2 uses it only
+after canonical channel routing has selected the local append authority.
 
 `Node.ReadChannelLastVisible` is the channel-owned routed read facade used by
 conversation list display. It resolves authoritative ChannelRuntimeMeta for the
