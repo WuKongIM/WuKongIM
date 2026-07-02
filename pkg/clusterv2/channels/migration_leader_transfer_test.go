@@ -669,6 +669,11 @@ func (r *fakeMigrationExecutorRuntime) DrainChannel(_ context.Context, nodeID ui
 	return r.drain, nil
 }
 
+func (r *fakeMigrationExecutorRuntime) ApplyChannelMeta(_ context.Context, nodeID uint64, _ metadb.ChannelRuntimeMeta) error {
+	r.ops = append(r.ops, fmt.Sprintf("apply_meta:%d", nodeID))
+	return nil
+}
+
 type fakeMigrationObserver struct {
 	activeTaskCounts       []int
 	writeFenceActiveCounts []int

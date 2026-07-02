@@ -33,6 +33,7 @@ type MigrationTaskStore interface {
 type MigrationRuntime interface {
 	ProbeChannel(ctx context.Context, nodeID uint64, channelID string, channelType uint8) (ch.RuntimeProbeChannel, error)
 	DrainChannel(ctx context.Context, nodeID uint64, req ch.DrainChannelRequest) (ch.DrainChannelResult, error)
+	ApplyChannelMeta(ctx context.Context, nodeID uint64, meta metadb.ChannelRuntimeMeta) error
 }
 
 // MigrationObserver receives low-cardinality migration executor observations.

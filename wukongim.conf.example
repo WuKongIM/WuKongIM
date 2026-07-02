@@ -120,6 +120,8 @@ WK_CLUSTER_CONTROLLER_REQUEST_TIMEOUT=2s
 WK_CLUSTER_CONTROLLER_LEADER_WAIT_TIMEOUT=10s
 # Startup waits this long for controller-managed physical slots to recover leaders before exiting.
 WK_CLUSTER_MANAGED_SLOTS_READY_TIMEOUT=30s
+# Optional ChannelV2 data replica count for new channel placement. 0 keeps the Slot replica count.
+WK_CLUSTER_CHANNEL_REPLICA_N=0
 # Enables local Controller Raft log snapshot compaction. Enabled by default.
 WK_CLUSTER_CONTROLLER_LOG_COMPACTION_ENABLED=true
 # Number of newly applied Controller Raft entries after the last snapshot before creating a new snapshot.

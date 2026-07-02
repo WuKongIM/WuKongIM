@@ -61,9 +61,130 @@ func TestReplicaReplaceExecutorRunsNonLeaderSourcePhaseOrder(t *testing.T) {
 		"promote_learner",
 		"clear_fence",
 	}, store.ops)
-	require.Equal(t, []string{"probe:4", "drain:1", "probe:4", "probe:4"}, runtime.ops)
+	require.Equal(t, []string{"apply_meta:1", "apply_meta:4", "probe:4", "apply_meta:1", "apply_meta:4", "drain:1", "probe:4", "apply_meta:1", "apply_meta:4", "probe:4"}, runtime.ops)
 	require.Equal(t, []uint64{1, 2, 4}, meta.Replicas)
 	require.Equal(t, []uint64{1, 2, 4}, meta.ISR)
+}
+
+func TestReplicaReplaceExecutorBootstrapsLeaderAndTargetRuntimeMeta(t *testing.T) {
+	ctx := context.Background()
+	now := time.UnixMilli(1750000305000).UTC()
+	id := ch.ChannelID{ID: "executor-replica-bootstrap", Type: 1}
+	task := testReplicaReplaceExecutorTask(id)
+	task.Status = metadb.ChannelMigrationStatusRunning
+	task.Phase = metadb.ChannelMigrationPhaseBootstrapTarget
+	task.OwnerNodeID = 2
+	task.OwnerLeaseUntilMS = now.Add(time.Minute).UnixMilli()
+	meta := testMigrationRuntimeMeta(id)
+	meta.Leader = 1
+	meta.LeaderEpoch = 20
+	meta.Replicas = []uint64{1, 2, 3, 4}
+	meta.ISR = []uint64{1, 2, 3}
+	store := newFakeMigrationExecutorStore(task, &meta, now)
+	runtime := &fakeMigrationExecutorRuntime{}
+	executor := NewMigrationExecutor(MigrationExecutorConfig{
+		LocalNode: 2,
+		Source:    fakeMigrationExecutorSource{store: store},
+		Store:     store,
+		Runtime:   runtime,
+		Meta:      fakeMigrationExecutorMetaReader{meta: &meta},
+		Clock:     func() time.Time { return now },
+	})
+
+	require.NoError(t, executor.RunOnce(ctx))
+
+	require.Equal(t, metadb.ChannelMigrationPhaseWarmCatchUp, store.task.Phase)
+	require.Equal(t, []string{"apply_meta:1", "apply_meta:4"}, runtime.ops)
+}
+
+func TestReplicaReplaceExecutorAppliesFencedMetaBeforeCutoverDrain(t *testing.T) {
+	ctx := context.Background()
+	now := time.UnixMilli(1750000306000).UTC()
+	id := ch.ChannelID{ID: "executor-replica-fenced-drain", Type: 1}
+	task := testReplicaReplaceExecutorTask(id)
+	task.Status = metadb.ChannelMigrationStatusRunning
+	task.Phase = metadb.ChannelMigrationPhaseCutoverFence
+	task.OwnerNodeID = 2
+	task.OwnerLeaseUntilMS = now.Add(time.Minute).UnixMilli()
+	task.FenceToken = task.TaskID
+	task.FenceVersion = 3
+	meta := testMigrationRuntimeMeta(id)
+	meta.Leader = 1
+	meta.LeaderEpoch = 20
+	meta.Replicas = []uint64{1, 2, 3, 4}
+	meta.ISR = []uint64{1, 2, 3}
+	meta.WriteFenceToken = task.TaskID
+	meta.WriteFenceVersion = task.FenceVersion
+	meta.WriteFenceReason = uint8(ch.WriteFenceReasonReplicaReplace)
+	meta.WriteFenceUntilMS = now.Add(time.Minute).UnixMilli()
+	store := newFakeMigrationExecutorStore(task, &meta, now)
+	runtime := &fakeMigrationExecutorRuntime{drain: ch.DrainChannelResult{Drained: true, LEO: 10, HW: 10}}
+	executor := NewMigrationExecutor(MigrationExecutorConfig{
+		LocalNode: 2,
+		Source:    fakeMigrationExecutorSource{store: store},
+		Store:     store,
+		Runtime:   runtime,
+		Meta:      fakeMigrationExecutorMetaReader{meta: &meta},
+		Clock:     func() time.Time { return now },
+	})
+
+	require.NoError(t, executor.RunOnce(ctx))
+
+	require.Equal(t, metadb.ChannelMigrationPhaseFinalTargetCatchUp, store.task.Phase)
+	require.Equal(t, []string{"apply_meta:1", "apply_meta:4", "drain:1"}, runtime.ops)
+}
+
+func TestReplicaReplaceExecutorAppliesFinalMetaBeforeVerifyMembership(t *testing.T) {
+	ctx := context.Background()
+	now := time.UnixMilli(1750000307000).UTC()
+	id := ch.ChannelID{ID: "executor-replica-final-apply", Type: 1}
+	task := testReplicaReplaceExecutorTask(id)
+	task.Status = metadb.ChannelMigrationStatusRunning
+	task.Phase = metadb.ChannelMigrationPhaseVerifyMembership
+	task.OwnerNodeID = 2
+	task.OwnerLeaseUntilMS = now.Add(time.Minute).UnixMilli()
+	task.FenceToken = task.TaskID
+	task.FenceVersion = 3
+	task.CutoverLEO = 10
+	task.CutoverHW = 10
+	task.DrainedLeaderNode = 1
+	task.DrainedRuntimeGeneration = 1
+	task.DrainedChannelEpoch = 11
+	task.DrainedLeaderEpoch = 20
+	task.DrainedFenceVersion = task.FenceVersion
+	meta := testMigrationRuntimeMeta(id)
+	meta.Leader = 1
+	meta.LeaderEpoch = 20
+	meta.ChannelEpoch = 12
+	meta.Replicas = []uint64{1, 2, 4}
+	meta.ISR = []uint64{1, 2, 4}
+	meta.WriteFenceToken = task.TaskID
+	meta.WriteFenceVersion = task.FenceVersion
+	meta.WriteFenceReason = uint8(ch.WriteFenceReasonReplicaReplace)
+	meta.WriteFenceUntilMS = now.Add(time.Minute).UnixMilli()
+	store := newFakeMigrationExecutorStore(task, &meta, now)
+	runtime := &fakeMigrationExecutorRuntime{
+		probes: map[uint64][]ch.RuntimeProbeChannel{
+			4: {{
+				ChannelID: id, ChannelEpoch: 12, LeaderEpoch: 20, Role: ch.RoleFollower, Status: ch.StatusActive, HW: 10, LEO: 10, CheckpointHW: 10,
+				WriteFence: ch.WriteFence{Token: task.TaskID, Version: task.FenceVersion, Reason: ch.WriteFenceReasonReplicaReplace},
+			}},
+		},
+	}
+	executor := NewMigrationExecutor(MigrationExecutorConfig{
+		LocalNode: 2,
+		Source:    fakeMigrationExecutorSource{store: store},
+		Store:     store,
+		Runtime:   runtime,
+		Meta:      fakeMigrationExecutorMetaReader{meta: &meta},
+		Clock:     func() time.Time { return now },
+	})
+
+	require.NoError(t, executor.RunOnce(ctx))
+
+	require.Equal(t, metadb.ChannelMigrationStatusCompleted, store.task.Status)
+	require.Equal(t, metadb.ChannelMigrationPhaseClearFence, store.task.Phase)
+	require.Equal(t, []string{"apply_meta:1", "apply_meta:4", "probe:4"}, runtime.ops)
 }
 
 func TestReplicaReplaceExecutorBlocksWhenSourceIsLeader(t *testing.T) {

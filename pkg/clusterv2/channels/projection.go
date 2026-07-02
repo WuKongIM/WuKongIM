@@ -13,7 +13,8 @@ func cloneMeta(meta ch.Meta) ch.Meta {
 	return meta
 }
 
-func projectRuntimeMeta(meta metadb.ChannelRuntimeMeta) ch.Meta {
+// ProjectRuntimeMeta converts Slot-owned runtime metadata into the ChannelV2 runtime view.
+func ProjectRuntimeMeta(meta metadb.ChannelRuntimeMeta) ch.Meta {
 	meta = metadb.NormalizeChannelRuntimeMeta(meta)
 	id := ch.ChannelID{ID: meta.ChannelID, Type: uint8(meta.ChannelType)}
 	var leaseUntil time.Time
@@ -45,6 +46,10 @@ func projectRuntimeMeta(meta metadb.ChannelRuntimeMeta) ch.Meta {
 		WriteFence:          writeFence,
 		Status:              ch.Status(meta.Status),
 	}
+}
+
+func projectRuntimeMeta(meta metadb.ChannelRuntimeMeta) ch.Meta {
+	return ProjectRuntimeMeta(meta)
 }
 
 func projectNodeIDs(ids []uint64) []ch.NodeID {

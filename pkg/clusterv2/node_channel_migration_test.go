@@ -8,6 +8,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	channelwrapper "github.com/WuKongIM/WuKongIM/pkg/clusterv2/channels"
+	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/routing"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/transportv2"
 )
@@ -133,6 +134,57 @@ func TestClusterV2ChannelMigrationLocalReadRequiresActualSlotLeader(t *testing.T
 	_, err = (channelMigrationMetaHandler{node: node}).HandleRPC(ctx, payload)
 	if !errors.Is(err, ErrNotLeader) {
 		t.Fatalf("channelMigrationMetaHandler.HandleRPC() err = %v, want ErrNotLeader", err)
+	}
+}
+
+func TestClusterV2ChannelMigrationReadUsesLocalActualSlotLeaderWhenRouteLeaderStale(t *testing.T) {
+	node := newDefaultSingleNode(t)
+	startNode(t, node)
+	t.Cleanup(func() { stopNodes(t, node) })
+
+	id := channelv2.ChannelID{ID: "migration-stale-route-local-leader", Type: 1}
+	route := waitRouteKeyLeaderReady(t, node, id.ID)
+	meta := migrationNodeTestRuntimeMeta(id)
+	task := migrationNodeTestTask(id, "task-stale-route-local")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	if err := node.defaultSlotMetaDB.ForHashSlot(route.HashSlot).UpsertChannelRuntimeMeta(ctx, meta); err != nil {
+		t.Fatalf("UpsertChannelRuntimeMeta(): %v", err)
+	}
+	if err := node.defaultSlotMetaDB.ForHashSlot(route.HashSlot).CreateChannelMigrationTask(ctx, task); err != nil {
+		t.Fatalf("CreateChannelMigrationTask(): %v", err)
+	}
+	node.router.UpdateSlotLeaders([]routing.SlotStatus{{SlotID: route.SlotID, Leader: 2, LeaderTerm: route.LeaderTerm + 1}})
+	node.defaultSlotProposer = fixedChannelMigrationSlotRuntime{localLeader: true}
+
+	staleRoute, err := node.RouteKey(id.ID)
+	if err != nil {
+		t.Fatalf("RouteKey() error = %v", err)
+	}
+	if staleRoute.Leader != 2 {
+		t.Fatalf("RouteKey() leader = %d, want stale remote leader 2", staleRoute.Leader)
+	}
+
+	activeInSlot, err := node.ActiveChannelMigrationInHashSlot(ctx, route.HashSlot, id)
+	if err != nil || !activeInSlot {
+		t.Fatalf("ActiveChannelMigrationInHashSlot(local actual leader) ok=%v err=%v", activeInSlot, err)
+	}
+
+	store := requireNodeMigrationStore(t, node)
+	active, ok, err := store.GetActive(ctx, id)
+	if err != nil || !ok {
+		t.Fatalf("GetActive(local actual leader) ok=%v err=%v", ok, err)
+	}
+	if active.TaskID != task.TaskID {
+		t.Fatalf("active task id = %q, want %q", active.TaskID, task.TaskID)
+	}
+	gotMeta, err := node.readChannelMigrationRuntimeMeta(ctx, route.HashSlot, id.ID, int64(id.Type))
+	if err != nil {
+		t.Fatalf("readChannelMigrationRuntimeMeta(local actual leader) error = %v", err)
+	}
+	if gotMeta.ChannelID != id.ID || gotMeta.ChannelType != int64(id.Type) {
+		t.Fatalf("runtime meta = %+v, want %s/%d", gotMeta, id.ID, id.Type)
 	}
 }
 

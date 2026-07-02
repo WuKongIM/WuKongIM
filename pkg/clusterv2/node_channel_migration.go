@@ -23,6 +23,7 @@ const (
 	channelMigrationMetaOpListActive   = "list_active"
 	channelMigrationMetaOpRuntimeProbe = "runtime_probe"
 	channelMigrationMetaOpRuntimeDrain = "runtime_drain"
+	channelMigrationMetaOpRuntimeApply = "runtime_apply_meta"
 )
 
 func (n *Node) readChannelMigrationRuntimeMeta(ctx context.Context, hashSlot uint16, channelID string, channelType int64) (metadb.ChannelRuntimeMeta, error) {
@@ -30,7 +31,7 @@ func (n *Node) readChannelMigrationRuntimeMeta(ctx context.Context, hashSlot uin
 	if err != nil {
 		return metadb.ChannelRuntimeMeta{}, err
 	}
-	if route.Leader == n.cfg.NodeID {
+	if route.Leader == n.cfg.NodeID || n.isLocalChannelMigrationSlotLeader(route) {
 		return n.readChannelMigrationLocalRuntimeMeta(ctx, hashSlot, channelID, channelType)
 	}
 	resp, err := n.callChannelMigrationMetaRPC(ctx, route.Leader, channelMigrationMetaRPCRequest{
@@ -53,7 +54,7 @@ func (n *Node) getActiveChannelMigrationTask(ctx context.Context, hashSlot uint1
 	if err != nil {
 		return metadb.ChannelMigrationTask{}, false, err
 	}
-	if route.Leader == n.cfg.NodeID {
+	if route.Leader == n.cfg.NodeID || n.isLocalChannelMigrationSlotLeader(route) {
 		return n.getActiveChannelMigrationLocalTask(ctx, hashSlot, channelID, channelType)
 	}
 	resp, err := n.callChannelMigrationMetaRPC(ctx, route.Leader, channelMigrationMetaRPCRequest{
@@ -76,7 +77,7 @@ func (n *Node) getChannelMigrationTask(ctx context.Context, hashSlot uint16, cha
 	if err != nil {
 		return metadb.ChannelMigrationTask{}, false, err
 	}
-	if route.Leader == n.cfg.NodeID {
+	if route.Leader == n.cfg.NodeID || n.isLocalChannelMigrationSlotLeader(route) {
 		return n.getChannelMigrationLocalTask(ctx, hashSlot, channelID, channelType, taskID)
 	}
 	resp, err := n.callChannelMigrationMetaRPC(ctx, route.Leader, channelMigrationMetaRPCRequest{
@@ -103,7 +104,7 @@ func (n *Node) listActiveChannelMigrationTasks(ctx context.Context, hashSlot uin
 	if err != nil {
 		return nil, err
 	}
-	if route.Leader == n.cfg.NodeID {
+	if route.Leader == n.cfg.NodeID || n.isLocalChannelMigrationSlotLeader(route) {
 		return n.listActiveChannelMigrationLocalTasks(ctx, hashSlot, limit)
 	}
 	resp, err := n.callChannelMigrationMetaRPC(ctx, route.Leader, channelMigrationMetaRPCRequest{
@@ -148,9 +149,6 @@ func (n *Node) readChannelMigrationLocalRuntimeMeta(ctx context.Context, hashSlo
 	if err != nil {
 		return metadb.ChannelRuntimeMeta{}, err
 	}
-	if route.Leader != n.cfg.NodeID {
-		return metadb.ChannelRuntimeMeta{}, ErrNotLeader
-	}
 	if err := n.ensureLocalChannelMigrationSlotLeader(route); err != nil {
 		return metadb.ChannelRuntimeMeta{}, err
 	}
@@ -165,9 +163,6 @@ func (n *Node) getActiveChannelMigrationLocalTask(ctx context.Context, hashSlot 
 	if err != nil {
 		return metadb.ChannelMigrationTask{}, false, err
 	}
-	if route.Leader != n.cfg.NodeID {
-		return metadb.ChannelMigrationTask{}, false, ErrNotLeader
-	}
 	if err := n.ensureLocalChannelMigrationSlotLeader(route); err != nil {
 		return metadb.ChannelMigrationTask{}, false, err
 	}
@@ -181,9 +176,6 @@ func (n *Node) getChannelMigrationLocalTask(ctx context.Context, hashSlot uint16
 	route, err := n.channelMigrationRoute(ctx, hashSlot, channelID)
 	if err != nil {
 		return metadb.ChannelMigrationTask{}, false, err
-	}
-	if route.Leader != n.cfg.NodeID {
-		return metadb.ChannelMigrationTask{}, false, ErrNotLeader
 	}
 	if err := n.ensureLocalChannelMigrationSlotLeader(route); err != nil {
 		return metadb.ChannelMigrationTask{}, false, err
@@ -209,13 +201,17 @@ func (n *Node) listActiveChannelMigrationLocalTasks(ctx context.Context, hashSlo
 	if err != nil {
 		return nil, err
 	}
-	if route.Leader != n.cfg.NodeID {
-		return nil, ErrNotLeader
-	}
 	if err := n.ensureLocalChannelMigrationSlotLeader(route); err != nil {
 		return nil, err
 	}
 	return n.defaultSlotMetaDB.ForHashSlot(hashSlot).ListActiveChannelMigrationTasks(ctx, limit)
+}
+
+func (n *Node) isLocalChannelMigrationSlotLeader(route Route) bool {
+	if n == nil || n.defaultSlotProposer == nil {
+		return false
+	}
+	return n.defaultSlotProposer.IsLocalLeader(route.SlotID)
 }
 
 func (n *Node) ensureLocalChannelMigrationSlotLeader(route Route) error {
@@ -344,6 +340,13 @@ func (h channelMigrationMetaHandler) HandleRPC(ctx context.Context, payload []by
 			return nil, err
 		}
 		resp.DrainResult = &result
+	case channelMigrationMetaOpRuntimeApply:
+		if req.RuntimeMeta == nil {
+			return nil, fmt.Errorf("%w: runtime meta is required", metadb.ErrInvalidArgument)
+		}
+		if err := h.node.applyChannelMigrationLocalRuntimeMeta(ctx, *req.RuntimeMeta); err != nil {
+			return nil, err
+		}
 	default:
 		return nil, fmt.Errorf("%w: channel migration meta op %q", metadb.ErrInvalidArgument, req.Op)
 	}
@@ -351,14 +354,15 @@ func (h channelMigrationMetaHandler) HandleRPC(ctx context.Context, payload []by
 }
 
 type channelMigrationMetaRPCRequest struct {
-	Version      uint8                   `json:"version"`
-	Op           string                  `json:"op"`
-	HashSlot     uint16                  `json:"hash_slot"`
-	ChannelID    string                  `json:"channel_id,omitempty"`
-	ChannelType  int64                   `json:"channel_type,omitempty"`
-	TaskID       string                  `json:"task_id,omitempty"`
-	Limit        int                     `json:"limit,omitempty"`
-	DrainRequest *ch.DrainChannelRequest `json:"drain_request,omitempty"`
+	Version      uint8                      `json:"version"`
+	Op           string                     `json:"op"`
+	HashSlot     uint16                     `json:"hash_slot"`
+	ChannelID    string                     `json:"channel_id,omitempty"`
+	ChannelType  int64                      `json:"channel_type,omitempty"`
+	TaskID       string                     `json:"task_id,omitempty"`
+	Limit        int                        `json:"limit,omitempty"`
+	DrainRequest *ch.DrainChannelRequest    `json:"drain_request,omitempty"`
+	RuntimeMeta  *metadb.ChannelRuntimeMeta `json:"runtime_meta,omitempty"`
 }
 
 type channelMigrationMetaRPCResponse struct {

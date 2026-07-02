@@ -327,7 +327,7 @@ func (w *channelWriter) admitPreparedLocked(batch submittedBatch, outcome prepar
 		pendingIndex[item.Index] = struct{}{}
 	}
 	if len(matching) > 0 {
-		w.state.refreshRecipientMetadata(batch.target)
+		w.state.refreshTargetMetadata(batch.target)
 		if w.state.canAdmit(len(matching)) {
 			w.state.enqueuePrepared(matching)
 			w.ports.metrics.addPendingAppendItems(len(matching))

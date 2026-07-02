@@ -134,6 +134,45 @@ func TestAppendRequestCarriesAuthorityFence(t *testing.T) {
 	}
 }
 
+func TestAppendRequestRefreshesAuthorityFenceForExistingWriter(t *testing.T) {
+	appender := newRecordingAppenderForAppendTest()
+	group := newStartedTestGroup(t, Options{
+		LocalNodeID: 1,
+		MessageID:   newSequenceIDsForPrepare(100),
+		Appender:    appender,
+	})
+	target := localTargetForAppendTest("room")
+
+	first, err := group.SubmitLocal(context.Background(), target, []SendBatchItem{
+		appendSendItemForTest("u1", "room", "first"),
+	})
+	if err != nil {
+		t.Fatalf("SubmitLocal(first) error = %v", err)
+	}
+	requireAppendSuccess(t, waitFutureForTest(t, first), 0, 100, 1)
+
+	target.Epoch = 2
+	target.LeaderEpoch = 3
+	second, err := group.SubmitLocal(context.Background(), target, []SendBatchItem{
+		appendSendItemForTest("u1", "room", "second"),
+	})
+	if err != nil {
+		t.Fatalf("SubmitLocal(second) error = %v", err)
+	}
+	requireAppendSuccess(t, waitFutureForTest(t, second), 0, 101, 2)
+
+	requests := appender.Requests()
+	if len(requests) != 2 {
+		t.Fatalf("append requests = %d, want 2", len(requests))
+	}
+	if requests[1].ExpectedEpoch != target.Epoch {
+		t.Fatalf("second ExpectedEpoch = %d, want %d", requests[1].ExpectedEpoch, target.Epoch)
+	}
+	if requests[1].ExpectedLeaderEpoch != target.LeaderEpoch {
+		t.Fatalf("second ExpectedLeaderEpoch = %d, want %d", requests[1].ExpectedLeaderEpoch, target.LeaderEpoch)
+	}
+}
+
 func TestAppendRequestCarriesLegacyMessageFields(t *testing.T) {
 	req := appendRequest(localTargetForAppendTest("room"), []preparedSend{{
 		Command: SendCommand{

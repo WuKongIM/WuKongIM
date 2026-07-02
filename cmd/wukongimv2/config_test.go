@@ -837,6 +837,31 @@ func TestLoadConfigStaticMultiNodeCluster(t *testing.T) {
 	}
 }
 
+func TestLoadConfigParsesChannelReplicaCount(t *testing.T) {
+	unsetLoadConfigEnv(t)
+	dir := t.TempDir()
+	path := filepath.Join(dir, "wukongim.conf")
+	writeConf(t, path,
+		"WK_NODE_ID=1",
+		"WK_NODE_DATA_DIR="+filepath.Join(dir, "node-1"),
+		"WK_CLUSTER_LISTEN_ADDR=0.0.0.0:7000",
+		"WK_CLUSTER_SLOT_REPLICA_N=4",
+		"WK_CLUSTER_CHANNEL_REPLICA_N=3",
+	)
+
+	cfg, err := loadConfig([]string{"-config", path})
+	if err != nil {
+		t.Fatalf("loadConfig() error = %v", err)
+	}
+
+	if cfg.Cluster.Slots.ReplicaCount != 4 {
+		t.Fatalf("Slots.ReplicaCount = %d, want 4", cfg.Cluster.Slots.ReplicaCount)
+	}
+	if cfg.Cluster.Channel.ReplicaCount != 3 {
+		t.Fatalf("Channel.ReplicaCount = %d, want 3", cfg.Cluster.Channel.ReplicaCount)
+	}
+}
+
 func TestLoadConfigSeedJoinMode(t *testing.T) {
 	unsetLoadConfigEnv(t)
 	dir := t.TempDir()

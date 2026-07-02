@@ -550,6 +550,7 @@ type SlotDTO struct {
 	Assignment SlotAssignmentDTO `json:"assignment"`
 	Task       *SlotTaskDTO      `json:"task,omitempty"`
 	Runtime    SlotRuntimeDTO    `json:"runtime"`
+	NodeLog    *SlotNodeLogDTO   `json:"node_log,omitempty"`
 }
 
 // SlotHashSlotsDTO contains the logical hash-slot IDs owned by one physical Slot.
@@ -574,6 +575,16 @@ type SlotRuntimeDTO struct {
 	HealthyVoters       uint32   `json:"healthy_voters"`
 	HasQuorum           bool     `json:"has_quorum"`
 	ObservedConfigEpoch uint64   `json:"observed_config_epoch"`
+}
+
+// SlotNodeLogDTO contains one node's local Slot Raft leader observation.
+type SlotNodeLogDTO struct {
+	NodeID        uint64   `json:"node_id"`
+	LeaderID      uint64   `json:"leader_id"`
+	Role          string   `json:"role"`
+	CurrentVoters []uint64 `json:"current_voters,omitempty"`
+	CommitIndex   uint64   `json:"commit_index"`
+	AppliedIndex  uint64   `json:"applied_index"`
 }
 
 // SlotTaskDTO is the active Slot task subset used only to wait for stable inventory.

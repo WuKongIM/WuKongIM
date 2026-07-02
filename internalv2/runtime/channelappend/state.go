@@ -70,6 +70,25 @@ func (s *channelState) refreshRecipientMetadata(target AuthorityTarget) {
 	s.target.SubscriberMutationVersion = target.SubscriberMutationVersion
 }
 
+func (s *channelState) refreshTargetMetadata(target AuthorityTarget) {
+	s.refreshRecipientMetadata(target)
+	if target.ChannelID != (ChannelID{}) {
+		s.target.ChannelID = target.ChannelID
+	}
+	if target.ChannelKey != "" {
+		s.target.ChannelKey = target.ChannelKey
+	}
+	if target.LeaderNodeID != 0 {
+		s.target.LeaderNodeID = target.LeaderNodeID
+	}
+	if target.Epoch > s.target.Epoch {
+		s.target.Epoch = target.Epoch
+	}
+	if target.LeaderEpoch > s.target.LeaderEpoch {
+		s.target.LeaderEpoch = target.LeaderEpoch
+	}
+}
+
 func (s *channelState) applySubscriberMutation(update SubscriberMutationUpdate) {
 	s.target.Large = update.Large
 	s.target.SubscriberMutationVersion = update.SubscriberMutationVersion

@@ -121,6 +121,25 @@ func TestRepairScannerCreatesReplicaReplacementAfterLeaderHealthy(t *testing.T) 
 	require.Equal(t, []string{"created"}, observer.replicaRepairResults)
 }
 
+func TestRepairScannerChecksActiveMigrationInScannedHashSlot(t *testing.T) {
+	id := ch.ChannelID{ID: "scan-active-hash-slot", Type: 1}
+	source := newFakeRepairScannerSource(id)
+	source.nodes = repairPlannerNodes([]uint64{1, 2, 4}, []uint64{3})
+	source.hashSlotByID[id] = 77
+	meta := replicaRepairMeta(id)
+	meta.ISR = []uint64{1, 2}
+	source.slotPages[1] = [][]metadb.ChannelRuntimeMeta{{meta}}
+	store := &fakeRepairScannerStore{}
+
+	scanner := NewRepairScanner(RepairScannerConfig{Enabled: true, PageLimit: 10, MaxPagesPerTick: 10, MaxTasksPerTick: 10}, source, store)
+	result, err := scanner.RunOnce(context.Background())
+
+	require.NoError(t, err)
+	require.Equal(t, 1, result.TasksCreated)
+	require.Empty(t, source.routedActiveCalls)
+	require.Equal(t, []fakeRepairScannerActiveCall{{HashSlot: 77, ChannelID: id}}, source.hashSlotActiveCalls)
+}
+
 func TestRepairScannerPrioritizesLeaderFailoverBeforeReplicaRepair(t *testing.T) {
 	id := ch.ChannelID{ID: "scan-repair-leader-first", Type: 1}
 	source := newFakeRepairScannerSource(id)
@@ -151,16 +170,26 @@ type fakeRepairScannerSource struct {
 	active       map[ch.ChannelID]bool
 	probes       map[uint64]ch.RuntimeProbeChannel
 	nodes        []control.Node
+	hashSlotByID map[ch.ChannelID]uint16
 	scannedSlots []uint32
 	pageLimits   []int
+
+	routedActiveCalls   []ch.ChannelID
+	hashSlotActiveCalls []fakeRepairScannerActiveCall
+}
+
+type fakeRepairScannerActiveCall struct {
+	HashSlot  uint16
+	ChannelID ch.ChannelID
 }
 
 func newFakeRepairScannerSource(ids ...ch.ChannelID) *fakeRepairScannerSource {
 	source := &fakeRepairScannerSource{
-		localSlots: []uint32{1},
-		slotPages:  make(map[uint32][][]metadb.ChannelRuntimeMeta),
-		active:     make(map[ch.ChannelID]bool),
-		probes:     make(map[uint64]ch.RuntimeProbeChannel),
+		localSlots:   []uint32{1},
+		slotPages:    make(map[uint32][][]metadb.ChannelRuntimeMeta),
+		active:       make(map[ch.ChannelID]bool),
+		probes:       make(map[uint64]ch.RuntimeProbeChannel),
+		hashSlotByID: make(map[ch.ChannelID]uint16),
 	}
 	for _, id := range ids {
 		source.probes[2] = failoverProbe(id, 2, 11, 20, 10, 10).Probe
@@ -173,7 +202,7 @@ func (s *fakeRepairScannerSource) LocalLeaderSlotIDs(context.Context) ([]uint32,
 	return append([]uint32(nil), s.localSlots...), nil
 }
 
-func (s *fakeRepairScannerSource) ListChannelRuntimeMetaPage(_ context.Context, slotID uint32, cursor metadb.ChannelRuntimeMetaCursor, limit int) ([]metadb.ChannelRuntimeMeta, metadb.ChannelRuntimeMetaCursor, bool, error) {
+func (s *fakeRepairScannerSource) ListRepairScannerRuntimeMetaPage(_ context.Context, slotID uint32, cursor metadb.ChannelRuntimeMetaCursor, limit int) ([]RepairScannerRuntimeMeta, metadb.ChannelRuntimeMetaCursor, bool, error) {
 	if !slices.Contains(s.scannedSlots, slotID) {
 		s.scannedSlots = append(s.scannedSlots, slotID)
 	}
@@ -184,10 +213,21 @@ func (s *fakeRepairScannerSource) ListChannelRuntimeMetaPage(_ context.Context, 
 		return nil, metadb.ChannelRuntimeMetaCursor{}, true, nil
 	}
 	next := metadb.ChannelRuntimeMetaCursor{ChannelType: int64(index + 1)}
-	return pages[index], next, index == len(pages)-1, nil
+	items := make([]RepairScannerRuntimeMeta, 0, len(pages[index]))
+	for _, meta := range pages[index] {
+		id := ch.ChannelID{ID: meta.ChannelID, Type: uint8(meta.ChannelType)}
+		items = append(items, RepairScannerRuntimeMeta{HashSlot: s.hashSlotByID[id], Meta: meta})
+	}
+	return items, next, index == len(pages)-1, nil
 }
 
 func (s *fakeRepairScannerSource) ActiveChannelMigration(_ context.Context, id ch.ChannelID) (bool, error) {
+	s.routedActiveCalls = append(s.routedActiveCalls, id)
+	return s.active[id], nil
+}
+
+func (s *fakeRepairScannerSource) ActiveChannelMigrationInHashSlot(_ context.Context, hashSlot uint16, id ch.ChannelID) (bool, error) {
+	s.hashSlotActiveCalls = append(s.hashSlotActiveCalls, fakeRepairScannerActiveCall{HashSlot: hashSlot, ChannelID: id})
 	return s.active[id], nil
 }
 

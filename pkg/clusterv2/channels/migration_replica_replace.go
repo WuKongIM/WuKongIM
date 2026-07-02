@@ -20,7 +20,7 @@ func (e *MigrationExecutor) runReplicaReplacePhase(ctx context.Context, task met
 	case metadb.ChannelMigrationPhaseAddLearner:
 		return e.store.AddLearner(ctx, task)
 	case metadb.ChannelMigrationPhaseBootstrapTarget:
-		return e.store.Advance(ctx, task, task.UpdatedAtMS, metadb.ChannelMigrationPhaseWarmCatchUp, metadb.ChannelMigrationStatusRunning, "")
+		return e.runReplicaReplaceBootstrapTarget(ctx, task)
 	case metadb.ChannelMigrationPhaseWarmCatchUp:
 		return e.runReplicaReplaceWarmCatchUp(ctx, task)
 	case metadb.ChannelMigrationPhaseCutoverFence:
@@ -50,6 +50,20 @@ func (e *MigrationExecutor) runReplicaReplaceValidate(ctx context.Context, task 
 	return e.store.Advance(ctx, task, task.UpdatedAtMS, metadb.ChannelMigrationPhaseAddLearner, metadb.ChannelMigrationStatusRunning, "")
 }
 
+func (e *MigrationExecutor) runReplicaReplaceBootstrapTarget(ctx context.Context, task metadb.ChannelMigrationTask) error {
+	meta, _, err := e.readLeaderTransferMeta(ctx, task)
+	if err != nil {
+		return err
+	}
+	if meta.Leader == 0 || task.TargetNode == 0 {
+		return e.blockTask(ctx, task, migrationBlockInvalidReplicaReplace)
+	}
+	if err := e.applyReplicaReplaceRuntimeMeta(ctx, task, meta); err != nil {
+		return err
+	}
+	return e.store.Advance(ctx, task, task.UpdatedAtMS, metadb.ChannelMigrationPhaseWarmCatchUp, metadb.ChannelMigrationStatusRunning, "")
+}
+
 func (e *MigrationExecutor) runReplicaReplaceWarmCatchUp(ctx context.Context, task metadb.ChannelMigrationTask) error {
 	meta, id, err := e.readLeaderTransferMeta(ctx, task)
 	if err != nil {
@@ -68,6 +82,9 @@ func (e *MigrationExecutor) runReplicaReplaceWarmCatchUp(ctx context.Context, ta
 func (e *MigrationExecutor) runReplicaReplaceCutoverFence(ctx context.Context, task metadb.ChannelMigrationTask) error {
 	meta, id, err := e.readLeaderTransferMeta(ctx, task)
 	if err != nil {
+		return err
+	}
+	if err := e.applyReplicaReplaceRuntimeMeta(ctx, task, meta); err != nil {
 		return err
 	}
 	return e.advanceReplicaReplaceDrainProof(ctx, task, meta, id, metadb.ChannelMigrationPhaseFinalTargetCatchUp)
@@ -119,6 +136,9 @@ func (e *MigrationExecutor) runReplicaReplaceVerifyMembership(ctx context.Contex
 		int64(len(meta.ISR)) < meta.MinISR {
 		return e.blockTask(ctx, task, migrationBlockInvalidReplicaReplace)
 	}
+	if err := e.applyReplicaReplaceRuntimeMeta(ctx, task, meta); err != nil {
+		return err
+	}
 	probe, err := e.runtime.ProbeChannel(ctx, task.TargetNode, id.ID, id.Type)
 	if err != nil {
 		return err
@@ -132,6 +152,21 @@ func (e *MigrationExecutor) runReplicaReplaceVerifyMembership(ctx context.Contex
 		return e.blockTask(ctx, task, migrationBlockInvalidReplicaReplace)
 	}
 	return e.clearWriteFenceAndObserve(ctx, task)
+}
+
+func (e *MigrationExecutor) applyReplicaReplaceRuntimeMeta(ctx context.Context, task metadb.ChannelMigrationTask, meta metadb.ChannelRuntimeMeta) error {
+	if meta.Leader == 0 || task.TargetNode == 0 {
+		return fmt.Errorf("%w: invalid source or target", ch.ErrInvalidConfig)
+	}
+	if err := e.runtime.ApplyChannelMeta(ctx, meta.Leader, meta); err != nil {
+		return err
+	}
+	if task.TargetNode != meta.Leader {
+		if err := e.runtime.ApplyChannelMeta(ctx, task.TargetNode, meta); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (e *MigrationExecutor) advanceReplicaReplaceDrainProof(ctx context.Context, task metadb.ChannelMigrationTask, meta metadb.ChannelRuntimeMeta, id ch.ChannelID, phase metadb.ChannelMigrationPhase) error {

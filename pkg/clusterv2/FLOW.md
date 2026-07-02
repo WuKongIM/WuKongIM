@@ -262,14 +262,20 @@ leader via the `RPCChannelMigrationMeta` reader path, and submits only typed
 migration intents as encoded Slot FSM commands. Non-leader nodes must not make
 migration decisions from their local Slot metadata shard; the RPC target also
 revalidates that its local Slot runtime is still the actual Slot leader before
-serving migration state.
+serving migration state. When the local Slot runtime already reports actual
+leadership for the routed Slot, migration metadata reads use the local shard
+even if the foreground control route has not yet observed that Slot leader.
 Automatic dead-leader recovery uses `channels.RepairScanner` as a bounded
 RunOnce scheduler primitive over Slot-leader-owned runtime metadata pages. It
 detects stale or unschedulable ChannelV2 leaders from the control snapshot,
-probes surviving ISR replicas, asks `FailoverPlanner` for a safe target, and
-creates `leader_failover` migration tasks through `MigrationStore`. A failover
-task sets `WriteFenceReasonFailover` and uses the target replica's committed
-HW as the cutover proof; it does not drain the unavailable source leader.
+probes surviving ISR replicas, checks duplicate active migration tasks in the
+same hash-slot shard that produced the scanned runtime metadata row, asks
+`FailoverPlanner` for a safe target, and creates `leader_failover` migration
+tasks through `MigrationStore`. The hash-slot-scoped active check avoids
+re-routing scanner work through a stale foreground Slot leader after failover.
+A failover task sets `WriteFenceReasonFailover` and uses the target replica's
+committed HW as the cutover proof; it does not drain the unavailable source
+leader.
 After leader recovery is ruled out for a channel, the same scanner asks
 `ReplicaRepairPlanner` whether an unhealthy non-leader replica can be replaced.
 Follower repair only creates a `replica_replace` task when the remaining
@@ -286,11 +292,14 @@ leader metadata, verifies the new leader runtime, and only then clears the
 fence. Automatic leader failover uses the same fenced commit/verify/clear tail
 but skips source drain and synthesizes the cutover proof from the selected
 target replica because the old leader is considered unavailable. Replica
-replacement validates the non-leader source, adds the target learner, waits for
-warm catch-up, sets the write fence, drains the current leader for a cutover
-proof, waits for final target catch-up, promotes the learner while removing the
-source, verifies membership, and clears the fence. Any blocked phase is
-persisted on the task before observer events are emitted.
+replacement validates the non-leader source, adds the target learner, applies
+the updated runtime metadata to the current leader and target runtime before
+waiting for warm catch-up, sets the write fence, reapplies the fenced runtime
+metadata to the current leader and target before draining the current leader for
+a cutover proof, waits for final target catch-up, promotes the learner while
+removing the source, applies the final runtime metadata to the current leader
+and target before verifying membership, and clears the fence. Any blocked phase
+is persisted on the task before observer events are emitted.
 `MigrationObserver` and `RepairObserver` are low-cardinality hooks for app-level
 metrics. Migration observations include active task count, active write-fence
 count, phase duration, blocked reason, and write-fence duration. Repair-scan

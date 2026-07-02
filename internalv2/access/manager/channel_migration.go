@@ -117,12 +117,16 @@ func (s *Server) handleActiveChannelMigrations(c *gin.Context) {
 		jsonError(c, http.StatusBadRequest, "bad_request", "bad_request")
 		return
 	}
-	result, err := s.management.ListActiveChannelMigrations(c.Request.Context(), input)
+	result, ok, err := s.management.ActiveChannelMigration(c.Request.Context(), input)
 	if err != nil {
 		writeChannelMigrationError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, ChannelMigrationListResponse{Items: channelMigrationResponses(result.Items)})
+	var items []ChannelMigrationResponse
+	if ok {
+		items = append(items, channelMigrationResponse(result))
+	}
+	c.JSON(http.StatusOK, ChannelMigrationListResponse{Items: items})
 }
 
 func (s *Server) handleChannelMigration(c *gin.Context) {
@@ -237,7 +241,7 @@ func channelMigrationResponse(item managementusecase.ChannelMigrationSummary) Ch
 func writeChannelMigrationError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, metadb.ErrInvalidArgument):
-		jsonError(c, http.StatusBadRequest, "bad_request", "bad_request")
+		jsonError(c, http.StatusBadRequest, "bad_request", err.Error())
 	case errors.Is(err, managementusecase.ErrChannelMigrationNotFound):
 		jsonError(c, http.StatusNotFound, "not_found", "not_found")
 	case errors.Is(err, managementusecase.ErrChannelMigrationConflict):

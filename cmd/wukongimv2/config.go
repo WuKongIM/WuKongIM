@@ -40,6 +40,7 @@ var supportedConfigKeys = []string{
 	"WK_CLUSTER_INITIAL_SLOT_COUNT",
 	"WK_CLUSTER_HASH_SLOT_COUNT",
 	"WK_CLUSTER_SLOT_REPLICA_N",
+	"WK_CLUSTER_CHANNEL_REPLICA_N",
 	"WK_CLUSTER_SLOT_TICK_INTERVAL",
 	"WK_CLUSTER_SLOT_ELECTION_TICK",
 	"WK_CLUSTER_SLOT_HEARTBEAT_TICK",
@@ -410,6 +411,13 @@ func buildConfig(values map[string]string) (app.Config, error) {
 			return app.Config{}, err
 		}
 		cfg.Cluster.Slots.ReplicaCount = replicaCount
+	}
+	if raw := configValue(values, "WK_CLUSTER_CHANNEL_REPLICA_N"); raw != "" {
+		replicaCount, err := parseUint16("WK_CLUSTER_CHANNEL_REPLICA_N", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Cluster.Channel.ReplicaCount = replicaCount
 	}
 	if raw := configValue(values, "WK_CLUSTER_SLOT_TICK_INTERVAL"); raw != "" {
 		tickInterval, err := parseDuration("WK_CLUSTER_SLOT_TICK_INTERVAL", raw)

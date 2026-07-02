@@ -36,11 +36,19 @@ type RepairObserver interface {
 	ReplicaRepairResult(result string)
 }
 
+// RepairScannerRuntimeMeta carries one scanned runtime metadata row and the hash slot that owns it.
+type RepairScannerRuntimeMeta struct {
+	// HashSlot is the channel-owned hash slot shard that stored Meta.
+	HashSlot uint16
+	// Meta is the durable ChannelV2 runtime metadata row.
+	Meta metadb.ChannelRuntimeMeta
+}
+
 // RepairScannerSource supplies repair scanner reads from clusterv2-owned state.
 type RepairScannerSource interface {
 	LocalLeaderSlotIDs(context.Context) ([]uint32, error)
-	ListChannelRuntimeMetaPage(context.Context, uint32, metadb.ChannelRuntimeMetaCursor, int) ([]metadb.ChannelRuntimeMeta, metadb.ChannelRuntimeMetaCursor, bool, error)
-	ActiveChannelMigration(context.Context, ch.ChannelID) (bool, error)
+	ListRepairScannerRuntimeMetaPage(context.Context, uint32, metadb.ChannelRuntimeMetaCursor, int) ([]RepairScannerRuntimeMeta, metadb.ChannelRuntimeMetaCursor, bool, error)
+	ActiveChannelMigrationInHashSlot(context.Context, uint16, ch.ChannelID) (bool, error)
 	ProbeChannel(ctx context.Context, nodeID uint64, channelID string, channelType uint8) (ch.RuntimeProbeChannel, error)
 	ControlSnapshot(context.Context) (control.Snapshot, error)
 }
@@ -115,16 +123,16 @@ func (s *RepairScanner) RunOnce(ctx context.Context) (RepairScannerResult, error
 	for _, slotID := range slotIDs {
 		cursor := metadb.ChannelRuntimeMetaCursor{}
 		for result.PagesScanned < s.cfg.MaxPagesPerTick {
-			page, next, done, err := s.source.ListChannelRuntimeMetaPage(ctx, slotID, cursor, s.cfg.PageLimit)
+			page, next, done, err := s.source.ListRepairScannerRuntimeMetaPage(ctx, slotID, cursor, s.cfg.PageLimit)
 			if err != nil {
 				return result, err
 			}
 			result.PagesScanned++
-			for _, meta := range page {
+			for _, item := range page {
 				if result.TasksCreated >= s.cfg.MaxTasksPerTick {
 					return s.observeRepairScan(result), nil
 				}
-				if err := s.scanMeta(ctx, snapshot, meta, &result); err != nil {
+				if err := s.scanMeta(ctx, snapshot, item, &result); err != nil {
 					return result, err
 				}
 			}
@@ -140,15 +148,15 @@ func (s *RepairScanner) RunOnce(ctx context.Context) (RepairScannerResult, error
 	return s.observeRepairScan(result), nil
 }
 
-func (s *RepairScanner) scanMeta(ctx context.Context, snapshot control.Snapshot, raw metadb.ChannelRuntimeMeta, result *RepairScannerResult) error {
-	meta := metadb.NormalizeChannelRuntimeMeta(raw)
+func (s *RepairScanner) scanMeta(ctx context.Context, snapshot control.Snapshot, item RepairScannerRuntimeMeta, result *RepairScannerResult) error {
+	meta := metadb.NormalizeChannelRuntimeMeta(item.Meta)
 	if meta.ChannelID == "" || meta.ChannelType < 0 || meta.ChannelType > maxMigrationChannelType || meta.Status != uint8(ch.StatusActive) {
 		return nil
 	}
 	id := ch.ChannelID{ID: meta.ChannelID, Type: uint8(meta.ChannelType)}
 	if repairScannerLeaderSuspect(snapshot.Nodes, meta.Leader) {
 		result.ChannelsScanned++
-		active, err := s.source.ActiveChannelMigration(ctx, id)
+		active, err := s.source.ActiveChannelMigrationInHashSlot(ctx, item.HashSlot, id)
 		if err != nil {
 			return err
 		}
@@ -162,7 +170,7 @@ func (s *RepairScanner) scanMeta(ctx context.Context, snapshot control.Snapshot,
 		return nil
 	}
 	result.ChannelsScanned++
-	active, err := s.source.ActiveChannelMigration(ctx, id)
+	active, err := s.source.ActiveChannelMigrationInHashSlot(ctx, item.HashSlot, id)
 	if err != nil {
 		return err
 	}

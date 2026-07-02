@@ -61,6 +61,42 @@ func TestManagerChannelMigrationDuplicateReturnsConflict(t *testing.T) {
 	}
 }
 
+func TestManagerActiveChannelMigrationsReadsScopedActiveTask(t *testing.T) {
+	var gotReq managementusecase.ChannelMigrationListInput
+	srv := New(Options{Management: managerNodesStub{
+		lastChannelMigrationListRequest: &gotReq,
+		channelMigrationSummary: managementusecase.ChannelMigrationSummary{
+			TaskID:      "task-g1",
+			ChannelID:   "g1",
+			ChannelType: 2,
+			Kind:        "replica_replace",
+			Status:      "running",
+			Phase:       "warm_catch_up",
+			SourceNode:  1,
+			TargetNode:  4,
+		},
+	}})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/manager/channel-migrations/active?channel_id=g1&channel_type=2&limit=50", nil)
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	if gotReq.ChannelID != "g1" || gotReq.ChannelType != 2 || gotReq.Limit != 50 {
+		t.Fatalf("request = %#v, want channel g1 type 2 limit 50", gotReq)
+	}
+	var body ChannelMigrationListResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("Unmarshal() error = %v", err)
+	}
+	if len(body.Items) != 1 || body.Items[0].TaskID != "task-g1" || body.Items[0].Kind != "replica_replace" {
+		t.Fatalf("body = %#v, want scoped active task", body)
+	}
+}
+
 func TestManagerChannelRuntimeMetaIncludesMigrationFields(t *testing.T) {
 	srv := New(Options{Management: managerNodesStub{
 		channelRuntimeMeta: managementusecase.ListChannelRuntimeMetaResponse{

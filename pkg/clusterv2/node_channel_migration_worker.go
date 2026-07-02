@@ -5,6 +5,7 @@ import (
 	"sort"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
+	channelwrapper "github.com/WuKongIM/WuKongIM/pkg/clusterv2/channels"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
@@ -69,18 +70,24 @@ func (n *Node) LocalLeaderSlotIDs(ctx context.Context) ([]uint32, error) {
 	return out, nil
 }
 
-// ListChannelRuntimeMetaPage adapts the node Slot scanner to the repair scanner source contract.
+// ListChannelRuntimeMetaPage reads runtime metadata rows for legacy callers that do not need hash-slot provenance.
 func (n *Node) ListChannelRuntimeMetaPage(ctx context.Context, slotID uint32, cursor metadb.ChannelRuntimeMetaCursor, limit int) ([]metadb.ChannelRuntimeMeta, metadb.ChannelRuntimeMetaCursor, bool, error) {
 	return n.ScanChannelRuntimeMetaSlotPage(ctx, slotID, cursor, limit)
 }
 
-// ActiveChannelMigration reports whether id already has an active migration task.
+// ActiveChannelMigration reports whether id already has an active migration task via the routed migration store.
 func (n *Node) ActiveChannelMigration(ctx context.Context, id ch.ChannelID) (bool, error) {
 	store := n.ChannelMigrationStore()
 	if store == nil {
 		return false, ErrNotStarted
 	}
 	_, ok, err := store.GetActive(ctx, id)
+	return ok, err
+}
+
+// ActiveChannelMigrationInHashSlot reports whether id has an active task in a locally led hash-slot shard.
+func (n *Node) ActiveChannelMigrationInHashSlot(ctx context.Context, hashSlot uint16, id ch.ChannelID) (bool, error) {
+	_, ok, err := n.getActiveChannelMigrationLocalTask(ctx, hashSlot, id.ID, int64(id.Type))
 	return ok, err
 }
 
@@ -138,6 +145,24 @@ func (n *Node) DrainChannel(ctx context.Context, nodeID uint64, req ch.DrainChan
 	return *resp.DrainResult, nil
 }
 
+// ApplyChannelMeta applies authoritative runtime metadata to a local or remote ChannelV2 runtime.
+func (n *Node) ApplyChannelMeta(ctx context.Context, nodeID uint64, meta metadb.ChannelRuntimeMeta) error {
+	if err := ctxErr(ctx); err != nil {
+		return err
+	}
+	if n == nil || nodeID == 0 {
+		return ErrNotStarted
+	}
+	if nodeID == n.cfg.NodeID {
+		return n.applyChannelMigrationLocalRuntimeMeta(ctx, meta)
+	}
+	_, err := n.callChannelMigrationMetaRPC(ctx, nodeID, channelMigrationMetaRPCRequest{
+		Op:          channelMigrationMetaOpRuntimeApply,
+		RuntimeMeta: &meta,
+	})
+	return err
+}
+
 func (n *Node) probeLocalChannelRuntime(ctx context.Context, channelID string, channelType uint8) (ch.RuntimeProbeChannel, error) {
 	id := ch.ChannelID{ID: channelID, Type: channelType}
 	result, err := n.ChannelRuntimeProbe(ctx, ch.RuntimeSelector{ChannelIDs: []ch.ChannelID{id}})
@@ -150,6 +175,25 @@ func (n *Node) probeLocalChannelRuntime(ctx context.Context, channelID string, c
 		}
 	}
 	return ch.RuntimeProbeChannel{}, ch.ErrChannelNotFound
+}
+
+func (n *Node) applyChannelMigrationLocalRuntimeMeta(ctx context.Context, meta metadb.ChannelRuntimeMeta) error {
+	if err := ctxErr(ctx); err != nil {
+		return err
+	}
+	if err := n.ensureForeground(); err != nil {
+		return err
+	}
+	if n.channels == nil {
+		return ErrNotStarted
+	}
+	service, ok := n.channels.(interface {
+		ApplyMeta(ch.Meta) error
+	})
+	if !ok {
+		return ErrNotStarted
+	}
+	return service.ApplyMeta(channelwrapper.ProjectRuntimeMeta(meta))
 }
 
 func (n *Node) drainLocalChannelRuntime(ctx context.Context, req ch.DrainChannelRequest) (ch.DrainChannelResult, error) {
