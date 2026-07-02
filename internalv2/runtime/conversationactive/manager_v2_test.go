@@ -185,3 +185,105 @@ func TestManagerV2MarkActiveCoalesces(t *testing.T) {
 		t.Error("version should change after update")
 	}
 }
+
+func TestManagerV2HotToColdMigration(t *testing.T) {
+	m := NewManagerV2(Options{})
+
+	// 标记活跃（带 hashSlot）
+	patches := []ActivePatch{{
+		UID:         "u1",
+		Kind:        metadb.ConversationKindNormal,
+		ChannelID:   "ch1",
+		ChannelType: 2,
+		ActiveAtMS:  1000,
+		ReadSeq:     10,
+	}}
+	m.MarkActiveForHashSlot(context.Background(), 1, patches)
+
+	// 验证在热缓存中
+	_, hotOK := m.hot.get("u1", conversationKey{
+		kind:        metadb.ConversationKindNormal,
+		channelID:   "ch1",
+		channelType: 2,
+	})
+	if !hotOK {
+		t.Fatal("entry should be in hot cache")
+	}
+
+	// 手动迁移到冷缓存（模拟刷盘后）
+	m.moveHotToCold([]cacheAddress{{
+		uid: "u1",
+		key: conversationKey{
+			kind:        metadb.ConversationKindNormal,
+			channelID:   "ch1",
+			channelType: 2,
+		},
+	}})
+
+	// 验证已移到冷缓存
+	_, hotOK = m.hot.get("u1", conversationKey{
+		kind:        metadb.ConversationKindNormal,
+		channelID:   "ch1",
+		channelType: 2,
+	})
+	_, coldOK := m.cold.get("u1", conversationKey{
+		kind:        metadb.ConversationKindNormal,
+		channelID:   "ch1",
+		channelType: 2,
+	})
+
+	if hotOK {
+		t.Error("entry still in hot cache after migration")
+	}
+	if !coldOK {
+		t.Error("entry not in cold cache after migration")
+	}
+}
+
+func TestManagerV2ColdToHotPromotion(t *testing.T) {
+	m := NewManagerV2(Options{})
+
+	// 手动插入到冷缓存
+	coldPatch := ActivePatch{
+		UID:         "u1",
+		Kind:        metadb.ConversationKindNormal,
+		ChannelID:   "ch1",
+		ChannelType: 2,
+		ActiveAtMS:  1000,
+	}
+	m.cold.set(coldPatch)
+
+	// 再次标记活跃（相同会话）
+	patches := []ActivePatch{{
+		UID:         "u1",
+		Kind:        metadb.ConversationKindNormal,
+		ChannelID:   "ch1",
+		ChannelType: 2,
+		ActiveAtMS:  2000,
+		ReadSeq:     20,
+	}}
+	m.MarkActive(context.Background(), patches)
+
+	// 验证已提升到热缓存
+	entry, ok := m.hot.get("u1", conversationKey{
+		kind:        metadb.ConversationKindNormal,
+		channelID:   "ch1",
+		channelType: 2,
+	})
+	if !ok {
+		t.Fatal("entry not promoted to hot cache")
+	}
+	if entry.patch.ActiveAtMS != 2000 {
+		t.Errorf("ActiveAtMS = %d, want 2000", entry.patch.ActiveAtMS)
+	}
+
+	// 验证已从冷缓存移除
+	_, coldOK := m.cold.get("u1", conversationKey{
+		kind:        metadb.ConversationKindNormal,
+		channelID:   "ch1",
+		channelType: 2,
+	})
+	if coldOK {
+		t.Error("entry still in cold cache after promotion")
+	}
+}
