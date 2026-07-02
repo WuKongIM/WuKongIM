@@ -333,6 +333,121 @@ func TestMetaBatchCreateChannelMigrationTaskWithRuntimeGuard(t *testing.T) {
 	}
 }
 
+func TestMetaBatchReplicaReplaceAllowsSourceOutsideISRWhenMinISRSatisfied(t *testing.T) {
+	db, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("Open(): %v", err)
+	}
+	defer func() {
+		if err := db.Close(); err != nil {
+			t.Fatalf("Close(): %v", err)
+		}
+	}()
+	ctx := context.Background()
+	shard := db.MetaDB().HashSlot(8)
+	meta := testRuntimeMeta("channel-non-isr-source", 1)
+	task := testChannelMigrationTask("task-non-isr-source", meta.ChannelID)
+	task.SourceNode = 3
+	task.TargetNode = 4
+	task.Status = ChannelMigrationStatusRunning
+	task.Phase = ChannelMigrationPhaseAddLearner
+	if _, err := shard.UpsertChannelRuntimeMeta(ctx, meta); err != nil {
+		t.Fatalf("UpsertChannelRuntimeMeta(): %v", err)
+	}
+	if err := shard.CreateChannelMigrationTask(ctx, task); err != nil {
+		t.Fatalf("CreateChannelMigrationTask(): %v", err)
+	}
+
+	add := db.NewWriteBatch()
+	if err := add.AddChannelLearner(8, ChannelMigrationAddLearnerRequest{
+		Guard:        channelMigrationTaskGuard(task),
+		RuntimeGuard: channelMigrationRuntimeGuard(meta),
+		Status:       ChannelMigrationStatusRunning,
+		Phase:        ChannelMigrationPhaseBootstrapTarget,
+		TargetNode:   4,
+		UpdatedAtMS:  task.UpdatedAtMS + 1,
+	}); err != nil {
+		t.Fatalf("AddChannelLearner(stage): %v", err)
+	}
+	if err := add.Commit(); err != nil {
+		t.Fatalf("AddChannelLearner Commit(): %v", err)
+	}
+	added, ok, err := shard.GetChannelRuntimeMeta(ctx, meta.ChannelID, meta.ChannelType)
+	if err != nil || !ok {
+		t.Fatalf("GetChannelRuntimeMeta(after add) ok=%v err=%v", ok, err)
+	}
+	if !containsUint64(added.Replicas, 4) || containsUint64(added.ISR, 4) {
+		t.Fatalf("after add meta replicas=%v isr=%v, want learner replica outside ISR", added.Replicas, added.ISR)
+	}
+}
+
+func TestMetaBatchPromoteLearnerAddsTargetToISRWhenSourceAlreadyOutsideISR(t *testing.T) {
+	db, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("Open(): %v", err)
+	}
+	defer func() {
+		if err := db.Close(); err != nil {
+			t.Fatalf("Close(): %v", err)
+		}
+	}()
+	ctx := context.Background()
+	shard := db.MetaDB().HashSlot(8)
+	meta := testRuntimeMeta("channel-promote-non-isr-source", 1)
+	meta.Replicas = []uint64{1, 2, 3, 4}
+	meta.ISR = []uint64{1, 2}
+	meta.WriteFenceToken = "task-promote-non-isr-source"
+	meta.WriteFenceVersion = 6
+	meta.WriteFenceReason = 2
+	meta.WriteFenceUntilMS = 1750000009000
+	meta = normalizeChannelRuntimeMeta(meta)
+	task := testChannelMigrationTask(meta.WriteFenceToken, meta.ChannelID)
+	task.SourceNode = 3
+	task.TargetNode = 4
+	task.Status = ChannelMigrationStatusRunning
+	task.Phase = ChannelMigrationPhasePromoteAndRemove
+	task.FenceToken = task.TaskID
+	task.FenceVersion = meta.WriteFenceVersion
+	task.FenceUntilMS = meta.WriteFenceUntilMS
+	task.CutoverLEO = 9
+	task.CutoverHW = 9
+	task.DrainedLeaderNode = meta.Leader
+	task.DrainedRuntimeGeneration = meta.RouteGeneration
+	task.DrainedChannelEpoch = meta.ChannelEpoch
+	task.DrainedLeaderEpoch = meta.LeaderEpoch
+	task.DrainedFenceVersion = meta.WriteFenceVersion
+	if _, err := shard.UpsertChannelRuntimeMeta(ctx, meta); err != nil {
+		t.Fatalf("UpsertChannelRuntimeMeta(): %v", err)
+	}
+	if err := shard.CreateChannelMigrationTask(ctx, task); err != nil {
+		t.Fatalf("CreateChannelMigrationTask(): %v", err)
+	}
+
+	promote := db.NewWriteBatch()
+	if err := promote.PromoteLearnerAndRemoveReplica(8, ChannelMigrationPromoteLearnerRequest{
+		Guard:        channelMigrationTaskGuard(task),
+		RuntimeGuard: channelMigrationRuntimeGuard(meta),
+		Status:       ChannelMigrationStatusRunning,
+		Phase:        ChannelMigrationPhaseVerifyMembership,
+		SourceNode:   3,
+		TargetNode:   4,
+		NowMS:        1750000002000,
+		UpdatedAtMS:  task.UpdatedAtMS + 1,
+	}); err != nil {
+		t.Fatalf("PromoteLearnerAndRemoveReplica(stage): %v", err)
+	}
+	if err := promote.Commit(); err != nil {
+		t.Fatalf("PromoteLearnerAndRemoveReplica Commit(): %v", err)
+	}
+	got, ok, err := shard.GetChannelRuntimeMeta(ctx, meta.ChannelID, meta.ChannelType)
+	if err != nil || !ok {
+		t.Fatalf("GetChannelRuntimeMeta(after promote) ok=%v err=%v", ok, err)
+	}
+	if containsUint64(got.Replicas, 3) || containsUint64(got.ISR, 3) || !containsUint64(got.Replicas, 4) || !containsUint64(got.ISR, 4) {
+		t.Fatalf("after promote meta replicas=%v isr=%v, want source removed and target promoted", got.Replicas, got.ISR)
+	}
+}
+
 func testChannelMigrationTask(taskID string, channelID string) ChannelMigrationTask {
 	return ChannelMigrationTask{
 		TaskID:           taskID,

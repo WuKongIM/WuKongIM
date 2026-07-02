@@ -267,6 +267,15 @@ probes surviving ISR replicas, asks `FailoverPlanner` for a safe target, and
 creates `leader_failover` migration tasks through `MigrationStore`. A failover
 task sets `WriteFenceReasonFailover` and uses the target replica's committed
 HW as the cutover proof; it does not drain the unavailable source leader.
+After leader recovery is ruled out for a channel, the same scanner asks
+`ReplicaRepairPlanner` whether an unhealthy non-leader replica can be replaced.
+Follower repair only creates a `replica_replace` task when the remaining
+health-schedulable ISR still satisfies `MinISR` and a replacement node passes
+the same placement predicate used for new ChannelV2 channels. If the source
+replica has already fallen out of ISR, Slot metadata commands may still add the
+learner and later promote it, but only while the current ISR already satisfies
+`MinISR`; the promote step appends the target to ISR while removing the source
+from replicas.
 Default hosting remains disabled until the three-node e2ev2 kill-node coverage
 is green, so foreground SEND paths still only read local channel state and the
 node-local data-plane lease.

@@ -93,6 +93,37 @@ func TestReplicaReplaceExecutorBlocksWhenSourceIsLeader(t *testing.T) {
 	require.Equal(t, "source_is_leader", store.lastReason)
 }
 
+func TestReplicaReplaceExecutorAllowsNonISRSourceWhenMinISRSurvives(t *testing.T) {
+	ctx := context.Background()
+	now := time.UnixMilli(1750000320000).UTC()
+	id := ch.ChannelID{ID: "executor-replace-non-isr-source", Type: 1}
+	task := testReplicaReplaceExecutorTask(id)
+	task.Status = metadb.ChannelMigrationStatusRunning
+	task.Phase = metadb.ChannelMigrationPhaseValidate
+	task.OwnerNodeID = 2
+	task.OwnerLeaseUntilMS = now.Add(time.Minute).UnixMilli()
+	meta := testMigrationRuntimeMeta(id)
+	meta.Leader = 1
+	meta.Replicas = []uint64{1, 2, 3}
+	meta.ISR = []uint64{1, 2}
+	meta.MinISR = 2
+	store := newFakeMigrationExecutorStore(task, &meta, now)
+	executor := NewMigrationExecutor(MigrationExecutorConfig{
+		LocalNode: 2,
+		Source:    fakeMigrationExecutorSource{store: store},
+		Store:     store,
+		Runtime:   &fakeMigrationExecutorRuntime{},
+		Meta:      fakeMigrationExecutorMetaReader{meta: &meta},
+		Clock:     func() time.Time { return now },
+	})
+
+	require.NoError(t, executor.RunOnce(ctx))
+
+	require.Equal(t, metadb.ChannelMigrationStatusRunning, store.task.Status)
+	require.Equal(t, metadb.ChannelMigrationPhaseAddLearner, store.task.Phase)
+	require.Equal(t, []string{"advance:20:2"}, store.ops)
+}
+
 func testReplicaReplaceExecutorTask(id ch.ChannelID) metadb.ChannelMigrationTask {
 	task := testMigrationTask(id, "task-"+id.ID)
 	task.Kind = metadb.ChannelMigrationKindReplicaReplace

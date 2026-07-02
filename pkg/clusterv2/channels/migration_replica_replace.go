@@ -166,8 +166,11 @@ func validateReplicaReplaceTask(task metadb.ChannelMigrationTask, meta metadb.Ch
 	if task.SourceNode == 0 || task.TargetNode == 0 || task.SourceNode == task.TargetNode {
 		return fmt.Errorf("%w: invalid source or target", ch.ErrInvalidConfig)
 	}
-	if !migrationNodeInList(meta.Replicas, task.SourceNode) || !migrationNodeInList(meta.ISR, task.SourceNode) {
-		return fmt.Errorf("%w: source is not an ISR replica", ch.ErrInvalidConfig)
+	if !migrationNodeInList(meta.Replicas, task.SourceNode) {
+		return fmt.Errorf("%w: source is not a channel replica", ch.ErrInvalidConfig)
+	}
+	if !migrationNodeInList(meta.ISR, task.SourceNode) && int64(len(meta.ISR)) < meta.MinISR {
+		return fmt.Errorf("%w: min ISR is not satisfied without source", ch.ErrInvalidConfig)
 	}
 	if migrationNodeInList(meta.Replicas, task.TargetNode) || migrationNodeInList(meta.ISR, task.TargetNode) {
 		return fmt.Errorf("%w: target already participates", ch.ErrInvalidConfig)

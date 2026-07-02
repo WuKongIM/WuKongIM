@@ -38,6 +38,7 @@ type RepairScannerSource interface {
 // RepairScannerStore creates repair tasks selected by the scanner.
 type RepairScannerStore interface {
 	CreateLeaderFailover(context.Context, CreateLeaderFailoverRequest) (metadb.ChannelMigrationTask, error)
+	CreateReplicaReplace(context.Context, CreateReplicaReplaceRequest) (metadb.ChannelMigrationTask, error)
 }
 
 // RepairScannerBlocked records one channel that could not be repaired this tick.
@@ -64,6 +65,7 @@ type RepairScanner struct {
 	source  RepairScannerSource
 	store   RepairScannerStore
 	planner FailoverPlanner
+	repair  ReplicaRepairPlanner
 }
 
 // NewRepairScanner creates a bounded ChannelV2 repair scanner.
@@ -77,7 +79,7 @@ func NewRepairScanner(cfg RepairScannerConfig, source RepairScannerSource, store
 	if cfg.MaxTasksPerTick <= 0 {
 		cfg.MaxTasksPerTick = defaultRepairScannerMaxTasksPerTick
 	}
-	return &RepairScanner{cfg: cfg, source: source, store: store, planner: NewFailoverPlanner()}
+	return &RepairScanner{cfg: cfg, source: source, store: store, planner: NewFailoverPlanner(), repair: NewReplicaRepairPlanner()}
 }
 
 // RunOnce scans bounded local Slot-leader pages and creates failover tasks.
@@ -134,7 +136,19 @@ func (s *RepairScanner) scanMeta(ctx context.Context, snapshot control.Snapshot,
 		return nil
 	}
 	id := ch.ChannelID{ID: meta.ChannelID, Type: uint8(meta.ChannelType)}
-	if !repairScannerLeaderSuspect(snapshot.Nodes, meta.Leader) {
+	if repairScannerLeaderSuspect(snapshot.Nodes, meta.Leader) {
+		result.ChannelsScanned++
+		active, err := s.source.ActiveChannelMigration(ctx, id)
+		if err != nil {
+			return err
+		}
+		if active {
+			return nil
+		}
+		return s.scanLeaderFailover(ctx, snapshot, meta, id, result)
+	}
+	decision := s.repair.Plan(ReplicaRepairPlanInput{Meta: meta, Nodes: snapshot.Nodes})
+	if decision.Action == ReplicaRepairActionNone && !decision.Degraded {
 		return nil
 	}
 	result.ChannelsScanned++
@@ -145,6 +159,10 @@ func (s *RepairScanner) scanMeta(ctx context.Context, snapshot control.Snapshot,
 	if active {
 		return nil
 	}
+	return s.scanReplicaRepair(ctx, meta, id, decision, result)
+}
+
+func (s *RepairScanner) scanLeaderFailover(ctx context.Context, snapshot control.Snapshot, meta metadb.ChannelRuntimeMeta, id ch.ChannelID, result *RepairScannerResult) error {
 	probes := make([]FailoverCandidateProbe, 0, len(meta.ISR))
 	for _, nodeID := range meta.ISR {
 		if nodeID == 0 || nodeID == meta.Leader {
@@ -180,6 +198,38 @@ func (s *RepairScanner) scanMeta(ctx context.Context, snapshot control.Snapshot,
 			ChannelID:   id,
 			Reason:      decision.BlockReason,
 			ObservedHW:  decision.ObservedHW,
+			TargetNode:  decision.TargetNode,
+			LeaderNode:  meta.Leader,
+			LeaderEpoch: meta.LeaderEpoch,
+		})
+	}
+	return nil
+}
+
+func (s *RepairScanner) scanReplicaRepair(ctx context.Context, meta metadb.ChannelRuntimeMeta, id ch.ChannelID, decision ReplicaRepairDecision, result *RepairScannerResult) error {
+	switch decision.Action {
+	case ReplicaRepairActionCreateReplicaReplace:
+		_, err := s.store.CreateReplicaReplace(ctx, CreateReplicaReplaceRequest{
+			ChannelID:  id,
+			SourceNode: ch.NodeID(decision.SourceNode),
+			TargetNode: ch.NodeID(decision.TargetNode),
+		})
+		if err != nil {
+			return err
+		}
+		result.TasksCreated++
+	case ReplicaRepairActionBlocked:
+		result.Blocked = append(result.Blocked, RepairScannerBlocked{
+			ChannelID:   id,
+			Reason:      decision.BlockReason,
+			TargetNode:  decision.TargetNode,
+			LeaderNode:  meta.Leader,
+			LeaderEpoch: meta.LeaderEpoch,
+		})
+	case ReplicaRepairActionWaitForLeaderFailover:
+		result.Blocked = append(result.Blocked, RepairScannerBlocked{
+			ChannelID:   id,
+			Reason:      "waiting_leader_failover",
 			TargetNode:  decision.TargetNode,
 			LeaderNode:  meta.Leader,
 			LeaderEpoch: meta.LeaderEpoch,

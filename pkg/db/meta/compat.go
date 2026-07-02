@@ -2138,10 +2138,11 @@ func (b *WriteBatch) AddChannelLearner(hashSlot uint16, req ChannelMigrationAddL
 		if err := requireChannelMigrationAddLearnerTransition(task, req); err != nil {
 			return ChannelMigrationTask{}, ChannelRuntimeMeta{}, err
 		}
+		sourceInISR := containsUint64(meta.ISR, task.SourceNode)
 		if req.TargetNode != task.TargetNode ||
 			meta.Leader == task.SourceNode ||
 			!containsUint64(meta.Replicas, task.SourceNode) ||
-			!containsUint64(meta.ISR, task.SourceNode) ||
+			(!sourceInISR && int64(len(meta.ISR)) < meta.MinISR) ||
 			containsUint64(meta.Replicas, req.TargetNode) ||
 			containsUint64(meta.ISR, req.TargetNode) {
 			return ChannelMigrationTask{}, ChannelRuntimeMeta{}, dberrors.ErrConflict
@@ -2177,12 +2178,13 @@ func (b *WriteBatch) PromoteLearnerAndRemoveReplica(hashSlot uint16, req Channel
 		if err := requireChannelMigrationCutoverProof(task, meta, req.RuntimeGuard.ExpectedFenceVersion); err != nil {
 			return ChannelMigrationTask{}, ChannelRuntimeMeta{}, err
 		}
+		sourceInISR := containsUint64(meta.ISR, req.SourceNode)
 		if req.SourceNode != task.SourceNode ||
 			req.TargetNode != task.TargetNode ||
 			meta.Leader == req.SourceNode ||
 			!containsUint64(meta.Replicas, req.SourceNode) ||
 			!containsUint64(meta.Replicas, req.TargetNode) ||
-			!containsUint64(meta.ISR, req.SourceNode) ||
+			(!sourceInISR && int64(len(meta.ISR)) < meta.MinISR) ||
 			containsUint64(meta.ISR, req.TargetNode) {
 			return ChannelMigrationTask{}, ChannelRuntimeMeta{}, dberrors.ErrConflict
 		}
@@ -2193,7 +2195,11 @@ func (b *WriteBatch) PromoteLearnerAndRemoveReplica(hashSlot uint16, req Channel
 
 		nextMeta := meta
 		nextMeta.Replicas = replaceUint64Member(nextMeta.Replicas, req.SourceNode, req.TargetNode)
-		nextMeta.ISR = replaceUint64Member(nextMeta.ISR, req.SourceNode, req.TargetNode)
+		if sourceInISR {
+			nextMeta.ISR = replaceUint64Member(nextMeta.ISR, req.SourceNode, req.TargetNode)
+		} else {
+			nextMeta.ISR = normalizeUint64Set(append(nextMeta.ISR, req.TargetNode))
+		}
 		nextMeta.ChannelEpoch++
 		return nextTask, nextMeta, nil
 	})

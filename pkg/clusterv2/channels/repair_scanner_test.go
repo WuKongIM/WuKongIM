@@ -93,6 +93,44 @@ func TestRepairScannerRespectsMaxTasksPerTick(t *testing.T) {
 	require.Len(t, store.requests, 1)
 }
 
+func TestRepairScannerCreatesReplicaReplacementAfterLeaderHealthy(t *testing.T) {
+	id := ch.ChannelID{ID: "scan-replica-repair", Type: 1}
+	source := newFakeRepairScannerSource(id)
+	source.nodes = repairPlannerNodes([]uint64{1, 2, 4}, []uint64{3})
+	meta := replicaRepairMeta(id)
+	meta.ISR = []uint64{1, 2}
+	source.slotPages[1] = [][]metadb.ChannelRuntimeMeta{{meta}}
+	store := &fakeRepairScannerStore{}
+
+	scanner := NewRepairScanner(RepairScannerConfig{Enabled: true, PageLimit: 10, MaxPagesPerTick: 10, MaxTasksPerTick: 10}, source, store)
+	result, err := scanner.RunOnce(context.Background())
+
+	require.NoError(t, err)
+	require.Equal(t, 1, result.TasksCreated)
+	require.Empty(t, store.requests)
+	require.Len(t, store.replicaRequests, 1)
+	require.Equal(t, ch.NodeID(3), store.replicaRequests[0].SourceNode)
+	require.Equal(t, ch.NodeID(4), store.replicaRequests[0].TargetNode)
+}
+
+func TestRepairScannerPrioritizesLeaderFailoverBeforeReplicaRepair(t *testing.T) {
+	id := ch.ChannelID{ID: "scan-repair-leader-first", Type: 1}
+	source := newFakeRepairScannerSource(id)
+	source.nodes = repairPlannerNodes([]uint64{1, 2, 4}, []uint64{3})
+	meta := replicaRepairMeta(id)
+	meta.Leader = 3
+	source.slotPages[1] = [][]metadb.ChannelRuntimeMeta{{meta}}
+	store := &fakeRepairScannerStore{}
+
+	scanner := NewRepairScanner(RepairScannerConfig{Enabled: true, PageLimit: 10, MaxPagesPerTick: 10, MaxTasksPerTick: 10}, source, store)
+	result, err := scanner.RunOnce(context.Background())
+
+	require.NoError(t, err)
+	require.Equal(t, 1, result.TasksCreated)
+	require.Len(t, store.requests, 1)
+	require.Empty(t, store.replicaRequests)
+}
+
 func TestRepairScannerConfigKeepsTickIntervalForSchedulerLoop(t *testing.T) {
 	scanner := NewRepairScanner(RepairScannerConfig{Enabled: true, TickInterval: 3 * time.Second}, newFakeRepairScannerSource(), &fakeRepairScannerStore{})
 
@@ -104,6 +142,7 @@ type fakeRepairScannerSource struct {
 	slotPages    map[uint32][][]metadb.ChannelRuntimeMeta
 	active       map[ch.ChannelID]bool
 	probes       map[uint64]ch.RuntimeProbeChannel
+	nodes        []control.Node
 	scannedSlots []uint32
 	pageLimits   []int
 }
@@ -151,14 +190,23 @@ func (s *fakeRepairScannerSource) ProbeChannel(_ context.Context, nodeID uint64,
 }
 
 func (s *fakeRepairScannerSource) ControlSnapshot(context.Context) (control.Snapshot, error) {
+	if s.nodes != nil {
+		return control.Snapshot{Nodes: append([]control.Node(nil), s.nodes...)}, nil
+	}
 	return control.Snapshot{Nodes: failoverHealthyNodes(2, 3)}, nil
 }
 
 type fakeRepairScannerStore struct {
-	requests []CreateLeaderFailoverRequest
+	requests        []CreateLeaderFailoverRequest
+	replicaRequests []CreateReplicaReplaceRequest
 }
 
 func (s *fakeRepairScannerStore) CreateLeaderFailover(_ context.Context, req CreateLeaderFailoverRequest) (metadb.ChannelMigrationTask, error) {
 	s.requests = append(s.requests, req)
 	return metadb.ChannelMigrationTask{TaskID: "task-" + req.ChannelID.ID}, nil
+}
+
+func (s *fakeRepairScannerStore) CreateReplicaReplace(_ context.Context, req CreateReplicaReplaceRequest) (metadb.ChannelMigrationTask, error) {
+	s.replicaRequests = append(s.replicaRequests, req)
+	return metadb.ChannelMigrationTask{TaskID: "task-repair-" + req.ChannelID.ID}, nil
 }
