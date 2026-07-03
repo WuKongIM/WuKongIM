@@ -25,7 +25,7 @@ const (
 	webhookEventUserOnlineStatus = "user.onlinestatus"
 )
 
-func TestWukongIMV2WebhookReceivesNotifyOfflineAndOnlineStatus(t *testing.T) {
+func TestWukongIMWebhookReceivesNotifyOfflineAndOnlineStatus(t *testing.T) {
 	sink := newWebhookSink(t)
 	defer sink.close()
 

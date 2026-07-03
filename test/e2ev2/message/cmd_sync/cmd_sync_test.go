@@ -38,7 +38,7 @@ type legacyCMDHeader struct {
 	SyncOnce  int `json:"sync_once"`
 }
 
-func TestWukongIMV2UnifiedConversationProjectionIsolatesCMDSync(t *testing.T) {
+func TestWukongIMUnifiedConversationProjectionIsolatesCMDSync(t *testing.T) {
 	node := suite.New(t).StartSingleNodeCluster()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
@@ -112,7 +112,7 @@ func TestWukongIMV2UnifiedConversationProjectionIsolatesCMDSync(t *testing.T) {
 	requireMessageSyncEmptyFor(t, *node, bobUID, 500*time.Millisecond)
 }
 
-func TestWukongIMV2CMDSyncProjectionSurvivesRestartBeforeSync(t *testing.T) {
+func TestWukongIMCMDSyncProjectionSurvivesRestartBeforeSync(t *testing.T) {
 	node := suite.New(t).StartSingleNodeCluster(suite.WithNodeConfigOverrides(1, map[string]string{
 		"WK_CONVERSATION_AUTHORITY_FLUSH_INTERVAL": "1h",
 	}))

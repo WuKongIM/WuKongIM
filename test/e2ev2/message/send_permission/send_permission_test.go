@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestWukongIMV2HTTPMessageSendEnforcesLegacyPermissions(t *testing.T) {
+func TestWukongIMHTTPMessageSendEnforcesLegacyPermissions(t *testing.T) {
 	node := suite.New(t).StartSingleNodeCluster()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)

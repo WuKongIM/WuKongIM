@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestWukongIMV2SingleNodeClusterSendProjectsConversationList(t *testing.T) {
+func TestWukongIMSingleNodeClusterSendProjectsConversationList(t *testing.T) {
 	node := suite.New(t).StartSingleNodeCluster()
 
 	client, err := suite.NewWKProtoClient()

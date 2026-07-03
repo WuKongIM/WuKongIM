@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestWukongIMV2GroupRecipientAuthorityUpdatesSubscribers(t *testing.T) {
+func TestWukongIMGroupRecipientAuthorityUpdatesSubscribers(t *testing.T) {
 	node := suite.New(t).StartSingleNodeCluster()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -85,7 +85,7 @@ func TestWukongIMV2GroupRecipientAuthorityUpdatesSubscribers(t *testing.T) {
 	suite.RequireMetricAtLeastEventually(t, *node, `wukongim_conversation_authority_list_total`, map[string]string{"result": "ok"}, 1)
 }
 
-func TestWukongIMV2HundredKGroupRecipientAuthorityUpdatesSubscribers(t *testing.T) {
+func TestWukongIMHundredKGroupRecipientAuthorityUpdatesSubscribers(t *testing.T) {
 	if os.Getenv("WK_E2E_100K_CONVERSATION") != "1" {
 		t.Skip("set WK_E2E_100K_CONVERSATION=1 to run the 100k recipient-authority stress test")
 	}

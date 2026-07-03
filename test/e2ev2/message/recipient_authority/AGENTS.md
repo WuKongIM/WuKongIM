@@ -13,7 +13,7 @@ GOWORK=off go test -tags=e2e ./test/e2ev2/message/recipient_authority -count=1
 The 100k subscriber stress path is opt-in:
 
 ```bash
-WK_E2E_100K_CONVERSATION=1 GOWORK=off go test -tags=e2e ./test/e2ev2/message/recipient_authority -run TestWukongIMV2HundredKGroupRecipientAuthorityUpdatesSubscribers -count=1 -timeout 6m
+WK_E2E_100K_CONVERSATION=1 GOWORK=off go test -tags=e2e ./test/e2ev2/message/recipient_authority -run TestWukongIMHundredKGroupRecipientAuthorityUpdatesSubscribers -count=1 -timeout 6m
 ```
 
 ## Rules
