@@ -3,7 +3,7 @@ package management
 import (
 	"context"
 
-	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
+	raftcluster "github.com/WuKongIM/WuKongIM/pkg/legacy/cluster"
 )
 
 // ListSlotLogEntriesRequest selects one node-local Slot Raft log page.

@@ -12,7 +12,7 @@ import (
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internalv2/runtime/delivery"
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/worker"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	messagedb "github.com/WuKongIM/WuKongIM/pkg/db/message"
 	gatewaypkg "github.com/WuKongIM/WuKongIM/pkg/gateway"
 	obsmetrics "github.com/WuKongIM/WuKongIM/pkg/metrics"
@@ -27,8 +27,8 @@ func TestTopCollectorSnapshotDoesNotRequireMetrics(t *testing.T) {
 		NodeName:        "node-2",
 		CollectInterval: time.Second,
 		HistoryWindow:   time.Minute,
-		ClusterSnapshot: func() clusterv2.Snapshot {
-			return clusterv2.Snapshot{
+		ClusterSnapshot: func() cluster.Snapshot {
+			return cluster.Snapshot{
 				NodeID:        2,
 				RoutesReady:   true,
 				SlotsReady:    true,
@@ -159,11 +159,11 @@ func TestTopCollectorRecordsStoragePebbleMetrics(t *testing.T) {
 	reg := obsmetrics.New(10, "node-10")
 	collector := newTopCollector(topCollectorOptions{
 		StorageMetrics: reg.Storage,
-		StorageMetricsSnapshot: func() clusterv2.StorageMetricsSnapshot {
-			return clusterv2.StorageMetricsSnapshot{Stores: []clusterv2.StorageStoreMetricsSnapshot{
+		StorageMetricsSnapshot: func() cluster.StorageMetricsSnapshot {
+			return cluster.StorageMetricsSnapshot{Stores: []cluster.StorageStoreMetricsSnapshot{
 				{
 					Store: "channel_log",
-					Engine: clusterv2.StorageEngineMetrics{
+					Engine: cluster.StorageEngineMetrics{
 						DiskSpaceUsageBytes:          1024,
 						ReadAmplification:            3,
 						MemTableSizeBytes:            2048,
@@ -207,7 +207,7 @@ func TestTopCollectorInstallsStableDefaultResourceSamplerForCPUPercent(t *testin
 }
 
 func TestTopCollectorKeepsResolvedReadinessAlertVisible(t *testing.T) {
-	snapshots := []clusterv2.Snapshot{
+	snapshots := []cluster.Snapshot{
 		{NodeID: 1, RoutesReady: true, SlotsReady: false, ChannelsReady: true},
 		{NodeID: 1, RoutesReady: true, SlotsReady: true, ChannelsReady: true},
 		{NodeID: 1, RoutesReady: true, SlotsReady: true, ChannelsReady: true},
@@ -215,7 +215,7 @@ func TestTopCollectorKeepsResolvedReadinessAlertVisible(t *testing.T) {
 	var snapshotIndex int
 	collector := newTopCollector(topCollectorOptions{
 		NodeID: 1,
-		ClusterSnapshot: func() clusterv2.Snapshot {
+		ClusterSnapshot: func() cluster.Snapshot {
 			if snapshotIndex >= len(snapshots) {
 				return snapshots[len(snapshots)-1]
 			}
@@ -263,8 +263,8 @@ func TestTopCollectorKeepsResolvedReadinessAlertVisible(t *testing.T) {
 
 func TestTopCollectorPressureAlertIncludesEvidence(t *testing.T) {
 	collector := newTopCollector(topCollectorOptions{
-		ClusterSnapshot: func() clusterv2.Snapshot {
-			return clusterv2.Snapshot{NodeID: 1, RoutesReady: true, SlotsReady: true, ChannelsReady: true}
+		ClusterSnapshot: func() cluster.Snapshot {
+			return cluster.Snapshot{NodeID: 1, RoutesReady: true, SlotsReady: true, ChannelsReady: true}
 		},
 	})
 	collector.recordSampleAt(time.Unix(100, 0))
@@ -303,8 +303,8 @@ func TestTopCollectorPressureAlertIncludesEvidence(t *testing.T) {
 
 func TestTopCollectorGatewaySessionErrorAlertIncludesEvidence(t *testing.T) {
 	collector := newTopCollector(topCollectorOptions{
-		ClusterSnapshot: func() clusterv2.Snapshot {
-			return clusterv2.Snapshot{NodeID: 1, RoutesReady: true, SlotsReady: true, ChannelsReady: true}
+		ClusterSnapshot: func() cluster.Snapshot {
+			return cluster.Snapshot{NodeID: 1, RoutesReady: true, SlotsReady: true, ChannelsReady: true}
 		},
 	})
 	observer := topGatewayObserver{top: collector}
@@ -349,8 +349,8 @@ func TestTopCollectorGatewaySessionErrorAlertIncludesEvidence(t *testing.T) {
 
 func TestMultiGatewayObserverForwardsSessionErrorsToOptionalObservers(t *testing.T) {
 	collector := newTopCollector(topCollectorOptions{
-		ClusterSnapshot: func() clusterv2.Snapshot {
-			return clusterv2.Snapshot{NodeID: 1, RoutesReady: true, SlotsReady: true, ChannelsReady: true}
+		ClusterSnapshot: func() cluster.Snapshot {
+			return cluster.Snapshot{NodeID: 1, RoutesReady: true, SlotsReady: true, ChannelsReady: true}
 		},
 	})
 	observer := multiGatewayObserver{
@@ -496,8 +496,8 @@ func TestTopCollectorClientsUseGatewayCounters(t *testing.T) {
 func TestTopCollectorAllViewIncludesRuntimeSections(t *testing.T) {
 	collector := newTopCollector(topCollectorOptions{
 		NodeID: 1,
-		ClusterSnapshot: func() clusterv2.Snapshot {
-			return clusterv2.Snapshot{NodeID: 1, RoutesReady: true, SlotsReady: true, ChannelsReady: true}
+		ClusterSnapshot: func() cluster.Snapshot {
+			return cluster.Snapshot{NodeID: 1, RoutesReady: true, SlotsReady: true, ChannelsReady: true}
 		},
 	})
 	observer := topChannelV2Observer{top: collector}
@@ -600,8 +600,8 @@ func TestTopCollectorAllViewIncludesRuntimeSections(t *testing.T) {
 
 func TestTopCollectorSpecificViewsIncludeOnlyRequestedRuntimeSection(t *testing.T) {
 	collector := newTopCollector(topCollectorOptions{
-		ClusterSnapshot: func() clusterv2.Snapshot {
-			return clusterv2.Snapshot{RoutesReady: true, SlotsReady: true, ChannelsReady: true}
+		ClusterSnapshot: func() cluster.Snapshot {
+			return cluster.Snapshot{RoutesReady: true, SlotsReady: true, ChannelsReady: true}
 		},
 	})
 	collector.recordSampleAt(time.Unix(100, 0))
@@ -651,8 +651,8 @@ func TestTopCollectorWarmingUp(t *testing.T) {
 func TestTopCollectorPressureVerdict(t *testing.T) {
 	collector := newTopCollector(topCollectorOptions{
 		NodeID: 2,
-		ClusterSnapshot: func() clusterv2.Snapshot {
-			return clusterv2.Snapshot{
+		ClusterSnapshot: func() cluster.Snapshot {
+			return cluster.Snapshot{
 				NodeID:        2,
 				RoutesReady:   true,
 				SlotsReady:    true,
@@ -717,8 +717,8 @@ func TestTopCollectorPressureIncludesWaitTaskAndAdmissionErrors(t *testing.T) {
 		NodeID:          1,
 		CollectInterval: time.Second,
 		HistoryWindow:   time.Minute,
-		ClusterSnapshot: func() clusterv2.Snapshot {
-			return clusterv2.Snapshot{NodeID: 1, RoutesReady: true, SlotsReady: true, ChannelsReady: true}
+		ClusterSnapshot: func() cluster.Snapshot {
+			return cluster.Snapshot{NodeID: 1, RoutesReady: true, SlotsReady: true, ChannelsReady: true}
 		},
 	})
 
@@ -770,8 +770,8 @@ func TestTopSlotObserverDoesNotCountSchedulerCoalescingAsAdmissionErrors(t *test
 		NodeID:          1,
 		CollectInterval: time.Second,
 		HistoryWindow:   time.Minute,
-		ClusterSnapshot: func() clusterv2.Snapshot {
-			return clusterv2.Snapshot{NodeID: 1, RoutesReady: true, SlotsReady: true, ChannelsReady: true}
+		ClusterSnapshot: func() cluster.Snapshot {
+			return cluster.Snapshot{NodeID: 1, RoutesReady: true, SlotsReady: true, ChannelsReady: true}
 		},
 	})
 	observer := topSlotObserver{top: collector}
@@ -810,8 +810,8 @@ func TestTopCollectorPressureUsesInflightWhenHigherThanQueueDepth(t *testing.T) 
 		NodeID:          1,
 		CollectInterval: time.Second,
 		HistoryWindow:   time.Minute,
-		ClusterSnapshot: func() clusterv2.Snapshot {
-			return clusterv2.Snapshot{NodeID: 1, RoutesReady: true, SlotsReady: true, ChannelsReady: true}
+		ClusterSnapshot: func() cluster.Snapshot {
+			return cluster.Snapshot{NodeID: 1, RoutesReady: true, SlotsReady: true, ChannelsReady: true}
 		},
 	})
 
@@ -844,8 +844,8 @@ func TestTopTransportV2ObserverUsesServiceAliasForInflightPool(t *testing.T) {
 		NodeID:          1,
 		CollectInterval: time.Second,
 		HistoryWindow:   time.Minute,
-		ClusterSnapshot: func() clusterv2.Snapshot {
-			return clusterv2.Snapshot{NodeID: 1, RoutesReady: true, SlotsReady: true, ChannelsReady: true}
+		ClusterSnapshot: func() cluster.Snapshot {
+			return cluster.Snapshot{NodeID: 1, RoutesReady: true, SlotsReady: true, ChannelsReady: true}
 		},
 	})
 	observer := topTransportV2Observer{top: collector}
@@ -879,8 +879,8 @@ func TestTopTransportV2ObserverUsesServiceAliasForInflightPool(t *testing.T) {
 
 func TestTopCollectorUnknownInflightCapacityDoesNotCreateCriticalPressure(t *testing.T) {
 	collector := newTopCollector(topCollectorOptions{
-		ClusterSnapshot: func() clusterv2.Snapshot {
-			return clusterv2.Snapshot{RoutesReady: true, SlotsReady: true, ChannelsReady: true}
+		ClusterSnapshot: func() cluster.Snapshot {
+			return cluster.Snapshot{RoutesReady: true, SlotsReady: true, ChannelsReady: true}
 		},
 	})
 	collector.SetInflight("transportv2", "rpc", 3, 0)
@@ -915,8 +915,8 @@ func TestTopCollectorUnknownInflightCapacityDoesNotCreateCriticalPressure(t *tes
 
 func TestTopCollectorVerdictStrings(t *testing.T) {
 	collector := newTopCollector(topCollectorOptions{
-		ClusterSnapshot: func() clusterv2.Snapshot {
-			return clusterv2.Snapshot{RoutesReady: true, SlotsReady: true, ChannelsReady: true}
+		ClusterSnapshot: func() cluster.Snapshot {
+			return cluster.Snapshot{RoutesReady: true, SlotsReady: true, ChannelsReady: true}
 		},
 	})
 	collector.recordSampleAt(time.Unix(100, 0))
@@ -934,7 +934,7 @@ func TestTopCollectorVerdictStrings(t *testing.T) {
 		t.Fatalf("ok summary = %q, want runtime healthy", snapshot.Verdict.Summary)
 	}
 
-	notReady := buildTopVerdict(clusterv2.Snapshot{RoutesReady: true, SlotsReady: true}, nil, nil)
+	notReady := buildTopVerdict(cluster.Snapshot{RoutesReady: true, SlotsReady: true}, nil, nil)
 	if notReady.Summary != "cluster runtime is not ready" {
 		t.Fatalf("not-ready summary = %q, want cluster runtime is not ready", notReady.Summary)
 	}
@@ -942,7 +942,7 @@ func TestTopCollectorVerdictStrings(t *testing.T) {
 		t.Fatalf("not-ready reasons = %#v, want channelv2 not ready", notReady.Reasons)
 	}
 	sendack := buildTopVerdict(
-		clusterv2.Snapshot{RoutesReady: true, SlotsReady: true, ChannelsReady: true},
+		cluster.Snapshot{RoutesReady: true, SlotsReady: true, ChannelsReady: true},
 		&accessapi.TopTraffic{SendackErrorRate: 0.05},
 		nil,
 	)
@@ -956,8 +956,8 @@ func TestTopCollectorVerdictStrings(t *testing.T) {
 
 func TestTopCollectorEmptyViewDoesNotIncludeOptionalSections(t *testing.T) {
 	collector := newTopCollector(topCollectorOptions{
-		ClusterSnapshot: func() clusterv2.Snapshot {
-			return clusterv2.Snapshot{RoutesReady: true, SlotsReady: true, ChannelsReady: true}
+		ClusterSnapshot: func() cluster.Snapshot {
+			return cluster.Snapshot{RoutesReady: true, SlotsReady: true, ChannelsReady: true}
 		},
 	})
 	collector.recordSampleAt(time.Unix(100, 0))
@@ -1053,10 +1053,10 @@ func TestTopCollectorStopHonorsContextWhenSnapshotBlocks(t *testing.T) {
 	var once sync.Once
 	collector := newTopCollector(topCollectorOptions{
 		CollectInterval: time.Hour,
-		ClusterSnapshot: func() clusterv2.Snapshot {
+		ClusterSnapshot: func() cluster.Snapshot {
 			once.Do(func() { close(entered) })
 			<-release
-			return clusterv2.Snapshot{RoutesReady: true, SlotsReady: true, ChannelsReady: true}
+			return cluster.Snapshot{RoutesReady: true, SlotsReady: true, ChannelsReady: true}
 		},
 	})
 	if err := collector.Start(context.Background()); err != nil {
@@ -1096,8 +1096,8 @@ func TestTopCollectorStopHonorsContextWhenSnapshotBlocks(t *testing.T) {
 
 func TestTopDeliveryObserverMapsAckEventToAckBindings(t *testing.T) {
 	collector := newTopCollector(topCollectorOptions{
-		ClusterSnapshot: func() clusterv2.Snapshot {
-			return clusterv2.Snapshot{RoutesReady: true, SlotsReady: true, ChannelsReady: true}
+		ClusterSnapshot: func() cluster.Snapshot {
+			return cluster.Snapshot{RoutesReady: true, SlotsReady: true, ChannelsReady: true}
 		},
 	})
 	observer := topDeliveryObserver{top: collector}

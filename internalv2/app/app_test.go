@@ -34,9 +34,9 @@ import (
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/presence"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channelv2/store"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/routing"
+	clusterpkg "github.com/WuKongIM/WuKongIM/pkg/cluster"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/routing"
 	cv2 "github.com/WuKongIM/WuKongIM/pkg/controller"
 	messagedb "github.com/WuKongIM/WuKongIM/pkg/db/message"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
@@ -128,7 +128,7 @@ func TestLegacyRouteNodeAddressesDeriveRemoteVoterHosts(t *testing.T) {
 		WSSAddr: "wss://im-node1.example.com:15300",
 	}
 	intranet := accessapi.LegacyRouteAddresses{TCPAddr: "10.0.0.1:5100"}
-	voters := []clusterv2.ControlVoter{
+	voters := []clusterpkg.ControlVoter{
 		{NodeID: 1, Addr: "node1.internal:7000"},
 		{NodeID: 2, Addr: "node2.internal:7000"},
 	}
@@ -187,12 +187,12 @@ func TestStartWaitsForSeedJoinAdmissionBeforeGateway(t *testing.T) {
 	gateway := &fakeGateway{calls: &calls}
 	app, err := newTestApp(t, Config{
 		NodeID: 4,
-		Cluster: clusterv2.Config{
+		Cluster: clusterpkg.Config{
 			NodeID: 4,
-			Control: clusterv2.ControlConfig{
+			Control: clusterpkg.ControlConfig{
 				ClusterID: "cluster-a",
 			},
-			Join: clusterv2.JoinConfig{
+			Join: clusterpkg.JoinConfig{
 				Seeds:         []string{"10.0.0.1:11110"},
 				AdvertiseAddr: "10.0.0.4:11110",
 				Token:         "wrong-token",
@@ -219,7 +219,7 @@ func TestSeedJoinStartSkipsClusterWriteReadinessBeforeActivation(t *testing.T) {
 	cluster := &fakeSeedJoinWriteReadyCluster{
 		fakeWriteReadyCluster: fakeWriteReadyCluster{
 			fakeCluster: fakeCluster{calls: &calls},
-			snapshots: []clusterv2.Snapshot{{
+			snapshots: []clusterpkg.Snapshot{{
 				RoutesReady:   true,
 				SlotsReady:    true,
 				ChannelsReady: true,
@@ -237,12 +237,12 @@ func TestSeedJoinStartSkipsClusterWriteReadinessBeforeActivation(t *testing.T) {
 	gateway := &fakeGateway{calls: &calls}
 	app, err := newTestApp(t, Config{
 		NodeID: 4,
-		Cluster: clusterv2.Config{
+		Cluster: clusterpkg.Config{
 			NodeID: 4,
-			Control: clusterv2.ControlConfig{
+			Control: clusterpkg.ControlConfig{
 				ClusterID: "cluster-a",
 			},
-			Join: clusterv2.JoinConfig{
+			Join: clusterpkg.JoinConfig{
 				Seeds:         []string{"10.0.0.1:11110"},
 				AdvertiseAddr: "10.0.0.4:11110",
 				Token:         "join-secret",
@@ -266,7 +266,7 @@ func TestSeedJoinActiveRestartWaitsForClusterWriteReadiness(t *testing.T) {
 	cluster := &fakeSeedJoinWriteReadyCluster{
 		fakeWriteReadyCluster: fakeWriteReadyCluster{
 			fakeCluster: fakeCluster{calls: &calls},
-			snapshots: []clusterv2.Snapshot{{
+			snapshots: []clusterpkg.Snapshot{{
 				RoutesReady:   true,
 				SlotsReady:    true,
 				ChannelsReady: true,
@@ -284,12 +284,12 @@ func TestSeedJoinActiveRestartWaitsForClusterWriteReadiness(t *testing.T) {
 	gateway := &fakeGateway{calls: &calls}
 	app, err := newTestApp(t, Config{
 		NodeID: 4,
-		Cluster: clusterv2.Config{
+		Cluster: clusterpkg.Config{
 			NodeID: 4,
-			Control: clusterv2.ControlConfig{
+			Control: clusterpkg.ControlConfig{
 				ClusterID: "cluster-a",
 			},
-			Join: clusterv2.JoinConfig{
+			Join: clusterpkg.JoinConfig{
 				Seeds:         []string{"10.0.0.1:11110"},
 				AdvertiseAddr: "10.0.0.4:11110",
 				Token:         "join-secret",
@@ -931,7 +931,7 @@ func TestNewRegistersManagerMessageRetentionRPCWhenClusterSupportsRetention(t *t
 func TestManagerServerCompactsSlotRaftFromClusterOperator(t *testing.T) {
 	cluster := &fakeManagerCluster{
 		nodeID: 1,
-		slotRaftCompact: clusterv2.SlotRaftCompactionResult{
+		slotRaftCompact: clusterpkg.SlotRaftCompactionResult{
 			NodeID:             1,
 			SlotID:             9,
 			AppliedIndex:       50,
@@ -998,7 +998,7 @@ func TestManagerServerRequestsSlotLeaderTransferFromClusterControl(t *testing.T)
 				PreferredLeader: 1,
 			}},
 		},
-		slotRaftStatus: clusterv2.SlotRaftStatus{
+		slotRaftStatus: clusterpkg.SlotRaftStatus{
 			NodeID:        1,
 			SlotID:        1,
 			LeaderID:      1,
@@ -1245,7 +1245,7 @@ func TestManagerServerMapsControllerLifecycleAvailabilityErrors(t *testing.T) {
 func TestManagerServerReadsControllerRaftStatusFromClusterOperator(t *testing.T) {
 	cluster := &fakeManagerCluster{
 		nodeID: 1,
-		controllerRaftStatus: clusterv2.ControllerRaftStatus{
+		controllerRaftStatus: clusterpkg.ControllerRaftStatus{
 			NodeID:        1,
 			Role:          "leader",
 			LeaderID:      1,
@@ -1464,11 +1464,11 @@ func TestAppWiresManagerDBInspectRoute(t *testing.T) {
 	cfg := Config{
 		NodeID:  1,
 		DataDir: dir,
-		Cluster: clusterv2.Config{
+		Cluster: clusterpkg.Config{
 			NodeID:     1,
 			ListenAddr: "127.0.0.1:0",
 			DataDir:    dir,
-			Slots:      clusterv2.SlotConfig{HashSlotCount: 16},
+			Slots:      clusterpkg.SlotConfig{HashSlotCount: 16},
 		},
 		Manager: ManagerConfig{
 			ListenAddr: ":0",
@@ -1520,11 +1520,11 @@ func TestAppRegistersManagerDBInspectRPC(t *testing.T) {
 	cfg := Config{
 		NodeID:  1,
 		DataDir: dir,
-		Cluster: clusterv2.Config{
+		Cluster: clusterpkg.Config{
 			NodeID:     1,
 			ListenAddr: "127.0.0.1:0",
 			DataDir:    dir,
-			Slots:      clusterv2.SlotConfig{HashSlotCount: 16},
+			Slots:      clusterpkg.SlotConfig{HashSlotCount: 16},
 		},
 		Manager: ManagerConfig{ListenAddr: ":0"},
 	}
@@ -2402,10 +2402,10 @@ func TestNewWiresTopAPIWithoutMetrics(t *testing.T) {
 	calls := make([]string, 0, 1)
 	cluster := &fakeWriteReadyCluster{
 		fakeCluster: fakeCluster{calls: &calls},
-		snapshots: []clusterv2.Snapshot{
+		snapshots: []clusterpkg.Snapshot{
 			{NodeID: 1, RoutesReady: true, SlotsReady: true, ChannelsReady: true, HashSlotCount: 1},
 		},
-		routes: map[uint16]clusterv2.Route{
+		routes: map[uint16]clusterpkg.Route{
 			0: {Leader: 1, Peers: []uint64{1}},
 		},
 	}
@@ -2445,7 +2445,7 @@ func TestConfigureObservabilityWiresTopObserversWhenMetricsDisabled(t *testing.T
 		},
 		Observability: ObservabilityConfig{MetricsEnabled: false},
 	}}
-	clusterCfg := clusterv2.Config{NodeID: 4}
+	clusterCfg := clusterpkg.Config{NodeID: 4}
 
 	app.configureObservability(&clusterCfg)
 
@@ -2479,7 +2479,7 @@ func TestConfigureObservabilitySamplesResourcesForMetricsWithoutTopProvider(t *t
 	app := &App{cfg: Config{
 		Observability: ObservabilityConfig{MetricsEnabled: true},
 	}}
-	clusterCfg := clusterv2.Config{NodeID: 5}
+	clusterCfg := clusterpkg.Config{NodeID: 5}
 
 	app.configureObservability(&clusterCfg)
 
@@ -2531,7 +2531,7 @@ func TestNewWiresDeliveryWhenEnabled(t *testing.T) {
 	cluster := newFakePresenceCluster(1, nil)
 	app, err := newTestApp(t,
 		Config{
-			Cluster:  clusterv2.Config{NodeID: 1},
+			Cluster:  clusterpkg.Config{NodeID: 1},
 			Delivery: DeliveryConfig{Enabled: true},
 		},
 		WithCluster(cluster),
@@ -2591,7 +2591,7 @@ func TestNewWiresChannelMembershipProjection(t *testing.T) {
 		snapshot: readyFakeClusterSnapshot(1, 16),
 	}
 	app, err := newTestApp(t,
-		Config{Cluster: clusterv2.Config{NodeID: 1}},
+		Config{Cluster: clusterpkg.Config{NodeID: 1}},
 		WithCluster(cluster),
 		WithGateway(&fakeGateway{calls: &[]string{}}),
 	)
@@ -2626,7 +2626,7 @@ func TestNewWiresMessageAppendMetricsWhenDeliveryDisabled(t *testing.T) {
 	cluster.snapshot = readyFakeClusterSnapshot(3, 16)
 	app, err := newTestApp(t,
 		Config{
-			Cluster:       clusterv2.Config{NodeID: 3},
+			Cluster:       clusterpkg.Config{NodeID: 3},
 			Observability: ObservabilityConfig{MetricsEnabled: true},
 			Delivery:      DeliveryConfig{Enabled: false},
 		},
@@ -2683,7 +2683,7 @@ func TestNewWiresTopMessageAppendWhenMetricsDisabled(t *testing.T) {
 	cluster.snapshot = readyFakeClusterSnapshot(3, 16)
 	app, err := newTestApp(t,
 		Config{
-			Cluster: clusterv2.Config{NodeID: 3},
+			Cluster: clusterpkg.Config{NodeID: 3},
 			Top: TopConfig{
 				APIEnabled:      true,
 				CollectInterval: time.Second,
@@ -2746,7 +2746,7 @@ func TestNewWiresChannelAppendCommitEffectsWhenDeliveryDisabled(t *testing.T) {
 	cluster.snapshot = readyFakeClusterSnapshot(3, 16)
 	app, err := newTestApp(t,
 		Config{
-			Cluster:  clusterv2.Config{NodeID: 3},
+			Cluster:  clusterpkg.Config{NodeID: 3},
 			Delivery: DeliveryConfig{Enabled: false},
 		},
 		WithCluster(cluster),
@@ -2811,7 +2811,7 @@ func TestNewWiresChannelAppendIdempotencyStore(t *testing.T) {
 	}
 	app, err := newTestApp(t,
 		Config{
-			Cluster:  clusterv2.Config{NodeID: 3},
+			Cluster:  clusterpkg.Config{NodeID: 3},
 			Delivery: DeliveryConfig{Enabled: false},
 		},
 		WithCluster(cluster),
@@ -2869,7 +2869,7 @@ func TestNewWiresConversationMutationsWhenAuthorityEnabled(t *testing.T) {
 	}
 	app, err := newTestApp(t,
 		Config{
-			Cluster:  clusterv2.Config{NodeID: 3},
+			Cluster:  clusterpkg.Config{NodeID: 3},
 			Delivery: DeliveryConfig{Enabled: false},
 		},
 		WithCluster(cluster),
@@ -2920,7 +2920,7 @@ func TestNewDoesNotWireConversationFallbackWhenAuthorityUnavailable(t *testing.T
 	cluster := &fakeConversationFallbackCluster{}
 	app, err := newTestApp(t,
 		Config{
-			Cluster:  clusterv2.Config{NodeID: 3},
+			Cluster:  clusterpkg.Config{NodeID: 3},
 			Delivery: DeliveryConfig{Enabled: false},
 		},
 		WithCluster(cluster),
@@ -2973,7 +2973,7 @@ func TestChannelAppendUpdatesPersonConversationEventually(t *testing.T) {
 	cluster.snapshot = readyFakeClusterSnapshot(3, 16)
 	app, err := newTestApp(t,
 		Config{
-			Cluster:  clusterv2.Config{NodeID: 3},
+			Cluster:  clusterpkg.Config{NodeID: 3},
 			Delivery: DeliveryConfig{Enabled: false},
 		},
 		WithCluster(cluster),
@@ -3017,7 +3017,7 @@ func TestConversationAuthorityFansOutConfiguredSmallGroups(t *testing.T) {
 	cluster.subscribers = map[string][]string{"g-small": []string{"sender", "member"}}
 	app, err := newTestApp(t,
 		Config{
-			Cluster: clusterv2.Config{NodeID: 3},
+			Cluster: clusterpkg.Config{NodeID: 3},
 		},
 		WithCluster(cluster),
 		WithGateway(&fakeGateway{calls: &[]string{}}),
@@ -3049,7 +3049,7 @@ func TestChannelAppendUsesDurableSubscribersAndSenderActiveRow(t *testing.T) {
 	cluster.subscribers = map[string][]string{"g-small-missing-sender": []string{"member"}}
 	app, err := newTestApp(t,
 		Config{
-			Cluster: clusterv2.Config{NodeID: 3},
+			Cluster: clusterpkg.Config{NodeID: 3},
 		},
 		WithCluster(cluster),
 		WithGateway(&fakeGateway{calls: &[]string{}}),
@@ -3085,7 +3085,7 @@ func TestAppStopFlushesConversationActiveRows(t *testing.T) {
 	cluster.snapshot = readyFakeClusterSnapshot(3, 16)
 	app, err := newTestApp(t,
 		Config{
-			Cluster: clusterv2.Config{NodeID: 3},
+			Cluster: clusterpkg.Config{NodeID: 3},
 			Conversation: ConversationConfig{
 				AuthorityFlushInterval:  time.Hour,
 				AuthorityFlushBatchRows: 8,
@@ -3150,7 +3150,7 @@ func TestChannelAppendPagesAllGroupSubscribers(t *testing.T) {
 	cluster.subscribers = map[string][]string{"g-large": []string{"sender", "member"}}
 	app, err := newTestApp(t,
 		Config{
-			Cluster: clusterv2.Config{NodeID: 3},
+			Cluster: clusterpkg.Config{NodeID: 3},
 		},
 		WithCluster(cluster),
 		WithGateway(&fakeGateway{calls: &[]string{}}),
@@ -3180,10 +3180,10 @@ func TestConversationAuthorityRouteLifecycleWatchesLocalAuthorityEvents(t *testi
 	target := conversationusecase.RouteTarget{HashSlot: 7, SlotID: 2, LeaderNodeID: 1, RouteRevision: 10, AuthorityEpoch: 20}
 	store := &appRecordingConversationAuthorityStore{}
 	local := newConversationAuthority(conversationAuthorityOptions{LocalNodeID: 1, Store: store})
-	watch := make(chan clusterv2.RouteAuthorityEvent)
+	watch := make(chan clusterpkg.RouteAuthorityEvent)
 	node := &recordingConversationAuthorityRouteNode{
 		nodeID: 1,
-		routes: map[string]clusterv2.Route{
+		routes: map[string]clusterpkg.Route{
 			"u1": routeFromConversationTarget(target),
 		},
 		watch: watch,
@@ -3204,7 +3204,7 @@ func TestConversationAuthorityRouteLifecycleWatchesLocalAuthorityEvents(t *testi
 		}
 	}()
 
-	watch <- clusterv2.RouteAuthorityEvent{Authorities: []clusterv2.RouteAuthority{authorityFromConversationTarget(target)}}
+	watch <- clusterpkg.RouteAuthorityEvent{Authorities: []clusterpkg.RouteAuthority{authorityFromConversationTarget(target)}}
 	waitUntil(t, time.Second, func() bool {
 		return local.AdmitPatches(context.Background(), target, nil) == nil
 	})
@@ -3237,11 +3237,11 @@ func TestConversationAuthorityRouteLifecycleStartIdempotentDoesNotCreateSecondWa
 	lifecycle := newConversationAuthorityRouteLifecycle(conversationAuthorityRouteLifecycleOptions{
 		LocalAuthority: local,
 		LocalNodeID:    1,
-		Watch: func() <-chan clusterv2.RouteAuthorityEvent {
+		Watch: func() <-chan clusterpkg.RouteAuthorityEvent {
 			mu.Lock()
 			defer mu.Unlock()
 			watchCalls++
-			return make(chan clusterv2.RouteAuthorityEvent)
+			return make(chan clusterpkg.RouteAuthorityEvent)
 		},
 		HandoffTimeout: 50 * time.Millisecond,
 	})
@@ -3273,7 +3273,7 @@ func TestConversationActiveAdmitBatchRPCUpdatesRemoteAndLocalCache(t *testing.T)
 	remoteAdapter := accessnode.New(accessnode.Options{ConversationAuthority: remoteAuthority})
 	node := &recordingConversationAuthorityRouteNode{
 		nodeID: 1,
-		routes: map[string]clusterv2.Route{
+		routes: map[string]clusterpkg.Route{
 			"sender":   routeFromConversationTarget(remoteTarget),
 			"receiver": routeFromConversationTarget(localTarget),
 		},
@@ -3321,14 +3321,14 @@ func TestConversationAuthorityRouteLifecycleRemoteEventDrainsPreviousLocalTarget
 	remoteTarget := conversationusecase.RouteTarget{HashSlot: 7, SlotID: 2, LeaderNodeID: 2, RouteRevision: 11, AuthorityEpoch: 21}
 	store := &appRecordingConversationAuthorityStore{}
 	local := newConversationAuthority(conversationAuthorityOptions{LocalNodeID: 1, Store: store})
-	watch := make(chan clusterv2.RouteAuthorityEvent)
+	watch := make(chan clusterpkg.RouteAuthorityEvent)
 	lifecycle := newConversationAuthorityRouteLifecycle(conversationAuthorityRouteLifecycleOptions{
 		LocalAuthority: local,
 		LocalNodeID:    1,
-		Initial: func() []clusterv2.RouteAuthority {
-			return []clusterv2.RouteAuthority{authorityFromConversationTarget(localTarget)}
+		Initial: func() []clusterpkg.RouteAuthority {
+			return []clusterpkg.RouteAuthority{authorityFromConversationTarget(localTarget)}
 		},
-		Watch:          func() <-chan clusterv2.RouteAuthorityEvent { return watch },
+		Watch:          func() <-chan clusterpkg.RouteAuthorityEvent { return watch },
 		HandoffTimeout: 75 * time.Millisecond,
 	})
 	if err := lifecycle.Start(context.Background()); err != nil {
@@ -3348,7 +3348,7 @@ func TestConversationAuthorityRouteLifecycleRemoteEventDrainsPreviousLocalTarget
 
 	sent := make(chan struct{})
 	go func() {
-		watch <- clusterv2.RouteAuthorityEvent{Authorities: []clusterv2.RouteAuthority{authorityFromConversationTarget(remoteTarget)}}
+		watch <- clusterpkg.RouteAuthorityEvent{Authorities: []clusterpkg.RouteAuthority{authorityFromConversationTarget(remoteTarget)}}
 		close(sent)
 	}()
 	select {
@@ -3391,14 +3391,14 @@ func TestConversationAuthorityRouteLifecycleDrainDoesNotBlockNewLocalAuthority(t
 		touchBlock:   touchBlock,
 	}
 	local := newConversationAuthority(conversationAuthorityOptions{LocalNodeID: 1, Store: store})
-	watch := make(chan clusterv2.RouteAuthorityEvent, 2)
+	watch := make(chan clusterpkg.RouteAuthorityEvent, 2)
 	lifecycle := newConversationAuthorityRouteLifecycle(conversationAuthorityRouteLifecycleOptions{
 		LocalAuthority: local,
 		LocalNodeID:    1,
-		Initial: func() []clusterv2.RouteAuthority {
-			return []clusterv2.RouteAuthority{authorityFromConversationTarget(oldLocalTarget)}
+		Initial: func() []clusterpkg.RouteAuthority {
+			return []clusterpkg.RouteAuthority{authorityFromConversationTarget(oldLocalTarget)}
 		},
-		Watch:          func() <-chan clusterv2.RouteAuthorityEvent { return watch },
+		Watch:          func() <-chan clusterpkg.RouteAuthorityEvent { return watch },
 		HandoffTimeout: 250 * time.Millisecond,
 	})
 	if err := lifecycle.Start(context.Background()); err != nil {
@@ -3422,13 +3422,13 @@ func TestConversationAuthorityRouteLifecycleDrainDoesNotBlockNewLocalAuthority(t
 		t.Fatalf("seed AdmitPatches() error = %v", err)
 	}
 
-	watch <- clusterv2.RouteAuthorityEvent{Authorities: []clusterv2.RouteAuthority{authorityFromConversationTarget(remoteTarget)}}
+	watch <- clusterpkg.RouteAuthorityEvent{Authorities: []clusterpkg.RouteAuthority{authorityFromConversationTarget(remoteTarget)}}
 	select {
 	case <-touchStarted:
 	case <-time.After(time.Second):
 		t.Fatal("timed out waiting for handoff drain to enter store touch")
 	}
-	watch <- clusterv2.RouteAuthorityEvent{Authorities: []clusterv2.RouteAuthority{authorityFromConversationTarget(newLocalTarget)}}
+	watch <- clusterpkg.RouteAuthorityEvent{Authorities: []clusterpkg.RouteAuthority{authorityFromConversationTarget(newLocalTarget)}}
 
 	waitUntil(t, 75*time.Millisecond, func() bool {
 		return local.AdmitPatches(context.Background(), newLocalTarget, nil) == nil
@@ -3440,14 +3440,14 @@ func TestConversationAuthorityRouteLifecycleIgnoresStaleRouteEvents(t *testing.T
 	staleTarget := conversationusecase.RouteTarget{HashSlot: 7, SlotID: 2, LeaderNodeID: 2, LeaderTerm: 9, ConfigEpoch: 3, RouteRevision: 9, AuthorityEpoch: 99}
 	store := &appRecordingConversationAuthorityStore{}
 	local := newConversationAuthority(conversationAuthorityOptions{LocalNodeID: 1, Store: store})
-	watch := make(chan clusterv2.RouteAuthorityEvent, 1)
+	watch := make(chan clusterpkg.RouteAuthorityEvent, 1)
 	lifecycle := newConversationAuthorityRouteLifecycle(conversationAuthorityRouteLifecycleOptions{
 		LocalAuthority: local,
 		LocalNodeID:    1,
-		Initial: func() []clusterv2.RouteAuthority {
-			return []clusterv2.RouteAuthority{authorityFromConversationTarget(currentTarget)}
+		Initial: func() []clusterpkg.RouteAuthority {
+			return []clusterpkg.RouteAuthority{authorityFromConversationTarget(currentTarget)}
 		},
-		Watch:          func() <-chan clusterv2.RouteAuthorityEvent { return watch },
+		Watch:          func() <-chan clusterpkg.RouteAuthorityEvent { return watch },
 		HandoffTimeout: 50 * time.Millisecond,
 	})
 	if err := lifecycle.Start(context.Background()); err != nil {
@@ -3455,7 +3455,7 @@ func TestConversationAuthorityRouteLifecycleIgnoresStaleRouteEvents(t *testing.T
 	}
 	sent := make(chan struct{})
 	go func() {
-		watch <- clusterv2.RouteAuthorityEvent{Authorities: []clusterv2.RouteAuthority{authorityFromConversationTarget(staleTarget)}}
+		watch <- clusterpkg.RouteAuthorityEvent{Authorities: []clusterpkg.RouteAuthority{authorityFromConversationTarget(staleTarget)}}
 		close(sent)
 	}()
 	select {
@@ -3482,20 +3482,20 @@ func TestConversationAuthorityRouteLifecyclePrefersConfigEpochBeforeAuthorityEpo
 	staleTarget.AuthorityEpoch = 99
 	store := &appRecordingConversationAuthorityStore{}
 	local := newConversationAuthority(conversationAuthorityOptions{LocalNodeID: 1, Store: store})
-	watch := make(chan clusterv2.RouteAuthorityEvent, 1)
+	watch := make(chan clusterpkg.RouteAuthorityEvent, 1)
 	lifecycle := newConversationAuthorityRouteLifecycle(conversationAuthorityRouteLifecycleOptions{
 		LocalAuthority: local,
 		LocalNodeID:    1,
-		Initial: func() []clusterv2.RouteAuthority {
-			return []clusterv2.RouteAuthority{authorityFromConversationTarget(currentTarget)}
+		Initial: func() []clusterpkg.RouteAuthority {
+			return []clusterpkg.RouteAuthority{authorityFromConversationTarget(currentTarget)}
 		},
-		Watch:          func() <-chan clusterv2.RouteAuthorityEvent { return watch },
+		Watch:          func() <-chan clusterpkg.RouteAuthorityEvent { return watch },
 		HandoffTimeout: 50 * time.Millisecond,
 	})
 	if err := lifecycle.Start(context.Background()); err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
-	watch <- clusterv2.RouteAuthorityEvent{Authorities: []clusterv2.RouteAuthority{authorityFromConversationTarget(staleTarget)}}
+	watch <- clusterpkg.RouteAuthorityEvent{Authorities: []clusterpkg.RouteAuthority{authorityFromConversationTarget(staleTarget)}}
 	if err := lifecycle.Stop(context.Background()); err != nil {
 		t.Fatalf("Stop() error = %v", err)
 	}
@@ -3515,16 +3515,16 @@ func TestConversationAuthorityRouteLifecyclePeriodicReconcileRepairsDroppedAutho
 	store := &appRecordingConversationAuthorityStore{}
 	local := newConversationAuthority(conversationAuthorityOptions{LocalNodeID: 1, Store: store})
 	var mu sync.Mutex
-	authorities := []clusterv2.RouteAuthority{authorityFromConversationTarget(remoteTarget)}
+	authorities := []clusterpkg.RouteAuthority{authorityFromConversationTarget(remoteTarget)}
 	lifecycle := newConversationAuthorityRouteLifecycle(conversationAuthorityRouteLifecycleOptions{
 		LocalAuthority:    local,
 		LocalNodeID:       1,
 		HandoffTimeout:    50 * time.Millisecond,
 		ReconcileInterval: 10 * time.Millisecond,
-		Initial: func() []clusterv2.RouteAuthority {
+		Initial: func() []clusterpkg.RouteAuthority {
 			mu.Lock()
 			defer mu.Unlock()
-			return append([]clusterv2.RouteAuthority(nil), authorities...)
+			return append([]clusterpkg.RouteAuthority(nil), authorities...)
 		},
 	})
 	if err := lifecycle.Start(context.Background()); err != nil {
@@ -3536,7 +3536,7 @@ func TestConversationAuthorityRouteLifecyclePeriodicReconcileRepairsDroppedAutho
 	}
 
 	mu.Lock()
-	authorities = []clusterv2.RouteAuthority{authorityFromConversationTarget(localTarget)}
+	authorities = []clusterpkg.RouteAuthority{authorityFromConversationTarget(localTarget)}
 	mu.Unlock()
 
 	waitUntil(t, time.Second, func() bool {
@@ -3669,7 +3669,7 @@ func TestDeliveryEnabledPersonSendWritesRecvAndRecvackClearsPending(t *testing.T
 	cluster.snapshot = readyFakeClusterSnapshot(1, 16)
 	app, err := newTestApp(t,
 		Config{
-			Cluster: clusterv2.Config{NodeID: 1},
+			Cluster: clusterpkg.Config{NodeID: 1},
 			Delivery: DeliveryConfig{
 				Enabled:        true,
 				EventQueueSize: 8,
@@ -3752,7 +3752,7 @@ func TestDeliveryEnabledGroupSendUsesSubscriberSource(t *testing.T) {
 	}
 	app, err := newTestApp(t,
 		Config{
-			Cluster: clusterv2.Config{NodeID: 1},
+			Cluster: clusterpkg.Config{NodeID: 1},
 			Delivery: DeliveryConfig{
 				Enabled:        true,
 				EventQueueSize: 8,
@@ -3981,7 +3981,7 @@ func TestNewWiresDeliveryMetaStoreWhenClusterProvidesRealMetadata(t *testing.T) 
 	}
 	app, err := newTestApp(t,
 		Config{
-			Cluster:  clusterv2.Config{NodeID: 1},
+			Cluster:  clusterpkg.Config{NodeID: 1},
 			Delivery: DeliveryConfig{Enabled: true},
 		},
 		WithCluster(cluster),
@@ -4001,7 +4001,7 @@ func TestNewWiresConversationUsecaseWhenClusterProvidesConversationReads(t *test
 	cluster := newFakePresenceCluster(1, nil)
 	cluster.snapshot = readyFakeClusterSnapshot(1, 16)
 	app, err := newTestApp(t,
-		Config{Cluster: clusterv2.Config{NodeID: 1}},
+		Config{Cluster: clusterpkg.Config{NodeID: 1}},
 		WithCluster(cluster),
 	)
 	if err != nil {
@@ -4022,7 +4022,7 @@ func TestNewWiresConversationUsecaseWhenClusterProvidesConversationReads(t *test
 func TestNewDoesNotOverwriteWithMessagesWhenDeliveryEnabled(t *testing.T) {
 	override := message.New(message.Options{})
 	app, err := newTestApp(t,
-		Config{Cluster: clusterv2.Config{NodeID: 1}, Delivery: DeliveryConfig{Enabled: true}},
+		Config{Cluster: clusterpkg.Config{NodeID: 1}, Delivery: DeliveryConfig{Enabled: true}},
 		WithCluster(newFakePresenceCluster(1, nil)),
 		WithMessages(override),
 		WithGateway(&fakeGateway{calls: &[]string{}}),
@@ -4041,7 +4041,7 @@ func TestNewWiresPresenceWhenGatewayEnabled(t *testing.T) {
 
 	app, err := newTestApp(t,
 		Config{
-			Cluster: clusterv2.Config{NodeID: 1},
+			Cluster: clusterpkg.Config{NodeID: 1},
 			Gateway: GatewayConfig{Listeners: []gateway.ListenerOptions{{
 				Network: "tcp",
 				Address: "127.0.0.1:0",
@@ -4367,7 +4367,7 @@ func TestLocalOwnerPusherDropsIncompleteRouteIdentity(t *testing.T) {
 
 func TestPresenceBenchSnapshotAggregatesOwnerAndAuthorityState(t *testing.T) {
 	cluster := newFakePresenceCluster(1, nil)
-	app, err := newTestApp(t, Config{Cluster: clusterv2.Config{NodeID: 1}}, WithCluster(cluster))
+	app, err := newTestApp(t, Config{Cluster: clusterpkg.Config{NodeID: 1}}, WithCluster(cluster))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
@@ -4414,10 +4414,10 @@ func TestPresenceBenchSnapshotAggregatesOwnerAndAuthorityState(t *testing.T) {
 
 func TestStartOrderStartsClusterThenPresenceWorkerThenGateway(t *testing.T) {
 	calls := make([]string, 0, 3)
-	events := make(chan clusterv2.RouteAuthorityEvent)
+	events := make(chan clusterpkg.RouteAuthorityEvent)
 	cluster := newFakePresenceCluster(1, events)
 	cluster.calls = &calls
-	cluster.snapshot = clusterv2.Snapshot{RoutesReady: true, SlotsReady: true, ChannelsReady: true, HashSlotCount: 1}
+	cluster.snapshot = clusterpkg.Snapshot{RoutesReady: true, SlotsReady: true, ChannelsReady: true, HashSlotCount: 1}
 	gateway := &fakeGateway{calls: &calls}
 	app, err := newTestApp(t, Config{}, WithCluster(cluster), WithGateway(gateway))
 	if err != nil {
@@ -4434,9 +4434,9 @@ func TestStartOrderStartsClusterThenPresenceWorkerThenGateway(t *testing.T) {
 }
 
 func TestStartSeedsPresenceAuthorityFromCurrentRoutes(t *testing.T) {
-	events := make(chan clusterv2.RouteAuthorityEvent)
+	events := make(chan clusterpkg.RouteAuthorityEvent)
 	cluster := newFakePresenceCluster(1, events)
-	cluster.snapshot = clusterv2.Snapshot{RoutesReady: true, SlotsReady: true, ChannelsReady: true, HashSlotCount: 10}
+	cluster.snapshot = clusterpkg.Snapshot{RoutesReady: true, SlotsReady: true, ChannelsReady: true, HashSlotCount: 10}
 	app, err := newTestApp(t, Config{}, WithCluster(cluster), WithGateway(&fakeGateway{calls: &[]string{}}))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
@@ -4673,14 +4673,14 @@ func TestPresenceTouchWorkerIgnoresStaleAuthorityAfterNewerEvent(t *testing.T) {
 		Directory: directory,
 	})
 
-	worker.handleAuthority(clusterv2.RouteAuthority{
+	worker.handleAuthority(clusterpkg.RouteAuthority{
 		HashSlot:       9,
 		SlotID:         1,
 		LeaderNodeID:   1,
 		RouteRevision:  4,
 		AuthorityEpoch: 3,
 	})
-	worker.handleAuthority(clusterv2.RouteAuthority{
+	worker.handleAuthority(clusterpkg.RouteAuthority{
 		HashSlot:       9,
 		SlotID:         1,
 		LeaderNodeID:   2,
@@ -4703,14 +4703,14 @@ func TestPresenceTouchWorkerAcceptsNewerNoLeaderAuthority(t *testing.T) {
 		Directory: directory,
 	})
 
-	worker.handleAuthority(clusterv2.RouteAuthority{
+	worker.handleAuthority(clusterpkg.RouteAuthority{
 		HashSlot:       9,
 		SlotID:         1,
 		LeaderNodeID:   1,
 		RouteRevision:  4,
 		AuthorityEpoch: 3,
 	})
-	worker.handleAuthority(clusterv2.RouteAuthority{
+	worker.handleAuthority(clusterpkg.RouteAuthority{
 		HashSlot:      9,
 		SlotID:        1,
 		LeaderNodeID:  0,
@@ -4729,7 +4729,7 @@ func TestPresenceTouchWorkerAcceptsSameRaftIdentityWithDifferentAuthorityEpoch(t
 		Directory: directory,
 	})
 
-	worker.handleAuthority(clusterv2.RouteAuthority{
+	worker.handleAuthority(clusterpkg.RouteAuthority{
 		HashSlot:       9,
 		SlotID:         1,
 		LeaderNodeID:   1,
@@ -4738,7 +4738,7 @@ func TestPresenceTouchWorkerAcceptsSameRaftIdentityWithDifferentAuthorityEpoch(t
 		RouteRevision:  4,
 		AuthorityEpoch: 3,
 	})
-	worker.handleAuthority(clusterv2.RouteAuthority{
+	worker.handleAuthority(clusterpkg.RouteAuthority{
 		HashSlot:       9,
 		SlotID:         1,
 		LeaderNodeID:   0,
@@ -4747,7 +4747,7 @@ func TestPresenceTouchWorkerAcceptsSameRaftIdentityWithDifferentAuthorityEpoch(t
 		RouteRevision:  4,
 		AuthorityEpoch: 4,
 	})
-	worker.handleAuthority(clusterv2.RouteAuthority{
+	worker.handleAuthority(clusterpkg.RouteAuthority{
 		HashSlot:       9,
 		SlotID:         1,
 		LeaderNodeID:   1,
@@ -4756,7 +4756,7 @@ func TestPresenceTouchWorkerAcceptsSameRaftIdentityWithDifferentAuthorityEpoch(t
 		RouteRevision:  4,
 		AuthorityEpoch: 3,
 	})
-	worker.handleAuthority(clusterv2.RouteAuthority{
+	worker.handleAuthority(clusterpkg.RouteAuthority{
 		HashSlot:       9,
 		SlotID:         1,
 		LeaderNodeID:   1,
@@ -4782,7 +4782,7 @@ func TestPresenceTouchWorkerPrefersConfigEpochBeforeAuthorityEpoch(t *testing.T)
 		Directory: directory,
 	})
 
-	worker.handleAuthority(clusterv2.RouteAuthority{
+	worker.handleAuthority(clusterpkg.RouteAuthority{
 		HashSlot:       9,
 		SlotID:         1,
 		LeaderNodeID:   1,
@@ -4791,7 +4791,7 @@ func TestPresenceTouchWorkerPrefersConfigEpochBeforeAuthorityEpoch(t *testing.T)
 		RouteRevision:  4,
 		AuthorityEpoch: 3,
 	})
-	worker.handleAuthority(clusterv2.RouteAuthority{
+	worker.handleAuthority(clusterpkg.RouteAuthority{
 		HashSlot:       9,
 		SlotID:         1,
 		LeaderNodeID:   2,
@@ -4811,8 +4811,8 @@ func TestPresenceTouchWorkerPrefersConfigEpochBeforeAuthorityEpoch(t *testing.T)
 
 func TestCurrentPresenceAuthoritiesIncludesLeaderTermAndConfigEpoch(t *testing.T) {
 	cluster := &fakeWriteReadyCluster{
-		snapshots: []clusterv2.Snapshot{{HashSlotCount: 1}},
-		routes: map[uint16]clusterv2.Route{
+		snapshots: []clusterpkg.Snapshot{{HashSlotCount: 1}},
+		routes: map[uint16]clusterpkg.Route{
 			0: {HashSlot: 0, SlotID: 1, Leader: 0, LeaderTerm: 9, ConfigEpoch: 5, Revision: 4, AuthorityEpoch: 3},
 		},
 	}
@@ -4830,20 +4830,20 @@ func TestCurrentPresenceAuthoritiesIncludesLeaderTermAndConfigEpoch(t *testing.T
 
 func TestPresenceTouchWorkerPeriodicReconcileRepairsDroppedAuthorityEvent(t *testing.T) {
 	directory := &recordingPresenceDirectory{}
-	remote := clusterv2.RouteAuthority{HashSlot: 9, SlotID: 1, LeaderNodeID: 2, LeaderTerm: 9, ConfigEpoch: 3, RouteRevision: 4, AuthorityEpoch: 3}
+	remote := clusterpkg.RouteAuthority{HashSlot: 9, SlotID: 1, LeaderNodeID: 2, LeaderTerm: 9, ConfigEpoch: 3, RouteRevision: 4, AuthorityEpoch: 3}
 	local := remote
 	local.LeaderNodeID = 1
 	local.AuthorityEpoch = 4
 	var mu sync.Mutex
-	authorities := []clusterv2.RouteAuthority{remote}
+	authorities := []clusterpkg.RouteAuthority{remote}
 	worker := newPresenceTouchWorker(presenceTouchWorkerOptions{
 		NodeID:        1,
 		Directory:     directory,
 		FlushInterval: 10 * time.Millisecond,
-		Initial: func() []clusterv2.RouteAuthority {
+		Initial: func() []clusterpkg.RouteAuthority {
 			mu.Lock()
 			defer mu.Unlock()
-			return append([]clusterv2.RouteAuthority(nil), authorities...)
+			return append([]clusterpkg.RouteAuthority(nil), authorities...)
 		},
 	})
 	if err := worker.Start(context.Background()); err != nil {
@@ -4855,7 +4855,7 @@ func TestPresenceTouchWorkerPeriodicReconcileRepairsDroppedAuthorityEvent(t *tes
 	})
 
 	mu.Lock()
-	authorities = []clusterv2.RouteAuthority{local}
+	authorities = []clusterpkg.RouteAuthority{local}
 	mu.Unlock()
 
 	waitUntil(t, time.Second, func() bool {
@@ -4871,11 +4871,11 @@ func TestPresenceTouchWorkerStartIdempotentDoesNotCreateSecondWatch(t *testing.T
 		NodeID:        1,
 		Directory:     &recordingPresenceDirectory{},
 		FlushInterval: time.Hour,
-		Watch: func() <-chan clusterv2.RouteAuthorityEvent {
+		Watch: func() <-chan clusterpkg.RouteAuthorityEvent {
 			mu.Lock()
 			defer mu.Unlock()
 			watchCalls++
-			return make(chan clusterv2.RouteAuthorityEvent)
+			return make(chan clusterpkg.RouteAuthorityEvent)
 		},
 	})
 	if err := worker.Start(context.Background()); err != nil {
@@ -4895,7 +4895,7 @@ func TestPresenceTouchWorkerStartIdempotentDoesNotCreateSecondWatch(t *testing.T
 }
 
 func TestPresenceTouchWorkerUpdatesAuthorityDirectoryFromEvents(t *testing.T) {
-	events := make(chan clusterv2.RouteAuthorityEvent, 3)
+	events := make(chan clusterpkg.RouteAuthorityEvent, 3)
 	directory := &recordingPresenceDirectory{}
 	worker := newPresenceTouchWorker(presenceTouchWorkerOptions{
 		NodeID:    1,
@@ -4907,7 +4907,7 @@ func TestPresenceTouchWorkerUpdatesAuthorityDirectoryFromEvents(t *testing.T) {
 	}
 	defer worker.Stop(context.Background())
 
-	events <- clusterv2.RouteAuthorityEvent{Authorities: []clusterv2.RouteAuthority{{
+	events <- clusterpkg.RouteAuthorityEvent{Authorities: []clusterpkg.RouteAuthority{{
 		HashSlot:       9,
 		SlotID:         1,
 		LeaderNodeID:   1,
@@ -5135,10 +5135,10 @@ func TestStartWaitsForClusterWriteReadinessBeforeGateway(t *testing.T) {
 	calls := make([]string, 0, 3)
 	cluster := &fakeWriteReadyCluster{
 		fakeCluster: fakeCluster{calls: &calls},
-		snapshots: []clusterv2.Snapshot{
+		snapshots: []clusterpkg.Snapshot{
 			{RoutesReady: true, SlotsReady: true, ChannelsReady: true, HashSlotCount: 1},
 		},
-		routes: map[uint16]clusterv2.Route{
+		routes: map[uint16]clusterpkg.Route{
 			0: {Leader: 1, Peers: []uint64{1}},
 		},
 	}
@@ -5161,13 +5161,13 @@ func TestStartWaitsForClusterWriteProbeBeforeGateway(t *testing.T) {
 	calls := make([]string, 0, 6)
 	cluster := &fakeWriteReadyCluster{
 		fakeCluster: fakeCluster{calls: &calls},
-		snapshots: []clusterv2.Snapshot{
+		snapshots: []clusterpkg.Snapshot{
 			{RoutesReady: true, SlotsReady: true, ChannelsReady: true, HashSlotCount: 1},
 		},
-		routes: map[uint16]clusterv2.Route{
+		routes: map[uint16]clusterpkg.Route{
 			0: {Leader: 1, Peers: []uint64{1}},
 		},
-		probeErrors: []error{clusterv2.ErrNotLeader, nil},
+		probeErrors: []error{clusterpkg.ErrNotLeader, nil},
 	}
 	gateway := &fakeGateway{calls: &calls}
 	app, err := newTestApp(t, Config{}, WithCluster(cluster), WithGateway(gateway))
@@ -5186,10 +5186,10 @@ func TestStartWaitsForClusterWriteProbeBeforeGateway(t *testing.T) {
 
 func TestClusterWriteReadyScalesProbeTimeoutByPhysicalSlotCount(t *testing.T) {
 	cluster := &fakeWriteReadyCluster{
-		snapshots: []clusterv2.Snapshot{
+		snapshots: []clusterpkg.Snapshot{
 			{RoutesReady: true, SlotsReady: true, ChannelsReady: true, SlotCount: 10, HashSlotCount: 1},
 		},
-		routes: map[uint16]clusterv2.Route{
+		routes: map[uint16]clusterpkg.Route{
 			0: {Leader: 1, Peers: []uint64{1}},
 		},
 	}
@@ -5207,7 +5207,7 @@ func TestClusterWriteReadyScalesProbeTimeoutByPhysicalSlotCount(t *testing.T) {
 }
 
 func TestDefaultClusterWriteReadyTimeoutAllowsMultipleScaledWriteProbeAttempts(t *testing.T) {
-	snapshot := clusterv2.Snapshot{SlotCount: 10}
+	snapshot := clusterpkg.Snapshot{SlotCount: 10}
 	minimum := 3 * clusterWriteReadyProbeBudget(snapshot)
 
 	if got := defaultClusterWriteReadyTimeout; got < minimum {
@@ -5219,12 +5219,12 @@ func TestClusterWriteReadinessFailureStopsClusterBeforeGateway(t *testing.T) {
 	calls := make([]string, 0, 2)
 	cluster := &fakeWriteReadyCluster{
 		fakeCluster: fakeCluster{calls: &calls},
-		snapshots: []clusterv2.Snapshot{
+		snapshots: []clusterpkg.Snapshot{
 			{RoutesReady: false, SlotsReady: true, ChannelsReady: true, HashSlotCount: 1},
 		},
 	}
 	gateway := &fakeGateway{calls: &calls}
-	app, err := newTestApp(t, Config{Cluster: clusterv2.Config{Timeouts: clusterv2.TimeoutConfig{Start: time.Millisecond}}}, WithCluster(cluster), WithGateway(gateway))
+	app, err := newTestApp(t, Config{Cluster: clusterpkg.Config{Timeouts: clusterpkg.TimeoutConfig{Start: time.Millisecond}}}, WithCluster(cluster), WithGateway(gateway))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
@@ -5341,7 +5341,7 @@ func TestRollbackStopFailureLeavesClusterCleanupRetryPossible(t *testing.T) {
 func TestNewSeedsMessageIDsFromEffectiveClusterNodeID(t *testing.T) {
 	cluster := newFakePresenceCluster(7, nil)
 	cluster.snapshot = readyFakeClusterSnapshot(7, 16)
-	app, err := newTestApp(t, Config{Cluster: clusterv2.Config{NodeID: 7}}, WithCluster(cluster))
+	app, err := newTestApp(t, Config{Cluster: clusterpkg.Config{NodeID: 7}}, WithCluster(cluster))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
@@ -5376,7 +5376,7 @@ func requireSnowflakeMessageIDNode(t testing.TB, messageID int64, nodeID uint64)
 
 func TestStaticMultiNodeClusterStartsControllerVoters(t *testing.T) {
 	addrs := []string{freeSendackSmokeTCPAddr(t), freeSendackSmokeTCPAddr(t), freeSendackSmokeTCPAddr(t)}
-	voters := []clusterv2.ControlVoter{
+	voters := []clusterpkg.ControlVoter{
 		{NodeID: 1, Addr: addrs[0]},
 		{NodeID: 2, Addr: addrs[1]},
 		{NodeID: 3, Addr: addrs[2]},
@@ -5386,22 +5386,22 @@ func TestStaticMultiNodeClusterStartsControllerVoters(t *testing.T) {
 		cfg := Config{
 			NodeID:  voter.NodeID,
 			DataDir: t.TempDir(),
-			Cluster: clusterv2.Config{
+			Cluster: clusterpkg.Config{
 				NodeID:     voter.NodeID,
 				ListenAddr: voter.Addr,
 				DataDir:    t.TempDir(),
-				Control: clusterv2.ControlConfig{
+				Control: clusterpkg.ControlConfig{
 					ClusterID:      "internalv2-app-static-three",
 					Voters:         voters,
 					AllowBootstrap: true,
 				},
-				Slots: clusterv2.SlotConfig{
+				Slots: clusterpkg.SlotConfig{
 					InitialSlotCount: 1,
 					HashSlotCount:    4,
 					ReplicaCount:     3,
 				},
-				Channel:  clusterv2.ChannelConfig{TickInterval: time.Millisecond},
-				Timeouts: clusterv2.TimeoutConfig{Start: 5 * time.Second},
+				Channel:  clusterpkg.ChannelConfig{TickInterval: time.Millisecond},
+				Timeouts: clusterpkg.TimeoutConfig{Start: 5 * time.Second},
 			},
 		}
 		app, err := newTestApp(t, cfg)
@@ -5429,11 +5429,11 @@ func TestStaticMultiNodeClusterStartsControllerVoters(t *testing.T) {
 		}
 	}
 
-	nodes := make([]*clusterv2.Node, 0, len(apps))
+	nodes := make([]*clusterpkg.Node, 0, len(apps))
 	for _, app := range apps {
-		node, ok := app.cluster.(*clusterv2.Node)
+		node, ok := app.cluster.(*clusterpkg.Node)
 		if !ok {
-			t.Fatalf("cluster runtime = %T, want *clusterv2.Node", app.cluster)
+			t.Fatalf("cluster runtime = %T, want *clusterpkg.Node", app.cluster)
 		}
 		nodes = append(nodes, node)
 	}
@@ -5483,18 +5483,18 @@ type fakeManagerCluster struct {
 	channelRetentionViews     map[metadb.ConversationKey]channelv2.RetentionView
 	pluginBindingsByUID       map[string][]metadb.PluginUserBinding
 	channelOwnerMetas         map[channelv2.ChannelID]channelv2.Meta
-	registeredHandlers        map[uint8]clusterv2.NodeRPCHandler
+	registeredHandlers        map[uint8]clusterpkg.NodeRPCHandler
 	rpcNodeID                 uint64
 	rpcServiceID              uint8
-	controllerLogs            clusterv2.ControllerLogEntries
-	slotLogs                  clusterv2.SlotLogEntries
-	slotRaftStatus            clusterv2.SlotRaftStatus
-	controllerRaftStatus      clusterv2.ControllerRaftStatus
+	controllerLogs            clusterpkg.ControllerLogEntries
+	slotLogs                  clusterpkg.SlotLogEntries
+	slotRaftStatus            clusterpkg.SlotRaftStatus
+	controllerRaftStatus      clusterpkg.ControllerRaftStatus
 	controllerRaftStatusErr   error
-	controllerRaftStatuses    []clusterv2.ControllerRaftStatus
+	controllerRaftStatuses    []clusterpkg.ControllerRaftStatus
 	controllerRaftStatusCalls int
-	controllerRaftCompact     clusterv2.ControllerRaftCompactionResult
-	slotRaftCompact           clusterv2.SlotRaftCompactionResult
+	controllerRaftCompact     clusterpkg.ControllerRaftCompactionResult
+	slotRaftCompact           clusterpkg.SlotRaftCompactionResult
 	slotRaftCompactSlotID     uint32
 
 	slotLeaderTransferRequest     control.SlotLeaderTransferRequest
@@ -5526,9 +5526,9 @@ type fakeManagerDeviceKey struct {
 
 func (f *fakeManagerCluster) NodeID() uint64 { return f.nodeID }
 
-func (f *fakeManagerCluster) RegisterRPC(serviceID uint8, handler clusterv2.NodeRPCHandler) {
+func (f *fakeManagerCluster) RegisterRPC(serviceID uint8, handler clusterpkg.NodeRPCHandler) {
 	if f.registeredHandlers == nil {
-		f.registeredHandlers = make(map[uint8]clusterv2.NodeRPCHandler)
+		f.registeredHandlers = make(map[uint8]clusterpkg.NodeRPCHandler)
 	}
 	f.registeredHandlers[serviceID] = handler
 }
@@ -5544,21 +5544,21 @@ func (f *fakeManagerCluster) CallRPC(ctx context.Context, nodeID uint64, service
 	return nil, errors.New("unexpected manager rpc call")
 }
 
-func (f *fakeManagerCluster) LocalControllerLogEntries(context.Context, clusterv2.LogEntriesOptions) (clusterv2.ControllerLogEntries, error) {
+func (f *fakeManagerCluster) LocalControllerLogEntries(context.Context, clusterpkg.LogEntriesOptions) (clusterpkg.ControllerLogEntries, error) {
 	return f.controllerLogs, nil
 }
 
-func (f *fakeManagerCluster) LocalSlotLogEntries(context.Context, uint32, clusterv2.LogEntriesOptions) (clusterv2.SlotLogEntries, error) {
+func (f *fakeManagerCluster) LocalSlotLogEntries(context.Context, uint32, clusterpkg.LogEntriesOptions) (clusterpkg.SlotLogEntries, error) {
 	return f.slotLogs, nil
 }
 
-func (f *fakeManagerCluster) LocalSlotRaftStatus(context.Context, uint32) (clusterv2.SlotRaftStatus, error) {
+func (f *fakeManagerCluster) LocalSlotRaftStatus(context.Context, uint32) (clusterpkg.SlotRaftStatus, error) {
 	return f.slotRaftStatus, nil
 }
 
-func (f *fakeManagerCluster) LocalControllerRaftStatus(context.Context) (clusterv2.ControllerRaftStatus, error) {
+func (f *fakeManagerCluster) LocalControllerRaftStatus(context.Context) (clusterpkg.ControllerRaftStatus, error) {
 	if f.controllerRaftStatusErr != nil {
-		return clusterv2.ControllerRaftStatus{}, f.controllerRaftStatusErr
+		return clusterpkg.ControllerRaftStatus{}, f.controllerRaftStatusErr
 	}
 	f.controllerRaftStatusCalls++
 	if len(f.controllerRaftStatuses) > 0 {
@@ -5571,11 +5571,11 @@ func (f *fakeManagerCluster) LocalControllerRaftStatus(context.Context) (cluster
 	return f.controllerRaftStatus, nil
 }
 
-func (f *fakeManagerCluster) LocalCompactControllerRaftLog(context.Context) (clusterv2.ControllerRaftCompactionResult, error) {
+func (f *fakeManagerCluster) LocalCompactControllerRaftLog(context.Context) (clusterpkg.ControllerRaftCompactionResult, error) {
 	return f.controllerRaftCompact, nil
 }
 
-func (f *fakeManagerCluster) LocalCompactSlotRaftLog(_ context.Context, slotID uint32) (clusterv2.SlotRaftCompactionResult, error) {
+func (f *fakeManagerCluster) LocalCompactSlotRaftLog(_ context.Context, slotID uint32) (clusterpkg.SlotRaftCompactionResult, error) {
 	f.slotRaftCompactSlotID = slotID
 	return f.slotRaftCompact, nil
 }
@@ -6013,26 +6013,26 @@ func (f *fakeRuntimeBenchCluster) ChannelRuntimeEvict(context.Context, channelv2
 
 type fakeWriteReadyCluster struct {
 	fakeCluster
-	snapshots     []clusterv2.Snapshot
-	routes        map[uint16]clusterv2.Route
+	snapshots     []clusterpkg.Snapshot
+	routes        map[uint16]clusterpkg.Route
 	probeErrors   []error
 	probeTimeouts []time.Duration
 }
 
-func (f *fakeWriteReadyCluster) Snapshot() clusterv2.Snapshot {
+func (f *fakeWriteReadyCluster) Snapshot() clusterpkg.Snapshot {
 	if len(f.snapshots) == 0 {
-		return clusterv2.Snapshot{}
+		return clusterpkg.Snapshot{}
 	}
 	return f.snapshots[0]
 }
 
-func (f *fakeWriteReadyCluster) RouteHashSlot(hashSlot uint16) (clusterv2.Route, error) {
+func (f *fakeWriteReadyCluster) RouteHashSlot(hashSlot uint16) (clusterpkg.Route, error) {
 	if f.calls != nil {
 		*f.calls = append(*f.calls, "cluster.route")
 	}
 	route, ok := f.routes[hashSlot]
 	if !ok {
-		return clusterv2.Route{}, clusterv2.ErrRouteNotReady
+		return clusterpkg.Route{}, clusterpkg.ErrRouteNotReady
 	}
 	return route, nil
 }
@@ -6073,11 +6073,11 @@ func (f *fakeSeedJoinWriteReadyCluster) CallRPC(context.Context, uint64, uint8, 
 type fakePresenceCluster struct {
 	fakeCluster
 	nodeID                    uint64
-	events                    <-chan clusterv2.RouteAuthorityEvent
-	snapshot                  clusterv2.Snapshot
+	events                    <-chan clusterpkg.RouteAuthorityEvent
+	snapshot                  clusterpkg.Snapshot
 	registeredService         uint8
-	registeredHandler         clusterv2.NodeRPCHandler
-	registeredHandlers        map[uint8]clusterv2.NodeRPCHandler
+	registeredHandler         clusterpkg.NodeRPCHandler
+	registeredHandlers        map[uint8]clusterpkg.NodeRPCHandler
 	appendSeq                 uint64
 	mu                        sync.Mutex
 	idempotencyHit            channelstore.IdempotencyHit
@@ -6105,7 +6105,7 @@ type fakeConversationFallbackCluster struct {
 type recordingDeliveryMetaNode struct {
 	fakeCluster
 	mu                sync.Mutex
-	snapshot          clusterv2.Snapshot
+	snapshot          clusterpkg.Snapshot
 	upserted          []metadb.Channel
 	added             []recordedSubscriberMutation
 	membershipUpserts []recordedMembershipProjection
@@ -6129,7 +6129,7 @@ type recordedMembershipProjection struct {
 	updatedAt   int64
 }
 
-func newFakePresenceCluster(nodeID uint64, events <-chan clusterv2.RouteAuthorityEvent) *fakePresenceCluster {
+func newFakePresenceCluster(nodeID uint64, events <-chan clusterpkg.RouteAuthorityEvent) *fakePresenceCluster {
 	return &fakePresenceCluster{nodeID: nodeID, events: events}
 }
 
@@ -6295,19 +6295,19 @@ func (s *appRecordingConversationAuthorityStore) lastTouchDeadlineWithin(timeout
 
 type recordingConversationAuthorityRouteNode struct {
 	nodeID  uint64
-	routes  map[string]clusterv2.Route
-	watch   <-chan clusterv2.RouteAuthorityEvent
-	handler clusterv2.NodeRPCHandler
+	routes  map[string]clusterpkg.Route
+	watch   <-chan clusterpkg.RouteAuthorityEvent
+	handler clusterpkg.NodeRPCHandler
 }
 
 func (n *recordingConversationAuthorityRouteNode) NodeID() uint64 {
 	return n.nodeID
 }
 
-func (n *recordingConversationAuthorityRouteNode) RouteKey(uid string) (clusterv2.Route, error) {
+func (n *recordingConversationAuthorityRouteNode) RouteKey(uid string) (clusterpkg.Route, error) {
 	route, ok := n.routes[uid]
 	if !ok {
-		return clusterv2.Route{}, clusterv2.ErrRouteNotReady
+		return clusterpkg.Route{}, clusterpkg.ErrRouteNotReady
 	}
 	return route, nil
 }
@@ -6319,9 +6319,9 @@ func (n *recordingConversationAuthorityRouteNode) CallRPC(ctx context.Context, _
 	return nil, errors.New("unexpected conversation authority rpc")
 }
 
-func (n *recordingConversationAuthorityRouteNode) RegisterRPC(uint8, clusterv2.NodeRPCHandler) {}
+func (n *recordingConversationAuthorityRouteNode) RegisterRPC(uint8, clusterpkg.NodeRPCHandler) {}
 
-func (n *recordingConversationAuthorityRouteNode) WatchRouteAuthorities() <-chan clusterv2.RouteAuthorityEvent {
+func (n *recordingConversationAuthorityRouteNode) WatchRouteAuthorities() <-chan clusterpkg.RouteAuthorityEvent {
 	return n.watch
 }
 
@@ -6331,8 +6331,8 @@ func (f appNodeRPCHandlerFunc) HandleRPC(ctx context.Context, payload []byte) ([
 	return f(ctx, payload)
 }
 
-func routeFromConversationTarget(target conversationusecase.RouteTarget) clusterv2.Route {
-	return clusterv2.Route{
+func routeFromConversationTarget(target conversationusecase.RouteTarget) clusterpkg.Route {
+	return clusterpkg.Route{
 		HashSlot:       target.HashSlot,
 		SlotID:         target.SlotID,
 		Leader:         target.LeaderNodeID,
@@ -6343,8 +6343,8 @@ func routeFromConversationTarget(target conversationusecase.RouteTarget) cluster
 	}
 }
 
-func authorityFromConversationTarget(target conversationusecase.RouteTarget) clusterv2.RouteAuthority {
-	return clusterv2.RouteAuthority{
+func authorityFromConversationTarget(target conversationusecase.RouteTarget) clusterpkg.RouteAuthority {
+	return clusterpkg.RouteAuthority{
 		HashSlot:       target.HashSlot,
 		SlotID:         target.SlotID,
 		LeaderNodeID:   target.LeaderNodeID,
@@ -6355,8 +6355,8 @@ func authorityFromConversationTarget(target conversationusecase.RouteTarget) clu
 	}
 }
 
-func readyFakeClusterSnapshot(nodeID uint64, hashSlotCount uint16) clusterv2.Snapshot {
-	return clusterv2.Snapshot{
+func readyFakeClusterSnapshot(nodeID uint64, hashSlotCount uint16) clusterpkg.Snapshot {
+	return clusterpkg.Snapshot{
 		NodeID:        nodeID,
 		RoutesReady:   true,
 		SlotsReady:    true,
@@ -6393,12 +6393,12 @@ func testUIDForHashSlot(t *testing.T, want, count uint16) string {
 	return ""
 }
 
-func (n *recordingDeliveryMetaNode) Snapshot() clusterv2.Snapshot {
+func (n *recordingDeliveryMetaNode) Snapshot() clusterpkg.Snapshot {
 	return n.snapshot
 }
 
-func (n *recordingDeliveryMetaNode) RouteHashSlot(hashSlot uint16) (clusterv2.Route, error) {
-	return clusterv2.Route{HashSlot: hashSlot, SlotID: 1, Leader: 1, Revision: 1, AuthorityEpoch: 1}, nil
+func (n *recordingDeliveryMetaNode) RouteHashSlot(hashSlot uint16) (clusterpkg.Route, error) {
+	return clusterpkg.Route{HashSlot: hashSlot, SlotID: 1, Leader: 1, Revision: 1, AuthorityEpoch: 1}, nil
 }
 
 func (n *recordingDeliveryMetaNode) UpsertChannelMetadata(_ context.Context, channel metadb.Channel) error {
@@ -6528,15 +6528,15 @@ func (f *fakePresenceCluster) GetChannelMetadata(_ context.Context, channelID st
 	return channel, nil
 }
 
-func (f *fakePresenceCluster) RouteKey(uid string) (clusterv2.Route, error) {
-	return clusterv2.Route{HashSlot: 9, SlotID: 1, Leader: f.nodeID, Revision: 3, AuthorityEpoch: 2}, nil
+func (f *fakePresenceCluster) RouteKey(uid string) (clusterpkg.Route, error) {
+	return clusterpkg.Route{HashSlot: 9, SlotID: 1, Leader: f.nodeID, Revision: 3, AuthorityEpoch: 2}, nil
 }
 
-func (f *fakePresenceCluster) RouteHashSlot(hashSlot uint16) (clusterv2.Route, error) {
-	return clusterv2.Route{HashSlot: hashSlot, SlotID: 1, Leader: f.nodeID, Revision: 3, AuthorityEpoch: 2}, nil
+func (f *fakePresenceCluster) RouteHashSlot(hashSlot uint16) (clusterpkg.Route, error) {
+	return clusterpkg.Route{HashSlot: hashSlot, SlotID: 1, Leader: f.nodeID, Revision: 3, AuthorityEpoch: 2}, nil
 }
 
-func (f *fakePresenceCluster) Snapshot() clusterv2.Snapshot {
+func (f *fakePresenceCluster) Snapshot() clusterpkg.Snapshot {
 	return f.snapshot
 }
 
@@ -6544,11 +6544,11 @@ func (f *fakePresenceCluster) CallRPC(context.Context, uint64, uint8, []byte) ([
 	return nil, errors.New("unexpected presence rpc call")
 }
 
-func (f *fakePresenceCluster) RegisterRPC(serviceID uint8, handler clusterv2.NodeRPCHandler) {
+func (f *fakePresenceCluster) RegisterRPC(serviceID uint8, handler clusterpkg.NodeRPCHandler) {
 	f.registeredService = serviceID
 	f.registeredHandler = handler
 	if f.registeredHandlers == nil {
-		f.registeredHandlers = make(map[uint8]clusterv2.NodeRPCHandler)
+		f.registeredHandlers = make(map[uint8]clusterpkg.NodeRPCHandler)
 	}
 	f.registeredHandlers[serviceID] = handler
 }
@@ -6679,14 +6679,14 @@ func (f *fakePresenceCluster) ReadChannelCommitted(context.Context, channelv2.Ch
 	return channelstore.ReadCommittedResult{}, nil
 }
 
-func (f *fakePresenceCluster) WatchRouteAuthorities() <-chan clusterv2.RouteAuthorityEvent {
+func (f *fakePresenceCluster) WatchRouteAuthorities() <-chan clusterpkg.RouteAuthorityEvent {
 	if f.calls != nil {
 		*f.calls = append(*f.calls, "presence.start")
 	}
 	if f.events != nil {
 		return f.events
 	}
-	ch := make(chan clusterv2.RouteAuthorityEvent)
+	ch := make(chan clusterpkg.RouteAuthorityEvent)
 	return ch
 }
 
@@ -7300,12 +7300,12 @@ func joinCalls(calls []string) string {
 	return strings.Join(calls, ",")
 }
 
-func waitAppClusterSnapshotsConverge(t *testing.T, nodes []*clusterv2.Node) {
+func waitAppClusterSnapshotsConverge(t *testing.T, nodes []*clusterpkg.Node) {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
-	var last []clusterv2.Snapshot
+	var last []clusterpkg.Snapshot
 	for time.Now().Before(deadline) {
-		snapshots := make([]clusterv2.Snapshot, 0, len(nodes))
+		snapshots := make([]clusterpkg.Snapshot, 0, len(nodes))
 		for _, node := range nodes {
 			snapshots = append(snapshots, node.Snapshot())
 		}
@@ -7318,7 +7318,7 @@ func waitAppClusterSnapshotsConverge(t *testing.T, nodes []*clusterv2.Node) {
 	t.Fatalf("cluster snapshots did not converge: %#v", last)
 }
 
-func appClusterSnapshotsConverged(snapshots []clusterv2.Snapshot) bool {
+func appClusterSnapshotsConverged(snapshots []clusterpkg.Snapshot) bool {
 	if len(snapshots) == 0 {
 		return false
 	}

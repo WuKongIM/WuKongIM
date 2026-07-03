@@ -19,7 +19,7 @@ type Target struct {
 	LeaderTerm uint64
 	// ConfigEpoch is the control-plane Slot config epoch.
 	ConfigEpoch uint64
-	// RouteRevision is the clusterv2 route-table revision used to resolve this target.
+	// RouteRevision is the cluster route-table revision used to resolve this target.
 	RouteRevision uint64
 	// AuthorityEpoch is a local observation sequence for diagnostics and compatibility. It is not a distributed fence.
 	AuthorityEpoch uint64

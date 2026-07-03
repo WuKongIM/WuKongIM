@@ -6,17 +6,17 @@ import (
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
-// ChannelRuntimeMetaScanNode exposes clusterv2 channel runtime metadata scans for manager pages.
+// ChannelRuntimeMetaScanNode exposes cluster channel runtime metadata scans for manager pages.
 type ChannelRuntimeMetaScanNode interface {
 	ScanChannelRuntimeMetaSlotPage(context.Context, uint32, metadb.ChannelRuntimeMetaCursor, int) ([]metadb.ChannelRuntimeMeta, metadb.ChannelRuntimeMetaCursor, bool, error)
 }
 
-// ChannelRuntimeMetaReader adapts clusterv2 runtime metadata scans to management usecases.
+// ChannelRuntimeMetaReader adapts cluster runtime metadata scans to management usecases.
 type ChannelRuntimeMetaReader struct {
 	node ChannelRuntimeMetaScanNode
 }
 
-// NewChannelRuntimeMetaReader creates a clusterv2-backed channel runtime metadata reader.
+// NewChannelRuntimeMetaReader creates a cluster-backed channel runtime metadata reader.
 func NewChannelRuntimeMetaReader(node ChannelRuntimeMetaScanNode) *ChannelRuntimeMetaReader {
 	return &ChannelRuntimeMetaReader{node: node}
 }

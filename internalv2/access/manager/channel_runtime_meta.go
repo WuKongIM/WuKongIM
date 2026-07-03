@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/gin-gonic/gin"
 )
@@ -162,7 +162,7 @@ func writeChannelRuntimeMetaError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, metadb.ErrInvalidArgument):
 		jsonError(c, http.StatusBadRequest, "bad_request", "invalid cursor")
-	case controlSnapshotUnavailable(err), errors.Is(err, clusterv2.ErrSlotNotFound), errors.Is(err, clusterv2.ErrNotStarted):
+	case controlSnapshotUnavailable(err), errors.Is(err, cluster.ErrSlotNotFound), errors.Is(err, cluster.ErrNotStarted):
 		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "channel runtime metadata unavailable")
 	default:
 		jsonError(c, http.StatusInternalServerError, "internal_error", err.Error())

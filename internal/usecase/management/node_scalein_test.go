@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
-	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	raftcluster "github.com/WuKongIM/WuKongIM/pkg/legacy/cluster"
 	controllermeta "github.com/WuKongIM/WuKongIM/pkg/legacy/controller/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 	"github.com/stretchr/testify/require"

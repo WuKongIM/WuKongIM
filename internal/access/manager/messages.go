@@ -7,8 +7,8 @@ import (
 
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
-	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	raftcluster "github.com/WuKongIM/WuKongIM/pkg/legacy/cluster"
 	"github.com/gin-gonic/gin"
 )
 

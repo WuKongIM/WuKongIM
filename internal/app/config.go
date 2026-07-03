@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/runtime/messageid"
-	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/gateway"
+	raftcluster "github.com/WuKongIM/WuKongIM/pkg/legacy/cluster"
 )
 
 // Config contains all application configuration loaded for one WuKongIM node.

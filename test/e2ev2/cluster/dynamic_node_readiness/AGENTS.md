@@ -20,7 +20,7 @@ nodes under real traffic.
 ## Rules
 
 - Keep tests black-box: do not import `internalv2/app`, `internalv2/usecase`,
-  storage internals, ControllerV2 internals, or clusterv2 internals.
+  storage internals, ControllerV2 internals, or cluster internals.
 - Use public manager HTTP, public `/metrics`, WKProto clients, and process
   handles from `test/e2ev2/suite`.
 - Prefer polling public status over fixed sleeps.

@@ -7,12 +7,12 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/internalv2/contracts/channelappend"
 	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
-	clusternet "github.com/WuKongIM/WuKongIM/pkg/clusterv2/net"
+	clusternet "github.com/WuKongIM/WuKongIM/pkg/cluster/net"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
-// ManagerMessageRetentionRPCServiceID is the clusterv2 RPC service for channel-leader manager retention requests.
+// ManagerMessageRetentionRPCServiceID is the cluster RPC service for channel-leader manager retention requests.
 const ManagerMessageRetentionRPCServiceID uint8 = clusternet.RPCManagerMessageRetention
 
 // HandleManagerMessageRetentionRPC handles one encoded manager message retention RPC payload.

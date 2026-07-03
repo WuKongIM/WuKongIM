@@ -13,7 +13,7 @@ import (
 	conversationusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/conversation"
 	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/presence"
-	clusternet "github.com/WuKongIM/WuKongIM/pkg/clusterv2/net"
+	clusternet "github.com/WuKongIM/WuKongIM/pkg/cluster/net"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/plugin/pluginproto"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
@@ -39,10 +39,10 @@ const (
 	presenceOpApplyRouteAction = "apply_route_action"
 )
 
-// PresenceAuthorityRPCServiceID is the clusterv2 RPC service for UID route authority calls.
+// PresenceAuthorityRPCServiceID is the cluster RPC service for UID route authority calls.
 const PresenceAuthorityRPCServiceID uint8 = clusternet.RPCPresenceAuthority
 
-// PresenceOwnerRPCServiceID is the clusterv2 RPC service for owner-node actions.
+// PresenceOwnerRPCServiceID is the cluster RPC service for owner-node actions.
 const PresenceOwnerRPCServiceID uint8 = clusternet.RPCPresenceOwner
 
 // PresenceAuthority is the authority-side route API exposed over node RPC.

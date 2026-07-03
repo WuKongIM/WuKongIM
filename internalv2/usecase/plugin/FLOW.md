@@ -173,7 +173,7 @@ plugin /cluster/channels/belongNode host RPC
 
 Cluster host RPCs are read-only compatibility surfaces. They use authoritative
 control/authority adapters supplied by the app composition root and do not
-depend directly on clusterv2 from the plugin usecase.
+depend directly on cluster from the plugin usecase.
 
 ## Host RPC Conversation Channels Flow
 
@@ -210,7 +210,7 @@ plugin /plugin/httpForward host RPC
 
 `/plugin/httpForward` keeps the legacy host RPC surface while preserving v2
 cluster routing. Remote forwarding is a narrow port owned by app/infra wiring;
-the plugin usecase does not call clusterv2 directly and the remote receiver
+the plugin usecase does not call cluster directly and the remote receiver
 must execute only the local `/plugin/route` hook. Fanout `toNodeId=-1` remains
 an intentional deferred compatibility path; it must not scan the cluster
 snapshot or issue partial remote RPCs.

@@ -8,12 +8,12 @@ import (
 
 	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
 	pluginusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/plugin"
-	clusternet "github.com/WuKongIM/WuKongIM/pkg/clusterv2/net"
+	clusternet "github.com/WuKongIM/WuKongIM/pkg/cluster/net"
 	"github.com/WuKongIM/WuKongIM/pkg/plugin/pluginproto"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
-// ManagerPluginRPCServiceID is the clusterv2 RPC service for node-local manager plugin reads.
+// ManagerPluginRPCServiceID is the cluster RPC service for node-local manager plugin reads.
 const ManagerPluginRPCServiceID uint8 = clusternet.RPCManagerPlugins
 
 // HandleManagerPluginRPC handles one encoded manager plugin read RPC payload.

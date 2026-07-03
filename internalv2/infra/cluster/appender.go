@@ -27,12 +27,12 @@ const (
 
 var errChannelAppendResultMissing = errors.New("internalv2/infra/cluster: append result missing")
 
-// ChannelAppendNode is the clusterv2 append surface used by internalv2.
+// ChannelAppendNode is the cluster append surface used by internalv2.
 type ChannelAppendNode interface {
 	AppendChannelBatch(context.Context, channelv2.AppendBatchRequest) (channelv2.AppendBatchResult, error)
 }
 
-// ChannelAppender adapts clusterv2 channel append to the channelappend append port.
+// ChannelAppender adapts cluster channel append to the channelappend append port.
 type ChannelAppender struct {
 	node   ChannelAppendNode
 	logger wklog.Logger
@@ -47,7 +47,7 @@ func NewChannelAppender(node ChannelAppendNode, logger ...wklog.Logger) *Channel
 	return appender
 }
 
-// AppendBatch appends a channelappend message batch through clusterv2.
+// AppendBatch appends a channelappend message batch through cluster.
 func (a *ChannelAppender) AppendBatch(ctx context.Context, req channelappend.AppendBatchRequest) (channelappend.AppendBatchResult, error) {
 	if a == nil || a.node == nil {
 		return channelappend.AppendBatchResult{}, channelappend.ErrAppenderRequired

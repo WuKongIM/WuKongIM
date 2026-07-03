@@ -6,13 +6,13 @@ import (
 	"fmt"
 
 	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
-	clusternet "github.com/WuKongIM/WuKongIM/pkg/clusterv2/net"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster"
+	clusternet "github.com/WuKongIM/WuKongIM/pkg/cluster/net"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
-// ManagerSlotRaftRPCServiceID is the clusterv2 RPC service for node-local Slot Raft operations.
+// ManagerSlotRaftRPCServiceID is the cluster RPC service for node-local Slot Raft operations.
 const ManagerSlotRaftRPCServiceID uint8 = clusternet.RPCManagerSlotRaft
 
 // HandleManagerSlotRaftRPC handles one encoded manager Slot Raft RPC payload.
@@ -115,7 +115,7 @@ func managerSlotRaftRPCStatusForError(err error) string {
 		return rpcStatusContextDeadlineExceeded
 	case errors.Is(err, metadb.ErrNotFound):
 		return rpcStatusNotFound
-	case errors.Is(err, clusterv2.ErrSlotNotFound):
+	case errors.Is(err, cluster.ErrSlotNotFound):
 		return rpcStatusNotFound
 	case errors.Is(err, metadb.ErrInvalidArgument):
 		return rpcStatusRejected
@@ -135,7 +135,7 @@ func managerSlotRaftRPCErrorForStatus(status string) error {
 	case rpcStatusContextDeadlineExceeded:
 		return context.DeadlineExceeded
 	case rpcStatusNotFound:
-		return clusterv2.ErrSlotNotFound
+		return cluster.ErrSlotNotFound
 	case rpcStatusRejected:
 		return managementusecase.ErrSlotRaftOperatorUnavailable
 	default:

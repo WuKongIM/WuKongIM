@@ -35,7 +35,7 @@ Options:
   --out-dir DIR             Evidence directory. Default: data/wkcli-sim-smoke.
   --api-addr URL            HTTP API base URL. Default: http://127.0.0.1:15001.
   --gateway-addr HOST:PORT  WKProto TCP gateway address. Default: 127.0.0.1:15100.
-  --cluster-addr HOST:PORT  clusterv2 listen address. Default: 127.0.0.1:17001.
+  --cluster-addr HOST:PORT  cluster listen address. Default: 127.0.0.1:17001.
   --ws-addr HOST:PORT       Published websocket address. Default: 127.0.0.1:15200.
   --status-listen HOST:PORT Local wkcli sim status address. Default: 127.0.0.1:19099.
   --users N                 Simulated users. Default: 10.

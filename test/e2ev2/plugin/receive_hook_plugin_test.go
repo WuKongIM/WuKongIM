@@ -20,8 +20,8 @@ import (
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/message"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channelv2/store"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/channels"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/channels"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/stretchr/testify/require"
@@ -59,8 +59,8 @@ func TestReceivePluginReceivesDurableOfflineRecipient(t *testing.T) {
 type receiveHookHarness struct {
 	// app is the internalv2 composition root under test.
 	app *appv2.App
-	// node is the public clusterv2 runtime used for metadata seeding and route checks.
-	node *clusterv2.Node
+	// node is the public cluster runtime used for metadata seeding and route checks.
+	node *cluster.Node
 	// channelID is the deterministic group channel used for all sends.
 	channelID channelv2.ChannelID
 	// sandboxDir is the configured plugin sandbox root.
@@ -111,23 +111,23 @@ func startReceiveHookHarness(tb testing.TB) *receiveHookHarness {
 		}}),
 	})
 	require.NoError(tb, err)
-	clusterCfg := clusterv2.Config{
+	clusterCfg := cluster.Config{
 		NodeID:     nodeID,
 		ListenAddr: clusterAddr,
 		DataDir:    filepath.Join(root, "cluster"),
-		Control: clusterv2.ControlConfig{
+		Control: cluster.ControlConfig{
 			ClusterID:      "internalv2-plugin-receive",
-			Voters:         []clusterv2.ControlVoter{{NodeID: nodeID, Addr: clusterAddr}},
+			Voters:         []cluster.ControlVoter{{NodeID: nodeID, Addr: clusterAddr}},
 			AllowBootstrap: true,
 		},
-		Slots: clusterv2.SlotConfig{
+		Slots: cluster.SlotConfig{
 			InitialSlotCount: 1,
 			HashSlotCount:    4,
 			ReplicaCount:     1,
 		},
-		Channel: clusterv2.ChannelConfig{TickInterval: time.Millisecond},
+		Channel: cluster.ChannelConfig{TickInterval: time.Millisecond},
 	}
-	node, err := clusterv2.New(clusterCfg, clusterv2.WithChannels(channelSvc))
+	node, err := cluster.New(clusterCfg, cluster.WithChannels(channelSvc))
 	require.NoError(tb, err)
 
 	cfg := appv2.Config{

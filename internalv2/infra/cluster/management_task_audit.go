@@ -5,8 +5,8 @@ import (
 
 	accessnode "github.com/WuKongIM/WuKongIM/internalv2/access/node"
 	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 )
 
 // ManagementTaskAuditNode exposes Controller Raft status and task-audit peer RPC.
@@ -16,7 +16,7 @@ type ManagementTaskAuditNode interface {
 	// CallRPC invokes one typed node RPC service on a peer node.
 	CallRPC(context.Context, uint64, uint8, []byte) ([]byte, error)
 	// LocalControllerRaftStatus reads this node's local Controller Raft status.
-	LocalControllerRaftStatus(context.Context) (clusterv2.ControllerRaftStatus, error)
+	LocalControllerRaftStatus(context.Context) (cluster.ControllerRaftStatus, error)
 	// LocalControlSnapshot returns the latest locally visible control snapshot.
 	LocalControlSnapshot(context.Context) (control.Snapshot, error)
 }

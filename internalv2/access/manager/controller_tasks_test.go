@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
@@ -231,7 +231,7 @@ func TestManagerControllerTaskMapsErrors(t *testing.T) {
 	}{
 		{name: "invalid", err: metadb.ErrInvalidArgument, status: http.StatusBadRequest, code: "bad_request", body: `{"error":"bad_request","message":"invalid controller task request"}`},
 		{name: "missing", err: managementusecase.ErrControllerTaskNotFound, status: http.StatusNotFound, code: "not_found", body: `{"error":"not_found","message":"controller task not found"}`},
-		{name: "snapshot unavailable", err: clusterv2.ErrNotStarted, status: http.StatusServiceUnavailable, code: "service_unavailable", body: `{"error":"service_unavailable","message":"controller task read unavailable"}`},
+		{name: "snapshot unavailable", err: cluster.ErrNotStarted, status: http.StatusServiceUnavailable, code: "service_unavailable", body: `{"error":"service_unavailable","message":"controller task read unavailable"}`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -252,7 +252,7 @@ func TestManagerControllerTaskMapsErrors(t *testing.T) {
 }
 
 func TestManagerControllerTasksMapsListSnapshotUnavailable(t *testing.T) {
-	srv := New(Options{Management: managerNodesStub{controllerTasksErr: clusterv2.ErrNotStarted}})
+	srv := New(Options{Management: managerNodesStub{controllerTasksErr: cluster.ErrNotStarted}})
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/manager/controller/tasks", nil)
 

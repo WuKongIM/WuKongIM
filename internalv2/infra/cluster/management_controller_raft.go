@@ -5,7 +5,7 @@ import (
 
 	accessnode "github.com/WuKongIM/WuKongIM/internalv2/access/node"
 	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 )
 
 // ManagementControllerRaftNode exposes node-local and node-remote Controller Raft operations.
@@ -15,9 +15,9 @@ type ManagementControllerRaftNode interface {
 	// CallRPC invokes one typed node RPC service on a peer node.
 	CallRPC(context.Context, uint64, uint8, []byte) ([]byte, error)
 	// LocalControllerRaftStatus reads this node's local Controller Raft status.
-	LocalControllerRaftStatus(context.Context) (clusterv2.ControllerRaftStatus, error)
+	LocalControllerRaftStatus(context.Context) (cluster.ControllerRaftStatus, error)
 	// LocalCompactControllerRaftLog forces this node's local Controller Raft compaction.
-	LocalCompactControllerRaftLog(context.Context) (clusterv2.ControllerRaftCompactionResult, error)
+	LocalCompactControllerRaftLog(context.Context) (cluster.ControllerRaftCompactionResult, error)
 }
 
 // ManagementControllerRaftOperator routes manager Controller Raft operations to selected nodes.
@@ -64,7 +64,7 @@ func (o *ManagementControllerRaftOperator) CompactControllerRaftLog(ctx context.
 	return o.remote.CompactManagerControllerRaftLog(ctx, nodeID)
 }
 
-func controllerRaftStatusFromCluster(status clusterv2.ControllerRaftStatus) managementusecase.ControllerRaftStatus {
+func controllerRaftStatusFromCluster(status cluster.ControllerRaftStatus) managementusecase.ControllerRaftStatus {
 	health := "healthy"
 	if status.Degraded {
 		health = "degraded"
@@ -97,7 +97,7 @@ func controllerRaftStatusFromCluster(status clusterv2.ControllerRaftStatus) mana
 	}
 }
 
-func controllerRaftCompactionFromCluster(result clusterv2.ControllerRaftCompactionResult) managementusecase.ControllerRaftCompactionResult {
+func controllerRaftCompactionFromCluster(result cluster.ControllerRaftCompactionResult) managementusecase.ControllerRaftCompactionResult {
 	return managementusecase.ControllerRaftCompactionResult{
 		NodeID:              result.NodeID,
 		AppliedIndex:        result.AppliedIndex,

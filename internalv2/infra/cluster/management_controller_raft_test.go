@@ -7,13 +7,13 @@ import (
 
 	accessnode "github.com/WuKongIM/WuKongIM/internalv2/access/node"
 	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 )
 
 func TestManagementControllerRaftOperatorUsesLocalStatus(t *testing.T) {
 	node := &fakeManagementControllerRaftNode{
 		nodeID: 1,
-		status: clusterv2.ControllerRaftStatus{
+		status: cluster.ControllerRaftStatus{
 			NodeID:        1,
 			Role:          "leader",
 			LeaderID:      1,
@@ -97,8 +97,8 @@ type fakeManagementControllerRaftNode struct {
 	calledNodeID       uint64
 	calledServiceID    uint8
 	handler            func(context.Context, []byte) ([]byte, error)
-	status             clusterv2.ControllerRaftStatus
-	compact            clusterv2.ControllerRaftCompactionResult
+	status             cluster.ControllerRaftStatus
+	compact            cluster.ControllerRaftCompactionResult
 	localStatusCalled  bool
 	localCompactCalled bool
 }
@@ -111,12 +111,12 @@ func (f *fakeManagementControllerRaftNode) CallRPC(ctx context.Context, nodeID u
 	return f.handler(ctx, payload)
 }
 
-func (f *fakeManagementControllerRaftNode) LocalControllerRaftStatus(context.Context) (clusterv2.ControllerRaftStatus, error) {
+func (f *fakeManagementControllerRaftNode) LocalControllerRaftStatus(context.Context) (cluster.ControllerRaftStatus, error) {
 	f.localStatusCalled = true
 	return f.status, nil
 }
 
-func (f *fakeManagementControllerRaftNode) LocalCompactControllerRaftLog(context.Context) (clusterv2.ControllerRaftCompactionResult, error) {
+func (f *fakeManagementControllerRaftNode) LocalCompactControllerRaftLog(context.Context) (cluster.ControllerRaftCompactionResult, error) {
 	f.localCompactCalled = true
 	return f.compact, nil
 }

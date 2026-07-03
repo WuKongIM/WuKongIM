@@ -17,7 +17,7 @@ and message reads out of the HTTP layer. When the composition root provides a
 benchmark data writer,
 `/bench/v1/channels` and `/bench/v1/channels/subscribers` forward setup
 mutations through that writer; for `cmd/wukongim` delivery benchmarks the
-writer persists real clusterv2 Slot metadata.
+writer persists real cluster Slot metadata.
 
 ## Routes
 

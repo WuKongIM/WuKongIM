@@ -7,16 +7,16 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internalv2/observability/diagnostics"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 )
 
 const controllerRaftHealthUnknown = "unknown"
 
-// ControlSnapshotReader exposes the clusterv2 control snapshot used by manager read models.
+// ControlSnapshotReader exposes the cluster control snapshot used by manager read models.
 type ControlSnapshotReader interface {
 	// NodeID returns the local cluster node ID.
 	NodeID() uint64
-	// LocalControlSnapshot returns the latest locally visible clusterv2 control snapshot.
+	// LocalControlSnapshot returns the latest locally visible cluster control snapshot.
 	LocalControlSnapshot(context.Context) (control.Snapshot, error)
 }
 
@@ -105,7 +105,7 @@ type ControllerRaftStatusObserver interface {
 
 // Options configures the manager management usecase.
 type Options struct {
-	// Cluster reads clusterv2 control state.
+	// Cluster reads cluster control state.
 	Cluster ControlSnapshotReader
 	// RuntimeSummary reads node runtime counters for the manager node list.
 	RuntimeSummary RuntimeSummaryReader

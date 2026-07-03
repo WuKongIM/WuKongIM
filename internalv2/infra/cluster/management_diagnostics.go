@@ -8,7 +8,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internalv2/observability/diagnostics"
 )
 
-// ManagementDiagnosticsRPCNode exposes clusterv2 node RPC for manager diagnostics reads and tracking rules.
+// ManagementDiagnosticsRPCNode exposes cluster node RPC for manager diagnostics reads and tracking rules.
 type ManagementDiagnosticsRPCNode interface {
 	// NodeID returns the local cluster node ID.
 	NodeID() uint64

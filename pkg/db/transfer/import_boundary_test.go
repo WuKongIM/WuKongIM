@@ -18,6 +18,8 @@ func TestDependencyBoundaryDoesNotReachLegacyClusterControl(t *testing.T) {
 	for _, importPath := range strings.Fields(string(out)) {
 		if importPath == "github.com/WuKongIM/WuKongIM/pkg/cluster" ||
 			strings.HasPrefix(importPath, "github.com/WuKongIM/WuKongIM/pkg/cluster/") ||
+			importPath == "github.com/WuKongIM/WuKongIM/pkg/legacy/cluster" ||
+			strings.HasPrefix(importPath, "github.com/WuKongIM/WuKongIM/pkg/legacy/cluster/") ||
 			importPath == "github.com/WuKongIM/WuKongIM/pkg/controller" ||
 			strings.HasPrefix(importPath, "github.com/WuKongIM/WuKongIM/pkg/controller/") {
 			t.Fatalf("pkg/db/transfer dependency closure still imports legacy cluster/control package %q", importPath)

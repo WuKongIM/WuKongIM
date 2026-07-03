@@ -10,7 +10,7 @@ import (
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/worker"
-	clusterv2channels "github.com/WuKongIM/WuKongIM/pkg/clusterv2/channels"
+	clusterchannels "github.com/WuKongIM/WuKongIM/pkg/cluster/channels"
 	cv2 "github.com/WuKongIM/WuKongIM/pkg/controller"
 	messagedb "github.com/WuKongIM/WuKongIM/pkg/db/message"
 	gatewaypkg "github.com/WuKongIM/WuKongIM/pkg/gateway"
@@ -581,8 +581,8 @@ var _ worker.WaitObserver = topChannelV2Observer{}
 var _ worker.TaskObserver = topChannelV2Observer{}
 var _ worker.BatchObserver = topChannelV2Observer{}
 var _ worker.AntsPoolObserver = topChannelV2Observer{}
-var _ clusterv2channels.MetaCacheObserver = topChannelV2Observer{}
-var _ clusterv2channels.AppendStageObserver = topChannelV2Observer{}
+var _ clusterchannels.MetaCacheObserver = topChannelV2Observer{}
+var _ clusterchannels.AppendStageObserver = topChannelV2Observer{}
 var _ messagedb.CommitCoordinatorObserver = topStorageObserver{}
 var _ messagedb.CommitCoordinatorQueueObserver = topStorageObserver{}
 var _ messagedb.CommitCoordinatorRequestObserver = topStorageObserver{}

@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 )
 
 func TestPromoteControllerVoterRouteRequiresControllerWritePermission(t *testing.T) {
@@ -168,19 +168,19 @@ func TestPromoteControllerVoterRouteMapsErrors(t *testing.T) {
 		},
 		{
 			name:     "cluster not started",
-			err:      clusterv2.ErrNotStarted,
+			err:      cluster.ErrNotStarted,
 			status:   http.StatusServiceUnavailable,
 			wantBody: `{"error":"service_unavailable","message":"service_unavailable"}`,
 		},
 		{
 			name:     "cluster not leader",
-			err:      clusterv2.ErrNotLeader,
+			err:      cluster.ErrNotLeader,
 			status:   http.StatusServiceUnavailable,
 			wantBody: `{"error":"service_unavailable","message":"service_unavailable"}`,
 		},
 		{
 			name:     "cluster stopping",
-			err:      clusterv2.ErrStopping,
+			err:      cluster.ErrStopping,
 			status:   http.StatusServiceUnavailable,
 			wantBody: `{"error":"service_unavailable","message":"service_unavailable"}`,
 		},

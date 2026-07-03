@@ -1,0 +1,85 @@
+package cluster
+
+import (
+	"context"
+
+	controllermeta "github.com/WuKongIM/WuKongIM/pkg/legacy/controller/meta"
+	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
+	"github.com/WuKongIM/WuKongIM/pkg/transport"
+)
+
+type API interface {
+	Start() error
+	Stop()
+
+	NodeID() multiraft.NodeID
+	IsLocal(nodeID multiraft.NodeID) bool
+
+	SlotForKey(key string) multiraft.SlotID
+	HashSlotForKey(key string) uint16
+	HashSlotsOf(slotID multiraft.SlotID) []uint16
+	HashSlotTableVersion() uint64
+	ControllerLeaderID() uint64
+	LeaderOf(slotID multiraft.SlotID) (multiraft.NodeID, error)
+	Propose(ctx context.Context, slotID multiraft.SlotID, cmd []byte) error
+
+	SlotIDs() []multiraft.SlotID
+	PeersForSlot(slotID multiraft.SlotID) []multiraft.NodeID
+	WaitForManagedSlotsReady(ctx context.Context) error
+
+	ListNodes(ctx context.Context) ([]controllermeta.ClusterNode, error)
+	// ListNodesStrict returns the controller leader's node snapshot without local fallback.
+	ListNodesStrict(ctx context.Context) ([]controllermeta.ClusterNode, error)
+	ListSlotAssignments(ctx context.Context) ([]controllermeta.SlotAssignment, error)
+	// ListSlotAssignmentsStrict returns the controller leader's slot assignments without local fallback.
+	ListSlotAssignmentsStrict(ctx context.Context) ([]controllermeta.SlotAssignment, error)
+	// ListObservedRuntimeViews returns the controller leader's observed runtime snapshot when available.
+	ListObservedRuntimeViews(ctx context.Context) ([]controllermeta.SlotRuntimeView, error)
+	// ListObservedRuntimeViewsStrict returns the controller leader's observed runtime snapshot without local fallback.
+	ListObservedRuntimeViewsStrict(ctx context.Context) ([]controllermeta.SlotRuntimeView, error)
+	// SlotLogStatusOnNode returns one node's local Raft log watermark for a managed Slot.
+	SlotLogStatusOnNode(ctx context.Context, nodeID uint64, slotID uint32) (SlotLogStatus, error)
+	// SlotLogEntriesOnNode returns one node's local Raft log entries for a managed Slot.
+	SlotLogEntriesOnNode(ctx context.Context, nodeID uint64, slotID uint32, opts SlotLogEntriesOptions) (SlotLogEntries, error)
+	// ControllerLogEntriesOnNode returns one node's local Controller Raft log entries.
+	ControllerLogEntriesOnNode(ctx context.Context, nodeID uint64, opts ControllerLogEntriesOptions) (ControllerLogEntries, error)
+	// ControllerRaftStatusOnNode returns one node's local Controller Raft status.
+	ControllerRaftStatusOnNode(ctx context.Context, nodeID uint64) (ControllerRaftStatus, error)
+	// CompactControllerRaftLogOnNode triggers one node's local Controller Raft log compaction.
+	CompactControllerRaftLogOnNode(ctx context.Context, nodeID uint64) (ControllerRaftCompactionResult, error)
+	// CompactSlotRaftLogOnNode triggers one node's local Slot Raft log compaction.
+	CompactSlotRaftLogOnNode(ctx context.Context, nodeID uint64, slotID uint32) (SlotRaftCompactionResult, error)
+	ListTasks(ctx context.Context) ([]controllermeta.ReconcileTask, error)
+	// ListTasksStrict returns the controller leader's task snapshot without local fallback.
+	ListTasksStrict(ctx context.Context) ([]controllermeta.ReconcileTask, error)
+	// ListActiveMigrationsStrict returns the controller leader's active hash-slot migrations without local fallback.
+	ListActiveMigrationsStrict(ctx context.Context) ([]HashSlotMigration, error)
+	GetMigrationStatus() []HashSlotMigration
+	TransportPoolStats() []transport.PoolPeerStats
+	GetReconcileTask(ctx context.Context, slotID uint32) (controllermeta.ReconcileTask, error)
+	// GetReconcileTaskStrict returns the controller leader's task detail without local fallback.
+	GetReconcileTaskStrict(ctx context.Context, slotID uint32) (controllermeta.ReconcileTask, error)
+	ForceReconcile(ctx context.Context, slotID uint32) error
+	MarkNodeDraining(ctx context.Context, nodeID uint64) error
+	ResumeNode(ctx context.Context, nodeID uint64) error
+	TransferSlotLeader(ctx context.Context, slotID uint32, nodeID multiraft.NodeID) error
+	RecoverSlot(ctx context.Context, slotID uint32, strategy RecoverStrategy) error
+	// RecoverSlotStrict runs slot recovery against controller-leader assignments only.
+	RecoverSlotStrict(ctx context.Context, slotID uint32, strategy RecoverStrategy) error
+	AddSlot(ctx context.Context) (multiraft.SlotID, error)
+	RemoveSlot(ctx context.Context, slotID multiraft.SlotID) error
+	Rebalance(ctx context.Context) ([]MigrationPlan, error)
+	ListNodeOnboardingCandidates(ctx context.Context) ([]NodeOnboardingCandidate, error)
+	CreateNodeOnboardingPlan(ctx context.Context, targetNodeID uint64, retryOfJobID string) (controllermeta.NodeOnboardingJob, error)
+	StartNodeOnboardingJob(ctx context.Context, jobID string) (controllermeta.NodeOnboardingJob, error)
+	ListNodeOnboardingJobs(ctx context.Context, limit int, cursor string) ([]controllermeta.NodeOnboardingJob, string, bool, error)
+	GetNodeOnboardingJob(ctx context.Context, jobID string) (controllermeta.NodeOnboardingJob, error)
+	RetryNodeOnboardingJob(ctx context.Context, jobID string) (controllermeta.NodeOnboardingJob, error)
+
+	Server() *transport.Server
+	RPCMux() *transport.RPCMux
+	Discovery() Discovery
+	RPCService(ctx context.Context, nodeID multiraft.NodeID, slotID multiraft.SlotID, serviceID uint8, payload []byte) ([]byte, error)
+}
+
+var _ API = (*Cluster)(nil)

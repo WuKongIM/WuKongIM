@@ -27,5 +27,5 @@ compaction when retention removes old tasks or per-task events.
 ## Boundaries
 
 - This package does not own manager HTTP DTOs or permissions.
-- This package does not import `pkg/clusterv2` or `internalv2/usecase`.
+- This package does not import `pkg/cluster` or `internalv2/usecase`.
 - Ordering and retention use `AppliedRaftIndex`, not wall-clock timestamps.

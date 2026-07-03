@@ -6,11 +6,11 @@ import (
 	"fmt"
 
 	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
-	clusternet "github.com/WuKongIM/WuKongIM/pkg/clusterv2/net"
+	clusternet "github.com/WuKongIM/WuKongIM/pkg/cluster/net"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
-// ManagerControllerRaftRPCServiceID is the clusterv2 RPC service for node-local Controller Raft operations.
+// ManagerControllerRaftRPCServiceID is the cluster RPC service for node-local Controller Raft operations.
 const ManagerControllerRaftRPCServiceID uint8 = clusternet.RPCManagerControllerRaft
 
 // HandleManagerControllerRaftRPC handles one encoded manager Controller Raft RPC payload.

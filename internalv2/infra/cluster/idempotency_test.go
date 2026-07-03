@@ -8,7 +8,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internalv2/contracts/channelappend"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channelv2/store"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 )
 
 func TestChannelIdempotencyStoreLookupSendMapsCommittedHit(t *testing.T) {
@@ -68,7 +68,7 @@ func TestChannelIdempotencyStoreLookupSendRejectsPayloadHashMismatch(t *testing.
 }
 
 func TestChannelIdempotencyStoreLookupSendTreatsReadinessErrorsAsMiss(t *testing.T) {
-	store := NewChannelIdempotencyStore(&recordingIdempotencyNode{err: clusterv2.ErrNotStarted})
+	store := NewChannelIdempotencyStore(&recordingIdempotencyNode{err: cluster.ErrNotStarted})
 
 	_, ok, err := store.LookupSend(context.Background(), channelappend.IdempotencyQuery{
 		FromUID:     "u1",

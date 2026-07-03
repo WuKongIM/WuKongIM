@@ -6,13 +6,13 @@ import (
 	"sync"
 
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internalv2/runtime/delivery"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 )
 
-// DeliveryRouteNode exposes clusterv2 hash-slot routing for delivery fanout partitioning.
+// DeliveryRouteNode exposes cluster hash-slot routing for delivery fanout partitioning.
 type DeliveryRouteNode interface {
-	Snapshot() clusterv2.Snapshot
-	RouteHashSlot(uint16) (clusterv2.Route, error)
+	Snapshot() cluster.Snapshot
+	RouteHashSlot(uint16) (cluster.Route, error)
 }
 
 // DeliveryPartitioner builds delivery fanout partitions from the cluster UID route table.
@@ -102,7 +102,7 @@ func (p *DeliveryPartitioner) Partitions(ctx context.Context) ([]runtimedelivery
 	return cloneDeliveryPartitions(partitions), nil
 }
 
-func (p *DeliveryPartitioner) cached(snapshot clusterv2.Snapshot) ([]runtimedelivery.Partition, bool) {
+func (p *DeliveryPartitioner) cached(snapshot cluster.Snapshot) ([]runtimedelivery.Partition, bool) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	if len(p.cachedPartitions) == 0 {
@@ -126,7 +126,7 @@ func (p *DeliveryPartitioner) lastValid() ([]runtimedelivery.Partition, bool) {
 	return cloneDeliveryPartitions(p.cachedPartitions), true
 }
 
-func (p *DeliveryPartitioner) store(snapshot clusterv2.Snapshot, partitions []runtimedelivery.Partition) {
+func (p *DeliveryPartitioner) store(snapshot cluster.Snapshot, partitions []runtimedelivery.Partition) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.cachedRevision = snapshot.StateRevision

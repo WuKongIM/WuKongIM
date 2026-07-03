@@ -8,8 +8,8 @@ import (
 	accessnode "github.com/WuKongIM/WuKongIM/internalv2/access/node"
 	"github.com/WuKongIM/WuKongIM/internalv2/observability/taskaudit"
 	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 	cv2 "github.com/WuKongIM/WuKongIM/pkg/controller"
 	"github.com/WuKongIM/WuKongIM/pkg/controller/command"
 	obsmetrics "github.com/WuKongIM/WuKongIM/pkg/metrics"
@@ -137,7 +137,7 @@ func TestWireControllerTaskAuditConfiguresObserverAndManagerReader(t *testing.T)
 	app := &App{
 		cfg: Config{
 			DataDir: t.TempDir(),
-			Cluster: clusterv2.Config{
+			Cluster: cluster.Config{
 				NodeID: 1,
 			},
 		},

@@ -3,7 +3,7 @@
 ## Responsibility
 
 `internalv2/usecase/channel` coordinates legacy-compatible channel management
-without depending on HTTP, gateway frames, clusterv2, or concrete storage. It
+without depending on HTTP, gateway frames, cluster, or concrete storage. It
 owns channel metadata mutations, ordinary subscriber mutations, temporary
 subscriber lists, allowlists, denylists, subscriber mutation versioning, and
 bounded subscriber page/chunk iteration.

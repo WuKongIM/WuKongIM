@@ -4,7 +4,7 @@ import (
 	"context"
 
 	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 )
 
 // ManagementNodeLifecycleNode exposes Controller-backed node lifecycle writes.
@@ -21,7 +21,7 @@ type ManagementNodeLifecycleNode interface {
 	PromoteControllerVoter(context.Context, control.PromoteControllerVoterRequest) (control.PromoteControllerVoterResult, error)
 }
 
-// ManagementNodeLifecycleAdapter adapts clusterv2 lifecycle writes to management usecases.
+// ManagementNodeLifecycleAdapter adapts cluster lifecycle writes to management usecases.
 type ManagementNodeLifecycleAdapter struct {
 	node ManagementNodeLifecycleNode
 }

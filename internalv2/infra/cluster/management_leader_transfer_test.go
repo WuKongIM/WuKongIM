@@ -7,12 +7,12 @@ import (
 
 	accessnode "github.com/WuKongIM/WuKongIM/internalv2/access/node"
 	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 )
 
-var _ ManagementLeaderTransferNode = (*clusterv2.Node)(nil)
-var _ ManagementSlotReplicaMoveNode = (*clusterv2.Node)(nil)
+var _ ManagementLeaderTransferNode = (*cluster.Node)(nil)
+var _ ManagementSlotReplicaMoveNode = (*cluster.Node)(nil)
 
 func TestManagementLeaderTransferAdapterUsesControlIntent(t *testing.T) {
 	node := &fakeManagementLeaderTransferNode{
@@ -63,7 +63,7 @@ func TestManagementSlotReplicaMoveAdapterUsesControlIntent(t *testing.T) {
 func TestManagementSlotRuntimeStatusReaderUsesLocalSlotStatus(t *testing.T) {
 	node := &fakeManagementSlotRaftNode{
 		nodeID: 1,
-		status: clusterv2.SlotRaftStatus{
+		status: cluster.SlotRaftStatus{
 			NodeID:        1,
 			SlotID:        1,
 			LeaderID:      1,
@@ -100,7 +100,7 @@ func TestManagementSlotRuntimeStatusReaderSkipsLocalSlotNotFoundAndReadsRemoteCa
 	adapter := accessnode.New(accessnode.Options{ManagerSlotRaft: service})
 	node := &fakeManagementSlotRaftNode{
 		nodeID:    1,
-		statusErr: clusterv2.ErrSlotNotFound,
+		statusErr: cluster.ErrSlotNotFound,
 		handler:   adapter.HandleManagerSlotRaftRPC,
 	}
 	reader := NewManagementSlotRuntimeStatusReader(node)

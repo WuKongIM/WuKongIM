@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/usecase/cmdsync"
-	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
+	raftcluster "github.com/WuKongIM/WuKongIM/pkg/legacy/cluster"
 	runtimechannelid "github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )

@@ -8,7 +8,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/channelappend"
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internalv2/runtime/delivery"
 	presenceusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/presence"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 )
 
 // channelAppendAuthorityLocal admits RPC-forwarded sends to the local authority reactor.
@@ -34,17 +34,17 @@ func (l channelAppendAuthorityLocal) SubmitForAuthority(ctx context.Context, tar
 	return results
 }
 
-// channelAppendRecipientResolver resolves UID authority targets from clusterv2 hash-slot routes.
+// channelAppendRecipientResolver resolves UID authority targets from cluster hash-slot routes.
 type channelAppendRecipientResolver struct {
 	node recipientAuthorityRouteNode
 }
 
 type recipientAuthorityRouteNode interface {
-	RouteKey(string) (clusterv2.Route, error)
+	RouteKey(string) (cluster.Route, error)
 }
 
 type recipientAuthorityBatchRouteNode interface {
-	RouteKeys([]string) ([]clusterv2.Route, error)
+	RouteKeys([]string) ([]cluster.Route, error)
 }
 
 func (r channelAppendRecipientResolver) ResolveRecipientAuthority(ctx context.Context, uid string) (channelappend.RecipientAuthorityTarget, error) {
@@ -113,7 +113,7 @@ func (r channelAppendRecipientResolver) ResolveRecipientAuthorities(ctx context.
 	return targets, nil
 }
 
-func channelAppendRecipientTargetFromRoute(route clusterv2.Route) (channelappend.RecipientAuthorityTarget, error) {
+func channelAppendRecipientTargetFromRoute(route cluster.Route) (channelappend.RecipientAuthorityTarget, error) {
 	if route.Leader == 0 {
 		return channelappend.RecipientAuthorityTarget{}, fmt.Errorf("recipient route has no leader hashSlot=%d slotID=%d revision=%d authorityEpoch=%d: %w", route.HashSlot, route.SlotID, route.Revision, route.AuthorityEpoch, channelappend.ErrRouteNotReady)
 	}
@@ -261,9 +261,9 @@ func channelAppendRouteError(err error) error {
 		return nil
 	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
 		return err
-	case errors.Is(err, clusterv2.ErrNotLeader):
+	case errors.Is(err, cluster.ErrNotLeader):
 		return fmt.Errorf("%w: %w", channelappend.ErrNotLeader, err)
-	case errors.Is(err, clusterv2.ErrRouteNotReady), errors.Is(err, clusterv2.ErrNoSlotLeader):
+	case errors.Is(err, cluster.ErrRouteNotReady), errors.Is(err, cluster.ErrNoSlotLeader):
 		return fmt.Errorf("%w: %w", channelappend.ErrRouteNotReady, err)
 	default:
 		return err

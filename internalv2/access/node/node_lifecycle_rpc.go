@@ -8,13 +8,13 @@ import (
 	"strings"
 
 	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
-	clusternet "github.com/WuKongIM/WuKongIM/pkg/clusterv2/net"
+	clusternet "github.com/WuKongIM/WuKongIM/pkg/cluster/net"
 	cv2 "github.com/WuKongIM/WuKongIM/pkg/controller"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
-// NodeLifecycleRPCServiceID is the clusterv2 RPC service for seed join and readiness probes.
+// NodeLifecycleRPCServiceID is the cluster RPC service for seed join and readiness probes.
 const NodeLifecycleRPCServiceID uint8 = clusternet.RPCNodeLifecycle
 
 const (

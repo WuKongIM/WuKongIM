@@ -8,12 +8,12 @@ import (
 	clusterinfra "github.com/WuKongIM/WuKongIM/internalv2/infra/cluster"
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/channelappend"
 	channelusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/channel"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 )
 
 func TestChannelAppendRecipientResolverUsesBatchRouteNode(t *testing.T) {
 	node := &batchRecipientRouteNodeForChannelAppendTest{
-		routes: map[string]clusterv2.Route{
+		routes: map[string]cluster.Route{
 			"u1": {HashSlot: 1, SlotID: 11, Leader: 10, LeaderTerm: 101, ConfigEpoch: 1001, Revision: 100, AuthorityEpoch: 1000},
 			"u2": {HashSlot: 2, SlotID: 22, Leader: 20, LeaderTerm: 202, ConfigEpoch: 2002, Revision: 200, AuthorityEpoch: 2000},
 		},
@@ -64,21 +64,21 @@ func TestChannelAppendSubscriberMutationObserverRefreshesMetadataCache(t *testin
 }
 
 type batchRecipientRouteNodeForChannelAppendTest struct {
-	routes      map[string]clusterv2.Route
+	routes      map[string]cluster.Route
 	singleCalls int
 	batchCalls  int
 	batchKeys   []string
 }
 
-func (n *batchRecipientRouteNodeForChannelAppendTest) RouteKey(key string) (clusterv2.Route, error) {
+func (n *batchRecipientRouteNodeForChannelAppendTest) RouteKey(key string) (cluster.Route, error) {
 	n.singleCalls++
 	return n.routes[key], nil
 }
 
-func (n *batchRecipientRouteNodeForChannelAppendTest) RouteKeys(keys []string) ([]clusterv2.Route, error) {
+func (n *batchRecipientRouteNodeForChannelAppendTest) RouteKeys(keys []string) ([]cluster.Route, error) {
 	n.batchCalls++
 	n.batchKeys = append([]string(nil), keys...)
-	routes := make([]clusterv2.Route, len(keys))
+	routes := make([]cluster.Route, len(keys))
 	for i, key := range keys {
 		routes[i] = n.routes[key]
 	}

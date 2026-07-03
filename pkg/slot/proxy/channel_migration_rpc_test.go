@@ -7,8 +7,8 @@ import (
 	"runtime"
 	"testing"
 
-	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	raftcluster "github.com/WuKongIM/WuKongIM/pkg/legacy/cluster"
 	metafsm "github.com/WuKongIM/WuKongIM/pkg/slot/fsm"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 	"github.com/WuKongIM/WuKongIM/pkg/transport"

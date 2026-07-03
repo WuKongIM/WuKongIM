@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
@@ -17,10 +17,10 @@ const (
 	clusterWriteReadyProbePerSlot   = 500 * time.Millisecond
 )
 
-// clusterWriteReadyRuntime exposes the clusterv2 route state needed before gateway sends are admitted.
+// clusterWriteReadyRuntime exposes the cluster route state needed before gateway sends are admitted.
 type clusterWriteReadyRuntime interface {
-	Snapshot() clusterv2.Snapshot
-	RouteHashSlot(uint16) (clusterv2.Route, error)
+	Snapshot() cluster.Snapshot
+	RouteHashSlot(uint16) (cluster.Route, error)
 }
 
 // clusterWriteProbeRuntime optionally proves that routed Slot writes can commit.
@@ -591,7 +591,7 @@ func clusterWriteReady(ctx context.Context, routes clusterWriteReadyRuntime, las
 	return true
 }
 
-func clusterWriteReadyProbeBudget(snapshot clusterv2.Snapshot) time.Duration {
+func clusterWriteReadyProbeBudget(snapshot cluster.Snapshot) time.Duration {
 	budget := clusterWriteReadyProbeTimeout
 	if snapshot.SlotCount > 0 {
 		scaled := time.Duration(snapshot.SlotCount) * clusterWriteReadyProbePerSlot

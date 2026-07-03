@@ -10,7 +10,7 @@ import (
 	"unsafe"
 
 	accessapi "github.com/WuKongIM/WuKongIM/internal/access/api"
-	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
+	raftcluster "github.com/WuKongIM/WuKongIM/pkg/legacy/cluster"
 	controllerraft "github.com/WuKongIM/WuKongIM/pkg/legacy/controller/raft"
 	raftstorage "github.com/WuKongIM/WuKongIM/pkg/raftlog"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"

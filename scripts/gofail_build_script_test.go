@@ -42,7 +42,7 @@ func TestGofailBuildScriptDryRunUsesSafeDefaults(t *testing.T) {
 func TestGofailPostprocessGeneratedRewritesPackageLine(t *testing.T) {
 	root := repoRoot(t)
 	workDir := t.TempDir()
-	failDir := filepath.Join(workDir, "pkg", "clusterv2", "net")
+	failDir := filepath.Join(workDir, "pkg", "cluster", "net")
 	if err := os.MkdirAll(failDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -51,7 +51,7 @@ func TestGofailPostprocessGeneratedRewritesPackageLine(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cmd := exec.Command("bash", "scripts/gofail-postprocess-generated.sh", workDir, "pkg/clusterv2/net:clusternet")
+	cmd := exec.Command("bash", "scripts/gofail-postprocess-generated.sh", workDir, "pkg/cluster/net:clusternet")
 	cmd.Dir = root
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -74,7 +74,7 @@ func TestGofailPostprocessGeneratedRewritesPackageLine(t *testing.T) {
 func TestGofailPostprocessGeneratedRejectsMalformedSpecs(t *testing.T) {
 	root := repoRoot(t)
 	workDir := t.TempDir()
-	failDir := filepath.Join(workDir, "pkg", "clusterv2", "net")
+	failDir := filepath.Join(workDir, "pkg", "cluster", "net")
 	if err := os.MkdirAll(failDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -84,9 +84,9 @@ func TestGofailPostprocessGeneratedRejectsMalformedSpecs(t *testing.T) {
 	}
 
 	for _, spec := range []string{
-		"pkg/clusterv2/net:bad:name",
-		"pkg/clusterv2/net:bad-name",
-		"pkg/clusterv2/net:func",
+		"pkg/cluster/net:bad:name",
+		"pkg/cluster/net:bad-name",
+		"pkg/cluster/net:func",
 	} {
 		cmd := exec.Command("bash", "scripts/gofail-postprocess-generated.sh", workDir, spec)
 		cmd.Dir = root
@@ -121,7 +121,7 @@ func TestBuildGofailBinaryDryRunSupportsCommandPackageOverride(t *testing.T) {
 		"--out", outPath,
 		"--work-dir", workDir,
 		"--cmd", "./cmd/wukongim",
-		"--package", "pkg/clusterv2/tasks",
+		"--package", "pkg/cluster/tasks",
 	)
 	cmd.Dir = repoRootForScriptTests(t)
 	output, err := cmd.CombinedOutput()
@@ -131,7 +131,7 @@ func TestBuildGofailBinaryDryRunSupportsCommandPackageOverride(t *testing.T) {
 	text := string(output)
 	for _, want := range []string{
 		"command_package=./cmd/wukongim",
-		"failpoint_packages=pkg/transport pkg/clusterv2/tasks",
+		"failpoint_packages=pkg/transport pkg/cluster/tasks",
 		"build_cmd=GOWORK=off go build -o " + outPath + " ./cmd/wukongim",
 	} {
 		if !strings.Contains(text, want) {

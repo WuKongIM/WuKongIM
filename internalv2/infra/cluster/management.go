@@ -3,10 +3,10 @@ package cluster
 import (
 	"context"
 
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 )
 
-// ManagementNode exposes clusterv2 control state for manager read models.
+// ManagementNode exposes cluster control state for manager read models.
 type ManagementNode interface {
 	// NodeID returns the local cluster node ID.
 	NodeID() uint64
@@ -14,7 +14,7 @@ type ManagementNode interface {
 	LocalControlSnapshot(context.Context) (control.Snapshot, error)
 }
 
-// ManagementSnapshotReader adapts clusterv2 control state to the management usecase port.
+// ManagementSnapshotReader adapts cluster control state to the management usecase port.
 type ManagementSnapshotReader struct {
 	node ManagementNode
 }

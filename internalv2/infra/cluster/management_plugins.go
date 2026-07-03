@@ -9,7 +9,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/plugin/pluginproto"
 )
 
-// ManagementPluginNode exposes clusterv2 node RPC for manager plugin reads.
+// ManagementPluginNode exposes cluster node RPC for manager plugin reads.
 type ManagementPluginNode interface {
 	// NodeID returns the local cluster node ID.
 	NodeID() uint64

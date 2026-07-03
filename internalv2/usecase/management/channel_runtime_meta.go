@@ -6,7 +6,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelv2 "github.com/WuKongIM/WuKongIM/pkg/channelv2"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 

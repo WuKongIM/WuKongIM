@@ -8,8 +8,8 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/internalv2/contracts/channelappend"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/propose"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/propose"
 	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
@@ -398,7 +398,7 @@ func TestChannelAppenderMapsTypedErrors(t *testing.T) {
 		want      error
 		unchanged bool
 	}{
-		{name: "clusterv2 not leader", err: clusterv2.ErrNotLeader, want: channelappend.ErrNotLeader},
+		{name: "cluster not leader", err: cluster.ErrNotLeader, want: channelappend.ErrNotLeader},
 		{name: "slot propose not leader", err: propose.ErrNotLeader, want: channelappend.ErrNotLeader},
 		{name: "channelv2 not leader", err: channelv2.ErrNotLeader, want: channelappend.ErrNotLeader},
 		{name: "stale meta", err: channelv2.ErrStaleMeta, want: channelappend.ErrStaleRoute},
@@ -406,8 +406,8 @@ func TestChannelAppenderMapsTypedErrors(t *testing.T) {
 		{name: "textual not replica", err: errors.New(channelv2.ErrNotReplica.Error()), want: channelappend.ErrStaleRoute},
 		{name: "channel missing", err: channelv2.ErrChannelNotFound, want: channelappend.ErrChannelNotFound},
 		{name: "backpressured", err: channelv2.ErrBackpressured, want: channelappend.ErrBackpressured},
-		{name: "clusterv2 route not ready", err: clusterv2.ErrRouteNotReady, want: channelappend.ErrRouteNotReady},
-		{name: "clusterv2 no slot leader", err: clusterv2.ErrNoSlotLeader, want: channelappend.ErrRouteNotReady},
+		{name: "cluster route not ready", err: cluster.ErrRouteNotReady, want: channelappend.ErrRouteNotReady},
+		{name: "cluster no slot leader", err: cluster.ErrNoSlotLeader, want: channelappend.ErrRouteNotReady},
 		{name: "channelv2 not ready", err: channelv2.ErrNotReady, want: channelappend.ErrRouteNotReady},
 		{name: "channelv2 write fenced", err: channelv2.ErrWriteFenced, want: channelappend.ErrRouteNotReady},
 		{name: "channelv2 placement candidates unavailable", err: fmt.Errorf("%w: channel replica candidates 2 below replica count 3", channelv2.ErrInvalidConfig), want: channelappend.ErrRouteNotReady},

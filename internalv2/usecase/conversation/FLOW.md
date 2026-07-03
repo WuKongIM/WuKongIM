@@ -5,7 +5,7 @@
 `internalv2/usecase/conversation` owns entry-agnostic conversation list reads,
 legacy-compatible conversation sync selection, legacy-compatible read/delete
 mutations, and the lightweight UID-authority active patch contract. It does not
-depend on gateway frames, HTTP DTOs, clusterv2, or channel log runtimes.
+depend on gateway frames, HTTP DTOs, cluster, or channel log runtimes.
 Storage is supplied through small ports for UID-owned conversation active
 pages, durable UID-owned state rows, durable UID-owned state/delete writes, and
 channel-owned message reads.
@@ -91,7 +91,7 @@ recipient authority processor
   -> build one ActivePatch per effective recipient
   -> group patches by UID hash-slot authority
   -> target authority admits patches into its bounded active cache
-  -> cache flushes ConversationActivePatch rows through clusterv2 Slot ownership
+  -> cache flushes ConversationActivePatch rows through cluster Slot ownership
 ```
 
 `ActivePatch` carries the UID-owned row key, membership visibility floors,

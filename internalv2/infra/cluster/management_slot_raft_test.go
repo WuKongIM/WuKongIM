@@ -6,13 +6,13 @@ import (
 
 	accessnode "github.com/WuKongIM/WuKongIM/internalv2/access/node"
 	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 )
 
 func TestManagementSlotRaftOperatorUsesLocalCompact(t *testing.T) {
 	node := &fakeManagementSlotRaftNode{
 		nodeID: 1,
-		compact: clusterv2.SlotRaftCompactionResult{
+		compact: cluster.SlotRaftCompactionResult{
 			NodeID:             1,
 			SlotID:             9,
 			AppliedIndex:       8,
@@ -38,7 +38,7 @@ func TestManagementSlotRaftOperatorUsesLocalCompact(t *testing.T) {
 func TestManagementSlotRaftOperatorUsesLocalStatus(t *testing.T) {
 	node := &fakeManagementSlotRaftNode{
 		nodeID: 1,
-		status: clusterv2.SlotRaftStatus{
+		status: cluster.SlotRaftStatus{
 			NodeID:        1,
 			SlotID:        9,
 			LeaderID:      1,
@@ -137,9 +137,9 @@ type fakeManagementSlotRaftNode struct {
 	handler           func(context.Context, []byte) ([]byte, error)
 	localSlotID       uint32
 	localStatusSlotID uint32
-	status            clusterv2.SlotRaftStatus
+	status            cluster.SlotRaftStatus
 	statusErr         error
-	compact           clusterv2.SlotRaftCompactionResult
+	compact           cluster.SlotRaftCompactionResult
 }
 
 func (f *fakeManagementSlotRaftNode) NodeID() uint64 { return f.nodeID }
@@ -150,15 +150,15 @@ func (f *fakeManagementSlotRaftNode) CallRPC(ctx context.Context, nodeID uint64,
 	return f.handler(ctx, payload)
 }
 
-func (f *fakeManagementSlotRaftNode) LocalSlotRaftStatus(_ context.Context, slotID uint32) (clusterv2.SlotRaftStatus, error) {
+func (f *fakeManagementSlotRaftNode) LocalSlotRaftStatus(_ context.Context, slotID uint32) (cluster.SlotRaftStatus, error) {
 	f.localStatusSlotID = slotID
 	if f.statusErr != nil {
-		return clusterv2.SlotRaftStatus{}, f.statusErr
+		return cluster.SlotRaftStatus{}, f.statusErr
 	}
 	return f.status, nil
 }
 
-func (f *fakeManagementSlotRaftNode) LocalCompactSlotRaftLog(_ context.Context, slotID uint32) (clusterv2.SlotRaftCompactionResult, error) {
+func (f *fakeManagementSlotRaftNode) LocalCompactSlotRaftLog(_ context.Context, slotID uint32) (cluster.SlotRaftCompactionResult, error) {
 	f.localSlotID = slotID
 	return f.compact, nil
 }

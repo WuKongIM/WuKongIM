@@ -7,7 +7,7 @@ import (
 	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
 )
 
-// ManagementChannelNode exposes clusterv2 node RPC for manager channel list reads.
+// ManagementChannelNode exposes cluster node RPC for manager channel list reads.
 type ManagementChannelNode interface {
 	// NodeID returns the local cluster node ID.
 	NodeID() uint64

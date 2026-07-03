@@ -16,7 +16,7 @@ func TestDependencyBoundaryDoesNotReachLegacyClusterHashSlot(t *testing.T) {
 	}
 
 	for _, importPath := range strings.Fields(string(out)) {
-		if importPath == "github.com/WuKongIM/WuKongIM/pkg/cluster/hashslot" {
+		if importPath == "github.com/WuKongIM/WuKongIM/pkg/legacy/cluster/hashslot" {
 			t.Fatalf("pkg/slot/fsm dependency closure still imports legacy cluster hashslot package %q", importPath)
 		}
 	}

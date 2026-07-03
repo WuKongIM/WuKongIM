@@ -11,7 +11,7 @@ import (
 
 	accessnode "github.com/WuKongIM/WuKongIM/internalv2/access/node"
 	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 	cv2 "github.com/WuKongIM/WuKongIM/pkg/controller"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )

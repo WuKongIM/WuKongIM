@@ -7,7 +7,7 @@ import (
 	"net/http"
 
 	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/gin-gonic/gin"
 )
 
@@ -119,9 +119,9 @@ func writePromoteControllerVoterError(c *gin.Context, err error) {
 		}
 		jsonError(c, http.StatusConflict, "conflict", message)
 	case errors.Is(err, managementusecase.ErrControllerVoterPromotionUnavailable),
-		errors.Is(err, clusterv2.ErrNotStarted),
-		errors.Is(err, clusterv2.ErrNotLeader),
-		errors.Is(err, clusterv2.ErrStopping),
+		errors.Is(err, cluster.ErrNotStarted),
+		errors.Is(err, cluster.ErrNotLeader),
+		errors.Is(err, cluster.ErrStopping),
 		controlSnapshotUnavailable(err):
 		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "service_unavailable")
 	default:

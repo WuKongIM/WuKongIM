@@ -7,7 +7,7 @@ import (
 	"time"
 
 	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/gin-gonic/gin"
 )
 
@@ -276,7 +276,7 @@ func nodeDTO(item managementusecase.Node) NodeDTO {
 }
 
 func controlSnapshotUnavailable(err error) bool {
-	return errors.Is(err, clusterv2.ErrNotStarted) ||
-		errors.Is(err, clusterv2.ErrStopping) ||
+	return errors.Is(err, cluster.ErrNotStarted) ||
+		errors.Is(err, cluster.ErrStopping) ||
 		errors.Is(err, context.DeadlineExceeded)
 }

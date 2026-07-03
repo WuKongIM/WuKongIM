@@ -3,24 +3,24 @@
 ## Responsibility
 
 `internalv2/infra/cluster` adapts internalv2 usecase/runtime ports to
-`pkg/clusterv2` and `pkg/channelv2`. It maps channelappend append DTOs to
-`pkg/channelv2` DTOs, resolves channel append authority through clusterv2, adapts
-legacy-compatible channel metadata usecase calls to clusterv2 Slot metadata
+`pkg/cluster` and `pkg/channelv2`. It maps channelappend append DTOs to
+`pkg/channelv2` DTOs, resolves channel append authority through cluster, adapts
+legacy-compatible channel metadata usecase calls to cluster Slot metadata
 facades, adapts legacy-compatible user metadata calls and manager user scans to
 UID Slot metadata facades, adapts read-only manager business channel and
-channel runtime metadata scans to clusterv2 Slot metadata reads, adapts conversation reads and read/delete
+channel runtime metadata scans to cluster Slot metadata reads, adapts conversation reads and read/delete
 mutations to UID-owned conversation rows plus channel-owned committed message
 logs, adapts read-only manager message pages to committed ChannelV2 reads,
 adapts manager message retention requests to fenced Slot metadata advances, and
-routes manager connection reads over clusterv2 node RPC, routes manager
-distributed log reads to node-local clusterv2 log storage or peer RPC, routes
-manager Slot Raft status and compaction operations to the selected node-local clusterv2
+routes manager connection reads over cluster node RPC, routes manager
+distributed log reads to node-local cluster log storage or peer RPC, routes
+manager Slot Raft status and compaction operations to the selected node-local cluster
 operation or peer RPC, adapts manager Slot leader transfer and staged Slot
-replica-move intents to clusterv2 control, adapts manager node lifecycle
+replica-move intents to cluster control, adapts manager node lifecycle
 join/activation/leaving/removal and Controller voter promotion writes to
-clusterv2 control, routes startup seed JoinNode and readiness probes over
-clusterv2 node RPC, routes manager Controller Raft operations to node-local
-clusterv2 operations or peer RPC, routes ordinary application log reads to the
+cluster control, routes startup seed JoinNode and readiness probes over
+cluster node RPC, routes manager Controller Raft operations to node-local
+cluster operations or peer RPC, routes ordinary application log reads to the
 selected node's app-owned local reader or peer RPC, routes manager DB Inspect
 reads to node-local inspect readers or peer RPC, routes manager diagnostics
 reads and tracking-rule mutations to the selected node's internalv2 diagnostics
@@ -28,11 +28,11 @@ store or peer RPC, routes manager plugin inventory reads and lifecycle
 mutations to the selected node's plugin lifecycle usecase over peer RPC, routes
 manager ControllerV2 task audit reads to the current Controller leader's
 node-local audit store over peer RPC when needed, and adapts presence/delivery
-ports to clusterv2 routing and node RPC.
+ports to cluster routing and node RPC.
 
 ## Management Snapshot Flow
 
-`ManagementSnapshotReader` adapts `pkg/clusterv2.Node` control snapshots to the
+`ManagementSnapshotReader` adapts `pkg/cluster.Node` control snapshots to the
 internalv2 management usecase. It only exposes local control snapshot reads and
 the local node ID for read-only manager node and Slot list rendering. Node
 lifecycle writes are exposed through the separate
@@ -43,12 +43,12 @@ exposed through `ManagementSlotReplicaMoveAdapter`, which submits Stage 3
 scale-in removal is exposed as a lifecycle writer primitive but remains gated by
 the management usecase's `safe_to_remove` status before this adapter is called.
 The adapter forwards the final `MarkNodeRemoved` request, including the
-management usecase's safety-check state revision when provided, to clusterv2
+management usecase's safety-check state revision when provided, to cluster
 control only after that gate and treats the resulting `removed` state as a
 durable control-plane tombstone, not a node-local cleanup command.
 Gateway session closure and Slot operations other than explicit node-local Raft
 compaction or staged replica-move task creation stay unmigrated. Channel
-migration manager APIs use the dedicated clusterv2 migration store adapter,
+migration manager APIs use the dedicated cluster migration store adapter,
 which only exposes the Slot-owned ChannelV2 migration facade. Gateway drain mode
 itself is routed through the manager connection RPC remote writer below because
 it is a target-node gateway admission toggle, not a control-plane assignment
@@ -65,14 +65,14 @@ target-node preparation RPC codec.
 seed join loop
   -> NodeLifecycleClient.JoinNode(seed_node_id, NodeJoinRequest)
   -> access/node NodeLifecycle RPC client
-  -> clusterv2 CallRPC(seed_node_id, RPCNodeLifecycle)
+  -> cluster CallRPC(seed_node_id, RPCNodeLifecycle)
   -> seed node access/node lifecycle handler
   -> management JoinNode usecase
 
 management activation gate
   -> NodeLifecycleClient.NodeReadiness(node_id)
   -> access/node NodeLifecycle RPC client
-  -> clusterv2 CallRPC(node_id, RPCNodeLifecycle)
+  -> cluster CallRPC(node_id, RPCNodeLifecycle)
   -> target node app-local readiness provider
   -> management NodeReadiness DTO
 
@@ -80,7 +80,7 @@ controller voter promotion gate
   -> NodeLifecycleClient.ControllerVoterReadiness(node_id)
   -> NodeLifecycleClient.PrepareControllerVoter(request)
   -> access/node NodeLifecycle RPC client
-  -> clusterv2 CallRPC(node_id, RPCNodeLifecycle)
+  -> cluster CallRPC(node_id, RPCNodeLifecycle)
   -> target node app-local readiness / preparation providers
   -> management readiness and preparation proof DTOs
 ```
@@ -93,25 +93,25 @@ safety decisions. It does not validate membership, choose activation timing,
 rebalance Slots, call ActivateNode, or submit final Controller voter promotion
 writes.
 The seed-side handler still routes durable join writes through the management
-usecase and clusterv2 control writer. Activation readiness is checked through
+usecase and cluster control writer. Activation readiness is checked through
 the typed node lifecycle RPC; callers should not substitute raw TCP probes for
 the transport-ready gate because the RPC response also carries the target
 mirror cluster ID, mirror revision, and app runtime readiness. Controller voter
 preparation responses preserve the target node's observed Controller Raft
 applied index and voter set as the live proof consumed by the management
-usecase before the final clusterv2 control write.
+usecase before the final cluster control write.
 
 ## Management Channel List Flow
 
 `ChannelBusinessReader` adapts the management usecase's business channel list
-port to the clusterv2 channel metadata scan facade. It only exposes physical
+port to the cluster channel metadata scan facade. It only exposes physical
 Slot page reads; list filtering, cursor validation, and manager response
 shaping stay in the usecase and access layers. `ManagementChannelReader` is
 the remote half for non-local `node_id` filters: it forwards page requests
 through access/node manager channel RPC and preserves the management DTO page.
 
 `ChannelRuntimeMetaReader` adapts the management usecase's channel cluster list
-port to the clusterv2 runtime metadata scan facade. It only exposes read-only
+port to the cluster runtime metadata scan facade. It only exposes read-only
 physical Slot pages from `channel_runtime_meta`; `node_id`, `node_scope`,
 channel ID filtering, max-message-sequence hydration, cursor validation, and
 HTTP response shaping stay above this layer.
@@ -119,7 +119,7 @@ HTTP response shaping stay above this layer.
 ## Management User Flow
 
 `UserMetadataStore` also exposes the management usecase's user list scan port
-when the clusterv2 node supports `ScanUsersSlotPage`. The adapter keeps this as
+when the cluster node supports `ScanUsersSlotPage`. The adapter keeps this as
 a read-only Slot metadata facade; user list filtering, device/presence joins,
 token reset, force-offline, and system UID normalization stay above this layer.
 
@@ -194,7 +194,7 @@ cmdsync.SyncAck
 `CMDSyncStore` is the single internalv2 adapter for durable command-message
 sync. It reads CMD rows from the unified UID-owned conversation projection and
 advances read progress by writing CMD-kind `ConversationState` rows back through
-clusterv2 Slot metadata. It does not create a second CMD-specific metadata
+cluster Slot metadata. It does not create a second CMD-specific metadata
 table or a pending overlay. Channel log reads use ChannelV2 committed forward
 reads, filter out ordinary source-channel messages, and return cloned payloads
 to keep access/usecase layers from aliasing storage-owned memory.
@@ -248,7 +248,7 @@ usecase.
 ```text
 management.RemoteBusinessChannelReader
   -> access/node Manager Channel RPC client
-  -> clusterv2 CallRPC(target node, RPCManagerChannels)
+  -> cluster CallRPC(target node, RPCManagerChannels)
   -> target node access/node Manager Channel RPC handler
   -> target node ChannelBusinessReader.ScanChannelsSlotPage
 ```
@@ -262,7 +262,7 @@ response DTO shaping stay in the manager access and management usecase layers.
 ```text
 management.RemoteConnectionReader
   -> access/node Manager Connection RPC client
-  -> clusterv2 CallRPC(target node, RPCManagerConnection)
+  -> cluster CallRPC(target node, RPCManagerConnection)
   -> target node access/node Manager Connection RPC handler
   -> target node owner-local online registry
 ```
@@ -280,7 +280,7 @@ adapter only chooses the typed node RPC client.
 ```text
 management.RemotePluginReader
   -> access/node Manager Plugin RPC client
-  -> clusterv2 CallRPC(target node, RPCManagerPlugins)
+  -> cluster CallRPC(target node, RPCManagerPlugins)
   -> target node access/node Manager Plugin RPC handler
   -> target node v2 plugin lifecycle usecase
 ```
@@ -300,8 +300,8 @@ fanout `toNodeId=-1` is intentionally deferred in the plugin usecase and never
 enters the infra adapter.
 
 `ManagementPluginBindingStore` adapts manager plugin binding reads and
-mutations to clusterv2 metadata. UID reads and mutations stay UID-owned.
-Plugin-centric pages use clusterv2 `ListPluginBindingsByPluginNo`, which owns
+mutations to cluster metadata. UID reads and mutations stay UID-owned.
+Plugin-centric pages use cluster `ListPluginBindingsByPluginNo`, which owns
 hash-slot fan-out, Slot-leader routing, heap merge, and opaque cursor semantics;
 the infra adapter only maps metadata rows to management DTOs and reports
 `ErrPluginBindingsUnavailable` when the underlying node lacks that scanner.
@@ -310,57 +310,57 @@ the infra adapter only maps metadata rows to management DTOs and reports
 
 ```text
 management.LogReader
-  -> local node_id: clusterv2.LocalControllerLogEntries/LocalSlotLogEntries
+  -> local node_id: cluster.LocalControllerLogEntries/LocalSlotLogEntries
   -> remote node_id: access/node Manager Log RPC client
   -> target node access/node Manager Log RPC handler
-  -> target node clusterv2 local log reader
+  -> target node cluster local log reader
 ```
 
 `ManagementLogReader` preserves newest-first pagination and decoded payload
 summaries across the infra boundary. It only chooses local versus remote
 execution for the requested `node_id`; log pagination, Raft payload decoding,
-and storage watermarks live in `pkg/clusterv2`, while HTTP parsing and manager
+and storage watermarks live in `pkg/cluster`, while HTTP parsing and manager
 response shaping stay above this package.
 
 ## Management Slot Raft Flow
 
 ```text
 management.SlotRaftOperator
-  -> local node_id: clusterv2.LocalSlotRaftStatus(slot_id) or LocalCompactSlotRaftLog(slot_id)
+  -> local node_id: cluster.LocalSlotRaftStatus(slot_id) or LocalCompactSlotRaftLog(slot_id)
   -> remote node_id: access/node Manager Slot Raft RPC client
-  -> clusterv2 CallRPC(target node, RPCManagerSlotRaft)
+  -> cluster CallRPC(target node, RPCManagerSlotRaft)
   -> target node access/node Manager Slot Raft RPC handler
-  -> target node clusterv2 local Slot Raft status or compaction
+  -> target node cluster local Slot Raft status or compaction
 ```
 
 `ManagementSlotRaftOperator` only chooses local versus remote execution for the
 requested node and Slot. HTTP parsing, permission checks, and response summary
 shaping stay above this layer; actual Raft role/watermark reads and
-snapshot/log compaction stay in `pkg/clusterv2` and `pkg/slot/multiraft`.
+snapshot/log compaction stay in `pkg/cluster` and `pkg/slot/multiraft`.
 
 ## Management Slot Leader Transfer Flow
 
 ```text
 management.SlotRuntimeStatusReader
-  -> clusterv2.LocalSlotRaftStatus(slot_id)
+  -> cluster.LocalSlotRaftStatus(slot_id)
 
 management.SlotLeaderTransferWriter
-  -> clusterv2.RequestSlotLeaderTransfer(control.SlotLeaderTransferRequest)
-  -> clusterv2 control runtime
+  -> cluster.RequestSlotLeaderTransfer(control.SlotLeaderTransferRequest)
+  -> cluster control runtime
 ```
 
 The leader-transfer adapters do not implement Slot Raft mechanics. They expose
 the local Slot Raft leader/voter status needed by the management usecase
-preflight, then pass the validated control intent into clusterv2 control.
+preflight, then pass the validated control intent into cluster control.
 
 ## Management Slot Replica Move Flow
 
 ```text
 management.SlotReplicaMoveWriter
-  -> clusterv2.RequestSlotReplicaMove(control.SlotReplicaMoveRequest)
-  -> clusterv2 control runtime
+  -> cluster.RequestSlotReplicaMove(control.SlotReplicaMoveRequest)
+  -> cluster control runtime
   -> ControllerV2 slot_replica_move task
-  -> clusterv2 task executor
+  -> cluster task executor
   -> Slot Raft OpenLearner/ChangeConfig
   -> final ControllerV2 assignment commit
 ```
@@ -368,7 +368,7 @@ management.SlotReplicaMoveWriter
 The replica-move adapter is only the infra boundary for manager onboarding task
 creation. It does not choose source peers, mutate `DesiredPeers`, or execute
 Slot Raft config changes; those stay in the management planner, ControllerV2
-task intent, and clusterv2 task executor respectively. The onboarding target is
+task intent, and cluster task executor respectively. The onboarding target is
 task-local staged state while it is opened and caught up as a learner; it is not
 added to `DesiredPeers` until the executor commits the final assignment after
 Slot Raft voters match the target set. When the source replica is still the
@@ -384,14 +384,14 @@ advance or cancellation path handles them.
 
 ```text
 management.NodeLifecycleWriter
-  -> clusterv2.JoinNode(control.JoinNodeRequest)
-  -> clusterv2.ActivateNode(control.ActivateNodeRequest)
-  -> clusterv2 control runtime
+  -> cluster.JoinNode(control.JoinNodeRequest)
+  -> cluster.ActivateNode(control.ActivateNodeRequest)
+  -> cluster control runtime
 ```
 
 `ManagementNodeLifecycleAdapter` does not inspect readiness or rebalance Slots;
 activation readiness is checked above it through `NodeLifecycleClient`. It only
-passes manager-validated node join and activation intents into the clusterv2
+passes manager-validated node join and activation intents into the cluster
 control facade and preserves typed control errors for the management usecase to
 map to operator-facing responses.
 
@@ -401,7 +401,7 @@ map to operator-facing responses.
 management.ApplicationLogReader
   -> local/empty node_id: app-owned node-local ordinary application log reader
   -> remote node_id: access/node Manager App Log RPC client
-  -> clusterv2 CallRPC(target node, RPCManagerAppLogs)
+  -> cluster CallRPC(target node, RPCManagerAppLogs)
   -> target node access/node Manager App Log RPC handler
   -> target node app-owned node-local ordinary application log reader
 ```
@@ -418,7 +418,7 @@ cursor handling, and path hiding remain owned by `internalv2/app` and
 management.DBInspectReader
   -> local node_id: app-wired pkg/db/inspect reader for node-local storage
   -> remote node_id: access/node Manager DB Inspect RPC client
-  -> clusterv2 CallRPC(target node, RPCManagerDBInspect)
+  -> cluster CallRPC(target node, RPCManagerDBInspect)
   -> target node access/node Manager DB Inspect RPC handler
   -> target node app-wired pkg/db/inspect reader
 ```
@@ -436,7 +436,7 @@ does not merge cluster rows, expose filesystem paths, or mutate storage.
 management.DiagnosticsReader/DiagnosticsTrackingOperator
   -> local node_id: app-owned internalv2 diagnostics store
   -> remote node_id: access/node Manager Diagnostics RPC client
-  -> clusterv2 CallRPC(target node, RPCManagerDiagnostics)
+  -> cluster CallRPC(target node, RPCManagerDiagnostics)
   -> target node access/node Manager Diagnostics RPC handler
   -> target node app-owned internalv2 diagnostics store
 ```
@@ -447,12 +447,12 @@ node; aggregate target selection, skipped-node notes, tracking-rule fan-out,
 and response DTO shaping stay in `internalv2/usecase/management`. The adapter
 does not query legacy `internal` diagnostics state.
 
-Bench runtime controls flow from internalv2 HTTP through `internalv2/infra/cluster`, `pkg/clusterv2.Node`, `pkg/clusterv2/channels.Service`, and finally the hosted ChannelV2 runtime. These routes are benchmark-only observation/cleanup controls and do not replace the gateway SEND activation path.
+Bench runtime controls flow from internalv2 HTTP through `internalv2/infra/cluster`, `pkg/cluster.Node`, `pkg/cluster/channels.Service`, and finally the hosted ChannelV2 runtime. These routes are benchmark-only observation/cleanup controls and do not replace the gateway SEND activation path.
 
 ## Channel Metadata Flow
 
 `ChannelMetadataStore` adapts `internalv2/usecase/channel.Store` and
-`internalv2/usecase/message.PermissionStore` to the clusterv2 Slot metadata
+`internalv2/usecase/message.PermissionStore` to the cluster Slot metadata
 facade. When the cluster node also exposes `ChannelMembershipNode`, the same
 adapter implements the channel usecase `MembershipIndex` port for UID-owned
 reverse membership projection.
@@ -460,25 +460,25 @@ reverse membership projection.
 ```text
 channel usecase Store method
   -> ChannelMetadataNode facade
-  -> pkg/clusterv2.Node
+  -> pkg/cluster.Node
   -> Slot metadata read or Slot Raft propose
 
 ordinary subscriber projection
   -> ChannelMembershipNode facade
-  -> pkg/clusterv2.Node
+  -> pkg/cluster.Node
   -> group by UID hash slot
   -> Slot Raft propose to the UID-owned hash slot
 ```
 
 The adapter does not contain channel business rules. It clones subscriber UID
 slices before forwarding mutations and converts the usecase's optional
-subscriber mutation version into the required clusterv2 facade argument. The
+subscriber mutation version into the required cluster facade argument. The
 membership facade is separate from the channel metadata facade so tests and
 future adapters can expose read/write channel metadata without implicitly
 claiming support for the reverse membership index.
 For message permission checks, the adapter exposes channel metadata reads,
 subscriber point lookups, and subscriber-set non-emptiness. It uses direct
-clusterv2 lookup facades when available and falls back to bounded subscriber
+cluster lookup facades when available and falls back to bounded subscriber
 page scans only for test or alternate nodes that do not expose point lookups.
 When configured with `ChannelAppendMetadataCache`, successful channel metadata
 upserts refresh append fanout metadata and deletes remove cached entries; final
@@ -489,7 +489,7 @@ mutation observer after subscriber changes commit.
 
 `ConversationStore` adapts `internalv2/usecase/conversation` active-row,
 durable state, read mutation, delete mutation, last-message, and recent-message
-ports to clusterv2 facades. Conversation rows are UID-owned metadata records,
+ports to cluster facades. Conversation rows are UID-owned metadata records,
 while last-message display data and sync recents are read from channel-owned
 message logs. When configured, list last-message reads run with a bounded
 worker count; missing tails are skipped per row while routing/readiness errors
@@ -598,15 +598,15 @@ short bounded backoff so authority movement can settle without changing
 conversation list semantics. Legacy patch admission returns those errors
 directly, while active-batch admission makes a small bounded fresh-route retry
 window. Raw
-clusterv2 route errors returned by remote RPC calls are mapped to the same
+cluster route errors returned by remote RPC calls are mapped to the same
 conversation route sentinels before retry decisions.
 
 ## Channel Append Authority Flow
 
 `ChannelAppendClient` adapts the channelappend router authority ports to
-clusterv2. It resolves canonical channel append authority through the narrow
+cluster. It resolves canonical channel append authority through the narrow
 `Node.ResolveChannelAppendAuthority` facade, which delegates to the hosted
-ChannelV2 service so metadata creation policy remains in `pkg/clusterv2/channels`.
+ChannelV2 service so metadata creation policy remains in `pkg/cluster/channels`.
 It attaches the large-channel flag and subscriber mutation version from a shared
 `ChannelAppendMetadataCache` when present; cache misses read durable channel
 metadata once and populate the cache. Subscriber mutation observers refresh the
@@ -619,11 +619,11 @@ with the canonical `ChannelID`, `ChannelKey`, `LeaderNodeID`, `Epoch`,
 ```text
 channelappend.Router
   -> ChannelAppendClient.ResolveAppendAuthority(canonical channel)
-       -> clusterv2.Node.ResolveChannelAppendAuthority
+       -> cluster.Node.ResolveChannelAppendAuthority
        -> channels.Service.ResolveAppendAuthority
        -> ChannelMetaEnsurer.EnsureChannelMeta when append would create metadata
        -> ChannelAppendMetadataCache hit: attach fanout metadata
-       -> cache miss: clusterv2.Node.GetChannelMetadata and cache metadata
+       -> cache miss: cluster.Node.GetChannelMetadata and cache metadata
   -> local authority: channelappend.Group.SubmitLocal
   -> remote authority: ChannelAppendClient.ForwardSendBatch
        -> injected ChannelAppendRemoteForwarder
@@ -632,7 +632,7 @@ channelappend.Router
 Route errors are translated at this adapter boundary:
 `channelv2.ErrNotLeader` becomes `channelappend.ErrNotChannelAuthority`,
 `channelv2.ErrStaleMeta` becomes `channelappend.ErrStaleRoute`, and
-`channelv2.ErrNotReady` plus clusterv2 readiness errors become
+`channelv2.ErrNotReady` plus cluster readiness errors become
 `channelappend.ErrRouteNotReady`. Remote forwarding is supplied by the
 `internalv2/access/node` Channel Append RPC client; remote item results are
 returned item-aligned without interpreting successful payloads.
@@ -640,27 +640,27 @@ returned item-aligned without interpreting successful payloads.
 ## User Metadata Flow
 
 `UserMetadataStore` adapts `internalv2/usecase/user` user/device metadata ports
-to the clusterv2 UID Slot metadata facade.
+to the cluster UID Slot metadata facade.
 
 ```text
 user usecase metadata method
   -> UserMetadataNode facade
-  -> pkg/clusterv2.Node
+  -> pkg/cluster.Node
   -> UID Slot metadata read or Slot Raft propose
 ```
 
 The adapter does not contain user business rules. It forwards create-only UID
-metadata and per-device token upserts to clusterv2, while reads route by UID to
+metadata and per-device token upserts to cluster, while reads route by UID to
 the current hash-slot metadata store.
 
 ## Error Mapping
 
 ```text
-channelv2.ErrNotLeader / clusterv2.ErrNotLeader      -> channelappend.ErrNotLeader
+channelv2.ErrNotLeader / cluster.ErrNotLeader      -> channelappend.ErrNotLeader
 channelv2.ErrStaleMeta / channelv2.ErrNotReplica     -> channelappend.ErrStaleRoute
 channelv2.ErrChannelNotFound                         -> channelappend.ErrChannelNotFound
 channelv2.ErrBackpressured                           -> channelappend.ErrBackpressured
-clusterv2.ErrRouteNotReady / clusterv2.ErrNoSlotLeader / channelv2.ErrNotReady -> channelappend.ErrRouteNotReady
+cluster.ErrRouteNotReady / cluster.ErrNoSlotLeader / channelv2.ErrNotReady -> channelappend.ErrRouteNotReady
 context cancellation/deadline                        -> unchanged
 other errors                                         -> channelappend.ErrAppendFailed wrapping source
 ```
@@ -668,13 +668,13 @@ other errors                                         -> channelappend.ErrAppendF
 ## Presence Authority Flow
 
 `PresenceAuthorityClient` adapts the internalv2 presence usecase authority port
-and owner-action port to `pkg/clusterv2` UID routing and
+and owner-action port to `pkg/cluster` UID routing and
 `internalv2/access/node` RPC. The adapter does not own gateway activation
 policy, authority conflict rules, or local session mutation rules.
 
 ```text
 presence.Route / uid
-  -> clusterv2.RouteKey(uid)
+  -> cluster.RouteKey(uid)
   -> presence.RouteTarget
   -> local accessnode.PresenceAuthority when target leader is this node
   -> access/node PresenceAuthority RPC client when target leader is remote
@@ -689,7 +689,7 @@ presence.RouteAction
 from the UID carried by the request. `CommitRoute` and `AbortRoute` resolve
 their target from the UID remembered for the pending token returned by
 `RegisterRoute`. Resolved targets carry the Slot leader term and Slot config
-epoch from clusterv2 routes; the authority epoch is only local diagnostic
+epoch from cluster routes; the authority epoch is only local diagnostic
 metadata. Touch batching uses `TouchRoutesTo(target, routes)` because the app
 worker groups dirty owner sessions by the exact authority target observed
 during flush. The adapter sends the batch locally when the target leader is
@@ -726,7 +726,7 @@ normal retry policy.
 
 ## Delivery Fanout Partition Flow
 
-`DeliveryPartitioner` adapts the clusterv2 UID hash-slot route table to
+`DeliveryPartitioner` adapts the cluster UID hash-slot route table to
 `runtime/delivery.Partitioner`. It caches the last valid partition layout by
 route revision and hash-slot count, reuses the cached layout for repeated reads,
 and falls back to the last valid layout when the route table is momentarily not
@@ -735,7 +735,7 @@ each hash slot through `RouteHashSlot`, and merges contiguous hash-slot ranges
 with the same leader into delivery partitions.
 
 ```text
-clusterv2 Snapshot.HashSlotCount
+cluster Snapshot.HashSlotCount
   -> RouteHashSlot(hashSlot)
   -> contiguous ranges grouped by Route.Leader
   -> runtime/delivery.Partition{LeaderNodeID, HashSlotStart, HashSlotEnd}

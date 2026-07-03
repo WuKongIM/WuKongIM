@@ -12,8 +12,8 @@ import (
 	"syscall"
 	"time"
 
-	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
 	accessgateway "github.com/WuKongIM/WuKongIM/pkg/gateway"
+	raftcluster "github.com/WuKongIM/WuKongIM/pkg/legacy/cluster"
 	controllermeta "github.com/WuKongIM/WuKongIM/pkg/legacy/controller/meta"
 	obsmetrics "github.com/WuKongIM/WuKongIM/pkg/metrics"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"

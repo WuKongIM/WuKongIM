@@ -9,18 +9,18 @@ import (
 	accessnode "github.com/WuKongIM/WuKongIM/internalv2/access/node"
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/conversationactive"
 	conversationusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/conversation"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/propose"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/propose"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
-// ConversationAuthorityNode is the clusterv2 surface needed by authority routing.
+// ConversationAuthorityNode is the cluster surface needed by authority routing.
 type ConversationAuthorityNode interface {
 	NodeID() uint64
-	RouteKey(string) (clusterv2.Route, error)
+	RouteKey(string) (cluster.Route, error)
 	CallRPC(context.Context, uint64, uint8, []byte) ([]byte, error)
-	RegisterRPC(uint8, clusterv2.NodeRPCHandler)
-	WatchRouteAuthorities() <-chan clusterv2.RouteAuthorityEvent
+	RegisterRPC(uint8, cluster.NodeRPCHandler)
+	WatchRouteAuthorities() <-chan cluster.RouteAuthorityEvent
 }
 
 // ConversationAuthorityClient routes conversation authority operations to UID leaders.
@@ -354,7 +354,7 @@ func (c *ConversationAuthorityClient) sleepBeforeRouteRetry(ctx context.Context)
 	}
 }
 
-func conversationRouteTargetFromClusterRoute(route clusterv2.Route) conversationusecase.RouteTarget {
+func conversationRouteTargetFromClusterRoute(route cluster.Route) conversationusecase.RouteTarget {
 	return conversationusecase.RouteTarget{
 		HashSlot:       route.HashSlot,
 		SlotID:         route.SlotID,
@@ -383,9 +383,9 @@ func mapConversationRouteError(err error) error {
 	switch {
 	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
 		return err
-	case errors.Is(err, clusterv2.ErrRouteNotReady), errors.Is(err, clusterv2.ErrNoSlotLeader):
+	case errors.Is(err, cluster.ErrRouteNotReady), errors.Is(err, cluster.ErrNoSlotLeader):
 		return fmt.Errorf("%w: %w", conversationusecase.ErrRouteNotReady, err)
-	case errors.Is(err, clusterv2.ErrNotLeader):
+	case errors.Is(err, cluster.ErrNotLeader):
 		return fmt.Errorf("%w: %w", conversationusecase.ErrNotLeader, err)
 	case errors.Is(err, propose.ErrProposalBackpressure), errors.Is(err, propose.ErrBackgroundProposalThrottled):
 		return fmt.Errorf("%w: %w", conversationusecase.ErrRouteNotReady, err)

@@ -10,17 +10,17 @@ import (
 	accessnode "github.com/WuKongIM/WuKongIM/internalv2/access/node"
 	authoritypresence "github.com/WuKongIM/WuKongIM/internalv2/runtime/presence"
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/presence"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 )
 
-// PresenceNode is the clusterv2 surface required by the presence authority adapter.
+// PresenceNode is the cluster surface required by the presence authority adapter.
 type PresenceNode interface {
 	NodeID() uint64
-	RouteKey(string) (clusterv2.Route, error)
-	RouteHashSlot(uint16) (clusterv2.Route, error)
+	RouteKey(string) (cluster.Route, error)
+	RouteHashSlot(uint16) (cluster.Route, error)
 	CallRPC(context.Context, uint64, uint8, []byte) ([]byte, error)
-	RegisterRPC(uint8, clusterv2.NodeRPCHandler)
-	WatchRouteAuthorities() <-chan clusterv2.RouteAuthorityEvent
+	RegisterRPC(uint8, cluster.NodeRPCHandler)
+	WatchRouteAuthorities() <-chan cluster.RouteAuthorityEvent
 }
 
 // PresenceAuthorityClient routes UID authority operations to the current slot leader.
@@ -322,7 +322,7 @@ func (c *PresenceAuthorityClient) forgetPending(token presence.PendingRouteToken
 	delete(c.pending, token)
 }
 
-func routeTargetFromClusterRoute(route clusterv2.Route) presence.RouteTarget {
+func routeTargetFromClusterRoute(route cluster.Route) presence.RouteTarget {
 	return presence.RouteTarget{
 		HashSlot:       route.HashSlot,
 		SlotID:         route.SlotID,
@@ -354,9 +354,9 @@ func mapPresenceRouteError(err error) error {
 	switch {
 	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
 		return err
-	case errors.Is(err, clusterv2.ErrRouteNotReady), errors.Is(err, clusterv2.ErrNoSlotLeader):
+	case errors.Is(err, cluster.ErrRouteNotReady), errors.Is(err, cluster.ErrNoSlotLeader):
 		return fmt.Errorf("%w: %w", authoritypresence.ErrRouteNotReady, err)
-	case errors.Is(err, clusterv2.ErrNotLeader):
+	case errors.Is(err, cluster.ErrNotLeader):
 		return fmt.Errorf("%w: %w", authoritypresence.ErrNotLeader, err)
 	default:
 		return err

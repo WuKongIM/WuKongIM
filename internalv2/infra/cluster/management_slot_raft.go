@@ -5,7 +5,7 @@ import (
 
 	accessnode "github.com/WuKongIM/WuKongIM/internalv2/access/node"
 	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 )
 
 // ManagementSlotRaftNode exposes node-local and node-remote Slot Raft operations.
@@ -15,9 +15,9 @@ type ManagementSlotRaftNode interface {
 	// CallRPC invokes one typed node RPC service on a peer node.
 	CallRPC(context.Context, uint64, uint8, []byte) ([]byte, error)
 	// LocalSlotRaftStatus reads this node's local Slot Raft status.
-	LocalSlotRaftStatus(context.Context, uint32) (clusterv2.SlotRaftStatus, error)
+	LocalSlotRaftStatus(context.Context, uint32) (cluster.SlotRaftStatus, error)
 	// LocalCompactSlotRaftLog forces this node's local Slot Raft compaction.
-	LocalCompactSlotRaftLog(context.Context, uint32) (clusterv2.SlotRaftCompactionResult, error)
+	LocalCompactSlotRaftLog(context.Context, uint32) (cluster.SlotRaftCompactionResult, error)
 }
 
 // ManagementSlotRaftOperator routes manager Slot Raft operations to selected nodes.
@@ -64,7 +64,7 @@ func (o *ManagementSlotRaftOperator) CompactSlotRaftLog(ctx context.Context, nod
 	return o.remote.CompactManagerSlotRaftLog(ctx, nodeID, slotID)
 }
 
-func slotRaftStatusFromCluster(status clusterv2.SlotRaftStatus) managementusecase.SlotNodeLogStatus {
+func slotRaftStatusFromCluster(status cluster.SlotRaftStatus) managementusecase.SlotNodeLogStatus {
 	return managementusecase.SlotNodeLogStatus{
 		NodeID:        status.NodeID,
 		LeaderID:      status.LeaderID,
@@ -75,7 +75,7 @@ func slotRaftStatusFromCluster(status clusterv2.SlotRaftStatus) managementusecas
 	}
 }
 
-func slotRaftCompactionFromCluster(result clusterv2.SlotRaftCompactionResult) managementusecase.SlotRaftCompactionResult {
+func slotRaftCompactionFromCluster(result cluster.SlotRaftCompactionResult) managementusecase.SlotRaftCompactionResult {
 	return managementusecase.SlotRaftCompactionResult{
 		NodeID:              result.NodeID,
 		SlotID:              result.SlotID,

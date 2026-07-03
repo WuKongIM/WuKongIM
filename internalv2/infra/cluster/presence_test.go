@@ -10,14 +10,14 @@ import (
 	accessnode "github.com/WuKongIM/WuKongIM/internalv2/access/node"
 	authoritypresence "github.com/WuKongIM/WuKongIM/internalv2/runtime/presence"
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/presence"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/stretchr/testify/require"
 )
 
 func TestPresenceClientUsesLocalAuthorityWhenTargetLeaderIsLocal(t *testing.T) {
 	cluster := &fakePresenceCluster{
 		nodeID: 1,
-		route:  clusterv2.Route{HashSlot: 7, SlotID: 11, Leader: 1, LeaderTerm: 23, ConfigEpoch: 29, Revision: 17, AuthorityEpoch: 19},
+		route:  cluster.Route{HashSlot: 7, SlotID: 11, Leader: 1, LeaderTerm: 23, ConfigEpoch: 29, Revision: 17, AuthorityEpoch: 19},
 	}
 	local := &fakePresenceAuthority{registerResult: presence.RegisterResult{PendingToken: "pending-1"}}
 	client := NewPresenceAuthorityClient(cluster, local)
@@ -46,7 +46,7 @@ func TestPresenceClientCallsRemoteAuthorityWhenTargetLeaderIsRemote(t *testing.T
 	remoteAuthority := &fakePresenceAuthority{registerResult: presence.RegisterResult{PendingToken: "remote-pending"}}
 	cluster := &fakePresenceCluster{
 		nodeID: 1,
-		route:  clusterv2.Route{HashSlot: 9, SlotID: 12, Leader: 2, LeaderTerm: 24, ConfigEpoch: 30, Revision: 18, AuthorityEpoch: 20},
+		route:  cluster.Route{HashSlot: 9, SlotID: 12, Leader: 2, LeaderTerm: 24, ConfigEpoch: 30, Revision: 18, AuthorityEpoch: 20},
 		rpc:    presenceRPCHandler{adapter: accessnode.New(accessnode.Options{Authority: remoteAuthority})},
 	}
 	local := &fakePresenceAuthority{}
@@ -121,7 +121,7 @@ func TestPresenceClientRoutesOwnerActionToLocalOwner(t *testing.T) {
 func TestPresenceClientRetriesOnceAfterStaleRoute(t *testing.T) {
 	cluster := &fakePresenceCluster{
 		nodeID: 1,
-		routes: []clusterv2.Route{
+		routes: []cluster.Route{
 			{HashSlot: 7, SlotID: 11, Leader: 1, Revision: 17, AuthorityEpoch: 1},
 			{HashSlot: 7, SlotID: 11, Leader: 1, Revision: 18, AuthorityEpoch: 2},
 		},
@@ -148,7 +148,7 @@ func TestPresenceClientRetriesOnceAfterStaleRoute(t *testing.T) {
 func TestPresenceClientRetriesRouteResolutionWhenRouteNotReady(t *testing.T) {
 	cluster := &fakePresenceCluster{
 		nodeID: 1,
-		routes: []clusterv2.Route{
+		routes: []cluster.Route{
 			{HashSlot: 7, SlotID: 11, Leader: 0, Revision: 17, AuthorityEpoch: 1},
 			{HashSlot: 7, SlotID: 11, Leader: 1, Revision: 18, AuthorityEpoch: 2},
 		},
@@ -173,7 +173,7 @@ func TestPresenceClientRetriesRouteResolutionWhenRouteNotReady(t *testing.T) {
 func TestPresenceClientBacksOffBeforeRetryingTransientNotLeader(t *testing.T) {
 	cluster := &fakePresenceCluster{
 		nodeID: 1,
-		route:  clusterv2.Route{HashSlot: 7, SlotID: 11, Leader: 1, Revision: 17, AuthorityEpoch: 1},
+		route:  cluster.Route{HashSlot: 7, SlotID: 11, Leader: 1, Revision: 17, AuthorityEpoch: 1},
 	}
 	allowRetry := false
 	local := &fakePresenceAuthority{
@@ -210,7 +210,7 @@ func TestPresenceClientBacksOffBeforeRetryingTransientNotLeader(t *testing.T) {
 func TestPresenceClientRidesOutShortNotLeaderBurst(t *testing.T) {
 	cluster := &fakePresenceCluster{
 		nodeID: 1,
-		route:  clusterv2.Route{HashSlot: 7, SlotID: 11, Leader: 1, Revision: 17, AuthorityEpoch: 1},
+		route:  cluster.Route{HashSlot: 7, SlotID: 11, Leader: 1, Revision: 17, AuthorityEpoch: 1},
 	}
 	local := &fakePresenceAuthority{
 		registerErrs: []error{
@@ -244,7 +244,7 @@ func TestPresenceClientRidesOutShortNotLeaderBurst(t *testing.T) {
 func TestPresenceClientRidesOutLongerNotLeaderBurstWithinActivationWindow(t *testing.T) {
 	cluster := &fakePresenceCluster{
 		nodeID: 1,
-		route:  clusterv2.Route{HashSlot: 7, SlotID: 11, Leader: 1, Revision: 17, AuthorityEpoch: 1},
+		route:  cluster.Route{HashSlot: 7, SlotID: 11, Leader: 1, Revision: 17, AuthorityEpoch: 1},
 	}
 	const notLeaderCount = 30
 	local := &fakePresenceAuthority{
@@ -271,7 +271,7 @@ func TestPresenceClientRidesOutLongerNotLeaderBurstWithinActivationWindow(t *tes
 func TestPresenceClientPendingTokensAreNamespacedByUID(t *testing.T) {
 	cluster := &fakePresenceCluster{
 		nodeID: 1,
-		routesByUID: map[string]clusterv2.Route{
+		routesByUID: map[string]cluster.Route{
 			"u1": {HashSlot: 7, SlotID: 11, Leader: 1, Revision: 17, AuthorityEpoch: 1},
 			"u2": {HashSlot: 8, SlotID: 12, Leader: 1, Revision: 18, AuthorityEpoch: 1},
 		},
@@ -310,7 +310,7 @@ func TestPresenceClientPendingTokensAreNamespacedByUID(t *testing.T) {
 func TestPresenceClientKeepsPendingTokenWhenCommitRouteNotReady(t *testing.T) {
 	cluster := &fakePresenceCluster{
 		nodeID: 1,
-		route:  clusterv2.Route{HashSlot: 7, SlotID: 11, Leader: 1, Revision: 17, AuthorityEpoch: 1},
+		route:  cluster.Route{HashSlot: 7, SlotID: 11, Leader: 1, Revision: 17, AuthorityEpoch: 1},
 	}
 	local := &fakePresenceAuthority{
 		registerResult: presence.RegisterResult{PendingToken: "pending-1"},
@@ -339,7 +339,7 @@ func TestPresenceClientKeepsPendingTokenWhenCommitRouteNotReady(t *testing.T) {
 func TestPresenceClientForgetsPendingTokenWhenAbortReachedAuthorityBeforeRouteLoss(t *testing.T) {
 	cluster := &fakePresenceCluster{
 		nodeID: 1,
-		routes: []clusterv2.Route{
+		routes: []cluster.Route{
 			{HashSlot: 7, SlotID: 11, Leader: 1, Revision: 17, AuthorityEpoch: 1},
 			{HashSlot: 7, SlotID: 11, Leader: 1, Revision: 18, AuthorityEpoch: 2},
 			{HashSlot: 7, SlotID: 11, Leader: 0, Revision: 19, AuthorityEpoch: 3},
@@ -401,7 +401,7 @@ func TestPresenceAuthorityClientTouchRoutesToRemote(t *testing.T) {
 func TestPresenceClientReturnsRouteNotReadyWhenRouteKeyFails(t *testing.T) {
 	cluster := &fakePresenceCluster{
 		nodeID:   1,
-		routeErr: clusterv2.ErrRouteNotReady,
+		routeErr: cluster.ErrRouteNotReady,
 	}
 	client := NewPresenceAuthorityClient(cluster, &fakePresenceAuthority{})
 
@@ -414,7 +414,7 @@ func TestPresenceClientReturnsRouteNotReadyWhenRouteKeyFails(t *testing.T) {
 func TestPresenceClientReturnsRouteNotReadyWhenRouteHasNoLeader(t *testing.T) {
 	cluster := &fakePresenceCluster{
 		nodeID:   1,
-		routeErr: clusterv2.ErrNoSlotLeader,
+		routeErr: cluster.ErrNoSlotLeader,
 	}
 	client := NewPresenceAuthorityClient(cluster, &fakePresenceAuthority{})
 
@@ -432,15 +432,15 @@ type rpcCall struct {
 
 type fakePresenceCluster struct {
 	nodeID        uint64
-	route         clusterv2.Route
-	routesByUID   map[string]clusterv2.Route
-	routes        []clusterv2.Route
+	route         cluster.Route
+	routesByUID   map[string]cluster.Route
+	routes        []cluster.Route
 	routeErr      error
-	rpc           clusterv2.NodeRPCHandler
+	rpc           cluster.NodeRPCHandler
 	calls         []rpcCall
 	routeKeyCalls int
-	registered    map[uint8]clusterv2.NodeRPCHandler
-	watch         chan clusterv2.RouteAuthorityEvent
+	registered    map[uint8]cluster.NodeRPCHandler
+	watch         chan cluster.RouteAuthorityEvent
 }
 
 type presenceRPCHandler struct {
@@ -463,10 +463,10 @@ func (f *fakePresenceCluster) NodeID() uint64 {
 	return f.nodeID
 }
 
-func (f *fakePresenceCluster) RouteKey(uid string) (clusterv2.Route, error) {
+func (f *fakePresenceCluster) RouteKey(uid string) (cluster.Route, error) {
 	f.routeKeyCalls++
 	if f.routeErr != nil {
-		return clusterv2.Route{}, f.routeErr
+		return cluster.Route{}, f.routeErr
 	}
 	if route, ok := f.routesByUID[uid]; ok {
 		return route, nil
@@ -481,9 +481,9 @@ func (f *fakePresenceCluster) RouteKey(uid string) (clusterv2.Route, error) {
 	return f.route, nil
 }
 
-func (f *fakePresenceCluster) RouteHashSlot(uint16) (clusterv2.Route, error) {
+func (f *fakePresenceCluster) RouteHashSlot(uint16) (cluster.Route, error) {
 	if f.routeErr != nil {
-		return clusterv2.Route{}, f.routeErr
+		return cluster.Route{}, f.routeErr
 	}
 	return f.route, nil
 }
@@ -499,16 +499,16 @@ func (f *fakePresenceCluster) CallRPC(ctx context.Context, nodeID uint64, servic
 	return nil, errors.New("missing rpc handler")
 }
 
-func (f *fakePresenceCluster) RegisterRPC(serviceID uint8, handler clusterv2.NodeRPCHandler) {
+func (f *fakePresenceCluster) RegisterRPC(serviceID uint8, handler cluster.NodeRPCHandler) {
 	if f.registered == nil {
-		f.registered = make(map[uint8]clusterv2.NodeRPCHandler)
+		f.registered = make(map[uint8]cluster.NodeRPCHandler)
 	}
 	f.registered[serviceID] = handler
 }
 
-func (f *fakePresenceCluster) WatchRouteAuthorities() <-chan clusterv2.RouteAuthorityEvent {
+func (f *fakePresenceCluster) WatchRouteAuthorities() <-chan cluster.RouteAuthorityEvent {
 	if f.watch == nil {
-		f.watch = make(chan clusterv2.RouteAuthorityEvent)
+		f.watch = make(chan cluster.RouteAuthorityEvent)
 	}
 	return f.watch
 }

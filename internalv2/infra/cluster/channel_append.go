@@ -7,14 +7,14 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/channelappend"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/propose"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/propose"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
-// ChannelAppendAuthorityNode is the narrow clusterv2 surface needed to resolve channel append authorities.
+// ChannelAppendAuthorityNode is the narrow cluster surface needed to resolve channel append authorities.
 type ChannelAppendAuthorityNode interface {
-	// NodeID returns the local clusterv2 node id.
+	// NodeID returns the local cluster node id.
 	NodeID() uint64
 	// ResolveChannelAppendAuthority resolves the ChannelV2 append authority.
 	ResolveChannelAppendAuthority(context.Context, channelv2.ChannelID) (channelv2.Meta, error)
@@ -28,7 +28,7 @@ type ChannelAppendRemoteForwarder interface {
 	ForwardSendBatch(context.Context, channelappend.AuthorityTarget, []channelappend.SendBatchItem) []channelappend.SendBatchItemResult
 }
 
-// ChannelAppendClient adapts clusterv2 channel authority resolution to channelappend ports.
+// ChannelAppendClient adapts cluster channel authority resolution to channelappend ports.
 type ChannelAppendClient struct {
 	node     ChannelAppendAuthorityNode
 	remote   ChannelAppendRemoteForwarder
@@ -38,7 +38,7 @@ type ChannelAppendClient struct {
 var _ channelappend.AuthorityResolver = (*ChannelAppendClient)(nil)
 var _ channelappend.RemoteForwarder = (*ChannelAppendClient)(nil)
 
-// NewChannelAppendClient creates a clusterv2-backed channel append client.
+// NewChannelAppendClient creates a cluster-backed channel append client.
 func NewChannelAppendClient(node ChannelAppendAuthorityNode, remote ChannelAppendRemoteForwarder, metadata *ChannelAppendMetadataCache) *ChannelAppendClient {
 	return &ChannelAppendClient{node: node, remote: remote, metadata: metadata}
 }
@@ -122,16 +122,16 @@ func mapChannelAppendRouteError(err error) error {
 	switch {
 	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
 		return err
-	case appendErrorMatches(err, channelv2.ErrNotLeader), appendErrorMatches(err, propose.ErrNotLeader), errors.Is(err, clusterv2.ErrNotLeader):
+	case appendErrorMatches(err, channelv2.ErrNotLeader), appendErrorMatches(err, propose.ErrNotLeader), errors.Is(err, cluster.ErrNotLeader):
 		return fmt.Errorf("%w: %w", channelappend.ErrNotChannelAuthority, err)
 	case appendErrorMatches(err, channelv2.ErrStaleMeta):
 		return fmt.Errorf("%w: %w", channelappend.ErrStaleRoute, err)
 	case appendErrorMatches(err, channelv2.ErrNotReady),
 		appendErrorIsChannelPlacementUnavailable(err),
-		errors.Is(err, clusterv2.ErrRouteNotReady),
-		errors.Is(err, clusterv2.ErrNoSlotLeader),
-		errors.Is(err, clusterv2.ErrNotStarted),
-		errors.Is(err, clusterv2.ErrStopping):
+		errors.Is(err, cluster.ErrRouteNotReady),
+		errors.Is(err, cluster.ErrNoSlotLeader),
+		errors.Is(err, cluster.ErrNotStarted),
+		errors.Is(err, cluster.ErrStopping):
 		return fmt.Errorf("%w: %w", channelappend.ErrRouteNotReady, err)
 	default:
 		return err

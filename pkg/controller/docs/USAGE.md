@@ -6,8 +6,8 @@ full-file state sync. External callers should use the root package facade:
 `Runtime`, strongly typed `ClusterState` / `StateEvent`, Raft message stepping,
 and state sync request/response contracts.
 
-Production startup should stay in the caller, for example `pkg/clusterv2/control`;
-this package should not import `pkg/clusterv2`.
+Production startup should stay in the caller, for example `pkg/cluster/control`;
+this package should not import `pkg/cluster`.
 
 The snippets below use `controller*` import aliases for
 `github.com/WuKongIM/WuKongIM/pkg/controller/...` packages.

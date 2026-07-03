@@ -9,7 +9,7 @@ import (
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
-// ManagementMessageReader adapts clusterv2 committed message reads to manager message pages.
+// ManagementMessageReader adapts cluster committed message reads to manager message pages.
 type ManagementMessageReader struct {
 	node ChannelMessageReadNode
 }

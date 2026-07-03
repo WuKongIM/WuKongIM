@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
+	raftcluster "github.com/WuKongIM/WuKongIM/pkg/legacy/cluster"
 )
 
 // ErrUnsupportedRecoverStrategy reports that the requested recover strategy is not supported.

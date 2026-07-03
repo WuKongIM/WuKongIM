@@ -7,13 +7,13 @@ import (
 	"testing"
 
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internalv2/runtime/delivery"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 )
 
 func TestDeliveryPartitionerGroupsContiguousHashSlotsByLeader(t *testing.T) {
 	node := &fakeDeliveryRouteNode{
-		snapshot: clusterv2.Snapshot{StateRevision: 7, RoutesReady: true, HashSlotCount: 5},
-		routes: map[uint16]clusterv2.Route{
+		snapshot: cluster.Snapshot{StateRevision: 7, RoutesReady: true, HashSlotCount: 5},
+		routes: map[uint16]cluster.Route{
 			0: {HashSlot: 0, Leader: 1},
 			1: {HashSlot: 1, Leader: 1},
 			2: {HashSlot: 2, Leader: 2},
@@ -40,8 +40,8 @@ func TestDeliveryPartitionerGroupsContiguousHashSlotsByLeader(t *testing.T) {
 
 func TestDeliveryPartitionerCachesPartitionsForSameRevision(t *testing.T) {
 	node := &fakeDeliveryRouteNode{
-		snapshot: clusterv2.Snapshot{StateRevision: 8, RoutesReady: true, HashSlotCount: 2},
-		routes: map[uint16]clusterv2.Route{
+		snapshot: cluster.Snapshot{StateRevision: 8, RoutesReady: true, HashSlotCount: 2},
+		routes: map[uint16]cluster.Route{
 			0: {HashSlot: 0, Leader: 1},
 			1: {HashSlot: 1, Leader: 2},
 		},
@@ -79,8 +79,8 @@ func TestDeliveryPartitionerCachesPartitionsForSameRevision(t *testing.T) {
 
 func TestDeliveryPartitionerUsesLastValidPartitionsWhenSnapshotTemporarilyUnready(t *testing.T) {
 	node := &fakeDeliveryRouteNode{
-		snapshot: clusterv2.Snapshot{StateRevision: 9, RoutesReady: true, HashSlotCount: 2},
-		routes: map[uint16]clusterv2.Route{
+		snapshot: cluster.Snapshot{StateRevision: 9, RoutesReady: true, HashSlotCount: 2},
+		routes: map[uint16]cluster.Route{
 			0: {HashSlot: 0, Leader: 1},
 			1: {HashSlot: 1, Leader: 1},
 		},
@@ -91,8 +91,8 @@ func TestDeliveryPartitionerUsesLastValidPartitionsWhenSnapshotTemporarilyUnread
 		t.Fatalf("first Partitions() error = %v", err)
 	}
 
-	node.snapshot = clusterv2.Snapshot{StateRevision: 10, RoutesReady: false, HashSlotCount: 0}
-	node.err = clusterv2.ErrRouteNotReady
+	node.snapshot = cluster.Snapshot{StateRevision: 10, RoutesReady: false, HashSlotCount: 0}
+	node.err = cluster.ErrRouteNotReady
 	got, err := partitioner.Partitions(context.Background())
 	if err != nil {
 		t.Fatalf("Partitions() with cached fallback error = %v", err)
@@ -104,7 +104,7 @@ func TestDeliveryPartitionerUsesLastValidPartitionsWhenSnapshotTemporarilyUnread
 
 func TestDeliveryPartitionerReturnsRouteNotReadyForUnreadySnapshot(t *testing.T) {
 	partitioner := NewDeliveryPartitioner(&fakeDeliveryRouteNode{
-		snapshot: clusterv2.Snapshot{RoutesReady: false, HashSlotCount: 0},
+		snapshot: cluster.Snapshot{RoutesReady: false, HashSlotCount: 0},
 	})
 
 	_, err := partitioner.Partitions(context.Background())
@@ -114,24 +114,24 @@ func TestDeliveryPartitionerReturnsRouteNotReadyForUnreadySnapshot(t *testing.T)
 }
 
 type fakeDeliveryRouteNode struct {
-	snapshot   clusterv2.Snapshot
-	routes     map[uint16]clusterv2.Route
+	snapshot   cluster.Snapshot
+	routes     map[uint16]cluster.Route
 	err        error
 	routeCalls int
 }
 
-func (f *fakeDeliveryRouteNode) Snapshot() clusterv2.Snapshot {
+func (f *fakeDeliveryRouteNode) Snapshot() cluster.Snapshot {
 	return f.snapshot
 }
 
-func (f *fakeDeliveryRouteNode) RouteHashSlot(hashSlot uint16) (clusterv2.Route, error) {
+func (f *fakeDeliveryRouteNode) RouteHashSlot(hashSlot uint16) (cluster.Route, error) {
 	f.routeCalls++
 	if f.err != nil {
-		return clusterv2.Route{}, f.err
+		return cluster.Route{}, f.err
 	}
 	route, ok := f.routes[hashSlot]
 	if !ok {
-		return clusterv2.Route{}, clusterv2.ErrRouteNotReady
+		return cluster.Route{}, cluster.ErrRouteNotReady
 	}
 	return route, nil
 }

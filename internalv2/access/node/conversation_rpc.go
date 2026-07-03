@@ -7,12 +7,12 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/conversationactive"
 	conversationusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/conversation"
-	clusternet "github.com/WuKongIM/WuKongIM/pkg/clusterv2/net"
+	clusternet "github.com/WuKongIM/WuKongIM/pkg/cluster/net"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
-// ConversationAuthorityRPCServiceID is the clusterv2 RPC service for UID conversation authority calls.
+// ConversationAuthorityRPCServiceID is the cluster RPC service for UID conversation authority calls.
 const ConversationAuthorityRPCServiceID uint8 = clusternet.RPCConversationAuthority
 
 // HandleConversationAuthorityRPC handles one encoded conversation authority RPC payload.

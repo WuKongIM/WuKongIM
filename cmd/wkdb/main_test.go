@@ -11,12 +11,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/db"
 	"github.com/WuKongIM/WuKongIM/pkg/db/inspect"
 	msgdb "github.com/WuKongIM/WuKongIM/pkg/db/message"
 	"github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/db/transfer"
+	"github.com/WuKongIM/WuKongIM/pkg/legacy/cluster"
 )
 
 func TestRunRejectsUnknownCommand(t *testing.T) {

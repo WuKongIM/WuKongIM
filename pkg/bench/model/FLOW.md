@@ -10,7 +10,7 @@ package.
 ## Boundaries
 
 - Keep this package as data model and lightweight parsing helpers only.
-- Do not import `internal`, `internalv2`, `pkg/cluster`, `pkg/clusterv2`, or
+- Do not import `internal`, `internalv2`, `pkg/cluster`, `pkg/cluster`, or
   server runtime packages from here.
 - Keep exported fields documented because these structs define config, YAML,
   JSON, and HTTP API contracts.

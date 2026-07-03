@@ -22,6 +22,6 @@ This package contains opt-in gofail-backed internalv2 dynamic-node fault tests.
 ## Running
 
 ```bash
-scripts/build-gofail-binary.sh --cmd ./cmd/wukongim --package internalv2/usecase/management --package pkg/controller --package pkg/clusterv2/tasks --package pkg/clusterv2/net --out /tmp/wukongim-gofail
+scripts/build-gofail-binary.sh --cmd ./cmd/wukongim --package internalv2/usecase/management --package pkg/controller --package pkg/cluster/tasks --package pkg/cluster/net --out /tmp/wukongim-gofail
 WK_E2E_BINARY=/tmp/wukongim-gofail WK_E2EV2_GOFAIL_DYNAMIC_NODE=1 GOWORK=off go test -tags=e2e ./test/e2ev2/cluster/dynamic_node_faults -count=1 -timeout 15m -p=1
 ```

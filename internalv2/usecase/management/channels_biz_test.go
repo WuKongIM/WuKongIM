@@ -6,8 +6,8 @@ import (
 	"hash/crc32"
 	"testing"
 
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/routing"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/routing"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 

@@ -1,614 +1,506 @@
-# pkg/cluster 流程文档
+# pkg/cluster Flow
 
-## 1. 职责定位
+## Responsibility
 
-分布式集群编排层。负责 Multi-Raft Slot 的生命周期管理、请求路由与 Leader 转发、Controller 协调（选举 / 任务分配 / 调和）、Hash Slot 迁移调度。
-**不负责**: 单个 Raft Group 内部共识（由 `slot/multiraft` 负责）、元数据状态机与存储（由 `slot/fsm` + `slot/meta` 负责）、Controller 决策逻辑（由 `controller/plane` 负责）、跨节点 durable send 寻址 / 重路由（由 `internal/runtime/channelplane` 负责）。
+`pkg/cluster` is the promoted cluster runtime composition root. It wires ControllerV2 state, Slot Multi-Raft metadata storage, typed node RPC, and ChannelV2 log replication behind a small public API.
 
-## 2. 核心组件分工
+The root `Node` stays thin: it owns lifecycle, readiness, public API delegation, and snapshot fan-out only. Foreground routing, Slot propose, ChannelV2 replication, Controller state mapping, and node RPC each live in focused subpackages.
 
-| 组件 | 入口/核心类型 | 职责 |
-|------|-------------|------|
-| `Cluster` | `cluster.go:59` | 主入口：聚合所有资源、启动/停止生命周期 |
-| `Router` | `router.go:9` | 请求路由：CRC32 → HashSlot → 物理 SlotID → Leader 查询 |
-| `slotAgent` | `agent.go:21` | 节点代理：心跳上报、同步分配、触发调和 |
-| `reconciler` | `reconciler.go:13` | 分配调和器：确保本地 Slot、加载/执行任务、关闭多余 Slot |
-| `slotManager` | `slot_manager.go:12` | Slot 管理：ensureLocal / changeConfig / transferLeadership / waitForCatchUp |
-| `slotExecutor` | `slot_executor.go:11` | 任务执行器：Bootstrap / Repair / Rebalance 的成员变更分步执行，以及 LeaderTransfer 的安全校验与领导权转移 |
-| `controllerClient` | `controller_client.go:31` | Controller RPC 客户端：Leader 发现 + 重试 + 读写操作 |
-| `controllerHandler` | `controller_handler.go:12` | Controller RPC 服务端：请求分发到 Propose / Meta 查询 |
-| `controllerHost` | `controller_host.go` | Controller 本地宿主：管理 Controller Raft + 状态机 + 元数据库 + leader-local observation cache / delta snapshot / planner dirty wake |
-| `runtimeObservationReporter` | `runtime_observation_reporter.go` | 本地 runtime 镜像：扫描 cached status、生成 dirty delta / tombstone / full sync |
-| `observerLoop` / `signalLoop` | `observer.go` | 周期 / 事件驱动循环基础设施；当前拆成 heartbeat / runtime scan / slow sync / planner safety / migration progress / wake loops |
+## Source Reading Path
 
-## 3. 对外接口
+- Start with `api.go`, `config.go`, and `node.go` for the public surface.
+- Read `node_lifecycle.go`, `node_defaults.go`, `node_snapshot.go`, and `node_loops.go` for root runtime wiring details.
+- Read `default_slots.go`, `default_slot_leaders.go`, and `default_slot_proposer.go` for the default Slot path.
+- Root `Node` tests follow the same split: lifecycle, defaults, snapshot, channel, and shared helpers.
+- In `channels`, read `service.go` first, then `meta.go`, `slot_meta.go`, `placement.go`, and `transport.go`.
+- In `control`, `snapshot.go` is the read model, while `snapshot_validate.go` and `snapshot_clone.go` hold model mechanics.
 
-```go
-// api.go — 业务层唯一入口
-API.Start() / Stop()
-API.NodeID() / IsLocal(nodeID)
-API.SlotForKey(key) / HashSlotForKey(key) / HashSlotsOf(slotID) / HashSlotTableVersion() / ControllerLeaderID()
-API.LeaderOf(slotID) / Propose(ctx, slotID, cmd)
-API.SlotIDs() / PeersForSlot(slotID)  // SlotIDs 优先返回 assignment/hash-slot table 中的动态物理 Slot，最后才回退 InitialSlotCount
-API.ListNodes(ctx) / ListNodesStrict(ctx)
-API.ListTasks(ctx) / ListTasksStrict(ctx)
-API.WaitForManagedSlotsReady(ctx)
+## Package Boundaries
 
-// 运维操作 — operator.go
-API.ListSlotAssignments(ctx) / ListSlotAssignmentsStrict(ctx) / ListActiveMigrationsStrict(ctx)
-API.ListObservedRuntimeViews(ctx) / ListObservedRuntimeViewsStrict(ctx)
-API.SlotLogStatusOnNode(ctx, nodeID, slotID)  // 读取某节点某 Slot 的 Raft commit/applied watermark；本地走 runtime.Status，远程走 managed-slot status RPC
-API.SlotLogEntriesOnNode(ctx, nodeID, slotID, opts)  // 读取某节点某 Slot 的本地 Raft log entry 摘要页；本地读 Slot storage，远程走 managed-slot logs RPC
-API.CompactSlotRaftLogOnNode(ctx, nodeID, slotID)  // 触发某节点某 Slot 的本地 Raft log compaction；本地走 Runtime.CompactLog，远程走 managed-slot compact RPC
-API.ControllerRaftStatusOnNode(ctx, nodeID)  // 读取目标节点本地 Controller Raft 状态；本地合并 Service.Status 与 durable raftlog indexes，远程直连目标节点 Controller RPC
-API.GetReconcileTask(ctx, slotID) / GetReconcileTaskStrict(ctx, slotID) / ForceReconcile(ctx, slotID)
-API.MarkNodeDraining(ctx, nodeID) / ResumeNode(ctx, nodeID)
-API.TransferSlotLeader(ctx, slotID, nodeID) / RecoverSlot(ctx, slotID, strategy) / RecoverSlotStrict(ctx, slotID, strategy)
-API.TransportPoolStats()
-Cluster.AddSlot(ctx) / RemoveSlot(ctx, slotID) / Rebalance(ctx)
-API.ListNodeOnboardingCandidates(ctx)
-API.CreateNodeOnboardingPlan(ctx, targetNodeID, retryOfJobID)
-API.StartNodeOnboardingJob(ctx, jobID)
-API.ListNodeOnboardingJobs(ctx, limit, cursor) / GetNodeOnboardingJob(ctx, jobID) / RetryNodeOnboardingJob(ctx, jobID)
+| Package | Responsibility |
+|---------|----------------|
+| `control` | Controller abstraction, root ControllerV2 facade adapter, snapshot adapter, Raft RPC, and state sync RPC. |
+| `routing` | Atomic HashSlot -> Slot -> Leader read model for hot paths. |
+| `net` | Typed node-to-node RPC and discovery glue; Go package name is `clusternet`. |
+| `slots` | Slot Multi-Raft runtime open/bootstrap/reconcile/status. |
+| `propose` | Slot metadata propose path and leader forwarding. |
+| `channels` | ChannelV2 service construction, metadata resolve/ensure, append leader forwarding, replication transport, and channel migration planning/execution primitives. |
+| `observe` | Low-frequency background loops and readiness snapshots. |
 
-// 传输层 — 共享给业务层注册额外 Handler
-API.Server() / RPCMux() / Discovery() / RPCService(ctx, nodeID, slotID, serviceID, payload)
+## Route Authority And Node RPC Surface
+
+`Node.RegisterRPC` and `Node.CallRPC` expose a narrow typed node-to-node RPC
+surface for upper-layer internalv2 adapters. Handlers registered before the
+default transport starts are replayed during transport construction; later
+registrations are installed idempotently. Internalv2 delivery uses this surface
+for owner-node push RPC and partition-leader fanout RPC; cluster only routes
+the payload and does not inspect delivery DTOs. Internalv2 manager connection
+pages also use this surface to read owner-node online connection inventory from
+peer nodes without adding manager-specific logic to cluster. Internalv2
+manager distributed log pages use the same surface to ask a selected peer to
+read its own local Controller or Slot Raft log page, and manager channel list
+pages use it to ask a selected peer to scan its local Slot metadata pages.
+Internalv2 manager Controller Raft status and manual compaction use the same
+surface for node-scoped operations; cluster exposes only the selected node's
+local operation and does not fan out or interpret manager policy. Internalv2
+manager Slot Raft manual compaction uses the same node-scoped surface through
+`Node.LocalCompactSlotRaftLog`, which delegates only to the selected node's
+local Slot Multi-Raft runtime. Internalv2 manager message retention forwarding
+uses the same surface to carry one logical ChannelV2 compaction-boundary
+request to the channel leader; cluster transports the payload only, while the
+receiving leader revalidates runtime metadata and Slot metadata fences.
+Internalv2 seed-join and readiness probes also use this typed RPC surface:
+cluster routes `RPCNodeLifecycle` payloads only, and the app-level node RPC
+adapter validates join tokens, cluster IDs, and management lifecycle policy.
+Manager Slot leader transfer enters cluster through
+`Node.RequestSlotLeaderTransfer`, which only foreground-checks and delegates
+the already-validated intent to the control runtime. When the
+receiving node is not the Controller leader, the existing control task RPC
+forwarding path carries the creation request to the Controller leader.
+Lifecycle write primitives for node join, activation, scale-in leaving, and
+future removed tombstone operations enter cluster through `Node.JoinNode`,
+`Node.ActivateNode`, `Node.MarkNodeLeaving`, `Node.MarkNodeRemoved`, and
+`Node.PromoteControllerVoter`, which only foreground-check and delegate the
+validated lifecycle or Controller voter intent to the control runtime.
+Target-side Controller voter preparation enters through
+`Node.PrepareControllerVoter`, which foreground-checks and delegates to the
+local ControllerV2 runtime so the internalv2 app can obtain live Raft proof
+from the same production cluster facade.
+`PromoteControllerVoter` finalizes an already live-proven Controller Raft voter
+promotion by transporting the previous voter fence plus observed Raft config
+index and voter set; target-side mirror preparation stays outside this
+cluster final write. Drain safety for removal stays in upper management
+usecases; cluster only exposes the lower-level lifecycle primitive. The
+`removed` state remains a durable control-plane tombstone; cluster does not
+physically delete node identity or decide that a leaving node is safe to remove.
+`MarkNodeRemoved` transports an optional `state_revision` fence supplied by the
+management safe-to-remove check to ControllerV2, but it does not compute that
+safety itself. The fence guards changed remove writes; already-removed
+tombstones remain idempotent in ControllerV2. Non-leader Controller runtimes
+forward those writes through the generic control-write RPC path as `join_node`,
+`activate_node`, `mark_node_leaving`, `mark_node_removed`, or
+`promote_controller_voter`.
+Staged Slot replica move intent enters cluster through
+`Node.RequestSlotReplicaMove`, which only foreground-checks and delegates the
+already-planned intent to the control runtime. It uses the same generic
+control-write path: the cluster control runtime forwards `slot_replica_move`
+creation to the Controller leader and keeps the durable assignment unchanged
+until the later ControllerV2 commit command. The
+default transport-backed
+typed RPC client uses a larger per-priority write queue than the generic
+transport default so short foreground RPC fanout bursts are absorbed before
+local enqueue backpressure is returned to the send path. It also opens multiple
+outbound connections per peer and shards typed RPCs by service class, keeping
+foreground ChannelV2 append forwarding off the same connection used by follower
+pull and pull-hint traffic.
+
+`WatchRouteAuthorities` publishes hash-slot authority changes derived from the
+installed routing table. Each `RouteAuthority` carries
+`(HashSlot, SlotID, LeaderNodeID, LeaderTerm, ConfigEpoch, RouteRevision,
+AuthorityEpoch)`. `LeaderTerm` comes from the observed Slot Raft leader and
+`ConfigEpoch` comes from the control-plane Slot assignment, so upper layers can
+use `(HashSlot, SlotID, LeaderNodeID, LeaderTerm, ConfigEpoch)` as the
+distributed authority identity. `AuthorityEpoch` is only a node-local
+observation sequence retained for diagnostics and compatibility; it must not be
+used as a distributed fence. `RouteKey`, `RouteKeys`, and `RouteHashSlot`
+include the distributed identity fields plus the local epoch. `RouteKeys`
+resolves all keys against one installed routing snapshot and returns results in
+input order, allowing upper layers to batch UID authority lookups without
+repeatedly loading the foreground route table. Real publication paths remember
+the last distributed identity published per hash slot and suppress duplicate
+events for the same `(SlotID, LeaderNodeID, LeaderTerm, ConfigEpoch)`, so a
+local `AuthorityEpoch` is not manufactured for already-published identities.
+Default Slot leader observation
+treats `Leader=0` as an unknown observation and keeps the last known non-zero
+Slot leader and term in the foreground router until a new non-zero leader is
+observed. This prevents transient Raft status gaps from briefly removing an
+otherwise valid route; stale leaders are still fenced by downstream Slot/Channel
+leadership checks.
+
+## Start Flow
+
+```text
+New(Config)
+  -> validate v2-only config
+  -> create Router and Discovery
+  -> apply optional WithProposer / WithChannels overrides
+
+Start(ctx)
+  -> initialize default node RPC transport / ControllerV2 runtime / proposer / ChannelV2 service when no override was provided
+  -> initialize a real Slot Multi-Raft runtime for default propose
+  -> seed node RPC discovery from configured Controller voters, or from seed-join
+     seed addresses for mirror nodes, until the first control snapshot arrives
+  -> start default transport and injected lifecycle resources
+  -> start ControllerV2-backed Controller or injected Controller
+  -> wait for a valid initial control snapshot
+  -> routing.UpdateControlSnapshot(snapshot)
+  -> discovery.Update(control node addresses plus seed-join seed addresses when configured)
+  -> slots.Reconcile(snapshot)
+  -> start Controller watch loop for later snapshots
+  -> start the default Slot leader observation loop when the default Slot runtime is active
+  -> mark ChannelV2 ready and start the tick loop
+  -> mark node started
+  -> start low-frequency ControllerV2 health reporting
+  -> start ChannelV2 physical retention cleanup loop when enabled
+  -> start the bounded ChannelV2 migration executor/repair scanner loop when enabled
 ```
 
-`ListActiveMigrationsStrict` 先执行严格的 Controller leader assignment/hash-slot table 刷新，再从刷新后的路由表读取 active migrations。
-`ListObservedRuntimeViewsStrict` 在本地或远端 Controller leader observation warmup 未完成时会 fail closed 返回 `ErrObservationNotReady`，调用方不能回退到本地非严格缓存作为安全判断依据。
-Controller metrics 通过 ObserverHooks 记录 `leader_transfer` 任务结果（含 `safety_check`），并在 metrics refresh 时根据 observed runtime view 计算 Slot leader skew。
+`Start` requires cluster semantics even for one node. A single-node cluster uses a ControllerV2-backed single-voter control runtime instead of a bypass path. Multi-voter default startup uses `pkg/transportv2` one-way service messages for ControllerV2 Raft traffic and RPC responses only for state-sync requests. The ControllerV2 Raft receive handler bounds local `Step` enqueue time and may drop messages when the local Step queue is saturated; Raft retransmission is relied on instead of allowing one-way notify goroutines to accumulate indefinitely.
 
-## 4. 关键类型
+`Node.Start` only establishes local-node readiness: the node has a valid local control snapshot, installed routes, reconciled local Slot runtime state, and started local ChannelV2 resources. Package tests use `WaitClusterReady` for converged local control snapshots, and tests that specifically require distributed Controller write readiness should add the separate Controller proposal probe gate. Slot and Channel append tests should add their own Slot leader or Channel metadata gates when those paths are part of the assertion. `ProbeWriteReady` is the foreground app gate: it verifies all hash slots have leaders, refreshes health-only control snapshots when ChannelV2 placement candidates are stale, verifies ChannelV2 has enough health-schedulable data nodes to create new channel placement, runs a bounded representative Slot metadata write probe, and refreshes the node-local ChannelV2 data-plane lease after the probe succeeds.
 
-| 类型 | 文件 | 说明 |
-|------|------|------|
-| `Cluster` | cluster.go:59 | 核心结构体，聚合传输/Controller/Agent/ManagedSlot/迁移等全部资源 |
-| `Config` | config.go:32 | 配置容器：NodeID, ListenAddr, InitialSlotCount/SlotCount(仅初始 bootstrap seed), HashSlotCount, EnableHashSlotMigration(默认关闭的实验性 hash-slot 迁移开关), 工厂函数, 超时参数, Observer / TransportObserver 等；其中 TransportObserver 用于汇聚传输层 bytes / dial / enqueue / RPC client 可观测信号 |
-| `Timeouts` | config.go:59 | 控制器请求 / 重试预算 + observation cadence：heartbeat、runtime scan、slow sync、planner safety、planner wake debounce 等 |
-| `Router` | router.go:9 | 路由器：持有 HashSlotTable(atomic), 负责 key→slot→leader 映射 |
-| `HashSlotTable` | hashslottable.go | Hash Slot 路由表：hashSlot→物理SlotID 映射 + 迁移状态 |
-| `slotAgent` | agent.go:21 | 节点代理：持有 Cluster + controllerAPI + assignmentCache |
-| `reconciler` | reconciler.go:13 | 调和器：驱动 ensureLocal + loadTasks + executeTask + reportResult |
-| `slotManager` | slot_manager.go:12 | Slot 管理器：ensureLocal/changeConfig/transferLeadership/waitForCatchUp/statusOnNode |
-| `slotExecutor` | slot_executor.go:11 | 任务执行器：根据 TaskKind 分步执行 Bootstrap/Repair/Rebalance；LeaderTransfer 只做领导权转移且不改变成员 |
-| `controllerAPI` | controller_client.go:14 | Controller 客户端接口：Report/ListNodes/RefreshAssignments/迁移操作等 14 个方法 |
-| `controllerClient` | controller_client.go:31 | controllerAPI 实现：Leader 缓存 + 逐 peer 探测 + 重定向跟随 |
-| `assignmentCache` | assignment_cache.go | 分配缓存：slotID → desiredPeers 映射，原子快照 |
-| `runtimeState` | runtime_state.go | 运行时状态：slotID → 当前 peers 映射（线程安全） |
-| `runtimeObservationReporter` | runtime_observation_reporter.go | 节点侧 runtime 增量上报器：mirror / dirtyViews / closedSlots / needFullSync |
-| `observationCache` | observation_cache.go | leader-local 观测缓存：节点心跳 + `runtimeViewsByNode` 聚合视图 + TTL 淘汰 |
-| `ObserverHooks` | config.go:71 | 可观测钩子：OnControllerCall / OnControllerDecision / OnReconcileStep / OnForwardPropose / OnSlotEnsure / OnTaskResult / OnHashSlotMigration / OnLeaderChange / OnNodeStatusChange；LeaderTransfer 任务名输出为 `leader_transfer`，安全校验失败输出为 `safety_check` |
-| `NodeOnboardingCandidate` | onboarding.go | 管理后台扩容候选节点：节点状态、当前 Slot replica 数、leader 数、是否推荐 |
+Seed-join mirror nodes keep `Config.Control.Voters` empty so they do not become
+Controller voters before admission. During default runtime wiring, the
+configured `Join.Seeds` addresses are converted into temporary state-sync peer
+IDs used only for transport discovery and ControllerV2 mirror sync. After the
+first real control snapshot arrives, normal membership discovery is installed
+while those seed peers remain available for later mirror refreshes.
+Once a seed-join mirror sees its own membership state become `active`, it still
+does not host Slot replicas in Stage 2. It therefore refreshes foreground Slot
+routes by batching `RPCSlotStatus` reads to the existing desired Slot peers and
+installing the observed actual leader and term. While the mirrored local state
+is still `joining`, it does not install preferred leaders and public readiness
+continues to be activation-only.
 
-## 5. 核心流程
+Controller changes enter cluster as strongly typed `controller.ClusterState` events. `pkg/cluster/control` maps those events to `control.Snapshot`; `Node` then compares node, Slot, task, and hash-slot domains before touching discovery, Slot runtime reconciliation, or foreground routing.
 
-### 5.1 启动
+When a control snapshot contains active bootstrap, leader-transfer, or staged
+slot-replica-move tasks, the Node runs task executors after Slot
+reconciliation. Executors only report participant progress, fenced phase
+advancement, fenced commit, or fenced completion through the control task
+writer facade; they do not mutate ControllerV2 state directly. Task and
+generic control writes from non-leader Controller runtimes, including
+`PromoteControllerVoter`, are forwarded to the current Controller leader.
+Leader-transfer execution calls Slot Raft `TransferLeadership` from
+the current Slot leader and completes once the observed actual leader is any
+legal non-source Slot Raft leader; the requested `target_node` is preferred,
+not a strict completion requirement. Slot replica movement first opens the
+target's local learner runtime, then advances Slot Raft membership through
+add-learner, promote-learner, remove-voter, and finally commits the durable
+assignment only after observed voters match the target peer set.
 
-入口: `cluster.go:128 Start`
+`Config.Control.RaftObserver` is passed through to the default ControllerV2
+runtime so composition roots can expose Controller Raft ingress queue metrics
+without changing control-plane semantics.
+`Config.Control.TaskTransitionObserver` is also passed through to the default
+ControllerV2 runtime. Clusterv2 only transports the already-durable task edges;
+it does not store audit history, inspect legacy `pkg/controller` state, or
+reinterpret task lifecycle policy.
 
-```
-NewCluster(cfg):
-  ① cfg.applyDefaults() → cfg.validate()
-  ② 创建 Router(默认 HashSlotTable), runtimeState, assignmentCache, slotManager, slotExecutor
+Default ChannelV2 message, Slot metadata, and Slot Raft Pebble-backed stores
+are exposed through `Node.StorageMetricsSnapshot` as low-cardinality
+`channel_log`, `meta`, and `raft` snapshots. Pebble types remain behind the
+storage packages; cluster only publishes the neutral metrics shape used by
+composition roots.
 
-Start():
-  ③ startTransportLayer():
-     使用 Cluster-owned DynamicDiscovery → Server → 注册 Raft / RPC Handler:
-       msgTypeRaft       → handleRaftMessage
-       msgTypeRaftBatch  → handleRaftBatchMessage
-       msgTypeRaftSnapshotChunk → handleRaftSnapshotChunkMessage
-       rpcServiceForward → handleForwardRPC
-       rpcServiceController → handleControllerRPC
-       rpcServiceManagedSlot → handleManagedSlotRPC
-       同一目标节点上的 Slot Raft envelope 会合并成 msgTypeRaftBatch 发送，接收端按 batch item 逐条 Step 到对应 Slot。
-       超过单帧预算的 Slot Raft MsgSnap 不进入 batch；发送端拆成 msgTypeRaftSnapshotChunk，接收端重组成原始 MsgSnap 后再 Step。
-     创建 raftPool + rpcPool + controllerPool → raftClient + fwdClient + controllerRPCClient
-     Server / Pool 通过 Config.TransportObserver 上报 transport send/receive bytes、dial / enqueue 结果，以及 RPC client 调用结果 / 时延 / inflight
-     Cluster.TransportPoolStats() 在观测刷新时聚合 raftPool/rpcPool/controllerPool 的 active/idle 连接数
-     controller RPC 使用独立 controllerPool，避免被业务 forward / managed-slot RPC 队列阻塞
-  ④ startControllerRaftIfLocalPeer():
-     条件: ControllerEnabled() && HasLocalControllerPeer()
-     → newControllerHost(cfg, transport)
-       Controller Raft log opens with `ControllerRaftSnapshotPath` plus shared snapshot chunk size / GC grace so snapshot payload bytes live in external chunk files, not the Pebble log DB.
-     → ensureControllerHashSlotTable → 加载或创建默认 HashSlotTable
-     → host.storeHashSlotTableSnapshot(table) 预热 leader-local HashSlot snapshot
-     → router.UpdateHashSlotTable
-     → host.Start()
-       Controller Raft 使用独立的 transport message type，必须避免与 Slot Raft / observation hint 冲突；
-       入站 Controller Raft frame 只接受 To=local 且 From!=local 的消息，避免 stale discovery / loopback 帧进入 RawNode。
-  ⑤ startMultiraftRuntime():
-     → multiraft.New(nodeID, tickInterval, workers, raftTransport, SlotLogCompaction)
-     → 绑定 Router.runtime
-  ⑥ startControllerClient():
-     条件: ControllerEnabled()
-     → newHashSlotMigrationWorker()
-     → newControllerClient(static controller peers 或 join seeds, cache)
-     → join mode 且本节点不在静态 Nodes 中时，先 JoinCluster（携带 NodeID / Node.Name / AdvertiseAddr / token / version），校验响应包含本节点且地址匹配后，作为 data worker 更新 discovery / HashSlotTable / controller client peers（不变更 Controller voter 集合）
-     → onLeaderChange 时通知 runtimeObservationReporter.requestFullSync()
-     → 创建 slotAgent{cluster, client, cache}
-     Controller client 的只读 RPC（list_nodes / list_assignments / list_runtime_views / list_tasks）遇到 not leader /
-     no leader / deadline exceeded 时按 DEBUG 记录，避免启动选主或 failover 期间把可重试读抬成 ERROR。
-  ⑦ startObservationLoop():
-     条件: controllerClient != nil
-     → 创建 runtimeObservationReporter
-     → 周期 ObservationHeartbeatInterval 启动 heartbeatLoop（仅 node heartbeat）
-     → 周期 ObservationRuntimeScanInterval 启动 runtimeObservationLoop（delta scan + runtime_report flush）
-     → signalLoop 监听 observationHint → wakeReconcileLoop（按 hint 触发 delta sync + reconcile）
-     → 周期 ObservationSlowSyncInterval 启动 slowSyncLoop（hint 丢失时的全量/宽范围自愈）
-     → signalLoop 监听 controllerHost planner dirty wake → plannerWakeLoop
-     → 周期 PlannerSafetyInterval 启动 plannerSafetyLoop（无 wake 时也会兜底评估）
-     → 周期 ControllerObservation 启动 migrationProgressLoop（仅在有 active migration / pending abort 时推进）
-  ⑧ seedLegacySlotsIfConfigured():
-     条件: !ControllerEnabled()（静态部署模式）
-     → 遍历 cfg.Slots → openOrBootstrapSlot (根据持久化状态决定 Open 还是 Bootstrap)
+### Health Report Loop
+
+The node health report loop sends compact runtime evidence through
+`control.ReportNode`: `status`, `runtime_ready`, observed control revision,
+observed Slot revision, and a node-local report sequence. Each report uses a
+bounded per-report context. `runtime_ready` is false while the node is stopping,
+and clean Stop sends one final best-effort bounded not-ready report after the
+periodic loop is canceled and before Controller/watch shutdown. ControllerV2
+fills the leader-side report timestamp, stores the report durably, and control
+snapshots derive `fresh`, `stale`, or `missing` health from the configured TTL.
+The default ChannelV2 runtime also receives a node-local data-plane lease guard.
+A successful health report refreshes the lease only when `runtime_ready` is
+still true, and `ProbeWriteReady` refreshes the same local lease after it proves
+foreground Slot write readiness during startup/readiness gates; final not-ready
+stop reports do not extend foreground append eligibility. Local ChannelV2 leader appends fail closed with
+`channelv2.ErrNotReady` when the lease is missing or older than the configured
+health-report TTL, so a partitioned node that can no longer make itself visible
+to the control plane stops accepting new data-plane writes before stale leaders
+can accumulate divergent log tails. `LocalControlSnapshot` includes the local
+lease timestamp, TTL, and readiness as diagnostics; it is not a distributed
+authority source.
+
+## Stop Flow
+
+```text
+Stop(ctx)
+  -> mark stopping and reject new foreground calls
+  -> stop low-frequency ControllerV2 health reporting
+  -> stop Controller watch loop
+  -> stop ChannelV2 tick loop
+  -> stop ChannelV2 physical retention cleanup loop
+  -> stop ChannelV2 migration executor/repair scanner loop
+  -> close hosted ChannelV2 service
+  -> stop ControllerV2-backed Controller or injected Controller
+  -> stop injected lifecycle resources in reverse order
 ```
 
-### 5.2 写入提案（Propose）
+## Propose Hot Path
 
-入口: `cluster.go:510 Propose` / `cluster.go:519 ProposeWithHashSlot`
-
-```
-调用者: Propose(ctx, slotID, cmd)
-  ① legacyProposeHashSlot(slotID):
-     → router.HashSlotsOf(slotID)
-     → 单 hashSlot 场景直接返回，多 hashSlot 报 ErrHashSlotRequired
-  ② ProposeWithHashSlot(ctx, slotID, hashSlot, cmd)
-     ↓
-ProposeWithHashSlot:
-  ③ encodeProposalPayload(hashSlot, cmd)  // 在 cmd 前附加 2 字节 hashSlot
-  ④ Retry 循环 (ForwardRetryBudget 预算内):
-     a. router.LeaderOf(slotID) → 查询本地 Runtime 的 Leader
-     b. 本地 Leader:
-        runtime.Propose(ctx, slotID, payload) → future.Wait(ctx)
-     c. 远程 Leader:
-        forwardToLeader(ctx, leaderID, slotID, payload)
-          → fwdClient.RPCService(leaderID, rpcServiceForward, payload)
-          → 远端 handleForwardRPC:
-             decodeForwardPayload → runtime.Status(验证 Slot 存在)
-             → runtime.Propose → future.Wait
-             → encodeForwardResp(errCode, data)
-          → 解码响应: OK / NotLeader(重试) / Timeout / NoSlot
-  ⑤ 返回结果 (通过 ObserverHooks.OnForwardPropose 上报)
+```text
+Node.Propose
+  -> propose.Service
+  -> routing.Router atomic table lookup
+  -> encode [version:1][hashSlot:2][command]
+  -> if local leader: SlotRuntime.Propose
+  -> else: clusternet RPCSlotForwardPropose
+  -> remote ForwardHandler re-checks local Slot leadership
+  -> SlotRuntime.Propose
 ```
 
-### 5.3 观测循环（Observation Loop）
+The propose path returns typed not-ready/no-leader/not-leader errors and does not synchronously call Controller APIs.
 
-入口: `cluster.go:startObservationLoop`
+## Slot Metadata Facade Flow
 
-```
-heartbeatLoop 每 ObservationHeartbeatInterval (默认2s) 执行:
+`node_meta.go` exposes small metadata facades used by `internalv2` adapters.
+Channel metadata, subscriber rows, and legacy `channel_latest` rows route by
+channel ID. Subscriber point lookups and subscriber-set non-emptiness reads use
+the same channel-owned Slot metadata route for message permission checks.
+`GetChannelRuntimeMeta` reads authoritative channel runtime metadata from the
+channel's current hash-slot route, and `AdvanceChannelRetentionThroughSeq`
+proposes a fenced Slot FSM command that only advances the channel message
+retention boundary. Manager history deletion must use this metadata advance
+instead of deleting ChannelV2 message rows directly.
+`pkg/cluster/channels.MigrationStore` is the ChannelV2 migration facade at
+this same boundary. It resolves the channel-owned hash slot and physical Slot,
+reads runtime metadata and migration tasks through the hash slot's current Slot
+leader via the `RPCChannelMigrationMeta` reader path, and submits only typed
+migration intents as encoded Slot FSM commands. Non-leader nodes must not make
+migration decisions from their local Slot metadata shard; the RPC target also
+revalidates that its local Slot runtime is still the actual Slot leader before
+serving migration state. When the local Slot runtime already reports actual
+leadership for the routed Slot, migration metadata reads use the local shard
+even if the foreground control route has not yet observed that Slot leader.
+Automatic dead-leader recovery uses `channels.RepairScanner` as a bounded
+RunOnce scheduler primitive over Slot-leader-owned runtime metadata pages. It
+detects stale or unschedulable ChannelV2 leaders from the control snapshot,
+probes surviving ISR replicas, checks duplicate active migration tasks in the
+same hash-slot shard that produced the scanned runtime metadata row, asks
+`FailoverPlanner` for a safe target, and creates `leader_failover` migration
+tasks through `MigrationStore`. The hash-slot-scoped active check avoids
+re-routing scanner work through a stale foreground Slot leader after failover.
+A failover task sets `WriteFenceReasonFailover` and uses the target replica's
+committed HW as the cutover proof; it does not drain the unavailable source
+leader.
+After leader recovery is ruled out for a channel, the same scanner asks
+`ReplicaRepairPlanner` whether an unhealthy non-leader replica can be replaced.
+Follower repair only creates a `replica_replace` task when the remaining
+health-schedulable ISR still satisfies `MinISR` and a replacement node passes
+the same placement predicate used for new ChannelV2 channels. If the source
+replica has already fallen out of ISR, Slot metadata commands may still add the
+learner and later promote it, but only while the current ISR already satisfies
+`MinISR`; the promote step appends the target to ISR while removing the source
+from replicas.
+Channel migration execution keeps one durable operation order. Manual leader
+transfer validates metadata, proves the target follower, sets the task-owned
+write fence, drains the source leader, waits for final target catch-up, commits
+leader metadata, verifies the new leader runtime, and only then clears the
+fence. Automatic leader failover uses the same fenced commit/verify/clear tail
+but skips source drain and synthesizes the cutover proof from the selected
+target replica because the old leader is considered unavailable. Replica
+replacement validates the non-leader source, adds the target learner, applies
+the updated runtime metadata to the current leader and target runtime before
+waiting for warm catch-up, sets the write fence, reapplies the fenced runtime
+metadata to the current leader and target before draining the current leader for
+a cutover proof, waits for final target catch-up, promotes the learner while
+removing the source, applies the final runtime metadata to the current leader
+and target before verifying membership, and clears the fence. Any blocked phase
+is persisted on the task before observer events are emitted.
+`MigrationObserver` and `RepairObserver` are low-cardinality hooks for app-level
+metrics. Migration observations include active task count, active write-fence
+count, phase duration, blocked reason, and write-fence duration. Repair-scan
+observations include pages scanned, blocked backlog, failover result, and
+replica-repair result. Observers must aggregate by bounded kind/phase/reason or
+result only; task IDs, channel IDs, node addresses, and UIDs are not metric
+labels.
+Default hosting starts the bounded migration executor/repair scanner loop unless
+`Config.ChannelMigration.Enabled` is explicitly false. Each tick runs at most the
+configured number of task executor steps and Slot-owned runtime-meta scan pages,
+so failover and repair work cannot turn into an unbounded foreground SEND tax.
+Internalv2 callers should use this facade instead of depending on Slot FSM
+command payloads or unscoped migration table reads. `Node.ChannelMigrationStore`
+exposes the hosted facade for internalv2 app wiring and returns nil when the
+hosted ChannelV2 service does not provide manual migration task management.
+Physical message cleanup is a separate node-local background loop and is
+disabled by default. One `RunChannelRetentionGCOnce` pass reads a bounded page
+from the local message catalog, loads the authoritative Slot metadata boundary,
+and delegates boundary adoption plus physical trim safety checks to the
+ChannelV2 retention runtime. The Node loop only keeps the catalog cursor and
+per-pass counts; HW/checkpoint/LEO/MinISR consistency remains inside ChannelV2.
+`UpsertChannelLatestBatch` first resolves each channel's real hash slot, then
+groups rows by physical Slot and submits bounded batch commands carrying
+per-row hash slots. `ScanChannelsSlotPage`,
+`ScanChannelRuntimeMetaSlotPage`, and `ScanUsersSlotPage` are read-only manager
+facades that scan metadata rows owned by one physical Slot, merging the Slot's
+hash-slot shards into one legacy-compatible ordered page.
 
-heartbeatOnce(ctx):
-  ① agent.HeartbeatOnce(ctx):
-     → client.Report(nodeStatus)  // 仅上报节点心跳；地址优先使用 AdvertiseAddr，其次使用本节点 WK_CLUSTER_NODES 静态地址，避免把监听绑定地址写回 membership
-     → 响应中携带 HashSlotTable → applyHashSlotTablePayload 更新 Router + 状态机
-     → Controller Leader 本地只更新 `observationCache.nodes` / `nodeHealthScheduler`
-       steady-state heartbeat 不再夹带 per-slot RuntimeView
-       heartbeat 返回的 HashSlotTable 优先读 `controllerHost` 的 leader-local snapshot
-       snapshot miss 时才 fallback `controllerMeta.LoadHashSlotTable()`
-     → 当 `nodeHealthScheduler` 触发 `NodeStatusUpdate` 并被 controller leader 提交后，
-       `controllerHost.handleCommittedCommand()` 会通过 `ObserverHooks.OnNodeStatusChange`
-       向上游发布 node status 变更
+UID-owned reverse tables route by UID. `UpsertUserChannelMemberships` and
+`DeleteUserChannelMemberships` group the requested UIDs by `RouteKey(uid)` hash
+slot and submit one Slot proposal per touched hash slot. Reads such as
+`ListUserChannelMembershipPage` also route by UID and read the current local
+metadata shard for that UID hash slot.
 
-runtimeObservationLoop 每 ObservationRuntimeScanInterval (默认1s) 执行:
+Plugin binding rows are UID-owned for writes and Receive hook lookups.
+`BindPluginUser`, `UnbindPluginUser`, and `ListPluginBindingsByUID` route by
+UID hash slot. `ListPluginBindingsByPluginNo` is the plugin-centric manager
+scan path: it walks the installed hash-slot route table, asks each hash slot's
+current Slot leader for one `plugin_binding` secondary-index candidate, merges
+those candidates by UID with a heap, and returns an opaque cursor carrying the
+last emitted `(plugin_no, uid)`. The scan never reads only the manager node's
+local DB as a cluster-wide answer, and it does not materialize all bindings for
+one plugin before paging.
 
-runtimeObservationOnce(ctx):
-  ① runtimeObservationReporter.tick(ctx)
-     → snapshotRuntimeObservationViews():
-        遍历 runtime.Slots() → runtime.Status(slotID) → buildRuntimeView
-     → 与 mirror 对比：
-        - LeaderID / CurrentPeers / CurrentVoters / HealthyVoters / HasQuorum / ObservedConfigEpoch 变化 → dirtyViews
-        - deleteRuntimePeers(slotID) → closedSlots tombstone
-     → 若无 dirty / tombstone 且未到 full sync 周期 → 不发 controller RPC
-     → flush 成功后更新本地 mirror，失败则保留 dirty 状态
-     → leader redirect / leader change / 定期自愈 时发送 `FullSync=true`
+Kind-aware UID-owned conversation rows are the active recent-conversation path.
+`UpsertConversationStatesBatch`, `TouchConversationActiveAtBatch`, and
+`HideConversationsBatch` route each row by `RouteKey(uid)`, group rows by
+physical Slot, and submit bounded Slot FSM commands that carry each row's real
+UID hash slot plus its `ConversationKind`. `TouchConversationActiveAtBatch`
+marks those proposals as background admission work because they are retryable
+active-cache projection flushes; user-facing UID metadata writes keep the
+default foreground class. The Slot FSM then applies each conversation state,
+active patch, or delete barrier to that UID-owned hash slot and logical kind,
+preserving `SparseActive`, read/delete visibility floors, and the active
+ordering anchor in one metadata mutation. Hide requests advance `DeletedToSeq`
+and clear `active_at` through the same Slot ownership path. Reads such as
+`GetConversationState`, `GetConversationStates`, and
+`ListConversationActivePage` route by UID and require a
+`ConversationKind` so normal and CMD projections stay isolated. Active pages
+scan the local conversation active index for that UID hash slot and selected
+kind with the `(active_at, channel_id, channel_type)` cursor; kind is part of
+the scan scope, not the cursor. Legacy `channel_latest` remains a channel-owned
+projection for old callers and is not the recent-conversation active path.
 
-wakeReconcileLoop（signalLoop，收到 hint 时立即执行）:
-  ① follower 收到 `msgTypeObservationHint`
-     → decodeObservationHint → `wakeState.observeHint(...)`
-     → cluster.signalObservationWake() 唤醒 wake loop
-  ② wakeReconcileOnce(ctx):
-     → takePending() 取出 coalesced hint
-     → `agent.SyncObservationDelta(ctx, hint)`
-        - 调用 controller RPC `fetch_observation_delta`
-        - 带上 follower 已应用的 revisions / leader generation / affected slots
-        - leader 按 revision 返回增量，必要时 fallback full sync
-     → applyObservationDelta:
-        - 更新 follower 本地 assignments / tasks / nodes / runtime views cache
-        - 若本次包含 node 变化或 full sync，用合并后的完整 nodes cache 刷新 DynamicDiscovery
-        - 记录本次 delta 的 scoped reconcile slots（若 delta 不含 nodes 变化）
-        - 对 `delta.Nodes` 做状态 diff；除 controller leader 外的节点都通过
-          `ObserverHooks.OnNodeStatusChange` 感知 node status 变更
-     → `agent.ApplyAssignments(ctx)` → `reconciler.Tick(ctx)` [见 5.4]
-     → `observeHashSlotMigrations(ctx)` [见 5.7]
+## ChannelV2 Flow
 
-slowSyncLoop（周期兜底）:
-  ① slowSyncOnce(ctx):
-     → 即使没有 hint，也调用 `agent.SyncObservationDelta(ctx, observationHint{})`
-     → 以空 scope 请求 leader 当前 revision，对 dropped hint / missed wake 做低频修复
-     → 成功后继续 `ApplyAssignments + observeHashSlotMigrations`
-
-plannerWakeLoop（signalLoop，controller leader dirty wake）:
-  ① `controllerHost.markPlannerDirty()` 在以下场景置 dirty:
-     - runtime observation report
-     - committed controller command（assignment/task/task-result/migration/operator 等）
-     - leader ownership change
-  ② dirty wake 经过 PlannerWakeDebounce 去抖后发到 plannerWakeLoop
-  ③ plannerWakeOnce(ctx):
-     → `controllerHost.consumePlannerDirty()`
-     → dirty=true 时立即执行 `controllerTickOnce(ctx)`
-
-plannerSafetyLoop（周期兜底）:
-  ① plannerSafetyOnce(ctx):
-     → 无论是否有 dirty wake，都执行一次 `controllerTickOnce(ctx)`
-     → 避免 wake 丢失后 planner 永久不评估
-
-controllerTickOnce(ctx):
-  条件: 本节点是 Controller Leader
-  ① 若 leader 仍处于 warmup（尚未收到当前 leader term 下、覆盖全部 alive 节点的 runtime `FullSync=true`）→ 直接跳过
-  ② snapshotPlannerState:
-     → 优先读 leader-local metadata snapshot (Nodes / Assignments / Tasks)
-       - snapshot `Ready && !Dirty` → 直接使用内存快照
-       - snapshot cold / dirty → fallback `controllerMeta.ListNodes/ListAssignments/ListTasks`
-     → + leader-local observation RuntimeViews
-     → runtime views 来自 `observationCache.runtimeViewsByNode`
-        - `FullSync=true`：替换单个 reporting node 的完整快照
-        - `FullSync=false`：增量 upsert + `ClosedSlots` 删除
-        - snapshot 时按 slot 聚合为 planner 需要的视图
-        - 长期未更新节点通过 coarse TTL 淘汰 zombie runtime view
-  ③ advanceNodeOnboardingOnce(state)
-     → 若存在 running onboarding job，每轮最多推进一个状态转移：
-       - pending move: propose NodeOnboardingJobUpdate，同时写入目标 Assignment + TaskKindRebalance
-       - running move: 等待 Assignment/Runtime 收敛；必要时调用 TransferSlotLeader 后再完成 move
-       - 全部 move 终态成功: 标记 job completed；异常: 标记 failed
-     → 如果本轮已推进 onboarding，直接返回，避免同 tick 再做普通 planner 决策
-  ④ 若仍有 running onboarding job:
-     → state.PauseRebalance=true，暂停普通自动 Rebalance
-     → state.LockedSlots=currentOnboardingLockedSlots，锁住当前 onboarding move 的 Slot
-     → Bootstrap/Repair 仍允许 planner 处理
-  ⑤ planner.NextDecision(state)
-     → 如果有新决策且对应 Slot 无现有任务 → Propose(AssignmentTaskUpdate)
-     → 成功后通过 OnControllerDecision 上报任务类型与决策耗时
-```
-
-### 5.4 分配调和（Reconciliation）
-
-入口: `reconciler.go:21 Tick`
-
-```
-Tick(ctx):
-  ① 快照 assignments
-     → 若上一个 observation delta 提供了 safe scoped slots（仅 slot-scoped 变化、无 node 变化）
-       则只保留受影响 slots；否则走全量 assignments
-  ② 过滤出本节点参与的 desiredLocalSlots
-  ③ listControllerNodes → 获取所有节点状态 (alive/draining/dead)
-     → 若本节点是 Controller Leader 且 metadata snapshot clean，则优先读本地 metadata snapshot
-     → follower steady-state 优先读本地已应用的 observation delta cache
-     → 否则走 controller client / fallback store 原逻辑
-  ④ listRuntimeViews → 获取 leader 观测到的 Slot 运行时视图（leader-local snapshot / follower applied cache）
-  ⑤ 确保本地 Slot:
-     遍历本节点分配:
-       ensureManagedSlotLocal(slotID, desiredPeers, hasView, false)
-       → slotManager.ensureLocal [见 5.5]
-  ⑥ loadTasks:
-     → 先批量读取 Controller Tasks 快照（leader-local metadata snapshot / follower applied cache / controller client `list_tasks` / fallback `controllerMeta.ListTasks`）
-     → 与 pendingTaskReport 合并成 slotID → task map，steady-state 无 task 时不再对每个 Slot 单独 `get_task`
-  ⑦ 保护迁移源 Slot:
-     如果 task 的 SourceNode==本节点 且 kind 为 Repair/Rebalance
-     → 源 Slot 即使不在 desiredLocalSlots 中也需保持打开
-  ⑧ 关闭多余 Slot:
-     遍历 runtime.Slots():
-       scoped reconcile 时仅处理 scoped slots；否则处理全部本地 runtime slots
-       不在 desiredLocalSlots 且不在 protectedSourceSlots → runtime.CloseSlot
-       → deleteRuntimePeers + unregisterRuntimeStateMachine
-  ⑨ 执行任务:
-     遍历 assignments → 取出对应 task:
-       a. reconcileTaskRunnable(now, task): 检查 Pending 或 Retrying+到时间
-       b. shouldExecuteTask: 确定由哪个节点执行
-          - Bootstrap: 若 Task.TargetNode 已设置，则由 TargetNode 执行，用于初始化 Leader 均衡；旧任务无 TargetNode 时回退到 DesiredPeers 中最小 alive NodeID
-          - Repair/Rebalance: SourceNode 优先，否则 Leader 执行
-          - LeaderTransfer: 只信任 live/controller-leader runtime observation；没有 live view 时本轮跳过且不上报任务结果；有 live view 时优先由当前观测且 eligible 的 Leader 执行；若 live Leader 未知或不具备 active data 资格，则由 DesiredPeers 中最小 alive active data 节点作为 deterministic checker 执行并上报安全失败
-          - 其他: DesiredPeers 中最小 NodeID(alive) 执行
-       c. getTask(fresh read) 确认任务仍有效
-       d. executeReconcileTask → slotExecutor.Execute [见 5.6]
-       e. reportTaskResult → Controller 反馈执行结果
-          → 成功后通过 OnTaskResult 上报任务类型与结果
-          失败时存 pendingTaskReport，下轮重试上报
+```text
+Node.AppendChannel / AppendChannelBatch
+  -> channels.Service
+  -> Append: EnsureChannelMeta from append-only ChannelMetaEnsurer when available
+      -> SlotMetaSource reads authoritative ChannelRuntimeMeta from Slot metadata storage
+      -> if missing: derive initial replicas/leader from Slot placement and persist through RuntimeMetaWriter
+      -> reread final authoritative ChannelRuntimeMeta when local Slot state has caught up; otherwise return the deterministic initial Meta after a successful write
+      -> if local node is channel leader: ApplyMeta to local ChannelV2 runtime, then Append locally
+         (durable ChannelRuntimeMeta write fences and the node-local data-plane lease guard reject new local appends)
+      -> else: RPCChannelAppend / RPCChannelAppendBatch forward to the resolved channel leader
+  -> local reactor and store worker pools
+  -> cluster channel RPC client
+  -> remote channel RPC handler
+  -> follower reactor Pull / Apply / Ack
 ```
 
-### 5.5 Slot 本地保障（ensureLocal）
+Append forwarding uses a channel-key shard on the typed node RPC transport, and
+the default transportv2 wiring gives append, follower pull, and pull-hint
+traffic separate service queues plus weighted priorities. Foreground channel
+mutation services also use a larger default service concurrency: ChannelV2
+append-forward handlers mostly wait on ChannelV2 append/quorum futures, and
+internalv2 `RPCChannelAuthoritySend` handlers wait on channelappend futures.
+ChannelV2, channelappend writers, and DB pools keep the real storage
+backpressure boundary. This keeps foreground write pressure visible separately
+from replication traffic and reduces head-of-line blocking when they share peer
+connections. If a forwarded append times out and the origin
+node is also a channel replica, `channels.Service` may perform a bounded local
+committed-message lookup. Recovery reports success only for message ids whose
+durable row is visible under local HW; missing or uncommitted rows keep the
+original forward error, preserving the normal quorum durability boundary.
+The origin node records both aggregate `forward_append` latency and
+`forward_append_rpc` for the typed RPC round trip. The leader-side append
+forward handler records `forward_append_remote`, which includes request decode
+and the remote `channels.Service` append path. These sub-stages separate
+origin-side dispatch/transport wait from the leader's actual append/quorum
+work when diagnosing forwarded SEND p99.
 
-入口: `slot_manager.go:20 ensureLocal`
+`Node.ReadChannelCommitted` is a narrow read facade for internalv2 HTTP message
+sync. It opens the Node-created default ChannelV2 store for the requested
+channel, resolves the authoritative `ChannelRuntimeMeta`, applies
+`RetentionThroughSeq + 1` as the minimum visible message sequence, and then
+delegates to `channelv2/store.ReadCommitted`; it does not replace ChannelV2
+append, replication, or metadata routing. Callers that override the
+ChannelV2 service without using the Node-created default store do not
+automatically get this read facade.
+`Node.LookupChannelIdempotency` is a local-only read facade for SEND retry
+recovery. It opens the same Node-created default ChannelV2 store and delegates
+to the optional `channelv2/store.IdempotencyLookup` index without creating
+messages, advancing HW, or routing to another node. Internalv2 uses it only
+after canonical channel routing has selected the local append authority.
 
-```
-ensureLocal(ctx, slotID, desiredPeers, hasRuntimeView, bootstrapAuthorized):
-  ① runtime.Status(slotID) → 已存在: 更新 peers，返回
-  ② 不存在: cfg.NewStorage(slotID) + newStateMachine(slotID)
-  ③ storage.InitialState:
-     有 HardState (已有持久化):
-       → 校验本节点仍在 peers 或 desiredPeers 中
-       → runtime.OpenSlot(opts)
-     空 HardState + bootstrapAuthorized:
-       → runtime.BootstrapSlot(opts, voters=desiredPeers)
-     空 HardState + hasRuntimeView + !bootstrapAuthorized:
-       → runtime.OpenSlot(opts)  // 等 Leader 通过 Raft 添加自己
-     空 HardState + !hasRuntimeView:
-       → 跳过（无法安全 Open 或 Bootstrap）
-```
+`Node.ReadChannelLastVisible` is the channel-owned routed read facade used by
+conversation list display. It resolves authoritative ChannelRuntimeMeta for the
+channel, reads the local store only when this node is the ChannelV2 leader, and
+otherwise forwards a typed RPC to the resolved leader. The leader-side handler
+validates local channel leadership before reading its local store with a reverse
+limit-1 committed read and applying the maximum of the caller's visibility
+floor and `RetentionThroughSeq`. Channel not found or no visible tail returns
+`ok=false`; route, not-ready, not-leader, and stale-route errors propagate to
+the caller.
 
-### 5.6 任务执行（Task Execution）
+`WithProposer` and `WithChannels` are public override options for tests, smoke harnesses, and app-level composition. If callers do not provide them, `Node.Start` creates a default ControllerV2 runtime, proposer, and ChannelV2 service, backs ChannelV2 with the message DB under `DataDir/channellog`, wires the node-local data-plane lease as ChannelV2 append admission, registers ChannelV2 replication/append-forward handlers on the default node RPC transport, and owns the ChannelV2 tick loop plus default store factory cleanup. The default proposer is backed by a real local Slot Multi-Raft runtime, durable Slot Raft log storage under `DataDir/slotraft`, metadata FSM storage under `DataDir/slotmeta`, and cluster typed RPC transport for multi-replica Slot Raft traffic.
+`Config.Slots.Observer` is passed to the default Slot Multi-Raft runtime so composition roots can expose scheduler pressure without changing Slot processing semantics.
+`Config.Slots.LogCompaction` is also passed through to the default Slot
+Multi-Raft runtime so composition roots can tune local Slot Raft snapshot
+compaction without changing proposal or apply semantics. Slot Raft transport
+batches use a versioned binary frame that carries raw `raftpb.Message` bytes
+instead of JSON encoding, avoiding base64 expansion on the metadata replication
+path. The default Slot Raft transport declares `ReadyMessagePayloadOwner`
+because it synchronously encodes the batch before `Send` returns, so
+`pkg/slot/multiraft` can avoid deep-copying large entry and snapshot payloads on
+this production path.
 
-入口: `slot_executor.go:72 Execute`
+## Distributed Log Inspection Flow
 
-```
-Execute(ctx, assignment):
-  根据 task.Kind 分支:
+`Node.LocalControllerLogEntries` reads the local ControllerV2 Raft WAL through
+the control facade and returns newest-first, cursor-paginated entry summaries.
+`Node.LocalSlotLogEntries` reads the local default Slot Raft DB for one physical
+Slot, joins runtime commit/applied watermarks when available, and decodes Slot
+FSM proposal payloads into JSON-friendly inspection fields. Slot log inspection
+also reads the Multi-Raft proposal envelope's `created_at_ms` timestamp when
+present. These methods are read-only diagnostics for manager UI pages; they do
+not route writes, replay entries, or mutate Raft storage.
 
-  Bootstrap:
-    → waitForLeader(slotID)  // 轮询 runtime.Status 直到 LeaderID != 0 (超时 ManagedSlotLeaderWait)
-    → ensureLeaderOnTarget(slotID, TargetNode)  // 初始 leader 不在目标节点时主动 transfer，尽量均衡初始化 Leader 分布
+`Node.LocalControllerRaftStatus`, `Node.LocalCompactControllerRaftLog`, and
+`Node.PrepareControllerVoter` are separate node-local ControllerV2 Raft
+management facades. Status reports local role, term, commit/apply, and durable
+log/snapshot watermarks plus the live Controller Raft voter and learner sets.
+Manual compaction calls the local ControllerV2 runtime's materialized-state
+snapshot path and returns whether a snapshot was created, skipped, or failed.
+Controller voter preparation delegates only to the target node's local
+ControllerV2 runtime and does not submit the final durable promotion write.
+`Node.PromoteControllerVoter` routes the final control write through the same
+leader-forwarding control facade as other Controller writes. Cluster fan-out,
+target readiness checks, and safety fences are owned by
+`internalv2/usecase/management`, not cluster.
 
-  Repair / Rebalance:
-    ① changeConfig(AddLearner, targetNode)
-       → LeaderOf(slotID) → 本地: runtime.ChangeConfig / 远程: RPC(change_config)
-       → Retry (ConfigChangeRetryBudget)
-    ② waitForCatchUp(targetNode)
-       → 轮询 target.AppliedIndex >= leader.CommitIndex (超时 ManagedSlotCatchUp)
-       → statusOnNode: 本地读 runtime.Status / 远程 RPC(status)
-    ③ changeConfig(PromoteLearner, targetNode)
-    ④ waitForCatchUp(targetNode)  // promote 后再等一轮
-    ⑤ ensureLeaderMovedOffSource(sourceNode, targetNode)
-       → 如果当前 Leader == sourceNode → transferLeadership(slotID, targetNode)
-       → 轮询直到 Leader != sourceNode (超时 ManagedSlotLeaderMove)
-    ⑥ sourceNode != 0 时: changeConfig(RemoveVoter, sourceNode)
+`channels.Service` keeps a combined runtime interface because the public ChannelV2 `Cluster` surface and replication `transport.Server` surface are separate. `StaticMetaSource` is available for tests and smoke runs. `SlotMetaSource` adapts authoritative `pkg/db/meta` `ChannelRuntimeMeta` records into ChannelV2 metadata for production wiring, including the durable write-fence token/version/reason/deadline used to block new leader appends. `ResolveChannelMeta` remains read-only; `EnsureChannelMeta` is the append-only path that may create the initial ChannelRuntimeMeta through the Slot-owned metadata writer before any ChannelV2 append is attempted. `SlotMetaSource` emits low-cardinality metadata resolve sub-stages for Slot meta read, initial placement/build, missing-meta write/propose, aggregate create/write, and final reread so cold activation tail latency can be attributed before pprof. In the default runtime, `meta_create_propose` wraps the Slot metadata writer call; `meta_create_propose_local` and `meta_create_propose_forward` split origin-side routing, `meta_create_slot_propose_submit` times local `Runtime.Propose`, and `meta_create_slot_propose_wait` times the subsequent Multi-Raft future wait. The default proposer also bridges the append stage observer into `pkg/slot/multiraft`, allowing the same ChannelV2 stage histogram to report `meta_create_slot_control_wait`, `meta_create_slot_raft_commit_wait`, `meta_create_slot_fsm_apply`, `meta_create_slot_fsm_commit`, and `meta_create_slot_mark_applied`.
 
-  LeaderTransfer:
-    ① 不调用 prepareSlot / AddLearner / PromoteLearner / RemoveVoter，避免把纯 Leader 偏好任务变成成员变更
-    ② 基于 assignmentTaskState 中的 runtimeView + nodes 做执行时安全校验:
-       - live/controller-leader runtime view 必须存在，LeaderID 必须已知，CurrentVoters 必须非空
-       - runtime view SlotID / ObservedConfigEpoch 不能落后于 assignment（assignment epoch 已知时 ObservedConfigEpoch=0 也视为 stale）
-       - observed leader 必须仍在 CurrentVoters，且 leader 节点必须是 alive + active + data
-       - 执行节点必须是当前 observed leader；deterministic checker 只负责 fail closed 上报安全失败，不能发起真实 transfer
-       - TargetNode 必须同时在 DesiredPeers 和 CurrentVoters
-       - TargetNode 必须是 alive + active + data 节点
-    ③ TargetNode 已是 Leader 时直接返回成功
-    ④ transferLeadershipFrom(slotID, observedLeader, TargetNode)
-       → managed slot transfer leadership: 每次尝试先重读 currentLeader，若已不同于 observedLeader 则返回 ErrLeaderTransferSafetyCheck；否则本地 runtime.TransferLeadership 或远程 managed-slot RPC
-    ⑤ waitForSpecificLeader(slotID, TargetNode)
-       → 轮询 currentLeader 直到目标成为 Leader (超时 ManagedSlotLeaderMove)
-    ⑥ 任一安全校验失败返回 ErrLeaderTransferSafetyCheck，deterministic checker 会按同一错误上报 retryable 失败；Controller 重试耗尽后删除 LeaderTransfer 任务并写入冷却时间
-```
+Initial ChannelV2 placement is data-plane placement, not Slot metadata
+placement. Slot routing identifies the authoritative metadata Slot and its
+leader/peers; the default ChannelV2 placement resolver chooses replicas from
+health-schedulable data-role nodes using deterministic rendezvous ranking and
+uses the route preferred leader only when that node is selected as a ChannelV2
+replica. New Slot and Channel placement uses
+`control.NodeSchedulableForPlacement`: a node must be data-role, effectively
+`active`, fresh `alive`, and runtime-ready. Joining, leaving, removed, suspect,
+down, stale-health, missing-health, and runtime-not-ready nodes fail closed for
+new placement candidates. Existing `ChannelRuntimeMeta` rows remain
+authoritative for established channels.
 
-### 5.7 Hash Slot 迁移
+ChannelV2 PullHint RPCs carry only a slim metadata reference and wakeup fields.
+An unloaded or newer-fence follower creates reactor-owned `PendingMeta` and
+uses `Pull{NeedMeta=true}` to fetch active metadata from the channel leader
+runtime before applying any records. The service layer does not resolve Slot
+metadata for PullHint receive; client append admission still uses
+`EnsureChannelMeta`.
 
-入口: `hashslot_migration.go:105 observeHashSlotMigrations`
+Bench runtime controls flow from internalv2 HTTP through `internalv2/infra/cluster`, `pkg/cluster.Node`, `pkg/cluster/channels.Service`, and finally the hosted ChannelV2 runtime. These routes are benchmark-only observation/cleanup controls and do not replace the gateway SEND activation path.
 
-对外创建入口 `StartHashSlotMigration`、`AddSlot`、`RemoveSlot` 受 `Config.EnableHashSlotMigration` 保护；默认关闭时返回同时匹配 `ErrInvalidConfig` 和 `ErrHashSlotMigrationDisabled` 的错误，避免在 durable delta forwarding、source fencing、recoverable cutover 语义明确接受前启用实验性迁移。二进制入口通过 `WK_CLUSTER_HASH_SLOT_MIGRATION_ENABLED` 显式打开。已存在迁移的内部观测、推进、完成和中止流程不受该开关影响。
+When `Config.Channel.ReactorCount` is left at zero, cluster derives a CPU-aware ChannelV2 reactor count from `GOMAXPROCS` with a minimum of four partitions. Explicit positive values are preserved for deployments that need to pin the runtime shape. `Config.Channel.StoreAppendWorkers`, `Config.Channel.StoreApplyWorkers`, and `Config.Channel.RPCWorkers` cap the blocking leader-append, follower-apply, and replication RPC worker pools independently; zero keeps ChannelV2's reactor-derived defaults, which give store pools extra workers but cap them to avoid overdriving the shared message DB commit coordinator, and never changes durable commit or quorum ACK rules. `Config.Channel.StoreAppendBatchMaxWait` can shorten the store-append worker's cross-channel coalescing wait; zero keeps the ChannelV2 worker default. `Config.Storage.CommitShards` can route message DB commit requests across partition-hashed coordinators while preserving synchronous physical commits and per-channel append locking; zero keeps the single-coordinator default. `Config.Channel.AppendBatchMaxRecords`, `Config.Channel.AppendBatchMaxWait`, `Config.Channel.AppendBatchAdaptiveFlush`, and `Config.Channel.AppendBatchColdMaxWait` pass through to the hosted ChannelV2 runtime; zero values and the default disabled adaptive flag keep the ChannelV2 defaults. `Config.Channel.Observer` is passed to the default ChannelV2 service so composition roots can expose reactor mailbox, append batch, and worker pool metrics without changing channel append semantics.
 
-```
-迁移阶段: Snapshot → Delta → Switching → Done
+## Non-Goals
 
-observeHashSlotMigrations(ctx):
-  ① 从 Router.hashSlotTable 加载所有活跃迁移
-  ② 先重试 pending source cleanup，并扫描已注册 source 状态机的持久 migration state:
-     → 如果持久 state 对应的 hashSlot/source/target 已不在 Controller 活跃迁移中，
-       向 source Slot 复制 bounded cleanup 维护命令；这样 finalize/abort 成功后即使节点重启丢失内存 pending map，
-       也能通过持久 state 重新发现并清理 source fence/outbox。
-     → 如果 source Slot 已因 RemoveSlot finalize 被关闭、但同一节点仍有其他已注册状态机可访问共享 metadb，
-       observer 可使用该状态机执行 bounded local cleanup 作为退休 source Slot 的恢复路径。
-  ③ 中止不再需要的活跃迁移:
-     → migrationWorker.AbortMigration(hashSlot)
-       仅在 Controller 迁移已消失或 source/target 被重新规划时清理 source durable delta outbox；
-       本节点只是暂时不再是 source Leader 时只停止本地 worker，不能删除恢复用 outbox。
-  ④ 启动新迁移:
-     条件: shouldExecuteHashSlotMigration (本节点是 source Leader)
-     → migrationWorker.StartMigration(hashSlot, source, target)
-  ⑤ 完成 Snapshot 阶段:
-     Phase == PhaseSnapshot:
-       → 先确认 target Slot 已有 Leader / 可导入快照，避免在 target 尚不可用时提前 fence source
-       → 再向 source Slot 提案 EnterFence，确保 FenceIndex 已在 source apply 路径持久化，
-         从而阻止 snapshot apply index 之后的新 source 写入落在 snapshot/outbox 之外
-       → exportHashSlotSnapshot(source, hashSlot)
-         状态机通过 `pkg/db/meta` 导出指定 hashSlot 的数据快照 + 记录 sourceApplyIndex
-       → importHashSlotSnapshot(target, snap)
-         Leader 本地: 通过 `pkg/db/meta` 直接 import / 远程: RPC(import_snapshot)
-       → migrationWorker.MarkSnapshotComplete(hashSlot, sourceApplyIndex, bytes)
-  ⑥ replay durable delta outbox:
-     PhaseDelta / PhaseSwitching 且本节点是 source Leader 时，从 source 状态机批量读取持久 outbox，
-     封装 apply_delta 后提案到 target；只有目标提案成功才向 source Slot 复制 ack 维护命令。
-     如果 source outbox 不可检查，或本轮读取达到 replay limit，视为未 drained。
-  ⑦ source fence / switch readiness:
-     若准备进入 Switching 或 Controller 已处于 Switching，必须确认 source Slot 已持久化 EnterFence；
-     source fsm 持久 fence marker 到 durable outbox，之后普通 source 写入返回 fenced 结果且不让 Raft apply 失败，
-     仅允许 apply_delta / fence 等迁移维护命令；
-     fence marker 被 target apply_delta 并 ack 后，才认为 fence ready。
-  ⑧ 标记切换完成:
-     Phase == PhaseSwitching 且 durable delta outbox 已确认 drained 且 source fence ready → migrationWorker.MarkSwitchComplete(hashSlot)
-  ⑨ migrationWorker.Tick() → 产生 Transition:
-     → PhaseDelta: advanceHashSlotMigration (Propose 到 Controller，payload 携带 hashSlot/source/target/phase)
-       同时 fsm 层的 DeltaForwarder 将 live write 转发到 target Slot
-     → PhaseSwitching: 仅 durable delta outbox 已确认 drained 且 source fence ready 时 advanceHashSlotMigration（同样携带 source/target identity）
-     → PhaseDone: 仅 durable delta outbox 已确认 drained 且 source fence ready 时 finalizeHashSlotMigration → 更新 HashSlotTable
-       → finalize 成功后向 source Slot 复制 cleanup 维护命令清理 durable delta outbox，cleanup payload 携带 throughIndex，
-         source fsm 只删除 <= throughIndex 的 outbox row，且只有当前 state.LastOutboxIndex 非 0 且不大于 throughIndex 时删除 migration state，
-         防止旧 cleanup 命令擦除同方向的新迁移状态。
-       → 成功后通过 OnHashSlotMigration 上报 `result=ok`
-     → TimedOut: AbortHashSlotMigration + 记录 pendingAbort
-       → abort 成功后向 source Slot 复制 bounded cleanup 维护命令清理 durable delta outbox，清理失败会登记 pending retry
-       → 成功后通过 OnHashSlotMigration 上报 `result=abort`
+- Do not reintroduce old `pkg/legacy/cluster` runtime semantics under the
+  canonical package path.
+- Do not add compatibility with old cluster data or old cluster config.
+- Do not add hash-slot migration, onboarding, drain, scale-in, or full operator APIs.
+- Do not add bypass branches that treat a single-node cluster as anything other than a cluster.
 
-Delta 转发 (运行时):
-  Controller 表处于 Snapshot 时 target runtime 已发布 incoming delta 标记，保证新增物理 Slot 可用被迁移 hashSlot bootstrap/import；
-  target fsm 对 apply_delta 维护命令做幂等接收，即使 follower 的 runtime incoming 标记落后于 Raft 数据面也不能把 Slot 置为 fatal；
-  Controller 表处于 Delta 或 Switching 时，source runtime 发布 outgoing 标记，target runtime 继续保留 incoming 标记；
-  target import snapshot 后不会删除 hashSlot 的 source migration state/outbox；这些记录是 source fence 和 cleanup recovery 的一部分，
-  后续由 finalize/abort cleanup 或 orphaned-state reconciler 清理。
-  普通 Raft snapshot restore 仍使用 exact import，会替换 state/index/meta span，避免本地旧 migration meta 污染恢复后的状态；
-  只有 live hash-slot 迁移导入路径保留本地 migration meta。
-  源 Slot fsm 收到被迁移 hashSlot 的 apply → makeHashSlotDeltaForwarder:
-    → 同一 apply batch 中先把原始 source command 写入 durable delta outbox
-    → 封装 EncodeApplyDeltaCommand → ProposeWithHashSlot(target, hashSlot, payload)
-    → live forwarding 最佳努力重试直到成功或 Cluster 停止；失败不阻塞 source apply，后续 observer 通过 durable outbox replay 恢复
-```
+## V1 Limitations
 
-### 5.8 Controller RPC
-
-入口: `controller_client.go:187 call` (客户端) / `controller_handler.go:16 Handle` (服务端)
-
-```
-客户端 call(ctx, req):
-  ① targets(): 缓存的 Leader 优先 → localLeaderHint → 所有 peers
-  ② 逐 peer 探测:
-     → 若 target 是本地节点：直接走 `handleControllerRPC(ctx, body)`，避免 controller self-RPC
-     → 否则走 `RPCService(target, rpcServiceController=14, body)`
-     → decodeControllerResponse:
-        NotLeader + LeaderID → 更新缓存，插入 leader 为首重试；join_cluster 可携带 LeaderAddr 作为临时 seed
-        NotLeader + 无 LeaderID → 清除缓存，尝试下一个
-        正常 → 缓存该 target 为 Leader，返回
-
-服务端 Handle(ctx, body):
-  → 解码 req → 校验 Controller Leader:
-     非 Leader → marshalRedirect(LeaderID, LeaderAddr)
-     是 Leader → 分发处理:
-       heartbeat         → 更新 leader-local observation / 刷新健康 deadline
-                           → 优先读 leader-local HashSlot snapshot 返回版本/表
-                           → snapshot miss 时 fallback store 并回填 snapshot
-                           → dynamic join mode 下拒绝未知节点绕过 JoinCluster
-       runtime_report    → 更新 leader-local runtime observation；FullSync 可激活 Joining 节点
-       join_cluster      → 校验 token/version/conflict → Propose(NodeJoin)
-                           → 刷新 leader DynamicDiscovery，返回显式 JoinErrorCode 或 nodes + HashSlot table
-       list_assignments  → 优先读 leader-local metadata snapshot.Assignments
-                           + leader-local HashSlot snapshot（miss 时 fallback store）
-                           → metadata snapshot dirty / cold 时 fallback `controllerMeta.ListAssignments`
-       list_nodes        → 优先读 leader-local metadata snapshot.Nodes
-                           → snapshot dirty / cold 时 fallback `controllerMeta.ListNodes`
-                           → client 侧用返回的完整 nodes snapshot 刷新 DynamicDiscovery
-       list_runtime_views→ controllerHost.snapshotObservations().RuntimeViews
-       operator          → Propose(OperatorRequest)
-       list_tasks        → 优先读 leader-local metadata snapshot.Tasks
-                           → snapshot dirty / cold 时 fallback `controllerMeta.ListTasks`
-       get_task          → 优先读 leader-local metadata snapshot.TasksBySlot
-                           → snapshot dirty / cold 时 fallback `controllerMeta.GetTask`
-       force_reconcile   → forceReconcileOnLeader
-       task_result       → Propose(TaskResult)
-      start/advance/finalize/abort_migration → Propose(Migration)
-      add_slot/remove_slot → Propose(AddSlot/RemoveSlot)
-      list_onboarding_candidates → 读取严格 leader 视图，返回 Active Data 节点当前 Slot/leader 负载和推荐状态
-       create_onboarding_plan → 基于当前 leader 状态生成并持久化 planned job；blocked plan 也会保存，供管理后台解释原因
-       start_onboarding_job → 校验 planned job 指纹和可执行性，提案 running 状态；若其它 job 已 running 返回 onboarding error code
-       list/get_onboarding_job → 读取持久化 job，列表按 manager-facing created_at desc 分页
-       retry_onboarding_job → 仅允许 failed job，基于原 target 创建新的 planned job，并保留 retry_of_job_id
-```
-
-### 5.9 动态物理 Slot
-
-```
-AddSlot(ctx):
-  ① 若 `EnableHashSlotMigration=false` → ErrInvalidConfig + ErrHashSlotMigrationDisabled（该入口会创建 hash-slot 迁移）
-  ② 严格读取 Controller Leader 的 SlotAssignment 和 RuntimeViews；观测未 ready 时返回 ErrObservationNotReady，不回退本地缓存
-  ③ 若 HashSlotTable 存在活跃迁移 → ErrInvalidConfig（管理层映射为迁移冲突）
-  ④ 选择 max(assignment.SlotID)+1 作为新物理 Slot，复用当前最小 Slot 的 DesiredPeers
-  ⑤ 新 Slot PreferredLeader 按当前 Leader 负载选择：Runtime Leader 非 0 时优先计入实际 Leader，否则计入 assignment.PreferredLeader
-  ⑥ 提案 AddSlot（携带 PreferredLeader）；Controller 持久化新 Assignment + Bootstrap task，并生成迁入新 Slot 的 hash-slot migration
-
-RemoveSlot(ctx, slotID):
-  ① 若 `EnableHashSlotMigration=false` → ErrInvalidConfig + ErrHashSlotMigrationDisabled（该入口会创建 hash-slot 迁移）
-  ② 若 HashSlotTable 缺失 / slotID 不存在 / 存在任意活跃迁移 / 将移除最后一个物理 Slot → 拒绝
-  ③ 提案 RemoveSlot；Controller 生成迁出该 Slot 的 hash-slot migration
-  ④ 被移除 Slot 的 Assignment 暂时保留；最后一个迁移 Finalize 后由 Controller 删除 Assignment/Task
-
-SlotIDs()/planner/readiness:
-  - 当前物理 Slot 集合以 Controller Assignment / HashSlotTable 为准。
-  - InitialSlotCount 只用于初始 HashSlotTable 和 bootstrap fallback，不再作为长期固定 Slot universe。
-  - managedSlotsReady 使用 Controller Assignment 集合作为权威输入，不要求 assignment 数量等于 InitialSlotCount。
-```
-
-### 5.10 新节点资源分配（Node Onboarding）
-
-```
-管理后台 / internal/usecase/management:
-  ① GET candidates：查看 Active Data 节点当前 Slot replica / Leader 数，识别新加入但尚未承载资源的节点
-  ② POST plan：选择 target_node_id，Controller Leader 生成 durable planned job（含 moves、blocked reasons、plan fingerprint）
-  ③ POST jobs/:job_id/start：只启动已审核的 planned job，不重新生成计划
-  ④ GET jobs / jobs/:job_id：轮询进度和每个 move 的 running/completed/failed/skipped 状态
-  ⑤ POST jobs/:job_id/retry：failed job 才能重试，创建新的 planned job
-
-执行语义:
-  - 新节点 Join + Activate 只进入 membership/discovery，不会自动获得 Slot replica/Leader。
-  - Onboarding job 通过 Rebalance 任务把选定 Slot replica 串行迁入 target；需要时在 move 完成前把 Slot Leader 转到 target。
-  - 同一时间只允许一个 running onboarding job；running 期间普通自动 Rebalance 暂停，避免扩容计划被其它均衡任务打乱。
-  - 每个 controller tick 最多提案一个 onboarding command，确保 assignment/task/job 三者状态可追踪、可恢复。
-```
-
-## 6. RPC Service IDs
-
-| Service ID | 常量 | 用途 | 文件 |
-|---|---|---|---|
-| 1 | `rpcServiceForward` | 提案转发到 Leader | forward.go |
-| 14 | `rpcServiceController` | Controller 控制面 RPC | codec_control.go |
-| 20 | `rpcServiceManagedSlot` | 受管 Slot 操作 RPC | managed_slots.go |
-
-**Controller RPC 操作** (23 种): `heartbeat` / `runtime_report` / `join_cluster` / `list_assignments` / `list_nodes` / `list_runtime_views` / `fetch_observation_delta` / `operator` / `get_task` / `force_reconcile` / `task_result` / `start_migration` / `advance_migration` / `finalize_migration` / `abort_migration` / `add_slot` / `remove_slot` / `list_onboarding_candidates` / `create_onboarding_plan` / `start_onboarding_job` / `list_onboarding_jobs` / `get_onboarding_job` / `retry_onboarding_job`
-
-**Managed Slot RPC 操作** (6 种): `status` / `logs` / `compact` / `change_config` / `import_snapshot` / `transfer_leader`
-
-**Transport message types**: `msgTypeRaft(1)` / `msgTypeObservationHint(2)` / `msgTypeRaftBatch(3)` / `msgTypeRaftSnapshotChunk(4)`；Controller Raft 使用 `msgTypeControllerRaft(5)` / `msgTypeControllerRaftSnapshotChunk(6)`。
-
-**Forward 响应码**: `OK(0)` / `NotLeader(1)` / `Timeout(2)` / `NoSlot(3)`
-
-## 7. 错误码
-
-| 常量 | 含义 | 文件 |
-|------|------|------|
-| `ErrNoLeader` | Slot 无 Leader | errors.go |
-| `ErrNotLeader` | 当前节点非该 Slot Leader | errors.go |
-| `ErrNotStarted` | Cluster 未启动或组件为 nil | errors.go |
-| `ErrLeaderNotStable` | Leader 迁移超时后仍不稳定 | errors.go |
-| `ErrSlotNotFound` | Slot 不存在于 Runtime 中 | errors.go |
-| `ErrHashSlotRequired` | 多 hashSlot 场景需显式传入 | errors.go |
-| `ErrRerouted` | 请求被重路由 | errors.go |
-| `ErrInvalidConfig` | 配置校验失败 | errors.go |
-| `ErrManualRecoveryRequired` | 可达副本不足法定人数 | errors.go |
-| `ErrOnboardingRunningJobExists` | 已有其它新节点资源分配作业在运行 | onboarding.go |
-| `ErrOnboardingPlanNotExecutable` | 审核计划当前不可执行或含 blocked reason | onboarding.go |
-| `ErrOnboardingPlanStale` | 审核计划指纹与当前 Controller 状态不一致 | onboarding.go |
-| `ErrOnboardingInvalidJobState` | 对 job 当前状态执行了非法操作（如非 failed 重试） | onboarding.go |
-
-## 8. 避坑清单
-
-- **Propose 必须带 HashSlot**: `Propose()` 是兼容旧路径的快捷方式，仅适用于"一个物理 Slot 只有一个 Hash Slot"的场景。一旦 Slot 拥有多个 Hash Slot（AddSlot/Rebalance 后），必须使用 `ProposeWithHashSlot`，否则返回 `ErrHashSlotRequired`。
-- **Forward 重试预算有限**: `ProposeWithHashSlot` 内置 Retry 循环，`ForwardRetryBudget`(默认 300ms) 只重试 `ErrNotLeader`。网络分区或全部 peer 不可达时不会无限重试。
-- **Controller 观测读语义**: `ListObservedRuntimeViews` 在 leader 上优先读本地 `observationCache`；只有 leader 不可达时才允许降级到本地 `controllerMeta`，且结果可能滞后。
-- **Manager 严格一致读语义**: `ListNodesStrict`、`ListSlotAssignmentsStrict`、`ListObservedRuntimeViewsStrict`、`ListTasksStrict`、`GetReconcileTaskStrict` 只接受 controller leader 结果；本地节点若自身就是 leader 可直接读 leader 本地数据，否则必须经 controller client 读取，禁止降级到本地 `controllerMeta`。
-- **Manager Slot 日志读语义**: `SlotLogStatusOnNode` 只读取目标节点当前 Slot Raft 运行时的 commit/applied watermark；`SlotLogEntriesOnNode` 只读取目标节点本地 Slot storage 的 Raft log entry 摘要页（index/term/type/data_size），并对普通 Slot FSM command payload 生成脱敏 JSON inspection（如 command/uid/channel_id，token 固定为 `***`）。二者都用于运维排查，不能替代 controller leader strict-read 拓扑来源。
-- **Manager Slot 压缩语义**: `CompactSlotRaftLogOnNode` 是节点本地运维写，目标节点按当前 applied index 生成 Slot snapshot 并裁剪本地 entries；该入口不走 Slot leader 路由，也不替代 Controller assignment / runtime strict read。
-- **Slot Raft 大快照传输**: Slot `MsgSnap` 超过 transport 单帧预算时只在 cluster raft transport 层分片；接收端必须完整重组后再调用 `Runtime.Step`，不能把 chunk 直接交给 multiraft/FSM。
-- **Controller Raft 大快照传输**: Controller `MsgSnap` 超过 transport 单帧预算时在 controller raft transport 层分片；接收端必须完整重组后再调用 Controller Raft `Step`，并且消息类型不能与 cluster raft/batch/chunk 类型冲突。
-- **Controller Raft 状态读语义**: `ControllerRaftStatusOnNode` 是节点本地诊断读；远程读取必须直连请求中的目标节点 Controller RPC，禁止走 leader-centric controller client 路由，否则会误读 leader 节点状态而不是目标节点状态。
-- **Manager recover 必须走 strict assignments**: `RecoverSlotStrict` 使用 `ListSlotAssignmentsStrict` 作为唯一 assignment 来源，避免 manager 写接口因为 fallback 到本地 assignment 状态而在不同节点上看到不同恢复结论。
-- **Controller HashSlot 读快路径**: leader 处理 `heartbeat` / `list_assignments` 时优先读 `controllerHost` 持有的 HashSlot snapshot；只有 snapshot cold miss 才会回落到 `controllerMeta.LoadHashSlotTable()`，回填后再继续返回。
-- **Controller metadata 读快路径**: leader-local `controllerMetadataSnapshot` 缓存 Nodes / Assignments / Tasks。planner、调和器本地 leader helper、以及 leader 侧 `list_assignments` / `list_nodes` / `list_tasks` / `get_task` 都优先读 clean snapshot；只要 snapshot dirty / cold 就必须回落到 Pebble-backed `controllerMeta`。
-- **Membership snapshot 同步到 discovery**: Controller 返回或加载的完整 Nodes snapshot 会写入现有 `DynamicDiscovery` 实例；observation 增量必须先合并 follower 本地 cache，再用完整 nodes 刷新，不能用 `delta.Nodes` 覆盖，否则会误删未变化节点并触发错误连接驱逐。写入 discovery 时会跳过 `0.0.0.0` / `[::]` 等监听绑定地址，保留静态 `WK_CLUSTER_NODES` 作为可路由基线。
-- **Observation hint peers 动态更新**: controller leader 的 metadata snapshot reload 会用 Data 且非 Rejected 的节点刷新 observation hint 目标，并保留静态配置 peers；Joining 节点因此能收到 full-sync hint 并完成激活。
-- **节点健康改为 deadline 驱动**: steady-state 不再由 `controllerTickOnce()` 提案 `EvaluateTimeouts`；leader 本地 `nodeHealthScheduler` 只在 Alive/Suspect/Dead 边沿变化时提案 `NodeStatusUpdate`。
-- **节点健康 mirror 只反映 committed state**: `nodeHealthScheduler` 对 repeated Alive observation 优先读本地 durable node mirror；mirror miss 才 `GetNode()`。mirror 通过 leader change 全量 reload 和 committed command 增量 refresh 维护，不直接信任 proposal payload。
-- **NodeStatus 观察链路有且仅有两条**: controller leader 通过 committed `NodeStatusUpdate` / operator command 触发 `OnNodeStatusChange`；其他节点则只通过 `SyncObservationDelta()` 里的 `delta.Nodes` diff 触发同一个 hook，避免 app 层维护两套分支逻辑。
-- **新 leader 先 warmup 再规划**: leader change 会清空旧 observation，等待 fresh observation 后再恢复 Repair/Rebalance 规划，避免把“暂时未观测到”误判为节点故障。
-- **controller leader warmup 会重挂 node-health deadline**: 新 controller leader 读取 metadata snapshot / node mirror 时，不只是恢复 `nodeMirror`，还会基于持久化的 `LastHeartbeatAt` 重新挂回 suspect/dead timer。这样即使故障节点正好是旧 controller leader，dead 检测也不会因为 leader failover 而永久停在 `Alive`。
-- **调和器任务执行权**: 并非所有节点都执行任务。`shouldExecuteTask` 逻辑: Bootstrap 优先 Task.TargetNode 执行以均衡初始 Leader；Repair/Rebalance 优先 SourceNode 执行，SourceNode 不可用时由 Leader 执行；LeaderTransfer 只用 live/controller-leader runtime view 选择当前 eligible Leader；缺少 live view 或只拿到 fallback runtime view 时跳过本轮且不上报任务结果，live Leader 未知或不 eligible 时由 deterministic checker 上报安全失败；其它任务由 DesiredPeers 中最小 alive NodeID 执行。错配会导致任务不执行。
-- **源 Slot 保护**: 当 Repair/Rebalance 任务的 SourceNode == 本节点时，即使该 Slot 不在 `desiredLocalSlots` 中，调和器也会保护它不被关闭（`protectedSourceSlots`），否则 changeConfig/RemoveVoter 发送不出去。
-- **ensureLocal 三条路径**: 有 HardState → Open；无 HardState+bootstrapAuthorized → Bootstrap；无 HardState+hasRuntimeView → Open 等 Leader 添加。混淆条件会导致 Slot 无法加入集群或重复 Bootstrap。
-- **Bootstrap 只在任务执行节点授权时**: `bootstrapAuthorized=true` 仅在 `reconciler.Tick` 中确认 `TaskKindBootstrap` 可运行且本节点是执行节点后才传入。防止非目标节点提前 Bootstrap 同一 Slot。
-- **Hash Slot 迁移仅 Source Leader 执行**: `shouldExecuteHashSlotMigration` 检查本节点是否是 source Slot 的 Leader。非 Leader 节点会跳过迁移操作。Leader 切换后迁移自然转移到新 Leader。
-- **Delta 转发由 durable outbox 兜底**: `forwardHashSlotDelta` 是 live best-effort 重试并会在 Cluster 停止时退出；迁移期间的恢复语义依赖 source fsm 同批写入的 durable outbox，以及 observer 后续 replay/ack，而不是等待后台 goroutine 全部发送完毕。
-- **Controller 迁移命令必须带完整 identity**: Advance / Finalize / Abort 必须携带当前 migration 的 source 和 target；source/target 缺失或不匹配按 stale no-op 处理，避免旧命令修改同一 hashSlot 的新迁移。
-- **HashSlotTable 不覆盖活跃迁移**: 同一 hashSlot 已有 active migration 时，新的 StartMigration 不会替换原 migration；需要先 finalize / abort 旧迁移。
-- **pendingTaskReport 防重复上报**: 任务执行完成后如果 `reportTaskResult` RPC 失败，会暂存为 `pendingTaskReport`，下一轮 Tick 重试上报。如果 Controller 侧任务已变更（identity 不匹配），旧结果会被丢弃。
-- **ControllerClient Leader 探测有个体超时**: `call()` 对每个 peer 设置独立的 `controllerRequestTimeout`，避免一个慢 peer 耗尽整个重试预算。
-- **observeOnce 容忍 SyncAssignments 失败**: 即使 `SyncAssignments` 返回错误，只要本地有缓存的 assignments 且错误是可降级的，仍会触发 `ApplyAssignments`。保证网络抖动时调和不停滞。
-- **运行时状态机注册**: `newStateMachine` 创建状态机后立即调用 `registerRuntimeStateMachine`，使后续 `updateRuntimeHashSlotTable` 能推送最新 hash slot 集合。漏注册会导致迁移后状态机不知道自己拥有哪些 hash slot。
-- **Config 校验**: `HashSlotCount >= InitialSlotCount` 是硬性约束；`HashSlotCount > 1` 时必须提供 `NewStateMachineWithHashSlots` 工厂函数；`ControllerReplicaN` 和 `SlotReplicaN` 不能超过节点数。
-- **新节点加入不等于资源分配**: dynamic join + activation 只让节点进入 Active Data membership；要承载 Slot replica/Leader，必须通过 manager onboarding job 显式 plan/start。
-- **Onboarding API 不走本地降级**: 候选、计划、启动、列表、详情、重试都必须由 controller leader 的严格视图处理，避免不同节点基于滞后 metadata 创建冲突计划。
-- **Onboarding 执行与普通 Rebalance 隔离**: running job 存在时 `controllerTickOnce()` 先推进 onboarding；未推进时才运行 planner，并设置 PauseRebalance/LockedSlots，防止普通 Rebalance 抢占 onboarding Slot。
+- ControllerV2 integration supports ControllerV2-backed runtime startup, single-node cluster bootstrap, static multi-voter bootstrap, mirror sync, and multi-voter Raft transport wiring through `pkg/transportv2`. Dynamic production operator workflows remain outside this package-level slice.
+- Slot coverage now uses the real default Slot runtime for default propose in single-node clusters and static multi-node clusters. Destructive Slot cleanup remains disabled.
+- ChannelV2 append forwarding and first-append metadata creation require a configured Slot-backed ChannelMetaSource and Forward client; without them, pre-applied local runtime state is required and non-leader appends return ChannelV2 typed errors.
+- Channel RPC codecs use a version byte plus JSON payload as a temporary v1 format; replace with binary codecs before optimizing this data path.
+- Observe loops are intentionally small and low-frequency; foreground write paths only read atomic route/channel state.

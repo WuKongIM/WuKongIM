@@ -6,12 +6,12 @@ import (
 	"fmt"
 
 	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
-	clusternet "github.com/WuKongIM/WuKongIM/pkg/clusterv2/net"
+	clusternet "github.com/WuKongIM/WuKongIM/pkg/cluster/net"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
-// ManagerTaskAuditRPCServiceID is the clusterv2 RPC service for retained ControllerV2 task audit reads.
+// ManagerTaskAuditRPCServiceID is the cluster RPC service for retained ControllerV2 task audit reads.
 const ManagerTaskAuditRPCServiceID uint8 = clusternet.RPCManagerTaskAudit
 
 // HandleManagerTaskAuditRPC handles one encoded manager ControllerV2 task audit RPC payload.

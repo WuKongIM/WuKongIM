@@ -255,11 +255,11 @@ func TestDependencyBoundaryUsesCanonicalController(t *testing.T) {
 			foundCanonicalController = true
 		case strings.HasPrefix(importPath, "github.com/WuKongIM/WuKongIM/pkg/controller/"):
 			foundCanonicalController = true
-		case importPath == "github.com/WuKongIM/WuKongIM/pkg/cluster" ||
-			strings.HasPrefix(importPath, "github.com/WuKongIM/WuKongIM/pkg/cluster/"):
+		case importPath == "github.com/WuKongIM/WuKongIM/pkg/legacy/cluster" ||
+			strings.HasPrefix(importPath, "github.com/WuKongIM/WuKongIM/pkg/legacy/cluster/"):
 			t.Fatalf("cmd/wukongim dependency closure still imports legacy cluster package %q", importPath)
-		case importPath == "github.com/WuKongIM/WuKongIM/pkg/controller" ||
-			strings.HasPrefix(importPath, "github.com/WuKongIM/WuKongIM/pkg/controller/"):
+		case importPath == "github.com/WuKongIM/WuKongIM/pkg/controllerv2" ||
+			strings.HasPrefix(importPath, "github.com/WuKongIM/WuKongIM/pkg/controllerv2/"):
 			t.Fatalf("cmd/wukongim dependency closure still imports v2-suffixed controller package %q", importPath)
 		case importPath == "github.com/WuKongIM/WuKongIM/pkg/legacy/controller" ||
 			strings.HasPrefix(importPath, "github.com/WuKongIM/WuKongIM/pkg/legacy/controller/"):
@@ -268,6 +268,34 @@ func TestDependencyBoundaryUsesCanonicalController(t *testing.T) {
 	}
 	if !foundCanonicalController {
 		t.Fatal("cmd/wukongim dependency closure does not import canonical pkg/controller")
+	}
+}
+
+func TestDependencyBoundaryUsesCanonicalCluster(t *testing.T) {
+	cmd := exec.Command("go", "list", "-deps", "-f", "{{.ImportPath}}", ".")
+	cmd.Env = append(os.Environ(), "GOWORK=off")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("go list deps failed: %v\n%s", err, out)
+	}
+
+	foundCanonicalCluster := false
+	for _, importPath := range strings.Fields(string(out)) {
+		switch {
+		case importPath == "github.com/WuKongIM/WuKongIM/pkg/cluster":
+			foundCanonicalCluster = true
+		case strings.HasPrefix(importPath, "github.com/WuKongIM/WuKongIM/pkg/cluster/"):
+			foundCanonicalCluster = true
+		case importPath == "github.com/WuKongIM/WuKongIM/pkg/clusterv2" ||
+			strings.HasPrefix(importPath, "github.com/WuKongIM/WuKongIM/pkg/clusterv2/"):
+			t.Fatalf("cmd/wukongim dependency closure still imports v2-suffixed cluster package %q", importPath)
+		case importPath == "github.com/WuKongIM/WuKongIM/pkg/legacy/cluster" ||
+			strings.HasPrefix(importPath, "github.com/WuKongIM/WuKongIM/pkg/legacy/cluster/"):
+			t.Fatalf("cmd/wukongim dependency closure still imports legacy cluster package %q", importPath)
+		}
+	}
+	if !foundCanonicalCluster {
+		t.Fatal("cmd/wukongim dependency closure does not import canonical pkg/cluster")
 	}
 }
 

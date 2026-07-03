@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
-	channelwrapper "github.com/WuKongIM/WuKongIM/pkg/clusterv2/channels"
+	channelwrapper "github.com/WuKongIM/WuKongIM/pkg/cluster/channels"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 

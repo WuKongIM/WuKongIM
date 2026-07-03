@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/gateway"
 )
 
@@ -30,8 +30,8 @@ type Config struct {
 	NodeID uint64
 	// DataDir is the root data directory for the node runtime.
 	DataDir string
-	// Cluster configures the clusterv2 runtime.
-	Cluster clusterv2.Config
+	// Cluster configures the cluster runtime.
+	Cluster cluster.Config
 	// API configures the benchmark HTTP API exposed by the standalone v2 entry.
 	API APIConfig
 	// Manager configures the dedicated administration HTTP API entry point.

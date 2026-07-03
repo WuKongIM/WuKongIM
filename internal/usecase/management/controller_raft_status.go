@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
+	raftcluster "github.com/WuKongIM/WuKongIM/pkg/legacy/cluster"
 )
 
 const (

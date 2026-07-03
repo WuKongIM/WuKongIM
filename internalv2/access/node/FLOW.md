@@ -13,7 +13,7 @@ leases, or gateway session state.
 ```text
 remote authority client
   -> encode W K V P 2 request
-  -> clusterv2 RPCPresenceAuthority
+  -> cluster RPCPresenceAuthority
   -> Adapter.HandlePresenceAuthorityRPC
   -> PresenceAuthority method
   -> encode W K V R 2 response
@@ -34,7 +34,7 @@ Supported authority calls:
 ```text
 remote owner-action client
   -> encode W K V P 2 request
-  -> clusterv2 RPCPresenceOwner
+  -> cluster RPCPresenceOwner
   -> Adapter.HandlePresenceOwnerRPC
   -> PresenceOwner.ApplyRouteAction
   -> encode W K V R 2 response
@@ -49,7 +49,7 @@ Supported owner calls:
 ```text
 remote delivery client
   -> encode W K V D 1 request
-  -> clusterv2 RPCDeliveryPush
+  -> cluster RPCDeliveryPush
   -> Adapter.HandleDeliveryPushRPC
   -> DeliveryOwnerPush.Push
   -> encode W K V d 1 response
@@ -66,7 +66,7 @@ and dropped route groups.
 ```text
 remote delivery fanout router
   -> encode W K V F 1 request
-  -> clusterv2 RPCDeliveryFanout
+  -> cluster RPCDeliveryFanout
   -> Adapter.HandleDeliveryFanoutRPC
   -> DeliveryFanoutRunner.RunTask
   -> encode W K V f 1 response
@@ -82,7 +82,7 @@ separate Delivery Push RPC after presence resolution.
 ```text
 remote conversation authority client
   -> encode W K V C 1 request
-  -> clusterv2 RPCConversationAuthority
+  -> cluster RPCConversationAuthority
   -> Adapter.HandleConversationAuthorityRPC
   -> ConversationAuthority port
   -> encode W K V c 1 response
@@ -113,7 +113,7 @@ The RPC boundary is deliberately narrow:
   during handoff. Handoff ordering and cache state transitions stay in the app
   authority runtime.
 - The client chunks Admit patch collections at the codec collection limit before
-  calling clusterv2 RPC. Raw transport errors are returned to the infra/cluster
+  calling cluster RPC. Raw transport errors are returned to the infra/cluster
   route adapter; this package does not decide whether they should retry.
 - The client also chunks active-batch recipient collections at the same codec
   collection limit. It preserves the batch sender field exactly as supplied by
@@ -124,7 +124,7 @@ The RPC boundary is deliberately narrow:
 ```text
 remote channel append forwarder
   -> encode W K V A 2 request
-  -> clusterv2 RPCChannelAuthoritySend
+  -> cluster RPCChannelAuthoritySend
   -> ChannelAppendAdapter.HandleChannelAppendRPC
   -> ChannelAppend.SubmitForAuthority
   -> encode W K V a 1 response
@@ -150,7 +150,7 @@ item-aligned results.
 ```text
 remote manager connection reader
   -> encode W K V M 2 request
-  -> clusterv2 RPCManagerConnection
+  -> cluster RPCManagerConnection
   -> Adapter.HandleManagerConnectionRPC
   -> Management connection reader port
   -> encode W K V m 2 response
@@ -176,7 +176,7 @@ manager access and management usecase layers.
 ```text
 remote manager log reader
   -> encode W K V L 1 request
-  -> clusterv2 RPCManagerLogs
+  -> cluster RPCManagerLogs
   -> Adapter.HandleManagerLogRPC
   -> Management log reader port
   -> encode W K V l 1 response
@@ -194,7 +194,7 @@ and `next_cursor` pagination state.
 ```text
 remote manager controller-raft operator
   -> encode W K V R 1 request
-  -> clusterv2 RPCManagerControllerRaft
+  -> cluster RPCManagerControllerRaft
   -> Adapter.HandleManagerControllerRaftRPC
   -> Management Controller Raft operator port
   -> encode W K V r 1 response
@@ -212,7 +212,7 @@ management usecase.
 ```text
 remote manager slot-raft operator
   -> encode W K V S 1 request
-  -> clusterv2 RPCManagerSlotRaft
+  -> cluster RPCManagerSlotRaft
   -> Adapter.HandleManagerSlotRaftRPC
   -> Management Slot Raft operator port
   -> encode W K V s 1 response
@@ -229,7 +229,7 @@ summary shaping is assembled above this package by the management usecase.
 ```text
 remote manager retention operator
   -> encode W K V T 1 request
-  -> clusterv2 RPCManagerMessageRetention
+  -> cluster RPCManagerMessageRetention
   -> Adapter.HandleManagerMessageRetentionRPC
   -> Management message retention operator port
   -> encode W K V t 1 response
@@ -248,7 +248,7 @@ metadata fences across this RPC boundary.
 ```text
 joining node startup loop
   -> encode W K V N 1 JoinNode request
-  -> clusterv2 RPCNodeLifecycle
+  -> cluster RPCNodeLifecycle
   -> Adapter.HandleNodeLifecycleRPC
   -> validate cluster_id and join_token
   -> Management JoinNode usecase
@@ -260,7 +260,7 @@ joining node to an existing seed node. The client carries the joining node ID,
 advertised cluster address, cluster ID, join token, and capacity weight. The
 server validates the cluster ID and token at the RPC boundary before delegating
 only the manager-facing join fields to the management usecase, which in turn
-uses the clusterv2 control lifecycle writer and its Controller-leader
+uses the cluster control lifecycle writer and its Controller-leader
 forwarding. The same service carries the activation readiness probe DTO:
 expected cluster ID, mirrored cluster ID/revision, reachability, transport,
 control, runtime, unknown, and last-error fields. This package only preserves
@@ -279,7 +279,7 @@ not reused for these promotion safety failures.
 ```text
 remote manager channel reader
   -> encode W K V H 1 request
-  -> clusterv2 RPCManagerChannels
+  -> cluster RPCManagerChannels
   -> Adapter.HandleManagerChannelRPC
   -> Management channel reader port
   -> encode W K V h 1 response
@@ -297,7 +297,7 @@ or decide which HTTP request targets a remote node.
 ```text
 remote manager plugin reader
   -> encode W K V J 1 request
-  -> clusterv2 RPCManagerPlugins
+  -> cluster RPCManagerPlugins
   -> Adapter.HandleManagerPluginRPC
   -> list/get/update_config/restart/uninstall: Management plugin reader port
   -> http_forward: local PluginHTTPRouter.Route(/plugin/route)
@@ -324,7 +324,7 @@ remote node.
 ```text
 remote manager DB inspect reader
   -> encode W K V B 1 request
-  -> clusterv2 RPCManagerDBInspect
+  -> cluster RPCManagerDBInspect
   -> Adapter.HandleManagerDBInspectRPC
   -> Management DB inspect reader port
   -> encode W K V b 1 response
@@ -343,7 +343,7 @@ paths, or mutate storage.
 ```text
 remote manager task audit reader
   -> encode W K V U 1 request
-  -> clusterv2 RPCManagerTaskAudit
+  -> cluster RPCManagerTaskAudit
   -> Adapter.HandleManagerTaskAuditRPC
   -> Management ControllerV2 task audit reader port
   -> encode W K V u 1 response
@@ -363,7 +363,7 @@ ControllerV2 task state.
 ```text
 remote manager diagnostics reader/operator
   -> encode W K V D Q request
-  -> clusterv2 RPCManagerDiagnostics
+  -> cluster RPCManagerDiagnostics
   -> Adapter.HandleManagerDiagnosticsRPC
   -> Management diagnostics reader/tracking port
   -> encode W K V D R response
@@ -382,7 +382,7 @@ state.
 ```text
 remote manager application log reader
   -> encode W K V G 1 request
-  -> clusterv2 RPCManagerAppLogs
+  -> cluster RPCManagerAppLogs
   -> Adapter.HandleManagerAppLogRPC
   -> Management application log reader port
   -> encode W K V g 1 response
@@ -517,7 +517,7 @@ Delivery push and fanout responses currently use:
   presence sentinel errors, `internalv2/usecase/conversation` DTOs and
   sentinel errors, `internalv2/contracts/channelappend` DTOs and sentinel errors,
   runtime delivery DTOs, `internalv2/runtime/conversationactive.ActiveBatch`
-  as the active worker RPC DTO, internalv2 diagnostics DTOs, and the clusterv2
+  as the active worker RPC DTO, internalv2 diagnostics DTOs, and the cluster
   RPC service IDs.
 - This package must not decide presence route conflict behavior.
 - This package must not implement conversation active-row construction, cache

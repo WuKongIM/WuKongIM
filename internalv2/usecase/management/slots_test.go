@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 )
 
 func TestListSlotsBuildsReadOnlySlotInventory(t *testing.T) {

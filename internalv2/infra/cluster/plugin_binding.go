@@ -34,7 +34,7 @@ type PluginBindingReader struct {
 	node PluginBindingNode
 }
 
-// ManagementPluginBindingStore adapts clusterv2 metadata to manager binding ports.
+// ManagementPluginBindingStore adapts cluster metadata to manager binding ports.
 type ManagementPluginBindingStore struct {
 	node ManagementPluginBindingNode
 }

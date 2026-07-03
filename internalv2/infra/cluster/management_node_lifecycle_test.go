@@ -4,11 +4,11 @@ import (
 	"context"
 	"testing"
 
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 )
 
-var _ ManagementNodeLifecycleNode = (*clusterv2.Node)(nil)
+var _ ManagementNodeLifecycleNode = (*cluster.Node)(nil)
 
 func TestManagementNodeLifecycleAdapterUsesControlWriter(t *testing.T) {
 	node := &fakeManagementNodeLifecycleNode{

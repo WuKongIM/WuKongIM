@@ -6,7 +6,7 @@ import (
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
-// UserMetadataNode exposes clusterv2 Slot metadata operations used by the user usecase.
+// UserMetadataNode exposes cluster Slot metadata operations used by the user usecase.
 type UserMetadataNode interface {
 	CreateUserMetadata(context.Context, metadb.User) error
 	GetUserMetadata(context.Context, string) (metadb.User, error)
@@ -14,18 +14,18 @@ type UserMetadataNode interface {
 	GetDeviceMetadata(context.Context, string, int64) (metadb.Device, error)
 }
 
-// UserMetadataScanNode exposes clusterv2 user metadata page scans for manager lists.
+// UserMetadataScanNode exposes cluster user metadata page scans for manager lists.
 type UserMetadataScanNode interface {
 	ScanUsersSlotPage(context.Context, uint32, metadb.UserCursor, int) ([]metadb.User, metadb.UserCursor, bool, error)
 }
 
-// UserMetadataStore adapts clusterv2 Slot metadata to the entry-agnostic user usecase.
+// UserMetadataStore adapts cluster Slot metadata to the entry-agnostic user usecase.
 type UserMetadataStore struct {
 	node     UserMetadataNode
 	scanNode UserMetadataScanNode
 }
 
-// NewUserMetadataStore creates a clusterv2-backed user metadata store.
+// NewUserMetadataStore creates a cluster-backed user metadata store.
 func NewUserMetadataStore(node UserMetadataNode) *UserMetadataStore {
 	scanNode, _ := node.(UserMetadataScanNode)
 	return &UserMetadataStore{node: node, scanNode: scanNode}

@@ -7,7 +7,7 @@ import (
 	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
 )
 
-// ManagementApplicationLogRPCNode exposes clusterv2 node RPC for manager application log reads.
+// ManagementApplicationLogRPCNode exposes cluster node RPC for manager application log reads.
 type ManagementApplicationLogRPCNode interface {
 	// NodeID returns the local cluster node ID.
 	NodeID() uint64

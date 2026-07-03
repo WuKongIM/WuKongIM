@@ -5,7 +5,7 @@ import (
 
 	accessnode "github.com/WuKongIM/WuKongIM/internalv2/access/node"
 	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 )
 
 // ManagementLogNode exposes node-local and node-remote distributed log reads.
@@ -15,9 +15,9 @@ type ManagementLogNode interface {
 	// CallRPC invokes one typed node RPC service on a peer node.
 	CallRPC(context.Context, uint64, uint8, []byte) ([]byte, error)
 	// LocalControllerLogEntries reads this node's local Controller Raft log page.
-	LocalControllerLogEntries(context.Context, clusterv2.LogEntriesOptions) (clusterv2.ControllerLogEntries, error)
+	LocalControllerLogEntries(context.Context, cluster.LogEntriesOptions) (cluster.ControllerLogEntries, error)
 	// LocalSlotLogEntries reads this node's local Slot Raft log page.
-	LocalSlotLogEntries(context.Context, uint32, clusterv2.LogEntriesOptions) (clusterv2.SlotLogEntries, error)
+	LocalSlotLogEntries(context.Context, uint32, cluster.LogEntriesOptions) (cluster.SlotLogEntries, error)
 }
 
 // ManagementLogReader routes manager distributed log reads to selected nodes.
@@ -40,7 +40,7 @@ func (r *ManagementLogReader) ControllerLogEntries(ctx context.Context, req mana
 		return managementusecase.ControllerLogEntriesResponse{}, managementusecase.ErrLogReaderUnavailable
 	}
 	if req.NodeID == r.node.NodeID() {
-		page, err := r.node.LocalControllerLogEntries(ctx, clusterv2.LogEntriesOptions{Limit: req.Limit, Cursor: req.Cursor})
+		page, err := r.node.LocalControllerLogEntries(ctx, cluster.LogEntriesOptions{Limit: req.Limit, Cursor: req.Cursor})
 		if err != nil {
 			return managementusecase.ControllerLogEntriesResponse{}, err
 		}
@@ -55,7 +55,7 @@ func (r *ManagementLogReader) SlotLogEntries(ctx context.Context, req management
 		return managementusecase.SlotLogEntriesResponse{}, managementusecase.ErrLogReaderUnavailable
 	}
 	if req.NodeID == r.node.NodeID() {
-		page, err := r.node.LocalSlotLogEntries(ctx, req.SlotID, clusterv2.LogEntriesOptions{Limit: req.Limit, Cursor: req.Cursor})
+		page, err := r.node.LocalSlotLogEntries(ctx, req.SlotID, cluster.LogEntriesOptions{Limit: req.Limit, Cursor: req.Cursor})
 		if err != nil {
 			return managementusecase.SlotLogEntriesResponse{}, err
 		}
@@ -64,7 +64,7 @@ func (r *ManagementLogReader) SlotLogEntries(ctx context.Context, req management
 	return r.remote.GetManagerSlotLogEntries(ctx, req)
 }
 
-func controllerLogPageFromCluster(page clusterv2.ControllerLogEntries) managementusecase.ControllerLogEntriesResponse {
+func controllerLogPageFromCluster(page cluster.ControllerLogEntries) managementusecase.ControllerLogEntriesResponse {
 	return managementusecase.ControllerLogEntriesResponse{
 		NodeID:       page.NodeID,
 		FirstIndex:   page.FirstIndex,
@@ -76,7 +76,7 @@ func controllerLogPageFromCluster(page clusterv2.ControllerLogEntries) managemen
 	}
 }
 
-func slotLogPageFromCluster(page clusterv2.SlotLogEntries) managementusecase.SlotLogEntriesResponse {
+func slotLogPageFromCluster(page cluster.SlotLogEntries) managementusecase.SlotLogEntriesResponse {
 	return managementusecase.SlotLogEntriesResponse{
 		NodeID:       page.NodeID,
 		SlotID:       page.SlotID,
@@ -98,7 +98,7 @@ func managementLogEntriesFromCluster[T ~struct {
 	DecodeStatus string
 	DecodedType  string
 	Decoded      map[string]any
-}](items []clusterv2.LogEntry) []T {
+}](items []cluster.LogEntry) []T {
 	out := make([]T, 0, len(items))
 	for _, item := range items {
 		out = append(out, T(managementusecase.LogEntry{

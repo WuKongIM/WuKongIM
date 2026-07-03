@@ -6,12 +6,12 @@ import (
 	"fmt"
 
 	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
-	clusternet "github.com/WuKongIM/WuKongIM/pkg/clusterv2/net"
+	clusternet "github.com/WuKongIM/WuKongIM/pkg/cluster/net"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
-// ManagerAppLogRPCServiceID is the clusterv2 RPC service for selected-node ordinary application log reads.
+// ManagerAppLogRPCServiceID is the cluster RPC service for selected-node ordinary application log reads.
 const ManagerAppLogRPCServiceID uint8 = clusternet.RPCManagerAppLogs
 
 // HandleManagerAppLogRPC handles one encoded manager ordinary application log RPC payload.

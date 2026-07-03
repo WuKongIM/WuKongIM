@@ -6,13 +6,13 @@ import (
 	"fmt"
 
 	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
-	clusternet "github.com/WuKongIM/WuKongIM/pkg/clusterv2/net"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster"
+	clusternet "github.com/WuKongIM/WuKongIM/pkg/cluster/net"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
-// ManagerLogRPCServiceID is the clusterv2 RPC service for node-local distributed log inspection.
+// ManagerLogRPCServiceID is the cluster RPC service for node-local distributed log inspection.
 const ManagerLogRPCServiceID uint8 = clusternet.RPCManagerLogs
 
 // HandleManagerLogRPC handles one encoded manager distributed log RPC payload.
@@ -120,7 +120,7 @@ func managerLogRPCStatusForError(err error) string {
 		return rpcStatusContextDeadlineExceeded
 	case errors.Is(err, metadb.ErrNotFound):
 		return rpcStatusNotFound
-	case errors.Is(err, clusterv2.ErrSlotNotFound):
+	case errors.Is(err, cluster.ErrSlotNotFound):
 		return rpcStatusNotFound
 	case errors.Is(err, metadb.ErrInvalidArgument):
 		return rpcStatusRejected

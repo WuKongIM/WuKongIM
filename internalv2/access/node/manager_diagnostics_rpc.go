@@ -5,11 +5,11 @@ import (
 	"fmt"
 
 	"github.com/WuKongIM/WuKongIM/internalv2/observability/diagnostics"
-	clusternet "github.com/WuKongIM/WuKongIM/pkg/clusterv2/net"
+	clusternet "github.com/WuKongIM/WuKongIM/pkg/cluster/net"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
-// ManagerDiagnosticsRPCServiceID is the clusterv2 RPC service for node-local manager diagnostics.
+// ManagerDiagnosticsRPCServiceID is the cluster RPC service for node-local manager diagnostics.
 const ManagerDiagnosticsRPCServiceID uint8 = clusternet.RPCManagerDiagnostics
 
 // HandleManagerDiagnosticsRPC handles one encoded manager diagnostics RPC payload.

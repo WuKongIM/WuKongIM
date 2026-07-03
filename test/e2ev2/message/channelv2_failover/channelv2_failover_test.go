@@ -15,7 +15,7 @@ import (
 	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/routing"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/routing"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/WuKongIM/WuKongIM/test/e2ev2/suite"
 	"github.com/stretchr/testify/require"

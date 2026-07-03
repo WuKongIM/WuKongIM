@@ -8,7 +8,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/message"
 	pluginusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/plugin"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 	"github.com/stretchr/testify/require"
 )
 

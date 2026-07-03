@@ -5,7 +5,7 @@
 `internalv2/contracts/channelappend` owns the entry-independent contracts for
 channel-authority writes. Gateway, HTTP, node RPC, message usecases, cluster
 adapters, and the channel append authority runtime share these DTOs without pulling
-in concrete entry, app, or clusterv2 packages.
+in concrete entry, app, or cluster packages.
 
 ## Send Contract Flow
 

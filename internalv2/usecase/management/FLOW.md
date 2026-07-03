@@ -64,7 +64,7 @@ from HTTP.
 manager HTTP handler
   -> management.App.ListNodes
   -> ControlSnapshotReader.LocalControlSnapshot
-  -> clusterv2 control snapshot
+  -> cluster control snapshot
   -> SlotRuntimeStatusReader.SlotRuntimeStatus
   -> RuntimeSummaryReader.NodeRuntimeSummary
   -> sorted manager node DTO rows
@@ -72,7 +72,7 @@ manager HTTP handler
 
 The projection derives node identity, health, durable lifecycle, capacity
 weight, controller role, and desired Slot replica counts from the local
-clusterv2 control snapshot. Health fields are copied from `control.Node.Health`
+cluster control snapshot. Health fields are copied from `control.Node.Health`
 so operators can see whether evidence is fresh, stale, or missing, whether
 runtime readiness is true, the report age/TTL, observed control and Slot
 revisions, and the bounded health error code. `membership.schedulable` uses
@@ -103,7 +103,7 @@ manager HTTP handler
   -> ControlSnapshotReader.LocalControlSnapshot
   -> ControllerVoterReadinessReader for target readiness
   -> ControllerVoterPreparer for target-side live Controller Raft proof
-  -> ControllerVoterPromoter for clusterv2 control promotion write
+  -> ControllerVoterPromoter for cluster control promotion write
 ```
 
 Controller voter promotion uses one local control snapshot as the durable
@@ -145,7 +145,7 @@ manager HTTP handler
   -> management.App.JoinNode/ActivateNode/MarkNodeLeaving/MarkNodeRemoved
   -> NodeReadinessReader for activation only
   -> NodeLifecycleWriter
-  -> clusterv2 control lifecycle writer
+  -> cluster control lifecycle writer
 ```
 
 The lifecycle usecase validates manager-facing node IDs and join addresses,
@@ -280,8 +280,8 @@ manager HTTP handler
   -> management.App.PlanNodeOnboarding/StartNodeOnboarding/AdvanceNodeOnboarding/NodeOnboardingStatus
   -> ControlSnapshotReader.LocalControlSnapshot
   -> SlotReplicaMoveWriter.RequestSlotReplicaMove for start/advance only
-  -> clusterv2 control slot_replica_move task intent
-  -> clusterv2 task executor
+  -> cluster control slot_replica_move task intent
+  -> cluster task executor
   -> Slot Raft learner/config-change flow
   -> final ControllerV2 Slot assignment commit
 ```
@@ -297,7 +297,7 @@ migrate Channel replicas, or implement operator cancellation without a fenced
 Controller writer. Status is a read-only projection of active
 `slot_replica_move` tasks targeting the selected node.
 Targets being onboarded are task-local learners before promotion; the durable
-`DesiredPeers` assignment changes only after the clusterv2 executor observes the
+`DesiredPeers` assignment changes only after the cluster executor observes the
 target voter set and commits the final ControllerV2 assignment update.
 
 ## Node Slot Move-Out Flow
@@ -307,7 +307,7 @@ manager slot-move-out route
   -> management.App.PlanNodeSlotMoveOut/AdvanceNodeSlotMoveOut
   -> ControlSnapshotReader.LocalControlSnapshot
   -> SlotReplicaMoveWriter.RequestSlotReplicaMove for advance only
-  -> clusterv2 control slot_replica_move task intent
+  -> cluster control slot_replica_move task intent
 ```
 
 Pure Slot move-out lets operators rebalance replicas away from an active Data
@@ -329,12 +329,12 @@ or submit node removal.
 manager HTTP handler
   -> management.App.ListSlots
   -> ControlSnapshotReader.LocalControlSnapshot
-  -> clusterv2 control snapshot
+  -> cluster control snapshot
   -> sorted manager Slot DTO rows
 ```
 
 The Slot projection derives physical Slot assignments, preferred leaders,
-config epochs, and logical hash-slot ownership from the local clusterv2 control
+config epochs, and logical hash-slot ownership from the local cluster control
 snapshot. The list uses desired peers as the fallback display runtime so the
 web Slot list can always render quorum, sync, preferred leader, and voter
 columns. `runtime.preferred_leader_id` is the control-plane preferred leader; it
@@ -343,7 +343,7 @@ Raft operator is wired, the usecase also performs a best-effort node-local or
 routed peer status read for each returned Slot and attaches the selected node's
 Raft leader, role, and commit/applied watermarks in `node_log`. Status read
 misses are omitted from the row rather than failing the inventory response.
-Active task summaries are derived from the same clusterv2 control snapshot and
+Active task summaries are derived from the same cluster control snapshot and
 attached to the matching Slot row. Slot leader-transfer requests use the same
 control snapshot plus a live Slot runtime status reader to validate the current
 leader, voter quorum, desired peers, and target-node active data lifecycle
@@ -360,7 +360,7 @@ manager HTTP handler
   -> ControlSnapshotReader.LocalControlSnapshot
   -> SlotRuntimeStatusReader.SlotRuntimeStatus
   -> SlotLeaderTransferWriter.RequestSlotLeaderTransfer
-  -> clusterv2 control leader-transfer task intent
+  -> cluster control leader-transfer task intent
 ```
 
 The usecase rejects invalid IDs, missing Slot assignments, existing conflicting
@@ -384,7 +384,7 @@ manager HTTP handler
   -> ordered leader-transfer candidates, skipped rows, and deterministic plan_id
 ```
 
-The batch planner is read-only. It scans the local clusterv2 control snapshot in
+The batch planner is read-only. It scans the local cluster control snapshot in
 stable Slot order, reads live Slot runtime status for the scanned assignments,
 and returns candidate rows, skip reasons, a summary, and a deterministic plan
 ID fenced to the observed control-state revision. Planning may reuse matching
@@ -416,7 +416,7 @@ and does not create a durable batch task.
 manager HTTP handler
   -> management.App.ListControllerTasks/ControllerTask
   -> ControlSnapshotReader.LocalControlSnapshot
-  -> clusterv2 control snapshot Tasks
+  -> cluster control snapshot Tasks
   -> sorted active Controller task DTO rows or one active task
 ```
 
@@ -434,7 +434,7 @@ history, mutate task state, or provide cancellation and retry operations.
 manager HTTP handler
   -> management.App.ListControllerLogEntries/ListSlotLogEntries
   -> LogReader.ControllerLogEntries/SlotLogEntries
-  -> node-local clusterv2 log read or node RPC routed peer read
+  -> node-local cluster log read or node RPC routed peer read
   -> newest-first decoded manager log page
 ```
 
@@ -450,7 +450,7 @@ or mutation operation.
 manager HTTP handler
   -> management.App.CompactSlotRaftLog
   -> SlotRaftOperator
-  -> local clusterv2 node operation or node RPC routed peer operation
+  -> local cluster node operation or node RPC routed peer operation
   -> one node-local Slot Raft status or compaction result
 ```
 
@@ -467,7 +467,7 @@ replicas and does not turn manual compaction into a replicated Raft command.
 manager HTTP handler
   -> management.App.ControllerRaftStatus/CompactControllerRaftLog/CompactControllerRaftLogs
   -> ControllerRaftOperator
-  -> local clusterv2 node operation or node RPC routed peer operation
+  -> local cluster node operation or node RPC routed peer operation
   -> node-local Controller Raft status or compaction result
 ```
 
@@ -516,7 +516,7 @@ manager `node_id`, `type`, `keyword`, `limit`, and cursor constraints. Empty
 or local `node_id` requests scan this node's Slot metadata; non-local requests
 delegate the whole page request to a narrow remote channel reader port. The read
 model derives display `slot_id` and `hash_slot` values from the selected node's
-clusterv2 control snapshot and keeps cursor state bound to the requested filter
+cluster control snapshot and keeps cursor state bound to the requested filter
 values. Channel detail, member, and mutation operation routes are outside this
 migration step.
 
@@ -552,7 +552,7 @@ channel runtime mutations remain outside this migration step.
 manager HTTP handler
   -> management.App.RequestChannelLeaderTransfer / RequestChannelReplicaReplace
   -> ChannelMigrationStore.CreateLeaderTransfer / CreateReplicaReplace
-  -> clusterv2 ChannelV2 migration facade
+  -> cluster ChannelV2 migration facade
   -> Slot-owned runtime metadata validation and migration task rows
 ```
 
@@ -693,7 +693,7 @@ manager HTTP handler
 ```
 
 Diagnostics queries normalize trace, message, and event filters in the
-management usecase, select alive or suspect nodes from the clusterv2 control
+management usecase, select alive or suspect nodes from the cluster control
 snapshot for aggregate reads, and skip down nodes with per-node notes instead
 of masking the cluster shape. Tracking-rule mutations fan out to eligible
 nodes and preserve per-node successes, skips, and errors. The usecase depends

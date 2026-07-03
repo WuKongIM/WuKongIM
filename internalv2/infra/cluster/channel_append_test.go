@@ -8,8 +8,8 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/channelappend"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/propose"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/propose"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
@@ -122,10 +122,10 @@ func TestChannelAppendClientMapsRouteErrors(t *testing.T) {
 		{name: "slot propose not leader", err: propose.ErrNotLeader, want: channelappend.ErrNotChannelAuthority},
 		{name: "stale meta", err: channelv2.ErrStaleMeta, want: channelappend.ErrStaleRoute},
 		{name: "channel not ready", err: channelv2.ErrNotReady, want: channelappend.ErrRouteNotReady},
-		{name: "cluster route not ready", err: clusterv2.ErrRouteNotReady, want: channelappend.ErrRouteNotReady},
-		{name: "cluster no slot leader", err: clusterv2.ErrNoSlotLeader, want: channelappend.ErrRouteNotReady},
-		{name: "cluster not started", err: clusterv2.ErrNotStarted, want: channelappend.ErrRouteNotReady},
-		{name: "cluster stopping", err: clusterv2.ErrStopping, want: channelappend.ErrRouteNotReady},
+		{name: "cluster route not ready", err: cluster.ErrRouteNotReady, want: channelappend.ErrRouteNotReady},
+		{name: "cluster no slot leader", err: cluster.ErrNoSlotLeader, want: channelappend.ErrRouteNotReady},
+		{name: "cluster not started", err: cluster.ErrNotStarted, want: channelappend.ErrRouteNotReady},
+		{name: "cluster stopping", err: cluster.ErrStopping, want: channelappend.ErrRouteNotReady},
 		{name: "channel placement candidates unavailable", err: fmt.Errorf("%w: channel replica candidates 2 below replica count 3", channelv2.ErrInvalidConfig), want: channelappend.ErrRouteNotReady},
 		{name: "context canceled", err: context.Canceled, want: context.Canceled, unchanged: true},
 		{name: "context deadline", err: context.DeadlineExceeded, want: context.DeadlineExceeded, unchanged: true},

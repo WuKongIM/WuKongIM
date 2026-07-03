@@ -7,8 +7,8 @@ import (
 
 	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/channels"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/routing"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/channels"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/routing"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 

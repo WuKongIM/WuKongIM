@@ -8,7 +8,7 @@ import (
 	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
 )
 
-// NodeLifecycleNode exposes clusterv2 node RPC for seed join and readiness probes.
+// NodeLifecycleNode exposes cluster node RPC for seed join and readiness probes.
 type NodeLifecycleNode interface {
 	// NodeID returns the local cluster node ID.
 	NodeID() uint64

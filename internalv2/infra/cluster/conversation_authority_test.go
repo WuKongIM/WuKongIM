@@ -10,14 +10,14 @@ import (
 	accessnode "github.com/WuKongIM/WuKongIM/internalv2/access/node"
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/conversationactive"
 	conversationusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/conversation"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/propose"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/propose"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
 func TestConversationAuthorityClientUsesLocalAuthority(t *testing.T) {
 	local := &fakeConversationAuthorityLocal{}
-	node := &fakeConversationAuthorityNode{nodeID: 1, route: clusterv2.Route{HashSlot: 7, SlotID: 2, Leader: 1, LeaderTerm: 5, ConfigEpoch: 6, Revision: 3, AuthorityEpoch: 4}}
+	node := &fakeConversationAuthorityNode{nodeID: 1, route: cluster.Route{HashSlot: 7, SlotID: 2, Leader: 1, LeaderTerm: 5, ConfigEpoch: 6, Revision: 3, AuthorityEpoch: 4}}
 	client := NewConversationAuthorityClient(node, local)
 	patch := conversationusecase.ActivePatch{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "g1", ChannelType: 2, ActiveAt: 100, MessageSeq: 1}
 	if err := client.AdmitPatches(context.Background(), []conversationusecase.ActivePatch{patch}); err != nil {
@@ -34,11 +34,11 @@ func TestConversationAuthorityClientUsesLocalAuthority(t *testing.T) {
 
 func TestConversationAuthorityClientAdmitActiveBatchSplitsSenderAndReceiverTargets(t *testing.T) {
 	local := &fakeConversationAuthorityLocal{}
-	senderTarget := clusterv2.Route{HashSlot: 1, SlotID: 2, Leader: 1, Revision: 10, AuthorityEpoch: 20}
-	receiverTarget := clusterv2.Route{HashSlot: 2, SlotID: 2, Leader: 1, Revision: 11, AuthorityEpoch: 21}
+	senderTarget := cluster.Route{HashSlot: 1, SlotID: 2, Leader: 1, Revision: 10, AuthorityEpoch: 20}
+	receiverTarget := cluster.Route{HashSlot: 2, SlotID: 2, Leader: 1, Revision: 11, AuthorityEpoch: 21}
 	node := &fakeConversationAuthorityNode{
 		nodeID: 1,
-		routesByUID: map[string]clusterv2.Route{
+		routesByUID: map[string]cluster.Route{
 			"sender":   senderTarget,
 			"receiver": receiverTarget,
 		},
@@ -77,10 +77,10 @@ func TestConversationAuthorityClientAdmitActiveBatchSplitsSenderAndReceiverTarge
 
 func TestConversationAuthorityClientAdmitActiveBatchPreservesKind(t *testing.T) {
 	local := &fakeConversationAuthorityLocal{}
-	target := clusterv2.Route{HashSlot: 1, SlotID: 2, Leader: 1, Revision: 10, AuthorityEpoch: 20}
+	target := cluster.Route{HashSlot: 1, SlotID: 2, Leader: 1, Revision: 10, AuthorityEpoch: 20}
 	node := &fakeConversationAuthorityNode{
 		nodeID: 1,
-		routesByUID: map[string]clusterv2.Route{
+		routesByUID: map[string]cluster.Route{
 			"sender":   target,
 			"receiver": target,
 		},
@@ -109,10 +109,10 @@ func TestConversationAuthorityClientAdmitActiveBatchPreservesKind(t *testing.T) 
 
 func TestConversationAuthorityClientAdmitActiveBatchKeepsSenderWithSameTargetRecipients(t *testing.T) {
 	local := &fakeConversationAuthorityLocal{}
-	target := clusterv2.Route{HashSlot: 1, SlotID: 2, Leader: 1, Revision: 10, AuthorityEpoch: 20}
+	target := cluster.Route{HashSlot: 1, SlotID: 2, Leader: 1, Revision: 10, AuthorityEpoch: 20}
 	node := &fakeConversationAuthorityNode{
 		nodeID: 1,
-		routesByUID: map[string]clusterv2.Route{
+		routesByUID: map[string]cluster.Route{
 			"sender":   target,
 			"receiver": target,
 		},
@@ -146,11 +146,11 @@ func TestConversationAuthorityClientAdmitActiveBatchKeepsSenderWithSameTargetRec
 
 func TestConversationAuthorityClientAdmitActiveBatchCachesSenderRecipientRoute(t *testing.T) {
 	local := &fakeConversationAuthorityLocal{}
-	firstTarget := clusterv2.Route{HashSlot: 1, SlotID: 2, Leader: 1, Revision: 10, AuthorityEpoch: 20}
-	movedTarget := clusterv2.Route{HashSlot: 2, SlotID: 2, Leader: 1, Revision: 11, AuthorityEpoch: 21}
+	firstTarget := cluster.Route{HashSlot: 1, SlotID: 2, Leader: 1, Revision: 10, AuthorityEpoch: 20}
+	movedTarget := cluster.Route{HashSlot: 2, SlotID: 2, Leader: 1, Revision: 11, AuthorityEpoch: 21}
 	node := &fakeConversationAuthorityNode{
 		nodeID: 1,
-		routesByUIDSequence: map[string][]clusterv2.Route{
+		routesByUIDSequence: map[string][]cluster.Route{
 			"sender": {firstTarget, movedTarget},
 		},
 	}
@@ -186,11 +186,11 @@ func TestConversationAuthorityClientAdmitActiveBatchCachesSenderRecipientRoute(t
 
 func TestConversationAuthorityClientAdmitActiveBatchCoalescesDuplicateRecipients(t *testing.T) {
 	local := &fakeConversationAuthorityLocal{}
-	firstTarget := clusterv2.Route{HashSlot: 1, SlotID: 2, Leader: 1, Revision: 10, AuthorityEpoch: 20}
-	movedTarget := clusterv2.Route{HashSlot: 2, SlotID: 2, Leader: 1, Revision: 11, AuthorityEpoch: 21}
+	firstTarget := cluster.Route{HashSlot: 1, SlotID: 2, Leader: 1, Revision: 10, AuthorityEpoch: 20}
+	movedTarget := cluster.Route{HashSlot: 2, SlotID: 2, Leader: 1, Revision: 11, AuthorityEpoch: 21}
 	node := &fakeConversationAuthorityNode{
 		nodeID: 1,
-		routesByUIDSequence: map[string][]clusterv2.Route{
+		routesByUIDSequence: map[string][]cluster.Route{
 			"receiver": {firstTarget, movedTarget},
 		},
 	}
@@ -225,11 +225,11 @@ func TestConversationAuthorityClientAdmitActiveBatchCoalescesDuplicateRecipients
 
 func TestConversationAuthorityClientAdmitActiveBatchRetriesStaleRouteWithFreshRoute(t *testing.T) {
 	local := &fakeConversationAuthorityLocal{activeBatchErrs: []error{conversationusecase.ErrStaleRoute, nil}}
-	firstTarget := clusterv2.Route{HashSlot: 1, SlotID: 2, Leader: 1, Revision: 10, AuthorityEpoch: 20}
-	freshTarget := clusterv2.Route{HashSlot: 1, SlotID: 2, Leader: 1, Revision: 11, AuthorityEpoch: 21}
+	firstTarget := cluster.Route{HashSlot: 1, SlotID: 2, Leader: 1, Revision: 10, AuthorityEpoch: 20}
+	freshTarget := cluster.Route{HashSlot: 1, SlotID: 2, Leader: 1, Revision: 11, AuthorityEpoch: 21}
 	node := &fakeConversationAuthorityNode{
 		nodeID: 1,
-		routesByUIDSequence: map[string][]clusterv2.Route{
+		routesByUIDSequence: map[string][]cluster.Route{
 			"receiver": {firstTarget, freshTarget},
 		},
 	}
@@ -264,12 +264,12 @@ func TestConversationAuthorityClientAdmitActiveBatchRetriesOnlyFailedTargetGroup
 			2: {conversationusecase.ErrStaleRoute, nil},
 		},
 	}
-	senderTarget := clusterv2.Route{HashSlot: 1, SlotID: 2, Leader: 1, Revision: 10, AuthorityEpoch: 20}
-	receiverFirstTarget := clusterv2.Route{HashSlot: 2, SlotID: 2, Leader: 1, Revision: 11, AuthorityEpoch: 21}
-	receiverFreshTarget := clusterv2.Route{HashSlot: 2, SlotID: 2, Leader: 1, Revision: 12, AuthorityEpoch: 22}
+	senderTarget := cluster.Route{HashSlot: 1, SlotID: 2, Leader: 1, Revision: 10, AuthorityEpoch: 20}
+	receiverFirstTarget := cluster.Route{HashSlot: 2, SlotID: 2, Leader: 1, Revision: 11, AuthorityEpoch: 21}
+	receiverFreshTarget := cluster.Route{HashSlot: 2, SlotID: 2, Leader: 1, Revision: 12, AuthorityEpoch: 22}
 	node := &fakeConversationAuthorityNode{
 		nodeID: 1,
-		routesByUIDSequence: map[string][]clusterv2.Route{
+		routesByUIDSequence: map[string][]cluster.Route{
 			"sender":   {senderTarget},
 			"receiver": {receiverFirstTarget, receiverFreshTarget},
 		},
@@ -309,10 +309,10 @@ func TestConversationAuthorityClientAdmitActiveBatchRetriesStaleRouteWithBounded
 			nil,
 		},
 	}
-	target := clusterv2.Route{HashSlot: 1, SlotID: 2, Leader: 1, Revision: 10, AuthorityEpoch: 20}
+	target := cluster.Route{HashSlot: 1, SlotID: 2, Leader: 1, Revision: 10, AuthorityEpoch: 20}
 	node := &fakeConversationAuthorityNode{
 		nodeID: 1,
-		routesByUIDSequence: map[string][]clusterv2.Route{
+		routesByUIDSequence: map[string][]cluster.Route{
 			"receiver": {
 				target,
 				{HashSlot: 1, SlotID: 2, Leader: 1, Revision: 11, AuthorityEpoch: 21},
@@ -357,7 +357,7 @@ func TestConversationAuthorityClientRoutesRemoteList(t *testing.T) {
 	adapter := accessnode.New(accessnode.Options{ConversationAuthority: remoteAuthority})
 	node := &fakeConversationAuthorityNode{
 		nodeID: 1,
-		route:  clusterv2.Route{HashSlot: 7, SlotID: 2, Leader: 2, Revision: 3, AuthorityEpoch: 4},
+		route:  cluster.Route{HashSlot: 7, SlotID: 2, Leader: 2, Revision: 3, AuthorityEpoch: 4},
 		handler: nodeRPCHandlerFunc(func(ctx context.Context, payload []byte) ([]byte, error) {
 			return adapter.HandleConversationAuthorityRPC(ctx, payload)
 		}),
@@ -376,7 +376,7 @@ func TestConversationAuthorityClientGroupsByExactTarget(t *testing.T) {
 	local := &fakeConversationAuthorityLocal{}
 	node := &fakeConversationAuthorityNode{
 		nodeID: 1,
-		routesByUID: map[string]clusterv2.Route{
+		routesByUID: map[string]cluster.Route{
 			"u1": {HashSlot: 1, SlotID: 2, Leader: 1, Revision: 10, AuthorityEpoch: 20},
 			"u2": {HashSlot: 2, SlotID: 2, Leader: 1, Revision: 11, AuthorityEpoch: 21},
 		},
@@ -398,7 +398,7 @@ func TestConversationAuthorityClientGroupsByFullTargetFields(t *testing.T) {
 	local := &fakeConversationAuthorityLocal{}
 	node := &fakeConversationAuthorityNode{
 		nodeID: 1,
-		routesByUID: map[string]clusterv2.Route{
+		routesByUID: map[string]cluster.Route{
 			"u1": {HashSlot: 1, SlotID: 2, Leader: 1, Revision: 10, AuthorityEpoch: 20},
 			"u2": {HashSlot: 1, SlotID: 2, Leader: 1, Revision: 11, AuthorityEpoch: 20},
 			"u3": {HashSlot: 1, SlotID: 2, Leader: 1, Revision: 10, AuthorityEpoch: 21},
@@ -420,22 +420,22 @@ func TestConversationAuthorityClientGroupsByFullTargetFields(t *testing.T) {
 }
 
 func TestConversationAuthorityClientGroupByTargetUsesEveryFencingField(t *testing.T) {
-	base := clusterv2.Route{HashSlot: 1, SlotID: 2, Leader: 1, Revision: 10, AuthorityEpoch: 20}
+	base := cluster.Route{HashSlot: 1, SlotID: 2, Leader: 1, Revision: 10, AuthorityEpoch: 20}
 	tests := []struct {
 		name  string
-		other clusterv2.Route
+		other cluster.Route
 	}{
-		{name: "hash slot", other: clusterv2.Route{HashSlot: 2, SlotID: 2, Leader: 1, Revision: 10, AuthorityEpoch: 20}},
-		{name: "slot id", other: clusterv2.Route{HashSlot: 1, SlotID: 3, Leader: 1, Revision: 10, AuthorityEpoch: 20}},
-		{name: "leader node", other: clusterv2.Route{HashSlot: 1, SlotID: 2, Leader: 2, Revision: 10, AuthorityEpoch: 20}},
-		{name: "route revision", other: clusterv2.Route{HashSlot: 1, SlotID: 2, Leader: 1, Revision: 11, AuthorityEpoch: 20}},
-		{name: "authority epoch", other: clusterv2.Route{HashSlot: 1, SlotID: 2, Leader: 1, Revision: 10, AuthorityEpoch: 21}},
+		{name: "hash slot", other: cluster.Route{HashSlot: 2, SlotID: 2, Leader: 1, Revision: 10, AuthorityEpoch: 20}},
+		{name: "slot id", other: cluster.Route{HashSlot: 1, SlotID: 3, Leader: 1, Revision: 10, AuthorityEpoch: 20}},
+		{name: "leader node", other: cluster.Route{HashSlot: 1, SlotID: 2, Leader: 2, Revision: 10, AuthorityEpoch: 20}},
+		{name: "route revision", other: cluster.Route{HashSlot: 1, SlotID: 2, Leader: 1, Revision: 11, AuthorityEpoch: 20}},
+		{name: "authority epoch", other: cluster.Route{HashSlot: 1, SlotID: 2, Leader: 1, Revision: 10, AuthorityEpoch: 21}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			node := &fakeConversationAuthorityNode{
 				nodeID: 1,
-				routesByUID: map[string]clusterv2.Route{
+				routesByUID: map[string]cluster.Route{
 					"u1": base,
 					"u2": tt.other,
 				},
@@ -460,7 +460,7 @@ func TestConversationAuthorityClientCoalescesIdenticalExactTargets(t *testing.T)
 	local := &fakeConversationAuthorityLocal{}
 	node := &fakeConversationAuthorityNode{
 		nodeID: 1,
-		routesByUID: map[string]clusterv2.Route{
+		routesByUID: map[string]cluster.Route{
 			"u1": {HashSlot: 1, SlotID: 2, Leader: 1, Revision: 10, AuthorityEpoch: 20},
 			"u2": {HashSlot: 1, SlotID: 2, Leader: 1, Revision: 10, AuthorityEpoch: 20},
 		},
@@ -486,7 +486,7 @@ func TestConversationAuthorityClientAdmitPatchesDoesNotRetryStaleRoute(t *testin
 	local := &fakeConversationAuthorityLocal{admitErrs: []error{conversationusecase.ErrStaleRoute, nil}}
 	node := &fakeConversationAuthorityNode{
 		nodeID: 1,
-		routes: []clusterv2.Route{
+		routes: []cluster.Route{
 			{HashSlot: 1, SlotID: 2, Leader: 1, Revision: 10, AuthorityEpoch: 20},
 			{HashSlot: 1, SlotID: 2, Leader: 1, Revision: 11, AuthorityEpoch: 21},
 		},
@@ -513,7 +513,7 @@ func TestConversationAuthorityClientAdmitPatchesDoesNotRetryRouteNotReady(t *tes
 	local := &fakeConversationAuthorityLocal{admitErrs: []error{conversationusecase.ErrRouteNotReady, nil}}
 	node := &fakeConversationAuthorityNode{
 		nodeID: 1,
-		routes: []clusterv2.Route{
+		routes: []cluster.Route{
 			{HashSlot: 1, SlotID: 2, Leader: 1, Revision: 10, AuthorityEpoch: 20},
 			{HashSlot: 1, SlotID: 2, Leader: 1, Revision: 11, AuthorityEpoch: 21},
 		},
@@ -546,7 +546,7 @@ func TestConversationAuthorityClientRetriesRouteNotReadyListWithFreshRoute(t *te
 	}
 	node := &fakeConversationAuthorityNode{
 		nodeID: 1,
-		routes: []clusterv2.Route{
+		routes: []cluster.Route{
 			{HashSlot: 1, SlotID: 2, Leader: 1, Revision: 10, AuthorityEpoch: 20},
 			{HashSlot: 1, SlotID: 2, Leader: 1, Revision: 11, AuthorityEpoch: 21},
 		},
@@ -577,11 +577,11 @@ func TestConversationAuthorityClientRetriesRawRemoteRouteErrorWithFreshRoute(t *
 	adapter := accessnode.New(accessnode.Options{ConversationAuthority: remoteAuthority})
 	node := &fakeConversationAuthorityNode{
 		nodeID: 1,
-		routes: []clusterv2.Route{
+		routes: []cluster.Route{
 			{HashSlot: 1, SlotID: 2, Leader: 2, Revision: 10, AuthorityEpoch: 20},
 			{HashSlot: 1, SlotID: 2, Leader: 2, Revision: 11, AuthorityEpoch: 21},
 		},
-		rpcErrs: []error{clusterv2.ErrNotLeader, nil},
+		rpcErrs: []error{cluster.ErrNotLeader, nil},
 		handler: nodeRPCHandlerFunc(func(ctx context.Context, payload []byte) ([]byte, error) {
 			return adapter.HandleConversationAuthorityRPC(ctx, payload)
 		}),
@@ -605,7 +605,7 @@ func TestConversationAuthorityClientAdmitPatchesDoesNotExhaustBoundedRetries(t *
 	local := &fakeConversationAuthorityLocal{admitAlwaysErr: conversationusecase.ErrNotLeader}
 	node := &fakeConversationAuthorityNode{
 		nodeID: 1,
-		route:  clusterv2.Route{HashSlot: 1, SlotID: 2, Leader: 1, Revision: 10, AuthorityEpoch: 20},
+		route:  cluster.Route{HashSlot: 1, SlotID: 2, Leader: 1, Revision: 10, AuthorityEpoch: 20},
 	}
 	client := NewConversationAuthorityClient(node, local)
 	client.routeRetrySleep = func(context.Context, time.Duration) error { return nil }
@@ -623,7 +623,7 @@ func TestConversationAuthorityClientAdmitPatchesReturnsContextCancellationBefore
 	local := &fakeConversationAuthorityLocal{}
 	node := &fakeConversationAuthorityNode{
 		nodeID: 1,
-		route:  clusterv2.Route{HashSlot: 1, SlotID: 2, Leader: 1, Revision: 10, AuthorityEpoch: 20},
+		route:  cluster.Route{HashSlot: 1, SlotID: 2, Leader: 1, Revision: 10, AuthorityEpoch: 20},
 	}
 	client := NewConversationAuthorityClient(node, local)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -642,7 +642,7 @@ func TestConversationAuthorityClientAdmitPatchesDoesNotRetryNotLeader(t *testing
 	local := &fakeConversationAuthorityLocal{admitErrs: []error{conversationusecase.ErrNotLeader, nil}}
 	node := &fakeConversationAuthorityNode{
 		nodeID: 1,
-		routes: []clusterv2.Route{
+		routes: []cluster.Route{
 			{HashSlot: 1, SlotID: 2, Leader: 1, Revision: 10, AuthorityEpoch: 20},
 			{HashSlot: 1, SlotID: 2, Leader: 1, Revision: 11, AuthorityEpoch: 21},
 		},
@@ -669,7 +669,7 @@ func TestConversationAuthorityClientAdmitPatchesStopsAtRetryableGroupError(t *te
 	local := &fakeConversationAuthorityLocal{admitErrs: []error{conversationusecase.ErrStaleRoute, nil, nil, nil}}
 	node := &fakeConversationAuthorityNode{
 		nodeID: 1,
-		routesByUID: map[string]clusterv2.Route{
+		routesByUID: map[string]cluster.Route{
 			"u1": {HashSlot: 1, SlotID: 2, Leader: 1, Revision: 10, AuthorityEpoch: 20},
 			"u2": {HashSlot: 2, SlotID: 2, Leader: 1, Revision: 11, AuthorityEpoch: 21},
 			"u3": {HashSlot: 3, SlotID: 2, Leader: 1, Revision: 12, AuthorityEpoch: 22},
@@ -732,9 +732,9 @@ func TestConversationAuthorityClientMapsRouteErrors(t *testing.T) {
 		err  error
 		want error
 	}{
-		{name: "route not ready", err: clusterv2.ErrRouteNotReady, want: conversationusecase.ErrRouteNotReady},
-		{name: "no slot leader", err: clusterv2.ErrNoSlotLeader, want: conversationusecase.ErrRouteNotReady},
-		{name: "not leader", err: clusterv2.ErrNotLeader, want: conversationusecase.ErrNotLeader},
+		{name: "route not ready", err: cluster.ErrRouteNotReady, want: conversationusecase.ErrRouteNotReady},
+		{name: "no slot leader", err: cluster.ErrNoSlotLeader, want: conversationusecase.ErrRouteNotReady},
+		{name: "not leader", err: cluster.ErrNotLeader, want: conversationusecase.ErrNotLeader},
 		{name: "proposal backpressure", err: propose.ErrProposalBackpressure, want: conversationusecase.ErrRouteNotReady},
 		{name: "background proposal throttled", err: propose.ErrBackgroundProposalThrottled, want: conversationusecase.ErrRouteNotReady},
 		{name: "context canceled", err: context.Canceled, want: context.Canceled},
@@ -762,25 +762,25 @@ func (f nodeRPCHandlerFunc) HandleRPC(ctx context.Context, payload []byte) ([]by
 
 type fakeConversationAuthorityNode struct {
 	nodeID              uint64
-	route               clusterv2.Route
-	routesByUID         map[string]clusterv2.Route
-	routesByUIDSequence map[string][]clusterv2.Route
-	routes              []clusterv2.Route
+	route               cluster.Route
+	routesByUID         map[string]cluster.Route
+	routesByUIDSequence map[string][]cluster.Route
+	routes              []cluster.Route
 	routeErr            error
 	rpcErrs             []error
-	handler             clusterv2.NodeRPCHandler
+	handler             cluster.NodeRPCHandler
 	calls               []rpcCall
 	routeKeyCalls       int
 	routeKeyCallsByUID  map[string]int
-	registered          map[uint8]clusterv2.NodeRPCHandler
-	watch               chan clusterv2.RouteAuthorityEvent
+	registered          map[uint8]cluster.NodeRPCHandler
+	watch               chan cluster.RouteAuthorityEvent
 }
 
 func (f *fakeConversationAuthorityNode) NodeID() uint64 {
 	return f.nodeID
 }
 
-func (f *fakeConversationAuthorityNode) RouteKey(uid string) (clusterv2.Route, error) {
+func (f *fakeConversationAuthorityNode) RouteKey(uid string) (cluster.Route, error) {
 	f.routeKeyCalls++
 	if f.routeKeyCallsByUID == nil {
 		f.routeKeyCallsByUID = make(map[string]int)
@@ -788,7 +788,7 @@ func (f *fakeConversationAuthorityNode) RouteKey(uid string) (clusterv2.Route, e
 	uidCallIndex := f.routeKeyCallsByUID[uid]
 	f.routeKeyCallsByUID[uid] = uidCallIndex + 1
 	if f.routeErr != nil {
-		return clusterv2.Route{}, f.routeErr
+		return cluster.Route{}, f.routeErr
 	}
 	if routes, ok := f.routesByUIDSequence[uid]; ok && len(routes) > 0 {
 		if uidCallIndex >= len(routes) {
@@ -834,16 +834,16 @@ func (f *fakeConversationAuthorityNode) CallRPC(ctx context.Context, nodeID uint
 	return nil, errors.New("missing rpc handler")
 }
 
-func (f *fakeConversationAuthorityNode) RegisterRPC(serviceID uint8, handler clusterv2.NodeRPCHandler) {
+func (f *fakeConversationAuthorityNode) RegisterRPC(serviceID uint8, handler cluster.NodeRPCHandler) {
 	if f.registered == nil {
-		f.registered = make(map[uint8]clusterv2.NodeRPCHandler)
+		f.registered = make(map[uint8]cluster.NodeRPCHandler)
 	}
 	f.registered[serviceID] = handler
 }
 
-func (f *fakeConversationAuthorityNode) WatchRouteAuthorities() <-chan clusterv2.RouteAuthorityEvent {
+func (f *fakeConversationAuthorityNode) WatchRouteAuthorities() <-chan cluster.RouteAuthorityEvent {
 	if f.watch == nil {
-		f.watch = make(chan clusterv2.RouteAuthorityEvent)
+		f.watch = make(chan cluster.RouteAuthorityEvent)
 	}
 	return f.watch
 }

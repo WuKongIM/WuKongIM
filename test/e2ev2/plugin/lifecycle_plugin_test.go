@@ -17,7 +17,7 @@ import (
 	"time"
 
 	appv2 "github.com/WuKongIM/WuKongIM/internalv2/app"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/stretchr/testify/require"
 )
 
@@ -76,7 +76,7 @@ func TestPluginLifecycleManagerConfigRestartAndUninstall(t *testing.T) {
 
 type lifecycleHarness struct {
 	app         *appv2.App
-	node        *clusterv2.Node
+	node        *cluster.Node
 	managerAddr string
 	pluginPath  string
 	recordPath  string
@@ -117,23 +117,23 @@ func startLifecycleHarness(tb testing.TB) *lifecycleHarness {
 
 	nodeID := uint64(1)
 	clusterAddr := freeTCPAddr(tb)
-	clusterCfg := clusterv2.Config{
+	clusterCfg := cluster.Config{
 		NodeID:     nodeID,
 		ListenAddr: clusterAddr,
 		DataDir:    filepath.Join(root, "cluster"),
-		Control: clusterv2.ControlConfig{
+		Control: cluster.ControlConfig{
 			ClusterID:      "internalv2-plugin-lifecycle",
-			Voters:         []clusterv2.ControlVoter{{NodeID: nodeID, Addr: clusterAddr}},
+			Voters:         []cluster.ControlVoter{{NodeID: nodeID, Addr: clusterAddr}},
 			AllowBootstrap: true,
 		},
-		Slots: clusterv2.SlotConfig{
+		Slots: cluster.SlotConfig{
 			InitialSlotCount: 1,
 			HashSlotCount:    4,
 			ReplicaCount:     1,
 		},
-		Channel: clusterv2.ChannelConfig{TickInterval: time.Millisecond},
+		Channel: cluster.ChannelConfig{TickInterval: time.Millisecond},
 	}
-	node, err := clusterv2.New(clusterCfg)
+	node, err := cluster.New(clusterCfg)
 	require.NoError(tb, err)
 
 	cfg := appv2.Config{

@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internalv2/app"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/gateway"
 	"github.com/WuKongIM/WuKongIM/pkg/gateway/binding"
 )
@@ -201,11 +201,11 @@ const (
 	defaultBenchAPIMaxPayloadBytes = 10 * 1024 * 1024
 )
 
-// clusterNodeConfig describes one static clusterv2 node from WK_CLUSTER_NODES.
+// clusterNodeConfig describes one static cluster node from WK_CLUSTER_NODES.
 type clusterNodeConfig struct {
 	// ID is the stable cluster node identity.
 	ID uint64 `json:"id"`
-	// Addr is the node-to-node clusterv2 RPC address advertised to peers.
+	// Addr is the node-to-node cluster RPC address advertised to peers.
 	Addr string `json:"addr"`
 }
 
@@ -397,8 +397,8 @@ func buildConfig(values map[string]string) (app.Config, error) {
 		Delivery: app.DeliveryConfig{
 			Enabled: true,
 		},
-		Cluster: clusterv2.Config{
-			Channel: clusterv2.ChannelConfig{
+		Cluster: cluster.Config{
+			Channel: cluster.ChannelConfig{
 				StoreAppendWorkers: 500,
 				StoreApplyWorkers:  500,
 				RPCWorkers:         500,
@@ -440,7 +440,7 @@ func buildConfig(values map[string]string) (app.Config, error) {
 	seedJoinConfigPresent := configKeyPresent(values, "WK_CLUSTER_SEEDS") ||
 		configKeyPresent(values, "WK_CLUSTER_ADVERTISE_ADDR")
 	if seedJoinConfigPresent {
-		cfg.Cluster.Control.Role = clusterv2.ControlRoleMirror
+		cfg.Cluster.Control.Role = cluster.ControlRoleMirror
 		cfg.Cluster.Control.AllowBootstrap = false
 		if configKeyPresent(values, "WK_CLUSTER_NODES") {
 			return app.Config{}, fmt.Errorf("load config: WK_CLUSTER_SEEDS cannot be combined with WK_CLUSTER_NODES")
@@ -1645,7 +1645,7 @@ func buildConfig(values map[string]string) (app.Config, error) {
 		cfg.Plugin.PersistAfterWorkers = workers
 	}
 	cfg.Plugin.SetExplicitFlags(configValue(values, "WK_PLUGIN_HOT_RELOAD") != "")
-	cfg.Cluster.ChannelRetention = clusterv2.ChannelRetentionConfig{
+	cfg.Cluster.ChannelRetention = cluster.ChannelRetentionConfig{
 		PhysicalGCEnabled: cfg.ChannelMessageRetention.PhysicalGCEnabled,
 		ScanInterval:      cfg.ChannelMessageRetention.ScanInterval,
 		ChannelBatchSize:  cfg.ChannelMessageRetention.ChannelBatchSize,
@@ -1754,10 +1754,10 @@ func parseManagerUsers(raw string) ([]app.ManagerUserConfig, error) {
 	return users, nil
 }
 
-func clusterVoters(nodes []clusterNodeConfig) []clusterv2.ControlVoter {
-	voters := make([]clusterv2.ControlVoter, 0, len(nodes))
+func clusterVoters(nodes []clusterNodeConfig) []cluster.ControlVoter {
+	voters := make([]cluster.ControlVoter, 0, len(nodes))
 	for _, node := range nodes {
-		voters = append(voters, clusterv2.ControlVoter{NodeID: node.ID, Addr: strings.TrimSpace(node.Addr)})
+		voters = append(voters, cluster.ControlVoter{NodeID: node.ID, Addr: strings.TrimSpace(node.Addr)})
 	}
 	return voters
 }
@@ -1848,7 +1848,7 @@ func parseDuration(key, raw string) (time.Duration, error) {
 	return value, nil
 }
 
-func validateClusterHealthReportConfig(cfg clusterv2.HealthReportConfig) error {
+func validateClusterHealthReportConfig(cfg cluster.HealthReportConfig) error {
 	interval := cfg.Interval
 	if interval == 0 {
 		interval = 5 * time.Second

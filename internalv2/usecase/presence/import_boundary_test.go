@@ -12,7 +12,7 @@ func TestPresenceUsecaseImportBoundary(t *testing.T) {
 	forbidden := []string{
 		"github.com/WuKongIM/WuKongIM/pkg/gateway",
 		"github.com/WuKongIM/WuKongIM/pkg/protocol/frame",
-		"github.com/WuKongIM/WuKongIM/pkg/clusterv2",
+		"github.com/WuKongIM/WuKongIM/pkg/cluster",
 		"github.com/WuKongIM/WuKongIM/internalv2/access",
 		"github.com/WuKongIM/WuKongIM/internalv2/app",
 	}

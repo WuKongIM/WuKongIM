@@ -68,6 +68,7 @@ func forbiddenBenchImport(dep string) (string, bool) {
 		"github.com/WuKongIM/WuKongIM/pkg/slot",
 		"github.com/WuKongIM/WuKongIM/pkg/controller",
 		"github.com/WuKongIM/WuKongIM/pkg/cluster",
+		"github.com/WuKongIM/WuKongIM/pkg/legacy/cluster",
 	}
 	for _, prefix := range forbidden {
 		if dep == prefix || strings.HasPrefix(dep, prefix+"/") {

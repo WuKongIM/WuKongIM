@@ -24,8 +24,8 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/transport"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/worker"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 	messagedb "github.com/WuKongIM/WuKongIM/pkg/db/message"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/gateway"
@@ -706,7 +706,7 @@ func TestConfigureObservabilityWiresSlotReplicaMovePhaseObserver(t *testing.T) {
 	app := &App{
 		cfg: Config{Observability: ObservabilityConfig{MetricsEnabled: true}},
 	}
-	clusterCfg := clusterv2.Config{NodeID: 1}
+	clusterCfg := cluster.Config{NodeID: 1}
 
 	app.configureObservability(&clusterCfg)
 
@@ -1224,8 +1224,8 @@ func TestMessageAppendMetricErrorLabels(t *testing.T) {
 		{name: "remote_invalid_config", err: fmt.Errorf("%w: nodetransport: remote error: %s", messageusecase.ErrAppendFailed, ch.ErrInvalidConfig), want: "invalid_config"},
 		{name: "closed", err: fmt.Errorf("%w: %w", messageusecase.ErrAppendFailed, ch.ErrClosed), want: "closed"},
 		{name: "too_many_channels", err: fmt.Errorf("%w: %w", messageusecase.ErrAppendFailed, ch.ErrTooManyChannels), want: "too_many_channels"},
-		{name: "cluster_not_started", err: fmt.Errorf("%w: %w", messageusecase.ErrAppendFailed, clusterv2.ErrNotStarted), want: "not_started"},
-		{name: "cluster_stopping", err: fmt.Errorf("%w: %w", messageusecase.ErrAppendFailed, clusterv2.ErrStopping), want: "closed"},
+		{name: "cluster_not_started", err: fmt.Errorf("%w: %w", messageusecase.ErrAppendFailed, cluster.ErrNotStarted), want: "not_started"},
+		{name: "cluster_stopping", err: fmt.Errorf("%w: %w", messageusecase.ErrAppendFailed, cluster.ErrStopping), want: "closed"},
 		{name: "timeout", err: fmt.Errorf("%w: %s", messageusecase.ErrAppendFailed, context.DeadlineExceeded), want: "timeout"},
 		{name: "wrapped_remote_error", err: fmt.Errorf("%w: nodetransport: remote error: unexpected", messageusecase.ErrAppendFailed), want: "remote_error"},
 		{name: "append_failed", err: messageusecase.ErrAppendFailed, want: "append_failed"},
@@ -1274,7 +1274,7 @@ func TestMessageAppendErrorLogPolicyIncludesTimeout(t *testing.T) {
 
 func TestNewWiresDiagnosticsStoreAndSendTraceSink(t *testing.T) {
 	cfg := Config{
-		Cluster: clusterv2.Config{NodeID: 7},
+		Cluster: cluster.Config{NodeID: 7},
 		Observability: ObservabilityConfig{
 			Diagnostics: DiagnosticsConfig{
 				SampleRate: 1,
@@ -1314,7 +1314,7 @@ func TestNewWiresDiagnosticsStoreAndSendTraceSink(t *testing.T) {
 
 func TestNewWiresDiagnosticsDebugAPI(t *testing.T) {
 	cfg := Config{
-		Cluster: clusterv2.Config{NodeID: 7},
+		Cluster: cluster.Config{NodeID: 7},
 		API:     APIConfig{ListenAddr: "127.0.0.1:0"},
 		Observability: ObservabilityConfig{
 			DebugAPIEnabled: true,
@@ -1870,8 +1870,8 @@ func TestDeliveryMetricsObserverMapsAckEventToGauge(t *testing.T) {
 func TestCombinedDeliveryObserverFansOutAckEvents(t *testing.T) {
 	reg := obsmetrics.New(1, "n1")
 	collector := newTopCollector(topCollectorOptions{
-		ClusterSnapshot: func() clusterv2.Snapshot {
-			return clusterv2.Snapshot{RoutesReady: true, SlotsReady: true, ChannelsReady: true}
+		ClusterSnapshot: func() cluster.Snapshot {
+			return cluster.Snapshot{RoutesReady: true, SlotsReady: true, ChannelsReady: true}
 		},
 	})
 	observer := combineDeliveryObservers(

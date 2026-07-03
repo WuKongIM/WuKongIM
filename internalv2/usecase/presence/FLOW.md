@@ -89,6 +89,6 @@ adapters. The import-boundary test rejects imports of:
 
 - `pkg/gateway`
 - `pkg/protocol/frame`
-- `pkg/clusterv2`
+- `pkg/cluster`
 - `internalv2/access`
 - `internalv2/app`

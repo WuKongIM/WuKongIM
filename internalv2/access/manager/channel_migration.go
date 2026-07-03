@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/gin-gonic/gin"
 )
@@ -247,10 +247,10 @@ func writeChannelMigrationError(c *gin.Context, err error) {
 	case errors.Is(err, managementusecase.ErrChannelMigrationConflict):
 		jsonError(c, http.StatusConflict, "conflict", "conflict")
 	case errors.Is(err, managementusecase.ErrChannelMigrationUnavailable),
-		errors.Is(err, clusterv2.ErrSlotNotFound),
-		errors.Is(err, clusterv2.ErrNotStarted),
-		errors.Is(err, clusterv2.ErrNotLeader),
-		errors.Is(err, clusterv2.ErrStopping):
+		errors.Is(err, cluster.ErrSlotNotFound),
+		errors.Is(err, cluster.ErrNotStarted),
+		errors.Is(err, cluster.ErrNotLeader),
+		errors.Is(err, cluster.ErrStopping):
 		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "service_unavailable")
 	default:
 		jsonError(c, http.StatusInternalServerError, "internal_error", err.Error())

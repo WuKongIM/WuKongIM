@@ -6,20 +6,20 @@ import (
 
 	accessnode "github.com/WuKongIM/WuKongIM/internalv2/access/node"
 	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 )
 
 func TestManagementLogReaderUsesLocalControllerLogs(t *testing.T) {
 	node := &fakeManagementLogNode{
 		nodeID: 1,
-		controller: clusterv2.ControllerLogEntries{
+		controller: cluster.ControllerLogEntries{
 			NodeID:       1,
 			FirstIndex:   1,
 			LastIndex:    4,
 			CommitIndex:  4,
 			AppliedIndex: 3,
 			NextCursor:   3,
-			Items: []clusterv2.LogEntry{{
+			Items: []cluster.LogEntry{{
 				Index:        4,
 				Term:         2,
 				Type:         "normal",
@@ -44,7 +44,7 @@ func TestManagementLogReaderUsesLocalControllerLogs(t *testing.T) {
 	if got.NodeID != 1 || got.NextCursor != 3 || len(got.Items) != 1 || got.Items[0].DecodedType != "init_cluster_state" || got.Items[0].CreatedAtMS != 1781754611123 {
 		t.Fatalf("controller page = %#v, want local decoded page", got)
 	}
-	if node.localControllerOpts != (clusterv2.LogEntriesOptions{Limit: 2, Cursor: 5}) {
+	if node.localControllerOpts != (cluster.LogEntriesOptions{Limit: 2, Cursor: 5}) {
 		t.Fatalf("local opts = %#v, want limit 2 cursor 5", node.localControllerOpts)
 	}
 	if node.calledServiceID != 0 {
@@ -102,11 +102,11 @@ type fakeManagementLogNode struct {
 	calledNodeID        uint64
 	calledServiceID     uint8
 	handler             func(context.Context, []byte) ([]byte, error)
-	localControllerOpts clusterv2.LogEntriesOptions
+	localControllerOpts cluster.LogEntriesOptions
 	localSlotID         uint32
-	localSlotOpts       clusterv2.LogEntriesOptions
-	controller          clusterv2.ControllerLogEntries
-	slot                clusterv2.SlotLogEntries
+	localSlotOpts       cluster.LogEntriesOptions
+	controller          cluster.ControllerLogEntries
+	slot                cluster.SlotLogEntries
 }
 
 func (f *fakeManagementLogNode) NodeID() uint64 { return f.nodeID }
@@ -117,12 +117,12 @@ func (f *fakeManagementLogNode) CallRPC(ctx context.Context, nodeID uint64, serv
 	return f.handler(ctx, payload)
 }
 
-func (f *fakeManagementLogNode) LocalControllerLogEntries(_ context.Context, opts clusterv2.LogEntriesOptions) (clusterv2.ControllerLogEntries, error) {
+func (f *fakeManagementLogNode) LocalControllerLogEntries(_ context.Context, opts cluster.LogEntriesOptions) (cluster.ControllerLogEntries, error) {
 	f.localControllerOpts = opts
 	return f.controller, nil
 }
 
-func (f *fakeManagementLogNode) LocalSlotLogEntries(_ context.Context, slotID uint32, opts clusterv2.LogEntriesOptions) (clusterv2.SlotLogEntries, error) {
+func (f *fakeManagementLogNode) LocalSlotLogEntries(_ context.Context, slotID uint32, opts cluster.LogEntriesOptions) (cluster.SlotLogEntries, error) {
 	f.localSlotID = slotID
 	f.localSlotOpts = opts
 	return f.slot, nil

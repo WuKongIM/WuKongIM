@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 )
 
 func TestPlanNodeSlotMoveOutAllowsActiveControllerVoterDataNode(t *testing.T) {

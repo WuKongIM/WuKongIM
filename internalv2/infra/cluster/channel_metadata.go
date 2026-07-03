@@ -7,7 +7,7 @@ import (
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
-// ChannelMetadataNode exposes clusterv2 Slot metadata operations used by the channel usecase.
+// ChannelMetadataNode exposes cluster Slot metadata operations used by the channel usecase.
 type ChannelMetadataNode interface {
 	GetChannelMetadata(context.Context, string, int64) (metadb.Channel, error)
 	UpsertChannelMetadata(context.Context, metadb.Channel) error
@@ -28,14 +28,14 @@ type ChannelMembershipNode interface {
 	DeleteUserChannelMemberships(context.Context, string, int64, []string, int64) error
 }
 
-// ChannelMetadataStore adapts clusterv2 Slot metadata to the entry-agnostic channel usecase.
+// ChannelMetadataStore adapts cluster Slot metadata to the entry-agnostic channel usecase.
 type ChannelMetadataStore struct {
 	node                ChannelMetadataNode
 	membershipNode      ChannelMembershipNode
 	appendMetadataCache *ChannelAppendMetadataCache
 }
 
-// NewChannelMetadataStore creates a clusterv2-backed channel metadata store.
+// NewChannelMetadataStore creates a cluster-backed channel metadata store.
 func NewChannelMetadataStore(node ChannelMetadataNode, appendMetadataCache *ChannelAppendMetadataCache) *ChannelMetadataStore {
 	membershipNode, _ := node.(ChannelMembershipNode)
 	return &ChannelMetadataStore{node: node, membershipNode: membershipNode, appendMetadataCache: appendMetadataCache}

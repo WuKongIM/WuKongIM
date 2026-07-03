@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internalv2/app"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/gateway"
 	"github.com/WuKongIM/WuKongIM/pkg/gateway/binding"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
@@ -903,7 +903,7 @@ func TestLoadConfigSeedJoinMode(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadConfig() error = %v", err)
 	}
-	if cfg.Cluster.Control.Role != clusterv2.ControlRoleMirror {
+	if cfg.Cluster.Control.Role != cluster.ControlRoleMirror {
 		t.Fatalf("Control.Role = %q, want mirror", cfg.Cluster.Control.Role)
 	}
 	if cfg.Cluster.Control.AllowBootstrap {
@@ -937,7 +937,7 @@ func TestLoadConfigStaticClusterAcceptsJoinToken(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadConfig() error = %v", err)
 	}
-	if cfg.Cluster.Control.Role == clusterv2.ControlRoleMirror {
+	if cfg.Cluster.Control.Role == cluster.ControlRoleMirror {
 		t.Fatalf("Control.Role = %q, want token-only config not to force mirror", cfg.Cluster.Control.Role)
 	}
 	if !cfg.Cluster.Control.AllowBootstrap {

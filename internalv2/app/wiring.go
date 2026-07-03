@@ -24,7 +24,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/message"
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/presence"
 	userusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/user"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/gateway"
 	obsmetrics "github.com/WuKongIM/WuKongIM/pkg/metrics"
 	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
@@ -119,7 +119,7 @@ func (a *App) ensureLogger() error {
 	return nil
 }
 
-func (a *App) configureObservability(clusterCfg *clusterv2.Config) {
+func (a *App) configureObservability(clusterCfg *cluster.Config) {
 	var top *topCollector
 	if a.cfg.Top.APIEnabled {
 		top = a.ensureTopCollector(clusterCfg.NodeID, true)
@@ -183,19 +183,19 @@ func (a *App) ensureTopCollector(nodeID uint64, exposeProvider bool) *topCollect
 		NodeName:        fmt.Sprintf("node-%d", nodeID),
 		CollectInterval: a.cfg.Top.CollectInterval,
 		HistoryWindow:   a.cfg.Top.HistoryWindow,
-		ClusterSnapshot: func() clusterv2.Snapshot {
-			if runtime, ok := a.cluster.(interface{ Snapshot() clusterv2.Snapshot }); ok {
+		ClusterSnapshot: func() cluster.Snapshot {
+			if runtime, ok := a.cluster.(interface{ Snapshot() cluster.Snapshot }); ok {
 				return runtime.Snapshot()
 			}
-			return clusterv2.Snapshot{NodeID: nodeID}
+			return cluster.Snapshot{NodeID: nodeID}
 		},
-		StorageMetricsSnapshot: func() clusterv2.StorageMetricsSnapshot {
+		StorageMetricsSnapshot: func() cluster.StorageMetricsSnapshot {
 			if runtime, ok := a.cluster.(interface {
-				StorageMetricsSnapshot() clusterv2.StorageMetricsSnapshot
+				StorageMetricsSnapshot() cluster.StorageMetricsSnapshot
 			}); ok {
 				return runtime.StorageMetricsSnapshot()
 			}
-			return clusterv2.StorageMetricsSnapshot{}
+			return cluster.StorageMetricsSnapshot{}
 		},
 		MetricsEnabled: a.cfg.Observability.MetricsEnabled,
 	})
@@ -206,9 +206,9 @@ func (a *App) ensureTopCollector(nodeID uint64, exposeProvider bool) *topCollect
 	return collector
 }
 
-func (a *App) ensureCluster(clusterCfg clusterv2.Config) error {
+func (a *App) ensureCluster(clusterCfg cluster.Config) error {
 	if a.cluster == nil {
-		node, err := clusterv2.New(clusterCfg)
+		node, err := cluster.New(clusterCfg)
 		if err != nil {
 			return err
 		}
@@ -543,7 +543,7 @@ func (a *App) wireSeedJoinLoop() {
 	}, clusterinfra.NewNodeLifecycleClient(node), snapshots, a.logger.Named("seed_join"))
 }
 
-func seedJoinConfigPresent(join clusterv2.JoinConfig) bool {
+func seedJoinConfigPresent(join cluster.JoinConfig) bool {
 	return len(join.Seeds) > 0 &&
 		strings.TrimSpace(join.AdvertiseAddr) != "" &&
 		join.Token != ""

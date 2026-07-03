@@ -7,8 +7,8 @@ import (
 
 	accessnode "github.com/WuKongIM/WuKongIM/internalv2/access/node"
 	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 )
 
 func TestManagementTaskAuditReaderRoutesToControllerLeaderRPC(t *testing.T) {
@@ -32,7 +32,7 @@ func TestManagementTaskAuditReaderRoutesToControllerLeaderRPC(t *testing.T) {
 	adapter := accessnode.New(accessnode.Options{ManagerTaskAudit: service})
 	node := &fakeManagementTaskAuditNode{
 		nodeID: 1,
-		status: clusterv2.ControllerRaftStatus{
+		status: cluster.ControllerRaftStatus{
 			NodeID:   1,
 			Role:     "follower",
 			LeaderID: 2,
@@ -73,7 +73,7 @@ func TestManagementTaskAuditReaderUsesLocalStoreWhenLocalNodeIsLeader(t *testing
 	}
 	node := &fakeManagementTaskAuditNode{
 		nodeID: 1,
-		status: clusterv2.ControllerRaftStatus{
+		status: cluster.ControllerRaftStatus{
 			NodeID:   1,
 			Role:     "leader",
 			LeaderID: 1,
@@ -126,7 +126,7 @@ type fakeManagementTaskAuditNode struct {
 	calledNodeID    uint64
 	calledServiceID uint8
 	handler         func(context.Context, []byte) ([]byte, error)
-	status          clusterv2.ControllerRaftStatus
+	status          cluster.ControllerRaftStatus
 	statusErr       error
 	snapshot        control.Snapshot
 }
@@ -139,9 +139,9 @@ func (f *fakeManagementTaskAuditNode) CallRPC(ctx context.Context, nodeID uint64
 	return f.handler(ctx, payload)
 }
 
-func (f *fakeManagementTaskAuditNode) LocalControllerRaftStatus(context.Context) (clusterv2.ControllerRaftStatus, error) {
+func (f *fakeManagementTaskAuditNode) LocalControllerRaftStatus(context.Context) (cluster.ControllerRaftStatus, error) {
 	if f.statusErr != nil {
-		return clusterv2.ControllerRaftStatus{}, f.statusErr
+		return cluster.ControllerRaftStatus{}, f.statusErr
 	}
 	return f.status, nil
 }

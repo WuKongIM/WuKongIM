@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 	cv2 "github.com/WuKongIM/WuKongIM/pkg/controller"
 )
 

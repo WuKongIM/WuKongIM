@@ -11,5 +11,5 @@ rebalance planning.
 - This package is a neutral utility shared by legacy control-plane code,
   Slot FSM commands, and future canonical cluster packages.
 - It may depend on `pkg/slot/multiraft` for physical Slot IDs.
-- It must not import `pkg/cluster`, `pkg/controller`, `pkg/clusterv2`,
+- It must not import `pkg/cluster`, `pkg/controller`, `pkg/cluster`,
   `internal`, or `internalv2`.

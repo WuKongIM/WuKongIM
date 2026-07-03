@@ -9,9 +9,9 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channelv2/store"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/channels"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/channels"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	coregateway "github.com/WuKongIM/WuKongIM/pkg/gateway"
 	"github.com/WuKongIM/WuKongIM/pkg/gateway/session"
@@ -94,9 +94,9 @@ func TestSingleNodeClusterSendWithChannelMetaAndSendack(t *testing.T) {
 	if err := app.Start(startCtx); err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
-	node, ok := app.cluster.(*clusterv2.Node)
+	node, ok := app.cluster.(*cluster.Node)
 	if !ok {
-		t.Fatalf("cluster runtime = %T, want *clusterv2.Node", app.cluster)
+		t.Fatalf("cluster runtime = %T, want *cluster.Node", app.cluster)
 	}
 	waitSingleNodeClusterRouteLeader(t, node, channelID.ID, cfg.NodeID)
 	waitSingleNodeClusterNodeSchedulable(t, node, cfg.NodeID)
@@ -150,7 +150,7 @@ func sendDefaultMetaSmokePacket(t *testing.T, app *App, channelID channelv2.Chan
 	return ack
 }
 
-func seedGroupSendPermission(t *testing.T, node *clusterv2.Node, channelID channelv2.ChannelID, uids ...string) {
+func seedGroupSendPermission(t *testing.T, node *cluster.Node, channelID channelv2.ChannelID, uids ...string) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
@@ -183,22 +183,22 @@ func singleNodeClusterAppConfig(t *testing.T) Config {
 	cfg := Config{
 		NodeID:  nodeID,
 		DataDir: t.TempDir(),
-		Cluster: clusterv2.Config{
+		Cluster: cluster.Config{
 			NodeID:     nodeID,
 			ListenAddr: listenAddr,
 			DataDir:    t.TempDir(),
-			Control: clusterv2.ControlConfig{
+			Control: cluster.ControlConfig{
 				ClusterID:      "internalv2-sendack-smoke",
-				Voters:         []clusterv2.ControlVoter{{NodeID: nodeID, Addr: listenAddr}},
+				Voters:         []cluster.ControlVoter{{NodeID: nodeID, Addr: listenAddr}},
 				AllowBootstrap: true,
 			},
-			Slots: clusterv2.SlotConfig{
+			Slots: cluster.SlotConfig{
 				InitialSlotCount: 1,
 				HashSlotCount:    4,
 				ReplicaCount:     1,
 			},
-			Channel: clusterv2.ChannelConfig{TickInterval: time.Millisecond},
-			HealthReport: clusterv2.HealthReportConfig{
+			Channel: cluster.ChannelConfig{TickInterval: time.Millisecond},
+			HealthReport: cluster.HealthReportConfig{
 				Interval: 20 * time.Millisecond,
 				TTL:      500 * time.Millisecond,
 			},
@@ -208,7 +208,7 @@ func singleNodeClusterAppConfig(t *testing.T) Config {
 	return cfg
 }
 
-func newSendackSmokeSingleNodeCluster(t *testing.T, cfg clusterv2.Config, channelID channelv2.ChannelID) *clusterv2.Node {
+func newSendackSmokeSingleNodeCluster(t *testing.T, cfg cluster.Config, channelID channelv2.ChannelID) *cluster.Node {
 	t.Helper()
 	storeFactory := channelstore.NewMessageDBFactory(t.TempDir())
 	t.Cleanup(func() {
@@ -236,17 +236,17 @@ func newSendackSmokeSingleNodeCluster(t *testing.T, cfg clusterv2.Config, channe
 	if err != nil {
 		t.Fatalf("channels.NewService() error = %v", err)
 	}
-	node, err := clusterv2.New(cfg, clusterv2.WithChannels(channelSvc))
+	node, err := cluster.New(cfg, cluster.WithChannels(channelSvc))
 	if err != nil {
-		t.Fatalf("clusterv2.New() error = %v", err)
+		t.Fatalf("cluster.New() error = %v", err)
 	}
 	return node
 }
 
-func waitSingleNodeClusterRouteLeader(t *testing.T, node *clusterv2.Node, key string, want uint64) {
+func waitSingleNodeClusterRouteLeader(t *testing.T, node *cluster.Node, key string, want uint64) {
 	t.Helper()
 	deadline := time.Now().Add(3 * time.Second)
-	var lastRoute clusterv2.Route
+	var lastRoute cluster.Route
 	var lastErr error
 	for time.Now().Before(deadline) {
 		route, err := node.RouteKey(key)
@@ -260,7 +260,7 @@ func waitSingleNodeClusterRouteLeader(t *testing.T, node *clusterv2.Node, key st
 	t.Fatalf("route leader for key %q did not become %d; last route=%#v lastErr=%v", key, want, lastRoute, lastErr)
 }
 
-func waitSingleNodeClusterNodeSchedulable(t *testing.T, node *clusterv2.Node, want uint64) {
+func waitSingleNodeClusterNodeSchedulable(t *testing.T, node *cluster.Node, want uint64) {
 	t.Helper()
 	deadline := time.Now().Add(3 * time.Second)
 	var lastNode control.Node

@@ -11,9 +11,9 @@ import (
 	channelreplica "github.com/WuKongIM/WuKongIM/pkg/channel/replica"
 	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel/runtime"
 	channeltransport "github.com/WuKongIM/WuKongIM/pkg/channel/transport"
-	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/db/message"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	raftcluster "github.com/WuKongIM/WuKongIM/pkg/legacy/cluster"
 	"golang.org/x/sync/singleflight"
 )
 

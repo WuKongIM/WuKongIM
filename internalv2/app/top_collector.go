@@ -11,7 +11,7 @@ import (
 	"time"
 
 	accessapi "github.com/WuKongIM/WuKongIM/internalv2/access/api"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	obsmetrics "github.com/WuKongIM/WuKongIM/pkg/metrics"
 	"github.com/shirou/gopsutil/v4/process"
 )
@@ -56,8 +56,8 @@ type topCollectorOptions struct {
 	CollectInterval time.Duration
 	// HistoryWindow bounds retained in-memory samples.
 	HistoryWindow time.Duration
-	// ClusterSnapshot returns the latest local clusterv2 readiness snapshot.
-	ClusterSnapshot func() clusterv2.Snapshot
+	// ClusterSnapshot returns the latest local cluster readiness snapshot.
+	ClusterSnapshot func() cluster.Snapshot
 	// MetricsEnabled reports whether the optional Prometheus endpoint is enabled.
 	MetricsEnabled bool
 	// ResourceMetrics receives local resource samples for Prometheus-backed monitor cards.
@@ -65,7 +65,7 @@ type topCollectorOptions struct {
 	// StorageMetrics receives local storage engine samples for Prometheus-backed monitor cards.
 	StorageMetrics *obsmetrics.StorageMetrics
 	// StorageMetricsSnapshot returns the latest local storage engine metrics.
-	StorageMetricsSnapshot func() clusterv2.StorageMetricsSnapshot
+	StorageMetricsSnapshot func() cluster.StorageMetricsSnapshot
 	// ResourceSampler returns local process CPU and memory usage for top snapshots.
 	ResourceSampler func() topResourceSample
 }
@@ -97,7 +97,7 @@ type topSample struct {
 	counters map[string]uint64
 	gauges   map[string]int64
 	histos   map[string][]float64
-	cluster  clusterv2.Snapshot
+	cluster  cluster.Snapshot
 	resource topResourceSample
 }
 
@@ -512,9 +512,9 @@ func (c *topCollector) recordSampleAt(at time.Time) {
 	c.mu.Unlock()
 }
 
-func (c *topCollector) clusterSnapshot() clusterv2.Snapshot {
+func (c *topCollector) clusterSnapshot() cluster.Snapshot {
 	if c.options.ClusterSnapshot == nil {
-		return clusterv2.Snapshot{NodeID: c.options.NodeID}
+		return cluster.Snapshot{NodeID: c.options.NodeID}
 	}
 	snapshot := c.options.ClusterSnapshot()
 	if snapshot.NodeID == 0 {
@@ -1044,7 +1044,7 @@ func percentile(values []float64, p float64) float64 {
 	return sorted[idx]
 }
 
-func (c *topCollector) topNodeSnapshot(snapshot clusterv2.Snapshot) accessapi.TopNodeSnapshot {
+func (c *topCollector) topNodeSnapshot(snapshot cluster.Snapshot) accessapi.TopNodeSnapshot {
 	readyParts := map[string]bool{
 		"routes":   snapshot.RoutesReady,
 		"slots":    snapshot.SlotsReady,
@@ -1247,7 +1247,7 @@ func pressureHint(item accessapi.TopPressureItem) string {
 	return "queue depth is approaching capacity"
 }
 
-func buildTopVerdict(snapshot clusterv2.Snapshot, traffic *accessapi.TopTraffic, pressure *accessapi.TopPressure) accessapi.TopVerdict {
+func buildTopVerdict(snapshot cluster.Snapshot, traffic *accessapi.TopTraffic, pressure *accessapi.TopPressure) accessapi.TopVerdict {
 	if !snapshot.RoutesReady || !snapshot.SlotsReady || !snapshot.ChannelsReady {
 		return accessapi.TopVerdict{
 			Level:   "critical",
@@ -1276,7 +1276,7 @@ func buildTopVerdict(snapshot clusterv2.Snapshot, traffic *accessapi.TopTraffic,
 	return accessapi.TopVerdict{Level: level, Summary: summary, Reasons: reasons}
 }
 
-func readinessReasons(snapshot clusterv2.Snapshot) []string {
+func readinessReasons(snapshot cluster.Snapshot) []string {
 	reasons := make([]string, 0, 3)
 	if !snapshot.RoutesReady {
 		reasons = append(reasons, "routes not ready")
@@ -1398,7 +1398,7 @@ func gatewaySessionErrorAlertSignal(first, last topSample) (topAlertSignal, bool
 	}, true
 }
 
-func readinessAlertSignals(snapshot clusterv2.Snapshot) []topAlertSignal {
+func readinessAlertSignals(snapshot cluster.Snapshot) []topAlertSignal {
 	signals := make([]topAlertSignal, 0, 3)
 	if !snapshot.RoutesReady {
 		signals = append(signals, topAlertSignal{
@@ -1406,7 +1406,7 @@ func readinessAlertSignals(snapshot clusterv2.Snapshot) []topAlertSignal {
 			component: "cluster",
 			kind:      "ready_part_down",
 			message:   "routes not ready",
-			hint:      "check clusterv2 routing state and node links",
+			hint:      "check cluster routing state and node links",
 			evidence:  map[string]string{"ready_part": "routes", "ready": "false"},
 		})
 	}

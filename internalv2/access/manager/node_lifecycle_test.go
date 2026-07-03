@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
@@ -111,9 +111,9 @@ func TestManagerJoinAndActivateNodeRoutesMapErrors(t *testing.T) {
 		{name: "node conflict", err: managementusecase.ErrNodeLifecycleConflict, status: http.StatusConflict, code: "conflict"},
 		{name: "node not ready", err: managementusecase.ErrNodeNotReadyForActivation, status: http.StatusConflict, code: "conflict"},
 		{name: "lifecycle unavailable", err: managementusecase.ErrNodeLifecycleUnavailable, status: http.StatusServiceUnavailable, code: "service_unavailable"},
-		{name: "not started", err: clusterv2.ErrNotStarted, status: http.StatusServiceUnavailable, code: "service_unavailable"},
-		{name: "not leader", err: clusterv2.ErrNotLeader, status: http.StatusServiceUnavailable, code: "service_unavailable"},
-		{name: "stopping", err: clusterv2.ErrStopping, status: http.StatusServiceUnavailable, code: "service_unavailable"},
+		{name: "not started", err: cluster.ErrNotStarted, status: http.StatusServiceUnavailable, code: "service_unavailable"},
+		{name: "not leader", err: cluster.ErrNotLeader, status: http.StatusServiceUnavailable, code: "service_unavailable"},
+		{name: "stopping", err: cluster.ErrStopping, status: http.StatusServiceUnavailable, code: "service_unavailable"},
 		{name: "internal", err: errors.New("boom"), status: http.StatusInternalServerError, code: "internal_error"},
 	}
 	for _, tt := range tests {

@@ -19,7 +19,7 @@ func TestNodeOpsDoesNotImportClusterInternals(t *testing.T) {
 		for _, forbidden := range []string{
 			"github.com/WuKongIM/WuKongIM/internalv2/",
 			"github.com/WuKongIM/WuKongIM/pkg/controller",
-			"github.com/WuKongIM/WuKongIM/pkg/clusterv2",
+			"github.com/WuKongIM/WuKongIM/pkg/cluster",
 			"github.com/WuKongIM/WuKongIM/pkg/db/",
 		} {
 			if strings.HasPrefix(dep, forbidden) {

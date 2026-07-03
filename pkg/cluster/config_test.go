@@ -2,765 +2,459 @@ package cluster
 
 import (
 	"errors"
-	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
-	controllerraft "github.com/WuKongIM/WuKongIM/pkg/legacy/controller/raft"
-	raftstorage "github.com/WuKongIM/WuKongIM/pkg/raftlog"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 )
 
-func TestConfigValidate_Valid(t *testing.T) {
-	cfg := validTestConfig()
+func TestConfigDefaultsSingleNodeControl(t *testing.T) {
+	cfg := Config{NodeID: 1, ListenAddr: "127.0.0.1:0", DataDir: t.TempDir()}
+	cfg.applyDefaults()
+
+	if cfg.Control.StateDir != filepath.Join(cfg.DataDir, "controller") {
+		t.Fatalf("Control.StateDir = %q", cfg.Control.StateDir)
+	}
+	if cfg.Control.Role != ControlRoleVoter {
+		t.Fatalf("Control.Role = %q, want voter", cfg.Control.Role)
+	}
+	if cfg.Control.ClusterID != "wk-clusterv2-single-node-1" {
+		t.Fatalf("Control.ClusterID = %q", cfg.Control.ClusterID)
+	}
+	if len(cfg.Control.Voters) != 1 || cfg.Control.Voters[0].NodeID != 1 || cfg.Control.Voters[0].Addr != cfg.ListenAddr {
+		t.Fatalf("Control.Voters = %#v, want local single voter", cfg.Control.Voters)
+	}
+	if !cfg.Control.AllowBootstrap {
+		t.Fatal("Control.AllowBootstrap = false, want true for implicit single-node cluster")
+	}
+	if cfg.Slots.InitialSlotCount == 0 || cfg.Slots.HashSlotCount == 0 || cfg.Slots.ReplicaCount == 0 {
+		t.Fatalf("Slots defaults = %#v, want non-zero", cfg.Slots)
+	}
+	if cfg.Slots.TickInterval != defaultSlotTickInterval || cfg.Slots.ElectionTick != defaultSlotElectionTick || cfg.Slots.HeartbeatTick != defaultSlotHeartbeatTick {
+		t.Fatalf("Slot Raft timing defaults = %s/%d/%d, want %s/%d/%d",
+			cfg.Slots.TickInterval,
+			cfg.Slots.ElectionTick,
+			cfg.Slots.HeartbeatTick,
+			defaultSlotTickInterval,
+			defaultSlotElectionTick,
+			defaultSlotHeartbeatTick,
+		)
+	}
+}
+
+func TestConfigAppliesHealthReportDefaults(t *testing.T) {
+	cfg := Config{NodeID: 1, ListenAddr: "127.0.0.1:7001", DataDir: t.TempDir()}
+	cfg.applyDefaults()
+	if cfg.HealthReport.Interval != 5*time.Second || cfg.HealthReport.TTL != 30*time.Second {
+		t.Fatalf("HealthReport defaults = %s/%s, want 5s/30s", cfg.HealthReport.Interval, cfg.HealthReport.TTL)
+	}
+}
+
+func TestConfigDefaultStartTimeoutAllowsMultipleScaledWriteProbeAttempts(t *testing.T) {
+	cfg := Config{NodeID: 1, ListenAddr: "127.0.0.1:7001", DataDir: t.TempDir()}
+	cfg.applyDefaults()
+	scaledProbeBudget := 10 * 500 * time.Millisecond
+	minimum := 3 * scaledProbeBudget
+
+	if got := cfg.Timeouts.Start; got < minimum {
+		t.Fatalf("Timeouts.Start default = %s, want at least %s for multiple scaled write-probe attempts", got, minimum)
+	}
+}
+
+func TestConfigRejectsInvalidHealthReportTTL(t *testing.T) {
+	cfg := validConfig(t)
+	cfg.HealthReport.Interval = 5 * time.Second
+	cfg.HealthReport.TTL = time.Second
+	if err := cfg.validate(); err == nil {
+		t.Fatal("validate() error = nil, want TTL below interval rejected")
+	}
+}
+
+func TestConfigJoinTokenOnlyDoesNotEnableSeedJoinMode(t *testing.T) {
+	cfg := Config{
+		NodeID:     1,
+		ListenAddr: "127.0.0.1:7011",
+		DataDir:    t.TempDir(),
+		Join:       JoinConfig{Token: "join-secret"},
+	}
+	cfg.applyDefaults()
+
+	if cfg.Control.Role != ControlRoleVoter {
+		t.Fatalf("Control.Role = %q, want voter", cfg.Control.Role)
+	}
+	if !cfg.Control.AllowBootstrap {
+		t.Fatal("Control.AllowBootstrap = false, want true for token-only static seed config")
+	}
+	if len(cfg.Control.Voters) != 1 || cfg.Control.Voters[0].NodeID != 1 {
+		t.Fatalf("Control.Voters = %#v, want implicit local voter", cfg.Control.Voters)
+	}
 	if err := cfg.validate(); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf("validate() error = %v", err)
 	}
 }
 
-func TestConfigValidate_SlotCountZero(t *testing.T) {
-	cfg := validTestConfig()
-	cfg.SlotCount = 0
-	if err := cfg.validate(); !errors.Is(err, ErrInvalidConfig) {
-		t.Fatalf("expected ErrInvalidConfig, got: %v", err)
+func TestConfigSeedJoinModeUsesMirrorAndDisablesBootstrap(t *testing.T) {
+	cfg := Config{
+		NodeID:     4,
+		ListenAddr: "127.0.0.1:7014",
+		DataDir:    t.TempDir(),
+		Control: ControlConfig{
+			ClusterID: "dev-three",
+		},
+		Join: JoinConfig{
+			Seeds:         []string{"127.0.0.1:7011", "127.0.0.1:7012"},
+			AdvertiseAddr: "127.0.0.1:7014",
+			Token:         "join-secret",
+		},
+		Slots: SlotConfig{ReplicaCount: 3},
 	}
-}
+	cfg.applyDefaults()
 
-func TestConfigValidate_RejectsHashSlotCountBelowInitialSlotCount(t *testing.T) {
-	cfg := validTestConfig()
-	cfg.SlotCount = 0
-	cfg.InitialSlotCount = 4
-	cfg.HashSlotCount = 3
-	cfg.Slots = nil
-	if err := cfg.validate(); !errors.Is(err, ErrInvalidConfig) {
-		t.Fatalf("expected ErrInvalidConfig, got: %v", err)
+	if cfg.Control.Role != ControlRoleMirror {
+		t.Fatalf("Control.Role = %q, want mirror", cfg.Control.Role)
 	}
-}
-
-func TestConfigValidate_RejectsMismatchedLegacyAndInitialSlotCount(t *testing.T) {
-	cfg := validTestConfig()
-	cfg.SlotCount = 2
-	cfg.InitialSlotCount = 3
-	cfg.HashSlotCount = 3
-	cfg.Slots = nil
-	cfg.NewStateMachineWithHashSlots = func(slotID multiraft.SlotID, hashSlots []uint16) (multiraft.StateMachine, error) {
-		return nil, nil
+	if cfg.Control.AllowBootstrap {
+		t.Fatal("Control.AllowBootstrap = true, want false for seed-join mode")
 	}
-	if err := cfg.validate(); !errors.Is(err, ErrInvalidConfig) {
-		t.Fatalf("expected ErrInvalidConfig, got: %v", err)
+	if len(cfg.Control.Voters) != 0 {
+		t.Fatalf("Control.Voters = %#v, want no implicit voters in seed-join mode", cfg.Control.Voters)
 	}
-}
-
-func TestConfigValidate_RejectsMissingHashSlotAwareStateMachineFactory(t *testing.T) {
-	cfg := validTestConfig()
-	cfg.SlotCount = 0
-	cfg.InitialSlotCount = 2
-	cfg.HashSlotCount = 2
-	cfg.Slots = nil
-	cfg.NewStateMachineWithHashSlots = nil
-	if err := cfg.validate(); !errors.Is(err, ErrInvalidConfig) {
-		t.Fatalf("expected ErrInvalidConfig, got: %v", err)
-	}
-}
-
-func TestConfigValidate_AllowsExplicitHashAndInitialSlotCounts(t *testing.T) {
-	cfg := validTestConfig()
-	cfg.SlotCount = 0
-	cfg.InitialSlotCount = 2
-	cfg.HashSlotCount = 8
-	cfg.Slots = nil
 	if err := cfg.validate(); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf("validate() error = %v", err)
 	}
 }
 
-func TestConfigValidate_AllowsLegacySlotsBelowSlotCount(t *testing.T) {
-	cfg := validTestConfig()
-	cfg.SlotCount = 5
-	if err := cfg.validate(); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+func TestConfigRejectsSeedJoinMissingAdvertiseAddr(t *testing.T) {
+	cfg := Config{
+		NodeID:     4,
+		ListenAddr: "127.0.0.1:7014",
+		DataDir:    t.TempDir(),
+		Control:    ControlConfig{ClusterID: "dev-three"},
+		Join:       JoinConfig{Seeds: []string{"127.0.0.1:7011"}, Token: "join-secret"},
 	}
-}
-
-func TestConfigValidate_PeerNotInNodes(t *testing.T) {
-	cfg := validTestConfig()
-	cfg.Slots[0].Peers = append(cfg.Slots[0].Peers, 99)
-	if err := cfg.validate(); !errors.Is(err, ErrInvalidConfig) {
-		t.Fatalf("expected ErrInvalidConfig, got: %v", err)
-	}
-}
-
-func TestConfigValidate_SelfNotPeer(t *testing.T) {
-	cfg := validTestConfig()
-	cfg.NodeID = 99
-	cfg.Nodes = append(cfg.Nodes, NodeConfig{NodeID: 99, Addr: ":9999"})
-	if err := cfg.validate(); !errors.Is(err, ErrInvalidConfig) {
-		t.Fatalf("expected ErrInvalidConfig, got: %v", err)
-	}
-}
-
-func TestConfigApplyDefaults(t *testing.T) {
-	cfg := validTestConfig()
 	cfg.applyDefaults()
-	if cfg.ForwardTimeout != defaultForwardTimeout {
-		t.Fatalf("expected default ForwardTimeout")
-	}
-	if cfg.PoolSize != defaultPoolSize {
-		t.Fatalf("expected default PoolSize")
-	}
-	if cfg.TickInterval != defaultTickInterval {
-		t.Fatalf("expected default TickInterval")
-	}
-	if cfg.RaftWorkers != defaultRaftWorkers {
-		t.Fatalf("expected default RaftWorkers")
-	}
-	if cfg.ElectionTick != defaultElectionTick {
-		t.Fatalf("expected default ElectionTick")
-	}
-	if cfg.HeartbeatTick != defaultHeartbeatTick {
-		t.Fatalf("expected default HeartbeatTick")
-	}
-	if cfg.DialTimeout != defaultDialTimeout {
-		t.Fatalf("expected default DialTimeout")
-	}
-	if cfg.Timeouts.ControllerObservation != defaultControllerObservationTimeout {
-		t.Fatalf("expected default ControllerObservation timeout")
-	}
-	if cfg.Timeouts.ControllerRequest != defaultControllerRequestTimeout {
-		t.Fatalf("expected default ControllerRequest timeout")
-	}
-	if cfg.Timeouts.ControllerLeaderWait != defaultControllerLeaderWaitTimeout {
-		t.Fatalf("expected default ControllerLeaderWait timeout")
-	}
-	if cfg.Timeouts.ManagedSlotLeaderWait != defaultManagedSlotLeaderWaitTimeout {
-		t.Fatalf("expected default ManagedSlotLeaderWait timeout")
-	}
-	if cfg.Timeouts.ManagedSlotCatchUp != defaultManagedSlotCatchUpTimeout {
-		t.Fatalf("expected default ManagedSlotCatchUp timeout")
-	}
-	if cfg.Timeouts.ManagedSlotLeaderMove != defaultManagedSlotLeaderMoveTimeout {
-		t.Fatalf("expected default ManagedSlotLeaderMove timeout")
-	}
-	if cfg.Timeouts.ForwardRetryBudget != defaultForwardRetryBudget {
-		t.Fatalf("expected default ForwardRetryBudget")
-	}
-	if cfg.Timeouts.ConfigChangeRetryBudget != defaultConfigChangeRetryBudget {
-		t.Fatalf("expected default ConfigChangeRetryBudget")
-	}
-	if cfg.Timeouts.LeaderTransferRetryBudget != defaultLeaderTransferRetryBudget {
-		t.Fatalf("expected default LeaderTransferRetryBudget")
-	}
-}
-
-func TestConfigApplyDefaultsEnablesControllerLogCompaction(t *testing.T) {
-	cfg := validTestConfig()
-	cfg.ControllerLogCompaction = controllerraft.LogCompactionConfig{}
-
-	cfg.applyDefaults()
-
-	if !cfg.ControllerLogCompaction.Enabled {
-		t.Fatal("ControllerLogCompaction.Enabled = false, want true")
-	}
-	if cfg.ControllerLogCompaction.TriggerEntries != 10000 {
-		t.Fatalf("ControllerLogCompaction.TriggerEntries = %d, want %d", cfg.ControllerLogCompaction.TriggerEntries, uint64(10000))
-	}
-	if cfg.ControllerLogCompaction.CheckInterval != 30*time.Second {
-		t.Fatalf("ControllerLogCompaction.CheckInterval = %v, want %v", cfg.ControllerLogCompaction.CheckInterval, 30*time.Second)
-	}
-}
-
-func TestConfigApplyDefaultsPreservesControllerLogCompactionDisabled(t *testing.T) {
-	cfg := validTestConfig()
-	cfg.ControllerLogCompaction = controllerraft.LogCompactionConfig{Enabled: false, EnabledSet: true}
-
-	cfg.applyDefaults()
-
-	if cfg.ControllerLogCompaction.Enabled {
-		t.Fatal("ControllerLogCompaction.Enabled = true, want false")
-	}
-}
-
-func TestConfigApplyDefaultsEnablesSlotLogCompaction(t *testing.T) {
-	cfg := validTestConfig()
-	cfg.SlotLogCompaction = multiraft.LogCompactionConfig{}
-
-	cfg.applyDefaults()
-
-	if !cfg.SlotLogCompaction.Enabled {
-		t.Fatal("SlotLogCompaction.Enabled = false, want true")
-	}
-	if cfg.SlotLogCompaction.TriggerEntries != 10000 {
-		t.Fatalf("SlotLogCompaction.TriggerEntries = %d, want %d", cfg.SlotLogCompaction.TriggerEntries, uint64(10000))
-	}
-	if cfg.SlotLogCompaction.CheckInterval != 30*time.Second {
-		t.Fatalf("SlotLogCompaction.CheckInterval = %v, want %v", cfg.SlotLogCompaction.CheckInterval, 30*time.Second)
-	}
-}
-
-func TestConfigApplyDefaultsPreservesSlotLogCompactionDisabled(t *testing.T) {
-	cfg := validTestConfig()
-	cfg.SlotLogCompaction = multiraft.LogCompactionConfig{Enabled: false, EnabledSet: true}
-
-	cfg.applyDefaults()
-
-	if cfg.SlotLogCompaction.Enabled {
-		t.Fatal("SlotLogCompaction.Enabled = true, want false")
-	}
-}
-
-func TestConfigApplyDefaultsPreservesRaftSnapshotOptions(t *testing.T) {
-	cfg := validTestConfig()
-	cfg.ControllerRaftSnapshotPath = "/tmp/controller-snapshots"
-	cfg.RaftSnapshotChunkSize = 4 << 20
-	cfg.RaftSnapshotGCGrace = 15 * time.Minute
-
-	cfg.applyDefaults()
-
-	if cfg.ControllerRaftSnapshotPath != "/tmp/controller-snapshots" {
-		t.Fatalf("ControllerRaftSnapshotPath = %q", cfg.ControllerRaftSnapshotPath)
-	}
-	if cfg.RaftSnapshotChunkSize != 4<<20 {
-		t.Fatalf("RaftSnapshotChunkSize = %d", cfg.RaftSnapshotChunkSize)
-	}
-	if cfg.RaftSnapshotGCGrace != 15*time.Minute {
-		t.Fatalf("RaftSnapshotGCGrace = %v", cfg.RaftSnapshotGCGrace)
-	}
-}
-
-func TestConfigApplyDefaultsPreservesExplicitZeroRaftSnapshotGCGrace(t *testing.T) {
-	cfg := validTestConfig()
-	cfg.SetRaftSnapshotExplicitFlags(false, true)
-
-	cfg.applyDefaults()
-
-	if cfg.RaftSnapshotGCGrace != 0 {
-		t.Fatalf("RaftSnapshotGCGrace = %v, want 0", cfg.RaftSnapshotGCGrace)
-	}
-}
-
-func TestConfigValidateRejectsZeroRaftSnapshotChunkSize(t *testing.T) {
-	cfg := validTestConfig()
-	cfg.RaftSnapshotChunkSize = 0
-	cfg.raftSnapshotChunkSizeSet = true
-
 	if err := cfg.validate(); !errors.Is(err, ErrInvalidConfig) {
-		t.Fatalf("expected ErrInvalidConfig, got: %v", err)
+		t.Fatalf("validate() error = %v, want ErrInvalidConfig", err)
 	}
 }
 
-func TestConfigValidateRejectsNegativeRaftSnapshotGCGrace(t *testing.T) {
-	cfg := validTestConfig()
-	cfg.RaftSnapshotGCGrace = -time.Second
-
-	if err := cfg.validate(); !errors.Is(err, ErrInvalidConfig) {
-		t.Fatalf("expected ErrInvalidConfig, got: %v", err)
-	}
+func validConfig(t *testing.T) Config {
+	t.Helper()
+	cfg := Config{NodeID: 1, ListenAddr: "127.0.0.1:7001", DataDir: t.TempDir()}
+	cfg.applyDefaults()
+	return cfg
 }
 
-func TestConfigValidateRejectsControllerRaftSnapshotPathEqualToRaftPath(t *testing.T) {
-	cfg := validTestConfig()
-	cfg.ControllerRaftSnapshotPath = cfg.ControllerRaftPath
-
-	if err := cfg.validate(); !errors.Is(err, ErrInvalidConfig) {
-		t.Fatalf("expected ErrInvalidConfig, got: %v", err)
+func TestConfigRejectsSeedJoinWhitespaceValues(t *testing.T) {
+	base := Config{
+		NodeID:     4,
+		ListenAddr: "127.0.0.1:7014",
+		DataDir:    t.TempDir(),
+		Control:    ControlConfig{ClusterID: "dev-three"},
+		Join: JoinConfig{
+			Seeds:         []string{"127.0.0.1:7011"},
+			AdvertiseAddr: "127.0.0.1:7014",
+			Token:         "join-secret",
+		},
 	}
-}
-
-func TestConfigValidateRejectsControllerRaftSnapshotPathUnderRaftPath(t *testing.T) {
-	cfg := validTestConfig()
-	cfg.ControllerRaftSnapshotPath = filepath.Join(cfg.ControllerRaftPath, "snapshots")
-
-	if err := cfg.validate(); !errors.Is(err, ErrInvalidConfig) {
-		t.Fatalf("expected ErrInvalidConfig, got: %v", err)
-	}
-}
-
-func TestConfigValidateRejectsControllerRaftSnapshotPathUnderRaftPathViaSymlinkParent(t *testing.T) {
-	root := t.TempDir()
-	realRoot := filepath.Join(root, "real")
-	linkRoot := filepath.Join(root, "link")
-	raftPath := filepath.Join(realRoot, "controller-raft")
-	if err := os.MkdirAll(raftPath, 0o755); err != nil {
-		t.Fatalf("mkdir raft path: %v", err)
-	}
-	if err := os.Symlink(realRoot, linkRoot); err != nil {
-		t.Skipf("symlink unavailable: %v", err)
-	}
-
-	cfg := validTestConfig()
-	cfg.ControllerMetaPath = filepath.Join(root, "controller-meta")
-	cfg.ControllerRaftPath = raftPath
-	cfg.ControllerRaftSnapshotPath = filepath.Join(linkRoot, "controller-raft", "snapshots")
-
-	if err := cfg.validate(); !errors.Is(err, ErrInvalidConfig) {
-		t.Fatalf("expected ErrInvalidConfig, got: %v", err)
-	}
-}
-
-func TestConfigValidateRejectsControllerRaftSnapshotPathUnderMetaPathViaSymlinkParent(t *testing.T) {
-	root := t.TempDir()
-	realRoot := filepath.Join(root, "real")
-	linkRoot := filepath.Join(root, "link")
-	metaPath := filepath.Join(realRoot, "controller-meta")
-	if err := os.MkdirAll(metaPath, 0o755); err != nil {
-		t.Fatalf("mkdir meta path: %v", err)
-	}
-	if err := os.Symlink(realRoot, linkRoot); err != nil {
-		t.Skipf("symlink unavailable: %v", err)
-	}
-
-	cfg := validTestConfig()
-	cfg.ControllerMetaPath = metaPath
-	cfg.ControllerRaftPath = filepath.Join(root, "controller-raft")
-	cfg.ControllerRaftSnapshotPath = filepath.Join(linkRoot, "controller-meta", "snapshots")
-
-	if err := cfg.validate(); !errors.Is(err, ErrInvalidConfig) {
-		t.Fatalf("expected ErrInvalidConfig, got: %v", err)
-	}
-}
-
-func TestNewControllerHostPassesSnapshotStorageOptions(t *testing.T) {
-	cfg := validTestConfig()
-	cfg.ControllerReplicaN = 1
-	cfg.Nodes = []NodeConfig{{NodeID: cfg.NodeID, Addr: "127.0.0.1:0"}}
-	cfg.ControllerMetaPath = filepath.Join(t.TempDir(), "controller-meta")
-	cfg.ControllerRaftPath = filepath.Join(t.TempDir(), "controller-raft")
-	cfg.ControllerRaftSnapshotPath = filepath.Join(t.TempDir(), "controller-snapshots")
-	cfg.RaftSnapshotChunkSize = 2 << 20
-	cfg.RaftSnapshotGCGrace = 10 * time.Minute
-
-	stopErr := errors.New("stop after controller raft open")
-	var capturedPath string
-	var capturedOptions raftstorage.Options
-	originalOpen := openControllerRaftLogDB
-	openControllerRaftLogDB = func(path string, opts raftstorage.Options) (*raftstorage.DB, error) {
-		capturedPath = path
-		capturedOptions = opts
-		return nil, stopErr
-	}
-	t.Cleanup(func() { openControllerRaftLogDB = originalOpen })
-
-	_, err := newControllerHost(cfg, &transportLayer{})
-	if !errors.Is(err, stopErr) {
-		t.Fatalf("expected stopErr, got: %v", err)
-	}
-	if capturedPath != cfg.ControllerRaftPath {
-		t.Fatalf("captured path = %q, want %q", capturedPath, cfg.ControllerRaftPath)
-	}
-	want := raftstorage.Options{
-		SnapshotPath:      cfg.ControllerRaftSnapshotPath,
-		SnapshotChunkSize: cfg.RaftSnapshotChunkSize,
-		SnapshotGCGrace:   cfg.RaftSnapshotGCGrace,
-	}
-	if capturedOptions != want {
-		t.Fatalf("captured options = %+v, want %+v", capturedOptions, want)
-	}
-}
-
-func TestConfigValidateRejectsInvalidEnabledSlotLogCompaction(t *testing.T) {
-	tests := []struct {
-		name       string
-		compaction multiraft.LogCompactionConfig
+	for _, tt := range []struct {
+		name   string
+		mutate func(*Config)
 	}{
-		{
-			name: "missing trigger entries",
-			compaction: multiraft.LogCompactionConfig{
-				Enabled:       true,
-				EnabledSet:    true,
-				CheckInterval: time.Second,
-			},
-		},
-		{
-			name: "zero check interval",
-			compaction: multiraft.LogCompactionConfig{
-				Enabled:        true,
-				EnabledSet:     true,
-				TriggerEntries: 1,
-			},
-		},
-		{
-			name: "negative check interval",
-			compaction: multiraft.LogCompactionConfig{
-				Enabled:        true,
-				EnabledSet:     true,
-				TriggerEntries: 1,
-				CheckInterval:  -time.Second,
-			},
-		},
-	}
-
-	for _, tt := range tests {
+		{name: "advertise addr", mutate: func(cfg *Config) { cfg.Join.AdvertiseAddr = " \t " }},
+		{name: "token", mutate: func(cfg *Config) { cfg.Join.Token = " \t " }},
+		{name: "seed", mutate: func(cfg *Config) { cfg.Join.Seeds = []string{" \t "} }},
+	} {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := validTestConfig()
-			cfg.SlotLogCompaction = tt.compaction
-
-			err := cfg.validate()
-			if !errors.Is(err, ErrInvalidConfig) {
-				t.Fatalf("expected ErrInvalidConfig, got: %v", err)
-			}
-			if errors.Is(err, multiraft.ErrInvalidOptions) {
-				t.Fatalf("expected multiraft.ErrInvalidOptions to remain hidden, got: %v", err)
+			cfg := base
+			cfg.DataDir = t.TempDir()
+			tt.mutate(&cfg)
+			cfg.applyDefaults()
+			if err := cfg.validate(); !errors.Is(err, ErrInvalidConfig) {
+				t.Fatalf("validate() error = %v, want ErrInvalidConfig", err)
 			}
 		})
 	}
 }
 
-func TestConfigValidateRejectsInvalidEnabledControllerLogCompaction(t *testing.T) {
-	tests := []struct {
-		name       string
-		compaction controllerraft.LogCompactionConfig
-	}{
-		{
-			name: "missing trigger entries",
-			compaction: controllerraft.LogCompactionConfig{
-				Enabled:       true,
-				EnabledSet:    true,
-				CheckInterval: time.Second,
-			},
-		},
-		{
-			name: "zero check interval",
-			compaction: controllerraft.LogCompactionConfig{
-				Enabled:        true,
-				EnabledSet:     true,
-				TriggerEntries: 1,
-			},
-		},
-		{
-			name: "negative check interval",
-			compaction: controllerraft.LogCompactionConfig{
-				Enabled:        true,
-				EnabledSet:     true,
-				TriggerEntries: 1,
-				CheckInterval:  -time.Second,
-			},
-		},
+func TestConfigRejectsSeedJoinEmptySeedsIntentDoesNotBootstrap(t *testing.T) {
+	cfg := Config{
+		NodeID:     4,
+		ListenAddr: "127.0.0.1:7014",
+		DataDir:    t.TempDir(),
+		Control:    ControlConfig{ClusterID: "dev-three"},
+		Join:       JoinConfig{AdvertiseAddr: "127.0.0.1:7014", Token: "join-secret"},
 	}
+	cfg.applyDefaults()
 
-	for _, tt := range tests {
+	if cfg.Control.Role != ControlRoleMirror {
+		t.Fatalf("Control.Role = %q, want mirror for explicit seed-join intent", cfg.Control.Role)
+	}
+	if cfg.Control.AllowBootstrap {
+		t.Fatal("Control.AllowBootstrap = true, want false for invalid seed-join intent")
+	}
+	if len(cfg.Control.Voters) != 0 {
+		t.Fatalf("Control.Voters = %#v, want no implicit voters for invalid seed-join intent", cfg.Control.Voters)
+	}
+	if err := cfg.validate(); !errors.Is(err, ErrInvalidConfig) {
+		t.Fatalf("validate() error = %v, want ErrInvalidConfig", err)
+	}
+}
+
+func TestConfigDefaultsChannelReactorCountFromGOMAXPROCS(t *testing.T) {
+	old := runtime.GOMAXPROCS(6)
+	t.Cleanup(func() { runtime.GOMAXPROCS(old) })
+
+	cfg := Config{NodeID: 1, ListenAddr: "127.0.0.1:0", DataDir: t.TempDir()}
+	cfg.applyDefaults()
+
+	if cfg.Channel.ReactorCount != 6 {
+		t.Fatalf("Channel.ReactorCount = %d, want 6", cfg.Channel.ReactorCount)
+	}
+}
+
+func TestConfigDefaultsChannelReactorCountHasFloor(t *testing.T) {
+	old := runtime.GOMAXPROCS(1)
+	t.Cleanup(func() { runtime.GOMAXPROCS(old) })
+
+	cfg := Config{NodeID: 1, ListenAddr: "127.0.0.1:0", DataDir: t.TempDir()}
+	cfg.applyDefaults()
+
+	if cfg.Channel.ReactorCount != 4 {
+		t.Fatalf("Channel.ReactorCount = %d, want 4", cfg.Channel.ReactorCount)
+	}
+}
+
+func TestConfigPreservesExplicitChannelReactorCount(t *testing.T) {
+	old := runtime.GOMAXPROCS(8)
+	t.Cleanup(func() { runtime.GOMAXPROCS(old) })
+
+	cfg := Config{
+		NodeID:     1,
+		ListenAddr: "127.0.0.1:0",
+		DataDir:    t.TempDir(),
+		Channel:    ChannelConfig{ReactorCount: 2},
+	}
+	cfg.applyDefaults()
+
+	if cfg.Channel.ReactorCount != 2 {
+		t.Fatalf("Channel.ReactorCount = %d, want explicit 2", cfg.Channel.ReactorCount)
+	}
+}
+
+func TestConfigRejectsNegativeChannelReactorCount(t *testing.T) {
+	cfg := Config{
+		NodeID:     1,
+		ListenAddr: "127.0.0.1:0",
+		DataDir:    t.TempDir(),
+		Channel:    ChannelConfig{ReactorCount: -1},
+	}
+	cfg.applyDefaults()
+	if err := cfg.validate(); !errors.Is(err, ErrInvalidConfig) {
+		t.Fatalf("validate() error = %v, want ErrInvalidConfig", err)
+	}
+}
+
+func TestConfigRejectsNegativeChannelStoreWorkers(t *testing.T) {
+	for _, tt := range []struct {
+		name   string
+		config ChannelConfig
+	}{
+		{name: "append", config: ChannelConfig{StoreAppendWorkers: -1}},
+		{name: "apply", config: ChannelConfig{StoreApplyWorkers: -1}},
+		{name: "rpc", config: ChannelConfig{RPCWorkers: -1}},
+		{name: "append batch wait", config: ChannelConfig{StoreAppendBatchMaxWait: -1}},
+	} {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := validTestConfig()
-			cfg.ControllerLogCompaction = tt.compaction
-
-			err := cfg.validate()
-			if !errors.Is(err, ErrInvalidConfig) {
-				t.Fatalf("expected ErrInvalidConfig, got: %v", err)
+			cfg := Config{
+				NodeID:     1,
+				ListenAddr: "127.0.0.1:0",
+				DataDir:    t.TempDir(),
+				Channel:    tt.config,
 			}
-			if errors.Is(err, controllerraft.ErrInvalidConfig) {
-				t.Fatalf("expected controllerraft.ErrInvalidConfig to remain hidden, got: %v", err)
+			cfg.applyDefaults()
+			if err := cfg.validate(); !errors.Is(err, ErrInvalidConfig) {
+				t.Fatalf("validate() error = %v, want ErrInvalidConfig", err)
 			}
 		})
 	}
 }
 
-func TestConfigApplyDefaultsPreservesExplicitTimeouts(t *testing.T) {
-	cfg := validTestConfig()
-	cfg.Timeouts = Timeouts{
-		ControllerObservation:     350 * time.Millisecond,
-		ControllerRequest:         3 * time.Second,
-		ControllerLeaderWait:      9 * time.Second,
-		ForwardRetryBudget:        600 * time.Millisecond,
-		ManagedSlotLeaderWait:     6 * time.Second,
-		ManagedSlotCatchUp:        7 * time.Second,
-		ManagedSlotLeaderMove:     8 * time.Second,
-		ConfigChangeRetryBudget:   700 * time.Millisecond,
-		LeaderTransferRetryBudget: 800 * time.Millisecond,
+func TestConfigRejectsNegativeChannelAppendBatchTuning(t *testing.T) {
+	for _, tt := range []struct {
+		name   string
+		config ChannelConfig
+	}{
+		{name: "records", config: ChannelConfig{AppendBatchMaxRecords: -1}},
+		{name: "wait", config: ChannelConfig{AppendBatchMaxWait: -1}},
+		{name: "cold wait", config: ChannelConfig{AppendBatchColdMaxWait: -1}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := Config{
+				NodeID:     1,
+				ListenAddr: "127.0.0.1:0",
+				DataDir:    t.TempDir(),
+				Channel:    tt.config,
+			}
+			cfg.applyDefaults()
+			if err := cfg.validate(); !errors.Is(err, ErrInvalidConfig) {
+				t.Fatalf("validate() error = %v, want ErrInvalidConfig", err)
+			}
+		})
 	}
+}
 
+func TestConfigRejectsNegativeStorageCommitShards(t *testing.T) {
+	cfg := Config{
+		NodeID:     1,
+		ListenAddr: "127.0.0.1:0",
+		DataDir:    t.TempDir(),
+		Storage:    StorageConfig{CommitShards: -1},
+	}
 	cfg.applyDefaults()
-
-	if cfg.Timeouts.ControllerObservation != 350*time.Millisecond {
-		t.Fatalf("expected explicit ControllerObservation timeout")
-	}
-	if cfg.Timeouts.ControllerRequest != 3*time.Second {
-		t.Fatalf("expected explicit ControllerRequest timeout")
-	}
-	if cfg.Timeouts.ControllerLeaderWait != 9*time.Second {
-		t.Fatalf("expected explicit ControllerLeaderWait timeout")
-	}
-	if cfg.Timeouts.ForwardRetryBudget != 600*time.Millisecond {
-		t.Fatalf("expected explicit ForwardRetryBudget")
+	if err := cfg.validate(); !errors.Is(err, ErrInvalidConfig) {
+		t.Fatalf("validate() error = %v, want ErrInvalidConfig", err)
 	}
 }
 
-func TestConfigApplyDefaultsIncludesObservationCadence(t *testing.T) {
-	cfg := validTestConfig()
-
+func TestConfigPreservesSlotLogCompactionConfig(t *testing.T) {
+	cfg := Config{
+		NodeID:     1,
+		ListenAddr: "127.0.0.1:0",
+		DataDir:    t.TempDir(),
+		Slots: SlotConfig{
+			LogCompaction: multiraft.LogCompactionConfig{
+				Enabled:        true,
+				EnabledSet:     true,
+				TriggerEntries: 1000,
+				CheckInterval:  5 * time.Second,
+			},
+		},
+	}
 	cfg.applyDefaults()
-
-	if cfg.Timeouts.ObservationHeartbeatInterval != 2*time.Second {
-		t.Fatalf("ObservationHeartbeatInterval = %v, want %v", cfg.Timeouts.ObservationHeartbeatInterval, 2*time.Second)
+	if err := cfg.validate(); err != nil {
+		t.Fatalf("validate() error = %v", err)
 	}
-	if cfg.Timeouts.ObservationRuntimeScanInterval != time.Second {
-		t.Fatalf("ObservationRuntimeScanInterval = %v, want %v", cfg.Timeouts.ObservationRuntimeScanInterval, time.Second)
-	}
-	if cfg.Timeouts.ObservationRuntimeFlushDebounce != 200*time.Millisecond {
-		t.Fatalf("ObservationRuntimeFlushDebounce = %v, want %v", cfg.Timeouts.ObservationRuntimeFlushDebounce, 200*time.Millisecond)
-	}
-	if cfg.Timeouts.ObservationRuntimeFullSyncInterval != 60*time.Second {
-		t.Fatalf("ObservationRuntimeFullSyncInterval = %v, want %v", cfg.Timeouts.ObservationRuntimeFullSyncInterval, 60*time.Second)
+	if cfg.Slots.LogCompaction.TriggerEntries != 1000 || cfg.Slots.LogCompaction.CheckInterval != 5*time.Second {
+		t.Fatalf("Slots.LogCompaction = %#v, want explicit tuning preserved", cfg.Slots.LogCompaction)
 	}
 }
 
-func TestConfigApplyDefaultsPreservesExplicitObservationCadence(t *testing.T) {
-	cfg := validTestConfig()
-	cfg.Timeouts = Timeouts{
-		ObservationHeartbeatInterval:       3 * time.Second,
-		ObservationRuntimeScanInterval:     1500 * time.Millisecond,
-		ObservationRuntimeFlushDebounce:    125 * time.Millisecond,
-		ObservationRuntimeFullSyncInterval: 90 * time.Second,
+func TestConfigPreservesExplicitSlotRaftTiming(t *testing.T) {
+	cfg := Config{
+		NodeID:     1,
+		ListenAddr: "127.0.0.1:0",
+		DataDir:    t.TempDir(),
+		Slots: SlotConfig{
+			TickInterval:  25 * time.Millisecond,
+			ElectionTick:  20,
+			HeartbeatTick: 2,
+		},
 	}
-
 	cfg.applyDefaults()
-
-	if cfg.Timeouts.ObservationHeartbeatInterval != 3*time.Second {
-		t.Fatalf("ObservationHeartbeatInterval = %v, want %v", cfg.Timeouts.ObservationHeartbeatInterval, 3*time.Second)
-	}
-	if cfg.Timeouts.ObservationRuntimeScanInterval != 1500*time.Millisecond {
-		t.Fatalf("ObservationRuntimeScanInterval = %v, want %v", cfg.Timeouts.ObservationRuntimeScanInterval, 1500*time.Millisecond)
-	}
-	if cfg.Timeouts.ObservationRuntimeFlushDebounce != 125*time.Millisecond {
-		t.Fatalf("ObservationRuntimeFlushDebounce = %v, want %v", cfg.Timeouts.ObservationRuntimeFlushDebounce, 125*time.Millisecond)
-	}
-	if cfg.Timeouts.ObservationRuntimeFullSyncInterval != 90*time.Second {
-		t.Fatalf("ObservationRuntimeFullSyncInterval = %v, want %v", cfg.Timeouts.ObservationRuntimeFullSyncInterval, 90*time.Second)
-	}
-}
-
-func TestClusterTimeoutDefaultsIncludeSlowSyncAndPlannerSafetyIntervals(t *testing.T) {
-	cluster := &Cluster{cfg: validTestConfig()}
-	cluster.cfg.applyDefaults()
-
-	if got, want := cluster.observationSlowSyncInterval(), defaultObservationSlowSyncInterval; got != want {
-		t.Fatalf("observationSlowSyncInterval() = %v, want %v", got, want)
-	}
-	if got, want := cluster.plannerSafetyInterval(), defaultPlannerSafetyInterval; got != want {
-		t.Fatalf("plannerSafetyInterval() = %v, want %v", got, want)
-	}
-	if got, want := cluster.plannerWakeDebounce(), defaultPlannerWakeDebounce; got != want {
-		t.Fatalf("plannerWakeDebounce() = %v, want %v", got, want)
-	}
-
-	cluster.cfg.Timeouts.ObservationSlowSyncInterval = 4 * time.Second
-	cluster.cfg.Timeouts.PlannerSafetyInterval = 3 * time.Second
-	cluster.cfg.Timeouts.PlannerWakeDebounce = 250 * time.Millisecond
-
-	if got, want := cluster.observationSlowSyncInterval(), 4*time.Second; got != want {
-		t.Fatalf("observationSlowSyncInterval() override = %v, want %v", got, want)
-	}
-	if got, want := cluster.plannerSafetyInterval(), 3*time.Second; got != want {
-		t.Fatalf("plannerSafetyInterval() override = %v, want %v", got, want)
-	}
-	if got, want := cluster.plannerWakeDebounce(), 250*time.Millisecond; got != want {
-		t.Fatalf("plannerWakeDebounce() override = %v, want %v", got, want)
-	}
-}
-
-func TestConfigValidate_NodeIDZero(t *testing.T) {
-	cfg := validTestConfig()
-	cfg.NodeID = 0
-	if err := cfg.validate(); !errors.Is(err, ErrInvalidConfig) {
-		t.Fatalf("expected ErrInvalidConfig, got: %v", err)
-	}
-}
-
-func TestConfigValidate_ListenAddrEmpty(t *testing.T) {
-	cfg := validTestConfig()
-	cfg.ListenAddr = ""
-	if err := cfg.validate(); !errors.Is(err, ErrInvalidConfig) {
-		t.Fatalf("expected ErrInvalidConfig, got: %v", err)
-	}
-}
-
-func TestConfigValidate_NewStorageNil(t *testing.T) {
-	cfg := validTestConfig()
-	cfg.NewStorage = nil
-	if err := cfg.validate(); !errors.Is(err, ErrInvalidConfig) {
-		t.Fatalf("expected ErrInvalidConfig, got: %v", err)
-	}
-}
-
-func TestConfigValidate_NewStateMachineNil(t *testing.T) {
-	cfg := validTestConfig()
-	cfg.NewStateMachine = nil
-	cfg.NewStateMachineWithHashSlots = nil
-	if err := cfg.validate(); !errors.Is(err, ErrInvalidConfig) {
-		t.Fatalf("expected ErrInvalidConfig, got: %v", err)
-	}
-}
-
-func TestConfigValidate_DuplicateNodeID(t *testing.T) {
-	cfg := validTestConfig()
-	cfg.Nodes = append(cfg.Nodes, NodeConfig{NodeID: 1, Addr: "127.0.0.1:9004"})
-	if err := cfg.validate(); !errors.Is(err, ErrInvalidConfig) {
-		t.Fatalf("expected ErrInvalidConfig, got: %v", err)
-	}
-}
-
-func TestConfigValidateRejectsDuplicateNodeAddress(t *testing.T) {
-	cfg := validTestConfig()
-	cfg.Nodes[1].Addr = cfg.Nodes[0].Addr
-
-	if err := cfg.validate(); !errors.Is(err, ErrInvalidConfig) {
-		t.Fatalf("expected ErrInvalidConfig, got: %v", err)
-	}
-}
-
-func TestConfigValidateRejectsUnroutableNodeAddress(t *testing.T) {
-	cfg := validTestConfig()
-	cfg.Nodes[1].Addr = "0.0.0.0:9002"
-
-	if err := cfg.validate(); !errors.Is(err, ErrInvalidConfig) {
-		t.Fatalf("expected ErrInvalidConfig, got: %v", err)
-	}
-}
-
-func TestConfigValidate_DuplicateSlotID(t *testing.T) {
-	cfg := validTestConfig()
-	cfg.SlotCount = 2
-	cfg.Slots = append(cfg.Slots, SlotConfig{SlotID: 1, Peers: []multiraft.NodeID{1, 2, 3}})
-	if err := cfg.validate(); !errors.Is(err, ErrInvalidConfig) {
-		t.Fatalf("expected ErrInvalidConfig, got: %v", err)
-	}
-}
-
-func TestConfigValidateAllowsControllerConfigWithLegacySlots(t *testing.T) {
-	cfg := validTestConfig()
-	cfg.ControllerReplicaN = 3
-	cfg.SlotReplicaN = 3
-
 	if err := cfg.validate(); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf("validate() error = %v", err)
+	}
+	if cfg.Slots.TickInterval != 25*time.Millisecond || cfg.Slots.ElectionTick != 20 || cfg.Slots.HeartbeatTick != 2 {
+		t.Fatalf("Slot Raft timing = %s/%d/%d, want 25ms/20/2", cfg.Slots.TickInterval, cfg.Slots.ElectionTick, cfg.Slots.HeartbeatTick)
 	}
 }
 
-func TestConfigValidateAllowsNilSlotsWithExplicitSlotCount(t *testing.T) {
-	cfg := validTestConfig()
-	cfg.Slots = nil
-	cfg.ControllerReplicaN = 3
-	cfg.SlotReplicaN = 3
-
-	if err := cfg.validate(); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+func TestConfigRejectsInvalidSlotRaftTiming(t *testing.T) {
+	for _, tt := range []struct {
+		name  string
+		slots SlotConfig
+	}{
+		{name: "negative tick interval", slots: SlotConfig{TickInterval: -time.Millisecond}},
+		{name: "negative election", slots: SlotConfig{ElectionTick: -1}},
+		{name: "negative heartbeat", slots: SlotConfig{HeartbeatTick: -1}},
+		{name: "election equals heartbeat", slots: SlotConfig{ElectionTick: 1, HeartbeatTick: 1}},
+		{name: "election below heartbeat", slots: SlotConfig{ElectionTick: 1, HeartbeatTick: 2}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := Config{
+				NodeID:     1,
+				ListenAddr: "127.0.0.1:0",
+				DataDir:    t.TempDir(),
+				Slots:      tt.slots,
+			}
+			cfg.applyDefaults()
+			if err := cfg.validate(); !errors.Is(err, ErrInvalidConfig) {
+				t.Fatalf("validate() error = %v, want ErrInvalidConfig", err)
+			}
+		})
 	}
 }
 
-func TestConfigValidateRejectsLocalNodeMissingWithLegacySlots(t *testing.T) {
-	cfg := validTestConfig()
-	cfg.ControllerReplicaN = 3
-	cfg.SlotReplicaN = 3
-	cfg.NodeID = 99
-
-	if err := cfg.validate(); !errors.Is(err, ErrInvalidConfig) {
-		t.Fatalf("expected ErrInvalidConfig, got: %v", err)
-	}
-}
-
-func TestConfigValidateAllowsJoinModeWithoutStaticNodes(t *testing.T) {
-	cfg := validTestConfig()
-	cfg.NodeID = 4
-	cfg.Nodes = nil
-	cfg.Slots = nil
-	cfg.ControllerReplicaN = 3
-	cfg.SlotReplicaN = 2
-	cfg.Seeds = []SeedConfig{{ID: 9001, Addr: "127.0.0.1:9001"}}
-	cfg.AdvertiseAddr = "127.0.0.1:9004"
-	cfg.JoinToken = "join-secret"
-
-	if err := cfg.validate(); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-}
-
-func TestConfigValidateStaticModeStillRequiresLocalNodeInNodes(t *testing.T) {
-	cfg := validTestConfig()
-	cfg.NodeID = 4
-	cfg.Seeds = []SeedConfig{{ID: 9001, Addr: "127.0.0.1:9001"}}
-	cfg.AdvertiseAddr = "127.0.0.1:9004"
-	cfg.JoinToken = "join-secret"
-
-	if err := cfg.validate(); !errors.Is(err, ErrInvalidConfig) {
-		t.Fatalf("expected ErrInvalidConfig, got: %v", err)
-	}
-}
-
-func TestConfigValidateJoinModeRequiresAdvertiseAddrAndToken(t *testing.T) {
-	cfg := validTestConfig()
-	cfg.NodeID = 4
-	cfg.Nodes = nil
-	cfg.Slots = nil
-	cfg.ControllerReplicaN = 3
-	cfg.SlotReplicaN = 2
-	cfg.Seeds = []SeedConfig{{ID: 9001, Addr: "127.0.0.1:9001"}}
-
-	if err := cfg.validate(); !errors.Is(err, ErrInvalidConfig) {
-		t.Fatalf("expected ErrInvalidConfig, got: %v", err)
-	}
-
-	cfg.AdvertiseAddr = "127.0.0.1:9004"
-	if err := cfg.validate(); !errors.Is(err, ErrInvalidConfig) {
-		t.Fatalf("expected ErrInvalidConfig, got: %v", err)
-	}
-
-	cfg.JoinToken = "join-secret"
-	if err := cfg.validate(); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-}
-
-func TestConfigValidateRejectsOnlyOneControllerPath(t *testing.T) {
-	cfg := validTestConfig()
-	cfg.ControllerRaftPath = ""
-
-	if err := cfg.validate(); !errors.Is(err, ErrInvalidConfig) {
-		t.Fatalf("expected ErrInvalidConfig, got: %v", err)
-	}
-}
-
-func TestConfigDerivedControllerNodesSortsAndTruncates(t *testing.T) {
-	cfg := validTestConfig()
-	cfg.Nodes = []NodeConfig{
-		{NodeID: 3, Addr: "127.0.0.1:9003"},
-		{NodeID: 1, Addr: "127.0.0.1:9001"},
-		{NodeID: 2, Addr: "127.0.0.1:9002"},
-	}
-	cfg.ControllerReplicaN = 2
-
-	derived := cfg.DerivedControllerNodes()
-	if len(derived) != 2 {
-		t.Fatalf("len(derived) = %d", len(derived))
-	}
-	if derived[0].NodeID != 1 || derived[1].NodeID != 2 {
-		t.Fatalf("derived controller nodes = %+v", derived)
-	}
-}
-
-func validTestConfig() Config {
-	return Config{
-		NodeID:             1,
-		ListenAddr:         ":9001",
-		SlotCount:          1,
-		ControllerMetaPath: "/tmp/controller-meta",
-		ControllerRaftPath: "/tmp/controller-raft",
-		ControllerReplicaN: 3,
-		SlotReplicaN:       3,
-		NewStorage: func(slotID multiraft.SlotID) (multiraft.Storage, error) {
-			return nil, nil
+func TestConfigRejectsInvalidSlotLogCompactionConfig(t *testing.T) {
+	cfg := Config{
+		NodeID:     1,
+		ListenAddr: "127.0.0.1:0",
+		DataDir:    t.TempDir(),
+		Slots: SlotConfig{
+			LogCompaction: multiraft.LogCompactionConfig{
+				Enabled:        true,
+				EnabledSet:     true,
+				TriggerEntries: 1000,
+				CheckInterval:  -time.Second,
+			},
 		},
-		NewStateMachine: func(slotID multiraft.SlotID) (multiraft.StateMachine, error) {
-			return nil, nil
+	}
+	cfg.applyDefaults()
+	if err := cfg.validate(); !errors.Is(err, multiraft.ErrInvalidOptions) {
+		t.Fatalf("validate() error = %v, want multiraft.ErrInvalidOptions", err)
+	}
+}
+
+func TestConfigRejectsExplicitVotersWithoutClusterID(t *testing.T) {
+	cfg := Config{
+		NodeID:     1,
+		ListenAddr: "127.0.0.1:0",
+		DataDir:    t.TempDir(),
+		Control: ControlConfig{
+			Voters: []ControlVoter{{NodeID: 1, Addr: "127.0.0.1:10001"}},
 		},
-		NewStateMachineWithHashSlots: func(slotID multiraft.SlotID, hashSlots []uint16) (multiraft.StateMachine, error) {
-			return nil, nil
+	}
+	cfg.applyDefaults()
+	if err := cfg.validate(); !errors.Is(err, ErrInvalidConfig) {
+		t.Fatalf("validate() error = %v, want ErrInvalidConfig", err)
+	}
+}
+
+func TestConfigRejectsDuplicateControlVoters(t *testing.T) {
+	cfg := Config{
+		NodeID:     1,
+		ListenAddr: "127.0.0.1:0",
+		DataDir:    t.TempDir(),
+		Control: ControlConfig{
+			ClusterID: "cluster-a",
+			Voters: []ControlVoter{
+				{NodeID: 1, Addr: "127.0.0.1:10001"},
+				{NodeID: 1, Addr: "127.0.0.1:10001"},
+			},
 		},
-		Nodes: []NodeConfig{
-			{NodeID: 1, Addr: "127.0.0.1:9001"},
-			{NodeID: 2, Addr: "127.0.0.1:9002"},
-			{NodeID: 3, Addr: "127.0.0.1:9003"},
+	}
+	cfg.applyDefaults()
+	if err := cfg.validate(); !errors.Is(err, ErrInvalidConfig) {
+		t.Fatalf("validate() error = %v, want ErrInvalidConfig", err)
+	}
+}
+
+func TestConfigRejectsVoterRoleMissingLocalNode(t *testing.T) {
+	cfg := Config{
+		NodeID:     2,
+		ListenAddr: "127.0.0.1:0",
+		DataDir:    t.TempDir(),
+		Control: ControlConfig{
+			ClusterID: "cluster-a",
+			Role:      ControlRoleVoter,
+			Voters:    []ControlVoter{{NodeID: 1, Addr: "127.0.0.1:10001"}},
 		},
-		Slots: []SlotConfig{
-			{SlotID: 1, Peers: []multiraft.NodeID{1, 2, 3}},
-		},
+	}
+	cfg.applyDefaults()
+	if err := cfg.validate(); !errors.Is(err, ErrInvalidConfig) {
+		t.Fatalf("validate() error = %v, want ErrInvalidConfig", err)
 	}
 }

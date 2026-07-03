@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
-	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
+	raftcluster "github.com/WuKongIM/WuKongIM/pkg/legacy/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 )
 

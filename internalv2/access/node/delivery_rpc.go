@@ -5,14 +5,14 @@ import (
 	"fmt"
 
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internalv2/runtime/delivery"
-	clusternet "github.com/WuKongIM/WuKongIM/pkg/clusterv2/net"
+	clusternet "github.com/WuKongIM/WuKongIM/pkg/cluster/net"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
-// DeliveryPushRPCServiceID is the clusterv2 RPC service for owner-node delivery batches.
+// DeliveryPushRPCServiceID is the cluster RPC service for owner-node delivery batches.
 const DeliveryPushRPCServiceID uint8 = clusternet.RPCDeliveryPush
 
-// DeliveryFanoutRPCServiceID is the clusterv2 RPC service for authority-node fanout tasks.
+// DeliveryFanoutRPCServiceID is the cluster RPC service for authority-node fanout tasks.
 const DeliveryFanoutRPCServiceID uint8 = clusternet.RPCDeliveryFanout
 
 // HandleDeliveryPushRPC handles one encoded delivery push RPC payload.

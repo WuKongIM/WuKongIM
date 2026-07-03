@@ -5,7 +5,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 )
 
 // Slot is the manager-facing slot DTO.

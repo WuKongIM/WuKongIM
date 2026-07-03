@@ -8,8 +8,8 @@ import (
 
 	accessapi "github.com/WuKongIM/WuKongIM/internalv2/access/api"
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internalv2/runtime/delivery"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/routing"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/routing"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
@@ -18,7 +18,7 @@ const deliveryMetaSubscriberCacheMaxChannels = 4096
 const deliveryMetaSubscriberCacheLoadPageSize = 1024
 
 type deliveryMetaNode interface {
-	Snapshot() clusterv2.Snapshot
+	Snapshot() cluster.Snapshot
 	UpsertChannelMetadata(context.Context, metadb.Channel) error
 	AddChannelSubscribers(context.Context, string, int64, []string, uint64) error
 	ListChannelSubscribersPage(context.Context, string, int64, string, int) ([]string, string, bool, error)
@@ -28,7 +28,7 @@ type recipientSubscriberNode interface {
 	ListChannelSubscribersPage(context.Context, string, int64, string, int) ([]string, string, bool, error)
 }
 
-// deliveryMetaStore adapts clusterv2 Slot metadata to bench setup and delivery fanout.
+// deliveryMetaStore adapts cluster Slot metadata to bench setup and delivery fanout.
 type deliveryMetaStore struct {
 	// node owns the real replicated Slot metadata store.
 	node    deliveryMetaNode

@@ -3,7 +3,7 @@ package management
 import (
 	"context"
 
-	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
+	raftcluster "github.com/WuKongIM/WuKongIM/pkg/legacy/cluster"
 )
 
 // ListControllerLogEntriesRequest selects one node-local Controller Raft log page.

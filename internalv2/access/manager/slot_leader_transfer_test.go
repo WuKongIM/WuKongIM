@@ -9,7 +9,7 @@ import (
 	"time"
 
 	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
@@ -101,7 +101,7 @@ func TestManagerSlotLeaderTransferMapsErrors(t *testing.T) {
 		{name: "writer unavailable", err: managementusecase.ErrSlotLeaderTransferUnavailable, status: http.StatusServiceUnavailable, code: "service_unavailable"},
 		{name: "runtime unavailable", err: managementusecase.ErrSlotRuntimeStatusUnavailable, status: http.StatusServiceUnavailable, code: "service_unavailable"},
 		{name: "slot raft operator unavailable", err: managementusecase.ErrSlotRaftOperatorUnavailable, status: http.StatusServiceUnavailable, code: "service_unavailable"},
-		{name: "not leader", err: clusterv2.ErrNotLeader, status: http.StatusServiceUnavailable, code: "service_unavailable"},
+		{name: "not leader", err: cluster.ErrNotLeader, status: http.StatusServiceUnavailable, code: "service_unavailable"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

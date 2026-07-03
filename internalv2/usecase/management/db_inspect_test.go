@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 	dbinspect "github.com/WuKongIM/WuKongIM/pkg/db/inspect"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )

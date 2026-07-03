@@ -8,8 +8,8 @@ import (
 
 	accessnode "github.com/WuKongIM/WuKongIM/internalv2/access/node"
 	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
+	clusterpkg "github.com/WuKongIM/WuKongIM/pkg/cluster"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 	cv2 "github.com/WuKongIM/WuKongIM/pkg/controller"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
@@ -30,12 +30,12 @@ func TestAppWiresSeedJoinLoopWhenJoinConfigPresent(t *testing.T) {
 	}
 	app, err := newTestApp(t, Config{
 		NodeID: 4,
-		Cluster: clusterv2.Config{
+		Cluster: clusterpkg.Config{
 			NodeID: 4,
-			Control: clusterv2.ControlConfig{
+			Control: clusterpkg.ControlConfig{
 				ClusterID: "cluster-a",
 			},
-			Join: clusterv2.JoinConfig{
+			Join: clusterpkg.JoinConfig{
 				Seeds:         []string{"10.0.0.2:11110", "10.0.0.1:11110"},
 				AdvertiseAddr: "10.0.0.4:11110",
 				Token:         "join-secret",
@@ -83,22 +83,22 @@ func TestAppNodeReadinessReportsMirrorClusterAndRuntimeGates(t *testing.T) {
 				}},
 			},
 		},
-		snapshot: clusterv2.Snapshot{
+		snapshot: clusterpkg.Snapshot{
 			RoutesReady:   true,
 			SlotsReady:    true,
 			ChannelsReady: true,
 			HashSlotCount: 2,
 		},
-		routes: map[uint16]clusterv2.Route{
+		routes: map[uint16]clusterpkg.Route{
 			0: {HashSlot: 0, SlotID: 1, Leader: 4},
 			1: {HashSlot: 1, SlotID: 1, Leader: 4},
 		},
 	}
 	app, err := newTestApp(t, Config{
 		NodeID: 4,
-		Cluster: clusterv2.Config{
+		Cluster: clusterpkg.Config{
 			NodeID:  4,
-			Control: clusterv2.ControlConfig{ClusterID: "cluster-a"},
+			Control: clusterpkg.ControlConfig{ClusterID: "cluster-a"},
 		},
 	}, WithCluster(cluster), WithGateway(nil))
 	if err != nil {
@@ -135,7 +135,7 @@ func TestAppControllerVoterReadinessMapsNodeReadiness(t *testing.T) {
 					JoinState: control.NodeJoinStateJoining,
 				}},
 			},
-			controllerRaftStatus: clusterv2.ControllerRaftStatus{
+			controllerRaftStatus: clusterpkg.ControllerRaftStatus{
 				NodeID:       4,
 				Role:         "follower",
 				LeaderID:     1,
@@ -143,21 +143,21 @@ func TestAppControllerVoterReadinessMapsNodeReadiness(t *testing.T) {
 				Voters:       []uint64{1, 2, 4},
 			},
 		},
-		snapshot: clusterv2.Snapshot{
+		snapshot: clusterpkg.Snapshot{
 			RoutesReady:   true,
 			SlotsReady:    true,
 			ChannelsReady: true,
 			HashSlotCount: 1,
 		},
-		routes: map[uint16]clusterv2.Route{
+		routes: map[uint16]clusterpkg.Route{
 			0: {HashSlot: 0, SlotID: 1, Leader: 4},
 		},
 	}
 	app, err := newTestApp(t, Config{
 		NodeID: 4,
-		Cluster: clusterv2.Config{
+		Cluster: clusterpkg.Config{
 			NodeID:  4,
-			Control: clusterv2.ControlConfig{ClusterID: "cluster-a"},
+			Control: clusterpkg.ControlConfig{ClusterID: "cluster-a"},
 		},
 	}, WithCluster(cluster), WithGateway(nil))
 	if err != nil {
@@ -199,21 +199,21 @@ func TestAppControllerVoterReadinessAllowsMirrorBeforePrepare(t *testing.T) {
 			},
 			controllerRaftStatusErr: cv2.ErrNotStarted,
 		},
-		snapshot: clusterv2.Snapshot{
+		snapshot: clusterpkg.Snapshot{
 			RoutesReady:   true,
 			SlotsReady:    true,
 			ChannelsReady: true,
 			HashSlotCount: 1,
 		},
-		routes: map[uint16]clusterv2.Route{
+		routes: map[uint16]clusterpkg.Route{
 			0: {HashSlot: 0, SlotID: 1, Leader: 4},
 		},
 	}
 	app, err := newTestApp(t, Config{
 		NodeID: 4,
-		Cluster: clusterv2.Config{
+		Cluster: clusterpkg.Config{
 			NodeID:  4,
-			Control: clusterv2.ControlConfig{ClusterID: "cluster-a"},
+			Control: clusterpkg.ControlConfig{ClusterID: "cluster-a"},
 		},
 	}, WithCluster(cluster), WithGateway(nil))
 	if err != nil {
@@ -243,7 +243,7 @@ func TestAppPrepareControllerVoterReturnsControllerRaftProof(t *testing.T) {
 	cluster := &fakeControllerVoterPreparationCluster{
 		fakeManagerCluster: fakeManagerCluster{
 			nodeID: 4,
-			controllerRaftStatus: clusterv2.ControllerRaftStatus{
+			controllerRaftStatus: clusterpkg.ControllerRaftStatus{
 				AppliedIndex: 77,
 				Voters:       []uint64{1, 2, 4},
 			},
@@ -255,9 +255,9 @@ func TestAppPrepareControllerVoterReturnsControllerRaftProof(t *testing.T) {
 	}
 	app, err := newTestApp(t, Config{
 		NodeID: 4,
-		Cluster: clusterv2.Config{
+		Cluster: clusterpkg.Config{
 			NodeID:  4,
-			Control: clusterv2.ControlConfig{ClusterID: "cluster-a"},
+			Control: clusterpkg.ControlConfig{ClusterID: "cluster-a"},
 		},
 	}, WithCluster(cluster), WithGateway(nil))
 	if err != nil {
@@ -301,7 +301,7 @@ func TestAppPrepareControllerVoterAllowsPendingControllerRaftProof(t *testing.T)
 	cluster := &fakeControllerVoterPreparationCluster{
 		fakeManagerCluster: fakeManagerCluster{
 			nodeID: 4,
-			controllerRaftStatuses: []clusterv2.ControllerRaftStatus{
+			controllerRaftStatuses: []clusterpkg.ControllerRaftStatus{
 				{NodeID: 4, Role: "follower", LeaderID: 1},
 			},
 		},
@@ -351,7 +351,7 @@ func TestSeedJoinNodeReadinessUsesGatewayRuntimeBeforeSlotRoutes(t *testing.T) {
 				}},
 			},
 		},
-		snapshot: clusterv2.Snapshot{
+		snapshot: clusterpkg.Snapshot{
 			RoutesReady:   true,
 			SlotsReady:    true,
 			ChannelsReady: true,
@@ -360,10 +360,10 @@ func TestSeedJoinNodeReadinessUsesGatewayRuntimeBeforeSlotRoutes(t *testing.T) {
 	}
 	app, err := newTestApp(t, Config{
 		NodeID: 4,
-		Cluster: clusterv2.Config{
+		Cluster: clusterpkg.Config{
 			NodeID:  4,
-			Control: clusterv2.ControlConfig{ClusterID: "cluster-a"},
-			Join: clusterv2.JoinConfig{
+			Control: clusterpkg.ControlConfig{ClusterID: "cluster-a"},
+			Join: clusterpkg.JoinConfig{
 				Seeds:         []string{"10.0.0.1:11110"},
 				AdvertiseAddr: "10.0.0.4:11110",
 				Token:         "join-secret",
@@ -402,7 +402,7 @@ func TestSeedJoinActiveNodeReadinessRequiresSlotRoutes(t *testing.T) {
 				}},
 			},
 		},
-		snapshot: clusterv2.Snapshot{
+		snapshot: clusterpkg.Snapshot{
 			RoutesReady:   true,
 			SlotsReady:    true,
 			ChannelsReady: true,
@@ -411,10 +411,10 @@ func TestSeedJoinActiveNodeReadinessRequiresSlotRoutes(t *testing.T) {
 	}
 	app, err := newTestApp(t, Config{
 		NodeID: 4,
-		Cluster: clusterv2.Config{
+		Cluster: clusterpkg.Config{
 			NodeID:  4,
-			Control: clusterv2.ControlConfig{ClusterID: "cluster-a"},
-			Join: clusterv2.JoinConfig{
+			Control: clusterpkg.ControlConfig{ClusterID: "cluster-a"},
+			Join: clusterpkg.JoinConfig{
 				Seeds:         []string{"10.0.0.1:11110"},
 				AdvertiseAddr: "10.0.0.4:11110",
 				Token:         "join-secret",
@@ -441,10 +441,10 @@ func TestSeedJoinActiveNodeReadinessRequiresSlotRoutes(t *testing.T) {
 func TestSeedJoinReadyzWaitsForGatewayRuntime(t *testing.T) {
 	app, err := newTestApp(t, Config{
 		NodeID: 4,
-		Cluster: clusterv2.Config{
+		Cluster: clusterpkg.Config{
 			NodeID:  4,
-			Control: clusterv2.ControlConfig{ClusterID: "cluster-a"},
-			Join: clusterv2.JoinConfig{
+			Control: clusterpkg.ControlConfig{ClusterID: "cluster-a"},
+			Join: clusterpkg.JoinConfig{
 				Seeds:         []string{"10.0.0.1:11110"},
 				AdvertiseAddr: "10.0.0.4:11110",
 				Token:         "join-secret",
@@ -487,10 +487,10 @@ func TestSeedJoinReadyzWaitsForGatewayRuntime(t *testing.T) {
 func TestSeedJoinActiveReadyzRequiresWriteRoutes(t *testing.T) {
 	app, err := newTestApp(t, Config{
 		NodeID: 4,
-		Cluster: clusterv2.Config{
+		Cluster: clusterpkg.Config{
 			NodeID:  4,
-			Control: clusterv2.ControlConfig{ClusterID: "cluster-a"},
-			Join: clusterv2.JoinConfig{
+			Control: clusterpkg.ControlConfig{ClusterID: "cluster-a"},
+			Join: clusterpkg.JoinConfig{
 				Seeds:         []string{"10.0.0.1:11110"},
 				AdvertiseAddr: "10.0.0.4:11110",
 				Token:         "join-secret",
@@ -664,18 +664,18 @@ func (f *fakeSeedJoinClient) waitCall(t *testing.T) seedJoinCall {
 
 type fakeReadinessCluster struct {
 	fakeManagerCluster
-	snapshot clusterv2.Snapshot
-	routes   map[uint16]clusterv2.Route
+	snapshot clusterpkg.Snapshot
+	routes   map[uint16]clusterpkg.Route
 }
 
-func (f *fakeReadinessCluster) Snapshot() clusterv2.Snapshot {
+func (f *fakeReadinessCluster) Snapshot() clusterpkg.Snapshot {
 	return f.snapshot
 }
 
-func (f *fakeReadinessCluster) RouteHashSlot(hashSlot uint16) (clusterv2.Route, error) {
+func (f *fakeReadinessCluster) RouteHashSlot(hashSlot uint16) (clusterpkg.Route, error) {
 	route, ok := f.routes[hashSlot]
 	if !ok {
-		return clusterv2.Route{}, clusterv2.ErrRouteNotReady
+		return clusterpkg.Route{}, clusterpkg.ErrRouteNotReady
 	}
 	return route, nil
 }

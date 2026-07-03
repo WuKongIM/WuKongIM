@@ -8,7 +8,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelhandler "github.com/WuKongIM/WuKongIM/pkg/channel/handler"
-	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
+	raftcluster "github.com/WuKongIM/WuKongIM/pkg/legacy/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 )
 

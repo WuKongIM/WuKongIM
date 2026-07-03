@@ -4,9 +4,9 @@
 
 `pkg/controller` is the canonical Controller implementation. Controller voter nodes apply committed Controller Raft commands to a canonical `cluster-state.json` file. Non-controller nodes do not join Controller Raft; they mirror Controller voter state files through full-file sync.
 
-The root `pkg/controller` package is the external facade. Callers should depend on its `Runtime`, strongly typed `ClusterState` / `StateEvent`, Raft message stepping, and state sync request/response contracts. Subpackages remain Controller engine implementation details and should not be imported by `pkg/clusterv2` production code.
+The root `pkg/controller` package is the external facade. Callers should depend on its `Runtime`, strongly typed `ClusterState` / `StateEvent`, Raft message stepping, and state sync request/response contracts. Subpackages remain Controller engine implementation details and should not be imported by `pkg/cluster` production code.
 
-`pkg/clusterv2/control` hosts the production-shaped integration wrapper; `pkg/controller` remains the reusable Controller engine and does not import `pkg/clusterv2`.
+`pkg/cluster/control` hosts the production-shaped integration wrapper; `pkg/controller` remains the reusable Controller engine and does not import `pkg/cluster`.
 
 ## Package Boundaries
 
@@ -164,5 +164,5 @@ The root `Runtime` builds one full-file state sync endpoint during voter startup
 ## Non-Goals
 
 - Do not replace `pkg/controller` in this package.
-- Do not own production cluster startup directly; `pkg/clusterv2/control` provides the package-level integration wrapper.
+- Do not own production cluster startup directly; `pkg/cluster/control` provides the package-level integration wrapper.
 - Do not store high-frequency runtime observations in `cluster-state.json`.

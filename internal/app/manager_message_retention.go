@@ -9,9 +9,9 @@ import (
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelhandler "github.com/WuKongIM/WuKongIM/pkg/channel/handler"
-	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/db/message"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	raftcluster "github.com/WuKongIM/WuKongIM/pkg/legacy/cluster"
 )
 
 type managerMessageRetentionMetas interface {

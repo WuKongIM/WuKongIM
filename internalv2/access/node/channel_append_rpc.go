@@ -10,12 +10,12 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internalv2/contracts/channelappend"
-	clusternet "github.com/WuKongIM/WuKongIM/pkg/clusterv2/net"
+	clusternet "github.com/WuKongIM/WuKongIM/pkg/cluster/net"
 	"github.com/WuKongIM/WuKongIM/pkg/transportv2"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
-// ChannelAppendRPCServiceID is the clusterv2 RPC service for SEND forwarding to the channel append authority.
+// ChannelAppendRPCServiceID is the cluster RPC service for SEND forwarding to the channel append authority.
 const ChannelAppendRPCServiceID uint8 = clusternet.RPCChannelAuthoritySend
 
 // ChannelAppend accepts send batches that are authoritative on this node.

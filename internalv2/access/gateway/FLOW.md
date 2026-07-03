@@ -84,7 +84,7 @@ gateway core; the adapter does not write CONNACK directly.
 ## Boundaries
 
 - This package may import `pkg/gateway` and `pkg/protocol/frame`.
-- This package must not import `pkg/clusterv2` or `pkg/channelv2`.
+- This package must not import `pkg/cluster` or `pkg/channelv2`.
 - Presence activation only maps gateway Context/session values into usecase
   commands. The captured session handle exposes close/write behavior plus
   local/remote addresses for owner-local manager connection projection.

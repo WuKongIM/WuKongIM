@@ -13,8 +13,8 @@ import (
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/message"
 	pluginusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/plugin"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
+	clusterpkg "github.com/WuKongIM/WuKongIM/pkg/cluster"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	pluginhost "github.com/WuKongIM/WuKongIM/pkg/plugin/pluginhost"
 	"github.com/WuKongIM/WuKongIM/pkg/plugin/pluginproto"
@@ -33,7 +33,7 @@ func TestNewSkipsPluginSubsystemWhenDisabled(t *testing.T) {
 func TestNewWiresPluginSubsystemWhenEnabled(t *testing.T) {
 	app, err := newTestApp(t, Config{
 		DataDir: t.TempDir(),
-		Cluster: clusterv2.Config{NodeID: 1},
+		Cluster: clusterpkg.Config{NodeID: 1},
 		Plugin:  PluginConfig{Enable: true, HotReload: false},
 	}, WithCluster(&fakeCluster{}))
 	require.NoError(t, err)
@@ -53,7 +53,7 @@ func TestNewWiresPluginUsecaseAsReceiveBindingReader(t *testing.T) {
 	}
 	app, err := newTestApp(t, Config{
 		DataDir: t.TempDir(),
-		Cluster: clusterv2.Config{NodeID: 1},
+		Cluster: clusterpkg.Config{NodeID: 1},
 		Plugin:  PluginConfig{Enable: true, HotReload: false},
 	}, WithCluster(cluster), WithGateway(nil))
 	require.NoError(t, err)
@@ -91,7 +91,7 @@ func TestNewWiresPluginDesiredStoreIntoUsecase(t *testing.T) {
 	}))
 	app, err := newTestApp(t, Config{
 		DataDir: dataDir,
-		Cluster: clusterv2.Config{NodeID: 3},
+		Cluster: clusterpkg.Config{NodeID: 3},
 		Plugin:  PluginConfig{Enable: true, HotReload: false},
 	}, WithCluster(&fakeCluster{}), WithGateway(nil))
 	require.NoError(t, err)
@@ -119,7 +119,7 @@ func TestNewWiresPluginDesiredStoreIntoUsecase(t *testing.T) {
 func TestNewWiresPluginUsecaseAsMessageSendHook(t *testing.T) {
 	app, err := newTestApp(t, Config{
 		DataDir: t.TempDir(),
-		Cluster: clusterv2.Config{NodeID: 1},
+		Cluster: clusterpkg.Config{NodeID: 1},
 		Plugin:  PluginConfig{Enable: true, HotReload: false},
 	}, WithCluster(&fakeCluster{}), WithGateway(nil))
 	require.NoError(t, err)
@@ -140,7 +140,7 @@ func TestNewWiresPluginUsecaseAsMessageSender(t *testing.T) {
 	submitter := &recordingAppMessageSubmitter{result: message.SendResult{MessageID: 222, Reason: message.ReasonSuccess}}
 	app, err := newTestApp(t, Config{
 		DataDir: t.TempDir(),
-		Cluster: clusterv2.Config{NodeID: 1},
+		Cluster: clusterpkg.Config{NodeID: 1},
 		Plugin:  PluginConfig{Enable: true, HotReload: false},
 	}, WithCluster(&fakeCluster{}), WithGateway(nil), WithMessages(message.New(message.Options{Submitter: submitter})))
 	require.NoError(t, err)
@@ -177,7 +177,7 @@ func TestNewWiresPluginUsecaseAsChannelMessageReader(t *testing.T) {
 	}
 	app, err := newTestApp(t, Config{
 		DataDir: t.TempDir(),
-		Cluster: clusterv2.Config{NodeID: 1},
+		Cluster: clusterpkg.Config{NodeID: 1},
 		Plugin:  PluginConfig{Enable: true, HotReload: false},
 	}, WithCluster(cluster), WithGateway(nil))
 	require.NoError(t, err)
@@ -209,7 +209,7 @@ func TestNewWiresPluginUsecaseAsClusterReader(t *testing.T) {
 	}
 	app, err := newTestApp(t, Config{
 		DataDir: t.TempDir(),
-		Cluster: clusterv2.Config{NodeID: 1},
+		Cluster: clusterpkg.Config{NodeID: 1},
 		Plugin:  PluginConfig{Enable: true, HotReload: false},
 	}, WithCluster(cluster), WithGateway(nil))
 	require.NoError(t, err)
@@ -238,7 +238,7 @@ func TestNewWiresPluginUsecaseAsChannelOwnerReader(t *testing.T) {
 	}
 	app, err := newTestApp(t, Config{
 		DataDir: t.TempDir(),
-		Cluster: clusterv2.Config{NodeID: 1},
+		Cluster: clusterpkg.Config{NodeID: 1},
 		Plugin:  PluginConfig{Enable: true, HotReload: false},
 	}, WithCluster(cluster), WithGateway(nil))
 	require.NoError(t, err)
@@ -264,7 +264,7 @@ func TestNewWiresPluginUsecaseAsConversationReader(t *testing.T) {
 	}
 	app, err := newTestApp(t, Config{
 		DataDir: t.TempDir(),
-		Cluster: clusterv2.Config{NodeID: 1},
+		Cluster: clusterpkg.Config{NodeID: 1},
 		Plugin:  PluginConfig{Enable: true, HotReload: false},
 	}, WithCluster(cluster), WithGateway(nil))
 	require.NoError(t, err)
@@ -282,7 +282,7 @@ func TestNewWiresPluginUsecaseAsHTTPForwarder(t *testing.T) {
 	cluster := &fakeManagerCluster{nodeID: 1}
 	app, err := newTestApp(t, Config{
 		DataDir: t.TempDir(),
-		Cluster: clusterv2.Config{NodeID: 1},
+		Cluster: clusterpkg.Config{NodeID: 1},
 		Plugin:  PluginConfig{Enable: true, HotReload: false},
 	}, WithCluster(cluster), WithGateway(nil))
 	require.NoError(t, err)
@@ -305,7 +305,7 @@ func TestNewWiresPluginUsecaseAsHTTPForwarder(t *testing.T) {
 func TestNewPassesPluginFailOpenToPluginUsecase(t *testing.T) {
 	app, err := newTestApp(t, Config{
 		DataDir: t.TempDir(),
-		Cluster: clusterv2.Config{NodeID: 1},
+		Cluster: clusterpkg.Config{NodeID: 1},
 		Plugin:  PluginConfig{Enable: true, HotReload: false, FailOpen: true},
 	}, WithCluster(&fakeCluster{}), WithGateway(nil))
 	require.NoError(t, err)
@@ -326,7 +326,7 @@ func TestNewRegistersManagerPluginRPCWhenPluginEnabled(t *testing.T) {
 	cluster := &fakeManagerCluster{nodeID: 1}
 	_, err := newTestApp(t, Config{
 		DataDir: t.TempDir(),
-		Cluster: clusterv2.Config{NodeID: 1},
+		Cluster: clusterpkg.Config{NodeID: 1},
 		Plugin:  PluginConfig{Enable: true, HotReload: false},
 	}, WithCluster(cluster), WithGateway(nil))
 	require.NoError(t, err)
@@ -407,7 +407,7 @@ func requireLifecycleOrder(t *testing.T, calls []string, want []string) {
 func TestPluginPersistAfterAdapterIsAvailableForChannelAppendWhenEnabled(t *testing.T) {
 	app, err := newTestApp(t, Config{
 		DataDir: t.TempDir(),
-		Cluster: clusterv2.Config{NodeID: 1},
+		Cluster: clusterpkg.Config{NodeID: 1},
 		Plugin:  PluginConfig{Enable: true, HotReload: false},
 	}, WithCluster(&fakeCluster{}))
 	require.NoError(t, err)
@@ -417,7 +417,7 @@ func TestPluginPersistAfterAdapterIsAvailableForChannelAppendWhenEnabled(t *test
 func TestPluginReceiveObserverIsAvailableForChannelAppendWhenEnabled(t *testing.T) {
 	app, err := newTestApp(t, Config{
 		DataDir: t.TempDir(),
-		Cluster: clusterv2.Config{NodeID: 1},
+		Cluster: clusterpkg.Config{NodeID: 1},
 		Plugin:  PluginConfig{Enable: true, HotReload: false},
 	}, WithCluster(&fakeCluster{}))
 	require.NoError(t, err)

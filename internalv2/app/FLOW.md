@@ -3,7 +3,7 @@
 ## Responsibility
 
 `internalv2/app` is the only composition root for the new skeleton. It wires
-phase-1 config, the internalv2 root logger, `pkg/clusterv2`, the message
+phase-1 config, the internalv2 root logger, `pkg/cluster`, the message
 usecase, the channel management usecase, the user management usecase, the
 conversation list usecase, the manager management read usecase, the optional
 delivery usecase/runtime, the presence usecase, the gateway handler, the optional HTTP API runtime, the optional
@@ -24,8 +24,8 @@ and protocol details stay in access packages.
 
 ```text
 New(Config)
-  -> derive effective clusterv2 config from Config.Cluster with top-level fallbacks
-     including ChannelMessageRetention -> clusterv2.ChannelRetention physical
+  -> derive effective cluster config from Config.Cluster with top-level fallbacks
+     including ChannelMessageRetention -> cluster.ChannelRetention physical
      cleanup settings; background physical GC remains disabled by default
   -> create a root logger from Config.Log unless a test/harness override is supplied
   -> create metrics registry when Observability.MetricsEnabled=true and attach
@@ -81,10 +81,10 @@ New(Config)
   -> when an effective node data dir is configured:
        create the app-owned ControllerV2 task audit runtime at
        `observability/task-audit/controller-v2-tasks.jsonl`, combine its
-       bounded nonblocking `TaskTransitionObserver` into clusterv2 control
+       bounded nonblocking `TaskTransitionObserver` into cluster control
        config, and keep JSONL retention local to internalv2 observability
        rather than `pkg/db/meta` or legacy `pkg/controller`
-  -> create clusterv2.Node when no ClusterRuntime override is provided
+  -> create cluster.Node when no ClusterRuntime override is provided
   -> when the cluster exposes channel metadata APIs:
        create internalv2/usecase/channel with an infra/cluster Slot metadata adapter
        and the configured large-group subscriber threshold, wire a subscriber
@@ -101,14 +101,14 @@ New(Config)
        adapter, create the route-authority lifecycle, and use that client as
        the conversation list Store while keeping the read adapter as Messages,
        durable state reads, read-cursor writes, and delete-barrier writes
-  -> when the cluster exposes clusterv2 Slot metadata subscriber APIs, create
+  -> when the cluster exposes cluster Slot metadata subscriber APIs, create
      a delivery metadata adapter backed by real storage for bench setup,
      channelappend subscriber scans, and optional delivery fanout
   -> when the cluster exposes presence routing:
        create owner boot ID, online.Registry, runtime/presence.Directory,
        infra/cluster.PresenceAuthorityClient, usecase/presence.App,
        and access/node presence RPC adapter
-       register the presence authority and owner-action RPC handlers on clusterv2
+       register the presence authority and owner-action RPC handlers on cluster
        create the presence touch worker
   -> register the manager connection RPC handler when node RPC and local control
      snapshots are available, exposing this node's owner-local online registry
@@ -168,7 +168,7 @@ New(Config)
        adapter, owner-local online registry, optional presence lookup, and the
        channel metadata adapter as the system UID store
   -> when Delivery.Enabled=true:
-       create a clusterv2-backed delivery partitioner
+       create a cluster-backed delivery partitioner
        when route snapshots are available, an app subscriber planner, presence
        resolver, local/cluster delivery pusher, and partition-leader fanout router
        wrap the fanout runner with a bounded in-memory retry scheduler
@@ -188,12 +188,12 @@ New(Config)
        return node id, sandbox dir, startup config, and ConfigTemplate metadata;
        wire
        plugin-origin /message/send back through the v2 message usecase with the
-       default system UID fallback; wire /channel/messages to the clusterv2
+       default system UID fallback; wire /channel/messages to the cluster
        committed-message reader when available; wire cluster host RPCs to the
-       clusterv2 control snapshot and ChannelV2 append-authority readers when
-       available; wire /conversation/channels to the clusterv2 active
+       cluster control snapshot and ChannelV2 append-authority readers when
+       available; wire /conversation/channels to the cluster active
        conversation row reader when available without last-message joins; wire
-       positive toNodeId /plugin/httpForward calls through the clusterv2 manager
+       positive toNodeId /plugin/httpForward calls through the cluster manager
        plugin RPC forwarder; wire Receive hook binding selection to
        cluster-authoritative UID plugin bindings when available; attach the
        plugin hook metrics observer
@@ -215,8 +215,8 @@ New(Config)
        admission.
   -> when the cluster exposes ChannelV2 append plus channel append authority:
        create channelappend.Group with hash-sharded per-channel authority writers,
-       clusterv2 ChannelAppender, node-scoped message IDs, subscriber source,
-       clusterv2-backed idempotency lookup when the cluster exposes it,
+       cluster ChannelAppender, node-scoped message IDs, subscriber source,
+       cluster-backed idempotency lookup when the cluster exposes it,
        recipient authority resolver, conversation active-batch admitter,
        optional recipient delivery worker enqueuer, optional plugin/webhook
        PersistAfter enqueuers, optional plugin/webhook offline-recipient
@@ -226,10 +226,10 @@ New(Config)
        channel-authority forwarding
        register Channel Append RPC so remote nodes can submit to the local
        authority writer group
-  -> create message.App with channelappend.Router, clusterv2 channel metadata
+  -> create message.App with channelappend.Router, cluster channel metadata
      permission reads, system UID cache, configured message permission switches,
      the optional plugin Send hook usecase when plugins are enabled, and the
-     clusterv2 committed message reader when exposed for channel message sync
+     cluster committed message reader when exposed for channel message sync
   -> when the cluster exposes unified conversation metadata writes and ChannelV2
      committed reads, create internalv2/usecase/cmdsync with one
      infra/cluster CMDSyncStore over ConversationKindCMD rows
@@ -256,15 +256,15 @@ New(Config)
      log reader, node-scoped Controller and Slot Raft compaction operations
      route through their manager operator adapters, Slot leader transfer
      requests wire the management `LeaderTransfer` and `SlotRuntimeStatus`
-     ports when clusterv2 exposes them, use local Slot Raft runtime status for
-     preflight, and submit the validated intent to clusterv2 control, bounded
+     ports when cluster exposes them, use local Slot Raft runtime status for
+     preflight, and submit the validated intent to cluster control, bounded
      node onboarding requests wire the management `SlotReplicaMove` port when
-     clusterv2 exposes Controller-backed staged replica-move writes and submit
+     cluster exposes Controller-backed staged replica-move writes and submit
      only `slot_replica_move` task intents, plugin
      inventory and lifecycle mutations use the local v2 plugin usecase for the
      local node and route peer `node_id` reads/writes plus positive-node plugin
      HTTP forwarding through the manager plugin RPC path, plugin binding
-     mutations use clusterv2
+     mutations use cluster
      UID-owned Slot metadata when that facade is exposed, ordinary
      application log
      sources and pages use the app-owned
@@ -280,9 +280,9 @@ New(Config)
      tracking-rule mutations use the internalv2 diagnostics store locally and
      route selected non-local nodes through the manager diagnostics RPC path;
      node lifecycle join/activation requests wire the management lifecycle
-     writer when clusterv2 exposes Controller-backed lifecycle writes, keeping
+     writer when cluster exposes Controller-backed lifecycle writes, keeping
      validation in the management usecase and durable membership mutation in
-     clusterv2 control; ControllerV2 task audit list and event timeline reads
+     cluster control; ControllerV2 task audit list and event timeline reads
      use the app-owned JSONL task audit reader when it is available;
      when `Top.APIEnabled` creates a top collector,
      attach the local top provider so `/manager/runtime/workqueues` can expose
@@ -307,7 +307,7 @@ The ordinary application log reader is also app-owned because only the
 composition root owns `Log.Dir` and the concrete node-local logger layout. It is
 separate from the distributed Controller/Slot Raft log reader: ordinary app log
 requests list fixed local log sources and parse application log entries, while
-Raft log requests read clusterv2 log storage metadata and decoded Raft payloads.
+Raft log requests read cluster log storage metadata and decoded Raft payloads.
 Remote ordinary app log requests use the manager app-log RPC path for the
 selected node and still return only reader-owned source names and file labels,
 never absolute paths.
@@ -321,7 +321,7 @@ without falling back to legacy `internal` diagnostics state.
 
 Controller Raft status and manual compaction use a cluster-routed management
 operator created in the app composition root. Local reads and compaction call
-the local clusterv2 node facade directly; non-local node-scoped operations use
+the local cluster node facade directly; non-local node-scoped operations use
 the manager Controller Raft node RPC path. The cluster-wide manager compact
 action fans out above the RPC layer by targeting every Controller voter in the
 current control snapshot.
@@ -379,14 +379,14 @@ errors and short append results.
 The channel append commit pipeline scopes unscoped person-channel events to the
 two channel participants. For non-person unscoped channels it pages durable
 subscribers through the app delivery metadata source, an explicitly supplied
-subscriber source, or the clusterv2 Slot metadata source. After each recipient
+subscriber source, or the cluster Slot metadata source. After each recipient
 set is formed, channelappend admits a kind-aware
 `conversationactive.ActiveBatch` through the shared
 `ConversationAuthorityClient`; channelappend chooses normal versus CMD kind
 from the committed envelope, and active admission still runs when online
 delivery is disabled.
 Recipients are then grouped by exact UID hash-slot authority target including
-Slot leader term and Slot config epoch for delivery; when clusterv2 exposes
+Slot leader term and Slot config epoch for delivery; when cluster exposes
 batch key routing, the app recipient resolver resolves each subscriber page's
 unique UIDs through one batch route lookup before grouping. When delivery is
 enabled, the app wires a bounded
@@ -401,7 +401,7 @@ or RPC owner pusher after the recipient delivery worker accepts the batch.
 These metrics do not include UID, channel, slot, or per-target labels.
 
 When the cluster runtime exposes route snapshots, delivery planning uses the
-clusterv2 UID hash-slot table to create authority partitions. A fanout task
+cluster UID hash-slot table to create authority partitions. A fanout task
 router runs local partitions through the in-process fanout worker and forwards
 remote partitions through access/node Delivery Fanout RPC. The remote node then
 uses its own subscriber source and still pushes resolved online routes by
@@ -440,11 +440,11 @@ pending-state updater. Ordinary conversation hydration stays on
 `ConversationKindNormal` rows and skips `SyncOnce`/command-channel log entries
 instead of relying on suffix filtering in conversation storage or list logic.
 
-Bench runtime controls flow from internalv2 HTTP through `internalv2/infra/cluster`, `pkg/clusterv2.Node`, `pkg/clusterv2/channels.Service`, and finally the hosted ChannelV2 runtime. These routes are benchmark-only observation/cleanup controls and do not replace the gateway SEND activation path.
+Bench runtime controls flow from internalv2 HTTP through `internalv2/infra/cluster`, `pkg/cluster.Node`, `pkg/cluster/channels.Service`, and finally the hosted ChannelV2 runtime. These routes are benchmark-only observation/cleanup controls and do not replace the gateway SEND activation path.
 
 Legacy channel management requests flow from internalv2 HTTP through
 `internalv2/usecase/channel` and the `internalv2/infra/cluster`
-`ChannelMetadataStore` adapter to `pkg/clusterv2.Node` Slot metadata facades.
+`ChannelMetadataStore` adapter to `pkg/cluster.Node` Slot metadata facades.
 Mutations are proposed through Slot ownership; reads use the current routed Slot
 metadata store. Ordinary subscriber mutations also project `(uid, channel)` rows
 through the UID-owned membership facade for compatible metadata reads; the
@@ -514,7 +514,7 @@ targets arrive with an empty sender field.
 
 Legacy user management requests flow from internalv2 HTTP through
 `internalv2/usecase/user` and the `internalv2/infra/cluster`
-`UserMetadataStore` adapter to `pkg/clusterv2.Node` Slot metadata facades.
+`UserMetadataStore` adapter to `pkg/cluster.Node` Slot metadata facades.
 Token and device mutations are proposed through UID Slot ownership. Online
 status reads use the v2 presence usecase when available, while device close
 side effects are limited to owner-local sessions from `online.Registry`.
@@ -528,7 +528,7 @@ admitted to the local `channelappend.Group`; remote authority sends are forwarde
 through access/node Channel Append RPC to the target node, where they enter only
 that node's authority writer group. Channel message sync uses the
 `internalv2/infra/cluster` ChannelMessageReader, which reads committed ChannelV2
-messages through the clusterv2 Node facade and keeps legacy person-channel
+messages through the cluster Node facade and keeps legacy person-channel
 response IDs in the HTTP adapter.
 
 Conversation active rows remain working-set hints: delayed or dropped
@@ -550,7 +550,7 @@ gateway/API send
   -> remote channel authority:
        access/node Channel Append RPC forwards the batch
        remote node admits it to its local channel writer
-  -> authority writer prepares commands, allocates IDs, and calls clusterv2 ChannelAppender
+  -> authority writer prepares commands, allocates IDs, and calls cluster ChannelAppender
   -> ChannelV2 persists messages and returns append result
   -> SENDACK returns to sender
   -> authority writer post-commit effect:
@@ -578,7 +578,7 @@ Start(ctx)
      ControllerV2 task in the local control snapshot; failures are logged and
      do not block service startup
   -> seed join loop Start(ctx): retry JoinNode against stable-order seeds when seed-join config is present
-  -> wait for clusterv2 write routing when the cluster runtime exposes route snapshots; the gate also runs the cluster write probe, which proves Slot metadata writes and ChannelV2 placement data-node candidates before gateway SEND admission
+  -> wait for cluster write routing when the cluster runtime exposes route snapshots; the gate also runs the cluster write probe, which proves Slot metadata writes and ChannelV2 placement data-node candidates before gateway SEND admission
   -> conversation authority route lifecycle Start(ctx): watch route authorities and seed current targets
   -> conversation active flush worker Start(ctx): periodically persist dirty active rows
   -> presence touch worker Start(ctx)
@@ -638,7 +638,7 @@ recvacks expire during owner-local push activity.
 ## Presence Touch Worker
 
 ```text
-clusterv2.RouteAuthorityEvent
+cluster.RouteAuthorityEvent
   -> if local node becomes authority:
        runtime/presence.Directory.BecomeAuthority(target with route revision, Slot config epoch, Slot leader term, diagnostic authority epoch)
   -> if another node becomes authority:
@@ -687,7 +687,7 @@ eventual durable lag.
 ## Conversation Authority Handoff
 
 ```text
-clusterv2.RouteAuthorityEvent
+cluster.RouteAuthorityEvent
   -> ignore stale events by hash-slot route revision, Slot config epoch, Slot leader term, and diagnostic authority epoch tie-break
   -> if local node becomes authority:
        mark the exact conversation authority target active

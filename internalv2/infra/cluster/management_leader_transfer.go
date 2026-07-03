@@ -5,8 +5,8 @@ import (
 	"errors"
 
 	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 )
 
 // ManagementLeaderTransferNode exposes Controller-backed Slot leader transfer intents.
@@ -15,7 +15,7 @@ type ManagementLeaderTransferNode interface {
 	RequestSlotLeaderTransfer(context.Context, control.SlotLeaderTransferRequest) (control.SlotLeaderTransferResult, error)
 }
 
-// ManagementLeaderTransferAdapter adapts clusterv2 control writes to management usecases.
+// ManagementLeaderTransferAdapter adapts cluster control writes to management usecases.
 type ManagementLeaderTransferAdapter struct {
 	node ManagementLeaderTransferNode
 }
@@ -39,7 +39,7 @@ type ManagementSlotReplicaMoveNode interface {
 	RequestSlotReplicaMove(context.Context, control.SlotReplicaMoveRequest) (control.SlotReplicaMoveResult, error)
 }
 
-// ManagementSlotReplicaMoveAdapter adapts clusterv2 control writes to onboarding usecases.
+// ManagementSlotReplicaMoveAdapter adapts cluster control writes to onboarding usecases.
 type ManagementSlotReplicaMoveAdapter struct {
 	node ManagementSlotReplicaMoveNode
 }
@@ -57,7 +57,7 @@ func (a *ManagementSlotReplicaMoveAdapter) RequestSlotReplicaMove(ctx context.Co
 	return a.node.RequestSlotReplicaMove(ctx, req)
 }
 
-// ManagementSlotRuntimeStatusReader adapts clusterv2 local Slot Raft status to management usecases.
+// ManagementSlotRuntimeStatusReader adapts cluster local Slot Raft status to management usecases.
 type ManagementSlotRuntimeStatusReader struct {
 	operator *ManagementSlotRaftOperator
 }
@@ -77,7 +77,7 @@ func (r *ManagementSlotRuntimeStatusReader) SlotRuntimeStatus(ctx context.Contex
 			continue
 		}
 		status, err := r.operator.SlotRaftStatus(ctx, candidate, slotID)
-		if errors.Is(err, clusterv2.ErrSlotNotFound) {
+		if errors.Is(err, cluster.ErrSlotNotFound) {
 			continue
 		}
 		if err != nil {

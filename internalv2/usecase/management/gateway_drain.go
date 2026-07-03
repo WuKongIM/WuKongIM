@@ -3,7 +3,7 @@ package management
 import (
 	"context"
 
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 

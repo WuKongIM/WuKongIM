@@ -7,7 +7,7 @@ import (
 	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
 )
 
-// ManagementDBInspectNode exposes clusterv2 node RPC for manager DB inspect reads.
+// ManagementDBInspectNode exposes cluster node RPC for manager DB inspect reads.
 type ManagementDBInspectNode interface {
 	// NodeID returns the local cluster node ID.
 	NodeID() uint64

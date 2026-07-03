@@ -20,9 +20,9 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/transport"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/worker"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
-	clusterv2channels "github.com/WuKongIM/WuKongIM/pkg/clusterv2/channels"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster"
+	clusterchannels "github.com/WuKongIM/WuKongIM/pkg/cluster/channels"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 	cv2 "github.com/WuKongIM/WuKongIM/pkg/controller"
 	messagedb "github.com/WuKongIM/WuKongIM/pkg/db/message"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
@@ -100,8 +100,8 @@ type multiChannelV2Observer []reactor.Observer
 type multiSlotObserver []multiraft.SchedulerObserver
 type multiTransportV2Observer []transportv2.Observer
 type multiControllerRaftObserver []cv2.RaftObserver
-type multiControlSnapshotObserver []clusterv2.ControlSnapshotObserver
-type multiSlotReplicaMoveObserver []clusterv2.SlotReplicaMoveObserver
+type multiControlSnapshotObserver []cluster.ControlSnapshotObserver
+type multiSlotReplicaMoveObserver []cluster.SlotReplicaMoveObserver
 type multiCommitCoordinatorObserver []messagedb.CommitCoordinatorObserver
 type multiGatewayObserver []accessgateway.Observer
 type multiSendackObserver []gatewayadapter.SendackObserver
@@ -1414,7 +1414,7 @@ func combineControllerRaftObservers(first, second cv2.RaftObserver) cv2.RaftObse
 	return multiControllerRaftObserver{first, second}
 }
 
-func combineControlSnapshotObservers(first, second clusterv2.ControlSnapshotObserver) clusterv2.ControlSnapshotObserver {
+func combineControlSnapshotObservers(first, second cluster.ControlSnapshotObserver) cluster.ControlSnapshotObserver {
 	if first == nil {
 		return second
 	}
@@ -1424,7 +1424,7 @@ func combineControlSnapshotObservers(first, second clusterv2.ControlSnapshotObse
 	return multiControlSnapshotObserver{first, second}
 }
 
-func combineSlotReplicaMoveObservers(first, second clusterv2.SlotReplicaMoveObserver) clusterv2.SlotReplicaMoveObserver {
+func combineSlotReplicaMoveObservers(first, second cluster.SlotReplicaMoveObserver) cluster.SlotReplicaMoveObserver {
 	if first == nil {
 		return second
 	}
@@ -1772,7 +1772,7 @@ func (o multiChannelV2Observer) ObserveReplicationStage(stage string, result str
 
 func (o multiChannelV2Observer) ObserveChannelMetaCache(result string) {
 	for _, observer := range o {
-		metaCacheObserver, ok := observer.(clusterv2channels.MetaCacheObserver)
+		metaCacheObserver, ok := observer.(clusterchannels.MetaCacheObserver)
 		if ok {
 			metaCacheObserver.ObserveChannelMetaCache(result)
 		}
@@ -1793,7 +1793,7 @@ func (o multiChannelV2Observer) ObserveAppendLatency(mode ch.CommitMode, d time.
 
 func (o multiChannelV2Observer) ObserveChannelAppendStage(stage string, result string, d time.Duration) {
 	for _, observer := range o {
-		appendStageObserver, ok := observer.(clusterv2channels.AppendStageObserver)
+		appendStageObserver, ok := observer.(clusterchannels.AppendStageObserver)
 		if ok {
 			appendStageObserver.ObserveChannelAppendStage(stage, result, d)
 		}
@@ -2140,13 +2140,13 @@ func messageAppendErrorLabel(err error) string {
 		return "channel_not_found"
 	case errors.Is(err, messageusecase.ErrAppendResultMissing) || strings.Contains(message, messageusecase.ErrAppendResultMissing.Error()):
 		return "short_result"
-	case errors.Is(err, ch.ErrInvalidConfig) || errors.Is(err, clusterv2.ErrInvalidConfig) || strings.Contains(message, ch.ErrInvalidConfig.Error()) || strings.Contains(message, clusterv2.ErrInvalidConfig.Error()):
+	case errors.Is(err, ch.ErrInvalidConfig) || errors.Is(err, cluster.ErrInvalidConfig) || strings.Contains(message, ch.ErrInvalidConfig.Error()) || strings.Contains(message, cluster.ErrInvalidConfig.Error()):
 		return "invalid_config"
-	case errors.Is(err, ch.ErrClosed) || errors.Is(err, clusterv2.ErrStopping) || strings.Contains(message, ch.ErrClosed.Error()) || strings.Contains(message, clusterv2.ErrStopping.Error()):
+	case errors.Is(err, ch.ErrClosed) || errors.Is(err, cluster.ErrStopping) || strings.Contains(message, ch.ErrClosed.Error()) || strings.Contains(message, cluster.ErrStopping.Error()):
 		return "closed"
 	case errors.Is(err, ch.ErrTooManyChannels) || strings.Contains(message, ch.ErrTooManyChannels.Error()):
 		return "too_many_channels"
-	case errors.Is(err, clusterv2.ErrNotStarted) || strings.Contains(message, clusterv2.ErrNotStarted.Error()):
+	case errors.Is(err, cluster.ErrNotStarted) || strings.Contains(message, cluster.ErrNotStarted.Error()):
 		return "not_started"
 	case errors.Is(err, context.Canceled) || strings.Contains(message, "context canceled"):
 		return "canceled"
@@ -2184,8 +2184,8 @@ var _ worker.AdmissionObserver = channelV2MetricsObserver{}
 var _ worker.WaitObserver = channelV2MetricsObserver{}
 var _ worker.TaskObserver = channelV2MetricsObserver{}
 var _ worker.AntsPoolObserver = channelV2MetricsObserver{}
-var _ clusterv2channels.MetaCacheObserver = channelV2MetricsObserver{}
-var _ clusterv2channels.AppendStageObserver = channelV2MetricsObserver{}
+var _ clusterchannels.MetaCacheObserver = channelV2MetricsObserver{}
+var _ clusterchannels.AppendStageObserver = channelV2MetricsObserver{}
 var _ multiraft.SchedulerObserver = slotMetricsObserver{}
 var _ multiraft.ProposalObserver = slotMetricsObserver{}
 var _ multiraft.ProposalAdmissionObserver = slotMetricsObserver{}
@@ -2210,8 +2210,8 @@ var _ worker.QueueCapacityObserver = multiChannelV2Observer{}
 var _ worker.AdmissionObserver = multiChannelV2Observer{}
 var _ worker.WaitObserver = multiChannelV2Observer{}
 var _ worker.TaskObserver = multiChannelV2Observer{}
-var _ clusterv2channels.MetaCacheObserver = multiChannelV2Observer{}
-var _ clusterv2channels.AppendStageObserver = multiChannelV2Observer{}
+var _ clusterchannels.MetaCacheObserver = multiChannelV2Observer{}
+var _ clusterchannels.AppendStageObserver = multiChannelV2Observer{}
 var _ multiraft.SchedulerObserver = multiSlotObserver{}
 var _ multiraft.ProposalObserver = multiSlotObserver{}
 var _ multiraft.ProposalAdmissionObserver = multiSlotObserver{}

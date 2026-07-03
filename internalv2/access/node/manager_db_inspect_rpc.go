@@ -6,13 +6,13 @@ import (
 	"fmt"
 
 	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
-	clusternet "github.com/WuKongIM/WuKongIM/pkg/clusterv2/net"
+	clusternet "github.com/WuKongIM/WuKongIM/pkg/cluster/net"
 	dbinspect "github.com/WuKongIM/WuKongIM/pkg/db/inspect"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
-// ManagerDBInspectRPCServiceID is the clusterv2 RPC service for node-local manager DB inspect reads.
+// ManagerDBInspectRPCServiceID is the cluster RPC service for node-local manager DB inspect reads.
 const ManagerDBInspectRPCServiceID uint8 = clusternet.RPCManagerDBInspect
 
 const (

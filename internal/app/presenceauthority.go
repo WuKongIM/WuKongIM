@@ -5,7 +5,7 @@ import (
 
 	accessnode "github.com/WuKongIM/WuKongIM/internal/access/node"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
-	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
+	raftcluster "github.com/WuKongIM/WuKongIM/pkg/legacy/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 )
 

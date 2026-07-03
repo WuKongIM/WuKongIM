@@ -6,12 +6,12 @@ import (
 	"fmt"
 
 	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
-	clusternet "github.com/WuKongIM/WuKongIM/pkg/clusterv2/net"
+	clusternet "github.com/WuKongIM/WuKongIM/pkg/cluster/net"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
-// ManagerChannelRPCServiceID is the clusterv2 RPC service for node-local manager channel lists.
+// ManagerChannelRPCServiceID is the cluster RPC service for node-local manager channel lists.
 const ManagerChannelRPCServiceID uint8 = clusternet.RPCManagerChannels
 
 // HandleManagerChannelRPC handles one encoded manager channel list RPC payload.

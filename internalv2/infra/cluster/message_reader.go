@@ -8,12 +8,12 @@ import (
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channelv2/store"
 )
 
-// ChannelMessageReadNode is the clusterv2 committed message read surface used by internalv2.
+// ChannelMessageReadNode is the cluster committed message read surface used by internalv2.
 type ChannelMessageReadNode interface {
 	ReadChannelCommitted(context.Context, channelv2.ChannelID, channelstore.ReadCommittedRequest) (channelstore.ReadCommittedResult, error)
 }
 
-// ChannelMessageReader adapts clusterv2 committed reads to the message usecase sync port.
+// ChannelMessageReader adapts cluster committed reads to the message usecase sync port.
 type ChannelMessageReader struct {
 	node ChannelMessageReadNode
 }

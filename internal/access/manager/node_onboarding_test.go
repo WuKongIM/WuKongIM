@@ -8,7 +8,7 @@ import (
 	"time"
 
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
-	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
+	raftcluster "github.com/WuKongIM/WuKongIM/pkg/legacy/cluster"
 	"github.com/stretchr/testify/require"
 )
 

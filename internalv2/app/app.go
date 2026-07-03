@@ -28,7 +28,7 @@ import (
 	pluginusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/plugin"
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/presence"
 	userusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/user"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/gateway"
 	obsmetrics "github.com/WuKongIM/WuKongIM/pkg/metrics"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
@@ -424,7 +424,7 @@ func (a *App) gatewayPresenceUsecase() accessgateway.PresenceUsecase {
 	}
 }
 
-func (a *App) currentPresenceAuthorities() []clusterv2.RouteAuthority {
+func (a *App) currentPresenceAuthorities() []cluster.RouteAuthority {
 	routes, ok := a.cluster.(clusterWriteReadyRuntime)
 	if !ok {
 		return nil
@@ -433,13 +433,13 @@ func (a *App) currentPresenceAuthorities() []clusterv2.RouteAuthority {
 	if snapshot.HashSlotCount == 0 {
 		return nil
 	}
-	authorities := make([]clusterv2.RouteAuthority, 0, snapshot.HashSlotCount)
+	authorities := make([]cluster.RouteAuthority, 0, snapshot.HashSlotCount)
 	for hashSlot := uint16(0); hashSlot < snapshot.HashSlotCount; hashSlot++ {
 		route, err := routes.RouteHashSlot(hashSlot)
 		if err != nil {
 			continue
 		}
-		authorities = append(authorities, clusterv2.RouteAuthority{
+		authorities = append(authorities, cluster.RouteAuthority{
 			HashSlot:       route.HashSlot,
 			SlotID:         route.SlotID,
 			LeaderNodeID:   route.Leader,
@@ -472,22 +472,22 @@ func (a *App) currentConversationAuthorityRouteTarget(hashSlot uint16) (conversa
 	}, true
 }
 
-func defaultClusterConfig(cfg Config) clusterv2.Config {
-	cluster := cfg.Cluster
-	if cluster.NodeID == 0 {
-		cluster.NodeID = cfg.NodeID
+func defaultClusterConfig(cfg Config) cluster.Config {
+	clusterCfg := cfg.Cluster
+	if clusterCfg.NodeID == 0 {
+		clusterCfg.NodeID = cfg.NodeID
 	}
-	if cluster.DataDir == "" {
-		cluster.DataDir = cfg.DataDir
+	if clusterCfg.DataDir == "" {
+		clusterCfg.DataDir = cfg.DataDir
 	}
-	cluster.ChannelRetention = clusterv2.ChannelRetentionConfig{
+	clusterCfg.ChannelRetention = cluster.ChannelRetentionConfig{
 		PhysicalGCEnabled: cfg.ChannelMessageRetention.PhysicalGCEnabled,
 		ScanInterval:      cfg.ChannelMessageRetention.ScanInterval,
 		ChannelBatchSize:  cfg.ChannelMessageRetention.ChannelBatchSize,
 		MaxTrimMessages:   cfg.ChannelMessageRetention.MaxTrimMessages,
 		MaxTrimBytes:      cfg.ChannelMessageRetention.MaxTrimBytes,
 	}
-	return cluster
+	return clusterCfg
 }
 
 func apiGatewayAddresses(cfg APIConfig, listeners []gateway.ListenerOptions) accessapi.GatewayAddresses {
@@ -569,7 +569,7 @@ func legacyRouteAddressesFromListeners(listeners []gateway.ListenerOptions) (acc
 	return external, intranet
 }
 
-func legacyRouteNodeAddresses(localNodeID uint64, voters []clusterv2.ControlVoter, external, intranet accessapi.LegacyRouteAddresses) map[uint64]accessapi.LegacyRouteNodeAddresses {
+func legacyRouteNodeAddresses(localNodeID uint64, voters []cluster.ControlVoter, external, intranet accessapi.LegacyRouteAddresses) map[uint64]accessapi.LegacyRouteNodeAddresses {
 	out := make(map[uint64]accessapi.LegacyRouteNodeAddresses, len(voters)+1)
 	if localNodeID != 0 {
 		out[localNodeID] = accessapi.LegacyRouteNodeAddresses{External: external, Intranet: intranet}
@@ -696,7 +696,7 @@ func (f nodeRPCHandlerFunc) HandleRPC(ctx context.Context, payload []byte) ([]by
 }
 
 type nodeRPCRegistrar interface {
-	RegisterRPC(uint8, clusterv2.NodeRPCHandler)
+	RegisterRPC(uint8, cluster.NodeRPCHandler)
 }
 
 type presenceDirectoryAuthority struct {

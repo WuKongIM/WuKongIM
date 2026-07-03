@@ -7,10 +7,10 @@ import (
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/message"
 	pluginusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/plugin"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 )
 
-// PluginClusterNode exposes clusterv2 control state for plugin host RPCs.
+// PluginClusterNode exposes cluster control state for plugin host RPCs.
 type PluginClusterNode interface {
 	// LocalControlSnapshot returns the latest locally visible control snapshot.
 	LocalControlSnapshot(context.Context) (control.Snapshot, error)
@@ -22,7 +22,7 @@ type PluginChannelOwnerNode interface {
 	ResolveChannelAppendAuthority(context.Context, channelv2.ChannelID) (channelv2.Meta, error)
 }
 
-// PluginClusterReader adapts clusterv2 control snapshots to plugin cluster snapshots.
+// PluginClusterReader adapts cluster control snapshots to plugin cluster snapshots.
 type PluginClusterReader struct {
 	node PluginClusterNode
 }

@@ -1,85 +1,99 @@
 package cluster
 
-import (
-	"context"
+import "context"
 
-	controllermeta "github.com/WuKongIM/WuKongIM/pkg/legacy/controller/meta"
-	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
-	"github.com/WuKongIM/WuKongIM/pkg/transport"
-)
-
-type API interface {
-	Start() error
-	Stop()
-
-	NodeID() multiraft.NodeID
-	IsLocal(nodeID multiraft.NodeID) bool
-
-	SlotForKey(key string) multiraft.SlotID
-	HashSlotForKey(key string) uint16
-	HashSlotsOf(slotID multiraft.SlotID) []uint16
-	HashSlotTableVersion() uint64
-	ControllerLeaderID() uint64
-	LeaderOf(slotID multiraft.SlotID) (multiraft.NodeID, error)
-	Propose(ctx context.Context, slotID multiraft.SlotID, cmd []byte) error
-
-	SlotIDs() []multiraft.SlotID
-	PeersForSlot(slotID multiraft.SlotID) []multiraft.NodeID
-	WaitForManagedSlotsReady(ctx context.Context) error
-
-	ListNodes(ctx context.Context) ([]controllermeta.ClusterNode, error)
-	// ListNodesStrict returns the controller leader's node snapshot without local fallback.
-	ListNodesStrict(ctx context.Context) ([]controllermeta.ClusterNode, error)
-	ListSlotAssignments(ctx context.Context) ([]controllermeta.SlotAssignment, error)
-	// ListSlotAssignmentsStrict returns the controller leader's slot assignments without local fallback.
-	ListSlotAssignmentsStrict(ctx context.Context) ([]controllermeta.SlotAssignment, error)
-	// ListObservedRuntimeViews returns the controller leader's observed runtime snapshot when available.
-	ListObservedRuntimeViews(ctx context.Context) ([]controllermeta.SlotRuntimeView, error)
-	// ListObservedRuntimeViewsStrict returns the controller leader's observed runtime snapshot without local fallback.
-	ListObservedRuntimeViewsStrict(ctx context.Context) ([]controllermeta.SlotRuntimeView, error)
-	// SlotLogStatusOnNode returns one node's local Raft log watermark for a managed Slot.
-	SlotLogStatusOnNode(ctx context.Context, nodeID uint64, slotID uint32) (SlotLogStatus, error)
-	// SlotLogEntriesOnNode returns one node's local Raft log entries for a managed Slot.
-	SlotLogEntriesOnNode(ctx context.Context, nodeID uint64, slotID uint32, opts SlotLogEntriesOptions) (SlotLogEntries, error)
-	// ControllerLogEntriesOnNode returns one node's local Controller Raft log entries.
-	ControllerLogEntriesOnNode(ctx context.Context, nodeID uint64, opts ControllerLogEntriesOptions) (ControllerLogEntries, error)
-	// ControllerRaftStatusOnNode returns one node's local Controller Raft status.
-	ControllerRaftStatusOnNode(ctx context.Context, nodeID uint64) (ControllerRaftStatus, error)
-	// CompactControllerRaftLogOnNode triggers one node's local Controller Raft log compaction.
-	CompactControllerRaftLogOnNode(ctx context.Context, nodeID uint64) (ControllerRaftCompactionResult, error)
-	// CompactSlotRaftLogOnNode triggers one node's local Slot Raft log compaction.
-	CompactSlotRaftLogOnNode(ctx context.Context, nodeID uint64, slotID uint32) (SlotRaftCompactionResult, error)
-	ListTasks(ctx context.Context) ([]controllermeta.ReconcileTask, error)
-	// ListTasksStrict returns the controller leader's task snapshot without local fallback.
-	ListTasksStrict(ctx context.Context) ([]controllermeta.ReconcileTask, error)
-	// ListActiveMigrationsStrict returns the controller leader's active hash-slot migrations without local fallback.
-	ListActiveMigrationsStrict(ctx context.Context) ([]HashSlotMigration, error)
-	GetMigrationStatus() []HashSlotMigration
-	TransportPoolStats() []transport.PoolPeerStats
-	GetReconcileTask(ctx context.Context, slotID uint32) (controllermeta.ReconcileTask, error)
-	// GetReconcileTaskStrict returns the controller leader's task detail without local fallback.
-	GetReconcileTaskStrict(ctx context.Context, slotID uint32) (controllermeta.ReconcileTask, error)
-	ForceReconcile(ctx context.Context, slotID uint32) error
-	MarkNodeDraining(ctx context.Context, nodeID uint64) error
-	ResumeNode(ctx context.Context, nodeID uint64) error
-	TransferSlotLeader(ctx context.Context, slotID uint32, nodeID multiraft.NodeID) error
-	RecoverSlot(ctx context.Context, slotID uint32, strategy RecoverStrategy) error
-	// RecoverSlotStrict runs slot recovery against controller-leader assignments only.
-	RecoverSlotStrict(ctx context.Context, slotID uint32, strategy RecoverStrategy) error
-	AddSlot(ctx context.Context) (multiraft.SlotID, error)
-	RemoveSlot(ctx context.Context, slotID multiraft.SlotID) error
-	Rebalance(ctx context.Context) ([]MigrationPlan, error)
-	ListNodeOnboardingCandidates(ctx context.Context) ([]NodeOnboardingCandidate, error)
-	CreateNodeOnboardingPlan(ctx context.Context, targetNodeID uint64, retryOfJobID string) (controllermeta.NodeOnboardingJob, error)
-	StartNodeOnboardingJob(ctx context.Context, jobID string) (controllermeta.NodeOnboardingJob, error)
-	ListNodeOnboardingJobs(ctx context.Context, limit int, cursor string) ([]controllermeta.NodeOnboardingJob, string, bool, error)
-	GetNodeOnboardingJob(ctx context.Context, jobID string) (controllermeta.NodeOnboardingJob, error)
-	RetryNodeOnboardingJob(ctx context.Context, jobID string) (controllermeta.NodeOnboardingJob, error)
-
-	Server() *transport.Server
-	RPCMux() *transport.RPCMux
-	Discovery() Discovery
-	RPCService(ctx context.Context, nodeID multiraft.NodeID, slotID multiraft.SlotID, serviceID uint8, payload []byte) ([]byte, error)
+// NodeRPCHandler handles one cluster node RPC payload.
+type NodeRPCHandler interface {
+	// HandleRPC handles payload and returns a response payload.
+	HandleRPC(context.Context, []byte) ([]byte, error)
 }
 
-var _ API = (*Cluster)(nil)
+// RouteAuthority identifies the current authority for one logical hash slot.
+type RouteAuthority struct {
+	// HashSlot is the logical hash slot covered by this authority.
+	HashSlot uint16
+	// SlotID is the physical Slot that owns HashSlot.
+	SlotID uint32
+	// LeaderNodeID is the best-known Slot leader that currently owns routing authority.
+	LeaderNodeID uint64
+	// LeaderTerm is the Slot Raft term observed for LeaderNodeID.
+	LeaderTerm uint64
+	// ConfigEpoch is the control-plane Slot config epoch.
+	ConfigEpoch uint64
+	// RouteRevision is the control route revision that produced this authority.
+	RouteRevision uint64
+	// AuthorityEpoch is a local observation sequence for diagnostics and compatibility. It is not a distributed fence.
+	AuthorityEpoch uint64
+}
+
+// RouteAuthorityEvent reports route authority changes.
+type RouteAuthorityEvent struct {
+	// Authorities lists changed logical hash-slot authorities.
+	Authorities []RouteAuthority
+}
+
+// ProposeRequest submits one Slot metadata command through cluster routing.
+type ProposeRequest struct {
+	// Key is the logical routing key used when Target does not carry an explicit hash slot.
+	Key string
+	// Command is the encoded Slot state machine command payload.
+	Command []byte
+	// Target optionally carries an explicit hash slot and physical Slot target.
+	Target ProposeTarget
+}
+
+// ProposeTarget identifies an explicit hash slot and optional physical Slot target.
+type ProposeTarget struct {
+	// HashSlot is the logical hash slot. It is valid only when HasHashSlot is true.
+	HashSlot uint16
+	// HasHashSlot distinguishes an explicit hash slot 0 from an omitted hash slot.
+	HasHashSlot bool
+	// SlotID is the physical Slot ID. It is valid only when HasSlotID is true.
+	SlotID uint32
+	// HasSlotID indicates whether SlotID was explicitly provided by the caller.
+	HasSlotID bool
+}
+
+// Route describes the current routing decision for one hash slot.
+type Route struct {
+	// HashSlot is the logical hash slot selected for the request.
+	HashSlot uint16
+	// SlotID is the physical Slot that owns HashSlot.
+	SlotID uint32
+	// Leader is the best-known Slot Raft leader node ID. Zero means unknown.
+	Leader uint64
+	// LeaderTerm is the Slot Raft term observed for Leader.
+	LeaderTerm uint64
+	// ConfigEpoch is the control-plane Slot config epoch for SlotID.
+	ConfigEpoch uint64
+	// PreferredLeader is the desired data-plane leader from the latest control snapshot.
+	PreferredLeader uint64
+	// Peers are the desired Slot replica node IDs from the latest control snapshot.
+	Peers []uint64
+	// Revision is the control snapshot revision that produced this route.
+	Revision uint64
+	// AuthorityEpoch is a local observation sequence for diagnostics and compatibility. It is not a distributed fence.
+	AuthorityEpoch uint64
+}
+
+// Snapshot summarizes local cluster readiness and routing state.
+type Snapshot struct {
+	// NodeID is this node's stable cluster identity.
+	NodeID uint64
+	// ControllerLead is the best-known Controller leader node ID.
+	ControllerLead uint64
+	// StateRevision is the latest applied control snapshot revision.
+	StateRevision uint64
+	// RoutesReady reports whether a valid route table is installed.
+	RoutesReady bool
+	// SlotsReady reports whether local assigned Slots have been opened or bootstrapped.
+	SlotsReady bool
+	// ChannelsReady reports whether the ChannelV2 service is available.
+	ChannelsReady bool
+	// SlotCount is the number of physical Slots in the current control view.
+	SlotCount uint32
+	// HashSlotCount is the number of logical hash slots in the current route table.
+	HashSlotCount uint16
+	// LastTaskReconcileError records the latest background task reconcile error for diagnostics.
+	LastTaskReconcileError string
+}

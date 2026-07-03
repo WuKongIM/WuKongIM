@@ -11,7 +11,7 @@ import (
 
 const benchRuntimeVersion = "bench/v1"
 
-// ChannelRuntimeBenchNode is the clusterv2 runtime diagnostic surface used by bench/v1.
+// ChannelRuntimeBenchNode is the cluster runtime diagnostic surface used by bench/v1.
 type ChannelRuntimeBenchNode interface {
 	NodeID() uint64
 	ChannelRuntimeSnapshot(context.Context) (channelv2.RuntimeSnapshot, error)

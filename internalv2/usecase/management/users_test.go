@@ -7,8 +7,8 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/presence"
 	userusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/user"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/routing"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/routing"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 )

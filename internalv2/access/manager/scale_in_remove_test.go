@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 )
 
 func TestManagerScaleInRemoveRequiresWritePermission(t *testing.T) {
@@ -186,7 +186,7 @@ func TestManagerScaleInRemoveMapsErrors(t *testing.T) {
 		},
 		{
 			name:   "cluster unavailable",
-			err:    clusterv2.ErrNotLeader,
+			err:    cluster.ErrNotLeader,
 			status: http.StatusServiceUnavailable,
 			body:   `{"error":"service_unavailable","message":"service_unavailable"}`,
 		},

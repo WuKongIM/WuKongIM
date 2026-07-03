@@ -6,7 +6,7 @@ import (
 	"time"
 
 	conversationusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/conversation"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 )
 
 type conversationAuthorityRouteLifecycleOptions struct {
@@ -15,9 +15,9 @@ type conversationAuthorityRouteLifecycleOptions struct {
 	// LocalNodeID identifies this node when applying route-authority events.
 	LocalNodeID uint64
 	// Initial returns the currently known route authorities when the lifecycle starts.
-	Initial func() []clusterv2.RouteAuthority
+	Initial func() []cluster.RouteAuthority
 	// Watch creates the route-authority event stream when the lifecycle starts.
-	Watch func() <-chan clusterv2.RouteAuthorityEvent
+	Watch func() <-chan cluster.RouteAuthorityEvent
 	// HandoffTimeout bounds local authority drain during route-authority changes.
 	HandoffTimeout time.Duration
 	// ReconcileInterval controls private pull repair of missed route-authority events.
@@ -27,8 +27,8 @@ type conversationAuthorityRouteLifecycleOptions struct {
 type conversationAuthorityRouteLifecycle struct {
 	localAuthority *conversationAuthority
 	localNodeID    uint64
-	initial        func() []clusterv2.RouteAuthority
-	watch          func() <-chan clusterv2.RouteAuthorityEvent
+	initial        func() []cluster.RouteAuthority
+	watch          func() <-chan cluster.RouteAuthorityEvent
 	handoffTimeout time.Duration
 	reconcileEvery time.Duration
 
@@ -69,7 +69,7 @@ func (l *conversationAuthorityRouteLifecycle) Start(ctx context.Context) error {
 		return nil
 	}
 	runCtx, cancel := context.WithCancel(ctx)
-	var events <-chan clusterv2.RouteAuthorityEvent
+	var events <-chan cluster.RouteAuthorityEvent
 	if l.watch != nil {
 		events = l.watch()
 	}
@@ -105,14 +105,14 @@ func (l *conversationAuthorityRouteLifecycle) Stop(context.Context) error {
 	return nil
 }
 
-func (l *conversationAuthorityRouteLifecycle) initialAuthorities() []clusterv2.RouteAuthority {
+func (l *conversationAuthorityRouteLifecycle) initialAuthorities() []cluster.RouteAuthority {
 	if l == nil || l.initial == nil {
 		return nil
 	}
 	return l.initial()
 }
 
-func (l *conversationAuthorityRouteLifecycle) watchRouteAuthorities(ctx context.Context, events <-chan clusterv2.RouteAuthorityEvent) {
+func (l *conversationAuthorityRouteLifecycle) watchRouteAuthorities(ctx context.Context, events <-chan cluster.RouteAuthorityEvent) {
 	defer l.wg.Done()
 	for {
 		select {
@@ -143,7 +143,7 @@ func (l *conversationAuthorityRouteLifecycle) reconcileRouteAuthorities(ctx cont
 	}
 }
 
-func (l *conversationAuthorityRouteLifecycle) applyRouteAuthorities(ctx context.Context, authorities []clusterv2.RouteAuthority) {
+func (l *conversationAuthorityRouteLifecycle) applyRouteAuthorities(ctx context.Context, authorities []cluster.RouteAuthority) {
 	if l == nil || l.localAuthority == nil {
 		return
 	}
@@ -152,7 +152,7 @@ func (l *conversationAuthorityRouteLifecycle) applyRouteAuthorities(ctx context.
 	}
 }
 
-func (l *conversationAuthorityRouteLifecycle) handleRouteAuthority(ctx context.Context, authority clusterv2.RouteAuthority) {
+func (l *conversationAuthorityRouteLifecycle) handleRouteAuthority(ctx context.Context, authority cluster.RouteAuthority) {
 	if l == nil || l.localAuthority == nil {
 		return
 	}
@@ -245,7 +245,7 @@ func conversationAuthorityRouteTargetNewer(next, current conversationusecase.Rou
 	return next.AuthorityEpoch > current.AuthorityEpoch
 }
 
-func conversationRouteTarget(authority clusterv2.RouteAuthority) conversationusecase.RouteTarget {
+func conversationRouteTarget(authority cluster.RouteAuthority) conversationusecase.RouteTarget {
 	return conversationusecase.RouteTarget{
 		HashSlot:       authority.HashSlot,
 		SlotID:         authority.SlotID,

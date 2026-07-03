@@ -7,7 +7,7 @@ import (
 	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
 )
 
-// ManagementConnectionNode exposes clusterv2 node RPC for manager connection inventory reads.
+// ManagementConnectionNode exposes cluster node RPC for manager connection inventory reads.
 type ManagementConnectionNode interface {
 	// NodeID returns the local cluster node ID.
 	NodeID() uint64

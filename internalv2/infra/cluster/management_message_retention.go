@@ -14,7 +14,7 @@ import (
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
-// MessageRetentionNode is the clusterv2 surface required to advance message log compaction boundaries.
+// MessageRetentionNode is the cluster surface required to advance message log compaction boundaries.
 type MessageRetentionNode interface {
 	NodeID() uint64
 	GetChannelRuntimeMeta(context.Context, string, int64) (metadb.ChannelRuntimeMeta, error)

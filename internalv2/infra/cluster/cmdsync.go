@@ -12,14 +12,14 @@ import (
 
 const cmdSyncReadPageLimit = 256
 
-// CMDSyncNode exposes clusterv2 reads and writes needed by CMD sync.
+// CMDSyncNode exposes cluster reads and writes needed by CMD sync.
 type CMDSyncNode interface {
 	ListConversationActivePage(context.Context, metadb.ConversationKind, string, metadb.ConversationActiveCursor, int) ([]metadb.ConversationState, metadb.ConversationActiveCursor, bool, error)
 	UpsertConversationStatesBatch(context.Context, []metadb.ConversationState) error
 	ReadChannelCommitted(context.Context, channelv2.ChannelID, channelstore.ReadCommittedRequest) (channelstore.ReadCommittedResult, error)
 }
 
-// CMDSyncStore adapts clusterv2 unified conversation projection rows to CMD sync.
+// CMDSyncStore adapts cluster unified conversation projection rows to CMD sync.
 type CMDSyncStore struct {
 	node CMDSyncNode
 }
@@ -27,7 +27,7 @@ type CMDSyncStore struct {
 var _ cmdsync.StateStore = (*CMDSyncStore)(nil)
 var _ cmdsync.MessageStore = (*CMDSyncStore)(nil)
 
-// NewCMDSyncStore creates a clusterv2-backed CMD sync store.
+// NewCMDSyncStore creates a cluster-backed CMD sync store.
 func NewCMDSyncStore(node CMDSyncNode) *CMDSyncStore {
 	return &CMDSyncStore{node: node}
 }

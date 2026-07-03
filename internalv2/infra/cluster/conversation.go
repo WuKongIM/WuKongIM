@@ -18,7 +18,7 @@ const (
 	conversationReadMaxPageLimit = 256
 )
 
-// ConversationNode exposes clusterv2 reads needed by conversation lists.
+// ConversationNode exposes cluster reads needed by conversation lists.
 type ConversationNode interface {
 	ListConversationActivePage(context.Context, metadb.ConversationKind, string, metadb.ConversationActiveCursor, int) ([]metadb.ConversationState, metadb.ConversationActiveCursor, bool, error)
 	GetConversationState(context.Context, metadb.ConversationKind, string, string, int64) (metadb.ConversationState, bool, error)
@@ -26,17 +26,17 @@ type ConversationNode interface {
 	ReadChannelCommitted(context.Context, channelv2.ChannelID, channelstore.ReadCommittedRequest) (channelstore.ReadCommittedResult, error)
 }
 
-// ConversationStateMutationNode exposes clusterv2 read-state writes needed by conversation mutations.
+// ConversationStateMutationNode exposes cluster read-state writes needed by conversation mutations.
 type ConversationStateMutationNode interface {
 	UpsertConversationStatesBatch(context.Context, []metadb.ConversationState) error
 }
 
-// ConversationDeleteNode exposes clusterv2 delete-barrier writes needed by conversation mutations.
+// ConversationDeleteNode exposes cluster delete-barrier writes needed by conversation mutations.
 type ConversationDeleteNode interface {
 	HideConversationsBatch(context.Context, []metadb.ConversationDelete) error
 }
 
-// ConversationStore adapts clusterv2 reads to the conversation usecase ports.
+// ConversationStore adapts cluster reads to the conversation usecase ports.
 type ConversationStore struct {
 	node                      ConversationNode
 	maxLastMessageConcurrency int
@@ -49,13 +49,13 @@ var _ conversationusecase.DeleteStore = (*ConversationStore)(nil)
 var _ conversationusecase.MessageStore = (*ConversationStore)(nil)
 var _ conversationusecase.RecentMessageStore = (*ConversationStore)(nil)
 
-// ConversationStoreOptions configures clusterv2-backed conversation reads.
+// ConversationStoreOptions configures cluster-backed conversation reads.
 type ConversationStoreOptions struct {
 	// MaxLastMessageConcurrency bounds concurrent channel tail reads for one list page.
 	MaxLastMessageConcurrency int
 }
 
-// NewConversationStore creates a clusterv2-backed conversation store.
+// NewConversationStore creates a cluster-backed conversation store.
 func NewConversationStore(node ConversationNode, options ...ConversationStoreOptions) *ConversationStore {
 	opts := ConversationStoreOptions{}
 	if len(options) > 0 {
@@ -76,7 +76,7 @@ func (s *ConversationStore) ListConversationActivePage(ctx context.Context, kind
 	return append([]metadb.ConversationState(nil), rows...), cursor, done, nil
 }
 
-// ListConversationActiveView wraps the current clusterv2 active-page facade for the usecase contract.
+// ListConversationActiveView wraps the current cluster active-page facade for the usecase contract.
 func (s *ConversationStore) ListConversationActiveView(ctx context.Context, kind metadb.ConversationKind, uid string, after metadb.ConversationActiveCursor, limit int) (conversationusecase.ActiveViewPage, error) {
 	rows, cursor, done, err := s.ListConversationActivePage(ctx, kind, uid, after, limit)
 	if err != nil {

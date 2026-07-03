@@ -6,17 +6,17 @@ import (
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
-// ChannelBusinessScanNode exposes clusterv2 channel metadata scans for manager pages.
+// ChannelBusinessScanNode exposes cluster channel metadata scans for manager pages.
 type ChannelBusinessScanNode interface {
 	ScanChannelsSlotPage(context.Context, uint32, metadb.ChannelCursor, int) ([]metadb.Channel, metadb.ChannelCursor, bool, error)
 }
 
-// ChannelBusinessReader adapts clusterv2 channel metadata scans to management usecases.
+// ChannelBusinessReader adapts cluster channel metadata scans to management usecases.
 type ChannelBusinessReader struct {
 	node ChannelBusinessScanNode
 }
 
-// NewChannelBusinessReader creates a clusterv2-backed channel business reader.
+// NewChannelBusinessReader creates a cluster-backed channel business reader.
 func NewChannelBusinessReader(node ChannelBusinessScanNode) *ChannelBusinessReader {
 	return &ChannelBusinessReader{node: node}
 }

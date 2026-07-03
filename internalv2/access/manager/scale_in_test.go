@@ -9,7 +9,7 @@ import (
 	"time"
 
 	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 )
 
 func TestManagerScaleInPlanRequiresWritePermissionAndReturnsPreview(t *testing.T) {
@@ -539,14 +539,14 @@ func TestManagerScaleInMapsClusterUnavailable(t *testing.T) {
 			name:   "status",
 			method: http.MethodGet,
 			path:   "/manager/nodes/4/scale-in/status",
-			stub:   managerNodesStub{scaleInStatusErr: clusterv2.ErrNotStarted},
+			stub:   managerNodesStub{scaleInStatusErr: cluster.ErrNotStarted},
 		},
 		{
 			name:   "advance",
 			method: http.MethodPost,
 			path:   "/manager/nodes/4/scale-in/advance",
 			body:   `{"max_slot_moves":1}`,
-			stub:   managerNodesStub{scaleInAdvanceErr: clusterv2.ErrNotLeader},
+			stub:   managerNodesStub{scaleInAdvanceErr: cluster.ErrNotLeader},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

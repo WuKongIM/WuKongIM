@@ -9,7 +9,7 @@ import (
 	"time"
 
 	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
@@ -222,10 +222,10 @@ func TestManagerSlotLeaderTransferBatchMapsErrors(t *testing.T) {
 		{name: "unavailable", err: managementusecase.ErrSlotLeaderTransferUnavailable, status: http.StatusServiceUnavailable, body: `{"error":"service_unavailable","message":"service_unavailable"}`},
 		{name: "runtime unavailable", err: managementusecase.ErrSlotRuntimeStatusUnavailable, status: http.StatusServiceUnavailable, body: `{"error":"service_unavailable","message":"service_unavailable"}`},
 		{name: "operator unavailable", err: managementusecase.ErrSlotRaftOperatorUnavailable, status: http.StatusServiceUnavailable, body: `{"error":"service_unavailable","message":"service_unavailable"}`},
-		{name: "slot not found", err: clusterv2.ErrSlotNotFound, status: http.StatusServiceUnavailable, body: `{"error":"service_unavailable","message":"service_unavailable"}`},
-		{name: "not started", err: clusterv2.ErrNotStarted, status: http.StatusServiceUnavailable, body: `{"error":"service_unavailable","message":"service_unavailable"}`},
-		{name: "not leader", err: clusterv2.ErrNotLeader, status: http.StatusServiceUnavailable, body: `{"error":"service_unavailable","message":"service_unavailable"}`},
-		{name: "stopping", err: clusterv2.ErrStopping, status: http.StatusServiceUnavailable, body: `{"error":"service_unavailable","message":"service_unavailable"}`},
+		{name: "slot not found", err: cluster.ErrSlotNotFound, status: http.StatusServiceUnavailable, body: `{"error":"service_unavailable","message":"service_unavailable"}`},
+		{name: "not started", err: cluster.ErrNotStarted, status: http.StatusServiceUnavailable, body: `{"error":"service_unavailable","message":"service_unavailable"}`},
+		{name: "not leader", err: cluster.ErrNotLeader, status: http.StatusServiceUnavailable, body: `{"error":"service_unavailable","message":"service_unavailable"}`},
+		{name: "stopping", err: cluster.ErrStopping, status: http.StatusServiceUnavailable, body: `{"error":"service_unavailable","message":"service_unavailable"}`},
 		{name: "unexpected", err: errors.New("unexpected"), status: http.StatusInternalServerError, body: `{"error":"internal_error","message":"unexpected"}`},
 	}
 	for _, tt := range tests {

@@ -167,7 +167,7 @@ items, records leader queue/local durable/quorum wait stages from existing
 append timing points, and drops the sidecar before durable channel records or
 DB-compatible messages are written.
 
-The clusterv2-facing append stage metric keeps `runtime_append` as the aggregate
+The cluster-facing append stage metric keeps `runtime_append` as the aggregate
 facade call and also records service sub-stages: `runtime_append_reserve_wait`
 for per-channel append admission, `runtime_append_submit` for reactor mailbox
 submission, and `runtime_append_wait` for the future wait after admission.
@@ -194,7 +194,7 @@ append errors.
 
 Logical channel message compaction is represented by the caller-supplied
 `ReadCommittedRequest.MinSeq` floor, normally derived from Slot metadata
-`RetentionThroughSeq + 1` by clusterv2. Forward committed reads clamp their
+`RetentionThroughSeq + 1` by cluster. Forward committed reads clamp their
 starting sequence to this floor, reverse/latest reads stop before crossing it,
 and message DB adapter reads filter compacted rows even when physical message
 rows still exist.

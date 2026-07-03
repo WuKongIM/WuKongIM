@@ -13,9 +13,9 @@ import (
 
 	conversationusecase "github.com/WuKongIM/WuKongIM/internal/usecase/conversation"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
-	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/db/message"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	raftcluster "github.com/WuKongIM/WuKongIM/pkg/legacy/cluster"
 	"github.com/stretchr/testify/require"
 )
 

@@ -2,569 +2,513 @@ package cluster
 
 import (
 	"fmt"
-	"math"
-	"net"
-	"net/netip"
 	"path/filepath"
-	"sort"
+	"runtime"
 	"strings"
 	"time"
 
-	controllermeta "github.com/WuKongIM/WuKongIM/pkg/legacy/controller/meta"
-	controllerraft "github.com/WuKongIM/WuKongIM/pkg/legacy/controller/raft"
+	"github.com/WuKongIM/WuKongIM/pkg/channelv2/reactor"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
+	cv2 "github.com/WuKongIM/WuKongIM/pkg/controller"
+	messagedb "github.com/WuKongIM/WuKongIM/pkg/db/message"
+	gorutine "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
-	"github.com/WuKongIM/WuKongIM/pkg/transport"
-	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"github.com/WuKongIM/WuKongIM/pkg/transportv2"
 )
+
+const minDefaultChannelReactorCount = 4
+
+// Config contains v2-only cluster runtime configuration.
+type Config struct {
+	// NodeID is the non-zero stable node identity.
+	NodeID uint64
+	// ListenAddr is the cluster RPC listen address for this node.
+	ListenAddr string
+	// DataDir is the root directory for cluster data files.
+	DataDir string
+
+	// Control contains ControllerV2 adapter configuration.
+	Control ControlConfig
+	// Join contains dynamic data-node join bootstrap settings.
+	Join JoinConfig
+	// Slots contains Slot runtime sizing and placement defaults.
+	Slots SlotConfig
+	// Channel contains ChannelV2 service configuration.
+	Channel ChannelConfig
+	// ChannelMigration contains bounded ChannelV2 failover and repair worker settings.
+	ChannelMigration ChannelMigrationConfig
+	// ChannelRetention contains node-owned ChannelV2 physical retention cleanup settings.
+	ChannelRetention ChannelRetentionConfig
+	// HealthReport controls low-frequency node health reporting to ControllerV2.
+	HealthReport HealthReportConfig
+	// Storage contains node-local storage tuning.
+	Storage StorageConfig
+	// Transport contains default cluster node-to-node transport tuning and observation hooks.
+	Transport TransportConfig
+	// Timeouts contains lifecycle timeout budgets.
+	Timeouts TimeoutConfig
+	// Goroutines is the optional goroutine registry for lifecycle tracking across all cluster subsystems.
+	Goroutines *gorutine.Registry
+}
+
+// ControlConfig contains ControllerV2 adapter configuration.
+type ControlConfig struct {
+	// StateDir stores ControllerV2 cluster-state files for this node.
+	StateDir string
+	// ClusterID is the stable cluster identity used by ControllerV2 state and sync.
+	ClusterID string
+	// Role declares whether this node is a Controller voter or state mirror.
+	Role ControlRole
+	// Voters lists Controller voter node IDs and Controller RPC addresses.
+	Voters []ControlVoter
+	// AllowBootstrap permits this node to initialize an empty ControllerV2 Raft log.
+	AllowBootstrap bool
+	// RaftObserver receives local ControllerV2 Raft queue metrics.
+	RaftObserver ControllerRaftObserver
+	// TaskTransitionObserver receives ControllerV2 task edges after applied metadata is persisted.
+	TaskTransitionObserver cv2.TaskTransitionObserver
+	// SnapshotObserver receives low-frequency locally visible control snapshots.
+	SnapshotObserver ControlSnapshotObserver
+}
+
+// JoinConfig contains dynamic data-node join bootstrap settings.
+type JoinConfig struct {
+	// Seeds lists reachable existing node addresses used before membership discovery is available.
+	Seeds []string
+	// AdvertiseAddr is the stable RPC address this node asks the cluster to store for membership.
+	AdvertiseAddr string
+	// Token authenticates the join request before the node becomes a durable member.
+	Token string
+}
+
+// ControllerRaftObserver receives low-cardinality local ControllerV2 Raft runtime metrics.
+type ControllerRaftObserver interface {
+	SetStepQueueDepth(depth int, capacity int)
+	ObserveStepEnqueue(result string, d time.Duration)
+}
+
+// ControlSnapshotObserver receives low-frequency control-plane state snapshots.
+type ControlSnapshotObserver interface {
+	ObserveControlSnapshot(control.Snapshot)
+}
+
+// SlotReplicaMoveObserver receives low-cardinality local Slot replica move phase observations.
+type SlotReplicaMoveObserver interface {
+	ObserveSlotReplicaMovePhase(step, result string, d time.Duration)
+}
+
+// ControlRole declares how this node participates in ControllerV2.
+type ControlRole string
 
 const (
-	defaultForwardTimeout               = 5 * time.Second
-	defaultPoolSize                     = 4
-	defaultTickInterval                 = 100 * time.Millisecond
-	defaultRaftWorkers                  = 2
-	defaultElectionTick                 = 10
-	defaultHeartbeatTick                = 1
-	defaultDialTimeout                  = 5 * time.Second
-	defaultControllerObservationTimeout = 200 * time.Millisecond
-	defaultControllerRequestTimeout     = 2 * time.Second
-	defaultControllerLeaderWaitTimeout  = 10 * time.Second
-	defaultForwardRetryBudget           = 300 * time.Millisecond
-	defaultManagedSlotLeaderWaitTimeout = 5 * time.Second
-	defaultManagedSlotCatchUpTimeout    = 5 * time.Second
-	defaultManagedSlotLeaderMoveTimeout = 5 * time.Second
-	defaultConfigChangeRetryBudget      = 300 * time.Millisecond
-	defaultLeaderTransferRetryBudget    = 300 * time.Millisecond
-	defaultObservationHeartbeatInterval = 2 * time.Second
-	defaultObservationRuntimeScan       = 1 * time.Second
-	defaultObservationFlushDebounce     = 200 * time.Millisecond
-	defaultObservationFullSyncInterval  = 60 * time.Second
-	defaultObservationSlowSyncInterval  = 2 * time.Second
-	defaultPlannerSafetyInterval        = 1 * time.Second
-	defaultPlannerWakeDebounce          = 100 * time.Millisecond
+	// ControlRoleVoter runs ControllerV2 Raft and serves authoritative state.
+	ControlRoleVoter ControlRole = "voter"
+	// ControlRoleMirror mirrors ControllerV2 state from Controller voters.
+	ControlRoleMirror ControlRole = "mirror"
 )
 
-type Config struct {
-	NodeID multiraft.NodeID
-	// Name is this node's human-readable name advertised during dynamic membership joins.
-	Name             string
-	ListenAddr       string
-	SlotCount        uint32
-	HashSlotCount    uint16
-	InitialSlotCount uint32
-	// EnableHashSlotMigration allows experimental hash-slot migration workflows.
-	// Keep this disabled unless durable delta forwarding, source fencing, and
-	// recoverable cutover semantics are explicitly accepted.
-	EnableHashSlotMigration bool
-	// ControllerLogCompaction controls local Controller Raft snapshot compaction.
-	ControllerLogCompaction controllerraft.LogCompactionConfig
-	// SlotLogCompaction controls local Slot Raft snapshot compaction.
-	SlotLogCompaction  multiraft.LogCompactionConfig
-	ControllerMetaPath string
-	ControllerRaftPath string
-	// ControllerRaftSnapshotPath stores external Controller Raft snapshot chunks.
-	ControllerRaftSnapshotPath string
-	// RaftSnapshotChunkSize is the maximum external snapshot chunk size in bytes shared by Controller Raft storage.
-	RaftSnapshotChunkSize uint64
-	// RaftSnapshotGCGrace controls when orphan Controller Raft snapshot directories become GC-eligible.
-	RaftSnapshotGCGrace          time.Duration
-	raftSnapshotChunkSizeSet     bool
-	raftSnapshotGCGraceSet       bool
-	ControllerReplicaN           int
-	SlotReplicaN                 int
-	NewStorage                   func(slotID multiraft.SlotID) (multiraft.Storage, error)
-	NewStateMachine              func(slotID multiraft.SlotID) (multiraft.StateMachine, error)
-	NewStateMachineWithHashSlots func(slotID multiraft.SlotID, hashSlots []uint16) (multiraft.StateMachine, error)
-	Nodes                        []NodeConfig
-	Slots                        []SlotConfig
-	ForwardTimeout               time.Duration
-	PoolSize                     int
-	TickInterval                 time.Duration
-	RaftWorkers                  int
-	ElectionTick                 int
-	HeartbeatTick                int
-	DialTimeout                  time.Duration
-	Timeouts                     Timeouts
-	Observer                     ObserverHooks
-	TransportObserver            transport.ObserverHooks
-	Logger                       wklog.Logger
-	// Seeds lists bootstrap controller RPC endpoints used by a joining node before it has full membership.
-	Seeds []SeedConfig
-	// AdvertiseAddr is this node's externally reachable cluster RPC address for dynamic membership.
-	AdvertiseAddr string
-	// JoinToken authenticates JoinCluster requests; it must be identical across nodes that accept joiners.
-	JoinToken string
+// ControlVoter identifies a ControllerV2 Raft voter endpoint.
+type ControlVoter struct {
+	// NodeID is the stable non-zero node identity of the Controller voter.
+	NodeID uint64
+	// Addr is the cluster RPC address used to reach this Controller voter.
+	Addr string
 }
 
-// SetRaftSnapshotExplicitFlags records which scalar snapshot options were explicitly configured by direct callers.
-func (c *Config) SetRaftSnapshotExplicitFlags(chunkSizeSet, gcGraceSet bool) {
-	if c == nil {
-		return
-	}
-	c.raftSnapshotChunkSizeSet = chunkSizeSet
-	c.raftSnapshotGCGraceSet = gcGraceSet
-}
-
-type Timeouts struct {
-	ControllerObservation              time.Duration
-	ControllerRequest                  time.Duration
-	ControllerLeaderWait               time.Duration
-	ForwardRetryBudget                 time.Duration
-	ManagedSlotLeaderWait              time.Duration
-	ManagedSlotCatchUp                 time.Duration
-	ManagedSlotLeaderMove              time.Duration
-	ConfigChangeRetryBudget            time.Duration
-	LeaderTransferRetryBudget          time.Duration
-	ObservationHeartbeatInterval       time.Duration
-	ObservationRuntimeScanInterval     time.Duration
-	ObservationRuntimeFlushDebounce    time.Duration
-	ObservationRuntimeFullSyncInterval time.Duration
-	// ObservationSlowSyncInterval controls the fallback full-scope observation sync cadence when hint wakes are lost.
-	ObservationSlowSyncInterval time.Duration
-	// PlannerSafetyInterval controls the minimum planner reevaluation cadence even when no dirty wake is queued.
-	PlannerSafetyInterval time.Duration
-	// PlannerWakeDebounce coalesces bursts of controller dirty signals before waking the planner loop.
-	PlannerWakeDebounce time.Duration
-}
-
-type ObserverHooks struct {
-	OnControllerCall     func(kind string, dur time.Duration, err error)
-	OnControllerDecision func(slotID uint32, kind string, dur time.Duration)
-	OnReconcileStep      func(slotID uint32, step string, dur time.Duration, err error)
-	OnForwardPropose     func(slotID uint32, attempts int, dur time.Duration, err error)
-	OnSlotEnsure         func(slotID uint32, action string, err error)
-	OnTaskResult         func(slotID uint32, kind string, result string)
-	OnHashSlotMigration  func(hashSlot uint16, source, target multiraft.SlotID, result string)
-	OnLeaderChange       func(slotID uint32, from, to multiraft.NodeID)
-	OnNodeStatusChange   func(nodeID uint64, from, to controllermeta.NodeStatus)
-}
-
-type NodeConfig struct {
-	NodeID multiraft.NodeID
-	Addr   string
-}
-
+// SlotConfig contains Slot runtime sizing and placement defaults.
 type SlotConfig struct {
-	SlotID multiraft.SlotID
-	Peers  []multiraft.NodeID
+	// InitialSlotCount is the number of physical Slots created by the initial control snapshot.
+	InitialSlotCount uint32
+	// HashSlotCount is the number of logical hash slots in the route table.
+	HashSlotCount uint16
+	// ReplicaCount is the desired replica count for each physical Slot.
+	ReplicaCount uint16
+	// TickInterval controls how often Slot Raft groups receive local ticks.
+	TickInterval time.Duration
+	// ElectionTick is the Slot Raft election timeout measured in TickInterval units.
+	ElectionTick int
+	// HeartbeatTick is the Slot Raft heartbeat interval measured in TickInterval units.
+	HeartbeatTick int
+	// LogCompaction controls local Slot Raft snapshot compaction.
+	LogCompaction multiraft.LogCompactionConfig
+	// Observer receives low-cardinality Slot scheduler pressure observations.
+	Observer multiraft.SchedulerObserver
+	// ReplicaMoveObserver receives low-cardinality Slot replica move phase observations.
+	ReplicaMoveObserver SlotReplicaMoveObserver
 }
 
-func (c *Config) validate() error {
-	if c.NodeID == 0 {
-		return fmt.Errorf("%w: NodeID must be > 0", ErrInvalidConfig)
-	}
-	if c.ListenAddr == "" {
-		return fmt.Errorf("%w: ListenAddr must be set", ErrInvalidConfig)
-	}
-	if c.NewStorage == nil {
-		return fmt.Errorf("%w: NewStorage must be set", ErrInvalidConfig)
-	}
-	if c.NewStateMachine == nil && c.NewStateMachineWithHashSlots == nil {
-		return fmt.Errorf("%w: NewStateMachine must be set", ErrInvalidConfig)
-	}
-	if c.SlotCount > 0 && c.InitialSlotCount > 0 && c.SlotCount != c.InitialSlotCount {
-		return fmt.Errorf("%w: SlotCount=%d must match InitialSlotCount=%d when both are set", ErrInvalidConfig, c.SlotCount, c.InitialSlotCount)
-	}
-
-	initialSlotCount := c.effectiveInitialSlotCount()
-	if initialSlotCount == 0 {
-		return fmt.Errorf("%w: InitialSlotCount must be > 0", ErrInvalidConfig)
-	}
-	hashSlotCount := c.effectiveHashSlotCount()
-	if hashSlotCount == 0 {
-		return fmt.Errorf("%w: HashSlotCount must be > 0", ErrInvalidConfig)
-	}
-	if initialSlotCount > math.MaxUint16 {
-		return fmt.Errorf("%w: InitialSlotCount=%d exceeds max supported hash slot count", ErrInvalidConfig, initialSlotCount)
-	}
-	if uint32(hashSlotCount) < initialSlotCount {
-		return fmt.Errorf("%w: HashSlotCount=%d must be >= InitialSlotCount=%d", ErrInvalidConfig, hashSlotCount, initialSlotCount)
-	}
-	if hashSlotCount > 1 && c.NewStateMachineWithHashSlots == nil {
-		return fmt.Errorf("%w: NewStateMachineWithHashSlots must be set when HashSlotCount=%d", ErrInvalidConfig, hashSlotCount)
-	}
-	if c.ControllerReplicaN <= 0 {
-		return fmt.Errorf("%w: ControllerReplicaN must be > 0", ErrInvalidConfig)
-	}
-	if c.SlotReplicaN <= 0 {
-		return fmt.Errorf("%w: SlotReplicaN must be > 0", ErrInvalidConfig)
-	}
-	if (c.ControllerMetaPath == "") != (c.ControllerRaftPath == "") {
-		return fmt.Errorf("%w: ControllerMetaPath and ControllerRaftPath must be set together", ErrInvalidConfig)
-	}
-	if c.RaftSnapshotChunkSize == 0 && c.raftSnapshotChunkSizeSet {
-		return fmt.Errorf("%w: RaftSnapshotChunkSize must be > 0", ErrInvalidConfig)
-	}
-	if c.RaftSnapshotGCGrace < 0 {
-		return fmt.Errorf("%w: RaftSnapshotGCGrace must be >= 0", ErrInvalidConfig)
-	}
-	if err := c.validateControllerSnapshotPathIsolation(); err != nil {
-		return err
-	}
-	if err := controllerraft.ValidateLogCompactionConfig(c.ControllerLogCompaction); err != nil {
-		return fmt.Errorf("%w: controller log compaction: %v", ErrInvalidConfig, err)
-	}
-	if err := multiraft.ValidateLogCompactionConfig(c.SlotLogCompaction); err != nil {
-		return fmt.Errorf("%w: slot log compaction: %v", ErrInvalidConfig, err)
-	}
-
-	staticCluster := len(c.Nodes) > 0
-	joinMode := !staticCluster && len(c.Seeds) > 0
-	if !staticCluster && !joinMode {
-		return fmt.Errorf("%w: Nodes or Seeds must be set", ErrInvalidConfig)
-	}
-	if staticCluster {
-		if c.ControllerReplicaN > len(c.Nodes) {
-			return fmt.Errorf("%w: ControllerReplicaN=%d exceeds Nodes=%d", ErrInvalidConfig, c.ControllerReplicaN, len(c.Nodes))
-		}
-		if c.SlotReplicaN > len(c.Nodes) {
-			return fmt.Errorf("%w: SlotReplicaN=%d exceeds Nodes=%d", ErrInvalidConfig, c.SlotReplicaN, len(c.Nodes))
-		}
-	}
-	if len(c.Seeds) > 0 {
-		if err := validateSeedConfigs(c.Seeds); err != nil {
-			return err
-		}
-	}
-	if joinMode {
-		if c.AdvertiseAddr == "" {
-			return fmt.Errorf("%w: AdvertiseAddr must be set in join mode", ErrInvalidConfig)
-		}
-		if c.JoinToken == "" {
-			return fmt.Errorf("%w: JoinToken must be set in join mode", ErrInvalidConfig)
-		}
-	}
-
-	nodeSet := make(map[multiraft.NodeID]bool, len(c.Nodes))
-	nodeAddrs := make(map[string]multiraft.NodeID, len(c.Nodes))
-	selfFound := false
-	for _, n := range c.Nodes {
-		if nodeSet[n.NodeID] {
-			return fmt.Errorf("%w: duplicate NodeID %d in Nodes", ErrInvalidConfig, n.NodeID)
-		}
-		if err := validateNodeAdvertiseAddr(n.Addr); err != nil {
-			return fmt.Errorf("%w: node %d addr %q is invalid: %v", ErrInvalidConfig, n.NodeID, n.Addr, err)
-		}
-		addrKey := strings.TrimSpace(n.Addr)
-		if existing, ok := nodeAddrs[addrKey]; ok {
-			return fmt.Errorf("%w: duplicate node addr %s for nodes %d and %d", ErrInvalidConfig, addrKey, existing, n.NodeID)
-		}
-		nodeAddrs[addrKey] = n.NodeID
-		nodeSet[n.NodeID] = true
-		if n.NodeID == c.NodeID {
-			selfFound = true
-		}
-	}
-	if staticCluster && !selfFound {
-		return fmt.Errorf("%w: NodeID %d not found in Nodes", ErrInvalidConfig, c.NodeID)
-	}
-
-	slotSet := make(map[multiraft.SlotID]bool, len(c.Slots))
-	slotSelfFound := false
-	for _, g := range c.Slots {
-		if slotSet[g.SlotID] {
-			return fmt.Errorf("%w: duplicate SlotID %d", ErrInvalidConfig, g.SlotID)
-		}
-		if g.SlotID == 0 || uint32(g.SlotID) > initialSlotCount {
-			return fmt.Errorf("%w: SlotID %d exceeds InitialSlotCount=%d", ErrInvalidConfig, g.SlotID, initialSlotCount)
-		}
-		slotSet[g.SlotID] = true
-		for _, peer := range g.Peers {
-			if !nodeSet[peer] {
-				return fmt.Errorf("%w: peer %d in slot %d not found in Nodes", ErrInvalidConfig, peer, g.SlotID)
-			}
-			if peer == c.NodeID {
-				slotSelfFound = true
-			}
-		}
-	}
-	if len(c.Slots) > 0 && !slotSelfFound {
-		return fmt.Errorf("%w: NodeID %d not found as peer in any slot", ErrInvalidConfig, c.NodeID)
-	}
-	return nil
+// ChannelConfig contains ChannelV2 service configuration.
+type ChannelConfig struct {
+	// ReplicaCount is the desired ChannelV2 data replica count for newly created channels. Zero defaults to Slots.ReplicaCount.
+	ReplicaCount uint16
+	// ReactorCount is the number of ChannelV2 reactor partitions. Zero derives a CPU-aware default.
+	ReactorCount int
+	// StoreAppendWorkers caps blocking leader append store workers. Zero keeps the ChannelV2 runtime default.
+	StoreAppendWorkers int
+	// StoreAppendBatchMaxWait overrides store-append worker cross-channel coalescing wait. Zero keeps the ChannelV2 worker default.
+	StoreAppendBatchMaxWait time.Duration
+	// StoreApplyWorkers caps blocking follower apply store workers. Zero keeps the ChannelV2 runtime default.
+	StoreApplyWorkers int
+	// RPCWorkers caps blocking ChannelV2 replication RPC workers. Zero keeps the ChannelV2 runtime default.
+	RPCWorkers int
+	// MailboxSize bounds each ChannelV2 reactor mailbox.
+	MailboxSize int
+	// MaxChannels bounds loaded ChannelV2 runtimes on this node. Zero keeps unlimited behavior.
+	MaxChannels int
+	// AppendBatchMaxRecords is the queued ChannelV2 record count that triggers a store append flush. Zero keeps the runtime default.
+	AppendBatchMaxRecords int
+	// AppendBatchMaxWait is the maximum age of the oldest queued ChannelV2 append before flushing. Zero keeps the runtime default.
+	AppendBatchMaxWait time.Duration
+	// AppendBatchAdaptiveFlush enables a shorter cold-channel flush delay before the normal append batch window.
+	AppendBatchAdaptiveFlush bool
+	// AppendBatchColdMaxWait is the cold-channel flush delay used when AppendBatchAdaptiveFlush is enabled. Zero keeps the normal batch window.
+	AppendBatchColdMaxWait time.Duration
+	// FollowerRecoveryProbeInterval is the base delay for parked follower recovery probes. Zero keeps the ChannelV2 runtime default.
+	FollowerRecoveryProbeInterval time.Duration
+	// FollowerRecoveryProbeJitter spreads parked follower recovery probes across this bounded window. Zero keeps the ChannelV2 runtime default.
+	FollowerRecoveryProbeJitter time.Duration
+	// TickInterval controls how often Node-owned loops call ChannelV2 Tick.
+	TickInterval time.Duration
+	// Observer receives lightweight ChannelV2 reactor and worker metrics.
+	Observer reactor.Observer
 }
 
-func validateNodeAdvertiseAddr(addr string) error {
-	addr = strings.TrimSpace(addr)
-	if addr == "" {
-		return fmt.Errorf("addr must be set")
-	}
-	host, _, err := net.SplitHostPort(addr)
-	if err != nil {
-		return err
-	}
-	if strings.TrimSpace(host) == "" {
-		return fmt.Errorf("host must be routable")
-	}
-	parsed, err := netip.ParseAddr(host)
-	if err != nil {
-		return nil
-	}
-	if parsed.IsUnspecified() {
-		return fmt.Errorf("host must not be an unspecified bind address")
-	}
-	return nil
+// ChannelMigrationConfig contains node-owned ChannelV2 migration worker settings.
+type ChannelMigrationConfig struct {
+	// Enabled starts the bounded background worker that advances migration tasks and creates repair work.
+	Enabled bool
+	// EnabledSet records whether Enabled was explicitly configured.
+	EnabledSet bool
+	// ScanInterval controls how often the node scans and advances ChannelV2 migration work.
+	ScanInterval time.Duration
+	// ScanLimit caps channel runtime metadata rows read from one Slot page per scanner tick.
+	ScanLimit int
+	// MaxPagesPerTick caps physical Slot pages scanned per worker tick.
+	MaxPagesPerTick int
+	// MaxTasksPerTick caps repair tasks created per scanner tick.
+	MaxTasksPerTick int
+	// TaskLimit caps active migration tasks inspected by the executor per tick.
+	TaskLimit int
 }
 
-func validateSeedConfigs(seeds []SeedConfig) error {
-	ids := make(map[multiraft.NodeID]struct{}, len(seeds))
-	addrs := make(map[string]struct{}, len(seeds))
-	for _, seed := range seeds {
-		if seed.ID == 0 {
-			return fmt.Errorf("%w: seed id must be set", ErrInvalidConfig)
-		}
-		if seed.Addr == "" {
-			return fmt.Errorf("%w: seed addr must be set", ErrInvalidConfig)
-		}
-		if _, exists := ids[seed.ID]; exists {
-			return fmt.Errorf("%w: duplicate seed id %d", ErrInvalidConfig, seed.ID)
-		}
-		if _, exists := addrs[seed.Addr]; exists {
-			return fmt.Errorf("%w: duplicate seed addr %s", ErrInvalidConfig, seed.Addr)
-		}
-		ids[seed.ID] = struct{}{}
-		addrs[seed.Addr] = struct{}{}
-	}
-	return nil
+// ChannelRetentionConfig contains node-owned ChannelV2 physical cleanup settings.
+type ChannelRetentionConfig struct {
+	// PhysicalGCEnabled enables the background local physical retention cleanup loop.
+	PhysicalGCEnabled bool
+	// ScanInterval controls how often the background cleanup loop scans one catalog page.
+	ScanInterval time.Duration
+	// ChannelBatchSize caps the number of channel catalog entries processed per cleanup pass.
+	ChannelBatchSize int
+	// MaxTrimMessages caps message rows deleted per channel apply attempt. Zero uses the default bound.
+	MaxTrimMessages int
+	// MaxTrimBytes caps payload bytes deleted per channel apply attempt. Zero means unlimited by bytes.
+	MaxTrimBytes int
+}
+
+// HealthReportConfig controls low-frequency node health reporting to ControllerV2.
+type HealthReportConfig struct {
+	// Interval controls how often a node reports compact health evidence.
+	Interval time.Duration
+	// TTL bounds how long the control plane may trust the latest report.
+	TTL time.Duration
+}
+
+// StorageConfig contains node-local store tuning for cluster-owned runtimes.
+type StorageConfig struct {
+	// CommitFlushWindow is the maximum delay for grouping adjacent channel append commits.
+	CommitFlushWindow time.Duration
+	// CommitMaxRequests caps logical append requests in one grouped physical commit.
+	CommitMaxRequests int
+	// CommitMaxRecords caps message records in one grouped physical commit.
+	CommitMaxRecords int
+	// CommitMaxBytes caps approximate payload bytes in one grouped physical commit.
+	CommitMaxBytes int
+	// CommitShards routes message DB commit requests across independent coordinators. Zero keeps one coordinator.
+	CommitShards int
+	// CommitObserver receives message DB group-commit measurements.
+	CommitObserver messagedb.CommitCoordinatorObserver
+}
+
+// TransportConfig contains default cluster node-to-node transport observation.
+type TransportConfig struct {
+	// Observer receives transportv2 queue, peer, service, and pending-RPC pressure observations for the default node RPC transport.
+	Observer transportv2.Observer
+}
+
+// TimeoutConfig contains lifecycle timeout budgets.
+type TimeoutConfig struct {
+	// Start is the maximum duration allowed for Start readiness gates.
+	Start time.Duration
+	// Stop is the maximum duration allowed for Stop cleanup.
+	Stop time.Duration
 }
 
 func (c *Config) applyDefaults() {
-	if c.InitialSlotCount == 0 {
-		switch {
-		case c.SlotCount > 0:
-			c.InitialSlotCount = c.SlotCount
-		case len(c.Slots) > 0:
-			c.InitialSlotCount = uint32(len(c.Slots))
-		}
+	if c.Timeouts.Start == 0 {
+		c.Timeouts.Start = 30 * time.Second
 	}
-	if c.SlotCount == 0 && c.InitialSlotCount > 0 {
-		c.SlotCount = c.InitialSlotCount
+	if c.Timeouts.Stop == 0 {
+		c.Timeouts.Stop = 5 * time.Second
 	}
-	if c.HashSlotCount == 0 && c.InitialSlotCount > 0 && c.InitialSlotCount <= math.MaxUint16 {
-		c.HashSlotCount = uint16(c.InitialSlotCount)
+	if c.Channel.TickInterval == 0 {
+		c.Channel.TickInterval = 20 * time.Millisecond
 	}
-	if c.ControllerReplicaN == 0 {
-		c.ControllerReplicaN = len(c.Nodes)
+	if c.Channel.ReactorCount == 0 {
+		c.Channel.ReactorCount = defaultChannelReactorCount()
 	}
-	if c.SlotReplicaN == 0 {
-		c.SlotReplicaN = len(c.Nodes)
+	c.applyControlDefaults()
+	c.applySlotDefaults()
+	if c.Channel.ReplicaCount == 0 {
+		c.Channel.ReplicaCount = c.Slots.ReplicaCount
 	}
-	if c.ForwardTimeout == 0 {
-		c.ForwardTimeout = defaultForwardTimeout
-	}
-	if c.PoolSize == 0 {
-		c.PoolSize = defaultPoolSize
-	}
-	if c.TickInterval == 0 {
-		c.TickInterval = defaultTickInterval
-	}
-	if c.RaftWorkers == 0 {
-		c.RaftWorkers = defaultRaftWorkers
-	}
-	if c.ElectionTick == 0 {
-		c.ElectionTick = defaultElectionTick
-	}
-	if c.HeartbeatTick == 0 {
-		c.HeartbeatTick = defaultHeartbeatTick
-	}
-	if c.DialTimeout == 0 {
-		c.DialTimeout = defaultDialTimeout
-	}
-	if c.ControllerRaftSnapshotPath == "" && c.ControllerRaftPath != "" {
-		c.ControllerRaftSnapshotPath = c.ControllerRaftPath + "-snapshots"
-	}
-	if c.RaftSnapshotChunkSize == 0 && !c.raftSnapshotChunkSizeSet {
-		c.RaftSnapshotChunkSize = 8 << 20
-	}
-	if c.RaftSnapshotGCGrace == 0 && !c.raftSnapshotGCGraceSet {
-		c.RaftSnapshotGCGrace = 30 * time.Minute
-	}
-	c.ControllerLogCompaction = controllerraft.NormalizeLogCompactionConfig(c.ControllerLogCompaction)
-	c.SlotLogCompaction = multiraft.NormalizeLogCompactionConfig(c.SlotLogCompaction)
-	c.Timeouts.applyDefaults()
+	c.applyChannelMigrationDefaults()
+	c.applyChannelRetentionDefaults()
+	c.applyHealthReportDefaults()
 }
 
-func (c *Config) validateControllerSnapshotPathIsolation() error {
-	if c.ControllerRaftSnapshotPath == "" {
-		return nil
+func defaultChannelReactorCount() int {
+	return max(minDefaultChannelReactorCount, runtime.GOMAXPROCS(0))
+}
+
+func (c *Config) applyControlDefaults() {
+	if c.Control.StateDir == "" && c.DataDir != "" {
+		c.Control.StateDir = filepath.Join(c.DataDir, "controller")
 	}
-	snapshotPath, err := normalizeClusterStoragePath(c.ControllerRaftSnapshotPath)
-	if err != nil {
-		return fmt.Errorf("%w: normalize ControllerRaftSnapshotPath: %v", ErrInvalidConfig, err)
+	if c.seedJoinMode() {
+		if c.Control.Role == "" {
+			c.Control.Role = ControlRoleMirror
+		}
+		c.Control.AllowBootstrap = false
+		return
 	}
-	for _, item := range []struct {
-		name string
-		path string
-	}{
-		{name: "ControllerRaftPath", path: c.ControllerRaftPath},
-		{name: "ControllerMetaPath", path: c.ControllerMetaPath},
-	} {
-		if item.path == "" {
-			continue
+	if c.Control.Role == "" {
+		c.Control.Role = ControlRoleVoter
+	}
+	implicitSingleNode := len(c.Control.Voters) == 0
+	if implicitSingleNode && c.NodeID != 0 && c.ListenAddr != "" {
+		c.Control.Voters = []ControlVoter{{NodeID: c.NodeID, Addr: c.ListenAddr}}
+		if c.Control.ClusterID == "" {
+			c.Control.ClusterID = fmt.Sprintf("wk-clusterv2-single-node-%d", c.NodeID)
 		}
-		normalized, err := normalizeClusterStoragePath(item.path)
-		if err != nil {
-			return fmt.Errorf("%w: normalize %s: %v", ErrInvalidConfig, item.name, err)
+		c.Control.AllowBootstrap = true
+	}
+}
+
+func (c Config) seedJoinMode() bool {
+	return c.Join.Seeds != nil || c.Join.AdvertiseAddr != ""
+}
+
+func (c *Config) applySlotDefaults() {
+	if c.Slots.InitialSlotCount == 0 {
+		c.Slots.InitialSlotCount = 1
+	}
+	if c.Slots.HashSlotCount == 0 {
+		c.Slots.HashSlotCount = 16
+	}
+	if c.Slots.ReplicaCount == 0 {
+		c.Slots.ReplicaCount = uint16(len(c.Control.Voters))
+		if c.Slots.ReplicaCount == 0 {
+			c.Slots.ReplicaCount = 1
 		}
-		if clusterStoragePathsOverlap(snapshotPath, normalized) {
-			return fmt.Errorf("%w: ControllerRaftSnapshotPath and %s must not overlap", ErrInvalidConfig, item.name)
-		}
+	}
+	if c.Slots.TickInterval == 0 {
+		c.Slots.TickInterval = defaultSlotTickInterval
+	}
+	if c.Slots.ElectionTick == 0 {
+		c.Slots.ElectionTick = defaultSlotElectionTick
+	}
+	if c.Slots.HeartbeatTick == 0 {
+		c.Slots.HeartbeatTick = defaultSlotHeartbeatTick
+	}
+	c.Slots.LogCompaction = multiraft.NormalizeLogCompactionConfig(c.Slots.LogCompaction)
+}
+
+func (c *Config) applyChannelRetentionDefaults() {
+	if c.ChannelRetention.ScanInterval == 0 {
+		c.ChannelRetention.ScanInterval = time.Minute
+	}
+	if c.ChannelRetention.ChannelBatchSize == 0 {
+		c.ChannelRetention.ChannelBatchSize = 128
+	}
+	if c.ChannelRetention.MaxTrimMessages == 0 {
+		c.ChannelRetention.MaxTrimMessages = 1000
+	}
+}
+
+func (c *Config) applyChannelMigrationDefaults() {
+	if !c.ChannelMigration.EnabledSet {
+		c.ChannelMigration.Enabled = true
+	}
+	if c.ChannelMigration.ScanInterval == 0 {
+		c.ChannelMigration.ScanInterval = time.Second
+	}
+	if c.ChannelMigration.ScanLimit == 0 {
+		c.ChannelMigration.ScanLimit = 64
+	}
+	if c.ChannelMigration.MaxPagesPerTick == 0 {
+		c.ChannelMigration.MaxPagesPerTick = 1
+	}
+	if c.ChannelMigration.MaxTasksPerTick == 0 {
+		c.ChannelMigration.MaxTasksPerTick = 1
+	}
+	if c.ChannelMigration.TaskLimit == 0 {
+		c.ChannelMigration.TaskLimit = 1
+	}
+}
+
+func (c *Config) applyHealthReportDefaults() {
+	if c.HealthReport.Interval == 0 {
+		c.HealthReport.Interval = 5 * time.Second
+	}
+	if c.HealthReport.TTL == 0 {
+		c.HealthReport.TTL = 30 * time.Second
+	}
+}
+
+func (c Config) validate() error {
+	if c.NodeID == 0 || c.ListenAddr == "" || c.DataDir == "" {
+		return ErrInvalidConfig
+	}
+	if c.Channel.TickInterval < 0 {
+		return ErrInvalidConfig
+	}
+	if c.Channel.ReactorCount < 0 {
+		return ErrInvalidConfig
+	}
+	if c.Channel.StoreAppendWorkers < 0 {
+		return ErrInvalidConfig
+	}
+	if c.Channel.StoreAppendBatchMaxWait < 0 {
+		return ErrInvalidConfig
+	}
+	if c.Channel.StoreApplyWorkers < 0 {
+		return ErrInvalidConfig
+	}
+	if c.Channel.RPCWorkers < 0 {
+		return ErrInvalidConfig
+	}
+	if c.Channel.MailboxSize < 0 {
+		return ErrInvalidConfig
+	}
+	if c.Channel.MaxChannels < 0 {
+		return ErrInvalidConfig
+	}
+	if c.Storage.CommitShards < 0 {
+		return ErrInvalidConfig
+	}
+	if c.Channel.AppendBatchMaxRecords < 0 {
+		return ErrInvalidConfig
+	}
+	if c.Channel.AppendBatchMaxWait < 0 {
+		return ErrInvalidConfig
+	}
+	if c.Channel.AppendBatchColdMaxWait < 0 {
+		return ErrInvalidConfig
+	}
+	if c.Channel.ReplicaCount == 0 {
+		return ErrInvalidConfig
+	}
+	if c.Channel.FollowerRecoveryProbeInterval < 0 {
+		return ErrInvalidConfig
+	}
+	if c.Channel.FollowerRecoveryProbeJitter < 0 {
+		return ErrInvalidConfig
+	}
+	if c.ChannelMigration.ScanInterval < 0 {
+		return ErrInvalidConfig
+	}
+	if c.ChannelMigration.ScanLimit < 0 {
+		return ErrInvalidConfig
+	}
+	if c.ChannelMigration.MaxPagesPerTick < 0 {
+		return ErrInvalidConfig
+	}
+	if c.ChannelMigration.MaxTasksPerTick < 0 {
+		return ErrInvalidConfig
+	}
+	if c.ChannelMigration.TaskLimit < 0 {
+		return ErrInvalidConfig
+	}
+	if c.ChannelRetention.ScanInterval < 0 {
+		return ErrInvalidConfig
+	}
+	if c.ChannelRetention.ChannelBatchSize < 0 {
+		return ErrInvalidConfig
+	}
+	if c.ChannelRetention.MaxTrimMessages < 0 {
+		return ErrInvalidConfig
+	}
+	if c.ChannelRetention.MaxTrimBytes < 0 {
+		return ErrInvalidConfig
+	}
+	if c.HealthReport.Interval <= 0 || c.HealthReport.TTL <= 0 || c.HealthReport.TTL < c.HealthReport.Interval {
+		return ErrInvalidConfig
+	}
+	if err := c.validateControl(); err != nil {
+		return err
+	}
+	if err := c.validateSlots(); err != nil {
+		return err
 	}
 	return nil
 }
 
-func normalizeClusterStoragePath(path string) (string, error) {
-	absPath, err := filepath.Abs(filepath.Clean(path))
-	if err != nil {
-		return "", err
+func (c Config) validateControl() error {
+	if c.Control.StateDir == "" || c.Control.ClusterID == "" {
+		return ErrInvalidConfig
 	}
-	cleanPath := filepath.Clean(absPath)
-	if resolved, ok := resolveExistingClusterStoragePathPrefix(cleanPath); ok {
-		return resolved, nil
-	}
-	return cleanPath, nil
-}
-
-func resolveExistingClusterStoragePathPrefix(path string) (string, bool) {
-	var suffix []string
-	for current := path; ; current = filepath.Dir(current) {
-		if resolved, err := filepath.EvalSymlinks(current); err == nil {
-			parts := append([]string{filepath.Clean(resolved)}, suffix...)
-			return filepath.Clean(filepath.Join(parts...)), true
+	if c.seedJoinMode() {
+		if c.Control.Role != ControlRoleMirror || c.Control.AllowBootstrap || len(c.Control.Voters) != 0 {
+			return ErrInvalidConfig
 		}
-		parent := filepath.Dir(current)
-		if parent == current {
-			return "", false
+		if len(c.Join.Seeds) == 0 || strings.TrimSpace(c.Join.AdvertiseAddr) == "" || strings.TrimSpace(c.Join.Token) == "" {
+			return ErrInvalidConfig
 		}
-		suffix = append([]string{filepath.Base(current)}, suffix...)
-	}
-}
-
-func clusterStoragePathsOverlap(left, right string) bool {
-	leftVolume := filepath.VolumeName(left)
-	rightVolume := filepath.VolumeName(right)
-	if leftVolume != rightVolume {
-		return false
-	}
-	leftParts := clusterStoragePathSegments(strings.TrimPrefix(left, leftVolume))
-	rightParts := clusterStoragePathSegments(strings.TrimPrefix(right, rightVolume))
-	minLen := len(leftParts)
-	if len(rightParts) < minLen {
-		minLen = len(rightParts)
-	}
-	for i := 0; i < minLen; i++ {
-		if leftParts[i] != rightParts[i] {
-			return false
+		for _, seed := range c.Join.Seeds {
+			if strings.TrimSpace(seed) == "" {
+				return ErrInvalidConfig
+			}
 		}
-	}
-	return true
-}
-
-func clusterStoragePathSegments(path string) []string {
-	cleaned := filepath.Clean(path)
-	trimmed := strings.Trim(cleaned, string(filepath.Separator))
-	if trimmed == "" {
 		return nil
 	}
-	return strings.Split(trimmed, string(filepath.Separator))
-}
-
-func (t *Timeouts) applyDefaults() {
-	if t == nil {
-		return
+	if c.Control.Role != ControlRoleVoter && c.Control.Role != ControlRoleMirror {
+		return ErrInvalidConfig
 	}
-	if t.ControllerObservation == 0 {
-		t.ControllerObservation = defaultControllerObservationTimeout
+	if len(c.Control.Voters) == 0 {
+		return ErrInvalidConfig
 	}
-	if t.ControllerRequest == 0 {
-		t.ControllerRequest = defaultControllerRequestTimeout
-	}
-	if t.ControllerLeaderWait == 0 {
-		t.ControllerLeaderWait = defaultControllerLeaderWaitTimeout
-	}
-	if t.ForwardRetryBudget == 0 {
-		t.ForwardRetryBudget = defaultForwardRetryBudget
-	}
-	if t.ManagedSlotLeaderWait == 0 {
-		t.ManagedSlotLeaderWait = defaultManagedSlotLeaderWaitTimeout
-	}
-	if t.ManagedSlotCatchUp == 0 {
-		t.ManagedSlotCatchUp = defaultManagedSlotCatchUpTimeout
-	}
-	if t.ManagedSlotLeaderMove == 0 {
-		t.ManagedSlotLeaderMove = defaultManagedSlotLeaderMoveTimeout
-	}
-	if t.ConfigChangeRetryBudget == 0 {
-		t.ConfigChangeRetryBudget = defaultConfigChangeRetryBudget
-	}
-	if t.LeaderTransferRetryBudget == 0 {
-		t.LeaderTransferRetryBudget = defaultLeaderTransferRetryBudget
-	}
-	if t.ObservationHeartbeatInterval == 0 {
-		t.ObservationHeartbeatInterval = defaultObservationHeartbeatInterval
-	}
-	if t.ObservationRuntimeScanInterval == 0 {
-		t.ObservationRuntimeScanInterval = defaultObservationRuntimeScan
-	}
-	if t.ObservationRuntimeFlushDebounce == 0 {
-		t.ObservationRuntimeFlushDebounce = defaultObservationFlushDebounce
-	}
-	if t.ObservationRuntimeFullSyncInterval == 0 {
-		t.ObservationRuntimeFullSyncInterval = defaultObservationFullSyncInterval
-	}
-	if t.ObservationSlowSyncInterval == 0 {
-		t.ObservationSlowSyncInterval = defaultObservationSlowSyncInterval
-	}
-	if t.PlannerSafetyInterval == 0 {
-		t.PlannerSafetyInterval = defaultPlannerSafetyInterval
-	}
-	if t.PlannerWakeDebounce == 0 {
-		t.PlannerWakeDebounce = defaultPlannerWakeDebounce
-	}
-}
-
-func (c Config) DerivedControllerNodes() []NodeConfig {
-	nodes := append([]NodeConfig(nil), c.Nodes...)
-	sort.Slice(nodes, func(i, j int) bool {
-		return nodes[i].NodeID < nodes[j].NodeID
-	})
-	if c.ControllerReplicaN > 0 && c.ControllerReplicaN < len(nodes) {
-		nodes = nodes[:c.ControllerReplicaN]
-	}
-	return nodes
-}
-
-func (c Config) HasLocalControllerPeer() bool {
-	for _, node := range c.DerivedControllerNodes() {
-		if node.NodeID == c.NodeID {
-			return true
+	seen := make(map[uint64]struct{}, len(c.Control.Voters))
+	localFound := false
+	for _, voter := range c.Control.Voters {
+		if voter.NodeID == 0 || voter.Addr == "" {
+			return ErrInvalidConfig
+		}
+		if _, ok := seen[voter.NodeID]; ok {
+			return ErrInvalidConfig
+		}
+		seen[voter.NodeID] = struct{}{}
+		if voter.NodeID == c.NodeID {
+			localFound = true
 		}
 	}
-	return false
-}
-
-func (c Config) ControllerEnabled() bool {
-	return c.ControllerMetaPath != "" && c.ControllerRaftPath != ""
-}
-
-// JoinModeEnabled reports whether dynamic join configuration is present.
-func (c Config) JoinModeEnabled() bool {
-	return len(c.Seeds) > 0 || c.AdvertiseAddr != "" || c.JoinToken != ""
-}
-
-func (c Config) effectiveInitialSlotCount() uint32 {
-	if c.InitialSlotCount > 0 {
-		return c.InitialSlotCount
+	if c.Control.Role == ControlRoleVoter && !localFound {
+		return ErrInvalidConfig
 	}
-	return c.SlotCount
+	return nil
 }
 
-func (c Config) effectiveHashSlotCount() uint16 {
-	if c.HashSlotCount > 0 {
-		return c.HashSlotCount
+func (c Config) validateSlots() error {
+	if c.Slots.InitialSlotCount == 0 || c.Slots.HashSlotCount == 0 || c.Slots.ReplicaCount == 0 {
+		return ErrInvalidConfig
 	}
-	initialSlotCount := c.effectiveInitialSlotCount()
-	if initialSlotCount > math.MaxUint16 {
-		return 0
+	if !c.seedJoinMode() && int(c.Slots.ReplicaCount) > len(c.Control.Voters) {
+		return ErrInvalidConfig
 	}
-	return uint16(initialSlotCount)
+	if c.Slots.TickInterval <= 0 || c.Slots.ElectionTick <= 0 || c.Slots.HeartbeatTick <= 0 || c.Slots.ElectionTick <= c.Slots.HeartbeatTick {
+		return ErrInvalidConfig
+	}
+	if err := multiraft.ValidateLogCompactionConfig(c.Slots.LogCompaction); err != nil {
+		return err
+	}
+	return nil
 }

@@ -8,8 +8,8 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/internalv2/contracts/channelappend"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/propose"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/propose"
 )
 
 func mapAppendError(err error) error {
@@ -19,7 +19,7 @@ func mapAppendError(err error) error {
 	switch {
 	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
 		return err
-	case appendErrorMatches(err, channelv2.ErrNotLeader), appendErrorMatches(err, propose.ErrNotLeader), errors.Is(err, clusterv2.ErrNotLeader):
+	case appendErrorMatches(err, channelv2.ErrNotLeader), appendErrorMatches(err, propose.ErrNotLeader), errors.Is(err, cluster.ErrNotLeader):
 		return fmt.Errorf("%w: %w", channelappend.ErrNotLeader, err)
 	case appendErrorMatches(err, channelv2.ErrStaleMeta), appendErrorMatches(err, channelv2.ErrNotReplica):
 		return fmt.Errorf("%w: %w", channelappend.ErrStaleRoute, err)
@@ -27,7 +27,7 @@ func mapAppendError(err error) error {
 		return fmt.Errorf("%w: %w", channelappend.ErrChannelNotFound, err)
 	case appendErrorMatches(err, channelv2.ErrBackpressured):
 		return fmt.Errorf("%w: %w", channelappend.ErrBackpressured, err)
-	case errors.Is(err, clusterv2.ErrRouteNotReady), errors.Is(err, clusterv2.ErrNoSlotLeader), appendErrorMatches(err, channelv2.ErrNotReady), appendErrorMatches(err, channelv2.ErrWriteFenced), appendErrorIsChannelPlacementUnavailable(err):
+	case errors.Is(err, cluster.ErrRouteNotReady), errors.Is(err, cluster.ErrNoSlotLeader), appendErrorMatches(err, channelv2.ErrNotReady), appendErrorMatches(err, channelv2.ErrWriteFenced), appendErrorIsChannelPlacementUnavailable(err):
 		return fmt.Errorf("%w: %w", channelappend.ErrRouteNotReady, err)
 	default:
 		return fmt.Errorf("%w: %w", channelappend.ErrAppendFailed, err)

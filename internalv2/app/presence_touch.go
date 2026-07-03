@@ -7,7 +7,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/online"
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/presence"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
@@ -40,11 +40,11 @@ type presenceTouchWorkerOptions struct {
 	// NodeID identifies the local node so authority events can update only local state.
 	NodeID uint64
 	// Events provides an already-created route authority stream for tests.
-	Events <-chan clusterv2.RouteAuthorityEvent
+	Events <-chan cluster.RouteAuthorityEvent
 	// Watch creates the route authority stream during Start.
-	Watch func() <-chan clusterv2.RouteAuthorityEvent
+	Watch func() <-chan cluster.RouteAuthorityEvent
 	// Initial returns visible authorities to seed local state after startup.
-	Initial func() []clusterv2.RouteAuthority
+	Initial func() []cluster.RouteAuthority
 	// Local stores owner-local active sessions with pending touch updates.
 	Local presenceTouchLocalRegistry
 	// Authority sends grouped touches to the observed authority target.
@@ -131,7 +131,7 @@ func (w *presenceTouchWorker) Stop(context.Context) error {
 	return nil
 }
 
-func (w *presenceTouchWorker) watch(ctx context.Context, events <-chan clusterv2.RouteAuthorityEvent) {
+func (w *presenceTouchWorker) watch(ctx context.Context, events <-chan cluster.RouteAuthorityEvent) {
 	defer w.wg.Done()
 	for {
 		select {
@@ -168,7 +168,7 @@ func (w *presenceTouchWorker) tick(ctx context.Context) {
 	}
 }
 
-func (w *presenceTouchWorker) initialAuthorities() []clusterv2.RouteAuthority {
+func (w *presenceTouchWorker) initialAuthorities() []cluster.RouteAuthority {
 	if w.opts.Initial == nil {
 		return nil
 	}
@@ -181,7 +181,7 @@ func (w *presenceTouchWorker) reconcileAuthorities() {
 	}
 }
 
-func (w *presenceTouchWorker) handleAuthority(authority clusterv2.RouteAuthority) {
+func (w *presenceTouchWorker) handleAuthority(authority cluster.RouteAuthority) {
 	if w.opts.Directory == nil {
 		return
 	}

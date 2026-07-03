@@ -6,7 +6,7 @@ import (
 	"strconv"
 
 	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/gin-gonic/gin"
 )
@@ -249,7 +249,7 @@ func writeLogError(c *gin.Context, err error, unavailableMessage, notFoundMessag
 	switch {
 	case errors.Is(err, metadb.ErrInvalidArgument):
 		jsonError(c, http.StatusBadRequest, "bad_request", "invalid log request")
-	case errors.Is(err, metadb.ErrNotFound), errors.Is(err, clusterv2.ErrSlotNotFound):
+	case errors.Is(err, metadb.ErrNotFound), errors.Is(err, cluster.ErrSlotNotFound):
 		jsonError(c, http.StatusNotFound, "not_found", notFoundMessage)
 	case errors.Is(err, managementusecase.ErrLogReaderUnavailable), controlSnapshotUnavailable(err):
 		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", unavailableMessage)

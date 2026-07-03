@@ -4,9 +4,9 @@
 
 `internalv2` is a parallel business kernel for the new architecture. Phase 1
 keeps the existing `internal` production path unchanged and proves the client
-`SEND -> SENDACK` write skeleton through `pkg/clusterv2` and `pkg/channelv2`.
+`SEND -> SENDACK` write skeleton through `pkg/cluster` and `pkg/channelv2`.
 It also exposes legacy-compatible channel, user, message, conversation, and CMD
-sync HTTP surfaces backed by clusterv2 Slot metadata and ChannelV2 logs.
+sync HTTP surfaces backed by cluster Slot metadata and ChannelV2 logs.
 
 Single-node deployment is still a single-node cluster. Do not add send,
 storage, or routing branches that bypass cluster semantics.
@@ -35,7 +35,7 @@ storage, or routing branches that bypass cluster semantics.
 | `runtime/online` | Owner-local active gateway session registry used for local delivery and dirty touch batching. |
 | `runtime/presence` | In-memory UID route authority directory for hash slots locally led by this node. |
 | `runtime/channelappend` | Channel-authority write group where each local authoritative channel is served by an independent single-writer state machine, hash-sharded for lookup and advanced by shared worker pools. |
-| `infra/cluster` | Adapter from channel append, channel/user metadata, delivery, presence, conversation, and CMD sync ports to `pkg/clusterv2` / `pkg/channelv2`. |
+| `infra/cluster` | Adapter from channel append, channel/user metadata, delivery, presence, conversation, and CMD sync ports to `pkg/cluster` / `pkg/channelv2`. |
 | `contracts/channelmembers` | Stable legacy-compatible member-list channel-id namespace helpers. |
 | `contracts/messageevents` | Lightweight committed-message event DTOs for later delivery/conversation migration. |
 
@@ -44,12 +44,12 @@ storage, or routing branches that bypass cluster semantics.
 ```text
 access -> usecase
 usecase -> contracts and usecase-defined ports
-infra -> pkg/clusterv2 and pkg/channelv2, implementing usecase ports
+infra -> pkg/cluster and pkg/channelv2, implementing usecase ports
 app -> access, usecase, infra, log, pkg composition dependencies including shared pkg/plugin/pluginhost plugin host runtime
 ```
 
 `internalv2/usecase/message` must remain protocol- and cluster-agnostic. It
-must not import `pkg/gateway`, `pkg/protocol/frame`, `pkg/clusterv2`,
+must not import `pkg/gateway`, `pkg/protocol/frame`, `pkg/cluster`,
 `pkg/channelv2`, `internalv2/access`, or `internalv2/app`.
 
 ## Phase-1 Send Flow
@@ -61,7 +61,7 @@ pkg/gateway SendPacket
   -> internalv2/runtime/channelappend.Router resolves channel append authority
   -> local channelappend.Group append authority or access/node Channel Append RPC
   -> authority writer validates, assigns message IDs, and appends through infra/cluster.ChannelAppender
-  -> pkg/clusterv2.Node.AppendChannelBatch -> pkg/channelv2 append
+  -> pkg/cluster.Node.AppendChannelBatch -> pkg/channelv2 append
   -> internalv2/usecase/message.SendResult
   -> internalv2/access/gateway writes SendackPacket
 ```
@@ -115,7 +115,7 @@ pkg/gateway CONNECT activation
   -> internalv2/runtime/online active route
 ```
 
-Route-authority changes are observed from `pkg/clusterv2`. When this node gains
+Route-authority changes are observed from `pkg/cluster`. When this node gains
 authority for a hash slot, `internalv2/app` installs the corresponding
 `runtime/presence.Directory` authority epoch. Owner gateway PING marks active
 sessions dirty in `runtime/online`; the app worker batches those dirty routes,
@@ -172,7 +172,7 @@ legacy /channel* HTTP request
   -> internalv2/access/api request validation and legacy JSON envelope
   -> internalv2/usecase/channel
   -> internalv2/infra/cluster ChannelMetadataStore
-  -> pkg/clusterv2.Node Slot metadata facade
+  -> pkg/cluster.Node Slot metadata facade
   -> Slot Raft propose for mutations or routed Slot metadata read for list/get
 ```
 
@@ -189,8 +189,9 @@ single-node cluster.
   keep field numbers compatible with `github.com/WuKongIM/go-pdk`.
 - Plugin host runtime is shared under `pkg/plugin/pluginhost`; `internalv2/app`
   adapts it to `internalv2/usecase/plugin`.
-- Do not rename `internalv2`, `pkg/clusterv2`, or `pkg/channelv2` package paths
-  in this promotion stage; ControllerV2 is already promoted to `pkg/controller`.
+- Do not rename `internalv2` or `pkg/channelv2` package paths in this
+  promotion stage; ControllerV2 is promoted to `pkg/controller`, and the new
+  cluster runtime is promoted to `pkg/cluster`.
 - Do not migrate legacy plugin hooks or remaining management APIs not listed in
   the internalv2 manager/access flows.
 - Do not implement realtime `NoPersist` delivery yet; return a stable

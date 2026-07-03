@@ -11,8 +11,8 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/internalv2/observability/taskaudit"
 	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 	cv2 "github.com/WuKongIM/WuKongIM/pkg/controller"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	obsmetrics "github.com/WuKongIM/WuKongIM/pkg/metrics"
@@ -50,7 +50,7 @@ func newControllerTaskAuditRuntime(path string, logger wklog.Logger) *controller
 	}
 }
 
-func (a *App) wireControllerTaskAudit(clusterCfg *clusterv2.Config) {
+func (a *App) wireControllerTaskAudit(clusterCfg *cluster.Config) {
 	if a == nil || clusterCfg == nil {
 		return
 	}

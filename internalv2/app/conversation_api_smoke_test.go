@@ -12,7 +12,7 @@ import (
 
 	accessapi "github.com/WuKongIM/WuKongIM/internalv2/access/api"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 )
@@ -36,9 +36,9 @@ func TestConversationListAPIReadsAuthorityCacheAfterRecipientDispatch(t *testing
 	if err := app.Start(startCtx); err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
-	node, ok := app.cluster.(*clusterv2.Node)
+	node, ok := app.cluster.(*cluster.Node)
 	if !ok {
-		t.Fatalf("cluster runtime = %T, want *clusterv2.Node", app.cluster)
+		t.Fatalf("cluster runtime = %T, want *cluster.Node", app.cluster)
 	}
 	waitSingleNodeClusterRouteLeader(t, node, "sender-cache", cfg.NodeID)
 	waitSingleNodeClusterRouteLeader(t, node, "receiver-cache", cfg.NodeID)
@@ -101,9 +101,9 @@ func TestConversationListAPIReadsActiveRowAndLastVisibleMessage(t *testing.T) {
 	if err := app.Start(startCtx); err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
-	node, ok := app.cluster.(*clusterv2.Node)
+	node, ok := app.cluster.(*cluster.Node)
 	if !ok {
-		t.Fatalf("cluster runtime = %T, want *clusterv2.Node", app.cluster)
+		t.Fatalf("cluster runtime = %T, want *cluster.Node", app.cluster)
 	}
 	waitSingleNodeClusterRouteLeader(t, node, "sender", cfg.NodeID)
 	waitSingleNodeClusterRouteLeader(t, node, "receiver", cfg.NodeID)
@@ -204,9 +204,9 @@ func TestConversationListAPIPaginatesWithNextCursor(t *testing.T) {
 	if err := app.Start(startCtx); err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
-	node, ok := app.cluster.(*clusterv2.Node)
+	node, ok := app.cluster.(*cluster.Node)
 	if !ok {
-		t.Fatalf("cluster runtime = %T, want *clusterv2.Node", app.cluster)
+		t.Fatalf("cluster runtime = %T, want *cluster.Node", app.cluster)
 	}
 	waitSingleNodeClusterRouteLeader(t, node, firstChannel.ID, cfg.NodeID)
 	waitSingleNodeClusterRouteLeader(t, node, secondChannel.ID, cfg.NodeID)
@@ -309,7 +309,7 @@ func decodeConversationListSmokeResponse(t *testing.T, body []byte) conversation
 	return resp
 }
 
-func upsertAppConversationStates(t *testing.T, node *clusterv2.Node, states []metadb.ConversationState) {
+func upsertAppConversationStates(t *testing.T, node *cluster.Node, states []metadb.ConversationState) {
 	t.Helper()
 	for _, state := range states {
 		waitSingleNodeClusterRouteLeader(t, node, state.UID, node.NodeID())

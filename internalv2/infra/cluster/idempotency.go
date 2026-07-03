@@ -7,15 +7,15 @@ import (
 	"github.com/WuKongIM/WuKongIM/internalv2/contracts/channelappend"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channelv2/store"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 )
 
-// ChannelIdempotencyNode is the clusterv2 local idempotency lookup surface used by internalv2.
+// ChannelIdempotencyNode is the cluster local idempotency lookup surface used by internalv2.
 type ChannelIdempotencyNode interface {
 	LookupChannelIdempotency(context.Context, channelv2.ChannelID, string, string) (channelstore.IdempotencyHit, bool, error)
 }
 
-// ChannelIdempotencyStore adapts clusterv2 committed idempotency lookups to channelappend.
+// ChannelIdempotencyStore adapts cluster committed idempotency lookups to channelappend.
 type ChannelIdempotencyStore struct {
 	node ChannelIdempotencyNode
 }
@@ -48,9 +48,9 @@ func (s *ChannelIdempotencyStore) LookupSend(ctx context.Context, query channela
 }
 
 func channelIdempotencyLookupMissError(err error) bool {
-	return errors.Is(err, clusterv2.ErrNotStarted) ||
-		errors.Is(err, clusterv2.ErrRouteNotReady) ||
-		errors.Is(err, clusterv2.ErrNoSlotLeader) ||
+	return errors.Is(err, cluster.ErrNotStarted) ||
+		errors.Is(err, cluster.ErrRouteNotReady) ||
+		errors.Is(err, cluster.ErrNoSlotLeader) ||
 		appendErrorMatches(err, channelv2.ErrNotReady) ||
 		appendErrorMatches(err, channelv2.ErrChannelNotFound) ||
 		appendErrorMatches(err, channelv2.ErrInvalidConfig)

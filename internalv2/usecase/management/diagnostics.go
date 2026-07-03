@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internalv2/observability/diagnostics"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 )
 
 const (
