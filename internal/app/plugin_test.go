@@ -12,7 +12,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/runtime/channelappend"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	pluginusecase "github.com/WuKongIM/WuKongIM/internal/usecase/plugin"
-	channelv2 "github.com/WuKongIM/WuKongIM/pkg/channel"
+	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel"
 	clusterpkg "github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
@@ -163,7 +163,7 @@ func TestNewWiresPluginUsecaseAsMessageSender(t *testing.T) {
 func TestNewWiresPluginUsecaseAsChannelMessageReader(t *testing.T) {
 	cluster := &fakeManagerCluster{
 		nodeID: 1,
-		conversationMessages: map[metadb.ConversationKey][]channelv2.Message{
+		conversationMessages: map[metadb.ConversationKey][]channelruntime.Message{
 			{ChannelID: "g1", ChannelType: 2}: {{
 				MessageID:   321,
 				MessageSeq:  7,
@@ -229,9 +229,9 @@ func TestNewWiresPluginUsecaseAsClusterReader(t *testing.T) {
 func TestNewWiresPluginUsecaseAsChannelOwnerReader(t *testing.T) {
 	cluster := &fakeManagerCluster{
 		nodeID: 1,
-		channelOwnerMetas: map[channelv2.ChannelID]channelv2.Meta{
+		channelOwnerMetas: map[channelruntime.ChannelID]channelruntime.Meta{
 			{ID: "g1", Type: 2}: {
-				ID:     channelv2.ChannelID{ID: "g1", Type: 2},
+				ID:     channelruntime.ChannelID{ID: "g1", Type: 2},
 				Leader: 3,
 			},
 		},

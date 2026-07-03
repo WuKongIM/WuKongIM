@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	channelv2 "github.com/WuKongIM/WuKongIM/pkg/channel"
+	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/channels"
@@ -20,7 +20,7 @@ import (
 
 func TestSingleNodeClusterSendToSendack(t *testing.T) {
 	cfg := singleNodeClusterAppConfig(t)
-	channelID := channelv2.ChannelID{ID: "room-sendack", Type: frame.ChannelTypeGroup}
+	channelID := channelruntime.ChannelID{ID: "room-sendack", Type: frame.ChannelTypeGroup}
 	node := newSendackSmokeSingleNodeCluster(t, cfg.Cluster, channelID)
 	app, err := New(cfg, WithCluster(node))
 	if err != nil {
@@ -77,7 +77,7 @@ func TestSingleNodeClusterSendToSendack(t *testing.T) {
 
 func TestSingleNodeClusterSendWithChannelMetaAndSendack(t *testing.T) {
 	cfg := singleNodeClusterAppConfig(t)
-	channelID := channelv2.ChannelID{ID: "room-default-meta", Type: frame.ChannelTypeGroup}
+	channelID := channelruntime.ChannelID{ID: "room-default-meta", Type: frame.ChannelTypeGroup}
 	app, err := New(cfg)
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
@@ -124,7 +124,7 @@ func TestSingleNodeClusterSendWithChannelMetaAndSendack(t *testing.T) {
 	}
 }
 
-func sendDefaultMetaSmokePacket(t *testing.T, app *App, channelID channelv2.ChannelID, clientSeq uint64, clientMsgNo string) *frame.SendackPacket {
+func sendDefaultMetaSmokePacket(t *testing.T, app *App, channelID channelruntime.ChannelID, clientSeq uint64, clientMsgNo string) *frame.SendackPacket {
 	t.Helper()
 	writes := &sendackSmokeSessionWrites{}
 	sess := newSendackSmokeSession(writes)
@@ -150,7 +150,7 @@ func sendDefaultMetaSmokePacket(t *testing.T, app *App, channelID channelv2.Chan
 	return ack
 }
 
-func seedGroupSendPermission(t *testing.T, node *cluster.Node, channelID channelv2.ChannelID, uids ...string) {
+func seedGroupSendPermission(t *testing.T, node *cluster.Node, channelID channelruntime.ChannelID, uids ...string) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
@@ -208,7 +208,7 @@ func singleNodeClusterAppConfig(t *testing.T) Config {
 	return cfg
 }
 
-func newSendackSmokeSingleNodeCluster(t *testing.T, cfg cluster.Config, channelID channelv2.ChannelID) *cluster.Node {
+func newSendackSmokeSingleNodeCluster(t *testing.T, cfg cluster.Config, channelID channelruntime.ChannelID) *cluster.Node {
 	t.Helper()
 	storeFactory := channelstore.NewMessageDBFactory(t.TempDir())
 	t.Cleanup(func() {
@@ -217,20 +217,20 @@ func newSendackSmokeSingleNodeCluster(t *testing.T, cfg cluster.Config, channelI
 		}
 	})
 	channelSvc, err := channels.NewService(channels.Config{
-		LocalNode:    channelv2.NodeID(cfg.NodeID),
+		LocalNode:    channelruntime.NodeID(cfg.NodeID),
 		ReactorCount: 1,
 		MailboxSize:  16,
 		Store:        storeFactory,
-		MetaSource: channels.NewStaticMetaSource([]channelv2.Meta{{
-			Key:         channelv2.ChannelKeyForID(channelID),
+		MetaSource: channels.NewStaticMetaSource([]channelruntime.Meta{{
+			Key:         channelruntime.ChannelKeyForID(channelID),
 			ID:          channelID,
 			Epoch:       1,
 			LeaderEpoch: 1,
-			Leader:      channelv2.NodeID(cfg.NodeID),
-			Replicas:    []channelv2.NodeID{channelv2.NodeID(cfg.NodeID)},
-			ISR:         []channelv2.NodeID{channelv2.NodeID(cfg.NodeID)},
+			Leader:      channelruntime.NodeID(cfg.NodeID),
+			Replicas:    []channelruntime.NodeID{channelruntime.NodeID(cfg.NodeID)},
+			ISR:         []channelruntime.NodeID{channelruntime.NodeID(cfg.NodeID)},
 			MinISR:      1,
-			Status:      channelv2.StatusActive,
+			Status:      channelruntime.StatusActive,
 		}}),
 	})
 	if err != nil {

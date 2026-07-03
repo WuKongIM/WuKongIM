@@ -32,7 +32,7 @@ import (
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
-	channelv2 "github.com/WuKongIM/WuKongIM/pkg/channel"
+	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
 	clusterpkg "github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
@@ -901,9 +901,9 @@ func TestNewRegistersManagerMessageRetentionRPCWhenClusterSupportsRetention(t *t
 		channelRuntimeMetas: map[metadb.ConversationKey]metadb.ChannelRuntimeMeta{key: {
 			ChannelID: "room-1", ChannelType: 2,
 			ChannelEpoch: 4, LeaderEpoch: 5, Leader: 1, LeaseUntilMS: 1713859200123,
-			Replicas: []uint64{1}, ISR: []uint64{1}, MinISR: 1, Status: uint8(channelv2.StatusActive),
+			Replicas: []uint64{1}, ISR: []uint64{1}, MinISR: 1, Status: uint8(channelruntime.StatusActive),
 		}},
-		conversationMessages: map[metadb.ConversationKey][]channelv2.Message{
+		conversationMessages: map[metadb.ConversationKey][]channelruntime.Message{
 			key: {{MessageID: 101, MessageSeq: 2, ChannelID: "room-1", ChannelType: 2}},
 		},
 	}
@@ -1721,7 +1721,7 @@ func TestManagerServerListsRecentConversationsFromConversationUsecase(t *testing
 				ReadSeq: 4, ActiveAt: 200000000000, UpdatedAt: 200000000000,
 			}},
 		},
-		conversationMessages: map[metadb.ConversationKey][]channelv2.Message{
+		conversationMessages: map[metadb.ConversationKey][]channelruntime.Message{
 			{ChannelID: "g1", ChannelType: 2}: {{
 				MessageID: 99, MessageSeq: 7, ClientMsgNo: "c7",
 				ChannelID: "g1", ChannelType: 2, FromUID: "u2",
@@ -1787,7 +1787,7 @@ func TestManagerServerListsMessagesFromClusterCommittedLog(t *testing.T) {
 			Slots:     []control.SlotAssignment{{SlotID: 1, DesiredPeers: []uint64{1}}},
 			HashSlots: control.HashSlotTable{Count: 4, Ranges: []control.HashSlotRange{{From: 0, To: 3, SlotID: 1}}},
 		},
-		conversationMessages: map[metadb.ConversationKey][]channelv2.Message{
+		conversationMessages: map[metadb.ConversationKey][]channelruntime.Message{
 			{ChannelID: "room-1", ChannelType: 2}: {
 				{MessageID: 100, MessageSeq: 9, ClientMsgNo: "c-100", ChannelID: "room-1", ChannelType: 2, FromUID: "u2", ServerTimestampMS: 1713859100000, Payload: []byte("older")},
 				{MessageID: 101, MessageSeq: 10, ClientMsgNo: "c-101", ChannelID: "room-1", ChannelType: 2, FromUID: "u1", ServerTimestampMS: 1713859200123, Payload: []byte("hello")},
@@ -1839,7 +1839,7 @@ func TestManagerServerAdvancesMessageRetentionThroughClusterMeta(t *testing.T) {
 	meta := metadb.ChannelRuntimeMeta{
 		ChannelID: "room-1", ChannelType: 2,
 		ChannelEpoch: 4, LeaderEpoch: 5, Leader: 1, LeaseUntilMS: 1713859200123,
-		Replicas: []uint64{1}, ISR: []uint64{1}, MinISR: 1, Status: uint8(channelv2.StatusActive),
+		Replicas: []uint64{1}, ISR: []uint64{1}, MinISR: 1, Status: uint8(channelruntime.StatusActive),
 	}
 	cluster := &fakeManagerCluster{
 		nodeID: 1,
@@ -1848,7 +1848,7 @@ func TestManagerServerAdvancesMessageRetentionThroughClusterMeta(t *testing.T) {
 			HashSlots: control.HashSlotTable{Count: 4, Ranges: []control.HashSlotRange{{From: 0, To: 3, SlotID: 1}}},
 		},
 		channelRuntimeMetas: map[metadb.ConversationKey]metadb.ChannelRuntimeMeta{key: meta},
-		conversationMessages: map[metadb.ConversationKey][]channelv2.Message{
+		conversationMessages: map[metadb.ConversationKey][]channelruntime.Message{
 			key: {
 				{MessageID: 100, MessageSeq: 1, ChannelID: "room-1", ChannelType: 2},
 				{MessageID: 101, MessageSeq: 2, ChannelID: "room-1", ChannelType: 2},
@@ -2806,7 +2806,7 @@ func TestNewWiresChannelAppendIdempotencyStore(t *testing.T) {
 	cluster.snapshot = readyFakeClusterSnapshot(3, 16)
 	cluster.idempotencyOK = true
 	cluster.idempotencyHit = channelstore.IdempotencyHit{
-		Message:     channelv2.Message{MessageID: 42, MessageSeq: 7},
+		Message:     channelruntime.Message{MessageID: 42, MessageSeq: 7},
 		PayloadHash: appTestPayloadHash([]byte("payload")),
 	}
 	app, err := newTestApp(t,
@@ -2860,7 +2860,7 @@ func appTestPayloadHash(payload []byte) uint64 {
 
 func TestNewWiresConversationMutationsWhenAuthorityEnabled(t *testing.T) {
 	cluster := newFakePresenceCluster(3, nil)
-	cluster.messages = map[metadb.ConversationKey][]channelv2.Message{
+	cluster.messages = map[metadb.ConversationKey][]channelruntime.Message{
 		{ChannelID: "g1", ChannelType: 2}: {{
 			ChannelID:   "g1",
 			ChannelType: 2,
@@ -5439,7 +5439,7 @@ func TestStaticMultiNodeClusterStartsControllerVoters(t *testing.T) {
 	}
 	waitAppClusterSnapshotsConverge(t, nodes)
 
-	ack := sendDefaultMetaSmokePacket(t, apps[0], channelv2.ChannelID{ID: "room-static-three", Type: 1}, 1, "client-static-three-1")
+	ack := sendDefaultMetaSmokePacket(t, apps[0], channelruntime.ChannelID{ID: "room-static-three", Type: 1}, 1, "client-static-three-1")
 	if ack.ReasonCode != frame.ReasonSuccess {
 		t.Fatalf("sendack reason = %v, want %v", ack.ReasonCode, frame.ReasonSuccess)
 	}
@@ -5478,11 +5478,11 @@ type fakeManagerCluster struct {
 	systemUIDs   []string
 
 	conversationPages         map[string][]metadb.ConversationState
-	conversationMessages      map[metadb.ConversationKey][]channelv2.Message
+	conversationMessages      map[metadb.ConversationKey][]channelruntime.Message
 	channelRuntimeMetas       map[metadb.ConversationKey]metadb.ChannelRuntimeMeta
-	channelRetentionViews     map[metadb.ConversationKey]channelv2.RetentionView
+	channelRetentionViews     map[metadb.ConversationKey]channelruntime.RetentionView
 	pluginBindingsByUID       map[string][]metadb.PluginUserBinding
-	channelOwnerMetas         map[channelv2.ChannelID]channelv2.Meta
+	channelOwnerMetas         map[channelruntime.ChannelID]channelruntime.Meta
 	registeredHandlers        map[uint8]clusterpkg.NodeRPCHandler
 	rpcNodeID                 uint64
 	rpcServiceID              uint8
@@ -5906,7 +5906,7 @@ func (f *fakeManagerCluster) UnbindPluginUser(_ context.Context, uid, pluginNo s
 	return nil
 }
 
-func (f *fakeManagerCluster) ReadChannelLastVisible(_ context.Context, channelID channelv2.ChannelID, visibleAfterSeq uint64) (channelv2.Message, bool, error) {
+func (f *fakeManagerCluster) ReadChannelLastVisible(_ context.Context, channelID channelruntime.ChannelID, visibleAfterSeq uint64) (channelruntime.Message, bool, error) {
 	key := metadb.ConversationKey{ChannelID: channelID.ID, ChannelType: int64(channelID.Type)}
 	messages := f.conversationMessages[key]
 	for i := len(messages) - 1; i >= 0; i-- {
@@ -5914,13 +5914,13 @@ func (f *fakeManagerCluster) ReadChannelLastVisible(_ context.Context, channelID
 			return messages[i], true, nil
 		}
 	}
-	return channelv2.Message{}, false, nil
+	return channelruntime.Message{}, false, nil
 }
 
-func (f *fakeManagerCluster) ReadChannelCommitted(_ context.Context, channelID channelv2.ChannelID, req channelstore.ReadCommittedRequest) (channelstore.ReadCommittedResult, error) {
+func (f *fakeManagerCluster) ReadChannelCommitted(_ context.Context, channelID channelruntime.ChannelID, req channelstore.ReadCommittedRequest) (channelstore.ReadCommittedResult, error) {
 	key := metadb.ConversationKey{ChannelID: channelID.ID, ChannelType: int64(channelID.Type)}
 	source := f.conversationMessages[key]
-	messages := make([]channelv2.Message, 0, len(source))
+	messages := make([]channelruntime.Message, 0, len(source))
 	for _, message := range source {
 		if req.MinSeq > 0 && message.MessageSeq < req.MinSeq {
 			continue
@@ -5955,7 +5955,7 @@ func (f *fakeManagerCluster) GetChannelRuntimeMeta(_ context.Context, channelID 
 	return meta, nil
 }
 
-func (f *fakeManagerCluster) ChannelRetentionView(_ context.Context, id channelv2.ChannelID) (channelv2.RetentionView, error) {
+func (f *fakeManagerCluster) ChannelRetentionView(_ context.Context, id channelruntime.ChannelID) (channelruntime.RetentionView, error) {
 	key := metadb.ConversationKey{ChannelID: id.ID, ChannelType: int64(id.Type)}
 	if view, ok := f.channelRetentionViews[key]; ok {
 		return view, nil
@@ -5969,7 +5969,7 @@ func (f *fakeManagerCluster) ChannelRetentionView(_ context.Context, id channelv
 	if maxSeq == 0 {
 		maxSeq = ^uint64(0)
 	}
-	return channelv2.RetentionView{HW: maxSeq, CheckpointHW: maxSeq, MinISRMatchOffset: maxSeq}, nil
+	return channelruntime.RetentionView{HW: maxSeq, CheckpointHW: maxSeq, MinISRMatchOffset: maxSeq}, nil
 }
 
 func (f *fakeManagerCluster) AdvanceChannelRetentionThroughSeq(_ context.Context, req metadb.ChannelRetentionAdvance) error {
@@ -5982,9 +5982,9 @@ func (f *fakeManagerCluster) AdvanceChannelRetentionThroughSeq(_ context.Context
 	return nil
 }
 
-func (f *fakeManagerCluster) ResolveChannelAppendAuthority(_ context.Context, id channelv2.ChannelID) (channelv2.Meta, error) {
+func (f *fakeManagerCluster) ResolveChannelAppendAuthority(_ context.Context, id channelruntime.ChannelID) (channelruntime.Meta, error) {
 	if f.channelOwnerMetas == nil {
-		return channelv2.Meta{}, nil
+		return channelruntime.Meta{}, nil
 	}
 	return f.channelOwnerMetas[id], nil
 }
@@ -5999,16 +5999,16 @@ func (f *fakeRuntimeBenchCluster) NodeID() uint64 {
 	return 1
 }
 
-func (f *fakeRuntimeBenchCluster) ChannelRuntimeSnapshot(context.Context) (channelv2.RuntimeSnapshot, error) {
-	return channelv2.RuntimeSnapshot{NodeID: 1}, nil
+func (f *fakeRuntimeBenchCluster) ChannelRuntimeSnapshot(context.Context) (channelruntime.RuntimeSnapshot, error) {
+	return channelruntime.RuntimeSnapshot{NodeID: 1}, nil
 }
 
-func (f *fakeRuntimeBenchCluster) ChannelRuntimeProbe(context.Context, channelv2.RuntimeSelector) (channelv2.RuntimeProbeResult, error) {
-	return channelv2.RuntimeProbeResult{}, nil
+func (f *fakeRuntimeBenchCluster) ChannelRuntimeProbe(context.Context, channelruntime.RuntimeSelector) (channelruntime.RuntimeProbeResult, error) {
+	return channelruntime.RuntimeProbeResult{}, nil
 }
 
-func (f *fakeRuntimeBenchCluster) ChannelRuntimeEvict(context.Context, channelv2.RuntimeSelector) (channelv2.RuntimeEvictResult, error) {
-	return channelv2.RuntimeEvictResult{}, nil
+func (f *fakeRuntimeBenchCluster) ChannelRuntimeEvict(context.Context, channelruntime.RuntimeSelector) (channelruntime.RuntimeEvictResult, error) {
+	return channelruntime.RuntimeEvictResult{}, nil
 }
 
 type fakeWriteReadyCluster struct {
@@ -6084,7 +6084,7 @@ type fakePresenceCluster struct {
 	idempotencyOK             bool
 	idempotencyErr            error
 	idempotencyLookups        int
-	messages                  map[metadb.ConversationKey][]channelv2.Message
+	messages                  map[metadb.ConversationKey][]channelruntime.Message
 	conversationStateBatches  [][]metadb.ConversationState
 	conversationDeleteBatches [][]metadb.ConversationDelete
 	conversationPatchBatches  [][]metadb.ConversationActivePatch
@@ -6096,7 +6096,7 @@ type fakeConversationFallbackCluster struct {
 	fakeCluster
 	appendSeq                uint64
 	mu                       sync.Mutex
-	messages                 map[metadb.ConversationKey][]channelv2.Message
+	messages                 map[metadb.ConversationKey][]channelruntime.Message
 	conversationStateBatches [][]metadb.ConversationState
 	subscribers              map[string][]string
 	channels                 map[metadb.ConversationKey]metadb.Channel
@@ -6366,18 +6366,18 @@ func readyFakeClusterSnapshot(nodeID uint64, hashSlotCount uint16) clusterpkg.Sn
 	}
 }
 
-func fakeChannelAuthorityMeta(nodeID uint64, id channelv2.ChannelID) channelv2.Meta {
-	leader := channelv2.NodeID(nodeID)
-	return channelv2.Meta{
-		Key:         channelv2.ChannelKeyForID(id),
+func fakeChannelAuthorityMeta(nodeID uint64, id channelruntime.ChannelID) channelruntime.Meta {
+	leader := channelruntime.NodeID(nodeID)
+	return channelruntime.Meta{
+		Key:         channelruntime.ChannelKeyForID(id),
 		ID:          id,
 		Epoch:       1,
 		LeaderEpoch: 1,
 		Leader:      leader,
-		Replicas:    []channelv2.NodeID{leader},
-		ISR:         []channelv2.NodeID{leader},
+		Replicas:    []channelruntime.NodeID{leader},
+		ISR:         []channelruntime.NodeID{leader},
 		MinISR:      1,
-		Status:      channelv2.StatusActive,
+		Status:      channelruntime.StatusActive,
 	}
 }
 
@@ -6514,7 +6514,7 @@ func (f *fakePresenceCluster) NodeID() uint64 {
 	return f.nodeID
 }
 
-func (f *fakePresenceCluster) ResolveChannelAppendAuthority(_ context.Context, id channelv2.ChannelID) (channelv2.Meta, error) {
+func (f *fakePresenceCluster) ResolveChannelAppendAuthority(_ context.Context, id channelruntime.ChannelID) (channelruntime.Meta, error) {
 	return fakeChannelAuthorityMeta(f.nodeID, id), nil
 }
 
@@ -6553,22 +6553,22 @@ func (f *fakePresenceCluster) RegisterRPC(serviceID uint8, handler clusterpkg.No
 	f.registeredHandlers[serviceID] = handler
 }
 
-func (f *fakePresenceCluster) AppendChannelBatch(_ context.Context, req channelv2.AppendBatchRequest) (channelv2.AppendBatchResult, error) {
-	fakeItems := make([]channelv2.AppendBatchItemResult, 0, len(req.Messages))
+func (f *fakePresenceCluster) AppendChannelBatch(_ context.Context, req channelruntime.AppendBatchRequest) (channelruntime.AppendBatchResult, error) {
+	fakeItems := make([]channelruntime.AppendBatchItemResult, 0, len(req.Messages))
 	for _, msg := range req.Messages {
 		f.appendSeq++
 		msg.MessageSeq = f.appendSeq
 		msg.Payload = append([]byte(nil), msg.Payload...)
-		fakeItems = append(fakeItems, channelv2.AppendBatchItemResult{
+		fakeItems = append(fakeItems, channelruntime.AppendBatchItemResult{
 			MessageID:  msg.MessageID,
 			MessageSeq: msg.MessageSeq,
 			Message:    msg,
 		})
 	}
-	return channelv2.AppendBatchResult{Items: fakeItems}, nil
+	return channelruntime.AppendBatchResult{Items: fakeItems}, nil
 }
 
-func (f *fakePresenceCluster) LookupChannelIdempotency(_ context.Context, _ channelv2.ChannelID, _ string, _ string) (channelstore.IdempotencyHit, bool, error) {
+func (f *fakePresenceCluster) LookupChannelIdempotency(_ context.Context, _ channelruntime.ChannelID, _ string, _ string) (channelstore.IdempotencyHit, bool, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.idempotencyLookups++
@@ -6660,7 +6660,7 @@ func (f *fakePresenceCluster) GetConversationStates(ctx context.Context, keys []
 	return states, nil
 }
 
-func (f *fakePresenceCluster) ReadChannelLastVisible(_ context.Context, id channelv2.ChannelID, visibleAfterSeq uint64) (channelv2.Message, bool, error) {
+func (f *fakePresenceCluster) ReadChannelLastVisible(_ context.Context, id channelruntime.ChannelID, visibleAfterSeq uint64) (channelruntime.Message, bool, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	messages := f.messages[metadb.ConversationKey{ChannelID: id.ID, ChannelType: int64(id.Type)}]
@@ -6672,10 +6672,10 @@ func (f *fakePresenceCluster) ReadChannelLastVisible(_ context.Context, id chann
 		msg.Payload = append([]byte(nil), msg.Payload...)
 		return msg, true, nil
 	}
-	return channelv2.Message{}, false, nil
+	return channelruntime.Message{}, false, nil
 }
 
-func (f *fakePresenceCluster) ReadChannelCommitted(context.Context, channelv2.ChannelID, channelstore.ReadCommittedRequest) (channelstore.ReadCommittedResult, error) {
+func (f *fakePresenceCluster) ReadChannelCommitted(context.Context, channelruntime.ChannelID, channelstore.ReadCommittedRequest) (channelstore.ReadCommittedResult, error) {
 	return channelstore.ReadCommittedResult{}, nil
 }
 
@@ -6690,33 +6690,33 @@ func (f *fakePresenceCluster) WatchRouteAuthorities() <-chan clusterpkg.RouteAut
 	return ch
 }
 
-func (f *fakeConversationFallbackCluster) AppendChannelBatch(_ context.Context, req channelv2.AppendBatchRequest) (channelv2.AppendBatchResult, error) {
+func (f *fakeConversationFallbackCluster) AppendChannelBatch(_ context.Context, req channelruntime.AppendBatchRequest) (channelruntime.AppendBatchResult, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.messages == nil {
-		f.messages = make(map[metadb.ConversationKey][]channelv2.Message)
+		f.messages = make(map[metadb.ConversationKey][]channelruntime.Message)
 	}
 	key := metadb.ConversationKey{ChannelID: req.ChannelID.ID, ChannelType: int64(req.ChannelID.Type)}
-	items := make([]channelv2.AppendBatchItemResult, 0, len(req.Messages))
+	items := make([]channelruntime.AppendBatchItemResult, 0, len(req.Messages))
 	for _, msg := range req.Messages {
 		f.appendSeq++
 		msg.MessageSeq = f.appendSeq
 		msg.Payload = append([]byte(nil), msg.Payload...)
 		f.messages[key] = append(f.messages[key], msg)
-		items = append(items, channelv2.AppendBatchItemResult{
+		items = append(items, channelruntime.AppendBatchItemResult{
 			MessageID:  msg.MessageID,
 			MessageSeq: msg.MessageSeq,
 			Message:    msg,
 		})
 	}
-	return channelv2.AppendBatchResult{Items: items}, nil
+	return channelruntime.AppendBatchResult{Items: items}, nil
 }
 
 func (f *fakeConversationFallbackCluster) NodeID() uint64 {
 	return 3
 }
 
-func (f *fakeConversationFallbackCluster) ResolveChannelAppendAuthority(_ context.Context, id channelv2.ChannelID) (channelv2.Meta, error) {
+func (f *fakeConversationFallbackCluster) ResolveChannelAppendAuthority(_ context.Context, id channelruntime.ChannelID) (channelruntime.Meta, error) {
 	return fakeChannelAuthorityMeta(3, id), nil
 }
 
@@ -6838,7 +6838,7 @@ func (f *fakeConversationFallbackCluster) GetConversationStates(ctx context.Cont
 	return states, nil
 }
 
-func (f *fakeConversationFallbackCluster) ReadChannelLastVisible(_ context.Context, id channelv2.ChannelID, visibleAfterSeq uint64) (channelv2.Message, bool, error) {
+func (f *fakeConversationFallbackCluster) ReadChannelLastVisible(_ context.Context, id channelruntime.ChannelID, visibleAfterSeq uint64) (channelruntime.Message, bool, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	key := metadb.ConversationKey{ChannelID: id.ID, ChannelType: int64(id.Type)}
@@ -6851,15 +6851,15 @@ func (f *fakeConversationFallbackCluster) ReadChannelLastVisible(_ context.Conte
 		msg.Payload = append([]byte(nil), msg.Payload...)
 		return msg, true, nil
 	}
-	return channelv2.Message{}, false, nil
+	return channelruntime.Message{}, false, nil
 }
 
-func (f *fakeConversationFallbackCluster) ReadChannelCommitted(_ context.Context, id channelv2.ChannelID, req channelstore.ReadCommittedRequest) (channelstore.ReadCommittedResult, error) {
+func (f *fakeConversationFallbackCluster) ReadChannelCommitted(_ context.Context, id channelruntime.ChannelID, req channelstore.ReadCommittedRequest) (channelstore.ReadCommittedResult, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	key := metadb.ConversationKey{ChannelID: id.ID, ChannelType: int64(id.Type)}
 	messages := f.messages[key]
-	out := make([]channelv2.Message, 0, req.Limit)
+	out := make([]channelruntime.Message, 0, req.Limit)
 	limit := req.Limit
 	if limit <= 0 {
 		limit = len(messages)
@@ -6878,7 +6878,7 @@ func (f *fakeConversationFallbackCluster) ReadChannelCommitted(_ context.Context
 			if msg.MessageSeq > maxSeq {
 				continue
 			}
-			out = append(out, cloneChannelV2Message(msg))
+			out = append(out, cloneChannelMessage(msg))
 			if len(out) >= limit || seq == 1 {
 				break
 			}
@@ -6890,7 +6890,7 @@ func (f *fakeConversationFallbackCluster) ReadChannelCommitted(_ context.Context
 		fromSeq = 1
 	}
 	for seq := fromSeq; seq <= maxSeq && seq <= uint64(len(messages)); seq++ {
-		out = append(out, cloneChannelV2Message(messages[seq-1]))
+		out = append(out, cloneChannelMessage(messages[seq-1]))
 		if len(out) >= limit {
 			break
 		}
@@ -6898,7 +6898,7 @@ func (f *fakeConversationFallbackCluster) ReadChannelCommitted(_ context.Context
 	return channelstore.ReadCommittedResult{Messages: out}, nil
 }
 
-func cloneChannelV2Message(msg channelv2.Message) channelv2.Message {
+func cloneChannelMessage(msg channelruntime.Message) channelruntime.Message {
 	msg.Payload = append([]byte(nil), msg.Payload...)
 	return msg
 }

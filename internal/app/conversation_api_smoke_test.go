@@ -11,7 +11,7 @@ import (
 	"time"
 
 	accessapi "github.com/WuKongIM/WuKongIM/internal/access/api"
-	channelv2 "github.com/WuKongIM/WuKongIM/pkg/channel"
+	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
@@ -184,8 +184,8 @@ func TestConversationListAPIReadsActiveRowAndLastVisibleMessage(t *testing.T) {
 func TestConversationListAPIPaginatesWithNextCursor(t *testing.T) {
 	cfg := singleNodeClusterAppConfig(t)
 	cfg.API.ListenAddr = "127.0.0.1:0"
-	firstChannel := channelv2.ChannelID{ID: "room-conversation-page-old", Type: frame.ChannelTypeGroup}
-	secondChannel := channelv2.ChannelID{ID: "room-conversation-page-new", Type: frame.ChannelTypeGroup}
+	firstChannel := channelruntime.ChannelID{ID: "room-conversation-page-old", Type: frame.ChannelTypeGroup}
+	secondChannel := channelruntime.ChannelID{ID: "room-conversation-page-new", Type: frame.ChannelTypeGroup}
 	firstActiveAt := int64(1000)
 	secondActiveAt := int64(2000)
 	app, err := New(cfg)
