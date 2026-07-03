@@ -16,7 +16,7 @@ conversation usecase and keep ordering, cursor rules, sync candidate selection,
 and message reads out of the HTTP layer. When the composition root provides a
 benchmark data writer,
 `/bench/v1/channels` and `/bench/v1/channels/subscribers` forward setup
-mutations through that writer; for `cmd/wukongimv2` delivery benchmarks the
+mutations through that writer; for `cmd/wukongim` delivery benchmarks the
 writer persists real clusterv2 Slot metadata.
 
 ## Routes
@@ -98,7 +98,7 @@ queue depth/capacity, thresholds, ready part, or sendack error rate, so detail
 views can explain why the alert fired without scraping Prometheus metrics.
 
 All `/debug...` routes are enabled only when the composition root passes
-`DebugAPIEnabled=true`. In `cmd/wukongimv2`, that switch is
+`DebugAPIEnabled=true`. In `cmd/wukongim`, that switch is
 `WK_DEBUG_API_ENABLE`. Diagnostics debug routes also require a diagnostics reader
 and query the node-local bounded diagnostics store for controlled performance and
 troubleshooting runs.

@@ -72,7 +72,8 @@ directory tree.
 - When a scenario needs custom artifact roots or node config overrides for
   debugging, pass `test/e2e/suite` options directly to
   `StartSingleNodeCluster(...)` or `StartThreeNodeCluster(...)`.
-- `cmd/wukongimv2` scenarios live under `test/e2ev2`.
+- New-architecture scenarios live under `test/e2ev2` and start real
+  `cmd/wukongim` processes while covering `internalv2` behavior.
 
 ## Catalog
 

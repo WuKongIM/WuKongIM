@@ -181,9 +181,12 @@ channel IDs so data remains compatible with the legacy metadata layout. These
 APIs do not bypass cluster semantics; single-node deployment is handled as a
 single-node cluster.
 
-## Phase-1 Non-Goals
+## Promoted Entrypoint Boundary
 
-- Do not wire `internalv2` into `cmd/wukongim` yet.
+- `cmd/wukongim` is the promoted product entrypoint and wires
+  `internalv2/app` by default.
+- Do not rename `internalv2`, `pkg/clusterv2`, `pkg/controllerv2`, or
+  `pkg/channelv2` package paths in this promotion stage.
 - Do not migrate legacy plugin hooks or remaining management APIs not listed in
   the internalv2 manager/access flows.
 - Do not implement realtime `NoPersist` delivery yet; return a stable

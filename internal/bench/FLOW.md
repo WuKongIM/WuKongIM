@@ -12,7 +12,7 @@
 - `devsim`: long-running development simulator supervisor used by `wkbench dev-sim`; it derives compact simulator config into normal wkbench target/scenario/plan inputs and runs an in-process worker.
 - `capacity`: maximum stable ingress QPS search used by `wkbench capacity send` and `wkbench capacity hot-channel`; it discovers target gateway addresses, generates attempt scenarios, runs a temporary local worker, and writes capacity summaries.
 - `workload`: reusable connection, person traffic, and group traffic executors.
-- `target`: black-box HTTP client for target health, readiness, bench capabilities, capacity target, setup snapshot, presence snapshot, token, channel, and subscriber APIs. Setup mutation calls use the first healthy target API address and fall back on failure; targets such as `cmd/wukongimv2` route real metadata writes through their cluster runtime.
+- `target`: black-box HTTP client for target health, readiness, bench capabilities, capacity target, setup snapshot, presence snapshot, token, channel, and subscriber APIs. Setup mutation calls use the first healthy target API address and fall back on failure; targets such as `cmd/wukongim` route real metadata writes through their cluster runtime.
 - `wkproto`: benchmark WKProto client implementation.
 - `metrics`: worker-local counters, histograms, bounded error samples, aggregation helpers, and low-cardinality Prometheus attribution parsing.
 - `report`: deterministic report construction and report directory writing.

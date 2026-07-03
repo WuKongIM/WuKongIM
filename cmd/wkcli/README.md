@@ -119,8 +119,8 @@ go run ./cmd/wkcli bench send --gateway 127.0.0.1:5100 --no-progress
 
 ## Sim
 
-`sim` drives real traffic against a running `cmd/wukongimv2` single-node
-cluster or multi-node cluster. It prepares group metadata through the v2
+`sim` drives real traffic against a running `cmd/wukongim` single-node cluster
+or multi-node cluster. It prepares group metadata through the v2
 `/bench/v1/*` HTTP API, keeps generated users online through the WKProto
 gateway, sends group `SEND -> SENDACK` traffic, and exposes local simulator
 status.
