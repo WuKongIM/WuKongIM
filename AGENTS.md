@@ -126,6 +126,7 @@ pkg/
     internal/            Pebble engine、key/row codec、schema、commit coordinator、轻量 cache 等内部原语
     message/             Channel 消息日志、索引、checkpoint、epoch history、snapshot、retention、兼容 ChannelStore API
     meta/                Hash-slot 元数据表、批处理、快照、channel runtime meta、conversation、plugin、migration 等存储
+  hashslot/              Hash-slot 路由表、迁移状态与再平衡算法
   cluster/               集群运行时
   clusterv2/             新版集群组合根：control/routing/net/slots/propose/channels/observe 分层，集成 controllerv2、slot/multiraft、channelv2
   channel/               Channel 维度复制、日志与节点间数据面

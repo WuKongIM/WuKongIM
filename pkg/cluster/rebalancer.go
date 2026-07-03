@@ -1,7 +1,7 @@
 package cluster
 
 import (
-	"github.com/WuKongIM/WuKongIM/pkg/cluster/hashslot"
+	"github.com/WuKongIM/WuKongIM/pkg/hashslot"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 )
 

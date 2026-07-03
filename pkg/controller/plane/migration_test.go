@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/WuKongIM/WuKongIM/pkg/cluster/hashslot"
+	"github.com/WuKongIM/WuKongIM/pkg/hashslot"
 	"github.com/stretchr/testify/require"
 )
 

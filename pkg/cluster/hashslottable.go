@@ -1,6 +1,6 @@
 package cluster
 
-import "github.com/WuKongIM/WuKongIM/pkg/cluster/hashslot"
+import "github.com/WuKongIM/WuKongIM/pkg/hashslot"
 
 type HashSlotTable = hashslot.HashSlotTable
 type HashSlotMigration = hashslot.HashSlotMigration

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"hash/crc32"
 
-	"github.com/WuKongIM/WuKongIM/pkg/cluster/hashslot"
+	"github.com/WuKongIM/WuKongIM/pkg/hashslot"
 	"github.com/cockroachdb/pebble/v2"
 )
 

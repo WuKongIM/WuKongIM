@@ -10,8 +10,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/WuKongIM/WuKongIM/pkg/cluster/hashslot"
 	controllermeta "github.com/WuKongIM/WuKongIM/pkg/controller/meta"
+	"github.com/WuKongIM/WuKongIM/pkg/hashslot"
 )
 
 func TestPlannerCreatesBootstrapTaskForBrandNewSlot(t *testing.T) {

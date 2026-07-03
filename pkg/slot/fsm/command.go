@@ -6,8 +6,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/WuKongIM/WuKongIM/pkg/cluster/hashslot"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	"github.com/WuKongIM/WuKongIM/pkg/hashslot"
 )
 
 // Wire format (version 1):

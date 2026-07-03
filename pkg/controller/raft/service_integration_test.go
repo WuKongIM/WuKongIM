@@ -12,9 +12,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/cluster/hashslot"
 	controllermeta "github.com/WuKongIM/WuKongIM/pkg/controller/meta"
 	slotcontroller "github.com/WuKongIM/WuKongIM/pkg/controller/plane"
+	"github.com/WuKongIM/WuKongIM/pkg/hashslot"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 	"github.com/stretchr/testify/require"
 	"go.etcd.io/raft/v3/raftpb"
