@@ -9,7 +9,7 @@ import (
 
 	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/clusterv2/net"
-	cv2 "github.com/WuKongIM/WuKongIM/pkg/controllerv2"
+	cv2 "github.com/WuKongIM/WuKongIM/pkg/controller"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )

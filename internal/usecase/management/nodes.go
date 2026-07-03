@@ -5,7 +5,7 @@ import (
 	"sort"
 	"time"
 
-	controllermeta "github.com/WuKongIM/WuKongIM/pkg/controller/meta"
+	controllermeta "github.com/WuKongIM/WuKongIM/pkg/legacy/controller/meta"
 )
 
 // NodeList is the manager-facing node inventory snapshot.

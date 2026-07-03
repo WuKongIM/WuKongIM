@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/slotmigration"
-	slotcontroller "github.com/WuKongIM/WuKongIM/pkg/controller/plane"
-	controllerraft "github.com/WuKongIM/WuKongIM/pkg/controller/raft"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	slotcontroller "github.com/WuKongIM/WuKongIM/pkg/legacy/controller/plane"
+	controllerraft "github.com/WuKongIM/WuKongIM/pkg/legacy/controller/raft"
 	metafsm "github.com/WuKongIM/WuKongIM/pkg/slot/fsm"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 )

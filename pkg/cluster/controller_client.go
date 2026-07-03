@@ -6,8 +6,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	controllermeta "github.com/WuKongIM/WuKongIM/pkg/controller/meta"
-	slotcontroller "github.com/WuKongIM/WuKongIM/pkg/controller/plane"
+	controllermeta "github.com/WuKongIM/WuKongIM/pkg/legacy/controller/meta"
+	slotcontroller "github.com/WuKongIM/WuKongIM/pkg/legacy/controller/plane"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )

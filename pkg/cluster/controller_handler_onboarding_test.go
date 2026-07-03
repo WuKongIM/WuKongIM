@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	controllermeta "github.com/WuKongIM/WuKongIM/pkg/controller/meta"
+	controllermeta "github.com/WuKongIM/WuKongIM/pkg/legacy/controller/meta"
 	"github.com/stretchr/testify/require"
 )
 

@@ -37,7 +37,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/routing"
-	cv2 "github.com/WuKongIM/WuKongIM/pkg/controllerv2"
+	cv2 "github.com/WuKongIM/WuKongIM/pkg/controller"
 	messagedb "github.com/WuKongIM/WuKongIM/pkg/db/message"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/gateway"

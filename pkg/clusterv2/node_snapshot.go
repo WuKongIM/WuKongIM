@@ -10,7 +10,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/clusterv2/net"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/routing"
-	cv2 "github.com/WuKongIM/WuKongIM/pkg/controllerv2"
+	cv2 "github.com/WuKongIM/WuKongIM/pkg/controller"
 	"github.com/WuKongIM/WuKongIM/pkg/transportv2"
 )
 

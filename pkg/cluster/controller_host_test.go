@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	controllermeta "github.com/WuKongIM/WuKongIM/pkg/controller/meta"
-	slotcontroller "github.com/WuKongIM/WuKongIM/pkg/controller/plane"
-	controllerraft "github.com/WuKongIM/WuKongIM/pkg/controller/raft"
+	controllermeta "github.com/WuKongIM/WuKongIM/pkg/legacy/controller/meta"
+	slotcontroller "github.com/WuKongIM/WuKongIM/pkg/legacy/controller/plane"
+	controllerraft "github.com/WuKongIM/WuKongIM/pkg/legacy/controller/raft"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 )
 

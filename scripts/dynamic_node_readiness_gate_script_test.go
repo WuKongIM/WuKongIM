@@ -31,9 +31,9 @@ func TestDynamicNodeReadinessGateDryRunQuickProfile(t *testing.T) {
 		"gofail_binary=" + binary,
 		"summary=" + filepath.Join(outDir, "summary.md"),
 		"command_log=" + filepath.Join(outDir, "commands.log"),
-		"controllerv2_cmd=GOWORK=off go test ./pkg/controllerv2 -count=1",
+		"controller_cmd=GOWORK=off go test ./pkg/controller -count=1",
 		"faults_default_cmd=GOWORK=off go test -tags=e2e ./test/e2ev2/cluster/dynamic_node_faults -count=1 -timeout 2m -p=1",
-		"build_gofail_cmd=scripts/build-gofail-binary.sh --cmd ./cmd/wukongim --package internalv2/usecase/management --package pkg/controllerv2 --package pkg/clusterv2/tasks --package pkg/clusterv2/net --out " + binary,
+		"build_gofail_cmd=scripts/build-gofail-binary.sh --cmd ./cmd/wukongim --package internalv2/usecase/management --package pkg/controller --package pkg/clusterv2/tasks --package pkg/clusterv2/net --out " + binary,
 		"stage10a_cmd=WK_E2E_BINARY=" + binary + " WK_E2EV2_GOFAIL_DYNAMIC_NODE=1 GOWORK=off go test -tags=e2e ./test/e2ev2/cluster/dynamic_node_faults -run 'TestStage10A|TestGofailDynamicNodeBinaryExposesFailpoints' -count=1 -timeout 15m -p=1",
 		"diff_check_cmd=git diff --check",
 	} {
@@ -181,9 +181,9 @@ func TestDynamicNodeReadinessGateWritesEvidenceWhenStepFails(t *testing.T) {
 	}
 	text := string(output)
 	for _, want := range []string{
-		"step controllerv2 failed",
+		"step controller failed",
 		"--- step log:",
-		"fake go failure for test ./pkg/controllerv2 -count=1",
+		"fake go failure for test ./pkg/controller -count=1",
 	} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("failure output missing %q:\n%s", want, text)
@@ -193,15 +193,15 @@ func TestDynamicNodeReadinessGateWritesEvidenceWhenStepFails(t *testing.T) {
 	if stepLogIndex < 0 {
 		t.Fatalf("failure output missing step log marker:\n%s", text)
 	}
-	if !strings.Contains(text[stepLogIndex:], "fake go failure for test ./pkg/controllerv2 -count=1") {
+	if !strings.Contains(text[stepLogIndex:], "fake go failure for test ./pkg/controller -count=1") {
 		t.Fatalf("failure output did not tail the step log after marker:\n%s", text)
 	}
 	summary := readFile(t, filepath.Join(outDir, "summary.md"))
-	if !strings.Contains(summary, "- controllerv2: FAIL") {
+	if !strings.Contains(summary, "- controller: FAIL") {
 		t.Fatalf("summary missing failure marker:\n%s", summary)
 	}
 	commands := readFile(t, filepath.Join(outDir, "commands.log"))
-	if !strings.Contains(commands, "controllerv2") {
+	if !strings.Contains(commands, "controller") {
 		t.Fatalf("commands log missing step name:\n%s", commands)
 	}
 	environment := readFile(t, filepath.Join(outDir, "environment.md"))

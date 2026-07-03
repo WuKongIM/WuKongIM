@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	cv2 "github.com/WuKongIM/WuKongIM/pkg/controllerv2"
+	cv2 "github.com/WuKongIM/WuKongIM/pkg/controller"
 )
 
 const defaultNodeHealthReportTTL = 30 * time.Second

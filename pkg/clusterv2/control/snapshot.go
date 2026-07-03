@@ -3,7 +3,7 @@ package control
 import (
 	"time"
 
-	cv2 "github.com/WuKongIM/WuKongIM/pkg/controllerv2"
+	cv2 "github.com/WuKongIM/WuKongIM/pkg/controller"
 )
 
 // Role describes one durable node capability in clusterv2 control state.

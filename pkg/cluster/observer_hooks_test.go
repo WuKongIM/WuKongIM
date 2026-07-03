@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/slotmigration"
-	controllermeta "github.com/WuKongIM/WuKongIM/pkg/controller/meta"
-	slotcontroller "github.com/WuKongIM/WuKongIM/pkg/controller/plane"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	controllermeta "github.com/WuKongIM/WuKongIM/pkg/legacy/controller/meta"
+	slotcontroller "github.com/WuKongIM/WuKongIM/pkg/legacy/controller/plane"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 	"github.com/WuKongIM/WuKongIM/pkg/transport"
 	"go.etcd.io/raft/v3/raftpb"

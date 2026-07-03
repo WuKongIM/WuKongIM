@@ -13,8 +13,8 @@ import (
 	"time"
 
 	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
-	controllermeta "github.com/WuKongIM/WuKongIM/pkg/controller/meta"
 	accessgateway "github.com/WuKongIM/WuKongIM/pkg/gateway"
+	controllermeta "github.com/WuKongIM/WuKongIM/pkg/legacy/controller/meta"
 	obsmetrics "github.com/WuKongIM/WuKongIM/pkg/metrics"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 	"github.com/WuKongIM/WuKongIM/pkg/transport"

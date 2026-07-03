@@ -1,0 +1,255 @@
+# pkg/legacy/controller 流程文档
+
+## 1. 职责定位
+
+旧集群控制面，负责 legacy Slot 副本分配、节点健康检测、故障自动修复与负载均衡。该包仅供旧 `pkg/cluster` 和旧 `internal` 代码在迁移期编译运行。
+**不负责**: 消息读写（由 channel 负责）、元数据存储（由 slot 负责）。
+
+## 2. 子包分工
+
+| 子包 | 入口/核心类型 | 职责 |
+|------|-------------|------|
+| `meta/` | `meta.Store` | Pebble KV 持久化：Node / Assignment / Task / Membership / NodeOnboardingJob 的 CRUD；`RuntimeView` 结构仍保留但 steady-state 读路径已转为 leader 本地 observation |
+| `raft/` | `raft.NewService()` → `Service` | Raft 共识服务：事件循环、提案处理、日志持久化、Leader 选举；提供 Controller Raft command inspection 和缓存状态，供管理后台查看本地日志条目与快照追赶状态 |
+| `plane/` | `plane.NewController()` → `Controller` | 控制面逻辑：StateMachine 命令应用 + Planner 调度决策 + Controller.Tick 编排 |
+
+## 3. 对外接口
+
+```go
+// raft/service.go — Raft 提案与本地诊断入口
+Service.Propose(ctx, Command) error   // 提交命令到 Raft（仅 Leader 可执行）
+Service.LeaderID() uint64             // 当前 Leader
+Service.Status() Status               // 读取缓存的节点本地 Controller Raft 状态；不跨 goroutine 访问 RawNode
+Service.CompactLog(ctx) (LogCompactionResult, error) // 在 Raft run loop 内手动压缩本节点已 applied 的 Controller 日志
+Service.Start(ctx) / Stop()           // 生命周期
+
+// plane/controller.go — 调度入口
+Controller.Tick(ctx) error            // 周期调用，仅 Leader 执行决策；配置 Propose 时通过 Raft 提案写入，未配置时仅用于本地测试/工具直写 Store
+
+// plane/statemachine.go — Raft 提交后的命令应用
+StateMachine.Apply(ctx, Command) error
+```
+
+## 4. 关键类型
+
+| 类型 | 文件 | 说明 |
+|------|------|------|
+| `ClusterNode` | meta/types.go | 节点：NodeID, Name, Addr, Role, JoinState, Status(Alive/Suspect/Dead/Draining), JoinedAt, LastHeartbeatAt, CapacityWeight |
+| `SlotAssignment` | meta/types.go | Slot分配：SlotID, DesiredPeers, ConfigEpoch, BalanceVersion, PreferredLeader, LeaderTransferCooldownUntil |
+| `SlotRuntimeView` | meta/types.go | Slot运行时：CurrentPeers, CurrentVoters, LeaderID, HasQuorum, ObservedConfigEpoch |
+| `ReconcileTask` | meta/types.go | 调和任务：Kind(Bootstrap/Repair/Rebalance/LeaderTransfer), Step, SourceNode, TargetNode, Attempt, Status |
+| `NodeOnboardingJob` | meta/onboarding_types.go | 新节点显式资源分配作业：planned/running/failed/completed/cancelled 状态、审核计划、执行 moves、指纹、结果计数 |
+| `Command` | plane/commands.go | 命令信封：Kind + Report/Op/Advance/Assignment/Task/Migration/AddSlot/RemoveSlot/NodeStatusUpdate/NodeJoin/NodeJoinActivate/NodeOnboarding |
+
+**节点状态转移:**
+```
+Unknown → Alive ←→ Suspect(心跳>3s) → Dead(心跳>10s)
+             ↕ (运维操作)
+          Draining
+```
+
+## 5. 核心流程
+
+### 5.1 命令提案与应用
+
+入口: `raft/service.go:214 Propose` → `raft/service.go:304 run` → `plane/statemachine.go:47 Apply`
+
+```
+  ① 客户端调用 Propose(cmd)
+  ② 事件循环检查是否 Leader → 非 Leader 返回 ErrNotLeader
+  ③ encodeCommand(cmd) → 二进制 command envelope（保留 legacy JSON 解码以兼容已持久化日志）
+  ④ rawNode.Propose(data)
+  ⑤ processReady: 持久化 → transport.Send → 等待多数确认
+  ⑥ CommittedEntries: decodeCommand → StateMachine.Apply(cmd)
+  ⑦ 通知提案者 (resp channel)
+```
+
+### 5.2 StateMachine 命令
+
+入口: `plane/statemachine.go:47 Apply`
+
+```
+NodeHeartbeat (statemachine.go:79):
+  兼容命令；仍可查找/创建节点并更新 Addr/Heartbeat/Weight/RuntimeView，但 steady-state 观测路径已不再持续提案该命令
+
+NodeJoin / NodeJoinActivate:
+  Join 创建 `Role=Data`、`JoinState=Joining` 的数据节点，不变更 Controller voter 集合；FullSync 后由 Controller RPC 路径提案 Activate 转为 `JoinState=Active`
+
+NodeOnboardingJobUpdate:
+  复制新节点资源分配作业的完整状态；可带 ExpectedStatus 做状态保护，可带 Assignment+Task 原子写入单个 Slot 的 Rebalance 任务
+  ExpectedStatus 不匹配、已有其它 running job、或 running-job 竞态均按幂等 no-op 处理，避免把应用冲突作为 Raft Apply fatal error 返回
+
+OperatorRequest (statemachine.go:113):
+  MarkDraining → Status=Draining
+  Resume → Status=Alive + 原子删除所有Repair任务 (store.UpsertNodeAndDeleteRepairTasks)
+
+NodeStatusUpdate (statemachine.go):
+  按批读取目标节点 → 校验可选 expected prior status → 应用 Alive/Suspect/Dead/Draining 边沿状态 → 持久化节点
+
+EvaluateTimeouts (statemachine.go:142):
+  兼容扫描逻辑仍保留在状态机中，但 steady-state 控制流已不再周期性提案该命令
+
+TaskResult (statemachine.go:168):
+  成功(Err=nil) → 删除任务
+  普通任务失败 → Attempt++, <MaxAttempts(3)则Retrying+指数退避, 否则Failed
+  LeaderTransfer 失败 → 未耗尽时 Retrying；终态失败时删除 Task，并写入 LeaderTransferCooldownUntil，避免失败任务永久占用 Slot
+
+AssignmentTaskUpdate (statemachine.go:200):
+  Repair任务先检查SourceNode是否恢复(已Alive→过时跳过) → 原子持久化Assignment+Task
+
+StartMigration / AdvanceMigration / AbortMigration:
+  读取 HashSlotTable → 更新迁移状态 → 保存回 controllermeta
+
+FinalizeMigration:
+  读取 HashSlotTable → 将 hash slot 最终切换到 Target → 若 Source 已无 hash slot 且无剩余迁移，则原子删除对应 SlotAssignment/Task → 保存回 controllermeta
+
+AddSlot:
+  若已有 hash-slot 迁移、PreferredLeader 为空或不在 Peers 中则拒绝
+  → 创建带 PreferredLeader 的新 SlotAssignment，并把 Bootstrap 任务 TargetNode 指向该 PreferredLeader
+  → 调用 hash-slot 再平衡算法，为迁入新 Slot 的 hash slot 建立 Snapshot 阶段迁移记录
+
+RemoveSlot:
+  若已有 hash-slot 迁移或正在移除最后一个物理 Slot 则拒绝
+  → 调用 hash-slot 再平衡算法 → 为被移除 Slot 上的 hash slot 建立 Snapshot 阶段迁移记录
+  SlotAssignment 先保留，待最后一个 hash slot FinalizeMigration 后自动删除
+```
+
+### 5.3 Planner 调度决策
+
+入口: `plane/planner.go:93 NextDecision`
+
+```
+第一遍 — 遍历当前物理 Slot 集合:
+  Slot 集合来自 HashSlotTable 当前分配 + 已存在 Assignment/Runtime/Task；
+  仅 HashSlotTable 缺失时回退到 InitialSlotCount/SlotCount 做初始 bootstrap seed。
+  ReconcileSlot (planner.go:22):
+    ① 无仲裁 → Degraded(等待)
+    ② 有进行中Task → 检查 taskRunnable(Pending直接可执行, Retrying等NextRunAt)
+    ③ 无Assignment且无RuntimeView → Bootstrap:
+       selectBootstrapPeers → 选 ReplicaN 个最低负载 Active+Alive+Data 节点 (planner.go)
+       choosePreferredLeader → 按已观测 LeaderID 或缺失观测时的 PreferredLeader 负载选择 DesiredPeers 中最低负载节点
+       Assignment.PreferredLeader 持久化，Bootstrap 任务 TargetNode 指向 PreferredLeader
+    ④ DesiredPeers 中有 Dead/Draining 或非 Active Data 成员 → Repair:
+       firstPeerNeedingRepair → selectRepairTarget
+       PreferredLeader 仍在新 DesiredPeers 且 Active+Alive+Data 时保留，否则按 leader 负载重新选择
+  找到第一个需要处理的 → 立即返回
+
+第二遍 — 无紧急任务时尝试 Rebalance (planner.go:107):
+  ① slotLoads 计算每节点 Slot 数 (planner.go:237)
+  ② loadExtremes 仅在 Active+Alive+Data 节点中找 min/max 节点 (planner.go)
+  ③ maxLoad - minLoad < 阈值(默认2) → 无需均衡
+  ④ 找候选: 在maxNode上且不在minNode上, 有仲裁, 无失败任务
+  ⑤ 迁移中的物理 Slot(source/target 任一侧)跳过 Repair/Rebalance，避免副本迁移和 hash-slot 数据迁移叠加
+  ⑥ 按 BalanceVersion 排序(最久未动优先) → 生成 Rebalance 任务，并为新 DesiredPeers 保留或重选 PreferredLeader
+
+第三遍 — 无副本变更时尝试 LeaderTransfer:
+  ① 要求所有已分配、非迁移、非锁定的多副本 Slot 都有完整 RuntimeView：LeaderID、CurrentVoters、HasQuorum
+  ② 仅使用实际 LeaderID 负载做倾斜判断；缺失观测时 fail-closed，不混用 PreferredLeader
+  ③ 目标必须在 DesiredPeers、CurrentVoters 中，且是 Active+Alive+Data 节点；单节点集群不生成 LeaderTransfer 任务
+  ④ 冷却中、已有任务、迁移/锁定、目标等于当前 leader、或转移后超过 leader skew 阈值时跳过
+  ⑤ 生成 TaskKindLeaderTransfer/TaskStepTransferLeader，必要时同步更新 Assignment.PreferredLeader，但不单独增加 ConfigEpoch
+
+节点 Onboarding 计划 (onboarding_planner.go):
+  ① 输入 target node、Nodes、Assignments、Tasks、RuntimeViews、running jobs
+  ② 只允许 Active+Alive+Data 目标节点；不满足时生成 blocked reason，但仍可持久化 planned job 供管理后台查看
+  ③ 按当前负载模拟把 Slot replica 逐个迁入 target，跳过无 runtime view、无仲裁、已有任务、任务失败、hash-slot 迁移中、无安全 source 的 Slot
+  ④ 优先选择 source 当前为 leader 的 Slot，并按 source 负载、BalanceVersion、SlotID 做确定性排序；需要 leader 迁移时标记 LeaderTransferRequired
+  ⑤ 计划指纹使用 canonical JSON + SHA-256，Start 前重新计算，防止审核后 Assignment/Runtime 状态变化导致执行旧计划
+```
+
+### 5.4 Controller.Tick 编排
+
+入口: `plane/controller.go:40 Tick`
+
+```
+  ① isLeader() → 非 Leader 直接返回
+  ② snapshot() → 从 Store 加载 durable Nodes/Assignments/Tasks，并从 Controller Leader 本地 observation snapshot 取 RuntimeViews
+  ③ 若 leader 仍处于 warmup（尚未收到新鲜观测）则跳过本轮规划
+  ④ Planner.NextDecision(state) → Decision{SlotID, Assignment, Task}
+     - 上层 cluster 可设置 PauseRebalance：暂停普通自动 Rebalance，但 Bootstrap/Repair 仍继续
+     - 上层 cluster 可设置 LockedSlots：跳过由 Onboarding 外部协调器占用的 Slot，避免普通 planner 抢同一 Slot
+  ⑤ SlotID == 0 → 无需操作
+  ⑥ 持久化:
+     配置 ControllerConfig.Propose → 提案 AssignmentTaskUpdate，由 Raft commit 后 StateMachine.Apply 写入 Store
+     未配置 Propose（本地测试/工具兼容路径）:
+       有 Assignment+Task → store.UpsertAssignmentTask (原子)
+       仅 Assignment → store.UpsertAssignment
+       仅 Task → store.UpsertTask
+```
+
+节点 Onboarding 执行协调 (onboarding_executor.go):
+```
+ValidateNodeOnboardingStart:
+  planned job 必须无 blocked reasons、含可执行 move，且当前状态重新生成的 plan fingerprint 必须等于审核时指纹
+
+NextNodeOnboardingAction:
+  ① 每次只返回一个状态转移，外层每个 controller tick 最多提案一条 command
+  ② pending move 若目标 Assignment 已满足则 skipped，否则写入新 Assignment + TaskKindRebalance 并把 move 标记 running
+  ③ running move 等 Assignment/Runtime 收敛；若需 leader transfer，先请求外层转移 Slot Leader，再标记 completed
+  ④ 任一兼容性错误或 leader transfer 失败会把 move/job 标记 failed；所有 moves 终态成功后 job 标记 completed
+```
+
+### 5.5 任务步骤推进
+
+每个 ReconcileTask 按以下顺序逐步推进（由外部任务执行器驱动，每步完成后上报 TaskResult）:
+```
+AddLearner → CatchUp → Promote → TransferLeader → RemoveOld
+```
+
+## 6. 存储层要点
+
+- **记录前缀**: `n`(Node) / `m`(Membership) / `a`(Assignment) / `v`(RuntimeView) / `t`(Task) / `o`(NodeOnboardingJob) → `meta/store.go`
+- **二进制编解码**: 第一字节版本号，大端序整数，varint 变长字段 → `meta/codec.go`
+- **原子操作**: `UpsertNodeAndDeleteRepairTasks` / `UpsertAssignmentTask` / `GuardedUpsertOnboardingJob` → 保证跨记录一致性；Onboarding 开始单个 move 时可在同一 batch 写 job + assignment + task
+- **快照**: Magic("WKCS") + Version + Entries + CRC32 → `meta/snapshot.go`
+
+## 7. Raft 配置
+
+| 参数 | 值 | 位置 |
+|------|-----|------|
+| tickInterval | 100ms | raft/service.go |
+| electionTick | 10 (= 1s) | raft/service.go |
+| heartbeatTick | 1 (= 100ms) | raft/service.go |
+| MaxInflightMsgs | 256 | raft/service.go |
+| CheckQuorum / PreVote | true / true | raft/service.go |
+| Bootstrap 触发 | 无持久化状态 + AllowBootstrap + 最小PeerID | raft/service.go:170 |
+| Raft Logger | `wklog` 结构化日志，模块 `controller.raft`，附带 `raftScope=controller` / `nodeID` / `raftEvent`；heartbeat/read-index/probe 类噪声按 Debug 输出 | raft/logging.go |
+| Controller log compaction | 默认开启；按 applied entry 增量导出 controller meta snapshot，写入 Controller Raft snapshot，并裁剪旧本地 entries | raft/service.go |
+
+Controller Raft snapshot compaction:
+```
+  ① apply committed entries and mark applied
+  ② after RawNode.Advance, if applied delta reaches threshold, export meta snapshot
+  ③ persist raft snapshot to raftlog, then compact MemoryStorage
+  ④ startup restores snapshot first, then replays post-snapshot entries
+  ⑤ Ready.Snapshot is restored before marking its index applied
+  ⑥ manual compaction uses the same snapshot/export path inside the run loop, bypasses threshold/interval checks, and still operates per node-local Controller Raft log
+  ⑦ large MsgSnap payloads are split on the Controller Raft transport and reassembled before RawNode.Step, so Controller snapshots are not limited to one transport frame
+```
+
+Controller Raft status diagnostics:
+```
+  ① run loop records raft role / leader / term into a cached Status snapshot
+  ② compaction checks record enabled / trigger / last snapshot / degraded error state
+  ③ startup and Ready snapshot restore paths record last restored snapshot or restore failure
+  ④ leader records follower progress, pending snapshots, and recent activity for catch-up diagnosis
+  ⑤ external readers use Service.Status(); RawNode remains confined to the run loop
+```
+
+## 8. 避坑清单
+
+- **仅 Leader 规划**: `Controller.Tick` 第一行检查 `isLeader()`，Follower 上调用是空操作。生产路径应配置 `ControllerConfig.Propose` 或使用 `cluster.controllerTickOnce()`，不要绕过 Raft 在 Follower 上直接写 Store。
+- **Repair 过时检测**: `statemachine.go:repairTaskObsolete` 在应用 Repair 任务前检查 SourceNode 是否已恢复为 Alive。跳过则避免不必要的迁移。
+- **Attempt 匹配**: `applyTaskResult` 用 Attempt 字段防止过期的 TaskResult 影响新一轮任务。Attempt 不匹配时静默忽略。
+- **Draining 不受观测恢复影响**: `NodeStatusUpdate` / `applyNodeHeartbeat` 都不能把 Draining 自动恢复为 Alive，必须通过 OperatorResumeNode 显式恢复。
+- **健康状态改为边沿复制**: steady-state 不再周期性 `EvaluateTimeouts`；由 leader 本地 deadline scheduler 只在状态跨边沿时提案 `NodeStatusUpdate`。
+- **规划依赖 leader 本地 observation**: RuntimeView 不再是 steady-state 的 replicated metadata。新 leader warmup 期间必须 fail-closed，优先延迟 Repair/Rebalance/LeaderTransfer，避免误判。
+- **PreferredLeader 是软意图**: `SlotAssignment.PreferredLeader` 只表达 Controller 的目标 Leader；Raft 当前 Leader 和 CurrentVoters 仍是执行 LeaderTransfer 的权威安全输入。
+- **指数退避上限**: `retryDelay` 中 shift 上限为 30，防止溢出。重试延迟 = base × 2^(attempt-1)。
+- **Command 序列化为二进制**: `raft/service.go:encodeCommand` 写入带 magic/version/field mask 的二进制 command envelope；`decodeCommand` 仍能读取 legacy JSON 日志，TaskAdvance.Err 仍按 string 还原为 `errors.New`。
+- **Controller 日志 inspection**: `raft/command_inspection.go:DecodeCommandInspection` 只暴露脱敏、JSON-friendly 的 command 摘要，供 `pkg/cluster` 读取 Controller Raft 日志时展示；管理后台不直接解析 command wire format。
+- **Controller log compaction 恢复边界**: 启动时先导入持久化 snapshot，再以 `snapshot.Metadata.Index` 作为 RawNode applied point，让 snapshot 之后仍存在的 entries 继续 replay；不要用更靠后的 persisted applied index 跳过 replay。
+- **Controller Raft 大快照传输**: Controller `MsgSnap` 超过 transport 单帧预算时使用 `msgTypeControllerRaftSnapshotChunk` 分片；接收端必须完整重组后再进入 Controller Raft `Step`。
+- **Leader 丢失时清理**: `raft/service.go:failInflightProposalsOnLeaderLoss` 在每次状态检查后清理所有 pending 提案，返回 ErrNotLeader。
+- **Onboarding Apply 冲突必须 no-op**: `NodeOnboardingJobUpdate` 的状态保护、单 running job 保护和竞态保护都不能从 StateMachine.Apply 返回业务错误；调用方必须在 propose 后重新读取 job 判断转换是否真的生效。
+- **Onboarding 与普通 Rebalance 互斥**: running onboarding job 存在时，上层 cluster tick 会暂停普通自动 Rebalance，并锁定当前 onboarding move 的 Slot；Bootstrap/Repair 仍可继续，避免扩容流程阻塞安全修复。

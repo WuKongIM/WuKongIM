@@ -7,7 +7,7 @@ import (
 	"time"
 
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/clusterv2/net"
-	cv2 "github.com/WuKongIM/WuKongIM/pkg/controllerv2"
+	cv2 "github.com/WuKongIM/WuKongIM/pkg/controller"
 	"go.etcd.io/raft/v3/raftpb"
 )
 
@@ -97,7 +97,7 @@ func stepWithTimeout(ctx context.Context, stepper raftStepper, msg raftpb.Messag
 	return err
 }
 
-// StateSyncEndpoint adapts clusterv2 RPC to controllerv2/sync.Endpoint.
+// StateSyncEndpoint adapts clusterv2 RPC to controller/sync.Endpoint.
 type StateSyncEndpoint struct {
 	caller clusternet.Caller
 	nodeID uint64

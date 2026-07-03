@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	controllermeta "github.com/WuKongIM/WuKongIM/pkg/controller/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/gateway"
 	gatewaytypes "github.com/WuKongIM/WuKongIM/pkg/gateway/types"
+	controllermeta "github.com/WuKongIM/WuKongIM/pkg/legacy/controller/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/stretchr/testify/require"
 )

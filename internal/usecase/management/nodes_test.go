@@ -6,7 +6,7 @@ import (
 	"time"
 
 	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
-	controllermeta "github.com/WuKongIM/WuKongIM/pkg/controller/meta"
+	controllermeta "github.com/WuKongIM/WuKongIM/pkg/legacy/controller/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 	"github.com/WuKongIM/WuKongIM/pkg/transport"
 	"github.com/stretchr/testify/require"

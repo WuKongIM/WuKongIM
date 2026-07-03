@@ -32,6 +32,6 @@ This domain owns black-box multi-node cluster lifecycle coverage for
   entrypoints.
 
   ```bash
-  scripts/build-gofail-binary.sh --cmd ./cmd/wukongim --package internalv2/usecase/management --package pkg/controllerv2 --package pkg/clusterv2/tasks --package pkg/clusterv2/net --out /tmp/wukongim-gofail
+  scripts/build-gofail-binary.sh --cmd ./cmd/wukongim --package internalv2/usecase/management --package pkg/controller --package pkg/clusterv2/tasks --package pkg/clusterv2/net --out /tmp/wukongim-gofail
   WK_E2E_BINARY=/tmp/wukongim-gofail WK_E2EV2_GOFAIL_DYNAMIC_NODE=1 GOWORK=off go test -tags=e2e ./test/e2ev2/cluster/dynamic_node_faults -count=1 -timeout 15m -p=1
   ```

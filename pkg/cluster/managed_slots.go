@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	controllermeta "github.com/WuKongIM/WuKongIM/pkg/controller/meta"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	controllermeta "github.com/WuKongIM/WuKongIM/pkg/legacy/controller/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 )
 

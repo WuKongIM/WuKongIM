@@ -1,6 +1,6 @@
 package control
 
-import cv2 "github.com/WuKongIM/WuKongIM/pkg/controllerv2"
+import cv2 "github.com/WuKongIM/WuKongIM/pkg/controller"
 
 // JoinNodeRequest describes a data-node join intent.
 type JoinNodeRequest struct {

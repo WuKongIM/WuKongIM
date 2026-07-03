@@ -240,7 +240,7 @@ func TestDependencyBoundaryDoesNotReachLegacyBenchInternal(t *testing.T) {
 	}
 }
 
-func TestDependencyBoundaryDoesNotReachLegacyClusterControl(t *testing.T) {
+func TestDependencyBoundaryUsesCanonicalController(t *testing.T) {
 	cmd := exec.Command("go", "list", "-deps", "-f", "{{.ImportPath}}", ".")
 	cmd.Env = append(os.Environ(), "GOWORK=off")
 	out, err := cmd.CombinedOutput()
@@ -248,13 +248,26 @@ func TestDependencyBoundaryDoesNotReachLegacyClusterControl(t *testing.T) {
 		t.Fatalf("go list deps failed: %v\n%s", err, out)
 	}
 
+	foundCanonicalController := false
 	for _, importPath := range strings.Fields(string(out)) {
-		if importPath == "github.com/WuKongIM/WuKongIM/pkg/cluster" ||
-			strings.HasPrefix(importPath, "github.com/WuKongIM/WuKongIM/pkg/cluster/") ||
-			importPath == "github.com/WuKongIM/WuKongIM/pkg/controller" ||
-			strings.HasPrefix(importPath, "github.com/WuKongIM/WuKongIM/pkg/controller/") {
-			t.Fatalf("cmd/wukongim dependency closure still imports legacy cluster/control package %q", importPath)
+		switch {
+		case importPath == "github.com/WuKongIM/WuKongIM/pkg/controller":
+			foundCanonicalController = true
+		case strings.HasPrefix(importPath, "github.com/WuKongIM/WuKongIM/pkg/controller/"):
+			foundCanonicalController = true
+		case importPath == "github.com/WuKongIM/WuKongIM/pkg/cluster" ||
+			strings.HasPrefix(importPath, "github.com/WuKongIM/WuKongIM/pkg/cluster/"):
+			t.Fatalf("cmd/wukongim dependency closure still imports legacy cluster package %q", importPath)
+		case importPath == "github.com/WuKongIM/WuKongIM/pkg/controller" ||
+			strings.HasPrefix(importPath, "github.com/WuKongIM/WuKongIM/pkg/controller/"):
+			t.Fatalf("cmd/wukongim dependency closure still imports v2-suffixed controller package %q", importPath)
+		case importPath == "github.com/WuKongIM/WuKongIM/pkg/legacy/controller" ||
+			strings.HasPrefix(importPath, "github.com/WuKongIM/WuKongIM/pkg/legacy/controller/"):
+			t.Fatalf("cmd/wukongim dependency closure still imports legacy controller package %q", importPath)
 		}
+	}
+	if !foundCanonicalController {
+		t.Fatal("cmd/wukongim dependency closure does not import canonical pkg/controller")
 	}
 }
 

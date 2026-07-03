@@ -6,8 +6,8 @@
 - `internalv2` single-node deployments must use single-node cluster config. Do not add send or storage paths that bypass clusterv2 semantics.
 - `internalv2/app` seeds message IDs from the effective clusterv2 node ID: `Config.Cluster.NodeID` when set, otherwise top-level `Config.NodeID`.
 - `cmd/wukongim` is the promoted v2 product entrypoint; `internalv2`,
-  `pkg/clusterv2`, `pkg/controllerv2`, and `pkg/channelv2` package paths remain
-  until the package-rename stage.
+  `pkg/clusterv2`, and `pkg/channelv2` package paths remain until their
+  package-rename stages; ControllerV2 is promoted to canonical `pkg/controller`.
 - Runnable `wukongim` helper-script configs live under `scripts/wukongim/` as `.conf`; `.conf.example` files are samples only and should not be script defaults.
 - `wukongim` bottleneck attribution uses Prometheus `/metrics` when `WK_METRICS_ENABLE=true`; compare gateway async SEND, ChannelV2 reactor/worker queue plus in-flight peak, and storage commit request-vs-batch metrics split by `leader_append` / `follower_apply` lane. `/bench/v1/snapshot` remains a benchmark setup counter surface.
 - `WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS` and `WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS` cap ChannelV2 blocking store worker concurrency only; use them after worker in-flight peaks and storage lane tails show commit-coordinator pressure, never as a durability shortcut.

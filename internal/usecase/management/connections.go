@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
-	controllermeta "github.com/WuKongIM/WuKongIM/pkg/controller/meta"
+	controllermeta "github.com/WuKongIM/WuKongIM/pkg/legacy/controller/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 )
 

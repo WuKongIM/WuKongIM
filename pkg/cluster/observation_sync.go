@@ -5,7 +5,7 @@ import (
 	"sort"
 	"sync"
 
-	controllermeta "github.com/WuKongIM/WuKongIM/pkg/controller/meta"
+	controllermeta "github.com/WuKongIM/WuKongIM/pkg/legacy/controller/meta"
 )
 
 // observationRevisions tracks the latest controller-side revision per read model.

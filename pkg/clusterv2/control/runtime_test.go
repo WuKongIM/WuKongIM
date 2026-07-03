@@ -11,8 +11,8 @@ import (
 	"time"
 
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/clusterv2/net"
-	cv2 "github.com/WuKongIM/WuKongIM/pkg/controllerv2"
-	"github.com/WuKongIM/WuKongIM/pkg/controllerv2/statefile"
+	cv2 "github.com/WuKongIM/WuKongIM/pkg/controller"
+	"github.com/WuKongIM/WuKongIM/pkg/controller/statefile"
 )
 
 func TestRuntimeSingleVoterBootstrapsSnapshot(t *testing.T) {

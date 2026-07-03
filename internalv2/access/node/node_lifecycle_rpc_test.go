@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
-	cv2 "github.com/WuKongIM/WuKongIM/pkg/controllerv2"
+	cv2 "github.com/WuKongIM/WuKongIM/pkg/controller"
 )
 
 func TestNodeLifecycleRPCJoinForwardsTokenAndClusterID(t *testing.T) {

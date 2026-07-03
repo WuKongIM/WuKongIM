@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	slotcontroller "github.com/WuKongIM/WuKongIM/pkg/controller/plane"
+	slotcontroller "github.com/WuKongIM/WuKongIM/pkg/legacy/controller/plane"
 	"github.com/stretchr/testify/require"
 )
 

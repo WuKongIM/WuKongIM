@@ -3,7 +3,7 @@ package control
 import (
 	"context"
 
-	cv2 "github.com/WuKongIM/WuKongIM/pkg/controllerv2"
+	cv2 "github.com/WuKongIM/WuKongIM/pkg/controller"
 )
 
 // ControllerLogEntriesOptions controls a node-local ControllerV2 Raft log entry page.

@@ -10,8 +10,8 @@ import (
 	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
-	cv2 "github.com/WuKongIM/WuKongIM/pkg/controllerv2"
-	"github.com/WuKongIM/WuKongIM/pkg/controllerv2/command"
+	cv2 "github.com/WuKongIM/WuKongIM/pkg/controller"
+	"github.com/WuKongIM/WuKongIM/pkg/controller/command"
 	obsmetrics "github.com/WuKongIM/WuKongIM/pkg/metrics"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )

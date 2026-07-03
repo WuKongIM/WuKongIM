@@ -7,7 +7,7 @@ import (
 	"time"
 
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
-	controllermeta "github.com/WuKongIM/WuKongIM/pkg/controller/meta"
+	controllermeta "github.com/WuKongIM/WuKongIM/pkg/legacy/controller/meta"
 	"github.com/gin-gonic/gin"
 )
 

@@ -10,7 +10,7 @@ import (
 	"time"
 
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/clusterv2/net"
-	cv2 "github.com/WuKongIM/WuKongIM/pkg/controllerv2"
+	cv2 "github.com/WuKongIM/WuKongIM/pkg/controller"
 	"github.com/WuKongIM/WuKongIM/pkg/transportv2"
 	"go.etcd.io/raft/v3/raftpb"
 )

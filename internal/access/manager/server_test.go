@@ -15,8 +15,8 @@ import (
 	pluginusecase "github.com/WuKongIM/WuKongIM/internal/usecase/plugin"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
-	controllermeta "github.com/WuKongIM/WuKongIM/pkg/controller/meta"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	controllermeta "github.com/WuKongIM/WuKongIM/pkg/legacy/controller/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/transport"
 	"github.com/stretchr/testify/require"
 )

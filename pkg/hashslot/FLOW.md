@@ -12,4 +12,4 @@ rebalance planning.
   Slot FSM commands, and future canonical cluster packages.
 - It may depend on `pkg/slot/multiraft` for physical Slot IDs.
 - It must not import `pkg/cluster`, `pkg/controller`, `pkg/clusterv2`,
-  `pkg/controllerv2`, `internal`, or `internalv2`.
+  `internal`, or `internalv2`.

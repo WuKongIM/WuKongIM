@@ -2,1469 +2,909 @@ package raft
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"math"
-	"net"
-	"os"
 	"path/filepath"
-	"sort"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/controller/command"
+	"github.com/WuKongIM/WuKongIM/pkg/controller/fsm"
+	"github.com/WuKongIM/WuKongIM/pkg/controller/raft/raftstore"
+	"github.com/WuKongIM/WuKongIM/pkg/controller/state"
+	"github.com/WuKongIM/WuKongIM/pkg/controller/statefile"
 	"github.com/stretchr/testify/require"
-
-	controllermeta "github.com/WuKongIM/WuKongIM/pkg/controller/meta"
-	slotcontroller "github.com/WuKongIM/WuKongIM/pkg/controller/plane"
-	raftstorage "github.com/WuKongIM/WuKongIM/pkg/raftlog"
-	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
-	"github.com/WuKongIM/WuKongIM/pkg/transport"
-	raft "go.etcd.io/raft/v3"
 	"go.etcd.io/raft/v3/raftpb"
 )
 
-func TestServiceStartRestoresSnapshotAndReplaysPostSnapshotEntries(t *testing.T) {
-	env := newTestEnv(t, []uint64{1})
-	t.Cleanup(env.stopAll)
+const (
+	testRaftTickInterval = 20 * time.Millisecond
+	testRaftStepTimeout  = 10 * time.Millisecond
+)
 
-	node := env.nodes[1]
-	require.NoError(t, os.MkdirAll(node.dir, 0o755))
-
-	snapStore, err := controllermeta.Open(filepath.Join(t.TempDir(), "snapshot-meta"))
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, snapStore.Close()) })
-	require.NoError(t, snapStore.UpsertNode(context.Background(), controllermeta.ClusterNode{NodeID: 2, Addr: "127.0.0.1:7002", Status: controllermeta.NodeStatusAlive, JoinedAt: time.Unix(1, 0), LastHeartbeatAt: time.Unix(1, 0), CapacityWeight: 1}))
-	snapData, err := snapStore.ExportSnapshot(context.Background())
-	require.NoError(t, err)
-
-	entryData, err := encodeCommand(slotcontroller.Command{
-		Kind:     slotcontroller.CommandKindNodeJoin,
-		NodeJoin: &slotcontroller.NodeJoinRequest{NodeID: 3, Addr: "127.0.0.1:7003", JoinedAt: time.Unix(2, 0), CapacityWeight: 1},
-	})
-	require.NoError(t, err)
-
-	logDB, err := raftstorage.Open(filepath.Join(node.dir, "controller-raft"), raftstorage.Options{})
-	require.NoError(t, err)
-	snap := raftpb.Snapshot{Data: snapData, Metadata: raftpb.SnapshotMetadata{Index: 1, Term: 1, ConfState: raftpb.ConfState{Voters: []uint64{1}}}}
-	hs := raftpb.HardState{Term: 1, Vote: 1, Commit: 2}
-	require.NoError(t, logDB.ForController().Save(context.Background(), multiraft.PersistentState{
-		HardState: &hs,
-		Snapshot:  &snap,
-		Entries:   []raftpb.Entry{{Index: 2, Term: 1, Type: raftpb.EntryNormal, Data: entryData}},
-	}))
-	require.NoError(t, logDB.ForController().MarkApplied(context.Background(), 2))
-	require.NoError(t, logDB.Close())
-
-	env.startNode(t, 1, nil)
-	require.Eventually(t, func() bool {
-		_, err := env.nodes[1].meta.GetNode(context.Background(), 2)
-		return err == nil
-	}, 5*time.Second, 10*time.Millisecond)
-	require.Eventually(t, func() bool {
-		_, err := env.nodes[1].meta.GetNode(context.Background(), 3)
-		return err == nil
-	}, 5*time.Second, 10*time.Millisecond)
+func TestNewServiceValidatesConfig(t *testing.T) {
+	service, err := NewService(Config{})
+	require.Nil(t, service)
+	require.ErrorIs(t, err, ErrInvalidConfig)
 }
 
-func TestServiceIncomingReadySnapshotRestoresControllerMeta(t *testing.T) {
-	ctx := context.Background()
-
-	sourceStore, err := controllermeta.Open(filepath.Join(t.TempDir(), "source-meta"))
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, sourceStore.Close()) })
-	require.NoError(t, sourceStore.UpsertNode(ctx, controllermeta.ClusterNode{
-		NodeID:          9,
-		Addr:            "127.0.0.1:7009",
-		Status:          controllermeta.NodeStatusAlive,
-		JoinedAt:        time.Unix(9, 0),
-		LastHeartbeatAt: time.Unix(9, 0),
-		CapacityWeight:  1,
-	}))
-	snapData, err := sourceStore.ExportSnapshot(ctx)
-	require.NoError(t, err)
-
-	targetStore, err := controllermeta.Open(filepath.Join(t.TempDir(), "target-meta"))
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, targetStore.Close()) })
-	targetSM := slotcontroller.NewStateMachine(targetStore, slotcontroller.StateMachineConfig{})
-
-	logDB, err := raftstorage.Open(filepath.Join(t.TempDir(), "controller-raft"), raftstorage.Options{})
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, logDB.Close()) })
-	storage := logDB.ForController()
-	storageView := newStorageAdapter(storage)
-	_, _, _, err = storageView.load(ctx)
-	require.NoError(t, err)
-
-	service := NewService(Config{NodeID: 1, StateMachine: targetSM})
-	snap := raftpb.Snapshot{
-		Data: snapData,
-		Metadata: raftpb.SnapshotMetadata{
-			Index:     5,
-			Term:      2,
-			ConfState: raftpb.ConfState{Voters: []uint64{1, 2}},
-		},
-	}
-
-	entryData, err := encodeCommand(slotcontroller.Command{
-		Kind: slotcontroller.CommandKindNodeJoin,
-		NodeJoin: &slotcontroller.NodeJoinRequest{
-			NodeID:         10,
-			Addr:           "127.0.0.1:7010",
-			JoinedAt:       time.Unix(10, 0),
-			CapacityWeight: 1,
-		},
+func TestNewServiceRequiresRaftDir(t *testing.T) {
+	service, err := NewService(Config{
+		NodeID:         1,
+		Peers:          []Peer{{NodeID: 1, Addr: "n1"}},
+		AllowBootstrap: true,
+		StateMachine:   newTestStateMachine(t, filepath.Join(t.TempDir(), "cluster-state.json")),
+		Transport:      newMemoryRaftTransport(),
 	})
-	require.NoError(t, err)
-	entry := raftpb.Entry{Index: 6, Term: 2, Type: raftpb.EntryNormal, Data: entryData}
-	ready := raft.Ready{Snapshot: snap, CommittedEntries: []raftpb.Entry{entry}}
-	require.NoError(t, storageView.persistReady(ctx, ready))
-
-	latestConfState := raftpb.ConfState{Voters: []uint64{7}}
-	applied, err := service.applyReadyState(ctx, nil, ready, storageView, &latestConfState, nil)
-	require.NoError(t, err)
-	require.Equal(t, uint64(6), applied)
-
-	_, err = targetStore.GetNode(ctx, 9)
-	require.NoError(t, err)
-	_, err = targetStore.GetNode(ctx, 10)
-	require.NoError(t, err)
-
-	state, err := storage.InitialState(ctx)
-	require.NoError(t, err)
-	require.Equal(t, uint64(6), state.AppliedIndex)
-	require.Equal(t, []uint64{1, 2}, latestConfState.Voters)
+	require.Nil(t, service)
+	require.ErrorIs(t, err, ErrInvalidConfig)
+	require.Contains(t, err.Error(), "raft dir")
 }
 
-func TestServiceStopDuringStartupPreventsLateStart(t *testing.T) {
-	env := newTestEnv(t, []uint64{1})
-	t.Cleanup(env.stopAll)
-
-	entered := make(chan struct{})
-	release := make(chan struct{})
-	original := currentRawNodeBootstrap()
-	setRawNodeBootstrapForTest(func(_ uint64, _ *raft.RawNode, _ []raft.Peer) error {
-		close(entered)
-		<-release
-		return nil
+func TestStartDuringActiveStopReturnsStopped(t *testing.T) {
+	service, err := NewService(Config{
+		NodeID:         1,
+		Peers:          []Peer{{NodeID: 1, Addr: "n1"}},
+		AllowBootstrap: true,
+		RaftDir:        filepath.Join(t.TempDir(), "controller-raft"),
+		StateMachine:   newTestStateMachine(t, filepath.Join(t.TempDir(), "cluster-state.json")),
+		Transport:      newMemoryRaftTransport(),
+		TickInterval:   testRaftTickInterval,
 	})
-	t.Cleanup(func() {
-		setRawNodeBootstrapForTest(original)
-		closeIfOpen(release)
-	})
+	require.NoError(t, err)
 
-	startErr := make(chan error, 1)
-	go func() {
-		startErr <- env.startNodeErr(t, 1, nil)
-	}()
-
-	select {
-	case <-entered:
-	case <-time.After(2 * time.Second):
-		t.Fatal("bootstrap hook was not reached")
-	}
-	service := env.nodes[1].service
-
-	stopDone := make(chan error, 1)
-	go func() {
-		stopDone <- service.Stop()
-	}()
-	require.Eventually(t, func() bool {
-		service.mu.Lock()
-		defer service.mu.Unlock()
-		return service.stopRequested
-	}, 2*time.Second, 10*time.Millisecond)
-
-	close(release)
-
-	require.ErrorIs(t, <-startErr, ErrStopped)
-	require.NoError(t, <-stopDone)
-	require.False(t, service.Status().Role == RoleLeader)
-	require.Equal(t, uint64(0), service.LeaderID())
-}
-
-func TestServiceConcurrentStartWaitsForStartupFailure(t *testing.T) {
-	env := newTestEnv(t, []uint64{1})
-	t.Cleanup(env.stopAll)
-	waitCh := observeLifecycleWaits(t)
-
-	sentinel := errors.New("bootstrap failed")
-	entered := make(chan struct{})
-	release := make(chan struct{})
-	original := currentRawNodeBootstrap()
-	setRawNodeBootstrapForTest(func(_ uint64, _ *raft.RawNode, _ []raft.Peer) error {
-		close(entered)
-		<-release
-		return sentinel
-	})
-	t.Cleanup(func() {
-		setRawNodeBootstrapForTest(original)
-		closeIfOpen(release)
-	})
-
-	firstErr := make(chan error, 1)
-	go func() {
-		firstErr <- env.startNodeErr(t, 1, nil)
-	}()
-
-	select {
-	case <-entered:
-	case <-time.After(2 * time.Second):
-		t.Fatal("bootstrap hook was not reached")
-	}
-
-	secondErr := make(chan error, 1)
-	go func() {
-		secondErr <- env.nodes[1].service.Start(context.Background())
-	}()
-	requireLifecycleWait(t, waitCh, "start")
-
-	close(release)
-	require.ErrorIs(t, <-firstErr, sentinel)
-	require.ErrorIs(t, <-secondErr, sentinel)
-}
-
-func TestServiceStartWaitsForStopToFinish(t *testing.T) {
-	service := NewService(Config{NodeID: 1})
-	waitCh := observeLifecycleWaits(t)
 	stopCh := make(chan struct{})
 	doneCh := make(chan struct{})
 	service.mu.Lock()
 	service.started = true
 	service.stopCh = stopCh
 	service.doneCh = doneCh
+	service.stepCh = make(chan raftpb.Message)
+	service.proposal = make(chan proposalRequest)
 	service.mu.Unlock()
 
 	stopDone := make(chan error, 1)
-	go func() {
-		stopDone <- service.Stop()
-	}()
-
-	select {
-	case <-stopCh:
-	case <-time.After(2 * time.Second):
-		t.Fatal("Stop did not begin stopping the service")
-	}
-
-	startDone := make(chan error, 1)
-	go func() {
-		startDone <- service.Start(context.Background())
-	}()
-	requireLifecycleWait(t, waitCh, "stop")
-
+	go func() { stopDone <- service.Stop() }()
+	require.Eventually(t, func() bool {
+		service.mu.Lock()
+		defer service.mu.Unlock()
+		return service.stopping
+	}, time.Second, 10*time.Millisecond)
+	require.ErrorIs(t, service.Start(context.Background()), ErrStopped)
 	close(doneCh)
 	require.NoError(t, <-stopDone)
-	require.ErrorIs(t, <-startDone, ErrInvalidConfig)
+	select {
+	case <-stopCh:
+	default:
+		t.Fatal("stop channel was not closed")
+	}
 }
 
-func TestServiceRunErrorClearsStartedLifecycle(t *testing.T) {
-	service := NewService(Config{NodeID: 1})
-	sentinel := errors.New("run failed")
-	service.mu.Lock()
-	service.started = true
-	service.stopCh = make(chan struct{})
-	service.doneCh = make(chan struct{})
-	service.stepCh = make(chan raftpb.Message)
-	service.proposeCh = make(chan proposalRequest)
-	service.mu.Unlock()
+func TestThreeControllerVotersCommitStateFile(t *testing.T) {
+	cluster := newRaftTestCluster(t, []uint64{1, 2, 3})
+	cluster.start(t)
+	cluster.propose(t, testInitCommand("wk-raft-state-file", cluster.peers))
+	cluster.waitForRevision(t, 1)
 
-	service.setError(sentinel)
-
-	service.mu.Lock()
-	started := service.started
-	stepCh := service.stepCh
-	proposeCh := service.proposeCh
-	err := service.err
-	service.mu.Unlock()
-	require.False(t, started)
-	require.Nil(t, stepCh)
-	require.Nil(t, proposeCh)
-	require.ErrorIs(t, err, sentinel)
-	require.Equal(t, RoleUnknown, service.Status().Role)
-	require.Equal(t, uint64(0), service.LeaderID())
+	cluster.propose(t, testUpsertNodeCommand(1, 2, "node-2-renamed"))
+	states := cluster.waitForRevision(t, 2)
+	for _, st := range states {
+		require.Equal(t, "node-2-renamed", findTestNode(t, st, 2).Name)
+		require.NotZero(t, st.AppliedRaftIndex)
+		require.NotEmpty(t, st.Checksum)
+	}
 }
 
-func TestServiceStatusRecordsStartupSnapshotRestore(t *testing.T) {
-	env := newTestEnv(t, []uint64{1})
-	t.Cleanup(env.stopAll)
+func TestThreeControllerVotersCommitInitClusterStateToIdenticalChecksum(t *testing.T) {
+	cluster := newRaftTestCluster(t, []uint64{1, 2, 3})
+	cluster.start(t)
+	cluster.propose(t, testInitCommand("wk-raft-identical", cluster.peers))
+	states := cluster.waitForRevision(t, 1)
 
-	node := env.nodes[1]
-	require.NoError(t, os.MkdirAll(node.dir, 0o755))
-
-	snapStore, err := controllermeta.Open(filepath.Join(t.TempDir(), "snapshot-meta"))
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, snapStore.Close()) })
-	require.NoError(t, snapStore.UpsertNode(context.Background(), controllermeta.ClusterNode{
-		NodeID:          2,
-		Addr:            "127.0.0.1:7002",
-		Status:          controllermeta.NodeStatusAlive,
-		JoinedAt:        time.Unix(1, 0),
-		LastHeartbeatAt: time.Unix(1, 0),
-		CapacityWeight:  1,
-	}))
-	snapData, err := snapStore.ExportSnapshot(context.Background())
-	require.NoError(t, err)
-
-	logDB, err := raftstorage.Open(filepath.Join(node.dir, "controller-raft"), raftstorage.Options{})
-	require.NoError(t, err)
-	snap := raftpb.Snapshot{Data: snapData, Metadata: raftpb.SnapshotMetadata{Index: 5, Term: 2, ConfState: raftpb.ConfState{Voters: []uint64{1}}}}
-	require.NoError(t, logDB.ForController().Save(context.Background(), multiraft.PersistentState{Snapshot: &snap}))
-	require.NoError(t, logDB.Close())
-
-	env.startNode(t, 1, nil)
-	st := env.nodes[1].service.Status()
-	require.Equal(t, uint64(5), st.Restore.LastSnapshotIndex)
-	require.Equal(t, uint64(2), st.Restore.LastSnapshotTerm)
-	require.False(t, st.Restore.LastRestoredAt.IsZero())
-	require.False(t, st.Restore.Failed)
-	require.Empty(t, st.Restore.LastError)
+	checksum := states[0].Checksum
+	require.NotEmpty(t, checksum)
+	for _, st := range states {
+		require.Equal(t, checksum, st.Checksum)
+		require.Equal(t, states[0], st)
+	}
 }
 
-func TestServiceStatusRecordsStartupSnapshotRestoreFailure(t *testing.T) {
-	ctx := context.Background()
-	meta, err := controllermeta.Open(filepath.Join(t.TempDir(), "meta"))
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, meta.Close()) })
-	logDB, err := raftstorage.Open(filepath.Join(t.TempDir(), "raft"), raftstorage.Options{})
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, logDB.Close()) })
+func TestControllerRaftAddsLearnerThenPromotesVoter(t *testing.T) {
+	cluster := newRaftTestCluster(t, []uint64{1, 2, 3})
+	cluster.start(t)
+	cluster.propose(t, testInitCommand("wk-raft-membership", cluster.peers))
+	cluster.waitForRevision(t, 1)
 
-	snap := raftpb.Snapshot{Data: []byte("not-a-controller-snapshot"), Metadata: raftpb.SnapshotMetadata{Index: 7, Term: 3, ConfState: raftpb.ConfState{Voters: []uint64{1}}}}
-	require.NoError(t, logDB.ForController().Save(ctx, multiraft.PersistentState{Snapshot: &snap}))
+	target := cluster.addNode(t, 4)
+	require.NoError(t, target.service.Start(context.Background()))
+	leader := cluster.waitForLeader(t)
 
-	pool := transport.NewPool(testDiscovery{1: "127.0.0.1:1"}, 1, time.Second)
-	t.Cleanup(pool.Close)
-	service := NewService(Config{
-		NodeID:         1,
-		Peers:          []Peer{{NodeID: 1, Addr: "127.0.0.1:1"}},
-		AllowBootstrap: true,
-		LogDB:          logDB,
-		StateMachine:   slotcontroller.NewStateMachine(meta, slotcontroller.StateMachineConfig{}),
-		Server:         transport.NewServer(),
-		RPCMux:         transport.NewRPCMux(),
-		Pool:           pool,
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	learner, err := leader.service.AddLearner(ctx, 4)
+	cancel()
+	require.NoError(t, err)
+	require.Contains(t, learner.ConfState.Learners, uint64(4))
+
+	require.Eventually(t, func() bool {
+		st := target.service.Status()
+		return containsUint64ForRaftTest(st.Learners, 4)
+	}, 5*time.Second, 10*time.Millisecond)
+
+	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
+	voter, err := leader.service.PromoteLearner(ctx, 4)
+	cancel()
+	require.NoError(t, err)
+	require.Contains(t, voter.ConfState.Voters, uint64(4))
+
+	require.Eventually(t, func() bool {
+		st := target.service.Status()
+		return containsUint64ForRaftTest(st.Voters, 4) && !containsUint64ForRaftTest(st.Learners, 4)
+	}, 5*time.Second, 10*time.Millisecond)
+}
+
+func TestControllerRaftMembershipStatusReportsVotersAndLearners(t *testing.T) {
+	cluster := newRaftTestCluster(t, []uint64{1})
+	cluster.start(t)
+	cluster.propose(t, testInitCommand("wk-raft-status-confstate", cluster.peers))
+	cluster.waitForRevision(t, 1)
+
+	status := cluster.nodes[0].service.Status()
+	require.Equal(t, []uint64{1}, status.Voters)
+	require.Empty(t, status.Learners)
+}
+
+func TestControllerRaftConcurrentMembershipChangeRejectsPending(t *testing.T) {
+	cluster := newRaftTestCluster(t, []uint64{1, 2, 3})
+	cluster.start(t)
+	cluster.propose(t, testInitCommand("wk-raft-membership-pending", cluster.peers))
+	cluster.waitForRevision(t, 1)
+
+	target := cluster.addNode(t, 4)
+	require.NoError(t, target.service.Start(context.Background()))
+	leader := cluster.waitForLeader(t)
+
+	held := make(chan raftpb.Message, 32)
+	firstAppendHeld := make(chan struct{})
+	var firstAppendOnce sync.Once
+	cluster.transport.setInterceptor(func(msg raftpb.Message) bool {
+		if msg.From == leader.id && msg.Type == raftpb.MsgApp && len(msg.Entries) > 0 {
+			firstAppendOnce.Do(func() { close(firstAppendHeld) })
+			select {
+			case held <- msg:
+			default:
+			}
+			return true
+		}
+		return false
 	})
+	defer cluster.transport.setInterceptor(nil)
 
-	require.Error(t, service.Start(ctx))
-	st := service.Status()
-	require.True(t, st.Restore.Failed)
-	require.Equal(t, uint64(7), st.Restore.LastSnapshotIndex)
-	require.Equal(t, uint64(3), st.Restore.LastSnapshotTerm)
-	require.NotEmpty(t, st.Restore.LastError)
-	require.False(t, st.Restore.LastErrorAt.IsZero())
-}
-
-func TestServiceStatusRecordsReadySnapshotRestore(t *testing.T) {
-	ctx := context.Background()
-
-	sourceStore, err := controllermeta.Open(filepath.Join(t.TempDir(), "source-meta"))
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, sourceStore.Close()) })
-	require.NoError(t, sourceStore.UpsertNode(ctx, controllermeta.ClusterNode{NodeID: 9, Addr: "127.0.0.1:7009", Status: controllermeta.NodeStatusAlive, JoinedAt: time.Unix(9, 0), LastHeartbeatAt: time.Unix(9, 0), CapacityWeight: 1}))
-	snapData, err := sourceStore.ExportSnapshot(ctx)
-	require.NoError(t, err)
-
-	targetStore, err := controllermeta.Open(filepath.Join(t.TempDir(), "target-meta"))
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, targetStore.Close()) })
-	service := NewService(Config{NodeID: 1, StateMachine: slotcontroller.NewStateMachine(targetStore, slotcontroller.StateMachineConfig{})})
-	latestConfState := raftpb.ConfState{Voters: []uint64{7}}
-	snap := raftpb.Snapshot{Data: snapData, Metadata: raftpb.SnapshotMetadata{Index: 11, Term: 4, ConfState: raftpb.ConfState{Voters: []uint64{1, 2}}}}
-
-	applied, err := service.restoreReadySnapshot(ctx, snap, &latestConfState)
-	require.NoError(t, err)
-	require.Equal(t, uint64(11), applied)
-	st := service.Status()
-	require.Equal(t, uint64(11), st.Restore.LastSnapshotIndex)
-	require.Equal(t, uint64(4), st.Restore.LastSnapshotTerm)
-	require.False(t, st.Restore.LastRestoredAt.IsZero())
-	require.False(t, st.Restore.Failed)
-	require.Empty(t, st.Restore.LastError)
-}
-
-func TestServiceStatusRecordsReadySnapshotRestoreFailure(t *testing.T) {
-	ctx := context.Background()
-	targetStore, err := controllermeta.Open(filepath.Join(t.TempDir(), "target-meta"))
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, targetStore.Close()) })
-	service := NewService(Config{NodeID: 1, StateMachine: slotcontroller.NewStateMachine(targetStore, slotcontroller.StateMachineConfig{})})
-	latestConfState := raftpb.ConfState{Voters: []uint64{7}}
-	snap := raftpb.Snapshot{Data: []byte("not-a-controller-snapshot"), Metadata: raftpb.SnapshotMetadata{Index: 12, Term: 5, ConfState: raftpb.ConfState{Voters: []uint64{1, 2}}}}
-
-	_, err = service.restoreReadySnapshot(ctx, snap, &latestConfState)
-	require.Error(t, err)
-	st := service.Status()
-	require.True(t, st.Restore.Failed)
-	require.Equal(t, uint64(12), st.Restore.LastSnapshotIndex)
-	require.Equal(t, uint64(5), st.Restore.LastSnapshotTerm)
-	require.NotEmpty(t, st.Restore.LastError)
-	require.False(t, st.Restore.LastErrorAt.IsZero())
-}
-
-func TestServiceStartReturnsBootstrapFailureWithoutDeadlock(t *testing.T) {
-	env := newTestEnv(t, []uint64{1})
-	defer env.stopAll()
-
-	sentinel := errors.New("bootstrap failed")
-	original := currentRawNodeBootstrap()
-	setRawNodeBootstrapForTest(func(_ uint64, _ *raft.RawNode, _ []raft.Peer) error {
-		return sentinel
-	})
-	t.Cleanup(func() {
-		setRawNodeBootstrapForTest(original)
-	})
-
-	errCh := make(chan error, 1)
+	firstDone := make(chan error, 1)
 	go func() {
-		errCh <- env.startNodeErr(t, 1, nil)
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_, err := leader.service.AddLearner(ctx, 4)
+		firstDone <- err
 	}()
 
 	select {
-	case err := <-errCh:
-		require.ErrorIs(t, err, sentinel)
+	case <-firstAppendHeld:
+	case err := <-firstDone:
+		require.NoError(t, err)
+		t.Fatal("first membership change completed before the append was held")
 	case <-time.After(2 * time.Second):
-		t.Fatal("Start hung on bootstrap failure")
+		t.Fatal("timed out waiting for first membership append")
 	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	_, err := leader.service.AddLearner(ctx, 5)
+	cancel()
+	require.ErrorIs(t, err, ErrMembershipChangePending)
+
+	cluster.transport.setInterceptor(nil)
+	drainHeldMessages(cluster.transport, held)
+	select {
+	case err := <-firstDone:
+		require.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for first membership change")
+	}
+
+	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
+	err = leader.service.ProbePropose(ctx)
+	cancel()
+	require.NoError(t, err)
 }
 
-func TestServiceProposeReturnsRunLoopErrorAfterExit(t *testing.T) {
-	sentinel := errors.New("run loop failed")
-	doneCh := make(chan struct{})
-	close(doneCh)
+func containsUint64ForRaftTest(items []uint64, item uint64) bool {
+	for _, existing := range items {
+		if existing == item {
+			return true
+		}
+	}
+	return false
+}
 
+func TestThreeControllerVotersRejectFollowerProposal(t *testing.T) {
+	cluster := newRaftTestCluster(t, []uint64{1, 2, 3})
+	cluster.start(t)
+	leader := cluster.waitForLeader(t)
+	var follower *testRaftNode
+	for _, node := range cluster.nodes {
+		if node.id != leader.id {
+			follower = node
+			break
+		}
+	}
+	require.NotNil(t, follower)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	err := follower.service.Propose(ctx, testInitCommand("wk-raft-follower-reject", cluster.peers))
+	require.ErrorIs(t, err, ErrNotLeader)
+}
+
+func TestProbeProposeSingleNodeSucceedsWithoutStateMutation(t *testing.T) {
+	cluster := newRaftTestCluster(t, []uint64{1})
+	cluster.start(t)
+	cluster.propose(t, testInitCommand("wk-raft-probe-single", cluster.peers))
+	cluster.waitForRevision(t, 1)
+
+	before := cluster.nodes[0].stateMachine.Snapshot(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	require.NoError(t, cluster.waitForLeader(t).service.ProbePropose(ctx))
+	after := cluster.nodes[0].stateMachine.Snapshot(context.Background())
+
+	require.Equal(t, before, after)
+}
+
+func TestProbeProposeFollowerReturnsNotLeader(t *testing.T) {
+	cluster := newRaftTestCluster(t, []uint64{1, 2, 3})
+	cluster.start(t)
+	leader := cluster.waitForLeader(t)
+	var follower *testRaftNode
+	for _, node := range cluster.nodes {
+		if node.id != leader.id {
+			follower = node
+			break
+		}
+	}
+	require.NotNil(t, follower)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	require.ErrorIs(t, follower.service.ProbePropose(ctx), ErrNotLeader)
+}
+
+func TestProbeProposeFindsLeaderInThreeVoters(t *testing.T) {
+	cluster := newRaftTestCluster(t, []uint64{1, 2, 3})
+	cluster.start(t)
+
+	require.Eventually(t, func() bool {
+		for _, node := range cluster.nodes {
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			err := node.service.ProbePropose(ctx)
+			cancel()
+			if err == nil {
+				return true
+			}
+			if !errors.Is(err, ErrNotLeader) {
+				t.Logf("ProbePropose(node=%d) error: %v", node.id, err)
+			}
+		}
+		return false
+	}, 5*time.Second, 10*time.Millisecond)
+}
+
+func TestProbeProposeLifecycleErrors(t *testing.T) {
+	peers := []Peer{{NodeID: 1, Addr: "n1"}}
+	service, err := NewService(Config{
+		NodeID:         1,
+		Peers:          peers,
+		AllowBootstrap: true,
+		RaftDir:        filepath.Join(t.TempDir(), "controller-raft"),
+		StateMachine:   newTestStateMachine(t, filepath.Join(t.TempDir(), "cluster-state.json")),
+		Transport:      newMemoryRaftTransport(),
+		TickInterval:   testRaftTickInterval,
+	})
+	require.NoError(t, err)
+
+	require.ErrorIs(t, service.ProbePropose(context.Background()), ErrNotStarted)
+	require.NoError(t, service.Start(context.Background()))
+	require.NoError(t, service.Stop())
+	require.ErrorIs(t, service.ProbePropose(context.Background()), ErrStopped)
+}
+
+func TestServiceCompactLogReturnsSkippedWhenNotStarted(t *testing.T) {
+	peers := []Peer{{NodeID: 1, Addr: "n1"}}
+	service, err := NewService(Config{
+		NodeID:         1,
+		Peers:          peers,
+		AllowBootstrap: true,
+		RaftDir:        filepath.Join(t.TempDir(), "controller-raft"),
+		StateMachine:   newTestStateMachine(t, filepath.Join(t.TempDir(), "cluster-state.json")),
+		Transport:      newMemoryRaftTransport(),
+		TickInterval:   testRaftTickInterval,
+	})
+	require.NoError(t, err)
+
+	result, err := service.CompactLog(context.Background())
+
+	require.ErrorIs(t, err, ErrNotStarted)
+	require.False(t, result.Compacted)
+	require.Equal(t, LogCompactionSkipNotStarted, result.SkippedReason)
+	st := service.Status()
+	require.Equal(t, uint64(1), st.NodeID)
+	require.Equal(t, RoleUnknown, st.Role)
+	require.Equal(t, LogCompactionSkipNotStarted, st.Compaction.SkippedReason)
+}
+
+func TestServiceCompactLogForcesSnapshotBelowAutomaticThreshold(t *testing.T) {
+	cluster := newRaftTestCluster(t, []uint64{1})
+	node := cluster.nodes[0]
+	node.service.cfg.SnapshotCount = 1000
+	node.service.cfg.SnapshotCatchUpEntries = 1
+	cluster.start(t)
+	cluster.propose(t, testInitCommand("wk-manual-compact", cluster.peers))
+	states := cluster.waitForRevision(t, 1)
+	applied := states[0].AppliedRaftIndex
+	before, err := node.service.store.Snapshot()
+	require.NoError(t, err)
+
+	result, err := node.service.CompactLog(context.Background())
+
+	require.NoError(t, err)
+	require.True(t, result.Compacted)
+	require.Empty(t, result.SkippedReason)
+	require.Equal(t, applied, result.AppliedIndex)
+	require.Equal(t, before.Metadata.Index, result.BeforeSnapshotIndex)
+	require.GreaterOrEqual(t, result.AfterSnapshotIndex, result.AppliedIndex)
+	after, err := node.service.store.Snapshot()
+	require.NoError(t, err)
+	require.Equal(t, result.AfterSnapshotIndex, after.Metadata.Index)
+	status := node.service.Status()
+	require.True(t, status.Compaction.Compacted)
+	require.Equal(t, result.AfterSnapshotIndex, status.Compaction.AfterSnapshotIndex)
+}
+
+func TestServiceStatusReportsCompactionPolicyAndLogWatermarks(t *testing.T) {
+	cluster := newRaftTestCluster(t, []uint64{1})
+	node := cluster.nodes[0]
+	node.service.cfg.SnapshotCount = 1000
+	node.service.cfg.SnapshotCatchUpEntries = 1
+	node.service.cfg.SnapshotMinInterval = 25 * time.Millisecond
+	cluster.start(t)
+	cluster.propose(t, testInitCommand("wk-status-watermarks", cluster.peers))
+	cluster.waitForRevision(t, 1)
+	_, err := node.service.CompactLog(context.Background())
+	require.NoError(t, err)
+	first, err := node.service.store.FirstIndex()
+	require.NoError(t, err)
+	last, err := node.service.store.LastIndex()
+	require.NoError(t, err)
+	snap, err := node.service.store.Snapshot()
+	require.NoError(t, err)
+
+	status := node.service.Status()
+
+	require.Equal(t, first, status.FirstIndex)
+	require.Equal(t, last, status.LastIndex)
+	require.Equal(t, snap.Metadata.Index, status.SnapshotIndex)
+	require.Equal(t, snap.Metadata.Term, status.SnapshotTerm)
+	require.True(t, status.Compaction.Enabled)
+	require.Equal(t, uint64(1000), status.Compaction.TriggerEntries)
+	require.Equal(t, 25*time.Millisecond, status.Compaction.CheckInterval)
+	require.Equal(t, snap.Metadata.Index, status.Compaction.AfterSnapshotIndex)
+}
+
+func TestSemanticRejectReturnsProposalErrorAndServiceKeepsRunning(t *testing.T) {
+	cluster := newRaftTestCluster(t, []uint64{1})
+	cluster.start(t)
+	cluster.propose(t, testInitCommand("wk-semantic-reject", cluster.peers))
+	cluster.waitForRevision(t, 1)
+
+	badRevision := uint64(0)
+	node := findTestNode(t, cluster.nodes[0].stateMachine.Snapshot(context.Background()), 1)
+	node.Name = "bad-revision"
+	err := cluster.waitForLeader(t).service.Propose(context.Background(), command.Command{
+		Kind:             command.KindUpsertNode,
+		ExpectedRevision: &badRevision,
+		Node:             &node,
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), fsm.ReasonExpectedRevisionMismatch)
+	require.False(t, cluster.nodes[0].service.Status().Degraded)
+
+	cluster.propose(t, testUpsertNodeCommand(1, 1, "good-revision"))
+	states := cluster.waitForRevision(t, 2)
+	require.Equal(t, "good-revision", findTestNode(t, states[0], 1).Name)
+}
+
+func TestServiceProposeResultReportsChangedAndStaleNoop(t *testing.T) {
+	cluster := newRaftTestCluster(t, []uint64{1})
+	cluster.start(t)
+	cluster.propose(t, testInitCommand("wk-propose-result", cluster.peers))
+	cluster.waitForRevision(t, 1)
+	leader := cluster.waitForLeader(t)
+
+	changed, err := leader.service.ProposeResult(context.Background(), testUpsertNodeCommand(1, 1, "node-1-result"))
+	require.NoError(t, err)
+	require.True(t, changed.Changed)
+	require.False(t, changed.Noop)
+	require.False(t, changed.Rejected)
+	require.Equal(t, uint64(2), changed.Revision)
+	require.NotZero(t, changed.AppliedRaftIndex)
+
+	noop, err := leader.service.ProposeResult(context.Background(), testUpsertNodeCommand(1, 1, "node-1-result"))
+	require.NoError(t, err)
+	require.False(t, noop.Changed)
+	require.True(t, noop.Noop)
+	require.False(t, noop.Rejected)
+	require.Equal(t, fsm.ReasonNoChange, noop.Reason)
+	require.Equal(t, changed.Revision, noop.Revision)
+	require.Greater(t, noop.AppliedRaftIndex, changed.AppliedRaftIndex)
+
+	rejected, err := leader.service.ProposeResult(context.Background(), testUpsertNodeCommand(1, 1, "node-1-rejected"))
+	require.ErrorIs(t, err, ErrProposalRejected)
+	require.True(t, rejected.Rejected)
+	require.Equal(t, fsm.ReasonExpectedRevisionMismatch, rejected.Reason)
+	require.Equal(t, changed.Revision, rejected.Revision)
+	require.Greater(t, rejected.AppliedRaftIndex, noop.AppliedRaftIndex)
+}
+
+func TestStartupReplaysWhenStateBehindWAL(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	raftDir := filepath.Join(dir, "controller-raft")
+	peers := []Peer{{NodeID: 1, Addr: "n1"}}
+	initCmd := testInitCommand("wk-state-behind", peers)
+	upsertCmd := testUpsertNodeCommand(1, 1, "node-1-replayed")
+	seedControllerRaftStore(t, raftDir, []raftpb.Entry{
+		testConfChangeEntry(t, 1, 1),
+		testCommandEntry(t, 2, initCmd),
+		testCommandEntry(t, 3, upsertCmd),
+	}, 3, 2)
+
+	statePath := filepath.Join(dir, "cluster-state.json")
+	sm := newTestStateMachine(t, statePath)
+	_, err := sm.Apply(ctx, 2, initCmd)
+	require.NoError(t, err)
+
+	service := startSingleService(t, 1, peers, raftDir, statePath, false)
+	t.Cleanup(func() { require.NoError(t, service.Stop()) })
+	snap := service.cfg.StateMachine.Snapshot(ctx)
+	require.Equal(t, uint64(2), snap.Revision)
+	require.Equal(t, uint64(3), snap.AppliedRaftIndex)
+	require.Equal(t, "node-1-replayed", findTestNode(t, snap, 1).Name)
+}
+
+func TestSlowApplyDoesNotBlockStep(t *testing.T) {
+	cluster := newRaftTestCluster(t, []uint64{1})
+	blocker := newBlockingBatchStateMachine(cluster.nodes[0].stateMachine)
+	cluster.nodes[0].stateMachine = blocker
+	cluster.rebuildService(t, cluster.nodes[0])
+	cluster.start(t)
+	leader := cluster.waitForLeader(t)
+
+	resultCh := make(chan error, 1)
+	go func() {
+		resultCh <- leader.service.Propose(context.Background(), testInitCommand("wk-slow-apply", cluster.peers))
+	}()
+	<-blocker.entered
+
+	stepCtx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	require.NoError(t, leader.service.Step(stepCtx, raftpb.Message{To: leader.id, Type: raftpb.MsgHeartbeat}))
+
+	blocker.release()
+	require.NoError(t, <-resultCh)
+}
+
+func TestStepObservesQueueDepthAndEnqueueLatency(t *testing.T) {
+	observer := &stepObserver{}
 	service := &Service{
-		started:   true,
-		stopCh:    make(chan struct{}),
-		doneCh:    doneCh,
-		proposeCh: make(chan proposalRequest),
-		err:       sentinel,
+		cfg:     Config{NodeID: 1, Observer: observer},
+		started: true,
+		stopCh:  make(chan struct{}),
+		doneCh:  make(chan struct{}),
+		stepCh:  make(chan raftpb.Message, 2),
 	}
 
-	err := service.Propose(context.Background(), slotcontroller.Command{})
-	require.ErrorIs(t, err, sentinel)
+	require.NoError(t, service.Step(context.Background(), raftpb.Message{To: 1, Type: raftpb.MsgHeartbeat}))
+
+	require.Equal(t, 1, observer.depth)
+	require.Equal(t, 2, observer.capacity)
+	require.Equal(t, []string{"ok"}, observer.results)
 }
 
-func TestServiceHandleMessageDropsMisroutedRaftMessages(t *testing.T) {
+func TestUpdateStatusObservesApplyState(t *testing.T) {
+	observer := &stepObserver{}
+	cluster := newRaftTestCluster(t, []uint64{1})
+	node := cluster.nodes[0]
+	node.service.cfg.Observer = observer
+	cluster.start(t)
+	leader := cluster.waitForLeader(t)
+
+	require.NoError(t, leader.service.Propose(context.Background(), testInitCommand("wk-apply-state", cluster.peers)))
+	require.Eventually(t, func() bool {
+		observer.mu.Lock()
+		defer observer.mu.Unlock()
+		return len(observer.applyStates) > 0
+	}, 2*time.Second, 10*time.Millisecond)
+
+	observer.mu.Lock()
+	defer observer.mu.Unlock()
+	last := observer.applyStates[len(observer.applyStates)-1]
+	require.GreaterOrEqual(t, last.commit, last.applied)
+	require.Greater(t, last.commit, uint64(0))
+}
+
+func TestMemoryRaftTransportSendDoesNotBlockWhenPeerStepQueueFull(t *testing.T) {
+	transport := newMemoryRaftTransport()
+	stopCh := make(chan struct{})
+	stopClosed := false
+	closeStop := func() {
+		if !stopClosed {
+			close(stopCh)
+			stopClosed = true
+		}
+	}
+	defer closeStop()
+
 	service := &Service{
 		cfg:     Config{NodeID: 1},
 		started: true,
-		stopCh:  make(chan struct{}),
-		stepCh:  make(chan raftpb.Message, 4),
+		stopCh:  stopCh,
+		doneCh:  make(chan struct{}),
+		stepCh:  make(chan raftpb.Message),
 	}
+	transport.register(1, service)
 
-	misrouted := []raftpb.Message{
-		{From: 1, To: 2, Type: raftpb.MsgHeartbeat},
-		{From: 2, To: 2, Type: raftpb.MsgHeartbeat},
-		{From: 1, To: 1, Type: raftpb.MsgHeartbeat},
-	}
-	for _, msg := range misrouted {
-		service.handleMessage(mustMarshalRaftMessage(t, msg))
-		select {
-		case got := <-service.stepCh:
-			t.Fatalf("handleMessage stepped misrouted message %+v", got)
-		default:
-		}
-	}
+	done := make(chan struct{})
+	go func() {
+		transport.Send([]raftpb.Message{{To: 1, From: 2, Type: raftpb.MsgHeartbeat}})
+		close(done)
+	}()
 
-	valid := raftpb.Message{From: 2, To: 1, Type: raftpb.MsgHeartbeat}
-	service.handleMessage(mustMarshalRaftMessage(t, valid))
 	select {
-	case got := <-service.stepCh:
-		require.Equal(t, valid, got)
-	default:
-		t.Fatal("handleMessage dropped valid inbound message")
+	case <-done:
+	case <-time.After(100 * time.Millisecond):
+		closeStop()
+		<-done
+		t.Fatal("memory raft transport blocked behind a full peer step queue")
 	}
 }
 
-func TestControllerRaftMessageTypeAvoidsClusterTransportTypes(t *testing.T) {
-	const (
-		clusterRaftMessageType            uint8 = 1
-		clusterObservationHintMessageType uint8 = 2
-		clusterRaftBatchMessageType       uint8 = 3
-		clusterRaftSnapshotChunkType      uint8 = 4
-	)
-
-	require.NotContains(t, []uint8{
-		clusterRaftMessageType,
-		clusterObservationHintMessageType,
-		clusterRaftBatchMessageType,
-		clusterRaftSnapshotChunkType,
-	}, msgTypeControllerRaft)
-	require.NotContains(t, []uint8{
-		clusterRaftMessageType,
-		clusterObservationHintMessageType,
-		clusterRaftBatchMessageType,
-		clusterRaftSnapshotChunkType,
-		msgTypeControllerRaft,
-	}, msgTypeControllerRaftSnapshotChunk)
+type testRaftCluster struct {
+	peers     []Peer
+	nodes     []*testRaftNode
+	transport *memoryRaftTransport
 }
 
-func TestRaftTransportSkipsLocalMessages(t *testing.T) {
-	rt := &raftTransport{localNodeID: 1}
-
-	err := rt.Send(context.Background(), []raftpb.Message{
-		{From: 1, To: 1, Type: raftpb.MsgHeartbeat},
-		{From: 2, To: 2, Type: raftpb.MsgHeartbeat},
-		{From: 2, To: 1, Type: raftpb.MsgHeartbeat},
-	})
-
-	require.NoError(t, err)
+type testRaftNode struct {
+	id           uint64
+	dir          string
+	raftDir      string
+	statePath    string
+	stateMachine stateMachine
+	service      *Service
 }
 
-func TestControllerManualCompactionReadsSnapshotMetadataWithoutPayload(t *testing.T) {
-	sentinel := errors.New("snapshot payload unavailable")
-	store := &controllerSnapshotMetadataOnlyStorage{
-		firstIndex:  11,
-		lastIndex:   12,
-		snapshotErr: sentinel,
-		terms:       map[uint64]uint64{10: 7},
-	}
-	service := &Service{cfg: Config{
-		NodeID: 1,
-		LogCompaction: LogCompactionConfig{
-			Enabled:        true,
-			EnabledSet:     true,
-			TriggerEntries: 1000,
-			CheckInterval:  time.Hour,
-		},
-	}}
-
-	result, err := service.compactControllerLogManually(context.Background(), &storageAdapter{storage: store}, 10, raftpb.ConfState{Voters: []uint64{1}})
-	require.NoError(t, err)
-	require.False(t, result.Compacted)
-	require.Equal(t, LogCompactionSkippedUpToDate, result.SkippedReason)
-	require.Equal(t, uint64(10), result.BeforeSnapshotIndex)
-	require.Equal(t, uint64(10), result.AfterSnapshotIndex)
-	require.Zero(t, store.snapshotCalls)
-	require.NotZero(t, store.firstIndexCalls)
-	require.NotZero(t, store.termCalls)
-}
-
-func TestServiceCompactionSnapshotUsesConfChangeV2State(t *testing.T) {
-	ctx := context.Background()
-
-	store, err := controllermeta.Open(filepath.Join(t.TempDir(), "meta"))
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, store.Close()) })
-	sm := slotcontroller.NewStateMachine(store, slotcontroller.StateMachineConfig{})
-
-	logDB, err := raftstorage.Open(filepath.Join(t.TempDir(), "raft"), raftstorage.Options{})
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, logDB.Close()) })
-	memory := newLoadedMemoryStorage(raft.NewMemoryStorage(), raftpb.ConfState{Voters: []uint64{1}})
-	storageView := &storageAdapter{
-		storage: logDB.ForController(),
-		memory:  memory,
-	}
-
-	rawNode, err := raft.NewRawNode(&raft.Config{
-		ID:                       1,
-		ElectionTick:             10,
-		HeartbeatTick:            1,
-		Storage:                  memory,
-		MaxSizePerMsg:            math.MaxUint64,
-		MaxCommittedSizePerReady: math.MaxUint64,
-		MaxInflightMsgs:          256,
-	})
-	require.NoError(t, err)
-
-	cc := raftpb.ConfChangeV2{
-		Changes: []raftpb.ConfChangeSingle{
-			{Type: raftpb.ConfChangeAddNode, NodeID: 2},
-		},
-	}
-	data, err := cc.Marshal()
-	require.NoError(t, err)
-	entry := raftpb.Entry{Index: 1, Term: 1, Type: raftpb.EntryConfChangeV2, Data: data}
-	require.NoError(t, memory.Append([]raftpb.Entry{entry}))
-
-	service := &Service{cfg: Config{StateMachine: sm}}
-	latestConfState := raftpb.ConfState{Voters: []uint64{1}}
-	applied, err := service.applyReadyState(ctx, rawNode, raft.Ready{CommittedEntries: []raftpb.Entry{entry}}, storageView, &latestConfState, nil)
-	require.NoError(t, err)
-	require.Equal(t, uint64(1), applied)
-	require.Equal(t, []uint64{1, 2}, sortedPeers(latestConfState.Voters))
-
-	require.NoError(t, service.compactControllerLog(ctx, storageView, applied, latestConfState))
-	snap, err := logDB.ForController().Snapshot(ctx)
-	require.NoError(t, err)
-	require.Equal(t, []uint64{1, 2}, sortedPeers(snap.Metadata.ConfState.Voters))
-}
-
-func TestEncodeDecodeCommandNodeJoinRoundTrip(t *testing.T) {
-	joinedAt := time.Unix(100, 0)
-	cmd := slotcontroller.Command{
-		Kind: slotcontroller.CommandKindNodeJoin,
-		NodeJoin: &slotcontroller.NodeJoinRequest{
-			NodeID:         7,
-			Name:           "worker-7",
-			Addr:           "127.0.0.1:7007",
-			CapacityWeight: 5,
-			JoinedAt:       joinedAt,
-		},
-	}
-
-	data, err := encodeCommand(cmd)
-	require.NoError(t, err)
-	decoded, err := decodeCommand(data)
-	require.NoError(t, err)
-
-	require.Equal(t, cmd.Kind, decoded.Kind)
-	require.NotNil(t, decoded.NodeJoin)
-	require.Equal(t, *cmd.NodeJoin, *decoded.NodeJoin)
-}
-
-func TestEncodeDecodeCommandNodeJoinActivateRoundTrip(t *testing.T) {
-	cmd := slotcontroller.Command{
-		Kind: slotcontroller.CommandKindNodeJoinActivate,
-		NodeJoinActivate: &slotcontroller.NodeJoinActivateRequest{
-			NodeID:      7,
-			ActivatedAt: time.Unix(200, 0),
-		},
-	}
-
-	data, err := encodeCommand(cmd)
-	require.NoError(t, err)
-	decoded, err := decodeCommand(data)
-	require.NoError(t, err)
-
-	require.Equal(t, cmd.Kind, decoded.Kind)
-	require.NotNil(t, decoded.NodeJoinActivate)
-	require.Equal(t, *cmd.NodeJoinActivate, *decoded.NodeJoinActivate)
-}
-
-func TestEncodeDecodeCommandAssignmentPreservesPreferredLeader(t *testing.T) {
-	cooldown := time.Unix(1710000200, 123)
-	cmd := slotcontroller.Command{
-		Kind: slotcontroller.CommandKindAssignmentTaskUpdate,
-		Assignment: &controllermeta.SlotAssignment{
-			SlotID:                      7,
-			DesiredPeers:                []uint64{1, 2, 3},
-			PreferredLeader:             2,
-			LeaderTransferCooldownUntil: cooldown,
-			ConfigEpoch:                 4,
-			BalanceVersion:              5,
-		},
-		Task: &controllermeta.ReconcileTask{
-			SlotID:     7,
-			Kind:       controllermeta.TaskKindRebalance,
-			Step:       controllermeta.TaskStepTransferLeader,
-			TargetNode: 2,
-			Status:     controllermeta.TaskStatusPending,
-		},
-	}
-
-	data, err := encodeCommand(cmd)
-	require.NoError(t, err)
-	decoded, err := decodeCommand(data)
-	require.NoError(t, err)
-
-	require.Equal(t, cmd.Kind, decoded.Kind)
-	require.NotNil(t, decoded.Assignment)
-	require.Equal(t, cmd.Assignment.SlotID, decoded.Assignment.SlotID)
-	require.Equal(t, cmd.Assignment.DesiredPeers, decoded.Assignment.DesiredPeers)
-	require.Equal(t, cmd.Assignment.PreferredLeader, decoded.Assignment.PreferredLeader)
-	require.Equal(t, cmd.Assignment.LeaderTransferCooldownUntil, decoded.Assignment.LeaderTransferCooldownUntil)
-	require.Equal(t, cmd.Assignment.ConfigEpoch, decoded.Assignment.ConfigEpoch)
-	require.Equal(t, cmd.Assignment.BalanceVersion, decoded.Assignment.BalanceVersion)
-	require.NotNil(t, decoded.Task)
-	require.Equal(t, cmd.Task.Kind, decoded.Task.Kind)
-}
-
-func TestEncodeDecodeCommandAddSlotPreservesPreferredLeader(t *testing.T) {
-	cmd := slotcontroller.Command{
-		Kind: slotcontroller.CommandKindAddSlot,
-		AddSlot: &slotcontroller.AddSlotRequest{
-			NewSlotID:       4,
-			Peers:           []uint64{1, 2, 3},
-			PreferredLeader: 2,
-		},
-	}
-
-	data, err := encodeCommand(cmd)
-	require.NoError(t, err)
-	decoded, err := decodeCommand(data)
-	require.NoError(t, err)
-
-	require.Equal(t, cmd.Kind, decoded.Kind)
-	require.NotNil(t, decoded.AddSlot)
-	require.Equal(t, cmd.AddSlot.NewSlotID, decoded.AddSlot.NewSlotID)
-	require.Equal(t, cmd.AddSlot.Peers, decoded.AddSlot.Peers)
-	require.Equal(t, cmd.AddSlot.PreferredLeader, decoded.AddSlot.PreferredLeader)
-}
-
-func TestEncodeCommandWritesBinaryEnvelope(t *testing.T) {
-	cmd := slotcontroller.Command{
-		Kind: slotcontroller.CommandKindAddSlot,
-		AddSlot: &slotcontroller.AddSlotRequest{
-			NewSlotID:       4,
-			Peers:           []uint64{1, 2, 3},
-			PreferredLeader: 2,
-		},
-	}
-
-	data, err := encodeCommand(cmd)
-	require.NoError(t, err)
-	require.NotEmpty(t, data)
-	require.NotEqual(t, byte('{'), data[0])
-
-	decoded, err := decodeCommand(data)
-	require.NoError(t, err)
-	require.Equal(t, cmd.Kind, decoded.Kind)
-	require.Equal(t, cmd.AddSlot, decoded.AddSlot)
-}
-
-func TestEncodeCommandBinaryAllocationsStayBounded(t *testing.T) {
-	cmd := sampleRaftOnboardingCommand()
-
-	allocs := testing.AllocsPerRun(1000, func() {
-		data, err := encodeCommand(cmd)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if len(data) == 0 || data[0] == '{' {
-			t.Fatalf("encodeCommand() wrote non-binary payload: %q", data)
-		}
-	})
-
-	require.LessOrEqual(t, allocs, float64(4), "encoding should avoid envelope clone allocations")
-}
-
-func TestDecodeCommandBinaryAllocationsStayBounded(t *testing.T) {
-	cmd := sampleRaftOnboardingCommand()
-	data, err := encodeCommand(cmd)
-	require.NoError(t, err)
-
-	allocs := testing.AllocsPerRun(1000, func() {
-		decoded, err := decodeCommand(data)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if decoded.NodeOnboarding == nil || decoded.NodeOnboarding.Job == nil {
-			t.Fatalf("decodeCommand() lost onboarding payload: %+v", decoded)
-		}
-	})
-
-	require.LessOrEqual(t, allocs, float64(24), "decoding should avoid the intermediate envelope clone path")
-}
-
-func TestDecodeCommandAcceptsLegacyJSONEnvelope(t *testing.T) {
-	legacy, err := json.Marshal(commandEnvelope{
-		Kind: slotcontroller.CommandKindAddSlot,
-		AddSlot: &slotcontroller.AddSlotRequest{
-			NewSlotID:       4,
-			Peers:           []uint64{1, 2, 3},
-			PreferredLeader: 2,
-		},
-	})
-	require.NoError(t, err)
-	require.Equal(t, byte('{'), legacy[0])
-
-	decoded, err := decodeCommand(legacy)
-	require.NoError(t, err)
-	require.Equal(t, slotcontroller.CommandKindAddSlot, decoded.Kind)
-	require.Equal(t, &slotcontroller.AddSlotRequest{
-		NewSlotID:       4,
-		Peers:           []uint64{1, 2, 3},
-		PreferredLeader: 2,
-	}, decoded.AddSlot)
-}
-
-func TestEncodeDecodeCommandBinaryRoundTripsRepresentativePayloads(t *testing.T) {
-	now := time.Date(2026, 5, 4, 10, 30, 0, 123, time.UTC)
-	expectedStatus := controllermeta.NodeStatusSuspect
-	expectedOnboardingStatus := controllermeta.OnboardingJobStatusPlanned
-	job, assignment, task := sampleRaftOnboardingUpdate()
-
-	cases := []struct {
-		name string
-		cmd  slotcontroller.Command
-	}{
-		{
-			name: "agent report",
-			cmd: slotcontroller.Command{
-				Kind: slotcontroller.CommandKindNodeHeartbeat,
-				Report: &slotcontroller.AgentReport{
-					NodeID:               2,
-					Addr:                 "127.0.0.1:12002",
-					ObservedAt:           now,
-					CapacityWeight:       3,
-					HashSlotTableVersion: 9,
-					Runtime: &controllermeta.SlotRuntimeView{
-						SlotID:              7,
-						CurrentPeers:        []uint64{1, 2, 3},
-						CurrentVoters:       []uint64{1, 2},
-						LeaderID:            1,
-						HealthyVoters:       2,
-						HasQuorum:           true,
-						ObservedConfigEpoch: 8,
-						LastReportAt:        now.Add(time.Second),
-					},
-				},
-			},
-		},
-		{
-			name: "task advance",
-			cmd: slotcontroller.Command{
-				Kind:    slotcontroller.CommandKindTaskResult,
-				Advance: &slotcontroller.TaskAdvance{SlotID: 7, Attempt: 2, Now: now, Err: errors.New("catchup failed")},
-			},
-		},
-		{
-			name: "node status update",
-			cmd: slotcontroller.Command{
-				Kind: slotcontroller.CommandKindNodeStatusUpdate,
-				NodeStatusUpdate: &slotcontroller.NodeStatusUpdate{Transitions: []slotcontroller.NodeStatusTransition{{
-					NodeID:         2,
-					NewStatus:      controllermeta.NodeStatusDead,
-					ExpectedStatus: &expectedStatus,
-					EvaluatedAt:    now,
-					Addr:           "127.0.0.1:12002",
-					CapacityWeight: 4,
-				}}},
-			},
-		},
-		{
-			name: "node onboarding",
-			cmd: slotcontroller.Command{
-				Kind: slotcontroller.CommandKindNodeOnboardingJobUpdate,
-				NodeOnboarding: &slotcontroller.NodeOnboardingJobUpdate{
-					Job:            &job,
-					ExpectedStatus: &expectedOnboardingStatus,
-					Assignment:     &assignment,
-					Task:           &task,
-				},
-			},
-		},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			data, err := encodeCommand(tc.cmd)
-			require.NoError(t, err)
-			require.NotEmpty(t, data)
-			require.NotEqual(t, byte('{'), data[0])
-
-			decoded, err := decodeCommand(data)
-			require.NoError(t, err)
-			require.Equal(t, tc.cmd.Kind, decoded.Kind)
-			requireCommandPayloadEqual(t, tc.cmd, decoded)
-		})
-	}
-}
-
-func TestEncodeDecodeCommandRoundTripsNodeOnboardingJobUpdate(t *testing.T) {
-	expected := controllermeta.OnboardingJobStatusPlanned
-	job, assignment, task := sampleRaftOnboardingUpdate()
-	cmd := slotcontroller.Command{
-		Kind: slotcontroller.CommandKindNodeOnboardingJobUpdate,
-		NodeOnboarding: &slotcontroller.NodeOnboardingJobUpdate{
-			Job:            &job,
-			ExpectedStatus: &expected,
-			Assignment:     &assignment,
-			Task:           &task,
-		},
-	}
-
-	data, err := encodeCommand(cmd)
-	require.NoError(t, err)
-	decoded, err := decodeCommand(data)
-	require.NoError(t, err)
-
-	require.Equal(t, cmd.Kind, decoded.Kind)
-	require.NotNil(t, decoded.NodeOnboarding)
-	require.NotNil(t, decoded.NodeOnboarding.Job)
-	require.Equal(t, job.JobID, decoded.NodeOnboarding.Job.JobID)
-	require.Equal(t, job.Plan.BlockedReasons[0].Scope, decoded.NodeOnboarding.Job.Plan.BlockedReasons[0].Scope)
-	require.Equal(t, job.Moves[0].DesiredPeersAfter, decoded.NodeOnboarding.Job.Moves[0].DesiredPeersAfter)
-	require.Equal(t, expected, *decoded.NodeOnboarding.ExpectedStatus)
-	require.Equal(t, assignment, *decoded.NodeOnboarding.Assignment)
-	require.Equal(t, task.Kind, decoded.NodeOnboarding.Task.Kind)
-}
-
-func TestFailInflightProposalsOnLeaderLossFailsQueuedAndIndexed(t *testing.T) {
-	queuedResp := make(chan error, 1)
-	indexedResp := make(chan error, 1)
-	queue := []trackedProposal{{resp: queuedResp}}
-	byIndex := map[uint64]trackedProposal{
-		7: {resp: indexedResp},
-	}
-
-	failInflightProposalsOnLeaderLoss(raft.StateFollower, &queue, byIndex)
-
-	require.Empty(t, queue)
-	require.Empty(t, byIndex)
-	require.ErrorIs(t, <-queuedResp, ErrNotLeader)
-	require.ErrorIs(t, <-indexedResp, ErrNotLeader)
-}
-
-func TestFailInflightProposalsOnLeaderLossLeavesLeaderRequestsIntact(t *testing.T) {
-	resp := make(chan error, 1)
-	queue := []trackedProposal{{resp: resp}}
-	byIndex := map[uint64]trackedProposal{}
-
-	failInflightProposalsOnLeaderLoss(raft.StateLeader, &queue, byIndex)
-
-	require.Len(t, queue, 1)
-	require.Empty(t, byIndex)
-	select {
-	case err := <-resp:
-		t.Fatalf("unexpected inflight failure: %v", err)
-	default:
-	}
-}
-
-func requireCommandPayloadEqual(t *testing.T, want, got slotcontroller.Command) {
+func newRaftTestCluster(t *testing.T, ids []uint64) *testRaftCluster {
 	t.Helper()
-
-	require.Equal(t, want.Report, got.Report)
-	require.Equal(t, want.Op, got.Op)
-	require.Equal(t, want.Assignment, got.Assignment)
-	require.Equal(t, want.Task, got.Task)
-	require.Equal(t, want.Migration, got.Migration)
-	require.Equal(t, want.AddSlot, got.AddSlot)
-	require.Equal(t, want.RemoveSlot, got.RemoveSlot)
-	require.Equal(t, want.NodeStatusUpdate, got.NodeStatusUpdate)
-	require.Equal(t, want.NodeJoin, got.NodeJoin)
-	require.Equal(t, want.NodeJoinActivate, got.NodeJoinActivate)
-	require.Equal(t, want.NodeOnboarding, got.NodeOnboarding)
-	if want.Advance == nil {
-		require.Nil(t, got.Advance)
-		return
+	transport := newMemoryRaftTransport()
+	peers := make([]Peer, 0, len(ids))
+	for _, id := range ids {
+		peers = append(peers, Peer{NodeID: id, Addr: fmt.Sprintf("n%d", id)})
 	}
-	require.NotNil(t, got.Advance)
-	require.Equal(t, want.Advance.SlotID, got.Advance.SlotID)
-	require.Equal(t, want.Advance.Attempt, got.Advance.Attempt)
-	require.Equal(t, want.Advance.Now, got.Advance.Now)
-	if want.Advance.Err == nil {
-		require.NoError(t, got.Advance.Err)
-		return
+	cluster := &testRaftCluster{peers: peers, transport: transport}
+	for _, id := range ids {
+		dir := t.TempDir()
+		statePath := filepath.Join(dir, "cluster-state.json")
+		node := &testRaftNode{id: id, dir: dir, raftDir: filepath.Join(dir, "controller-raft"), statePath: statePath, stateMachine: newTestStateMachine(t, statePath)}
+		cluster.rebuildService(t, node)
+		cluster.nodes = append(cluster.nodes, node)
 	}
-	require.Error(t, got.Advance.Err)
-	require.Equal(t, want.Advance.Err.Error(), got.Advance.Err.Error())
+	t.Cleanup(cluster.stop)
+	return cluster
 }
 
-func sampleRaftOnboardingCommand() slotcontroller.Command {
-	expected := controllermeta.OnboardingJobStatusPlanned
-	job, assignment, task := sampleRaftOnboardingUpdate()
-	return slotcontroller.Command{
-		Kind: slotcontroller.CommandKindNodeOnboardingJobUpdate,
-		NodeOnboarding: &slotcontroller.NodeOnboardingJobUpdate{
-			Job:            &job,
-			ExpectedStatus: &expected,
-			Assignment:     &assignment,
-			Task:           &task,
-		},
-	}
-}
-
-func sampleRaftOnboardingUpdate() (controllermeta.NodeOnboardingJob, controllermeta.SlotAssignment, controllermeta.ReconcileTask) {
-	now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
-	task := controllermeta.ReconcileTask{
-		SlotID:     2,
-		Kind:       controllermeta.TaskKindRebalance,
-		Step:       controllermeta.TaskStepAddLearner,
-		SourceNode: 1,
-		TargetNode: 4,
-		Status:     controllermeta.TaskStatusPending,
-	}
-	job := controllermeta.NodeOnboardingJob{
-		JobID:           "onboard-20260426-000001",
-		TargetNodeID:    4,
-		Status:          controllermeta.OnboardingJobStatusRunning,
-		CreatedAt:       now,
-		UpdatedAt:       now.Add(time.Second),
-		StartedAt:       now.Add(time.Minute),
-		PlanVersion:     1,
-		PlanFingerprint: "fingerprint",
-		Plan: controllermeta.NodeOnboardingPlan{
-			TargetNodeID: 4,
-			Summary: controllermeta.NodeOnboardingPlanSummary{
-				PlannedTargetSlotCount: 1,
-				PlannedLeaderGain:      1,
-			},
-			Moves: []controllermeta.NodeOnboardingPlanMove{{
-				SlotID:                 2,
-				SourceNodeID:           1,
-				TargetNodeID:           4,
-				Reason:                 "replica_balance",
-				DesiredPeersBefore:     []uint64{1, 2, 3},
-				DesiredPeersAfter:      []uint64{2, 3, 4},
-				CurrentLeaderID:        1,
-				LeaderTransferRequired: true,
-			}},
-			BlockedReasons: []controllermeta.NodeOnboardingBlockedReason{{
-				Code:    "slot_task_running",
-				Scope:   "slot",
-				SlotID:  2,
-				Message: "slot has running reconcile task",
-			}},
-		},
-		Moves: []controllermeta.NodeOnboardingMove{{
-			SlotID:                 2,
-			SourceNodeID:           1,
-			TargetNodeID:           4,
-			Status:                 controllermeta.OnboardingMoveStatusRunning,
-			TaskKind:               controllermeta.TaskKindRebalance,
-			TaskSlotID:             2,
-			StartedAt:              now.Add(time.Minute),
-			DesiredPeersBefore:     []uint64{1, 2, 3},
-			DesiredPeersAfter:      []uint64{2, 3, 4},
-			LeaderBefore:           1,
-			LeaderTransferRequired: true,
-		}},
-		CurrentMoveIndex: 0,
-		ResultCounts: controllermeta.OnboardingResultCounts{
-			Running: 1,
-		},
-		CurrentTask: &task,
-	}
-	assignment := controllermeta.SlotAssignment{
-		SlotID:                      2,
-		DesiredPeers:                []uint64{2, 3, 4},
-		PreferredLeader:             3,
-		LeaderTransferCooldownUntil: now.Add(5 * time.Minute),
-		ConfigEpoch:                 4,
-		BalanceVersion:              8,
-	}
-	return job, assignment, task
-}
-
-type testEnv struct {
-	root     string
-	addrs    map[uint64]string
-	allPeers []Peer
-	nodes    map[uint64]*testNode
-}
-
-type testNode struct {
-	id       uint64
-	dir      string
-	addr     string
-	server   *transport.Server
-	rpcMux   *transport.RPCMux
-	pool     *transport.Pool
-	logDB    *raftstorage.DB
-	meta     *controllermeta.Store
-	sm       *slotcontroller.StateMachine
-	service  *Service
-	allPeers []Peer
-}
-
-type bootstrapCounts struct {
-	mu     sync.Mutex
-	counts map[uint64]int
-}
-
-func newTestEnv(t *testing.T, nodeIDs []uint64) *testEnv {
+func (c *testRaftCluster) addNode(t *testing.T, id uint64) *testRaftNode {
 	t.Helper()
-
-	root := t.TempDir()
-	addrs := reserveNodeAddrs(t, len(nodeIDs))
-	peers := make([]Peer, 0, len(nodeIDs))
-	nodes := make(map[uint64]*testNode, len(nodeIDs))
-	addrMap := make(map[uint64]string, len(nodeIDs))
-
-	for i, nodeID := range nodeIDs {
-		addrMap[nodeID] = addrs[i]
-		peers = append(peers, Peer{
-			NodeID: nodeID,
-			Addr:   addrs[i],
-		})
+	c.peers = append(c.peers, Peer{NodeID: id, Addr: fmt.Sprintf("n%d", id)})
+	dir := t.TempDir()
+	statePath := filepath.Join(dir, "cluster-state.json")
+	node := &testRaftNode{
+		id:           id,
+		dir:          dir,
+		raftDir:      filepath.Join(dir, "controller-raft"),
+		statePath:    statePath,
+		stateMachine: newTestStateMachine(t, statePath),
 	}
-
-	for _, nodeID := range nodeIDs {
-		nodes[nodeID] = &testNode{
-			id:       nodeID,
-			dir:      filepath.Join(root, fmt.Sprintf("n%d", nodeID)),
-			addr:     addrMap[nodeID],
-			allPeers: append([]Peer(nil), peers...),
-		}
-	}
-
-	return &testEnv{
-		root:     root,
-		addrs:    addrMap,
-		allPeers: peers,
-		nodes:    nodes,
-	}
+	c.rebuildService(t, node)
+	c.nodes = append(c.nodes, node)
+	return node
 }
 
-func (e *testEnv) startNode(t *testing.T, nodeID uint64, peers []Peer) {
+func (c *testRaftCluster) rebuildService(t *testing.T, node *testRaftNode) {
 	t.Helper()
-	require.NoError(t, e.startNodeErr(t, nodeID, peers))
-}
-
-func (e *testEnv) startNodeWithConfig(t *testing.T, nodeID uint64, peers []Peer, mutate func(*Config)) {
-	t.Helper()
-	require.NoError(t, e.startNodeErrWithConfig(t, nodeID, peers, mutate))
-}
-
-func (e *testEnv) startNodeErr(t *testing.T, nodeID uint64, peers []Peer) error {
-	return e.startNodeErrWithConfig(t, nodeID, peers, nil)
-}
-
-func (e *testEnv) startNodeErrWithConfig(t *testing.T, nodeID uint64, peers []Peer, mutate func(*Config)) error {
-	t.Helper()
-	node := e.nodes[nodeID]
-	require.NotNil(t, node)
-	require.Nil(t, node.service)
-
-	if peers == nil {
-		peers = node.allPeers
-	}
-	require.NoError(t, os.MkdirAll(node.dir, 0o755))
-
-	node.server = transport.NewServer()
-	node.rpcMux = transport.NewRPCMux()
-	node.server.HandleRPCMux(node.rpcMux)
-	require.NoError(t, node.server.Start(node.addr))
-
-	discoveryPeers := make(testDiscovery, len(node.allPeers))
-	for _, peer := range node.allPeers {
-		discoveryPeers[peer.NodeID] = peer.Addr
-	}
-	node.pool = transport.NewPool(discoveryPeers, 2, 5*time.Second)
-
-	var err error
-	node.logDB, err = raftstorage.Open(filepath.Join(node.dir, "controller-raft"), raftstorage.Options{})
-	require.NoError(t, err)
-	node.meta, err = controllermeta.Open(filepath.Join(node.dir, "controller-meta"))
-	require.NoError(t, err)
-	node.sm = slotcontroller.NewStateMachine(node.meta, slotcontroller.StateMachineConfig{})
-
-	cfg := Config{
-		NodeID:         nodeID,
-		Peers:          append([]Peer(nil), peers...),
+	service, err := NewService(Config{
+		NodeID:         node.id,
+		Peers:          c.peers,
 		AllowBootstrap: true,
-		LogDB:          node.logDB,
-		StateMachine:   node.sm,
-		Server:         node.server,
-		RPCMux:         node.rpcMux,
-		Pool:           node.pool,
-	}
-	if mutate != nil {
-		mutate(&cfg)
-	}
-	node.service = NewService(cfg)
-	if err := node.service.Start(context.Background()); err != nil {
-		e.stopNode(nodeID)
-		return err
-	}
-	return nil
-}
-
-func (e *testEnv) restartNode(t *testing.T, nodeID uint64, peers []Peer) {
-	t.Helper()
-	e.stopNode(nodeID)
-	e.startNode(t, nodeID, peers)
-}
-
-type testDiscovery map[uint64]string
-
-func (d testDiscovery) Resolve(nodeID uint64) (string, error) {
-	addr, ok := d[nodeID]
-	if !ok {
-		return "", fmt.Errorf("node %d not found", nodeID)
-	}
-	return addr, nil
-}
-
-func (e *testEnv) stopAll() {
-	for _, nodeID := range sortedPeersFromMap(e.nodes) {
-		e.stopNode(nodeID)
-	}
-}
-
-func (e *testEnv) stopNode(nodeID uint64) {
-	node := e.nodes[nodeID]
-	if node == nil {
-		return
-	}
-	if node.service != nil {
-		_ = node.service.Stop()
-		node.service = nil
-	}
-	if node.pool != nil {
-		node.pool.Close()
-		node.pool = nil
-	}
-	if node.server != nil {
-		node.server.Stop()
-		node.server = nil
-	}
-	if node.logDB != nil {
-		_ = node.logDB.Close()
-		node.logDB = nil
-	}
-	if node.meta != nil {
-		_ = node.meta.Close()
-		node.meta = nil
-	}
-	node.rpcMux = nil
-	node.sm = nil
-}
-
-func (e *testEnv) waitForLeader(t *testing.T, nodeIDs []uint64) uint64 {
-	t.Helper()
-
-	deadline := time.Now().Add(10 * time.Second)
-	for time.Now().Before(deadline) {
-		var leader uint64
-		allAgree := true
-		for _, nodeID := range nodeIDs {
-			node := e.nodes[nodeID]
-			if node == nil || node.service == nil {
-				allAgree = false
-				break
-			}
-			got := node.service.LeaderID()
-			if got == 0 {
-				allAgree = false
-				break
-			}
-			if leader == 0 {
-				leader = got
-				continue
-			}
-			if leader != got {
-				allAgree = false
-				break
-			}
-		}
-		if allAgree && leader != 0 {
-			return leader
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
-	t.Fatalf("leader was not observed for nodes %v", nodeIDs)
-	return 0
-}
-
-func (e *testEnv) mustInitialState(t *testing.T, nodeID uint64) multiraft.BootstrapState {
-	t.Helper()
-	node := e.nodes[nodeID]
-	require.NotNil(t, node)
-	require.NotNil(t, node.logDB)
-
-	state, err := node.logDB.ForController().InitialState(context.Background())
+		RaftDir:        node.raftDir,
+		StateMachine:   node.stateMachine,
+		Transport:      c.transport,
+		TickInterval:   testRaftTickInterval,
+	})
 	require.NoError(t, err)
-	return state
+	node.service = service
+	c.transport.register(node.id, service)
 }
 
-func waitForControllerSnapshotIndex(t *testing.T, store multiraft.Storage, min uint64) raftpb.Snapshot {
+func (c *testRaftCluster) start(t *testing.T) {
 	t.Helper()
-	var snap raftpb.Snapshot
+	for _, node := range c.nodes {
+		require.NoError(t, node.service.Start(context.Background()))
+	}
+	c.waitForLeader(t)
+}
+
+func (c *testRaftCluster) stop() {
+	for _, node := range c.nodes {
+		if node.service != nil {
+			_ = node.service.Stop()
+		}
+	}
+}
+
+func (c *testRaftCluster) waitForLeader(t *testing.T) *testRaftNode {
+	t.Helper()
+	var leader *testRaftNode
 	require.Eventually(t, func() bool {
-		got, err := store.Snapshot(context.Background())
-		if err != nil {
-			return false
+		leader = nil
+		for _, node := range c.nodes {
+			if node.service.Status().Role == RoleLeader {
+				if leader != nil {
+					return false
+				}
+				leader = node
+			}
 		}
-		if got.Metadata.Index < min {
-			return false
-		}
-		snap = got
-		return true
+		return leader != nil
 	}, 5*time.Second, 10*time.Millisecond)
-	return snap
+	return leader
 }
 
-func waitForControllerNode(t *testing.T, store *controllermeta.Store, nodeID uint64) {
+func (c *testRaftCluster) propose(t *testing.T, cmd command.Command) {
 	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	var lastErr error
+	for time.Now().Before(deadline) {
+		leader := c.waitForLeader(t)
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		err := leader.service.Propose(ctx, cmd)
+		cancel()
+		if err == nil {
+			return
+		}
+		lastErr = err
+		if !errors.Is(err, ErrNotLeader) {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	require.NoError(t, lastErr)
+}
+
+func (c *testRaftCluster) waitForRevision(t *testing.T, revision uint64) []state.ClusterState {
+	t.Helper()
+	var states []state.ClusterState
 	require.Eventually(t, func() bool {
-		_, err := store.GetNode(context.Background(), nodeID)
-		return err == nil
-	}, 10*time.Second, 10*time.Millisecond)
-}
-
-func firstNonLeader(nodeIDs []uint64, leaderID uint64) uint64 {
-	for _, nodeID := range nodeIDs {
-		if nodeID != leaderID {
-			return nodeID
+		states = states[:0]
+		for _, node := range c.nodes {
+			st := node.stateMachine.Snapshot(context.Background())
+			if st.Revision != revision || st.Checksum == "" {
+				return false
+			}
+			persisted, err := statefile.New(node.statePath).Load(context.Background())
+			if err != nil || persisted.Revision != revision {
+				return false
+			}
+			states = append(states, st)
 		}
-	}
-	return 0
-}
-
-func removeNodeID(nodeIDs []uint64, removed uint64) []uint64 {
-	out := make([]uint64, 0, len(nodeIDs))
-	for _, nodeID := range nodeIDs {
-		if nodeID != removed {
-			out = append(out, nodeID)
-		}
-	}
+		return len(states) == len(c.nodes)
+	}, 5*time.Second, 10*time.Millisecond)
+	out := make([]state.ClusterState, len(states))
+	copy(out, states)
 	return out
 }
 
-func closeIfOpen(ch chan struct{}) {
-	defer func() { _ = recover() }()
-	close(ch)
+type memoryRaftTransport struct {
+	mu          sync.RWMutex
+	services    map[uint64]*Service
+	interceptor func(raftpb.Message) bool
 }
 
-func observeLifecycleWaits(t *testing.T) <-chan string {
-	t.Helper()
-	waitCh := make(chan string, 8)
-	setLifecycleWaitHookForTest(func(reason string) {
-		waitCh <- reason
-	})
-	t.Cleanup(func() {
-		setLifecycleWaitHookForTest(nil)
-	})
-	return waitCh
+type stepObserver struct {
+	mu       sync.Mutex
+	depth    int
+	capacity int
+	results  []string
+
+	applyStates []applyStateSample
 }
 
-func requireLifecycleWait(t *testing.T, waitCh <-chan string, want string) {
-	t.Helper()
-	deadline := time.After(2 * time.Second)
+type applyStateSample struct {
+	commit  uint64
+	applied uint64
+}
+
+func (o *stepObserver) SetStepQueueDepth(depth int, capacity int) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.depth = depth
+	o.capacity = capacity
+}
+
+func (o *stepObserver) ObserveStepEnqueue(result string, _ time.Duration) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.results = append(o.results, result)
+}
+
+func (o *stepObserver) SetApplyState(commitIndex, appliedIndex uint64) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.applyStates = append(o.applyStates, applyStateSample{commit: commitIndex, applied: appliedIndex})
+}
+
+func newMemoryRaftTransport() *memoryRaftTransport {
+	return &memoryRaftTransport{services: make(map[uint64]*Service)}
+}
+
+func (t *memoryRaftTransport) register(nodeID uint64, service *Service) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.services[nodeID] = service
+}
+
+func (t *memoryRaftTransport) setInterceptor(interceptor func(raftpb.Message) bool) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.interceptor = interceptor
+}
+
+func (t *memoryRaftTransport) Send(batch []raftpb.Message) {
+	for _, msg := range batch {
+		t.mu.RLock()
+		interceptor := t.interceptor
+		t.mu.RUnlock()
+		if interceptor != nil && interceptor(msg) {
+			continue
+		}
+		t.deliver(msg)
+	}
+}
+
+func (t *memoryRaftTransport) deliver(msg raftpb.Message) {
+	t.mu.RLock()
+	service := t.services[msg.To]
+	t.mu.RUnlock()
+	if service == nil {
+		return
+	}
+	// The test transport must not let one slow peer stall the sender's Raft loop.
+	ctx, cancel := context.WithTimeout(context.Background(), testRaftStepTimeout)
+	err := service.Step(ctx, msg)
+	cancel()
+	if err != nil && !errors.Is(err, ErrNotStarted) && !errors.Is(err, ErrStopped) && !errors.Is(err, context.DeadlineExceeded) {
+		return
+	}
+}
+
+func drainHeldMessages(transport *memoryRaftTransport, held <-chan raftpb.Message) {
 	for {
 		select {
-		case got := <-waitCh:
-			if got == want {
-				return
-			}
-		case <-deadline:
-			t.Fatalf("timed out waiting for lifecycle wait %q", want)
+		case msg := <-held:
+			transport.deliver(msg)
+		default:
+			return
 		}
 	}
 }
 
-func (e *testEnv) addrOf(nodeID uint64) string {
-	return e.addrs[nodeID]
+type blockingBatchStateMachine struct {
+	stateMachine
+	entered   chan struct{}
+	releaseCh chan struct{}
+	once      sync.Once
 }
 
-func (e *testEnv) captureBootstrapCalls(t *testing.T) *bootstrapCounts {
-	t.Helper()
-
-	counts := &bootstrapCounts{counts: make(map[uint64]int)}
-	original := currentRawNodeBootstrap()
-	setRawNodeBootstrapForTest(func(nodeID uint64, rawNode *raft.RawNode, peers []raft.Peer) error {
-		counts.record(nodeID)
-		return original(nodeID, rawNode, peers)
-	})
-	t.Cleanup(func() {
-		setRawNodeBootstrapForTest(original)
-	})
-	return counts
+func newBlockingBatchStateMachine(base stateMachine) *blockingBatchStateMachine {
+	return &blockingBatchStateMachine{stateMachine: base, entered: make(chan struct{}), releaseCh: make(chan struct{})}
 }
 
-func (c *bootstrapCounts) record(nodeID uint64) {
-	c.mu.Lock()
-	c.counts[nodeID]++
-	c.mu.Unlock()
-}
-
-func (c *bootstrapCounts) snapshot() map[uint64]int {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	out := make(map[uint64]int, len(c.counts))
-	for nodeID, count := range c.counts {
-		out[nodeID] = count
+func (s *blockingBatchStateMachine) ApplyBatch(ctx context.Context, entries []fsm.AppliedCommand) (fsm.BatchApplyResult, error) {
+	s.once.Do(func() { close(s.entered) })
+	select {
+	case <-s.releaseCh:
+	case <-ctx.Done():
+		return fsm.BatchApplyResult{}, ctx.Err()
 	}
-	return out
+	return s.stateMachine.ApplyBatch(ctx, entries)
 }
 
-func mustMarshalRaftMessage(t *testing.T, msg raftpb.Message) []byte {
+func (s *blockingBatchStateMachine) release() { close(s.releaseCh) }
+
+func newTestStateMachine(t *testing.T, path string) *fsm.StateMachine {
 	t.Helper()
-	body, err := msg.Marshal()
+	sm, err := fsm.New(statefile.New(path))
 	require.NoError(t, err)
-	return body
+	return sm
 }
 
-func nodeJoinCommand(nodeID uint64) slotcontroller.Command {
-	return slotcontroller.Command{
-		Kind: slotcontroller.CommandKindNodeJoin,
-		NodeJoin: &slotcontroller.NodeJoinRequest{
-			NodeID:         nodeID,
-			Addr:           fmt.Sprintf("127.0.0.1:%d", 7000+nodeID),
-			JoinedAt:       time.Unix(int64(nodeID), 0),
-			CapacityWeight: 1,
-		},
-	}
-}
-
-type controllerSnapshotMetadataOnlyStorage struct {
-	state multiraft.BootstrapState
-
-	firstIndex uint64
-	lastIndex  uint64
-	terms      map[uint64]uint64
-
-	snapshotErr     error
-	firstIndexCalls int
-	termCalls       int
-	snapshotCalls   int
-}
-
-func (s *controllerSnapshotMetadataOnlyStorage) InitialState(context.Context) (multiraft.BootstrapState, error) {
-	return s.state, nil
-}
-
-func (s *controllerSnapshotMetadataOnlyStorage) Entries(context.Context, uint64, uint64, uint64) ([]raftpb.Entry, error) {
-	return nil, nil
-}
-
-func (s *controllerSnapshotMetadataOnlyStorage) Term(_ context.Context, index uint64) (uint64, error) {
-	s.termCalls++
-	return s.terms[index], nil
-}
-
-func (s *controllerSnapshotMetadataOnlyStorage) FirstIndex(context.Context) (uint64, error) {
-	s.firstIndexCalls++
-	return s.firstIndex, nil
-}
-
-func (s *controllerSnapshotMetadataOnlyStorage) LastIndex(context.Context) (uint64, error) {
-	return s.lastIndex, nil
-}
-
-func (s *controllerSnapshotMetadataOnlyStorage) Snapshot(context.Context) (raftpb.Snapshot, error) {
-	s.snapshotCalls++
-	return raftpb.Snapshot{}, s.snapshotErr
-}
-
-func (s *controllerSnapshotMetadataOnlyStorage) Save(context.Context, multiraft.PersistentState) error {
-	return nil
-}
-
-func (s *controllerSnapshotMetadataOnlyStorage) MarkApplied(context.Context, uint64) error {
-	return nil
-}
-
-func sortedPeers(peers []uint64) []uint64 {
-	out := append([]uint64(nil), peers...)
-	sort.Slice(out, func(i, j int) bool {
-		return out[i] < out[j]
-	})
-	return out
-}
-
-func sortedPeersFromMap(nodes map[uint64]*testNode) []uint64 {
-	out := make([]uint64, 0, len(nodes))
-	for nodeID := range nodes {
-		out = append(out, nodeID)
-	}
-	sort.Slice(out, func(i, j int) bool {
-		return out[i] < out[j]
-	})
-	return out
-}
-
-func reserveNodeAddrs(t *testing.T, n int) []string {
+func startSingleService(t *testing.T, id uint64, peers []Peer, raftDir string, statePath string, allowBootstrap bool) *Service {
 	t.Helper()
+	sm := newTestStateMachine(t, statePath)
+	transport := newMemoryRaftTransport()
+	service, err := NewService(Config{NodeID: id, Peers: peers, AllowBootstrap: allowBootstrap, RaftDir: raftDir, StateMachine: sm, Transport: transport, TickInterval: testRaftTickInterval})
+	require.NoError(t, err)
+	transport.register(id, service)
+	require.NoError(t, service.Start(context.Background()))
+	return service
+}
 
-	listeners := make([]net.Listener, 0, n)
-	addrs := make([]string, 0, n)
-	for i := 0; i < n; i++ {
-		ln, err := net.Listen("tcp", "127.0.0.1:0")
-		require.NoError(t, err)
-		listeners = append(listeners, ln)
-		addrs = append(addrs, ln.Addr().String())
+func seedControllerRaftStore(t *testing.T, dir string, entries []raftpb.Entry, commit uint64, applied uint64) {
+	t.Helper()
+	store, err := raftstore.Open(context.Background(), raftstore.Config{Dir: dir, NodeID: 1, SegmentSize: 1 << 20})
+	require.NoError(t, err)
+	hs := raftpb.HardState{Term: 1, Vote: 1, Commit: commit}
+	require.NoError(t, store.SaveReady(context.Background(), hs, entries, raftpb.Snapshot{}))
+	if applied > 0 {
+		require.NoError(t, store.MarkAppliedBatch(context.Background(), applied))
 	}
-	for _, ln := range listeners {
-		require.NoError(t, ln.Close())
+	require.NoError(t, store.Close())
+}
+
+func testConfChangeEntry(t *testing.T, index uint64, nodeID uint64) raftpb.Entry {
+	t.Helper()
+	cc := raftpb.ConfChange{Type: raftpb.ConfChangeAddNode, NodeID: nodeID}
+	data, err := cc.Marshal()
+	require.NoError(t, err)
+	return raftpb.Entry{Type: raftpb.EntryConfChange, Term: 1, Index: index, Data: data}
+}
+
+func testCommandEntry(t *testing.T, index uint64, cmd command.Command) raftpb.Entry {
+	t.Helper()
+	data, err := command.Encode(cmd)
+	require.NoError(t, err)
+	return raftpb.Entry{Type: raftpb.EntryNormal, Term: 1, Index: index, Data: data}
+}
+
+func testInitCommand(clusterID string, peers []Peer) command.Command {
+	controllers := make([]state.ControllerVoter, 0, len(peers))
+	nodes := make([]state.Node, 0, len(peers))
+	for _, peer := range peers {
+		controllers = append(controllers, state.ControllerVoter{NodeID: peer.NodeID, Addr: peer.Addr, Role: state.ControllerRoleVoter})
+		nodes = append(nodes, state.Node{NodeID: peer.NodeID, Name: fmt.Sprintf("n%d", peer.NodeID), Addr: peer.Addr, Roles: []state.NodeRole{state.NodeRoleControllerVoter, state.NodeRoleData}, JoinState: state.NodeJoinStateActive, Status: state.NodeStatusAlive, CapacityWeight: 10})
 	}
-	return addrs
+	return command.Command{Kind: command.KindInitClusterState, Init: &command.InitClusterState{ClusterID: clusterID, Config: state.ClusterConfig{SlotCount: 4, HashSlotCount: 16, ReplicaCount: 3, DefaultCapacityWeight: 10}, Controllers: controllers, Nodes: nodes}}
+}
+
+func testUpsertNodeCommand(expectedRevision uint64, nodeID uint64, name string) command.Command {
+	node := state.Node{NodeID: nodeID, Name: name, Addr: fmt.Sprintf("n%d", nodeID), Roles: []state.NodeRole{state.NodeRoleControllerVoter, state.NodeRoleData}, JoinState: state.NodeJoinStateActive, Status: state.NodeStatusAlive, CapacityWeight: 10}
+	return command.Command{Kind: command.KindUpsertNode, ExpectedRevision: &expectedRevision, Node: &node}
+}
+
+func findTestNode(t *testing.T, st state.ClusterState, nodeID uint64) state.Node {
+	t.Helper()
+	for _, node := range st.Nodes {
+		if node.NodeID == nodeID {
+			return node
+		}
+	}
+	t.Fatalf("node %d not found", nodeID)
+	return state.Node{}
 }

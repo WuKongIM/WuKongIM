@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
-	cv2 "github.com/WuKongIM/WuKongIM/pkg/controllerv2"
-	"github.com/WuKongIM/WuKongIM/pkg/controllerv2/fsm"
-	cv2raft "github.com/WuKongIM/WuKongIM/pkg/controllerv2/raft"
+	cv2 "github.com/WuKongIM/WuKongIM/pkg/controller"
+	"github.com/WuKongIM/WuKongIM/pkg/controller/fsm"
+	cv2raft "github.com/WuKongIM/WuKongIM/pkg/controller/raft"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 

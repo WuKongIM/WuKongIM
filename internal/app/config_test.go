@@ -11,7 +11,7 @@ import (
 
 	accessapi "github.com/WuKongIM/WuKongIM/internal/access/api"
 	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
-	controllerraft "github.com/WuKongIM/WuKongIM/pkg/controller/raft"
+	controllerraft "github.com/WuKongIM/WuKongIM/pkg/legacy/controller/raft"
 	raftstorage "github.com/WuKongIM/WuKongIM/pkg/raftlog"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 	"github.com/stretchr/testify/require"

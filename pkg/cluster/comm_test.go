@@ -14,8 +14,8 @@ import (
 	"time"
 
 	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
-	controllermeta "github.com/WuKongIM/WuKongIM/pkg/controller/meta"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	controllermeta "github.com/WuKongIM/WuKongIM/pkg/legacy/controller/meta"
 	raftstorage "github.com/WuKongIM/WuKongIM/pkg/raftlog"
 	metafsm "github.com/WuKongIM/WuKongIM/pkg/slot/fsm"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"

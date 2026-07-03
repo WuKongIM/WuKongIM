@@ -5,7 +5,7 @@ import (
 	"time"
 
 	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
-	controllermeta "github.com/WuKongIM/WuKongIM/pkg/controller/meta"
+	controllermeta "github.com/WuKongIM/WuKongIM/pkg/legacy/controller/meta"
 )
 
 // NodeOnboardingCandidate is a manager-facing candidate node for explicit Slot allocation.

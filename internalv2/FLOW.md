@@ -189,8 +189,8 @@ single-node cluster.
   keep field numbers compatible with `github.com/WuKongIM/go-pdk`.
 - Plugin host runtime is shared under `pkg/plugin/pluginhost`; `internalv2/app`
   adapts it to `internalv2/usecase/plugin`.
-- Do not rename `internalv2`, `pkg/clusterv2`, `pkg/controllerv2`, or
-  `pkg/channelv2` package paths in this promotion stage.
+- Do not rename `internalv2`, `pkg/clusterv2`, or `pkg/channelv2` package paths
+  in this promotion stage; ControllerV2 is already promoted to `pkg/controller`.
 - Do not migrate legacy plugin hooks or remaining management APIs not listed in
   the internalv2 manager/access flows.
 - Do not implement realtime `NoPersist` delivery yet; return a stable

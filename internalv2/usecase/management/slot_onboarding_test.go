@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
-	cv2 "github.com/WuKongIM/WuKongIM/pkg/controllerv2"
-	cv2raft "github.com/WuKongIM/WuKongIM/pkg/controllerv2/raft"
+	cv2 "github.com/WuKongIM/WuKongIM/pkg/controller"
+	cv2raft "github.com/WuKongIM/WuKongIM/pkg/controller/raft"
 )
 
 func TestPlanNodeOnboardingSelectsBoundedSlotMoves(t *testing.T) {

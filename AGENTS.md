@@ -128,19 +128,16 @@ pkg/
     meta/                Hash-slot 元数据表、批处理、快照、channel runtime meta、conversation、plugin、migration 等存储
   hashslot/              Hash-slot 路由表、迁移状态与再平衡算法
   cluster/               集群运行时
-  clusterv2/             新版集群组合根：control/routing/net/slots/propose/channels/observe 分层，集成 controllerv2、slot/multiraft、channelv2
+  clusterv2/             新版集群组合根：control/routing/net/slots/propose/channels/observe 分层，集成 controller、slot/multiraft、channelv2
   channel/               Channel 维度复制、日志与节点间数据面
     handler/             append/fetch/query 入口逻辑与兼容 DurableMessage 编解码
     replica/             单 channel ISR 副本状态机、reconcile、checkpoint、retention 与 promotion 评估
     runtime/             channel runtime 生命周期、复制调度、backpressure 与 tombstone 管理
     transport/           Channel 数据面 RPC transport 适配
   channelv2/             实验性多 Reactor channel log runtime，用于 v0 append/fetch/replication 验证
-  controller/            控制面元数据、规划器与控制器 Raft 服务
-    meta/                控制面元数据存储
-    plane/               控制面 planner / reconcile 编排
-    raft/                控制器单组 Raft 服务
-  controllerv2/          并行新版控制面：Raft apply 维护最终 cluster-state.json，含 state/statefile/command/fsm/planner/sync/raft/server
-    docs/                controllerv2 库用法文档
+  controller/            新版控制面：Raft apply 维护最终 cluster-state.json，含 state/statefile/command/fsm/planner/sync/raft/server
+    docs/                controller 库用法文档
+  legacy/controller/     旧控制面元数据、planner 与单组 Raft 服务，仅供 legacy cluster/internal 编译期保留
   observability/         可被 pkg 与 internal 复用的可观测性轻量合约
     sendtrace/           消息发送链路 trace 事件与全局窄 sink
   plugin/

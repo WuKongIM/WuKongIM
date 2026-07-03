@@ -28,8 +28,8 @@ func TestProductionImportsOnlyControllerV2Facade(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Unquote(%s) error = %v", spec.Path.Value, err)
 			}
-			if strings.HasPrefix(path, "github.com/WuKongIM/WuKongIM/pkg/controllerv2/") {
-				t.Fatalf("%s imports ControllerV2 implementation package %q; app production code should import root pkg/controllerv2", file, path)
+			if strings.HasPrefix(path, "github.com/WuKongIM/WuKongIM/pkg/controller/") {
+				t.Fatalf("%s imports Controller implementation package %q; app production code should import root pkg/controller", file, path)
 			}
 		}
 	}

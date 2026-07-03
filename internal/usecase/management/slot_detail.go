@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	controllermeta "github.com/WuKongIM/WuKongIM/pkg/controller/meta"
+	controllermeta "github.com/WuKongIM/WuKongIM/pkg/legacy/controller/meta"
 )
 
 // SlotDetail is the manager-facing slot detail DTO.

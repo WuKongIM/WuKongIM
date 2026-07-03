@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	controllermeta "github.com/WuKongIM/WuKongIM/pkg/controller/meta"
-	slotcontroller "github.com/WuKongIM/WuKongIM/pkg/controller/plane"
+	controllermeta "github.com/WuKongIM/WuKongIM/pkg/legacy/controller/meta"
+	slotcontroller "github.com/WuKongIM/WuKongIM/pkg/legacy/controller/plane"
 )
 
 func TestControllerCodecRoundTripRequest(t *testing.T) {

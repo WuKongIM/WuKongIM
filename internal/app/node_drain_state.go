@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	controllermeta "github.com/WuKongIM/WuKongIM/pkg/controller/meta"
+	controllermeta "github.com/WuKongIM/WuKongIM/pkg/legacy/controller/meta"
 )
 
 const defaultNodeDrainStateStaleAfter = 15 * time.Second

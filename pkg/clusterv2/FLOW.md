@@ -162,7 +162,7 @@ installing the observed actual leader and term. While the mirrored local state
 is still `joining`, it does not install preferred leaders and public readiness
 continues to be activation-only.
 
-ControllerV2 changes enter clusterv2 as strongly typed `controllerv2.ClusterState` events. `pkg/clusterv2/control` maps those events to `control.Snapshot`; `Node` then compares node, Slot, task, and hash-slot domains before touching discovery, Slot runtime reconciliation, or foreground routing.
+Controller changes enter clusterv2 as strongly typed `controller.ClusterState` events. `pkg/clusterv2/control` maps those events to `control.Snapshot`; `Node` then compares node, Slot, task, and hash-slot domains before touching discovery, Slot runtime reconciliation, or foreground routing.
 
 When a control snapshot contains active bootstrap, leader-transfer, or staged
 slot-replica-move tasks, the Node runs task executors after Slot

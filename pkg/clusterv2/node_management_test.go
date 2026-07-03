@@ -8,7 +8,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/clusterv2/net"
-	cv2 "github.com/WuKongIM/WuKongIM/pkg/controllerv2"
+	cv2 "github.com/WuKongIM/WuKongIM/pkg/controller"
 )
 
 type controllerVoterPreparationFacade interface {

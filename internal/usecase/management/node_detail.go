@@ -3,7 +3,7 @@ package management
 import (
 	"context"
 
-	controllermeta "github.com/WuKongIM/WuKongIM/pkg/controller/meta"
+	controllermeta "github.com/WuKongIM/WuKongIM/pkg/legacy/controller/meta"
 )
 
 // NodeDetail is the manager-facing node detail DTO.

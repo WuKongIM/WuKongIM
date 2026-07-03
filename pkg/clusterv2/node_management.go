@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
-	cv2 "github.com/WuKongIM/WuKongIM/pkg/controllerv2"
+	cv2 "github.com/WuKongIM/WuKongIM/pkg/controller"
 )
 
 // LocalControlSnapshot returns the latest locally visible control snapshot.

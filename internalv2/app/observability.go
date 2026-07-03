@@ -23,7 +23,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
 	clusterv2channels "github.com/WuKongIM/WuKongIM/pkg/clusterv2/channels"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
-	cv2 "github.com/WuKongIM/WuKongIM/pkg/controllerv2"
+	cv2 "github.com/WuKongIM/WuKongIM/pkg/controller"
 	messagedb "github.com/WuKongIM/WuKongIM/pkg/db/message"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	accessgateway "github.com/WuKongIM/WuKongIM/pkg/gateway"

@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	cv2 "github.com/WuKongIM/WuKongIM/pkg/controllerv2"
+	cv2 "github.com/WuKongIM/WuKongIM/pkg/controller"
 )
 
 func TestControllerV2SnapshotMapping(t *testing.T) {

@@ -12,7 +12,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/clusterv2/net"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/routing"
-	"github.com/WuKongIM/WuKongIM/pkg/controllerv2"
+	cv2 "github.com/WuKongIM/WuKongIM/pkg/controller"
 	"github.com/WuKongIM/WuKongIM/pkg/transportv2"
 )
 
@@ -368,7 +368,7 @@ func TestNodeStartRetriesTaskReconcileAfterRetryableControlWrite(t *testing.T) {
 		Status:      control.TaskStatusPending,
 	}}
 	controller := control.NewStaticController(snapshot)
-	executor := &flakyTaskExecutor{errs: []error{controllerv2.ErrNotLeader}}
+	executor := &flakyTaskExecutor{errs: []error{cv2.ErrNotLeader}}
 	cfg := validNodeConfig(t)
 	cfg.Slots.TickInterval = 10 * time.Millisecond
 	node, err := New(cfg, withController(controller), withSlotReconciler(&recordingReconciler{}), withTaskExecutor(executor))
@@ -488,7 +488,7 @@ func TestTaskReconcileLoopRecordsNonRetryableReconcileError(t *testing.T) {
 }
 
 func TestRetryableTaskReconcileErrorMatchesRemoteControllerNotLeader(t *testing.T) {
-	err := transportv2.RemoteError{Code: "remote_error", Message: controllerv2.ErrNotLeader.Error()}
+	err := transportv2.RemoteError{Code: "remote_error", Message: cv2.ErrNotLeader.Error()}
 	if !retryableTaskReconcileError(err) {
 		t.Fatalf("retryableTaskReconcileError(%v) = false, want true", err)
 	}

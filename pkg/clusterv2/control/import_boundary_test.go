@@ -12,13 +12,13 @@ import (
 
 func TestProductionImportsOnlyControllerV2Facade(t *testing.T) {
 	disallowed := []string{
-		"github.com/WuKongIM/WuKongIM/pkg/controllerv2/command",
-		"github.com/WuKongIM/WuKongIM/pkg/controllerv2/fsm",
-		"github.com/WuKongIM/WuKongIM/pkg/controllerv2/raft",
-		"github.com/WuKongIM/WuKongIM/pkg/controllerv2/server",
-		"github.com/WuKongIM/WuKongIM/pkg/controllerv2/state",
-		"github.com/WuKongIM/WuKongIM/pkg/controllerv2/statefile",
-		"github.com/WuKongIM/WuKongIM/pkg/controllerv2/sync",
+		"github.com/WuKongIM/WuKongIM/pkg/controller/command",
+		"github.com/WuKongIM/WuKongIM/pkg/controller/fsm",
+		"github.com/WuKongIM/WuKongIM/pkg/controller/raft",
+		"github.com/WuKongIM/WuKongIM/pkg/controller/server",
+		"github.com/WuKongIM/WuKongIM/pkg/controller/state",
+		"github.com/WuKongIM/WuKongIM/pkg/controller/statefile",
+		"github.com/WuKongIM/WuKongIM/pkg/controller/sync",
 	}
 	files, err := filepath.Glob("*.go")
 	if err != nil {
@@ -41,7 +41,7 @@ func TestProductionImportsOnlyControllerV2Facade(t *testing.T) {
 			for _, blocked := range disallowed {
 				if path == blocked {
 					wd, _ := os.Getwd()
-					t.Fatalf("%s imports ControllerV2 implementation package %q; production code should import only root pkg/controllerv2 from %s", file, path, wd)
+					t.Fatalf("%s imports Controller implementation package %q; production code should import only root pkg/controller from %s", file, path, wd)
 				}
 			}
 		}

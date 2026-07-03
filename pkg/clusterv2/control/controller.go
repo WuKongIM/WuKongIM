@@ -3,7 +3,7 @@ package control
 import (
 	"context"
 
-	cv2 "github.com/WuKongIM/WuKongIM/pkg/controllerv2"
+	cv2 "github.com/WuKongIM/WuKongIM/pkg/controller"
 )
 
 // Controller provides local access to clusterv2 control state.

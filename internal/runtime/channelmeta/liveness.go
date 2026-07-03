@@ -5,7 +5,7 @@ import (
 	"sync"
 
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
-	controllermeta "github.com/WuKongIM/WuKongIM/pkg/controller/meta"
+	controllermeta "github.com/WuKongIM/WuKongIM/pkg/legacy/controller/meta"
 	"golang.org/x/sync/singleflight"
 )
 

@@ -3,7 +3,7 @@ package cluster
 import (
 	"context"
 
-	controllerraft "github.com/WuKongIM/WuKongIM/pkg/controller/raft"
+	controllerraft "github.com/WuKongIM/WuKongIM/pkg/legacy/controller/raft"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 )
 
