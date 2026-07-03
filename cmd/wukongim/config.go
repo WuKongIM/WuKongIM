@@ -27,6 +27,12 @@ var defaultConfigPaths = []string{
 	"/etc/wukongim/wukongim.conf",
 }
 
+var requiredConfigKeys = []string{
+	"WK_NODE_ID",
+	"WK_NODE_DATA_DIR",
+	"WK_CLUSTER_LISTEN_ADDR",
+}
+
 var removedConfigKeyReplacements = map[string]string{
 	"WK_CLUSTER_GROUP_COUNT":     "WK_CLUSTER_INITIAL_SLOT_COUNT",
 	"WK_CLUSTER_GROUP_REPLICA_N": "WK_CLUSTER_SLOT_REPLICA_N",
@@ -210,14 +216,27 @@ func loadConfig(args []string) (app.Config, error) {
 		return app.Config{}, err
 	}
 
-	values, err := readConfigValues(configPath)
+	values, attemptedDefaultPaths, err := readConfigValues(configPath)
 	if err != nil {
+		return app.Config{}, err
+	}
+	if err := validateRemovedEnvConfigKeys(); err != nil {
 		return app.Config{}, err
 	}
 	overlayEnv(values)
 
 	cfg, err := buildConfig(values)
 	if err != nil {
+		if len(attemptedDefaultPaths) > 0 {
+			missing := missingRequiredConfigKeys(values)
+			if len(missing) > 0 {
+				return app.Config{}, fmt.Errorf(
+					"load config: no default config file found (tried %s); missing required config keys: %s",
+					strings.Join(attemptedDefaultPaths, ", "),
+					strings.Join(missing, ", "),
+				)
+			}
+		}
 		return app.Config{}, fmt.Errorf("load config: %w", err)
 	}
 	return cfg, nil
@@ -233,21 +252,25 @@ func parseConfigPath(args []string) (string, error) {
 	return strings.TrimSpace(*configPath), nil
 }
 
-func readConfigValues(configPath string) (map[string]string, error) {
+func readConfigValues(configPath string) (map[string]string, []string, error) {
 	if configPath != "" {
-		return readKeyValueFile(configPath)
+		values, err := readKeyValueFile(configPath)
+		return values, nil, err
 	}
 
+	attempted := make([]string, 0, len(defaultConfigPaths))
 	for _, candidate := range defaultConfigPaths {
+		attempted = append(attempted, candidate)
 		if _, err := os.Stat(candidate); err != nil {
 			if os.IsNotExist(err) {
 				continue
 			}
-			return nil, fmt.Errorf("stat %s: %w", candidate, err)
+			return nil, nil, fmt.Errorf("stat %s: %w", candidate, err)
 		}
-		return readKeyValueFile(candidate)
+		values, err := readKeyValueFile(candidate)
+		return values, nil, err
 	}
-	return map[string]string{}, nil
+	return map[string]string{}, attempted, nil
 }
 
 func readKeyValueFile(path string) (map[string]string, error) {
@@ -313,12 +336,37 @@ func validateConfigKeys(values map[string]string) error {
 	return fmt.Errorf("unsupported config key(s): %s", strings.Join(unsupported, ", "))
 }
 
+func validateRemovedEnvConfigKeys() error {
+	removed := make([]string, 0, len(removedConfigKeyReplacements))
+	for key := range removedConfigKeyReplacements {
+		if _, ok := os.LookupEnv(key); ok {
+			removed = append(removed, key)
+		}
+	}
+	if len(removed) == 0 {
+		return nil
+	}
+	sort.Strings(removed)
+	key := removed[0]
+	return fmt.Errorf("%s is no longer supported; use %s", key, removedConfigKeyReplacements[key])
+}
+
 func overlayEnv(values map[string]string) {
 	for _, key := range supportedConfigKeys {
 		if value, ok := os.LookupEnv(key); ok {
 			values[key] = value
 		}
 	}
+}
+
+func missingRequiredConfigKeys(values map[string]string) []string {
+	missing := make([]string, 0, len(requiredConfigKeys))
+	for _, key := range requiredConfigKeys {
+		if strings.TrimSpace(values[key]) == "" {
+			missing = append(missing, key)
+		}
+	}
+	return missing
 }
 
 func buildConfig(values map[string]string) (app.Config, error) {

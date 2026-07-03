@@ -77,6 +77,28 @@ func TestLoadConfigDefaultValues(t *testing.T) {
 	}
 }
 
+func TestLoadConfigWithoutDefaultConfigReportsAttemptedPathsAndMissingKeys(t *testing.T) {
+	unsetLoadConfigEnv(t)
+	chdir(t, t.TempDir())
+
+	_, err := loadConfig(nil)
+	if err == nil {
+		t.Fatal("loadConfig() error = nil, want missing required config error")
+	}
+	for _, want := range []string{
+		"./wukongim.conf",
+		"./conf/wukongim.conf",
+		"/etc/wukongim/wukongim.conf",
+		"WK_NODE_ID",
+		"WK_NODE_DATA_DIR",
+		"WK_CLUSTER_LISTEN_ADDR",
+	} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("loadConfig() error = %v, want %s", err, want)
+		}
+	}
+}
+
 func TestLoadConfigParsesManagerLoginSettings(t *testing.T) {
 	unsetLoadConfigEnv(t)
 	chdir(t, t.TempDir())
@@ -1459,6 +1481,24 @@ func TestLoadConfigRejectsRemovedV1ConfigKeysWithReplacement(t *testing.T) {
 	}
 }
 
+func TestLoadConfigRejectsRemovedV1ConfigKeysFromEnvWithReplacement(t *testing.T) {
+	unsetLoadConfigEnv(t)
+	chdir(t, t.TempDir())
+	dir := t.TempDir()
+	t.Setenv("WK_NODE_ID", "1")
+	t.Setenv("WK_NODE_DATA_DIR", filepath.Join(dir, "node-1"))
+	t.Setenv("WK_CLUSTER_LISTEN_ADDR", "127.0.0.1:7001")
+	t.Setenv("WK_CLUSTER_GROUP_COUNT", "16")
+
+	_, err := loadConfig(nil)
+	if err == nil {
+		t.Fatal("loadConfig() error = nil, want removed env key error")
+	}
+	if !strings.Contains(err.Error(), "WK_CLUSTER_GROUP_COUNT") || !strings.Contains(err.Error(), "WK_CLUSTER_INITIAL_SLOT_COUNT") {
+		t.Fatalf("loadConfig() error = %v, want removed env key and replacement", err)
+	}
+}
+
 func TestLoadConfigMultiNodeExampleFiles(t *testing.T) {
 	unsetLoadConfigEnv(t)
 
@@ -1922,7 +1962,11 @@ func chdir(t *testing.T, dir string) {
 
 func unsetLoadConfigEnv(t *testing.T) {
 	t.Helper()
-	for _, key := range supportedConfigKeys {
+	keys := append([]string{}, supportedConfigKeys...)
+	for key := range removedConfigKeyReplacements {
+		keys = append(keys, key)
+	}
+	for _, key := range keys {
 		old, ok := os.LookupEnv(key)
 		if err := os.Unsetenv(key); err != nil {
 			t.Fatalf("Unsetenv(%s): %v", key, err)
