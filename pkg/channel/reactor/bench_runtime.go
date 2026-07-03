@@ -10,7 +10,7 @@ import (
 
 const runtimeDrainPollInterval = 10 * time.Millisecond
 
-// RuntimeSnapshot summarizes loaded ChannelV2 runtimes across all reactors.
+// RuntimeSnapshot summarizes loaded Channel runtimes across all reactors.
 func (g *Group) RuntimeSnapshot(ctx context.Context) (ch.RuntimeSnapshot, error) {
 	if g == nil || g.closed.Load() {
 		return ch.RuntimeSnapshot{}, ch.ErrClosed

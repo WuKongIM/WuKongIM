@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// ClusterHarness is an in-memory multi-node channelv2 test cluster.
+// ClusterHarness is an in-memory multi-node channel test cluster.
 type ClusterHarness struct {
 	Nodes   map[ch.NodeID]ch.Cluster
 	Stores  map[ch.NodeID]*store.MemoryFactory

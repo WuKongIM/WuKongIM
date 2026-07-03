@@ -1,8 +1,8 @@
-# pkg/channelv2/reactor Flow
+# pkg/channel/reactor Flow
 
 ## Purpose
 
-`pkg/channelv2/reactor` owns channel-keyed runtime state for channelv2. A single
+`pkg/channel/reactor` owns channel-keyed runtime state for the channel runtime. A single
 reactor goroutine is the writer for each loaded channel runtime. Blocking store
 and RPC work leaves the reactor through bounded worker pools and returns as
 fenced worker completions.
@@ -22,7 +22,7 @@ The package keeps single-node deployments under the same cluster semantics: a
 single node is a single-node cluster, not a bypass around replication logic.
 Append admission converts client-visible `Message` values into durable
 `Record` values while preserving conversation display fields:
-`FromUID`, `ClientMsgNo`, payload, and `ServerTimestampMS`. Direct channelv2
+`FromUID`, `ClientMsgNo`, payload, and `ServerTimestampMS`. Direct channel
 append callers that omit `ServerTimestampMS` receive the reactor admission time.
 
 ## Event Domains

@@ -15,7 +15,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 )
 
-// MessageDBFactory adapts the shared message DB engine to channelv2.
+// MessageDBFactory adapts the shared message DB engine to the channel runtime.
 type MessageDBFactory struct {
 	engine          *messagedb.Engine
 	mu              sync.Mutex

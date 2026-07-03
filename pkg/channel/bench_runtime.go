@@ -17,13 +17,13 @@ type RuntimeDrain interface {
 	DrainChannel(context.Context, DrainChannelRequest) (DrainChannelResult, error)
 }
 
-// RuntimeSelector selects concrete channel identities. Callers expand benchmark ranges before entering pkg/channelv2.
+// RuntimeSelector selects concrete channel identities. Callers expand benchmark ranges before entering pkg/channel.
 type RuntimeSelector struct {
 	// ChannelIDs are copied by callers before asynchronous use.
 	ChannelIDs []ChannelID
 }
 
-// RuntimeSnapshot is one node's low-cardinality ChannelV2 runtime view.
+// RuntimeSnapshot is one node's low-cardinality Channel runtime view.
 type RuntimeSnapshot struct {
 	// NodeID is the local node that produced this snapshot.
 	NodeID NodeID

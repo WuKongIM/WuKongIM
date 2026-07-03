@@ -6,7 +6,7 @@ import (
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
 )
 
-// Pools owns all blocking worker pools used by channelv2 reactors.
+// Pools owns all blocking worker pools used by channel reactors.
 type Pools struct {
 	StoreAppend *Pool
 	StoreRead   *Pool

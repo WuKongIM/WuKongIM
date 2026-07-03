@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-// Cluster is the experimental channelv2 facade.
+// Cluster is the channel runtime facade.
 type Cluster interface {
 	ApplyMeta(Meta) error
 	Append(context.Context, AppendRequest) (AppendResult, error)
@@ -25,16 +25,16 @@ type MetaResolver interface {
 	ResolveChannelMeta(context.Context, ChannelID) (Meta, error)
 }
 
-// Config contains construction dependencies for the v0 service facade.
+// Config contains construction dependencies for the service facade.
 type Config struct {
 	LocalNode    NodeID
 	ReactorCount int
 	MailboxSize  int
-	// MaxChannels bounds loaded ChannelV2 runtimes on this node. Zero keeps the current unlimited behavior.
+	// MaxChannels bounds loaded Channel runtimes on this node. Zero keeps the current unlimited behavior.
 	MaxChannels int
 	Store       any
 	Transport   any
-	// MetaResolver is ignored by channelv2 service PullHint handling.
+	// MetaResolver is ignored by channel service PullHint handling.
 	MetaResolver any
 	// AppendAdmissionGuard can reject local leader appends before reactor admission.
 	AppendAdmissionGuard AppendAdmissionGuard

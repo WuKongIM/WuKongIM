@@ -6,7 +6,7 @@ import (
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
 )
 
-// Factory opens per-channel stores for channelv2 reactors.
+// Factory opens per-channel stores for channel reactors.
 type Factory interface {
 	ChannelStore(key ch.ChannelKey, id ch.ChannelID) (ChannelStore, error)
 }
@@ -26,7 +26,7 @@ type ChannelCatalogLister interface {
 	ListChannelsPage(ctx context.Context, after ch.ChannelKey, limit int) ([]ChannelCatalogEntry, ch.ChannelKey, bool, error)
 }
 
-// ChannelStore is the narrow persistence contract used by channelv2.
+// ChannelStore is the narrow persistence contract used by the channel runtime.
 type ChannelStore interface {
 	Load(ctx context.Context) (InitialState, error)
 	AppendLeader(ctx context.Context, req AppendLeaderRequest) (AppendLeaderResult, error)

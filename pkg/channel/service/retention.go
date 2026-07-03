@@ -6,7 +6,7 @@ import (
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
 )
 
-// RetentionView returns one local ChannelV2 runtime's retention progress.
+// RetentionView returns one local Channel runtime's retention progress.
 func (c *cluster) RetentionView(ctx context.Context, id ch.ChannelID) (ch.RetentionView, error) {
 	if c == nil || c.group == nil {
 		return ch.RetentionView{}, ch.ErrClosed

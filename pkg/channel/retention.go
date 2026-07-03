@@ -16,7 +16,7 @@ const (
 	RetentionBlockedMinISRLag = "min_isr_lag"
 )
 
-// RetentionRuntime exposes local ChannelV2 log-compaction views and apply operations.
+// RetentionRuntime exposes local Channel log-compaction views and apply operations.
 type RetentionRuntime interface {
 	RetentionView(context.Context, ChannelID) (RetentionView, error)
 	ApplyRetentionBoundary(context.Context, RetentionApplyRequest) (RetentionApplyResult, error)

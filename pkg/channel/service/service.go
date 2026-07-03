@@ -11,7 +11,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/channel/worker"
 )
 
-// Config wires the v0 channelv2 service facade.
+// Config wires the channel service facade.
 type Config struct {
 	LocalNode    ch.NodeID
 	ReactorCount int
@@ -24,7 +24,7 @@ type Config struct {
 	StoreApplyWorkers int
 	// RPCWorkers caps blocking replication RPC workers. Zero keeps the reactor default.
 	RPCWorkers int
-	// MaxChannels bounds loaded ChannelV2 runtimes on this node. Zero keeps the current unlimited behavior.
+	// MaxChannels bounds loaded Channel runtimes on this node. Zero keeps the current unlimited behavior.
 	MaxChannels int
 	Store       store.Factory
 	Transport   transport.Client
@@ -87,7 +87,7 @@ type cluster struct {
 	observer reactor.Observer
 }
 
-// New constructs a v0 channelv2 cluster facade.
+// New constructs a channel cluster facade.
 func New(cfg Config) (ch.Cluster, error) {
 	if cfg.LocalNode == 0 || cfg.Store == nil {
 		return nil, ch.ErrInvalidConfig

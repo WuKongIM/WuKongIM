@@ -28,7 +28,7 @@ type Config struct {
 	ReactorCount int
 	// MailboxSize bounds each priority queue inside every reactor.
 	MailboxSize int
-	// MaxChannels bounds loaded ChannelV2 runtimes on this node. Zero keeps the current unlimited behavior.
+	// MaxChannels bounds loaded Channel runtimes on this node. Zero keeps the current unlimited behavior.
 	MaxChannels int
 	// Store opens channel-scoped stores for reactors and blocking workers.
 	Store store.Factory

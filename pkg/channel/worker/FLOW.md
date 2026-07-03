@@ -1,14 +1,14 @@
-# pkg/channelv2/worker Flow
+# pkg/channel/worker Flow
 
 ## Responsibility
 
-`worker` owns ChannelV2 blocking effects. Reactors submit typed store and RPC
+`worker` owns Channel blocking effects. Reactors submit typed store and RPC
 tasks through bounded admission queues, and workers return one fenced
 `Result` per accepted task.
 
 The package uses `pkg/workqueue.BoundedBatchPool` as its execution primitive.
 Backpressure, queue depth, adjacent batch collection, close admission, and
-executor entry are owned by workqueue. This package keeps the ChannelV2 typed
+executor entry are owned by workqueue. This package keeps the Channel typed
 semantics: task/result envelopes, fence-preserving completions, task-kind batch
 grouping, and worker-level observations.
 
