@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -15,6 +16,10 @@ import (
 func TestMain(m *testing.M) {
 	if os.Getenv("WK_PLUGIN_PROCESS_HELPER") == "1" {
 		if path := os.Getenv("WK_PLUGIN_ARGS_FILE"); path != "" {
+			if delay := parsePluginArgsWriteDelay(); delay > 0 {
+				_ = os.WriteFile(path, nil, 0o600)
+				time.Sleep(delay)
+			}
 			_ = os.WriteFile(path, []byte(strings.Join(os.Args[1:], "\n")), 0o600)
 		}
 		select {}
@@ -22,11 +27,24 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
+func parsePluginArgsWriteDelay() time.Duration {
+	raw := os.Getenv("WK_PLUGIN_ARGS_WRITE_DELAY_MS")
+	if raw == "" {
+		return 0
+	}
+	ms, err := strconv.Atoi(raw)
+	if err != nil || ms <= 0 {
+		return 0
+	}
+	return time.Duration(ms) * time.Millisecond
+}
+
 func TestProcessStartPassesSocketAndPerPluginSandbox(t *testing.T) {
 	dir := t.TempDir()
 	argsFile := filepath.Join(dir, "args.txt")
 	t.Setenv("WK_PLUGIN_PROCESS_HELPER", "1")
 	t.Setenv("WK_PLUGIN_ARGS_FILE", argsFile)
+	t.Setenv("WK_PLUGIN_ARGS_WRITE_DELAY_MS", "50")
 	manager := NewProcessManager(ProcessOptions{
 		SocketPath:  filepath.Join(dir, "run", "plugin.sock"),
 		SandboxDir:  filepath.Join(dir, "sandbox"),
@@ -37,16 +55,20 @@ func TestProcessStartPassesSocketAndPerPluginSandbox(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = manager.Stop(context.Background(), handle, nil) })
 
-	require.Eventually(t, func() bool {
-		_, err := os.Stat(argsFile)
-		return err == nil
-	}, time.Second, 10*time.Millisecond)
-	data, err := os.ReadFile(argsFile)
-	require.NoError(t, err)
-	require.Equal(t, strings.Join([]string{
+	wantArgs := strings.Join([]string{
 		"--socket", filepath.Join(dir, "run", "plugin.sock"),
 		"--sandbox", filepath.Join(dir, "sandbox", "alpha"),
-	}, "\n"), string(data))
+	}, "\n")
+	var gotArgs string
+	require.Eventually(t, func() bool {
+		data, err := os.ReadFile(argsFile)
+		if err != nil {
+			return false
+		}
+		gotArgs = string(data)
+		return gotArgs == wantArgs
+	}, time.Second, 10*time.Millisecond)
+	require.Equal(t, wantArgs, gotArgs)
 	require.DirExists(t, filepath.Join(dir, "sandbox", "alpha"))
 	require.Equal(t, "alpha", handle.Spec.No)
 	require.NotZero(t, handle.PID)
