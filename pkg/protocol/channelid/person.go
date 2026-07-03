@@ -6,8 +6,10 @@ import (
 	"strings"
 )
 
+// ErrInvalidPersonChannel reports malformed person channel input.
 var ErrInvalidPersonChannel = errors.New("runtime/channelid: invalid person channel")
 
+// EncodePersonChannel returns the deterministic channel ID for two person UIDs.
 func EncodePersonChannel(leftUID, rightUID string) string {
 	leftHash := crc32.ChecksumIEEE([]byte(leftUID))
 	rightHash := crc32.ChecksumIEEE([]byte(rightUID))
@@ -20,6 +22,7 @@ func EncodePersonChannel(leftUID, rightUID string) string {
 	return rightUID + "@" + leftUID
 }
 
+// DecodePersonChannel splits a person channel ID into its two UID parts.
 func DecodePersonChannel(channelID string) (string, string, error) {
 	parts := strings.Split(channelID, "@")
 	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
@@ -28,6 +31,7 @@ func DecodePersonChannel(channelID string) (string, string, error) {
 	return parts[0], parts[1], nil
 }
 
+// NormalizePersonChannel returns the canonical person channel ID for sender input.
 func NormalizePersonChannel(senderUID, channelID string) (string, error) {
 	if senderUID == "" || channelID == "" {
 		return "", ErrInvalidPersonChannel

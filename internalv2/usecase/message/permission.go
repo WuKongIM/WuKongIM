@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 
-	runtimechannelid "github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
 	channelmembers "github.com/WuKongIM/WuKongIM/internalv2/contracts/channelmembers"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	runtimechannelid "github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
 )
 
 func (a *App) checkSendPermission(ctx context.Context, cmd SendCommand) (SendCommand, Reason, error) {

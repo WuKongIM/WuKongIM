@@ -17,7 +17,6 @@ import (
 	"testing"
 	"time"
 
-	runtimechannelid "github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
 	accessapi "github.com/WuKongIM/WuKongIM/internalv2/access/api"
 	accessgateway "github.com/WuKongIM/WuKongIM/internalv2/access/gateway"
 	accessmanager "github.com/WuKongIM/WuKongIM/internalv2/access/manager"
@@ -45,6 +44,7 @@ import (
 	gatewaycore "github.com/WuKongIM/WuKongIM/pkg/gateway/core"
 	"github.com/WuKongIM/WuKongIM/pkg/gateway/session"
 	gatewaytransport "github.com/WuKongIM/WuKongIM/pkg/gateway/transport"
+	runtimechannelid "github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/bwmarrin/snowflake"

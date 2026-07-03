@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	runtimechannelid "github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
 	"github.com/WuKongIM/WuKongIM/internalv2/contracts/messageevents"
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/channelappend"
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internalv2/runtime/delivery"
@@ -17,6 +16,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/presence"
 	gatewaysession "github.com/WuKongIM/WuKongIM/pkg/gateway/session"
 	gatewaytransport "github.com/WuKongIM/WuKongIM/pkg/gateway/transport"
+	runtimechannelid "github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )

@@ -85,7 +85,6 @@ internal/
     user/                用户与 token 相关用例
   runtime/               节点内运行时原语
     channelmeta/         节点内 channel runtime meta resolver / bootstrap / repair / liveness 合约
-    channelid/           个人频道等 channel id 派生
     delivery/            节点内投递 actor / mailbox / retry runtime
     messageid/           消息 ID 分配
     online/              在线会话注册与本地投递
@@ -142,7 +141,8 @@ pkg/
     docs/                controllerv2 库用法文档
   observability/         可被 pkg 与 internal 复用的可观测性轻量合约
     sendtrace/           消息发送链路 trace 事件与全局窄 sink
-  protocol/              协议对象与编解码
+  protocol/              协议对象、编解码与协议级 helper
+    channelid/           个人频道、命令频道、agent 频道、请求级临时频道等 channel id 派生
     codec/               WuKong 二进制协议编解码
     frame/               WuKong frame/object 模型
     jsonrpc/             JSON-RPC schema 与 frame bridge

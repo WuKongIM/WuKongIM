@@ -5,8 +5,8 @@ import (
 	"reflect"
 	"testing"
 
-	runtimechannelid "github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	runtimechannelid "github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
 )
 
 func TestSyncReadsCMDKindRowsAndStripsCommandSuffix(t *testing.T) {

@@ -1,6 +1,6 @@
 package delivery
 
-import runtimechannelid "github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
+import runtimechannelid "github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
 
 var ErrInvalidPersonChannel = runtimechannelid.ErrInvalidPersonChannel
 

@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/observability/diagnostics/tracectx"
-	runtimechannelid "github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
@@ -19,6 +18,7 @@ import (
 	coregateway "github.com/WuKongIM/WuKongIM/pkg/gateway"
 	gatewaysession "github.com/WuKongIM/WuKongIM/pkg/gateway/session"
 	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
+	runtimechannelid "github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/wkprotoenc"
 	"github.com/stretchr/testify/require"

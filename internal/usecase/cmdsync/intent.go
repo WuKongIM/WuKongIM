@@ -4,8 +4,8 @@ import (
 	"strings"
 	"time"
 
-	runtimechannelid "github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
+	runtimechannelid "github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
 )
 
 // ConversationIntent describes one CMD conversation update before it is flushed.

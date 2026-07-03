@@ -489,7 +489,7 @@ Follower(旧 Leader) FetchRequest(fetchOffset=6, offsetEpoch=1)
 
 ### 5.3 个人频道的特殊处理
 
-**代码位置**：`internal/runtime/channelid/person.go` · `internal/app/deliveryrouting.go`
+**代码位置**：`pkg/protocol/channelid/person.go` · `internal/app/deliveryrouting.go`
 
 - **发送端**：`EncodePersonChannel` 将双方 UID 按 CRC32 哈希值排序，哈希值大的在前，拼接为 `UID_A@UID_B` 的确定性形式（哈希相等时按字符串比较），确保双向对话共用同一个频道。
 - **接收端**：`recipientChannelView` 解码 `left@right` 格式的内部频道 ID，将 RecvPacket 的 channelID 替换为对方的 UID，方便客户端直接展示"来自谁的消息"。

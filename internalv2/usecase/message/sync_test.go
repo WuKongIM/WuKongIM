@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	runtimechannelid "github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	runtimechannelid "github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
 )
 
 func TestSyncChannelMessagesNormalizesPersonChannelAndCapsLimit(t *testing.T) {

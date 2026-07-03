@@ -3,8 +3,8 @@ package api
 import (
 	"strconv"
 
-	runtimechannelid "github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
 	messageusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/message"
+	runtimechannelid "github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 )
 

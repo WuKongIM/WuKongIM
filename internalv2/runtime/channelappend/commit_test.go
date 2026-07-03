@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	runtimechannelid "github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
 	"github.com/WuKongIM/WuKongIM/internalv2/contracts/authority"
+	runtimechannelid "github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
 )
 
 func TestCommitEffectEnqueuesPersistAfterWithoutRecipientWork(t *testing.T) {

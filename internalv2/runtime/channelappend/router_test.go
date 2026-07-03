@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	runtimechannelid "github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
+	runtimechannelid "github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
 )
 
 func TestRouterLocalPathCallsSubmitLocal(t *testing.T) {

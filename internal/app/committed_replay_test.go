@@ -9,12 +9,12 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/contracts/messageevents"
-	runtimechannelid "github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
 	deliveryruntime "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	conversationusecase "github.com/WuKongIM/WuKongIM/internal/usecase/conversation"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelhandler "github.com/WuKongIM/WuKongIM/pkg/channel/handler"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	runtimechannelid "github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/stretchr/testify/require"
 )
