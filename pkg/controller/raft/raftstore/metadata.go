@@ -86,11 +86,11 @@ func saveMetadata(ctx context.Context, path string, meta metadata) error {
 func syncDir(dir string) error {
 	d, err := os.Open(dir)
 	if err != nil {
-		return fmt.Errorf("controllerv2/raftstore: open dir %s: %w", dir, err)
+		return fmt.Errorf("controller/raftstore: open dir %s: %w", dir, err)
 	}
 	defer d.Close()
 	if err := d.Sync(); err != nil {
-		return fmt.Errorf("controllerv2/raftstore: sync dir %s: %w", dir, err)
+		return fmt.Errorf("controller/raftstore: sync dir %s: %w", dir, err)
 	}
 	return nil
 }

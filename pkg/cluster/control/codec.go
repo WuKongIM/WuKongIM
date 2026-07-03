@@ -277,13 +277,13 @@ type controlWriteResponseEnvelope struct {
 }
 
 const (
-	controlWriteErrorCodeNotLeader         = "controllerv2_not_leader"
-	controlWriteErrorCodeNotStarted        = "controllerv2_not_started"
-	controlWriteErrorCodeStopped           = "controllerv2_stopped"
-	controlWriteErrorCodeRevisionMismatch  = "controllerv2_expected_revision_mismatch"
-	controlWriteErrorCodeProposalRejected  = "controllerv2_proposal_rejected"
-	controlWriteErrorCodeLifecycleConflict = "controllerv2_node_lifecycle_conflict"
-	controlWriteErrorCodeLifecycleNotFound = "controllerv2_node_lifecycle_not_found"
+	controlWriteErrorCodeNotLeader         = "controller_not_leader"
+	controlWriteErrorCodeNotStarted        = "controller_not_started"
+	controlWriteErrorCodeStopped           = "controller_stopped"
+	controlWriteErrorCodeRevisionMismatch  = "controller_expected_revision_mismatch"
+	controlWriteErrorCodeProposalRejected  = "controller_proposal_rejected"
+	controlWriteErrorCodeLifecycleConflict = "controller_node_lifecycle_conflict"
+	controlWriteErrorCodeLifecycleNotFound = "controller_node_lifecycle_not_found"
 )
 
 // EncodeControlWriteRequest encodes one generic control write request.

@@ -288,7 +288,7 @@ func (c *Config) applyControlDefaults() {
 	if implicitSingleNode && c.NodeID != 0 && c.ListenAddr != "" {
 		c.Control.Voters = []ControlVoter{{NodeID: c.NodeID, Addr: c.ListenAddr}}
 		if c.Control.ClusterID == "" {
-			c.Control.ClusterID = fmt.Sprintf("wk-clusterv2-single-node-%d", c.NodeID)
+			c.Control.ClusterID = fmt.Sprintf("wk-cluster-single-node-%d", c.NodeID)
 		}
 		c.Control.AllowBootstrap = true
 	}

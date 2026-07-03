@@ -48,7 +48,7 @@ func NewRuntime(cfg RuntimeConfig) (*Runtime, error) {
 		cfg.Now = time.Now
 	}
 	if cfg.NodeID == 0 || cfg.StateDir == "" || cfg.ClusterID == "" || len(cfg.Voters) == 0 {
-		return nil, fmt.Errorf("controllerv2: invalid runtime config")
+		return nil, fmt.Errorf("controller: invalid runtime config")
 	}
 	return &Runtime{cfg: cfg, watch: make(chan StateEvent, 16)}, nil
 }
@@ -71,7 +71,7 @@ func (r *Runtime) Start(ctx context.Context) error {
 	case RuntimeRoleMirror:
 		return r.startMirror(ctx)
 	default:
-		return fmt.Errorf("controllerv2: invalid runtime role %q", r.cfg.Role)
+		return fmt.Errorf("controller: invalid runtime role %q", r.cfg.Role)
 	}
 }
 

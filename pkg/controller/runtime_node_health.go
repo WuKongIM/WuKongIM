@@ -95,7 +95,7 @@ func gofailReportNodeHealthFault(raw string, nodeID uint64) error {
 	}
 	target, message, ok := strings.Cut(raw, ":")
 	if !ok {
-		return fmt.Errorf("controllerv2: %s", raw)
+		return fmt.Errorf("controller: %s", raw)
 	}
 	target = strings.TrimSpace(target)
 	message = strings.TrimSpace(message)
@@ -103,11 +103,11 @@ func gofailReportNodeHealthFault(raw string, nodeID uint64) error {
 		message = "node health report fault"
 	}
 	if target == "all" {
-		return fmt.Errorf("controllerv2: %s", message)
+		return fmt.Errorf("controller: %s", message)
 	}
 	want, err := strconv.ParseUint(target, 10, 64)
 	if err != nil || want != nodeID {
 		return nil
 	}
-	return fmt.Errorf("controllerv2: %s", message)
+	return fmt.Errorf("controller: %s", message)
 }

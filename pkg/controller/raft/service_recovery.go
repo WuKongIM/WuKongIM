@@ -73,10 +73,10 @@ func (s *Service) recoverStartup(ctx context.Context, store *raftstore.Store) (r
 		// cluster-state.json is only materialized state. Recovery trusts the
 		// Controller Raft WAL commit boundary and applied metadata as authoritative.
 		if stateSnap.AppliedRaftIndex > hs.Commit {
-			return runStartupState{}, fmt.Errorf("controllerv2/raft: state file applied raft index %d is ahead of committed raft index %d", stateSnap.AppliedRaftIndex, hs.Commit)
+			return runStartupState{}, fmt.Errorf("controller/raft: state file applied raft index %d is ahead of committed raft index %d", stateSnap.AppliedRaftIndex, hs.Commit)
 		}
 		if stateSnap.AppliedRaftIndex > last {
-			return runStartupState{}, fmt.Errorf("controllerv2/raft: state file applied raft index %d is ahead of local last raft index %d", stateSnap.AppliedRaftIndex, last)
+			return runStartupState{}, fmt.Errorf("controller/raft: state file applied raft index %d is ahead of local last raft index %d", stateSnap.AppliedRaftIndex, last)
 		}
 	}
 	replayFrom := store.AppliedIndex() + 1

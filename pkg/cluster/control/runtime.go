@@ -130,7 +130,7 @@ func (r *Runtime) Start(ctx context.Context) error {
 		return err
 	}
 	if r == nil || r.backend == nil {
-		return fmt.Errorf("control runtime: controllerv2 runtime is required")
+		return fmt.Errorf("control runtime: controller runtime is required")
 	}
 	if err := r.backend.Start(ctx); err != nil {
 		return err

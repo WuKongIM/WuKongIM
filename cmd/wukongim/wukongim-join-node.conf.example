@@ -9,7 +9,7 @@ WK_NODE_ID=4
 # Root data directory for this joining node.
 WK_NODE_DATA_DIR=./data/wukongim-node-4
 
-# Local node-to-node clusterv2 RPC listen address.
+# Local node-to-node cluster RPC listen address.
 WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7014
 
 # Stable cluster identity shared with the existing cluster.

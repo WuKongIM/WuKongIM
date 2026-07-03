@@ -12,9 +12,9 @@ import (
 
 var (
 	// ErrCRCMismatch indicates that a WAL record failed rolling CRC validation.
-	ErrCRCMismatch = errors.New("controllerv2/raftstore: crc mismatch")
+	ErrCRCMismatch = errors.New("controller/raftstore: crc mismatch")
 	// ErrTruncatedRecord indicates that the WAL ended in the middle of a frame.
-	ErrTruncatedRecord = errors.New("controllerv2/raftstore: truncated record")
+	ErrTruncatedRecord = errors.New("controller/raftstore: truncated record")
 )
 
 type recordType uint8

@@ -85,7 +85,7 @@ func loadSnapshotFile(path string) (raftpb.Snapshot, error) {
 	}
 	sum := sha256.Sum256(envelope.Data)
 	if got := hex.EncodeToString(sum[:]); envelope.Checksum != "" && got != envelope.Checksum {
-		return raftpb.Snapshot{}, fmt.Errorf("controllerv2/raftstore: snapshot checksum mismatch")
+		return raftpb.Snapshot{}, fmt.Errorf("controller/raftstore: snapshot checksum mismatch")
 	}
 	return raftpb.Snapshot{Data: append([]byte(nil), envelope.Data...), Metadata: cloneSnapshotMetadata(envelope.Metadata)}, nil
 }

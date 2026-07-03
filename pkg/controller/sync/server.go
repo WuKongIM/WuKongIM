@@ -58,7 +58,7 @@ func (s *Server) GetState(ctx context.Context, req GetStateRequest) (GetStateRes
 		return GetStateResponse{NotReady: true, LeaderID: leaderID}, nil
 	}
 	if s.snapshot == nil {
-		return GetStateResponse{}, errors.New("controllerv2/sync: nil snapshot function")
+		return GetStateResponse{}, errors.New("controller/sync: nil snapshot function")
 	}
 	st, err := s.snapshot(ctx)
 	if err != nil {

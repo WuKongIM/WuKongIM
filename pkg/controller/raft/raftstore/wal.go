@@ -107,7 +107,7 @@ func (w *wal) appendReady(ctx context.Context, hardState raftpb.HardState, entri
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	if w.file == nil {
-		return fmt.Errorf("controllerv2/raftstore: wal is closed")
+		return fmt.Errorf("controller/raftstore: wal is closed")
 	}
 	mustSync := raft.MustSync(hardState, w.hardState, len(entries)) || snapshot.Index > 0
 	if len(entries) > 0 {
@@ -161,7 +161,7 @@ func (w *wal) appendAppliedIndex(ctx context.Context, index uint64) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	if w.file == nil {
-		return fmt.Errorf("controllerv2/raftstore: wal is closed")
+		return fmt.Errorf("controller/raftstore: wal is closed")
 	}
 	if err := w.writeLocked(walRecord{Type: recordAppliedIndex, Payload: marshalUint64(index)}); err != nil {
 		return err
@@ -368,7 +368,7 @@ func applyRecord(state *replayState, rec walRecord) error {
 		}
 		state.AppliedIndex = index
 	default:
-		return fmt.Errorf("controllerv2/raftstore: unknown wal record type %d", rec.Type)
+		return fmt.Errorf("controller/raftstore: unknown wal record type %d", rec.Type)
 	}
 	return nil
 }
@@ -453,7 +453,7 @@ func parseSegmentName(name string) (uint64, uint64, error) {
 	name = strings.TrimSuffix(name, ".wal")
 	parts := strings.Split(name, "-")
 	if len(parts) != 2 {
-		return 0, 0, fmt.Errorf("controllerv2/raftstore: invalid wal segment %q", name)
+		return 0, 0, fmt.Errorf("controller/raftstore: invalid wal segment %q", name)
 	}
 	seq, err := strconv.ParseUint(parts[0], 16, 64)
 	if err != nil {

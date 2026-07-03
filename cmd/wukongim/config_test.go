@@ -1028,7 +1028,7 @@ func TestLoadConfigDerivesStaticMultiNodeClusterID(t *testing.T) {
 		t.Fatalf("loadConfig() error = %v", err)
 	}
 
-	if cfg.Cluster.Control.ClusterID != "wk-clusterv2-static-1-2-3" {
+	if cfg.Cluster.Control.ClusterID != "wk-cluster-static-1-2-3" {
 		t.Fatalf("Control.ClusterID = %q", cfg.Cluster.Control.ClusterID)
 	}
 }

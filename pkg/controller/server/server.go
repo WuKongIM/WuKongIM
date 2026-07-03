@@ -12,7 +12,7 @@ import (
 )
 
 // ErrStateSourceRequired indicates that a command-producing planner tick lacks authoritative state.
-var ErrStateSourceRequired = errors.New("controllerv2/server: state source is required for planner command decisions")
+var ErrStateSourceRequired = errors.New("controller/server: state source is required for planner command decisions")
 
 // Proposer appends ControllerV2 commands to the current Controller Raft leader.
 type Proposer interface {
@@ -111,7 +111,7 @@ func (s *Server) TickPlanner(ctx context.Context) error {
 		return ErrStateSourceRequired
 	}
 	if s.proposer == nil {
-		return errors.New("controllerv2/server: proposer is required")
+		return errors.New("controller/server: proposer is required")
 	}
 	if err := s.proposer.Propose(ctx, decision.Command); err != nil {
 		return err
@@ -154,7 +154,7 @@ func (s *Server) SyncOnce(ctx context.Context) error {
 		return err
 	}
 	if s.syncClient == nil {
-		return errors.New("controllerv2/server: sync client is required")
+		return errors.New("controller/server: sync client is required")
 	}
 	st, err := s.syncClient.SyncOnce(ctx)
 	if err != nil {

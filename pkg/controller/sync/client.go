@@ -78,10 +78,10 @@ func (c *Client) SyncOnce(ctx context.Context) error {
 		return err
 	}
 	if c.store == nil {
-		return errors.New("controllerv2/sync: nil state store")
+		return errors.New("controller/sync: nil state store")
 	}
 	if c.peers == nil {
-		return errors.New("controllerv2/sync: nil peer picker")
+		return errors.New("controller/sync: nil peer picker")
 	}
 
 	local, localValid, loadErr := c.loadLocal(ctx)
@@ -150,7 +150,7 @@ func (c *Client) SyncOnce(ctx context.Context) error {
 			continue
 		}
 		if len(resp.Payload) == 0 {
-			lastErr = errors.New("controllerv2/sync: empty payload")
+			lastErr = errors.New("controller/sync: empty payload")
 			continue
 		}
 		if err := c.installPayload(ctx, resp, compareRevision, compareChecksum); err != nil {

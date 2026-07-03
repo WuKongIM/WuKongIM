@@ -9,9 +9,9 @@ import (
 
 var (
 	// ErrExpectedRevisionMismatch indicates that a compare-and-set revision fence rejected a command.
-	ErrExpectedRevisionMismatch = errors.New("controllerv2: expected revision mismatch")
+	ErrExpectedRevisionMismatch = errors.New("controller: expected revision mismatch")
 	// ErrSlotActiveTaskConflict indicates that a Slot already has an active Controller task.
-	ErrSlotActiveTaskConflict = errors.New("controllerv2: slot already has active task")
+	ErrSlotActiveTaskConflict = errors.New("controller: slot already has active task")
 )
 
 // IsExpectedRevisionMismatch reports whether err is a ControllerV2 revision-fence rejection.

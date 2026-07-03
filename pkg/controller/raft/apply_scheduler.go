@@ -140,7 +140,7 @@ func (s *applyScheduler) applyJob(ctx context.Context, job toApply) error {
 			}
 			restorer, ok := s.applier.(snapshotRestorer)
 			if !ok || restorer == nil {
-				return fmt.Errorf("controllerv2/raft: snapshot restore not supported by state machine")
+				return fmt.Errorf("controller/raft: snapshot restore not supported by state machine")
 			}
 			if err := restorer.Restore(ctx, st); err != nil {
 				return err
@@ -169,7 +169,7 @@ func (s *applyScheduler) applyEntries(ctx context.Context, entries []raftpb.Entr
 			return err
 		}
 		if len(result.Results) != len(batch) {
-			return fmt.Errorf("controllerv2/raft: apply result count %d does not match command count %d", len(result.Results), len(batch))
+			return fmt.Errorf("controller/raft: apply result count %d does not match command count %d", len(result.Results), len(batch))
 		}
 		transitions := collectTaskTransitions(result.Results)
 		last := indexes[len(indexes)-1]

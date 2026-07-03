@@ -178,7 +178,7 @@ func TestIsRetryableWKCLIResult(t *testing.T) {
 		{
 			name: "controller proposal invalid state",
 			result: wkcliResult{
-				stderr: `manager API status 500: {"error":"internal_error","message":"controllerv2/raft: proposal rejected at index 188: invalid_state"}`,
+				stderr: `manager API status 500: {"error":"internal_error","message":"controller/raft: proposal rejected at index 188: invalid_state"}`,
 				err:    errors.New("exit status 2"),
 			},
 			want: true,
@@ -601,7 +601,7 @@ func isRetryableControllerProposalState(text string) bool {
 	for _, token := range []string{
 		"manager api status 500",
 		"internal_error",
-		"controllerv2/raft: proposal rejected",
+		"controller/raft: proposal rejected",
 		"invalid_state",
 	} {
 		if !strings.Contains(text, token) {

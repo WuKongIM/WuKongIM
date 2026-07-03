@@ -95,7 +95,7 @@ func (r *Runtime) PromoteControllerVoter(ctx context.Context, req PromoteControl
 	}
 	finalNode, ok := findLifecycleNode(updated, req.NodeID)
 	if !ok {
-		return PromoteControllerVoterResult{}, fmt.Errorf("controllerv2: node %d not found after controller voter promotion", req.NodeID)
+		return PromoteControllerVoterResult{}, fmt.Errorf("controller: node %d not found after controller voter promotion", req.NodeID)
 	}
 	return PromoteControllerVoterResult{
 		Changed:        proposal.Changed,
@@ -145,10 +145,10 @@ func (r *Runtime) PrepareControllerVoter(ctx context.Context, req PrepareControl
 		return PrepareControllerVoterResult{}, ErrNotStarted
 	}
 	if req.NodeID != r.cfg.NodeID {
-		return PrepareControllerVoterResult{}, fmt.Errorf("controllerv2: prepare controller voter node mismatch local=%d request=%d", r.cfg.NodeID, req.NodeID)
+		return PrepareControllerVoterResult{}, fmt.Errorf("controller: prepare controller voter node mismatch local=%d request=%d", r.cfg.NodeID, req.NodeID)
 	}
 	if req.ClusterID == "" || req.ClusterID != r.cfg.ClusterID {
-		return PrepareControllerVoterResult{}, fmt.Errorf("controllerv2: prepare controller voter cluster mismatch local=%q request=%q", r.cfg.ClusterID, req.ClusterID)
+		return PrepareControllerVoterResult{}, fmt.Errorf("controller: prepare controller voter cluster mismatch local=%q request=%q", r.cfg.ClusterID, req.ClusterID)
 	}
 	if err := validatePrepareControllerVoterNextVoters(r.cfg.NodeID, req.NextVoters); err != nil {
 		return PrepareControllerVoterResult{}, err
@@ -167,7 +167,7 @@ func (r *Runtime) PrepareControllerVoter(ctx context.Context, req PrepareControl
 	}
 	st := selection.selected.state
 	if st.ClusterID != req.ClusterID {
-		return PrepareControllerVoterResult{}, fmt.Errorf("controllerv2: mirror state cluster mismatch local=%q request=%q", st.ClusterID, req.ClusterID)
+		return PrepareControllerVoterResult{}, fmt.Errorf("controller: mirror state cluster mismatch local=%q request=%q", st.ClusterID, req.ClusterID)
 	}
 	if st.Revision < req.ExpectedRevision {
 		return PrepareControllerVoterResult{}, ErrExpectedRevisionMismatch
@@ -237,7 +237,7 @@ func moveMirrorStateAside(selection mirrorStateSelection) error {
 	}
 	if active.exists {
 		if err := os.Remove(active.path); err != nil && !os.IsNotExist(err) {
-			return fmt.Errorf("controllerv2: remove active mirror state %s: %w", active.path, err)
+			return fmt.Errorf("controller: remove active mirror state %s: %w", active.path, err)
 		}
 		if err := syncMirrorStateDir(active.path); err != nil {
 			return err
@@ -278,13 +278,13 @@ func selectPreservedMirrorState(active mirrorStateCandidate, backup mirrorStateC
 	case backup.valid:
 		return backup, nil
 	case active.exists && active.err != nil && backup.exists && backup.err != nil:
-		return mirrorStateCandidate{}, fmt.Errorf("controllerv2: load active mirror state: %w; load backup mirror state: %v", active.err, backup.err)
+		return mirrorStateCandidate{}, fmt.Errorf("controller: load active mirror state: %w; load backup mirror state: %v", active.err, backup.err)
 	case active.exists && active.err != nil:
 		return mirrorStateCandidate{}, active.err
 	case backup.exists && backup.err != nil:
 		return mirrorStateCandidate{}, backup.err
 	default:
-		return mirrorStateCandidate{}, fmt.Errorf("controllerv2: mirror state %s is not available", active.path)
+		return mirrorStateCandidate{}, fmt.Errorf("controller: mirror state %s is not available", active.path)
 	}
 }
 
@@ -292,10 +292,10 @@ func replaceBackupWithActive(activePath string, backupPath string, backupExists 
 	oldBackupPath := backupPath + ".old"
 	if backupExists {
 		if err := os.Remove(oldBackupPath); err != nil && !os.IsNotExist(err) {
-			return fmt.Errorf("controllerv2: remove old mirror state backup %s: %w", oldBackupPath, err)
+			return fmt.Errorf("controller: remove old mirror state backup %s: %w", oldBackupPath, err)
 		}
 		if err := os.Rename(backupPath, oldBackupPath); err != nil && !os.IsNotExist(err) {
-			return fmt.Errorf("controllerv2: move stale mirror state backup %s to %s: %w", backupPath, oldBackupPath, err)
+			return fmt.Errorf("controller: move stale mirror state backup %s to %s: %w", backupPath, oldBackupPath, err)
 		}
 	}
 	if err := os.Rename(activePath, backupPath); err != nil {
@@ -304,7 +304,7 @@ func replaceBackupWithActive(activePath string, backupPath string, backupExists 
 				_ = syncMirrorStateDir(backupPath)
 			}
 		}
-		return fmt.Errorf("controllerv2: move mirror state %s to %s: %w", activePath, backupPath, err)
+		return fmt.Errorf("controller: move mirror state %s to %s: %w", activePath, backupPath, err)
 	}
 	if backupExists {
 		_ = os.Remove(oldBackupPath)
@@ -316,30 +316,30 @@ func syncMirrorStateDir(path string) error {
 	dir := filepath.Dir(path)
 	d, err := os.Open(dir)
 	if err != nil {
-		return fmt.Errorf("controllerv2: open mirror state dir %s: %w", dir, err)
+		return fmt.Errorf("controller: open mirror state dir %s: %w", dir, err)
 	}
 	defer d.Close()
 	if err := d.Sync(); err != nil {
-		return fmt.Errorf("controllerv2: fsync mirror state dir %s: %w", dir, err)
+		return fmt.Errorf("controller: fsync mirror state dir %s: %w", dir, err)
 	}
 	return nil
 }
 
 func validatePrepareControllerVoterNextVoters(localNodeID uint64, voters []Voter) error {
 	if len(voters) == 0 {
-		return fmt.Errorf("controllerv2: prepare controller voter requires next voters")
+		return fmt.Errorf("controller: prepare controller voter requires next voters")
 	}
 	seen := make(map[uint64]struct{}, len(voters))
 	localFound := false
 	for _, voter := range voters {
 		if voter.NodeID == 0 {
-			return fmt.Errorf("controllerv2: prepare controller voter next voter node id must be > 0")
+			return fmt.Errorf("controller: prepare controller voter next voter node id must be > 0")
 		}
 		if voter.Addr == "" {
-			return fmt.Errorf("controllerv2: prepare controller voter next voter %d requires addr", voter.NodeID)
+			return fmt.Errorf("controller: prepare controller voter next voter %d requires addr", voter.NodeID)
 		}
 		if _, ok := seen[voter.NodeID]; ok {
-			return fmt.Errorf("controllerv2: prepare controller voter duplicate next voter %d", voter.NodeID)
+			return fmt.Errorf("controller: prepare controller voter duplicate next voter %d", voter.NodeID)
 		}
 		seen[voter.NodeID] = struct{}{}
 		if voter.NodeID == localNodeID {
@@ -347,7 +347,7 @@ func validatePrepareControllerVoterNextVoters(localNodeID uint64, voters []Voter
 		}
 	}
 	if !localFound {
-		return fmt.Errorf("controllerv2: prepare controller voter next voters missing local node %d", localNodeID)
+		return fmt.Errorf("controller: prepare controller voter next voters missing local node %d", localNodeID)
 	}
 	return nil
 }
@@ -363,32 +363,32 @@ func validatePrepareControllerVoterNextVotersForState(localNodeID uint64, localA
 		allowed[controller.NodeID] = struct{}{}
 		next, ok := byNextVoter[controller.NodeID]
 		if !ok {
-			return fmt.Errorf("controllerv2: prepare controller voter next voters missing current controller voter %d", controller.NodeID)
+			return fmt.Errorf("controller: prepare controller voter next voters missing current controller voter %d", controller.NodeID)
 		}
 		if next.Addr != controller.Addr {
-			return fmt.Errorf("controllerv2: prepare controller voter next voter %d addr %q does not match controller addr %q", controller.NodeID, next.Addr, controller.Addr)
+			return fmt.Errorf("controller: prepare controller voter next voter %d addr %q does not match controller addr %q", controller.NodeID, next.Addr, controller.Addr)
 		}
 	}
 	local, ok := byNextVoter[localNodeID]
 	if !ok {
-		return fmt.Errorf("controllerv2: prepare controller voter next voters missing local node %d", localNodeID)
+		return fmt.Errorf("controller: prepare controller voter next voters missing local node %d", localNodeID)
 	}
 	localNode, ok := findLifecycleNode(st, localNodeID)
 	if !ok {
-		return fmt.Errorf("controllerv2: prepare controller voter local node %d missing from preserved state", localNodeID)
+		return fmt.Errorf("controller: prepare controller voter local node %d missing from preserved state", localNodeID)
 	}
 	if localNode.JoinState != NodeJoinStateActive {
-		return fmt.Errorf("controllerv2: prepare controller voter local node %d is not active", localNodeID)
+		return fmt.Errorf("controller: prepare controller voter local node %d is not active", localNodeID)
 	}
 	if local.Addr != localNode.Addr {
-		return fmt.Errorf("controllerv2: prepare controller voter local next voter %d addr %q does not match preserved addr %q", localNodeID, local.Addr, localNode.Addr)
+		return fmt.Errorf("controller: prepare controller voter local next voter %d addr %q does not match preserved addr %q", localNodeID, local.Addr, localNode.Addr)
 	}
 	if localAddr != "" && localAddr != localNode.Addr {
-		return fmt.Errorf("controllerv2: prepare controller voter local addr %q does not match preserved addr %q", localAddr, localNode.Addr)
+		return fmt.Errorf("controller: prepare controller voter local addr %q does not match preserved addr %q", localAddr, localNode.Addr)
 	}
 	for _, voter := range voters {
 		if _, ok := allowed[voter.NodeID]; !ok {
-			return fmt.Errorf("controllerv2: prepare controller voter next voter %d is not a current controller or local node", voter.NodeID)
+			return fmt.Errorf("controller: prepare controller voter next voter %d is not a current controller or local node", voter.NodeID)
 		}
 	}
 	return nil

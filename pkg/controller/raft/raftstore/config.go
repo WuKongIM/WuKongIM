@@ -24,10 +24,10 @@ type Config struct {
 
 func (c Config) normalized() (Config, error) {
 	if c.Dir == "" {
-		return Config{}, fmt.Errorf("controllerv2/raftstore: dir is required")
+		return Config{}, fmt.Errorf("controller/raftstore: dir is required")
 	}
 	if c.NodeID == 0 {
-		return Config{}, fmt.Errorf("controllerv2/raftstore: node id must be > 0")
+		return Config{}, fmt.Errorf("controller/raftstore: node id must be > 0")
 	}
 	if c.SegmentSize == 0 {
 		c.SegmentSize = defaultWALSegmentSize

@@ -20,7 +20,7 @@ func TestConfigDefaultsSingleNodeControl(t *testing.T) {
 	if cfg.Control.Role != ControlRoleVoter {
 		t.Fatalf("Control.Role = %q, want voter", cfg.Control.Role)
 	}
-	if cfg.Control.ClusterID != "wk-clusterv2-single-node-1" {
+	if cfg.Control.ClusterID != "wk-cluster-single-node-1" {
 		t.Fatalf("Control.ClusterID = %q", cfg.Control.ClusterID)
 	}
 	if len(cfg.Control.Voters) != 1 || cfg.Control.Voters[0].NodeID != 1 || cfg.Control.Voters[0].Addr != cfg.ListenAddr {

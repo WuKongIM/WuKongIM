@@ -72,7 +72,7 @@ func (r *Runtime) startMirror(ctx context.Context) error {
 	client := r.cfg.SyncClient
 	if client == nil {
 		if r.cfg.SyncPeers == nil {
-			return errors.New("controllerv2: mirror sync peers required")
+			return errors.New("controller: mirror sync peers required")
 		}
 		client = cv2sync.NewClient(cv2sync.ClientConfig{
 			ClusterID: r.cfg.ClusterID,

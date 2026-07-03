@@ -17,7 +17,7 @@ func (r *Runtime) bootstrapIfNeeded(ctx context.Context) error {
 		return r.runBootstrapPlanner(ctx)
 	}
 	if !r.cfg.AllowBootstrap {
-		return errors.New("controllerv2: empty state and bootstrap disabled")
+		return errors.New("controller: empty state and bootstrap disabled")
 	}
 	if err := r.waitLocalLeader(ctx); err != nil {
 		return err

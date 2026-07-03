@@ -87,7 +87,7 @@ func gofailMarkNodeRemovedPostCommitFault(raw string) error {
 	if raw == "" {
 		return nil
 	}
-	return fmt.Errorf("controllerv2: %s", raw)
+	return fmt.Errorf("controller: %s", raw)
 }
 
 // JoinNode adds a data-capable node in joining state without changing Slot assignments.
@@ -128,7 +128,7 @@ func (r *Runtime) JoinNode(ctx context.Context, req JoinNodeRequest) (JoinNodeRe
 	}
 	finalNode, ok := findLifecycleNode(updated, req.NodeID)
 	if !ok {
-		return JoinNodeResult{}, fmt.Errorf("controllerv2: node %d not found after join proposal", req.NodeID)
+		return JoinNodeResult{}, fmt.Errorf("controller: node %d not found after join proposal", req.NodeID)
 	}
 	return JoinNodeResult{Created: proposal.Changed, Node: finalNode, Revision: updated.Revision}, nil
 }
@@ -171,7 +171,7 @@ func (r *Runtime) ActivateNode(ctx context.Context, req ActivateNodeRequest) (Ac
 	}
 	finalNode, ok := findLifecycleNode(updated, req.NodeID)
 	if !ok {
-		return ActivateNodeResult{}, fmt.Errorf("controllerv2: node %d not found after activate proposal", req.NodeID)
+		return ActivateNodeResult{}, fmt.Errorf("controller: node %d not found after activate proposal", req.NodeID)
 	}
 	return ActivateNodeResult{Changed: proposal.Changed, Node: finalNode, Revision: updated.Revision}, nil
 }
@@ -214,7 +214,7 @@ func (r *Runtime) MarkNodeLeaving(ctx context.Context, req MarkNodeLeavingReques
 	}
 	finalNode, ok := findLifecycleNode(updated, req.NodeID)
 	if !ok {
-		return MarkNodeLeavingResult{}, fmt.Errorf("controllerv2: node %d not found after leaving proposal", req.NodeID)
+		return MarkNodeLeavingResult{}, fmt.Errorf("controller: node %d not found after leaving proposal", req.NodeID)
 	}
 	return MarkNodeLeavingResult{Changed: proposal.Changed, Node: finalNode, Revision: updated.Revision}, nil
 }
@@ -262,18 +262,18 @@ func (r *Runtime) MarkNodeRemoved(ctx context.Context, req MarkNodeRemovedReques
 	}
 	finalNode, ok := findLifecycleNode(updated, req.NodeID)
 	if !ok {
-		return MarkNodeRemovedResult{}, fmt.Errorf("controllerv2: node %d not found after removed proposal", req.NodeID)
+		return MarkNodeRemovedResult{}, fmt.Errorf("controller: node %d not found after removed proposal", req.NodeID)
 	}
 	return MarkNodeRemovedResult{Changed: proposal.Changed, Node: finalNode, Revision: updated.Revision}, nil
 }
 
 func buildJoinNode(st ClusterState, req JoinNodeRequest) (Node, bool, error) {
 	if req.NodeID == 0 {
-		return Node{}, false, fmt.Errorf("controllerv2: join node requires node id")
+		return Node{}, false, fmt.Errorf("controller: join node requires node id")
 	}
 	addr := strings.TrimSpace(req.Addr)
 	if addr == "" {
-		return Node{}, false, fmt.Errorf("controllerv2: join node requires addr")
+		return Node{}, false, fmt.Errorf("controller: join node requires addr")
 	}
 	for _, existing := range st.Nodes {
 		if existing.NodeID == req.NodeID {
@@ -306,7 +306,7 @@ func buildJoinNode(st ClusterState, req JoinNodeRequest) (Node, bool, error) {
 
 func buildActivateNode(st ClusterState, req ActivateNodeRequest) (Node, bool, error) {
 	if req.NodeID == 0 {
-		return Node{}, false, fmt.Errorf("controllerv2: activate node requires node id")
+		return Node{}, false, fmt.Errorf("controller: activate node requires node id")
 	}
 	for _, existing := range st.Nodes {
 		if existing.NodeID != req.NodeID {
@@ -328,7 +328,7 @@ func buildActivateNode(st ClusterState, req ActivateNodeRequest) (Node, bool, er
 
 func buildMarkNodeLeaving(st ClusterState, req MarkNodeLeavingRequest) (Node, bool, error) {
 	if req.NodeID == 0 {
-		return Node{}, false, fmt.Errorf("controllerv2: mark node leaving requires node id")
+		return Node{}, false, fmt.Errorf("controller: mark node leaving requires node id")
 	}
 	for _, existing := range st.Nodes {
 		if existing.NodeID != req.NodeID {
@@ -352,7 +352,7 @@ func buildMarkNodeLeaving(st ClusterState, req MarkNodeLeavingRequest) (Node, bo
 
 func buildMarkNodeRemoved(st ClusterState, req MarkNodeRemovedRequest) (Node, bool, error) {
 	if req.NodeID == 0 {
-		return Node{}, false, fmt.Errorf("controllerv2: mark node removed requires node id")
+		return Node{}, false, fmt.Errorf("controller: mark node removed requires node id")
 	}
 	for _, existing := range st.Nodes {
 		if existing.NodeID != req.NodeID {

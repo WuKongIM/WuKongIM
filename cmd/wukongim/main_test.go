@@ -249,6 +249,7 @@ func TestDependencyBoundaryUsesCanonicalController(t *testing.T) {
 	}
 
 	foundCanonicalController := false
+	forbiddenControllerV2Prefix := "github.com/WuKongIM/WuKongIM/pkg/" + "controller" + "v2"
 	for _, importPath := range strings.Fields(string(out)) {
 		switch {
 		case importPath == "github.com/WuKongIM/WuKongIM/pkg/controller":
@@ -258,8 +259,8 @@ func TestDependencyBoundaryUsesCanonicalController(t *testing.T) {
 		case importPath == "github.com/WuKongIM/WuKongIM/pkg/legacy/cluster" ||
 			strings.HasPrefix(importPath, "github.com/WuKongIM/WuKongIM/pkg/legacy/cluster/"):
 			t.Fatalf("cmd/wukongim dependency closure still imports legacy cluster package %q", importPath)
-		case importPath == "github.com/WuKongIM/WuKongIM/pkg/controllerv2" ||
-			strings.HasPrefix(importPath, "github.com/WuKongIM/WuKongIM/pkg/controllerv2/"):
+		case importPath == forbiddenControllerV2Prefix ||
+			strings.HasPrefix(importPath, forbiddenControllerV2Prefix+"/"):
 			t.Fatalf("cmd/wukongim dependency closure still imports v2-suffixed controller package %q", importPath)
 		case importPath == "github.com/WuKongIM/WuKongIM/pkg/legacy/controller" ||
 			strings.HasPrefix(importPath, "github.com/WuKongIM/WuKongIM/pkg/legacy/controller/"):
@@ -280,14 +281,15 @@ func TestDependencyBoundaryUsesCanonicalCluster(t *testing.T) {
 	}
 
 	foundCanonicalCluster := false
+	forbiddenClusterV2Prefix := "github.com/WuKongIM/WuKongIM/pkg/" + "cluster" + "v2"
 	for _, importPath := range strings.Fields(string(out)) {
 		switch {
 		case importPath == "github.com/WuKongIM/WuKongIM/pkg/cluster":
 			foundCanonicalCluster = true
 		case strings.HasPrefix(importPath, "github.com/WuKongIM/WuKongIM/pkg/cluster/"):
 			foundCanonicalCluster = true
-		case importPath == "github.com/WuKongIM/WuKongIM/pkg/clusterv2" ||
-			strings.HasPrefix(importPath, "github.com/WuKongIM/WuKongIM/pkg/clusterv2/"):
+		case importPath == forbiddenClusterV2Prefix ||
+			strings.HasPrefix(importPath, forbiddenClusterV2Prefix+"/"):
 			t.Fatalf("cmd/wukongim dependency closure still imports v2-suffixed cluster package %q", importPath)
 		case importPath == "github.com/WuKongIM/WuKongIM/pkg/legacy/cluster" ||
 			strings.HasPrefix(importPath, "github.com/WuKongIM/WuKongIM/pkg/legacy/cluster/"):

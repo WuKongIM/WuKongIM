@@ -66,7 +66,7 @@ type StateMachine struct {
 // New creates a state machine backed by store.
 func New(store Store) (*StateMachine, error) {
 	if store == nil {
-		return nil, fmt.Errorf("controllerv2/fsm: store is required")
+		return nil, fmt.Errorf("controller/fsm: store is required")
 	}
 	return &StateMachine{store: store}, nil
 }

@@ -5,10 +5,10 @@
 # Stable non-zero node identity. This node must appear in WK_CLUSTER_NODES.
 WK_NODE_ID=2
 
-# Root data directory for clusterv2 controller, slot, and channel data.
+# Root data directory for cluster controller, slot, and channel data.
 WK_NODE_DATA_DIR=./data/wukongim-node-2
 
-# Node-to-node clusterv2 RPC listen address advertised for node 2.
+# Node-to-node cluster RPC listen address advertised for node 2.
 WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7012
 
 # Stable cluster identity shared by all nodes in this static cluster.

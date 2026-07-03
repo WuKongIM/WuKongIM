@@ -1774,7 +1774,7 @@ func deriveStaticClusterID(nodes []clusterNodeConfig) string {
 	for _, id := range ids {
 		parts = append(parts, strconv.FormatUint(id, 10))
 	}
-	return "wk-clusterv2-static-" + strings.Join(parts, "-")
+	return "wk-cluster-static-" + strings.Join(parts, "-")
 }
 
 func parseUint64(key, raw string) (uint64, error) {

@@ -247,7 +247,7 @@ func inspectControllerV2LogEntryPayload(item *LogEntry, entry raftpb.Entry) {
 
 func controllerV2CommandPayload(cmd command.Command) (map[string]any, error) {
 	if cmd.Kind == "" {
-		return nil, errors.New("controllerv2/raft: empty command kind")
+		return nil, errors.New("controller/raft: empty command kind")
 	}
 	data, err := json.Marshal(cmd)
 	if err != nil {

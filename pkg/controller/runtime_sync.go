@@ -39,14 +39,14 @@ type syncClientAdapter struct {
 
 func (a syncClientAdapter) SyncOnce(ctx context.Context) (state.ClusterState, error) {
 	if a.client == nil {
-		return state.ClusterState{}, errors.New("controllerv2: sync client is required")
+		return state.ClusterState{}, errors.New("controller: sync client is required")
 	}
 	if err := a.client.SyncOnce(ctx); err != nil {
 		return state.ClusterState{}, err
 	}
 	st, ok := a.client.LocalState()
 	if !ok {
-		return state.ClusterState{}, errors.New("controllerv2: sync produced no state")
+		return state.ClusterState{}, errors.New("controller: sync produced no state")
 	}
 	return st, nil
 }

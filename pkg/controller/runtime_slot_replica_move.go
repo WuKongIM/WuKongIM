@@ -43,7 +43,7 @@ func (r *Runtime) RequestSlotReplicaMove(ctx context.Context, req SlotReplicaMov
 	}
 	assignment, ok := findSlotReplicaMoveAssignment(st, req.SlotID)
 	if !ok {
-		return SlotReplicaMoveResult{}, fmt.Errorf("controllerv2: slot %d assignment not found", req.SlotID)
+		return SlotReplicaMoveResult{}, fmt.Errorf("controller: slot %d assignment not found", req.SlotID)
 	}
 	if err := validateSlotReplicaMoveRequest(st, assignment, req); err != nil {
 		return SlotReplicaMoveResult{}, err
@@ -74,22 +74,22 @@ func (r *Runtime) RequestSlotReplicaMove(ctx context.Context, req SlotReplicaMov
 
 func validateSlotReplicaMoveRequest(st state.ClusterState, assignment state.SlotAssignment, req SlotReplicaMoveRequest) error {
 	if req.SlotID == 0 || req.SourceNode == 0 || req.TargetNode == 0 || req.ConfigEpoch == 0 || req.StateRevision == 0 {
-		return fmt.Errorf("controllerv2: slot replica move requires slot, source, target, config epoch, and state revision")
+		return fmt.Errorf("controller: slot replica move requires slot, source, target, config epoch, and state revision")
 	}
 	if assignment.ConfigEpoch != req.ConfigEpoch {
-		return fmt.Errorf("controllerv2: slot %d config epoch %d does not match request %d", req.SlotID, assignment.ConfigEpoch, req.ConfigEpoch)
+		return fmt.Errorf("controller: slot %d config epoch %d does not match request %d", req.SlotID, assignment.ConfigEpoch, req.ConfigEpoch)
 	}
 	if !containsSlotReplicaMovePeer(assignment.DesiredPeers, req.SourceNode) {
-		return fmt.Errorf("controllerv2: source node %d is not a desired peer for slot %d", req.SourceNode, req.SlotID)
+		return fmt.Errorf("controller: source node %d is not a desired peer for slot %d", req.SourceNode, req.SlotID)
 	}
 	if containsSlotReplicaMovePeer(assignment.DesiredPeers, req.TargetNode) {
-		return fmt.Errorf("controllerv2: target node %d is already a desired peer for slot %d", req.TargetNode, req.SlotID)
+		return fmt.Errorf("controller: target node %d is already a desired peer for slot %d", req.TargetNode, req.SlotID)
 	}
 	if !activeDataNodeForSlotReplicaMove(st.Nodes, req.TargetNode) {
-		return fmt.Errorf("controllerv2: target node %d is not an active data node", req.TargetNode)
+		return fmt.Errorf("controller: target node %d is not an active data node", req.TargetNode)
 	}
 	if !sameUint64Set(req.TargetPeers, replaceSlotReplicaMovePeer(assignment.DesiredPeers, req.SourceNode, req.TargetNode)) {
-		return fmt.Errorf("controllerv2: target peers must replace source node %d with target node %d", req.SourceNode, req.TargetNode)
+		return fmt.Errorf("controller: target peers must replace source node %d with target node %d", req.SourceNode, req.TargetNode)
 	}
 	for _, task := range st.Tasks {
 		if task.SlotID == req.SlotID {

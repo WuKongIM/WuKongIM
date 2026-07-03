@@ -16,17 +16,17 @@ import (
 
 var (
 	// ErrInvalidConfig indicates that the service configuration is incomplete or inconsistent.
-	ErrInvalidConfig = errors.New("controllerv2/raft: invalid config")
+	ErrInvalidConfig = errors.New("controller/raft: invalid config")
 	// ErrNotStarted indicates that the service has not been started.
-	ErrNotStarted = errors.New("controllerv2/raft: not started")
+	ErrNotStarted = errors.New("controller/raft: not started")
 	// ErrStopped indicates that the service has stopped.
-	ErrStopped = errors.New("controllerv2/raft: stopped")
+	ErrStopped = errors.New("controller/raft: stopped")
 	// ErrNotLeader indicates that proposals must be sent to the current leader.
-	ErrNotLeader = errors.New("controllerv2/raft: not leader")
+	ErrNotLeader = errors.New("controller/raft: not leader")
 	// ErrMembershipChangePending indicates that a Controller Raft membership change is already in flight.
-	ErrMembershipChangePending = errors.New("controllerv2/raft: membership change pending")
+	ErrMembershipChangePending = errors.New("controller/raft: membership change pending")
 	// ErrProposalRejected indicates that a committed proposal was semantically rejected by the state machine.
-	ErrProposalRejected = errors.New("controllerv2/raft: proposal rejected")
+	ErrProposalRejected = errors.New("controller/raft: proposal rejected")
 )
 
 // ProposalRejectedError describes a committed proposal that did not satisfy state-machine semantics.

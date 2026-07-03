@@ -11,7 +11,7 @@ import (
 const commandEnvelopeVersion uint32 = 1
 
 // ErrUnsupportedVersion indicates that a command envelope version is unknown.
-var ErrUnsupportedVersion = errors.New("controllerv2/command: unsupported version")
+var ErrUnsupportedVersion = errors.New("controller/command: unsupported version")
 
 type envelope struct {
 	Version uint32  `json:"version"`
@@ -34,7 +34,7 @@ func Decode(data []byte) (Command, error) {
 	var trailing any
 	if err := decoder.Decode(&trailing); err != io.EOF {
 		if err == nil {
-			return Command{}, fmt.Errorf("controllerv2/command: trailing JSON token")
+			return Command{}, fmt.Errorf("controller/command: trailing JSON token")
 		}
 		return Command{}, err
 	}
