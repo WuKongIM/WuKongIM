@@ -4,60 +4,54 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/legacy/channel"
+	pluginevents "github.com/WuKongIM/WuKongIM/internal/contracts/pluginevents"
 	"github.com/WuKongIM/WuKongIM/pkg/plugin/pluginproto"
 	runtimechannelid "github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
-// OfflineReceiveEvent describes one offline recipient eligible for the legacy Receive hook.
-type OfflineReceiveEvent struct {
-	// Message is the committed message observed by delivery resolution.
-	Message channel.Message
-	// UID is the offline recipient UID.
-	UID string
-	// RequestScoped reports that the delivery envelope was scoped to request subscribers only.
-	RequestScoped bool
-}
-
 // ReceiveOffline invokes the highest-priority bound local Receive plugin for one offline recipient.
-func (a *App) ReceiveOffline(ctx context.Context, event OfflineReceiveEvent) error {
+func (a *App) ReceiveOffline(ctx context.Context, event pluginevents.ReceiveOffline) error {
 	if a == nil || !a.offlineReceiveEligible(event) {
 		return nil
 	}
-	plugin, ok, err := a.BoundReceivePluginForUID(ctx, event.UID)
+	plugin, ok, err := a.boundReceivePluginForUID(ctx, event.UID)
 	if err != nil {
 		return err
 	}
 	if !ok {
 		return nil
 	}
-	if !a.markReceiveDedupe(event.Message.MessageID, event.UID) {
+	if !a.markReceiveDedupe(event.MessageID, event.UID) {
 		return nil
 	}
 	packet := receivePacketFromOfflineEvent(event)
-	if err := a.InvokeReceive(ctx, plugin, packet); err != nil {
-		a.forgetReceiveDedupe(event.Message.MessageID, event.UID)
+	startedAt := time.Now()
+	err = a.InvokeReceive(ctx, plugin, packet)
+	result := "ok"
+	if err != nil {
+		result = "error"
+		a.forgetReceiveDedupe(event.MessageID, event.UID)
 		a.logReceiveFailure(event, plugin, err)
-		return err
 	}
-	return nil
+	a.observeReceiveInvoke(result, time.Since(startedAt))
+	return err
 }
 
-func (a *App) offlineReceiveEligible(event OfflineReceiveEvent) bool {
-	msg := event.Message
-	if event.UID == "" || msg.MessageID == 0 {
+func (a *App) offlineReceiveEligible(event pluginevents.ReceiveOffline) bool {
+	if event.UID == "" || event.MessageID == 0 || event.MessageSeq == 0 {
 		return false
 	}
-	if event.RequestScoped || msg.ChannelType == frame.ChannelTypeTemp {
+	if len(event.MessageScopedUIDs) > 0 || event.ChannelType == frame.ChannelTypeTemp {
 		return false
 	}
-	if msg.Framer.NoPersist || msg.Framer.SyncOnce {
+	if event.NoPersist || event.SyncOnce {
 		return false
 	}
-	if msg.FromUID == "" || msg.FromUID == event.UID || a.isSystemSender(msg.FromUID) {
+	if event.FromUID == "" || event.FromUID == event.UID || a.isSystemSender(event.FromUID) {
 		return false
 	}
 	return true
@@ -73,33 +67,67 @@ func (a *App) isSystemSender(uid string) bool {
 	return a != nil && a.systemUIDs != nil && a.systemUIDs.IsSystemUID(uid)
 }
 
-func receivePacketFromOfflineEvent(event OfflineReceiveEvent) *pluginproto.RecvPacket {
-	msg := event.Message
+func (a *App) boundReceivePluginForUID(ctx context.Context, uid string) (ObservedPlugin, bool, error) {
+	if a == nil || a.receiveBindings == nil {
+		return ObservedPlugin{}, false, ErrReceiveBindingReaderRequired
+	}
+	bindings, err := a.receiveBindings.ListPluginBindingsByUID(ctx, uid)
+	if err != nil {
+		return ObservedPlugin{}, false, err
+	}
+	bound := make(map[string]struct{}, len(bindings))
+	for _, binding := range bindings {
+		if binding.PluginNo != "" {
+			bound[binding.PluginNo] = struct{}{}
+		}
+	}
+	if len(bound) == 0 {
+		return ObservedPlugin{}, false, nil
+	}
+	plugins := a.runtime.List()
+	candidates := make([]ObservedPlugin, 0, len(bound))
+	for _, plugin := range plugins {
+		if _, ok := bound[plugin.No]; ok {
+			candidates = append(candidates, plugin)
+		}
+	}
+	effective, err := a.applyDesiredToPlugins(ctx, candidates)
+	if err != nil {
+		return ObservedPlugin{}, false, err
+	}
+	ordered := runningPluginsByMethod(effective, MethodReceive)
+	if len(ordered) == 0 {
+		return ObservedPlugin{}, false, nil
+	}
+	return ordered[0], true, nil
+}
+
+func receivePacketFromOfflineEvent(event pluginevents.ReceiveOffline) *pluginproto.RecvPacket {
 	return &pluginproto.RecvPacket{
-		FromUid:     msg.FromUID,
+		FromUid:     event.FromUID,
 		ToUid:       event.UID,
-		ChannelId:   receiveChannelIDForRecipient(msg, event.UID),
-		ChannelType: uint32(msg.ChannelType),
-		Payload:     append([]byte(nil), msg.Payload...),
+		ChannelId:   receiveChannelIDForRecipient(event),
+		ChannelType: uint32(event.ChannelType),
+		Payload:     append([]byte(nil), event.Payload...),
 	}
 }
 
-func receiveChannelIDForRecipient(msg channel.Message, recipientUID string) string {
-	sourceChannelID, _ := runtimechannelid.FromCommandChannel(msg.ChannelID)
-	if msg.ChannelType != frame.ChannelTypePerson || recipientUID == "" {
+func receiveChannelIDForRecipient(event pluginevents.ReceiveOffline) string {
+	sourceChannelID, _ := runtimechannelid.FromCommandChannel(event.ChannelID)
+	if event.ChannelType != frame.ChannelTypePerson || event.UID == "" {
 		return sourceChannelID
 	}
 	left, right, err := runtimechannelid.DecodePersonChannel(sourceChannelID)
 	if err != nil {
-		return msg.FromUID
+		return event.FromUID
 	}
-	switch recipientUID {
+	switch event.UID {
 	case left:
 		return right
 	case right:
 		return left
 	default:
-		return msg.FromUID
+		return event.FromUID
 	}
 }
 
@@ -111,13 +139,16 @@ func (a *App) markReceiveDedupe(messageID uint64, uid string) bool {
 	key := fmt.Sprintf("%d:%s", messageID, uid)
 	a.receiveDedupeMu.Lock()
 	defer a.receiveDedupeMu.Unlock()
-	for existingKey, expiresAt := range a.receiveDedupe {
-		if !now.Before(expiresAt) {
-			delete(a.receiveDedupe, existingKey)
-		}
-	}
 	if expiresAt, ok := a.receiveDedupe[key]; ok && now.Before(expiresAt) {
 		return false
+	}
+	if !now.Before(a.receiveDedupeNextSweep) {
+		for existingKey, expiresAt := range a.receiveDedupe {
+			if !now.Before(expiresAt) {
+				delete(a.receiveDedupe, existingKey)
+			}
+		}
+		a.receiveDedupeNextSweep = now.Add(a.receiveDedupeSweepInterval())
 	}
 	a.receiveDedupe[key] = now.Add(a.receiveDedupeTTL)
 	return true
@@ -133,7 +164,31 @@ func (a *App) forgetReceiveDedupe(messageID uint64, uid string) {
 	delete(a.receiveDedupe, key)
 }
 
-func (a *App) logReceiveFailure(event OfflineReceiveEvent, plugin ObservedPlugin, err error) {
+func (a *App) now() time.Time {
+	if a == nil || a.clock == nil {
+		return time.Now()
+	}
+	return a.clock()
+}
+
+func (a *App) receiveDedupeSweepInterval() time.Duration {
+	if a == nil || a.receiveDedupeTTL <= 0 {
+		return time.Minute
+	}
+	if a.receiveDedupeTTL < time.Minute {
+		return a.receiveDedupeTTL
+	}
+	return time.Minute
+}
+
+func (a *App) observeReceiveInvoke(result string, d time.Duration) {
+	if a == nil || a.observer == nil {
+		return
+	}
+	a.observer.ObserveReceiveInvoke(result, d)
+}
+
+func (a *App) logReceiveFailure(event pluginevents.ReceiveOffline, plugin ObservedPlugin, err error) {
 	if a == nil || a.logger == nil || err == nil {
 		return
 	}
@@ -144,10 +199,10 @@ func (a *App) logReceiveFailure(event OfflineReceiveEvent, plugin ObservedPlugin
 		wklog.Event("plugin.receive.failed"),
 		wklog.String("pluginNo", plugin.No),
 		wklog.String("uid", event.UID),
-		wklog.String("channelID", event.Message.ChannelID),
-		wklog.Int("channelType", int(event.Message.ChannelType)),
-		wklog.Uint64("messageID", event.Message.MessageID),
-		wklog.Uint64("messageSeq", event.Message.MessageSeq),
+		wklog.String("channelID", event.ChannelID),
+		wklog.Int("channelType", int(event.ChannelType)),
+		wklog.Uint64("messageID", event.MessageID),
+		wklog.Uint64("messageSeq", event.MessageSeq),
 		wklog.Error(err),
 	)
 }

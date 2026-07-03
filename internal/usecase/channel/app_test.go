@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
-	"github.com/stretchr/testify/require"
 )
 
 func TestUpsertResetsSubscribersBeforeAddingReplacement(t *testing.T) {
@@ -24,73 +23,51 @@ func TestUpsertResetsSubscribersBeforeAddingReplacement(t *testing.T) {
 		Subscribers: []string{"u1", "u2"},
 	})
 
-	require.NoError(t, err)
-	require.Equal(t, []metadb.Channel{{ChannelID: "g1", ChannelType: 2, Ban: 1}}, store.upsertChannels)
-	require.Equal(t, []subscriberCall{{channelID: "g1", channelType: 2, uids: []string{"old1", "old2"}, version: 1}}, store.removeSubscribers)
-	require.Equal(t, []subscriberCall{{channelID: "g1", channelType: 2, uids: []string{"u1", "u2"}, version: 1}}, store.addSubscribers)
+	if err != nil {
+		t.Fatalf("Upsert() error = %v", err)
+	}
+	if got, want := store.upsertChannels, []metadb.Channel{{ChannelID: "g1", ChannelType: 2, Ban: 1}}; !equalChannels(got, want) {
+		t.Fatalf("upserted channels = %#v, want %#v", got, want)
+	}
+	if got, want := store.removeSubscribers, []subscriberCall{{channelID: "g1", channelType: 2, uids: []string{"old1", "old2"}, version: 1}}; !equalSubscriberCalls(got, want) {
+		t.Fatalf("removed subscribers = %#v, want %#v", got, want)
+	}
+	if got, want := store.addSubscribers, []subscriberCall{{channelID: "g1", channelType: 2, uids: []string{"u1", "u2"}, version: 1}}; !equalSubscriberCalls(got, want) {
+		t.Fatalf("added subscribers = %#v, want %#v", got, want)
+	}
 }
 
-func TestUpdateInfoPersistsStatusFlags(t *testing.T) {
-	store := &recordingStore{}
-	app := New(Options{Store: store})
-
-	err := app.UpdateInfo(context.Background(), Info{ChannelID: "g1", ChannelType: 2, Ban: true, Disband: true, SendBan: true, AllowStranger: true})
-	require.NoError(t, err)
-	require.Len(t, store.upsertChannels, 1)
-	require.Equal(t, metadb.Channel{ChannelID: "g1", ChannelType: 2, Ban: 1, Disband: 1, SendBan: 1, AllowStranger: 1}, store.upsertChannels[0])
-}
-
-func TestRemoveAllSubscribersDeletesEachPageWithoutAccumulating(t *testing.T) {
+func TestUpdateInfoPreservesSubscriberMetadata(t *testing.T) {
 	store := &recordingStore{
-		listPages: []listPage{
-			{uids: []string{"old1", "old2"}, cursor: "old2", done: false},
-			{uids: []string{"old3"}, cursor: "old3", done: true},
+		channels: map[string]metadb.Channel{
+			recordingChannelKey("g1", 2): {
+				ChannelID:                 "g1",
+				ChannelType:               2,
+				Large:                     1,
+				SubscriberMutationVersion: 9,
+				SubscriberCount:           12,
+			},
 		},
 	}
-	app := New(Options{Store: store, SubscriberPageLimit: 2})
+	app := New(Options{Store: store})
 
-	err := app.RemoveAllSubscribers(context.Background(), ChannelKey{ChannelID: "g1", ChannelType: 2})
+	if err := app.UpdateInfo(context.Background(), Info{ChannelID: "g1", ChannelType: 2, Ban: true}); err != nil {
+		t.Fatalf("UpdateInfo() error = %v", err)
+	}
 
-	require.NoError(t, err)
-	require.Equal(t, []listSubscribersCall{
-		{channelID: "g1", channelType: 2, afterUID: "", limit: 2},
-		{channelID: "g1", channelType: 2, afterUID: "old2", limit: 2},
-	}, store.listSubscribers)
-	require.Equal(t, []subscriberCall{
-		{channelID: "g1", channelType: 2, uids: []string{"old1", "old2"}, version: 1},
-		{channelID: "g1", channelType: 2, uids: []string{"old3"}, version: 1},
-	}, store.removeSubscribers)
+	want := []metadb.Channel{{
+		ChannelID:                 "g1",
+		ChannelType:               2,
+		Ban:                       1,
+		SubscriberMutationVersion: 9,
+		SubscriberCount:           12,
+	}}
+	if got := store.upsertChannels; !equalChannels(got, want) {
+		t.Fatalf("upserted channels = %#v, want %#v", got, want)
+	}
 }
 
-func TestSubscriberMutationsAreChunkedByPageLimit(t *testing.T) {
-	store := &recordingStore{}
-	app := New(Options{Store: store, SubscriberPageLimit: 2})
-
-	err := app.AddSubscribers(context.Background(), SubscriberCommand{
-		ChannelID:   "g1",
-		ChannelType: 2,
-		Subscribers: []string{"u1", "u2", "u3"},
-	})
-	require.NoError(t, err)
-
-	err = app.RemoveSubscribers(context.Background(), SubscriberCommand{
-		ChannelID:   "g1",
-		ChannelType: 2,
-		Subscribers: []string{"u4", "u5", "u6"},
-	})
-	require.NoError(t, err)
-
-	require.Equal(t, []subscriberCall{
-		{channelID: "g1", channelType: 2, uids: []string{"u1", "u2"}, version: 1},
-		{channelID: "g1", channelType: 2, uids: []string{"u3"}, version: 1},
-	}, store.addSubscribers)
-	require.Equal(t, []subscriberCall{
-		{channelID: "g1", channelType: 2, uids: []string{"u4", "u5"}, version: 2},
-		{channelID: "g1", channelType: 2, uids: []string{"u6"}, version: 2},
-	}, store.removeSubscribers)
-}
-
-func TestChunkedSubscriberMutationsShareOneLogicalVersion(t *testing.T) {
+func TestSubscriberMutationsShareLogicalVersionsAcrossChunks(t *testing.T) {
 	store := &recordingStore{
 		channels: map[string]metadb.Channel{
 			recordingChannelKey("g1", 2): {ChannelID: "g1", ChannelType: 2, SubscriberMutationVersion: 7},
@@ -98,49 +75,206 @@ func TestChunkedSubscriberMutationsShareOneLogicalVersion(t *testing.T) {
 	}
 	app := New(Options{Store: store, SubscriberPageLimit: 2})
 
-	err := app.AddSubscribers(context.Background(), SubscriberCommand{
+	if err := app.AddSubscribers(context.Background(), SubscriberCommand{
 		ChannelID:   "g1",
 		ChannelType: 2,
 		Subscribers: []string{"u1", "u2", "u3"},
-	})
-	require.NoError(t, err)
-
-	err = app.RemoveSubscribers(context.Background(), SubscriberCommand{
+	}); err != nil {
+		t.Fatalf("AddSubscribers() error = %v", err)
+	}
+	if err := app.RemoveSubscribers(context.Background(), SubscriberCommand{
 		ChannelID:   "g1",
 		ChannelType: 2,
 		Subscribers: []string{"u4", "u5", "u6"},
-	})
-	require.NoError(t, err)
+	}); err != nil {
+		t.Fatalf("RemoveSubscribers() error = %v", err)
+	}
 
-	require.Equal(t, []uint64{8, 8}, subscriberCallVersions(store.addSubscribers))
-	require.Equal(t, []uint64{9, 9}, subscriberCallVersions(store.removeSubscribers))
+	if got, want := subscriberCallVersions(store.addSubscribers), []uint64{8, 8}; !equalUint64s(got, want) {
+		t.Fatalf("add versions = %#v, want %#v", got, want)
+	}
+	if got, want := subscriberCallVersions(store.removeSubscribers), []uint64{9, 9}; !equalUint64s(got, want) {
+		t.Fatalf("remove versions = %#v, want %#v", got, want)
+	}
 }
 
-func TestResetSubscribersUsesOneVersionForRemoveAndReplacement(t *testing.T) {
+func TestAddSubscribersProjectsOrdinaryMemberships(t *testing.T) {
 	store := &recordingStore{
 		channels: map[string]metadb.Channel{
-			recordingChannelKey("g1", 2): {ChannelID: "g1", ChannelType: 2, SubscriberMutationVersion: 3},
-		},
-		listPages: []listPage{
-			{uids: []string{"old1", "old2"}, cursor: "old2", done: false},
-			{uids: []string{"old3"}, cursor: "old3", done: true},
+			recordingChannelKey("g1", 2): {ChannelID: "g1", ChannelType: 2},
 		},
 	}
-	app := New(Options{Store: store, SubscriberPageLimit: 2})
+	memberships := &recordingMembershipIndex{}
+	app := New(Options{Store: store, MembershipIndex: memberships, SubscriberPageLimit: 2})
 
-	err := app.AddSubscribers(context.Background(), SubscriberCommand{
+	if err := app.AddSubscribers(context.Background(), SubscriberCommand{
 		ChannelID:   "g1",
 		ChannelType: 2,
-		Reset:       true,
-		Subscribers: []string{"new1", "new2", "new3"},
-	})
-	require.NoError(t, err)
+		Subscribers: []string{"u1", "u2", "u3"},
+	}); err != nil {
+		t.Fatalf("AddSubscribers() error = %v", err)
+	}
 
-	require.Equal(t, []uint64{4, 4}, subscriberCallVersions(store.removeSubscribers))
-	require.Equal(t, []uint64{4, 4}, subscriberCallVersions(store.addSubscribers))
+	want := []membershipUpsertCall{
+		{channelID: "g1", channelType: 2, uids: []string{"u1", "u2"}, joinSeq: 0},
+		{channelID: "g1", channelType: 2, uids: []string{"u3"}, joinSeq: 0},
+	}
+	if !equalMembershipUpsertCalls(memberships.upserts, want) {
+		t.Fatalf("membership upserts = %#v, want %#v", memberships.upserts, want)
+	}
+	for _, call := range memberships.upserts {
+		if call.updatedAt <= 0 {
+			t.Fatalf("membership upsert updatedAt = %d, want positive", call.updatedAt)
+		}
+	}
 }
 
-func TestSetAllowlistReplacesSyntheticMemberList(t *testing.T) {
+func TestRemoveSubscribersDeletesOrdinaryMemberships(t *testing.T) {
+	store := &recordingStore{
+		channels: map[string]metadb.Channel{
+			recordingChannelKey("g1", 2): {ChannelID: "g1", ChannelType: 2},
+		},
+	}
+	memberships := &recordingMembershipIndex{}
+	app := New(Options{Store: store, MembershipIndex: memberships, SubscriberPageLimit: 2})
+
+	if err := app.RemoveSubscribers(context.Background(), SubscriberCommand{
+		ChannelID:   "g1",
+		ChannelType: 2,
+		Subscribers: []string{"u1", "u2", "u3"},
+	}); err != nil {
+		t.Fatalf("RemoveSubscribers() error = %v", err)
+	}
+
+	want := []membershipDeleteCall{
+		{channelID: "g1", channelType: 2, uids: []string{"u1", "u2"}},
+		{channelID: "g1", channelType: 2, uids: []string{"u3"}},
+	}
+	if !equalMembershipDeleteCalls(memberships.deletes, want) {
+		t.Fatalf("membership deletes = %#v, want %#v", memberships.deletes, want)
+	}
+	for _, call := range memberships.deletes {
+		if call.updatedAt <= 0 {
+			t.Fatalf("membership delete updatedAt = %d, want positive", call.updatedAt)
+		}
+	}
+}
+
+func TestSubscriberMutationsRefreshLargeGroupFlag(t *testing.T) {
+	ctx := context.Background()
+	store := &recordingStore{
+		channels: map[string]metadb.Channel{
+			recordingChannelKey("g1", 2): {
+				ChannelID:       "g1",
+				ChannelType:     2,
+				SubscriberCount: 2,
+			},
+			recordingChannelKey("g2", 2): {
+				ChannelID:       "g2",
+				ChannelType:     2,
+				Large:           1,
+				SubscriberCount: 4,
+			},
+		},
+	}
+	app := New(Options{Store: store, LargeGroupSubscriberThreshold: 3})
+
+	if err := app.AddSubscribers(ctx, SubscriberCommand{
+		ChannelID:   "g1",
+		ChannelType: 2,
+		Subscribers: []string{"u1", "u2"},
+	}); err != nil {
+		t.Fatalf("AddSubscribers() error = %v", err)
+	}
+	if err := app.RemoveSubscribers(ctx, SubscriberCommand{
+		ChannelID:   "g2",
+		ChannelType: 2,
+		Subscribers: []string{"u4"},
+	}); err != nil {
+		t.Fatalf("RemoveSubscribers() error = %v", err)
+	}
+
+	want := []metadb.Channel{
+		{ChannelID: "g1", ChannelType: 2, Large: 1, SubscriberMutationVersion: 1, SubscriberCount: 4},
+		{ChannelID: "g2", ChannelType: 2, SubscriberMutationVersion: 1, SubscriberCount: 3},
+	}
+	if got := store.upsertChannels; !equalChannels(got, want) {
+		t.Fatalf("upserted channels = %#v, want %#v", got, want)
+	}
+}
+
+func TestSubscriberMutationsNotifyObserverWithFinalMetadata(t *testing.T) {
+	ctx := context.Background()
+	store := &recordingStore{
+		channels: map[string]metadb.Channel{
+			recordingChannelKey("g1", 2): {
+				ChannelID:       "g1",
+				ChannelType:     2,
+				SubscriberCount: 2,
+			},
+		},
+	}
+	observer := &recordingSubscriberMutationObserver{}
+	app := New(Options{
+		Store:                         store,
+		LargeGroupSubscriberThreshold: 3,
+		SubscriberMutationObserver:    observer,
+	})
+
+	if err := app.AddSubscribers(ctx, SubscriberCommand{
+		ChannelID:   "g1",
+		ChannelType: 2,
+		Subscribers: []string{"u1", "u2"},
+	}); err != nil {
+		t.Fatalf("AddSubscribers() error = %v", err)
+	}
+	if err := app.RemoveSubscribers(ctx, SubscriberCommand{
+		ChannelID:   "g1",
+		ChannelType: 2,
+		Subscribers: []string{"u1"},
+	}); err != nil {
+		t.Fatalf("RemoveSubscribers() error = %v", err)
+	}
+
+	if len(observer.events) != 2 {
+		t.Fatalf("observer events = %#v, want add and remove events", observer.events)
+	}
+	add := observer.events[0]
+	if add.ChannelID != "g1" || add.ChannelType != 2 || !add.Large ||
+		add.SubscriberMutationVersion != 1 || add.Reset ||
+		!equalStrings(add.AddedUIDs, []string{"u1", "u2"}) || len(add.RemovedUIDs) != 0 {
+		t.Fatalf("add event = %#v, want final large metadata and added subscribers", add)
+	}
+	remove := observer.events[1]
+	if remove.ChannelID != "g1" || remove.ChannelType != 2 || remove.Large ||
+		remove.SubscriberMutationVersion != 2 || remove.Reset ||
+		!equalStrings(remove.RemovedUIDs, []string{"u1"}) || len(remove.AddedUIDs) != 0 {
+		t.Fatalf("remove event = %#v, want final non-large metadata and removed subscribers", remove)
+	}
+}
+
+func TestInternalMemberListsDoNotProjectOrdinaryMemberships(t *testing.T) {
+	store := &recordingStore{
+		listPages: []listPage{
+			{uids: []string{"old"}, cursor: "old", done: true},
+		},
+	}
+	memberships := &recordingMembershipIndex{}
+	app := New(Options{Store: store, MembershipIndex: memberships})
+
+	if err := app.SetAllowlist(context.Background(), MemberCommand{
+		ChannelKey: ChannelKey{ChannelID: "g1", ChannelType: 2},
+		UIDs:       []string{"u1"},
+	}); err != nil {
+		t.Fatalf("SetAllowlist() error = %v", err)
+	}
+
+	if len(memberships.upserts) != 0 || len(memberships.deletes) != 0 {
+		t.Fatalf("membership index calls = upserts %#v deletes %#v, want none", memberships.upserts, memberships.deletes)
+	}
+}
+
+func TestSetAllowlistUsesStableLegacyMemberNamespace(t *testing.T) {
 	store := &recordingStore{
 		listPages: []listPage{
 			{uids: []string{"old"}, cursor: "old", done: true},
@@ -153,14 +287,15 @@ func TestSetAllowlistReplacesSyntheticMemberList(t *testing.T) {
 		UIDs:       []string{"u1", "u2"},
 	})
 
-	require.NoError(t, err)
-	require.Len(t, store.removeSubscribers, 1)
-	require.Contains(t, store.removeSubscribers[0].channelID, "allow")
-	require.Equal(t, int64(2), store.removeSubscribers[0].channelType)
-	require.Equal(t, []string{"old"}, store.removeSubscribers[0].uids)
-	require.Len(t, store.addSubscribers, 1)
-	require.Equal(t, store.removeSubscribers[0].channelID, store.addSubscribers[0].channelID)
-	require.Equal(t, []string{"u1", "u2"}, store.addSubscribers[0].uids)
+	if err != nil {
+		t.Fatalf("SetAllowlist() error = %v", err)
+	}
+	if len(store.removeSubscribers) != 1 || store.removeSubscribers[0].channelID != "__wk_internal_memberlist__/allow/2/ZzE" {
+		t.Fatalf("removeSubscribers = %#v, want legacy allowlist namespace", store.removeSubscribers)
+	}
+	if len(store.addSubscribers) != 1 || store.addSubscribers[0].channelID != "__wk_internal_memberlist__/allow/2/ZzE" {
+		t.Fatalf("addSubscribers = %#v, want legacy allowlist namespace", store.addSubscribers)
+	}
 }
 
 func TestAddSubscribersCreatesChannelWhenMissing(t *testing.T) {
@@ -173,24 +308,12 @@ func TestAddSubscribersCreatesChannelWhenMissing(t *testing.T) {
 		Subscribers: []string{"u1"},
 	})
 
-	require.NoError(t, err)
-	require.Equal(t, []metadb.Channel{{ChannelID: "g1", ChannelType: 2}}, store.upsertChannels)
-	require.Equal(t, []subscriberCall{{channelID: "g1", channelType: 2, uids: []string{"u1"}, version: 1}}, store.addSubscribers)
-}
-
-func TestAddSubscribersKeepsExistingChannelFlags(t *testing.T) {
-	store := &recordingStore{}
-	app := New(Options{Store: store})
-
-	err := app.AddSubscribers(context.Background(), SubscriberCommand{
-		ChannelID:   "g1",
-		ChannelType: 2,
-		Subscribers: []string{"u1"},
-	})
-
-	require.NoError(t, err)
-	require.Empty(t, store.upsertChannels)
-	require.Equal(t, []subscriberCall{{channelID: "g1", channelType: 2, uids: []string{"u1"}, version: 1}}, store.addSubscribers)
+	if err != nil {
+		t.Fatalf("AddSubscribers() error = %v", err)
+	}
+	if got, want := store.upsertChannels, []metadb.Channel{{ChannelID: "g1", ChannelType: 2}}; !equalChannels(got, want) {
+		t.Fatalf("upserted channels = %#v, want %#v", got, want)
+	}
 }
 
 func TestAddSubscribersReturnsLookupErrorBeforeMutating(t *testing.T) {
@@ -203,9 +326,12 @@ func TestAddSubscribersReturnsLookupErrorBeforeMutating(t *testing.T) {
 		Subscribers: []string{"u1"},
 	})
 
-	require.EqualError(t, err, "lookup failed")
-	require.Empty(t, store.upsertChannels)
-	require.Empty(t, store.addSubscribers)
+	if err == nil || err.Error() != "lookup failed" {
+		t.Fatalf("AddSubscribers() error = %v, want lookup failed", err)
+	}
+	if len(store.upsertChannels) != 0 || len(store.addSubscribers) != 0 {
+		t.Fatalf("mutations = upsert %#v add %#v, want none", store.upsertChannels, store.addSubscribers)
+	}
 }
 
 func TestListAllowlistReturnsLegacyMembers(t *testing.T) {
@@ -218,78 +344,15 @@ func TestListAllowlistReturnsLegacyMembers(t *testing.T) {
 
 	result, err := app.ListAllowlist(context.Background(), ChannelKey{ChannelID: "g1", ChannelType: 2})
 
-	require.NoError(t, err)
-	require.Equal(t, MemberListResult{
-		Members: []Member{{UID: "u1"}, {UID: "u2"}},
-	}, result)
-	require.Len(t, store.listSubscribers, 1)
-	require.Contains(t, store.listSubscribers[0].channelID, "allow")
-}
-
-func TestListSubscribersPageReturnsOnePage(t *testing.T) {
-	store := &recordingStore{
-		listPages: []listPage{{uids: []string{"u1", "u2"}, cursor: "u2", done: false}},
+	if err != nil {
+		t.Fatalf("ListAllowlist() error = %v", err)
 	}
-	app := New(Options{Store: store})
-
-	result, err := app.ListSubscribersPage(context.Background(), MemberListPageRequest{
-		ChannelKey: ChannelKey{ChannelID: "g1", ChannelType: 2},
-		AfterUID:   "u0",
-		Limit:      2,
-	})
-
-	require.NoError(t, err)
-	require.Equal(t, MemberListPageResult{
-		Members:    []Member{{UID: "u1"}, {UID: "u2"}},
-		NextCursor: "u2",
-		HasMore:    true,
-	}, result)
-	require.Equal(t, []listSubscribersCall{{channelID: "g1", channelType: 2, afterUID: "u0", limit: 2}}, store.listSubscribers)
-}
-
-func TestListAllowlistPageUsesNamespacedChannel(t *testing.T) {
-	store := &recordingStore{
-		listPages: []listPage{{uids: []string{"u1"}, cursor: "u1", done: true}},
+	if got, want := result.Members, []Member{{UID: "u1"}, {UID: "u2"}}; !equalMembers(got, want) {
+		t.Fatalf("members = %#v, want %#v", got, want)
 	}
-	app := New(Options{Store: store})
-	key := ChannelKey{ChannelID: "g1", ChannelType: 2}
-
-	result, err := app.ListAllowlistPage(context.Background(), MemberListPageRequest{
-		ChannelKey: key,
-		Limit:      10,
-	})
-
-	require.NoError(t, err)
-	require.Equal(t, MemberListPageResult{Members: []Member{{UID: "u1"}}, NextCursor: "u1"}, result)
-	require.Equal(t, []listSubscribersCall{{
-		channelID:   namespacedListChannelID(allowListKind, key),
-		channelType: 2,
-		afterUID:    "",
-		limit:       10,
-	}}, store.listSubscribers)
-}
-
-func TestListDenylistPageUsesNamespacedChannel(t *testing.T) {
-	store := &recordingStore{
-		listPages: []listPage{{uids: []string{"u3"}, cursor: "u3", done: true}},
+	if len(store.listSubscribers) != 1 || store.listSubscribers[0].channelID != "__wk_internal_memberlist__/allow/2/ZzE" {
+		t.Fatalf("list subscribers = %#v, want allowlist namespace", store.listSubscribers)
 	}
-	app := New(Options{Store: store})
-	key := ChannelKey{ChannelID: "g1", ChannelType: 2}
-
-	result, err := app.ListDenylistPage(context.Background(), MemberListPageRequest{
-		ChannelKey: key,
-		AfterUID:   "u2",
-		Limit:      10,
-	})
-
-	require.NoError(t, err)
-	require.Equal(t, MemberListPageResult{Members: []Member{{UID: "u3"}}, NextCursor: "u3"}, result)
-	require.Equal(t, []listSubscribersCall{{
-		channelID:   namespacedListChannelID(denyListKind, key),
-		channelType: 2,
-		afterUID:    "u2",
-		limit:       10,
-	}}, store.listSubscribers)
 }
 
 func TestListSubscribersPageValidatesStoreAndLimit(t *testing.T) {
@@ -298,13 +361,17 @@ func TestListSubscribersPageValidatesStoreAndLimit(t *testing.T) {
 		ChannelKey: ChannelKey{ChannelID: "g1", ChannelType: 2},
 		Limit:      10,
 	})
-	require.ErrorIs(t, err, ErrStoreRequired)
+	if !errors.Is(err, ErrStoreRequired) {
+		t.Fatalf("ListSubscribersPage() error = %v, want %v", err, ErrStoreRequired)
+	}
 
 	app = New(Options{Store: &recordingStore{}})
 	_, err = app.ListSubscribersPage(context.Background(), MemberListPageRequest{
 		ChannelKey: ChannelKey{ChannelID: "g1", ChannelType: 2},
 	})
-	require.ErrorIs(t, err, metadb.ErrInvalidArgument)
+	if !errors.Is(err, metadb.ErrInvalidArgument) {
+		t.Fatalf("ListSubscribersPage() error = %v, want %v", err, metadb.ErrInvalidArgument)
+	}
 }
 
 type recordingStore struct {
@@ -343,35 +410,91 @@ type listPage struct {
 	done   bool
 }
 
-func (r *recordingStore) UpsertChannel(ctx context.Context, ch metadb.Channel) error {
+type recordingMembershipIndex struct {
+	upserts []membershipUpsertCall
+	deletes []membershipDeleteCall
+}
+
+type recordingSubscriberMutationObserver struct {
+	events []SubscriberMutationEvent
+}
+
+func (o *recordingSubscriberMutationObserver) ObserveSubscriberMutation(_ context.Context, event SubscriberMutationEvent) {
+	event.AddedUIDs = append([]string(nil), event.AddedUIDs...)
+	event.RemovedUIDs = append([]string(nil), event.RemovedUIDs...)
+	o.events = append(o.events, event)
+}
+
+type membershipUpsertCall struct {
+	channelID   string
+	channelType int64
+	uids        []string
+	joinSeq     uint64
+	updatedAt   int64
+}
+
+type membershipDeleteCall struct {
+	channelID   string
+	channelType int64
+	uids        []string
+	updatedAt   int64
+}
+
+func (r *recordingMembershipIndex) UpsertChannelMemberships(_ context.Context, channelID string, channelType int64, uids []string, joinSeq uint64, updatedAt int64) error {
+	r.upserts = append(r.upserts, membershipUpsertCall{
+		channelID:   channelID,
+		channelType: channelType,
+		uids:        append([]string(nil), uids...),
+		joinSeq:     joinSeq,
+		updatedAt:   updatedAt,
+	})
+	return nil
+}
+
+func (r *recordingMembershipIndex) DeleteChannelMemberships(_ context.Context, channelID string, channelType int64, uids []string, updatedAt int64) error {
+	r.deletes = append(r.deletes, membershipDeleteCall{
+		channelID:   channelID,
+		channelType: channelType,
+		uids:        append([]string(nil), uids...),
+		updatedAt:   updatedAt,
+	})
+	return nil
+}
+
+func (r *recordingStore) UpsertChannel(_ context.Context, ch metadb.Channel) error {
 	r.upsertChannels = append(r.upsertChannels, ch)
 	if r.channels == nil {
 		r.channels = make(map[string]metadb.Channel)
 	}
 	r.channels[recordingChannelKey(ch.ChannelID, ch.ChannelType)] = ch
+	if errors.Is(r.getChannelErr, metadb.ErrNotFound) {
+		r.getChannelErr = nil
+	}
 	return nil
 }
 
-func (r *recordingStore) DeleteChannel(ctx context.Context, channelID string, channelType int64) error {
+func (r *recordingStore) DeleteChannel(_ context.Context, channelID string, channelType int64) error {
 	r.deleteChannels = append(r.deleteChannels, channelKeyCall{channelID: channelID, channelType: channelType})
 	return nil
 }
 
-func (r *recordingStore) AddChannelSubscribers(ctx context.Context, channelID string, channelType int64, uids []string, subscriberMutationVersion ...uint64) error {
+func (r *recordingStore) AddChannelSubscribers(_ context.Context, channelID string, channelType int64, uids []string, subscriberMutationVersion ...uint64) error {
 	version := firstMutationVersion(subscriberMutationVersion)
 	r.addSubscribers = append(r.addSubscribers, subscriberCall{channelID: channelID, channelType: channelType, uids: append([]string(nil), uids...), version: version})
 	r.recordSubscriberMutationVersion(channelID, channelType, version)
+	r.recordSubscriberCountDelta(channelID, channelType, int64(len(uids)))
 	return nil
 }
 
-func (r *recordingStore) RemoveChannelSubscribers(ctx context.Context, channelID string, channelType int64, uids []string, subscriberMutationVersion ...uint64) error {
+func (r *recordingStore) RemoveChannelSubscribers(_ context.Context, channelID string, channelType int64, uids []string, subscriberMutationVersion ...uint64) error {
 	version := firstMutationVersion(subscriberMutationVersion)
 	r.removeSubscribers = append(r.removeSubscribers, subscriberCall{channelID: channelID, channelType: channelType, uids: append([]string(nil), uids...), version: version})
 	r.recordSubscriberMutationVersion(channelID, channelType, version)
+	r.recordSubscriberCountDelta(channelID, channelType, -int64(len(uids)))
 	return nil
 }
 
-func (r *recordingStore) ListChannelSubscribers(ctx context.Context, channelID string, channelType int64, afterUID string, limit int) ([]string, string, bool, error) {
+func (r *recordingStore) ListChannelSubscribers(_ context.Context, channelID string, channelType int64, afterUID string, limit int) ([]string, string, bool, error) {
 	r.listSubscribers = append(r.listSubscribers, listSubscribersCall{channelID: channelID, channelType: channelType, afterUID: afterUID, limit: limit})
 	if len(r.listPages) == 0 {
 		return nil, afterUID, true, nil
@@ -381,7 +504,7 @@ func (r *recordingStore) ListChannelSubscribers(ctx context.Context, channelID s
 	return append([]string(nil), page.uids...), page.cursor, page.done, nil
 }
 
-func (r *recordingStore) GetChannel(ctx context.Context, channelID string, channelType int64) (metadb.Channel, error) {
+func (r *recordingStore) GetChannel(_ context.Context, channelID string, channelType int64) (metadb.Channel, error) {
 	if r.getChannelErr != nil {
 		return metadb.Channel{}, r.getChannelErr
 	}
@@ -408,11 +531,36 @@ func (r *recordingStore) recordSubscriberMutationVersion(channelID string, chann
 	r.channels[key] = ch
 }
 
-func firstMutationVersion(versions []uint64) uint64 {
-	if len(versions) == 0 {
-		return 0
+func (r *recordingStore) recordSubscriberCountDelta(channelID string, channelType int64, delta int64) {
+	if delta == 0 {
+		return
 	}
-	return versions[0]
+	if r.channels == nil {
+		r.channels = make(map[string]metadb.Channel)
+	}
+	key := recordingChannelKey(channelID, channelType)
+	ch := r.channels[key]
+	ch.ChannelID = channelID
+	ch.ChannelType = channelType
+	if delta > 0 {
+		ch.SubscriberCount += uint64(delta)
+	} else if decrement := uint64(-delta); decrement >= ch.SubscriberCount {
+		ch.SubscriberCount = 0
+	} else {
+		ch.SubscriberCount -= decrement
+	}
+	r.channels[key] = ch
+}
+
+func firstMutationVersion(values []uint64) uint64 {
+	if len(values) == 0 {
+		return 1
+	}
+	return values[0]
+}
+
+func recordingChannelKey(channelID string, channelType int64) string {
+	return channelID + ":" + strconv.FormatInt(channelType, 10)
 }
 
 func subscriberCallVersions(calls []subscriberCall) []uint64 {
@@ -423,6 +571,86 @@ func subscriberCallVersions(calls []subscriberCall) []uint64 {
 	return out
 }
 
-func recordingChannelKey(channelID string, channelType int64) string {
-	return channelID + ":" + strconv.FormatInt(channelType, 10)
+func equalChannels(a, b []metadb.Channel) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func equalSubscriberCalls(a, b []subscriberCall) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i].channelID != b[i].channelID || a[i].channelType != b[i].channelType || a[i].version != b[i].version || !equalStrings(a[i].uids, b[i].uids) {
+			return false
+		}
+	}
+	return true
+}
+
+func equalMembershipUpsertCalls(a, b []membershipUpsertCall) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i].channelID != b[i].channelID || a[i].channelType != b[i].channelType || a[i].joinSeq != b[i].joinSeq || !equalStrings(a[i].uids, b[i].uids) {
+			return false
+		}
+	}
+	return true
+}
+
+func equalMembershipDeleteCalls(a, b []membershipDeleteCall) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i].channelID != b[i].channelID || a[i].channelType != b[i].channelType || !equalStrings(a[i].uids, b[i].uids) {
+			return false
+		}
+	}
+	return true
+}
+
+func equalMembers(a, b []Member) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func equalStrings(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func equalUint64s(a, b []uint64) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }

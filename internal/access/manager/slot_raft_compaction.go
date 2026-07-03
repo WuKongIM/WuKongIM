@@ -1,29 +1,16 @@
 package manager
 
 import (
+	"errors"
 	"net/http"
-	"time"
 
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/gin-gonic/gin"
 )
 
-// SlotRaftCompactionResponse is the manager response for a node-local Slot Raft compaction trigger.
-type SlotRaftCompactionResponse struct {
-	// GeneratedAt records when the result was assembled.
-	GeneratedAt time.Time `json:"generated_at"`
-	// Total is the number of node/slot targets.
-	Total int `json:"total"`
-	// Succeeded is the number of targets that completed the attempt.
-	Succeeded int `json:"succeeded"`
-	// Failed is the number of targets that returned an error.
-	Failed int `json:"failed"`
-	// Items contains one result for each targeted node/slot pair.
-	Items []SlotRaftCompactionNodeDTO `json:"items"`
-}
-
-// SlotRaftCompactionNodeDTO describes one node-local Slot Raft compaction attempt.
-type SlotRaftCompactionNodeDTO struct {
+// ManagerSlotRaftCompactNodeResult describes one node-local Slot Raft compaction attempt.
+type ManagerSlotRaftCompactNodeResult struct {
 	// NodeID is the cluster node that handled the attempt.
 	NodeID uint64 `json:"node_id"`
 	// SlotID is the physical Slot whose local Raft log was compacted.
@@ -44,43 +31,47 @@ type SlotRaftCompactionNodeDTO struct {
 	Error string `json:"error"`
 }
 
-func (s *Server) handleNodeSlotRaftCompact(c *gin.Context) {
-	nodeID, err := parseNodeIDParam(c.Param("node_id"))
-	if err != nil {
-		jsonError(c, http.StatusBadRequest, "bad_request", "invalid node_id")
-		return
-	}
-	slotID, err := parseSlotIDParam(c.Param("slot_id"))
-	if err != nil {
-		jsonError(c, http.StatusBadRequest, "bad_request", "invalid slot_id")
-		return
-	}
+// ManagerSlotRaftCompactResponse is returned after triggering Slot Raft compaction.
+type ManagerSlotRaftCompactResponse struct {
+	// GeneratedAt records when the compaction response was assembled.
+	GeneratedAt string `json:"generated_at"`
+	// Total is the number of node/slot targets.
+	Total int `json:"total"`
+	// Succeeded is the number of targets that completed the attempt.
+	Succeeded int `json:"succeeded"`
+	// Failed is the number of targets that returned an error.
+	Failed int `json:"failed"`
+	// Items contains per-target results ordered by request target order.
+	Items []ManagerSlotRaftCompactNodeResult `json:"items"`
+}
+
+func (s *Server) handleCompactSlotRaftLog(c *gin.Context) {
 	if s.management == nil {
 		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "management not configured")
 		return
 	}
-	result, err := s.management.CompactSlotRaftLog(c.Request.Context(), nodeID, slotID)
+	nodeID, err := parseRequiredLogNodeID(c.Param("node_id"))
 	if err != nil {
-		jsonError(c, http.StatusInternalServerError, "internal_error", err.Error())
+		jsonError(c, http.StatusBadRequest, "bad_request", "invalid node_id")
 		return
 	}
-	c.JSON(http.StatusOK, slotRaftCompactResponseDTO(result))
-}
-
-func slotRaftCompactResponseDTO(result managementusecase.CompactSlotRaftLogResponse) SlotRaftCompactionResponse {
-	return SlotRaftCompactionResponse{
-		GeneratedAt: result.GeneratedAt,
-		Total:       result.Total,
-		Succeeded:   result.Succeeded,
-		Failed:      result.Failed,
-		Items:       slotRaftCompactNodeDTOs(result.Items),
+	slotID, err := parseRequiredLogSlotID(c.Param("slot_id"))
+	if err != nil {
+		jsonError(c, http.StatusBadRequest, "bad_request", "invalid slot_id")
+		return
 	}
+	summary, err := s.management.CompactSlotRaftLog(c.Request.Context(), nodeID, slotID)
+	if err != nil {
+		writeSlotRaftCompactError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, slotRaftCompactSummaryDTO(summary))
 }
 
-func slotRaftCompactNodeDTOs(items []managementusecase.SlotRaftCompactionNodeResult) []SlotRaftCompactionNodeDTO {
-	out := make([]SlotRaftCompactionNodeDTO, 0, len(items))
-	for _, item := range items {
-		out = append(out, SlotRaftCompactionNodeDTO{
+func slotRaftCompactSummaryDTO(summary managementusecase.SlotRaftCompactionSummary) ManagerSlotRaftCompactResponse {
+	items := make([]ManagerSlotRaftCompactNodeResult, 0, len(summary.Items))
+	for _, item := range summary.Items {
+		items = append(items, ManagerSlotRaftCompactNodeResult{
 			NodeID:              item.NodeID,
 			SlotID:              item.SlotID,
 			Success:             item.Success,
@@ -92,5 +83,22 @@ func slotRaftCompactNodeDTOs(items []managementusecase.SlotRaftCompactionNodeRes
 			Error:               item.Error,
 		})
 	}
-	return out
+	return ManagerSlotRaftCompactResponse{
+		GeneratedAt: managerTimeString(summary.GeneratedAt),
+		Total:       summary.Total,
+		Succeeded:   summary.Succeeded,
+		Failed:      summary.Failed,
+		Items:       items,
+	}
+}
+
+func writeSlotRaftCompactError(c *gin.Context, err error) {
+	switch {
+	case errors.Is(err, metadb.ErrInvalidArgument):
+		jsonError(c, http.StatusBadRequest, "bad_request", "invalid slot raft compaction request")
+	case errors.Is(err, managementusecase.ErrSlotRaftOperatorUnavailable):
+		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "slot raft unavailable")
+	default:
+		jsonError(c, http.StatusInternalServerError, "internal_error", err.Error())
+	}
 }

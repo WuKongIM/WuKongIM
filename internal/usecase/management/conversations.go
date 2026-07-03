@@ -7,11 +7,16 @@ import (
 
 	conversationusecase "github.com/WuKongIM/WuKongIM/internal/usecase/conversation"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
-	"github.com/WuKongIM/WuKongIM/pkg/legacy/channel"
 )
 
 // ErrRecentConversationsUnavailable reports that manager conversation reads are not wired.
 var ErrRecentConversationsUnavailable = errors.New("management: recent conversations unavailable")
+
+// ConversationSyncer exposes legacy-compatible conversation sync for manager pages.
+type ConversationSyncer interface {
+	// Sync returns UID-scoped conversations ordered by the conversation usecase.
+	Sync(ctx context.Context, query conversationusecase.SyncQuery) (conversationusecase.SyncResult, error)
+}
 
 // RecentConversationsRequest configures one manager recent-conversation query.
 type RecentConversationsRequest struct {
@@ -65,6 +70,26 @@ type RecentConversation struct {
 	RecentMessages []Message
 }
 
+// Message is the manager-facing channel message DTO.
+type Message struct {
+	// MessageID is the durable message identifier.
+	MessageID uint64
+	// MessageSeq is the committed channel sequence number.
+	MessageSeq uint64
+	// ClientMsgNo is the client-provided message correlation number.
+	ClientMsgNo string
+	// ChannelID is the logical channel identifier.
+	ChannelID string
+	// ChannelType is the logical channel type.
+	ChannelType int64
+	// FromUID is the sender UID recorded on the message.
+	FromUID string
+	// Timestamp is the server-side message timestamp in Unix seconds.
+	Timestamp int64
+	// Payload is the raw message payload bytes.
+	Payload []byte
+}
+
 // ListRecentConversations returns one bounded UID-scoped recent conversation working set.
 func (a *App) ListRecentConversations(ctx context.Context, req RecentConversationsRequest) (RecentConversationsResponse, error) {
 	uid := strings.TrimSpace(req.UID)
@@ -76,10 +101,9 @@ func (a *App) ListRecentConversations(ctx context.Context, req RecentConversatio
 		return RecentConversationsResponse{}, ErrRecentConversationsUnavailable
 	}
 
-	syncLimit := req.Limit + 1
 	result, err := a.conversations.Sync(ctx, conversationusecase.SyncQuery{
 		UID:        uid,
-		Limit:      syncLimit,
+		Limit:      req.Limit + 1,
 		MsgCount:   req.MsgCount,
 		OnlyUnread: req.OnlyUnread,
 	})
@@ -92,7 +116,6 @@ func (a *App) ListRecentConversations(ctx context.Context, req RecentConversatio
 	if truncated {
 		conversations = conversations[:req.Limit]
 	}
-
 	resp := RecentConversationsResponse{
 		UID:        uid,
 		Limit:      req.Limit,
@@ -118,19 +141,19 @@ func recentConversationFromSync(uid string, item conversationusecase.SyncConvers
 		LastClientMsgNo: item.LastClientMsgNo,
 		ReadToMsgSeq:    item.ReadToMsgSeq,
 		Version:         item.Version,
-		RecentMessages:  messagesFromChannelMessages(item.Recents),
+		RecentMessages:  messagesFromSyncMessages(item.Recents),
 	}
 }
 
-func messagesFromChannelMessages(items []channel.Message) []Message {
+func messagesFromSyncMessages(items []conversationusecase.SyncMessage) []Message {
 	out := make([]Message, 0, len(items))
 	for _, item := range items {
-		out = append(out, messageFromChannelMessage(item))
+		out = append(out, messageFromSyncMessage(item))
 	}
 	return out
 }
 
-func messageFromChannelMessage(item channel.Message) Message {
+func messageFromSyncMessage(item conversationusecase.SyncMessage) Message {
 	return Message{
 		MessageID:   item.MessageID,
 		MessageSeq:  item.MessageSeq,
@@ -138,7 +161,7 @@ func messageFromChannelMessage(item channel.Message) Message {
 		ChannelID:   item.ChannelID,
 		ChannelType: int64(item.ChannelType),
 		FromUID:     item.FromUID,
-		Timestamp:   int64(item.Timestamp),
+		Timestamp:   item.ServerTimestampMS / 1000,
 		Payload:     append([]byte(nil), item.Payload...),
 	}
 }

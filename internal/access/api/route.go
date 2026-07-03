@@ -20,7 +20,7 @@ func (s *Server) handleRoute(c *gin.Context) {
 	}
 	addr, ok := s.legacyRouteAddresses(c)
 	if !ok {
-		writeLegacyRouteNodeError(c)
+		writeRouteNodeError(c)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{
@@ -46,7 +46,7 @@ func (s *Server) handleRouteBatch(c *gin.Context) {
 
 	addr, ok := s.legacyRouteAddresses(c)
 	if !ok {
-		writeLegacyRouteNodeError(c)
+		writeRouteNodeError(c)
 		return
 	}
 	c.JSON(http.StatusOK, []legacyUserAddrResponse{
@@ -115,7 +115,7 @@ func legacyRouteNodeQuery(c *gin.Context) (string, bool) {
 	return "", false
 }
 
-func writeLegacyRouteNodeError(c *gin.Context) {
+func writeRouteNodeError(c *gin.Context) {
 	c.JSON(http.StatusBadRequest, gin.H{
 		"msg":    "节点参数有误！",
 		"status": http.StatusBadRequest,

@@ -2,613 +2,379 @@ package management
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
-	raftcluster "github.com/WuKongIM/WuKongIM/pkg/legacy/cluster"
-	controllermeta "github.com/WuKongIM/WuKongIM/pkg/legacy/controller/meta"
-	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
-	"github.com/WuKongIM/WuKongIM/pkg/transport"
-	"github.com/stretchr/testify/require"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 )
 
-func TestListNodesAggregatesControllerRoleAndSlotCounts(t *testing.T) {
-	now := time.Unix(1713686400, 0).UTC()
+func TestListNodesBuildsReadOnlyNodeInventory(t *testing.T) {
+	generatedAt := time.Date(2026, 6, 16, 9, 30, 0, 0, time.UTC)
 	app := New(Options{
-		LocalNodeID:       2,
-		ControllerPeerIDs: []uint64{1, 2},
-		Cluster: fakeClusterReader{
-			controllerLeaderID: 1,
-			nodes: []controllermeta.ClusterNode{
-				{NodeID: 3, Addr: "127.0.0.1:7003", Status: controllermeta.NodeStatusAlive, LastHeartbeatAt: now.Add(-3 * time.Second), CapacityWeight: 1},
-				{NodeID: 1, Addr: "127.0.0.1:7001", Status: controllermeta.NodeStatusAlive, LastHeartbeatAt: now.Add(-1 * time.Second), CapacityWeight: 1},
-				{NodeID: 2, Addr: "127.0.0.1:7002", Status: controllermeta.NodeStatusDraining, LastHeartbeatAt: now.Add(-2 * time.Second), CapacityWeight: 2},
+		Cluster: fakeNodeSnapshotReader{
+			nodeID: 2,
+			snapshot: control.Snapshot{
+				ControllerID: 1,
+				Nodes: []control.Node{
+					{NodeID: 2, Addr: "127.0.0.1:7012", Roles: []control.Role{control.RoleData}, Status: control.NodeSuspect, JoinState: control.NodeJoinStateJoining},
+					{NodeID: 1, Addr: "127.0.0.1:7011", Roles: []control.Role{control.RoleController, control.RoleData}, Status: control.NodeAlive, Health: freshReadyNodeHealth()},
+				},
+				Slots: []control.SlotAssignment{
+					{SlotID: 2, DesiredPeers: []uint64{2}, PreferredLeader: 2},
+					{SlotID: 1, DesiredPeers: []uint64{1, 2}, PreferredLeader: 1},
+				},
 			},
-			views: []controllermeta.SlotRuntimeView{
-				{SlotID: 1, CurrentPeers: []uint64{1, 2}, LeaderID: 1, HasQuorum: true},
-				{SlotID: 2, CurrentPeers: []uint64{2, 3}, LeaderID: 2, HasQuorum: true},
+		},
+		SlotRuntimeStatus: &fakeSlotRuntimeStatusReader{
+			statuses: map[uint32]SlotRuntimeStatus{
+				1: {SlotID: 1, LeaderID: 1, CurrentVoters: []uint64{1, 2}},
+				2: {SlotID: 2, LeaderID: 2, CurrentVoters: []uint64{2}},
+			},
+		},
+		Now: func() time.Time { return generatedAt },
+	})
+
+	got, err := app.ListNodes(context.Background())
+	if err != nil {
+		t.Fatalf("ListNodes() error = %v", err)
+	}
+	if !got.GeneratedAt.Equal(generatedAt) {
+		t.Fatalf("GeneratedAt = %s, want %s", got.GeneratedAt, generatedAt)
+	}
+	if got.ControllerLeaderID != 1 {
+		t.Fatalf("ControllerLeaderID = %d, want 1", got.ControllerLeaderID)
+	}
+	if len(got.Items) != 2 {
+		t.Fatalf("Items len = %d, want 2: %#v", len(got.Items), got.Items)
+	}
+
+	first := got.Items[0]
+	if first.NodeID != 1 || first.Name != "node-1" || first.Addr != "127.0.0.1:7011" {
+		t.Fatalf("first node identity = %#v, want node-1 at 127.0.0.1:7011", first)
+	}
+	if first.Status != "alive" || first.Controller.Role != "leader" || !first.Controller.Voter {
+		t.Fatalf("first node status/controller = %#v/%#v, want alive controller leader voter", first.Status, first.Controller)
+	}
+	if first.Membership.Role != "data" || first.Membership.JoinState != "active" || !first.Membership.Schedulable {
+		t.Fatalf("first membership = %#v, want active schedulable data", first.Membership)
+	}
+	if first.Slots.ReplicaCount != 1 || first.Slots.LeaderCount != 1 || first.Slots.FollowerCount != 0 {
+		t.Fatalf("first slots = %#v, want one leader replica", first.Slots)
+	}
+	if first.Runtime.NodeID != 1 || !first.Runtime.Unknown {
+		t.Fatalf("first runtime = %#v, want unknown runtime for node 1", first.Runtime)
+	}
+	if first.Actions.CanScaleIn || first.Actions.CanPromoteControllerVoter ||
+		!first.Actions.CanOnboard || !first.Actions.CanMoveSlotsIn || !first.Actions.CanMoveSlotsOut {
+		t.Fatalf("first lifecycle actions = %#v, want controller-voter slot migration enabled and scale-in disabled", first.Actions)
+	}
+
+	second := got.Items[1]
+	if second.NodeID != 2 || !second.IsLocal {
+		t.Fatalf("second node = %#v, want local node 2", second)
+	}
+	if second.Status != "suspect" || second.Membership.Schedulable {
+		t.Fatalf("second status/membership = %s/%#v, want suspect not schedulable", second.Status, second.Membership)
+	}
+	if second.Slots.ReplicaCount != 2 || second.Slots.LeaderCount != 1 || second.Slots.FollowerCount != 1 {
+		t.Fatalf("second slots = %#v, want two replicas with one leader", second.Slots)
+	}
+}
+
+func TestListNodesReportsLifecycleAndCapacity(t *testing.T) {
+	app := New(Options{
+		Cluster: fakeNodeSnapshotReader{
+			nodeID: 1,
+			snapshot: control.Snapshot{
+				ControllerID: 1,
+				Nodes: []control.Node{
+					{NodeID: 1, Addr: "127.0.0.1:7011", Roles: []control.Role{control.RoleController, control.RoleData}, Status: control.NodeAlive, Health: freshReadyNodeHealth(), JoinState: control.NodeJoinStateActive, CapacityWeight: 3},
+					{NodeID: 2, Addr: "127.0.0.1:7012", Roles: []control.Role{control.RoleData}, Status: control.NodeAlive, JoinState: control.NodeJoinStateJoining, CapacityWeight: 2},
+					{NodeID: 3, Addr: "127.0.0.1:7013", Roles: []control.Role{control.RoleData}, Status: control.NodeAlive, JoinState: control.NodeJoinStateLeaving, CapacityWeight: 1},
+					{NodeID: 4, Addr: "127.0.0.1:7014", Roles: []control.Role{control.RoleData}, Status: control.NodeDown, JoinState: control.NodeJoinStateRemoved, CapacityWeight: 1},
+					{NodeID: 5, Addr: "127.0.0.1:7015", Roles: []control.Role{control.RoleData}, Status: control.NodeSuspect, JoinState: control.NodeJoinStateActive, CapacityWeight: 0},
+				},
 			},
 		},
 	})
 
 	got, err := app.ListNodes(context.Background())
-	require.NoError(t, err)
-	require.Equal(t, []nodeSummary{
-		{NodeID: 1, Status: "alive", ControllerRole: "leader", SlotCount: 1, LeaderSlotCount: 1, IsLocal: false},
-		{NodeID: 2, Status: "draining", ControllerRole: "follower", SlotCount: 2, LeaderSlotCount: 1, IsLocal: true},
-		{NodeID: 3, Status: "alive", ControllerRole: "none", SlotCount: 1, LeaderSlotCount: 0, IsLocal: false},
-	}, summarizeNodes(got.Items))
-	require.Equal(t, now.Add(-1*time.Second), got.Items[0].LastHeartbeatAt)
-	require.Equal(t, 2, got.Items[1].CapacityWeight)
+	if err != nil {
+		t.Fatalf("ListNodes() error = %v", err)
+	}
+	if len(got.Items) != 5 {
+		t.Fatalf("Items len = %d, want 5", len(got.Items))
+	}
+	want := map[uint64]struct {
+		joinState   string
+		schedulable bool
+		capacity    int
+	}{
+		1: {joinState: "active", schedulable: true, capacity: 3},
+		2: {joinState: "joining", schedulable: false, capacity: 2},
+		3: {joinState: "leaving", schedulable: false, capacity: 1},
+		4: {joinState: "removed", schedulable: false, capacity: 1},
+		5: {joinState: "active", schedulable: false, capacity: 1},
+	}
+	for _, item := range got.Items {
+		expect := want[item.NodeID]
+		if item.Membership.JoinState != expect.joinState || item.Membership.Schedulable != expect.schedulable || item.CapacityWeight != expect.capacity {
+			t.Fatalf("node %d membership=%#v capacity=%d, want %#v", item.NodeID, item.Membership, item.CapacityWeight, expect)
+		}
+	}
 }
 
-func TestListNodesReturnsLayeredInventoryFields(t *testing.T) {
-	now := time.Unix(1714298400, 0).UTC()
+func TestListNodesIncludesHealthFreshnessFields(t *testing.T) {
+	generatedAt := time.Date(2026, 6, 30, 12, 0, 0, 0, time.UTC)
+	reportedAt := generatedAt.Add(-4 * time.Second)
 	app := New(Options{
-		LocalNodeID:       1,
-		ControllerPeerIDs: []uint64{1, 2},
-		SlotReplicaN:      3,
-		Now:               func() time.Time { return now },
-		Cluster: fakeClusterReader{
-			controllerLeaderID: 1,
-			nodes: []controllermeta.ClusterNode{{
-				NodeID:          1,
-				Name:            "node-1",
-				Addr:            "10.0.0.1:7000",
-				Role:            controllermeta.NodeRoleData,
-				JoinState:       controllermeta.NodeJoinStateActive,
-				Status:          controllermeta.NodeStatusAlive,
-				LastHeartbeatAt: now.Add(-2 * time.Second),
-				CapacityWeight:  2,
-			}},
-			views: []controllermeta.SlotRuntimeView{{
-				SlotID:       7,
-				CurrentPeers: []uint64{1, 2, 3},
-				LeaderID:     1,
-				HasQuorum:    true,
-			}},
+		Cluster: fakeNodeSnapshotReader{
+			nodeID: 4,
+			snapshot: control.Snapshot{
+				ControllerID: 1,
+				Nodes: []control.Node{
+					{
+						NodeID:    4,
+						Addr:      "127.0.0.1:7004",
+						Roles:     []control.Role{control.RoleData},
+						JoinState: control.NodeJoinStateActive,
+						Status:    control.NodeAlive,
+						Health: control.NodeHealth{
+							Status:                  control.NodeAlive,
+							Freshness:               control.NodeHealthFresh,
+							RuntimeReady:            true,
+							ObservedControlRevision: 12,
+							ObservedSlotRevision:    21,
+							ReportedAt:              reportedAt,
+							ReportAge:               4 * time.Second,
+							ReportTTL:               30 * time.Second,
+							ErrorCode:               "ok",
+						},
+					},
+					{
+						NodeID:    5,
+						Addr:      "127.0.0.1:7005",
+						Roles:     []control.Role{control.RoleData},
+						JoinState: control.NodeJoinStateActive,
+						Status:    control.NodeAlive,
+						Health: control.NodeHealth{
+							Status:       control.NodeAlive,
+							Freshness:    control.NodeHealthStale,
+							RuntimeReady: true,
+							ReportAge:    31 * time.Second,
+							ReportTTL:    30 * time.Second,
+						},
+					},
+				},
+			},
 		},
-		RuntimeSummary: scaleInRuntimeSummaryReader{summary: NodeRuntimeSummary{
-			NodeID:               1,
-			ActiveOnline:         4,
-			GatewaySessions:      5,
-			AcceptingNewSessions: true,
-		}},
+		Now: func() time.Time { return generatedAt },
+	})
+
+	resp, err := app.ListNodes(context.Background())
+	if err != nil {
+		t.Fatalf("ListNodes() error = %v", err)
+	}
+	if len(resp.Items) != 2 {
+		t.Fatalf("Items len = %d, want 2: %#v", len(resp.Items), resp.Items)
+	}
+	fresh := resp.Items[0]
+	if !fresh.Health.Fresh || fresh.Health.Freshness != "fresh" || !fresh.Health.RuntimeReady ||
+		fresh.Health.ReportAgeMS != 4000 || fresh.Health.ReportTTLMS != 30000 ||
+		fresh.Health.ObservedControlRevision != 12 || fresh.Health.ObservedSlotRevision != 21 ||
+		fresh.Health.ErrorCode != "ok" || !fresh.Health.LastHeartbeatAt.Equal(reportedAt) {
+		t.Fatalf("fresh node health = %#v, want fresh health evidence fields", fresh.Health)
+	}
+	if !fresh.Membership.Schedulable {
+		t.Fatalf("fresh membership = %#v, want schedulable from shared health predicate", fresh.Membership)
+	}
+	stale := resp.Items[1]
+	if stale.Health.Fresh || stale.Health.Freshness != "stale" || stale.Health.ReportAgeMS != 31000 || stale.Membership.Schedulable {
+		t.Fatalf("stale node health/membership = %#v/%#v, want stale non-schedulable health", stale.Health, stale.Membership)
+	}
+}
+
+func TestListNodesReportsLifecycleActionHints(t *testing.T) {
+	app := New(Options{
+		Cluster: fakeNodeSnapshotReader{
+			nodeID: 1,
+			snapshot: control.Snapshot{
+				ControllerID: 1,
+				Nodes: []control.Node{
+					{NodeID: 1, Roles: []control.Role{control.RoleController, control.RoleData}, Status: control.NodeAlive, JoinState: control.NodeJoinStateActive},
+					{NodeID: 2, Roles: []control.Role{control.RoleData}, Status: control.NodeAlive, JoinState: control.NodeJoinStateActive},
+					{NodeID: 3, Roles: []control.Role{control.RoleData}, Status: control.NodeAlive, JoinState: control.NodeJoinStateLeaving},
+					{NodeID: 4, Roles: []control.Role{control.RoleData}, Status: control.NodeAlive, JoinState: control.NodeJoinStateJoining},
+					{NodeID: 5, Roles: []control.Role{control.RoleData}, Status: control.NodeAlive, JoinState: control.NodeJoinStateRemoved},
+				},
+			},
+		},
 	})
 
 	got, err := app.ListNodes(context.Background())
-	require.NoError(t, err)
-	require.Equal(t, now, got.GeneratedAt)
-	require.Equal(t, uint64(1), got.ControllerLeaderID)
-	require.Len(t, got.Items, 1)
-	node := got.Items[0]
-	require.Equal(t, "node-1", node.Name)
-	require.Equal(t, "data", node.Membership.Role)
-	require.Equal(t, "active", node.Membership.JoinState)
-	require.True(t, node.Membership.Schedulable)
-	require.Equal(t, "alive", node.Health.Status)
-	require.Equal(t, now.Add(-2*time.Second), node.Health.LastHeartbeatAt)
-	require.Equal(t, "leader", node.Controller.Role)
-	require.True(t, node.Controller.Voter)
-	require.Equal(t, uint64(1), node.Controller.LeaderID)
-	require.Equal(t, 1, node.Slots.ReplicaCount)
-	require.Equal(t, 1, node.Slots.LeaderCount)
-	require.Equal(t, 0, node.Slots.FollowerCount)
-	require.Equal(t, 0, node.Slots.QuorumLostCount)
-	require.Equal(t, 0, node.Slots.UnreportedCount)
-	require.Equal(t, 4, node.Runtime.ActiveOnline)
-	require.Equal(t, 5, node.Runtime.GatewaySessions)
-	require.True(t, node.Runtime.AcceptingNewSessions)
-	require.True(t, node.Actions.CanDrain)
-	require.False(t, node.Actions.CanResume)
+	if err != nil {
+		t.Fatalf("ListNodes() error = %v", err)
+	}
+	actions := map[uint64]NodeActions{}
+	for _, item := range got.Items {
+		actions[item.NodeID] = item.Actions
+	}
+	if actions[1].CanScaleIn || actions[1].CanPromoteControllerVoter ||
+		!actions[1].CanOnboard || !actions[1].CanMoveSlotsIn || !actions[1].CanMoveSlotsOut {
+		t.Fatalf("controller voter actions = %#v, want slot move actions enabled and scale-in disabled", actions[1])
+	}
+	if !actions[2].CanScaleIn || !actions[2].CanOnboard || !actions[2].CanMoveSlotsIn ||
+		!actions[2].CanMoveSlotsOut || !actions[2].CanPromoteControllerVoter {
+		t.Fatalf("active data actions = %#v, want scale-in, slot move, and controller promotion enabled", actions[2])
+	}
+	if !actions[3].CanScaleIn || actions[3].CanOnboard || actions[3].CanMoveSlotsIn ||
+		actions[3].CanMoveSlotsOut || actions[3].CanPromoteControllerVoter {
+		t.Fatalf("leaving data actions = %#v, want scale-in enabled and slot move/promotion disabled", actions[3])
+	}
+	if actions[4].CanScaleIn || actions[4].CanOnboard || actions[4].CanMoveSlotsIn ||
+		actions[4].CanMoveSlotsOut || actions[4].CanPromoteControllerVoter ||
+		actions[5].CanScaleIn || actions[5].CanOnboard || actions[5].CanMoveSlotsIn ||
+		actions[5].CanMoveSlotsOut || actions[5].CanPromoteControllerVoter {
+		t.Fatalf("inactive data actions = %#v/%#v, want lifecycle actions disabled", actions[4], actions[5])
+	}
 }
 
-func TestListNodesDoesNotReadDistributedLogStatus(t *testing.T) {
-	cluster := &fakeNodeInventoryCluster{fakeClusterReader: fakeClusterReader{
-		controllerLeaderID: 1,
-		nodes: []controllermeta.ClusterNode{{
-			NodeID:         1,
-			Addr:           "127.0.0.1:7001",
-			Role:           controllermeta.NodeRoleData,
-			JoinState:      controllermeta.NodeJoinStateActive,
-			Status:         controllermeta.NodeStatusAlive,
-			CapacityWeight: 1,
-		}},
-		views: []controllermeta.SlotRuntimeView{{
-			SlotID:       1,
-			CurrentPeers: []uint64{1},
-			LeaderID:     1,
-			HasQuorum:    true,
-		}},
-	}}
-	app := New(Options{Cluster: cluster, ControllerPeerIDs: []uint64{1}, Now: time.Now})
+func TestListNodesCountsActualSlotRaftLeaders(t *testing.T) {
+	app := New(Options{
+		Cluster: fakeNodeSnapshotReader{
+			nodeID: 1,
+			snapshot: control.Snapshot{
+				ControllerID: 1,
+				Nodes: []control.Node{
+					{NodeID: 1, Addr: "127.0.0.1:7011", Roles: []control.Role{control.RoleController, control.RoleData}, Status: control.NodeAlive},
+					{NodeID: 2, Addr: "127.0.0.1:7012", Roles: []control.Role{control.RoleData}, Status: control.NodeAlive},
+					{NodeID: 3, Addr: "127.0.0.1:7013", Roles: []control.Role{control.RoleData}, Status: control.NodeAlive},
+				},
+				Slots: []control.SlotAssignment{
+					{SlotID: 1, DesiredPeers: []uint64{1, 2, 3}, PreferredLeader: 1},
+					{SlotID: 2, DesiredPeers: []uint64{1, 2, 3}, PreferredLeader: 2},
+					{SlotID: 3, DesiredPeers: []uint64{1, 2, 3}, PreferredLeader: 3},
+				},
+			},
+		},
+		SlotRuntimeStatus: &fakeSlotRuntimeStatusReader{
+			statuses: map[uint32]SlotRuntimeStatus{
+				1: {SlotID: 1, LeaderID: 2, CurrentVoters: []uint64{1, 2, 3}},
+				2: {SlotID: 2, LeaderID: 3, CurrentVoters: []uint64{1, 2, 3}},
+				3: {SlotID: 3, LeaderID: 3, CurrentVoters: []uint64{1, 2, 3}},
+			},
+		},
+	})
+
+	got, err := app.ListNodes(context.Background())
+	if err != nil {
+		t.Fatalf("ListNodes() error = %v", err)
+	}
+	if len(got.Items) != 3 {
+		t.Fatalf("Items len = %d, want 3: %#v", len(got.Items), got.Items)
+	}
+	wantLeaders := map[uint64]int{1: 0, 2: 1, 3: 2}
+	for _, item := range got.Items {
+		if item.Slots.LeaderCount != wantLeaders[item.NodeID] {
+			t.Fatalf("node %d leader count = %d, want %d from actual raft leaders", item.NodeID, item.Slots.LeaderCount, wantLeaders[item.NodeID])
+		}
+		if item.Slots.FollowerCount != item.Slots.ReplicaCount-item.Slots.LeaderCount {
+			t.Fatalf("node %d slots = %#v, want followers derived from actual raft leaders", item.NodeID, item.Slots)
+		}
+	}
+}
+
+func TestListNodesAttachesRuntimeSummary(t *testing.T) {
+	app := New(Options{
+		Cluster: fakeNodeSnapshotReader{
+			nodeID: 1,
+			snapshot: control.Snapshot{
+				ControllerID: 1,
+				Nodes: []control.Node{
+					{NodeID: 1, Addr: "127.0.0.1:7011", Roles: []control.Role{control.RoleController, control.RoleData}, Status: control.NodeAlive},
+					{NodeID: 2, Addr: "127.0.0.1:7012", Roles: []control.Role{control.RoleData}, Status: control.NodeAlive},
+				},
+			},
+		},
+		RuntimeSummary: fakeNodeRuntimeSummaryReader{
+			summaries: map[uint64]NodeRuntimeSummary{
+				1: {
+					NodeID:               1,
+					ActiveOnline:         4,
+					ClosingOnline:        1,
+					TotalOnline:          5,
+					GatewaySessions:      6,
+					SessionsByListener:   map[string]int{"tcp": 6},
+					AcceptingNewSessions: false,
+					Draining:             true,
+				},
+			},
+			errs: map[uint64]error{2: errors.New("node runtime unavailable")},
+		},
+	})
+
+	got, err := app.ListNodes(context.Background())
+	if err != nil {
+		t.Fatalf("ListNodes() error = %v", err)
+	}
+	if len(got.Items) != 2 {
+		t.Fatalf("Items len = %d, want 2: %#v", len(got.Items), got.Items)
+	}
+	first := got.Items[0].Runtime
+	if first.Unknown || first.ActiveOnline != 4 || first.ClosingOnline != 1 || first.TotalOnline != 5 ||
+		first.GatewaySessions != 6 || first.SessionsByListener["tcp"] != 6 ||
+		first.AcceptingNewSessions || !first.Draining {
+		t.Fatalf("first runtime = %#v, want concrete runtime summary", first)
+	}
+	second := got.Items[1].Runtime
+	if second.NodeID != 2 || !second.Unknown || len(second.SessionsByListener) != 0 {
+		t.Fatalf("second runtime = %#v, want unknown runtime fallback for node 2", second)
+	}
+}
+
+func TestListNodesReturnsClusterSnapshotError(t *testing.T) {
+	wantErr := errors.New("control unavailable")
+	app := New(Options{Cluster: fakeNodeSnapshotReader{err: wantErr}})
 
 	_, err := app.ListNodes(context.Background())
-	require.NoError(t, err)
-	require.Zero(t, cluster.logStatusCalls)
-}
-
-func TestListNodesIncludesLocalControllerRaftSummary(t *testing.T) {
-	app := New(Options{
-		LocalNodeID:       1,
-		ControllerPeerIDs: []uint64{1, 2},
-		Cluster: fakeClusterReader{
-			controllerLeaderID: 1,
-			nodes: []controllermeta.ClusterNode{{
-				NodeID:    1,
-				Role:      controllermeta.NodeRoleControllerVoter,
-				JoinState: controllermeta.NodeJoinStateActive,
-				Status:    controllermeta.NodeStatusAlive,
-			}},
-			controllerRaftStatus: map[uint64]raftcluster.ControllerRaftStatus{
-				1: {NodeID: 1, Role: "leader", FirstIndex: 10, AppliedIndex: 20, SnapshotIndex: 9},
-			},
-		},
-	})
-
-	got, err := app.ListNodes(context.Background())
-	require.NoError(t, err)
-	require.Len(t, got.Items, 1)
-	require.Equal(t, ControllerRaftHealthHealthy, got.Items[0].Controller.RaftHealth)
-	require.Equal(t, uint64(10), got.Items[0].Controller.FirstIndex)
-	require.Equal(t, uint64(20), got.Items[0].Controller.AppliedIndex)
-	require.Equal(t, uint64(9), got.Items[0].Controller.SnapshotIndex)
-}
-
-func TestListNodesDoesNotFanOutControllerRaftStatus(t *testing.T) {
-	cluster := &fakeNodeInventoryCluster{fakeClusterReader: fakeClusterReader{
-		controllerLeaderID: 2,
-		nodes: []controllermeta.ClusterNode{{
-			NodeID:    1,
-			Role:      controllermeta.NodeRoleControllerVoter,
-			JoinState: controllermeta.NodeJoinStateActive,
-			Status:    controllermeta.NodeStatusAlive,
-		}, {
-			NodeID:    2,
-			Role:      controllermeta.NodeRoleControllerVoter,
-			JoinState: controllermeta.NodeJoinStateActive,
-			Status:    controllermeta.NodeStatusAlive,
-		}},
-		controllerRaftStatus: map[uint64]raftcluster.ControllerRaftStatus{
-			1: {NodeID: 1, Role: "follower"},
-			2: {NodeID: 2, Role: "leader"},
-		},
-	}}
-	app := New(Options{LocalNodeID: 1, ControllerPeerIDs: []uint64{1, 2}, Cluster: cluster})
-
-	got, err := app.ListNodes(context.Background())
-	require.NoError(t, err)
-	require.Len(t, got.Items, 2)
-	require.Equal(t, 1, cluster.controllerRaftStatusCalls)
-	require.Equal(t, ControllerRaftHealthHealthy, got.Items[0].Controller.RaftHealth)
-	require.Equal(t, ControllerRaftHealthUnknown, got.Items[1].Controller.RaftHealth)
-}
-
-func TestListNodesSortsByNodeIDAndDefaultsCountsToZero(t *testing.T) {
-	app := New(Options{
-		LocalNodeID:       9,
-		ControllerPeerIDs: []uint64{4},
-		Cluster: fakeClusterReader{
-			controllerLeaderID: 4,
-			nodes: []controllermeta.ClusterNode{
-				{NodeID: 9, Addr: "127.0.0.1:7009", Status: controllermeta.NodeStatusSuspect, CapacityWeight: 1},
-				{NodeID: 4, Addr: "127.0.0.1:7004", Status: controllermeta.NodeStatusDead, CapacityWeight: 3},
-			},
-		},
-	})
-
-	got, err := app.ListNodes(context.Background())
-	require.NoError(t, err)
-	require.Equal(t, []nodeSummary{
-		{NodeID: 4, Status: "dead", ControllerRole: "leader", SlotCount: 0, LeaderSlotCount: 0, IsLocal: false},
-		{NodeID: 9, Status: "suspect", ControllerRole: "none", SlotCount: 0, LeaderSlotCount: 0, IsLocal: true},
-	}, summarizeNodes(got.Items))
-}
-
-func TestGetNodeReturnsNodeWithHostedAndLeaderSlots(t *testing.T) {
-	now := time.Unix(1713686400, 0).UTC()
-	app := New(Options{
-		LocalNodeID:       2,
-		ControllerPeerIDs: []uint64{1, 2},
-		Cluster: fakeClusterReader{
-			controllerLeaderID: 1,
-			nodes: []controllermeta.ClusterNode{
-				{NodeID: 2, Addr: "127.0.0.1:7002", Status: controllermeta.NodeStatusDraining, LastHeartbeatAt: now.Add(-2 * time.Second), CapacityWeight: 2},
-				{NodeID: 1, Addr: "127.0.0.1:7001", Status: controllermeta.NodeStatusAlive, LastHeartbeatAt: now.Add(-1 * time.Second), CapacityWeight: 1},
-			},
-			views: []controllermeta.SlotRuntimeView{
-				{SlotID: 7, CurrentPeers: []uint64{2, 1}, LeaderID: 1, HasQuorum: true},
-				{SlotID: 2, CurrentPeers: []uint64{3, 2}, LeaderID: 2, HasQuorum: true},
-				{SlotID: 4, CurrentPeers: []uint64{2}, LeaderID: 2, HasQuorum: true},
-			},
-		},
-	})
-
-	got, err := app.GetNode(context.Background(), 2)
-	require.NoError(t, err)
-	require.Equal(t, NodeDetail{
-		Node: Node{
-			NodeID:          2,
-			Addr:            "127.0.0.1:7002",
-			Status:          "draining",
-			LastHeartbeatAt: now.Add(-2 * time.Second),
-			ControllerRole:  "follower",
-			SlotCount:       3,
-			LeaderSlotCount: 2,
-			IsLocal:         true,
-			CapacityWeight:  2,
-			Membership: NodeMembership{
-				Role:      "unknown",
-				JoinState: "unknown",
-			},
-			Health: NodeHealth{
-				Status:          "draining",
-				LastHeartbeatAt: now.Add(-2 * time.Second),
-			},
-			Controller: NodeController{
-				Role:       "follower",
-				Voter:      true,
-				LeaderID:   1,
-				RaftHealth: ControllerRaftHealthUnknown,
-			},
-			Slots: NodeSlotSummary{
-				ReplicaCount:  3,
-				LeaderCount:   2,
-				FollowerCount: 1,
-			},
-			Runtime: NodeRuntimeSummary{
-				NodeID:  2,
-				Unknown: true,
-			},
-			Actions: NodeActions{
-				CanResume: true,
-			},
-		},
-		Slots: NodeSlots{
-			HostedIDs: []uint32{2, 4, 7},
-			LeaderIDs: []uint32{2, 4},
-		},
-	}, got)
-}
-
-func TestGetNodeIncludesLocalControllerRaftSummary(t *testing.T) {
-	cluster := &fakeNodeInventoryCluster{fakeClusterReader: fakeClusterReader{
-		controllerLeaderID: 1,
-		nodes: []controllermeta.ClusterNode{{
-			NodeID:    1,
-			Role:      controllermeta.NodeRoleControllerVoter,
-			JoinState: controllermeta.NodeJoinStateActive,
-			Status:    controllermeta.NodeStatusAlive,
-		}},
-		controllerRaftStatus: map[uint64]raftcluster.ControllerRaftStatus{
-			1: {NodeID: 1, Role: "leader", FirstIndex: 10, AppliedIndex: 20, SnapshotIndex: 9},
-		},
-	}}
-	app := New(Options{LocalNodeID: 1, ControllerPeerIDs: []uint64{1}, Cluster: cluster})
-
-	got, err := app.GetNode(context.Background(), 1)
-	require.NoError(t, err)
-	require.Equal(t, 1, cluster.controllerRaftStatusCalls)
-	require.Equal(t, ControllerRaftHealthHealthy, got.Controller.RaftHealth)
-	require.Equal(t, uint64(10), got.Controller.FirstIndex)
-	require.Equal(t, uint64(20), got.Controller.AppliedIndex)
-	require.Equal(t, uint64(9), got.Controller.SnapshotIndex)
-}
-
-func TestGetNodeDoesNotFanOutControllerRaftStatus(t *testing.T) {
-	cluster := &fakeNodeInventoryCluster{fakeClusterReader: fakeClusterReader{
-		controllerLeaderID: 2,
-		nodes: []controllermeta.ClusterNode{{
-			NodeID:    1,
-			Role:      controllermeta.NodeRoleControllerVoter,
-			JoinState: controllermeta.NodeJoinStateActive,
-			Status:    controllermeta.NodeStatusAlive,
-		}, {
-			NodeID:    2,
-			Role:      controllermeta.NodeRoleControllerVoter,
-			JoinState: controllermeta.NodeJoinStateActive,
-			Status:    controllermeta.NodeStatusAlive,
-		}},
-		controllerRaftStatus: map[uint64]raftcluster.ControllerRaftStatus{
-			1: {NodeID: 1, Role: "follower"},
-			2: {NodeID: 2, Role: "leader", FirstIndex: 10},
-		},
-	}}
-	app := New(Options{LocalNodeID: 1, ControllerPeerIDs: []uint64{1, 2}, Cluster: cluster})
-
-	got, err := app.GetNode(context.Background(), 2)
-	require.NoError(t, err)
-	require.Zero(t, cluster.controllerRaftStatusCalls)
-	require.Equal(t, ControllerRaftHealthUnknown, got.Controller.RaftHealth)
-	require.Zero(t, got.Controller.FirstIndex)
-}
-
-func TestGetNodeReturnsNotFound(t *testing.T) {
-	app := New(Options{
-		LocalNodeID:       1,
-		ControllerPeerIDs: []uint64{1},
-		Cluster: fakeClusterReader{
-			controllerLeaderID: 1,
-			nodes: []controllermeta.ClusterNode{
-				{NodeID: 1, Addr: "127.0.0.1:7001", Status: controllermeta.NodeStatusAlive},
-			},
-		},
-	})
-
-	_, err := app.GetNode(context.Background(), 2)
-	require.ErrorIs(t, err, controllermeta.ErrNotFound)
-}
-
-type fakeClusterReader struct {
-	controllerLeaderID          uint64
-	slotIDs                     []multiraft.SlotID
-	slotForKey                  map[string]multiraft.SlotID
-	hashSlotForKey              map[string]uint16
-	hashSlotTable               *raftcluster.HashSlotTable
-	nodes                       []controllermeta.ClusterNode
-	listNodesErr                error
-	assignments                 []controllermeta.SlotAssignment
-	listSlotAssignmentsErr      error
-	views                       []controllermeta.SlotRuntimeView
-	listObservedRuntimeViewsErr error
-	slotLogStatus               map[slotLogStatusKey]raftcluster.SlotLogStatus
-	slotLogStatusErr            map[slotLogStatusKey]error
-	slotLogEntries              map[slotLogEntriesKey]raftcluster.SlotLogEntries
-	slotLogEntriesErr           map[slotLogEntriesKey]error
-	controllerLogEntries        map[uint64]raftcluster.ControllerLogEntries
-	controllerLogEntriesErr     map[uint64]error
-	controllerRaftStatus        map[uint64]raftcluster.ControllerRaftStatus
-	controllerRaftStatusErr     map[uint64]error
-	controllerRaftCompactions   map[uint64]raftcluster.ControllerRaftCompactionResult
-	controllerRaftCompactErr    map[uint64]error
-	slotRaftCompactions         map[slotRaftCompactionKey]raftcluster.SlotRaftCompactionResult
-	slotRaftCompactionErrs      map[slotRaftCompactionKey]error
-	tasks                       []controllermeta.ReconcileTask
-	taskBySlot                  map[uint32]controllermeta.ReconcileTask
-	listTasksErr                error
-	getTaskErr                  error
-	markNodeDrainingErr         error
-	resumeNodeErr               error
-	transferSlotLeaderErr       error
-	recoverSlotStrictErr        error
-	activeMigrations            []raftcluster.HashSlotMigration
-	listActiveMigrationsErr     error
-	migrationStatus             []raftcluster.HashSlotMigration
-	rebalancePlan               []raftcluster.MigrationPlan
-	rebalanceErr                error
-	onboardingJobs              []controllermeta.NodeOnboardingJob
-	onboardingHasMore           bool
-	listOnboardingJobsErr       error
-	transportStats              []transport.PoolPeerStats
-}
-
-type slotLogStatusKey struct {
-	nodeID uint64
-	slotID uint32
-}
-
-type slotLogEntriesKey struct {
-	nodeID uint64
-	slotID uint32
-}
-
-type slotRaftCompactionKey struct {
-	nodeID uint64
-	slotID uint32
-}
-
-type fakeNodeInventoryCluster struct {
-	fakeClusterReader
-	logStatusCalls            int
-	controllerRaftStatusCalls int
-}
-
-func (f *fakeNodeInventoryCluster) SlotLogStatusOnNode(context.Context, uint64, uint32) (raftcluster.SlotLogStatus, error) {
-	f.logStatusCalls++
-	return raftcluster.SlotLogStatus{}, nil
-}
-
-func (f *fakeNodeInventoryCluster) ControllerRaftStatusOnNode(ctx context.Context, nodeID uint64) (raftcluster.ControllerRaftStatus, error) {
-	f.controllerRaftStatusCalls++
-	return f.fakeClusterReader.ControllerRaftStatusOnNode(ctx, nodeID)
-}
-
-func (f fakeClusterReader) SlotIDs() []multiraft.SlotID {
-	return append([]multiraft.SlotID(nil), f.slotIDs...)
-}
-
-func (f fakeClusterReader) SlotForKey(key string) multiraft.SlotID {
-	return f.slotForKey[key]
-}
-
-func (f fakeClusterReader) HashSlotForKey(key string) uint16 {
-	return f.hashSlotForKey[key]
-}
-
-func (f fakeClusterReader) GetHashSlotTable() *raftcluster.HashSlotTable {
-	if f.hashSlotTable == nil {
-		return nil
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("ListNodes() error = %v, want %v", err, wantErr)
 	}
-	return f.hashSlotTable.Clone()
 }
 
-func (f fakeClusterReader) ListNodesStrict(context.Context) ([]controllermeta.ClusterNode, error) {
-	return append([]controllermeta.ClusterNode(nil), f.nodes...), f.listNodesErr
+type fakeNodeSnapshotReader struct {
+	nodeID   uint64
+	snapshot control.Snapshot
+	err      error
 }
 
-func (f fakeClusterReader) ListSlotAssignmentsStrict(context.Context) ([]controllermeta.SlotAssignment, error) {
-	return append([]controllermeta.SlotAssignment(nil), f.assignments...), f.listSlotAssignmentsErr
+func (f fakeNodeSnapshotReader) NodeID() uint64 { return f.nodeID }
+
+func (f fakeNodeSnapshotReader) LocalControlSnapshot(context.Context) (control.Snapshot, error) {
+	return f.snapshot.Clone(), f.err
 }
 
-func (f fakeClusterReader) ListObservedRuntimeViewsStrict(context.Context) ([]controllermeta.SlotRuntimeView, error) {
-	return append([]controllermeta.SlotRuntimeView(nil), f.views...), f.listObservedRuntimeViewsErr
+type fakeNodeRuntimeSummaryReader struct {
+	summaries map[uint64]NodeRuntimeSummary
+	errs      map[uint64]error
 }
 
-func (f fakeClusterReader) SlotLogStatusOnNode(_ context.Context, nodeID uint64, slotID uint32) (raftcluster.SlotLogStatus, error) {
-	key := slotLogStatusKey{nodeID: nodeID, slotID: slotID}
-	if err := f.slotLogStatusErr[key]; err != nil {
-		return raftcluster.SlotLogStatus{}, err
+func (f fakeNodeRuntimeSummaryReader) NodeRuntimeSummary(_ context.Context, nodeID uint64) (NodeRuntimeSummary, error) {
+	if err := f.errs[nodeID]; err != nil {
+		return NodeRuntimeSummary{}, err
 	}
-	if status, ok := f.slotLogStatus[key]; ok {
-		return status, nil
+	summary := f.summaries[nodeID]
+	if summary.NodeID == 0 {
+		summary.NodeID = nodeID
 	}
-	return raftcluster.SlotLogStatus{}, nil
+	return summary, nil
 }
 
-func (f fakeClusterReader) SlotLogEntriesOnNode(_ context.Context, nodeID uint64, slotID uint32, _ raftcluster.SlotLogEntriesOptions) (raftcluster.SlotLogEntries, error) {
-	key := slotLogEntriesKey{nodeID: nodeID, slotID: slotID}
-	if err := f.slotLogEntriesErr[key]; err != nil {
-		return raftcluster.SlotLogEntries{}, err
+func freshReadyNodeHealth() control.NodeHealth {
+	return control.NodeHealth{
+		Status:       control.NodeAlive,
+		Freshness:    control.NodeHealthFresh,
+		RuntimeReady: true,
 	}
-	if page, ok := f.slotLogEntries[key]; ok {
-		return page, nil
-	}
-	return raftcluster.SlotLogEntries{}, nil
-}
-
-func (f fakeClusterReader) ControllerLogEntriesOnNode(_ context.Context, nodeID uint64, _ raftcluster.ControllerLogEntriesOptions) (raftcluster.ControllerLogEntries, error) {
-	if err := f.controllerLogEntriesErr[nodeID]; err != nil {
-		return raftcluster.ControllerLogEntries{}, err
-	}
-	if page, ok := f.controllerLogEntries[nodeID]; ok {
-		return page, nil
-	}
-	return raftcluster.ControllerLogEntries{}, nil
-}
-
-func (f fakeClusterReader) ControllerRaftStatusOnNode(_ context.Context, nodeID uint64) (raftcluster.ControllerRaftStatus, error) {
-	if err := f.controllerRaftStatusErr[nodeID]; err != nil {
-		return raftcluster.ControllerRaftStatus{}, err
-	}
-	if status, ok := f.controllerRaftStatus[nodeID]; ok {
-		return status, nil
-	}
-	return raftcluster.ControllerRaftStatus{}, nil
-}
-
-func (f fakeClusterReader) CompactControllerRaftLogOnNode(_ context.Context, nodeID uint64) (raftcluster.ControllerRaftCompactionResult, error) {
-	if err := f.controllerRaftCompactErr[nodeID]; err != nil {
-		return raftcluster.ControllerRaftCompactionResult{}, err
-	}
-	if result, ok := f.controllerRaftCompactions[nodeID]; ok {
-		return result, nil
-	}
-	return raftcluster.ControllerRaftCompactionResult{NodeID: nodeID}, nil
-}
-
-func (f fakeClusterReader) CompactSlotRaftLogOnNode(_ context.Context, nodeID uint64, slotID uint32) (raftcluster.SlotRaftCompactionResult, error) {
-	key := slotRaftCompactionKey{nodeID: nodeID, slotID: slotID}
-	if err := f.slotRaftCompactionErrs[key]; err != nil {
-		return raftcluster.SlotRaftCompactionResult{}, err
-	}
-	if result, ok := f.slotRaftCompactions[key]; ok {
-		return result, nil
-	}
-	return raftcluster.SlotRaftCompactionResult{NodeID: nodeID, SlotID: slotID}, nil
-}
-
-func (f fakeClusterReader) ListTasksStrict(context.Context) ([]controllermeta.ReconcileTask, error) {
-	return append([]controllermeta.ReconcileTask(nil), f.tasks...), f.listTasksErr
-}
-
-func (f fakeClusterReader) GetReconcileTaskStrict(_ context.Context, slotID uint32) (controllermeta.ReconcileTask, error) {
-	if f.getTaskErr != nil {
-		return controllermeta.ReconcileTask{}, f.getTaskErr
-	}
-	if task, ok := f.taskBySlot[slotID]; ok {
-		return task, nil
-	}
-	return controllermeta.ReconcileTask{}, controllermeta.ErrNotFound
-}
-
-func (f fakeClusterReader) ControllerLeaderID() uint64 {
-	return f.controllerLeaderID
-}
-
-func (f fakeClusterReader) MarkNodeDraining(context.Context, uint64) error {
-	return f.markNodeDrainingErr
-}
-
-func (f fakeClusterReader) ResumeNode(context.Context, uint64) error {
-	return f.resumeNodeErr
-}
-
-func (f fakeClusterReader) TransferSlotLeader(context.Context, uint32, multiraft.NodeID) error {
-	return f.transferSlotLeaderErr
-}
-
-func (f fakeClusterReader) RecoverSlotStrict(context.Context, uint32, raftcluster.RecoverStrategy) error {
-	return f.recoverSlotStrictErr
-}
-
-func (f fakeClusterReader) ListActiveMigrationsStrict(context.Context) ([]raftcluster.HashSlotMigration, error) {
-	return append([]raftcluster.HashSlotMigration(nil), f.activeMigrations...), f.listActiveMigrationsErr
-}
-
-func (f fakeClusterReader) GetMigrationStatus() []raftcluster.HashSlotMigration {
-	return append([]raftcluster.HashSlotMigration(nil), f.migrationStatus...)
-}
-
-func (f fakeClusterReader) Rebalance(context.Context) ([]raftcluster.MigrationPlan, error) {
-	return append([]raftcluster.MigrationPlan(nil), f.rebalancePlan...), f.rebalanceErr
-}
-
-func (f fakeClusterReader) AddSlot(context.Context) (multiraft.SlotID, error) {
-	return 0, nil
-}
-
-func (f fakeClusterReader) RemoveSlot(context.Context, multiraft.SlotID) error {
-	return nil
-}
-
-func (f fakeClusterReader) ListNodeOnboardingCandidates(context.Context) ([]raftcluster.NodeOnboardingCandidate, error) {
-	return nil, nil
-}
-
-func (f fakeClusterReader) CreateNodeOnboardingPlan(context.Context, uint64, string) (controllermeta.NodeOnboardingJob, error) {
-	return controllermeta.NodeOnboardingJob{}, nil
-}
-
-func (f fakeClusterReader) StartNodeOnboardingJob(context.Context, string) (controllermeta.NodeOnboardingJob, error) {
-	return controllermeta.NodeOnboardingJob{}, nil
-}
-
-func (f fakeClusterReader) ListNodeOnboardingJobs(context.Context, int, string) ([]controllermeta.NodeOnboardingJob, string, bool, error) {
-	return append([]controllermeta.NodeOnboardingJob(nil), f.onboardingJobs...), "", f.onboardingHasMore, f.listOnboardingJobsErr
-}
-
-func (f fakeClusterReader) GetNodeOnboardingJob(context.Context, string) (controllermeta.NodeOnboardingJob, error) {
-	return controllermeta.NodeOnboardingJob{}, nil
-}
-
-func (f fakeClusterReader) RetryNodeOnboardingJob(context.Context, string) (controllermeta.NodeOnboardingJob, error) {
-	return controllermeta.NodeOnboardingJob{}, nil
-}
-
-func (f fakeClusterReader) TransportPoolStats() []transport.PoolPeerStats {
-	return append([]transport.PoolPeerStats(nil), f.transportStats...)
-}
-
-type nodeSummary struct {
-	NodeID          uint64
-	Status          string
-	ControllerRole  string
-	SlotCount       int
-	LeaderSlotCount int
-	IsLocal         bool
-}
-
-func summarizeNodes(nodes []Node) []nodeSummary {
-	out := make([]nodeSummary, 0, len(nodes))
-	for _, node := range nodes {
-		out = append(out, nodeSummary{
-			NodeID:          node.NodeID,
-			Status:          node.Status,
-			ControllerRole:  node.ControllerRole,
-			SlotCount:       node.SlotCount,
-			LeaderSlotCount: node.LeaderSlotCount,
-			IsLocal:         node.IsLocal,
-		})
-	}
-	return out
 }

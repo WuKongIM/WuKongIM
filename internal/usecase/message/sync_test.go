@@ -6,85 +6,91 @@ import (
 	"testing"
 
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
-	"github.com/WuKongIM/WuKongIM/pkg/legacy/channel"
 	runtimechannelid "github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
-	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
-	"github.com/stretchr/testify/require"
 )
 
 func TestSyncChannelMessagesNormalizesPersonChannelAndCapsLimit(t *testing.T) {
 	reader := &recordingChannelMessageReader{
 		page: ChannelMessagePage{
-			Messages: []channel.Message{{MessageID: 88, MessageSeq: 9}},
+			Messages: []SyncedMessage{{MessageID: 88, MessageSeq: 9}},
 			HasMore:  true,
 		},
 	}
-	app := New(Options{MessageReader: reader})
+	app := New(Options{Reader: reader})
 
 	result, err := app.SyncChannelMessages(context.Background(), SyncChannelMessagesQuery{
 		LoginUID:        "u1",
 		ChannelID:       "u2",
-		ChannelType:     frame.ChannelTypePerson,
+		ChannelType:     channelTypePerson,
 		StartMessageSeq: 1,
 		EndMessageSeq:   10,
 		Limit:           20000,
 		PullMode:        PullModeUp,
 	})
 
-	require.NoError(t, err)
-	require.True(t, result.More)
-	require.Equal(t, []channel.Message{{MessageID: 88, MessageSeq: 9}}, result.Messages)
-	require.Len(t, reader.queries, 1)
-	require.Equal(t, ChannelMessageQuery{
-		ChannelID: channel.ChannelID{
-			ID:   runtimechannelid.EncodePersonChannel("u1", "u2"),
-			Type: frame.ChannelTypePerson,
-		},
-		StartSeq: 1,
-		EndSeq:   10,
-		Limit:    10000,
-		PullMode: PullModeUp,
-	}, reader.queries[0])
+	if err != nil {
+		t.Fatalf("SyncChannelMessages() error = %v", err)
+	}
+	if !result.More {
+		t.Fatalf("More = false, want true")
+	}
+	if len(result.Messages) != 1 || result.Messages[0].MessageID != 88 {
+		t.Fatalf("messages = %#v, want message 88", result.Messages)
+	}
+	if len(reader.queries) != 1 {
+		t.Fatalf("queries = %#v, want one query", reader.queries)
+	}
+	wantChannel := ChannelID{ID: runtimechannelid.EncodePersonChannel("u1", "u2"), Type: channelTypePerson}
+	if got := reader.queries[0]; got.ChannelID != wantChannel || got.StartSeq != 1 || got.EndSeq != 10 || got.Limit != 10000 || got.PullMode != PullModeUp {
+		t.Fatalf("query = %#v, want normalized person capped-limit query", got)
+	}
 }
 
 func TestSyncChannelMessagesReturnsEmptyForMissingChannelRuntime(t *testing.T) {
-	app := New(Options{MessageReader: &recordingChannelMessageReader{err: metadb.ErrNotFound}})
+	app := New(Options{Reader: &recordingChannelMessageReader{err: metadb.ErrNotFound}})
 
 	result, err := app.SyncChannelMessages(context.Background(), SyncChannelMessagesQuery{
 		LoginUID:    "u1",
 		ChannelID:   "g1",
-		ChannelType: frame.ChannelTypeGroup,
+		ChannelType: 2,
 		Limit:       30,
 	})
 
-	require.NoError(t, err)
-	require.False(t, result.More)
-	require.Empty(t, result.Messages)
+	if err != nil {
+		t.Fatalf("SyncChannelMessages() error = %v", err)
+	}
+	if result.More || len(result.Messages) != 0 {
+		t.Fatalf("result = %#v, want empty page", result)
+	}
 }
 
 func TestSyncChannelMessagesRejectsMissingRequiredFields(t *testing.T) {
-	app := New(Options{MessageReader: &recordingChannelMessageReader{}})
+	app := New(Options{Reader: &recordingChannelMessageReader{}})
 
 	_, err := app.SyncChannelMessages(context.Background(), SyncChannelMessagesQuery{
 		ChannelID:   "g1",
-		ChannelType: frame.ChannelTypeGroup,
+		ChannelType: 2,
 	})
 
-	require.ErrorIs(t, err, ErrSyncLoginUIDRequired)
+	if !errors.Is(err, ErrSyncLoginUIDRequired) {
+		t.Fatalf("error = %v, want login uid required", err)
+	}
 }
 
 func TestSyncChannelMessagesPropagatesReaderError(t *testing.T) {
 	readerErr := errors.New("reader failed")
-	app := New(Options{MessageReader: &recordingChannelMessageReader{err: readerErr}})
+	app := New(Options{Reader: &recordingChannelMessageReader{err: readerErr}})
 
 	_, err := app.SyncChannelMessages(context.Background(), SyncChannelMessagesQuery{
 		LoginUID:    "u1",
 		ChannelID:   "g1",
-		ChannelType: frame.ChannelTypeGroup,
+		ChannelType: 2,
 		Limit:       30,
 	})
 
-	require.ErrorIs(t, err, readerErr)
+	if !errors.Is(err, readerErr) {
+		t.Fatalf("error = %v, want reader error", err)
+	}
 }
 
 type recordingChannelMessageReader struct {

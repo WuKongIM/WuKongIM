@@ -3,19 +3,19 @@ package api
 import (
 	"net/http"
 
-	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
+	messageusecase "github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	"github.com/gin-gonic/gin"
 )
 
 type syncChannelMessagesRequest struct {
-	LoginUID         string           `json:"login_uid"`
-	ChannelID        string           `json:"channel_id"`
-	ChannelType      uint8            `json:"channel_type"`
-	StartMessageSeq  uint64           `json:"start_message_seq"`
-	EndMessageSeq    uint64           `json:"end_message_seq"`
-	Limit            int              `json:"limit"`
-	PullMode         message.PullMode `json:"pull_mode"`
-	EventSummaryMode string           `json:"event_summary_mode"`
+	LoginUID         string                  `json:"login_uid"`
+	ChannelID        string                  `json:"channel_id"`
+	ChannelType      uint8                   `json:"channel_type"`
+	StartMessageSeq  uint64                  `json:"start_message_seq"`
+	EndMessageSeq    uint64                  `json:"end_message_seq"`
+	Limit            int                     `json:"limit"`
+	PullMode         messageusecase.PullMode `json:"pull_mode"`
+	EventSummaryMode string                  `json:"event_summary_mode"`
 }
 
 type syncChannelMessagesResponse struct {
@@ -28,15 +28,14 @@ type syncChannelMessagesResponse struct {
 func (s *Server) handleChannelMessageSync(c *gin.Context) {
 	var req syncChannelMessagesRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		writeLegacyJSONError(c, "数据格式有误！")
+		c.JSON(http.StatusBadRequest, gin.H{"msg": "数据格式有误！", "status": http.StatusBadRequest})
 		return
 	}
 	if s == nil || s.messages == nil {
-		writeLegacyJSONError(c, "message usecase not configured")
+		writeJSONError(c, "message usecase not configured")
 		return
 	}
-
-	result, err := s.messages.SyncChannelMessages(c.Request.Context(), message.SyncChannelMessagesQuery{
+	result, err := s.messages.SyncChannelMessages(c.Request.Context(), messageusecase.SyncChannelMessagesQuery{
 		LoginUID:         req.LoginUID,
 		ChannelID:        req.ChannelID,
 		ChannelType:      req.ChannelType,
@@ -47,10 +46,9 @@ func (s *Server) handleChannelMessageSync(c *gin.Context) {
 		EventSummaryMode: req.EventSummaryMode,
 	})
 	if err != nil {
-		writeLegacyJSONError(c, err.Error())
+		writeJSONError(c, err.Error())
 		return
 	}
-
 	resp := syncChannelMessagesResponse{
 		StartMessageSeq: req.StartMessageSeq,
 		EndMessageSeq:   req.EndMessageSeq,
@@ -61,14 +59,4 @@ func (s *Server) handleChannelMessageSync(c *gin.Context) {
 		resp.Messages = append(resp.Messages, newLegacyMessageResp(req.LoginUID, msg))
 	}
 	c.JSON(http.StatusOK, resp)
-}
-
-func writeLegacyJSONError(c *gin.Context, message string) {
-	if c == nil {
-		return
-	}
-	c.JSON(http.StatusBadRequest, gin.H{
-		"msg":    message,
-		"status": http.StatusBadRequest,
-	})
 }

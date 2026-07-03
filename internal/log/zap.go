@@ -17,6 +17,7 @@ type zapLogger struct {
 	log *zap.Logger
 }
 
+// NewLogger builds a wklog-compatible logger with rolling file sinks.
 func NewLogger(cfg Config) (wklog.Logger, error) {
 	cfg = cfg.withDefaults()
 	if err := os.MkdirAll(cfg.Dir, 0o755); err != nil {

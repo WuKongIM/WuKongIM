@@ -7,9 +7,7 @@ import (
 	"time"
 
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
-	"github.com/WuKongIM/WuKongIM/pkg/legacy/channel"
 	runtimechannelid "github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
-	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
 const (
@@ -18,30 +16,15 @@ const (
 	defaultMaxSyncLimit    = 10000
 )
 
-// Options configures the CMD sync usecase.
-type Options struct {
-	States          StateStore
-	Messages        MessageStore
-	Pending         ConversationPendingStore
-	Records         *SyncRecordCache
-	Now             func() time.Time
-	ActiveScanLimit int
-	DefaultLimit    int
-	MaxLimit        int
-	Logger          wklog.Logger
-}
-
 // App owns durable CMD sync and ack business rules.
 type App struct {
 	states          StateStore
 	messages        MessageStore
-	pending         ConversationPendingStore
 	records         *SyncRecordCache
 	now             func() time.Time
 	activeScanLimit int
 	defaultLimit    int
 	maxLimit        int
-	logger          wklog.Logger
 }
 
 // New creates a CMD sync app with safe defaults.
@@ -64,19 +47,14 @@ func New(opts Options) *App {
 	if opts.Records == nil {
 		opts.Records = NewSyncRecordCache(SyncRecordCacheOptions{Now: opts.Now, MaxRecordsPerUID: opts.MaxLimit})
 	}
-	if opts.Logger == nil {
-		opts.Logger = wklog.NewNop()
-	}
 	return &App{
 		states:          opts.States,
 		messages:        opts.Messages,
-		pending:         opts.Pending,
 		records:         opts.Records,
 		now:             opts.Now,
 		activeScanLimit: opts.ActiveScanLimit,
 		defaultLimit:    opts.DefaultLimit,
 		maxLimit:        opts.MaxLimit,
-		logger:          opts.Logger,
 	}
 }
 
@@ -92,24 +70,18 @@ func (a *App) Sync(ctx context.Context, query SyncQuery) (SyncResult, error) {
 	if a.messages == nil {
 		return SyncResult{}, ErrMessageStoreRequired
 	}
-
 	limit := a.normalizeLimit(query.Limit)
-	states, err := a.states.ListCMDConversationActive(ctx, uid, a.activeScanLimit)
+	states, err := a.states.ListConversationActiveView(ctx, uid, a.activeScanLimit)
 	if err != nil {
 		return SyncResult{}, err
 	}
 
 	channels := cmdSyncCandidatesFromStates(states)
-	if a.pending != nil {
-		channels = mergePendingViews(channels, a.pending.ListPending(ctx, uid, a.activeScanLimit))
-	}
 	sortSyncChannelCandidates(channels)
-
 	candidates := make([]syncMessageCandidate, 0, limit)
 	for _, candidate := range channels {
-		fromSeq := candidate.readSeq + 1
 		key := candidate.key
-		msgs, err := a.messages.LoadCommandMessages(ctx, key, fromSeq, limit)
+		msgs, err := a.messages.LoadCommandMessages(ctx, key, candidate.readSeq+1, limit)
 		if err != nil {
 			return SyncResult{}, err
 		}
@@ -117,8 +89,6 @@ func (a *App) Sync(ctx context.Context, query SyncQuery) (SyncResult, error) {
 			candidates = append(candidates, syncMessageCandidate{
 				commandChannelID: key.ChannelID,
 				channelType:      key.ChannelType,
-				pending:          candidate.pending,
-				pendingActiveAt:  candidate.pendingActiveAt,
 				message:          msg,
 			})
 		}
@@ -131,10 +101,10 @@ func (a *App) Sync(ctx context.Context, query SyncQuery) (SyncResult, error) {
 		candidates = candidates[:limit]
 	}
 
-	result := SyncResult{Messages: make([]channel.Message, 0, len(candidates))}
+	result := SyncResult{Messages: make([]SyncedMessage, 0, len(candidates))}
 	recordsByKey := make(map[CommandChannelKey]SyncRecord, len(candidates))
 	for _, candidate := range candidates {
-		msg := candidate.message
+		msg := cloneSyncedMessage(candidate.message)
 		if sourceID, ok := runtimechannelid.FromCommandChannel(msg.ChannelID); ok {
 			msg.ChannelID = sourceID
 		}
@@ -144,12 +114,8 @@ func (a *App) Sync(ctx context.Context, query SyncQuery) (SyncResult, error) {
 		record := recordsByKey[key]
 		record.CommandChannelID = key.ChannelID
 		record.ChannelType = key.ChannelType
-		if msg.MessageSeq > record.LastReturnedMsgSeq {
-			record.LastReturnedMsgSeq = msg.MessageSeq
-		}
-		if candidate.pending {
-			record.Pending = true
-			record.PendingActiveAt = maxInt64(record.PendingActiveAt, candidate.pendingActiveAt)
+		if candidate.message.MessageSeq > record.LastReturnedMsgSeq {
+			record.LastReturnedMsgSeq = candidate.message.MessageSeq
 		}
 		recordsByKey[key] = record
 	}
@@ -166,7 +132,6 @@ func (a *App) SyncAck(ctx context.Context, cmd SyncAckCommand) error {
 	if a == nil || a.states == nil {
 		return ErrStateStoreRequired
 	}
-
 	records := a.records.Peek(uid)
 	if len(records) == 0 {
 		return nil
@@ -178,44 +143,19 @@ func (a *App) SyncAck(ctx context.Context, cmd SyncAckCommand) error {
 		return nil
 	}
 
-	patches := make([]metadb.CMDConversationReadPatch, 0, len(validRecords))
+	states := make([]metadb.ConversationState, 0, len(validRecords))
 	for _, record := range validRecords {
-		patches = append(patches, metadb.CMDConversationReadPatch{
+		states = append(states, metadb.ConversationState{
 			UID:         uid,
+			Kind:        metadb.ConversationKindCMD,
 			ChannelID:   record.CommandChannelID,
 			ChannelType: int64(record.ChannelType),
 			ReadSeq:     record.LastReturnedMsgSeq,
 			UpdatedAt:   updatedAt,
 		})
 	}
-	if err := a.states.AdvanceCMDConversationReadSeq(ctx, patches); err != nil {
+	if err := a.states.UpsertConversationStates(ctx, states); err != nil {
 		return err
-	}
-
-	if a.pending == nil {
-		a.records.DeleteIfUnchanged(uid, records)
-		return nil
-	}
-	pendingByKey := pendingViewsByKey(a.pending.ListPending(ctx, uid, a.activeScanLimit))
-	for _, record := range validRecords {
-		key := CommandChannelKey{ChannelID: record.CommandChannelID, ChannelType: record.ChannelType}
-		activeAt, pendingBacked := pendingRecordActiveAt(record, pendingByKey[key])
-		if pendingBacked {
-			state := metadb.CMDConversationState{
-				UID:         uid,
-				ChannelID:   key.ChannelID,
-				ChannelType: int64(key.ChannelType),
-				ReadSeq:     record.LastReturnedMsgSeq,
-				ActiveAt:    activeAt,
-				UpdatedAt:   updatedAt,
-			}
-			if err := a.states.UpsertCMDConversationStates(ctx, []metadb.CMDConversationState{state}); err != nil {
-				return err
-			}
-			if err := a.pending.MarkSynced(ctx, uid, key, record.LastReturnedMsgSeq); err != nil {
-				a.logger.Warn("mark pending CMD conversation synced failed", wklog.String("uid", uid), wklog.String("channelID", key.ChannelID), wklog.Uint64("throughSeq", record.LastReturnedMsgSeq), wklog.Error(err))
-			}
-		}
 	}
 	a.records.DeleteIfUnchanged(uid, records)
 	return nil
@@ -231,55 +171,28 @@ func (a *App) normalizeLimit(limit int) int {
 	return limit
 }
 
+type syncChannelCandidate struct {
+	key      CommandChannelKey
+	readSeq  uint64
+	activeAt int64
+}
+
 type syncMessageCandidate struct {
 	commandChannelID string
 	channelType      uint8
-	pending          bool
-	pendingActiveAt  int64
-	message          channel.Message
+	message          SyncedMessage
 }
 
-type syncChannelCandidate struct {
-	key             CommandChannelKey
-	readSeq         uint64
-	activeAt        int64
-	pending         bool
-	pendingActiveAt int64
-}
-
-func cmdSyncCandidatesFromStates(states []metadb.CMDConversationState) []syncChannelCandidate {
+func cmdSyncCandidatesFromStates(states []metadb.ConversationState) []syncChannelCandidate {
 	candidates := make([]syncChannelCandidate, 0, len(states))
 	for _, state := range states {
+		if state.Kind != metadb.ConversationKindCMD || state.ChannelID == "" || state.ChannelType <= 0 || state.ChannelType > 255 {
+			continue
+		}
 		candidates = append(candidates, syncChannelCandidate{
 			key:      CommandChannelKey{ChannelID: state.ChannelID, ChannelType: uint8(state.ChannelType)},
 			readSeq:  maxUint64(state.ReadSeq, state.DeletedToSeq),
 			activeAt: state.ActiveAt,
-		})
-	}
-	return candidates
-}
-
-func mergePendingViews(candidates []syncChannelCandidate, views []PendingConversationView) []syncChannelCandidate {
-	index := make(map[CommandChannelKey]int, len(candidates))
-	for i, candidate := range candidates {
-		index[candidate.key] = i
-	}
-	for _, view := range views {
-		key := CommandChannelKey{ChannelID: view.CommandChannelID, ChannelType: view.ChannelType}
-		if i, ok := index[key]; ok {
-			candidates[i].readSeq = maxUint64(candidates[i].readSeq, view.ReadSeq)
-			candidates[i].activeAt = maxInt64(candidates[i].activeAt, view.ActiveAt)
-			candidates[i].pending = true
-			candidates[i].pendingActiveAt = maxInt64(candidates[i].pendingActiveAt, view.ActiveAt)
-			continue
-		}
-		index[key] = len(candidates)
-		candidates = append(candidates, syncChannelCandidate{
-			key:             key,
-			readSeq:         view.ReadSeq,
-			activeAt:        view.ActiveAt,
-			pending:         true,
-			pendingActiveAt: view.ActiveAt,
 		})
 	}
 	return candidates
@@ -298,8 +211,8 @@ func sortSyncChannelCandidates(candidates []syncChannelCandidate) {
 }
 
 func syncMessageLess(left, right syncMessageCandidate) bool {
-	if left.message.Timestamp != right.message.Timestamp {
-		return left.message.Timestamp < right.message.Timestamp
+	if left.message.ServerTimestampMS != right.message.ServerTimestampMS {
+		return left.message.ServerTimestampMS < right.message.ServerTimestampMS
 	}
 	if left.commandChannelID != right.commandChannelID {
 		return left.commandChannelID < right.commandChannelID
@@ -334,19 +247,10 @@ func syncRecordsFromMap(recordsByKey map[CommandChannelKey]SyncRecord) []SyncRec
 	return records
 }
 
-func pendingViewsByKey(views []PendingConversationView) map[CommandChannelKey]PendingConversationView {
-	out := make(map[CommandChannelKey]PendingConversationView, len(views))
-	for _, view := range views {
-		key := CommandChannelKey{ChannelID: view.CommandChannelID, ChannelType: view.ChannelType}
-		out[key] = view
-	}
-	return out
-}
-
 func validSyncRecords(records []SyncRecord) []SyncRecord {
 	valid := make([]SyncRecord, 0, len(records))
 	for _, record := range records {
-		if record.LastReturnedMsgSeq == 0 || !runtimechannelid.IsCommandChannel(record.CommandChannelID) {
+		if record.LastReturnedMsgSeq == 0 || strings.TrimSpace(record.CommandChannelID) == "" || record.ChannelType == 0 {
 			continue
 		}
 		valid = append(valid, record)
@@ -354,24 +258,12 @@ func validSyncRecords(records []SyncRecord) []SyncRecord {
 	return valid
 }
 
-func pendingRecordActiveAt(record SyncRecord, view PendingConversationView) (int64, bool) {
-	if record.Pending {
-		return maxInt64(record.PendingActiveAt, view.ActiveAt), true
-	}
-	if view.CommandChannelID != "" {
-		return view.ActiveAt, true
-	}
-	return 0, false
+func cloneSyncedMessage(msg SyncedMessage) SyncedMessage {
+	msg.Payload = append([]byte(nil), msg.Payload...)
+	return msg
 }
 
 func maxUint64(left, right uint64) uint64 {
-	if left > right {
-		return left
-	}
-	return right
-}
-
-func maxInt64(left, right int64) int64 {
 	if left > right {
 		return left
 	}

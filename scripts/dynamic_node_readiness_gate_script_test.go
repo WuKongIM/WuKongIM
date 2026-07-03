@@ -33,7 +33,7 @@ func TestDynamicNodeReadinessGateDryRunQuickProfile(t *testing.T) {
 		"command_log=" + filepath.Join(outDir, "commands.log"),
 		"controller_cmd=GOWORK=off go test ./pkg/controller -count=1",
 		"faults_default_cmd=GOWORK=off go test -tags=e2e ./test/e2ev2/cluster/dynamic_node_faults -count=1 -timeout 2m -p=1",
-		"build_gofail_cmd=scripts/build-gofail-binary.sh --cmd ./cmd/wukongim --package internalv2/usecase/management --package pkg/controller --package pkg/cluster/tasks --package pkg/cluster/net --out " + binary,
+		"build_gofail_cmd=scripts/build-gofail-binary.sh --cmd ./cmd/wukongim --package internal/usecase/management --package pkg/controller --package pkg/cluster/tasks --package pkg/cluster/net --out " + binary,
 		"stage10a_cmd=WK_E2E_BINARY=" + binary + " WK_E2EV2_GOFAIL_DYNAMIC_NODE=1 GOWORK=off go test -tags=e2e ./test/e2ev2/cluster/dynamic_node_faults -run 'TestStage10A|TestGofailDynamicNodeBinaryExposesFailpoints' -count=1 -timeout 15m -p=1",
 		"diff_check_cmd=git diff --check",
 	} {

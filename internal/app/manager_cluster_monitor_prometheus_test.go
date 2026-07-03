@@ -1,0 +1,810 @@
+package app
+
+import (
+	"context"
+	"errors"
+	"math"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	accessmanager "github.com/WuKongIM/WuKongIM/internal/access/manager"
+	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
+)
+
+func TestManagerClusterMonitorProviderReturnsDisabledWhenNotEnabled(t *testing.T) {
+	provider := newManagerPrometheusMonitorProvider(managerPrometheusMonitorOptions{
+		Enabled: false,
+		Now:     func() time.Time { return time.Unix(1781767200, 0).UTC() },
+	})
+
+	resp, err := provider.RealtimeMonitor(context.Background(), accessmanager.RealtimeMonitorQuery{
+		Window: 15 * time.Minute,
+		Step:   20 * time.Second,
+	})
+
+	if err != nil {
+		t.Fatalf("RealtimeMonitor() error = %v", err)
+	}
+	if resp.Status != accessmanager.RealtimeMonitorStatusPrometheusDisabled {
+		t.Fatalf("Status = %q, want %q", resp.Status, accessmanager.RealtimeMonitorStatusPrometheusDisabled)
+	}
+	if resp.Sources.Prometheus.Enabled {
+		t.Fatalf("Prometheus.Enabled = true, want false")
+	}
+	if len(resp.Cards) != 0 || len(resp.Snapshot) != 0 {
+		t.Fatalf("disabled response cards/snapshot = %d/%d, want empty", len(resp.Cards), len(resp.Snapshot))
+	}
+}
+
+func TestManagerClusterMonitorProviderMapsPrometheusAndControlSnapshot(t *testing.T) {
+	var calls atomic.Int64
+	var queries []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		if r.URL.Path != "/api/v1/query_range" {
+			t.Fatalf("path = %s, want /api/v1/query_range", r.URL.Path)
+		}
+		if r.URL.Query().Get("step") != "20" {
+			t.Fatalf("step = %q, want 20", r.URL.Query().Get("step"))
+		}
+		query := r.URL.Query().Get("query")
+		if !strings.Contains(query, "wukongim_") {
+			t.Fatalf("query = %q, want wukongim metric", query)
+		}
+		queries = append(queries, query)
+		_, _ = w.Write([]byte(`{"status":"success","data":{"resultType":"matrix","result":[{"metric":{},"values":[[1781767200,"12.5"],[1781767220,"15"]]}]}}`))
+	}))
+	defer server.Close()
+	provider := newManagerPrometheusMonitorProvider(managerPrometheusMonitorOptions{
+		Enabled: true,
+		BaseURL: server.URL,
+		Client:  server.Client(),
+		Now:     func() time.Time { return time.Unix(1781767240, 0).UTC() },
+		Control: managerClusterControlReaderFake{},
+	})
+
+	resp, err := provider.RealtimeMonitor(context.Background(), accessmanager.RealtimeMonitorQuery{
+		Window: 15 * time.Minute,
+		Step:   20 * time.Second,
+	})
+
+	if err != nil {
+		t.Fatalf("RealtimeMonitor() error = %v", err)
+	}
+	if resp.Status != accessmanager.RealtimeMonitorStatusReady {
+		t.Fatalf("Status = %q, want ready; sources=%#v", resp.Status, resp.Sources)
+	}
+	wantKeys := []string{
+		"sendRate",
+		"sendSuccessRate",
+		"entryLatencyP99",
+		"conversationSyncLatencyP99",
+		"conversationActiveOldestDirtyAge",
+		"deliveryLatencyP99",
+		"retryQueueDepth",
+		"pathErrorRate",
+		"activeConnections",
+		"controllerApplyGap",
+		"controllerRaftStepQueueUsage",
+		"slotLeaderStability",
+		"slotApplyGap",
+		"channelAppendLatencyP99",
+		"rpcSuccessRate",
+		"nodeCpuPercent",
+		"nodeMemoryRSS",
+	}
+	wantCalls := len(wantKeys)
+	if calls.Load() != int64(wantCalls) {
+		t.Fatalf("prometheus calls = %d, want %d", calls.Load(), wantCalls)
+	}
+	joinedQueries := strings.Join(queries, "\n")
+	if !strings.Contains(joinedQueries, `wukongim_slot_apply_gap{job="wukongim"}`) ||
+		!strings.Contains(joinedQueries, `wukongim_controller_raft_step_queue_depth{job="wukongim"}`) ||
+		!strings.Contains(joinedQueries, `wukongim_controller_raft_step_queue_capacity{job="wukongim"}`) ||
+		!strings.Contains(joinedQueries, `wukongim_node_cpu_percent{job="wukongim"}`) ||
+		!strings.Contains(joinedQueries, `wukongim_node_memory_rss_bytes{job="wukongim"}`) {
+		t.Fatalf("queries = %#v, want common slot and node metrics", queries)
+	}
+	if len(resp.Cards) != wantCalls {
+		t.Fatalf("cards = %d, want %d", len(resp.Cards), wantCalls)
+	}
+	for _, want := range wantKeys {
+		card := requireMonitorCardForTest(t, resp.Cards, want)
+		if card.Source != accessmanager.RealtimeMonitorSourcePrometheus || !card.Available {
+			t.Fatalf("card %q = %#v, want available prometheus card", want, card)
+		}
+	}
+	controlCard := requireMonitorCardForTest(t, resp.Cards, "controllerApplyGap")
+	if controlCard.Stage != accessmanager.RealtimeMonitorStageControlPlane || controlCard.Value != 15 {
+		t.Fatalf("control card = %#v, want control-plane latest value 15", controlCard)
+	}
+	if !resp.Sources.ControlSnapshot.Enabled {
+		t.Fatalf("ControlSnapshot.Enabled = false, want true")
+	}
+	requireClusterSnapshotValue(t, resp.Snapshot, "nodesAlive", 2, accessmanager.RealtimeMonitorSourceControlSnapshot)
+	requireClusterSnapshotValueWithUnit(t, resp.Snapshot, "slotsReady", (1.0/3.0)*100, "%", accessmanager.RealtimeMonitorSourceControlSnapshot)
+	requireClusterSnapshotValue(t, resp.Snapshot, "controllerApplyGap", 15, accessmanager.RealtimeMonitorSourcePrometheus)
+	requireClusterSnapshotValue(t, resp.Snapshot, "rpcErrorRate", 85, accessmanager.RealtimeMonitorSourcePrometheus)
+}
+
+func TestManagerClusterMonitorProviderFiltersCommonCards(t *testing.T) {
+	var calls atomic.Int64
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		if r.URL.Path != "/api/v1/query_range" {
+			t.Fatalf("path = %s, want /api/v1/query_range", r.URL.Path)
+		}
+		writePrometheusRangeForTest(w, "7")
+	}))
+	defer server.Close()
+	provider := newManagerPrometheusMonitorProvider(managerPrometheusMonitorOptions{
+		Enabled: true,
+		BaseURL: server.URL,
+		Client:  server.Client(),
+		Now:     func() time.Time { return time.Unix(1781767240, 0).UTC() },
+		Control: managerClusterControlReaderFake{},
+	})
+
+	resp, err := provider.RealtimeMonitor(context.Background(), accessmanager.RealtimeMonitorQuery{
+		Window:   15 * time.Minute,
+		Step:     20 * time.Second,
+		Category: "common",
+	})
+
+	if err != nil {
+		t.Fatalf("RealtimeMonitor() error = %v", err)
+	}
+	wantKeys := []string{
+		"sendRate",
+		"sendSuccessRate",
+		"entryLatencyP99",
+		"conversationSyncLatencyP99",
+		"conversationActiveOldestDirtyAge",
+		"deliveryLatencyP99",
+		"retryQueueDepth",
+		"pathErrorRate",
+		"activeConnections",
+		"controllerApplyGap",
+		"controllerRaftStepQueueUsage",
+		"slotLeaderStability",
+		"slotApplyGap",
+		"channelAppendLatencyP99",
+		"rpcSuccessRate",
+		"nodeCpuPercent",
+		"nodeMemoryRSS",
+	}
+	requireMonitorCardKeysForTest(t, resp.Cards, wantKeys)
+	if calls.Load() != int64(len(wantKeys)) {
+		t.Fatalf("prometheus calls = %d, want %d common queries", calls.Load(), len(wantKeys))
+	}
+	for _, category := range resp.Categories {
+		if category.Key == "all" {
+			t.Fatalf("categories = %#v, want all category removed", resp.Categories)
+		}
+	}
+	if len(resp.Categories) == 0 || resp.Categories[0].Key != "common" || resp.Categories[0].Count != len(wantKeys) {
+		t.Fatalf("first category = %#v, want common count %d", resp.Categories, len(wantKeys))
+	}
+	requireMonitorSnapshotForTest(t, resp, "send")
+	requireClusterSnapshotValue(t, resp.Snapshot, "controllerApplyGap", 7, accessmanager.RealtimeMonitorSourcePrometheus)
+	requireClusterSnapshotValueWithUnit(t, resp.Snapshot, "slotsReady", (1.0/3.0)*100, "%", accessmanager.RealtimeMonitorSourceControlSnapshot)
+}
+
+func TestManagerClusterMonitorProviderReturnsInternalOperatorCards(t *testing.T) {
+	var queries []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query().Get("query")
+		queries = append(queries, query)
+		writePrometheusRangeForTest(w, "7")
+	}))
+	defer server.Close()
+	provider := newManagerPrometheusMonitorProvider(managerPrometheusMonitorOptions{
+		Enabled: true,
+		BaseURL: server.URL,
+		Client:  server.Client(),
+		Now:     func() time.Time { return time.Unix(1781767240, 0).UTC() },
+		Control: managerClusterControlReaderFake{},
+	})
+
+	resp, err := provider.RealtimeMonitor(context.Background(), accessmanager.RealtimeMonitorQuery{
+		Window:   15 * time.Minute,
+		Step:     20 * time.Second,
+		Category: accessmanager.RealtimeMonitorCategoryInternal,
+	})
+
+	if err != nil {
+		t.Fatalf("RealtimeMonitor() error = %v", err)
+	}
+	wantKeys := []string{
+		"internalTraffic",
+		"rpcSuccessRate",
+		"rpcLatencyP95",
+		"internalTxTraffic",
+		"internalRxTraffic",
+		"rpcRate",
+		"rpcErrorRate",
+		"rpcInflight",
+		"rpcLatencyP99",
+		"dialSuccessRate",
+		"dialLatencyP95",
+		"transportV2QueueUsage",
+		"transportV2AdmissionErrorRate",
+	}
+	requireMonitorCardKeysForTest(t, resp.Cards, wantKeys)
+	if resp.Categories[2].Key != accessmanager.RealtimeMonitorCategoryInternal || resp.Categories[2].Count != len(wantKeys) {
+		t.Fatalf("internal category = %#v, want count %d", resp.Categories[2], len(wantKeys))
+	}
+
+	joinedQueries := strings.Join(queries, "\n")
+	for _, want := range []string{
+		`wukongim_transport_sent_bytes_total{job="wukongim"}[1m]`,
+		`wukongim_transport_received_bytes_total{job="wukongim"}[1m]`,
+		`wukongim_transport_rpc_total{job="wukongim"}[1m]`,
+		`wukongim_transport_rpc_total{job="wukongim",result!="ok"}[1m]`,
+		`wukongim_transport_rpc_inflight{job="wukongim"}`,
+		`wukongim_transport_rpc_duration_seconds_bucket{job="wukongim"}[1m]`,
+		`wukongim_transport_dial_total{job="wukongim",result="ok"}[1m]`,
+		`wukongim_transport_dial_duration_seconds_bucket{job="wukongim"}[1m]`,
+		`wukongim_runtime_pool_queue_depth{job="wukongim",component="transportv2"}`,
+		`wukongim_runtime_pool_admission_total{job="wukongim",component="transportv2",result!="ok"}[1m]`,
+	} {
+		if !strings.Contains(joinedQueries, want) {
+			t.Fatalf("queries missing %q: %s", want, joinedQueries)
+		}
+	}
+}
+
+func TestManagerClusterMonitorProviderReturnsDatabaseOperatorCards(t *testing.T) {
+	var queries []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query().Get("query")
+		queries = append(queries, query)
+		writePrometheusRangeForTest(w, "7")
+	}))
+	defer server.Close()
+	provider := newManagerPrometheusMonitorProvider(managerPrometheusMonitorOptions{
+		Enabled: true,
+		BaseURL: server.URL,
+		Client:  server.Client(),
+		Now:     func() time.Time { return time.Unix(1781767240, 0).UTC() },
+		Control: managerClusterControlReaderFake{},
+	})
+
+	resp, err := provider.RealtimeMonitor(context.Background(), accessmanager.RealtimeMonitorQuery{
+		Window:   15 * time.Minute,
+		Step:     20 * time.Second,
+		Category: accessmanager.RealtimeMonitorCategoryDatabase,
+	})
+
+	if err != nil {
+		t.Fatalf("RealtimeMonitor() error = %v", err)
+	}
+	wantKeys := []string{
+		"storageWriteP99",
+		"storageCommitErrorRate",
+		"storageCommitQueueUsage",
+		"storagePhysicalCommitP99",
+		"storageCommitBatchRecordsP95",
+		"storageCommitBatchBytesP95",
+		"storagePebbleDiskUsage",
+		"storagePebbleReadAmplification",
+		"storagePebbleCompactionDebt",
+	}
+	requireMonitorCardKeysForTest(t, resp.Cards, wantKeys)
+	if len(resp.Categories) <= 6 || resp.Categories[6].Key != accessmanager.RealtimeMonitorCategoryDatabase || resp.Categories[6].Count != len(wantKeys) {
+		t.Fatalf("database category = %#v, want count %d", resp.Categories, len(wantKeys))
+	}
+
+	joinedQueries := strings.Join(queries, "\n")
+	for _, want := range []string{
+		`wukongim_storage_commit_request_duration_seconds_bucket{job="wukongim"}[1m]`,
+		`wukongim_storage_commit_request_duration_seconds_count{job="wukongim",result!="ok"}[1m]`,
+		`wukongim_runtime_pool_queue_depth{job="wukongim",component="db",pool="message_commit",queue="commit"}`,
+		`wukongim_runtime_pool_queue_capacity{job="wukongim",component="db",pool="message_commit",queue="commit"}`,
+		`wukongim_storage_commit_batch_duration_seconds_bucket{job="wukongim",stage="commit"}[1m]`,
+		`wukongim_storage_commit_batch_records_bucket{job="wukongim"}[1m]`,
+		`wukongim_storage_commit_batch_bytes_bucket{job="wukongim"}[1m]`,
+		`wukongim_storage_pebble_disk_usage_bytes{job="wukongim"}`,
+		`wukongim_storage_pebble_read_amplification{job="wukongim"}`,
+		`wukongim_storage_pebble_compaction_estimated_debt_bytes{job="wukongim"}`,
+	} {
+		if !strings.Contains(joinedQueries, want) {
+			t.Fatalf("queries missing %q: %s", want, joinedQueries)
+		}
+	}
+}
+
+func TestManagerClusterMonitorProviderReturnsControlOperatorCards(t *testing.T) {
+	var queries []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query().Get("query")
+		queries = append(queries, query)
+		writePrometheusRangeForTest(w, "7")
+	}))
+	defer server.Close()
+	provider := newManagerPrometheusMonitorProvider(managerPrometheusMonitorOptions{
+		Enabled: true,
+		BaseURL: server.URL,
+		Client:  server.Client(),
+		Now:     func() time.Time { return time.Unix(1781767240, 0).UTC() },
+		Control: managerClusterControlReaderFake{},
+	})
+
+	resp, err := provider.RealtimeMonitor(context.Background(), accessmanager.RealtimeMonitorQuery{
+		Window:   15 * time.Minute,
+		Step:     20 * time.Second,
+		Category: accessmanager.RealtimeMonitorCategoryControl,
+	})
+
+	if err != nil {
+		t.Fatalf("RealtimeMonitor() error = %v", err)
+	}
+	wantKeys := []string{
+		"controllerApplyGap",
+		"controllerRaftStepQueueUsage",
+		"controllerRaftStepEnqueueLatencyP99",
+		"controllerRaftStepEnqueueErrorRate",
+		"controllerStateRevision",
+		"controllerActiveTasks",
+		"controllerFailedTasks",
+		"controllerNodesUnhealthy",
+		"controllerSlotLeaderSkew",
+		"controllerLeaderPresent",
+	}
+	requireMonitorCardKeysForTest(t, resp.Cards, wantKeys)
+	if resp.Categories[7].Key != accessmanager.RealtimeMonitorCategoryControl || resp.Categories[7].Count != len(wantKeys) {
+		t.Fatalf("control category = %#v, want count %d", resp.Categories[7], len(wantKeys))
+	}
+
+	joinedQueries := strings.Join(queries, "\n")
+	for _, want := range []string{
+		`wukongim_controller_apply_gap{job="wukongim"}`,
+		`wukongim_controller_raft_step_queue_depth{job="wukongim"}`,
+		`wukongim_controller_raft_step_queue_capacity{job="wukongim"}`,
+		`wukongim_controller_raft_step_enqueue_duration_seconds_bucket{job="wukongim"}[1m]`,
+		`wukongim_controller_raft_step_enqueue_duration_seconds_count{job="wukongim",result!="ok"}[1m]`,
+		`wukongim_controller_state_revision{job="wukongim"}`,
+		`wukongim_controller_tasks_active{job="wukongim"}`,
+		`wukongim_controller_tasks_failed{job="wukongim"}`,
+		`wukongim_controller_nodes_suspect{job="wukongim"}`,
+		`wukongim_controller_nodes_dead{job="wukongim"}`,
+		`wukongim_controller_slot_leader_skew{job="wukongim"}`,
+		`wukongim_controller_leader_present{job="wukongim"}`,
+	} {
+		if !strings.Contains(joinedQueries, want) {
+			t.Fatalf("queries missing %q: %s", want, joinedQueries)
+		}
+	}
+}
+
+func TestManagerClusterMonitorProviderIncludesAllNodeResourceStats(t *testing.T) {
+	var nodeCPUQuery string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query().Get("query")
+		if strings.Contains(query, "wukongim_node_cpu_percent") {
+			nodeCPUQuery = query
+			_, _ = w.Write([]byte(`{"status":"success","data":{"resultType":"matrix","result":[{"metric":{"node_id":"1","node_name":"node-1"},"values":[[1781767200,"12.5"],[1781767220,"15"]]},{"metric":{"node_id":"2","node_name":"node-2"},"values":[[1781767200,"32.5"],[1781767220,"40"]]}]}}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"status":"success","data":{"resultType":"matrix","result":[{"metric":{},"values":[[1781767200,"12.5"],[1781767220,"15"]]}]}}`))
+	}))
+	defer server.Close()
+	provider := newManagerPrometheusMonitorProvider(managerPrometheusMonitorOptions{
+		Enabled: true,
+		BaseURL: server.URL,
+		Client:  server.Client(),
+		Now:     func() time.Time { return time.Unix(1781767240, 0).UTC() },
+		Control: managerClusterControlReaderFake{},
+	})
+
+	resp, err := provider.RealtimeMonitor(context.Background(), accessmanager.RealtimeMonitorQuery{
+		Window: 15 * time.Minute,
+		Step:   20 * time.Second,
+	})
+
+	if err != nil {
+		t.Fatalf("RealtimeMonitor() error = %v", err)
+	}
+	if nodeCPUQuery == "" {
+		t.Fatal("node cpu query was not issued")
+	}
+	if strings.Contains(nodeCPUQuery, "max(") {
+		t.Fatalf("node cpu query = %q, want raw per-node series", nodeCPUQuery)
+	}
+	var cpuCard accessmanager.RealtimeMonitorCard
+	for _, card := range resp.Cards {
+		if card.Key == "nodeCpuPercent" {
+			cpuCard = card
+			break
+		}
+	}
+	if cpuCard.Key == "" {
+		t.Fatalf("nodeCpuPercent card missing: %#v", resp.Cards)
+	}
+	if cpuCard.Value != 40 {
+		t.Fatalf("node cpu value = %v, want highest current node value 40", cpuCard.Value)
+	}
+	if len(cpuCard.Series) != 4 {
+		t.Fatalf("node cpu series = %#v, want two points per node", cpuCard.Series)
+	}
+	requireClusterCardPoint(t, cpuCard, 1781767200000, "node-1", 12.5)
+	requireClusterCardPoint(t, cpuCard, 1781767220000, "node-1", 15)
+	requireClusterCardPoint(t, cpuCard, 1781767200000, "node-2", 32.5)
+	requireClusterCardPoint(t, cpuCard, 1781767220000, "node-2", 40)
+	requireClusterCardStat(t, cpuCard, "node-1", 15, "%")
+	requireClusterCardStat(t, cpuCard, "node-2", 40, "%")
+}
+
+func TestManagerClusterMonitorProviderReturnsNodeGCCards(t *testing.T) {
+	var queries []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query().Get("query")
+		queries = append(queries, query)
+		if strings.Contains(query, "go_gc_duration_seconds_sum") {
+			_, _ = w.Write([]byte(`{"status":"success","data":{"resultType":"matrix","result":[{"metric":{"node_id":"1","node_name":"node-1"},"values":[[1781767200,"0.25"],[1781767220,"0.5"]]},{"metric":{"node_id":"2","node_name":"node-2"},"values":[[1781767200,"0.4"],[1781767220,"0.75"]]}]}}`))
+			return
+		}
+		writePrometheusRangeForTest(w, "7")
+	}))
+	defer server.Close()
+	provider := newManagerPrometheusMonitorProvider(managerPrometheusMonitorOptions{
+		Enabled: true,
+		BaseURL: server.URL,
+		Client:  server.Client(),
+		Now:     func() time.Time { return time.Unix(1781767240, 0).UTC() },
+		Control: managerClusterControlReaderFake{},
+	})
+
+	resp, err := provider.RealtimeMonitor(context.Background(), accessmanager.RealtimeMonitorQuery{
+		Window:   15 * time.Minute,
+		Step:     20 * time.Second,
+		Category: accessmanager.RealtimeMonitorCategoryNode,
+	})
+
+	if err != nil {
+		t.Fatalf("RealtimeMonitor() error = %v", err)
+	}
+	wantKeys := []string{
+		"workqueuePressure",
+		"nodeCpuPercent",
+		"nodeMemoryRSS",
+		"nodeGoroutines",
+		"nodeGCPauseRate",
+		"nodeGCRate",
+		"nodeGCCPUFraction",
+		"nodeGCHeapGoalUsage",
+	}
+	requireMonitorCardKeysForTest(t, resp.Cards, wantKeys)
+	var nodeCategoryCount int
+	for _, category := range resp.Categories {
+		if category.Key == accessmanager.RealtimeMonitorCategoryNode {
+			nodeCategoryCount = category.Count
+			break
+		}
+	}
+	if nodeCategoryCount != len(wantKeys) {
+		t.Fatalf("node category count = %d, want %d", nodeCategoryCount, len(wantKeys))
+	}
+
+	joinedQueries := strings.Join(queries, "\n")
+	for _, want := range []string{
+		`go_gc_duration_seconds_sum{job="wukongim"}[1m]`,
+		`go_gc_duration_seconds_count{job="wukongim"}[1m]`,
+		`go_memstats_gc_cpu_fraction{job="wukongim"}`,
+		`go_memstats_heap_alloc_bytes{job="wukongim"}`,
+		`go_memstats_next_gc_bytes{job="wukongim"}`,
+	} {
+		if !strings.Contains(joinedQueries, want) {
+			t.Fatalf("queries missing %q: %s", want, joinedQueries)
+		}
+	}
+	for _, forbidden := range []string{
+		"sum(rate(go_gc_duration_seconds_sum",
+		"sum(rate(go_gc_duration_seconds_count",
+		"max(go_memstats_gc_cpu_fraction",
+		"max((go_memstats_heap_alloc_bytes",
+	} {
+		if strings.Contains(joinedQueries, forbidden) {
+			t.Fatalf("queries contain node-label-dropping aggregation %q: %s", forbidden, joinedQueries)
+		}
+	}
+	gcPauseCard := requireMonitorCardForTest(t, resp.Cards, "nodeGCPauseRate")
+	if gcPauseCard.Unit != "ms/s" {
+		t.Fatalf("nodeGCPauseRate unit = %q, want ms/s", gcPauseCard.Unit)
+	}
+	if len(gcPauseCard.Stats) != 2 {
+		t.Fatalf("nodeGCPauseRate stats = %#v, want per-node stats", gcPauseCard.Stats)
+	}
+	requireClusterCardPoint(t, gcPauseCard, 1781767220000, "node-2", 0.75)
+}
+
+func TestManagerClusterMonitorProviderFiltersPromQLAndControlSnapshotByNodeID(t *testing.T) {
+	var queries []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query().Get("query")
+		queries = append(queries, query)
+		_, _ = w.Write([]byte(`{"status":"success","data":{"resultType":"matrix","result":[{"metric":{},"values":[[1781767200,"12.5"],[1781767220,"15"]]}]}}`))
+	}))
+	defer server.Close()
+	control := &managerClusterControlReaderSpy{}
+	provider := newManagerPrometheusMonitorProvider(managerPrometheusMonitorOptions{
+		Enabled: true,
+		BaseURL: server.URL,
+		Client:  server.Client(),
+		Now:     func() time.Time { return time.Unix(1781767240, 0).UTC() },
+		Control: control,
+	})
+
+	resp, err := provider.RealtimeMonitor(context.Background(), accessmanager.RealtimeMonitorQuery{
+		Window: 15 * time.Minute,
+		Step:   20 * time.Second,
+		NodeID: 2,
+	})
+
+	if err != nil {
+		t.Fatalf("RealtimeMonitor() error = %v", err)
+	}
+	if resp.Scope.NodeID != 2 {
+		t.Fatalf("Scope.NodeID = %d, want 2", resp.Scope.NodeID)
+	}
+	joinedQueries := strings.Join(queries, "\n")
+	for _, want := range []string{
+		`wukongim_controller_apply_gap{job="wukongim",node_id="2"}`,
+		`wukongim_controller_raft_step_queue_depth{job="wukongim",node_id="2"}`,
+		`wukongim_controller_raft_step_queue_capacity{job="wukongim",node_id="2"}`,
+		`wukongim_transport_rpc_total{job="wukongim",node_id="2",result="ok"}[1m]`,
+		`wukongim_transport_rpc_total{job="wukongim",node_id="2"}[1m]`,
+	} {
+		if !strings.Contains(joinedQueries, want) {
+			t.Fatalf("promql queries missing %q: %s", want, joinedQueries)
+		}
+	}
+	for _, forbidden := range []string{
+		`wukongim_controller_apply_gap`,
+		`wukongim_controller_raft_step_queue_depth`,
+		`wukongim_controller_apply_gap{node_id="2"}`,
+		`wukongim_controller_raft_step_queue_depth{node_id="2"}`,
+		`wukongim_transport_rpc_total{node_id="2",result="ok"}[1m]`,
+		`wukongim_transport_rpc_total{result="ok"}[1m]`,
+	} {
+		if forbidden == `wukongim_controller_apply_gap` {
+			if strings.Contains(joinedQueries, `max(wukongim_controller_apply_gap)`) {
+				t.Fatalf("promql queries still contain unfiltered selector %q: %s", forbidden, joinedQueries)
+			}
+			continue
+		}
+		if forbidden == `wukongim_controller_raft_step_queue_depth` {
+			if strings.Contains(joinedQueries, `max(wukongim_controller_raft_step_queue_depth)`) {
+				t.Fatalf("promql queries still contain unfiltered selector %q: %s", forbidden, joinedQueries)
+			}
+			continue
+		}
+		if strings.Contains(joinedQueries, forbidden) {
+			t.Fatalf("promql queries still contain unfiltered selector %q: %s", forbidden, joinedQueries)
+		}
+	}
+	if len(control.listSlotsOptions) != 1 {
+		t.Fatalf("ListSlots calls = %d, want 1", len(control.listSlotsOptions))
+	}
+	if control.listSlotsOptions[0].NodeID != 2 {
+		t.Fatalf("ListSlots NodeID = %d, want 2", control.listSlotsOptions[0].NodeID)
+	}
+	requireClusterSnapshotValue(t, resp.Snapshot, "nodesAlive", 1, accessmanager.RealtimeMonitorSourceControlSnapshot)
+}
+
+func TestManagerClusterMonitorProviderReturnsPartialForMissingMetric(t *testing.T) {
+	var calls atomic.Int64
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		if calls.Add(1) == 2 {
+			_, _ = w.Write([]byte(`{"status":"success","data":{"resultType":"matrix","result":[]}}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"status":"success","data":{"resultType":"matrix","result":[{"metric":{},"values":[[1781767200,"12.5"],[1781767220,"15"]]}]}}`))
+	}))
+	defer server.Close()
+	provider := newManagerPrometheusMonitorProvider(managerPrometheusMonitorOptions{
+		Enabled: true,
+		BaseURL: server.URL,
+		Client:  server.Client(),
+		Now:     func() time.Time { return time.Unix(1781767240, 0).UTC() },
+		Control: managerClusterControlReaderFake{},
+	})
+
+	resp, err := provider.RealtimeMonitor(context.Background(), accessmanager.RealtimeMonitorQuery{
+		Window: 15 * time.Minute,
+		Step:   20 * time.Second,
+	})
+
+	if err != nil {
+		t.Fatalf("RealtimeMonitor() error = %v", err)
+	}
+	if resp.Status != accessmanager.RealtimeMonitorStatusPartial {
+		t.Fatalf("Status = %q, want partial", resp.Status)
+	}
+	if resp.Sources.Prometheus.Error == "" {
+		t.Fatalf("Prometheus source error is empty, want partial source error")
+	}
+	var unavailable int
+	for _, card := range resp.Cards {
+		if !card.Available {
+			unavailable++
+			if card.Error == "" {
+				t.Fatalf("unavailable card = %#v, want card-local error", card)
+			}
+		}
+	}
+	if unavailable != 1 {
+		t.Fatalf("unavailable cards = %d, want 1; cards=%#v", unavailable, resp.Cards)
+	}
+}
+
+func TestManagerClusterMonitorProviderReturnsPartialWhenControlSnapshotUnavailable(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		control managerClusterControlReader
+		wantErr string
+	}{
+		{name: "absent", control: nil, wantErr: "control snapshot reader is not configured"},
+		{name: "failure", control: managerClusterControlReaderFake{err: errors.New("snapshot failed")}, wantErr: "snapshot failed"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				_, _ = w.Write([]byte(`{"status":"success","data":{"resultType":"matrix","result":[{"metric":{},"values":[[1781767200,"12.5"],[1781767220,"15"]]}]}}`))
+			}))
+			defer server.Close()
+			provider := newManagerPrometheusMonitorProvider(managerPrometheusMonitorOptions{
+				Enabled: true,
+				BaseURL: server.URL,
+				Client:  server.Client(),
+				Now:     func() time.Time { return time.Unix(1781767240, 0).UTC() },
+				Control: tc.control,
+			})
+
+			resp, err := provider.RealtimeMonitor(context.Background(), accessmanager.RealtimeMonitorQuery{
+				Window: 15 * time.Minute,
+				Step:   20 * time.Second,
+			})
+
+			if err != nil {
+				t.Fatalf("RealtimeMonitor() error = %v", err)
+			}
+			if resp.Status != accessmanager.RealtimeMonitorStatusPartial {
+				t.Fatalf("Status = %q, want partial", resp.Status)
+			}
+			if resp.Sources.ControlSnapshot.Enabled {
+				t.Fatalf("ControlSnapshot.Enabled = true, want false")
+			}
+			if !strings.Contains(resp.Sources.ControlSnapshot.Error, tc.wantErr) {
+				t.Fatalf("ControlSnapshot.Error = %q, want %q", resp.Sources.ControlSnapshot.Error, tc.wantErr)
+			}
+			if len(resp.Cards) == 0 || !resp.Cards[0].Available {
+				t.Fatalf("cards = %#v, want prometheus cards still available", resp.Cards)
+			}
+		})
+	}
+}
+
+func requireClusterSnapshotValue(t *testing.T, snapshot []accessmanager.RealtimeMonitorSnapshotEntry, key string, want float64, source string) {
+	t.Helper()
+	for _, item := range snapshot {
+		if item.Key == key {
+			if item.Value != want || item.Source != source {
+				t.Fatalf("snapshot[%s] = %#v, want value %v source %s", key, item, want, source)
+			}
+			return
+		}
+	}
+	t.Fatalf("snapshot missing key %s: %#v", key, snapshot)
+}
+
+func requireClusterSnapshotValueWithUnit(t *testing.T, snapshot []accessmanager.RealtimeMonitorSnapshotEntry, key string, want float64, unit string, source string) {
+	t.Helper()
+	for _, item := range snapshot {
+		if item.Key == key {
+			if math.Abs(item.Value-want) > 1e-9 || item.Unit != unit || item.Source != source {
+				t.Fatalf("snapshot[%s] = %#v, want value %v unit %q source %s", key, item, want, unit, source)
+			}
+			return
+		}
+	}
+	t.Fatalf("snapshot missing key %s: %#v", key, snapshot)
+}
+
+func requireClusterCardStat(t *testing.T, card accessmanager.RealtimeMonitorCard, label string, want float64, unit string) {
+	t.Helper()
+	for _, stat := range card.Stats {
+		if stat.Label == label {
+			if math.Abs(stat.Value-want) > 1e-9 || stat.Unit != unit {
+				t.Fatalf("stat %q = %#v, want value %v unit %q", label, stat, want, unit)
+			}
+			return
+		}
+	}
+	t.Fatalf("card %s missing stat label %q: %#v", card.Key, label, card.Stats)
+}
+
+func requireClusterCardPoint(t *testing.T, card accessmanager.RealtimeMonitorCard, timestamp int64, label string, want float64) {
+	t.Helper()
+	for _, point := range card.Series {
+		if point.Timestamp == timestamp && point.Label == label {
+			if math.Abs(point.Value-want) > 1e-9 {
+				t.Fatalf("point %s/%d = %#v, want %v", label, timestamp, point, want)
+			}
+			return
+		}
+	}
+	t.Fatalf("card %s missing point label %q timestamp %d: %#v", card.Key, label, timestamp, card.Series)
+}
+
+type managerClusterControlReaderFake struct {
+	err error
+}
+
+func (f managerClusterControlReaderFake) ListNodes(context.Context) (managementusecase.NodeList, error) {
+	if f.err != nil {
+		return managementusecase.NodeList{}, f.err
+	}
+	return managementusecase.NodeList{
+		GeneratedAt:        time.Unix(1781767240, 0).UTC(),
+		ControllerLeaderID: 1,
+		Items: []managementusecase.Node{{
+			NodeID: 1,
+			Status: "alive",
+		}, {
+			NodeID: 2,
+			Status: "alive",
+		}, {
+			NodeID: 3,
+			Status: "dead",
+		}},
+	}, nil
+}
+
+func (f managerClusterControlReaderFake) ListSlots(context.Context, managementusecase.ListSlotsOptions) ([]managementusecase.Slot, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	return []managementusecase.Slot{{
+		State:   managementusecase.SlotState{Quorum: "ready", LeaderMatch: true},
+		Runtime: managementusecase.SlotRuntime{PreferredLeaderID: 1, HasQuorum: true},
+	}, {
+		State:   managementusecase.SlotState{Quorum: "ready"},
+		Runtime: managementusecase.SlotRuntime{HasQuorum: true},
+	}, {
+		State:   managementusecase.SlotState{Quorum: "lost"},
+		Runtime: managementusecase.SlotRuntime{PreferredLeaderID: 3},
+	}}, nil
+}
+
+type managerClusterControlReaderSpy struct {
+	listSlotsOptions []managementusecase.ListSlotsOptions
+}
+
+func (f *managerClusterControlReaderSpy) ListNodes(context.Context) (managementusecase.NodeList, error) {
+	return managementusecase.NodeList{
+		GeneratedAt:        time.Unix(1781767240, 0).UTC(),
+		ControllerLeaderID: 1,
+		Items: []managementusecase.Node{{
+			NodeID: 1,
+			Status: "alive",
+		}, {
+			NodeID: 2,
+			Status: "alive",
+		}, {
+			NodeID: 3,
+			Status: "dead",
+		}},
+	}, nil
+}
+
+func (f *managerClusterControlReaderSpy) ListSlots(_ context.Context, options managementusecase.ListSlotsOptions) ([]managementusecase.Slot, error) {
+	f.listSlotsOptions = append(f.listSlotsOptions, options)
+	return []managementusecase.Slot{{
+		State:   managementusecase.SlotState{Quorum: "ready", LeaderMatch: true},
+		Runtime: managementusecase.SlotRuntime{PreferredLeaderID: 2, HasQuorum: true},
+	}}, nil
+}

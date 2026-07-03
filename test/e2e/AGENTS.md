@@ -73,7 +73,7 @@ directory tree.
   debugging, pass `test/e2e/suite` options directly to
   `StartSingleNodeCluster(...)` or `StartThreeNodeCluster(...)`.
 - New-architecture scenarios live under `test/e2ev2` and start real
-  `cmd/wukongim` processes while covering `internalv2` behavior.
+  `cmd/wukongim` processes while covering `internal` behavior.
 
 ## Catalog
 

@@ -3,7 +3,7 @@ package api
 import (
 	"net/http"
 
-	"github.com/WuKongIM/WuKongIM/internal/usecase/user"
+	userusecase "github.com/WuKongIM/WuKongIM/internal/usecase/user"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/gin-gonic/gin"
 )
@@ -21,18 +21,18 @@ func (s *Server) handleUpdateToken(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"msg": "invalid request", "status": http.StatusBadRequest})
 		return
 	}
-	if s == nil || s.users == nil {
-		c.JSON(http.StatusBadRequest, gin.H{"msg": "user usecase not configured", "status": http.StatusBadRequest})
+	if err := s.requireUserUsecase(); err != nil {
+		writeJSONError(c, err.Error())
 		return
 	}
-	err := s.users.UpdateToken(c.Request.Context(), user.UpdateTokenCommand{
+	err := s.users.UpdateToken(c.Request.Context(), userusecase.UpdateTokenCommand{
 		UID:         req.UID,
 		Token:       req.Token,
 		DeviceFlag:  frame.DeviceFlag(req.DeviceFlag),
 		DeviceLevel: frame.DeviceLevel(req.DeviceLevel),
 	})
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"msg": err.Error(), "status": http.StatusBadRequest})
+		writeJSONError(c, err.Error())
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"status": http.StatusOK})

@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/observability/diagnostics"
-	controllermeta "github.com/WuKongIM/WuKongIM/pkg/legacy/controller/meta"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 )
 
 const (
@@ -242,20 +242,27 @@ func (a *App) diagnosticsTargets(ctx context.Context, requested uint64) (scope s
 		return diagnosticsScopeLocal, []diagnosticsTarget{{nodeID: requested}}, nil
 	}
 	if a.cluster == nil {
-		return diagnosticsScopeLocal, []diagnosticsTarget{{nodeID: a.localNodeID}}, []string{"controller snapshot is unavailable; querying local node only"}
+		return diagnosticsScopeLocal, []diagnosticsTarget{{nodeID: 0}}, []string{"controller snapshot is unavailable; querying local node only"}
 	}
-	nodes, err := a.cluster.ListNodesStrict(ctx)
+	snapshot, err := a.cluster.LocalControlSnapshot(ctx)
 	if err != nil {
-		return diagnosticsScopeLocal, []diagnosticsTarget{{nodeID: a.localNodeID}}, []string{"controller snapshot is unavailable; querying local node only"}
+		return diagnosticsScopeLocal, []diagnosticsTarget{{nodeID: a.cluster.NodeID()}}, []string{"controller snapshot is unavailable; querying local node only"}
 	}
-	targets = make([]diagnosticsTarget, 0, len(nodes))
-	for _, node := range nodes {
+	targets = make([]diagnosticsTarget, 0, len(snapshot.Nodes))
+	for _, node := range snapshot.Nodes {
 		switch node.Status {
-		case controllermeta.NodeStatusAlive, controllermeta.NodeStatusSuspect, controllermeta.NodeStatusDraining:
-			targets = append(targets, diagnosticsTarget{nodeID: node.NodeID})
-		case controllermeta.NodeStatusDead:
-			targets = append(targets, diagnosticsTarget{nodeID: node.NodeID, skipped: true, notes: []string{"dead node is skipped"}})
+		case control.NodeAlive, control.NodeSuspect:
+			if node.NodeID != 0 {
+				targets = append(targets, diagnosticsTarget{nodeID: node.NodeID})
+			}
+		case control.NodeDown:
+			targets = append(targets, diagnosticsTarget{nodeID: node.NodeID, skipped: true, notes: []string{"down node is skipped"}})
 		}
+	}
+	if len(targets) == 0 {
+		targets = append(targets, diagnosticsTarget{nodeID: a.cluster.NodeID()})
+		notes = append(notes, "controller snapshot contains no eligible nodes; querying local node only")
+		return diagnosticsScopeLocal, targets, notes
 	}
 	sort.Slice(targets, func(i, j int) bool { return targets[i].nodeID < targets[j].nodeID })
 	return diagnosticsScopeCluster, targets, nil

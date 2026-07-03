@@ -1,6 +1,6 @@
 # dynamic_node_readiness AGENTS
 
-This package proves Stage 9 production readiness for internalv2 dynamic data
+This package proves Stage 9 production readiness for internal dynamic data
 nodes under real traffic.
 
 ## Scenario Contract
@@ -19,7 +19,7 @@ nodes under real traffic.
 
 ## Rules
 
-- Keep tests black-box: do not import `internalv2/app`, `internalv2/usecase`,
+- Keep tests black-box: do not import `internal/app`, `internal/usecase`,
   storage internals, ControllerV2 internals, or cluster internals.
 - Use public manager HTTP, public `/metrics`, WKProto clients, and process
   handles from `test/e2ev2/suite`.

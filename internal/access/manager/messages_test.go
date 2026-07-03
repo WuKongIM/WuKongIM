@@ -10,277 +10,189 @@ import (
 	"testing"
 
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
-	"github.com/stretchr/testify/require"
 )
 
 func TestManagerMessagesRejectsMissingChannelID(t *testing.T) {
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "admin",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.channel",
-				Actions:  []string{"r"},
-			}},
-		}}),
-		Management: managementStub{},
-	})
+	srv := New(Options{Management: managerNodesStub{}})
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/manager/messages?channel_type=2", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
-
 	srv.Engine().ServeHTTP(rec, req)
 
-	require.Equal(t, http.StatusBadRequest, rec.Code)
-	require.JSONEq(t, `{"error":"bad_request","message":"channel_id is required"}`, rec.Body.String())
+	if rec.Code != http.StatusBadRequest || !jsonEqual(rec.Body.String(), `{"error":"bad_request","message":"channel_id is required"}`) {
+		t.Fatalf("status/body = %d %s, want missing channel_id", rec.Code, rec.Body.String())
+	}
 }
 
 func TestManagerMessagesReturnsPagedList(t *testing.T) {
-	var received managementusecase.ListMessagesRequest
+	var gotReq managementusecase.ListMessagesRequest
 	inputCursor := managementusecase.MessageListCursor{BeforeSeq: 11}
 	nextCursor := managementusecase.MessageListCursor{BeforeSeq: 9}
 	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "admin",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.channel",
-				Actions:  []string{"r"},
-			}},
-		}}),
-		Management: managementStub{
-			messagesReqSink: &received,
+		Management: managerNodesStub{
+			messagesReqSink: &gotReq,
 			messagesPage: managementusecase.ListMessagesResponse{
 				Items: []managementusecase.Message{{
-					MessageID:   101,
-					MessageSeq:  10,
-					ClientMsgNo: "c-101",
-					ChannelID:   "room-1",
-					ChannelType: 2,
-					FromUID:     "u1",
-					Timestamp:   1713859200,
-					Payload:     []byte("hello"),
+					MessageID: 101, MessageSeq: 10, ClientMsgNo: "c-101",
+					ChannelID: "room-1", ChannelType: 2, FromUID: "u1",
+					Timestamp: 1713859200, Payload: []byte("hello"),
 				}},
-				HasMore:    true,
-				NextCursor: nextCursor,
+				HasMore: true, NextCursor: nextCursor,
 			},
 		},
 	})
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/messages?channel_id=room-1&channel_type=2&limit=1&message_id=101&client_msg_no=c-101&cursor="+mustEncodeMessageCursorForTest(t, inputCursor), nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
-
+	path := "/manager/messages?channel_id=room-1&channel_type=2&limit=1&message_id=101&client_msg_no=c-101&cursor=" + mustEncodeMessageCursorForTest(t, inputCursor)
+	req := httptest.NewRequest(http.MethodGet, path, nil)
 	srv.Engine().ServeHTTP(rec, req)
 
-	require.Equal(t, http.StatusOK, rec.Code)
-	require.Equal(t, managementusecase.ListMessagesRequest{
-		ChannelID:   "room-1",
-		ChannelType: 2,
-		Limit:       1,
-		Cursor:      inputCursor,
-		MessageID:   101,
-		ClientMsgNo: "c-101",
-	}, received)
-	require.JSONEq(t, fmt.Sprintf(`{
-		"items": [{
-			"message_id": 101,
-			"message_seq": 10,
-			"client_msg_no": "c-101",
-			"channel_id": "room-1",
-			"channel_type": 2,
-			"from_uid": "u1",
-			"timestamp": 1713859200,
-			"payload": "aGVsbG8="
-		}],
-		"has_more": true,
-		"next_cursor": %q
-	}`, mustEncodeMessageCursorForTest(t, nextCursor)), rec.Body.String())
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	wantReq := managementusecase.ListMessagesRequest{ChannelID: "room-1", ChannelType: 2, Limit: 1, Cursor: inputCursor, MessageID: 101, ClientMsgNo: "c-101"}
+	if gotReq != wantReq {
+		t.Fatalf("request = %#v, want %#v", gotReq, wantReq)
+	}
+	wantBody := fmt.Sprintf(`{"items":[{"message_id":101,"message_seq":10,"client_msg_no":"c-101","channel_id":"room-1","channel_type":2,"from_uid":"u1","timestamp":1713859200,"payload":"aGVsbG8="}],"has_more":true,"next_cursor":%q}`, mustEncodeMessageCursorForTest(t, nextCursor))
+	if !jsonEqual(rec.Body.String(), wantBody) {
+		t.Fatalf("body = %s, want %s", rec.Body.String(), wantBody)
+	}
 }
 
 func TestManagerMessageRetentionRequiresWritePermission(t *testing.T) {
 	srv := New(Options{
 		Auth: testAuthConfig([]UserConfig{{
-			Username: "admin",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.channel",
-				Actions:  []string{"r"},
-			}},
+			Username: "reader", Password: "secret",
+			Permissions: []PermissionConfig{{Resource: "cluster.channel", Actions: []string{"r"}}},
 		}}),
-		Management: managementStub{},
+		Management: managerNodesStub{},
 	})
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/manager/messages/retention", strings.NewReader(`{"channel_id":"room-1","channel_type":2,"through_seq":9}`))
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
+	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "reader"))
 	req.Header.Set("Content-Type", "application/json")
-
 	srv.Engine().ServeHTTP(rec, req)
 
-	require.Equal(t, http.StatusForbidden, rec.Code)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusForbidden)
+	}
 }
 
 func TestManagerMessageRetentionRejectsInvalidRequest(t *testing.T) {
 	srv := New(Options{
 		Auth: testAuthConfig([]UserConfig{{
-			Username: "admin",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.channel",
-				Actions:  []string{"w"},
-			}},
+			Username: "writer", Password: "secret",
+			Permissions: []PermissionConfig{{Resource: "cluster.channel", Actions: []string{"w"}}},
 		}}),
-		Management: managementStub{},
+		Management: managerNodesStub{},
 	})
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/manager/messages/retention", strings.NewReader(`{"channel_id":"room-1","channel_type":2}`))
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
+	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "writer"))
 	req.Header.Set("Content-Type", "application/json")
-
 	srv.Engine().ServeHTTP(rec, req)
 
-	require.Equal(t, http.StatusBadRequest, rec.Code)
-	require.JSONEq(t, `{"error":"bad_request","message":"invalid message retention request"}`, rec.Body.String())
+	if rec.Code != http.StatusBadRequest || !jsonEqual(rec.Body.String(), `{"error":"bad_request","message":"invalid message retention request"}`) {
+		t.Fatalf("status/body = %d %s, want invalid request", rec.Code, rec.Body.String())
+	}
 }
 
 func TestManagerMessageRetentionAdvancesBoundary(t *testing.T) {
-	var received managementusecase.AdvanceMessageRetentionRequest
+	var gotReq managementusecase.AdvanceMessageRetentionRequest
 	srv := New(Options{
 		Auth: testAuthConfig([]UserConfig{{
-			Username: "admin",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.channel",
-				Actions:  []string{"w"},
-			}},
+			Username: "writer", Password: "secret",
+			Permissions: []PermissionConfig{{Resource: "cluster.channel", Actions: []string{"w"}}},
 		}}),
-		Management: managementStub{
-			retentionReqSink: &received,
+		Management: managerNodesStub{
+			retentionReqSink: &gotReq,
 			retentionResult: managementusecase.AdvanceMessageRetentionResponse{
-				ChannelID:           "room-1",
-				ChannelType:         2,
-				RequestedThroughSeq: 10,
-				AdvancedThroughSeq:  8,
-				MinAvailableSeq:     9,
-				Status:              managementusecase.MessageRetentionStatusAdvanced,
+				ChannelID: "room-1", ChannelType: 2, RequestedThroughSeq: 10,
+				AdvancedThroughSeq: 8, MinAvailableSeq: 9, Status: managementusecase.MessageRetentionStatusAdvanced,
 			},
 		},
 	})
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/manager/messages/retention", strings.NewReader(`{"channel_id":"room-1","channel_type":2,"through_seq":10,"dry_run":true}`))
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
+	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "writer"))
 	req.Header.Set("Content-Type", "application/json")
-
 	srv.Engine().ServeHTTP(rec, req)
 
-	require.Equal(t, http.StatusOK, rec.Code)
-	require.Equal(t, managementusecase.AdvanceMessageRetentionRequest{
-		ChannelID:   "room-1",
-		ChannelType: 2,
-		ThroughSeq:  10,
-		DryRun:      true,
-	}, received)
-	require.JSONEq(t, `{"channel_id":"room-1","channel_type":2,"requested_through_seq":10,"advanced_through_seq":8,"min_available_seq":9,"status":"advanced"}`, rec.Body.String())
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	wantReq := managementusecase.AdvanceMessageRetentionRequest{ChannelID: "room-1", ChannelType: 2, ThroughSeq: 10, DryRun: true}
+	if gotReq != wantReq {
+		t.Fatalf("retention request = %#v, want %#v", gotReq, wantReq)
+	}
+	if !jsonEqual(rec.Body.String(), `{"channel_id":"room-1","channel_type":2,"requested_through_seq":10,"advanced_through_seq":8,"min_available_seq":9,"status":"advanced"}`) {
+		t.Fatalf("body = %s", rec.Body.String())
+	}
 }
 
 func TestManagerMessageRetentionReturnsBlockedStatus(t *testing.T) {
 	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "admin",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.channel",
-				Actions:  []string{"w"},
-			}},
-		}}),
-		Management: managementStub{
+		Management: managerNodesStub{
 			retentionResult: managementusecase.AdvanceMessageRetentionResponse{
-				ChannelID:           "room-1",
-				ChannelType:         2,
-				RequestedThroughSeq: 10,
-				AdvancedThroughSeq:  4,
-				MinAvailableSeq:     5,
-				Status:              managementusecase.MessageRetentionStatusBlocked,
-				BlockedReason:       managementusecase.MessageRetentionBlockedReasonReplayCursor,
+				ChannelID: "room-1", ChannelType: 2, RequestedThroughSeq: 10,
+				AdvancedThroughSeq: 4, MinAvailableSeq: 5,
+				Status:        managementusecase.MessageRetentionStatusBlocked,
+				BlockedReason: managementusecase.MessageRetentionBlockedReasonReplayCursor,
 			},
 		},
 	})
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/manager/messages/retention", strings.NewReader(`{"channel_id":"room-1","channel_type":2,"through_seq":10}`))
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
 	req.Header.Set("Content-Type", "application/json")
-
 	srv.Engine().ServeHTTP(rec, req)
 
-	require.Equal(t, http.StatusOK, rec.Code)
-	require.JSONEq(t, `{"channel_id":"room-1","channel_type":2,"requested_through_seq":10,"advanced_through_seq":4,"min_available_seq":5,"status":"blocked","blocked_reason":"replay_cursor"}`, rec.Body.String())
+	if rec.Code != http.StatusOK || !jsonEqual(rec.Body.String(), `{"channel_id":"room-1","channel_type":2,"requested_through_seq":10,"advanced_through_seq":4,"min_available_seq":5,"status":"blocked","blocked_reason":"replay_cursor"}`) {
+		t.Fatalf("status/body = %d %s, want blocked response", rec.Code, rec.Body.String())
+	}
 }
 
-func TestEncodeMessageCursorWritesBinaryPayload(t *testing.T) {
-	cursor := managementusecase.MessageListCursor{BeforeSeq: 11}
+func TestManagerMessageRetentionMapsUnavailable(t *testing.T) {
+	srv := New(Options{Management: managerNodesStub{retentionErr: managementusecase.ErrMessageRetentionUnavailable}})
 
-	raw, err := encodeMessageCursor(cursor)
-	require.NoError(t, err)
-	payload, err := base64.RawURLEncoding.DecodeString(raw)
-	require.NoError(t, err)
-	require.NotEmpty(t, payload)
-	require.NotEqual(t, byte('{'), payload[0])
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/manager/messages/retention", strings.NewReader(`{"channel_id":"room-1","channel_type":2,"through_seq":10}`))
+	req.Header.Set("Content-Type", "application/json")
+	srv.Engine().ServeHTTP(rec, req)
 
-	decoded, err := decodeMessageCursor(raw)
-	require.NoError(t, err)
-	require.Equal(t, cursor, decoded)
+	if rec.Code != http.StatusServiceUnavailable || !jsonEqual(rec.Body.String(), `{"error":"service_unavailable","message":"message retention unavailable"}`) {
+		t.Fatalf("status/body = %d %s, want retention unavailable", rec.Code, rec.Body.String())
+	}
 }
 
 func TestDecodeMessageCursorAcceptsLegacyJSONPayload(t *testing.T) {
 	cursor := managementusecase.MessageListCursor{BeforeSeq: 11}
 
 	decoded, err := decodeMessageCursor(mustEncodeLegacyMessageCursorForTest(t, cursor))
-	require.NoError(t, err)
-	require.Equal(t, cursor, decoded)
-}
 
-func TestMessageCursorBinaryAllocationsStayBounded(t *testing.T) {
-	cursor := managementusecase.MessageListCursor{BeforeSeq: 11}
-	raw, err := encodeMessageCursor(cursor)
-	require.NoError(t, err)
-
-	encodeAllocs := testing.AllocsPerRun(1000, func() {
-		if _, err := encodeMessageCursor(cursor); err != nil {
-			t.Fatal(err)
-		}
-	})
-	decodeAllocs := testing.AllocsPerRun(1000, func() {
-		decoded, err := decodeMessageCursor(raw)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if decoded != cursor {
-			t.Fatalf("decodeMessageCursor() = %+v, want %+v", decoded, cursor)
-		}
-	})
-
-	require.LessOrEqual(t, encodeAllocs, float64(1))
-	require.Zero(t, decodeAllocs)
+	if err != nil || decoded != cursor {
+		t.Fatalf("decodeMessageCursor() = %#v, %v; want %#v", decoded, err, cursor)
+	}
 }
 
 func mustEncodeMessageCursorForTest(t *testing.T, cursor managementusecase.MessageListCursor) string {
 	t.Helper()
 	raw, err := encodeMessageCursor(cursor)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("encodeMessageCursor() error = %v", err)
+	}
 	return raw
 }
 
 func mustEncodeLegacyMessageCursorForTest(t *testing.T, cursor managementusecase.MessageListCursor) string {
 	t.Helper()
-	payload, err := json.Marshal(messageCursorPayload{
-		Version:   1,
-		BeforeSeq: cursor.BeforeSeq,
-	})
-	require.NoError(t, err)
+	payload, err := json.Marshal(messageCursorPayload{Version: 1, BeforeSeq: cursor.BeforeSeq})
+	if err != nil {
+		t.Fatalf("Marshal() error = %v", err)
+	}
 	return base64.RawURLEncoding.EncodeToString(payload)
 }

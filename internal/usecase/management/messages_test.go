@@ -6,34 +6,15 @@ import (
 	"testing"
 
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
-	"github.com/WuKongIM/WuKongIM/pkg/legacy/channel"
-	"github.com/stretchr/testify/require"
 )
-
-func TestListMessagesRejectsInvalidChannelType(t *testing.T) {
-	app := New(Options{})
-
-	_, err := app.ListMessages(context.Background(), ListMessagesRequest{
-		ChannelID:   "room-1",
-		ChannelType: 0,
-		Limit:       10,
-	})
-
-	require.ErrorIs(t, err, metadb.ErrInvalidArgument)
-}
 
 func TestListMessagesMapsQueryPage(t *testing.T) {
 	reader := &fakeMessageReader{
 		result: MessageQueryPage{
-			Items: []channel.Message{{
-				MessageID:   101,
-				MessageSeq:  9,
-				ClientMsgNo: "c-101",
-				ChannelID:   "room-1",
-				ChannelType: 2,
-				FromUID:     "u1",
-				Timestamp:   1713859200,
-				Payload:     []byte("hello"),
+			Items: []Message{{
+				MessageID: 101, MessageSeq: 9, ClientMsgNo: "c-101",
+				ChannelID: "room-1", ChannelType: 2, FromUID: "u1",
+				Timestamp: 1713859200, Payload: []byte("hello"),
 			}},
 			HasMore:       true,
 			NextBeforeSeq: 9,
@@ -41,121 +22,109 @@ func TestListMessagesMapsQueryPage(t *testing.T) {
 	}
 	app := New(Options{Messages: reader})
 
-	result, err := app.ListMessages(context.Background(), ListMessagesRequest{
-		ChannelID:   "room-1",
-		ChannelType: 2,
-		Limit:       1,
-		Cursor:      MessageListCursor{BeforeSeq: 12},
-		MessageID:   101,
-		ClientMsgNo: "c-101",
+	got, err := app.ListMessages(context.Background(), ListMessagesRequest{
+		ChannelID: " room-1 ", ChannelType: 2, Limit: 1,
+		Cursor: MessageListCursor{BeforeSeq: 12}, MessageID: 101, ClientMsgNo: "c-101",
 	})
 
-	require.NoError(t, err)
-	require.Equal(t, MessageQueryRequest{
-		ChannelID:   channel.ChannelID{ID: "room-1", Type: 2},
-		Limit:       1,
-		BeforeSeq:   12,
-		MessageID:   101,
-		ClientMsgNo: "c-101",
-	}, reader.lastReq)
-	require.Equal(t, ListMessagesResponse{
-		Items: []Message{{
-			MessageID:   101,
-			MessageSeq:  9,
-			ClientMsgNo: "c-101",
-			ChannelID:   "room-1",
-			ChannelType: 2,
-			FromUID:     "u1",
-			Timestamp:   1713859200,
-			Payload:     []byte("hello"),
-		}},
-		HasMore:    true,
-		NextCursor: MessageListCursor{BeforeSeq: 9},
-	}, result)
+	if err != nil {
+		t.Fatalf("ListMessages() error = %v", err)
+	}
+	wantReq := MessageQueryRequest{ChannelID: "room-1", ChannelType: 2, Limit: 1, BeforeSeq: 12, MessageID: 101, ClientMsgNo: "c-101"}
+	if reader.lastReq != wantReq {
+		t.Fatalf("query = %#v, want %#v", reader.lastReq, wantReq)
+	}
+	if !got.HasMore || got.NextCursor.BeforeSeq != 9 || !sameMessages(got.Items, reader.result.Items) {
+		t.Fatalf("result = %#v, want mapped page %#v", got, reader.result)
+	}
+}
+
+func TestListMessagesRejectsInvalidRequest(t *testing.T) {
+	app := New(Options{Messages: &fakeMessageReader{}})
+	for _, req := range []ListMessagesRequest{
+		{ChannelID: "", ChannelType: 2, Limit: 10},
+		{ChannelID: "room-1", ChannelType: 0, Limit: 10},
+		{ChannelID: "room-1", ChannelType: 256, Limit: 10},
+		{ChannelID: "room-1", ChannelType: 2, Limit: 0},
+	} {
+		_, err := app.ListMessages(context.Background(), req)
+		if !errors.Is(err, metadb.ErrInvalidArgument) {
+			t.Fatalf("ListMessages(%#v) error = %v, want %v", req, err, metadb.ErrInvalidArgument)
+		}
+	}
 }
 
 func TestListMessagesPropagatesReaderErrors(t *testing.T) {
-	app := New(Options{Messages: &fakeMessageReader{err: errors.New("boom")}})
+	wantErr := errors.New("boom")
+	app := New(Options{Messages: &fakeMessageReader{err: wantErr}})
 
 	_, err := app.ListMessages(context.Background(), ListMessagesRequest{
-		ChannelID:   "room-1",
-		ChannelType: 2,
-		Limit:       10,
+		ChannelID: "room-1", ChannelType: 2, Limit: 10,
 	})
 
-	require.EqualError(t, err, "boom")
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("ListMessages() error = %v, want %v", err, wantErr)
+	}
+}
+
+func TestAdvanceMessageRetentionDelegatesToPort(t *testing.T) {
+	operator := &fakeMessageRetentionOperator{
+		result: AdvanceMessageRetentionResponse{
+			ChannelID: "room-1", ChannelType: 2, RequestedThroughSeq: 10,
+			AdvancedThroughSeq: 8, MinAvailableSeq: 9, Status: MessageRetentionStatusAdvanced,
+		},
+	}
+	app := New(Options{MessageRetention: operator})
+
+	got, err := app.AdvanceMessageRetention(context.Background(), AdvanceMessageRetentionRequest{
+		ChannelID: "room-1", ChannelType: 2, ThroughSeq: 10, DryRun: true,
+	})
+
+	if err != nil {
+		t.Fatalf("AdvanceMessageRetention() error = %v", err)
+	}
+	wantReq := AdvanceMessageRetentionRequest{ChannelID: "room-1", ChannelType: 2, ThroughSeq: 10, DryRun: true}
+	if operator.lastReq != wantReq {
+		t.Fatalf("retention request = %#v, want %#v", operator.lastReq, wantReq)
+	}
+	if got != operator.result {
+		t.Fatalf("retention result = %#v, want %#v", got, operator.result)
+	}
 }
 
 func TestAdvanceMessageRetentionRejectsInvalidRequest(t *testing.T) {
 	app := New(Options{})
 
 	_, err := app.AdvanceMessageRetention(context.Background(), AdvanceMessageRetentionRequest{
-		ChannelID:   "room-1",
-		ChannelType: 2,
+		ChannelID: "room-1", ChannelType: 2,
 	})
 
-	require.ErrorIs(t, err, metadb.ErrInvalidArgument)
-}
-
-func TestAdvanceMessageRetentionDelegatesToPort(t *testing.T) {
-	operator := &fakeMessageRetentionOperator{
-		result: AdvanceMessageRetentionResponse{
-			ChannelID:           "room-1",
-			ChannelType:         2,
-			RequestedThroughSeq: 10,
-			AdvancedThroughSeq:  8,
-			MinAvailableSeq:     9,
-			Status:              MessageRetentionStatusAdvanced,
-			BlockedReason:       MessageRetentionBlockedReasonNone,
-		},
+	if !errors.Is(err, metadb.ErrInvalidArgument) {
+		t.Fatalf("AdvanceMessageRetention() error = %v, want %v", err, metadb.ErrInvalidArgument)
 	}
-	app := New(Options{MessageRetention: operator})
-
-	got, err := app.AdvanceMessageRetention(context.Background(), AdvanceMessageRetentionRequest{
-		ChannelID:   "room-1",
-		ChannelType: 2,
-		ThroughSeq:  10,
-		DryRun:      true,
-	})
-
-	require.NoError(t, err)
-	require.Equal(t, AdvanceMessageRetentionRequest{
-		ChannelID:   "room-1",
-		ChannelType: 2,
-		ThroughSeq:  10,
-		DryRun:      true,
-	}, operator.lastReq)
-	require.Equal(t, operator.result, got)
 }
 
-func TestAdvanceMessageRetentionPropagatesOperatorErrors(t *testing.T) {
-	app := New(Options{MessageRetention: &fakeMessageRetentionOperator{err: errors.New("boom")}})
+func TestAdvanceMessageRetentionReturnsUnavailableWhenPortMissing(t *testing.T) {
+	app := New(Options{})
 
 	_, err := app.AdvanceMessageRetention(context.Background(), AdvanceMessageRetentionRequest{
-		ChannelID:   "room-1",
-		ChannelType: 2,
-		ThroughSeq:  10,
+		ChannelID: "room-1", ChannelType: 2, ThroughSeq: 10,
 	})
 
-	require.EqualError(t, err, "boom")
+	if !errors.Is(err, ErrMessageRetentionUnavailable) {
+		t.Fatalf("AdvanceMessageRetention() error = %v, want %v", err, ErrMessageRetentionUnavailable)
+	}
 }
 
 type fakeMessageReader struct {
-	lastReq         MessageQueryRequest
-	result          MessageQueryPage
-	err             error
-	maxSeqByChannel map[channel.ChannelID]uint64
-	maxSeqCalls     []channel.ChannelID
+	lastReq MessageQueryRequest
+	result  MessageQueryPage
+	err     error
 }
 
 func (f *fakeMessageReader) QueryMessages(_ context.Context, req MessageQueryRequest) (MessageQueryPage, error) {
 	f.lastReq = req
 	return f.result, f.err
-}
-
-func (f *fakeMessageReader) MaxMessageSeq(_ context.Context, id channel.ChannelID) (uint64, error) {
-	f.maxSeqCalls = append(f.maxSeqCalls, id)
-	return f.maxSeqByChannel[id], f.err
 }
 
 type fakeMessageRetentionOperator struct {

@@ -1,0 +1,192 @@
+package app
+
+import (
+	"context"
+	"sync"
+	"testing"
+	"time"
+
+	deliveryruntime "github.com/WuKongIM/WuKongIM/internal/legacy/runtime/delivery"
+	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
+	"github.com/stretchr/testify/require"
+)
+
+func TestDeliveryRuntimeLifecycleProcessesTicksAndStops(t *testing.T) {
+	clock := &manualDeliveryLifecycleClock{}
+	runtime := &recordingDeliveryRuntimeMaintenance{}
+	lifecycle := newDeliveryRuntimeLifecycle(deliveryRuntimeLifecycleConfig{
+		Runtime:       runtime,
+		TickInterval:  time.Millisecond,
+		SweepInterval: time.Millisecond,
+		After:         clock.After,
+	})
+
+	require.NoError(t, lifecycle.Start(context.Background()))
+	clock.WaitForWaiters(t, 2)
+	clock.Fire()
+	require.Eventually(t, func() bool { return runtime.retryCallCount() > 0 }, time.Second, time.Millisecond)
+	require.NoError(t, lifecycle.Stop())
+}
+
+func TestDeliveryRuntimeLifecycleStopContextReturnsContextError(t *testing.T) {
+	clock := &manualDeliveryLifecycleClock{}
+	runtime := &blockingDeliveryRuntimeMaintenance{
+		started: make(chan struct{}),
+		release: make(chan struct{}),
+	}
+	lifecycle := newDeliveryRuntimeLifecycle(deliveryRuntimeLifecycleConfig{
+		Runtime:       runtime,
+		TickInterval:  time.Millisecond,
+		SweepInterval: time.Millisecond,
+		After:         clock.After,
+	})
+	t.Cleanup(func() {
+		runtime.Unblock()
+		require.NoError(t, lifecycle.Stop())
+	})
+
+	require.NoError(t, lifecycle.Start(context.Background()))
+	clock.WaitForWaiters(t, 2)
+	clock.Fire()
+	runtime.WaitForRetry(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	require.ErrorIs(t, lifecycle.StopContext(ctx), context.Canceled)
+}
+
+func TestDeliveryRuntimeLifecycleAllowsNilContexts(t *testing.T) {
+	lifecycle := newDeliveryRuntimeLifecycle(deliveryRuntimeLifecycleConfig{
+		Runtime: &recordingDeliveryRuntimeMaintenance{},
+	})
+
+	require.NotPanics(t, func() {
+		require.NoError(t, lifecycle.Start(nil))
+		require.NoError(t, lifecycle.StopContext(nil))
+	})
+}
+
+func TestDeliveryRuntimeObserverRecordsRouteExpiryMetric(t *testing.T) {
+	metrics := &recordingDeliveryLifecycleMetrics{}
+	observer := deliveryRuntimeMetricsObserver{metrics: metrics}
+
+	observer.OnRouteExpired(deliveryruntime.RouteExpiredEvent{ChannelType: frame.ChannelTypeGroup})
+
+	require.Equal(t, []string{"group"}, metrics.expired)
+}
+
+type recordingDeliveryLifecycleMetrics struct {
+	expired []string
+}
+
+func (m *recordingDeliveryLifecycleMetrics) ObserveRouteExpired(channelType string) {
+	m.expired = append(m.expired, channelType)
+}
+
+func (m *recordingDeliveryLifecycleMetrics) SetActorInflightRoutes(int) {}
+
+func (m *recordingDeliveryLifecycleMetrics) SetAckBindings(int) {}
+
+type manualDeliveryLifecycleClock struct {
+	mu      sync.Mutex
+	waiters []chan time.Time
+}
+
+func (c *manualDeliveryLifecycleClock) After(time.Duration) <-chan time.Time {
+	ch := make(chan time.Time, 1)
+	c.mu.Lock()
+	c.waiters = append(c.waiters, ch)
+	c.mu.Unlock()
+	return ch
+}
+
+func (c *manualDeliveryLifecycleClock) WaitForWaiters(t *testing.T, n int) {
+	t.Helper()
+	require.Eventually(t, func() bool {
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		return len(c.waiters) >= n
+	}, time.Second, time.Millisecond)
+}
+
+func (c *manualDeliveryLifecycleClock) Fire() {
+	c.mu.Lock()
+	waiters := append([]chan time.Time(nil), c.waiters...)
+	c.waiters = nil
+	c.mu.Unlock()
+	for _, ch := range waiters {
+		ch <- time.Now()
+	}
+}
+
+type recordingDeliveryRuntimeMaintenance struct {
+	mu         sync.Mutex
+	retryCalls int
+	sweepCalls int
+}
+
+func (r *recordingDeliveryRuntimeMaintenance) ProcessRetryTicks(context.Context) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.retryCalls++
+	return nil
+}
+
+func (r *recordingDeliveryRuntimeMaintenance) SweepIdle() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.sweepCalls++
+}
+
+func (r *recordingDeliveryRuntimeMaintenance) InflightRouteCount() int {
+	return 0
+}
+
+func (r *recordingDeliveryRuntimeMaintenance) AckBindingCount() int {
+	return 0
+}
+
+func (r *recordingDeliveryRuntimeMaintenance) retryCallCount() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.retryCalls
+}
+
+type blockingDeliveryRuntimeMaintenance struct {
+	started chan struct{}
+	release chan struct{}
+	once    sync.Once
+}
+
+func (r *blockingDeliveryRuntimeMaintenance) ProcessRetryTicks(context.Context) error {
+	r.once.Do(func() { close(r.started) })
+	<-r.release
+	return nil
+}
+
+func (r *blockingDeliveryRuntimeMaintenance) SweepIdle() {}
+
+func (r *blockingDeliveryRuntimeMaintenance) InflightRouteCount() int {
+	return 0
+}
+
+func (r *blockingDeliveryRuntimeMaintenance) AckBindingCount() int {
+	return 0
+}
+
+func (r *blockingDeliveryRuntimeMaintenance) WaitForRetry(t *testing.T) {
+	t.Helper()
+	select {
+	case <-r.started:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for retry tick")
+	}
+}
+
+func (r *blockingDeliveryRuntimeMaintenance) Unblock() {
+	select {
+	case <-r.release:
+	default:
+		close(r.release)
+	}
+}

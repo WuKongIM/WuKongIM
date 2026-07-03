@@ -8,7 +8,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/internalv2/app"
+	"github.com/WuKongIM/WuKongIM/internal/app"
 )
 
 const defaultStopTimeout = 5 * time.Second
@@ -26,7 +26,7 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	if err := run(ctx, os.Args[1:], newInternalV2App); err != nil {
+	if err := run(ctx, os.Args[1:], newInternalApp); err != nil {
 		log.Fatal(err)
 	}
 }
@@ -51,8 +51,8 @@ func run(ctx context.Context, args []string, newApp appFactory) error {
 	return application.Stop(stopCtx)
 }
 
-// newInternalV2App builds the internalv2 composition root.
-func newInternalV2App(cfg app.Config) (runtimeApp, error) {
+// newInternalApp builds the internal composition root.
+func newInternalApp(cfg app.Config) (runtimeApp, error) {
 	return app.New(cfg)
 }
 

@@ -1,15 +1,14 @@
 package manager
 
 import (
-	"context"
 	"errors"
 	"net/http"
 	"strconv"
 	"strings"
 
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
-	raftcluster "github.com/WuKongIM/WuKongIM/pkg/legacy/cluster"
 	"github.com/gin-gonic/gin"
 )
 
@@ -34,7 +33,7 @@ type ChannelRuntimeMetaDTO struct {
 	ChannelID string `json:"channel_id"`
 	// ChannelType is the logical channel type.
 	ChannelType int64 `json:"channel_type"`
-	// SlotID is the owning physical slot identifier.
+	// SlotID is the owning physical Slot identifier.
 	SlotID uint32 `json:"slot_id"`
 	// ChannelEpoch is the runtime channel epoch.
 	ChannelEpoch uint64 `json:"channel_epoch"`
@@ -42,34 +41,32 @@ type ChannelRuntimeMetaDTO struct {
 	LeaderEpoch uint64 `json:"leader_epoch"`
 	// Leader is the current leader node ID.
 	Leader uint64 `json:"leader"`
+	// SlotLeader is the currently observed physical Slot Raft leader.
+	SlotLeader uint64 `json:"slot_leader,omitempty"`
+	// PreferredLeader is the control-plane preferred physical Slot leader.
+	PreferredLeader uint64 `json:"preferred_leader,omitempty"`
 	// Replicas is the configured replica set.
 	Replicas []uint64 `json:"replicas"`
 	// ISR is the in-sync replica set.
 	ISR []uint64 `json:"isr"`
 	// MinISR is the configured minimum in-sync replica count.
 	MinISR int64 `json:"min_isr"`
-	// MaxMessageSeq is the maximum committed message sequence for the channel when requested.
+	// MaxMessageSeq is the maximum committed message sequence when requested.
 	MaxMessageSeq *uint64 `json:"max_message_seq,omitempty"`
 	// Status is the stable runtime status string.
 	Status string `json:"status"`
-}
-
-// ChannelRuntimeMetaDetailDTO is the manager-facing channel runtime detail response body.
-type ChannelRuntimeMetaDetailDTO struct {
-	ChannelRuntimeMetaDTO
-	// HashSlot is the logical hash slot derived from the channel key.
-	HashSlot uint16 `json:"hash_slot"`
-	// Features is the raw runtime feature bitset.
-	Features uint64 `json:"features"`
-	// LeaseUntilMS is the leader lease deadline in milliseconds.
-	LeaseUntilMS int64 `json:"lease_until_ms"`
-}
-
-type channelRuntimeMetaCursorPayload struct {
-	Version     int    `json:"v"`
-	SlotID      uint32 `json:"slot_id"`
-	ChannelID   string `json:"channel_id,omitempty"`
-	ChannelType int64  `json:"channel_type,omitempty"`
+	// WriteFenceToken identifies the active migration write fence when present.
+	WriteFenceToken string `json:"write_fence_token,omitempty"`
+	// WriteFenceVersion is the active migration write-fence generation.
+	WriteFenceVersion uint64 `json:"write_fence_version,omitempty"`
+	// WriteFenceReason is the stable write-fence reason.
+	WriteFenceReason string `json:"write_fence_reason,omitempty"`
+	// ActiveTaskID is the active ChannelV2 migration task when present.
+	ActiveTaskID string `json:"active_task_id,omitempty"`
+	// Degraded reports whether the channel has fewer ISR than replicas.
+	Degraded bool `json:"degraded"`
+	// DegradedReason is a bounded explanation for degraded channels.
+	DegradedReason string `json:"degraded_reason,omitempty"`
 }
 
 func (s *Server) handleChannelRuntimeMeta(c *gin.Context) {
@@ -77,7 +74,6 @@ func (s *Server) handleChannelRuntimeMeta(c *gin.Context) {
 		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "management not configured")
 		return
 	}
-
 	limit, err := parseChannelRuntimeMetaLimit(c.Query("limit"))
 	if err != nil {
 		jsonError(c, http.StatusBadRequest, "bad_request", "invalid limit")
@@ -88,7 +84,7 @@ func (s *Server) handleChannelRuntimeMeta(c *gin.Context) {
 		jsonError(c, http.StatusBadRequest, "bad_request", "invalid cursor")
 		return
 	}
-	nodeID, err := parseOptionalNodeIDParam(c.Query("node_id"))
+	nodeID, err := parseOptionalConnectionNodeID(c.Query("node_id"))
 	if err != nil {
 		jsonError(c, http.StatusBadRequest, "bad_request", "invalid node_id")
 		return
@@ -113,17 +109,9 @@ func (s *Server) handleChannelRuntimeMeta(c *gin.Context) {
 		IncludeMaxMessageSeq: includeMaxMessageSeq,
 	})
 	if err != nil {
-		switch {
-		case slotLeaderAuthoritativeReadUnavailable(err):
-			jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "slot leader authoritative read unavailable")
-		case errors.Is(err, metadb.ErrInvalidArgument):
-			jsonError(c, http.StatusBadRequest, "bad_request", "invalid cursor")
-		default:
-			jsonError(c, http.StatusInternalServerError, "internal_error", err.Error())
-		}
+		writeChannelRuntimeMetaError(c, err)
 		return
 	}
-
 	nextCursor, err := encodeChannelRuntimeMetaCursor(page.NextCursor)
 	if err != nil {
 		jsonError(c, http.StatusInternalServerError, "internal_error", err.Error())
@@ -136,36 +124,6 @@ func (s *Server) handleChannelRuntimeMeta(c *gin.Context) {
 	})
 }
 
-func (s *Server) handleChannelRuntimeMetaDetail(c *gin.Context) {
-	if s.management == nil {
-		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "management not configured")
-		return
-	}
-
-	channelType, err := parseChannelRuntimeMetaChannelTypeParam(c.Param("channel_type"))
-	if err != nil {
-		jsonError(c, http.StatusBadRequest, "bad_request", "invalid channel_type")
-		return
-	}
-
-	item, err := s.management.GetChannelRuntimeMeta(c.Request.Context(), c.Param("channel_id"), channelType)
-	if err != nil {
-		switch {
-		case errors.Is(err, metadb.ErrInvalidArgument):
-			jsonError(c, http.StatusBadRequest, "bad_request", "invalid channel_type")
-		case errors.Is(err, metadb.ErrNotFound):
-			jsonError(c, http.StatusNotFound, "not_found", "channel runtime meta not found")
-		case slotLeaderAuthoritativeReadUnavailable(err):
-			jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "slot leader authoritative read unavailable")
-		default:
-			jsonError(c, http.StatusInternalServerError, "internal_error", err.Error())
-		}
-		return
-	}
-
-	c.JSON(http.StatusOK, channelRuntimeMetaDetailDTO(item))
-}
-
 func parseChannelRuntimeMetaLimit(raw string) (int, error) {
 	if raw == "" {
 		return defaultChannelRuntimeMetaLimit, nil
@@ -175,17 +133,6 @@ func parseChannelRuntimeMetaLimit(raw string) (int, error) {
 		return 0, strconv.ErrSyntax
 	}
 	return limit, nil
-}
-
-func parseChannelRuntimeMetaChannelTypeParam(raw string) (int64, error) {
-	if raw == "" {
-		return 0, strconv.ErrSyntax
-	}
-	channelType, err := strconv.ParseInt(raw, 10, 64)
-	if err != nil || channelType <= 0 {
-		return 0, strconv.ErrSyntax
-	}
-	return channelType, nil
 }
 
 func parseChannelRuntimeMetaNodeScope(raw string, nodeID uint64) (managementusecase.ChannelRuntimeMetaNodeScope, error) {
@@ -211,31 +158,15 @@ func parseChannelRuntimeMetaNodeScope(raw string, nodeID uint64) (managementusec
 	}
 }
 
-func encodeChannelRuntimeMetaCursor(cursor managementusecase.ChannelRuntimeMetaListCursor) (string, error) {
-	if cursor == (managementusecase.ChannelRuntimeMetaListCursor{}) {
-		return "", nil
+func writeChannelRuntimeMetaError(c *gin.Context, err error) {
+	switch {
+	case errors.Is(err, metadb.ErrInvalidArgument):
+		jsonError(c, http.StatusBadRequest, "bad_request", "invalid cursor")
+	case controlSnapshotUnavailable(err), errors.Is(err, cluster.ErrSlotNotFound), errors.Is(err, cluster.ErrNotStarted):
+		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "channel runtime metadata unavailable")
+	default:
+		jsonError(c, http.StatusInternalServerError, "internal_error", err.Error())
 	}
-	return encodeChannelRuntimeMetaCursorBinary(cursor), nil
-}
-
-func decodeChannelRuntimeMetaCursor(raw string) (managementusecase.ChannelRuntimeMetaListCursor, error) {
-	return decodeChannelRuntimeMetaCursorRaw(raw)
-}
-
-func validateChannelRuntimeMetaCursorPayload(payload channelRuntimeMetaCursorPayload) error {
-	if payload.Version != 1 {
-		return strconv.ErrSyntax
-	}
-	if payload.SlotID == 0 {
-		if payload.ChannelID == "" && payload.ChannelType == 0 {
-			return nil
-		}
-		return strconv.ErrSyntax
-	}
-	if payload.ChannelID == "" && payload.ChannelType != 0 {
-		return strconv.ErrSyntax
-	}
-	return nil
 }
 
 func channelRuntimeMetaDTOs(items []managementusecase.ChannelRuntimeMeta) []ChannelRuntimeMetaDTO {
@@ -248,33 +179,24 @@ func channelRuntimeMetaDTOs(items []managementusecase.ChannelRuntimeMeta) []Chan
 
 func channelRuntimeMetaDTO(item managementusecase.ChannelRuntimeMeta) ChannelRuntimeMetaDTO {
 	return ChannelRuntimeMetaDTO{
-		ChannelID:     item.ChannelID,
-		ChannelType:   item.ChannelType,
-		SlotID:        item.SlotID,
-		ChannelEpoch:  item.ChannelEpoch,
-		LeaderEpoch:   item.LeaderEpoch,
-		Leader:        item.Leader,
-		Replicas:      append([]uint64(nil), item.Replicas...),
-		ISR:           append([]uint64(nil), item.ISR...),
-		MinISR:        item.MinISR,
-		MaxMessageSeq: item.MaxMessageSeq,
-		Status:        item.Status,
+		ChannelID:         item.ChannelID,
+		ChannelType:       item.ChannelType,
+		SlotID:            item.SlotID,
+		ChannelEpoch:      item.ChannelEpoch,
+		LeaderEpoch:       item.LeaderEpoch,
+		Leader:            item.Leader,
+		SlotLeader:        item.SlotLeader,
+		PreferredLeader:   item.PreferredLeader,
+		Replicas:          append([]uint64(nil), item.Replicas...),
+		ISR:               append([]uint64(nil), item.ISR...),
+		MinISR:            item.MinISR,
+		MaxMessageSeq:     item.MaxMessageSeq,
+		Status:            item.Status,
+		WriteFenceToken:   item.WriteFenceToken,
+		WriteFenceVersion: item.WriteFenceVersion,
+		WriteFenceReason:  item.WriteFenceReason,
+		ActiveTaskID:      item.ActiveTaskID,
+		Degraded:          item.Degraded,
+		DegradedReason:    item.DegradedReason,
 	}
-}
-
-func channelRuntimeMetaDetailDTO(item managementusecase.ChannelRuntimeMetaDetail) ChannelRuntimeMetaDetailDTO {
-	return ChannelRuntimeMetaDetailDTO{
-		ChannelRuntimeMetaDTO: channelRuntimeMetaDTO(item.ChannelRuntimeMeta),
-		HashSlot:              item.HashSlot,
-		Features:              item.Features,
-		LeaseUntilMS:          item.LeaseUntilMS,
-	}
-}
-
-func slotLeaderAuthoritativeReadUnavailable(err error) bool {
-	return errors.Is(err, raftcluster.ErrNoLeader) ||
-		errors.Is(err, raftcluster.ErrNotLeader) ||
-		errors.Is(err, raftcluster.ErrSlotNotFound) ||
-		errors.Is(err, raftcluster.ErrNotStarted) ||
-		errors.Is(err, context.DeadlineExceeded)
 }

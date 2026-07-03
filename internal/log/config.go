@@ -11,16 +11,24 @@ const (
 	defaultFormat     = "console"
 )
 
-// Config controls the zap-backed logger built by the app composition root.
+// Config controls the zap-backed logger built by the internal composition root.
 type Config struct {
-	Level      string
-	Dir        string
-	MaxSize    int
-	MaxAge     int
+	// Level is the minimum log level accepted by the logger: debug, info, warn, or error.
+	Level string
+	// Dir is the directory where rolling log files are created.
+	Dir string
+	// MaxSize is the maximum size in megabytes before one log file is rotated.
+	MaxSize int
+	// MaxAge is the maximum number of days to retain rotated log files.
+	MaxAge int
+	// MaxBackups is the maximum number of rotated files retained for each log.
 	MaxBackups int
-	Compress   bool
-	Console    bool
-	Format     string
+	// Compress enables gzip compression for rotated log files.
+	Compress bool
+	// Console enables an additional stdout sink for interactive runs.
+	Console bool
+	// Format selects the file encoder format; json writes structured JSON and other values use console encoding.
+	Format string
 }
 
 func (c Config) withDefaults() Config {
@@ -43,7 +51,6 @@ func (c Config) withDefaults() Config {
 		c.Format = defaultFormat
 	}
 	if !c.Console {
-		// Preserve explicit false; default true only when zero-value config is used.
 		c.Console = c == (Config{})
 	}
 	if !c.Compress {

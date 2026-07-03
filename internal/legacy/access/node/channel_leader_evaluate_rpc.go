@@ -1,0 +1,160 @@
+package node
+
+import (
+	"context"
+	"fmt"
+
+	channelmeta "github.com/WuKongIM/WuKongIM/internal/legacy/runtime/channelmeta"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	"github.com/WuKongIM/WuKongIM/pkg/legacy/channel"
+	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
+)
+
+// ChannelLeaderEvaluateRequest asks a replica to evaluate local promotion safety.
+type ChannelLeaderEvaluateRequest struct {
+	// Meta is the authoritative runtime metadata used for the dry-run.
+	Meta metadb.ChannelRuntimeMeta `json:"meta"`
+}
+
+// ChannelLeaderPromotionReport describes one replica's promotion evaluation.
+type ChannelLeaderPromotionReport struct {
+	// NodeID identifies the evaluated replica node.
+	NodeID uint64 `json:"node_id"`
+	// Exists reports whether local durable state exists on this node.
+	Exists bool `json:"exists"`
+	// ChannelEpoch echoes the evaluated channel epoch.
+	ChannelEpoch uint64 `json:"channel_epoch"`
+	// LocalLEO is the local durable log end offset.
+	LocalLEO uint64 `json:"local_leo"`
+	// LocalCheckpointHW is the local durable checkpoint high watermark.
+	LocalCheckpointHW uint64 `json:"local_checkpoint_hw"`
+	// LocalOffsetEpoch is the epoch that owns LocalLEO.
+	LocalOffsetEpoch uint64 `json:"local_offset_epoch"`
+	// CommitReadyNow reports whether the replica can accept appends immediately.
+	CommitReadyNow bool `json:"commit_ready_now"`
+	// ProjectedSafeHW is the largest quorum-safe prefix the replica can prove.
+	ProjectedSafeHW uint64 `json:"projected_safe_hw"`
+	// ProjectedTruncateTo is the offset the replica would keep after reconcile.
+	ProjectedTruncateTo uint64 `json:"projected_truncate_to"`
+	// CanLead reports whether the replica is safe to promote.
+	CanLead bool `json:"can_lead"`
+	// Reason explains why the replica cannot safely lead when CanLead is false.
+	Reason string `json:"reason,omitempty"`
+}
+
+type channelLeaderEvaluateResponse struct {
+	Status string                        `json:"status"`
+	Report *ChannelLeaderPromotionReport `json:"report,omitempty"`
+}
+
+func (a *Adapter) handleChannelLeaderEvaluateRPC(ctx context.Context, body []byte) ([]byte, error) {
+	req, err := decodeChannelLeaderEvaluateRequest(body)
+	if err != nil {
+		return nil, err
+	}
+	if a == nil || a.channelLeaderEvaluate == nil {
+		return nil, fmt.Errorf("access/node: channel leader evaluator not configured")
+	}
+	if !containsUint64(req.Meta.ISR, a.localNodeID) {
+		return encodeChannelLeaderEvaluateResponse(channelLeaderEvaluateResponse{Status: rpcStatusRejected})
+	}
+	report, err := a.channelLeaderEvaluate.EvaluateChannelLeaderCandidate(ctx, toChannelmetaLeaderEvaluateRequest(req))
+	if err != nil {
+		return nil, err
+	}
+	if report.NodeID == 0 {
+		report.NodeID = a.localNodeID
+	}
+	accessReport := fromChannelmetaLeaderPromotionReport(report)
+	return encodeChannelLeaderEvaluateResponse(channelLeaderEvaluateResponse{
+		Status: rpcStatusOK,
+		Report: &accessReport,
+	})
+}
+
+// EvaluateChannelLeaderCandidate asks one replica to dry-run a promotion.
+func (c *Client) EvaluateChannelLeaderCandidate(ctx context.Context, nodeID uint64, req channelmeta.LeaderEvaluateRequest) (channelmeta.LeaderPromotionReport, error) {
+	if c == nil || c.cluster == nil {
+		return channelmeta.LeaderPromotionReport{}, fmt.Errorf("access/node: cluster not configured")
+	}
+	body, err := encodeChannelLeaderEvaluateRequestBinary(fromChannelmetaLeaderEvaluateRequest(req))
+	if err != nil {
+		return channelmeta.LeaderPromotionReport{}, err
+	}
+	respBody, err := c.cluster.RPCService(ctx, multiraft.NodeID(nodeID), 0, channelLeaderEvaluateRPCServiceID, body)
+	if err != nil {
+		return channelmeta.LeaderPromotionReport{}, err
+	}
+	resp, err := decodeChannelLeaderEvaluateResponse(respBody)
+	if err != nil {
+		return channelmeta.LeaderPromotionReport{}, err
+	}
+	switch resp.Status {
+	case rpcStatusOK:
+		if resp.Report == nil {
+			return channelmeta.LeaderPromotionReport{}, fmt.Errorf("access/node: missing channel leader promotion report")
+		}
+		return toChannelmetaLeaderPromotionReport(*resp.Report), nil
+	case rpcStatusRejected:
+		return channelmeta.LeaderPromotionReport{}, channel.ErrInvalidMeta
+	default:
+		return channelmeta.LeaderPromotionReport{}, fmt.Errorf("access/node: unexpected channel leader evaluate status %q", resp.Status)
+	}
+}
+
+func encodeChannelLeaderEvaluateResponse(resp channelLeaderEvaluateResponse) ([]byte, error) {
+	return encodeChannelLeaderEvaluateResponseBinary(resp)
+}
+
+func decodeChannelLeaderEvaluateResponse(body []byte) (channelLeaderEvaluateResponse, error) {
+	return decodeChannelLeaderEvaluateResponseBinary(body)
+}
+
+func containsUint64(values []uint64, target uint64) bool {
+	for _, value := range values {
+		if value == target {
+			return true
+		}
+	}
+	return false
+}
+
+func toChannelmetaLeaderEvaluateRequest(req ChannelLeaderEvaluateRequest) channelmeta.LeaderEvaluateRequest {
+	return channelmeta.LeaderEvaluateRequest{Meta: req.Meta}
+}
+
+func fromChannelmetaLeaderEvaluateRequest(req channelmeta.LeaderEvaluateRequest) ChannelLeaderEvaluateRequest {
+	return ChannelLeaderEvaluateRequest{Meta: req.Meta}
+}
+
+func toChannelmetaLeaderPromotionReport(report ChannelLeaderPromotionReport) channelmeta.LeaderPromotionReport {
+	return channelmeta.LeaderPromotionReport{
+		NodeID:              report.NodeID,
+		Exists:              report.Exists,
+		ChannelEpoch:        report.ChannelEpoch,
+		LocalLEO:            report.LocalLEO,
+		LocalCheckpointHW:   report.LocalCheckpointHW,
+		LocalOffsetEpoch:    report.LocalOffsetEpoch,
+		CommitReadyNow:      report.CommitReadyNow,
+		ProjectedSafeHW:     report.ProjectedSafeHW,
+		ProjectedTruncateTo: report.ProjectedTruncateTo,
+		CanLead:             report.CanLead,
+		Reason:              report.Reason,
+	}
+}
+
+func fromChannelmetaLeaderPromotionReport(report channelmeta.LeaderPromotionReport) ChannelLeaderPromotionReport {
+	return ChannelLeaderPromotionReport{
+		NodeID:              report.NodeID,
+		Exists:              report.Exists,
+		ChannelEpoch:        report.ChannelEpoch,
+		LocalLEO:            report.LocalLEO,
+		LocalCheckpointHW:   report.LocalCheckpointHW,
+		LocalOffsetEpoch:    report.LocalOffsetEpoch,
+		CommitReadyNow:      report.CommitReadyNow,
+		ProjectedSafeHW:     report.ProjectedSafeHW,
+		ProjectedTruncateTo: report.ProjectedTruncateTo,
+		CanLead:             report.CanLead,
+		Reason:              report.Reason,
+	}
+}

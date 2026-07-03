@@ -7,13 +7,14 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
 	userusecase "github.com/WuKongIM/WuKongIM/internal/usecase/user"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/routing"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
-	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
-	"github.com/stretchr/testify/require"
 )
 
 func TestListUsersAggregatesDeviceAndPresenceSummary(t *testing.T) {
+	snapshot := singleUserSlotSnapshot()
 	reader := newFakeManagementUserReader()
 	reader.slotPages[1] = map[metadb.UserCursor]fakeManagementUserPage{
 		{}: {
@@ -26,28 +27,32 @@ func TestListUsersAggregatesDeviceAndPresenceSummary(t *testing.T) {
 		UID: "u1", DeviceFlag: int64(frame.APP), Token: "token-1", DeviceLevel: int64(frame.DeviceLevelMaster),
 	}
 	presenceDir := &fakeManagementPresence{routes: map[string][]presence.Route{
-		"u1": {{UID: "u1", NodeID: 2, SessionID: 10, DeviceFlag: uint8(frame.APP), DeviceLevel: uint8(frame.DeviceLevelMaster)}},
+		"u1": {{UID: "u1", OwnerNodeID: 2, SessionID: 10, DeviceFlag: uint8(frame.APP), DeviceLevel: uint8(frame.DeviceLevelMaster)}},
 	}}
 	app := New(Options{
-		Cluster: fakeClusterReader{
-			slotIDs:        []multiraft.SlotID{1},
-			slotForKey:     map[string]multiraft.SlotID{"u1": 1, "u2": 1},
-			hashSlotForKey: map[string]uint16{"u1": 7, "u2": 8},
-		},
+		Cluster:      fakeNodeSnapshotReader{snapshot: snapshot},
 		Users:        reader,
 		UserPresence: presenceDir,
 	})
 
 	got, err := app.ListUsers(context.Background(), ListUsersRequest{Limit: 50})
-	require.NoError(t, err)
-	require.Equal(t, []UserListItem{
-		{UID: "u1", SlotID: 1, HashSlot: 7, Online: true, OnlineDeviceCount: 1, OnlineDeviceFlags: []string{"app"}, DeviceCount: 1, TokenSetCount: 1},
-		{UID: "u2", SlotID: 1, HashSlot: 8},
-	}, got.Items)
-	require.False(t, got.HasMore)
+	if err != nil {
+		t.Fatalf("ListUsers() error = %v", err)
+	}
+	want := []UserListItem{
+		{UID: "u1", SlotID: 1, HashSlot: routing.HashSlotForKey("u1", snapshot.HashSlots.Count), Online: true, OnlineDeviceCount: 1, OnlineDeviceFlags: []string{"app"}, DeviceCount: 1, TokenSetCount: 1},
+		{UID: "u2", SlotID: 1, HashSlot: routing.HashSlotForKey("u2", snapshot.HashSlots.Count)},
+	}
+	if !sameUserListItems(got.Items, want) {
+		t.Fatalf("items = %#v, want %#v", got.Items, want)
+	}
+	if got.HasMore {
+		t.Fatalf("HasMore = true, want false")
+	}
 }
 
 func TestListUsersFiltersByKeywordAndBindsCursor(t *testing.T) {
+	snapshot := singleUserSlotSnapshot()
 	reader := newFakeManagementUserReader()
 	reader.slotPages[1] = map[metadb.UserCursor]fakeManagementUserPage{
 		{}: {
@@ -57,28 +62,71 @@ func TestListUsersFiltersByKeywordAndBindsCursor(t *testing.T) {
 		},
 	}
 	app := New(Options{
-		Cluster: fakeClusterReader{
-			slotIDs:        []multiraft.SlotID{1},
-			slotForKey:     map[string]multiraft.SlotID{"alice": 1, "bob": 1, "carol": 1},
-			hashSlotForKey: map[string]uint16{"alice": 1, "bob": 2, "carol": 3},
-		},
-		Users: reader,
+		Cluster: fakeNodeSnapshotReader{snapshot: snapshot},
+		Users:   reader,
 	})
 
 	got, err := app.ListUsers(context.Background(), ListUsersRequest{Limit: 1, Keyword: "bo"})
-	require.NoError(t, err)
-	require.Equal(t, []UserListItem{{UID: "bob", SlotID: 1, HashSlot: 2}}, got.Items)
-	require.False(t, got.HasMore)
+	if err != nil {
+		t.Fatalf("ListUsers() error = %v", err)
+	}
+	want := []UserListItem{{UID: "bob", SlotID: 1, HashSlot: routing.HashSlotForKey("bob", snapshot.HashSlots.Count)}}
+	if !sameUserListItems(got.Items, want) {
+		t.Fatalf("items = %#v, want %#v", got.Items, want)
+	}
+	if got.HasMore {
+		t.Fatalf("HasMore = true, want false")
+	}
 
 	_, err = app.ListUsers(context.Background(), ListUsersRequest{
 		Limit:   1,
 		Keyword: "alice",
 		Cursor:  UserListCursor{SlotID: 1, UID: "bob", KeywordHash: crc32.ChecksumIEEE([]byte("bob"))},
 	})
-	require.ErrorIs(t, err, metadb.ErrInvalidArgument)
+	if err != metadb.ErrInvalidArgument {
+		t.Fatalf("ListUsers() filter mismatch error = %v, want %v", err, metadb.ErrInvalidArgument)
+	}
+}
+
+func TestListUsersUsesLastItemCursorWhenNextSlotHasData(t *testing.T) {
+	snapshot := control.Snapshot{
+		Slots: []control.SlotAssignment{
+			{SlotID: 1, DesiredPeers: []uint64{1}},
+			{SlotID: 2, DesiredPeers: []uint64{1}},
+		},
+		HashSlots: control.HashSlotTable{Count: 4, Ranges: []control.HashSlotRange{
+			{From: 0, To: 1, SlotID: 1},
+			{From: 2, To: 3, SlotID: 2},
+		}},
+	}
+	reader := newFakeManagementUserReader()
+	reader.slotPages[1] = map[metadb.UserCursor]fakeManagementUserPage{
+		{}:          {items: []metadb.User{{UID: "u1"}}, cursor: metadb.UserCursor{UID: "u1"}, done: true},
+		{UID: "u1"}: {done: true},
+	}
+	reader.slotPages[2] = map[metadb.UserCursor]fakeManagementUserPage{
+		{}: {items: []metadb.User{{UID: "u2"}}, cursor: metadb.UserCursor{UID: "u2"}, done: true},
+	}
+	app := New(Options{Cluster: fakeNodeSnapshotReader{snapshot: snapshot}, Users: reader})
+
+	first, err := app.ListUsers(context.Background(), ListUsersRequest{Limit: 1})
+	if err != nil {
+		t.Fatalf("ListUsers(page1) error = %v", err)
+	}
+	if !first.HasMore || first.NextCursor.UID != "u1" {
+		t.Fatalf("page1 cursor = %#v has_more=%t, want last emitted UID cursor", first.NextCursor, first.HasMore)
+	}
+	second, err := app.ListUsers(context.Background(), ListUsersRequest{Limit: 1, Cursor: first.NextCursor})
+	if err != nil {
+		t.Fatalf("ListUsers(page2) error = %v", err)
+	}
+	if len(second.Items) != 1 || second.Items[0].UID != "u2" {
+		t.Fatalf("page2 items = %#v, want u2", second.Items)
+	}
 }
 
 func TestGetUserReturnsDetailWithDevicesAndConnections(t *testing.T) {
+	snapshot := singleUserSlotSnapshot()
 	reader := newFakeManagementUserReader()
 	reader.users["u1"] = metadb.User{UID: "u1"}
 	reader.devices[managementDeviceKey{"u1", int64(frame.APP)}] = metadb.Device{
@@ -86,31 +134,31 @@ func TestGetUserReturnsDetailWithDevicesAndConnections(t *testing.T) {
 	}
 	presenceDir := &fakeManagementPresence{routes: map[string][]presence.Route{
 		"u1": {{
-			UID: "u1", NodeID: 2, BootID: 4, SessionID: 10, DeviceID: "d1",
+			UID: "u1", OwnerNodeID: 2, OwnerBootID: 4, SessionID: 10, DeviceID: "d1",
 			DeviceFlag: uint8(frame.APP), DeviceLevel: uint8(frame.DeviceLevelMaster), Listener: "tcp",
 		}},
 	}}
 	app := New(Options{
-		Cluster: fakeClusterReader{
-			slotForKey:     map[string]multiraft.SlotID{"u1": 1},
-			hashSlotForKey: map[string]uint16{"u1": 7},
-		},
+		Cluster:      fakeNodeSnapshotReader{snapshot: snapshot},
 		Users:        reader,
 		UserPresence: presenceDir,
 	})
 
 	got, err := app.GetUser(context.Background(), "u1")
-	require.NoError(t, err)
-	require.Equal(t, "u1", got.UID)
-	require.Equal(t, uint32(1), got.SlotID)
-	require.Equal(t, uint16(7), got.HashSlot)
-	require.True(t, got.Online)
-	require.Equal(t, []UserDevice{{
-		DeviceFlag: "app", DeviceLevel: "master", TokenSet: true, Online: true, OnlineSessionCount: 1,
-	}}, got.Devices)
-	require.Equal(t, []Connection{{
-		NodeID: 2, SessionID: 10, UID: "u1", DeviceID: "d1", DeviceFlag: "app", DeviceLevel: "master", Listener: "tcp",
-	}}, got.Connections)
+	if err != nil {
+		t.Fatalf("GetUser() error = %v", err)
+	}
+	if got.UID != "u1" || got.SlotID != 1 || got.HashSlot != routing.HashSlotForKey("u1", snapshot.HashSlots.Count) || !got.Online {
+		t.Fatalf("detail identity = %#v, want u1 online in slot 1", got)
+	}
+	wantDevices := []UserDevice{{DeviceFlag: "app", DeviceLevel: "master", TokenSet: true, Online: true, OnlineSessionCount: 1}}
+	if !sameUserDevices(got.Devices, wantDevices) {
+		t.Fatalf("devices = %#v, want %#v", got.Devices, wantDevices)
+	}
+	wantConnections := []Connection{{NodeID: 2, SessionID: 10, UID: "u1", DeviceID: "d1", DeviceFlag: "app", DeviceLevel: "master", Listener: "tcp"}}
+	if !sameConnections(got.Connections, wantConnections) {
+		t.Fatalf("connections = %#v, want %#v", got.Connections, wantConnections)
+	}
 }
 
 func TestKickUserClearsTokenAndAppliesRouteActions(t *testing.T) {
@@ -118,21 +166,30 @@ func TestKickUserClearsTokenAndAppliesRouteActions(t *testing.T) {
 	actions := &fakeManagementRouteActions{}
 	presenceDir := &fakeManagementPresence{routes: map[string][]presence.Route{
 		"u1": {
-			{UID: "u1", NodeID: 2, BootID: 9, SessionID: 10, DeviceFlag: uint8(frame.APP)},
-			{UID: "u1", NodeID: 3, BootID: 8, SessionID: 11, DeviceFlag: uint8(frame.WEB)},
-			{UID: "u1", NodeID: 4, BootID: 7, SessionID: 12, DeviceFlag: uint8(frame.SYSTEM)},
+			{UID: "u1", OwnerNodeID: 2, OwnerBootID: 9, SessionID: 10, DeviceFlag: uint8(frame.APP)},
+			{UID: "u1", OwnerNodeID: 3, OwnerBootID: 8, SessionID: 11, DeviceFlag: uint8(frame.WEB)},
+			{UID: "u1", OwnerNodeID: 4, OwnerBootID: 7, SessionID: 12, DeviceFlag: uint8(frame.SYSTEM)},
 		},
 	}}
 	app := New(Options{UserOperator: operator, UserPresence: presenceDir, UserActions: actions})
 
 	got, err := app.KickUser(context.Background(), KickUserRequest{UID: "u1", DeviceFlag: "all"})
-	require.NoError(t, err)
-	require.Equal(t, KickUserResponse{UID: "u1", DeviceFlag: "all", Changed: true}, got)
-	require.Equal(t, []userusecase.DeviceQuitCommand{{UID: "u1", DeviceFlag: -1}}, operator.deviceQuitCalls)
-	require.Equal(t, []presence.RouteAction{
-		{UID: "u1", NodeID: 2, BootID: 9, SessionID: 10, Kind: "kick_then_close", Reason: "manager force offline"},
-		{UID: "u1", NodeID: 3, BootID: 8, SessionID: 11, Kind: "kick_then_close", Reason: "manager force offline"},
-	}, actions.calls)
+	if err != nil {
+		t.Fatalf("KickUser() error = %v", err)
+	}
+	if got != (KickUserResponse{UID: "u1", DeviceFlag: "all", Changed: true}) {
+		t.Fatalf("KickUser() = %#v, want all changed", got)
+	}
+	if len(operator.deviceQuitCalls) != 1 || operator.deviceQuitCalls[0] != (userusecase.DeviceQuitCommand{UID: "u1", DeviceFlag: -1}) {
+		t.Fatalf("deviceQuitCalls = %#v, want all-device quit", operator.deviceQuitCalls)
+	}
+	wantActions := []presence.RouteAction{
+		{UID: "u1", OwnerNodeID: 2, OwnerBootID: 9, SessionID: 10, Kind: "kick_then_close", Reason: "manager force offline"},
+		{UID: "u1", OwnerNodeID: 3, OwnerBootID: 8, SessionID: 11, Kind: "kick_then_close", Reason: "manager force offline"},
+	}
+	if !sameRouteActions(actions.calls, wantActions) {
+		t.Fatalf("route actions = %#v, want %#v", actions.calls, wantActions)
+	}
 }
 
 func TestResetUserTokenGeneratesTokenAndUpdatesDevice(t *testing.T) {
@@ -142,19 +199,30 @@ func TestResetUserTokenGeneratesTokenAndUpdatesDevice(t *testing.T) {
 	got, err := app.ResetUserToken(context.Background(), ResetUserTokenRequest{
 		UID: "u1", DeviceFlag: "app", DeviceLevel: "master",
 	})
-	require.NoError(t, err)
-	require.NotEmpty(t, got.Token)
-	require.Equal(t, "u1", got.UID)
-	require.Equal(t, "app", got.DeviceFlag)
-	require.Equal(t, "master", got.DeviceLevel)
-	require.Len(t, operator.updateTokenCalls, 1)
-	require.Equal(t, userusecase.UpdateTokenCommand{
-		UID: "u1", Token: got.Token, DeviceFlag: frame.APP, DeviceLevel: frame.DeviceLevelMaster,
-	}, operator.updateTokenCalls[0])
+	if err != nil {
+		t.Fatalf("ResetUserToken() error = %v", err)
+	}
+	if got.UID != "u1" || got.DeviceFlag != "app" || got.DeviceLevel != "master" || got.Token == "" {
+		t.Fatalf("ResetUserToken() = %#v, want generated app master token", got)
+	}
+	if len(operator.updateTokenCalls) != 1 {
+		t.Fatalf("updateTokenCalls = %#v, want one call", operator.updateTokenCalls)
+	}
+	want := userusecase.UpdateTokenCommand{UID: "u1", Token: got.Token, DeviceFlag: frame.APP, DeviceLevel: frame.DeviceLevelMaster}
+	if operator.updateTokenCalls[0] != want {
+		t.Fatalf("updateTokenCalls[0] = %#v, want %#v", operator.updateTokenCalls[0], want)
+	}
+}
+
+func singleUserSlotSnapshot() control.Snapshot {
+	return control.Snapshot{
+		Slots:     []control.SlotAssignment{{SlotID: 1, DesiredPeers: []uint64{1}}},
+		HashSlots: control.HashSlotTable{Count: 4, Ranges: []control.HashSlotRange{{From: 0, To: 3, SlotID: 1}}},
+	}
 }
 
 type fakeManagementUserReader struct {
-	slotPages map[multiraft.SlotID]map[metadb.UserCursor]fakeManagementUserPage
+	slotPages map[uint32]map[metadb.UserCursor]fakeManagementUserPage
 	users     map[string]metadb.User
 	devices   map[managementDeviceKey]metadb.Device
 }
@@ -172,15 +240,15 @@ type managementDeviceKey struct {
 
 func newFakeManagementUserReader() *fakeManagementUserReader {
 	return &fakeManagementUserReader{
-		slotPages: make(map[multiraft.SlotID]map[metadb.UserCursor]fakeManagementUserPage),
-		users:     make(map[string]metadb.User),
-		devices:   make(map[managementDeviceKey]metadb.Device),
+		slotPages: map[uint32]map[metadb.UserCursor]fakeManagementUserPage{},
+		users:     map[string]metadb.User{},
+		devices:   map[managementDeviceKey]metadb.Device{},
 	}
 }
 
-func (f *fakeManagementUserReader) ScanUsersSlotPage(_ context.Context, slotID multiraft.SlotID, after metadb.UserCursor, _ int) ([]metadb.User, metadb.UserCursor, bool, error) {
-	if slotPages := f.slotPages[slotID]; slotPages != nil {
-		if page, ok := slotPages[after]; ok {
+func (f *fakeManagementUserReader) ScanUsersSlotPage(_ context.Context, slotID uint32, after metadb.UserCursor, _ int) ([]metadb.User, metadb.UserCursor, bool, error) {
+	if pages := f.slotPages[slotID]; pages != nil {
+		if page, ok := pages[after]; ok {
 			return append([]metadb.User(nil), page.items...), page.cursor, page.done, nil
 		}
 	}
@@ -237,4 +305,71 @@ func (f *fakeManagementUserOperator) UpdateToken(_ context.Context, cmd userusec
 func (f *fakeManagementUserOperator) DeviceQuit(_ context.Context, cmd userusecase.DeviceQuitCommand) error {
 	f.deviceQuitCalls = append(f.deviceQuitCalls, cmd)
 	return nil
+}
+
+func sameUserListItems(left, right []UserListItem) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for i := range left {
+		if left[i].UID != right[i].UID ||
+			left[i].SlotID != right[i].SlotID ||
+			left[i].HashSlot != right[i].HashSlot ||
+			left[i].Online != right[i].Online ||
+			left[i].OnlineDeviceCount != right[i].OnlineDeviceCount ||
+			left[i].DeviceCount != right[i].DeviceCount ||
+			left[i].TokenSetCount != right[i].TokenSetCount ||
+			!sameStrings(left[i].OnlineDeviceFlags, right[i].OnlineDeviceFlags) {
+			return false
+		}
+	}
+	return true
+}
+
+func sameUserDevices(left, right []UserDevice) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for i := range left {
+		if left[i] != right[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func sameConnections(left, right []Connection) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for i := range left {
+		if left[i] != right[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func sameRouteActions(left, right []presence.RouteAction) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for i := range left {
+		if left[i] != right[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func sameStrings(left, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for i := range left {
+		if left[i] != right[i] {
+			return false
+		}
+	}
+	return true
 }

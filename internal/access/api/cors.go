@@ -25,7 +25,7 @@ func openCORSMiddleware() gin.HandlerFunc {
 		c.Header("Access-Control-Expose-Headers", openCORSExposeHeaders)
 		c.Header("Access-Control-Max-Age", "86400")
 
-		if c.Request != nil && c.Request.Method == http.MethodOptions && !isPluginRouteRequest(c.Request.URL.Path) {
+		if c.Request != nil && c.Request.Method == http.MethodOptions {
 			c.AbortWithStatus(http.StatusNoContent)
 			return
 		}

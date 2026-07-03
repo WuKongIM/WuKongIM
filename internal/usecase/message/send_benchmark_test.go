@@ -2,153 +2,75 @@ package message
 
 import (
 	"context"
-	"strconv"
+	"fmt"
 	"testing"
-	"time"
-
-	"github.com/WuKongIM/WuKongIM/internal/contracts/messageevents"
-	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
-	"github.com/WuKongIM/WuKongIM/pkg/legacy/channel"
-	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 )
 
-func BenchmarkSend(b *testing.B) {
-	ctx := context.Background()
-	for _, tc := range []struct {
-		name string
-		env  func(*testing.B) (*App, SendCommand)
-	}{
-		{name: "person_durable_channel_appender", env: newBenchPersonDurableChannelAppender},
-		{name: "group_durable_permission_cache", env: newBenchGroupDurablePermissionCache},
-		{name: "request_scoped_realtime", env: newBenchRequestScopedRealtime},
-	} {
-		b.Run(tc.name, func(b *testing.B) {
-			app, cmd := tc.env(b)
+var benchmarkMessageSendBatchSink []SendBatchItemResult
+
+func BenchmarkMessageSendBatchNoHook(b *testing.B) {
+	for _, count := range []int{1, 16, 128, 1024} {
+		b.Run(fmt.Sprintf("items_%d", count), func(b *testing.B) {
+			app := New(Options{Submitter: benchmarkMessageSubmitter{}})
+			items := benchmarkMessageSendBatchItems(count)
 			b.ReportAllocs()
-			b.ResetTimer()
+			b.SetBytes(int64(count * len(items[0].Command.Payload)))
 			for i := 0; i < b.N; i++ {
-				cmd.ClientSeq = uint64(i + 1)
-				cmd.ClientMsgNo = "bench-" + strconv.Itoa(i)
-				result, err := app.Send(ctx, cmd)
-				if err != nil {
-					b.Fatal(err)
-				}
-				if result.Reason != frame.ReasonSuccess {
-					b.Fatalf("Send().Reason = %v, want %v", result.Reason, frame.ReasonSuccess)
+				benchmarkMessageSendBatchSink = app.SendBatch(items)
+				if len(benchmarkMessageSendBatchSink) != count {
+					b.Fatalf("results = %d, want %d", len(benchmarkMessageSendBatchSink), count)
 				}
 			}
 		})
 	}
 }
 
-func newBenchPersonDurableChannelAppender(b *testing.B) (*App, SendCommand) {
-	b.Helper()
-	cluster := &benchmarkChannelAppender{}
-	app := New(Options{
-		Now:                 fixedNowFn,
-		ChannelAppender:     cluster,
-		CommittedDispatcher: benchmarkCommittedDispatcher{},
-		LocalNodeID:         1,
-	})
-	cmd := benchmarkSendCommand("u1", "u2", frame.ChannelTypePerson)
-	return app, cmd
-}
-
-func newBenchGroupDurablePermissionCache(b *testing.B) (*App, SendCommand) {
-	b.Helper()
-	permissions := newFakePermissionStore()
-	permissions.channels[permissionKey("g1", int64(frame.ChannelTypeGroup))] = metadb.Channel{
-		ChannelID:   "g1",
-		ChannelType: int64(frame.ChannelTypeGroup),
-	}
-	permissions.members[permissionKey("g1", int64(frame.ChannelTypeGroup))] = map[string]bool{"u1": true}
-	cluster := &benchmarkChannelAppender{}
-	app := New(Options{
-		Now:                 fixedNowFn,
-		ChannelAppender:     cluster,
-		CommittedDispatcher: benchmarkCommittedDispatcher{},
-		PermissionStore:     permissions,
-		PermissionCacheTTL:  benchmarkPermissionCacheTTL,
-		LocalNodeID:         1,
-	})
-	cmd := benchmarkSendCommand("u1", "g1", frame.ChannelTypeGroup)
-	return app, cmd
-}
-
-func newBenchRequestScopedRealtime(b *testing.B) (*App, SendCommand) {
-	b.Helper()
-	app := New(Options{
-		Now:                fixedNowFn,
-		MessageIDs:         &benchmarkMessageIDGenerator{},
-		RealtimeDispatcher: benchmarkRealtimeDispatcher{},
-	})
-	cmd := SendCommand{
-		Framer:             frame.Framer{NoPersist: true, SyncOnce: true},
-		FromUID:            "system",
-		RequestSubscribers: []string{"u1", "u2", "u3", "u2"},
-		Payload:            benchmarkSendPayload,
-		Topic:              "bench-topic",
-	}
-	return app, cmd
-}
-
-var benchmarkSendPayload = []byte("send benchmark payload")
-
-const benchmarkPermissionCacheTTL = 60 * time.Second
-
-func benchmarkSendCommand(fromUID, channelID string, channelType uint8) SendCommand {
-	return SendCommand{
-		FromUID:     fromUID,
-		ChannelID:   channelID,
-		ChannelType: channelType,
-		Payload:     benchmarkSendPayload,
-		Topic:       "bench-topic",
+func BenchmarkMessageSendBatchWithHook(b *testing.B) {
+	for _, count := range []int{1, 16, 128, 1024} {
+		b.Run(fmt.Sprintf("items_%d", count), func(b *testing.B) {
+			app := New(Options{Submitter: benchmarkMessageSubmitter{}, SendHook: benchmarkMessageSendHook{}})
+			items := benchmarkMessageSendBatchItems(count)
+			b.ReportAllocs()
+			b.SetBytes(int64(count * len(items[0].Command.Payload)))
+			for i := 0; i < b.N; i++ {
+				benchmarkMessageSendBatchSink = app.SendBatch(items)
+				if len(benchmarkMessageSendBatchSink) != count {
+					b.Fatalf("results = %d, want %d", len(benchmarkMessageSendBatchSink), count)
+				}
+			}
+		})
 	}
 }
 
-type benchmarkChannelAppender struct {
-	messageID  uint64
-	messageSeq uint64
+type benchmarkMessageSubmitter struct{}
+
+func (benchmarkMessageSubmitter) Send(context.Context, SendCommand) (SendResult, error) {
+	return SendResult{MessageID: 1, Reason: ReasonSuccess}, nil
 }
 
-func (c *benchmarkChannelAppender) Append(_ context.Context, req channel.AppendRequest) (channel.AppendResult, error) {
-	c.messageID++
-	c.messageSeq++
-	msg := req.Message
-	msg.MessageID = c.messageID
-	msg.MessageSeq = c.messageSeq
-	return channel.AppendResult{MessageID: msg.MessageID, MessageSeq: msg.MessageSeq, Message: msg}, nil
-}
-
-func (c *benchmarkChannelAppender) AppendBatch(_ context.Context, req channel.AppendBatchRequest) (channel.AppendBatchResult, error) {
-	items := make([]channel.AppendBatchItemResult, len(req.Messages))
-	for i, msg := range req.Messages {
-		c.messageID++
-		c.messageSeq++
-		msg.MessageID = c.messageID
-		msg.MessageSeq = c.messageSeq
-		items[i] = channel.AppendBatchItemResult{MessageID: msg.MessageID, MessageSeq: msg.MessageSeq, Message: msg}
+func (benchmarkMessageSubmitter) SendBatch(items []SendBatchItem) []SendBatchItemResult {
+	results := make([]SendBatchItemResult, len(items))
+	for i := range results {
+		results[i] = SendBatchItemResult{Result: SendResult{MessageID: uint64(i + 1), Reason: ReasonSuccess}}
 	}
-	return channel.AppendBatchResult{Items: items}, nil
+	return results
 }
 
-type benchmarkCommittedDispatcher struct{}
+type benchmarkMessageSendHook struct{}
 
-func (benchmarkCommittedDispatcher) SubmitCommitted(context.Context, messageevents.MessageCommitted) error {
-	return nil
+func (benchmarkMessageSendHook) BeforeSend(_ context.Context, cmd SendCommand) (SendCommand, Reason, error) {
+	return cmd, ReasonSuccess, nil
 }
 
-type benchmarkRealtimeDispatcher struct{}
-
-func (benchmarkRealtimeDispatcher) SubmitRealtime(context.Context, messageevents.MessageRealtime) error {
-	return nil
-}
-
-type benchmarkMessageIDGenerator struct {
-	next uint64
-}
-
-func (g *benchmarkMessageIDGenerator) Next() uint64 {
-	g.next++
-	return g.next
+func benchmarkMessageSendBatchItems(count int) []SendBatchItem {
+	items := make([]SendBatchItem, 0, count)
+	for i := 0; i < count; i++ {
+		items = append(items, SendBatchItem{Command: SendCommand{
+			FromUID:     fmt.Sprintf("u%d", i),
+			ChannelID:   "g1",
+			ChannelType: channelTypeGroup,
+			Payload:     []byte("hello"),
+		}})
+	}
+	return items
 }

@@ -9,5 +9,5 @@ control-plane behavior.
   `test/e2ev2/suite`.
 - Prefer public manager/API HTTP responses and real protocol traffic for
   assertions.
-- Do not import `internalv2/app`, `internalv2/usecase`, or storage internals.
+- Do not import `internal/app`, `internal/usecase`, or storage internals.
 - Keep reusable process harness additions in `test/e2ev2/suite`.

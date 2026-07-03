@@ -43,12 +43,11 @@ func (s *Server) handleLogin(c *gin.Context) {
 		jsonError(c, http.StatusInternalServerError, "internal_error", "failed to issue token")
 		return
 	}
-	expiresIn := int64(s.auth.jwtExpire / time.Second)
 	c.JSON(http.StatusOK, loginResponse{
 		Username:    req.Username,
 		TokenType:   "Bearer",
 		AccessToken: token,
-		ExpiresIn:   expiresIn,
+		ExpiresIn:   int64(s.auth.jwtExpire / time.Second),
 		ExpiresAt:   now.Add(s.auth.jwtExpire),
 		Permissions: loginPermissionDTOs(s.auth.permissionsFor(req.Username)),
 	})

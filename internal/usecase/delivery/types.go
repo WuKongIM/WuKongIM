@@ -1,22 +1,21 @@
 package delivery
 
-import (
-	"github.com/WuKongIM/WuKongIM/internal/contracts/deliveryevents"
-	runtimedelivery "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
-)
-
-func routeAckFromEvent(cmd deliveryevents.RouteAck) runtimedelivery.RouteAck {
-	return runtimedelivery.RouteAck{
-		UID:        cmd.UID,
-		SessionID:  cmd.SessionID,
-		MessageID:  cmd.MessageID,
-		MessageSeq: cmd.MessageSeq,
-	}
+// RecvackCommand records client receive acknowledgement feedback.
+type RecvackCommand struct {
+	// UID is the user id owning the acknowledged session.
+	UID string
+	// SessionID is the owner-local session identifier.
+	SessionID uint64
+	// MessageID is the globally unique durable message identifier.
+	MessageID uint64
+	// MessageSeq is the committed channel sequence acknowledged by the client.
+	MessageSeq uint64
 }
 
-func sessionClosedFromEvent(cmd deliveryevents.SessionClosed) runtimedelivery.SessionClosed {
-	return runtimedelivery.SessionClosed{
-		UID:       cmd.UID,
-		SessionID: cmd.SessionID,
-	}
+// SessionClosedCommand records a closed online delivery session.
+type SessionClosedCommand struct {
+	// UID is the user id owning the closed session.
+	UID string
+	// SessionID is the owner-local session identifier.
+	SessionID uint64
 }

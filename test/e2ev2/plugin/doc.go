@@ -1,2 +1,2 @@
-// Package plugin contains e2e-tagged internalv2 plugin compatibility tests.
+// Package plugin contains e2e-tagged internal plugin compatibility tests.
 package plugin

@@ -3,14 +3,13 @@ package gateway
 import (
 	"context"
 	"errors"
-	"sync"
 	"testing"
+	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	coregateway "github.com/WuKongIM/WuKongIM/pkg/gateway"
-	runtimechannelid "github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
-	"github.com/stretchr/testify/require"
 )
 
 type recordedLogEntry struct {
@@ -20,17 +19,7 @@ type recordedLogEntry struct {
 	fields []wklog.Field
 }
 
-func (e recordedLogEntry) field(key string) (wklog.Field, bool) {
-	for _, field := range e.fields {
-		if field.Key == key {
-			return field, true
-		}
-	}
-	return wklog.Field{}, false
-}
-
 type recordingLoggerSink struct {
-	mu      sync.Mutex
 	entries []recordedLogEntry
 }
 
@@ -51,11 +40,8 @@ func (r *recordingLogger) Error(msg string, fields ...wklog.Field) { r.log("ERRO
 func (r *recordingLogger) Fatal(msg string, fields ...wklog.Field) { r.log("FATAL", msg, fields...) }
 
 func (r *recordingLogger) Named(name string) wklog.Logger {
-	if name == "" {
-		return r
-	}
 	module := name
-	if r.module != "" {
+	if r.module != "" && name != "" {
 		module = r.module + "." + name
 	}
 	return &recordingLogger{module: module, base: append([]wklog.Field(nil), r.base...), sink: r.sink}
@@ -69,29 +55,86 @@ func (r *recordingLogger) With(fields ...wklog.Field) wklog.Logger {
 func (r *recordingLogger) Sync() error { return nil }
 
 func (r *recordingLogger) log(level, msg string, fields ...wklog.Field) {
-	if r == nil || r.sink == nil {
-		return
-	}
-	entry := recordedLogEntry{
+	all := append(append([]wklog.Field(nil), r.base...), fields...)
+	r.sink.entries = append(r.sink.entries, recordedLogEntry{
 		level:  level,
 		module: r.module,
 		msg:    msg,
-		fields: append(append([]wklog.Field(nil), r.base...), fields...),
-	}
-	r.sink.mu.Lock()
-	defer r.sink.mu.Unlock()
-	r.sink.entries = append(r.sink.entries, entry)
+		fields: all,
+	})
 }
 
 func (r *recordingLogger) entries() []recordedLogEntry {
-	if r == nil || r.sink == nil {
-		return nil
+	return append([]recordedLogEntry(nil), r.sink.entries...)
+}
+
+func TestHandlerLogsListenerAndSessionErrors(t *testing.T) {
+	logger := newRecordingLogger("internalv2.access.gateway")
+	handler := New(Options{Logger: logger})
+	listenerErr := errors.New("accept failed")
+	sessionErr := errors.New("decode failed")
+	sess := newTestSession(t, nil)
+	sess.SetValue(coregateway.SessionValueUID, "u1")
+
+	handler.OnListenerError("tcp", listenerErr)
+	handler.OnSessionError(coregateway.Context{Session: sess}, sessionErr)
+
+	requireLogEntry(t, logger, "ERROR", "internalv2.access.gateway.conn", "internalv2.access.gateway.listener_error")
+	sessionEntry := requireLogEntry(t, logger, "WARN", "internalv2.access.gateway.conn", "internalv2.access.gateway.session_error")
+	if got := requireFieldValue[string](t, sessionEntry, "uid"); got != "u1" {
+		t.Fatalf("uid field = %q, want u1", got)
 	}
-	r.sink.mu.Lock()
-	defer r.sink.mu.Unlock()
-	out := make([]recordedLogEntry, len(r.sink.entries))
-	copy(out, r.sink.entries)
-	return out
+}
+
+func TestHandlerLogsPresenceAndDeliveryCleanupFailures(t *testing.T) {
+	logger := newRecordingLogger("internalv2.access.gateway")
+	presenceErr := errors.New("presence cleanup failed")
+	deliveryErr := errors.New("delivery cleanup failed")
+	sess := newTestSession(t, nil)
+	sess.SetValue(coregateway.SessionValueUID, "u1")
+	handler := New(Options{
+		Logger:   logger,
+		Presence: &recordingPresence{deactivateErr: presenceErr, touchErr: presenceErr},
+		Delivery: &recordingDelivery{closedErr: deliveryErr, recvackErr: deliveryErr},
+	})
+
+	_ = handler.OnSessionClose(coregateway.Context{Session: sess, RequestContext: context.Background()})
+	handler.OnSessionActivateRollback(coregateway.Context{Session: sess, RequestContext: context.Background()}, errors.New("connack write failed"))
+	handler.touchPresence(&coregateway.Context{Session: sess, RequestContext: context.Background()}, time.Unix(100, 0))
+	_ = handler.handleRecvack(&coregateway.Context{Session: sess, RequestContext: context.Background()}, &frame.RecvackPacket{MessageID: 1})
+
+	requireLogEntry(t, logger, "WARN", "internalv2.access.gateway.conn", "internalv2.access.gateway.session_close_presence_failed")
+	requireLogEntry(t, logger, "WARN", "internalv2.access.gateway.conn", "internalv2.access.gateway.session_close_delivery_failed")
+	requireLogEntry(t, logger, "WARN", "internalv2.access.gateway.conn", "internalv2.access.gateway.activation_rollback_failed")
+	requireLogEntry(t, logger, "WARN", "internalv2.access.gateway.frame", "internalv2.access.gateway.presence_touch_failed")
+	requireLogEntry(t, logger, "WARN", "internalv2.access.gateway.frame", "internalv2.access.gateway.recvack_failed")
+}
+
+func TestOnSendBatchLogsResultCountMismatch(t *testing.T) {
+	logger := newRecordingLogger("internalv2.access.gateway")
+	var written []frame.Frame
+	sess := newTestSession(t, &written)
+	sess.SetValue(coregateway.SessionValueUID, "u1")
+	handler := New(Options{
+		Logger: logger,
+		Messages: &recordingMessages{
+			batchResults: []message.SendBatchItemResult{
+				{Result: message.SendResult{Reason: message.ReasonSuccess}},
+				{Result: message.SendResult{Reason: message.ReasonSuccess}},
+			},
+		},
+	})
+
+	err := handler.OnSendBatch([]coregateway.SendBatchItem{
+		{
+			Context: coregateway.Context{Session: sess, RequestContext: context.Background()},
+			Frame:   &frame.SendPacket{ClientSeq: 1, ClientMsgNo: "a", ChannelID: "ch1", ChannelType: 2, Payload: []byte("one")},
+		},
+	})
+	if !errors.Is(err, ErrSendBatchResultCountMismatch) {
+		t.Fatalf("OnSendBatch() error = %v, want %v", err, ErrSendBatchResultCountMismatch)
+	}
+	requireLogEntry(t, logger, "ERROR", "internalv2.access.gateway.frame", "internalv2.access.gateway.send_batch_result_count_mismatch")
 }
 
 func requireLogEntry(t *testing.T, logger *recordingLogger, level, module, event string) recordedLogEntry {
@@ -100,97 +143,29 @@ func requireLogEntry(t *testing.T, logger *recordingLogger, level, module, event
 		if entry.level != level || entry.module != module {
 			continue
 		}
-		field, ok := entry.field("event")
-		if ok && field.Value == event {
-			return entry
+		for _, field := range entry.fields {
+			if field.Key == "event" && field.Value == event {
+				return entry
+			}
 		}
 	}
-	t.Fatalf("log entry not found: level=%s module=%s event=%s entries=%#v", level, module, event, logger.entries())
+	t.Fatalf("missing log entry level=%s module=%s event=%s entries=%#v", level, module, event, logger.entries())
 	return recordedLogEntry{}
 }
 
 func requireFieldValue[T any](t *testing.T, entry recordedLogEntry, key string) T {
 	t.Helper()
-	field, ok := entry.field(key)
-	require.True(t, ok, "field %q not found in entry %#v", key, entry)
-	value, ok := field.Value.(T)
-	require.True(t, ok, "field %q has type %T, want %T", key, field.Value, *new(T))
-	return value
-}
-
-func TestHandlerOnSessionActivateLogsAuthFailure(t *testing.T) {
-	logger := newRecordingLogger("access.gateway")
-	handler := newHandlerWithPresence(t, &fakePresenceUsecase{}, Options{Logger: logger})
-
-	_, err := handler.OnSessionActivate(newOptionRecordingContext(1, "tcp"))
-	require.ErrorIs(t, err, ErrUnauthenticatedSession)
-
-	entry := requireLogEntry(t, logger, "WARN", "access.gateway.conn", "access.gateway.conn.auth_failed")
-	require.Equal(t, "reject unauthenticated session", entry.msg)
-	require.Equal(t, uint64(1), requireFieldValue[uint64](t, entry, "sessionID"))
-	require.EqualError(t, requireFieldValue[error](t, entry, "error"), ErrUnauthenticatedSession.Error())
-}
-
-func TestHandleSendLogsUsecaseInvalidPersonChannel(t *testing.T) {
-	logger := newRecordingLogger("access.gateway")
-	sender := newOptionRecordingSession(1, "tcp")
-	sender.SetValue(coregateway.SessionValueUID, "u1")
-	handler := New(Options{Logger: logger, Messages: &fakeMessageUsecase{sendErr: runtimechannelid.ErrInvalidPersonChannel}})
-
-	err := handler.OnFrame(*newSendContext(sender), &frame.SendPacket{
-		ChannelID:   "u3@u4",
-		ChannelType: frame.ChannelTypePerson,
-		ClientSeq:   2,
-		ClientMsgNo: "m-invalid",
-	})
-	require.NoError(t, err)
-	require.Len(t, sender.Writes(), 1)
-	ack := requireSendackPacket(t, sender.Writes()[0].f)
-	require.Equal(t, frame.ReasonChannelIDError, ack.ReasonCode)
-
-	entry := requireLogEntry(t, logger, "WARN", "access.gateway.frame", "access.gateway.frame.send_failed")
-	require.Equal(t, "send request failed", entry.msg)
-	require.Equal(t, "message.send", requireFieldValue[string](t, entry, "sourceModule"))
-	require.Equal(t, uint64(1), requireFieldValue[uint64](t, entry, "sessionID"))
-	require.Equal(t, "u1", requireFieldValue[string](t, entry, "uid"))
-	require.Equal(t, "u3@u4", requireFieldValue[string](t, entry, "channelID"))
-	require.EqualError(t, requireFieldValue[error](t, entry, "error"), "runtime/channelid: invalid person channel")
-}
-
-func TestHandleSendLogsContextualWarnWithSourceModule(t *testing.T) {
-	logger := newRecordingLogger("access.gateway")
-	sender := newOptionRecordingSession(1, "tcp")
-	sender.SetValue(coregateway.SessionValueUID, "u1")
-	handler := New(Options{Logger: logger, Messages: &fakeMessageUsecase{sendErr: errors.New("raft quorum unavailable")}})
-
-	err := handler.OnFrame(*newSendContext(sender), &frame.SendPacket{
-		ChannelID:   "u2",
-		ChannelType: frame.ChannelTypePerson,
-		ClientSeq:   13,
-		ClientMsgNo: "m4",
-		Payload:     []byte("hi"),
-	})
-	require.Error(t, err)
-
-	entry := requireLogEntry(t, logger, "WARN", "access.gateway.frame", "access.gateway.frame.send_failed")
-	require.Equal(t, "send request failed", entry.msg)
-	require.Equal(t, "message.send", requireFieldValue[string](t, entry, "sourceModule"))
-	require.Equal(t, uint64(1), requireFieldValue[uint64](t, entry, "sessionID"))
-	require.Equal(t, "u1", requireFieldValue[string](t, entry, "uid"))
-	require.Equal(t, "u2", requireFieldValue[string](t, entry, "channelID"))
-	require.EqualError(t, requireFieldValue[error](t, entry, "error"), "raft quorum unavailable")
-}
-
-func newOptionRecordingContext(sessionID uint64, listener string) *coregateway.Context {
-	sess := newOptionRecordingSession(sessionID, listener)
-	return &coregateway.Context{Session: sess, Listener: listener}
-}
-
-func newSendContext(sender *optionRecordingSession) *coregateway.Context {
-	return &coregateway.Context{
-		Session:        sender,
-		Listener:       sender.Listener(),
-		ReplyToken:     "reply-1",
-		RequestContext: context.Background(),
+	for _, field := range entry.fields {
+		if field.Key != key {
+			continue
+		}
+		value, ok := field.Value.(T)
+		if !ok {
+			t.Fatalf("field %q type = %T, want requested type", key, field.Value)
+		}
+		return value
 	}
+	var zero T
+	t.Fatalf("missing field %q in %#v", key, entry.fields)
+	return zero
 }

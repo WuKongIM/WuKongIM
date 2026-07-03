@@ -1,23 +1,23 @@
 # Project Knowledge
 
-## Internalv2
+## Internal
 
-- `internalv2` phase 1 is a parallel send-to-sendack skeleton: gateway SEND maps to `usecase/message.SendBatch`, appends through `infra/cluster.ChannelAppender`, and returns SENDACK after `pkg/cluster` / `pkg/channel` append.
-- `internalv2` single-node deployments must use single-node cluster config. Do not add send or storage paths that bypass cluster semantics.
-- `internalv2/app` seeds message IDs from the effective cluster node ID: `Config.Cluster.NodeID` when set, otherwise top-level `Config.NodeID`.
-- `cmd/wukongim` is the promoted v2 product entrypoint. ControllerV2, the new
-  cluster runtime, and the multi-reactor channel runtime are promoted to
-  canonical `pkg/controller`, `pkg/cluster`, and `pkg/channel`; `internalv2`
-  remains until the internal package promotion stage.
+- `internal` is the promoted send-to-sendack kernel: gateway SEND maps to `usecase/message.SendBatch`, appends through `infra/cluster.ChannelAppender`, and returns SENDACK after `pkg/cluster` / `pkg/channel` append.
+- `internal` single-node deployments must use single-node cluster config. Do not add send or storage paths that bypass cluster semantics.
+- `internal/app` seeds message IDs from the effective cluster node ID: `Config.Cluster.NodeID` when set, otherwise top-level `Config.NodeID`.
+- `cmd/wukongim` is the promoted product entrypoint. ControllerV2, the new
+  cluster runtime, the multi-reactor channel runtime, and the new business
+  kernel are canonical under `pkg/controller`, `pkg/cluster`, `pkg/channel`,
+  and `internal`; the former v1 server runtime lives under `internal/legacy`.
 - Runnable `wukongim` helper-script configs live under `scripts/wukongim/` as `.conf`; `.conf.example` files are samples only and should not be script defaults.
 - `wukongim` bottleneck attribution uses Prometheus `/metrics` when `WK_METRICS_ENABLE=true`; compare gateway async SEND, ChannelV2 reactor/worker queue plus in-flight peak, and storage commit request-vs-batch metrics split by `leader_append` / `follower_apply` lane. `/bench/v1/snapshot` remains a benchmark setup counter surface.
 - `WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS` and `WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS` cap ChannelV2 blocking store worker concurrency only; use them after worker in-flight peaks and storage lane tails show commit-coordinator pressure, never as a durability shortcut.
 - ChannelV2 ordinary follower progress ACKs are safe only because they are sent after follower durable apply; Pull `AckOffset` remains the fallback, and leader HW still advances through normal quorum checks.
 - `pkg/channel` high-channel idle scale depends on parked followers: caught-up followers should wake through PullHint plus send-timeout-bounded recovery probes, not short-interval empty pull polling.
 - `cluster/channels` caches append ChannelRuntimeMeta with epoch and leader fences; Slot metadata remains authoritative and stale append errors invalidate the cache once before retry.
-- `internalv2` presence stores owner-local `OwnerRoute` projections for authority/touch; concrete gateway session handles must stay out of authority routes and live only in owner-local session records used for conflict close actions.
-- `internalv2/runtime/delivery` is the no-gateway/no-cluster benchmark boundary for online fanout, owner push batching, and recipient-owner recvack tracking.
-- `internalv2` webhook delivery is a node-local best-effort post-commit side effect with bounded queues and finite retry. Large offline fanout should use batch observer/chunking, and webhook failure must not affect SENDACK, durable append, conversation active admission, or owner delivery.
+- `internal` presence stores owner-local `OwnerRoute` projections for authority/touch; concrete gateway session handles must stay out of authority routes and live only in owner-local session records used for conflict close actions.
+- `internal/runtime/delivery` is the no-gateway/no-cluster benchmark boundary for online fanout, owner push batching, and recipient-owner recvack tracking.
+- `internal` webhook delivery is a node-local best-effort post-commit side effect with bounded queues and finite retry. Large offline fanout should use batch observer/chunking, and webhook failure must not affect SENDACK, durable append, conversation active admission, or owner delivery.
 
 ## Gateway Runtime
 
@@ -48,7 +48,7 @@
 - `RouteGeneration` is the authoritative route identity for channel runtime metadata and peer RPC fencing; stale route records must be treated as a different append route even if the channel ID is unchanged.
 - Channel status permissions currently include group `Ban`/`Disband` and sender person-channel `SendBan`.
 - `NoPersist` sends still pass validation and send permissions, then skip durable append/committed events and return success with zero message ID/seq.
-- In internalv2, channel-scoped `SyncOnce` sends keep the source channel log, persist the `SyncOnce` marker in ChannelV2 records, project `ConversationKindCMD`, and are skipped by ordinary conversation hydration.
+- In internal, channel-scoped `SyncOnce` sends keep the source channel log, persist the `SyncOnce` marker in ChannelV2 records, project `ConversationKindCMD`, and are skipped by ordinary conversation hydration.
 - `/message/send` request-scoped `subscribers` 要求 `sync_once=1` 且 `channel_id` 为空；`channel_type` 被忽略，内部派生 temp `____cmd` channel。
 - Durable request-scoped subscriber sends write the derived temp cmd channel and carry exact `MessageScopedUIDs`; NoPersist request-scoped sends use a transient message ID and realtime delivery.
 - Message-scoped delivery tags are ephemeral: they must not replace reusable channel-level delivery tag refs, and their exact subscriber snapshot is not recoverable from durable log replay alone.
@@ -184,7 +184,7 @@
 - Plugin sends must go through `message.App.Send`; PersistAfter runs only on the channel owner node.
 - Plugin migration changes should rerun the microbenchmark baseline in `docs/development/PLUGIN_BENCHMARK_BASELINE.md`, especially Send hook selection, host RPC mapping, PersistAfter, HTTP forward, and NoPersist realtime delivery.
 - Plugin wire contracts live in `pkg/plugin/pluginproto`; keep protobuf field numbers compatible with `github.com/WuKongIM/go-pdk` and do not add new imports of old `internal/usecase/plugin/pluginproto`.
-- The node-local plugin process host lives in `pkg/plugin/pluginhost`; v2 app wiring adapts it to `internalv2/usecase/plugin` without depending on old `internal/runtime/plugin`.
+- The node-local plugin process host lives in `pkg/plugin/pluginhost`; internal app wiring adapts it to `internal/usecase/plugin` without depending on old `internal/legacy/runtime/plugin`.
 
 ## Development Workflow
 

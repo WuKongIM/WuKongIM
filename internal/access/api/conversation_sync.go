@@ -1,192 +1,173 @@
 package api
 
 import (
-	"errors"
 	"net/http"
+	"strconv"
+	"strings"
+	"time"
 
 	conversationusecase "github.com/WuKongIM/WuKongIM/internal/usecase/conversation"
+	messageusecase "github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	runtimechannelid "github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/gin-gonic/gin"
 )
 
+type syncConversationRequest struct {
+	UID                 string  `json:"uid"`
+	Version             int64   `json:"version"`
+	LastMsgSeqs         string  `json:"last_msg_seqs"`
+	MsgCount            int     `json:"msg_count"`
+	OnlyUnread          uint8   `json:"only_unread"`
+	ExcludeChannelTypes []uint8 `json:"exclude_channel_types"`
+	Limit               int     `json:"limit"`
+}
+
+type legacyConversationResponse struct {
+	ChannelID       string              `json:"channel_id"`
+	ChannelType     uint8               `json:"channel_type"`
+	Unread          int                 `json:"unread"`
+	Timestamp       int64               `json:"timestamp"`
+	LastMsgSeq      uint32              `json:"last_msg_seq"`
+	LastClientMsgNo string              `json:"last_client_msg_no"`
+	OffsetMsgSeq    int64               `json:"offset_msg_seq"`
+	ReadedToMsgSeq  uint32              `json:"readed_to_msg_seq"`
+	Version         int64               `json:"version"`
+	Recents         []legacyMessageResp `json:"recents,omitempty"`
+}
+
 func (s *Server) handleConversationSync(c *gin.Context) {
-	if s == nil {
-		writeJSONError(c, http.StatusServiceUnavailable, "server not available")
-		return
-	}
-
+	start := time.Now()
 	var req syncConversationRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		writeJSONError(c, http.StatusBadRequest, "invalid request")
+	if !bindJSON(c, &req) {
+		s.observeConversationSync(ConversationSyncObservation{Result: "invalid_request", Duration: time.Since(start)})
 		return
 	}
+	onlyUnread := req.OnlyUnread == 1
+	withRecents := req.MsgCount > 0
 	if req.UID == "" {
-		writeJSONError(c, http.StatusBadRequest, "invalid request")
+		writeJSONError(c, "invalid request")
+		s.observeConversationSync(ConversationSyncObservation{Result: "invalid_request", Duration: time.Since(start), OnlyUnread: onlyUnread, WithRecents: withRecents})
 		return
 	}
-	if s.conversations == nil {
-		writeJSONError(c, http.StatusInternalServerError, "conversation usecase not configured")
+	if s == nil || s.conversations == nil {
+		writeJSONError(c, "conversation usecase not configured")
+		s.observeConversationSync(ConversationSyncObservation{Result: "not_configured", Duration: time.Since(start), OnlyUnread: onlyUnread, WithRecents: withRecents})
 		return
 	}
-
 	lastMsgSeqs, err := parseLegacyLastMsgSeqs(req.UID, req.LastMsgSeqs)
 	if err != nil {
-		writeJSONError(c, http.StatusBadRequest, "invalid last_msg_seqs")
+		writeJSONError(c, "invalid last_msg_seqs")
+		s.observeConversationSync(ConversationSyncObservation{Result: "parse_last_msg_seqs_error", Duration: time.Since(start), OnlyUnread: onlyUnread, WithRecents: withRecents})
 		return
 	}
-
-	limit := req.Limit
-	if limit <= 0 {
-		limit = s.conversationDefaultLimit
-	}
-	if s.conversationMaxLimit > 0 && limit > s.conversationMaxLimit {
-		limit = s.conversationMaxLimit
-	}
-
 	result, err := s.conversations.Sync(c.Request.Context(), conversationusecase.SyncQuery{
 		UID:                 req.UID,
 		Version:             req.Version,
 		LastMsgSeqs:         lastMsgSeqs,
 		MsgCount:            req.MsgCount,
-		OnlyUnread:          req.OnlyUnread == 1,
+		OnlyUnread:          onlyUnread,
 		ExcludeChannelTypes: append([]uint8(nil), req.ExcludeChannelTypes...),
-		Limit:               limit,
+		Limit:               req.Limit,
 	})
 	if err != nil {
-		writeJSONError(c, http.StatusInternalServerError, err.Error())
+		writeJSONError(c, err.Error())
+		s.observeConversationSync(ConversationSyncObservation{Result: "error", Duration: time.Since(start), OnlyUnread: onlyUnread, WithRecents: withRecents})
 		return
 	}
-
 	resp := make([]legacyConversationResponse, 0, len(result.Conversations))
 	for _, item := range result.Conversations {
 		resp = append(resp, newLegacyConversationResponse(req.UID, item))
 	}
+	s.observeConversationSync(ConversationSyncObservation{
+		Result:             "ok",
+		Duration:           time.Since(start),
+		OnlyUnread:         onlyUnread,
+		WithRecents:        withRecents,
+		ReturnedItems:      len(result.Conversations),
+		OverlayItems:       result.OverlayItems,
+		RecentLoadDuration: result.RecentLoadDuration,
+	})
 	c.JSON(http.StatusOK, resp)
 }
 
-func (s *Server) handleConversationClearUnread(c *gin.Context) {
-	var req clearConversationUnreadRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		writeLegacyJSONError(c, "数据格式有误！")
+func (s *Server) observeConversationSync(event ConversationSyncObservation) {
+	if s == nil || s.conversationSyncObserver == nil {
 		return
 	}
-	if err := validateClearConversationUnreadRequest(req); err != nil {
-		writeLegacyJSONError(c, err.Error())
-		return
+	if event.Result == "" {
+		event.Result = "error"
 	}
-	if s == nil || s.conversations == nil {
-		writeLegacyJSONError(c, "conversation usecase not configured")
-		return
+	if event.Duration <= 0 {
+		event.Duration = time.Nanosecond
 	}
-
-	channelID, err := normalizeLegacyConversationChannelID(req.UID, req.ChannelID, req.ChannelType)
-	if err != nil {
-		writeLegacyJSONError(c, "invalid channel_id")
-		return
-	}
-	if err := s.conversations.ClearUnread(c.Request.Context(), conversationusecase.ClearUnreadCommand{
-		UID:         req.UID,
-		ChannelID:   channelID,
-		ChannelType: req.ChannelType,
-		MessageSeq:  req.MessageSeq,
-	}); err != nil {
-		writeLegacyJSONError(c, err.Error())
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"status": http.StatusOK})
+	s.conversationSyncObserver.ObserveConversationSync(event)
 }
 
-func (s *Server) handleConversationSetUnread(c *gin.Context) {
-	var req setConversationUnreadRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		writeLegacyJSONError(c, "数据格式有误！")
-		return
+func parseLegacyLastMsgSeqs(uid, raw string) (map[conversationusecase.ConversationKey]uint64, error) {
+	if strings.TrimSpace(raw) == "" {
+		return nil, nil
 	}
-	if err := validateSetConversationUnreadRequest(req); err != nil {
-		writeLegacyJSONError(c, err.Error())
-		return
+	items := strings.Split(raw, "|")
+	out := make(map[conversationusecase.ConversationKey]uint64, len(items))
+	for _, item := range items {
+		parts := strings.Split(item, ":")
+		if len(parts) != 3 || parts[0] == "" {
+			return nil, strconv.ErrSyntax
+		}
+		channelType, err := strconv.ParseUint(parts[1], 10, 8)
+		if err != nil {
+			return nil, err
+		}
+		lastMsgSeq, err := strconv.ParseUint(parts[2], 10, 64)
+		if err != nil {
+			return nil, err
+		}
+		channelID := parts[0]
+		if uint8(channelType) == frame.ChannelTypePerson {
+			channelID, err = runtimechannelid.NormalizePersonChannel(uid, channelID)
+			if err != nil {
+				return nil, err
+			}
+		}
+		out[conversationusecase.ConversationKey{
+			ChannelID:   channelID,
+			ChannelType: int64(channelType),
+		}] = lastMsgSeq
 	}
-	if s == nil || s.conversations == nil {
-		writeLegacyJSONError(c, "conversation usecase not configured")
-		return
-	}
-
-	channelID, err := normalizeLegacyConversationChannelID(req.UID, req.ChannelID, req.ChannelType)
-	if err != nil {
-		writeLegacyJSONError(c, "invalid channel_id")
-		return
-	}
-	if err := s.conversations.SetUnread(c.Request.Context(), conversationusecase.SetUnreadCommand{
-		UID:         req.UID,
-		ChannelID:   channelID,
-		ChannelType: req.ChannelType,
-		Unread:      req.Unread,
-	}); err != nil {
-		writeLegacyJSONError(c, err.Error())
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"status": http.StatusOK})
+	return out, nil
 }
 
-func (s *Server) handleConversationDelete(c *gin.Context) {
-	var req clearConversationUnreadRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		writeLegacyJSONError(c, "数据格式有误！")
-		return
+func newLegacyConversationResponse(uid string, item conversationusecase.SyncConversation) legacyConversationResponse {
+	resp := legacyConversationResponse{
+		ChannelID:       legacyMessageChannelID(uid, item.ChannelID, item.ChannelType),
+		ChannelType:     item.ChannelType,
+		Unread:          item.Unread,
+		Timestamp:       item.Timestamp,
+		LastMsgSeq:      item.LastMsgSeq,
+		LastClientMsgNo: item.LastClientMsgNo,
+		OffsetMsgSeq:    0,
+		ReadedToMsgSeq:  item.ReadToMsgSeq,
+		Version:         item.Version,
 	}
-	if err := validateClearConversationUnreadRequest(req); err != nil {
-		writeLegacyJSONError(c, err.Error())
-		return
+	if len(item.Recents) > 0 {
+		resp.Recents = make([]legacyMessageResp, 0, len(item.Recents))
+		for _, msg := range item.Recents {
+			resp.Recents = append(resp.Recents, newLegacyConversationRecentResp(uid, msg))
+		}
 	}
-	if s == nil || s.conversations == nil {
-		writeLegacyJSONError(c, "conversation usecase not configured")
-		return
-	}
-
-	channelID, err := normalizeLegacyConversationChannelID(req.UID, req.ChannelID, req.ChannelType)
-	if err != nil {
-		writeLegacyJSONError(c, "invalid channel_id")
-		return
-	}
-	if err := s.conversations.DeleteConversation(c.Request.Context(), conversationusecase.DeleteConversationCommand{
-		UID:         req.UID,
-		ChannelID:   channelID,
-		ChannelType: req.ChannelType,
-		MessageSeq:  req.MessageSeq,
-	}); err != nil {
-		writeLegacyJSONError(c, err.Error())
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"status": http.StatusOK})
+	return resp
 }
 
-func validateClearConversationUnreadRequest(req clearConversationUnreadRequest) error {
-	if req.UID == "" {
-		return errors.New("uid cannot be empty")
-	}
-	if req.ChannelID == "" || req.ChannelType == 0 {
-		return errors.New("channel_id or channel_type cannot be empty")
-	}
-	return nil
-}
-
-func validateSetConversationUnreadRequest(req setConversationUnreadRequest) error {
-	if req.UID == "" {
-		return errors.New("UID cannot be empty")
-	}
-	if req.ChannelID == "" || req.ChannelType == 0 {
-		return errors.New("channel_id or channel_type cannot be empty")
-	}
-	if req.Unread < 0 {
-		return errors.New("unread cannot be negative")
-	}
-	return nil
-}
-
-func normalizeLegacyConversationChannelID(uid, channelID string, channelType uint8) (string, error) {
-	if channelType != frame.ChannelTypePerson {
-		return channelID, nil
-	}
-	return runtimechannelid.NormalizePersonChannel(uid, channelID)
+func newLegacyConversationRecentResp(uid string, msg conversationusecase.SyncMessage) legacyMessageResp {
+	return newLegacyMessageResp(uid, messageusecase.SyncedMessage{
+		MessageID:   msg.MessageID,
+		ClientMsgNo: msg.ClientMsgNo,
+		MessageSeq:  msg.MessageSeq,
+		FromUID:     msg.FromUID,
+		ChannelID:   msg.ChannelID,
+		ChannelType: msg.ChannelType,
+		Timestamp:   int32(msg.ServerTimestampMS / 1000),
+		Payload:     append([]byte(nil), msg.Payload...),
+	})
 }

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -50,147 +51,161 @@ type channelKeyRequest struct {
 	ChannelType uint8  `json:"channel_type"`
 }
 
+func (s *Server) registerChannelRoutes() {
+	if s == nil || s.engine == nil {
+		return
+	}
+	s.engine.POST("/channel", s.handleChannelUpsert)
+	s.engine.POST("/channel/info", s.handleChannelInfo)
+	s.engine.POST("/channel/delete", s.handleChannelDelete)
+	s.engine.POST("/channel/subscriber_add", s.handleChannelSubscriberAdd)
+	s.engine.POST("/channel/subscriber_remove", s.handleChannelSubscriberRemove)
+	s.engine.POST("/channel/subscriber_remove_all", s.handleChannelSubscriberRemoveAll)
+	s.engine.POST("/tmpchannel/subscriber_set", s.handleTmpChannelSubscriberSet)
+	s.engine.POST("/channel/blacklist_add", s.handleChannelDenylistAdd)
+	s.engine.POST("/channel/blacklist_set", s.handleChannelDenylistSet)
+	s.engine.POST("/channel/blacklist_remove", s.handleChannelDenylistRemove)
+	s.engine.POST("/channel/blacklist_remove_all", s.handleChannelDenylistRemoveAll)
+	s.engine.POST("/channel/whitelist_add", s.handleChannelAllowlistAdd)
+	s.engine.POST("/channel/whitelist_set", s.handleChannelAllowlistSet)
+	s.engine.POST("/channel/whitelist_remove", s.handleChannelAllowlistRemove)
+	s.engine.POST("/channel/whitelist_remove_all", s.handleChannelAllowlistRemoveAll)
+	s.engine.GET("/channel/whitelist", s.handleChannelAllowlistGet)
+}
+
 func (s *Server) handleChannelUpsert(c *gin.Context) {
 	var req channelUpsertRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		writeLegacyJSONError(c, "数据格式有误！")
+	if !bindJSON(c, &req) {
 		return
 	}
 	if errMsg := validateChannelUpsert(req); errMsg != "" {
-		writeLegacyJSONError(c, errMsg)
+		writeJSONError(c, errMsg)
 		return
 	}
 	if req.ChannelType == frame.ChannelTypePerson && len(req.Subscribers) > 0 {
-		writeLegacyJSONError(c, "不支持个人频道添加订阅者！")
+		writeJSONError(c, "不支持个人频道添加订阅者！")
 		return
 	}
 	if err := s.requireChannelUsecase(); err != nil {
-		writeLegacyJSONError(c, err.Error())
+		writeJSONError(c, err.Error())
 		return
 	}
-	err := s.channels.Upsert(c.Request.Context(), channelusecase.UpsertCommand{
+	writeMutationResult(c, s.channels.Upsert(c.Request.Context(), channelusecase.UpsertCommand{
 		Info:        req.toInfo(),
 		Reset:       req.Reset == 1,
 		Subscribers: req.Subscribers,
-	})
-	writeLegacyMutationResult(c, err)
+	}))
 }
 
 func (s *Server) handleChannelInfo(c *gin.Context) {
 	var req channelInfoRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		writeLegacyJSONError(c, "数据格式有误！")
+	if !bindJSON(c, &req) {
 		return
 	}
 	if err := s.requireChannelUsecase(); err != nil {
-		writeLegacyJSONError(c, err.Error())
+		writeJSONError(c, err.Error())
 		return
 	}
-	writeLegacyMutationResult(c, s.channels.UpdateInfo(c.Request.Context(), req.toInfo()))
+	writeMutationResult(c, s.channels.UpdateInfo(c.Request.Context(), req.toInfo()))
 }
 
 func (s *Server) handleChannelDelete(c *gin.Context) {
 	var req channelKeyRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		writeLegacyJSONError(c, "数据格式有误！")
+	if !bindJSON(c, &req) {
 		return
 	}
 	if req.ChannelType == frame.ChannelTypePerson {
-		writeLegacyJSONError(c, "个人频道不支持添加订阅者！")
+		writeJSONError(c, "个人频道不支持添加订阅者！")
 		return
 	}
 	if err := s.requireChannelUsecase(); err != nil {
-		writeLegacyJSONError(c, err.Error())
+		writeJSONError(c, err.Error())
 		return
 	}
-	writeLegacyMutationResult(c, s.channels.Delete(c.Request.Context(), req.toKey()))
+	writeMutationResult(c, s.channels.Delete(c.Request.Context(), req.toKey()))
 }
 
 func (s *Server) handleChannelSubscriberAdd(c *gin.Context) {
 	var req channelSubscriberRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		writeLegacyJSONError(c, "数据格式有误！")
+	if !bindJSON(c, &req) {
 		return
 	}
 	if errMsg := validateSubscriberChange(req); errMsg != "" {
-		writeLegacyJSONError(c, errMsg)
+		writeJSONError(c, errMsg)
 		return
 	}
 	if req.ChannelType == frame.ChannelTypePerson {
-		writeLegacyJSONError(c, "个人频道不支持添加订阅者！")
+		writeJSONError(c, "个人频道不支持添加订阅者！")
 		return
 	}
 	if req.TempSubscriber == 1 {
-		writeLegacyJSONError(c, "新版本临时订阅者已不支持！")
+		writeJSONError(c, "新版本临时订阅者已不支持！")
 		return
 	}
 	if req.ChannelType == 0 {
 		req.ChannelType = frame.ChannelTypeGroup
 	}
 	if err := s.requireChannelUsecase(); err != nil {
-		writeLegacyJSONError(c, err.Error())
+		writeJSONError(c, err.Error())
 		return
 	}
-	writeLegacyMutationResult(c, s.channels.AddSubscribers(c.Request.Context(), req.toSubscriberCommand()))
+	writeMutationResult(c, s.channels.AddSubscribers(c.Request.Context(), req.toSubscriberCommand()))
 }
 
 func (s *Server) handleChannelSubscriberRemove(c *gin.Context) {
 	var req channelSubscriberRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		writeLegacyJSONError(c, "数据格式有误！")
+	if !bindJSON(c, &req) {
 		return
 	}
 	if errMsg := validateSubscriberChange(req); errMsg != "" {
-		writeLegacyJSONError(c, errMsg)
+		writeJSONError(c, errMsg)
 		return
 	}
 	if req.ChannelType == frame.ChannelTypePerson {
-		writeLegacyJSONError(c, "个人频道不支持添加订阅者！")
+		writeJSONError(c, "个人频道不支持添加订阅者！")
 		return
 	}
 	if err := s.requireChannelUsecase(); err != nil {
-		writeLegacyJSONError(c, err.Error())
+		writeJSONError(c, err.Error())
 		return
 	}
-	writeLegacyMutationResult(c, s.channels.RemoveSubscribers(c.Request.Context(), req.toSubscriberCommand()))
+	writeMutationResult(c, s.channels.RemoveSubscribers(c.Request.Context(), req.toSubscriberCommand()))
 }
 
 func (s *Server) handleChannelSubscriberRemoveAll(c *gin.Context) {
 	var req channelKeyRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		writeLegacyJSONError(c, "数据格式有误！")
+	if !bindJSON(c, &req) {
 		return
 	}
 	if errMsg := validateChannelKey(req); errMsg != "" {
-		writeLegacyJSONError(c, errMsg)
+		writeJSONError(c, errMsg)
 		return
 	}
 	if req.ChannelType == frame.ChannelTypePerson {
-		writeLegacyJSONError(c, "个人频道不支持此操作！")
+		writeJSONError(c, "个人频道不支持此操作！")
 		return
 	}
 	if err := s.requireChannelUsecase(); err != nil {
-		writeLegacyJSONError(c, err.Error())
+		writeJSONError(c, err.Error())
 		return
 	}
-	writeLegacyMutationResult(c, s.channels.RemoveAllSubscribers(c.Request.Context(), req.toKey()))
+	writeMutationResult(c, s.channels.RemoveAllSubscribers(c.Request.Context(), req.toKey()))
 }
 
 func (s *Server) handleTmpChannelSubscriberSet(c *gin.Context) {
 	var req tmpChannelSubscriberRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		writeLegacyJSONError(c, "数据格式有误！")
+	if !bindJSON(c, &req) {
 		return
 	}
 	if errMsg := validateTmpSubscriberSet(req); errMsg != "" {
-		writeLegacyJSONError(c, errMsg)
+		writeJSONError(c, errMsg)
 		return
 	}
 	if err := s.requireChannelUsecase(); err != nil {
-		writeLegacyJSONError(c, err.Error())
+		writeJSONError(c, err.Error())
 		return
 	}
-	writeLegacyMutationResult(c, s.channels.SetTempSubscribers(c.Request.Context(), channelusecase.TempSubscriberCommand{
+	writeMutationResult(c, s.channels.SetTempSubscribers(c.Request.Context(), channelusecase.TempSubscriberCommand{
 		ChannelID: req.ChannelID,
 		UIDs:      req.UIDs,
 	}))
@@ -198,98 +213,98 @@ func (s *Server) handleTmpChannelSubscriberSet(c *gin.Context) {
 
 func (s *Server) handleChannelDenylistAdd(c *gin.Context) {
 	var req channelMemberRequest
-	if !bindLegacyChannelMember(c, &req, true) {
+	if !bindChannelMember(c, &req, true) {
 		return
 	}
 	if err := s.requireChannelUsecase(); err != nil {
-		writeLegacyJSONError(c, err.Error())
+		writeJSONError(c, err.Error())
 		return
 	}
-	writeLegacyMutationResult(c, s.channels.AddDenylist(c.Request.Context(), req.toMemberCommand()))
+	writeMutationResult(c, s.channels.AddDenylist(c.Request.Context(), req.toMemberCommand()))
 }
 
 func (s *Server) handleChannelDenylistSet(c *gin.Context) {
 	var req channelMemberRequest
-	if !bindLegacyChannelMemberSet(c, &req) {
+	if !bindChannelMemberSet(c, &req) {
 		return
 	}
 	if err := s.requireChannelUsecase(); err != nil {
-		writeLegacyJSONError(c, err.Error())
+		writeJSONError(c, err.Error())
 		return
 	}
-	writeLegacyMutationResult(c, s.channels.SetDenylist(c.Request.Context(), req.toMemberCommand()))
+	writeMutationResult(c, s.channels.SetDenylist(c.Request.Context(), req.toMemberCommand()))
 }
 
 func (s *Server) handleChannelDenylistRemove(c *gin.Context) {
 	var req channelMemberRequest
-	if !bindLegacyChannelMember(c, &req, false) {
+	if !bindChannelMember(c, &req, false) {
 		return
 	}
 	if err := s.requireChannelUsecase(); err != nil {
-		writeLegacyJSONError(c, err.Error())
+		writeJSONError(c, err.Error())
 		return
 	}
-	writeLegacyMutationResult(c, s.channels.RemoveDenylist(c.Request.Context(), req.toMemberCommand()))
+	writeMutationResult(c, s.channels.RemoveDenylist(c.Request.Context(), req.toMemberCommand()))
 }
 
 func (s *Server) handleChannelDenylistRemoveAll(c *gin.Context) {
 	var req channelKeyRequest
-	if !bindLegacyChannelKey(c, &req) {
+	if !bindChannelKey(c, &req) {
 		return
 	}
 	if err := s.requireChannelUsecase(); err != nil {
-		writeLegacyJSONError(c, err.Error())
+		writeJSONError(c, err.Error())
 		return
 	}
-	writeLegacyMutationResult(c, s.channels.RemoveAllDenylist(c.Request.Context(), req.toKey()))
+	writeMutationResult(c, s.channels.RemoveAllDenylist(c.Request.Context(), req.toKey()))
 }
 
 func (s *Server) handleChannelAllowlistAdd(c *gin.Context) {
 	var req channelMemberRequest
-	if !bindLegacyAllowMember(c, &req) {
+	if !bindAllowMember(c, &req) {
 		return
 	}
 	if err := s.requireChannelUsecase(); err != nil {
-		writeLegacyJSONError(c, err.Error())
+		writeJSONError(c, err.Error())
 		return
 	}
-	writeLegacyMutationResult(c, s.channels.AddAllowlist(c.Request.Context(), req.toMemberCommand()))
+	writeMutationResult(c, s.channels.AddAllowlist(c.Request.Context(), req.toMemberCommand()))
 }
 
 func (s *Server) handleChannelAllowlistSet(c *gin.Context) {
 	var req channelMemberRequest
-	if !bindLegacyChannelMemberSet(c, &req) {
+	if !bindChannelMemberSet(c, &req) {
 		return
 	}
 	if err := s.requireChannelUsecase(); err != nil {
-		writeLegacyJSONError(c, err.Error())
+		writeJSONError(c, err.Error())
 		return
 	}
-	writeLegacyMutationResult(c, s.channels.SetAllowlist(c.Request.Context(), req.toMemberCommand()))
+	writeMutationResult(c, s.channels.SetAllowlist(c.Request.Context(), req.toMemberCommand()))
 }
 
 func (s *Server) handleChannelAllowlistRemove(c *gin.Context) {
 	var req channelMemberRequest
-	if !bindLegacyAllowMember(c, &req) {
+	if !bindAllowMember(c, &req) {
 		return
 	}
 	if err := s.requireChannelUsecase(); err != nil {
-		writeLegacyJSONError(c, err.Error())
+		writeJSONError(c, err.Error())
 		return
 	}
-	writeLegacyMutationResult(c, s.channels.RemoveAllowlist(c.Request.Context(), req.toMemberCommand()))
+	writeMutationResult(c, s.channels.RemoveAllowlist(c.Request.Context(), req.toMemberCommand()))
 }
 
 func (s *Server) handleChannelAllowlistRemoveAll(c *gin.Context) {
 	var req channelKeyRequest
-	if !bindLegacyChannelKey(c, &req) {
+	if !bindChannelKey(c, &req) {
 		return
 	}
 	if err := s.requireChannelUsecase(); err != nil {
-		writeLegacyJSONError(c, err.Error())
+		writeJSONError(c, err.Error())
 		return
 	}
-	writeLegacyMutationResult(c, s.channels.RemoveAllAllowlist(c.Request.Context(), req.toKey()))
+	writeMutationResult(c, s.channels.RemoveAllAllowlist(c.Request.Context(), req.toKey()))
 }
 
 func (s *Server) handleChannelAllowlistGet(c *gin.Context) {
@@ -299,64 +314,77 @@ func (s *Server) handleChannelAllowlistGet(c *gin.Context) {
 		ChannelType: uint8(channelType),
 	}
 	if err := s.requireChannelUsecase(); err != nil {
-		writeLegacyJSONError(c, err.Error())
+		writeJSONError(c, err.Error())
 		return
 	}
 	result, err := s.channels.ListAllowlist(c.Request.Context(), key)
 	if err != nil {
-		writeLegacyJSONError(c, err.Error())
+		writeJSONError(c, err.Error())
 		return
 	}
 	c.JSON(http.StatusOK, result.Members)
 }
 
-func bindLegacyChannelMember(c *gin.Context, req *channelMemberRequest, requireUIDs bool) bool {
-	if err := c.ShouldBindJSON(req); err != nil {
-		writeLegacyJSONError(c, "数据格式有误！")
+func bindJSON(c *gin.Context, out any) bool {
+	if err := c.ShouldBindJSON(out); err != nil {
+		writeJSONError(c, "数据格式有误！")
+		return false
+	}
+	return true
+}
+
+func bindChannelMember(c *gin.Context, req *channelMemberRequest, requireUIDs bool) bool {
+	if !bindJSON(c, req) {
 		return false
 	}
 	if errMsg := validateChannelMember(*req, requireUIDs); errMsg != "" {
-		writeLegacyJSONError(c, errMsg)
+		writeJSONError(c, errMsg)
 		return false
 	}
 	return true
 }
 
-func bindLegacyChannelMemberSet(c *gin.Context, req *channelMemberRequest) bool {
-	if err := c.ShouldBindJSON(req); err != nil {
-		writeLegacyJSONError(c, "数据格式有误！")
+func bindChannelMemberSet(c *gin.Context, req *channelMemberRequest) bool {
+	if !bindJSON(c, req) {
 		return false
 	}
 	if strings.TrimSpace(req.ChannelID) == "" {
-		writeLegacyJSONError(c, "频道ID不能为空！")
+		writeJSONError(c, "频道ID不能为空！")
 		return false
 	}
 	return true
 }
 
-func bindLegacyAllowMember(c *gin.Context, req *channelMemberRequest) bool {
-	if err := c.ShouldBindJSON(req); err != nil {
-		writeLegacyJSONError(c, "数据格式有误！")
+func bindAllowMember(c *gin.Context, req *channelMemberRequest) bool {
+	if !bindJSON(c, req) {
 		return false
 	}
 	if errMsg := validateAllowMember(*req); errMsg != "" {
-		writeLegacyJSONError(c, errMsg)
+		writeJSONError(c, errMsg)
 		return false
 	}
 	return true
 }
 
-func bindLegacyChannelKey(c *gin.Context, req *channelKeyRequest) bool {
-	if err := c.ShouldBindJSON(req); err != nil {
-		writeLegacyJSONError(c, "数据格式有误！")
+func bindChannelKey(c *gin.Context, req *channelKeyRequest) bool {
+	if !bindJSON(c, req) {
 		return false
 	}
 	if errMsg := validateChannelKey(*req); errMsg != "" {
-		writeLegacyJSONError(c, errMsg)
+		writeJSONError(c, errMsg)
 		return false
 	}
 	return true
 }
+
+func (s *Server) requireChannelUsecase() error {
+	if s == nil || s.channels == nil {
+		return errChannelUsecaseRequired
+	}
+	return nil
+}
+
+var errChannelUsecaseRequired = errors.New("channel usecase not configured")
 
 func (r channelInfoRequest) toInfo() channelusecase.Info {
 	return channelusecase.Info{
@@ -397,7 +425,7 @@ func validateChannelUpsert(req channelUpsertRequest) string {
 	if req.ChannelType == 0 {
 		return "频道类型错误！"
 	}
-	if containsLegacySpecialChar(req.ChannelID) {
+	if containsSpecialChar(req.ChannelID) {
 		return "频道ID不能包含特殊字符！"
 	}
 	return ""
@@ -407,7 +435,7 @@ func validateSubscriberChange(req channelSubscriberRequest) string {
 	if strings.TrimSpace(req.ChannelID) == "" {
 		return "频道ID不能为空！"
 	}
-	if containsLegacySpecialChar(req.ChannelID) {
+	if containsSpecialChar(req.ChannelID) {
 		return "频道ID不能包含特殊字符！"
 	}
 	if stringArrayIsEmpty(req.Subscribers) {
@@ -420,7 +448,7 @@ func validateTmpSubscriberSet(req tmpChannelSubscriberRequest) string {
 	if req.ChannelID == "" {
 		return "channel_id不能为空！"
 	}
-	if containsLegacySpecialChar(req.ChannelID) {
+	if containsSpecialChar(req.ChannelID) {
 		return "频道ID不能包含特殊字符！"
 	}
 	if len(req.UIDs) == 0 {
@@ -449,7 +477,7 @@ func validateAllowMember(req channelMemberRequest) string {
 	if req.ChannelID == "" {
 		return "channel_id不能为空！"
 	}
-	if containsLegacySpecialChar(req.ChannelID) {
+	if containsSpecialChar(req.ChannelID) {
 		return "频道ID不能包含特殊字符！"
 	}
 	if req.ChannelType == 0 {
@@ -471,33 +499,32 @@ func validateChannelKey(req channelKeyRequest) string {
 	return ""
 }
 
+func containsSpecialChar(value string) bool {
+	return strings.Contains(value, "#") || strings.Contains(value, "@")
+}
+
 func stringArrayIsEmpty(values []string) bool {
 	if len(values) == 0 {
 		return true
 	}
-	emptyCount := 0
 	for _, value := range values {
 		if strings.TrimSpace(value) == "" {
-			emptyCount++
+			return true
 		}
 	}
-	return emptyCount >= len(values)
+	return false
 }
 
-func containsLegacySpecialChar(value string) bool {
-	return strings.Contains(value, "@") || strings.Contains(value, "#") || strings.Contains(value, "&")
+func writeJSONError(c *gin.Context, message string) {
+	c.JSON(http.StatusBadRequest, gin.H{
+		"msg":    message,
+		"status": http.StatusBadRequest,
+	})
 }
 
-func (s *Server) requireChannelUsecase() error {
-	if s == nil || s.channels == nil {
-		return channelusecase.ErrStoreRequired
-	}
-	return nil
-}
-
-func writeLegacyMutationResult(c *gin.Context, err error) {
+func writeMutationResult(c *gin.Context, err error) {
 	if err != nil {
-		writeLegacyJSONError(c, err.Error())
+		writeJSONError(c, err.Error())
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"status": http.StatusOK})

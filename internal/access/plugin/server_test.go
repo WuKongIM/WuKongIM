@@ -2,865 +2,835 @@ package plugin
 
 import (
 	"context"
-	"encoding/binary"
-	"errors"
-	"io"
-	"net"
-	"os"
-	"path/filepath"
-	"reflect"
-	"strings"
-	"sync"
+	"fmt"
+	"net/http"
 	"testing"
 	"time"
 
-	pluginhost "github.com/WuKongIM/WuKongIM/pkg/plugin/pluginhost"
 	"github.com/WuKongIM/WuKongIM/pkg/plugin/pluginproto"
-	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/wkrpc"
-	wkrpcproto "github.com/WuKongIM/wkrpc/proto"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 )
 
-func TestConstructorRequiresPositiveTimeoutAndDefaultsMaxBody(t *testing.T) {
-	_, err := NewServer(Options{Routes: &fakeRoutes{}, Usecase: &fakeUsecase{}})
-	if err == nil {
-		t.Fatal("expected missing timeout error")
-	}
-	_, err = NewServer(Options{Routes: &fakeRoutes{}, Timeout: time.Second})
-	if !errors.Is(err, ErrUsecaseRequired) {
-		t.Fatalf("error = %v, want %v", err, ErrUsecaseRequired)
-	}
-
-	srv, err := NewServer(Options{Routes: &fakeRoutes{}, Usecase: &fakeUsecase{}, Timeout: time.Second})
-	if err != nil {
-		t.Fatalf("NewServer returned error: %v", err)
-	}
-	if srv.MaxBodyBytes() != DefaultHostRPCMaxBodyBytes {
-		t.Fatalf("MaxBodyBytes = %d, want %d", srv.MaxBodyBytes(), DefaultHostRPCMaxBodyBytes)
-	}
+func TestServerRegistersHostRPCRoutes(t *testing.T) {
+	routes := &recordingRoutes{}
+	_, err := NewServer(Options{Routes: routes, Usecase: &recordingUsecase{}, Timeout: time.Second})
+	require.NoError(t, err)
+	require.ElementsMatch(t, []string{"/plugin/start", "/close", "/message/send", "/channel/messages", "/cluster/config", "/cluster/channels/belongNode", "/conversation/channels", "/plugin/httpForward"}, routes.paths)
 }
 
-func TestRegisterRoutes(t *testing.T) {
-	routes := &fakeRoutes{}
-	_, err := NewServer(Options{Routes: routes, Usecase: &fakeUsecase{}, Timeout: time.Second})
-	if err != nil {
-		t.Fatalf("NewServer returned error: %v", err)
-	}
+func TestHandlePluginStartDecodesAndWritesStartupResponse(t *testing.T) {
+	usecase := &recordingUsecase{}
+	server, err := NewServer(Options{Usecase: usecase, Timeout: time.Second})
+	require.NoError(t, err)
+	ctx := newTestRPCContext("wk.echo", mustMarshalProto(t, &pluginproto.PluginInfo{
+		No:      "wk.echo",
+		Methods: []string{"PersistAfter"},
+	}))
 
-	want := []string{
-		"/plugin/start",
-		"/close",
-		"/message/send",
-		"/channel/messages",
-		"/plugin/httpForward",
-		"/cluster/config",
-		"/cluster/channels/belongNode",
-		"/conversation/channels",
-		"/stream/open",
-		"/stream/write",
-		"/stream/close",
-	}
-	if !reflect.DeepEqual(routes.paths, want) {
-		t.Fatalf("registered paths = %#v, want %#v", routes.paths, want)
-	}
-	for _, path := range want {
-		if routes.handlers[path] == nil {
-			t.Fatalf("route %s registered nil handler", path)
-		}
-	}
+	server.handlePath("/plugin/start", ctx)
+
+	require.NoError(t, ctx.err)
+	require.Equal(t, "wk.echo", usecase.started.No)
+	require.NotEmpty(t, ctx.body)
+	require.Equal(t, 1, usecase.startCalls)
 }
 
-func TestRouteRegistrarAcceptsRuntimeSocketServer(t *testing.T) {
-	var _ RouteRegistrar = pluginhost.NewSocketServer("/tmp/wukongim-plugin-test.sock")
+func TestHandlePluginStartRejectsEmptyCallerUID(t *testing.T) {
+	usecase := &recordingUsecase{}
+	server, err := NewServer(Options{Usecase: usecase, Timeout: time.Second})
+	require.NoError(t, err)
+	ctx := newTestRPCContext("", mustMarshalProto(t, &pluginproto.PluginInfo{No: "wk.echo"}))
+
+	server.handlePath("/plugin/start", ctx)
+
+	require.ErrorIs(t, ctx.err, errEmptyCallerUID)
+	require.Zero(t, usecase.startCalls)
 }
 
-func TestRouteRegistrarAcceptsDirectWKRPCServer(t *testing.T) {
-	var _ RouteRegistrar = (*wkrpc.Server)(nil)
+func TestHandlePluginStartRejectsOversizedRequestBody(t *testing.T) {
+	server, err := NewServer(Options{
+		Usecase:      &recordingUsecase{},
+		Timeout:      time.Second,
+		MaxBodyBytes: 4,
+	})
+	require.NoError(t, err)
+	ctx := newTestRPCContext("wk.echo", []byte("oversized"))
+
+	server.handlePath("/plugin/start", ctx)
+
+	require.Error(t, ctx.err)
+	require.Contains(t, ctx.err.Error(), "exceeds max bytes")
 }
 
-func TestRegisterRoutesSupportsWKRPCHandlerRegistrar(t *testing.T) {
-	routes := &fakeHandlerRoutes{}
-	_, err := NewServer(Options{Routes: routes, Usecase: &fakeUsecase{}, Timeout: time.Second})
-	if err != nil {
-		t.Fatalf("NewServer returned error: %v", err)
+func TestHandlePluginStartRejectsOversizedResponseBody(t *testing.T) {
+	usecase := &recordingUsecase{
+		startResp: &pluginproto.StartupResp{
+			Success: true,
+			Config:  []byte("response body is definitely too large"),
+		},
 	}
-	if !reflect.DeepEqual(routes.paths, routePaths) {
-		t.Fatalf("registered paths = %#v, want %#v", routes.paths, routePaths)
-	}
-	for _, path := range routePaths {
-		if routes.handlers[path] == nil {
-			t.Fatalf("route %s registered nil handler", path)
-		}
-	}
+	server, err := NewServer(Options{
+		Usecase:      usecase,
+		Timeout:      time.Second,
+		MaxBodyBytes: 16,
+	})
+	require.NoError(t, err)
+	ctx := newTestRPCContext("wk.echo", mustMarshalProto(t, &pluginproto.PluginInfo{No: "wk.echo"}))
+
+	server.handlePath("/plugin/start", ctx)
+
+	require.Error(t, ctx.err)
+	require.Contains(t, ctx.err.Error(), "response exceeds max bytes")
+	require.Empty(t, ctx.body)
 }
 
-func TestRegisteredHandlerDispatchesThroughWKRPCAdapter(t *testing.T) {
-	socketPath := shortAccessSocketPath(t)
-	routes := pluginhost.NewSocketServer(socketPath)
-	uc := &fakeUsecase{startupResp: &pluginproto.StartupResp{NodeId: 9, Success: true}}
-	_, err := NewServer(Options{Routes: routes, Usecase: uc, Timeout: time.Second})
-	if err != nil {
-		t.Fatalf("NewServer returned error: %v", err)
-	}
-	if err := routes.Start(); err != nil {
-		t.Fatalf("socket start: %v", err)
-	}
-	t.Cleanup(routes.Stop)
+func TestHandleCloseUsesCallerUIDAndWritesOK(t *testing.T) {
+	usecase := &recordingUsecase{}
+	server, err := NewServer(Options{Usecase: usecase, Timeout: time.Second})
+	require.NoError(t, err)
+	ctx := newTestRPCContext("wk.echo", nil)
 
-	conn, err := net.DialTimeout("unix", socketPath, time.Second)
-	if err != nil {
-		t.Fatalf("dial plugin socket: %v", err)
-	}
-	t.Cleanup(func() { _ = conn.Close() })
-	wkrpcConnect(t, conn, "registered")
+	server.handlePath("/close", ctx)
 
-	resp := wkrpcRequest(t, conn, 2, "/plugin/start", mustMarshal(t, &pluginproto.PluginInfo{No: "registered"}))
-	if resp.Status != wkrpcproto.StatusOK {
-		t.Fatalf("response status = %v body=%q", resp.Status, string(resp.Body))
-	}
-	var got pluginproto.StartupResp
-	mustUnmarshal(t, resp.Body, &got)
-	if got.NodeId != 9 || !got.Success {
-		t.Fatalf("startup response = %#v", &got)
-	}
-	uc.waitStartCalls(t, 1)
-	if uc.startInfo == nil || uc.startInfo.No != "registered" {
-		t.Fatalf("StartPlugin info = %#v", uc.startInfo)
-	}
-	if uc.startCaller != "registered" {
-		t.Fatalf("StartPlugin caller = %q", uc.startCaller)
-	}
+	require.NoError(t, ctx.err)
+	require.True(t, ctx.ok)
+	require.Equal(t, "wk.echo", usecase.closedPluginNo)
+	require.Equal(t, "wk.echo", usecase.closedCaller)
 }
 
-func TestLifecycleStartValidAndEmptyPluginNumber(t *testing.T) {
-	uc := &fakeUsecase{startupResp: &pluginproto.StartupResp{NodeId: 7, Success: true}}
-	srv := mustServer(t, uc)
+func TestHandleCloseCloseEventDoesNotWriteAndCallsUsecaseAsync(t *testing.T) {
+	usecase := &recordingUsecase{closeCalled: make(chan struct{}, 1)}
+	server, err := NewServer(Options{Usecase: usecase, Timeout: time.Second})
+	require.NoError(t, err)
+	ctx := &testRPCContext{uid: "wk.echo", closeEvent: true}
 
-	ctx := newFakeRPCContext(mustMarshal(t, &pluginproto.PluginInfo{No: "plug-a", Name: "Plugin A"}))
-	ctx.uid = "caller-1"
-	srv.handlePath("/plugin/start", ctx)
+	require.NotPanics(t, func() {
+		server.handlePath("/close", ctx)
+	})
 
-	if ctx.err != nil {
-		t.Fatalf("unexpected WriteErr: %v", ctx.err)
-	}
-	if uc.startInfo == nil || uc.startInfo.No != "plug-a" {
-		t.Fatalf("StartPlugin info = %#v", uc.startInfo)
-	}
-	if uc.startCaller != "caller-1" {
-		t.Fatalf("StartPlugin caller = %q", uc.startCaller)
-	}
-	var got pluginproto.StartupResp
-	mustUnmarshal(t, ctx.written, &got)
-	if got.NodeId != 7 || !got.Success {
-		t.Fatalf("startup response = %#v", &got)
-	}
-
-	emptyCtx := newFakeRPCContext(mustMarshal(t, &pluginproto.PluginInfo{Name: "missing no"}))
-	srv.handlePath("/plugin/start", emptyCtx)
-	if emptyCtx.err == nil {
-		t.Fatal("expected WriteErr for empty plugin number")
-	}
-	if uc.startCalls != 1 {
-		t.Fatalf("StartPlugin calls = %d, want 1", uc.startCalls)
-	}
-
-	emptyCallerCtx := newFakeRPCContext(mustMarshal(t, &pluginproto.PluginInfo{No: "plug-a"}))
-	srv.handlePath("/plugin/start", emptyCallerCtx)
-	if emptyCallerCtx.err == nil {
-		t.Fatal("expected WriteErr for empty caller uid")
-	}
-	if uc.startCalls != 1 {
-		t.Fatalf("StartPlugin calls = %d, want 1", uc.startCalls)
-	}
-}
-
-func TestLifecycleCloseRequestWithEmptyBodyWritesOK(t *testing.T) {
-	uc := &fakeUsecase{}
-	srv := mustServer(t, uc)
-	ctx := newFakeRequestContext(nil)
-	ctx.uid = "plug-request-close"
-
-	srv.handlePath("/close", ctx)
-
-	if ctx.err != nil {
-		t.Fatalf("unexpected WriteErr: %v", ctx.err)
-	}
-	if !ctx.ok {
-		t.Fatal("expected WriteOk for an explicit /close request")
-	}
-	if uc.closePluginNo != "plug-request-close" {
-		t.Fatalf("ClosePlugin pluginNo = %q", uc.closePluginNo)
-	}
-}
-
-func TestLifecycleCloseEventDoesNotBlockOnUsecase(t *testing.T) {
-	started := make(chan struct{})
-	block := make(chan struct{})
-	uc := &fakeUsecase{closeStarted: started, closeBlock: block}
-	srv := mustServer(t, uc)
-	ctx := newFakeCloseEventContext(nil)
-	ctx.uid = "plug-close"
-	returned := make(chan struct{})
-
-	go func() {
-		srv.handlePath("/close", ctx)
-		close(returned)
-	}()
-
+	require.False(t, ctx.ok)
+	require.NoError(t, ctx.err)
 	select {
-	case <-returned:
+	case <-usecase.closeCalled:
 	case <-time.After(time.Second):
-		t.Fatal("close handler did not return before blocked ClosePlugin was released")
+		t.Fatal("expected ClosePlugin to be called asynchronously")
 	}
-	if ctx.ok {
-		t.Fatal("close event should not write OK to a closing connection")
-	}
-	select {
-	case <-started:
-	case <-time.After(time.Second):
-		t.Fatal("ClosePlugin was not started asynchronously")
-	}
-	close(block)
+	require.Equal(t, "wk.echo", usecase.closedPluginNo)
+	require.Equal(t, "wk.echo", usecase.closedCaller)
 }
 
-func TestLifecycleCloseEventLogsCleanupError(t *testing.T) {
-	logger := newRecordingLogger()
-	uc := &fakeUsecase{closeErr: errors.New("cleanup failed")}
-	srv, err := NewServer(Options{Routes: &fakeRoutes{}, Usecase: uc, Timeout: time.Second, Logger: logger})
-	if err != nil {
-		t.Fatalf("NewServer returned error: %v", err)
-	}
-	ctx := newFakeCloseEventContext(nil)
-	ctx.uid = "plug-close"
+func TestHandleSendMessageDecodesUsesTimeoutAndWritesResponse(t *testing.T) {
+	usecase := &recordingUsecase{sendResp: &pluginproto.SendResp{MessageId: 987}}
+	server, err := NewServer(Options{Usecase: usecase, Timeout: time.Second})
+	require.NoError(t, err)
+	ctx := newTestRPCContext("wk.sender", mustMarshalProto(t, &pluginproto.SendReq{
+		Header:      &pluginproto.Header{NoPersist: true, SyncOnce: true, RedDot: true},
+		ClientMsgNo: "client-1",
+		ChannelId:   "g1",
+		ChannelType: 2,
+		Payload:     []byte("hello"),
+	}))
 
-	srv.handlePath("/close", ctx)
+	server.handlePath("/message/send", ctx)
 
-	logger.waitWarn(t)
-	if logger.lastWarnMsg != "plugin close event cleanup failed" {
-		t.Fatalf("warn msg = %q", logger.lastWarnMsg)
-	}
-	if got := logger.warnFieldValue("pluginNo"); got != "plug-close" {
-		t.Fatalf("logged pluginNo = %#v", got)
-	}
-	if got := logger.warnFieldValue("error"); got == nil {
-		t.Fatal("expected logged error field")
-	}
+	require.NoError(t, ctx.err)
+	require.Equal(t, 1, usecase.sendCalls)
+	require.Equal(t, "wk.sender", usecase.sendCaller)
+	require.Equal(t, "client-1", usecase.sendReq.GetClientMsgNo())
+	require.Equal(t, "g1", usecase.sendReq.GetChannelId())
+	require.Equal(t, []byte("hello"), usecase.sendReq.GetPayload())
+	require.True(t, usecase.sendReq.GetHeader().GetNoPersist())
+	require.True(t, usecase.sendReq.GetHeader().GetSyncOnce())
+	require.True(t, usecase.sendReq.GetHeader().GetRedDot())
+	require.True(t, usecase.sendDeadlineSet)
+	require.WithinDuration(t, time.Now().Add(time.Second), usecase.sendDeadline, 100*time.Millisecond)
+	var got pluginproto.SendResp
+	require.NoError(t, proto.Unmarshal(ctx.body, &got))
+	require.Equal(t, int64(987), got.GetMessageId())
 }
 
-func TestLifecycleCloseCallsUsecaseAndWritesOK(t *testing.T) {
-	uc := &fakeUsecase{}
-	srv := mustServer(t, uc)
-	ctx := newFakeRPCContext(nil)
-	ctx.uid = "plug-a"
+func TestHandleChannelMessagesDecodesUsesTimeoutAndWritesResponse(t *testing.T) {
+	usecase := &recordingUsecase{channelMessagesResp: &pluginproto.ChannelMessageBatchResp{ChannelMessageResps: []*pluginproto.ChannelMessageResp{{
+		ChannelId:       "g1",
+		ChannelType:     2,
+		StartMessageSeq: 7,
+		Limit:           1,
+		Messages: []*pluginproto.Message{{
+			MessageId:   1001,
+			MessageSeq:  8,
+			ClientMsgNo: "client-8",
+			Payload:     []byte("stored"),
+		}},
+	}}}}
+	server, err := NewServer(Options{Usecase: usecase, Timeout: time.Second})
+	require.NoError(t, err)
+	ctx := newTestRPCContext("wk.reader", mustMarshalProto(t, &pluginproto.ChannelMessageBatchReq{
+		ChannelMessageReqs: []*pluginproto.ChannelMessageReq{{
+			ChannelId:       "g1",
+			ChannelType:     2,
+			StartMessageSeq: 7,
+			Limit:           1,
+		}},
+	}))
 
-	srv.handlePath("/close", ctx)
+	server.handlePath("/channel/messages", ctx)
 
-	if ctx.err != nil {
-		t.Fatalf("unexpected WriteErr: %v", ctx.err)
-	}
-	if !ctx.ok {
-		t.Fatal("expected WriteOk")
-	}
-	if uc.closePluginNo != "plug-a" || uc.closeCaller != "plug-a" {
-		t.Fatalf("ClosePlugin args = (%q, %q)", uc.closePluginNo, uc.closeCaller)
-	}
-
-	emptyCtx := newFakeRPCContext(nil)
-	srv.handlePath("/close", emptyCtx)
-	if emptyCtx.err == nil {
-		t.Fatal("expected WriteErr for empty plugin number")
-	}
+	require.NoError(t, ctx.err)
+	require.Equal(t, 1, usecase.channelMessagesCalls)
+	require.Equal(t, "wk.reader", usecase.channelMessagesCaller)
+	require.Len(t, usecase.channelMessagesReq.GetChannelMessageReqs(), 1)
+	require.Equal(t, "g1", usecase.channelMessagesReq.GetChannelMessageReqs()[0].GetChannelId())
+	require.True(t, usecase.channelMessagesDeadlineSet)
+	require.WithinDuration(t, time.Now().Add(time.Second), usecase.channelMessagesDeadline, 100*time.Millisecond)
+	var got pluginproto.ChannelMessageBatchResp
+	require.NoError(t, proto.Unmarshal(ctx.body, &got))
+	require.Len(t, got.GetChannelMessageResps(), 1)
+	require.Equal(t, int64(1001), got.GetChannelMessageResps()[0].GetMessages()[0].GetMessageId())
 }
 
-func TestStreamRoutesWriteStableUnimplementedError(t *testing.T) {
-	srv := mustServer(t, &fakeUsecase{})
-	for _, path := range []string{"/stream/open", "/stream/write", "/stream/close"} {
-		t.Run(path, func(t *testing.T) {
-			ctx := newFakeRPCContext(nil)
-			srv.handlePath(path, ctx)
-			if ctx.err == nil {
-				t.Fatal("expected WriteErr")
-			}
-			if ctx.err.Error() != "plugin stream rpc unimplemented in phase 1" {
-				t.Fatalf("error = %q", ctx.err.Error())
-			}
-		})
-	}
+func TestHandleClusterConfigUsesTimeoutAndWritesResponse(t *testing.T) {
+	usecase := &recordingUsecase{clusterConfigResp: &pluginproto.ClusterConfig{
+		Nodes: []*pluginproto.Node{{
+			Id:            1,
+			ClusterAddr:   "127.0.0.1:7001",
+			ApiServerAddr: "http://127.0.0.1:5001",
+			Online:        true,
+		}},
+		Slots: []*pluginproto.Slot{{
+			Id:       7,
+			Leader:   2,
+			Term:     3,
+			Replicas: []uint64{1, 2, 3},
+		}},
+	}}
+	server, err := NewServer(Options{Usecase: usecase, Timeout: time.Second})
+	require.NoError(t, err)
+	ctx := newTestRPCContext("wk.cluster", nil)
+
+	server.handlePath("/cluster/config", ctx)
+
+	require.NoError(t, ctx.err)
+	require.Equal(t, 1, usecase.clusterConfigCalls)
+	require.Equal(t, "wk.cluster", usecase.clusterConfigCaller)
+	require.True(t, usecase.clusterConfigDeadlineSet)
+	require.WithinDuration(t, time.Now().Add(time.Second), usecase.clusterConfigDeadline, 100*time.Millisecond)
+	var got pluginproto.ClusterConfig
+	require.NoError(t, proto.Unmarshal(ctx.body, &got))
+	require.Len(t, got.GetNodes(), 1)
+	require.Equal(t, uint64(1), got.GetNodes()[0].GetId())
+	require.Len(t, got.GetSlots(), 1)
+	require.Equal(t, uint32(7), got.GetSlots()[0].GetId())
 }
 
-func TestCodecRejectsBodyLargerThanMax(t *testing.T) {
-	uc := &fakeUsecase{}
-	routes := &fakeRoutes{}
-	srv, err := NewServer(Options{Routes: routes, Usecase: uc, Timeout: time.Second, MaxBodyBytes: 3})
-	if err != nil {
-		t.Fatalf("NewServer returned error: %v", err)
-	}
+func TestHandleClusterChannelsBelongNodeDecodesUsesTimeoutAndWritesResponse(t *testing.T) {
+	usecase := &recordingUsecase{clusterBelongNodeResp: &pluginproto.ClusterChannelBelongNodeBatchResp{
+		ClusterChannelBelongNodeResps: []*pluginproto.ClusterChannelBelongNodeResp{{
+			NodeId:   2,
+			Channels: []*pluginproto.Channel{{ChannelId: "g1", ChannelType: 2}},
+		}},
+	}}
+	server, err := NewServer(Options{Usecase: usecase, Timeout: time.Second})
+	require.NoError(t, err)
+	ctx := newTestRPCContext("wk.cluster", mustMarshalProto(t, &pluginproto.ClusterChannelBelongNodeReq{
+		Channels: []*pluginproto.Channel{{ChannelId: "g1", ChannelType: 2}},
+	}))
 
-	ctx := newFakeRPCContext([]byte{1, 2, 3, 4})
-	srv.handlePath("/message/send", ctx)
+	server.handlePath("/cluster/channels/belongNode", ctx)
 
-	if ctx.err == nil {
-		t.Fatal("expected max body WriteErr")
-	}
-	if uc.sendCalls != 0 {
-		t.Fatalf("SendMessage calls = %d, want 0", uc.sendCalls)
-	}
+	require.NoError(t, ctx.err)
+	require.Equal(t, 1, usecase.clusterBelongNodeCalls)
+	require.Equal(t, "wk.cluster", usecase.clusterBelongNodeCaller)
+	require.Len(t, usecase.clusterBelongNodeReq.GetChannels(), 1)
+	require.Equal(t, "g1", usecase.clusterBelongNodeReq.GetChannels()[0].GetChannelId())
+	require.True(t, usecase.clusterBelongNodeDeadlineSet)
+	require.WithinDuration(t, time.Now().Add(time.Second), usecase.clusterBelongNodeDeadline, 100*time.Millisecond)
+	var got pluginproto.ClusterChannelBelongNodeBatchResp
+	require.NoError(t, proto.Unmarshal(ctx.body, &got))
+	require.Len(t, got.GetClusterChannelBelongNodeResps(), 1)
+	require.Equal(t, uint64(2), got.GetClusterChannelBelongNodeResps()[0].GetNodeId())
 }
 
-func TestCodecRejectsBodyLargerThanMaxOnCloseAndStream(t *testing.T) {
-	for _, path := range []string{"/close", "/stream/open", "/stream/write", "/stream/close"} {
-		t.Run(path, func(t *testing.T) {
-			uc := &fakeUsecase{}
-			srv, err := NewServer(Options{Routes: &fakeRoutes{}, Usecase: uc, Timeout: time.Second, MaxBodyBytes: 3})
-			if err != nil {
-				t.Fatalf("NewServer returned error: %v", err)
-			}
-			ctx := newFakeRPCContext([]byte{1, 2, 3, 4})
-			ctx.uid = "plug-a"
+func TestHandleConversationChannelsDecodesUsesTimeoutAndWritesResponse(t *testing.T) {
+	usecase := &recordingUsecase{conversationChannelsResp: &pluginproto.ConversationChannelResp{
+		Channels: []*pluginproto.Channel{{ChannelId: "g1", ChannelType: 2}},
+	}}
+	server, err := NewServer(Options{Usecase: usecase, Timeout: time.Second})
+	require.NoError(t, err)
+	ctx := newTestRPCContext("wk.conversation", mustMarshalProto(t, &pluginproto.ConversationChannelReq{Uid: "u1"}))
 
-			srv.handlePath(path, ctx)
+	server.handlePath("/conversation/channels", ctx)
 
-			if ctx.err == nil {
-				t.Fatal("expected max body WriteErr")
-			}
-			if !strings.Contains(ctx.err.Error(), "body exceeds max bytes") {
-				t.Fatalf("error = %q", ctx.err.Error())
-			}
-			if uc.closePluginNo != "" {
-				t.Fatalf("ClosePlugin called with %q", uc.closePluginNo)
-			}
-		})
-	}
+	require.NoError(t, ctx.err)
+	require.Equal(t, 1, usecase.conversationChannelsCalls)
+	require.Equal(t, "wk.conversation", usecase.conversationChannelsCaller)
+	require.Equal(t, "u1", usecase.conversationChannelsReq.GetUid())
+	require.True(t, usecase.conversationChannelsDeadlineSet)
+	require.WithinDuration(t, time.Now().Add(time.Second), usecase.conversationChannelsDeadline, 100*time.Millisecond)
+	var got pluginproto.ConversationChannelResp
+	require.NoError(t, proto.Unmarshal(ctx.body, &got))
+	require.Len(t, got.GetChannels(), 1)
+	require.Equal(t, "g1", got.GetChannels()[0].GetChannelId())
 }
 
-func TestStreamRoutesLogPathAndPluginNumber(t *testing.T) {
-	logger := newRecordingLogger()
-	srv, err := NewServer(Options{Routes: &fakeRoutes{}, Usecase: &fakeUsecase{}, Timeout: time.Second, Logger: logger})
-	if err != nil {
-		t.Fatalf("NewServer returned error: %v", err)
-	}
-	ctx := newFakeRPCContext(nil)
-	ctx.uid = "plug-stream"
+func TestHandleHTTPForwardDecodesFillsCallerUsesTimeoutAndWritesResponse(t *testing.T) {
+	usecase := &recordingUsecase{httpForwardResp: &pluginproto.HttpResponse{
+		Status:  http.StatusCreated,
+		Headers: map[string]string{"X-Plugin": "ok"},
+		Body:    []byte("created"),
+	}}
+	server, err := NewServer(Options{Usecase: usecase, Timeout: time.Second})
+	require.NoError(t, err)
+	ctx := newTestRPCContext("wk.plugin.echo", mustMarshalProto(t, &pluginproto.ForwardHttpReq{
+		Request: &pluginproto.HttpRequest{Method: http.MethodGet, Path: "/hello"},
+	}))
 
-	srv.handlePath("/stream/open", ctx)
+	server.handlePath("/plugin/httpForward", ctx)
 
-	if ctx.err == nil {
-		t.Fatal("expected stream unimplemented error")
-	}
-	if logger.lastMsg != "plugin stream rpc unimplemented" {
-		t.Fatalf("log msg = %q", logger.lastMsg)
-	}
-	if got := logger.fieldValue("path"); got != "/stream/open" {
-		t.Fatalf("logged path = %#v", got)
-	}
-	if got := logger.fieldValue("pluginNo"); got != "plug-stream" {
-		t.Fatalf("logged pluginNo = %#v", got)
-	}
+	require.NoError(t, ctx.err)
+	require.Equal(t, 1, usecase.httpForwardCalls)
+	require.Equal(t, "wk.plugin.echo", usecase.httpForwardCaller)
+	require.Equal(t, "wk.plugin.echo", usecase.httpForwardReq.GetPluginNo())
+	require.Equal(t, http.MethodGet, usecase.httpForwardReq.GetRequest().GetMethod())
+	require.Equal(t, "/hello", usecase.httpForwardReq.GetRequest().GetPath())
+	require.True(t, usecase.httpForwardDeadlineSet)
+	require.WithinDuration(t, time.Now().Add(time.Second), usecase.httpForwardDeadline, 100*time.Millisecond)
+	var got pluginproto.HttpResponse
+	require.NoError(t, proto.Unmarshal(ctx.body, &got))
+	require.Equal(t, int32(http.StatusCreated), got.GetStatus())
+	require.Equal(t, "ok", got.GetHeaders()["X-Plugin"])
+	require.Equal(t, []byte("created"), got.GetBody())
 }
 
-func TestCodecRejectsResponseLargerThanMax(t *testing.T) {
-	uc := &fakeUsecase{startupResp: &pluginproto.StartupResp{Config: []byte("too large")}}
-	srv, err := NewServer(Options{Routes: &fakeRoutes{}, Usecase: uc, Timeout: time.Second, MaxBodyBytes: 3})
-	if err != nil {
-		t.Fatalf("NewServer returned error: %v", err)
-	}
-	ctx := newFakeRPCContext(mustMarshal(t, &pluginproto.PluginInfo{No: "plug-a"}))
+func TestHandleHTTPForwardPreservesExplicitPluginNo(t *testing.T) {
+	usecase := &recordingUsecase{httpForwardResp: &pluginproto.HttpResponse{Status: http.StatusOK}}
+	server, err := NewServer(Options{Usecase: usecase, Timeout: time.Second})
+	require.NoError(t, err)
+	ctx := newTestRPCContext("wk.plugin.caller", mustMarshalProto(t, &pluginproto.ForwardHttpReq{
+		PluginNo: "wk.plugin.other",
+		Request:  &pluginproto.HttpRequest{Path: "/hello"},
+	}))
 
-	srv.handlePath("/plugin/start", ctx)
+	server.handlePath("/plugin/httpForward", ctx)
 
-	if ctx.err == nil {
-		t.Fatal("expected max response body WriteErr")
-	}
-	if len(ctx.written) != 0 {
-		t.Fatalf("unexpected response body written: %d bytes", len(ctx.written))
-	}
+	require.NoError(t, ctx.err)
+	require.Equal(t, "wk.plugin.other", usecase.httpForwardReq.GetPluginNo())
 }
 
-func TestTimeoutWrapsAllHostRPCRoutesAndKeepsShorterIncomingDeadline(t *testing.T) {
+func TestHandleHTTPForwardRejectsOversizedRequestBody(t *testing.T) {
+	usecase := &recordingUsecase{}
+	server, err := NewServer(Options{Usecase: usecase, Timeout: time.Second, MaxBodyBytes: 4})
+	require.NoError(t, err)
+	ctx := newTestRPCContext("wk.plugin.echo", []byte("12345"))
+
+	server.handlePath("/plugin/httpForward", ctx)
+
+	require.Error(t, ctx.err)
+	require.Contains(t, ctx.err.Error(), "exceeds max bytes")
+	require.Zero(t, usecase.httpForwardCalls)
+}
+
+func TestMessageHostRPCKeepsShorterIncomingDeadline(t *testing.T) {
+	usecase := &recordingUsecase{sendResp: &pluginproto.SendResp{MessageId: 1}}
+	server, err := NewServer(Options{Usecase: usecase, Timeout: time.Second})
+	require.NoError(t, err)
+	incoming, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	ctx := newTimedTestRPCContext(incoming, "wk.sender", mustMarshalProto(t, &pluginproto.SendReq{ClientMsgNo: "client-1"}))
+
+	server.handlePath("/message/send", ctx)
+
+	require.NoError(t, ctx.err)
+	require.True(t, usecase.sendDeadlineSet)
+	require.WithinDuration(t, time.Now().Add(200*time.Millisecond), usecase.sendDeadline, 100*time.Millisecond)
+}
+
+func TestClusterHostRPCKeepsShorterIncomingDeadline(t *testing.T) {
 	for _, tc := range []struct {
-		path string
-		body []byte
+		name             string
+		path             string
+		body             []byte
+		deadlineObserved func(*recordingUsecase) (time.Time, bool)
 	}{
-		{path: "/plugin/start", body: mustMarshal(t, &pluginproto.PluginInfo{No: "plug-timeout"})},
-		{path: "/close", body: nil},
-		{path: "/message/send", body: mustMarshal(t, &pluginproto.SendReq{ClientMsgNo: "c1"})},
-		{path: "/channel/messages", body: mustMarshal(t, &pluginproto.ChannelMessageBatchReq{})},
-		{path: "/plugin/httpForward", body: mustMarshal(t, &pluginproto.ForwardHttpReq{PluginNo: "plug-timeout"})},
-		{path: "/cluster/config", body: nil},
-		{path: "/cluster/channels/belongNode", body: mustMarshal(t, &pluginproto.ClusterChannelBelongNodeReq{})},
-		{path: "/conversation/channels", body: mustMarshal(t, &pluginproto.ConversationChannelReq{Uid: "u1"})},
+		{
+			name: "cluster config",
+			path: "/cluster/config",
+			deadlineObserved: func(u *recordingUsecase) (time.Time, bool) {
+				return u.clusterConfigDeadline, u.clusterConfigDeadlineSet
+			},
+		},
+		{
+			name: "/cluster/channels/belongNode",
+			path: "/cluster/channels/belongNode",
+			body: mustMarshalProto(t, &pluginproto.ClusterChannelBelongNodeReq{}),
+			deadlineObserved: func(u *recordingUsecase) (time.Time, bool) {
+				return u.clusterBelongNodeDeadline, u.clusterBelongNodeDeadlineSet
+			},
+		},
 	} {
-		t.Run(tc.path+"/adds timeout", func(t *testing.T) {
-			uc := &fakeUsecase{}
-			srv := mustServer(t, uc)
-			ctx := newFakeRPCContext(tc.body)
-			ctx.uid = "plug-timeout"
-			srv.handlePath(tc.path, ctx)
-			if ctx.err != nil {
-				t.Fatalf("unexpected WriteErr: %v", ctx.err)
-			}
-			deadline, ok := uc.lastCtx.Deadline()
-			if !ok {
-				t.Fatal("usecase context has no deadline")
-			}
-			remaining := time.Until(deadline)
-			if remaining <= 0 || remaining > time.Second {
-				t.Fatalf("deadline remaining = %v, want within server timeout", remaining)
-			}
-		})
-
-		t.Run(tc.path+"/keeps shorter incoming deadline", func(t *testing.T) {
-			uc := &fakeUsecase{}
-			srv := mustServer(t, uc)
+		t.Run(tc.name, func(t *testing.T) {
+			usecase := &recordingUsecase{clusterConfigResp: &pluginproto.ClusterConfig{}, clusterBelongNodeResp: &pluginproto.ClusterChannelBelongNodeBatchResp{}}
+			server, err := NewServer(Options{Usecase: usecase, Timeout: time.Second})
+			require.NoError(t, err)
 			incoming, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
 			defer cancel()
-			ctx := newFakeRPCContext(tc.body)
-			ctx.uid = "plug-timeout"
-			ctx.ctx = incoming
-			srv.handlePath(tc.path, ctx)
-			if ctx.err != nil {
-				t.Fatalf("unexpected WriteErr: %v", ctx.err)
-			}
-			deadline, ok := uc.lastCtx.Deadline()
-			if !ok {
-				t.Fatal("usecase context has no deadline")
-			}
-			remaining := time.Until(deadline)
-			if remaining <= 0 || remaining > 250*time.Millisecond {
-				t.Fatalf("deadline remaining = %v, want incoming shorter deadline", remaining)
-			}
+			ctx := newTimedTestRPCContext(incoming, "wk.cluster", tc.body)
+
+			server.handlePath(tc.path, ctx)
+
+			require.NoError(t, ctx.err)
+			deadline, ok := tc.deadlineObserved(usecase)
+			require.True(t, ok)
+			require.WithinDuration(t, time.Now().Add(200*time.Millisecond), deadline, 100*time.Millisecond)
 		})
 	}
 }
 
-type fakeRoutes struct {
-	paths    []string
-	handlers map[string]wkrpc.Handler
+func TestConversationHostRPCKeepsShorterIncomingDeadline(t *testing.T) {
+	usecase := &recordingUsecase{conversationChannelsResp: &pluginproto.ConversationChannelResp{}}
+	server, err := NewServer(Options{Usecase: usecase, Timeout: time.Second})
+	require.NoError(t, err)
+	incoming, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	ctx := newTimedTestRPCContext(incoming, "wk.conversation", mustMarshalProto(t, &pluginproto.ConversationChannelReq{Uid: "u1"}))
+
+	server.handlePath("/conversation/channels", ctx)
+
+	require.NoError(t, ctx.err)
+	require.True(t, usecase.conversationChannelsDeadlineSet)
+	require.WithinDuration(t, time.Now().Add(200*time.Millisecond), usecase.conversationChannelsDeadline, 100*time.Millisecond)
 }
 
-func (f *fakeRoutes) Route(path string, handler wkrpc.Handler) {
-	if f.handlers == nil {
-		f.handlers = make(map[string]wkrpc.Handler)
+func TestHTTPForwardHostRPCKeepsShorterIncomingDeadline(t *testing.T) {
+	usecase := &recordingUsecase{httpForwardResp: &pluginproto.HttpResponse{Status: http.StatusOK}}
+	server, err := NewServer(Options{Usecase: usecase, Timeout: time.Second})
+	require.NoError(t, err)
+	incoming, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	ctx := newTimedTestRPCContext(incoming, "wk.plugin.echo", mustMarshalProto(t, &pluginproto.ForwardHttpReq{PluginNo: "wk.plugin.echo"}))
+
+	server.handlePath("/plugin/httpForward", ctx)
+
+	require.NoError(t, ctx.err)
+	require.True(t, usecase.httpForwardDeadlineSet)
+	require.WithinDuration(t, time.Now().Add(200*time.Millisecond), usecase.httpForwardDeadline, 100*time.Millisecond)
+}
+
+func TestChannelMessagesHostRPCKeepsShorterIncomingDeadline(t *testing.T) {
+	usecase := &recordingUsecase{channelMessagesResp: &pluginproto.ChannelMessageBatchResp{}}
+	server, err := NewServer(Options{Usecase: usecase, Timeout: time.Second})
+	require.NoError(t, err)
+	incoming, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	ctx := newTimedTestRPCContext(incoming, "wk.reader", mustMarshalProto(t, &pluginproto.ChannelMessageBatchReq{}))
+
+	server.handlePath("/channel/messages", ctx)
+
+	require.NoError(t, ctx.err)
+	require.True(t, usecase.channelMessagesDeadlineSet)
+	require.WithinDuration(t, time.Now().Add(200*time.Millisecond), usecase.channelMessagesDeadline, 100*time.Millisecond)
+}
+
+func TestHandlePluginStartPassesCancelableTimeoutContextToUsecase(t *testing.T) {
+	usecase := &recordingUsecase{
+		startResp:       &pluginproto.StartupResp{Success: true},
+		startDoneSignal: make(chan struct{}, 1),
 	}
-	f.paths = append(f.paths, path)
-	f.handlers[path] = handler
-}
+	server, err := NewServer(Options{
+		Usecase: usecase,
+		Timeout: 50 * time.Millisecond,
+	})
+	require.NoError(t, err)
+	ctx := newTimedTestRPCContext(context.Background(), "wk.echo", mustMarshalProto(t, &pluginproto.PluginInfo{No: "wk.echo"}))
 
-type fakeHandlerRoutes struct {
-	paths    []string
-	handlers map[string]wkrpc.Handler
-}
+	server.handlePath("/plugin/start", ctx)
 
-func (f *fakeHandlerRoutes) Route(path string, handler wkrpc.Handler) {
-	if f.handlers == nil {
-		f.handlers = make(map[string]wkrpc.Handler)
-	}
-	f.paths = append(f.paths, path)
-	f.handlers[path] = handler
-}
-
-func shortAccessSocketPath(t *testing.T) string {
-	t.Helper()
-	dir, err := os.MkdirTemp("/tmp", "wkp-access-")
-	if err != nil {
-		t.Fatalf("create temp socket dir: %v", err)
-	}
-	t.Cleanup(func() { _ = os.RemoveAll(dir) })
-	return filepath.Join(dir, "plugin.sock")
-}
-
-func wkrpcConnect(t *testing.T, conn net.Conn, uid string) {
-	t.Helper()
-	req := &wkrpcproto.Connect{Id: 1, Uid: uid}
-	payload, err := req.Marshal()
-	if err != nil {
-		t.Fatalf("marshal connect: %v", err)
-	}
-	writeWKRPCFrame(t, conn, wkrpcproto.MsgTypeConnect, payload)
-	msgType, data := readWKRPCFrame(t, conn)
-	if msgType != wkrpcproto.MsgTypeConnack {
-		t.Fatalf("connect response type = %v", msgType)
-	}
-	var ack wkrpcproto.Connack
-	if err := ack.Unmarshal(data); err != nil {
-		t.Fatalf("unmarshal connack: %v", err)
-	}
-	if ack.Status != wkrpcproto.StatusOK {
-		t.Fatalf("connack status = %v body=%q", ack.Status, string(ack.Body))
-	}
-}
-
-func wkrpcRequest(t *testing.T, conn net.Conn, id uint64, path string, body []byte) *wkrpcproto.Response {
-	t.Helper()
-	req := &wkrpcproto.Request{Id: id, Path: path, Body: body}
-	payload, err := req.Marshal()
-	if err != nil {
-		t.Fatalf("marshal request: %v", err)
-	}
-	writeWKRPCFrame(t, conn, wkrpcproto.MsgTypeRequest, payload)
-	msgType, data := readWKRPCFrame(t, conn)
-	if msgType != wkrpcproto.MsgTypeResp {
-		t.Fatalf("request response type = %v", msgType)
-	}
-	var resp wkrpcproto.Response
-	if err := resp.Unmarshal(data); err != nil {
-		t.Fatalf("unmarshal response: %v", err)
-	}
-	return &resp
-}
-
-func writeWKRPCFrame(t *testing.T, conn net.Conn, msgType wkrpcproto.MsgType, payload []byte) {
-	t.Helper()
-	frame := make([]byte, len(wkrpcproto.MagicNumberStart)+1+4+len(payload))
-	copy(frame, wkrpcproto.MagicNumberStart)
-	frame[len(wkrpcproto.MagicNumberStart)] = msgType.Uint8()
-	binary.BigEndian.PutUint32(frame[len(wkrpcproto.MagicNumberStart)+1:], uint32(len(payload)))
-	copy(frame[len(wkrpcproto.MagicNumberStart)+1+4:], payload)
-	if _, err := conn.Write(frame); err != nil {
-		t.Fatalf("write wkrpc frame: %v", err)
-	}
-}
-
-func readWKRPCFrame(t *testing.T, conn net.Conn) (wkrpcproto.MsgType, []byte) {
-	t.Helper()
-	if err := conn.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
-		t.Fatalf("set read deadline: %v", err)
-	}
-	header := make([]byte, len(wkrpcproto.MagicNumberStart)+1+4)
-	if _, err := io.ReadFull(conn, header); err != nil {
-		t.Fatalf("read wkrpc header: %v", err)
-	}
-	if string(header[:len(wkrpcproto.MagicNumberStart)]) != string(wkrpcproto.MagicNumberStart) {
-		t.Fatalf("invalid wkrpc magic: %q", header[:len(wkrpcproto.MagicNumberStart)])
-	}
-	msgType := wkrpcproto.MsgType(header[len(wkrpcproto.MagicNumberStart)])
-	length := binary.BigEndian.Uint32(header[len(wkrpcproto.MagicNumberStart)+1:])
-	body := make([]byte, length)
-	if _, err := io.ReadFull(conn, body); err != nil {
-		t.Fatalf("read wkrpc body: %v", err)
-	}
-	return msgType, body
-}
-
-type fakeRPCContext struct {
-	ctx     context.Context
-	body    []byte
-	uid     string
-	written []byte
-	err     error
-	ok      bool
-}
-
-func newFakeRPCContext(body []byte) *fakeRPCContext {
-	return &fakeRPCContext{ctx: context.Background(), body: body}
-}
-
-func (f *fakeRPCContext) Context() context.Context { return f.ctx }
-func (f *fakeRPCContext) Body() []byte             { return f.body }
-func (f *fakeRPCContext) Uid() string              { return f.uid }
-func (f *fakeRPCContext) Write(data []byte)        { f.written = append([]byte(nil), data...) }
-func (f *fakeRPCContext) WriteOk()                 { f.ok = true }
-func (f *fakeRPCContext) WriteErr(err error)       { f.err = err }
-
-type fakeCloseEventContext struct {
-	*fakeRPCContext
-}
-
-func newFakeCloseEventContext(body []byte) *fakeCloseEventContext {
-	return &fakeCloseEventContext{fakeRPCContext: newFakeRPCContext(body)}
-}
-
-func (f *fakeCloseEventContext) CloseEvent() bool { return true }
-
-type fakeRequestContext struct {
-	*fakeRPCContext
-}
-
-func newFakeRequestContext(body []byte) *fakeRequestContext {
-	return &fakeRequestContext{fakeRPCContext: newFakeRPCContext(body)}
-}
-
-func (f *fakeRequestContext) CloseEvent() bool { return false }
-
-func newRecordingLogger() *recordingLogger {
-	return &recordingLogger{warned: make(chan struct{})}
-}
-
-type recordingLogger struct {
-	lastMsg       string
-	lastFields    []wklog.Field
-	lastWarnMsg   string
-	lastWarnField []wklog.Field
-	warned        chan struct{}
-	warnOnce      sync.Once
-}
-
-func (r *recordingLogger) Debug(msg string, fields ...wklog.Field) {
-	r.lastMsg = msg
-	r.lastFields = append([]wklog.Field(nil), fields...)
-}
-func (r *recordingLogger) Info(msg string, fields ...wklog.Field) {}
-func (r *recordingLogger) Warn(msg string, fields ...wklog.Field) {
-	r.lastWarnMsg = msg
-	r.lastWarnField = append([]wklog.Field(nil), fields...)
-	if r.warned != nil {
-		r.warnOnce.Do(func() { close(r.warned) })
-	}
-}
-func (r *recordingLogger) Error(msg string, fields ...wklog.Field) {}
-func (r *recordingLogger) Fatal(msg string, fields ...wklog.Field) {}
-func (r *recordingLogger) Named(string) wklog.Logger               { return r }
-func (r *recordingLogger) With(fields ...wklog.Field) wklog.Logger { return r }
-func (r *recordingLogger) Sync() error                             { return nil }
-
-func (r *recordingLogger) fieldValue(key string) any {
-	return fieldValue(r.lastFields, key)
-}
-
-func (r *recordingLogger) warnFieldValue(key string) any {
-	return fieldValue(r.lastWarnField, key)
-}
-
-func (r *recordingLogger) waitWarn(t *testing.T) {
-	t.Helper()
+	require.True(t, usecase.startDeadlineSet)
+	require.WithinDuration(t, time.Now().Add(50*time.Millisecond), usecase.startDeadline, 100*time.Millisecond)
 	select {
-	case <-r.warned:
+	case <-usecase.startDoneSignal:
 	case <-time.After(time.Second):
-		t.Fatal("logger did not record warning")
+		t.Fatal("expected handler cancel to reach usecase context")
 	}
 }
 
-func fieldValue(fields []wklog.Field, key string) any {
-	for _, field := range fields {
-		if field.Key == key {
-			return field.Value
-		}
+type recordingRoutes struct {
+	paths []string
+}
+
+func (r *recordingRoutes) Route(path string, _ wkrpc.Handler) {
+	r.paths = append(r.paths, path)
+}
+
+type recordingUsecase struct {
+	started                         *pluginproto.PluginInfo
+	startCalls                      int
+	startResp                       *pluginproto.StartupResp
+	startDoneSignal                 chan struct{}
+	startDeadline                   time.Time
+	startDeadlineSet                bool
+	caller                          string
+	closedPluginNo                  string
+	closedCaller                    string
+	closeCalled                     chan struct{}
+	closeErr                        error
+	sendCalls                       int
+	sendReq                         *pluginproto.SendReq
+	sendResp                        *pluginproto.SendResp
+	sendCaller                      string
+	sendDeadline                    time.Time
+	sendDeadlineSet                 bool
+	channelMessagesCalls            int
+	channelMessagesReq              *pluginproto.ChannelMessageBatchReq
+	channelMessagesResp             *pluginproto.ChannelMessageBatchResp
+	channelMessagesCaller           string
+	channelMessagesDeadline         time.Time
+	channelMessagesDeadlineSet      bool
+	clusterConfigCalls              int
+	clusterConfigResp               *pluginproto.ClusterConfig
+	clusterConfigCaller             string
+	clusterConfigDeadline           time.Time
+	clusterConfigDeadlineSet        bool
+	clusterBelongNodeCalls          int
+	clusterBelongNodeReq            *pluginproto.ClusterChannelBelongNodeReq
+	clusterBelongNodeResp           *pluginproto.ClusterChannelBelongNodeBatchResp
+	clusterBelongNodeCaller         string
+	clusterBelongNodeDeadline       time.Time
+	clusterBelongNodeDeadlineSet    bool
+	conversationChannelsCalls       int
+	conversationChannelsReq         *pluginproto.ConversationChannelReq
+	conversationChannelsResp        *pluginproto.ConversationChannelResp
+	conversationChannelsCaller      string
+	conversationChannelsDeadline    time.Time
+	conversationChannelsDeadlineSet bool
+	httpForwardCalls                int
+	httpForwardReq                  *pluginproto.ForwardHttpReq
+	httpForwardResp                 *pluginproto.HttpResponse
+	httpForwardCaller               string
+	httpForwardDeadline             time.Time
+	httpForwardDeadlineSet          bool
+}
+
+func (r *recordingUsecase) StartPlugin(ctx context.Context, info *pluginproto.PluginInfo, callerUID string) (*pluginproto.StartupResp, error) {
+	r.started = proto.Clone(info).(*pluginproto.PluginInfo)
+	r.startCalls++
+	r.caller = callerUID
+	if deadline, ok := ctx.Deadline(); ok {
+		r.startDeadline = deadline
+		r.startDeadlineSet = true
 	}
-	return nil
-}
-
-type fakeUsecase struct {
-	mu sync.Mutex
-
-	lastCtx context.Context
-
-	startupResp *pluginproto.StartupResp
-	startCalls  int
-	startInfo   *pluginproto.PluginInfo
-	startCaller string
-
-	closePluginNo string
-	closeCaller   string
-	closeStarted  chan struct{}
-	closeBlock    <-chan struct{}
-	closeErr      error
-
-	sendResp   *pluginproto.SendResp
-	sendCalls  int
-	sendCtx    context.Context
-	sendReq    *pluginproto.SendReq
-	sendCaller string
-
-	channelMessagesResp   *pluginproto.ChannelMessageBatchResp
-	channelMessagesCalls  int
-	channelMessagesCtx    context.Context
-	channelMessagesReq    *pluginproto.ChannelMessageBatchReq
-	channelMessagesCaller string
-
-	clusterConfigResp   *pluginproto.ClusterConfig
-	clusterConfigCalls  int
-	clusterConfigCtx    context.Context
-	clusterConfigCaller string
-
-	clusterBelongNodeResp   *pluginproto.ClusterChannelBelongNodeBatchResp
-	clusterBelongNodeCalls  int
-	clusterBelongNodeCtx    context.Context
-	clusterBelongNodeReq    *pluginproto.ClusterChannelBelongNodeReq
-	clusterBelongNodeCaller string
-
-	conversationChannelsResp   *pluginproto.ConversationChannelResp
-	conversationChannelsCalls  int
-	conversationChannelsCtx    context.Context
-	conversationChannelsReq    *pluginproto.ConversationChannelReq
-	conversationChannelsCaller string
-
-	httpForwardResp   *pluginproto.HttpResponse
-	httpForwardCalls  int
-	httpForwardCtx    context.Context
-	httpForwardReq    *pluginproto.ForwardHttpReq
-	httpForwardCaller string
-}
-
-func (f *fakeUsecase) StartPlugin(ctx context.Context, info *pluginproto.PluginInfo, callerUID string) (*pluginproto.StartupResp, error) {
-	f.mu.Lock()
-	f.lastCtx = ctx
-	f.startCalls++
-	f.startInfo = info
-	f.startCaller = callerUID
-	resp := f.startupResp
-	f.mu.Unlock()
-	if resp != nil {
-		return resp, nil
+	if r.startDoneSignal != nil {
+		done := r.startDoneSignal
+		go func() {
+			<-ctx.Done()
+			select {
+			case done <- struct{}{}:
+			default:
+			}
+		}()
+	}
+	if r.startResp != nil {
+		return r.startResp, nil
 	}
 	return &pluginproto.StartupResp{Success: true}, nil
 }
 
-func (f *fakeUsecase) waitStartCalls(t *testing.T, want int) {
-	t.Helper()
-	deadline := time.After(time.Second)
-	tick := time.NewTicker(time.Millisecond)
-	defer tick.Stop()
-	for {
-		f.mu.Lock()
-		got := f.startCalls
-		f.mu.Unlock()
-		if got >= want {
-			return
-		}
+func (r *recordingUsecase) ClosePlugin(_ context.Context, pluginNo string, callerUID string) error {
+	r.closedPluginNo = pluginNo
+	r.closedCaller = callerUID
+	if r.closeCalled != nil {
 		select {
-		case <-deadline:
-			t.Fatalf("StartPlugin calls = %d, want at least %d", got, want)
-		case <-tick.C:
+		case r.closeCalled <- struct{}{}:
+		default:
 		}
 	}
+	return r.closeErr
 }
 
-func (f *fakeUsecase) ClosePlugin(ctx context.Context, pluginNo string, callerUID string) error {
-	f.mu.Lock()
-	f.lastCtx = ctx
-	f.closePluginNo = pluginNo
-	f.closeCaller = callerUID
-	started := f.closeStarted
-	block := f.closeBlock
-	closeErr := f.closeErr
-	f.mu.Unlock()
-	if started != nil {
-		close(started)
+func (r *recordingUsecase) SendMessage(ctx context.Context, req *pluginproto.SendReq, callerUID string) (*pluginproto.SendResp, error) {
+	r.sendCalls++
+	r.sendReq = proto.Clone(req).(*pluginproto.SendReq)
+	r.sendCaller = callerUID
+	if deadline, ok := ctx.Deadline(); ok {
+		r.sendDeadline = deadline
+		r.sendDeadlineSet = true
 	}
-	if block != nil {
-		select {
-		case <-block:
-		case <-ctx.Done():
-			return ctx.Err()
-		}
+	if r.sendResp != nil {
+		return r.sendResp, nil
 	}
-	return closeErr
+	return &pluginproto.SendResp{}, nil
 }
 
-func (f *fakeUsecase) SendMessage(ctx context.Context, req *pluginproto.SendReq, callerUID string) (*pluginproto.SendResp, error) {
-	f.mu.Lock()
-	f.lastCtx = ctx
-	f.sendCalls++
-	f.sendCtx = ctx
-	f.sendReq = req
-	f.sendCaller = callerUID
-	resp := f.sendResp
-	f.mu.Unlock()
-	if resp != nil {
-		return resp, nil
+func (r *recordingUsecase) ChannelMessages(ctx context.Context, req *pluginproto.ChannelMessageBatchReq, callerUID string) (*pluginproto.ChannelMessageBatchResp, error) {
+	r.channelMessagesCalls++
+	r.channelMessagesReq = proto.Clone(req).(*pluginproto.ChannelMessageBatchReq)
+	r.channelMessagesCaller = callerUID
+	if deadline, ok := ctx.Deadline(); ok {
+		r.channelMessagesDeadline = deadline
+		r.channelMessagesDeadlineSet = true
 	}
-	return &pluginproto.SendResp{MessageId: 123}, nil
-}
-
-func (f *fakeUsecase) ChannelMessages(ctx context.Context, req *pluginproto.ChannelMessageBatchReq, callerUID string) (*pluginproto.ChannelMessageBatchResp, error) {
-	f.mu.Lock()
-	f.lastCtx = ctx
-	f.channelMessagesCalls++
-	f.channelMessagesCtx = ctx
-	f.channelMessagesReq = req
-	f.channelMessagesCaller = callerUID
-	resp := f.channelMessagesResp
-	f.mu.Unlock()
-	if resp != nil {
-		return resp, nil
+	if r.channelMessagesResp != nil {
+		return r.channelMessagesResp, nil
 	}
 	return &pluginproto.ChannelMessageBatchResp{}, nil
 }
 
-func (f *fakeUsecase) HTTPForward(ctx context.Context, req *pluginproto.ForwardHttpReq, callerUID string) (*pluginproto.HttpResponse, error) {
-	f.mu.Lock()
-	f.lastCtx = ctx
-	f.httpForwardCalls++
-	f.httpForwardCtx = ctx
-	f.httpForwardReq = req
-	f.httpForwardCaller = callerUID
-	resp := f.httpForwardResp
-	f.mu.Unlock()
-	if resp != nil {
-		return resp, nil
+func (r *recordingUsecase) ClusterConfig(ctx context.Context, callerUID string) (*pluginproto.ClusterConfig, error) {
+	r.clusterConfigCalls++
+	r.clusterConfigCaller = callerUID
+	if deadline, ok := ctx.Deadline(); ok {
+		r.clusterConfigDeadline = deadline
+		r.clusterConfigDeadlineSet = true
 	}
-	return &pluginproto.HttpResponse{}, nil
-}
-
-func (f *fakeUsecase) ClusterConfig(ctx context.Context, callerUID string) (*pluginproto.ClusterConfig, error) {
-	f.mu.Lock()
-	f.lastCtx = ctx
-	f.clusterConfigCalls++
-	f.clusterConfigCtx = ctx
-	f.clusterConfigCaller = callerUID
-	resp := f.clusterConfigResp
-	f.mu.Unlock()
-	if resp != nil {
-		return resp, nil
+	if r.clusterConfigResp != nil {
+		return r.clusterConfigResp, nil
 	}
 	return &pluginproto.ClusterConfig{}, nil
 }
 
-func (f *fakeUsecase) ClusterChannelsBelongNode(ctx context.Context, req *pluginproto.ClusterChannelBelongNodeReq, callerUID string) (*pluginproto.ClusterChannelBelongNodeBatchResp, error) {
-	f.mu.Lock()
-	f.lastCtx = ctx
-	f.clusterBelongNodeCalls++
-	f.clusterBelongNodeCtx = ctx
-	f.clusterBelongNodeReq = req
-	f.clusterBelongNodeCaller = callerUID
-	resp := f.clusterBelongNodeResp
-	f.mu.Unlock()
-	if resp != nil {
-		return resp, nil
+func (r *recordingUsecase) ClusterChannelsBelongNode(ctx context.Context, req *pluginproto.ClusterChannelBelongNodeReq, callerUID string) (*pluginproto.ClusterChannelBelongNodeBatchResp, error) {
+	r.clusterBelongNodeCalls++
+	r.clusterBelongNodeReq = proto.Clone(req).(*pluginproto.ClusterChannelBelongNodeReq)
+	r.clusterBelongNodeCaller = callerUID
+	if deadline, ok := ctx.Deadline(); ok {
+		r.clusterBelongNodeDeadline = deadline
+		r.clusterBelongNodeDeadlineSet = true
+	}
+	if r.clusterBelongNodeResp != nil {
+		return r.clusterBelongNodeResp, nil
 	}
 	return &pluginproto.ClusterChannelBelongNodeBatchResp{}, nil
 }
 
-func (f *fakeUsecase) ConversationChannels(ctx context.Context, req *pluginproto.ConversationChannelReq, callerUID string) (*pluginproto.ConversationChannelResp, error) {
-	f.mu.Lock()
-	f.lastCtx = ctx
-	f.conversationChannelsCalls++
-	f.conversationChannelsCtx = ctx
-	f.conversationChannelsReq = req
-	f.conversationChannelsCaller = callerUID
-	resp := f.conversationChannelsResp
-	f.mu.Unlock()
-	if resp != nil {
-		return resp, nil
+func (r *recordingUsecase) ConversationChannels(ctx context.Context, req *pluginproto.ConversationChannelReq, callerUID string) (*pluginproto.ConversationChannelResp, error) {
+	r.conversationChannelsCalls++
+	r.conversationChannelsReq = proto.Clone(req).(*pluginproto.ConversationChannelReq)
+	r.conversationChannelsCaller = callerUID
+	if deadline, ok := ctx.Deadline(); ok {
+		r.conversationChannelsDeadline = deadline
+		r.conversationChannelsDeadlineSet = true
+	}
+	if r.conversationChannelsResp != nil {
+		return r.conversationChannelsResp, nil
 	}
 	return &pluginproto.ConversationChannelResp{}, nil
 }
 
-func mustServer(t *testing.T, uc *fakeUsecase) *Server {
-	t.Helper()
-	srv, err := NewServer(Options{Routes: &fakeRoutes{}, Usecase: uc, Timeout: time.Second})
-	if err != nil {
-		t.Fatalf("NewServer returned error: %v", err)
+func (r *recordingUsecase) HTTPForward(ctx context.Context, req *pluginproto.ForwardHttpReq, callerUID string) (*pluginproto.HttpResponse, error) {
+	r.httpForwardCalls++
+	r.httpForwardReq = proto.Clone(req).(*pluginproto.ForwardHttpReq)
+	r.httpForwardCaller = callerUID
+	if deadline, ok := ctx.Deadline(); ok {
+		r.httpForwardDeadline = deadline
+		r.httpForwardDeadlineSet = true
 	}
-	return srv
+	if r.httpForwardResp != nil {
+		return r.httpForwardResp, nil
+	}
+	return &pluginproto.HttpResponse{}, nil
 }
 
-func mustMarshal(t *testing.T, msg proto.Message) []byte {
-	t.Helper()
-	b, err := proto.Marshal(msg)
-	if err != nil {
-		t.Fatalf("marshal %T: %v", msg, err)
-	}
-	return b
+type testRPCContext struct {
+	baseCtx     context.Context
+	uid         string
+	requestBody []byte
+	body        []byte
+	err         error
+	ok          bool
+	closeEvent  bool
 }
 
-func mustUnmarshal(t *testing.T, data []byte, msg proto.Message) {
+func newTestRPCContext(uid string, body []byte) *testRPCContext {
+	return newTimedTestRPCContext(context.Background(), uid, body)
+}
+
+func newTimedTestRPCContext(baseCtx context.Context, uid string, body []byte) *testRPCContext {
+	return &testRPCContext{baseCtx: baseCtx, uid: uid, requestBody: body}
+}
+
+func (c *testRPCContext) Context() context.Context { return c.baseCtx }
+func (c *testRPCContext) Body() []byte             { return c.requestBody }
+func (c *testRPCContext) Uid() string              { return c.uid }
+func (c *testRPCContext) Write(data []byte)        { c.body = append([]byte(nil), data...) }
+func (c *testRPCContext) WriteOk()                 { c.ok = true }
+func (c *testRPCContext) WriteErr(err error)       { c.err = err }
+func (c *testRPCContext) CloseEvent() bool         { return c.closeEvent }
+
+func mustMarshalProto(t *testing.T, msg proto.Message) []byte {
 	t.Helper()
-	if len(data) == 0 {
-		t.Fatal("no response body written")
+	data, err := proto.Marshal(msg)
+	require.NoError(t, err)
+	return data
+}
+
+func BenchmarkMessageSendHostRPCHandler(b *testing.B) {
+	usecase := &recordingUsecase{sendResp: &pluginproto.SendResp{MessageId: 1}}
+	server, err := NewServer(Options{Usecase: usecase, Timeout: time.Second})
+	require.NoError(b, err)
+	body, err := proto.Marshal(&pluginproto.SendReq{
+		Header:      &pluginproto.Header{NoPersist: true, SyncOnce: true},
+		ClientMsgNo: "bench-client",
+		ChannelId:   "receiver",
+		ChannelType: 1,
+		Payload:     []byte("hello"),
+	})
+	require.NoError(b, err)
+	b.ReportAllocs()
+	b.SetBytes(int64(len(body)))
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		ctx := newTestRPCContext("bench.plugin", body)
+		server.handlePath("/message/send", ctx)
+		if ctx.err != nil {
+			b.Fatal(ctx.err)
+		}
+		if len(ctx.body) == 0 {
+			b.Fatal("empty response")
+		}
 	}
-	if err := proto.Unmarshal(data, msg); err != nil {
-		t.Fatalf("unmarshal %T: %v", msg, err)
+}
+
+func BenchmarkChannelMessagesHostRPCHandler(b *testing.B) {
+	usecase := &recordingUsecase{channelMessagesResp: &pluginproto.ChannelMessageBatchResp{ChannelMessageResps: []*pluginproto.ChannelMessageResp{{
+		ChannelId:       "g1",
+		ChannelType:     2,
+		StartMessageSeq: 1,
+		Limit:           1,
+		Messages:        []*pluginproto.Message{{MessageId: 1, MessageSeq: 1, Payload: []byte("payload")}},
+	}}}}
+	server, err := NewServer(Options{Usecase: usecase, Timeout: time.Second})
+	require.NoError(b, err)
+	body, err := proto.Marshal(&pluginproto.ChannelMessageBatchReq{ChannelMessageReqs: []*pluginproto.ChannelMessageReq{{
+		ChannelId:       "g1",
+		ChannelType:     2,
+		StartMessageSeq: 1,
+		Limit:           1,
+	}}})
+	require.NoError(b, err)
+	b.ReportAllocs()
+	b.SetBytes(int64(len(body)))
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		ctx := newTestRPCContext("bench.plugin", body)
+		server.handlePath("/channel/messages", ctx)
+		if ctx.err != nil {
+			b.Fatal(ctx.err)
+		}
+		if len(ctx.body) == 0 {
+			b.Fatal("empty response")
+		}
 	}
+}
+
+func BenchmarkConversationHostRPCHandler(b *testing.B) {
+	usecase := &recordingUsecase{conversationChannelsResp: &pluginproto.ConversationChannelResp{
+		Channels: []*pluginproto.Channel{
+			{ChannelId: "g1", ChannelType: 2},
+			{ChannelId: "p1", ChannelType: 1},
+		},
+	}}
+	server, err := NewServer(Options{Usecase: usecase, Timeout: time.Second})
+	require.NoError(b, err)
+	body, err := proto.Marshal(&pluginproto.ConversationChannelReq{Uid: "u1"})
+	require.NoError(b, err)
+	b.ReportAllocs()
+	b.SetBytes(int64(len(body)))
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		ctx := newTestRPCContext("bench.plugin", body)
+		server.handlePath("/conversation/channels", ctx)
+		if ctx.err != nil {
+			b.Fatal(ctx.err)
+		}
+		if len(ctx.body) == 0 {
+			b.Fatal("empty response")
+		}
+	}
+}
+
+func BenchmarkHTTPForwardHostRPCHandler(b *testing.B) {
+	for _, payloadSize := range []int{128, 1024, 16 * 1024} {
+		b.Run(fmt.Sprintf("payload_%d", payloadSize), func(b *testing.B) {
+			usecase := &recordingUsecase{httpForwardResp: &pluginproto.HttpResponse{
+				Status:  http.StatusOK,
+				Headers: map[string]string{"X-Plugin": "ok"},
+				Body:    []byte("ok"),
+			}}
+			server, err := NewServer(Options{Usecase: usecase, Timeout: time.Second})
+			require.NoError(b, err)
+			body, err := proto.Marshal(&pluginproto.ForwardHttpReq{
+				Request: &pluginproto.HttpRequest{
+					Method:  http.MethodPost,
+					Path:    "/bench",
+					Headers: map[string]string{"X-Trace": "bench"},
+					Body:    make([]byte, payloadSize),
+				},
+			})
+			require.NoError(b, err)
+			b.ReportAllocs()
+			b.SetBytes(int64(payloadSize))
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				ctx := newTestRPCContext("bench.plugin", body)
+				server.handlePath("/plugin/httpForward", ctx)
+				if ctx.err != nil {
+					b.Fatal(ctx.err)
+				}
+				if len(ctx.body) == 0 {
+					b.Fatal("empty response")
+				}
+			}
+		})
+	}
+}
+
+func BenchmarkClusterHostRPCHandlers(b *testing.B) {
+	b.Run("config", func(b *testing.B) {
+		usecase := &recordingUsecase{clusterConfigResp: &pluginproto.ClusterConfig{
+			Nodes: []*pluginproto.Node{{Id: 1, ClusterAddr: "127.0.0.1:7001", Online: true}},
+			Slots: []*pluginproto.Slot{{Id: 1, Leader: 1, Term: 1, Replicas: []uint64{1, 2, 3}}},
+		}}
+		server, err := NewServer(Options{Usecase: usecase, Timeout: time.Second})
+		require.NoError(b, err)
+		b.ReportAllocs()
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			ctx := newTestRPCContext("bench.plugin", nil)
+			server.handlePath("/cluster/config", ctx)
+			if ctx.err != nil {
+				b.Fatal(ctx.err)
+			}
+			if len(ctx.body) == 0 {
+				b.Fatal("empty response")
+			}
+		}
+	})
+	b.Run("belong_node", func(b *testing.B) {
+		usecase := &recordingUsecase{clusterBelongNodeResp: &pluginproto.ClusterChannelBelongNodeBatchResp{
+			ClusterChannelBelongNodeResps: []*pluginproto.ClusterChannelBelongNodeResp{{
+				NodeId:   1,
+				Channels: []*pluginproto.Channel{{ChannelId: "g1", ChannelType: 2}},
+			}},
+		}}
+		server, err := NewServer(Options{Usecase: usecase, Timeout: time.Second})
+		require.NoError(b, err)
+		body, err := proto.Marshal(&pluginproto.ClusterChannelBelongNodeReq{
+			Channels: []*pluginproto.Channel{{ChannelId: "g1", ChannelType: 2}},
+		})
+		require.NoError(b, err)
+		b.ReportAllocs()
+		b.SetBytes(int64(len(body)))
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			ctx := newTestRPCContext("bench.plugin", body)
+			server.handlePath("/cluster/channels/belongNode", ctx)
+			if ctx.err != nil {
+				b.Fatal(ctx.err)
+			}
+			if len(ctx.body) == 0 {
+				b.Fatal("empty response")
+			}
+		}
+	})
 }

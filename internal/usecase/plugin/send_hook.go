@@ -3,44 +3,66 @@ package plugin
 import (
 	"context"
 	"math"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	"github.com/WuKongIM/WuKongIM/pkg/plugin/pluginproto"
-	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
+)
+
+const (
+	sendHookResultOK            = "ok"
+	sendHookResultReject        = "reject"
+	sendHookResultError         = "error"
+	sendHookResultFailOpen      = "fail_open"
+	sendHookResultInvalidReason = "invalid_reason"
 )
 
 // BeforeSend runs local Send plugins in hook order and returns the mutated command.
-func (a *App) BeforeSend(ctx context.Context, cmd message.SendCommand) (message.SendCommand, frame.ReasonCode, error) {
+func (a *App) BeforeSend(ctx context.Context, cmd message.SendCommand) (message.SendCommand, message.Reason, error) {
 	plugins, err := a.SendPluginCandidates(ctx)
 	if err != nil {
 		if a.failOpen {
-			return cmd, frame.ReasonSuccess, nil
+			return cmd, message.ReasonSuccess, nil
 		}
-		return cmd, frame.ReasonSystemError, err
+		return cmd, message.ReasonSystemError, err
 	}
 	if len(plugins) == 0 {
-		return cmd, frame.ReasonSuccess, nil
+		return cmd, message.ReasonSuccess, nil
 	}
 	current := cmd
 	for _, plugin := range plugins {
-		packet := sendPacketFromCommand(current)
-		resp, err := a.InvokeSend(ctx, plugin.No, packet)
+		start := time.Now()
+		resp, err := a.InvokeSend(ctx, plugin.No, sendPacketFromCommand(current))
 		if err != nil {
 			if a.failOpen {
-				return cmd, frame.ReasonSuccess, nil
+				a.observeSendInvoke(sendHookResultFailOpen, start)
+				return cmd, message.ReasonSuccess, nil
 			}
-			return current, frame.ReasonSystemError, err
+			a.observeSendInvoke(sendHookResultError, start)
+			return current, message.ReasonSystemError, err
 		}
 		reason, valid := sendHookReason(resp.GetReason())
 		if !valid {
-			return current, frame.ReasonSystemError, nil
+			a.observeSendInvoke(sendHookResultInvalidReason, start)
+			return current, message.ReasonSystemError, nil
 		}
-		if reason != 0 && reason != frame.ReasonSuccess {
+		if reason != 0 && reason != message.ReasonSuccess {
+			a.observeSendInvoke(sendHookResultReject, start)
 			return current, reason, nil
 		}
 		applySendPacketResponse(&current, resp)
+		a.observeSendInvoke(sendHookResultOK, start)
 	}
-	return current, frame.ReasonSuccess, nil
+	return current, message.ReasonSuccess, nil
+}
+
+// SendPluginCandidates returns running local Send plugins in hook order.
+func (a *App) SendPluginCandidates(ctx context.Context) ([]ObservedPlugin, error) {
+	plugins, err := a.applyDesiredToPlugins(ctx, a.runtime.List())
+	if err != nil {
+		return nil, err
+	}
+	return runningPluginsByMethod(plugins, MethodSend), nil
 }
 
 func sendPacketFromCommand(cmd message.SendCommand) *pluginproto.SendPacket {
@@ -49,7 +71,7 @@ func sendPacketFromCommand(cmd message.SendCommand) *pluginproto.SendPacket {
 		ChannelId:   cmd.ChannelID,
 		ChannelType: uint32(cmd.ChannelType),
 		Payload:     append([]byte(nil), cmd.Payload...),
-		Reason:      uint32(frame.ReasonSuccess),
+		Reason:      uint32(message.ReasonSuccess),
 		Conn: &pluginproto.Conn{
 			Uid:        cmd.FromUID,
 			ConnId:     int64(cmd.SenderSessionID),
@@ -68,9 +90,16 @@ func applySendPacketResponse(cmd *message.SendCommand, resp *pluginproto.SendPac
 	}
 }
 
-func sendHookReason(reason uint32) (frame.ReasonCode, bool) {
+func sendHookReason(reason uint32) (message.Reason, bool) {
 	if reason > math.MaxUint8 {
 		return 0, false
 	}
-	return frame.ReasonCode(reason), true
+	return message.Reason(reason), true
+}
+
+func (a *App) observeSendInvoke(result string, start time.Time) {
+	if a == nil || a.observer == nil {
+		return
+	}
+	a.observer.ObserveSendInvoke(result, time.Since(start))
 }

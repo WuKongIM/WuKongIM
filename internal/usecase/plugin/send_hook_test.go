@@ -3,192 +3,235 @@ package plugin
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	"github.com/WuKongIM/WuKongIM/pkg/plugin/pluginproto"
-	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
+	"github.com/stretchr/testify/require"
 )
 
-func TestSendHookRunsSendPluginsInOrderAndMutatesPayload(t *testing.T) {
-	rt := newFakeRuntime(t.TempDir())
-	rt.plugins["low"] = ObservedPlugin{No: "low", Status: StatusRunning, Enabled: true, Methods: []Method{MethodSend}, Priority: 1}
-	rt.plugins["high"] = ObservedPlugin{No: "high", Status: StatusRunning, Enabled: true, Methods: []Method{MethodSend}, Priority: 10}
-	invoker := &sendHookInvoker{responses: map[string]*pluginproto.SendPacket{
-		"high": {Payload: []byte("from-high")},
-		"low":  {Payload: []byte("from-low")},
+func TestBeforeSendRunsCandidatesInPriorityOrderAndMutatesPayload(t *testing.T) {
+	runtime := &sendHookRuntime{plugins: []ObservedPlugin{
+		{No: "low", Methods: []Method{MethodSend}, Priority: 1, Status: StatusRunning, Enabled: true},
+		{No: "persist-only", Methods: []Method{MethodPersistAfter}, Priority: 100, Status: StatusRunning, Enabled: true},
+		{No: "offline", Methods: []Method{MethodSend}, Priority: 99, Status: StatusOffline, Enabled: true},
+		{No: "high", Methods: []Method{MethodSend}, Priority: 9, Status: StatusRunning, Enabled: true},
 	}}
-	app := mustNewTestApp(t, Options{Runtime: rt, DesiredStore: newFakeDesiredStore(), Invoker: invoker})
+	invoker := &sendHookInvoker{
+		responses: map[string]*pluginproto.SendPacket{
+			"high": {Payload: []byte("high"), Reason: uint32(message.ReasonSuccess)},
+			"low":  {Payload: []byte("low"), Reason: uint32(message.ReasonSuccess)},
+		},
+	}
+	app, err := NewApp(Options{Runtime: runtime, Invoker: invoker})
+	require.NoError(t, err)
 
 	cmd, reason, err := app.BeforeSend(context.Background(), message.SendCommand{
-		FromUID:         "u1",
-		SenderSessionID: 42,
-		DeviceID:        "web-1",
-		DeviceFlag:      frame.WEB,
-		ChannelID:       "g1",
-		ChannelType:     frame.ChannelTypeGroup,
-		Payload:         []byte("original"),
+		FromUID: "u1", DeviceID: "d1", DeviceFlag: 5, SenderSessionID: 42, ChannelID: "g1", ChannelType: 2, Payload: []byte("original"),
 	})
-
-	if err != nil {
-		t.Fatalf("BeforeSend: %v", err)
-	}
-	if reason != frame.ReasonSuccess {
-		t.Fatalf("reason = %v, want success", reason)
-	}
-	if cmd.FromUID != "u1" || cmd.ChannelID != "g1" || cmd.ChannelType != frame.ChannelTypeGroup {
-		t.Fatalf("mutated command identity = %#v", cmd)
-	}
-	if string(cmd.Payload) != "from-low" {
-		t.Fatalf("payload = %q, want from-low", string(cmd.Payload))
-	}
-	if got, want := invoker.pluginNos(), []string{"high", "low"}; !equalStrings(got, want) {
-		t.Fatalf("plugin order = %#v, want %#v", got, want)
-	}
-	var first pluginproto.SendPacket
-	if err := first.Unmarshal(invoker.requests[0].Body); err != nil {
-		t.Fatalf("unmarshal first request: %v", err)
-	}
-	if first.GetConn().GetUid() != "u1" || first.GetConn().GetConnId() != 42 || first.GetConn().GetDeviceId() != "web-1" || first.GetConn().GetDeviceFlag() != uint32(frame.WEB) {
-		t.Fatalf("conn = %#v", first.GetConn())
-	}
-	if first.GetFromUid() != "u1" || first.GetChannelId() != "g1" || first.GetChannelType() != uint32(frame.ChannelTypeGroup) || string(first.GetPayload()) != "original" {
-		t.Fatalf("first send packet = %#v", &first)
-	}
-	var second pluginproto.SendPacket
-	if err := second.Unmarshal(invoker.requests[1].Body); err != nil {
-		t.Fatalf("unmarshal second request: %v", err)
-	}
-	if second.GetFromUid() != "u1" || second.GetChannelId() != "g1" || second.GetChannelType() != uint32(frame.ChannelTypeGroup) || string(second.GetPayload()) != "from-high" {
-		t.Fatalf("second send packet = %#v", &second)
-	}
+	require.NoError(t, err)
+	require.Equal(t, message.ReasonSuccess, reason)
+	require.Equal(t, []byte("low"), cmd.Payload)
+	require.Equal(t, []string{"high:" + PathSend, "low:" + PathSend}, invoker.requestKeys())
+	require.Equal(t, []string{"original", "high"}, invoker.requestPayloads())
+	require.Equal(t, "u1", invoker.requests[0].packet.GetConn().GetUid())
+	require.Equal(t, int64(42), invoker.requests[0].packet.GetConn().GetConnId())
+	require.Equal(t, "d1", invoker.requests[0].packet.GetConn().GetDeviceId())
+	require.Equal(t, uint32(5), invoker.requests[0].packet.GetConn().GetDeviceFlag())
 }
 
-func TestSendHookEmptySuccessResponsePreservesCommandIdentity(t *testing.T) {
-	rt := newFakeRuntime(t.TempDir())
-	rt.plugins["noop"] = ObservedPlugin{No: "noop", Status: StatusRunning, Enabled: true, Methods: []Method{MethodSend}}
-	invoker := &sendHookInvoker{responses: map[string]*pluginproto.SendPacket{"noop": {}}}
-	app := mustNewTestApp(t, Options{Runtime: rt, DesiredStore: newFakeDesiredStore(), Invoker: invoker})
-
-	cmd, reason, err := app.BeforeSend(context.Background(), message.SendCommand{FromUID: "u1", ChannelID: "g1", ChannelType: frame.ChannelTypeGroup, Payload: []byte("original")})
-
-	if err != nil {
-		t.Fatalf("BeforeSend: %v", err)
+func TestBeforeSendRejectsOnPluginReasonAndStopsChain(t *testing.T) {
+	runtime := &sendHookRuntime{plugins: []ObservedPlugin{
+		{No: "reject", Methods: []Method{MethodSend}, Priority: 10, Status: StatusRunning, Enabled: true},
+		{No: "later", Methods: []Method{MethodSend}, Priority: 1, Status: StatusRunning, Enabled: true},
+	}}
+	invoker := &sendHookInvoker{
+		responses: map[string]*pluginproto.SendPacket{
+			"reject": {Reason: uint32(message.ReasonNotAllowSend)},
+			"later":  {Payload: []byte("later"), Reason: uint32(message.ReasonSuccess)},
+		},
 	}
-	if reason != frame.ReasonSuccess {
-		t.Fatalf("reason = %v, want success", reason)
-	}
-	if cmd.FromUID != "u1" || cmd.ChannelID != "g1" || cmd.ChannelType != frame.ChannelTypeGroup || string(cmd.Payload) != "original" {
-		t.Fatalf("command after noop response = %#v", cmd)
-	}
-}
-
-func TestSendHookReasonRejectsChain(t *testing.T) {
-	rt := newFakeRuntime(t.TempDir())
-	rt.plugins["mod"] = ObservedPlugin{No: "mod", Status: StatusRunning, Enabled: true, Methods: []Method{MethodSend}}
-	invoker := &sendHookInvoker{responses: map[string]*pluginproto.SendPacket{"mod": {Reason: uint32(frame.ReasonPayloadDecodeError), Payload: []byte("blocked")}}}
-	app := mustNewTestApp(t, Options{Runtime: rt, DesiredStore: newFakeDesiredStore(), Invoker: invoker})
-
-	_, reason, err := app.BeforeSend(context.Background(), message.SendCommand{FromUID: "u1", ChannelID: "g1", ChannelType: frame.ChannelTypeGroup, Payload: []byte("bad")})
-
-	if err != nil {
-		t.Fatalf("BeforeSend: %v", err)
-	}
-	if reason != frame.ReasonPayloadDecodeError {
-		t.Fatalf("reason = %v, want payload decode error", reason)
-	}
-}
-
-func TestSendHookFailClosedAndFailOpen(t *testing.T) {
-	expected := errors.New("plugin unavailable")
-	rt := newFakeRuntime(t.TempDir())
-	rt.plugins["mod"] = ObservedPlugin{No: "mod", Status: StatusRunning, Enabled: true, Methods: []Method{MethodSend}}
-	invoker := &sendHookInvoker{err: expected}
-	failClosed := mustNewTestApp(t, Options{Runtime: rt, DesiredStore: newFakeDesiredStore(), Invoker: invoker})
-
-	cmd, reason, err := failClosed.BeforeSend(context.Background(), message.SendCommand{FromUID: "u1", Payload: []byte("original")})
-	if !errors.Is(err, expected) || reason != frame.ReasonSystemError || string(cmd.Payload) != "original" {
-		t.Fatalf("fail-closed = cmd %#v reason %v err %v", cmd, reason, err)
-	}
-
-	failingStore := mustNewTestApp(t, Options{Runtime: rt, DesiredStore: desiredStoreError{}, Invoker: &sendHookInvoker{}})
-	cmd, reason, err = failingStore.BeforeSend(context.Background(), message.SendCommand{FromUID: "u1", Payload: []byte("original")})
-	if err == nil || reason != frame.ReasonSystemError || string(cmd.Payload) != "original" {
-		t.Fatalf("fail-closed candidate error = cmd %#v reason %v err %v", cmd, reason, err)
-	}
-
-	failOpen := mustNewTestApp(t, Options{Runtime: rt, DesiredStore: newFakeDesiredStore(), Invoker: invoker, FailOpen: true})
-	cmd, reason, err = failOpen.BeforeSend(context.Background(), message.SendCommand{FromUID: "u1", Payload: []byte("original")})
-	if err != nil || reason != frame.ReasonSuccess || string(cmd.Payload) != "original" {
-		t.Fatalf("fail-open = cmd %#v reason %v err %v", cmd, reason, err)
-	}
-}
-
-func TestSendHookFailOpenCoversCandidateErrors(t *testing.T) {
-	rt := newFakeRuntime(t.TempDir())
-	rt.plugins["mod"] = ObservedPlugin{No: "mod", Status: StatusRunning, Enabled: true, Methods: []Method{MethodSend}}
-	app := mustNewTestApp(t, Options{Runtime: rt, DesiredStore: desiredStoreError{}, Invoker: &sendHookInvoker{}, FailOpen: true})
+	app, err := NewApp(Options{Runtime: runtime, Invoker: invoker, FailOpen: true})
+	require.NoError(t, err)
 
 	cmd, reason, err := app.BeforeSend(context.Background(), message.SendCommand{FromUID: "u1", Payload: []byte("original")})
-
-	if err != nil || reason != frame.ReasonSuccess || string(cmd.Payload) != "original" {
-		t.Fatalf("fail-open candidate error = cmd %#v reason %v err %v", cmd, reason, err)
-	}
+	require.NoError(t, err)
+	require.Equal(t, message.ReasonNotAllowSend, reason)
+	require.Equal(t, []byte("original"), cmd.Payload)
+	require.Equal(t, []string{"reject:" + PathSend}, invoker.requestKeys())
 }
 
-func TestSendHookRejectsOutOfRangeReason(t *testing.T) {
-	rt := newFakeRuntime(t.TempDir())
-	rt.plugins["mod"] = ObservedPlugin{No: "mod", Status: StatusRunning, Enabled: true, Methods: []Method{MethodSend}}
-	invoker := &sendHookInvoker{responses: map[string]*pluginproto.SendPacket{"mod": {Reason: 257}}}
-	app := mustNewTestApp(t, Options{Runtime: rt, DesiredStore: newFakeDesiredStore(), Invoker: invoker})
+func TestBeforeSendFailClosedAndFailOpen(t *testing.T) {
+	sentinel := errors.New("plugin down")
+	runtime := &sendHookRuntime{plugins: []ObservedPlugin{{
+		No: "broken", Methods: []Method{MethodSend}, Status: StatusRunning, Enabled: true,
+	}}}
+	failClosed, err := NewApp(Options{
+		Runtime: runtime,
+		Invoker: &sendHookInvoker{errors: map[string]error{"broken": sentinel}},
+	})
+	require.NoError(t, err)
+
+	cmd, reason, err := failClosed.BeforeSend(context.Background(), message.SendCommand{FromUID: "u1", Payload: []byte("original")})
+	require.ErrorIs(t, err, sentinel)
+	require.Equal(t, message.ReasonSystemError, reason)
+	require.Equal(t, []byte("original"), cmd.Payload)
+
+	failOpen, err := NewApp(Options{
+		Runtime:  runtime,
+		Invoker:  &sendHookInvoker{errors: map[string]error{"broken": sentinel}},
+		FailOpen: true,
+	})
+	require.NoError(t, err)
+
+	cmd, reason, err = failOpen.BeforeSend(context.Background(), message.SendCommand{FromUID: "u1", Payload: []byte("original")})
+	require.NoError(t, err)
+	require.Equal(t, message.ReasonSuccess, reason)
+	require.Equal(t, []byte("original"), cmd.Payload)
+}
+
+func TestBeforeSendInvalidReasonReturnsSystemError(t *testing.T) {
+	app, err := NewApp(Options{
+		Runtime: &sendHookRuntime{plugins: []ObservedPlugin{{
+			No: "bad", Methods: []Method{MethodSend}, Status: StatusRunning, Enabled: true,
+		}}},
+		Invoker: &sendHookInvoker{responses: map[string]*pluginproto.SendPacket{
+			"bad": {Reason: 256},
+		}},
+	})
+	require.NoError(t, err)
 
 	_, reason, err := app.BeforeSend(context.Background(), message.SendCommand{FromUID: "u1", Payload: []byte("original")})
+	require.NoError(t, err)
+	require.Equal(t, message.ReasonSystemError, reason)
+}
 
-	if err != nil {
-		t.Fatalf("BeforeSend: %v", err)
-	}
-	if reason != frame.ReasonSystemError {
-		t.Fatalf("reason = %v, want system error", reason)
-	}
+func TestBeforeSendClonesPayloadAcrossPluginBoundary(t *testing.T) {
+	sourcePayload := []byte("source")
+	responsePayload := []byte("response")
+	invoker := &sendHookInvoker{responses: map[string]*pluginproto.SendPacket{
+		"clone": {Payload: responsePayload, Reason: uint32(message.ReasonSuccess)},
+	}}
+	app, err := NewApp(Options{
+		Runtime: &sendHookRuntime{plugins: []ObservedPlugin{{
+			No: "clone", Methods: []Method{MethodSend}, Status: StatusRunning, Enabled: true,
+		}}},
+		Invoker: invoker,
+	})
+	require.NoError(t, err)
+
+	cmd, reason, err := app.BeforeSend(context.Background(), message.SendCommand{FromUID: "u1", Payload: sourcePayload})
+	require.NoError(t, err)
+	require.Equal(t, message.ReasonSuccess, reason)
+	require.Equal(t, []byte("response"), cmd.Payload)
+
+	sourcePayload[0] = 'S'
+	responsePayload[0] = 'R'
+	invoker.requests[0].packet.Payload[0] = 'Q'
+
+	require.Equal(t, []byte("response"), cmd.Payload)
+	require.Equal(t, []byte("Source"), sourcePayload)
+}
+
+func TestBeforeSendObservesInvokeResult(t *testing.T) {
+	observer := &sendHookObserver{}
+	app, err := NewApp(Options{
+		Runtime: &sendHookRuntime{plugins: []ObservedPlugin{{
+			No: "observed", Methods: []Method{MethodSend}, Status: StatusRunning, Enabled: true,
+		}}},
+		Invoker: &sendHookInvoker{responses: map[string]*pluginproto.SendPacket{
+			"observed": {Reason: uint32(message.ReasonSuccess)},
+		}},
+		Observer: observer,
+	})
+	require.NoError(t, err)
+
+	_, reason, err := app.BeforeSend(context.Background(), message.SendCommand{FromUID: "u1", Payload: []byte("hello")})
+	require.NoError(t, err)
+	require.Equal(t, message.ReasonSuccess, reason)
+	require.Equal(t, []string{"ok"}, observer.results)
+}
+
+type sendHookRuntime struct {
+	plugins []ObservedPlugin
+}
+
+func (r *sendHookRuntime) RegisterObserved(context.Context, ObservedPlugin) error {
+	return nil
+}
+
+func (r *sendHookRuntime) MarkClosed(context.Context, string) error {
+	return nil
+}
+
+func (r *sendHookRuntime) List() []ObservedPlugin {
+	return append([]ObservedPlugin(nil), r.plugins...)
 }
 
 type sendHookInvoker struct {
-	fakeInvoker
+	requests  []sendHookRequest
 	responses map[string]*pluginproto.SendPacket
-	err       error
+	errors    map[string]error
 }
 
-func (f *sendHookInvoker) RequestPlugin(ctx context.Context, no, path string, body []byte) ([]byte, error) {
-	_, err := f.fakeInvoker.RequestPlugin(ctx, no, path, body)
+type sendHookRequest struct {
+	pluginNo string
+	path     string
+	packet   *pluginproto.SendPacket
+}
+
+func (i *sendHookInvoker) RequestPlugin(_ context.Context, no, path string, body []byte) ([]byte, error) {
+	var packet pluginproto.SendPacket
+	if err := packet.Unmarshal(body); err != nil {
+		return nil, fmt.Errorf("unmarshal request: %w", err)
+	}
+	i.requests = append(i.requests, sendHookRequest{
+		pluginNo: no,
+		path:     path,
+		packet:   &packet,
+	})
+	if err := i.errors[no]; err != nil {
+		return nil, err
+	}
+	resp := i.responses[no]
+	if resp == nil {
+		resp = &pluginproto.SendPacket{Reason: uint32(message.ReasonSuccess)}
+	}
+	data, err := resp.Marshal()
 	if err != nil {
 		return nil, err
 	}
-	if f.err != nil {
-		return nil, f.err
-	}
-	resp := f.responses[no]
-	if resp == nil {
-		resp = &pluginproto.SendPacket{}
-	}
-	return resp.Marshal()
+	return data, nil
 }
 
-func (f *sendHookInvoker) pluginNos() []string {
-	out := make([]string, 0, len(f.requests))
-	for _, req := range f.requests {
-		out = append(out, req.No)
-	}
-	return out
+func (i *sendHookInvoker) SendPlugin(string, uint32, []byte) error {
+	return nil
 }
 
-func equalStrings(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
+func (i *sendHookInvoker) requestKeys() []string {
+	keys := make([]string, 0, len(i.requests))
+	for _, req := range i.requests {
+		keys = append(keys, req.pluginNo+":"+req.path)
 	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
+	return keys
 }
+
+func (i *sendHookInvoker) requestPayloads() []string {
+	payloads := make([]string, 0, len(i.requests))
+	for _, req := range i.requests {
+		payloads = append(payloads, string(req.packet.GetPayload()))
+	}
+	return payloads
+}
+
+type sendHookObserver struct {
+	results []string
+}
+
+func (o *sendHookObserver) ObserveSendInvoke(result string, _ time.Duration) {
+	o.results = append(o.results, result)
+}
+
+func (o *sendHookObserver) ObserveReceiveInvoke(string, time.Duration) {}

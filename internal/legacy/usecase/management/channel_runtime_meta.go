@@ -1,0 +1,443 @@
+package management
+
+import (
+	"context"
+	"sort"
+	"strings"
+
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	"github.com/WuKongIM/WuKongIM/pkg/legacy/channel"
+	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
+)
+
+// ChannelRuntimeMeta is the manager-facing channel runtime metadata DTO.
+type ChannelRuntimeMeta struct {
+	// ChannelID is the logical channel identifier.
+	ChannelID string
+	// ChannelType is the logical channel type.
+	ChannelType int64
+	// SlotID is the physical slot that owns the channel metadata.
+	SlotID uint32
+	// ChannelEpoch is the runtime channel epoch.
+	ChannelEpoch uint64
+	// LeaderEpoch is the runtime leader epoch.
+	LeaderEpoch uint64
+	// Leader is the current leader node ID.
+	Leader uint64
+	// Replicas is the configured replica set.
+	Replicas []uint64
+	// ISR is the current in-sync replica set.
+	ISR []uint64
+	// MinISR is the configured minimum in-sync replica count.
+	MinISR int64
+	// MaxMessageSeq is the maximum committed message sequence for the channel when requested.
+	MaxMessageSeq *uint64
+	// Status is the stable manager-facing runtime status string.
+	Status string
+}
+
+// ChannelRuntimeMetaDetail is the manager-facing channel runtime metadata detail DTO.
+type ChannelRuntimeMetaDetail struct {
+	ChannelRuntimeMeta
+	// HashSlot is the logical hash slot derived from the channel key.
+	HashSlot uint16
+	// Features is the raw runtime feature bitset.
+	Features uint64
+	// LeaseUntilMS is the leader lease deadline in milliseconds.
+	LeaseUntilMS int64
+}
+
+// ChannelRuntimeMetaListCursor identifies the next manager list position.
+type ChannelRuntimeMetaListCursor struct {
+	// SlotID is the current physical slot position.
+	SlotID uint32
+	// ChannelID is the last emitted channel identifier within SlotID.
+	ChannelID string
+	// ChannelType is the last emitted channel type within SlotID.
+	ChannelType int64
+}
+
+// ChannelRuntimeMetaNodeScope controls how a node_id filter matches runtime metadata.
+type ChannelRuntimeMetaNodeScope string
+
+const (
+	// ChannelRuntimeMetaNodeScopeAny matches leader, replica, or ISR membership.
+	ChannelRuntimeMetaNodeScopeAny ChannelRuntimeMetaNodeScope = "any"
+	// ChannelRuntimeMetaNodeScopeLeader matches only channel leaders.
+	ChannelRuntimeMetaNodeScopeLeader ChannelRuntimeMetaNodeScope = "leader"
+	// ChannelRuntimeMetaNodeScopeReplica matches configured replicas.
+	ChannelRuntimeMetaNodeScopeReplica ChannelRuntimeMetaNodeScope = "replica"
+	// ChannelRuntimeMetaNodeScopeISR matches in-sync replicas.
+	ChannelRuntimeMetaNodeScopeISR ChannelRuntimeMetaNodeScope = "isr"
+)
+
+// ListChannelRuntimeMetaRequest configures a manager channel runtime page request.
+type ListChannelRuntimeMetaRequest struct {
+	// Limit is the maximum number of items to return.
+	Limit int
+	// Cursor is the optional resume position from the previous page.
+	Cursor ChannelRuntimeMetaListCursor
+	// ChannelIDQuery optionally limits results to channel IDs containing this substring.
+	ChannelIDQuery string
+	// NodeID optionally limits results to channel runtime metadata associated with this node.
+	NodeID uint64
+	// NodeScope selects how NodeID should match channel runtime metadata.
+	NodeScope ChannelRuntimeMetaNodeScope
+	// IncludeMaxMessageSeq controls whether list rows include per-channel max message sequence.
+	IncludeMaxMessageSeq bool
+}
+
+// ListChannelRuntimeMetaResponse is the manager channel runtime page result.
+type ListChannelRuntimeMetaResponse struct {
+	// Items contains the ordered page items.
+	Items []ChannelRuntimeMeta
+	// HasMore reports whether another page exists after this one.
+	HasMore bool
+	// NextCursor identifies the next page position when HasMore is true.
+	NextCursor ChannelRuntimeMetaListCursor
+}
+
+// ListChannelRuntimeMeta returns a manager-facing page ordered by slot, channel ID, and channel type.
+func (a *App) ListChannelRuntimeMeta(ctx context.Context, req ListChannelRuntimeMetaRequest) (ListChannelRuntimeMetaResponse, error) {
+	if a == nil || a.cluster == nil || a.channelRuntimeMeta == nil {
+		return ListChannelRuntimeMetaResponse{}, nil
+	}
+	if req.Limit <= 0 {
+		return ListChannelRuntimeMetaResponse{}, metadb.ErrInvalidArgument
+	}
+	if err := validateChannelRuntimeMetaListCursor(req.Cursor); err != nil {
+		return ListChannelRuntimeMetaResponse{}, err
+	}
+	nodeScope, err := normalizeChannelRuntimeMetaNodeScope(req.NodeScope, req.NodeID)
+	if err != nil {
+		return ListChannelRuntimeMetaResponse{}, err
+	}
+
+	slotIDs := append([]multiraft.SlotID(nil), a.cluster.SlotIDs()...)
+	sort.Slice(slotIDs, func(i, j int) bool { return slotIDs[i] < slotIDs[j] })
+
+	startIndex, err := channelRuntimeMetaStartSlotIndex(slotIDs, req.Cursor.SlotID)
+	if err != nil {
+		return ListChannelRuntimeMetaResponse{}, err
+	}
+
+	channelIDQuery := strings.TrimSpace(req.ChannelIDQuery)
+	if channelIDQuery != "" || req.NodeID != 0 {
+		return a.listChannelRuntimeMetaFiltered(ctx, slotIDs, startIndex, req.Cursor, req.Limit, channelRuntimeMetaListFilter{
+			channelIDQuery:       channelIDQuery,
+			nodeID:               req.NodeID,
+			nodeScope:            nodeScope,
+			includeMaxMessageSeq: req.IncludeMaxMessageSeq,
+		})
+	}
+
+	resp := ListChannelRuntimeMetaResponse{
+		Items: make([]ChannelRuntimeMeta, 0, min(req.Limit, len(slotIDs))),
+	}
+	for i := startIndex; i < len(slotIDs) && len(resp.Items) < req.Limit; i++ {
+		slotID := slotIDs[i]
+		after := metadb.ChannelRuntimeMetaCursor{}
+		if i == startIndex {
+			after = req.Cursor.shardCursor()
+		}
+
+		page, cursor, done, err := a.channelRuntimeMeta.ScanChannelRuntimeMetaSlotPage(ctx, slotID, after, req.Limit-len(resp.Items))
+		if err != nil {
+			return ListChannelRuntimeMetaResponse{}, err
+		}
+		items, err := a.managerChannelRuntimeMetaItems(ctx, slotID, page, req.IncludeMaxMessageSeq)
+		if err != nil {
+			return ListChannelRuntimeMetaResponse{}, err
+		}
+		resp.Items = append(resp.Items, items...)
+
+		if !done {
+			resp.HasMore = true
+			resp.NextCursor = newChannelRuntimeMetaListCursor(slotID, cursor)
+			return resp, nil
+		}
+
+		if len(resp.Items) == req.Limit {
+			nextSlotID, hasMore, err := a.findNextChannelRuntimeMetaSlotWithData(ctx, slotIDs[i+1:])
+			if err != nil {
+				return ListChannelRuntimeMetaResponse{}, err
+			}
+			resp.HasMore = hasMore
+			if hasMore {
+				resp.NextCursor = ChannelRuntimeMetaListCursor{SlotID: uint32(nextSlotID)}
+			}
+			return resp, nil
+		}
+	}
+
+	return resp, nil
+}
+
+type channelRuntimeMetaListFilter struct {
+	channelIDQuery       string
+	nodeID               uint64
+	nodeScope            ChannelRuntimeMetaNodeScope
+	includeMaxMessageSeq bool
+}
+
+func (a *App) listChannelRuntimeMetaFiltered(
+	ctx context.Context,
+	slotIDs []multiraft.SlotID,
+	startIndex int,
+	cursor ChannelRuntimeMetaListCursor,
+	limit int,
+	filter channelRuntimeMetaListFilter,
+) (ListChannelRuntimeMetaResponse, error) {
+	resp := ListChannelRuntimeMetaResponse{
+		Items: make([]ChannelRuntimeMeta, 0, limit),
+	}
+	for i := startIndex; i < len(slotIDs); i++ {
+		slotID := slotIDs[i]
+		after := metadb.ChannelRuntimeMetaCursor{}
+		if i == startIndex {
+			after = cursor.shardCursor()
+		}
+
+		for {
+			page, nextCursor, done, err := a.channelRuntimeMeta.ScanChannelRuntimeMetaSlotPage(ctx, slotID, after, channelRuntimeMetaFilteredScanLimit(limit))
+			if err != nil {
+				return ListChannelRuntimeMetaResponse{}, err
+			}
+			items, err := a.managerChannelRuntimeMetaItems(ctx, slotID, page, filter.includeMaxMessageSeq)
+			if err != nil {
+				return ListChannelRuntimeMetaResponse{}, err
+			}
+			for _, item := range items {
+				if filter.channelIDQuery != "" && !strings.Contains(item.ChannelID, filter.channelIDQuery) {
+					continue
+				}
+				if filter.nodeID != 0 && !channelRuntimeMetaItemMatchesNode(item, filter.nodeID, filter.nodeScope) {
+					continue
+				}
+				if len(resp.Items) == limit {
+					resp.HasMore = true
+					resp.NextCursor = channelRuntimeMetaListCursorForItem(resp.Items[len(resp.Items)-1])
+					return resp, nil
+				}
+				resp.Items = append(resp.Items, item)
+			}
+			if done {
+				break
+			}
+			after = nextCursor
+		}
+	}
+	return resp, nil
+}
+
+// GetChannelRuntimeMeta returns one manager-facing authoritative channel runtime detail DTO.
+func (a *App) GetChannelRuntimeMeta(ctx context.Context, channelID string, channelType int64) (ChannelRuntimeMetaDetail, error) {
+	if a == nil || a.cluster == nil || a.channelRuntimeMeta == nil {
+		return ChannelRuntimeMetaDetail{}, nil
+	}
+	if channelType <= 0 {
+		return ChannelRuntimeMetaDetail{}, metadb.ErrInvalidArgument
+	}
+
+	meta, err := a.channelRuntimeMeta.GetChannelRuntimeMeta(ctx, channelID, channelType)
+	if err != nil {
+		return ChannelRuntimeMetaDetail{}, err
+	}
+
+	slotID := a.cluster.SlotForKey(channelID)
+	maxMessageSeq, err := a.channelMaxMessageSeq(ctx, channelID, channelType)
+	if err != nil {
+		return ChannelRuntimeMetaDetail{}, err
+	}
+	return ChannelRuntimeMetaDetail{
+		ChannelRuntimeMeta: managerChannelRuntimeMetaWithMaxSeq(slotID, meta, &maxMessageSeq),
+		HashSlot:           a.cluster.HashSlotForKey(channelID),
+		Features:           meta.Features,
+		LeaseUntilMS:       meta.LeaseUntilMS,
+	}, nil
+}
+
+func validateChannelRuntimeMetaListCursor(cursor ChannelRuntimeMetaListCursor) error {
+	if cursor.SlotID == 0 {
+		if cursor.ChannelID == "" && cursor.ChannelType == 0 {
+			return nil
+		}
+		return metadb.ErrInvalidArgument
+	}
+	if cursor.ChannelID == "" && cursor.ChannelType != 0 {
+		return metadb.ErrInvalidArgument
+	}
+	if cursor.ChannelID != "" && len(cursor.ChannelID) > 0 {
+		return nil
+	}
+	return nil
+}
+
+func channelRuntimeMetaStartSlotIndex(slotIDs []multiraft.SlotID, slotID uint32) (int, error) {
+	if slotID == 0 {
+		return 0, nil
+	}
+	for i, current := range slotIDs {
+		if current == multiraft.SlotID(slotID) {
+			return i, nil
+		}
+	}
+	return 0, metadb.ErrInvalidArgument
+}
+
+func (a *App) findNextChannelRuntimeMetaSlotWithData(ctx context.Context, slotIDs []multiraft.SlotID) (multiraft.SlotID, bool, error) {
+	for _, slotID := range slotIDs {
+		page, _, _, err := a.channelRuntimeMeta.ScanChannelRuntimeMetaSlotPage(ctx, slotID, metadb.ChannelRuntimeMetaCursor{}, 1)
+		if err != nil {
+			return 0, false, err
+		}
+		if len(page) > 0 {
+			return slotID, true, nil
+		}
+	}
+	return 0, false, nil
+}
+
+func (a *App) managerChannelRuntimeMetaItems(ctx context.Context, slotID multiraft.SlotID, metas []metadb.ChannelRuntimeMeta, includeMaxMessageSeq bool) ([]ChannelRuntimeMeta, error) {
+	out := make([]ChannelRuntimeMeta, 0, len(metas))
+	for _, meta := range metas {
+		var maxMessageSeq *uint64
+		if includeMaxMessageSeq {
+			value, err := a.channelMaxMessageSeqForMeta(ctx, meta)
+			if err != nil {
+				return nil, err
+			}
+			maxMessageSeq = &value
+		}
+		out = append(out, managerChannelRuntimeMetaWithMaxSeq(slotID, meta, maxMessageSeq))
+	}
+	return out, nil
+}
+
+func managerChannelRuntimeMetaWithMaxSeq(slotID multiraft.SlotID, meta metadb.ChannelRuntimeMeta, maxMessageSeq *uint64) ChannelRuntimeMeta {
+	return ChannelRuntimeMeta{
+		ChannelID:     meta.ChannelID,
+		ChannelType:   meta.ChannelType,
+		SlotID:        uint32(slotID),
+		ChannelEpoch:  meta.ChannelEpoch,
+		LeaderEpoch:   meta.LeaderEpoch,
+		Leader:        meta.Leader,
+		Replicas:      append([]uint64(nil), meta.Replicas...),
+		ISR:           append([]uint64(nil), meta.ISR...),
+		MinISR:        meta.MinISR,
+		MaxMessageSeq: maxMessageSeq,
+		Status:        managerChannelRuntimeStatus(meta.Status),
+	}
+}
+
+func (a *App) channelMaxMessageSeq(ctx context.Context, channelID string, channelType int64) (uint64, error) {
+	if a == nil || a.messages == nil {
+		return 0, nil
+	}
+	return a.messages.MaxMessageSeq(ctx, channel.ChannelID{ID: channelID, Type: uint8(channelType)})
+}
+
+func (a *App) channelMaxMessageSeqForMeta(ctx context.Context, meta metadb.ChannelRuntimeMeta) (uint64, error) {
+	if a == nil || a.messages == nil {
+		return 0, nil
+	}
+	if reader, ok := a.messages.(MessageMetaMaxSeqReader); ok {
+		return reader.MaxMessageSeqForMeta(ctx, meta)
+	}
+	return a.channelMaxMessageSeq(ctx, meta.ChannelID, meta.ChannelType)
+}
+
+func normalizeChannelRuntimeMetaNodeScope(scope ChannelRuntimeMetaNodeScope, nodeID uint64) (ChannelRuntimeMetaNodeScope, error) {
+	if nodeID == 0 {
+		if scope == "" || scope == ChannelRuntimeMetaNodeScopeAny {
+			return ChannelRuntimeMetaNodeScopeAny, nil
+		}
+		return "", metadb.ErrInvalidArgument
+	}
+	if scope == "" {
+		return ChannelRuntimeMetaNodeScopeAny, nil
+	}
+	switch scope {
+	case ChannelRuntimeMetaNodeScopeAny, ChannelRuntimeMetaNodeScopeLeader, ChannelRuntimeMetaNodeScopeReplica, ChannelRuntimeMetaNodeScopeISR:
+		return scope, nil
+	default:
+		return "", metadb.ErrInvalidArgument
+	}
+}
+
+func channelRuntimeMetaItemMatchesNode(item ChannelRuntimeMeta, nodeID uint64, scope ChannelRuntimeMetaNodeScope) bool {
+	switch scope {
+	case ChannelRuntimeMetaNodeScopeLeader:
+		return item.Leader == nodeID
+	case ChannelRuntimeMetaNodeScopeReplica:
+		return containsNodeID(item.Replicas, nodeID)
+	case ChannelRuntimeMetaNodeScopeISR:
+		return containsNodeID(item.ISR, nodeID)
+	case ChannelRuntimeMetaNodeScopeAny:
+		return item.Leader == nodeID || containsNodeID(item.Replicas, nodeID) || containsNodeID(item.ISR, nodeID)
+	default:
+		return false
+	}
+}
+
+func containsNodeID(values []uint64, nodeID uint64) bool {
+	for _, value := range values {
+		if value == nodeID {
+			return true
+		}
+	}
+	return false
+}
+
+func managerChannelRuntimeStatus(status uint8) string {
+	switch channel.Status(status) {
+	case channel.StatusCreating:
+		return "creating"
+	case channel.StatusActive:
+		return "active"
+	case channel.StatusDeleting:
+		return "deleting"
+	case channel.StatusDeleted:
+		return "deleted"
+	default:
+		return "unknown"
+	}
+}
+
+func newChannelRuntimeMetaListCursor(slotID multiraft.SlotID, cursor metadb.ChannelRuntimeMetaCursor) ChannelRuntimeMetaListCursor {
+	return ChannelRuntimeMetaListCursor{
+		SlotID:      uint32(slotID),
+		ChannelID:   cursor.ChannelID,
+		ChannelType: cursor.ChannelType,
+	}
+}
+
+func channelRuntimeMetaListCursorForItem(item ChannelRuntimeMeta) ChannelRuntimeMetaListCursor {
+	return ChannelRuntimeMetaListCursor{
+		SlotID:      item.SlotID,
+		ChannelID:   item.ChannelID,
+		ChannelType: item.ChannelType,
+	}
+}
+
+func (c ChannelRuntimeMetaListCursor) shardCursor() metadb.ChannelRuntimeMetaCursor {
+	return metadb.ChannelRuntimeMetaCursor{
+		ChannelID:   c.ChannelID,
+		ChannelType: c.ChannelType,
+	}
+}
+
+func channelRuntimeMetaFilteredScanLimit(limit int) int {
+	const minScanLimit = 64
+	if limit > minScanLimit {
+		return limit
+	}
+	return minScanLimit
+}
+
+func min(left, right int) int {
+	if left < right {
+		return left
+	}
+	return right
+}

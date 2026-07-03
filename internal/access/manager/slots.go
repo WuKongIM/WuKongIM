@@ -1,14 +1,11 @@
 package manager
 
 import (
-	"errors"
 	"net/http"
 	"strconv"
 	"time"
 
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
-	raftcluster "github.com/WuKongIM/WuKongIM/pkg/legacy/cluster"
-	controllermeta "github.com/WuKongIM/WuKongIM/pkg/legacy/controller/meta"
 	"github.com/gin-gonic/gin"
 )
 
@@ -30,7 +27,9 @@ type SlotDTO struct {
 	State SlotStateDTO `json:"state"`
 	// Assignment contains the desired slot placement view.
 	Assignment SlotAssignmentDTO `json:"assignment"`
-	// Runtime contains the observed slot runtime view.
+	// Task contains the active task summary for this Slot, when any.
+	Task *SlotTaskDTO `json:"task,omitempty"`
+	// Runtime contains the best available slot runtime view.
 	Runtime SlotRuntimeDTO `json:"runtime"`
 	// NodeLog contains the selected node's local log watermark when requested.
 	NodeLog *SlotNodeLogDTO `json:"node_log,omitempty"`
@@ -42,13 +41,6 @@ type SlotHashSlotsDTO struct {
 	Count int `json:"count"`
 	// Items contains the logical hash slot IDs in ascending order.
 	Items []uint16 `json:"items"`
-}
-
-// SlotDetailDTO is the manager-facing slot detail response body.
-type SlotDetailDTO struct {
-	SlotDTO
-	// Task contains the current reconcile task summary when one exists.
-	Task *SlotTaskDTO `json:"task"`
 }
 
 // SlotStateDTO contains derived slot list state fields.
@@ -71,7 +63,7 @@ type SlotAssignmentDTO struct {
 	PreferredLeaderID uint64 `json:"preferred_leader_id"`
 	// ConfigEpoch is the desired slot config epoch.
 	ConfigEpoch uint64 `json:"config_epoch"`
-	// BalanceVersion is the desired slot balance generation.
+	// BalanceVersion is reserved for legacy response compatibility.
 	BalanceVersion uint64 `json:"balance_version"`
 }
 
@@ -81,8 +73,8 @@ type SlotRuntimeDTO struct {
 	CurrentPeers []uint64 `json:"current_peers"`
 	// CurrentVoters is the currently observed voter set.
 	CurrentVoters []uint64 `json:"current_voters"`
-	// LeaderID is the observed slot leader.
-	LeaderID uint64 `json:"leader_id"`
+	// PreferredLeaderID is the controller preferred leader projected into the fallback runtime view.
+	PreferredLeaderID uint64 `json:"preferred_leader_id"`
 	// HealthyVoters is the observed healthy voter count.
 	HealthyVoters uint32 `json:"healthy_voters"`
 	// HasQuorum reports whether the slot currently has quorum.
@@ -93,74 +85,68 @@ type SlotRuntimeDTO struct {
 	LastReportAt time.Time `json:"last_report_at"`
 }
 
+// SlotTaskDTO contains one active Slot task summary.
+type SlotTaskDTO struct {
+	// TaskID is the durable task identity.
+	TaskID string `json:"task_id"`
+	// Kind is the reconcile workflow kind.
+	Kind string `json:"kind"`
+	// Step is the current workflow step.
+	Step string `json:"step"`
+	// Status is the task state.
+	Status string `json:"status"`
+	// SourceNode is the optional source node for move-like tasks.
+	SourceNode uint64 `json:"source_node,omitempty"`
+	// TargetNode is the primary task target when set.
+	TargetNode uint64 `json:"target_node,omitempty"`
+	// TargetPeers are the peers expected to participate.
+	TargetPeers []uint64 `json:"target_peers,omitempty"`
+	// CompletionPolicy describes how participant progress gates completion.
+	CompletionPolicy string `json:"completion_policy"`
+	// ConfigEpoch ties the task to a Slot assignment epoch.
+	ConfigEpoch uint64 `json:"config_epoch,omitempty"`
+	// Attempt is the global task attempt.
+	Attempt uint32 `json:"attempt"`
+	// LastError is the latest task-level error.
+	LastError string `json:"last_error,omitempty"`
+	// PhaseIndex is the externally observed Slot Raft phase index for this task.
+	PhaseIndex uint32 `json:"phase_index,omitempty"`
+	// ObservedConfigIndex is the Slot Raft applied index that proved the current phase.
+	ObservedConfigIndex uint64 `json:"observed_config_index,omitempty"`
+	// ObservedVoters is the Slot Raft voter set observed for the current phase.
+	ObservedVoters []uint64 `json:"observed_voters,omitempty"`
+	// ObservedLearners is the Slot Raft learner set observed for the current phase.
+	ObservedLearners []uint64 `json:"observed_learners,omitempty"`
+	// Participants contains per-node task progress.
+	Participants []SlotTaskParticipantDTO `json:"participants,omitempty"`
+}
+
+// SlotTaskParticipantDTO contains one task participant progress summary.
+type SlotTaskParticipantDTO struct {
+	// NodeID is the participant node identity.
+	NodeID uint64 `json:"node_id"`
+	// Attempt is the participant-local attempt.
+	Attempt uint32 `json:"attempt"`
+	// Status is the participant progress state.
+	Status string `json:"status"`
+	// LastError is the latest participant-level error.
+	LastError string `json:"last_error,omitempty"`
+}
+
 // SlotNodeLogDTO contains one selected node's local slot log watermark.
 type SlotNodeLogDTO struct {
 	// NodeID is the node that reported the local log watermark.
 	NodeID uint64 `json:"node_id"`
 	// LeaderID is the slot Raft leader known by the reporting node.
 	LeaderID uint64 `json:"leader_id"`
+	// Role is the reporting node's local Raft role for this slot.
+	Role string `json:"role"`
+	// CurrentVoters is the current Slot Raft voter set observed by the reporting node.
+	CurrentVoters []uint64 `json:"current_voters,omitempty"`
 	// CommitIndex is the highest committed Raft log index known by the reporting node.
 	CommitIndex uint64 `json:"commit_index"`
 	// AppliedIndex is the highest Raft log index applied by the reporting node.
 	AppliedIndex uint64 `json:"applied_index"`
-}
-
-// SlotTaskDTO contains the optional current task summary for slot detail.
-type SlotTaskDTO struct {
-	// Kind is the stringified task kind.
-	Kind string `json:"kind"`
-	// Step is the stringified task step.
-	Step string `json:"step"`
-	// Status is the stringified task status.
-	Status string `json:"status"`
-	// SourceNode is the source node when the task has one.
-	SourceNode uint64 `json:"source_node"`
-	// TargetNode is the target node when the task has one.
-	TargetNode uint64 `json:"target_node"`
-	// Attempt is the current task attempt count.
-	Attempt uint32 `json:"attempt"`
-	// NextRunAt is the next retry schedule when the task is retrying.
-	NextRunAt *time.Time `json:"next_run_at"`
-	// LastError is the last recorded task error message.
-	LastError string `json:"last_error"`
-}
-
-// SlotLogEntriesResponse is the manager slot log entries response body.
-type SlotLogEntriesResponse struct {
-	// NodeID is the node whose local Slot log was read.
-	NodeID uint64 `json:"node_id"`
-	// SlotID is the physical Slot identifier.
-	SlotID uint32 `json:"slot_id"`
-	// FirstIndex is the first available local Raft log index.
-	FirstIndex uint64 `json:"first_index"`
-	// LastIndex is the last available local Raft log index.
-	LastIndex uint64 `json:"last_index"`
-	// CommitIndex is the queried node's local committed index watermark.
-	CommitIndex uint64 `json:"commit_index"`
-	// AppliedIndex is the queried node's local applied index watermark.
-	AppliedIndex uint64 `json:"applied_index"`
-	// NextCursor is the cursor for the next older page. Zero means no more entries.
-	NextCursor uint64 `json:"next_cursor,omitempty"`
-	// Items contains entries ordered newest first.
-	Items []SlotLogEntryDTO `json:"items"`
-}
-
-// SlotLogEntryDTO is one manager-facing Slot Raft log entry summary.
-type SlotLogEntryDTO struct {
-	// Index is the Raft log index.
-	Index uint64 `json:"index"`
-	// Term is the Raft term stored on the entry.
-	Term uint64 `json:"term"`
-	// Type is the normalized Raft entry type.
-	Type string `json:"type"`
-	// DataSize is the payload size in bytes.
-	DataSize int `json:"data_size"`
-	// DecodeStatus reports whether the entry payload was decoded for inspection.
-	DecodeStatus string `json:"decode_status,omitempty"`
-	// DecodedType is the stable command or payload type when decoding succeeds.
-	DecodedType string `json:"decoded_type,omitempty"`
-	// Decoded is a redacted JSON-friendly payload summary for manager inspection.
-	Decoded map[string]any `json:"decoded,omitempty"`
 }
 
 func (s *Server) handleSlots(c *gin.Context) {
@@ -175,17 +161,14 @@ func (s *Server) handleSlots(c *gin.Context) {
 	}
 	items, err := s.management.ListSlots(c.Request.Context(), opts)
 	if err != nil {
-		if leaderConsistentReadUnavailable(err) {
-			jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "controller leader consistent read unavailable")
+		if controlSnapshotUnavailable(err) {
+			jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "controller snapshot unavailable")
 			return
 		}
 		jsonError(c, http.StatusInternalServerError, "internal_error", err.Error())
 		return
 	}
-	c.JSON(http.StatusOK, SlotsResponse{
-		Total: len(items),
-		Items: slotDTOs(items),
-	})
+	c.JSON(http.StatusOK, SlotsResponse{Total: len(items), Items: slotDTOs(items)})
 }
 
 func parseListSlotsOptions(c *gin.Context) (managementusecase.ListSlotsOptions, error) {
@@ -193,88 +176,11 @@ func parseListSlotsOptions(c *gin.Context) (managementusecase.ListSlotsOptions, 
 	if rawNodeID == "" {
 		return managementusecase.ListSlotsOptions{}, nil
 	}
-	nodeID, err := parseNodeIDParam(rawNodeID)
-	if err != nil {
-		return managementusecase.ListSlotsOptions{}, err
+	nodeID, err := strconv.ParseUint(rawNodeID, 10, 64)
+	if err != nil || nodeID == 0 {
+		return managementusecase.ListSlotsOptions{}, strconv.ErrSyntax
 	}
 	return managementusecase.ListSlotsOptions{NodeID: nodeID}, nil
-}
-
-func (s *Server) handleSlot(c *gin.Context) {
-	if s.management == nil {
-		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "management not configured")
-		return
-	}
-	slotID, err := parseSlotIDParam(c.Param("slot_id"))
-	if err != nil {
-		jsonError(c, http.StatusBadRequest, "bad_request", "invalid slot_id")
-		return
-	}
-	item, err := s.management.GetSlot(c.Request.Context(), slotID)
-	if err != nil {
-		if errors.Is(err, controllermeta.ErrNotFound) {
-			jsonError(c, http.StatusNotFound, "not_found", "slot not found")
-			return
-		}
-		if leaderConsistentReadUnavailable(err) {
-			jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "controller leader consistent read unavailable")
-			return
-		}
-		jsonError(c, http.StatusInternalServerError, "internal_error", err.Error())
-		return
-	}
-	c.JSON(http.StatusOK, slotDetailDTO(item))
-}
-
-func (s *Server) handleSlotLogs(c *gin.Context) {
-	if s.management == nil {
-		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "management not configured")
-		return
-	}
-	req, err := parseSlotLogEntriesRequest(c)
-	if err != nil {
-		jsonError(c, http.StatusBadRequest, "bad_request", err.Error())
-		return
-	}
-	page, err := s.management.ListSlotLogEntries(c.Request.Context(), req)
-	if err != nil {
-		if errors.Is(err, raftcluster.ErrSlotNotFound) || errors.Is(err, controllermeta.ErrNotFound) {
-			jsonError(c, http.StatusNotFound, "not_found", "slot log not found")
-			return
-		}
-		if leaderConsistentReadUnavailable(err) {
-			jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "slot log read unavailable")
-			return
-		}
-		jsonError(c, http.StatusInternalServerError, "internal_error", err.Error())
-		return
-	}
-	c.JSON(http.StatusOK, slotLogEntriesDTO(page))
-}
-
-func parseSlotLogEntriesRequest(c *gin.Context) (managementusecase.ListSlotLogEntriesRequest, error) {
-	slotID, err := parseSlotIDParam(c.Param("slot_id"))
-	if err != nil {
-		return managementusecase.ListSlotLogEntriesRequest{}, errors.New("invalid slot_id")
-	}
-	nodeID, err := parseNodeIDParam(c.Query("node_id"))
-	if err != nil {
-		return managementusecase.ListSlotLogEntriesRequest{}, errors.New("invalid node_id")
-	}
-	limit, err := parseSlotLogLimit(c.Query("limit"))
-	if err != nil {
-		return managementusecase.ListSlotLogEntriesRequest{}, errors.New("invalid limit")
-	}
-	cursor, err := parseSlotLogCursor(c.Query("cursor"))
-	if err != nil {
-		return managementusecase.ListSlotLogEntriesRequest{}, errors.New("invalid cursor")
-	}
-	return managementusecase.ListSlotLogEntriesRequest{
-		NodeID: nodeID,
-		SlotID: slotID,
-		Limit:  limit,
-		Cursor: cursor,
-	}, nil
 }
 
 func slotDTOs(items []managementusecase.Slot) []SlotDTO {
@@ -301,10 +207,11 @@ func slotDTO(item managementusecase.Slot) SlotDTO {
 			ConfigEpoch:       item.Assignment.ConfigEpoch,
 			BalanceVersion:    item.Assignment.BalanceVersion,
 		},
+		Task: slotTaskDTO(item.Task),
 		Runtime: SlotRuntimeDTO{
 			CurrentPeers:        append([]uint64(nil), item.Runtime.CurrentPeers...),
 			CurrentVoters:       append([]uint64(nil), item.Runtime.CurrentVoters...),
-			LeaderID:            item.Runtime.LeaderID,
+			PreferredLeaderID:   item.Runtime.PreferredLeaderID,
 			HealthyVoters:       item.Runtime.HealthyVoters,
 			HasQuorum:           item.Runtime.HasQuorum,
 			ObservedConfigEpoch: item.Runtime.ObservedConfigEpoch,
@@ -314,13 +221,46 @@ func slotDTO(item managementusecase.Slot) SlotDTO {
 	}
 }
 
+func slotTaskDTO(item *managementusecase.SlotTask) *SlotTaskDTO {
+	if item == nil {
+		return nil
+	}
+	participants := make([]SlotTaskParticipantDTO, 0, len(item.Participants))
+	for _, participant := range item.Participants {
+		participants = append(participants, SlotTaskParticipantDTO{
+			NodeID:    participant.NodeID,
+			Attempt:   participant.Attempt,
+			Status:    participant.Status,
+			LastError: participant.LastError,
+		})
+	}
+	return &SlotTaskDTO{
+		TaskID:              item.TaskID,
+		Kind:                item.Kind,
+		Step:                item.Step,
+		Status:              item.Status,
+		SourceNode:          item.SourceNode,
+		TargetNode:          item.TargetNode,
+		TargetPeers:         append([]uint64(nil), item.TargetPeers...),
+		CompletionPolicy:    item.CompletionPolicy,
+		ConfigEpoch:         item.ConfigEpoch,
+		Attempt:             item.Attempt,
+		LastError:           item.LastError,
+		PhaseIndex:          item.PhaseIndex,
+		ObservedConfigIndex: item.ObservedConfigIndex,
+		ObservedVoters:      append([]uint64(nil), item.ObservedVoters...),
+		ObservedLearners:    append([]uint64(nil), item.ObservedLearners...),
+		Participants:        participants,
+	}
+}
+
 func slotHashSlotsDTO(item *managementusecase.SlotHashSlots) *SlotHashSlotsDTO {
 	if item == nil {
 		return nil
 	}
 	return &SlotHashSlotsDTO{
 		Count: item.Count,
-		Items: append([]uint16{}, item.Items...),
+		Items: append([]uint16(nil), item.Items...),
 	}
 }
 
@@ -329,83 +269,11 @@ func slotNodeLogDTO(item *managementusecase.SlotNodeLogStatus) *SlotNodeLogDTO {
 		return nil
 	}
 	return &SlotNodeLogDTO{
-		NodeID:       item.NodeID,
-		LeaderID:     item.LeaderID,
-		CommitIndex:  item.CommitIndex,
-		AppliedIndex: item.AppliedIndex,
-	}
-}
-
-func slotLogEntriesDTO(page managementusecase.SlotLogEntriesResponse) SlotLogEntriesResponse {
-	return SlotLogEntriesResponse{
-		NodeID:       page.NodeID,
-		SlotID:       page.SlotID,
-		FirstIndex:   page.FirstIndex,
-		LastIndex:    page.LastIndex,
-		CommitIndex:  page.CommitIndex,
-		AppliedIndex: page.AppliedIndex,
-		NextCursor:   page.NextCursor,
-		Items:        slotLogEntryDTOs(page.Items),
-	}
-}
-
-func slotLogEntryDTOs(items []managementusecase.SlotLogEntry) []SlotLogEntryDTO {
-	out := make([]SlotLogEntryDTO, 0, len(items))
-	for _, item := range items {
-		out = append(out, SlotLogEntryDTO{
-			Index:        item.Index,
-			Term:         item.Term,
-			Type:         item.Type,
-			DataSize:     item.DataSize,
-			DecodeStatus: item.DecodeStatus,
-			DecodedType:  item.DecodedType,
-			Decoded:      item.Decoded,
-		})
-	}
-	return out
-}
-
-func slotDetailDTO(item managementusecase.SlotDetail) SlotDetailDTO {
-	return SlotDetailDTO{
-		SlotDTO: slotDTO(item.Slot),
-		Task:    slotTaskDTO(item.Task),
-	}
-}
-
-func parseSlotLogLimit(raw string) (int, error) {
-	if raw == "" {
-		return 0, nil
-	}
-	value, err := strconv.Atoi(raw)
-	if err != nil || value <= 0 {
-		return 0, strconv.ErrSyntax
-	}
-	return value, nil
-}
-
-func parseSlotLogCursor(raw string) (uint64, error) {
-	if raw == "" {
-		return 0, nil
-	}
-	value, err := strconv.ParseUint(raw, 10, 64)
-	if err != nil {
-		return 0, strconv.ErrSyntax
-	}
-	return value, nil
-}
-
-func slotTaskDTO(item *managementusecase.Task) *SlotTaskDTO {
-	if item == nil {
-		return nil
-	}
-	return &SlotTaskDTO{
-		Kind:       item.Kind,
-		Step:       item.Step,
-		Status:     item.Status,
-		SourceNode: item.SourceNode,
-		TargetNode: item.TargetNode,
-		Attempt:    item.Attempt,
-		NextRunAt:  item.NextRunAt,
-		LastError:  item.LastError,
+		NodeID:        item.NodeID,
+		LeaderID:      item.LeaderID,
+		Role:          item.Role,
+		CurrentVoters: append([]uint64(nil), item.CurrentVoters...),
+		CommitIndex:   item.CommitIndex,
+		AppliedIndex:  item.AppliedIndex,
 	}
 }

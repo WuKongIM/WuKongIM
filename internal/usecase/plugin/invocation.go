@@ -3,6 +3,7 @@ package plugin
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/WuKongIM/WuKongIM/pkg/plugin/pluginproto"
 )
@@ -16,11 +17,6 @@ const (
 	PathReceive = "/plugin/receive"
 	// PathRoute is the legacy PDK RPC path for plugin HTTP routing.
 	PathRoute = "/plugin/route"
-	// PathConfigUpdate is the legacy PDK RPC path for config update notification.
-	PathConfigUpdate = "/plugin/config_update"
-)
-
-const (
 	// MsgTypePersistAfter is the legacy one-way message type for async PersistAfter.
 	MsgTypePersistAfter uint32 = 2
 	// MsgTypeReceive is the legacy one-way message type for async Receive.
@@ -29,63 +25,67 @@ const (
 
 // InvokeSend calls one plugin's Send hook and returns the possibly mutated packet.
 func (a *App) InvokeSend(ctx context.Context, pluginNo string, packet *pluginproto.SendPacket) (*pluginproto.SendPacket, error) {
-	if a.invoker == nil {
-		return nil, ErrInvokerRequired
-	}
 	data, err := packet.Marshal()
 	if err != nil {
-		return nil, fmt.Errorf("marshal plugin send packet: %w", err)
+		return nil, fmt.Errorf("plugin %q Send marshal: %w", pluginNo, err)
 	}
 	respData, err := a.invoker.RequestPlugin(ctx, pluginNo, PathSend, data)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("plugin %q Send %s: %w", pluginNo, PathSend, err)
 	}
 	var resp pluginproto.SendPacket
 	if err := resp.Unmarshal(respData); err != nil {
-		return nil, fmt.Errorf("unmarshal plugin send response: %w", err)
+		return nil, fmt.Errorf("plugin %q Send response unmarshal: %w", pluginNo, err)
 	}
 	return &resp, nil
 }
 
 // InvokePersistAfter calls or sends one plugin's PersistAfter hook.
 func (a *App) InvokePersistAfter(ctx context.Context, plugin ObservedPlugin, batch *pluginproto.MessageBatch) error {
-	if a.invoker == nil {
-		return ErrInvokerRequired
-	}
 	data, err := batch.Marshal()
 	if err != nil {
-		return fmt.Errorf("marshal plugin persist-after batch: %w", err)
+		return fmt.Errorf("plugin %q PersistAfter marshal: %w", plugin.No, err)
 	}
 	if plugin.PersistAfterSync {
 		_, err = a.invoker.RequestPlugin(ctx, plugin.No, PathPersistAfter, data)
-		return err
+		if err != nil {
+			return fmt.Errorf("plugin %q PersistAfter sync %s: %w", plugin.No, PathPersistAfter, err)
+		}
+		return nil
 	}
-	return a.invoker.SendPlugin(plugin.No, MsgTypePersistAfter, data)
+	if err := a.invoker.SendPlugin(plugin.No, MsgTypePersistAfter, data); err != nil {
+		return fmt.Errorf("plugin %q PersistAfter async msgType %d: %w", plugin.No, MsgTypePersistAfter, err)
+	}
+	return nil
 }
 
 // InvokeReceive calls or sends one plugin's Receive hook.
 func (a *App) InvokeReceive(ctx context.Context, plugin ObservedPlugin, packet *pluginproto.RecvPacket) error {
-	if a.invoker == nil {
-		return ErrInvokerRequired
-	}
 	data, err := packet.Marshal()
 	if err != nil {
-		return fmt.Errorf("marshal plugin receive packet: %w", err)
+		return fmt.Errorf("plugin %q Receive marshal: %w", plugin.No, err)
 	}
 	if plugin.ReplySync {
 		_, err = a.invoker.RequestPlugin(ctx, plugin.No, PathReceive, data)
-		return err
+		if err != nil {
+			return fmt.Errorf("plugin %q Receive sync %s: %w", plugin.No, PathReceive, err)
+		}
+		return nil
 	}
-	return a.invoker.SendPlugin(plugin.No, MsgTypeReceive, data)
+	if err := a.invoker.SendPlugin(plugin.No, MsgTypeReceive, data); err != nil {
+		return fmt.Errorf("plugin %q Receive async msgType %d: %w", plugin.No, MsgTypeReceive, err)
+	}
+	return nil
 }
 
 // Route calls one plugin's HTTP-compatible route hook.
 func (a *App) Route(ctx context.Context, pluginNo string, req *pluginproto.HttpRequest) (*pluginproto.HttpResponse, error) {
-	if a.invoker == nil {
+	if a == nil || a.invoker == nil {
 		return nil, ErrInvokerRequired
 	}
-	if err := validatePluginNo(pluginNo); err != nil {
-		return nil, err
+	pluginNo = strings.TrimSpace(pluginNo)
+	if pluginNo == "" {
+		return nil, ErrPluginNoRequired
 	}
 	req = clonePluginHTTPRequest(req)
 	dropHopByHopHeaders(req.Headers)
@@ -107,19 +107,5 @@ func (a *App) Route(ctx context.Context, pluginNo string, req *pluginproto.HttpR
 	if err := a.validateHTTPForwardResponseSize(&resp); err != nil {
 		return nil, err
 	}
-	return &resp, nil
-}
-
-// StopPlugin asks one plugin to stop through the invoker's legacy /stop mapping.
-func (a *App) StopPlugin(ctx context.Context, pluginNo string) error {
-	if a.invoker == nil {
-		return ErrInvokerRequired
-	}
-	if pluginNo == "" {
-		return ErrPluginNoRequired
-	}
-	if err := validatePluginNo(pluginNo); err != nil {
-		return err
-	}
-	return a.invoker.Stop(ctx, pluginNo)
+	return clonePluginHTTPResponse(&resp), nil
 }

@@ -16,7 +16,7 @@ import (
 	"testing"
 	"time"
 
-	appv2 "github.com/WuKongIM/WuKongIM/internalv2/app"
+	appv2 "github.com/WuKongIM/WuKongIM/internal/app"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/stretchr/testify/require"
 )

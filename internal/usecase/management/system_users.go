@@ -8,6 +8,16 @@ import (
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
+// SystemUserOperator exposes persisted system UID mutations reused by manager actions.
+type SystemUserOperator interface {
+	// ListSystemUIDs returns the persisted system account UID list.
+	ListSystemUIDs(ctx context.Context) ([]string, error)
+	// AddSystemUIDs persists system account UIDs and refreshes caches.
+	AddSystemUIDs(ctx context.Context, uids []string) error
+	// RemoveSystemUIDs removes persisted system account UIDs and refreshes caches.
+	RemoveSystemUIDs(ctx context.Context, uids []string) error
+}
+
 // SystemUser is one persisted manager-facing system UID row.
 type SystemUser struct {
 	// UID is the system account user identifier.

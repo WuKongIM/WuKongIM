@@ -5,7 +5,6 @@ import (
 	"errors"
 
 	"github.com/WuKongIM/WuKongIM/pkg/plugin/pluginproto"
-	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/wkrpc"
 )
 
@@ -69,7 +68,7 @@ func (s *Server) handlePluginStart(c rpcContext) {
 	if !s.decodeProto(c, &info) {
 		return
 	}
-	if info.No == "" {
+	if info.GetNo() == "" {
 		c.WriteErr(errEmptyPluginNumber)
 		return
 	}
@@ -96,18 +95,17 @@ func (s *Server) handleClose(c rpcContext) {
 		c.WriteErr(errEmptyPluginNumber)
 		return
 	}
+	callerUID := pluginNo
 	ctx, cancel := s.usecaseContext(c)
 	if isCloseEvent(c) {
 		go func() {
 			defer cancel()
-			if err := s.usecase.ClosePlugin(ctx, pluginNo, c.Uid()); err != nil && s.logger != nil {
-				s.logger.Warn("plugin close event cleanup failed", wklog.String("pluginNo", pluginNo), wklog.Error(err))
-			}
+			_ = s.usecase.ClosePlugin(ctx, pluginNo, callerUID)
 		}()
 		return
 	}
 	defer cancel()
-	if err := s.usecase.ClosePlugin(ctx, pluginNo, c.Uid()); err != nil {
+	if err := s.usecase.ClosePlugin(ctx, pluginNo, callerUID); err != nil {
 		c.WriteErr(err)
 		return
 	}
@@ -117,14 +115,4 @@ func (s *Server) handleClose(c rpcContext) {
 func isCloseEvent(c rpcContext) bool {
 	eventCtx, ok := c.(closeEventContext)
 	return ok && eventCtx.CloseEvent()
-}
-
-func (s *Server) handleUnimplementedStream(path string, c rpcContext) {
-	if !s.checkBodyLimit(c) {
-		return
-	}
-	if s.logger != nil {
-		s.logger.Debug("plugin stream rpc unimplemented", wklog.String("path", path), wklog.String("pluginNo", c.Uid()))
-	}
-	c.WriteErr(ErrUnimplementedStreamRPC)
 }

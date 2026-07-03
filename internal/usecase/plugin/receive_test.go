@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/legacy/channel"
+	pluginevents "github.com/WuKongIM/WuKongIM/internal/contracts/pluginevents"
 	"github.com/WuKongIM/WuKongIM/pkg/plugin/pluginproto"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
@@ -16,51 +16,53 @@ import (
 func TestReceiveOfflineEligibilityMatrix(t *testing.T) {
 	cases := []struct {
 		name  string
-		event OfflineReceiveEvent
+		event pluginevents.ReceiveOffline
 		want  bool
 	}{
 		{
 			name:  "durable offline recipient invokes bound receive plugin",
-			event: OfflineReceiveEvent{UID: "bot", Message: testReceiveMessage("alice", frame.Framer{})},
+			event: testReceiveOfflineEvent("alice"),
 			want:  true,
 		},
 		{
 			name:  "sender equals recipient skips",
-			event: OfflineReceiveEvent{UID: "bot", Message: testReceiveMessage("bot", frame.Framer{})},
+			event: receiveOfflineWith(func(event *pluginevents.ReceiveOffline) { event.FromUID = event.UID }),
 		},
 		{
 			name:  "system sender skips",
-			event: OfflineReceiveEvent{UID: "bot", Message: testReceiveMessage("____system", frame.Framer{})},
+			event: receiveOfflineWith(func(event *pluginevents.ReceiveOffline) { event.FromUID = "____system" }),
 		},
 		{
 			name:  "sync once skips",
-			event: OfflineReceiveEvent{UID: "bot", Message: testReceiveMessage("alice", frame.Framer{SyncOnce: true})},
+			event: receiveOfflineWith(func(event *pluginevents.ReceiveOffline) { event.SyncOnce = true }),
 		},
 		{
 			name:  "no persist skips",
-			event: OfflineReceiveEvent{UID: "bot", Message: testReceiveMessage("alice", frame.Framer{NoPersist: true})},
+			event: receiveOfflineWith(func(event *pluginevents.ReceiveOffline) { event.NoPersist = true }),
 		},
 		{
 			name:  "request scoped skips",
-			event: OfflineReceiveEvent{UID: "bot", RequestScoped: true, Message: testReceiveMessage("alice", frame.Framer{})},
+			event: receiveOfflineWith(func(event *pluginevents.ReceiveOffline) { event.MessageScopedUIDs = []string{"bot"} }),
 		},
 		{
 			name:  "temp channel skips",
-			event: OfflineReceiveEvent{UID: "bot", Message: testReceiveMessageForChannel("alice", frame.ChannelTypeTemp, frame.Framer{})},
+			event: receiveOfflineWith(func(event *pluginevents.ReceiveOffline) { event.ChannelType = frame.ChannelTypeTemp }),
 		},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			invoker := &receiveHookInvoker{}
+			invoker := &recordingInvoker{}
 			app := newReceiveHookTestApp(t, invoker, func() time.Time { return time.Unix(100, 0).UTC() })
 
 			err := app.ReceiveOffline(context.Background(), tc.event)
 
 			require.NoError(t, err)
 			if tc.want {
-				require.Len(t, invoker.calls, 1)
-				packet := decodeReceivePacket(t, invoker.calls[0].body)
+				sends := invoker.sentMessages()
+				require.Len(t, sends, 1)
+				require.Equal(t, MsgTypeReceive, sends[0].msgType)
+				packet := decodeReceivePacket(t, sends[0].body)
 				require.Equal(t, "alice", packet.GetFromUid())
 				require.Equal(t, "bot", packet.GetToUid())
 				require.Equal(t, "g1", packet.GetChannelId())
@@ -68,67 +70,69 @@ func TestReceiveOfflineEligibilityMatrix(t *testing.T) {
 				require.Equal(t, []byte("hello"), packet.GetPayload())
 				return
 			}
-			require.Empty(t, invoker.calls)
+			require.Empty(t, invoker.sentMessages())
 		})
 	}
 }
 
 func TestReceiveOfflineSelectsHighestPriorityRunningBoundPlugin(t *testing.T) {
-	rt := newFakeRuntime(t.TempDir())
-	rt.plugins["low"] = ObservedPlugin{No: "low", Status: StatusRunning, Enabled: true, Methods: []Method{MethodReceive}, Priority: 1}
-	rt.plugins["high"] = ObservedPlugin{No: "high", Status: StatusRunning, Enabled: true, Methods: []Method{MethodReceive}, Priority: 10, ReplySync: true}
-	store := newFakeBindingStore()
-	store.bindingsByUID["bot"] = []PluginBinding{{UID: "bot", PluginNo: "low"}, {UID: "bot", PluginNo: "high"}}
-	invoker := &receiveHookInvoker{}
-	app := mustNewTestApp(t, Options{
-		Runtime:          rt,
-		DesiredStore:     newFakeDesiredStore(),
-		BindingStore:     store,
+	runtime := &recordingRuntime{plugins: []ObservedPlugin{
+		{No: "low", Methods: []Method{MethodReceive}, Priority: 1, Status: StatusRunning, Enabled: true},
+		{No: "send-only", Methods: []Method{MethodSend}, Priority: 100, Status: StatusRunning, Enabled: true},
+		{No: "offline", Methods: []Method{MethodReceive}, Priority: 99, Status: StatusOffline, Enabled: true},
+		{No: "high", Methods: []Method{MethodReceive}, Priority: 10, Status: StatusRunning, Enabled: true, ReplySync: true},
+	}}
+	invoker := &recordingInvoker{}
+	app, err := NewApp(Options{
+		Runtime:          runtime,
 		Invoker:          invoker,
+		ReceiveBindings:  receiveBindingReader{bindingsByUID: map[string][]PluginBinding{"bot": {{UID: "bot", PluginNo: "low"}, {UID: "bot", PluginNo: "high"}}}},
 		DefaultSenderUID: "____system",
 		ReceiveDedupeTTL: time.Minute,
-		Clock:            func() time.Time { return time.Unix(100, 0).UTC() },
 	})
+	require.NoError(t, err)
 
-	require.NoError(t, app.ReceiveOffline(context.Background(), OfflineReceiveEvent{UID: "bot", Message: testReceiveMessage("alice", frame.Framer{})}))
+	require.NoError(t, app.ReceiveOffline(context.Background(), testReceiveOfflineEvent("alice")))
 
-	require.Len(t, invoker.calls, 1)
-	require.Equal(t, receiveHookCall{no: "high", sync: true, path: PathReceive}, invoker.calls[0].summary())
+	require.Equal(t, []string{"high:" + PathReceive}, invoker.requests)
+	require.Empty(t, invoker.sentMessages())
 }
 
 func TestReceiveOfflineDedupeUsesMessageIDAndUIDWithinTTL(t *testing.T) {
 	now := time.Unix(100, 0).UTC()
-	invoker := &receiveHookInvoker{}
+	invoker := &recordingInvoker{}
 	app := newReceiveHookTestApp(t, invoker, func() time.Time { return now })
-	event := OfflineReceiveEvent{UID: "bot", Message: testReceiveMessage("alice", frame.Framer{})}
+	event := testReceiveOfflineEvent("alice")
 
 	require.NoError(t, app.ReceiveOffline(context.Background(), event))
 	require.NoError(t, app.ReceiveOffline(context.Background(), event))
-	require.Len(t, invoker.calls, 1)
+	require.Len(t, invoker.sentMessages(), 1)
 
 	event.UID = "bot-2"
 	require.NoError(t, app.ReceiveOffline(context.Background(), event))
-	require.Len(t, invoker.calls, 2)
+	require.Len(t, invoker.sentMessages(), 2)
 
 	event.UID = "bot"
 	now = now.Add(time.Minute + time.Second)
 	require.NoError(t, app.ReceiveOffline(context.Background(), event))
-	require.Len(t, invoker.calls, 3)
+	require.Len(t, invoker.sentMessages(), 3)
 }
 
 func TestReceiveOfflineRetriesAfterHookFailureBeforeDedupe(t *testing.T) {
-	invoker := &receiveHookInvoker{sendErr: errors.New("send failed")}
+	sentinel := errors.New("send failed")
+	invoker := &recordingInvoker{sendErrors: map[string]error{"bot": sentinel}}
 	app := newReceiveHookTestApp(t, invoker, func() time.Time { return time.Unix(100, 0).UTC() })
-	event := OfflineReceiveEvent{UID: "bot", Message: testReceiveMessage("alice", frame.Framer{})}
+	event := testReceiveOfflineEvent("alice")
 
-	require.Error(t, app.ReceiveOffline(context.Background(), event))
-	invoker.sendErr = nil
+	err := app.ReceiveOffline(context.Background(), event)
+	require.ErrorIs(t, err, sentinel)
+
+	invoker.sendErrors = nil
 	require.NoError(t, app.ReceiveOffline(context.Background(), event))
-
-	require.Len(t, invoker.calls, 2)
+	require.Len(t, invoker.sentMessages(), 2)
 }
 
-func TestReceiveOfflineMapsClientChannelView(t *testing.T) {
+func TestReceiveOfflineMapsRecipientChannelView(t *testing.T) {
 	cases := []struct {
 		name        string
 		channelID   string
@@ -142,7 +146,7 @@ func TestReceiveOfflineMapsClientChannelView(t *testing.T) {
 			want:        "g1",
 		},
 		{
-			name:        "person shows sender from recipient view and strips command suffix",
+			name:        "person shows counterpart from recipient view and strips command suffix",
 			channelID:   channelid.ToCommandChannel(channelid.EncodePersonChannel("alice", "bot")),
 			channelType: frame.ChannelTypePerson,
 			want:        "alice",
@@ -150,84 +154,102 @@ func TestReceiveOfflineMapsClientChannelView(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			invoker := &receiveHookInvoker{}
+			invoker := &recordingInvoker{}
 			app := newReceiveHookTestApp(t, invoker, func() time.Time { return time.Unix(100, 0).UTC() })
-			msg := testReceiveMessageForChannel("alice", tc.channelType, frame.Framer{})
-			msg.ChannelID = tc.channelID
+			event := testReceiveOfflineEvent("alice")
+			event.ChannelID = tc.channelID
+			event.ChannelType = tc.channelType
 
-			require.NoError(t, app.ReceiveOffline(context.Background(), OfflineReceiveEvent{UID: "bot", Message: msg}))
+			require.NoError(t, app.ReceiveOffline(context.Background(), event))
 
-			require.Len(t, invoker.calls, 1)
-			packet := decodeReceivePacket(t, invoker.calls[0].body)
+			sends := invoker.sentMessages()
+			require.Len(t, sends, 1)
+			packet := decodeReceivePacket(t, sends[0].body)
 			require.Equal(t, tc.want, packet.GetChannelId())
 		})
 	}
 }
 
-func newReceiveHookTestApp(t *testing.T, invoker *receiveHookInvoker, clock func() time.Time) *App {
+func TestReceiveOfflineClonesPayloadAcrossPluginBoundary(t *testing.T) {
+	payload := []byte("hello")
+	invoker := &recordingInvoker{}
+	app := newReceiveHookTestApp(t, invoker, func() time.Time { return time.Unix(100, 0).UTC() })
+	event := testReceiveOfflineEvent("alice")
+	event.Payload = payload
+
+	require.NoError(t, app.ReceiveOffline(context.Background(), event))
+	payload[0] = 'H'
+
+	packet := decodeReceivePacket(t, invoker.sentMessages()[0].body)
+	require.Equal(t, []byte("hello"), packet.GetPayload())
+}
+
+func TestStartPluginRegistersReceiveMethod(t *testing.T) {
+	runtime := &recordingRuntime{}
+	app, err := NewApp(Options{Runtime: runtime, Invoker: &recordingInvoker{}})
+	require.NoError(t, err)
+
+	resp, err := app.StartPlugin(context.Background(), &pluginproto.PluginInfo{
+		No:      "receiver",
+		Methods: []string{"Receive", "Send"},
+	}, "receiver")
+	require.NoError(t, err)
+	require.True(t, resp.GetSuccess())
+
+	require.Equal(t, []Method{MethodReceive, MethodSend}, runtime.registeredPlugins()[0].Methods)
+}
+
+func newReceiveHookTestApp(t *testing.T, invoker *recordingInvoker, clock func() time.Time) *App {
 	t.Helper()
-	rt := newFakeRuntime(t.TempDir())
-	rt.plugins["bot"] = ObservedPlugin{No: "bot", Status: StatusRunning, Enabled: true, Methods: []Method{MethodReceive}, Priority: 1}
-	rt.plugins["bot-2"] = ObservedPlugin{No: "bot-2", Status: StatusRunning, Enabled: true, Methods: []Method{MethodReceive}, Priority: 1}
-	store := newFakeBindingStore()
-	store.bindingsByUID["bot"] = []PluginBinding{{UID: "bot", PluginNo: "bot"}}
-	store.bindingsByUID["bot-2"] = []PluginBinding{{UID: "bot-2", PluginNo: "bot-2"}}
-	return mustNewTestApp(t, Options{
-		Runtime:          rt,
-		DesiredStore:     newFakeDesiredStore(),
-		BindingStore:     store,
-		Invoker:          invoker,
+	app, err := NewApp(Options{
+		Runtime: &recordingRuntime{plugins: []ObservedPlugin{
+			{No: "bot", Methods: []Method{MethodReceive}, Priority: 1, Status: StatusRunning, Enabled: true},
+			{No: "bot-2", Methods: []Method{MethodReceive}, Priority: 1, Status: StatusRunning, Enabled: true},
+		}},
+		Invoker: invoker,
+		ReceiveBindings: receiveBindingReader{bindingsByUID: map[string][]PluginBinding{
+			"bot":   {{UID: "bot", PluginNo: "bot"}},
+			"bot-2": {{UID: "bot-2", PluginNo: "bot-2"}},
+		}},
 		DefaultSenderUID: "____system",
 		ReceiveDedupeTTL: time.Minute,
 		Clock:            clock,
 	})
+	require.NoError(t, err)
+	return app
 }
 
-func testReceiveMessage(fromUID string, framer frame.Framer) channel.Message {
-	return testReceiveMessageForChannel(fromUID, frame.ChannelTypeGroup, framer)
-}
-
-func testReceiveMessageForChannel(fromUID string, channelType uint8, framer frame.Framer) channel.Message {
-	return channel.Message{
-		MessageID:   1001,
-		MessageSeq:  12,
-		Framer:      framer,
-		FromUID:     fromUID,
-		ChannelID:   "g1",
-		ChannelType: channelType,
-		Payload:     []byte("hello"),
+func testReceiveOfflineEvent(fromUID string) pluginevents.ReceiveOffline {
+	return pluginevents.ReceiveOffline{
+		MessageID:         1001,
+		MessageSeq:        12,
+		ChannelID:         "g1",
+		ChannelType:       frame.ChannelTypeGroup,
+		FromUID:           fromUID,
+		UID:               "bot",
+		ClientMsgNo:       "client-1",
+		ServerTimestampMS: 1713859200123,
+		Payload:           []byte("hello"),
 	}
 }
 
-type receiveHookCall struct {
-	no      string
-	sync    bool
-	path    string
-	msgType uint32
-	body    []byte
+func receiveOfflineWith(mutator func(*pluginevents.ReceiveOffline)) pluginevents.ReceiveOffline {
+	event := testReceiveOfflineEvent("alice")
+	mutator(&event)
+	return event
 }
 
-func (c receiveHookCall) summary() receiveHookCall {
-	return receiveHookCall{no: c.no, sync: c.sync, path: c.path, msgType: c.msgType}
+type receiveBindingReader struct {
+	bindingsByUID map[string][]PluginBinding
+	err           error
 }
 
-type receiveHookInvoker struct {
-	calls      []receiveHookCall
-	requestErr error
-	sendErr    error
+func (r receiveBindingReader) ListPluginBindingsByUID(_ context.Context, uid string) ([]PluginBinding, error) {
+	if r.err != nil {
+		return nil, r.err
+	}
+	return append([]PluginBinding(nil), r.bindingsByUID[uid]...), nil
 }
-
-func (i *receiveHookInvoker) RequestPlugin(_ context.Context, no, path string, body []byte) ([]byte, error) {
-	i.calls = append(i.calls, receiveHookCall{no: no, sync: true, path: path, body: append([]byte(nil), body...)})
-	return nil, i.requestErr
-}
-
-func (i *receiveHookInvoker) SendPlugin(no string, msgType uint32, body []byte) error {
-	i.calls = append(i.calls, receiveHookCall{no: no, msgType: msgType, body: append([]byte(nil), body...)})
-	return i.sendErr
-}
-
-func (i *receiveHookInvoker) Stop(context.Context, string) error { return nil }
 
 func decodeReceivePacket(t *testing.T, body []byte) *pluginproto.RecvPacket {
 	t.Helper()

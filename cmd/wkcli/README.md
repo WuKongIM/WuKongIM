@@ -16,13 +16,13 @@ Current commands:
 | --- | --- |
 | `context` | Manages named WuKongIM server API contexts. |
 | `bench send` | Runs a lightweight WKProto SEND/SENDACK benchmark using `pkg/client`. |
-| `top` | Reads live internalv2 runtime pressure snapshots. |
-| `sim` | Runs a long-lived internalv2 real-traffic simulator. |
-| `node` | Operates internalv2 dynamic nodes through manager HTTP. |
+| `top` | Reads live internal runtime pressure snapshots. |
+| `sim` | Runs a long-lived internal real-traffic simulator. |
+| `node` | Operates dynamic nodes through manager HTTP. |
 
 ## Top
 
-`top` reads the internalv2 `/top/v1/snapshot` HTTP endpoint from one or more
+`top` reads the internal `/top/v1/snapshot` HTTP endpoint from one or more
 WuKongIM nodes, aggregates the node-local snapshots, and renders either a human
 overview or pretty JSON. It does not query Prometheus; the endpoint reports
 whether metrics are enabled, but metrics are not required for this view.
@@ -120,7 +120,7 @@ go run ./cmd/wkcli bench send --gateway 127.0.0.1:5100 --no-progress
 ## Sim
 
 `sim` drives real traffic against a running `cmd/wukongim` single-node cluster
-or multi-node cluster. It prepares group metadata through the v2
+or multi-node cluster. It prepares group metadata through the
 `/bench/v1/*` HTTP API, keeps generated users online through the WKProto
 gateway, sends group `SEND -> SENDACK` traffic, and exposes local simulator
 status.
@@ -134,7 +134,7 @@ curl http://127.0.0.1:19091/status
 Without `--server` or `--gateway`, `sim` reads HTTP API servers from
 `--context` or the selected current context.
 
-The target must expose the v2 benchmark API and a published gateway address:
+The target must expose the benchmark API and a published gateway address:
 
 ```text
 WK_BENCH_API_ENABLE=true
@@ -157,7 +157,7 @@ go run ./cmd/wkcli sim --server http://127.0.0.1:5001 --max-runtime 30s
 
 ## Node Operations
 
-`node` operates internalv2 dynamic data nodes through manager HTTP. It does not
+`node` operates dynamic data nodes through manager HTTP. It does not
 start or stop server processes and does not write ControllerV2 or Slot state
 directly.
 

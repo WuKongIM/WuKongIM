@@ -46,22 +46,21 @@ func newAuthState(cfg AuthConfig) authState {
 		state.jwtExpire = 24 * time.Hour
 	}
 	for _, user := range cfg.Users {
-		principal := userPrincipal{}
-		permissions := make(map[string]map[string]struct{}, len(user.Permissions))
+		principal := userPrincipal{
+			password:    user.Password,
+			permissions: make(map[string]map[string]struct{}, len(user.Permissions)),
+		}
 		for _, permission := range user.Permissions {
-			grant := PermissionConfig{
-				Resource: permission.Resource,
-				Actions:  append([]string(nil), permission.Actions...),
-			}
 			actions := make(map[string]struct{}, len(permission.Actions))
 			for _, action := range permission.Actions {
 				actions[action] = struct{}{}
 			}
-			permissions[permission.Resource] = actions
-			principal.grants = append(principal.grants, grant)
+			principal.permissions[permission.Resource] = actions
+			principal.grants = append(principal.grants, PermissionConfig{
+				Resource: permission.Resource,
+				Actions:  append([]string(nil), permission.Actions...),
+			})
 		}
-		principal.password = user.Password
-		principal.permissions = permissions
 		state.users[user.Username] = principal
 	}
 	return state

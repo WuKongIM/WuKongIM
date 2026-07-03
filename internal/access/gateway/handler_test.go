@@ -3,1228 +3,1152 @@ package gateway
 import (
 	"context"
 	"errors"
-	"reflect"
-	"sync"
+	"strconv"
 	"testing"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/internal/observability/diagnostics/tracectx"
-	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
+	authoritypresence "github.com/WuKongIM/WuKongIM/internal/runtime/presence"
+	"github.com/WuKongIM/WuKongIM/internal/usecase/delivery"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
-	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	coregateway "github.com/WuKongIM/WuKongIM/pkg/gateway"
-	gatewaysession "github.com/WuKongIM/WuKongIM/pkg/gateway/session"
-	"github.com/WuKongIM/WuKongIM/pkg/legacy/channel"
-	channelhandler "github.com/WuKongIM/WuKongIM/pkg/legacy/channel/handler"
+	"github.com/WuKongIM/WuKongIM/pkg/gateway/session"
 	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
-	runtimechannelid "github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
-	"github.com/WuKongIM/WuKongIM/pkg/protocol/wkprotoenc"
-	"github.com/stretchr/testify/require"
 )
 
 func TestHandlerOnSessionActivateCallsPresenceActivate(t *testing.T) {
-	fixedNow := time.Date(2026, 4, 1, 10, 0, 0, 0, time.UTC)
-	presenceUsecase := &fakePresenceUsecase{}
-	handler := newHandlerWithPresence(t, presenceUsecase, Options{
-		Now: func() time.Time { return fixedNow },
-	})
-	ctx := newAuthedContext(t, 1, "u1")
-	ctx.Session.SetValue(coregateway.SessionValueDeviceID, "dev-1")
+	sess := newTestSession(t, nil)
+	sess.SetValue(coregateway.SessionValueUID, "u1")
+	sess.SetValue(coregateway.SessionValueDeviceID, "d1")
+	sess.SetValue(coregateway.SessionValueDeviceFlag, frame.APP)
+	sess.SetValue(coregateway.SessionValueDeviceLevel, frame.DeviceLevelMaster)
+	usecase := &recordingPresence{}
+	handler := New(Options{Presence: usecase})
 
-	activator, ok := any(handler).(interface {
-		OnSessionActivate(*coregateway.Context) (*frame.ConnackPacket, error)
+	connack, err := handler.OnSessionActivate(&coregateway.Context{
+		Session:        sess,
+		Listener:       "tcp",
+		RequestContext: context.Background(),
 	})
-	require.True(t, ok, "handler must implement session activation hook")
-
-	connack, err := activator.OnSessionActivate(ctx)
-	require.NoError(t, err)
-	require.Nil(t, connack)
-	require.Len(t, presenceUsecase.activateCommands, 1)
-	cmd := presenceUsecase.activateCommands[0]
-	require.Equal(t, "u1", cmd.UID)
-	require.Equal(t, "dev-1", cmd.DeviceID)
-	require.Equal(t, frame.APP, cmd.DeviceFlag)
-	require.Equal(t, frame.DeviceLevelMaster, cmd.DeviceLevel)
-	require.Equal(t, "tcp", cmd.Listener)
-	require.Equal(t, fixedNow, cmd.ConnectedAt)
-	require.NotNil(t, cmd.Session)
-	require.Equal(t, ctx.Session.ID(), cmd.Session.ID())
-	require.Equal(t, ctx.Session.Listener(), cmd.Session.Listener())
-	cmd.Session.SetValue("adapter-key", "adapter-value")
-	require.Equal(t, "adapter-value", ctx.Session.Value("adapter-key"))
+	if err != nil {
+		t.Fatalf("OnSessionActivate() error = %v", err)
+	}
+	if connack != nil {
+		t.Fatalf("OnSessionActivate() connack = %#v, want nil", connack)
+	}
+	if len(usecase.activateCommands) != 1 {
+		t.Fatalf("activate command count = %d, want 1", len(usecase.activateCommands))
+	}
+	cmd := usecase.activateCommands[0]
+	if cmd.UID != "u1" || cmd.DeviceID != "d1" || cmd.DeviceFlag != uint8(frame.APP) || cmd.DeviceLevel != uint8(frame.DeviceLevelMaster) {
+		t.Fatalf("activate identity fields = %#v", cmd)
+	}
+	if cmd.Listener != "tcp" || cmd.SessionID != sess.ID() || cmd.ConnectedUnix == 0 {
+		t.Fatalf("activate route fields = listener:%q session:%d connected:%d", cmd.Listener, cmd.SessionID, cmd.ConnectedUnix)
+	}
+	if cmd.Session == nil {
+		t.Fatalf("activate session handle is nil")
+	}
 }
 
-func TestOnlineSessionAdapterImplementsRuntimeWriterAndForwards(t *testing.T) {
-	var _ online.SessionWriter = onlineSessionAdapter{}
-	var gotFrame frame.Frame
-	var gotMeta gatewaysession.OutboundMeta
-	sess := gatewaysession.New(gatewaysession.Config{
-		ID:         42,
-		Listener:   "tcp",
-		RemoteAddr: "10.0.0.1:9000",
-		LocalAddr:  "127.0.0.1:7000",
-		WriteFrameFn: func(f frame.Frame, meta gatewaysession.OutboundMeta) error {
-			gotFrame = f
-			gotMeta = meta
-			return nil
+func TestHandlerOnSessionActivateRejectsMissingUID(t *testing.T) {
+	sess := newTestSession(t, nil)
+	usecase := &recordingPresence{}
+	handler := New(Options{Presence: usecase})
+
+	_, err := handler.OnSessionActivate(&coregateway.Context{
+		Session:        sess,
+		RequestContext: context.Background(),
+	})
+	if !errors.Is(err, ErrUnauthenticatedSession) {
+		t.Fatalf("OnSessionActivate() error = %v, want %v", err, ErrUnauthenticatedSession)
+	}
+	if len(usecase.activateCommands) != 0 {
+		t.Fatalf("activate command count = %d, want 0", len(usecase.activateCommands))
+	}
+}
+
+func TestHandlerOnSessionActivateForwardsContextFallbacksAndErrors(t *testing.T) {
+	wantErr := errors.New("activate failed")
+	reqCtx := context.WithValue(context.Background(), testContextKey{}, "request")
+	sess := session.New(session.Config{ID: 101, Listener: "fallback-listener"})
+	sess.SetValue(coregateway.SessionValueUID, "u1")
+	usecase := &recordingPresence{activateErr: wantErr}
+	handler := New(Options{Presence: usecase})
+
+	connack, err := handler.OnSessionActivate(&coregateway.Context{
+		Session:        sess,
+		RequestContext: reqCtx,
+	})
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("OnSessionActivate() error = %v, want %v", err, wantErr)
+	}
+	if connack != nil {
+		t.Fatalf("OnSessionActivate() connack = %#v, want nil", connack)
+	}
+	if len(usecase.activateContexts) != 1 || usecase.activateContexts[0] != reqCtx {
+		t.Fatalf("activate context = %#v, want request context", usecase.activateContexts)
+	}
+	if len(usecase.activateCommands) != 1 {
+		t.Fatalf("activate command count = %d, want 1", len(usecase.activateCommands))
+	}
+	if got := usecase.activateCommands[0].Listener; got != "fallback-listener" {
+		t.Fatalf("activate listener = %q, want fallback listener", got)
+	}
+}
+
+func TestHandlerOnSessionActivateClassifiesPresenceRouteErrors(t *testing.T) {
+	reqCtx := context.WithValue(context.Background(), testContextKey{}, "request")
+	sess := session.New(session.Config{ID: 101, Listener: "fallback-listener"})
+	sess.SetValue(coregateway.SessionValueUID, "u1")
+	usecase := &recordingPresence{activateErr: authoritypresence.ErrRouteNotReady}
+	handler := New(Options{Presence: usecase})
+
+	_, err := handler.OnSessionActivate(&coregateway.Context{
+		Session:        sess,
+		RequestContext: reqCtx,
+	})
+	if !errors.Is(err, authoritypresence.ErrRouteNotReady) {
+		t.Fatalf("OnSessionActivate() error = %v, want %v", err, authoritypresence.ErrRouteNotReady)
+	}
+	classified, ok := err.(interface{ GatewayAuthFailure() string })
+	if !ok {
+		t.Fatalf("OnSessionActivate() error does not expose GatewayAuthFailure: %T", err)
+	}
+	if got := classified.GatewayAuthFailure(); got != "activation_route_not_ready" {
+		t.Fatalf("GatewayAuthFailure() = %q, want activation_route_not_ready", got)
+	}
+}
+
+func TestGatewayPresenceSessionCloseUsesContextCloseHook(t *testing.T) {
+	sess := newTestSession(t, nil)
+	sess.SetValue(coregateway.SessionValueUID, "u1")
+	usecase := &recordingPresence{}
+	handler := New(Options{Presence: usecase})
+	var closed bool
+	var closeReason coregateway.CloseReason
+	var closeErr error
+
+	_, err := handler.OnSessionActivate(&coregateway.Context{
+		Session:        sess,
+		Listener:       "tcp",
+		RequestContext: context.Background(),
+		CloseSessionFn: func(reason coregateway.CloseReason, err error) {
+			closed = true
+			closeReason = reason
+			closeErr = err
 		},
 	})
-	sess.SetValue("device", "ios")
+	if err != nil {
+		t.Fatalf("OnSessionActivate() error = %v", err)
+	}
+	if len(usecase.activateCommands) != 1 || usecase.activateCommands[0].Session == nil {
+		t.Fatalf("activate command missing session handle: %#v", usecase.activateCommands)
+	}
 
-	writer := newOnlineSessionAdapter(sess)
-	require.NotNil(t, writer)
-	require.Equal(t, uint64(42), writer.ID())
-	require.Equal(t, "tcp", writer.Listener())
-	require.Equal(t, "10.0.0.1:9000", writer.RemoteAddr())
-	require.Equal(t, "127.0.0.1:7000", writer.LocalAddr())
-	require.Equal(t, "ios", writer.Value("device"))
-
-	ping := &frame.PingPacket{}
-	require.NoError(t, writer.WriteFrame(ping))
-	require.Same(t, ping, gotFrame)
-	require.Empty(t, gotMeta.ReplyToken)
-
-	writer.SetValue("uid", "u1")
-	require.Equal(t, "u1", sess.Value("uid"))
-	require.NoError(t, writer.Close())
-	require.ErrorIs(t, writer.WriteFrame(&frame.PingPacket{}), gatewaysession.ErrSessionClosed)
-}
-
-func TestHandlerOnSessionOpenIsNoop(t *testing.T) {
-	handler := New(Options{Now: func() time.Time { return time.Date(2026, 4, 1, 10, 0, 0, 0, time.UTC) }})
-	ctx := newAuthedContext(t, 1, "u1")
-
-	require.NoError(t, handler.OnSessionOpen(*ctx))
-
-	require.Empty(t, handler.online.ConnectionsByUID("u1"))
-	_, ok := handler.online.Connection(1)
-	require.False(t, ok)
+	if err := usecase.activateCommands[0].Session.CloseSession("conflict"); err != nil {
+		t.Fatalf("CloseSession() error = %v", err)
+	}
+	if !closed {
+		t.Fatalf("CloseSessionFn was not called")
+	}
+	if closeReason != coregateway.CloseReasonPolicyViolation {
+		t.Fatalf("close reason = %q, want %q", closeReason, coregateway.CloseReasonPolicyViolation)
+	}
+	if closeErr == nil || closeErr.Error() != "conflict" {
+		t.Fatalf("close error = %v, want conflict", closeErr)
+	}
 }
 
 func TestHandlerOnSessionCloseCallsPresenceDeactivate(t *testing.T) {
-	msgs := &fakeMessageUsecase{}
-	presenceUsecase := &fakePresenceUsecase{}
-	handler := newHandlerWithPresence(t, presenceUsecase, Options{Messages: msgs})
-	ctx := newAuthedContext(t, 1, "u1")
+	sess := newTestSession(t, nil)
+	sess.SetValue(coregateway.SessionValueUID, "u1")
+	usecase := &recordingPresence{}
+	handler := New(Options{Presence: usecase})
 
-	require.NoError(t, handler.OnSessionClose(*ctx))
-	require.Equal(t, []message.SessionClosedCommand{{
-		UID:       "u1",
-		SessionID: 1,
-	}}, msgs.sessionClosed)
-	require.Equal(t, []presence.DeactivateCommand{{
-		UID:       "u1",
-		SessionID: 1,
-	}}, presenceUsecase.deactivateCommands)
-}
-
-func TestHandlerOnSessionActivateRejectsUnauthenticatedContext(t *testing.T) {
-	handler := newHandlerWithPresence(t, &fakePresenceUsecase{}, Options{})
-
-	activator, ok := any(handler).(interface {
-		OnSessionActivate(*coregateway.Context) (*frame.ConnackPacket, error)
+	err := handler.OnSessionClose(coregateway.Context{
+		Session:        sess,
+		RequestContext: context.Background(),
 	})
-	require.True(t, ok, "handler must implement session activation hook")
-
-	_, err := activator.OnSessionActivate(&coregateway.Context{
-		Session: gatewaysession.New(gatewaysession.Config{
-			ID:       1,
-			Listener: "tcp",
-		}),
-	})
-
-	require.ErrorIs(t, err, ErrUnauthenticatedSession)
+	if err != nil {
+		t.Fatalf("OnSessionClose() error = %v", err)
+	}
+	if len(usecase.deactivateCommands) != 1 {
+		t.Fatalf("deactivate command count = %d, want 1", len(usecase.deactivateCommands))
+	}
+	cmd := usecase.deactivateCommands[0]
+	if cmd.UID != "u1" || cmd.SessionID != sess.ID() {
+		t.Fatalf("deactivate command = %#v", cmd)
+	}
 }
 
-func TestHandlerOnSessionErrorDoesNotMutateRegistry(t *testing.T) {
-	handler := New(Options{Now: func() time.Time { return time.Date(2026, 4, 1, 10, 0, 0, 0, time.UTC) }})
-	ctx := newAuthedContext(t, 1, "u1")
-
-	require.NoError(t, handler.OnSessionOpen(*ctx))
-	before := handler.online.ConnectionsByUID("u1")
-
-	handler.OnSessionError(*ctx, errors.New("boom"))
-
-	after := handler.online.ConnectionsByUID("u1")
-	require.Equal(t, before, after)
-}
-
-func TestHandlerOnFrameSendMapsCommandAndWritesSendack(t *testing.T) {
-	sender := newOptionRecordingSession(1, "tcp")
-	sender.SetValue(coregateway.SessionValueUID, "u1")
+func TestHandlerOnSessionCloseForwardsDeliveryWhenPresenceFails(t *testing.T) {
+	sess := newTestSession(t, nil)
+	sess.SetValue(coregateway.SessionValueUID, "u1")
+	presenceErr := errors.New("presence failed")
+	deliveryUsecase := &recordingDelivery{}
 	handler := New(Options{
-		Messages: &fakeMessageUsecase{
-			sendResult: message.SendResult{
-				MessageID:  99,
-				MessageSeq: uint64(^uint32(0)) + 7,
-				Reason:     frame.ReasonSuccess,
-			},
-		},
+		Presence: &recordingPresence{deactivateErr: presenceErr},
+		Delivery: deliveryUsecase,
 	})
 
-	ctx := &coregateway.Context{
-		Session:        sender,
-		Listener:       "tcp",
-		ReplyToken:     "reply-1",
+	err := handler.OnSessionClose(coregateway.Context{
+		Session:        sess,
 		RequestContext: context.Background(),
+	})
+	if !errors.Is(err, presenceErr) {
+		t.Fatalf("OnSessionClose() error = %v, want joined presence error", err)
 	}
-	pkt := &frame.SendPacket{
-		Framer:      frame.Framer{RedDot: true, SyncOnce: true},
-		Setting:     1,
-		MsgKey:      "key-1",
-		Expire:      10,
-		ChannelID:   "u2",
-		ChannelType: frame.ChannelTypePerson,
-		Topic:       "chat",
-		Payload:     []byte("hi"),
-		ClientSeq:   13,
-		ClientMsgNo: "m4",
-		StreamNo:    "stream-1",
+	if len(deliveryUsecase.closedCommands) != 1 {
+		t.Fatalf("delivery session closed commands = %d, want 1", len(deliveryUsecase.closedCommands))
 	}
-
-	require.NoError(t, handler.OnFrame(*ctx, pkt))
-	require.Len(t, sender.Writes(), 1)
-
-	msgs := handler.messages.(*fakeMessageUsecase)
-	require.Len(t, msgs.sendCommands, 1)
-	require.Equal(t, "u1", msgs.sendCommands[0].FromUID)
-	require.Equal(t, uint64(1), msgs.sendCommands[0].SenderSessionID)
-	require.Equal(t, "u2", msgs.sendCommands[0].ChannelID)
-	require.Equal(t, frame.ChannelTypePerson, msgs.sendCommands[0].ChannelType)
-	require.Equal(t, uint64(13), msgs.sendCommands[0].ClientSeq)
-	require.Equal(t, "m4", msgs.sendCommands[0].ClientMsgNo)
-	require.Equal(t, "stream-1", msgs.sendCommands[0].StreamNo)
-	require.Equal(t, "chat", msgs.sendCommands[0].Topic)
-	require.Equal(t, []byte("hi"), msgs.sendCommands[0].Payload)
-	require.True(t, msgs.sendCommands[0].Framer.RedDot)
-	require.True(t, msgs.sendCommands[0].Framer.SyncOnce)
-
-	write := sender.Writes()[0]
-	ack := requireSendackPacket(t, write.f)
-	require.Equal(t, frame.ReasonSuccess, ack.ReasonCode)
-	require.Equal(t, int64(99), ack.MessageID)
-	require.Equal(t, uint64(^uint32(0))+7, ack.MessageSeq)
-	require.Equal(t, uint64(13), ack.ClientSeq)
-	require.Equal(t, "m4", ack.ClientMsgNo)
-	require.Equal(t, "reply-1", write.meta.ReplyToken)
+	cmd := deliveryUsecase.closedCommands[0]
+	if cmd.UID != "u1" || cmd.SessionID != sess.ID() {
+		t.Fatalf("delivery session closed command = %#v", cmd)
+	}
 }
 
-func TestHandlerOnSendBatchWritesAlignedSendacks(t *testing.T) {
-	sender := newOptionRecordingSession(1, "tcp")
-	sender.SetValue(coregateway.SessionValueUID, "u1")
-	msgs := &fakeMessageUsecase{
-		sendBatchResults: []message.SendBatchItemResult{
-			{Result: message.SendResult{MessageID: 101, MessageSeq: 11, Reason: frame.ReasonSuccess}},
-			{Result: message.SendResult{MessageID: 102, MessageSeq: 12, Reason: frame.ReasonSuccess}},
-		},
-	}
-	handler := New(Options{Messages: msgs})
-	items := []coregateway.SendBatchItem{
-		{
-			Context: coregateway.Context{
-				Session:        sender,
-				Listener:       "tcp",
-				ReplyToken:     "reply-1",
-				RequestContext: context.Background(),
-			},
-			ReplyToken: "reply-1",
-			Frame: &frame.SendPacket{
-				ChannelID:   "u2",
-				ChannelType: frame.ChannelTypePerson,
-				ClientSeq:   21,
-				ClientMsgNo: "batch-1",
-				Payload:     []byte("one"),
-			},
-		},
-		{
-			Context: coregateway.Context{
-				Session:        sender,
-				Listener:       "tcp",
-				ReplyToken:     "reply-2",
-				RequestContext: context.Background(),
-			},
-			ReplyToken: "reply-2",
-			Frame: &frame.SendPacket{
-				ChannelID:   "u2",
-				ChannelType: frame.ChannelTypePerson,
-				ClientSeq:   22,
-				ClientMsgNo: "batch-2",
-				Payload:     []byte("two"),
-			},
-		},
-	}
+func TestHandlerOnSessionActivateRollbackCallsPresenceDeactivate(t *testing.T) {
+	sess := newTestSession(t, nil)
+	sess.SetValue(coregateway.SessionValueUID, "u1")
+	usecase := &recordingPresence{}
+	handler := New(Options{Presence: usecase})
 
-	require.NoError(t, handler.OnSendBatch(items))
-
-	require.Len(t, msgs.sendBatchItems, 2)
-	require.Equal(t, "batch-1", msgs.sendBatchItems[0].Command.ClientMsgNo)
-	require.Equal(t, "batch-2", msgs.sendBatchItems[1].Command.ClientMsgNo)
-	require.NotSame(t, msgs.sendBatchItems[0].Context, msgs.sendBatchItems[1].Context)
-	writes := sender.Writes()
-	require.Len(t, writes, 2)
-	first := requireSendackPacket(t, writes[0].f)
-	require.Equal(t, int64(101), first.MessageID)
-	require.Equal(t, uint64(11), first.MessageSeq)
-	require.Equal(t, uint64(21), first.ClientSeq)
-	require.Equal(t, "batch-1", first.ClientMsgNo)
-	require.Equal(t, "reply-1", writes[0].meta.ReplyToken)
-	second := requireSendackPacket(t, writes[1].f)
-	require.Equal(t, int64(102), second.MessageID)
-	require.Equal(t, uint64(12), second.MessageSeq)
-	require.Equal(t, uint64(22), second.ClientSeq)
-	require.Equal(t, "batch-2", second.ClientMsgNo)
-	require.Equal(t, "reply-2", writes[1].meta.ReplyToken)
-}
-
-func TestHandlerOnSendBatchRejectsInvalidItemWithoutBlockingValidItem(t *testing.T) {
-	invalidSender := newOptionRecordingSession(2, "tcp")
-	sender := newOptionRecordingSession(1, "tcp")
-	msgs := &fakeMessageUsecase{
-		sendBatchResults: []message.SendBatchItemResult{
-			{Result: message.SendResult{MessageID: 201, MessageSeq: 31, Reason: frame.ReasonSuccess}},
-		},
-	}
-	handler := New(Options{Messages: msgs})
-	validCtx := coregateway.Context{
-		Session:        sender,
-		Listener:       "tcp",
-		ReplyToken:     "reply-valid",
+	handler.OnSessionActivateRollback(coregateway.Context{
+		Session:        sess,
 		RequestContext: context.Background(),
+	}, errors.New("connack write failed"))
+	if len(usecase.deactivateCommands) != 1 {
+		t.Fatalf("deactivate command count = %d, want 1", len(usecase.deactivateCommands))
 	}
-	validCtx.Session.SetValue(coregateway.SessionValueUID, "u1")
-
-	err := handler.OnSendBatch([]coregateway.SendBatchItem{
-		{
-			Context: coregateway.Context{
-				Session:        invalidSender,
-				Listener:       "tcp",
-				ReplyToken:     "reply-invalid",
-				RequestContext: context.Background(),
-			},
-			ReplyToken: "reply-invalid",
-			Frame: &frame.SendPacket{
-				ChannelID:   "u2",
-				ChannelType: frame.ChannelTypePerson,
-				ClientSeq:   30,
-				ClientMsgNo: "invalid",
-			},
-		},
-		{
-			Context:    validCtx,
-			ReplyToken: "reply-valid",
-			Frame: &frame.SendPacket{
-				ChannelID:   "u2",
-				ChannelType: frame.ChannelTypePerson,
-				ClientSeq:   31,
-				ClientMsgNo: "valid",
-			},
-		},
-	})
-
-	require.NoError(t, err)
-	require.Len(t, msgs.sendBatchItems, 1)
-	require.Equal(t, "valid", msgs.sendBatchItems[0].Command.ClientMsgNo)
-	invalidWrites := invalidSender.Writes()
-	require.Len(t, invalidWrites, 1)
-	rejected := requireSendackPacket(t, invalidWrites[0].f)
-	require.Equal(t, frame.ReasonAuthFail, rejected.ReasonCode)
-	require.Equal(t, "reply-invalid", invalidWrites[0].meta.ReplyToken)
-	writes := sender.Writes()
-	require.Len(t, writes, 1)
-	accepted := requireSendackPacket(t, writes[0].f)
-	require.Equal(t, frame.ReasonSuccess, accepted.ReasonCode)
-	require.Equal(t, int64(201), accepted.MessageID)
-	require.Equal(t, uint64(31), accepted.MessageSeq)
-	require.Equal(t, "reply-valid", writes[0].meta.ReplyToken)
+	cmd := usecase.deactivateCommands[0]
+	if cmd.UID != "u1" || cmd.SessionID != sess.ID() {
+		t.Fatalf("rollback deactivate command = %#v", cmd)
+	}
 }
 
-func TestHandlerOnFrameSendPreservesBusinessDenialReason(t *testing.T) {
-	sender := newOptionRecordingSession(1, "tcp")
-	sender.SetValue(coregateway.SessionValueUID, "u1")
-	handler := New(Options{
-		Messages: &fakeMessageUsecase{
-			sendResult: message.SendResult{Reason: frame.ReasonInBlacklist},
-		},
-	})
+func TestOnFrameSendPacketWritesSuccessSendack(t *testing.T) {
+	var written []frame.Frame
+	sess := newTestSession(t, &written)
+	sess.SetValue(coregateway.SessionValueUID, "u1")
+	sess.SetValue(coregateway.SessionValueDeviceID, "d1")
+	sess.SetValue(coregateway.SessionValueDeviceFlag, frame.WEB)
+	sess.SetValue(coregateway.SessionValueProtocolVersion, uint8(4))
 
-	ctx := &coregateway.Context{
-		Session:        sender,
-		Listener:       "tcp",
-		RequestContext: context.Background(),
-	}
-	pkt := &frame.SendPacket{
-		ChannelID:   "g1",
-		ChannelType: frame.ChannelTypeGroup,
-		Payload:     []byte("hi"),
-		ClientSeq:   14,
-		ClientMsgNo: "denied-1",
-	}
-
-	require.NoError(t, handler.OnFrame(*ctx, pkt))
-	require.Len(t, sender.Writes(), 1)
-	ack := requireSendackPacket(t, sender.Writes()[0].f)
-	require.Equal(t, frame.ReasonInBlacklist, ack.ReasonCode)
-	require.Zero(t, ack.MessageID)
-	require.Zero(t, ack.MessageSeq)
-	require.Equal(t, uint64(14), ack.ClientSeq)
-	require.Equal(t, "denied-1", ack.ClientMsgNo)
-}
-
-func TestHandlerOnFrameSendWritesRateLimitReason(t *testing.T) {
-	sender := newOptionRecordingSession(1, "tcp")
-	sender.SetValue(coregateway.SessionValueUID, "u1")
-	handler := New(Options{
-		Messages: &fakeMessageUsecase{
-			sendResult: message.SendResult{Reason: frame.ReasonRateLimit},
-		},
-	})
-
-	ctx := &coregateway.Context{
-		Session:        sender,
-		Listener:       "tcp",
-		RequestContext: context.Background(),
-	}
-	err := handler.OnFrame(*ctx, &frame.SendPacket{
-		ChannelID:   "g1",
-		ChannelType: frame.ChannelTypeGroup,
-		Payload:     []byte("hot"),
-		ClientSeq:   15,
-		ClientMsgNo: "limited-1",
-	})
-
-	require.NoError(t, err)
-	ack := requireSendackPacket(t, sender.Writes()[0].f)
-	require.Equal(t, frame.ReasonRateLimit, ack.ReasonCode)
-	require.Equal(t, uint64(15), ack.ClientSeq)
-	require.Equal(t, "limited-1", ack.ClientMsgNo)
-}
-
-func TestHandlerOnFrameSendDecryptsEncryptedPayloadBeforeUsecase(t *testing.T) {
-	sender := newOptionRecordingSession(1, "tcp")
-	sender.SetValue(coregateway.SessionValueUID, "u1")
-	setEncryptedSession(t, sender, wkprotoenc.SessionKeys{
-		AESKey: []byte("1234567890abcdef"),
-		AESIV:  []byte("abcdef1234567890"),
-	})
-	msgs := &fakeMessageUsecase{
+	usecase := &recordingMessages{
 		sendResult: message.SendResult{
-			MessageID:  42,
-			MessageSeq: 9,
-			Reason:     frame.ReasonSuccess,
+			MessageID:  9001,
+			MessageSeq: 42,
+			Reason:     message.ReasonSuccess,
 		},
 	}
-	handler := New(Options{Messages: msgs})
-
-	ctx := &coregateway.Context{
-		Session:        sender,
-		Listener:       "tcp",
-		ReplyToken:     "reply-encrypted",
-		RequestContext: context.Background(),
-	}
-	packet := &frame.SendPacket{
-		ChannelID:   "u2",
-		ChannelType: frame.ChannelTypePerson,
-		Payload:     []byte("hi"),
-		ClientSeq:   5,
-		ClientMsgNo: "m-encrypted",
-	}
-	mustEncryptSendPacket(t, packet, wkprotoenc.SessionKeys{
-		AESKey: []byte("1234567890abcdef"),
-		AESIV:  []byte("abcdef1234567890"),
-	})
-
-	require.NoError(t, handler.OnFrame(*ctx, packet))
-	require.Len(t, msgs.sendCommands, 1)
-	require.Equal(t, []byte("hi"), msgs.sendCommands[0].Payload)
-	require.Equal(t, "", msgs.sendCommands[0].MsgKey)
-}
-
-func TestHandlerOnFrameSendRejectsInvalidEncryptedMsgKey(t *testing.T) {
-	sender := newOptionRecordingSession(1, "tcp")
-	sender.SetValue(coregateway.SessionValueUID, "u1")
-	setEncryptedSession(t, sender, wkprotoenc.SessionKeys{
-		AESKey: []byte("1234567890abcdef"),
-		AESIV:  []byte("abcdef1234567890"),
-	})
-	msgs := &fakeMessageUsecase{}
-	handler := New(Options{Messages: msgs})
-
-	ctx := &coregateway.Context{
-		Session:        sender,
-		Listener:       "tcp",
-		ReplyToken:     "reply-msg-key",
-		RequestContext: context.Background(),
-	}
-	packet := &frame.SendPacket{
-		ChannelID:   "u2",
-		ChannelType: frame.ChannelTypePerson,
-		Payload:     []byte("hi"),
-		ClientSeq:   6,
-		ClientMsgNo: "m-msg-key",
-	}
-	mustEncryptSendPacket(t, packet, wkprotoenc.SessionKeys{
-		AESKey: []byte("1234567890abcdef"),
-		AESIV:  []byte("abcdef1234567890"),
-	})
-	packet.MsgKey = "bad-key"
-
-	require.NoError(t, handler.OnFrame(*ctx, packet))
-	require.Empty(t, msgs.sendCommands)
-	require.Len(t, sender.Writes(), 1)
-	ack := requireSendackPacket(t, sender.Writes()[0].f)
-	require.Equal(t, frame.ReasonMsgKeyError, ack.ReasonCode)
-}
-
-func TestHandlerOnFrameSendRejectsUndecryptableEncryptedPayload(t *testing.T) {
-	sender := newOptionRecordingSession(1, "tcp")
-	sender.SetValue(coregateway.SessionValueUID, "u1")
-	setEncryptedSession(t, sender, wkprotoenc.SessionKeys{
-		AESKey: []byte("1234567890abcdef"),
-		AESIV:  []byte("abcdef1234567890"),
-	})
-	msgs := &fakeMessageUsecase{}
-	handler := New(Options{Messages: msgs})
-
-	ctx := &coregateway.Context{
-		Session:        sender,
-		Listener:       "tcp",
-		ReplyToken:     "reply-payload",
-		RequestContext: context.Background(),
-	}
-	packet := &frame.SendPacket{
-		ChannelID:   "u2",
-		ChannelType: frame.ChannelTypePerson,
-		Payload:     []byte("hi"),
+	handler := New(Options{Messages: usecase, SendTimeout: time.Second, OwnerNodeID: 9})
+	pkt := &frame.SendPacket{
+		Framer: frame.Framer{
+			NoPersist: true,
+			SyncOnce:  true,
+			RedDot:    true,
+		},
+		Setting:     frame.SettingTopic | frame.SettingReceiptEnabled,
+		Expire:      3600,
 		ClientSeq:   7,
-		ClientMsgNo: "m-payload",
+		ClientMsgNo: "client-1",
+		ChannelID:   "ch1",
+		ChannelType: 2,
+		Topic:       "topic-a",
+		Payload:     []byte("hello"),
 	}
-	mustEncryptSendPacket(t, packet, wkprotoenc.SessionKeys{
-		AESKey: []byte("1234567890abcdef"),
-		AESIV:  []byte("abcdef1234567890"),
-	})
-	packet.Payload = []byte("not-base64")
-	msgKey, err := wkprotoenc.SendMsgKey(packet, wkprotoenc.SessionKeys{
-		AESKey: []byte("1234567890abcdef"),
-		AESIV:  []byte("abcdef1234567890"),
-	})
-	require.NoError(t, err)
-	packet.MsgKey = msgKey
 
-	require.NoError(t, handler.OnFrame(*ctx, packet))
-	require.Empty(t, msgs.sendCommands)
-	require.Len(t, sender.Writes(), 1)
-	ack := requireSendackPacket(t, sender.Writes()[0].f)
-	require.Equal(t, frame.ReasonPayloadDecodeError, ack.ReasonCode)
-}
-
-func TestHandlerOnFrameSendBypassesEncryptedSessionWhenPacketDisablesEncryption(t *testing.T) {
-	sender := newOptionRecordingSession(1, "tcp")
-	sender.SetValue(coregateway.SessionValueUID, "u1")
-	setEncryptedSession(t, sender, wkprotoenc.SessionKeys{
-		AESKey: []byte("1234567890abcdef"),
-		AESIV:  []byte("abcdef1234567890"),
-	})
-	msgs := &fakeMessageUsecase{
-		sendResult: message.SendResult{Reason: frame.ReasonSuccess},
-	}
-	handler := New(Options{Messages: msgs})
-
-	ctx := &coregateway.Context{
-		Session:        sender,
-		Listener:       "tcp",
-		ReplyToken:     "reply-no-encrypt",
+	err := handler.OnFrame(coregateway.Context{
+		Session:        sess,
 		RequestContext: context.Background(),
+	}, pkt)
+	if err != nil {
+		t.Fatalf("OnFrame() error = %v", err)
 	}
-	packet := &frame.SendPacket{
-		Setting:     frame.SettingNoEncrypt,
-		ChannelID:   "u2",
-		ChannelType: frame.ChannelTypePerson,
-		Payload:     []byte("plain"),
-		ClientSeq:   8,
-		ClientMsgNo: "m-no-encrypt",
+	if len(usecase.batchItems) != 1 {
+		t.Fatalf("batch item count = %d, want 1", len(usecase.batchItems))
+	}
+	cmd := usecase.batchItems[0].Command
+	if cmd.FromUID != "u1" || cmd.DeviceID != "d1" || cmd.DeviceFlag != uint8(frame.WEB) || cmd.SenderNodeID != 9 || cmd.SenderSessionID != sess.ID() || cmd.ProtocolVersion != 4 {
+		t.Fatalf("mapped sender fields = uid=%q device=%q flag=%d node=%d session=%d version=%d", cmd.FromUID, cmd.DeviceID, cmd.DeviceFlag, cmd.SenderNodeID, cmd.SenderSessionID, cmd.ProtocolVersion)
+	}
+	if cmd.ClientSeq != pkt.ClientSeq || cmd.ClientMsgNo != pkt.ClientMsgNo || cmd.ChannelID != pkt.ChannelID || cmd.ChannelType != pkt.ChannelType {
+		t.Fatalf("mapped packet fields = %#v, want packet fields from %#v", cmd, pkt)
+	}
+	if cmd.Setting != pkt.Setting.Uint8() || cmd.Topic != pkt.Topic || cmd.Expire != pkt.Expire {
+		t.Fatalf("mapped legacy message fields = setting:%d topic:%q expire:%d, want %d/%q/%d", cmd.Setting, cmd.Topic, cmd.Expire, pkt.Setting.Uint8(), pkt.Topic, pkt.Expire)
+	}
+	if cmd.MessageID != 0 {
+		t.Fatalf("gateway-origin MessageID = %d, want 0", cmd.MessageID)
+	}
+	if !cmd.NoPersist || !cmd.SyncOnce || !cmd.RedDot {
+		t.Fatalf("mapped framer flags = noPersist:%v syncOnce:%v redDot:%v", cmd.NoPersist, cmd.SyncOnce, cmd.RedDot)
+	}
+	if string(cmd.Payload) != "hello" {
+		t.Fatalf("command payload = %q, want frame payload", string(cmd.Payload))
+	}
+	if len(cmd.Payload) == 0 || &cmd.Payload[0] != &pkt.Payload[0] {
+		t.Fatalf("command payload does not share immutable frame payload")
 	}
 
-	require.NoError(t, handler.OnFrame(*ctx, packet))
-	require.Len(t, msgs.sendCommands, 1)
-	require.Equal(t, []byte("plain"), msgs.sendCommands[0].Payload)
+	ack := requireSendack(t, written, 0)
+	if ack.ClientSeq != pkt.ClientSeq || ack.ClientMsgNo != pkt.ClientMsgNo {
+		t.Fatalf("ack client fields = seq:%d msgNo:%q", ack.ClientSeq, ack.ClientMsgNo)
+	}
+	if ack.MessageID != int64(usecase.sendResult.MessageID) || ack.MessageSeq != usecase.sendResult.MessageSeq {
+		t.Fatalf("ack message fields = id:%d seq:%d", ack.MessageID, ack.MessageSeq)
+	}
+	if ack.ReasonCode != frame.ReasonSuccess {
+		t.Fatalf("ack reason = %v, want %v", ack.ReasonCode, frame.ReasonSuccess)
+	}
 }
 
-func TestHandlerOnFrameSendMapsDeviceIdentityToUsecase(t *testing.T) {
-	sender := newOptionRecordingSession(1, "tcp")
-	sender.SetValue(coregateway.SessionValueUID, "u1")
-	sender.SetValue(coregateway.SessionValueDeviceID, "system-device")
-	sender.SetValue(coregateway.SessionValueDeviceFlag, frame.SYSTEM)
-	msgs := &fakeMessageUsecase{
-		sendResult: message.SendResult{Reason: frame.ReasonSuccess},
-	}
-	handler := New(Options{Messages: msgs})
-
-	ctx := &coregateway.Context{
-		Session:        sender,
-		Listener:       "tcp",
-		RequestContext: context.Background(),
-	}
-	require.NoError(t, handler.OnFrame(*ctx, &frame.SendPacket{
-		ChannelID:   "u2",
-		ChannelType: frame.ChannelTypePerson,
-	}))
-
-	require.Len(t, msgs.sendCommands, 1)
-	require.Equal(t, "system-device", msgs.sendCommands[0].DeviceID)
-	require.Equal(t, frame.DeviceFlag(frame.SYSTEM), msgs.sendCommands[0].DeviceFlag)
-}
-
-func TestHandlerOnFrameSendPassesPrecomposedPersonChannelToUsecase(t *testing.T) {
-	sender := newOptionRecordingSession(1, "tcp")
-	sender.SetValue(coregateway.SessionValueUID, "u1")
-	msgs := &fakeMessageUsecase{
-		sendResult: message.SendResult{
-			MessageID:  77,
-			MessageSeq: 9,
-			Reason:     frame.ReasonSuccess,
+func TestOnFrameSendPacketUsesBatchMessageUsecase(t *testing.T) {
+	var written []frame.Frame
+	sess := newTestSession(t, &written)
+	sess.SetValue(coregateway.SessionValueUID, "u1")
+	usecase := &batchOnlyMessages{
+		batchResults: []message.SendBatchItemResult{
+			{Result: message.SendResult{MessageID: 22, MessageSeq: 202, Reason: message.ReasonSuccess}},
 		},
 	}
-	handler := New(Options{Messages: msgs})
+	handler := New(Options{Messages: usecase, SendTimeout: time.Second, OwnerNodeID: 9})
 
-	ctx := &coregateway.Context{
-		Session:        sender,
-		Listener:       "tcp",
-		ReplyToken:     "reply-precomposed",
+	err := handler.OnFrame(coregateway.Context{
+		Session:        sess,
 		RequestContext: context.Background(),
+	}, &frame.SendPacket{ClientSeq: 2, ClientMsgNo: "batch-one", ChannelID: "ch1", ChannelType: 2, Payload: []byte("hello")})
+	if err != nil {
+		t.Fatalf("OnFrame() error = %v", err)
 	}
-
-	require.NoError(t, handler.OnFrame(*ctx, &frame.SendPacket{
-		ChannelID:   "u1@u2",
-		ChannelType: frame.ChannelTypePerson,
-		ClientSeq:   1,
-		ClientMsgNo: "m-pre",
-	}))
-
-	require.Len(t, msgs.sendCommands, 1)
-	require.Equal(t, "u1@u2", msgs.sendCommands[0].ChannelID)
+	if len(usecase.batchItems) != 1 {
+		t.Fatalf("batch items = %d, want 1", len(usecase.batchItems))
+	}
+	cmd := usecase.batchItems[0].Command
+	if cmd.ClientMsgNo != "batch-one" || cmd.SenderNodeID != 9 {
+		t.Fatalf("batch command = %#v, want mapped single send", cmd)
+	}
+	ack := requireSendack(t, written, 0)
+	if ack.MessageID != 22 || ack.MessageSeq != 202 || ack.ReasonCode != frame.ReasonSuccess {
+		t.Fatalf("ack = %#v, want batch result ack", ack)
+	}
 }
 
-func TestHandlerOnFrameSendMapsUsecaseInvalidPersonChannelError(t *testing.T) {
-	sender := newOptionRecordingSession(1, "tcp")
-	sender.SetValue(coregateway.SessionValueUID, "u1")
-	msgs := &fakeMessageUsecase{sendErr: runtimechannelid.ErrInvalidPersonChannel}
-	handler := New(Options{Messages: msgs})
-
-	ctx := &coregateway.Context{
-		Session:        sender,
-		Listener:       "tcp",
-		ReplyToken:     "reply-invalid-channel",
-		RequestContext: context.Background(),
-	}
-
-	require.NoError(t, handler.OnFrame(*ctx, &frame.SendPacket{
-		ChannelID:   "u3@u4",
-		ChannelType: frame.ChannelTypePerson,
-		ClientSeq:   2,
-		ClientMsgNo: "m-invalid",
-	}))
-
-	require.Len(t, msgs.sendCommands, 1)
-	require.Equal(t, "u3@u4", msgs.sendCommands[0].ChannelID)
-	require.Len(t, sender.Writes(), 1)
-	ack := requireSendackPacket(t, sender.Writes()[0].f)
-	require.Equal(t, frame.ReasonChannelIDError, ack.ReasonCode)
-	require.Equal(t, uint64(2), ack.ClientSeq)
-	require.Equal(t, "m-invalid", ack.ClientMsgNo)
-}
-
-func TestHandlerOnFrameSendPropagatesRequestContext(t *testing.T) {
-	type ctxKey string
-
-	sender := newOptionRecordingSession(1, "tcp")
-	sender.SetValue(coregateway.SessionValueUID, "u1")
-	msgs := &fakeMessageUsecase{}
-	handler := New(Options{Messages: msgs})
-
-	reqCtx := context.WithValue(context.Background(), ctxKey("request"), "gateway-send")
-	ctx := &coregateway.Context{
-		Session:        sender,
-		Listener:       "tcp",
-		ReplyToken:     "reply-ctx",
-		RequestContext: reqCtx,
-	}
-	pkt := &frame.SendPacket{
-		ChannelID:   "u2",
-		ChannelType: frame.ChannelTypePerson,
-		ClientSeq:   33,
-		ClientMsgNo: "ctx-1",
-	}
-
-	require.NoError(t, handler.OnFrame(*ctx, pkt))
-	require.Len(t, msgs.sendContexts, 1)
-	require.Equal(t, "gateway-send", msgs.sendContexts[0].Value(ctxKey("request")))
-	_, ok := msgs.sendContexts[0].Deadline()
-	require.True(t, ok)
-}
-
-func TestHandleSendAssignsTraceIDToCommandAndSendTrace(t *testing.T) {
-	sender := newOptionRecordingSession(1, "tcp")
-	sender.SetValue(coregateway.SessionValueUID, "u1")
-	msgs := &fakeMessageUsecase{
-		sendResult: message.SendResult{MessageID: 99, MessageSeq: 7, Reason: frame.ReasonSuccess},
-	}
-	handler := New(Options{Messages: msgs})
-	sink := &recordingSendTraceSink{}
-	restore := sendtrace.SetSink(sink)
-	t.Cleanup(restore)
-
-	ctx := &coregateway.Context{
-		Session:        sender,
-		Listener:       "tcp",
-		ReplyToken:     "reply-trace",
-		RequestContext: context.Background(),
-	}
-	pkt := &frame.SendPacket{
-		ChannelID:   "u2",
-		ChannelType: frame.ChannelTypePerson,
-		ClientSeq:   36,
-		ClientMsgNo: "trace-msg",
-		Payload:     []byte("hi"),
-	}
-
-	require.NoError(t, handler.handleSend(ctx, pkt))
-
-	require.Len(t, msgs.sendCommands, 1)
-	traceID := msgs.sendCommands[0].TraceID
-	require.Len(t, traceID, 32)
-	events := sink.snapshot()
-	require.NotEmpty(t, events)
-	var sendEvent sendtrace.Event
-	var ackEvent sendtrace.Event
-	for _, event := range events {
-		if event.Stage == sendtrace.StageGatewayMessagesSend {
-			sendEvent = event
-		}
-		if event.Stage == sendtrace.StageGatewayWriteSendack {
-			ackEvent = event
-		}
-	}
-	require.Equal(t, traceID, sendEvent.TraceID)
-	wantKey := string(channelhandler.KeyFromChannelID(channel.ChannelID{ID: "u2", Type: frame.ChannelTypePerson}))
-	require.Equal(t, wantKey, sendEvent.ChannelKey)
-	require.Equal(t, "u1", sendEvent.FromUID)
-	require.Equal(t, traceID, ackEvent.TraceID)
-	require.Equal(t, wantKey, ackEvent.ChannelKey)
-	require.Equal(t, "u1", ackEvent.FromUID)
-}
-
-func TestHandleSendSkipsTraceIDWhenSendTraceDisabled(t *testing.T) {
+func TestOnFrameSendTraceDisabledDoesNotGenerateTraceMetadata(t *testing.T) {
 	restore := sendtrace.SetSink(nil)
 	t.Cleanup(restore)
-
-	sender := newOptionRecordingSession(1, "tcp")
-	sender.SetValue(coregateway.SessionValueUID, "u1")
-	msgs := &fakeMessageUsecase{
-		sendResult: message.SendResult{MessageID: 99, MessageSeq: 7, Reason: frame.ReasonSuccess},
-	}
-	handler := New(Options{Messages: msgs})
-
-	ctx := &coregateway.Context{
-		Session:        sender,
-		Listener:       "tcp",
-		ReplyToken:     "reply-trace-disabled",
-		RequestContext: context.Background(),
-	}
-	pkt := &frame.SendPacket{
-		ChannelID:   "u2",
-		ChannelType: frame.ChannelTypePerson,
-		ClientSeq:   37,
-		ClientMsgNo: "trace-disabled-msg",
-		Payload:     []byte("hi"),
-	}
-
-	require.NoError(t, handler.handleSend(ctx, pkt))
-
-	require.Len(t, msgs.sendCommands, 1)
-	require.Empty(t, msgs.sendCommands[0].TraceID)
-	require.Len(t, msgs.sendContexts, 1)
-	_, ok := tracectx.FromContext(msgs.sendContexts[0])
-	require.False(t, ok)
-}
-
-func TestHandlerOnFrameSendMapsCanceledRequestContextToSendack(t *testing.T) {
-	sender := newOptionRecordingSession(1, "tcp")
-	sender.SetValue(coregateway.SessionValueUID, "u1")
-	msgs := &fakeMessageUsecase{
-		sendFn: func(ctx context.Context, _ message.SendCommand) (message.SendResult, error) {
-			return message.SendResult{}, ctx.Err()
-		},
-	}
-	handler := New(Options{Messages: msgs})
-
-	reqCtx, cancel := context.WithCancel(context.Background())
-	cancel()
-	ctx := &coregateway.Context{
-		Session:        sender,
-		Listener:       "tcp",
-		ReplyToken:     "reply-canceled",
-		RequestContext: reqCtx,
-	}
-
-	err := handler.OnFrame(*ctx, &frame.SendPacket{
-		ChannelID:   "u2",
-		ChannelType: frame.ChannelTypePerson,
-		ClientSeq:   34,
-		ClientMsgNo: "ctx-canceled",
-	})
-
-	require.NoError(t, err)
-	require.Len(t, sender.Writes(), 1)
-	ack := requireSendackPacket(t, sender.Writes()[0].f)
-	require.Equal(t, frame.ReasonSystemError, ack.ReasonCode)
-	require.Equal(t, uint64(34), ack.ClientSeq)
-	require.Equal(t, "ctx-canceled", ack.ClientMsgNo)
-	require.Len(t, msgs.sendContexts, 1)
-	require.ErrorIs(t, msgs.sendContexts[0].Err(), context.Canceled)
-}
-
-func TestHandlerOnFrameSendMapsSendTimeoutToSendack(t *testing.T) {
-	sender := newOptionRecordingSession(1, "tcp")
-	sender.SetValue(coregateway.SessionValueUID, "u1")
-	msgs := &fakeMessageUsecase{
-		sendFn: func(ctx context.Context, _ message.SendCommand) (message.SendResult, error) {
-			<-ctx.Done()
-			return message.SendResult{}, ctx.Err()
-		},
+	var generated int
+	var written []frame.Frame
+	sess := newTestSession(t, &written)
+	sess.SetValue(coregateway.SessionValueUID, "u1")
+	usecase := &recordingMessages{
+		sendResult: message.SendResult{Reason: message.ReasonSuccess},
 	}
 	handler := New(Options{
-		Messages:    msgs,
-		SendTimeout: 5 * time.Millisecond,
+		Messages:    usecase,
+		SendTimeout: time.Second,
+		TraceIDGenerator: func() string {
+			generated++
+			return "trace-disabled"
+		},
 	})
-	ctx := &coregateway.Context{
-		Session:        sender,
-		Listener:       "tcp",
-		ReplyToken:     "reply-timeout",
+
+	err := handler.OnFrame(coregateway.Context{
+		Session:        sess,
 		RequestContext: context.Background(),
+	}, &frame.SendPacket{ClientSeq: 1, ClientMsgNo: "client-disabled", ChannelID: "ch1", ChannelType: 2, Payload: []byte("hello")})
+	if err != nil {
+		t.Fatalf("OnFrame() error = %v", err)
 	}
-
-	err := handler.OnFrame(*ctx, &frame.SendPacket{
-		ChannelID:   "u2",
-		ChannelType: frame.ChannelTypePerson,
-		ClientSeq:   35,
-		ClientMsgNo: "ctx-timeout",
-	})
-
-	require.NoError(t, err)
-	require.Len(t, sender.Writes(), 1)
-	ack := requireSendackPacket(t, sender.Writes()[0].f)
-	require.Equal(t, frame.ReasonSystemError, ack.ReasonCode)
-	require.Equal(t, uint64(35), ack.ClientSeq)
-	require.Equal(t, "ctx-timeout", ack.ClientMsgNo)
-	require.Len(t, msgs.sendContexts, 1)
-	require.ErrorIs(t, msgs.sendContexts[0].Err(), context.DeadlineExceeded)
+	if generated != 0 {
+		t.Fatalf("trace generator calls = %d, want 0 while sendtrace is disabled", generated)
+	}
+	if len(usecase.batchItems) != 1 {
+		t.Fatalf("batch item count = %d, want 1", len(usecase.batchItems))
+	}
+	cmd := usecase.batchItems[0].Command
+	if cmd.TraceID != "" || cmd.ChannelKey != "" {
+		t.Fatalf("trace fields = traceID:%q channelKey:%q, want empty", cmd.TraceID, cmd.ChannelKey)
+	}
 }
 
-func TestHandlerOnFrameSendMapsChannelclusterErrorsToSendack(t *testing.T) {
-	tests := []struct {
-		name   string
-		err    error
-		reason frame.ReasonCode
-	}{
-		{
-			name:   "channel deleting",
-			err:    channel.ErrChannelDeleting,
-			reason: frame.ReasonChannelDeleting,
-		},
-		{
-			name:   "protocol upgrade required",
-			err:    channel.ErrProtocolUpgradeRequired,
-			reason: frame.ReasonProtocolUpgradeRequired,
-		},
-		{
-			name:   "idempotency conflict",
-			err:    channel.ErrIdempotencyConflict,
-			reason: frame.ReasonIdempotencyConflict,
-		},
-		{
-			name:   "message seq exhausted",
-			err:    channel.ErrMessageSeqExhausted,
-			reason: frame.ReasonMessageSeqExhausted,
-		},
-		{
-			name:   "stale meta",
-			err:    channel.ErrStaleMeta,
-			reason: frame.ReasonNodeNotMatch,
-		},
-		{
-			name:   "not leader",
-			err:    channel.ErrNotLeader,
-			reason: frame.ReasonNodeNotMatch,
-		},
-		{
-			name:   "invalid agent channel",
-			err:    runtimechannelid.ErrInvalidAgentChannel,
-			reason: frame.ReasonChannelIDError,
-		},
+func TestOnFrameSendTraceEnabledRecordsGatewaySendAndSendack(t *testing.T) {
+	sink := &recordingSendtraceSink{}
+	restore := sendtrace.SetSink(sink)
+	t.Cleanup(restore)
+	var written []frame.Frame
+	sess := newTestSession(t, &written)
+	sess.SetValue(coregateway.SessionValueUID, "u1")
+	usecase := &recordingMessages{
+		sendResult: message.SendResult{MessageID: 9, MessageSeq: 10, Reason: message.ReasonSuccess},
 	}
+	handler := New(Options{
+		Messages:         usecase,
+		SendTimeout:      time.Second,
+		OwnerNodeID:      7,
+		TraceIDGenerator: fixedTraceIDGenerator("trace-single"),
+	})
+	pkt := &frame.SendPacket{ClientSeq: 2, ClientMsgNo: "client-traced", ChannelID: "ch1", ChannelType: 2, Payload: []byte("hello")}
+	wantChannelKey := sendtrace.ChannelKeyFromID(pkt.ChannelID, pkt.ChannelType)
 
+	err := handler.OnFrame(coregateway.Context{
+		Session:        sess,
+		RequestContext: context.Background(),
+	}, pkt)
+	if err != nil {
+		t.Fatalf("OnFrame() error = %v", err)
+	}
+	if len(usecase.batchItems) != 1 {
+		t.Fatalf("batch item count = %d, want 1", len(usecase.batchItems))
+	}
+	cmd := usecase.batchItems[0].Command
+	if cmd.TraceID != "trace-single" || cmd.ChannelKey != wantChannelKey {
+		t.Fatalf("command trace fields = traceID:%q channelKey:%q, want trace-single/%q", cmd.TraceID, cmd.ChannelKey, wantChannelKey)
+	}
+	events := sink.snapshot()
+	if len(events) != 2 {
+		t.Fatalf("sendtrace events = %#v, want 2", events)
+	}
+	requireTraceEvent(t, events[0], sendtrace.StageGatewayMessagesSend, "trace-single", wantChannelKey, "client-traced", "u1", sendtrace.ResultOK, "")
+	requireTraceEvent(t, events[1], sendtrace.StageGatewayWriteSendack, "trace-single", wantChannelKey, "client-traced", "u1", sendtrace.ResultOK, "")
+	requireTraceNodeAndSeq(t, events[0], 7, 10)
+	requireTraceNodeAndSeq(t, events[1], 7, 10)
+}
+
+func TestWriteSendackTraceRecordsWriteError(t *testing.T) {
+	sink := &recordingSendtraceSink{}
+	restore := sendtrace.SetSink(sink)
+	t.Cleanup(restore)
+	writeErr := errors.New("write failed")
+	sess := session.New(session.Config{
+		ID: 100,
+		WriteFrameFn: func(frame.Frame, session.OutboundMeta) error {
+			return writeErr
+		},
+	})
+	sess.SetValue(coregateway.SessionValueUID, "u1")
+	usecase := &recordingMessages{
+		sendResult: message.SendResult{MessageID: 9, MessageSeq: 10, Reason: message.ReasonSuccess},
+	}
+	handler := New(Options{
+		Messages:         usecase,
+		SendTimeout:      time.Second,
+		OwnerNodeID:      8,
+		TraceIDGenerator: fixedTraceIDGenerator("trace-write-error"),
+	})
+	pkt := &frame.SendPacket{ClientSeq: 3, ClientMsgNo: "client-write-error", ChannelID: "ch1", ChannelType: 2, Payload: []byte("hello")}
+	wantChannelKey := sendtrace.ChannelKeyFromID(pkt.ChannelID, pkt.ChannelType)
+
+	err := handler.OnFrame(coregateway.Context{
+		Session:        sess,
+		RequestContext: context.Background(),
+	}, pkt)
+	if !errors.Is(err, writeErr) {
+		t.Fatalf("OnFrame() error = %v, want %v", err, writeErr)
+	}
+	events := sink.snapshot()
+	if len(events) != 2 {
+		t.Fatalf("sendtrace events = %#v, want 2", events)
+	}
+	requireTraceEvent(t, events[1], sendtrace.StageGatewayWriteSendack, "trace-write-error", wantChannelKey, "client-write-error", "u1", sendtrace.ResultError, "write_failed")
+	requireTraceNodeAndSeq(t, events[1], 8, 10)
+}
+
+func TestOnFrameRecvackForwardsToDelivery(t *testing.T) {
+	sess := newTestSession(t, nil)
+	sess.SetValue(coregateway.SessionValueUID, "u1")
+	deliveryUsecase := &recordingDelivery{}
+	handler := New(Options{Delivery: deliveryUsecase})
+
+	err := handler.OnFrame(coregateway.Context{
+		Session:        sess,
+		RequestContext: context.Background(),
+	}, &frame.RecvackPacket{MessageID: 77, MessageSeq: 8})
+	if err != nil {
+		t.Fatalf("OnFrame() error = %v", err)
+	}
+	if len(deliveryUsecase.recvackCommands) != 1 {
+		t.Fatalf("recvack commands = %d, want 1", len(deliveryUsecase.recvackCommands))
+	}
+	cmd := deliveryUsecase.recvackCommands[0]
+	if cmd.UID != "u1" || cmd.SessionID != sess.ID() || cmd.MessageID != 77 || cmd.MessageSeq != 8 {
+		t.Fatalf("recvack command = %#v", cmd)
+	}
+}
+
+func TestOnFrameUnauthenticatedSessionWritesAuthFailSendack(t *testing.T) {
+	var written []frame.Frame
+	sess := newTestSession(t, &written)
+	handler := New(Options{Messages: &recordingMessages{}, SendTimeout: time.Second})
+	pkt := &frame.SendPacket{ClientSeq: 8, ClientMsgNo: "client-2", ChannelID: "ch1", ChannelType: 2, Payload: []byte("hello")}
+
+	err := handler.OnFrame(coregateway.Context{
+		Session:        sess,
+		RequestContext: context.Background(),
+	}, pkt)
+	if err != nil {
+		t.Fatalf("OnFrame() error = %v, want sendack instead of raw error", err)
+	}
+	ack := requireSendack(t, written, 0)
+	if ack.ClientSeq != pkt.ClientSeq || ack.ClientMsgNo != pkt.ClientMsgNo {
+		t.Fatalf("ack client fields = seq:%d msgNo:%q", ack.ClientSeq, ack.ClientMsgNo)
+	}
+	if ack.ReasonCode != frame.ReasonAuthFail {
+		t.Fatalf("ack reason = %v, want %v", ack.ReasonCode, frame.ReasonAuthFail)
+	}
+}
+
+func TestOnFrameNilMessagesWritesSystemErrorSendack(t *testing.T) {
+	var written []frame.Frame
+	sess := newTestSession(t, &written)
+	sess.SetValue(coregateway.SessionValueUID, "u1")
+	handler := New(Options{SendTimeout: time.Second})
+	pkt := &frame.SendPacket{ClientSeq: 9, ClientMsgNo: "client-3", ChannelID: "ch1", ChannelType: 2, Payload: []byte("hello")}
+
+	err := handler.OnFrame(coregateway.Context{
+		Session:        sess,
+		RequestContext: context.Background(),
+	}, pkt)
+	if err != nil {
+		t.Fatalf("OnFrame() error = %v, want sendack instead of raw error", err)
+	}
+	ack := requireSendack(t, written, 0)
+	if ack.ClientSeq != pkt.ClientSeq || ack.ClientMsgNo != pkt.ClientMsgNo {
+		t.Fatalf("ack client fields = seq:%d msgNo:%q", ack.ClientSeq, ack.ClientMsgNo)
+	}
+	if ack.ReasonCode != frame.ReasonSystemError {
+		t.Fatalf("ack reason = %v, want %v", ack.ReasonCode, frame.ReasonSystemError)
+	}
+}
+
+func TestOnFrameMapsMessageErrorsToSendackReasons(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want frame.ReasonCode
+	}{
+		{name: "route not ready", err: message.ErrRouteNotReady, want: frame.ReasonNodeNotMatch},
+		{name: "not leader", err: message.ErrNotLeader, want: frame.ReasonNodeNotMatch},
+		{name: "stale route", err: message.ErrStaleRoute, want: frame.ReasonNodeNotMatch},
+		{name: "send deadline exceeded", err: context.DeadlineExceeded, want: frame.ReasonNodeNotMatch},
+		{name: "channel missing", err: message.ErrChannelNotFound, want: frame.ReasonChannelNotExist},
+	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sender := newOptionRecordingSession(1, "tcp")
-			sender.SetValue(coregateway.SessionValueUID, "u1")
-			handler := New(Options{
-				Messages: &fakeMessageUsecase{sendErr: tt.err},
-			})
+			var written []frame.Frame
+			sess := newTestSession(t, &written)
+			sess.SetValue(coregateway.SessionValueUID, "u1")
+			handler := New(Options{Messages: &recordingMessages{sendErr: tt.err}, SendTimeout: time.Second})
+			pkt := &frame.SendPacket{ClientSeq: 10, ClientMsgNo: "client-error", ChannelID: "ch1", ChannelType: 2, Payload: []byte("hello")}
 
-			ctx := &coregateway.Context{
-				Session:        sender,
-				Listener:       "tcp",
-				ReplyToken:     "reply-2",
+			err := handler.OnFrame(coregateway.Context{
+				Session:        sess,
 				RequestContext: context.Background(),
+			}, pkt)
+			if err != nil {
+				t.Fatalf("OnFrame() error = %v", err)
 			}
-			pkt := &frame.SendPacket{
-				ChannelID:   "u2",
-				ChannelType: frame.ChannelTypePerson,
-				ClientSeq:   13,
-				ClientMsgNo: "m4",
+			ack := requireSendack(t, written, 0)
+			if ack.ReasonCode != tt.want {
+				t.Fatalf("ack reason = %v, want %v", ack.ReasonCode, tt.want)
 			}
-
-			require.NoError(t, handler.OnFrame(*ctx, pkt))
-			require.Len(t, sender.Writes(), 1)
-
-			ack := requireSendackPacket(t, sender.Writes()[0].f)
-			require.Equal(t, tt.reason, ack.ReasonCode)
-			require.Zero(t, ack.MessageID)
-			require.Zero(t, ack.MessageSeq)
-			require.Equal(t, uint64(13), ack.ClientSeq)
-			require.Equal(t, "m4", ack.ClientMsgNo)
 		})
 	}
 }
 
-func TestHandlerOnFrameRecvackRoutesToMessageUsecase(t *testing.T) {
-	msgs := &fakeMessageUsecase{}
-	handler := New(Options{Messages: msgs})
+func TestOnFramePingPacketWritesPong(t *testing.T) {
+	var written []frame.Frame
+	var metas []session.OutboundMeta
+	sess := newTestSessionWithMeta(t, &written, &metas)
+	handler := New(Options{Messages: &recordingMessages{}, SendTimeout: time.Second})
 
-	err := handler.OnFrame(*newAuthedContext(t, 1, "u1"), &frame.RecvackPacket{
-		Framer:     frame.Framer{RedDot: true},
-		MessageID:  88,
-		MessageSeq: 9,
-	})
-
-	require.NoError(t, err)
-	require.Equal(t, 1, msgs.recvAckCalls)
-	require.Len(t, msgs.recvAckCommands, 1)
-	require.Equal(t, "u1", msgs.recvAckCommands[0].UID)
-	require.Equal(t, uint64(1), msgs.recvAckCommands[0].SessionID)
-	require.Equal(t, int64(88), msgs.recvAckCommands[0].MessageID)
-	require.Equal(t, uint64(9), msgs.recvAckCommands[0].MessageSeq)
-	require.True(t, msgs.recvAckCommands[0].Framer.RedDot)
-}
-
-func TestHandlerOnFramePingWritesPong(t *testing.T) {
-	sender := newOptionRecordingSession(1, "tcp")
-	sender.SetValue(coregateway.SessionValueUID, "u1")
-	handler := New(Options{Messages: &fakeMessageUsecase{}})
-
-	err := handler.OnFrame(coregateway.Context{
-		Session:        sender,
-		Listener:       "tcp",
-		RequestContext: context.Background(),
-	}, &frame.PingPacket{})
-
-	require.NoError(t, err)
-	require.Len(t, sender.Writes(), 1)
-	_, ok := sender.Writes()[0].f.(*frame.PongPacket)
-	require.True(t, ok, "expected *frame.PongPacket, got %T", sender.Writes()[0].f)
-}
-
-func TestNewSharesOnlineRegistryWithInjectedMessageApp(t *testing.T) {
-	msgApp := newClusterBackedMessageApp(channel.AppendResult{
-		MessageID:  88,
-		MessageSeq: 9,
-	})
-	handler := New(Options{
-		Messages: msgApp,
-		Now:      func() time.Time { return fixedGatewayNow },
-	})
-
-	sender := newOptionRecordingSession(1, "tcp")
-	sender.SetValue(coregateway.SessionValueUID, "u1")
-	sender.SetValue(coregateway.SessionValueDeviceFlag, frame.APP)
-	sender.SetValue(coregateway.SessionValueDeviceLevel, frame.DeviceLevelMaster)
-
-	recipient := newOptionRecordingSession(2, "tcp")
-	recipient.SetValue(coregateway.SessionValueUID, "u2")
-	recipient.SetValue(coregateway.SessionValueDeviceFlag, frame.APP)
-	recipient.SetValue(coregateway.SessionValueDeviceLevel, frame.DeviceLevelMaster)
-
-	require.NoError(t, msgApp.OnlineRegistry().Register(online.OnlineConn{
-		SessionID:   sender.ID(),
-		UID:         "u1",
-		DeviceFlag:  frame.APP,
-		DeviceLevel: frame.DeviceLevelMaster,
-		Listener:    "tcp",
-		ConnectedAt: fixedGatewayNow,
-		Session:     newOnlineSessionAdapter(sender),
-	}))
-	require.NoError(t, msgApp.OnlineRegistry().Register(online.OnlineConn{
-		SessionID:   recipient.ID(),
-		UID:         "u2",
-		DeviceFlag:  frame.APP,
-		DeviceLevel: frame.DeviceLevelMaster,
-		Listener:    "tcp",
-		ConnectedAt: fixedGatewayNow,
-		Session:     newOnlineSessionAdapter(recipient),
-	}))
-	require.Same(t, msgApp.OnlineRegistry(), handler.online)
-	require.Len(t, handler.online.ConnectionsByUID("u2"), 1)
-
-	err := handler.OnFrame(coregateway.Context{
-		Session:        sender,
-		Listener:       "tcp",
-		RequestContext: context.Background(),
-	}, &frame.SendPacket{
-		ChannelID:   "u2",
-		ChannelType: frame.ChannelTypePerson,
-		Payload:     []byte("hi"),
-		ClientSeq:   1,
-		ClientMsgNo: "m1",
-	})
-	require.NoError(t, err)
-
-	require.Len(t, sender.Writes(), 1)
-	ack := requireSendackPacket(t, sender.Writes()[0].f)
-	require.Equal(t, frame.ReasonSuccess, ack.ReasonCode)
-	require.Empty(t, recipient.Writes())
-}
-
-func newAuthedContext(t *testing.T, sessionID uint64, uid string) *coregateway.Context {
-	t.Helper()
-
-	sess := gatewaysession.New(gatewaysession.Config{
-		ID:       sessionID,
-		Listener: "tcp",
-	})
-	sess.SetValue(coregateway.SessionValueUID, uid)
-	sess.SetValue(coregateway.SessionValueDeviceFlag, frame.APP)
-	sess.SetValue(coregateway.SessionValueDeviceLevel, frame.DeviceLevelMaster)
-
-	return &coregateway.Context{
-		Session:        sess,
-		Listener:       "tcp",
-		RequestContext: context.Background(),
+	err := handler.OnFrame(coregateway.Context{Session: sess, ReplyToken: "ping-1", RequestContext: context.Background()}, &frame.PingPacket{})
+	if err != nil {
+		t.Fatalf("OnFrame() error = %v", err)
+	}
+	if len(written) != 1 {
+		t.Fatalf("written frame count = %d, want 1", len(written))
+	}
+	if _, ok := written[0].(*frame.PongPacket); !ok {
+		t.Fatalf("written[0] = %T, want *frame.PongPacket", written[0])
+	}
+	if len(metas) != 1 || metas[0].ReplyToken != "ping-1" {
+		t.Fatalf("pong reply token metas = %#v, want ping-1", metas)
 	}
 }
 
-func newHandlerWithPresence(t *testing.T, presenceUsecase *fakePresenceUsecase, opts Options) *Handler {
-	t.Helper()
-
-	optionsValue := reflect.ValueOf(&opts).Elem()
-	presenceField := optionsValue.FieldByName("Presence")
-	if !presenceField.IsValid() {
-		t.Fatalf("gateway.Options is missing Presence field")
-	}
-	require.True(t, presenceField.CanSet())
-	presenceField.Set(reflect.ValueOf(presenceUsecase))
-	return New(opts)
-}
-
-func requireSendackPacket(t *testing.T, f frame.Frame) *frame.SendackPacket {
-	t.Helper()
-
-	ack, ok := f.(*frame.SendackPacket)
-	require.True(t, ok, "expected *frame.SendackPacket, got %T", f)
-	return ack
-}
-
-func setEncryptedSession(t *testing.T, sess gatewaysession.Session, keys wkprotoenc.SessionKeys) {
-	t.Helper()
-
-	sessionCrypto, err := wkprotoenc.NewSessionCrypto(keys)
-	require.NoError(t, err)
-	sess.SetValue(coregateway.SessionValueEncryptionEnabled, true)
-	sess.SetValue(coregateway.SessionValueAESKey, append([]byte(nil), keys.AESKey...))
-	sess.SetValue(coregateway.SessionValueAESIV, append([]byte(nil), keys.AESIV...))
-	sess.SetValue(coregateway.SessionValueCrypto, sessionCrypto)
-}
-
-func mustEncryptSendPacket(t *testing.T, packet *frame.SendPacket, keys wkprotoenc.SessionKeys) {
-	t.Helper()
-
-	encrypted, err := wkprotoenc.EncryptPayload(packet.Payload, keys)
-	require.NoError(t, err)
-	packet.Payload = encrypted
-	packet.MsgKey, err = wkprotoenc.SendMsgKey(packet, keys)
-	require.NoError(t, err)
-}
-
-type fakeMessageUsecase struct {
-	sendCommands     []message.SendCommand
-	sendContexts     []context.Context
-	sendFn           func(context.Context, message.SendCommand) (message.SendResult, error)
-	sendResult       message.SendResult
-	sendErr          error
-	sendBatchItems   []message.SendBatchItem
-	sendBatchResults []message.SendBatchItemResult
-	sessionClosed    []message.SessionClosedCommand
-	sessionCloseErr  error
-	recvAckCalls     int
-	recvAckCommands  []message.RecvAckCommand
-	recvAckErr       error
-}
-
-func (f *fakeMessageUsecase) Send(ctx context.Context, cmd message.SendCommand) (message.SendResult, error) {
-	f.sendContexts = append(f.sendContexts, ctx)
-	f.sendCommands = append(f.sendCommands, cmd)
-	if f.sendFn != nil {
-		return f.sendFn(ctx, cmd)
-	}
-	return f.sendResult, f.sendErr
-}
-
-func (f *fakeMessageUsecase) SendBatch(items []message.SendBatchItem) []message.SendBatchItemResult {
-	f.sendBatchItems = append(f.sendBatchItems, items...)
-	if f.sendBatchResults != nil {
-		return append([]message.SendBatchItemResult(nil), f.sendBatchResults...)
-	}
-	results := make([]message.SendBatchItemResult, len(items))
-	for i, item := range items {
-		result, err := f.Send(item.Context, item.Command)
-		results[i] = message.SendBatchItemResult{Result: result, Err: err}
-	}
-	return results
-}
-
-func (f *fakeMessageUsecase) RecvAck(cmd message.RecvAckCommand) error {
-	f.recvAckCalls++
-	f.recvAckCommands = append(f.recvAckCommands, cmd)
-	return f.recvAckErr
-}
-
-func (f *fakeMessageUsecase) SessionClosed(cmd message.SessionClosedCommand) error {
-	f.sessionClosed = append(f.sessionClosed, cmd)
-	return f.sessionCloseErr
-}
-
-type fakePresenceUsecase struct {
-	activateCommands   []presence.ActivateCommand
-	activateErr        error
-	deactivateCommands []presence.DeactivateCommand
-	deactivateErr      error
-}
-
-func (f *fakePresenceUsecase) Activate(_ context.Context, cmd presence.ActivateCommand) error {
-	f.activateCommands = append(f.activateCommands, cmd)
-	return f.activateErr
-}
-
-func (f *fakePresenceUsecase) Deactivate(_ context.Context, cmd presence.DeactivateCommand) error {
-	f.deactivateCommands = append(f.deactivateCommands, cmd)
-	return f.deactivateErr
-}
-
-type outboundWrite struct {
-	f    frame.Frame
-	meta gatewaysession.OutboundMeta
-}
-
-type optionRecordingSession struct {
-	gatewaysession.Session
-	mu     sync.Mutex
-	writes []outboundWrite
-}
-
-func newOptionRecordingSession(id uint64, listener string) *optionRecordingSession {
-	recorder := &optionRecordingSession{}
-	recorder.Session = gatewaysession.New(gatewaysession.Config{
-		ID:       id,
-		Listener: listener,
-		WriteFrameFn: func(f frame.Frame, meta gatewaysession.OutboundMeta) error {
-			recorder.mu.Lock()
-			defer recorder.mu.Unlock()
-			recorder.writes = append(recorder.writes, outboundWrite{f: f, meta: meta})
+func TestHandlerPingTouchesPresenceBeforePong(t *testing.T) {
+	var written []frame.Frame
+	presenceUsecase := &recordingPresence{}
+	sess := session.New(session.Config{
+		ID: 99,
+		WriteFrameFn: func(f frame.Frame, _ session.OutboundMeta) error {
+			if len(presenceUsecase.touchCommands) != 1 {
+				t.Fatalf("touch command count before pong write = %d, want 1", len(presenceUsecase.touchCommands))
+			}
+			written = append(written, f)
 			return nil
 		},
 	})
-	return recorder
-}
+	handler := New(Options{Presence: presenceUsecase})
 
-func (s *optionRecordingSession) Writes() []outboundWrite {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	out := make([]outboundWrite, len(s.writes))
-	copy(out, s.writes)
-	return out
-}
-
-var fixedGatewayNow = time.Date(2026, 4, 1, 10, 0, 0, 0, time.UTC)
-
-type fakeIdentityStore struct{}
-
-func (*fakeIdentityStore) GetUser(context.Context, string) (metadb.User, error) {
-	return metadb.User{}, nil
-}
-
-type fakeChannelStore struct{}
-
-func (*fakeChannelStore) GetChannel(context.Context, string, int64) (metadb.Channel, error) {
-	return metadb.Channel{}, nil
-}
-
-type fakeChannelAppender struct {
-	result channel.AppendResult
-	err    error
-}
-
-func (f *fakeChannelAppender) Append(context.Context, channel.AppendRequest) (channel.AppendResult, error) {
-	return f.result, f.err
-}
-
-func (f *fakeChannelAppender) AppendBatch(_ context.Context, req channel.AppendBatchRequest) (channel.AppendBatchResult, error) {
-	if f.err != nil {
-		return channel.AppendBatchResult{}, f.err
+	err := handler.OnFrame(coregateway.Context{Session: sess, RequestContext: context.Background()}, &frame.PingPacket{})
+	if err != nil {
+		t.Fatalf("OnFrame() error = %v", err)
 	}
-	items := make([]channel.AppendBatchItemResult, len(req.Messages))
-	for i := range req.Messages {
-		items[i] = channel.AppendBatchItemResult{
-			MessageID:  f.result.MessageID,
-			MessageSeq: f.result.MessageSeq,
-			Message:    f.result.Message,
+	if len(presenceUsecase.touchCommands) != 1 {
+		t.Fatalf("touch command count = %d, want 1", len(presenceUsecase.touchCommands))
+	}
+	if got := presenceUsecase.touchCommands[0].SessionID; got != 99 {
+		t.Fatalf("touch session id = %d, want 99", got)
+	}
+	if got := presenceUsecase.touchCommands[0].ActivityUnix; got <= 0 {
+		t.Fatalf("touch activity unix = %d, want positive", got)
+	}
+	if len(written) != 1 {
+		t.Fatalf("written frame count = %d, want 1", len(written))
+	}
+	if _, ok := written[0].(*frame.PongPacket); !ok {
+		t.Fatalf("written[0] = %T, want *frame.PongPacket", written[0])
+	}
+}
+
+func TestHandlerPingStillWritesPongWhenTouchFails(t *testing.T) {
+	var written []frame.Frame
+	sess := session.New(session.Config{
+		ID: 99,
+		WriteFrameFn: func(f frame.Frame, _ session.OutboundMeta) error {
+			written = append(written, f)
+			return nil
+		},
+	})
+	presenceUsecase := &recordingPresence{touchErr: presence.ErrLocalRegistryUnavailable}
+	handler := New(Options{Presence: presenceUsecase})
+
+	err := handler.OnFrame(coregateway.Context{Session: sess, RequestContext: context.Background()}, &frame.PingPacket{})
+	if err != nil {
+		t.Fatalf("OnFrame() error = %v", err)
+	}
+	if len(written) != 1 {
+		t.Fatalf("written frame count = %d, want 1", len(written))
+	}
+	if _, ok := written[0].(*frame.PongPacket); !ok {
+		t.Fatalf("written[0] = %T, want *frame.PongPacket", written[0])
+	}
+}
+
+func TestOnFrameUnknownFrameReturnsErrUnsupportedFrame(t *testing.T) {
+	handler := New(Options{Messages: &recordingMessages{}, SendTimeout: time.Second})
+
+	err := handler.OnFrame(coregateway.Context{RequestContext: context.Background()}, &frame.PongPacket{})
+	if !errors.Is(err, ErrUnsupportedFrame) {
+		t.Fatalf("OnFrame() error = %v, want %v", err, ErrUnsupportedFrame)
+	}
+}
+
+func TestOnSendBatchWritesAlignedSendacks(t *testing.T) {
+	var written []frame.Frame
+	var metas []session.OutboundMeta
+	sess := newTestSessionWithMeta(t, &written, &metas)
+	sess.SetValue(coregateway.SessionValueUID, "u1")
+	usecase := &recordingMessages{
+		batchResults: []message.SendBatchItemResult{
+			{Result: message.SendResult{MessageID: 11, MessageSeq: 101, Reason: message.ReasonSuccess}},
+			{Result: message.SendResult{Reason: message.ReasonNodeNotMatch}},
+		},
+	}
+	handler := New(Options{Messages: usecase, SendTimeout: time.Second, OwnerNodeID: 9})
+	items := []coregateway.SendBatchItem{
+		{
+			Context: coregateway.Context{Session: sess, RequestContext: context.Background()},
+			Frame:   &frame.SendPacket{ClientSeq: 1, ClientMsgNo: "a", ChannelID: "ch1", ChannelType: 2, Payload: []byte("one")},
+		},
+		{
+			Context:    coregateway.Context{Session: sess, RequestContext: context.Background()},
+			ReplyToken: "reply-2",
+			Frame:      &frame.SendPacket{ClientSeq: 2, ClientMsgNo: "b", ChannelID: "ch1", ChannelType: 2, Payload: []byte("two")},
+		},
+	}
+
+	err := handler.OnSendBatch(items)
+	if err != nil {
+		t.Fatalf("OnSendBatch() error = %v", err)
+	}
+	if len(usecase.batchItems) != 2 {
+		t.Fatalf("batch item count = %d, want 2", len(usecase.batchItems))
+	}
+	if usecase.batchItems[0].Command.ClientMsgNo != "a" || usecase.batchItems[1].Command.ClientMsgNo != "b" {
+		t.Fatalf("batch commands not aligned: %#v", usecase.batchItems)
+	}
+	if usecase.batchItems[0].Command.SenderNodeID != 9 || usecase.batchItems[1].Command.SenderNodeID != 9 {
+		t.Fatalf("batch sender node ids = %d,%d want 9", usecase.batchItems[0].Command.SenderNodeID, usecase.batchItems[1].Command.SenderNodeID)
+	}
+	if usecase.batchItems[1].Context == nil {
+		t.Fatalf("batch item context with reply token is nil")
+	}
+
+	first := requireSendack(t, written, 0)
+	if first.ClientSeq != 1 || first.ClientMsgNo != "a" || first.MessageID != 11 || first.MessageSeq != 101 || first.ReasonCode != frame.ReasonSuccess {
+		t.Fatalf("first ack = %#v", first)
+	}
+	second := requireSendack(t, written, 1)
+	if second.ClientSeq != 2 || second.ClientMsgNo != "b" || second.ReasonCode != frame.ReasonNodeNotMatch {
+		t.Fatalf("second ack = %#v", second)
+	}
+	if got := metas[1].ReplyToken; got != "reply-2" {
+		t.Fatalf("second reply token = %q, want reply-2", got)
+	}
+}
+
+func TestOnSendBatchTraceRecordsPerValidItemAndPreservesAlignment(t *testing.T) {
+	sink := &recordingSendtraceSink{}
+	restore := sendtrace.SetSink(sink)
+	t.Cleanup(restore)
+	var written []frame.Frame
+	sess := newTestSession(t, &written)
+	sess.SetValue(coregateway.SessionValueUID, "u1")
+	usecase := &recordingMessages{
+		batchResults: []message.SendBatchItemResult{
+			{Result: message.SendResult{MessageID: 11, MessageSeq: 101, Reason: message.ReasonSuccess}},
+			{Err: context.Canceled},
+		},
+	}
+	generator := sequenceTraceIDGenerator("trace-batch-")
+	handler := New(Options{Messages: usecase, SendTimeout: time.Second, OwnerNodeID: 9, TraceIDGenerator: generator})
+	items := []coregateway.SendBatchItem{
+		{
+			Context: coregateway.Context{Session: sess, RequestContext: context.Background()},
+			Frame:   &frame.SendPacket{ClientSeq: 1, ClientMsgNo: "a", ChannelID: "ch1", ChannelType: 2, Payload: []byte("one")},
+		},
+		{
+			Context: coregateway.Context{Session: sess},
+			Frame:   &frame.SendPacket{ClientSeq: 2, ClientMsgNo: "b", ChannelID: "ch2", ChannelType: 2, Payload: []byte("two")},
+		},
+		{
+			Context: coregateway.Context{Session: sess, RequestContext: context.Background()},
+			Frame:   &frame.SendPacket{ClientSeq: 3, ClientMsgNo: "c", ChannelID: "ch3", ChannelType: 2, Payload: []byte("three")},
+		},
+	}
+	wantFirstChannelKey := sendtrace.ChannelKeyFromID("ch1", 2)
+	wantSecondValidChannelKey := sendtrace.ChannelKeyFromID("ch3", 2)
+
+	err := handler.OnSendBatch(items)
+	if err != nil {
+		t.Fatalf("OnSendBatch() error = %v", err)
+	}
+	if len(usecase.batchItems) != 2 {
+		t.Fatalf("batch items = %d, want 2", len(usecase.batchItems))
+	}
+	if got := usecase.batchItems[0].Command; got.TraceID != "trace-batch-1" || got.ClientMsgNo != "a" || got.ChannelKey != wantFirstChannelKey {
+		t.Fatalf("first valid command trace alignment = %#v", got)
+	}
+	if got := usecase.batchItems[1].Command; got.TraceID != "trace-batch-3" || got.ClientMsgNo != "c" || got.ChannelKey != wantSecondValidChannelKey {
+		t.Fatalf("second valid command trace alignment = %#v", got)
+	}
+	events := sink.snapshot()
+	if len(events) != 5 {
+		t.Fatalf("sendtrace events = %#v, want 5", events)
+	}
+	requireTraceEvent(t, events[0], sendtrace.StageGatewayMessagesSend, "trace-batch-1", wantFirstChannelKey, "a", "u1", sendtrace.ResultOK, "")
+	requireTraceEvent(t, events[1], sendtrace.StageGatewayMessagesSend, "trace-batch-3", wantSecondValidChannelKey, "c", "u1", sendtrace.ResultCanceled, sendackErrorClassCanceled)
+	requireTraceEvent(t, events[2], sendtrace.StageGatewayWriteSendack, "trace-batch-1", wantFirstChannelKey, "a", "u1", sendtrace.ResultOK, "")
+	requireTraceEvent(t, events[3], sendtrace.StageGatewayWriteSendack, "trace-batch-2", sendtrace.ChannelKeyFromID("ch2", 2), "b", "u1", sendtrace.ResultOK, "")
+	requireTraceEvent(t, events[4], sendtrace.StageGatewayWriteSendack, "trace-batch-3", wantSecondValidChannelKey, "c", "u1", sendtrace.ResultOK, "")
+	requireTraceNodeAndSeq(t, events[0], 9, 101)
+	requireTraceNodeAndSeq(t, events[2], 9, 101)
+}
+
+func TestOnSendBatchPassesSharedDeadlineWithoutReplacingRequestContext(t *testing.T) {
+	var written []frame.Frame
+	sess := newTestSession(t, &written)
+	sess.SetValue(coregateway.SessionValueUID, "u1")
+	reqCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	usecase := &recordingMessages{
+		batchResults: []message.SendBatchItemResult{
+			{Result: message.SendResult{MessageID: 1, MessageSeq: 1, Reason: message.ReasonSuccess}},
+			{Result: message.SendResult{MessageID: 2, MessageSeq: 2, Reason: message.ReasonSuccess}},
+		},
+	}
+	handler := New(Options{Messages: usecase, SendTimeout: time.Minute})
+
+	err := handler.OnSendBatch([]coregateway.SendBatchItem{
+		{
+			Context: coregateway.Context{Session: sess, RequestContext: reqCtx},
+			Frame:   &frame.SendPacket{ClientSeq: 1, ClientMsgNo: "a", ChannelID: "ch1", ChannelType: 2, Payload: []byte("one")},
+		},
+		{
+			Context: coregateway.Context{Session: sess, RequestContext: reqCtx},
+			Frame:   &frame.SendPacket{ClientSeq: 2, ClientMsgNo: "b", ChannelID: "ch1", ChannelType: 2, Payload: []byte("two")},
+		},
+	})
+	if err != nil {
+		t.Fatalf("OnSendBatch() error = %v", err)
+	}
+	if got := len(usecase.batchItems); got != 2 {
+		t.Fatalf("batch items = %d, want 2", got)
+	}
+	if usecase.batchItems[0].Context != reqCtx || usecase.batchItems[1].Context != reqCtx {
+		t.Fatalf("batch request context was replaced")
+	}
+	if usecase.batchItems[0].Deadline.IsZero() || !usecase.batchItems[0].Deadline.Equal(usecase.batchItems[1].Deadline) {
+		t.Fatalf("batch deadlines = %v and %v, want one shared non-zero deadline", usecase.batchItems[0].Deadline, usecase.batchItems[1].Deadline)
+	}
+}
+
+func TestOnSendBatchReusesFramePayloadUntilMessageBoundary(t *testing.T) {
+	var written []frame.Frame
+	sess := newTestSession(t, &written)
+	sess.SetValue(coregateway.SessionValueUID, "u1")
+	payload := []byte("one")
+	usecase := &recordingMessages{
+		batchResults: []message.SendBatchItemResult{
+			{Result: message.SendResult{MessageID: 1, MessageSeq: 1, Reason: message.ReasonSuccess}},
+		},
+	}
+	handler := New(Options{Messages: usecase, SendTimeout: time.Second})
+
+	err := handler.OnSendBatch([]coregateway.SendBatchItem{
+		{
+			Context: coregateway.Context{Session: sess, RequestContext: context.Background()},
+			Frame:   &frame.SendPacket{ClientSeq: 1, ClientMsgNo: "a", ChannelID: "ch1", ChannelType: 2, Payload: payload},
+		},
+	})
+	if err != nil {
+		t.Fatalf("OnSendBatch() error = %v", err)
+	}
+	if got := len(usecase.batchItems); got != 1 {
+		t.Fatalf("batch items = %d, want 1", got)
+	}
+	if len(usecase.batchItems[0].Command.Payload) == 0 || &usecase.batchItems[0].Command.Payload[0] != &payload[0] {
+		t.Fatalf("batch command payload was cloned before message append boundary")
+	}
+}
+
+func TestOnSendBatchMapsMessageErrorsToSendackReasons(t *testing.T) {
+	var written []frame.Frame
+	sess := newTestSession(t, &written)
+	sess.SetValue(coregateway.SessionValueUID, "u1")
+	usecase := &recordingMessages{
+		batchResults: []message.SendBatchItemResult{
+			{Err: message.ErrRouteNotReady},
+			{Err: message.ErrNotLeader},
+			{Err: message.ErrChannelNotFound},
+			{Err: context.DeadlineExceeded},
+		},
+	}
+	handler := New(Options{Messages: usecase, SendTimeout: time.Second})
+
+	err := handler.OnSendBatch([]coregateway.SendBatchItem{
+		{
+			Context: coregateway.Context{Session: sess, RequestContext: context.Background()},
+			Frame:   &frame.SendPacket{ClientSeq: 1, ClientMsgNo: "a", ChannelID: "ch1", ChannelType: 2, Payload: []byte("one")},
+		},
+		{
+			Context: coregateway.Context{Session: sess, RequestContext: context.Background()},
+			Frame:   &frame.SendPacket{ClientSeq: 2, ClientMsgNo: "b", ChannelID: "ch1", ChannelType: 2, Payload: []byte("two")},
+		},
+		{
+			Context: coregateway.Context{Session: sess, RequestContext: context.Background()},
+			Frame:   &frame.SendPacket{ClientSeq: 3, ClientMsgNo: "c", ChannelID: "ch1", ChannelType: 2, Payload: []byte("three")},
+		},
+		{
+			Context: coregateway.Context{Session: sess, RequestContext: context.Background()},
+			Frame:   &frame.SendPacket{ClientSeq: 4, ClientMsgNo: "d", ChannelID: "ch1", ChannelType: 2, Payload: []byte("four")},
+		},
+	})
+	if err != nil {
+		t.Fatalf("OnSendBatch() error = %v", err)
+	}
+	first := requireSendack(t, written, 0)
+	if first.ReasonCode != frame.ReasonNodeNotMatch {
+		t.Fatalf("first ack reason = %v, want %v", first.ReasonCode, frame.ReasonNodeNotMatch)
+	}
+	second := requireSendack(t, written, 1)
+	if second.ReasonCode != frame.ReasonNodeNotMatch {
+		t.Fatalf("second ack reason = %v, want %v", second.ReasonCode, frame.ReasonNodeNotMatch)
+	}
+	third := requireSendack(t, written, 2)
+	if third.ReasonCode != frame.ReasonChannelNotExist {
+		t.Fatalf("third ack reason = %v, want %v", third.ReasonCode, frame.ReasonChannelNotExist)
+	}
+	fourth := requireSendack(t, written, 3)
+	if fourth.ReasonCode != frame.ReasonNodeNotMatch {
+		t.Fatalf("fourth ack reason = %v, want %v", fourth.ReasonCode, frame.ReasonNodeNotMatch)
+	}
+}
+
+func TestOnSendBatchObservesSendackSourcesAndReasons(t *testing.T) {
+	var written []frame.Frame
+	sess := newTestSession(t, &written)
+	sess.SetValue(coregateway.SessionValueUID, "u1")
+	observer := &recordingSendackObserver{}
+	usecase := &recordingMessages{
+		batchResults: []message.SendBatchItemResult{
+			{Err: context.DeadlineExceeded},
+			{Result: message.SendResult{MessageID: 11, MessageSeq: 101, Reason: message.ReasonSuccess}},
+		},
+	}
+	handler := New(Options{Messages: usecase, SendTimeout: time.Second, SendackObserver: observer})
+
+	err := handler.OnSendBatch([]coregateway.SendBatchItem{
+		{
+			Context: coregateway.Context{Session: sess, RequestContext: context.Background()},
+			Frame:   &frame.SendPacket{ClientSeq: 1, ClientMsgNo: "a", ChannelID: "ch1", ChannelType: 2, Payload: []byte("one")},
+		},
+		{
+			Context: coregateway.Context{Session: sess, RequestContext: context.Background()},
+			Frame:   &frame.SendPacket{ClientSeq: 2, ClientMsgNo: "b", ChannelID: "ch1", ChannelType: 2, Payload: []byte("two")},
+		},
+		{
+			Context: coregateway.Context{Session: sess},
+			Frame:   &frame.SendPacket{ClientSeq: 3, ClientMsgNo: "c", ChannelID: "ch1", ChannelType: 2, Payload: []byte("three")},
+		},
+	})
+	if err != nil {
+		t.Fatalf("OnSendBatch() error = %v", err)
+	}
+	if len(written) != 3 {
+		t.Fatalf("written sendacks = %d, want 3", len(written))
+	}
+	want := []SendackEvent{
+		{Reason: message.ReasonNodeNotMatch, Source: sendackSourceBatchResultError, ErrorClass: sendackErrorClassTimeout},
+		{Reason: message.ReasonSuccess, Source: sendackSourceBatchResult, ErrorClass: sendackErrorClassNone},
+		{Reason: message.ReasonSystemError, Source: sendackSourceBatchMissingRequestContext, ErrorClass: sendackErrorClassMissingRequestContext},
+	}
+	if len(observer.events) != len(want) {
+		t.Fatalf("sendack events = %#v, want %#v", observer.events, want)
+	}
+	for i := range want {
+		if observer.events[i] != want[i] {
+			t.Fatalf("sendack event[%d] = %#v, want %#v", i, observer.events[i], want[i])
 		}
 	}
-	return channel.AppendBatchResult{Items: items}, nil
 }
 
-func newClusterBackedMessageApp(result channel.AppendResult) *message.App {
-	return newClusterBackedMessageAppWithOnline(nil, result)
-}
+func TestOnSendBatchNilMessagesWritesSystemErrorSendacks(t *testing.T) {
+	var written []frame.Frame
+	var metas []session.OutboundMeta
+	sess := newTestSessionWithMeta(t, &written, &metas)
+	sess.SetValue(coregateway.SessionValueUID, "u1")
+	handler := New(Options{SendTimeout: time.Second})
 
-func newClusterBackedMessageAppWithOnline(registry online.Registry, result channel.AppendResult) *message.App {
-	return message.New(message.Options{
-		IdentityStore:   &fakeIdentityStore{},
-		ChannelStore:    &fakeChannelStore{},
-		ChannelAppender: &fakeChannelAppender{result: result},
-		Online:          registry,
-		Now:             func() time.Time { return fixedGatewayNow },
+	err := handler.OnSendBatch([]coregateway.SendBatchItem{
+		{
+			Context:    coregateway.Context{Session: sess, RequestContext: context.Background()},
+			ReplyToken: "reply-1",
+			Frame:      &frame.SendPacket{ClientSeq: 1, ClientMsgNo: "a", ChannelID: "ch1", ChannelType: 2, Payload: []byte("one")},
+		},
+		{
+			Context: coregateway.Context{Session: sess, RequestContext: context.Background()},
+			Frame:   &frame.SendPacket{ClientSeq: 2, ClientMsgNo: "b", ChannelID: "ch1", ChannelType: 2, Payload: []byte("two")},
+		},
 	})
+	if err != nil {
+		t.Fatalf("OnSendBatch() error = %v, want sendacks instead of raw error", err)
+	}
+	first := requireSendack(t, written, 0)
+	if first.ClientSeq != 1 || first.ClientMsgNo != "a" || first.ReasonCode != frame.ReasonSystemError {
+		t.Fatalf("first ack = %#v", first)
+	}
+	second := requireSendack(t, written, 1)
+	if second.ClientSeq != 2 || second.ClientMsgNo != "b" || second.ReasonCode != frame.ReasonSystemError {
+		t.Fatalf("second ack = %#v", second)
+	}
+	if got := metas[0].ReplyToken; got != "reply-1" {
+		t.Fatalf("first reply token = %q, want reply-1", got)
+	}
 }
 
-var _ online.Registry = (*online.MemoryRegistry)(nil)
+func TestOnSendBatchReturnsErrorWhenBatchResultsHaveExtraItems(t *testing.T) {
+	var written []frame.Frame
+	sess := newTestSession(t, &written)
+	sess.SetValue(coregateway.SessionValueUID, "u1")
+	usecase := &recordingMessages{
+		batchResults: []message.SendBatchItemResult{
+			{Result: message.SendResult{MessageID: 11, MessageSeq: 101, Reason: message.ReasonSuccess}},
+			{Result: message.SendResult{MessageID: 12, MessageSeq: 102, Reason: message.ReasonSuccess}},
+		},
+	}
+	handler := New(Options{Messages: usecase, SendTimeout: time.Second})
 
-type recordingSendTraceSink struct {
-	mu     sync.Mutex
+	err := handler.OnSendBatch([]coregateway.SendBatchItem{
+		{
+			Context: coregateway.Context{Session: sess, RequestContext: context.Background()},
+			Frame:   &frame.SendPacket{ClientSeq: 1, ClientMsgNo: "a", ChannelID: "ch1", ChannelType: 2, Payload: []byte("one")},
+		},
+	})
+	if err == nil {
+		t.Fatalf("OnSendBatch() error = nil, want batch result count mismatch")
+	}
+	if len(written) != 0 {
+		t.Fatalf("written frame count = %d, want 0 on mismatch", len(written))
+	}
+}
+
+type recordingMessages struct {
+	sendResult message.SendResult
+	sendErr    error
+
+	batchResults []message.SendBatchItemResult
+	batchItems   []message.SendBatchItem
+}
+
+func (m *recordingMessages) SendBatch(items []message.SendBatchItem) []message.SendBatchItemResult {
+	m.batchItems = append([]message.SendBatchItem(nil), items...)
+	if m.batchResults == nil {
+		results := make([]message.SendBatchItemResult, len(items))
+		for i := range results {
+			results[i] = message.SendBatchItemResult{Result: m.sendResult, Err: m.sendErr}
+		}
+		return results
+	}
+	return m.batchResults
+}
+
+type batchOnlyMessages struct {
+	batchResults []message.SendBatchItemResult
+	batchItems   []message.SendBatchItem
+}
+
+func (m *batchOnlyMessages) SendBatch(items []message.SendBatchItem) []message.SendBatchItemResult {
+	m.batchItems = append([]message.SendBatchItem(nil), items...)
+	return m.batchResults
+}
+
+type recordingSendackObserver struct {
+	events []SendackEvent
+}
+
+func (o *recordingSendackObserver) SendackWritten(event SendackEvent) {
+	o.events = append(o.events, event)
+}
+
+type recordingSendtraceSink struct {
 	events []sendtrace.Event
 }
 
-func (s *recordingSendTraceSink) RecordSendTrace(event sendtrace.Event) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+func (s *recordingSendtraceSink) RecordSendTrace(event sendtrace.Event) {
 	s.events = append(s.events, event)
 }
 
-func (s *recordingSendTraceSink) snapshot() []sendtrace.Event {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	out := make([]sendtrace.Event, len(s.events))
-	copy(out, s.events)
-	return out
+func (s *recordingSendtraceSink) snapshot() []sendtrace.Event {
+	return append([]sendtrace.Event(nil), s.events...)
+}
+
+func fixedTraceIDGenerator(traceID string) TraceIDGenerator {
+	return func() string {
+		return traceID
+	}
+}
+
+func sequenceTraceIDGenerator(prefix string) TraceIDGenerator {
+	var next int
+	return func() string {
+		next++
+		return prefix + strconv.Itoa(next)
+	}
+}
+
+func requireTraceEvent(t *testing.T, event sendtrace.Event, stage sendtrace.Stage, traceID, channelKey, clientMsgNo, fromUID string, result sendtrace.Result, errorCode string) {
+	t.Helper()
+	if event.Stage != stage {
+		t.Fatalf("trace event stage = %q, want %q in %#v", event.Stage, stage, event)
+	}
+	if event.TraceID != traceID || event.ChannelKey != channelKey || event.ClientMsgNo != clientMsgNo || event.FromUID != fromUID {
+		t.Fatalf("trace event identity = traceID:%q channelKey:%q clientMsgNo:%q fromUID:%q, want %q/%q/%q/%q",
+			event.TraceID, event.ChannelKey, event.ClientMsgNo, event.FromUID, traceID, channelKey, clientMsgNo, fromUID)
+	}
+	if event.Result != result || event.ErrorCode != errorCode {
+		t.Fatalf("trace event outcome = result:%q errorCode:%q, want %q/%q in %#v", event.Result, event.ErrorCode, result, errorCode, event)
+	}
+}
+
+func requireTraceNodeAndSeq(t *testing.T, event sendtrace.Event, nodeID uint64, messageSeq uint64) {
+	t.Helper()
+	if event.NodeID != nodeID || event.MessageSeq != messageSeq {
+		t.Fatalf("trace event node/seq = %d/%d, want %d/%d in %#v", event.NodeID, event.MessageSeq, nodeID, messageSeq, event)
+	}
+}
+
+type recordingDelivery struct {
+	recvackErr      error
+	closedErr       error
+	recvackCommands []delivery.RecvackCommand
+	closedCommands  []delivery.SessionClosedCommand
+}
+
+func (d *recordingDelivery) Recvack(_ context.Context, cmd delivery.RecvackCommand) error {
+	d.recvackCommands = append(d.recvackCommands, cmd)
+	return d.recvackErr
+}
+
+func (d *recordingDelivery) SessionClosed(_ context.Context, cmd delivery.SessionClosedCommand) error {
+	d.closedCommands = append(d.closedCommands, cmd)
+	return d.closedErr
+}
+
+type recordingPresence struct {
+	activateErr        error
+	deactivateErr      error
+	touchErr           error
+	activateContexts   []context.Context
+	deactivateContexts []context.Context
+	touchContexts      []context.Context
+	activateCommands   []presence.ActivateCommand
+	deactivateCommands []presence.DeactivateCommand
+	touchCommands      []presence.TouchCommand
+}
+
+func (p *recordingPresence) Activate(ctx context.Context, cmd presence.ActivateCommand) error {
+	p.activateContexts = append(p.activateContexts, ctx)
+	p.activateCommands = append(p.activateCommands, cmd)
+	return p.activateErr
+}
+
+func (p *recordingPresence) Deactivate(ctx context.Context, cmd presence.DeactivateCommand) error {
+	p.deactivateContexts = append(p.deactivateContexts, ctx)
+	p.deactivateCommands = append(p.deactivateCommands, cmd)
+	return p.deactivateErr
+}
+
+func (p *recordingPresence) Touch(ctx context.Context, cmd presence.TouchCommand) error {
+	p.touchContexts = append(p.touchContexts, ctx)
+	p.touchCommands = append(p.touchCommands, cmd)
+	return p.touchErr
+}
+
+type testContextKey struct{}
+
+func newTestSession(t *testing.T, written *[]frame.Frame) session.Session {
+	t.Helper()
+	return newTestSessionWithMeta(t, written, nil)
+}
+
+func newTestSessionWithMeta(t *testing.T, written *[]frame.Frame, metas *[]session.OutboundMeta) session.Session {
+	t.Helper()
+	return session.New(session.Config{
+		ID: 100,
+		WriteFrameFn: func(f frame.Frame, meta session.OutboundMeta) error {
+			*written = append(*written, f)
+			if metas != nil {
+				*metas = append(*metas, meta)
+			}
+			return nil
+		},
+	})
+}
+
+func requireSendack(t *testing.T, written []frame.Frame, index int) *frame.SendackPacket {
+	t.Helper()
+	if len(written) <= index {
+		t.Fatalf("written frame count = %d, want index %d", len(written), index)
+	}
+	ack, ok := written[index].(*frame.SendackPacket)
+	if !ok {
+		t.Fatalf("written[%d] = %T, want *frame.SendackPacket", index, written[index])
+	}
+	return ack
 }

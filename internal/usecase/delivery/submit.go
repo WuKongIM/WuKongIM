@@ -4,29 +4,28 @@ import (
 	"context"
 
 	"github.com/WuKongIM/WuKongIM/internal/contracts/messageevents"
-	runtimedelivery "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 )
 
-func (a *App) SubmitCommitted(ctx context.Context, env runtimedelivery.CommittedEnvelope) error {
+// SubmitCommitted forwards a cloned committed-message event to the runtime.
+func (a *App) SubmitCommitted(ctx context.Context, event messageevents.MessageCommitted) error {
 	if a == nil || a.runtime == nil {
 		return nil
 	}
-	return a.runtime.Submit(ctx, env)
+	return a.runtime.SubmitCommitted(ctx, event.Clone())
 }
 
-// SubmitRealtime forwards a non-durable realtime message to the delivery runtime.
-func (a *App) SubmitRealtime(ctx context.Context, event messageevents.MessageRealtime) error {
+// Recvack forwards receive-ack feedback to the runtime.
+func (a *App) Recvack(ctx context.Context, cmd RecvackCommand) error {
 	if a == nil || a.runtime == nil {
 		return nil
 	}
-	clone := event.Clone()
-	return a.runtime.Submit(ctx, runtimedelivery.CommittedEnvelope{
-		Message:           clone.Message,
-		SenderSessionID:   clone.SenderSessionID,
-		MessageScopedUIDs: clone.MessageScopedUIDs,
-	})
+	return a.runtime.Recvack(ctx, cmd)
 }
 
-func (noopRuntime) Submit(context.Context, runtimedelivery.CommittedEnvelope) error {
-	return nil
+// SessionClosed forwards session-close feedback to the runtime.
+func (a *App) SessionClosed(ctx context.Context, cmd SessionClosedCommand) error {
+	if a == nil || a.runtime == nil {
+		return nil
+	}
+	return a.runtime.SessionClosed(ctx, cmd)
 }

@@ -11,26 +11,26 @@ import (
 // ClearUnread marks a conversation as read through the latest known message.
 func (a *App) ClearUnread(ctx context.Context, cmd ClearUnreadCommand) error {
 	if a == nil {
-		return nil
+		return ErrStoreRequired
 	}
 	if err := validateUnreadTarget(cmd.UID, cmd.ChannelID, cmd.ChannelType); err != nil {
 		return err
 	}
-
-	latestSeq, ok, err := a.latestConversationSeq(ctx, conversationKey(cmd.ChannelID, cmd.ChannelType), cmd.MessageSeq)
+	key := ConversationKey{ChannelID: cmd.ChannelID, ChannelType: int64(cmd.ChannelType)}
+	latestSeq, ok, err := a.latestConversationSeq(ctx, key, cmd.MessageSeq)
 	if err != nil {
 		return err
 	}
 	if !ok || latestSeq == 0 {
 		return nil
 	}
-	return a.advanceReadSeq(ctx, cmd.UID, conversationKey(cmd.ChannelID, cmd.ChannelType), latestSeq)
+	return a.advanceReadSeq(ctx, cmd.UID, key, latestSeq)
 }
 
 // SetUnread marks enough messages as read so at most cmd.Unread messages remain unread.
 func (a *App) SetUnread(ctx context.Context, cmd SetUnreadCommand) error {
 	if a == nil {
-		return nil
+		return ErrStoreRequired
 	}
 	if err := validateUnreadTarget(cmd.UID, cmd.ChannelID, cmd.ChannelType); err != nil {
 		return err
@@ -38,15 +38,52 @@ func (a *App) SetUnread(ctx context.Context, cmd SetUnreadCommand) error {
 	if cmd.Unread < 0 {
 		return errors.New("unread cannot be negative")
 	}
-
-	latestSeq, ok, err := a.latestConversationSeq(ctx, conversationKey(cmd.ChannelID, cmd.ChannelType), 0)
+	key := ConversationKey{ChannelID: cmd.ChannelID, ChannelType: int64(cmd.ChannelType)}
+	latestSeq, ok, err := a.latestConversationSeq(ctx, key, 0)
 	if err != nil {
 		return err
 	}
 	if !ok || latestSeq == 0 {
 		return nil
 	}
-	return a.advanceReadSeq(ctx, cmd.UID, conversationKey(cmd.ChannelID, cmd.ChannelType), readSeqForUnread(latestSeq, cmd.Unread))
+	return a.advanceReadSeq(ctx, cmd.UID, key, readSeqForUnread(latestSeq, cmd.Unread))
+}
+
+// DeleteConversation durably hides a conversation through the latest known message.
+func (a *App) DeleteConversation(ctx context.Context, cmd DeleteConversationCommand) error {
+	if a == nil {
+		return ErrStoreRequired
+	}
+	if err := validateUnreadTarget(cmd.UID, cmd.ChannelID, cmd.ChannelType); err != nil {
+		return err
+	}
+	if a.deleteStore == nil {
+		return ErrStoreRequired
+	}
+	key := ConversationKey{ChannelID: cmd.ChannelID, ChannelType: int64(cmd.ChannelType)}
+	deleteSeq := cmd.MessageSeq
+	if deleteSeq == 0 {
+		latestSeq, ok, err := a.latestConversationSeq(ctx, key, 0)
+		if err != nil {
+			return err
+		}
+		if !ok || latestSeq == 0 {
+			return errors.New("conversation latest message not found")
+		}
+		deleteSeq = latestSeq
+	}
+	req := metadb.ConversationDelete{
+		UID:          cmd.UID,
+		Kind:         metadb.ConversationKindNormal,
+		ChannelID:    key.ChannelID,
+		ChannelType:  key.ChannelType,
+		DeletedToSeq: deleteSeq,
+		UpdatedAt:    a.now().UnixNano(),
+	}
+	if err := a.deleteStore.HideConversations(ctx, []metadb.ConversationDelete{req}); err != nil {
+		return fmt.Errorf("conversation: hide conversation: %w", err)
+	}
+	return nil
 }
 
 func validateUnreadTarget(uid, channelID string, channelType uint8) error {
@@ -60,14 +97,17 @@ func validateUnreadTarget(uid, channelID string, channelType uint8) error {
 }
 
 func (a *App) latestConversationSeq(ctx context.Context, key ConversationKey, fallback uint64) (uint64, bool, error) {
-	if a.facts == nil {
-		return 0, false, errors.New("message facts store not configured")
+	if a.messages == nil {
+		return 0, false, ErrStoreRequired
 	}
-	latestByKey, err := a.facts.LoadLatestMessages(ctx, []ConversationKey{key})
+	latestByKey, err := a.messages.GetLastVisibleMessages(ctx, []LastVisibleMessageRequest{{
+		ChannelID:   key.ChannelID,
+		ChannelType: key.ChannelType,
+	}})
 	if err != nil {
 		return 0, false, err
 	}
-	if latest, ok := latestByKey[key]; ok && latest.MessageSeq > 0 {
+	if latest, ok := latestByKey[metadb.ConversationKey{ChannelID: key.ChannelID, ChannelType: key.ChannelType}]; ok && latest.MessageSeq > 0 {
 		return latest.MessageSeq, true, nil
 	}
 	if fallback > 0 {
@@ -77,29 +117,27 @@ func (a *App) latestConversationSeq(ctx context.Context, key ConversationKey, fa
 }
 
 func (a *App) advanceReadSeq(ctx context.Context, uid string, key ConversationKey, target uint64) error {
-	if a.states == nil {
-		return errors.New("conversation state store not configured")
+	if a.stateStore == nil || a.stateWriter == nil {
+		return ErrStoreRequired
 	}
-
-	state, err := a.states.GetUserConversationState(ctx, uid, key.ChannelID, int64(key.ChannelType))
-	switch {
-	case err == nil:
-	case errors.Is(err, metadb.ErrNotFound):
-		state = metadb.UserConversationState{
-			UID:         uid,
-			ChannelID:   key.ChannelID,
-			ChannelType: int64(key.ChannelType),
-		}
-	default:
+	state, ok, err := a.stateStore.GetConversationState(ctx, metadb.ConversationKindNormal, uid, key.ChannelID, key.ChannelType)
+	if err != nil {
 		return err
 	}
-
+	if !ok {
+		state = metadb.ConversationState{
+			UID:         uid,
+			Kind:        metadb.ConversationKindNormal,
+			ChannelID:   key.ChannelID,
+			ChannelType: key.ChannelType,
+		}
+	}
 	if state.ReadSeq >= target {
 		return nil
 	}
 	state.ReadSeq = target
 	state.UpdatedAt = a.now().UnixNano()
-	if err := a.states.UpsertUserConversationStates(ctx, []metadb.UserConversationState{state}); err != nil {
+	if err := a.stateWriter.UpsertConversationStates(ctx, []metadb.ConversationState{state}); err != nil {
 		return fmt.Errorf("conversation: upsert unread state: %w", err)
 	}
 	return nil

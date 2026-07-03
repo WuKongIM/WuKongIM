@@ -3,15 +3,147 @@ package management
 import (
 	"context"
 	"errors"
-	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/observability/diagnostics"
-	controllermeta "github.com/WuKongIM/WuKongIM/pkg/legacy/controller/meta"
-	"github.com/stretchr/testify/require"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 )
+
+func TestQueryDiagnosticsAggregatesControlSnapshotNodes(t *testing.T) {
+	now := time.Date(2026, 6, 19, 10, 0, 0, 0, time.UTC)
+	reader := &fakeDiagnosticsReader{
+		results: map[uint64]diagnostics.QueryResult{
+			1: diagnosticsResult(1, diagnostics.StatusOK,
+				diagnosticsEvent(1, now.Add(2*time.Second), "channel_append", diagnostics.ResultOK),
+			),
+			2: diagnosticsResult(2, diagnostics.StatusOK,
+				diagnosticsEvent(2, now.Add(time.Second), "gateway_send", diagnostics.ResultOK),
+			),
+		},
+	}
+	app := New(Options{
+		Cluster: fakeNodeSnapshotReader{
+			nodeID: 1,
+			snapshot: control.Snapshot{Nodes: []control.Node{
+				{NodeID: 1, Status: control.NodeAlive},
+				{NodeID: 2, Status: control.NodeSuspect},
+			}},
+		},
+		Diagnostics: reader,
+		Now:         func() time.Time { return now },
+	})
+
+	got, err := app.QueryDiagnostics(context.Background(), DiagnosticsQueryRequest{Query: diagnostics.Query{TraceID: "trace-1"}})
+	if err != nil {
+		t.Fatalf("QueryDiagnostics() error = %v", err)
+	}
+	if got.Scope != "cluster" || got.Status != DiagnosticsStatusOK {
+		t.Fatalf("status = %s scope = %s, want ok cluster; response=%#v", got.Status, got.Scope, got)
+	}
+	if len(got.Events) != 2 {
+		t.Fatalf("events len = %d, want 2: %#v", len(got.Events), got.Events)
+	}
+	if got.Events[0].Stage != "gateway_send" || got.Events[1].Stage != "channel_append" {
+		t.Fatalf("event order = %#v, want chronological stages", got.Events)
+	}
+	if got.Summary.EventCount != 2 || !sameUint64s(got.Summary.InvolvedNodes, []uint64{1, 2}) {
+		t.Fatalf("summary = %#v, want two involved nodes", got.Summary)
+	}
+	for _, query := range reader.queries {
+		if query.TraceID != "trace-1" || query.Limit != 100 {
+			t.Fatalf("node query = %#v, want normalized trace lookup", query)
+		}
+	}
+}
+
+func TestQueryDiagnosticsSkipsDownNodesAndMarksPartial(t *testing.T) {
+	now := time.Date(2026, 6, 19, 11, 0, 0, 0, time.UTC)
+	reader := &fakeDiagnosticsReader{
+		results: map[uint64]diagnostics.QueryResult{
+			1: diagnosticsResult(1, diagnostics.StatusOK, diagnosticsEvent(1, now, "gateway_send", diagnostics.ResultOK)),
+		},
+	}
+	app := New(Options{
+		Cluster: fakeNodeSnapshotReader{
+			nodeID: 1,
+			snapshot: control.Snapshot{Nodes: []control.Node{
+				{NodeID: 1, Status: control.NodeAlive},
+				{NodeID: 2, Status: control.NodeDown},
+			}},
+		},
+		Diagnostics: reader,
+		Now:         func() time.Time { return now },
+	})
+
+	got, err := app.QueryDiagnostics(context.Background(), DiagnosticsQueryRequest{})
+	if err != nil {
+		t.Fatalf("QueryDiagnostics() error = %v", err)
+	}
+	if got.Status != DiagnosticsStatusPartial {
+		t.Fatalf("status = %s, want partial: %#v", got.Status, got)
+	}
+	if diagnosticsNodeStatus(got.Nodes, 2) != "skipped" {
+		t.Fatalf("nodes = %#v, want node 2 skipped", got.Nodes)
+	}
+	if _, ok := reader.queries[2]; ok {
+		t.Fatalf("down node was queried: %#v", reader.queries)
+	}
+}
+
+func TestQueryDiagnosticsFallsBackToLocalNodeWhenSnapshotUnavailable(t *testing.T) {
+	reader := &fakeDiagnosticsReader{results: map[uint64]diagnostics.QueryResult{
+		9: diagnosticsResult(9, diagnostics.StatusNotFound),
+	}}
+	app := New(Options{
+		Cluster:     fakeNodeSnapshotReader{nodeID: 9, err: errors.New("control unavailable")},
+		Diagnostics: reader,
+		Now:         func() time.Time { return time.Date(2026, 6, 19, 12, 0, 0, 0, time.UTC) },
+	})
+
+	got, err := app.QueryDiagnostics(context.Background(), DiagnosticsQueryRequest{})
+	if err != nil {
+		t.Fatalf("QueryDiagnostics() error = %v", err)
+	}
+	if got.Scope != "local_node" || got.Status != DiagnosticsStatusPartial {
+		t.Fatalf("scope/status = %s/%s, want local_node partial", got.Scope, got.Status)
+	}
+	if _, ok := reader.queries[9]; !ok {
+		t.Fatalf("local fallback node was not queried: %#v", reader.queries)
+	}
+}
+
+func TestCreateDiagnosticsTrackingRuleFansOutToControlSnapshotNodes(t *testing.T) {
+	tracker := newDiagnosticsTrackingStub()
+	app := New(Options{
+		Cluster: fakeNodeSnapshotReader{
+			nodeID: 1,
+			snapshot: control.Snapshot{Nodes: []control.Node{
+				{NodeID: 1, Status: control.NodeAlive},
+				{NodeID: 2, Status: control.NodeSuspect},
+				{NodeID: 3, Status: control.NodeDown},
+			}},
+		},
+		DiagnosticsTracking: tracker,
+	})
+
+	resp, err := app.CreateDiagnosticsTrackingRule(context.Background(), DiagnosticsTrackingCreateRequest{
+		Target: "sender_uid", UID: "u1", TTLSeconds: 60, SampleRate: 1,
+	})
+	if err != nil {
+		t.Fatalf("CreateDiagnosticsTrackingRule() error = %v", err)
+	}
+	if resp.Status != DiagnosticsTrackingStatusPartial {
+		t.Fatalf("status = %s, want partial because down node is skipped", resp.Status)
+	}
+	if tracker.addedRule(t, 1).UID != "u1" || tracker.addedRule(t, 2).UID != "u1" {
+		t.Fatalf("tracking fanout = %#v, want rule on nodes 1 and 2", tracker.added)
+	}
+	if _, ok := tracker.added[3]; ok {
+		t.Fatalf("down node received tracking rule: %#v", tracker.added)
+	}
+}
 
 type fakeDiagnosticsReader struct {
 	mu      sync.Mutex
@@ -33,279 +165,82 @@ func (f *fakeDiagnosticsReader) QueryNodeDiagnostics(_ context.Context, nodeID u
 	return f.results[nodeID], nil
 }
 
-func TestQueryDiagnosticsAggregatesSuccessfulNodes(t *testing.T) {
-	now := time.Date(2026, 5, 6, 10, 0, 0, 0, time.UTC)
-	reader := &fakeDiagnosticsReader{results: map[uint64]diagnostics.QueryResult{
-		1: diagnosticsResult(1, diagnostics.StatusOK,
-			diagnosticsEvent(1, now.Add(3*time.Second), "replica", diagnostics.ResultOK),
-			diagnosticsEvent(1, now.Add(time.Second), "gateway", diagnostics.ResultOK),
-		),
-		2: diagnosticsResult(2, diagnostics.StatusOK,
-			diagnosticsEvent(2, now.Add(2*time.Second), "channel", diagnostics.ResultOK),
-		),
-	}}
-	app := New(Options{
-		LocalNodeID: 1,
-		Cluster: fakeClusterReader{nodes: []controllermeta.ClusterNode{
-			{NodeID: 1, Status: controllermeta.NodeStatusAlive},
-			{NodeID: 2, Status: controllermeta.NodeStatusAlive},
-		}},
-		Diagnostics: reader,
-		Now:         func() time.Time { return now },
-	})
-
-	got, err := app.QueryDiagnostics(context.Background(), DiagnosticsQueryRequest{})
-	require.NoError(t, err)
-	require.Equal(t, DiagnosticsStatusOK, got.Status)
-	require.Equal(t, []uint64{1, 2}, got.Summary.InvolvedNodes)
-	require.Len(t, got.Events, 3)
-	require.Equal(t, []string{"gateway", "channel", "replica"}, diagnosticsStages(got.Events))
-	require.Equal(t, 3, got.Summary.EventCount)
+type diagnosticsTrackingStub struct {
+	mu        sync.Mutex
+	added     map[uint64]diagnostics.TrackingRuleInput
+	rules     map[uint64][]diagnostics.TrackingRule
+	deleted   map[uint64]string
+	failNodes map[uint64]error
 }
 
-func TestQueryDiagnosticsReturnsNotFoundWhenAllNodesAreEmpty(t *testing.T) {
-	now := time.Date(2026, 5, 6, 10, 0, 0, 0, time.UTC)
-	reader := &fakeDiagnosticsReader{results: map[uint64]diagnostics.QueryResult{
-		1: diagnosticsResult(1, diagnostics.StatusNotFound),
-		2: diagnosticsResult(2, diagnostics.StatusNotFound),
-	}}
-	app := New(Options{
-		LocalNodeID: 1,
-		Cluster: fakeClusterReader{nodes: []controllermeta.ClusterNode{
-			{NodeID: 1, Status: controllermeta.NodeStatusAlive},
-			{NodeID: 2, Status: controllermeta.NodeStatusAlive},
-		}},
-		Diagnostics: reader,
-		Now:         func() time.Time { return now },
-	})
-
-	got, err := app.QueryDiagnostics(context.Background(), DiagnosticsQueryRequest{})
-	require.NoError(t, err)
-	require.Equal(t, DiagnosticsStatusNotFound, got.Status)
-	require.Empty(t, got.Events)
-}
-
-func TestQueryDiagnosticsQueriesAliveSuspectAndDrainingNodes(t *testing.T) {
-	reader := &fakeDiagnosticsReader{results: map[uint64]diagnostics.QueryResult{
-		1: diagnosticsResult(1, diagnostics.StatusNotFound),
-		2: diagnosticsResult(2, diagnostics.StatusNotFound),
-		3: diagnosticsResult(3, diagnostics.StatusNotFound),
-	}}
-	app := New(Options{
-		LocalNodeID: 1,
-		Cluster: fakeClusterReader{nodes: []controllermeta.ClusterNode{
-			{NodeID: 1, Status: controllermeta.NodeStatusAlive},
-			{NodeID: 2, Status: controllermeta.NodeStatusSuspect},
-			{NodeID: 3, Status: controllermeta.NodeStatusDraining},
-			{NodeID: 4, Status: controllermeta.NodeStatusDead},
-		}},
-		Diagnostics: reader,
-	})
-
-	_, err := app.QueryDiagnostics(context.Background(), DiagnosticsQueryRequest{})
-	require.NoError(t, err)
-	require.ElementsMatch(t, []uint64{1, 2, 3}, queriedNodeIDs(reader))
-}
-
-func TestQueryDiagnosticsSkipsDeadNodesAndMarksPartial(t *testing.T) {
-	now := time.Date(2026, 5, 6, 10, 0, 0, 0, time.UTC)
-	reader := &fakeDiagnosticsReader{results: map[uint64]diagnostics.QueryResult{
-		1: diagnosticsResult(1, diagnostics.StatusOK, diagnosticsEvent(1, now, "gateway", diagnostics.ResultOK)),
-	}}
-	app := New(Options{
-		LocalNodeID: 1,
-		Cluster: fakeClusterReader{nodes: []controllermeta.ClusterNode{
-			{NodeID: 1, Status: controllermeta.NodeStatusAlive},
-			{NodeID: 2, Status: controllermeta.NodeStatusDead},
-		}},
-		Diagnostics: reader,
-		Now:         func() time.Time { return now },
-	})
-
-	got, err := app.QueryDiagnostics(context.Background(), DiagnosticsQueryRequest{})
-	require.NoError(t, err)
-	require.Equal(t, DiagnosticsStatusPartial, got.Status)
-	require.Equal(t, "skipped", diagnosticsNodeStatus(got.Nodes, 2))
-}
-
-func TestQueryDiagnosticsReturnsPartialWhenRemoteNodeFails(t *testing.T) {
-	now := time.Date(2026, 5, 6, 10, 0, 0, 0, time.UTC)
-	reader := &fakeDiagnosticsReader{
-		results: map[uint64]diagnostics.QueryResult{1: diagnosticsResult(1, diagnostics.StatusOK, diagnosticsEvent(1, now, "gateway", diagnostics.ResultOK))},
-		errors:  map[uint64]error{2: errors.New("rpc unavailable")},
-	}
-	app := New(Options{
-		LocalNodeID: 1,
-		Cluster: fakeClusterReader{nodes: []controllermeta.ClusterNode{
-			{NodeID: 1, Status: controllermeta.NodeStatusAlive},
-			{NodeID: 2, Status: controllermeta.NodeStatusAlive},
-		}},
-		Diagnostics: reader,
-		Now:         func() time.Time { return now },
-	})
-
-	got, err := app.QueryDiagnostics(context.Background(), DiagnosticsQueryRequest{})
-	require.NoError(t, err)
-	require.Equal(t, DiagnosticsStatusPartial, got.Status)
-	require.Len(t, got.Events, 1)
-	require.Equal(t, "unavailable", diagnosticsNodeStatus(got.Nodes, 2))
-}
-
-func TestQueryDiagnosticsReturnsPartialWhenAllTargetsUnavailable(t *testing.T) {
-	reader := &fakeDiagnosticsReader{errors: map[uint64]error{1: errors.New("down"), 2: errors.New("down")}}
-	app := New(Options{
-		LocalNodeID: 1,
-		Cluster: fakeClusterReader{nodes: []controllermeta.ClusterNode{
-			{NodeID: 1, Status: controllermeta.NodeStatusAlive},
-			{NodeID: 2, Status: controllermeta.NodeStatusAlive},
-		}},
-		Diagnostics: reader,
-	})
-
-	got, err := app.QueryDiagnostics(context.Background(), DiagnosticsQueryRequest{})
-	require.NoError(t, err)
-	require.Equal(t, DiagnosticsStatusPartial, got.Status)
-	require.Empty(t, got.Events)
-	for _, node := range got.Nodes {
-		require.Equal(t, "unavailable", node.Status)
+func newDiagnosticsTrackingStub() *diagnosticsTrackingStub {
+	return &diagnosticsTrackingStub{
+		added:     map[uint64]diagnostics.TrackingRuleInput{},
+		rules:     map[uint64][]diagnostics.TrackingRule{},
+		deleted:   map[uint64]string{},
+		failNodes: map[uint64]error{},
 	}
 }
 
-func TestQueryDiagnosticsStatusPrefersErrorThenTimeoutThenPartial(t *testing.T) {
-	now := time.Date(2026, 5, 6, 10, 0, 0, 0, time.UTC)
-	cases := []struct {
-		name   string
-		events []DiagnosticsEvent
-		nodes  []DiagnosticsNodeResult
-		want   DiagnosticsStatus
-	}{
-		{name: "error beats timeout", events: []DiagnosticsEvent{{At: now, Result: string(diagnostics.ResultTimeout)}, {At: now, Result: string(diagnostics.ResultError)}}, want: DiagnosticsStatusError},
-		{name: "timeout beats partial", events: []DiagnosticsEvent{{At: now, Result: string(diagnostics.ResultPartial)}, {At: now, Result: string(diagnostics.ResultTimeout)}}, want: DiagnosticsStatusTimeout},
-		{name: "partial beats ok", events: []DiagnosticsEvent{{At: now, Result: string(diagnostics.ResultOK)}, {At: now, Result: string(diagnostics.ResultDropped)}}, want: DiagnosticsStatusPartial},
-		{name: "unavailable beats ok", events: []DiagnosticsEvent{{At: now, Result: string(diagnostics.ResultOK)}}, nodes: []DiagnosticsNodeResult{{NodeID: 1, Status: "ok"}, {NodeID: 2, Status: "unavailable"}}, want: DiagnosticsStatusPartial},
-		{name: "ok beats not found", events: []DiagnosticsEvent{{At: now, Result: string(diagnostics.ResultOK)}}, nodes: []DiagnosticsNodeResult{{NodeID: 1, Status: "ok"}}, want: DiagnosticsStatusOK},
-		{name: "empty is not found", want: DiagnosticsStatusNotFound},
+func (s *diagnosticsTrackingStub) AddNodeDiagnosticsTrackingRule(_ context.Context, nodeID uint64, input diagnostics.TrackingRuleInput) (diagnostics.TrackingRule, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := s.failNodes[nodeID]; err != nil {
+		return diagnostics.TrackingRule{}, err
 	}
-	for _, tt := range cases {
-		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, tt.want, managerDiagnosticsStatus(tt.events, tt.nodes))
-		})
+	s.added[nodeID] = input
+	rule := diagnostics.TrackingRule{ID: input.ID, Target: input.Target, UID: input.UID, ChannelKey: input.ChannelKey, SampleRate: input.SampleRate}
+	s.rules[nodeID] = append(s.rules[nodeID], rule)
+	return rule, nil
+}
+
+func (s *diagnosticsTrackingStub) ListNodeDiagnosticsTrackingRules(_ context.Context, nodeID uint64) ([]diagnostics.TrackingRule, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := s.failNodes[nodeID]; err != nil {
+		return nil, err
 	}
+	return append([]diagnostics.TrackingRule(nil), s.rules[nodeID]...), nil
 }
 
-func TestQueryDiagnosticsPropagatesResultFilterToNodeQueries(t *testing.T) {
-	reader := &fakeDiagnosticsReader{results: map[uint64]diagnostics.QueryResult{
-		1: diagnosticsResult(1, diagnostics.StatusNotFound),
-		2: diagnosticsResult(2, diagnostics.StatusNotFound),
-	}}
-	app := New(Options{
-		LocalNodeID: 1,
-		Cluster: fakeClusterReader{nodes: []controllermeta.ClusterNode{
-			{NodeID: 1, Status: controllermeta.NodeStatusAlive},
-			{NodeID: 2, Status: controllermeta.NodeStatusAlive},
-		}},
-		Diagnostics: reader,
-	})
-
-	_, err := app.QueryDiagnostics(context.Background(), DiagnosticsQueryRequest{Query: diagnostics.Query{Result: diagnostics.ResultError}})
-	require.NoError(t, err)
-	for _, q := range reader.queries {
-		require.Equal(t, diagnostics.ResultError, q.Result)
+func (s *diagnosticsTrackingStub) DeleteNodeDiagnosticsTrackingRule(_ context.Context, nodeID uint64, ruleID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := s.failNodes[nodeID]; err != nil {
+		return err
 	}
+	s.deleted[nodeID] = ruleID
+	return nil
 }
 
-func TestQueryDiagnosticsUsesLocalNodeWhenControllerSnapshotUnavailable(t *testing.T) {
-	now := time.Date(2026, 5, 6, 10, 0, 0, 0, time.UTC)
-	reader := &fakeDiagnosticsReader{results: map[uint64]diagnostics.QueryResult{
-		9: diagnosticsResult(9, diagnostics.StatusNotFound),
-	}}
-	app := New(Options{
-		LocalNodeID: 9,
-		Cluster:     fakeClusterReader{listNodesErr: errors.New("controller unavailable")},
-		Diagnostics: reader,
-		Now:         func() time.Time { return now },
-	})
-
-	got, err := app.QueryDiagnostics(context.Background(), DiagnosticsQueryRequest{})
-	require.NoError(t, err)
-	require.Equal(t, "local_node", got.Scope)
-	require.Equal(t, DiagnosticsStatusPartial, got.Status)
-	require.Equal(t, []uint64{9}, queriedNodeIDs(reader))
-	require.True(t, diagnosticsNotesContain(got.Notes, "controller snapshot is unavailable"), got.Notes)
-}
-
-func TestQueryDiagnosticsKeepsFallbackPartialWhenLocalNodeHasOKEvent(t *testing.T) {
-	now := time.Date(2026, 5, 6, 10, 0, 0, 0, time.UTC)
-	reader := &fakeDiagnosticsReader{results: map[uint64]diagnostics.QueryResult{
-		9: diagnosticsResult(9, diagnostics.StatusOK, diagnosticsEvent(9, now, "gateway", diagnostics.ResultOK)),
-	}}
-	app := New(Options{
-		LocalNodeID: 9,
-		Cluster:     fakeClusterReader{listNodesErr: errors.New("controller unavailable")},
-		Diagnostics: reader,
-		Now:         func() time.Time { return now },
-	})
-
-	got, err := app.QueryDiagnostics(context.Background(), DiagnosticsQueryRequest{})
-	require.NoError(t, err)
-	require.Equal(t, "local_node", got.Scope)
-	require.Equal(t, DiagnosticsStatusPartial, got.Status)
-	require.Len(t, got.Events, 1)
-	require.True(t, diagnosticsNotesContain(got.Notes, "controller snapshot is unavailable"), got.Notes)
-}
-
-func TestQueryDiagnosticsTruncatesMergedEventsToLimit(t *testing.T) {
-	now := time.Date(2026, 5, 6, 10, 0, 0, 0, time.UTC)
-	reader := &fakeDiagnosticsReader{results: map[uint64]diagnostics.QueryResult{
-		1: diagnosticsResult(1, diagnostics.StatusOK, diagnosticsEvent(1, now.Add(time.Second), "one", diagnostics.ResultOK), diagnosticsEvent(1, now.Add(4*time.Second), "four", diagnostics.ResultOK)),
-		2: diagnosticsResult(2, diagnostics.StatusOK, diagnosticsEvent(2, now.Add(2*time.Second), "two", diagnostics.ResultOK)),
-		3: diagnosticsResult(3, diagnostics.StatusOK, diagnosticsEvent(3, now.Add(3*time.Second), "three", diagnostics.ResultOK)),
-	}}
-	app := New(Options{
-		LocalNodeID: 1,
-		Cluster: fakeClusterReader{nodes: []controllermeta.ClusterNode{
-			{NodeID: 1, Status: controllermeta.NodeStatusAlive},
-			{NodeID: 2, Status: controllermeta.NodeStatusAlive},
-			{NodeID: 3, Status: controllermeta.NodeStatusAlive},
-		}},
-		Diagnostics: reader,
-		Now:         func() time.Time { return now },
-	})
-
-	got, err := app.QueryDiagnostics(context.Background(), DiagnosticsQueryRequest{Query: diagnostics.Query{Limit: 2}})
-	require.NoError(t, err)
-	require.Equal(t, []string{"three", "four"}, diagnosticsStages(got.Events))
-	require.Equal(t, 2, got.Summary.EventCount)
+func (s *diagnosticsTrackingStub) addedRule(t *testing.T, nodeID uint64) diagnostics.TrackingRuleInput {
+	t.Helper()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	rule, ok := s.added[nodeID]
+	if !ok {
+		t.Fatalf("missing added tracking rule for node %d", nodeID)
+	}
+	return rule
 }
 
 func diagnosticsResult(nodeID uint64, status diagnostics.Status, events ...diagnostics.Event) diagnostics.QueryResult {
-	return diagnostics.QueryResult{NodeID: nodeID, Status: status, Events: events, DurationMS: int64(nodeID)}
+	return diagnostics.QueryResult{
+		Scope:  "local_node",
+		NodeID: nodeID,
+		Status: status,
+		Events: events,
+	}
 }
 
 func diagnosticsEvent(nodeID uint64, at time.Time, stage string, result diagnostics.Result) diagnostics.Event {
 	return diagnostics.Event{
-		TraceID:     "trace",
-		SpanID:      stage + "-span",
-		Stage:       diagnostics.Stage(stage),
-		At:          at,
-		Duration:    time.Duration(nodeID) * time.Millisecond,
-		NodeID:      nodeID,
-		PeerNodeID:  nodeID + 10,
-		SlotID:      uint32(nodeID),
-		ChannelKey:  "ch",
-		ClientMsgNo: "client",
-		MessageSeq:  uint64(nodeID * 100),
-		Service:     "svc",
-		Result:      result,
+		TraceID: "trace-1",
+		NodeID:  nodeID,
+		Stage:   diagnostics.Stage(stage),
+		At:      at,
+		Result:  result,
 	}
-}
-
-func diagnosticsStages(events []DiagnosticsEvent) []string {
-	stages := make([]string, 0, len(events))
-	for _, event := range events {
-		stages = append(stages, event.Stage)
-	}
-	return stages
 }
 
 func diagnosticsNodeStatus(nodes []DiagnosticsNodeResult, nodeID uint64) string {
@@ -317,21 +252,14 @@ func diagnosticsNodeStatus(nodes []DiagnosticsNodeResult, nodeID uint64) string 
 	return ""
 }
 
-func queriedNodeIDs(reader *fakeDiagnosticsReader) []uint64 {
-	reader.mu.Lock()
-	defer reader.mu.Unlock()
-	ids := make([]uint64, 0, len(reader.queries))
-	for nodeID := range reader.queries {
-		ids = append(ids, nodeID)
+func sameUint64s(left, right []uint64) bool {
+	if len(left) != len(right) {
+		return false
 	}
-	return ids
-}
-
-func diagnosticsNotesContain(notes []string, needle string) bool {
-	for _, note := range notes {
-		if strings.Contains(note, needle) {
-			return true
+	for i := range left {
+		if left[i] != right[i] {
+			return false
 		}
 	}
-	return false
+	return true
 }

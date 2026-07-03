@@ -1,7 +1,7 @@
 # http_forward AGENTS
 
 This scenario proves real `.wkp` plugins can use the legacy
-`/plugin/httpForward` host RPC in an internalv2 multi-node cluster.
+`/plugin/httpForward` host RPC in an internal multi-node cluster.
 
 ## Run
 

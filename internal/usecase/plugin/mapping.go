@@ -5,14 +5,15 @@ import (
 	"sort"
 	"strings"
 
+	pluginevents "github.com/WuKongIM/WuKongIM/internal/contracts/pluginevents"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
-	"github.com/WuKongIM/WuKongIM/pkg/legacy/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/plugin/pluginproto"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 )
 
 const defaultHostChannelMessagesLimit = 100
 const maxHostChannelMessagesLimit = 10000
+const defaultHostConversationChannelsLimit = 1000
 
 func sendCommandFromPluginReq(req *pluginproto.SendReq, defaultSenderUID string) (message.SendCommand, error) {
 	if req == nil {
@@ -26,23 +27,23 @@ func sendCommandFromPluginReq(req *pluginproto.SendReq, defaultSenderUID string)
 		}
 	}
 	header := req.GetHeader()
+	channelType := uint8(req.GetChannelType())
 	return message.SendCommand{
-		Framer: frame.Framer{
-			NoPersist: header.GetNoPersist(),
-			RedDot:    header.GetRedDot(),
-			SyncOnce:  header.GetSyncOnce(),
-		},
-		ClientMsgNo: req.GetClientMsgNo(),
-		FromUID:     fromUID,
-		ChannelID:   req.GetChannelId(),
-		ChannelType: uint8(req.GetChannelType()),
-		Payload:     append([]byte(nil), req.GetPayload()...),
-		Origin:      message.SendOriginPlugin,
+		ClientMsgNo:            req.GetClientMsgNo(),
+		FromUID:                fromUID,
+		ChannelID:              req.GetChannelId(),
+		ChannelType:            channelType,
+		Payload:                append([]byte(nil), req.GetPayload()...),
+		NoPersist:              header.GetNoPersist(),
+		SyncOnce:               header.GetSyncOnce(),
+		RedDot:                 header.GetRedDot(),
+		NormalizePersonChannel: channelType == frame.ChannelTypePerson,
+		Origin:                 message.SendOriginPlugin,
 	}, nil
 }
 
 func sendRespFromResult(result message.SendResult) *pluginproto.SendResp {
-	return &pluginproto.SendResp{MessageId: result.MessageID}
+	return &pluginproto.SendResp{MessageId: messageIDToInt64(result.MessageID)}
 }
 
 func channelMessageQueryFromPluginReq(req *pluginproto.ChannelMessageReq) message.ChannelMessageQuery {
@@ -56,7 +57,7 @@ func channelMessageQueryFromPluginReq(req *pluginproto.ChannelMessageReq) messag
 		limit = maxHostChannelMessagesLimit
 	}
 	return message.ChannelMessageQuery{
-		ChannelID: channel.ChannelID{
+		ChannelID: message.ChannelID{
 			ID:   req.GetChannelId(),
 			Type: uint8(req.GetChannelType()),
 		},
@@ -78,7 +79,7 @@ func channelMessageRespFromPage(req *pluginproto.ChannelMessageReq, page message
 		Messages:        make([]*pluginproto.Message, 0, len(page.Messages)),
 	}
 	for _, msg := range page.Messages {
-		resp.Messages = append(resp.Messages, pluginMessageFromChannelMessage(msg))
+		resp.Messages = append(resp.Messages, pluginMessageFromSyncedMessage(msg))
 	}
 	return resp
 }
@@ -87,13 +88,11 @@ func effectiveChannelMessageLimit(req *pluginproto.ChannelMessageReq) int {
 	return channelMessageQueryFromPluginReq(req).Limit
 }
 
-func pluginMessageFromChannelMessage(msg channel.Message) *pluginproto.Message {
+func pluginMessageFromSyncedMessage(msg message.SyncedMessage) *pluginproto.Message {
 	return &pluginproto.Message{
 		MessageId:   messageIDToInt64(msg.MessageID),
 		MessageSeq:  msg.MessageSeq,
 		ClientMsgNo: msg.ClientMsgNo,
-		StreamNo:    msg.StreamNo,
-		StreamId:    msg.StreamID,
 		Timestamp:   timestampToUint32(msg.Timestamp),
 		From:        msg.FromUID,
 		ChannelId:   msg.ChannelID,
@@ -101,20 +100,6 @@ func pluginMessageFromChannelMessage(msg channel.Message) *pluginproto.Message {
 		Topic:       msg.Topic,
 		Payload:     append([]byte(nil), msg.Payload...),
 	}
-}
-
-func messageIDToInt64(id uint64) int64 {
-	if id > math.MaxInt64 {
-		return math.MaxInt64
-	}
-	return int64(id)
-}
-
-func timestampToUint32(ts int32) uint32 {
-	if ts < 0 {
-		return 0
-	}
-	return uint32(ts)
 }
 
 func clusterConfigFromSnapshot(snapshot ClusterSnapshot) *pluginproto.ClusterConfig {
@@ -146,6 +131,13 @@ func clusterConfigFromSnapshot(snapshot ClusterSnapshot) *pluginproto.ClusterCon
 	return resp
 }
 
+func channelIDFromPluginChannel(item *pluginproto.Channel) (message.ChannelID, error) {
+	if item == nil || strings.TrimSpace(item.GetChannelId()) == "" {
+		return message.ChannelID{}, ErrChannelRequired
+	}
+	return message.ChannelID{ID: item.GetChannelId(), Type: uint8(item.GetChannelType())}, nil
+}
+
 func clonePluginChannel(item *pluginproto.Channel) *pluginproto.Channel {
 	if item == nil {
 		return &pluginproto.Channel{}
@@ -156,13 +148,53 @@ func clonePluginChannel(item *pluginproto.Channel) *pluginproto.Channel {
 	}
 }
 
-func conversationChannelsRespFromChannelIDs(channels []channel.ChannelID) *pluginproto.ConversationChannelResp {
-	resp := &pluginproto.ConversationChannelResp{Channels: make([]*pluginproto.Channel, 0, len(channels))}
-	for _, id := range channels {
+func conversationChannelsRespFromChannelIDs(channels []message.ChannelID) *pluginproto.ConversationChannelResp {
+	resp := &pluginproto.ConversationChannelResp{
+		Channels: make([]*pluginproto.Channel, 0, len(channels)),
+	}
+	for _, channel := range channels {
 		resp.Channels = append(resp.Channels, &pluginproto.Channel{
-			ChannelId:   id.ID,
-			ChannelType: uint32(id.Type),
+			ChannelId:   channel.ID,
+			ChannelType: uint32(channel.Type),
 		})
 	}
 	return resp
+}
+
+func messageBatchFromPersistAfter(event pluginevents.PersistAfterCommitted) *pluginproto.MessageBatch {
+	return &pluginproto.MessageBatch{Messages: []*pluginproto.Message{{
+		MessageId:   messageIDToInt64(event.MessageID),
+		MessageSeq:  event.MessageSeq,
+		ClientMsgNo: event.ClientMsgNo,
+		Timestamp:   timestampSeconds(event.ServerTimestampMS),
+		From:        event.FromUID,
+		ChannelId:   event.ChannelID,
+		ChannelType: uint32(event.ChannelType),
+		Payload:     append([]byte(nil), event.Payload...),
+	}}}
+}
+
+func messageIDToInt64(id uint64) int64 {
+	if id > math.MaxInt64 {
+		return math.MaxInt64
+	}
+	return int64(id)
+}
+
+func timestampSeconds(ms int64) uint32 {
+	if ms <= 0 {
+		return 0
+	}
+	sec := ms / 1000
+	if sec > math.MaxUint32 {
+		return math.MaxUint32
+	}
+	return uint32(sec)
+}
+
+func timestampToUint32(ts int32) uint32 {
+	if ts < 0 {
+		return 0
+	}
+	return uint32(ts)
 }

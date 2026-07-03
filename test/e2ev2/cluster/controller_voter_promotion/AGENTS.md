@@ -18,7 +18,7 @@ This scenario proves Controller voter promotion through a real multi-node
 
 - Keep tests black-box: use real `cmd/wukongim` processes, public manager
   HTTP endpoints, public readiness probes, and WKProto.
-- Do not import `internalv2/app`, `internalv2/usecase`, storage internals, or
+- Do not import `internal/app`, `internal/usecase`, storage internals, or
   control-plane internals.
 - Prefer polling manager and readiness endpoints over fixed sleeps.
 - Run this package serially with `-p=1`.

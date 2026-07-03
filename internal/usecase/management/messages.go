@@ -2,15 +2,33 @@ package management
 
 import (
 	"context"
+	"errors"
+	"strings"
 
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
-	"github.com/WuKongIM/WuKongIM/pkg/legacy/channel"
 )
+
+// ErrMessageRetentionUnavailable reports that manager retention actions are not wired.
+var ErrMessageRetentionUnavailable = errors.New("management: message retention unavailable")
+
+// MessageReader exposes committed channel message reads for manager pages.
+type MessageReader interface {
+	// QueryMessages returns a manager-facing channel message page.
+	QueryMessages(ctx context.Context, req MessageQueryRequest) (MessageQueryPage, error)
+}
+
+// MessageRetentionOperator advances channel message retention boundaries.
+type MessageRetentionOperator interface {
+	// AdvanceMessageRetention evaluates and applies one retention boundary request.
+	AdvanceMessageRetention(ctx context.Context, req AdvanceMessageRetentionRequest) (AdvanceMessageRetentionResponse, error)
+}
 
 // MessageQueryRequest configures one authoritative channel message page query.
 type MessageQueryRequest struct {
 	// ChannelID identifies the channel to scan.
-	ChannelID channel.ChannelID
+	ChannelID string
+	// ChannelType identifies the channel namespace.
+	ChannelType int64
 	// BeforeSeq is the exclusive upper message sequence bound for pagination.
 	BeforeSeq uint64
 	// Limit is the maximum number of messages to return.
@@ -24,31 +42,11 @@ type MessageQueryRequest struct {
 // MessageQueryPage is one authoritative message page in descending order.
 type MessageQueryPage struct {
 	// Items contains matched channel messages.
-	Items []channel.Message
+	Items []Message
 	// HasMore reports whether another matched page exists.
 	HasMore bool
 	// NextBeforeSeq is the exclusive upper sequence bound for the next page.
 	NextBeforeSeq uint64
-}
-
-// Message is the manager-facing channel message DTO.
-type Message struct {
-	// MessageID is the durable message identifier.
-	MessageID uint64
-	// MessageSeq is the committed channel sequence number.
-	MessageSeq uint64
-	// ClientMsgNo is the client-provided message correlation number.
-	ClientMsgNo string
-	// ChannelID is the logical channel identifier.
-	ChannelID string
-	// ChannelType is the logical channel type.
-	ChannelType int64
-	// FromUID is the sender UID recorded on the message.
-	FromUID string
-	// Timestamp is the server-side message timestamp in Unix seconds.
-	Timestamp int64
-	// Payload is the raw message payload bytes.
-	Payload []byte
 }
 
 // MessageListCursor identifies the next manager message page position.
@@ -103,15 +101,15 @@ type MessageRetentionBlockedReason string
 const (
 	// MessageRetentionBlockedReasonNone means no safety gate blocked the request.
 	MessageRetentionBlockedReasonNone MessageRetentionBlockedReason = ""
-	// MessageRetentionBlockedReasonReplayCursor means committed replay has not durably reached the boundary.
+	// MessageRetentionBlockedReasonReplayCursor is reserved for older replay-cursor contracts and is not used by phase-1 retention.
 	MessageRetentionBlockedReasonReplayCursor MessageRetentionBlockedReason = "replay_cursor"
 	// MessageRetentionBlockedReasonMinISRMatchOffset means at least one ISR member has not reached the boundary.
 	MessageRetentionBlockedReasonMinISRMatchOffset MessageRetentionBlockedReason = "min_isr_match_offset"
 	// MessageRetentionBlockedReasonHW means the committed high watermark is below the requested boundary.
-	MessageRetentionBlockedReasonHW MessageRetentionBlockedReason = "hw"
-	// MessageRetentionBlockedReasonCheckpointHW means the durable checkpoint is below the requested boundary.
-	MessageRetentionBlockedReasonCheckpointHW MessageRetentionBlockedReason = "checkpoint_hw"
-	// MessageRetentionBlockedReasonCurrentBoundary means the request does not exceed the current retention boundary.
+	MessageRetentionBlockedReasonHW MessageRetentionBlockedReason = "hw_lag"
+	// MessageRetentionBlockedReasonNoCommittedMessage means no committed message is visible above the current boundary.
+	MessageRetentionBlockedReasonNoCommittedMessage MessageRetentionBlockedReason = "no_committed_message"
+	// MessageRetentionBlockedReasonCurrentBoundary means the request does not exceed the current boundary.
 	MessageRetentionBlockedReasonCurrentBoundary MessageRetentionBlockedReason = "current_boundary"
 )
 
@@ -147,7 +145,8 @@ type AdvanceMessageRetentionResponse struct {
 
 // ListMessages returns one authoritative channel message page.
 func (a *App) ListMessages(ctx context.Context, req ListMessagesRequest) (ListMessagesResponse, error) {
-	if req.ChannelID == "" || req.ChannelType <= 0 || req.Limit <= 0 {
+	channelID := strings.TrimSpace(req.ChannelID)
+	if channelID == "" || req.ChannelType <= 0 || req.ChannelType > 255 || req.Limit <= 0 {
 		return ListMessagesResponse{}, metadb.ErrInvalidArgument
 	}
 	if a == nil || a.messages == nil {
@@ -155,10 +154,8 @@ func (a *App) ListMessages(ctx context.Context, req ListMessagesRequest) (ListMe
 	}
 
 	page, err := a.messages.QueryMessages(ctx, MessageQueryRequest{
-		ChannelID: channel.ChannelID{
-			ID:   req.ChannelID,
-			Type: uint8(req.ChannelType),
-		},
+		ChannelID:   channelID,
+		ChannelType: req.ChannelType,
 		BeforeSeq:   req.Cursor.BeforeSeq,
 		Limit:       req.Limit,
 		MessageID:   req.MessageID,
@@ -167,27 +164,33 @@ func (a *App) ListMessages(ctx context.Context, req ListMessagesRequest) (ListMe
 	if err != nil {
 		return ListMessagesResponse{}, err
 	}
-
 	resp := ListMessagesResponse{
-		Items:   make([]Message, 0, len(page.Items)),
+		Items:   cloneMessages(page.Items),
 		HasMore: page.HasMore,
 	}
 	if page.HasMore {
 		resp.NextCursor = MessageListCursor{BeforeSeq: page.NextBeforeSeq}
-	}
-	for _, item := range page.Items {
-		resp.Items = append(resp.Items, messageFromChannelMessage(item))
 	}
 	return resp, nil
 }
 
 // AdvanceMessageRetention advances one channel's history retention boundary.
 func (a *App) AdvanceMessageRetention(ctx context.Context, req AdvanceMessageRetentionRequest) (AdvanceMessageRetentionResponse, error) {
-	if req.ChannelID == "" || req.ChannelType <= 0 || req.ThroughSeq == 0 {
+	req.ChannelID = strings.TrimSpace(req.ChannelID)
+	if req.ChannelID == "" || req.ChannelType <= 0 || req.ChannelType > 255 || req.ThroughSeq == 0 {
 		return AdvanceMessageRetentionResponse{}, metadb.ErrInvalidArgument
 	}
 	if a == nil || a.messageRetention == nil {
-		return AdvanceMessageRetentionResponse{}, nil
+		return AdvanceMessageRetentionResponse{}, ErrMessageRetentionUnavailable
 	}
 	return a.messageRetention.AdvanceMessageRetention(ctx, req)
+}
+
+func cloneMessages(items []Message) []Message {
+	out := make([]Message, 0, len(items))
+	for _, item := range items {
+		item.Payload = append([]byte(nil), item.Payload...)
+		out = append(out, item)
+	}
+	return out
 }

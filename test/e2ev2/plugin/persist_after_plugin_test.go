@@ -19,8 +19,8 @@ import (
 	"testing"
 	"time"
 
-	appv2 "github.com/WuKongIM/WuKongIM/internalv2/app"
-	"github.com/WuKongIM/WuKongIM/internalv2/usecase/message"
+	appv2 "github.com/WuKongIM/WuKongIM/internal/app"
+	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	channelv2 "github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
@@ -75,7 +75,7 @@ func BenchmarkPersistAfterRealWKP(b *testing.B) {
 
 // persistAfterHarness owns the real app and plugin sandbox used by the compatibility test.
 type persistAfterHarness struct {
-	// app is the internalv2 composition root under test.
+	// app is the internal composition root under test.
 	app *appv2.App
 	// node is the public cluster runtime used for metadata seeding and route checks.
 	node *cluster.Node
@@ -134,7 +134,7 @@ func startPersistAfterHarness(tb testing.TB) *persistAfterHarness {
 		ListenAddr: clusterAddr,
 		DataDir:    filepath.Join(root, "cluster"),
 		Control: cluster.ControlConfig{
-			ClusterID:      "internalv2-plugin-persist-after",
+			ClusterID:      "internal-plugin-persist-after",
 			Voters:         []cluster.ControlVoter{{NodeID: nodeID, Addr: clusterAddr}},
 			AllowBootstrap: true,
 		},

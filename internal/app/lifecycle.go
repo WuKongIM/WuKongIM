@@ -3,513 +3,338 @@ package app
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
-	applifecycle "github.com/WuKongIM/WuKongIM/internal/app/lifecycle"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
 const (
-	apiStopTimeout                  = 5 * time.Second
-	activeHintStopTimeout           = time.Second
-	defaultDataPlaneDialTimeout     = 5 * time.Second
-	defaultManagedSlotsReadyTimeout = 30 * time.Second
+	defaultClusterWriteReadyTimeout = 30 * time.Second
+	clusterWriteReadyPollInterval   = 10 * time.Millisecond
+	clusterWriteReadyProbeTimeout   = time.Second
+	clusterWriteReadyProbePerSlot   = 500 * time.Millisecond
 )
 
-func (a *App) Start() error {
-	if a == nil || a.cluster == nil || a.gateway == nil {
-		return ErrNotBuilt
+// clusterWriteReadyRuntime exposes the cluster route state needed before gateway sends are admitted.
+type clusterWriteReadyRuntime interface {
+	Snapshot() cluster.Snapshot
+	RouteHashSlot(uint16) (cluster.Route, error)
+}
+
+// clusterWriteProbeRuntime optionally proves that routed Slot writes can commit.
+type clusterWriteProbeRuntime interface {
+	ProbeWriteReady(context.Context) error
+}
+
+// Start starts the cluster first, then optional entry runtimes when configured.
+func (a *App) Start(ctx context.Context) error {
+	if a == nil {
+		return ErrInvalidConfig
 	}
-	a.lifecycle.Lock()
-	defer a.lifecycle.Unlock()
-	if a.stopped.Load() {
+	a.lifecycleMu.Lock()
+	defer a.lifecycleMu.Unlock()
+
+	if a.cluster == nil {
+		return ErrInvalidConfig
+	}
+	if a.stopped {
 		return ErrStopped
 	}
-	if !a.started.CompareAndSwap(false, true) {
+	if a.started {
 		return ErrAlreadyStarted
 	}
-
-	manager := applifecycle.NewManager(a.startLifecycleComponents()...)
-	if err := manager.StartWithRollbackTimeout(context.Background(), apiStopTimeout); err != nil {
-		a.lifecycleMgr = nil
-		a.started.Store(false)
+	if err := a.cluster.Start(ctx); err != nil {
+		a.logLifecycleError("cluster", "start", err)
 		return err
 	}
-	a.lifecycleMgr = manager
-	return nil
-}
-
-func (a *App) Stop() error {
-	if a == nil {
-		return nil
+	a.started = true
+	a.clusterStarted = true
+	if err := a.backfillControllerTaskAudit(ctx); err != nil {
+		a.logLifecycleWarn("controller_task_audit", "backfill", err)
 	}
-	a.lifecycle.Lock()
-	defer a.lifecycle.Unlock()
-	a.stopped.Store(true)
-
-	var err error
-	a.stopOnce.Do(func() {
-		a.started.Store(false)
-		a.restoreDiagnosticsSink()
-		stopCtx, cancel := context.WithTimeout(context.Background(), apiStopTimeout)
-		defer cancel()
-		err = errors.Join(
-			a.stopLifecycleManager(stopCtx),
-			a.stopDashboardCollectorWithError(),
-			a.closeChannelLogDB(),
-			a.closeRaftDB(),
-			a.closeWKDB(),
-			a.syncLogger(),
-		)
-	})
-	return err
-}
-
-func (a *App) stopDashboardCollectorWithError() error {
-	a.stopDashboardCollector()
-	return nil
-}
-
-func (a *App) stopDashboardCollector() {
-	if a == nil || a.dashboardCollector == nil {
-		return
-	}
-	a.dashboardCollectorStop.Do(func() {
-		a.dashboardCollector.Stop()
-	})
-}
-
-func (a *App) stopLifecycleManager(ctx context.Context) error {
-	if a.lifecycleMgr != nil {
-		err := a.lifecycleMgr.Stop(ctx)
-		a.lifecycleMgr = nil
-		return err
-	}
-	return stopComponentsReverse(ctx, a.stopLifecycleComponents())
-}
-
-func stopComponentsReverse(ctx context.Context, components []applifecycle.Component) error {
-	var errs []error
-	for i := len(components) - 1; i >= 0; i-- {
-		if err := components[i].Stop(ctx); err != nil {
-			errs = append(errs, err)
+	if a.seedJoinLoop != nil {
+		if err := a.seedJoinLoop.Start(ctx); err != nil {
+			a.logLifecycleError("seed_join", "start", err)
+			stopErr := a.cluster.Stop(ctx)
+			if stopErr != nil {
+				a.logLifecycleWarn("cluster", "rollback_stop", stopErr)
+			}
+			if stopErr == nil {
+				a.started = false
+				a.clusterStarted = false
+			}
+			return errors.Join(err, stopErr)
+		}
+		a.seedJoinStarted = true
+		if err := a.seedJoinLoop.WaitForAdmission(ctx); err != nil {
+			stopErr := a.rollbackStarted(ctx)
+			a.logLifecycleError("seed_join_admission", "start", err)
+			return errors.Join(err, stopErr)
 		}
 	}
-	return errors.Join(errs...)
-}
-
-func (a *App) startCluster() error {
-	if a.startClusterFn != nil {
-		return a.startClusterFn()
+	if !a.seedJoinPreActivationMode(ctx) {
+		if err := a.waitClusterWriteReady(ctx); err != nil {
+			stopErr := a.rollbackStarted(ctx)
+			a.logLifecycleError("cluster_write_ready", "start", err)
+			return errors.Join(err, stopErr)
+		}
 	}
-	if a.cluster == nil {
-		return ErrNotBuilt
+	if a.conversationRouteLifecycle != nil {
+		if err := a.conversationRouteLifecycle.Start(ctx); err != nil {
+			a.logLifecycleError("conversation_route_lifecycle", "start", err)
+			stopErr := a.rollbackStarted(ctx)
+			return errors.Join(err, stopErr)
+		}
+		a.conversationRouteStarted = true
 	}
-	return a.cluster.Start()
-}
-
-func (a *App) startGateway() error {
-	if a.startGatewayFn != nil {
-		return a.startGatewayFn()
+	if a.conversationActiveWorker != nil {
+		if err := a.conversationActiveWorker.Start(ctx); err != nil {
+			a.logLifecycleError("conversation_active_worker", "start", err)
+			stopErr := a.rollbackStarted(ctx)
+			return errors.Join(err, stopErr)
+		}
+		a.conversationActiveStarted = true
 	}
-	if a.gateway == nil {
-		return ErrNotBuilt
-	}
-	return a.gateway.Start()
-}
-
-func (a *App) startChannelMetaSync() error {
-	if a.startChannelMetaSyncFn != nil {
-		return a.startChannelMetaSyncFn()
-	}
-	if a.channelMetaSync == nil {
-		return nil
-	}
-	if a.cluster == nil || a.isrRuntime == nil || a.channelLog == nil {
-		return ErrNotBuilt
-	}
-	return a.channelMetaSync.Start()
-}
-
-func (a *App) startChannelPlane() error {
-	if a.startChannelPlaneFn != nil {
-		return a.startChannelPlaneFn()
-	}
-	if a.channelPlane == nil {
-		return nil
-	}
-	return a.channelPlane.Start()
-}
-
-func (a *App) startAPI() error {
-	if a.startAPIFn != nil {
-		return a.startAPIFn()
-	}
-	if a.api == nil {
-		return nil
-	}
-	return a.api.Start()
-}
-
-func (a *App) startManager() error {
-	if a.startManagerFn != nil {
-		return a.startManagerFn()
-	}
-	if a.manager == nil {
-		return nil
-	}
-	return a.manager.Start()
-}
-
-func (a *App) startPresence() error {
-	if a.startPresenceFn != nil {
-		return a.startPresenceFn()
-	}
-	if a.presenceWorker == nil {
-		return nil
-	}
-	return a.presenceWorker.Start()
-}
-
-func (a *App) startConversationProjector() error {
-	if a.startConversationProjectorFn != nil {
-		return a.startConversationProjectorFn()
-	}
-	if a.conversationProjector == nil {
-		return nil
-	}
-	return a.conversationProjector.Start()
-}
-
-func (a *App) startCMDConversationUpdater() error {
-	if a.startCMDConversationUpdaterFn != nil {
-		return a.startCMDConversationUpdaterFn()
-	}
-	if a.cmdConversationUpdater == nil {
-		return nil
-	}
-	return a.cmdConversationUpdater.Start()
-}
-
-func (a *App) startConversationActiveHints() error {
-	if a.startConversationActiveHintsFn != nil {
-		return a.startConversationActiveHintsFn()
-	}
-	if a.conversationActiveHints == nil {
-		return nil
-	}
-	return a.conversationActiveHints.Start()
-}
-
-func (a *App) startDeliveryRuntime(ctx context.Context) error {
-	if a.startDeliveryRuntimeFn != nil {
-		return a.startDeliveryRuntimeFn()
-	}
-	if a.deliveryRuntimeLifecycle == nil {
-		return nil
-	}
-	return a.deliveryRuntimeLifecycle.Start(ctx)
-}
-
-func (a *App) startCommittedDispatcher(ctx context.Context) error {
-	if a.startCommittedDispatcherFn != nil {
-		return a.startCommittedDispatcherFn()
-	}
-	if a.committedDispatcher == nil {
-		return nil
-	}
-	return a.committedDispatcher.Start(ctx)
-}
-
-func (a *App) startCommittedReplay(ctx context.Context) error {
-	if a.startCommittedReplayFn != nil {
-		return a.startCommittedReplayFn(ctx)
-	}
-	if a.committedReplayer == nil {
-		return nil
-	}
-	return a.committedReplayer.Start(ctx)
-}
-
-func (a *App) startChannelMigration(ctx context.Context) error {
-	if a.startChannelMigrationFn != nil {
-		return a.startChannelMigrationFn(ctx)
-	}
-	if a.channelMigrationLifecycle == nil {
-		return nil
-	}
-	return a.channelMigrationLifecycle.Start(ctx)
-}
-
-func (a *App) startChannelRetention(ctx context.Context) error {
-	if a.startChannelRetentionFn != nil {
-		return a.startChannelRetentionFn(ctx)
-	}
-	if a.channelRetentionWorker == nil {
-		return nil
-	}
-	return a.channelRetentionWorker.Start(ctx)
-}
-
-func (a *App) startPlugin(ctx context.Context) error {
-	if a.startPluginFn != nil {
-		return a.startPluginFn(ctx)
+	if a.presenceWorker != nil {
+		if err := a.presenceWorker.Start(ctx); err != nil {
+			a.logLifecycleError("presence_worker", "start", err)
+			stopErr := a.rollbackStarted(ctx)
+			return errors.Join(err, stopErr)
+		}
+		a.presenceStarted = true
 	}
 	if a.pluginRuntime != nil {
 		if err := a.pluginRuntime.Start(ctx); err != nil {
-			return err
+			a.logLifecycleError("plugin_runtime", "start", err)
+			stopErr := a.rollbackStarted(ctx)
+			return errors.Join(err, stopErr)
 		}
+		a.pluginRuntimeStarted = true
 	}
-	if a.pluginReceiveObserver == nil {
-		return nil
-	}
-	return a.pluginReceiveObserver.Start(ctx)
-}
-
-func (a *App) stopGateway() error {
-	if !a.gatewayOn.Swap(false) {
-		return nil
-	}
-	if a.stopGatewayFn != nil {
-		return a.stopGatewayFn()
-	}
-	if a.gateway == nil {
-		return nil
-	}
-	return a.gateway.Stop()
-}
-
-func (a *App) stopPresence() error {
-	if !a.presenceOn.Swap(false) {
-		return nil
-	}
-	if a.stopPresenceFn != nil {
-		return a.stopPresenceFn()
-	}
-	if a.presenceWorker == nil {
-		return nil
-	}
-	return a.presenceWorker.Stop()
-}
-
-func (a *App) stopConversationProjector() error {
-	if !a.conversationOn.Swap(false) {
-		return nil
-	}
-	if a.stopConversationProjectorFn != nil {
-		return a.stopConversationProjectorFn()
-	}
-	if a.conversationProjector == nil {
-		return nil
-	}
-	return a.conversationProjector.Stop()
-}
-
-func (a *App) stopCMDConversationUpdater(ctx context.Context) error {
-	if !a.cmdConversationUpdaterOn.Swap(false) {
-		return nil
-	}
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	if a.stopCMDConversationUpdaterFn != nil {
-		return a.stopCMDConversationUpdaterFn(ctx)
-	}
-	if a.cmdConversationUpdater == nil {
-		return nil
-	}
-	return a.cmdConversationUpdater.StopContext(ctx)
-}
-
-func (a *App) stopConversationActiveHints(ctx context.Context) error {
-	if !a.conversationHintsOn.Swap(false) {
-		return nil
-	}
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	ctx, cancel := context.WithTimeout(ctx, activeHintStopTimeout)
-	defer cancel()
-	// Active hints are best-effort; a slow flush should not block app shutdown.
-	if a.stopConversationActiveHintsFn != nil {
-		if err := a.stopConversationActiveHintsFn(ctx); err != nil && !errors.Is(err, context.DeadlineExceeded) && !errors.Is(err, context.Canceled) {
-			return err
+	if a.pluginHook != nil {
+		if err := a.pluginHook.Start(ctx); err != nil {
+			a.logLifecycleError("plugin_hook", "start", err)
+			stopErr := a.rollbackStarted(ctx)
+			return errors.Join(err, stopErr)
 		}
-		return nil
+		a.pluginHookStarted = true
 	}
-	if a.conversationActiveHints == nil {
-		return nil
+	if a.webhook != nil {
+		if err := a.webhook.Start(ctx); err != nil {
+			a.logLifecycleError("webhook", "start", err)
+			stopErr := a.rollbackStarted(ctx)
+			return errors.Join(err, stopErr)
+		}
+		a.webhookStarted = true
 	}
-	if err := a.conversationActiveHints.StopContext(ctx); err != nil && !errors.Is(err, context.DeadlineExceeded) && !errors.Is(err, context.Canceled) {
-		return err
+	if a.deliveryWorker != nil {
+		if err := a.deliveryWorker.Start(ctx); err != nil {
+			a.logLifecycleError("delivery_worker", "start", err)
+			stopErr := a.rollbackStarted(ctx)
+			return errors.Join(err, stopErr)
+		}
+		a.deliveryStarted = true
+	}
+	if a.channelAppends != nil {
+		if err := a.channelAppends.Start(ctx); err != nil {
+			a.logLifecycleError("channel_append", "start", err)
+			stopErr := a.rollbackStarted(ctx)
+			return errors.Join(err, stopErr)
+		}
+		a.channelAppendStarted = true
+	}
+	if a.top != nil {
+		if err := a.top.Start(ctx); err != nil {
+			a.logLifecycleError("top", "start", err)
+			stopErr := a.rollbackStarted(ctx)
+			return errors.Join(err, stopErr)
+		}
+		a.topStarted = true
+	}
+	if a.api != nil {
+		if err := a.api.Start(); err != nil {
+			a.logLifecycleError("api", "start", err)
+			stopErr := a.rollbackStarted(ctx)
+			return errors.Join(err, stopErr)
+		}
+		a.apiStarted = true
+	}
+	if a.manager != nil {
+		if err := a.manager.Start(); err != nil {
+			a.logLifecycleError("manager", "start", err)
+			stopErr := a.rollbackStarted(ctx)
+			return errors.Join(err, stopErr)
+		}
+		a.managerStarted = true
+	}
+	if a.prometheus != nil {
+		if err := a.prometheus.Start(ctx); err != nil {
+			a.logLifecycleError("prometheus", "start", err)
+			stopErr := a.rollbackStarted(ctx)
+			return errors.Join(err, stopErr)
+		}
+		a.prometheusStarted = true
+	}
+	if a.gateway != nil {
+		if err := a.gateway.Start(); err != nil {
+			a.logLifecycleError("gateway", "start", err)
+			stopErr := a.rollbackStarted(ctx)
+			return errors.Join(err, stopErr)
+		}
+		a.gatewayStarted = true
 	}
 	return nil
 }
 
-func (a *App) stopDeliveryRuntime(ctx context.Context) error {
-	if !a.deliveryRuntimeOn.Swap(false) {
+// Stop stops entry runtimes first, then workers and the cluster runtime.
+func (a *App) Stop(ctx context.Context) error {
+	if a == nil {
 		return nil
 	}
-	if a.stopDeliveryRuntimeFn != nil {
-		return a.stopDeliveryRuntimeFn()
-	}
-	if a.deliveryRuntimeLifecycle == nil {
-		return nil
-	}
-	return a.deliveryRuntimeLifecycle.StopContext(ctx)
-}
+	a.lifecycleMu.Lock()
+	defer a.lifecycleMu.Unlock()
 
-func (a *App) stopCommittedDispatcher(ctx context.Context) error {
-	if !a.committedDispatcherOn.Swap(false) {
-		return nil
-	}
-	if a.stopCommittedDispatcherFn != nil {
-		return a.stopCommittedDispatcherFn(ctx)
-	}
-	if a.committedDispatcher == nil {
-		return nil
-	}
-	return a.committedDispatcher.StopContext(ctx)
-}
-
-func (a *App) stopCommittedReplay(ctx context.Context) error {
-	if !a.committedReplayOn.Swap(false) {
-		return nil
-	}
-	if a.stopCommittedReplayFn != nil {
-		return a.stopCommittedReplayFn(ctx)
-	}
-	if a.committedReplayer == nil {
-		return nil
-	}
-	return a.committedReplayer.StopContext(ctx)
-}
-
-func (a *App) stopChannelMigration(ctx context.Context) error {
-	if !a.channelMigrationOn.Swap(false) {
-		return nil
-	}
-	if a.stopChannelMigrationFn != nil {
-		return a.stopChannelMigrationFn(ctx)
-	}
-	if a.channelMigrationLifecycle == nil {
-		return nil
-	}
-	return a.channelMigrationLifecycle.Stop(ctx)
-}
-
-func (a *App) stopChannelRetention(ctx context.Context) error {
-	if !a.channelRetentionOn.Swap(false) {
-		return nil
-	}
-	if a.stopChannelRetentionFn != nil {
-		return a.stopChannelRetentionFn(ctx)
-	}
-	if a.channelRetentionWorker == nil {
-		return nil
-	}
-	return a.channelRetentionWorker.Stop(ctx)
-}
-
-func (a *App) stopPlugin(ctx context.Context) error {
-	if !a.pluginOn.Swap(false) {
-		return nil
-	}
-	if a.stopPluginFn != nil {
-		return a.stopPluginFn(ctx)
+	a.stopped = true
+	a.restoreDiagnosticsSink()
+	if !a.started {
+		err := a.closeControllerTaskAudit()
+		if err != nil {
+			a.logLifecycleWarn("controller_task_audit", "stop", err)
+		}
+		return errors.Join(err, a.syncLogger())
 	}
 	var err error
-	if a.pluginReceiveObserver != nil {
-		err = errors.Join(err, a.pluginReceiveObserver.Stop(ctx))
+	if a.gatewayStarted && a.gateway != nil {
+		if stopErr := a.gateway.Stop(); stopErr != nil {
+			a.logLifecycleWarn("gateway", "stop", stopErr)
+			err = errors.Join(err, stopErr)
+		} else {
+			a.gatewayStarted = false
+		}
 	}
-	if a.pluginRuntime != nil {
-		err = errors.Join(err, a.pluginRuntime.Stop(ctx))
+	if a.prometheusStarted && a.prometheus != nil {
+		if stopErr := a.prometheus.Stop(ctx); stopErr != nil {
+			a.logLifecycleWarn("prometheus", "stop", stopErr)
+			err = errors.Join(err, stopErr)
+		} else {
+			a.prometheusStarted = false
+		}
 	}
+	if a.managerStarted && a.manager != nil {
+		if stopErr := a.manager.Stop(ctx); stopErr != nil {
+			a.logLifecycleWarn("manager", "stop", stopErr)
+			err = errors.Join(err, stopErr)
+		} else {
+			a.managerStarted = false
+		}
+	}
+	if a.apiStarted && a.api != nil {
+		if stopErr := a.api.Stop(ctx); stopErr != nil {
+			a.logLifecycleWarn("api", "stop", stopErr)
+			err = errors.Join(err, stopErr)
+		} else {
+			a.apiStarted = false
+		}
+	}
+	if a.topStarted && a.top != nil {
+		if stopErr := a.top.Stop(ctx); stopErr != nil {
+			a.logLifecycleWarn("top", "stop", stopErr)
+			err = errors.Join(err, stopErr)
+		} else {
+			a.topStarted = false
+		}
+	}
+	if a.channelAppendStarted && a.channelAppends != nil {
+		if stopErr := a.channelAppends.Stop(ctx); stopErr != nil {
+			a.logLifecycleWarn("channel_append", "stop", stopErr)
+			err = errors.Join(err, stopErr)
+		} else {
+			a.channelAppendStarted = false
+		}
+	}
+	if a.deliveryStarted && a.deliveryWorker != nil {
+		if stopErr := a.deliveryWorker.Stop(ctx); stopErr != nil {
+			a.logLifecycleWarn("delivery_worker", "stop", stopErr)
+			err = errors.Join(err, stopErr)
+		} else {
+			a.deliveryStarted = false
+		}
+	}
+	if a.webhookStarted && a.webhook != nil {
+		if stopErr := a.webhook.Stop(ctx); stopErr != nil {
+			a.logLifecycleWarn("webhook", "stop", stopErr)
+			err = errors.Join(err, stopErr)
+		} else {
+			a.webhookStarted = false
+		}
+	}
+	if a.pluginHookStarted && a.pluginHook != nil {
+		if stopErr := a.pluginHook.Stop(ctx); stopErr != nil {
+			a.logLifecycleWarn("plugin_hook", "stop", stopErr)
+			err = errors.Join(err, stopErr)
+		} else {
+			a.pluginHookStarted = false
+		}
+	}
+	if a.pluginRuntimeStarted && a.pluginRuntime != nil {
+		if stopErr := a.pluginRuntime.Stop(ctx); stopErr != nil {
+			a.logLifecycleWarn("plugin_runtime", "stop", stopErr)
+			err = errors.Join(err, stopErr)
+		} else {
+			a.pluginRuntimeStarted = false
+		}
+	}
+	if a.conversationActiveStarted && a.conversationActiveWorker != nil {
+		if stopErr := a.conversationActiveWorker.Stop(ctx); stopErr != nil {
+			a.logLifecycleWarn("conversation_active_worker", "stop", stopErr)
+			err = errors.Join(err, stopErr)
+		} else {
+			a.conversationActiveStarted = false
+		}
+	}
+	if a.conversationRouteStarted && a.conversationRouteLifecycle != nil {
+		if stopErr := a.conversationRouteLifecycle.Stop(ctx); stopErr != nil {
+			a.logLifecycleWarn("conversation_route_lifecycle", "stop", stopErr)
+			err = errors.Join(err, stopErr)
+		} else {
+			a.conversationRouteStarted = false
+		}
+	}
+	if a.presenceStarted && a.presenceWorker != nil {
+		if stopErr := a.presenceWorker.Stop(ctx); stopErr != nil {
+			a.logLifecycleWarn("presence_worker", "stop", stopErr)
+			err = errors.Join(err, stopErr)
+		} else {
+			a.presenceStarted = false
+		}
+	}
+	if a.seedJoinStarted && a.seedJoinLoop != nil {
+		if stopErr := a.seedJoinLoop.Stop(ctx); stopErr != nil {
+			a.logLifecycleWarn("seed_join", "stop", stopErr)
+			err = errors.Join(err, stopErr)
+		} else {
+			a.seedJoinStarted = false
+		}
+	}
+	if a.clusterStarted && a.cluster != nil {
+		if stopErr := a.cluster.Stop(ctx); stopErr != nil {
+			a.logLifecycleWarn("cluster", "stop", stopErr)
+			err = errors.Join(err, stopErr)
+		} else {
+			a.clusterStarted = false
+		}
+	}
+	if stopErr := a.closeControllerTaskAudit(); stopErr != nil {
+		a.logLifecycleWarn("controller_task_audit", "stop", stopErr)
+		err = errors.Join(err, stopErr)
+	}
+	if !a.gatewayStarted && !a.prometheusStarted && !a.managerStarted && !a.apiStarted && !a.topStarted && !a.channelAppendStarted && !a.deliveryStarted && !a.webhookStarted && !a.pluginHookStarted && !a.pluginRuntimeStarted && !a.conversationActiveStarted && !a.conversationRouteStarted && !a.presenceStarted && !a.seedJoinStarted && !a.clusterStarted {
+		a.started = false
+	}
+	err = errors.Join(err, a.syncLogger())
 	return err
-}
-
-func (a *App) stopChannelMetaSync() error {
-	if !a.channelMetaOn.Swap(false) {
-		return nil
-	}
-	if a.stopChannelMetaSyncFn != nil {
-		return a.stopChannelMetaSyncFn()
-	}
-
-	var err error
-	if a.channelMetaSync != nil {
-		err = errors.Join(err, a.channelMetaSync.StopWithoutCleanup())
-	}
-	return err
-}
-
-func (a *App) stopChannelPlane(ctx context.Context) error {
-	if !a.channelPlaneOn.Swap(false) {
-		return nil
-	}
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	if a.stopChannelPlaneFn != nil {
-		return a.stopChannelPlaneFn(ctx)
-	}
-	if a.channelPlane == nil {
-		return nil
-	}
-	return a.channelPlane.Stop(ctx)
-}
-
-func (a *App) stopAPI(ctx context.Context) error {
-	if !a.apiOn.Swap(false) {
-		return nil
-	}
-	if a.stopAPIWithContextFn != nil {
-		return a.stopAPIWithContextFn(ctx)
-	}
-	if a.stopAPIFn != nil {
-		return a.stopAPIFn()
-	}
-	if a.api == nil {
-		return nil
-	}
-	return a.api.Stop(ctx)
-}
-
-func (a *App) stopManager(ctx context.Context) error {
-	if !a.managerOn.Swap(false) {
-		return nil
-	}
-	if a.managementApp != nil {
-		a.managementApp.Stop()
-	}
-	if a.stopManagerWithContextFn != nil {
-		return a.stopManagerWithContextFn(ctx)
-	}
-	if a.stopManagerFn != nil {
-		return a.stopManagerFn()
-	}
-	if a.manager == nil {
-		return nil
-	}
-	return a.manager.Stop(ctx)
-}
-
-func (a *App) stopCluster() {
-	if !a.clusterOn.Swap(false) {
-		return
-	}
-	if a.stopClusterFn != nil {
-		a.stopClusterFn()
-		return
-	}
-	if a.cluster == nil {
-		return
-	}
-	a.cluster.Stop()
-}
-
-func (a *App) stopClusterWithError() error {
-	a.stopCluster()
-	return nil
 }
 
 func (a *App) syncLogger() error {
@@ -519,61 +344,260 @@ func (a *App) syncLogger() error {
 	return a.logger.Sync()
 }
 
-func (a *App) waitForManagedSlotsReady() error {
-	if a == nil || a.cluster == nil {
-		return nil
-	}
-	timeout := a.cfg.Cluster.ManagedSlotsReadyTimeout
-	if timeout <= 0 {
-		timeout = defaultManagedSlotsReadyTimeout
-	}
-	readyCtx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-	return a.cluster.WaitForManagedSlotsReady(readyCtx)
-}
-
-func (a *App) closeRaftDB() error {
-	if a.closeRaftDBFn != nil {
-		return a.closeRaftDBFn()
-	}
-	if a.raftDB == nil {
-		return nil
-	}
-	return a.raftDB.Close()
-}
-
-func (a *App) closeChannelLogDB() error {
-	if a.closeChannelLogDBFn != nil {
-		return a.closeChannelLogDBFn()
-	}
+func (a *App) rollbackStarted(ctx context.Context) error {
 	var err error
-	if a.channelLog != nil {
-		err = errors.Join(err, a.channelLog.Close())
+	if a.prometheusStarted && a.prometheus != nil {
+		if stopErr := a.prometheus.Stop(ctx); stopErr != nil {
+			a.logLifecycleWarn("prometheus", "rollback_stop", stopErr)
+			err = errors.Join(err, stopErr)
+		} else {
+			a.prometheusStarted = false
+		}
 	}
-	if a.replicaExecutionPool != nil {
-		err = errors.Join(err, a.replicaExecutionPool.Close())
-		a.replicaExecutionPool = nil
+	if a.managerStarted && a.manager != nil {
+		if stopErr := a.manager.Stop(ctx); stopErr != nil {
+			a.logLifecycleWarn("manager", "rollback_stop", stopErr)
+			err = errors.Join(err, stopErr)
+		} else {
+			a.managerStarted = false
+		}
 	}
-	if a.dataPlaneClient != nil {
-		a.dataPlaneClient.Stop()
-		a.dataPlaneClient = nil
+	if a.apiStarted && a.api != nil {
+		if stopErr := a.api.Stop(ctx); stopErr != nil {
+			a.logLifecycleWarn("api", "rollback_stop", stopErr)
+			err = errors.Join(err, stopErr)
+		} else {
+			a.apiStarted = false
+		}
 	}
-	if a.dataPlanePool != nil {
-		a.dataPlanePool.Close()
-		a.dataPlanePool = nil
+	if a.topStarted && a.top != nil {
+		if stopErr := a.top.Stop(ctx); stopErr != nil {
+			a.logLifecycleWarn("top", "rollback_stop", stopErr)
+			err = errors.Join(err, stopErr)
+		} else {
+			a.topStarted = false
+		}
 	}
-	if a.channelLogDB != nil {
-		err = errors.Join(err, a.channelLogDB.Close())
+	if a.channelAppendStarted && a.channelAppends != nil {
+		if stopErr := a.channelAppends.Stop(ctx); stopErr != nil {
+			a.logLifecycleWarn("channel_append", "rollback_stop", stopErr)
+			err = errors.Join(err, stopErr)
+		} else {
+			a.channelAppendStarted = false
+		}
+	}
+	if a.deliveryStarted && a.deliveryWorker != nil {
+		if stopErr := a.deliveryWorker.Stop(ctx); stopErr != nil {
+			a.logLifecycleWarn("delivery_worker", "rollback_stop", stopErr)
+			err = errors.Join(err, stopErr)
+		} else {
+			a.deliveryStarted = false
+		}
+	}
+	if a.webhookStarted && a.webhook != nil {
+		if stopErr := a.webhook.Stop(ctx); stopErr != nil {
+			a.logLifecycleWarn("webhook", "rollback_stop", stopErr)
+			err = errors.Join(err, stopErr)
+		} else {
+			a.webhookStarted = false
+		}
+	}
+	if a.pluginHookStarted && a.pluginHook != nil {
+		if stopErr := a.pluginHook.Stop(ctx); stopErr != nil {
+			a.logLifecycleWarn("plugin_hook", "rollback_stop", stopErr)
+			err = errors.Join(err, stopErr)
+		} else {
+			a.pluginHookStarted = false
+		}
+	}
+	if a.pluginRuntimeStarted && a.pluginRuntime != nil {
+		if stopErr := a.pluginRuntime.Stop(ctx); stopErr != nil {
+			a.logLifecycleWarn("plugin_runtime", "rollback_stop", stopErr)
+			err = errors.Join(err, stopErr)
+		} else {
+			a.pluginRuntimeStarted = false
+		}
+	}
+	if a.conversationActiveStarted && a.conversationActiveWorker != nil {
+		if stopErr := a.conversationActiveWorker.Stop(ctx); stopErr != nil {
+			a.logLifecycleWarn("conversation_active_worker", "rollback_stop", stopErr)
+			err = errors.Join(err, stopErr)
+		} else {
+			a.conversationActiveStarted = false
+		}
+	}
+	if a.conversationRouteStarted && a.conversationRouteLifecycle != nil {
+		if stopErr := a.conversationRouteLifecycle.Stop(ctx); stopErr != nil {
+			a.logLifecycleWarn("conversation_route_lifecycle", "rollback_stop", stopErr)
+			err = errors.Join(err, stopErr)
+		} else {
+			a.conversationRouteStarted = false
+		}
+	}
+	if a.presenceStarted && a.presenceWorker != nil {
+		if stopErr := a.presenceWorker.Stop(ctx); stopErr != nil {
+			a.logLifecycleWarn("presence_worker", "rollback_stop", stopErr)
+			err = errors.Join(err, stopErr)
+		} else {
+			a.presenceStarted = false
+		}
+	}
+	if a.seedJoinStarted && a.seedJoinLoop != nil {
+		if stopErr := a.seedJoinLoop.Stop(ctx); stopErr != nil {
+			a.logLifecycleWarn("seed_join", "rollback_stop", stopErr)
+			err = errors.Join(err, stopErr)
+		} else {
+			a.seedJoinStarted = false
+		}
+	}
+	if a.clusterStarted && a.cluster != nil {
+		if stopErr := a.cluster.Stop(ctx); stopErr != nil {
+			a.logLifecycleWarn("cluster", "rollback_stop", stopErr)
+			err = errors.Join(err, stopErr)
+		} else {
+			a.clusterStarted = false
+		}
+	}
+	if stopErr := a.closeControllerTaskAudit(); stopErr != nil {
+		a.logLifecycleWarn("controller_task_audit", "rollback_stop", stopErr)
+		err = errors.Join(err, stopErr)
+	}
+	if err == nil {
+		a.started = false
 	}
 	return err
 }
 
-func (a *App) closeWKDB() error {
-	if a.closeWKDBFn != nil {
-		return a.closeWKDBFn()
+func (a *App) logLifecycleError(component, phase string, err error) {
+	if err == nil {
+		return
 	}
-	if a.db == nil {
+	a.lifecycleLogger().Error("app lifecycle component failed",
+		wklog.Event("internalv2.app.lifecycle_start_failed"),
+		wklog.String("component", component),
+		wklog.String("phase", phase),
+		wklog.Error(err),
+	)
+}
+
+func (a *App) logLifecycleWarn(component, phase string, err error) {
+	if err == nil {
+		return
+	}
+	event := "internalv2.app.lifecycle_stop_failed"
+	if phase == "rollback_stop" {
+		event = "internalv2.app.lifecycle_rollback_failed"
+	}
+	a.lifecycleLogger().Warn("app lifecycle component stop failed",
+		wklog.Event(event),
+		wklog.String("component", component),
+		wklog.String("phase", phase),
+		wklog.Error(err),
+	)
+}
+
+func (a *App) lifecycleLogger() wklog.Logger {
+	if a == nil || a.logger == nil {
+		return wklog.NewNop()
+	}
+	return a.logger.Named("lifecycle")
+}
+
+func (a *App) readyzReport(ctx context.Context) (bool, any) {
+	if a == nil || a.cluster == nil {
+		return false, map[string]any{"ready": false, "reason": "cluster not configured"}
+	}
+	if a.seedJoinPreActivationMode(ctx) {
+		a.lifecycleMu.Lock()
+		ready := a.clusterStarted && a.gatewayStarted
+		a.lifecycleMu.Unlock()
+		if ready {
+			return true, map[string]any{"ready": true}
+		}
+		return false, map[string]any{"ready": false, "reason": "seed join runtime not ready"}
+	}
+	routes, ok := a.cluster.(clusterWriteReadyRuntime)
+	if !ok {
+		return true, map[string]any{"ready": true}
+	}
+	var lastErr error
+	if clusterWriteReady(ctx, routes, &lastErr) {
+		return true, map[string]any{"ready": true}
+	}
+	reason := "cluster write routing not ready"
+	if lastErr != nil {
+		reason = lastErr.Error()
+	}
+	return false, map[string]any{"ready": false, "reason": reason}
+}
+
+func (a *App) waitClusterWriteReady(ctx context.Context) error {
+	routes, ok := a.cluster.(clusterWriteReadyRuntime)
+	if !ok {
 		return nil
 	}
-	return a.db.Close()
+	timeout := a.cfg.Cluster.Timeouts.Start
+	if timeout <= 0 {
+		timeout = defaultClusterWriteReadyTimeout
+	}
+	waitCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	ticker := time.NewTicker(clusterWriteReadyPollInterval)
+	defer ticker.Stop()
+
+	var lastErr error
+	for {
+		if clusterWriteReady(waitCtx, routes, &lastErr) {
+			return nil
+		}
+		select {
+		case <-waitCtx.Done():
+			if lastErr != nil {
+				return fmt.Errorf("internalv2/app: cluster write readiness: %w", lastErr)
+			}
+			return fmt.Errorf("internalv2/app: cluster write readiness: %w", waitCtx.Err())
+		case <-ticker.C:
+		}
+	}
+}
+
+func clusterWriteReady(ctx context.Context, routes clusterWriteReadyRuntime, lastErr *error) bool {
+	snapshot := routes.Snapshot()
+	if !snapshot.RoutesReady || !snapshot.SlotsReady || !snapshot.ChannelsReady || snapshot.HashSlotCount == 0 {
+		*lastErr = fmt.Errorf("snapshot not ready: routes=%t slots=%t channels=%t hashSlotCount=%d", snapshot.RoutesReady, snapshot.SlotsReady, snapshot.ChannelsReady, snapshot.HashSlotCount)
+		return false
+	}
+	for hashSlot := uint16(0); hashSlot < snapshot.HashSlotCount; hashSlot++ {
+		route, err := routes.RouteHashSlot(hashSlot)
+		if err != nil {
+			*lastErr = fmt.Errorf("route hash slot %d: %w", hashSlot, err)
+			return false
+		}
+		if route.Leader == 0 {
+			*lastErr = fmt.Errorf("route hash slot %d has no leader", hashSlot)
+			return false
+		}
+	}
+	if probe, ok := routes.(clusterWriteProbeRuntime); ok {
+		probeCtx, cancel := context.WithTimeout(ctx, clusterWriteReadyProbeBudget(snapshot))
+		err := probe.ProbeWriteReady(probeCtx)
+		cancel()
+		if err != nil {
+			*lastErr = fmt.Errorf("write probe: %w", err)
+			return false
+		}
+	}
+	return true
+}
+
+func clusterWriteReadyProbeBudget(snapshot cluster.Snapshot) time.Duration {
+	budget := clusterWriteReadyProbeTimeout
+	if snapshot.SlotCount > 0 {
+		scaled := time.Duration(snapshot.SlotCount) * clusterWriteReadyProbePerSlot
+		if scaled > budget {
+			budget = scaled
+		}
+	}
+	return budget
 }

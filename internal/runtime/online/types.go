@@ -1,79 +1,83 @@
 package online
 
-import (
-	"errors"
-	"time"
+import "errors"
 
-	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
-)
+// ErrInvalidConnection reports a malformed online connection registration.
+var ErrInvalidConnection = errors.New("internalv2/runtime/online: invalid connection")
 
-var ErrInvalidConnection = errors.New("runtime/online: invalid connection")
+// ErrConnectionNotFound reports that a session ID is not registered locally.
+var ErrConnectionNotFound = errors.New("internalv2/runtime/online: connection not found")
 
-type Conn struct {
-	SessionID   uint64
-	UID         string
-	DeviceID    string
-	DeviceFlag  frame.DeviceFlag
-	DeviceLevel frame.DeviceLevel
-	SlotID      uint64
-	State       LocalRouteState
-	Listener    string
-	ConnectedAt time.Time
-	Session     Session
-}
-
-type OnlineConn = Conn
-
-// SessionWriter is the minimal connection writer required by the online runtime.
-type SessionWriter interface {
-	WriteFrame(frame.Frame) error
-	Close() error
-	ID() uint64
-	Listener() string
-	RemoteAddr() string
-	LocalAddr() string
-	SetValue(key string, value any)
-	Value(key string) any
-}
-
-type Session = SessionWriter
-
-type LocalRouteState uint8
+// RouteState records the owner-local lifecycle stage for a gateway session.
+type RouteState uint8
 
 const (
-	LocalRouteStateActive LocalRouteState = iota
-	LocalRouteStateClosing
+	// RouteStatePending marks a session that has connected but is not route-active yet.
+	RouteStatePending RouteState = iota
+	// RouteStateActive marks a session that can receive owner-local routed traffic.
+	RouteStateActive
+	// RouteStateClosing marks a session removed from local indexes during shutdown.
+	RouteStateClosing
 )
 
-type SlotSnapshot struct {
-	SlotID uint64
-	Count  int
-	Digest uint64
+// OwnerRoute describes one owner-local gateway session route projection.
+type OwnerRoute struct {
+	// UID is the authenticated user ID for this connection.
+	UID string
+	// HashSlot is the UID hash slot observed during activation.
+	HashSlot uint16
+	// OwnerNodeID is the gateway owner node that accepted this route.
+	OwnerNodeID uint64
+	// OwnerBootID identifies the owner node process generation that accepted this route.
+	OwnerBootID uint64
+	// OwnerSeq is the owner-local monotonic route sequence for conflict fencing.
+	OwnerSeq uint64
+	// SessionID is the owner-local gateway session identifier.
+	SessionID uint64
+	// DeviceID is the authenticated client device identifier.
+	DeviceID string
+	// DeviceFlag is the WuKong protocol device category for the session.
+	DeviceFlag uint8
+	// DeviceLevel is the WuKong protocol device conflict level for the session.
+	DeviceLevel uint8
+	// Listener records the gateway listener that accepted the session.
+	Listener string
+	// ConnectedUnix records when the gateway session was accepted locally.
+	ConnectedUnix int64
+	// LastActivityUnix records the latest owner-observed client activity for batched authority touch.
+	LastActivityUnix int64
 }
 
-// Summary contains aggregate local online connection counts for drain safety.
-type Summary struct {
-	// Active counts sessions available for delivery.
+// LocalSession stores the concrete gateway session separately from its route projection.
+type LocalSession struct {
+	// Route is the presence-facing owner-local route projection.
+	Route OwnerRoute
+	// State records the owner-local lifecycle state.
+	State RouteState
+	// Session holds the gateway context used for local writes and close handling.
+	Session SessionHandle
+}
+
+// Snapshot summarizes owner-local route state for diagnostics.
+type Snapshot struct {
+	// Pending counts sessions accepted locally but not yet authority-active.
+	Pending int
+	// Active counts sessions that completed authority registration.
 	Active int
-	// Closing counts sessions that are closing but not fully unregistered.
-	Closing int
-	// Total counts all sessions tracked by the registry.
-	Total int
-	// SessionsByListener groups tracked sessions by gateway listener.
-	SessionsByListener map[string]int
+	// TouchedDirty counts active sessions waiting for a touch flush.
+	TouchedDirty int
 }
 
-type Registry interface {
-	Register(conn OnlineConn) error
-	Unregister(sessionID uint64)
-	MarkClosing(sessionID uint64) (OnlineConn, bool)
-	Connection(sessionID uint64) (OnlineConn, bool)
-	ConnectionsByUID(uid string) []OnlineConn
-	ActiveConnectionsBySlot(slotID uint64) []OnlineConn
-	ActiveSlots() []SlotSnapshot
-	Summary() Summary
+// SessionHandle writes to and closes a concrete gateway session without importing entry packages.
+type SessionHandle interface {
+	// WriteDelivery writes one entry-owned delivery packet to the concrete session.
+	WriteDelivery(any) error
+	// CloseSession closes the concrete session with a stable reason string.
+	CloseSession(reason string) error
 }
 
-type Delivery interface {
-	Deliver(recipients []OnlineConn, f frame.Frame) error
+// RegistryOptions configures the owner-local online registry.
+type RegistryOptions struct {
+	// ShardCount controls the number of session ID shards; values <= 0 use the default.
+	ShardCount int
 }

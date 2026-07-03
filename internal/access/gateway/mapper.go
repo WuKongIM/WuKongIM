@@ -3,103 +3,87 @@ package gateway
 import (
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	coregateway "github.com/WuKongIM/WuKongIM/pkg/gateway"
+	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 )
 
 func mapSendCommand(ctx *coregateway.Context, pkt *frame.SendPacket) (message.SendCommand, error) {
-	if ctx == nil || ctx.Session == nil {
-		return message.SendCommand{}, ErrUnauthenticatedSession
-	}
-
-	senderUID, _ := ctx.Session.Value(coregateway.SessionValueUID).(string)
-	if senderUID == "" {
-		return message.SendCommand{}, ErrUnauthenticatedSession
-	}
-	deviceID, _ := ctx.Session.Value(coregateway.SessionValueDeviceID).(string)
-	deviceFlag := deviceFlagFromValue(ctx.Session.Value(coregateway.SessionValueDeviceFlag))
-
-	protocolVersion := uint8(frame.LatestVersion)
-	if sessionVersion, ok := ctx.Session.Value(coregateway.SessionValueProtocolVersion).(uint8); ok && sessionVersion != 0 {
-		protocolVersion = sessionVersion
-	}
-
-	if pkt == nil {
-		return message.SendCommand{
-			FromUID:         senderUID,
-			SenderSessionID: ctx.Session.ID(),
-			DeviceID:        deviceID,
-			DeviceFlag:      deviceFlag,
-			ProtocolVersion: protocolVersion,
-		}, nil
-	}
-
-	return message.SendCommand{
-		Framer:          pkt.Framer,
-		Setting:         pkt.Setting,
-		MsgKey:          pkt.MsgKey,
-		Expire:          pkt.Expire,
-		FromUID:         senderUID,
-		SenderSessionID: ctx.Session.ID(),
-		DeviceID:        deviceID,
-		DeviceFlag:      deviceFlag,
-		ClientSeq:       pkt.ClientSeq,
-		ClientMsgNo:     pkt.ClientMsgNo,
-		StreamNo:        pkt.StreamNo,
-		ChannelID:       pkt.ChannelID,
-		ChannelType:     pkt.ChannelType,
-		Topic:           pkt.Topic,
-		Payload:         pkt.Payload,
-		ProtocolVersion: protocolVersion,
-	}, nil
+	return mapSendCommandWithPayload(ctx, pkt, 0, nil)
 }
 
-func mapRecvAckCommand(ctx *coregateway.Context, pkt *frame.RecvackPacket) (message.RecvAckCommand, error) {
+func mapSendCommandForBatch(ctx *coregateway.Context, pkt *frame.SendPacket) (message.SendCommand, error) {
+	return mapSendCommandWithPayload(ctx, pkt, 0, nil)
+}
+
+func mapSendCommandWithPayload(ctx *coregateway.Context, pkt *frame.SendPacket, ownerNodeID uint64, traceIDGenerator TraceIDGenerator) (message.SendCommand, error) {
 	if ctx == nil || ctx.Session == nil {
-		return message.RecvAckCommand{}, ErrUnauthenticatedSession
+		return message.SendCommand{}, ErrUnauthenticatedSession
+	}
+	fromUID, _ := ctx.Session.Value(coregateway.SessionValueUID).(string)
+	if fromUID == "" {
+		return message.SendCommand{}, ErrUnauthenticatedSession
 	}
 
-	uid, _ := ctx.Session.Value(coregateway.SessionValueUID).(string)
-	if uid == "" {
-		return message.RecvAckCommand{}, ErrUnauthenticatedSession
+	protocolVersion := uint8(frame.LatestVersion)
+	if value, ok := ctx.Session.Value(coregateway.SessionValueProtocolVersion).(uint8); ok && value != 0 {
+		protocolVersion = value
 	}
 
+	cmd := message.SendCommand{
+		FromUID:         fromUID,
+		DeviceID:        deviceIDFromValue(ctx.Session.Value(coregateway.SessionValueDeviceID)),
+		DeviceFlag:      deviceFlagFromValue(ctx.Session.Value(coregateway.SessionValueDeviceFlag)),
+		SenderNodeID:    ownerNodeID,
+		SenderSessionID: ctx.Session.ID(),
+		ProtocolVersion: protocolVersion,
+	}
 	if pkt == nil {
-		return message.RecvAckCommand{UID: uid, SessionID: ctx.Session.ID()}, nil
+		return cmd, nil
 	}
+	cmd.ClientSeq = pkt.ClientSeq
+	cmd.ClientMsgNo = pkt.ClientMsgNo
+	cmd.ChannelID = pkt.ChannelID
+	cmd.ChannelType = pkt.ChannelType
+	cmd.Setting = pkt.Setting.Uint8()
+	cmd.Topic = pkt.Topic
+	cmd.Expire = pkt.Expire
+	cmd.NormalizePersonChannel = pkt.ChannelType == frame.ChannelTypePerson
+	cmd.Payload = pkt.Payload
+	cmd.NoPersist = pkt.Framer.NoPersist
+	cmd.SyncOnce = pkt.Framer.SyncOnce
+	cmd.RedDot = pkt.Framer.RedDot
+	cmd.MessageID = 0
+	applySendTraceMetadata(&cmd, pkt, traceIDGenerator)
+	return cmd, nil
+}
 
-	return message.RecvAckCommand{
-		UID:        uid,
-		SessionID:  ctx.Session.ID(),
-		Framer:     pkt.Framer,
-		MessageID:  pkt.MessageID,
-		MessageSeq: pkt.MessageSeq,
-	}, nil
+func applySendTraceMetadata(cmd *message.SendCommand, pkt *frame.SendPacket, traceIDGenerator TraceIDGenerator) {
+	if cmd == nil || pkt == nil || traceIDGenerator == nil || pkt.ChannelID == "" || pkt.ChannelType == 0 || !sendtrace.Enabled() {
+		return
+	}
+	traceID := traceIDGenerator()
+	if traceID == "" {
+		return
+	}
+	cmd.TraceID = traceID
+	cmd.ChannelKey = sendtrace.ChannelKeyFromID(pkt.ChannelID, pkt.ChannelType)
 }
 
 func writeSendack(ctx *coregateway.Context, pkt *frame.SendPacket, result message.SendResult) error {
 	if ctx == nil || ctx.Session == nil {
 		return ErrUnauthenticatedSession
 	}
-
 	var clientSeq uint64
 	var clientMsgNo string
 	if pkt != nil {
 		clientSeq = pkt.ClientSeq
 		clientMsgNo = pkt.ClientMsgNo
 	}
-
 	return ctx.WriteFrame(&frame.SendackPacket{
-		MessageID:   result.MessageID,
+		MessageID:   int64(result.MessageID),
 		MessageSeq:  result.MessageSeq,
 		ClientSeq:   clientSeq,
 		ClientMsgNo: clientMsgNo,
-		ReasonCode:  result.Reason,
+		ReasonCode:  mapReason(result.Reason),
 	})
-}
-
-func writePong(ctx *coregateway.Context) error {
-	if ctx == nil || ctx.Session == nil {
-		return ErrUnauthenticatedSession
-	}
-	return ctx.WriteFrame(&frame.PongPacket{})
 }

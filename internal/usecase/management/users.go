@@ -6,23 +6,54 @@ import (
 	"encoding/base64"
 	"fmt"
 	"hash/crc32"
-	"sort"
 	"strings"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
 	userusecase "github.com/WuKongIM/WuKongIM/internal/usecase/user"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/routing"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
-	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 )
 
 const defaultUserListInternalScanLimit = 200
 
+// UserReader exposes durable user and device reads for manager pages.
+type UserReader interface {
+	// ScanUsersSlotPage returns one user metadata page for a physical Slot.
+	ScanUsersSlotPage(ctx context.Context, slotID uint32, after metadb.UserCursor, limit int) ([]metadb.User, metadb.UserCursor, bool, error)
+	// GetUser returns one durable user metadata row.
+	GetUser(ctx context.Context, uid string) (metadb.User, error)
+	// GetDevice returns one durable device token row.
+	GetDevice(ctx context.Context, uid string, deviceFlag int64) (metadb.Device, error)
+}
+
+// UserOperator exposes user mutations reused by manager actions.
+type UserOperator interface {
+	// UpdateToken creates or replaces a user's device token.
+	UpdateToken(ctx context.Context, cmd userusecase.UpdateTokenCommand) error
+	// DeviceQuit clears stored device tokens and kicks matching local sessions.
+	DeviceQuit(ctx context.Context, cmd userusecase.DeviceQuitCommand) error
+}
+
+// UserPresenceDirectory exposes authoritative online routes keyed by UID.
+type UserPresenceDirectory interface {
+	// EndpointsByUIDs returns authoritative online routes keyed by UID.
+	EndpointsByUIDs(ctx context.Context, uids []string) (map[string][]presence.Route, error)
+}
+
+// UserRouteActionDispatcher applies manager force-offline actions on route owners.
+type UserRouteActionDispatcher interface {
+	// ApplyRouteAction applies a close/kick action on the route owner node.
+	ApplyRouteAction(ctx context.Context, action presence.RouteAction) error
+}
+
 // UserListCursor identifies the next manager user list position.
 type UserListCursor struct {
-	// SlotID is the current physical slot position.
+	// SlotID is the current physical Slot scan position.
 	SlotID uint32
-	// UID is the last emitted user ID within SlotID.
+	// UID is the last emitted user ID inside SlotID.
 	UID string
 	// KeywordHash binds the opaque cursor to the keyword used to create it.
 	KeywordHash uint32
@@ -32,7 +63,7 @@ type UserListCursor struct {
 type ListUsersRequest struct {
 	// Limit is the maximum number of items to return.
 	Limit int
-	// Cursor is the optional resume position from the previous page.
+	// Cursor resumes a previous user list request.
 	Cursor UserListCursor
 	// Keyword optionally limits results to UIDs containing this substring.
 	Keyword string
@@ -52,7 +83,7 @@ type ListUsersResponse struct {
 type UserListItem struct {
 	// UID is the user identifier.
 	UID string
-	// SlotID is the physical slot that owns the user metadata.
+	// SlotID is the physical Slot that owns the user metadata.
 	SlotID uint32
 	// HashSlot is the logical hash slot derived from the UID.
 	HashSlot uint16
@@ -82,11 +113,39 @@ type UserDevice struct {
 	OnlineSessionCount int
 }
 
+// Connection is the manager-facing user connection DTO.
+type Connection struct {
+	// NodeID identifies the node that owns the real gateway session.
+	NodeID uint64
+	// SessionID is the owner-local gateway session identifier.
+	SessionID uint64
+	// UID is the authenticated user identifier.
+	UID string
+	// DeviceID is the client device identifier.
+	DeviceID string
+	// DeviceFlag is the stable manager-facing device flag string.
+	DeviceFlag string
+	// DeviceLevel is the stable manager-facing device level string.
+	DeviceLevel string
+	// SlotID is reserved for legacy connection response compatibility.
+	SlotID uint64
+	// State is reserved for legacy connection response compatibility.
+	State string
+	// Listener is the listener that accepted the connection.
+	Listener string
+	// ConnectedAt is the owner-observed connection timestamp when known.
+	ConnectedAt time.Time
+	// RemoteAddr is reserved for owner-local connection details.
+	RemoteAddr string
+	// LocalAddr is reserved for owner-local connection details.
+	LocalAddr string
+}
+
 // UserDetail is the manager-facing user detail DTO.
 type UserDetail struct {
 	// UID is the user identifier.
 	UID string
-	// SlotID is the physical slot that owns the user metadata.
+	// SlotID is the physical Slot that owns the user metadata.
 	SlotID uint32
 	// HashSlot is the logical hash slot derived from the UID.
 	HashSlot uint16
@@ -112,7 +171,7 @@ type KickUserResponse struct {
 	UID string
 	// DeviceFlag is the normalized device flag label.
 	DeviceFlag string
-	// Changed reports whether the action was accepted and mutations were attempted.
+	// Changed reports whether the action was accepted.
 	Changed bool
 }
 
@@ -140,7 +199,7 @@ type ResetUserTokenResponse struct {
 	Token string
 }
 
-// ListUsers returns a manager-facing page ordered by slot and UID.
+// ListUsers returns a manager-facing page ordered by Slot and UID.
 func (a *App) ListUsers(ctx context.Context, req ListUsersRequest) (ListUsersResponse, error) {
 	if a == nil || a.cluster == nil || a.users == nil {
 		return ListUsersResponse{}, nil
@@ -148,39 +207,38 @@ func (a *App) ListUsers(ctx context.Context, req ListUsersRequest) (ListUsersRes
 	if req.Limit <= 0 {
 		return ListUsersResponse{}, metadb.ErrInvalidArgument
 	}
-
 	keyword := strings.TrimSpace(req.Keyword)
 	if err := validateUserListCursor(req.Cursor, userKeywordHash(keyword)); err != nil {
 		return ListUsersResponse{}, err
 	}
-
-	slotIDs := append([]multiraft.SlotID(nil), a.cluster.SlotIDs()...)
-	sort.Slice(slotIDs, func(i, j int) bool { return slotIDs[i] < slotIDs[j] })
-
-	startIndex, err := userStartSlotIndex(slotIDs, req.Cursor.SlotID)
+	snapshot, err := a.cluster.LocalControlSnapshot(ctx)
+	if err != nil {
+		return ListUsersResponse{}, err
+	}
+	slotIDs := sortedSnapshotSlotIDs(snapshot.Slots)
+	startIndex, err := channelStartSlotIndex(slotIDs, req.Cursor.SlotID)
 	if err != nil {
 		return ListUsersResponse{}, err
 	}
 	if keyword != "" {
-		return a.listUsersByKeyword(ctx, slotIDs, startIndex, req.Cursor, req.Limit, keyword)
+		return a.listUsersByKeyword(ctx, snapshot, slotIDs, startIndex, req.Cursor, req.Limit, keyword)
 	}
-	return a.listUsersUnfiltered(ctx, slotIDs, startIndex, req.Cursor, req.Limit, keyword)
+	return a.listUsersUnfiltered(ctx, snapshot, slotIDs, startIndex, req.Cursor, req.Limit, keyword)
 }
 
-func (a *App) listUsersUnfiltered(ctx context.Context, slotIDs []multiraft.SlotID, startIndex int, cursor UserListCursor, limit int, keyword string) (ListUsersResponse, error) {
-	resp := ListUsersResponse{Items: make([]UserListItem, 0, min(limit, len(slotIDs)))}
+func (a *App) listUsersUnfiltered(ctx context.Context, snapshot control.Snapshot, slotIDs []uint32, startIndex int, cursor UserListCursor, limit int, keyword string) (ListUsersResponse, error) {
+	resp := ListUsersResponse{Items: make([]UserListItem, 0, limit)}
 	for i := startIndex; i < len(slotIDs) && len(resp.Items) < limit; i++ {
 		slotID := slotIDs[i]
 		after := metadb.UserCursor{}
 		if i == startIndex {
 			after = cursor.shardCursor()
 		}
-
 		page, nextCursor, done, err := a.users.ScanUsersSlotPage(ctx, slotID, after, limit-len(resp.Items))
 		if err != nil {
 			return ListUsersResponse{}, err
 		}
-		items, err := a.managerUserListItems(ctx, slotID, page)
+		items, err := a.managerUserListItems(ctx, snapshot, slotID, page)
 		if err != nil {
 			return ListUsersResponse{}, err
 		}
@@ -191,13 +249,13 @@ func (a *App) listUsersUnfiltered(ctx context.Context, slotIDs []multiraft.SlotI
 			return resp, nil
 		}
 		if len(resp.Items) == limit {
-			nextSlotID, hasMore, err := a.findNextUserSlotWithData(ctx, slotIDs[i+1:])
+			hasMore, _, err := a.nextUserSlotWithData(ctx, slotIDs[i+1:])
 			if err != nil {
 				return ListUsersResponse{}, err
 			}
 			resp.HasMore = hasMore
 			if hasMore {
-				resp.NextCursor = UserListCursor{SlotID: uint32(nextSlotID), KeywordHash: userKeywordHash(keyword)}
+				resp.NextCursor = userListCursorForItem(resp.Items[len(resp.Items)-1], keyword)
 			}
 			return resp, nil
 		}
@@ -205,7 +263,7 @@ func (a *App) listUsersUnfiltered(ctx context.Context, slotIDs []multiraft.SlotI
 	return resp, nil
 }
 
-func (a *App) listUsersByKeyword(ctx context.Context, slotIDs []multiraft.SlotID, startIndex int, cursor UserListCursor, limit int, keyword string) (ListUsersResponse, error) {
+func (a *App) listUsersByKeyword(ctx context.Context, snapshot control.Snapshot, slotIDs []uint32, startIndex int, cursor UserListCursor, limit int, keyword string) (ListUsersResponse, error) {
 	resp := ListUsersResponse{Items: make([]UserListItem, 0, limit)}
 	for i := startIndex; i < len(slotIDs); i++ {
 		slotID := slotIDs[i]
@@ -213,7 +271,6 @@ func (a *App) listUsersByKeyword(ctx context.Context, slotIDs []multiraft.SlotID
 		if i == startIndex {
 			after = cursor.shardCursor()
 		}
-
 		for {
 			page, nextCursor, done, err := a.users.ScanUsersSlotPage(ctx, slotID, after, userFilteredScanLimit(limit))
 			if err != nil {
@@ -228,13 +285,13 @@ func (a *App) listUsersByKeyword(ctx context.Context, slotIDs []multiraft.SlotID
 					resp.NextCursor = userListCursorForItem(resp.Items[len(resp.Items)-1], keyword)
 					return resp, nil
 				}
-				item, err := a.managerUserListItem(ctx, slotID, user.UID)
+				item, err := a.managerUserListItem(ctx, snapshot, slotID, user.UID)
 				if err != nil {
 					return ListUsersResponse{}, err
 				}
 				resp.Items = append(resp.Items, item)
 			}
-			if done {
+			if done || nextCursor == after {
 				break
 			}
 			after = nextCursor
@@ -255,7 +312,10 @@ func (a *App) GetUser(ctx context.Context, uid string) (UserDetail, error) {
 	if _, err := a.users.GetUser(ctx, uid); err != nil {
 		return UserDetail{}, err
 	}
-
+	snapshot, err := a.cluster.LocalControlSnapshot(ctx)
+	if err != nil {
+		return UserDetail{}, err
+	}
 	routesByUID, err := a.userRoutes(ctx, []string{uid})
 	if err != nil {
 		return UserDetail{}, err
@@ -265,10 +325,11 @@ func (a *App) GetUser(ctx context.Context, uid string) (UserDetail, error) {
 	if err != nil {
 		return UserDetail{}, err
 	}
+	hashSlot := userHashSlot(snapshot.HashSlots, uid)
 	return UserDetail{
 		UID:         uid,
-		SlotID:      uint32(a.cluster.SlotForKey(uid)),
-		HashSlot:    a.cluster.HashSlotForKey(uid),
+		SlotID:      slotIDForHashSlot(snapshot.HashSlots, hashSlot),
+		HashSlot:    hashSlot,
 		Online:      len(routes) > 0,
 		Devices:     devices,
 		Connections: managerConnectionsFromRoutes(routes),
@@ -291,7 +352,6 @@ func (a *App) KickUser(ctx context.Context, req KickUserRequest) (KickUserRespon
 	if err := a.userOperator.DeviceQuit(ctx, userusecase.DeviceQuitCommand{UID: uid, DeviceFlag: quitFlag}); err != nil {
 		return KickUserResponse{}, err
 	}
-
 	routesByUID, err := a.userRoutes(ctx, []string{uid})
 	if err != nil {
 		return KickUserResponse{}, err
@@ -302,12 +362,12 @@ func (a *App) KickUser(ctx context.Context, req KickUserRequest) (KickUserRespon
 				continue
 			}
 			if err := a.userActions.ApplyRouteAction(ctx, presence.RouteAction{
-				UID:       route.UID,
-				NodeID:    route.NodeID,
-				BootID:    route.BootID,
-				SessionID: route.SessionID,
-				Kind:      "kick_then_close",
-				Reason:    "manager force offline",
+				UID:         route.UID,
+				OwnerNodeID: route.OwnerNodeID,
+				OwnerBootID: route.OwnerBootID,
+				SessionID:   route.SessionID,
+				Kind:        "kick_then_close",
+				Reason:      "manager force offline",
 			}); err != nil {
 				return KickUserResponse{}, err
 			}
@@ -348,7 +408,7 @@ func (a *App) ResetUserToken(ctx context.Context, req ResetUserTokenRequest) (Re
 	return ResetUserTokenResponse{UID: uid, DeviceFlag: flagLabel, DeviceLevel: levelLabel, Token: token}, nil
 }
 
-func (a *App) managerUserListItems(ctx context.Context, slotID multiraft.SlotID, users []metadb.User) ([]UserListItem, error) {
+func (a *App) managerUserListItems(ctx context.Context, snapshot control.Snapshot, slotID uint32, users []metadb.User) ([]UserListItem, error) {
 	uids := make([]string, 0, len(users))
 	for _, user := range users {
 		uids = append(uids, user.UID)
@@ -359,7 +419,7 @@ func (a *App) managerUserListItems(ctx context.Context, slotID multiraft.SlotID,
 	}
 	out := make([]UserListItem, 0, len(users))
 	for _, user := range users {
-		item, err := a.managerUserListItemWithRoutes(ctx, slotID, user.UID, routesByUID[user.UID])
+		item, err := a.managerUserListItemWithRoutes(ctx, snapshot, slotID, user.UID, routesByUID[user.UID])
 		if err != nil {
 			return nil, err
 		}
@@ -368,15 +428,15 @@ func (a *App) managerUserListItems(ctx context.Context, slotID multiraft.SlotID,
 	return out, nil
 }
 
-func (a *App) managerUserListItem(ctx context.Context, slotID multiraft.SlotID, uid string) (UserListItem, error) {
+func (a *App) managerUserListItem(ctx context.Context, snapshot control.Snapshot, slotID uint32, uid string) (UserListItem, error) {
 	routesByUID, err := a.userRoutes(ctx, []string{uid})
 	if err != nil {
 		return UserListItem{}, err
 	}
-	return a.managerUserListItemWithRoutes(ctx, slotID, uid, routesByUID[uid])
+	return a.managerUserListItemWithRoutes(ctx, snapshot, slotID, uid, routesByUID[uid])
 }
 
-func (a *App) managerUserListItemWithRoutes(ctx context.Context, slotID multiraft.SlotID, uid string, routes []presence.Route) (UserListItem, error) {
+func (a *App) managerUserListItemWithRoutes(ctx context.Context, snapshot control.Snapshot, slotID uint32, uid string, routes []presence.Route) (UserListItem, error) {
 	deviceCount, tokenSetCount, err := a.userDeviceCounts(ctx, uid)
 	if err != nil {
 		return UserListItem{}, err
@@ -384,8 +444,8 @@ func (a *App) managerUserListItemWithRoutes(ctx context.Context, slotID multiraf
 	onlineFlags := onlineDeviceFlagLabels(routes)
 	return UserListItem{
 		UID:               uid,
-		SlotID:            uint32(slotID),
-		HashSlot:          a.cluster.HashSlotForKey(uid),
+		SlotID:            slotID,
+		HashSlot:          userHashSlot(snapshot.HashSlots, uid),
 		Online:            len(routes) > 0,
 		OnlineDeviceCount: len(onlineFlags),
 		OnlineDeviceFlags: onlineFlags,
@@ -473,24 +533,24 @@ func (a *App) userRoutes(ctx context.Context, uids []string) (map[string][]prese
 	return a.userPresence.EndpointsByUIDs(ctx, uids)
 }
 
-func (a *App) findNextUserSlotWithData(ctx context.Context, slotIDs []multiraft.SlotID) (multiraft.SlotID, bool, error) {
+func (a *App) nextUserSlotWithData(ctx context.Context, slotIDs []uint32) (bool, uint32, error) {
 	for _, slotID := range slotIDs {
 		page, _, _, err := a.users.ScanUsersSlotPage(ctx, slotID, metadb.UserCursor{}, 1)
 		if err != nil {
-			return 0, false, err
+			return false, 0, err
 		}
 		if len(page) > 0 {
-			return slotID, true, nil
+			return true, slotID, nil
 		}
 	}
-	return 0, false, nil
+	return false, 0, nil
 }
 
 func managerConnectionsFromRoutes(routes []presence.Route) []Connection {
 	out := make([]Connection, 0, len(routes))
 	for _, route := range routes {
 		out = append(out, Connection{
-			NodeID:      route.NodeID,
+			NodeID:      route.OwnerNodeID,
 			SessionID:   route.SessionID,
 			UID:         route.UID,
 			DeviceID:    route.DeviceID,
@@ -499,12 +559,6 @@ func managerConnectionsFromRoutes(routes []presence.Route) []Connection {
 			Listener:    route.Listener,
 		})
 	}
-	sort.Slice(out, func(i, j int) bool {
-		if out[i].NodeID != out[j].NodeID {
-			return out[i].NodeID < out[j].NodeID
-		}
-		return out[i].SessionID < out[j].SessionID
-	})
 	return out
 }
 
@@ -588,6 +642,17 @@ func managerDeviceFlag(flag frame.DeviceFlag) string {
 	}
 }
 
+func managerConnectionDeviceLevel(level frame.DeviceLevel) string {
+	switch level {
+	case frame.DeviceLevelMaster:
+		return "master"
+	case frame.DeviceLevelSlave:
+		return "slave"
+	default:
+		return "unknown"
+	}
+}
+
 func validateUserListCursor(cursor UserListCursor, keywordHash uint32) error {
 	if cursor == (UserListCursor{}) {
 		return nil
@@ -601,20 +666,8 @@ func validateUserListCursor(cursor UserListCursor, keywordHash uint32) error {
 	return nil
 }
 
-func userStartSlotIndex(slotIDs []multiraft.SlotID, slotID uint32) (int, error) {
-	if slotID == 0 {
-		return 0, nil
-	}
-	for i, current := range slotIDs {
-		if current == multiraft.SlotID(slotID) {
-			return i, nil
-		}
-	}
-	return 0, metadb.ErrInvalidArgument
-}
-
-func newUserListCursor(slotID multiraft.SlotID, cursor metadb.UserCursor, keyword string) UserListCursor {
-	return UserListCursor{SlotID: uint32(slotID), UID: cursor.UID, KeywordHash: userKeywordHash(keyword)}
+func newUserListCursor(slotID uint32, cursor metadb.UserCursor, keyword string) UserListCursor {
+	return UserListCursor{SlotID: slotID, UID: cursor.UID, KeywordHash: userKeywordHash(keyword)}
 }
 
 func userListCursorForItem(item UserListItem, keyword string) UserListCursor {
@@ -623,6 +676,10 @@ func userListCursorForItem(item UserListItem, keyword string) UserListCursor {
 
 func (c UserListCursor) shardCursor() metadb.UserCursor {
 	return metadb.UserCursor{UID: c.UID}
+}
+
+func userHashSlot(table control.HashSlotTable, uid string) uint16 {
+	return routing.HashSlotForKey(uid, table.Count)
 }
 
 func userKeywordHash(keyword string) uint32 {

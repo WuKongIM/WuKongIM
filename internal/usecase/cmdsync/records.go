@@ -14,16 +14,12 @@ const (
 
 // SyncRecord stores the latest command-channel sequence returned by one sync.
 type SyncRecord struct {
-	// CommandChannelID is the durable command channel id retained for ack writes.
+	// CommandChannelID is the durable command-channel id retained for ack writes.
 	CommandChannelID string
-	// ChannelType is the durable command channel type.
+	// ChannelType is the durable command-channel type.
 	ChannelType uint8
 	// LastReturnedMsgSeq is the highest sequence returned in the latest sync generation.
 	LastReturnedMsgSeq uint64
-	// Pending marks records that were returned from an owner-local pending overlay.
-	Pending bool
-	// PendingActiveAt records the pending activity timestamp needed for durable ack upserts.
-	PendingActiveAt int64
 }
 
 // SyncRecordCacheOptions configures the UID-local latest sync generation cache.
@@ -86,7 +82,6 @@ func (c *SyncRecordCache) Replace(uid string, records []SyncRecord) {
 	if uid == "" {
 		return
 	}
-
 	now := c.now()
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -106,31 +101,6 @@ func (c *SyncRecordCache) Replace(uid string, records []SyncRecord) {
 	c.evictOverflowLocked()
 }
 
-// Pop atomically returns and clears the latest unexpired generation for uid.
-func (c *SyncRecordCache) Pop(uid string) []SyncRecord {
-	if c == nil {
-		return nil
-	}
-	uid = strings.TrimSpace(uid)
-	if uid == "" {
-		return nil
-	}
-
-	now := c.now()
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	entry, ok := c.entries[uid]
-	if !ok {
-		return nil
-	}
-	if !entry.expiresAt.IsZero() && now.After(entry.expiresAt) {
-		delete(c.entries, uid)
-		return nil
-	}
-	delete(c.entries, uid)
-	return append([]SyncRecord(nil), entry.records...)
-}
-
 // Peek returns the latest unexpired generation for uid without clearing it.
 func (c *SyncRecordCache) Peek(uid string) []SyncRecord {
 	if c == nil {
@@ -140,7 +110,6 @@ func (c *SyncRecordCache) Peek(uid string) []SyncRecord {
 	if uid == "" {
 		return nil
 	}
-
 	now := c.now()
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -164,7 +133,6 @@ func (c *SyncRecordCache) DeleteIfUnchanged(uid string, records []SyncRecord) {
 	if uid == "" {
 		return
 	}
-
 	now := c.now()
 	c.mu.Lock()
 	defer c.mu.Unlock()

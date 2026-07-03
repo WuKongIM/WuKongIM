@@ -6,340 +6,146 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
-	controllermeta "github.com/WuKongIM/WuKongIM/pkg/legacy/controller/meta"
+	"github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
-	"github.com/stretchr/testify/require"
 )
 
-func TestListConnectionsReturnsMappedItemsOrderedByConnectedAtDesc(t *testing.T) {
-	reg := online.NewRegistry()
-	base := time.Date(2026, 4, 23, 8, 0, 0, 0, time.UTC)
+func TestListConnectionsReturnsActiveLocalSessionsOrderedByConnectedAtDesc(t *testing.T) {
+	registry := online.NewRegistry(online.RegistryOptions{ShardCount: 2})
+	pending := online.OwnerRoute{UID: "pending", HashSlot: 1, OwnerNodeID: 1, SessionID: 10, ConnectedUnix: 100}
+	older := online.OwnerRoute{
+		UID: "u1", HashSlot: 1, OwnerNodeID: 1, SessionID: 11, DeviceID: "d1",
+		DeviceFlag: uint8(frame.APP), DeviceLevel: uint8(frame.DeviceLevelMaster),
+		Listener: "tcp", ConnectedUnix: 101,
+	}
+	newer := online.OwnerRoute{
+		UID: "u2", HashSlot: 2, OwnerNodeID: 1, SessionID: 12, DeviceID: "d2",
+		DeviceFlag: uint8(frame.WEB), DeviceLevel: uint8(frame.DeviceLevelSlave),
+		Listener: "ws", ConnectedUnix: 102,
+	}
+	requireNoError(t, registry.RegisterPending(online.LocalSession{Route: pending}))
+	requireNoError(t, registry.RegisterPending(online.LocalSession{Route: older, Session: connectionAddressHandle{remote: "10.0.0.1:5000", local: "127.0.0.1:7000"}}))
+	requireNoError(t, registry.RegisterPending(online.LocalSession{Route: newer, Session: connectionAddressHandle{remote: "10.0.0.2:5000", local: "127.0.0.1:7100"}}))
+	requireNoError(t, registry.MarkActive(older.SessionID))
+	requireNoError(t, registry.MarkActive(newer.SessionID))
+	app := New(Options{
+		Cluster:     fakeNodeSnapshotReader{snapshot: singleUserSlotSnapshot(), nodeID: 1},
+		Connections: registry,
+	})
 
-	require.NoError(t, reg.Register(online.OnlineConn{
-		SessionID:   5,
-		UID:         "u-1",
-		DeviceID:    "device-a",
-		DeviceFlag:  frame.APP,
-		DeviceLevel: frame.DeviceLevelMaster,
-		SlotID:      4,
-		State:       online.LocalRouteStateActive,
-		Listener:    "tcp",
-		ConnectedAt: base.Add(2 * time.Minute),
-		Session: managementTestSession{
-			id:         5,
-			listener:   "tcp",
-			remoteAddr: "10.0.0.5:5000",
-			localAddr:  "127.0.0.1:7000",
-		},
-	}))
-	require.NoError(t, reg.Register(online.OnlineConn{
-		SessionID:   3,
-		UID:         "u-2",
-		DeviceID:    "device-b",
-		DeviceFlag:  frame.WEB,
-		DeviceLevel: frame.DeviceLevelSlave,
-		SlotID:      2,
-		State:       online.LocalRouteStateActive,
-		Listener:    "ws",
-		ConnectedAt: base.Add(4 * time.Minute),
-		Session: managementTestSession{
-			id:         3,
-			listener:   "ws",
-			remoteAddr: "10.0.0.3:5001",
-			localAddr:  "127.0.0.1:7100",
-		},
-	}))
-	require.NoError(t, reg.Register(online.OnlineConn{
-		SessionID:   8,
-		UID:         "u-3",
-		DeviceID:    "device-c",
-		DeviceFlag:  frame.APP,
-		DeviceLevel: frame.DeviceLevelSlave,
-		SlotID:      2,
-		State:       online.LocalRouteStateActive,
-		Listener:    "tcp",
-		ConnectedAt: base.Add(4 * time.Minute),
-		Session: managementTestSession{
-			id:         8,
-			listener:   "tcp",
-			remoteAddr: "10.0.0.8:5002",
-			localAddr:  "127.0.0.1:7200",
-		},
-	}))
-	require.NoError(t, reg.Register(online.OnlineConn{
-		SessionID:   12,
-		UID:         "u-4",
-		DeviceID:    "device-d",
-		DeviceFlag:  frame.SYSTEM,
-		DeviceLevel: frame.DeviceLevelMaster,
-		SlotID:      9,
-		State:       online.LocalRouteStateClosing,
-		Listener:    "tcp",
-		ConnectedAt: base.Add(5 * time.Minute),
-		Session: managementTestSession{
-			id:         12,
-			listener:   "tcp",
-			remoteAddr: "10.0.0.12:5003",
-			localAddr:  "127.0.0.1:7300",
-		},
-	}))
+	got, err := app.ListConnections(context.Background(), ListConnectionsRequest{Limit: 1})
+	if err != nil {
+		t.Fatalf("ListConnections() error = %v", err)
+	}
 
-	app := New(Options{LocalNodeID: 2, Online: reg})
-
-	got, err := app.ListConnections(context.Background(), ListConnectionsRequest{NodeID: 2})
-	require.NoError(t, err)
-	require.Equal(t, []connectionSummary{
+	want := []Connection{
 		{
-			NodeID:      2,
-			SessionID:   3,
-			UID:         "u-2",
-			DeviceID:    "device-b",
-			DeviceFlag:  "web",
-			DeviceLevel: "slave",
-			SlotID:      2,
-			State:       "active",
-			Listener:    "ws",
-			RemoteAddr:  "10.0.0.3:5001",
-			LocalAddr:   "127.0.0.1:7100",
-		},
-		{
-			NodeID:      2,
-			SessionID:   8,
-			UID:         "u-3",
-			DeviceID:    "device-c",
-			DeviceFlag:  "app",
-			DeviceLevel: "slave",
-			SlotID:      2,
-			State:       "active",
-			Listener:    "tcp",
-			RemoteAddr:  "10.0.0.8:5002",
-			LocalAddr:   "127.0.0.1:7200",
-		},
-		{
-			NodeID:      2,
-			SessionID:   5,
-			UID:         "u-1",
-			DeviceID:    "device-a",
-			DeviceFlag:  "app",
-			DeviceLevel: "master",
-			SlotID:      4,
-			State:       "active",
-			Listener:    "tcp",
-			RemoteAddr:  "10.0.0.5:5000",
-			LocalAddr:   "127.0.0.1:7000",
-		},
-	}, summarizeConnections(got))
-	require.Equal(t, []time.Time{
-		base.Add(4 * time.Minute),
-		base.Add(4 * time.Minute),
-		base.Add(2 * time.Minute),
-	}, connectionTimes(got))
-}
-
-func TestListConnectionsReadsSelectedRemoteNode(t *testing.T) {
-	reader := &connectionReaderStub{
-		connections: []Connection{{
-			NodeID:      3,
-			SessionID:   303,
-			UID:         "remote-user",
-			DeviceID:    "remote-device",
-			DeviceFlag:  "web",
-			DeviceLevel: "master",
-			SlotID:      7,
-			State:       "active",
-			Listener:    "ws",
-			ConnectedAt: time.Unix(300, 0),
-			RemoteAddr:  "10.0.0.3:5000",
-			LocalAddr:   "127.0.0.1:7300",
-		}},
-	}
-	app := New(Options{LocalNodeID: 2, Online: online.NewRegistry(), Connections: reader})
-
-	got, err := app.ListConnections(context.Background(), ListConnectionsRequest{NodeID: 3})
-
-	require.NoError(t, err)
-	require.Equal(t, uint64(3), reader.listNodeID)
-	require.Equal(t, []uint64{303}, connectionIDs(got))
-	require.Equal(t, uint64(3), got[0].NodeID)
-}
-
-func TestGetConnectionReturnsMappedDetail(t *testing.T) {
-	reg := online.NewRegistry()
-	connectedAt := time.Date(2026, 4, 23, 8, 10, 0, 0, time.UTC)
-	require.NoError(t, reg.Register(online.OnlineConn{
-		SessionID:   101,
-		UID:         "user-a",
-		DeviceID:    "device-z",
-		DeviceFlag:  frame.SYSTEM,
-		DeviceLevel: frame.DeviceLevelMaster,
-		SlotID:      11,
-		State:       online.LocalRouteStateClosing,
-		Listener:    "tcp",
-		ConnectedAt: connectedAt,
-		Session: managementTestSession{
-			id:         101,
-			listener:   "tcp",
-			remoteAddr: "172.16.0.1:5500",
-			localAddr:  "127.0.0.1:7500",
-		},
-	}))
-
-	app := New(Options{LocalNodeID: 2, Online: reg})
-
-	got, err := app.GetConnection(context.Background(), GetConnectionRequest{NodeID: 2, SessionID: 101})
-	require.NoError(t, err)
-	require.Equal(t, ConnectionDetail{
-		NodeID:      2,
-		SessionID:   101,
-		UID:         "user-a",
-		DeviceID:    "device-z",
-		DeviceFlag:  "system",
-		DeviceLevel: "master",
-		SlotID:      11,
-		State:       "closing",
-		Listener:    "tcp",
-		ConnectedAt: connectedAt,
-		RemoteAddr:  "172.16.0.1:5500",
-		LocalAddr:   "127.0.0.1:7500",
-	}, got)
-}
-
-func TestGetConnectionReadsSelectedRemoteNode(t *testing.T) {
-	reader := &connectionReaderStub{
-		connection: ConnectionDetail{
-			NodeID:      3,
-			SessionID:   303,
-			UID:         "remote-user",
-			DeviceID:    "remote-device",
-			DeviceFlag:  "web",
-			DeviceLevel: "master",
-			SlotID:      7,
-			State:       "active",
-			Listener:    "ws",
-			ConnectedAt: time.Unix(300, 0),
-			RemoteAddr:  "10.0.0.3:5000",
-			LocalAddr:   "127.0.0.1:7300",
+			NodeID: 1, SessionID: 12, UID: "u2", DeviceID: "d2", DeviceFlag: "web", DeviceLevel: "slave",
+			SlotID: 1, State: "active", Listener: "ws", ConnectedAt: time.Unix(102, 0).UTC(),
+			RemoteAddr: "10.0.0.2:5000", LocalAddr: "127.0.0.1:7100",
 		},
 	}
-	app := New(Options{LocalNodeID: 2, Online: online.NewRegistry(), Connections: reader})
-
-	got, err := app.GetConnection(context.Background(), GetConnectionRequest{NodeID: 3, SessionID: 303})
-
-	require.NoError(t, err)
-	require.Equal(t, uint64(3), reader.detailNodeID)
-	require.Equal(t, uint64(303), reader.detailSessionID)
-	require.Equal(t, reader.connection, got)
-}
-
-func TestGetConnectionReturnsNotFoundWhenMissing(t *testing.T) {
-	app := New(Options{Online: online.NewRegistry()})
-
-	_, err := app.GetConnection(context.Background(), GetConnectionRequest{SessionID: 404})
-	require.ErrorIs(t, err, controllermeta.ErrNotFound)
-}
-
-type connectionSummary struct {
-	NodeID      uint64
-	SessionID   uint64
-	UID         string
-	DeviceID    string
-	DeviceFlag  string
-	DeviceLevel string
-	SlotID      uint64
-	State       string
-	Listener    string
-	RemoteAddr  string
-	LocalAddr   string
-}
-
-func summarizeConnections(items []Connection) []connectionSummary {
-	out := make([]connectionSummary, 0, len(items))
-	for _, item := range items {
-		out = append(out, connectionSummary{
-			NodeID:      item.NodeID,
-			SessionID:   item.SessionID,
-			UID:         item.UID,
-			DeviceID:    item.DeviceID,
-			DeviceFlag:  item.DeviceFlag,
-			DeviceLevel: item.DeviceLevel,
-			SlotID:      item.SlotID,
-			State:       item.State,
-			Listener:    item.Listener,
-			RemoteAddr:  item.RemoteAddr,
-			LocalAddr:   item.LocalAddr,
-		})
+	if !sameConnections(got, want) {
+		t.Fatalf("connections = %#v, want %#v", got, want)
 	}
-	return out
 }
 
-func connectionTimes(items []Connection) []time.Time {
-	out := make([]time.Time, 0, len(items))
-	for _, item := range items {
-		out = append(out, item.ConnectedAt)
+func TestGetConnectionReturnsLocalSessionDetailAndNotFound(t *testing.T) {
+	registry := online.NewRegistry(online.RegistryOptions{})
+	route := online.OwnerRoute{
+		UID: "u1", HashSlot: 1, OwnerNodeID: 1, SessionID: 11, DeviceID: "d1",
+		DeviceFlag: uint8(frame.PC), DeviceLevel: uint8(frame.DeviceLevelSlave),
+		Listener: "tcp", ConnectedUnix: 101,
 	}
-	return out
-}
+	requireNoError(t, registry.RegisterPending(online.LocalSession{Route: route}))
+	app := New(Options{
+		Cluster:     fakeNodeSnapshotReader{snapshot: singleUserSlotSnapshot(), nodeID: 1},
+		Connections: registry,
+	})
 
-func connectionIDs(items []Connection) []uint64 {
-	out := make([]uint64, 0, len(items))
-	for _, item := range items {
-		out = append(out, item.SessionID)
+	got, err := app.GetConnection(context.Background(), GetConnectionRequest{SessionID: 11})
+	if err != nil {
+		t.Fatalf("GetConnection() error = %v", err)
 	}
-	return out
+	want := ConnectionDetail{
+		NodeID: 1, SessionID: 11, UID: "u1", DeviceID: "d1", DeviceFlag: "pc", DeviceLevel: "slave",
+		SlotID: 1, State: "pending", Listener: "tcp", ConnectedAt: time.Unix(101, 0).UTC(),
+	}
+	if got != want {
+		t.Fatalf("connection detail = %#v, want %#v", got, want)
+	}
+
+	_, err = app.GetConnection(context.Background(), GetConnectionRequest{SessionID: 404})
+	if err != meta.ErrNotFound {
+		t.Fatalf("GetConnection(missing) error = %v, want %v", err, meta.ErrNotFound)
+	}
 }
 
-type connectionReaderStub struct {
-	connections     []Connection
-	connection      ConnectionDetail
+func TestConnectionsUseRemoteReaderForNonLocalNode(t *testing.T) {
+	remote := &fakeConnectionRemoteReader{
+		connections: []Connection{{NodeID: 2, SessionID: 22, UID: "u2"}},
+		detail:      ConnectionDetail{NodeID: 2, SessionID: 23, UID: "u3"},
+	}
+	app := New(Options{
+		Cluster:           fakeNodeSnapshotReader{snapshot: singleUserSlotSnapshot(), nodeID: 1},
+		Connections:       online.NewRegistry(online.RegistryOptions{}),
+		RemoteConnections: remote,
+	})
+
+	items, err := app.ListConnections(context.Background(), ListConnectionsRequest{NodeID: 2, Limit: 100})
+	if err != nil {
+		t.Fatalf("ListConnections(remote) error = %v", err)
+	}
+	if !sameConnections(items, remote.connections) || remote.listNodeID != 2 || remote.listLimit != 100 {
+		t.Fatalf("remote list = %#v node=%d limit=%d, want %#v node 2 limit 100", items, remote.listNodeID, remote.listLimit, remote.connections)
+	}
+
+	detail, err := app.GetConnection(context.Background(), GetConnectionRequest{NodeID: 2, SessionID: 23})
+	if err != nil {
+		t.Fatalf("GetConnection(remote) error = %v", err)
+	}
+	if detail != remote.detail || remote.detailNodeID != 2 || remote.detailSessionID != 23 {
+		t.Fatalf("remote detail = %#v node=%d session=%d, want %#v node 2 session 23", detail, remote.detailNodeID, remote.detailSessionID, remote.detail)
+	}
+}
+
+type connectionAddressHandle struct {
+	remote string
+	local  string
+}
+
+func (h connectionAddressHandle) WriteDelivery(any) error { return nil }
+
+func (h connectionAddressHandle) CloseSession(string) error { return nil }
+
+func (h connectionAddressHandle) RemoteAddr() string { return h.remote }
+
+func (h connectionAddressHandle) LocalAddr() string { return h.local }
+
+func requireNoError(t *testing.T, err error) {
+	t.Helper()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+type fakeConnectionRemoteReader struct {
 	listNodeID      uint64
+	listLimit       int
 	detailNodeID    uint64
 	detailSessionID uint64
+	connections     []Connection
+	detail          ConnectionDetail
 }
 
-func (r *connectionReaderStub) NodeConnections(_ context.Context, nodeID uint64) ([]Connection, error) {
-	r.listNodeID = nodeID
-	return append([]Connection(nil), r.connections...), nil
+func (f *fakeConnectionRemoteReader) NodeConnections(_ context.Context, nodeID uint64, limit int) ([]Connection, error) {
+	f.listNodeID = nodeID
+	f.listLimit = limit
+	return append([]Connection(nil), f.connections...), nil
 }
 
-func (r *connectionReaderStub) NodeConnection(_ context.Context, nodeID uint64, sessionID uint64) (ConnectionDetail, error) {
-	r.detailNodeID = nodeID
-	r.detailSessionID = sessionID
-	return r.connection, nil
-}
-
-type managementTestSession struct {
-	id         uint64
-	listener   string
-	remoteAddr string
-	localAddr  string
-}
-
-func (s managementTestSession) ID() uint64 {
-	return s.id
-}
-
-func (s managementTestSession) Listener() string {
-	return s.listener
-}
-
-func (s managementTestSession) RemoteAddr() string {
-	return s.remoteAddr
-}
-
-func (s managementTestSession) LocalAddr() string {
-	return s.localAddr
-}
-
-func (s managementTestSession) WriteFrame(frame.Frame) error {
-	return nil
-}
-
-func (s managementTestSession) Close() error {
-	return nil
-}
-
-func (s managementTestSession) SetValue(string, any) {}
-
-func (s managementTestSession) Value(string) any {
-	return nil
+func (f *fakeConnectionRemoteReader) NodeConnection(_ context.Context, nodeID, sessionID uint64) (ConnectionDetail, error) {
+	f.detailNodeID = nodeID
+	f.detailSessionID = sessionID
+	return f.detail, nil
 }

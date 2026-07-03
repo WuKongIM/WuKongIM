@@ -5,7 +5,7 @@ import (
 	"net/http"
 
 	"github.com/WuKongIM/WuKongIM/internal/observability/diagnostics/tracectx"
-	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
+	messageusecase "github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/gin-gonic/gin"
 )
@@ -13,9 +13,13 @@ import (
 type sendMessageRequest struct {
 	FromUID       string                   `json:"from_uid"`
 	LegacyFromUID string                   `json:"sender_uid"`
+	DeviceID      string                   `json:"device_id"`
 	ChannelID     string                   `json:"channel_id"`
 	ChannelType   uint8                    `json:"channel_type"`
 	ClientMsgNo   string                   `json:"client_msg_no"`
+	Setting       uint8                    `json:"setting"`
+	Topic         string                   `json:"topic"`
+	Expire        uint32                   `json:"expire"`
 	Payload       string                   `json:"payload"`
 	Subscribers   []string                 `json:"subscribers"`
 	Header        sendMessageHeaderRequest `json:"header"`
@@ -36,10 +40,20 @@ type sendMessageResponse struct {
 	Reason     uint8  `json:"reason"`
 }
 
+func (s *Server) registerMessageRoutes() {
+	if s == nil || s.engine == nil {
+		return
+	}
+	s.engine.POST("/message/send", s.handleSendMessage)
+	s.engine.POST("/message/sync", s.handleMessageSync)
+	s.engine.POST("/message/syncack", s.handleMessageSyncAck)
+	s.engine.POST("/channel/messagesync", s.handleChannelMessageSync)
+}
+
 func (s *Server) handleSendMessage(c *gin.Context) {
 	var req sendMessageRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		writeJSONError(c, http.StatusBadRequest, "invalid request")
+		writeSendJSONError(c, http.StatusBadRequest, "invalid request")
 		return
 	}
 	if req.FromUID == "" {
@@ -47,27 +61,26 @@ func (s *Server) handleSendMessage(c *gin.Context) {
 	}
 	requestScoped := len(req.Subscribers) > 0
 	if req.FromUID == "" || req.Payload == "" {
-		writeJSONError(c, http.StatusBadRequest, "invalid request")
+		writeSendJSONError(c, http.StatusBadRequest, "invalid request")
 		return
 	}
 	if requestScoped {
 		if req.ChannelID != "" {
-			writeJSONError(c, http.StatusBadRequest, "invalid request")
+			writeSendJSONError(c, http.StatusBadRequest, "invalid request")
 			return
 		}
 	} else if req.ChannelID == "" || req.ChannelType == 0 {
-		writeJSONError(c, http.StatusBadRequest, "invalid request")
+		writeSendJSONError(c, http.StatusBadRequest, "invalid request")
 		return
 	}
 
 	payload, err := base64.StdEncoding.DecodeString(req.Payload)
 	if err != nil {
-		writeJSONError(c, http.StatusBadRequest, "invalid payload")
+		writeSendJSONError(c, http.StatusBadRequest, "invalid payload")
 		return
 	}
-
 	if s == nil || s.messages == nil {
-		writeJSONError(c, http.StatusInternalServerError, "message usecase not configured")
+		writeSendJSONError(c, http.StatusInternalServerError, "message usecase not configured")
 		return
 	}
 
@@ -78,41 +91,46 @@ func (s *Server) handleSendMessage(c *gin.Context) {
 	reqCtx, traceCtx := tracectx.Ensure(reqCtx, nil)
 	noPersist := req.Header.NoPersist != 0 || req.NoPersist != 0
 	syncOnce := req.Header.SyncOnce != 0 || req.SyncOnce != 0
-	channelID := req.ChannelID
-	channelType := req.ChannelType
+	cmd := messageusecase.SendCommand{
+		TraceID:                traceCtx.TraceID,
+		FromUID:                req.FromUID,
+		DeviceID:               req.DeviceID,
+		ChannelID:              req.ChannelID,
+		ChannelType:            req.ChannelType,
+		ClientMsgNo:            req.ClientMsgNo,
+		Setting:                req.Setting,
+		Topic:                  req.Topic,
+		Expire:                 req.Expire,
+		Payload:                payload,
+		NoPersist:              noPersist,
+		SyncOnce:               syncOnce,
+		NormalizePersonChannel: req.ChannelType == frame.ChannelTypePerson,
+		ProtocolVersion:        frame.LatestVersion,
+	}
 	if requestScoped {
-		channelID = ""
-		channelType = 0
+		cmd.ChannelID = ""
+		cmd.ChannelType = 0
+		cmd.RequestScoped = true
+		cmd.MessageScopedUIDs = append([]string(nil), req.Subscribers...)
 	}
 
-	result, err := s.messages.Send(reqCtx, message.SendCommand{
-		TraceID:            traceCtx.TraceID,
-		Framer:             frame.Framer{NoPersist: noPersist, SyncOnce: syncOnce},
-		FromUID:            req.FromUID,
-		ChannelID:          channelID,
-		ChannelType:        channelType,
-		RequestSubscribers: req.Subscribers,
-		ClientMsgNo:        req.ClientMsgNo,
-		Payload:            payload,
-		ProtocolVersion:    frame.LatestVersion,
-	})
+	result, err := s.messages.Send(reqCtx, cmd)
 	if err != nil {
 		if status, msg, ok := mapSendError(err); ok {
-			writeJSONError(c, status, msg)
+			writeSendJSONError(c, status, msg)
 			return
 		}
-		writeJSONError(c, http.StatusInternalServerError, err.Error())
+		writeSendJSONError(c, http.StatusInternalServerError, err.Error())
 		return
 	}
-
 	c.JSON(http.StatusOK, sendMessageResponse{
-		MessageID:  result.MessageID,
+		MessageID:  int64(result.MessageID),
 		MessageSeq: result.MessageSeq,
-		Reason:     uint8(result.Reason),
+		Reason:     uint8(mapMessageReason(result.Reason)),
 	})
 }
 
-func writeJSONError(c *gin.Context, status int, message string) {
+func writeSendJSONError(c *gin.Context, status int, message string) {
 	if c == nil {
 		return
 	}

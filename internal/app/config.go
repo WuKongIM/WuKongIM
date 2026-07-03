@@ -1,319 +1,185 @@
 package app
 
 import (
+	"errors"
 	"fmt"
 	"math"
+	"net"
 	"path/filepath"
 	"runtime"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/internal/runtime/messageid"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/gateway"
-	raftcluster "github.com/WuKongIM/WuKongIM/pkg/legacy/cluster"
 )
 
-// Config contains all application configuration loaded for one WuKongIM node.
+var (
+	// ErrInvalidConfig reports an app configuration that cannot start a runtime.
+	ErrInvalidConfig = errors.New("internalv2/app: invalid config")
+	// ErrAlreadyStarted reports a repeated Start call on a running app.
+	ErrAlreadyStarted = errors.New("internalv2/app: already started")
+	// ErrStopped reports a Start call after the app has been stopped.
+	ErrStopped = errors.New("internalv2/app: stopped")
+)
+
+// Config contains phase-1 internal app configuration.
 type Config struct {
-	// TestMode enables e2e-only guest test-data endpoints. Never enable it in production.
-	TestMode bool
-	// Node configures this process identity and local data root.
-	Node NodeConfig
-	// Storage configures local durable storage paths.
-	Storage StorageConfig
-	// Cluster configures controller, slot, and channel replication runtimes.
-	Cluster ClusterConfig
-	// ChannelPlane configures channel-keyed durable append reactors.
-	ChannelPlane ChannelPlaneConfig
-	// ChannelMigration configures the cluster-authoritative channel replica migration executor.
-	ChannelMigration ChannelMigrationConfig
-	// ChannelMessageRetention configures leader-driven channel message expiry.
-	ChannelMessageRetention ChannelMessageRetentionConfig
-	// Message configures message send business rules.
-	Message MessageConfig
-	// Delivery configures realtime delivery routing and fanout.
-	Delivery DeliveryConfig
-	// Plugin configures node-local PDK-compatible plugin execution.
-	Plugin PluginConfig
-	// API configures the public HTTP API entry point.
+	// NodeID is the stable cluster node identity.
+	NodeID uint64
+	// DataDir is the root data directory for the node runtime.
+	DataDir string
+	// Cluster configures the cluster runtime.
+	Cluster cluster.Config
+	// API configures the benchmark HTTP API exposed by the standalone v2 entry.
 	API APIConfig
-	// Bench controls unauthenticated benchmark-only APIs used by wkbench.
-	Bench BenchConfig
-	// Manager configures the administration HTTP API entry point.
+	// Manager configures the dedicated administration HTTP API entry point.
 	Manager ManagerConfig
-	// Gateway configures client connection listeners and session behavior.
+	// Gateway configures the client gateway runtime.
 	Gateway GatewayConfig
-	// Conversation configures conversation projection and sync behavior.
-	Conversation ConversationConfig
-	// Observability configures metrics and health endpoint detail.
+	// Bench configures the benchmark-only HTTP API surface.
+	Bench BenchConfig
+	// Observability configures metrics and diagnostics surfaces.
 	Observability ObservabilityConfig
+	// Top configures the lightweight node-local operations snapshot API used by wkcli top.
+	Top TopConfig
 	// Log configures application logging output.
 	Log LogConfig
+	// Message configures message send behavior.
+	Message MessageConfig
+	// ChannelMessageRetention configures asynchronous ChannelV2 message-log physical cleanup.
+	ChannelMessageRetention ChannelMessageRetentionConfig
+	// Channel configures channel management behavior.
+	Channel ChannelConfig
+	// ChannelAppend configures the local channel append authority runtime.
+	ChannelAppend ChannelAppendConfig
+	// Conversation configures conversation authority and list reads.
+	Conversation ConversationConfig
+	// Presence configures connection-route activation and authority touch behavior.
+	Presence PresenceConfig
+	// Delivery configures online message delivery fanout and owner-local ack tracking.
+	Delivery DeliveryConfig
+	// Webhook configures node-local best-effort webhook delivery.
+	Webhook WebhookConfig
+	// Plugin configures node-local PDK-compatible plugin runtime integration.
+	Plugin PluginConfig
 }
 
-// BenchConfig controls unauthenticated benchmark-only APIs used by wkbench.
+// APIConfig contains HTTP API settings for the standalone v2 entry.
+type APIConfig struct {
+	// ListenAddr is the HTTP API listen address. An empty value disables the API service.
+	ListenAddr string
+	// ExternalTCPAddr is the published WKProto TCP gateway address returned by bench capacity discovery.
+	ExternalTCPAddr string
+	// ExternalWSAddr is the published WebSocket gateway address returned by bench capacity discovery.
+	ExternalWSAddr string
+	// ExternalWSSAddr is the published secure WebSocket gateway address returned by bench capacity discovery.
+	ExternalWSSAddr string
+}
+
+// ManagerConfig configures the dedicated manager HTTP service.
+type ManagerConfig struct {
+	// ListenAddr is the manager server listen address. An empty value disables the manager service.
+	ListenAddr string
+	// AuthOn enables JWT login for manager routes.
+	AuthOn bool
+	// JWTSecret is the signing secret used for manager JWT tokens.
+	JWTSecret string
+	// JWTIssuer is the issuer claim embedded in manager JWT tokens.
+	JWTIssuer string
+	// JWTExpire is the manager JWT lifetime.
+	JWTExpire time.Duration
+	// Users defines the static manager users allowed to log in.
+	Users []ManagerUserConfig
+}
+
+// ManagerUserConfig describes one static manager user.
+type ManagerUserConfig struct {
+	// Username is the static login identity.
+	Username string `json:"username"`
+	// Password is the static login secret.
+	Password string `json:"password"`
+	// Permissions lists the resource actions granted to the user.
+	Permissions []ManagerPermissionConfig `json:"permissions"`
+}
+
+// ManagerPermissionConfig binds one manager resource to allowed actions.
+type ManagerPermissionConfig struct {
+	// Resource is the manager resource name, such as "cluster.node"; use "*" to grant all manager resources.
+	Resource string `json:"resource"`
+	// Actions contains the allowed action codes: r, w, or *.
+	Actions []string `json:"actions"`
+}
+
+// GatewayConfig contains client gateway settings.
+type GatewayConfig struct {
+	// Listeners configures client-facing gateway listeners.
+	Listeners []gateway.ListenerOptions
+	// Session configures gateway session limits and batching.
+	Session gateway.SessionOptions
+	// Runtime configures async gateway worker and queue tuning.
+	Runtime gateway.RuntimeOptions
+	// Transport configures gateway transport runtime tuning.
+	Transport gateway.TransportOptions
+	// SendTimeout bounds each gateway-origin message send.
+	SendTimeout time.Duration
+}
+
+// BenchConfig contains benchmark-only API settings.
 type BenchConfig struct {
-	// APIEnabled registers /bench/v1/* routes for controlled benchmark environments.
+	// APIEnabled exposes unauthenticated /bench/v1/* routes for controlled benchmark environments.
 	APIEnabled bool
-	// APIMaxBatchSize limits top-level records accepted by a bench API request.
+	// APIMaxBatchSize limits top-level records accepted by one bench API mutation request.
 	APIMaxBatchSize int
-	// APIMaxPayloadBytes limits HTTP request body size accepted by bench APIs.
+	// APIMaxPayloadBytes limits JSON request body bytes accepted by bench API mutations.
 	APIMaxPayloadBytes int64
 }
 
-// PluginConfig controls node-local PDK-compatible plugin execution.
-type PluginConfig struct {
-	// Enable starts the node-local plugin runtime. It defaults to false because plugins execute local binaries.
-	Enable bool
-	// Dir contains local .wkp plugin binaries for this node.
-	Dir string
-	// SocketPath is the Unix socket path used by PDK plugins to call the host.
-	SocketPath string
-	// SandboxDir is the per-plugin writable directory root passed to plugin processes.
-	SandboxDir string
-	// StateDir stores node-local desired plugin config and enable state.
-	StateDir string
-	// Timeout bounds plugin RPC calls and graceful stop waits.
-	Timeout time.Duration
-	// HotReload watches Dir for .wkp changes and restarts affected local plugins.
-	HotReload bool
-	// FailOpen lets sends continue when Send hooks fail; false rejects sends on plugin errors.
-	FailOpen bool
-
-	timeoutSet   bool
-	hotReloadSet bool
-	failOpenSet  bool
+// TopConfig controls the node-local top snapshot collector and read-only HTTP API.
+type TopConfig struct {
+	// APIEnabled exposes the read-only /top/v1/snapshot operations endpoint.
+	APIEnabled bool
+	// CollectInterval controls how frequently the top collector samples local runtime state.
+	CollectInterval time.Duration
+	// HistoryWindow bounds the in-memory sample window retained for top queries.
+	HistoryWindow time.Duration
 }
 
-// ChannelPlaneConfig controls durable send routing reactors and peer batching.
-type ChannelPlaneConfig struct {
-	// ReactorCount is the number of channel-keyed append reactor shards. Zero uses a CPU-aware default.
-	ReactorCount int
-	// PeerLaneCount is the number of remote append batching lanes per target node. Zero uses a CPU-aware default.
-	PeerLaneCount int
-	// PeerBatchMaxWait bounds how long a remote peer lane waits before flushing a partial batch. Zero uses the default.
-	PeerBatchMaxWait time.Duration
-}
-
-// SetExplicitFlags records which plugin values were explicitly configured.
-func (c *PluginConfig) SetExplicitFlags(timeoutSet, hotReloadSet, failOpenSet bool) {
-	if c == nil {
-		return
-	}
-	c.timeoutSet = timeoutSet
-	c.hotReloadSet = hotReloadSet
-	c.failOpenSet = failOpenSet
-}
-
-// ChannelMigrationConfig controls the background executor that advances durable channel migration tasks.
-type ChannelMigrationConfig struct {
-	// ScanInterval is the delay between channel migration executor scans on this node.
-	ScanInterval time.Duration
-	// ScanLimit caps how many runnable migration tasks one executor tick reads from local slot leaders.
-	ScanLimit int
-	// OwnerLeaseTTL controls how long this node may own one migration task before another slot leader may reclaim it.
-	OwnerLeaseTTL time.Duration
-	// RetryBackoff delays the next attempt after a retryable migration phase error or blocked dependency.
-	RetryBackoff time.Duration
-	// FenceTTL controls how long a migration-owned channel write fence remains valid before recovery must reset it.
-	FenceTTL time.Duration
-	// LeaderLeaseTTL is the lease duration written to channel runtime metadata after a migration leader transfer.
-	LeaderLeaseTTL time.Duration
-	// CatchUpStableWindow controls how long target lag must stay at or below CatchUpLagThreshold before cutover.
-	CatchUpStableWindow time.Duration
-	// CatchUpLagThreshold is the maximum leader-to-target record lag accepted as warm catch-up stable.
-	CatchUpLagThreshold uint64
-	// MaxConcurrent limits active channel migration tasks this node advances in one scan; zero disables the global limit.
-	MaxConcurrent int
-	// MaxConcurrentPerSource limits active replacement tasks draining or removing the same source node; zero disables the per-source limit.
-	MaxConcurrentPerSource int
-	// MaxConcurrentPerTarget limits active tasks bootstrapping, catching up, or promoting the same target node; zero disables the per-target limit.
-	MaxConcurrentPerTarget int
-	// CompletedRetentionTTL controls how long terminal migration tasks remain queryable before garbage collection; zero disables cleanup.
-	CompletedRetentionTTL time.Duration
-	// GCLimit controls how many terminal migration tasks one cleanup tick may delete.
-	GCLimit int
-
-	scanIntervalSet           bool
-	scanLimitSet              bool
-	ownerLeaseTTLSet          bool
-	retryBackoffSet           bool
-	fenceTTLSet               bool
-	leaderLeaseTTLSet         bool
-	catchUpStableWindowSet    bool
-	catchUpLagThresholdSet    bool
-	maxConcurrentSet          bool
-	maxConcurrentPerSourceSet bool
-	maxConcurrentPerTargetSet bool
-	completedRetentionTTLSet  bool
-	gcLimitSet                bool
-}
-
-// SetExplicitFlags records which channel migration tuning values were explicitly configured.
-func (c *ChannelMigrationConfig) SetExplicitFlags(
-	scanIntervalSet bool,
-	scanLimitSet bool,
-	ownerLeaseTTLSet bool,
-	retryBackoffSet bool,
-	fenceTTLSet bool,
-	leaderLeaseTTLSet bool,
-	catchUpStableWindowSet bool,
-	catchUpLagThresholdSet bool,
-	maxConcurrentSet bool,
-	maxConcurrentPerSourceSet bool,
-	maxConcurrentPerTargetSet bool,
-	completedRetentionTTLSet bool,
-	gcLimitSet bool,
-) {
-	if c == nil {
-		return
-	}
-	c.scanIntervalSet = scanIntervalSet
-	c.scanLimitSet = scanLimitSet
-	c.ownerLeaseTTLSet = ownerLeaseTTLSet
-	c.retryBackoffSet = retryBackoffSet
-	c.fenceTTLSet = fenceTTLSet
-	c.leaderLeaseTTLSet = leaderLeaseTTLSet
-	c.catchUpStableWindowSet = catchUpStableWindowSet
-	c.catchUpLagThresholdSet = catchUpLagThresholdSet
-	c.maxConcurrentSet = maxConcurrentSet
-	c.maxConcurrentPerSourceSet = maxConcurrentPerSourceSet
-	c.maxConcurrentPerTargetSet = maxConcurrentPerTargetSet
-	c.completedRetentionTTLSet = completedRetentionTTLSet
-	c.gcLimitSet = gcLimitSet
-}
-
-// MessageConfig controls send-path business compatibility rules.
-type MessageConfig struct {
-	// PersonWhitelistEnabled enables receiver-side personal allowlist enforcement for sends.
-	// It is disabled by default to match legacy WhitelistOffOfPerson=true compatibility.
-	PersonWhitelistEnabled bool
-	// SystemDeviceID identifies trusted gateway sessions that bypass channel-type-specific
-	// send permissions after sender SendBan has passed.
-	SystemDeviceID string
-	// PermissionCacheTTL enables a bounded node-local send-permission read cache, including
-	// missing-channel authorization reads. Keep zero for strict authorization freshness.
-	PermissionCacheTTL time.Duration
-	// UserRateLimitEnabled enables node-local UID send token buckets before expensive send-path work.
-	UserRateLimitEnabled bool
-	// UserRateLimitRate is the sustained number of sends admitted per UID per second.
-	UserRateLimitRate float64
-	// UserRateLimitBurst is the maximum immediate send burst admitted for one UID.
-	UserRateLimitBurst int
-	// UserRateLimitBucketShards controls lock striping for in-memory UID buckets.
-	UserRateLimitBucketShards int
-	// UserRateLimitIdleTTL controls how long inactive UID buckets remain in memory.
-	UserRateLimitIdleTTL time.Duration
-	// UserRateLimitMaxBuckets caps allocated UID buckets to bound memory under high UID cardinality.
-	UserRateLimitMaxBuckets int
-	// UserRateLimitSystemUIDBypass lets trusted system UIDs bypass user send rate limiting.
-	UserRateLimitSystemUIDBypass bool
-	// UserRateLimitPluginBypass lets plugin-origin sends bypass user send rate limiting.
-	UserRateLimitPluginBypass bool
-
-	userRateLimitRateSet            bool
-	userRateLimitBurstSet           bool
-	userRateLimitBucketShardsSet    bool
-	userRateLimitIdleTTLSet         bool
-	userRateLimitMaxBucketsSet      bool
-	userRateLimitSystemUIDBypassSet bool
-}
-
-// SetExplicitFlags records which message tuning values were explicitly configured.
-func (c *MessageConfig) SetExplicitFlags(rateSet, burstSet, bucketShardsSet, idleTTLSet, maxBucketsSet, systemUIDBypassSet bool) {
-	if c == nil {
-		return
-	}
-	c.userRateLimitRateSet = rateSet
-	c.userRateLimitBurstSet = burstSet
-	c.userRateLimitBucketShardsSet = bucketShardsSet
-	c.userRateLimitIdleTTLSet = idleTTLSet
-	c.userRateLimitMaxBucketsSet = maxBucketsSet
-	c.userRateLimitSystemUIDBypassSet = systemUIDBypassSet
-}
-
-// DeliveryConfig controls realtime delivery routing and fanout behavior.
-type DeliveryConfig struct {
-	// PresenceCacheTTL enables a bounded node-local cache for positive UID presence routes
-	// used by delivery fanout. Keep zero for strict presence freshness.
-	PresenceCacheTTL time.Duration
-	// AckBatchMaxWait bounds how long remote delivery acknowledgements may wait
-	// while they are coalesced for the same owner node. Zero disables batching.
-	AckBatchMaxWait time.Duration
-	// AckBatchMaxSize flushes remote delivery acknowledgements immediately once
-	// the pending owner-node batch reaches this size. Zero uses a safe default.
-	AckBatchMaxSize int
-}
-
-// ChannelMessageRetentionConfig controls cluster-authoritative channel message retention.
-type ChannelMessageRetentionConfig struct {
-	// TTL is the age after which channel messages may be hidden by leader-driven retention.
-	// A zero value disables automatic retention so existing messages remain readable until
-	// another cluster-authoritative retention boundary is advanced by an operator or worker.
-	TTL time.Duration
-	// ScanInterval is the delay between retention worker scans after TTL-based retention is
-	// enabled. It is ignored while TTL is zero, but defaults to a positive value so enabling
-	// TTL without an explicit interval starts a bounded periodic worker.
-	ScanInterval time.Duration
-	// ChannelBatchSize limits how many local channel logs one retention pass scans.
-	// It bounds cross-channel scan work and must be positive when TTL-based retention is enabled.
-	ChannelBatchSize int
-	// MaxTrimMessages limits how many expired messages one channel may include in one retention pass.
-	// It bounds per-channel deletion planning and must be positive when TTL-based retention is enabled.
-	MaxTrimMessages int
-
-	scanIntervalSet     bool
-	channelBatchSizeSet bool
-	maxTrimMessagesSet  bool
-}
-
-// SetExplicitFlags records whether retention tuning values were explicitly configured.
-func (c *ChannelMessageRetentionConfig) SetExplicitFlags(scanIntervalSet, channelBatchSizeSet, maxTrimMessagesSet bool) {
-	if c == nil {
-		return
-	}
-	c.scanIntervalSet = scanIntervalSet
-	c.channelBatchSizeSet = channelBatchSizeSet
-	c.maxTrimMessagesSet = maxTrimMessagesSet
-}
-
-// ObservabilityConfig controls runtime metrics, health detail, and debug API route exposure.
+// ObservabilityConfig contains optional observability runtime settings.
 type ObservabilityConfig struct {
-	// MetricsEnabled enables the metrics endpoint and metrics collection.
+	// MetricsEnabled exposes Prometheus metrics and wires runtime observers.
 	MetricsEnabled bool
-	// NetworkEnabled enables per-packet local network observations for manager network snapshots.
-	NetworkEnabled bool
-	// HealthDetailEnabled includes dependency details in health responses.
-	HealthDetailEnabled bool
 	// DebugAPIEnabled exposes local /debug endpoints on the API listener.
 	DebugAPIEnabled bool
+	// Prometheus configures the optional app-managed Prometheus process.
+	Prometheus PrometheusConfig
 	// Diagnostics configures the bounded local diagnostics event store and sampling policy.
 	Diagnostics DiagnosticsConfig
 
-	metricsEnabledSet      bool
-	networkEnabledSet      bool
-	healthDetailEnabledSet bool
-	debugAPIEnabledSet     bool
+	diagnosticsEnabledSet         bool
+	diagnosticsSampleRateSet      bool
+	diagnosticsErrorSampleRateSet bool
 }
 
-// SetExplicitFlags records whether observability booleans were explicitly configured.
-func (c *ObservabilityConfig) SetExplicitFlags(metricsSet, detailSet, debugSet bool) {
-	if c == nil {
-		return
-	}
-	c.metricsEnabledSet = metricsSet
-	c.healthDetailEnabledSet = detailSet
-	c.debugAPIEnabledSet = debugSet
-}
-
-// SetNetworkExplicitFlag records whether network observation was explicitly configured.
-func (c *ObservabilityConfig) SetNetworkExplicitFlag(networkSet bool) {
-	if c == nil {
-		return
-	}
-	c.networkEnabledSet = networkSet
+// PrometheusConfig controls the optional child Prometheus process managed by wukongim.
+type PrometheusConfig struct {
+	// Enabled starts the embedded or externally configured Prometheus child process during app startup.
+	Enabled bool
+	// BinaryPath is an optional external prometheus executable path; empty uses the embedded binary.
+	BinaryPath string
+	// ListenAddr is the Prometheus web listen address.
+	ListenAddr string
+	// DataDir stores the generated prometheus.yml file and Prometheus TSDB data.
+	DataDir string
+	// RetentionTime controls Prometheus TSDB time-based retention.
+	RetentionTime time.Duration
+	// RetentionSize optionally controls Prometheus TSDB size-based retention.
+	RetentionSize string
+	// ScrapeInterval controls how frequently Prometheus scrapes wukongim metrics.
+	ScrapeInterval time.Duration
+	// ScrapeTargets lists host:port targets exposing the wukongim /metrics endpoint.
+	ScrapeTargets []string
 }
 
 // SetDiagnosticsExplicitFlags records which diagnostics values were explicitly configured.
@@ -321,9 +187,9 @@ func (c *ObservabilityConfig) SetDiagnosticsExplicitFlags(enabledSet, sampleRate
 	if c == nil {
 		return
 	}
-	c.Diagnostics.enabledSet = enabledSet
-	c.Diagnostics.sampleRateSet = sampleRateSet
-	c.Diagnostics.errorSampleRateSet = errorSampleRateSet
+	c.diagnosticsEnabledSet = enabledSet
+	c.diagnosticsSampleRateSet = sampleRateSet
+	c.diagnosticsErrorSampleRateSet = errorSampleRateSet
 }
 
 // DiagnosticsConfig controls local diagnostics event retention and sampling.
@@ -338,12 +204,14 @@ type DiagnosticsConfig struct {
 	SlowThreshold time.Duration
 	// ErrorSampleRate is the keep probability for diagnostics events with non-ok results.
 	ErrorSampleRate float64
+	// DeepSampleRate is the keep probability for expensive reactor/store detail sidecars.
+	DeepSampleRate float64
+	// DeepSlowThreshold enables lazy deep trace selection for slow reactor/store stages.
+	DeepSlowThreshold time.Duration
+	// DeepMaxItemsPerBatch bounds how many traced messages one deep batch may expand into events.
+	DeepMaxItemsPerBatch int
 	// DebugMatches configures temporary high-priority sampling rules.
 	DebugMatches []DiagnosticsDebugMatchConfig
-
-	enabledSet         bool
-	sampleRateSet      bool
-	errorSampleRateSet bool
 }
 
 // DiagnosticsDebugMatchConfig defines one temporary diagnostics sampling override rule.
@@ -364,21 +232,21 @@ type DiagnosticsDebugMatchConfig struct {
 
 // LogConfig defines zap and lumberjack logging settings.
 type LogConfig struct {
-	// Level is the minimum log level, such as debug, info, warn, or error.
+	// Level is the minimum log level accepted by the logger: debug, info, warn, or error.
 	Level string
-	// Dir is the directory used for rolling log files.
+	// Dir is the directory where rolling log files are created.
 	Dir string
-	// MaxSize is the maximum size in megabytes before a log file rotates.
+	// MaxSize is the maximum size in megabytes before one log file is rotated.
 	MaxSize int
-	// MaxAge is the maximum number of days to retain old log files.
+	// MaxAge is the maximum number of days to retain rotated log files.
 	MaxAge int
-	// MaxBackups is the maximum number of rotated log files to retain.
+	// MaxBackups is the maximum number of rotated files retained for each log.
 	MaxBackups int
 	// Compress enables gzip compression for rotated log files.
 	Compress bool
-	// Console enables writing logs to stdout or stderr.
+	// Console enables an additional stdout sink for interactive runs.
 	Console bool
-	// Format selects the log encoder format, such as console or json.
+	// Format selects the file encoder format; json writes structured JSON and other values use console encoding.
 	Format string
 
 	compressSet bool
@@ -394,1300 +262,567 @@ func (c *LogConfig) SetExplicitFlags(compressSet, consoleSet bool) {
 	c.consoleSet = consoleSet
 }
 
-// NodeConfig defines this node's cluster identity and local data root.
-type NodeConfig struct {
-	// ID is the stable cluster node ID and must fit the message ID generator range.
-	ID uint64
-	// Name is the human-readable node name used in diagnostics.
-	Name string
-	// DataDir is the base directory used to derive default storage paths.
-	DataDir string
+// MessageConfig contains message usecase settings.
+type MessageConfig struct {
+	// PersonWhitelistEnabled enables receiver-side personal allowlist enforcement for sends.
+	// It is disabled by default to match legacy WhitelistOffOfPerson=true compatibility.
+	PersonWhitelistEnabled bool
+	// SystemDeviceID identifies trusted gateway sessions that bypass channel-type-specific
+	// send permissions after sender SendBan has passed.
+	SystemDeviceID string
+	// PermissionCacheTTL enables a bounded read-through cache for permission channel,
+	// membership, and missing-channel reads. Zero keeps permission reads uncached.
+	PermissionCacheTTL time.Duration
 }
 
-// StorageConfig defines local paths for metadata, Raft, and channel logs.
-type StorageConfig struct {
-	// DBPath is the local metadata database path.
-	DBPath string
-	// RaftPath is the local slot Raft log path.
-	RaftPath string
-	// ChannelLogPath is the local channel message log path.
-	ChannelLogPath string
-	// ControllerMetaPath is the local controller metadata path.
-	ControllerMetaPath string
-	// ControllerRaftPath is the local controller Raft log path.
-	ControllerRaftPath string
-	// RaftSnapshotPath stores external Slot Raft snapshot chunks outside the Slot Raft log database.
-	RaftSnapshotPath string
-	// ControllerRaftSnapshotPath stores external Controller Raft snapshot chunks outside the Controller Raft log database.
-	ControllerRaftSnapshotPath string
-	// RaftSnapshotChunkSize is the maximum external snapshot chunk size in bytes before a snapshot is split into another chunk file.
-	RaftSnapshotChunkSize uint64
-	// RaftSnapshotGCGrace controls how long orphan external snapshot directories remain on disk before they become eligible for cleanup.
-	RaftSnapshotGCGrace time.Duration
-
-	raftSnapshotChunkSizeSet bool
-	raftSnapshotGCGraceSet   bool
+// ChannelMessageRetentionConfig contains node-local physical cleanup settings for retained channel messages.
+type ChannelMessageRetentionConfig struct {
+	// PhysicalGCEnabled enables the background local physical cleanup loop.
+	PhysicalGCEnabled bool
+	// ScanInterval controls how often the background cleanup loop scans one channel catalog page.
+	ScanInterval time.Duration
+	// ChannelBatchSize caps the number of local channel catalog entries processed per cleanup pass.
+	ChannelBatchSize int
+	// MaxTrimMessages caps message rows deleted per channel cleanup attempt. Zero uses the default bound.
+	MaxTrimMessages int
+	// MaxTrimBytes caps payload bytes deleted per channel cleanup attempt. Zero means unlimited by bytes.
+	MaxTrimBytes int
 }
 
-// SetRaftSnapshotExplicitFlags records which scalar snapshot settings were explicitly configured.
-func (c *StorageConfig) SetRaftSnapshotExplicitFlags(chunkSizeSet, gcGraceSet bool) {
-	if c == nil {
-		return
-	}
-	c.raftSnapshotChunkSizeSet = chunkSizeSet
-	c.raftSnapshotGCGraceSet = gcGraceSet
+// ChannelConfig contains channel management settings.
+type ChannelConfig struct {
+	// LargeGroupSubscriberThreshold marks a channel large when ordinary subscriber count exceeds it.
+	LargeGroupSubscriberThreshold int
 }
 
-// ControllerLogCompactionConfig controls local Controller Raft snapshot compaction.
-type ControllerLogCompactionConfig struct {
-	// Enabled controls whether this node creates local Controller Raft snapshots.
-	Enabled bool
-	// TriggerEntries is the applied-entry delta required before taking another snapshot.
-	TriggerEntries uint64
-	// CheckInterval is the minimum interval between compaction checks.
-	CheckInterval time.Duration
-
-	enabledSet        bool
-	triggerEntriesSet bool
-	checkIntervalSet  bool
+// ChannelAppendConfig contains local channel append authority runtime settings.
+type ChannelAppendConfig struct {
+	// AuthorityShardCount is the number of channel-key authority-state lookup shards. Zero derives a CPU-aware default.
+	AuthorityShardCount int
+	// AdvancePoolSize is the direct ants pool size used to activate channel append writer state machines. Zero derives a CPU-aware default.
+	AdvancePoolSize int
+	// EffectPoolSize is the direct ants pool size shared by blocking append calls and post-append recipient effects. Zero derives a CPU-aware default.
+	EffectPoolSize int
+	// RecipientAuthorityDispatchConcurrency bounds per-message recipient authority fanout after append. Zero uses a bounded default.
+	RecipientAuthorityDispatchConcurrency int
 }
 
-// SlotLogCompactionConfig controls local Slot Raft snapshot compaction.
-type SlotLogCompactionConfig struct {
-	// Enabled controls whether this node creates local Slot Raft snapshots.
-	Enabled bool
-	// TriggerEntries is the applied-entry delta required before taking another snapshot.
-	TriggerEntries uint64
-	// CheckInterval is the minimum interval between compaction checks.
-	CheckInterval time.Duration
-
-	enabledSet        bool
-	triggerEntriesSet bool
-	checkIntervalSet  bool
-}
-
-// ClusterConfig defines controller, slot, and channel replication settings for this node's cluster runtime.
-type ClusterConfig struct {
-	// ListenAddr is the node-to-node cluster RPC listen address.
-	ListenAddr string
-	// SlotCount is the legacy configured physical slot count and mirrors InitialSlotCount when set.
-	SlotCount uint32
-	// HashSlotCount is the number of hash slots used to map keys to managed physical slots.
-	HashSlotCount uint16
-	// EnableHashSlotMigration allows experimental hash-slot migration workflows.
-	// Keep this disabled unless durable delta forwarding, source fencing, and
-	// recoverable cutover semantics are explicitly accepted by the operator.
-	EnableHashSlotMigration bool
-	// InitialSlotCount is the number of managed physical slots to create at bootstrap.
-	InitialSlotCount uint32
-	// ChannelBootstrapDefaultMinISR is the default MinISR for newly bootstrapped channel metadata.
-	ChannelBootstrapDefaultMinISR int
-	// MaxChannels limits active local channel runtimes on this node.
-	// A zero value keeps the legacy unlimited behavior; a positive value
-	// makes channel activation fail closed when the per-node runtime budget is exhausted.
-	MaxChannels int
-	// ChannelIdleTimeout is the idle duration after which a local channel runtime may be evicted.
-	// A zero value disables idle eviction so activated channel runtimes remain resident until removal or shutdown.
-	ChannelIdleTimeout time.Duration
-	// ChannelIdleScanInterval is how often this node scans for idle local channel runtimes.
-	// A zero value lets the channel runtime derive a bounded scan interval from ChannelIdleTimeout.
-	ChannelIdleScanInterval time.Duration
-	// ChannelExecutionMode selects local channel replica execution scheduling.
-	// Empty values default to "pooled"; "dedicated" remains available as a rollback mode
-	// with legacy per-replica workers.
-	ChannelExecutionMode string
-	// ChannelExecutionWorkers is the number of shared workers used by pooled channel execution.
-	// A zero value lets the replica execution runtime derive a default from GOMAXPROCS.
-	ChannelExecutionWorkers int
-	// ChannelExecutionQueueSize bounds pooled execution queues to avoid unbounded memory growth.
-	// A zero value uses the replica execution runtime default.
-	ChannelExecutionQueueSize int
-	// LongPollLaneCount is the number of channel fetch long-poll lanes.
-	LongPollLaneCount int
-	// LongPollMaxWait is the maximum wait for one channel fetch long-poll request.
-	LongPollMaxWait time.Duration
-	// LongPollMaxBytes is the maximum response size for one channel fetch long-poll request.
-	LongPollMaxBytes int
-	// LongPollMaxChannels is the maximum number of channels served by one long-poll cycle.
-	LongPollMaxChannels int
-	// LongPollDataNotifyDelay coalesces append wakeups so one lane response can batch multiple channels.
-	LongPollDataNotifyDelay time.Duration
-	// FollowerReplicationRetryInterval is the retry interval for channel follower replication.
-	FollowerReplicationRetryInterval time.Duration
-	// AppendGroupCommitMaxWait is the maximum delay for channel append group commit batching.
-	AppendGroupCommitMaxWait time.Duration
-	// AppendGroupCommitMaxRecords is the maximum record count for one append group commit batch.
-	AppendGroupCommitMaxRecords int
-	// AppendGroupCommitMaxBytes is the maximum byte size for one append group commit batch.
-	AppendGroupCommitMaxBytes int
-	// CommitCoordinatorFlushWindow is the maximum delay for cross-channel durable Pebble sync batching.
-	CommitCoordinatorFlushWindow time.Duration
-	// CommitCoordinatorMaxRequests caps logical requests in one cross-channel durable Pebble sync batch.
-	CommitCoordinatorMaxRequests int
-	// CommitCoordinatorMaxRecords caps channel log records in one cross-channel durable Pebble sync batch.
-	CommitCoordinatorMaxRecords int
-	// CommitCoordinatorMaxBytes caps approximate payload bytes in one cross-channel durable Pebble sync batch.
-	CommitCoordinatorMaxBytes int
-	// Nodes lists every cluster node participating in the cluster runtime.
-	Nodes []NodeConfigRef
-	// Seeds lists existing cluster RPC addresses used only to bootstrap dynamic node join.
-	Seeds []string
-	// AdvertiseAddr is this node's cluster RPC address published to controller membership.
-	AdvertiseAddr string
-	// JoinToken authenticates automatic node join requests.
-	JoinToken string
-	// Slots is deprecated and must remain empty because slots are managed by the controller.
-	Slots []SlotConfig
-	// ControllerReplicaN is the number of controller Raft voters.
-	ControllerReplicaN int
-	// SlotReplicaN is the target replica count for each managed slot.
-	SlotReplicaN int
-	// ForwardTimeout is the timeout for internal forwarding operations.
-	ForwardTimeout time.Duration
-	// PoolSize is the general cluster worker pool size hint.
-	PoolSize int
-	// DataPlanePoolSize is the channel data-plane RPC pool size.
-	DataPlanePoolSize int
-	// TickInterval is the Raft tick interval.
-	TickInterval time.Duration
-	// RaftWorkers is the number of workers used by the Raft runtime.
-	RaftWorkers int
-	// ElectionTick is the Raft election timeout measured in ticks.
-	ElectionTick int
-	// HeartbeatTick is the Raft heartbeat interval measured in ticks.
-	HeartbeatTick int
-	// DialTimeout is the timeout for node-to-node connection dialing.
-	DialTimeout time.Duration
-	// ManagedSlotsReadyTimeout bounds startup waiting for controller-managed physical slots to become ready.
-	// Increase this for cold multi-node cluster restarts where controller election and slot leader recovery can exceed the default.
-	ManagedSlotsReadyTimeout time.Duration
-	// ControllerLogCompaction controls local Controller Raft snapshot compaction.
-	ControllerLogCompaction ControllerLogCompactionConfig
-	// SlotLogCompaction controls local Slot Raft snapshot compaction.
-	SlotLogCompaction SlotLogCompactionConfig
-	// Timeouts configures controller observation, managed slot, and retry budgets.
-	Timeouts raftcluster.Timeouts
-	// DataPlaneRPCTimeout is the timeout for channel data-plane RPCs.
-	DataPlaneRPCTimeout time.Duration
-	// DataPlaneMaxFetchInflight limits concurrent fetch RPCs per data-plane client.
-	DataPlaneMaxFetchInflight int
-	// DataPlaneMaxPendingFetch limits queued fetch RPCs per data-plane client.
-	DataPlaneMaxPendingFetch int
-
-	channelBootstrapDefaultMinISRSet    bool
-	followerReplicationRetryIntervalSet bool
-	appendGroupCommitMaxWaitSet         bool
-	appendGroupCommitMaxRecordsSet      bool
-	appendGroupCommitMaxBytesSet        bool
-	commitCoordinatorFlushWindowSet     bool
-	longPollLaneCountSet                bool
-	longPollMaxWaitSet                  bool
-	longPollMaxBytesSet                 bool
-	longPollMaxChannelsSet              bool
-}
-
-// SetExplicitFlags records whether channel replication settings were explicitly configured.
-func (c *ClusterConfig) SetExplicitFlags(
-	channelBootstrapDefaultMinISRSet bool,
-	followerReplicationRetryIntervalSet bool,
-	appendGroupCommitMaxWaitSet bool,
-	appendGroupCommitMaxRecordsSet bool,
-	appendGroupCommitMaxBytesSet bool,
-) {
-	if c == nil {
-		return
-	}
-	c.channelBootstrapDefaultMinISRSet = channelBootstrapDefaultMinISRSet
-	c.followerReplicationRetryIntervalSet = followerReplicationRetryIntervalSet
-	c.appendGroupCommitMaxWaitSet = appendGroupCommitMaxWaitSet
-	c.appendGroupCommitMaxRecordsSet = appendGroupCommitMaxRecordsSet
-	c.appendGroupCommitMaxBytesSet = appendGroupCommitMaxBytesSet
-}
-
-// SetReplicationExplicitFlags records whether long-poll replication settings were explicitly configured.
-func (c *ClusterConfig) SetReplicationExplicitFlags(longPollLaneCountSet, longPollMaxWaitSet, longPollMaxBytesSet, longPollMaxChannelsSet bool) {
-	if c == nil {
-		return
-	}
-	c.longPollLaneCountSet = longPollLaneCountSet
-	c.longPollMaxWaitSet = longPollMaxWaitSet
-	c.longPollMaxBytesSet = longPollMaxBytesSet
-	c.longPollMaxChannelsSet = longPollMaxChannelsSet
-}
-
-// SetCommitCoordinatorExplicitFlags records whether durable commit coordinator settings were explicitly configured.
-func (c *ClusterConfig) SetCommitCoordinatorExplicitFlags(flushWindowSet, maxRequestsSet, maxRecordsSet, maxBytesSet bool) {
-	if c == nil {
-		return
-	}
-	c.commitCoordinatorFlushWindowSet = flushWindowSet
-}
-
-// SetControllerLogCompactionExplicitFlags records which Controller log compaction values were explicitly configured.
-func (c *ClusterConfig) SetControllerLogCompactionExplicitFlags(enabledSet, triggerEntriesSet, checkIntervalSet bool) {
-	if c == nil {
-		return
-	}
-	c.ControllerLogCompaction.enabledSet = enabledSet
-	c.ControllerLogCompaction.triggerEntriesSet = triggerEntriesSet
-	c.ControllerLogCompaction.checkIntervalSet = checkIntervalSet
-}
-
-// SetSlotLogCompactionExplicitFlags records which Slot log compaction values were explicitly configured.
-func (c *ClusterConfig) SetSlotLogCompactionExplicitFlags(enabledSet, triggerEntriesSet, checkIntervalSet bool) {
-	if c == nil {
-		return
-	}
-	c.SlotLogCompaction.enabledSet = enabledSet
-	c.SlotLogCompaction.triggerEntriesSet = triggerEntriesSet
-	c.SlotLogCompaction.checkIntervalSet = checkIntervalSet
-}
-
-// JoinModeEnabled reports whether any dynamic node join bootstrap setting is configured.
-func (c ClusterConfig) JoinModeEnabled() bool {
-	return len(c.Seeds) > 0 || c.AdvertiseAddr != "" || c.JoinToken != ""
-}
-
-// NodeConfigRef describes one node entry in the cluster membership list.
-type NodeConfigRef struct {
-	// ID is the stable numeric cluster node ID.
-	ID uint64
-	// Addr is the node-to-node cluster RPC address for this node.
-	Addr string
-}
-
-// SlotConfig describes a deprecated static slot assignment.
-type SlotConfig struct {
-	// ID is the deprecated static slot ID.
-	ID uint32
-	// Peers lists deprecated static slot replica node IDs.
-	Peers []uint64
-}
-
-// DerivedControllerNodes returns the sorted controller voter subset.
-func (c ClusterConfig) DerivedControllerNodes() []NodeConfigRef {
-	nodes := append([]NodeConfigRef(nil), c.Nodes...)
-	sort.Slice(nodes, func(i, j int) bool {
-		return nodes[i].ID < nodes[j].ID
-	})
-	if c.ControllerReplicaN > 0 && c.ControllerReplicaN < len(nodes) {
-		nodes = nodes[:c.ControllerReplicaN]
-	}
-	return nodes
-}
-
-// GatewayConfig defines client gateway listener and session settings.
-type GatewayConfig struct {
-	// TokenAuthOn enables token authentication for gateway sessions.
-	TokenAuthOn bool
-	// SendTimeout bounds how long gateway send handling waits for durable completion.
-	SendTimeout time.Duration
-	// DefaultSession defines default session buffering and timeout behavior.
-	DefaultSession gateway.SessionOptions
-	// Runtime defines async gateway worker and queue tuning.
-	Runtime gateway.RuntimeOptions
-	// Transport defines transport-specific runtime tuning for gateway listeners.
-	Transport gateway.TransportOptions
-	// Listeners lists gateway listener bindings.
-	Listeners []gateway.ListenerOptions
-
-	sendTimeoutSet bool
-}
-
-// SetExplicitFlags records whether gateway settings were explicitly configured.
-func (c *GatewayConfig) SetExplicitFlags(sendTimeoutSet bool) {
-	if c == nil {
-		return
-	}
-	c.sendTimeoutSet = sendTimeoutSet
-}
-
-// APIConfig configures the public HTTP API service.
-type APIConfig struct {
-	// ListenAddr is the HTTP API listen address. An empty value disables the API service.
-	ListenAddr string
-	// ExternalTCPAddr is the published TCP gateway address returned by route APIs.
-	ExternalTCPAddr string
-	// ExternalWSAddr is the published WebSocket gateway address returned by route APIs.
-	ExternalWSAddr string
-	// ExternalWSSAddr is the published secure WebSocket gateway address returned by route APIs.
-	ExternalWSSAddr string
-}
-
-// ManagerConfig configures the manager HTTP service.
-type ManagerConfig struct {
-	// ListenAddr is the manager server listen address. An empty value disables
-	// the manager service entirely.
-	ListenAddr string
-	// AuthOn enables JWT login and permission checks for manager routes.
-	AuthOn bool
-	// JWTSecret is the signing secret used for manager JWT tokens.
-	JWTSecret string
-	// JWTIssuer is the issuer claim embedded in manager JWT tokens.
-	JWTIssuer string
-	// JWTExpire is the manager JWT lifetime.
-	JWTExpire time.Duration
-	// Users defines the static manager users allowed to log in.
-	Users []ManagerUserConfig
-}
-
-// ManagerUserConfig describes one static manager user.
-type ManagerUserConfig struct {
-	// Username is the static login identity.
-	Username string
-	// Password is the static login secret.
-	Password string
-	// Permissions lists the resource actions granted to the user.
-	Permissions []ManagerPermissionConfig
-}
-
-// ManagerPermissionConfig binds one resource to allowed actions.
-type ManagerPermissionConfig struct {
-	// Resource is the manager resource name, such as "cluster.node"; use "*" to grant all manager resources.
-	Resource string
-	// Actions contains the allowed action codes: r, w, or *.
-	Actions []string
-}
-
-// ConversationConfig controls conversation projection, sync limits, and batching.
+// ConversationConfig contains conversation authority and read-model settings.
 type ConversationConfig struct {
-	// ColdThreshold is the inactivity duration after which conversations are treated as cold.
-	ColdThreshold time.Duration
-	// ActiveScanLimit limits how many active conversations are scanned in one pass.
-	ActiveScanLimit int
-	// ChannelProbeBatchSize limits channel probes per conversation scan batch.
-	ChannelProbeBatchSize int
-	// SyncDefaultLimit is the default number of conversations returned by sync APIs.
-	SyncDefaultLimit int
-	// SyncMaxLimit is the maximum number of conversations returned by sync APIs.
-	SyncMaxLimit int
-	// FlushInterval is the periodic conversation projector flush interval.
-	FlushInterval time.Duration
-	// FlushDirtyLimit is the dirty conversation count that triggers an eager flush.
-	FlushDirtyLimit int
-	// SubscriberPageSize is the page size used when scanning channel subscribers for projection side effects.
-	SubscriberPageSize int
-	// ActiveHintFlushInterval is the background interval for flushing best-effort active hints.
-	ActiveHintFlushInterval time.Duration
-	// ActiveHintTTL controls how long unflushed hot active hints remain visible in memory.
-	ActiveHintTTL time.Duration
-	// ActiveHintBarrierTTL controls how long delete barriers block stale delayed hints in memory.
-	ActiveHintBarrierTTL time.Duration
-	// ActiveHintMaxHints limits total hot active hints held in memory.
-	ActiveHintMaxHints int
-	// ActiveHintMaxHintsPerUID limits hot active hints per UID.
-	ActiveHintMaxHintsPerUID int
-	// ActiveHintFlushBatchSize limits active hints written per flush batch.
-	ActiveHintFlushBatchSize int
-	// GroupActiveFanoutInterval throttles subscriber fanout for group active hints.
-	GroupActiveFanoutInterval time.Duration
-	// GroupActiveFanoutMaxSubscribers caps subscriber fanout for large groups; zero disables group fanout.
-	GroupActiveFanoutMaxSubscribers int
+	// MaxLastMessageConcurrency bounds concurrent channel tail reads for one conversation list request.
+	MaxLastMessageConcurrency int
+	// AuthorityCacheMaxRowsPerUID is retained for config compatibility; the runtime-backed authority currently does not enforce a per-UID cache bound.
+	AuthorityCacheMaxRowsPerUID int
+	// AuthorityCacheMaxRows bounds all unflushed authority cache rows on this node.
+	AuthorityCacheMaxRows int
+	// AuthorityListDBWindowMax is retained for config compatibility; the runtime-backed authority currently owns its active-view DB window internally.
+	AuthorityListDBWindowMax int
+	// AuthorityHandoffTimeout bounds how long a new authority waits for old-authority drain before explicit abandon.
+	AuthorityHandoffTimeout time.Duration
+	// AuthorityActiveCooldown skips receiver-only active_at flushes newer than the durable row by less than this duration.
+	AuthorityActiveCooldown time.Duration
+	// AuthorityFlushInterval controls how often dirty authority active rows are flushed to durable storage.
+	AuthorityFlushInterval time.Duration
+	// AuthorityFlushTimeout bounds one authority active-row flush attempt.
+	AuthorityFlushTimeout time.Duration
+	// AuthorityFlushBatchRows bounds dirty authority active rows flushed in one tick.
+	AuthorityFlushBatchRows int
+	// AuthorityAdmitBatchRows limits active rows in one authority admission batch.
+	AuthorityAdmitBatchRows int
+	// AuthorityAdmitConcurrency limits concurrent authority admission batches.
+	AuthorityAdmitConcurrency int
 }
 
-// ApplyDefaultsAndValidate fills default values and validates cross-field constraints.
-func (c *Config) ApplyDefaultsAndValidate() error {
+// PresenceConfig contains connection presence and route-authority touch settings.
+type PresenceConfig struct {
+	// ActivationTimeout bounds one gateway session activation against the UID authority.
+	ActivationTimeout time.Duration
+	// TouchFlushInterval controls how often owner-local activity is flushed to UID authorities.
+	TouchFlushInterval time.Duration
+	// TouchBatchSize limits owner-local touched routes drained in one flush.
+	TouchBatchSize int
+	// RouteTTL bounds authority-side route liveness since the latest observed activity.
+	RouteTTL time.Duration
+}
+
+// DeliveryConfig contains online delivery fanout and recvack tracking settings.
+type DeliveryConfig struct {
+	// Enabled wires committed messages into the delivery runtime when true.
+	Enabled bool
+	// FanoutPageSize limits subscriber UIDs read by one fanout page.
+	FanoutPageSize int
+	// PushBatchSize limits owner-node route pushes produced by one delivery batch.
+	PushBatchSize int
+	// PendingAckTTL bounds stale pending recvack cleanup during delivery activity.
+	PendingAckTTL time.Duration
+	// PendingAckMaxPerSession limits owner-local pending recvacks for one UID/session.
+	PendingAckMaxPerSession int
+	// EventQueueSize bounds committed-message events waiting for asynchronous delivery fanout.
+	EventQueueSize int
+}
+
+// WebhookConfig controls node-local best-effort webhook delivery.
+type WebhookConfig struct {
+	// Enabled starts the webhook runtime when at least one endpoint is configured.
+	Enabled bool
+	// HTTPAddr receives JSON webhook POST requests as {HTTPAddr}?event=<event>.
+	HTTPAddr string
+	// FocusEvents limits delivered event names. Empty means all supported webhook events are delivered.
+	FocusEvents []string
+	// QueueSize bounds accepted webhook events waiting in memory before worker execution.
+	QueueSize int
+	// Workers bounds concurrent webhook sender calls.
+	Workers int
+	// NotifyBatchMaxItems limits msg.notify messages sent in one webhook request.
+	NotifyBatchMaxItems int
+	// NotifyBatchMaxWait bounds how long msg.notify waits for adjacent messages before sending a partial batch.
+	NotifyBatchMaxWait time.Duration
+	// OnlineBatchMaxItems limits user.onlinestatus records sent in one webhook request.
+	OnlineBatchMaxItems int
+	// OnlineBatchMaxWait bounds how long user.onlinestatus waits for adjacent records before sending a partial batch.
+	OnlineBatchMaxWait time.Duration
+	// OfflineUIDBatchSize limits offline recipient UIDs sent in one msg.offline request.
+	OfflineUIDBatchSize int
+	// RequestTimeout bounds one outbound webhook request attempt.
+	RequestTimeout time.Duration
+	// RetryMaxAttempts bounds attempts for one admitted webhook batch before it is dropped.
+	RetryMaxAttempts int
+}
+
+func NormalizeWebhookConfig(cfg WebhookConfig) (WebhookConfig, error) {
+	cfg = defaultWebhookConfig(cfg)
+	if err := validateWebhookConfig(cfg); err != nil {
+		return WebhookConfig{}, err
+	}
+	return cfg, nil
+}
+
+func defaultWebhookConfig(cfg WebhookConfig) WebhookConfig {
+	if cfg.HTTPAddr != "" {
+		cfg.Enabled = true
+	}
+	if cfg.QueueSize == 0 {
+		cfg.QueueSize = 1024
+	}
+	if cfg.Workers == 0 {
+		cfg.Workers = 16
+	}
+	if cfg.NotifyBatchMaxItems == 0 {
+		cfg.NotifyBatchMaxItems = 100
+	}
+	if cfg.NotifyBatchMaxWait == 0 {
+		cfg.NotifyBatchMaxWait = 500 * time.Millisecond
+	}
+	if cfg.OnlineBatchMaxItems == 0 {
+		cfg.OnlineBatchMaxItems = 512
+	}
+	if cfg.OnlineBatchMaxWait == 0 {
+		cfg.OnlineBatchMaxWait = 2 * time.Second
+	}
+	if cfg.OfflineUIDBatchSize == 0 {
+		cfg.OfflineUIDBatchSize = 512
+	}
+	if cfg.RequestTimeout == 0 {
+		cfg.RequestTimeout = 5 * time.Second
+	}
+	if cfg.RetryMaxAttempts == 0 {
+		cfg.RetryMaxAttempts = 3
+	}
+	return cfg
+}
+
+func validateWebhookConfig(cfg WebhookConfig) error {
+	if cfg.Enabled && cfg.HTTPAddr == "" {
+		return fmt.Errorf("%w: webhook HTTPAddr is required when webhook is enabled", ErrInvalidConfig)
+	}
+	if cfg.QueueSize < 0 {
+		return fmt.Errorf("%w: webhook QueueSize must be >= 0", ErrInvalidConfig)
+	}
+	if cfg.Workers < 0 {
+		return fmt.Errorf("%w: webhook Workers must be >= 0", ErrInvalidConfig)
+	}
+	if cfg.NotifyBatchMaxItems < 0 {
+		return fmt.Errorf("%w: webhook NotifyBatchMaxItems must be >= 0", ErrInvalidConfig)
+	}
+	if cfg.NotifyBatchMaxWait < 0 {
+		return fmt.Errorf("%w: webhook NotifyBatchMaxWait must be >= 0", ErrInvalidConfig)
+	}
+	if cfg.OnlineBatchMaxItems < 0 {
+		return fmt.Errorf("%w: webhook OnlineBatchMaxItems must be >= 0", ErrInvalidConfig)
+	}
+	if cfg.OnlineBatchMaxWait < 0 {
+		return fmt.Errorf("%w: webhook OnlineBatchMaxWait must be >= 0", ErrInvalidConfig)
+	}
+	if cfg.OfflineUIDBatchSize < 0 {
+		return fmt.Errorf("%w: webhook OfflineUIDBatchSize must be >= 0", ErrInvalidConfig)
+	}
+	if cfg.RequestTimeout < 0 {
+		return fmt.Errorf("%w: webhook RequestTimeout must be >= 0", ErrInvalidConfig)
+	}
+	if cfg.RetryMaxAttempts < 0 {
+		return fmt.Errorf("%w: webhook RetryMaxAttempts must be >= 0", ErrInvalidConfig)
+	}
+	return nil
+}
+
+// PluginConfig controls node-local PDK-compatible plugin runtime integration.
+type PluginConfig struct {
+	// Enable allows node-local .wkp plugin processes and PersistAfter hooks when the app wires the plugin subsystem.
+	Enable bool
+	// Dir stores executable .wkp plugin files for this node.
+	Dir string
+	// SocketPath is the Unix socket used for plugin host RPC traffic.
+	SocketPath string
+	// SandboxDir is the root directory for per-plugin writable sandbox data.
+	SandboxDir string
+	// StateDir stores node-local desired plugin state files.
+	StateDir string
+	// Timeout bounds plugin host RPCs and graceful process shutdown.
+	Timeout time.Duration
+	// HotReload watches Dir for plugin binary changes when enabled.
+	HotReload bool
+	// FailOpen is retained for future Send hooks; PersistAfter is always fail-open.
+	FailOpen bool
+	// PersistAfterQueueSize bounds queued PersistAfter events retained in memory.
+	PersistAfterQueueSize int
+	// PersistAfterWorkers bounds concurrent PersistAfter hook invocations.
+	PersistAfterWorkers int
+
+	hotReloadSet bool
+}
+
+// SetExplicitFlags records whether plugin boolean defaults were explicitly configured.
+func (c *PluginConfig) SetExplicitFlags(hotReloadSet bool) {
 	if c == nil {
-		return fmt.Errorf("%w: nil config", ErrInvalidConfig)
+		return
 	}
-
-	if c.Node.ID == 0 {
-		return fmt.Errorf("%w: node id must be set", ErrInvalidConfig)
-	}
-	if c.Node.ID > messageid.MaxNodeID {
-		return fmt.Errorf("%w: node id %d exceeds snowflake max %d", ErrInvalidConfig, c.Node.ID, messageid.MaxNodeID)
-	}
-	if c.Node.DataDir == "" {
-		return fmt.Errorf("%w: node data dir must be set", ErrInvalidConfig)
-	}
-	if c.Cluster.ListenAddr == "" {
-		return fmt.Errorf("%w: cluster listen addr must be set", ErrInvalidConfig)
-	}
-	if len(c.Gateway.Listeners) == 0 {
-		return fmt.Errorf("%w: gateway listeners must be set", ErrInvalidConfig)
-	}
-	if c.Gateway.TokenAuthOn {
-		return fmt.Errorf("%w: gateway token auth requires verifier hooks", ErrInvalidConfig)
-	}
-	if c.Gateway.SendTimeout <= 0 && c.Gateway.sendTimeoutSet {
-		return fmt.Errorf("%w: gateway send timeout must be > 0", ErrInvalidConfig)
-	}
-	if c.Manager.ListenAddr != "" && c.Manager.AuthOn {
-		if c.Manager.JWTSecret == "" {
-			return fmt.Errorf("%w: manager jwt secret must be set when auth is enabled", ErrInvalidConfig)
-		}
-		if c.Manager.JWTExpire <= 0 {
-			return fmt.Errorf("%w: manager jwt expire must be positive when auth is enabled", ErrInvalidConfig)
-		}
-		if len(c.Manager.Users) == 0 {
-			return fmt.Errorf("%w: manager users must be set when auth is enabled", ErrInvalidConfig)
-		}
-		for _, user := range c.Manager.Users {
-			if user.Username == "" {
-				return fmt.Errorf("%w: manager username must be set", ErrInvalidConfig)
-			}
-			if user.Password == "" {
-				return fmt.Errorf("%w: manager password must be set", ErrInvalidConfig)
-			}
-			for _, permission := range user.Permissions {
-				if permission.Resource == "" {
-					return fmt.Errorf("%w: manager permission resource must be set", ErrInvalidConfig)
-				}
-				if len(permission.Actions) == 0 {
-					return fmt.Errorf("%w: manager permission action must be set", ErrInvalidConfig)
-				}
-				for _, action := range permission.Actions {
-					if !validManagerPermissionAction(action) {
-						return fmt.Errorf("%w: manager permission action %q must be one of r, w or *", ErrInvalidConfig, action)
-					}
-				}
-			}
-		}
-	}
-	if c.ChannelPlane.ReactorCount < 0 {
-		return fmt.Errorf("%w: channel plane reactor count must be >= 0", ErrInvalidConfig)
-	}
-	if c.ChannelPlane.PeerLaneCount < 0 {
-		return fmt.Errorf("%w: channel plane peer lane count must be >= 0", ErrInvalidConfig)
-	}
-	if c.ChannelPlane.PeerBatchMaxWait < 0 {
-		return fmt.Errorf("%w: channel plane peer batch max wait must be >= 0", ErrInvalidConfig)
-	}
-	if c.ChannelPlane.ReactorCount == 0 {
-		c.ChannelPlane.ReactorCount = max(4, runtime.GOMAXPROCS(0))
-	}
-	if c.ChannelPlane.PeerLaneCount == 0 {
-		c.ChannelPlane.PeerLaneCount = max(1, min(8, runtime.GOMAXPROCS(0)))
-	}
-	if c.ChannelPlane.PeerBatchMaxWait == 0 {
-		c.ChannelPlane.PeerBatchMaxWait = 500 * time.Microsecond
-	}
-	if c.ChannelMigration.ScanInterval < 0 {
-		return fmt.Errorf("%w: channel migration scan interval must be >= 0", ErrInvalidConfig)
-	}
-	if c.ChannelMigration.ScanInterval == 0 && c.ChannelMigration.scanIntervalSet {
-		return fmt.Errorf("%w: channel migration scan interval must be positive", ErrInvalidConfig)
-	}
-	if c.ChannelMigration.ScanLimit < 0 {
-		return fmt.Errorf("%w: channel migration scan limit must be >= 0", ErrInvalidConfig)
-	}
-	if c.ChannelMigration.ScanLimit == 0 && c.ChannelMigration.scanLimitSet {
-		return fmt.Errorf("%w: channel migration scan limit must be positive", ErrInvalidConfig)
-	}
-	if c.ChannelMigration.OwnerLeaseTTL < 0 {
-		return fmt.Errorf("%w: channel migration owner lease ttl must be >= 0", ErrInvalidConfig)
-	}
-	if c.ChannelMigration.OwnerLeaseTTL == 0 && c.ChannelMigration.ownerLeaseTTLSet {
-		return fmt.Errorf("%w: channel migration owner lease ttl must be positive", ErrInvalidConfig)
-	}
-	if c.ChannelMigration.RetryBackoff < 0 {
-		return fmt.Errorf("%w: channel migration retry backoff must be >= 0", ErrInvalidConfig)
-	}
-	if c.ChannelMigration.RetryBackoff == 0 && c.ChannelMigration.retryBackoffSet {
-		return fmt.Errorf("%w: channel migration retry backoff must be positive", ErrInvalidConfig)
-	}
-	if c.ChannelMigration.FenceTTL < 0 {
-		return fmt.Errorf("%w: channel migration fence ttl must be >= 0", ErrInvalidConfig)
-	}
-	if c.ChannelMigration.FenceTTL == 0 && c.ChannelMigration.fenceTTLSet {
-		return fmt.Errorf("%w: channel migration fence ttl must be positive", ErrInvalidConfig)
-	}
-	if c.ChannelMigration.LeaderLeaseTTL < 0 {
-		return fmt.Errorf("%w: channel migration leader lease ttl must be >= 0", ErrInvalidConfig)
-	}
-	if c.ChannelMigration.LeaderLeaseTTL == 0 && c.ChannelMigration.leaderLeaseTTLSet {
-		return fmt.Errorf("%w: channel migration leader lease ttl must be positive", ErrInvalidConfig)
-	}
-	if c.ChannelMigration.CatchUpStableWindow < 0 {
-		return fmt.Errorf("%w: channel migration catch-up stable window must be >= 0", ErrInvalidConfig)
-	}
-	if c.ChannelMigration.CatchUpStableWindow == 0 && c.ChannelMigration.catchUpStableWindowSet {
-		return fmt.Errorf("%w: channel migration catch-up stable window must be positive", ErrInvalidConfig)
-	}
-	if c.ChannelMigration.MaxConcurrent < 0 {
-		return fmt.Errorf("%w: channel migration max concurrent must be >= 0", ErrInvalidConfig)
-	}
-	if c.ChannelMigration.MaxConcurrentPerSource < 0 {
-		return fmt.Errorf("%w: channel migration max concurrent per source must be >= 0", ErrInvalidConfig)
-	}
-	if c.ChannelMigration.MaxConcurrentPerTarget < 0 {
-		return fmt.Errorf("%w: channel migration max concurrent per target must be >= 0", ErrInvalidConfig)
-	}
-	if c.ChannelMigration.CompletedRetentionTTL < 0 {
-		return fmt.Errorf("%w: channel migration completed retention ttl must be >= 0", ErrInvalidConfig)
-	}
-	if c.ChannelMigration.GCLimit < 0 {
-		return fmt.Errorf("%w: channel migration gc limit must be >= 0", ErrInvalidConfig)
-	}
-	if c.ChannelMigration.GCLimit == 0 && c.ChannelMigration.gcLimitSet {
-		return fmt.Errorf("%w: channel migration gc limit must be positive", ErrInvalidConfig)
-	}
-	if c.ChannelMessageRetention.TTL < 0 {
-		return fmt.Errorf("%w: channel message retention ttl must be >= 0", ErrInvalidConfig)
-	}
-	if c.ChannelMessageRetention.ScanInterval < 0 {
-		return fmt.Errorf("%w: channel message retention scan interval must be >= 0", ErrInvalidConfig)
-	}
-	if c.ChannelMessageRetention.ChannelBatchSize < 0 {
-		return fmt.Errorf("%w: channel message retention channel batch size must be >= 0", ErrInvalidConfig)
-	}
-	if c.ChannelMessageRetention.MaxTrimMessages < 0 {
-		return fmt.Errorf("%w: channel message retention max trim messages must be >= 0", ErrInvalidConfig)
-	}
-	if c.ChannelMessageRetention.TTL > 0 {
-		if c.ChannelMessageRetention.ScanInterval == 0 && c.ChannelMessageRetention.scanIntervalSet {
-			return fmt.Errorf("%w: channel message retention scan interval must be positive when ttl is enabled", ErrInvalidConfig)
-		}
-		if c.ChannelMessageRetention.ChannelBatchSize == 0 && c.ChannelMessageRetention.channelBatchSizeSet {
-			return fmt.Errorf("%w: channel message retention channel batch size must be positive when ttl is enabled", ErrInvalidConfig)
-		}
-		if c.ChannelMessageRetention.MaxTrimMessages == 0 && c.ChannelMessageRetention.maxTrimMessagesSet {
-			return fmt.Errorf("%w: channel message retention max trim messages must be positive when ttl is enabled", ErrInvalidConfig)
-		}
-	}
-	if c.Message.PermissionCacheTTL < 0 {
-		return fmt.Errorf("%w: message permission cache ttl must be >= 0", ErrInvalidConfig)
-	}
-	if c.Message.UserRateLimitRate < 0 {
-		return fmt.Errorf("%w: message user rate limit rate must be >= 0", ErrInvalidConfig)
-	}
-	if c.Message.UserRateLimitBurst < 0 {
-		return fmt.Errorf("%w: message user rate limit burst must be >= 0", ErrInvalidConfig)
-	}
-	if c.Message.UserRateLimitBucketShards < 0 {
-		return fmt.Errorf("%w: message user rate limit bucket shards must be >= 0", ErrInvalidConfig)
-	}
-	if c.Message.UserRateLimitIdleTTL < 0 {
-		return fmt.Errorf("%w: message user rate limit idle ttl must be >= 0", ErrInvalidConfig)
-	}
-	if c.Message.UserRateLimitMaxBuckets < 0 {
-		return fmt.Errorf("%w: message user rate limit max buckets must be >= 0", ErrInvalidConfig)
-	}
-	if c.Message.UserRateLimitEnabled && c.Message.UserRateLimitRate == 0 && c.Message.userRateLimitRateSet {
-		return fmt.Errorf("%w: message user rate limit rate must be positive when enabled", ErrInvalidConfig)
-	}
-	if c.Message.UserRateLimitEnabled && c.Message.UserRateLimitBurst == 0 && c.Message.userRateLimitBurstSet {
-		return fmt.Errorf("%w: message user rate limit burst must be positive when enabled", ErrInvalidConfig)
-	}
-	if c.Message.UserRateLimitBucketShards == 0 && c.Message.userRateLimitBucketShardsSet {
-		return fmt.Errorf("%w: message user rate limit bucket shards must be positive", ErrInvalidConfig)
-	}
-	if c.Message.UserRateLimitIdleTTL == 0 && c.Message.userRateLimitIdleTTLSet {
-		return fmt.Errorf("%w: message user rate limit idle ttl must be positive", ErrInvalidConfig)
-	}
-	if c.Message.UserRateLimitMaxBuckets == 0 && c.Message.userRateLimitMaxBucketsSet {
-		return fmt.Errorf("%w: message user rate limit max buckets must be positive", ErrInvalidConfig)
-	}
-	if c.Delivery.PresenceCacheTTL < 0 {
-		return fmt.Errorf("%w: delivery presence cache ttl must be >= 0", ErrInvalidConfig)
-	}
-	if c.Delivery.AckBatchMaxWait < 0 {
-		return fmt.Errorf("%w: delivery ack batch max wait must be >= 0", ErrInvalidConfig)
-	}
-	if c.Delivery.AckBatchMaxSize < 0 {
-		return fmt.Errorf("%w: delivery ack batch max size must be >= 0", ErrInvalidConfig)
-	}
-	if c.Delivery.AckBatchMaxWait > 0 && c.Delivery.AckBatchMaxSize == 0 {
-		c.Delivery.AckBatchMaxSize = defaultDeliveryAckBatchMaxSize
-	}
-	if c.Plugin.Timeout <= 0 {
-		if c.Plugin.Timeout < 0 || c.Plugin.timeoutSet {
-			return fmt.Errorf("%w: plugin timeout must be positive", ErrInvalidConfig)
-		}
-		c.Plugin.Timeout = 5 * time.Second
-	}
-	if !c.Plugin.hotReloadSet {
-		c.Plugin.HotReload = true
-	}
-	if len(c.Cluster.Slots) > 0 {
-		return fmt.Errorf("%w: Cluster.Slots is no longer supported; remove static slot peers and use Cluster.InitialSlotCount for managed slots", ErrInvalidConfig)
-	}
-	if c.Cluster.SlotCount > 0 && c.Cluster.InitialSlotCount > 0 && c.Cluster.SlotCount != c.Cluster.InitialSlotCount {
-		return fmt.Errorf("%w: cluster SlotCount=%d must match InitialSlotCount=%d when both are set", ErrInvalidConfig, c.Cluster.SlotCount, c.Cluster.InitialSlotCount)
-	}
-
-	if c.Cluster.InitialSlotCount == 0 && c.Cluster.SlotCount > 0 {
-		c.Cluster.InitialSlotCount = c.Cluster.SlotCount
-	}
-	if c.Cluster.SlotCount == 0 && c.Cluster.InitialSlotCount > 0 {
-		c.Cluster.SlotCount = c.Cluster.InitialSlotCount
-	}
-	initialSlotCount := c.Cluster.effectiveInitialSlotCount()
-	if initialSlotCount == 0 {
-		return fmt.Errorf("%w: cluster initial slot count must be set", ErrInvalidConfig)
-	}
-	if c.Cluster.HashSlotCount == 0 {
-		if initialSlotCount > math.MaxUint16 {
-			return fmt.Errorf("%w: cluster initial slot count %d exceeds max hash slot count", ErrInvalidConfig, initialSlotCount)
-		}
-		c.Cluster.HashSlotCount = uint16(initialSlotCount)
-	}
-	if uint32(c.Cluster.HashSlotCount) < initialSlotCount {
-		return fmt.Errorf("%w: cluster hash slot count %d must be >= initial slot count %d", ErrInvalidConfig, c.Cluster.HashSlotCount, initialSlotCount)
-	}
-	staticCluster := len(c.Cluster.Nodes) > 0
-	dynamicJoin := !staticCluster && len(c.Cluster.Seeds) > 0
-	if !staticCluster && !dynamicJoin {
-		if c.Cluster.JoinModeEnabled() {
-			return fmt.Errorf("%w: cluster seeds must be set for dynamic join mode", ErrInvalidConfig)
-		}
-		return fmt.Errorf("%w: cluster nodes must be set", ErrInvalidConfig)
-	}
-	if len(c.Cluster.Seeds) > 0 {
-		if err := validateClusterSeeds(c.Cluster.Seeds); err != nil {
-			return err
-		}
-	}
-	if dynamicJoin {
-		if c.Cluster.AdvertiseAddr == "" {
-			return fmt.Errorf("%w: cluster advertise addr must be set for dynamic join mode", ErrInvalidConfig)
-		}
-		if c.Cluster.JoinToken == "" {
-			return fmt.Errorf("%w: cluster join token must be set for dynamic join mode", ErrInvalidConfig)
-		}
-	}
-	if staticCluster && c.Cluster.ControllerReplicaN == 0 {
-		c.Cluster.ControllerReplicaN = len(c.Cluster.Nodes)
-	}
-	if c.Cluster.ControllerReplicaN <= 0 {
-		return fmt.Errorf("%w: controller replica count must be positive", ErrInvalidConfig)
-	}
-	if staticCluster && c.Cluster.ControllerReplicaN > len(c.Cluster.Nodes) {
-		return fmt.Errorf("%w: controller replica count %d exceeds cluster nodes %d", ErrInvalidConfig, c.Cluster.ControllerReplicaN, len(c.Cluster.Nodes))
-	}
-	if staticCluster && c.Cluster.SlotReplicaN == 0 {
-		c.Cluster.SlotReplicaN = len(c.Cluster.Nodes)
-	}
-	if c.Cluster.SlotReplicaN <= 0 {
-		return fmt.Errorf("%w: slot replica count must be positive", ErrInvalidConfig)
-	}
-	if staticCluster && c.Cluster.SlotReplicaN > len(c.Cluster.Nodes) {
-		return fmt.Errorf("%w: slot replica count %d exceeds cluster nodes %d", ErrInvalidConfig, c.Cluster.SlotReplicaN, len(c.Cluster.Nodes))
-	}
-	if !c.Cluster.ControllerLogCompaction.enabledSet {
-		c.Cluster.ControllerLogCompaction.Enabled = true
-	}
-	if c.Cluster.ControllerLogCompaction.Enabled {
-		if c.Cluster.ControllerLogCompaction.TriggerEntries == 0 && c.Cluster.ControllerLogCompaction.triggerEntriesSet {
-			return fmt.Errorf("%w: controller log compaction trigger entries must be > 0", ErrInvalidConfig)
-		}
-		if c.Cluster.ControllerLogCompaction.CheckInterval == 0 && c.Cluster.ControllerLogCompaction.checkIntervalSet {
-			return fmt.Errorf("%w: controller log compaction check interval must be > 0", ErrInvalidConfig)
-		}
-		if c.Cluster.ControllerLogCompaction.CheckInterval < 0 {
-			return fmt.Errorf("%w: controller log compaction check interval must be > 0", ErrInvalidConfig)
-		}
-	}
-	if c.Cluster.ControllerLogCompaction.TriggerEntries == 0 {
-		c.Cluster.ControllerLogCompaction.TriggerEntries = 10000
-	}
-	if c.Cluster.ControllerLogCompaction.CheckInterval == 0 {
-		c.Cluster.ControllerLogCompaction.CheckInterval = 30 * time.Second
-	}
-	if !c.Cluster.SlotLogCompaction.enabledSet {
-		c.Cluster.SlotLogCompaction.Enabled = true
-	}
-	if c.Cluster.SlotLogCompaction.Enabled {
-		if c.Cluster.SlotLogCompaction.TriggerEntries == 0 && c.Cluster.SlotLogCompaction.triggerEntriesSet {
-			return fmt.Errorf("%w: slot log compaction trigger entries must be > 0", ErrInvalidConfig)
-		}
-		if c.Cluster.SlotLogCompaction.CheckInterval == 0 && c.Cluster.SlotLogCompaction.checkIntervalSet {
-			return fmt.Errorf("%w: slot log compaction check interval must be > 0", ErrInvalidConfig)
-		}
-		if c.Cluster.SlotLogCompaction.CheckInterval < 0 {
-			return fmt.Errorf("%w: slot log compaction check interval must be > 0", ErrInvalidConfig)
-		}
-	}
-	if c.Cluster.SlotLogCompaction.TriggerEntries == 0 {
-		c.Cluster.SlotLogCompaction.TriggerEntries = 10000
-	}
-	if c.Cluster.SlotLogCompaction.CheckInterval == 0 {
-		c.Cluster.SlotLogCompaction.CheckInterval = 30 * time.Second
-	}
-	if c.Cluster.ChannelBootstrapDefaultMinISR <= 0 {
-		if c.Cluster.channelBootstrapDefaultMinISRSet {
-			return fmt.Errorf("%w: channel bootstrap default min isr must be positive", ErrInvalidConfig)
-		}
-		c.Cluster.ChannelBootstrapDefaultMinISR = 2
-	}
-	if c.Cluster.MaxChannels < 0 {
-		return fmt.Errorf("%w: cluster max channels must be >= 0", ErrInvalidConfig)
-	}
-	if c.Cluster.ChannelIdleTimeout < 0 {
-		return fmt.Errorf("%w: channel idle timeout must be >= 0", ErrInvalidConfig)
-	}
-	if c.Cluster.ChannelIdleScanInterval < 0 {
-		return fmt.Errorf("%w: channel idle scan interval must be >= 0", ErrInvalidConfig)
-	}
-	switch c.Cluster.ChannelExecutionMode {
-	case "", "dedicated", "pooled":
-	default:
-		return fmt.Errorf("%w: channel execution mode must be dedicated or pooled", ErrInvalidConfig)
-	}
-	if c.Cluster.ChannelExecutionMode == "" {
-		c.Cluster.ChannelExecutionMode = "pooled"
-	}
-	if c.Cluster.ChannelExecutionWorkers < 0 {
-		return fmt.Errorf("%w: channel execution worker count must be >= 0", ErrInvalidConfig)
-	}
-	if c.Cluster.ChannelExecutionQueueSize < 0 {
-		return fmt.Errorf("%w: channel execution queue size must be >= 0", ErrInvalidConfig)
-	}
-	if c.Cluster.FollowerReplicationRetryInterval <= 0 && c.Cluster.followerReplicationRetryIntervalSet {
-		return fmt.Errorf("%w: follower replication retry interval must be positive", ErrInvalidConfig)
-	}
-	if c.Cluster.AppendGroupCommitMaxWait <= 0 && c.Cluster.appendGroupCommitMaxWaitSet {
-		return fmt.Errorf("%w: append group commit max wait must be positive", ErrInvalidConfig)
-	}
-	if c.Cluster.AppendGroupCommitMaxRecords <= 0 && c.Cluster.appendGroupCommitMaxRecordsSet {
-		return fmt.Errorf("%w: append group commit max records must be positive", ErrInvalidConfig)
-	}
-	if c.Cluster.AppendGroupCommitMaxBytes <= 0 && c.Cluster.appendGroupCommitMaxBytesSet {
-		return fmt.Errorf("%w: append group commit max bytes must be positive", ErrInvalidConfig)
-	}
-	if c.Cluster.CommitCoordinatorFlushWindow <= 0 && c.Cluster.commitCoordinatorFlushWindowSet {
-		return fmt.Errorf("%w: commit coordinator flush window must be positive", ErrInvalidConfig)
-	}
-	if c.Cluster.CommitCoordinatorMaxRequests < 0 {
-		return fmt.Errorf("%w: commit coordinator max requests must be >= 0", ErrInvalidConfig)
-	}
-	if c.Cluster.CommitCoordinatorMaxRecords < 0 {
-		return fmt.Errorf("%w: commit coordinator max records must be >= 0", ErrInvalidConfig)
-	}
-	if c.Cluster.CommitCoordinatorMaxBytes < 0 {
-		return fmt.Errorf("%w: commit coordinator max bytes must be >= 0", ErrInvalidConfig)
-	}
-	if c.Cluster.LongPollLaneCount <= 0 {
-		if c.Cluster.longPollLaneCountSet {
-			return fmt.Errorf("%w: long poll lane count must be positive", ErrInvalidConfig)
-		}
-		c.Cluster.LongPollLaneCount = 8
-	}
-	if c.Cluster.LongPollMaxWait <= 0 {
-		if c.Cluster.longPollMaxWaitSet {
-			return fmt.Errorf("%w: long poll max wait must be positive", ErrInvalidConfig)
-		}
-		c.Cluster.LongPollMaxWait = 200 * time.Millisecond
-	}
-	if c.Cluster.LongPollMaxBytes <= 0 {
-		if c.Cluster.longPollMaxBytesSet {
-			return fmt.Errorf("%w: long poll max bytes must be positive", ErrInvalidConfig)
-		}
-		c.Cluster.LongPollMaxBytes = 64 * 1024
-	}
-	if c.Cluster.LongPollMaxChannels <= 0 {
-		if c.Cluster.longPollMaxChannelsSet {
-			return fmt.Errorf("%w: long poll max channels must be positive", ErrInvalidConfig)
-		}
-		c.Cluster.LongPollMaxChannels = 64
-	}
-	if c.Cluster.LongPollDataNotifyDelay < 0 {
-		return fmt.Errorf("%w: long poll data notify delay must be >= 0", ErrInvalidConfig)
-	}
-	if c.Cluster.ManagedSlotsReadyTimeout < 0 {
-		return fmt.Errorf("%w: managed slots ready timeout must be >= 0", ErrInvalidConfig)
-	}
-	if c.Cluster.ManagedSlotsReadyTimeout == 0 {
-		c.Cluster.ManagedSlotsReadyTimeout = defaultManagedSlotsReadyTimeout
-	}
-
-	if c.Storage.DBPath == "" {
-		c.Storage.DBPath = filepath.Join(c.Node.DataDir, "data")
-	}
-	if c.Storage.RaftPath == "" {
-		c.Storage.RaftPath = filepath.Join(c.Node.DataDir, "raft")
-	}
-	if c.Storage.ChannelLogPath == "" {
-		c.Storage.ChannelLogPath = filepath.Join(c.Node.DataDir, "channellog")
-	}
-	if c.Storage.ControllerMetaPath == "" {
-		c.Storage.ControllerMetaPath = filepath.Join(c.Node.DataDir, "controller-meta")
-	}
-	if c.Storage.ControllerRaftPath == "" {
-		c.Storage.ControllerRaftPath = filepath.Join(c.Node.DataDir, "controller-raft")
-	}
-	if c.Storage.RaftSnapshotPath == "" {
-		c.Storage.RaftSnapshotPath = filepath.Join(c.Node.DataDir, "raft-snapshots")
-	}
-	if c.Storage.ControllerRaftSnapshotPath == "" {
-		c.Storage.ControllerRaftSnapshotPath = filepath.Join(c.Node.DataDir, "controller-raft-snapshots")
-	}
-	if c.Plugin.Dir == "" {
-		c.Plugin.Dir = filepath.Join(c.Node.DataDir, "plugins")
-	}
-	if c.Plugin.SocketPath == "" {
-		c.Plugin.SocketPath = filepath.Join(c.Node.DataDir, "run", "plugin.sock")
-	}
-	if c.Plugin.SandboxDir == "" {
-		c.Plugin.SandboxDir = filepath.Join(c.Node.DataDir, "plugin-sandbox")
-	}
-	if c.Plugin.StateDir == "" {
-		c.Plugin.StateDir = filepath.Join(c.Node.DataDir, "plugin-state")
-	}
-	if c.Storage.RaftSnapshotChunkSize == 0 {
-		if c.Storage.raftSnapshotChunkSizeSet {
-			return fmt.Errorf("%w: raft snapshot chunk size must be > 0", ErrInvalidConfig)
-		}
-		c.Storage.RaftSnapshotChunkSize = 8 << 20
-	}
-	if c.Storage.RaftSnapshotGCGrace < 0 {
-		return fmt.Errorf("%w: raft snapshot gc grace must be non-negative", ErrInvalidConfig)
-	}
-	if c.Storage.RaftSnapshotGCGrace == 0 && !c.Storage.raftSnapshotGCGraceSet {
-		c.Storage.RaftSnapshotGCGrace = 30 * time.Minute
-	}
-
-	dbPath, err := normalizeStoragePath(c.Storage.DBPath)
-	if err != nil {
-		return fmt.Errorf("%w: normalize db path: %v", ErrInvalidConfig, err)
-	}
-	raftPath, err := normalizeStoragePath(c.Storage.RaftPath)
-	if err != nil {
-		return fmt.Errorf("%w: normalize raft path: %v", ErrInvalidConfig, err)
-	}
-	channelLogPath, err := normalizeStoragePath(c.Storage.ChannelLogPath)
-	if err != nil {
-		return fmt.Errorf("%w: normalize channel log path: %v", ErrInvalidConfig, err)
-	}
-	controllerMetaPath, err := normalizeStoragePath(c.Storage.ControllerMetaPath)
-	if err != nil {
-		return fmt.Errorf("%w: normalize controller meta path: %v", ErrInvalidConfig, err)
-	}
-	controllerRaftPath, err := normalizeStoragePath(c.Storage.ControllerRaftPath)
-	if err != nil {
-		return fmt.Errorf("%w: normalize controller raft path: %v", ErrInvalidConfig, err)
-	}
-	raftSnapshotPath, err := normalizeStoragePath(c.Storage.RaftSnapshotPath)
-	if err != nil {
-		return fmt.Errorf("%w: normalize raft snapshot path: %v", ErrInvalidConfig, err)
-	}
-	controllerRaftSnapshotPath, err := normalizeStoragePath(c.Storage.ControllerRaftSnapshotPath)
-	if err != nil {
-		return fmt.Errorf("%w: normalize controller raft snapshot path: %v", ErrInvalidConfig, err)
-	}
-	pluginDir, err := normalizeStoragePath(c.Plugin.Dir)
-	if err != nil {
-		return fmt.Errorf("%w: normalize plugin dir: %v", ErrInvalidConfig, err)
-	}
-	pluginSocketPath, err := normalizeStoragePath(c.Plugin.SocketPath)
-	if err != nil {
-		return fmt.Errorf("%w: normalize plugin socket path: %v", ErrInvalidConfig, err)
-	}
-	pluginSandboxDir, err := normalizeStoragePath(c.Plugin.SandboxDir)
-	if err != nil {
-		return fmt.Errorf("%w: normalize plugin sandbox dir: %v", ErrInvalidConfig, err)
-	}
-	pluginStateDir, err := normalizeStoragePath(c.Plugin.StateDir)
-	if err != nil {
-		return fmt.Errorf("%w: normalize plugin state dir: %v", ErrInvalidConfig, err)
-	}
-	c.Storage.DBPath = dbPath
-	c.Storage.RaftPath = raftPath
-	c.Storage.ChannelLogPath = channelLogPath
-	c.Storage.ControllerMetaPath = controllerMetaPath
-	c.Storage.ControllerRaftPath = controllerRaftPath
-	c.Storage.RaftSnapshotPath = raftSnapshotPath
-	c.Storage.ControllerRaftSnapshotPath = controllerRaftSnapshotPath
-	c.Plugin.Dir = pluginDir
-	c.Plugin.SocketPath = pluginSocketPath
-	c.Plugin.SandboxDir = pluginSandboxDir
-	c.Plugin.StateDir = pluginStateDir
-	if err := validateStoragePathIsolation([]namedStoragePath{
-		{name: "storage db path", path: dbPath},
-		{name: "slot raft path", path: raftPath},
-		{name: "channel log path", path: channelLogPath},
-		{name: "controller meta path", path: controllerMetaPath},
-		{name: "controller raft path", path: controllerRaftPath},
-		{name: "slot raft snapshot path", path: raftSnapshotPath},
-		{name: "controller raft snapshot path", path: controllerRaftSnapshotPath},
-	}); err != nil {
-		return fmt.Errorf("%w: %v", ErrInvalidConfig, err)
-	}
-
-	if c.Gateway.DefaultSession.AsyncSendBatchMaxRecords < 0 {
-		return fmt.Errorf("%w: gateway send batch max records must be non-negative", ErrInvalidConfig)
-	}
-	if c.Gateway.DefaultSession.AsyncSendBatchMaxBytes < 0 {
-		return fmt.Errorf("%w: gateway send batch max bytes must be non-negative", ErrInvalidConfig)
-	}
-	c.Gateway.DefaultSession = gateway.NormalizeSessionOptions(c.Gateway.DefaultSession)
-	c.Gateway.Runtime = gateway.NormalizeRuntimeOptions(c.Gateway.Runtime)
-	if c.Gateway.Transport.Gnet.NumEventLoop < 0 {
-		return fmt.Errorf("%w: gateway gnet num event loop must be non-negative", ErrInvalidConfig)
-	}
-	if c.Gateway.Transport.Gnet.ReadBufferCap < 0 {
-		return fmt.Errorf("%w: gateway gnet read buffer cap must be non-negative", ErrInvalidConfig)
-	}
-	if c.Gateway.Transport.Gnet.WriteBufferCap < 0 {
-		return fmt.Errorf("%w: gateway gnet write buffer cap must be non-negative", ErrInvalidConfig)
-	}
-	if c.Gateway.SendTimeout <= 0 {
-		c.Gateway.SendTimeout = defaultGatewaySendTimeout
-	}
-	if c.Bench.APIMaxBatchSize < 0 {
-		return fmt.Errorf("%w: bench api max batch size must be positive", ErrInvalidConfig)
-	}
-	if c.Bench.APIMaxPayloadBytes < 0 {
-		return fmt.Errorf("%w: bench api max payload bytes must be positive", ErrInvalidConfig)
-	}
-	if c.Bench.APIMaxBatchSize == 0 {
-		c.Bench.APIMaxBatchSize = defaultBenchAPIMaxBatchSize
-	}
-	if c.Bench.APIMaxPayloadBytes == 0 {
-		c.Bench.APIMaxPayloadBytes = defaultBenchAPIMaxPayloadBytes
-	}
-	if c.Conversation.ColdThreshold <= 0 {
-		c.Conversation.ColdThreshold = 30 * 24 * time.Hour
-	}
-	if c.Conversation.ActiveScanLimit <= 0 {
-		c.Conversation.ActiveScanLimit = 2000
-	}
-	if c.Conversation.ChannelProbeBatchSize <= 0 {
-		c.Conversation.ChannelProbeBatchSize = 512
-	}
-	if !c.Observability.metricsEnabledSet {
-		c.Observability.MetricsEnabled = true
-	}
-	if !c.Observability.networkEnabledSet {
-		c.Observability.NetworkEnabled = true
-	}
-	if !c.Observability.healthDetailEnabledSet {
-		c.Observability.HealthDetailEnabled = true
-	}
-	if !c.Observability.debugAPIEnabledSet {
-		c.Observability.DebugAPIEnabled = false
-	}
-	if !c.Observability.Diagnostics.enabledSet {
-		c.Observability.Diagnostics.Enabled = true
-	}
-	if c.Observability.Diagnostics.BufferSize <= 0 {
-		c.Observability.Diagnostics.BufferSize = 50000
-	}
-	if c.Observability.Diagnostics.SampleRate < 0 || c.Observability.Diagnostics.SampleRate > 1 {
-		return fmt.Errorf("%w: diagnostics sample rate must be between 0 and 1", ErrInvalidConfig)
-	}
-	if c.Observability.Diagnostics.SampleRate == 0 && !c.Observability.Diagnostics.sampleRateSet {
-		c.Observability.Diagnostics.SampleRate = 0.01
-	}
-	if c.Observability.Diagnostics.SlowThreshold <= 0 {
-		c.Observability.Diagnostics.SlowThreshold = 500 * time.Millisecond
-	}
-	if c.Observability.Diagnostics.ErrorSampleRate < 0 || c.Observability.Diagnostics.ErrorSampleRate > 1 {
-		return fmt.Errorf("%w: diagnostics error sample rate must be between 0 and 1", ErrInvalidConfig)
-	}
-	if c.Observability.Diagnostics.ErrorSampleRate == 0 && !c.Observability.Diagnostics.errorSampleRateSet {
-		c.Observability.Diagnostics.ErrorSampleRate = 1.0
-	}
-	for _, match := range c.Observability.Diagnostics.DebugMatches {
-		if match.SampleRate < 0 || match.SampleRate > 1 {
-			return fmt.Errorf("%w: diagnostics debug match sample rate must be between 0 and 1", ErrInvalidConfig)
-		}
-		if match.TTLSeconds < 0 {
-			return fmt.Errorf("%w: diagnostics debug match ttl seconds must be >= 0", ErrInvalidConfig)
-		}
-	}
-	if c.Conversation.SyncDefaultLimit <= 0 {
-		c.Conversation.SyncDefaultLimit = 200
-	}
-	if c.Conversation.SyncMaxLimit <= 0 {
-		c.Conversation.SyncMaxLimit = 500
-	}
-	if c.Conversation.SyncDefaultLimit > c.Conversation.SyncMaxLimit {
-		c.Conversation.SyncDefaultLimit = c.Conversation.SyncMaxLimit
-	}
-	if c.Conversation.FlushInterval <= 0 {
-		c.Conversation.FlushInterval = 200 * time.Millisecond
-	}
-	if c.Conversation.FlushDirtyLimit <= 0 {
-		c.Conversation.FlushDirtyLimit = 1024
-	}
-	if c.Conversation.SubscriberPageSize <= 0 {
-		c.Conversation.SubscriberPageSize = 512
-	}
-	if c.Conversation.ActiveHintFlushInterval <= 0 {
-		c.Conversation.ActiveHintFlushInterval = 10 * time.Second
-	}
-	if c.Conversation.ActiveHintTTL <= 0 {
-		c.Conversation.ActiveHintTTL = 30 * time.Minute
-	}
-	if c.Conversation.ActiveHintBarrierTTL <= 0 {
-		c.Conversation.ActiveHintBarrierTTL = 30 * time.Minute
-	}
-	if c.Conversation.ActiveHintMaxHints <= 0 {
-		c.Conversation.ActiveHintMaxHints = 100000
-	}
-	if c.Conversation.ActiveHintMaxHintsPerUID <= 0 {
-		c.Conversation.ActiveHintMaxHintsPerUID = 1000
-	}
-	if c.Conversation.ActiveHintFlushBatchSize <= 0 {
-		c.Conversation.ActiveHintFlushBatchSize = 32
-	}
-	if c.Conversation.GroupActiveFanoutInterval <= 0 {
-		c.Conversation.GroupActiveFanoutInterval = 5 * time.Minute
-	}
-	if c.ChannelMigration.ScanInterval <= 0 {
-		c.ChannelMigration.ScanInterval = defaultChannelMigrationScanInterval
-	}
-	if c.ChannelMigration.ScanLimit <= 0 {
-		c.ChannelMigration.ScanLimit = defaultChannelMigrationScanLimit
-	}
-	if c.ChannelMigration.OwnerLeaseTTL <= 0 {
-		c.ChannelMigration.OwnerLeaseTTL = defaultChannelMigrationOwnerLeaseTTL
-	}
-	if c.ChannelMigration.RetryBackoff <= 0 {
-		c.ChannelMigration.RetryBackoff = defaultChannelMigrationRetryBackoff
-	}
-	if c.ChannelMigration.FenceTTL <= 0 {
-		c.ChannelMigration.FenceTTL = defaultChannelMigrationFenceTTL
-	}
-	if c.ChannelMigration.LeaderLeaseTTL <= 0 {
-		c.ChannelMigration.LeaderLeaseTTL = defaultChannelMigrationLeaderLeaseTTL
-	}
-	if c.ChannelMigration.CatchUpStableWindow <= 0 {
-		c.ChannelMigration.CatchUpStableWindow = defaultChannelMigrationCatchUpStableWindow
-	}
-	if c.ChannelMigration.MaxConcurrent == 0 && !c.ChannelMigration.maxConcurrentSet {
-		c.ChannelMigration.MaxConcurrent = defaultChannelMigrationMaxConcurrent
-	}
-	if c.ChannelMigration.MaxConcurrentPerSource == 0 && !c.ChannelMigration.maxConcurrentPerSourceSet {
-		c.ChannelMigration.MaxConcurrentPerSource = defaultChannelMigrationMaxConcurrentPerSource
-	}
-	if c.ChannelMigration.MaxConcurrentPerTarget == 0 && !c.ChannelMigration.maxConcurrentPerTargetSet {
-		c.ChannelMigration.MaxConcurrentPerTarget = defaultChannelMigrationMaxConcurrentPerTarget
-	}
-	if c.ChannelMigration.CompletedRetentionTTL == 0 && !c.ChannelMigration.completedRetentionTTLSet {
-		c.ChannelMigration.CompletedRetentionTTL = defaultChannelMigrationCompletedRetentionTTL
-	}
-	if c.ChannelMigration.GCLimit <= 0 && !c.ChannelMigration.gcLimitSet {
-		c.ChannelMigration.GCLimit = defaultChannelMigrationGCLimit
-	}
-	if c.ChannelMessageRetention.ScanInterval <= 0 {
-		c.ChannelMessageRetention.ScanInterval = defaultChannelMessageRetentionScanInterval
-	}
-	if c.ChannelMessageRetention.ChannelBatchSize <= 0 {
-		c.ChannelMessageRetention.ChannelBatchSize = defaultChannelMessageRetentionChannelBatchSize
-	}
-	if c.ChannelMessageRetention.MaxTrimMessages <= 0 {
-		c.ChannelMessageRetention.MaxTrimMessages = defaultChannelMessageRetentionMaxTrimMessages
-	}
-	if c.Message.SystemDeviceID == "" {
-		c.Message.SystemDeviceID = defaultMessageSystemDeviceID
-	}
-	if c.Message.UserRateLimitRate == 0 {
-		c.Message.UserRateLimitRate = defaultMessageUserRateLimitRate
-	}
-	if c.Message.UserRateLimitBurst == 0 {
-		c.Message.UserRateLimitBurst = defaultMessageUserRateLimitBurst
-	}
-	if c.Message.UserRateLimitBucketShards == 0 {
-		c.Message.UserRateLimitBucketShards = defaultMessageUserRateLimitBucketShards
-	}
-	if c.Message.UserRateLimitIdleTTL == 0 {
-		c.Message.UserRateLimitIdleTTL = defaultMessageUserRateLimitIdleTTL
-	}
-	if c.Message.UserRateLimitMaxBuckets == 0 {
-		c.Message.UserRateLimitMaxBuckets = defaultMessageUserRateLimitMaxBuckets
-	}
-	if !c.Message.UserRateLimitEnabled && !c.Message.userRateLimitSystemUIDBypassSet {
-		c.Message.UserRateLimitSystemUIDBypass = true
-	} else if c.Message.UserRateLimitEnabled && !c.Message.userRateLimitSystemUIDBypassSet {
-		c.Message.UserRateLimitSystemUIDBypass = true
-	}
-	if c.Log.Level == "" {
-		c.Log.Level = "info"
-	}
-	if c.Log.Dir == "" {
-		c.Log.Dir = "./logs"
-	}
-	if c.Log.MaxSize <= 0 {
-		c.Log.MaxSize = 100
-	}
-	if c.Log.MaxAge <= 0 {
-		c.Log.MaxAge = 30
-	}
-	if c.Log.MaxBackups <= 0 {
-		c.Log.MaxBackups = 10
-	}
-	if c.Log.Format == "" {
-		c.Log.Format = "console"
-	}
-	if !c.Log.Compress && !c.Log.compressSet {
-		c.Log.Compress = true
-	}
-	if !c.Log.Console && !c.Log.consoleSet {
-		c.Log.Console = true
-	}
-	c.Cluster.DataPlanePoolSize = effectiveDataPlanePoolSize(c.Cluster.PoolSize, c.Cluster.DataPlanePoolSize)
-	c.Cluster.DataPlaneRPCTimeout = effectiveDataPlaneRPCTimeout(c.Cluster.DataPlaneRPCTimeout)
-	c.Cluster.DataPlaneMaxFetchInflight = effectiveDataPlaneMaxFetchInflight(c.Cluster.PoolSize, c.Cluster.DataPlaneMaxFetchInflight)
-	c.Cluster.DataPlaneMaxPendingFetch = effectiveDataPlaneMaxPendingFetch(c.Cluster.PoolSize, c.Cluster.DataPlaneMaxPendingFetch)
-	c.Cluster.FollowerReplicationRetryInterval = effectiveFollowerReplicationRetryInterval(c.Cluster.FollowerReplicationRetryInterval)
-	c.Cluster.AppendGroupCommitMaxWait = effectiveAppendGroupCommitMaxWait(c.Cluster.AppendGroupCommitMaxWait)
-	c.Cluster.AppendGroupCommitMaxRecords = effectiveAppendGroupCommitMaxRecords(c.Cluster.AppendGroupCommitMaxRecords)
-	c.Cluster.AppendGroupCommitMaxBytes = effectiveAppendGroupCommitMaxBytes(c.Cluster.AppendGroupCommitMaxBytes)
-	c.Cluster.CommitCoordinatorFlushWindow = effectiveCommitCoordinatorFlushWindow(c.Cluster.CommitCoordinatorFlushWindow)
-
-	if staticCluster {
-		nodeSet := make(map[uint64]struct{}, len(c.Cluster.Nodes))
-		selfNodeFound := false
-		for _, node := range c.Cluster.Nodes {
-			if node.ID == 0 {
-				return fmt.Errorf("%w: cluster node id must be set", ErrInvalidConfig)
-			}
-			if node.Addr == "" {
-				return fmt.Errorf("%w: cluster node addr must be set", ErrInvalidConfig)
-			}
-			if _, ok := nodeSet[node.ID]; ok {
-				return fmt.Errorf("%w: duplicate cluster node id %d", ErrInvalidConfig, node.ID)
-			}
-			nodeSet[node.ID] = struct{}{}
-			if node.ID == c.Node.ID {
-				selfNodeFound = true
-			}
-		}
-
-		if !selfNodeFound {
-			return fmt.Errorf("%w: node id %d not found in cluster nodes", ErrInvalidConfig, c.Node.ID)
-		}
-	}
-
-	return nil
+	c.hotReloadSet = hotReloadSet
 }
 
-func validateClusterSeeds(seeds []string) error {
-	seen := make(map[string]struct{}, len(seeds))
-	for _, seed := range seeds {
-		seed = strings.TrimSpace(seed)
-		if seed == "" {
-			return fmt.Errorf("%w: cluster seed addr must be set", ErrInvalidConfig)
-		}
-		if _, ok := seen[seed]; ok {
-			return fmt.Errorf("%w: duplicate cluster seed %q", ErrInvalidConfig, seed)
-		}
-		seen[seed] = struct{}{}
+func defaultManagerConfig(cfg ManagerConfig) ManagerConfig {
+	if cfg.AuthOn && cfg.JWTExpire == 0 {
+		cfg.JWTExpire = 24 * time.Hour
 	}
-	return nil
+	return cfg
 }
 
-func normalizeStoragePath(path string) (string, error) {
-	absPath, err := filepath.Abs(filepath.Clean(path))
+func defaultMessageConfig(cfg MessageConfig) MessageConfig {
+	if cfg.SystemDeviceID == "" {
+		cfg.SystemDeviceID = "____device"
+	}
+	return cfg
+}
+
+func defaultChannelMessageRetentionConfig(cfg ChannelMessageRetentionConfig) ChannelMessageRetentionConfig {
+	if cfg.ScanInterval == 0 {
+		cfg.ScanInterval = time.Minute
+	}
+	if cfg.ChannelBatchSize == 0 {
+		cfg.ChannelBatchSize = 128
+	}
+	if cfg.MaxTrimMessages == 0 {
+		cfg.MaxTrimMessages = 1000
+	}
+	return cfg
+}
+
+func defaultPresenceConfig(cfg PresenceConfig) PresenceConfig {
+	if cfg.ActivationTimeout == 0 {
+		cfg.ActivationTimeout = 3 * time.Second
+	}
+	if cfg.TouchFlushInterval == 0 {
+		cfg.TouchFlushInterval = time.Second
+	}
+	if cfg.TouchBatchSize == 0 {
+		cfg.TouchBatchSize = 512
+	}
+	if cfg.RouteTTL == 0 {
+		cfg.RouteTTL = 90 * time.Second
+	}
+	return cfg
+}
+
+func defaultDeliveryConfig(cfg DeliveryConfig) DeliveryConfig {
+	if cfg.FanoutPageSize == 0 {
+		cfg.FanoutPageSize = 512
+	}
+	if cfg.PushBatchSize == 0 {
+		cfg.PushBatchSize = 512
+	}
+	if cfg.PendingAckTTL == 0 {
+		cfg.PendingAckTTL = 30 * time.Second
+	}
+	if cfg.PendingAckMaxPerSession == 0 {
+		cfg.PendingAckMaxPerSession = 1024
+	}
+	if cfg.EventQueueSize == 0 {
+		cfg.EventQueueSize = 1024
+	}
+	return cfg
+}
+
+func defaultPluginConfig(dataDir string, cfg PluginConfig) PluginConfig {
+	if cfg.Enable {
+		if cfg.Dir == "" {
+			cfg.Dir = filepath.Join(dataDir, "plugins")
+		}
+		if cfg.SocketPath == "" {
+			cfg.SocketPath = filepath.Join(dataDir, "run", "plugin.sock")
+		}
+		if cfg.SandboxDir == "" {
+			cfg.SandboxDir = filepath.Join(dataDir, "plugin-sandbox")
+		}
+		if cfg.StateDir == "" {
+			cfg.StateDir = filepath.Join(dataDir, "plugin-state")
+		}
+	}
+	if cfg.Timeout == 0 {
+		cfg.Timeout = 5 * time.Second
+	}
+	if cfg.PersistAfterQueueSize == 0 {
+		cfg.PersistAfterQueueSize = 1024
+	}
+	if cfg.PersistAfterWorkers == 0 {
+		cfg.PersistAfterWorkers = 16
+	}
+	if !cfg.HotReload && !cfg.hotReloadSet {
+		cfg.HotReload = true
+	}
+	return cfg
+}
+
+func defaultChannelConfig(cfg ChannelConfig) ChannelConfig {
+	if cfg.LargeGroupSubscriberThreshold == 0 {
+		cfg.LargeGroupSubscriberThreshold = 500
+	}
+	return cfg
+}
+
+func defaultChannelAppendConfig(cfg ChannelAppendConfig) ChannelAppendConfig {
+	if cfg.AuthorityShardCount == 0 {
+		cfg.AuthorityShardCount = defaultChannelAppendAuthorityShardCount()
+	}
+	if cfg.AdvancePoolSize == 0 {
+		cfg.AdvancePoolSize = defaultChannelAppendAdvancePoolSize()
+	}
+	if cfg.EffectPoolSize == 0 {
+		cfg.EffectPoolSize = defaultChannelAppendEffectPoolSize()
+	}
+	if cfg.RecipientAuthorityDispatchConcurrency == 0 {
+		cfg.RecipientAuthorityDispatchConcurrency = defaultChannelAppendRecipientAuthorityDispatchConcurrency()
+	}
+	return cfg
+}
+
+func defaultChannelAppendAuthorityShardCount() int {
+	return appMaxInt(4, runtime.GOMAXPROCS(0))
+}
+
+func defaultChannelAppendAdvancePoolSize() int {
+	return 500
+}
+
+func defaultChannelAppendEffectPoolSize() int {
+
+	return 2000
+}
+
+func defaultChannelAppendRecipientAuthorityDispatchConcurrency() int {
+	return 100
+}
+
+func defaultConversationConfig(cfg ConversationConfig) ConversationConfig {
+	if cfg.MaxLastMessageConcurrency == 0 {
+		cfg.MaxLastMessageConcurrency = 32
+	}
+	if cfg.AuthorityCacheMaxRowsPerUID == 0 {
+		cfg.AuthorityCacheMaxRowsPerUID = 4096
+	}
+	if cfg.AuthorityCacheMaxRows == 0 {
+		cfg.AuthorityCacheMaxRows = 100000
+	}
+	if cfg.AuthorityListDBWindowMax == 0 {
+		cfg.AuthorityListDBWindowMax = 1000
+	}
+	if cfg.AuthorityHandoffTimeout == 0 {
+		cfg.AuthorityHandoffTimeout = 3 * time.Second
+	}
+	if cfg.AuthorityActiveCooldown == 0 {
+		cfg.AuthorityActiveCooldown = 2 * time.Hour
+	}
+	if cfg.AuthorityFlushInterval == 0 {
+		cfg.AuthorityFlushInterval = time.Second
+	}
+	if cfg.AuthorityFlushTimeout == 0 {
+		cfg.AuthorityFlushTimeout = 5 * time.Second
+	}
+	if cfg.AuthorityFlushBatchRows == 0 {
+		cfg.AuthorityFlushBatchRows = 128
+	}
+	if cfg.AuthorityAdmitBatchRows == 0 {
+		cfg.AuthorityAdmitBatchRows = 512
+	}
+	if cfg.AuthorityAdmitConcurrency == 0 {
+		cfg.AuthorityAdmitConcurrency = 16
+	}
+	return cfg
+}
+
+func defaultObservabilityConfig(cfg ObservabilityConfig) ObservabilityConfig {
+	cfg.Prometheus = defaultPrometheusConfig(cfg.Prometheus)
+	if !cfg.diagnosticsEnabledSet {
+		cfg.Diagnostics.Enabled = true
+	}
+	if cfg.Diagnostics.BufferSize <= 0 {
+		cfg.Diagnostics.BufferSize = 50000
+	}
+	if cfg.Diagnostics.SampleRate == 0 && !cfg.diagnosticsSampleRateSet {
+		cfg.Diagnostics.SampleRate = 0.01
+	}
+	if cfg.Diagnostics.SlowThreshold <= 0 {
+		cfg.Diagnostics.SlowThreshold = 500 * time.Millisecond
+	}
+	if cfg.Diagnostics.ErrorSampleRate == 0 && !cfg.diagnosticsErrorSampleRateSet {
+		cfg.Diagnostics.ErrorSampleRate = 1.0
+	}
+	if cfg.Diagnostics.DeepSlowThreshold == 0 {
+		cfg.Diagnostics.DeepSlowThreshold = cfg.Diagnostics.SlowThreshold
+	}
+	if cfg.Diagnostics.DeepMaxItemsPerBatch == 0 {
+		cfg.Diagnostics.DeepMaxItemsPerBatch = 16
+	}
+	return cfg
+}
+
+func defaultTopConfig(cfg TopConfig) TopConfig {
+	if cfg.CollectInterval == 0 {
+		cfg.CollectInterval = time.Second
+	}
+	if cfg.HistoryWindow == 0 {
+		cfg.HistoryWindow = 5 * time.Minute
+	}
+	return cfg
+}
+
+// NormalizeTopConfig applies defaults and validates the wkcli top snapshot settings.
+func NormalizeTopConfig(cfg TopConfig) (TopConfig, error) {
+	cfg = defaultTopConfig(cfg)
+	if err := validateTopConfig(cfg); err != nil {
+		return TopConfig{}, err
+	}
+	return cfg, nil
+}
+
+func defaultPrometheusConfig(cfg PrometheusConfig) PrometheusConfig {
+	if cfg.ListenAddr == "" {
+		cfg.ListenAddr = "127.0.0.1:9090"
+	}
+	if cfg.RetentionTime == 0 {
+		cfg.RetentionTime = 15 * 24 * time.Hour
+	}
+	if cfg.ScrapeInterval == 0 {
+		cfg.ScrapeInterval = 15 * time.Second
+	}
+	return cfg
+}
+
+func defaultPrometheusConfigForApp(cfg Config) PrometheusConfig {
+	prom := defaultPrometheusConfig(cfg.Observability.Prometheus)
+	if strings.TrimSpace(prom.DataDir) == "" {
+		dataDir := strings.TrimSpace(cfg.DataDir)
+		if dataDir == "" {
+			dataDir = strings.TrimSpace(cfg.Cluster.DataDir)
+		}
+		prom.DataDir = filepath.Join(dataDir, "prometheus")
+	}
+	if len(prom.ScrapeTargets) == 0 && strings.TrimSpace(cfg.API.ListenAddr) != "" {
+		prom.ScrapeTargets = []string{prometheusScrapeTargetFromAPI(cfg.API.ListenAddr)}
+	} else if len(prom.ScrapeTargets) > 0 {
+		targets := make([]string, 0, len(prom.ScrapeTargets))
+		for _, target := range prom.ScrapeTargets {
+			targets = append(targets, strings.TrimSpace(target))
+		}
+		prom.ScrapeTargets = targets
+	}
+	return prom
+}
+
+func prometheusScrapeTargetFromAPI(listenAddr string) string {
+	addr := strings.TrimSpace(listenAddr)
+	host, port, err := net.SplitHostPort(addr)
 	if err != nil {
-		return "", err
+		return addr
 	}
-	cleanPath := filepath.Clean(absPath)
-	if resolved, err := filepath.EvalSymlinks(cleanPath); err == nil {
-		cleanPath = filepath.Clean(resolved)
+	switch strings.Trim(host, "[]") {
+	case "", "0.0.0.0", "::":
+		host = "127.0.0.1"
 	}
-	return cleanPath, nil
+	return net.JoinHostPort(host, port)
 }
 
-func normalizeStoragePathForOverlap(path string) string {
-	if resolved, ok := resolveExistingPathPrefix(path); ok {
-		return resolved
+func defaultLogConfig(cfg LogConfig) LogConfig {
+	if cfg.Level == "" {
+		cfg.Level = "info"
 	}
-	return path
+	if cfg.Dir == "" {
+		cfg.Dir = "./logs"
+	}
+	if cfg.MaxSize <= 0 {
+		cfg.MaxSize = 100
+	}
+	if cfg.MaxAge <= 0 {
+		cfg.MaxAge = 30
+	}
+	if cfg.MaxBackups <= 0 {
+		cfg.MaxBackups = 10
+	}
+	if cfg.Format == "" {
+		cfg.Format = "console"
+	}
+	if !cfg.Compress && !cfg.compressSet {
+		cfg.Compress = true
+	}
+	if !cfg.Console && !cfg.consoleSet {
+		cfg.Console = true
+	}
+	return cfg
 }
 
-func resolveExistingPathPrefix(path string) (string, bool) {
-	var suffix []string
-	for current := path; ; current = filepath.Dir(current) {
-		if resolved, err := filepath.EvalSymlinks(current); err == nil {
-			parts := append([]string{filepath.Clean(resolved)}, suffix...)
-			return filepath.Clean(filepath.Join(parts...)), true
-		}
-		parent := filepath.Dir(current)
-		if parent == current {
-			return "", false
-		}
-		suffix = append([]string{filepath.Base(current)}, suffix...)
-	}
-}
-
-type namedStoragePath struct {
-	name string
-	path string
-}
-
-func validateStoragePathIsolation(paths []namedStoragePath) error {
-	for i := range paths {
-		for j := i + 1; j < len(paths); j++ {
-			if storagePathsOverlap(paths[i].path, paths[j].path) ||
-				storagePathsOverlap(normalizeStoragePathForOverlap(paths[i].path), normalizeStoragePathForOverlap(paths[j].path)) {
-				return fmt.Errorf("%s and %s must not overlap", paths[i].name, paths[j].name)
-			}
-		}
-	}
-	return nil
-}
-
-func storagePathsOverlap(left, right string) bool {
-	leftVolume := filepath.VolumeName(left)
-	rightVolume := filepath.VolumeName(right)
-	if leftVolume != rightVolume {
-		return false
-	}
-	leftParts := storagePathSegments(strings.TrimPrefix(left, leftVolume))
-	rightParts := storagePathSegments(strings.TrimPrefix(right, rightVolume))
-	minLen := len(leftParts)
-	if len(rightParts) < minLen {
-		minLen = len(rightParts)
-	}
-	for i := 0; i < minLen; i++ {
-		if leftParts[i] != rightParts[i] {
-			return false
-		}
-	}
-	return true
-}
-
-func storagePathSegments(path string) []string {
-	cleaned := filepath.Clean(path)
-	trimmed := strings.Trim(cleaned, string(filepath.Separator))
-	if trimmed == "" {
+func validateManagerConfig(cfg ManagerConfig) error {
+	if strings.TrimSpace(cfg.ListenAddr) == "" || !cfg.AuthOn {
 		return nil
 	}
-	return strings.Split(trimmed, string(filepath.Separator))
-}
-
-// ParseRaftSnapshotChunkSize parses a strict byte size with optional B, KiB, MiB, or GiB suffix.
-func ParseRaftSnapshotChunkSize(raw string) (uint64, error) {
-	value := strings.TrimSpace(raw)
-	if value == "" {
-		return 0, fmt.Errorf("raft snapshot chunk size is empty")
+	if strings.TrimSpace(cfg.JWTSecret) == "" {
+		return fmt.Errorf("%w: manager jwt secret must be set when auth is enabled", ErrInvalidConfig)
 	}
-
-	multiplier := uint64(1)
-	number := value
-	for _, unit := range []struct {
-		suffix     string
-		multiplier uint64
-	}{
-		{suffix: "KiB", multiplier: 1 << 10},
-		{suffix: "MiB", multiplier: 1 << 20},
-		{suffix: "GiB", multiplier: 1 << 30},
-		{suffix: "B", multiplier: 1},
-	} {
-		if strings.HasSuffix(value, unit.suffix) {
-			multiplier = unit.multiplier
-			number = strings.TrimSuffix(value, unit.suffix)
-			break
+	if cfg.JWTExpire <= 0 {
+		return fmt.Errorf("%w: manager jwt expire must be positive when auth is enabled", ErrInvalidConfig)
+	}
+	if len(cfg.Users) == 0 {
+		return fmt.Errorf("%w: manager users must be set when auth is enabled", ErrInvalidConfig)
+	}
+	for _, user := range cfg.Users {
+		if strings.TrimSpace(user.Username) == "" {
+			return fmt.Errorf("%w: manager username must be set", ErrInvalidConfig)
+		}
+		if user.Password == "" {
+			return fmt.Errorf("%w: manager password must be set", ErrInvalidConfig)
+		}
+		for _, permission := range user.Permissions {
+			if strings.TrimSpace(permission.Resource) == "" {
+				return fmt.Errorf("%w: manager permission resource must be set", ErrInvalidConfig)
+			}
+			if len(permission.Actions) == 0 {
+				return fmt.Errorf("%w: manager permission action must be set", ErrInvalidConfig)
+			}
+			for _, action := range permission.Actions {
+				if !validManagerPermissionAction(action) {
+					return fmt.Errorf("%w: manager permission action %q must be one of r, w or *", ErrInvalidConfig, action)
+				}
+			}
 		}
 	}
-
-	if number == "" || strings.TrimSpace(number) != number {
-		return 0, fmt.Errorf("raft snapshot chunk size %q is invalid", raw)
-	}
-	bytes, err := strconv.ParseUint(number, 10, 64)
-	if err != nil {
-		return 0, fmt.Errorf("raft snapshot chunk size %q is invalid: %w", raw, err)
-	}
-	if bytes == 0 {
-		return 0, fmt.Errorf("raft snapshot chunk size must be > 0")
-	}
-	if bytes > math.MaxUint64/multiplier {
-		return 0, fmt.Errorf("raft snapshot chunk size %q overflows uint64", raw)
-	}
-	return bytes * multiplier, nil
+	return nil
 }
 
 func validManagerPermissionAction(action string) bool {
@@ -1699,94 +834,247 @@ func validManagerPermissionAction(action string) bool {
 	}
 }
 
-func (c ClusterConfig) effectiveInitialSlotCount() uint32 {
-	if c.InitialSlotCount > 0 {
-		return c.InitialSlotCount
+func validatePresenceConfig(cfg PresenceConfig) error {
+	if cfg.ActivationTimeout < 0 {
+		return fmt.Errorf("%w: presence activation timeout must be non-negative", ErrInvalidConfig)
 	}
-	return c.SlotCount
+	if cfg.TouchFlushInterval < 0 {
+		return fmt.Errorf("%w: presence touch flush interval must be non-negative", ErrInvalidConfig)
+	}
+	if cfg.TouchBatchSize < 0 {
+		return fmt.Errorf("%w: presence touch batch size must be non-negative", ErrInvalidConfig)
+	}
+	if cfg.RouteTTL < 0 {
+		return fmt.Errorf("%w: presence route ttl must be non-negative", ErrInvalidConfig)
+	}
+	return nil
 }
 
-func effectiveFollowerReplicationRetryInterval(configured time.Duration) time.Duration {
-	if configured > 0 {
-		return configured
+func validateChannelConfig(cfg ChannelConfig) error {
+	if cfg.LargeGroupSubscriberThreshold <= 0 {
+		return fmt.Errorf("%w: channel large group subscriber threshold must be positive", ErrInvalidConfig)
 	}
-	return time.Second
+	return nil
 }
 
-func effectiveAppendGroupCommitMaxWait(configured time.Duration) time.Duration {
-	if configured > 0 {
-		return configured
+func validateMessageConfig(cfg MessageConfig) error {
+	if cfg.PermissionCacheTTL < 0 {
+		return fmt.Errorf("%w: message permission cache ttl must be non-negative", ErrInvalidConfig)
 	}
-	return time.Millisecond
+	return nil
 }
 
-func effectiveAppendGroupCommitMaxRecords(configured int) int {
-	if configured > 0 {
-		return configured
+func validateChannelMessageRetentionConfig(cfg ChannelMessageRetentionConfig) error {
+	if cfg.ScanInterval < 0 {
+		return fmt.Errorf("%w: channel message retention scan interval must be non-negative", ErrInvalidConfig)
 	}
-	return 64
+	if cfg.ChannelBatchSize < 0 {
+		return fmt.Errorf("%w: channel message retention channel batch size must be non-negative", ErrInvalidConfig)
+	}
+	if cfg.MaxTrimMessages < 0 {
+		return fmt.Errorf("%w: channel message retention max trim messages must be non-negative", ErrInvalidConfig)
+	}
+	if cfg.MaxTrimBytes < 0 {
+		return fmt.Errorf("%w: channel message retention max trim bytes must be non-negative", ErrInvalidConfig)
+	}
+	return nil
 }
 
-func effectiveAppendGroupCommitMaxBytes(configured int) int {
-	if configured > 0 {
-		return configured
+func validateChannelAppendConfig(cfg ChannelAppendConfig) error {
+	if cfg.AuthorityShardCount < 0 {
+		return fmt.Errorf("%w: channel append authority shard count must be non-negative", ErrInvalidConfig)
 	}
-	return 64 * 1024
+	if cfg.AdvancePoolSize < 0 {
+		return fmt.Errorf("%w: channel append advance pool size must be non-negative", ErrInvalidConfig)
+	}
+	if cfg.EffectPoolSize < 0 {
+		return fmt.Errorf("%w: channel append effect pool size must be non-negative", ErrInvalidConfig)
+	}
+	if cfg.RecipientAuthorityDispatchConcurrency < 0 {
+		return fmt.Errorf("%w: channel append recipient authority dispatch concurrency must be non-negative", ErrInvalidConfig)
+	}
+	return nil
 }
 
-func effectiveCommitCoordinatorFlushWindow(configured time.Duration) time.Duration {
-	if configured > 0 {
-		return configured
+func validateDeliveryConfig(cfg DeliveryConfig) error {
+	if cfg.FanoutPageSize < 0 {
+		return fmt.Errorf("%w: delivery fanout page size must be non-negative", ErrInvalidConfig)
 	}
-	return 200 * time.Microsecond
+	if cfg.PushBatchSize < 0 {
+		return fmt.Errorf("%w: delivery push batch size must be non-negative", ErrInvalidConfig)
+	}
+	if cfg.PendingAckTTL < 0 {
+		return fmt.Errorf("%w: delivery pending ack ttl must be non-negative", ErrInvalidConfig)
+	}
+	if cfg.PendingAckMaxPerSession < 0 {
+		return fmt.Errorf("%w: delivery pending ack max per session must be non-negative", ErrInvalidConfig)
+	}
+	if cfg.EventQueueSize < 0 {
+		return fmt.Errorf("%w: delivery event queue size must be non-negative", ErrInvalidConfig)
+	}
+	return nil
 }
 
-func effectiveDataPlaneRPCTimeout(configured time.Duration) time.Duration {
-	if configured > 0 {
-		return configured
+func validatePluginConfig(cfg PluginConfig) error {
+	if cfg.Timeout < 0 {
+		return fmt.Errorf("%w: plugin timeout must be >= 0", ErrInvalidConfig)
 	}
-	return time.Second
+	if cfg.PersistAfterQueueSize < 0 {
+		return fmt.Errorf("%w: plugin persist-after queue size must be >= 0", ErrInvalidConfig)
+	}
+	if cfg.PersistAfterWorkers < 0 {
+		return fmt.Errorf("%w: plugin persist-after workers must be >= 0", ErrInvalidConfig)
+	}
+	return nil
 }
 
-const defaultGatewaySendTimeout = 20 * time.Second
+func validateConversationConfig(cfg ConversationConfig) error {
+	if cfg.MaxLastMessageConcurrency < 0 {
+		return fmt.Errorf("%w: conversation last message concurrency must be non-negative", ErrInvalidConfig)
+	}
+	if cfg.AuthorityCacheMaxRowsPerUID <= 0 {
+		return fmt.Errorf("%w: conversation authority cache max rows per uid must be positive", ErrInvalidConfig)
+	}
+	if cfg.AuthorityCacheMaxRows <= 0 {
+		return fmt.Errorf("%w: conversation authority cache max rows must be positive", ErrInvalidConfig)
+	}
+	if cfg.AuthorityListDBWindowMax <= 0 {
+		return fmt.Errorf("%w: conversation authority list db window max must be positive", ErrInvalidConfig)
+	}
+	if cfg.AuthorityHandoffTimeout <= 0 {
+		return fmt.Errorf("%w: conversation authority handoff timeout must be positive", ErrInvalidConfig)
+	}
+	if cfg.AuthorityActiveCooldown <= 0 {
+		return fmt.Errorf("%w: conversation authority active cooldown must be positive", ErrInvalidConfig)
+	}
+	if cfg.AuthorityFlushInterval <= 0 {
+		return fmt.Errorf("%w: conversation authority flush interval must be positive", ErrInvalidConfig)
+	}
+	if cfg.AuthorityFlushTimeout <= 0 {
+		return fmt.Errorf("%w: conversation authority flush timeout must be positive", ErrInvalidConfig)
+	}
+	if cfg.AuthorityFlushBatchRows <= 0 {
+		return fmt.Errorf("%w: conversation authority flush batch rows must be positive", ErrInvalidConfig)
+	}
+	if cfg.AuthorityAdmitBatchRows <= 0 {
+		return fmt.Errorf("%w: conversation authority admit batch rows must be positive", ErrInvalidConfig)
+	}
+	if cfg.AuthorityAdmitConcurrency <= 0 {
+		return fmt.Errorf("%w: conversation authority admit concurrency must be positive", ErrInvalidConfig)
+	}
+	return nil
+}
 
-const defaultBenchAPIMaxBatchSize = 10000
+func validateObservabilityConfig(cfg ObservabilityConfig) error {
+	if cfg.Prometheus.RetentionTime < 0 {
+		return fmt.Errorf("%w: prometheus retention time must be non-negative", ErrInvalidConfig)
+	}
+	if cfg.Prometheus.ScrapeInterval < 0 {
+		return fmt.Errorf("%w: prometheus scrape interval must be non-negative", ErrInvalidConfig)
+	}
+	if cfg.Prometheus.Enabled {
+		if cfg.Prometheus.ListenAddr != "" {
+			if err := validatePrometheusListenAddr(cfg.Prometheus.ListenAddr); err != nil {
+				return err
+			}
+		}
+		if len(cfg.Prometheus.ScrapeTargets) == 0 {
+			return fmt.Errorf("%w: prometheus requires scrape targets", ErrInvalidConfig)
+		}
+		for _, target := range cfg.Prometheus.ScrapeTargets {
+			if err := validatePrometheusScrapeTarget(target); err != nil {
+				return err
+			}
+		}
+		if !cfg.MetricsEnabled {
+			return fmt.Errorf("%w: prometheus requires metrics", ErrInvalidConfig)
+		}
+	}
+	if !validDiagnosticsSampleRate(cfg.Diagnostics.SampleRate) {
+		return fmt.Errorf("%w: diagnostics sample rate must be between 0 and 1", ErrInvalidConfig)
+	}
+	if !validDiagnosticsSampleRate(cfg.Diagnostics.ErrorSampleRate) {
+		return fmt.Errorf("%w: diagnostics error sample rate must be between 0 and 1", ErrInvalidConfig)
+	}
+	if !validDiagnosticsSampleRate(cfg.Diagnostics.DeepSampleRate) {
+		return fmt.Errorf("%w: diagnostics deep sample rate must be between 0 and 1", ErrInvalidConfig)
+	}
+	if cfg.Diagnostics.DeepSlowThreshold < 0 {
+		return fmt.Errorf("%w: diagnostics deep slow threshold must be >= 0", ErrInvalidConfig)
+	}
+	if cfg.Diagnostics.DeepMaxItemsPerBatch < 0 {
+		return fmt.Errorf("%w: diagnostics deep max items per batch must be >= 0", ErrInvalidConfig)
+	}
+	for _, match := range cfg.Diagnostics.DebugMatches {
+		if !validDiagnosticsSampleRate(match.SampleRate) {
+			return fmt.Errorf("%w: diagnostics debug match sample rate must be between 0 and 1", ErrInvalidConfig)
+		}
+		if match.TTLSeconds < 0 {
+			return fmt.Errorf("%w: diagnostics debug match ttl seconds must be >= 0", ErrInvalidConfig)
+		}
+	}
+	return nil
+}
 
-const defaultBenchAPIMaxPayloadBytes = int64(10 << 20)
+func validateTopConfig(cfg TopConfig) error {
+	if !cfg.APIEnabled {
+		return nil
+	}
+	if cfg.CollectInterval <= 0 {
+		return fmt.Errorf("%w: top collect interval must be positive", ErrInvalidConfig)
+	}
+	if cfg.HistoryWindow < 2*cfg.CollectInterval {
+		return fmt.Errorf("%w: top history window must be at least twice the collect interval", ErrInvalidConfig)
+	}
+	return nil
+}
 
-const defaultChannelMigrationScanInterval = time.Second
+func validatePrometheusConfig(cfg Config) error {
+	if !cfg.Observability.Prometheus.Enabled {
+		return nil
+	}
+	if strings.TrimSpace(cfg.API.ListenAddr) == "" {
+		return fmt.Errorf("%w: prometheus requires api listen addr", ErrInvalidConfig)
+	}
+	return nil
+}
 
-const defaultChannelMigrationScanLimit = 64
+func validatePrometheusListenAddr(addr string) error {
+	if _, _, err := net.SplitHostPort(strings.TrimSpace(addr)); err != nil {
+		return fmt.Errorf("%w: prometheus listen addr must be host:port", ErrInvalidConfig)
+	}
+	return nil
+}
 
-const defaultChannelMigrationOwnerLeaseTTL = 30 * time.Second
+func validatePrometheusScrapeTarget(target string) error {
+	trimmed := strings.TrimSpace(target)
+	if trimmed == "" {
+		return fmt.Errorf("%w: prometheus scrape target must be non-empty", ErrInvalidConfig)
+	}
+	if strings.Contains(trimmed, "://") {
+		return fmt.Errorf("%w: prometheus scrape target must be host:port without scheme", ErrInvalidConfig)
+	}
+	host, portText, err := net.SplitHostPort(trimmed)
+	if err != nil {
+		return fmt.Errorf("%w: prometheus scrape target must be host:port", ErrInvalidConfig)
+	}
+	if strings.TrimSpace(host) == "" {
+		return fmt.Errorf("%w: prometheus scrape target host must be non-empty", ErrInvalidConfig)
+	}
+	port, err := strconv.Atoi(portText)
+	if err != nil || port <= 0 || port > 65535 {
+		return fmt.Errorf("%w: prometheus scrape target port must be 1-65535", ErrInvalidConfig)
+	}
+	return nil
+}
 
-const defaultChannelMigrationRetryBackoff = time.Minute
+func validDiagnosticsSampleRate(rate float64) bool {
+	return !math.IsNaN(rate) && !math.IsInf(rate, 0) && rate >= 0 && rate <= 1
+}
 
-const defaultChannelMigrationFenceTTL = time.Minute
-
-const defaultChannelMigrationLeaderLeaseTTL = time.Minute
-
-const defaultChannelMigrationCatchUpStableWindow = time.Second
-
-const defaultChannelMigrationMaxConcurrent = 64
-
-const defaultChannelMigrationMaxConcurrentPerSource = 1
-
-const defaultChannelMigrationMaxConcurrentPerTarget = 1
-
-const defaultChannelMigrationCompletedRetentionTTL = 24 * time.Hour
-
-const defaultChannelMigrationGCLimit = 128
-
-const defaultChannelMessageRetentionScanInterval = time.Hour
-
-const defaultChannelMessageRetentionChannelBatchSize = 128
-
-const defaultChannelMessageRetentionMaxTrimMessages = 10000
-
-const defaultMessageSystemDeviceID = "____device"
-const defaultMessageUserRateLimitRate = 100.0
-const defaultMessageUserRateLimitBurst = 200
-const defaultMessageUserRateLimitBucketShards = 256
-const defaultMessageUserRateLimitIdleTTL = 10 * time.Minute
-const defaultMessageUserRateLimitMaxBuckets = 100000
+func appMaxInt(a, b int) int {
+	if a >= b {
+		return a
+	}
+	return b
+}

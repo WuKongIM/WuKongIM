@@ -2,9 +2,11 @@ package manager
 
 import (
 	"errors"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
@@ -76,26 +78,35 @@ type UserDeviceDTO struct {
 	OnlineSessionCount int `json:"online_session_count"`
 }
 
+// ConnectionDTO is one manager-facing user connection row.
+type ConnectionDTO struct {
+	NodeID      uint64    `json:"node_id"`
+	SessionID   uint64    `json:"session_id"`
+	UID         string    `json:"uid"`
+	DeviceID    string    `json:"device_id"`
+	DeviceFlag  string    `json:"device_flag"`
+	DeviceLevel string    `json:"device_level"`
+	SlotID      uint64    `json:"slot_id"`
+	State       string    `json:"state"`
+	Listener    string    `json:"listener"`
+	ConnectedAt time.Time `json:"connected_at"`
+	RemoteAddr  string    `json:"remote_addr"`
+	LocalAddr   string    `json:"local_addr"`
+}
+
 // KickUserResponseDTO is the manager force-offline response body.
 type KickUserResponseDTO struct {
-	// UID is the user identifier.
-	UID string `json:"uid"`
-	// DeviceFlag is the normalized device flag label.
+	UID        string `json:"uid"`
 	DeviceFlag string `json:"device_flag"`
-	// Changed reports whether the action was accepted.
-	Changed bool `json:"changed"`
+	Changed    bool   `json:"changed"`
 }
 
 // ResetUserTokenResponseDTO is the manager token reset response body.
 type ResetUserTokenResponseDTO struct {
-	// UID is the user identifier.
-	UID string `json:"uid"`
-	// DeviceFlag is the normalized device flag label.
-	DeviceFlag string `json:"device_flag"`
-	// DeviceLevel is the normalized device level label.
+	UID         string `json:"uid"`
+	DeviceFlag  string `json:"device_flag"`
 	DeviceLevel string `json:"device_level"`
-	// Token is the new token and is only returned by this action.
-	Token string `json:"token"`
+	Token       string `json:"token"`
 }
 
 type kickUserRequestBody struct {
@@ -113,7 +124,6 @@ func (s *Server) handleUsers(c *gin.Context) {
 		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "management not configured")
 		return
 	}
-
 	limit, err := parseUsersLimit(c.Query("limit"))
 	if err != nil {
 		jsonError(c, http.StatusBadRequest, "bad_request", "invalid limit")
@@ -150,7 +160,6 @@ func (s *Server) handleUser(c *gin.Context) {
 		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "management not configured")
 		return
 	}
-
 	item, err := s.management.GetUser(c.Request.Context(), c.Param("uid"))
 	if err != nil {
 		writeUserError(c, err, "invalid uid", "user not found")
@@ -164,7 +173,6 @@ func (s *Server) handleUserKick(c *gin.Context) {
 		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "management not configured")
 		return
 	}
-
 	var body kickUserRequestBody
 	if err := bindOptionalJSON(c, &body); err != nil {
 		jsonError(c, http.StatusBadRequest, "bad_request", "invalid json")
@@ -186,7 +194,6 @@ func (s *Server) handleUserTokenReset(c *gin.Context) {
 		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "management not configured")
 		return
 	}
-
 	var body resetUserTokenRequestBody
 	if err := bindOptionalJSON(c, &body); err != nil {
 		jsonError(c, http.StatusBadRequest, "bad_request", "invalid json")
@@ -222,8 +229,8 @@ func writeUserError(c *gin.Context, err error, badRequestMessage, notFoundMessag
 		jsonError(c, http.StatusBadRequest, "bad_request", badRequestMessage)
 	case errors.Is(err, metadb.ErrNotFound):
 		jsonError(c, http.StatusNotFound, "not_found", notFoundMessage)
-	case slotLeaderAuthoritativeReadUnavailable(err):
-		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "slot leader authoritative read unavailable")
+	case controlSnapshotUnavailable(err):
+		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "controller snapshot unavailable")
 	default:
 		jsonError(c, http.StatusInternalServerError, "internal_error", err.Error())
 	}
@@ -275,10 +282,44 @@ func userDeviceDTOs(items []managementusecase.UserDevice) []UserDeviceDTO {
 	return out
 }
 
+func connectionDTOs(items []managementusecase.Connection) []ConnectionDTO {
+	out := make([]ConnectionDTO, 0, len(items))
+	for _, item := range items {
+		out = append(out, ConnectionDTO{
+			NodeID:      item.NodeID,
+			SessionID:   item.SessionID,
+			UID:         item.UID,
+			DeviceID:    item.DeviceID,
+			DeviceFlag:  item.DeviceFlag,
+			DeviceLevel: item.DeviceLevel,
+			SlotID:      item.SlotID,
+			State:       item.State,
+			Listener:    item.Listener,
+			ConnectedAt: item.ConnectedAt,
+			RemoteAddr:  item.RemoteAddr,
+			LocalAddr:   item.LocalAddr,
+		})
+	}
+	return out
+}
+
 func kickUserResponseDTO(resp managementusecase.KickUserResponse) KickUserResponseDTO {
 	return KickUserResponseDTO{UID: resp.UID, DeviceFlag: resp.DeviceFlag, Changed: resp.Changed}
 }
 
 func resetUserTokenResponseDTO(resp managementusecase.ResetUserTokenResponse) ResetUserTokenResponseDTO {
 	return ResetUserTokenResponseDTO{UID: resp.UID, DeviceFlag: resp.DeviceFlag, DeviceLevel: resp.DeviceLevel, Token: resp.Token}
+}
+
+func bindOptionalJSON(c *gin.Context, dst any) error {
+	if c.Request == nil || c.Request.Body == nil {
+		return nil
+	}
+	if err := c.ShouldBindJSON(dst); err != nil {
+		if errors.Is(err, io.EOF) {
+			return nil
+		}
+		return err
+	}
+	return nil
 }

@@ -10,7 +10,7 @@ real static multi-node `cmd/wukongim` cluster.
   batch plan/execute routes.
 - Observe task completion and actual Slot Raft leadership through
   `/manager/slots?node_id=...`.
-- Keep assertions black-box; do not import `internalv2/app`,
-  `internalv2/usecase`, or storage internals.
+- Keep assertions black-box; do not import `internal/app`,
+  `internal/usecase`, or storage internals.
 - Treat `target_node` as preferred only. Success is any legal non-source Slot
   Raft leader selected by Raft.

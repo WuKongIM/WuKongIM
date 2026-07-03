@@ -2,14 +2,46 @@ package management
 
 import (
 	"context"
+	"errors"
 	"time"
 
-	raftcluster "github.com/WuKongIM/WuKongIM/pkg/legacy/cluster"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
-// SlotRaftCompactionNodeResult describes one node-local Slot Raft compaction result.
-type SlotRaftCompactionNodeResult struct {
-	// NodeID is the cluster node that handled the local Slot Raft attempt.
+// SlotRaftOperator exposes node-local Slot Raft status and compaction operations.
+type SlotRaftOperator interface {
+	// SlotRaftStatus returns one node's local Slot Raft status.
+	SlotRaftStatus(context.Context, uint64, uint32) (SlotNodeLogStatus, error)
+	// CompactSlotRaftLog forces one node's local Slot Raft log compaction.
+	CompactSlotRaftLog(context.Context, uint64, uint32) (SlotRaftCompactionResult, error)
+}
+
+// ErrSlotRaftOperatorUnavailable reports that Slot Raft operations are not wired.
+var ErrSlotRaftOperatorUnavailable = errors.New("internalv2/usecase/management: slot raft operator unavailable")
+
+// SlotRaftCompactionResult describes one node-local Slot Raft compaction attempt.
+type SlotRaftCompactionResult struct {
+	// NodeID is the node that handled the attempt.
+	NodeID uint64
+	// SlotID is the physical Slot whose local Raft log was compacted.
+	SlotID uint32
+	// AppliedIndex is the node-local applied index used as the compaction target.
+	AppliedIndex uint64
+	// BeforeSnapshotIndex is the persisted snapshot index before the attempt.
+	BeforeSnapshotIndex uint64
+	// AfterSnapshotIndex is the persisted snapshot index after the attempt.
+	AfterSnapshotIndex uint64
+	// Compacted reports whether this attempt created a new snapshot and compacted entries.
+	Compacted bool
+	// SkippedReason explains why no new snapshot was created when Compacted is false.
+	SkippedReason string
+	// Error is the per-node failure message when present.
+	Error string
+}
+
+// SlotRaftCompactNodeResult describes one Slot Raft compaction target result.
+type SlotRaftCompactNodeResult struct {
+	// NodeID is the node that handled the attempt.
 	NodeID uint64
 	// SlotID is the physical Slot whose local Raft log was compacted.
 	SlotID uint32
@@ -29,9 +61,9 @@ type SlotRaftCompactionNodeResult struct {
 	Error string
 }
 
-// CompactSlotRaftLogResponse is the manager-facing one-slot compaction result.
-type CompactSlotRaftLogResponse struct {
-	// GeneratedAt records when the manager assembled this response.
+// SlotRaftCompactionSummary is returned after triggering Slot Raft compaction.
+type SlotRaftCompactionSummary struct {
+	// GeneratedAt records when the result was assembled.
 	GeneratedAt time.Time
 	// Total is the number of node/slot targets.
 	Total int
@@ -40,55 +72,55 @@ type CompactSlotRaftLogResponse struct {
 	// Failed is the number of targets that returned an error.
 	Failed int
 	// Items contains per-target results ordered by request target order.
-	Items []SlotRaftCompactionNodeResult
+	Items []SlotRaftCompactNodeResult
 }
 
-// CompactSlotRaftLog triggers node-local Slot Raft log compaction on one selected node and Slot.
-func (a *App) CompactSlotRaftLog(ctx context.Context, nodeID uint64, slotID uint32) (CompactSlotRaftLogResponse, error) {
-	if a == nil {
-		return CompactSlotRaftLogResponse{}, nil
+// CompactSlotRaftLog forces one selected node's local Slot Raft log compaction.
+func (a *App) CompactSlotRaftLog(ctx context.Context, nodeID uint64, slotID uint32) (SlotRaftCompactionSummary, error) {
+	if err := ctxErr(ctx); err != nil {
+		return SlotRaftCompactionSummary{}, err
 	}
-	resp := CompactSlotRaftLogResponse{
+	if nodeID == 0 || slotID == 0 {
+		return SlotRaftCompactionSummary{}, metadb.ErrInvalidArgument
+	}
+	if a == nil || a.slotRaft == nil {
+		return SlotRaftCompactionSummary{}, ErrSlotRaftOperatorUnavailable
+	}
+	result, err := a.slotRaft.CompactSlotRaftLog(ctx, nodeID, slotID)
+	item := slotRaftCompactNodeResult(nodeID, slotID, result, err)
+	summary := SlotRaftCompactionSummary{
 		GeneratedAt: a.now(),
 		Total:       1,
-		Items:       make([]SlotRaftCompactionNodeResult, 0, 1),
+		Items:       []SlotRaftCompactNodeResult{item},
 	}
-	item := SlotRaftCompactionNodeResult{NodeID: nodeID, SlotID: slotID}
-	if a.cluster == nil {
-		item.Success = false
-		item.Error = "cluster not configured"
-		resp.Failed = 1
-		resp.Items = append(resp.Items, item)
-		return resp, nil
-	}
-	result, err := a.cluster.CompactSlotRaftLogOnNode(ctx, nodeID, slotID)
-	item = slotRaftCompactionNodeResult(nodeID, slotID, result)
 	if err != nil {
-		item.Success = false
-		item.Error = err.Error()
-		resp.Failed = 1
+		summary.Failed = 1
 	} else {
-		item.Success = true
-		resp.Succeeded = 1
+		summary.Succeeded = 1
 	}
-	resp.Items = append(resp.Items, item)
-	return resp, nil
+	return summary, nil
 }
 
-func slotRaftCompactionNodeResult(nodeID uint64, slotID uint32, result raftcluster.SlotRaftCompactionResult) SlotRaftCompactionNodeResult {
+func slotRaftCompactNodeResult(nodeID uint64, slotID uint32, result SlotRaftCompactionResult, err error) SlotRaftCompactNodeResult {
 	if result.NodeID != 0 {
 		nodeID = result.NodeID
 	}
 	if result.SlotID != 0 {
 		slotID = result.SlotID
 	}
-	return SlotRaftCompactionNodeResult{
+	item := SlotRaftCompactNodeResult{
 		NodeID:              nodeID,
 		SlotID:              slotID,
+		Success:             err == nil,
 		AppliedIndex:        result.AppliedIndex,
 		BeforeSnapshotIndex: result.BeforeSnapshotIndex,
 		AfterSnapshotIndex:  result.AfterSnapshotIndex,
 		Compacted:           result.Compacted,
 		SkippedReason:       result.SkippedReason,
+		Error:               result.Error,
 	}
+	if err != nil && item.Error == "" {
+		item.Error = err.Error()
+	}
+	return item
 }

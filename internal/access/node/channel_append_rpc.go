@@ -4,422 +4,219 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
+	"io"
+	"net"
+	"syscall"
+	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/legacy/channel"
-	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
+	"github.com/WuKongIM/WuKongIM/internal/contracts/channelappend"
+	clusternet "github.com/WuKongIM/WuKongIM/pkg/cluster/net"
+	"github.com/WuKongIM/WuKongIM/pkg/transportv2"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
-type channelAppendRequest struct {
-	AppendRequest channel.AppendRequest `json:"append_request"`
+// ChannelAppendRPCServiceID is the cluster RPC service for SEND forwarding to the channel append authority.
+const ChannelAppendRPCServiceID uint8 = clusternet.RPCChannelAuthoritySend
+
+// ChannelAppend accepts send batches that are authoritative on this node.
+type ChannelAppend interface {
+	// SubmitForAuthority submits item-aligned sends to the local channel authority.
+	SubmitForAuthority(context.Context, channelappend.AuthorityTarget, []channelappend.SendBatchItem) []channelappend.SendBatchItemResult
 }
 
-type channelAppendBatchRequest struct {
-	AppendBatchRequest channel.AppendBatchRequest `json:"append_batch_request"`
+// ChannelAppendOptions configures the channel append RPC adapter.
+type ChannelAppendOptions struct {
+	// ChannelAppend handles channel authority write batches after payload decoding.
+	ChannelAppend ChannelAppend
+	// Logger records channel append RPC adapter failures.
+	Logger wklog.Logger
 }
 
-type channelAppendResponse struct {
-	Status   string               `json:"status"`
-	LeaderID uint64               `json:"leader_id,omitempty"`
-	Result   channel.AppendResult `json:"result,omitempty"`
+// ChannelAppendAdapter decodes channel append RPC payloads for a local authority port.
+type ChannelAppendAdapter struct {
+	// channelAppend owns channel authority write admission decisions.
+	channelAppend ChannelAppend
+	// logger records adapter decode errors and rejected local operations.
+	logger wklog.Logger
 }
 
-type channelAppendBatchResponse struct {
-	Status   string                    `json:"status"`
-	LeaderID uint64                    `json:"leader_id,omitempty"`
-	Result   channel.AppendBatchResult `json:"result,omitempty"`
-}
-
-func (r channelAppendResponse) rpcStatus() string {
-	return r.Status
-}
-
-func (r channelAppendResponse) rpcLeaderID() uint64 {
-	return r.LeaderID
-}
-
-func (a *Adapter) handleChannelAppendRPC(ctx context.Context, body []byte) ([]byte, error) {
-	if isChannelAppendBatchRequestBinary(body) {
-		return a.handleChannelAppendBatchRPC(ctx, body)
+// NewChannelAppendAdapter creates a channel append RPC adapter.
+func NewChannelAppendAdapter(opts ChannelAppendOptions) *ChannelAppendAdapter {
+	if opts.Logger == nil {
+		opts.Logger = wklog.NewNop()
 	}
-	req, err := decodeChannelAppendRequest(body)
+	return &ChannelAppendAdapter{channelAppend: opts.ChannelAppend, logger: opts.Logger}
+}
+
+// HandleChannelAppendRPC handles one encoded channel append RPC payload.
+func (a *ChannelAppendAdapter) HandleChannelAppendRPC(ctx context.Context, payload []byte) ([]byte, error) {
+	req, err := decodeChannelAppendRequest(payload)
 	if err != nil {
+		a.channelAppendRPCLogger().Warn("channel append rpc decode failed",
+			wklog.Event("internalv2.access.node.channel_append_decode_failed"),
+			wklog.Int("payloadBytes", len(payload)),
+			wklog.Error(err),
+		)
 		return nil, err
 	}
-	if a.channelLog == nil {
-		return nil, fmt.Errorf("access/node: channel log not configured")
+	if a == nil || a.channelAppend == nil {
+		return encodeChannelAppendResponse(channelAppendResponse{Status: rpcStatusRejected})
 	}
-
-	if body, handled, err := a.handleChannelLeaderRedirect(req.AppendRequest.ChannelID); handled || err != nil {
-		return body, err
-	}
-
-	batchReq := appendRequestAsBatch(req.AppendRequest)
-	result, err := a.channelLog.AppendBatch(ctx, batchReq)
-	if err == nil {
-		itemResult, itemErr := appendResultFromBatch(result)
-		if itemErr != nil {
-			err = itemErr
-		} else {
-			return encodeChannelAppendResponse(channelAppendResponse{
-				Status: rpcStatusOK,
-				Result: itemResult,
-			})
+	now := time.Now()
+	items := make([]channelappend.SendBatchItem, len(req.Items))
+	for i, item := range req.Items {
+		items[i] = channelappend.SendBatchItem{
+			Context: ctx,
+			Command: item.Command,
+		}
+		if item.Timeout > 0 {
+			items[i].Deadline = now.Add(item.Timeout)
 		}
 	}
-	if errors.Is(err, channel.ErrNotLeader) || errors.Is(err, channel.ErrStaleMeta) {
-		if refreshed, refreshErr := a.refreshChannelAppendMeta(ctx, req.AppendRequest.ChannelID); refreshErr == nil {
-			a.channelAppendLogger().Debug("resolved refreshed channel append metadata",
-				wklog.Event("access.node.channel_append.refresh.resolved"),
-				wklog.NodeID(a.localNodeID),
-				wklog.LeaderNodeID(uint64(refreshed.Leader)),
-				wklog.ChannelID(req.AppendRequest.ChannelID.ID),
-				wklog.ChannelType(int64(req.AppendRequest.ChannelID.Type)),
-				wklog.Uint64("channelEpoch", refreshed.Epoch),
-				wklog.Uint64("leaderEpoch", refreshed.LeaderEpoch),
-				wklog.Int("replicaCount", len(refreshed.Replicas)),
-				wklog.Int("isrCount", len(refreshed.ISR)),
-				wklog.Int("minISR", refreshed.MinISR),
-			)
-			batchReq.ExpectedChannelEpoch = refreshed.Epoch
-			batchReq.ExpectedLeaderEpoch = refreshed.LeaderEpoch
-			if refreshed.Leader != 0 && uint64(refreshed.Leader) != a.localNodeID {
-				return encodeChannelAppendResponse(channelAppendResponse{
-					Status:   rpcStatusNotLeader,
-					LeaderID: uint64(refreshed.Leader),
-				})
-			}
-			result, err = a.channelLog.AppendBatch(ctx, batchReq)
-			if err == nil {
-				itemResult, itemErr := appendResultFromBatch(result)
-				if itemErr != nil {
-					err = itemErr
-				} else {
-					return encodeChannelAppendResponse(channelAppendResponse{
-						Status: rpcStatusOK,
-						Result: itemResult,
-					})
-				}
-			}
-		}
-	}
-	if errors.Is(err, channel.ErrNotLeader) {
-		if body, handled, statusErr := a.handleChannelLeaderRedirect(req.AppendRequest.ChannelID); handled || statusErr != nil {
-			return body, statusErr
-		}
-		return encodeChannelAppendResponse(channelAppendResponse{Status: rpcStatusNotLeader})
-	}
-	if errors.Is(err, channel.ErrWriteFenced) {
-		return encodeChannelAppendResponse(channelAppendResponse{Status: rpcStatusRetryableWriteFenced})
-	}
-	return nil, err
+	results := a.channelAppend.SubmitForAuthority(ctx, req.Target, items)
+	return encodeChannelAppendResponse(channelAppendResponse{Status: rpcStatusOK, Results: results})
 }
 
-func appendRequestAsBatch(req channel.AppendRequest) channel.AppendBatchRequest {
-	return channel.AppendBatchRequest{
-		ChannelID:             req.ChannelID,
-		Messages:              []channel.Message{req.Message},
-		SupportsMessageSeqU64: req.SupportsMessageSeqU64,
-		CommitMode:            req.CommitMode,
-		ExpectedChannelEpoch:  req.ExpectedChannelEpoch,
-		ExpectedLeaderEpoch:   req.ExpectedLeaderEpoch,
-		TraceID:               req.TraceID,
-		Attempt:               req.Attempt,
-	}
-}
-
-func appendResultFromBatch(result channel.AppendBatchResult) (channel.AppendResult, error) {
-	if len(result.Items) == 0 {
-		return channel.AppendResult{}, nil
-	}
-	item := result.Items[0]
-	if item.Err != nil {
-		return channel.AppendResult{}, item.Err
-	}
-	return channel.AppendResult{
-		MessageID:  item.MessageID,
-		MessageSeq: item.MessageSeq,
-		Message:    item.Message,
-	}, nil
-}
-
-func (a *Adapter) handleChannelAppendBatchRPC(ctx context.Context, body []byte) ([]byte, error) {
-	req, err := decodeChannelAppendBatchRequest(body)
-	if err != nil {
-		return nil, err
-	}
-	if a.channelLog == nil {
-		return nil, fmt.Errorf("access/node: channel log not configured")
-	}
-
-	if body, handled, err := a.handleChannelLeaderRedirectBatch(req.AppendBatchRequest.ChannelID); handled || err != nil {
-		return body, err
-	}
-
-	result, err := a.channelLog.AppendBatch(ctx, req.AppendBatchRequest)
-	if err == nil {
-		return encodeChannelAppendBatchResponse(channelAppendBatchResponse{
-			Status: rpcStatusOK,
-			Result: result,
-		})
-	}
-	if errors.Is(err, channel.ErrNotLeader) || errors.Is(err, channel.ErrStaleMeta) {
-		if refreshed, refreshErr := a.refreshChannelAppendMeta(ctx, req.AppendBatchRequest.ChannelID); refreshErr == nil {
-			a.channelAppendLogger().Debug("resolved refreshed channel append metadata",
-				wklog.Event("access.node.channel_append.refresh.resolved"),
-				wklog.NodeID(a.localNodeID),
-				wklog.LeaderNodeID(uint64(refreshed.Leader)),
-				wklog.ChannelID(req.AppendBatchRequest.ChannelID.ID),
-				wklog.ChannelType(int64(req.AppendBatchRequest.ChannelID.Type)),
-				wklog.Uint64("channelEpoch", refreshed.Epoch),
-				wklog.Uint64("leaderEpoch", refreshed.LeaderEpoch),
-				wklog.Int("replicaCount", len(refreshed.Replicas)),
-				wklog.Int("isrCount", len(refreshed.ISR)),
-				wklog.Int("minISR", refreshed.MinISR),
-			)
-			req.AppendBatchRequest.ExpectedChannelEpoch = refreshed.Epoch
-			req.AppendBatchRequest.ExpectedLeaderEpoch = refreshed.LeaderEpoch
-			if refreshed.Leader != 0 && uint64(refreshed.Leader) != a.localNodeID {
-				return encodeChannelAppendBatchResponse(channelAppendBatchResponse{
-					Status:   rpcStatusNotLeader,
-					LeaderID: uint64(refreshed.Leader),
-				})
-			}
-			result, err = a.channelLog.AppendBatch(ctx, req.AppendBatchRequest)
-			if err == nil {
-				return encodeChannelAppendBatchResponse(channelAppendBatchResponse{
-					Status: rpcStatusOK,
-					Result: result,
-				})
-			}
-		}
-	}
-	if errors.Is(err, channel.ErrNotLeader) {
-		if body, handled, statusErr := a.handleChannelLeaderRedirectBatch(req.AppendBatchRequest.ChannelID); handled || statusErr != nil {
-			return body, statusErr
-		}
-		return encodeChannelAppendBatchResponse(channelAppendBatchResponse{Status: rpcStatusNotLeader})
-	}
-	if errors.Is(err, channel.ErrWriteFenced) {
-		return encodeChannelAppendBatchResponse(channelAppendBatchResponse{Status: rpcStatusRetryableWriteFenced})
-	}
-	return nil, err
-}
-
-func (a *Adapter) channelAppendLogger() wklog.Logger {
+func (a *ChannelAppendAdapter) channelAppendRPCLogger() wklog.Logger {
 	if a == nil || a.logger == nil {
 		return wklog.NewNop()
 	}
-	return a.logger.Named("channel_append")
+	return a.logger
 }
 
-func (a *Adapter) handleChannelLeaderRedirect(id channel.ChannelID) ([]byte, bool, error) {
-	if a == nil || a.channelLog == nil || a.localNodeID == 0 {
-		return nil, false, nil
-	}
-	status, err := a.channelLog.Status(id)
-	if err != nil || status.Leader == 0 {
-		return nil, false, nil
-	}
-	if uint64(status.Leader) == a.localNodeID {
-		return nil, false, nil
-	}
-	body, encodeErr := encodeChannelAppendResponse(channelAppendResponse{
-		Status:   rpcStatusNotLeader,
-		LeaderID: uint64(status.Leader),
-	})
-	return body, true, encodeErr
-}
-
-func (a *Adapter) handleChannelLeaderRedirectBatch(id channel.ChannelID) ([]byte, bool, error) {
-	if a == nil || a.channelLog == nil || a.localNodeID == 0 {
-		return nil, false, nil
-	}
-	status, err := a.channelLog.Status(id)
-	if err != nil || status.Leader == 0 {
-		return nil, false, nil
-	}
-	if uint64(status.Leader) == a.localNodeID {
-		return nil, false, nil
-	}
-	body, encodeErr := encodeChannelAppendBatchResponse(channelAppendBatchResponse{
-		Status:   rpcStatusNotLeader,
-		LeaderID: uint64(status.Leader),
-	})
-	return body, true, encodeErr
-}
-
-func (a *Adapter) refreshChannelAppendMeta(ctx context.Context, id channel.ChannelID) (channel.Meta, error) {
-	if a == nil || a.channelMeta == nil {
-		return channel.Meta{}, fmt.Errorf("access/node: channel meta refresher not configured")
-	}
-	return a.channelMeta.RefreshChannelMeta(ctx, id)
-}
-
-func (c *Client) AppendToLeader(ctx context.Context, nodeID uint64, req channel.AppendRequest) (channel.AppendResult, error) {
-	if c == nil || c.cluster == nil {
-		return channel.AppendResult{}, fmt.Errorf("access/node: cluster not configured")
-	}
-	if nodeID == 0 {
-		return channel.AppendResult{}, channel.ErrNotLeader
-	}
-	body, err := encodeChannelAppendRequestBinary(channelAppendRequest{
-		AppendRequest: req,
-	})
-	if err != nil {
-		return channel.AppendResult{}, err
-	}
-
-	tried := make(map[uint64]struct{}, 2)
-	candidates := []uint64{nodeID}
-	var lastErr error
-
-	for len(candidates) > 0 {
-		target := candidates[0]
-		candidates = candidates[1:]
-		if target == 0 {
-			continue
-		}
-		if _, ok := tried[target]; ok {
-			continue
-		}
-		tried[target] = struct{}{}
-
-		respBody, err := c.cluster.RPCService(ctx, multiraft.NodeID(target), 0, channelAppendRPCServiceID, body)
-		if err == nil {
-			var resp channelAppendResponse
-			resp, err = decodeChannelAppendResponse(respBody)
-			if err == nil {
-				switch resp.Status {
-				case rpcStatusOK:
-					return resp.Result, nil
-				case rpcStatusNotLeader:
-					lastErr = channel.ErrNotLeader
-					if resp.LeaderID != 0 {
-						candidates = append([]uint64{resp.LeaderID}, candidates...)
-					}
-					continue
-				case rpcStatusRetryableWriteFenced:
-					lastErr = channel.ErrWriteFenced
-					continue
-				default:
-					lastErr = fmt.Errorf("access/node: unexpected channel append status %q", resp.Status)
-					continue
-				}
+// ForwardSendBatch forwards SEND items to the target channel authority node.
+func (c *Client) ForwardSendBatch(ctx context.Context, target channelappend.AuthorityTarget, items []channelappend.SendBatchItem) []channelappend.SendBatchItemResult {
+	now := time.Now()
+	results := make([]channelappend.SendBatchItemResult, len(items))
+	reqItems := make([]channelAppendItem, 0, len(items))
+	activeIndexes := make([]int, 0, len(items))
+	for i, item := range items {
+		if item.Context != nil {
+			if err := item.Context.Err(); err != nil {
+				results[i].Err = err
+				continue
 			}
 		}
-		if err != nil {
-			lastErr = normalizeChannelAppendRPCError(err)
+		if !item.Deadline.IsZero() && !item.Deadline.After(now) {
+			results[i].Err = context.DeadlineExceeded
 			continue
 		}
+		activeIndexes = append(activeIndexes, i)
+		reqItems = append(reqItems, channelAppendItem{
+			Command: item.Command.Clone(),
+			Timeout: channelAppendRelativeTimeout(item, now),
+		})
 	}
-
-	if lastErr != nil {
-		return channel.AppendResult{}, lastErr
+	if len(activeIndexes) == 0 {
+		return results
 	}
-	return channel.AppendResult{}, channel.ErrNotLeader
-}
-
-func (c *Client) AppendBatchToLeader(ctx context.Context, nodeID uint64, req channel.AppendBatchRequest) (channel.AppendBatchResult, error) {
-	if c == nil || c.cluster == nil {
-		return channel.AppendBatchResult{}, fmt.Errorf("access/node: cluster not configured")
+	if c == nil || c.node == nil {
+		return channelAppendFillActiveErrors(results, activeIndexes, fmt.Errorf("internalv2/access/node: channel append rpc client not configured"))
 	}
-	if nodeID == 0 {
-		return channel.AppendBatchResult{}, channel.ErrNotLeader
-	}
-	body, err := encodeChannelAppendBatchRequestBinary(channelAppendBatchRequest{
-		AppendBatchRequest: req,
-	})
+	body, err := encodeChannelAppendRequest(channelAppendRequest{Target: target, Items: reqItems})
 	if err != nil {
-		return channel.AppendBatchResult{}, err
+		return channelAppendFillActiveErrors(results, activeIndexes, err)
 	}
-
-	tried := make(map[uint64]struct{}, 2)
-	candidates := []uint64{nodeID}
-	var lastErr error
-
-	for len(candidates) > 0 {
-		target := candidates[0]
-		candidates = candidates[1:]
-		if target == 0 {
-			continue
-		}
-		if _, ok := tried[target]; ok {
-			continue
-		}
-		tried[target] = struct{}{}
-
-		respBody, err := c.cluster.RPCService(ctx, multiraft.NodeID(target), 0, channelAppendRPCServiceID, body)
-		if err == nil {
-			var resp channelAppendBatchResponse
-			resp, err = decodeChannelAppendBatchResponse(respBody)
-			if err == nil {
-				switch resp.Status {
-				case rpcStatusOK:
-					return resp.Result, nil
-				case rpcStatusNotLeader:
-					lastErr = channel.ErrNotLeader
-					if resp.LeaderID != 0 {
-						candidates = append([]uint64{resp.LeaderID}, candidates...)
-					}
-					continue
-				case rpcStatusRetryableWriteFenced:
-					lastErr = channel.ErrWriteFenced
-					continue
-				default:
-					lastErr = fmt.Errorf("access/node: unexpected channel append batch status %q", resp.Status)
-					continue
-				}
-			}
-		}
-		if err != nil {
-			lastErr = normalizeChannelAppendRPCError(err)
-			continue
-		}
+	respBody, err := c.node.CallRPC(ctx, target.LeaderNodeID, ChannelAppendRPCServiceID, body)
+	if err != nil {
+		return channelAppendFillActiveErrors(results, activeIndexes, channelAppendRPCError(err))
 	}
-
-	if lastErr != nil {
-		return channel.AppendBatchResult{}, lastErr
+	resp, err := decodeChannelAppendResponse(respBody)
+	if err != nil {
+		return channelAppendFillActiveErrors(results, activeIndexes, err)
 	}
-	return channel.AppendBatchResult{}, channel.ErrNotLeader
+	if err := channelAppendErrorForStatus(resp.Status); err != nil {
+		return channelAppendFillActiveErrors(results, activeIndexes, err)
+	}
+	if len(resp.Results) != len(activeIndexes) {
+		return channelAppendFillActiveErrors(results, activeIndexes, channelappend.ErrAppendResultMissing)
+	}
+	for i, result := range resp.Results {
+		results[activeIndexes[i]] = result
+	}
+	return results
 }
 
-func encodeChannelAppendResponse(resp channelAppendResponse) ([]byte, error) {
-	return encodeChannelAppendResponseBinary(resp)
-}
-
-func decodeChannelAppendResponse(body []byte) (channelAppendResponse, error) {
-	return decodeChannelAppendResponseBinary(body)
-}
-
-func encodeChannelAppendBatchResponse(resp channelAppendBatchResponse) ([]byte, error) {
-	return encodeChannelAppendBatchResponseBinary(resp)
-}
-
-func decodeChannelAppendBatchResponse(body []byte) (channelAppendBatchResponse, error) {
-	return decodeChannelAppendBatchResponseBinary(body)
-}
-
-func normalizeChannelAppendRPCError(err error) error {
-	if err == nil {
-		return nil
-	}
-	if errors.Is(err, channel.ErrNotLeader) || errors.Is(err, channel.ErrStaleMeta) {
-		return err
-	}
-	if errors.Is(err, channel.ErrWriteFenced) {
-		return err
-	}
-	msg := err.Error()
+func channelAppendRPCError(err error) error {
 	switch {
-	case strings.Contains(msg, channel.ErrNotLeader.Error()):
-		return channel.ErrNotLeader
-	case strings.Contains(msg, channel.ErrStaleMeta.Error()):
-		return channel.ErrStaleMeta
-	case strings.Contains(msg, channel.ErrWriteFenced.Error()):
-		return channel.ErrWriteFenced
+	case err == nil:
+		return nil
+	case errors.Is(err, transportv2.ErrCanceled):
+		return context.Canceled
+	case errors.Is(err, transportv2.ErrTimeout):
+		return context.DeadlineExceeded
+	case channelAppendTransportUnavailable(err):
+		return fmt.Errorf("%w: %w", channelappend.ErrRouteNotReady, err)
 	default:
 		return err
+	}
+}
+
+func channelAppendTransportUnavailable(err error) bool {
+	switch {
+	case errors.Is(err, transportv2.ErrDialFailed),
+		errors.Is(err, transportv2.ErrNodeNotFound),
+		errors.Is(err, transportv2.ErrStopped),
+		errors.Is(err, net.ErrClosed),
+		errors.Is(err, io.EOF),
+		errors.Is(err, io.ErrUnexpectedEOF),
+		errors.Is(err, syscall.ECONNRESET),
+		errors.Is(err, syscall.ECONNREFUSED),
+		errors.Is(err, syscall.EPIPE):
+		return true
+	default:
+		return false
+	}
+}
+
+func channelAppendRelativeTimeout(item channelappend.SendBatchItem, now time.Time) time.Duration {
+	var deadline time.Time
+	if !item.Deadline.IsZero() && item.Deadline.After(now) {
+		deadline = item.Deadline
+	}
+	if item.Context != nil {
+		if ctxDeadline, ok := item.Context.Deadline(); ok && ctxDeadline.After(now) && (deadline.IsZero() || ctxDeadline.Before(deadline)) {
+			deadline = ctxDeadline
+		}
+	}
+	if deadline.IsZero() {
+		return 0
+	}
+	return deadline.Sub(now)
+}
+
+func channelAppendFillActiveErrors(results []channelappend.SendBatchItemResult, indexes []int, err error) []channelappend.SendBatchItemResult {
+	for _, index := range indexes {
+		results[index].Err = err
+	}
+	return results
+}
+
+func channelAppendErrorForStatus(status string) error {
+	switch status {
+	case rpcStatusOK:
+		return nil
+	case rpcStatusNotLeader:
+		return channelappend.ErrNotLeader
+	case channelAppendErrCodeNotChannelAuthority:
+		return channelappend.ErrNotChannelAuthority
+	case rpcStatusStaleRoute:
+		return channelappend.ErrStaleRoute
+	case rpcStatusRouteNotReady:
+		return channelappend.ErrRouteNotReady
+	case channelAppendErrCodeBackpressured:
+		return channelappend.ErrBackpressured
+	case channelAppendErrCodeAppendResultMissing:
+		return channelappend.ErrAppendResultMissing
+	case channelAppendErrCodeChannelBusy:
+		return channelappend.ErrChannelBusy
+	case rpcStatusContextCanceled:
+		return context.Canceled
+	case rpcStatusContextDeadlineExceeded:
+		return context.DeadlineExceeded
+	case rpcStatusRejected:
+		return fmt.Errorf("internalv2/access/node: channel append rpc rejected")
+	default:
+		return fmt.Errorf("internalv2/access/node: unknown channel append rpc status %q", status)
 	}
 }

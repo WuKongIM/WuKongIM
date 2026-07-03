@@ -1,6 +1,6 @@
 # dynamic_node_operations AGENTS
 
-This package proves Stage 11 operator workflows for internalv2 dynamic data
+This package proves Stage 11 operator workflows for internal dynamic data
 nodes through `wkcli node`.
 
 ## Scenario Contract
@@ -18,7 +18,7 @@ nodes through `wkcli node`.
 
 ## Rules
 
-- Keep tests black-box: do not import `internalv2/app`, `internalv2/usecase`,
+- Keep tests black-box: do not import `internal/app`, `internal/usecase`,
   storage internals, ControllerV2 internals, or cluster internals.
 - Use public manager HTTP, public `/metrics`, WKProto clients, and process
   handles from `test/e2ev2/suite`.

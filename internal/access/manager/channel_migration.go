@@ -1,185 +1,132 @@
 package manager
 
 import (
-	"context"
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
-	"github.com/WuKongIM/WuKongIM/pkg/legacy/channel"
-	raftcluster "github.com/WuKongIM/WuKongIM/pkg/legacy/cluster"
 	"github.com/gin-gonic/gin"
 )
 
-// channelLeaderTransferRequestDTO is the JSON body for a manual leader transfer.
-type channelLeaderTransferRequestDTO struct {
-	// TargetNodeID is the existing ISR node that should become channel leader.
-	TargetNodeID uint64 `json:"target_node_id"`
-	// DryRun validates the migration without creating a durable task.
-	DryRun bool `json:"dry_run"`
-}
-
-// channelReplicaMigrationRequestDTO is the JSON body for one replica replacement.
-type channelReplicaMigrationRequestDTO struct {
-	// SourceNodeID is the existing replica being replaced.
-	SourceNodeID uint64 `json:"source_node_id"`
-	// TargetNodeID is the active data node to add as learner and promote.
-	TargetNodeID uint64 `json:"target_node_id"`
-	// DryRun validates the migration without creating a durable task.
-	DryRun bool `json:"dry_run"`
-}
-
-// channelMigrationResultDTO is the JSON response for dry-run and create calls.
-type channelMigrationResultDTO struct {
-	// DryRun reports whether no durable task was created.
-	DryRun bool `json:"dry_run"`
-	// Valid reports whether validation found no blockers.
-	Valid bool `json:"valid"`
-	// TaskID identifies the created task when creation succeeded.
+// ChannelMigrationRequest is the common manager JSON body for ChannelV2 migration writes.
+type ChannelMigrationRequest struct {
+	// ChannelID is the logical channel identifier.
+	ChannelID string `json:"channel_id"`
+	// ChannelType is the logical channel type.
+	ChannelType uint8 `json:"channel_type"`
+	// SourceNode is the replica being replaced for replica-replace requests.
+	SourceNode uint64 `json:"source_node,omitempty"`
+	// TargetNode is the desired leader or replacement node.
+	TargetNode uint64 `json:"target_node"`
+	// TaskID optionally supplies an idempotency key.
 	TaskID string `json:"task_id,omitempty"`
-	// Kind is the stable manager-facing migration kind.
-	Kind string `json:"kind"`
-	// Blockers contains stable machine-readable validation blockers.
-	Blockers []string `json:"blockers"`
-	// PhaseSequence is the expected executor phase order.
-	PhaseSequence []string `json:"phase_sequence"`
-	// Detail contains planned or current task details.
-	Detail channelMigrationDetailDTO `json:"detail"`
+	// Reason is the optional operator abort reason.
+	Reason string `json:"reason,omitempty"`
 }
 
-// channelMigrationDetailDTO is the JSON response for an active migration task.
-type channelMigrationDetailDTO struct {
-	// TaskID identifies one channel migration attempt.
+// ChannelMigrationResponse is one manager-facing ChannelV2 migration task.
+type ChannelMigrationResponse struct {
+	// TaskID is the durable migration task identity.
 	TaskID string `json:"task_id"`
-	// Kind is the stable manager-facing migration kind.
+	// ChannelID is the logical channel identifier.
+	ChannelID string `json:"channel_id"`
+	// ChannelType is the logical channel type.
+	ChannelType int64 `json:"channel_type"`
+	// Kind is the stable workflow kind.
 	Kind string `json:"kind"`
 	// Status is the stable task lifecycle status.
 	Status string `json:"status"`
-	// Phase is the resumable executor phase.
+	// Phase is the stable executor phase.
 	Phase string `json:"phase"`
-	// ChannelID identifies the channel.
-	ChannelID string `json:"channel_id"`
-	// ChannelType identifies the channel namespace.
-	ChannelType int64 `json:"channel_type"`
-	// SourceNode is the source leader or replica.
-	SourceNode uint64 `json:"source_node"`
-	// TargetNode is the target leader or replacement replica.
-	TargetNode uint64 `json:"target_node"`
-	// DesiredLeader is the requested leader for leader-transfer semantics.
-	DesiredLeader uint64 `json:"desired_leader"`
-	// BaseChannelEpoch is the channel epoch captured at task creation.
-	BaseChannelEpoch uint64 `json:"base_channel_epoch"`
-	// BaseLeaderEpoch is the leader epoch captured at task creation.
-	BaseLeaderEpoch uint64 `json:"base_leader_epoch"`
-	// CurrentChannelEpoch is the latest authoritative channel epoch.
-	CurrentChannelEpoch uint64 `json:"current_channel_epoch"`
-	// CurrentLeaderEpoch is the latest authoritative leader epoch.
-	CurrentLeaderEpoch uint64 `json:"current_leader_epoch"`
-	// LeaderLEO is the latest observed leader log end offset.
-	LeaderLEO uint64 `json:"leader_leo"`
-	// LeaderHW is the latest observed leader high watermark.
-	LeaderHW uint64 `json:"leader_hw"`
-	// TargetLEO is the latest observed target log end offset.
-	TargetLEO uint64 `json:"target_leo"`
-	// TargetCheckpointHW is the latest target checkpoint high watermark.
-	TargetCheckpointHW uint64 `json:"target_checkpoint_hw"`
-	// LagRecords is the latest observed leader-to-target log gap.
-	LagRecords uint64 `json:"lag_records"`
-	// StableSinceMS records when the current catch-up proof became stable.
-	StableSinceMS int64 `json:"stable_since_ms"`
-	// FenceActive reports whether a migration write fence is active.
-	FenceActive bool `json:"fence_active"`
-	// FenceUntilMS is the write-fence lease deadline.
-	FenceUntilMS int64 `json:"fence_until_ms"`
-	// FenceReason is the raw runtime write-fence reason.
-	FenceReason uint8 `json:"fence_reason"`
-	// BlockerCode is a stable blocker code when blocked.
-	BlockerCode string `json:"blocker_code,omitempty"`
-	// BlockerMessage is a human-readable blocker detail.
+	// SourceNode is the source leader or replica, depending on Kind.
+	SourceNode uint64 `json:"source_node,omitempty"`
+	// TargetNode is the desired leader or replacement node.
+	TargetNode uint64 `json:"target_node,omitempty"`
+	// DesiredLeader is the desired leader when known.
+	DesiredLeader uint64 `json:"desired_leader,omitempty"`
+	// BlockerMessage is the bounded blocker detail for blocked tasks.
 	BlockerMessage string `json:"blocker_message,omitempty"`
-	// Attempt is the durable retry counter.
-	Attempt uint32 `json:"attempt"`
-	// NextRunAtMS is the next executor wake-up timestamp.
-	NextRunAtMS int64 `json:"next_run_at_ms"`
-	// LastError is the latest retryable or terminal error.
+	// LastError is the bounded failure detail for failed tasks.
 	LastError string `json:"last_error,omitempty"`
-	// CreatedAtMS is the task creation timestamp.
-	CreatedAtMS int64 `json:"created_at_ms"`
-	// UpdatedAtMS is the latest task update timestamp.
-	UpdatedAtMS int64 `json:"updated_at_ms"`
-	// CompletedAtMS is set for terminal tasks.
-	CompletedAtMS int64 `json:"completed_at_ms,omitempty"`
 }
 
-func (s *Server) handleChannelLeaderTransfer(c *gin.Context) {
+// ChannelMigrationListResponse is the manager active migration page body.
+type ChannelMigrationListResponse struct {
+	// Items contains active migration task rows.
+	Items []ChannelMigrationResponse `json:"items"`
+}
+
+func (s *Server) handleChannelMigrationLeaderTransfer(c *gin.Context) {
 	if s.management == nil {
 		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "management not configured")
 		return
 	}
-	id, ok := parseChannelMigrationID(c)
-	if !ok {
+	var body ChannelMigrationRequest
+	if err := c.ShouldBindJSON(&body); err != nil || strings.TrimSpace(body.ChannelID) == "" || body.TargetNode == 0 {
+		jsonError(c, http.StatusBadRequest, "bad_request", "bad_request")
 		return
 	}
-	var req channelLeaderTransferRequestDTO
-	if err := c.ShouldBindJSON(&req); err != nil {
-		jsonError(c, http.StatusBadRequest, "bad_request", "invalid body")
-		return
-	}
-	if req.TargetNodeID == 0 {
-		jsonError(c, http.StatusBadRequest, "bad_request", "invalid target_node_id")
-		return
-	}
-	result, err := s.management.TransferChannelLeader(c.Request.Context(), id, managementusecase.TransferChannelLeaderRequest{
-		TargetNodeID: req.TargetNodeID,
-		DryRun:       req.DryRun,
+	result, err := s.management.RequestChannelLeaderTransfer(c.Request.Context(), managementusecase.LeaderTransferInput{
+		ChannelID:   body.ChannelID,
+		ChannelType: body.ChannelType,
+		TargetNode:  body.TargetNode,
+		TaskID:      body.TaskID,
 	})
 	if err != nil {
-		if writeBlockedChannelMigrationResult(c, result, err) {
-			return
-		}
-		s.writeChannelMigrationError(c, err)
+		writeChannelMigrationError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, channelMigrationResultDTOFromUsecase(result))
+	c.JSON(http.StatusAccepted, channelMigrationResponse(result))
 }
 
-func (s *Server) handleChannelReplicaMigrate(c *gin.Context) {
+func (s *Server) handleChannelMigrationReplicaReplace(c *gin.Context) {
 	if s.management == nil {
 		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "management not configured")
 		return
 	}
-	id, ok := parseChannelMigrationID(c)
-	if !ok {
+	var body ChannelMigrationRequest
+	if err := c.ShouldBindJSON(&body); err != nil || strings.TrimSpace(body.ChannelID) == "" || body.SourceNode == 0 || body.TargetNode == 0 {
+		jsonError(c, http.StatusBadRequest, "bad_request", "bad_request")
 		return
 	}
-	var req channelReplicaMigrationRequestDTO
-	if err := c.ShouldBindJSON(&req); err != nil {
-		jsonError(c, http.StatusBadRequest, "bad_request", "invalid body")
-		return
-	}
-	if req.SourceNodeID == 0 {
-		jsonError(c, http.StatusBadRequest, "bad_request", "invalid source_node_id")
-		return
-	}
-	if req.TargetNodeID == 0 {
-		jsonError(c, http.StatusBadRequest, "bad_request", "invalid target_node_id")
-		return
-	}
-	result, err := s.management.MigrateChannelReplica(c.Request.Context(), id, managementusecase.MigrateChannelReplicaRequest{
-		SourceNodeID: req.SourceNodeID,
-		TargetNodeID: req.TargetNodeID,
-		DryRun:       req.DryRun,
+	result, err := s.management.RequestChannelReplicaReplace(c.Request.Context(), managementusecase.ReplicaReplaceInput{
+		ChannelID:   body.ChannelID,
+		ChannelType: body.ChannelType,
+		SourceNode:  body.SourceNode,
+		TargetNode:  body.TargetNode,
+		TaskID:      body.TaskID,
 	})
 	if err != nil {
-		if writeBlockedChannelMigrationResult(c, result, err) {
-			return
-		}
-		s.writeChannelMigrationError(c, err)
+		writeChannelMigrationError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, channelMigrationResultDTOFromUsecase(result))
+	c.JSON(http.StatusAccepted, channelMigrationResponse(result))
+}
+
+func (s *Server) handleActiveChannelMigrations(c *gin.Context) {
+	if s.management == nil {
+		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "management not configured")
+		return
+	}
+	input, err := parseChannelMigrationListInput(c)
+	if err != nil {
+		jsonError(c, http.StatusBadRequest, "bad_request", "bad_request")
+		return
+	}
+	result, ok, err := s.management.ActiveChannelMigration(c.Request.Context(), input)
+	if err != nil {
+		writeChannelMigrationError(c, err)
+		return
+	}
+	var items []ChannelMigrationResponse
+	if ok {
+		items = append(items, channelMigrationResponse(result))
+	}
+	c.JSON(http.StatusOK, ChannelMigrationListResponse{Items: items})
 }
 
 func (s *Server) handleChannelMigration(c *gin.Context) {
@@ -187,16 +134,17 @@ func (s *Server) handleChannelMigration(c *gin.Context) {
 		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "management not configured")
 		return
 	}
-	id, ok := parseChannelMigrationID(c)
-	if !ok {
-		return
-	}
-	detail, err := s.management.GetChannelMigration(c.Request.Context(), id)
+	input, err := parseChannelMigrationLookupInput(c)
 	if err != nil {
-		s.writeChannelMigrationError(c, err)
+		jsonError(c, http.StatusBadRequest, "bad_request", "bad_request")
 		return
 	}
-	c.JSON(http.StatusOK, channelMigrationDetailDTOFromUsecase(detail))
+	result, err := s.management.ChannelMigration(c.Request.Context(), input)
+	if err != nil {
+		writeChannelMigrationError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, channelMigrationResponse(result))
 }
 
 func (s *Server) handleChannelMigrationAbort(c *gin.Context) {
@@ -204,130 +152,107 @@ func (s *Server) handleChannelMigrationAbort(c *gin.Context) {
 		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "management not configured")
 		return
 	}
-	id, ok := parseChannelMigrationID(c)
-	if !ok {
+	var body ChannelMigrationRequest
+	if err := c.ShouldBindJSON(&body); err != nil || strings.TrimSpace(body.ChannelID) == "" {
+		jsonError(c, http.StatusBadRequest, "bad_request", "bad_request")
 		return
 	}
-	taskID := c.Param("task_id")
-	if taskID == "" {
-		jsonError(c, http.StatusBadRequest, "bad_request", "invalid task_id")
-		return
-	}
-	detail, err := s.management.AbortChannelMigration(c.Request.Context(), id, taskID)
+	result, err := s.management.AbortChannelMigration(c.Request.Context(), managementusecase.ChannelMigrationAbortInput{
+		ChannelID:   body.ChannelID,
+		ChannelType: body.ChannelType,
+		TaskID:      c.Param("task_id"),
+		Reason:      body.Reason,
+	})
 	if err != nil {
-		s.writeChannelMigrationError(c, err)
+		writeChannelMigrationError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, channelMigrationDetailDTOFromUsecase(detail))
+	c.JSON(http.StatusOK, channelMigrationResponse(result))
 }
 
-func parseChannelMigrationID(c *gin.Context) (channel.ChannelID, bool) {
-	channelType, err := parseChannelMigrationTypeParam(c.Param("channel_type"))
+func parseChannelMigrationListInput(c *gin.Context) (managementusecase.ChannelMigrationListInput, error) {
+	channelType, err := parseChannelMigrationQueryType(c.Query("channel_type"))
 	if err != nil {
-		jsonError(c, http.StatusBadRequest, "bad_request", "invalid channel_type")
-		return channel.ChannelID{}, false
+		return managementusecase.ChannelMigrationListInput{}, err
 	}
-	channelID := c.Param("channel_id")
-	if channelID == "" {
-		jsonError(c, http.StatusBadRequest, "bad_request", "invalid channel_id")
-		return channel.ChannelID{}, false
+	limit := 10
+	if raw := strings.TrimSpace(c.Query("limit")); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil || parsed <= 0 || parsed > 100 {
+			return managementusecase.ChannelMigrationListInput{}, strconv.ErrSyntax
+		}
+		limit = parsed
 	}
-	return channel.ChannelID{ID: channelID, Type: channelType}, true
+	return managementusecase.ChannelMigrationListInput{
+		ChannelID:   c.Query("channel_id"),
+		ChannelType: channelType,
+		Limit:       limit,
+	}, nil
 }
 
-func parseChannelMigrationTypeParam(raw string) (uint8, error) {
-	if raw == "" {
-		return 0, strconv.ErrSyntax
+func parseChannelMigrationLookupInput(c *gin.Context) (managementusecase.ChannelMigrationLookupInput, error) {
+	channelType, err := parseChannelMigrationQueryType(c.Query("channel_type"))
+	if err != nil {
+		return managementusecase.ChannelMigrationLookupInput{}, err
 	}
-	channelType, err := strconv.ParseUint(raw, 10, 8)
-	if err != nil || channelType == 0 {
-		return 0, strconv.ErrSyntax
-	}
-	return uint8(channelType), nil
+	return managementusecase.ChannelMigrationLookupInput{
+		ChannelID:   c.Query("channel_id"),
+		ChannelType: channelType,
+		TaskID:      c.Param("task_id"),
+	}, nil
 }
 
-func (s *Server) writeChannelMigrationError(c *gin.Context, err error) {
+func parseChannelMigrationQueryType(raw string) (uint8, error) {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		return 0, nil
+	}
+	parsed, err := strconv.ParseUint(value, 10, 8)
+	if err != nil {
+		return 0, err
+	}
+	return uint8(parsed), nil
+}
+
+func channelMigrationResponses(items []managementusecase.ChannelMigrationSummary) []ChannelMigrationResponse {
+	out := make([]ChannelMigrationResponse, 0, len(items))
+	for _, item := range items {
+		out = append(out, channelMigrationResponse(item))
+	}
+	return out
+}
+
+func channelMigrationResponse(item managementusecase.ChannelMigrationSummary) ChannelMigrationResponse {
+	return ChannelMigrationResponse{
+		TaskID:         item.TaskID,
+		ChannelID:      item.ChannelID,
+		ChannelType:    item.ChannelType,
+		Kind:           item.Kind,
+		Status:         item.Status,
+		Phase:          item.Phase,
+		SourceNode:     item.SourceNode,
+		TargetNode:     item.TargetNode,
+		DesiredLeader:  item.DesiredLeader,
+		BlockerMessage: item.BlockerMessage,
+		LastError:      item.LastError,
+	}
+}
+
+func writeChannelMigrationError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, metadb.ErrInvalidArgument):
-		jsonError(c, http.StatusBadRequest, "bad_request", "invalid channel migration request")
-	case errors.Is(err, metadb.ErrNotFound):
-		jsonError(c, http.StatusNotFound, "not_found", "channel migration or channel not found")
-	case errors.Is(err, metadb.ErrStaleMeta), errors.Is(err, metadb.ErrAlreadyExists):
-		jsonError(c, http.StatusConflict, "conflict", "stale channel migration state")
-	case channelMigrationUnavailable(err):
-		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "channel migration unavailable")
+		jsonError(c, http.StatusBadRequest, "bad_request", err.Error())
+	case errors.Is(err, managementusecase.ErrChannelMigrationNotFound):
+		jsonError(c, http.StatusNotFound, "not_found", "not_found")
+	case errors.Is(err, managementusecase.ErrChannelMigrationConflict):
+		jsonError(c, http.StatusConflict, "conflict", "conflict")
+	case errors.Is(err, managementusecase.ErrChannelMigrationUnavailable),
+		errors.Is(err, cluster.ErrSlotNotFound),
+		errors.Is(err, cluster.ErrNotStarted),
+		errors.Is(err, cluster.ErrNotLeader),
+		errors.Is(err, cluster.ErrStopping):
+		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "service_unavailable")
 	default:
 		jsonError(c, http.StatusInternalServerError, "internal_error", err.Error())
-	}
-}
-
-func writeBlockedChannelMigrationResult(c *gin.Context, result managementusecase.ChannelMigrationResult, err error) bool {
-	if !errors.Is(err, metadb.ErrInvalidArgument) || result.Valid || !channelMigrationResultHasBody(result) {
-		return false
-	}
-	c.JSON(http.StatusBadRequest, channelMigrationResultDTOFromUsecase(result))
-	return true
-}
-
-func channelMigrationResultHasBody(result managementusecase.ChannelMigrationResult) bool {
-	return result.Kind != "" ||
-		result.TaskID != "" ||
-		len(result.Blockers) > 0 ||
-		len(result.PhaseSequence) > 0 ||
-		result.Detail.ChannelID != ""
-}
-
-func channelMigrationUnavailable(err error) bool {
-	return errors.Is(err, raftcluster.ErrNoLeader) ||
-		errors.Is(err, raftcluster.ErrNotLeader) ||
-		errors.Is(err, raftcluster.ErrSlotNotFound) ||
-		errors.Is(err, raftcluster.ErrNotStarted) ||
-		errors.Is(err, context.DeadlineExceeded)
-}
-
-func channelMigrationResultDTOFromUsecase(result managementusecase.ChannelMigrationResult) channelMigrationResultDTO {
-	return channelMigrationResultDTO{
-		DryRun:        result.DryRun,
-		Valid:         result.Valid,
-		TaskID:        result.TaskID,
-		Kind:          result.Kind,
-		Blockers:      append([]string{}, result.Blockers...),
-		PhaseSequence: append([]string{}, result.PhaseSequence...),
-		Detail:        channelMigrationDetailDTOFromUsecase(result.Detail),
-	}
-}
-
-func channelMigrationDetailDTOFromUsecase(detail managementusecase.ChannelMigrationDetail) channelMigrationDetailDTO {
-	return channelMigrationDetailDTO{
-		TaskID:              detail.TaskID,
-		Kind:                detail.Kind,
-		Status:              detail.Status,
-		Phase:               detail.Phase,
-		ChannelID:           detail.ChannelID,
-		ChannelType:         detail.ChannelType,
-		SourceNode:          detail.SourceNode,
-		TargetNode:          detail.TargetNode,
-		DesiredLeader:       detail.DesiredLeader,
-		BaseChannelEpoch:    detail.BaseChannelEpoch,
-		BaseLeaderEpoch:     detail.BaseLeaderEpoch,
-		CurrentChannelEpoch: detail.CurrentChannelEpoch,
-		CurrentLeaderEpoch:  detail.CurrentLeaderEpoch,
-		LeaderLEO:           detail.Progress.LeaderLEO,
-		LeaderHW:            detail.Progress.LeaderHW,
-		TargetLEO:           detail.Progress.TargetLEO,
-		TargetCheckpointHW:  detail.Progress.TargetCheckpointHW,
-		LagRecords:          detail.Progress.LagRecords,
-		StableSinceMS:       detail.Progress.StableSinceMS,
-		FenceActive:         detail.FenceActive,
-		FenceUntilMS:        detail.FenceUntilMS,
-		FenceReason:         detail.FenceReason,
-		BlockerCode:         detail.BlockerCode,
-		BlockerMessage:      detail.BlockerMessage,
-		Attempt:             detail.Attempt,
-		NextRunAtMS:         detail.NextRunAtMS,
-		LastError:           detail.LastError,
-		CreatedAtMS:         detail.CreatedAtMS,
-		UpdatedAtMS:         detail.UpdatedAtMS,
-		CompletedAtMS:       detail.CompletedAtMS,
 	}
 }

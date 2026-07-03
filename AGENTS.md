@@ -17,7 +17,7 @@
 - 集成测试：`go test -tags=integration ./...` (不要随便跑 时间很长 开发一般跑单元测试即可)
 - 运行主程序：`go run ./cmd/wukongim`
 - 显式指定配置文件：`go run ./cmd/wukongim -config ./wukongim.conf`
-- 定向测试：`go test ./internal/... ./internalv2/... ./pkg/...`
+- 定向测试：`go test ./internal/... ./pkg/...`
 
 
 ## 必须遵循的规则
@@ -45,78 +45,63 @@
 
 ```text
 cmd/
-  wukongim/              官方产品入口，负责读取配置并启动 internalv2/app
+  wukongim/              官方产品入口，负责读取配置并启动 internal/app
   wkcli/                 可扩展 Cobra 运维 CLI 骨架，预留 top/bench 等子命令入口
   wkbench/               wkbench 黑盒 benchmark CLI，提供 validate/doctor/run/worker/dev-sim/report 入口
   wkdb/                  节点本地只读存储排查 CLI，提供 query/repl 入口
 
 internal/
-  bench/                 wkbench 黑盒客户端配置、规划、执行与协调预检
+  app/                   新架构组合根；负责 cluster、message usecase、HTTP API、gateway handler/runtime 装配与生命周期
+  access/                新架构入口适配层
+    api/                 health、readyz、bench/v1 target 与 legacy channel/user/message/conversation HTTP API 入口
+    gateway/             gateway presence activation/deactivation、SendPacket/SendBatch -> usecase，Sendack 写回与协议错误映射
+    manager/             后台管理 HTTP API 入口、JWT 登录与权限适配
+    node/                节点间 presence authority/owner-action RPC codec、handler、client
+    plugin/              PDK host RPC 入口适配
+  bench/                 wkbench 黑盒客户端配置、规划、执行与协调预检，保持中立且不依赖服务端内部包
     config/              wkbench YAML 加载与严格解码
     devsim/              docker compose 开发模拟器 supervisor、状态 API 与配置派生
     planner/             worker 权重、identity pool 与 channel/member/traffic 分片规划
     target/              target HTTP bench API 黑盒客户端
     coordinator/         coordinator preflight 检查 target、worker 与 gateway placeholder
     worker/              wkbench worker 控制 HTTP API 与运行状态
-  app/                   组合根；负责 build、lifecycle、config、依赖装配
-    lifecycle/           生命周期管理器与资源栈原语
-  access/                接入层，只做入口适配
-    api/                 HTTP API 入口与路由适配
-    gateway/             网关 frame -> usecase 的适配
-    manager/             后台管理 HTTP API 入口、JWT 与权限适配
-    node/                节点间 RPC / 转发入口适配
-  log/                   应用日志配置与 zap/lumberjack 封装
-  observability/         节点内可观测性辅助
-    diagnostics/         节点内有界诊断事件、采样、索引与查询
-    sendtrace/           消息发送链路 trace 记录
   contracts/             跨用例/运行时的轻量事件合约
-    deliveryevents/      投递回执与离线事件合约
-    messageevents/       消息提交事件合约
-  usecase/               可复用业务用例，不依赖具体入口协议
-    benchdata/           benchmark 数据准备、能力描述与受限批量变更用例
-    channel/             频道资料、订阅者、黑白名单等兼容用例
-    cmdsync/             CMD 离线同步、syncack 与独立 CMD 会话状态用例
-    conversation/        会话投影、同步等用例
-    delivery/            投递、离线、订阅等用例
-    management/          后台管理聚合查询用例
-    message/             消息发送、回执、重试等用例
-    presence/            在线状态登记与权威查询用例
-    user/                用户与 token 相关用例
-  runtime/               节点内运行时原语
-    channelmeta/         节点内 channel runtime meta resolver / bootstrap / repair / liveness 合约
-    delivery/            节点内投递 actor / mailbox / retry runtime
-    messageid/           消息 ID 分配
-    online/              在线会话注册与本地投递
-    sequence/            序列号分配
-    userlimit/           节点内用户发送令牌桶限流
-
-internalv2/
-  app/                   新架构组合根；负责 cluster、message usecase、HTTP API、gateway handler/runtime 装配与生命周期
-  access/                新架构入口适配层
-    api/                 phase-1 health、readyz、bench/v1 target 与 legacy channel/user/message/conversation HTTP API 入口
-    gateway/             gateway presence activation/deactivation、SendPacket/SendBatch -> usecase，Sendack 写回与协议错误映射
-    manager/             新架构后台管理 HTTP API 入口、JWT 登录与权限适配
-    node/                新架构节点间 presence authority/owner-action RPC codec、handler、client
-  contracts/             新架构跨用例/运行时轻量事件合约
+    channelappend/       channel append command/result 合约
     channelmembers/      legacy 兼容 member-list channel id 命名合约
     messageevents/       消息提交事件合约
+    pluginevents/        插件生命周期与 hook 事件合约
+  infra/                 新架构外部运行时适配器
+    cluster/             cluster/channel append、channel/user metadata 与 presence authority/owner-action 路由适配、typed error 映射
+  legacy/                旧 v1 server runtime，仅供过渡期编译和差异对照；新增能力不要落到这里
+    access/              旧入口适配
+    app/                 旧组合根
+    contracts/           旧事件合约
+    log/                 旧日志装配
+    observability/       旧可观测性辅助
+    runtime/             旧节点内运行时
+    usecase/             旧业务用例
   log/                   新架构应用日志配置与 zap/lumberjack 封装
   observability/         新架构节点内诊断事件、追踪采样与 sendtrace 辅助
-  runtime/               新架构节点内运行时原语
-    conversationactive/   节点内最近会话活跃缓存 admission runtime
-    online/              节点内真实 gateway session 注册、状态、dirty touch 批量标记
-    presence/            Slot leader 内存权威连接目录、authority epoch、OwnerSeq fencing
-  usecase/               新架构入口无关业务用例
-    channel/             频道资料、订阅者、黑白名单等 legacy 兼容用例
+    diagnostics/         节点内有界诊断事件、采样、索引与查询
+    taskaudit/           控制器任务审计事件投递与查询辅助
+  usecase/               可复用业务用例，不依赖具体入口协议
+    channel/             频道资料、订阅者、黑白名单等兼容用例
     cmdsync/             基于统一会话投影的 CMD 离线同步与 syncack 用例
     conversation/        最近会话列表读模型，基于 UID membership 与 channel_latest 读时 join
     delivery/            投递提交与运行时入队用例
     management/          后台管理节点列表等只读展示用例
     message/             SEND/SendBatch 编排、消息 ID 分配、append port 与 committed event 提交
+    plugin/              插件生命周期、绑定、host RPC 和 hook 编排
     presence/            入口无关连接寻址编排、激活/注销/查询、冲突动作调度
     user/                用户 token、device quit、在线状态与 system UID legacy 兼容用例
-  infra/                 新架构外部运行时适配器
-    cluster/             cluster/channel append、channel/user metadata 与 presence authority/owner-action 路由适配、typed error 映射
+  runtime/               新架构节点内运行时原语
+    channelappend/       channel authority write group 与单写者 append 状态机
+    conversationactive/  节点内最近会话活跃缓存 admission runtime
+    delivery/            节点内在线 fanout、owner push 与 retry runtime
+    online/              节点内真实 gateway session 注册、状态、dirty touch 批量标记
+    pluginhook/          插件 hook 有界 worker runtime
+    presence/            Slot leader 内存权威连接目录、authority epoch、OwnerSeq fencing
+    webhook/             节点内 webhook 有界队列、重试和发送 runtime
 
 pkg/
   bench/
@@ -174,8 +159,8 @@ test/
     cluster/             集群拓扑、快照、扩缩容 e2e 场景
     message/             WKProto 消息投递闭环 e2e 场景
     suite/               e2e 共享黑盒 harness 与客户端辅助
-  e2ev2/                 真实 cmd/wukongim 黑盒 e2e 测试，覆盖 internalv2 行为
-    message/             internalv2 消息、会话与 recipient authority 黑盒场景
+  e2ev2/                 真实 cmd/wukongim 黑盒 e2e 测试，覆盖转正后的 internal 行为
+    message/             internal 消息、会话与 recipient authority 黑盒场景
     suite/               e2ev2 共享黑盒 harness、v2 配置、API 与 metrics 辅助
 
 ui/                      内置管理 UI 静态页面
@@ -194,14 +179,12 @@ learn_project/           调研/实验代码，非主执行路径
 
 ## 分层约定
 
-- `internal/access/*` 只做入口协议适配，不承载通用业务规则。
-- `internal/usecase/*` 承载业务编排，输入输出应尽量入口无关。
+- `internal/access/*` 只做新架构入口协议适配，不承载通用业务规则。
+- `internal/usecase/*` 承载新架构入口无关业务编排，不能依赖 gateway/frame/cluster 具体实现。
 - `internal/runtime/*` 放节点内可复用运行时能力，不放入口逻辑。
-- `internal/app/*` 是唯一组合根；依赖装配只放这里。
-- `internalv2/access/*` 只做新架构入口协议适配，不承载通用业务规则。
-- `internalv2/usecase/*` 承载新架构入口无关业务编排，不能依赖 gateway/frame/cluster 具体实现。
-- `internalv2/infra/*` 只做新架构到 pkg 运行时或外部基础设施的适配。
-- `internalv2/app/*` 是 internalv2 唯一组合根；依赖装配只放这里。
+- `internal/infra/*` 只做新架构到 pkg 运行时或外部基础设施的适配。
+- `internal/app/*` 是 internal 唯一组合根；依赖装配只放这里。
+- `internal/legacy/*` 是旧 v1 server runtime 保留区；新增或迁移能力不要依赖 legacy。
 - `pkg/gateway/*` 放可复用网关通用基础设施，不放面向具体业务的用例编排。
 
 ## 变更规则
@@ -209,7 +192,7 @@ learn_project/           调研/实验代码，非主执行路径
 - 新增 HTTP、RPC、任务入口时，优先落到 `internal/access/<entry>`。
 - 新增可复用业务能力时，优先落到 `internal/usecase/<domain>`。
 - 新增本地状态、在线路由、分配器等能力时，优先落到 `internal/runtime/<capability>`。
-- 新增 internalv2 能力时，保持 `access -> usecase -> ports/contracts`，由 `infra` 实现具体 pkg 运行时适配。
+- 新增 internal 能力时，保持 `access -> usecase -> ports/contracts`，由 `infra` 实现具体 pkg 运行时适配。
 - 不再引入新的“大而全 service 包”或新的全局聚合服务对象。
 
 ## 提交前检查

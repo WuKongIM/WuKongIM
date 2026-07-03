@@ -2,105 +2,118 @@ package app
 
 import (
 	"context"
-	"net/http"
-	"os"
-	"path/filepath"
-	"sort"
+	"errors"
+	"fmt"
+	"log"
 	"strconv"
+	"strings"
 	"sync"
-	"sync/atomic"
-	"syscall"
 	"time"
 
+	accessapi "github.com/WuKongIM/WuKongIM/internal/access/api"
+	gatewayadapter "github.com/WuKongIM/WuKongIM/internal/access/gateway"
+	"github.com/WuKongIM/WuKongIM/internal/runtime/conversationactive"
+	runtimedelivery "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
+	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
+	messageusecase "github.com/WuKongIM/WuKongIM/internal/usecase/message"
+	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
+	"github.com/WuKongIM/WuKongIM/pkg/channel/reactor"
+	"github.com/WuKongIM/WuKongIM/pkg/channel/transport"
+	"github.com/WuKongIM/WuKongIM/pkg/channel/worker"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster"
+	clusterchannels "github.com/WuKongIM/WuKongIM/pkg/cluster/channels"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
+	cv2 "github.com/WuKongIM/WuKongIM/pkg/controller"
+	messagedb "github.com/WuKongIM/WuKongIM/pkg/db/message"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	accessgateway "github.com/WuKongIM/WuKongIM/pkg/gateway"
-	raftcluster "github.com/WuKongIM/WuKongIM/pkg/legacy/cluster"
-	controllermeta "github.com/WuKongIM/WuKongIM/pkg/legacy/controller/meta"
 	obsmetrics "github.com/WuKongIM/WuKongIM/pkg/metrics"
+	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
-	"github.com/WuKongIM/WuKongIM/pkg/transport"
+	"github.com/WuKongIM/WuKongIM/pkg/transportv2"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
 type gatewayMetricsObserver struct {
 	metrics *obsmetrics.Registry
 }
 
-type clusterMetricsObserver struct {
+type channelV2MetricsObserver struct {
 	metrics *obsmetrics.Registry
 }
 
-type transportMetricsObserver struct {
+type slotMetricsObserver struct {
 	metrics *obsmetrics.Registry
 }
+
+type transportV2MetricsObserver struct {
+	metrics *obsmetrics.Registry
+	mu      sync.Mutex
+
+	pendingRPCBySource     map[uint64]int
+	schedulerQueueBySource map[transportV2SchedulerQueueSource]obsmetrics.RuntimePressureQueueObservation
+}
+
+type transportV2SchedulerQueueSource struct {
+	sourceID uint64
+	priority string
+}
+
+type controllerRaftMetricsObserver struct {
+	metrics *obsmetrics.Registry
+}
+
+type controlSnapshotMetricsObserver struct {
+	metrics *obsmetrics.Registry
+}
+
+type nodeLifecycleMetricsObserver struct {
+	metrics             *obsmetrics.Registry
+	mu                  sync.Mutex
+	scaleInBlockerSeen  map[string]struct{}
+	scaleInBlockerOrder []string
+}
+
+type storageCommitMetricsObserver struct {
+	metrics *obsmetrics.Registry
+	workers int
+}
+
+type deliveryMetricsObserver struct {
+	metrics *obsmetrics.Registry
+	logger  wklog.Logger
+}
+
+type conversationListMetricsObserver struct {
+	metrics *obsmetrics.Registry
+}
+
+type conversationSyncMetricsObserver struct {
+	metrics *obsmetrics.Registry
+}
+
+type conversationAuthorityMetricsObserver struct {
+	metrics *obsmetrics.Registry
+}
+
+type multiChannelV2Observer []reactor.Observer
+type multiSlotObserver []multiraft.SchedulerObserver
+type multiTransportV2Observer []transportv2.Observer
+type multiControllerRaftObserver []cv2.RaftObserver
+type multiControlSnapshotObserver []cluster.ControlSnapshotObserver
+type multiSlotReplicaMoveObserver []cluster.SlotReplicaMoveObserver
+type multiCommitCoordinatorObserver []messagedb.CommitCoordinatorObserver
+type multiGatewayObserver []accessgateway.Observer
+type multiSendackObserver []gatewayadapter.SendackObserver
+type multiDeliveryObserver []runtimedelivery.Observer
 
 const (
-	observabilityQueryTimeout            = 100 * time.Millisecond
-	controllerMetricsRefreshInterval     = 2 * time.Second
-	controllerMetricsRefreshQueryTimeout = time.Second
+	dbRuntimeComponent       = "db"
+	dbMessageCommitPool      = "message_commit"
+	dbMessageCommitQueue     = "commit"
+	dbRuntimeQueuePriority   = "none"
+	dbMessageCommitWorkerCap = 1
 )
-
-type observedClusterState struct {
-	nodes          []controllermeta.ClusterNode
-	assignments    []controllermeta.SlotAssignment
-	views          []controllermeta.SlotRuntimeView
-	tasks          []controllermeta.ReconcileTask
-	migrations     []raftcluster.HashSlotMigration
-	nodesErr       error
-	assignmentsErr error
-	viewsErr       error
-	tasksErr       error
-}
-
-func (s observedClusterState) hasControllerReadError() bool {
-	return s.nodesErr != nil || s.assignmentsErr != nil || s.viewsErr != nil || s.tasksErr != nil
-}
-
-func cloneObservedClusterState(state observedClusterState) observedClusterState {
-	return observedClusterState{
-		nodes:          append([]controllermeta.ClusterNode(nil), state.nodes...),
-		assignments:    append([]controllermeta.SlotAssignment(nil), state.assignments...),
-		views:          append([]controllermeta.SlotRuntimeView(nil), state.views...),
-		tasks:          append([]controllermeta.ReconcileTask(nil), state.tasks...),
-		migrations:     append([]raftcluster.HashSlotMigration(nil), state.migrations...),
-		nodesErr:       state.nodesErr,
-		assignmentsErr: state.assignmentsErr,
-		viewsErr:       state.viewsErr,
-		tasksErr:       state.tasksErr,
-	}
-}
-
-type observedClusterStateCache struct {
-	mu          sync.RWMutex
-	state       observedClusterState
-	refreshedAt time.Time
-	refreshing  atomic.Bool
-}
-
-func (c *observedClusterStateCache) snapshot(maxAge time.Duration) (observedClusterState, bool) {
-	if c == nil {
-		return observedClusterState{}, true
-	}
-	c.mu.RLock()
-	state := cloneObservedClusterState(c.state)
-	refreshedAt := c.refreshedAt
-	c.mu.RUnlock()
-	if refreshedAt.IsZero() {
-		return state, true
-	}
-	if maxAge > 0 && time.Since(refreshedAt) > maxAge {
-		return state, true
-	}
-	return state, false
-}
-
-func (c *observedClusterStateCache) store(state observedClusterState, refreshedAt time.Time) {
-	if c == nil {
-		return
-	}
-	c.mu.Lock()
-	c.state = cloneObservedClusterState(state)
-	c.refreshedAt = refreshedAt
-	c.mu.Unlock()
-}
 
 func (o gatewayMetricsObserver) OnConnectionOpen(event accessgateway.ConnectionEvent) {
 	if o.metrics == nil {
@@ -114,6 +127,7 @@ func (o gatewayMetricsObserver) OnConnectionClose(event accessgateway.Connection
 		return
 	}
 	o.metrics.Gateway.ConnectionClosed(event.Protocol)
+	o.metrics.Gateway.ConnectionClosedReason(event.Protocol, string(event.CloseReason))
 }
 
 func (o gatewayMetricsObserver) OnAuth(event accessgateway.AuthEvent) {
@@ -144,776 +158,1003 @@ func (o gatewayMetricsObserver) OnFrameHandled(event accessgateway.FrameHandleEv
 	o.metrics.Gateway.FrameHandled(event.FrameType, event.Duration)
 }
 
-func (o clusterMetricsObserver) Hooks() raftcluster.ObserverHooks {
-	return raftcluster.ObserverHooks{
-		OnControllerCall: func(kind string, dur time.Duration, err error) {
-			if o.metrics == nil {
-				return
-			}
-			result := "ok"
-			if err != nil {
-				result = "err"
-			}
-			o.metrics.Transport.ObserveRPC(kind, result, dur)
-		},
-		OnControllerDecision: func(_ uint32, kind string, dur time.Duration) {
-			if o.metrics == nil {
-				return
-			}
-			o.metrics.Controller.ObserveDecision(kind, dur)
-		},
-		OnHashSlotMigration: func(_ uint16, _, _ multiraft.SlotID, result string) {
-			if o.metrics == nil {
-				return
-			}
-			o.metrics.Controller.ObserveMigrationCompleted(result)
-		},
-		OnForwardPropose: func(slotID uint32, _ int, dur time.Duration, _ error) {
-			if o.metrics == nil {
-				return
-			}
-			o.metrics.Slot.ObserveProposal(slotID, dur)
-		},
-		OnTaskResult: func(_ uint32, kind string, result string) {
-			if o.metrics == nil {
-				return
-			}
-			o.metrics.Controller.ObserveTaskCompleted(kind, result)
-		},
-		OnLeaderChange: func(slotID uint32, _, _ multiraft.NodeID) {
-			if o.metrics == nil {
-				return
-			}
-			o.metrics.Slot.ObserveLeaderChange(slotID)
-		},
+func (o gatewayMetricsObserver) OnAsyncSendQueue(event accessgateway.AsyncSendQueueEvent) {
+	if o.metrics == nil {
+		return
 	}
-}
-
-func (o transportMetricsObserver) Hooks() transport.ObserverHooks {
-	return transport.ObserverHooks{
-		OnSend: func(msgType uint8, bytes int) {
-			if o.metrics == nil {
-				return
-			}
-			o.metrics.Transport.ObserveSentBytes(transportMsgType(msgType), bytes)
-		},
-		OnReceive: func(msgType uint8, bytes int) {
-			if o.metrics == nil {
-				return
-			}
-			o.metrics.Transport.ObserveReceivedBytes(transportMsgType(msgType), bytes)
-		},
-		OnDial: func(event transport.DialEvent) {
-			if o.metrics == nil {
-				return
-			}
-			o.metrics.Transport.ObserveDial(strconv.FormatUint(uint64(event.TargetNode), 10), event.Result, event.Duration)
-		},
-		OnEnqueue: func(event transport.EnqueueEvent) {
-			if o.metrics == nil {
-				return
-			}
-			o.metrics.Transport.ObserveEnqueue(strconv.FormatUint(uint64(event.TargetNode), 10), event.Kind, event.Result)
-		},
-		OnRPCClient: func(event transport.RPCClientEvent) {
-			if o.metrics == nil {
-				return
-			}
-			targetNode := strconv.FormatUint(uint64(event.TargetNode), 10)
-			service := transportRPCServiceName(event.ServiceID)
-			o.metrics.Transport.SetRPCInflight(targetNode, service, event.Inflight)
-			if event.Result == "" {
-				return
-			}
-			o.metrics.Transport.ObserveRPCClient(targetNode, service, event.Result, event.Duration)
-		},
-	}
-}
-
-func transportRPCServiceName(serviceID uint8) string {
-	switch serviceID {
-	case 1:
-		return "forward"
-	case 5:
-		return "presence"
-	case 6:
-		return "delivery_submit"
-	case 7:
-		return "delivery_push"
-	case 8:
-		return "delivery_ack"
-	case 9:
-		return "delivery_offline"
-	case 13:
-		return "conversation_facts"
-	case 14:
-		return "controller"
-	case 20:
-		return "managed_slot"
-	case 30:
-		return "channel_fetch"
-	case 33:
-		return "channel_append"
-	case 34:
-		return "channel_reconcile_probe"
-	case 35:
-		return "channel_long_poll_fetch"
-	case 36:
-		return "channel_messages"
-	case 37:
-		return "channel_leader_repair"
-	case 38:
-		return "channel_leader_evaluate"
-	case 39:
-		return "runtime_summary"
-	case 40:
-		return "connections"
-	case 41:
-		return "connection"
-	case 42:
-		return "diagnostics"
-	case 43:
-		return "channel_retention"
-	case 44:
-		return "delivery_tag"
-	case 45:
-		return "system_uid_cache"
-	case 46:
-		return "channel_leader_transfer"
-	case 47:
-		return "channel_migration"
-	case 48:
-		return "channel_fence_and_drain"
-	default:
-		return "service_" + strconv.FormatUint(uint64(serviceID), 10)
-	}
-}
-
-func mergeTransportObserverHooks(left, right transport.ObserverHooks) transport.ObserverHooks {
-	if !hasTransportObserverHooks(left) {
-		return right
-	}
-	if !hasTransportObserverHooks(right) {
-		return left
-	}
-	return transport.ObserverHooks{
-		OnSend: func(msgType uint8, bytes int) {
-			if left.OnSend != nil {
-				left.OnSend(msgType, bytes)
-			}
-			if right.OnSend != nil {
-				right.OnSend(msgType, bytes)
-			}
-		},
-		OnReceive: func(msgType uint8, bytes int) {
-			if left.OnReceive != nil {
-				left.OnReceive(msgType, bytes)
-			}
-			if right.OnReceive != nil {
-				right.OnReceive(msgType, bytes)
-			}
-		},
-		OnDial: func(event transport.DialEvent) {
-			if left.OnDial != nil {
-				left.OnDial(event)
-			}
-			if right.OnDial != nil {
-				right.OnDial(event)
-			}
-		},
-		OnEnqueue: func(event transport.EnqueueEvent) {
-			if left.OnEnqueue != nil {
-				left.OnEnqueue(event)
-			}
-			if right.OnEnqueue != nil {
-				right.OnEnqueue(event)
-			}
-		},
-		OnRPCClient: func(event transport.RPCClientEvent) {
-			if left.OnRPCClient != nil {
-				left.OnRPCClient(event)
-			}
-			if right.OnRPCClient != nil {
-				right.OnRPCClient(event)
-			}
-		},
-	}
-}
-
-func hasTransportObserverHooks(hooks transport.ObserverHooks) bool {
-	return hooks.OnSend != nil ||
-		hooks.OnReceive != nil ||
-		hooks.OnDial != nil ||
-		hooks.OnEnqueue != nil ||
-		hooks.OnRPCClient != nil
-}
-
-func (a *App) metricsHandler() http.Handler {
-	if a == nil || a.metrics == nil {
-		return nil
-	}
-	handler := a.metrics.Handler()
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		a.refreshControllerMetrics()
-		a.refreshTransportMetrics()
-		a.refreshStorageMetrics()
-		handler.ServeHTTP(w, r)
+	o.metrics.Gateway.SetAsyncSendQueue(event.Depth, event.Capacity)
+	o.metrics.RuntimePressure.SetQueue("gateway", "async_send", "send", "none", obsmetrics.RuntimePressureQueueObservation{
+		Depth:    event.Depth,
+		Capacity: event.Capacity,
 	})
 }
 
-func (a *App) healthDetailsSnapshot() any {
-	if a == nil {
-		return map[string]any{"status": "unknown"}
-	}
-
-	gatewaySnapshot := obsmetrics.GatewaySnapshot{}
-	channelSnapshot := obsmetrics.ChannelSnapshot{}
-	if a.metrics != nil {
-		gatewaySnapshot = a.metrics.Gateway.Snapshot()
-		channelSnapshot = a.metrics.Channel.Snapshot()
-	}
-
-	activeConnections := int64(0)
-	protocols := make(map[string]any, len(gatewaySnapshot.ActiveConnections))
-	for protocol, count := range gatewaySnapshot.ActiveConnections {
-		activeConnections += count
-		protocols[protocol] = map[string]any{
-			"status":      "healthy",
-			"connections": count,
-		}
-	}
-
-	clusterState := a.collectObservedClusterState()
-	aliveNodes, suspectNodes, deadNodes := clusterNodeCounts(clusterState.nodes)
-	activeTasks := controllerActiveTaskCounts(clusterState.tasks)
-	activeTaskTotal := 0
-	for _, count := range activeTasks {
-		activeTaskTotal += count
-	}
-
-	controllerStatus := "healthy"
-	if clusterState.nodesErr != nil || clusterState.tasksErr != nil || suspectNodes > 0 || deadNodes > 0 {
-		controllerStatus = "degraded"
-	}
-
-	slotStatus := "healthy"
-	if clusterState.assignmentsErr != nil || clusterState.viewsErr != nil {
-		slotStatus = "degraded"
-	}
-	slotDetails := make([]map[string]any, 0, len(clusterState.views))
-	for _, view := range clusterState.views {
-		if !view.HasQuorum {
-			slotStatus = "degraded"
-		}
-		slotDetails = append(slotDetails, map[string]any{
-			"id":             view.SlotID,
-			"role":           localSlotRole(a.cfg.Node.ID, view),
-			"leader_id":      view.LeaderID,
-			"healthy_voters": view.HealthyVoters,
-			"has_quorum":     view.HasQuorum,
-			"current_peers":  view.CurrentPeers,
-			"applied_epoch":  view.ObservedConfigEpoch,
-			"last_report_at": view.LastReportAt,
-		})
-	}
-
-	storage := a.storageHealthSnapshot()
-	overallStatus := "healthy"
-	if controllerStatus != "healthy" || slotStatus != "healthy" {
-		overallStatus = "degraded"
-	}
-	if storageStatus, _ := storage["status"].(string); storageStatus != "" && storageStatus != "healthy" {
-		overallStatus = "degraded"
-	}
-
-	controller := map[string]any{
-		"status":                  controllerStatus,
-		"alive_nodes":             aliveNodes,
-		"suspect_nodes":           suspectNodes,
-		"dead_nodes":              deadNodes,
-		"active_tasks":            activeTaskTotal,
-		"active_tasks_by_type":    activeTasks,
-		"active_migrations":       len(clusterState.migrations),
-		"hash_slot_table_version": a.clusterHashSlotTableVersion(),
-	}
-	if clusterState.nodesErr != nil {
-		controller["error"] = clusterState.nodesErr.Error()
-	}
-	if clusterState.tasksErr != nil {
-		controller["tasks_error"] = clusterState.tasksErr.Error()
-	}
-
-	slotLayer := map[string]any{
-		"status":           slotStatus,
-		"slots":            slotDetails,
-		"assignment_count": len(clusterState.assignments),
-		"runtime_views":    len(clusterState.views),
-	}
-	if clusterState.assignmentsErr != nil || clusterState.viewsErr != nil {
-		errors := make(map[string]string, 2)
-		if clusterState.assignmentsErr != nil {
-			errors["assignments"] = clusterState.assignmentsErr.Error()
-		}
-		if clusterState.viewsErr != nil {
-			errors["runtime_views"] = clusterState.viewsErr.Error()
-		}
-		slotLayer["errors"] = errors
-	}
-
-	return map[string]any{
-		"status":         overallStatus,
-		"node_id":        a.cfg.Node.ID,
-		"node_name":      a.cfg.Node.Name,
-		"uptime_seconds": int64(time.Since(a.createdAt).Seconds()),
-		"components": map[string]any{
-			"gateway": map[string]any{
-				"status":             "healthy",
-				"active_connections": activeConnections,
-				"protocols":          protocols,
-			},
-			"channel_layer": map[string]any{
-				"status":          "healthy",
-				"active_channels": channelSnapshot.ActiveChannels,
-				"max_channels":    channelSnapshot.MaxChannels,
-			},
-			"controller": controller,
-			"slot_layer": slotLayer,
-			"storage":    storage,
-			"cluster": map[string]any{
-				"status":                  controllerStatus,
-				"hash_slot_table_version": a.clusterHashSlotTableVersion(),
-			},
-		},
-	}
-}
-
-func (a *App) readyzReport(ctx context.Context) (bool, any) {
-	if a == nil {
-		return false, map[string]any{"status": "not_ready"}
-	}
-
-	gatewayReady := false
-	if a.gateway != nil {
-		for _, listener := range a.cfg.Gateway.Listeners {
-			if a.gateway.ListenerAddr(listener.Name) != "" {
-				gatewayReady = true
-				break
-			}
-		}
-	}
-
-	clusterReady := false
-	if a.cluster != nil {
-		readyCtx, cancel := context.WithTimeout(ctx, 50*time.Millisecond)
-		clusterReady = a.cluster.WaitForManagedSlotsReady(readyCtx) == nil
-		cancel()
-	}
-
-	hashSlotReady := a.clusterHashSlotTableVersion() > 0
-	nodeNotDraining, drainReason := a.localNodeNotDraining(ctx)
-	ready := gatewayReady && clusterReady && hashSlotReady && nodeNotDraining
-	status := "not_ready"
-	if ready {
-		status = "ready"
-	}
-
-	return ready, map[string]any{
-		"status": status,
-		"checks": map[string]any{
-			"gateway":           gatewayReady,
-			"managed_slots":     clusterReady,
-			"hash_slot_table":   hashSlotReady,
-			"node_not_draining": nodeNotDraining,
-			"node_drain_reason": drainReason,
-		},
-	}
-}
-
-func (a *App) localNodeNotDraining(ctx context.Context) (bool, string) {
-	if a == nil || a.nodeDrainState == nil {
-		return false, "unknown"
-	}
-	ready, reason := a.nodeDrainState.Ready()
-	if ready {
-		return ready, reason
-	}
-	a.refreshLocalNodeDrainState(ctx)
-	return a.nodeDrainState.Ready()
-}
-
-// refreshLocalNodeDrainState refreshes readiness from the controller snapshot when observer updates are stale.
-func (a *App) refreshLocalNodeDrainState(ctx context.Context) {
-	if a == nil || a.nodeDrainState == nil || a.cluster == nil || a.cfg.Node.ID == 0 {
+func (o gatewayMetricsObserver) OnAsyncSendAdmission(event accessgateway.AsyncSendAdmissionEvent) {
+	if o.metrics == nil {
 		return
 	}
-	if ctx == nil {
-		ctx = context.Background()
+	o.metrics.RuntimePressure.ObserveAdmission("gateway", "async_send", "send", "none", event.Result)
+}
+
+func (o gatewayMetricsObserver) OnAsyncSendBatch(event accessgateway.AsyncSendBatchEvent) {
+	if o.metrics == nil {
+		return
 	}
-	queryCtx, cancel := context.WithTimeout(ctx, 50*time.Millisecond)
-	defer cancel()
-	nodes, err := a.cluster.ListNodes(queryCtx)
+	o.metrics.Gateway.ObserveAsyncSendBatch(event.Records, event.Bytes, event.Wait)
+}
+
+func (o gatewayMetricsObserver) OnAsyncSendDispatchWait(event accessgateway.AsyncSendDispatchWaitEvent) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.Gateway.ObserveAsyncSendDispatchWait(event.Protocol, event.Duration)
+	o.metrics.RuntimePressure.ObserveQueueWait("gateway", "async_send", "send", "none", "ok", event.Duration)
+}
+
+func (o gatewayMetricsObserver) OnAsyncAuthQueue(event accessgateway.AsyncAuthQueueEvent) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.RuntimePressure.SetPoolWorkers("gateway", "async_auth", event.Workers)
+	o.metrics.RuntimePressure.SetQueue("gateway", "async_auth", "auth", "none", obsmetrics.RuntimePressureQueueObservation{
+		Depth:    event.Depth,
+		Capacity: event.Capacity,
+	})
+}
+
+func (o gatewayMetricsObserver) OnAsyncAuthAdmission(event accessgateway.AsyncAuthAdmissionEvent) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.RuntimePressure.ObserveAdmission("gateway", "async_auth", "auth", "none", event.Result)
+}
+
+func (o gatewayMetricsObserver) OnAsyncAuthWait(event accessgateway.AsyncAuthWaitEvent) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.RuntimePressure.ObserveQueueWait("gateway", "async_auth", "auth", "none", "ok", event.Duration)
+}
+
+func (o gatewayMetricsObserver) OnTransportPressure(event accessgateway.TransportPressureEvent) {
+	if o.metrics == nil {
+		return
+	}
+	pool := fallbackRuntimePressureLabel(event.Name, "gnet")
+	queue := fallbackRuntimePressureLabel(event.Queue, "transport")
+	o.metrics.RuntimePressure.SetQueue("gateway", pool, queue, "none", obsmetrics.RuntimePressureQueueObservation{
+		Depth:         event.Depth,
+		Capacity:      event.Capacity,
+		Bytes:         event.Bytes,
+		BytesCapacity: event.BytesCapacity,
+	})
+	if event.Result != "" {
+		o.metrics.RuntimePressure.ObserveAdmission("gateway", pool, queue, "none", event.Result)
+	}
+}
+
+func (o gatewayMetricsObserver) SendackWritten(event gatewayadapter.SendackEvent) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.Gateway.Sendack(gatewaySendackReasonLabel(event.Reason), event.Source, event.ErrorClass)
+}
+
+func (o multiGatewayObserver) OnConnectionOpen(event accessgateway.ConnectionEvent) {
+	for _, observer := range o {
+		observer.OnConnectionOpen(event)
+	}
+}
+
+func (o multiGatewayObserver) OnConnectionClose(event accessgateway.ConnectionEvent) {
+	for _, observer := range o {
+		observer.OnConnectionClose(event)
+	}
+}
+
+func (o multiGatewayObserver) OnAuth(event accessgateway.AuthEvent) {
+	for _, observer := range o {
+		observer.OnAuth(event)
+	}
+}
+
+func (o multiGatewayObserver) OnFrameIn(event accessgateway.FrameEvent) {
+	for _, observer := range o {
+		observer.OnFrameIn(event)
+	}
+}
+
+func (o multiGatewayObserver) OnFrameOut(event accessgateway.FrameEvent) {
+	for _, observer := range o {
+		observer.OnFrameOut(event)
+	}
+}
+
+func (o multiGatewayObserver) OnFrameHandled(event accessgateway.FrameHandleEvent) {
+	for _, observer := range o {
+		observer.OnFrameHandled(event)
+	}
+}
+
+func (o multiGatewayObserver) OnSessionError(event accessgateway.SessionErrorEvent) {
+	for _, observer := range o {
+		if optional, ok := observer.(accessgateway.SessionErrorObserver); ok {
+			optional.OnSessionError(event)
+		}
+	}
+}
+
+func (o multiGatewayObserver) OnAsyncSendQueue(event accessgateway.AsyncSendQueueEvent) {
+	for _, observer := range o {
+		if optional, ok := observer.(accessgateway.AsyncSendObserver); ok {
+			optional.OnAsyncSendQueue(event)
+		}
+	}
+}
+
+func (o multiGatewayObserver) OnAsyncSendAdmission(event accessgateway.AsyncSendAdmissionEvent) {
+	for _, observer := range o {
+		if optional, ok := observer.(accessgateway.AsyncSendAdmissionObserver); ok {
+			optional.OnAsyncSendAdmission(event)
+		}
+	}
+}
+
+func (o multiGatewayObserver) OnAsyncSendBatch(event accessgateway.AsyncSendBatchEvent) {
+	for _, observer := range o {
+		if optional, ok := observer.(accessgateway.AsyncSendObserver); ok {
+			optional.OnAsyncSendBatch(event)
+		}
+	}
+}
+
+func (o multiGatewayObserver) OnAsyncSendDispatchWait(event accessgateway.AsyncSendDispatchWaitEvent) {
+	for _, observer := range o {
+		if optional, ok := observer.(accessgateway.AsyncSendObserver); ok {
+			optional.OnAsyncSendDispatchWait(event)
+		}
+	}
+}
+
+func (o multiGatewayObserver) OnAsyncAuthQueue(event accessgateway.AsyncAuthQueueEvent) {
+	for _, observer := range o {
+		if optional, ok := observer.(accessgateway.AsyncAuthObserver); ok {
+			optional.OnAsyncAuthQueue(event)
+		}
+	}
+}
+
+func (o multiGatewayObserver) OnAsyncAuthAdmission(event accessgateway.AsyncAuthAdmissionEvent) {
+	for _, observer := range o {
+		if optional, ok := observer.(accessgateway.AsyncAuthObserver); ok {
+			optional.OnAsyncAuthAdmission(event)
+		}
+	}
+}
+
+func (o multiGatewayObserver) OnAsyncAuthWait(event accessgateway.AsyncAuthWaitEvent) {
+	for _, observer := range o {
+		if optional, ok := observer.(accessgateway.AsyncAuthObserver); ok {
+			optional.OnAsyncAuthWait(event)
+		}
+	}
+}
+
+func (o multiGatewayObserver) OnTransportPressure(event accessgateway.TransportPressureEvent) {
+	for _, observer := range o {
+		if optional, ok := observer.(accessgateway.TransportPressureObserver); ok {
+			optional.OnTransportPressure(event)
+		}
+	}
+}
+
+func (o multiSendackObserver) SendackWritten(event gatewayadapter.SendackEvent) {
+	for _, observer := range o {
+		observer.SendackWritten(event)
+	}
+}
+
+func gatewaySendackReasonLabel(reason messageusecase.Reason) string {
+	switch reason {
+	case messageusecase.ReasonSuccess:
+		return "success"
+	case messageusecase.ReasonInvalidRequest:
+		return "invalid_request"
+	case messageusecase.ReasonAuthFail:
+		return "auth_fail"
+	case messageusecase.ReasonChannelNotExist:
+		return "channel_not_exist"
+	case messageusecase.ReasonNodeNotMatch:
+		return "node_not_match"
+	case messageusecase.ReasonSubscriberNotExist:
+		return "subscriber_not_exist"
+	case messageusecase.ReasonInBlacklist:
+		return "in_blacklist"
+	case messageusecase.ReasonNotAllowSend:
+		return "not_allow_send"
+	case messageusecase.ReasonNotInWhitelist:
+		return "not_in_whitelist"
+	case messageusecase.ReasonBan:
+		return "ban"
+	case messageusecase.ReasonDisband:
+		return "disband"
+	case messageusecase.ReasonSendBan:
+		return "send_ban"
+	case messageusecase.ReasonSystemError:
+		return "system_error"
+	case messageusecase.ReasonUnsupported:
+		return "unsupported"
+	default:
+		return "unknown"
+	}
+}
+
+func (o conversationListMetricsObserver) ObserveConversationList(event accessapi.ConversationListObservation) {
+	if o.metrics == nil || o.metrics.Conversation == nil {
+		return
+	}
+	o.metrics.Conversation.ObserveList(event.Result, event.More, event.Duration, event.ReturnedItems, event.SparseItems, event.LastMessageLoads, event.LastMessageErrors, event.ActiveIndexStaleSkips)
+}
+
+func (o conversationSyncMetricsObserver) ObserveConversationSync(event accessapi.ConversationSyncObservation) {
+	if o.metrics == nil || o.metrics.Conversation == nil {
+		return
+	}
+	o.metrics.Conversation.ObserveSync(event.Result, event.OnlyUnread, event.WithRecents, event.Duration, event.ReturnedItems, event.OverlayItems, event.RecentLoadDuration)
+}
+
+func (o conversationAuthorityMetricsObserver) ObserveConversationAuthorityAdmit(event conversationAuthorityAdmitEvent) {
+	if o.metrics == nil || o.metrics.Conversation == nil {
+		return
+	}
+	o.metrics.Conversation.ObserveAuthorityAdmit(event.Result)
+}
+
+func (o conversationAuthorityMetricsObserver) ObserveConversationAuthorityCachePressure(event conversationAuthorityCachePressureEvent) {
+	if o.metrics == nil || o.metrics.Conversation == nil {
+		return
+	}
+	o.metrics.Conversation.ObserveAuthorityCachePressure(event.Phase, event.Result)
+}
+
+func (o conversationAuthorityMetricsObserver) ObserveConversationAuthorityList(event conversationAuthorityListEvent) {
+	if o.metrics == nil || o.metrics.Conversation == nil {
+		return
+	}
+	o.metrics.Conversation.ObserveAuthorityList(event.Result)
+}
+
+func (o conversationAuthorityMetricsObserver) ObserveConversationAuthorityHandoff(event conversationAuthorityHandoffEvent) {
+	if o.metrics == nil || o.metrics.Conversation == nil {
+		return
+	}
+	o.metrics.Conversation.ObserveAuthorityHandoff(event.Result)
+}
+
+func (o conversationAuthorityMetricsObserver) ObserveConversationActiveCache(event conversationactive.CacheObservation) {
+	if o.metrics == nil || o.metrics.Conversation == nil {
+		return
+	}
+	o.metrics.Conversation.SetActiveCache(event.Rows, event.DirtyRows, event.OldestDirtyAge)
+	for _, kind := range []metadb.ConversationKind{metadb.ConversationKindNormal, metadb.ConversationKindCMD} {
+		o.metrics.Conversation.SetActiveCacheKind(conversationKindMetricLabel(kind), event.RowsByKind[kind], event.DirtyRowsByKind[kind])
+	}
+}
+
+func (o conversationAuthorityMetricsObserver) ObserveConversationActiveFlush(event conversationactive.FlushObservation) {
+	if o.metrics == nil || o.metrics.Conversation == nil {
+		return
+	}
+	o.metrics.Conversation.ObserveActiveFlush(event.Result, event.Selected, event.Flushed, event.Duration)
+}
+
+func conversationKindMetricLabel(kind metadb.ConversationKind) string {
+	switch kind {
+	case metadb.ConversationKindNormal:
+		return "normal"
+	case metadb.ConversationKindCMD:
+		return "cmd"
+	default:
+		return "other"
+	}
+}
+
+func (o channelV2MetricsObserver) SetReactorMailboxDepth(reactorID int, priority string, depth int) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.ChannelV2.SetReactorMailboxDepth(reactorID, priority, depth)
+	o.metrics.RuntimePressure.SetQueueDepth("channelv2", channelV2ReactorPoolLabel(reactorID), "mailbox", priority, depth)
+}
+
+func (o channelV2MetricsObserver) SetReactorMailboxCapacity(reactorID int, priority string, capacity int) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.RuntimePressure.SetQueueCapacity("channelv2", channelV2ReactorPoolLabel(reactorID), "mailbox", priority, capacity)
+}
+
+func (o channelV2MetricsObserver) ObserveReactorMailboxAdmission(reactorID int, priority string, result string) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.RuntimePressure.ObserveAdmission("channelv2", channelV2ReactorPoolLabel(reactorID), "mailbox", priority, result)
+}
+
+func (o channelV2MetricsObserver) SetAppendQueuePressure(event reactor.AppendQueuePressureEvent) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.RuntimePressure.SetQueue("channelv2", channelV2ReactorPoolLabel(event.ReactorID), "append", "none", obsmetrics.RuntimePressureQueueObservation{
+		Depth:         event.Depth,
+		Capacity:      event.Capacity,
+		Bytes:         int64(event.Bytes),
+		BytesCapacity: int64(event.BytesCapacity),
+	})
+}
+
+func (o channelV2MetricsObserver) SetWorkerQueueDepth(pool string, depth int) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.ChannelV2.SetWorkerQueueDepth(pool, depth)
+	o.metrics.RuntimePressure.SetQueueDepth("channelv2", pool, "worker", "none", depth)
+}
+
+func (o channelV2MetricsObserver) SetWorkerQueueCapacity(pool string, capacity int) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.RuntimePressure.SetQueueCapacity("channelv2", pool, "worker", "none", capacity)
+}
+
+func (o channelV2MetricsObserver) SetWorkerWorkers(pool string, workers int) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.RuntimePressure.SetPoolWorkers("channelv2", pool, workers)
+}
+
+func (o channelV2MetricsObserver) ObserveWorkerAdmission(pool string, result string) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.RuntimePressure.ObserveAdmission("channelv2", pool, "worker", "none", result)
+}
+
+func (o channelV2MetricsObserver) ObserveWorkerWait(pool string, kind worker.TaskKind, d time.Duration) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.RuntimePressure.ObserveQueueWait("channelv2", pool, "worker", "none", "ok", d)
+}
+
+func (o channelV2MetricsObserver) ObserveWorkerTask(pool string, kind worker.TaskKind, err error, d time.Duration) {
+	if o.metrics == nil {
+		return
+	}
+	result := "ok"
 	if err != nil {
+		result = "err"
+	}
+	o.metrics.RuntimePressure.ObserveTaskDuration("channelv2", pool, channelV2WorkerKindLabel(kind), result, d)
+}
+
+func (o channelV2MetricsObserver) ObserveWorkerBatch(pool string, kind worker.TaskKind, items int, err error) {
+	if o.metrics == nil {
 		return
 	}
-	for _, node := range nodes {
-		if node.NodeID == a.cfg.Node.ID {
-			a.nodeDrainState.Observe(node.NodeID, node.Status)
-			return
-		}
+	result := "ok"
+	if err != nil {
+		result = "err"
 	}
+	o.metrics.ChannelV2.ObserveWorkerBatch(channelV2WorkerKindLabel(kind), result, items)
 }
 
-func (a *App) debugConfigSnapshot() any {
-	if a == nil {
-		return map[string]any{}
+func (o channelV2MetricsObserver) SetWorkerInflight(pool string, inflight int) {
+	if o.metrics == nil {
+		return
 	}
-	return map[string]any{
-		"node_id":           a.cfg.Node.ID,
-		"node_name":         a.cfg.Node.Name,
-		"node_data_dir":     a.cfg.Node.DataDir,
-		"cluster_listen":    a.cfg.Cluster.ListenAddr,
-		"api_listen":        a.cfg.API.ListenAddr,
-		"gateway_listeners": len(a.cfg.Gateway.Listeners),
-		"metrics_enable":    a.cfg.Observability.MetricsEnabled,
-		"health_detail":     a.cfg.Observability.HealthDetailEnabled,
-		"debug_api_enable":  a.cfg.Observability.DebugAPIEnabled,
-	}
+	o.metrics.ChannelV2.SetWorkerInflight(pool, inflight)
+	o.metrics.RuntimePressure.SetPoolInflight("channelv2", pool, inflight)
 }
 
-func (a *App) debugClusterSnapshot() any {
-	if a == nil {
-		return map[string]any{}
+func (o channelV2MetricsObserver) SetWorkerInflightPeak(pool string, peak int) {
+	if o.metrics == nil {
+		return
 	}
-
-	clusterState := a.collectObservedClusterState()
-	leaderDistribution := make(map[string]int, len(clusterState.views))
-	for _, view := range clusterState.views {
-		leaderDistribution[strconv.FormatUint(view.LeaderID, 10)]++
-	}
-
-	snapshot := map[string]any{
-		"node_id":                 a.cfg.Node.ID,
-		"node_name":               a.cfg.Node.Name,
-		"hash_slot_table_version": a.clusterHashSlotTableVersion(),
-		"nodes":                   clusterState.nodes,
-		"assignments":             clusterState.assignments,
-		"runtime_views":           clusterState.views,
-		"tasks":                   clusterState.tasks,
-		"migrations":              clusterState.migrations,
-		"leader_distribution":     leaderDistribution,
-	}
-
-	if clusterState.nodesErr != nil || clusterState.assignmentsErr != nil || clusterState.viewsErr != nil {
-		errors := make(map[string]string, 3)
-		if clusterState.nodesErr != nil {
-			errors["nodes"] = clusterState.nodesErr.Error()
-		}
-		if clusterState.assignmentsErr != nil {
-			errors["assignments"] = clusterState.assignmentsErr.Error()
-		}
-		if clusterState.viewsErr != nil {
-			errors["runtime_views"] = clusterState.viewsErr.Error()
-		}
-		if clusterState.tasksErr != nil {
-			errors["tasks"] = clusterState.tasksErr.Error()
-		}
-		snapshot["errors"] = errors
-	}
-
-	return snapshot
+	o.metrics.ChannelV2.SetWorkerInflightPeak(pool, peak)
 }
 
-func (a *App) clusterHashSlotTableVersion() uint64 {
-	if a == nil || a.cluster == nil {
+func (o channelV2MetricsObserver) SetWorkerAntsPoolUsage(pool string, running int, capacity int, waiting int) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.AntsPool.SetUsage("channelv2", pool, running, capacity, waiting)
+}
+
+func (o channelV2MetricsObserver) SetChannelRuntimeCount(reactorID int, role ch.Role, count int) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.ChannelV2.SetChannelRuntimeCount(reactorID, channelV2RoleLabel(role), count)
+}
+
+func (o channelV2MetricsObserver) ObserveChannelActivationRejected(reason string) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.ChannelV2.ObserveChannelActivationRejected(reason)
+}
+
+func (o channelV2MetricsObserver) SetFollowerParkedCount(reactorID int, count int) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.ChannelV2.SetFollowerParkedCount(reactorID, count)
+}
+
+func (o channelV2MetricsObserver) ObserveFollowerRecoveryProbe(result string) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.ChannelV2.ObserveFollowerRecoveryProbe(result)
+}
+
+func (o channelV2MetricsObserver) ObservePull(result string, empty bool) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.ChannelV2.ObservePull(result, empty)
+}
+
+func (o channelV2MetricsObserver) ObservePullHintResult(reason transport.PullHintReason, result string, err error) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.ChannelV2.ObservePullHint(channelV2PullHintReasonLabel(reason), result, channelV2PullHintErrorLabel(err))
+}
+
+func (o channelV2MetricsObserver) ObservePullHintReceived(reason transport.PullHintReason, stage string, err error) {
+	if o.metrics == nil {
+		return
+	}
+	result := "ok"
+	if err != nil {
+		result = "err"
+	}
+	o.metrics.ChannelV2.ObservePullHintReceived(channelV2PullHintReasonLabel(reason), stage, result, channelV2PullHintErrorLabel(err))
+}
+
+func (o channelV2MetricsObserver) SetPendingMetaCount(reactorID int, count int) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.ChannelV2.SetPendingMetaCount(reactorID, count)
+}
+
+func (o channelV2MetricsObserver) ObservePendingMeta(event string, err error) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.ChannelV2.ObservePendingMeta(event, channelV2PullHintErrorLabel(err))
+}
+
+func (o channelV2MetricsObserver) ObserveNeedMetaPull(result string, err error) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.ChannelV2.ObserveNeedMetaPull(result, channelV2PullHintErrorLabel(err))
+}
+
+func (o channelV2MetricsObserver) ObserveReplicationStage(stage string, result string, d time.Duration) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.ChannelV2.ObserveReplicationStage(stage, result, d)
+}
+
+func (o channelV2MetricsObserver) ObserveChannelMetaCache(result string) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.ChannelV2.ObserveMetaCache(result)
+}
+
+func (o channelV2MetricsObserver) ObserveAppendBatch(records int, bytes int, wait time.Duration) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.ChannelV2.ObserveAppendBatch(records, bytes, wait)
+}
+
+func (o channelV2MetricsObserver) ObserveAppendLatency(mode ch.CommitMode, d time.Duration) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.ChannelV2.ObserveAppendLatency(channelV2CommitModeLabel(mode), d)
+}
+
+func (o channelV2MetricsObserver) ObserveChannelAppendStage(stage string, result string, d time.Duration) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.ChannelV2.ObserveAppendStage(stage, result, d)
+}
+
+func (o channelV2MetricsObserver) ObserveAppendWaitStage(stage string, mode ch.CommitMode, result string, d time.Duration) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.ChannelV2.ObserveAppendWaitStage(stage, channelV2CommitModeLabel(mode), result, d)
+}
+
+func (o channelV2MetricsObserver) ObserveAppendWaitCanceled(snapshot reactor.AppendWaitCancelSnapshot) {
+	if o.metrics == nil {
+		return
+	}
+	log.Print(channelV2AppendWaitCancelLogLine(snapshot))
+}
+
+func channelV2AppendWaitCancelLogLine(snapshot reactor.AppendWaitCancelSnapshot) string {
+	return fmt.Sprintf(
+		"internalv2/app: channelv2 append waiter canceled reactor=%d key=%s channel_id=%s channel_type=%d op=%d commit_mode=%s role=%s leader=%d epoch=%d leader_epoch=%d leo=%d hw=%d target=%d store_submitted=%t store_completed=%t follower_pull_served=%t ack_offset_observed=%t hw_advanced=%t waiters=%d pending_appends=%d pending_append_order=%d append_queue_pending=%d append_queue_records=%d append_queue_bytes=%d append_inflight=%t append_inflight_op=%d append_inflight_waiters=%d append_store_blocked=%t pull_waiters=%d follower_states=%q err=%v",
+		snapshot.ReactorID,
+		snapshot.Key,
+		snapshot.ChannelID.ID,
+		snapshot.ChannelID.Type,
+		snapshot.OpID,
+		channelV2CommitModeLabel(snapshot.CommitMode),
+		channelV2RoleLabel(snapshot.Role),
+		snapshot.Leader,
+		snapshot.Epoch,
+		snapshot.LeaderEpoch,
+		snapshot.LEO,
+		snapshot.HW,
+		snapshot.TargetOffset,
+		snapshot.StoreSubmitted,
+		snapshot.StoreCompleted,
+		snapshot.FollowerPullServed,
+		snapshot.AckOffsetObserved,
+		snapshot.HWAdvanced,
+		snapshot.Waiters,
+		snapshot.PendingAppends,
+		snapshot.PendingAppendOrder,
+		snapshot.AppendQueuePending,
+		snapshot.AppendQueueRecords,
+		snapshot.AppendQueueBytes,
+		snapshot.AppendInflight,
+		snapshot.AppendInflightOpID,
+		snapshot.AppendInflightWaiters,
+		snapshot.AppendStoreBlocked,
+		snapshot.PullWaiters,
+		snapshot.FollowerStates,
+		snapshot.Err,
+	)
+}
+
+func (o channelV2MetricsObserver) ObserveWorkerResult(kind worker.TaskKind, err error, d time.Duration) {
+	if o.metrics == nil {
+		return
+	}
+	result := "ok"
+	if err != nil {
+		result = "err"
+	}
+	o.metrics.ChannelV2.ObserveWorkerResult(channelV2WorkerKindLabel(kind), result, d, channelV2PullHintErrorLabel(err))
+}
+
+func (o slotMetricsObserver) SetSchedulerWorkers(workers int) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.RuntimePressure.SetPoolWorkers("slot", "scheduler", workers)
+}
+
+func (o slotMetricsObserver) SetSchedulerInflight(inflight int) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.RuntimePressure.SetPoolInflight("slot", "scheduler", inflight)
+}
+
+func (o slotMetricsObserver) SetSchedulerState(event multiraft.SchedulerStateEvent) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.RuntimePressure.SetQueue("slot", "scheduler", "scheduler", "none", obsmetrics.RuntimePressureQueueObservation{
+		Depth:    event.Depth + event.Pending,
+		Capacity: event.Capacity,
+	})
+}
+
+func (o slotMetricsObserver) ObserveSchedulerAdmission(result string) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.RuntimePressure.ObserveAdmission("slot", "scheduler", "scheduler", "none", result)
+}
+
+func (o slotMetricsObserver) ObserveSchedulerTask(task string, d time.Duration) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.RuntimePressure.ObserveTaskDuration("slot", "scheduler", task, "ok", d)
+}
+
+func (o slotMetricsObserver) ObserveSlotProposal(slotID multiraft.SlotID, d time.Duration) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.Slot.ObserveProposal(uint32(slotID), d)
+}
+
+func (o slotMetricsObserver) ObserveSlotProposalAdmission(_ multiraft.SlotID, class multiraft.ProposalClass, result string) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.Slot.ObserveProposalAdmission(string(class), result)
+}
+
+func (o slotMetricsObserver) ObserveSlotLeaderChange(slotID multiraft.SlotID, from, to multiraft.NodeID) {
+	o.ObserveSlotLeaderChangeWithCause(slotID, from, to, multiraft.LeaderChangeCauseElection)
+}
+
+func (o slotMetricsObserver) ObserveSlotLeaderChangeWithCause(slotID multiraft.SlotID, _, _ multiraft.NodeID, cause multiraft.LeaderChangeCause) {
+	if o.metrics == nil {
+		return
+	}
+	if cause == multiraft.LeaderChangeCausePlannedTransfer {
+		o.metrics.Slot.ObserveLeaderChangeCause(uint32(slotID), string(cause))
+		return
+	}
+	o.metrics.Slot.ObserveLeaderChange(uint32(slotID))
+}
+
+func (o slotMetricsObserver) SetSlotApplyState(slotID multiraft.SlotID, commitIndex, appliedIndex uint64) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.Slot.SetApplyGap(uint32(slotID), slotApplyGap(commitIndex, appliedIndex))
+}
+
+func slotApplyGap(commitIndex, appliedIndex uint64) uint64 {
+	if commitIndex <= appliedIndex {
 		return 0
 	}
-	return a.cluster.HashSlotTableVersion()
+	return commitIndex - appliedIndex
 }
 
-func (a *App) collectObservedClusterState() observedClusterState {
-	return a.collectObservedClusterStateWithTimeout(context.Background(), observabilityQueryTimeout)
-}
-
-func (a *App) collectObservedClusterStateWithTimeout(parent context.Context, timeout time.Duration) observedClusterState {
-	if a == nil || a.cluster == nil {
-		return observedClusterState{}
+func (o *transportV2MetricsObserver) ObserveTransport(event transportv2.Event) {
+	if o.metrics == nil {
+		return
 	}
-	if parent == nil {
-		parent = context.Background()
-	}
-
-	state := observedClusterState{}
-
-	nodesCtx, cancel := context.WithTimeout(parent, timeout)
-	state.nodes, state.nodesErr = a.cluster.ListNodes(nodesCtx)
-	cancel()
-
-	assignmentsCtx, cancel := context.WithTimeout(parent, timeout)
-	state.assignments, state.assignmentsErr = a.cluster.ListSlotAssignments(assignmentsCtx)
-	cancel()
-
-	viewsCtx, cancel := context.WithTimeout(parent, timeout)
-	state.views, state.viewsErr = a.cluster.ListObservedRuntimeViews(viewsCtx)
-	cancel()
-
-	tasksCtx, cancel := context.WithTimeout(parent, timeout)
-	state.tasks, state.tasksErr = a.cluster.ListTasks(tasksCtx)
-	cancel()
-	state.migrations = a.cluster.GetMigrationStatus()
-
-	sort.Slice(state.nodes, func(i, j int) bool {
-		return state.nodes[i].NodeID < state.nodes[j].NodeID
-	})
-	sort.Slice(state.assignments, func(i, j int) bool {
-		return state.assignments[i].SlotID < state.assignments[j].SlotID
-	})
-	sort.Slice(state.views, func(i, j int) bool {
-		return state.views[i].SlotID < state.views[j].SlotID
-	})
-	sort.Slice(state.tasks, func(i, j int) bool {
-		if state.tasks[i].SlotID == state.tasks[j].SlotID {
-			return state.tasks[i].Attempt < state.tasks[j].Attempt
+	switch event.Name {
+	case "sent_bytes":
+		o.metrics.Transport.ObserveSentBytes(transportV2FrameKindLabel(event.Kind), event.Bytes)
+	case "received_bytes":
+		o.metrics.Transport.ObserveReceivedBytes(transportV2FrameKindLabel(event.Kind), event.Bytes)
+	case "pending_rpc":
+		o.metrics.RuntimePressure.SetPoolInflight("transportv2", "rpc", o.transportV2PendingRPCInflight(event))
+	case "peer_pool":
+		inflight := event.Inflight
+		if inflight == 0 {
+			inflight = event.Items
 		}
-		return state.tasks[i].SlotID < state.tasks[j].SlotID
-	})
-	sort.Slice(state.migrations, func(i, j int) bool {
-		return state.migrations[i].HashSlot < state.migrations[j].HashSlot
-	})
-
-	return state
-}
-
-func (a *App) refreshControllerMetrics() {
-	if a == nil || a.metrics == nil || a.metrics.Controller == nil || a.cluster == nil {
-		return
-	}
-
-	clusterState := a.cachedObservedClusterState()
-	alive, suspect, dead := clusterNodeCounts(clusterState.nodes)
-	a.metrics.Controller.SetNodeCounts(alive, suspect, dead)
-	a.metrics.Controller.SetTaskActive(controllerActiveTaskCounts(clusterState.tasks))
-	a.metrics.Controller.SetMigrationsActive(len(clusterState.migrations))
-	a.metrics.Controller.SetSlotLeaderSkew(slotLeaderSkew(clusterState.nodes, clusterState.views))
-}
-
-func (a *App) cachedObservedClusterState() observedClusterState {
-	if a == nil {
-		return observedClusterState{}
-	}
-	state, stale := a.observedClusterCache.snapshot(controllerMetricsRefreshInterval)
-	if stale {
-		a.triggerObservedClusterRefresh()
-	}
-	return state
-}
-
-func (a *App) triggerObservedClusterRefresh() {
-	if a == nil || a.cluster == nil {
-		return
-	}
-	if !a.observedClusterCache.refreshing.CompareAndSwap(false, true) {
-		return
-	}
-	go func() {
-		defer a.observedClusterCache.refreshing.Store(false)
-
-		ctx, cancel := context.WithTimeout(context.Background(), controllerMetricsRefreshQueryTimeout)
-		defer cancel()
-		ctx = raftcluster.WithBestEffortControllerRead(ctx)
-		state := a.collectObservedClusterStateWithTimeout(ctx, controllerMetricsRefreshQueryTimeout)
-		if state.hasControllerReadError() {
-			return
+		o.metrics.RuntimePressure.SetPoolWorkers("transportv2", "peer_pool", event.Capacity)
+		o.metrics.RuntimePressure.SetPoolInflight("transportv2", "peer_pool", inflight)
+	case "scheduler_queue":
+		priority := transportV2PriorityLabel(event.Priority)
+		o.metrics.RuntimePressure.SetQueue("transportv2", "scheduler", "scheduler", priority, o.transportV2SchedulerQueue(priority, event))
+	case "service_queue":
+		o.metrics.RuntimePressure.SetQueue("transportv2", "service", transportV2ServiceEventLabel(event), transportV2PriorityLabel(event.Priority), transportV2QueueObservation(event))
+	case "scheduler_admission":
+		o.metrics.RuntimePressure.ObserveAdmission("transportv2", "scheduler", "scheduler", transportV2PriorityLabel(event.Priority), event.Result)
+	case "service_admission":
+		o.metrics.RuntimePressure.ObserveAdmission("transportv2", "service", transportV2ServiceEventLabel(event), transportV2PriorityLabel(event.Priority), event.Result)
+	case "scheduler_wait":
+		o.metrics.RuntimePressure.ObserveQueueWait("transportv2", "scheduler", "scheduler", transportV2PriorityLabel(event.Priority), event.Result, event.Duration)
+	case "service_task":
+		queue := transportV2ServiceEventLabel(event)
+		o.metrics.RuntimePressure.ObserveTaskDuration("transportv2", "service", queue, event.Result, event.Duration)
+		o.metrics.Transport.ObserveRPC(queue, transportV2RPCResultLabel(event.Result), event.Duration)
+	case "service_inflight":
+		pool := transportV2ServiceEventLabel(event)
+		if event.Capacity > 0 {
+			o.metrics.RuntimePressure.SetPoolWorkers("transportv2", pool, event.Capacity)
 		}
-		a.observedClusterCache.store(state, time.Now())
-	}()
-}
-
-func (a *App) refreshStorageMetrics() {
-	if a == nil || a.metrics == nil || a.metrics.Storage == nil {
-		return
-	}
-
-	usageByStore, _, _ := a.collectStorageUsage()
-	a.metrics.Storage.SetDiskUsage(usageByStore)
-}
-
-func (a *App) refreshTransportMetrics() {
-	if a == nil || a.metrics == nil || a.metrics.Transport == nil {
-		return
-	}
-
-	activeByPeer := make(map[string]int)
-	idleByPeer := make(map[string]int)
-	merge := func(stats []transport.PoolPeerStats) {
-		for _, stat := range stats {
-			peer := strconv.FormatUint(uint64(stat.NodeID), 10)
-			activeByPeer[peer] += stat.Active
-			idleByPeer[peer] += stat.Idle
+		o.metrics.RuntimePressure.SetPoolInflight("transportv2", pool, event.Inflight)
+		if event.PoolCapacity > 0 {
+			o.metrics.AntsPool.SetUsage("transportv2", "service_executor", event.PoolRunning, event.PoolCapacity, event.PoolWaiting)
 		}
 	}
-
-	if a.dataPlanePool != nil {
-		merge(a.dataPlanePool.Stats())
-	}
-	if a.cluster != nil {
-		merge(a.cluster.TransportPoolStats())
-	}
-
-	a.metrics.Transport.SetPoolConnections(activeByPeer, idleByPeer)
 }
 
-func (a *App) storageHealthSnapshot() map[string]any {
-	usageByStore, totalUsage, storeErrors := a.collectStorageUsage()
+func (o *transportV2MetricsObserver) transportV2PendingRPCInflight(event transportv2.Event) int {
+	o.mu.Lock()
+	defer o.mu.Unlock()
 
-	diskFreePath := a.storageStatPath()
-	diskFreeBytes, freeErr := filesystemFreeBytes(diskFreePath)
-
-	status := "healthy"
-	if len(storeErrors) > 0 || freeErr != nil {
-		status = "degraded"
+	if o.pendingRPCBySource == nil {
+		o.pendingRPCBySource = make(map[uint64]int)
 	}
-
-	snapshot := map[string]any{
-		"status":           status,
-		"disk_usage_bytes": totalUsage,
-		"stores":           usageByStore,
-	}
-	if freeErr == nil {
-		snapshot["disk_free_bytes"] = int64(diskFreeBytes)
+	if event.Inflight <= 0 {
+		delete(o.pendingRPCBySource, event.SourceID)
 	} else {
-		snapshot["disk_free_error"] = freeErr.Error()
+		o.pendingRPCBySource[event.SourceID] = event.Inflight
 	}
-	if len(storeErrors) > 0 {
-		snapshot["errors"] = storeErrors
+	var total int
+	for _, inflight := range o.pendingRPCBySource {
+		total += inflight
 	}
-	return snapshot
+	return total
 }
 
-func (a *App) collectStorageUsage() (map[string]int64, int64, map[string]string) {
-	usageByStore := make(map[string]int64, 5)
-	storeErrors := make(map[string]string)
+func (o *transportV2MetricsObserver) transportV2SchedulerQueue(priority string, event transportv2.Event) obsmetrics.RuntimePressureQueueObservation {
+	o.mu.Lock()
+	defer o.mu.Unlock()
 
-	var totalUsage int64
-	for _, store := range a.storageStorePaths() {
-		size, err := dirUsageBytes(store.path)
-		if err != nil {
-			storeErrors[store.name] = err.Error()
+	if o.schedulerQueueBySource == nil {
+		o.schedulerQueueBySource = make(map[transportV2SchedulerQueueSource]obsmetrics.RuntimePressureQueueObservation)
+	}
+	key := transportV2SchedulerQueueSource{sourceID: event.SourceID, priority: priority}
+	switch event.Result {
+	case "closed", "stopped":
+		delete(o.schedulerQueueBySource, key)
+	default:
+		o.schedulerQueueBySource[key] = transportV2QueueObservation(event)
+	}
+
+	var total obsmetrics.RuntimePressureQueueObservation
+	for source, observation := range o.schedulerQueueBySource {
+		if source.priority != priority {
 			continue
 		}
-		usageByStore[store.name] = size
-		totalUsage += size
+		total.Depth += observation.Depth
+		total.Capacity += observation.Capacity
+		total.Bytes += observation.Bytes
+		total.BytesCapacity += observation.BytesCapacity
 	}
-	return usageByStore, totalUsage, storeErrors
+	return total
 }
 
-func (a *App) storageStorePaths() []struct {
-	name string
-	path string
-} {
-	return []struct {
-		name string
-		path string
-	}{
-		{name: "meta", path: a.cfg.Storage.DBPath},
-		{name: "raft", path: a.cfg.Storage.RaftPath},
-		{name: "channel_log", path: a.cfg.Storage.ChannelLogPath},
-		{name: "controller_meta", path: a.cfg.Storage.ControllerMetaPath},
-		{name: "controller_raft", path: a.cfg.Storage.ControllerRaftPath},
+func (o controllerRaftMetricsObserver) SetStepQueueDepth(depth int, capacity int) {
+	if o.metrics == nil {
+		return
 	}
+	o.metrics.Controller.SetControllerRaftStepQueue(depth, capacity)
 }
 
-func (a *App) storageStatPath() string {
-	for _, path := range []string{
-		a.cfg.Node.DataDir,
-		a.cfg.Storage.DBPath,
-		a.cfg.Storage.RaftPath,
-		a.cfg.Storage.ChannelLogPath,
-		a.cfg.Storage.ControllerMetaPath,
-		a.cfg.Storage.ControllerRaftPath,
-	} {
-		if path == "" {
-			continue
-		}
-		if _, err := os.Stat(path); err == nil {
-			return path
-		}
+func (o controllerRaftMetricsObserver) ObserveStepEnqueue(result string, d time.Duration) {
+	if o.metrics == nil {
+		return
 	}
-	return a.cfg.Node.DataDir
+	o.metrics.Controller.ObserveControllerRaftStepEnqueue(result, d)
 }
 
-func clusterNodeCounts(nodes []controllermeta.ClusterNode) (alive, suspect, dead int) {
+func (o controllerRaftMetricsObserver) SetApplyState(commitIndex, appliedIndex uint64) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.Controller.SetApplyGap(controllerApplyGap(commitIndex, appliedIndex))
+}
+
+func (o controllerRaftMetricsObserver) ObserveControllerRaftStatus(status managementusecase.ControllerRaftStatus) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.Controller.SetControllerRaftMembership(len(status.Voters), len(status.Learners))
+}
+
+func (o controllerRaftMetricsObserver) ObserveControllerVoterPromotionAttempt(result string) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.Controller.ObserveControllerVoterPromotionAttempt(result)
+}
+
+func (o controllerRaftMetricsObserver) ObserveControllerVoterPromotionBlocker(reason string) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.Controller.ObserveControllerVoterPromotionBlocker(reason)
+}
+
+func (o controllerRaftMetricsObserver) ObserveControllerVoterPromotionPhase(phase string, d time.Duration) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.Controller.ObserveControllerVoterPromotionPhase(phase, d)
+}
+
+func controllerApplyGap(commitIndex, appliedIndex uint64) uint64 {
+	if commitIndex <= appliedIndex {
+		return 0
+	}
+	return commitIndex - appliedIndex
+}
+
+func (o controlSnapshotMetricsObserver) ObserveControlSnapshot(snapshot control.Snapshot) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.Controller.SetStateRevision(snapshot.Revision)
+	o.metrics.Controller.SetLeaderPresent(snapshot.ControllerID != 0)
+	alive, suspect, dead := controllerNodeCounts(snapshot.Nodes)
+	o.metrics.Controller.SetNodeCounts(alive, suspect, dead)
+	activeTasks, failedTasks := controllerTaskCounts(snapshot.Tasks)
+	o.metrics.Controller.SetTaskActive(activeTasks)
+	o.metrics.Controller.SetTaskFailed(failedTasks)
+	o.metrics.Controller.SetSlotLeaderSkew(controllerPreferredLeaderSkew(snapshot.Nodes, snapshot.Slots))
+	o.metrics.NodeLifecycle.SetDiscoveryMembershipRevision(snapshot.Revision)
+	o.metrics.NodeLifecycle.SetLifecycleNodes(controllerLifecycleCounts(snapshot.Nodes))
+	freshnessCounts, ageMax := controllerHealthFreshnessCounts(snapshot.Nodes)
+	o.metrics.NodeLifecycle.SetHealthFreshnessNodes(freshnessCounts)
+	o.metrics.NodeLifecycle.SetHealthReportAgeMax(ageMax)
+	o.metrics.NodeLifecycle.SetOnboardingTasks(controllerOnboardingTaskCounts(snapshot.Tasks))
+}
+
+func controllerNodeCounts(nodes []control.Node) (alive, suspect, dead int) {
 	for _, node := range nodes {
 		switch node.Status {
-		case controllermeta.NodeStatusAlive, controllermeta.NodeStatusDraining:
+		case control.NodeAlive:
 			alive++
-		case controllermeta.NodeStatusSuspect:
+		case control.NodeSuspect:
 			suspect++
-		case controllermeta.NodeStatusDead:
+		case control.NodeDown:
 			dead++
 		}
 	}
 	return alive, suspect, dead
 }
 
-func localSlotRole(localNodeID uint64, view controllermeta.SlotRuntimeView) string {
-	if view.LeaderID == localNodeID {
-		return "leader"
-	}
-	for _, peer := range view.CurrentPeers {
-		if peer == localNodeID {
-			return "follower"
-		}
-	}
-	return "remote"
-}
-
-func controllerActiveTaskCounts(tasks []controllermeta.ReconcileTask) map[string]int {
-	counts := make(map[string]int, 4)
+func controllerTaskCounts(tasks []control.ReconcileTask) (map[string]int, map[string]int) {
+	active := make(map[string]int)
+	failed := make(map[string]int)
 	for _, task := range tasks {
-		if task.Status == controllermeta.TaskStatusFailed {
+		kind := string(task.Kind)
+		if kind == "" {
 			continue
 		}
-		counts[controllerTaskKind(task.Kind)]++
+		if task.Status == control.TaskStatusFailed {
+			failed[kind]++
+			continue
+		}
+		active[kind]++
+	}
+	return active, failed
+}
+
+func controllerLifecycleCounts(nodes []control.Node) map[obsmetrics.NodeLifecycleKey]int {
+	counts := make(map[obsmetrics.NodeLifecycleKey]int)
+	for _, node := range nodes {
+		counts[obsmetrics.NodeLifecycleKey{
+			JoinState: string(controllerEffectiveJoinState(node.JoinState)),
+			Status:    string(node.Status),
+		}]++
 	}
 	return counts
 }
 
-func controllerTaskKind(kind controllermeta.TaskKind) string {
-	switch kind {
-	case controllermeta.TaskKindBootstrap:
-		return "bootstrap"
-	case controllermeta.TaskKindRepair:
-		return "repair"
-	case controllermeta.TaskKindRebalance:
-		return "rebalance"
-	case controllermeta.TaskKindLeaderTransfer:
-		return "leader_transfer"
-	default:
-		return "unknown"
+func controllerHealthFreshnessCounts(nodes []control.Node) (map[obsmetrics.NodeHealthFreshnessKey]int, map[obsmetrics.NodeHealthFreshnessKey]float64) {
+	counts := make(map[obsmetrics.NodeHealthFreshnessKey]int)
+	ageMax := make(map[obsmetrics.NodeHealthFreshnessKey]float64)
+	for _, node := range nodes {
+		key := obsmetrics.NodeHealthFreshnessKey{
+			Freshness: string(node.Health.Freshness),
+			Status:    string(node.Health.Status),
+		}
+		if key.Freshness == "" {
+			key.Freshness = string(control.NodeHealthMissing)
+		}
+		if key.Status == "" {
+			key.Status = string(node.Status)
+		}
+		counts[key]++
+		age := node.Health.ReportAge.Seconds()
+		if existing, ok := ageMax[key]; !ok || age > existing {
+			ageMax[key] = age
+		}
+	}
+	return counts, ageMax
+}
+
+func controllerOnboardingTaskCounts(tasks []control.ReconcileTask) map[string]int {
+	counts := map[string]int{
+		string(control.TaskStatusPending): 0,
+		string(control.TaskStatusRunning): 0,
+		string(control.TaskStatusFailed):  0,
+	}
+	for _, task := range tasks {
+		if task.Kind != control.TaskKindSlotReplicaMove {
+			continue
+		}
+		counts[string(task.Status)]++
+	}
+	return counts
+}
+
+func controllerEffectiveJoinState(state control.NodeJoinState) control.NodeJoinState {
+	if state == "" {
+		return control.NodeJoinStateActive
+	}
+	return state
+}
+
+const nodeLifecycleScaleInBlockerDedupLimit = 4096
+
+func (o *nodeLifecycleMetricsObserver) ObserveScaleInStatus(status managementusecase.NodeScaleInStatusResponse) {
+	if o == nil {
+		return
+	}
+	if o.metrics == nil || o.metrics.NodeLifecycle == nil {
+		return
+	}
+	for _, reason := range status.BlockedReasons {
+		if !o.markScaleInBlockerObserved(status.NodeID, status.StateRevision, reason) {
+			continue
+		}
+		o.metrics.NodeLifecycle.ObserveScaleInBlocker(reason)
 	}
 }
 
-func slotLeaderSkew(nodes []controllermeta.ClusterNode, views []controllermeta.SlotRuntimeView) int {
-	leaderCounts := make(map[uint64]int)
+func (o *nodeLifecycleMetricsObserver) ObserveNodeLifecycleAttempt(operation, result string) {
+	if o == nil {
+		return
+	}
+	if o.metrics == nil || o.metrics.NodeLifecycle == nil {
+		return
+	}
+	o.metrics.NodeLifecycle.ObserveLifecycleAttempt(operation, result)
+}
+
+func (o *nodeLifecycleMetricsObserver) markScaleInBlockerObserved(nodeID, stateRevision uint64, reason string) bool {
+	if o == nil {
+		return false
+	}
+	key := fmt.Sprintf("%d/%d/%s", nodeID, stateRevision, reason)
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if _, ok := o.scaleInBlockerSeen[key]; ok {
+		return false
+	}
+	if o.scaleInBlockerSeen == nil {
+		o.scaleInBlockerSeen = make(map[string]struct{}, nodeLifecycleScaleInBlockerDedupLimit)
+	}
+	if len(o.scaleInBlockerOrder) >= nodeLifecycleScaleInBlockerDedupLimit {
+		oldest := o.scaleInBlockerOrder[0]
+		copy(o.scaleInBlockerOrder, o.scaleInBlockerOrder[1:])
+		o.scaleInBlockerOrder = o.scaleInBlockerOrder[:len(o.scaleInBlockerOrder)-1]
+		delete(o.scaleInBlockerSeen, oldest)
+	}
+	o.scaleInBlockerSeen[key] = struct{}{}
+	o.scaleInBlockerOrder = append(o.scaleInBlockerOrder, key)
+	return true
+}
+
+func controllerPreferredLeaderSkew(nodes []control.Node, slots []control.SlotAssignment) int {
+	counts := make(map[uint64]int)
 	for _, node := range nodes {
-		if node.Status == controllermeta.NodeStatusAlive && node.Role == controllermeta.NodeRoleData && node.JoinState == controllermeta.NodeJoinStateActive {
-			leaderCounts[node.NodeID] = 0
+		if node.Status == control.NodeAlive && controlNodeHasRole(node.Roles, control.RoleData) {
+			counts[node.NodeID] = 0
 		}
 	}
-	if len(leaderCounts) == 0 {
+	if len(counts) == 0 {
 		return 0
 	}
-	for _, view := range views {
-		if view.LeaderID == 0 {
-			continue
-		}
-		if _, ok := leaderCounts[view.LeaderID]; ok {
-			leaderCounts[view.LeaderID]++
+	for _, slot := range slots {
+		if _, ok := counts[slot.PreferredLeader]; ok {
+			counts[slot.PreferredLeader]++
 		}
 	}
-	min, max := -1, 0
-	for _, count := range leaderCounts {
-		if min == -1 || count < min {
+	min, max := 0, 0
+	first := true
+	for _, count := range counts {
+		if first {
+			min, max = count, count
+			first = false
+			continue
+		}
+		if count < min {
 			min = count
 		}
 		if count > max {
@@ -923,54 +1164,1068 @@ func slotLeaderSkew(nodes []controllermeta.ClusterNode, views []controllermeta.S
 	return max - min
 }
 
-func transportMsgType(msgType uint8) string {
-	switch msgType {
-	case transport.MsgTypeRPCNotify:
-		return "rpc_notify"
-	case transport.MsgTypeRPCRequest:
-		return "rpc_request"
-	case transport.MsgTypeRPCResponse:
-		return "rpc_response"
-	default:
-		return strconv.FormatUint(uint64(msgType), 10)
+func controlNodeHasRole(roles []control.Role, role control.Role) bool {
+	for _, candidate := range roles {
+		if candidate == role {
+			return true
+		}
 	}
+	return false
 }
 
-func dirUsageBytes(root string) (int64, error) {
-	if root == "" {
-		return 0, nil
-	}
-	if _, err := os.Stat(root); err != nil {
-		if os.IsNotExist(err) {
-			return 0, nil
-		}
-		return 0, err
-	}
+func (o storageCommitMetricsObserver) SetCommitCoordinatorQueueDepth(depth int) {
+	o.SetCommitCoordinatorQueue(depth, 0)
+}
 
-	var total int64
-	err := filepath.Walk(root, func(_ string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if info == nil || info.IsDir() {
-			return nil
-		}
-		total += info.Size()
-		return nil
+func (o storageCommitMetricsObserver) SetCommitCoordinatorQueue(depth int, capacity int) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.Storage.SetCommitQueueDepth("message", depth)
+	o.metrics.RuntimePressure.SetPoolWorkers(dbRuntimeComponent, dbMessageCommitPool, o.workerCount())
+	o.metrics.RuntimePressure.SetQueue(dbRuntimeComponent, dbMessageCommitPool, dbMessageCommitQueue, dbRuntimeQueuePriority, obsmetrics.RuntimePressureQueueObservation{
+		Depth:    depth,
+		Capacity: capacity,
 	})
-	if err != nil {
-		return 0, err
-	}
-	return total, nil
 }
 
-func filesystemFreeBytes(path string) (uint64, error) {
-	if path == "" {
-		return 0, os.ErrNotExist
+func (o storageCommitMetricsObserver) ObserveCommitCoordinatorBatch(event messagedb.CommitCoordinatorBatchEvent) {
+	if o.metrics == nil {
+		return
 	}
-	var stat syscall.Statfs_t
-	if err := syscall.Statfs(path, &stat); err != nil {
-		return 0, err
+	result := "ok"
+	if event.Err != nil {
+		result = "err"
 	}
-	return stat.Bavail * uint64(stat.Bsize), nil
+	o.metrics.Storage.ObserveCommitBatch("message", result, obsmetrics.StorageCommitBatchObservation{
+		Requests:        event.Requests,
+		Records:         event.Records,
+		Bytes:           event.Bytes,
+		CollectDuration: event.CollectDuration,
+		BuildDuration:   event.BuildDuration,
+		CommitDuration:  event.CommitDuration,
+		PublishDuration: event.PublishDuration,
+		TotalDuration:   event.TotalDuration,
+	})
+	o.metrics.RuntimePressure.SetPoolWorkers(dbRuntimeComponent, dbMessageCommitPool, o.workerCount())
+	o.metrics.RuntimePressure.ObserveTaskDuration(dbRuntimeComponent, dbMessageCommitPool, dbMessageCommitQueue, result, event.TotalDuration)
 }
+
+func (o storageCommitMetricsObserver) workerCount() int {
+	if o.workers <= 0 {
+		return dbMessageCommitWorkerCap
+	}
+	return o.workers
+}
+
+func (o storageCommitMetricsObserver) ObserveCommitCoordinatorRequest(event messagedb.CommitCoordinatorRequestEvent) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.Storage.ObserveCommitRequest("message", event.Lane, event.Result, obsmetrics.StorageCommitRequestObservation{
+		Records:  event.Records,
+		Bytes:    event.Bytes,
+		Duration: event.Duration,
+	})
+	o.metrics.RuntimePressure.ObserveAdmission(dbRuntimeComponent, dbMessageCommitPool, dbMessageCommitQueue, dbRuntimeQueuePriority, event.Result)
+	o.metrics.RuntimePressure.ObserveQueueWait(dbRuntimeComponent, dbMessageCommitPool, dbMessageCommitQueue, dbRuntimeQueuePriority, event.Result, event.Duration)
+}
+
+func (o deliveryMetricsObserver) ObserveFanoutTask(event runtimedelivery.FanoutTaskEvent) {
+	if o.metrics != nil {
+		o.metrics.Delivery.ObserveFanoutTask(deliveryNodeLabel(event.TargetNodeID), event.Result, event.Duration)
+		o.observeError(event.ErrorClass)
+	}
+	if event.ErrorClass != "" && event.ErrorClass != runtimedelivery.DeliveryErrorClassNone {
+		o.loggerOrNop().Warn("delivery fanout task failed",
+			wklog.Event("internalv2.app.delivery.fanout_task_failed"),
+			wklog.TargetNodeID(event.TargetNodeID),
+			wklog.Int("partitionID", int(event.PartitionID)),
+			wklog.String("path", event.Path),
+			wklog.Result(event.Result),
+			wklog.String("errorClass", event.ErrorClass),
+			wklog.Duration("duration", event.Duration),
+		)
+	}
+}
+
+func (o deliveryMetricsObserver) ObserveFanoutResolve(event runtimedelivery.FanoutResolveEvent) {
+	if o.metrics != nil {
+		o.metrics.Delivery.ObserveResolve(deliveryChannelTypeLabel(event.ChannelType), event.Result, event.Duration, event.Pages, event.Routes)
+		o.observeError(event.ErrorClass)
+	}
+	if event.ErrorClass != "" && event.ErrorClass != runtimedelivery.DeliveryErrorClassNone {
+		o.loggerOrNop().Warn("delivery fanout resolve failed",
+			wklog.Event("internalv2.app.delivery.fanout_resolve_failed"),
+			wklog.ChannelType(int64(event.ChannelType)),
+			wklog.Result(event.Result),
+			wklog.String("errorClass", event.ErrorClass),
+			wklog.Duration("duration", event.Duration),
+			wklog.Int("pages", event.Pages),
+			wklog.Int("uids", event.UIDs),
+		)
+	}
+}
+
+func (o deliveryMetricsObserver) ObserveFanoutPush(event runtimedelivery.FanoutPushEvent) {
+	if o.metrics != nil {
+		o.metrics.Delivery.ObservePushRPC(deliveryNodeLabel(event.OwnerNodeID), event.Result, event.Duration, event.Routes)
+		o.observeError(event.ErrorClass)
+	}
+	if event.ErrorClass != "" && event.ErrorClass != runtimedelivery.DeliveryErrorClassNone {
+		o.loggerOrNop().Warn("delivery fanout push failed",
+			wklog.Event("internalv2.app.delivery.fanout_push_failed"),
+			wklog.Uint64("ownerNodeID", event.OwnerNodeID),
+			wklog.Result(event.Result),
+			wklog.String("errorClass", event.ErrorClass),
+			wklog.Duration("duration", event.Duration),
+			wklog.Int("routes", event.Routes),
+			wklog.Int("accepted", event.Accepted),
+			wklog.Int("retryable", event.Retryable),
+			wklog.Int("dropped", event.Dropped),
+		)
+	}
+}
+
+func (o deliveryMetricsObserver) ObserveRetry(event runtimedelivery.RetryEvent) {
+	if o.metrics != nil {
+		o.metrics.Delivery.ObserveRetry(event.Event, event.Result)
+		o.metrics.Delivery.SetRetryQueueDepth(event.QueueDepth)
+		o.observeError(event.ErrorClass)
+	}
+	if event.Result == runtimedelivery.DeliveryResultDropped ||
+		event.Result == runtimedelivery.DeliveryResultOverflow ||
+		event.Result == runtimedelivery.DeliveryResultMaxAttempts ||
+		(event.ErrorClass != "" && event.ErrorClass != runtimedelivery.DeliveryErrorClassNone && event.Event == runtimedelivery.DeliveryRetryEventDrop) {
+		o.loggerOrNop().Warn("delivery retry failed",
+			wklog.Event("internalv2.app.delivery.retry_failed"),
+			wklog.String("retryEvent", event.Event),
+			wklog.Result(event.Result),
+			wklog.String("errorClass", event.ErrorClass),
+			wklog.Attempt(event.Attempt),
+			wklog.Int("queueDepth", event.QueueDepth),
+		)
+	}
+}
+
+func (o deliveryMetricsObserver) ObserveAck(event runtimedelivery.AckEvent) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.Delivery.SetAckBindings(event.PendingCount)
+}
+
+func (o deliveryMetricsObserver) ObserveManagerAdmission(event runtimedelivery.ManagerAdmissionEvent) {
+	if o.metrics != nil {
+		o.metrics.Delivery.ObserveEventQueue(event.Result)
+	}
+	if event.Result != runtimedelivery.DeliveryResultOK {
+		o.loggerOrNop().Warn("delivery manager admission failed",
+			wklog.Event("internalv2.app.delivery.manager_admission_failed"),
+			wklog.Result(event.Result),
+			wklog.Int("queueDepth", event.QueueDepth),
+		)
+	}
+}
+
+func (o deliveryMetricsObserver) ObserveManagerTerminal(event runtimedelivery.ManagerTerminalEvent) {
+	if o.metrics != nil {
+		o.observeError(event.ErrorClass)
+	}
+	if event.ErrorClass != "" && event.ErrorClass != runtimedelivery.DeliveryErrorClassNone {
+		o.loggerOrNop().Warn("delivery manager terminal failed",
+			wklog.Event("internalv2.app.delivery.manager_terminal_failed"),
+			wklog.Result(event.Result),
+			wklog.String("errorClass", event.ErrorClass),
+			wklog.Int("queueDepth", event.QueueDepth),
+		)
+	}
+}
+
+func (o deliveryMetricsObserver) observeError(class string) {
+	if class == "" || class == runtimedelivery.DeliveryErrorClassNone {
+		return
+	}
+	o.metrics.Delivery.ObserveError(class)
+}
+
+func (a *App) deliveryObserver() runtimedelivery.Observer {
+	if a == nil {
+		return nil
+	}
+	var observers []runtimedelivery.Observer
+	if a.metrics != nil || a.logger != nil {
+		var logger wklog.Logger
+		if a.logger != nil {
+			logger = a.logger.Named("delivery")
+		}
+		observers = append(observers, deliveryMetricsObserver{metrics: a.metrics, logger: logger})
+	}
+	if collector, ok := a.topProvider.(*topCollector); ok {
+		observers = append(observers, topDeliveryObserver{top: collector})
+	}
+	return combineDeliveryObservers(observers...)
+}
+
+func (o deliveryMetricsObserver) loggerOrNop() wklog.Logger {
+	if o.logger == nil {
+		return wklog.NewNop()
+	}
+	return o.logger
+}
+
+func combineChannelV2Observers(first, second reactor.Observer) reactor.Observer {
+	if first == nil {
+		return second
+	}
+	if second == nil {
+		return first
+	}
+	return multiChannelV2Observer{first, second}
+}
+
+func combineSlotObservers(first, second multiraft.SchedulerObserver) multiraft.SchedulerObserver {
+	if first == nil {
+		return second
+	}
+	if second == nil {
+		return first
+	}
+	return multiSlotObserver{first, second}
+}
+
+func combineTransportV2Observers(first, second transportv2.Observer) transportv2.Observer {
+	if first == nil {
+		return second
+	}
+	if second == nil {
+		return first
+	}
+	return multiTransportV2Observer{first, second}
+}
+
+func combineControllerRaftObservers(first, second cv2.RaftObserver) cv2.RaftObserver {
+	if first == nil {
+		return second
+	}
+	if second == nil {
+		return first
+	}
+	return multiControllerRaftObserver{first, second}
+}
+
+func combineControlSnapshotObservers(first, second cluster.ControlSnapshotObserver) cluster.ControlSnapshotObserver {
+	if first == nil {
+		return second
+	}
+	if second == nil {
+		return first
+	}
+	return multiControlSnapshotObserver{first, second}
+}
+
+func combineSlotReplicaMoveObservers(first, second cluster.SlotReplicaMoveObserver) cluster.SlotReplicaMoveObserver {
+	if first == nil {
+		return second
+	}
+	if second == nil {
+		return first
+	}
+	return multiSlotReplicaMoveObserver{first, second}
+}
+
+func combineCommitCoordinatorObservers(first, second messagedb.CommitCoordinatorObserver) messagedb.CommitCoordinatorObserver {
+	if first == nil {
+		return second
+	}
+	if second == nil {
+		return first
+	}
+	return multiCommitCoordinatorObserver{first, second}
+}
+
+func combineDeliveryObservers(observers ...runtimedelivery.Observer) runtimedelivery.Observer {
+	filtered := make([]runtimedelivery.Observer, 0, len(observers))
+	for _, observer := range observers {
+		if observer != nil {
+			filtered = append(filtered, observer)
+		}
+	}
+	switch len(filtered) {
+	case 0:
+		return nil
+	case 1:
+		return filtered[0]
+	default:
+		return multiDeliveryObserver(filtered)
+	}
+}
+
+func deliveryNodeLabel(nodeID uint64) string {
+	return strconv.FormatUint(nodeID, 10)
+}
+
+func deliveryChannelTypeLabel(channelType uint8) string {
+	switch channelType {
+	case frame.ChannelTypePerson:
+		return "person"
+	case frame.ChannelTypeGroup:
+		return "group"
+	default:
+		return strconv.Itoa(int(channelType))
+	}
+}
+
+func fallbackRuntimePressureLabel(value, fallback string) string {
+	if value == "" {
+		return fallback
+	}
+	return value
+}
+
+func channelV2ReactorPoolLabel(reactorID int) string {
+	if reactorID < 0 {
+		return "reactor_unknown"
+	}
+	return "reactor_" + strconv.Itoa(reactorID)
+}
+
+func transportV2QueueObservation(event transportv2.Event) obsmetrics.RuntimePressureQueueObservation {
+	return obsmetrics.RuntimePressureQueueObservation{
+		Depth:         event.Items,
+		Capacity:      event.Capacity,
+		Bytes:         int64(event.Bytes),
+		BytesCapacity: event.BytesCapacity,
+	}
+}
+
+func transportV2ServiceEventLabel(event transportv2.Event) string {
+	if alias := strings.TrimSpace(event.ServiceAlias); alias != "" {
+		return alias
+	}
+	return transportV2ServiceQueueLabel(event.ServiceID)
+}
+
+func transportV2ServiceQueueLabel(serviceID uint16) string {
+	return "service_" + strconv.Itoa(int(serviceID))
+}
+
+func transportV2RPCResultLabel(result string) string {
+	if result == "" {
+		return "ok"
+	}
+	return result
+}
+
+func transportV2PriorityLabel(priority transportv2.Priority) string {
+	switch priority {
+	case transportv2.PriorityRaft:
+		return "raft"
+	case transportv2.PriorityControl:
+		return "control"
+	case transportv2.PriorityRPC:
+		return "rpc"
+	case transportv2.PriorityBulk:
+		return "bulk"
+	default:
+		return "none"
+	}
+}
+
+func transportV2FrameKindLabel(kind transportv2.FrameKind) string {
+	switch kind {
+	case transportv2.FrameKindData:
+		return "data"
+	case transportv2.FrameKindNotify:
+		return "notify"
+	case transportv2.FrameKindRPCRequest:
+		return "rpc_request"
+	case transportv2.FrameKindRPCResponse:
+		return "rpc_response"
+	case transportv2.FrameKindControl:
+		return "control"
+	default:
+		return "unknown"
+	}
+}
+
+func (o multiChannelV2Observer) SetReactorMailboxDepth(reactorID int, priority string, depth int) {
+	for _, observer := range o {
+		observer.SetReactorMailboxDepth(reactorID, priority, depth)
+	}
+}
+
+func (o multiChannelV2Observer) SetReactorMailboxCapacity(reactorID int, priority string, capacity int) {
+	for _, observer := range o {
+		mailboxObserver, ok := observer.(reactor.MailboxPressureObserver)
+		if ok {
+			mailboxObserver.SetReactorMailboxCapacity(reactorID, priority, capacity)
+		}
+	}
+}
+
+func (o multiChannelV2Observer) ObserveReactorMailboxAdmission(reactorID int, priority string, result string) {
+	for _, observer := range o {
+		mailboxObserver, ok := observer.(reactor.MailboxPressureObserver)
+		if ok {
+			mailboxObserver.ObserveReactorMailboxAdmission(reactorID, priority, result)
+		}
+	}
+}
+
+func (o multiChannelV2Observer) SetAppendQueuePressure(event reactor.AppendQueuePressureEvent) {
+	for _, observer := range o {
+		appendObserver, ok := observer.(reactor.AppendQueuePressureObserver)
+		if ok {
+			appendObserver.SetAppendQueuePressure(event)
+		}
+	}
+}
+
+func (o multiChannelV2Observer) SetWorkerQueueDepth(pool string, depth int) {
+	for _, observer := range o {
+		observer.SetWorkerQueueDepth(pool, depth)
+	}
+}
+
+func (o multiChannelV2Observer) SetWorkerQueueCapacity(pool string, capacity int) {
+	for _, observer := range o {
+		queueObserver, ok := observer.(worker.QueueCapacityObserver)
+		if ok {
+			queueObserver.SetWorkerQueueCapacity(pool, capacity)
+		}
+	}
+}
+
+func (o multiChannelV2Observer) SetWorkerWorkers(pool string, workers int) {
+	for _, observer := range o {
+		queueObserver, ok := observer.(worker.QueueCapacityObserver)
+		if ok {
+			queueObserver.SetWorkerWorkers(pool, workers)
+		}
+	}
+}
+
+func (o multiChannelV2Observer) ObserveWorkerAdmission(pool string, result string) {
+	for _, observer := range o {
+		admissionObserver, ok := observer.(worker.AdmissionObserver)
+		if ok {
+			admissionObserver.ObserveWorkerAdmission(pool, result)
+		}
+	}
+}
+
+func (o multiChannelV2Observer) ObserveWorkerWait(pool string, kind worker.TaskKind, d time.Duration) {
+	for _, observer := range o {
+		waitObserver, ok := observer.(worker.WaitObserver)
+		if ok {
+			waitObserver.ObserveWorkerWait(pool, kind, d)
+		}
+	}
+}
+
+func (o multiChannelV2Observer) ObserveWorkerTask(pool string, kind worker.TaskKind, err error, d time.Duration) {
+	for _, observer := range o {
+		taskObserver, ok := observer.(worker.TaskObserver)
+		if ok {
+			taskObserver.ObserveWorkerTask(pool, kind, err, d)
+		}
+	}
+}
+
+func (o multiChannelV2Observer) ObserveWorkerBatch(pool string, kind worker.TaskKind, items int, err error) {
+	for _, observer := range o {
+		batchObserver, ok := observer.(worker.BatchObserver)
+		if ok {
+			batchObserver.ObserveWorkerBatch(pool, kind, items, err)
+		}
+	}
+}
+
+func (o multiChannelV2Observer) SetWorkerInflight(pool string, inflight int) {
+	for _, observer := range o {
+		inflightObserver, ok := observer.(worker.InflightObserver)
+		if ok {
+			inflightObserver.SetWorkerInflight(pool, inflight)
+		}
+	}
+}
+
+func (o multiChannelV2Observer) SetWorkerInflightPeak(pool string, peak int) {
+	for _, observer := range o {
+		inflightObserver, ok := observer.(worker.InflightObserver)
+		if ok {
+			inflightObserver.SetWorkerInflightPeak(pool, peak)
+		}
+	}
+}
+
+func (o multiChannelV2Observer) SetWorkerAntsPoolUsage(pool string, running int, capacity int, waiting int) {
+	for _, observer := range o {
+		antsObserver, ok := observer.(worker.AntsPoolObserver)
+		if ok {
+			antsObserver.SetWorkerAntsPoolUsage(pool, running, capacity, waiting)
+		}
+	}
+}
+
+func (o multiChannelV2Observer) SetChannelRuntimeCount(reactorID int, role ch.Role, count int) {
+	for _, observer := range o {
+		runtimeObserver, ok := observer.(reactor.RuntimeObserver)
+		if ok {
+			runtimeObserver.SetChannelRuntimeCount(reactorID, role, count)
+		}
+	}
+}
+
+func (o multiChannelV2Observer) ObserveChannelActivationRejected(reason string) {
+	for _, observer := range o {
+		runtimeObserver, ok := observer.(reactor.RuntimeObserver)
+		if ok {
+			runtimeObserver.ObserveChannelActivationRejected(reason)
+		}
+	}
+}
+
+func (o multiChannelV2Observer) SetFollowerParkedCount(reactorID int, count int) {
+	for _, observer := range o {
+		replicationObserver, ok := observer.(reactor.ReplicationObserver)
+		if ok {
+			replicationObserver.SetFollowerParkedCount(reactorID, count)
+		}
+	}
+}
+
+func (o multiChannelV2Observer) ObserveFollowerRecoveryProbe(result string) {
+	for _, observer := range o {
+		replicationObserver, ok := observer.(reactor.ReplicationObserver)
+		if ok {
+			replicationObserver.ObserveFollowerRecoveryProbe(result)
+		}
+	}
+}
+
+func (o multiChannelV2Observer) ObservePull(result string, empty bool) {
+	for _, observer := range o {
+		replicationObserver, ok := observer.(reactor.ReplicationObserver)
+		if ok {
+			replicationObserver.ObservePull(result, empty)
+		}
+	}
+}
+
+func (o multiChannelV2Observer) ObservePullHintResult(reason transport.PullHintReason, result string, err error) {
+	for _, observer := range o {
+		pullHintObserver, ok := observer.(reactor.PullHintResultObserver)
+		if ok {
+			pullHintObserver.ObservePullHintResult(reason, result, err)
+		}
+	}
+}
+
+func (o multiChannelV2Observer) ObservePullHintReceived(reason transport.PullHintReason, stage string, err error) {
+	for _, observer := range o {
+		pullHintReceiveObserver, ok := observer.(interface {
+			ObservePullHintReceived(transport.PullHintReason, string, error)
+		})
+		if ok {
+			pullHintReceiveObserver.ObservePullHintReceived(reason, stage, err)
+		}
+	}
+}
+
+func (o multiChannelV2Observer) SetPendingMetaCount(reactorID int, count int) {
+	for _, observer := range o {
+		pendingMetaObserver, ok := observer.(reactor.PendingMetaObserver)
+		if ok {
+			pendingMetaObserver.SetPendingMetaCount(reactorID, count)
+		}
+	}
+}
+
+func (o multiChannelV2Observer) ObservePendingMeta(event string, err error) {
+	for _, observer := range o {
+		pendingMetaObserver, ok := observer.(reactor.PendingMetaObserver)
+		if ok {
+			pendingMetaObserver.ObservePendingMeta(event, err)
+		}
+	}
+}
+
+func (o multiChannelV2Observer) ObserveNeedMetaPull(result string, err error) {
+	for _, observer := range o {
+		pendingMetaObserver, ok := observer.(reactor.PendingMetaObserver)
+		if ok {
+			pendingMetaObserver.ObserveNeedMetaPull(result, err)
+		}
+	}
+}
+
+func (o multiChannelV2Observer) ObserveReplicationStage(stage string, result string, d time.Duration) {
+	for _, observer := range o {
+		replicationStageObserver, ok := observer.(reactor.ReplicationStageObserver)
+		if ok {
+			replicationStageObserver.ObserveReplicationStage(stage, result, d)
+		}
+	}
+}
+
+func (o multiChannelV2Observer) ObserveChannelMetaCache(result string) {
+	for _, observer := range o {
+		metaCacheObserver, ok := observer.(clusterchannels.MetaCacheObserver)
+		if ok {
+			metaCacheObserver.ObserveChannelMetaCache(result)
+		}
+	}
+}
+
+func (o multiChannelV2Observer) ObserveAppendBatch(records int, bytes int, wait time.Duration) {
+	for _, observer := range o {
+		observer.ObserveAppendBatch(records, bytes, wait)
+	}
+}
+
+func (o multiChannelV2Observer) ObserveAppendLatency(mode ch.CommitMode, d time.Duration) {
+	for _, observer := range o {
+		observer.ObserveAppendLatency(mode, d)
+	}
+}
+
+func (o multiChannelV2Observer) ObserveChannelAppendStage(stage string, result string, d time.Duration) {
+	for _, observer := range o {
+		appendStageObserver, ok := observer.(clusterchannels.AppendStageObserver)
+		if ok {
+			appendStageObserver.ObserveChannelAppendStage(stage, result, d)
+		}
+	}
+}
+
+func (o multiChannelV2Observer) ObserveAppendWaitStage(stage string, mode ch.CommitMode, result string, d time.Duration) {
+	for _, observer := range o {
+		appendWaitObserver, ok := observer.(reactor.AppendWaitStageObserver)
+		if ok {
+			appendWaitObserver.ObserveAppendWaitStage(stage, mode, result, d)
+		}
+	}
+}
+
+func (o multiChannelV2Observer) ObserveAppendWaitCanceled(snapshot reactor.AppendWaitCancelSnapshot) {
+	for _, observer := range o {
+		appendCancelObserver, ok := observer.(reactor.AppendWaitCancelObserver)
+		if ok {
+			appendCancelObserver.ObserveAppendWaitCanceled(snapshot)
+		}
+	}
+}
+
+func (o multiChannelV2Observer) ObserveWorkerResult(kind worker.TaskKind, err error, d time.Duration) {
+	for _, observer := range o {
+		observer.ObserveWorkerResult(kind, err, d)
+	}
+}
+
+func (o multiSlotObserver) SetSchedulerWorkers(workers int) {
+	for _, observer := range o {
+		observer.SetSchedulerWorkers(workers)
+	}
+}
+
+func (o multiSlotObserver) SetSchedulerInflight(inflight int) {
+	for _, observer := range o {
+		observer.SetSchedulerInflight(inflight)
+	}
+}
+
+func (o multiSlotObserver) SetSchedulerState(event multiraft.SchedulerStateEvent) {
+	for _, observer := range o {
+		observer.SetSchedulerState(event)
+	}
+}
+
+func (o multiSlotObserver) ObserveSchedulerAdmission(result string) {
+	for _, observer := range o {
+		observer.ObserveSchedulerAdmission(result)
+	}
+}
+
+func (o multiSlotObserver) ObserveSchedulerTask(task string, d time.Duration) {
+	for _, observer := range o {
+		observer.ObserveSchedulerTask(task, d)
+	}
+}
+
+func (o multiSlotObserver) ObserveSlotProposal(slotID multiraft.SlotID, d time.Duration) {
+	for _, observer := range o {
+		proposalObserver, ok := observer.(multiraft.ProposalObserver)
+		if ok {
+			proposalObserver.ObserveSlotProposal(slotID, d)
+		}
+	}
+}
+
+func (o multiSlotObserver) ObserveSlotProposalAdmission(slotID multiraft.SlotID, class multiraft.ProposalClass, result string) {
+	for _, observer := range o {
+		admissionObserver, ok := observer.(multiraft.ProposalAdmissionObserver)
+		if ok {
+			admissionObserver.ObserveSlotProposalAdmission(slotID, class, result)
+		}
+	}
+}
+
+func (o multiSlotObserver) ObserveSlotLeaderChange(slotID multiraft.SlotID, from, to multiraft.NodeID) {
+	o.ObserveSlotLeaderChangeWithCause(slotID, from, to, multiraft.LeaderChangeCauseElection)
+}
+
+func (o multiSlotObserver) ObserveSlotLeaderChangeWithCause(slotID multiraft.SlotID, from, to multiraft.NodeID, cause multiraft.LeaderChangeCause) {
+	for _, observer := range o {
+		if causeObserver, ok := observer.(multiraft.LeaderChangeCauseObserver); ok {
+			causeObserver.ObserveSlotLeaderChangeWithCause(slotID, from, to, cause)
+			continue
+		}
+		if leaderChangeObserver, ok := observer.(multiraft.LeaderChangeObserver); ok {
+			leaderChangeObserver.ObserveSlotLeaderChange(slotID, from, to)
+		}
+	}
+}
+
+func (o multiSlotObserver) SetSlotApplyState(slotID multiraft.SlotID, commitIndex, appliedIndex uint64) {
+	for _, observer := range o {
+		applyObserver, ok := observer.(multiraft.ApplyStateObserver)
+		if ok {
+			applyObserver.SetSlotApplyState(slotID, commitIndex, appliedIndex)
+		}
+	}
+}
+
+func (o multiTransportV2Observer) ObserveTransport(event transportv2.Event) {
+	for _, observer := range o {
+		if observer != nil {
+			observer.ObserveTransport(event)
+		}
+	}
+}
+
+func (o multiControllerRaftObserver) SetStepQueueDepth(depth int, capacity int) {
+	for _, observer := range o {
+		observer.SetStepQueueDepth(depth, capacity)
+	}
+}
+
+func (o multiControllerRaftObserver) ObserveStepEnqueue(result string, d time.Duration) {
+	for _, observer := range o {
+		observer.ObserveStepEnqueue(result, d)
+	}
+}
+
+func (o multiControllerRaftObserver) SetApplyState(commitIndex, appliedIndex uint64) {
+	for _, observer := range o {
+		applyObserver, ok := observer.(cv2.ApplyStateObserver)
+		if ok {
+			applyObserver.SetApplyState(commitIndex, appliedIndex)
+		}
+	}
+}
+
+func (o multiControlSnapshotObserver) ObserveControlSnapshot(snapshot control.Snapshot) {
+	for _, observer := range o {
+		if observer != nil {
+			observer.ObserveControlSnapshot(snapshot)
+		}
+	}
+}
+
+func (o multiSlotReplicaMoveObserver) ObserveSlotReplicaMovePhase(step, result string, d time.Duration) {
+	for _, observer := range o {
+		if observer != nil {
+			observer.ObserveSlotReplicaMovePhase(step, result, d)
+		}
+	}
+}
+
+func (o multiCommitCoordinatorObserver) SetCommitCoordinatorQueueDepth(depth int) {
+	o.SetCommitCoordinatorQueue(depth, 0)
+}
+
+func (o multiCommitCoordinatorObserver) SetCommitCoordinatorQueue(depth int, capacity int) {
+	for _, observer := range o {
+		queueObserver, ok := observer.(messagedb.CommitCoordinatorQueueObserver)
+		if ok {
+			queueObserver.SetCommitCoordinatorQueue(depth, capacity)
+			continue
+		}
+		observer.SetCommitCoordinatorQueueDepth(depth)
+	}
+}
+
+func (o multiCommitCoordinatorObserver) ObserveCommitCoordinatorBatch(event messagedb.CommitCoordinatorBatchEvent) {
+	for _, observer := range o {
+		observer.ObserveCommitCoordinatorBatch(event)
+	}
+}
+
+func (o multiCommitCoordinatorObserver) ObserveCommitCoordinatorRequest(event messagedb.CommitCoordinatorRequestEvent) {
+	for _, observer := range o {
+		requestObserver, ok := observer.(messagedb.CommitCoordinatorRequestObserver)
+		if !ok {
+			continue
+		}
+		requestObserver.ObserveCommitCoordinatorRequest(event)
+	}
+}
+
+func (o multiDeliveryObserver) ObserveFanoutTask(event runtimedelivery.FanoutTaskEvent) {
+	for _, observer := range o {
+		observer.ObserveFanoutTask(event)
+	}
+}
+
+func (o multiDeliveryObserver) ObserveFanoutResolve(event runtimedelivery.FanoutResolveEvent) {
+	for _, observer := range o {
+		observer.ObserveFanoutResolve(event)
+	}
+}
+
+func (o multiDeliveryObserver) ObserveFanoutPush(event runtimedelivery.FanoutPushEvent) {
+	for _, observer := range o {
+		observer.ObserveFanoutPush(event)
+	}
+}
+
+func (o multiDeliveryObserver) ObserveRetry(event runtimedelivery.RetryEvent) {
+	for _, observer := range o {
+		retryObserver, ok := observer.(runtimedelivery.RetryObserver)
+		if ok {
+			retryObserver.ObserveRetry(event)
+		}
+	}
+}
+
+func (o multiDeliveryObserver) ObserveAck(event runtimedelivery.AckEvent) {
+	for _, observer := range o {
+		ackObserver, ok := observer.(runtimedelivery.AckObserver)
+		if ok {
+			ackObserver.ObserveAck(event)
+		}
+	}
+}
+
+func (o multiDeliveryObserver) ObserveManagerAdmission(event runtimedelivery.ManagerAdmissionEvent) {
+	for _, observer := range o {
+		managerObserver, ok := observer.(runtimedelivery.ManagerObserver)
+		if ok {
+			managerObserver.ObserveManagerAdmission(event)
+		}
+	}
+}
+
+func (o multiDeliveryObserver) ObserveManagerTerminal(event runtimedelivery.ManagerTerminalEvent) {
+	for _, observer := range o {
+		managerObserver, ok := observer.(runtimedelivery.ManagerObserver)
+		if ok {
+			managerObserver.ObserveManagerTerminal(event)
+		}
+	}
+}
+
+func channelV2CommitModeLabel(mode ch.CommitMode) string {
+	switch mode {
+	case ch.CommitModeLocal:
+		return "local"
+	case ch.CommitModeQuorum:
+		return "quorum"
+	default:
+		return "unknown"
+	}
+}
+
+func channelV2WorkerKindLabel(kind worker.TaskKind) string {
+	switch kind {
+	case worker.TaskFunc:
+		return "func"
+	case worker.TaskStoreAppend:
+		return "store_append"
+	case worker.TaskStoreApply:
+		return "store_apply"
+	case worker.TaskStoreReadLog:
+		return "store_read_log"
+	case worker.TaskRPCPull:
+		return "rpc_pull"
+	case worker.TaskRPCAck:
+		return "rpc_ack"
+	case worker.TaskRPCNotify:
+		return "rpc_notify"
+	case worker.TaskStoreCheckpoint:
+		return "store_checkpoint"
+	case worker.TaskRPCPullHint:
+		return "rpc_pull_hint"
+	default:
+		return "unknown"
+	}
+}
+
+func channelV2RoleLabel(role ch.Role) string {
+	switch role {
+	case ch.RoleLeader:
+		return "leader"
+	case ch.RoleFollower:
+		return "follower"
+	default:
+		return "unknown"
+	}
+}
+
+func channelV2PullHintReasonLabel(reason transport.PullHintReason) string {
+	switch reason {
+	case transport.PullHintReasonAppend:
+		return "append"
+	case transport.PullHintReasonResume:
+		return "resume"
+	default:
+		return "unknown"
+	}
+}
+
+func channelV2PullHintErrorLabel(err error) string {
+	message := ""
+	if err != nil {
+		message = err.Error()
+	}
+	switch {
+	case err == nil:
+		return "none"
+	case errors.Is(err, ch.ErrNotReady) || strings.Contains(message, ch.ErrNotReady.Error()):
+		return "not_ready"
+	case errors.Is(err, ch.ErrStaleMeta) || strings.Contains(message, ch.ErrStaleMeta.Error()):
+		return "stale_meta"
+	case errors.Is(err, ch.ErrChannelNotFound) || strings.Contains(message, ch.ErrChannelNotFound.Error()):
+		return "channel_not_found"
+	case errors.Is(err, ch.ErrNotLeader) || strings.Contains(message, ch.ErrNotLeader.Error()):
+		return "not_leader"
+	case errors.Is(err, ch.ErrNotReplica) || strings.Contains(message, ch.ErrNotReplica.Error()):
+		return "not_replica"
+	case errors.Is(err, ch.ErrBackpressured) || strings.Contains(message, ch.ErrBackpressured.Error()):
+		return "backpressured"
+	case errors.Is(err, ch.ErrInvalidConfig) || strings.Contains(message, ch.ErrInvalidConfig.Error()):
+		return "invalid_config"
+	case errors.Is(err, ch.ErrClosed) || strings.Contains(message, ch.ErrClosed.Error()):
+		return "closed"
+	case errors.Is(err, context.Canceled) || strings.Contains(message, "context canceled"):
+		return "canceled"
+	case errors.Is(err, context.DeadlineExceeded) || strings.Contains(message, "deadline exceeded"):
+		return "timeout"
+	case strings.Contains(message, "remote error"):
+		return "remote_error"
+	default:
+		return "other"
+	}
+}
+
+func messageAppendErrorLabel(err error) string {
+	message := ""
+	if err != nil {
+		message = err.Error()
+	}
+	switch {
+	case err == nil:
+		return "none"
+	case errors.Is(err, messageusecase.ErrBackpressured) || strings.Contains(message, messageusecase.ErrBackpressured.Error()) || strings.Contains(message, ch.ErrBackpressured.Error()):
+		return "backpressured"
+	case errors.Is(err, messageusecase.ErrRouteNotReady) || strings.Contains(message, messageusecase.ErrRouteNotReady.Error()) || strings.Contains(message, ch.ErrNotReady.Error()):
+		return "route_not_ready"
+	case errors.Is(err, messageusecase.ErrStaleRoute) || strings.Contains(message, messageusecase.ErrStaleRoute.Error()) || strings.Contains(message, ch.ErrStaleMeta.Error()):
+		return "stale_route"
+	case errors.Is(err, messageusecase.ErrNotLeader) || strings.Contains(message, messageusecase.ErrNotLeader.Error()) || strings.Contains(message, ch.ErrNotLeader.Error()):
+		return "not_leader"
+	case errors.Is(err, messageusecase.ErrChannelNotFound) || strings.Contains(message, messageusecase.ErrChannelNotFound.Error()) || strings.Contains(message, ch.ErrChannelNotFound.Error()):
+		return "channel_not_found"
+	case errors.Is(err, messageusecase.ErrAppendResultMissing) || strings.Contains(message, messageusecase.ErrAppendResultMissing.Error()):
+		return "short_result"
+	case errors.Is(err, ch.ErrInvalidConfig) || errors.Is(err, cluster.ErrInvalidConfig) || strings.Contains(message, ch.ErrInvalidConfig.Error()) || strings.Contains(message, cluster.ErrInvalidConfig.Error()):
+		return "invalid_config"
+	case errors.Is(err, ch.ErrClosed) || errors.Is(err, cluster.ErrStopping) || strings.Contains(message, ch.ErrClosed.Error()) || strings.Contains(message, cluster.ErrStopping.Error()):
+		return "closed"
+	case errors.Is(err, ch.ErrTooManyChannels) || strings.Contains(message, ch.ErrTooManyChannels.Error()):
+		return "too_many_channels"
+	case errors.Is(err, cluster.ErrNotStarted) || strings.Contains(message, cluster.ErrNotStarted.Error()):
+		return "not_started"
+	case errors.Is(err, context.Canceled) || strings.Contains(message, "context canceled"):
+		return "canceled"
+	case errors.Is(err, context.DeadlineExceeded) || strings.Contains(message, "deadline exceeded"):
+		return "timeout"
+	case strings.Contains(message, "remote error"):
+		return "remote_error"
+	case errors.Is(err, messageusecase.ErrAppendFailed) || strings.Contains(message, messageusecase.ErrAppendFailed.Error()):
+		return "append_failed"
+	default:
+		return "other"
+	}
+}
+
+var _ accessgateway.Observer = gatewayMetricsObserver{}
+var _ accessgateway.AsyncSendObserver = gatewayMetricsObserver{}
+var _ accessgateway.AsyncAuthObserver = gatewayMetricsObserver{}
+var _ accessgateway.AsyncSendAdmissionObserver = gatewayMetricsObserver{}
+var _ accessgateway.TransportPressureObserver = gatewayMetricsObserver{}
+var _ gatewayadapter.SendackObserver = gatewayMetricsObserver{}
+var _ accessapi.ConversationSyncObserver = conversationSyncMetricsObserver{}
+var _ conversationAuthorityObserver = conversationAuthorityMetricsObserver{}
+var _ reactor.Observer = channelV2MetricsObserver{}
+var _ reactor.MailboxPressureObserver = channelV2MetricsObserver{}
+var _ reactor.AppendQueuePressureObserver = channelV2MetricsObserver{}
+var _ reactor.RuntimeObserver = channelV2MetricsObserver{}
+var _ reactor.ReplicationObserver = channelV2MetricsObserver{}
+var _ reactor.ReplicationStageObserver = channelV2MetricsObserver{}
+var _ reactor.PullHintResultObserver = channelV2MetricsObserver{}
+var _ reactor.PendingMetaObserver = channelV2MetricsObserver{}
+var _ reactor.AppendWaitCancelObserver = channelV2MetricsObserver{}
+var _ worker.InflightObserver = channelV2MetricsObserver{}
+var _ worker.QueueCapacityObserver = channelV2MetricsObserver{}
+var _ worker.AdmissionObserver = channelV2MetricsObserver{}
+var _ worker.WaitObserver = channelV2MetricsObserver{}
+var _ worker.TaskObserver = channelV2MetricsObserver{}
+var _ worker.AntsPoolObserver = channelV2MetricsObserver{}
+var _ clusterchannels.MetaCacheObserver = channelV2MetricsObserver{}
+var _ clusterchannels.AppendStageObserver = channelV2MetricsObserver{}
+var _ multiraft.SchedulerObserver = slotMetricsObserver{}
+var _ multiraft.ProposalObserver = slotMetricsObserver{}
+var _ multiraft.ProposalAdmissionObserver = slotMetricsObserver{}
+var _ multiraft.ApplyStateObserver = slotMetricsObserver{}
+var _ transportv2.Observer = (*transportV2MetricsObserver)(nil)
+var _ cv2.RaftObserver = controllerRaftMetricsObserver{}
+var _ cv2.ApplyStateObserver = controllerRaftMetricsObserver{}
+var _ reactor.Observer = multiChannelV2Observer{}
+var _ reactor.MailboxPressureObserver = multiChannelV2Observer{}
+var _ worker.AntsPoolObserver = multiChannelV2Observer{}
+var _ reactor.AppendQueuePressureObserver = multiChannelV2Observer{}
+var _ reactor.RuntimeObserver = multiChannelV2Observer{}
+var _ reactor.ReplicationObserver = multiChannelV2Observer{}
+var _ reactor.ReplicationStageObserver = multiChannelV2Observer{}
+var _ reactor.PullHintResultObserver = multiChannelV2Observer{}
+var _ reactor.PendingMetaObserver = multiChannelV2Observer{}
+var _ transportv2.Observer = multiTransportV2Observer{}
+var _ accessgateway.SessionErrorObserver = multiGatewayObserver{}
+var _ reactor.AppendWaitCancelObserver = multiChannelV2Observer{}
+var _ worker.InflightObserver = multiChannelV2Observer{}
+var _ worker.QueueCapacityObserver = multiChannelV2Observer{}
+var _ worker.AdmissionObserver = multiChannelV2Observer{}
+var _ worker.WaitObserver = multiChannelV2Observer{}
+var _ worker.TaskObserver = multiChannelV2Observer{}
+var _ clusterchannels.MetaCacheObserver = multiChannelV2Observer{}
+var _ clusterchannels.AppendStageObserver = multiChannelV2Observer{}
+var _ multiraft.SchedulerObserver = multiSlotObserver{}
+var _ multiraft.ProposalObserver = multiSlotObserver{}
+var _ multiraft.ProposalAdmissionObserver = multiSlotObserver{}
+var _ multiraft.ApplyStateObserver = multiSlotObserver{}
+var _ cv2.RaftObserver = multiControllerRaftObserver{}
+var _ cv2.ApplyStateObserver = multiControllerRaftObserver{}
+var _ messagedb.CommitCoordinatorObserver = storageCommitMetricsObserver{}
+var _ messagedb.CommitCoordinatorQueueObserver = storageCommitMetricsObserver{}
+var _ messagedb.CommitCoordinatorRequestObserver = storageCommitMetricsObserver{}
+var _ messagedb.CommitCoordinatorObserver = multiCommitCoordinatorObserver{}
+var _ messagedb.CommitCoordinatorQueueObserver = multiCommitCoordinatorObserver{}
+var _ messagedb.CommitCoordinatorRequestObserver = multiCommitCoordinatorObserver{}
+var _ runtimedelivery.Observer = multiDeliveryObserver{}
+var _ runtimedelivery.RetryObserver = multiDeliveryObserver{}
+var _ runtimedelivery.AckObserver = deliveryMetricsObserver{}
+var _ runtimedelivery.AckObserver = multiDeliveryObserver{}
+var _ runtimedelivery.ManagerObserver = multiDeliveryObserver{}

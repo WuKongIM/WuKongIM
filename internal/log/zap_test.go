@@ -6,11 +6,11 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
-	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
 
@@ -23,52 +23,35 @@ func TestNewLoggerWritesNamedAndContextualFields(t *testing.T) {
 		Console: false,
 		Format:  "json",
 	})
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("NewLogger() error = %v", err)
+	}
 
 	child := logger.Named("cluster").With(
 		wklog.String("peerID", "node-2"),
 		wklog.Int("attempt", 3),
 	)
 	child.Info("connecting")
-	require.NoError(t, logger.Sync())
+	if err := logger.Sync(); err != nil {
+		t.Fatalf("Sync() error = %v", err)
+	}
 
 	entry := readSingleJSONLogEntry(t, filepath.Join(dir, "app.log"))
-	require.Equal(t, "INFO", entry["level"])
-	require.Equal(t, "cluster", entry["module"])
-	require.Equal(t, "connecting", entry["msg"])
-	require.Equal(t, "node-2", entry["peerID"])
-	require.EqualValues(t, 3, entry["attempt"])
-	require.Contains(t, entry["caller"], "zap_test.go")
-}
-
-func TestNewLoggerWritesNestedModuleAndSemanticFields(t *testing.T) {
-	dir := t.TempDir()
-
-	logger, err := NewLogger(Config{
-		Dir:     dir,
-		Level:   "debug",
-		Console: false,
-		Format:  "json",
-	})
-	require.NoError(t, err)
-
-	logger.Named("message").Named("send").Error(
-		"persist committed message failed",
-		wklog.Event("message.send.persist.failed"),
-		wklog.ChannelID("u1@u2"),
-		wklog.MessageID(88),
-		wklog.Error(errors.New("boom")),
-	)
-	require.NoError(t, logger.Sync())
-
-	entry := readSingleJSONLogEntry(t, filepath.Join(dir, "app.log"))
-	require.Equal(t, "ERROR", entry["level"])
-	require.Equal(t, "message.send", entry["module"])
-	require.Equal(t, "persist committed message failed", entry["msg"])
-	require.Equal(t, "message.send.persist.failed", entry["event"])
-	require.Equal(t, "u1@u2", entry["channelID"])
-	require.EqualValues(t, 88, entry["messageID"])
-	require.Equal(t, "boom", entry["error"])
+	if entry["level"] != "INFO" {
+		t.Fatalf("level = %v, want INFO", entry["level"])
+	}
+	if entry["module"] != "cluster" {
+		t.Fatalf("module = %v, want cluster", entry["module"])
+	}
+	if entry["msg"] != "connecting" {
+		t.Fatalf("msg = %v, want connecting", entry["msg"])
+	}
+	if entry["peerID"] != "node-2" {
+		t.Fatalf("peerID = %v, want node-2", entry["peerID"])
+	}
+	if entry["attempt"] != float64(3) {
+		t.Fatalf("attempt = %v, want 3", entry["attempt"])
+	}
 }
 
 func TestNewLoggerRoutesLevelsToSeparateFiles(t *testing.T) {
@@ -80,40 +63,44 @@ func TestNewLoggerRoutesLevelsToSeparateFiles(t *testing.T) {
 		Console: false,
 		Format:  "json",
 	})
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("NewLogger() error = %v", err)
+	}
 
 	errBoom := errors.New("boom")
 	logger.Debug("debugging", wklog.Bool("ready", true))
 	logger.Info("starting", wklog.Uint64("nodeID", 1))
 	logger.Warn("slow", wklog.String("component", "delivery"))
 	logger.Error("failed", wklog.Error(errBoom))
-	require.NoError(t, logger.Sync())
+	if err := logger.Sync(); err != nil {
+		t.Fatalf("Sync() error = %v", err)
+	}
 
 	debugContents := readLogFile(t, filepath.Join(dir, "debug.log"))
-	require.Contains(t, debugContents, `"msg":"debugging"`)
-	require.Contains(t, debugContents, `"msg":"starting"`)
-	require.Contains(t, debugContents, `"msg":"slow"`)
-	require.Contains(t, debugContents, `"msg":"failed"`)
+	assertContains(t, debugContents, `"msg":"debugging"`)
+	assertContains(t, debugContents, `"msg":"starting"`)
+	assertContains(t, debugContents, `"msg":"slow"`)
+	assertContains(t, debugContents, `"msg":"failed"`)
 
 	appContents := readLogFile(t, filepath.Join(dir, "app.log"))
-	require.NotContains(t, appContents, `"msg":"debugging"`)
-	require.Contains(t, appContents, `"msg":"starting"`)
-	require.Contains(t, appContents, `"msg":"slow"`)
-	require.Contains(t, appContents, `"msg":"failed"`)
+	assertNotContains(t, appContents, `"msg":"debugging"`)
+	assertContains(t, appContents, `"msg":"starting"`)
+	assertContains(t, appContents, `"msg":"slow"`)
+	assertContains(t, appContents, `"msg":"failed"`)
 
 	warnContents := readLogFile(t, filepath.Join(dir, "warn.log"))
-	require.NotContains(t, warnContents, `"msg":"debugging"`)
-	require.NotContains(t, warnContents, `"msg":"starting"`)
-	require.Contains(t, warnContents, `"msg":"slow"`)
-	require.NotContains(t, warnContents, `"msg":"failed"`)
-	require.Contains(t, warnContents, `"component":"delivery"`)
+	assertNotContains(t, warnContents, `"msg":"debugging"`)
+	assertNotContains(t, warnContents, `"msg":"starting"`)
+	assertContains(t, warnContents, `"msg":"slow"`)
+	assertNotContains(t, warnContents, `"msg":"failed"`)
+	assertContains(t, warnContents, `"component":"delivery"`)
 
 	errorContents := readLogFile(t, filepath.Join(dir, "error.log"))
-	require.NotContains(t, errorContents, `"msg":"debugging"`)
-	require.NotContains(t, errorContents, `"msg":"starting"`)
-	require.NotContains(t, errorContents, `"msg":"slow"`)
-	require.Contains(t, errorContents, `"msg":"failed"`)
-	require.Contains(t, errorContents, `"error":"boom"`)
+	assertNotContains(t, errorContents, `"msg":"debugging"`)
+	assertNotContains(t, errorContents, `"msg":"starting"`)
+	assertNotContains(t, errorContents, `"msg":"slow"`)
+	assertContains(t, errorContents, `"msg":"failed"`)
+	assertContains(t, errorContents, `"error":"boom"`)
 }
 
 func TestDisabledDebugSkipsFieldConversion(t *testing.T) {
@@ -123,12 +110,19 @@ func TestDisabledDebugSkipsFieldConversion(t *testing.T) {
 		Console: false,
 		Format:  "json",
 	})
-	require.NoError(t, err)
-	require.False(t, wklog.DebugEnabled(logger))
+	if err != nil {
+		t.Fatalf("NewLogger() error = %v", err)
+	}
+	if wklog.DebugEnabled(logger) {
+		t.Fatal("DebugEnabled() = true, want false")
+	}
 
-	require.NotPanics(t, func() {
-		logger.Debug("skipped", wklog.Field{Key: "bad", Type: wklog.IntType, Value: "not-int"})
-	})
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			t.Fatalf("Debug() panicked for disabled debug field conversion: %v", recovered)
+		}
+	}()
+	logger.Debug("skipped", wklog.Field{Key: "bad", Type: wklog.IntType, Value: "not-int"})
 }
 
 func TestToZapFieldsConvertsAllSupportedTypes(t *testing.T) {
@@ -147,31 +141,57 @@ func TestToZapFieldsConvertsAllSupportedTypes(t *testing.T) {
 		wklog.Any("any", map[string]int{"n": 1}),
 	})
 
-	require.Len(t, fields, 9)
-	enc := zap.NewExample().With(fields...).Core()
-	require.NotNil(t, enc)
+	if len(fields) != 9 {
+		t.Fatalf("converted field count = %d, want 9", len(fields))
+	}
+	if enc := zap.NewExample().With(fields...).Core(); enc == nil {
+		t.Fatal("zap core is nil after field conversion")
+	}
 }
 
 func readSingleJSONLogEntry(t *testing.T, path string) map[string]any {
 	t.Helper()
 
 	file, err := os.Open(path)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("Open(%s) error = %v", path, err)
+	}
 	defer file.Close()
 
 	scanner := bufio.NewScanner(file)
-	require.True(t, scanner.Scan(), "expected at least one log line")
+	if !scanner.Scan() {
+		t.Fatalf("expected at least one log line in %s", path)
+	}
 
 	var entry map[string]any
-	require.NoError(t, json.Unmarshal(scanner.Bytes(), &entry))
-	require.NoError(t, scanner.Err())
+	if err := json.Unmarshal(scanner.Bytes(), &entry); err != nil {
+		t.Fatalf("Unmarshal() error = %v", err)
+	}
+	if err := scanner.Err(); err != nil {
+		t.Fatalf("scanner error = %v", err)
+	}
 	return entry
 }
 
 func readLogFile(t *testing.T, path string) string {
 	t.Helper()
-
 	data, err := os.ReadFile(path)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("ReadFile(%s) error = %v", path, err)
+	}
 	return string(data)
+}
+
+func assertContains(t *testing.T, haystack, needle string) {
+	t.Helper()
+	if !strings.Contains(haystack, needle) {
+		t.Fatalf("expected log to contain %q:\n%s", needle, haystack)
+	}
+}
+
+func assertNotContains(t *testing.T, haystack, needle string) {
+	t.Helper()
+	if strings.Contains(haystack, needle) {
+		t.Fatalf("expected log not to contain %q:\n%s", needle, haystack)
+	}
 }

@@ -23,7 +23,7 @@ This domain covers black-box message delivery scenarios.
 ## Maintenance Rules
 
 - New-architecture message scenarios live under `test/e2ev2/message` and start
-  real `cmd/wukongim` processes while covering `internalv2` behavior.
+  real `cmd/wukongim` processes while covering `internal` behavior.
 - When adding a new message scenario, create `test/e2e/message/<scenario>/`.
 - Give each scenario its own `AGENTS.md` and one primary
   `<scenario>_test.go`.

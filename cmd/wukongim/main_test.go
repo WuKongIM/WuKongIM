@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/internalv2/app"
+	"github.com/WuKongIM/WuKongIM/internal/app"
 )
 
 func TestRunStartsAndStopsAfterContextCancel(t *testing.T) {
@@ -186,16 +186,16 @@ func TestRunStopTimeoutUsesConfigThenDefault(t *testing.T) {
 	}
 }
 
-func TestImportBoundaryUsesOnlyInternalV2App(t *testing.T) {
+func TestImportBoundaryUsesCanonicalInternalApp(t *testing.T) {
 	files, err := filepath.Glob("*.go")
 	if err != nil {
 		t.Fatalf("Glob(): %v", err)
 	}
 	fset := token.NewFileSet()
-	legacyImport := strings.Join([]string{"github.com/WuKongIM/WuKongIM/internal", "app"}, "/")
-	allowedV2Import := "github.com/WuKongIM/WuKongIM/internalv2/app"
-	internalV2Prefix := "github.com/WuKongIM/WuKongIM/internalv2/"
-	foundV2 := false
+	canonicalImport := strings.Join([]string{"github.com/WuKongIM/WuKongIM/internal", "app"}, "/")
+	internalV2Prefix := strings.Join([]string{"github.com/WuKongIM/WuKongIM", "internalv2"}, "/") + "/"
+	internalLegacyPrefix := "github.com/WuKongIM/WuKongIM/internal/legacy/"
+	foundCanonical := false
 	for _, path := range files {
 		if strings.HasSuffix(path, "_test.go") {
 			continue
@@ -209,19 +209,19 @@ func TestImportBoundaryUsesOnlyInternalV2App(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Unquote(%s): %v", spec.Path.Value, err)
 			}
-			if importPath == legacyImport {
-				t.Fatalf("%s imports legacy app composition root", path)
+			if strings.HasPrefix(importPath, internalV2Prefix) {
+				t.Fatalf("%s imports v2-suffixed internal package %q", path, importPath)
 			}
-			if strings.HasPrefix(importPath, internalV2Prefix) && importPath != allowedV2Import {
-				t.Fatalf("%s imports disallowed internalv2 package %q", path, importPath)
+			if strings.HasPrefix(importPath, internalLegacyPrefix) {
+				t.Fatalf("%s imports legacy internal package %q", path, importPath)
 			}
-			if importPath == allowedV2Import {
-				foundV2 = true
+			if importPath == canonicalImport {
+				foundCanonical = true
 			}
 		}
 	}
-	if !foundV2 {
-		t.Fatal("cmd/wukongim production files do not import internalv2/app")
+	if !foundCanonical {
+		t.Fatal("cmd/wukongim production files do not import canonical internal/app")
 	}
 }
 

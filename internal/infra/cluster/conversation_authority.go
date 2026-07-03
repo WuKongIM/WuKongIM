@@ -1,0 +1,430 @@
+package cluster
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"time"
+
+	accessnode "github.com/WuKongIM/WuKongIM/internal/access/node"
+	"github.com/WuKongIM/WuKongIM/internal/runtime/conversationactive"
+	conversationusecase "github.com/WuKongIM/WuKongIM/internal/usecase/conversation"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/propose"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+)
+
+// ConversationAuthorityNode is the cluster surface needed by authority routing.
+type ConversationAuthorityNode interface {
+	NodeID() uint64
+	RouteKey(string) (cluster.Route, error)
+	CallRPC(context.Context, uint64, uint8, []byte) ([]byte, error)
+	RegisterRPC(uint8, cluster.NodeRPCHandler)
+	WatchRouteAuthorities() <-chan cluster.RouteAuthorityEvent
+}
+
+// ConversationAuthorityClient routes conversation authority operations to UID leaders.
+type ConversationAuthorityClient struct {
+	node   ConversationAuthorityNode
+	local  accessnode.ConversationAuthority
+	remote *accessnode.Client
+
+	routeRetryBackoff time.Duration
+	routeRetrySleep   func(context.Context, time.Duration) error
+}
+
+var _ conversationusecase.Store = (*ConversationAuthorityClient)(nil)
+
+const (
+	defaultConversationRouteRetryAttempts = 100
+	conversationAdmissionRetryAttempts    = 3
+	defaultConversationRouteRetryBackoff  = 5 * time.Millisecond
+)
+
+// NewConversationAuthorityClient creates a cluster-routed conversation authority client.
+func NewConversationAuthorityClient(node ConversationAuthorityNode, local accessnode.ConversationAuthority) *ConversationAuthorityClient {
+	return &ConversationAuthorityClient{
+		node:              node,
+		local:             local,
+		remote:            accessnode.NewClient(node),
+		routeRetryBackoff: defaultConversationRouteRetryBackoff,
+	}
+}
+
+// AdmitPatches groups active patches by exact authority target and forwards each group.
+func (c *ConversationAuthorityClient) AdmitPatches(ctx context.Context, patches []conversationusecase.ActivePatch) error {
+	if len(patches) == 0 {
+		return nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	groups, err := c.groupByTarget(patches)
+	if err != nil {
+		return err
+	}
+	for _, group := range groups {
+		authority, err := c.authorityForTarget(group.target)
+		if err != nil {
+			return err
+		}
+		if err := authority.AdmitPatches(ctx, group.target, group.patches); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// AdmitActiveBatch routes a channelappend active batch to each affected UID authority.
+func (c *ConversationAuthorityClient) AdmitActiveBatch(ctx context.Context, batch conversationactive.ActiveBatch) error {
+	if batch.SenderUID == "" && len(batch.Recipients) == 0 {
+		return nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
+	pending := []conversationactive.ActiveBatch{batch}
+	for attempt := 0; attempt < conversationAdmissionRetryAttempts; attempt++ {
+		groups, err := c.groupActiveBatchesByTarget(pending)
+		if err != nil {
+			if attempt+1 < conversationAdmissionRetryAttempts && shouldRetryConversationRouteLookup(err) {
+				if sleepErr := c.sleepBeforeRouteRetry(ctx); sleepErr != nil {
+					return sleepErr
+				}
+				continue
+			}
+			return err
+		}
+		failed := make([]conversationactive.ActiveBatch, 0)
+		for _, group := range groups {
+			if err := c.admitActiveBatchGroup(ctx, group); err != nil {
+				if attempt+1 < conversationAdmissionRetryAttempts && shouldRetryConversationRoute(err) {
+					failed = append(failed, group.batch)
+					continue
+				}
+				return err
+			}
+		}
+		if len(failed) == 0 {
+			return nil
+		}
+		if attempt+1 < conversationAdmissionRetryAttempts {
+			if sleepErr := c.sleepBeforeRouteRetry(ctx); sleepErr != nil {
+				return sleepErr
+			}
+			pending = failed
+			continue
+		}
+	}
+	return conversationusecase.ErrRouteNotReady
+}
+
+// ListConversationActiveView reads one UID's active view from the current authority leader.
+func (c *ConversationAuthorityClient) ListConversationActiveView(ctx context.Context, kind metadb.ConversationKind, uid string, after metadb.ConversationActiveCursor, limit int) (conversationusecase.ActiveViewPage, error) {
+	var page conversationusecase.ActiveViewPage
+	err := c.withFreshTarget(ctx, uid, func(target conversationusecase.RouteTarget) error {
+		authority, err := c.authorityForTarget(target)
+		if err != nil {
+			return err
+		}
+		page, err = authority.ListConversationActiveViewForTarget(ctx, target, kind, uid, after, limit)
+		return err
+	})
+	if err != nil {
+		return conversationusecase.ActiveViewPage{}, err
+	}
+	return page, nil
+}
+
+// DrainAuthority drains one exact authority target for handoff.
+func (c *ConversationAuthorityClient) DrainAuthority(ctx context.Context, target conversationusecase.RouteTarget) (string, error) {
+	authority, err := c.authorityForTarget(target)
+	if err != nil {
+		return "", err
+	}
+	return authority.DrainAuthority(ctx, target)
+}
+
+type conversationAuthorityPatchGroup struct {
+	target  conversationusecase.RouteTarget
+	patches []conversationusecase.ActivePatch
+}
+
+type conversationAuthorityActiveBatchGroup struct {
+	target conversationusecase.RouteTarget
+	batch  conversationactive.ActiveBatch
+}
+
+func (c *ConversationAuthorityClient) groupByTarget(patches []conversationusecase.ActivePatch) ([]conversationAuthorityPatchGroup, error) {
+	groupIndex := make(map[conversationusecase.RouteTarget]int)
+	groups := make([]conversationAuthorityPatchGroup, 0, len(patches))
+	for _, patch := range patches {
+		target, err := c.resolve(patch.UID)
+		if err != nil {
+			return nil, err
+		}
+		if idx, ok := groupIndex[target]; ok {
+			groups[idx].patches = append(groups[idx].patches, patch)
+			continue
+		}
+		groupIndex[target] = len(groups)
+		groups = append(groups, conversationAuthorityPatchGroup{
+			target:  target,
+			patches: []conversationusecase.ActivePatch{patch},
+		})
+	}
+	return groups, nil
+}
+
+func (c *ConversationAuthorityClient) groupActiveBatchByTarget(batch conversationactive.ActiveBatch) ([]conversationAuthorityActiveBatchGroup, error) {
+	groupIndex := make(map[conversationusecase.RouteTarget]int)
+	groups := make([]conversationAuthorityActiveBatchGroup, 0, len(batch.Recipients)+1)
+	routeCache := make(map[string]conversationusecase.RouteTarget, len(batch.Recipients)+1)
+	resolveUID := func(uid string) (conversationusecase.RouteTarget, error) {
+		if target, ok := routeCache[uid]; ok {
+			return target, nil
+		}
+		target, err := c.resolve(uid)
+		if err != nil {
+			return conversationusecase.RouteTarget{}, err
+		}
+		routeCache[uid] = target
+		return target, nil
+	}
+	if batch.SenderUID != "" {
+		target, err := resolveUID(batch.SenderUID)
+		if err != nil {
+			return nil, err
+		}
+		idx := ensureConversationActiveBatchGroup(&groups, groupIndex, target, batch)
+		groups[idx].batch.SenderUID = batch.SenderUID
+	}
+	for _, recipient := range coalesceConversationActiveRecipients(batch.Recipients) {
+		target, err := resolveUID(recipient.UID)
+		if err != nil {
+			return nil, err
+		}
+		idx := ensureConversationActiveBatchGroup(&groups, groupIndex, target, batch)
+		groups[idx].batch.Recipients = append(groups[idx].batch.Recipients, recipient)
+	}
+	return groups, nil
+}
+
+func (c *ConversationAuthorityClient) groupActiveBatchesByTarget(batches []conversationactive.ActiveBatch) ([]conversationAuthorityActiveBatchGroup, error) {
+	groups := make([]conversationAuthorityActiveBatchGroup, 0, len(batches))
+	for _, batch := range batches {
+		batchGroups, err := c.groupActiveBatchByTarget(batch)
+		if err != nil {
+			return nil, err
+		}
+		groups = append(groups, batchGroups...)
+	}
+	return groups, nil
+}
+
+func coalesceConversationActiveRecipients(recipients []conversationactive.ActiveEntry) []conversationactive.ActiveEntry {
+	recipientIndex := make(map[string]int, len(recipients))
+	coalesced := make([]conversationactive.ActiveEntry, 0, len(recipients))
+	for _, recipient := range recipients {
+		if recipient.UID == "" {
+			continue
+		}
+		if idx, ok := recipientIndex[recipient.UID]; ok {
+			coalesced[idx].IsSender = coalesced[idx].IsSender || recipient.IsSender
+			continue
+		}
+		recipientIndex[recipient.UID] = len(coalesced)
+		coalesced = append(coalesced, recipient)
+	}
+	return coalesced
+}
+
+func ensureConversationActiveBatchGroup(groups *[]conversationAuthorityActiveBatchGroup, groupIndex map[conversationusecase.RouteTarget]int, target conversationusecase.RouteTarget, source conversationactive.ActiveBatch) int {
+	if idx, ok := groupIndex[target]; ok {
+		return idx
+	}
+	groupIndex[target] = len(*groups)
+	*groups = append(*groups, conversationAuthorityActiveBatchGroup{
+		target: target,
+		batch: conversationactive.ActiveBatch{
+			Kind:        source.Kind,
+			ChannelID:   source.ChannelID,
+			ChannelType: source.ChannelType,
+			MessageSeq:  source.MessageSeq,
+			ActiveAtMS:  source.ActiveAtMS,
+		},
+	})
+	return len(*groups) - 1
+}
+
+func (c *ConversationAuthorityClient) admitActiveBatchGroup(ctx context.Context, group conversationAuthorityActiveBatchGroup) error {
+	authority, err := c.authorityForTarget(group.target)
+	if err != nil {
+		return err
+	}
+	return authority.AdmitActiveBatch(ctx, group.target, group.batch)
+}
+
+func (c *ConversationAuthorityClient) withFreshTarget(ctx context.Context, uid string, call func(conversationusecase.RouteTarget) error) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	for attempt := 0; attempt < defaultConversationRouteRetryAttempts; attempt++ {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		target, err := c.resolve(uid)
+		if err != nil {
+			if attempt+1 < defaultConversationRouteRetryAttempts && shouldRetryConversationRouteLookup(err) {
+				if sleepErr := c.sleepBeforeRouteRetry(ctx); sleepErr != nil {
+					return sleepErr
+				}
+				continue
+			}
+			return err
+		}
+		if err := call(target); err != nil {
+			if attempt+1 < defaultConversationRouteRetryAttempts && shouldRetryConversationRoute(err) {
+				if sleepErr := c.sleepBeforeRouteRetry(ctx); sleepErr != nil {
+					return sleepErr
+				}
+				continue
+			}
+			return err
+		}
+		return nil
+	}
+	return conversationusecase.ErrRouteNotReady
+}
+
+func (c *ConversationAuthorityClient) resolve(uid string) (conversationusecase.RouteTarget, error) {
+	if c == nil || c.node == nil {
+		return conversationusecase.RouteTarget{}, conversationusecase.ErrRouteNotReady
+	}
+	route, err := c.node.RouteKey(uid)
+	if err != nil {
+		return conversationusecase.RouteTarget{}, mapConversationRouteError(err)
+	}
+	if route.Leader == 0 {
+		return conversationusecase.RouteTarget{}, fmt.Errorf("%w: route leader is unknown", conversationusecase.ErrRouteNotReady)
+	}
+	return conversationRouteTargetFromClusterRoute(route), nil
+}
+
+func (c *ConversationAuthorityClient) authorityForTarget(target conversationusecase.RouteTarget) (accessnode.ConversationAuthority, error) {
+	if c == nil {
+		return nil, conversationusecase.ErrRouteNotReady
+	}
+	if c.node == nil {
+		return nil, conversationusecase.ErrRouteNotReady
+	}
+	if target.LeaderNodeID == c.node.NodeID() {
+		if c.local == nil {
+			return nil, conversationusecase.ErrRouteNotReady
+		}
+		return c.local, nil
+	}
+	if c.remote == nil {
+		return nil, conversationusecase.ErrRouteNotReady
+	}
+	return remoteConversationAuthority{client: c.remote, nodeID: target.LeaderNodeID}, nil
+}
+
+func (c *ConversationAuthorityClient) sleepBeforeRouteRetry(ctx context.Context) error {
+	if c == nil || c.routeRetryBackoff <= 0 {
+		return nil
+	}
+	if c.routeRetrySleep != nil {
+		return c.routeRetrySleep(ctx, c.routeRetryBackoff)
+	}
+	timer := time.NewTimer(c.routeRetryBackoff)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
+}
+
+func conversationRouteTargetFromClusterRoute(route cluster.Route) conversationusecase.RouteTarget {
+	return conversationusecase.RouteTarget{
+		HashSlot:       route.HashSlot,
+		SlotID:         route.SlotID,
+		LeaderNodeID:   route.Leader,
+		LeaderTerm:     route.LeaderTerm,
+		ConfigEpoch:    route.ConfigEpoch,
+		RouteRevision:  route.Revision,
+		AuthorityEpoch: route.AuthorityEpoch,
+	}
+}
+
+func shouldRetryConversationRoute(err error) bool {
+	return errors.Is(err, conversationusecase.ErrStaleRoute) ||
+		errors.Is(err, conversationusecase.ErrNotLeader) ||
+		errors.Is(err, conversationusecase.ErrRouteNotReady)
+}
+
+func shouldRetryConversationRouteLookup(err error) bool {
+	return shouldRetryConversationRoute(err)
+}
+
+func mapConversationRouteError(err error) error {
+	if err == nil {
+		return nil
+	}
+	switch {
+	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
+		return err
+	case errors.Is(err, cluster.ErrRouteNotReady), errors.Is(err, cluster.ErrNoSlotLeader):
+		return fmt.Errorf("%w: %w", conversationusecase.ErrRouteNotReady, err)
+	case errors.Is(err, cluster.ErrNotLeader):
+		return fmt.Errorf("%w: %w", conversationusecase.ErrNotLeader, err)
+	case errors.Is(err, propose.ErrProposalBackpressure), errors.Is(err, propose.ErrBackgroundProposalThrottled):
+		return fmt.Errorf("%w: %w", conversationusecase.ErrRouteNotReady, err)
+	default:
+		return err
+	}
+}
+
+type remoteConversationAuthority struct {
+	client *accessnode.Client
+	nodeID uint64
+}
+
+func (a remoteConversationAuthority) AdmitPatches(ctx context.Context, target conversationusecase.RouteTarget, patches []conversationusecase.ActivePatch) error {
+	if a.client == nil || a.nodeID == 0 {
+		return conversationusecase.ErrRouteNotReady
+	}
+	return mapConversationRouteError(a.client.AdmitConversationPatches(ctx, a.nodeID, target, patches))
+}
+
+func (a remoteConversationAuthority) AdmitActiveBatch(ctx context.Context, target conversationusecase.RouteTarget, batch conversationactive.ActiveBatch) error {
+	if a.client == nil || a.nodeID == 0 {
+		return conversationusecase.ErrRouteNotReady
+	}
+	return mapConversationRouteError(a.client.AdmitConversationActiveBatch(ctx, a.nodeID, target, batch))
+}
+
+func (a remoteConversationAuthority) ListConversationActiveViewForTarget(ctx context.Context, target conversationusecase.RouteTarget, kind metadb.ConversationKind, uid string, after metadb.ConversationActiveCursor, limit int) (conversationusecase.ActiveViewPage, error) {
+	if a.client == nil || a.nodeID == 0 {
+		return conversationusecase.ActiveViewPage{}, conversationusecase.ErrRouteNotReady
+	}
+	page, err := a.client.ListConversations(ctx, a.nodeID, target, kind, uid, after, limit)
+	return page, mapConversationRouteError(err)
+}
+
+func (a remoteConversationAuthority) DrainAuthority(ctx context.Context, target conversationusecase.RouteTarget) (string, error) {
+	if a.client == nil || a.nodeID == 0 {
+		return "", conversationusecase.ErrRouteNotReady
+	}
+	result, err := a.client.DrainConversationAuthority(ctx, a.nodeID, target)
+	return result, mapConversationRouteError(err)
+}

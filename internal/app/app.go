@@ -2,268 +2,818 @@ package app
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/binary"
+	"net"
+	"net/http"
+	"net/url"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	accessapi "github.com/WuKongIM/WuKongIM/internal/access/api"
 	accessgateway "github.com/WuKongIM/WuKongIM/internal/access/gateway"
-	accessmanager "github.com/WuKongIM/WuKongIM/internal/access/manager"
-	accessnode "github.com/WuKongIM/WuKongIM/internal/access/node"
-	accessplugin "github.com/WuKongIM/WuKongIM/internal/access/plugin"
-	applifecycle "github.com/WuKongIM/WuKongIM/internal/app/lifecycle"
+	clusterinfra "github.com/WuKongIM/WuKongIM/internal/infra/cluster"
 	obsdiagnostics "github.com/WuKongIM/WuKongIM/internal/observability/diagnostics"
-	channelmigrationruntime "github.com/WuKongIM/WuKongIM/internal/runtime/channelmigration"
-	runtimechannelplane "github.com/WuKongIM/WuKongIM/internal/runtime/channelplane"
-	appretention "github.com/WuKongIM/WuKongIM/internal/runtime/channelretention"
-	deliveryruntime "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
+	"github.com/WuKongIM/WuKongIM/internal/runtime/channelappend"
+	runtimedelivery "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
+	authoritypresence "github.com/WuKongIM/WuKongIM/internal/runtime/presence"
 	channelusecase "github.com/WuKongIM/WuKongIM/internal/usecase/channel"
-	"github.com/WuKongIM/WuKongIM/internal/usecase/cmdsync"
+	cmdsyncusecase "github.com/WuKongIM/WuKongIM/internal/usecase/cmdsync"
 	conversationusecase "github.com/WuKongIM/WuKongIM/internal/usecase/conversation"
 	deliveryusecase "github.com/WuKongIM/WuKongIM/internal/usecase/delivery"
-	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	pluginusecase "github.com/WuKongIM/WuKongIM/internal/usecase/plugin"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
 	userusecase "github.com/WuKongIM/WuKongIM/internal/usecase/user"
-	channelstore "github.com/WuKongIM/WuKongIM/pkg/db/message"
-	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/gateway"
-	"github.com/WuKongIM/WuKongIM/pkg/legacy/channel"
-	channelreplica "github.com/WuKongIM/WuKongIM/pkg/legacy/channel/replica"
-	channelruntime "github.com/WuKongIM/WuKongIM/pkg/legacy/channel/runtime"
-	channeltransport "github.com/WuKongIM/WuKongIM/pkg/legacy/channel/transport"
-	raftcluster "github.com/WuKongIM/WuKongIM/pkg/legacy/cluster"
 	obsmetrics "github.com/WuKongIM/WuKongIM/pkg/metrics"
-	pluginhost "github.com/WuKongIM/WuKongIM/pkg/plugin/pluginhost"
-	raftstorage "github.com/WuKongIM/WuKongIM/pkg/raftlog"
-	metastore "github.com/WuKongIM/WuKongIM/pkg/slot/proxy"
-	"github.com/WuKongIM/WuKongIM/pkg/transport"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"github.com/bwmarrin/snowflake"
 )
 
+// ClusterRuntime is the cluster lifecycle surface used by the app root.
+type ClusterRuntime interface {
+	Start(context.Context) error
+	Stop(context.Context) error
+}
+
+// GatewayRuntime is the gateway lifecycle surface used by the app root.
+type GatewayRuntime interface {
+	Start() error
+	Stop() error
+}
+
+// APIRuntime is the HTTP API lifecycle surface used by the app root.
+type APIRuntime interface {
+	Start() error
+	Stop(context.Context) error
+}
+
+// ManagerRuntime is the manager HTTP lifecycle surface used by the app root.
+type ManagerRuntime interface {
+	Start() error
+	Stop(context.Context) error
+}
+
+// WorkerRuntime is a background app worker managed inside the lifecycle.
+type WorkerRuntime interface {
+	Start(context.Context) error
+	Stop(context.Context) error
+}
+
+type seedJoinRuntime interface {
+	WorkerRuntime
+	WaitForAdmission(context.Context) error
+}
+
+// Option customizes App construction.
+type Option func(*App)
+
+// App is the internal composition root for cluster, message, and gateway runtimes.
 type App struct {
-	cfg       Config
-	logger    wklog.Logger
-	createdAt time.Time
+	cfg                         Config
+	cluster                     ClusterRuntime
+	api                         APIRuntime
+	manager                     ManagerRuntime
+	gateway                     GatewayRuntime
+	handler                     *accessgateway.Handler
+	messages                    *message.App
+	apiMessages                 accessapi.MessageUsecase
+	channelAppends              *channelappend.Group
+	channelAppendRouter         *channelappend.Router
+	channelAppendDeliveryWorker *channelappend.RecipientDeliveryWorker
+	channelAppendMetadata       *clusterinfra.ChannelAppendMetadataCache
+	// pluginRuntime owns the node-local plugin process/socket runtime.
+	pluginRuntime WorkerRuntime
+	// pluginHook owns the bounded PersistAfter worker that drains durable commit side effects.
+	pluginHook WorkerRuntime
+	// pluginPersistAfter adapts durable committed envelopes into plugin PersistAfter events.
+	pluginPersistAfter channelappend.PersistAfterEnqueuer
+	// pluginReceive adapts offline recipient events into plugin Receive events.
+	pluginReceive channelappend.OfflineRecipientObserver
+	// webhook owns bounded best-effort webhook delivery workers.
+	webhook WorkerRuntime
+	// webhookNotify adapts durable committed envelopes into msg.notify webhook events.
+	webhookNotify channelappend.PersistAfterEnqueuer
+	// webhookOffline adapts offline recipient batches into msg.offline webhook events.
+	webhookOffline channelappend.OfflineRecipientsObserver
+	// webhookPresence adapts owner-local online status transitions into webhook events.
+	webhookPresence presence.OnlineStatusObserver
+	// plugins exposes v2 plugin lifecycle and hook usecases.
+	plugins          *pluginusecase.App
+	channels         *channelusecase.App
+	cmdSync          *cmdsyncusecase.App
+	conversations    *conversationusecase.App
+	users            *userusecase.App
+	delivery         *deliveryusecase.App
+	deliveryManager  *runtimedelivery.Manager
+	deliveryRetry    *runtimedelivery.RetryScheduler
+	deliveryWorker   WorkerRuntime
+	localOwnerPusher *localOwnerPusher
+	// seedJoinLoop retries pre-membership JoinNode RPCs and gates entry startup until admission is observed.
+	seedJoinLoop                seedJoinRuntime
+	conversationRouteLifecycle  WorkerRuntime
+	conversationActiveWorker    WorkerRuntime
+	conversationAuthority       *conversationAuthority
+	conversationAuthorityClient *clusterinfra.ConversationAuthorityClient
+	// deliverySubscribers scans durable non-person channel subscribers when provided.
+	deliverySubscribers     runtimedelivery.ChannelSubscriberSource
+	deliveryMeta            *deliveryMetaStore
+	presence                *presence.App
+	presenceAuthorityClient *clusterinfra.PresenceAuthorityClient
+	online                  *online.Registry
+	presenceDirectory       *authoritypresence.Directory
+	presenceWorker          WorkerRuntime
+	metrics                 *obsmetrics.Registry
+	// top is the optional node-local collector used by /top/v1/snapshot.
+	top         WorkerRuntime
+	topProvider accessapi.TopSnapshotProvider
+	topStarted  bool
+	// prometheus is the optional child Prometheus process managed by the app lifecycle.
+	prometheus WorkerRuntime
+	// diagnostics stores sampled send-path trace events for app-local queries.
+	diagnostics *obsdiagnostics.Store
+	// diagnosticsTracking stores dynamic diagnostics sampling rules.
+	diagnosticsTracking *obsdiagnostics.TrackingRules
+	// diagnosticsRestore restores the process-wide sendtrace sink installed by this app.
+	diagnosticsRestore func()
+	// controllerTaskAudit stores retained ControllerV2 task history for manager reads.
+	controllerTaskAudit *controllerTaskAuditRuntime
+	logger              wklog.Logger
 
-	db                        *metadb.DB
-	raftDB                    *raftstorage.DB
-	channelLogDB              *channelstore.Engine
-	cluster                   raftcluster.API
-	isrRuntime                channelruntime.Runtime
-	channelLog                *appChannelCluster
-	channelMetaSync           *channelMetaSync
-	channelPlane              *runtimechannelplane.Plane
-	store                     *metastore.Store
-	presenceApp               *presence.App
-	channelApp                *channelusecase.App
-	userApp                   *userusecase.App
-	deliveryApp               *deliveryusecase.App
-	conversationApp           *conversationusecase.App
-	deliveryRuntime           *deliveryruntime.Manager
-	deliveryRuntimeLifecycle  *deliveryRuntimeLifecycle
-	deliveryAcks              *deliveryruntime.AckIndex
-	cmdSyncApp                *cmdsync.App
-	cmdConversationUpdater    *cmdsync.ConversationUpdater
-	cmdConversationIntents    cmdConversationIntentRouter
-	committedDispatcher       *asyncCommittedDispatcher
-	committedReplayer         *committedReplayer
-	channelMigrationExecutor  *channelmigrationruntime.Executor
-	channelMigrationLifecycle *channelMigrationLifecycle
-	channelRetentionWorker    *appretention.Worker
-	messageApp                *message.App
-	pluginRuntime             *pluginhost.Runtime
-	pluginApp                 *pluginusecase.App
-	pluginReceiveObserver     *pluginReceiveObserver
-	pluginAccess              *accessplugin.Server
-	managementApp             *managementusecase.App
-	conversationActiveHints   *conversationusecase.ActiveHintCache
-	conversationProjector     conversationusecase.Projector
-	api                       *accessapi.Server
-	manager                   *accessmanager.Server
-	nodeClient                *accessnode.Client
-	nodeAccess                *accessnode.Adapter
-	presenceWorker            *presenceWorker
-	gatewayHandler            *accessgateway.Handler
-	gateway                   *gateway.Gateway
-	gatewayBootID             uint64
-	onlineRegistry            online.Registry
-
-	isrTransport         *channeltransport.Transport
-	dataPlanePool        *transport.Pool
-	dataPlaneClient      *transport.Client
-	replicaExecutionPool *channelreplica.ExecutionPool
-	metrics              *obsmetrics.Registry
-	dashboardCollector   *obsmetrics.DashboardCollector
-	diagnostics          *obsdiagnostics.Store
-	diagnosticsTracking  *obsdiagnostics.TrackingRules
-	diagnosticsRestore   func()
-	networkObservability *networkObservability
-	observedClusterCache observedClusterStateCache
-	nodeDrainState       *nodeDrainState
-
-	stopOnce                 sync.Once
-	dashboardCollectorStop   sync.Once
-	lifecycle                sync.Mutex
-	lifecycleMgr             *applifecycle.Manager
-	started                  atomic.Bool
-	stopped                  atomic.Bool
-	clusterOn                atomic.Bool
-	channelMetaOn            atomic.Bool
-	channelPlaneOn           atomic.Bool
-	presenceOn               atomic.Bool
-	conversationHintsOn      atomic.Bool
-	conversationOn           atomic.Bool
-	cmdConversationUpdaterOn atomic.Bool
-	deliveryRuntimeOn        atomic.Bool
-	committedDispatcherOn    atomic.Bool
-	committedReplayOn        atomic.Bool
-	channelMigrationOn       atomic.Bool
-	channelRetentionOn       atomic.Bool
-	pluginOn                 atomic.Bool
-	apiOn                    atomic.Bool
-	managerOn                atomic.Bool
-	gatewayOn                atomic.Bool
-
-	startClusterFn                 func() error
-	startChannelMetaSyncFn         func() error
-	startChannelPlaneFn            func() error
-	startPresenceFn                func() error
-	startConversationActiveHintsFn func() error
-	startConversationProjectorFn   func() error
-	startCMDConversationUpdaterFn  func() error
-	startDeliveryRuntimeFn         func() error
-	startCommittedDispatcherFn     func() error
-	startCommittedReplayFn         func(context.Context) error
-	startChannelMigrationFn        func(context.Context) error
-	startChannelRetentionFn        func(context.Context) error
-	startPluginFn                  func(context.Context) error
-	startAPIFn                     func() error
-	startManagerFn                 func() error
-	startGatewayFn                 func() error
-	stopAPIWithContextFn           func(context.Context) error
-	stopManagerWithContextFn       func(context.Context) error
-	stopAPIFn                      func() error
-	stopManagerFn                  func() error
-	stopGatewayFn                  func() error
-	stopConversationProjectorFn    func() error
-	stopCMDConversationUpdaterFn   func(context.Context) error
-	stopConversationActiveHintsFn  func(context.Context) error
-	stopDeliveryRuntimeFn          func() error
-	stopCommittedDispatcherFn      func(context.Context) error
-	stopCommittedReplayFn          func(context.Context) error
-	stopChannelMigrationFn         func(context.Context) error
-	stopChannelRetentionFn         func(context.Context) error
-	stopPluginFn                   func(context.Context) error
-	stopPresenceFn                 func() error
-	stopChannelPlaneFn             func(context.Context) error
-	stopChannelMetaSyncFn          func() error
-	stopClusterFn                  func()
-	closeChannelLogDBFn            func() error
-	closeRaftDBFn                  func() error
-	closeWKDBFn                    func() error
+	lifecycleMu               sync.Mutex
+	started                   bool
+	stopped                   bool
+	clusterStarted            bool
+	seedJoinStarted           bool
+	presenceStarted           bool
+	conversationRouteStarted  bool
+	conversationActiveStarted bool
+	channelAppendStarted      bool
+	deliveryStarted           bool
+	pluginRuntimeStarted      bool
+	pluginHookStarted         bool
+	webhookStarted            bool
+	apiStarted                bool
+	managerStarted            bool
+	prometheusStarted         bool
+	gatewayStarted            bool
+	deliveryErrors            atomic.Uint64
 }
 
-func New(cfg Config) (*App, error) {
-	return build(cfg)
+// New creates an internal App.
+func New(cfg Config, opts ...Option) (*App, error) {
+	app := &App{cfg: cfg}
+	constructionOK := false
+	defer func() {
+		if !constructionOK {
+			app.restoreDiagnosticsSink()
+		}
+	}()
+
+	if err := app.applyConfigDefaults(); err != nil {
+		return nil, err
+	}
+	app.applyOptions(opts)
+	if err := app.ensureLogger(); err != nil {
+		return nil, err
+	}
+
+	clusterCfg := defaultClusterConfig(app.cfg)
+	app.wireControllerTaskAudit(&clusterCfg)
+	app.configureObservability(&clusterCfg)
+	if err := app.ensureCluster(clusterCfg); err != nil {
+		return nil, err
+	}
+
+	app.ensureOnlineRegistry()
+	if err := app.wireWebhook(); err != nil {
+		return nil, err
+	}
+	app.wireDeliveryMetadata()
+	app.wireChannels()
+	conversationReadStore := app.newConversationReadStore()
+	app.wireConversationAuthority()
+	app.wireConversations(conversationReadStore)
+	app.wirePresence()
+	app.wireManagerConnectionRPC()
+	app.wireManagerLogRPC()
+	app.wireManagerControllerRaftRPC()
+	app.wireManagerSlotRaftRPC()
+	app.wireManagerAppLogRPC()
+	app.wireManagerChannelRPC()
+	app.wireManagerMessageRetentionRPC()
+	app.wireManagerDBInspectRPC()
+	app.wireManagerDiagnosticsRPC()
+	app.wireManagerTaskAuditRPC()
+	app.wireNodeLifecycleRPC()
+	app.wireSeedJoinLoop()
+	app.wireUsers()
+	app.wireDelivery()
+	if err := app.wirePluginSubsystem(clusterCfg.NodeID); err != nil {
+		return nil, err
+	}
+	app.wireManagerPluginRPC()
+	if err := app.wireChannelAppend(clusterCfg.NodeID); err != nil {
+		return nil, err
+	}
+	app.wireMessages()
+	app.wireCMDSync()
+	app.wireAPIMessageFacade()
+	app.wireGatewayHandler(clusterCfg.NodeID)
+	app.wireAPI()
+	app.wireManager()
+	app.wirePrometheus()
+	if err := app.wireGateway(clusterCfg.NodeID); err != nil {
+		return nil, err
+	}
+
+	constructionOK = true
+	return app, nil
 }
 
-func (a *App) DB() *metadb.DB {
+func commitCoordinatorWorkerCount(shards int) int {
+	if shards <= 1 {
+		return dbMessageCommitWorkerCap
+	}
+	return shards
+}
+
+// WithCluster overrides the cluster runtime.
+func WithCluster(cluster ClusterRuntime) Option {
+	return func(a *App) { a.cluster = cluster }
+}
+
+// WithAPI overrides the HTTP API runtime.
+func WithAPI(api APIRuntime) Option {
+	return func(a *App) { a.api = api }
+}
+
+// WithManager overrides the manager HTTP runtime.
+func WithManager(manager ManagerRuntime) Option {
+	return func(a *App) { a.manager = manager }
+}
+
+// WithGateway overrides the gateway runtime.
+func WithGateway(gateway GatewayRuntime) Option {
+	return func(a *App) { a.gateway = gateway }
+}
+
+// WithMessages overrides the message usecase app.
+func WithMessages(messages *message.App) Option {
+	return func(a *App) { a.messages = messages }
+}
+
+// WithChannels overrides the channel usecase app.
+func WithChannels(channels *channelusecase.App) Option {
+	return func(a *App) { a.channels = channels }
+}
+
+// WithConversations overrides the conversation usecase app.
+func WithConversations(conversations *conversationusecase.App) Option {
+	return func(a *App) { a.conversations = conversations }
+}
+
+// WithPresence overrides the presence usecase app.
+func WithPresence(presence *presence.App) Option {
+	return func(a *App) { a.presence = presence }
+}
+
+// WithOnlineRegistry overrides the owner-local online registry.
+func WithOnlineRegistry(reg *online.Registry) Option {
+	return func(a *App) { a.online = reg }
+}
+
+// WithDeliverySubscriberSource overrides the durable subscriber source used by delivery fanout.
+func WithDeliverySubscriberSource(source runtimedelivery.ChannelSubscriberSource) Option {
+	return func(a *App) { a.deliverySubscribers = source }
+}
+
+// WithLogger overrides the root logger used by the app.
+func WithLogger(logger wklog.Logger) Option {
+	return func(a *App) { a.logger = logger }
+}
+
+// Handler returns the gateway access handler.
+func (a *App) Handler() *accessgateway.Handler {
 	if a == nil {
 		return nil
 	}
-	return a.db
+	return a.handler
 }
 
-func (a *App) RaftDB() *raftstorage.DB {
+// Messages returns the message usecase app.
+func (a *App) Messages() *message.App {
 	if a == nil {
 		return nil
 	}
-	return a.raftDB
+	return a.messages
 }
 
-func (a *App) Cluster() raftcluster.API {
+// Conversations returns the conversation list usecase app.
+func (a *App) Conversations() *conversationusecase.App {
 	if a == nil {
 		return nil
 	}
-	return a.cluster
+	return a.conversations
 }
 
-func (a *App) ChannelLogDB() *channelstore.Engine {
+// Delivery returns the delivery usecase app.
+func (a *App) Delivery() *deliveryusecase.App {
 	if a == nil {
 		return nil
 	}
-	return a.channelLogDB
+	return a.delivery
 }
 
-func (a *App) ISRRuntime() channelruntime.Runtime {
+func (a *App) metricsHandler() http.Handler {
+	if a == nil || a.metrics == nil {
+		return nil
+	}
+	return a.metrics.Handler()
+}
+
+func (a *App) conversationListObserver() accessapi.ConversationListObserver {
+	if a == nil || a.metrics == nil {
+		return nil
+	}
+	return conversationListMetricsObserver{metrics: a.metrics}
+}
+
+func (a *App) conversationSyncObserver() accessapi.ConversationSyncObserver {
+	if a == nil || a.metrics == nil {
+		return nil
+	}
+	return conversationSyncMetricsObserver{metrics: a.metrics}
+}
+
+func (a *App) conversationAuthorityObserver() conversationAuthorityObserver {
+	if a == nil || a.metrics == nil {
+		return nil
+	}
+	return conversationAuthorityMetricsObserver{metrics: a.metrics}
+}
+
+func (a *App) gatewayObserver() gateway.Observer {
 	if a == nil {
 		return nil
 	}
-	return a.isrRuntime
+	observers := make([]gateway.Observer, 0, 2)
+	if a.metrics != nil {
+		observers = append(observers, gatewayMetricsObserver{metrics: a.metrics})
+	}
+	if collector, ok := a.topProvider.(*topCollector); ok {
+		observers = append(observers, topGatewayObserver{top: collector})
+	}
+	switch len(observers) {
+	case 0:
+		return nil
+	case 1:
+		return observers[0]
+	default:
+		return multiGatewayObserver(observers)
+	}
 }
 
-func (a *App) ChannelLog() channel.Cluster {
+func (a *App) sendackObserver() accessgateway.SendackObserver {
 	if a == nil {
 		return nil
 	}
-	return a.channelLog
+	observers := make([]accessgateway.SendackObserver, 0, 2)
+	if a.metrics != nil {
+		observers = append(observers, gatewayMetricsObserver{metrics: a.metrics})
+	}
+	if collector, ok := a.topProvider.(*topCollector); ok {
+		observers = append(observers, topSendackObserver{top: collector})
+	}
+	switch len(observers) {
+	case 0:
+		return nil
+	case 1:
+		return observers[0]
+	default:
+		return multiSendackObserver(observers)
+	}
 }
 
-func (a *App) Store() *metastore.Store {
+func (a *App) benchRuntimeController() accessapi.ChannelRuntimeBenchController {
 	if a == nil {
 		return nil
 	}
-	return a.store
-}
-
-func (a *App) Message() *message.App {
-	if a == nil {
+	node, ok := a.cluster.(clusterinfra.ChannelRuntimeBenchNode)
+	if !ok {
 		return nil
 	}
-	return a.messageApp
+	return clusterinfra.NewChannelRuntimeBenchController(node)
 }
 
-func (a *App) GatewayHandler() *accessgateway.Handler {
-	if a == nil {
+func (a *App) gatewayPresenceUsecase() accessgateway.PresenceUsecase {
+	if a == nil || a.presence == nil {
 		return nil
 	}
-	return a.gatewayHandler
+	if a.cfg.Presence.ActivationTimeout <= 0 {
+		return a.presence
+	}
+	return activationTimeoutPresence{
+		next:    a.presence,
+		timeout: a.cfg.Presence.ActivationTimeout,
+	}
 }
 
-func (a *App) Conversation() *conversationusecase.App {
-	if a == nil {
+func (a *App) currentPresenceAuthorities() []cluster.RouteAuthority {
+	routes, ok := a.cluster.(clusterWriteReadyRuntime)
+	if !ok {
 		return nil
 	}
-	return a.conversationApp
+	snapshot := routes.Snapshot()
+	if snapshot.HashSlotCount == 0 {
+		return nil
+	}
+	authorities := make([]cluster.RouteAuthority, 0, snapshot.HashSlotCount)
+	for hashSlot := uint16(0); hashSlot < snapshot.HashSlotCount; hashSlot++ {
+		route, err := routes.RouteHashSlot(hashSlot)
+		if err != nil {
+			continue
+		}
+		authorities = append(authorities, cluster.RouteAuthority{
+			HashSlot:       route.HashSlot,
+			SlotID:         route.SlotID,
+			LeaderNodeID:   route.Leader,
+			LeaderTerm:     route.LeaderTerm,
+			ConfigEpoch:    route.ConfigEpoch,
+			RouteRevision:  route.Revision,
+			AuthorityEpoch: route.AuthorityEpoch,
+		})
+	}
+	return authorities
 }
 
-func (a *App) ConversationProjector() conversationusecase.Projector {
-	if a == nil {
-		return nil
+func (a *App) currentConversationAuthorityRouteTarget(hashSlot uint16) (conversationusecase.RouteTarget, bool) {
+	routes, ok := a.cluster.(clusterWriteReadyRuntime)
+	if !ok {
+		return conversationusecase.RouteTarget{}, false
 	}
-	return a.conversationProjector
+	route, err := routes.RouteHashSlot(hashSlot)
+	if err != nil {
+		return conversationusecase.RouteTarget{}, false
+	}
+	return conversationusecase.RouteTarget{
+		HashSlot:       route.HashSlot,
+		SlotID:         route.SlotID,
+		LeaderNodeID:   route.Leader,
+		LeaderTerm:     route.LeaderTerm,
+		ConfigEpoch:    route.ConfigEpoch,
+		RouteRevision:  route.Revision,
+		AuthorityEpoch: route.AuthorityEpoch,
+	}, true
 }
 
-func (a *App) API() *accessapi.Server {
-	if a == nil {
-		return nil
+func defaultClusterConfig(cfg Config) cluster.Config {
+	clusterCfg := cfg.Cluster
+	if clusterCfg.NodeID == 0 {
+		clusterCfg.NodeID = cfg.NodeID
 	}
-	return a.api
+	if clusterCfg.DataDir == "" {
+		clusterCfg.DataDir = cfg.DataDir
+	}
+	clusterCfg.ChannelRetention = cluster.ChannelRetentionConfig{
+		PhysicalGCEnabled: cfg.ChannelMessageRetention.PhysicalGCEnabled,
+		ScanInterval:      cfg.ChannelMessageRetention.ScanInterval,
+		ChannelBatchSize:  cfg.ChannelMessageRetention.ChannelBatchSize,
+		MaxTrimMessages:   cfg.ChannelMessageRetention.MaxTrimMessages,
+		MaxTrimBytes:      cfg.ChannelMessageRetention.MaxTrimBytes,
+	}
+	return clusterCfg
 }
 
-func (a *App) Manager() *accessmanager.Server {
-	if a == nil {
-		return nil
+func apiGatewayAddresses(cfg APIConfig, listeners []gateway.ListenerOptions) accessapi.GatewayAddresses {
+	addrs := gatewayAddressesFromListeners(listeners)
+	if trimmed := strings.TrimSpace(cfg.ExternalTCPAddr); trimmed != "" {
+		addrs.TCPAddr = trimmed
 	}
-	return a.manager
+	if trimmed := strings.TrimSpace(cfg.ExternalWSAddr); trimmed != "" {
+		addrs.WSAddr = trimmed
+	}
+	if trimmed := strings.TrimSpace(cfg.ExternalWSSAddr); trimmed != "" {
+		addrs.WSSAddr = trimmed
+	}
+	return addrs
 }
 
-func (a *App) Gateway() *gateway.Gateway {
-	if a == nil {
+func gatewayAddressesFromListeners(listeners []gateway.ListenerOptions) accessapi.GatewayAddresses {
+	var out accessapi.GatewayAddresses
+	for _, listener := range listeners {
+		network := strings.ToLower(strings.TrimSpace(listener.Network))
+		switch network {
+		case "websocket":
+			addr := normalizeWebsocketAddress(listener.Address)
+			if strings.HasPrefix(strings.ToLower(addr), "wss://") {
+				if out.WSSAddr == "" {
+					out.WSSAddr = addr
+				}
+			} else if out.WSAddr == "" {
+				out.WSAddr = addr
+			}
+		default:
+			if out.TCPAddr == "" {
+				out.TCPAddr = normalizeTCPAddress(listener.Address)
+			}
+		}
+	}
+	return out
+}
+
+func legacyRouteAddresses(apiCfg APIConfig, listeners []gateway.ListenerOptions) (accessapi.LegacyRouteAddresses, accessapi.LegacyRouteAddresses) {
+	external, intranet := legacyRouteAddressesFromListeners(listeners)
+	if trimmed := strings.TrimSpace(apiCfg.ExternalTCPAddr); trimmed != "" {
+		external.TCPAddr = trimmed
+	}
+	if trimmed := strings.TrimSpace(apiCfg.ExternalWSAddr); trimmed != "" {
+		external.WSAddr = trimmed
+	}
+	if trimmed := strings.TrimSpace(apiCfg.ExternalWSSAddr); trimmed != "" {
+		external.WSSAddr = trimmed
+	}
+	return external, intranet
+}
+
+func legacyRouteAddressesFromListeners(listeners []gateway.ListenerOptions) (accessapi.LegacyRouteAddresses, accessapi.LegacyRouteAddresses) {
+	var external accessapi.LegacyRouteAddresses
+	var intranet accessapi.LegacyRouteAddresses
+	for _, listener := range listeners {
+		network := strings.ToLower(strings.TrimSpace(listener.Network))
+		switch network {
+		case "websocket":
+			addr := normalizeWebsocketAddress(listener.Address)
+			switch {
+			case strings.HasPrefix(strings.ToLower(addr), "wss://"):
+				if external.WSSAddr == "" {
+					external.WSSAddr = addr
+				}
+			case external.WSAddr == "":
+				external.WSAddr = addr
+			}
+		default:
+			if external.TCPAddr == "" {
+				external.TCPAddr = normalizeTCPAddress(listener.Address)
+			}
+			if intranet.TCPAddr == "" {
+				intranet.TCPAddr = normalizeTCPAddress(listener.Address)
+			}
+		}
+	}
+	return external, intranet
+}
+
+func legacyRouteNodeAddresses(localNodeID uint64, voters []cluster.ControlVoter, external, intranet accessapi.LegacyRouteAddresses) map[uint64]accessapi.LegacyRouteNodeAddresses {
+	out := make(map[uint64]accessapi.LegacyRouteNodeAddresses, len(voters)+1)
+	if localNodeID != 0 {
+		out[localNodeID] = accessapi.LegacyRouteNodeAddresses{External: external, Intranet: intranet}
+	}
+	for _, voter := range voters {
+		if voter.NodeID == 0 || voter.NodeID == localNodeID {
+			continue
+		}
+		host := legacyRouteNodeHost(voter.Addr)
+		if host == "" {
+			continue
+		}
+		out[voter.NodeID] = accessapi.LegacyRouteNodeAddresses{
+			External: legacyRouteAddressesForHost(external, host),
+			Intranet: legacyRouteAddressesForHost(intranet, host),
+		}
+	}
+	if len(out) == 0 {
 		return nil
 	}
-	return a.gateway
+	return out
+}
+
+func legacyRouteAddressesForHost(addrs accessapi.LegacyRouteAddresses, host string) accessapi.LegacyRouteAddresses {
+	return accessapi.LegacyRouteAddresses{
+		TCPAddr: legacyRouteHostPort(addrs.TCPAddr, host),
+		WSAddr:  legacyRouteURLHost(addrs.WSAddr, host),
+		WSSAddr: legacyRouteURLHost(addrs.WSSAddr, host),
+	}
+}
+
+func legacyRouteNodeHost(addr string) string {
+	trimmed := strings.TrimSpace(addr)
+	if trimmed == "" {
+		return ""
+	}
+	if parsed, err := url.Parse(trimmed); err == nil && parsed.Host != "" {
+		return legacyRouteHostOnly(parsed.Host)
+	}
+	trimmed = strings.TrimPrefix(trimmed, "tcp://")
+	return legacyRouteHostOnly(trimmed)
+}
+
+func legacyRouteHostOnly(addr string) string {
+	host, _, err := net.SplitHostPort(addr)
+	if err == nil {
+		return strings.Trim(host, "[]")
+	}
+	if strings.Contains(err.Error(), "missing port in address") {
+		return strings.Trim(addr, "[]")
+	}
+	return ""
+}
+
+func legacyRouteHostPort(addr string, host string) string {
+	trimmed := strings.TrimSpace(addr)
+	if trimmed == "" || strings.TrimSpace(host) == "" {
+		return trimmed
+	}
+	_, port, err := net.SplitHostPort(trimmed)
+	if err != nil {
+		return trimmed
+	}
+	return net.JoinHostPort(host, port)
+}
+
+func legacyRouteURLHost(addr string, host string) string {
+	trimmed := strings.TrimSpace(addr)
+	if trimmed == "" || strings.TrimSpace(host) == "" {
+		return trimmed
+	}
+	parsed, err := url.Parse(trimmed)
+	if err != nil || parsed.Host == "" {
+		return trimmed
+	}
+	_, port, err := net.SplitHostPort(parsed.Host)
+	if err == nil {
+		parsed.Host = net.JoinHostPort(host, port)
+		return parsed.String()
+	}
+	if strings.Contains(err.Error(), "missing port in address") {
+		parsed.Host = host
+		return parsed.String()
+	}
+	return trimmed
+}
+
+func normalizeTCPAddress(addr string) string {
+	trimmed := strings.TrimSpace(addr)
+	return strings.TrimPrefix(trimmed, "tcp://")
+}
+
+func normalizeWebsocketAddress(addr string) string {
+	trimmed := strings.TrimSpace(addr)
+	lower := strings.ToLower(trimmed)
+	if strings.HasPrefix(lower, "ws://") || strings.HasPrefix(lower, "wss://") || trimmed == "" {
+		return trimmed
+	}
+	return "ws://" + trimmed
+}
+
+// nodeMessageIDs allocates node-scoped Snowflake message ids.
+type nodeMessageIDs struct {
+	// node is the Snowflake generator bound to the effective cluster node id.
+	node *snowflake.Node
+}
+
+func newNodeMessageIDs(nodeID uint64) (*nodeMessageIDs, error) {
+	node, err := snowflake.NewNode(int64(nodeID))
+	if err != nil {
+		return nil, err
+	}
+	return &nodeMessageIDs{node: node}, nil
+}
+
+func (g *nodeMessageIDs) Next() uint64 {
+	return uint64(g.node.Generate())
+}
+
+type nodeRPCHandlerFunc func(context.Context, []byte) ([]byte, error)
+
+func (f nodeRPCHandlerFunc) HandleRPC(ctx context.Context, payload []byte) ([]byte, error) {
+	return f(ctx, payload)
+}
+
+type nodeRPCRegistrar interface {
+	RegisterRPC(uint8, cluster.NodeRPCHandler)
+}
+
+type presenceDirectoryAuthority struct {
+	// directory stores authoritative virtual routes for locally led hash slots.
+	directory *authoritypresence.Directory
+}
+
+type presenceOwnerActions struct {
+	// local stores real sessions owned by this node.
+	local presenceOwnerLocalRegistry
+}
+
+type activationTimeoutPresence struct {
+	// next is the underlying entry-agnostic presence usecase.
+	next accessgateway.PresenceUsecase
+	// timeout bounds authority registration during gateway activation.
+	timeout time.Duration
+}
+
+func (p activationTimeoutPresence) Activate(ctx context.Context, cmd presence.ActivateCommand) error {
+	if p.next == nil {
+		return nil
+	}
+	if p.timeout <= 0 {
+		return p.next.Activate(ctx, cmd)
+	}
+	activateCtx, cancel := context.WithTimeout(ctx, p.timeout)
+	defer cancel()
+	return p.next.Activate(activateCtx, cmd)
+}
+
+func (p activationTimeoutPresence) Deactivate(ctx context.Context, cmd presence.DeactivateCommand) error {
+	if p.next == nil {
+		return nil
+	}
+	return p.next.Deactivate(ctx, cmd)
+}
+
+func (p activationTimeoutPresence) Touch(ctx context.Context, cmd presence.TouchCommand) error {
+	if p.next == nil {
+		return nil
+	}
+	return p.next.Touch(ctx, cmd)
+}
+
+func (a presenceDirectoryAuthority) RegisterRoute(ctx context.Context, target presence.RouteTarget, route presence.Route) (presence.RegisterResult, error) {
+	if err := ctx.Err(); err != nil {
+		return presence.RegisterResult{}, err
+	}
+	return a.directory.RegisterRoute(target, route)
+}
+
+func (a presenceDirectoryAuthority) CommitRoute(ctx context.Context, target presence.RouteTarget, token string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return a.directory.CommitRoute(target, presence.PendingRouteToken(token))
+}
+
+func (a presenceDirectoryAuthority) AbortRoute(ctx context.Context, target presence.RouteTarget, token string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return a.directory.AbortRoute(target, presence.PendingRouteToken(token))
+}
+
+func (a presenceDirectoryAuthority) UnregisterRoute(ctx context.Context, target presence.RouteTarget, identity presence.RouteIdentity, ownerSeq uint64) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return a.directory.UnregisterRoute(target, identity, ownerSeq)
+}
+
+func (a presenceDirectoryAuthority) EndpointsByUID(ctx context.Context, target presence.RouteTarget, uid string) ([]presence.Route, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return a.directory.EndpointsByUID(target, uid)
+}
+
+func (a presenceDirectoryAuthority) TouchRoutes(ctx context.Context, target presence.RouteTarget, routes []presence.Route) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return a.directory.TouchRoutes(target, routes)
+}
+
+func (a presenceOwnerActions) ApplyRouteAction(ctx context.Context, action presence.RouteAction) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if a.local == nil {
+		return authoritypresence.ErrRouteNotReady
+	}
+	session, ok := a.local.LocalSession(action.SessionID)
+	route := session.Route
+	if !ok || route.UID != action.UID || route.OwnerNodeID != action.OwnerNodeID || route.OwnerBootID != action.OwnerBootID {
+		return nil
+	}
+	if session.Session != nil {
+		if err := session.Session.CloseSession(action.Reason); err != nil {
+			return err
+		}
+	}
+	a.local.MarkClosingAndUnregister(action.SessionID)
+	return nil
+}
+
+func newOwnerBootID() uint64 {
+	var buf [8]byte
+	if _, err := rand.Read(buf[:]); err == nil {
+		if id := binary.LittleEndian.Uint64(buf[:]); id != 0 {
+			return id
+		}
+	}
+	return uint64(time.Now().UnixNano())
 }

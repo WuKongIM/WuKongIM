@@ -27,7 +27,7 @@ a real multi-node `cmd/wukongim` cluster.
 
 ## Rules
 
-- Keep tests black-box: do not import `internalv2/app`, `internalv2/usecase`,
+- Keep tests black-box: do not import `internal/app`, `internal/usecase`,
   storage internals, or control-plane internals.
 - Dynamic join tests must let node 4 call seed join itself; do not shortcut by
   calling manager `JoinNode` directly.

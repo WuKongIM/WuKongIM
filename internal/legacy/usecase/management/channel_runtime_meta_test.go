@@ -1,0 +1,592 @@
+package management
+
+import (
+	"context"
+	"testing"
+
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	"github.com/WuKongIM/WuKongIM/pkg/legacy/channel"
+	raftcluster "github.com/WuKongIM/WuKongIM/pkg/legacy/cluster"
+	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
+	"github.com/stretchr/testify/require"
+)
+
+func TestListChannelRuntimeMetaReturnsFirstPageInGlobalOrder(t *testing.T) {
+	reader := &fakeChannelRuntimeMetaReader{
+		pages: map[multiraft.SlotID]map[metadb.ChannelRuntimeMetaCursor]fakeChannelRuntimeMetaPage{
+			1: {
+				{}: {
+					items: []metadb.ChannelRuntimeMeta{
+						testChannelRuntimeMeta("s1-a", 1, channel.StatusCreating),
+						testChannelRuntimeMeta("s1-b", 1, channel.StatusActive),
+					},
+					cursor: metadb.ChannelRuntimeMetaCursor{ChannelID: "s1-b", ChannelType: 1},
+					done:   true,
+				},
+			},
+			2: {
+				{}: {
+					items: []metadb.ChannelRuntimeMeta{
+						testChannelRuntimeMeta("s2-a", 1, channel.StatusDeleting),
+					},
+					cursor: metadb.ChannelRuntimeMetaCursor{ChannelID: "s2-a", ChannelType: 1},
+					done:   false,
+				},
+			},
+		},
+	}
+	app := New(Options{
+		Cluster: fakeClusterReader{
+			slotIDs: []multiraft.SlotID{1, 2},
+		},
+		ChannelRuntimeMeta: reader,
+	})
+
+	got, err := app.ListChannelRuntimeMeta(context.Background(), ListChannelRuntimeMetaRequest{Limit: 3})
+	require.NoError(t, err)
+	require.Equal(t, ListChannelRuntimeMetaResponse{
+		Items: []ChannelRuntimeMeta{
+			{ChannelID: "s1-a", ChannelType: 1, SlotID: 1, Status: "creating"},
+			{ChannelID: "s1-b", ChannelType: 1, SlotID: 1, Status: "active"},
+			{ChannelID: "s2-a", ChannelType: 1, SlotID: 2, Status: "deleting"},
+		},
+		HasMore:    true,
+		NextCursor: ChannelRuntimeMetaListCursor{SlotID: 2, ChannelID: "s2-a", ChannelType: 1},
+	}, summarizeChannelRuntimeMetaResponse(got))
+}
+
+func TestListChannelRuntimeMetaContinuesWithNextCursorAcrossSlots(t *testing.T) {
+	reader := &fakeChannelRuntimeMetaReader{
+		pages: map[multiraft.SlotID]map[metadb.ChannelRuntimeMetaCursor]fakeChannelRuntimeMetaPage{
+			2: {
+				{ChannelID: "s2-a", ChannelType: 1}: {
+					items: []metadb.ChannelRuntimeMeta{
+						testChannelRuntimeMeta("s2-b", 1, channel.StatusActive),
+					},
+					cursor: metadb.ChannelRuntimeMetaCursor{ChannelID: "s2-b", ChannelType: 1},
+					done:   true,
+				},
+			},
+			3: {
+				{}: {
+					items: []metadb.ChannelRuntimeMeta{
+						testChannelRuntimeMeta("s3-a", 1, channel.StatusDeleted),
+					},
+					cursor: metadb.ChannelRuntimeMetaCursor{ChannelID: "s3-a", ChannelType: 1},
+					done:   true,
+				},
+			},
+		},
+	}
+	app := New(Options{
+		Cluster: fakeClusterReader{
+			slotIDs: []multiraft.SlotID{1, 2, 3},
+		},
+		ChannelRuntimeMeta: reader,
+	})
+
+	got, err := app.ListChannelRuntimeMeta(context.Background(), ListChannelRuntimeMetaRequest{
+		Limit: 2,
+		Cursor: ChannelRuntimeMetaListCursor{
+			SlotID:      2,
+			ChannelID:   "s2-a",
+			ChannelType: 1,
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, ListChannelRuntimeMetaResponse{
+		Items: []ChannelRuntimeMeta{
+			{ChannelID: "s2-b", ChannelType: 1, SlotID: 2, Status: "active"},
+			{ChannelID: "s3-a", ChannelType: 1, SlotID: 3, Status: "deleted"},
+		},
+		HasMore: false,
+	}, summarizeChannelRuntimeMetaResponse(got))
+	require.Equal(t, []channelRuntimeMetaScanCall{
+		{slotID: 2, after: metadb.ChannelRuntimeMetaCursor{ChannelID: "s2-a", ChannelType: 1}, limit: 2},
+		{slotID: 3, after: metadb.ChannelRuntimeMetaCursor{}, limit: 1},
+	}, reader.calls)
+}
+
+func TestListChannelRuntimeMetaMapsStableStatusStrings(t *testing.T) {
+	reader := &fakeChannelRuntimeMetaReader{
+		pages: map[multiraft.SlotID]map[metadb.ChannelRuntimeMetaCursor]fakeChannelRuntimeMetaPage{
+			5: {
+				{}: {
+					items: []metadb.ChannelRuntimeMeta{
+						testChannelRuntimeMeta("c1", 1, channel.StatusCreating),
+						testChannelRuntimeMeta("c2", 1, channel.StatusActive),
+						testChannelRuntimeMeta("c3", 1, channel.StatusDeleting),
+						testChannelRuntimeMeta("c4", 1, channel.StatusDeleted),
+						{ChannelID: "c5", ChannelType: 1, Status: 99},
+					},
+					cursor: metadb.ChannelRuntimeMetaCursor{ChannelID: "c5", ChannelType: 1},
+					done:   true,
+				},
+			},
+		},
+	}
+	app := New(Options{
+		Cluster: fakeClusterReader{
+			slotIDs: []multiraft.SlotID{5},
+		},
+		ChannelRuntimeMeta: reader,
+	})
+
+	got, err := app.ListChannelRuntimeMeta(context.Background(), ListChannelRuntimeMetaRequest{Limit: 10})
+	require.NoError(t, err)
+	require.Equal(t, []string{"creating", "active", "deleting", "deleted", "unknown"}, channelRuntimeMetaStatuses(got.Items))
+}
+
+func TestListChannelRuntimeMetaDoesNotReadMaxSeqByDefault(t *testing.T) {
+	reader := &fakeChannelRuntimeMetaReader{
+		pages: map[multiraft.SlotID]map[metadb.ChannelRuntimeMetaCursor]fakeChannelRuntimeMetaPage{
+			1: {
+				{}: {
+					items: []metadb.ChannelRuntimeMeta{
+						testChannelRuntimeMeta("s1-a", 1, channel.StatusActive),
+						testChannelRuntimeMeta("s1-b", 1, channel.StatusActive),
+					},
+					cursor: metadb.ChannelRuntimeMetaCursor{ChannelID: "s1-b", ChannelType: 1},
+					done:   true,
+				},
+			},
+		},
+	}
+	messages := &fakeMessageReader{
+		maxSeqByChannel: map[channel.ChannelID]uint64{
+			{ID: "s1-a", Type: 1}: 9,
+			{ID: "s1-b", Type: 1}: 12,
+		},
+	}
+	app := New(Options{
+		Cluster: fakeClusterReader{
+			slotIDs: []multiraft.SlotID{1},
+		},
+		ChannelRuntimeMeta: reader,
+		Messages:           messages,
+	})
+
+	got, err := app.ListChannelRuntimeMeta(context.Background(), ListChannelRuntimeMetaRequest{Limit: 10})
+	require.NoError(t, err)
+	require.Equal(t, []ChannelRuntimeMeta{
+		{ChannelID: "s1-a", ChannelType: 1, SlotID: 1, Status: "active"},
+		{ChannelID: "s1-b", ChannelType: 1, SlotID: 1, Status: "active"},
+	}, summarizeChannelRuntimeMetaResponse(got).Items)
+	require.Empty(t, messages.maxSeqCalls)
+}
+
+func TestListChannelRuntimeMetaIncludesMaxSeqWhenRequested(t *testing.T) {
+	reader := &fakeChannelRuntimeMetaReader{
+		pages: map[multiraft.SlotID]map[metadb.ChannelRuntimeMetaCursor]fakeChannelRuntimeMetaPage{
+			1: {
+				{}: {
+					items: []metadb.ChannelRuntimeMeta{
+						testChannelRuntimeMeta("s1-a", 1, channel.StatusActive),
+						testChannelRuntimeMeta("s1-b", 1, channel.StatusActive),
+					},
+					cursor: metadb.ChannelRuntimeMetaCursor{ChannelID: "s1-b", ChannelType: 1},
+					done:   true,
+				},
+			},
+		},
+	}
+	messages := &fakeMessageReader{
+		maxSeqByChannel: map[channel.ChannelID]uint64{
+			{ID: "s1-a", Type: 1}: 9,
+			{ID: "s1-b", Type: 1}: 12,
+		},
+	}
+	app := New(Options{
+		Cluster: fakeClusterReader{
+			slotIDs: []multiraft.SlotID{1},
+		},
+		ChannelRuntimeMeta: reader,
+		Messages:           messages,
+	})
+
+	got, err := app.ListChannelRuntimeMeta(context.Background(), ListChannelRuntimeMetaRequest{Limit: 10, IncludeMaxMessageSeq: true})
+	require.NoError(t, err)
+	require.Equal(t, []ChannelRuntimeMeta{
+		{ChannelID: "s1-a", ChannelType: 1, SlotID: 1, Status: "active", MaxMessageSeq: uint64Ptr(9)},
+		{ChannelID: "s1-b", ChannelType: 1, SlotID: 1, Status: "active", MaxMessageSeq: uint64Ptr(12)},
+	}, summarizeChannelRuntimeMetaResponse(got).Items)
+	require.Equal(t, []channel.ChannelID{
+		{ID: "s1-a", Type: 1},
+		{ID: "s1-b", Type: 1},
+	}, messages.maxSeqCalls)
+}
+
+func TestListChannelRuntimeMetaFiltersByNodeScope(t *testing.T) {
+	reader := &fakeChannelRuntimeMetaReader{
+		pages: map[multiraft.SlotID]map[metadb.ChannelRuntimeMetaCursor]fakeChannelRuntimeMetaPage{
+			1: {
+				{}: {
+					items: []metadb.ChannelRuntimeMeta{
+						{ChannelID: "leader", ChannelType: 1, Leader: 1, Replicas: []uint64{2}, ISR: []uint64{2}, Status: uint8(channel.StatusActive)},
+						{ChannelID: "replica", ChannelType: 1, Leader: 2, Replicas: []uint64{1, 2}, ISR: []uint64{2}, Status: uint8(channel.StatusActive)},
+						{ChannelID: "isr", ChannelType: 1, Leader: 2, Replicas: []uint64{2}, ISR: []uint64{1, 2}, Status: uint8(channel.StatusActive)},
+					},
+					cursor: metadb.ChannelRuntimeMetaCursor{ChannelID: "isr", ChannelType: 1},
+					done:   true,
+				},
+			},
+		},
+	}
+	app := New(Options{Cluster: fakeClusterReader{slotIDs: []multiraft.SlotID{1}}, ChannelRuntimeMeta: reader})
+
+	tests := []struct {
+		name  string
+		scope ChannelRuntimeMetaNodeScope
+		want  []string
+	}{
+		{name: "any", scope: ChannelRuntimeMetaNodeScopeAny, want: []string{"leader", "replica", "isr"}},
+		{name: "leader", scope: ChannelRuntimeMetaNodeScopeLeader, want: []string{"leader"}},
+		{name: "replica", scope: ChannelRuntimeMetaNodeScopeReplica, want: []string{"replica"}},
+		{name: "isr", scope: ChannelRuntimeMetaNodeScopeISR, want: []string{"isr"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := app.ListChannelRuntimeMeta(context.Background(), ListChannelRuntimeMetaRequest{Limit: 10, NodeID: 1, NodeScope: tt.scope})
+			require.NoError(t, err)
+			require.Equal(t, tt.want, channelRuntimeMetaIDs(got.Items))
+		})
+	}
+}
+
+func TestListChannelRuntimeMetaFilteredScanContinuesUntilLimit(t *testing.T) {
+	reader := &fakeChannelRuntimeMetaReader{
+		pages: map[multiraft.SlotID]map[metadb.ChannelRuntimeMetaCursor]fakeChannelRuntimeMetaPage{
+			1: {
+				{}: {
+					items: []metadb.ChannelRuntimeMeta{
+						{ChannelID: "skip", ChannelType: 1, Leader: 2, Status: uint8(channel.StatusActive)},
+					},
+					cursor: metadb.ChannelRuntimeMetaCursor{ChannelID: "skip", ChannelType: 1},
+					done:   false,
+				},
+				{ChannelID: "skip", ChannelType: 1}: {
+					items: []metadb.ChannelRuntimeMeta{
+						{ChannelID: "match-1", ChannelType: 1, Leader: 1, Status: uint8(channel.StatusActive)},
+					},
+					cursor: metadb.ChannelRuntimeMetaCursor{ChannelID: "match-1", ChannelType: 1},
+					done:   true,
+				},
+			},
+			2: {
+				{}: {
+					items: []metadb.ChannelRuntimeMeta{
+						{ChannelID: "match-2", ChannelType: 1, Leader: 1, Status: uint8(channel.StatusActive)},
+					},
+					cursor: metadb.ChannelRuntimeMetaCursor{ChannelID: "match-2", ChannelType: 1},
+					done:   true,
+				},
+			},
+		},
+	}
+	app := New(Options{Cluster: fakeClusterReader{slotIDs: []multiraft.SlotID{1, 2}}, ChannelRuntimeMeta: reader})
+
+	got, err := app.ListChannelRuntimeMeta(context.Background(), ListChannelRuntimeMetaRequest{Limit: 2, NodeID: 1, NodeScope: ChannelRuntimeMetaNodeScopeLeader})
+	require.NoError(t, err)
+	require.Equal(t, []string{"match-1", "match-2"}, channelRuntimeMetaIDs(got.Items))
+	require.False(t, got.HasMore)
+	require.Equal(t, []channelRuntimeMetaScanCall{
+		{slotID: 1, after: metadb.ChannelRuntimeMetaCursor{}, limit: channelRuntimeMetaFilteredScanLimit(2)},
+		{slotID: 1, after: metadb.ChannelRuntimeMetaCursor{ChannelID: "skip", ChannelType: 1}, limit: channelRuntimeMetaFilteredScanLimit(2)},
+		{slotID: 2, after: metadb.ChannelRuntimeMetaCursor{}, limit: channelRuntimeMetaFilteredScanLimit(2)},
+	}, reader.calls)
+}
+
+func TestListChannelRuntimeMetaFiltersByChannelIDQueryAndLimitsResults(t *testing.T) {
+	reader := &fakeChannelRuntimeMetaReader{
+		pages: map[multiraft.SlotID]map[metadb.ChannelRuntimeMetaCursor]fakeChannelRuntimeMetaPage{
+			1: {
+				{}: {
+					items: []metadb.ChannelRuntimeMeta{
+						testChannelRuntimeMeta("alpha-room", 1, channel.StatusActive),
+						testChannelRuntimeMeta("billing", 1, channel.StatusActive),
+					},
+					cursor: metadb.ChannelRuntimeMetaCursor{ChannelID: "billing", ChannelType: 1},
+					done:   true,
+				},
+			},
+			2: {
+				{}: {
+					items: []metadb.ChannelRuntimeMeta{
+						testChannelRuntimeMeta("beta-room", 2, channel.StatusActive),
+						testChannelRuntimeMeta("room-zeta", 2, channel.StatusActive),
+					},
+					cursor: metadb.ChannelRuntimeMetaCursor{ChannelID: "room-zeta", ChannelType: 2},
+					done:   true,
+				},
+			},
+		},
+	}
+	app := New(Options{
+		Cluster: fakeClusterReader{
+			slotIDs: []multiraft.SlotID{1, 2},
+		},
+		ChannelRuntimeMeta: reader,
+	})
+
+	got, err := app.ListChannelRuntimeMeta(context.Background(), ListChannelRuntimeMetaRequest{
+		Limit:          2,
+		ChannelIDQuery: "room",
+	})
+	require.NoError(t, err)
+	require.Equal(t, ListChannelRuntimeMetaResponse{
+		Items: []ChannelRuntimeMeta{
+			{ChannelID: "alpha-room", ChannelType: 1, SlotID: 1, Status: "active"},
+			{ChannelID: "beta-room", ChannelType: 2, SlotID: 2, Status: "active"},
+		},
+		HasMore:    true,
+		NextCursor: ChannelRuntimeMetaListCursor{SlotID: 2, ChannelID: "beta-room", ChannelType: 2},
+	}, summarizeChannelRuntimeMetaResponse(got))
+}
+
+func TestListChannelRuntimeMetaPropagatesAuthoritativeErrors(t *testing.T) {
+	reader := &fakeChannelRuntimeMetaReader{
+		pages: map[multiraft.SlotID]map[metadb.ChannelRuntimeMetaCursor]fakeChannelRuntimeMetaPage{
+			1: {
+				{}: {
+					items: []metadb.ChannelRuntimeMeta{
+						testChannelRuntimeMeta("s1-a", 1, channel.StatusActive),
+					},
+					cursor: metadb.ChannelRuntimeMetaCursor{ChannelID: "s1-a", ChannelType: 1},
+					done:   true,
+				},
+			},
+		},
+		errBySlot: map[multiraft.SlotID]error{
+			2: raftcluster.ErrNoLeader,
+		},
+	}
+	app := New(Options{
+		Cluster: fakeClusterReader{
+			slotIDs: []multiraft.SlotID{1, 2},
+		},
+		ChannelRuntimeMeta: reader,
+	})
+
+	_, err := app.ListChannelRuntimeMeta(context.Background(), ListChannelRuntimeMetaRequest{Limit: 2})
+	require.ErrorIs(t, err, raftcluster.ErrNoLeader)
+}
+
+func TestGetChannelRuntimeMetaRejectsInvalidChannelType(t *testing.T) {
+	app := New(Options{
+		Cluster: fakeClusterReader{
+			slotForKey: map[string]multiraft.SlotID{"g1": 7},
+			hashSlotForKey: map[string]uint16{
+				"g1": 129,
+			},
+		},
+		ChannelRuntimeMeta: &fakeChannelRuntimeMetaReader{},
+	})
+
+	_, err := app.GetChannelRuntimeMeta(context.Background(), "g1", 0)
+	require.ErrorIs(t, err, metadb.ErrInvalidArgument)
+}
+
+func TestGetChannelRuntimeMetaReturnsDetailWithSlotAndHashSlot(t *testing.T) {
+	reader := &fakeChannelRuntimeMetaReader{
+		metaByKey: map[metadb.ConversationKey]metadb.ChannelRuntimeMeta{
+			{ChannelID: "g1", ChannelType: 2}: {
+				ChannelID:    "g1",
+				ChannelType:  2,
+				ChannelEpoch: 12,
+				LeaderEpoch:  6,
+				Leader:       3,
+				Replicas:     []uint64{3, 5, 8},
+				ISR:          []uint64{3, 5},
+				MinISR:       2,
+				Status:       uint8(channel.StatusActive),
+				Features:     1,
+				LeaseUntilMS: 1700000000000,
+			},
+		},
+	}
+	app := New(Options{
+		Cluster: fakeClusterReader{
+			slotForKey: map[string]multiraft.SlotID{"g1": 7},
+			hashSlotForKey: map[string]uint16{
+				"g1": 129,
+			},
+		},
+		ChannelRuntimeMeta: reader,
+	})
+
+	got, err := app.GetChannelRuntimeMeta(context.Background(), "g1", 2)
+	require.NoError(t, err)
+	require.Equal(t, ChannelRuntimeMetaDetail{
+		ChannelRuntimeMeta: ChannelRuntimeMeta{
+			ChannelID:     "g1",
+			ChannelType:   2,
+			SlotID:        7,
+			ChannelEpoch:  12,
+			LeaderEpoch:   6,
+			Leader:        3,
+			Replicas:      []uint64{3, 5, 8},
+			ISR:           []uint64{3, 5},
+			MinISR:        2,
+			MaxMessageSeq: uint64Ptr(0),
+			Status:        "active",
+		},
+		HashSlot:     129,
+		Features:     1,
+		LeaseUntilMS: 1700000000000,
+	}, got)
+	require.Equal(t, []channelRuntimeMetaGetCall{{
+		channelID:   "g1",
+		channelType: 2,
+	}}, reader.getCalls)
+}
+
+func TestGetChannelRuntimeMetaIncludesMaxMessageSeq(t *testing.T) {
+	reader := &fakeChannelRuntimeMetaReader{
+		metaByKey: map[metadb.ConversationKey]metadb.ChannelRuntimeMeta{
+			{ChannelID: "g1", ChannelType: 2}: testChannelRuntimeMeta("g1", 2, channel.StatusActive),
+		},
+	}
+	messages := &fakeMessageReader{
+		maxSeqByChannel: map[channel.ChannelID]uint64{
+			{ID: "g1", Type: 2}: 42,
+		},
+	}
+	app := New(Options{
+		Cluster: fakeClusterReader{
+			slotForKey:     map[string]multiraft.SlotID{"g1": 7},
+			hashSlotForKey: map[string]uint16{"g1": 129},
+		},
+		ChannelRuntimeMeta: reader,
+		Messages:           messages,
+	})
+
+	got, err := app.GetChannelRuntimeMeta(context.Background(), "g1", 2)
+	require.NoError(t, err)
+	require.Equal(t, uint64Ptr(42), got.MaxMessageSeq)
+	require.Equal(t, []channel.ChannelID{{ID: "g1", Type: 2}}, messages.maxSeqCalls)
+}
+
+func TestGetChannelRuntimeMetaPropagatesNotFound(t *testing.T) {
+	reader := &fakeChannelRuntimeMetaReader{getErr: metadb.ErrNotFound}
+	app := New(Options{
+		Cluster: fakeClusterReader{
+			slotForKey: map[string]multiraft.SlotID{"g1": 7},
+			hashSlotForKey: map[string]uint16{
+				"g1": 129,
+			},
+		},
+		ChannelRuntimeMeta: reader,
+	})
+
+	_, err := app.GetChannelRuntimeMeta(context.Background(), "g1", 2)
+	require.ErrorIs(t, err, metadb.ErrNotFound)
+}
+
+func TestGetChannelRuntimeMetaPropagatesAuthoritativeReadErrors(t *testing.T) {
+	reader := &fakeChannelRuntimeMetaReader{getErr: raftcluster.ErrNoLeader}
+	app := New(Options{
+		Cluster: fakeClusterReader{
+			slotForKey: map[string]multiraft.SlotID{"g1": 7},
+			hashSlotForKey: map[string]uint16{
+				"g1": 129,
+			},
+		},
+		ChannelRuntimeMeta: reader,
+	})
+
+	_, err := app.GetChannelRuntimeMeta(context.Background(), "g1", 2)
+	require.ErrorIs(t, err, raftcluster.ErrNoLeader)
+}
+
+type fakeChannelRuntimeMetaReader struct {
+	pages     map[multiraft.SlotID]map[metadb.ChannelRuntimeMetaCursor]fakeChannelRuntimeMetaPage
+	errBySlot map[multiraft.SlotID]error
+	calls     []channelRuntimeMetaScanCall
+	metaByKey map[metadb.ConversationKey]metadb.ChannelRuntimeMeta
+	getErr    error
+	getCalls  []channelRuntimeMetaGetCall
+}
+
+type fakeChannelRuntimeMetaPage struct {
+	items  []metadb.ChannelRuntimeMeta
+	cursor metadb.ChannelRuntimeMetaCursor
+	done   bool
+}
+
+type channelRuntimeMetaScanCall struct {
+	slotID multiraft.SlotID
+	after  metadb.ChannelRuntimeMetaCursor
+	limit  int
+}
+
+type channelRuntimeMetaGetCall struct {
+	channelID   string
+	channelType int64
+}
+
+func (f *fakeChannelRuntimeMetaReader) ScanChannelRuntimeMetaSlotPage(_ context.Context, slotID multiraft.SlotID, after metadb.ChannelRuntimeMetaCursor, limit int) ([]metadb.ChannelRuntimeMeta, metadb.ChannelRuntimeMetaCursor, bool, error) {
+	f.calls = append(f.calls, channelRuntimeMetaScanCall{slotID: slotID, after: after, limit: limit})
+	if err := f.errBySlot[slotID]; err != nil {
+		return nil, metadb.ChannelRuntimeMetaCursor{}, false, err
+	}
+	if slotPages := f.pages[slotID]; slotPages != nil {
+		if page, ok := slotPages[after]; ok {
+			return append([]metadb.ChannelRuntimeMeta(nil), page.items...), page.cursor, page.done, nil
+		}
+	}
+	return nil, after, true, nil
+}
+
+func (f *fakeChannelRuntimeMetaReader) GetChannelRuntimeMeta(_ context.Context, channelID string, channelType int64) (metadb.ChannelRuntimeMeta, error) {
+	f.getCalls = append(f.getCalls, channelRuntimeMetaGetCall{channelID: channelID, channelType: channelType})
+	if f.getErr != nil {
+		return metadb.ChannelRuntimeMeta{}, f.getErr
+	}
+	meta, ok := f.metaByKey[metadb.ConversationKey{ChannelID: channelID, ChannelType: channelType}]
+	if !ok {
+		return metadb.ChannelRuntimeMeta{}, metadb.ErrNotFound
+	}
+	return meta, nil
+}
+
+func testChannelRuntimeMeta(channelID string, channelType int64, status channel.Status) metadb.ChannelRuntimeMeta {
+	return metadb.ChannelRuntimeMeta{
+		ChannelID:   channelID,
+		ChannelType: channelType,
+		Status:      uint8(status),
+	}
+}
+
+func channelRuntimeMetaIDs(items []ChannelRuntimeMeta) []string {
+	out := make([]string, 0, len(items))
+	for _, item := range items {
+		out = append(out, item.ChannelID)
+	}
+	return out
+}
+
+func summarizeChannelRuntimeMetaResponse(resp ListChannelRuntimeMetaResponse) ListChannelRuntimeMetaResponse {
+	out := ListChannelRuntimeMetaResponse{
+		Items:      make([]ChannelRuntimeMeta, 0, len(resp.Items)),
+		HasMore:    resp.HasMore,
+		NextCursor: resp.NextCursor,
+	}
+	for _, item := range resp.Items {
+		out.Items = append(out.Items, ChannelRuntimeMeta{
+			ChannelID:     item.ChannelID,
+			ChannelType:   item.ChannelType,
+			SlotID:        item.SlotID,
+			MaxMessageSeq: item.MaxMessageSeq,
+			Status:        item.Status,
+		})
+	}
+	return out
+}
+
+func channelRuntimeMetaStatuses(items []ChannelRuntimeMeta) []string {
+	out := make([]string, 0, len(items))
+	for _, item := range items {
+		out = append(out, item.Status)
+	}
+	return out
+}

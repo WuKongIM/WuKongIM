@@ -3,14 +3,14 @@ package plugin
 import (
 	"context"
 	"errors"
+	"sort"
 
-	"github.com/WuKongIM/WuKongIM/internal/contracts/messageevents"
-	"github.com/WuKongIM/WuKongIM/pkg/plugin/pluginproto"
+	pluginevents "github.com/WuKongIM/WuKongIM/internal/contracts/pluginevents"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
 // PersistAfterCommitted invokes local PersistAfter plugins for one committed message.
-func (a *App) PersistAfterCommitted(ctx context.Context, event messageevents.MessageCommitted) error {
+func (a *App) PersistAfterCommitted(ctx context.Context, event pluginevents.PersistAfterCommitted) error {
 	plugins, err := a.PersistAfterPluginCandidates(ctx)
 	if err != nil {
 		return err
@@ -18,7 +18,7 @@ func (a *App) PersistAfterCommitted(ctx context.Context, event messageevents.Mes
 	if len(plugins) == 0 {
 		return nil
 	}
-	batch := persistAfterBatchFromCommitted(event)
+	batch := messageBatchFromPersistAfter(event)
 	var joined error
 	for _, plugin := range plugins {
 		if err := a.InvokePersistAfter(ctx, plugin, batch); err != nil {
@@ -29,21 +29,57 @@ func (a *App) PersistAfterCommitted(ctx context.Context, event messageevents.Mes
 	return joined
 }
 
-func persistAfterBatchFromCommitted(event messageevents.MessageCommitted) *pluginproto.MessageBatch {
-	return &pluginproto.MessageBatch{Messages: []*pluginproto.Message{pluginMessageFromChannelMessage(event.Message)}}
+// PersistAfterPluginCandidates returns running local PersistAfter plugins in hook order.
+func (a *App) PersistAfterPluginCandidates(ctx context.Context) ([]ObservedPlugin, error) {
+	plugins, err := a.applyDesiredToPlugins(ctx, a.runtime.List())
+	if err != nil {
+		return nil, err
+	}
+	return runningPluginsByMethod(plugins, MethodPersistAfter), nil
 }
 
-func (a *App) logPersistAfterFailure(event messageevents.MessageCommitted, plugin ObservedPlugin, err error) {
+func runningPluginsByMethod(plugins []ObservedPlugin, method Method) []ObservedPlugin {
+	out := make([]ObservedPlugin, 0, len(plugins))
+	for _, plugin := range plugins {
+		if plugin.Enabled && plugin.Status == StatusRunning && hasMethod(plugin, method) {
+			out = append(out, cloneObservedPlugin(plugin))
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Priority != out[j].Priority {
+			return out[i].Priority > out[j].Priority
+		}
+		return out[i].No < out[j].No
+	})
+	return out
+}
+
+func cloneObservedPlugin(plugin ObservedPlugin) ObservedPlugin {
+	plugin.Methods = append([]Method(nil), plugin.Methods...)
+	plugin.ConfigTemplateRaw = append([]byte(nil), plugin.ConfigTemplateRaw...)
+	return plugin
+}
+
+func hasMethod(plugin ObservedPlugin, method Method) bool {
+	for _, candidate := range plugin.Methods {
+		if candidate == method {
+			return true
+		}
+	}
+	return false
+}
+
+func (a *App) logPersistAfterFailure(event pluginevents.PersistAfterCommitted, plugin ObservedPlugin, err error) {
 	if a == nil || a.logger == nil || err == nil {
 		return
 	}
 	a.logger.Warn("plugin PersistAfter hook failed",
 		wklog.Event("plugin.persist_after.failed"),
 		wklog.String("pluginNo", plugin.No),
-		wklog.String("channelID", event.Message.ChannelID),
-		wklog.Int("channelType", int(event.Message.ChannelType)),
-		wklog.Uint64("messageID", event.Message.MessageID),
-		wklog.Uint64("messageSeq", event.Message.MessageSeq),
+		wklog.String("channelID", event.ChannelID),
+		wklog.Int("channelType", int(event.ChannelType)),
+		wklog.Uint64("messageID", event.MessageID),
+		wklog.Uint64("messageSeq", event.MessageSeq),
 		wklog.Error(err),
 	)
 }

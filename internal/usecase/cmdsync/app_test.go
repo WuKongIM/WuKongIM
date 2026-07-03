@@ -2,344 +2,179 @@ package cmdsync
 
 import (
 	"context"
-	"errors"
-	"strconv"
+	"reflect"
 	"testing"
-	"time"
 
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
-	"github.com/WuKongIM/WuKongIM/pkg/legacy/channel"
-	"github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
-	"github.com/stretchr/testify/require"
+	runtimechannelid "github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
 )
 
-func TestAppSyncLoadsCMDStatesFetchesFromReadCursorStripsSuffixAndRecordsReturnedSeqs(t *testing.T) {
-	ctx := context.Background()
-	states := &fakeStateStore{active: []metadb.CMDConversationState{
-		{UID: "u1", ChannelID: "g1____cmd", ChannelType: 2, ReadSeq: 1, DeletedToSeq: 3, ActiveAt: 100},
-		{UID: "u1", ChannelID: "g2____cmd", ChannelType: 2, ReadSeq: 5, ActiveAt: 200},
-		{UID: "u1", ChannelID: "empty____cmd", ChannelType: 2, ReadSeq: 9, ActiveAt: 50},
+func TestSyncReadsCMDKindRowsAndStripsCommandSuffix(t *testing.T) {
+	store := newCmdSyncStore()
+	store.active = []metadb.ConversationState{{
+		UID: "u1", Kind: metadb.ConversationKindCMD, ChannelID: runtimechannelid.ToCommandChannel("g1"), ChannelType: 2, ActiveAt: 100,
 	}}
-	messages := &fakeMessageStore{byKey: map[CommandChannelKey][]channel.Message{
-		{ChannelID: "g1____cmd", ChannelType: 2}: {
-			{MessageID: 11, MessageSeq: 4, Timestamp: 20, ChannelID: "g1____cmd", ChannelType: 2},
-			{MessageID: 12, MessageSeq: 5, Timestamp: 10, ChannelID: "g1____cmd", ChannelType: 2},
-		},
-		{ChannelID: "g2____cmd", ChannelType: 2}: {
-			{MessageID: 21, MessageSeq: 6, Timestamp: 15, ChannelID: "g2____cmd", ChannelType: 2},
-		},
+	store.messages[CommandChannelKey{ChannelID: runtimechannelid.ToCommandChannel("g1"), ChannelType: 2}] = []SyncedMessage{{
+		MessageID: 1, MessageSeq: 3, ChannelID: runtimechannelid.ToCommandChannel("g1"), ChannelType: 2, FromUID: "u2", Payload: []byte("cmd"),
 	}}
-	records := NewSyncRecordCache(SyncRecordCacheOptions{TTL: time.Minute, MaxUIDs: 10, MaxRecordsPerUID: 10})
-	app := New(Options{States: states, Messages: messages, Records: records, ActiveScanLimit: 3, DefaultLimit: 2, MaxLimit: 10})
+	app := New(Options{States: store, Messages: store})
 
-	result, err := app.Sync(ctx, SyncQuery{UID: " u1 ", Limit: 2, MessageSeq: 999})
-	require.NoError(t, err)
-	require.Equal(t, []messageLoadCall{
-		{key: CommandChannelKey{ChannelID: "g2____cmd", ChannelType: 2}, fromSeq: 6, limit: 2},
-		{key: CommandChannelKey{ChannelID: "g1____cmd", ChannelType: 2}, fromSeq: 4, limit: 2},
-		{key: CommandChannelKey{ChannelID: "empty____cmd", ChannelType: 2}, fromSeq: 10, limit: 2},
-	}, messages.calls)
-	require.Equal(t, []channel.Message{
-		{MessageID: 12, MessageSeq: 5, Timestamp: 10, ChannelID: "g1", ChannelType: 2},
-		{MessageID: 21, MessageSeq: 6, Timestamp: 15, ChannelID: "g2", ChannelType: 2},
-	}, result.Messages)
-	require.Equal(t, []SyncRecord{
-		{CommandChannelID: "g1____cmd", ChannelType: 2, LastReturnedMsgSeq: 5},
-		{CommandChannelID: "g2____cmd", ChannelType: 2, LastReturnedMsgSeq: 6},
-	}, records.Pop("u1"))
-}
-
-func TestAppSyncDoesNotReplaceRecordsWhenMessageLoadFails(t *testing.T) {
-	ctx := context.Background()
-	states := &fakeStateStore{active: []metadb.CMDConversationState{{UID: "u1", ChannelID: "g1____cmd", ChannelType: 2, ActiveAt: 100}}}
-	loadErr := errors.New("load failed")
-	messages := &fakeMessageStore{err: loadErr}
-	records := NewSyncRecordCache(SyncRecordCacheOptions{TTL: time.Minute, MaxUIDs: 10, MaxRecordsPerUID: 10})
-	records.Replace("u1", []SyncRecord{{CommandChannelID: "old____cmd", ChannelType: 2, LastReturnedMsgSeq: 3}})
-	app := New(Options{States: states, Messages: messages, Records: records})
-
-	_, err := app.Sync(ctx, SyncQuery{UID: "u1", Limit: 10})
-	require.ErrorIs(t, err, loadErr)
-	require.Equal(t, []SyncRecord{{CommandChannelID: "old____cmd", ChannelType: 2, LastReturnedMsgSeq: 3}}, records.Pop("u1"))
-}
-
-func TestAppSyncMergesPendingCMDConversationOverlay(t *testing.T) {
-	ctx := context.Background()
-	states := &fakeStateStore{}
-	pending := &fakePendingStore{views: map[string][]PendingConversationView{
-		"u1": {
-			{CommandChannelID: "g1____cmd", ChannelType: 2, LastMsgSeq: 1, ActiveAt: 10, ReadSeq: 0},
-			{CommandChannelID: "nested____cmd____cmd", ChannelType: 2, LastMsgSeq: 2, ActiveAt: 20, ReadSeq: 0},
-		},
-	}}
-	messages := &fakeMessageStore{byKey: map[CommandChannelKey][]channel.Message{
-		{ChannelID: "g1____cmd", ChannelType: 2}: {
-			{MessageID: 11, MessageSeq: 1, Timestamp: 20, ChannelID: "g1____cmd", ChannelType: 2},
-		},
-		{ChannelID: "nested____cmd____cmd", ChannelType: 2}: {
-			{MessageID: 12, MessageSeq: 2, Timestamp: 21, ChannelID: "nested____cmd____cmd", ChannelType: 2},
-		},
-	}}
-	app := New(Options{States: states, Messages: messages, Pending: pending, Records: NewSyncRecordCache(SyncRecordCacheOptions{})})
-
-	result, err := app.Sync(ctx, SyncQuery{UID: "u1", Limit: 10})
-	require.NoError(t, err)
-	require.Equal(t, []channel.Message{
-		{MessageID: 11, MessageSeq: 1, Timestamp: 20, ChannelID: "g1", ChannelType: 2},
-		{MessageID: 12, MessageSeq: 2, Timestamp: 21, ChannelID: "nested____cmd", ChannelType: 2},
-	}, result.Messages)
-}
-
-func TestAppSyncUsesMaxPersistedAndPendingReadSeq(t *testing.T) {
-	ctx := context.Background()
-	states := &fakeStateStore{active: []metadb.CMDConversationState{
-		{UID: "u1", ChannelID: "g1____cmd", ChannelType: 2, ReadSeq: 5, ActiveAt: 100},
-	}}
-	pending := &fakePendingStore{views: map[string][]PendingConversationView{
-		"u1": {{CommandChannelID: "g1____cmd", ChannelType: 2, LastMsgSeq: 4, ActiveAt: 200, ReadSeq: 0}},
-	}}
-	messages := &fakeMessageStore{}
-	app := New(Options{States: states, Messages: messages, Pending: pending, Records: NewSyncRecordCache(SyncRecordCacheOptions{})})
-
-	_, err := app.Sync(ctx, SyncQuery{UID: "u1", Limit: 10})
-	require.NoError(t, err)
-	require.Equal(t, []messageLoadCall{{key: CommandChannelKey{ChannelID: "g1____cmd", ChannelType: 2}, fromSeq: 6, limit: 10}}, messages.calls)
-}
-
-func TestAppSyncAckAdvancesOnlyLatestGenerationAndIgnoresCompatibilitySeq(t *testing.T) {
-	ctx := context.Background()
-	now := time.Date(2026, 5, 12, 12, 0, 0, 123, time.UTC)
-	states := &fakeStateStore{}
-	records := NewSyncRecordCache(SyncRecordCacheOptions{TTL: time.Minute, MaxUIDs: 10, MaxRecordsPerUID: 10})
-	records.Replace("u1", []SyncRecord{{CommandChannelID: "old____cmd", ChannelType: 2, LastReturnedMsgSeq: 3}})
-	records.Replace("u1", []SyncRecord{
-		{CommandChannelID: "g1____cmd", ChannelType: 2, LastReturnedMsgSeq: 7},
-		{CommandChannelID: "not-cmd", ChannelType: 2, LastReturnedMsgSeq: 8},
-		{CommandChannelID: "zero____cmd", ChannelType: 2, LastReturnedMsgSeq: 0},
-	})
-	app := New(Options{States: states, Messages: &fakeMessageStore{}, Records: records, Now: func() time.Time { return now }})
-
-	require.NoError(t, app.SyncAck(ctx, SyncAckCommand{UID: " u1 ", LastMessageSeq: 99999}))
-	require.Equal(t, []metadb.CMDConversationReadPatch{{
-		UID: "u1", ChannelID: "g1____cmd", ChannelType: 2, ReadSeq: 7, UpdatedAt: now.UnixNano(),
-	}}, states.patches)
-
-	require.NoError(t, app.SyncAck(ctx, SyncAckCommand{UID: "u1", LastMessageSeq: 99999}))
-	require.Len(t, states.patches, 1)
-}
-
-func TestAppRejectsMissingUIDAndDependencies(t *testing.T) {
-	ctx := context.Background()
-	app := New(Options{States: &fakeStateStore{}, Messages: &fakeMessageStore{}})
-	_, err := app.Sync(ctx, SyncQuery{UID: "   ", Limit: 10})
-	require.ErrorIs(t, err, ErrUIDRequired)
-	require.ErrorIs(t, app.SyncAck(ctx, SyncAckCommand{UID: ""}), ErrUIDRequired)
-
-	_, err = New(Options{Messages: &fakeMessageStore{}}).Sync(ctx, SyncQuery{UID: "u1", Limit: 10})
-	require.ErrorIs(t, err, ErrStateStoreRequired)
-	_, err = New(Options{States: &fakeStateStore{}}).Sync(ctx, SyncQuery{UID: "u1", Limit: 10})
-	require.ErrorIs(t, err, ErrMessageStoreRequired)
-	require.ErrorIs(t, New(Options{}).SyncAck(ctx, SyncAckCommand{UID: "u1"}), ErrStateStoreRequired)
-}
-
-func TestAppSyncSortsDeterministicallyWhenTimestampsTie(t *testing.T) {
-	ctx := context.Background()
-	states := &fakeStateStore{active: []metadb.CMDConversationState{
-		{UID: "u1", ChannelID: "b____cmd", ChannelType: 2, ActiveAt: 100},
-		{UID: "u1", ChannelID: "a____cmd", ChannelType: 2, ActiveAt: 100},
-	}}
-	messages := &fakeMessageStore{byKey: map[CommandChannelKey][]channel.Message{
-		{ChannelID: "b____cmd", ChannelType: 2}: {{MessageID: 2, MessageSeq: 1, Timestamp: 10, ChannelID: "b____cmd", ChannelType: 2}},
-		{ChannelID: "a____cmd", ChannelType: 2}: {{MessageID: 1, MessageSeq: 1, Timestamp: 10, ChannelID: "a____cmd", ChannelType: 2}},
-	}}
-	app := New(Options{States: states, Messages: messages, Records: NewSyncRecordCache(SyncRecordCacheOptions{})})
-
-	result, err := app.Sync(ctx, SyncQuery{UID: "u1", Limit: 10})
-	require.NoError(t, err)
-	require.Equal(t, []string{"a", "b"}, []string{result.Messages[0].ChannelID, result.Messages[1].ChannelID})
-}
-
-func TestAppSyncAckPropagatesStoreErrors(t *testing.T) {
-	ctx := context.Background()
-	storeErr := errors.New("advance failed")
-	states := &fakeStateStore{err: storeErr}
-	records := NewSyncRecordCache(SyncRecordCacheOptions{TTL: time.Minute, MaxUIDs: 10, MaxRecordsPerUID: 10})
-	records.Replace("u1", []SyncRecord{{CommandChannelID: "g1____cmd", ChannelType: 2, LastReturnedMsgSeq: 7}})
-	app := New(Options{States: states, Messages: &fakeMessageStore{}, Records: records})
-
-	require.ErrorIs(t, app.SyncAck(ctx, SyncAckCommand{UID: "u1"}), storeErr)
-	require.Equal(t, []SyncRecord{{CommandChannelID: "g1____cmd", ChannelType: 2, LastReturnedMsgSeq: 7}}, records.Pop("u1"))
-}
-
-func TestAppSyncAckCleansPendingAfterPersistedAdvance(t *testing.T) {
-	ctx := context.Background()
-	now := time.Date(2026, 5, 12, 12, 0, 0, 123, time.UTC)
-	states := &fakeStateStore{}
-	pending := &fakePendingStore{views: map[string][]PendingConversationView{
-		"u1": {{CommandChannelID: "g1____cmd", ChannelType: 2, LastMsgSeq: 9, ActiveAt: 100, ReadSeq: 0}},
-	}}
-	records := NewSyncRecordCache(SyncRecordCacheOptions{})
-	records.Replace("u1", []SyncRecord{{CommandChannelID: "g1____cmd", ChannelType: 2, LastReturnedMsgSeq: 9}})
-	app := New(Options{States: states, Messages: &fakeMessageStore{}, Records: records, Pending: pending, Now: func() time.Time { return now }})
-
-	require.NoError(t, app.SyncAck(ctx, SyncAckCommand{UID: "u1"}))
-	require.Equal(t, []metadb.CMDConversationReadPatch{{
-		UID: "u1", ChannelID: "g1____cmd", ChannelType: 2, ReadSeq: 9, UpdatedAt: now.UnixNano(),
-	}}, states.patches)
-	require.Equal(t, []markSyncedCall{{uid: "u1", key: CommandChannelKey{ChannelID: "g1____cmd", ChannelType: 2}, throughSeq: 9}}, pending.markCalls)
-}
-
-func TestAppSyncAckTreatsPendingCleanupFailureAsBestEffort(t *testing.T) {
-	ctx := context.Background()
-	markErr := errors.New("mark synced failed")
-	states := &fakeStateStore{}
-	pending := &fakePendingStore{
-		views:   map[string][]PendingConversationView{"u1": {{CommandChannelID: "g1____cmd", ChannelType: 2, LastMsgSeq: 9, ActiveAt: 100, ReadSeq: 0}}},
-		markErr: markErr,
+	got, err := app.Sync(context.Background(), SyncQuery{UID: "u1", Limit: 10})
+	if err != nil {
+		t.Fatalf("Sync(): %v", err)
 	}
-	records := NewSyncRecordCache(SyncRecordCacheOptions{})
-	records.Replace("u1", []SyncRecord{{CommandChannelID: "g1____cmd", ChannelType: 2, LastReturnedMsgSeq: 9}})
-	app := New(Options{States: states, Messages: &fakeMessageStore{}, Records: records, Pending: pending})
-
-	require.NoError(t, app.SyncAck(ctx, SyncAckCommand{UID: "u1"}))
-	require.Len(t, states.patches, 1)
-	require.Equal(t, uint64(9), states.patches[0].ReadSeq)
-	require.Len(t, pending.markCalls, 1)
-}
-
-func TestAppSyncAckPersistsPendingOnlyReadProgressBeforeCleanup(t *testing.T) {
-	ctx := context.Background()
-	now := time.Date(2026, 5, 12, 12, 0, 0, 456, time.UTC)
-	states := &fakeStateStore{}
-	pending := &fakePendingStore{views: map[string][]PendingConversationView{
-		"u1": {{CommandChannelID: "g1____cmd", ChannelType: 2, LastMsgSeq: 9, ActiveAt: 100, ReadSeq: 0}},
-	}}
-	records := NewSyncRecordCache(SyncRecordCacheOptions{})
-	records.Replace("u1", []SyncRecord{{CommandChannelID: "g1____cmd", ChannelType: 2, LastReturnedMsgSeq: 9}})
-	app := New(Options{States: states, Messages: &fakeMessageStore{}, Records: records, Pending: pending, Now: func() time.Time { return now }})
-
-	require.NoError(t, app.SyncAck(ctx, SyncAckCommand{UID: "u1"}))
-	require.Equal(t, []metadb.CMDConversationState{{
-		UID: "u1", ChannelID: "g1____cmd", ChannelType: 2, ReadSeq: 9, ActiveAt: 100, UpdatedAt: now.UnixNano(),
-	}}, states.upserts)
-	require.Equal(t, []markSyncedCall{{uid: "u1", key: CommandChannelKey{ChannelID: "g1____cmd", ChannelType: 2}, throughSeq: 9}}, pending.markCalls)
-}
-
-func TestAppSyncAckPendingOnlyProgressUpsertFailureSkipsCleanup(t *testing.T) {
-	ctx := context.Background()
-	upsertErr := errors.New("upsert failed")
-	states := &fakeStateStore{upsertErr: upsertErr}
-	pending := &fakePendingStore{views: map[string][]PendingConversationView{
-		"u1": {{CommandChannelID: "g1____cmd", ChannelType: 2, LastMsgSeq: 9, ActiveAt: 100, ReadSeq: 0}},
-	}}
-	records := NewSyncRecordCache(SyncRecordCacheOptions{})
-	records.Replace("u1", []SyncRecord{{CommandChannelID: "g1____cmd", ChannelType: 2, LastReturnedMsgSeq: 9}})
-	app := New(Options{States: states, Messages: &fakeMessageStore{}, Records: records, Pending: pending})
-
-	require.ErrorIs(t, app.SyncAck(ctx, SyncAckCommand{UID: "u1"}), upsertErr)
-	require.Empty(t, pending.markCalls)
-	require.Equal(t, []SyncRecord{{CommandChannelID: "g1____cmd", ChannelType: 2, LastReturnedMsgSeq: 9}}, records.Pop("u1"))
-}
-
-func TestAppSyncAckPendingCleanupOnlyRunsForValidRecords(t *testing.T) {
-	ctx := context.Background()
-	states := &fakeStateStore{}
-	pending := &fakePendingStore{views: map[string][]PendingConversationView{
-		"u1": {{CommandChannelID: "g1____cmd", ChannelType: 2, LastMsgSeq: 9, ActiveAt: 100, ReadSeq: 0}},
-	}}
-	records := NewSyncRecordCache(SyncRecordCacheOptions{})
-	records.Replace("u1", []SyncRecord{
-		{CommandChannelID: "g1____cmd", ChannelType: 2, LastReturnedMsgSeq: 9},
-		{CommandChannelID: "zero____cmd", ChannelType: 2, LastReturnedMsgSeq: 0},
-		{CommandChannelID: "not-cmd", ChannelType: 2, LastReturnedMsgSeq: 10},
-	})
-	app := New(Options{States: states, Messages: &fakeMessageStore{}, Records: records, Pending: pending})
-
-	require.NoError(t, app.SyncAck(ctx, SyncAckCommand{UID: "u1"}))
-	require.Equal(t, []markSyncedCall{{uid: "u1", key: CommandChannelKey{ChannelID: "g1____cmd", ChannelType: 2}, throughSeq: 9}}, pending.markCalls)
-}
-
-func TestAppSyncAckUsesPendingRecordMetadataWhenPendingListNoLongerContainsView(t *testing.T) {
-	ctx := context.Background()
-	states := &fakeStateStore{}
-	pending := &fakePendingStore{}
-	records := NewSyncRecordCache(SyncRecordCacheOptions{})
-	records.Replace("u1", []SyncRecord{{
-		CommandChannelID:   "g1____cmd",
-		ChannelType:        2,
-		LastReturnedMsgSeq: 9,
-		Pending:            true,
-		PendingActiveAt:    100,
-	}})
-	app := New(Options{States: states, Messages: &fakeMessageStore{}, Records: records, Pending: pending})
-
-	require.NoError(t, app.SyncAck(ctx, SyncAckCommand{UID: "u1"}))
-	require.Equal(t, []metadb.CMDConversationState{{
-		UID: "u1", ChannelID: "g1____cmd", ChannelType: 2, ReadSeq: 9, ActiveAt: 100, UpdatedAt: states.upserts[0].UpdatedAt,
-	}}, states.upserts)
-	require.Equal(t, []markSyncedCall{{uid: "u1", key: CommandChannelKey{ChannelID: "g1____cmd", ChannelType: 2}, throughSeq: 9}}, pending.markCalls)
-}
-
-func TestAppSyncDefaultRecordCacheRetainsAllReturnedChannels(t *testing.T) {
-	ctx := context.Background()
-	limit := defaultSyncRecordMaxPerUID + 1
-	states := &fakeStateStore{active: make([]metadb.CMDConversationState, 0, limit)}
-	messages := &fakeMessageStore{byKey: make(map[CommandChannelKey][]channel.Message, limit)}
-	for i := 0; i < limit; i++ {
-		channelID := channelid.ToCommandChannel("g-record-" + strconv.Itoa(i))
-		state := metadb.CMDConversationState{UID: "u1", ChannelID: channelID, ChannelType: 2, ActiveAt: int64(limit - i)}
-		states.active = append(states.active, state)
-		key := CommandChannelKey{ChannelID: channelID, ChannelType: 2}
-		messages.byKey[key] = []channel.Message{{MessageID: uint64(i + 1), MessageSeq: 1, ChannelID: channelID, ChannelType: 2}}
+	if len(got.Messages) != 1 || got.Messages[0].ChannelID != "g1" || got.Messages[0].MessageSeq != 3 {
+		t.Fatalf("messages = %+v", got.Messages)
 	}
-	app := New(Options{States: states, Messages: messages, ActiveScanLimit: limit, DefaultLimit: limit, MaxLimit: limit})
-
-	result, err := app.Sync(ctx, SyncQuery{UID: "u1", Limit: limit})
-	require.NoError(t, err)
-	require.Len(t, result.Messages, limit)
-	require.Len(t, app.records.Pop("u1"), limit)
 }
 
-type fakeStateStore struct {
-	active    []metadb.CMDConversationState
-	patches   []metadb.CMDConversationReadPatch
-	upserts   []metadb.CMDConversationState
-	err       error
-	upsertErr error
-}
+func TestSyncAckAdvancesCMDKindReadSeqOnlyFromLatestGeneration(t *testing.T) {
+	store := newCmdSyncStore()
+	store.active = []metadb.ConversationState{{
+		UID: "u1", Kind: metadb.ConversationKindCMD, ChannelID: runtimechannelid.ToCommandChannel("g1"), ChannelType: 2, ActiveAt: 100,
+	}}
+	store.messages[CommandChannelKey{ChannelID: runtimechannelid.ToCommandChannel("g1"), ChannelType: 2}] = []SyncedMessage{{
+		MessageSeq: 5, ChannelID: runtimechannelid.ToCommandChannel("g1"), ChannelType: 2,
+	}}
+	app := New(Options{States: store, Messages: store})
 
-func (f *fakeStateStore) ListCMDConversationActive(_ context.Context, uid string, limit int) ([]metadb.CMDConversationState, error) {
-	if f.err != nil {
-		return nil, f.err
+	if _, err := app.Sync(context.Background(), SyncQuery{UID: "u1", Limit: 10}); err != nil {
+		t.Fatalf("Sync(): %v", err)
 	}
-	out := make([]metadb.CMDConversationState, 0, len(f.active))
-	for _, state := range f.active {
-		if state.UID == uid {
-			out = append(out, state)
+	if err := app.SyncAck(context.Background(), SyncAckCommand{UID: "u1", LastMessageSeq: 5}); err != nil {
+		t.Fatalf("SyncAck(): %v", err)
+	}
+	if len(store.upserts) != 1 || store.upserts[0].Kind != metadb.ConversationKindCMD || store.upserts[0].ReadSeq != 5 {
+		t.Fatalf("upserts = %+v", store.upserts)
+	}
+}
+
+func TestSyncAckAdvancesSyncOnceSourceChannelRows(t *testing.T) {
+	store := newCmdSyncStore()
+	store.active = []metadb.ConversationState{{
+		UID: "u1", Kind: metadb.ConversationKindCMD, ChannelID: "g1", ChannelType: 2, ActiveAt: 100,
+	}}
+	store.messages[CommandChannelKey{ChannelID: "g1", ChannelType: 2}] = []SyncedMessage{{
+		MessageSeq: 6, ChannelID: "g1", ChannelType: 2,
+	}}
+	app := New(Options{States: store, Messages: store})
+
+	if _, err := app.Sync(context.Background(), SyncQuery{UID: "u1", Limit: 10}); err != nil {
+		t.Fatalf("Sync(): %v", err)
+	}
+	if err := app.SyncAck(context.Background(), SyncAckCommand{UID: "u1"}); err != nil {
+		t.Fatalf("SyncAck(): %v", err)
+	}
+	if len(store.upserts) != 1 || store.upserts[0].ChannelID != "g1" || store.upserts[0].ReadSeq != 6 {
+		t.Fatalf("upserts = %+v, want sync_once source channel read progress", store.upserts)
+	}
+}
+
+func TestSyncUsesReadDeleteFloorAndSortsDeterministically(t *testing.T) {
+	store := newCmdSyncStore()
+	store.active = []metadb.ConversationState{
+		{UID: "u1", Kind: metadb.ConversationKindCMD, ChannelID: runtimechannelid.ToCommandChannel("b"), ChannelType: 2, ReadSeq: 1, DeletedToSeq: 3, ActiveAt: 200},
+		{UID: "u1", Kind: metadb.ConversationKindCMD, ChannelID: runtimechannelid.ToCommandChannel("a"), ChannelType: 2, ReadSeq: 0, ActiveAt: 100},
+	}
+	store.messages[CommandChannelKey{ChannelID: runtimechannelid.ToCommandChannel("b"), ChannelType: 2}] = []SyncedMessage{
+		{MessageID: 12, MessageSeq: 4, ChannelID: runtimechannelid.ToCommandChannel("b"), ChannelType: 2, ServerTimestampMS: 10},
+		{MessageID: 13, MessageSeq: 5, ChannelID: runtimechannelid.ToCommandChannel("b"), ChannelType: 2, ServerTimestampMS: 20},
+	}
+	store.messages[CommandChannelKey{ChannelID: runtimechannelid.ToCommandChannel("a"), ChannelType: 2}] = []SyncedMessage{{
+		MessageID: 11, MessageSeq: 1, ChannelID: runtimechannelid.ToCommandChannel("a"), ChannelType: 2, ServerTimestampMS: 20,
+	}}
+	app := New(Options{States: store, Messages: store, DefaultLimit: 10, MaxLimit: 10})
+
+	got, err := app.Sync(context.Background(), SyncQuery{UID: "u1", Limit: 10})
+	if err != nil {
+		t.Fatalf("Sync(): %v", err)
+	}
+	if want := []messageLoadCall{
+		{key: CommandChannelKey{ChannelID: runtimechannelid.ToCommandChannel("b"), ChannelType: 2}, fromSeq: 4, limit: 10},
+		{key: CommandChannelKey{ChannelID: runtimechannelid.ToCommandChannel("a"), ChannelType: 2}, fromSeq: 1, limit: 10},
+	}; !reflect.DeepEqual(store.messageCalls, want) {
+		t.Fatalf("message calls = %#v, want %#v", store.messageCalls, want)
+	}
+	if gotIDs := syncMessageChannelIDs(got.Messages); !reflect.DeepEqual(gotIDs, []string{"b", "a", "b"}) {
+		t.Fatalf("message channel IDs = %#v, want sorted stripped ids", gotIDs)
+	}
+}
+
+func TestSyncRecordsLatestGenerationOnly(t *testing.T) {
+	store := newCmdSyncStore()
+	store.active = []metadb.ConversationState{{
+		UID: "u1", Kind: metadb.ConversationKindCMD, ChannelID: runtimechannelid.ToCommandChannel("old"), ChannelType: 2, ActiveAt: 100,
+	}}
+	store.messages[CommandChannelKey{ChannelID: runtimechannelid.ToCommandChannel("old"), ChannelType: 2}] = []SyncedMessage{{
+		MessageSeq: 2, ChannelID: runtimechannelid.ToCommandChannel("old"), ChannelType: 2,
+	}}
+	app := New(Options{States: store, Messages: store})
+	if _, err := app.Sync(context.Background(), SyncQuery{UID: "u1", Limit: 10}); err != nil {
+		t.Fatalf("first Sync(): %v", err)
+	}
+
+	store.active = []metadb.ConversationState{{
+		UID: "u1", Kind: metadb.ConversationKindCMD, ChannelID: runtimechannelid.ToCommandChannel("new"), ChannelType: 2, ActiveAt: 200,
+	}}
+	store.messages[CommandChannelKey{ChannelID: runtimechannelid.ToCommandChannel("new"), ChannelType: 2}] = []SyncedMessage{{
+		MessageSeq: 9, ChannelID: runtimechannelid.ToCommandChannel("new"), ChannelType: 2,
+	}}
+	if _, err := app.Sync(context.Background(), SyncQuery{UID: "u1", Limit: 10}); err != nil {
+		t.Fatalf("second Sync(): %v", err)
+	}
+	if err := app.SyncAck(context.Background(), SyncAckCommand{UID: "u1"}); err != nil {
+		t.Fatalf("SyncAck(): %v", err)
+	}
+	if len(store.upserts) != 1 || store.upserts[0].ChannelID != runtimechannelid.ToCommandChannel("new") || store.upserts[0].ReadSeq != 9 {
+		t.Fatalf("upserts = %+v, want latest generation only", store.upserts)
+	}
+}
+
+func TestSyncRejectsMissingDependencies(t *testing.T) {
+	store := newCmdSyncStore()
+	if _, err := New(Options{States: store, Messages: store}).Sync(context.Background(), SyncQuery{}); err != ErrUIDRequired {
+		t.Fatalf("Sync() error = %v, want %v", err, ErrUIDRequired)
+	}
+	if err := New(Options{States: store}).SyncAck(context.Background(), SyncAckCommand{}); err != ErrUIDRequired {
+		t.Fatalf("SyncAck() error = %v, want %v", err, ErrUIDRequired)
+	}
+	if _, err := New(Options{Messages: store}).Sync(context.Background(), SyncQuery{UID: "u1"}); err != ErrStateStoreRequired {
+		t.Fatalf("Sync() error = %v, want %v", err, ErrStateStoreRequired)
+	}
+	if _, err := New(Options{States: store}).Sync(context.Background(), SyncQuery{UID: "u1"}); err != ErrMessageStoreRequired {
+		t.Fatalf("Sync() error = %v, want %v", err, ErrMessageStoreRequired)
+	}
+	if err := New(Options{}).SyncAck(context.Background(), SyncAckCommand{UID: "u1"}); err != ErrStateStoreRequired {
+		t.Fatalf("SyncAck() error = %v, want %v", err, ErrStateStoreRequired)
+	}
+}
+
+type cmdSyncStore struct {
+	active       []metadb.ConversationState
+	upserts      []metadb.ConversationState
+	messages     map[CommandChannelKey][]SyncedMessage
+	messageCalls []messageLoadCall
+}
+
+func newCmdSyncStore() *cmdSyncStore {
+	return &cmdSyncStore{messages: make(map[CommandChannelKey][]SyncedMessage)}
+}
+
+func (s *cmdSyncStore) ListConversationActiveView(_ context.Context, uid string, limit int) ([]metadb.ConversationState, error) {
+	rows := make([]metadb.ConversationState, 0, len(s.active))
+	for _, row := range s.active {
+		if row.UID == uid && row.Kind == metadb.ConversationKindCMD {
+			rows = append(rows, row)
 		}
 	}
-	if limit > 0 && len(out) > limit {
-		out = out[:limit]
+	if limit > 0 && len(rows) > limit {
+		rows = rows[:limit]
 	}
-	return out, nil
+	return rows, nil
 }
 
-func (f *fakeStateStore) AdvanceCMDConversationReadSeq(_ context.Context, patches []metadb.CMDConversationReadPatch) error {
-	if f.err != nil {
-		return f.err
-	}
-	f.patches = append(f.patches, patches...)
-	return nil
-}
-
-func (f *fakeStateStore) UpsertCMDConversationStates(_ context.Context, states []metadb.CMDConversationState) error {
-	if f.upsertErr != nil {
-		return f.upsertErr
-	}
-	if f.err != nil {
-		return f.err
-	}
-	f.upserts = append(f.upserts, states...)
+func (s *cmdSyncStore) UpsertConversationStates(_ context.Context, states []metadb.ConversationState) error {
+	s.upserts = append(s.upserts, states...)
 	return nil
 }
 
@@ -349,24 +184,19 @@ type messageLoadCall struct {
 	limit   int
 }
 
-type fakeMessageStore struct {
-	byKey map[CommandChannelKey][]channel.Message
-	calls []messageLoadCall
-	err   error
-}
-
-func (f *fakeMessageStore) LoadCommandMessages(_ context.Context, key CommandChannelKey, fromSeq uint64, limit int) ([]channel.Message, error) {
-	f.calls = append(f.calls, messageLoadCall{key: key, fromSeq: fromSeq, limit: limit})
-	if f.err != nil {
-		return nil, f.err
-	}
-	var out []channel.Message
-	for _, msg := range f.byKey[key] {
+func (s *cmdSyncStore) LoadCommandMessages(_ context.Context, key CommandChannelKey, fromSeq uint64, limit int) ([]SyncedMessage, error) {
+	s.messageCalls = append(s.messageCalls, messageLoadCall{key: key, fromSeq: fromSeq, limit: limit})
+	msgs := s.messages[key]
+	out := make([]SyncedMessage, 0, len(msgs))
+	for _, msg := range msgs {
 		if msg.MessageSeq < fromSeq {
 			continue
 		}
-		if !channelid.IsCommandChannel(msg.ChannelID) {
+		if msg.ChannelID == "" {
 			msg.ChannelID = key.ChannelID
+		}
+		if msg.ChannelType == 0 {
+			msg.ChannelType = key.ChannelType
 		}
 		out = append(out, msg)
 		if limit > 0 && len(out) >= limit {
@@ -376,27 +206,10 @@ func (f *fakeMessageStore) LoadCommandMessages(_ context.Context, key CommandCha
 	return out, nil
 }
 
-type markSyncedCall struct {
-	uid        string
-	key        CommandChannelKey
-	throughSeq uint64
-}
-
-type fakePendingStore struct {
-	views     map[string][]PendingConversationView
-	markCalls []markSyncedCall
-	markErr   error
-}
-
-func (f *fakePendingStore) ListPending(_ context.Context, uid string, limit int) []PendingConversationView {
-	views := append([]PendingConversationView(nil), f.views[uid]...)
-	if limit > 0 && len(views) > limit {
-		views = views[:limit]
+func syncMessageChannelIDs(messages []SyncedMessage) []string {
+	out := make([]string, 0, len(messages))
+	for _, msg := range messages {
+		out = append(out, msg.ChannelID)
 	}
-	return views
-}
-
-func (f *fakePendingStore) MarkSynced(_ context.Context, uid string, key CommandChannelKey, throughSeq uint64) error {
-	f.markCalls = append(f.markCalls, markSyncedCall{uid: uid, key: key, throughSeq: throughSeq})
-	return f.markErr
+	return out
 }

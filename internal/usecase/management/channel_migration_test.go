@@ -4,489 +4,198 @@ import (
 	"context"
 	"errors"
 	"testing"
-	"time"
 
+	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
+	channelwrapper "github.com/WuKongIM/WuKongIM/pkg/cluster/channels"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
-	"github.com/WuKongIM/WuKongIM/pkg/legacy/channel"
-	controllermeta "github.com/WuKongIM/WuKongIM/pkg/legacy/controller/meta"
-	"github.com/stretchr/testify/require"
 )
 
-func TestTransferChannelLeaderDryRun(t *testing.T) {
-	now := time.UnixMilli(1750000001000)
-	id := channel.ChannelID{ID: "channel-lt-dry-run", Type: 1}
-	meta := channelMigrationRuntimeMeta(id, 1, []uint64{1, 2, 3}, []uint64{1, 2, 3})
-	store := &fakeChannelMigrationStore{}
-	app := New(Options{
-		Cluster:            channelMigrationCluster(1, 2, 3),
-		ChannelRuntimeMeta: channelMigrationMetaReader(meta),
-		ChannelMigration:   store,
-		Now:                func() time.Time { return now },
+func TestChannelMigrationLeaderTransferRejectsTargetOutsideReplicas(t *testing.T) {
+	store := &fakeChannelMigrationStore{err: ch.ErrInvalidConfig}
+	app := New(Options{ChannelMigration: store})
+
+	_, err := app.RequestChannelLeaderTransfer(context.Background(), LeaderTransferInput{
+		ChannelID:   "g1",
+		ChannelType: 1,
+		TargetNode:  9,
 	})
 
-	got, err := app.TransferChannelLeader(context.Background(), id, TransferChannelLeaderRequest{
-		TargetNodeID: 2,
-		DryRun:       true,
-	})
-
-	require.NoError(t, err)
-	require.True(t, got.DryRun)
-	require.True(t, got.Valid)
-	require.Equal(t, "", got.TaskID)
-	require.Equal(t, ChannelMigrationKindLeaderTransfer, got.Kind)
-	require.Empty(t, got.Blockers)
-	require.Equal(t, []string{"validate", "probe_target", "write_fence", "drain_leader", "final_target_catch_up", "commit_leader_meta", "verify_new_leader", "clear_fence"}, got.PhaseSequence)
-	require.Equal(t, uint64(1), got.Detail.SourceNode)
-	require.Equal(t, uint64(2), got.Detail.TargetNode)
-	require.Equal(t, uint64(5), got.Detail.BaseChannelEpoch)
-	require.Empty(t, store.created)
-}
-
-func TestMigrateChannelReplicaDryRunReportsBlockers(t *testing.T) {
-	id := channel.ChannelID{ID: "channel-rr-blocked", Type: 1}
-	meta := channelMigrationRuntimeMeta(id, 1, []uint64{1, 2, 3}, []uint64{1, 2})
-	store := &fakeChannelMigrationStore{}
-	app := New(Options{
-		Cluster: fakeClusterReader{
-			nodes: []controllermeta.ClusterNode{
-				channelMigrationNode(1, controllermeta.NodeStatusAlive),
-				channelMigrationNode(2, controllermeta.NodeStatusAlive),
-				channelMigrationNode(3, controllermeta.NodeStatusDraining),
-			},
-		},
-		ChannelRuntimeMeta: channelMigrationMetaReader(meta),
-		ChannelMigration:   store,
-	})
-
-	got, err := app.MigrateChannelReplica(context.Background(), id, MigrateChannelReplicaRequest{
-		SourceNodeID: 2,
-		TargetNodeID: 3,
-		DryRun:       true,
-	})
-
-	require.NoError(t, err)
-	require.True(t, got.DryRun)
-	require.False(t, got.Valid)
-	require.ElementsMatch(t, []string{"target_already_replica", "target_node_not_alive"}, got.Blockers)
-	require.Empty(t, store.created)
-}
-
-func TestMigrateChannelReplicaCreatesTask(t *testing.T) {
-	now := time.UnixMilli(1750000002000)
-	id := channel.ChannelID{ID: "channel-rr-create", Type: 1}
-	meta := channelMigrationRuntimeMeta(id, 1, []uint64{1, 2}, []uint64{1, 2})
-	store := &fakeChannelMigrationStore{}
-	app := New(Options{
-		Cluster:            channelMigrationCluster(1, 2, 3),
-		ChannelRuntimeMeta: channelMigrationMetaReader(meta),
-		ChannelMigration:   store,
-		Now:                func() time.Time { return now },
-	})
-
-	got, err := app.MigrateChannelReplica(context.Background(), id, MigrateChannelReplicaRequest{
-		SourceNodeID: 2,
-		TargetNodeID: 3,
-	})
-
-	require.NoError(t, err)
-	require.True(t, got.Valid)
-	require.False(t, got.DryRun)
-	require.NotEmpty(t, got.TaskID)
-	require.Len(t, store.created, 1)
-	require.Len(t, store.createRequests, 1)
-	task := store.created[0]
-	require.Equal(t, got.TaskID, task.TaskID)
-	require.Equal(t, metadb.ChannelMigrationKindReplicaReplace, task.Kind)
-	require.Equal(t, metadb.ChannelMigrationStatusPending, task.Status)
-	require.Equal(t, metadb.ChannelMigrationPhaseValidate, task.Phase)
-	require.Equal(t, id.ID, task.ChannelID)
-	require.Equal(t, int64(id.Type), task.ChannelType)
-	require.Equal(t, uint64(2), task.SourceNode)
-	require.Equal(t, uint64(3), task.TargetNode)
-	require.Zero(t, task.DesiredLeader)
-	require.Equal(t, meta.ChannelEpoch, task.BaseChannelEpoch)
-	require.Equal(t, meta.LeaderEpoch, task.BaseLeaderEpoch)
-	require.Equal(t, now.UnixMilli(), task.CreatedAtMS)
-	require.Equal(t, now.UnixMilli(), task.UpdatedAtMS)
-	require.Equal(t, meta.ChannelEpoch, store.createRequests[0].RuntimeGuard.ExpectedChannelEpoch)
-	require.Equal(t, meta.LeaderEpoch, store.createRequests[0].RuntimeGuard.ExpectedLeaderEpoch)
-	require.Equal(t, meta.Leader, store.createRequests[0].RuntimeGuard.ExpectedLeader)
-}
-
-func TestMigrateChannelReplicaSourceLeaderDryRunIncludesEmbeddedTransferPhases(t *testing.T) {
-	id := channel.ChannelID{ID: "channel-rr-source-leader", Type: 1}
-	meta := channelMigrationRuntimeMeta(id, 1, []uint64{1, 2}, []uint64{1, 2})
-	store := &fakeChannelMigrationStore{}
-	app := New(Options{
-		Cluster:            channelMigrationCluster(1, 2, 3),
-		ChannelRuntimeMeta: channelMigrationMetaReader(meta),
-		ChannelMigration:   store,
-	})
-
-	got, err := app.MigrateChannelReplica(context.Background(), id, MigrateChannelReplicaRequest{
-		SourceNodeID: 1,
-		TargetNodeID: 3,
-		DryRun:       true,
-	})
-
-	require.NoError(t, err)
-	require.True(t, got.Valid)
-	require.Equal(t, []string{
-		"validate",
-		"probe_target",
-		"write_fence",
-		"drain_leader",
-		"final_target_catch_up",
-		"commit_leader_meta",
-		"verify_new_leader",
-		"add_learner",
-		"bootstrap_target",
-		"warm_catch_up",
-		"cutover_fence",
-		"final_target_catch_up",
-		"promote_and_remove",
-		"verify_membership",
-		"clear_fence",
-	}, got.PhaseSequence)
-}
-
-func TestMigrateChannelReplicaSourceLeaderDryRunBlocksWithoutEmbeddedTransferTarget(t *testing.T) {
-	id := channel.ChannelID{ID: "channel-rr-no-embedded-target", Type: 1}
-	meta := channelMigrationRuntimeMeta(id, 1, []uint64{1}, []uint64{1})
-	store := &fakeChannelMigrationStore{}
-	app := New(Options{
-		Cluster:            channelMigrationCluster(1, 2),
-		ChannelRuntimeMeta: channelMigrationMetaReader(meta),
-		ChannelMigration:   store,
-	})
-
-	got, err := app.MigrateChannelReplica(context.Background(), id, MigrateChannelReplicaRequest{
-		SourceNodeID: 1,
-		TargetNodeID: 2,
-		DryRun:       true,
-	})
-
-	require.NoError(t, err)
-	require.False(t, got.Valid)
-	require.Contains(t, got.Blockers, "no_eligible_embedded_leader")
-	require.Empty(t, store.created)
-}
-
-func TestMigrateChannelReplicaDryRunBlocksMissingOrDeadCurrentLeader(t *testing.T) {
-	tests := []struct {
-		name    string
-		meta    metadb.ChannelRuntimeMeta
-		cluster fakeClusterReader
-		want    string
-	}{
-		{
-			name:    "missing leader",
-			meta:    channelMigrationRuntimeMeta(channel.ChannelID{ID: "channel-rr-missing-leader", Type: 1}, 0, []uint64{1, 2}, []uint64{1, 2}),
-			cluster: channelMigrationCluster(1, 2, 3),
-			want:    "missing_leader",
-		},
-		{
-			name: "dead current leader",
-			meta: channelMigrationRuntimeMeta(channel.ChannelID{ID: "channel-rr-dead-leader", Type: 1}, 1, []uint64{1, 2}, []uint64{1, 2}),
-			cluster: fakeClusterReader{
-				nodes: []controllermeta.ClusterNode{
-					channelMigrationNode(1, controllermeta.NodeStatusDead),
-					channelMigrationNode(2, controllermeta.NodeStatusAlive),
-					channelMigrationNode(3, controllermeta.NodeStatusAlive),
-				},
-			},
-			want: "source_leader_not_alive",
-		},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			id := channel.ChannelID{ID: tc.meta.ChannelID, Type: uint8(tc.meta.ChannelType)}
-			store := &fakeChannelMigrationStore{}
-			app := New(Options{
-				Cluster:            tc.cluster,
-				ChannelRuntimeMeta: channelMigrationMetaReader(tc.meta),
-				ChannelMigration:   store,
-			})
-
-			got, err := app.MigrateChannelReplica(context.Background(), id, MigrateChannelReplicaRequest{
-				SourceNodeID: 2,
-				TargetNodeID: 3,
-				DryRun:       true,
-			})
-
-			require.NoError(t, err)
-			require.False(t, got.Valid)
-			require.Contains(t, got.Blockers, tc.want)
-			require.Empty(t, store.created)
-		})
+	if !errors.Is(err, metadb.ErrInvalidArgument) {
+		t.Fatalf("RequestChannelLeaderTransfer() error = %v, want invalid argument", err)
 	}
 }
 
-func TestTransferChannelLeaderDryRunBlocksActiveWriteFenceAndDeadSourceLeader(t *testing.T) {
-	id := channel.ChannelID{ID: "channel-lt-fenced", Type: 1}
-	meta := channelMigrationRuntimeMeta(id, 1, []uint64{1, 2}, []uint64{1, 2})
-	meta.WriteFenceToken = "foreign"
-	meta.WriteFenceVersion = 8
-	store := &fakeChannelMigrationStore{}
-	app := New(Options{
-		Cluster: fakeClusterReader{
-			nodes: []controllermeta.ClusterNode{
-				channelMigrationNode(1, controllermeta.NodeStatusDead),
-				channelMigrationNode(2, controllermeta.NodeStatusAlive),
-			},
-		},
-		ChannelRuntimeMeta: channelMigrationMetaReader(meta),
-		ChannelMigration:   store,
+func TestChannelMigrationReplicaReplacementRejectsTargetAlreadyReplica(t *testing.T) {
+	store := &fakeChannelMigrationStore{err: ch.ErrInvalidConfig}
+	app := New(Options{ChannelMigration: store})
+
+	_, err := app.RequestChannelReplicaReplace(context.Background(), ReplicaReplaceInput{
+		ChannelID:   "g1",
+		ChannelType: 1,
+		SourceNode:  3,
+		TargetNode:  2,
 	})
 
-	got, err := app.TransferChannelLeader(context.Background(), id, TransferChannelLeaderRequest{
-		TargetNodeID: 2,
-		DryRun:       true,
-	})
-
-	require.NoError(t, err)
-	require.False(t, got.Valid)
-	require.ElementsMatch(t, []string{"write_fence_active", "source_leader_not_alive"}, got.Blockers)
-	require.Empty(t, store.created)
-}
-
-func TestGetChannelMigrationReportsProgressAndNeedsSnapshotBootstrapBlocker(t *testing.T) {
-	id := channel.ChannelID{ID: "channel-migration-detail", Type: 1}
-	meta := channelMigrationRuntimeMeta(id, 1, []uint64{1, 2, 3}, []uint64{1, 2})
-	meta.WriteFenceToken = "task-detail"
-	meta.WriteFenceVersion = 9
-	meta.WriteFenceReason = uint8(channel.WriteFenceReasonMigration)
-	meta.WriteFenceUntilMS = 1750000010000
-	task := channelMigrationTask("task-detail", id, metadb.ChannelMigrationKindReplicaReplace, 2, 3, 0, meta)
-	task.Status = metadb.ChannelMigrationStatusBlocked
-	task.Phase = metadb.ChannelMigrationPhaseFinalTargetCatchUp
-	task.BlockerCode = metadb.ChannelMigrationBlockerNeedsSnapshotBootstrap
-	task.BlockerMessage = "snapshot required"
-	task.Progress = metadb.ChannelMigrationProgress{
-		LeaderLEO:          100,
-		LeaderHW:           98,
-		TargetLEO:          90,
-		TargetCheckpointHW: 88,
-		LagRecords:         10,
-		StableSinceMS:      1750000003000,
+	if !errors.Is(err, metadb.ErrInvalidArgument) {
+		t.Fatalf("RequestChannelReplicaReplace() error = %v, want invalid argument", err)
 	}
-	store := &fakeChannelMigrationStore{active: task, activeOK: true}
-	app := New(Options{
-		ChannelRuntimeMeta: channelMigrationMetaReader(meta),
-		ChannelMigration:   store,
-	})
-
-	got, err := app.GetChannelMigration(context.Background(), id)
-
-	require.NoError(t, err)
-	require.Equal(t, "task-detail", got.TaskID)
-	require.Equal(t, ChannelMigrationKindReplicaReplace, got.Kind)
-	require.Equal(t, "blocked", got.Status)
-	require.Equal(t, "final_target_catch_up", got.Phase)
-	require.Equal(t, metadb.ChannelMigrationBlockerNeedsSnapshotBootstrap, got.BlockerCode)
-	require.True(t, got.FenceActive)
-	require.Equal(t, uint64(5), got.CurrentChannelEpoch)
-	require.Equal(t, uint64(7), got.CurrentLeaderEpoch)
-	require.Equal(t, task.Progress, got.Progress)
 }
 
-func TestAbortChannelMigrationRequiresMatchingTask(t *testing.T) {
-	now := time.UnixMilli(1750000004000)
-	id := channel.ChannelID{ID: "channel-abort", Type: 1}
-	meta := channelMigrationRuntimeMeta(id, 1, []uint64{1, 2, 3}, []uint64{1, 2})
-	task := channelMigrationTask("task-abort", id, metadb.ChannelMigrationKindReplicaReplace, 2, 3, 0, meta)
-	task.Status = metadb.ChannelMigrationStatusRunning
-	task.Phase = metadb.ChannelMigrationPhaseWarmCatchUp
-	task.OwnerNodeID = 9
-	task.OwnerLeaseUntilMS = 1750000010000
-	task.UpdatedAtMS = 1750000001000
-	store := &fakeChannelMigrationStore{active: task, activeOK: true}
-	app := New(Options{
-		ChannelRuntimeMeta: channelMigrationMetaReader(meta),
-		ChannelMigration:   store,
-		Now:                func() time.Time { return now },
+func TestChannelMigrationDuplicateActiveTaskMapsToConflict(t *testing.T) {
+	store := &fakeChannelMigrationStore{err: metadb.ErrAlreadyExists}
+	app := New(Options{ChannelMigration: store})
+
+	_, err := app.RequestChannelLeaderTransfer(context.Background(), LeaderTransferInput{
+		ChannelID:   "g1",
+		ChannelType: 1,
+		TargetNode:  2,
 	})
 
-	_, err := app.AbortChannelMigration(context.Background(), id, "other-task")
-	require.ErrorIs(t, err, metadb.ErrStaleMeta)
-	require.Empty(t, store.abortRequests)
-
-	got, err := app.AbortChannelMigration(context.Background(), id, "task-abort")
-	require.NoError(t, err)
-	require.Equal(t, "aborted", got.Status)
-	require.Equal(t, "warm_catch_up", got.Phase)
-	require.Len(t, store.abortRequests, 1)
-	req := store.abortRequests[0]
-	require.Equal(t, "task-abort", req.Guard.TaskID)
-	require.Equal(t, metadb.ChannelMigrationStatusAborted, req.Status)
-	require.Equal(t, metadb.ChannelMigrationPhaseWarmCatchUp, req.Phase)
-	require.Equal(t, now.UnixMilli(), req.UpdatedAtMS)
-	require.Equal(t, now.UnixMilli(), req.CompletedAtMS)
+	if !errors.Is(err, ErrChannelMigrationConflict) {
+		t.Fatalf("RequestChannelLeaderTransfer() error = %v, want conflict", err)
+	}
 }
 
-func TestSingleNodeClusterReplicaMigrationRejectedDeterministically(t *testing.T) {
-	now := time.UnixMilli(1750000005000)
-	id := channel.ChannelID{ID: "channel-single-node-cluster", Type: 1}
-	meta := channelMigrationRuntimeMeta(id, 1, []uint64{1}, []uint64{1})
-	store := &fakeChannelMigrationStore{}
-	app := New(Options{
-		Cluster: fakeClusterReader{
-			nodes: []controllermeta.ClusterNode{
-				channelMigrationNode(1, controllermeta.NodeStatusAlive),
-			},
-		},
-		ChannelRuntimeMeta: channelMigrationMetaReader(meta),
-		ChannelMigration:   store,
-		Now:                func() time.Time { return now },
+func TestChannelMigrationSuccessfulRequestReturnsTaskSummary(t *testing.T) {
+	task := metadb.ChannelMigrationTask{
+		TaskID:        "task-g1",
+		Kind:          metadb.ChannelMigrationKindLeaderTransfer,
+		Status:        metadb.ChannelMigrationStatusPending,
+		Phase:         metadb.ChannelMigrationPhaseValidate,
+		ChannelID:     "g1",
+		ChannelType:   1,
+		SourceNode:    1,
+		TargetNode:    2,
+		DesiredLeader: 2,
+	}
+	store := &fakeChannelMigrationStore{task: task}
+	app := New(Options{ChannelMigration: store})
+
+	got, err := app.RequestChannelLeaderTransfer(context.Background(), LeaderTransferInput{
+		ChannelID:   "g1",
+		ChannelType: 1,
+		TargetNode:  2,
 	})
 
-	got, err := app.MigrateChannelReplica(context.Background(), id, MigrateChannelReplicaRequest{
-		SourceNodeID: 1,
-		TargetNodeID: 2,
+	if err != nil {
+		t.Fatalf("RequestChannelLeaderTransfer() error = %v", err)
+	}
+	if !store.leaderTransferCalled {
+		t.Fatalf("CreateLeaderTransfer was not called")
+	}
+	if got.TaskID != "task-g1" ||
+		got.ChannelID != "g1" ||
+		got.ChannelType != 1 ||
+		got.SourceNode != 1 ||
+		got.TargetNode != 2 ||
+		got.Kind != "leader_transfer" ||
+		got.Status != "pending" ||
+		got.Phase != "validate" {
+		t.Fatalf("summary = %#v, want stable task summary", got)
+	}
+	if store.leaderTransferReq.ChannelID.ID != "g1" || store.leaderTransferReq.ChannelID.Type != 1 || uint64(store.leaderTransferReq.DesiredLeader) != 2 {
+		t.Fatalf("leader transfer request = %#v, want channel g1 type 1 target 2", store.leaderTransferReq)
+	}
+}
+
+func TestChannelMigrationListActiveClampsLimit(t *testing.T) {
+	store := &fakeChannelMigrationStore{task: metadb.ChannelMigrationTask{TaskID: "task-g1"}}
+	app := New(Options{ChannelMigration: store})
+
+	_, err := app.ListActiveChannelMigrations(context.Background(), ChannelMigrationListInput{
+		ChannelID:   "g1",
+		ChannelType: 1,
+		Limit:       500,
 	})
 
-	require.ErrorIs(t, err, metadb.ErrInvalidArgument)
-	require.False(t, got.Valid)
-	require.Contains(t, got.Blockers, "single_node_cluster")
-	require.Empty(t, store.created)
+	if err != nil {
+		t.Fatalf("ListActiveChannelMigrations() error = %v", err)
+	}
+	if store.lastListLimit != 100 {
+		t.Fatalf("ListActive limit = %d, want 100", store.lastListLimit)
+	}
+}
+
+func TestChannelMigrationListActiveLabelsLeaderFailover(t *testing.T) {
+	store := &fakeChannelMigrationStore{task: metadb.ChannelMigrationTask{
+		TaskID:      "task-failover-g1",
+		Kind:        metadb.ChannelMigrationKindLeaderFailover,
+		Status:      metadb.ChannelMigrationStatusRunning,
+		Phase:       metadb.ChannelMigrationPhaseDrainLeader,
+		ChannelID:   "g1",
+		ChannelType: 1,
+		SourceNode:  1,
+		TargetNode:  3,
+	}}
+	app := New(Options{ChannelMigration: store})
+
+	got, err := app.ListActiveChannelMigrations(context.Background(), ChannelMigrationListInput{
+		ChannelID:   "g1",
+		ChannelType: 1,
+		Limit:       20,
+	})
+
+	if err != nil {
+		t.Fatalf("ListActiveChannelMigrations() error = %v", err)
+	}
+	if len(got.Items) != 1 || got.Items[0].Kind != "leader_failover" {
+		t.Fatalf("items = %#v, want leader_failover summary", got.Items)
+	}
 }
 
 type fakeChannelMigrationStore struct {
-	created        []metadb.ChannelMigrationTask
-	createRequests []metadb.ChannelMigrationTaskCreate
-	active         metadb.ChannelMigrationTask
-	activeOK       bool
-	getErr         error
-	createErr      error
-	abortErr       error
-	abortRequests  []metadb.ChannelMigrationAbortRequest
+	task                 metadb.ChannelMigrationTask
+	err                  error
+	leaderTransferReq    channelwrapper.CreateLeaderTransferRequest
+	replicaReplaceReq    channelwrapper.CreateReplicaReplaceRequest
+	lastListLimit        int
+	leaderTransferCalled bool
+	replicaReplaceCalled bool
 }
 
-func (f *fakeChannelMigrationStore) CreateChannelMigrationTask(_ context.Context, task metadb.ChannelMigrationTask) error {
-	if f.createErr != nil {
-		return f.createErr
+func (s *fakeChannelMigrationStore) CreateLeaderTransfer(_ context.Context, req channelwrapper.CreateLeaderTransferRequest) (metadb.ChannelMigrationTask, error) {
+	s.leaderTransferCalled = true
+	s.leaderTransferReq = req
+	if s.err != nil {
+		return metadb.ChannelMigrationTask{}, s.err
 	}
-	f.created = append(f.created, task)
-	f.active = task
-	f.activeOK = true
-	return nil
+	return s.task, nil
 }
 
-func (f *fakeChannelMigrationStore) CreateChannelMigrationTaskWithRuntimeGuard(_ context.Context, req metadb.ChannelMigrationTaskCreate) error {
-	if f.createErr != nil {
-		return f.createErr
+func (s *fakeChannelMigrationStore) CreateReplicaReplace(_ context.Context, req channelwrapper.CreateReplicaReplaceRequest) (metadb.ChannelMigrationTask, error) {
+	s.replicaReplaceCalled = true
+	s.replicaReplaceReq = req
+	if s.err != nil {
+		return metadb.ChannelMigrationTask{}, s.err
 	}
-	f.createRequests = append(f.createRequests, req)
-	f.created = append(f.created, req.Task)
-	f.active = req.Task
-	f.activeOK = true
-	return nil
+	return s.task, nil
 }
 
-func (f *fakeChannelMigrationStore) GetActiveChannelMigrationTask(_ context.Context, channelID string, channelType int64) (metadb.ChannelMigrationTask, bool, error) {
-	if f.getErr != nil {
-		return metadb.ChannelMigrationTask{}, false, f.getErr
+func (s *fakeChannelMigrationStore) GetActive(context.Context, ch.ChannelID) (metadb.ChannelMigrationTask, bool, error) {
+	if s.err != nil {
+		return metadb.ChannelMigrationTask{}, false, s.err
 	}
-	if !f.activeOK || f.active.ChannelID != channelID || f.active.ChannelType != channelType {
-		return metadb.ChannelMigrationTask{}, false, nil
-	}
-	return f.active, true, nil
+	return s.task, s.task.TaskID != "", nil
 }
 
-func (f *fakeChannelMigrationStore) ListActiveChannelMigrationTasksForNode(context.Context, uint64, int) ([]metadb.ChannelMigrationTask, bool, error) {
-	return nil, false, nil
+func (s *fakeChannelMigrationStore) Get(context.Context, ch.ChannelID, string) (metadb.ChannelMigrationTask, bool, error) {
+	if s.err != nil {
+		return metadb.ChannelMigrationTask{}, false, s.err
+	}
+	return s.task, s.task.TaskID != "", nil
 }
 
-func (f *fakeChannelMigrationStore) AbortChannelMigration(_ context.Context, req metadb.ChannelMigrationAbortRequest) error {
-	if f.abortErr != nil {
-		return f.abortErr
+func (s *fakeChannelMigrationStore) ListActive(_ context.Context, _ ch.ChannelID, limit int) ([]metadb.ChannelMigrationTask, error) {
+	s.lastListLimit = limit
+	if s.err != nil {
+		return nil, s.err
 	}
-	if !f.activeOK || f.active.TaskID != req.Guard.TaskID {
-		return metadb.ErrStaleMeta
+	if s.task.TaskID == "" {
+		return nil, nil
 	}
-	if f.active.UpdatedAtMS != req.Guard.ExpectedUpdatedAtMS {
-		return metadb.ErrStaleMeta
-	}
-	f.abortRequests = append(f.abortRequests, req)
-	f.active.Status = req.Status
-	f.active.Phase = req.Phase
-	f.active.UpdatedAtMS = req.UpdatedAtMS
-	f.active.CompletedAtMS = req.CompletedAtMS
-	f.active.LastError = req.LastError
-	return nil
+	return []metadb.ChannelMigrationTask{s.task}, nil
 }
 
-func channelMigrationMetaReader(meta metadb.ChannelRuntimeMeta) *fakeChannelRuntimeMetaReader {
-	return &fakeChannelRuntimeMetaReader{
-		metaByKey: map[metadb.ConversationKey]metadb.ChannelRuntimeMeta{
-			{ChannelID: meta.ChannelID, ChannelType: meta.ChannelType}: meta,
-		},
-	}
-}
-
-func channelMigrationCluster(nodeIDs ...uint64) fakeClusterReader {
-	nodes := make([]controllermeta.ClusterNode, 0, len(nodeIDs))
-	for _, nodeID := range nodeIDs {
-		nodes = append(nodes, channelMigrationNode(nodeID, controllermeta.NodeStatusAlive))
-	}
-	return fakeClusterReader{nodes: nodes}
-}
-
-func channelMigrationNode(nodeID uint64, status controllermeta.NodeStatus) controllermeta.ClusterNode {
-	return controllermeta.ClusterNode{
-		NodeID:    nodeID,
-		Role:      controllermeta.NodeRoleData,
-		JoinState: controllermeta.NodeJoinStateActive,
-		Status:    status,
-	}
-}
-
-func channelMigrationRuntimeMeta(id channel.ChannelID, leader uint64, replicas, isr []uint64) metadb.ChannelRuntimeMeta {
-	return metadb.ChannelRuntimeMeta{
-		ChannelID:    id.ID,
-		ChannelType:  int64(id.Type),
-		Status:       uint8(channel.StatusActive),
-		ChannelEpoch: 5,
-		LeaderEpoch:  7,
-		Leader:       leader,
-		Replicas:     append([]uint64(nil), replicas...),
-		ISR:          append([]uint64(nil), isr...),
-		MinISR:       1,
-	}
-}
-
-func channelMigrationTask(taskID string, id channel.ChannelID, kind metadb.ChannelMigrationKind, source, target, desired uint64, meta metadb.ChannelRuntimeMeta) metadb.ChannelMigrationTask {
-	return metadb.ChannelMigrationTask{
-		TaskID:           taskID,
-		Kind:             kind,
-		Status:           metadb.ChannelMigrationStatusPending,
-		Phase:            metadb.ChannelMigrationPhaseValidate,
-		ChannelID:        id.ID,
-		ChannelType:      int64(id.Type),
-		SourceNode:       source,
-		TargetNode:       target,
-		DesiredLeader:    desired,
-		BaseChannelEpoch: meta.ChannelEpoch,
-		BaseLeaderEpoch:  meta.LeaderEpoch,
-		CreatedAtMS:      1750000000000,
-		UpdatedAtMS:      1750000000000,
-	}
-}
-
-func TestChannelMigrationStoreErrorSurfaces(t *testing.T) {
-	id := channel.ChannelID{ID: "channel-create-error", Type: 1}
-	meta := channelMigrationRuntimeMeta(id, 1, []uint64{1, 2}, []uint64{1, 2})
-	wantErr := errors.New("create failed")
-	app := New(Options{
-		Cluster:            channelMigrationCluster(1, 2, 3),
-		ChannelRuntimeMeta: channelMigrationMetaReader(meta),
-		ChannelMigration:   &fakeChannelMigrationStore{createErr: wantErr},
-	})
-
-	_, err := app.MigrateChannelReplica(context.Background(), id, MigrateChannelReplicaRequest{
-		SourceNodeID: 2,
-		TargetNodeID: 3,
-	})
-
-	require.ErrorIs(t, err, wantErr)
+func (s *fakeChannelMigrationStore) Abort(context.Context, metadb.ChannelMigrationTask, string) error {
+	return s.err
 }

@@ -16,4 +16,4 @@ GOWORK=off go test -tags=e2e ./test/e2ev2/message/single_node_send -count=1
 - Use `test/e2ev2/suite` for process startup, config rendering, readiness,
   WKProto, and HTTP API helpers.
 - Validate `SENDACK` and conversation projection for this scenario. Delivery
-  and `RECV` belong to later internalv2 e2e coverage.
+  and `RECV` belong to later internal e2e coverage.

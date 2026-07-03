@@ -3,109 +3,165 @@ package app
 import (
 	"context"
 
-	accessnode "github.com/WuKongIM/WuKongIM/internal/access/node"
-	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	gatewaycore "github.com/WuKongIM/WuKongIM/pkg/gateway/core"
 )
 
-type runtimeSummaryCollector struct {
-	app *App
+type nodeRuntimeSummaryReader interface {
+	NodeRuntimeSummary(context.Context, uint64) (managementusecase.NodeRuntimeSummary, error)
 }
 
-func (c runtimeSummaryCollector) localNodeSummary(context.Context) (accessnode.RuntimeSummary, error) {
-	if c.app == nil {
-		return accessnode.RuntimeSummary{Unknown: true}, nil
-	}
-	onlineSummary := c.app.onlineSummary()
-	gatewaySummary := c.app.gatewaySummary()
-	unknown := c.app.onlineRegistry == nil || c.app.gateway == nil
-	return accessnode.RuntimeSummary{
-		NodeID:               c.app.cfg.Node.ID,
-		ActiveOnline:         onlineSummary.Active,
-		ClosingOnline:        onlineSummary.Closing,
-		TotalOnline:          onlineSummary.Total,
-		GatewaySessions:      gatewaySummary.GatewaySessions,
-		SessionsByListener:   mergeListenerCounts(onlineSummary.SessionsByListener, gatewaySummary.SessionsByListener),
-		AcceptingNewSessions: gatewaySummary.AcceptingNewSessions,
-		Draining:             c.app.nodeDrainState != nil && c.app.nodeDrainState.Draining(),
-		Unknown:              unknown,
-	}, nil
+type gatewaySummaryRuntime interface {
+	SessionSummary() gatewaycore.SessionSummary
+}
+
+type gatewayDrainRuntime interface {
+	SetAcceptingNewSessions(bool)
 }
 
 type managementRuntimeSummaryReader struct {
-	collector  runtimeSummaryCollector
-	nodeClient *accessnode.Client
+	app         *App
+	localNodeID uint64
+	remote      nodeRuntimeSummaryReader
+}
+
+type managementGatewayDrainWriter struct {
+	app         *App
+	localNodeID uint64
+	remote      managementusecase.GatewayDrainWriter
+}
+
+// managerConnectionRPCService exposes owner-local manager connection reads and gateway admission writes.
+type managerConnectionRPCService struct {
+	reads *managementusecase.App
+	drain managementGatewayDrainWriter
 }
 
 func (r managementRuntimeSummaryReader) NodeRuntimeSummary(ctx context.Context, nodeID uint64) (managementusecase.NodeRuntimeSummary, error) {
-	app := r.collector.app
-	if app != nil && nodeID == app.cfg.Node.ID {
-		summary, err := r.collector.localNodeSummary(ctx)
-		return toManagementRuntimeSummary(summary), err
+	if nodeID == r.localNodeID || r.localNodeID == 0 {
+		return r.localRuntimeSummary(ctx, nodeID), nil
 	}
-	if r.nodeClient == nil {
+	if r.remote == nil {
 		return managementusecase.NodeRuntimeSummary{NodeID: nodeID, Unknown: true}, nil
 	}
-	summary, err := r.nodeClient.RuntimeSummary(ctx, nodeID)
+	return r.remote.NodeRuntimeSummary(ctx, nodeID)
+}
+
+func (r managementRuntimeSummaryReader) localRuntimeSummary(ctx context.Context, nodeID uint64) managementusecase.NodeRuntimeSummary {
+	summary := managementusecase.NodeRuntimeSummary{
+		NodeID:             nodeID,
+		SessionsByListener: map[string]int{},
+		Unknown:            true,
+	}
+	if r.app != nil {
+		if snapshots, ok := r.app.cluster.(interface {
+			LocalControlSnapshot(context.Context) (control.Snapshot, error)
+		}); ok && snapshots != nil {
+			if snapshot, err := snapshots.LocalControlSnapshot(ctx); err == nil {
+				summary.ControlRevision = snapshot.Revision
+			}
+		}
+	}
+	if r.app == nil || (r.app.online == nil && r.app.gateway == nil) {
+		return summary
+	}
+	if r.app.online != nil {
+		onlineSummary := r.app.online.Snapshot()
+		summary.ActiveOnline = onlineSummary.Active
+		summary.PendingActivations = onlineSummary.Pending
+		summary.TotalOnline = onlineSummary.Active + onlineSummary.Pending
+	}
+	if gatewayRuntime, ok := r.app.gateway.(gatewaySummaryRuntime); ok && gatewayRuntime != nil {
+		gatewaySummary := gatewayRuntime.SessionSummary()
+		summary.GatewaySessions = gatewaySummary.GatewaySessions
+		summary.SessionsByListener = cloneRuntimeListenerCounts(gatewaySummary.SessionsByListener)
+		summary.AcceptingNewSessions = gatewaySummary.AcceptingNewSessions
+		summary.Draining = !gatewaySummary.AcceptingNewSessions
+	}
+	if summary.SessionsByListener == nil {
+		summary.SessionsByListener = map[string]int{}
+	}
+	summary.Unknown = false
+	return summary
+}
+
+func (w managementGatewayDrainWriter) SetNodeDrainMode(ctx context.Context, nodeID uint64, draining bool) (managementusecase.NodeRuntimeSummary, error) {
+	if nodeID == w.localNodeID || w.localNodeID == 0 {
+		return w.setLocalDrainMode(ctx, nodeID, draining)
+	}
+	if w.remote == nil {
+		return managementusecase.NodeRuntimeSummary{NodeID: nodeID, Unknown: true}, managementusecase.ErrNodeScaleInUnavailable
+	}
+	return w.remote.SetNodeDrainMode(ctx, nodeID, draining)
+}
+
+func (w managementGatewayDrainWriter) setLocalDrainMode(ctx context.Context, nodeID uint64, draining bool) (managementusecase.NodeRuntimeSummary, error) {
+	if w.localNodeID != 0 && nodeID != w.localNodeID {
+		return managementusecase.NodeRuntimeSummary{NodeID: nodeID, Unknown: true}, managementusecase.ErrNodeScaleInUnavailable
+	}
+	if w.app == nil || w.app.gateway == nil {
+		return managementusecase.NodeRuntimeSummary{NodeID: nodeID, Unknown: true}, managementusecase.ErrNodeScaleInUnavailable
+	}
+	gatewayRuntime, ok := w.app.gateway.(gatewayDrainRuntime)
+	if !ok || gatewayRuntime == nil {
+		return managementusecase.NodeRuntimeSummary{NodeID: nodeID, Unknown: true}, managementusecase.ErrNodeScaleInUnavailable
+	}
+	gatewayRuntime.SetAcceptingNewSessions(!draining)
+	return managementRuntimeSummaryReader{app: w.app, localNodeID: w.localNodeID}.localRuntimeSummary(ctx, nodeID), nil
+}
+
+func (s managerConnectionRPCService) ListConnections(ctx context.Context, req managementusecase.ListConnectionsRequest) ([]managementusecase.Connection, error) {
+	if s.reads == nil {
+		return nil, managementusecase.ErrConnectionReaderUnavailable
+	}
+	return s.reads.ListConnections(ctx, req)
+}
+
+func (s managerConnectionRPCService) GetConnection(ctx context.Context, req managementusecase.GetConnectionRequest) (managementusecase.ConnectionDetail, error) {
+	if s.reads == nil {
+		return managementusecase.ConnectionDetail{}, managementusecase.ErrConnectionReaderUnavailable
+	}
+	return s.reads.GetConnection(ctx, req)
+}
+
+func (s managerConnectionRPCService) NodeRuntimeSummary(ctx context.Context, nodeID uint64) (managementusecase.NodeRuntimeSummary, error) {
+	if s.reads == nil {
+		return managementusecase.NodeRuntimeSummary{NodeID: nodeID, Unknown: true}, managementusecase.ErrConnectionReaderUnavailable
+	}
+	return s.reads.NodeRuntimeSummary(ctx, nodeID)
+}
+
+func (s managerConnectionRPCService) SetNodeDrainMode(ctx context.Context, req managementusecase.SetNodeDrainModeRequest) (managementusecase.SetNodeDrainModeResponse, error) {
+	if req.NodeID == 0 {
+		return managementusecase.SetNodeDrainModeResponse{}, metadb.ErrInvalidArgument
+	}
+	summary, err := s.drain.setLocalDrainMode(ctx, req.NodeID, req.Draining)
 	if err != nil {
-		return managementusecase.NodeRuntimeSummary{NodeID: nodeID, Unknown: true}, err
+		return managementusecase.SetNodeDrainModeResponse{}, err
 	}
-	return toManagementRuntimeSummary(summary), nil
-}
-
-type nodeRuntimeSummaryProvider struct {
-	collector runtimeSummaryCollector
-}
-
-func (p nodeRuntimeSummaryProvider) LocalRuntimeSummary(ctx context.Context) (accessnode.RuntimeSummary, error) {
-	return p.collector.localNodeSummary(ctx)
-}
-
-func (a *App) onlineSummary() online.Summary {
-	if a == nil || a.onlineRegistry == nil {
-		return online.Summary{SessionsByListener: map[string]int{}}
+	if summary.NodeID == 0 {
+		summary.NodeID = req.NodeID
 	}
-	return a.onlineRegistry.Summary()
+	return setNodeDrainModeResponseFromSummary(summary), nil
 }
 
-func (a *App) gatewaySummary() accessnode.RuntimeSummary {
-	if a == nil || a.gateway == nil {
-		return accessnode.RuntimeSummary{SessionsByListener: map[string]int{}, Unknown: true}
-	}
-	summary := a.gateway.SessionSummary()
-	return accessnode.RuntimeSummary{
-		GatewaySessions:      summary.GatewaySessions,
-		SessionsByListener:   summary.SessionsByListener,
-		AcceptingNewSessions: summary.AcceptingNewSessions,
-	}
-}
-
-func toManagementRuntimeSummary(summary accessnode.RuntimeSummary) managementusecase.NodeRuntimeSummary {
-	return managementusecase.NodeRuntimeSummary{
+func setNodeDrainModeResponseFromSummary(summary managementusecase.NodeRuntimeSummary) managementusecase.SetNodeDrainModeResponse {
+	return managementusecase.SetNodeDrainModeResponse{
 		NodeID:               summary.NodeID,
+		Draining:             summary.Draining,
+		AcceptingNewSessions: summary.AcceptingNewSessions,
+		GatewaySessions:      summary.GatewaySessions,
 		ActiveOnline:         summary.ActiveOnline,
 		ClosingOnline:        summary.ClosingOnline,
 		TotalOnline:          summary.TotalOnline,
-		GatewaySessions:      summary.GatewaySessions,
-		SessionsByListener:   cloneListenerCounts(summary.SessionsByListener),
-		AcceptingNewSessions: summary.AcceptingNewSessions,
-		Draining:             summary.Draining,
+		PendingActivations:   summary.PendingActivations,
 		Unknown:              summary.Unknown,
 	}
 }
 
-func mergeListenerCounts(left, right map[string]int) map[string]int {
-	out := cloneListenerCounts(left)
-	if out == nil {
-		out = make(map[string]int)
-	}
-	for key, value := range right {
-		out[key] += value
-	}
-	return out
-}
-
-func cloneListenerCounts(values map[string]int) map[string]int {
+func cloneRuntimeListenerCounts(values map[string]int) map[string]int {
 	if len(values) == 0 {
 		return map[string]int{}
 	}

@@ -1,6 +1,10 @@
 package channel
 
-import channelmembers "github.com/WuKongIM/WuKongIM/internal/contracts/channelmembers"
+import (
+	"context"
+
+	channelmembers "github.com/WuKongIM/WuKongIM/internal/contracts/channelmembers"
+)
 
 const tempChannelType uint8 = 8
 
@@ -26,7 +30,7 @@ type Info struct {
 	ChannelID string
 	// ChannelType is the legacy WuKong channel type.
 	ChannelType uint8
-	// Large marks a large-group channel; currently accepted for compatibility.
+	// Large marks a large-group channel.
 	Large bool
 	// Ban blocks channel messaging when true.
 	Ban bool
@@ -58,6 +62,27 @@ type SubscriberCommand struct {
 	Reset bool
 	// Subscribers contains legacy subscriber UIDs.
 	Subscribers []string
+}
+
+// SubscriberMutationEvent reports a successful ordinary subscriber-list mutation.
+type SubscriberMutationEvent struct {
+	ChannelKey
+	// Large reports whether the channel should use large-group fanout after the mutation.
+	Large bool
+	// SubscriberMutationVersion is the durable subscriber-list version after the mutation.
+	SubscriberMutationVersion uint64
+	// Reset reports that AddedUIDs replaces the full ordinary subscriber snapshot.
+	Reset bool
+	// AddedUIDs are ordinary subscribers appended by the mutation.
+	AddedUIDs []string
+	// RemovedUIDs are ordinary subscribers removed by the mutation.
+	RemovedUIDs []string
+}
+
+// SubscriberMutationObserver receives successful ordinary subscriber-list mutations.
+type SubscriberMutationObserver interface {
+	// ObserveSubscriberMutation observes a committed ordinary subscriber-list mutation.
+	ObserveSubscriberMutation(context.Context, SubscriberMutationEvent)
 }
 
 // TempSubscriberCommand replaces temporary subscribers for a temporary channel.

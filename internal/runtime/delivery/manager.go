@@ -2,191 +2,207 @@ package delivery
 
 import (
 	"context"
-	"hash/fnv"
+	"sync"
 	"time"
+
+	"github.com/WuKongIM/WuKongIM/internal/contracts/messageevents"
 )
 
-const (
-	defaultMaxInflightRoutesPerActor      = 4096
-	defaultDedicatedLaneActivityThreshold = 8
-)
+// ManagerOptions configures the delivery runtime facade.
+type ManagerOptions struct {
+	// Planner creates fanout tasks from committed message events.
+	Planner *Planner
+	// Runner executes planned fanout tasks for accepted commands.
+	Runner FanoutTaskRunner
+	// Acks tracks pending recipient recvacks; nil creates a default tracker.
+	Acks *AckTracker
+	// AsyncQueueSize bounds committed-message commands waiting for fanout.
+	AsyncQueueSize int
+	// AsyncWorkers controls fanout worker count; values <= 0 use one worker.
+	AsyncWorkers int
+	// ManagerObserver receives async manager admission and terminal observations.
+	ManagerObserver ManagerObserver
+	// AckObserver receives owner-local pending recvack state changes.
+	AckObserver AckObserver
+}
 
+// Manager is the delivery runtime facade used by app adapters.
+// It admits committed work into a bounded queue when fanout ports are configured.
 type Manager struct {
-	shards                  []*shard
-	resolver                Resolver
-	push                    Pusher
-	clock                   Clock
-	observer                Observer
-	offlineResolvedObserver OfflineResolvedObserver
-	ackIdx                  *AckIndex
-	resolvePageSize         int
-	limits                  Limits
-	idleTimeout             time.Duration
-	retryDelays             []time.Duration
-	maxRetryAttempts        int
+	planner     *Planner
+	runner      FanoutTaskRunner
+	acks        *AckTracker
+	async       *managerAsync
+	ackObserver AckObserver
+	ackMu       sync.Mutex
 }
 
-func NewManager(cfg Config) *Manager {
-	if cfg.ShardCount <= 0 {
-		cfg.ShardCount = 1
+// NewManager creates a delivery runtime facade.
+func NewManager(opts ManagerOptions) *Manager {
+	acks := opts.Acks
+	if acks == nil {
+		acks = NewAckTracker(AckTrackerOptions{})
 	}
-	if cfg.Clock == nil {
-		cfg.Clock = defaultClock{}
+	runner := opts.Runner
+	asyncWorkers := opts.AsyncWorkers
+	if asyncWorkers <= 0 {
+		asyncWorkers = defaultManagerAsyncWorkers
 	}
-	if cfg.Resolver == nil {
-		cfg.Resolver = noopResolver{}
+	manager := &Manager{
+		planner:     opts.Planner,
+		runner:      runner,
+		acks:        acks,
+		ackObserver: opts.AckObserver,
 	}
-	if cfg.Push == nil {
-		cfg.Push = noopPusher{}
+	if opts.Planner != nil && runner != nil {
+		manager.async = newManagerAsync(manager, opts.AsyncQueueSize, asyncWorkers, opts.ManagerObserver)
 	}
-	if cfg.ResolvePageSize <= 0 {
-		cfg.ResolvePageSize = 256
-	}
-	if cfg.IdleTimeout <= 0 {
-		cfg.IdleTimeout = time.Minute
-	}
-	if len(cfg.RetryDelays) == 0 {
-		cfg.RetryDelays = []time.Duration{500 * time.Millisecond, time.Second, 2 * time.Second}
-	}
-	if cfg.MaxRetryAttempts <= 0 {
-		cfg.MaxRetryAttempts = len(cfg.RetryDelays) + 1
-	}
-	if cfg.Limits.MaxInflightRoutesPerActor <= 0 {
-		cfg.Limits.MaxInflightRoutesPerActor = defaultMaxInflightRoutesPerActor
-	}
-	if cfg.Limits.DedicatedLaneActivityThreshold <= 0 {
-		cfg.Limits.DedicatedLaneActivityThreshold = defaultDedicatedLaneActivityThreshold
-	}
-	m := &Manager{
-		resolver:                cfg.Resolver,
-		push:                    cfg.Push,
-		clock:                   cfg.Clock,
-		observer:                cfg.Observer,
-		offlineResolvedObserver: cfg.OfflineResolvedObserver,
-		ackIdx:                  NewAckIndex(),
-		resolvePageSize:         cfg.ResolvePageSize,
-		limits:                  cfg.Limits,
-		idleTimeout:             cfg.IdleTimeout,
-		retryDelays:             append([]time.Duration(nil), cfg.RetryDelays...),
-		maxRetryAttempts:        cfg.MaxRetryAttempts,
-	}
-	m.shards = make([]*shard, cfg.ShardCount)
-	for i := range m.shards {
-		m.shards[i] = newShard(m)
-	}
-	return m
+	return manager
 }
 
-func (m *Manager) Submit(ctx context.Context, env CommittedEnvelope) error {
-	return m.shardFor(ChannelKey{ChannelID: env.ChannelID, ChannelType: env.ChannelType}).submit(ctx, env)
-}
-
-func (m *Manager) AckRoute(ctx context.Context, cmd RouteAck) error {
-	binding, ok := m.ackIdx.TakeRoute(cmd.UID, cmd.SessionID, cmd.MessageID)
-	if !ok {
+// Start prepares the manager lifecycle.
+func (m *Manager) Start(ctx context.Context) error {
+	if m == nil || m.async == nil {
 		return nil
 	}
-	return m.shardFor(ChannelKey{ChannelID: binding.ChannelID, ChannelType: binding.ChannelType}).routeAcked(ctx, binding)
+	return m.async.start(ctx)
 }
 
-func (m *Manager) SessionClosed(ctx context.Context, cmd SessionClosed) error {
-	bindings := m.ackIdx.TakeSessionRoute(cmd.UID, cmd.SessionID)
-	for _, binding := range bindings {
-		if err := m.shardFor(ChannelKey{ChannelID: binding.ChannelID, ChannelType: binding.ChannelType}).routeOffline(ctx, binding); err != nil {
+// Stop closes manager lifecycle resources.
+func (m *Manager) Stop(ctx context.Context) error {
+	if m == nil || m.async == nil {
+		return nil
+	}
+	return m.async.stop(ctx)
+}
+
+// SubmitCommitted admits one committed message event into async fanout.
+func (m *Manager) SubmitCommitted(ctx context.Context, event messageevents.MessageCommitted) error {
+	if m == nil || m.planner == nil || m.runner == nil || m.async == nil {
+		return nil
+	}
+	return m.async.submit(ctx, envelopeFromEvent(event))
+}
+
+func (m *Manager) runEnvelope(ctx context.Context, env Envelope) error {
+	tasks, err := m.planner.Plan(ctx, env)
+	if err != nil {
+		return err
+	}
+	for _, task := range tasks {
+		if err := m.runner.RunTask(ctx, task); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (m *Manager) ProcessRetryTicks(ctx context.Context) error {
-	for _, shard := range m.shards {
-		if err := shard.processRetryTicks(ctx); err != nil {
-			return err
-		}
+// Recvack clears a pending recipient recvack and ignores unknown acks.
+func (m *Manager) Recvack(_ context.Context, cmd Recvack) error {
+	if m == nil || m.acks == nil {
+		return nil
 	}
+	m.ackMu.Lock()
+	defer m.ackMu.Unlock()
+
+	_, ok := m.acks.Ack(cmd)
+	result := DeliveryAckResultMiss
+	changed := 0
+	if ok {
+		result = DeliveryAckResultOK
+		changed = 1
+	}
+	m.observeAck(DeliveryAckActionAck, result, changed, m.acks.PendingCount())
 	return nil
 }
 
-func (m *Manager) SweepIdle() {
-	for _, shard := range m.shards {
-		shard.sweepIdle()
+// SessionClosed clears pending recvacks for a closed recipient-owner session.
+func (m *Manager) SessionClosed(_ context.Context, cmd SessionClosed) error {
+	if m == nil || m.acks == nil {
+		return nil
 	}
+	m.ackMu.Lock()
+	defer m.ackMu.Unlock()
+
+	removed := m.acks.SessionClosed(cmd.UID, cmd.SessionID)
+	result := DeliveryAckResultNoop
+	if len(removed) > 0 {
+		result = DeliveryAckResultOK
+	}
+	m.observeAck(DeliveryAckActionSessionClosed, result, len(removed), m.acks.PendingCount())
+	return nil
 }
 
-// InflightRouteCount returns the number of routes currently tracked by all actors.
-func (m *Manager) InflightRouteCount() int {
-	if m == nil {
-		return 0
-	}
-	total := 0
-	for _, shard := range m.shards {
-		total += shard.inflightRouteCount()
-	}
-	return total
-}
-
-// AckBindingCount returns the number of routes currently awaiting client ack.
-func (m *Manager) AckBindingCount() int {
-	if m == nil {
-		return 0
-	}
-	return m.ackIdx.Len()
-}
-
-func (m *Manager) notifyRouteExpired(events []RouteExpiredEvent) {
-	if m == nil || m.observer == nil {
-		return
-	}
-	for _, event := range events {
-		m.observer.OnRouteExpired(event)
-	}
-}
-
-func (m *Manager) notifyOfflineResolved(ctx context.Context, events []OfflineResolvedEvent) {
-	if m == nil || m.offlineResolvedObserver == nil {
-		return
-	}
-	for _, event := range events {
-		m.offlineResolvedObserver.OfflineResolved(ctx, event)
-	}
-}
-
-func (m *Manager) shardFor(key ChannelKey) *shard {
-	if len(m.shards) == 1 {
-		return m.shards[0]
-	}
-	hasher := fnv.New32a()
-	_, _ = hasher.Write([]byte(key.ChannelID))
-	_, _ = hasher.Write([]byte{key.ChannelType})
-	return m.shards[hasher.Sum32()%uint32(len(m.shards))]
-}
-
-func (m *Manager) actorCount() int {
-	total := 0
-	for _, shard := range m.shards {
-		total += len(shard.actors)
-	}
-	return total
-}
-
-func (m *Manager) HasAckBinding(sessionID, messageID uint64) bool {
-	if m == nil {
+// BindPendingAck records one delivery waiting for a client recvack.
+func (m *Manager) BindPendingAck(pending PendingRecvAck) bool {
+	if m == nil || m.acks == nil {
 		return false
 	}
-	_, ok := m.ackIdx.Lookup(sessionID, messageID)
-	return ok
+	m.ackMu.Lock()
+	defer m.ackMu.Unlock()
+
+	result := m.acks.BindResult(pending)
+	eventResult := DeliveryAckResultRejected
+	changed := 0
+	if result.Bound {
+		eventResult = DeliveryAckResultOK
+		if result.Added {
+			changed = 1
+		}
+	}
+	m.observeAck(DeliveryAckActionBind, eventResult, changed, result.PendingCount)
+	return result.Bound
 }
 
-func (m *Manager) ActorLane(channelID string, channelType uint8) ActorLane {
-	if m == nil {
-		return LaneShared
+// ExpirePendingAcks removes pending recvacks older than ttl.
+func (m *Manager) ExpirePendingAcks(ttl time.Duration) []PendingRecvAck {
+	if m == nil || m.acks == nil {
+		return nil
 	}
-	act := m.shardFor(ChannelKey{ChannelID: channelID, ChannelType: channelType}).actor(ChannelKey{ChannelID: channelID, ChannelType: channelType})
-	if act == nil {
-		return LaneShared
+	m.ackMu.Lock()
+	defer m.ackMu.Unlock()
+
+	removed := m.acks.Expire(ttl)
+	result := DeliveryAckResultNoop
+	if len(removed) > 0 {
+		result = DeliveryAckResultOK
 	}
-	act.mu.Lock()
-	defer act.mu.Unlock()
-	return act.lane
+	m.observeAck(DeliveryAckActionExpire, result, len(removed), m.acks.PendingCount())
+	return removed
+}
+
+// PendingAckCount returns the current pending recvack count for tests and diagnostics.
+func (m *Manager) PendingAckCount() int {
+	if m == nil || m.acks == nil {
+		return 0
+	}
+	return m.acks.PendingCount()
+}
+
+func (m *Manager) observeAck(action, result string, changed, pendingCount int) {
+	if m == nil || m.ackObserver == nil {
+		return
+	}
+	m.ackObserver.ObserveAck(AckEvent{
+		Action:       action,
+		Result:       result,
+		Changed:      changed,
+		PendingCount: pendingCount,
+	})
+}
+
+func envelopeFromEvent(event messageevents.MessageCommitted) Envelope {
+	return Envelope{
+		MessageID:         event.MessageID,
+		MessageSeq:        event.MessageSeq,
+		ChannelID:         event.ChannelID,
+		ChannelType:       event.ChannelType,
+		FromUID:           event.FromUID,
+		SenderNodeID:      event.SenderNodeID,
+		SenderSessionID:   event.SenderSessionID,
+		ClientMsgNo:       event.ClientMsgNo,
+		RedDot:            event.RedDot,
+		Payload:           append([]byte(nil), event.Payload...),
+		MessageScopedUIDs: append([]string(nil), event.MessageScopedUIDs...),
+	}
 }

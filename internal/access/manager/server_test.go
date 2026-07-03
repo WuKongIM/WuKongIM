@@ -3,22 +3,14 @@ package manager
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
+	accessapi "github.com/WuKongIM/WuKongIM/internal/access/api"
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
-	pluginusecase "github.com/WuKongIM/WuKongIM/internal/usecase/plugin"
-	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
-	"github.com/WuKongIM/WuKongIM/pkg/legacy/channel"
-	raftcluster "github.com/WuKongIM/WuKongIM/pkg/legacy/cluster"
-	controllermeta "github.com/WuKongIM/WuKongIM/pkg/legacy/controller/meta"
-	"github.com/WuKongIM/WuKongIM/pkg/transport"
-	"github.com/stretchr/testify/require"
 )
 
 func TestManagerLoginIssuesJWTForAuthorizedUser(t *testing.T) {
@@ -39,23 +31,33 @@ func TestManagerLoginIssuesJWTForAuthorizedUser(t *testing.T) {
 
 	srv.Engine().ServeHTTP(rec, req)
 
-	require.Equal(t, http.StatusOK, rec.Code)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
 	var body loginResponseBody
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
-	require.Equal(t, "admin", body.Username)
-	require.Equal(t, "Bearer", body.TokenType)
-	require.NotEmpty(t, body.AccessToken)
-	require.Equal(t, int64(time.Hour/time.Second), body.ExpiresIn)
-	require.WithinDuration(t, time.Now().Add(time.Hour), body.ExpiresAt, 2*time.Second)
-	require.Equal(t, []permissionBody{{
-		Resource: "cluster.node",
-		Actions:  []string{"r"},
-	}}, body.Permissions)
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("Unmarshal() error = %v", err)
+	}
+	if body.Username != "admin" || body.TokenType != "Bearer" || body.AccessToken == "" {
+		t.Fatalf("login body = %+v, want username, bearer token", body)
+	}
+	if body.ExpiresIn != int64(time.Hour/time.Second) {
+		t.Fatalf("expires_in = %d, want %d", body.ExpiresIn, int64(time.Hour/time.Second))
+	}
+	if time.Until(body.ExpiresAt) <= 0 {
+		t.Fatalf("expires_at = %s, want future timestamp", body.ExpiresAt)
+	}
+	if len(body.Permissions) != 1 || body.Permissions[0].Resource != "cluster.node" || len(body.Permissions[0].Actions) != 1 || body.Permissions[0].Actions[0] != "r" {
+		t.Fatalf("permissions = %#v, want copied grants", body.Permissions)
+	}
 
 	var raw map[string]any
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &raw))
-	_, hasLegacyToken := raw["token"]
-	require.False(t, hasLegacyToken)
+	if err := json.Unmarshal(rec.Body.Bytes(), &raw); err != nil {
+		t.Fatalf("Unmarshal raw() error = %v", err)
+	}
+	if _, ok := raw["token"]; ok {
+		t.Fatalf("legacy token field present in response: %s", rec.Body.String())
+	}
 }
 
 func TestManagerLoginRejectsInvalidCredentials(t *testing.T) {
@@ -72,58 +74,30 @@ func TestManagerLoginRejectsInvalidCredentials(t *testing.T) {
 
 	srv.Engine().ServeHTTP(rec, req)
 
-	require.Equal(t, http.StatusUnauthorized, rec.Code)
-	require.JSONEq(t, `{"error":"invalid_credentials","message":"invalid credentials"}`, rec.Body.String())
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusUnauthorized)
+	}
+	if !jsonEqual(rec.Body.String(), `{"error":"invalid_credentials","message":"invalid credentials"}`) {
+		t.Fatalf("body = %q, want invalid credentials error", rec.Body.String())
+	}
 }
 
-func TestManagerCORSEchoesRequestOrigin(t *testing.T) {
+func TestManagerLoginRouteDisabledWhenAuthOff(t *testing.T) {
 	srv := New(Options{})
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodOptions, "/manager/nodes", nil)
-	req.Header.Set("Origin", "http://localhost:5175")
-	req.Header.Set("Access-Control-Request-Method", http.MethodGet)
+	req := httptest.NewRequest(http.MethodPost, "/manager/login", bytes.NewBufferString(`{"username":"admin","password":"secret"}`))
+	req.Header.Set("Content-Type", "application/json")
 
 	srv.Engine().ServeHTTP(rec, req)
 
-	require.Equal(t, http.StatusNoContent, rec.Code)
-	require.Equal(t, "http://localhost:5175", rec.Header().Get("Access-Control-Allow-Origin"))
-	require.Contains(t, rec.Header().Values("Vary"), "Origin")
-	require.Contains(t, rec.Header().Get("Access-Control-Allow-Methods"), http.MethodGet)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusNotFound)
+	}
 }
 
-func TestManagerNodesRejectsMissingToken(t *testing.T) {
-	srv := New(Options{
-		Auth:       testAuthConfig(nil),
-		Management: managementStub{},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/nodes", nil)
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusUnauthorized, rec.Code)
-	require.JSONEq(t, `{"error":"unauthorized","message":"unauthorized"}`, rec.Body.String())
-}
-
-func TestManagerNodesRejectsExpiredToken(t *testing.T) {
-	srv := New(Options{
-		Auth:       testAuthConfig(nil),
-		Management: managementStub{},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/nodes", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueExpiredTestToken(t, srv, "ghost"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusUnauthorized, rec.Code)
-	require.JSONEq(t, `{"error":"unauthorized","message":"unauthorized"}`, rec.Body.String())
-}
-
-func TestManagerLoginRejectsUnknownUserEvenWithValidToken(t *testing.T) {
+func TestManagerNodesReturnsReadOnlyInventory(t *testing.T) {
+	generatedAt := time.Date(2026, 6, 16, 10, 0, 0, 0, time.UTC)
 	srv := New(Options{
 		Auth: testAuthConfig([]UserConfig{{
 			Username: "admin",
@@ -133,103 +107,57 @@ func TestManagerLoginRejectsUnknownUserEvenWithValidToken(t *testing.T) {
 				Actions:  []string{"r"},
 			}},
 		}}),
-		Management: managementStub{},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/nodes", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "ghost"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusUnauthorized, rec.Code)
-	require.JSONEq(t, `{"error":"unauthorized","message":"unauthorized"}`, rec.Body.String())
-}
-
-func TestManagerNodesRejectsInsufficientPermission(t *testing.T) {
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "viewer",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.slot",
-				Actions:  []string{"r"},
-			}},
-		}}),
-		Management: managementStub{},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/nodes", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "viewer"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusForbidden, rec.Code)
-	require.JSONEq(t, `{"error":"forbidden","message":"forbidden"}`, rec.Body.String())
-}
-
-func TestManagerNodesReturnsAggregatedInventory(t *testing.T) {
-	generatedAt := time.Date(2026, 4, 28, 10, 0, 0, 0, time.UTC)
-	lastHeartbeatAt := time.Date(2026, 4, 28, 9, 59, 58, 0, time.UTC)
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "admin",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.node",
-				Actions:  []string{"r"},
-			}},
-		}}),
-		Management: managementStub{
-			nodes: nodeListAt(generatedAt, 1, managementusecase.Node{
-				NodeID:          1,
-				Name:            "node-1",
-				Addr:            "127.0.0.1:7000",
-				Status:          "alive",
-				LastHeartbeatAt: lastHeartbeatAt,
-				ControllerRole:  "leader",
-				SlotCount:       3,
-				LeaderSlotCount: 2,
-				IsLocal:         true,
-				CapacityWeight:  1,
-				Membership: managementusecase.NodeMembership{
-					Role:        "data",
-					JoinState:   "active",
-					Schedulable: true,
-				},
-				Health: managementusecase.NodeHealth{
+		Management: managerNodesStub{
+			nodes: managementusecase.NodeList{
+				GeneratedAt:        generatedAt,
+				ControllerLeaderID: 1,
+				Items: []managementusecase.Node{{
+					NodeID:          1,
+					Name:            "node-1",
+					Addr:            "127.0.0.1:7011",
 					Status:          "alive",
-					LastHeartbeatAt: lastHeartbeatAt,
-				},
-				Controller: managementusecase.NodeController{
-					Role:          "leader",
-					Voter:         true,
-					LeaderID:      1,
-					RaftHealth:    managementusecase.ControllerRaftHealthHealthy,
-					FirstIndex:    10,
-					AppliedIndex:  20,
-					SnapshotIndex: 9,
-				},
-				Slots: managementusecase.NodeSlotSummary{
-					ReplicaCount:  3,
-					LeaderCount:   2,
-					FollowerCount: 1,
-				},
-				Runtime: managementusecase.NodeRuntimeSummary{
-					NodeID:               1,
-					ActiveOnline:         4,
-					ClosingOnline:        1,
-					TotalOnline:          5,
-					GatewaySessions:      6,
-					SessionsByListener:   map[string]int{},
-					AcceptingNewSessions: true,
-				},
-				Actions: managementusecase.NodeActions{
-					CanDrain:   true,
-					CanScaleIn: true,
-				},
-			}),
+					LastHeartbeatAt: generatedAt,
+					IsLocal:         true,
+					CapacityWeight:  1,
+					Membership: managementusecase.NodeMembership{
+						Role:        "data",
+						JoinState:   "active",
+						Schedulable: true,
+					},
+					Health: managementusecase.NodeHealth{
+						Status:                  "alive",
+						LastHeartbeatAt:         generatedAt,
+						Fresh:                   true,
+						Freshness:               "fresh",
+						RuntimeReady:            true,
+						ReportAgeMS:             4000,
+						ReportTTLMS:             30000,
+						ObservedControlRevision: 12,
+						ObservedSlotRevision:    21,
+						ErrorCode:               "runtime_starting",
+					},
+					Controller: managementusecase.NodeController{
+						Role:       "leader",
+						Voter:      true,
+						LeaderID:   1,
+						RaftHealth: "unknown",
+					},
+					Slots: managementusecase.NodeSlotSummary{
+						ReplicaCount: 2,
+						LeaderCount:  1,
+					},
+					Runtime: managementusecase.NodeRuntimeSummary{
+						NodeID:  1,
+						Unknown: true,
+					},
+					Actions: managementusecase.NodeActions{
+						CanOnboard:                true,
+						CanMoveSlotsIn:            true,
+						CanMoveSlotsOut:           true,
+						CanPromoteControllerVoter: true,
+					},
+				}},
+			},
 		},
 	})
 
@@ -239,17 +167,19 @@ func TestManagerNodesReturnsAggregatedInventory(t *testing.T) {
 
 	srv.Engine().ServeHTTP(rec, req)
 
-	require.Equal(t, http.StatusOK, rec.Code)
-	require.JSONEq(t, `{
-		"generated_at": "2026-04-28T10:00:00Z",
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	if !jsonEqual(rec.Body.String(), `{
+		"generated_at": "2026-06-16T10:00:00Z",
 		"controller_leader_id": 1,
 		"total": 1,
 		"items": [{
 			"node_id": 1,
 			"name": "node-1",
-			"addr": "127.0.0.1:7000",
+			"addr": "127.0.0.1:7011",
 			"status": "alive",
-			"last_heartbeat_at": "2026-04-28T09:59:58Z",
+			"last_heartbeat_at": "2026-06-16T10:00:00Z",
 			"is_local": true,
 			"capacity_weight": 1,
 			"membership": {
@@ -259,73 +189,124 @@ func TestManagerNodesReturnsAggregatedInventory(t *testing.T) {
 			},
 			"health": {
 				"status": "alive",
-				"last_heartbeat_at": "2026-04-28T09:59:58Z"
+				"last_heartbeat_at": "2026-06-16T10:00:00Z",
+				"fresh": true,
+				"freshness": "fresh",
+				"runtime_ready": true,
+				"report_age_ms": 4000,
+				"report_ttl_ms": 30000,
+				"observed_control_revision": 12,
+				"observed_slot_revision": 21,
+				"error_code": "runtime_starting"
 			},
 			"controller": {
 				"role": "leader",
 				"voter": true,
 				"leader_id": 1,
-				"raft_health": "healthy",
-				"first_index": 10,
-				"applied_index": 20,
-				"snapshot_index": 9
+				"raft_health": "unknown",
+				"first_index": 0,
+				"applied_index": 0,
+				"snapshot_index": 0
 			},
 			"slot_stats": {
-				"count": 3,
-				"leader_count": 2
+				"count": 2,
+				"leader_count": 1
 			},
 			"slots": {
-				"replica_count": 3,
-				"leader_count": 2,
-				"follower_count": 1,
+				"replica_count": 2,
+				"leader_count": 1,
+				"follower_count": 0,
 				"quorum_lost_count": 0,
 				"unreported_count": 0
 			},
 			"runtime": {
 				"node_id": 1,
-				"active_online": 4,
-				"closing_online": 1,
-				"total_online": 5,
-				"gateway_sessions": 6,
+				"active_online": 0,
+				"closing_online": 0,
+				"total_online": 0,
+				"gateway_sessions": 0,
+				"pending_activations": 0,
 				"sessions_by_listener": {},
-				"accepting_new_sessions": true,
+				"accepting_new_sessions": false,
 				"draining": false,
-				"unknown": false
+				"unknown": true
 			},
 			"actions": {
-				"can_drain": true,
-				"can_resume": false,
-				"can_scale_in": true,
-				"can_onboard": false
-			}
-		}]
-	}`, rec.Body.String())
+					"can_drain": false,
+					"can_resume": false,
+					"can_scale_in": false,
+					"can_onboard": true,
+					"can_move_slots_in": true,
+					"can_move_slots_out": true,
+					"can_promote_controller_voter": true
+				}
+			}]
+	}`) {
+		t.Fatalf("body = %s", rec.Body.String())
+	}
 }
 
-func TestManagerNodesReturnsServiceUnavailableWhenLeaderConsistentReadUnavailable(t *testing.T) {
+func TestManagerNodesRequiresNodeReadPermission(t *testing.T) {
 	srv := New(Options{
 		Auth: testAuthConfig([]UserConfig{{
-			Username: "admin",
+			Username: "viewer",
 			Password: "secret",
 			Permissions: []PermissionConfig{{
-				Resource: "cluster.node",
+				Resource: "cluster.slot",
 				Actions:  []string{"r"},
 			}},
 		}}),
-		Management: managementStub{nodesErr: raftcluster.ErrNoLeader},
+		Management: managerNodesStub{},
 	})
 
-	rec := httptest.NewRecorder()
+	missing := httptest.NewRecorder()
+	srv.Engine().ServeHTTP(missing, httptest.NewRequest(http.MethodGet, "/manager/nodes", nil))
+	if missing.Code != http.StatusUnauthorized {
+		t.Fatalf("missing token status = %d, want %d", missing.Code, http.StatusUnauthorized)
+	}
+
+	denied := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/manager/nodes", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusServiceUnavailable, rec.Code)
-	require.JSONEq(t, `{"error":"service_unavailable","message":"controller leader consistent read unavailable"}`, rec.Body.String())
+	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "viewer"))
+	srv.Engine().ServeHTTP(denied, req)
+	if denied.Code != http.StatusForbidden {
+		t.Fatalf("denied status = %d, want %d", denied.Code, http.StatusForbidden)
+	}
 }
 
-func TestManagerNodeDetailRejectsInvalidNodeID(t *testing.T) {
+func TestManagerRuntimeWorkqueuesReturnsLocalTopPressure(t *testing.T) {
+	generatedAt := time.Date(2026, 6, 16, 10, 0, 0, 0, time.UTC)
+	provider := &managerTopStub{snapshot: accessapi.TopSnapshot{
+		GeneratedAt:   generatedAt,
+		WindowSeconds: 10,
+		Scope:         "local_node",
+		Node: accessapi.TopNodeSnapshot{
+			ID:    1,
+			Name:  "node-1",
+			Ready: true,
+		},
+		Pressure: &accessapi.TopPressure{
+			OverallLevel: "degraded",
+			Top: []accessapi.TopPressureItem{{
+				Component:            "gateway",
+				Pool:                 "async_send",
+				Queue:                "send",
+				Priority:             "none",
+				Level:                "degraded",
+				Score:                0.82,
+				Depth:                82,
+				Capacity:             100,
+				WaitP99MS:            12.4,
+				TaskP99MS:            20.5,
+				AdmissionErrorPerSec: 0.3,
+				Hint:                 "queue depth is approaching capacity",
+			}},
+		},
+		Sources: accessapi.TopSources{
+			Collector: accessapi.TopSourceStatus{Available: true, SampleCount: 10},
+			Metrics:   accessapi.TopMetricsSource{Enabled: false, Required: false},
+		},
+	}}
 	srv := New(Options{
 		Auth: testAuthConfig([]UserConfig{{
 			Username: "admin",
@@ -335,704 +316,574 @@ func TestManagerNodeDetailRejectsInvalidNodeID(t *testing.T) {
 				Actions:  []string{"r"},
 			}},
 		}}),
-		Management: managementStub{},
+		Top: provider,
 	})
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/nodes/bad", nil)
+	req := httptest.NewRequest(http.MethodGet, "/manager/runtime/workqueues", nil)
 	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
 
 	srv.Engine().ServeHTTP(rec, req)
 
-	require.Equal(t, http.StatusBadRequest, rec.Code)
-	require.JSONEq(t, `{"error":"bad_request","message":"invalid node_id"}`, rec.Body.String())
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	if provider.query.View != accessapi.TopViewRuntime {
+		t.Fatalf("provider query view = %q, want %q", provider.query.View, accessapi.TopViewRuntime)
+	}
+	if provider.query.Window != 10*time.Second {
+		t.Fatalf("provider query window = %s, want 10s", provider.query.Window)
+	}
+	if provider.query.Limit != 100 {
+		t.Fatalf("provider query limit = %d, want 100", provider.query.Limit)
+	}
+	if !jsonEqual(rec.Body.String(), `{
+		"generated_at": "2026-06-16T10:00:00Z",
+		"window_seconds": 10,
+		"scope": {"view":"local_node","node_id":1,"node_name":"node-1","ready":true},
+		"summary": {
+			"overall_level":"degraded",
+			"total":1,
+			"ok":0,
+			"busy":0,
+			"degraded":1,
+			"critical":0,
+			"hottest":{"component":"gateway","pool":"async_send","queue":"send","priority":"none","level":"degraded","score":0.82}
+		},
+		"items":[{
+			"component":"gateway","pool":"async_send","queue":"send","priority":"none","level":"degraded","score":0.82,
+			"depth":82,"capacity":100,"inflight":0,"workers":0,
+			"wait_p99_ms":12.4,"task_p99_ms":20.5,"admission_error_per_sec":0.3,
+			"hint":"queue depth is approaching capacity"
+		}],
+		"sources":{"collector":{"available":true,"sample_count":10},"metrics":{"enabled":false,"required":false},"notes":[]}
+	}`) {
+		t.Fatalf("body = %s", rec.Body.String())
+	}
 }
 
-func TestManagerNodeDetailReturnsNotFound(t *testing.T) {
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "admin",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.node",
-				Actions:  []string{"r"},
-			}},
-		}}),
-		Management: managementStub{nodeDetailErr: controllermeta.ErrNotFound},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/nodes/2", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusNotFound, rec.Code)
-	require.JSONEq(t, `{"error":"not_found","message":"node not found"}`, rec.Body.String())
-}
-
-func TestManagerNodeDetailReturnsAggregatedDetail(t *testing.T) {
-	lastHeartbeatAt := time.Date(2026, 4, 21, 15, 4, 5, 0, time.UTC)
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "admin",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.node",
-				Actions:  []string{"r"},
-			}},
-		}}),
-		Management: managementStub{
-			nodeDetail: managementusecase.NodeDetail{
-				Node: managementusecase.Node{
-					NodeID:          2,
-					Name:            "node-2",
-					Addr:            "127.0.0.1:7002",
-					Status:          "draining",
-					LastHeartbeatAt: lastHeartbeatAt,
-					ControllerRole:  "follower",
-					SlotCount:       3,
-					LeaderSlotCount: 2,
-					IsLocal:         true,
-					CapacityWeight:  2,
-					Membership: managementusecase.NodeMembership{
-						Role:        "data",
-						JoinState:   "active",
-						Schedulable: false,
-					},
-					Health: managementusecase.NodeHealth{
-						Status:          "draining",
-						LastHeartbeatAt: lastHeartbeatAt,
-					},
-					Controller: managementusecase.NodeController{
-						Role:          "follower",
-						Voter:         true,
-						LeaderID:      1,
-						RaftHealth:    managementusecase.ControllerRaftHealthAppendCatchup,
-						FirstIndex:    12,
-						AppliedIndex:  18,
-						SnapshotIndex: 11,
-					},
-					Slots: managementusecase.NodeSlotSummary{
-						ReplicaCount:    3,
-						LeaderCount:     2,
-						FollowerCount:   1,
-						QuorumLostCount: 1,
-					},
-					Runtime: managementusecase.NodeRuntimeSummary{
-						NodeID:             2,
-						ActiveOnline:       4,
-						TotalOnline:        4,
-						GatewaySessions:    5,
-						SessionsByListener: map[string]int{"tcp": 5},
-						Draining:           true,
-					},
-					Actions: managementusecase.NodeActions{
-						CanResume: true,
-					},
+func TestManagerRuntimeWorkqueuesPreservesProviderLabels(t *testing.T) {
+	response := mapRuntimeWorkqueuesSnapshot(accessapi.TopSnapshot{
+		Pressure: &accessapi.TopPressure{
+			OverallLevel: "busy",
+			Top: []accessapi.TopPressureItem{
+				{
+					Component: "transportv2",
+					Pool:      "slot propose",
+					Queue:     "inflight",
+					Priority:  "none",
+					Level:     "busy",
+					Score:     0.7,
 				},
-				Slots: managementusecase.NodeSlots{
-					HostedIDs: []uint32{2, 4, 7},
-					LeaderIDs: []uint32{2, 4},
+				{
+					Component: "slot",
+					Pool:      "scheduler",
+					Queue:     "scheduler",
+					Priority:  "none",
+					Level:     "ok",
 				},
 			},
 		},
-	})
+	}, 10*time.Second)
+
+	if got, want := response.Items[0].Pool, "slot propose"; got != want {
+		t.Fatalf("pool = %q, want %q", got, want)
+	}
+	if got, want := response.Items[0].Queue, "inflight"; got != want {
+		t.Fatalf("queue = %q, want %q", got, want)
+	}
+	if response.Summary.Hottest == nil || response.Summary.Hottest.Pool != "slot propose" || response.Summary.Hottest.Queue != "inflight" {
+		t.Fatalf("hottest = %#v, want provider pool and queue labels", response.Summary.Hottest)
+	}
+}
+
+func TestManagerRuntimeWorkqueuesMapsUnavailableSources(t *testing.T) {
+	srv := New(Options{})
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/nodes/2", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
+	req := httptest.NewRequest(http.MethodGet, "/manager/runtime/workqueues", nil)
 
 	srv.Engine().ServeHTTP(rec, req)
 
-	require.Equal(t, http.StatusOK, rec.Code)
-	require.JSONEq(t, `{
-		"node_id": 2,
-		"name": "node-2",
-		"addr": "127.0.0.1:7002",
-		"status": "draining",
-		"last_heartbeat_at": "2026-04-21T15:04:05Z",
-		"is_local": true,
-		"capacity_weight": 2,
-		"membership": {
-			"role": "data",
-			"join_state": "active",
-			"schedulable": false
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusServiceUnavailable)
+	}
+	if !jsonEqual(rec.Body.String(), `{"error":"service_unavailable","message":"top snapshot provider is not configured"}`) {
+		t.Fatalf("body = %s", rec.Body.String())
+	}
+}
+
+func TestManagerRuntimeWorkqueuesMapsWarmingUp(t *testing.T) {
+	srv := New(Options{Top: &managerTopStub{err: accessapi.ErrTopWarmingUp}})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/manager/runtime/workqueues", nil)
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusServiceUnavailable)
+	}
+	if !jsonEqual(rec.Body.String(), `{"error":"service_unavailable","message":"top collector warming up"}`) {
+		t.Fatalf("body = %s", rec.Body.String())
+	}
+}
+
+func TestManagerRuntimeWorkqueuesRejectsInvalidWindow(t *testing.T) {
+	tests := []struct {
+		name string
+		url  string
+	}{
+		{name: "invalid duration", url: "/manager/runtime/workqueues?window=soon"},
+		{name: "below minimum", url: "/manager/runtime/workqueues?window=1s"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := New(Options{Top: &managerTopStub{}})
+
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodGet, tt.url, nil)
+
+			srv.Engine().ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusBadRequest {
+				t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusBadRequest, rec.Body.String())
+			}
+			if !jsonEqual(rec.Body.String(), `{"error":"invalid_request","message":"window invalid"}`) {
+				t.Fatalf("body = %s", rec.Body.String())
+			}
+		})
+	}
+}
+
+func TestManagerRuntimeWorkqueuesRejectsInvalidLimit(t *testing.T) {
+	tests := []struct {
+		name string
+		url  string
+	}{
+		{name: "invalid integer", url: "/manager/runtime/workqueues?limit=many"},
+		{name: "zero", url: "/manager/runtime/workqueues?limit=0"},
+		{name: "negative", url: "/manager/runtime/workqueues?limit=-1"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := New(Options{Top: &managerTopStub{}})
+
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodGet, tt.url, nil)
+
+			srv.Engine().ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusBadRequest {
+				t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusBadRequest, rec.Body.String())
+			}
+			if !jsonEqual(rec.Body.String(), `{"error":"invalid_request","message":"limit invalid"}`) {
+				t.Fatalf("body = %s", rec.Body.String())
+			}
+		})
+	}
+}
+
+func TestManagerRuntimeWorkqueuesPassesCustomWindow(t *testing.T) {
+	provider := &managerTopStub{}
+	srv := New(Options{Top: provider})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/manager/runtime/workqueues?window=30s", nil)
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	if provider.query.View != accessapi.TopViewRuntime {
+		t.Fatalf("provider query view = %q, want %q", provider.query.View, accessapi.TopViewRuntime)
+	}
+	if provider.query.Window != 30*time.Second {
+		t.Fatalf("provider query window = %s, want 30s", provider.query.Window)
+	}
+	if provider.query.Limit != 100 {
+		t.Fatalf("provider query limit = %d, want 100", provider.query.Limit)
+	}
+}
+
+func TestManagerRuntimeWorkqueuesParsesNodeID(t *testing.T) {
+	provider := &managerTopStub{snapshot: accessapi.TopSnapshot{
+		GeneratedAt:   time.Date(2026, 6, 16, 10, 0, 0, 0, time.UTC),
+		WindowSeconds: 10,
+		Scope:         "local_node",
+		Node:          accessapi.TopNodeSnapshot{ID: 2, Name: "node-2", Ready: true},
+		Sources: accessapi.TopSources{
+			Collector: accessapi.TopSourceStatus{Available: true, SampleCount: 10},
+			Metrics:   accessapi.TopMetricsSource{Enabled: false, Required: false},
 		},
-		"health": {
-			"status": "draining",
-			"last_heartbeat_at": "2026-04-21T15:04:05Z"
-		},
-		"controller": {
-			"role": "follower",
-			"voter": true,
-			"leader_id": 1,
-			"raft_health": "append_catchup",
-			"first_index": 12,
-			"applied_index": 18,
-			"snapshot_index": 11
-		},
-		"slot_stats": {
-			"count": 3,
-			"leader_count": 2
-		},
-		"runtime": {
-			"node_id": 2,
-			"active_online": 4,
-			"closing_online": 0,
-			"total_online": 4,
-			"gateway_sessions": 5,
-			"sessions_by_listener": {"tcp": 5},
-			"accepting_new_sessions": false,
-			"draining": true,
-			"unknown": false
-		},
-		"actions": {
-			"can_drain": false,
-			"can_resume": true,
-			"can_scale_in": false,
-			"can_onboard": false
-		},
-		"slots": {
-			"hosted_ids": [2, 4, 7],
-			"leader_ids": [2, 4],
-			"replica_count": 3,
-			"leader_count": 2,
-			"follower_count": 1,
-			"quorum_lost_count": 1,
-			"unreported_count": 0
+	}}
+	srv := New(Options{Top: provider})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/manager/runtime/workqueues?window=30s&node_id=2", nil)
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	if provider.query.NodeID != 2 {
+		t.Fatalf("provider query NodeID = %d, want 2", provider.query.NodeID)
+	}
+}
+
+func TestManagerRuntimeWorkqueuesRejectsInvalidNodeID(t *testing.T) {
+	srv := New(Options{Top: &managerTopStub{}})
+
+	for _, path := range []string{
+		"/manager/runtime/workqueues?node_id=bad",
+		"/manager/runtime/workqueues?node_id=0",
+	} {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+
+		srv.Engine().ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("%s status = %d, want %d; body=%s", path, rec.Code, http.StatusBadRequest, rec.Body.String())
 		}
-	}`, rec.Body.String())
+		if !jsonEqual(rec.Body.String(), `{"error":"invalid_request","message":"invalid node_id"}`) {
+			t.Fatalf("%s body = %s, want invalid node_id", path, rec.Body.String())
+		}
+	}
 }
 
-func TestManagerNodeDetailReturnsServiceUnavailableWhenLeaderConsistentReadUnavailable(t *testing.T) {
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "admin",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.node",
-				Actions:  []string{"r"},
-			}},
-		}}),
-		Management: managementStub{nodeDetailErr: raftcluster.ErrNoLeader},
-	})
+func TestManagerRuntimeWorkqueuesClampsLargeLimit(t *testing.T) {
+	provider := &managerTopStub{}
+	srv := New(Options{Top: provider})
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/nodes/2", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
+	req := httptest.NewRequest(http.MethodGet, "/manager/runtime/workqueues?limit=250", nil)
 
 	srv.Engine().ServeHTTP(rec, req)
 
-	require.Equal(t, http.StatusServiceUnavailable, rec.Code)
-	require.JSONEq(t, `{"error":"service_unavailable","message":"controller leader consistent read unavailable"}`, rec.Body.String())
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	if provider.query.View != accessapi.TopViewRuntime {
+		t.Fatalf("provider query view = %q, want %q", provider.query.View, accessapi.TopViewRuntime)
+	}
+	if provider.query.Window != 10*time.Second {
+		t.Fatalf("provider query window = %s, want 10s", provider.query.Window)
+	}
+	if provider.query.Limit != 200 {
+		t.Fatalf("provider query limit = %d, want 200", provider.query.Limit)
+	}
 }
 
-func TestManagerNodeDrainingRejectsMissingToken(t *testing.T) {
-	srv := New(Options{
-		Auth:       testAuthConfig(nil),
-		Management: managementStub{},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/manager/nodes/2/draining", nil)
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusUnauthorized, rec.Code)
-	require.JSONEq(t, `{"error":"unauthorized","message":"unauthorized"}`, rec.Body.String())
-}
-
-func TestManagerNodeDrainingRejectsInsufficientPermission(t *testing.T) {
+func TestManagerRuntimeWorkqueuesRequiresNodeReadPermission(t *testing.T) {
 	srv := New(Options{
 		Auth: testAuthConfig([]UserConfig{{
 			Username: "viewer",
 			Password: "secret",
 			Permissions: []PermissionConfig{{
-				Resource: "cluster.node",
+				Resource: "cluster.slot",
 				Actions:  []string{"r"},
 			}},
 		}}),
-		Management: managementStub{},
+		Top: &managerTopStub{},
 	})
 
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/manager/nodes/2/draining", nil)
+	denied := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/manager/runtime/workqueues", nil)
 	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "viewer"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusForbidden, rec.Code)
-	require.JSONEq(t, `{"error":"forbidden","message":"forbidden"}`, rec.Body.String())
+	srv.Engine().ServeHTTP(denied, req)
+	if denied.Code != http.StatusForbidden {
+		t.Fatalf("denied status = %d, want %d", denied.Code, http.StatusForbidden)
+	}
 }
 
-func TestManagerNodeDrainingRejectsInvalidNodeID(t *testing.T) {
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "admin",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.node",
-				Actions:  []string{"w"},
-			}},
-		}}),
-		Management: managementStub{},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/manager/nodes/bad/draining", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusBadRequest, rec.Code)
-	require.JSONEq(t, `{"error":"bad_request","message":"invalid node_id"}`, rec.Body.String())
-}
-
-func TestManagerNodeDrainingReturnsNotFound(t *testing.T) {
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "admin",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.node",
-				Actions:  []string{"w"},
-			}},
-		}}),
-		Management: managementStub{nodeDrainingErr: controllermeta.ErrNotFound},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/manager/nodes/2/draining", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusNotFound, rec.Code)
-	require.JSONEq(t, `{"error":"not_found","message":"node not found"}`, rec.Body.String())
-}
-
-func TestManagerNodeDrainingReturnsServiceUnavailableWhenLeaderUnavailable(t *testing.T) {
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "admin",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.node",
-				Actions:  []string{"w"},
-			}},
-		}}),
-		Management: managementStub{nodeDrainingErr: raftcluster.ErrNoLeader},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/manager/nodes/2/draining", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusServiceUnavailable, rec.Code)
-	require.JSONEq(t, `{"error":"service_unavailable","message":"controller leader unavailable"}`, rec.Body.String())
-}
-
-func TestManagerNodeDrainingReturnsUpdatedNodeDetail(t *testing.T) {
-	lastHeartbeatAt := time.Date(2026, 4, 22, 2, 4, 5, 0, time.UTC)
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "admin",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.node",
-				Actions:  []string{"w"},
-			}},
-		}}),
-		Management: managementStub{
-			nodeDraining: managementusecase.NodeDetail{
-				Node: managementusecase.Node{
-					NodeID:          2,
-					Name:            "node-2",
-					Addr:            "127.0.0.1:7002",
-					Status:          "draining",
-					LastHeartbeatAt: lastHeartbeatAt,
-					ControllerRole:  "follower",
-					SlotCount:       3,
-					LeaderSlotCount: 0,
-					IsLocal:         false,
-					CapacityWeight:  2,
-					Membership: managementusecase.NodeMembership{
-						Role:        "data",
-						JoinState:   "active",
-						Schedulable: false,
-					},
-					Health: managementusecase.NodeHealth{
-						Status:          "draining",
-						LastHeartbeatAt: lastHeartbeatAt,
-					},
-					Controller: managementusecase.NodeController{
-						Role:     "follower",
-						Voter:    true,
-						LeaderID: 1,
-					},
-					Slots: managementusecase.NodeSlotSummary{
-						ReplicaCount:  3,
-						FollowerCount: 3,
-					},
-					Runtime: managementusecase.NodeRuntimeSummary{
-						NodeID:             2,
-						SessionsByListener: map[string]int{},
-						Draining:           true,
-					},
-					Actions: managementusecase.NodeActions{
-						CanResume: true,
-					},
-				},
-				Slots: managementusecase.NodeSlots{
-					HostedIDs: []uint32{2, 4, 7},
-					LeaderIDs: []uint32{},
-				},
+func TestManagerRealtimeMonitorReturnsUnifiedPayload(t *testing.T) {
+	generatedAt := time.Date(2026, 6, 18, 10, 0, 0, 0, time.UTC)
+	provider := &managerMonitorStub{response: RealtimeMonitorResponse{
+		Status:        RealtimeMonitorStatusReady,
+		GeneratedAt:   generatedAt,
+		WindowSeconds: 900,
+		StepSeconds:   20,
+		Scope: RealtimeMonitorScope{
+			View:   RealtimeMonitorScopeUnified,
+			NodeID: 1,
+		},
+		Sources: RealtimeMonitorSources{
+			Prometheus: RealtimeMonitorPrometheusSource{
+				Enabled: true,
+				BaseURL: "http://127.0.0.1:9090",
+				QueryMS: 18,
+			},
+			ControlSnapshot: RealtimeMonitorSource{
+				Enabled: true,
+				QueryMS: 1,
 			},
 		},
-	})
+		Categories: []RealtimeMonitorCategory{{
+			Key:   RealtimeMonitorCategoryCommon,
+			Count: 2,
+		}, {
+			Key:   RealtimeMonitorCategoryGateway,
+			Count: 1,
+		}, {
+			Key:   RealtimeMonitorCategoryInternal,
+			Count: 1,
+		}},
+		Snapshot: []RealtimeMonitorSnapshotEntry{},
+		Cards: []RealtimeMonitorCard{{
+			Key:       "sendRate",
+			Category:  RealtimeMonitorCategoryGateway,
+			Stage:     RealtimeMonitorStageSendEntry,
+			Source:    RealtimeMonitorSourcePrometheus,
+			Tone:      RealtimeMonitorToneNormal,
+			Unit:      "msg/s",
+			Value:     12.5,
+			Available: true,
+			Series: []RealtimeMonitorPoint{{
+				Timestamp: 1781767200000,
+				Value:     12.5,
+			}},
+			Stats: []RealtimeMonitorStat{{
+				Key:   "avg",
+				Value: 12.5,
+			}},
+		}, {
+			Key:       "rpcSuccessRate",
+			Category:  RealtimeMonitorCategoryInternal,
+			Stage:     RealtimeMonitorStageInternalNetwork,
+			Source:    RealtimeMonitorSourcePrometheus,
+			Tone:      RealtimeMonitorToneNormal,
+			Unit:      "%",
+			Value:     99.96,
+			Available: true,
+			Series: []RealtimeMonitorPoint{{
+				Timestamp: 1781767200000,
+				Value:     99.96,
+			}},
+			Stats: []RealtimeMonitorStat{},
+		}},
+	}}
+	srv := New(Options{RealtimeMonitor: provider})
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/manager/nodes/2/draining", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
+	req := httptest.NewRequest(http.MethodGet, "/manager/realtime-monitor?window=15m&step=20s&category=internal", nil)
 
 	srv.Engine().ServeHTTP(rec, req)
 
-	require.Equal(t, http.StatusOK, rec.Code)
-	require.JSONEq(t, `{
-		"node_id": 2,
-		"name": "node-2",
-		"addr": "127.0.0.1:7002",
-		"status": "draining",
-		"last_heartbeat_at": "2026-04-22T02:04:05Z",
-		"is_local": false,
-		"capacity_weight": 2,
-		"membership": {
-			"role": "data",
-			"join_state": "active",
-			"schedulable": false
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	if provider.query.Window != 15*time.Minute || provider.query.Step != 20*time.Second {
+		t.Fatalf("provider query = %#v, want 15m/20s", provider.query)
+	}
+	if provider.query.Category != RealtimeMonitorCategoryInternal {
+		t.Fatalf("provider query category = %q, want %q", provider.query.Category, RealtimeMonitorCategoryInternal)
+	}
+	if !jsonEqual(rec.Body.String(), `{
+		"status":"ready",
+		"generated_at":"2026-06-18T10:00:00Z",
+		"window_seconds":900,
+		"step_seconds":20,
+		"scope":{"view":"realtime_monitor","node_id":1},
+		"sources":{
+			"prometheus":{"enabled":true,"base_url":"http://127.0.0.1:9090","query_ms":18,"error":""},
+			"control_snapshot":{"enabled":true,"query_ms":1,"error":""}
 		},
-		"health": {
-			"status": "draining",
-			"last_heartbeat_at": "2026-04-22T02:04:05Z"
-		},
-		"controller": {
-			"role": "follower",
-			"voter": true,
-			"leader_id": 1,
-			"raft_health": "",
-			"first_index": 0,
-			"applied_index": 0,
-			"snapshot_index": 0
-		},
-		"slot_stats": {
-			"count": 3,
-			"leader_count": 0
-		},
-		"runtime": {
-			"node_id": 2,
-			"active_online": 0,
-			"closing_online": 0,
-			"total_online": 0,
-			"gateway_sessions": 0,
-			"sessions_by_listener": {},
-			"accepting_new_sessions": false,
-			"draining": true,
-			"unknown": false
-		},
-		"actions": {
-			"can_drain": false,
-			"can_resume": true,
-			"can_scale_in": false,
-			"can_onboard": false
-		},
-		"slots": {
-			"hosted_ids": [2, 4, 7],
-			"leader_ids": [],
-			"replica_count": 3,
-			"leader_count": 0,
-			"follower_count": 3,
-			"quorum_lost_count": 0,
-			"unreported_count": 0
-		}
-	}`, rec.Body.String())
+		"categories":[
+			{"key":"common","count":2},
+			{"key":"gateway","count":1},
+			{"key":"internal","count":1}
+		],
+		"snapshot":[],
+		"cards":[
+			{"key":"sendRate","category":"gateway","stage":"sendEntry","source":"prometheus","tone":"normal","unit":"msg/s","value":12.5,"series":[{"timestamp":1781767200000,"value":12.5}],"stats":[{"key":"avg","value":12.5}],"available":true,"error":""},
+			{"key":"rpcSuccessRate","category":"internal","stage":"internalNetwork","source":"prometheus","tone":"normal","unit":"%","value":99.96,"series":[{"timestamp":1781767200000,"value":99.96}],"stats":[],"available":true,"error":""}
+		]
+	}`) {
+		t.Fatalf("body = %s", rec.Body.String())
+	}
 }
 
-func TestManagerNodeResumeRejectsMissingToken(t *testing.T) {
-	srv := New(Options{
-		Auth:       testAuthConfig(nil),
-		Management: managementStub{},
-	})
+func TestManagerRealtimeMonitorParsesNodeID(t *testing.T) {
+	provider := &managerMonitorStub{response: RealtimeMonitorResponse{
+		Status:        RealtimeMonitorStatusReady,
+		GeneratedAt:   time.Date(2026, 6, 18, 10, 0, 0, 0, time.UTC),
+		WindowSeconds: 900,
+		StepSeconds:   20,
+		Scope:         RealtimeMonitorScope{View: RealtimeMonitorScopeUnified, NodeID: 2},
+		Snapshot:      []RealtimeMonitorSnapshotEntry{},
+		Cards:         []RealtimeMonitorCard{},
+	}}
+	srv := New(Options{RealtimeMonitor: provider})
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/manager/nodes/2/resume", nil)
+	req := httptest.NewRequest(http.MethodGet, "/manager/realtime-monitor?window=15m&node_id=2", nil)
 
 	srv.Engine().ServeHTTP(rec, req)
 
-	require.Equal(t, http.StatusUnauthorized, rec.Code)
-	require.JSONEq(t, `{"error":"unauthorized","message":"unauthorized"}`, rec.Body.String())
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	if provider.query.NodeID != 2 {
+		t.Fatalf("provider query NodeID = %d, want 2", provider.query.NodeID)
+	}
 }
 
-func TestManagerNodeResumeRejectsInsufficientPermission(t *testing.T) {
+func TestManagerRealtimeMonitorDefaultsToCommonCategory(t *testing.T) {
+	provider := &managerMonitorStub{response: RealtimeMonitorResponse{
+		Status:        RealtimeMonitorStatusReady,
+		GeneratedAt:   time.Date(2026, 6, 18, 10, 0, 0, 0, time.UTC),
+		WindowSeconds: 900,
+		StepSeconds:   20,
+		Scope:         RealtimeMonitorScope{View: RealtimeMonitorScopeUnified},
+		Snapshot:      []RealtimeMonitorSnapshotEntry{},
+		Cards:         []RealtimeMonitorCard{},
+	}}
+	srv := New(Options{RealtimeMonitor: provider})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/manager/realtime-monitor", nil)
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	if provider.query.Category != "common" {
+		t.Fatalf("provider query category = %q, want common", provider.query.Category)
+	}
+}
+
+func TestManagerRealtimeMonitorParsesDatabaseCategory(t *testing.T) {
+	provider := &managerMonitorStub{response: RealtimeMonitorResponse{
+		Status:        RealtimeMonitorStatusReady,
+		GeneratedAt:   time.Date(2026, 6, 18, 10, 0, 0, 0, time.UTC),
+		WindowSeconds: 900,
+		StepSeconds:   20,
+		Scope:         RealtimeMonitorScope{View: RealtimeMonitorScopeUnified},
+		Snapshot:      []RealtimeMonitorSnapshotEntry{},
+		Cards:         []RealtimeMonitorCard{},
+	}}
+	srv := New(Options{RealtimeMonitor: provider})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/manager/realtime-monitor?category=database", nil)
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	if provider.query.Category != RealtimeMonitorCategoryDatabase {
+		t.Fatalf("provider query category = %q, want %q", provider.query.Category, RealtimeMonitorCategoryDatabase)
+	}
+}
+
+func TestManagerRealtimeMonitorRejectsInvalidQuery(t *testing.T) {
+	tests := []struct {
+		name string
+		url  string
+		want string
+	}{
+		{name: "invalid window", url: "/manager/realtime-monitor?window=soon", want: "window invalid"},
+		{name: "unsupported window", url: "/manager/realtime-monitor?window=2h", want: "window invalid"},
+		{name: "invalid step", url: "/manager/realtime-monitor?step=soon", want: "step invalid"},
+		{name: "too small step", url: "/manager/realtime-monitor?step=1s", want: "step invalid"},
+		{name: "invalid node id", url: "/manager/realtime-monitor?node_id=bad", want: "invalid node_id"},
+		{name: "zero node id", url: "/manager/realtime-monitor?node_id=0", want: "invalid node_id"},
+		{name: "all category removed", url: "/manager/realtime-monitor?category=all", want: "category invalid"},
+		{name: "invalid category", url: "/manager/realtime-monitor?category=business", want: "category invalid"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := New(Options{RealtimeMonitor: &managerMonitorStub{}})
+
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodGet, tt.url, nil)
+
+			srv.Engine().ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusBadRequest {
+				t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusBadRequest, rec.Body.String())
+			}
+			if !jsonEqual(rec.Body.String(), `{"error":"invalid_request","message":"`+tt.want+`"}`) {
+				t.Fatalf("body = %s", rec.Body.String())
+			}
+		})
+	}
+}
+
+func TestManagerRealtimeMonitorRequiresNodeReadPermission(t *testing.T) {
 	srv := New(Options{
 		Auth: testAuthConfig([]UserConfig{{
 			Username: "viewer",
 			Password: "secret",
 			Permissions: []PermissionConfig{{
-				Resource: "cluster.node",
+				Resource: "cluster.slot",
 				Actions:  []string{"r"},
 			}},
 		}}),
-		Management: managementStub{},
+		RealtimeMonitor: &managerMonitorStub{},
 	})
 
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/manager/nodes/2/resume", nil)
+	denied := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/manager/realtime-monitor", nil)
 	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "viewer"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusForbidden, rec.Code)
-	require.JSONEq(t, `{"error":"forbidden","message":"forbidden"}`, rec.Body.String())
+	srv.Engine().ServeHTTP(denied, req)
+	if denied.Code != http.StatusForbidden {
+		t.Fatalf("denied status = %d, want %d", denied.Code, http.StatusForbidden)
+	}
 }
 
-func TestManagerNodeResumeRejectsInvalidNodeID(t *testing.T) {
+func TestManagerRealtimeMonitorRemovesOldRoutes(t *testing.T) {
+	provider := &managerMonitorStub{}
 	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "admin",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.node",
-				Actions:  []string{"w"},
-			}},
-		}}),
-		Management: managementStub{},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/manager/nodes/bad/resume", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusBadRequest, rec.Code)
-	require.JSONEq(t, `{"error":"bad_request","message":"invalid node_id"}`, rec.Body.String())
-}
-
-func TestManagerNodeResumeReturnsNotFound(t *testing.T) {
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "admin",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.node",
-				Actions:  []string{"w"},
-			}},
-		}}),
-		Management: managementStub{nodeResumeErr: controllermeta.ErrNotFound},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/manager/nodes/2/resume", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusNotFound, rec.Code)
-	require.JSONEq(t, `{"error":"not_found","message":"node not found"}`, rec.Body.String())
-}
-
-func TestManagerNodeResumeReturnsServiceUnavailableWhenLeaderUnavailable(t *testing.T) {
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "admin",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.node",
-				Actions:  []string{"w"},
-			}},
-		}}),
-		Management: managementStub{nodeResumeErr: raftcluster.ErrNotLeader},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/manager/nodes/2/resume", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusServiceUnavailable, rec.Code)
-	require.JSONEq(t, `{"error":"service_unavailable","message":"controller leader unavailable"}`, rec.Body.String())
-}
-
-func TestManagerNodeResumeReturnsUpdatedNodeDetail(t *testing.T) {
-	lastHeartbeatAt := time.Date(2026, 4, 22, 2, 5, 6, 0, time.UTC)
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "admin",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.node",
-				Actions:  []string{"w"},
-			}},
-		}}),
-		Management: managementStub{
-			nodeResume: managementusecase.NodeDetail{
-				Node: managementusecase.Node{
-					NodeID:          2,
-					Name:            "node-2",
-					Addr:            "127.0.0.1:7002",
-					Status:          "alive",
-					LastHeartbeatAt: lastHeartbeatAt,
-					ControllerRole:  "follower",
-					SlotCount:       3,
-					LeaderSlotCount: 0,
-					IsLocal:         false,
-					CapacityWeight:  2,
-					Membership: managementusecase.NodeMembership{
-						Role:        "data",
-						JoinState:   "active",
-						Schedulable: true,
-					},
-					Health: managementusecase.NodeHealth{
-						Status:          "alive",
-						LastHeartbeatAt: lastHeartbeatAt,
-					},
-					Controller: managementusecase.NodeController{
-						Role:     "follower",
-						Voter:    true,
-						LeaderID: 1,
-					},
-					Slots: managementusecase.NodeSlotSummary{
-						ReplicaCount:  3,
-						FollowerCount: 3,
-					},
-					Runtime: managementusecase.NodeRuntimeSummary{
-						NodeID:               2,
-						SessionsByListener:   map[string]int{},
-						AcceptingNewSessions: true,
-					},
-					Actions: managementusecase.NodeActions{
-						CanDrain:   true,
-						CanScaleIn: true,
-					},
-				},
-				Slots: managementusecase.NodeSlots{
-					HostedIDs: []uint32{2, 4, 7},
-					LeaderIDs: []uint32{},
-				},
+		Auth: testAuthConfig([]UserConfig{
+			{
+				Username: "node-reader",
+				Password: "secret",
+				Permissions: []PermissionConfig{{
+					Resource: "cluster.node",
+					Actions:  []string{"r"},
+				}},
 			},
-		},
+		}),
+		RealtimeMonitor: provider,
 	})
 
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/manager/nodes/2/resume", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
+	missing := httptest.NewRecorder()
+	srv.Engine().ServeHTTP(missing, httptest.NewRequest(http.MethodGet, "/manager/realtime-monitor", nil))
+	if missing.Code != http.StatusUnauthorized {
+		t.Fatalf("missing token status = %d, want %d", missing.Code, http.StatusUnauthorized)
+	}
 
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusOK, rec.Code)
-	require.JSONEq(t, `{
-		"node_id": 2,
-		"name": "node-2",
-		"addr": "127.0.0.1:7002",
-		"status": "alive",
-		"last_heartbeat_at": "2026-04-22T02:05:06Z",
-		"is_local": false,
-		"capacity_weight": 2,
-		"membership": {
-			"role": "data",
-			"join_state": "active",
-			"schedulable": true
-		},
-		"health": {
-			"status": "alive",
-			"last_heartbeat_at": "2026-04-22T02:05:06Z"
-		},
-		"controller": {
-			"role": "follower",
-			"voter": true,
-			"leader_id": 1,
-			"raft_health": "",
-			"first_index": 0,
-			"applied_index": 0,
-			"snapshot_index": 0
-		},
-		"slot_stats": {
-			"count": 3,
-			"leader_count": 0
-		},
-		"runtime": {
-			"node_id": 2,
-			"active_online": 0,
-			"closing_online": 0,
-			"total_online": 0,
-			"gateway_sessions": 0,
-			"sessions_by_listener": {},
-			"accepting_new_sessions": true,
-			"draining": false,
-			"unknown": false
-		},
-		"actions": {
-			"can_drain": true,
-			"can_resume": false,
-			"can_scale_in": true,
-			"can_onboard": false
-		},
-		"slots": {
-			"hosted_ids": [2, 4, 7],
-			"leader_ids": [],
-			"replica_count": 3,
-			"leader_count": 0,
-			"follower_count": 3,
-			"quorum_lost_count": 0,
-			"unreported_count": 0
+	for _, path := range []string{"/manager/monitor/realtime", "/manager/cluster-monitor/realtime"} {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "node-reader"))
+		srv.Engine().ServeHTTP(rec, req)
+		if rec.Code != http.StatusNotFound {
+			t.Fatalf("%s status = %d, want %d", path, rec.Code, http.StatusNotFound)
 		}
-	}`, rec.Body.String())
+	}
+
+	allowed := httptest.NewRecorder()
+	allowedReq := httptest.NewRequest(http.MethodGet, "/manager/realtime-monitor", nil)
+	allowedReq.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "node-reader"))
+	srv.Engine().ServeHTTP(allowed, allowedReq)
+	if allowed.Code != http.StatusOK {
+		t.Fatalf("allowed status = %d, want %d; body=%s", allowed.Code, http.StatusOK, allowed.Body.String())
+	}
+	if provider.query.Window != 15*time.Minute || provider.query.Step != 20*time.Second {
+		t.Fatalf("allowed provider query = %#v, want default 15m window and 20s step", provider.query)
+	}
 }
 
-func TestManagerSlotsRejectsMissingToken(t *testing.T) {
-	srv := New(Options{
-		Auth:       testAuthConfig(nil),
-		Management: managementStub{},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/slots", nil)
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusUnauthorized, rec.Code)
-	require.JSONEq(t, `{"error":"unauthorized","message":"unauthorized"}`, rec.Body.String())
-}
-
-func TestManagerSlotsRejectsInsufficientPermission(t *testing.T) {
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "viewer",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.node",
-				Actions:  []string{"r"},
-			}},
-		}}),
-		Management: managementStub{},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/slots", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "viewer"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusForbidden, rec.Code)
-	require.JSONEq(t, `{"error":"forbidden","message":"forbidden"}`, rec.Body.String())
-}
-
-func TestManagerSlotsReturnsAggregatedList(t *testing.T) {
-	lastReportAt := time.Date(2026, 4, 21, 16, 0, 0, 0, time.UTC)
+func TestManagerSlotsReturnsReadOnlyInventory(t *testing.T) {
+	reportedAt := time.Date(2026, 6, 16, 11, 0, 0, 0, time.UTC)
+	var gotOpts managementusecase.ListSlotsOptions
 	srv := New(Options{
 		Auth: testAuthConfig([]UserConfig{{
 			Username: "admin",
@@ -1042,120 +893,56 @@ func TestManagerSlotsReturnsAggregatedList(t *testing.T) {
 				Actions:  []string{"r"},
 			}},
 		}}),
-		Management: managementStub{
+		Management: managerNodesStub{
+			lastSlotsOptions: &gotOpts,
 			slots: []managementusecase.Slot{{
-				SlotID: 2,
+				SlotID: 9,
 				HashSlots: &managementusecase.SlotHashSlots{
-					Count: 4,
-					Items: []uint16{4, 5, 6, 7},
+					Count: 2,
+					Items: []uint16{3, 4},
 				},
 				State: managementusecase.SlotState{
-					Quorum:                "ready",
-					Sync:                  "matched",
-					LeaderMatch:           false,
-					LeaderTransferPending: true,
+					Quorum:      "ready",
+					Sync:        "matched",
+					LeaderMatch: true,
 				},
 				Assignment: managementusecase.SlotAssignment{
-					DesiredPeers:    []uint64{1, 2, 3},
-					PreferredLeader: 2,
-					ConfigEpoch:     8,
-					BalanceVersion:  3,
+					DesiredPeers:    []uint64{1, 2},
+					PreferredLeader: 1,
+					ConfigEpoch:     7,
+				},
+				Task: &managementusecase.SlotTask{
+					TaskID:           "slot-9-bootstrap-7",
+					Kind:             "bootstrap",
+					Step:             "create_slot",
+					Status:           "pending",
+					TargetNode:       1,
+					TargetPeers:      []uint64{1, 2},
+					CompletionPolicy: "all_target_peers",
+					ConfigEpoch:      7,
+					Participants: []managementusecase.SlotTaskParticipant{
+						{NodeID: 1, Status: "done"},
+						{NodeID: 2, Attempt: 1, Status: "failed", LastError: "open failed"},
+					},
 				},
 				Runtime: managementusecase.SlotRuntime{
-					CurrentPeers:        []uint64{1, 2, 3},
-					CurrentVoters:       []uint64{1, 2, 3},
-					LeaderID:            1,
-					HealthyVoters:       3,
+					CurrentPeers:        []uint64{1, 2},
+					CurrentVoters:       []uint64{1, 2},
+					PreferredLeaderID:   1,
+					HealthyVoters:       2,
 					HasQuorum:           true,
-					ObservedConfigEpoch: 8,
-					LastReportAt:        lastReportAt,
+					ObservedConfigEpoch: 7,
+					LastReportAt:        reportedAt,
+				},
+				NodeLog: &managementusecase.SlotNodeLogStatus{
+					NodeID:       2,
+					LeaderID:     1,
+					Role:         "follower",
+					CommitIndex:  93,
+					AppliedIndex: 91,
 				},
 			}},
 		},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/slots", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusOK, rec.Code)
-	require.JSONEq(t, `{
-		"total": 1,
-		"items": [{
-			"slot_id": 2,
-			"hash_slots": {
-				"count": 4,
-				"items": [4, 5, 6, 7]
-			},
-			"state": {
-				"quorum": "ready",
-				"sync": "matched",
-				"leader_match": false,
-				"leader_transfer_pending": true
-			},
-			"assignment": {
-				"desired_peers": [1, 2, 3],
-				"preferred_leader_id": 2,
-				"config_epoch": 8,
-				"balance_version": 3
-			},
-			"runtime": {
-				"current_peers": [1, 2, 3],
-				"current_voters": [1, 2, 3],
-				"leader_id": 1,
-				"healthy_voters": 3,
-				"has_quorum": true,
-				"observed_config_epoch": 8,
-				"last_report_at": "2026-04-21T16:00:00Z"
-			}
-		}]
-	}`, rec.Body.String())
-}
-
-func TestManagerSlotsFiltersByNodeAndReturnsNodeLogStatus(t *testing.T) {
-	lastReportAt := time.Date(2026, 4, 21, 16, 0, 0, 0, time.UTC)
-	var listOptions managementusecase.ListSlotsOptions
-	stub := managementStub{
-		slots: []managementusecase.Slot{{
-			SlotID: 2,
-			State: managementusecase.SlotState{
-				Quorum: "ready",
-				Sync:   "matched",
-			},
-			Assignment: managementusecase.SlotAssignment{
-				DesiredPeers: []uint64{1, 2, 3},
-				ConfigEpoch:  8,
-			},
-			Runtime: managementusecase.SlotRuntime{
-				CurrentPeers:        []uint64{1, 2, 3},
-				CurrentVoters:       []uint64{1, 2, 3},
-				LeaderID:            1,
-				HealthyVoters:       3,
-				HasQuorum:           true,
-				ObservedConfigEpoch: 8,
-				LastReportAt:        lastReportAt,
-			},
-			NodeLog: &managementusecase.SlotNodeLogStatus{
-				NodeID:       2,
-				LeaderID:     1,
-				CommitIndex:  93,
-				AppliedIndex: 91,
-			},
-		}},
-		listSlotsOptionsSink: &listOptions,
-	}
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "admin",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.slot",
-				Actions:  []string{"r"},
-			}},
-		}}),
-		Management: stub,
 	})
 
 	rec := httptest.NewRecorder()
@@ -1164,1239 +951,20 @@ func TestManagerSlotsFiltersByNodeAndReturnsNodeLogStatus(t *testing.T) {
 
 	srv.Engine().ServeHTTP(rec, req)
 
-	require.Equal(t, http.StatusOK, rec.Code)
-	require.Equal(t, managementusecase.ListSlotsOptions{NodeID: 2}, listOptions)
-	require.JSONEq(t, `{
-		"total": 1,
-		"items": [{
-			"slot_id": 2,
-			"state": {
-				"quorum": "ready",
-				"sync": "matched",
-				"leader_match": false,
-				"leader_transfer_pending": false
-			},
-			"assignment": {
-				"desired_peers": [1, 2, 3],
-				"preferred_leader_id": 0,
-				"config_epoch": 8,
-				"balance_version": 0
-			},
-			"runtime": {
-				"current_peers": [1, 2, 3],
-				"current_voters": [1, 2, 3],
-				"leader_id": 1,
-				"healthy_voters": 3,
-				"has_quorum": true,
-				"observed_config_epoch": 8,
-				"last_report_at": "2026-04-21T16:00:00Z"
-			},
-			"node_log": {
-				"node_id": 2,
-				"leader_id": 1,
-				"commit_index": 93,
-				"applied_index": 91
-			}
-		}]
-	}`, rec.Body.String())
-}
-
-func TestManagerControllerLogsReturnsNodeScopedEntries(t *testing.T) {
-	var reqSink managementusecase.ListControllerLogEntriesRequest
-	stub := managementStub{
-		controllerLogEntriesReqSink: &reqSink,
-		controllerLogEntriesPage: managementusecase.ControllerLogEntriesResponse{
-			NodeID:       2,
-			FirstIndex:   1,
-			LastIndex:    4,
-			CommitIndex:  4,
-			AppliedIndex: 3,
-			NextCursor:   3,
-			Items: []managementusecase.ControllerLogEntry{{
-				Index:        4,
-				Term:         2,
-				Type:         "normal",
-				DataSize:     12,
-				DecodeStatus: "ok",
-				DecodedType:  "add_slot",
-				Decoded: map[string]any{
-					"command":     "add_slot",
-					"new_slot_id": uint64(9),
-				},
-			}},
-		},
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
 	}
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "admin",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.controller",
-				Actions:  []string{"r"},
-			}},
-		}}),
-		Management: stub,
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/controller/logs?node_id=2&limit=2&cursor=5", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusOK, rec.Code)
-	require.Equal(t, managementusecase.ListControllerLogEntriesRequest{NodeID: 2, Limit: 2, Cursor: 5}, reqSink)
-	require.JSONEq(t, `{
-		"node_id": 2,
-		"first_index": 1,
-		"last_index": 4,
-		"commit_index": 4,
-		"applied_index": 3,
-		"next_cursor": 3,
-		"items": [{
-			"index": 4,
-			"term": 2,
-			"type": "normal",
-			"data_size": 12,
-			"decode_status": "ok",
-			"decoded_type": "add_slot",
-			"decoded": {"command": "add_slot", "new_slot_id": 9}
-		}]
-	}`, rec.Body.String())
-}
-
-func TestManagerNodeControllerRaftReturnsStatus(t *testing.T) {
-	compactedAt := time.Date(2026, 5, 6, 8, 1, 0, 0, time.UTC)
-	checkedAt := time.Date(2026, 5, 6, 8, 2, 0, 0, time.UTC)
-	compactionErrorAt := time.Date(2026, 5, 6, 8, 3, 0, 0, time.UTC)
-	restoredAt := time.Date(2026, 5, 6, 8, 4, 0, 0, time.UTC)
-	restoreErrorAt := time.Date(2026, 5, 6, 8, 5, 0, 0, time.UTC)
-	var nodeIDSink uint64
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "admin",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.node",
-				Actions:  []string{"r"},
-			}, {
-				Resource: "cluster.controller",
-				Actions:  []string{"r"},
-			}},
-		}}),
-		Management: managementStub{
-			controllerRaftStatusNodeIDSink: &nodeIDSink,
-			controllerRaftStatus: managementusecase.ControllerRaftStatusResponse{
-				NodeID:        2,
-				Role:          "leader",
-				LeaderID:      2,
-				Term:          7,
-				Health:        managementusecase.ControllerRaftHealthRestoreFailed,
-				FirstIndex:    10,
-				LastIndex:     42,
-				CommitIndex:   40,
-				AppliedIndex:  39,
-				SnapshotIndex: 9,
-				SnapshotTerm:  3,
-				Compaction: managementusecase.ControllerRaftCompactionStatus{
-					Enabled:           true,
-					TriggerEntries:    100,
-					CheckInterval:     2 * time.Second,
-					LastSnapshotIndex: 9,
-					LastSnapshotAt:    compactedAt,
-					LastCheckAt:       checkedAt,
-					LastError:         "disk full",
-					LastErrorAt:       compactionErrorAt,
-					Degraded:          true,
-				},
-				Restore: managementusecase.ControllerRaftRestoreStatus{
-					LastSnapshotIndex: 8,
-					LastSnapshotTerm:  2,
-					LastRestoredAt:    restoredAt,
-					LastError:         "crc mismatch",
-					LastErrorAt:       restoreErrorAt,
-					Failed:            true,
-				},
-				Peers: []managementusecase.ControllerRaftPeerProgress{{
-					NodeID:               3,
-					Match:                21,
-					Next:                 22,
-					State:                "snapshot",
-					PendingSnapshot:      9,
-					RecentActive:         true,
-					NeedsSnapshot:        true,
-					SnapshotTransferring: true,
-				}},
-			},
-		},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/nodes/2/controller-raft", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusOK, rec.Code)
-	require.Equal(t, uint64(2), nodeIDSink)
-	require.JSONEq(t, `{
-		"node_id": 2,
-		"role": "leader",
-		"leader_id": 2,
-		"term": 7,
-		"health": "restore_failed",
-		"first_index": 10,
-		"last_index": 42,
-		"commit_index": 40,
-		"applied_index": 39,
-		"snapshot_index": 9,
-		"snapshot_term": 3,
-		"compaction": {
-			"enabled": true,
-			"trigger_entries": 100,
-			"check_interval_ms": 2000,
-			"last_snapshot_index": 9,
-			"last_snapshot_at": "2026-05-06T08:01:00Z",
-			"last_check_at": "2026-05-06T08:02:00Z",
-			"last_error": "disk full",
-			"last_error_at": "2026-05-06T08:03:00Z",
-			"degraded": true
-		},
-		"restore": {
-			"last_snapshot_index": 8,
-			"last_snapshot_term": 2,
-			"last_restored_at": "2026-05-06T08:04:00Z",
-			"last_error": "crc mismatch",
-			"last_error_at": "2026-05-06T08:05:00Z",
-			"failed": true
-		},
-		"peers": [{
-			"node_id": 3,
-			"match": 21,
-			"next": 22,
-			"state": "snapshot",
-			"pending_snapshot": 9,
-			"recent_active": true,
-			"needs_snapshot": true,
-			"snapshot_transferring": true
-		}]
-	}`, rec.Body.String())
-}
-
-func TestManagerNodeControllerRaftRejectsInvalidNodeID(t *testing.T) {
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "admin",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.node",
-				Actions:  []string{"r"},
-			}, {
-				Resource: "cluster.controller",
-				Actions:  []string{"r"},
-			}},
-		}}),
-		Management: managementStub{},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/nodes/bad/controller-raft", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusBadRequest, rec.Code)
-	require.JSONEq(t, `{"error":"bad_request","message":"invalid node_id"}`, rec.Body.String())
-}
-
-func TestManagerNodeControllerRaftReturnsServiceUnavailableWhenManagementMissing(t *testing.T) {
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "admin",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.node",
-				Actions:  []string{"r"},
-			}, {
-				Resource: "cluster.controller",
-				Actions:  []string{"r"},
-			}},
-		}}),
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/nodes/2/controller-raft", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusServiceUnavailable, rec.Code)
-	require.JSONEq(t, `{"error":"service_unavailable","message":"management not configured"}`, rec.Body.String())
-}
-
-func TestManagerNodeControllerRaftReturnsServiceUnavailableWhenStatusUnavailable(t *testing.T) {
-	for _, tc := range []struct {
-		name string
-		err  error
-	}{
-		{name: "no leader", err: raftcluster.ErrNoLeader},
-		{name: "target not found", err: transport.ErrNodeNotFound},
-		{name: "target stopped", err: transport.ErrStopped},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			srv := New(Options{
-				Auth: testAuthConfig([]UserConfig{{
-					Username: "admin",
-					Password: "secret",
-					Permissions: []PermissionConfig{{
-						Resource: "cluster.node",
-						Actions:  []string{"r"},
-					}, {
-						Resource: "cluster.controller",
-						Actions:  []string{"r"},
-					}},
-				}}),
-				Management: managementStub{controllerRaftStatusErr: tc.err},
-			})
-
-			rec := httptest.NewRecorder()
-			req := httptest.NewRequest(http.MethodGet, "/manager/nodes/2/controller-raft", nil)
-			req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
-
-			srv.Engine().ServeHTTP(rec, req)
-
-			require.Equal(t, http.StatusServiceUnavailable, rec.Code)
-			require.JSONEq(t, `{"error":"service_unavailable","message":"controller raft status unavailable"}`, rec.Body.String())
-		})
+	if gotOpts.NodeID != 2 {
+		t.Fatalf("node filter = %d, want 2", gotOpts.NodeID)
 	}
-}
-
-func TestManagerNodeControllerRaftRejectsInsufficientPermission(t *testing.T) {
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "viewer",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.node",
-				Actions:  []string{"r"},
-			}},
-		}}),
-		Management: managementStub{},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/nodes/2/controller-raft", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "viewer"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusForbidden, rec.Code)
-	require.JSONEq(t, `{"error":"forbidden","message":"forbidden"}`, rec.Body.String())
-}
-
-func TestManagerControllerRaftCompactReturnsFanoutResult(t *testing.T) {
-	generatedAt := time.Date(2026, 5, 7, 10, 0, 0, 0, time.UTC)
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "admin",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.controller",
-				Actions:  []string{"w"},
-			}},
-		}}),
-		Management: managementStub{
-			controllerRaftCompaction: managementusecase.CompactControllerRaftLogsResponse{
-				GeneratedAt: generatedAt,
-				Total:       2,
-				Succeeded:   1,
-				Failed:      1,
-				Items: []managementusecase.ControllerRaftCompactionNodeResult{{
-					NodeID:              1,
-					Success:             true,
-					AppliedIndex:        42,
-					BeforeSnapshotIndex: 30,
-					AfterSnapshotIndex:  42,
-					Compacted:           true,
-				}, {
-					NodeID:  2,
-					Success: false,
-					Error:   "node stopped",
-				}},
-			},
-		},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/manager/controller-raft/compact", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusOK, rec.Code)
-	require.JSONEq(t, `{
-		"generated_at": "2026-05-07T10:00:00Z",
-		"total": 2,
-		"succeeded": 1,
-		"failed": 1,
-		"items": [{
-			"node_id": 1,
-			"success": true,
-			"applied_index": 42,
-			"before_snapshot_index": 30,
-			"after_snapshot_index": 42,
-			"compacted": true,
-			"skipped_reason": "",
-			"error": ""
-		}, {
-			"node_id": 2,
-			"success": false,
-			"applied_index": 0,
-			"before_snapshot_index": 0,
-			"after_snapshot_index": 0,
-			"compacted": false,
-			"skipped_reason": "",
-			"error": "node stopped"
-		}]
-	}`, rec.Body.String())
-}
-
-func TestManagerControllerRaftCompactRejectsInsufficientPermission(t *testing.T) {
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "viewer",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.controller",
-				Actions:  []string{"r"},
-			}},
-		}}),
-		Management: managementStub{},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/manager/controller-raft/compact", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "viewer"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusForbidden, rec.Code)
-	require.JSONEq(t, `{"error":"forbidden","message":"forbidden"}`, rec.Body.String())
-}
-
-func TestManagerNodeControllerRaftCompactReturnsNodeResult(t *testing.T) {
-	generatedAt := time.Date(2026, 5, 7, 10, 3, 0, 0, time.UTC)
-	var gotNodeID uint64
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "admin",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.controller",
-				Actions:  []string{"w"},
-			}},
-		}}),
-		Management: managementStub{
-			controllerRaftCompactionNodeIDSink: &gotNodeID,
-			controllerRaftNodeCompaction: managementusecase.CompactControllerRaftLogsResponse{
-				GeneratedAt: generatedAt,
-				Total:       1,
-				Succeeded:   1,
-				Failed:      0,
-				Items: []managementusecase.ControllerRaftCompactionNodeResult{{
-					NodeID:              2,
-					Success:             true,
-					AppliedIndex:        50,
-					BeforeSnapshotIndex: 40,
-					AfterSnapshotIndex:  50,
-					Compacted:           true,
-				}},
-			},
-		},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/manager/nodes/2/controller-raft/compact", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, uint64(2), gotNodeID)
-	require.Equal(t, http.StatusOK, rec.Code)
-	require.JSONEq(t, `{
-		"generated_at": "2026-05-07T10:03:00Z",
+	if !jsonEqual(rec.Body.String(), `{
 		"total": 1,
-		"succeeded": 1,
-		"failed": 0,
 		"items": [{
-			"node_id": 2,
-			"success": true,
-			"applied_index": 50,
-			"before_snapshot_index": 40,
-			"after_snapshot_index": 50,
-			"compacted": true,
-			"skipped_reason": "",
-			"error": ""
-		}]
-	}`, rec.Body.String())
-}
-
-func TestManagerNodeControllerRaftCompactRejectsInsufficientPermission(t *testing.T) {
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "viewer",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.controller",
-				Actions:  []string{"r"},
-			}},
-		}}),
-		Management: managementStub{},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/manager/nodes/2/controller-raft/compact", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "viewer"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusForbidden, rec.Code)
-	require.JSONEq(t, `{"error":"forbidden","message":"forbidden"}`, rec.Body.String())
-}
-
-func TestManagerNodeSlotRaftCompactReturnsNodeSlotResult(t *testing.T) {
-	generatedAt := time.Date(2026, 5, 7, 11, 3, 0, 0, time.UTC)
-	var gotNodeID uint64
-	var gotSlotID uint32
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "admin",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.node",
-				Actions:  []string{"w"},
-			}, {
-				Resource: "cluster.slot",
-				Actions:  []string{"w"},
-			}},
-		}}),
-		Management: managementStub{
-			slotRaftCompactionNodeIDSink: &gotNodeID,
-			slotRaftCompactionSlotIDSink: &gotSlotID,
-			slotRaftCompaction: managementusecase.CompactSlotRaftLogResponse{
-				GeneratedAt: generatedAt,
-				Total:       1,
-				Succeeded:   1,
-				Items: []managementusecase.SlotRaftCompactionNodeResult{{
-					NodeID:              2,
-					SlotID:              9,
-					Success:             true,
-					AppliedIndex:        50,
-					BeforeSnapshotIndex: 40,
-					AfterSnapshotIndex:  50,
-					Compacted:           true,
-				}},
-			},
-		},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/manager/nodes/2/slots/9/compact", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, uint64(2), gotNodeID)
-	require.Equal(t, uint32(9), gotSlotID)
-	require.Equal(t, http.StatusOK, rec.Code)
-	require.JSONEq(t, `{
-		"generated_at": "2026-05-07T11:03:00Z",
-		"total": 1,
-		"succeeded": 1,
-		"failed": 0,
-		"items": [{
-			"node_id": 2,
 			"slot_id": 9,
-			"success": true,
-			"applied_index": 50,
-			"before_snapshot_index": 40,
-			"after_snapshot_index": 50,
-			"compacted": true,
-			"skipped_reason": "",
-			"error": ""
-		}]
-	}`, rec.Body.String())
-}
-
-func TestManagerNodeSlotRaftCompactRejectsInsufficientPermission(t *testing.T) {
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "viewer",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.slot",
-				Actions:  []string{"w"},
-			}},
-		}}),
-		Management: managementStub{},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/manager/nodes/2/slots/9/compact", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "viewer"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusForbidden, rec.Code)
-	require.JSONEq(t, `{"error":"forbidden","message":"forbidden"}`, rec.Body.String())
-}
-
-func TestManagerSlotLogsReturnsNodeScopedEntries(t *testing.T) {
-	var reqSink managementusecase.ListSlotLogEntriesRequest
-	stub := managementStub{
-		slotLogEntriesReqSink: &reqSink,
-		slotLogEntriesPage: managementusecase.SlotLogEntriesResponse{
-			NodeID:       2,
-			SlotID:       9,
-			FirstIndex:   1,
-			LastIndex:    4,
-			CommitIndex:  4,
-			AppliedIndex: 3,
-			NextCursor:   3,
-			Items: []managementusecase.SlotLogEntry{{
-				Index:        4,
-				Term:         2,
-				Type:         "normal",
-				DataSize:     12,
-				DecodeStatus: "ok",
-				DecodedType:  "upsert_user",
-				Decoded: map[string]any{
-					"command":      "upsert_user",
-					"uid":          "u1",
-					"token":        "***",
-					"device_flag":  int64(3),
-					"device_level": int64(7),
-				},
-			}, {
-				Index:    3,
-				Term:     2,
-				Type:     "conf_change",
-				DataSize: 8,
-			}},
-		},
-	}
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "admin",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.slot",
-				Actions:  []string{"r"},
-			}},
-		}}),
-		Management: stub,
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/slots/9/logs?node_id=2&limit=2&cursor=5", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusOK, rec.Code)
-	require.Equal(t, managementusecase.ListSlotLogEntriesRequest{
-		NodeID: 2,
-		SlotID: 9,
-		Limit:  2,
-		Cursor: 5,
-	}, reqSink)
-	require.JSONEq(t, `{
-		"node_id": 2,
-		"slot_id": 9,
-		"first_index": 1,
-		"last_index": 4,
-		"commit_index": 4,
-		"applied_index": 3,
-		"next_cursor": 3,
-		"items": [{
-			"index": 4,
-			"term": 2,
-			"type": "normal",
-			"data_size": 12,
-			"decode_status": "ok",
-			"decoded_type": "upsert_user",
-			"decoded": {
-				"command": "upsert_user",
-				"uid": "u1",
-				"token": "***",
-				"device_flag": 3,
-				"device_level": 7
-			}
-		}, {
-			"index": 3,
-			"term": 2,
-			"type": "conf_change",
-			"data_size": 8
-		}]
-	}`, rec.Body.String())
-}
-
-func TestManagerSlotsRejectsInvalidNodeFilter(t *testing.T) {
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "admin",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.slot",
-				Actions:  []string{"r"},
-			}},
-		}}),
-		Management: managementStub{},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/slots?node_id=bad", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusBadRequest, rec.Code)
-	require.JSONEq(t, `{"error":"bad_request","message":"invalid node_id"}`, rec.Body.String())
-}
-
-func TestManagerSlotsReturnsServiceUnavailableWhenLeaderConsistentReadUnavailable(t *testing.T) {
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "admin",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.slot",
-				Actions:  []string{"r"},
-			}},
-		}}),
-		Management: managementStub{slotsErr: context.DeadlineExceeded},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/slots", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusServiceUnavailable, rec.Code)
-	require.JSONEq(t, `{"error":"service_unavailable","message":"controller leader consistent read unavailable"}`, rec.Body.String())
-}
-
-func TestManagerSlotDetailRejectsMissingToken(t *testing.T) {
-	srv := New(Options{
-		Auth:       testAuthConfig(nil),
-		Management: managementStub{},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/slots/2", nil)
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusUnauthorized, rec.Code)
-	require.JSONEq(t, `{"error":"unauthorized","message":"unauthorized"}`, rec.Body.String())
-}
-
-func TestManagerSlotDetailRejectsInvalidSlotID(t *testing.T) {
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "admin",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.slot",
-				Actions:  []string{"r"},
-			}},
-		}}),
-		Management: managementStub{},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/slots/bad", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusBadRequest, rec.Code)
-	require.JSONEq(t, `{"error":"bad_request","message":"invalid slot_id"}`, rec.Body.String())
-}
-
-func TestManagerSlotDetailRejectsInsufficientPermission(t *testing.T) {
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "viewer",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.node",
-				Actions:  []string{"r"},
-			}},
-		}}),
-		Management: managementStub{},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/slots/2", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "viewer"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusForbidden, rec.Code)
-	require.JSONEq(t, `{"error":"forbidden","message":"forbidden"}`, rec.Body.String())
-}
-
-func TestManagerSlotDetailReturnsDetailWithTaskSummary(t *testing.T) {
-	nextRunAt := time.Date(2026, 4, 21, 16, 5, 0, 0, time.UTC)
-	lastReportAt := time.Date(2026, 4, 21, 16, 0, 0, 0, time.UTC)
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "admin",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.slot",
-				Actions:  []string{"r"},
-			}},
-		}}),
-		Management: managementStub{
-			slotDetail: managementusecase.SlotDetail{
-				Slot: managementusecase.Slot{
-					SlotID: 2,
-					State: managementusecase.SlotState{
-						Quorum:      "ready",
-						Sync:        "matched",
-						LeaderMatch: true,
-					},
-					Assignment: managementusecase.SlotAssignment{
-						DesiredPeers:    []uint64{2, 3, 5},
-						PreferredLeader: 2,
-						ConfigEpoch:     8,
-						BalanceVersion:  3,
-					},
-					Runtime: managementusecase.SlotRuntime{
-						CurrentPeers:        []uint64{2, 3, 5},
-						CurrentVoters:       []uint64{2, 3, 5},
-						LeaderID:            2,
-						HealthyVoters:       3,
-						HasQuorum:           true,
-						ObservedConfigEpoch: 8,
-						LastReportAt:        lastReportAt,
-					},
-				},
-				Task: &managementusecase.Task{
-					SlotID:     2,
-					Kind:       "repair",
-					Step:       "catch_up",
-					Status:     "retrying",
-					SourceNode: 3,
-					TargetNode: 5,
-					Attempt:    1,
-					NextRunAt:  &nextRunAt,
-					LastError:  "learner catch-up timeout",
-				},
+			"hash_slots": {
+				"count": 2,
+				"items": [3, 4]
 			},
-		},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/slots/2", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusOK, rec.Code)
-	require.JSONEq(t, `{
-		"slot_id": 2,
-		"state": {
-			"quorum": "ready",
-			"sync": "matched",
-			"leader_match": true,
-			"leader_transfer_pending": false
-		},
-		"assignment": {
-			"desired_peers": [2, 3, 5],
-			"preferred_leader_id": 2,
-			"config_epoch": 8,
-			"balance_version": 3
-		},
-		"runtime": {
-			"current_peers": [2, 3, 5],
-			"current_voters": [2, 3, 5],
-			"leader_id": 2,
-			"healthy_voters": 3,
-			"has_quorum": true,
-			"observed_config_epoch": 8,
-			"last_report_at": "2026-04-21T16:00:00Z"
-		},
-		"task": {
-			"kind": "repair",
-			"step": "catch_up",
-			"status": "retrying",
-			"source_node": 3,
-			"target_node": 5,
-			"attempt": 1,
-			"next_run_at": "2026-04-21T16:05:00Z",
-			"last_error": "learner catch-up timeout"
-		}
-	}`, rec.Body.String())
-}
-
-func TestManagerSlotDetailReturnsDetailWithNullTask(t *testing.T) {
-	lastReportAt := time.Date(2026, 4, 21, 16, 0, 0, 0, time.UTC)
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "admin",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.slot",
-				Actions:  []string{"r"},
-			}},
-		}}),
-		Management: managementStub{
-			slotDetail: managementusecase.SlotDetail{
-				Slot: managementusecase.Slot{
-					SlotID: 7,
-					State: managementusecase.SlotState{
-						Quorum: "lost",
-						Sync:   "unreported",
-					},
-					Runtime: managementusecase.SlotRuntime{
-						CurrentPeers:        []uint64{7, 8, 9},
-						CurrentVoters:       []uint64{7, 8, 9},
-						LeaderID:            8,
-						HealthyVoters:       2,
-						HasQuorum:           false,
-						ObservedConfigEpoch: 0,
-						LastReportAt:        lastReportAt,
-					},
-				},
-			},
-		},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/slots/7", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusOK, rec.Code)
-	require.JSONEq(t, `{
-		"slot_id": 7,
-			"state": {
-				"quorum": "lost",
-				"sync": "unreported",
-				"leader_match": false,
-				"leader_transfer_pending": false
-			},
-			"assignment": {
-				"desired_peers": null,
-				"preferred_leader_id": 0,
-				"config_epoch": 0,
-				"balance_version": 0
-			},
-			"runtime": {
-				"current_peers": [7, 8, 9],
-				"current_voters": [7, 8, 9],
-				"leader_id": 8,
-				"healthy_voters": 2,
-				"has_quorum": false,
-			"observed_config_epoch": 0,
-			"last_report_at": "2026-04-21T16:00:00Z"
-		},
-		"task": null
-	}`, rec.Body.String())
-}
-
-func TestManagerSlotDetailReturnsNotFound(t *testing.T) {
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "admin",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.slot",
-				Actions:  []string{"r"},
-			}},
-		}}),
-		Management: managementStub{slotDetailErr: controllermeta.ErrNotFound},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/slots/2", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusNotFound, rec.Code)
-	require.JSONEq(t, `{"error":"not_found","message":"slot not found"}`, rec.Body.String())
-}
-
-func TestManagerSlotDetailReturnsServiceUnavailableWhenLeaderConsistentReadUnavailable(t *testing.T) {
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "admin",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.slot",
-				Actions:  []string{"r"},
-			}},
-		}}),
-		Management: managementStub{slotDetailErr: context.DeadlineExceeded},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/slots/2", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusServiceUnavailable, rec.Code)
-	require.JSONEq(t, `{"error":"service_unavailable","message":"controller leader consistent read unavailable"}`, rec.Body.String())
-}
-
-func TestManagerTasksRejectsMissingToken(t *testing.T) {
-	srv := New(Options{
-		Auth:       testAuthConfig(nil),
-		Management: managementStub{},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/tasks", nil)
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusUnauthorized, rec.Code)
-	require.JSONEq(t, `{"error":"unauthorized","message":"unauthorized"}`, rec.Body.String())
-}
-
-func TestManagerTasksRejectsInsufficientPermission(t *testing.T) {
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "viewer",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.slot",
-				Actions:  []string{"r"},
-			}},
-		}}),
-		Management: managementStub{},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/tasks", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "viewer"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusForbidden, rec.Code)
-	require.JSONEq(t, `{"error":"forbidden","message":"forbidden"}`, rec.Body.String())
-}
-
-func TestManagerTasksReturnsAggregatedList(t *testing.T) {
-	nextRunAt := time.Date(2026, 4, 21, 16, 5, 0, 0, time.UTC)
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "admin",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.task",
-				Actions:  []string{"r"},
-			}},
-		}}),
-		Management: managementStub{
-			tasks: []managementusecase.Task{{
-				SlotID:     2,
-				Kind:       "repair",
-				Step:       "catch_up",
-				Status:     "retrying",
-				SourceNode: 3,
-				TargetNode: 5,
-				Attempt:    1,
-				NextRunAt:  &nextRunAt,
-				LastError:  "learner catch-up timeout",
-			}},
-		},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/tasks", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusOK, rec.Code)
-	require.JSONEq(t, `{
-		"total": 1,
-		"items": [{
-			"slot_id": 2,
-			"kind": "repair",
-			"step": "catch_up",
-			"status": "retrying",
-			"source_node": 3,
-			"target_node": 5,
-			"attempt": 1,
-			"next_run_at": "2026-04-21T16:05:00Z",
-			"last_error": "learner catch-up timeout"
-		}]
-	}`, rec.Body.String())
-}
-
-func TestManagerTasksReturnsServiceUnavailableWhenLeaderConsistentReadUnavailable(t *testing.T) {
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "admin",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.task",
-				Actions:  []string{"r"},
-			}},
-		}}),
-		Management: managementStub{tasksErr: raftcluster.ErrNoLeader},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/tasks", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusServiceUnavailable, rec.Code)
-	require.JSONEq(t, `{"error":"service_unavailable","message":"controller leader consistent read unavailable"}`, rec.Body.String())
-}
-
-func TestManagerTaskDetailRejectsMissingToken(t *testing.T) {
-	srv := New(Options{
-		Auth:       testAuthConfig(nil),
-		Management: managementStub{},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/tasks/2", nil)
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusUnauthorized, rec.Code)
-	require.JSONEq(t, `{"error":"unauthorized","message":"unauthorized"}`, rec.Body.String())
-}
-
-func TestManagerTaskDetailRejectsInvalidSlotID(t *testing.T) {
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "admin",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.task",
-				Actions:  []string{"r"},
-			}},
-		}}),
-		Management: managementStub{},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/tasks/bad", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusBadRequest, rec.Code)
-	require.JSONEq(t, `{"error":"bad_request","message":"invalid slot_id"}`, rec.Body.String())
-}
-
-func TestManagerTaskDetailRejectsInsufficientPermission(t *testing.T) {
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "viewer",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.node",
-				Actions:  []string{"r"},
-			}},
-		}}),
-		Management: managementStub{},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/tasks/2", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "viewer"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusForbidden, rec.Code)
-	require.JSONEq(t, `{"error":"forbidden","message":"forbidden"}`, rec.Body.String())
-}
-
-func TestManagerTaskDetailReturnsTaskWithSlotContext(t *testing.T) {
-	nextRunAt := time.Date(2026, 4, 21, 16, 5, 0, 0, time.UTC)
-	lastReportAt := time.Date(2026, 4, 21, 16, 0, 0, 0, time.UTC)
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "admin",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.task",
-				Actions:  []string{"r"},
-			}},
-		}}),
-		Management: managementStub{
-			task: managementusecase.TaskDetail{
-				Task: managementusecase.Task{
-					SlotID:     2,
-					Kind:       "repair",
-					Step:       "catch_up",
-					Status:     "retrying",
-					SourceNode: 3,
-					TargetNode: 5,
-					Attempt:    1,
-					NextRunAt:  &nextRunAt,
-					LastError:  "learner catch-up timeout",
-				},
-				Slot: managementusecase.Slot{
-					SlotID: 2,
-					State: managementusecase.SlotState{
-						Quorum:      "ready",
-						Sync:        "matched",
-						LeaderMatch: true,
-					},
-					Assignment: managementusecase.SlotAssignment{
-						DesiredPeers:    []uint64{2, 3, 5},
-						PreferredLeader: 2,
-						ConfigEpoch:     8,
-						BalanceVersion:  3,
-					},
-					Runtime: managementusecase.SlotRuntime{
-						CurrentPeers:        []uint64{2, 3, 5},
-						CurrentVoters:       []uint64{2, 3, 5},
-						LeaderID:            2,
-						HealthyVoters:       3,
-						HasQuorum:           true,
-						ObservedConfigEpoch: 8,
-						LastReportAt:        lastReportAt,
-					},
-				},
-			},
-		},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/tasks/2", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusOK, rec.Code)
-	require.JSONEq(t, `{
-		"slot_id": 2,
-		"kind": "repair",
-		"step": "catch_up",
-		"status": "retrying",
-		"source_node": 3,
-		"target_node": 5,
-		"attempt": 1,
-		"next_run_at": "2026-04-21T16:05:00Z",
-		"last_error": "learner catch-up timeout",
-		"slot": {
 			"state": {
 				"quorum": "ready",
 				"sync": "matched",
@@ -2404,1306 +972,55 @@ func TestManagerTaskDetailReturnsTaskWithSlotContext(t *testing.T) {
 				"leader_transfer_pending": false
 			},
 			"assignment": {
-				"desired_peers": [2, 3, 5],
-				"preferred_leader_id": 2,
-				"config_epoch": 8,
-				"balance_version": 3
+				"desired_peers": [1, 2],
+				"preferred_leader_id": 1,
+				"config_epoch": 7,
+				"balance_version": 0
 			},
-			"runtime": {
-				"current_peers": [2, 3, 5],
-				"current_voters": [2, 3, 5],
-				"leader_id": 2,
-				"healthy_voters": 3,
-				"has_quorum": true,
-				"observed_config_epoch": 8,
-				"last_report_at": "2026-04-21T16:00:00Z"
+			"task": {
+				"task_id": "slot-9-bootstrap-7",
+				"kind": "bootstrap",
+				"step": "create_slot",
+				"status": "pending",
+				"target_node": 1,
+				"target_peers": [1, 2],
+				"completion_policy": "all_target_peers",
+				"config_epoch": 7,
+				"attempt": 0,
+				"participants": [{
+					"node_id": 1,
+					"attempt": 0,
+					"status": "done"
+				}, {
+					"node_id": 2,
+					"attempt": 1,
+					"status": "failed",
+					"last_error": "open failed"
+				}]
+			},
+				"runtime": {
+					"current_peers": [1, 2],
+					"current_voters": [1, 2],
+					"preferred_leader_id": 1,
+					"healthy_voters": 2,
+					"has_quorum": true,
+					"observed_config_epoch": 7,
+				"last_report_at": "2026-06-16T11:00:00Z"
+			},
+			"node_log": {
+				"node_id": 2,
+				"leader_id": 1,
+				"role": "follower",
+				"commit_index": 93,
+				"applied_index": 91
 			}
-		}
-	}`, rec.Body.String())
-}
-
-func TestManagerTaskDetailReturnsNotFound(t *testing.T) {
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "admin",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.task",
-				Actions:  []string{"r"},
-			}},
-		}}),
-		Management: managementStub{taskErr: controllermeta.ErrNotFound},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/tasks/2", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusNotFound, rec.Code)
-	require.JSONEq(t, `{"error":"not_found","message":"task not found"}`, rec.Body.String())
-}
-
-func TestManagerTaskDetailReturnsServiceUnavailableWhenLeaderConsistentReadUnavailable(t *testing.T) {
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "admin",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.task",
-				Actions:  []string{"r"},
-			}},
-		}}),
-		Management: managementStub{taskErr: context.DeadlineExceeded},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/tasks/2", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusServiceUnavailable, rec.Code)
-	require.JSONEq(t, `{"error":"service_unavailable","message":"controller leader consistent read unavailable"}`, rec.Body.String())
-}
-
-func TestManagerDistributedTasksRejectsMissingToken(t *testing.T) {
-	srv := New(Options{
-		Auth:       testAuthConfig(nil),
-		Management: managementStub{},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/distributed-tasks", nil)
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusUnauthorized, rec.Code)
-	require.JSONEq(t, `{"error":"unauthorized","message":"unauthorized"}`, rec.Body.String())
-}
-
-func TestManagerDistributedTasksRejectsInsufficientPermission(t *testing.T) {
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "viewer",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.slot",
-				Actions:  []string{"r"},
-			}},
-		}}),
-		Management: managementStub{},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/distributed-tasks", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "viewer"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusForbidden, rec.Code)
-	require.JSONEq(t, `{"error":"forbidden","message":"forbidden"}`, rec.Body.String())
-}
-
-func TestManagerDistributedTasksReturnsFilteredList(t *testing.T) {
-	updated := time.Date(2026, 5, 14, 10, 0, 0, 0, time.UTC)
-	var query managementusecase.DistributedTaskQuery
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "admin",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.task",
-				Actions:  []string{"r"},
-			}},
-		}}),
-		Management: managementStub{
-			distributedTasksReqSink: &query,
-			distributedTasks: managementusecase.DistributedTaskListResult{
-				Total: 1,
-				Items: []managementusecase.DistributedTask{{
-					ID:         "slot-reconcile:1",
-					Domain:     managementusecase.DistributedTaskDomainSlotReconcile,
-					Kind:       "repair",
-					Status:     managementusecase.DistributedTaskStatusRetrying,
-					Phase:      "catch_up",
-					Scope:      managementusecase.DistributedTaskScope{Type: managementusecase.DistributedTaskScopeSlot, ID: "1", SlotID: 1},
-					TargetNode: 3,
-					UpdatedAt:  &updated,
-					Links:      map[string]string{"slot": "/slots?slot_id=1"},
-				}},
-			},
-		},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/distributed-tasks?domain=slot_reconcile&status=retrying&node_id=3&scope=slot&keyword=repair&limit=25", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusOK, rec.Code)
-	require.Equal(t, managementusecase.DistributedTaskDomainSlotReconcile, query.Domain)
-	require.Equal(t, managementusecase.DistributedTaskStatusRetrying, query.Status)
-	require.Equal(t, uint64(3), query.NodeID)
-	require.Equal(t, managementusecase.DistributedTaskScopeSlot, query.Scope)
-	require.Equal(t, "repair", query.Keyword)
-	require.Equal(t, 25, query.Limit)
-	require.JSONEq(t, `{
-		"total": 1,
-		"items": [{
-			"id": "slot-reconcile:1",
-			"domain": "slot_reconcile",
-			"kind": "repair",
-			"status": "retrying",
-			"phase": "catch_up",
-			"scope": {"type":"slot","id":"1","slot_id":1,"channel_id":"","channel_type":0,"node_id":0},
-			"source_node": 0,
-			"target_node": 3,
-			"owner_node": 0,
-			"attempt": 0,
-			"next_run_at": null,
-			"created_at": null,
-			"updated_at": "2026-05-14T10:00:00Z",
-			"last_error": "",
-			"summary": "",
-			"links": {"slot":"/slots?slot_id=1"}
-		}],
-		"next_cursor": "",
-		"has_more": false,
-		"partial": false,
-		"warnings": []
-	}`, rec.Body.String())
-}
-
-func TestManagerDistributedTasksSummaryReturnsCounts(t *testing.T) {
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "admin",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.task",
-				Actions:  []string{"r"},
-			}},
-		}}),
-		Management: managementStub{
-			distributedTaskSummary: managementusecase.DistributedTaskSummary{
-				Total: 2,
-				ByStatus: map[managementusecase.DistributedTaskStatus]int{
-					managementusecase.DistributedTaskStatusRetrying: 1,
-					managementusecase.DistributedTaskStatusRunning:  1,
-				},
-				ByDomain: map[managementusecase.DistributedTaskDomain]int{
-					managementusecase.DistributedTaskDomainSlotReconcile:  1,
-					managementusecase.DistributedTaskDomainNodeOnboarding: 1,
-				},
-			},
-		},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/distributed-tasks/summary", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusOK, rec.Code)
-	require.JSONEq(t, `{
-		"total": 2,
-		"by_status": {"pending":0,"running":1,"retrying":1,"blocked":0,"failed":0,"completed":0,"cancelled":0,"unknown":0},
-		"by_domain": {"slot_reconcile":1,"node_onboarding":1,"node_scale_in":0,"channel_migration":0},
-		"partial": false,
-		"warnings": []
-	}`, rec.Body.String())
-}
-
-func TestManagerDistributedTaskDetailReturnsSourcePayload(t *testing.T) {
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "admin",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.task",
-				Actions:  []string{"r"},
-			}},
-		}}),
-		Management: managementStub{
-			distributedTask: managementusecase.DistributedTaskDetail{
-				Task: managementusecase.DistributedTask{
-					ID:     "slot-reconcile:2",
-					Domain: managementusecase.DistributedTaskDomainSlotReconcile,
-					Kind:   "repair",
-					Status: managementusecase.DistributedTaskStatusRetrying,
-					Scope:  managementusecase.DistributedTaskScope{Type: managementusecase.DistributedTaskScopeSlot, ID: "2", SlotID: 2},
-				},
-				Detail: managementusecase.DistributedTaskDetailPayload{
-					Domain:    managementusecase.DistributedTaskDomainSlotReconcile,
-					RawStatus: "retrying",
-					Slot: &managementusecase.TaskDetail{
-						Task: managementusecase.Task{SlotID: 2, Kind: "repair", Status: "retrying"},
-					},
-				},
-			},
-		},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/distributed-tasks/slot_reconcile/slot-reconcile:2", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusOK, rec.Code)
-	require.JSONEq(t, `{
-		"task": {
-			"id":"slot-reconcile:2",
-			"domain":"slot_reconcile",
-			"kind":"repair",
-			"status":"retrying",
-			"phase":"",
-			"scope":{"type":"slot","id":"2","slot_id":2,"channel_id":"","channel_type":0,"node_id":0},
-			"source_node":0,
-			"target_node":0,
-			"owner_node":0,
-			"attempt":0,
-			"next_run_at":null,
-			"created_at":null,
-			"updated_at":null,
-			"last_error":"",
-			"summary":"",
-			"links":{}
-		},
-		"detail": {
-			"domain": "slot_reconcile",
-			"raw_status": "retrying",
-			"slot": {
-				"slot_id":2,
-				"kind":"repair",
-				"step":"",
-				"status":"retrying",
-				"source_node":0,
-				"target_node":0,
-				"attempt":0,
-				"next_run_at":null,
-				"last_error":"",
-				"slot":{"state":{"quorum":"","sync":"","leader_match":false,"leader_transfer_pending":false},"assignment":{"desired_peers":null,"preferred_leader_id":0,"config_epoch":0,"balance_version":0},"runtime":{"current_peers":null,"current_voters":null,"leader_id":0,"healthy_voters":0,"has_quorum":false,"observed_config_epoch":0,"last_report_at":"0001-01-01T00:00:00Z"}}
-			}
-		}
-	}`, rec.Body.String())
-}
-
-func TestManagerDistributedTasksRejectsInvalidQuery(t *testing.T) {
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "admin",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.task",
-				Actions:  []string{"r"},
-			}},
-		}}),
-		Management: managementStub{},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/distributed-tasks?status=bogus", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusBadRequest, rec.Code)
-	require.JSONEq(t, `{"error":"bad_request","message":"invalid distributed task query"}`, rec.Body.String())
-}
-
-func TestManagerDistributedTasksReturnsServiceUnavailableWhenAllSourcesFail(t *testing.T) {
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "admin",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.task",
-				Actions:  []string{"r"},
-			}},
-		}}),
-		Management: managementStub{distributedTasksErr: managementusecase.ErrDistributedTasksUnavailable},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/distributed-tasks", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusServiceUnavailable, rec.Code)
-	require.JSONEq(t, `{"error":"service_unavailable","message":"distributed task sources unavailable"}`, rec.Body.String())
-}
-
-func TestManagerChannelRuntimeMetaRejectsInsufficientPermission(t *testing.T) {
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "viewer",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.slot",
-				Actions:  []string{"r"},
-			}},
-		}}),
-		Management: managementStub{},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/channel-runtime-meta", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "viewer"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusForbidden, rec.Code)
-	require.JSONEq(t, `{"error":"forbidden","message":"forbidden"}`, rec.Body.String())
-}
-
-func TestManagerChannelRuntimeMetaRejectsInvalidLimit(t *testing.T) {
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "admin",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.channel",
-				Actions:  []string{"r"},
-			}},
-		}}),
-		Management: managementStub{},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/channel-runtime-meta?limit=0", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusBadRequest, rec.Code)
-	require.JSONEq(t, `{"error":"bad_request","message":"invalid limit"}`, rec.Body.String())
-}
-
-func TestManagerChannelRuntimeMetaRejectsInvalidCursor(t *testing.T) {
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "admin",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.channel",
-				Actions:  []string{"r"},
-			}},
-		}}),
-		Management: managementStub{},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/channel-runtime-meta?cursor=not-base64", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusBadRequest, rec.Code)
-	require.JSONEq(t, `{"error":"bad_request","message":"invalid cursor"}`, rec.Body.String())
-}
-
-func TestManagerChannelRuntimeMetaRejectsUnsupportedCursorVersion(t *testing.T) {
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "admin",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.channel",
-				Actions:  []string{"r"},
-			}},
-		}}),
-		Management: managementStub{},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/channel-runtime-meta?cursor="+base64.RawURLEncoding.EncodeToString([]byte(`{"v":2,"slot_id":1}`)), nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusBadRequest, rec.Code)
-	require.JSONEq(t, `{"error":"bad_request","message":"invalid cursor"}`, rec.Body.String())
-}
-
-func TestEncodeChannelRuntimeMetaCursorWritesBinaryPayload(t *testing.T) {
-	cursor := managementusecase.ChannelRuntimeMetaListCursor{SlotID: 1, ChannelID: "g1", ChannelType: 1}
-
-	raw, err := encodeChannelRuntimeMetaCursor(cursor)
-	require.NoError(t, err)
-	payload, err := base64.RawURLEncoding.DecodeString(raw)
-	require.NoError(t, err)
-	require.NotEmpty(t, payload)
-	require.NotEqual(t, byte('{'), payload[0])
-
-	decoded, err := decodeChannelRuntimeMetaCursor(raw)
-	require.NoError(t, err)
-	require.Equal(t, cursor, decoded)
-}
-
-func TestDecodeChannelRuntimeMetaCursorAcceptsLegacyJSONPayload(t *testing.T) {
-	cursor := managementusecase.ChannelRuntimeMetaListCursor{SlotID: 1, ChannelID: "g1", ChannelType: 1}
-
-	decoded, err := decodeChannelRuntimeMetaCursor(mustEncodeLegacyChannelRuntimeMetaCursorForTest(t, cursor))
-	require.NoError(t, err)
-	require.Equal(t, cursor, decoded)
-}
-
-func TestChannelRuntimeMetaCursorBinaryAllocationsStayBounded(t *testing.T) {
-	cursor := managementusecase.ChannelRuntimeMetaListCursor{SlotID: 1, ChannelID: "g1", ChannelType: 1}
-	raw, err := encodeChannelRuntimeMetaCursor(cursor)
-	require.NoError(t, err)
-
-	encodeAllocs := testing.AllocsPerRun(1000, func() {
-		if _, err := encodeChannelRuntimeMetaCursor(cursor); err != nil {
-			t.Fatal(err)
-		}
-	})
-	decodeAllocs := testing.AllocsPerRun(1000, func() {
-		decoded, err := decodeChannelRuntimeMetaCursor(raw)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if decoded != cursor {
-			t.Fatalf("decodeChannelRuntimeMetaCursor() = %+v, want %+v", decoded, cursor)
-		}
-	})
-
-	require.LessOrEqual(t, encodeAllocs, float64(1))
-	require.LessOrEqual(t, decodeAllocs, float64(1))
-}
-
-func TestManagerChannelRuntimeMetaReturnsPagedList(t *testing.T) {
-	var received managementusecase.ListChannelRuntimeMetaRequest
-	inputCursor := managementusecase.ChannelRuntimeMetaListCursor{SlotID: 1, ChannelID: "g1", ChannelType: 1}
-	nextCursor := managementusecase.ChannelRuntimeMetaListCursor{SlotID: 2, ChannelID: "g2", ChannelType: 2}
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "admin",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.channel",
-				Actions:  []string{"r"},
-			}},
-		}}),
-		Management: managementStub{
-			channelRuntimeMetaReqSink: &received,
-			channelRuntimeMetaPage: managementusecase.ListChannelRuntimeMetaResponse{
-				Items: []managementusecase.ChannelRuntimeMeta{{
-					ChannelID:     "g2",
-					ChannelType:   2,
-					SlotID:        2,
-					ChannelEpoch:  11,
-					LeaderEpoch:   5,
-					Leader:        3,
-					Replicas:      []uint64{3, 4},
-					ISR:           []uint64{3},
-					MinISR:        1,
-					MaxMessageSeq: uint64Ptr(42),
-					Status:        "active",
-				}},
-				HasMore:    true,
-				NextCursor: nextCursor,
-			},
-		},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/channel-runtime-meta?limit=2&cursor="+mustEncodeChannelRuntimeMetaCursorForTest(t, inputCursor), nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusOK, rec.Code)
-	require.Equal(t, managementusecase.ListChannelRuntimeMetaRequest{
-		Limit:  2,
-		Cursor: inputCursor,
-	}, received)
-	require.NotContains(t, rec.Body.String(), `"total"`)
-	require.JSONEq(t, fmt.Sprintf(`{
-		"items": [{
-			"channel_id": "g2",
-			"channel_type": 2,
-			"slot_id": 2,
-			"channel_epoch": 11,
-			"leader_epoch": 5,
-			"leader": 3,
-			"replicas": [3, 4],
-			"isr": [3],
-			"min_isr": 1,
-			"max_message_seq": 42,
-			"status": "active"
-		}],
-		"has_more": true,
-		"next_cursor": %q
-	}`, mustEncodeChannelRuntimeMetaCursorForTest(t, nextCursor)), rec.Body.String())
-}
-
-func TestManagerChannelRuntimeMetaPassesChannelIDQuery(t *testing.T) {
-	var received managementusecase.ListChannelRuntimeMetaRequest
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "admin",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.channel",
-				Actions:  []string{"r"},
-			}},
-		}}),
-		Management: managementStub{channelRuntimeMetaReqSink: &received},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/channel-runtime-meta?channel_id=%20room%20&limit=15", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusOK, rec.Code)
-	require.Equal(t, managementusecase.ListChannelRuntimeMetaRequest{
-		Limit:          15,
-		ChannelIDQuery: "room",
-	}, received)
-}
-
-func TestManagerChannelRuntimeMetaPassesNodeFiltersAndIncludeMaxSeq(t *testing.T) {
-	var received managementusecase.ListChannelRuntimeMetaRequest
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "admin",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.channel",
-				Actions:  []string{"r"},
-			}},
-		}}),
-		Management: managementStub{channelRuntimeMetaReqSink: &received},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/channel-runtime-meta?node_id=1&node_scope=replica&include_max_message_seq=true", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusOK, rec.Code)
-	require.Equal(t, managementusecase.ListChannelRuntimeMetaRequest{
-		Limit:                defaultChannelRuntimeMetaLimit,
-		NodeID:               1,
-		NodeScope:            managementusecase.ChannelRuntimeMetaNodeScopeReplica,
-		IncludeMaxMessageSeq: true,
-	}, received)
-}
-
-func TestManagerChannelRuntimeMetaRejectsInvalidNodeFilters(t *testing.T) {
-	tests := []string{
-		"/manager/channel-runtime-meta?node_id=0",
-		"/manager/channel-runtime-meta?node_id=bad",
-		"/manager/channel-runtime-meta?node_id=1&node_scope=bad",
-		"/manager/channel-runtime-meta?include_max_message_seq=maybe",
-	}
-	for _, path := range tests {
-		t.Run(path, func(t *testing.T) {
-			srv := New(Options{
-				Auth: testAuthConfig([]UserConfig{{
-					Username: "admin",
-					Password: "secret",
-					Permissions: []PermissionConfig{{
-						Resource: "cluster.channel",
-						Actions:  []string{"r"},
-					}},
-				}}),
-				Management: managementStub{},
-			})
-
-			rec := httptest.NewRecorder()
-			req := httptest.NewRequest(http.MethodGet, path, nil)
-			req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
-
-			srv.Engine().ServeHTTP(rec, req)
-
-			require.Equal(t, http.StatusBadRequest, rec.Code)
-		})
+		}]
+	}`) {
+		t.Fatalf("body = %s", rec.Body.String())
 	}
 }
 
-func TestManagerChannelRuntimeMetaOmitsMaxMessageSeqWhenNotIncluded(t *testing.T) {
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "admin",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.channel",
-				Actions:  []string{"r"},
-			}},
-		}}),
-		Management: managementStub{
-			channelRuntimeMetaPage: managementusecase.ListChannelRuntimeMetaResponse{
-				Items: []managementusecase.ChannelRuntimeMeta{{
-					ChannelID:   "g2",
-					ChannelType: 2,
-					SlotID:      2,
-					Status:      "active",
-				}},
-			},
-		},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/channel-runtime-meta", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusOK, rec.Code)
-	require.NotContains(t, rec.Body.String(), "max_message_seq")
-}
-
-func TestManagerChannelRuntimeMetaReturnsServiceUnavailableWhenAuthoritativeReadUnavailable(t *testing.T) {
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "admin",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.channel",
-				Actions:  []string{"r"},
-			}},
-		}}),
-		Management: managementStub{channelRuntimeMetaErr: raftcluster.ErrSlotNotFound},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/channel-runtime-meta", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusServiceUnavailable, rec.Code)
-	require.JSONEq(t, `{"error":"service_unavailable","message":"slot leader authoritative read unavailable"}`, rec.Body.String())
-}
-
-func TestManagerChannelClusterSummaryReturnsAggregate(t *testing.T) {
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "admin",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.channel",
-				Actions:  []string{"r"},
-			}},
-		}}),
-		Management: managementStub{
-			channelClusterSummary: managementusecase.ChannelClusterSummary{
-				Total:           4,
-				Healthy:         1,
-				ISRInsufficient: 2,
-				NoLeader:        1,
-				AvgReplicas:     2,
-				AvgISR:          1.5,
-				LeaderDistribution: []managementusecase.ChannelLeaderDistribution{
-					{NodeID: 1, Count: 3},
-					{NodeID: 2, Count: 1},
-				},
-			},
-		},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/channel-cluster/summary", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusOK, rec.Code)
-	require.JSONEq(t, `{
-		"total": 4,
-		"healthy": 1,
-		"isr_insufficient": 2,
-		"no_leader": 1,
-		"avg_replicas": 2,
-		"avg_isr": 1.5,
-		"leader_distribution": [
-			{"node_id": 1, "count": 3},
-			{"node_id": 2, "count": 1}
-		]
-	}`, rec.Body.String())
-}
-
-func TestManagerChannelClusterRejectsInsufficientPermission(t *testing.T) {
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "viewer",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.slot",
-				Actions:  []string{"r"},
-			}},
-		}}),
-		Management: managementStub{},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/channel-cluster/summary", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "viewer"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusForbidden, rec.Code)
-	require.JSONEq(t, `{"error":"forbidden","message":"forbidden"}`, rec.Body.String())
-}
-
-func TestManagerChannelClusterUnhealthyReturnsPagedList(t *testing.T) {
-	var received managementusecase.ListChannelClusterUnhealthyRequest
-	nextCursor := managementusecase.ChannelRuntimeMetaListCursor{SlotID: 2, ChannelID: "g2", ChannelType: 2}
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "admin",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.channel",
-				Actions:  []string{"r"},
-			}},
-		}}),
-		Management: managementStub{
-			channelClusterUnhealthyReqSink: &received,
-			channelClusterUnhealthyPage: managementusecase.ListChannelClusterUnhealthyResponse{
-				Items: []managementusecase.ChannelClusterUnhealthyItem{{
-					ChannelRuntimeMeta: managementusecase.ChannelRuntimeMeta{
-						ChannelID:     "g2",
-						ChannelType:   2,
-						SlotID:        2,
-						ChannelEpoch:  11,
-						LeaderEpoch:   5,
-						Leader:        0,
-						Replicas:      []uint64{3, 4},
-						ISR:           []uint64{3},
-						MinISR:        2,
-						MaxMessageSeq: uint64Ptr(42),
-						Status:        "active",
-					},
-					Reasons: []string{
-						managementusecase.ChannelClusterUnhealthyReasonISRInsufficient,
-						managementusecase.ChannelClusterUnhealthyReasonNoLeader,
-					},
-				}},
-				HasMore:    true,
-				NextCursor: nextCursor,
-			},
-		},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/channel-cluster/unhealthy?limit=2", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusOK, rec.Code)
-	require.Equal(t, managementusecase.ListChannelClusterUnhealthyRequest{Limit: 2}, received)
-	require.JSONEq(t, fmt.Sprintf(`{
-		"items": [{
-			"channel_id": "g2",
-			"channel_type": 2,
-			"slot_id": 2,
-			"channel_epoch": 11,
-			"leader_epoch": 5,
-			"leader": 0,
-			"replicas": [3, 4],
-			"isr": [3],
-			"min_isr": 2,
-			"max_message_seq": 42,
-			"status": "active",
-			"reasons": ["isr_insufficient", "no_leader"]
-		}],
-		"has_more": true,
-		"next_cursor": %q
-	}`, mustEncodeChannelRuntimeMetaCursorForTest(t, nextCursor)), rec.Body.String())
-}
-
-func TestManagerChannelClusterUnhealthyRejectsInvalidLimit(t *testing.T) {
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "admin",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.channel",
-				Actions:  []string{"r"},
-			}},
-		}}),
-		Management: managementStub{},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/channel-cluster/unhealthy?limit=0", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusBadRequest, rec.Code)
-	require.JSONEq(t, `{"error":"bad_request","message":"invalid limit"}`, rec.Body.String())
-}
-
-func TestManagerChannelClusterReplicasReturnsDetail(t *testing.T) {
-	commit := uint64(42)
-	minAvailable := uint64(1)
-	retentionThrough := uint64(0)
-	lag := uint64(0)
-	var received channelRuntimeMetaDetailCall
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "admin",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.channel",
-				Actions:  []string{"r"},
-			}},
-		}}),
-		Management: managementStub{
-			channelClusterReplicaDetailReqSink: &received,
-			channelClusterReplicaDetail: managementusecase.ChannelClusterReplicaDetail{
-				Channel: managementusecase.ChannelRuntimeMetaDetail{
-					ChannelRuntimeMeta: managementusecase.ChannelRuntimeMeta{
-						ChannelID:     "room-1",
-						ChannelType:   2,
-						SlotID:        9,
-						ChannelEpoch:  7,
-						LeaderEpoch:   3,
-						Leader:        1,
-						Replicas:      []uint64{1, 2},
-						ISR:           []uint64{1},
-						MinISR:        1,
-						MaxMessageSeq: uint64Ptr(42),
-						Status:        "active",
-					},
-					HashSlot:     123,
-					Features:     1,
-					LeaseUntilMS: 1700000000000,
-				},
-				RuntimeReported:     true,
-				CommitSeq:           &commit,
-				MinAvailableSeq:     &minAvailable,
-				RetentionThroughSeq: &retentionThrough,
-				Replicas: []managementusecase.ChannelClusterReplicaStatus{
-					{NodeID: 1, Role: "leader", IsLeader: true, InISR: true, Reported: true, CommitSeq: &commit, Lag: &lag},
-					{NodeID: 2, Role: "follower", Reported: false},
-				},
-			},
-		},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/channel-cluster/2/room-1/replicas", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusOK, rec.Code)
-	require.Equal(t, channelRuntimeMetaDetailCall{channelID: "room-1", channelType: 2}, received)
-	require.JSONEq(t, `{
-		"channel": {
-			"channel_id": "room-1",
-			"channel_type": 2,
-			"slot_id": 9,
-			"hash_slot": 123,
-			"channel_epoch": 7,
-			"leader_epoch": 3,
-			"leader": 1,
-			"replicas": [1, 2],
-			"isr": [1],
-			"min_isr": 1,
-			"max_message_seq": 42,
-			"status": "active",
-			"features": 1,
-			"lease_until_ms": 1700000000000
-		},
-		"runtime_reported": true,
-		"commit_seq": 42,
-		"min_available_seq": 1,
-		"retention_through_seq": 0,
-		"replicas": [
-			{"node_id": 1, "role": "leader", "is_leader": true, "in_isr": true, "reported": true, "commit_seq": 42, "leo": null, "checkpoint_hw": null, "lag": 0},
-			{"node_id": 2, "role": "follower", "is_leader": false, "in_isr": false, "reported": false, "commit_seq": null, "leo": null, "checkpoint_hw": null, "lag": null}
-		]
-	}`, rec.Body.String())
-}
-
-func TestManagerChannelClusterReplicasRejectsInsufficientPermission(t *testing.T) {
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username:    "viewer",
-			Password:    "secret",
-			Permissions: []PermissionConfig{{Resource: "cluster.channel", Actions: []string{"w"}}},
-		}}),
-		Management: managementStub{},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/channel-cluster/2/room-1/replicas", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "viewer"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusForbidden, rec.Code)
-	require.JSONEq(t, `{"error":"forbidden","message":"forbidden"}`, rec.Body.String())
-}
-
-func TestManagerChannelClusterRepairReturnsChangedChannel(t *testing.T) {
-	var received managementusecase.RepairChannelClusterLeaderRequest
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username:    "admin",
-			Password:    "secret",
-			Permissions: []PermissionConfig{{Resource: "cluster.channel", Actions: []string{"w"}}},
-		}}),
-		Management: managementStub{
-			channelClusterRepairReqSink: &received,
-			channelClusterRepair: managementusecase.RepairChannelClusterLeaderResponse{
-				Changed: true,
-				Channel: managementusecase.ChannelRuntimeMetaDetail{
-					ChannelRuntimeMeta: managementusecase.ChannelRuntimeMeta{
-						ChannelID: "room-1", ChannelType: 2, SlotID: 9, Leader: 2, Replicas: []uint64{1, 2}, ISR: []uint64{2}, MinISR: 1, Status: "active",
-					},
-					HashSlot: 123,
-				},
-			},
-		},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/manager/channel-cluster/2/room-1/repair", bytes.NewBufferString(`{"reason":"no_leader"}`))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusOK, rec.Code)
-	require.Equal(t, managementusecase.RepairChannelClusterLeaderRequest{ChannelID: "room-1", ChannelType: 2, Reason: "no_leader"}, received)
-	require.JSONEq(t, `{
-		"changed": true,
-		"channel": {
-			"channel_id": "room-1",
-			"channel_type": 2,
-			"slot_id": 9,
-			"hash_slot": 123,
-			"channel_epoch": 0,
-			"leader_epoch": 0,
-			"leader": 2,
-			"replicas": [1, 2],
-			"isr": [2],
-			"min_isr": 1,
-			"status": "active",
-			"features": 0,
-			"lease_until_ms": 0
-		}
-	}`, rec.Body.String())
-}
-
-func TestManagerChannelClusterRepairRequiresWritePermission(t *testing.T) {
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username:    "viewer",
-			Password:    "secret",
-			Permissions: []PermissionConfig{{Resource: "cluster.channel", Actions: []string{"r"}}},
-		}}),
-		Management: managementStub{},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/manager/channel-cluster/2/room-1/repair", bytes.NewBufferString(`{"reason":"no_leader"}`))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "viewer"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusForbidden, rec.Code)
-	require.JSONEq(t, `{"error":"forbidden","message":"forbidden"}`, rec.Body.String())
-}
-
-func TestManagerChannelClusterLeaderTransferReturnsChangedChannel(t *testing.T) {
-	var received managementusecase.TransferChannelClusterLeaderRequest
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username:    "admin",
-			Password:    "secret",
-			Permissions: []PermissionConfig{{Resource: "cluster.channel", Actions: []string{"w"}}},
-		}}),
-		Management: managementStub{
-			channelClusterTransferReqSink: &received,
-			channelClusterTransfer: managementusecase.TransferChannelClusterLeaderResponse{
-				Changed: true,
-				Channel: managementusecase.ChannelRuntimeMetaDetail{
-					ChannelRuntimeMeta: managementusecase.ChannelRuntimeMeta{
-						ChannelID: "room-1", ChannelType: 2, SlotID: 9, Leader: 2, Replicas: []uint64{1, 2}, ISR: []uint64{1, 2}, MinISR: 1, Status: "active",
-					},
-					HashSlot: 123,
-				},
-			},
-		},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/manager/channel-cluster/2/room-1/leader/transfer", bytes.NewBufferString(`{"target_node_id":2}`))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusOK, rec.Code)
-	require.Equal(t, managementusecase.TransferChannelClusterLeaderRequest{ChannelID: "room-1", ChannelType: 2, TargetNodeID: 2}, received)
-	require.JSONEq(t, `{
-		"changed": true,
-		"channel": {
-			"channel_id": "room-1",
-			"channel_type": 2,
-			"slot_id": 9,
-			"hash_slot": 123,
-			"channel_epoch": 0,
-			"leader_epoch": 0,
-			"leader": 2,
-			"replicas": [1, 2],
-			"isr": [1, 2],
-			"min_isr": 1,
-			"status": "active",
-			"features": 0,
-			"lease_until_ms": 0
-		}
-	}`, rec.Body.String())
-}
-
-func TestManagerChannelClusterLeaderTransferRequiresWritePermission(t *testing.T) {
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username:    "viewer",
-			Password:    "secret",
-			Permissions: []PermissionConfig{{Resource: "cluster.channel", Actions: []string{"r"}}},
-		}}),
-		Management: managementStub{},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/manager/channel-cluster/2/room-1/leader/transfer", bytes.NewBufferString(`{"target_node_id":2}`))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "viewer"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusForbidden, rec.Code)
-	require.JSONEq(t, `{"error":"forbidden","message":"forbidden"}`, rec.Body.String())
-}
-
-func TestManagerChannelClusterOperationsMapErrors(t *testing.T) {
-	tests := []struct {
-		name   string
-		method string
-		path   string
-		body   string
-		stub   managementStub
-		want   int
-	}{
-		{name: "invalid channel type", method: http.MethodGet, path: "/manager/channel-cluster/0/room-1/replicas", want: http.StatusBadRequest},
-		{name: "replicas not found", method: http.MethodGet, path: "/manager/channel-cluster/2/room-1/replicas", stub: managementStub{channelClusterReplicaDetailErr: metadb.ErrNotFound}, want: http.StatusNotFound},
-		{name: "repair no safe candidate", method: http.MethodPost, path: "/manager/channel-cluster/2/room-1/repair", body: `{"reason":"no_leader"}`, stub: managementStub{channelClusterRepairErr: channel.ErrNoSafeChannelLeader}, want: http.StatusConflict},
-		{name: "repair leader unavailable", method: http.MethodPost, path: "/manager/channel-cluster/2/room-1/repair", body: `{"reason":"no_leader"}`, stub: managementStub{channelClusterRepairErr: raftcluster.ErrNoLeader}, want: http.StatusServiceUnavailable},
-		{name: "transfer invalid channel type", method: http.MethodPost, path: "/manager/channel-cluster/0/room-1/leader/transfer", body: `{"target_node_id":2}`, want: http.StatusBadRequest},
-		{name: "transfer invalid body", method: http.MethodPost, path: "/manager/channel-cluster/2/room-1/leader/transfer", body: `{`, want: http.StatusBadRequest},
-		{name: "transfer missing target", method: http.MethodPost, path: "/manager/channel-cluster/2/room-1/leader/transfer", body: `{}`, want: http.StatusBadRequest},
-		{name: "transfer target not replica", method: http.MethodPost, path: "/manager/channel-cluster/2/room-1/leader/transfer", body: `{"target_node_id":3}`, stub: managementStub{channelClusterTransferErr: managementusecase.ErrChannelLeaderTransferTargetNotReplica}, want: http.StatusBadRequest},
-		{name: "transfer target not isr", method: http.MethodPost, path: "/manager/channel-cluster/2/room-1/leader/transfer", body: `{"target_node_id":3}`, stub: managementStub{channelClusterTransferErr: managementusecase.ErrChannelLeaderTransferTargetNotISR}, want: http.StatusConflict},
-		{name: "transfer inactive", method: http.MethodPost, path: "/manager/channel-cluster/2/room-1/leader/transfer", body: `{"target_node_id":3}`, stub: managementStub{channelClusterTransferErr: managementusecase.ErrChannelLeaderTransferInactiveChannel}, want: http.StatusConflict},
-		{name: "transfer not found", method: http.MethodPost, path: "/manager/channel-cluster/2/room-1/leader/transfer", body: `{"target_node_id":3}`, stub: managementStub{channelClusterTransferErr: metadb.ErrNotFound}, want: http.StatusNotFound},
-		{name: "transfer no safe candidate", method: http.MethodPost, path: "/manager/channel-cluster/2/room-1/leader/transfer", body: `{"target_node_id":3}`, stub: managementStub{channelClusterTransferErr: channel.ErrNoSafeChannelLeader}, want: http.StatusConflict},
-		{name: "transfer leader unavailable", method: http.MethodPost, path: "/manager/channel-cluster/2/room-1/leader/transfer", body: `{"target_node_id":3}`, stub: managementStub{channelClusterTransferErr: raftcluster.ErrNoLeader}, want: http.StatusServiceUnavailable},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			srv := New(Options{Management: tt.stub})
-			rec := httptest.NewRecorder()
-			req := httptest.NewRequest(tt.method, tt.path, bytes.NewBufferString(tt.body))
-			if tt.body != "" {
-				req.Header.Set("Content-Type", "application/json")
-			}
-
-			srv.Engine().ServeHTTP(rec, req)
-
-			require.Equal(t, tt.want, rec.Code)
-		})
-	}
-}
-
-func TestManagerChannelRuntimeMetaDetailRejectsMissingToken(t *testing.T) {
-	srv := New(Options{
-		Auth:       testAuthConfig(nil),
-		Management: managementStub{},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/channel-runtime-meta/2/g1", nil)
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusUnauthorized, rec.Code)
-	require.JSONEq(t, `{"error":"unauthorized","message":"unauthorized"}`, rec.Body.String())
-}
-
-func TestManagerChannelRuntimeMetaDetailRejectsInsufficientPermission(t *testing.T) {
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "viewer",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.slot",
-				Actions:  []string{"r"},
-			}},
-		}}),
-		Management: managementStub{},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/channel-runtime-meta/2/g1", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "viewer"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusForbidden, rec.Code)
-	require.JSONEq(t, `{"error":"forbidden","message":"forbidden"}`, rec.Body.String())
-}
-
-func TestManagerChannelRuntimeMetaDetailRejectsInvalidChannelType(t *testing.T) {
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "admin",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.channel",
-				Actions:  []string{"r"},
-			}},
-		}}),
-		Management: managementStub{},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/channel-runtime-meta/0/g1", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusBadRequest, rec.Code)
-	require.JSONEq(t, `{"error":"bad_request","message":"invalid channel_type"}`, rec.Body.String())
-}
-
-func TestManagerChannelRuntimeMetaDetailReturnsNotFound(t *testing.T) {
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "admin",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.channel",
-				Actions:  []string{"r"},
-			}},
-		}}),
-		Management: managementStub{channelRuntimeMetaDetailErr: metadb.ErrNotFound},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/channel-runtime-meta/2/g1", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusNotFound, rec.Code)
-	require.JSONEq(t, `{"error":"not_found","message":"channel runtime meta not found"}`, rec.Body.String())
-}
-
-func TestManagerChannelRuntimeMetaDetailReturnsServiceUnavailableWhenAuthoritativeReadUnavailable(t *testing.T) {
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "admin",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.channel",
-				Actions:  []string{"r"},
-			}},
-		}}),
-		Management: managementStub{channelRuntimeMetaDetailErr: raftcluster.ErrNoLeader},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/channel-runtime-meta/2/g1", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusServiceUnavailable, rec.Code)
-	require.JSONEq(t, `{"error":"service_unavailable","message":"slot leader authoritative read unavailable"}`, rec.Body.String())
-}
-
-func TestManagerChannelRuntimeMetaDetailReturnsObject(t *testing.T) {
-	var received channelRuntimeMetaDetailCall
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "admin",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.channel",
-				Actions:  []string{"r"},
-			}},
-		}}),
-		Management: managementStub{
-			channelRuntimeMetaDetailReqSink: &received,
-			channelRuntimeMetaDetail: managementusecase.ChannelRuntimeMetaDetail{
-				ChannelRuntimeMeta: managementusecase.ChannelRuntimeMeta{
-					ChannelID:     "g1",
-					ChannelType:   2,
-					SlotID:        7,
-					ChannelEpoch:  12,
-					LeaderEpoch:   6,
-					Leader:        3,
-					Replicas:      []uint64{3, 5, 8},
-					ISR:           []uint64{3, 5},
-					MinISR:        2,
-					MaxMessageSeq: uint64Ptr(99),
-					Status:        "active",
-				},
-				HashSlot:     129,
-				Features:     1,
-				LeaseUntilMS: 1700000000000,
-			},
-		},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/channel-runtime-meta/2/g1", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusOK, rec.Code)
-	require.Equal(t, channelRuntimeMetaDetailCall{channelID: "g1", channelType: 2}, received)
-	require.NotContains(t, rec.Body.String(), `"items"`)
-	require.JSONEq(t, `{
-		"channel_id": "g1",
-		"channel_type": 2,
-		"slot_id": 7,
-		"hash_slot": 129,
-		"channel_epoch": 12,
-		"leader_epoch": 6,
-		"leader": 3,
-		"replicas": [3, 5, 8],
-		"isr": [3, 5],
-		"min_isr": 2,
-		"max_message_seq": 99,
-		"status": "active",
-		"features": 1,
-		"lease_until_ms": 1700000000000
-	}`, rec.Body.String())
-}
-
-func TestManagerConnectionsRejectsInsufficientPermission(t *testing.T) {
+func TestManagerSlotsRequiresSlotReadPermission(t *testing.T) {
 	srv := New(Options{
 		Auth: testAuthConfig([]UserConfig{{
 			Username: "viewer",
@@ -3713,21 +1030,202 @@ func TestManagerConnectionsRejectsInsufficientPermission(t *testing.T) {
 				Actions:  []string{"r"},
 			}},
 		}}),
-		Management: managementStub{},
+		Management: managerNodesStub{},
+	})
+
+	missing := httptest.NewRecorder()
+	srv.Engine().ServeHTTP(missing, httptest.NewRequest(http.MethodGet, "/manager/slots", nil))
+	if missing.Code != http.StatusUnauthorized {
+		t.Fatalf("missing token status = %d, want %d", missing.Code, http.StatusUnauthorized)
+	}
+
+	denied := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/manager/slots", nil)
+	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "viewer"))
+	srv.Engine().ServeHTTP(denied, req)
+	if denied.Code != http.StatusForbidden {
+		t.Fatalf("denied status = %d, want %d", denied.Code, http.StatusForbidden)
+	}
+}
+
+func TestManagerBusinessChannelsReturnsReadOnlyList(t *testing.T) {
+	nextCursor := managementusecase.ChannelListCursor{SlotID: 1, ChannelID: "g1", ChannelType: 2, TypeFilter: 2, KeywordHash: 0xabc}
+	var gotReq managementusecase.ListBusinessChannelsRequest
+	srv := New(Options{
+		Auth: testAuthConfig([]UserConfig{{
+			Username: "admin",
+			Password: "secret",
+			Permissions: []PermissionConfig{{
+				Resource: "cluster.channel",
+				Actions:  []string{"r"},
+			}},
+		}}),
+		Management: managerNodesStub{
+			lastBusinessChannelsRequest: &gotReq,
+			businessChannels: managementusecase.ListBusinessChannelsResponse{
+				Items: []managementusecase.BusinessChannelListItem{{
+					ChannelID:                 "g1",
+					ChannelType:               2,
+					SlotID:                    9,
+					HashSlot:                  7,
+					Ban:                       true,
+					SendBan:                   true,
+					SubscriberMutationVersion: 5,
+				}},
+				HasMore:    true,
+				NextCursor: nextCursor,
+			},
+		},
 	})
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/connections", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "viewer"))
+	req := httptest.NewRequest(http.MethodGet, "/manager/channels?node_id=2&type=2&keyword=g&limit=1", nil)
+	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
 
 	srv.Engine().ServeHTTP(rec, req)
 
-	require.Equal(t, http.StatusForbidden, rec.Code)
-	require.JSONEq(t, `{"error":"forbidden","message":"forbidden"}`, rec.Body.String())
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	if gotReq.NodeID != 2 || gotReq.TypeFilter != 2 || gotReq.Keyword != "g" || gotReq.Limit != 1 {
+		t.Fatalf("request = %#v, want node 2 type 2 keyword g limit 1", gotReq)
+	}
+	var body struct {
+		Items      []BusinessChannelListItemDTO `json:"items"`
+		HasMore    bool                         `json:"has_more"`
+		NextCursor string                       `json:"next_cursor"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("Unmarshal() error = %v", err)
+	}
+	if len(body.Items) != 1 || body.Items[0].ChannelID != "g1" || body.Items[0].ChannelType != 2 || body.Items[0].SlotID != 9 || body.Items[0].HashSlot != 7 || !body.Items[0].Ban || !body.Items[0].SendBan || body.Items[0].Disband || body.Items[0].SubscriberMutationVersion != 5 {
+		t.Fatalf("items = %#v, want business channel row", body.Items)
+	}
+	if !body.HasMore || body.NextCursor == "" {
+		t.Fatalf("pagination = has_more:%t next:%q, want next cursor", body.HasMore, body.NextCursor)
+	}
+	decoded, err := decodeBusinessChannelCursor(body.NextCursor)
+	if err != nil {
+		t.Fatalf("decodeBusinessChannelCursor() error = %v", err)
+	}
+	if decoded != nextCursor {
+		t.Fatalf("decoded cursor = %#v, want %#v", decoded, nextCursor)
+	}
 }
 
-func TestManagerConnectionsAcceptsGlobalWildcardPermission(t *testing.T) {
-	connectedAt := time.Date(2026, 4, 23, 8, 0, 0, 0, time.UTC)
+func TestManagerChannelRuntimeMetaReturnsClusterRuntimeList(t *testing.T) {
+	nextCursor := managementusecase.ChannelRuntimeMetaListCursor{SlotID: 1, ChannelID: "g1", ChannelType: 2}
+	var gotReq managementusecase.ListChannelRuntimeMetaRequest
+	maxSeq := uint64(88)
+	srv := New(Options{
+		Auth: testAuthConfig([]UserConfig{{
+			Username: "admin",
+			Password: "secret",
+			Permissions: []PermissionConfig{{
+				Resource: "cluster.channel",
+				Actions:  []string{"r"},
+			}},
+		}}),
+		Management: managerNodesStub{
+			lastChannelRuntimeMetaRequest: &gotReq,
+			channelRuntimeMeta: managementusecase.ListChannelRuntimeMetaResponse{
+				Items: []managementusecase.ChannelRuntimeMeta{{
+					ChannelID:       "g1",
+					ChannelType:     2,
+					SlotID:          9,
+					ChannelEpoch:    11,
+					LeaderEpoch:     5,
+					Leader:          2,
+					SlotLeader:      3,
+					PreferredLeader: 1,
+					Replicas:        []uint64{1, 2, 3},
+					ISR:             []uint64{1, 2},
+					MinISR:          2,
+					MaxMessageSeq:   &maxSeq,
+					Status:          "active",
+				}},
+				HasMore:    true,
+				NextCursor: nextCursor,
+			},
+		},
+	})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/manager/channel-runtime-meta?node_id=2&node_scope=leader&include_max_message_seq=true&channel_id=g&limit=1", nil)
+	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	if gotReq.NodeID != 2 || gotReq.NodeScope != managementusecase.ChannelRuntimeMetaNodeScopeLeader || gotReq.ChannelIDQuery != "g" || gotReq.Limit != 1 || !gotReq.IncludeMaxMessageSeq {
+		t.Fatalf("request = %#v, want node 2 leader scope channel g include max seq limit 1", gotReq)
+	}
+	var body ChannelRuntimeMetaListResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("Unmarshal() error = %v", err)
+	}
+	if len(body.Items) != 1 || body.Items[0].ChannelID != "g1" || body.Items[0].Leader != 2 || body.Items[0].SlotLeader != 3 || body.Items[0].PreferredLeader != 1 || body.Items[0].MaxMessageSeq == nil || *body.Items[0].MaxMessageSeq != 88 {
+		t.Fatalf("items = %#v, want runtime meta row with max seq", body.Items)
+	}
+	if !body.HasMore || body.NextCursor == "" {
+		t.Fatalf("pagination = has_more:%t next:%q, want next cursor", body.HasMore, body.NextCursor)
+	}
+	decoded, err := decodeChannelRuntimeMetaCursor(body.NextCursor)
+	if err != nil {
+		t.Fatalf("decodeChannelRuntimeMetaCursor() error = %v", err)
+	}
+	if decoded != nextCursor {
+		t.Fatalf("decoded cursor = %#v, want %#v", decoded, nextCursor)
+	}
+}
+
+func TestManagerBusinessChannelsRejectsInvalidNodeID(t *testing.T) {
+	srv := New(Options{Management: managerNodesStub{}})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/manager/channels?node_id=bad", nil)
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusBadRequest, rec.Body.String())
+	}
+	if !jsonEqual(rec.Body.String(), `{"error":"bad_request","message":"invalid node_id"}`) {
+		t.Fatalf("body = %s, want invalid node_id", rec.Body.String())
+	}
+}
+
+func TestManagerBusinessChannelsRequiresChannelReadPermission(t *testing.T) {
+	srv := New(Options{
+		Auth: testAuthConfig([]UserConfig{{
+			Username: "viewer",
+			Password: "secret",
+			Permissions: []PermissionConfig{{
+				Resource: "cluster.slot",
+				Actions:  []string{"r"},
+			}},
+		}}),
+		Management: managerNodesStub{},
+	})
+
+	missing := httptest.NewRecorder()
+	srv.Engine().ServeHTTP(missing, httptest.NewRequest(http.MethodGet, "/manager/channels", nil))
+	if missing.Code != http.StatusUnauthorized {
+		t.Fatalf("missing token status = %d, want %d", missing.Code, http.StatusUnauthorized)
+	}
+
+	denied := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/manager/channels", nil)
+	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "viewer"))
+	srv.Engine().ServeHTTP(denied, req)
+	if denied.Code != http.StatusForbidden {
+		t.Fatalf("denied status = %d, want %d", denied.Code, http.StatusForbidden)
+	}
+}
+
+func TestManagerBusinessChannelOperationRoutesStayUnmigrated(t *testing.T) {
 	srv := New(Options{
 		Auth: testAuthConfig([]UserConfig{{
 			Username: "admin",
@@ -3737,528 +1235,89 @@ func TestManagerConnectionsAcceptsGlobalWildcardPermission(t *testing.T) {
 				Actions:  []string{"*"},
 			}},
 		}}),
-		Management: managementStub{
-			connections: []managementusecase.Connection{{
-				SessionID:   101,
-				UID:         "u1",
-				DeviceID:    "device-a",
-				DeviceFlag:  "app",
-				DeviceLevel: "master",
-				SlotID:      9,
-				State:       "active",
-				Listener:    "tcp",
-				ConnectedAt: connectedAt,
-				RemoteAddr:  "10.0.0.1:5000",
-				LocalAddr:   "127.0.0.1:7000",
-			}},
-		},
+		Management: managerNodesStub{},
 	})
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/connections", nil)
+	req := httptest.NewRequest(http.MethodPost, "/manager/channels", bytes.NewBufferString(`{"channel_id":"g1","channel_type":2}`))
 	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
+	req.Header.Set("Content-Type", "application/json")
 
 	srv.Engine().ServeHTTP(rec, req)
 
-	require.Equal(t, http.StatusOK, rec.Code)
-	require.Contains(t, rec.Body.String(), `"session_id":101`)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusNotFound)
+	}
 }
 
-func TestManagerConnectionsReturnsList(t *testing.T) {
-	connectedAt := time.Date(2026, 4, 23, 8, 0, 0, 0, time.UTC)
-	var received managementusecase.ListConnectionsRequest
+func TestManagerSlotOperationRoutesStayUnmigrated(t *testing.T) {
 	srv := New(Options{
 		Auth: testAuthConfig([]UserConfig{{
 			Username: "admin",
 			Password: "secret",
 			Permissions: []PermissionConfig{{
-				Resource: "cluster.connection",
-				Actions:  []string{"r"},
+				Resource: "*",
+				Actions:  []string{"*"},
 			}},
 		}}),
-		Management: managementStub{
-			listConnectionsReqSink: &received,
-			connections: []managementusecase.Connection{{
-				NodeID:      2,
-				SessionID:   101,
-				UID:         "u1",
-				DeviceID:    "device-a",
-				DeviceFlag:  "app",
-				DeviceLevel: "master",
-				SlotID:      9,
-				State:       "active",
-				Listener:    "tcp",
-				ConnectedAt: connectedAt,
-				RemoteAddr:  "10.0.0.1:5000",
-				LocalAddr:   "127.0.0.1:7000",
-			}},
-		},
+		Management: managerNodesStub{},
 	})
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/connections?node_id=2", nil)
+	req := httptest.NewRequest(http.MethodPost, "/manager/slots", nil)
 	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
 
 	srv.Engine().ServeHTTP(rec, req)
 
-	require.Equal(t, http.StatusOK, rec.Code)
-	require.Equal(t, managementusecase.ListConnectionsRequest{NodeID: 2}, received)
-	require.JSONEq(t, `{
-		"total": 1,
-		"items": [{
-			"node_id": 2,
-			"session_id": 101,
-			"uid": "u1",
-			"device_id": "device-a",
-			"device_flag": "app",
-			"device_level": "master",
-			"slot_id": 9,
-			"state": "active",
-			"listener": "tcp",
-			"connected_at": "2026-04-23T08:00:00Z",
-			"remote_addr": "10.0.0.1:5000",
-			"local_addr": "127.0.0.1:7000"
-		}]
-	}`, rec.Body.String())
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusNotFound)
+	}
 }
 
-func TestManagerConnectionsRejectsInvalidNodeID(t *testing.T) {
+func TestManagerNodeOperationRoutesStayUnmigrated(t *testing.T) {
 	srv := New(Options{
 		Auth: testAuthConfig([]UserConfig{{
 			Username: "admin",
 			Password: "secret",
 			Permissions: []PermissionConfig{{
-				Resource: "cluster.connection",
-				Actions:  []string{"r"},
+				Resource: "*",
+				Actions:  []string{"*"},
 			}},
 		}}),
-		Management: managementStub{},
+		Management: managerNodesStub{},
 	})
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/connections?node_id=bad", nil)
+	req := httptest.NewRequest(http.MethodPost, "/manager/nodes/1/draining", nil)
 	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
 
 	srv.Engine().ServeHTTP(rec, req)
 
-	require.Equal(t, http.StatusBadRequest, rec.Code)
-	require.JSONEq(t, `{"error":"bad_request","message":"invalid node_id"}`, rec.Body.String())
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusNotFound)
+	}
 }
 
-func TestManagerConnectionsReturnsServiceUnavailableWhenManagementNotConfigured(t *testing.T) {
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "admin",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.connection",
-				Actions:  []string{"r"},
-			}},
-		}}),
-	})
+func TestManagerStartRequiresListenAddr(t *testing.T) {
+	srv := New(Options{})
 
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/connections", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusServiceUnavailable, rec.Code)
-	require.JSONEq(t, `{"error":"service_unavailable","message":"management not configured"}`, rec.Body.String())
+	if err := srv.Start(); err != ErrListenAddrRequired {
+		t.Fatalf("Start() error = %v, want %v", err, ErrListenAddrRequired)
+	}
 }
 
-func TestManagerConnectionDetailReturnsItem(t *testing.T) {
-	connectedAt := time.Date(2026, 4, 23, 8, 10, 0, 0, time.UTC)
-	var received managementusecase.GetConnectionRequest
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "admin",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.connection",
-				Actions:  []string{"r"},
-			}},
-		}}),
-		Management: managementStub{
-			connectionDetailReqSink: &received,
-			connectionDetail: managementusecase.ConnectionDetail{
-				NodeID:      2,
-				SessionID:   202,
-				UID:         "u2",
-				DeviceID:    "device-b",
-				DeviceFlag:  "web",
-				DeviceLevel: "slave",
-				SlotID:      3,
-				State:       "closing",
-				Listener:    "ws",
-				ConnectedAt: connectedAt,
-				RemoteAddr:  "10.0.0.2:6000",
-				LocalAddr:   "127.0.0.1:7100",
-			},
-		},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/connections/202?node_id=2", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusOK, rec.Code)
-	require.Equal(t, managementusecase.GetConnectionRequest{NodeID: 2, SessionID: 202}, received)
-	require.JSONEq(t, `{
-		"node_id": 2,
-		"session_id": 202,
-		"uid": "u2",
-		"device_id": "device-b",
-		"device_flag": "web",
-		"device_level": "slave",
-		"slot_id": 3,
-		"state": "closing",
-		"listener": "ws",
-		"connected_at": "2026-04-23T08:10:00Z",
-		"remote_addr": "10.0.0.2:6000",
-		"local_addr": "127.0.0.1:7100"
-	}`, rec.Body.String())
+type loginResponseBody struct {
+	Username    string           `json:"username"`
+	TokenType   string           `json:"token_type"`
+	AccessToken string           `json:"access_token"`
+	ExpiresIn   int64            `json:"expires_in"`
+	ExpiresAt   time.Time        `json:"expires_at"`
+	Permissions []permissionBody `json:"permissions"`
 }
 
-func TestManagerConnectionDetailRejectsInvalidSessionID(t *testing.T) {
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "admin",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.connection",
-				Actions:  []string{"r"},
-			}},
-		}}),
-		Management: managementStub{},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/connections/bad", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusBadRequest, rec.Code)
-	require.JSONEq(t, `{"error":"bad_request","message":"invalid session_id"}`, rec.Body.String())
-}
-
-func TestManagerConnectionDetailReturnsNotFound(t *testing.T) {
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "admin",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.connection",
-				Actions:  []string{"r"},
-			}},
-		}}),
-		Management: managementStub{connectionDetailErr: controllermeta.ErrNotFound},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/connections/99", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusNotFound, rec.Code)
-	require.JSONEq(t, `{"error":"not_found","message":"connection not found"}`, rec.Body.String())
-}
-
-func TestManagerOverviewRejectsMissingToken(t *testing.T) {
-	srv := New(Options{
-		Auth:       testAuthConfig(nil),
-		Management: managementStub{},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/overview", nil)
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusUnauthorized, rec.Code)
-	require.JSONEq(t, `{"error":"unauthorized","message":"unauthorized"}`, rec.Body.String())
-}
-
-func TestManagerOverviewRejectsInsufficientPermission(t *testing.T) {
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "viewer",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.node",
-				Actions:  []string{"r"},
-			}},
-		}}),
-		Management: managementStub{},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/overview", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "viewer"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusForbidden, rec.Code)
-	require.JSONEq(t, `{"error":"forbidden","message":"forbidden"}`, rec.Body.String())
-}
-
-func TestManagerOverviewReturnsServiceUnavailableWhenLeaderConsistentReadUnavailable(t *testing.T) {
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "admin",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.overview",
-				Actions:  []string{"r"},
-			}},
-		}}),
-		Management: managementStub{overviewErr: raftcluster.ErrNoLeader},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/overview", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusServiceUnavailable, rec.Code)
-	require.JSONEq(t, `{"error":"service_unavailable","message":"controller leader consistent read unavailable"}`, rec.Body.String())
-}
-
-func TestManagerOverviewReturnsAggregatedObject(t *testing.T) {
-	generatedAt := time.Date(2026, 4, 21, 22, 0, 0, 0, time.UTC)
-	srv := New(Options{
-		Auth: testAuthConfig([]UserConfig{{
-			Username: "admin",
-			Password: "secret",
-			Permissions: []PermissionConfig{{
-				Resource: "cluster.overview",
-				Actions:  []string{"r"},
-			}},
-		}}),
-		Management: managementStub{
-			overview: managementusecase.Overview{
-				GeneratedAt: generatedAt,
-				Cluster: managementusecase.OverviewCluster{
-					ControllerLeaderID: 1,
-				},
-				Nodes: managementusecase.OverviewNodes{
-					Total:    5,
-					Alive:    4,
-					Suspect:  0,
-					Dead:     0,
-					Draining: 1,
-				},
-				Slots: managementusecase.OverviewSlots{
-					Total:         64,
-					Ready:         60,
-					QuorumLost:    1,
-					LeaderMissing: 1,
-					Unreported:    1,
-					PeerMismatch:  1,
-					EpochLag:      2,
-				},
-				Tasks: managementusecase.OverviewTasks{
-					Total:    3,
-					Pending:  1,
-					Retrying: 1,
-					Failed:   1,
-				},
-				Anomalies: managementusecase.OverviewAnomalies{
-					Slots: managementusecase.OverviewSlotAnomalies{
-						QuorumLost: managementusecase.OverviewSlotAnomalyGroup{
-							Count: 1,
-							Items: []managementusecase.OverviewSlotAnomalyItem{{
-								SlotID:       7,
-								Quorum:       "lost",
-								Sync:         "matched",
-								LeaderID:     0,
-								DesiredPeers: []uint64{1, 2, 3},
-								CurrentPeers: []uint64{1, 2, 3},
-								LastReportAt: generatedAt.Add(-time.Minute),
-							}},
-						},
-						LeaderMissing: managementusecase.OverviewSlotAnomalyGroup{
-							Count: 1,
-							Items: []managementusecase.OverviewSlotAnomalyItem{{
-								SlotID:       9,
-								Quorum:       "ready",
-								Sync:         "matched",
-								LeaderID:     0,
-								DesiredPeers: []uint64{2, 3, 4},
-								CurrentPeers: []uint64{2, 3, 4},
-								LastReportAt: generatedAt.Add(-2 * time.Minute),
-							}},
-						},
-						SyncMismatch: managementusecase.OverviewSlotAnomalyGroup{
-							Count: 3,
-							Items: []managementusecase.OverviewSlotAnomalyItem{{
-								SlotID:       12,
-								Quorum:       "ready",
-								Sync:         "peer_mismatch",
-								LeaderID:     2,
-								DesiredPeers: []uint64{2, 3, 4},
-								CurrentPeers: []uint64{2, 3},
-								LastReportAt: generatedAt.Add(-3 * time.Minute),
-							}},
-						},
-					},
-					Tasks: managementusecase.OverviewTaskAnomalies{
-						Failed: managementusecase.OverviewTaskAnomalyGroup{
-							Count: 1,
-							Items: []managementusecase.OverviewTaskAnomalyItem{{
-								SlotID:     12,
-								Kind:       "repair",
-								Step:       "catch_up",
-								Status:     "failed",
-								SourceNode: 2,
-								TargetNode: 4,
-								Attempt:    3,
-								LastError:  "learner catch-up timeout",
-							}},
-						},
-						Retrying: managementusecase.OverviewTaskAnomalyGroup{
-							Count: 1,
-							Items: []managementusecase.OverviewTaskAnomalyItem{{
-								SlotID:     18,
-								Kind:       "rebalance",
-								Step:       "transfer_leader",
-								Status:     "retrying",
-								SourceNode: 3,
-								TargetNode: 5,
-								Attempt:    2,
-								NextRunAt:  timePtr(generatedAt.Add(2 * time.Minute)),
-								LastError:  "transfer leader rejected",
-							}},
-						},
-					},
-				},
-			},
-		},
-	})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/overview", nil)
-	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusOK, rec.Code)
-	require.NotContains(t, rec.Body.String(), `"total": 0`)
-	require.NotContains(t, rec.Body.String(), `"items":[{"channel_id"`)
-	require.JSONEq(t, `{
-		"generated_at": "2026-04-21T22:00:00Z",
-		"cluster": {
-			"controller_leader_id": 1
-		},
-		"nodes": {
-			"total": 5,
-			"alive": 4,
-			"suspect": 0,
-			"dead": 0,
-			"draining": 1
-		},
-		"slots": {
-			"total": 64,
-			"ready": 60,
-			"quorum_lost": 1,
-			"leader_missing": 1,
-			"unreported": 1,
-			"peer_mismatch": 1,
-			"epoch_lag": 2
-		},
-		"tasks": {
-			"total": 3,
-			"pending": 1,
-			"retrying": 1,
-			"failed": 1
-		},
-		"anomalies": {
-			"slots": {
-				"quorum_lost": {
-					"count": 1,
-					"items": [{
-						"slot_id": 7,
-						"quorum": "lost",
-						"sync": "matched",
-						"leader_id": 0,
-						"desired_peers": [1, 2, 3],
-						"current_peers": [1, 2, 3],
-						"last_report_at": "2026-04-21T21:59:00Z"
-					}]
-				},
-				"leader_missing": {
-					"count": 1,
-					"items": [{
-						"slot_id": 9,
-						"quorum": "ready",
-						"sync": "matched",
-						"leader_id": 0,
-						"desired_peers": [2, 3, 4],
-						"current_peers": [2, 3, 4],
-						"last_report_at": "2026-04-21T21:58:00Z"
-					}]
-				},
-				"sync_mismatch": {
-					"count": 3,
-					"items": [{
-						"slot_id": 12,
-						"quorum": "ready",
-						"sync": "peer_mismatch",
-						"leader_id": 2,
-						"desired_peers": [2, 3, 4],
-						"current_peers": [2, 3],
-						"last_report_at": "2026-04-21T21:57:00Z"
-					}]
-				}
-			},
-			"tasks": {
-				"failed": {
-					"count": 1,
-					"items": [{
-						"slot_id": 12,
-						"kind": "repair",
-						"step": "catch_up",
-						"status": "failed",
-						"source_node": 2,
-						"target_node": 4,
-						"attempt": 3,
-						"next_run_at": null,
-						"last_error": "learner catch-up timeout"
-					}]
-				},
-				"retrying": {
-					"count": 1,
-					"items": [{
-						"slot_id": 18,
-						"kind": "rebalance",
-						"step": "transfer_leader",
-						"status": "retrying",
-						"source_node": 3,
-						"target_node": 5,
-						"attempt": 2,
-						"next_run_at": "2026-04-21T22:02:00Z",
-						"last_error": "transfer leader rejected"
-					}]
-				}
-			}
-		}
-	}`, rec.Body.String())
-}
-
-func TestServerRemovesMonitorMetricsRoute(t *testing.T) {
-	srv := New(Options{Management: managementStub{}})
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/monitor/metrics?window=5m&step=5s", nil)
-
-	srv.Engine().ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusNotFound, rec.Code)
+type permissionBody struct {
+	Resource string   `json:"resource"`
+	Actions  []string `json:"actions"`
 }
 
 func testAuthConfig(users []UserConfig) AuthConfig {
@@ -4274,693 +1333,684 @@ func testAuthConfig(users []UserConfig) AuthConfig {
 func mustIssueTestToken(t *testing.T, srv *Server, username string) string {
 	t.Helper()
 	token, err := srv.issueToken(username, time.Now())
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("issueToken() error = %v", err)
+	}
 	return token
 }
 
-func mustIssueExpiredTestToken(t *testing.T, srv *Server, username string) string {
-	t.Helper()
-	token, err := srv.issueToken(username, time.Now().Add(-2*srv.auth.jwtExpire))
-	require.NoError(t, err)
-	return token
-}
-
-func mustEncodeChannelRuntimeMetaCursorForTest(t *testing.T, cursor managementusecase.ChannelRuntimeMetaListCursor) string {
-	t.Helper()
-	raw, err := encodeChannelRuntimeMetaCursor(cursor)
-	require.NoError(t, err)
-	return raw
-}
-
-func mustEncodeLegacyChannelRuntimeMetaCursorForTest(t *testing.T, cursor managementusecase.ChannelRuntimeMetaListCursor) string {
-	t.Helper()
-	payload, err := json.Marshal(channelRuntimeMetaCursorPayload{
-		Version:     1,
-		SlotID:      cursor.SlotID,
-		ChannelID:   cursor.ChannelID,
-		ChannelType: cursor.ChannelType,
-	})
-	require.NoError(t, err)
-	return base64.RawURLEncoding.EncodeToString(payload)
-}
-
-type managementStub struct {
+type managerNodesStub struct {
 	nodes                              managementusecase.NodeList
-	nodesErr                           error
-	nodeDetail                         managementusecase.NodeDetail
-	nodeDetailErr                      error
-	nodeDraining                       managementusecase.NodeDetail
-	nodeDrainingErr                    error
-	nodeResume                         managementusecase.NodeDetail
-	nodeResumeErr                      error
-	nodeScaleInReport                  managementusecase.NodeScaleInReport
-	nodeScaleInErr                     error
-	nodeScaleInNodeIDSink              *uint64
-	nodeScaleInPlanReqSink             *managementusecase.NodeScaleInPlanRequest
-	nodeScaleInAdvanceReqSink          *managementusecase.AdvanceNodeScaleInRequest
-	slotLeaderTransfer                 managementusecase.SlotDetail
-	slotLeaderTransferErr              error
-	slotAdd                            managementusecase.SlotDetail
-	slotAddErr                         error
-	slotRemove                         managementusecase.SlotRemoveResult
-	slotRemoveErr                      error
-	slotRecover                        managementusecase.SlotRecoverResult
-	slotRecoverErr                     error
-	slotRebalance                      managementusecase.SlotRebalanceResult
-	slotRebalanceErr                   error
 	slots                              []managementusecase.Slot
-	slotsErr                           error
-	listSlotsOptionsSink               *managementusecase.ListSlotsOptions
-	slotLogEntriesReqSink              *managementusecase.ListSlotLogEntriesRequest
-	slotLogEntriesPage                 managementusecase.SlotLogEntriesResponse
-	slotLogEntriesErr                  error
-	controllerLogEntriesReqSink        *managementusecase.ListControllerLogEntriesRequest
-	controllerLogEntriesPage           managementusecase.ControllerLogEntriesResponse
-	controllerLogEntriesErr            error
-	controllerRaftStatusNodeIDSink     *uint64
-	controllerRaftStatus               managementusecase.ControllerRaftStatusResponse
-	controllerRaftStatusErr            error
-	controllerRaftCompaction           managementusecase.CompactControllerRaftLogsResponse
-	controllerRaftCompactionErr        error
-	controllerRaftCompactionNodeIDSink *uint64
-	controllerRaftNodeCompaction       managementusecase.CompactControllerRaftLogsResponse
-	controllerRaftNodeCompactionErr    error
-	slotRaftCompactionNodeIDSink       *uint64
-	slotRaftCompactionSlotIDSink       *uint32
-	slotRaftCompaction                 managementusecase.CompactSlotRaftLogResponse
-	slotRaftCompactionErr              error
-	slotDetail                         managementusecase.SlotDetail
-	slotDetailErr                      error
-	tasks                              []managementusecase.Task
-	tasksErr                           error
-	task                               managementusecase.TaskDetail
-	taskErr                            error
-	distributedTaskSummary             managementusecase.DistributedTaskSummary
-	distributedTaskSummaryErr          error
-	distributedTasksReqSink            *managementusecase.DistributedTaskQuery
-	distributedTasks                   managementusecase.DistributedTaskListResult
-	distributedTasksErr                error
-	distributedTask                    managementusecase.DistributedTaskDetail
-	distributedTaskErr                 error
-	connections                        []managementusecase.Connection
-	connectionsErr                     error
-	listConnectionsReqSink             *managementusecase.ListConnectionsRequest
-	connectionDetailReqSink            *managementusecase.GetConnectionRequest
-	connectionDetail                   managementusecase.ConnectionDetail
-	connectionDetailErr                error
-	usersReqSink                       *managementusecase.ListUsersRequest
-	usersPage                          managementusecase.ListUsersResponse
-	usersErr                           error
-	userDetail                         managementusecase.UserDetail
-	userDetailErr                      error
-	kickUserReqSink                    *managementusecase.KickUserRequest
-	kickUserResponse                   managementusecase.KickUserResponse
-	kickUserErr                        error
-	resetUserTokenReqSink              *managementusecase.ResetUserTokenRequest
-	resetUserTokenResponse             managementusecase.ResetUserTokenResponse
-	resetUserTokenErr                  error
-	systemUsers                        managementusecase.ListSystemUsersResponse
-	systemUsersErr                     error
-	systemUsersAddReqSink              *managementusecase.MutateSystemUsersRequest
-	systemUsersRemoveReqSink           *managementusecase.MutateSystemUsersRequest
-	systemUsersMutation                managementusecase.MutateSystemUsersResponse
-	systemUsersMutationErr             error
-	businessChannelsReqSink            *managementusecase.ListBusinessChannelsRequest
-	businessChannelsPage               managementusecase.ListBusinessChannelsResponse
-	businessChannelsErr                error
-	businessChannelDetail              managementusecase.BusinessChannelDetail
-	businessChannelDetailErr           error
-	businessChannelUpsertReqSink       *managementusecase.UpsertBusinessChannelRequest
-	businessChannelMembersReqSink      *managementusecase.ListBusinessChannelMembersRequest
-	businessChannelMembersPage         managementusecase.ListBusinessChannelMembersResponse
-	businessChannelMembersErr          error
-	businessChannelMutateReqSink       *managementusecase.MutateBusinessChannelMembersRequest
-	businessChannelSecondMutateReqSink *managementusecase.MutateBusinessChannelMembersRequest
-	businessChannelMutateResponse      managementusecase.MutateBusinessChannelMembersResponse
-	businessChannelMutateErr           error
-	channelRuntimeMetaReqSink          *managementusecase.ListChannelRuntimeMetaRequest
-	channelRuntimeMetaPage             managementusecase.ListChannelRuntimeMetaResponse
-	channelRuntimeMetaErr              error
-	channelRuntimeMetaDetailReqSink    *channelRuntimeMetaDetailCall
-	channelRuntimeMetaDetail           managementusecase.ChannelRuntimeMetaDetail
-	channelRuntimeMetaDetailErr        error
-	channelClusterSummary              managementusecase.ChannelClusterSummary
-	channelClusterSummaryErr           error
-	channelClusterUnhealthyReqSink     *managementusecase.ListChannelClusterUnhealthyRequest
-	channelClusterUnhealthyPage        managementusecase.ListChannelClusterUnhealthyResponse
-	channelClusterUnhealthyErr         error
-	channelClusterReplicaDetailReqSink *channelRuntimeMetaDetailCall
-	channelClusterReplicaDetail        managementusecase.ChannelClusterReplicaDetail
-	channelClusterReplicaDetailErr     error
-	channelClusterRepairReqSink        *managementusecase.RepairChannelClusterLeaderRequest
-	channelClusterRepair               managementusecase.RepairChannelClusterLeaderResponse
-	channelClusterRepairErr            error
-	channelClusterTransferReqSink      *managementusecase.TransferChannelClusterLeaderRequest
-	channelClusterTransfer             managementusecase.TransferChannelClusterLeaderResponse
-	channelClusterTransferErr          error
-	messagesReqSink                    *managementusecase.ListMessagesRequest
-	messagesPage                       managementusecase.ListMessagesResponse
-	messagesErr                        error
-	recentConversationsReqSink         *managementusecase.RecentConversationsRequest
+	channelRuntimeMeta                 managementusecase.ListChannelRuntimeMetaResponse
+	channelMigrationSummary            managementusecase.ChannelMigrationSummary
+	channelMigrationList               managementusecase.ChannelMigrationListResponse
+	businessChannels                   managementusecase.ListBusinessChannelsResponse
 	recentConversations                managementusecase.RecentConversationsResponse
-	recentConversationsErr             error
-	retentionReqSink                   *managementusecase.AdvanceMessageRetentionRequest
-	retentionResult                    managementusecase.AdvanceMessageRetentionResponse
-	retentionErr                       error
-	overview                           managementusecase.Overview
-	overviewErr                        error
-	networkSummary                     managementusecase.NetworkSummary
-	networkSummaryErr                  error
-	pluginList                         pluginusecase.LocalPluginList
-	pluginListErr                      error
-	pluginDetail                       pluginusecase.LocalPluginDetail
-	pluginDetailErr                    error
-	pluginUpdateReqSink                *managementusecase.UpdatePluginConfigRequest
-	pluginRestartReqSink               *managementusecase.PluginBindingMutationRequest
-	pluginUninstallReqSink             *managementusecase.PluginBindingMutationRequest
-	pluginMutationErr                  error
-	pluginBindingListReqSink           *managementusecase.PluginBindingListRequest
+	messagesPage                       managementusecase.ListMessagesResponse
+	connections                        []managementusecase.Connection
+	connectionDetail                   managementusecase.ConnectionDetail
+	pluginList                         managementusecase.NodePluginList
+	pluginDetail                       managementusecase.Plugin
+	pluginMutationDetail               managementusecase.Plugin
 	pluginBindingList                  managementusecase.PluginBindingListResponse
-	pluginBindingListErr               error
+	pluginBindingMutation              managementusecase.PluginBindingMutationResponse
+	usersPage                          managementusecase.ListUsersResponse
+	userDetail                         managementusecase.UserDetail
+	slotLogEntriesPage                 managementusecase.SlotLogEntriesResponse
+	controllerLogEntriesPage           managementusecase.ControllerLogEntriesResponse
+	controllerTasksResponse            managementusecase.ListControllerTasksResponse
+	controllerTask                     managementusecase.ControllerTask
+	controllerTaskAuditsResponse       managementusecase.ControllerTaskAuditListResponse
+	controllerTaskAuditEventsResponse  managementusecase.ControllerTaskAuditEventsResponse
+	controllerRaftStatus               managementusecase.ControllerRaftStatus
+	controllerRaftCompactResult        managementusecase.ControllerRaftCompactionResult
+	controllerRaftCompactSummary       managementusecase.ControllerRaftCompactionSummary
+	slotRaftCompactSummary             managementusecase.SlotRaftCompactionSummary
+	joinNodeResponse                   managementusecase.JoinNodeResponse
+	activateNodeResponse               managementusecase.ActivateNodeResponse
+	markNodeLeaving                    managementusecase.MarkNodeLeavingResponse
+	markNodeRemoved                    managementusecase.MarkNodeRemovedResponse
+	promoteControllerVoterResponse     managementusecase.PromoteControllerVoterResponse
+	slotLeaderTransferResponse         managementusecase.SlotLeaderTransferResponse
+	slotLeaderTransferBatchPlan        managementusecase.SlotLeaderTransferBatchPlanResponse
+	slotLeaderTransferBatchExecute     managementusecase.SlotLeaderTransferBatchExecuteResponse
+	nodeOnboardingPlan                 managementusecase.NodeOnboardingPlanResponse
+	nodeOnboardingStart                managementusecase.NodeOnboardingStartResponse
+	nodeOnboardingAdvance              managementusecase.NodeOnboardingStartResponse
+	nodeOnboardingStatus               managementusecase.NodeOnboardingStatusResponse
+	slotMoveOutPlan                    managementusecase.NodeSlotMoveOutPlanResponse
+	slotMoveOutAdvance                 managementusecase.NodeSlotMoveOutAdvanceResponse
+	scaleInPlan                        managementusecase.NodeScaleInPlanResponse
+	scaleInAdvance                     managementusecase.NodeScaleInAdvanceResponse
+	scaleInStatus                      managementusecase.NodeScaleInStatusResponse
+	scaleInDrain                       managementusecase.SetNodeDrainModeResponse
+	dynamicNodeDiagnostics             managementusecase.DynamicNodeDiagnosticsResponse
+	diagnosticsResponse                managementusecase.DiagnosticsQueryResponse
+	diagnosticsTrackingCreateResponse  managementusecase.DiagnosticsTrackingMutationResponse
+	diagnosticsTrackingListResponse    managementusecase.DiagnosticsTrackingListResponse
+	diagnosticsTrackingDeleteResponse  managementusecase.DiagnosticsTrackingDeleteResponse
+	kickUserResponse                   managementusecase.KickUserResponse
+	resetUserTokenResponse             managementusecase.ResetUserTokenResponse
+	retentionResult                    managementusecase.AdvanceMessageRetentionResponse
+	systemUsers                        managementusecase.ListSystemUsersResponse
+	systemUsersMutation                managementusecase.MutateSystemUsersResponse
+	lastSlotsOptions                   *managementusecase.ListSlotsOptions
+	lastChannelRuntimeMetaRequest      *managementusecase.ListChannelRuntimeMetaRequest
+	lastChannelLeaderTransferRequest   *managementusecase.LeaderTransferInput
+	lastChannelReplicaReplaceRequest   *managementusecase.ReplicaReplaceInput
+	lastChannelMigrationListRequest    *managementusecase.ChannelMigrationListInput
+	lastChannelMigrationLookupRequest  *managementusecase.ChannelMigrationLookupInput
+	lastChannelMigrationAbortRequest   *managementusecase.ChannelMigrationAbortInput
+	lastBusinessChannelsRequest        *managementusecase.ListBusinessChannelsRequest
+	recentConversationsReqSink         *managementusecase.RecentConversationsRequest
+	messagesReqSink                    *managementusecase.ListMessagesRequest
+	connectionsReqSink                 *managementusecase.ListConnectionsRequest
+	connectionDetailReqSink            *managementusecase.GetConnectionRequest
+	pluginListNodeSink                 *uint64
+	pluginDetailNodeSink               *uint64
+	pluginDetailNoSink                 *string
+	pluginConfigUpdateNodeSink         *uint64
+	pluginConfigUpdateNoSink           *string
+	pluginConfigUpdateBodySink         *string
+	pluginRestartNodeSink              *uint64
+	pluginRestartNoSink                *string
+	pluginUninstallNodeSink            *uint64
+	pluginUninstallNoSink              *string
+	pluginBindingListReqSink           *managementusecase.PluginBindingListRequest
 	pluginBindingMutationReqSink       *managementusecase.PluginBindingMutationRequest
 	pluginBindingUnbindReqSink         *managementusecase.PluginBindingMutationRequest
-	pluginBindingMutation              managementusecase.PluginBindingMutationResponse
-	pluginBindingMutationErr           error
-	nodeOnboardingCandidates           managementusecase.NodeOnboardingCandidatesResponse
-	nodeOnboardingCandidatesErr        error
-	nodeOnboardingJob                  managementusecase.NodeOnboardingJobResponse
-	nodeOnboardingJobs                 managementusecase.NodeOnboardingJobsResponse
-	nodeOnboardingPlanReqSink          *managementusecase.CreateNodeOnboardingPlanRequest
-	nodeOnboardingJobErr               error
+	slotLogEntriesReqSink              *managementusecase.ListSlotLogEntriesRequest
+	controllerLogEntriesReqSink        *managementusecase.ListControllerLogEntriesRequest
+	controllerTasksReqSink             *managementusecase.ListControllerTasksRequest
+	controllerTaskIDSink               *string
+	controllerTaskAuditsReqSink        *managementusecase.ControllerTaskAuditListRequest
+	controllerTaskAuditEventsIDSink    *string
+	controllerRaftStatusNodeSink       *uint64
+	controllerRaftCompactNodeSink      *uint64
+	slotRaftCompactNodeSink            *uint64
+	slotRaftCompactSlotSink            *uint32
+	joinNodeReqSink                    *managementusecase.JoinNodeRequest
+	activateNodeReqSink                *managementusecase.ActivateNodeRequest
+	markNodeLeavingReqSink             *managementusecase.MarkNodeLeavingRequest
+	markNodeRemovedReqSink             *managementusecase.MarkNodeRemovedRequest
+	promoteControllerVoterReqSink      *managementusecase.PromoteControllerVoterRequest
+	slotLeaderTransferReqSink          *managementusecase.SlotLeaderTransferRequest
+	slotLeaderTransferBatchPlanSink    *managementusecase.SlotLeaderTransferBatchPlanRequest
+	slotLeaderTransferBatchExecuteSink *managementusecase.SlotLeaderTransferBatchExecuteRequest
+	nodeOnboardingPlanReqSink          *managementusecase.NodeOnboardingPlanRequest
+	nodeOnboardingStartReqSink         *managementusecase.NodeOnboardingStartRequest
+	nodeOnboardingAdvanceReqSink       *managementusecase.NodeOnboardingAdvanceRequest
+	nodeOnboardingStatusReqSink        *managementusecase.NodeOnboardingStatusRequest
+	slotMoveOutPlanReqSink             *managementusecase.NodeSlotMoveOutPlanRequest
+	slotMoveOutAdvanceReqSink          *managementusecase.NodeSlotMoveOutAdvanceRequest
+	scaleInPlanReqSink                 *managementusecase.NodeScaleInPlanRequest
+	scaleInAdvanceReqSink              *managementusecase.NodeScaleInAdvanceRequest
+	scaleInStatusReqSink               *managementusecase.NodeScaleInStatusRequest
+	scaleInDrainReqSink                *managementusecase.SetNodeDrainModeRequest
+	dynamicNodeDiagnosticsReqSink      *managementusecase.DynamicNodeDiagnosticsRequest
 	diagnosticsReqSink                 *managementusecase.DiagnosticsQueryRequest
-	diagnosticsResponse                managementusecase.DiagnosticsQueryResponse
+	diagnosticsTrackingCreateReqSink   *managementusecase.DiagnosticsTrackingCreateRequest
+	diagnosticsTrackingDeleteRuleSink  *string
+	retentionReqSink                   *managementusecase.AdvanceMessageRetentionRequest
+	usersReqSink                       *managementusecase.ListUsersRequest
+	kickUserReqSink                    *managementusecase.KickUserRequest
+	resetUserTokenReqSink              *managementusecase.ResetUserTokenRequest
+	systemUsersAddReq                  *managementusecase.MutateSystemUsersRequest
+	systemUsersRemoveReq               *managementusecase.MutateSystemUsersRequest
+	err                                error
+	slotsErr                           error
+	channelRuntimeMetaErr              error
+	channelMigrationErr                error
+	businessChannelsErr                error
+	recentConversationsErr             error
+	messagesErr                        error
+	connectionsErr                     error
+	connectionDetailErr                error
+	pluginListErr                      error
+	pluginDetailErr                    error
+	pluginMutationErr                  error
+	pluginBindingListErr               error
+	pluginBindingMutationErr           error
+	pluginBindingUnbindErr             error
+	slotLogEntriesErr                  error
+	controllerLogEntriesErr            error
+	controllerTasksErr                 error
+	controllerTaskErr                  error
+	controllerTaskAuditsErr            error
+	controllerTaskAuditEventsErr       error
+	controllerRaftStatusErr            error
+	controllerRaftCompactErr           error
+	controllerRaftCompactAllErr        error
+	slotRaftCompactErr                 error
+	joinNodeErr                        error
+	activateNodeErr                    error
+	markNodeLeavingErr                 error
+	markNodeRemovedErr                 error
+	promoteControllerVoterErr          error
+	slotLeaderTransferErr              error
+	slotLeaderTransferBatchPlanErr     error
+	slotLeaderTransferBatchExecuteErr  error
+	nodeOnboardingPlanErr              error
+	nodeOnboardingStartErr             error
+	nodeOnboardingAdvanceErr           error
+	nodeOnboardingStatusErr            error
+	slotMoveOutPlanErr                 error
+	slotMoveOutAdvanceErr              error
+	scaleInPlanErr                     error
+	scaleInAdvanceErr                  error
+	scaleInStatusErr                   error
+	scaleInDrainErr                    error
+	dynamicNodeDiagnosticsErr          error
 	diagnosticsErr                     error
+	diagnosticsTrackingCreateErr       error
+	diagnosticsTrackingListErr         error
+	diagnosticsTrackingDeleteErr       error
+	retentionErr                       error
+	usersErr                           error
+	userDetailErr                      error
+	kickUserErr                        error
+	resetUserTokenErr                  error
+	systemUsersErr                     error
+	systemUsersMutationErr             error
 }
 
-func nodeListAt(t time.Time, leader uint64, items ...managementusecase.Node) managementusecase.NodeList {
-	return managementusecase.NodeList{
-		GeneratedAt:        t,
-		ControllerLeaderID: leader,
-		Items:              append([]managementusecase.Node(nil), items...),
+type managerTopStub struct {
+	snapshot accessapi.TopSnapshot
+	err      error
+	query    accessapi.TopSnapshotQuery
+}
+
+type managerMonitorStub struct {
+	response RealtimeMonitorResponse
+	err      error
+	query    RealtimeMonitorQuery
+}
+
+func (s *managerTopStub) SnapshotTop(_ context.Context, query accessapi.TopSnapshotQuery) (accessapi.TopSnapshot, error) {
+	s.query = query
+	if s.err != nil {
+		return accessapi.TopSnapshot{}, s.err
 	}
+	return s.snapshot, nil
 }
 
-func (s managementStub) ListNodes(context.Context) (managementusecase.NodeList, error) {
-	return managementusecase.NodeList{
-		GeneratedAt:        s.nodes.GeneratedAt,
-		ControllerLeaderID: s.nodes.ControllerLeaderID,
-		Items:              append([]managementusecase.Node(nil), s.nodes.Items...),
-	}, s.nodesErr
-}
-
-func (s managementStub) GetNode(context.Context, uint64) (managementusecase.NodeDetail, error) {
-	return s.nodeDetail, s.nodeDetailErr
-}
-
-func (s managementStub) MarkNodeDraining(context.Context, uint64) (managementusecase.NodeDetail, error) {
-	return s.nodeDraining, s.nodeDrainingErr
-}
-
-func (s managementStub) ResumeNode(context.Context, uint64) (managementusecase.NodeDetail, error) {
-	return s.nodeResume, s.nodeResumeErr
-}
-
-func (s managementStub) PlanNodeScaleIn(_ context.Context, nodeID uint64, req managementusecase.NodeScaleInPlanRequest) (managementusecase.NodeScaleInReport, error) {
-	if s.nodeScaleInNodeIDSink != nil {
-		*s.nodeScaleInNodeIDSink = nodeID
+func (s *managerMonitorStub) RealtimeMonitor(_ context.Context, query RealtimeMonitorQuery) (RealtimeMonitorResponse, error) {
+	s.query = query
+	if s.err != nil {
+		return RealtimeMonitorResponse{}, s.err
 	}
-	if s.nodeScaleInPlanReqSink != nil {
-		*s.nodeScaleInPlanReqSink = req
-	}
-	return s.nodeScaleInReport, s.nodeScaleInErr
+	return s.response, nil
 }
 
-func (s managementStub) StartNodeScaleIn(_ context.Context, nodeID uint64, req managementusecase.NodeScaleInPlanRequest) (managementusecase.NodeScaleInReport, error) {
-	if s.nodeScaleInNodeIDSink != nil {
-		*s.nodeScaleInNodeIDSink = nodeID
-	}
-	if s.nodeScaleInPlanReqSink != nil {
-		*s.nodeScaleInPlanReqSink = req
-	}
-	return s.nodeScaleInReport, s.nodeScaleInErr
+func testFloat64Ptr(v float64) *float64 {
+	return &v
 }
 
-func (s managementStub) GetNodeScaleInStatus(_ context.Context, nodeID uint64) (managementusecase.NodeScaleInReport, error) {
-	if s.nodeScaleInNodeIDSink != nil {
-		*s.nodeScaleInNodeIDSink = nodeID
-	}
-	return s.nodeScaleInReport, s.nodeScaleInErr
+func (s managerNodesStub) ListNodes(context.Context) (managementusecase.NodeList, error) {
+	return s.nodes, s.err
 }
 
-func (s managementStub) AdvanceNodeScaleIn(_ context.Context, nodeID uint64, req managementusecase.AdvanceNodeScaleInRequest) (managementusecase.NodeScaleInReport, error) {
-	if s.nodeScaleInNodeIDSink != nil {
-		*s.nodeScaleInNodeIDSink = nodeID
+func (s managerNodesStub) JoinNode(_ context.Context, req managementusecase.JoinNodeRequest) (managementusecase.JoinNodeResponse, error) {
+	if s.joinNodeReqSink != nil {
+		*s.joinNodeReqSink = req
 	}
-	if s.nodeScaleInAdvanceReqSink != nil {
-		*s.nodeScaleInAdvanceReqSink = req
-	}
-	return s.nodeScaleInReport, s.nodeScaleInErr
+	return s.joinNodeResponse, s.joinNodeErr
 }
 
-func (s managementStub) CancelNodeScaleIn(_ context.Context, nodeID uint64) (managementusecase.NodeScaleInReport, error) {
-	if s.nodeScaleInNodeIDSink != nil {
-		*s.nodeScaleInNodeIDSink = nodeID
+func (s managerNodesStub) ActivateNode(_ context.Context, req managementusecase.ActivateNodeRequest) (managementusecase.ActivateNodeResponse, error) {
+	if s.activateNodeReqSink != nil {
+		*s.activateNodeReqSink = req
 	}
-	return s.nodeScaleInReport, s.nodeScaleInErr
+	return s.activateNodeResponse, s.activateNodeErr
 }
 
-func (s managementStub) ListSlots(_ context.Context, opts managementusecase.ListSlotsOptions) ([]managementusecase.Slot, error) {
-	if s.listSlotsOptionsSink != nil {
-		*s.listSlotsOptionsSink = opts
+func (s managerNodesStub) MarkNodeLeaving(_ context.Context, req managementusecase.MarkNodeLeavingRequest) (managementusecase.MarkNodeLeavingResponse, error) {
+	if s.markNodeLeavingReqSink != nil {
+		*s.markNodeLeavingReqSink = req
 	}
-	return append([]managementusecase.Slot(nil), s.slots...), s.slotsErr
+	return s.markNodeLeaving, s.markNodeLeavingErr
 }
 
-func (s managementStub) GetSlot(context.Context, uint32) (managementusecase.SlotDetail, error) {
-	return s.slotDetail, s.slotDetailErr
+func (s managerNodesStub) MarkNodeRemoved(_ context.Context, req managementusecase.MarkNodeRemovedRequest) (managementusecase.MarkNodeRemovedResponse, error) {
+	if s.markNodeRemovedReqSink != nil {
+		*s.markNodeRemovedReqSink = req
+	}
+	return s.markNodeRemoved, s.markNodeRemovedErr
 }
 
-func (s managementStub) ListSlotLogEntries(_ context.Context, req managementusecase.ListSlotLogEntriesRequest) (managementusecase.SlotLogEntriesResponse, error) {
+func (s managerNodesStub) PromoteControllerVoter(_ context.Context, req managementusecase.PromoteControllerVoterRequest) (managementusecase.PromoteControllerVoterResponse, error) {
+	if s.promoteControllerVoterReqSink != nil {
+		*s.promoteControllerVoterReqSink = req
+	}
+	return s.promoteControllerVoterResponse, s.promoteControllerVoterErr
+}
+
+func (s managerNodesStub) ListSlots(_ context.Context, opts managementusecase.ListSlotsOptions) ([]managementusecase.Slot, error) {
+	if s.lastSlotsOptions != nil {
+		*s.lastSlotsOptions = opts
+	}
+	return s.slots, s.slotsErr
+}
+
+func (s managerNodesStub) ListChannelRuntimeMeta(_ context.Context, req managementusecase.ListChannelRuntimeMetaRequest) (managementusecase.ListChannelRuntimeMetaResponse, error) {
+	if s.lastChannelRuntimeMetaRequest != nil {
+		*s.lastChannelRuntimeMetaRequest = req
+	}
+	return s.channelRuntimeMeta, s.channelRuntimeMetaErr
+}
+
+func (s managerNodesStub) RequestChannelLeaderTransfer(_ context.Context, req managementusecase.LeaderTransferInput) (managementusecase.ChannelMigrationSummary, error) {
+	if s.lastChannelLeaderTransferRequest != nil {
+		*s.lastChannelLeaderTransferRequest = req
+	}
+	return s.channelMigrationSummary, s.channelMigrationErr
+}
+
+func (s managerNodesStub) RequestChannelReplicaReplace(_ context.Context, req managementusecase.ReplicaReplaceInput) (managementusecase.ChannelMigrationSummary, error) {
+	if s.lastChannelReplicaReplaceRequest != nil {
+		*s.lastChannelReplicaReplaceRequest = req
+	}
+	return s.channelMigrationSummary, s.channelMigrationErr
+}
+
+func (s managerNodesStub) ActiveChannelMigration(_ context.Context, req managementusecase.ChannelMigrationListInput) (managementusecase.ChannelMigrationSummary, bool, error) {
+	if s.lastChannelMigrationListRequest != nil {
+		*s.lastChannelMigrationListRequest = req
+	}
+	return s.channelMigrationSummary, s.channelMigrationSummary.TaskID != "", s.channelMigrationErr
+}
+
+func (s managerNodesStub) ListActiveChannelMigrations(_ context.Context, req managementusecase.ChannelMigrationListInput) (managementusecase.ChannelMigrationListResponse, error) {
+	if s.lastChannelMigrationListRequest != nil {
+		*s.lastChannelMigrationListRequest = req
+	}
+	return s.channelMigrationList, s.channelMigrationErr
+}
+
+func (s managerNodesStub) ChannelMigration(_ context.Context, req managementusecase.ChannelMigrationLookupInput) (managementusecase.ChannelMigrationSummary, error) {
+	if s.lastChannelMigrationLookupRequest != nil {
+		*s.lastChannelMigrationLookupRequest = req
+	}
+	return s.channelMigrationSummary, s.channelMigrationErr
+}
+
+func (s managerNodesStub) AbortChannelMigration(_ context.Context, req managementusecase.ChannelMigrationAbortInput) (managementusecase.ChannelMigrationSummary, error) {
+	if s.lastChannelMigrationAbortRequest != nil {
+		*s.lastChannelMigrationAbortRequest = req
+	}
+	return s.channelMigrationSummary, s.channelMigrationErr
+}
+
+func (s managerNodesStub) ListSlotLogEntries(_ context.Context, req managementusecase.ListSlotLogEntriesRequest) (managementusecase.SlotLogEntriesResponse, error) {
 	if s.slotLogEntriesReqSink != nil {
 		*s.slotLogEntriesReqSink = req
 	}
 	return s.slotLogEntriesPage, s.slotLogEntriesErr
 }
 
-func (s managementStub) ListControllerLogEntries(_ context.Context, req managementusecase.ListControllerLogEntriesRequest) (managementusecase.ControllerLogEntriesResponse, error) {
+func (s managerNodesStub) ListControllerLogEntries(_ context.Context, req managementusecase.ListControllerLogEntriesRequest) (managementusecase.ControllerLogEntriesResponse, error) {
 	if s.controllerLogEntriesReqSink != nil {
 		*s.controllerLogEntriesReqSink = req
 	}
 	return s.controllerLogEntriesPage, s.controllerLogEntriesErr
 }
 
-func (s managementStub) GetControllerRaftStatus(_ context.Context, nodeID uint64) (managementusecase.ControllerRaftStatusResponse, error) {
-	if s.controllerRaftStatusNodeIDSink != nil {
-		*s.controllerRaftStatusNodeIDSink = nodeID
+func (s managerNodesStub) ListControllerTasks(_ context.Context, req managementusecase.ListControllerTasksRequest) (managementusecase.ListControllerTasksResponse, error) {
+	if s.controllerTasksReqSink != nil {
+		*s.controllerTasksReqSink = req
+	}
+	return s.controllerTasksResponse, s.controllerTasksErr
+}
+
+func (s managerNodesStub) ControllerTask(_ context.Context, taskID string) (managementusecase.ControllerTask, error) {
+	if s.controllerTaskIDSink != nil {
+		*s.controllerTaskIDSink = taskID
+	}
+	return s.controllerTask, s.controllerTaskErr
+}
+
+func (s managerNodesStub) ListControllerTaskAudits(_ context.Context, req managementusecase.ControllerTaskAuditListRequest) (managementusecase.ControllerTaskAuditListResponse, error) {
+	if s.controllerTaskAuditsReqSink != nil {
+		*s.controllerTaskAuditsReqSink = req
+	}
+	return s.controllerTaskAuditsResponse, s.controllerTaskAuditsErr
+}
+
+func (s managerNodesStub) ControllerTaskAuditEvents(_ context.Context, taskID string) (managementusecase.ControllerTaskAuditEventsResponse, error) {
+	if s.controllerTaskAuditEventsIDSink != nil {
+		*s.controllerTaskAuditEventsIDSink = taskID
+	}
+	return s.controllerTaskAuditEventsResponse, s.controllerTaskAuditEventsErr
+}
+
+func (s managerNodesStub) ControllerRaftStatus(_ context.Context, nodeID uint64) (managementusecase.ControllerRaftStatus, error) {
+	if s.controllerRaftStatusNodeSink != nil {
+		*s.controllerRaftStatusNodeSink = nodeID
 	}
 	return s.controllerRaftStatus, s.controllerRaftStatusErr
 }
 
-func (s managementStub) CompactControllerRaftLogs(context.Context) (managementusecase.CompactControllerRaftLogsResponse, error) {
-	return s.controllerRaftCompaction, s.controllerRaftCompactionErr
-}
-
-func (s managementStub) CompactControllerRaftLog(_ context.Context, nodeID uint64) (managementusecase.CompactControllerRaftLogsResponse, error) {
-	if s.controllerRaftCompactionNodeIDSink != nil {
-		*s.controllerRaftCompactionNodeIDSink = nodeID
+func (s managerNodesStub) CompactControllerRaftLog(_ context.Context, nodeID uint64) (managementusecase.ControllerRaftCompactionResult, error) {
+	if s.controllerRaftCompactNodeSink != nil {
+		*s.controllerRaftCompactNodeSink = nodeID
 	}
-	return s.controllerRaftNodeCompaction, s.controllerRaftNodeCompactionErr
+	return s.controllerRaftCompactResult, s.controllerRaftCompactErr
 }
 
-func (s managementStub) CompactSlotRaftLog(_ context.Context, nodeID uint64, slotID uint32) (managementusecase.CompactSlotRaftLogResponse, error) {
-	if s.slotRaftCompactionNodeIDSink != nil {
-		*s.slotRaftCompactionNodeIDSink = nodeID
+func (s managerNodesStub) CompactControllerRaftLogs(context.Context) (managementusecase.ControllerRaftCompactionSummary, error) {
+	return s.controllerRaftCompactSummary, s.controllerRaftCompactAllErr
+}
+
+func (s managerNodesStub) CompactSlotRaftLog(_ context.Context, nodeID uint64, slotID uint32) (managementusecase.SlotRaftCompactionSummary, error) {
+	if s.slotRaftCompactNodeSink != nil {
+		*s.slotRaftCompactNodeSink = nodeID
 	}
-	if s.slotRaftCompactionSlotIDSink != nil {
-		*s.slotRaftCompactionSlotIDSink = slotID
+	if s.slotRaftCompactSlotSink != nil {
+		*s.slotRaftCompactSlotSink = slotID
 	}
-	return s.slotRaftCompaction, s.slotRaftCompactionErr
+	return s.slotRaftCompactSummary, s.slotRaftCompactErr
 }
 
-func (s managementStub) AddSlot(context.Context) (managementusecase.SlotDetail, error) {
-	return s.slotAdd, s.slotAddErr
-}
-
-func (s managementStub) RemoveSlot(context.Context, uint32) (managementusecase.SlotRemoveResult, error) {
-	return s.slotRemove, s.slotRemoveErr
-}
-
-func (s managementStub) RecoverSlot(context.Context, uint32, managementusecase.SlotRecoverStrategy) (managementusecase.SlotRecoverResult, error) {
-	return s.slotRecover, s.slotRecoverErr
-}
-
-func (s managementStub) RebalanceSlots(context.Context) (managementusecase.SlotRebalanceResult, error) {
-	return s.slotRebalance, s.slotRebalanceErr
-}
-
-func (s managementStub) ListTasks(context.Context) ([]managementusecase.Task, error) {
-	return append([]managementusecase.Task(nil), s.tasks...), s.tasksErr
-}
-
-func (s managementStub) GetTask(context.Context, uint32) (managementusecase.TaskDetail, error) {
-	return s.task, s.taskErr
-}
-
-func (s managementStub) GetDistributedTasksSummary(context.Context) (managementusecase.DistributedTaskSummary, error) {
-	return s.distributedTaskSummary, s.distributedTaskSummaryErr
-}
-
-func (s managementStub) ListDistributedTasks(_ context.Context, query managementusecase.DistributedTaskQuery) (managementusecase.DistributedTaskListResult, error) {
-	if s.distributedTasksReqSink != nil {
-		*s.distributedTasksReqSink = query
+func (s managerNodesStub) RequestSlotLeaderTransfer(_ context.Context, req managementusecase.SlotLeaderTransferRequest) (managementusecase.SlotLeaderTransferResponse, error) {
+	if s.slotLeaderTransferReqSink != nil {
+		*s.slotLeaderTransferReqSink = req
 	}
-	return s.distributedTasks, s.distributedTasksErr
+	return s.slotLeaderTransferResponse, s.slotLeaderTransferErr
 }
 
-func (s managementStub) GetDistributedTask(context.Context, managementusecase.DistributedTaskDomain, string) (managementusecase.DistributedTaskDetail, error) {
-	return s.distributedTask, s.distributedTaskErr
-}
-
-func (s managementStub) ListConnections(_ context.Context, req managementusecase.ListConnectionsRequest) ([]managementusecase.Connection, error) {
-	if s.listConnectionsReqSink != nil {
-		*s.listConnectionsReqSink = req
+func (s managerNodesStub) PlanSlotLeaderTransfers(_ context.Context, req managementusecase.SlotLeaderTransferBatchPlanRequest) (managementusecase.SlotLeaderTransferBatchPlanResponse, error) {
+	if s.slotLeaderTransferBatchPlanSink != nil {
+		*s.slotLeaderTransferBatchPlanSink = req
 	}
-	return append([]managementusecase.Connection(nil), s.connections...), s.connectionsErr
+	return s.slotLeaderTransferBatchPlan, s.slotLeaderTransferBatchPlanErr
 }
 
-func (s managementStub) GetConnection(_ context.Context, req managementusecase.GetConnectionRequest) (managementusecase.ConnectionDetail, error) {
-	if s.connectionDetailReqSink != nil {
-		*s.connectionDetailReqSink = req
+func (s managerNodesStub) ExecuteSlotLeaderTransferBatch(_ context.Context, req managementusecase.SlotLeaderTransferBatchExecuteRequest) (managementusecase.SlotLeaderTransferBatchExecuteResponse, error) {
+	if s.slotLeaderTransferBatchExecuteSink != nil {
+		*s.slotLeaderTransferBatchExecuteSink = req
 	}
-	return s.connectionDetail, s.connectionDetailErr
+	return s.slotLeaderTransferBatchExecute, s.slotLeaderTransferBatchExecuteErr
 }
 
-func (s managementStub) ListUsers(_ context.Context, req managementusecase.ListUsersRequest) (managementusecase.ListUsersResponse, error) {
-	if s.usersReqSink != nil {
-		*s.usersReqSink = req
-	}
-	return s.usersPage, s.usersErr
-}
-
-func (s managementStub) GetUser(_ context.Context, uid string) (managementusecase.UserDetail, error) {
-	return s.userDetail, s.userDetailErr
-}
-
-func (s managementStub) KickUser(_ context.Context, req managementusecase.KickUserRequest) (managementusecase.KickUserResponse, error) {
-	if s.kickUserReqSink != nil {
-		*s.kickUserReqSink = req
-	}
-	return s.kickUserResponse, s.kickUserErr
-}
-
-func (s managementStub) ResetUserToken(_ context.Context, req managementusecase.ResetUserTokenRequest) (managementusecase.ResetUserTokenResponse, error) {
-	if s.resetUserTokenReqSink != nil {
-		*s.resetUserTokenReqSink = req
-	}
-	return s.resetUserTokenResponse, s.resetUserTokenErr
-}
-
-func (s managementStub) ListSystemUsers(context.Context) (managementusecase.ListSystemUsersResponse, error) {
-	return s.systemUsers, s.systemUsersErr
-}
-
-func (s managementStub) AddSystemUsers(_ context.Context, req managementusecase.MutateSystemUsersRequest) (managementusecase.MutateSystemUsersResponse, error) {
-	if s.systemUsersAddReqSink != nil {
-		*s.systemUsersAddReqSink = req
-	}
-	return s.systemUsersMutation, s.systemUsersMutationErr
-}
-
-func (s managementStub) RemoveSystemUsers(_ context.Context, req managementusecase.MutateSystemUsersRequest) (managementusecase.MutateSystemUsersResponse, error) {
-	if s.systemUsersRemoveReqSink != nil {
-		*s.systemUsersRemoveReqSink = req
-	}
-	return s.systemUsersMutation, s.systemUsersMutationErr
-}
-
-func (s managementStub) ListBusinessChannels(_ context.Context, req managementusecase.ListBusinessChannelsRequest) (managementusecase.ListBusinessChannelsResponse, error) {
-	if s.businessChannelsReqSink != nil {
-		*s.businessChannelsReqSink = req
-	}
-	return s.businessChannelsPage, s.businessChannelsErr
-}
-
-func (s managementStub) GetBusinessChannel(_ context.Context, channelID string, channelType int64) (managementusecase.BusinessChannelDetail, error) {
-	if s.businessChannelDetail.ChannelID == "" {
-		s.businessChannelDetail.BusinessChannelListItem.ChannelID = channelID
-		s.businessChannelDetail.BusinessChannelListItem.ChannelType = channelType
-	}
-	return s.businessChannelDetail, s.businessChannelDetailErr
-}
-
-func (s managementStub) UpsertBusinessChannel(_ context.Context, req managementusecase.UpsertBusinessChannelRequest) (managementusecase.BusinessChannelDetail, error) {
-	if s.businessChannelUpsertReqSink != nil {
-		*s.businessChannelUpsertReqSink = req
-	}
-	return s.businessChannelDetail, s.businessChannelDetailErr
-}
-
-func (s managementStub) ListBusinessChannelMembers(_ context.Context, req managementusecase.ListBusinessChannelMembersRequest) (managementusecase.ListBusinessChannelMembersResponse, error) {
-	if s.businessChannelMembersReqSink != nil {
-		*s.businessChannelMembersReqSink = req
-	}
-	return s.businessChannelMembersPage, s.businessChannelMembersErr
-}
-
-func (s managementStub) MutateBusinessChannelMembers(_ context.Context, req managementusecase.MutateBusinessChannelMembersRequest) (managementusecase.MutateBusinessChannelMembersResponse, error) {
-	if s.businessChannelMutateReqSink != nil && businessChannelMutateSinkEmpty(*s.businessChannelMutateReqSink) {
-		*s.businessChannelMutateReqSink = req
-	} else if s.businessChannelSecondMutateReqSink != nil {
-		*s.businessChannelSecondMutateReqSink = req
-	} else if s.businessChannelMutateReqSink != nil {
-		*s.businessChannelMutateReqSink = req
-	}
-	return s.businessChannelMutateResponse, s.businessChannelMutateErr
-}
-
-func businessChannelMutateSinkEmpty(req managementusecase.MutateBusinessChannelMembersRequest) bool {
-	return req.ChannelID == "" && req.ChannelType == 0 && req.ListKind == "" && len(req.UIDs) == 0 && !req.Add
-}
-
-func (s managementStub) ListChannelRuntimeMeta(_ context.Context, req managementusecase.ListChannelRuntimeMetaRequest) (managementusecase.ListChannelRuntimeMetaResponse, error) {
-	if s.channelRuntimeMetaReqSink != nil {
-		*s.channelRuntimeMetaReqSink = req
-	}
-	return s.channelRuntimeMetaPage, s.channelRuntimeMetaErr
-}
-
-func (s managementStub) GetChannelRuntimeMeta(_ context.Context, channelID string, channelType int64) (managementusecase.ChannelRuntimeMetaDetail, error) {
-	if s.channelRuntimeMetaDetailReqSink != nil {
-		*s.channelRuntimeMetaDetailReqSink = channelRuntimeMetaDetailCall{channelID: channelID, channelType: channelType}
-	}
-	return s.channelRuntimeMetaDetail, s.channelRuntimeMetaDetailErr
-}
-
-func (s managementStub) GetChannelClusterSummary(context.Context) (managementusecase.ChannelClusterSummary, error) {
-	return s.channelClusterSummary, s.channelClusterSummaryErr
-}
-
-func (s managementStub) ListChannelClusterUnhealthy(_ context.Context, req managementusecase.ListChannelClusterUnhealthyRequest) (managementusecase.ListChannelClusterUnhealthyResponse, error) {
-	if s.channelClusterUnhealthyReqSink != nil {
-		*s.channelClusterUnhealthyReqSink = req
-	}
-	return s.channelClusterUnhealthyPage, s.channelClusterUnhealthyErr
-}
-
-func (s managementStub) GetChannelClusterReplicaDetail(_ context.Context, channelID string, channelType int64) (managementusecase.ChannelClusterReplicaDetail, error) {
-	if s.channelClusterReplicaDetailReqSink != nil {
-		*s.channelClusterReplicaDetailReqSink = channelRuntimeMetaDetailCall{channelID: channelID, channelType: channelType}
-	}
-	return s.channelClusterReplicaDetail, s.channelClusterReplicaDetailErr
-}
-
-func (s managementStub) RepairChannelClusterLeader(_ context.Context, req managementusecase.RepairChannelClusterLeaderRequest) (managementusecase.RepairChannelClusterLeaderResponse, error) {
-	if s.channelClusterRepairReqSink != nil {
-		*s.channelClusterRepairReqSink = req
-	}
-	return s.channelClusterRepair, s.channelClusterRepairErr
-}
-
-func (s managementStub) TransferChannelClusterLeader(_ context.Context, req managementusecase.TransferChannelClusterLeaderRequest) (managementusecase.TransferChannelClusterLeaderResponse, error) {
-	if s.channelClusterTransferReqSink != nil {
-		*s.channelClusterTransferReqSink = req
-	}
-	return s.channelClusterTransfer, s.channelClusterTransferErr
-}
-
-func (s managementStub) ListMessages(_ context.Context, req managementusecase.ListMessagesRequest) (managementusecase.ListMessagesResponse, error) {
-	if s.messagesReqSink != nil {
-		*s.messagesReqSink = req
-	}
-	return s.messagesPage, s.messagesErr
-}
-
-func (s managementStub) ListRecentConversations(_ context.Context, req managementusecase.RecentConversationsRequest) (managementusecase.RecentConversationsResponse, error) {
-	if s.recentConversationsReqSink != nil {
-		*s.recentConversationsReqSink = req
-	}
-	return s.recentConversations, s.recentConversationsErr
-}
-
-func (s managementStub) AdvanceMessageRetention(_ context.Context, req managementusecase.AdvanceMessageRetentionRequest) (managementusecase.AdvanceMessageRetentionResponse, error) {
-	if s.retentionReqSink != nil {
-		*s.retentionReqSink = req
-	}
-	return s.retentionResult, s.retentionErr
-}
-
-func (s managementStub) TransferChannelLeader(context.Context, channel.ChannelID, managementusecase.TransferChannelLeaderRequest) (managementusecase.ChannelMigrationResult, error) {
-	return managementusecase.ChannelMigrationResult{}, nil
-}
-
-func (s managementStub) MigrateChannelReplica(context.Context, channel.ChannelID, managementusecase.MigrateChannelReplicaRequest) (managementusecase.ChannelMigrationResult, error) {
-	return managementusecase.ChannelMigrationResult{}, nil
-}
-
-func (s managementStub) GetChannelMigration(context.Context, channel.ChannelID) (managementusecase.ChannelMigrationDetail, error) {
-	return managementusecase.ChannelMigrationDetail{}, nil
-}
-
-func (s managementStub) AbortChannelMigration(context.Context, channel.ChannelID, string) (managementusecase.ChannelMigrationDetail, error) {
-	return managementusecase.ChannelMigrationDetail{}, nil
-}
-
-func (s managementStub) GetOverview(context.Context) (managementusecase.Overview, error) {
-	return s.overview, s.overviewErr
-}
-
-func (s managementStub) ListNetworkSummary(context.Context) (managementusecase.NetworkSummary, error) {
-	return s.networkSummary, s.networkSummaryErr
-}
-
-func (s managementStub) ListNodePlugins(_ context.Context, nodeID uint64) (pluginusecase.LocalPluginList, error) {
-	out := s.pluginList
-	if out.NodeID == 0 {
-		out.NodeID = nodeID
-	}
-	return out, s.pluginListErr
-}
-
-func (s managementStub) GetNodePlugin(_ context.Context, nodeID uint64, pluginNo string) (pluginusecase.LocalPluginDetail, error) {
-	out := s.pluginDetail
-	if out.NodeID == 0 {
-		out.NodeID = nodeID
-	}
-	if out.No == "" {
-		out.No = pluginNo
-	}
-	return out, s.pluginDetailErr
-}
-
-func (s managementStub) UpdateNodePluginConfig(_ context.Context, nodeID uint64, pluginNo string, config json.RawMessage) (pluginusecase.LocalPluginDetail, error) {
-	if s.pluginUpdateReqSink != nil {
-		*s.pluginUpdateReqSink = managementusecase.UpdatePluginConfigRequest{NodeID: nodeID, PluginNo: pluginNo, Config: append(json.RawMessage(nil), config...)}
-	}
-	out := s.pluginDetail
-	if out.NodeID == 0 {
-		out.NodeID = nodeID
-	}
-	if out.No == "" {
-		out.No = pluginNo
-	}
-	return out, s.pluginMutationErr
-}
-
-func (s managementStub) RestartNodePlugin(_ context.Context, nodeID uint64, pluginNo string) (pluginusecase.LocalPluginDetail, error) {
-	if s.pluginRestartReqSink != nil {
-		*s.pluginRestartReqSink = managementusecase.PluginBindingMutationRequest{UID: fmt.Sprintf("%d", nodeID), PluginNo: pluginNo}
-	}
-	out := s.pluginDetail
-	if out.NodeID == 0 {
-		out.NodeID = nodeID
-	}
-	if out.No == "" {
-		out.No = pluginNo
-	}
-	return out, s.pluginMutationErr
-}
-
-func (s managementStub) UninstallNodePlugin(_ context.Context, nodeID uint64, pluginNo string) error {
-	if s.pluginUninstallReqSink != nil {
-		*s.pluginUninstallReqSink = managementusecase.PluginBindingMutationRequest{UID: fmt.Sprintf("%d", nodeID), PluginNo: pluginNo}
-	}
-	return s.pluginMutationErr
-}
-
-func (s managementStub) ListPluginBindings(_ context.Context, req managementusecase.PluginBindingListRequest) (managementusecase.PluginBindingListResponse, error) {
-	if s.pluginBindingListReqSink != nil {
-		*s.pluginBindingListReqSink = req
-	}
-	return s.pluginBindingList, s.pluginBindingListErr
-}
-
-func (s managementStub) BindPluginUser(_ context.Context, req managementusecase.PluginBindingMutationRequest) (managementusecase.PluginBindingMutationResponse, error) {
-	if s.pluginBindingMutationReqSink != nil {
-		*s.pluginBindingMutationReqSink = req
-	}
-	return s.pluginBindingMutation, s.pluginBindingMutationErr
-}
-
-func (s managementStub) UnbindPluginUser(_ context.Context, req managementusecase.PluginBindingMutationRequest) error {
-	if s.pluginBindingUnbindReqSink != nil {
-		*s.pluginBindingUnbindReqSink = req
-	}
-	return s.pluginBindingMutationErr
-}
-
-func (s managementStub) ListNodeOnboardingCandidates(context.Context) (managementusecase.NodeOnboardingCandidatesResponse, error) {
-	return s.nodeOnboardingCandidates, s.nodeOnboardingCandidatesErr
-}
-
-func (s managementStub) CreateNodeOnboardingPlan(_ context.Context, req managementusecase.CreateNodeOnboardingPlanRequest) (managementusecase.NodeOnboardingJobResponse, error) {
+func (s managerNodesStub) PlanNodeOnboarding(_ context.Context, req managementusecase.NodeOnboardingPlanRequest) (managementusecase.NodeOnboardingPlanResponse, error) {
 	if s.nodeOnboardingPlanReqSink != nil {
 		*s.nodeOnboardingPlanReqSink = req
 	}
-	return s.nodeOnboardingJob, s.nodeOnboardingJobErr
+	return s.nodeOnboardingPlan, s.nodeOnboardingPlanErr
 }
 
-func (s managementStub) StartNodeOnboardingJob(context.Context, string) (managementusecase.NodeOnboardingJobResponse, error) {
-	return s.nodeOnboardingJob, s.nodeOnboardingJobErr
+func (s managerNodesStub) StartNodeOnboarding(_ context.Context, req managementusecase.NodeOnboardingStartRequest) (managementusecase.NodeOnboardingStartResponse, error) {
+	if s.nodeOnboardingStartReqSink != nil {
+		*s.nodeOnboardingStartReqSink = req
+	}
+	return s.nodeOnboardingStart, s.nodeOnboardingStartErr
 }
 
-func (s managementStub) ListNodeOnboardingJobs(context.Context, managementusecase.ListNodeOnboardingJobsRequest) (managementusecase.NodeOnboardingJobsResponse, error) {
-	return s.nodeOnboardingJobs, s.nodeOnboardingJobErr
+func (s managerNodesStub) AdvanceNodeOnboarding(_ context.Context, req managementusecase.NodeOnboardingAdvanceRequest) (managementusecase.NodeOnboardingStartResponse, error) {
+	if s.nodeOnboardingAdvanceReqSink != nil {
+		*s.nodeOnboardingAdvanceReqSink = req
+	}
+	return s.nodeOnboardingAdvance, s.nodeOnboardingAdvanceErr
 }
 
-func (s managementStub) GetNodeOnboardingJob(context.Context, string) (managementusecase.NodeOnboardingJobResponse, error) {
-	return s.nodeOnboardingJob, s.nodeOnboardingJobErr
+func (s managerNodesStub) NodeOnboardingStatus(_ context.Context, req managementusecase.NodeOnboardingStatusRequest) (managementusecase.NodeOnboardingStatusResponse, error) {
+	if s.nodeOnboardingStatusReqSink != nil {
+		*s.nodeOnboardingStatusReqSink = req
+	}
+	return s.nodeOnboardingStatus, s.nodeOnboardingStatusErr
 }
 
-func (s managementStub) RetryNodeOnboardingJob(context.Context, string) (managementusecase.NodeOnboardingJobResponse, error) {
-	return s.nodeOnboardingJob, s.nodeOnboardingJobErr
+func (s managerNodesStub) PlanNodeSlotMoveOut(_ context.Context, req managementusecase.NodeSlotMoveOutPlanRequest) (managementusecase.NodeSlotMoveOutPlanResponse, error) {
+	if s.slotMoveOutPlanReqSink != nil {
+		*s.slotMoveOutPlanReqSink = req
+	}
+	return s.slotMoveOutPlan, s.slotMoveOutPlanErr
 }
 
-func (s managementStub) QueryDiagnostics(_ context.Context, req managementusecase.DiagnosticsQueryRequest) (managementusecase.DiagnosticsQueryResponse, error) {
+func (s managerNodesStub) AdvanceNodeSlotMoveOut(_ context.Context, req managementusecase.NodeSlotMoveOutAdvanceRequest) (managementusecase.NodeSlotMoveOutAdvanceResponse, error) {
+	if s.slotMoveOutAdvanceReqSink != nil {
+		*s.slotMoveOutAdvanceReqSink = req
+	}
+	return s.slotMoveOutAdvance, s.slotMoveOutAdvanceErr
+}
+
+func (s managerNodesStub) PlanNodeScaleIn(_ context.Context, req managementusecase.NodeScaleInPlanRequest) (managementusecase.NodeScaleInPlanResponse, error) {
+	if s.scaleInPlanReqSink != nil {
+		*s.scaleInPlanReqSink = req
+	}
+	return s.scaleInPlan, s.scaleInPlanErr
+}
+
+func (s managerNodesStub) AdvanceNodeScaleIn(_ context.Context, req managementusecase.NodeScaleInAdvanceRequest) (managementusecase.NodeScaleInAdvanceResponse, error) {
+	if s.scaleInAdvanceReqSink != nil {
+		*s.scaleInAdvanceReqSink = req
+	}
+	return s.scaleInAdvance, s.scaleInAdvanceErr
+}
+
+func (s managerNodesStub) NodeScaleInStatus(_ context.Context, req managementusecase.NodeScaleInStatusRequest) (managementusecase.NodeScaleInStatusResponse, error) {
+	if s.scaleInStatusReqSink != nil {
+		*s.scaleInStatusReqSink = req
+	}
+	return s.scaleInStatus, s.scaleInStatusErr
+}
+
+func (s managerNodesStub) SetNodeDrainMode(_ context.Context, req managementusecase.SetNodeDrainModeRequest) (managementusecase.SetNodeDrainModeResponse, error) {
+	if s.scaleInDrainReqSink != nil {
+		*s.scaleInDrainReqSink = req
+	}
+	return s.scaleInDrain, s.scaleInDrainErr
+}
+
+func (s managerNodesStub) DynamicNodeDiagnostics(_ context.Context, req managementusecase.DynamicNodeDiagnosticsRequest) (managementusecase.DynamicNodeDiagnosticsResponse, error) {
+	if s.dynamicNodeDiagnosticsReqSink != nil {
+		*s.dynamicNodeDiagnosticsReqSink = req
+	}
+	return s.dynamicNodeDiagnostics, s.dynamicNodeDiagnosticsErr
+}
+
+func (s managerNodesStub) QueryDiagnostics(_ context.Context, req managementusecase.DiagnosticsQueryRequest) (managementusecase.DiagnosticsQueryResponse, error) {
 	if s.diagnosticsReqSink != nil {
 		*s.diagnosticsReqSink = req
 	}
 	return s.diagnosticsResponse, s.diagnosticsErr
 }
 
-func (s managementStub) CreateDiagnosticsTrackingRule(context.Context, managementusecase.DiagnosticsTrackingCreateRequest) (managementusecase.DiagnosticsTrackingMutationResponse, error) {
-	return managementusecase.DiagnosticsTrackingMutationResponse{}, nil
+func (s managerNodesStub) CreateDiagnosticsTrackingRule(_ context.Context, req managementusecase.DiagnosticsTrackingCreateRequest) (managementusecase.DiagnosticsTrackingMutationResponse, error) {
+	if s.diagnosticsTrackingCreateReqSink != nil {
+		*s.diagnosticsTrackingCreateReqSink = req
+	}
+	return s.diagnosticsTrackingCreateResponse, s.diagnosticsTrackingCreateErr
 }
 
-func (s managementStub) ListDiagnosticsTrackingRules(context.Context) (managementusecase.DiagnosticsTrackingListResponse, error) {
-	return managementusecase.DiagnosticsTrackingListResponse{}, nil
+func (s managerNodesStub) ListDiagnosticsTrackingRules(context.Context) (managementusecase.DiagnosticsTrackingListResponse, error) {
+	return s.diagnosticsTrackingListResponse, s.diagnosticsTrackingListErr
 }
 
-func (s managementStub) DeleteDiagnosticsTrackingRule(context.Context, string) (managementusecase.DiagnosticsTrackingDeleteResponse, error) {
-	return managementusecase.DiagnosticsTrackingDeleteResponse{}, nil
+func (s managerNodesStub) DeleteDiagnosticsTrackingRule(_ context.Context, ruleID string) (managementusecase.DiagnosticsTrackingDeleteResponse, error) {
+	if s.diagnosticsTrackingDeleteRuleSink != nil {
+		*s.diagnosticsTrackingDeleteRuleSink = ruleID
+	}
+	return s.diagnosticsTrackingDeleteResponse, s.diagnosticsTrackingDeleteErr
 }
 
-func (s managementStub) GetDashboardMetrics(time.Duration, time.Duration) (managementusecase.DashboardMetricsResult, error) {
-	return managementusecase.DashboardMetricsResult{}, nil
+func (s managerNodesStub) ListBusinessChannels(_ context.Context, req managementusecase.ListBusinessChannelsRequest) (managementusecase.ListBusinessChannelsResponse, error) {
+	if s.lastBusinessChannelsRequest != nil {
+		*s.lastBusinessChannelsRequest = req
+	}
+	return s.businessChannels, s.businessChannelsErr
 }
 
-type channelRuntimeMetaDetailCall struct {
-	channelID   string
-	channelType int64
+func (s managerNodesStub) ListRecentConversations(_ context.Context, req managementusecase.RecentConversationsRequest) (managementusecase.RecentConversationsResponse, error) {
+	if s.recentConversationsReqSink != nil {
+		*s.recentConversationsReqSink = req
+	}
+	return s.recentConversations, s.recentConversationsErr
 }
 
-func uint64Ptr(value uint64) *uint64 {
-	return &value
+func (s managerNodesStub) ListMessages(_ context.Context, req managementusecase.ListMessagesRequest) (managementusecase.ListMessagesResponse, error) {
+	if s.messagesReqSink != nil {
+		*s.messagesReqSink = req
+	}
+	return s.messagesPage, s.messagesErr
 }
 
-func timePtr(value time.Time) *time.Time {
-	return &value
+func (s managerNodesStub) ListConnections(_ context.Context, req managementusecase.ListConnectionsRequest) ([]managementusecase.Connection, error) {
+	if s.connectionsReqSink != nil {
+		*s.connectionsReqSink = req
+	}
+	return append([]managementusecase.Connection(nil), s.connections...), s.connectionsErr
 }
 
-type loginResponseBody struct {
-	Username    string           `json:"username"`
-	TokenType   string           `json:"token_type"`
-	AccessToken string           `json:"access_token"`
-	ExpiresIn   int64            `json:"expires_in"`
-	ExpiresAt   time.Time        `json:"expires_at"`
-	Permissions []permissionBody `json:"permissions"`
+func (s managerNodesStub) GetConnection(_ context.Context, req managementusecase.GetConnectionRequest) (managementusecase.ConnectionDetail, error) {
+	if s.connectionDetailReqSink != nil {
+		*s.connectionDetailReqSink = req
+	}
+	return s.connectionDetail, s.connectionDetailErr
 }
 
-type permissionBody struct {
-	Resource string   `json:"resource"`
-	Actions  []string `json:"actions"`
+func (s managerNodesStub) ListNodePlugins(_ context.Context, nodeID uint64) (managementusecase.NodePluginList, error) {
+	if s.pluginListNodeSink != nil {
+		*s.pluginListNodeSink = nodeID
+	}
+	return s.pluginList, s.pluginListErr
+}
+
+func (s managerNodesStub) GetNodePlugin(_ context.Context, nodeID uint64, pluginNo string) (managementusecase.Plugin, error) {
+	if s.pluginDetailNodeSink != nil {
+		*s.pluginDetailNodeSink = nodeID
+	}
+	if s.pluginDetailNoSink != nil {
+		*s.pluginDetailNoSink = pluginNo
+	}
+	return s.pluginDetail, s.pluginDetailErr
+}
+
+func (s managerNodesStub) UpdateNodePluginConfig(_ context.Context, nodeID uint64, pluginNo string, config json.RawMessage) (managementusecase.Plugin, error) {
+	if s.pluginConfigUpdateNodeSink != nil {
+		*s.pluginConfigUpdateNodeSink = nodeID
+	}
+	if s.pluginConfigUpdateNoSink != nil {
+		*s.pluginConfigUpdateNoSink = pluginNo
+	}
+	if s.pluginConfigUpdateBodySink != nil {
+		*s.pluginConfigUpdateBodySink = string(config)
+	}
+	return s.pluginMutationDetail, s.pluginMutationErr
+}
+
+func (s managerNodesStub) RestartNodePlugin(_ context.Context, nodeID uint64, pluginNo string) (managementusecase.Plugin, error) {
+	if s.pluginRestartNodeSink != nil {
+		*s.pluginRestartNodeSink = nodeID
+	}
+	if s.pluginRestartNoSink != nil {
+		*s.pluginRestartNoSink = pluginNo
+	}
+	return s.pluginMutationDetail, s.pluginMutationErr
+}
+
+func (s managerNodesStub) UninstallNodePlugin(_ context.Context, nodeID uint64, pluginNo string) error {
+	if s.pluginUninstallNodeSink != nil {
+		*s.pluginUninstallNodeSink = nodeID
+	}
+	if s.pluginUninstallNoSink != nil {
+		*s.pluginUninstallNoSink = pluginNo
+	}
+	return s.pluginMutationErr
+}
+
+func (s managerNodesStub) ListPluginBindings(_ context.Context, req managementusecase.PluginBindingListRequest) (managementusecase.PluginBindingListResponse, error) {
+	if s.pluginBindingListReqSink != nil {
+		*s.pluginBindingListReqSink = req
+	}
+	return s.pluginBindingList, s.pluginBindingListErr
+}
+
+func (s managerNodesStub) BindPluginUser(_ context.Context, req managementusecase.PluginBindingMutationRequest) (managementusecase.PluginBindingMutationResponse, error) {
+	if s.pluginBindingMutationReqSink != nil {
+		*s.pluginBindingMutationReqSink = req
+	}
+	return s.pluginBindingMutation, s.pluginBindingMutationErr
+}
+
+func (s managerNodesStub) UnbindPluginUser(_ context.Context, req managementusecase.PluginBindingMutationRequest) error {
+	if s.pluginBindingUnbindReqSink != nil {
+		*s.pluginBindingUnbindReqSink = req
+	}
+	return s.pluginBindingUnbindErr
+}
+
+func (s managerNodesStub) AdvanceMessageRetention(_ context.Context, req managementusecase.AdvanceMessageRetentionRequest) (managementusecase.AdvanceMessageRetentionResponse, error) {
+	if s.retentionReqSink != nil {
+		*s.retentionReqSink = req
+	}
+	return s.retentionResult, s.retentionErr
+}
+
+func (s managerNodesStub) ListUsers(_ context.Context, req managementusecase.ListUsersRequest) (managementusecase.ListUsersResponse, error) {
+	if s.usersReqSink != nil {
+		*s.usersReqSink = req
+	}
+	return s.usersPage, s.usersErr
+}
+
+func (s managerNodesStub) GetUser(_ context.Context, _ string) (managementusecase.UserDetail, error) {
+	return s.userDetail, s.userDetailErr
+}
+
+func (s managerNodesStub) KickUser(_ context.Context, req managementusecase.KickUserRequest) (managementusecase.KickUserResponse, error) {
+	if s.kickUserReqSink != nil {
+		*s.kickUserReqSink = req
+	}
+	return s.kickUserResponse, s.kickUserErr
+}
+
+func (s managerNodesStub) ResetUserToken(_ context.Context, req managementusecase.ResetUserTokenRequest) (managementusecase.ResetUserTokenResponse, error) {
+	if s.resetUserTokenReqSink != nil {
+		*s.resetUserTokenReqSink = req
+	}
+	return s.resetUserTokenResponse, s.resetUserTokenErr
+}
+
+func (s managerNodesStub) ListSystemUsers(context.Context) (managementusecase.ListSystemUsersResponse, error) {
+	return s.systemUsers, s.systemUsersErr
+}
+
+func (s managerNodesStub) AddSystemUsers(_ context.Context, req managementusecase.MutateSystemUsersRequest) (managementusecase.MutateSystemUsersResponse, error) {
+	if s.systemUsersAddReq != nil {
+		*s.systemUsersAddReq = req
+	}
+	return s.systemUsersMutation, s.systemUsersMutationErr
+}
+
+func (s managerNodesStub) RemoveSystemUsers(_ context.Context, req managementusecase.MutateSystemUsersRequest) (managementusecase.MutateSystemUsersResponse, error) {
+	if s.systemUsersRemoveReq != nil {
+		*s.systemUsersRemoveReq = req
+	}
+	return s.systemUsersMutation, s.systemUsersMutationErr
+}
+
+func jsonEqual(got, want string) bool {
+	var gotValue any
+	var wantValue any
+	if err := json.Unmarshal([]byte(got), &gotValue); err != nil {
+		return false
+	}
+	if err := json.Unmarshal([]byte(want), &wantValue); err != nil {
+		return false
+	}
+	return deepEqualJSON(gotValue, wantValue)
+}
+
+func deepEqualJSON(a, b any) bool {
+	encodedA, err := json.Marshal(a)
+	if err != nil {
+		return false
+	}
+	encodedB, err := json.Marshal(b)
+	if err != nil {
+		return false
+	}
+	return bytes.Equal(encodedA, encodedB)
 }

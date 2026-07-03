@@ -1,285 +1,277 @@
 package online
 
 import (
-	"encoding/binary"
-	"hash"
-	"hash/fnv"
-	"reflect"
-	"sort"
 	"sync"
+	"sync/atomic"
 )
 
-type MemoryRegistry struct {
-	mu        sync.RWMutex
-	bySession map[uint64]OnlineConn
-	byUID     map[string]map[uint64]OnlineConn
-	byGroup   map[uint64]*groupBucket
+const defaultShardCount = 32
+
+// Registry stores owner-local gateway session routes in sharded indexes.
+type Registry struct {
+	shards         []registryShard
+	nextDrainShard atomic.Uint64
 }
 
-type groupBucket struct {
-	conns  map[uint64]OnlineConn
-	count  int
-	digest uint64
+type registryShard struct {
+	mu         sync.RWMutex
+	bySession  map[uint64]LocalSession
+	dirtyIDs   map[uint64]struct{}
+	dirtyOrder []uint64
 }
 
-func NewRegistry() *MemoryRegistry {
-	return &MemoryRegistry{
-		bySession: make(map[uint64]OnlineConn),
-		byUID:     make(map[string]map[uint64]OnlineConn),
-		byGroup:   make(map[uint64]*groupBucket),
+// NewRegistry creates an owner-local online registry.
+func NewRegistry(opts RegistryOptions) *Registry {
+	shardCount := opts.ShardCount
+	if shardCount <= 0 {
+		shardCount = defaultShardCount
 	}
+	reg := &Registry{
+		shards: make([]registryShard, shardCount),
+	}
+	for i := range reg.shards {
+		reg.shards[i].bySession = make(map[uint64]LocalSession)
+		reg.shards[i].dirtyIDs = make(map[uint64]struct{})
+	}
+	return reg
 }
 
-func (r *MemoryRegistry) Register(conn OnlineConn) error {
-	if r == nil {
-		return nil
-	}
-	if conn.SessionID == 0 || conn.UID == "" || isNilSession(conn.Session) {
+// RegisterPending indexes a newly accepted session before it is route-active.
+func (r *Registry) RegisterPending(session LocalSession) error {
+	route := session.Route
+	if route.UID == "" || route.SessionID == 0 {
 		return ErrInvalidConnection
 	}
+	if route.LastActivityUnix == 0 {
+		route.LastActivityUnix = route.ConnectedUnix
+	}
+	session.Route = route
+	session.State = RouteStatePending
 
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	shard := r.sessionShard(route.SessionID)
+	shard.mu.Lock()
+	defer shard.mu.Unlock()
 
-	if r.bySession == nil {
-		r.bySession = make(map[uint64]OnlineConn)
-	}
-	if r.byUID == nil {
-		r.byUID = make(map[string]map[uint64]OnlineConn)
-	}
-	if r.byGroup == nil {
-		r.byGroup = make(map[uint64]*groupBucket)
-	}
-
-	if existing, ok := r.bySession[conn.SessionID]; ok {
-		r.removeActiveIndexes(existing)
-	}
-
-	if conn.State == 0 {
-		conn.State = LocalRouteStateActive
-	}
-	r.bySession[conn.SessionID] = conn
-	if conn.State != LocalRouteStateClosing {
-		r.addActiveIndexes(conn)
-	}
+	delete(shard.dirtyIDs, route.SessionID)
+	shard.bySession[route.SessionID] = session
 	return nil
 }
 
-func (r *MemoryRegistry) Unregister(sessionID uint64) {
-	if r == nil {
-		return
-	}
+// MarkActive promotes a pending session into the active route index.
+func (r *Registry) MarkActive(sessionID uint64) error {
+	shard := r.sessionShard(sessionID)
+	shard.mu.Lock()
+	defer shard.mu.Unlock()
 
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	conn, ok := r.bySession[sessionID]
+	session, ok := shard.bySession[sessionID]
 	if !ok {
-		return
+		return ErrConnectionNotFound
 	}
-
-	delete(r.bySession, sessionID)
-	r.removeActiveIndexes(conn)
+	if session.State == RouteStateActive {
+		return nil
+	}
+	session.State = RouteStateActive
+	shard.bySession[sessionID] = session
+	return nil
 }
 
-func (r *MemoryRegistry) MarkClosing(sessionID uint64) (OnlineConn, bool) {
-	if r == nil {
-		return OnlineConn{}, false
-	}
+// MarkClosingAndUnregister removes a session from local indexes and returns a closing copy.
+func (r *Registry) MarkClosingAndUnregister(sessionID uint64) (OwnerRoute, bool) {
+	shard := r.sessionShard(sessionID)
+	shard.mu.Lock()
+	defer shard.mu.Unlock()
 
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	conn, ok := r.bySession[sessionID]
+	session, ok := shard.bySession[sessionID]
 	if !ok {
-		return OnlineConn{}, false
+		return OwnerRoute{}, false
 	}
-
-	if conn.State != LocalRouteStateClosing {
-		r.removeActiveIndexes(conn)
-		conn.State = LocalRouteStateClosing
-		r.bySession[sessionID] = conn
-	}
-	return conn, true
+	delete(shard.bySession, sessionID)
+	delete(shard.dirtyIDs, sessionID)
+	session.State = RouteStateClosing
+	return session.Route, true
 }
 
-func (r *MemoryRegistry) Connection(sessionID uint64) (OnlineConn, bool) {
-	if r == nil {
-		return OnlineConn{}, false
+// Route returns a copy of the registered route projection by session ID.
+func (r *Registry) Route(sessionID uint64) (OwnerRoute, bool) {
+	shard := r.sessionShard(sessionID)
+	shard.mu.RLock()
+	defer shard.mu.RUnlock()
+
+	session, ok := shard.bySession[sessionID]
+	if !ok {
+		return OwnerRoute{}, false
 	}
-
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	conn, ok := r.bySession[sessionID]
-	return conn, ok
+	return session.Route, true
 }
 
-func (r *MemoryRegistry) ConnectionsByUID(uid string) []OnlineConn {
-	if r == nil {
+// LocalSession returns the concrete local session record by session ID.
+func (r *Registry) LocalSession(sessionID uint64) (LocalSession, bool) {
+	shard := r.sessionShard(sessionID)
+	shard.mu.RLock()
+	defer shard.mu.RUnlock()
+
+	session, ok := shard.bySession[sessionID]
+	return session, ok
+}
+
+// LocalSessionsByUID returns copies of local sessions currently indexed for uid.
+func (r *Registry) LocalSessionsByUID(uid string) []LocalSession {
+	if r == nil || uid == "" {
 		return nil
 	}
-
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	conns := r.byUID[uid]
-	if len(conns) == 0 {
-		return nil
-	}
-
-	out := make([]OnlineConn, 0, len(conns))
-	for _, conn := range conns {
-		out = append(out, conn)
-	}
-	sort.Slice(out, func(i, j int) bool {
-		return out[i].SessionID < out[j].SessionID
-	})
-	return out
-}
-
-func (r *MemoryRegistry) ActiveConnectionsBySlot(slotID uint64) []OnlineConn {
-	if r == nil {
-		return nil
-	}
-
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	conns := r.byGroup[slotID]
-	if conns == nil || conns.count == 0 {
-		return nil
-	}
-
-	out := make([]OnlineConn, 0, conns.count)
-	for _, conn := range conns.conns {
-		out = append(out, conn)
-	}
-	sort.Slice(out, func(i, j int) bool {
-		return out[i].SessionID < out[j].SessionID
-	})
-	return out
-}
-
-func (r *MemoryRegistry) ActiveSlots() []SlotSnapshot {
-	if r == nil {
-		return nil
-	}
-
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	out := make([]SlotSnapshot, 0, len(r.byGroup))
-	for slotID, bucket := range r.byGroup {
-		if bucket == nil || bucket.count == 0 {
-			continue
-		}
-		snapshot := SlotSnapshot{
-			SlotID: slotID,
-			Count:  bucket.count,
-			Digest: bucket.digest,
-		}
-		out = append(out, snapshot)
-	}
-	sort.Slice(out, func(i, j int) bool {
-		return out[i].SlotID < out[j].SlotID
-	})
-	return out
-}
-
-// Summary returns aggregate active and closing connection counts.
-func (r *MemoryRegistry) Summary() Summary {
-	if r == nil {
-		return Summary{SessionsByListener: map[string]int{}}
-	}
-
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	summary := Summary{SessionsByListener: make(map[string]int)}
-	for _, conn := range r.bySession {
-		summary.Total++
-		switch conn.State {
-		case LocalRouteStateClosing:
-			summary.Closing++
-		default:
-			summary.Active++
-		}
-		summary.SessionsByListener[conn.Listener]++
-	}
-	return summary
-}
-
-func (r *MemoryRegistry) addActiveIndexes(conn OnlineConn) {
-	if _, ok := r.byUID[conn.UID]; !ok {
-		r.byUID[conn.UID] = make(map[uint64]OnlineConn)
-	}
-	r.byUID[conn.UID][conn.SessionID] = conn
-
-	bucket, ok := r.byGroup[conn.SlotID]
-	if !ok || bucket == nil {
-		bucket = &groupBucket{conns: make(map[uint64]OnlineConn)}
-		r.byGroup[conn.SlotID] = bucket
-	}
-	if bucket.conns == nil {
-		bucket.conns = make(map[uint64]OnlineConn)
-	}
-	bucket.conns[conn.SessionID] = conn
-	bucket.count++
-	bucket.digest ^= routeFingerprint(conn)
-}
-
-func (r *MemoryRegistry) removeActiveIndexes(conn OnlineConn) {
-	if sessions, ok := r.byUID[conn.UID]; ok {
-		delete(sessions, conn.SessionID)
-		if len(sessions) == 0 {
-			delete(r.byUID, conn.UID)
-		}
-	}
-	if bucket, ok := r.byGroup[conn.SlotID]; ok && bucket != nil {
-		if _, exists := bucket.conns[conn.SessionID]; exists {
-			delete(bucket.conns, conn.SessionID)
-			bucket.count--
-			bucket.digest ^= routeFingerprint(conn)
-			if bucket.count == 0 {
-				delete(r.byGroup, conn.SlotID)
+	var out []LocalSession
+	for i := range r.shards {
+		shard := &r.shards[i]
+		shard.mu.RLock()
+		for _, session := range shard.bySession {
+			if session.Route.UID == uid {
+				out = append(out, session)
 			}
 		}
+		shard.mu.RUnlock()
+	}
+	return out
+}
+
+// LocalSessions returns copies of all owner-local session records.
+func (r *Registry) LocalSessions() []LocalSession {
+	if r == nil {
+		return nil
+	}
+	out := make([]LocalSession, 0)
+	for i := range r.shards {
+		shard := &r.shards[i]
+		shard.mu.RLock()
+		for _, session := range shard.bySession {
+			out = append(out, session)
+		}
+		shard.mu.RUnlock()
+	}
+	return out
+}
+
+// MarkTouched records owner-observed client activity on an active route.
+func (r *Registry) MarkTouched(sessionID uint64, activityUnix int64) (OwnerRoute, bool) {
+	shard := r.sessionShard(sessionID)
+	shard.mu.Lock()
+	defer shard.mu.Unlock()
+
+	session, ok := shard.bySession[sessionID]
+	if !ok || session.State != RouteStateActive {
+		return OwnerRoute{}, false
+	}
+	if activityUnix > session.Route.LastActivityUnix {
+		session.Route.LastActivityUnix = activityUnix
+	}
+	shard.bySession[sessionID] = session
+	shard.markDirtyLocked(sessionID)
+	return session.Route, true
+}
+
+// DrainTouched returns up to limit dirty active routes and clears their dirty markers.
+func (r *Registry) DrainTouched(limit int) []OwnerRoute {
+	if limit <= 0 {
+		return nil
+	}
+	batch := make([]OwnerRoute, 0, limit)
+	shardCount := len(r.shards)
+	start := int(r.nextDrainShard.Add(1)-1) % shardCount
+	for offset := 0; offset < shardCount; offset++ {
+		if len(batch) == limit {
+			break
+		}
+		shard := &r.shards[(start+offset)%shardCount]
+		shard.mu.Lock()
+		batch = shard.drainDirtyLocked(batch, limit-len(batch))
+		shard.mu.Unlock()
+	}
+	return batch
+}
+
+// RequeueTouched marks still-current active routes dirty after a failed authority touch batch.
+func (r *Registry) RequeueTouched(routes []OwnerRoute) {
+	for _, drained := range routes {
+		shard := r.sessionShard(drained.SessionID)
+		shard.mu.Lock()
+		current, ok := shard.bySession[drained.SessionID]
+		if ok && current.State == RouteStateActive && sameRoute(current.Route, drained) {
+			if drained.LastActivityUnix > current.Route.LastActivityUnix {
+				current.Route.LastActivityUnix = drained.LastActivityUnix
+				shard.bySession[current.Route.SessionID] = current
+			}
+			shard.markDirtyLocked(current.Route.SessionID)
+		}
+		shard.mu.Unlock()
 	}
 }
 
-func routeFingerprint(conn OnlineConn) uint64 {
-	h := fnv.New64a()
-	writeUint64(h, conn.SessionID)
-	writeString(h, conn.UID)
-	writeString(h, conn.DeviceID)
-	writeUint64(h, uint64(conn.DeviceFlag))
-	writeUint64(h, uint64(conn.DeviceLevel))
-	writeString(h, conn.Listener)
-	return h.Sum64()
-}
-
-func writeUint64(h hash.Hash64, v uint64) {
-	var b [8]byte
-	binary.BigEndian.PutUint64(b[:], v)
-	_, _ = h.Write(b[:])
-}
-
-func writeString(h hash.Hash64, s string) {
-	_, _ = h.Write([]byte(s))
-	_, _ = h.Write([]byte{0})
-}
-
-func isNilSession(sess any) bool {
-	if sess == nil {
-		return true
+// Snapshot returns aggregate owner-local route counts without exposing sessions.
+func (r *Registry) Snapshot() Snapshot {
+	if r == nil {
+		return Snapshot{}
 	}
-
-	rv := reflect.ValueOf(sess)
-	switch rv.Kind() {
-	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
-		return rv.IsNil()
-	default:
-		return false
+	var snap Snapshot
+	for i := range r.shards {
+		shard := &r.shards[i]
+		shard.mu.RLock()
+		for _, session := range shard.bySession {
+			switch session.State {
+			case RouteStatePending:
+				snap.Pending++
+			case RouteStateActive:
+				snap.Active++
+			}
+		}
+		snap.TouchedDirty += len(shard.dirtyIDs)
+		shard.mu.RUnlock()
 	}
+	return snap
+}
+
+func (r *Registry) sessionShard(sessionID uint64) *registryShard {
+	return &r.shards[sessionID%uint64(len(r.shards))]
+}
+
+func (s *registryShard) markDirtyLocked(sessionID uint64) {
+	if _, ok := s.dirtyIDs[sessionID]; ok {
+		return
+	}
+	s.dirtyIDs[sessionID] = struct{}{}
+	s.dirtyOrder = append(s.dirtyOrder, sessionID)
+}
+
+func (s *registryShard) drainDirtyLocked(batch []OwnerRoute, remaining int) []OwnerRoute {
+	if remaining <= 0 || len(s.dirtyOrder) == 0 {
+		return batch
+	}
+	write := 0
+	for _, sessionID := range s.dirtyOrder {
+		if _, dirty := s.dirtyIDs[sessionID]; !dirty {
+			continue
+		}
+		if remaining > 0 {
+			delete(s.dirtyIDs, sessionID)
+			session, ok := s.bySession[sessionID]
+			if ok && session.State == RouteStateActive {
+				batch = append(batch, session.Route)
+				remaining--
+			}
+			continue
+		}
+		s.dirtyOrder[write] = sessionID
+		write++
+	}
+	for i := write; i < len(s.dirtyOrder); i++ {
+		s.dirtyOrder[i] = 0
+	}
+	s.dirtyOrder = s.dirtyOrder[:write]
+	return batch
+}
+
+func sameRoute(a, b OwnerRoute) bool {
+	return a.UID == b.UID &&
+		a.SessionID == b.SessionID &&
+		a.OwnerNodeID == b.OwnerNodeID &&
+		a.OwnerBootID == b.OwnerBootID &&
+		a.OwnerSeq == b.OwnerSeq
 }

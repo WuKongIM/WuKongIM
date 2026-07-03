@@ -7,7 +7,7 @@ This domain owns black-box multi-node cluster lifecycle coverage for
 
 - Keep scenarios process-level and black-box: use real `cmd/wukongim`
   processes, public manager HTTP endpoints, and public readiness probes.
-- Do not import `internalv2/app`, `internalv2/usecase`, or storage internals.
+- Do not import `internal/app`, `internal/usecase`, or storage internals.
 - Put reusable harness behavior in `test/e2ev2/suite`; scenario tests should
   describe lifecycle assertions only.
 - Dynamic join coverage must prove the joining node calls seed join itself; do
@@ -32,6 +32,6 @@ This domain owns black-box multi-node cluster lifecycle coverage for
   entrypoints.
 
   ```bash
-  scripts/build-gofail-binary.sh --cmd ./cmd/wukongim --package internalv2/usecase/management --package pkg/controller --package pkg/cluster/tasks --package pkg/cluster/net --out /tmp/wukongim-gofail
+  scripts/build-gofail-binary.sh --cmd ./cmd/wukongim --package internal/usecase/management --package pkg/controller --package pkg/cluster/tasks --package pkg/cluster/net --out /tmp/wukongim-gofail
   WK_E2E_BINARY=/tmp/wukongim-gofail WK_E2EV2_GOFAIL_DYNAMIC_NODE=1 GOWORK=off go test -tags=e2e ./test/e2ev2/cluster/dynamic_node_faults -count=1 -timeout 15m -p=1
   ```

@@ -55,7 +55,27 @@ type RecentConversationDTO struct {
 	// Version is the sync compatibility version timestamp.
 	Version int64 `json:"version"`
 	// RecentMessages contains newest message previews for this conversation.
-	RecentMessages []MessageDTO `json:"recent_messages"`
+	RecentMessages []RecentConversationMessageDTO `json:"recent_messages"`
+}
+
+// RecentConversationMessageDTO is one embedded recent message preview.
+type RecentConversationMessageDTO struct {
+	// MessageID is the durable message identifier.
+	MessageID uint64 `json:"message_id"`
+	// MessageSeq is the committed channel message sequence number.
+	MessageSeq uint64 `json:"message_seq"`
+	// ClientMsgNo is the client-provided message correlation number.
+	ClientMsgNo string `json:"client_msg_no"`
+	// ChannelID is the logical channel identifier.
+	ChannelID string `json:"channel_id"`
+	// ChannelType is the logical channel type.
+	ChannelType int64 `json:"channel_type"`
+	// FromUID is the sender UID recorded on the message.
+	FromUID string `json:"from_uid"`
+	// Timestamp is the server-side message timestamp in Unix seconds.
+	Timestamp int64 `json:"timestamp"`
+	// Payload is the raw message payload bytes encoded as base64 in JSON.
+	Payload []byte `json:"payload"`
 }
 
 func (s *Server) handleConversations(c *gin.Context) {
@@ -89,19 +109,9 @@ func (s *Server) handleConversations(c *gin.Context) {
 		UID: uid, Limit: limit, MsgCount: msgCount, OnlyUnread: onlyUnread,
 	})
 	if err != nil {
-		switch {
-		case errors.Is(err, metadb.ErrInvalidArgument):
-			jsonError(c, http.StatusBadRequest, "bad_request", "invalid conversation query")
-		case errors.Is(err, managementusecase.ErrRecentConversationsUnavailable):
-			jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "recent conversations unavailable")
-		case channelLeaderUnavailable(err):
-			jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "channel leader unavailable")
-		default:
-			jsonError(c, http.StatusInternalServerError, "internal_error", err.Error())
-		}
+		writeRecentConversationsError(c, err)
 		return
 	}
-
 	c.JSON(http.StatusOK, recentConversationsDTO(result))
 }
 
@@ -134,10 +144,25 @@ func parseOptionalBool(raw string) (bool, error) {
 	return strconv.ParseBool(raw)
 }
 
+func writeRecentConversationsError(c *gin.Context, err error) {
+	switch {
+	case errors.Is(err, metadb.ErrInvalidArgument):
+		jsonError(c, http.StatusBadRequest, "bad_request", "invalid conversation query")
+	case errors.Is(err, managementusecase.ErrRecentConversationsUnavailable):
+		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "recent conversations unavailable")
+	default:
+		jsonError(c, http.StatusInternalServerError, "internal_error", err.Error())
+	}
+}
+
 func recentConversationsDTO(resp managementusecase.RecentConversationsResponse) RecentConversationsResponseDTO {
 	return RecentConversationsResponseDTO{
-		UID: resp.UID, Limit: resp.Limit, MsgCount: resp.MsgCount, OnlyUnread: resp.OnlyUnread, Truncated: resp.Truncated,
-		Items: recentConversationDTOs(resp.Items),
+		UID:        resp.UID,
+		Limit:      resp.Limit,
+		MsgCount:   resp.MsgCount,
+		OnlyUnread: resp.OnlyUnread,
+		Truncated:  resp.Truncated,
+		Items:      recentConversationDTOs(resp.Items),
 	}
 }
 
@@ -145,9 +170,33 @@ func recentConversationDTOs(items []managementusecase.RecentConversation) []Rece
 	out := make([]RecentConversationDTO, 0, len(items))
 	for _, item := range items {
 		out = append(out, RecentConversationDTO{
-			UID: item.UID, ChannelID: item.ChannelID, ChannelType: int64(item.ChannelType), Unread: item.Unread,
-			Timestamp: item.Timestamp, LastMsgSeq: item.LastMsgSeq, LastClientMsgNo: item.LastClientMsgNo,
-			ReadToMsgSeq: item.ReadToMsgSeq, Version: item.Version, RecentMessages: messageDTOs(item.RecentMessages),
+			UID:             item.UID,
+			ChannelID:       item.ChannelID,
+			ChannelType:     int64(item.ChannelType),
+			Unread:          item.Unread,
+			Timestamp:       item.Timestamp,
+			LastMsgSeq:      item.LastMsgSeq,
+			LastClientMsgNo: item.LastClientMsgNo,
+			ReadToMsgSeq:    item.ReadToMsgSeq,
+			Version:         item.Version,
+			RecentMessages:  recentConversationMessageDTOs(item.RecentMessages),
+		})
+	}
+	return out
+}
+
+func recentConversationMessageDTOs(items []managementusecase.Message) []RecentConversationMessageDTO {
+	out := make([]RecentConversationMessageDTO, 0, len(items))
+	for _, item := range items {
+		out = append(out, RecentConversationMessageDTO{
+			MessageID:   item.MessageID,
+			MessageSeq:  item.MessageSeq,
+			ClientMsgNo: item.ClientMsgNo,
+			ChannelID:   item.ChannelID,
+			ChannelType: item.ChannelType,
+			FromUID:     item.FromUID,
+			Timestamp:   item.Timestamp,
+			Payload:     append([]byte(nil), item.Payload...),
 		})
 	}
 	return out

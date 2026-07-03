@@ -5,10 +5,9 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/WuKongIM/WuKongIM/internal/contracts/channelappend"
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
-	"github.com/WuKongIM/WuKongIM/pkg/legacy/channel"
-	raftcluster "github.com/WuKongIM/WuKongIM/pkg/legacy/cluster"
 	"github.com/gin-gonic/gin"
 )
 
@@ -77,17 +76,11 @@ type AdvanceMessageRetentionResponseDTO struct {
 	BlockedReason managementusecase.MessageRetentionBlockedReason `json:"blocked_reason,omitempty"`
 }
 
-type messageCursorPayload struct {
-	Version   int    `json:"v"`
-	BeforeSeq uint64 `json:"before_seq"`
-}
-
 func (s *Server) handleMessages(c *gin.Context) {
 	if s.management == nil {
 		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "management not configured")
 		return
 	}
-
 	channelID := c.Query("channel_id")
 	if channelID == "" {
 		jsonError(c, http.StatusBadRequest, "bad_request", "channel_id is required")
@@ -113,39 +106,20 @@ func (s *Server) handleMessages(c *gin.Context) {
 		jsonError(c, http.StatusBadRequest, "bad_request", "invalid message_id")
 		return
 	}
-
 	page, err := s.management.ListMessages(c.Request.Context(), managementusecase.ListMessagesRequest{
-		ChannelID:   channelID,
-		ChannelType: channelType,
-		Limit:       limit,
-		Cursor:      cursor,
-		MessageID:   messageID,
-		ClientMsgNo: c.Query("client_msg_no"),
+		ChannelID: channelID, ChannelType: channelType, Limit: limit,
+		Cursor: cursor, MessageID: messageID, ClientMsgNo: c.Query("client_msg_no"),
 	})
 	if err != nil {
-		switch {
-		case errors.Is(err, metadb.ErrInvalidArgument):
-			jsonError(c, http.StatusBadRequest, "bad_request", "invalid message query")
-		case errors.Is(err, metadb.ErrNotFound):
-			jsonError(c, http.StatusNotFound, "not_found", "channel not found")
-		case channelLeaderUnavailable(err):
-			jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "channel leader unavailable")
-		default:
-			jsonError(c, http.StatusInternalServerError, "internal_error", err.Error())
-		}
+		writeMessageError(c, err, "invalid message query")
 		return
 	}
-
 	nextCursor, err := encodeMessageCursor(page.NextCursor)
 	if err != nil {
 		jsonError(c, http.StatusInternalServerError, "internal_error", err.Error())
 		return
 	}
-	c.JSON(http.StatusOK, MessageListResponse{
-		Items:      messageDTOs(page.Items),
-		HasMore:    page.HasMore,
-		NextCursor: nextCursor,
-	})
+	c.JSON(http.StatusOK, MessageListResponse{Items: messageDTOs(page.Items), HasMore: page.HasMore, NextCursor: nextCursor})
 }
 
 func (s *Server) handleAdvanceMessageRetention(c *gin.Context) {
@@ -153,37 +127,22 @@ func (s *Server) handleAdvanceMessageRetention(c *gin.Context) {
 		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "management not configured")
 		return
 	}
-
 	var body AdvanceMessageRetentionRequestDTO
 	if err := c.ShouldBindJSON(&body); err != nil {
 		jsonError(c, http.StatusBadRequest, "bad_request", "invalid message retention request")
 		return
 	}
-	if body.ChannelID == "" || body.ChannelType <= 0 || body.ThroughSeq == 0 {
+	if body.ChannelID == "" || body.ChannelType <= 0 || body.ChannelType > 255 || body.ThroughSeq == 0 {
 		jsonError(c, http.StatusBadRequest, "bad_request", "invalid message retention request")
 		return
 	}
-
 	resp, err := s.management.AdvanceMessageRetention(c.Request.Context(), managementusecase.AdvanceMessageRetentionRequest{
-		ChannelID:   body.ChannelID,
-		ChannelType: body.ChannelType,
-		ThroughSeq:  body.ThroughSeq,
-		DryRun:      body.DryRun,
+		ChannelID: body.ChannelID, ChannelType: body.ChannelType, ThroughSeq: body.ThroughSeq, DryRun: body.DryRun,
 	})
 	if err != nil {
-		switch {
-		case errors.Is(err, metadb.ErrInvalidArgument):
-			jsonError(c, http.StatusBadRequest, "bad_request", "invalid message retention request")
-		case errors.Is(err, metadb.ErrNotFound):
-			jsonError(c, http.StatusNotFound, "not_found", "channel not found")
-		case channelLeaderUnavailable(err):
-			jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "channel leader unavailable")
-		default:
-			jsonError(c, http.StatusInternalServerError, "internal_error", err.Error())
-		}
+		writeMessageError(c, err, "invalid message retention request")
 		return
 	}
-
 	c.JSON(http.StatusOK, advanceMessageRetentionDTO(resp))
 }
 
@@ -192,7 +151,7 @@ func parseMessageChannelType(raw string) (int64, error) {
 		return 0, strconv.ErrSyntax
 	}
 	value, err := strconv.ParseInt(raw, 10, 64)
-	if err != nil || value <= 0 {
+	if err != nil || value <= 0 || value > 255 {
 		return 0, strconv.ErrSyntax
 	}
 	return value, nil
@@ -220,15 +179,19 @@ func parseMessageID(raw string) (uint64, error) {
 	return value, nil
 }
 
-func encodeMessageCursor(cursor managementusecase.MessageListCursor) (string, error) {
-	if cursor == (managementusecase.MessageListCursor{}) {
-		return "", nil
+func writeMessageError(c *gin.Context, err error, badRequestMessage string) {
+	switch {
+	case errors.Is(err, metadb.ErrInvalidArgument):
+		jsonError(c, http.StatusBadRequest, "bad_request", badRequestMessage)
+	case errors.Is(err, metadb.ErrNotFound), errors.Is(err, channelappend.ErrChannelNotFound):
+		jsonError(c, http.StatusNotFound, "not_found", "channel not found")
+	case errors.Is(err, managementusecase.ErrMessageRetentionUnavailable):
+		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "message retention unavailable")
+	case errors.Is(err, channelappend.ErrNotLeader), errors.Is(err, channelappend.ErrStaleRoute), errors.Is(err, channelappend.ErrRouteNotReady):
+		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "channel leader unavailable")
+	default:
+		jsonError(c, http.StatusInternalServerError, "internal_error", err.Error())
 	}
-	return encodeMessageCursorBinary(cursor), nil
-}
-
-func decodeMessageCursor(raw string) (managementusecase.MessageListCursor, error) {
-	return decodeMessageCursorRaw(raw)
 }
 
 func advanceMessageRetentionDTO(resp managementusecase.AdvanceMessageRetentionResponse) AdvanceMessageRetentionResponseDTO {
@@ -258,12 +221,4 @@ func messageDTOs(items []managementusecase.Message) []MessageDTO {
 		})
 	}
 	return out
-}
-
-func channelLeaderUnavailable(err error) bool {
-	return errors.Is(err, raftcluster.ErrNoLeader) ||
-		errors.Is(err, raftcluster.ErrNotLeader) ||
-		errors.Is(err, raftcluster.ErrSlotNotFound) ||
-		errors.Is(err, channel.ErrNotLeader) ||
-		errors.Is(err, channel.ErrStaleMeta)
 }

@@ -2,526 +2,348 @@ package management
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
+	"errors"
 	"fmt"
 	"strings"
 
+	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
+	channelwrapper "github.com/WuKongIM/WuKongIM/pkg/cluster/channels"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
-	"github.com/WuKongIM/WuKongIM/pkg/legacy/channel"
-	controllermeta "github.com/WuKongIM/WuKongIM/pkg/legacy/controller/meta"
-)
-
-const (
-	// ChannelMigrationKindLeaderTransfer is the manager-facing leader-transfer kind.
-	ChannelMigrationKindLeaderTransfer = "leader_transfer"
-	// ChannelMigrationKindReplicaReplace is the manager-facing replica-replacement kind.
-	ChannelMigrationKindReplicaReplace = "replica_replace"
 )
 
 var (
-	channelMigrationLeaderTransferPhaseSequence = []string{
-		"validate",
-		"probe_target",
-		"write_fence",
-		"drain_leader",
-		"final_target_catch_up",
-		"commit_leader_meta",
-		"verify_new_leader",
-		"clear_fence",
-	}
-	channelMigrationReplicaReplacePhaseSequence = []string{
-		"validate",
-		"add_learner",
-		"bootstrap_target",
-		"warm_catch_up",
-		"cutover_fence",
-		"final_target_catch_up",
-		"promote_and_remove",
-		"verify_membership",
-		"clear_fence",
-	}
-	channelMigrationEmbeddedReplicaReplacePhaseSequence = joinChannelMigrationPhaseSequences(
-		channelMigrationLeaderTransferPhaseSequence[:len(channelMigrationLeaderTransferPhaseSequence)-1],
-		channelMigrationReplicaReplacePhaseSequence[1:],
-	)
-	channelMigrationPhaseSequences = map[metadb.ChannelMigrationKind][]string{
-		metadb.ChannelMigrationKindLeaderTransfer: channelMigrationLeaderTransferPhaseSequence,
-		metadb.ChannelMigrationKindReplicaReplace: channelMigrationReplicaReplacePhaseSequence,
-	}
+	// ErrChannelMigrationUnavailable reports that ChannelV2 migration storage is not wired.
+	ErrChannelMigrationUnavailable = errors.New("internalv2/usecase/management: channel migration unavailable")
+	// ErrChannelMigrationConflict reports a duplicate or stale ChannelV2 migration request.
+	ErrChannelMigrationConflict = errors.New("internalv2/usecase/management: channel migration conflict")
+	// ErrChannelMigrationNotFound reports that the requested migration task is absent.
+	ErrChannelMigrationNotFound = errors.New("internalv2/usecase/management: channel migration not found")
 )
 
-// TransferChannelLeaderRequest describes a manual channel leader transfer.
-type TransferChannelLeaderRequest struct {
-	// TargetNodeID is the existing ISR replica that should become leader.
-	TargetNodeID uint64
-	// DryRun validates safety without creating a durable migration task.
-	DryRun bool
+// ChannelMigrationStore exposes Slot-owned ChannelV2 migration task commands.
+type ChannelMigrationStore interface {
+	// CreateLeaderTransfer creates a runtime-guarded leader-transfer task.
+	CreateLeaderTransfer(context.Context, channelwrapper.CreateLeaderTransferRequest) (metadb.ChannelMigrationTask, error)
+	// CreateReplicaReplace creates a runtime-guarded replica-replacement task.
+	CreateReplicaReplace(context.Context, channelwrapper.CreateReplicaReplaceRequest) (metadb.ChannelMigrationTask, error)
+	// GetActive reads the active task for one channel.
+	GetActive(context.Context, ch.ChannelID) (metadb.ChannelMigrationTask, bool, error)
+	// Get reads one migration task for one channel.
+	Get(context.Context, ch.ChannelID, string) (metadb.ChannelMigrationTask, bool, error)
+	// ListActive lists active tasks for one channel.
+	ListActive(context.Context, ch.ChannelID, int) ([]metadb.ChannelMigrationTask, error)
+	// Abort marks a task aborted.
+	Abort(context.Context, metadb.ChannelMigrationTask, string) error
 }
 
-// MigrateChannelReplicaRequest describes one channel replica replacement.
-type MigrateChannelReplicaRequest struct {
-	// SourceNodeID is the ISR replica being replaced.
-	SourceNodeID uint64
-	// TargetNodeID is the active data node that should be added as learner.
-	TargetNodeID uint64
-	// DryRun validates safety without creating a durable migration task.
-	DryRun bool
-}
-
-// ChannelMigrationResult is returned by dry-runs and task creation calls.
-type ChannelMigrationResult struct {
-	// DryRun reports whether no task was created.
-	DryRun bool
-	// Valid reports whether validation found no blockers.
-	Valid bool
-	// TaskID is set after a durable task is created.
-	TaskID string
-	// Kind is the stable manager-facing migration kind.
-	Kind string
-	// Blockers contains stable machine-readable validation blocker codes.
-	Blockers []string
-	// PhaseSequence is the expected durable executor phase order.
-	PhaseSequence []string
-	// Detail contains the current or planned task details.
-	Detail ChannelMigrationDetail
-}
-
-// ChannelMigrationDetail is the manager-facing active migration task detail.
-type ChannelMigrationDetail struct {
-	// TaskID identifies one channel migration attempt.
-	TaskID string
-	// Kind is the stable manager-facing migration kind.
-	Kind string
-	// Status is the stable manager-facing task status.
-	Status string
-	// Phase is the stable manager-facing task phase.
-	Phase string
-	// ChannelID identifies the channel.
+// LeaderTransferInput describes a manager ChannelV2 leader-transfer intent.
+type LeaderTransferInput struct {
+	// ChannelID is the logical channel identifier.
 	ChannelID string
-	// ChannelType identifies the channel namespace.
-	ChannelType int64
-	// SourceNode is the source leader or replica.
-	SourceNode uint64
-	// TargetNode is the target leader or replacement replica.
+	// ChannelType is the logical channel type.
+	ChannelType uint8
+	// TargetNode is the existing replica that should become leader.
 	TargetNode uint64
-	// DesiredLeader is the requested leader for leader-transfer semantics.
+	// TaskID optionally supplies an idempotency key.
+	TaskID string
+}
+
+// ReplicaReplaceInput describes a manager ChannelV2 replica-replacement intent.
+type ReplicaReplaceInput struct {
+	// ChannelID is the logical channel identifier.
+	ChannelID string
+	// ChannelType is the logical channel type.
+	ChannelType uint8
+	// SourceNode is the replica being replaced.
+	SourceNode uint64
+	// TargetNode is the new replica candidate.
+	TargetNode uint64
+	// TaskID optionally supplies an idempotency key.
+	TaskID string
+}
+
+// ChannelMigrationLookupInput identifies one channel-scoped migration task.
+type ChannelMigrationLookupInput struct {
+	// ChannelID is the logical channel identifier.
+	ChannelID string
+	// ChannelType is the logical channel type.
+	ChannelType uint8
+	// TaskID is the durable migration task ID.
+	TaskID string
+}
+
+// ChannelMigrationListInput configures active task reads for one channel.
+type ChannelMigrationListInput struct {
+	// ChannelID is the logical channel identifier.
+	ChannelID string
+	// ChannelType is the logical channel type.
+	ChannelType uint8
+	// Limit bounds returned active tasks.
+	Limit int
+}
+
+// ChannelMigrationAbortInput identifies a task and operator reason to abort.
+type ChannelMigrationAbortInput struct {
+	// ChannelID is the logical channel identifier.
+	ChannelID string
+	// ChannelType is the logical channel type.
+	ChannelType uint8
+	// TaskID is the durable migration task ID.
+	TaskID string
+	// Reason is the optional operator-facing abort reason.
+	Reason string
+}
+
+// ChannelMigrationSummary is the manager-facing ChannelV2 migration task row.
+type ChannelMigrationSummary struct {
+	// TaskID is the durable migration task identity.
+	TaskID string
+	// ChannelID is the logical channel identifier.
+	ChannelID string
+	// ChannelType is the logical channel type.
+	ChannelType int64
+	// Kind is the stable workflow kind.
+	Kind string
+	// Status is the stable task lifecycle status.
+	Status string
+	// Phase is the stable executor phase.
+	Phase string
+	// SourceNode is the source leader or replica, depending on Kind.
+	SourceNode uint64
+	// TargetNode is the desired leader or replacement node.
+	TargetNode uint64
+	// DesiredLeader is the desired leader when known.
 	DesiredLeader uint64
-	// BaseChannelEpoch is the channel epoch captured when the task was created.
-	BaseChannelEpoch uint64
-	// BaseLeaderEpoch is the leader epoch captured when the task was created.
-	BaseLeaderEpoch uint64
-	// CurrentChannelEpoch is the latest authoritative channel epoch.
-	CurrentChannelEpoch uint64
-	// CurrentLeaderEpoch is the latest authoritative leader epoch.
-	CurrentLeaderEpoch uint64
-	// Progress stores durable executor observations.
-	Progress metadb.ChannelMigrationProgress
-	// FenceActive reports whether the task currently owns an active write fence.
-	FenceActive bool
-	// FenceUntilMS is the task write-fence deadline.
-	FenceUntilMS int64
-	// FenceReason is the raw runtime write-fence reason.
-	FenceReason uint8
-	// BlockerCode is a stable blocker code when Status is blocked.
-	BlockerCode string
-	// BlockerMessage is the human-readable blocker detail.
+	// BlockerMessage is the bounded blocker detail for blocked tasks.
 	BlockerMessage string
-	// Attempt is the durable retry counter.
-	Attempt uint32
-	// NextRunAtMS is the next executor wake-up timestamp.
-	NextRunAtMS int64
-	// LastError is the last retryable or terminal error.
+	// LastError is the bounded failure detail for failed tasks.
 	LastError string
-	// CreatedAtMS is the creation timestamp.
-	CreatedAtMS int64
-	// UpdatedAtMS is the last update timestamp.
-	UpdatedAtMS int64
-	// CompletedAtMS is set for terminal tasks.
-	CompletedAtMS int64
 }
 
-// TransferChannelLeader validates or creates a manual channel leader-transfer task.
-func (a *App) TransferChannelLeader(ctx context.Context, id channel.ChannelID, req TransferChannelLeaderRequest) (ChannelMigrationResult, error) {
-	if err := validateManagementChannelID(id); err != nil {
-		return ChannelMigrationResult{}, err
-	}
-	if req.TargetNodeID == 0 {
-		return ChannelMigrationResult{}, metadb.ErrInvalidArgument
-	}
-	meta, err := a.getMigrationRuntimeMeta(ctx, id)
-	if err != nil {
-		return ChannelMigrationResult{}, err
-	}
-
-	blockers, err := a.validateNoActiveChannelMigration(ctx, id)
-	if err != nil {
-		return ChannelMigrationResult{}, err
-	}
-	nodes, err := a.listMigrationNodes(ctx)
-	if err != nil {
-		return ChannelMigrationResult{}, err
-	}
-	if meta.Status != uint8(channel.StatusActive) {
-		blockers = append(blockers, "channel_not_active")
-	}
-	if meta.Leader == 0 {
-		blockers = append(blockers, "missing_leader")
-	}
-	if channelMigrationWriteFenceActive(meta) {
-		blockers = append(blockers, "write_fence_active")
-	}
-	if meta.Leader != 0 && !isActiveMigrationDataNode(nodes, meta.Leader) {
-		blockers = append(blockers, "source_leader_not_alive")
-	}
-	if meta.Leader == req.TargetNodeID {
-		blockers = append(blockers, "target_already_leader")
-	}
-	if !containsManagementUint64(meta.ISR, req.TargetNodeID) {
-		blockers = append(blockers, "target_not_isr")
-	}
-	if !isActiveMigrationDataNode(nodes, req.TargetNodeID) {
-		blockers = append(blockers, "target_node_not_alive")
-	}
-
-	task := a.newChannelMigrationTask(id, metadb.ChannelMigrationKindLeaderTransfer, meta.Leader, req.TargetNodeID, req.TargetNodeID, meta)
-	return a.finishChannelMigrationValidation(ctx, req.DryRun, task, meta, blockers)
+// ChannelMigrationListResponse is returned by active migration list reads.
+type ChannelMigrationListResponse struct {
+	// Items contains active task summaries.
+	Items []ChannelMigrationSummary
 }
 
-// MigrateChannelReplica validates or creates a manual channel replica replacement task.
-func (a *App) MigrateChannelReplica(ctx context.Context, id channel.ChannelID, req MigrateChannelReplicaRequest) (ChannelMigrationResult, error) {
-	if err := validateManagementChannelID(id); err != nil {
-		return ChannelMigrationResult{}, err
+// RequestChannelLeaderTransfer validates and submits a manual ChannelV2 leader transfer.
+func (a *App) RequestChannelLeaderTransfer(ctx context.Context, input LeaderTransferInput) (ChannelMigrationSummary, error) {
+	if err := ctxErr(ctx); err != nil {
+		return ChannelMigrationSummary{}, err
 	}
-	if req.SourceNodeID == 0 || req.TargetNodeID == 0 || req.SourceNodeID == req.TargetNodeID {
-		return ChannelMigrationResult{}, metadb.ErrInvalidArgument
-	}
-	meta, err := a.getMigrationRuntimeMeta(ctx, id)
+	id, err := channelMigrationInputID(input.ChannelID, input.ChannelType)
 	if err != nil {
-		return ChannelMigrationResult{}, err
+		return ChannelMigrationSummary{}, err
 	}
-
-	blockers, err := a.validateNoActiveChannelMigration(ctx, id)
-	if err != nil {
-		return ChannelMigrationResult{}, err
-	}
-	nodes, err := a.listMigrationNodes(ctx)
-	if err != nil {
-		return ChannelMigrationResult{}, err
-	}
-	if meta.Status != uint8(channel.StatusActive) {
-		blockers = append(blockers, "channel_not_active")
-	}
-	if channelMigrationWriteFenceActive(meta) {
-		blockers = append(blockers, "write_fence_active")
-	}
-	if meta.Leader == 0 {
-		blockers = append(blockers, "missing_leader")
-	}
-	if activeMigrationDataNodeCount(nodes) <= 1 {
-		blockers = append(blockers, "single_node_cluster")
-	}
-	if meta.Leader != 0 && !isActiveMigrationDataNode(nodes, meta.Leader) {
-		blockers = append(blockers, "source_leader_not_alive")
-	}
-	if !containsManagementUint64(meta.Replicas, req.SourceNodeID) {
-		blockers = append(blockers, "source_not_replica")
-	}
-	if !containsManagementUint64(meta.ISR, req.SourceNodeID) {
-		blockers = append(blockers, "source_not_isr")
-	}
-	if containsManagementUint64(meta.Replicas, req.TargetNodeID) {
-		blockers = append(blockers, "target_already_replica")
-	}
-	if containsManagementUint64(meta.ISR, req.TargetNodeID) {
-		blockers = append(blockers, "target_already_isr")
-	}
-	if meta.Leader == req.TargetNodeID {
-		blockers = append(blockers, "target_is_leader")
-	}
-	if meta.MinISR > int64(len(meta.ISR)) {
-		blockers = append(blockers, "min_isr_not_satisfied")
-	}
-	if !isActiveMigrationDataNode(nodes, req.TargetNodeID) {
-		blockers = append(blockers, "target_node_not_alive")
-	}
-	if meta.Leader == req.SourceNodeID && !hasEligibleEmbeddedLeader(nodes, meta, req.SourceNodeID, req.TargetNodeID) {
-		blockers = append(blockers, "no_eligible_embedded_leader")
-	}
-
-	task := a.newChannelMigrationTask(id, metadb.ChannelMigrationKindReplicaReplace, req.SourceNodeID, req.TargetNodeID, 0, meta)
-	return a.finishChannelMigrationValidation(ctx, req.DryRun, task, meta, blockers)
-}
-
-// GetChannelMigration returns the active channel migration task detail.
-func (a *App) GetChannelMigration(ctx context.Context, id channel.ChannelID) (ChannelMigrationDetail, error) {
-	if err := validateManagementChannelID(id); err != nil {
-		return ChannelMigrationDetail{}, err
+	if input.TargetNode == 0 {
+		return ChannelMigrationSummary{}, metadb.ErrInvalidArgument
 	}
 	if a == nil || a.channelMigration == nil {
-		return ChannelMigrationDetail{}, metadb.ErrInvalidArgument
+		return ChannelMigrationSummary{}, ErrChannelMigrationUnavailable
 	}
-	task, ok, err := a.channelMigration.GetActiveChannelMigrationTask(ctx, id.ID, int64(id.Type))
+	task, err := a.channelMigration.CreateLeaderTransfer(ctx, channelwrapper.CreateLeaderTransferRequest{
+		ChannelID:     id,
+		TaskID:        strings.TrimSpace(input.TaskID),
+		DesiredLeader: ch.NodeID(input.TargetNode),
+	})
 	if err != nil {
-		return ChannelMigrationDetail{}, err
+		return ChannelMigrationSummary{}, mapChannelMigrationError(err)
+	}
+	return managerChannelMigrationSummary(task), nil
+}
+
+// RequestChannelReplicaReplace validates and submits a manual ChannelV2 replica replacement.
+func (a *App) RequestChannelReplicaReplace(ctx context.Context, input ReplicaReplaceInput) (ChannelMigrationSummary, error) {
+	if err := ctxErr(ctx); err != nil {
+		return ChannelMigrationSummary{}, err
+	}
+	id, err := channelMigrationInputID(input.ChannelID, input.ChannelType)
+	if err != nil {
+		return ChannelMigrationSummary{}, err
+	}
+	if input.SourceNode == 0 || input.TargetNode == 0 || input.SourceNode == input.TargetNode {
+		return ChannelMigrationSummary{}, metadb.ErrInvalidArgument
+	}
+	if a == nil || a.channelMigration == nil {
+		return ChannelMigrationSummary{}, ErrChannelMigrationUnavailable
+	}
+	task, err := a.channelMigration.CreateReplicaReplace(ctx, channelwrapper.CreateReplicaReplaceRequest{
+		ChannelID:  id,
+		TaskID:     strings.TrimSpace(input.TaskID),
+		SourceNode: ch.NodeID(input.SourceNode),
+		TargetNode: ch.NodeID(input.TargetNode),
+	})
+	if err != nil {
+		return ChannelMigrationSummary{}, mapChannelMigrationError(err)
+	}
+	return managerChannelMigrationSummary(task), nil
+}
+
+// ActiveChannelMigration returns the active migration task for one channel when present.
+func (a *App) ActiveChannelMigration(ctx context.Context, input ChannelMigrationListInput) (ChannelMigrationSummary, bool, error) {
+	if err := ctxErr(ctx); err != nil {
+		return ChannelMigrationSummary{}, false, err
+	}
+	id, err := channelMigrationInputID(input.ChannelID, input.ChannelType)
+	if err != nil {
+		return ChannelMigrationSummary{}, false, err
+	}
+	if a == nil || a.channelMigration == nil {
+		return ChannelMigrationSummary{}, false, ErrChannelMigrationUnavailable
+	}
+	task, ok, err := a.channelMigration.GetActive(ctx, id)
+	if err != nil {
+		return ChannelMigrationSummary{}, false, mapChannelMigrationError(err)
 	}
 	if !ok {
-		return ChannelMigrationDetail{}, metadb.ErrNotFound
+		return ChannelMigrationSummary{}, false, nil
 	}
-	meta, err := a.getMigrationRuntimeMeta(ctx, id)
-	if err != nil {
-		return ChannelMigrationDetail{}, err
-	}
-	return channelMigrationDetailFromTask(task, meta), nil
+	return managerChannelMigrationSummary(task), true, nil
 }
 
-// AbortChannelMigration aborts the active task when taskID matches the active task.
-func (a *App) AbortChannelMigration(ctx context.Context, id channel.ChannelID, taskID string) (ChannelMigrationDetail, error) {
-	if err := validateManagementChannelID(id); err != nil {
-		return ChannelMigrationDetail{}, err
+// ListActiveChannelMigrations returns active migration tasks for one channel.
+func (a *App) ListActiveChannelMigrations(ctx context.Context, input ChannelMigrationListInput) (ChannelMigrationListResponse, error) {
+	if err := ctxErr(ctx); err != nil {
+		return ChannelMigrationListResponse{}, err
 	}
-	if taskID == "" || a == nil || a.channelMigration == nil {
-		return ChannelMigrationDetail{}, metadb.ErrInvalidArgument
-	}
-	task, ok, err := a.channelMigration.GetActiveChannelMigrationTask(ctx, id.ID, int64(id.Type))
+	id, err := channelMigrationInputID(input.ChannelID, input.ChannelType)
 	if err != nil {
-		return ChannelMigrationDetail{}, err
+		return ChannelMigrationListResponse{}, err
+	}
+	limit := input.Limit
+	if limit <= 0 {
+		limit = 10
+	} else if limit > 100 {
+		limit = 100
+	}
+	if a == nil || a.channelMigration == nil {
+		return ChannelMigrationListResponse{}, ErrChannelMigrationUnavailable
+	}
+	tasks, err := a.channelMigration.ListActive(ctx, id, limit)
+	if err != nil {
+		return ChannelMigrationListResponse{}, mapChannelMigrationError(err)
+	}
+	items := make([]ChannelMigrationSummary, 0, len(tasks))
+	for _, task := range tasks {
+		items = append(items, managerChannelMigrationSummary(task))
+	}
+	return ChannelMigrationListResponse{Items: items}, nil
+}
+
+// ChannelMigration returns one migration task by id within its channel scope.
+func (a *App) ChannelMigration(ctx context.Context, input ChannelMigrationLookupInput) (ChannelMigrationSummary, error) {
+	if err := ctxErr(ctx); err != nil {
+		return ChannelMigrationSummary{}, err
+	}
+	id, taskID, err := channelMigrationLookupInput(input)
+	if err != nil {
+		return ChannelMigrationSummary{}, err
+	}
+	if a == nil || a.channelMigration == nil {
+		return ChannelMigrationSummary{}, ErrChannelMigrationUnavailable
+	}
+	task, ok, err := a.channelMigration.Get(ctx, id, taskID)
+	if err != nil {
+		return ChannelMigrationSummary{}, mapChannelMigrationError(err)
 	}
 	if !ok {
-		return ChannelMigrationDetail{}, metadb.ErrNotFound
+		return ChannelMigrationSummary{}, ErrChannelMigrationNotFound
 	}
-	if task.TaskID != taskID {
-		return ChannelMigrationDetail{}, metadb.ErrStaleMeta
-	}
-	meta, err := a.getMigrationRuntimeMeta(ctx, id)
-	if err != nil {
-		return ChannelMigrationDetail{}, err
-	}
-	nowMS := a.now().UnixMilli()
-	req := metadb.ChannelMigrationAbortRequest{
-		Guard:         channelMigrationGuardFromTask(task),
-		RuntimeGuard:  channelMigrationRuntimeGuardFromMeta(meta),
-		Status:        metadb.ChannelMigrationStatusAborted,
-		Phase:         task.Phase,
-		UpdatedAtMS:   nextManagementUpdatedAtMS(nowMS, task.UpdatedAtMS),
-		CompletedAtMS: nextManagementUpdatedAtMS(nowMS, task.UpdatedAtMS),
-		LastError:     "aborted by operator",
-	}
-	if err := a.channelMigration.AbortChannelMigration(ctx, req); err != nil {
-		return ChannelMigrationDetail{}, err
-	}
-	task.Status = req.Status
-	task.Phase = req.Phase
-	task.UpdatedAtMS = req.UpdatedAtMS
-	task.CompletedAtMS = req.CompletedAtMS
-	task.LastError = req.LastError
-	return channelMigrationDetailFromTask(task, meta), nil
+	return managerChannelMigrationSummary(task), nil
 }
 
-func (a *App) finishChannelMigrationValidation(ctx context.Context, dryRun bool, task metadb.ChannelMigrationTask, meta metadb.ChannelRuntimeMeta, blockers []string) (ChannelMigrationResult, error) {
-	result := ChannelMigrationResult{
-		DryRun:        dryRun,
-		Valid:         len(blockers) == 0,
-		Kind:          managerChannelMigrationKind(task.Kind),
-		Blockers:      append([]string(nil), blockers...),
-		PhaseSequence: channelMigrationPhaseSequence(task, meta),
-		Detail:        channelMigrationDetailFromTask(task, meta),
+// AbortChannelMigration aborts one channel-scoped migration task.
+func (a *App) AbortChannelMigration(ctx context.Context, input ChannelMigrationAbortInput) (ChannelMigrationSummary, error) {
+	if err := ctxErr(ctx); err != nil {
+		return ChannelMigrationSummary{}, err
 	}
-	if dryRun {
-		result.Detail.TaskID = ""
-		return result, nil
-	}
-	if len(blockers) > 0 {
-		return result, metadb.ErrInvalidArgument
+	id, taskID, err := channelMigrationLookupInput(ChannelMigrationLookupInput{
+		ChannelID:   input.ChannelID,
+		ChannelType: input.ChannelType,
+		TaskID:      input.TaskID,
+	})
+	if err != nil {
+		return ChannelMigrationSummary{}, err
 	}
 	if a == nil || a.channelMigration == nil {
-		return ChannelMigrationResult{}, metadb.ErrInvalidArgument
+		return ChannelMigrationSummary{}, ErrChannelMigrationUnavailable
 	}
-	if err := a.channelMigration.CreateChannelMigrationTaskWithRuntimeGuard(ctx, metadb.ChannelMigrationTaskCreate{
-		Task:         task,
-		RuntimeGuard: channelMigrationRuntimeGuardFromMeta(meta),
-	}); err != nil {
-		return ChannelMigrationResult{}, err
-	}
-	result.TaskID = task.TaskID
-	result.Detail.TaskID = task.TaskID
-	return result, nil
-}
-
-func (a *App) validateNoActiveChannelMigration(ctx context.Context, id channel.ChannelID) ([]string, error) {
-	if a == nil || a.channelMigration == nil {
-		return nil, metadb.ErrInvalidArgument
-	}
-	_, ok, err := a.channelMigration.GetActiveChannelMigrationTask(ctx, id.ID, int64(id.Type))
+	task, ok, err := a.channelMigration.Get(ctx, id, taskID)
 	if err != nil {
-		return nil, err
+		return ChannelMigrationSummary{}, mapChannelMigrationError(err)
 	}
-	if ok {
-		return []string{"active_task_exists"}, nil
+	if !ok {
+		return ChannelMigrationSummary{}, ErrChannelMigrationNotFound
 	}
-	return nil, nil
+	if err := a.channelMigration.Abort(ctx, task, strings.TrimSpace(input.Reason)); err != nil {
+		return ChannelMigrationSummary{}, mapChannelMigrationError(err)
+	}
+	task.Status = metadb.ChannelMigrationStatusAborted
+	if strings.TrimSpace(input.Reason) != "" {
+		task.LastError = strings.TrimSpace(input.Reason)
+	}
+	return managerChannelMigrationSummary(task), nil
 }
 
-func (a *App) getMigrationRuntimeMeta(ctx context.Context, id channel.ChannelID) (metadb.ChannelRuntimeMeta, error) {
-	if a == nil || a.channelRuntimeMeta == nil {
-		return metadb.ChannelRuntimeMeta{}, metadb.ErrInvalidArgument
+func channelMigrationInputID(channelID string, channelType uint8) (ch.ChannelID, error) {
+	id := strings.TrimSpace(channelID)
+	if id == "" {
+		return ch.ChannelID{}, metadb.ErrInvalidArgument
 	}
-	return a.channelRuntimeMeta.GetChannelRuntimeMeta(ctx, id.ID, int64(id.Type))
+	return ch.ChannelID{ID: id, Type: channelType}, nil
 }
 
-func (a *App) newChannelMigrationTask(id channel.ChannelID, kind metadb.ChannelMigrationKind, source, target, desired uint64, meta metadb.ChannelRuntimeMeta) metadb.ChannelMigrationTask {
-	nowMS := a.now().UnixMilli()
-	return metadb.ChannelMigrationTask{
-		TaskID:           newChannelMigrationTaskID(nowMS),
-		Kind:             kind,
-		Status:           metadb.ChannelMigrationStatusPending,
-		Phase:            metadb.ChannelMigrationPhaseValidate,
-		ChannelID:        id.ID,
-		ChannelType:      int64(id.Type),
-		SourceNode:       source,
-		TargetNode:       target,
-		DesiredLeader:    desired,
-		BaseChannelEpoch: meta.ChannelEpoch,
-		BaseLeaderEpoch:  meta.LeaderEpoch,
-		CreatedAtMS:      nowMS,
-		UpdatedAtMS:      nowMS,
+func channelMigrationLookupInput(input ChannelMigrationLookupInput) (ch.ChannelID, string, error) {
+	id, err := channelMigrationInputID(input.ChannelID, input.ChannelType)
+	if err != nil {
+		return ch.ChannelID{}, "", err
 	}
-}
-
-func isActiveMigrationDataNode(nodes []controllermeta.ClusterNode, nodeID uint64) bool {
-	for _, node := range nodes {
-		if node.NodeID == nodeID &&
-			node.Role == controllermeta.NodeRoleData &&
-			node.JoinState == controllermeta.NodeJoinStateActive &&
-			node.Status == controllermeta.NodeStatusAlive {
-			return true
-		}
+	taskID := strings.TrimSpace(input.TaskID)
+	if taskID == "" {
+		return ch.ChannelID{}, "", metadb.ErrInvalidArgument
 	}
-	return false
+	return id, taskID, nil
 }
 
-func activeMigrationDataNodeCount(nodes []controllermeta.ClusterNode) int {
-	count := 0
-	for _, node := range nodes {
-		if node.Role == controllermeta.NodeRoleData &&
-			node.JoinState == controllermeta.NodeJoinStateActive &&
-			node.Status == controllermeta.NodeStatusAlive {
-			count++
-		}
-	}
-	return count
-}
-
-func channelMigrationWriteFenceActive(meta metadb.ChannelRuntimeMeta) bool {
-	return meta.WriteFenceToken != ""
-}
-
-func hasEligibleEmbeddedLeader(nodes []controllermeta.ClusterNode, meta metadb.ChannelRuntimeMeta, source, target uint64) bool {
-	for _, nodeID := range meta.ISR {
-		if nodeID == source || nodeID == target {
-			continue
-		}
-		if isActiveMigrationDataNode(nodes, nodeID) {
-			return true
-		}
-	}
-	return false
-}
-
-func (a *App) listMigrationNodes(ctx context.Context) ([]controllermeta.ClusterNode, error) {
-	if a == nil || a.cluster == nil {
-		return nil, metadb.ErrInvalidArgument
-	}
-	return a.cluster.ListNodesStrict(ctx)
-}
-
-func channelMigrationDetailFromTask(task metadb.ChannelMigrationTask, meta metadb.ChannelRuntimeMeta) ChannelMigrationDetail {
-	return ChannelMigrationDetail{
-		TaskID:              task.TaskID,
-		Kind:                managerChannelMigrationKind(task.Kind),
-		Status:              managerChannelMigrationStatus(task.Status),
-		Phase:               managerChannelMigrationPhase(task.Phase),
-		ChannelID:           task.ChannelID,
-		ChannelType:         task.ChannelType,
-		SourceNode:          task.SourceNode,
-		TargetNode:          task.TargetNode,
-		DesiredLeader:       task.DesiredLeader,
-		BaseChannelEpoch:    task.BaseChannelEpoch,
-		BaseLeaderEpoch:     task.BaseLeaderEpoch,
-		CurrentChannelEpoch: meta.ChannelEpoch,
-		CurrentLeaderEpoch:  meta.LeaderEpoch,
-		Progress:            task.Progress,
-		FenceActive:         task.FenceToken != "" || meta.WriteFenceToken == task.TaskID,
-		FenceUntilMS:        task.FenceUntilMS,
-		FenceReason:         meta.WriteFenceReason,
-		BlockerCode:         task.BlockerCode,
-		BlockerMessage:      task.BlockerMessage,
-		Attempt:             task.Attempt,
-		NextRunAtMS:         task.NextRunAtMS,
-		LastError:           task.LastError,
-		CreatedAtMS:         task.CreatedAtMS,
-		UpdatedAtMS:         task.UpdatedAtMS,
-		CompletedAtMS:       task.CompletedAtMS,
+func mapChannelMigrationError(err error) error {
+	switch {
+	case err == nil:
+		return nil
+	case errors.Is(err, ch.ErrInvalidConfig), errors.Is(err, metadb.ErrInvalidArgument):
+		return fmt.Errorf("%w: %v", metadb.ErrInvalidArgument, err)
+	case errors.Is(err, metadb.ErrAlreadyExists), errors.Is(err, metadb.ErrStaleMeta):
+		return fmt.Errorf("%w: %v", ErrChannelMigrationConflict, err)
+	case errors.Is(err, metadb.ErrNotFound):
+		return fmt.Errorf("%w: %v", ErrChannelMigrationNotFound, err)
+	default:
+		return err
 	}
 }
 
-func channelMigrationPhaseSequence(task metadb.ChannelMigrationTask, meta metadb.ChannelRuntimeMeta) []string {
-	if task.Kind == metadb.ChannelMigrationKindReplicaReplace && meta.Leader == task.SourceNode {
-		return append([]string(nil), channelMigrationEmbeddedReplicaReplacePhaseSequence...)
+func managerChannelMigrationSummary(task metadb.ChannelMigrationTask) ChannelMigrationSummary {
+	return ChannelMigrationSummary{
+		TaskID:         task.TaskID,
+		ChannelID:      task.ChannelID,
+		ChannelType:    task.ChannelType,
+		Kind:           managerChannelMigrationKind(task.Kind),
+		Status:         managerChannelMigrationStatus(task.Status),
+		Phase:          managerChannelMigrationPhase(task.Phase),
+		SourceNode:     task.SourceNode,
+		TargetNode:     task.TargetNode,
+		DesiredLeader:  task.DesiredLeader,
+		BlockerMessage: task.BlockerMessage,
+		LastError:      task.LastError,
 	}
-	return append([]string(nil), channelMigrationPhaseSequences[task.Kind]...)
-}
-
-func joinChannelMigrationPhaseSequences(groups ...[]string) []string {
-	total := 0
-	for _, group := range groups {
-		total += len(group)
-	}
-	out := make([]string, 0, total)
-	for _, group := range groups {
-		out = append(out, group...)
-	}
-	return out
-}
-
-func channelMigrationGuardFromTask(task metadb.ChannelMigrationTask) metadb.ChannelMigrationTaskGuard {
-	return metadb.ChannelMigrationTaskGuard{
-		ChannelID:                 task.ChannelID,
-		ChannelType:               task.ChannelType,
-		TaskID:                    task.TaskID,
-		ExpectedStatus:            task.Status,
-		ExpectedPhase:             task.Phase,
-		ExpectedOwnerNodeID:       task.OwnerNodeID,
-		ExpectedOwnerLeaseUntilMS: task.OwnerLeaseUntilMS,
-		ExpectedUpdatedAtMS:       task.UpdatedAtMS,
-	}
-}
-
-func channelMigrationRuntimeGuardFromMeta(meta metadb.ChannelRuntimeMeta) metadb.ChannelMigrationRuntimeGuard {
-	return metadb.ChannelMigrationRuntimeGuard{
-		ChannelID:            meta.ChannelID,
-		ChannelType:          meta.ChannelType,
-		ExpectedChannelEpoch: meta.ChannelEpoch,
-		ExpectedLeaderEpoch:  meta.LeaderEpoch,
-		ExpectedLeader:       meta.Leader,
-		ExpectedFenceToken:   meta.WriteFenceToken,
-		ExpectedFenceVersion: meta.WriteFenceVersion,
-	}
-}
-
-func validateManagementChannelID(id channel.ChannelID) error {
-	if strings.TrimSpace(id.ID) == "" || id.Type <= 0 {
-		return metadb.ErrInvalidArgument
-	}
-	return nil
 }
 
 func managerChannelMigrationKind(kind metadb.ChannelMigrationKind) string {
 	switch kind {
 	case metadb.ChannelMigrationKindLeaderTransfer:
-		return ChannelMigrationKindLeaderTransfer
+		return "leader_transfer"
+	case metadb.ChannelMigrationKindLeaderFailover:
+		return "leader_failover"
 	case metadb.ChannelMigrationKindReplicaReplace:
-		return ChannelMigrationKindReplicaReplace
+		return "replica_replace"
 	default:
 		return "unknown"
 	}
@@ -579,19 +401,4 @@ func managerChannelMigrationPhase(phase metadb.ChannelMigrationPhase) string {
 	default:
 		return "unknown"
 	}
-}
-
-func newChannelMigrationTaskID(nowMS int64) string {
-	var random [8]byte
-	if _, err := rand.Read(random[:]); err == nil {
-		return fmt.Sprintf("chmig-%d-%s", nowMS, hex.EncodeToString(random[:]))
-	}
-	return fmt.Sprintf("chmig-%d", nowMS)
-}
-
-func nextManagementUpdatedAtMS(nowMS, previous int64) int64 {
-	if nowMS <= previous {
-		return previous + 1
-	}
-	return nowMS
 }

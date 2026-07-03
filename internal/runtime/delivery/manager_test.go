@@ -2,344 +2,180 @@ package delivery
 
 import (
 	"context"
-	"strconv"
+	"errors"
 	"testing"
-	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/legacy/channel"
-	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
-	"github.com/stretchr/testify/require"
+	"github.com/WuKongIM/WuKongIM/internal/contracts/messageevents"
 )
 
-func TestManagerMaterializesOneVirtualActorPerChannel(t *testing.T) {
-	runtime, _, _ := newTestManager()
-
-	require.NoError(t, runtime.Submit(context.Background(), testEnvelope(1, 1)))
-	require.NoError(t, runtime.Submit(context.Background(), testEnvelope(2, 2)))
-
-	require.Equal(t, 1, runtime.actorCount())
-}
-
-func TestManagerEvictsIdleActors(t *testing.T) {
-	runtime, clock, _ := newTestManager()
-	runtime.resolver.(*stubResolver).routesByChannel[testChannelID] = nil
-
-	require.NoError(t, runtime.Submit(context.Background(), testEnvelope(1, 1)))
-	require.Equal(t, 1, runtime.actorCount())
-
-	clock.Advance(2 * time.Minute)
-	runtime.SweepIdle()
-
-	require.Zero(t, runtime.actorCount())
-}
-
-func TestManagerPromotesHighActivityChannelToDedicatedLane(t *testing.T) {
-	runtime, _, _ := newTestManager(Config{
-		Limits: Limits{DedicatedLaneActivityThreshold: 8},
+func TestManagerRequiresStartForFanoutRunnerByDefault(t *testing.T) {
+	manager := NewManager(ManagerOptions{
+		Planner: NewPlanner(PlannerOptions{}),
+		Runner:  recordingManagerRunner{},
 	})
 
-	for i := 0; i < 20; i++ {
-		require.NoError(t, runtime.Submit(context.Background(), testEnvelopeFor("g-hot", frame.ChannelTypeGroup, uint64(i+1), uint64(i+1), "hot")))
+	err := manager.SubmitCommitted(context.Background(), messageevents.MessageCommitted{MessageID: 1001})
+	if !errors.Is(err, ErrManagerClosed) {
+		t.Fatalf("SubmitCommitted() error = %v, want ErrManagerClosed", err)
 	}
-
-	require.Equal(t, LaneDedicated, runtime.ActorLane("g-hot", frame.ChannelTypeGroup))
 }
 
-func TestManagerSubmitKeepsShardLockUntilActorIsLocked(t *testing.T) {
-	runtime, clock, _ := newTestManager()
-	key := ChannelKey{ChannelID: "g-submit-race", ChannelType: frame.ChannelTypeGroup}
-	shard := runtime.shardFor(key)
-
-	shard.mu.Lock()
-	act := shard.actorFor(key)
-	shard.mu.Unlock()
-	act.lastActive = clock.Now().Add(-2 * time.Minute).UnixNano()
-
-	act.mu.Lock()
-	submitDone := make(chan error, 1)
-	go func() {
-		submitDone <- runtime.Submit(context.Background(), testEnvelopeFor(key.ChannelID, key.ChannelType, 701, 1, "race"))
-	}()
-
-	require.Eventually(t, func() bool {
-		if shard.mu.TryLock() {
-			shard.mu.Unlock()
-			return false
-		}
-		return true
-	}, time.Second, 10*time.Millisecond)
-
-	sweepDone := make(chan struct{})
-	go func() {
-		shard.sweepIdle()
-		close(sweepDone)
-	}()
-
-	act.mu.Unlock()
-	require.NoError(t, <-submitDone)
-	<-sweepDone
-	require.Equal(t, 1, runtime.actorCount())
-}
-
-func newTestManager(overrides ...Config) (*Manager, *testClock, *recordingPusher) {
-	clock := &testClock{now: time.Date(2026, 4, 6, 12, 0, 0, 0, time.UTC)}
-	pusher := &recordingPusher{}
-	cfg := Config{
-		Resolver: &stubResolver{
-			routesByChannel: map[string][]RouteKey{
-				testChannelID: {
-					testRoute("u2", 1, 11, 2),
+func TestManagerPlansAndRunsFanout(t *testing.T) {
+	presence := &fakePresenceResolver{
+		routes: map[string][]Route{
+			"u1": {{UID: "u1", OwnerNodeID: 10, SessionID: 101}},
+			"u2": {{UID: "u2", OwnerNodeID: 20, SessionID: 201}},
+		},
+	}
+	pusher := &fakePusher{}
+	manager := NewManager(ManagerOptions{
+		Planner: NewPlanner(PlannerOptions{
+			Partitioner: staticPartitioner{
+				partitions: []Partition{
+					{ID: 1, LeaderNodeID: 10},
+					{ID: 2, LeaderNodeID: 20},
 				},
 			},
-		},
-		Push:             pusher,
-		Clock:            clock,
-		ShardCount:       1,
-		IdleTimeout:      time.Minute,
-		RetryDelays:      []time.Duration{time.Second},
-		MaxRetryAttempts: 4,
-	}
-	if len(overrides) > 0 {
-		override := overrides[0]
-		if override.Resolver != nil {
-			cfg.Resolver = override.Resolver
-		}
-		if override.Push != nil {
-			cfg.Push = override.Push
-		}
-		if override.Clock != nil {
-			cfg.Clock = override.Clock
-		}
-		if override.ShardCount != 0 {
-			cfg.ShardCount = override.ShardCount
-		}
-		if override.ResolvePageSize != 0 {
-			cfg.ResolvePageSize = override.ResolvePageSize
-		}
-		if override.IdleTimeout != 0 {
-			cfg.IdleTimeout = override.IdleTimeout
-		}
-		if len(override.RetryDelays) > 0 {
-			cfg.RetryDelays = override.RetryDelays
-		}
-		if override.MaxRetryAttempts != 0 {
-			cfg.MaxRetryAttempts = override.MaxRetryAttempts
-		}
-		cfg.Limits = override.Limits
-	}
-	runtime := NewManager(cfg)
-	return runtime, clock, pusher
-}
-
-type testClock struct {
-	now time.Time
-}
-
-func (c *testClock) Now() time.Time {
-	return c.now
-}
-
-func (c *testClock) Advance(delta time.Duration) {
-	c.now = c.now.Add(delta)
-}
-
-type stubResolver struct {
-	routesByChannel map[string][]RouteKey
-}
-
-func (r *stubResolver) BeginResolve(_ context.Context, key ChannelKey, _ CommittedEnvelope) (any, error) {
-	return key.ChannelID, nil
-}
-
-func (r *stubResolver) ResolvePage(_ context.Context, token any, cursor string, limit int) (ResolvePageResult, error) {
-	key := ChannelKey{ChannelID: token.(string)}
-	routes := r.routesByChannel[key.ChannelID]
-	start := 0
-	if cursor != "" {
-		for i, route := range routes {
-			if route.UID == cursor {
-				start = i + 1
-				break
-			}
-		}
-	}
-	if start >= len(routes) {
-		return ResolvePageResult{NextCursor: cursor, Done: true}, nil
-	}
-	if limit <= 0 {
-		limit = len(routes) - start
-	}
-	end := start + limit
-	if end > len(routes) {
-		end = len(routes)
-	}
-	page := append([]RouteKey(nil), routes[start:end]...)
-	nextCursor := cursor
-	if len(page) > 0 {
-		nextCursor = page[len(page)-1].UID
-	}
-	return ResolvePageResult{Routes: page, NextCursor: nextCursor, Done: end >= len(routes)}, nil
-}
-
-func (r *stubResolver) ResolveRoutes(_ context.Context, key ChannelKey, _ CommittedEnvelope) ([]RouteKey, error) {
-	routes := r.routesByChannel[key.ChannelID]
-	return append([]RouteKey(nil), routes...), nil
-}
-
-type pushResponse struct {
-	result PushResult
-	err    error
-}
-
-type pushCall struct {
-	envelope CommittedEnvelope
-	routes   []RouteKey
-}
-
-type recordingPusher struct {
-	calls     []pushCall
-	responses []pushResponse
-}
-
-func (p *recordingPusher) Push(_ context.Context, cmd PushCommand) (PushResult, error) {
-	copiedEnv := cmd.Envelope
-	copiedEnv.Payload = append([]byte(nil), cmd.Envelope.Payload...)
-	copiedRoutes := append([]RouteKey(nil), cmd.Routes...)
-	p.calls = append(p.calls, pushCall{
-		envelope: copiedEnv,
-		routes:   copiedRoutes,
+		}),
+		Runner: NewFanoutWorker(FanoutWorkerOptions{
+			Subscribers: &fakeSubscriberPlanner{
+				pages: []UIDPage{
+					{UIDs: []string{"u1"}, Done: true},
+					{UIDs: []string{"u2"}, Done: true},
+				},
+			},
+			Presence: presence,
+			Push:     pusher,
+		}),
 	})
-	if len(p.responses) == 0 {
-		return PushResult{Accepted: copiedRoutes}, nil
+
+	event := messageevents.MessageCommitted{MessageID: 1001, ChannelID: "c1"}
+	if err := manager.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
 	}
-	resp := p.responses[0]
-	p.responses = p.responses[1:]
-	return resp.result, resp.err
+	if err := manager.SubmitCommitted(context.Background(), event); err != nil {
+		t.Fatalf("SubmitCommitted() error = %v", err)
+	}
+	if err := manager.Stop(context.Background()); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+
+	if len(pusher.commands) != 2 {
+		t.Fatalf("push command count = %d, want 2; commands=%#v", len(pusher.commands), pusher.commands)
+	}
+	commands := commandsByOwner(pusher.commands)
+	if _, ok := commands[10]; !ok {
+		t.Fatalf("missing owner 10 push command: %#v", pusher.commands)
+	}
+	if _, ok := commands[20]; !ok {
+		t.Fatalf("missing owner 20 push command: %#v", pusher.commands)
+	}
 }
 
-func (p *recordingPusher) pushedSeqs() []uint64 {
-	out := make([]uint64, 0, len(p.calls))
-	for _, call := range p.calls {
-		out = append(out, call.envelope.MessageSeq)
-	}
-	return out
-}
-
-func (p *recordingPusher) attemptsFor(messageID uint64) int {
-	count := 0
-	for _, call := range p.calls {
-		if call.envelope.MessageID == messageID {
-			count++
-		}
-	}
-	return count
-}
-
-func (p *recordingPusher) acceptedSessionIDs(messageID uint64) []uint64 {
-	out := make([]uint64, 0, len(p.calls))
-	for _, call := range p.calls {
-		if call.envelope.MessageID != messageID {
-			continue
-		}
-		for _, route := range call.routes {
-			out = append(out, route.SessionID)
-		}
-	}
-	return out
-}
-
-type ackDuringPushPusher struct {
-	recordingPusher
-	runtime *Manager
-}
-
-func (p *ackDuringPushPusher) Push(ctx context.Context, cmd PushCommand) (PushResult, error) {
-	result, err := p.recordingPusher.Push(ctx, cmd)
-	if len(cmd.Routes) == 0 || p.runtime == nil {
-		return result, err
-	}
-	route := cmd.Routes[0]
-	ackErr := p.runtime.AckRoute(ctx, RouteAck{
-		UID:        route.UID,
-		SessionID:  route.SessionID,
-		MessageID:  cmd.Envelope.MessageID,
-		MessageSeq: cmd.Envelope.MessageSeq,
+func TestManagerRecvackClearsPending(t *testing.T) {
+	manager := NewManager(ManagerOptions{})
+	manager.BindPendingAck(PendingRecvAck{
+		UID:        "u1",
+		SessionID:  10,
+		MessageID:  1001,
+		MessageSeq: 20,
 	})
-	if ackErr != nil {
-		return PushResult{}, ackErr
+
+	if count := manager.PendingAckCount(); count != 1 {
+		t.Fatalf("PendingAckCount() = %d, want 1", count)
 	}
-	return result, err
-}
-
-const testChannelID = "u1@u2"
-
-func testEnvelope(messageID, messageSeq uint64) CommittedEnvelope {
-	return testEnvelopeFor(testChannelID, frame.ChannelTypePerson, messageID, messageSeq, "hi")
-}
-
-func testEnvelopeFor(channelID string, channelType uint8, messageID, messageSeq uint64, payload string) CommittedEnvelope {
-	return CommittedEnvelope{
-		Message: channel.Message{
-			ChannelID:   channelID,
-			ChannelType: channelType,
-			MessageID:   messageID,
-			MessageSeq:  messageSeq,
-			FromUID:     "u1",
-			ClientMsgNo: "m1",
-			Payload:     []byte(payload),
-			ClientSeq:   9,
-		},
+	if err := manager.Recvack(context.Background(), Recvack{UID: "u1", SessionID: 10, MessageID: 1001, MessageSeq: 20}); err != nil {
+		t.Fatalf("Recvack() error = %v", err)
+	}
+	if count := manager.PendingAckCount(); count != 0 {
+		t.Fatalf("PendingAckCount() = %d, want 0", count)
 	}
 }
 
-func testRoute(uid string, nodeID, bootID, sessionID uint64) RouteKey {
-	return RouteKey{
-		UID:       uid,
-		NodeID:    nodeID,
-		BootID:    bootID,
-		SessionID: sessionID,
+func TestManagerEnvelopeFromEventClonesSlices(t *testing.T) {
+	pusher := &fakePusher{}
+	manager := NewManager(ManagerOptions{
+		Planner: NewPlanner(PlannerOptions{}),
+		Runner: NewFanoutWorker(FanoutWorkerOptions{
+			Presence: &fakePresenceResolver{
+				routes: map[string][]Route{
+					"u1": {{UID: "u1", OwnerNodeID: 10, SessionID: 101}},
+				},
+			},
+			Push: pusher,
+		}),
+	})
+	event := messageevents.MessageCommitted{
+		MessageID:         1001,
+		Payload:           []byte("payload"),
+		MessageScopedUIDs: []string{"u1"},
+	}
+
+	if err := manager.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	if err := manager.SubmitCommitted(context.Background(), event); err != nil {
+		t.Fatalf("SubmitCommitted() error = %v", err)
+	}
+	event.Payload[0] = 'X'
+	event.MessageScopedUIDs[0] = "mutated"
+	if err := manager.Stop(context.Background()); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+
+	if len(pusher.commands) != 1 {
+		t.Fatalf("push command count = %d, want 1", len(pusher.commands))
+	}
+	got := pusher.commands[0].Envelope
+	if string(got.Payload) != "payload" {
+		t.Fatalf("pushed payload = %q, want payload", string(got.Payload))
+	}
+	if got.MessageScopedUIDs[0] != "u1" {
+		t.Fatalf("pushed scoped uid = %q, want u1", got.MessageScopedUIDs[0])
 	}
 }
 
-func TestDeliveryProcessRetryTicksDoesNotScanIdleActors(t *testing.T) {
-	runtime, _, _ := newTestManager()
-	key := ChannelKey{ChannelID: "g-idle-scan", ChannelType: frame.ChannelTypeGroup}
-	shard := runtime.shardFor(key)
+func TestManagerEnvelopeFromEventCopiesSenderNodeID(t *testing.T) {
+	pusher := &fakePusher{}
+	manager := NewManager(ManagerOptions{
+		Planner: NewPlanner(PlannerOptions{}),
+		Runner: NewFanoutWorker(FanoutWorkerOptions{
+			Presence: &fakePresenceResolver{
+				routes: map[string][]Route{
+					"sender": {
+						{UID: "sender", OwnerNodeID: 10, SessionID: 100},
+						{UID: "sender", OwnerNodeID: 20, SessionID: 100},
+					},
+				},
+			},
+			Push: pusher,
+		}),
+	})
 
-	shard.mu.Lock()
-	act := shard.actorFor(key)
-	shard.mu.Unlock()
-	act.mu.Lock()
-	defer act.mu.Unlock()
-
-	done := make(chan error, 1)
-	go func() {
-		done <- runtime.ProcessRetryTicks(context.Background())
-	}()
-
-	select {
-	case err := <-done:
-		require.NoError(t, err)
-	case <-time.After(50 * time.Millisecond):
-		t.Fatal("ProcessRetryTicks blocked on an idle actor with no due retry work")
+	event := messageevents.MessageCommitted{
+		MessageID:         1001,
+		FromUID:           "sender",
+		SenderNodeID:      10,
+		SenderSessionID:   100,
+		MessageScopedUIDs: []string{"sender"},
 	}
-}
-
-func BenchmarkDeliveryProcessRetryTicksManyIdleActors(b *testing.B) {
-	runtime, _, _ := newTestManager()
-	shard := runtime.shards[0]
-	shard.mu.Lock()
-	for i := 0; i < 10_000; i++ {
-		key := ChannelKey{ChannelID: "g-idle-" + strconv.Itoa(i), ChannelType: frame.ChannelTypeGroup}
-		shard.actorFor(key)
+	if err := manager.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
 	}
-	shard.mu.Unlock()
+	if err := manager.SubmitCommitted(context.Background(), event); err != nil {
+		t.Fatalf("SubmitCommitted() error = %v", err)
+	}
+	if err := manager.Stop(context.Background()); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
 
-	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		if err := runtime.ProcessRetryTicks(context.Background()); err != nil {
-			b.Fatalf("ProcessRetryTicks() error = %v", err)
-		}
+	if len(pusher.commands) != 1 {
+		t.Fatalf("push command count = %d, want 1", len(pusher.commands))
+	}
+	if pusher.commands[0].OwnerNodeID != 20 {
+		t.Fatalf("push owner = %d, want 20", pusher.commands[0].OwnerNodeID)
+	}
+	if got := pusher.commands[0].Envelope.SenderNodeID; got != 10 {
+		t.Fatalf("pushed SenderNodeID = %d, want 10", got)
 	}
 }

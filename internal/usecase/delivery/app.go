@@ -1,25 +1,17 @@
 package delivery
 
-import "github.com/WuKongIM/WuKongIM/pkg/wklog"
-
+// Options configures the delivery usecase.
 type Options struct {
+	// Runtime receives committed messages and delivery feedback.
 	Runtime Runtime
-	Logger  wklog.Logger
 }
 
+// App orchestrates entry-agnostic online delivery.
 type App struct {
 	runtime Runtime
-	logger  wklog.Logger
 }
 
+// New creates a delivery App.
 func New(opts Options) *App {
-	if opts.Runtime == nil {
-		opts.Runtime = noopRuntime{}
-	}
-	if opts.Logger == nil {
-		opts.Logger = wklog.NewNop()
-	}
-	return &App{runtime: opts.Runtime, logger: opts.Logger}
+	return &App{runtime: opts.Runtime}
 }
-
-type noopRuntime struct{}
