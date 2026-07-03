@@ -9,7 +9,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/slots"
-	cv2 "github.com/WuKongIM/WuKongIM/pkg/controller"
+	controller "github.com/WuKongIM/WuKongIM/pkg/controller"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 )
 
@@ -35,7 +35,7 @@ type SlotLearnerOpener interface {
 type SlotReplicaMoveWriter interface {
 	AdvanceSlotReplicaMovePhase(context.Context, control.SlotReplicaMovePhaseAdvance) error
 	CommitSlotReplicaMove(context.Context, control.SlotReplicaMoveCommit) error
-	FailTask(context.Context, cv2.TaskResult) error
+	FailTask(context.Context, controller.TaskResult) error
 }
 
 // SlotReplicaMoveExecutorConfig wires a staged Slot replica move executor.
@@ -343,7 +343,7 @@ func slotReplicaMovePhaseResultForError(err error) string {
 		return "ok"
 	case errors.Is(err, context.DeadlineExceeded), errors.Is(err, context.Canceled):
 		return "timeout"
-	case errors.Is(err, cv2.ErrExpectedRevisionMismatch), errors.Is(err, cv2.ErrSlotActiveTaskConflict):
+	case errors.Is(err, controller.ErrExpectedRevisionMismatch), errors.Is(err, controller.ErrSlotActiveTaskConflict):
 		return "conflict"
 	default:
 		return "fail"
@@ -432,10 +432,10 @@ func (e *SlotReplicaMoveExecutor) advancePhase(ctx context.Context, task control
 }
 
 func (e *SlotReplicaMoveExecutor) failTask(ctx context.Context, task control.ReconcileTask, err string) error {
-	return e.cfg.MoveWriter.FailTask(ctx, cv2.TaskResult{
+	return e.cfg.MoveWriter.FailTask(ctx, controller.TaskResult{
 		TaskID:      task.TaskID,
 		SlotID:      task.SlotID,
-		TaskKind:    cv2.TaskKind(task.Kind),
+		TaskKind:    controller.TaskKind(task.Kind),
 		ConfigEpoch: task.ConfigEpoch,
 		Attempt:     task.Attempt,
 		Err:         boundedTaskError(err),

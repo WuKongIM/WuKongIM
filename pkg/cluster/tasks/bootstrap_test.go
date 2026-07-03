@@ -6,7 +6,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/slots"
-	cv2 "github.com/WuKongIM/WuKongIM/pkg/controller"
+	controller "github.com/WuKongIM/WuKongIM/pkg/controller"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 )
 
@@ -24,7 +24,7 @@ func TestBootstrapExecutorReportsParticipantDoneAfterEnsure(t *testing.T) {
 	if manager.ensureCalls != 1 {
 		t.Fatalf("ensure calls = %d, want 1", manager.ensureCalls)
 	}
-	if len(writer.progress) != 1 || writer.progress[0].ParticipantNodeID != 2 || writer.progress[0].Status != cv2.TaskParticipantStatusDone {
+	if len(writer.progress) != 1 || writer.progress[0].ParticipantNodeID != 2 || writer.progress[0].Status != controller.TaskParticipantStatusDone {
 		t.Fatalf("progress = %#v, want node 2 done", writer.progress)
 	}
 }
@@ -95,7 +95,7 @@ func TestBootstrapExecutorRetriesFailedParticipantWithAdvancedAttempt(t *testing
 		t.Fatalf("progress = %#v, want one retry report", writer.progress)
 	}
 	got := writer.progress[0]
-	if got.ParticipantNodeID != 2 || got.ParticipantAttempt != 1 || got.Status != cv2.TaskParticipantStatusDone {
+	if got.ParticipantNodeID != 2 || got.ParticipantAttempt != 1 || got.Status != controller.TaskParticipantStatusDone {
 		t.Fatalf("progress[0] = %#v, want node 2 done at participant attempt 1", got)
 	}
 }
@@ -210,22 +210,22 @@ func (f *fakeStatusReader) Status(slotID multiraft.SlotID) (multiraft.Status, er
 }
 
 type recordingWriter struct {
-	completed []cv2.TaskResult
-	failed    []cv2.TaskResult
-	progress  []cv2.TaskProgress
+	completed []controller.TaskResult
+	failed    []controller.TaskResult
+	progress  []controller.TaskProgress
 }
 
-func (w *recordingWriter) CompleteTask(ctx context.Context, result cv2.TaskResult) error {
+func (w *recordingWriter) CompleteTask(ctx context.Context, result controller.TaskResult) error {
 	w.completed = append(w.completed, result)
 	return nil
 }
 
-func (w *recordingWriter) FailTask(ctx context.Context, result cv2.TaskResult) error {
+func (w *recordingWriter) FailTask(ctx context.Context, result controller.TaskResult) error {
 	w.failed = append(w.failed, result)
 	return nil
 }
 
-func (w *recordingWriter) ReportTaskProgress(ctx context.Context, progress cv2.TaskProgress) error {
+func (w *recordingWriter) ReportTaskProgress(ctx context.Context, progress controller.TaskProgress) error {
 	w.progress = append(w.progress, progress)
 	return nil
 }

@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
-	cv2 "github.com/WuKongIM/WuKongIM/pkg/controller"
+	controller "github.com/WuKongIM/WuKongIM/pkg/controller"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 )
 
@@ -118,20 +118,20 @@ func (e *LeaderTransferExecutor) reconcileTask(ctx context.Context, task control
 }
 
 func (e *LeaderTransferExecutor) completeTask(ctx context.Context, task control.ReconcileTask) error {
-	return e.cfg.Writer.CompleteTask(ctx, cv2.TaskResult{
+	return e.cfg.Writer.CompleteTask(ctx, controller.TaskResult{
 		TaskID:      task.TaskID,
 		SlotID:      task.SlotID,
-		TaskKind:    cv2.TaskKind(task.Kind),
+		TaskKind:    controller.TaskKind(task.Kind),
 		ConfigEpoch: task.ConfigEpoch,
 		Attempt:     task.Attempt,
 	})
 }
 
 func (e *LeaderTransferExecutor) failTask(ctx context.Context, task control.ReconcileTask, err string) error {
-	return e.cfg.Writer.FailTask(ctx, cv2.TaskResult{
+	return e.cfg.Writer.FailTask(ctx, controller.TaskResult{
 		TaskID:      task.TaskID,
 		SlotID:      task.SlotID,
-		TaskKind:    cv2.TaskKind(task.Kind),
+		TaskKind:    controller.TaskKind(task.Kind),
 		ConfigEpoch: task.ConfigEpoch,
 		Attempt:     task.Attempt,
 		Err:         err,

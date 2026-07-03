@@ -7,7 +7,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/slots"
-	cv2 "github.com/WuKongIM/WuKongIM/pkg/controller"
+	controller "github.com/WuKongIM/WuKongIM/pkg/controller"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 )
 
@@ -459,7 +459,7 @@ type fakeSlotReplicaMoveWriter struct {
 	commitCalls int
 	commit      control.SlotReplicaMoveCommit
 	commitErr   error
-	failed      []cv2.TaskResult
+	failed      []controller.TaskResult
 	failErr     error
 }
 
@@ -489,7 +489,7 @@ func (w *fakeSlotReplicaMoveWriter) CommitSlotReplicaMove(_ context.Context, com
 	return w.commitErr
 }
 
-func (w *fakeSlotReplicaMoveWriter) FailTask(_ context.Context, result cv2.TaskResult) error {
+func (w *fakeSlotReplicaMoveWriter) FailTask(_ context.Context, result controller.TaskResult) error {
 	w.failed = append(w.failed, result)
 	return w.failErr
 }

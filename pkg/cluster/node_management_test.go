@@ -8,11 +8,11 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/cluster/net"
-	cv2 "github.com/WuKongIM/WuKongIM/pkg/controller"
+	controller "github.com/WuKongIM/WuKongIM/pkg/controller"
 )
 
 type controllerVoterPreparationFacade interface {
-	PrepareControllerVoter(context.Context, cv2.PrepareControllerVoterRequest) (cv2.PrepareControllerVoterResult, error)
+	PrepareControllerVoter(context.Context, controller.PrepareControllerVoterRequest) (controller.PrepareControllerVoterResult, error)
 	LocalControllerRaftStatus(context.Context) (ControllerRaftStatus, error)
 }
 
@@ -263,21 +263,21 @@ func TestNodePromoteControllerVoterRequiresForegroundNode(t *testing.T) {
 }
 
 func TestNodePrepareControllerVoterDelegatesToControl(t *testing.T) {
-	controller := &recordingPrepareControllerVoterController{
+	controlSource := &recordingPrepareControllerVoterController{
 		StaticController: control.NewStaticController(control.Snapshot{}),
-		result: cv2.PrepareControllerVoterResult{
+		result: controller.PrepareControllerVoterResult{
 			Prepared:      true,
 			StateRevision: 22,
 		},
 	}
-	node := &Node{control: controller}
+	node := &Node{control: controlSource}
 	node.started.Store(true)
 
-	req := cv2.PrepareControllerVoterRequest{
+	req := controller.PrepareControllerVoterRequest{
 		NodeID:           4,
 		ClusterID:        "cluster-a",
 		ExpectedRevision: 21,
-		NextVoters:       []cv2.Voter{{NodeID: 1, Addr: "n1"}, {NodeID: 4, Addr: "n4"}},
+		NextVoters:       []controller.Voter{{NodeID: 1, Addr: "n1"}, {NodeID: 4, Addr: "n4"}},
 	}
 	got, err := node.PrepareControllerVoter(context.Background(), req)
 	if err != nil {
@@ -287,16 +287,16 @@ func TestNodePrepareControllerVoterDelegatesToControl(t *testing.T) {
 	if !got.Prepared || got.StateRevision != 22 {
 		t.Fatalf("PrepareControllerVoter() = %#v, want prepared revision 22", got)
 	}
-	if len(controller.requests) != 1 || !reflect.DeepEqual(controller.requests[0], req) {
-		t.Fatalf("controller prepare requests = %#v, want %#v", controller.requests, req)
+	if len(controlSource.requests) != 1 || !reflect.DeepEqual(controlSource.requests[0], req) {
+		t.Fatalf("controller prepare requests = %#v, want %#v", controlSource.requests, req)
 	}
 }
 
 func TestNodePrepareControllerVoterRequiresForegroundNode(t *testing.T) {
-	controller := &recordingPrepareControllerVoterController{StaticController: control.NewStaticController(control.Snapshot{})}
-	node := &Node{control: controller}
+	controlSource := &recordingPrepareControllerVoterController{StaticController: control.NewStaticController(control.Snapshot{})}
+	node := &Node{control: controlSource}
 
-	_, err := node.PrepareControllerVoter(context.Background(), cv2.PrepareControllerVoterRequest{NodeID: 4})
+	_, err := node.PrepareControllerVoter(context.Background(), controller.PrepareControllerVoterRequest{NodeID: 4})
 	if err != ErrNotStarted {
 		t.Fatalf("PrepareControllerVoter() error = %v, want %v", err, ErrNotStarted)
 	}
@@ -387,15 +387,15 @@ func (c *recordingPromoteControllerVoterController) PromoteControllerVoter(_ con
 
 type recordingPrepareControllerVoterController struct {
 	*control.StaticController
-	requests []cv2.PrepareControllerVoterRequest
-	result   cv2.PrepareControllerVoterResult
+	requests []controller.PrepareControllerVoterRequest
+	result   controller.PrepareControllerVoterResult
 	err      error
 }
 
-func (c *recordingPrepareControllerVoterController) PrepareControllerVoter(_ context.Context, req cv2.PrepareControllerVoterRequest) (cv2.PrepareControllerVoterResult, error) {
+func (c *recordingPrepareControllerVoterController) PrepareControllerVoter(_ context.Context, req controller.PrepareControllerVoterRequest) (controller.PrepareControllerVoterResult, error) {
 	c.requests = append(c.requests, req)
 	if c.err != nil {
-		return cv2.PrepareControllerVoterResult{}, c.err
+		return controller.PrepareControllerVoterResult{}, c.err
 	}
 	return c.result, nil
 }

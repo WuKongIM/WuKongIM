@@ -6,7 +6,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/slots"
-	cv2 "github.com/WuKongIM/WuKongIM/pkg/controller"
+	controller "github.com/WuKongIM/WuKongIM/pkg/controller"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 )
 
@@ -22,9 +22,9 @@ type StatusReader interface {
 
 // Writer submits fenced Controller task progress and results.
 type Writer interface {
-	CompleteTask(context.Context, cv2.TaskResult) error
-	FailTask(context.Context, cv2.TaskResult) error
-	ReportTaskProgress(context.Context, cv2.TaskProgress) error
+	CompleteTask(context.Context, controller.TaskResult) error
+	FailTask(context.Context, controller.TaskResult) error
+	ReportTaskProgress(context.Context, controller.TaskProgress) error
 }
 
 // BootstrapExecutorConfig wires a bootstrap task executor.
@@ -74,10 +74,10 @@ func (e *BootstrapExecutor) Reconcile(ctx context.Context, snapshot control.Snap
 			}
 		}
 		if allParticipantsDone(task) && e.observedConverged(task) {
-			if err := e.cfg.Writer.CompleteTask(ctx, cv2.TaskResult{
+			if err := e.cfg.Writer.CompleteTask(ctx, controller.TaskResult{
 				TaskID:      task.TaskID,
 				SlotID:      task.SlotID,
-				TaskKind:    cv2.TaskKind(task.Kind),
+				TaskKind:    controller.TaskKind(task.Kind),
 				ConfigEpoch: task.ConfigEpoch,
 				Attempt:     task.Attempt,
 			}); err != nil {
@@ -157,24 +157,24 @@ func allParticipantsDone(task control.ReconcileTask) bool {
 	return true
 }
 
-func doneProgress(task control.ReconcileTask, nodeID uint64) cv2.TaskProgress {
+func doneProgress(task control.ReconcileTask, nodeID uint64) controller.TaskProgress {
 	progress := baseProgress(task, nodeID)
-	progress.Status = cv2.TaskParticipantStatusDone
+	progress.Status = controller.TaskParticipantStatusDone
 	return progress
 }
 
-func failedProgress(task control.ReconcileTask, nodeID uint64, err string) cv2.TaskProgress {
+func failedProgress(task control.ReconcileTask, nodeID uint64, err string) controller.TaskProgress {
 	progress := baseProgress(task, nodeID)
-	progress.Status = cv2.TaskParticipantStatusFailed
+	progress.Status = controller.TaskParticipantStatusFailed
 	progress.Err = err
 	return progress
 }
 
-func baseProgress(task control.ReconcileTask, nodeID uint64) cv2.TaskProgress {
-	progress := cv2.TaskProgress{
+func baseProgress(task control.ReconcileTask, nodeID uint64) controller.TaskProgress {
+	progress := controller.TaskProgress{
 		TaskID:            task.TaskID,
 		SlotID:            task.SlotID,
-		TaskKind:          cv2.TaskKind(task.Kind),
+		TaskKind:          controller.TaskKind(task.Kind),
 		ConfigEpoch:       task.ConfigEpoch,
 		TaskAttempt:       task.Attempt,
 		ParticipantNodeID: nodeID,

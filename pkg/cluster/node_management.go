@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
-	cv2 "github.com/WuKongIM/WuKongIM/pkg/controller"
+	controller "github.com/WuKongIM/WuKongIM/pkg/controller"
 )
 
 // LocalControlSnapshot returns the latest locally visible control snapshot.
@@ -168,25 +168,25 @@ func (n *Node) PromoteControllerVoter(ctx context.Context, req control.PromoteCo
 }
 
 // PrepareControllerVoter prepares this node's local Controller runtime for voter promotion.
-func (n *Node) PrepareControllerVoter(ctx context.Context, req cv2.PrepareControllerVoterRequest) (cv2.PrepareControllerVoterResult, error) {
+func (n *Node) PrepareControllerVoter(ctx context.Context, req controller.PrepareControllerVoterRequest) (controller.PrepareControllerVoterResult, error) {
 	if err := ctxErr(ctx); err != nil {
-		return cv2.PrepareControllerVoterResult{}, err
+		return controller.PrepareControllerVoterResult{}, err
 	}
 	if err := n.ensureForeground(); err != nil {
-		return cv2.PrepareControllerVoterResult{}, err
+		return controller.PrepareControllerVoterResult{}, err
 	}
 	if n.control == nil {
-		return cv2.PrepareControllerVoterResult{}, ErrNotStarted
+		return controller.PrepareControllerVoterResult{}, ErrNotStarted
 	}
 	writer, ok := n.control.(interface {
-		PrepareControllerVoter(context.Context, cv2.PrepareControllerVoterRequest) (cv2.PrepareControllerVoterResult, error)
+		PrepareControllerVoter(context.Context, controller.PrepareControllerVoterRequest) (controller.PrepareControllerVoterResult, error)
 	})
 	if !ok {
-		return cv2.PrepareControllerVoterResult{}, ErrNotStarted
+		return controller.PrepareControllerVoterResult{}, ErrNotStarted
 	}
 	result, err := writer.PrepareControllerVoter(ctx, req)
 	if err != nil {
-		return cv2.PrepareControllerVoterResult{}, err
+		return controller.PrepareControllerVoterResult{}, err
 	}
 	if runtime, ok := n.control.(*control.Runtime); ok {
 		n.registerControlRuntimeRPCHandlers(runtime)

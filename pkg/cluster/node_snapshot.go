@@ -10,7 +10,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/cluster/net"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/routing"
-	cv2 "github.com/WuKongIM/WuKongIM/pkg/controller"
+	controller "github.com/WuKongIM/WuKongIM/pkg/controller"
 	"github.com/WuKongIM/WuKongIM/pkg/transportv2"
 )
 
@@ -160,13 +160,13 @@ func retryableTaskReconcileError(err error) bool {
 	if err == nil {
 		return false
 	}
-	if errors.Is(err, cv2.ErrNotLeader) || errors.Is(err, cv2.ErrNotStarted) {
+	if errors.Is(err, controller.ErrNotLeader) || errors.Is(err, controller.ErrNotStarted) {
 		return true
 	}
 	var remoteErr transportv2.RemoteError
 	if errors.As(err, &remoteErr) {
-		return strings.Contains(remoteErr.Message, cv2.ErrNotLeader.Error()) ||
-			strings.Contains(remoteErr.Message, cv2.ErrNotStarted.Error())
+		return strings.Contains(remoteErr.Message, controller.ErrNotLeader.Error()) ||
+			strings.Contains(remoteErr.Message, controller.ErrNotStarted.Error())
 	}
 	return false
 }

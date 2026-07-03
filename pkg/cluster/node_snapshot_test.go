@@ -12,7 +12,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/cluster/net"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/routing"
-	cv2 "github.com/WuKongIM/WuKongIM/pkg/controller"
+	controller "github.com/WuKongIM/WuKongIM/pkg/controller"
 	"github.com/WuKongIM/WuKongIM/pkg/transportv2"
 )
 
@@ -367,11 +367,11 @@ func TestNodeStartRetriesTaskReconcileAfterRetryableControlWrite(t *testing.T) {
 		ConfigEpoch: 1,
 		Status:      control.TaskStatusPending,
 	}}
-	controller := control.NewStaticController(snapshot)
-	executor := &flakyTaskExecutor{errs: []error{cv2.ErrNotLeader}}
+	controlSource := control.NewStaticController(snapshot)
+	executor := &flakyTaskExecutor{errs: []error{controller.ErrNotLeader}}
 	cfg := validNodeConfig(t)
 	cfg.Slots.TickInterval = 10 * time.Millisecond
-	node, err := New(cfg, withController(controller), withSlotReconciler(&recordingReconciler{}), withTaskExecutor(executor))
+	node, err := New(cfg, withController(controlSource), withSlotReconciler(&recordingReconciler{}), withTaskExecutor(executor))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
@@ -488,7 +488,7 @@ func TestTaskReconcileLoopRecordsNonRetryableReconcileError(t *testing.T) {
 }
 
 func TestRetryableTaskReconcileErrorMatchesRemoteControllerNotLeader(t *testing.T) {
-	err := transportv2.RemoteError{Code: "remote_error", Message: cv2.ErrNotLeader.Error()}
+	err := transportv2.RemoteError{Code: "remote_error", Message: controller.ErrNotLeader.Error()}
 	if !retryableTaskReconcileError(err) {
 		t.Fatalf("retryableTaskReconcileError(%v) = false, want true", err)
 	}
