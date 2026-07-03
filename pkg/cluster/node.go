@@ -114,9 +114,9 @@ type Node struct {
 	channelRetentionCursor channelv2.ChannelKey
 	channelMigrationCancel context.CancelFunc
 	channelMigrationWG     sync.WaitGroup
-	// healthReportCancel stops the low-frequency ControllerV2 health reporter.
+	// healthReportCancel stops the low-frequency Controller health reporter.
 	healthReportCancel context.CancelFunc
-	// healthReporter sends low-frequency ControllerV2 node health reports.
+	// healthReporter sends low-frequency Controller node health reports.
 	healthReporter *observe.Reporter
 	// healthReportWG waits for the low-frequency health reporter to exit.
 	healthReportWG   sync.WaitGroup

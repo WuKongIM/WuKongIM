@@ -30,7 +30,7 @@ New(Config)
   -> create a root logger from Config.Log unless a test/harness override is supplied
   -> create metrics registry when Observability.MetricsEnabled=true and attach
      runtime observers for metrics/logging
-     (gateway runtime pressure, Slot scheduler/proposal/apply-gap/leader-election pressure, ControllerV2 Raft step queue/apply gap, TransportV2 service RPC totals/latency, Channel runtime append/replication/PullHint/runtime pressure stages, message DB grouped commit pressure, and delivery fanout)
+     (gateway runtime pressure, Slot scheduler/proposal/apply-gap/leader-election pressure, Controller Raft step queue/apply gap, TransportV2 service RPC totals/latency, Channel runtime append/replication/PullHint/runtime pressure stages, message DB grouped commit pressure, and delivery fanout)
      plus direct ants/v2 pool occupancy gauges for instrumented runtime pools
      plus conversation list request latency/page-shape metrics, conversation
      authority admit/list/cache-pressure/handoff counters, conversation active
@@ -46,7 +46,7 @@ New(Config)
      does not expose the Top snapshot provider
   -> create the top collector when Top.APIEnabled=true and attach node-local
      runtime observers for Channel runtime, storage commit, delivery, Slot scheduler,
-     ControllerV2 Raft, and transport pressure independently of Prometheus
+     Controller Raft, and transport pressure independently of Prometheus
      metrics; the collector also samples local process CPU, RSS/VMS memory,
      goroutine count, and thread count via gopsutil; it keeps a bounded
      in-memory sticky alert window for readiness, pressure, sendack-error, and
@@ -79,7 +79,7 @@ New(Config)
        and expose local diagnostics debug APIs only when
        Observability.DebugAPIEnabled=true
   -> when an effective node data dir is configured:
-       create the app-owned ControllerV2 task audit runtime at
+       create the app-owned Controller task audit runtime at
        `observability/task-audit/controller-v2-tasks.jsonl`, combine its
        bounded nonblocking `TaskTransitionObserver` into cluster control
        config, and keep JSONL retention local to internal observability
@@ -147,9 +147,9 @@ New(Config)
      diagnostics store are available, exposing this node's trace/message/event
      diagnostics reads and tracking-rule mutations to peer manager readers
   -> register the manager task audit RPC handler when node RPC and the local
-     ControllerV2 task audit reader are available, exposing this node's retained
+     Controller task audit reader are available, exposing this node's retained
      task history and per-task timeline to peer manager readers without
-     mutating ControllerV2 state
+     mutating Controller state
   -> register the node lifecycle RPC handler when node RPC and the management
      lifecycle writer are available, exposing seed JoinNode and readiness probe
      requests to joining peers; when seed-join config is present, create the
@@ -282,7 +282,7 @@ New(Config)
      node lifecycle join/activation requests wire the management lifecycle
      writer when cluster exposes Controller-backed lifecycle writes, keeping
      validation in the management usecase and durable membership mutation in
-     cluster control; ControllerV2 task audit list and event timeline reads
+     cluster control; Controller task audit list and event timeline reads
      use the app-owned JSONL task audit reader when it is available;
      when `Top.APIEnabled` creates a top collector,
      attach the local top provider so `/manager/runtime/workqueues` can expose
@@ -575,7 +575,7 @@ wins when set; top-level `Config.NodeID` is only the fallback.
 Start(ctx)
   -> cluster.Start(ctx)
   -> task audit startup backfill: append one snapshot event for each active
-     ControllerV2 task in the local control snapshot; failures are logged and
+     Controller task in the local control snapshot; failures are logged and
      do not block service startup
   -> seed join loop Start(ctx): retry JoinNode against stable-order seeds when seed-join config is present
   -> wait for cluster write routing when the cluster runtime exposes route snapshots; the gate also runs the cluster write probe, which proves Slot metadata writes and Channel runtime placement data-node candidates before gateway SEND admission

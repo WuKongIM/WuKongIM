@@ -26,7 +26,7 @@ reads to node-local inspect readers or peer RPC, routes manager diagnostics
 reads and tracking-rule mutations to the selected node's internal diagnostics
 store or peer RPC, routes manager plugin inventory reads and lifecycle
 mutations to the selected node's plugin lifecycle usecase over peer RPC, routes
-manager ControllerV2 task audit reads to the current Controller leader's
+manager Controller task audit reads to the current Controller leader's
 node-local audit store over peer RPC when needed, and adapts presence/delivery
 ports to cluster routing and node RPC.
 
@@ -359,15 +359,15 @@ preflight, then pass the validated control intent into cluster control.
 management.SlotReplicaMoveWriter
   -> cluster.RequestSlotReplicaMove(control.SlotReplicaMoveRequest)
   -> cluster control runtime
-  -> ControllerV2 slot_replica_move task
+  -> Controller slot_replica_move task
   -> cluster task executor
   -> Slot Raft OpenLearner/ChangeConfig
-  -> final ControllerV2 assignment commit
+  -> final Controller assignment commit
 ```
 
 The replica-move adapter is only the infra boundary for manager onboarding task
 creation. It does not choose source peers, mutate `DesiredPeers`, or execute
-Slot Raft config changes; those stay in the management planner, ControllerV2
+Slot Raft config changes; those stay in the management planner, Controller
 task intent, and cluster task executor respectively. The onboarding target is
 task-local staged state while it is opened and caught up as a learner; it is not
 added to `DesiredPeers` until the executor commits the final assignment after

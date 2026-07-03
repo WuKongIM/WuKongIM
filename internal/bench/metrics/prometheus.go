@@ -542,15 +542,15 @@ func AnalyzeWukongIMPrometheus(before, after PrometheusSnapshot) WukongIMAttribu
 	controllerPressure := false
 	if report.ControllerRaftStepQueueRatio >= wukongIMGatewayQueuePressureRatio {
 		controllerPressure = true
-		report.Reasons = append(report.Reasons, "ControllerV2 Raft Step queue ratio is high")
+		report.Reasons = append(report.Reasons, "Controller Raft Step queue ratio is high")
 	}
 	if report.ControllerRaftStepEnqueueOKP99Seconds >= wukongIMLatencyPressureSeconds {
 		controllerPressure = true
-		report.Reasons = append(report.Reasons, "ControllerV2 Raft Step enqueue ok p99 is high")
+		report.Reasons = append(report.Reasons, "Controller Raft Step enqueue ok p99 is high")
 	}
 	if report.ControllerRaftStepEnqueueErrCount > 0 {
 		controllerPressure = true
-		report.Reasons = append(report.Reasons, "ControllerV2 Raft Step enqueue errors were observed")
+		report.Reasons = append(report.Reasons, "Controller Raft Step enqueue errors were observed")
 	}
 
 	channelPressure := false

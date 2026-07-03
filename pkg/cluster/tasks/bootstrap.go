@@ -20,7 +20,7 @@ type StatusReader interface {
 	Status(multiraft.SlotID) (multiraft.Status, error)
 }
 
-// Writer submits fenced ControllerV2 task progress and results.
+// Writer submits fenced Controller task progress and results.
 type Writer interface {
 	CompleteTask(context.Context, cv2.TaskResult) error
 	FailTask(context.Context, cv2.TaskResult) error

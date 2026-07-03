@@ -158,7 +158,7 @@ go run ./cmd/wkcli sim --server http://127.0.0.1:5001 --max-runtime 30s
 ## Node Operations
 
 `node` operates dynamic data nodes through manager HTTP. It does not
-start or stop server processes and does not write ControllerV2 or Slot state
+start or stop server processes and does not write Controller or Slot state
 directly.
 
 ```bash

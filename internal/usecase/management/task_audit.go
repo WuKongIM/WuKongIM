@@ -22,7 +22,7 @@ var ErrControllerTaskAuditUnavailable = errors.New("internal/usecase/management:
 // ErrControllerTaskAuditNotFound reports that retained history for a task is absent.
 var ErrControllerTaskAuditNotFound = errors.New("internal/usecase/management: controller task audit not found")
 
-// ControllerTaskAuditReader reads retained ControllerV2 task audit history.
+// ControllerTaskAuditReader reads retained Controller task audit history.
 type ControllerTaskAuditReader interface {
 	// ListControllerTaskAudits returns retained task audit snapshots.
 	ListControllerTaskAudits(context.Context, ControllerTaskAuditListRequest) (ControllerTaskAuditListResponse, error)
@@ -60,7 +60,7 @@ type ControllerTaskAuditListResponse struct {
 
 // ControllerTaskAuditSnapshot is the manager-facing retained task projection.
 type ControllerTaskAuditSnapshot struct {
-	// TaskID identifies the ControllerV2 reconcile task.
+	// TaskID identifies the Controller reconcile task.
 	TaskID string
 	// Kind is the durable task workflow kind.
 	Kind string
@@ -98,7 +98,7 @@ type ControllerTaskAuditSnapshot struct {
 type ControllerTaskAuditEvent struct {
 	// EventID is the stable idempotency key for this persisted event.
 	EventID string
-	// TaskID identifies the ControllerV2 reconcile task.
+	// TaskID identifies the Controller reconcile task.
 	TaskID string
 	// Type classifies the task audit edge.
 	Type string
@@ -114,11 +114,11 @@ type ControllerTaskAuditEvent struct {
 	SourceNode uint64
 	// TargetNode is the primary target node for the task.
 	TargetNode uint64
-	// AppliedRaftIndex is the ControllerV2 Raft index that produced this event.
+	// AppliedRaftIndex is the Controller Raft index that produced this event.
 	AppliedRaftIndex uint64
-	// AppliedRaftTerm is the ControllerV2 Raft term that produced this event.
+	// AppliedRaftTerm is the Controller Raft term that produced this event.
 	AppliedRaftTerm uint64
-	// CommandKind is the ControllerV2 command kind that produced this event.
+	// CommandKind is the Controller command kind that produced this event.
 	CommandKind string
 	// ParticipantNode is the reporting node for participant progress events.
 	ParticipantNode uint64
@@ -142,7 +142,7 @@ type ControllerTaskAuditEventsResponse struct {
 	Truncated bool
 }
 
-// ListControllerTaskAudits returns retained ControllerV2 task histories.
+// ListControllerTaskAudits returns retained Controller task histories.
 func (a *App) ListControllerTaskAudits(ctx context.Context, req ControllerTaskAuditListRequest) (ControllerTaskAuditListResponse, error) {
 	limit, err := normalizeControllerTaskAuditLimit(req.Limit)
 	if err != nil {

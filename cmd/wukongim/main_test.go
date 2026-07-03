@@ -249,7 +249,7 @@ func TestDependencyBoundaryUsesCanonicalController(t *testing.T) {
 	}
 
 	foundCanonicalController := false
-	forbiddenControllerV2Prefix := "github.com/WuKongIM/WuKongIM/pkg/" + "controller" + "v2"
+	forbiddenV2ControllerPrefix := "github.com/WuKongIM/WuKongIM/pkg/" + "controller" + "v2"
 	for _, importPath := range strings.Fields(string(out)) {
 		switch {
 		case importPath == "github.com/WuKongIM/WuKongIM/pkg/controller":
@@ -259,8 +259,8 @@ func TestDependencyBoundaryUsesCanonicalController(t *testing.T) {
 		case importPath == "github.com/WuKongIM/WuKongIM/pkg/legacy/cluster" ||
 			strings.HasPrefix(importPath, "github.com/WuKongIM/WuKongIM/pkg/legacy/cluster/"):
 			t.Fatalf("cmd/wukongim dependency closure still imports legacy cluster package %q", importPath)
-		case importPath == forbiddenControllerV2Prefix ||
-			strings.HasPrefix(importPath, forbiddenControllerV2Prefix+"/"):
+		case importPath == forbiddenV2ControllerPrefix ||
+			strings.HasPrefix(importPath, forbiddenV2ControllerPrefix+"/"):
 			t.Fatalf("cmd/wukongim dependency closure still imports v2-suffixed controller package %q", importPath)
 		case importPath == "github.com/WuKongIM/WuKongIM/pkg/legacy/controller" ||
 			strings.HasPrefix(importPath, "github.com/WuKongIM/WuKongIM/pkg/legacy/controller/"):

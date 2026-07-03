@@ -179,7 +179,7 @@ type Options struct {
 	SlotRuntimeStatus SlotRuntimeStatusReader
 	// ControllerRaft runs node-local Controller Raft status and compaction operations.
 	ControllerRaft ControllerRaftOperator
-	// ControllerTaskAudit reads retained ControllerV2 task audit history.
+	// ControllerTaskAudit reads retained Controller task audit history.
 	ControllerTaskAudit ControllerTaskAuditReader
 	// ApplicationLogs reads selected-node ordinary application log pages.
 	ApplicationLogs ApplicationLogReader
@@ -355,7 +355,7 @@ type NodeHealth struct {
 	ReportAgeMS int64
 	// ReportTTLMS is the configured freshness TTL in milliseconds.
 	ReportTTLMS int64
-	// ObservedControlRevision is the latest ControllerV2 revision observed by the node.
+	// ObservedControlRevision is the latest Controller revision observed by the node.
 	ObservedControlRevision uint64
 	// ObservedSlotRevision is the latest local Slot observation revision.
 	ObservedSlotRevision uint64

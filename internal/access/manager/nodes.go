@@ -81,7 +81,7 @@ type NodeHealthDTO struct {
 	ReportAgeMS int64 `json:"report_age_ms"`
 	// ReportTTLMS is the configured freshness TTL in milliseconds.
 	ReportTTLMS int64 `json:"report_ttl_ms"`
-	// ObservedControlRevision is the latest ControllerV2 revision observed by the node.
+	// ObservedControlRevision is the latest Controller revision observed by the node.
 	ObservedControlRevision uint64 `json:"observed_control_revision"`
 	// ObservedSlotRevision is the latest local Slot observation revision.
 	ObservedSlotRevision uint64 `json:"observed_slot_revision"`

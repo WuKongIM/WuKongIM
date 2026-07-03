@@ -27,7 +27,7 @@ type Config struct {
 	// DataDir is the root directory for cluster data files.
 	DataDir string
 
-	// Control contains ControllerV2 adapter configuration.
+	// Control contains Controller adapter configuration.
 	Control ControlConfig
 	// Join contains dynamic data-node join bootstrap settings.
 	Join JoinConfig
@@ -39,7 +39,7 @@ type Config struct {
 	ChannelMigration ChannelMigrationConfig
 	// ChannelRetention contains node-owned ChannelV2 physical retention cleanup settings.
 	ChannelRetention ChannelRetentionConfig
-	// HealthReport controls low-frequency node health reporting to ControllerV2.
+	// HealthReport controls low-frequency node health reporting to Controller.
 	HealthReport HealthReportConfig
 	// Storage contains node-local storage tuning.
 	Storage StorageConfig
@@ -51,21 +51,21 @@ type Config struct {
 	Goroutines *gorutine.Registry
 }
 
-// ControlConfig contains ControllerV2 adapter configuration.
+// ControlConfig contains Controller adapter configuration.
 type ControlConfig struct {
-	// StateDir stores ControllerV2 cluster-state files for this node.
+	// StateDir stores Controller cluster-state files for this node.
 	StateDir string
-	// ClusterID is the stable cluster identity used by ControllerV2 state and sync.
+	// ClusterID is the stable cluster identity used by Controller state and sync.
 	ClusterID string
 	// Role declares whether this node is a Controller voter or state mirror.
 	Role ControlRole
 	// Voters lists Controller voter node IDs and Controller RPC addresses.
 	Voters []ControlVoter
-	// AllowBootstrap permits this node to initialize an empty ControllerV2 Raft log.
+	// AllowBootstrap permits this node to initialize an empty Controller Raft log.
 	AllowBootstrap bool
-	// RaftObserver receives local ControllerV2 Raft queue metrics.
+	// RaftObserver receives local Controller Raft queue metrics.
 	RaftObserver ControllerRaftObserver
-	// TaskTransitionObserver receives ControllerV2 task edges after applied metadata is persisted.
+	// TaskTransitionObserver receives Controller task edges after applied metadata is persisted.
 	TaskTransitionObserver cv2.TaskTransitionObserver
 	// SnapshotObserver receives low-frequency locally visible control snapshots.
 	SnapshotObserver ControlSnapshotObserver
@@ -81,7 +81,7 @@ type JoinConfig struct {
 	Token string
 }
 
-// ControllerRaftObserver receives low-cardinality local ControllerV2 Raft runtime metrics.
+// ControllerRaftObserver receives low-cardinality local Controller Raft runtime metrics.
 type ControllerRaftObserver interface {
 	SetStepQueueDepth(depth int, capacity int)
 	ObserveStepEnqueue(result string, d time.Duration)
@@ -97,17 +97,17 @@ type SlotReplicaMoveObserver interface {
 	ObserveSlotReplicaMovePhase(step, result string, d time.Duration)
 }
 
-// ControlRole declares how this node participates in ControllerV2.
+// ControlRole declares how this node participates in Controller.
 type ControlRole string
 
 const (
-	// ControlRoleVoter runs ControllerV2 Raft and serves authoritative state.
+	// ControlRoleVoter runs Controller Raft and serves authoritative state.
 	ControlRoleVoter ControlRole = "voter"
-	// ControlRoleMirror mirrors ControllerV2 state from Controller voters.
+	// ControlRoleMirror mirrors Controller state from Controller voters.
 	ControlRoleMirror ControlRole = "mirror"
 )
 
-// ControlVoter identifies a ControllerV2 Raft voter endpoint.
+// ControlVoter identifies a Controller Raft voter endpoint.
 type ControlVoter struct {
 	// NodeID is the stable non-zero node identity of the Controller voter.
 	NodeID uint64
@@ -205,7 +205,7 @@ type ChannelRetentionConfig struct {
 	MaxTrimBytes int
 }
 
-// HealthReportConfig controls low-frequency node health reporting to ControllerV2.
+// HealthReportConfig controls low-frequency node health reporting to Controller.
 type HealthReportConfig struct {
 	// Interval controls how often a node reports compact health evidence.
 	Interval time.Duration

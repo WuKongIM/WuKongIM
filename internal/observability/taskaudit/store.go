@@ -12,7 +12,7 @@ import (
 	"unicode/utf8"
 )
 
-// Store keeps a bounded JSONL-backed ControllerV2 task audit projection.
+// Store keeps a bounded JSONL-backed Controller task audit projection.
 type Store struct {
 	mu        sync.Mutex
 	path      string

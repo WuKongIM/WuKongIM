@@ -22,7 +22,7 @@ WK_CLUSTER_NODES=[{"id":1,"addr":"127.0.0.1:7001"}]
 # Shared join secret accepted by seed JoinNode RPC handlers.
 WK_CLUSTER_JOIN_TOKEN=change-me
 
-# Physical Slot count created by the initial ControllerV2 snapshot.
+# Physical Slot count created by the initial Controller snapshot.
 WK_CLUSTER_INITIAL_SLOT_COUNT=1
 
 # Logical hash-slot count used for routing channel keys to physical Slots.

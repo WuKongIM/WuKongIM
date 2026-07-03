@@ -18,7 +18,7 @@ const (
 	RPCChannelPullHint
 	// RPCChannelNotify serves legacy ChannelV2 notify requests.
 	RPCChannelNotify
-	// RPCControlStateSync serves ControllerV2 state sync requests.
+	// RPCControlStateSync serves Controller state sync requests.
 	RPCControlStateSync
 	// RPCControlReportNode serves node report requests.
 	RPCControlReportNode
@@ -28,9 +28,9 @@ const (
 	RPCChannelAppend
 	// RPCChannelAppendBatch forwards one ChannelV2 append batch request to the channel leader.
 	RPCChannelAppendBatch
-	// RPCControlRaft carries ControllerV2 Raft protocol messages.
+	// RPCControlRaft carries Controller Raft protocol messages.
 	RPCControlRaft
-	// RPCControlTaskResult serves ControllerV2 task result and progress writes.
+	// RPCControlTaskResult serves Controller task result and progress writes.
 	RPCControlTaskResult
 	// RPCPresenceAuthority serves internal UID connection authority requests.
 	RPCPresenceAuthority
@@ -73,7 +73,7 @@ const (
 )
 
 const (
-	// RPCControlWrite serves generic ControllerV2 writes.
+	// RPCControlWrite serves generic Controller writes.
 	RPCControlWrite uint8 = 64 + iota
 	// RPCManagerMessageRetention serves internal manager message retention forwarding.
 	RPCManagerMessageRetention
@@ -81,7 +81,7 @@ const (
 	RPCNodeLifecycle
 	// RPCSlotStatus serves cluster Slot leader status snapshots.
 	RPCSlotStatus
-	// RPCManagerTaskAudit serves internal retained ControllerV2 task audit reads.
+	// RPCManagerTaskAudit serves internal retained Controller task audit reads.
 	RPCManagerTaskAudit
 	// RPCChannelMigrationMeta serves cluster Slot-leader channel migration state reads.
 	RPCChannelMigrationMeta

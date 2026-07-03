@@ -21,14 +21,14 @@ type ManagementTaskAuditNode interface {
 	LocalControlSnapshot(context.Context) (control.Snapshot, error)
 }
 
-// ManagementTaskAuditReader routes retained ControllerV2 task audit reads to the Controller leader.
+// ManagementTaskAuditReader routes retained Controller task audit reads to the Controller leader.
 type ManagementTaskAuditReader struct {
 	node   ManagementTaskAuditNode
 	local  managementusecase.ControllerTaskAuditReader
 	remote *accessnode.Client
 }
 
-// NewManagementTaskAuditReader creates a cluster-routed ControllerV2 task audit reader.
+// NewManagementTaskAuditReader creates a cluster-routed Controller task audit reader.
 func NewManagementTaskAuditReader(node ManagementTaskAuditNode, local managementusecase.ControllerTaskAuditReader) *ManagementTaskAuditReader {
 	return &ManagementTaskAuditReader{
 		node:   node,

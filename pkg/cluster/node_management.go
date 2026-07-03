@@ -167,7 +167,7 @@ func (n *Node) PromoteControllerVoter(ctx context.Context, req control.PromoteCo
 	return writer.PromoteControllerVoter(ctx, req)
 }
 
-// PrepareControllerVoter prepares this node's local ControllerV2 runtime for voter promotion.
+// PrepareControllerVoter prepares this node's local Controller runtime for voter promotion.
 func (n *Node) PrepareControllerVoter(ctx context.Context, req cv2.PrepareControllerVoterRequest) (cv2.PrepareControllerVoterResult, error) {
 	if err := ctxErr(ctx); err != nil {
 		return cv2.PrepareControllerVoterResult{}, err

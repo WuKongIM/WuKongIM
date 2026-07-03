@@ -134,11 +134,11 @@ type ManagerDiagnostics interface {
 	DeleteDiagnosticsTrackingRule(ctx context.Context, ruleID string) error
 }
 
-// ManagerTaskAuditReader handles node-local ControllerV2 task audit reads.
+// ManagerTaskAuditReader handles node-local Controller task audit reads.
 type ManagerTaskAuditReader interface {
-	// ListControllerTaskAudits returns retained ControllerV2 task histories.
+	// ListControllerTaskAudits returns retained Controller task histories.
 	ListControllerTaskAudits(context.Context, managementusecase.ControllerTaskAuditListRequest) (managementusecase.ControllerTaskAuditListResponse, error)
-	// ControllerTaskAuditEvents returns retained events for one ControllerV2 task.
+	// ControllerTaskAuditEvents returns retained events for one Controller task.
 	ControllerTaskAuditEvents(context.Context, string) (managementusecase.ControllerTaskAuditEventsResponse, error)
 }
 
@@ -211,7 +211,7 @@ type Options struct {
 	ManagerAppLogs ManagerAppLogReader
 	// ManagerDiagnostics handles node-local diagnostics query and tracking requests.
 	ManagerDiagnostics ManagerDiagnostics
-	// ManagerTaskAudit handles node-local ControllerV2 task audit reads.
+	// ManagerTaskAudit handles node-local Controller task audit reads.
 	ManagerTaskAudit ManagerTaskAuditReader
 	// ManagerPlugins handles node-local plugin inventory requests.
 	ManagerPlugins ManagerPluginReader
@@ -263,7 +263,7 @@ type Adapter struct {
 	managerAppLogs ManagerAppLogReader
 	// managerDiagnostics queries diagnostics events and mutates temporary tracking rules.
 	managerDiagnostics ManagerDiagnostics
-	// managerTaskAudit reads retained ControllerV2 task audit history.
+	// managerTaskAudit reads retained Controller task audit history.
 	managerTaskAudit ManagerTaskAuditReader
 	// managerPlugins reads node-local plugin inventory for manager pages.
 	managerPlugins ManagerPluginReader

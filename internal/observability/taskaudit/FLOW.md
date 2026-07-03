@@ -2,14 +2,14 @@
 
 ## Responsibility
 
-`taskaudit` stores bounded ControllerV2 task audit history for manager reads. It
+`taskaudit` stores bounded Controller task audit history for manager reads. It
 persists JSONL under the node data directory and keeps a bounded in-memory
 projection for list and timeline queries.
 
 ## Flow
 
 ```text
-ControllerV2 task transition
+Controller task transition
   -> internal app observer
   -> Store.Append
   -> JSONL append

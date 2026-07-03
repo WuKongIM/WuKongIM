@@ -196,7 +196,7 @@ single-node cluster.
   adapts it to `internal/usecase/plugin`.
 - The old v1 server runtime remains under `internal/legacy` for transition-time
   compilation and should not receive new product features.
-- ControllerV2, the new cluster runtime, and the multi-reactor channel runtime
+- Controller, the new cluster runtime, and the multi-reactor channel runtime
   are canonical under `pkg/controller`, `pkg/cluster`, and `pkg/channel`.
 - Do not implement realtime `NoPersist` delivery yet; return a stable
   unsupported result until that runtime exists.

@@ -21,7 +21,7 @@ import (
 
 const controllerTaskAuditQueueSize = 1024
 
-// controllerTaskAuditRuntime adapts ControllerV2 task transitions to a bounded JSONL audit store.
+// controllerTaskAuditRuntime adapts Controller task transitions to a bounded JSONL audit store.
 type controllerTaskAuditRuntime struct {
 	path    string
 	opts    taskaudit.Options
@@ -75,7 +75,7 @@ func controllerTaskAuditPath(dataDir string) string {
 	return filepath.Join(dataDir, "observability", "task-audit", "controller-v2-tasks.jsonl")
 }
 
-// ObserveControllerTaskTransitions records ControllerV2 task transitions without blocking Raft apply on file IO.
+// ObserveControllerTaskTransitions records Controller task transitions without blocking Raft apply on file IO.
 func (r *controllerTaskAuditRuntime) ObserveControllerTaskTransitions(transitions []cv2.TaskTransition) {
 	events := controllerTaskAuditEventsForTransitions(transitions)
 	if len(events) == 0 || r == nil {
@@ -97,7 +97,7 @@ func (r *controllerTaskAuditRuntime) ObserveControllerTaskTransitions(transition
 	}
 }
 
-// AppendSnapshotTasks records a best-effort startup snapshot for currently active ControllerV2 tasks.
+// AppendSnapshotTasks records a best-effort startup snapshot for currently active Controller tasks.
 func (r *controllerTaskAuditRuntime) AppendSnapshotTasks(ctx context.Context, snapshot control.Snapshot) error {
 	if r == nil || len(snapshot.Tasks) == 0 {
 		return nil

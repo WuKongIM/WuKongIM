@@ -51,11 +51,11 @@ type Options struct {
 	Now func() time.Time
 }
 
-// Event is one persisted ControllerV2 task audit fact.
+// Event is one persisted Controller task audit fact.
 type Event struct {
 	// EventID is the stable idempotency key for this persisted event.
 	EventID string `json:"event_id"`
-	// TaskID identifies the ControllerV2 reconcile task.
+	// TaskID identifies the Controller reconcile task.
 	TaskID string `json:"task_id"`
 	// Type classifies the task audit edge.
 	Type EventType `json:"type"`
@@ -71,11 +71,11 @@ type Event struct {
 	SourceNode uint64 `json:"source_node,omitempty"`
 	// TargetNode is the primary target node for the task.
 	TargetNode uint64 `json:"target_node,omitempty"`
-	// AppliedRaftIndex is the ControllerV2 Raft index that produced this event.
+	// AppliedRaftIndex is the Controller Raft index that produced this event.
 	AppliedRaftIndex uint64 `json:"applied_raft_index"`
-	// AppliedRaftTerm is the ControllerV2 Raft term that produced this event.
+	// AppliedRaftTerm is the Controller Raft term that produced this event.
 	AppliedRaftTerm uint64 `json:"applied_raft_term,omitempty"`
-	// CommandKind is the ControllerV2 command kind that produced this event.
+	// CommandKind is the Controller command kind that produced this event.
 	CommandKind string `json:"command_kind,omitempty"`
 	// ParticipantNode is the reporting node for participant progress events.
 	ParticipantNode uint64 `json:"participant_node,omitempty"`
@@ -91,7 +91,7 @@ type Event struct {
 
 // Snapshot is the query projection for one retained task history.
 type Snapshot struct {
-	// TaskID identifies the ControllerV2 reconcile task.
+	// TaskID identifies the Controller reconcile task.
 	TaskID string `json:"task_id"`
 	// Kind is the durable task workflow kind.
 	Kind string `json:"kind,omitempty"`

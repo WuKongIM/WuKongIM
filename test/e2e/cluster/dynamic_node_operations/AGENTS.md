@@ -19,7 +19,7 @@ nodes through `wkcli node`.
 ## Rules
 
 - Keep tests black-box: do not import `internal/app`, `internal/usecase`,
-  storage internals, ControllerV2 internals, or cluster internals.
+  storage internals, Controller internals, or cluster internals.
 - Use public manager HTTP, public `/metrics`, WKProto clients, and process
   handles from `test/e2e/suite`.
 - Prefer polling public status over fixed sleeps.

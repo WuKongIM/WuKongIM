@@ -11,10 +11,10 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
-// ManagerTaskAuditRPCServiceID is the cluster RPC service for retained ControllerV2 task audit reads.
+// ManagerTaskAuditRPCServiceID is the cluster RPC service for retained Controller task audit reads.
 const ManagerTaskAuditRPCServiceID uint8 = clusternet.RPCManagerTaskAudit
 
-// HandleManagerTaskAuditRPC handles one encoded manager ControllerV2 task audit RPC payload.
+// HandleManagerTaskAuditRPC handles one encoded manager Controller task audit RPC payload.
 func (a *Adapter) HandleManagerTaskAuditRPC(ctx context.Context, payload []byte) ([]byte, error) {
 	req, err := decodeManagerTaskAuditRequest(payload)
 	if err != nil {
@@ -50,7 +50,7 @@ func (a *Adapter) HandleManagerTaskAuditRPC(ctx context.Context, payload []byte)
 	}
 }
 
-// ListManagerControllerTaskAudits reads retained ControllerV2 task histories from one node.
+// ListManagerControllerTaskAudits reads retained Controller task histories from one node.
 func (c *Client) ListManagerControllerTaskAudits(ctx context.Context, nodeID uint64, req managementusecase.ControllerTaskAuditListRequest) (managementusecase.ControllerTaskAuditListResponse, error) {
 	resp, err := c.callManagerTaskAudit(ctx, nodeID, managerTaskAuditRPCRequest{Op: managerTaskAuditOpList, List: req})
 	if err != nil {
@@ -62,7 +62,7 @@ func (c *Client) ListManagerControllerTaskAudits(ctx context.Context, nodeID uin
 	return resp.List, nil
 }
 
-// ManagerControllerTaskAuditEvents reads one retained ControllerV2 task timeline from one node.
+// ManagerControllerTaskAuditEvents reads one retained Controller task timeline from one node.
 func (c *Client) ManagerControllerTaskAuditEvents(ctx context.Context, nodeID uint64, taskID string) (managementusecase.ControllerTaskAuditEventsResponse, error) {
 	resp, err := c.callManagerTaskAudit(ctx, nodeID, managerTaskAuditRPCRequest{Op: managerTaskAuditOpEvents, TaskID: taskID})
 	if err != nil {

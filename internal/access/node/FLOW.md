@@ -270,7 +270,7 @@ and target preparation requests. Those operations validate the configured
 cluster ID at the RPC boundary, preserve the next Controller voter endpoints,
 and return the target-side live proof fields (`observed_config_index` and
 `observed_voters`) produced after preparation. Prepare conflicts and
-ControllerV2 expected-revision mismatches map back to the management
+Controller expected-revision mismatches map back to the management
 Controller voter promotion blocked error; generic lifecycle conflict mapping is
 not reused for these promotion safety failures.
 
@@ -345,18 +345,18 @@ remote manager task audit reader
   -> encode W K V U 1 request
   -> cluster RPCManagerTaskAudit
   -> Adapter.HandleManagerTaskAuditRPC
-  -> Management ControllerV2 task audit reader port
+  -> Management Controller task audit reader port
   -> encode W K V u 1 response
 ```
 
-Manager Task Audit RPC transports retained ControllerV2 task history list and
+Manager Task Audit RPC transports retained Controller task history list and
 single-task event timeline reads to the selected node. The server calls only
 the configured local task audit reader; JSONL retention, default limits,
 corrupt-line replay policy, and audit event construction stay in the
 observability and management usecase layers. The codec uses strict JSON after
 the stable magic prefix so unknown fields and trailing bytes fail closed. This
 RPC does not inspect legacy `pkg/controller` state and does not mutate
-ControllerV2 task state.
+Controller task state.
 
 ## Manager Diagnostics RPC
 

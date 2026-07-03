@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-func TestProductionImportsOnlyControllerV2Facade(t *testing.T) {
+func TestProductionImportsOnlyControllerFacade(t *testing.T) {
 	files, err := filepath.Glob("*.go")
 	if err != nil {
 		t.Fatalf("Glob() error = %v", err)

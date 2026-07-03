@@ -27,7 +27,7 @@ type ManagerControllerTaskAuditsResponse struct {
 
 // ManagerControllerTaskAuditSnapshot is one retained Controller task history row.
 type ManagerControllerTaskAuditSnapshot struct {
-	// TaskID identifies the ControllerV2 reconcile task.
+	// TaskID identifies the Controller reconcile task.
 	TaskID string `json:"task_id"`
 	// Kind is the durable task workflow kind.
 	Kind string `json:"kind"`
@@ -75,7 +75,7 @@ type ManagerControllerTaskAuditEventsResponse struct {
 type ManagerControllerTaskAuditEvent struct {
 	// EventID is the stable idempotency key for this event.
 	EventID string `json:"event_id"`
-	// TaskID identifies the ControllerV2 reconcile task.
+	// TaskID identifies the Controller reconcile task.
 	TaskID string `json:"task_id"`
 	// Type classifies the task audit edge.
 	Type string `json:"type"`
@@ -91,11 +91,11 @@ type ManagerControllerTaskAuditEvent struct {
 	SourceNode uint64 `json:"source_node"`
 	// TargetNode is the primary target node for the task.
 	TargetNode uint64 `json:"target_node"`
-	// AppliedRaftIndex is the ControllerV2 Raft index that produced this event.
+	// AppliedRaftIndex is the Controller Raft index that produced this event.
 	AppliedRaftIndex uint64 `json:"applied_raft_index"`
-	// AppliedRaftTerm is the ControllerV2 Raft term that produced this event.
+	// AppliedRaftTerm is the Controller Raft term that produced this event.
 	AppliedRaftTerm uint64 `json:"applied_raft_term"`
-	// CommandKind is the ControllerV2 command kind that produced this event.
+	// CommandKind is the Controller command kind that produced this event.
 	CommandKind string `json:"command_kind"`
 	// ParticipantNode is the reporting node for participant progress events.
 	ParticipantNode uint64 `json:"participant_node"`

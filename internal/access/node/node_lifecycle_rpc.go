@@ -86,7 +86,7 @@ type NodeReadinessResponse struct {
 type ControllerVoterReadinessRequest struct {
 	// NodeID is the target node identity being probed.
 	NodeID uint64 `json:"node_id"`
-	// ClusterID is the expected ControllerV2 cluster identity.
+	// ClusterID is the expected Controller cluster identity.
 	ClusterID string `json:"cluster_id"`
 }
 
@@ -94,7 +94,7 @@ type ControllerVoterReadinessRequest struct {
 type ControllerVoterReadinessResponse struct {
 	// NodeID is the probed node identity.
 	NodeID uint64 `json:"node_id"`
-	// ClusterID is the ControllerV2 cluster identity observed in the target mirror.
+	// ClusterID is the Controller cluster identity observed in the target mirror.
 	ClusterID string `json:"cluster_id"`
 	// Reachable reports whether the node RPC handler is reachable.
 	Reachable bool `json:"reachable"`
@@ -134,7 +134,7 @@ type ControllerVoter struct {
 type PrepareControllerVoterRequest struct {
 	// NodeID is the target node identity being prepared.
 	NodeID uint64 `json:"node_id"`
-	// ClusterID is the expected ControllerV2 cluster identity.
+	// ClusterID is the expected Controller cluster identity.
 	ClusterID string `json:"cluster_id"`
 	// ExpectedRevision is the minimum mirrored control revision required before preparing.
 	ExpectedRevision uint64 `json:"expected_revision"`

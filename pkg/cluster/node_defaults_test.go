@@ -545,7 +545,7 @@ func TestNodeStartHostsChannelMigrationLoopWhenEnabled(t *testing.T) {
 	}
 }
 
-func TestNodeInitializesDefaultControllerV2WhenOptionMissing(t *testing.T) {
+func TestNodeInitializesDefaultControllerWhenOptionMissing(t *testing.T) {
 	cfg := validNodeConfig(t)
 	cfg.Channel.TickInterval = time.Millisecond
 	cfg.Control.ClusterID = "node-default-control"
@@ -566,7 +566,7 @@ func TestNodeInitializesDefaultControllerV2WhenOptionMissing(t *testing.T) {
 
 	snap := node.Snapshot()
 	if !snap.RoutesReady || snap.StateRevision == 0 || snap.SlotCount != 1 || snap.HashSlotCount != 4 {
-		t.Fatalf("Snapshot() = %#v, want ControllerV2-backed ready routes", snap)
+		t.Fatalf("Snapshot() = %#v, want Controller-backed ready routes", snap)
 	}
 	route, err := node.RouteHashSlot(0)
 	if err != nil && !errors.Is(err, ErrNoSlotLeader) {
@@ -577,7 +577,7 @@ func TestNodeInitializesDefaultControllerV2WhenOptionMissing(t *testing.T) {
 	}
 }
 
-func TestNodeDefaultControllerV2ThreeVotersConvergeOverTransport(t *testing.T) {
+func TestNodeDefaultControllerThreeVotersConvergeOverTransport(t *testing.T) {
 	addrs := []string{freeTCPAddr(t), freeTCPAddr(t), freeTCPAddr(t)}
 	voters := []ControlVoter{
 		{NodeID: 1, Addr: addrs[0]},
@@ -761,7 +761,7 @@ func TestNodeDefaultSeedJoinMirrorSyncsThroughFollowerSeedRedirect(t *testing.T)
 	t.Cleanup(func() { _ = joining.Stop(context.Background()) })
 }
 
-func TestNodeDefaultControllerV2ForwardsControlWriteOverTransport(t *testing.T) {
+func TestNodeDefaultControllerForwardsControlWriteOverTransport(t *testing.T) {
 	addrs := []string{freeTCPAddr(t), freeTCPAddr(t), freeTCPAddr(t)}
 	voters := []ControlVoter{
 		{NodeID: 1, Addr: addrs[0]},

@@ -29,7 +29,7 @@ type PromoteControllerVoterRequest struct {
 
 // PromoteControllerVoterResponse describes the promotion result and voter sets.
 type PromoteControllerVoterResponse struct {
-	// Changed reports whether durable ControllerV2 state changed.
+	// Changed reports whether durable Controller state changed.
 	Changed bool
 	// NodeID is the promoted or already-voting node identity.
 	NodeID uint64
@@ -47,7 +47,7 @@ type PromoteControllerVoterResponse struct {
 type ControllerVoterReadiness struct {
 	// NodeID is the node identity that reported readiness.
 	NodeID uint64
-	// ClusterID is the target node's mirrored ControllerV2 cluster identity when known.
+	// ClusterID is the target node's mirrored Controller cluster identity when known.
 	ClusterID string
 	// Reachable reports whether the readiness RPC reached the target node.
 	Reachable bool
@@ -87,7 +87,7 @@ type ControllerVoterEndpoint struct {
 type PrepareControllerVoterRequest struct {
 	// NodeID is the target node being prepared.
 	NodeID uint64
-	// ClusterID is the stable ControllerV2 cluster identity expected by the target.
+	// ClusterID is the stable Controller cluster identity expected by the target.
 	ClusterID string
 	// ExpectedRevision is the minimum mirrored control revision required before preparing.
 	ExpectedRevision uint64

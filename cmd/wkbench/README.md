@@ -18,7 +18,7 @@ go run ./cmd/wkbench <command> [flags]
 | `capacity send` | Searches maximum stable ingress send QPS against already-running target APIs. |
 | `capacity hot-channel` | Searches maximum stable ingress QPS for one fixed group channel with configurable sender fan-in. |
 | `capacity activate-channels` | Activates a fixed number of group channels through real SEND traffic, holds them live, and probes ChannelV2 runtime state. |
-| `metrics classify` | Compares before/after Prometheus snapshots and prints gateway, ControllerV2 Raft, ChannelV2, and storage attribution hints. |
+| `metrics classify` | Compares before/after Prometheus snapshots and prints gateway, Controller Raft, ChannelV2, and storage attribution hints. |
 | `report` | Reserved for future standalone report rendering. It is not implemented yet. |
 
 Exit codes are stable: `0` success, `1` config validation failure, `2` preflight failure, `3` hard limit failure, `4` worker failure, `5` target unavailable, and `6` internal failure.
@@ -191,7 +191,7 @@ validates the live peak for owner-active count, authority-active count, pending
 count, hash-slot totals, touch count, and TTL expiry count. The final
 `report.json` is still used for workload status and error-rate gates.
 
-The per-node classification files include ControllerV2 Raft Step queue pressure
+The per-node classification files include Controller Raft Step queue pressure
 plus ChannelV2 cold-activation stage p99s:
 `channelv2_meta_resolve_p99_seconds`, `channelv2_meta_slot_read_p99_seconds`,
 `channelv2_meta_create_build_p99_seconds`,

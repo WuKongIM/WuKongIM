@@ -155,9 +155,9 @@ least one Controller-backed `slot_replica_move` task is created; no-op previews
 or no-create results return `200 OK`. `status` is read-only and reports active
 replica-move tasks targeting the selected node. There is intentionally no
 `cancel` route in this stage because no fenced Controller cancel writer exists.
-The downstream flow is `SlotReplicaMoveWriter -> ControllerV2 slot_replica_move
+The downstream flow is `SlotReplicaMoveWriter -> Controller slot_replica_move
 task -> cluster task executor -> Slot Raft learner/config-change flow -> final
-ControllerV2 assignment commit`; HTTP never treats target learners as
+Controller assignment commit`; HTTP never treats target learners as
 `DesiredPeers` before that final commit.
 
 `/manager/nodes/:node_id/slot-move-out/*` exposes bounded Slot replica
@@ -316,14 +316,14 @@ selection to `internal/usecase/management`, and return decoded payload
 summaries only for inspection; the routes do not mutate Controller or Slot
 state.
 
-`/manager/controller/tasks*` exposes active ControllerV2 task state from the
+`/manager/controller/tasks*` exposes active Controller task state from the
 local control snapshot. The HTTP layer validates `kind`, `status`, `slot_id`,
 `node_id`, and `limit`, requires `cluster.controller:r` when manager auth is
 enabled, and delegates projection/filtering to `internal/usecase/management`.
 The route is read-only and intentionally omits completed task history because
 completed tasks are removed from active cluster state.
 
-`/manager/controller/task-audits*` exposes bounded retained ControllerV2 task
+`/manager/controller/task-audits*` exposes bounded retained Controller task
 history from the internal task audit reader. The HTTP layer validates `kind`,
 `status`, `slot_id`, `node_id`, `keyword`, and `limit`, requires
 `cluster.controller:r` when manager auth is enabled, and delegates list and

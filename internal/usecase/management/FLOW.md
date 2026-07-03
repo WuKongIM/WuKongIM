@@ -157,7 +157,7 @@ target node through `NodeReadinessReader`, and only delegates the active write
 when the target is reachable, transport/control/runtime ready, mirrored to the
 expected cluster ID, and caught up to at least the observed control revision.
 Leaving requests validate only the manager-facing node ID and delegate the
-durable transition to the control writer; ControllerV2 remains responsible for
+durable transition to the control writer; Controller remains responsible for
 rejecting controller voters and invalid lifecycle transitions.
 Control conflicts, missing-node activation errors, and not-ready activation
 checks are mapped to dedicated usecase errors so HTTP can distinguish operator
@@ -237,7 +237,7 @@ writer with the status `StateRevision` only when `safe_to_remove=true`; unsafe
 attempts fail closed before reaching the writer, and concurrent control-state
 revision changes are reported as scale-in conflicts. Already-removed tombstones
 are delegated to the same writer without the safety revision fence for
-idempotent `changed=false` results, and lower ControllerV2 also preserves this
+idempotent `changed=false` results, and lower Controller also preserves this
 terminal-state idempotency when a retried remove still carries a stale fence.
 It does not mutate
 `DesiredPeers` directly, retry failed tasks, implement cancellation, close
@@ -283,7 +283,7 @@ manager HTTP handler
   -> cluster control slot_replica_move task intent
   -> cluster task executor
   -> Slot Raft learner/config-change flow
-  -> final ControllerV2 Slot assignment commit
+  -> final Controller Slot assignment commit
 ```
 
 The onboarding usecase implements only the first bounded Slot-replica
@@ -298,7 +298,7 @@ Controller writer. Status is a read-only projection of active
 `slot_replica_move` tasks targeting the selected node.
 Targets being onboarded are task-local learners before promotion; the durable
 `DesiredPeers` assignment changes only after the cluster executor observes the
-target voter set and commits the final ControllerV2 assignment update.
+target voter set and commits the final Controller assignment update.
 
 ## Node Slot Move-Out Flow
 
@@ -348,7 +348,7 @@ attached to the matching Slot row. Slot leader-transfer requests use the same
 control snapshot plus a live Slot runtime status reader to validate the current
 leader, voter quorum, desired peers, and target-node active data lifecycle
 before submitting a Controller-backed task intent. The usecase does not read
-ControllerV2 state directly and only exposes this narrow task mutation route;
+Controller state directly and only exposes this narrow task mutation route;
 Slot detail, rebalance, recovery, and add/remove operation routes are outside
 this migration step.
 
@@ -389,7 +389,7 @@ stable Slot order, reads live Slot runtime status for the scanned assignments,
 and returns candidate rows, skip reasons, a summary, and a deterministic plan
 ID fenced to the observed control-state revision. Planning may reuse matching
 active leader-transfer tasks in the returned candidates, but it does not create
-ControllerV2 tasks, mutate preferred leaders, or call Slot Raft.
+Controller tasks, mutate preferred leaders, or call Slot Raft.
 
 ## Slot Leader Transfer Batch Execute Flow
 
@@ -420,8 +420,8 @@ manager HTTP handler
   -> sorted active Controller task DTO rows or one active task
 ```
 
-The task read model exposes active ControllerV2 tasks only. Completed tasks are
-absent because ControllerV2 removes them from active cluster state, while failed
+The task read model exposes active Controller tasks only. Completed tasks are
+absent because Controller removes them from active cluster state, while failed
 tasks remain visible with status, attempt, task error, and participant progress.
 List filtering is performed in the management usecase for kind, status,
 physical Slot, and related node membership across source, target, target peers,

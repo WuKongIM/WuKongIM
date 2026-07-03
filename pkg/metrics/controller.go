@@ -129,32 +129,32 @@ func newControllerMetrics(registry prometheus.Registerer, labels prometheus.Labe
 		}),
 		stateRevision: prometheus.NewGauge(prometheus.GaugeOpts{
 			Name:        "wukongim_controller_state_revision",
-			Help:        "Latest locally visible ControllerV2 cluster-state revision.",
+			Help:        "Latest locally visible Controller cluster-state revision.",
 			ConstLabels: labels,
 		}),
 		leaderPresent: prometheus.NewGauge(prometheus.GaugeOpts{
 			Name:        "wukongim_controller_leader_present",
-			Help:        "Reports 1 when the local ControllerV2 snapshot has a known leader, otherwise 0.",
+			Help:        "Reports 1 when the local Controller snapshot has a known leader, otherwise 0.",
 			ConstLabels: labels,
 		}),
 		applyGap: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name:        "wukongim_controller_apply_gap",
-			Help:        "ControllerV2 committed-to-applied Raft log gap.",
+			Help:        "Controller committed-to-applied Raft log gap.",
 			ConstLabels: labels,
 		}, []string{"state"}),
 		raftStepDepth: prometheus.NewGauge(prometheus.GaugeOpts{
 			Name:        "wukongim_controller_raft_step_queue_depth",
-			Help:        "Number of pending inbound ControllerV2 Raft Step messages.",
+			Help:        "Number of pending inbound Controller Raft Step messages.",
 			ConstLabels: labels,
 		}),
 		raftStepCapacity: prometheus.NewGauge(prometheus.GaugeOpts{
 			Name:        "wukongim_controller_raft_step_queue_capacity",
-			Help:        "Capacity of the inbound ControllerV2 Raft Step message queue.",
+			Help:        "Capacity of the inbound Controller Raft Step message queue.",
 			ConstLabels: labels,
 		}),
 		raftStepEnqueue: prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Name:        "wukongim_controller_raft_step_enqueue_duration_seconds",
-			Help:        "Elapsed time to enqueue an inbound ControllerV2 Raft Step message.",
+			Help:        "Elapsed time to enqueue an inbound Controller Raft Step message.",
 			ConstLabels: labels,
 			Buckets:     gatewayFrameDurationBuckets,
 		}, []string{"result"}),
@@ -361,7 +361,7 @@ func newControllerTaskOldestAgeCollector(labels prometheus.Labels) *controllerTa
 	return &controllerTaskOldestAgeCollector{
 		desc: prometheus.NewDesc(
 			"wukongim_controller_task_oldest_age_seconds",
-			"Oldest retained ControllerV2 task age in seconds grouped by bounded audit labels.",
+			"Oldest retained Controller task age in seconds grouped by bounded audit labels.",
 			[]string{"kind", "status", "step", "source"},
 			labels,
 		),
@@ -446,7 +446,7 @@ func (m *ControllerMetrics) SetLeaderPresent(present bool) {
 	m.leaderPresent.Set(0)
 }
 
-// SetApplyGap records the current ControllerV2 committed-to-applied Raft log gap.
+// SetApplyGap records the current Controller committed-to-applied Raft log gap.
 func (m *ControllerMetrics) SetApplyGap(gap uint64) {
 	if m == nil {
 		return

@@ -141,7 +141,7 @@ type App struct {
 	diagnosticsTracking *obsdiagnostics.TrackingRules
 	// diagnosticsRestore restores the process-wide sendtrace sink installed by this app.
 	diagnosticsRestore func()
-	// controllerTaskAudit stores retained ControllerV2 task history for manager reads.
+	// controllerTaskAudit stores retained Controller task history for manager reads.
 	controllerTaskAudit *controllerTaskAuditRuntime
 	logger              wklog.Logger
 

@@ -289,7 +289,7 @@ func TestAppPrepareControllerVoterReturnsControllerRaftProof(t *testing.T) {
 			{NodeID: 2, Addr: "10.0.0.2:11110"},
 			{NodeID: 4, Addr: "10.0.0.4:11110"},
 		}) {
-		t.Fatalf("prepare request = %#v, want converted ControllerV2 voters", cluster.prepareRequest)
+		t.Fatalf("prepare request = %#v, want converted Controller voters", cluster.prepareRequest)
 	}
 	got.ObservedVoters[0] = 99
 	if cluster.controllerRaftStatus.Voters[0] != 1 {

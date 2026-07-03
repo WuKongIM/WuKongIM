@@ -45,7 +45,7 @@ type LogEntry struct {
 	Decoded map[string]any
 }
 
-// ControllerLogEntries is one local page of ControllerV2 Raft log entries.
+// ControllerLogEntries is one local page of Controller Raft log entries.
 type ControllerLogEntries struct {
 	// NodeID is the node whose local Controller log was read.
 	NodeID uint64
@@ -63,10 +63,10 @@ type ControllerLogEntries struct {
 	Items []LogEntry
 }
 
-// ControllerRaftStatus is a node-local ControllerV2 Raft status snapshot.
+// ControllerRaftStatus is a node-local Controller Raft status snapshot.
 type ControllerRaftStatus = control.ControllerRaftStatus
 
-// ControllerRaftCompactionResult describes one node-local ControllerV2 Raft compaction attempt.
+// ControllerRaftCompactionResult describes one node-local Controller Raft compaction attempt.
 type ControllerRaftCompactionResult = control.ControllerRaftCompactionResult
 
 // SlotLogEntries is one local page of Slot Raft log entries.
@@ -136,7 +136,7 @@ type controllerRaftOperator interface {
 	CompactControllerRaftLog(context.Context) (control.ControllerRaftCompactionResult, error)
 }
 
-// LocalControllerLogEntries returns one page from this node's local ControllerV2 Raft log.
+// LocalControllerLogEntries returns one page from this node's local Controller Raft log.
 func (n *Node) LocalControllerLogEntries(ctx context.Context, opts LogEntriesOptions) (ControllerLogEntries, error) {
 	if err := ctxErr(ctx); err != nil {
 		return ControllerLogEntries{}, err
@@ -163,7 +163,7 @@ func (n *Node) LocalControllerLogEntries(ctx context.Context, opts LogEntriesOpt
 	}, nil
 }
 
-// LocalControllerRaftStatus returns this node's local ControllerV2 Raft status snapshot.
+// LocalControllerRaftStatus returns this node's local Controller Raft status snapshot.
 func (n *Node) LocalControllerRaftStatus(ctx context.Context) (ControllerRaftStatus, error) {
 	if err := ctxErr(ctx); err != nil {
 		return ControllerRaftStatus{}, err
@@ -178,7 +178,7 @@ func (n *Node) LocalControllerRaftStatus(ctx context.Context) (ControllerRaftSta
 	return operator.ControllerRaftStatus(ctx)
 }
 
-// LocalCompactControllerRaftLog forces this node's local ControllerV2 Raft log compaction.
+// LocalCompactControllerRaftLog forces this node's local Controller Raft log compaction.
 func (n *Node) LocalCompactControllerRaftLog(ctx context.Context) (ControllerRaftCompactionResult, error) {
 	if err := ctxErr(ctx); err != nil {
 		return ControllerRaftCompactionResult{}, err

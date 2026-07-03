@@ -2,7 +2,7 @@
 
 ## Responsibility
 
-`pkg/cluster` is the promoted cluster runtime composition root. It wires ControllerV2 state, Slot Multi-Raft metadata storage, typed node RPC, and Channel runtime log replication behind a small public API.
+`pkg/cluster` is the promoted cluster runtime composition root. It wires Controller state, Slot Multi-Raft metadata storage, typed node RPC, and Channel runtime log replication behind a small public API.
 
 The root `Node` stays thin: it owns lifecycle, readiness, public API delegation, and snapshot fan-out only. Foreground routing, Slot propose, Channel runtime replication, Controller state mapping, and node RPC each live in focused subpackages.
 
@@ -19,7 +19,7 @@ The root `Node` stays thin: it owns lifecycle, readiness, public API delegation,
 
 | Package | Responsibility |
 |---------|----------------|
-| `control` | Controller abstraction, root ControllerV2 facade adapter, snapshot adapter, Raft RPC, and state sync RPC. |
+| `control` | Controller abstraction, root Controller facade adapter, snapshot adapter, Raft RPC, and state sync RPC. |
 | `routing` | Atomic HashSlot -> Slot -> Leader read model for hot paths. |
 | `net` | Typed node-to-node RPC and discovery glue; Go package name is `clusternet`. |
 | `slots` | Slot Multi-Raft runtime open/bootstrap/reconcile/status. |
@@ -64,7 +64,7 @@ future removed tombstone operations enter cluster through `Node.JoinNode`,
 validated lifecycle or Controller voter intent to the control runtime.
 Target-side Controller voter preparation enters through
 `Node.PrepareControllerVoter`, which foreground-checks and delegates to the
-local ControllerV2 runtime so the internal app can obtain live Raft proof
+local Controller runtime so the internal app can obtain live Raft proof
 from the same production cluster facade.
 `PromoteControllerVoter` finalizes an already live-proven Controller Raft voter
 promotion by transporting the previous voter fence plus observed Raft config
@@ -74,9 +74,9 @@ usecases; cluster only exposes the lower-level lifecycle primitive. The
 `removed` state remains a durable control-plane tombstone; cluster does not
 physically delete node identity or decide that a leaving node is safe to remove.
 `MarkNodeRemoved` transports an optional `state_revision` fence supplied by the
-management safe-to-remove check to ControllerV2, but it does not compute that
+management safe-to-remove check to Controller, but it does not compute that
 safety itself. The fence guards changed remove writes; already-removed
-tombstones remain idempotent in ControllerV2. Non-leader Controller runtimes
+tombstones remain idempotent in Controller. Non-leader Controller runtimes
 forward those writes through the generic control-write RPC path as `join_node`,
 `activate_node`, `mark_node_leaving`, `mark_node_removed`, or
 `promote_controller_voter`.
@@ -85,7 +85,7 @@ Staged Slot replica move intent enters cluster through
 already-planned intent to the control runtime. It uses the same generic
 control-write path: the cluster control runtime forwards `slot_replica_move`
 creation to the Controller leader and keeps the durable assignment unchanged
-until the later ControllerV2 commit command. The
+until the later Controller commit command. The
 default transport-backed
 typed RPC client uses a larger per-priority write queue than the generic
 transport default so short foreground RPC fanout bursts are absorbed before
@@ -126,12 +126,12 @@ New(Config)
   -> apply optional WithProposer / WithChannels overrides
 
 Start(ctx)
-  -> initialize default node RPC transport / ControllerV2 runtime / proposer / Channel runtime service when no override was provided
+  -> initialize default node RPC transport / Controller runtime / proposer / Channel runtime service when no override was provided
   -> initialize a real Slot Multi-Raft runtime for default propose
   -> seed node RPC discovery from configured Controller voters, or from seed-join
      seed addresses for mirror nodes, until the first control snapshot arrives
   -> start default transport and injected lifecycle resources
-  -> start ControllerV2-backed Controller or injected Controller
+  -> start Controller-backed Controller or injected Controller
   -> wait for a valid initial control snapshot
   -> routing.UpdateControlSnapshot(snapshot)
   -> discovery.Update(control node addresses plus seed-join seed addresses when configured)
@@ -140,19 +140,19 @@ Start(ctx)
   -> start the default Slot leader observation loop when the default Slot runtime is active
   -> mark Channel runtime ready and start the tick loop
   -> mark node started
-  -> start low-frequency ControllerV2 health reporting
+  -> start low-frequency Controller health reporting
   -> start Channel runtime physical retention cleanup loop when enabled
   -> start the bounded Channel runtime migration executor/repair scanner loop when enabled
 ```
 
-`Start` requires cluster semantics even for one node. A single-node cluster uses a ControllerV2-backed single-voter control runtime instead of a bypass path. Multi-voter default startup uses `pkg/transportv2` one-way service messages for ControllerV2 Raft traffic and RPC responses only for state-sync requests. The ControllerV2 Raft receive handler bounds local `Step` enqueue time and may drop messages when the local Step queue is saturated; Raft retransmission is relied on instead of allowing one-way notify goroutines to accumulate indefinitely.
+`Start` requires cluster semantics even for one node. A single-node cluster uses a Controller-backed single-voter control runtime instead of a bypass path. Multi-voter default startup uses `pkg/transportv2` one-way service messages for Controller Raft traffic and RPC responses only for state-sync requests. The Controller Raft receive handler bounds local `Step` enqueue time and may drop messages when the local Step queue is saturated; Raft retransmission is relied on instead of allowing one-way notify goroutines to accumulate indefinitely.
 
 `Node.Start` only establishes local-node readiness: the node has a valid local control snapshot, installed routes, reconciled local Slot runtime state, and started local Channel runtime resources. Package tests use `WaitClusterReady` for converged local control snapshots, and tests that specifically require distributed Controller write readiness should add the separate Controller proposal probe gate. Slot and Channel append tests should add their own Slot leader or Channel metadata gates when those paths are part of the assertion. `ProbeWriteReady` is the foreground app gate: it verifies all hash slots have leaders, refreshes health-only control snapshots when Channel runtime placement candidates are stale, verifies Channel runtime has enough health-schedulable data nodes to create new channel placement, runs a bounded representative Slot metadata write probe, and refreshes the node-local Channel runtime data-plane lease after the probe succeeds.
 
 Seed-join mirror nodes keep `Config.Control.Voters` empty so they do not become
 Controller voters before admission. During default runtime wiring, the
 configured `Join.Seeds` addresses are converted into temporary state-sync peer
-IDs used only for transport discovery and ControllerV2 mirror sync. After the
+IDs used only for transport discovery and Controller mirror sync. After the
 first real control snapshot arrives, normal membership discovery is installed
 while those seed peers remain available for later mirror refreshes.
 Once a seed-join mirror sees its own membership state become `active`, it still
@@ -168,7 +168,7 @@ When a control snapshot contains active bootstrap, leader-transfer, or staged
 slot-replica-move tasks, the Node runs task executors after Slot
 reconciliation. Executors only report participant progress, fenced phase
 advancement, fenced commit, or fenced completion through the control task
-writer facade; they do not mutate ControllerV2 state directly. Task and
+writer facade; they do not mutate Controller state directly. Task and
 generic control writes from non-leader Controller runtimes, including
 `PromoteControllerVoter`, are forwarded to the current Controller leader.
 Leader-transfer execution calls Slot Raft `TransferLeadership` from
@@ -179,11 +179,11 @@ target's local learner runtime, then advances Slot Raft membership through
 add-learner, promote-learner, remove-voter, and finally commits the durable
 assignment only after observed voters match the target peer set.
 
-`Config.Control.RaftObserver` is passed through to the default ControllerV2
+`Config.Control.RaftObserver` is passed through to the default Controller
 runtime so composition roots can expose Controller Raft ingress queue metrics
 without changing control-plane semantics.
 `Config.Control.TaskTransitionObserver` is also passed through to the default
-ControllerV2 runtime. Clusterv2 only transports the already-durable task edges;
+Controller runtime. Cluster only transports the already-durable task edges;
 it does not store audit history, inspect legacy `pkg/controller` state, or
 reinterpret task lifecycle policy.
 
@@ -200,7 +200,7 @@ The node health report loop sends compact runtime evidence through
 observed Slot revision, and a node-local report sequence. Each report uses a
 bounded per-report context. `runtime_ready` is false while the node is stopping,
 and clean Stop sends one final best-effort bounded not-ready report after the
-periodic loop is canceled and before Controller/watch shutdown. ControllerV2
+periodic loop is canceled and before Controller/watch shutdown. Controller
 fills the leader-side report timestamp, stores the report durably, and control
 snapshots derive `fresh`, `stale`, or `missing` health from the configured TTL.
 The default Channel runtime runtime also receives a node-local data-plane lease guard.
@@ -220,13 +220,13 @@ authority source.
 ```text
 Stop(ctx)
   -> mark stopping and reject new foreground calls
-  -> stop low-frequency ControllerV2 health reporting
+  -> stop low-frequency Controller health reporting
   -> stop Controller watch loop
   -> stop Channel runtime tick loop
   -> stop Channel runtime physical retention cleanup loop
   -> stop Channel runtime migration executor/repair scanner loop
   -> close hosted Channel runtime service
-  -> stop ControllerV2-backed Controller or injected Controller
+  -> stop Controller-backed Controller or injected Controller
   -> stop injected lifecycle resources in reverse order
 ```
 
@@ -428,7 +428,7 @@ floor and `RetentionThroughSeq`. Channel not found or no visible tail returns
 `ok=false`; route, not-ready, not-leader, and stale-route errors propagate to
 the caller.
 
-`WithProposer` and `WithChannels` are public override options for tests, smoke harnesses, and app-level composition. If callers do not provide them, `Node.Start` creates a default ControllerV2 runtime, proposer, and Channel runtime service, backs Channel runtime with the message DB under `DataDir/channellog`, wires the node-local data-plane lease as Channel runtime append admission, registers Channel runtime replication/append-forward handlers on the default node RPC transport, and owns the Channel runtime tick loop plus default store factory cleanup. The default proposer is backed by a real local Slot Multi-Raft runtime, durable Slot Raft log storage under `DataDir/slotraft`, metadata FSM storage under `DataDir/slotmeta`, and cluster typed RPC transport for multi-replica Slot Raft traffic.
+`WithProposer` and `WithChannels` are public override options for tests, smoke harnesses, and app-level composition. If callers do not provide them, `Node.Start` creates a default Controller runtime, proposer, and Channel runtime service, backs Channel runtime with the message DB under `DataDir/channellog`, wires the node-local data-plane lease as Channel runtime append admission, registers Channel runtime replication/append-forward handlers on the default node RPC transport, and owns the Channel runtime tick loop plus default store factory cleanup. The default proposer is backed by a real local Slot Multi-Raft runtime, durable Slot Raft log storage under `DataDir/slotraft`, metadata FSM storage under `DataDir/slotmeta`, and cluster typed RPC transport for multi-replica Slot Raft traffic.
 `Config.Slots.Observer` is passed to the default Slot Multi-Raft runtime so composition roots can expose scheduler pressure without changing Slot processing semantics.
 `Config.Slots.LogCompaction` is also passed through to the default Slot
 Multi-Raft runtime so composition roots can tune local Slot Raft snapshot
@@ -442,7 +442,7 @@ this production path.
 
 ## Distributed Log Inspection Flow
 
-`Node.LocalControllerLogEntries` reads the local ControllerV2 Raft WAL through
+`Node.LocalControllerLogEntries` reads the local Controller Raft WAL through
 the control facade and returns newest-first, cursor-paginated entry summaries.
 `Node.LocalSlotLogEntries` reads the local default Slot Raft DB for one physical
 Slot, joins runtime commit/applied watermarks when available, and decodes Slot
@@ -452,13 +452,13 @@ present. These methods are read-only diagnostics for manager UI pages; they do
 not route writes, replay entries, or mutate Raft storage.
 
 `Node.LocalControllerRaftStatus`, `Node.LocalCompactControllerRaftLog`, and
-`Node.PrepareControllerVoter` are separate node-local ControllerV2 Raft
+`Node.PrepareControllerVoter` are separate node-local Controller Raft
 management facades. Status reports local role, term, commit/apply, and durable
 log/snapshot watermarks plus the live Controller Raft voter and learner sets.
-Manual compaction calls the local ControllerV2 runtime's materialized-state
+Manual compaction calls the local Controller runtime's materialized-state
 snapshot path and returns whether a snapshot was created, skipped, or failed.
 Controller voter preparation delegates only to the target node's local
-ControllerV2 runtime and does not submit the final durable promotion write.
+Controller runtime and does not submit the final durable promotion write.
 `Node.PromoteControllerVoter` routes the final control write through the same
 leader-forwarding control facade as other Controller writes. Cluster fan-out,
 target readiness checks, and safety fences are owned by
@@ -499,7 +499,7 @@ When `Config.Channel.ReactorCount` is left at zero, cluster derives a CPU-aware 
 
 ## V1 Limitations
 
-- ControllerV2 integration supports ControllerV2-backed runtime startup, single-node cluster bootstrap, static multi-voter bootstrap, mirror sync, and multi-voter Raft transport wiring through `pkg/transportv2`. Dynamic production operator workflows remain outside this package-level slice.
+- Controller integration supports Controller-backed runtime startup, single-node cluster bootstrap, static multi-voter bootstrap, mirror sync, and multi-voter Raft transport wiring through `pkg/transportv2`. Dynamic production operator workflows remain outside this package-level slice.
 - Slot coverage now uses the real default Slot runtime for default propose in single-node clusters and static multi-node clusters. Destructive Slot cleanup remains disabled.
 - Channel runtime append forwarding and first-append metadata creation require a configured Slot-backed ChannelMetaSource and Forward client; without them, pre-applied local runtime state is required and non-leader appends return Channel runtime typed errors.
 - Channel RPC codecs use a version byte plus JSON payload as a temporary v1 format; replace with binary codecs before optimizing this data path.

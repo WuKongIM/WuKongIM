@@ -1475,7 +1475,7 @@ func TestStopRestoresDiagnosticsSendTraceSink(t *testing.T) {
 }
 
 func TestNewRestoresDiagnosticsSinkOnConstructionError(t *testing.T) {
-	previous := &recordingInternalV2SendTraceSink{}
+	previous := &recordingInternalSendTraceSink{}
 	restorePrevious := sendtrace.SetSink(previous)
 	t.Cleanup(restorePrevious)
 
@@ -1907,15 +1907,15 @@ func TestCombinedDeliveryObserverFansOutAckEvents(t *testing.T) {
 	}
 }
 
-type recordingInternalV2SendTraceSink struct {
+type recordingInternalSendTraceSink struct {
 	events []sendtrace.Event
 }
 
-func (s *recordingInternalV2SendTraceSink) RecordSendTrace(event sendtrace.Event) {
+func (s *recordingInternalSendTraceSink) RecordSendTrace(event sendtrace.Event) {
 	s.events = append(s.events, event)
 }
 
-func (s *recordingInternalV2SendTraceSink) snapshot() []sendtrace.Event {
+func (s *recordingInternalSendTraceSink) snapshot() []sendtrace.Event {
 	return append([]sendtrace.Event(nil), s.events...)
 }
 

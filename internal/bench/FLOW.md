@@ -126,7 +126,7 @@ only when the experiment intentionally adds those pressure dimensions.
 When the three-node helper script captures before/after Prometheus snapshots,
 `wkbench metrics classify` reports gateway dispatch wait, message append error
 classes such as route-not-ready, short-result, invalid-config, and timeout,
-ControllerV2 Raft Step queue/enqueue pressure, ChannelV2 append and
+Controller Raft Step queue/enqueue pressure, ChannelV2 append and
 cold-activation stages, worker queue/current in-flight/peak in-flight by pool,
 and storage commit request p99/tail counts by `leader_append` /
 `follower_apply` lane plus batch p99s. The
