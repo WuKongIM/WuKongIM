@@ -1775,7 +1775,7 @@ func TestLoadConfigRejectsInvalidValues(t *testing.T) {
 	}
 }
 
-func TestLoadConfigRejectsNegativeChannelV2Limits(t *testing.T) {
+func TestLoadConfigRejectsNegativeChannelLimits(t *testing.T) {
 	for _, tt := range []struct {
 		name string
 		line string
@@ -1805,7 +1805,7 @@ func TestLoadConfigRejectsNegativeChannelV2Limits(t *testing.T) {
 	}
 }
 
-func TestLoadConfigRejectsNegativeChannelV2RecoveryProbeDurations(t *testing.T) {
+func TestLoadConfigRejectsNegativeChannelRecoveryProbeDurations(t *testing.T) {
 	cases := []struct {
 		name    string
 		line    string

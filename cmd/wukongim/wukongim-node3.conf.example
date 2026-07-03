@@ -31,18 +31,18 @@ WK_CLUSTER_HASH_SLOT_COUNT=256
 # Desired Slot replica count. Three replicas require all three listed nodes.
 WK_CLUSTER_SLOT_REPLICA_N=3
 
-# ChannelV2 reactor partitions. 0 derives max(4, GOMAXPROCS).
+# Channel reactor partitions. 0 derives max(4, GOMAXPROCS).
 WK_CLUSTER_CHANNEL_REACTOR_COUNT=0
 
-# Blocking ChannelV2 worker caps. 0 keeps the runtime default.
+# Blocking Channel worker caps. 0 keeps the runtime default.
 WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS=0
 WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS=0
 WK_CLUSTER_CHANNEL_RPC_WORKERS=50
 
-# Maximum loaded ChannelV2 runtimes on this node. 0 keeps unlimited behavior.
+# Maximum loaded Channel runtimes on this node. 0 keeps unlimited behavior.
 WK_CLUSTER_MAX_CHANNELS=0
 
-# ChannelV2 append batch flush controls. 0 keeps the runtime default.
+# Channel append batch flush controls. 0 keeps the runtime default.
 WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS=0
 WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT=0
 
@@ -51,7 +51,7 @@ WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT=0
 WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_INTERVAL=2s
 WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_JITTER=1s
 
-# Maximum time to collect adjacent ChannelV2 append requests before one durable fsync.
+# Maximum time to collect adjacent Channel append requests before one durable fsync.
 WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW=200us
 # Optional caps for one grouped physical commit. 0 keeps the limit unbounded.
 WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS=0
@@ -105,11 +105,11 @@ WK_DIAGNOSTICS_BUFFER_SIZE=50000
 WK_DIAGNOSTICS_SAMPLE_RATE=0.01
 WK_DIAGNOSTICS_SLOW_THRESHOLD_MS=500
 WK_DIAGNOSTICS_ERROR_SAMPLE_RATE=1.0
-# WK_DIAGNOSTICS_DEEP_SAMPLE_RATE controls expensive ChannelV2 reactor/store detail sampling for ordinary successful events; 0 disables ordinary deep detail.
+# WK_DIAGNOSTICS_DEEP_SAMPLE_RATE controls expensive Channel reactor/store detail sampling for ordinary successful events; 0 disables ordinary deep detail.
 WK_DIAGNOSTICS_DEEP_SAMPLE_RATE=0
 # WK_DIAGNOSTICS_DEEP_SLOW_THRESHOLD_MS keeps bounded deep trace detail for slow reactor/store stages; defaults to WK_DIAGNOSTICS_SLOW_THRESHOLD_MS.
 WK_DIAGNOSTICS_DEEP_SLOW_THRESHOLD_MS=500
-# WK_DIAGNOSTICS_DEEP_MAX_ITEMS_PER_BATCH bounds how many traced items one deep ChannelV2 batch expands.
+# WK_DIAGNOSTICS_DEEP_MAX_ITEMS_PER_BATCH bounds how many traced items one deep Channel batch expands.
 WK_DIAGNOSTICS_DEEP_MAX_ITEMS_PER_BATCH=16
 # Optional temporary high-priority sampling rules. List fields use one JSON string value.
 WK_DIAGNOSTICS_DEBUG_MATCHES=[]
