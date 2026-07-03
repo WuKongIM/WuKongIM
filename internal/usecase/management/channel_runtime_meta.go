@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	channelv2 "github.com/WuKongIM/WuKongIM/pkg/channel"
+	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
@@ -283,7 +283,7 @@ func (a *App) channelRuntimeMetaActiveTaskID(ctx context.Context, meta metadb.Ch
 	if a == nil || a.channelMigration == nil || meta.ChannelID == "" || meta.ChannelType < 0 || meta.ChannelType > int64(^uint8(0)) {
 		return "", nil
 	}
-	task, ok, err := a.channelMigration.GetActive(ctx, channelv2.ChannelID{ID: meta.ChannelID, Type: uint8(meta.ChannelType)})
+	task, ok, err := a.channelMigration.GetActive(ctx, channelruntime.ChannelID{ID: meta.ChannelID, Type: uint8(meta.ChannelType)})
 	if err != nil {
 		return "", mapChannelMigrationError(err)
 	}
@@ -347,14 +347,14 @@ func containsNodeID(values []uint64, nodeID uint64) bool {
 }
 
 func managerChannelRuntimeStatus(status uint8) string {
-	switch channelv2.Status(status) {
-	case channelv2.StatusCreating:
+	switch channelruntime.Status(status) {
+	case channelruntime.StatusCreating:
 		return "creating"
-	case channelv2.StatusActive:
+	case channelruntime.StatusActive:
 		return "active"
-	case channelv2.StatusDeleting:
+	case channelruntime.StatusDeleting:
 		return "deleting"
-	case channelv2.StatusDeleted:
+	case channelruntime.StatusDeleted:
 		return "deleted"
 	default:
 		return "unknown"
@@ -362,12 +362,12 @@ func managerChannelRuntimeStatus(status uint8) string {
 }
 
 func managerChannelWriteFenceReason(reason uint8) string {
-	switch channelv2.WriteFenceReason(reason) {
-	case channelv2.WriteFenceReasonLeaderTransfer:
+	switch channelruntime.WriteFenceReason(reason) {
+	case channelruntime.WriteFenceReasonLeaderTransfer:
 		return "leader_transfer"
-	case channelv2.WriteFenceReasonReplicaReplace:
+	case channelruntime.WriteFenceReasonReplicaReplace:
 		return "replica_replace"
-	case channelv2.WriteFenceReasonFailover:
+	case channelruntime.WriteFenceReasonFailover:
 		return "failover"
 	default:
 		return ""
