@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	cv2 "github.com/WuKongIM/WuKongIM/pkg/controller"
+	controller "github.com/WuKongIM/WuKongIM/pkg/controller"
 	"go.etcd.io/raft/v3/raftpb"
 )
 
@@ -54,15 +54,15 @@ type RuntimeConfig struct {
 	// TickInterval controls Controller Raft ticking.
 	TickInterval time.Duration
 	// RaftTransport sends Controller Raft messages.
-	RaftTransport cv2.Transport
+	RaftTransport controller.Transport
 	// RaftObserver receives local Controller Raft queue metrics.
-	RaftObserver cv2.RaftObserver
+	RaftObserver controller.RaftObserver
 	// TaskTransitionObserver receives task edges after applied metadata is persisted.
-	TaskTransitionObserver cv2.TaskTransitionObserver
+	TaskTransitionObserver controller.TaskTransitionObserver
 	// SyncClient mirrors Controller state for non-voter nodes.
-	SyncClient *cv2.SyncClient
+	SyncClient *controller.SyncClient
 	// SyncPeers resolves Controller state sync endpoints for mirror nodes.
-	SyncPeers cv2.PeerPicker
+	SyncPeers controller.PeerPicker
 	// TaskClient forwards task writes and creation intents to the current Controller leader.
 	TaskClient *TaskClient
 	// ControlWriteClient forwards generic control writes to the current Controller leader.
@@ -76,7 +76,7 @@ type RuntimeConfig struct {
 // Runtime adapts the root Controller runtime facade to control.Controller.
 type Runtime struct {
 	cfg         RuntimeConfig
-	backend     *cv2.Runtime
+	backend     *controller.Runtime
 	taskClient  *TaskClient
 	writeClient *ControlWriteClient
 
@@ -91,12 +91,12 @@ type Runtime struct {
 
 // NewRuntime creates a Controller-backed control runtime.
 func NewRuntime(cfg RuntimeConfig) (*Runtime, error) {
-	backend, err := cv2.NewRuntime(cv2.RuntimeConfig{
+	backend, err := controller.NewRuntime(controller.RuntimeConfig{
 		NodeID:                 cfg.NodeID,
 		Addr:                   cfg.Addr,
 		StateDir:               cfg.StateDir,
 		ClusterID:              cfg.ClusterID,
-		Role:                   cv2.RuntimeRole(cfg.Role),
+		Role:                   controller.RuntimeRole(cfg.Role),
 		Voters:                 runtimeFacadeVoters(cfg.Voters),
 		AllowBootstrap:         cfg.AllowBootstrap,
 		InitialSlotCount:       cfg.InitialSlotCount,
@@ -172,11 +172,11 @@ func (r *Runtime) LocalSnapshot(ctx context.Context) (Snapshot, error) {
 		return Snapshot{}, err
 	}
 	if r == nil {
-		return Snapshot{}, cv2.ErrNotStarted
+		return Snapshot{}, controller.ErrNotStarted
 	}
 	if r.backend != nil {
 		st, err := r.backend.LocalState(ctx)
-		if err != nil && !errors.Is(err, cv2.ErrNotStarted) {
+		if err != nil && !errors.Is(err, controller.ErrNotStarted) {
 			return Snapshot{}, err
 		}
 		if err == nil && !emptyControllerState(st) {
@@ -211,7 +211,7 @@ func (r *Runtime) ProbePropose(ctx context.Context) error {
 		return err
 	}
 	if r == nil || r.backend == nil {
-		return cv2.ErrNotStarted
+		return controller.ErrNotStarted
 	}
 	return r.backend.ProbePropose(ctx)
 }
@@ -225,9 +225,9 @@ func (r *Runtime) Step(ctx context.Context, msg raftpb.Message) error {
 }
 
 // GetState serves Controller state sync requests from the local voter state.
-func (r *Runtime) GetState(ctx context.Context, req cv2.GetStateRequest) (cv2.GetStateResponse, error) {
+func (r *Runtime) GetState(ctx context.Context, req controller.GetStateRequest) (controller.GetStateResponse, error) {
 	if r == nil || r.backend == nil {
-		return cv2.GetStateResponse{NotReady: true}, nil
+		return controller.GetStateResponse{NotReady: true}, nil
 	}
 	return r.backend.GetState(ctx, req)
 }
@@ -241,7 +241,7 @@ func (r *Runtime) ReportNode(ctx context.Context, report NodeReport) error {
 		return err
 	}
 	if r == nil || r.backend == nil {
-		return cv2.ErrNotStarted
+		return controller.ErrNotStarted
 	}
 	if r.canForwardControlWriteToLeader() {
 		_, err := r.forwardControlWrite(ctx, ControlWriteRequest{
@@ -250,9 +250,9 @@ func (r *Runtime) ReportNode(ctx context.Context, report NodeReport) error {
 		})
 		return err
 	}
-	_, err := r.backend.ReportNodeHealth(ctx, cv2.ReportNodeHealthRequest{
+	_, err := r.backend.ReportNodeHealth(ctx, controller.ReportNodeHealthRequest{
 		NodeID:                  report.NodeID,
-		Status:                  cv2.NodeStatus(report.Status),
+		Status:                  controller.NodeStatus(report.Status),
 		RuntimeReady:            report.RuntimeReady,
 		ObservedControlRevision: report.ObservedControlRevision,
 		ObservedSlotRevision:    report.ObservedSlotRevision,
@@ -280,7 +280,7 @@ func (r *Runtime) CompleteTask(ctx context.Context, result TaskResult) error {
 		return err
 	}
 	if r == nil || r.backend == nil {
-		return cv2.ErrNotStarted
+		return controller.ErrNotStarted
 	}
 	err := r.backend.CompleteTask(ctx, result)
 	if shouldForwardTaskWrite(err) {
@@ -295,7 +295,7 @@ func (r *Runtime) FailTask(ctx context.Context, result TaskResult) error {
 		return err
 	}
 	if r == nil || r.backend == nil {
-		return cv2.ErrNotStarted
+		return controller.ErrNotStarted
 	}
 	err := r.backend.FailTask(ctx, result)
 	if shouldForwardTaskWrite(err) {
@@ -310,7 +310,7 @@ func (r *Runtime) ReportTaskProgress(ctx context.Context, progress TaskProgress)
 		return err
 	}
 	if r == nil || r.backend == nil {
-		return cv2.ErrNotStarted
+		return controller.ErrNotStarted
 	}
 	err := r.backend.ReportTaskProgress(ctx, progress)
 	if shouldForwardTaskWrite(err) {
@@ -325,7 +325,7 @@ func (r *Runtime) AdvanceSlotReplicaMovePhase(ctx context.Context, phase SlotRep
 		return err
 	}
 	if r == nil || r.backend == nil {
-		return cv2.ErrNotStarted
+		return controller.ErrNotStarted
 	}
 	err := r.backend.AdvanceSlotReplicaMovePhase(ctx, phase)
 	if shouldForwardTaskWrite(err) {
@@ -340,7 +340,7 @@ func (r *Runtime) CommitSlotReplicaMove(ctx context.Context, commit SlotReplicaM
 		return err
 	}
 	if r == nil || r.backend == nil {
-		return cv2.ErrNotStarted
+		return controller.ErrNotStarted
 	}
 	err := r.backend.CommitSlotReplicaMove(ctx, commit)
 	if shouldForwardTaskWrite(err) {
@@ -355,9 +355,9 @@ func (r *Runtime) RequestSlotLeaderTransfer(ctx context.Context, req SlotLeaderT
 		return SlotLeaderTransferResult{}, err
 	}
 	if r == nil || r.backend == nil {
-		return SlotLeaderTransferResult{}, cv2.ErrNotStarted
+		return SlotLeaderTransferResult{}, controller.ErrNotStarted
 	}
-	result, err := r.backend.RequestSlotLeaderTransfer(ctx, cv2.SlotLeaderTransferRequest{
+	result, err := r.backend.RequestSlotLeaderTransfer(ctx, controller.SlotLeaderTransferRequest{
 		SlotID:        req.SlotID,
 		SourceNode:    req.SourceNode,
 		TargetNode:    req.TargetNode,
@@ -406,7 +406,7 @@ func (r *Runtime) RequestSlotReplicaMove(ctx context.Context, req SlotReplicaMov
 		return SlotReplicaMoveResult{}, err
 	}
 	if r == nil || r.backend == nil {
-		return SlotReplicaMoveResult{}, cv2.ErrNotStarted
+		return SlotReplicaMoveResult{}, controller.ErrNotStarted
 	}
 	if r.canForwardControlWriteToLeader() {
 		resp, err := r.forwardControlWrite(ctx, ControlWriteRequest{
@@ -418,7 +418,7 @@ func (r *Runtime) RequestSlotReplicaMove(ctx context.Context, req SlotReplicaMov
 		}
 		return resp.SlotReplicaMove, nil
 	}
-	result, err := r.backend.RequestSlotReplicaMove(ctx, cv2.SlotReplicaMoveRequest{
+	result, err := r.backend.RequestSlotReplicaMove(ctx, controller.SlotReplicaMoveRequest{
 		SlotID:        req.SlotID,
 		SourceNode:    req.SourceNode,
 		TargetNode:    req.TargetNode,
@@ -452,7 +452,7 @@ func (r *Runtime) PromoteControllerVoter(ctx context.Context, req PromoteControl
 		return PromoteControllerVoterResult{}, err
 	}
 	if r == nil || r.backend == nil {
-		return PromoteControllerVoterResult{}, cv2.ErrNotStarted
+		return PromoteControllerVoterResult{}, controller.ErrNotStarted
 	}
 	if r.canForwardControlWriteToLeader() {
 		resp, err := r.forwardControlWrite(ctx, ControlWriteRequest{
@@ -464,7 +464,7 @@ func (r *Runtime) PromoteControllerVoter(ctx context.Context, req PromoteControl
 		}
 		return resp.PromoteControllerVoter, nil
 	}
-	result, err := r.backend.PromoteControllerVoter(ctx, cv2.PromoteControllerVoterRequest{
+	result, err := r.backend.PromoteControllerVoter(ctx, controller.PromoteControllerVoterRequest{
 		NodeID:              req.NodeID,
 		ExpectedRevision:    req.ExpectedRevision,
 		ExpectedVoters:      copyOptionalUint64Slice(req.ExpectedVoters),
@@ -484,7 +484,7 @@ func (r *Runtime) PromoteControllerVoter(ctx context.Context, req PromoteControl
 	if err != nil {
 		return PromoteControllerVoterResult{}, err
 	}
-	return promoteControllerVoterResultFromCV2(result), nil
+	return promoteControllerVoterResultFromController(result), nil
 }
 
 // JoinNode submits a data-node join intent.
@@ -493,7 +493,7 @@ func (r *Runtime) JoinNode(ctx context.Context, req JoinNodeRequest) (JoinNodeRe
 		return JoinNodeResult{}, err
 	}
 	if r == nil || r.backend == nil {
-		return JoinNodeResult{}, cv2.ErrNotStarted
+		return JoinNodeResult{}, controller.ErrNotStarted
 	}
 	if r.canForwardControlWriteToLeader() {
 		resp, err := r.forwardControlWrite(ctx, ControlWriteRequest{
@@ -505,7 +505,7 @@ func (r *Runtime) JoinNode(ctx context.Context, req JoinNodeRequest) (JoinNodeRe
 		}
 		return resp.JoinNode, nil
 	}
-	result, err := r.backend.JoinNode(ctx, cv2JoinNodeRequest(req))
+	result, err := r.backend.JoinNode(ctx, controllerJoinNodeRequest(req))
 	if shouldForwardControlWrite(err) {
 		resp, err := r.forwardControlWriteAfterError(ctx, ControlWriteRequest{
 			Action:   ControlWriteActionJoinNode,
@@ -519,7 +519,7 @@ func (r *Runtime) JoinNode(ctx context.Context, req JoinNodeRequest) (JoinNodeRe
 	if err != nil {
 		return JoinNodeResult{}, err
 	}
-	return joinNodeResultFromCV2(result), nil
+	return joinNodeResultFromController(result), nil
 }
 
 // ActivateNode submits a node activation intent.
@@ -528,7 +528,7 @@ func (r *Runtime) ActivateNode(ctx context.Context, req ActivateNodeRequest) (Ac
 		return ActivateNodeResult{}, err
 	}
 	if r == nil || r.backend == nil {
-		return ActivateNodeResult{}, cv2.ErrNotStarted
+		return ActivateNodeResult{}, controller.ErrNotStarted
 	}
 	if r.canForwardControlWriteToLeader() {
 		resp, err := r.forwardControlWrite(ctx, ControlWriteRequest{
@@ -540,7 +540,7 @@ func (r *Runtime) ActivateNode(ctx context.Context, req ActivateNodeRequest) (Ac
 		}
 		return resp.ActivateNode, nil
 	}
-	result, err := r.backend.ActivateNode(ctx, cv2ActivateNodeRequest(req))
+	result, err := r.backend.ActivateNode(ctx, controllerActivateNodeRequest(req))
 	if shouldForwardControlWrite(err) {
 		resp, err := r.forwardControlWriteAfterError(ctx, ControlWriteRequest{
 			Action:       ControlWriteActionActivateNode,
@@ -554,7 +554,7 @@ func (r *Runtime) ActivateNode(ctx context.Context, req ActivateNodeRequest) (Ac
 	if err != nil {
 		return ActivateNodeResult{}, err
 	}
-	return activateNodeResultFromCV2(result), nil
+	return activateNodeResultFromController(result), nil
 }
 
 // MarkNodeLeaving submits a node leaving intent.
@@ -563,7 +563,7 @@ func (r *Runtime) MarkNodeLeaving(ctx context.Context, req MarkNodeLeavingReques
 		return MarkNodeLeavingResult{}, err
 	}
 	if r == nil || r.backend == nil {
-		return MarkNodeLeavingResult{}, cv2.ErrNotStarted
+		return MarkNodeLeavingResult{}, controller.ErrNotStarted
 	}
 	if r.canForwardControlWriteToLeader() {
 		resp, err := r.forwardControlWrite(ctx, ControlWriteRequest{
@@ -575,7 +575,7 @@ func (r *Runtime) MarkNodeLeaving(ctx context.Context, req MarkNodeLeavingReques
 		}
 		return resp.MarkNodeLeaving, nil
 	}
-	result, err := r.backend.MarkNodeLeaving(ctx, cv2MarkNodeLeavingRequest(req))
+	result, err := r.backend.MarkNodeLeaving(ctx, controllerMarkNodeLeavingRequest(req))
 	if shouldForwardControlWrite(err) {
 		resp, err := r.forwardControlWriteAfterError(ctx, ControlWriteRequest{
 			Action:          ControlWriteActionMarkNodeLeaving,
@@ -589,7 +589,7 @@ func (r *Runtime) MarkNodeLeaving(ctx context.Context, req MarkNodeLeavingReques
 	if err != nil {
 		return MarkNodeLeavingResult{}, err
 	}
-	return markNodeLeavingResultFromCV2(result), nil
+	return markNodeLeavingResultFromController(result), nil
 }
 
 // MarkNodeRemoved submits a node removed intent.
@@ -598,7 +598,7 @@ func (r *Runtime) MarkNodeRemoved(ctx context.Context, req MarkNodeRemovedReques
 		return MarkNodeRemovedResult{}, err
 	}
 	if r == nil || r.backend == nil {
-		return MarkNodeRemovedResult{}, cv2.ErrNotStarted
+		return MarkNodeRemovedResult{}, controller.ErrNotStarted
 	}
 	if r.canForwardControlWriteToLeader() {
 		resp, err := r.forwardControlWrite(ctx, ControlWriteRequest{
@@ -610,7 +610,7 @@ func (r *Runtime) MarkNodeRemoved(ctx context.Context, req MarkNodeRemovedReques
 		}
 		return resp.MarkNodeRemoved, nil
 	}
-	result, err := r.backend.MarkNodeRemoved(ctx, cv2MarkNodeRemovedRequest(req))
+	result, err := r.backend.MarkNodeRemoved(ctx, controllerMarkNodeRemovedRequest(req))
 	if shouldForwardControlWrite(err) {
 		resp, err := r.forwardControlWriteAfterError(ctx, ControlWriteRequest{
 			Action:          ControlWriteActionMarkNodeRemoved,
@@ -624,15 +624,15 @@ func (r *Runtime) MarkNodeRemoved(ctx context.Context, req MarkNodeRemovedReques
 	if err != nil {
 		return MarkNodeRemovedResult{}, err
 	}
-	return markNodeRemovedResultFromCV2(result), nil
+	return markNodeRemovedResultFromController(result), nil
 }
 
 func shouldForwardTaskWrite(err error) bool {
-	return errors.Is(err, cv2.ErrNotLeader) || errors.Is(err, cv2.ErrNotStarted)
+	return errors.Is(err, controller.ErrNotLeader) || errors.Is(err, controller.ErrNotStarted)
 }
 
 func shouldForwardControlWrite(err error) bool {
-	return errors.Is(err, cv2.ErrNotLeader) || errors.Is(err, cv2.ErrNotStarted)
+	return errors.Is(err, controller.ErrNotLeader) || errors.Is(err, controller.ErrNotStarted)
 }
 
 func (r *Runtime) canForwardControlWriteToLeader() bool {
@@ -645,22 +645,22 @@ func (r *Runtime) canForwardControlWriteToLeader() bool {
 
 func (r *Runtime) forwardTaskRequest(ctx context.Context, req TaskRequest) error {
 	if r == nil || r.taskClient == nil {
-		return cv2.ErrNotLeader
+		return controller.ErrNotLeader
 	}
 	leaderID := r.LeaderID()
 	if leaderID == 0 || leaderID == r.cfg.NodeID {
-		return cv2.ErrNotLeader
+		return controller.ErrNotLeader
 	}
 	return r.taskClient.SubmitTask(ctx, leaderID, req)
 }
 
 func (r *Runtime) forwardControlWrite(ctx context.Context, req ControlWriteRequest) (ControlWriteResponse, error) {
 	if r == nil || r.writeClient == nil {
-		return ControlWriteResponse{}, cv2.ErrNotLeader
+		return ControlWriteResponse{}, controller.ErrNotLeader
 	}
 	leaderID := r.LeaderID()
 	if leaderID == 0 || leaderID == r.cfg.NodeID {
-		return ControlWriteResponse{}, cv2.ErrNotLeader
+		return ControlWriteResponse{}, controller.ErrNotLeader
 	}
 	return r.writeClient.Submit(ctx, leaderID, req)
 }
@@ -680,7 +680,7 @@ func fallbackControlWriteError(fallback error) error {
 	if fallback != nil {
 		return fallback
 	}
-	return cv2.ErrNotLeader
+	return controller.ErrNotLeader
 }
 
 func (r *Runtime) startWatchLoop() {
@@ -707,7 +707,7 @@ func (r *Runtime) startWatchLoop() {
 	}()
 }
 
-func (r *Runtime) publishState(st cv2.ClusterState) error {
+func (r *Runtime) publishState(st controller.ClusterState) error {
 	snap, err := SnapshotFromControllerWithHealthTTL(st, r.cfg.HealthReportTTL)
 	if err != nil {
 		return err
@@ -719,15 +719,15 @@ func (r *Runtime) publishState(st cv2.ClusterState) error {
 	return nil
 }
 
-func runtimeFacadeVoters(voters []RuntimeVoter) []cv2.Voter {
-	out := make([]cv2.Voter, 0, len(voters))
+func runtimeFacadeVoters(voters []RuntimeVoter) []controller.Voter {
+	out := make([]controller.Voter, 0, len(voters))
 	for _, voter := range voters {
-		out = append(out, cv2.Voter{NodeID: voter.NodeID, Addr: voter.Addr})
+		out = append(out, controller.Voter{NodeID: voter.NodeID, Addr: voter.Addr})
 	}
 	return out
 }
 
-func emptyControllerState(st cv2.ClusterState) bool {
+func emptyControllerState(st controller.ClusterState) bool {
 	return st.SchemaVersion == 0 &&
 		st.ClusterID == "" &&
 		st.Revision == 0 &&
@@ -741,7 +741,7 @@ func emptyControllerState(st cv2.ClusterState) bool {
 		len(st.Tasks) == 0
 }
 
-func reconcileTaskFromController(task cv2.ReconcileTask) ReconcileTask {
+func reconcileTaskFromController(task controller.ReconcileTask) ReconcileTask {
 	return ReconcileTask{
 		TaskID:              task.TaskID,
 		SlotID:              task.SlotID,

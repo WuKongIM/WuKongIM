@@ -3,7 +3,7 @@ package control
 import (
 	"context"
 
-	cv2 "github.com/WuKongIM/WuKongIM/pkg/controller"
+	controller "github.com/WuKongIM/WuKongIM/pkg/controller"
 )
 
 const controllerVoterCountEvenWarning = "controller_voter_count_even"
@@ -39,17 +39,17 @@ type PromoteControllerVoterResult struct {
 }
 
 // PrepareControllerVoter prepares the local Controller backend for Controller voter promotion.
-func (r *Runtime) PrepareControllerVoter(ctx context.Context, req cv2.PrepareControllerVoterRequest) (cv2.PrepareControllerVoterResult, error) {
+func (r *Runtime) PrepareControllerVoter(ctx context.Context, req controller.PrepareControllerVoterRequest) (controller.PrepareControllerVoterResult, error) {
 	if err := ctxErr(ctx); err != nil {
-		return cv2.PrepareControllerVoterResult{}, err
+		return controller.PrepareControllerVoterResult{}, err
 	}
 	if r == nil || r.backend == nil {
-		return cv2.PrepareControllerVoterResult{}, cv2.ErrNotStarted
+		return controller.PrepareControllerVoterResult{}, controller.ErrNotStarted
 	}
 	return r.backend.PrepareControllerVoter(ctx, req)
 }
 
-func promoteControllerVoterResultFromCV2(result cv2.PromoteControllerVoterResult) PromoteControllerVoterResult {
+func promoteControllerVoterResultFromController(result controller.PromoteControllerVoterResult) PromoteControllerVoterResult {
 	return PromoteControllerVoterResult{
 		Changed:        result.Changed,
 		Node:           controlNodeFromControllerNode(result.Node),

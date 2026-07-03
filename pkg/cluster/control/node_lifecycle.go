@@ -1,6 +1,6 @@
 package control
 
-import cv2 "github.com/WuKongIM/WuKongIM/pkg/controller"
+import controller "github.com/WuKongIM/WuKongIM/pkg/controller"
 
 // JoinNodeRequest describes a data-node join intent.
 type JoinNodeRequest struct {
@@ -76,29 +76,29 @@ type MarkNodeRemovedResult struct {
 	Revision uint64 `json:"revision"`
 }
 
-func cv2JoinNodeRequest(req JoinNodeRequest) cv2.JoinNodeRequest {
-	return cv2.JoinNodeRequest{
+func controllerJoinNodeRequest(req JoinNodeRequest) controller.JoinNodeRequest {
+	return controller.JoinNodeRequest{
 		NodeID:         req.NodeID,
 		Name:           req.Name,
 		Addr:           req.Addr,
-		Roles:          cv2NodeRoles(req.Roles),
+		Roles:          controllerNodeRoles(req.Roles),
 		CapacityWeight: req.CapacityWeight,
 	}
 }
 
-func cv2ActivateNodeRequest(req ActivateNodeRequest) cv2.ActivateNodeRequest {
-	return cv2.ActivateNodeRequest{NodeID: req.NodeID}
+func controllerActivateNodeRequest(req ActivateNodeRequest) controller.ActivateNodeRequest {
+	return controller.ActivateNodeRequest{NodeID: req.NodeID}
 }
 
-func cv2MarkNodeLeavingRequest(req MarkNodeLeavingRequest) cv2.MarkNodeLeavingRequest {
-	return cv2.MarkNodeLeavingRequest{NodeID: req.NodeID}
+func controllerMarkNodeLeavingRequest(req MarkNodeLeavingRequest) controller.MarkNodeLeavingRequest {
+	return controller.MarkNodeLeavingRequest{NodeID: req.NodeID}
 }
 
-func cv2MarkNodeRemovedRequest(req MarkNodeRemovedRequest) cv2.MarkNodeRemovedRequest {
-	return cv2.MarkNodeRemovedRequest{NodeID: req.NodeID, ExpectedRevision: req.StateRevision}
+func controllerMarkNodeRemovedRequest(req MarkNodeRemovedRequest) controller.MarkNodeRemovedRequest {
+	return controller.MarkNodeRemovedRequest{NodeID: req.NodeID, ExpectedRevision: req.StateRevision}
 }
 
-func joinNodeResultFromCV2(result cv2.JoinNodeResult) JoinNodeResult {
+func joinNodeResultFromController(result controller.JoinNodeResult) JoinNodeResult {
 	return JoinNodeResult{
 		Created:  result.Created,
 		Node:     controlNodeFromControllerNode(result.Node),
@@ -106,7 +106,7 @@ func joinNodeResultFromCV2(result cv2.JoinNodeResult) JoinNodeResult {
 	}
 }
 
-func activateNodeResultFromCV2(result cv2.ActivateNodeResult) ActivateNodeResult {
+func activateNodeResultFromController(result controller.ActivateNodeResult) ActivateNodeResult {
 	return ActivateNodeResult{
 		Changed:  result.Changed,
 		Node:     controlNodeFromControllerNode(result.Node),
@@ -114,7 +114,7 @@ func activateNodeResultFromCV2(result cv2.ActivateNodeResult) ActivateNodeResult
 	}
 }
 
-func markNodeLeavingResultFromCV2(result cv2.MarkNodeLeavingResult) MarkNodeLeavingResult {
+func markNodeLeavingResultFromController(result controller.MarkNodeLeavingResult) MarkNodeLeavingResult {
 	return MarkNodeLeavingResult{
 		Changed:  result.Changed,
 		Node:     controlNodeFromControllerNode(result.Node),
@@ -122,7 +122,7 @@ func markNodeLeavingResultFromCV2(result cv2.MarkNodeLeavingResult) MarkNodeLeav
 	}
 }
 
-func markNodeRemovedResultFromCV2(result cv2.MarkNodeRemovedResult) MarkNodeRemovedResult {
+func markNodeRemovedResultFromController(result controller.MarkNodeRemovedResult) MarkNodeRemovedResult {
 	return MarkNodeRemovedResult{
 		Changed:  result.Changed,
 		Node:     controlNodeFromControllerNode(result.Node),
@@ -130,16 +130,16 @@ func markNodeRemovedResultFromCV2(result cv2.MarkNodeRemovedResult) MarkNodeRemo
 	}
 }
 
-func cv2NodeRoles(roles []Role) []cv2.NodeRole {
+func controllerNodeRoles(roles []Role) []controller.NodeRole {
 	for _, role := range roles {
 		if role == RoleData {
-			return []cv2.NodeRole{cv2.NodeRoleData}
+			return []controller.NodeRole{controller.NodeRoleData}
 		}
 	}
-	return []cv2.NodeRole{cv2.NodeRoleData}
+	return []controller.NodeRole{controller.NodeRoleData}
 }
 
-func controlNodeFromControllerNode(node cv2.Node) Node {
+func controlNodeFromControllerNode(node controller.Node) Node {
 	return Node{
 		NodeID:         node.NodeID,
 		Addr:           node.Addr,

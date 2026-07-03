@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	cv2 "github.com/WuKongIM/WuKongIM/pkg/controller"
+	controller "github.com/WuKongIM/WuKongIM/pkg/controller"
 )
 
 func TestControllerSnapshotMapping(t *testing.T) {
@@ -45,15 +45,15 @@ func TestControllerSnapshotMappingPreservesNonActiveLifecycle(t *testing.T) {
 	st.Config.ReplicaCount = 1
 	st.Slots[0].DesiredPeers = []uint64{1}
 	st.Tasks = nil
-	st.Nodes[1].JoinState = cv2.NodeJoinStateJoining
+	st.Nodes[1].JoinState = controller.NodeJoinStateJoining
 	st.Nodes[1].CapacityWeight = 7
-	st.Nodes[2].JoinState = cv2.NodeJoinStateLeaving
-	st.Nodes = append(st.Nodes, cv2.Node{
+	st.Nodes[2].JoinState = controller.NodeJoinStateLeaving
+	st.Nodes = append(st.Nodes, controller.Node{
 		NodeID:         4,
 		Addr:           "127.0.0.1:1004",
-		Roles:          []cv2.NodeRole{cv2.NodeRoleData},
-		JoinState:      cv2.NodeJoinStateRemoved,
-		Status:         cv2.NodeStatusDown,
+		Roles:          []controller.NodeRole{controller.NodeRoleData},
+		JoinState:      controller.NodeJoinStateRemoved,
+		Status:         controller.NodeStatusDown,
 		CapacityWeight: 3,
 	})
 
@@ -74,12 +74,12 @@ func TestControllerSnapshotMappingPreservesNonActiveLifecycle(t *testing.T) {
 
 func TestControllerAdapterMapsNodeHealthFreshness(t *testing.T) {
 	now := time.Date(2026, 6, 29, 10, 0, 0, 0, time.UTC)
-	st := cv2.ClusterState{
+	st := controller.ClusterState{
 		Revision: 9,
-		Nodes:    []cv2.Node{{NodeID: 1, Addr: "n1", Roles: []cv2.NodeRole{cv2.NodeRoleData}, JoinState: cv2.NodeJoinStateActive, Status: cv2.NodeStatusAlive}},
-		NodeHealthReports: []cv2.NodeHealthReport{{
+		Nodes:    []controller.Node{{NodeID: 1, Addr: "n1", Roles: []controller.NodeRole{controller.NodeRoleData}, JoinState: controller.NodeJoinStateActive, Status: controller.NodeStatusAlive}},
+		NodeHealthReports: []controller.NodeHealthReport{{
 			NodeID:                  1,
-			Status:                  cv2.NodeStatusAlive,
+			Status:                  controller.NodeStatusAlive,
 			RuntimeReady:            true,
 			ObservedControlRevision: 9,
 			ReportSeq:               3,
@@ -94,9 +94,9 @@ func TestControllerAdapterMapsNodeHealthFreshness(t *testing.T) {
 
 func TestControllerAdapterMapsMissingNodeHealth(t *testing.T) {
 	now := time.Date(2026, 6, 29, 10, 0, 0, 0, time.UTC)
-	st := cv2.ClusterState{
+	st := controller.ClusterState{
 		Revision: 9,
-		Nodes:    []cv2.Node{{NodeID: 1, Addr: "n1", Roles: []cv2.NodeRole{cv2.NodeRoleData}, JoinState: cv2.NodeJoinStateActive, Status: cv2.NodeStatusAlive}},
+		Nodes:    []controller.Node{{NodeID: 1, Addr: "n1", Roles: []controller.NodeRole{controller.NodeRoleData}, JoinState: controller.NodeJoinStateActive, Status: controller.NodeStatusAlive}},
 	}
 	snap := snapshotFromControllerState(st, 1, now, 30*time.Second)
 	if len(snap.Nodes) != 1 || snap.Nodes[0].Health.Freshness != NodeHealthMissing {
@@ -106,12 +106,12 @@ func TestControllerAdapterMapsMissingNodeHealth(t *testing.T) {
 
 func TestControllerAdapterMapsStaleNodeHealth(t *testing.T) {
 	now := time.Date(2026, 6, 29, 10, 0, 0, 0, time.UTC)
-	st := cv2.ClusterState{
+	st := controller.ClusterState{
 		Revision: 9,
-		Nodes:    []cv2.Node{{NodeID: 1, Addr: "n1", Roles: []cv2.NodeRole{cv2.NodeRoleData}, JoinState: cv2.NodeJoinStateActive, Status: cv2.NodeStatusAlive}},
-		NodeHealthReports: []cv2.NodeHealthReport{{
+		Nodes:    []controller.Node{{NodeID: 1, Addr: "n1", Roles: []controller.NodeRole{controller.NodeRoleData}, JoinState: controller.NodeJoinStateActive, Status: controller.NodeStatusAlive}},
+		NodeHealthReports: []controller.NodeHealthReport{{
 			NodeID:              1,
-			Status:              cv2.NodeStatusAlive,
+			Status:              controller.NodeStatusAlive,
 			ReportedAtUnixMilli: now.Add(-31 * time.Second).UnixMilli(),
 		}},
 	}
@@ -123,12 +123,12 @@ func TestControllerAdapterMapsStaleNodeHealth(t *testing.T) {
 
 func TestControllerAdapterMapsFutureNodeHealthAsStale(t *testing.T) {
 	now := time.Date(2026, 6, 29, 10, 0, 0, 0, time.UTC)
-	st := cv2.ClusterState{
+	st := controller.ClusterState{
 		Revision: 9,
-		Nodes:    []cv2.Node{{NodeID: 1, Addr: "n1", Roles: []cv2.NodeRole{cv2.NodeRoleData}, JoinState: cv2.NodeJoinStateActive, Status: cv2.NodeStatusAlive}},
-		NodeHealthReports: []cv2.NodeHealthReport{{
+		Nodes:    []controller.Node{{NodeID: 1, Addr: "n1", Roles: []controller.NodeRole{controller.NodeRoleData}, JoinState: controller.NodeJoinStateActive, Status: controller.NodeStatusAlive}},
+		NodeHealthReports: []controller.NodeHealthReport{{
 			NodeID:              1,
-			Status:              cv2.NodeStatusAlive,
+			Status:              controller.NodeStatusAlive,
 			ReportedAtUnixMilli: now.Add(5 * time.Second).UnixMilli(),
 		}},
 	}
@@ -178,42 +178,42 @@ func TestControllerAdapterPublishesAfterRefresh(t *testing.T) {
 	}
 }
 
-func controllerState() cv2.ClusterState {
-	return cv2.ClusterState{
-		SchemaVersion: cv2.CurrentSchemaVersion,
+func controllerState() controller.ClusterState {
+	return controller.ClusterState{
+		SchemaVersion: controller.CurrentSchemaVersion,
 		ClusterID:     "cluster-a",
 		Revision:      7,
-		Config:        cv2.ClusterConfig{SlotCount: 1, HashSlotCount: 4, ReplicaCount: 3},
-		Controllers:   []cv2.ControllerVoter{{NodeID: 1, Addr: "127.0.0.1:1001", Role: cv2.ControllerRoleVoter}},
-		Nodes: []cv2.Node{
-			{NodeID: 1, Addr: "127.0.0.1:1001", Roles: []cv2.NodeRole{cv2.NodeRoleControllerVoter, cv2.NodeRoleData}, JoinState: cv2.NodeJoinStateActive, Status: cv2.NodeStatusAlive, CapacityWeight: 1},
-			{NodeID: 2, Addr: "127.0.0.1:1002", Roles: []cv2.NodeRole{cv2.NodeRoleData}, JoinState: cv2.NodeJoinStateActive, Status: cv2.NodeStatusAlive, CapacityWeight: 1},
-			{NodeID: 3, Addr: "127.0.0.1:1003", Roles: []cv2.NodeRole{cv2.NodeRoleData}, JoinState: cv2.NodeJoinStateActive, Status: cv2.NodeStatusAlive, CapacityWeight: 1},
+		Config:        controller.ClusterConfig{SlotCount: 1, HashSlotCount: 4, ReplicaCount: 3},
+		Controllers:   []controller.ControllerVoter{{NodeID: 1, Addr: "127.0.0.1:1001", Role: controller.ControllerRoleVoter}},
+		Nodes: []controller.Node{
+			{NodeID: 1, Addr: "127.0.0.1:1001", Roles: []controller.NodeRole{controller.NodeRoleControllerVoter, controller.NodeRoleData}, JoinState: controller.NodeJoinStateActive, Status: controller.NodeStatusAlive, CapacityWeight: 1},
+			{NodeID: 2, Addr: "127.0.0.1:1002", Roles: []controller.NodeRole{controller.NodeRoleData}, JoinState: controller.NodeJoinStateActive, Status: controller.NodeStatusAlive, CapacityWeight: 1},
+			{NodeID: 3, Addr: "127.0.0.1:1003", Roles: []controller.NodeRole{controller.NodeRoleData}, JoinState: controller.NodeJoinStateActive, Status: controller.NodeStatusAlive, CapacityWeight: 1},
 		},
-		Slots:     []cv2.SlotAssignment{{SlotID: 1, DesiredPeers: []uint64{1, 2, 3}, ConfigEpoch: 2, PreferredLeader: 1}},
-		HashSlots: cv2.HashSlotTable{Version: cv2.CurrentHashSlotTableVersion, SlotCount: 4, Ranges: []cv2.HashSlotRange{{From: 0, To: 3, SlotID: 1}}},
-		Tasks: []cv2.ReconcileTask{{
+		Slots:     []controller.SlotAssignment{{SlotID: 1, DesiredPeers: []uint64{1, 2, 3}, ConfigEpoch: 2, PreferredLeader: 1}},
+		HashSlots: controller.HashSlotTable{Version: controller.CurrentHashSlotTableVersion, SlotCount: 4, Ranges: []controller.HashSlotRange{{From: 0, To: 3, SlotID: 1}}},
+		Tasks: []controller.ReconcileTask{{
 			TaskID:           "bootstrap-1",
 			SlotID:           1,
-			Kind:             cv2.TaskKindBootstrap,
-			Step:             cv2.TaskStepCreateSlot,
+			Kind:             controller.TaskKindBootstrap,
+			Step:             controller.TaskStepCreateSlot,
 			SourceNode:       4,
 			TargetNode:       1,
 			TargetPeers:      []uint64{1, 2, 3},
-			CompletionPolicy: cv2.TaskCompletionPolicyAllTargetPeers,
-			ParticipantProgress: []cv2.TaskParticipantProgress{
-				{NodeID: 1, Status: cv2.TaskParticipantStatusDone},
-				{NodeID: 2, Status: cv2.TaskParticipantStatusPending},
-				{NodeID: 3, Status: cv2.TaskParticipantStatusFailed, Attempt: 1, LastError: "open failed"},
+			CompletionPolicy: controller.TaskCompletionPolicyAllTargetPeers,
+			ParticipantProgress: []controller.TaskParticipantProgress{
+				{NodeID: 1, Status: controller.TaskParticipantStatusDone},
+				{NodeID: 2, Status: controller.TaskParticipantStatusPending},
+				{NodeID: 3, Status: controller.TaskParticipantStatusFailed, Attempt: 1, LastError: "open failed"},
 			},
 			ConfigEpoch: 2,
 			Attempt:     1,
-			Status:      cv2.TaskStatusFailed,
+			Status:      controller.TaskStatusFailed,
 			LastError:   "quorum missing",
 		}},
 	}
 }
 
-type fakeStateSource struct{ state cv2.ClusterState }
+type fakeStateSource struct{ state controller.ClusterState }
 
-func (s *fakeStateSource) Snapshot(context.Context) cv2.ClusterState { return s.state }
+func (s *fakeStateSource) Snapshot(context.Context) controller.ClusterState { return s.state }

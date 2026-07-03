@@ -7,7 +7,7 @@ import (
 	"reflect"
 
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/cluster/net"
-	cv2 "github.com/WuKongIM/WuKongIM/pkg/controller"
+	controller "github.com/WuKongIM/WuKongIM/pkg/controller"
 	"go.etcd.io/raft/v3/raftpb"
 )
 
@@ -46,7 +46,7 @@ func DecodeRaftBatch(data []byte) ([]raftpb.Message, error) {
 }
 
 // EncodeStateSyncRequest encodes a Controller full-file sync request.
-func EncodeStateSyncRequest(req cv2.GetStateRequest) ([]byte, error) {
+func EncodeStateSyncRequest(req controller.GetStateRequest) ([]byte, error) {
 	payload, err := json.Marshal(req)
 	if err != nil {
 		return nil, err
@@ -56,20 +56,20 @@ func EncodeStateSyncRequest(req cv2.GetStateRequest) ([]byte, error) {
 }
 
 // DecodeStateSyncRequest decodes a Controller full-file sync request.
-func DecodeStateSyncRequest(data []byte) (cv2.GetStateRequest, error) {
+func DecodeStateSyncRequest(data []byte) (controller.GetStateRequest, error) {
 	payload, err := clusternet.CheckHeader(data, controlRPCVersion, controlKindStateSyncRequest)
 	if err != nil {
-		return cv2.GetStateRequest{}, err
+		return controller.GetStateRequest{}, err
 	}
-	var req cv2.GetStateRequest
+	var req controller.GetStateRequest
 	if err := json.Unmarshal(payload, &req); err != nil {
-		return cv2.GetStateRequest{}, err
+		return controller.GetStateRequest{}, err
 	}
 	return req, nil
 }
 
 // EncodeStateSyncResponse encodes a Controller full-file sync response.
-func EncodeStateSyncResponse(resp cv2.GetStateResponse) ([]byte, error) {
+func EncodeStateSyncResponse(resp controller.GetStateResponse) ([]byte, error) {
 	payload, err := json.Marshal(resp)
 	if err != nil {
 		return nil, err
@@ -79,14 +79,14 @@ func EncodeStateSyncResponse(resp cv2.GetStateResponse) ([]byte, error) {
 }
 
 // DecodeStateSyncResponse decodes a Controller full-file sync response.
-func DecodeStateSyncResponse(data []byte) (cv2.GetStateResponse, error) {
+func DecodeStateSyncResponse(data []byte) (controller.GetStateResponse, error) {
 	payload, err := clusternet.CheckHeader(data, controlRPCVersion, controlKindStateSyncResponse)
 	if err != nil {
-		return cv2.GetStateResponse{}, err
+		return controller.GetStateResponse{}, err
 	}
-	var resp cv2.GetStateResponse
+	var resp controller.GetStateResponse
 	if err := json.Unmarshal(payload, &resp); err != nil {
-		return cv2.GetStateResponse{}, err
+		return controller.GetStateResponse{}, err
 	}
 	return resp, nil
 }
@@ -114,15 +114,15 @@ type TaskRequest struct {
 	// Action selects which payload should be applied.
 	Action TaskAction `json:"action"`
 	// Result carries complete/fail task result payloads.
-	Result cv2.TaskResult `json:"result,omitempty"`
+	Result controller.TaskResult `json:"result,omitempty"`
 	// Progress carries participant progress payloads.
-	Progress cv2.TaskProgress `json:"progress,omitempty"`
+	Progress controller.TaskProgress `json:"progress,omitempty"`
 	// LeaderTransfer carries a Slot leader transfer intent.
 	LeaderTransfer SlotLeaderTransferRequest `json:"leader_transfer,omitempty"`
 	// ReplicaMovePhase carries a fenced Slot replica move phase update.
-	ReplicaMovePhase cv2.SlotReplicaMovePhaseAdvance `json:"replica_move_phase,omitempty"`
+	ReplicaMovePhase controller.SlotReplicaMovePhaseAdvance `json:"replica_move_phase,omitempty"`
 	// ReplicaMoveCommit carries a fenced Slot replica move commit.
-	ReplicaMoveCommit cv2.SlotReplicaMoveCommit `json:"replica_move_commit,omitempty"`
+	ReplicaMoveCommit controller.SlotReplicaMoveCommit `json:"replica_move_commit,omitempty"`
 }
 
 // EncodeTaskRequest encodes one task write request.
@@ -354,19 +354,19 @@ func DecodeControlWriteResponse(data []byte) (ControlWriteResponse, error) {
 
 func controlWriteErrorCode(err error) string {
 	switch {
-	case errors.Is(err, cv2.ErrNotLeader):
+	case errors.Is(err, controller.ErrNotLeader):
 		return controlWriteErrorCodeNotLeader
-	case errors.Is(err, cv2.ErrNotStarted):
+	case errors.Is(err, controller.ErrNotStarted):
 		return controlWriteErrorCodeNotStarted
-	case errors.Is(err, cv2.ErrStopped):
+	case errors.Is(err, controller.ErrStopped):
 		return controlWriteErrorCodeStopped
-	case cv2.IsExpectedRevisionMismatch(err):
+	case controller.IsExpectedRevisionMismatch(err):
 		return controlWriteErrorCodeRevisionMismatch
-	case errors.Is(err, cv2.ErrProposalRejected):
+	case errors.Is(err, controller.ErrProposalRejected):
 		return controlWriteErrorCodeProposalRejected
-	case errors.Is(err, cv2.ErrNodeLifecycleConflict):
+	case errors.Is(err, controller.ErrNodeLifecycleConflict):
 		return controlWriteErrorCodeLifecycleConflict
-	case errors.Is(err, cv2.ErrNodeLifecycleNotFound):
+	case errors.Is(err, controller.ErrNodeLifecycleNotFound):
 		return controlWriteErrorCodeLifecycleNotFound
 	default:
 		return ""
@@ -377,19 +377,19 @@ func controlWriteSemanticError(code, text string) error {
 	var target error
 	switch code {
 	case controlWriteErrorCodeNotLeader:
-		target = cv2.ErrNotLeader
+		target = controller.ErrNotLeader
 	case controlWriteErrorCodeNotStarted:
-		target = cv2.ErrNotStarted
+		target = controller.ErrNotStarted
 	case controlWriteErrorCodeStopped:
-		target = cv2.ErrStopped
+		target = controller.ErrStopped
 	case controlWriteErrorCodeRevisionMismatch:
-		target = cv2.ErrExpectedRevisionMismatch
+		target = controller.ErrExpectedRevisionMismatch
 	case controlWriteErrorCodeProposalRejected:
-		target = cv2.ErrProposalRejected
+		target = controller.ErrProposalRejected
 	case controlWriteErrorCodeLifecycleConflict:
-		target = cv2.ErrNodeLifecycleConflict
+		target = controller.ErrNodeLifecycleConflict
 	case controlWriteErrorCodeLifecycleNotFound:
-		target = cv2.ErrNodeLifecycleNotFound
+		target = controller.ErrNodeLifecycleNotFound
 	default:
 		return nil
 	}

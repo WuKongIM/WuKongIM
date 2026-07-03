@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	cv2 "github.com/WuKongIM/WuKongIM/pkg/controller"
+	controller "github.com/WuKongIM/WuKongIM/pkg/controller"
 )
 
 const defaultNodeHealthReportTTL = 30 * time.Second
@@ -14,7 +14,7 @@ const defaultNodeHealthReportTTL = 30 * time.Second
 // ControllerStateSource provides locally visible Controller state snapshots.
 type ControllerStateSource interface {
 	// Snapshot returns the latest locally visible Controller cluster state.
-	Snapshot(context.Context) cv2.ClusterState
+	Snapshot(context.Context) controller.ClusterState
 }
 
 // ControllerConfig wires a ControllerAdapter.
@@ -43,12 +43,12 @@ func NewControllerAdapter(cfg ControllerConfig) *ControllerAdapter {
 }
 
 // SnapshotFromController maps Controller durable state into the cluster control model.
-func SnapshotFromController(st cv2.ClusterState) (Snapshot, error) {
+func SnapshotFromController(st controller.ClusterState) (Snapshot, error) {
 	return SnapshotFromControllerWithHealthTTL(st, defaultNodeHealthReportTTL)
 }
 
 // SnapshotFromControllerWithHealthTTL maps Controller state using an explicit node health TTL.
-func SnapshotFromControllerWithHealthTTL(st cv2.ClusterState, healthTTL time.Duration) (Snapshot, error) {
+func SnapshotFromControllerWithHealthTTL(st controller.ClusterState, healthTTL time.Duration) (Snapshot, error) {
 	if err := st.Validate(); err != nil {
 		return Snapshot{}, err
 	}
@@ -72,9 +72,9 @@ func normalizeNodeHealthReportTTL(ttl time.Duration) time.Duration {
 	return ttl
 }
 
-func snapshotFromControllerState(st cv2.ClusterState, leaderID uint64, now time.Time, healthTTL time.Duration) Snapshot {
+func snapshotFromControllerState(st controller.ClusterState, leaderID uint64, now time.Time, healthTTL time.Duration) Snapshot {
 	snap := Snapshot{ClusterID: st.ClusterID, Revision: st.Revision, ControllerID: leaderID, Nodes: make([]Node, 0, len(st.Nodes)), Slots: make([]SlotAssignment, 0, len(st.Slots)), Tasks: make([]ReconcileTask, 0, len(st.Tasks))}
-	healthByNode := make(map[uint64]cv2.NodeHealthReport, len(st.NodeHealthReports))
+	healthByNode := make(map[uint64]controller.NodeHealthReport, len(st.NodeHealthReports))
 	for _, report := range st.NodeHealthReports {
 		healthByNode[report.NodeID] = report
 	}
@@ -253,48 +253,48 @@ func (a *ControllerAdapter) RequestSlotReplicaMove(ctx context.Context, req Slot
 // Watch returns snapshot update events.
 func (a *ControllerAdapter) Watch() <-chan SnapshotEvent { return a.watch }
 
-func mapControllerRoles(in []cv2.NodeRole) []Role {
+func mapControllerRoles(in []controller.NodeRole) []Role {
 	out := make([]Role, 0, len(in))
 	for _, role := range in {
 		switch role {
-		case cv2.NodeRoleControllerVoter:
+		case controller.NodeRoleControllerVoter:
 			out = append(out, RoleController)
-		case cv2.NodeRoleData:
+		case controller.NodeRoleData:
 			out = append(out, RoleData)
 		}
 	}
 	return out
 }
 
-func mapControllerStatus(status cv2.NodeStatus) NodeStatus {
+func mapControllerStatus(status controller.NodeStatus) NodeStatus {
 	switch status {
-	case cv2.NodeStatusAlive:
+	case controller.NodeStatusAlive:
 		return NodeAlive
-	case cv2.NodeStatusSuspect:
+	case controller.NodeStatusSuspect:
 		return NodeSuspect
-	case cv2.NodeStatusDown:
+	case controller.NodeStatusDown:
 		return NodeDown
 	default:
 		return NodeDown
 	}
 }
 
-func mapControllerJoinState(state cv2.NodeJoinState) NodeJoinState {
+func mapControllerJoinState(state controller.NodeJoinState) NodeJoinState {
 	switch state {
-	case cv2.NodeJoinStateActive:
+	case controller.NodeJoinStateActive:
 		return NodeJoinStateActive
-	case cv2.NodeJoinStateJoining:
+	case controller.NodeJoinStateJoining:
 		return NodeJoinStateJoining
-	case cv2.NodeJoinStateLeaving:
+	case controller.NodeJoinStateLeaving:
 		return NodeJoinStateLeaving
-	case cv2.NodeJoinStateRemoved:
+	case controller.NodeJoinStateRemoved:
 		return NodeJoinStateRemoved
 	default:
 		return NodeJoinStateRemoved
 	}
 }
 
-func mapControllerParticipantProgress(in []cv2.TaskParticipantProgress) []TaskParticipantProgress {
+func mapControllerParticipantProgress(in []controller.TaskParticipantProgress) []TaskParticipantProgress {
 	out := make([]TaskParticipantProgress, 0, len(in))
 	for _, progress := range in {
 		out = append(out, TaskParticipantProgress{

@@ -11,7 +11,7 @@ import (
 	"time"
 
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/cluster/net"
-	cv2 "github.com/WuKongIM/WuKongIM/pkg/controller"
+	controller "github.com/WuKongIM/WuKongIM/pkg/controller"
 	"github.com/WuKongIM/WuKongIM/pkg/controller/statefile"
 )
 
@@ -139,8 +139,8 @@ func TestRuntimeReportNodePersistsHealth(t *testing.T) {
 }
 
 func TestRuntimePassesTaskTransitionObserver(t *testing.T) {
-	observed := make(chan []cv2.TaskTransition, 1)
-	observer := cv2.TaskTransitionObserverFunc(func(items []cv2.TaskTransition) {
+	observed := make(chan []controller.TaskTransition, 1)
+	observer := controller.TaskTransitionObserverFunc(func(items []controller.TaskTransition) {
 		if len(items) == 0 {
 			return
 		}
@@ -175,7 +175,7 @@ func TestRuntimePassesTaskTransitionObserver(t *testing.T) {
 
 	select {
 	case items := <-observed:
-		if len(items) == 0 || !items[0].AfterValid || items[0].After.Kind != cv2.TaskKindBootstrap {
+		if len(items) == 0 || !items[0].AfterValid || items[0].After.Kind != controller.TaskKindBootstrap {
 			t.Fatalf("observed task transitions = %#v, want bootstrap creation", items)
 		}
 	case <-ctx.Done():
@@ -247,23 +247,23 @@ func TestRuntimeLocalSnapshotRefreshesFromBackendWhenWatchMissesLifecycleWrite(t
 
 func TestRuntimeProbeProposeWithoutRaftReturnsNotStarted(t *testing.T) {
 	var runtime Runtime
-	if err := runtime.ProbePropose(context.Background()); !errors.Is(err, cv2.ErrNotStarted) {
+	if err := runtime.ProbePropose(context.Background()); !errors.Is(err, controller.ErrNotStarted) {
 		t.Fatalf("ProbePropose() error = %v, want ErrNotStarted", err)
 	}
 }
 
 func TestRuntimeTaskWritersWithoutBackendReturnNotStarted(t *testing.T) {
 	var runtime Runtime
-	if err := runtime.ReportTaskProgress(context.Background(), TaskProgress{TaskID: "bootstrap-1"}); !errors.Is(err, cv2.ErrNotStarted) {
+	if err := runtime.ReportTaskProgress(context.Background(), TaskProgress{TaskID: "bootstrap-1"}); !errors.Is(err, controller.ErrNotStarted) {
 		t.Fatalf("ReportTaskProgress() error = %v, want ErrNotStarted", err)
 	}
-	if err := runtime.CompleteTask(context.Background(), TaskResult{TaskID: "bootstrap-1"}); !errors.Is(err, cv2.ErrNotStarted) {
+	if err := runtime.CompleteTask(context.Background(), TaskResult{TaskID: "bootstrap-1"}); !errors.Is(err, controller.ErrNotStarted) {
 		t.Fatalf("CompleteTask() error = %v, want ErrNotStarted", err)
 	}
-	if err := runtime.FailTask(context.Background(), TaskResult{TaskID: "bootstrap-1"}); !errors.Is(err, cv2.ErrNotStarted) {
+	if err := runtime.FailTask(context.Background(), TaskResult{TaskID: "bootstrap-1"}); !errors.Is(err, controller.ErrNotStarted) {
 		t.Fatalf("FailTask() error = %v, want ErrNotStarted", err)
 	}
-	if _, err := runtime.RequestSlotLeaderTransfer(context.Background(), SlotLeaderTransferRequest{SlotID: 1}); !errors.Is(err, cv2.ErrNotStarted) {
+	if _, err := runtime.RequestSlotLeaderTransfer(context.Background(), SlotLeaderTransferRequest{SlotID: 1}); !errors.Is(err, controller.ErrNotStarted) {
 		t.Fatalf("RequestSlotLeaderTransfer() error = %v, want ErrNotStarted", err)
 	}
 }
@@ -284,16 +284,16 @@ func TestRuntimeLifecycleWritesNotStartedWithoutForwardPreserveNotStarted(t *tes
 	if err != nil {
 		t.Fatalf("NewRuntime() error = %v", err)
 	}
-	if _, err := runtime.JoinNode(context.Background(), JoinNodeRequest{NodeID: 2, Addr: "n2"}); !errors.Is(err, cv2.ErrNotStarted) {
+	if _, err := runtime.JoinNode(context.Background(), JoinNodeRequest{NodeID: 2, Addr: "n2"}); !errors.Is(err, controller.ErrNotStarted) {
 		t.Fatalf("JoinNode() error = %v, want ErrNotStarted", err)
 	}
-	if _, err := runtime.ActivateNode(context.Background(), ActivateNodeRequest{NodeID: 2}); !errors.Is(err, cv2.ErrNotStarted) {
+	if _, err := runtime.ActivateNode(context.Background(), ActivateNodeRequest{NodeID: 2}); !errors.Is(err, controller.ErrNotStarted) {
 		t.Fatalf("ActivateNode() error = %v, want ErrNotStarted", err)
 	}
-	if _, err := runtime.MarkNodeLeaving(context.Background(), MarkNodeLeavingRequest{NodeID: 2}); !errors.Is(err, cv2.ErrNotStarted) {
+	if _, err := runtime.MarkNodeLeaving(context.Background(), MarkNodeLeavingRequest{NodeID: 2}); !errors.Is(err, controller.ErrNotStarted) {
 		t.Fatalf("MarkNodeLeaving() error = %v, want ErrNotStarted", err)
 	}
-	if _, err := runtime.MarkNodeRemoved(context.Background(), MarkNodeRemovedRequest{NodeID: 2}); !errors.Is(err, cv2.ErrNotStarted) {
+	if _, err := runtime.MarkNodeRemoved(context.Background(), MarkNodeRemovedRequest{NodeID: 2}); !errors.Is(err, controller.ErrNotStarted) {
 		t.Fatalf("MarkNodeRemoved() error = %v, want ErrNotStarted", err)
 	}
 }
@@ -1028,7 +1028,7 @@ func TestRuntimePromoteControllerVoterRejectsExplicitEmptyExpectedVoters(t *test
 		ObservedConfigIndex: 11,
 		ObservedVoters:      []uint64{1, 4},
 	})
-	if !errors.Is(err, cv2.ErrProposalRejected) || !strings.Contains(err.Error(), "controller_voter_set_mismatch") {
+	if !errors.Is(err, controller.ErrProposalRejected) || !strings.Contains(err.Error(), "controller_voter_set_mismatch") {
 		t.Fatalf("PromoteControllerVoter(explicit empty fence) error = %v, want proposal rejected controller_voter_set_mismatch", err)
 	}
 	after, err := runtime.LocalSnapshot(context.Background())
@@ -1064,11 +1064,11 @@ func TestRuntimePrepareControllerVoterDelegatesToBackend(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = runtime.Stop(context.Background()) })
 
-	result, err := runtime.PrepareControllerVoter(context.Background(), cv2.PrepareControllerVoterRequest{
+	result, err := runtime.PrepareControllerVoter(context.Background(), controller.PrepareControllerVoterRequest{
 		NodeID:           2,
 		ClusterID:        mirrorState.ClusterID,
 		ExpectedRevision: mirrorState.Revision,
-		NextVoters: []cv2.Voter{
+		NextVoters: []controller.Voter{
 			{NodeID: 1, Addr: "127.0.0.1:1001"},
 			{NodeID: 2, Addr: "127.0.0.1:1002"},
 		},
@@ -1132,12 +1132,12 @@ func TestRuntimeRestartReusesExistingState(t *testing.T) {
 func TestRuntimeMirrorSyncsLeaderState(t *testing.T) {
 	network := clusternet.NewLocalNetwork()
 	leaderState := controllerState()
-	syncServer := cv2.NewStateSyncServer(cv2.StateSyncServerConfig{
+	syncServer := controller.NewStateSyncServer(controller.StateSyncServerConfig{
 		NodeID:    1,
 		ClusterID: leaderState.ClusterID,
 		LeaderID:  func() uint64 { return 1 },
 		Ready:     func() bool { return true },
-		Snapshot:  func(context.Context) (cv2.ClusterState, error) { return leaderState, nil },
+		Snapshot:  func(context.Context) (controller.ClusterState, error) { return leaderState, nil },
 	})
 	network.Register(1, clusternet.RPCControlStateSync, NewStateSyncHandler(syncServer))
 
@@ -1170,12 +1170,12 @@ func TestRuntimeMirrorSyncsLeaderState(t *testing.T) {
 func TestRuntimeMirrorRefreshesLeaderStateAfterStart(t *testing.T) {
 	network := clusternet.NewLocalNetwork()
 	leaderState := controllerState()
-	syncServer := cv2.NewStateSyncServer(cv2.StateSyncServerConfig{
+	syncServer := controller.NewStateSyncServer(controller.StateSyncServerConfig{
 		NodeID:    1,
 		ClusterID: leaderState.ClusterID,
 		LeaderID:  func() uint64 { return 1 },
 		Ready:     func() bool { return true },
-		Snapshot:  func(context.Context) (cv2.ClusterState, error) { return leaderState.Clone(), nil },
+		Snapshot:  func(context.Context) (controller.ClusterState, error) { return leaderState.Clone(), nil },
 	})
 	network.Register(1, clusternet.RPCControlStateSync, NewStateSyncHandler(syncServer))
 
@@ -1198,12 +1198,12 @@ func TestRuntimeMirrorRefreshesLeaderStateAfterStart(t *testing.T) {
 	t.Cleanup(func() { _ = runtime.Stop(context.Background()) })
 
 	leaderState.Revision++
-	leaderState.Nodes = append(leaderState.Nodes, cv2.Node{
+	leaderState.Nodes = append(leaderState.Nodes, controller.Node{
 		NodeID:         4,
 		Addr:           "n4",
-		Roles:          []cv2.NodeRole{cv2.NodeRoleData},
-		JoinState:      cv2.NodeJoinStateJoining,
-		Status:         cv2.NodeStatusAlive,
+		Roles:          []controller.NodeRole{controller.NodeRoleData},
+		JoinState:      controller.NodeJoinStateJoining,
+		Status:         controller.NodeStatusAlive,
 		CapacityWeight: 1,
 	})
 	deadline := time.Now().Add(time.Second)
@@ -1225,18 +1225,18 @@ func TestRuntimeMirrorForwardsControlWriteToSyncClientLeader(t *testing.T) {
 	network := clusternet.NewLocalNetwork()
 	leaderState := controllerState()
 	leaderState.Controllers = append(leaderState.Controllers,
-		cv2.ControllerVoter{NodeID: 2, Addr: "127.0.0.1:1002", Role: cv2.ControllerRoleVoter})
+		controller.ControllerVoter{NodeID: 2, Addr: "127.0.0.1:1002", Role: controller.ControllerRoleVoter})
 	for i := range leaderState.Nodes {
 		if leaderState.Nodes[i].NodeID == 2 {
-			leaderState.Nodes[i].Roles = []cv2.NodeRole{cv2.NodeRoleControllerVoter, cv2.NodeRoleData}
+			leaderState.Nodes[i].Roles = []controller.NodeRole{controller.NodeRoleControllerVoter, controller.NodeRoleData}
 		}
 	}
-	syncServer := cv2.NewStateSyncServer(cv2.StateSyncServerConfig{
+	syncServer := controller.NewStateSyncServer(controller.StateSyncServerConfig{
 		NodeID:    2,
 		ClusterID: leaderState.ClusterID,
 		LeaderID:  func() uint64 { return 2 },
 		Ready:     func() bool { return true },
-		Snapshot:  func(context.Context) (cv2.ClusterState, error) { return leaderState, nil },
+		Snapshot:  func(context.Context) (controller.ClusterState, error) { return leaderState, nil },
 	})
 	network.Register(1, clusternet.RPCControlStateSync, NewStateSyncHandler(syncServer))
 	applier := &recordingControlWriteApplier{
@@ -1289,18 +1289,18 @@ func TestRuntimeMirrorForwardsMarkNodeRemovedToSyncClientLeader(t *testing.T) {
 	network := clusternet.NewLocalNetwork()
 	leaderState := controllerState()
 	leaderState.Controllers = append(leaderState.Controllers,
-		cv2.ControllerVoter{NodeID: 2, Addr: "127.0.0.1:1002", Role: cv2.ControllerRoleVoter})
+		controller.ControllerVoter{NodeID: 2, Addr: "127.0.0.1:1002", Role: controller.ControllerRoleVoter})
 	for i := range leaderState.Nodes {
 		if leaderState.Nodes[i].NodeID == 2 {
-			leaderState.Nodes[i].Roles = []cv2.NodeRole{cv2.NodeRoleControllerVoter, cv2.NodeRoleData}
+			leaderState.Nodes[i].Roles = []controller.NodeRole{controller.NodeRoleControllerVoter, controller.NodeRoleData}
 		}
 	}
-	syncServer := cv2.NewStateSyncServer(cv2.StateSyncServerConfig{
+	syncServer := controller.NewStateSyncServer(controller.StateSyncServerConfig{
 		NodeID:    2,
 		ClusterID: leaderState.ClusterID,
 		LeaderID:  func() uint64 { return 2 },
 		Ready:     func() bool { return true },
-		Snapshot:  func(context.Context) (cv2.ClusterState, error) { return leaderState, nil },
+		Snapshot:  func(context.Context) (controller.ClusterState, error) { return leaderState, nil },
 	})
 	network.Register(1, clusternet.RPCControlStateSync, NewStateSyncHandler(syncServer))
 	applier := &recordingControlWriteApplier{
@@ -1353,18 +1353,18 @@ func TestRuntimeMirrorForwardsPromoteControllerVoterToSyncClientLeader(t *testin
 	network := clusternet.NewLocalNetwork()
 	leaderState := controllerState()
 	leaderState.Controllers = append(leaderState.Controllers,
-		cv2.ControllerVoter{NodeID: 2, Addr: "127.0.0.1:1002", Role: cv2.ControllerRoleVoter})
+		controller.ControllerVoter{NodeID: 2, Addr: "127.0.0.1:1002", Role: controller.ControllerRoleVoter})
 	for i := range leaderState.Nodes {
 		if leaderState.Nodes[i].NodeID == 2 {
-			leaderState.Nodes[i].Roles = []cv2.NodeRole{cv2.NodeRoleControllerVoter, cv2.NodeRoleData}
+			leaderState.Nodes[i].Roles = []controller.NodeRole{controller.NodeRoleControllerVoter, controller.NodeRoleData}
 		}
 	}
-	syncServer := cv2.NewStateSyncServer(cv2.StateSyncServerConfig{
+	syncServer := controller.NewStateSyncServer(controller.StateSyncServerConfig{
 		NodeID:    2,
 		ClusterID: leaderState.ClusterID,
 		LeaderID:  func() uint64 { return 2 },
 		Ready:     func() bool { return true },
-		Snapshot:  func(context.Context) (cv2.ClusterState, error) { return leaderState, nil },
+		Snapshot:  func(context.Context) (controller.ClusterState, error) { return leaderState, nil },
 	})
 	network.Register(1, clusternet.RPCControlStateSync, NewStateSyncHandler(syncServer))
 	applier := &recordingControlWriteApplier{
@@ -1426,21 +1426,21 @@ func TestRuntimePromoteControllerVoterPreservesForwardedSemanticError(t *testing
 	network := clusternet.NewLocalNetwork()
 	leaderState := controllerState()
 	leaderState.Controllers = append(leaderState.Controllers,
-		cv2.ControllerVoter{NodeID: 2, Addr: "127.0.0.1:1002", Role: cv2.ControllerRoleVoter})
+		controller.ControllerVoter{NodeID: 2, Addr: "127.0.0.1:1002", Role: controller.ControllerRoleVoter})
 	for i := range leaderState.Nodes {
 		if leaderState.Nodes[i].NodeID == 2 {
-			leaderState.Nodes[i].Roles = []cv2.NodeRole{cv2.NodeRoleControllerVoter, cv2.NodeRoleData}
+			leaderState.Nodes[i].Roles = []controller.NodeRole{controller.NodeRoleControllerVoter, controller.NodeRoleData}
 		}
 	}
-	syncServer := cv2.NewStateSyncServer(cv2.StateSyncServerConfig{
+	syncServer := controller.NewStateSyncServer(controller.StateSyncServerConfig{
 		NodeID:    2,
 		ClusterID: leaderState.ClusterID,
 		LeaderID:  func() uint64 { return 2 },
 		Ready:     func() bool { return true },
-		Snapshot:  func(context.Context) (cv2.ClusterState, error) { return leaderState, nil },
+		Snapshot:  func(context.Context) (controller.ClusterState, error) { return leaderState, nil },
 	})
 	network.Register(1, clusternet.RPCControlStateSync, NewStateSyncHandler(syncServer))
-	applier := &recordingControlWriteApplier{promoteControllerVoterErr: cv2.ErrExpectedRevisionMismatch}
+	applier := &recordingControlWriteApplier{promoteControllerVoterErr: controller.ErrExpectedRevisionMismatch}
 	network.Register(2, clusternet.RPCControlWrite, NewControlWriteHandler(applier))
 
 	runtime, err := NewRuntime(RuntimeConfig{
@@ -1465,22 +1465,22 @@ func TestRuntimePromoteControllerVoterPreservesForwardedSemanticError(t *testing
 		NodeID:           3,
 		ExpectedRevision: leaderState.Revision + 1,
 	})
-	if !errors.Is(err, cv2.ErrExpectedRevisionMismatch) {
+	if !errors.Is(err, controller.ErrExpectedRevisionMismatch) {
 		t.Fatalf("PromoteControllerVoter() error = %v, want errors.Is(ErrExpectedRevisionMismatch)", err)
 	}
 }
 
-func TestPromoteControllerVoterResultFromCV2AddsEvenVoterWarning(t *testing.T) {
+func TestPromoteControllerVoterResultFromControllerAddsEvenVoterWarning(t *testing.T) {
 	previous := []uint64{1, 2, 3}
 	next := []uint64{1, 2, 3, 4}
-	result := promoteControllerVoterResultFromCV2(cv2.PromoteControllerVoterResult{
+	result := promoteControllerVoterResultFromController(controller.PromoteControllerVoterResult{
 		Changed: true,
-		Node: cv2.Node{
+		Node: controller.Node{
 			NodeID:         4,
 			Addr:           "n4",
-			Roles:          []cv2.NodeRole{cv2.NodeRoleData, cv2.NodeRoleControllerVoter},
-			JoinState:      cv2.NodeJoinStateActive,
-			Status:         cv2.NodeStatusAlive,
+			Roles:          []controller.NodeRole{controller.NodeRoleData, controller.NodeRoleControllerVoter},
+			JoinState:      controller.NodeJoinStateActive,
+			Status:         controller.NodeStatusAlive,
 			CapacityWeight: 1,
 		},
 		Revision:       10,
@@ -1489,7 +1489,7 @@ func TestPromoteControllerVoterResultFromCV2AddsEvenVoterWarning(t *testing.T) {
 	})
 
 	if !result.Changed || result.Node.NodeID != 4 || result.Node.Roles[1] != RoleController || result.Revision != 10 {
-		t.Fatalf("promoteControllerVoterResultFromCV2() = %#v, want mapped controller node", result)
+		t.Fatalf("promoteControllerVoterResultFromController() = %#v, want mapped controller node", result)
 	}
 	if len(result.Warnings) != 1 || result.Warnings[0] != "controller_voter_count_even" {
 		t.Fatalf("warnings = %#v, want controller_voter_count_even", result.Warnings)
@@ -1497,7 +1497,7 @@ func TestPromoteControllerVoterResultFromCV2AddsEvenVoterWarning(t *testing.T) {
 	result.PreviousVoters[0] = 99
 	result.NextVoters[0] = 99
 	if previous[0] != 1 || next[0] != 1 {
-		t.Fatalf("promoteControllerVoterResultFromCV2 did not copy voter slices: previous=%v next=%v", previous, next)
+		t.Fatalf("promoteControllerVoterResultFromController did not copy voter slices: previous=%v next=%v", previous, next)
 	}
 }
 

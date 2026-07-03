@@ -7,7 +7,7 @@ import (
 	"reflect"
 	"testing"
 
-	cv2 "github.com/WuKongIM/WuKongIM/pkg/controller"
+	controller "github.com/WuKongIM/WuKongIM/pkg/controller"
 	"go.etcd.io/raft/v3/raftpb"
 )
 
@@ -27,7 +27,7 @@ func TestControlRaftBatchCodecRoundTrip(t *testing.T) {
 }
 
 func TestControlSyncCodecRoundTrip(t *testing.T) {
-	req := cv2.GetStateRequest{ClusterID: "cluster-a", LocalRevision: 7, LocalChecksum: "crc32c:abcd"}
+	req := controller.GetStateRequest{ClusterID: "cluster-a", LocalRevision: 7, LocalChecksum: "crc32c:abcd"}
 	payload, err := EncodeStateSyncRequest(req)
 	if err != nil {
 		t.Fatalf("EncodeStateSyncRequest() error = %v", err)
@@ -40,7 +40,7 @@ func TestControlSyncCodecRoundTrip(t *testing.T) {
 		t.Fatalf("DecodeStateSyncRequest() = %#v, want %#v", got, req)
 	}
 
-	resp := cv2.GetStateResponse{LeaderID: 1, Revision: 8, Checksum: "crc32c:1234", Payload: []byte(`{"revision":8}`)}
+	resp := controller.GetStateResponse{LeaderID: 1, Revision: 8, Checksum: "crc32c:1234", Payload: []byte(`{"revision":8}`)}
 	encoded, err := EncodeStateSyncResponse(resp)
 	if err != nil {
 		t.Fatalf("EncodeStateSyncResponse() error = %v", err)
@@ -58,15 +58,15 @@ func TestControlTaskRequestCodecRoundTrip(t *testing.T) {
 	requests := []TaskRequest{
 		{
 			Action: TaskActionProgress,
-			Progress: cv2.TaskProgress{
+			Progress: controller.TaskProgress{
 				TaskID:             "slot-1-bootstrap-1",
 				SlotID:             1,
-				TaskKind:           cv2.TaskKindBootstrap,
+				TaskKind:           controller.TaskKindBootstrap,
 				ConfigEpoch:        1,
 				TaskAttempt:        0,
 				ParticipantNodeID:  2,
 				ParticipantAttempt: 0,
-				Status:             cv2.TaskParticipantStatusDone,
+				Status:             controller.TaskParticipantStatusDone,
 			},
 		},
 		{
@@ -606,13 +606,13 @@ func TestControlWriteResponsePreservesSemanticErrorIdentity(t *testing.T) {
 		err  error
 		want error
 	}{
-		{name: "not leader", err: cv2.ErrNotLeader, want: cv2.ErrNotLeader},
-		{name: "not started", err: cv2.ErrNotStarted, want: cv2.ErrNotStarted},
-		{name: "stopped", err: cv2.ErrStopped, want: cv2.ErrStopped},
-		{name: "proposal rejected", err: cv2.ErrProposalRejected, want: cv2.ErrProposalRejected},
-		{name: "expected revision mismatch", err: cv2.ErrExpectedRevisionMismatch, want: cv2.ErrExpectedRevisionMismatch},
-		{name: "node lifecycle conflict", err: cv2.ErrNodeLifecycleConflict, want: cv2.ErrNodeLifecycleConflict},
-		{name: "node lifecycle not found", err: cv2.ErrNodeLifecycleNotFound, want: cv2.ErrNodeLifecycleNotFound},
+		{name: "not leader", err: controller.ErrNotLeader, want: controller.ErrNotLeader},
+		{name: "not started", err: controller.ErrNotStarted, want: controller.ErrNotStarted},
+		{name: "stopped", err: controller.ErrStopped, want: controller.ErrStopped},
+		{name: "proposal rejected", err: controller.ErrProposalRejected, want: controller.ErrProposalRejected},
+		{name: "expected revision mismatch", err: controller.ErrExpectedRevisionMismatch, want: controller.ErrExpectedRevisionMismatch},
+		{name: "node lifecycle conflict", err: controller.ErrNodeLifecycleConflict, want: controller.ErrNodeLifecycleConflict},
+		{name: "node lifecycle not found", err: controller.ErrNodeLifecycleNotFound, want: controller.ErrNodeLifecycleNotFound},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

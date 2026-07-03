@@ -10,7 +10,7 @@ import (
 	"time"
 
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/cluster/net"
-	cv2 "github.com/WuKongIM/WuKongIM/pkg/controller"
+	controller "github.com/WuKongIM/WuKongIM/pkg/controller"
 	"github.com/WuKongIM/WuKongIM/pkg/transportv2"
 	"go.etcd.io/raft/v3/raftpb"
 )
@@ -165,17 +165,17 @@ func TestRaftHandlerDoesNotBlockIndefinitelyWhenStepperBackpressures(t *testing.
 
 func TestStateSyncClientCallsRemoteEndpoint(t *testing.T) {
 	network := clusternet.NewLocalNetwork()
-	server := cv2.NewStateSyncServer(cv2.StateSyncServerConfig{
+	server := controller.NewStateSyncServer(controller.StateSyncServerConfig{
 		NodeID:    1,
 		ClusterID: "cluster-a",
 		LeaderID:  func() uint64 { return 1 },
 		Ready:     func() bool { return true },
-		Snapshot:  func(context.Context) (cv2.ClusterState, error) { return controllerState(), nil },
+		Snapshot:  func(context.Context) (controller.ClusterState, error) { return controllerState(), nil },
 	})
 	network.Register(1, clusternet.RPCControlStateSync, NewStateSyncHandler(server))
 
 	endpoint := NewStateSyncEndpoint(network, 1)
-	resp, err := endpoint.GetState(context.Background(), cv2.GetStateRequest{ClusterID: "cluster-a"})
+	resp, err := endpoint.GetState(context.Background(), controller.GetStateRequest{ClusterID: "cluster-a"})
 	if err != nil {
 		t.Fatalf("GetState() error = %v", err)
 	}
@@ -192,10 +192,10 @@ func TestTaskClientCallsRemoteHandler(t *testing.T) {
 	client := NewTaskClient(network)
 	err := client.SubmitTask(context.Background(), 1, TaskRequest{
 		Action: TaskActionComplete,
-		Result: cv2.TaskResult{
+		Result: controller.TaskResult{
 			TaskID:      "slot-1-bootstrap-1",
 			SlotID:      1,
-			TaskKind:    cv2.TaskKindBootstrap,
+			TaskKind:    controller.TaskKindBootstrap,
 			ConfigEpoch: 1,
 			Attempt:     0,
 		},
@@ -223,7 +223,7 @@ func TestTaskClientCallsRemoteHandler(t *testing.T) {
 
 func TestControlWriteClientPreservesWrappedSemanticErrorIdentity(t *testing.T) {
 	network := clusternet.NewLocalNetwork()
-	applier := &recordingControlWriteApplier{activateErr: fmt.Errorf("wrapped semantic error: %w", cv2.ErrProposalRejected)}
+	applier := &recordingControlWriteApplier{activateErr: fmt.Errorf("wrapped semantic error: %w", controller.ErrProposalRejected)}
 	network.Register(1, clusternet.RPCControlWrite, NewControlWriteHandler(applier))
 	client := NewControlWriteClient(network)
 
@@ -232,7 +232,7 @@ func TestControlWriteClientPreservesWrappedSemanticErrorIdentity(t *testing.T) {
 		ActivateNode: ActivateNodeRequest{NodeID: 4},
 	})
 
-	if !errors.Is(err, cv2.ErrProposalRejected) {
+	if !errors.Is(err, controller.ErrProposalRejected) {
 		t.Fatalf("Submit() error = %v, want errors.Is(ErrProposalRejected)", err)
 	}
 }

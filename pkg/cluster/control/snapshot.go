@@ -3,7 +3,7 @@ package control
 import (
 	"time"
 
-	cv2 "github.com/WuKongIM/WuKongIM/pkg/controller"
+	controller "github.com/WuKongIM/WuKongIM/pkg/controller"
 )
 
 // Role describes one durable node capability in cluster control state.
@@ -89,73 +89,73 @@ const (
 )
 
 // TaskKind identifies one reconcile workflow kind.
-type TaskKind = cv2.TaskKind
+type TaskKind = controller.TaskKind
 
 const (
 	// TaskKindBootstrap creates the initial physical Slot replica group.
-	TaskKindBootstrap = cv2.TaskKindBootstrap
+	TaskKindBootstrap = controller.TaskKindBootstrap
 	// TaskKindLeaderTransfer records an operator-requested Slot Raft leadership transfer.
-	TaskKindLeaderTransfer = cv2.TaskKindLeaderTransfer
+	TaskKindLeaderTransfer = controller.TaskKindLeaderTransfer
 	// TaskKindSlotReplicaMove moves one physical Slot voter from SourceNode to TargetNode.
-	TaskKindSlotReplicaMove = cv2.TaskKindSlotReplicaMove
+	TaskKindSlotReplicaMove = controller.TaskKindSlotReplicaMove
 )
 
 // TaskStep identifies the current step inside a task workflow.
-type TaskStep = cv2.TaskStep
+type TaskStep = controller.TaskStep
 
 const (
 	// TaskStepCreateSlot creates or verifies a physical Slot replica group.
-	TaskStepCreateSlot = cv2.TaskStepCreateSlot
+	TaskStepCreateSlot = controller.TaskStepCreateSlot
 	// TaskStepTransferLeader asks Slot Raft to move leadership away from the observed source.
-	TaskStepTransferLeader = cv2.TaskStepTransferLeader
+	TaskStepTransferLeader = controller.TaskStepTransferLeader
 	// TaskStepOpenLearner opens the target replica as a non-voting Slot learner.
-	TaskStepOpenLearner = cv2.TaskStepOpenLearner
+	TaskStepOpenLearner = controller.TaskStepOpenLearner
 	// TaskStepAddLearner adds the target node to the Slot Raft learner set.
-	TaskStepAddLearner = cv2.TaskStepAddLearner
+	TaskStepAddLearner = controller.TaskStepAddLearner
 	// TaskStepPromoteLearner promotes the target learner into the Slot Raft voter set.
-	TaskStepPromoteLearner = cv2.TaskStepPromoteLearner
+	TaskStepPromoteLearner = controller.TaskStepPromoteLearner
 	// TaskStepRemoveVoter removes the source node from the Slot Raft voter set.
-	TaskStepRemoveVoter = cv2.TaskStepRemoveVoter
+	TaskStepRemoveVoter = controller.TaskStepRemoveVoter
 	// TaskStepCommitAssignment commits the durable Slot assignment after Slot Raft converges.
-	TaskStepCommitAssignment = cv2.TaskStepCommitAssignment
+	TaskStepCommitAssignment = controller.TaskStepCommitAssignment
 )
 
 // TaskStatus describes whether a durable reconcile task is actionable.
-type TaskStatus = cv2.TaskStatus
+type TaskStatus = controller.TaskStatus
 
 const (
 	// TaskStatusPending means the task is waiting for a worker.
-	TaskStatusPending = cv2.TaskStatusPending
+	TaskStatusPending = controller.TaskStatusPending
 	// TaskStatusRunning means the task is actively being attempted.
-	TaskStatusRunning = cv2.TaskStatusRunning
+	TaskStatusRunning = controller.TaskStatusRunning
 	// TaskStatusFailed means the task remains active after a failed attempt.
-	TaskStatusFailed = cv2.TaskStatusFailed
+	TaskStatusFailed = controller.TaskStatusFailed
 )
 
 // TaskCompletionPolicy describes how participant progress gates completion.
-type TaskCompletionPolicy = cv2.TaskCompletionPolicy
+type TaskCompletionPolicy = controller.TaskCompletionPolicy
 
 const (
 	// TaskCompletionPolicySingleObserver means one eligible observer may complete the task.
-	TaskCompletionPolicySingleObserver = cv2.TaskCompletionPolicySingleObserver
+	TaskCompletionPolicySingleObserver = controller.TaskCompletionPolicySingleObserver
 	// TaskCompletionPolicyAllTargetPeers means every target peer must report done.
-	TaskCompletionPolicyAllTargetPeers = cv2.TaskCompletionPolicyAllTargetPeers
+	TaskCompletionPolicyAllTargetPeers = controller.TaskCompletionPolicyAllTargetPeers
 )
 
 // TaskParticipantStatus describes one node's local task progress.
-type TaskParticipantStatus = cv2.TaskParticipantStatus
+type TaskParticipantStatus = controller.TaskParticipantStatus
 
 const (
 	// TaskParticipantStatusPending means the participant is not complete.
-	TaskParticipantStatusPending = cv2.TaskParticipantStatusPending
+	TaskParticipantStatusPending = controller.TaskParticipantStatusPending
 	// TaskParticipantStatusDone means the participant completed local work.
-	TaskParticipantStatusDone = cv2.TaskParticipantStatusDone
+	TaskParticipantStatusDone = controller.TaskParticipantStatusDone
 	// TaskParticipantStatusFailed means the participant's latest local attempt failed.
-	TaskParticipantStatusFailed = cv2.TaskParticipantStatusFailed
+	TaskParticipantStatusFailed = controller.TaskParticipantStatusFailed
 )
 
 // TaskParticipantProgress describes one node's local progress.
-type TaskParticipantProgress = cv2.TaskParticipantProgress
+type TaskParticipantProgress = controller.TaskParticipantProgress
 
 // Snapshot is the cluster control read model consumed by data-plane modules.
 type Snapshot struct {
@@ -280,7 +280,7 @@ type ReconcileTask struct {
 }
 
 // BuildNodeHealth maps durable Controller health evidence into the control snapshot read model.
-func BuildNodeHealth(report cv2.NodeHealthReport, exists bool, now time.Time, ttl time.Duration) NodeHealth {
+func BuildNodeHealth(report controller.NodeHealthReport, exists bool, now time.Time, ttl time.Duration) NodeHealth {
 	if !exists {
 		return NodeHealth{Freshness: NodeHealthMissing, ReportTTL: ttl}
 	}

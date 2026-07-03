@@ -7,7 +7,7 @@ import (
 	"time"
 
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/cluster/net"
-	cv2 "github.com/WuKongIM/WuKongIM/pkg/controller"
+	controller "github.com/WuKongIM/WuKongIM/pkg/controller"
 	"go.etcd.io/raft/v3/raftpb"
 )
 
@@ -109,20 +109,20 @@ func NewStateSyncEndpoint(caller clusternet.Caller, nodeID uint64) *StateSyncEnd
 }
 
 // GetState sends a Controller state sync request to the remote node.
-func (e *StateSyncEndpoint) GetState(ctx context.Context, req cv2.GetStateRequest) (cv2.GetStateResponse, error) {
+func (e *StateSyncEndpoint) GetState(ctx context.Context, req controller.GetStateRequest) (controller.GetStateResponse, error) {
 	payload, err := EncodeStateSyncRequest(req)
 	if err != nil {
-		return cv2.GetStateResponse{}, err
+		return controller.GetStateResponse{}, err
 	}
 	resp, err := clusternet.CallOwnedPayload(ctx, e.caller, e.nodeID, clusternet.RPCControlStateSync, payload)
 	if err != nil {
-		return cv2.GetStateResponse{}, err
+		return controller.GetStateResponse{}, err
 	}
 	return DecodeStateSyncResponse(resp)
 }
 
 // NewStateSyncHandler creates an RPC handler for a Controller state sync endpoint.
-func NewStateSyncHandler(endpoint cv2.Endpoint) clusternet.Handler {
+func NewStateSyncHandler(endpoint controller.Endpoint) clusternet.Handler {
 	return clusternet.HandlerFunc(func(ctx context.Context, payload []byte) ([]byte, error) {
 		req, err := DecodeStateSyncRequest(payload)
 		if err != nil {
@@ -201,14 +201,14 @@ func NewTaskHandler(applier TaskApplier) clusternet.Handler {
 
 // StaticPeerPicker resolves a fixed Controller voter set to cluster sync endpoints.
 type StaticPeerPicker struct {
-	endpoints map[uint64]cv2.Endpoint
+	endpoints map[uint64]controller.Endpoint
 	ids       []uint64
 }
 
 // NewStaticPeerPicker creates a fixed peer picker backed by caller.
 func NewStaticPeerPicker(caller clusternet.Caller, voters []RuntimeVoter) *StaticPeerPicker {
 	picker := &StaticPeerPicker{
-		endpoints: make(map[uint64]cv2.Endpoint, len(voters)),
+		endpoints: make(map[uint64]controller.Endpoint, len(voters)),
 		ids:       make([]uint64, 0, len(voters)),
 	}
 	for _, voter := range voters {
@@ -219,7 +219,7 @@ func NewStaticPeerPicker(caller clusternet.Caller, voters []RuntimeVoter) *Stati
 }
 
 // Endpoint returns the sync endpoint for nodeID.
-func (p *StaticPeerPicker) Endpoint(nodeID uint64) (cv2.Endpoint, bool) {
+func (p *StaticPeerPicker) Endpoint(nodeID uint64) (controller.Endpoint, bool) {
 	if p == nil {
 		return nil, false
 	}

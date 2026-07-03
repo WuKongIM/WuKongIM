@@ -3,7 +3,7 @@ package control
 import (
 	"context"
 
-	cv2 "github.com/WuKongIM/WuKongIM/pkg/controller"
+	controller "github.com/WuKongIM/WuKongIM/pkg/controller"
 )
 
 // Controller provides local access to cluster control state.
@@ -52,13 +52,13 @@ type SnapshotEvent struct {
 
 type (
 	// TaskResult describes the result of a data-plane reconcile task attempt.
-	TaskResult = cv2.TaskResult
+	TaskResult = controller.TaskResult
 	// TaskProgress describes one participant's local progress for a barrier task.
-	TaskProgress = cv2.TaskProgress
+	TaskProgress = controller.TaskProgress
 	// SlotReplicaMovePhaseAdvance records an observed Slot Raft config phase.
-	SlotReplicaMovePhaseAdvance = cv2.SlotReplicaMovePhaseAdvance
+	SlotReplicaMovePhaseAdvance = controller.SlotReplicaMovePhaseAdvance
 	// SlotReplicaMoveCommit fences the final durable assignment replacement.
-	SlotReplicaMoveCommit = cv2.SlotReplicaMoveCommit
+	SlotReplicaMoveCommit = controller.SlotReplicaMoveCommit
 )
 
 // NodeReport contains low-frequency node status reported to the control adapter.
