@@ -6,14 +6,14 @@ import (
 	"testing"
 
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
-	channelv2 "github.com/WuKongIM/WuKongIM/pkg/channel"
+	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/channels"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/routing"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
 func TestNewChannelMigrationStoreReadsNodeStoreLazily(t *testing.T) {
-	id := channelv2.ChannelID{ID: "lazy-migration", Type: 2}
+	id := channelruntime.ChannelID{ID: "lazy-migration", Type: 2}
 	node := &fakeChannelMigrationStoreNode{}
 
 	got := NewChannelMigrationStore(node)

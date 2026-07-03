@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/internal/contracts/channelappend"
-	channelv2 "github.com/WuKongIM/WuKongIM/pkg/channel"
+	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 )
@@ -14,7 +14,7 @@ import (
 func TestChannelIdempotencyStoreLookupSendMapsCommittedHit(t *testing.T) {
 	node := &recordingIdempotencyNode{
 		hit: channelstore.IdempotencyHit{
-			Message:     channelv2.Message{MessageID: 42, MessageSeq: 7},
+			Message:     channelruntime.Message{MessageID: 42, MessageSeq: 7},
 			PayloadHash: idempotencyTestHash([]byte("payload")),
 		},
 		ok: true,
@@ -37,7 +37,7 @@ func TestChannelIdempotencyStoreLookupSendMapsCommittedHit(t *testing.T) {
 	if result.MessageID != 42 || result.MessageSeq != 7 || result.Reason != channelappend.ReasonSuccess {
 		t.Fatalf("LookupSend() result = %#v, want committed success", result)
 	}
-	if node.id != (channelv2.ChannelID{ID: "room", Type: 2}) || node.fromUID != "u1" || node.clientMsgNo != "client-1" {
+	if node.id != (channelruntime.ChannelID{ID: "room", Type: 2}) || node.fromUID != "u1" || node.clientMsgNo != "client-1" {
 		t.Fatalf("lookup request = id:%#v from:%q client:%q", node.id, node.fromUID, node.clientMsgNo)
 	}
 }
@@ -45,7 +45,7 @@ func TestChannelIdempotencyStoreLookupSendMapsCommittedHit(t *testing.T) {
 func TestChannelIdempotencyStoreLookupSendRejectsPayloadHashMismatch(t *testing.T) {
 	node := &recordingIdempotencyNode{
 		hit: channelstore.IdempotencyHit{
-			Message:     channelv2.Message{MessageID: 42, MessageSeq: 7},
+			Message:     channelruntime.Message{MessageID: 42, MessageSeq: 7},
 			PayloadHash: idempotencyTestHash([]byte("old")),
 		},
 		ok: true,
@@ -86,7 +86,7 @@ func TestChannelIdempotencyStoreLookupSendTreatsReadinessErrorsAsMiss(t *testing
 }
 
 type recordingIdempotencyNode struct {
-	id          channelv2.ChannelID
+	id          channelruntime.ChannelID
 	fromUID     string
 	clientMsgNo string
 	hit         channelstore.IdempotencyHit
@@ -94,7 +94,7 @@ type recordingIdempotencyNode struct {
 	err         error
 }
 
-func (n *recordingIdempotencyNode) LookupChannelIdempotency(_ context.Context, id channelv2.ChannelID, fromUID string, clientMsgNo string) (channelstore.IdempotencyHit, bool, error) {
+func (n *recordingIdempotencyNode) LookupChannelIdempotency(_ context.Context, id channelruntime.ChannelID, fromUID string, clientMsgNo string) (channelstore.IdempotencyHit, bool, error) {
 	n.id = id
 	n.fromUID = fromUID
 	n.clientMsgNo = clientMsgNo

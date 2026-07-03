@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/WuKongIM/WuKongIM/pkg/bench/model"
-	channelv2 "github.com/WuKongIM/WuKongIM/pkg/channel"
+	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel"
 )
 
 const benchRuntimeVersion = "bench/v1"
@@ -14,9 +14,9 @@ const benchRuntimeVersion = "bench/v1"
 // ChannelRuntimeBenchNode is the cluster runtime diagnostic surface used by bench/v1.
 type ChannelRuntimeBenchNode interface {
 	NodeID() uint64
-	ChannelRuntimeSnapshot(context.Context) (channelv2.RuntimeSnapshot, error)
-	ChannelRuntimeProbe(context.Context, channelv2.RuntimeSelector) (channelv2.RuntimeProbeResult, error)
-	ChannelRuntimeEvict(context.Context, channelv2.RuntimeSelector) (channelv2.RuntimeEvictResult, error)
+	ChannelRuntimeSnapshot(context.Context) (channelruntime.RuntimeSnapshot, error)
+	ChannelRuntimeProbe(context.Context, channelruntime.RuntimeSelector) (channelruntime.RuntimeProbeResult, error)
+	ChannelRuntimeEvict(context.Context, channelruntime.RuntimeSelector) (channelruntime.RuntimeEvictResult, error)
 }
 
 // ChannelRuntimeBenchController adapts ChannelV2 runtime diagnostics to bench/v1 DTOs.
@@ -83,7 +83,7 @@ func (c *ChannelRuntimeBenchController) Evict(ctx context.Context, query model.C
 	}, nil
 }
 
-func fromRuntimeSnapshot(snapshot channelv2.RuntimeSnapshot, fallbackNodeID uint64, query model.ChannelRuntimeQuery) model.ChannelRuntimeSnapshot {
+func fromRuntimeSnapshot(snapshot channelruntime.RuntimeSnapshot, fallbackNodeID uint64, query model.ChannelRuntimeQuery) model.ChannelRuntimeSnapshot {
 	nodeID := uint64(snapshot.NodeID)
 	if nodeID == 0 {
 		nodeID = fallbackNodeID
@@ -103,7 +103,7 @@ func fromRuntimeSnapshot(snapshot channelv2.RuntimeSnapshot, fallbackNodeID uint
 	}
 }
 
-func fromRuntimeReactors(in []channelv2.RuntimeReactorSnapshot) []model.ChannelRuntimeReactorSnapshot {
+func fromRuntimeReactors(in []channelruntime.RuntimeReactorSnapshot) []model.ChannelRuntimeReactorSnapshot {
 	if len(in) == 0 {
 		return nil
 	}
@@ -120,7 +120,7 @@ func fromRuntimeReactors(in []channelv2.RuntimeReactorSnapshot) []model.ChannelR
 	return out
 }
 
-func fromRuntimeWorkerQueues(in []channelv2.RuntimeWorkerQueue) []model.ChannelRuntimeWorkerQueue {
+func fromRuntimeWorkerQueues(in []channelruntime.RuntimeWorkerQueue) []model.ChannelRuntimeWorkerQueue {
 	if len(in) == 0 {
 		return nil
 	}
@@ -134,23 +134,23 @@ func fromRuntimeWorkerQueues(in []channelv2.RuntimeWorkerQueue) []model.ChannelR
 	return out
 }
 
-func runtimeSelectorFromQuery(query model.ChannelRuntimeQuery) channelv2.RuntimeSelector {
-	channelIDs := make([]channelv2.ChannelID, 0)
+func runtimeSelectorFromQuery(query model.ChannelRuntimeQuery) channelruntime.RuntimeSelector {
+	channelIDs := make([]channelruntime.ChannelID, 0)
 	if query.Range.End > query.Range.Start {
-		channelIDs = make([]channelv2.ChannelID, 0, query.Range.End-query.Range.Start)
+		channelIDs = make([]channelruntime.ChannelID, 0, query.Range.End-query.Range.Start)
 	}
 	runID := strings.TrimSpace(query.RunID)
 	profile := strings.TrimSpace(query.Profile)
 	for index := query.Range.Start; index < query.Range.End; index++ {
-		channelIDs = append(channelIDs, channelv2.ChannelID{
+		channelIDs = append(channelIDs, channelruntime.ChannelID{
 			ID:   fmt.Sprintf("%s-%s-%d", runID, profile, index),
 			Type: query.ChannelType,
 		})
 	}
-	return channelv2.RuntimeSelector{ChannelIDs: channelIDs}
+	return channelruntime.RuntimeSelector{ChannelIDs: channelIDs}
 }
 
-func missingChannelIDs(in []channelv2.ChannelID) []string {
+func missingChannelIDs(in []channelruntime.ChannelID) []string {
 	if len(in) == 0 {
 		return nil
 	}

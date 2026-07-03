@@ -9,7 +9,7 @@ import (
 	"time"
 
 	conversationusecase "github.com/WuKongIM/WuKongIM/internal/usecase/conversation"
-	channelv2 "github.com/WuKongIM/WuKongIM/pkg/channel"
+	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
@@ -91,7 +91,7 @@ func TestConversationStoreHidesConversationsThroughMutationNode(t *testing.T) {
 func TestConversationStoreReadsLastVisibleMessages(t *testing.T) {
 	node := &conversationNodeFake{
 		read: map[metadb.ConversationKey]lastVisibleResultFake{
-			{ChannelID: "g-a", ChannelType: 2}: {msg: channelv2.Message{
+			{ChannelID: "g-a", ChannelType: 2}: {msg: channelruntime.Message{
 				MessageID:         12,
 				MessageSeq:        12,
 				ChannelID:         "g-a",
@@ -101,7 +101,7 @@ func TestConversationStoreReadsLastVisibleMessages(t *testing.T) {
 				ServerTimestampMS: 900,
 				Payload:           []byte("visible"),
 			}, ok: true},
-			{ChannelID: "g-b", ChannelType: 2}: {msg: channelv2.Message{
+			{ChannelID: "g-b", ChannelType: 2}: {msg: channelruntime.Message{
 				MessageID:  5,
 				MessageSeq: 5,
 				ChannelID:  "g-b",
@@ -133,9 +133,9 @@ func TestConversationStoreReadsLastVisibleMessages(t *testing.T) {
 		t.Fatalf("missing channel returned a last message")
 	}
 	if got, want := node.readCalls, []readCallFake{
-		{channelID: channelv2.ChannelID{ID: "g-a", Type: 2}, visibleAfterSeq: 10},
-		{channelID: channelv2.ChannelID{ID: "g-b", Type: 2}, visibleAfterSeq: 5},
-		{channelID: channelv2.ChannelID{ID: "missing", Type: 2}, visibleAfterSeq: 0},
+		{channelID: channelruntime.ChannelID{ID: "g-a", Type: 2}, visibleAfterSeq: 10},
+		{channelID: channelruntime.ChannelID{ID: "g-b", Type: 2}, visibleAfterSeq: 5},
+		{channelID: channelruntime.ChannelID{ID: "missing", Type: 2}, visibleAfterSeq: 0},
 	}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("read calls = %#v, want %#v", got, want)
 	}
@@ -153,7 +153,7 @@ func TestConversationStoreReadsLastVisibleMessages(t *testing.T) {
 func TestConversationStoreSkipsSyncOnceTailForLastVisibleMessage(t *testing.T) {
 	node := &conversationNodeFake{
 		read: map[metadb.ConversationKey]lastVisibleResultFake{
-			{ChannelID: "g-a", ChannelType: 2}: {msg: channelv2.Message{
+			{ChannelID: "g-a", ChannelType: 2}: {msg: channelruntime.Message{
 				MessageID:   13,
 				MessageSeq:  13,
 				ChannelID:   "g-a",
@@ -162,7 +162,7 @@ func TestConversationStoreSkipsSyncOnceTailForLastVisibleMessage(t *testing.T) {
 				SyncOnce:    true,
 			}, ok: true},
 		},
-		committed: map[metadb.ConversationKey][]channelv2.Message{
+		committed: map[metadb.ConversationKey][]channelruntime.Message{
 			{ChannelID: "g-a", ChannelType: 2}: {{
 				MessageID:         12,
 				MessageSeq:        12,
@@ -187,7 +187,7 @@ func TestConversationStoreSkipsSyncOnceTailForLastVisibleMessage(t *testing.T) {
 		t.Fatalf("last message = %#v ok=%v, want latest ordinary message", msg, ok)
 	}
 	if got, want := node.committedCalls, []committedCallFake{{
-		channelID: channelv2.ChannelID{ID: "g-a", Type: 2},
+		channelID: channelruntime.ChannelID{ID: "g-a", Type: 2},
 		req:       channelstore.ReadCommittedRequest{FromSeq: 12, MaxSeq: maxUint64(), Limit: conversationReadMinPageLimit, MaxBytes: maxInt(), Reverse: true},
 	}}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("committed calls = %#v, want %#v", got, want)
@@ -199,7 +199,7 @@ func TestConversationStoreReadsDurableStateAndRecentMessages(t *testing.T) {
 		states: map[metadb.ConversationKey]metadb.ConversationState{
 			{ChannelID: "g-a", ChannelType: 2}: {UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "g-a", ChannelType: 2, ReadSeq: 7},
 		},
-		committed: map[metadb.ConversationKey][]channelv2.Message{
+		committed: map[metadb.ConversationKey][]channelruntime.Message{
 			{ChannelID: "g-a", ChannelType: 2}: {
 				{
 					MessageID:   13,
@@ -245,8 +245,8 @@ func TestConversationStoreReadsDurableStateAndRecentMessages(t *testing.T) {
 		t.Fatalf("recent message payload aliases node storage: %q", again[key][0].Payload)
 	}
 	if got, want := node.committedCalls, []committedCallFake{
-		{channelID: channelv2.ChannelID{ID: "g-a", Type: 2}, req: channelstore.ReadCommittedRequest{FromSeq: maxUint64(), MaxSeq: maxUint64(), Limit: conversationReadMinPageLimit, MaxBytes: maxInt(), Reverse: true}},
-		{channelID: channelv2.ChannelID{ID: "g-a", Type: 2}, req: channelstore.ReadCommittedRequest{FromSeq: maxUint64(), MaxSeq: maxUint64(), Limit: conversationReadMinPageLimit, MaxBytes: maxInt(), Reverse: true}},
+		{channelID: channelruntime.ChannelID{ID: "g-a", Type: 2}, req: channelstore.ReadCommittedRequest{FromSeq: maxUint64(), MaxSeq: maxUint64(), Limit: conversationReadMinPageLimit, MaxBytes: maxInt(), Reverse: true}},
+		{channelID: channelruntime.ChannelID{ID: "g-a", Type: 2}, req: channelstore.ReadCommittedRequest{FromSeq: maxUint64(), MaxSeq: maxUint64(), Limit: conversationReadMinPageLimit, MaxBytes: maxInt(), Reverse: true}},
 	}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("committed calls = %#v, want %#v", got, want)
 	}
@@ -255,9 +255,9 @@ func TestConversationStoreReadsDurableStateAndRecentMessages(t *testing.T) {
 func TestConversationStoreBoundsLastVisibleMessageConcurrency(t *testing.T) {
 	node := &conversationNodeFake{
 		read: map[metadb.ConversationKey]lastVisibleResultFake{
-			{ChannelID: "g-a", ChannelType: 2}: {msg: channelv2.Message{MessageID: 1}, ok: true},
-			{ChannelID: "g-b", ChannelType: 2}: {msg: channelv2.Message{MessageID: 2}, ok: true},
-			{ChannelID: "g-c", ChannelType: 2}: {msg: channelv2.Message{MessageID: 3}, ok: true},
+			{ChannelID: "g-a", ChannelType: 2}: {msg: channelruntime.Message{MessageID: 1}, ok: true},
+			{ChannelID: "g-b", ChannelType: 2}: {msg: channelruntime.Message{MessageID: 2}, ok: true},
+			{ChannelID: "g-c", ChannelType: 2}: {msg: channelruntime.Message{MessageID: 3}, ok: true},
 		},
 		readGate:    make(chan struct{}),
 		readStarted: make(chan struct{}, 3),
@@ -298,17 +298,17 @@ type activePageCallFake struct {
 }
 
 type readCallFake struct {
-	channelID       channelv2.ChannelID
+	channelID       channelruntime.ChannelID
 	visibleAfterSeq uint64
 }
 
 type committedCallFake struct {
-	channelID channelv2.ChannelID
+	channelID channelruntime.ChannelID
 	req       channelstore.ReadCommittedRequest
 }
 
 type lastVisibleResultFake struct {
-	msg channelv2.Message
+	msg channelruntime.Message
 	ok  bool
 }
 
@@ -330,7 +330,7 @@ type conversationNodeFake struct {
 	activeReads    int
 	maxActiveReads int
 
-	committed      map[metadb.ConversationKey][]channelv2.Message
+	committed      map[metadb.ConversationKey][]channelruntime.Message
 	committedErr   map[metadb.ConversationKey]error
 	committedCalls []committedCallFake
 	upserts        []metadb.ConversationState
@@ -365,7 +365,7 @@ func (n *conversationNodeFake) HideConversationsBatch(_ context.Context, reqs []
 	return nil
 }
 
-func (n *conversationNodeFake) ReadChannelLastVisible(_ context.Context, id channelv2.ChannelID, visibleAfterSeq uint64) (channelv2.Message, bool, error) {
+func (n *conversationNodeFake) ReadChannelLastVisible(_ context.Context, id channelruntime.ChannelID, visibleAfterSeq uint64) (channelruntime.Message, bool, error) {
 	n.mu.Lock()
 	n.readCalls = append(n.readCalls, readCallFake{channelID: id, visibleAfterSeq: visibleAfterSeq})
 	n.activeReads++
@@ -388,16 +388,16 @@ func (n *conversationNodeFake) ReadChannelLastVisible(_ context.Context, id chan
 	}()
 	key := metadb.ConversationKey{ChannelID: id.ID, ChannelType: int64(id.Type)}
 	if err := n.readErr[key]; err != nil {
-		return channelv2.Message{}, false, err
+		return channelruntime.Message{}, false, err
 	}
 	result, ok := n.read[key]
 	if !ok {
-		return channelv2.Message{}, false, channelv2.ErrChannelNotFound
+		return channelruntime.Message{}, false, channelruntime.ErrChannelNotFound
 	}
 	return result.msg, result.ok, nil
 }
 
-func (n *conversationNodeFake) ReadChannelCommitted(_ context.Context, id channelv2.ChannelID, req channelstore.ReadCommittedRequest) (channelstore.ReadCommittedResult, error) {
+func (n *conversationNodeFake) ReadChannelCommitted(_ context.Context, id channelruntime.ChannelID, req channelstore.ReadCommittedRequest) (channelstore.ReadCommittedResult, error) {
 	key := metadb.ConversationKey{ChannelID: id.ID, ChannelType: int64(id.Type)}
 	n.committedCalls = append(n.committedCalls, committedCallFake{channelID: id, req: req})
 	if err := n.committedErr[key]; err != nil {
@@ -405,9 +405,9 @@ func (n *conversationNodeFake) ReadChannelCommitted(_ context.Context, id channe
 	}
 	messages, ok := n.committed[key]
 	if !ok {
-		return channelstore.ReadCommittedResult{}, channelv2.ErrChannelNotFound
+		return channelstore.ReadCommittedResult{}, channelruntime.ErrChannelNotFound
 	}
-	out := append([]channelv2.Message(nil), messages...)
+	out := append([]channelruntime.Message(nil), messages...)
 	for i := range out {
 		out[i].Payload = append([]byte(nil), out[i].Payload...)
 	}

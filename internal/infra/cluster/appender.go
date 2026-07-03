@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/contracts/channelappend"
-	channelv2 "github.com/WuKongIM/WuKongIM/pkg/channel"
+	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
@@ -29,7 +29,7 @@ var errChannelAppendResultMissing = errors.New("internal/infra/cluster: append r
 
 // ChannelAppendNode is the cluster append surface used by internal.
 type ChannelAppendNode interface {
-	AppendChannelBatch(context.Context, channelv2.AppendBatchRequest) (channelv2.AppendBatchResult, error)
+	AppendChannelBatch(context.Context, channelruntime.AppendBatchRequest) (channelruntime.AppendBatchResult, error)
 }
 
 // ChannelAppender adapts cluster channel append to the channelappend append port.
@@ -61,8 +61,8 @@ func (a *ChannelAppender) AppendBatch(ctx context.Context, req channelappend.App
 	if attempt <= 0 {
 		attempt = channelAppendDefaultAttempt
 	}
-	res, err := a.node.AppendChannelBatch(ctx, channelv2.AppendBatchRequest{
-		ChannelID:            channelv2.ChannelID{ID: req.ChannelID.ID, Type: req.ChannelID.Type},
+	res, err := a.node.AppendChannelBatch(ctx, channelruntime.AppendBatchRequest{
+		ChannelID:            channelruntime.ChannelID{ID: req.ChannelID.ID, Type: req.ChannelID.Type},
 		ExpectedChannelEpoch: req.ExpectedEpoch,
 		ExpectedLeaderEpoch:  req.ExpectedLeaderEpoch,
 		Messages:             toChannelMessages(req.Messages),
@@ -120,10 +120,10 @@ func normalizedChannelAppendAttempt(attempt int) int {
 	return attempt
 }
 
-func toChannelMessages(in []channelappend.Message) []channelv2.Message {
-	out := make([]channelv2.Message, 0, len(in))
+func toChannelMessages(in []channelappend.Message) []channelruntime.Message {
+	out := make([]channelruntime.Message, 0, len(in))
 	for _, msg := range in {
-		out = append(out, channelv2.Message{
+		out = append(out, channelruntime.Message{
 			MessageID:         msg.MessageID,
 			MessageSeq:        msg.MessageSeq,
 			ChannelID:         msg.ChannelID,
@@ -140,14 +140,14 @@ func toChannelMessages(in []channelappend.Message) []channelv2.Message {
 	return out
 }
 
-func toChannelCommitMode(mode channelappend.CommitMode) channelv2.CommitMode {
+func toChannelCommitMode(mode channelappend.CommitMode) channelruntime.CommitMode {
 	if mode == channelappend.CommitModeLocal {
-		return channelv2.CommitModeLocal
+		return channelruntime.CommitModeLocal
 	}
-	return channelv2.CommitModeQuorum
+	return channelruntime.CommitModeQuorum
 }
 
-func fromChannelAppendResult(res channelv2.AppendBatchResult) channelappend.AppendBatchResult {
+func fromChannelAppendResult(res channelruntime.AppendBatchResult) channelappend.AppendBatchResult {
 	items := make([]channelappend.AppendBatchItemResult, 0, len(res.Items))
 	for _, item := range res.Items {
 		items = append(items, channelappend.AppendBatchItemResult{
@@ -160,7 +160,7 @@ func fromChannelAppendResult(res channelv2.AppendBatchResult) channelappend.Appe
 	return channelappend.AppendBatchResult{Items: items}
 }
 
-func fromChannelMessage(msg channelv2.Message) channelappend.Message {
+func fromChannelMessage(msg channelruntime.Message) channelappend.Message {
 	return channelappend.Message{
 		MessageID:         msg.MessageID,
 		MessageSeq:        msg.MessageSeq,
@@ -176,7 +176,7 @@ func fromChannelMessage(msg channelv2.Message) channelappend.Message {
 	}
 }
 
-func recordChannelAppendTrace(req channelappend.AppendBatchRequest, items []channelv2.AppendBatchItemResult, batchErr error, duration time.Duration) {
+func recordChannelAppendTrace(req channelappend.AppendBatchRequest, items []channelruntime.AppendBatchItemResult, batchErr error, duration time.Duration) {
 	if !appendRequestHasTrace(req) || !sendtrace.Enabled() {
 		return
 	}
@@ -251,7 +251,7 @@ func appendRequestHasTrace(req channelappend.AppendBatchRequest) bool {
 	return false
 }
 
-func itemMessageSeq(items []channelv2.AppendBatchItemResult, index int) uint64 {
+func itemMessageSeq(items []channelruntime.AppendBatchItemResult, index int) uint64 {
 	if index < 0 || index >= len(items) {
 		return 0
 	}
@@ -261,7 +261,7 @@ func itemMessageSeq(items []channelv2.AppendBatchItemResult, index int) uint64 {
 	return items[index].Message.MessageSeq
 }
 
-func itemAppendError(items []channelv2.AppendBatchItemResult, index int, batchErr error) error {
+func itemAppendError(items []channelruntime.AppendBatchItemResult, index int, batchErr error) error {
 	if batchErr != nil {
 		return batchErr
 	}

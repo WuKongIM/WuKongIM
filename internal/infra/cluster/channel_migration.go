@@ -4,7 +4,7 @@ import (
 	"context"
 
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
-	channelv2 "github.com/WuKongIM/WuKongIM/pkg/channel"
+	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/channels"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
@@ -42,7 +42,7 @@ func (s lazyChannelMigrationStore) CreateReplicaReplace(ctx context.Context, req
 	return store.CreateReplicaReplace(ctx, req)
 }
 
-func (s lazyChannelMigrationStore) GetActive(ctx context.Context, id channelv2.ChannelID) (metadb.ChannelMigrationTask, bool, error) {
+func (s lazyChannelMigrationStore) GetActive(ctx context.Context, id channelruntime.ChannelID) (metadb.ChannelMigrationTask, bool, error) {
 	store, err := s.store()
 	if err != nil {
 		return metadb.ChannelMigrationTask{}, false, err
@@ -50,7 +50,7 @@ func (s lazyChannelMigrationStore) GetActive(ctx context.Context, id channelv2.C
 	return store.GetActive(ctx, id)
 }
 
-func (s lazyChannelMigrationStore) Get(ctx context.Context, id channelv2.ChannelID, taskID string) (metadb.ChannelMigrationTask, bool, error) {
+func (s lazyChannelMigrationStore) Get(ctx context.Context, id channelruntime.ChannelID, taskID string) (metadb.ChannelMigrationTask, bool, error) {
 	store, err := s.store()
 	if err != nil {
 		return metadb.ChannelMigrationTask{}, false, err
@@ -58,7 +58,7 @@ func (s lazyChannelMigrationStore) Get(ctx context.Context, id channelv2.Channel
 	return store.Get(ctx, id, taskID)
 }
 
-func (s lazyChannelMigrationStore) ListActive(ctx context.Context, id channelv2.ChannelID, limit int) ([]metadb.ChannelMigrationTask, error) {
+func (s lazyChannelMigrationStore) ListActive(ctx context.Context, id channelruntime.ChannelID, limit int) ([]metadb.ChannelMigrationTask, error) {
 	store, err := s.store()
 	if err != nil {
 		return nil, err

@@ -4,7 +4,7 @@ import (
 	"context"
 
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
-	channelv2 "github.com/WuKongIM/WuKongIM/pkg/channel"
+	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
@@ -24,7 +24,7 @@ func (r *ManagementMessageReader) QueryMessages(ctx context.Context, req managem
 	if r == nil || r.node == nil {
 		return managementusecase.MessageQueryPage{}, nil
 	}
-	read, err := r.node.ReadChannelCommitted(ctx, channelv2.ChannelID{ID: req.ChannelID, Type: uint8(req.ChannelType)}, managementReadCommittedRequest(req))
+	read, err := r.node.ReadChannelCommitted(ctx, channelruntime.ChannelID{ID: req.ChannelID, Type: uint8(req.ChannelType)}, managementReadCommittedRequest(req))
 	if err != nil {
 		return managementusecase.MessageQueryPage{}, mapAppendError(err)
 	}
@@ -48,7 +48,7 @@ func (r *ManagementMessageReader) MaxMessageSeqForMeta(ctx context.Context, meta
 	if r == nil || r.node == nil {
 		return 0, nil
 	}
-	read, err := r.node.ReadChannelCommitted(ctx, channelv2.ChannelID{ID: meta.ChannelID, Type: uint8(meta.ChannelType)}, channelstore.ReadCommittedRequest{
+	read, err := r.node.ReadChannelCommitted(ctx, channelruntime.ChannelID{ID: meta.ChannelID, Type: uint8(meta.ChannelType)}, channelstore.ReadCommittedRequest{
 		FromSeq:  maxUint64(),
 		MaxSeq:   maxUint64(),
 		Limit:    1,
@@ -80,7 +80,7 @@ func managementReadCommittedRequest(req managementusecase.MessageQueryRequest) c
 	}
 }
 
-func managementMessagesFromChannel(items []channelv2.Message) []managementusecase.Message {
+func managementMessagesFromChannel(items []channelruntime.Message) []managementusecase.Message {
 	out := make([]managementusecase.Message, 0, len(items))
 	for _, item := range items {
 		out = append(out, managementusecase.Message{

@@ -5,13 +5,13 @@ import (
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
-	channelv2 "github.com/WuKongIM/WuKongIM/pkg/channel"
+	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
 )
 
 func TestChannelMessageReaderMapsPullUpRequestAndTrimsHasMore(t *testing.T) {
 	node := &recordingReadNode{
-		result: channelstore.ReadCommittedResult{Messages: []channelv2.Message{
+		result: channelstore.ReadCommittedResult{Messages: []channelruntime.Message{
 			{MessageID: 10, MessageSeq: 2, ChannelID: "g1", ChannelType: 2, FromUID: "u1", ClientMsgNo: "c1", Payload: []byte("a")},
 			{MessageID: 11, MessageSeq: 3, ChannelID: "g1", ChannelType: 2, FromUID: "u1", ClientMsgNo: "c2", Payload: []byte("b")},
 			{MessageID: 12, MessageSeq: 4, ChannelID: "g1", ChannelType: 2, FromUID: "u1", ClientMsgNo: "c3", Payload: []byte("c")},
@@ -30,7 +30,7 @@ func TestChannelMessageReaderMapsPullUpRequestAndTrimsHasMore(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SyncMessages() error = %v", err)
 	}
-	if node.lastID != (channelv2.ChannelID{ID: "g1", Type: 2}) {
+	if node.lastID != (channelruntime.ChannelID{ID: "g1", Type: 2}) {
 		t.Fatalf("channel id = %#v, want g1/2", node.lastID)
 	}
 	if node.lastReq.FromSeq != 2 || node.lastReq.MaxSeq != 4 || node.lastReq.Limit != 3 || node.lastReq.Reverse {
@@ -46,7 +46,7 @@ func TestChannelMessageReaderMapsPullUpRequestAndTrimsHasMore(t *testing.T) {
 
 func TestChannelMessageReaderMapsPullDownAndReturnsAscending(t *testing.T) {
 	node := &recordingReadNode{
-		result: channelstore.ReadCommittedResult{Messages: []channelv2.Message{
+		result: channelstore.ReadCommittedResult{Messages: []channelruntime.Message{
 			{MessageID: 15, MessageSeq: 5, ChannelID: "g1", ChannelType: 2},
 			{MessageID: 14, MessageSeq: 4, ChannelID: "g1", ChannelType: 2},
 			{MessageID: 13, MessageSeq: 3, ChannelID: "g1", ChannelType: 2},
@@ -77,13 +77,13 @@ func TestChannelMessageReaderMapsPullDownAndReturnsAscending(t *testing.T) {
 }
 
 type recordingReadNode struct {
-	lastID  channelv2.ChannelID
+	lastID  channelruntime.ChannelID
 	lastReq channelstore.ReadCommittedRequest
 	result  channelstore.ReadCommittedResult
 	err     error
 }
 
-func (n *recordingReadNode) ReadChannelCommitted(_ context.Context, id channelv2.ChannelID, req channelstore.ReadCommittedRequest) (channelstore.ReadCommittedResult, error) {
+func (n *recordingReadNode) ReadChannelCommitted(_ context.Context, id channelruntime.ChannelID, req channelstore.ReadCommittedRequest) (channelstore.ReadCommittedResult, error) {
 	n.lastID = id
 	n.lastReq = req
 	return n.result, n.err

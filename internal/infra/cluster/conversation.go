@@ -7,7 +7,7 @@ import (
 	"sync"
 
 	conversationusecase "github.com/WuKongIM/WuKongIM/internal/usecase/conversation"
-	channelv2 "github.com/WuKongIM/WuKongIM/pkg/channel"
+	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	runtimechannelid "github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
@@ -22,8 +22,8 @@ const (
 type ConversationNode interface {
 	ListConversationActivePage(context.Context, metadb.ConversationKind, string, metadb.ConversationActiveCursor, int) ([]metadb.ConversationState, metadb.ConversationActiveCursor, bool, error)
 	GetConversationState(context.Context, metadb.ConversationKind, string, string, int64) (metadb.ConversationState, bool, error)
-	ReadChannelLastVisible(context.Context, channelv2.ChannelID, uint64) (channelv2.Message, bool, error)
-	ReadChannelCommitted(context.Context, channelv2.ChannelID, channelstore.ReadCommittedRequest) (channelstore.ReadCommittedResult, error)
+	ReadChannelLastVisible(context.Context, channelruntime.ChannelID, uint64) (channelruntime.Message, bool, error)
+	ReadChannelCommitted(context.Context, channelruntime.ChannelID, channelstore.ReadCommittedRequest) (channelstore.ReadCommittedResult, error)
 }
 
 // ConversationStateMutationNode exposes cluster read-state writes needed by conversation mutations.
@@ -222,7 +222,7 @@ func (s *ConversationStore) readLastVisibleMessage(ctx context.Context, req conv
 		return metadb.ConversationKey{}, conversationusecase.LastMessage{}, false, fmt.Errorf("internal/infra/cluster: invalid conversation message request")
 	}
 	key := metadb.ConversationKey{ChannelID: req.ChannelID, ChannelType: req.ChannelType}
-	msg, ok, err := s.node.ReadChannelLastVisible(ctx, channelv2.ChannelID{ID: req.ChannelID, Type: uint8(req.ChannelType)}, req.VisibleAfterSeq)
+	msg, ok, err := s.node.ReadChannelLastVisible(ctx, channelruntime.ChannelID{ID: req.ChannelID, Type: uint8(req.ChannelType)}, req.VisibleAfterSeq)
 	if err != nil {
 		if isMissingLastMessage(err) {
 			return key, conversationusecase.LastMessage{}, false, nil
@@ -247,16 +247,16 @@ func (s *ConversationStore) readLastVisibleMessage(ctx context.Context, req conv
 	return key, lastMessageFromChannel(msg), true, nil
 }
 
-func (s *ConversationStore) readLastOrdinaryVisibleMessage(ctx context.Context, req conversationusecase.LastVisibleMessageRequest, fromSeq uint64) (channelv2.Message, bool, error) {
+func (s *ConversationStore) readLastOrdinaryVisibleMessage(ctx context.Context, req conversationusecase.LastVisibleMessageRequest, fromSeq uint64) (channelruntime.Message, bool, error) {
 	if fromSeq == 0 || fromSeq <= req.VisibleAfterSeq {
-		return channelv2.Message{}, false, nil
+		return channelruntime.Message{}, false, nil
 	}
 	nextSeq := fromSeq
 	for nextSeq > req.VisibleAfterSeq {
 		if err := ctx.Err(); err != nil {
-			return channelv2.Message{}, false, err
+			return channelruntime.Message{}, false, err
 		}
-		read, err := s.node.ReadChannelCommitted(ctx, channelv2.ChannelID{ID: req.ChannelID, Type: uint8(req.ChannelType)}, channelstore.ReadCommittedRequest{
+		read, err := s.node.ReadChannelCommitted(ctx, channelruntime.ChannelID{ID: req.ChannelID, Type: uint8(req.ChannelType)}, channelstore.ReadCommittedRequest{
 			FromSeq:  nextSeq,
 			MaxSeq:   maxUint64(),
 			Limit:    conversationReadPageSize(1),
@@ -265,27 +265,27 @@ func (s *ConversationStore) readLastOrdinaryVisibleMessage(ctx context.Context, 
 		})
 		if err != nil {
 			if isMissingLastMessage(err) {
-				return channelv2.Message{}, false, nil
+				return channelruntime.Message{}, false, nil
 			}
-			return channelv2.Message{}, false, err
+			return channelruntime.Message{}, false, err
 		}
 		if len(read.Messages) == 0 {
-			return channelv2.Message{}, false, nil
+			return channelruntime.Message{}, false, nil
 		}
 		for _, msg := range read.Messages {
 			if msg.MessageSeq <= req.VisibleAfterSeq {
-				return channelv2.Message{}, false, nil
+				return channelruntime.Message{}, false, nil
 			}
 			if isOrdinaryConversationMessage(msg) {
 				return msg, true, nil
 			}
 		}
 		if read.NextSeq == 0 || read.NextSeq >= nextSeq {
-			return channelv2.Message{}, false, nil
+			return channelruntime.Message{}, false, nil
 		}
 		nextSeq = read.NextSeq
 	}
-	return channelv2.Message{}, false, nil
+	return channelruntime.Message{}, false, nil
 }
 
 // GetRecentMessages reads newest committed channel messages for legacy-compatible conversation sync.
@@ -310,14 +310,14 @@ func (s *ConversationStore) GetRecentMessages(ctx context.Context, keys []conver
 	return out, nil
 }
 
-func (s *ConversationStore) readRecentOrdinaryMessages(ctx context.Context, key conversationusecase.ConversationKey, limit int) ([]channelv2.Message, error) {
-	out := make([]channelv2.Message, 0, limit)
+func (s *ConversationStore) readRecentOrdinaryMessages(ctx context.Context, key conversationusecase.ConversationKey, limit int) ([]channelruntime.Message, error) {
+	out := make([]channelruntime.Message, 0, limit)
 	nextSeq := maxUint64()
 	for len(out) < limit {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		read, err := s.node.ReadChannelCommitted(ctx, channelv2.ChannelID{ID: key.ChannelID, Type: uint8(key.ChannelType)}, channelstore.ReadCommittedRequest{
+		read, err := s.node.ReadChannelCommitted(ctx, channelruntime.ChannelID{ID: key.ChannelID, Type: uint8(key.ChannelType)}, channelstore.ReadCommittedRequest{
 			FromSeq:  nextSeq,
 			MaxSeq:   maxUint64(),
 			Limit:    conversationReadPageSize(limit),
@@ -350,7 +350,7 @@ func (s *ConversationStore) readRecentOrdinaryMessages(ctx context.Context, key 
 	return out, nil
 }
 
-func lastMessageFromChannel(msg channelv2.Message) conversationusecase.LastMessage {
+func lastMessageFromChannel(msg channelruntime.Message) conversationusecase.LastMessage {
 	return conversationusecase.LastMessage{
 		MessageID:         msg.MessageID,
 		MessageSeq:        msg.MessageSeq,
@@ -361,7 +361,7 @@ func lastMessageFromChannel(msg channelv2.Message) conversationusecase.LastMessa
 	}
 }
 
-func syncMessagesFromChannel(messages []channelv2.Message) []conversationusecase.SyncMessage {
+func syncMessagesFromChannel(messages []channelruntime.Message) []conversationusecase.SyncMessage {
 	out := make([]conversationusecase.SyncMessage, 0, len(messages))
 	for _, msg := range messages {
 		if !isOrdinaryConversationMessage(msg) {
@@ -381,7 +381,7 @@ func syncMessagesFromChannel(messages []channelv2.Message) []conversationusecase
 	return out
 }
 
-func isOrdinaryConversationMessage(msg channelv2.Message) bool {
+func isOrdinaryConversationMessage(msg channelruntime.Message) bool {
 	return !msg.SyncOnce && !runtimechannelid.IsCommandChannel(msg.ChannelID)
 }
 
@@ -404,5 +404,5 @@ func cloneConversationDeletes(reqs []metadb.ConversationDelete) []metadb.Convers
 }
 
 func isMissingLastMessage(err error) bool {
-	return errors.Is(err, metadb.ErrNotFound) || appendErrorMatches(err, channelv2.ErrChannelNotFound)
+	return errors.Is(err, metadb.ErrNotFound) || appendErrorMatches(err, channelruntime.ErrChannelNotFound)
 }

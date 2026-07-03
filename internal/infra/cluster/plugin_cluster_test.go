@@ -7,7 +7,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	pluginusecase "github.com/WuKongIM/WuKongIM/internal/usecase/plugin"
-	channelv2 "github.com/WuKongIM/WuKongIM/pkg/channel"
+	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 	"github.com/stretchr/testify/require"
 )
@@ -46,8 +46,8 @@ func TestPluginClusterReaderMapsControlSnapshot(t *testing.T) {
 
 func TestPluginChannelOwnerReaderUsesAppendAuthorityLeader(t *testing.T) {
 	node := &recordingPluginChannelOwnerNode{
-		meta: channelv2.Meta{
-			ID:     channelv2.ChannelID{ID: "g1", Type: 2},
+		meta: channelruntime.Meta{
+			ID:     channelruntime.ChannelID{ID: "g1", Type: 2},
 			Leader: 3,
 		},
 	}
@@ -57,7 +57,7 @@ func TestPluginChannelOwnerReaderUsesAppendAuthorityLeader(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Equal(t, uint64(3), owner)
-	require.Equal(t, channelv2.ChannelID{ID: "g1", Type: 2}, node.last)
+	require.Equal(t, channelruntime.ChannelID{ID: "g1", Type: 2}, node.last)
 }
 
 type recordingPluginClusterNode struct {
@@ -75,15 +75,15 @@ func (n *recordingPluginClusterNode) LocalControlSnapshot(context.Context) (cont
 }
 
 type recordingPluginChannelOwnerNode struct {
-	last channelv2.ChannelID
-	meta channelv2.Meta
+	last channelruntime.ChannelID
+	meta channelruntime.Meta
 	err  error
 }
 
-func (n *recordingPluginChannelOwnerNode) ResolveChannelAppendAuthority(_ context.Context, id channelv2.ChannelID) (channelv2.Meta, error) {
+func (n *recordingPluginChannelOwnerNode) ResolveChannelAppendAuthority(_ context.Context, id channelruntime.ChannelID) (channelruntime.Meta, error) {
 	n.last = id
 	if n.err != nil {
-		return channelv2.Meta{}, n.err
+		return channelruntime.Meta{}, n.err
 	}
 	return n.meta, nil
 }

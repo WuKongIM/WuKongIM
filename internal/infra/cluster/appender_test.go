@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/internal/contracts/channelappend"
-	channelv2 "github.com/WuKongIM/WuKongIM/pkg/channel"
+	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/propose"
 	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
@@ -16,11 +16,11 @@ import (
 
 func TestChannelAppenderMapsAppendBatchRequestAndResult(t *testing.T) {
 	node := &recordingNode{
-		result: channelv2.AppendBatchResult{Items: []channelv2.AppendBatchItemResult{
+		result: channelruntime.AppendBatchResult{Items: []channelruntime.AppendBatchItemResult{
 			{
 				MessageID:  10,
 				MessageSeq: 101,
-				Message: channelv2.Message{
+				Message: channelruntime.Message{
 					MessageID:         10,
 					MessageSeq:        101,
 					ChannelID:         "room",
@@ -36,7 +36,7 @@ func TestChannelAppenderMapsAppendBatchRequestAndResult(t *testing.T) {
 			{
 				MessageID:  11,
 				MessageSeq: 102,
-				Message: channelv2.Message{
+				Message: channelruntime.Message{
 					MessageID:         11,
 					MessageSeq:        102,
 					ChannelID:         "room",
@@ -105,8 +105,8 @@ func TestChannelAppenderMapsAppendBatchRequestAndResult(t *testing.T) {
 	if req.ExpectedLeaderEpoch != 34 {
 		t.Fatalf("ExpectedLeaderEpoch = %d, want 34", req.ExpectedLeaderEpoch)
 	}
-	if req.CommitMode != channelv2.CommitModeQuorum {
-		t.Fatalf("CommitMode = %v, want %v", req.CommitMode, channelv2.CommitModeQuorum)
+	if req.CommitMode != channelruntime.CommitModeQuorum {
+		t.Fatalf("CommitMode = %v, want %v", req.CommitMode, channelruntime.CommitModeQuorum)
 	}
 	if req.TraceID != "trace-request" || req.ChannelKey != "channel/key-request" || req.Attempt != 4 {
 		t.Fatalf("trace fields = %q/%q attempt %d, want trace-request/channel/key-request attempt 4", req.TraceID, req.ChannelKey, req.Attempt)
@@ -117,7 +117,7 @@ func TestChannelAppenderMapsAppendBatchRequestAndResult(t *testing.T) {
 	if len(req.Messages) != 2 {
 		t.Fatalf("len(Messages) = %d, want 2", len(req.Messages))
 	}
-	assertChannelMessage(t, req.Messages[0], channelv2.Message{
+	assertChannelMessage(t, req.Messages[0], channelruntime.Message{
 		MessageID:         10,
 		MessageSeq:        1,
 		ChannelID:         "room",
@@ -129,7 +129,7 @@ func TestChannelAppenderMapsAppendBatchRequestAndResult(t *testing.T) {
 		Payload:           []byte("hello"),
 		ServerTimestampMS: 2001,
 	})
-	assertChannelMessage(t, req.Messages[1], channelv2.Message{
+	assertChannelMessage(t, req.Messages[1], channelruntime.Message{
 		MessageID:         11,
 		MessageSeq:        2,
 		ChannelID:         "room",
@@ -183,8 +183,8 @@ func TestChannelAppenderRecordsChannelAppendTraceOnSuccess(t *testing.T) {
 	restore := sendtrace.SetSink(sink)
 	t.Cleanup(restore)
 	node := &recordingNode{
-		result: channelv2.AppendBatchResult{Items: []channelv2.AppendBatchItemResult{
-			{MessageID: 10, MessageSeq: 101, Message: channelv2.Message{MessageID: 10, MessageSeq: 101}},
+		result: channelruntime.AppendBatchResult{Items: []channelruntime.AppendBatchItemResult{
+			{MessageID: 10, MessageSeq: 101, Message: channelruntime.Message{MessageID: 10, MessageSeq: 101}},
 		}},
 	}
 	appender := NewChannelAppender(node)
@@ -222,7 +222,7 @@ func TestChannelAppenderRecordsChannelAppendTraceOnBatchError(t *testing.T) {
 	sink := &recordingSendtraceSink{}
 	restore := sendtrace.SetSink(sink)
 	t.Cleanup(restore)
-	appender := NewChannelAppender(&recordingNode{err: channelv2.ErrBackpressured})
+	appender := NewChannelAppender(&recordingNode{err: channelruntime.ErrBackpressured})
 
 	_, err := appender.AppendBatch(context.Background(), channelappend.AppendBatchRequest{
 		ChannelID:  channelappend.ChannelID{ID: "room", Type: 1},
@@ -246,7 +246,7 @@ func TestChannelAppenderRecordsChannelAppendTraceOnBatchError(t *testing.T) {
 
 func TestChannelAppenderLogsAppendChannelBatchError(t *testing.T) {
 	logger := &recordingClusterLogger{}
-	appender := NewChannelAppender(&recordingNode{err: channelv2.ErrNotReady}, logger)
+	appender := NewChannelAppender(&recordingNode{err: channelruntime.ErrNotReady}, logger)
 
 	_, err := appender.AppendBatch(context.Background(), channelappend.AppendBatchRequest{
 		ChannelID:           channelappend.ChannelID{ID: "room", Type: 2},
@@ -277,7 +277,7 @@ func TestChannelAppenderLogsAppendChannelBatchError(t *testing.T) {
 	requireLogField(t, entry.fields, "expectedEpoch", uint64(12))
 	requireLogField(t, entry.fields, "expectedLeaderEpoch", uint64(34))
 	requireLogField(t, entry.fields, "result", "route_not_ready")
-	requireLogField(t, entry.fields, "error", channelv2.ErrNotReady)
+	requireLogField(t, entry.fields, "error", channelruntime.ErrNotReady)
 }
 
 func TestChannelAppenderDoesNotRecordChannelAppendTraceWithoutTraceIDOrSink(t *testing.T) {
@@ -285,7 +285,7 @@ func TestChannelAppenderDoesNotRecordChannelAppendTraceWithoutTraceIDOrSink(t *t
 	restore := sendtrace.SetSink(sink)
 	t.Cleanup(restore)
 	appender := NewChannelAppender(&recordingNode{
-		result: channelv2.AppendBatchResult{Items: []channelv2.AppendBatchItemResult{
+		result: channelruntime.AppendBatchResult{Items: []channelruntime.AppendBatchItemResult{
 			{MessageID: 10, MessageSeq: 101},
 		}},
 	})
@@ -319,11 +319,11 @@ func TestChannelAppenderDoesNotRecordChannelAppendTraceWithoutTraceIDOrSink(t *t
 
 func TestChannelAppenderClonesPayloadsBothDirections(t *testing.T) {
 	node := &recordingNode{
-		result: channelv2.AppendBatchResult{Items: []channelv2.AppendBatchItemResult{
+		result: channelruntime.AppendBatchResult{Items: []channelruntime.AppendBatchItemResult{
 			{
 				MessageID:  10,
 				MessageSeq: 1,
-				Message:    channelv2.Message{MessageID: 10, MessageSeq: 1, Payload: []byte("accepted")},
+				Message:    channelruntime.Message{MessageID: 10, MessageSeq: 1, Payload: []byte("accepted")},
 			},
 		}},
 	}
@@ -354,11 +354,11 @@ func TestChannelAppenderMapsCommitModes(t *testing.T) {
 	cases := []struct {
 		name string
 		in   channelappend.CommitMode
-		want channelv2.CommitMode
+		want channelruntime.CommitMode
 	}{
-		{name: "quorum", in: channelappend.CommitModeQuorum, want: channelv2.CommitModeQuorum},
-		{name: "local", in: channelappend.CommitModeLocal, want: channelv2.CommitModeLocal},
-		{name: "default", in: channelappend.CommitMode(0), want: channelv2.CommitModeQuorum},
+		{name: "quorum", in: channelappend.CommitModeQuorum, want: channelruntime.CommitModeQuorum},
+		{name: "local", in: channelappend.CommitModeLocal, want: channelruntime.CommitModeLocal},
+		{name: "default", in: channelappend.CommitMode(0), want: channelruntime.CommitModeQuorum},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -400,17 +400,17 @@ func TestChannelAppenderMapsTypedErrors(t *testing.T) {
 	}{
 		{name: "cluster not leader", err: cluster.ErrNotLeader, want: channelappend.ErrNotLeader},
 		{name: "slot propose not leader", err: propose.ErrNotLeader, want: channelappend.ErrNotLeader},
-		{name: "channelv2 not leader", err: channelv2.ErrNotLeader, want: channelappend.ErrNotLeader},
-		{name: "stale meta", err: channelv2.ErrStaleMeta, want: channelappend.ErrStaleRoute},
-		{name: "not replica", err: channelv2.ErrNotReplica, want: channelappend.ErrStaleRoute},
-		{name: "textual not replica", err: errors.New(channelv2.ErrNotReplica.Error()), want: channelappend.ErrStaleRoute},
-		{name: "channel missing", err: channelv2.ErrChannelNotFound, want: channelappend.ErrChannelNotFound},
-		{name: "backpressured", err: channelv2.ErrBackpressured, want: channelappend.ErrBackpressured},
+		{name: "channelruntime not leader", err: channelruntime.ErrNotLeader, want: channelappend.ErrNotLeader},
+		{name: "stale meta", err: channelruntime.ErrStaleMeta, want: channelappend.ErrStaleRoute},
+		{name: "not replica", err: channelruntime.ErrNotReplica, want: channelappend.ErrStaleRoute},
+		{name: "textual not replica", err: errors.New(channelruntime.ErrNotReplica.Error()), want: channelappend.ErrStaleRoute},
+		{name: "channel missing", err: channelruntime.ErrChannelNotFound, want: channelappend.ErrChannelNotFound},
+		{name: "backpressured", err: channelruntime.ErrBackpressured, want: channelappend.ErrBackpressured},
 		{name: "cluster route not ready", err: cluster.ErrRouteNotReady, want: channelappend.ErrRouteNotReady},
 		{name: "cluster no slot leader", err: cluster.ErrNoSlotLeader, want: channelappend.ErrRouteNotReady},
-		{name: "channelv2 not ready", err: channelv2.ErrNotReady, want: channelappend.ErrRouteNotReady},
-		{name: "channelv2 write fenced", err: channelv2.ErrWriteFenced, want: channelappend.ErrRouteNotReady},
-		{name: "channelv2 placement candidates unavailable", err: fmt.Errorf("%w: channel replica candidates 2 below replica count 3", channelv2.ErrInvalidConfig), want: channelappend.ErrRouteNotReady},
+		{name: "channelruntime not ready", err: channelruntime.ErrNotReady, want: channelappend.ErrRouteNotReady},
+		{name: "channelruntime write fenced", err: channelruntime.ErrWriteFenced, want: channelappend.ErrRouteNotReady},
+		{name: "channelruntime placement candidates unavailable", err: fmt.Errorf("%w: channel replica candidates 2 below replica count 3", channelruntime.ErrInvalidConfig), want: channelappend.ErrRouteNotReady},
 		{name: "context canceled", err: context.Canceled, want: context.Canceled, unchanged: true},
 		{name: "context deadline", err: context.DeadlineExceeded, want: context.DeadlineExceeded, unchanged: true},
 		{name: "unknown", err: unknown, want: channelappend.ErrAppendFailed},
@@ -437,8 +437,8 @@ func TestChannelAppenderMapsTypedErrors(t *testing.T) {
 
 func TestChannelAppenderMapsItemErrors(t *testing.T) {
 	node := &recordingNode{
-		result: channelv2.AppendBatchResult{Items: []channelv2.AppendBatchItemResult{
-			{MessageID: 10, Err: channelv2.ErrBackpressured},
+		result: channelruntime.AppendBatchResult{Items: []channelruntime.AppendBatchItemResult{
+			{MessageID: 10, Err: channelruntime.ErrBackpressured},
 		}},
 	}
 	appender := NewChannelAppender(node)
@@ -457,21 +457,21 @@ func TestChannelAppenderMapsItemErrors(t *testing.T) {
 
 type recordingNode struct {
 	calls  int
-	last   channelv2.AppendBatchRequest
-	result channelv2.AppendBatchResult
+	last   channelruntime.AppendBatchRequest
+	result channelruntime.AppendBatchResult
 	err    error
 }
 
-func (n *recordingNode) AppendChannelBatch(_ context.Context, req channelv2.AppendBatchRequest) (channelv2.AppendBatchResult, error) {
+func (n *recordingNode) AppendChannelBatch(_ context.Context, req channelruntime.AppendBatchRequest) (channelruntime.AppendBatchResult, error) {
 	n.calls++
 	n.last = req
 	if n.err != nil {
-		return channelv2.AppendBatchResult{}, n.err
+		return channelruntime.AppendBatchResult{}, n.err
 	}
 	return n.result, nil
 }
 
-func assertChannelMessage(t *testing.T, got, want channelv2.Message) {
+func assertChannelMessage(t *testing.T, got, want channelruntime.Message) {
 	t.Helper()
 	if got.MessageID != want.MessageID ||
 		got.MessageSeq != want.MessageSeq ||

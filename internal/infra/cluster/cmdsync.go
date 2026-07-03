@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/WuKongIM/WuKongIM/internal/usecase/cmdsync"
-	channelv2 "github.com/WuKongIM/WuKongIM/pkg/channel"
+	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	runtimechannelid "github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
@@ -16,7 +16,7 @@ const cmdSyncReadPageLimit = 256
 type CMDSyncNode interface {
 	ListConversationActivePage(context.Context, metadb.ConversationKind, string, metadb.ConversationActiveCursor, int) ([]metadb.ConversationState, metadb.ConversationActiveCursor, bool, error)
 	UpsertConversationStatesBatch(context.Context, []metadb.ConversationState) error
-	ReadChannelCommitted(context.Context, channelv2.ChannelID, channelstore.ReadCommittedRequest) (channelstore.ReadCommittedResult, error)
+	ReadChannelCommitted(context.Context, channelruntime.ChannelID, channelstore.ReadCommittedRequest) (channelstore.ReadCommittedResult, error)
 }
 
 // CMDSyncStore adapts cluster unified conversation projection rows to CMD sync.
@@ -76,7 +76,7 @@ func (s *CMDSyncStore) LoadCommandMessages(ctx context.Context, key cmdsync.Comm
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		read, err := s.node.ReadChannelCommitted(ctx, channelv2.ChannelID{ID: key.ChannelID, Type: key.ChannelType}, channelstore.ReadCommittedRequest{
+		read, err := s.node.ReadChannelCommitted(ctx, channelruntime.ChannelID{ID: key.ChannelID, Type: key.ChannelType}, channelstore.ReadCommittedRequest{
 			FromSeq:  nextSeq,
 			MaxSeq:   maxUint64(),
 			Limit:    cmdSyncReadPageLimit,
@@ -105,11 +105,11 @@ func (s *CMDSyncStore) LoadCommandMessages(ctx context.Context, key cmdsync.Comm
 	return out, nil
 }
 
-func isCommandSyncChannelMessage(msg channelv2.Message) bool {
+func isCommandSyncChannelMessage(msg channelruntime.Message) bool {
 	return msg.SyncOnce || runtimechannelid.IsCommandChannel(msg.ChannelID)
 }
 
-func cmdSyncedMessageFromChannel(msg channelv2.Message) cmdsync.SyncedMessage {
+func cmdSyncedMessageFromChannel(msg channelruntime.Message) cmdsync.SyncedMessage {
 	return cmdsync.SyncedMessage{
 		MessageID:         msg.MessageID,
 		MessageSeq:        msg.MessageSeq,

@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/WuKongIM/WuKongIM/internal/runtime/channelappend"
-	channelv2 "github.com/WuKongIM/WuKongIM/pkg/channel"
+	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/propose"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
@@ -17,7 +17,7 @@ type ChannelAppendAuthorityNode interface {
 	// NodeID returns the local cluster node id.
 	NodeID() uint64
 	// ResolveChannelAppendAuthority resolves the ChannelV2 append authority.
-	ResolveChannelAppendAuthority(context.Context, channelv2.ChannelID) (channelv2.Meta, error)
+	ResolveChannelAppendAuthority(context.Context, channelruntime.ChannelID) (channelruntime.Meta, error)
 	// GetChannelMetadata reads durable channel metadata used by channelappend recipient fanout.
 	GetChannelMetadata(context.Context, string, int64) (metadb.Channel, error)
 }
@@ -51,7 +51,7 @@ func (c *ChannelAppendClient) ResolveAppendAuthority(ctx context.Context, id cha
 	if c == nil || c.node == nil {
 		return channelappend.AuthorityTarget{}, channelappend.ErrRouteNotReady
 	}
-	meta, err := c.node.ResolveChannelAppendAuthority(ctx, channelv2.ChannelID{ID: id.ID, Type: id.Type})
+	meta, err := c.node.ResolveChannelAppendAuthority(ctx, channelruntime.ChannelID{ID: id.ID, Type: id.Type})
 	if err != nil {
 		return channelappend.AuthorityTarget{}, mapChannelAppendRouteError(err)
 	}
@@ -97,7 +97,7 @@ func (c *ChannelAppendClient) ForwardSendBatch(ctx context.Context, target chann
 	return c.remote.ForwardSendBatch(ctx, target, items)
 }
 
-func channelAppendTargetFromMeta(meta channelv2.Meta) channelappend.AuthorityTarget {
+func channelAppendTargetFromMeta(meta channelruntime.Meta) channelappend.AuthorityTarget {
 	return channelappend.AuthorityTarget{
 		ChannelID:    channelappend.ChannelID{ID: meta.ID.ID, Type: meta.ID.Type},
 		ChannelKey:   string(meta.Key),
@@ -122,11 +122,11 @@ func mapChannelAppendRouteError(err error) error {
 	switch {
 	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
 		return err
-	case appendErrorMatches(err, channelv2.ErrNotLeader), appendErrorMatches(err, propose.ErrNotLeader), errors.Is(err, cluster.ErrNotLeader):
+	case appendErrorMatches(err, channelruntime.ErrNotLeader), appendErrorMatches(err, propose.ErrNotLeader), errors.Is(err, cluster.ErrNotLeader):
 		return fmt.Errorf("%w: %w", channelappend.ErrNotChannelAuthority, err)
-	case appendErrorMatches(err, channelv2.ErrStaleMeta):
+	case appendErrorMatches(err, channelruntime.ErrStaleMeta):
 		return fmt.Errorf("%w: %w", channelappend.ErrStaleRoute, err)
-	case appendErrorMatches(err, channelv2.ErrNotReady),
+	case appendErrorMatches(err, channelruntime.ErrNotReady),
 		appendErrorIsChannelPlacementUnavailable(err),
 		errors.Is(err, cluster.ErrRouteNotReady),
 		errors.Is(err, cluster.ErrNoSlotLeader),

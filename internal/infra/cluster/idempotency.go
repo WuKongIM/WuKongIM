@@ -5,14 +5,14 @@ import (
 	"errors"
 
 	"github.com/WuKongIM/WuKongIM/internal/contracts/channelappend"
-	channelv2 "github.com/WuKongIM/WuKongIM/pkg/channel"
+	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 )
 
 // ChannelIdempotencyNode is the cluster local idempotency lookup surface used by internal.
 type ChannelIdempotencyNode interface {
-	LookupChannelIdempotency(context.Context, channelv2.ChannelID, string, string) (channelstore.IdempotencyHit, bool, error)
+	LookupChannelIdempotency(context.Context, channelruntime.ChannelID, string, string) (channelstore.IdempotencyHit, bool, error)
 }
 
 // ChannelIdempotencyStore adapts cluster committed idempotency lookups to channelappend.
@@ -30,7 +30,7 @@ func (s *ChannelIdempotencyStore) LookupSend(ctx context.Context, query channela
 	if s == nil || s.node == nil || query.FromUID == "" || query.ClientMsgNo == "" || query.ChannelID == "" || query.ChannelType == 0 {
 		return channelappend.SendResult{}, false, nil
 	}
-	hit, ok, err := s.node.LookupChannelIdempotency(ctx, channelv2.ChannelID{ID: query.ChannelID, Type: query.ChannelType}, query.FromUID, query.ClientMsgNo)
+	hit, ok, err := s.node.LookupChannelIdempotency(ctx, channelruntime.ChannelID{ID: query.ChannelID, Type: query.ChannelType}, query.FromUID, query.ClientMsgNo)
 	if err != nil || !ok {
 		if channelIdempotencyLookupMissError(err) {
 			return channelappend.SendResult{}, false, nil
@@ -51,7 +51,7 @@ func channelIdempotencyLookupMissError(err error) bool {
 	return errors.Is(err, cluster.ErrNotStarted) ||
 		errors.Is(err, cluster.ErrRouteNotReady) ||
 		errors.Is(err, cluster.ErrNoSlotLeader) ||
-		appendErrorMatches(err, channelv2.ErrNotReady) ||
-		appendErrorMatches(err, channelv2.ErrChannelNotFound) ||
-		appendErrorMatches(err, channelv2.ErrInvalidConfig)
+		appendErrorMatches(err, channelruntime.ErrNotReady) ||
+		appendErrorMatches(err, channelruntime.ErrChannelNotFound) ||
+		appendErrorMatches(err, channelruntime.ErrInvalidConfig)
 }

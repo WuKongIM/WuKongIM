@@ -6,7 +6,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	pluginusecase "github.com/WuKongIM/WuKongIM/internal/usecase/plugin"
-	channelv2 "github.com/WuKongIM/WuKongIM/pkg/channel"
+	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 )
 
@@ -19,7 +19,7 @@ type PluginClusterNode interface {
 // PluginChannelOwnerNode exposes ChannelV2 authority resolution for plugin host RPCs.
 type PluginChannelOwnerNode interface {
 	// ResolveChannelAppendAuthority resolves the ChannelV2 append authority.
-	ResolveChannelAppendAuthority(context.Context, channelv2.ChannelID) (channelv2.Meta, error)
+	ResolveChannelAppendAuthority(context.Context, channelruntime.ChannelID) (channelruntime.Meta, error)
 }
 
 // PluginClusterReader adapts cluster control snapshots to plugin cluster snapshots.
@@ -59,7 +59,7 @@ func (r *PluginChannelOwnerReader) ChannelOwnerNode(ctx context.Context, id mess
 	if r == nil || r.node == nil {
 		return 0, pluginusecase.ErrChannelOwnerReaderRequired
 	}
-	meta, err := r.node.ResolveChannelAppendAuthority(ctx, channelv2.ChannelID{ID: id.ID, Type: id.Type})
+	meta, err := r.node.ResolveChannelAppendAuthority(ctx, channelruntime.ChannelID{ID: id.ID, Type: id.Type})
 	if err != nil {
 		return 0, err
 	}

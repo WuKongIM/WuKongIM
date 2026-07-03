@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/internal/usecase/cmdsync"
-	channelv2 "github.com/WuKongIM/WuKongIM/pkg/channel"
+	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
@@ -53,7 +53,7 @@ func TestCMDSyncStoreUpsertsCMDKindRows(t *testing.T) {
 
 func TestCMDMessageReaderReadsCommittedCommandMessages(t *testing.T) {
 	node := &cmdSyncNodeFake{
-		readResult: channelstore.ReadCommittedResult{Messages: []channelv2.Message{
+		readResult: channelstore.ReadCommittedResult{Messages: []channelruntime.Message{
 			{MessageID: 10, MessageSeq: 3, ChannelID: "g1", ChannelType: 2, FromUID: "u2", ClientMsgNo: "normal", ServerTimestampMS: 90, Payload: []byte("normal")},
 			{MessageID: 11, MessageSeq: 4, ChannelID: "g1", ChannelType: 2, FromUID: "u2", ClientMsgNo: "c1", ServerTimestampMS: 99, SyncOnce: true, Payload: []byte("x")},
 		}, NextSeq: 5},
@@ -64,7 +64,7 @@ func TestCMDMessageReaderReadsCommittedCommandMessages(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadCommandMessages(): %v", err)
 	}
-	if node.lastReadID != (channelv2.ChannelID{ID: "g1", Type: 2}) {
+	if node.lastReadID != (channelruntime.ChannelID{ID: "g1", Type: 2}) {
 		t.Fatalf("read channel id = %#v, want source channel", node.lastReadID)
 	}
 	if node.lastReadReq.FromSeq != 3 || node.lastReadReq.Limit != cmdSyncReadPageLimit || node.lastReadReq.Reverse || node.lastReadReq.MaxBytes != maxInt() {
@@ -86,11 +86,11 @@ func TestCMDMessageReaderReadsCommittedCommandMessages(t *testing.T) {
 func TestCMDMessageReaderScansPastOrdinaryMessages(t *testing.T) {
 	node := &cmdSyncNodeFake{
 		readPages: map[uint64]channelstore.ReadCommittedResult{
-			1: {Messages: []channelv2.Message{
+			1: {Messages: []channelruntime.Message{
 				{MessageID: 10, MessageSeq: 1, ChannelID: "g1", ChannelType: 2, ClientMsgNo: "normal-1"},
 				{MessageID: 11, MessageSeq: 2, ChannelID: "g1", ChannelType: 2, ClientMsgNo: "normal-2"},
 			}, NextSeq: 3},
-			3: {Messages: []channelv2.Message{
+			3: {Messages: []channelruntime.Message{
 				{MessageID: 12, MessageSeq: 3, ChannelID: "g1", ChannelType: 2, ClientMsgNo: "cmd-1", SyncOnce: true},
 				{MessageID: 13, MessageSeq: 4, ChannelID: "g1", ChannelType: 2, ClientMsgNo: "normal-3"},
 			}, NextSeq: 5},
@@ -120,7 +120,7 @@ type cmdSyncNodeFake struct {
 	rows         []metadb.ConversationState
 	activeCalls  []cmdSyncActiveCallFake
 	upserts      []metadb.ConversationState
-	lastReadID   channelv2.ChannelID
+	lastReadID   channelruntime.ChannelID
 	lastReadReq  channelstore.ReadCommittedRequest
 	readResult   channelstore.ReadCommittedResult
 	readPages    map[uint64]channelstore.ReadCommittedResult
@@ -146,7 +146,7 @@ func (n *cmdSyncNodeFake) UpsertConversationStatesBatch(_ context.Context, state
 	return nil
 }
 
-func (n *cmdSyncNodeFake) ReadChannelCommitted(_ context.Context, id channelv2.ChannelID, req channelstore.ReadCommittedRequest) (channelstore.ReadCommittedResult, error) {
+func (n *cmdSyncNodeFake) ReadChannelCommitted(_ context.Context, id channelruntime.ChannelID, req channelstore.ReadCommittedRequest) (channelstore.ReadCommittedResult, error) {
 	n.lastReadID = id
 	n.lastReadReq = req
 	n.readFromSeqs = append(n.readFromSeqs, req.FromSeq)

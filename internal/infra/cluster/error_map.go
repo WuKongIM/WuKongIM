@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/WuKongIM/WuKongIM/internal/contracts/channelappend"
-	channelv2 "github.com/WuKongIM/WuKongIM/pkg/channel"
+	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/propose"
 )
@@ -19,15 +19,15 @@ func mapAppendError(err error) error {
 	switch {
 	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
 		return err
-	case appendErrorMatches(err, channelv2.ErrNotLeader), appendErrorMatches(err, propose.ErrNotLeader), errors.Is(err, cluster.ErrNotLeader):
+	case appendErrorMatches(err, channelruntime.ErrNotLeader), appendErrorMatches(err, propose.ErrNotLeader), errors.Is(err, cluster.ErrNotLeader):
 		return fmt.Errorf("%w: %w", channelappend.ErrNotLeader, err)
-	case appendErrorMatches(err, channelv2.ErrStaleMeta), appendErrorMatches(err, channelv2.ErrNotReplica):
+	case appendErrorMatches(err, channelruntime.ErrStaleMeta), appendErrorMatches(err, channelruntime.ErrNotReplica):
 		return fmt.Errorf("%w: %w", channelappend.ErrStaleRoute, err)
-	case appendErrorMatches(err, channelv2.ErrChannelNotFound):
+	case appendErrorMatches(err, channelruntime.ErrChannelNotFound):
 		return fmt.Errorf("%w: %w", channelappend.ErrChannelNotFound, err)
-	case appendErrorMatches(err, channelv2.ErrBackpressured):
+	case appendErrorMatches(err, channelruntime.ErrBackpressured):
 		return fmt.Errorf("%w: %w", channelappend.ErrBackpressured, err)
-	case errors.Is(err, cluster.ErrRouteNotReady), errors.Is(err, cluster.ErrNoSlotLeader), appendErrorMatches(err, channelv2.ErrNotReady), appendErrorMatches(err, channelv2.ErrWriteFenced), appendErrorIsChannelPlacementUnavailable(err):
+	case errors.Is(err, cluster.ErrRouteNotReady), errors.Is(err, cluster.ErrNoSlotLeader), appendErrorMatches(err, channelruntime.ErrNotReady), appendErrorMatches(err, channelruntime.ErrWriteFenced), appendErrorIsChannelPlacementUnavailable(err):
 		return fmt.Errorf("%w: %w", channelappend.ErrRouteNotReady, err)
 	default:
 		return fmt.Errorf("%w: %w", channelappend.ErrAppendFailed, err)
@@ -39,7 +39,7 @@ func appendErrorMatches(err error, sentinel error) bool {
 }
 
 func appendErrorIsChannelPlacementUnavailable(err error) bool {
-	if !appendErrorMatches(err, channelv2.ErrInvalidConfig) {
+	if !appendErrorMatches(err, channelruntime.ErrInvalidConfig) {
 		return false
 	}
 	msg := err.Error()

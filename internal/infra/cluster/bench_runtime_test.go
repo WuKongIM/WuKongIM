@@ -6,22 +6,22 @@ import (
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/pkg/bench/model"
-	channelv2 "github.com/WuKongIM/WuKongIM/pkg/channel"
+	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel"
 )
 
 func TestChannelRuntimeBenchControllerMapsSnapshot(t *testing.T) {
 	node := &fakeChannelRuntimeBenchNode{
 		nodeID: 7,
-		snapshot: channelv2.RuntimeSnapshot{
+		snapshot: channelruntime.RuntimeSnapshot{
 			ActiveTotal:             10,
 			ActiveLeader:            4,
 			ActiveFollower:          6,
 			FollowerParked:          2,
 			ActivationRejectedTotal: 3,
-			Reactors: []channelv2.RuntimeReactorSnapshot{
+			Reactors: []channelruntime.RuntimeReactorSnapshot{
 				{ReactorID: 1, Leader: 2, Follower: 3, Parked: 1, MailboxDepth: 5},
 			},
-			WorkerQueues: []channelv2.RuntimeWorkerQueue{
+			WorkerQueues: []channelruntime.RuntimeWorkerQueue{
 				{Pool: "append", Depth: 8},
 			},
 		},
@@ -61,11 +61,11 @@ func TestChannelRuntimeBenchControllerMapsSnapshot(t *testing.T) {
 func TestChannelRuntimeBenchControllerExpandsProbeRange(t *testing.T) {
 	node := &fakeChannelRuntimeBenchNode{
 		nodeID: 9,
-		probe: channelv2.RuntimeProbeResult{
+		probe: channelruntime.RuntimeProbeResult{
 			Checked:        3,
 			LoadedLeader:   1,
 			LoadedFollower: 1,
-			Missing:        []channelv2.ChannelID{{ID: "run-a-activate-groups-4", Type: 2}},
+			Missing:        []channelruntime.ChannelID{{ID: "run-a-activate-groups-4", Type: 2}},
 		},
 	}
 	controller := NewChannelRuntimeBenchController(node)
@@ -80,7 +80,7 @@ func TestChannelRuntimeBenchControllerExpandsProbeRange(t *testing.T) {
 		t.Fatalf("Probe() error = %v", err)
 	}
 
-	wantSelector := channelv2.RuntimeSelector{ChannelIDs: []channelv2.ChannelID{
+	wantSelector := channelruntime.RuntimeSelector{ChannelIDs: []channelruntime.ChannelID{
 		{ID: "run-a-activate-groups-2", Type: 2},
 		{ID: "run-a-activate-groups-3", Type: 2},
 		{ID: "run-a-activate-groups-4", Type: 2},
@@ -107,7 +107,7 @@ func TestChannelRuntimeBenchControllerExpandsProbeRange(t *testing.T) {
 func TestChannelRuntimeBenchControllerMapsEvictResult(t *testing.T) {
 	node := &fakeChannelRuntimeBenchNode{
 		nodeID: 11,
-		evict: channelv2.RuntimeEvictResult{
+		evict: channelruntime.RuntimeEvictResult{
 			Requested:   4,
 			Evicted:     2,
 			SkippedBusy: 1,
@@ -144,28 +144,28 @@ func TestChannelRuntimeBenchControllerMapsEvictResult(t *testing.T) {
 type fakeChannelRuntimeBenchNode struct {
 	nodeID uint64
 
-	snapshot channelv2.RuntimeSnapshot
-	probe    channelv2.RuntimeProbeResult
-	evict    channelv2.RuntimeEvictResult
+	snapshot channelruntime.RuntimeSnapshot
+	probe    channelruntime.RuntimeProbeResult
+	evict    channelruntime.RuntimeEvictResult
 
-	probeSelector channelv2.RuntimeSelector
-	evictSelector channelv2.RuntimeSelector
+	probeSelector channelruntime.RuntimeSelector
+	evictSelector channelruntime.RuntimeSelector
 }
 
 func (n *fakeChannelRuntimeBenchNode) NodeID() uint64 {
 	return n.nodeID
 }
 
-func (n *fakeChannelRuntimeBenchNode) ChannelRuntimeSnapshot(context.Context) (channelv2.RuntimeSnapshot, error) {
+func (n *fakeChannelRuntimeBenchNode) ChannelRuntimeSnapshot(context.Context) (channelruntime.RuntimeSnapshot, error) {
 	return n.snapshot, nil
 }
 
-func (n *fakeChannelRuntimeBenchNode) ChannelRuntimeProbe(_ context.Context, selector channelv2.RuntimeSelector) (channelv2.RuntimeProbeResult, error) {
+func (n *fakeChannelRuntimeBenchNode) ChannelRuntimeProbe(_ context.Context, selector channelruntime.RuntimeSelector) (channelruntime.RuntimeProbeResult, error) {
 	n.probeSelector = selector
 	return n.probe, nil
 }
 
-func (n *fakeChannelRuntimeBenchNode) ChannelRuntimeEvict(_ context.Context, selector channelv2.RuntimeSelector) (channelv2.RuntimeEvictResult, error) {
+func (n *fakeChannelRuntimeBenchNode) ChannelRuntimeEvict(_ context.Context, selector channelruntime.RuntimeSelector) (channelruntime.RuntimeEvictResult, error) {
 	n.evictSelector = selector
 	return n.evict, nil
 }

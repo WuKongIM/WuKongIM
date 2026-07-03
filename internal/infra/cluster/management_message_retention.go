@@ -9,7 +9,7 @@ import (
 	accessnode "github.com/WuKongIM/WuKongIM/internal/access/node"
 	"github.com/WuKongIM/WuKongIM/internal/contracts/channelappend"
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
-	channelv2 "github.com/WuKongIM/WuKongIM/pkg/channel"
+	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
@@ -18,8 +18,8 @@ import (
 type MessageRetentionNode interface {
 	NodeID() uint64
 	GetChannelRuntimeMeta(context.Context, string, int64) (metadb.ChannelRuntimeMeta, error)
-	ChannelRetentionView(context.Context, channelv2.ChannelID) (channelv2.RetentionView, error)
-	ReadChannelCommitted(context.Context, channelv2.ChannelID, channelstore.ReadCommittedRequest) (channelstore.ReadCommittedResult, error)
+	ChannelRetentionView(context.Context, channelruntime.ChannelID) (channelruntime.RetentionView, error)
+	ReadChannelCommitted(context.Context, channelruntime.ChannelID, channelstore.ReadCommittedRequest) (channelstore.ReadCommittedResult, error)
 	AdvanceChannelRetentionThroughSeq(context.Context, metadb.ChannelRetentionAdvance) error
 }
 
@@ -75,7 +75,7 @@ func (o *ManagementMessageRetentionOperator) AdvanceMessageRetention(ctx context
 		return managementusecase.AdvanceMessageRetentionResponse{}, channelappend.ErrNotLeader
 	}
 
-	channelID := channelv2.ChannelID{ID: req.ChannelID, Type: uint8(req.ChannelType)}
+	channelID := channelruntime.ChannelID{ID: req.ChannelID, Type: uint8(req.ChannelType)}
 	view, err := o.node.ChannelRetentionView(ctx, channelID)
 	if err != nil {
 		return managementusecase.AdvanceMessageRetentionResponse{}, mapMessageRetentionError(err)
@@ -115,7 +115,7 @@ func (o *ManagementMessageRetentionOperator) AdvanceMessageRetention(ctx context
 }
 
 func (o *ManagementMessageRetentionOperator) latestCommittedSeq(ctx context.Context, req managementusecase.AdvanceMessageRetentionRequest, current uint64) (uint64, error) {
-	read, err := o.node.ReadChannelCommitted(ctx, channelv2.ChannelID{ID: req.ChannelID, Type: uint8(req.ChannelType)}, channelstore.ReadCommittedRequest{
+	read, err := o.node.ReadChannelCommitted(ctx, channelruntime.ChannelID{ID: req.ChannelID, Type: uint8(req.ChannelType)}, channelstore.ReadCommittedRequest{
 		FromSeq:  maxUint64(),
 		MaxSeq:   maxUint64(),
 		Limit:    1,
@@ -132,7 +132,7 @@ func (o *ManagementMessageRetentionOperator) latestCommittedSeq(ctx context.Cont
 	return read.Messages[0].MessageSeq, nil
 }
 
-func retentionSafeBoundary(requestedThroughSeq uint64, latestCommittedSeq uint64, view channelv2.RetentionView) (uint64, managementusecase.MessageRetentionBlockedReason) {
+func retentionSafeBoundary(requestedThroughSeq uint64, latestCommittedSeq uint64, view channelruntime.RetentionView) (uint64, managementusecase.MessageRetentionBlockedReason) {
 	if latestCommittedSeq == 0 {
 		return 0, managementusecase.MessageRetentionBlockedReasonNoCommittedMessage
 	}

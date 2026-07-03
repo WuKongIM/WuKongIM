@@ -4,13 +4,13 @@ import (
 	"context"
 
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
-	channelv2 "github.com/WuKongIM/WuKongIM/pkg/channel"
+	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
 )
 
 // ChannelMessageReadNode is the cluster committed message read surface used by internal.
 type ChannelMessageReadNode interface {
-	ReadChannelCommitted(context.Context, channelv2.ChannelID, channelstore.ReadCommittedRequest) (channelstore.ReadCommittedResult, error)
+	ReadChannelCommitted(context.Context, channelruntime.ChannelID, channelstore.ReadCommittedRequest) (channelstore.ReadCommittedResult, error)
 }
 
 // ChannelMessageReader adapts cluster committed reads to the message usecase sync port.
@@ -32,7 +32,7 @@ func (r *ChannelMessageReader) SyncMessages(ctx context.Context, query message.C
 	if limit <= 0 {
 		limit = 1
 	}
-	read, err := r.node.ReadChannelCommitted(ctx, channelv2.ChannelID{ID: query.ChannelID.ID, Type: query.ChannelID.Type}, readCommittedRequest(query, limit))
+	read, err := r.node.ReadChannelCommitted(ctx, channelruntime.ChannelID{ID: query.ChannelID.ID, Type: query.ChannelID.Type}, readCommittedRequest(query, limit))
 	if err != nil {
 		return message.ChannelMessagePage{}, mapAppendError(err)
 	}
@@ -79,7 +79,7 @@ func queryMaxSeq(query message.ChannelMessageQuery) uint64 {
 	return maxUint64()
 }
 
-func syncedMessagesFromChannel(in []channelv2.Message) []message.SyncedMessage {
+func syncedMessagesFromChannel(in []channelruntime.Message) []message.SyncedMessage {
 	out := make([]message.SyncedMessage, 0, len(in))
 	for _, msg := range in {
 		out = append(out, message.SyncedMessage{

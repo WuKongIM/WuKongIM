@@ -9,7 +9,7 @@ import (
 	accessnode "github.com/WuKongIM/WuKongIM/internal/access/node"
 	"github.com/WuKongIM/WuKongIM/internal/contracts/channelappend"
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
-	channelv2 "github.com/WuKongIM/WuKongIM/pkg/channel"
+	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
@@ -21,9 +21,9 @@ func TestManagementMessageRetentionOperatorAdvancesLocalLeaderBoundary(t *testin
 		meta: metadb.ChannelRuntimeMeta{
 			ChannelID: "room-1", ChannelType: 2,
 			ChannelEpoch: 4, LeaderEpoch: 5, Leader: 7, LeaseUntilMS: 1713859300000,
-			Replicas: []uint64{7}, ISR: []uint64{7}, MinISR: 1, Status: uint8(channelv2.StatusActive),
+			Replicas: []uint64{7}, ISR: []uint64{7}, MinISR: 1, Status: uint8(channelruntime.StatusActive),
 		},
-		readResult: channelstore.ReadCommittedResult{Messages: []channelv2.Message{{MessageSeq: 3}}},
+		readResult: channelstore.ReadCommittedResult{Messages: []channelruntime.Message{{MessageSeq: 3}}},
 	}
 	operator := NewManagementMessageRetentionOperator(node)
 	operator.now = func() time.Time { return now }
@@ -61,9 +61,9 @@ func TestManagementMessageRetentionOperatorDryRunDoesNotAdvance(t *testing.T) {
 		meta: metadb.ChannelRuntimeMeta{
 			ChannelID: "room-1", ChannelType: 2,
 			ChannelEpoch: 4, LeaderEpoch: 5, Leader: 7,
-			Replicas: []uint64{7}, ISR: []uint64{7}, MinISR: 1, Status: uint8(channelv2.StatusActive),
+			Replicas: []uint64{7}, ISR: []uint64{7}, MinISR: 1, Status: uint8(channelruntime.StatusActive),
 		},
-		readResult: channelstore.ReadCommittedResult{Messages: []channelv2.Message{{MessageSeq: 3}}},
+		readResult: channelstore.ReadCommittedResult{Messages: []channelruntime.Message{{MessageSeq: 3}}},
 	}
 	operator := NewManagementMessageRetentionOperator(node)
 
@@ -88,7 +88,7 @@ func TestManagementMessageRetentionOperatorRejectsNonLeader(t *testing.T) {
 		meta: metadb.ChannelRuntimeMeta{
 			ChannelID: "room-1", ChannelType: 2,
 			ChannelEpoch: 4, LeaderEpoch: 5, Leader: 8,
-			Replicas: []uint64{7, 8}, ISR: []uint64{7, 8}, MinISR: 2, Status: uint8(channelv2.StatusActive),
+			Replicas: []uint64{7, 8}, ISR: []uint64{7, 8}, MinISR: 2, Status: uint8(channelruntime.StatusActive),
 		},
 	}
 	operator := NewManagementMessageRetentionOperator(node)
@@ -120,7 +120,7 @@ func TestManagementMessageRetentionOperatorForwardsRemoteLeaderBoundary(t *testi
 			meta: metadb.ChannelRuntimeMeta{
 				ChannelID: "room-1", ChannelType: 2,
 				ChannelEpoch: 4, LeaderEpoch: 5, Leader: 8,
-				Replicas: []uint64{7, 8}, ISR: []uint64{7, 8}, MinISR: 2, Status: uint8(channelv2.StatusActive),
+				Replicas: []uint64{7, 8}, ISR: []uint64{7, 8}, MinISR: 2, Status: uint8(channelruntime.StatusActive),
 			},
 		},
 		handler: adapter.HandleManagerMessageRetentionRPC,
@@ -154,9 +154,9 @@ func TestManagementMessageRetentionOperatorMapsStaleFenceToStaleRoute(t *testing
 		meta: metadb.ChannelRuntimeMeta{
 			ChannelID: "room-1", ChannelType: 2,
 			ChannelEpoch: 4, LeaderEpoch: 5, Leader: 7,
-			Replicas: []uint64{7}, ISR: []uint64{7}, MinISR: 1, Status: uint8(channelv2.StatusActive),
+			Replicas: []uint64{7}, ISR: []uint64{7}, MinISR: 1, Status: uint8(channelruntime.StatusActive),
 		},
-		readResult: channelstore.ReadCommittedResult{Messages: []channelv2.Message{{MessageSeq: 3}}},
+		readResult: channelstore.ReadCommittedResult{Messages: []channelruntime.Message{{MessageSeq: 3}}},
 		advanceErr: metadb.ErrStaleMeta,
 	}
 	operator := NewManagementMessageRetentionOperator(node)
@@ -174,8 +174,8 @@ func TestMessageRetentionBlocksWhenHWBelowRequested(t *testing.T) {
 	node := &recordingRetentionNode{
 		nodeID:        7,
 		meta:          localRetentionMeta("room-1", 2, 7),
-		readResult:    channelstore.ReadCommittedResult{Messages: []channelv2.Message{{MessageSeq: 10}}},
-		retentionView: channelv2.RetentionView{HW: 3, CheckpointHW: 10, MinISRMatchOffset: 10},
+		readResult:    channelstore.ReadCommittedResult{Messages: []channelruntime.Message{{MessageSeq: 10}}},
+		retentionView: channelruntime.RetentionView{HW: 3, CheckpointHW: 10, MinISRMatchOffset: 10},
 	}
 	operator := NewManagementMessageRetentionOperator(node)
 
@@ -198,8 +198,8 @@ func TestMessageRetentionAdvancesLogicalBoundaryWhenCheckpointLags(t *testing.T)
 	node := &recordingRetentionNode{
 		nodeID:        7,
 		meta:          localRetentionMeta("room-1", 2, 7),
-		readResult:    channelstore.ReadCommittedResult{Messages: []channelv2.Message{{MessageSeq: 10}}},
-		retentionView: channelv2.RetentionView{HW: 10, CheckpointHW: 4, MinISRMatchOffset: 10},
+		readResult:    channelstore.ReadCommittedResult{Messages: []channelruntime.Message{{MessageSeq: 10}}},
+		retentionView: channelruntime.RetentionView{HW: 10, CheckpointHW: 4, MinISRMatchOffset: 10},
 	}
 	operator := NewManagementMessageRetentionOperator(node)
 
@@ -222,8 +222,8 @@ func TestMessageRetentionBlocksWhenMinISRBelowRequested(t *testing.T) {
 	node := &recordingRetentionNode{
 		nodeID:        7,
 		meta:          localRetentionMeta("room-1", 2, 7),
-		readResult:    channelstore.ReadCommittedResult{Messages: []channelv2.Message{{MessageSeq: 10}}},
-		retentionView: channelv2.RetentionView{HW: 10, CheckpointHW: 10, MinISRMatchOffset: 4},
+		readResult:    channelstore.ReadCommittedResult{Messages: []channelruntime.Message{{MessageSeq: 10}}},
+		retentionView: channelruntime.RetentionView{HW: 10, CheckpointHW: 10, MinISRMatchOffset: 4},
 	}
 	operator := NewManagementMessageRetentionOperator(node)
 
@@ -243,7 +243,7 @@ func TestMessageRetentionBlocksWhenNoCommittedMessage(t *testing.T) {
 	node := &recordingRetentionNode{
 		nodeID:        7,
 		meta:          localRetentionMeta("room-1", 2, 7),
-		retentionView: channelv2.RetentionView{HW: 10, CheckpointHW: 10, MinISRMatchOffset: 10},
+		retentionView: channelruntime.RetentionView{HW: 10, CheckpointHW: 10, MinISRMatchOffset: 10},
 	}
 	operator := NewManagementMessageRetentionOperator(node)
 
@@ -263,8 +263,8 @@ func TestMessageRetentionAllowsSafeRequestedBoundary(t *testing.T) {
 	node := &recordingRetentionNode{
 		nodeID:        7,
 		meta:          localRetentionMeta("room-1", 2, 7),
-		readResult:    channelstore.ReadCommittedResult{Messages: []channelv2.Message{{MessageSeq: 10}}},
-		retentionView: channelv2.RetentionView{HW: 10, CheckpointHW: 10, MinISRMatchOffset: 10},
+		readResult:    channelstore.ReadCommittedResult{Messages: []channelruntime.Message{{MessageSeq: 10}}},
+		retentionView: channelruntime.RetentionView{HW: 10, CheckpointHW: 10, MinISRMatchOffset: 10},
 	}
 	operator := NewManagementMessageRetentionOperator(node)
 
@@ -290,8 +290,8 @@ func TestMessageRetentionForwardedLeaderUsesFreshRetentionView(t *testing.T) {
 	remoteNode := &recordingRetentionNode{
 		nodeID:        8,
 		meta:          localRetentionMeta("room-1", 2, 8),
-		readResult:    channelstore.ReadCommittedResult{Messages: []channelv2.Message{{MessageSeq: 10}}},
-		retentionView: channelv2.RetentionView{HW: 10, CheckpointHW: 10, MinISRMatchOffset: 4},
+		readResult:    channelstore.ReadCommittedResult{Messages: []channelruntime.Message{{MessageSeq: 10}}},
+		retentionView: channelruntime.RetentionView{HW: 10, CheckpointHW: 10, MinISRMatchOffset: 4},
 	}
 	adapter := accessnode.New(accessnode.Options{ManagerMessageRetention: NewLocalManagementMessageRetentionOperator(remoteNode)})
 	originNode := &recordingRetentionRPCNode{
@@ -300,9 +300,9 @@ func TestMessageRetentionForwardedLeaderUsesFreshRetentionView(t *testing.T) {
 			meta: metadb.ChannelRuntimeMeta{
 				ChannelID: "room-1", ChannelType: 2,
 				ChannelEpoch: 4, LeaderEpoch: 5, Leader: 8,
-				Replicas: []uint64{7, 8}, ISR: []uint64{7, 8}, MinISR: 2, Status: uint8(channelv2.StatusActive),
+				Replicas: []uint64{7, 8}, ISR: []uint64{7, 8}, MinISR: 2, Status: uint8(channelruntime.StatusActive),
 			},
-			retentionView: channelv2.RetentionView{HW: 10, CheckpointHW: 10, MinISRMatchOffset: 10},
+			retentionView: channelruntime.RetentionView{HW: 10, CheckpointHW: 10, MinISRMatchOffset: 10},
 		},
 		handler: adapter.HandleManagerMessageRetentionRPC,
 	}
@@ -330,7 +330,7 @@ type recordingRetentionNode struct {
 	nodeID              uint64
 	meta                metadb.ChannelRuntimeMeta
 	metaErr             error
-	retentionView       channelv2.RetentionView
+	retentionView       channelruntime.RetentionView
 	retentionViewErr    error
 	retentionViewCalled bool
 	readResult          channelstore.ReadCommittedResult
@@ -349,18 +349,18 @@ func (n *recordingRetentionNode) GetChannelRuntimeMeta(context.Context, string, 
 	return n.meta, n.metaErr
 }
 
-func (n *recordingRetentionNode) ChannelRetentionView(context.Context, channelv2.ChannelID) (channelv2.RetentionView, error) {
+func (n *recordingRetentionNode) ChannelRetentionView(context.Context, channelruntime.ChannelID) (channelruntime.RetentionView, error) {
 	n.retentionViewCalled = true
 	if n.retentionViewErr != nil {
-		return channelv2.RetentionView{}, n.retentionViewErr
+		return channelruntime.RetentionView{}, n.retentionViewErr
 	}
 	if n.retentionView.HW == 0 && n.retentionView.CheckpointHW == 0 && n.retentionView.MinISRMatchOffset == 0 {
-		return channelv2.RetentionView{HW: maxUint64(), CheckpointHW: maxUint64(), MinISRMatchOffset: maxUint64()}, nil
+		return channelruntime.RetentionView{HW: maxUint64(), CheckpointHW: maxUint64(), MinISRMatchOffset: maxUint64()}, nil
 	}
 	return n.retentionView, nil
 }
 
-func (n *recordingRetentionNode) ReadChannelCommitted(_ context.Context, _ channelv2.ChannelID, req channelstore.ReadCommittedRequest) (channelstore.ReadCommittedResult, error) {
+func (n *recordingRetentionNode) ReadChannelCommitted(_ context.Context, _ channelruntime.ChannelID, req channelstore.ReadCommittedRequest) (channelstore.ReadCommittedResult, error) {
 	n.lastReadReq = req
 	return n.readResult, n.readErr
 }
@@ -375,7 +375,7 @@ func localRetentionMeta(channelID string, channelType int64, leader uint64) meta
 	return metadb.ChannelRuntimeMeta{
 		ChannelID: channelID, ChannelType: channelType,
 		ChannelEpoch: 4, LeaderEpoch: 5, Leader: leader,
-		Replicas: []uint64{leader}, ISR: []uint64{leader}, MinISR: 1, Status: uint8(channelv2.StatusActive),
+		Replicas: []uint64{leader}, ISR: []uint64{leader}, MinISR: 1, Status: uint8(channelruntime.StatusActive),
 	}
 }
 

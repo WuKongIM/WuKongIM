@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/internal/runtime/channelappend"
-	channelv2 "github.com/WuKongIM/WuKongIM/pkg/channel"
+	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/propose"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
@@ -17,8 +17,8 @@ func TestChannelAppendClientMapsResolvedMetaToAuthorityTarget(t *testing.T) {
 	channelID := channelappend.ChannelID{ID: "room", Type: 2}
 	node := &channelAppendNodeForTest{
 		nodeID: 1,
-		meta: channelv2.Meta{
-			ID:          channelv2.ChannelID{ID: channelID.ID, Type: channelID.Type},
+		meta: channelruntime.Meta{
+			ID:          channelruntime.ChannelID{ID: channelID.ID, Type: channelID.Type},
 			Key:         "2:room",
 			Leader:      3,
 			Epoch:       11,
@@ -50,8 +50,8 @@ func TestChannelAppendClientCachesRecipientMetadata(t *testing.T) {
 	channelID := channelappend.ChannelID{ID: "room", Type: 2}
 	node := &channelAppendNodeForTest{
 		nodeID: 1,
-		meta: channelv2.Meta{
-			ID:          channelv2.ChannelID{ID: channelID.ID, Type: channelID.Type},
+		meta: channelruntime.Meta{
+			ID:          channelruntime.ChannelID{ID: channelID.ID, Type: channelID.Type},
 			Key:         "2:room",
 			Leader:      3,
 			Epoch:       11,
@@ -93,8 +93,8 @@ func TestChannelAppendClientCachesRecipientMetadata(t *testing.T) {
 func TestChannelAppendClientAllowsMissingChannelMetadata(t *testing.T) {
 	channelID := channelappend.ChannelID{ID: "room", Type: 2}
 	client := NewChannelAppendClient(&channelAppendNodeForTest{
-		meta: channelv2.Meta{
-			ID:          channelv2.ChannelID{ID: channelID.ID, Type: channelID.Type},
+		meta: channelruntime.Meta{
+			ID:          channelruntime.ChannelID{ID: channelID.ID, Type: channelID.Type},
 			Key:         "2:room",
 			Leader:      3,
 			Epoch:       11,
@@ -118,15 +118,15 @@ func TestChannelAppendClientMapsRouteErrors(t *testing.T) {
 		want      error
 		unchanged bool
 	}{
-		{name: "channel not leader", err: channelv2.ErrNotLeader, want: channelappend.ErrNotChannelAuthority},
+		{name: "channel not leader", err: channelruntime.ErrNotLeader, want: channelappend.ErrNotChannelAuthority},
 		{name: "slot propose not leader", err: propose.ErrNotLeader, want: channelappend.ErrNotChannelAuthority},
-		{name: "stale meta", err: channelv2.ErrStaleMeta, want: channelappend.ErrStaleRoute},
-		{name: "channel not ready", err: channelv2.ErrNotReady, want: channelappend.ErrRouteNotReady},
+		{name: "stale meta", err: channelruntime.ErrStaleMeta, want: channelappend.ErrStaleRoute},
+		{name: "channel not ready", err: channelruntime.ErrNotReady, want: channelappend.ErrRouteNotReady},
 		{name: "cluster route not ready", err: cluster.ErrRouteNotReady, want: channelappend.ErrRouteNotReady},
 		{name: "cluster no slot leader", err: cluster.ErrNoSlotLeader, want: channelappend.ErrRouteNotReady},
 		{name: "cluster not started", err: cluster.ErrNotStarted, want: channelappend.ErrRouteNotReady},
 		{name: "cluster stopping", err: cluster.ErrStopping, want: channelappend.ErrRouteNotReady},
-		{name: "channel placement candidates unavailable", err: fmt.Errorf("%w: channel replica candidates 2 below replica count 3", channelv2.ErrInvalidConfig), want: channelappend.ErrRouteNotReady},
+		{name: "channel placement candidates unavailable", err: fmt.Errorf("%w: channel replica candidates 2 below replica count 3", channelruntime.ErrInvalidConfig), want: channelappend.ErrRouteNotReady},
 		{name: "context canceled", err: context.Canceled, want: context.Canceled, unchanged: true},
 		{name: "context deadline", err: context.DeadlineExceeded, want: context.DeadlineExceeded, unchanged: true},
 	}
@@ -167,10 +167,10 @@ func TestChannelAppendClientForwardsRemoteResultsWithoutInterpretation(t *testin
 
 type channelAppendNodeForTest struct {
 	nodeID        uint64
-	meta          channelv2.Meta
+	meta          channelruntime.Meta
 	channel       metadb.Channel
 	err           error
-	lastID        channelv2.ChannelID
+	lastID        channelruntime.ChannelID
 	calls         int
 	metadataCalls int
 }
@@ -179,11 +179,11 @@ func (n *channelAppendNodeForTest) NodeID() uint64 {
 	return n.nodeID
 }
 
-func (n *channelAppendNodeForTest) ResolveChannelAppendAuthority(_ context.Context, id channelv2.ChannelID) (channelv2.Meta, error) {
+func (n *channelAppendNodeForTest) ResolveChannelAppendAuthority(_ context.Context, id channelruntime.ChannelID) (channelruntime.Meta, error) {
 	n.calls++
 	n.lastID = id
 	if n.err != nil {
-		return channelv2.Meta{}, n.err
+		return channelruntime.Meta{}, n.err
 	}
 	return n.meta, nil
 }
