@@ -9,7 +9,7 @@ import (
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
-func TestClusterV2SingleNodeScanChannelsSlotPagePaginatesMetadata(t *testing.T) {
+func TestClusterSingleNodeScanChannelsSlotPagePaginatesMetadata(t *testing.T) {
 	node := newDefaultSingleNode(t)
 	startNode(t, node)
 	t.Cleanup(func() { stopNodes(t, node) })
@@ -40,7 +40,7 @@ func TestClusterV2SingleNodeScanChannelsSlotPagePaginatesMetadata(t *testing.T) 
 	}
 }
 
-func TestClusterV2SingleNodeScanChannelRuntimeMetaSlotPagePaginatesMetadata(t *testing.T) {
+func TestClusterSingleNodeScanChannelRuntimeMetaSlotPagePaginatesMetadata(t *testing.T) {
 	node := newDefaultSingleNode(t)
 	startNode(t, node)
 	t.Cleanup(func() { stopNodes(t, node) })

@@ -281,15 +281,15 @@ func TestDependencyBoundaryUsesCanonicalCluster(t *testing.T) {
 	}
 
 	foundCanonicalCluster := false
-	forbiddenClusterV2Prefix := "github.com/WuKongIM/WuKongIM/pkg/" + "cluster" + "v2"
+	forbiddenV2ClusterPrefix := "github.com/WuKongIM/WuKongIM/pkg/" + "cluster" + "v2"
 	for _, importPath := range strings.Fields(string(out)) {
 		switch {
 		case importPath == "github.com/WuKongIM/WuKongIM/pkg/cluster":
 			foundCanonicalCluster = true
 		case strings.HasPrefix(importPath, "github.com/WuKongIM/WuKongIM/pkg/cluster/"):
 			foundCanonicalCluster = true
-		case importPath == forbiddenClusterV2Prefix ||
-			strings.HasPrefix(importPath, forbiddenClusterV2Prefix+"/"):
+		case importPath == forbiddenV2ClusterPrefix ||
+			strings.HasPrefix(importPath, forbiddenV2ClusterPrefix+"/"):
 			t.Fatalf("cmd/wukongim dependency closure still imports v2-suffixed cluster package %q", importPath)
 		case importPath == "github.com/WuKongIM/WuKongIM/pkg/legacy/cluster" ||
 			strings.HasPrefix(importPath, "github.com/WuKongIM/WuKongIM/pkg/legacy/cluster/"):

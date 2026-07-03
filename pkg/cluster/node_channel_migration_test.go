@@ -13,7 +13,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/transportv2"
 )
 
-func TestClusterV2ChannelMigrationStoreReadsSlotLeaderState(t *testing.T) {
+func TestClusterChannelMigrationStoreReadsSlotLeaderState(t *testing.T) {
 	nodes := newDefaultThreeNodeCluster(t)
 	startNodes(t, nodes...)
 	t.Cleanup(func() { stopNodes(t, nodes...) })
@@ -58,7 +58,7 @@ func TestClusterV2ChannelMigrationStoreReadsSlotLeaderState(t *testing.T) {
 	}
 }
 
-func TestClusterV2ChannelMigrationStoreCreateReadsRemoteRuntimeMeta(t *testing.T) {
+func TestClusterChannelMigrationStoreCreateReadsRemoteRuntimeMeta(t *testing.T) {
 	nodes := newDefaultThreeNodeCluster(t)
 	startNodes(t, nodes...)
 	t.Cleanup(func() { stopNodes(t, nodes...) })
@@ -101,7 +101,7 @@ func TestClusterV2ChannelMigrationStoreCreateReadsRemoteRuntimeMeta(t *testing.T
 	}
 }
 
-func TestClusterV2ChannelMigrationLocalReadRequiresActualSlotLeader(t *testing.T) {
+func TestClusterChannelMigrationLocalReadRequiresActualSlotLeader(t *testing.T) {
 	node := newDefaultSingleNode(t)
 	startNode(t, node)
 	t.Cleanup(func() { stopNodes(t, node) })
@@ -137,7 +137,7 @@ func TestClusterV2ChannelMigrationLocalReadRequiresActualSlotLeader(t *testing.T
 	}
 }
 
-func TestClusterV2ChannelMigrationReadUsesLocalActualSlotLeaderWhenRouteLeaderStale(t *testing.T) {
+func TestClusterChannelMigrationReadUsesLocalActualSlotLeaderWhenRouteLeaderStale(t *testing.T) {
 	node := newDefaultSingleNode(t)
 	startNode(t, node)
 	t.Cleanup(func() { stopNodes(t, node) })
@@ -208,7 +208,7 @@ func TestChannelMigrationRemoteErrorMapping(t *testing.T) {
 	}
 }
 
-func TestClusterV2ChannelMigrationStoreDuplicateCreateReturnsStaleMeta(t *testing.T) {
+func TestClusterChannelMigrationStoreDuplicateCreateReturnsStaleMeta(t *testing.T) {
 	node := newDefaultSingleNode(t)
 	startNode(t, node)
 	t.Cleanup(func() { stopNodes(t, node) })

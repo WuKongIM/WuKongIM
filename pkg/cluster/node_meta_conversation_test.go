@@ -12,7 +12,7 @@ import (
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
-func TestClusterV2ConversationBatchFacadeRoutesByUID(t *testing.T) {
+func TestClusterConversationBatchFacadeRoutesByUID(t *testing.T) {
 	node := newDefaultSingleNode(t)
 	startNode(t, node)
 	t.Cleanup(func() { stopNodes(t, node) })
@@ -53,7 +53,7 @@ func TestClusterV2ConversationBatchFacadeRoutesByUID(t *testing.T) {
 	}
 }
 
-func TestClusterV2ConversationBatchFacadeRoutesByUIDAndKind(t *testing.T) {
+func TestClusterConversationBatchFacadeRoutesByUIDAndKind(t *testing.T) {
 	node := newTestNodeWithMeta(t)
 	ctx := context.Background()
 
@@ -78,7 +78,7 @@ func TestClusterV2ConversationBatchFacadeRoutesByUIDAndKind(t *testing.T) {
 	}
 }
 
-func TestClusterV2TouchConversationActiveAtBatchRoutesByUID(t *testing.T) {
+func TestClusterTouchConversationActiveAtBatchRoutesByUID(t *testing.T) {
 	node := newDefaultSingleNode(t)
 	startNode(t, node)
 	t.Cleanup(func() { stopNodes(t, node) })
@@ -157,7 +157,7 @@ func TestTouchConversationActiveAtBatchMarksProposalBackground(t *testing.T) {
 	}
 }
 
-func TestClusterV2HideConversationsBatchRoutesByUID(t *testing.T) {
+func TestClusterHideConversationsBatchRoutesByUID(t *testing.T) {
 	node := newDefaultSingleNode(t)
 	startNode(t, node)
 	t.Cleanup(func() { stopNodes(t, node) })
@@ -187,7 +187,7 @@ func TestClusterV2HideConversationsBatchRoutesByUID(t *testing.T) {
 	}
 }
 
-func TestClusterV2GetConversationStateUsesUIDHashSlot(t *testing.T) {
+func TestClusterGetConversationStateUsesUIDHashSlot(t *testing.T) {
 	node := newDefaultSingleNode(t)
 	startNode(t, node)
 	t.Cleanup(func() { stopNodes(t, node) })
@@ -207,7 +207,7 @@ func TestClusterV2GetConversationStateUsesUIDHashSlot(t *testing.T) {
 	}
 }
 
-func TestClusterV2GetConversationStatesUsesUIDHashSlot(t *testing.T) {
+func TestClusterGetConversationStatesUsesUIDHashSlot(t *testing.T) {
 	node := newDefaultSingleNode(t)
 	startNode(t, node)
 	t.Cleanup(func() { stopNodes(t, node) })
@@ -244,7 +244,7 @@ func TestClusterV2GetConversationStatesUsesUIDHashSlot(t *testing.T) {
 	}
 }
 
-func TestClusterV2ListConversationActivePageUsesUIDHashSlot(t *testing.T) {
+func TestClusterListConversationActivePageUsesUIDHashSlot(t *testing.T) {
 	node := newDefaultSingleNode(t)
 	startNode(t, node)
 	t.Cleanup(func() { stopNodes(t, node) })

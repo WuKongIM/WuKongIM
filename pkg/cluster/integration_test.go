@@ -12,7 +12,7 @@ import (
 	metafsm "github.com/WuKongIM/WuKongIM/pkg/slot/fsm"
 )
 
-func TestClusterV2SingleNodeDefaultProposeAppliesSlotCommand(t *testing.T) {
+func TestClusterSingleNodeDefaultProposeAppliesSlotCommand(t *testing.T) {
 	node := newDefaultSingleNode(t)
 	startNode(t, node)
 	t.Cleanup(func() { stopNodes(t, node) })
@@ -33,7 +33,7 @@ func TestClusterV2SingleNodeDefaultProposeAppliesSlotCommand(t *testing.T) {
 	}
 }
 
-func TestClusterV2SingleNodeChannelSubscriberMetadataFacade(t *testing.T) {
+func TestClusterSingleNodeChannelSubscriberMetadataFacade(t *testing.T) {
 	node := newDefaultSingleNode(t)
 	startNode(t, node)
 	t.Cleanup(func() { stopNodes(t, node) })
@@ -79,7 +79,7 @@ func TestClusterV2SingleNodeChannelSubscriberMetadataFacade(t *testing.T) {
 	}
 }
 
-func TestClusterV2ThreeNodeDefaultChannelsReplicateQuorumAppend(t *testing.T) {
+func TestClusterThreeNodeDefaultChannelsReplicateQuorumAppend(t *testing.T) {
 	channelID := channelv2.ChannelID{ID: "room-default-quorum", Type: 1}
 	nodes := newDefaultThreeNodeCluster(t)
 	startNodes(t, nodes...)
@@ -106,7 +106,7 @@ func TestClusterV2ThreeNodeDefaultChannelsReplicateQuorumAppend(t *testing.T) {
 	}
 }
 
-func TestClusterV2ThreeNodeDefaultChannelsReplicateToFollowerStore(t *testing.T) {
+func TestClusterThreeNodeDefaultChannelsReplicateToFollowerStore(t *testing.T) {
 	channelID := channelv2.ChannelID{ID: "room-default-follower-store", Type: 1}
 	nodes := newDefaultThreeNodeCluster(t)
 	startNodes(t, nodes...)

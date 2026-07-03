@@ -10,7 +10,7 @@ import (
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
-func TestClusterV2ChannelLatestFacadeUsesChannelHashSlot(t *testing.T) {
+func TestClusterChannelLatestFacadeUsesChannelHashSlot(t *testing.T) {
 	node := newDefaultSingleNode(t)
 	startNode(t, node)
 	t.Cleanup(func() { stopNodes(t, node) })
@@ -50,7 +50,7 @@ func TestClusterV2ChannelLatestFacadeUsesChannelHashSlot(t *testing.T) {
 	}
 }
 
-func TestClusterV2ChannelLatestBatchFacadeGroupsByPhysicalSlot(t *testing.T) {
+func TestClusterChannelLatestBatchFacadeGroupsByPhysicalSlot(t *testing.T) {
 	node := newDefaultSingleNode(t)
 	startNode(t, node)
 	t.Cleanup(func() { stopNodes(t, node) })
@@ -107,7 +107,7 @@ func TestClusterV2ChannelLatestBatchFacadeGroupsByPhysicalSlot(t *testing.T) {
 	}
 }
 
-func TestClusterV2GetChannelLatestBatchRoutesEachChannel(t *testing.T) {
+func TestClusterGetChannelLatestBatchRoutesEachChannel(t *testing.T) {
 	node := newDefaultSingleNode(t)
 	startNode(t, node)
 	t.Cleanup(func() { stopNodes(t, node) })

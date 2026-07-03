@@ -10,7 +10,7 @@ import (
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
-func TestClusterV2SingleNodeChannelMetadataFacadeDeletesAndRemovesSubscribers(t *testing.T) {
+func TestClusterSingleNodeChannelMetadataFacadeDeletesAndRemovesSubscribers(t *testing.T) {
 	node := newDefaultSingleNode(t)
 	startNode(t, node)
 	t.Cleanup(func() { stopNodes(t, node) })
@@ -50,7 +50,7 @@ func TestClusterV2SingleNodeChannelMetadataFacadeDeletesAndRemovesSubscribers(t 
 	}
 }
 
-func TestClusterV2SingleNodeUserMetadataFacadePersistsByUIDHashSlot(t *testing.T) {
+func TestClusterSingleNodeUserMetadataFacadePersistsByUIDHashSlot(t *testing.T) {
 	node := newDefaultSingleNode(t)
 	startNode(t, node)
 	t.Cleanup(func() { stopNodes(t, node) })
@@ -86,7 +86,7 @@ func TestClusterV2SingleNodeUserMetadataFacadePersistsByUIDHashSlot(t *testing.T
 	}
 }
 
-func TestClusterV2SingleNodePluginBindingFacadePersistsByUIDHashSlot(t *testing.T) {
+func TestClusterSingleNodePluginBindingFacadePersistsByUIDHashSlot(t *testing.T) {
 	node := newDefaultSingleNode(t)
 	startNode(t, node)
 	t.Cleanup(func() { stopNodes(t, node) })
@@ -125,7 +125,7 @@ func TestClusterV2SingleNodePluginBindingFacadePersistsByUIDHashSlot(t *testing.
 	}
 }
 
-func TestClusterV2PluginBindingPluginNoScanRoutesToSlotLeader(t *testing.T) {
+func TestClusterPluginBindingPluginNoScanRoutesToSlotLeader(t *testing.T) {
 	nodes := newDefaultThreeNodeCluster(t)
 	startNodes(t, nodes...)
 	t.Cleanup(func() { stopNodes(t, nodes...) })

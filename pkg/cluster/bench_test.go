@@ -17,7 +17,7 @@ import (
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
-var clusterV2BenchPayload = []byte("hello-cluster")
+var clusterBenchPayload = []byte("hello-cluster")
 
 func BenchmarkRouteKey(b *testing.B) {
 	router := newBenchRouter(b, 1)
@@ -49,7 +49,7 @@ func BenchmarkLocalPropose(b *testing.B) {
 	router := newBenchRouter(b, 1)
 	slots := &benchmarkSlotRuntime{localNode: 1, leader: 1}
 	service := propose.NewService(propose.Config{LocalNode: 1, Router: router, Slots: slots})
-	req := propose.Request{Key: "bench-user", Command: clusterV2BenchPayload}
+	req := propose.Request{Key: "bench-user", Command: clusterBenchPayload}
 	ctx := context.Background()
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -67,7 +67,7 @@ func BenchmarkForwardPropose(b *testing.B) {
 	network.Register(2, clusternet.RPCSlotForwardPropose, propose.NewForwardHandler(remoteSlots))
 	localSlots := &benchmarkSlotRuntime{localNode: 1, leader: 2}
 	service := propose.NewService(propose.Config{LocalNode: 1, Router: router, Slots: localSlots, Forward: propose.NewNetworkForwardClient(network)})
-	req := propose.Request{Key: "bench-user", Command: clusterV2BenchPayload}
+	req := propose.Request{Key: "bench-user", Command: clusterBenchPayload}
 	ctx := context.Background()
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -89,7 +89,7 @@ func BenchmarkChannelAppendLocal(b *testing.B) {
 			CommitMode:           channelv2.CommitModeLocal,
 			ExpectedChannelEpoch: 1,
 			ExpectedLeaderEpoch:  1,
-			Message:              channelv2.Message{MessageID: uint64(i + 1), Payload: clusterV2BenchPayload},
+			Message:              channelv2.Message{MessageID: uint64(i + 1), Payload: clusterBenchPayload},
 		})
 		if err != nil {
 			b.Fatal(err)
@@ -111,7 +111,7 @@ func BenchmarkChannelAppendLocalParallel(b *testing.B) {
 				CommitMode:           channelv2.CommitModeLocal,
 				ExpectedChannelEpoch: 1,
 				ExpectedLeaderEpoch:  1,
-				Message:              channelv2.Message{MessageID: messageID, Payload: clusterV2BenchPayload},
+				Message:              channelv2.Message{MessageID: messageID, Payload: clusterBenchPayload},
 			})
 			if err != nil {
 				b.Fatal(err)

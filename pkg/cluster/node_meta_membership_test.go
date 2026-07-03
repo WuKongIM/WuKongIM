@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-func TestClusterV2UserChannelMembershipFacadeUsesUIDHashSlot(t *testing.T) {
+func TestClusterUserChannelMembershipFacadeUsesUIDHashSlot(t *testing.T) {
 	node := newDefaultSingleNode(t)
 	startNode(t, node)
 	t.Cleanup(func() { stopNodes(t, node) })

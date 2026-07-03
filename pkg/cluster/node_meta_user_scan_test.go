@@ -8,7 +8,7 @@ import (
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
-func TestClusterV2SingleNodeScanUsersSlotPagePaginatesMetadata(t *testing.T) {
+func TestClusterSingleNodeScanUsersSlotPagePaginatesMetadata(t *testing.T) {
 	node := newDefaultSingleNode(t)
 	startNode(t, node)
 	t.Cleanup(func() { stopNodes(t, node) })
