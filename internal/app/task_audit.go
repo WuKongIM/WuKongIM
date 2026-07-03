@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -19,7 +20,11 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
-const controllerTaskAuditQueueSize = 1024
+const (
+	controllerTaskAuditQueueSize      = 1024
+	controllerTaskAuditFileName       = "controller-tasks.jsonl"
+	controllerTaskAuditLegacyFileName = "controller-" + "v2-tasks.jsonl"
+)
 
 // controllerTaskAuditRuntime adapts Controller task transitions to a bounded JSONL audit store.
 type controllerTaskAuditRuntime struct {
@@ -72,7 +77,21 @@ func controllerTaskAuditPath(dataDir string) string {
 	if dataDir == "" {
 		return ""
 	}
-	return filepath.Join(dataDir, "observability", "task-audit", "controller-v2-tasks.jsonl")
+	dir := filepath.Join(dataDir, "observability", "task-audit")
+	current := filepath.Join(dir, controllerTaskAuditFileName)
+	legacy := filepath.Join(dir, controllerTaskAuditLegacyFileName)
+	if fileExists(current) {
+		return current
+	}
+	if fileExists(legacy) {
+		return legacy
+	}
+	return current
+}
+
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }
 
 // ObserveControllerTaskTransitions records Controller task transitions without blocking Raft apply on file IO.

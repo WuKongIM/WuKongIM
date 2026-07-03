@@ -2,6 +2,8 @@ package app
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -18,7 +20,7 @@ import (
 
 func TestControllerTaskAuditRuntimeObservesTransitionsAndServesManagementReads(t *testing.T) {
 	ctx := context.Background()
-	audit := newControllerTaskAuditRuntime(t.TempDir()+"/controller-v2-tasks.jsonl", wklog.NewNop())
+	audit := newControllerTaskAuditRuntime(filepath.Join(t.TempDir(), controllerTaskAuditFileName), wklog.NewNop())
 	t.Cleanup(func() {
 		if err := audit.Close(); err != nil {
 			t.Fatalf("audit Close() error = %v", err)
@@ -87,6 +89,31 @@ func TestControllerTaskAuditRuntimeObservesTransitionsAndServesManagementReads(t
 	}
 	if timeline.Events[1].Type != "participant_progress" || timeline.Events[1].ParticipantNode != 4 {
 		t.Fatalf("second event = %+v, want participant_progress from node 4", timeline.Events[1])
+	}
+}
+
+func TestControllerTaskAuditPathUsesPromotedDefault(t *testing.T) {
+	dir := t.TempDir()
+
+	got := controllerTaskAuditPath(dir)
+	want := filepath.Join(dir, "observability", "task-audit", controllerTaskAuditFileName)
+	if got != want {
+		t.Fatalf("controllerTaskAuditPath() = %q, want %q", got, want)
+	}
+}
+
+func TestControllerTaskAuditPathUsesLegacyFileWhenOnlyLegacyExists(t *testing.T) {
+	dir := t.TempDir()
+	legacy := filepath.Join(dir, "observability", "task-audit", controllerTaskAuditLegacyFileName)
+	if err := os.MkdirAll(filepath.Dir(legacy), 0o755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	if err := os.WriteFile(legacy, nil, 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	if got := controllerTaskAuditPath(dir); got != legacy {
+		t.Fatalf("controllerTaskAuditPath() = %q, want legacy %q", got, legacy)
 	}
 }
 
@@ -198,7 +225,7 @@ func TestControllerTaskAuditBackfillsActiveTasksFromSnapshot(t *testing.T) {
 	}
 	app := &App{
 		cluster:             cluster,
-		controllerTaskAudit: newControllerTaskAuditRuntime(t.TempDir()+"/controller-v2-tasks.jsonl", wklog.NewNop()),
+		controllerTaskAudit: newControllerTaskAuditRuntime(filepath.Join(t.TempDir(), controllerTaskAuditFileName), wklog.NewNop()),
 		logger:              wklog.NewNop(),
 	}
 	t.Cleanup(func() {
@@ -226,7 +253,7 @@ func TestControllerTaskAuditRuntimeReportsOldestTaskAgeMetric(t *testing.T) {
 	ctx := context.Background()
 	reg := obsmetrics.New(1, "node-1")
 	now := time.Unix(100, 0).UTC()
-	audit := newControllerTaskAuditRuntime(t.TempDir()+"/controller-v2-tasks.jsonl", wklog.NewNop())
+	audit := newControllerTaskAuditRuntime(filepath.Join(t.TempDir(), controllerTaskAuditFileName), wklog.NewNop())
 	audit.metrics = reg
 	audit.opts.Now = func() time.Time { return now }
 	t.Cleanup(func() {

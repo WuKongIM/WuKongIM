@@ -14,7 +14,7 @@ import (
 
 func TestStoreAppendReplayAndQuery(t *testing.T) {
 	ctx := context.Background()
-	path := filepath.Join(t.TempDir(), "controller-v2-events.jsonl")
+	path := filepath.Join(t.TempDir(), "controller-events.jsonl")
 	store, err := Open(path, Options{})
 	require.NoError(t, err)
 	require.NoError(t, store.Append(ctx, testEvent("task-a", 10, EventCreated)))
@@ -40,7 +40,7 @@ func TestStoreAppendReplayAndQuery(t *testing.T) {
 
 func TestStoreRetainedSnapshotKeepsLatestStep(t *testing.T) {
 	ctx := context.Background()
-	path := filepath.Join(t.TempDir(), "controller-v2-events.jsonl")
+	path := filepath.Join(t.TempDir(), "controller-events.jsonl")
 	store, err := Open(path, Options{})
 	require.NoError(t, err)
 	require.NoError(t, store.Append(ctx, testEventWithStep("task-a", 10, EventCreated, "open_learner")))
@@ -59,7 +59,7 @@ func TestStoreRetainedSnapshotKeepsLatestStep(t *testing.T) {
 
 func TestStoreRetentionKeepsLatestTasksAndEvents(t *testing.T) {
 	ctx := context.Background()
-	store, err := Open(filepath.Join(t.TempDir(), "controller-v2-events.jsonl"), Options{})
+	store, err := Open(filepath.Join(t.TempDir(), "controller-events.jsonl"), Options{})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, store.Close()) })
 
@@ -88,7 +88,7 @@ func TestStoreRetentionKeepsLatestTasksAndEvents(t *testing.T) {
 
 func TestStoreRetentionCompactsJSONLWhenTasksAreDropped(t *testing.T) {
 	ctx := context.Background()
-	path := filepath.Join(t.TempDir(), "controller-v2-events.jsonl")
+	path := filepath.Join(t.TempDir(), "controller-events.jsonl")
 	store, err := Open(path, Options{MaxTasks: 2, MaxEventsPerTask: 5})
 	require.NoError(t, err)
 
@@ -112,7 +112,7 @@ func TestStoreRetentionCompactsJSONLWhenTasksAreDropped(t *testing.T) {
 
 func TestStoreSkipsCorruptJSONLLines(t *testing.T) {
 	ctx := context.Background()
-	path := filepath.Join(t.TempDir(), "controller-v2-events.jsonl")
+	path := filepath.Join(t.TempDir(), "controller-events.jsonl")
 	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
 	require.NoError(t, os.WriteFile(path, []byte(`{"event_id":"event-ok","task_id":"task-ok","type":"created","kind":"bootstrap","status":"pending","applied_raft_index":7,"occurred_at":"2026-06-29T10:00:00Z"}`+"\nnot-json\n"), 0o644))
 
@@ -128,7 +128,7 @@ func TestStoreSkipsCorruptJSONLLines(t *testing.T) {
 
 func TestStoreAppendDuplicateDoesNotWriteJSONL(t *testing.T) {
 	ctx := context.Background()
-	path := filepath.Join(t.TempDir(), "controller-v2-events.jsonl")
+	path := filepath.Join(t.TempDir(), "controller-events.jsonl")
 	store, err := Open(path, Options{})
 	require.NoError(t, err)
 	event := testEvent("task-a", 1, EventCreated)
@@ -142,7 +142,7 @@ func TestStoreAppendDuplicateDoesNotWriteJSONL(t *testing.T) {
 
 func TestStoreCompactionSerializesWithAppend(t *testing.T) {
 	ctx := context.Background()
-	path := filepath.Join(t.TempDir(), "controller-v2-events.jsonl")
+	path := filepath.Join(t.TempDir(), "controller-events.jsonl")
 	store, err := Open(path, Options{})
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = store.Close() })

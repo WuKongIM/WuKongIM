@@ -80,7 +80,7 @@ New(Config)
        Observability.DebugAPIEnabled=true
   -> when an effective node data dir is configured:
        create the app-owned Controller task audit runtime at
-       `observability/task-audit/controller-v2-tasks.jsonl`, combine its
+       `observability/task-audit/controller-tasks.jsonl`, combine its
        bounded nonblocking `TaskTransitionObserver` into cluster control
        config, and keep JSONL retention local to internal observability
        rather than `pkg/db/meta` or legacy `pkg/controller`
