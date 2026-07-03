@@ -18,7 +18,7 @@ func (a *Adapter) HandleManagerControllerRaftRPC(ctx context.Context, payload []
 	req, err := decodeManagerControllerRaftRequest(payload)
 	if err != nil {
 		a.rpcLogger().Warn("manager controller raft rpc decode failed",
-			wklog.Event("internalv2.access.node.manager_controller_raft_decode_failed"),
+			wklog.Event("internal.access.node.manager_controller_raft_decode_failed"),
 			wklog.Int("payloadBytes", len(payload)),
 			wklog.Error(err),
 		)
@@ -39,9 +39,9 @@ func (a *Adapter) HandleManagerControllerRaftRPC(ctx context.Context, payload []
 		a.logManagerControllerRaftError(req, rpcStatus, err)
 		return encodeManagerControllerRaftResponse(managerControllerRaftRPCResponse{Status: rpcStatus, Compaction: result})
 	default:
-		err := fmt.Errorf("internalv2/access/node: unknown manager controller raft op %q", req.Op)
+		err := fmt.Errorf("internal/access/node: unknown manager controller raft op %q", req.Op)
 		a.rpcLogger().Warn("manager controller raft rpc unknown operation",
-			wklog.Event("internalv2.access.node.manager_controller_raft_unknown_op"),
+			wklog.Event("internal.access.node.manager_controller_raft_unknown_op"),
 			wklog.String("op", req.Op),
 			wklog.Error(err),
 		)
@@ -75,7 +75,7 @@ func (c *Client) CompactManagerControllerRaftLog(ctx context.Context, nodeID uin
 
 func (c *Client) callManagerControllerRaft(ctx context.Context, nodeID uint64, req managerControllerRaftRPCRequest) (managerControllerRaftRPCResponse, error) {
 	if c == nil || c.node == nil {
-		return managerControllerRaftRPCResponse{}, fmt.Errorf("internalv2/access/node: manager controller raft rpc client not configured")
+		return managerControllerRaftRPCResponse{}, fmt.Errorf("internal/access/node: manager controller raft rpc client not configured")
 	}
 	body, err := encodeManagerControllerRaftRequest(req)
 	if err != nil {
@@ -114,7 +114,7 @@ func managerControllerRaftRPCErrorForStatus(status string) error {
 	case rpcStatusRejected:
 		return managementusecase.ErrControllerRaftOperatorUnavailable
 	default:
-		return fmt.Errorf("internalv2/access/node: unknown manager controller raft rpc status %q", status)
+		return fmt.Errorf("internal/access/node: unknown manager controller raft rpc status %q", status)
 	}
 }
 
@@ -123,7 +123,7 @@ func (a *Adapter) logManagerControllerRaftError(req managerControllerRaftRPCRequ
 		return
 	}
 	a.rpcLogger().Warn("manager controller raft rpc rejected",
-		wklog.Event("internalv2.access.node.manager_controller_raft_rejected"),
+		wklog.Event("internal.access.node.manager_controller_raft_rejected"),
 		wklog.String("op", req.Op),
 		wklog.String("status", status),
 		wklog.Uint64("nodeID", req.NodeID),

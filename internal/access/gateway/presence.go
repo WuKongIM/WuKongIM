@@ -108,7 +108,7 @@ var _ presence.SessionHandle = gatewayPresenceSession{}
 func (s gatewayPresenceSession) WriteDelivery(payload any) error {
 	f, ok := payload.(frame.Frame)
 	if !ok {
-		return errors.New("internalv2/access/gateway: delivery payload must be a frame")
+		return errors.New("internal/access/gateway: delivery payload must be a frame")
 	}
 	if s.ctx == nil || s.ctx.Session == nil {
 		return session.ErrSessionClosed

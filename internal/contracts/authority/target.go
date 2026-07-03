@@ -4,7 +4,7 @@ import "errors"
 
 var (
 	// ErrInvalidTarget reports a missing or unusable UID authority target.
-	ErrInvalidTarget = errors.New("internalv2/contracts/authority: invalid target")
+	ErrInvalidTarget = errors.New("internal/contracts/authority: invalid target")
 )
 
 // Target fences work to one observed UID hash-slot authority.

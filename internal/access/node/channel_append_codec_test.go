@@ -160,7 +160,7 @@ func TestChannelAppendCodecResultErrorsPreserveStableStatuses(t *testing.T) {
 					t.Fatalf("Err = %v, want nil", got.Results[0].Err)
 				}
 			default:
-				if got.Results[0].Err == nil || got.Results[0].Err.Error() != "internalv2/access/node: boom" {
+				if got.Results[0].Err == nil || got.Results[0].Err.Error() != "internal/access/node: boom" {
 					t.Fatalf("Err = %v, want rejected message", got.Results[0].Err)
 				}
 			}

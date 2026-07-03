@@ -50,7 +50,7 @@ func encodeDeliveryPushRequest(req deliveryPushRequest) ([]byte, error) {
 
 func decodeDeliveryPushRequest(body []byte) (deliveryPushRequest, error) {
 	if !hasMagic(body, deliveryRPCRequestMagic[:]) {
-		return deliveryPushRequest{}, fmt.Errorf("internalv2/access/node: invalid delivery request codec")
+		return deliveryPushRequest{}, fmt.Errorf("internal/access/node: invalid delivery request codec")
 	}
 	offset := len(deliveryRPCRequestMagic)
 	var req deliveryPushRequest
@@ -59,7 +59,7 @@ func decodeDeliveryPushRequest(body []byte) (deliveryPushRequest, error) {
 		return deliveryPushRequest{}, err
 	}
 	if offset != len(body) {
-		return deliveryPushRequest{}, fmt.Errorf("internalv2/access/node: trailing delivery request bytes")
+		return deliveryPushRequest{}, fmt.Errorf("internal/access/node: trailing delivery request bytes")
 	}
 	return req, nil
 }
@@ -74,7 +74,7 @@ func encodeDeliveryPushResponse(resp deliveryPushResponse) ([]byte, error) {
 
 func decodeDeliveryPushResponse(body []byte) (deliveryPushResponse, error) {
 	if !hasMagic(body, deliveryRPCResponseMagic[:]) {
-		return deliveryPushResponse{}, fmt.Errorf("internalv2/access/node: invalid delivery response codec")
+		return deliveryPushResponse{}, fmt.Errorf("internal/access/node: invalid delivery response codec")
 	}
 	offset := len(deliveryRPCResponseMagic)
 	var resp deliveryPushResponse
@@ -86,7 +86,7 @@ func decodeDeliveryPushResponse(body []byte) (deliveryPushResponse, error) {
 		return deliveryPushResponse{}, err
 	}
 	if offset != len(body) {
-		return deliveryPushResponse{}, fmt.Errorf("internalv2/access/node: trailing delivery response bytes")
+		return deliveryPushResponse{}, fmt.Errorf("internal/access/node: trailing delivery response bytes")
 	}
 	return resp, nil
 }
@@ -100,7 +100,7 @@ func encodeDeliveryFanoutRequest(req deliveryFanoutRequest) ([]byte, error) {
 
 func decodeDeliveryFanoutRequest(body []byte) (deliveryFanoutRequest, error) {
 	if !hasMagic(body, deliveryFanoutRequestMagic[:]) {
-		return deliveryFanoutRequest{}, fmt.Errorf("internalv2/access/node: invalid delivery fanout request codec")
+		return deliveryFanoutRequest{}, fmt.Errorf("internal/access/node: invalid delivery fanout request codec")
 	}
 	offset := len(deliveryFanoutRequestMagic)
 	var req deliveryFanoutRequest
@@ -109,7 +109,7 @@ func decodeDeliveryFanoutRequest(body []byte) (deliveryFanoutRequest, error) {
 		return deliveryFanoutRequest{}, err
 	}
 	if offset != len(body) {
-		return deliveryFanoutRequest{}, fmt.Errorf("internalv2/access/node: trailing delivery fanout request bytes")
+		return deliveryFanoutRequest{}, fmt.Errorf("internal/access/node: trailing delivery fanout request bytes")
 	}
 	return req, nil
 }
@@ -123,7 +123,7 @@ func encodeDeliveryFanoutResponse(resp deliveryFanoutResponse) ([]byte, error) {
 
 func decodeDeliveryFanoutResponse(body []byte) (deliveryFanoutResponse, error) {
 	if !hasMagic(body, deliveryFanoutResponseMagic[:]) {
-		return deliveryFanoutResponse{}, fmt.Errorf("internalv2/access/node: invalid delivery fanout response codec")
+		return deliveryFanoutResponse{}, fmt.Errorf("internal/access/node: invalid delivery fanout response codec")
 	}
 	offset := len(deliveryFanoutResponseMagic)
 	var resp deliveryFanoutResponse
@@ -132,7 +132,7 @@ func decodeDeliveryFanoutResponse(body []byte) (deliveryFanoutResponse, error) {
 		return deliveryFanoutResponse{}, err
 	}
 	if offset != len(body) {
-		return deliveryFanoutResponse{}, fmt.Errorf("internalv2/access/node: trailing delivery fanout response bytes")
+		return deliveryFanoutResponse{}, fmt.Errorf("internal/access/node: trailing delivery fanout response bytes")
 	}
 	return resp, nil
 }
@@ -269,7 +269,7 @@ func readDeliveryEnvelope(body []byte, offset int) (runtimedelivery.Envelope, in
 	case 1:
 		env.RedDot = true
 	default:
-		return runtimedelivery.Envelope{}, offset, fmt.Errorf("internalv2/access/node: invalid delivery red dot flag")
+		return runtimedelivery.Envelope{}, offset, fmt.Errorf("internal/access/node: invalid delivery red dot flag")
 	}
 	if env.Payload, offset, err = readBytes(body, offset); err != nil {
 		return runtimedelivery.Envelope{}, offset, err
@@ -385,7 +385,7 @@ func readBytes(body []byte, offset int) ([]byte, int, error) {
 	}
 	offset = next
 	if n > uint64(len(body)-offset) {
-		return nil, offset, fmt.Errorf("internalv2/access/node: short bytes")
+		return nil, offset, fmt.Errorf("internal/access/node: short bytes")
 	}
 	if n == 0 {
 		return nil, offset, nil
@@ -427,10 +427,10 @@ func readStringSlice(body []byte, offset int, label string) ([]string, int, erro
 
 func validateDeliveryCollectionLen(count uint64, remaining int, label string) error {
 	if count > uint64(remaining) {
-		return fmt.Errorf("internalv2/access/node: %s length exceeds payload", label)
+		return fmt.Errorf("internal/access/node: %s length exceeds payload", label)
 	}
 	if count > maxDeliveryRPCCollectionLen {
-		return fmt.Errorf("internalv2/access/node: %s length exceeds limit", label)
+		return fmt.Errorf("internal/access/node: %s length exceeds limit", label)
 	}
 	return nil
 }

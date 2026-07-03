@@ -9,7 +9,7 @@ import (
 )
 
 // ErrApplicationLogReaderUnavailable reports that ordinary application log inspection is not wired.
-var ErrApplicationLogReaderUnavailable = errors.New("internalv2/usecase/management: application log reader unavailable")
+var ErrApplicationLogReaderUnavailable = errors.New("internal/usecase/management: application log reader unavailable")
 
 // ApplicationLogReader exposes selected-node ordinary application log sources and entries.
 type ApplicationLogReader interface {

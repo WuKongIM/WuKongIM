@@ -216,7 +216,7 @@ For gateway SEND, keep frame cloning, session-close policy, and
 `SendBatchHandler` fallback in gateway; use `ShardedMailbox` only for sharded
 mailbox scheduling if the benchmark comparison stays neutral or better.
 
-For `internalv2/runtime/channelappend`, keep `channelWriter` and `channelState`
+For `internal/runtime/channelappend`, keep `channelWriter` and `channelState`
 ownership unchanged. At most replace shared worker-pool mechanics after the
 typed writer tests and benchmarks have a stable baseline.
 

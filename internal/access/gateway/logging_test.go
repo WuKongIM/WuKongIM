@@ -69,7 +69,7 @@ func (r *recordingLogger) entries() []recordedLogEntry {
 }
 
 func TestHandlerLogsListenerAndSessionErrors(t *testing.T) {
-	logger := newRecordingLogger("internalv2.access.gateway")
+	logger := newRecordingLogger("internal.access.gateway")
 	handler := New(Options{Logger: logger})
 	listenerErr := errors.New("accept failed")
 	sessionErr := errors.New("decode failed")
@@ -79,15 +79,15 @@ func TestHandlerLogsListenerAndSessionErrors(t *testing.T) {
 	handler.OnListenerError("tcp", listenerErr)
 	handler.OnSessionError(coregateway.Context{Session: sess}, sessionErr)
 
-	requireLogEntry(t, logger, "ERROR", "internalv2.access.gateway.conn", "internalv2.access.gateway.listener_error")
-	sessionEntry := requireLogEntry(t, logger, "WARN", "internalv2.access.gateway.conn", "internalv2.access.gateway.session_error")
+	requireLogEntry(t, logger, "ERROR", "internal.access.gateway.conn", "internal.access.gateway.listener_error")
+	sessionEntry := requireLogEntry(t, logger, "WARN", "internal.access.gateway.conn", "internal.access.gateway.session_error")
 	if got := requireFieldValue[string](t, sessionEntry, "uid"); got != "u1" {
 		t.Fatalf("uid field = %q, want u1", got)
 	}
 }
 
 func TestHandlerLogsPresenceAndDeliveryCleanupFailures(t *testing.T) {
-	logger := newRecordingLogger("internalv2.access.gateway")
+	logger := newRecordingLogger("internal.access.gateway")
 	presenceErr := errors.New("presence cleanup failed")
 	deliveryErr := errors.New("delivery cleanup failed")
 	sess := newTestSession(t, nil)
@@ -103,15 +103,15 @@ func TestHandlerLogsPresenceAndDeliveryCleanupFailures(t *testing.T) {
 	handler.touchPresence(&coregateway.Context{Session: sess, RequestContext: context.Background()}, time.Unix(100, 0))
 	_ = handler.handleRecvack(&coregateway.Context{Session: sess, RequestContext: context.Background()}, &frame.RecvackPacket{MessageID: 1})
 
-	requireLogEntry(t, logger, "WARN", "internalv2.access.gateway.conn", "internalv2.access.gateway.session_close_presence_failed")
-	requireLogEntry(t, logger, "WARN", "internalv2.access.gateway.conn", "internalv2.access.gateway.session_close_delivery_failed")
-	requireLogEntry(t, logger, "WARN", "internalv2.access.gateway.conn", "internalv2.access.gateway.activation_rollback_failed")
-	requireLogEntry(t, logger, "WARN", "internalv2.access.gateway.frame", "internalv2.access.gateway.presence_touch_failed")
-	requireLogEntry(t, logger, "WARN", "internalv2.access.gateway.frame", "internalv2.access.gateway.recvack_failed")
+	requireLogEntry(t, logger, "WARN", "internal.access.gateway.conn", "internal.access.gateway.session_close_presence_failed")
+	requireLogEntry(t, logger, "WARN", "internal.access.gateway.conn", "internal.access.gateway.session_close_delivery_failed")
+	requireLogEntry(t, logger, "WARN", "internal.access.gateway.conn", "internal.access.gateway.activation_rollback_failed")
+	requireLogEntry(t, logger, "WARN", "internal.access.gateway.frame", "internal.access.gateway.presence_touch_failed")
+	requireLogEntry(t, logger, "WARN", "internal.access.gateway.frame", "internal.access.gateway.recvack_failed")
 }
 
 func TestOnSendBatchLogsResultCountMismatch(t *testing.T) {
-	logger := newRecordingLogger("internalv2.access.gateway")
+	logger := newRecordingLogger("internal.access.gateway")
 	var written []frame.Frame
 	sess := newTestSession(t, &written)
 	sess.SetValue(coregateway.SessionValueUID, "u1")
@@ -134,7 +134,7 @@ func TestOnSendBatchLogsResultCountMismatch(t *testing.T) {
 	if !errors.Is(err, ErrSendBatchResultCountMismatch) {
 		t.Fatalf("OnSendBatch() error = %v, want %v", err, ErrSendBatchResultCountMismatch)
 	}
-	requireLogEntry(t, logger, "ERROR", "internalv2.access.gateway.frame", "internalv2.access.gateway.send_batch_result_count_mismatch")
+	requireLogEntry(t, logger, "ERROR", "internal.access.gateway.frame", "internal.access.gateway.send_batch_result_count_mismatch")
 }
 
 func requireLogEntry(t *testing.T, logger *recordingLogger, level, module, event string) recordedLogEntry {

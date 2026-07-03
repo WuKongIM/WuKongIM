@@ -125,9 +125,9 @@ func (l *seedJoinLoop) WaitForAdmission(ctx context.Context) error {
 		}
 		if !waitSeedJoinDelay(ctx, delay) {
 			if err := ctx.Err(); err != nil {
-				return fmt.Errorf("internalv2/app: seed join admission: %w", err)
+				return fmt.Errorf("internal/app: seed join admission: %w", err)
 			}
-			return fmt.Errorf("internalv2/app: seed join admission canceled")
+			return fmt.Errorf("internal/app: seed join admission canceled")
 		}
 	}
 }
@@ -171,7 +171,7 @@ func (l *seedJoinLoop) run(ctx context.Context) {
 			if _, err := l.client.JoinNode(ctx, seedNodeID, l.joinRequest()); err != nil {
 				hadError = true
 				l.logger.Warn("seed join attempt failed",
-					wklog.Event("internalv2.app.seed_join_failed"),
+					wklog.Event("internal.app.seed_join_failed"),
 					wklog.Uint64("seedNodeID", seedNodeID),
 					wklog.Uint64("nodeID", l.cfg.NodeID),
 					wklog.Error(err),
@@ -233,7 +233,7 @@ func (l *seedJoinLoop) joinObserved(ctx context.Context) bool {
 	snapshot, err := l.snapshots.LocalControlSnapshot(ctx)
 	if err != nil {
 		l.logger.Debug("seed join snapshot read failed",
-			wklog.Event("internalv2.app.seed_join_snapshot_failed"),
+			wklog.Event("internal.app.seed_join_snapshot_failed"),
 			wklog.Uint64("nodeID", l.cfg.NodeID),
 			wklog.Error(err),
 		)
@@ -393,7 +393,7 @@ func (a *App) ControllerVoterReadiness(ctx context.Context, req accessnode.Contr
 // PrepareControllerVoter prepares this node for Controller Raft traffic and returns best-effort local status.
 func (a *App) PrepareControllerVoter(ctx context.Context, req accessnode.PrepareControllerVoterRequest) (accessnode.PrepareControllerVoterResponse, error) {
 	if a == nil || a.cluster == nil {
-		return accessnode.PrepareControllerVoterResponse{}, fmt.Errorf("internalv2/app: cluster not configured")
+		return accessnode.PrepareControllerVoterResponse{}, fmt.Errorf("internal/app: cluster not configured")
 	}
 	node, ok := a.cluster.(controllerVoterPreparationNode)
 	if !ok || node == nil {

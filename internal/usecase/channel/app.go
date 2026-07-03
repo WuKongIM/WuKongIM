@@ -9,7 +9,7 @@ import (
 )
 
 // ErrStoreRequired indicates that the channel usecase has no storage backend.
-var ErrStoreRequired = errors.New("internalv2/usecase/channel: store required")
+var ErrStoreRequired = errors.New("internal/usecase/channel: store required")
 
 const (
 	defaultSubscriberPageLimit           = 1000

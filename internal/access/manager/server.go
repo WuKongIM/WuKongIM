@@ -17,7 +17,7 @@ import (
 )
 
 // ErrListenAddrRequired reports that the manager listen address is missing.
-var ErrListenAddrRequired = errors.New("internalv2/access/manager: listen address required")
+var ErrListenAddrRequired = errors.New("internal/access/manager: listen address required")
 
 // PermissionConfig binds a manager resource to allowed actions.
 type PermissionConfig struct {
@@ -294,7 +294,7 @@ func (s *Server) Start() error {
 	go func() {
 		if serveErr := httpServer.Serve(ln); serveErr != nil && !errors.Is(serveErr, http.ErrServerClosed) {
 			s.httpLogger().Error("manager http serve failed",
-				wklog.Event("internalv2.access.manager.serve_failed"),
+				wklog.Event("internal.access.manager.serve_failed"),
 				wklog.String("addr", s.Addr()),
 				wklog.Error(serveErr),
 			)

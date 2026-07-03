@@ -53,7 +53,7 @@ func (r *recordingNodeLogger) log(level string, fields ...wklog.Field) {
 }
 
 func TestPresenceRPCLogsDecodeAndRejectedErrors(t *testing.T) {
-	logger := newRecordingNodeLogger("internalv2.access.node")
+	logger := newRecordingNodeLogger("internal.access.node")
 	authority := newFakePresenceAuthority()
 	authority.registerErr = errors.New("store unavailable")
 	adapter := New(Options{Authority: authority, Logger: logger})
@@ -61,7 +61,7 @@ func TestPresenceRPCLogsDecodeAndRejectedErrors(t *testing.T) {
 	if _, err := adapter.HandlePresenceAuthorityRPC(context.Background(), []byte("bad")); err == nil {
 		t.Fatal("HandlePresenceAuthorityRPC() error = nil, want decode error")
 	}
-	requireNodeLogEntry(t, logger, "WARN", "internalv2.access.node.rpc", "internalv2.access.node.presence_authority_decode_failed")
+	requireNodeLogEntry(t, logger, "WARN", "internal.access.node.rpc", "internal.access.node.presence_authority_decode_failed")
 
 	body, err := encodePresenceRPCRequestBinary(presenceRPCRequest{
 		Op:     presenceOpRegisterRoute,
@@ -82,11 +82,11 @@ func TestPresenceRPCLogsDecodeAndRejectedErrors(t *testing.T) {
 	if resp.Status != rpcStatusRejected {
 		t.Fatalf("status = %q, want %q", resp.Status, rpcStatusRejected)
 	}
-	requireNodeLogEntry(t, logger, "WARN", "internalv2.access.node.rpc", "internalv2.access.node.presence_authority_rejected")
+	requireNodeLogEntry(t, logger, "WARN", "internal.access.node.rpc", "internal.access.node.presence_authority_rejected")
 }
 
 func TestDeliveryRPCLogsRejectedPushAndFanout(t *testing.T) {
-	logger := newRecordingNodeLogger("internalv2.access.node")
+	logger := newRecordingNodeLogger("internal.access.node")
 	pushErr := errors.New("owner push failed")
 	fanoutErr := errors.New("fanout failed")
 	adapter := New(Options{
@@ -102,7 +102,7 @@ func TestDeliveryRPCLogsRejectedPushAndFanout(t *testing.T) {
 	if _, err := adapter.HandleDeliveryPushRPC(context.Background(), pushBody); err != nil {
 		t.Fatalf("HandleDeliveryPushRPC() error = %v", err)
 	}
-	requireNodeLogEntry(t, logger, "WARN", "internalv2.access.node.rpc", "internalv2.access.node.delivery_push_rejected")
+	requireNodeLogEntry(t, logger, "WARN", "internal.access.node.rpc", "internal.access.node.delivery_push_rejected")
 
 	fanoutBody, err := encodeDeliveryFanoutRequest(deliveryFanoutRequest{Task: runtimedelivery.FanoutTask{Envelope: testDeliveryPushCommand().Envelope}})
 	if err != nil {
@@ -111,7 +111,7 @@ func TestDeliveryRPCLogsRejectedPushAndFanout(t *testing.T) {
 	if _, err := adapter.HandleDeliveryFanoutRPC(context.Background(), fanoutBody); err != nil {
 		t.Fatalf("HandleDeliveryFanoutRPC() error = %v", err)
 	}
-	requireNodeLogEntry(t, logger, "WARN", "internalv2.access.node.rpc", "internalv2.access.node.delivery_fanout_rejected")
+	requireNodeLogEntry(t, logger, "WARN", "internal.access.node.rpc", "internal.access.node.delivery_fanout_rejected")
 }
 
 func requireNodeLogEntry(t *testing.T, logger *recordingNodeLogger, level, module, event string) recordedNodeLogEntry {

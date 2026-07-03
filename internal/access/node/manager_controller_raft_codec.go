@@ -40,7 +40,7 @@ func encodeManagerControllerRaftRequest(req managerControllerRaftRPCRequest) ([]
 
 func decodeManagerControllerRaftRequest(body []byte) (managerControllerRaftRPCRequest, error) {
 	if !hasMagic(body, managerControllerRaftRequestMagic[:]) {
-		return managerControllerRaftRPCRequest{}, fmt.Errorf("internalv2/access/node: invalid manager controller raft request codec")
+		return managerControllerRaftRPCRequest{}, fmt.Errorf("internal/access/node: invalid manager controller raft request codec")
 	}
 	var req managerControllerRaftRPCRequest
 	if err := json.Unmarshal(body[len(managerControllerRaftRequestMagic):], &req); err != nil {
@@ -61,7 +61,7 @@ func encodeManagerControllerRaftResponse(resp managerControllerRaftRPCResponse) 
 
 func decodeManagerControllerRaftResponse(body []byte) (managerControllerRaftRPCResponse, error) {
 	if !hasMagic(body, managerControllerRaftResponseMagic[:]) {
-		return managerControllerRaftRPCResponse{}, fmt.Errorf("internalv2/access/node: invalid manager controller raft response codec")
+		return managerControllerRaftRPCResponse{}, fmt.Errorf("internal/access/node: invalid manager controller raft response codec")
 	}
 	var resp managerControllerRaftRPCResponse
 	if err := json.Unmarshal(body[len(managerControllerRaftResponseMagic):], &resp); err != nil {

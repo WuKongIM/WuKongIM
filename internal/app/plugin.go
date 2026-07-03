@@ -106,14 +106,14 @@ func (a *App) wirePluginSubsystem(nodeID uint64) error {
 	}
 	plugins, err := pluginusecase.NewApp(pluginOptions)
 	if err != nil {
-		return fmt.Errorf("internalv2/app: create plugin usecase: %w", err)
+		return fmt.Errorf("internal/app: create plugin usecase: %w", err)
 	}
 	if _, err := accessplugin.NewServer(accessplugin.Options{
 		Routes:  socket,
 		Usecase: plugins,
 		Timeout: a.cfg.Plugin.Timeout,
 	}); err != nil {
-		return fmt.Errorf("internalv2/app: create plugin host rpc server: %w", err)
+		return fmt.Errorf("internal/app: create plugin host rpc server: %w", err)
 	}
 
 	hook := pluginhook.NewWorker(pluginhook.Options{

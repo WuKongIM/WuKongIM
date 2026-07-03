@@ -25,7 +25,7 @@ const (
 	channelAppendTraceErrorCodeOther           = "other"
 )
 
-var errChannelAppendResultMissing = errors.New("internalv2/infra/cluster: append result missing")
+var errChannelAppendResultMissing = errors.New("internal/infra/cluster: append result missing")
 
 // ChannelAppendNode is the cluster append surface used by internal.
 type ChannelAppendNode interface {
@@ -90,7 +90,7 @@ func (a *ChannelAppender) logAppendChannelBatchError(req channelappend.AppendBat
 	logger := a.loggerOrNop()
 	traceResult, errorCode := channelAppendTraceOutcome(mappedErr)
 	logger.Error("channel append batch failed",
-		wklog.Event("internalv2.infra.cluster.channel_append_batch_failed"),
+		wklog.Event("internal.infra.cluster.channel_append_batch_failed"),
 		wklog.ChannelID(req.ChannelID.ID),
 		wklog.ChannelType(int64(req.ChannelID.Type)),
 		wklog.String("channelKey", req.ChannelKey),

@@ -473,7 +473,7 @@ func (a *App) logLifecycleError(component, phase string, err error) {
 		return
 	}
 	a.lifecycleLogger().Error("app lifecycle component failed",
-		wklog.Event("internalv2.app.lifecycle_start_failed"),
+		wklog.Event("internal.app.lifecycle_start_failed"),
 		wklog.String("component", component),
 		wklog.String("phase", phase),
 		wklog.Error(err),
@@ -484,9 +484,9 @@ func (a *App) logLifecycleWarn(component, phase string, err error) {
 	if err == nil {
 		return
 	}
-	event := "internalv2.app.lifecycle_stop_failed"
+	event := "internal.app.lifecycle_stop_failed"
 	if phase == "rollback_stop" {
-		event = "internalv2.app.lifecycle_rollback_failed"
+		event = "internal.app.lifecycle_rollback_failed"
 	}
 	a.lifecycleLogger().Warn("app lifecycle component stop failed",
 		wklog.Event(event),
@@ -554,9 +554,9 @@ func (a *App) waitClusterWriteReady(ctx context.Context) error {
 		select {
 		case <-waitCtx.Done():
 			if lastErr != nil {
-				return fmt.Errorf("internalv2/app: cluster write readiness: %w", lastErr)
+				return fmt.Errorf("internal/app: cluster write readiness: %w", lastErr)
 			}
-			return fmt.Errorf("internalv2/app: cluster write readiness: %w", waitCtx.Err())
+			return fmt.Errorf("internal/app: cluster write readiness: %w", waitCtx.Err())
 		case <-ticker.C:
 		}
 	}

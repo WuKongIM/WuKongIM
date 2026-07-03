@@ -91,7 +91,7 @@ func (r *controllerTaskAuditRuntime) ObserveControllerTaskTransitions(transition
 	case r.queue <- events:
 	default:
 		r.logger.Warn("controller task audit queue full; dropping task transition events",
-			wklog.Event("internalv2.app.controller_task_audit_queue_full"),
+			wklog.Event("internal.app.controller_task_audit_queue_full"),
 			wklog.Int("events", len(events)),
 		)
 	}
@@ -186,7 +186,7 @@ func (r *controllerTaskAuditRuntime) run() {
 	for events := range r.queue {
 		if err := r.appendEvents(context.Background(), events); err != nil {
 			r.logger.Warn("controller task audit append failed",
-				wklog.Event("internalv2.app.controller_task_audit_append_failed"),
+				wklog.Event("internal.app.controller_task_audit_append_failed"),
 				wklog.Error(err),
 			)
 		}

@@ -58,7 +58,7 @@ func encodeManagerAppLogRequest(req managerAppLogRPCRequest) ([]byte, error) {
 
 func decodeManagerAppLogRequest(body []byte) (managerAppLogRPCRequest, error) {
 	if !hasMagic(body, managerAppLogRequestMagic[:]) {
-		return managerAppLogRPCRequest{}, fmt.Errorf("internalv2/access/node: invalid manager app log request codec")
+		return managerAppLogRPCRequest{}, fmt.Errorf("internal/access/node: invalid manager app log request codec")
 	}
 	offset := len(managerAppLogRequestMagic)
 	opID, offset, err := readByte(body, offset, "manager app log op")
@@ -92,10 +92,10 @@ func decodeManagerAppLogRequest(body []byte) (managerAppLogRPCRequest, error) {
 		return managerAppLogRPCRequest{}, err
 	}
 	if len(req.Levels) > maxManagerAppLogRPCCollectionLen {
-		return managerAppLogRPCRequest{}, fmt.Errorf("internalv2/access/node: too many manager app log levels: %d", len(req.Levels))
+		return managerAppLogRPCRequest{}, fmt.Errorf("internal/access/node: too many manager app log levels: %d", len(req.Levels))
 	}
 	if offset != len(body) {
-		return managerAppLogRPCRequest{}, fmt.Errorf("internalv2/access/node: trailing manager app log request bytes")
+		return managerAppLogRPCRequest{}, fmt.Errorf("internal/access/node: trailing manager app log request bytes")
 	}
 	return req, nil
 }
@@ -113,7 +113,7 @@ func encodeManagerAppLogResponse(resp managerAppLogRPCResponse) ([]byte, error) 
 
 func decodeManagerAppLogResponse(body []byte) (managerAppLogRPCResponse, error) {
 	if !hasMagic(body, managerAppLogResponseMagic[:]) {
-		return managerAppLogRPCResponse{}, fmt.Errorf("internalv2/access/node: invalid manager app log response codec")
+		return managerAppLogRPCResponse{}, fmt.Errorf("internal/access/node: invalid manager app log response codec")
 	}
 	offset := len(managerAppLogResponseMagic)
 	var resp managerAppLogRPCResponse
@@ -128,7 +128,7 @@ func decodeManagerAppLogResponse(body []byte) (managerAppLogRPCResponse, error) 
 		return managerAppLogRPCResponse{}, err
 	}
 	if offset != len(body) {
-		return managerAppLogRPCResponse{}, fmt.Errorf("internalv2/access/node: trailing manager app log response bytes")
+		return managerAppLogRPCResponse{}, fmt.Errorf("internal/access/node: trailing manager app log response bytes")
 	}
 	return resp, nil
 }
@@ -157,7 +157,7 @@ func readApplicationLogSourcesPage(body []byte, offset int) (managementusecase.A
 		return page, offset, err
 	}
 	if n > maxManagerAppLogRPCCollectionLen {
-		return page, offset, fmt.Errorf("internalv2/access/node: too many manager app log sources: %d", n)
+		return page, offset, fmt.Errorf("internal/access/node: too many manager app log sources: %d", n)
 	}
 	page.Sources = make([]managementusecase.ApplicationLogSource, 0, n)
 	for i := uint64(0); i < n; i++ {
@@ -218,7 +218,7 @@ func readApplicationLogEntriesPage(body []byte, offset int) (managementusecase.A
 		return page, offset, err
 	}
 	if n > maxManagerAppLogRPCCollectionLen {
-		return page, offset, fmt.Errorf("internalv2/access/node: too many manager app log entries: %d", n)
+		return page, offset, fmt.Errorf("internal/access/node: too many manager app log entries: %d", n)
 	}
 	page.Items = make([]managementusecase.ApplicationLogEntry, 0, n)
 	for i := uint64(0); i < n; i++ {
@@ -241,7 +241,7 @@ func appendApplicationLogEntry(dst []byte, item managementusecase.ApplicationLog
 	dst = appendString(dst, item.Message)
 	fields, err := json.Marshal(item.Fields)
 	if err != nil {
-		return nil, fmt.Errorf("internalv2/access/node: marshal manager app log fields: %w", err)
+		return nil, fmt.Errorf("internal/access/node: marshal manager app log fields: %w", err)
 	}
 	dst = appendBytes(dst, fields)
 	dst = appendString(dst, item.Raw)
@@ -322,7 +322,7 @@ func managerAppLogOpID(op string) (byte, error) {
 	case managerAppLogOpEntries:
 		return managerAppLogOpEntriesID, nil
 	default:
-		return 0, fmt.Errorf("internalv2/access/node: unknown manager app log op %q", op)
+		return 0, fmt.Errorf("internal/access/node: unknown manager app log op %q", op)
 	}
 }
 
@@ -333,6 +333,6 @@ func managerAppLogOpFromID(opID byte) (string, error) {
 	case managerAppLogOpEntriesID:
 		return managerAppLogOpEntries, nil
 	default:
-		return "", fmt.Errorf("internalv2/access/node: unknown manager app log op id %d", opID)
+		return "", fmt.Errorf("internal/access/node: unknown manager app log op id %d", opID)
 	}
 }

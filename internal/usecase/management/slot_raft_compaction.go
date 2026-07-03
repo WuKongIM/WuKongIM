@@ -17,7 +17,7 @@ type SlotRaftOperator interface {
 }
 
 // ErrSlotRaftOperatorUnavailable reports that Slot Raft operations are not wired.
-var ErrSlotRaftOperatorUnavailable = errors.New("internalv2/usecase/management: slot raft operator unavailable")
+var ErrSlotRaftOperatorUnavailable = errors.New("internal/usecase/management: slot raft operator unavailable")
 
 // SlotRaftCompactionResult describes one node-local Slot Raft compaction attempt.
 type SlotRaftCompactionResult struct {

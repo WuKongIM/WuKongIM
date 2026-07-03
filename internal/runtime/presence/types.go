@@ -3,13 +3,13 @@ package presence
 import "errors"
 
 // ErrNotLeader reports that a RouteTarget no longer matches local authority state.
-var ErrNotLeader = errors.New("internalv2/runtime/presence: not leader")
+var ErrNotLeader = errors.New("internal/runtime/presence: not leader")
 
 // ErrStaleRoute reports an owner route older than the stored owner-sequence fence.
-var ErrStaleRoute = errors.New("internalv2/runtime/presence: stale route")
+var ErrStaleRoute = errors.New("internal/runtime/presence: stale route")
 
 // ErrRouteNotReady reports that a pending route token cannot be committed or aborted.
-var ErrRouteNotReady = errors.New("internalv2/runtime/presence: route not ready")
+var ErrRouteNotReady = errors.New("internal/runtime/presence: route not ready")
 
 // RouteTarget fences an authority operation to one observed hash-slot route.
 type RouteTarget struct {

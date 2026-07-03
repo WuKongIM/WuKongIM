@@ -92,7 +92,7 @@ func TestTopSnapshotRouteMapsWarmingUpToUnavailable(t *testing.T) {
 	if rec.Code != http.StatusServiceUnavailable {
 		t.Fatalf("status = %d body = %s", rec.Code, rec.Body.String())
 	}
-	if !strings.Contains(rec.Body.String(), "top collector warming up") || strings.Contains(rec.Body.String(), "internalv2/access/api") {
+	if !strings.Contains(rec.Body.String(), "top collector warming up") || strings.Contains(rec.Body.String(), "internal/access/api") {
 		t.Fatalf("warming-up response body = %s", rec.Body.String())
 	}
 }
@@ -110,7 +110,7 @@ func TestTopSnapshotRouteWithoutProviderIsNotFound(t *testing.T) {
 }
 
 func TestTopSnapshotRouteMapsUnexpectedProviderError(t *testing.T) {
-	logger := newRecordingAPILogger("internalv2.access.api")
+	logger := newRecordingAPILogger("internal.access.api")
 	s := New(Options{ListenAddr: "127.0.0.1:0", Top: &fakeTopProvider{err: errors.New("boom")}, Logger: logger})
 	req := httptest.NewRequest(http.MethodGet, "/top/v1/snapshot", nil)
 	rec := httptest.NewRecorder()
@@ -120,5 +120,5 @@ func TestTopSnapshotRouteMapsUnexpectedProviderError(t *testing.T) {
 	if rec.Code != http.StatusInternalServerError {
 		t.Fatalf("status = %d body = %s", rec.Code, rec.Body.String())
 	}
-	requireAPILogEntry(t, logger, "ERROR", "internalv2.access.api.http", "internalv2.access.api.top_snapshot_failed")
+	requireAPILogEntry(t, logger, "ERROR", "internal.access.api.http", "internal.access.api.top_snapshot_failed")
 }

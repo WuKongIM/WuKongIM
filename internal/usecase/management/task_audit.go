@@ -17,10 +17,10 @@ const (
 )
 
 // ErrControllerTaskAuditUnavailable reports that retained task audit history is not wired.
-var ErrControllerTaskAuditUnavailable = errors.New("internalv2/usecase/management: controller task audit unavailable")
+var ErrControllerTaskAuditUnavailable = errors.New("internal/usecase/management: controller task audit unavailable")
 
 // ErrControllerTaskAuditNotFound reports that retained history for a task is absent.
-var ErrControllerTaskAuditNotFound = errors.New("internalv2/usecase/management: controller task audit not found")
+var ErrControllerTaskAuditNotFound = errors.New("internal/usecase/management: controller task audit not found")
 
 // ControllerTaskAuditReader reads retained ControllerV2 task audit history.
 type ControllerTaskAuditReader interface {

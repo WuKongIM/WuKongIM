@@ -18,7 +18,7 @@ const (
 )
 
 // ErrControllerTaskNotFound reports that an active Controller task is absent.
-var ErrControllerTaskNotFound = errors.New("internalv2/usecase/management: controller task not found")
+var ErrControllerTaskNotFound = errors.New("internal/usecase/management: controller task not found")
 
 // ListControllerTasksRequest contains manager filters for active Controller tasks.
 type ListControllerTasksRequest struct {

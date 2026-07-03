@@ -12,7 +12,7 @@ const defaultManagerAsyncWorkers = 1
 const defaultManagerAsyncQueueSize = 1024
 
 // ErrManagerClosed reports that the manager is not accepting async work.
-var ErrManagerClosed = errors.New("internalv2/runtime/delivery: manager closed")
+var ErrManagerClosed = errors.New("internal/runtime/delivery: manager closed")
 
 type managerState uint8
 

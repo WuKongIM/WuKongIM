@@ -17,7 +17,7 @@ func (a *Adapter) HandleManagerDiagnosticsRPC(ctx context.Context, payload []byt
 	req, err := decodeManagerDiagnosticsRequest(payload)
 	if err != nil {
 		a.rpcLogger().Warn("manager diagnostics rpc decode failed",
-			wklog.Event("internalv2.access.node.manager_diagnostics_decode_failed"),
+			wklog.Event("internal.access.node.manager_diagnostics_decode_failed"),
 			wklog.Int("payloadBytes", len(payload)),
 			wklog.Error(err),
 		)
@@ -53,9 +53,9 @@ func (a *Adapter) HandleManagerDiagnosticsRPC(ctx context.Context, payload []byt
 		}
 		return encodeManagerDiagnosticsResponse(managerDiagnosticsRPCResponse{Status: rpcStatusOK})
 	default:
-		err := fmt.Errorf("internalv2/access/node: unknown manager diagnostics op %q", req.Op)
+		err := fmt.Errorf("internal/access/node: unknown manager diagnostics op %q", req.Op)
 		a.rpcLogger().Warn("manager diagnostics rpc unknown operation",
-			wklog.Event("internalv2.access.node.manager_diagnostics_unknown_op"),
+			wklog.Event("internal.access.node.manager_diagnostics_unknown_op"),
 			wklog.String("op", req.Op),
 			wklog.Error(err),
 		)
@@ -110,7 +110,7 @@ func (c *Client) DeleteManagerDiagnosticsTrackingRule(ctx context.Context, nodeI
 
 func (c *Client) callManagerDiagnostics(ctx context.Context, nodeID uint64, req managerDiagnosticsRPCRequest) (managerDiagnosticsRPCResponse, error) {
 	if c == nil || c.node == nil {
-		return managerDiagnosticsRPCResponse{}, fmt.Errorf("internalv2/access/node: manager diagnostics rpc client not configured")
+		return managerDiagnosticsRPCResponse{}, fmt.Errorf("internal/access/node: manager diagnostics rpc client not configured")
 	}
 	body, err := encodeManagerDiagnosticsRequest(req)
 	if err != nil {
@@ -128,7 +128,7 @@ func managerDiagnosticsRPCErrorForStatus(resp managerDiagnosticsRPCResponse) err
 		return nil
 	}
 	if resp.Error != "" {
-		return fmt.Errorf("internalv2/access/node: manager diagnostics status %q: %s", resp.Status, resp.Error)
+		return fmt.Errorf("internal/access/node: manager diagnostics status %q: %s", resp.Status, resp.Error)
 	}
-	return fmt.Errorf("internalv2/access/node: manager diagnostics status %q", resp.Status)
+	return fmt.Errorf("internal/access/node: manager diagnostics status %q", resp.Status)
 }

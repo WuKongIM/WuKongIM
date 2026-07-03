@@ -329,7 +329,7 @@ func TestGatewayStartFailureStopsCluster(t *testing.T) {
 	if got := joinCalls(calls); got != "cluster.start,gateway.start,cluster.stop" {
 		t.Fatalf("calls = %s, want cluster.start,gateway.start,cluster.stop", got)
 	}
-	requireAppLogEvent(t, logger, "ERROR", "internalv2.app.lifecycle_start_failed")
+	requireAppLogEvent(t, logger, "ERROR", "internal.app.lifecycle_start_failed")
 }
 
 func TestStartOrderIncludesAPIBeforeGatewayWhenConfigured(t *testing.T) {
@@ -2393,7 +2393,7 @@ func TestNewBuildsRootLogger(t *testing.T) {
 	if app.logger == nil {
 		t.Fatal("logger was not wired")
 	}
-	if app.logger.Named("internalv2") == nil {
+	if app.logger.Named("internal") == nil {
 		t.Fatal("named logger is nil")
 	}
 }
@@ -4541,7 +4541,7 @@ func TestPresenceTouchWorkerRequeuesFailedFlush(t *testing.T) {
 	if requeued[0].SessionID != conn.SessionID || requeued[0].UID != conn.UID {
 		t.Fatalf("requeued route = %#v, want session %d uid %s", requeued[0], conn.SessionID, conn.UID)
 	}
-	requireAppLogEvent(t, logger, "WARN", "internalv2.app.presence_touch_failed")
+	requireAppLogEvent(t, logger, "WARN", "internal.app.presence_touch_failed")
 }
 
 func TestPresenceTouchWorkerRequeuesAllGroupsWhenContextCancelsAfterDrain(t *testing.T) {
@@ -5391,7 +5391,7 @@ func TestStaticMultiNodeClusterStartsControllerVoters(t *testing.T) {
 				ListenAddr: voter.Addr,
 				DataDir:    t.TempDir(),
 				Control: clusterpkg.ControlConfig{
-					ClusterID:      "internalv2-app-static-three",
+					ClusterID:      "internal-app-static-three",
 					Voters:         voters,
 					AllowBootstrap: true,
 				},

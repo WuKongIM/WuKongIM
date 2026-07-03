@@ -19,9 +19,9 @@ const (
 
 var (
 	// ErrStoreRequired indicates that the conversation usecase has no storage backend.
-	ErrStoreRequired = errors.New("internalv2/usecase/conversation: store required")
+	ErrStoreRequired = errors.New("internal/usecase/conversation: store required")
 	// ErrInvalidRequest indicates that a list request is malformed.
-	ErrInvalidRequest = errors.New("internalv2/usecase/conversation: invalid request")
+	ErrInvalidRequest = errors.New("internal/usecase/conversation: invalid request")
 )
 
 // Store pages authoritative UID-owned conversation active rows.

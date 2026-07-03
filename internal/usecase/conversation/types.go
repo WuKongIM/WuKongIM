@@ -9,13 +9,13 @@ import (
 
 var (
 	// ErrRouteNotReady indicates that the UID authority route cannot serve a request yet.
-	ErrRouteNotReady = errors.New("internalv2/usecase/conversation: route not ready")
+	ErrRouteNotReady = errors.New("internal/usecase/conversation: route not ready")
 	// ErrStaleRoute indicates that a request was sent to an outdated UID authority target.
-	ErrStaleRoute = errors.New("internalv2/usecase/conversation: stale route")
+	ErrStaleRoute = errors.New("internal/usecase/conversation: stale route")
 	// ErrNotLeader indicates that the target node is no longer the UID authority leader.
-	ErrNotLeader = errors.New("internalv2/usecase/conversation: not leader")
+	ErrNotLeader = errors.New("internal/usecase/conversation: not leader")
 	// ErrCachePressure indicates that authority cache pressure prevents a complete successful List.
-	ErrCachePressure = errors.New("internalv2/usecase/conversation: authority cache pressure")
+	ErrCachePressure = errors.New("internal/usecase/conversation: authority cache pressure")
 )
 
 // Cursor resumes a sorted conversation list after one emitted row.

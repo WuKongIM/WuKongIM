@@ -20,7 +20,7 @@ func (a *Adapter) HandleManagerSlotRaftRPC(ctx context.Context, payload []byte) 
 	req, err := decodeManagerSlotRaftRequest(payload)
 	if err != nil {
 		a.rpcLogger().Warn("manager slot raft rpc decode failed",
-			wklog.Event("internalv2.access.node.manager_slot_raft_decode_failed"),
+			wklog.Event("internal.access.node.manager_slot_raft_decode_failed"),
 			wklog.Int("payloadBytes", len(payload)),
 			wklog.Error(err),
 		)
@@ -41,9 +41,9 @@ func (a *Adapter) HandleManagerSlotRaftRPC(ctx context.Context, payload []byte) 
 		a.logManagerSlotRaftError(req, status, err)
 		return encodeManagerSlotRaftResponse(managerSlotRaftRPCResponse{Status: status, Compaction: result})
 	default:
-		err := fmt.Errorf("internalv2/access/node: unknown manager slot raft op %q", req.Op)
+		err := fmt.Errorf("internal/access/node: unknown manager slot raft op %q", req.Op)
 		a.rpcLogger().Warn("manager slot raft rpc unknown operation",
-			wklog.Event("internalv2.access.node.manager_slot_raft_unknown_op"),
+			wklog.Event("internal.access.node.manager_slot_raft_unknown_op"),
 			wklog.String("op", req.Op),
 			wklog.Error(err),
 		)
@@ -54,7 +54,7 @@ func (a *Adapter) HandleManagerSlotRaftRPC(ctx context.Context, payload []byte) 
 // GetManagerSlotRaftStatus reads one node's local Slot Raft status.
 func (c *Client) GetManagerSlotRaftStatus(ctx context.Context, nodeID uint64, slotID uint32) (managementusecase.SlotNodeLogStatus, error) {
 	if c == nil || c.node == nil {
-		return managementusecase.SlotNodeLogStatus{}, fmt.Errorf("internalv2/access/node: manager slot raft rpc client not configured")
+		return managementusecase.SlotNodeLogStatus{}, fmt.Errorf("internal/access/node: manager slot raft rpc client not configured")
 	}
 	body, err := encodeManagerSlotRaftRequest(managerSlotRaftRPCRequest{
 		Op:     managerSlotRaftOpStatus,
@@ -81,7 +81,7 @@ func (c *Client) GetManagerSlotRaftStatus(ctx context.Context, nodeID uint64, sl
 // CompactManagerSlotRaftLog forces one node's local Slot Raft compaction.
 func (c *Client) CompactManagerSlotRaftLog(ctx context.Context, nodeID uint64, slotID uint32) (managementusecase.SlotRaftCompactionResult, error) {
 	if c == nil || c.node == nil {
-		return managementusecase.SlotRaftCompactionResult{}, fmt.Errorf("internalv2/access/node: manager slot raft rpc client not configured")
+		return managementusecase.SlotRaftCompactionResult{}, fmt.Errorf("internal/access/node: manager slot raft rpc client not configured")
 	}
 	body, err := encodeManagerSlotRaftRequest(managerSlotRaftRPCRequest{
 		Op:     managerSlotRaftOpCompact,
@@ -139,7 +139,7 @@ func managerSlotRaftRPCErrorForStatus(status string) error {
 	case rpcStatusRejected:
 		return managementusecase.ErrSlotRaftOperatorUnavailable
 	default:
-		return fmt.Errorf("internalv2/access/node: unknown manager slot raft rpc status %q", status)
+		return fmt.Errorf("internal/access/node: unknown manager slot raft rpc status %q", status)
 	}
 }
 
@@ -148,7 +148,7 @@ func (a *Adapter) logManagerSlotRaftError(req managerSlotRaftRPCRequest, status 
 		return
 	}
 	a.rpcLogger().Warn("manager slot raft rpc rejected",
-		wklog.Event("internalv2.access.node.manager_slot_raft_rejected"),
+		wklog.Event("internal.access.node.manager_slot_raft_rejected"),
 		wklog.String("op", req.Op),
 		wklog.String("status", status),
 		wklog.Uint64("nodeID", req.NodeID),

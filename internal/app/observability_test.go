@@ -1178,7 +1178,7 @@ func TestChannelV2AppendWaitCancelLogLineIncludesSnapshotState(t *testing.T) {
 		Err:                   context.DeadlineExceeded,
 	})
 	for _, want := range []string{
-		"internalv2/app: channelv2 append waiter canceled",
+		"internal/app: channelv2 append waiter canceled",
 		"reactor=2",
 		"key=1:room",
 		"channel_id=room",
@@ -1295,20 +1295,20 @@ func TestNewWiresDiagnosticsStoreAndSendTraceSink(t *testing.T) {
 	}
 
 	sendtrace.Record(sendtrace.Event{
-		TraceID: "trace-internalv2-new",
+		TraceID: "trace-internal-new",
 		Stage:   sendtrace.StageMessageSendDurable,
 		Result:  sendtrace.ResultOK,
 	})
 
-	result := app.QueryDiagnostics(context.Background(), diagnostics.Query{TraceID: "trace-internalv2-new"})
+	result := app.QueryDiagnostics(context.Background(), diagnostics.Query{TraceID: "trace-internal-new"})
 	if result.Status != diagnostics.StatusOK {
 		t.Fatalf("diagnostics status = %s, want %s result=%#v", result.Status, diagnostics.StatusOK, result)
 	}
 	if result.NodeID != 7 {
 		t.Fatalf("diagnostics node id = %d, want 7", result.NodeID)
 	}
-	if len(result.Events) != 1 || result.Events[0].TraceID != "trace-internalv2-new" {
-		t.Fatalf("diagnostics events = %#v, want trace-internalv2-new", result.Events)
+	if len(result.Events) != 1 || result.Events[0].TraceID != "trace-internal-new" {
+		t.Fatalf("diagnostics events = %#v, want trace-internal-new", result.Events)
 	}
 }
 
@@ -1463,12 +1463,12 @@ func TestStopRestoresDiagnosticsSendTraceSink(t *testing.T) {
 	}
 
 	sendtrace.Record(sendtrace.Event{
-		TraceID: "trace-after-internalv2-stop",
+		TraceID: "trace-after-internal-stop",
 		Stage:   sendtrace.StageMessageSendDurable,
 		Result:  sendtrace.ResultOK,
 	})
 
-	result := app.QueryDiagnostics(context.Background(), diagnostics.Query{TraceID: "trace-after-internalv2-stop"})
+	result := app.QueryDiagnostics(context.Background(), diagnostics.Query{TraceID: "trace-after-internal-stop"})
 	if result.Status != diagnostics.StatusNotFound {
 		t.Fatalf("diagnostics status = %s, want %s result=%#v", result.Status, diagnostics.StatusNotFound, result)
 	}
@@ -1529,12 +1529,12 @@ func TestDisabledDiagnosticsLeavesStoreUnwired(t *testing.T) {
 	}
 
 	sendtrace.Record(sendtrace.Event{
-		TraceID: "trace-disabled-internalv2",
+		TraceID: "trace-disabled-internal",
 		Stage:   sendtrace.StageMessageSendDurable,
 		Result:  sendtrace.ResultOK,
 	})
 
-	result := app.QueryDiagnostics(context.Background(), diagnostics.Query{TraceID: "trace-disabled-internalv2"})
+	result := app.QueryDiagnostics(context.Background(), diagnostics.Query{TraceID: "trace-disabled-internal"})
 	if result.Status != diagnostics.StatusNotFound {
 		t.Fatalf("diagnostics status = %s, want %s result=%#v", result.Status, diagnostics.StatusNotFound, result)
 	}
@@ -1741,8 +1741,8 @@ func TestDeliveryObserverLogsAsyncErrorsWithoutMetrics(t *testing.T) {
 		QueueDepth: 1,
 	})
 
-	requireAppLogEvent(t, logger, "WARN", "internalv2.app.delivery.retry_failed")
-	requireAppLogEvent(t, logger, "WARN", "internalv2.app.delivery.manager_terminal_failed")
+	requireAppLogEvent(t, logger, "WARN", "internal.app.delivery.retry_failed")
+	requireAppLogEvent(t, logger, "WARN", "internal.app.delivery.manager_terminal_failed")
 }
 
 func TestDeliveryMessageObserverMapsRecipientDeliveryWorkerMetrics(t *testing.T) {
@@ -1809,7 +1809,7 @@ func TestDeliveryMessageObserverLogsChannelAppendPostCommitFailure(t *testing.T)
 		Err:                   errors.New("route not ready"),
 	})
 
-	entry := requireAppLogEvent(t, logger, "ERROR", "internalv2.app.channelappend.post_commit_failed")
+	entry := requireAppLogEvent(t, logger, "ERROR", "internal.app.channelappend.post_commit_failed")
 	requireAppLogField(t, entry, "phase", "recipient_target_validate")
 	requireAppLogField(t, entry, "uid", "u1")
 	requireAppLogField(t, entry, "uidCount", 2)
@@ -1841,7 +1841,7 @@ func TestDeliveryMessageObserverWarnsExpectedRoutePostCommitFailure(t *testing.T
 		Err:         fmt.Errorf("conversation active: %w", conversationusecase.ErrStaleRoute),
 	})
 
-	entry := requireAppLogEvent(t, logger, "WARN", "internalv2.app.channelappend.post_commit_failed")
+	entry := requireAppLogEvent(t, logger, "WARN", "internal.app.channelappend.post_commit_failed")
 	requireAppLogField(t, entry, "phase", "conversation_active")
 	requireAppLogField(t, entry, "result", "stale_route")
 	for _, logged := range logger.entries {

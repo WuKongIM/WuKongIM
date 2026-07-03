@@ -54,10 +54,10 @@ func encodeManagerDiagnosticsRequest(req managerDiagnosticsRPCRequest) ([]byte, 
 
 func decodeManagerDiagnosticsRequest(body []byte) (managerDiagnosticsRPCRequest, error) {
 	if len(body) > maxDiagnosticsBodyBytes {
-		return managerDiagnosticsRPCRequest{}, fmt.Errorf("internalv2/access/node: manager diagnostics request body too large")
+		return managerDiagnosticsRPCRequest{}, fmt.Errorf("internal/access/node: manager diagnostics request body too large")
 	}
 	if !hasMagic(body, managerDiagnosticsRequestMagic[:]) {
-		return managerDiagnosticsRPCRequest{}, fmt.Errorf("internalv2/access/node: invalid manager diagnostics request codec")
+		return managerDiagnosticsRPCRequest{}, fmt.Errorf("internal/access/node: invalid manager diagnostics request codec")
 	}
 	offset := len(managerDiagnosticsRequestMagic)
 	opID, next, err := readByte(body, offset, "manager diagnostics op")
@@ -84,7 +84,7 @@ func decodeManagerDiagnosticsRequest(body []byte) (managerDiagnosticsRPCRequest,
 		return managerDiagnosticsRPCRequest{}, err
 	}
 	if next != len(body) {
-		return managerDiagnosticsRPCRequest{}, fmt.Errorf("internalv2/access/node: trailing manager diagnostics request bytes")
+		return managerDiagnosticsRPCRequest{}, fmt.Errorf("internal/access/node: trailing manager diagnostics request bytes")
 	}
 	return managerDiagnosticsRPCRequest{Op: op, Query: query, Rule: rule, RuleID: ruleID}, nil
 }
@@ -102,10 +102,10 @@ func encodeManagerDiagnosticsResponse(resp managerDiagnosticsRPCResponse) ([]byt
 
 func decodeManagerDiagnosticsResponse(body []byte) (managerDiagnosticsRPCResponse, error) {
 	if len(body) > maxDiagnosticsBodyBytes {
-		return managerDiagnosticsRPCResponse{}, fmt.Errorf("internalv2/access/node: manager diagnostics response body too large")
+		return managerDiagnosticsRPCResponse{}, fmt.Errorf("internal/access/node: manager diagnostics response body too large")
 	}
 	if !hasMagic(body, managerDiagnosticsResponseMagic[:]) {
-		return managerDiagnosticsRPCResponse{}, fmt.Errorf("internalv2/access/node: invalid manager diagnostics response codec")
+		return managerDiagnosticsRPCResponse{}, fmt.Errorf("internal/access/node: invalid manager diagnostics response codec")
 	}
 	offset := len(managerDiagnosticsResponseMagic)
 	var resp managerDiagnosticsRPCResponse
@@ -126,7 +126,7 @@ func decodeManagerDiagnosticsResponse(body []byte) (managerDiagnosticsRPCRespons
 		return managerDiagnosticsRPCResponse{}, err
 	}
 	if offset != len(body) {
-		return managerDiagnosticsRPCResponse{}, fmt.Errorf("internalv2/access/node: trailing manager diagnostics response bytes")
+		return managerDiagnosticsRPCResponse{}, fmt.Errorf("internal/access/node: trailing manager diagnostics response bytes")
 	}
 	return resp, nil
 }
@@ -142,7 +142,7 @@ func managerDiagnosticsOpID(op string) (byte, error) {
 	case managerDiagnosticsOpDelete:
 		return managerDiagnosticsOpDeleteID, nil
 	default:
-		return 0, fmt.Errorf("internalv2/access/node: unknown manager diagnostics op %q", op)
+		return 0, fmt.Errorf("internal/access/node: unknown manager diagnostics op %q", op)
 	}
 }
 
@@ -157,6 +157,6 @@ func managerDiagnosticsOpFromID(id byte) (string, error) {
 	case managerDiagnosticsOpDeleteID:
 		return managerDiagnosticsOpDelete, nil
 	default:
-		return "", fmt.Errorf("internalv2/access/node: unknown manager diagnostics op id %d", id)
+		return "", fmt.Errorf("internal/access/node: unknown manager diagnostics op id %d", id)
 	}
 }

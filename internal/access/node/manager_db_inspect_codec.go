@@ -34,7 +34,7 @@ func encodeManagerDBInspectRequest(req managerDBInspectRPCRequest) ([]byte, erro
 
 func decodeManagerDBInspectRequest(body []byte) (managerDBInspectRPCRequest, error) {
 	if !hasMagic(body, managerDBInspectRequestMagic[:]) {
-		return managerDBInspectRPCRequest{}, fmt.Errorf("internalv2/access/node: invalid manager db inspect request codec")
+		return managerDBInspectRPCRequest{}, fmt.Errorf("internal/access/node: invalid manager db inspect request codec")
 	}
 	var req managerDBInspectRPCRequest
 	if err := json.Unmarshal(body[len(managerDBInspectRequestMagic):], &req); err != nil {
@@ -55,7 +55,7 @@ func encodeManagerDBInspectResponse(resp managerDBInspectRPCResponse) ([]byte, e
 
 func decodeManagerDBInspectResponse(body []byte) (managerDBInspectRPCResponse, error) {
 	if !hasMagic(body, managerDBInspectResponseMagic[:]) {
-		return managerDBInspectRPCResponse{}, fmt.Errorf("internalv2/access/node: invalid manager db inspect response codec")
+		return managerDBInspectRPCResponse{}, fmt.Errorf("internal/access/node: invalid manager db inspect response codec")
 	}
 	var resp managerDBInspectRPCResponse
 	if err := json.Unmarshal(body[len(managerDBInspectResponseMagic):], &resp); err != nil {

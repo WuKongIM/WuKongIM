@@ -13,13 +13,13 @@ import (
 
 var (
 	// ErrNodeLifecycleUnavailable reports that node lifecycle writes are not configured.
-	ErrNodeLifecycleUnavailable = errors.New("internalv2/usecase/management: node lifecycle unavailable")
+	ErrNodeLifecycleUnavailable = errors.New("internal/usecase/management: node lifecycle unavailable")
 	// ErrNodeLifecycleConflict reports that a node lifecycle write conflicts with cluster state.
-	ErrNodeLifecycleConflict = errors.New("internalv2/usecase/management: node lifecycle conflict")
+	ErrNodeLifecycleConflict = errors.New("internal/usecase/management: node lifecycle conflict")
 	// ErrNodeLifecycleNotFound reports that a node lifecycle write targets a missing node.
-	ErrNodeLifecycleNotFound = errors.New("internalv2/usecase/management: node lifecycle node not found")
+	ErrNodeLifecycleNotFound = errors.New("internal/usecase/management: node lifecycle node not found")
 	// ErrNodeNotReadyForActivation reports that a joining node has not reached activation readiness.
-	ErrNodeNotReadyForActivation = errors.New("internalv2/usecase/management: node not ready for activation")
+	ErrNodeNotReadyForActivation = errors.New("internal/usecase/management: node not ready for activation")
 )
 
 const (

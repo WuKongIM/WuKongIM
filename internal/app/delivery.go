@@ -21,7 +21,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
-var errRecvMessageIDOverflow = errors.New("internalv2/app: delivery message id overflows recv packet")
+var errRecvMessageIDOverflow = errors.New("internal/app: delivery message id overflows recv packet")
 
 const defaultDeliveryRetryMaxAttempts = 3
 const defaultDeliveryRetryBackoff = 10 * time.Millisecond
@@ -92,7 +92,7 @@ func (o deliveryMessageObserver) CommittedSinkError(_ message.SendCommand, err e
 		o.app.recordDeliveryError(err)
 		if err != nil {
 			o.app.deliveryLogger().Warn("delivery committed sink failed",
-				wklog.Event("internalv2.app.delivery.committed_sink_failed"),
+				wklog.Event("internal.app.delivery.committed_sink_failed"),
 				wklog.String("errorClass", runtimedelivery.DeliveryErrorClass(err)),
 				wklog.Error(err),
 			)
@@ -113,7 +113,7 @@ func (o deliveryMessageObserver) AppendFinished(path string, err error, dur time
 		}
 		if shouldLogMessageAppendError(label) {
 			o.app.deliveryLogger().Error("message append failed",
-				wklog.Event("internalv2.app.delivery.message_append_failed"),
+				wklog.Event("internal.app.delivery.message_append_failed"),
 				wklog.String("path", path),
 				wklog.String("errorClass", label),
 				wklog.Duration("duration", dur),
@@ -203,7 +203,7 @@ func (o deliveryMessageObserver) ObserveChannelAppendPostCommitFailure(event cha
 
 func channelAppendPostCommitFailureFields(event channelappend.PostCommitFailureObservation) []wklog.Field {
 	return []wklog.Field{
-		wklog.Event("internalv2.app.channelappend.post_commit_failed"),
+		wklog.Event("internal.app.channelappend.post_commit_failed"),
 		wklog.ChannelID(event.ChannelID),
 		wklog.ChannelType(int64(event.ChannelType)),
 		wklog.Uint64("messageID", event.MessageID),
@@ -275,7 +275,7 @@ func (o deliveryMessageObserver) ObserveChannelAppendRecipientDeliveryProcess(ev
 }
 
 func appendFailureLogLine(path string, err error) string {
-	return fmt.Sprintf("internalv2/app: message append failed path=%s err=%v", path, err)
+	return fmt.Sprintf("internal/app: message append failed path=%s err=%v", path, err)
 }
 
 func shouldLogMessageAppendError(label string) bool {
@@ -373,7 +373,7 @@ func (p localOwnerPusher) Push(_ context.Context, cmd runtimedelivery.PushComman
 		packet, err := buildRecvPacket(cmd.Envelope, route.UID, payload, timestamp)
 		if err != nil {
 			p.loggerOrNop().Warn("delivery recv packet build failed",
-				wklog.Event("internalv2.app.delivery.recv_packet_build_failed"),
+				wklog.Event("internal.app.delivery.recv_packet_build_failed"),
 				wklog.UID(route.UID),
 				wklog.SessionID(route.SessionID),
 				wklog.ChannelID(cmd.Envelope.ChannelID),
@@ -395,7 +395,7 @@ func (p localOwnerPusher) Push(_ context.Context, cmd runtimedelivery.PushComman
 		}
 		if p.delivery != nil && !p.delivery.BindPendingAck(pending) {
 			p.loggerOrNop().Warn("delivery pending ack limit reached",
-				wklog.Event("internalv2.app.delivery.pending_ack_limit_reached"),
+				wklog.Event("internal.app.delivery.pending_ack_limit_reached"),
 				wklog.UID(route.UID),
 				wklog.SessionID(route.SessionID),
 				wklog.ChannelID(cmd.Envelope.ChannelID),
@@ -414,7 +414,7 @@ func (p localOwnerPusher) Push(_ context.Context, cmd runtimedelivery.PushComman
 					MessageID: cmd.Envelope.MessageID,
 				}); ackErr != nil {
 					p.loggerOrNop().Warn("delivery pending ack cleanup failed",
-						wklog.Event("internalv2.app.delivery.pending_ack_cleanup_failed"),
+						wklog.Event("internal.app.delivery.pending_ack_cleanup_failed"),
 						wklog.UID(route.UID),
 						wklog.SessionID(route.SessionID),
 						wklog.Uint64("messageID", cmd.Envelope.MessageID),
@@ -424,7 +424,7 @@ func (p localOwnerPusher) Push(_ context.Context, cmd runtimedelivery.PushComman
 			}
 			terminal := terminalLocalDeliveryWriteError(err)
 			p.loggerOrNop().Warn("delivery write failed",
-				wklog.Event("internalv2.app.delivery.write_failed"),
+				wklog.Event("internal.app.delivery.write_failed"),
 				wklog.UID(route.UID),
 				wklog.SessionID(route.SessionID),
 				wklog.ChannelID(cmd.Envelope.ChannelID),

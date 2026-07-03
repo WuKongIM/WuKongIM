@@ -77,7 +77,7 @@ func encodePresenceRPCRequestBinary(req presenceRPCRequest) ([]byte, error) {
 
 func decodePresenceRPCRequest(body []byte) (presenceRPCRequest, error) {
 	if !isPresenceRPCRequestBinary(body) {
-		return presenceRPCRequest{}, fmt.Errorf("internalv2/access/node: invalid presence request codec")
+		return presenceRPCRequest{}, fmt.Errorf("internal/access/node: invalid presence request codec")
 	}
 	offset := len(presenceRPCRequestMagic)
 	opID, next, err := readByte(body, offset, "presence op")
@@ -117,7 +117,7 @@ func decodePresenceRPCRequest(body []byte) (presenceRPCRequest, error) {
 		return presenceRPCRequest{}, err
 	}
 	if offset != len(body) {
-		return presenceRPCRequest{}, fmt.Errorf("internalv2/access/node: trailing presence request bytes")
+		return presenceRPCRequest{}, fmt.Errorf("internal/access/node: trailing presence request bytes")
 	}
 	return req, nil
 }
@@ -137,7 +137,7 @@ func decodePresenceRPCResponse(body []byte) (presenceRPCResponse, error) {
 
 func decodePresenceRPCResponseBinary(body []byte) (presenceRPCResponse, error) {
 	if !isPresenceRPCResponseBinary(body) {
-		return presenceRPCResponse{}, fmt.Errorf("internalv2/access/node: invalid presence response codec")
+		return presenceRPCResponse{}, fmt.Errorf("internal/access/node: invalid presence response codec")
 	}
 	offset := len(presenceRPCResponseMagic)
 	var resp presenceRPCResponse
@@ -152,7 +152,7 @@ func decodePresenceRPCResponseBinary(body []byte) (presenceRPCResponse, error) {
 		return presenceRPCResponse{}, err
 	}
 	if offset != len(body) {
-		return presenceRPCResponse{}, fmt.Errorf("internalv2/access/node: trailing presence response bytes")
+		return presenceRPCResponse{}, fmt.Errorf("internal/access/node: trailing presence response bytes")
 	}
 	return resp, nil
 }
@@ -182,7 +182,7 @@ func presenceOpID(op string) (byte, error) {
 	case presenceOpApplyRouteAction:
 		return presenceOpApplyRouteActionID, nil
 	default:
-		return 0, fmt.Errorf("internalv2/access/node: unknown presence op %q", op)
+		return 0, fmt.Errorf("internal/access/node: unknown presence op %q", op)
 	}
 }
 
@@ -203,7 +203,7 @@ func presenceOpFromID(op byte) (string, error) {
 	case presenceOpApplyRouteActionID:
 		return presenceOpApplyRouteAction, nil
 	default:
-		return "", fmt.Errorf("internalv2/access/node: unknown presence op id %d", op)
+		return "", fmt.Errorf("internal/access/node: unknown presence op id %d", op)
 	}
 }
 
@@ -226,14 +226,14 @@ func readPresenceRouteTarget(body []byte, offset int) (presence.RouteTarget, int
 		return presence.RouteTarget{}, offset, err
 	}
 	if v > uint64(^uint16(0)) {
-		return presence.RouteTarget{}, offset, fmt.Errorf("internalv2/access/node: presence hash slot overflows uint16")
+		return presence.RouteTarget{}, offset, fmt.Errorf("internal/access/node: presence hash slot overflows uint16")
 	}
 	target.HashSlot = uint16(v)
 	if v, offset, err = readUvarint(body, offset); err != nil {
 		return presence.RouteTarget{}, offset, err
 	}
 	if v > uint64(^uint32(0)) {
-		return presence.RouteTarget{}, offset, fmt.Errorf("internalv2/access/node: presence slot id overflows uint32")
+		return presence.RouteTarget{}, offset, fmt.Errorf("internal/access/node: presence slot id overflows uint32")
 	}
 	target.SlotID = uint32(v)
 	if target.LeaderNodeID, offset, err = readUvarint(body, offset); err != nil {
@@ -464,7 +464,7 @@ func readString(body []byte, offset int) (string, int, error) {
 	}
 	offset = next
 	if n > uint64(len(body)-offset) {
-		return "", offset, fmt.Errorf("internalv2/access/node: short string")
+		return "", offset, fmt.Errorf("internal/access/node: short string")
 	}
 	end := offset + int(n)
 	return string(body[offset:end]), end, nil
@@ -478,11 +478,11 @@ func appendUvarint(dst []byte, value uint64) []byte {
 
 func readUvarint(body []byte, offset int) (uint64, int, error) {
 	if offset >= len(body) {
-		return 0, offset, fmt.Errorf("internalv2/access/node: short uvarint")
+		return 0, offset, fmt.Errorf("internal/access/node: short uvarint")
 	}
 	value, n := binary.Uvarint(body[offset:])
 	if n <= 0 {
-		return 0, offset, fmt.Errorf("internalv2/access/node: invalid uvarint")
+		return 0, offset, fmt.Errorf("internal/access/node: invalid uvarint")
 	}
 	return value, offset + n, nil
 }
@@ -495,28 +495,28 @@ func appendVarint(dst []byte, value int64) []byte {
 
 func readVarint(body []byte, offset int) (int64, int, error) {
 	if offset >= len(body) {
-		return 0, offset, fmt.Errorf("internalv2/access/node: short varint")
+		return 0, offset, fmt.Errorf("internal/access/node: short varint")
 	}
 	value, n := binary.Varint(body[offset:])
 	if n <= 0 {
-		return 0, offset, fmt.Errorf("internalv2/access/node: invalid varint")
+		return 0, offset, fmt.Errorf("internal/access/node: invalid varint")
 	}
 	return value, offset + n, nil
 }
 
 func readByte(body []byte, offset int, label string) (byte, int, error) {
 	if offset >= len(body) {
-		return 0, offset, fmt.Errorf("internalv2/access/node: short %s", label)
+		return 0, offset, fmt.Errorf("internal/access/node: short %s", label)
 	}
 	return body[offset], offset + 1, nil
 }
 
 func validateCollectionLen(count uint64, remaining int, label string) error {
 	if count > uint64(remaining) {
-		return fmt.Errorf("internalv2/access/node: %s length exceeds payload", label)
+		return fmt.Errorf("internal/access/node: %s length exceeds payload", label)
 	}
 	if count > maxPresenceRPCCollectionLen {
-		return fmt.Errorf("internalv2/access/node: %s length exceeds limit", label)
+		return fmt.Errorf("internal/access/node: %s length exceeds limit", label)
 	}
 	return nil
 }

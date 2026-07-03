@@ -10,11 +10,11 @@ import (
 
 var (
 	// ErrUIDRequired reports a missing user id in CMD sync commands.
-	ErrUIDRequired = errors.New("internalv2/usecase/cmdsync: uid required")
+	ErrUIDRequired = errors.New("internal/usecase/cmdsync: uid required")
 	// ErrStateStoreRequired reports a missing durable CMD state dependency.
-	ErrStateStoreRequired = errors.New("internalv2/usecase/cmdsync: state store required")
+	ErrStateStoreRequired = errors.New("internal/usecase/cmdsync: state store required")
 	// ErrMessageStoreRequired reports a missing command-channel message dependency.
-	ErrMessageStoreRequired = errors.New("internalv2/usecase/cmdsync: message store required")
+	ErrMessageStoreRequired = errors.New("internal/usecase/cmdsync: message store required")
 )
 
 // SyncQuery is the /message/sync request after access-layer validation.

@@ -153,7 +153,7 @@ func (w *conversationActiveFlushWorker) flushOnce(ctx context.Context, final boo
 		return result, err
 	}
 	w.opts.Logger.Warn("conversation active flush failed",
-		wklog.Event("internalv2.app.conversation_active_flush_failed"),
+		wklog.Event("internal.app.conversation_active_flush_failed"),
 		wklog.Bool("final", final),
 		wklog.Int("batchRows", w.opts.BatchRows),
 		wklog.Error(err),

@@ -177,7 +177,7 @@ func (a *Adapter) HandleNodeLifecycleRPC(ctx context.Context, payload []byte) ([
 	req, err := decodeNodeLifecycleRequest(payload)
 	if err != nil {
 		a.rpcLogger().Warn("node lifecycle rpc decode failed",
-			wklog.Event("internalv2.access.node.lifecycle_decode_failed"),
+			wklog.Event("internal.access.node.lifecycle_decode_failed"),
 			wklog.Int("payloadBytes", len(payload)),
 			wklog.Error(err),
 		)
@@ -193,9 +193,9 @@ func (a *Adapter) HandleNodeLifecycleRPC(ctx context.Context, payload []byte) ([
 	case nodeLifecycleOpPrepareControllerVoter:
 		return a.handleNodeLifecyclePrepareControllerVoter(ctx, req.PrepareControllerVoter)
 	default:
-		err := fmt.Errorf("internalv2/access/node: unknown node lifecycle op %q", req.Op)
+		err := fmt.Errorf("internal/access/node: unknown node lifecycle op %q", req.Op)
 		a.rpcLogger().Warn("node lifecycle rpc unknown operation",
-			wklog.Event("internalv2.access.node.lifecycle_unknown_op"),
+			wklog.Event("internal.access.node.lifecycle_unknown_op"),
 			wklog.String("op", req.Op),
 			wklog.Error(err),
 		)
@@ -257,7 +257,7 @@ func (a *Adapter) handleNodeLifecycleJoin(ctx context.Context, req NodeJoinReque
 	}
 	if err := a.validateNodeLifecycleJoin(req); err != nil {
 		a.rpcLogger().Warn("node lifecycle join rejected",
-			wklog.Event("internalv2.access.node.lifecycle_join_rejected"),
+			wklog.Event("internal.access.node.lifecycle_join_rejected"),
 			wklog.Uint64("nodeID", req.NodeID),
 			wklog.String("clusterID", req.ClusterID),
 			wklog.Error(err),
@@ -329,7 +329,7 @@ func (a *Adapter) validateNodeLifecycleJoin(req NodeJoinRequest) error {
 
 func (c *Client) callNodeLifecycle(ctx context.Context, nodeID uint64, req nodeLifecycleRPCRequest) (nodeLifecycleRPCResponse, error) {
 	if c == nil || c.node == nil {
-		return nodeLifecycleRPCResponse{}, fmt.Errorf("internalv2/access/node: node lifecycle rpc client not configured")
+		return nodeLifecycleRPCResponse{}, fmt.Errorf("internal/access/node: node lifecycle rpc client not configured")
 	}
 	body, err := encodeNodeLifecycleRequest(req)
 	if err != nil {
@@ -354,7 +354,7 @@ func encodeNodeLifecycleRequest(req nodeLifecycleRPCRequest) ([]byte, error) {
 
 func decodeNodeLifecycleRequest(body []byte) (nodeLifecycleRPCRequest, error) {
 	if !hasMagic(body, nodeLifecycleRequestMagic[:]) {
-		return nodeLifecycleRPCRequest{}, fmt.Errorf("internalv2/access/node: invalid node lifecycle request codec")
+		return nodeLifecycleRPCRequest{}, fmt.Errorf("internal/access/node: invalid node lifecycle request codec")
 	}
 	var req nodeLifecycleRPCRequest
 	if err := json.Unmarshal(body[len(nodeLifecycleRequestMagic):], &req); err != nil {
@@ -375,7 +375,7 @@ func encodeNodeLifecycleResponse(resp nodeLifecycleRPCResponse) ([]byte, error) 
 
 func decodeNodeLifecycleResponse(body []byte) (nodeLifecycleRPCResponse, error) {
 	if !hasMagic(body, nodeLifecycleResponseMagic[:]) {
-		return nodeLifecycleRPCResponse{}, fmt.Errorf("internalv2/access/node: invalid node lifecycle response codec")
+		return nodeLifecycleRPCResponse{}, fmt.Errorf("internal/access/node: invalid node lifecycle response codec")
 	}
 	var resp nodeLifecycleRPCResponse
 	if err := json.Unmarshal(body[len(nodeLifecycleResponseMagic):], &resp); err != nil {
@@ -441,7 +441,7 @@ func controllerVoterRPCErrorForStatus(status string) error {
 	case rpcStatusRejected:
 		return managementusecase.ErrControllerVoterPromotionUnavailable
 	default:
-		return fmt.Errorf("internalv2/access/node: unknown controller voter lifecycle rpc status %q", status)
+		return fmt.Errorf("internal/access/node: unknown controller voter lifecycle rpc status %q", status)
 	}
 }
 
@@ -462,7 +462,7 @@ func nodeLifecycleRPCErrorForStatus(status string) error {
 	case rpcStatusRejected:
 		return managementusecase.ErrNodeLifecycleUnavailable
 	default:
-		return fmt.Errorf("internalv2/access/node: unknown node lifecycle rpc status %q", status)
+		return fmt.Errorf("internal/access/node: unknown node lifecycle rpc status %q", status)
 	}
 }
 
@@ -471,7 +471,7 @@ func (a *Adapter) logNodeLifecycleError(op string, nodeID uint64, status string,
 		return
 	}
 	a.rpcLogger().Warn("node lifecycle rpc failed",
-		wklog.Event("internalv2.access.node.lifecycle_failed"),
+		wklog.Event("internal.access.node.lifecycle_failed"),
 		wklog.String("op", op),
 		wklog.String("status", status),
 		wklog.Uint64("nodeID", nodeID),

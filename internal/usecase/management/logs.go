@@ -8,7 +8,7 @@ import (
 )
 
 // ErrLogReaderUnavailable reports that distributed Raft log inspection is not wired.
-var ErrLogReaderUnavailable = errors.New("internalv2/usecase/management: log reader unavailable")
+var ErrLogReaderUnavailable = errors.New("internal/usecase/management: log reader unavailable")
 
 // LogReader exposes node-local distributed Raft log pages for manager views.
 type LogReader interface {

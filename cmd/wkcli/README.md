@@ -179,8 +179,8 @@ drain counters. `node diagnose` requests root-cause diagnostics from
 `GET /manager/nodes/:node_id/diagnostics` with bounded `task`, `audit`, and
 `slot` evidence limits, and can print either a one-line summary plus detailed
 task/audit/slot/warning lines or the raw manager JSON with `--json`. Use
-`docs/superpowers/runbooks/internalv2-dynamic-node-operations.md` for the full
-operator procedure.
+the dynamic-node operations runbook under `docs/superpowers/runbooks` for the
+full operator procedure.
 
 ## Extending
 

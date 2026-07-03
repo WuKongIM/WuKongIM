@@ -20,7 +20,7 @@ func (a *Adapter) HandleManagerLogRPC(ctx context.Context, payload []byte) ([]by
 	req, err := decodeManagerLogRequest(payload)
 	if err != nil {
 		a.rpcLogger().Warn("manager log rpc decode failed",
-			wklog.Event("internalv2.access.node.manager_log_decode_failed"),
+			wklog.Event("internal.access.node.manager_log_decode_failed"),
 			wklog.Int("payloadBytes", len(payload)),
 			wklog.Error(err),
 		)
@@ -50,9 +50,9 @@ func (a *Adapter) HandleManagerLogRPC(ctx context.Context, payload []byte) ([]by
 		a.logManagerLogError(req, status, err)
 		return encodeManagerLogResponse(managerLogRPCResponse{Status: status, Slot: page})
 	default:
-		err := fmt.Errorf("internalv2/access/node: unknown manager log op %q", req.Op)
+		err := fmt.Errorf("internal/access/node: unknown manager log op %q", req.Op)
 		a.rpcLogger().Warn("manager log rpc unknown operation",
-			wklog.Event("internalv2.access.node.manager_log_unknown_op"),
+			wklog.Event("internal.access.node.manager_log_unknown_op"),
 			wklog.String("op", req.Op),
 			wklog.Error(err),
 		)
@@ -97,7 +97,7 @@ func (c *Client) GetManagerSlotLogEntries(ctx context.Context, req managementuse
 
 func (c *Client) callManagerLog(ctx context.Context, nodeID uint64, req managerLogRPCRequest) (managerLogRPCResponse, error) {
 	if c == nil || c.node == nil {
-		return managerLogRPCResponse{}, fmt.Errorf("internalv2/access/node: manager log rpc client not configured")
+		return managerLogRPCResponse{}, fmt.Errorf("internal/access/node: manager log rpc client not configured")
 	}
 	body, err := encodeManagerLogRequest(req)
 	if err != nil {
@@ -144,7 +144,7 @@ func managerLogRPCErrorForStatus(status string) error {
 	case rpcStatusRejected:
 		return managementusecase.ErrLogReaderUnavailable
 	default:
-		return fmt.Errorf("internalv2/access/node: unknown manager log rpc status %q", status)
+		return fmt.Errorf("internal/access/node: unknown manager log rpc status %q", status)
 	}
 }
 
@@ -153,7 +153,7 @@ func (a *Adapter) logManagerLogError(req managerLogRPCRequest, status string, er
 		return
 	}
 	a.rpcLogger().Warn("manager log rpc rejected",
-		wklog.Event("internalv2.access.node.manager_log_rejected"),
+		wklog.Event("internal.access.node.manager_log_rejected"),
 		wklog.String("op", req.Op),
 		wklog.String("status", status),
 		wklog.Uint64("nodeID", req.NodeID),

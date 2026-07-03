@@ -323,7 +323,7 @@ func (a *Adapter) HandlePresenceAuthorityRPC(ctx context.Context, payload []byte
 	req, err := decodePresenceRPCRequest(payload)
 	if err != nil {
 		a.rpcLogger().Warn("presence authority rpc decode failed",
-			wklog.Event("internalv2.access.node.presence_authority_decode_failed"),
+			wklog.Event("internal.access.node.presence_authority_decode_failed"),
 			wklog.Int("payloadBytes", len(payload)),
 			wklog.Error(err),
 		)
@@ -371,9 +371,9 @@ func (a *Adapter) HandlePresenceAuthorityRPC(ctx context.Context, payload []byte
 		a.logPresenceAuthorityError(req, status, err)
 		return encodePresenceRPCResponseBinary(presenceRPCResponse{Status: status})
 	default:
-		err := fmt.Errorf("internalv2/access/node: unknown presence rpc op %q", req.Op)
+		err := fmt.Errorf("internal/access/node: unknown presence rpc op %q", req.Op)
 		a.rpcLogger().Warn("presence authority rpc unknown operation",
-			wklog.Event("internalv2.access.node.presence_authority_unknown_op"),
+			wklog.Event("internal.access.node.presence_authority_unknown_op"),
 			wklog.String("op", req.Op),
 			wklog.Error(err),
 		)
@@ -386,7 +386,7 @@ func (a *Adapter) HandlePresenceOwnerRPC(ctx context.Context, payload []byte) ([
 	req, err := decodePresenceRPCRequest(payload)
 	if err != nil {
 		a.rpcLogger().Warn("presence owner rpc decode failed",
-			wklog.Event("internalv2.access.node.presence_owner_decode_failed"),
+			wklog.Event("internal.access.node.presence_owner_decode_failed"),
 			wklog.Int("payloadBytes", len(payload)),
 			wklog.Error(err),
 		)
@@ -396,9 +396,9 @@ func (a *Adapter) HandlePresenceOwnerRPC(ctx context.Context, payload []byte) ([
 		return encodePresenceRPCResponseBinary(presenceRPCResponse{Status: rpcStatusRejected})
 	}
 	if req.Op != presenceOpApplyRouteAction {
-		err := fmt.Errorf("internalv2/access/node: unknown presence owner rpc op %q", req.Op)
+		err := fmt.Errorf("internal/access/node: unknown presence owner rpc op %q", req.Op)
 		a.rpcLogger().Warn("presence owner rpc unknown operation",
-			wklog.Event("internalv2.access.node.presence_owner_unknown_op"),
+			wklog.Event("internal.access.node.presence_owner_unknown_op"),
 			wklog.String("op", req.Op),
 			wklog.Error(err),
 		)
@@ -408,7 +408,7 @@ func (a *Adapter) HandlePresenceOwnerRPC(ctx context.Context, payload []byte) ([
 	status := presenceRPCStatusForError(err)
 	if status == rpcStatusRejected {
 		fields := []wklog.Field{
-			wklog.Event("internalv2.access.node.presence_owner_rejected"),
+			wklog.Event("internal.access.node.presence_owner_rejected"),
 			wklog.String("op", req.Op),
 			wklog.String("status", status),
 			wklog.UID(req.Action.UID),
@@ -435,7 +435,7 @@ func (a *Adapter) logPresenceAuthorityError(req presenceRPCRequest, status strin
 		return
 	}
 	fields := []wklog.Field{
-		wklog.Event("internalv2.access.node.presence_authority_rejected"),
+		wklog.Event("internal.access.node.presence_authority_rejected"),
 		wklog.String("op", req.Op),
 		wklog.String("status", status),
 		wklog.Int("hashSlot", int(req.Target.HashSlot)),
@@ -544,7 +544,7 @@ func (c *Client) call(ctx context.Context, target presence.RouteTarget, req pres
 
 func (c *Client) callService(ctx context.Context, nodeID uint64, serviceID uint8, req presenceRPCRequest) (presenceRPCResponse, error) {
 	if c == nil || c.node == nil {
-		return presenceRPCResponse{}, fmt.Errorf("internalv2/access/node: presence rpc client not configured")
+		return presenceRPCResponse{}, fmt.Errorf("internal/access/node: presence rpc client not configured")
 	}
 	body, err := encodePresenceRPCRequestBinary(req)
 	if err != nil {
@@ -583,8 +583,8 @@ func presenceRPCErrorForStatus(status string) error {
 	case rpcStatusRouteNotReady:
 		return authoritypresence.ErrRouteNotReady
 	case rpcStatusRejected:
-		return fmt.Errorf("internalv2/access/node: presence rpc rejected")
+		return fmt.Errorf("internal/access/node: presence rpc rejected")
 	default:
-		return fmt.Errorf("internalv2/access/node: unknown presence rpc status %q", status)
+		return fmt.Errorf("internal/access/node: unknown presence rpc status %q", status)
 	}
 }

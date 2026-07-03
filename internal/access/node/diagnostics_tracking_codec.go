@@ -47,10 +47,10 @@ func encodeDiagnosticsTrackingRequest(req diagnosticsTrackingRequest) ([]byte, e
 
 func decodeDiagnosticsTrackingRequest(body []byte) (diagnosticsTrackingRequest, error) {
 	if len(body) > maxDiagnosticsBodyBytes {
-		return diagnosticsTrackingRequest{}, fmt.Errorf("internalv2/access/node: diagnostics tracking request body too large")
+		return diagnosticsTrackingRequest{}, fmt.Errorf("internal/access/node: diagnostics tracking request body too large")
 	}
 	if !hasMagic(body, diagnosticsTrackingRequestMagic[:]) {
-		return diagnosticsTrackingRequest{}, fmt.Errorf("internalv2/access/node: invalid diagnostics tracking request codec")
+		return diagnosticsTrackingRequest{}, fmt.Errorf("internal/access/node: invalid diagnostics tracking request codec")
 	}
 	offset := len(diagnosticsTrackingRequestMagic)
 	op, next, err := readDiagnosticsString(body, offset)
@@ -68,7 +68,7 @@ func decodeDiagnosticsTrackingRequest(body []byte) (diagnosticsTrackingRequest, 
 		return diagnosticsTrackingRequest{}, err
 	}
 	if next != len(body) {
-		return diagnosticsTrackingRequest{}, fmt.Errorf("internalv2/access/node: trailing diagnostics tracking request bytes")
+		return diagnosticsTrackingRequest{}, fmt.Errorf("internal/access/node: trailing diagnostics tracking request bytes")
 	}
 	return diagnosticsTrackingRequest{Op: diagnosticsTrackingOp(op), Rule: rule, RuleID: ruleID}, nil
 }
@@ -85,10 +85,10 @@ func encodeDiagnosticsTrackingResponse(resp diagnosticsTrackingResponse) ([]byte
 
 func decodeDiagnosticsTrackingResponse(body []byte) (diagnosticsTrackingResponse, error) {
 	if len(body) > maxDiagnosticsBodyBytes {
-		return diagnosticsTrackingResponse{}, fmt.Errorf("internalv2/access/node: diagnostics tracking response body too large")
+		return diagnosticsTrackingResponse{}, fmt.Errorf("internal/access/node: diagnostics tracking response body too large")
 	}
 	if !hasMagic(body, diagnosticsTrackingResponseMagic[:]) {
-		return diagnosticsTrackingResponse{}, fmt.Errorf("internalv2/access/node: invalid diagnostics tracking response codec")
+		return diagnosticsTrackingResponse{}, fmt.Errorf("internal/access/node: invalid diagnostics tracking response codec")
 	}
 	offset := len(diagnosticsTrackingResponseMagic)
 	var resp diagnosticsTrackingResponse
@@ -106,7 +106,7 @@ func decodeDiagnosticsTrackingResponse(body []byte) (diagnosticsTrackingResponse
 		return diagnosticsTrackingResponse{}, err
 	}
 	if offset != len(body) {
-		return diagnosticsTrackingResponse{}, fmt.Errorf("internalv2/access/node: trailing diagnostics tracking response bytes")
+		return diagnosticsTrackingResponse{}, fmt.Errorf("internal/access/node: trailing diagnostics tracking response bytes")
 	}
 	return resp, nil
 }
@@ -205,7 +205,7 @@ func readDiagnosticsTrackingRules(body []byte, offset int) ([]diagnostics.Tracki
 		return nil, offset, err
 	}
 	if count > maxDiagnosticsTrackingRules {
-		return nil, offset, fmt.Errorf("internalv2/access/node: diagnostics tracking rules exceeds limit")
+		return nil, offset, fmt.Errorf("internal/access/node: diagnostics tracking rules exceeds limit")
 	}
 	offset = next
 	rulesLen, err := readCollectionLen(count, len(body)-offset, "diagnostics tracking rules")

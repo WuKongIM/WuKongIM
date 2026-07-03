@@ -193,7 +193,7 @@ func TestImportBoundaryUsesCanonicalInternalApp(t *testing.T) {
 	}
 	fset := token.NewFileSet()
 	canonicalImport := strings.Join([]string{"github.com/WuKongIM/WuKongIM/internal", "app"}, "/")
-	internalV2Prefix := strings.Join([]string{"github.com/WuKongIM/WuKongIM", "internalv2"}, "/") + "/"
+	forbiddenV2InternalPrefix := strings.Join([]string{"github.com/WuKongIM/WuKongIM", "internal" + "v2"}, "/") + "/"
 	internalLegacyPrefix := "github.com/WuKongIM/WuKongIM/internal/legacy/"
 	foundCanonical := false
 	for _, path := range files {
@@ -209,7 +209,7 @@ func TestImportBoundaryUsesCanonicalInternalApp(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Unquote(%s): %v", spec.Path.Value, err)
 			}
-			if strings.HasPrefix(importPath, internalV2Prefix) {
+			if strings.HasPrefix(importPath, forbiddenV2InternalPrefix) {
 				t.Fatalf("%s imports v2-suffixed internal package %q", path, importPath)
 			}
 			if strings.HasPrefix(importPath, internalLegacyPrefix) {

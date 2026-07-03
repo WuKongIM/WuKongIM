@@ -26,7 +26,7 @@ func (a *Adapter) HandleManagerDBInspectRPC(ctx context.Context, payload []byte)
 	req, err := decodeManagerDBInspectRequest(payload)
 	if err != nil {
 		a.rpcLogger().Warn("manager db inspect rpc decode failed",
-			wklog.Event("internalv2.access.node.manager_db_inspect_decode_failed"),
+			wklog.Event("internal.access.node.manager_db_inspect_decode_failed"),
 			wklog.Int("payloadBytes", len(payload)),
 			wklog.Error(err),
 		)
@@ -61,7 +61,7 @@ func (c *Client) NodeDBInspectQuery(ctx context.Context, req managementusecase.D
 
 func (c *Client) callManagerDBInspect(ctx context.Context, nodeID uint64, req managerDBInspectRPCRequest) (managerDBInspectRPCResponse, error) {
 	if c == nil || c.node == nil {
-		return managerDBInspectRPCResponse{}, fmt.Errorf("internalv2/access/node: manager db inspect rpc client not configured")
+		return managerDBInspectRPCResponse{}, fmt.Errorf("internal/access/node: manager db inspect rpc client not configured")
 	}
 	body, err := encodeManagerDBInspectRequest(req)
 	if err != nil {
@@ -108,9 +108,9 @@ func managerDBInspectRPCErrorForStatus(status string) error {
 	case rpcStatusUnavailable:
 		return managementusecase.ErrDBInspectUnavailable
 	case rpcStatusRejected:
-		return fmt.Errorf("internalv2/access/node: manager db inspect rpc rejected")
+		return fmt.Errorf("internal/access/node: manager db inspect rpc rejected")
 	default:
-		return fmt.Errorf("internalv2/access/node: unknown manager db inspect rpc status %q", status)
+		return fmt.Errorf("internal/access/node: unknown manager db inspect rpc status %q", status)
 	}
 }
 
@@ -119,7 +119,7 @@ func (a *Adapter) logManagerDBInspectError(req managerDBInspectRPCRequest, statu
 		return
 	}
 	a.rpcLogger().Warn("manager db inspect rpc rejected",
-		wklog.Event("internalv2.access.node.manager_db_inspect_rejected"),
+		wklog.Event("internal.access.node.manager_db_inspect_rejected"),
 		wklog.String("status", status),
 		wklog.Uint64("nodeID", req.NodeID),
 		wklog.Error(err),

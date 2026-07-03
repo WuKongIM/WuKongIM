@@ -32,13 +32,13 @@ const (
 	RPCControlRaft
 	// RPCControlTaskResult serves ControllerV2 task result and progress writes.
 	RPCControlTaskResult
-	// RPCPresenceAuthority serves internalv2 UID connection authority requests.
+	// RPCPresenceAuthority serves internal UID connection authority requests.
 	RPCPresenceAuthority
-	// RPCPresenceOwner serves internalv2 owner-node connection actions.
+	// RPCPresenceOwner serves internal owner-node connection actions.
 	RPCPresenceOwner
-	// RPCDeliveryPush serves internalv2 owner-node delivery push batches.
+	// RPCDeliveryPush serves internal owner-node delivery push batches.
 	RPCDeliveryPush
-	// RPCDeliveryFanout serves internalv2 authority-node delivery fanout tasks.
+	// RPCDeliveryFanout serves internal authority-node delivery fanout tasks.
 	RPCDeliveryFanout
 	// RPCChannelPullBatch serves grouped ChannelV2 follower pull requests.
 	RPCChannelPullBatch
@@ -46,27 +46,27 @@ const (
 	RPCChannelPullHintBatch
 	// RPCChannelLastVisible serves routed ChannelV2 last-visible message reads.
 	RPCChannelLastVisible
-	// RPCConversationAuthority serves internalv2 UID conversation authority cache requests.
+	// RPCConversationAuthority serves internal UID conversation authority cache requests.
 	RPCConversationAuthority
-	// RPCChannelAuthoritySend serves internalv2 SEND forwarding requests to the channel append authority.
+	// RPCChannelAuthoritySend serves internal SEND forwarding requests to the channel append authority.
 	RPCChannelAuthoritySend
-	// RPCManagerConnection serves internalv2 owner-node manager connection inventory requests.
+	// RPCManagerConnection serves internal owner-node manager connection inventory requests.
 	RPCManagerConnection
-	// RPCManagerLogs serves internalv2 node-local manager distributed log reads.
+	// RPCManagerLogs serves internal node-local manager distributed log reads.
 	RPCManagerLogs
-	// RPCManagerControllerRaft serves internalv2 node-local manager Controller Raft operations.
+	// RPCManagerControllerRaft serves internal node-local manager Controller Raft operations.
 	RPCManagerControllerRaft
-	// RPCManagerSlotRaft serves internalv2 node-local manager Slot Raft operations.
+	// RPCManagerSlotRaft serves internal node-local manager Slot Raft operations.
 	RPCManagerSlotRaft
-	// RPCManagerChannels serves internalv2 node-local manager channel list reads.
+	// RPCManagerChannels serves internal node-local manager channel list reads.
 	RPCManagerChannels
-	// RPCManagerDBInspect serves internalv2 node-local manager DB inspect reads.
+	// RPCManagerDBInspect serves internal node-local manager DB inspect reads.
 	RPCManagerDBInspect
-	// RPCManagerAppLogs serves internalv2 selected-node ordinary application log reads.
+	// RPCManagerAppLogs serves internal selected-node ordinary application log reads.
 	RPCManagerAppLogs
-	// RPCManagerDiagnostics serves internalv2 node-local diagnostics trace reads and tracking rules.
+	// RPCManagerDiagnostics serves internal node-local diagnostics trace reads and tracking rules.
 	RPCManagerDiagnostics
-	// RPCManagerPlugins serves internalv2 node-local manager plugin inventory reads.
+	// RPCManagerPlugins serves internal node-local manager plugin inventory reads.
 	RPCManagerPlugins
 	// RPCPluginBindingScan serves cluster Slot-leader plugin binding index scans.
 	RPCPluginBindingScan
@@ -75,13 +75,13 @@ const (
 const (
 	// RPCControlWrite serves generic ControllerV2 writes.
 	RPCControlWrite uint8 = 64 + iota
-	// RPCManagerMessageRetention serves internalv2 manager message retention forwarding.
+	// RPCManagerMessageRetention serves internal manager message retention forwarding.
 	RPCManagerMessageRetention
-	// RPCNodeLifecycle serves internalv2 seed join and readiness RPCs.
+	// RPCNodeLifecycle serves internal seed join and readiness RPCs.
 	RPCNodeLifecycle
 	// RPCSlotStatus serves cluster Slot leader status snapshots.
 	RPCSlotStatus
-	// RPCManagerTaskAudit serves internalv2 retained ControllerV2 task audit reads.
+	// RPCManagerTaskAudit serves internal retained ControllerV2 task audit reads.
 	RPCManagerTaskAudit
 	// RPCChannelMigrationMeta serves cluster Slot-leader channel migration state reads.
 	RPCChannelMigrationMeta

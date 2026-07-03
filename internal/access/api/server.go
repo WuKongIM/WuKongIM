@@ -25,7 +25,7 @@ import (
 const versionV1 = "bench/v1"
 
 // ErrListenAddrRequired reports that the HTTP API listen address is empty.
-var ErrListenAddrRequired = errors.New("internalv2/access/api: listen address required")
+var ErrListenAddrRequired = errors.New("internal/access/api: listen address required")
 
 // GatewayAddresses are the externally reachable client gateway addresses exposed to wkbench.
 type GatewayAddresses struct {
@@ -416,7 +416,7 @@ func (s *Server) Start() error {
 	go func() {
 		if serveErr := httpServer.Serve(ln); serveErr != nil && !errors.Is(serveErr, http.ErrServerClosed) {
 			s.httpLogger().Error("api http serve failed",
-				wklog.Event("internalv2.access.api.serve_failed"),
+				wklog.Event("internal.access.api.serve_failed"),
 				wklog.String("addr", s.Addr()),
 				wklog.Error(serveErr),
 			)
@@ -636,7 +636,7 @@ func (s *Server) handleBenchPresenceSnapshot(c *gin.Context) {
 	}
 	resp, err := s.benchPresence.Snapshot(c.Request.Context())
 	if err != nil {
-		s.logBenchFailure(c, "internalv2.access.api.bench_presence_failed", "presence_snapshot", err)
+		s.logBenchFailure(c, "internal.access.api.bench_presence_failed", "presence_snapshot", err)
 		writeBenchError(c, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -735,7 +735,7 @@ func (s *Server) handleBenchChannels(c *gin.Context) {
 	}
 	accepted, err := s.benchData.UpsertChannels(c.Request.Context(), mutations)
 	if err != nil {
-		s.logBenchFailure(c, "internalv2.access.api.bench_channels_failed", "channels_upsert", err,
+		s.logBenchFailure(c, "internal.access.api.bench_channels_failed", "channels_upsert", err,
 			wklog.String("runID", req.RunID),
 			wklog.String("batchID", req.BatchID),
 			wklog.Int("channels", len(mutations)),
@@ -789,7 +789,7 @@ func (s *Server) handleBenchSubscribers(c *gin.Context) {
 	}
 	acceptedSubscribers, err := s.benchData.AddSubscribers(c.Request.Context(), mutations)
 	if err != nil {
-		s.logBenchFailure(c, "internalv2.access.api.bench_subscribers_failed", "subscribers_add", err,
+		s.logBenchFailure(c, "internal.access.api.bench_subscribers_failed", "subscribers_add", err,
 			wklog.String("runID", req.RunID),
 			wklog.String("batchID", req.BatchID),
 			wklog.Int("items", len(mutations)),

@@ -59,7 +59,7 @@ func encodeManagerConnectionRequest(req managerConnectionRPCRequest) ([]byte, er
 
 func decodeManagerConnectionRequest(body []byte) (managerConnectionRPCRequest, error) {
 	if !hasMagic(body, managerConnectionRequestMagic[:]) {
-		return managerConnectionRPCRequest{}, fmt.Errorf("internalv2/access/node: invalid manager connection request codec")
+		return managerConnectionRPCRequest{}, fmt.Errorf("internal/access/node: invalid manager connection request codec")
 	}
 	offset := len(managerConnectionRequestMagic)
 	opID, next, err := readByte(body, offset, "manager connection op")
@@ -88,7 +88,7 @@ func decodeManagerConnectionRequest(body []byte) (managerConnectionRPCRequest, e
 		return managerConnectionRPCRequest{}, err
 	}
 	if offset != len(body) {
-		return managerConnectionRPCRequest{}, fmt.Errorf("internalv2/access/node: trailing manager connection request bytes")
+		return managerConnectionRPCRequest{}, fmt.Errorf("internal/access/node: trailing manager connection request bytes")
 	}
 	return managerConnectionRPCRequest{Op: op, NodeID: nodeID, SessionID: sessionID, Limit: int(limit), Draining: draining}, nil
 }
@@ -105,7 +105,7 @@ func encodeManagerConnectionResponse(resp managerConnectionRPCResponse) ([]byte,
 
 func decodeManagerConnectionResponse(body []byte) (managerConnectionRPCResponse, error) {
 	if !hasMagic(body, managerConnectionResponseMagic[:]) {
-		return managerConnectionRPCResponse{}, fmt.Errorf("internalv2/access/node: invalid manager connection response codec")
+		return managerConnectionRPCResponse{}, fmt.Errorf("internal/access/node: invalid manager connection response codec")
 	}
 	offset := len(managerConnectionResponseMagic)
 	var resp managerConnectionRPCResponse
@@ -123,7 +123,7 @@ func decodeManagerConnectionResponse(body []byte) (managerConnectionRPCResponse,
 		return managerConnectionRPCResponse{}, err
 	}
 	if offset != len(body) {
-		return managerConnectionRPCResponse{}, fmt.Errorf("internalv2/access/node: trailing manager connection response bytes")
+		return managerConnectionRPCResponse{}, fmt.Errorf("internal/access/node: trailing manager connection response bytes")
 	}
 	return resp, nil
 }
@@ -142,7 +142,7 @@ func readManagerConnections(body []byte, offset int) ([]managementusecase.Connec
 		return nil, offset, err
 	}
 	if n > maxManagerConnectionRPCCollectionLen {
-		return nil, offset, fmt.Errorf("internalv2/access/node: too many manager connections: %d", n)
+		return nil, offset, fmt.Errorf("internal/access/node: too many manager connections: %d", n)
 	}
 	items := make([]managementusecase.Connection, 0, n)
 	for i := uint64(0); i < n; i++ {
@@ -311,7 +311,7 @@ func readManagerConnectionListenerMap(body []byte, offset int) (map[string]int, 
 		return nil, offset, err
 	}
 	if n > maxManagerConnectionRPCCollectionLen {
-		return nil, offset, fmt.Errorf("internalv2/access/node: too many runtime listener counts: %d", n)
+		return nil, offset, fmt.Errorf("internal/access/node: too many runtime listener counts: %d", n)
 	}
 	values := make(map[string]int, n)
 	for i := uint64(0); i < n; i++ {
@@ -341,7 +341,7 @@ func managerConnectionOpID(op string) (byte, error) {
 	case managerConnectionOpSetDrainMode:
 		return managerConnectionOpSetDrainModeID, nil
 	default:
-		return 0, fmt.Errorf("internalv2/access/node: unknown manager connection op %q", op)
+		return 0, fmt.Errorf("internal/access/node: unknown manager connection op %q", op)
 	}
 }
 
@@ -356,6 +356,6 @@ func managerConnectionOpFromID(op byte) (string, error) {
 	case managerConnectionOpSetDrainModeID:
 		return managerConnectionOpSetDrainMode, nil
 	default:
-		return "", fmt.Errorf("internalv2/access/node: unknown manager connection op id %d", op)
+		return "", fmt.Errorf("internal/access/node: unknown manager connection op id %d", op)
 	}
 }

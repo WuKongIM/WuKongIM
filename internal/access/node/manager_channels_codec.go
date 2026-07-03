@@ -38,7 +38,7 @@ func encodeManagerChannelRequest(req managerChannelRPCRequest) ([]byte, error) {
 
 func decodeManagerChannelRequest(body []byte) (managerChannelRPCRequest, error) {
 	if !hasMagic(body, managerChannelRequestMagic[:]) {
-		return managerChannelRPCRequest{}, fmt.Errorf("internalv2/access/node: invalid manager channel request codec")
+		return managerChannelRPCRequest{}, fmt.Errorf("internal/access/node: invalid manager channel request codec")
 	}
 	offset := len(managerChannelRequestMagic)
 	nodeID, offset, err := readUvarint(body, offset)
@@ -62,7 +62,7 @@ func decodeManagerChannelRequest(body []byte) (managerChannelRPCRequest, error) 
 		return managerChannelRPCRequest{}, err
 	}
 	if offset != len(body) {
-		return managerChannelRPCRequest{}, fmt.Errorf("internalv2/access/node: trailing manager channel request bytes")
+		return managerChannelRPCRequest{}, fmt.Errorf("internal/access/node: trailing manager channel request bytes")
 	}
 	return managerChannelRPCRequest{
 		NodeID:     nodeID,
@@ -82,7 +82,7 @@ func encodeManagerChannelResponse(resp managerChannelRPCResponse) ([]byte, error
 
 func decodeManagerChannelResponse(body []byte) (managerChannelRPCResponse, error) {
 	if !hasMagic(body, managerChannelResponseMagic[:]) {
-		return managerChannelRPCResponse{}, fmt.Errorf("internalv2/access/node: invalid manager channel response codec")
+		return managerChannelRPCResponse{}, fmt.Errorf("internal/access/node: invalid manager channel response codec")
 	}
 	offset := len(managerChannelResponseMagic)
 	status, offset, err := readString(body, offset)
@@ -94,7 +94,7 @@ func decodeManagerChannelResponse(body []byte) (managerChannelRPCResponse, error
 		return managerChannelRPCResponse{}, err
 	}
 	if offset != len(body) {
-		return managerChannelRPCResponse{}, fmt.Errorf("internalv2/access/node: trailing manager channel response bytes")
+		return managerChannelRPCResponse{}, fmt.Errorf("internal/access/node: trailing manager channel response bytes")
 	}
 	return managerChannelRPCResponse{Status: status, Page: page}, nil
 }
@@ -142,7 +142,7 @@ func readManagerBusinessChannels(body []byte, offset int) ([]managementusecase.B
 		return nil, offset, err
 	}
 	if n > maxManagerChannelRPCCollectionLen {
-		return nil, offset, fmt.Errorf("internalv2/access/node: too many manager channels: %d", n)
+		return nil, offset, fmt.Errorf("internal/access/node: too many manager channels: %d", n)
 	}
 	items := make([]managementusecase.BusinessChannelListItem, 0, n)
 	for i := uint64(0); i < n; i++ {
@@ -229,6 +229,6 @@ func readBoolByte(body []byte, offset int, label string) (bool, int, error) {
 	case 1:
 		return true, next, nil
 	default:
-		return false, offset, fmt.Errorf("internalv2/access/node: invalid %s bool byte %d", label, value)
+		return false, offset, fmt.Errorf("internal/access/node: invalid %s bool byte %d", label, value)
 	}
 }

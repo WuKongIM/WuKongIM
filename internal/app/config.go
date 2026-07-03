@@ -17,11 +17,11 @@ import (
 
 var (
 	// ErrInvalidConfig reports an app configuration that cannot start a runtime.
-	ErrInvalidConfig = errors.New("internalv2/app: invalid config")
+	ErrInvalidConfig = errors.New("internal/app: invalid config")
 	// ErrAlreadyStarted reports a repeated Start call on a running app.
-	ErrAlreadyStarted = errors.New("internalv2/app: already started")
+	ErrAlreadyStarted = errors.New("internal/app: already started")
 	// ErrStopped reports a Start call after the app has been stopped.
-	ErrStopped = errors.New("internalv2/app: stopped")
+	ErrStopped = errors.New("internal/app: stopped")
 )
 
 // Config contains phase-1 internal app configuration.

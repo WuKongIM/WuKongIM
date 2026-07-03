@@ -52,7 +52,7 @@ func TestSingleNodeClusterSendToSendack(t *testing.T) {
 		ClientMsgNo: "client-sendack-1",
 		ChannelID:   channelID.ID,
 		ChannelType: channelID.Type,
-		Payload:     []byte("hello from internalv2"),
+		Payload:     []byte("hello from internal"),
 	}
 
 	if err := app.Handler().OnFrame(coregateway.Context{
@@ -188,7 +188,7 @@ func singleNodeClusterAppConfig(t *testing.T) Config {
 			ListenAddr: listenAddr,
 			DataDir:    t.TempDir(),
 			Control: cluster.ControlConfig{
-				ClusterID:      "internalv2-sendack-smoke",
+				ClusterID:      "internal-sendack-smoke",
 				Voters:         []cluster.ControlVoter{{NodeID: nodeID, Addr: listenAddr}},
 				AllowBootstrap: true,
 			},

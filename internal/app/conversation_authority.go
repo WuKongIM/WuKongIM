@@ -276,7 +276,7 @@ func (a *conversationAuthority) AdmitActiveBatch(ctx context.Context, target con
 		return err
 	}
 	if !validConversationKind(batch.Kind) {
-		return fmt.Errorf("internalv2/app: invalid conversation kind %d", batch.Kind)
+		return fmt.Errorf("internal/app: invalid conversation kind %d", batch.Kind)
 	}
 	err = mapConversationActiveError(a.active.AdmitActiveBatchForHashSlot(ctx, target.HashSlot, batch))
 	if errors.Is(err, conversationusecase.ErrCachePressure) {
@@ -544,7 +544,7 @@ func conversationActivePatches(patches []conversationusecase.ActivePatch) ([]con
 	activePatches := make([]conversationactive.ActivePatch, 0, len(patches))
 	for _, patch := range patches {
 		if !validConversationKind(patch.Kind) {
-			return nil, fmt.Errorf("internalv2/app: invalid conversation kind %d", patch.Kind)
+			return nil, fmt.Errorf("internal/app: invalid conversation kind %d", patch.Kind)
 		}
 		if patch.UID == "" || patch.ChannelID == "" || patch.ChannelType <= 0 || patch.ChannelType > 255 || patch.ActiveAt <= 0 {
 			continue

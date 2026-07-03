@@ -111,7 +111,7 @@ func (s *Server) logBenchRuntimeFailure(c *gin.Context, op string, query model.C
 		}
 	}
 	s.httpLogger().Error("bench channel runtime request failed",
-		wklog.Event("internalv2.access.api.bench_runtime_failed"),
+		wklog.Event("internal.access.api.bench_runtime_failed"),
 		wklog.String("op", op),
 		wklog.String("method", method),
 		wklog.String("path", path),

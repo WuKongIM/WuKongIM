@@ -63,7 +63,7 @@ func encodeChannelAppendRequest(req channelAppendRequest) ([]byte, error) {
 
 func decodeChannelAppendRequest(body []byte) (channelAppendRequest, error) {
 	if !hasMagic(body, channelAppendRequestMagic[:]) {
-		return channelAppendRequest{}, fmt.Errorf("internalv2/access/node: invalid channel append request codec")
+		return channelAppendRequest{}, fmt.Errorf("internal/access/node: invalid channel append request codec")
 	}
 	offset := len(channelAppendRequestMagic)
 	var req channelAppendRequest
@@ -75,7 +75,7 @@ func decodeChannelAppendRequest(body []byte) (channelAppendRequest, error) {
 		return channelAppendRequest{}, err
 	}
 	if offset != len(body) {
-		return channelAppendRequest{}, fmt.Errorf("internalv2/access/node: trailing channel append request bytes")
+		return channelAppendRequest{}, fmt.Errorf("internal/access/node: trailing channel append request bytes")
 	}
 	return req, nil
 }
@@ -90,7 +90,7 @@ func encodeChannelAppendResponse(resp channelAppendResponse) ([]byte, error) {
 
 func decodeChannelAppendResponse(body []byte) (channelAppendResponse, error) {
 	if !hasMagic(body, channelAppendResponseMagic[:]) {
-		return channelAppendResponse{}, fmt.Errorf("internalv2/access/node: invalid channel append response codec")
+		return channelAppendResponse{}, fmt.Errorf("internal/access/node: invalid channel append response codec")
 	}
 	offset := len(channelAppendResponseMagic)
 	var resp channelAppendResponse
@@ -102,7 +102,7 @@ func decodeChannelAppendResponse(body []byte) (channelAppendResponse, error) {
 		return channelAppendResponse{}, err
 	}
 	if offset != len(body) {
-		return channelAppendResponse{}, fmt.Errorf("internalv2/access/node: trailing channel append response bytes")
+		return channelAppendResponse{}, fmt.Errorf("internal/access/node: trailing channel append response bytes")
 	}
 	return resp, nil
 }
@@ -163,7 +163,7 @@ func readChannelAppendItems(body []byte, offset int) ([]channelAppendItem, int, 
 	}
 	offset = next
 	if count == 0 {
-		return nil, offset, fmt.Errorf("internalv2/access/node: empty channel append request")
+		return nil, offset, fmt.Errorf("internal/access/node: empty channel append request")
 	}
 	if err := validateChannelAppendCollectionLen(count, len(body)-offset, "channel append items"); err != nil {
 		return nil, offset, err
@@ -195,7 +195,7 @@ func readChannelAppendItem(body []byte, offset int) (channelAppendItem, int, err
 		return channelAppendItem{}, offset, err
 	}
 	if timeout < 0 {
-		return channelAppendItem{}, offset, fmt.Errorf("internalv2/access/node: channel append timeout is negative")
+		return channelAppendItem{}, offset, fmt.Errorf("internal/access/node: channel append timeout is negative")
 	}
 	item.Timeout = time.Duration(timeout)
 	return item, offset, nil
@@ -277,7 +277,7 @@ func readChannelAppendSendCommand(body []byte, offset int) (channelappend.SendCo
 		return channelappend.SendCommand{}, offset, err
 	}
 	if expire > uint64(^uint32(0)) {
-		return channelappend.SendCommand{}, offset, fmt.Errorf("internalv2/access/node: channel append expire overflows uint32")
+		return channelappend.SendCommand{}, offset, fmt.Errorf("internal/access/node: channel append expire overflows uint32")
 	}
 	cmd.Expire = uint32(expire)
 	offset = next
@@ -318,7 +318,7 @@ func readChannelAppendSendCommand(body []byte, offset int) (channelappend.SendCo
 		return channelappend.SendCommand{}, offset, err
 	}
 	if hookDepth < 0 {
-		return channelappend.SendCommand{}, offset, fmt.Errorf("internalv2/access/node: channel append hook depth is negative")
+		return channelappend.SendCommand{}, offset, fmt.Errorf("internal/access/node: channel append hook depth is negative")
 	}
 	cmd.HookDepth = int(hookDepth)
 	if cmd.SkipPluginHooks, offset, err = readChannelAppendBool(body, offset, "channel append skip plugin hooks"); err != nil {
@@ -443,9 +443,9 @@ func readChannelAppendResultError(body []byte, offset int) (error, int, error) {
 		if msg == "" {
 			msg = "channel append result rejected"
 		}
-		return fmt.Errorf("internalv2/access/node: %s", msg), offset, nil
+		return fmt.Errorf("internal/access/node: %s", msg), offset, nil
 	default:
-		return nil, offset, fmt.Errorf("internalv2/access/node: unknown channel append result error code %q", code)
+		return nil, offset, fmt.Errorf("internal/access/node: unknown channel append result error code %q", code)
 	}
 }
 
@@ -525,16 +525,16 @@ func readChannelAppendBool(body []byte, offset int, label string) (bool, int, er
 	case 1:
 		return true, next, nil
 	default:
-		return false, offset, fmt.Errorf("internalv2/access/node: invalid %s flag", label)
+		return false, offset, fmt.Errorf("internal/access/node: invalid %s flag", label)
 	}
 }
 
 func validateChannelAppendCollectionLen(count uint64, remaining int, label string) error {
 	if count > maxChannelAppendCollectionLen {
-		return fmt.Errorf("internalv2/access/node: %s length exceeds limit", label)
+		return fmt.Errorf("internal/access/node: %s length exceeds limit", label)
 	}
 	if count > uint64(remaining) {
-		return fmt.Errorf("internalv2/access/node: %s length exceeds payload", label)
+		return fmt.Errorf("internal/access/node: %s length exceeds payload", label)
 	}
 	return nil
 }

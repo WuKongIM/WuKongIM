@@ -15,7 +15,7 @@ func readNodeInt(body []byte, offset int, label string) (int, int, error) {
 		return 0, offset, err
 	}
 	if value > int64(^uint(0)>>1) || value < -int64(^uint(0)>>1)-1 {
-		return 0, offset, fmt.Errorf("internalv2/access/node: %s overflows int", label)
+		return 0, offset, fmt.Errorf("internal/access/node: %s overflows int", label)
 	}
 	return int(value), next, nil
 }
@@ -34,10 +34,10 @@ func readNodeMarker(body []byte, offset int, label string) (byte, int, error) {
 
 func readCollectionLen(count uint64, remaining int, label string) (int, error) {
 	if count > uint64(remaining) {
-		return 0, fmt.Errorf("internalv2/access/node: %s length exceeds payload", label)
+		return 0, fmt.Errorf("internal/access/node: %s length exceeds payload", label)
 	}
 	if count > uint64(^uint(0)>>1) {
-		return 0, fmt.Errorf("internalv2/access/node: %s length overflows int", label)
+		return 0, fmt.Errorf("internal/access/node: %s length overflows int", label)
 	}
 	return int(count), nil
 }

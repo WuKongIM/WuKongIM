@@ -28,7 +28,7 @@
 - Live 15s pprof evidence: `docs/development/perf-runs/20260612-153217-three-node-real-qps-live15/004000-qps/pprof/live/`. The live sampling perturbed throughput, so use it only for hot-path attribution.
 - Live pprof root cause: about one third of sampled CPU per node is `transportv2/internal/conn.(*Conn).writeLoop -> writeOutbound -> wire.WriteFrame -> net.Buffers.WriteTo -> syscall.writev`. `Conn.writeLoop` receives scheduler batches but writes each outbound frame separately, producing a high syscall/writev rate under group fanout and conversation-active RPC traffic.
 - Secondary CPU source: `conversationactive.Manager.MarkActive -> observeCache -> cacheObservation` accounts for about 10-13% cumulative CPU during live sampling. `cacheObservation` scans the whole UID conversation active cache after each admission batch.
-- Amplifier: baseline node logs contain 15010/13417/14002 `channelappend post-commit failed` entries on node1/node2/node3, all matching `conversation_active: internalv2/usecase/conversation: stale route`. These are best-effort post-commit failures, not SENDACK errors, but they add RPC/logging pressure and coincide with high `channelappend_effect_error_delta` and post-commit backlog.
+- Amplifier: baseline node logs contain 15010/13417/14002 `channelappend post-commit failed` entries on node1/node2/node3, all matching `conversation_active: internal/usecase/conversation: stale route`. These are best-effort post-commit failures, not SENDACK errors, but they add RPC/logging pressure and coincide with high `channelappend_effect_error_delta` and post-commit backlog.
 - Finding: the high CPU is primarily transport write syscall overhead driven by many small internal RPC/response frames, with additional conversation-active cache observation scans and post-commit stale-route failure amplification. The throughput failure is classified as mixed ChannelV2/storage/replication backpressure rather than gateway queue exhaustion.
 - Post-fix smoke evidence: `docs/development/perf-runs/20260612-160102-three-node-real-qps/004000-qps/` after transport batched writes, incremental conversation-active cache observation, and one fresh-route retry for active-batch admission. Result remained 1920.2 actual QPS, ratio 0.480, p99 3816.2ms, no send errors. The stale-route post-commit amplifier dropped sharply (`channelappend_effect_error_delta` 4/2/193; stale-route log counts 4/2/193), but ChannelV2 RPC/store append/apply pools were still near saturation, so the remaining throughput bottleneck is below the fixed CPU amplifiers.
 
@@ -78,32 +78,32 @@
 
 ## 2026-06-09 channelwrite best-effort post-commit
 
-- Change: post-commit conversation/push side effects are best-effort. Failed recipient dispatch is logged as `internalv2.app.channelwrite.post_commit_failed`, observed by effect metrics, dropped without retry, and does not checkpoint or replay through the post-commit cursor path.
+- Change: post-commit conversation/push side effects are best-effort. Failed recipient dispatch is logged as `internal.app.channelwrite.post_commit_failed`, observed by effect metrics, dropped without retry, and does not checkpoint or replay through the post-commit cursor path.
 - Verification scenario: `WK_DELIVERY_CHANNEL_WRITE_EFFECT_WORKERS=16 WK_DELIVERY_CHANNEL_WRITE_RECIPIENT_DISPATCH_CONCURRENCY=4 ./scripts/bench-wukongim-three-nodes-real-qps.sh --qps 10000`.
 - Verification evidence: `docs/development/perf-runs/20260609-235649-three-node-real-qps/`.
 - Verification result: 7946.8 actual QPS, 0.795 actual/offered ratio, p99 769.6ms, no send errors, `cw_wkr=1.000`, `cw_eq=0.023`, max post-commit backlog 496, and post-commit effect error delta 1548.
-- Log evidence: after-run node logs contain 162, 281, and 2705 `internalv2.app.channelwrite.post_commit_failed` entries for node1, node2, and node3 respectively. The remaining p99 bottleneck is still ChannelV2 store-apply saturation and slot scheduler dirty/requeued admission, not channelwrite admission.
+- Log evidence: after-run node logs contain 162, 281, and 2705 `internal.app.channelwrite.post_commit_failed` entries for node1, node2, and node3 respectively. The remaining p99 bottleneck is still ChannelV2 store-apply saturation and slot scheduler dirty/requeued admission, not channelwrite admission.
 
 ## 2026-06-10 three-node real-qps 10000 precise post-commit errors
 
 - Scenario: `WK_DELIVERY_CHANNEL_WRITE_EFFECT_WORKERS=16 ./scripts/bench-wukongim-three-nodes-real-qps.sh --qps 10000`, 1000 group channels, 4096 users, 10 members, 30s measured duration.
 - Evidence: `docs/development/perf-runs/20260610-002516-three-node-real-qps/`.
 - Result: 7241.9 actual QPS, 0.724 actual/offered ratio, p99 1264.5ms, p95 661.4ms, max 2697.4ms, and no send errors.
-- Foreground channelwrite remained clean: router errors, router backpressure, channel-busy rejections, router route-not-ready, router timeouts, and local admission rejections were all zero. No `internalv2.infra.cluster.channel_append_batch_failed` log was emitted.
+- Foreground channelwrite remained clean: router errors, router backpressure, channel-busy rejections, router route-not-ready, router timeouts, and local admission rejections were all zero. No `internal.infra.cluster.channel_append_batch_failed` log was emitted.
 - Post-commit effect errors were 3384 total: `other` deltas were node1=320, node2=2072, node3=778; `route_not_ready` deltas were node2=121 and node3=93.
 - Precise log fields show all `route_not_ready` post-commit failures came from `phase=recipient_route_resolve` with underlying `cluster: no slot leader`, concentrated in the first three seconds of the run.
-- The dominant `other` post-commit failures came from `phase=recipient_dispatch`, with the underlying error `conversation_projector: internalv2/usecase/conversation: stale route`. Conversation authority metrics recorded large stale-route admit counts on node1 and node3.
+- The dominant `other` post-commit failures came from `phase=recipient_dispatch`, with the underlying error `conversation_projector: internal/usecase/conversation: stale route`. Conversation authority metrics recorded large stale-route admit counts on node1 and node3.
 - Finding: the observed `route_not_ready` is a transient UID route/no-slot-leader condition in post-commit recipient authority resolution, not foreground append. The larger remaining post-commit error source is conversation authority target staleness during recipient dispatch.
 
 ## 2026-06-10 conversation projection no-retry follow-up
 
 - Change: `ConversationAuthorityClient.AdmitPatches` no longer retries route-not-ready, stale-route, or not-leader admission errors. It resolves current UID authority targets once, admits each target group once, and returns the first error directly.
-- Change: channelwrite's app-level conversation projector logs `internalv2.app.channelwrite.conversation_projection_failed` at ERROR level before returning the failure to the post-commit processor. The outer `internalv2.app.channelwrite.post_commit_failed` observation still carries phase and dispatch context.
+- Change: channelwrite's app-level conversation projector logs `internal.app.channelwrite.conversation_projection_failed` at ERROR level before returning the failure to the post-commit processor. The outer `internal.app.channelwrite.post_commit_failed` observation still carries phase and dispatch context.
 - Rationale: conversation projection is a post-SENDACK best-effort side effect and does not require strong consistency with durable channel append or push delivery.
 - Verification scenario: `WK_DELIVERY_CHANNEL_WRITE_EFFECT_WORKERS=16 ./scripts/bench-wukongim-three-nodes-real-qps.sh --qps 10000`.
 - Verification evidence: `docs/development/perf-runs/20260610-005323-three-node-real-qps/`.
 - Verification result: 7821.4 actual QPS, 0.782 actual/offered ratio, p99 959.9ms, p95 606.6ms, max 2025.3ms, and no send errors.
-- Channelwrite foreground stayed clean: router errors, router backpressure, channel-busy, route-not-ready router results, timeouts, local admission rejects, and `internalv2.infra.cluster.channel_append_batch_failed` logs were all zero.
+- Channelwrite foreground stayed clean: router errors, router backpressure, channel-busy, route-not-ready router results, timeouts, local admission rejects, and `internal.infra.cluster.channel_append_batch_failed` logs were all zero.
 - Post-commit no longer builds backlog: `channelwrite_post_commit_backlog_max=0`, effect queues were empty in the after snapshot, and post-commit effect errors dropped to 257 total. Those errors split into `recipient_route_resolve` route-not-ready/no-slot-leader=179 and `recipient_dispatch`=78. Conversation projection direct logs were 132 total: no-slot-leader=122, stale-route=8, and transport canceled=2, all concentrated in the first second of the measured run.
 - Finding: removing conversation projection retry prevents the previous post-commit worker/backlog amplification. The run still fails the 400ms p99 gate, but the remaining bottleneck is ChannelV2/storage/replication/Slot scheduling pressure rather than channelwrite admission or post-commit retry.
 
@@ -146,7 +146,7 @@
 - Scenario: `scripts/bench-wukongim-three-nodes-1000ch.sh --qps 10000`, default round-robin senders, 1000 group channels, 4096 users, 10 members, 15s measured duration.
 - Baseline evidence: `docs/development/perf-runs/20260611-115501-three-node-1000ch/`.
 - Baseline result: 1821.1 actual QPS, p99 436.6ms, 1 send error, and `fail_fast` stopped the worker after `ReasonSystemError`.
-- Failure mapping: node1 logged `internalv2.access.gateway.send_failed` for channel 582 with `internalv2/message: backpressured`; metrics showed exactly one `channelwrite` local router backpressure and no local admission rejection.
+- Failure mapping: node1 logged `internal.access.gateway.send_failed` for channel 582 with `internal/message: backpressured`; metrics showed exactly one `channelwrite` local router backpressure and no local admission rejection.
 - Channelwrite pressure: append pool had no full submissions, but post-commit pool saturated on all nodes (`post_commit full`: node1=107089, node2=132151, node3=126018). Post-commit effects averaged 476-595ms, while append effects averaged 118-126ms.
 - Downstream pressure was concurrent: ChannelV2 store-append/store-apply reached worker saturation, Slot scheduler had dirty/requeued admissions, and storage commit/request p99 stayed high.
 - One-variable experiment: `WK_DELIVERY_CHANNEL_WRITE_POST_COMMIT_WORKERS=32 scripts/bench-wukongim-three-nodes-1000ch.sh --qps 10000`.
@@ -159,7 +159,7 @@
 - Scenario: `./scripts/bench-wukongim-three-nodes-real-qps.sh --qps 4000`, 1000 group channels, 4096 users, 10 members, 30s measured duration. CPU pprof was captured manually during the load window from API ports 5011/5012/5013.
 - Evidence: `docs/development/perf-runs/20260612-173851-three-node-real-qps-4000-pprof/`.
 - Result: 2626.9 actual QPS, 0.657 actual/offered ratio, p99 3633.9ms, no send errors. Server CPU peaked at node1=350.5%, node2=301.7%, node3=344.4%.
-- Pprof finding: the largest application stack is `internalv2/runtime/channelappend.(*channelWriter).advance`, about 25-40% cumulative per node. Its cost is mostly writer lock/activation churn, post-commit checks, context checks, append/commit scheduling, and runtime copy/zero/scheduler work. `transportv2` write/read and `writev` account for about 12-22%; Prometheus metrics are about 5%; Pebble/storage CPU is only about 4-5%.
+- Pprof finding: the largest application stack is `internal/runtime/channelappend.(*channelWriter).advance`, about 25-40% cumulative per node. Its cost is mostly writer lock/activation churn, post-commit checks, context checks, append/commit scheduling, and runtime copy/zero/scheduler work. `transportv2` write/read and `writev` account for about 12-22%; Prometheus metrics are about 5%; Pebble/storage CPU is only about 4-5%.
 - Runtime evidence: each node had about 5.3k goroutines, dominated by gateway async send collectors, ChannelV2 append future waiters, and ants workers. ChannelV2 store-apply/store-append/RPC pools and transport service workers hit saturation on at least one node.
-- Post-commit evidence: `channelappend_effect_error_delta=32452`, and all sampled after-run post-commit errors were `phase=conversation_active` with `internalv2/usecase/conversation: stale route` (node1=7258, node2=15599, node3=9595). This amplifies channelappend post-commit work and logging but is not the foreground SEND failure source.
+- Post-commit evidence: `channelappend_effect_error_delta=32452`, and all sampled after-run post-commit errors were `phase=conversation_active` with `internal/usecase/conversation: stale route` (node1=7258, node2=15599, node3=9595). This amplifies channelappend post-commit work and logging but is not the foreground SEND failure source.
 - Finding: the high CPU is not caused by raw Pebble writes. It is mostly channelappend post-commit state-machine scheduling and transport fanout under excessive concurrency, with ChannelV2 replication/quorum wait causing the long p99 tail (`append_post_store_commit_wait_p99` about 2.38-2.45s).

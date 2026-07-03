@@ -38,7 +38,7 @@ func (a *App) QueryDiagnostics(ctx context.Context, query diagnostics.Query) dia
 // AddDiagnosticsTrackingRule installs one local-node diagnostics tracking rule.
 func (a *App) AddDiagnosticsTrackingRule(_ context.Context, input diagnostics.TrackingRuleInput) (diagnostics.TrackingRule, error) {
 	if a == nil || a.diagnosticsTracking == nil {
-		return diagnostics.TrackingRule{}, fmt.Errorf("internalv2/app: diagnostics tracking not configured")
+		return diagnostics.TrackingRule{}, fmt.Errorf("internal/app: diagnostics tracking not configured")
 	}
 	return a.diagnosticsTracking.Add(input)
 }
@@ -46,7 +46,7 @@ func (a *App) AddDiagnosticsTrackingRule(_ context.Context, input diagnostics.Tr
 // ListDiagnosticsTrackingRules returns active local-node diagnostics tracking rules.
 func (a *App) ListDiagnosticsTrackingRules(context.Context) ([]diagnostics.TrackingRule, error) {
 	if a == nil || a.diagnosticsTracking == nil {
-		return nil, fmt.Errorf("internalv2/app: diagnostics tracking not configured")
+		return nil, fmt.Errorf("internal/app: diagnostics tracking not configured")
 	}
 	return a.diagnosticsTracking.List(), nil
 }
@@ -54,7 +54,7 @@ func (a *App) ListDiagnosticsTrackingRules(context.Context) ([]diagnostics.Track
 // DeleteDiagnosticsTrackingRule removes one local-node diagnostics tracking rule.
 func (a *App) DeleteDiagnosticsTrackingRule(_ context.Context, ruleID string) error {
 	if a == nil || a.diagnosticsTracking == nil {
-		return fmt.Errorf("internalv2/app: diagnostics tracking not configured")
+		return fmt.Errorf("internal/app: diagnostics tracking not configured")
 	}
 	a.diagnosticsTracking.Delete(ruleID)
 	return nil

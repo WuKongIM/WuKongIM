@@ -13,8 +13,8 @@
 
 - 不决定 Slot 副本分配、扩缩容、rebalance、recover、hash-slot table 规划或节点生命周期；这些属于 controller/cluster。
 - 不存储消息日志，不处理消息 append/fetch/replication、SendAck、投递、离线同步；这些属于 channel/message/delivery 相关包。
-- 不做 HTTP、Gateway、管理 API、节点入口协议适配；入口放 `internal/access/*` 或 `internalv2/access/*`。
-- 不承载业务编排、权限规则、登录 token、发送规则、会话投影策略；业务放 `internal/usecase/*` 或 `internalv2/usecase/*`。
+- 不做 HTTP、Gateway、管理 API、节点入口协议适配；入口放 `internal/access/*`。
+- 不承载业务编排、权限规则、登录 token、发送规则、会话投影策略；业务放 `internal/usecase/*`。
 - 不保存节点本地运行时状态，例如在线连接、mailbox、限流、插件进程状态；这些放 `internal/runtime/*`。
 - 不做通用 RPC 聚合层；`proxy/` 只放直接查询或提交 Slot 元数据、且需要 Slot leader 权威语义的 RPC。
 
@@ -23,9 +23,9 @@
 | 需求 | 落点 |
 |------|------|
 | 新增可复制元数据字段/表 | `pkg/db/meta` + `pkg/slot/fsm`，需要分布式 facade 时再加 `pkg/slot/proxy` |
-| 新增业务流程 | `internal/usecase/*` 或 `internalv2/usecase/*` |
+| 新增业务流程 | `internal/usecase/*` |
 | 新增节点本地运行时 | `internal/runtime/*` |
-| 新增入口协议适配 | `internal/access/*` 或 `internalv2/access/*` |
+| 新增入口协议适配 | `internal/access/*` |
 | 新增 Slot/节点调度策略 | controller/cluster 相关包 |
 | 新增消息数据面能力 | channel/message/delivery 相关包 |
 

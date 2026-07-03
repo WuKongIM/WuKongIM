@@ -19,7 +19,7 @@ func (a *Adapter) HandleManagerChannelRPC(ctx context.Context, payload []byte) (
 	req, err := decodeManagerChannelRequest(payload)
 	if err != nil {
 		a.rpcLogger().Warn("manager channel rpc decode failed",
-			wklog.Event("internalv2.access.node.manager_channel_decode_failed"),
+			wklog.Event("internal.access.node.manager_channel_decode_failed"),
 			wklog.Int("payloadBytes", len(payload)),
 			wklog.Error(err),
 		)
@@ -60,7 +60,7 @@ func (c *Client) ListManagerBusinessChannels(ctx context.Context, req management
 
 func (c *Client) callManagerChannel(ctx context.Context, nodeID uint64, req managerChannelRPCRequest) (managerChannelRPCResponse, error) {
 	if c == nil || c.node == nil {
-		return managerChannelRPCResponse{}, fmt.Errorf("internalv2/access/node: manager channel rpc client not configured")
+		return managerChannelRPCResponse{}, fmt.Errorf("internal/access/node: manager channel rpc client not configured")
 	}
 	body, err := encodeManagerChannelRequest(req)
 	if err != nil {
@@ -101,7 +101,7 @@ func managerChannelRPCErrorForStatus(status string) error {
 	case rpcStatusRejected:
 		return managementusecase.ErrBusinessChannelReaderUnavailable
 	default:
-		return fmt.Errorf("internalv2/access/node: unknown manager channel rpc status %q", status)
+		return fmt.Errorf("internal/access/node: unknown manager channel rpc status %q", status)
 	}
 }
 
@@ -110,7 +110,7 @@ func (a *Adapter) logManagerChannelError(req managerChannelRPCRequest, status st
 		return
 	}
 	a.rpcLogger().Warn("manager channel rpc rejected",
-		wklog.Event("internalv2.access.node.manager_channel_rejected"),
+		wklog.Event("internal.access.node.manager_channel_rejected"),
 		wklog.String("status", status),
 		wklog.Uint64("nodeID", req.NodeID),
 		wklog.Int("limit", req.Limit),

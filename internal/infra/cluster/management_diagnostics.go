@@ -117,5 +117,5 @@ func (r *ManagementDiagnosticsReader) isLocal(nodeID uint64) bool {
 }
 
 func errManagementDiagnosticsUnavailable() error {
-	return fmt.Errorf("internalv2/infra/cluster: management diagnostics unavailable")
+	return fmt.Errorf("internal/infra/cluster: management diagnostics unavailable")
 }

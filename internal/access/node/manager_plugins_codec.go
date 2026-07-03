@@ -71,7 +71,7 @@ func encodeManagerPluginRequest(req managerPluginRPCRequest) ([]byte, error) {
 
 func decodeManagerPluginRequest(body []byte) (managerPluginRPCRequest, error) {
 	if !hasMagic(body, managerPluginRequestMagic[:]) {
-		return managerPluginRPCRequest{}, fmt.Errorf("internalv2/access/node: invalid manager plugin request codec")
+		return managerPluginRPCRequest{}, fmt.Errorf("internal/access/node: invalid manager plugin request codec")
 	}
 	offset := len(managerPluginRequestMagic)
 	opID, next, err := readByte(body, offset, "manager plugin op")
@@ -111,7 +111,7 @@ func decodeManagerPluginRequest(body []byte) (managerPluginRPCRequest, error) {
 		config = append(json.RawMessage(nil), raw...)
 	}
 	if offset != len(body) {
-		return managerPluginRPCRequest{}, fmt.Errorf("internalv2/access/node: trailing manager plugin request bytes")
+		return managerPluginRPCRequest{}, fmt.Errorf("internal/access/node: trailing manager plugin request bytes")
 	}
 	return managerPluginRPCRequest{Op: op, NodeID: nodeID, PluginNo: pluginNo, ForwardReq: forwardReq, Config: config}, nil
 }
@@ -130,7 +130,7 @@ func encodeManagerPluginResponse(resp managerPluginRPCResponse) ([]byte, error) 
 
 func decodeManagerPluginResponse(body []byte) (managerPluginRPCResponse, error) {
 	if !hasMagic(body, managerPluginResponseMagic[:]) {
-		return managerPluginRPCResponse{}, fmt.Errorf("internalv2/access/node: invalid manager plugin response codec")
+		return managerPluginRPCResponse{}, fmt.Errorf("internal/access/node: invalid manager plugin response codec")
 	}
 	offset := len(managerPluginResponseMagic)
 	var resp managerPluginRPCResponse
@@ -151,7 +151,7 @@ func decodeManagerPluginResponse(body []byte) (managerPluginRPCResponse, error) 
 		}
 	}
 	if offset != len(body) {
-		return managerPluginRPCResponse{}, fmt.Errorf("internalv2/access/node: trailing manager plugin response bytes")
+		return managerPluginRPCResponse{}, fmt.Errorf("internal/access/node: trailing manager plugin response bytes")
 	}
 	return resp, nil
 }
@@ -264,7 +264,7 @@ func readStringMap(body []byte, offset int, label string) (map[string]string, in
 		return nil, offset, err
 	}
 	if n > maxManagerPluginRPCCollectionLen {
-		return nil, offset, fmt.Errorf("internalv2/access/node: too many %s: %d", label, n)
+		return nil, offset, fmt.Errorf("internal/access/node: too many %s: %d", label, n)
 	}
 	if n == 0 {
 		return nil, offset, nil
@@ -300,7 +300,7 @@ func readManagerPlugins(body []byte, offset int) ([]managementusecase.Plugin, in
 		return nil, offset, err
 	}
 	if n > maxManagerPluginRPCCollectionLen {
-		return nil, offset, fmt.Errorf("internalv2/access/node: too many manager plugins: %d", n)
+		return nil, offset, fmt.Errorf("internal/access/node: too many manager plugins: %d", n)
 	}
 	items := make([]managementusecase.Plugin, 0, n)
 	for i := uint64(0); i < n; i++ {
@@ -374,7 +374,7 @@ func readManagerPlugin(body []byte, offset int) (managementusecase.Plugin, int, 
 		return item, offset, err
 	}
 	if methodCount > maxManagerPluginRPCCollectionLen {
-		return item, offset, fmt.Errorf("internalv2/access/node: too many manager plugin methods: %d", methodCount)
+		return item, offset, fmt.Errorf("internal/access/node: too many manager plugin methods: %d", methodCount)
 	}
 	item.Methods = make([]pluginusecase.Method, 0, methodCount)
 	for i := uint64(0); i < methodCount; i++ {
@@ -436,7 +436,7 @@ func managerPluginOpID(op string) (byte, error) {
 	case managerPluginOpUninstall:
 		return managerPluginOpUninstallID, nil
 	default:
-		return 0, fmt.Errorf("internalv2/access/node: unknown manager plugin op %q", op)
+		return 0, fmt.Errorf("internal/access/node: unknown manager plugin op %q", op)
 	}
 }
 
@@ -455,7 +455,7 @@ func managerPluginOpFromID(id byte) (string, error) {
 	case managerPluginOpUninstallID:
 		return managerPluginOpUninstall, nil
 	default:
-		return "", fmt.Errorf("internalv2/access/node: unknown manager plugin op id %d", id)
+		return "", fmt.Errorf("internal/access/node: unknown manager plugin op id %d", id)
 	}
 }
 

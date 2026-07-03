@@ -41,7 +41,7 @@ func encodeManagerSlotRaftRequest(req managerSlotRaftRPCRequest) ([]byte, error)
 
 func decodeManagerSlotRaftRequest(body []byte) (managerSlotRaftRPCRequest, error) {
 	if !hasMagic(body, managerSlotRaftRequestMagic[:]) {
-		return managerSlotRaftRPCRequest{}, fmt.Errorf("internalv2/access/node: invalid manager slot raft request codec")
+		return managerSlotRaftRPCRequest{}, fmt.Errorf("internal/access/node: invalid manager slot raft request codec")
 	}
 	var req managerSlotRaftRPCRequest
 	if err := json.Unmarshal(body[len(managerSlotRaftRequestMagic):], &req); err != nil {
@@ -62,7 +62,7 @@ func encodeManagerSlotRaftResponse(resp managerSlotRaftRPCResponse) ([]byte, err
 
 func decodeManagerSlotRaftResponse(body []byte) (managerSlotRaftRPCResponse, error) {
 	if !hasMagic(body, managerSlotRaftResponseMagic[:]) {
-		return managerSlotRaftRPCResponse{}, fmt.Errorf("internalv2/access/node: invalid manager slot raft response codec")
+		return managerSlotRaftRPCResponse{}, fmt.Errorf("internal/access/node: invalid manager slot raft response codec")
 	}
 	var resp managerSlotRaftRPCResponse
 	if err := json.Unmarshal(body[len(managerSlotRaftResponseMagic):], &resp); err != nil {

@@ -23,7 +23,7 @@ const (
 )
 
 // ErrTopWarmingUp reports that the top collector cannot serve the requested window yet.
-var ErrTopWarmingUp = errors.New("internalv2/access/api: top collector warming up")
+var ErrTopWarmingUp = errors.New("internal/access/api: top collector warming up")
 
 // TopView selects the optional snapshot sections returned for wkcli top.
 type TopView string
@@ -457,7 +457,7 @@ func (s *Server) logTopSnapshotFailure(c *gin.Context, err error) {
 		}
 	}
 	s.httpLogger().Error("top snapshot request failed",
-		wklog.Event("internalv2.access.api.top_snapshot_failed"),
+		wklog.Event("internal.access.api.top_snapshot_failed"),
 		wklog.String("method", method),
 		wklog.String("path", path),
 		wklog.Error(err),

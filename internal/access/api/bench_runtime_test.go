@@ -209,7 +209,7 @@ func TestBenchChannelRuntimeRoutesUnavailableWithoutController(t *testing.T) {
 }
 
 func TestBenchChannelRuntimeControllerFailureReturnsInternalServerError(t *testing.T) {
-	logger := newRecordingAPILogger("internalv2.access.api")
+	logger := newRecordingAPILogger("internal.access.api")
 	srv := New(Options{
 		BenchEnabled: true,
 		Logger:       logger,
@@ -221,7 +221,7 @@ func TestBenchChannelRuntimeControllerFailureReturnsInternalServerError(t *testi
 	t.Cleanup(httpSrv.Close)
 
 	postJSON(t, httpSrv.URL+"/bench/v1/channel-runtime/probe", `{"run_id":"run-1","profile":"wide","channel_type":2,"range":{"start":0,"end":1}}`, http.StatusInternalServerError)
-	requireAPILogEntry(t, logger, "ERROR", "internalv2.access.api.http", "internalv2.access.api.bench_runtime_failed")
+	requireAPILogEntry(t, logger, "ERROR", "internal.access.api.http", "internal.access.api.bench_runtime_failed")
 }
 
 type recordedAPILogEntry struct {

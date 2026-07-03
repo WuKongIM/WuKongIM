@@ -19,7 +19,7 @@ func (a *Adapter) HandleManagerTaskAuditRPC(ctx context.Context, payload []byte)
 	req, err := decodeManagerTaskAuditRequest(payload)
 	if err != nil {
 		a.rpcLogger().Warn("manager task audit rpc decode failed",
-			wklog.Event("internalv2.access.node.manager_task_audit_decode_failed"),
+			wklog.Event("internal.access.node.manager_task_audit_decode_failed"),
 			wklog.Int("payloadBytes", len(payload)),
 			wklog.Error(err),
 		)
@@ -40,9 +40,9 @@ func (a *Adapter) HandleManagerTaskAuditRPC(ctx context.Context, payload []byte)
 		a.logManagerTaskAuditError(req, status, err)
 		return encodeManagerTaskAuditResponse(managerTaskAuditRPCResponse{Status: status, Events: events})
 	default:
-		err := fmt.Errorf("internalv2/access/node: unknown manager task audit op %q", req.Op)
+		err := fmt.Errorf("internal/access/node: unknown manager task audit op %q", req.Op)
 		a.rpcLogger().Warn("manager task audit rpc unknown operation",
-			wklog.Event("internalv2.access.node.manager_task_audit_unknown_op"),
+			wklog.Event("internal.access.node.manager_task_audit_unknown_op"),
 			wklog.String("op", req.Op),
 			wklog.Error(err),
 		)
@@ -76,7 +76,7 @@ func (c *Client) ManagerControllerTaskAuditEvents(ctx context.Context, nodeID ui
 
 func (c *Client) callManagerTaskAudit(ctx context.Context, nodeID uint64, req managerTaskAuditRPCRequest) (managerTaskAuditRPCResponse, error) {
 	if c == nil || c.node == nil {
-		return managerTaskAuditRPCResponse{}, fmt.Errorf("internalv2/access/node: manager task audit rpc client not configured")
+		return managerTaskAuditRPCResponse{}, fmt.Errorf("internal/access/node: manager task audit rpc client not configured")
 	}
 	body, err := encodeManagerTaskAuditRequest(req)
 	if err != nil {
@@ -123,9 +123,9 @@ func managerTaskAuditRPCErrorForStatus(status string) error {
 	case rpcStatusUnavailable:
 		return managementusecase.ErrControllerTaskAuditUnavailable
 	case rpcStatusRejected:
-		return fmt.Errorf("internalv2/access/node: manager task audit rpc rejected")
+		return fmt.Errorf("internal/access/node: manager task audit rpc rejected")
 	default:
-		return fmt.Errorf("internalv2/access/node: unknown manager task audit rpc status %q", status)
+		return fmt.Errorf("internal/access/node: unknown manager task audit rpc status %q", status)
 	}
 }
 
@@ -134,7 +134,7 @@ func (a *Adapter) logManagerTaskAuditError(req managerTaskAuditRPCRequest, statu
 		return
 	}
 	a.rpcLogger().Warn("manager task audit rpc rejected",
-		wklog.Event("internalv2.access.node.manager_task_audit_rejected"),
+		wklog.Event("internal.access.node.manager_task_audit_rejected"),
 		wklog.String("op", req.Op),
 		wklog.String("status", status),
 		wklog.String("taskID", req.TaskID),

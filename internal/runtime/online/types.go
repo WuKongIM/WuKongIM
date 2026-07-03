@@ -3,10 +3,10 @@ package online
 import "errors"
 
 // ErrInvalidConnection reports a malformed online connection registration.
-var ErrInvalidConnection = errors.New("internalv2/runtime/online: invalid connection")
+var ErrInvalidConnection = errors.New("internal/runtime/online: invalid connection")
 
 // ErrConnectionNotFound reports that a session ID is not registered locally.
-var ErrConnectionNotFound = errors.New("internalv2/runtime/online: connection not found")
+var ErrConnectionNotFound = errors.New("internal/runtime/online: connection not found")
 
 // RouteState records the owner-local lifecycle stage for a gateway session.
 type RouteState uint8

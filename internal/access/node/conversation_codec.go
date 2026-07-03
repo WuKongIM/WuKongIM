@@ -84,7 +84,7 @@ func encodeConversationAuthorityRequest(req conversationAuthorityRequest) ([]byt
 
 func decodeConversationAuthorityRequest(body []byte) (conversationAuthorityRequest, error) {
 	if !hasMagic(body, conversationAuthorityRequestMagic[:]) {
-		return conversationAuthorityRequest{}, fmt.Errorf("internalv2/access/node: invalid conversation authority request codec")
+		return conversationAuthorityRequest{}, fmt.Errorf("internal/access/node: invalid conversation authority request codec")
 	}
 	offset := len(conversationAuthorityRequestMagic)
 	var req conversationAuthorityRequest
@@ -112,10 +112,10 @@ func decodeConversationAuthorityRequest(body []byte) (conversationAuthorityReque
 		return conversationAuthorityRequest{}, err
 	}
 	if limit < 0 {
-		return conversationAuthorityRequest{}, fmt.Errorf("internalv2/access/node: conversation limit is negative")
+		return conversationAuthorityRequest{}, fmt.Errorf("internal/access/node: conversation limit is negative")
 	}
 	if limit > maxConversationAuthorityDecodeLimit {
-		return conversationAuthorityRequest{}, fmt.Errorf("internalv2/access/node: conversation limit overflows int")
+		return conversationAuthorityRequest{}, fmt.Errorf("internal/access/node: conversation limit overflows int")
 	}
 	req.Limit = int(limit)
 	if req.Patches, offset, err = readConversationActivePatches(body, offset); err != nil {
@@ -127,7 +127,7 @@ func decodeConversationAuthorityRequest(body []byte) (conversationAuthorityReque
 		}
 	}
 	if offset != len(body) {
-		return conversationAuthorityRequest{}, fmt.Errorf("internalv2/access/node: trailing conversation authority request bytes")
+		return conversationAuthorityRequest{}, fmt.Errorf("internal/access/node: trailing conversation authority request bytes")
 	}
 	return req, nil
 }
@@ -143,7 +143,7 @@ func encodeConversationAuthorityResponse(resp conversationAuthorityResponse) ([]
 
 func decodeConversationAuthorityResponse(body []byte) (conversationAuthorityResponse, error) {
 	if !hasMagic(body, conversationAuthorityResponseMagic[:]) {
-		return conversationAuthorityResponse{}, fmt.Errorf("internalv2/access/node: invalid conversation authority response codec")
+		return conversationAuthorityResponse{}, fmt.Errorf("internal/access/node: invalid conversation authority response codec")
 	}
 	offset := len(conversationAuthorityResponseMagic)
 	var resp conversationAuthorityResponse
@@ -158,7 +158,7 @@ func decodeConversationAuthorityResponse(body []byte) (conversationAuthorityResp
 		return conversationAuthorityResponse{}, err
 	}
 	if offset != len(body) {
-		return conversationAuthorityResponse{}, fmt.Errorf("internalv2/access/node: trailing conversation authority response bytes")
+		return conversationAuthorityResponse{}, fmt.Errorf("internal/access/node: trailing conversation authority response bytes")
 	}
 	return resp, nil
 }
@@ -168,7 +168,7 @@ func validateConversationAuthorityOp(op string) error {
 	case conversationOpAdmitPatches, conversationOpAdmitActiveBatch, conversationOpList, conversationOpDrain:
 		return nil
 	default:
-		return fmt.Errorf("internalv2/access/node: unknown conversation authority op %q", op)
+		return fmt.Errorf("internal/access/node: unknown conversation authority op %q", op)
 	}
 }
 
@@ -190,14 +190,14 @@ func readConversationRouteTarget(body []byte, offset int) (conversationusecase.R
 		return conversationusecase.RouteTarget{}, offset, err
 	}
 	if v > uint64(^uint16(0)) {
-		return conversationusecase.RouteTarget{}, offset, fmt.Errorf("internalv2/access/node: conversation hash slot overflows uint16")
+		return conversationusecase.RouteTarget{}, offset, fmt.Errorf("internal/access/node: conversation hash slot overflows uint16")
 	}
 	target.HashSlot = uint16(v)
 	if v, offset, err = readUvarint(body, offset); err != nil {
 		return conversationusecase.RouteTarget{}, offset, err
 	}
 	if v > uint64(^uint32(0)) {
-		return conversationusecase.RouteTarget{}, offset, fmt.Errorf("internalv2/access/node: conversation slot id overflows uint32")
+		return conversationusecase.RouteTarget{}, offset, fmt.Errorf("internal/access/node: conversation slot id overflows uint32")
 	}
 	target.SlotID = uint32(v)
 	if target.LeaderNodeID, offset, err = readUvarint(body, offset); err != nil {
@@ -232,7 +232,7 @@ func readConversationKind(body []byte, offset int) (metadb.ConversationKind, int
 	case metadb.ConversationKindNormal, metadb.ConversationKindCMD:
 		return kind, next, nil
 	default:
-		return 0, offset, fmt.Errorf("internalv2/access/node: invalid conversation kind %d", v)
+		return 0, offset, fmt.Errorf("internal/access/node: invalid conversation kind %d", v)
 	}
 }
 
@@ -364,7 +364,7 @@ func readConversationActiveBatch(body []byte, offset int) (conversationactive.Ac
 		return conversationactive.ActiveBatch{}, offset, err
 	}
 	if channelType > uint64(^uint8(0)) {
-		return conversationactive.ActiveBatch{}, offset, fmt.Errorf("internalv2/access/node: conversation active batch channel type overflows uint8")
+		return conversationactive.ActiveBatch{}, offset, fmt.Errorf("internal/access/node: conversation active batch channel type overflows uint8")
 	}
 	batch.ChannelType = uint8(channelType)
 	if batch.MessageSeq, offset, err = readUvarint(body, offset); err != nil {
@@ -542,16 +542,16 @@ func readConversationBool(body []byte, offset int, label string) (bool, int, err
 	case 1:
 		return true, next, nil
 	default:
-		return false, offset, fmt.Errorf("internalv2/access/node: invalid %s flag", label)
+		return false, offset, fmt.Errorf("internal/access/node: invalid %s flag", label)
 	}
 }
 
 func validateConversationCollectionLen(count uint64, remaining int, label string) error {
 	if count > uint64(remaining) {
-		return fmt.Errorf("internalv2/access/node: %s length exceeds payload", label)
+		return fmt.Errorf("internal/access/node: %s length exceeds payload", label)
 	}
 	if count > maxConversationAuthorityCollectionLen {
-		return fmt.Errorf("internalv2/access/node: %s length exceeds limit", label)
+		return fmt.Errorf("internal/access/node: %s length exceeds limit", label)
 	}
 	return nil
 }

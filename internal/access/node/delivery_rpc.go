@@ -20,7 +20,7 @@ func (a *Adapter) HandleDeliveryPushRPC(ctx context.Context, payload []byte) ([]
 	req, err := decodeDeliveryPushRequest(payload)
 	if err != nil {
 		a.rpcLogger().Warn("delivery push rpc decode failed",
-			wklog.Event("internalv2.access.node.delivery_push_decode_failed"),
+			wklog.Event("internal.access.node.delivery_push_decode_failed"),
 			wklog.Int("payloadBytes", len(payload)),
 			wklog.Error(err),
 		)
@@ -32,7 +32,7 @@ func (a *Adapter) HandleDeliveryPushRPC(ctx context.Context, payload []byte) ([]
 	result, err := a.delivery.Push(ctx, req.Command)
 	if err != nil {
 		a.rpcLogger().Warn("delivery push rpc rejected",
-			wklog.Event("internalv2.access.node.delivery_push_rejected"),
+			wklog.Event("internal.access.node.delivery_push_rejected"),
 			wklog.Uint64("ownerNodeID", req.Command.OwnerNodeID),
 			wklog.ChannelID(req.Command.Envelope.ChannelID),
 			wklog.ChannelType(int64(req.Command.Envelope.ChannelType)),
@@ -51,7 +51,7 @@ func (a *Adapter) HandleDeliveryFanoutRPC(ctx context.Context, payload []byte) (
 	req, err := decodeDeliveryFanoutRequest(payload)
 	if err != nil {
 		a.rpcLogger().Warn("delivery fanout rpc decode failed",
-			wklog.Event("internalv2.access.node.delivery_fanout_decode_failed"),
+			wklog.Event("internal.access.node.delivery_fanout_decode_failed"),
 			wklog.Int("payloadBytes", len(payload)),
 			wklog.Error(err),
 		)
@@ -62,7 +62,7 @@ func (a *Adapter) HandleDeliveryFanoutRPC(ctx context.Context, payload []byte) (
 	}
 	if err := a.deliveryFanout.RunTask(ctx, req.Task); err != nil {
 		a.rpcLogger().Warn("delivery fanout rpc rejected",
-			wklog.Event("internalv2.access.node.delivery_fanout_rejected"),
+			wklog.Event("internal.access.node.delivery_fanout_rejected"),
 			wklog.Uint64("targetNodeID", req.Task.Partition.LeaderNodeID),
 			wklog.Int("partitionID", int(req.Task.Partition.ID)),
 			wklog.ChannelID(req.Task.Envelope.ChannelID),
@@ -80,7 +80,7 @@ func (a *Adapter) HandleDeliveryFanoutRPC(ctx context.Context, payload []byte) (
 // PushBatch forwards one owner-node delivery batch to nodeID.
 func (c *Client) PushBatch(ctx context.Context, nodeID uint64, cmd runtimedelivery.PushCommand) (runtimedelivery.PushResult, error) {
 	if c == nil || c.node == nil {
-		return runtimedelivery.PushResult{}, fmt.Errorf("internalv2/access/node: delivery rpc client not configured")
+		return runtimedelivery.PushResult{}, fmt.Errorf("internal/access/node: delivery rpc client not configured")
 	}
 	body, err := encodeDeliveryPushRequest(deliveryPushRequest{Command: cmd})
 	if err != nil {
@@ -98,16 +98,16 @@ func (c *Client) PushBatch(ctx context.Context, nodeID uint64, cmd runtimedelive
 	case rpcStatusOK:
 		return resp.Result, nil
 	case rpcStatusRejected:
-		return runtimedelivery.PushResult{}, fmt.Errorf("internalv2/access/node: delivery rpc rejected")
+		return runtimedelivery.PushResult{}, fmt.Errorf("internal/access/node: delivery rpc rejected")
 	default:
-		return runtimedelivery.PushResult{}, fmt.Errorf("internalv2/access/node: unknown delivery rpc status %q", resp.Status)
+		return runtimedelivery.PushResult{}, fmt.Errorf("internal/access/node: unknown delivery rpc status %q", resp.Status)
 	}
 }
 
 // ForwardFanoutTask forwards one partition-scoped fanout task to nodeID.
 func (c *Client) ForwardFanoutTask(ctx context.Context, nodeID uint64, task runtimedelivery.FanoutTask) error {
 	if c == nil || c.node == nil {
-		return fmt.Errorf("internalv2/access/node: delivery fanout rpc client not configured")
+		return fmt.Errorf("internal/access/node: delivery fanout rpc client not configured")
 	}
 	body, err := encodeDeliveryFanoutRequest(deliveryFanoutRequest{Task: task})
 	if err != nil {
@@ -125,8 +125,8 @@ func (c *Client) ForwardFanoutTask(ctx context.Context, nodeID uint64, task runt
 	case rpcStatusOK:
 		return nil
 	case rpcStatusRejected:
-		return fmt.Errorf("internalv2/access/node: delivery fanout rpc rejected")
+		return fmt.Errorf("internal/access/node: delivery fanout rpc rejected")
 	default:
-		return fmt.Errorf("internalv2/access/node: unknown delivery fanout rpc status %q", resp.Status)
+		return fmt.Errorf("internal/access/node: unknown delivery fanout rpc status %q", resp.Status)
 	}
 }

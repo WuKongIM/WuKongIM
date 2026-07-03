@@ -14,9 +14,9 @@ import (
 
 var (
 	// ErrControllerVoterPromotionUnavailable reports that Controller voter promotion dependencies are unavailable.
-	ErrControllerVoterPromotionUnavailable = errors.New("internalv2/usecase/management: controller voter promotion unavailable")
+	ErrControllerVoterPromotionUnavailable = errors.New("internal/usecase/management: controller voter promotion unavailable")
 	// ErrControllerVoterPromotionBlocked reports that Controller voter promotion failed a safety gate.
-	ErrControllerVoterPromotionBlocked = errors.New("internalv2/usecase/management: controller voter promotion blocked")
+	ErrControllerVoterPromotionBlocked = errors.New("internal/usecase/management: controller voter promotion blocked")
 )
 
 // PromoteControllerVoterRequest is the manager-facing Controller voter promotion intent.

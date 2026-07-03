@@ -39,10 +39,10 @@ func encodeDiagnosticsRequestBinary(req diagnosticsRequest) ([]byte, error) {
 
 func decodeDiagnosticsRequest(body []byte) (diagnosticsRequest, error) {
 	if len(body) > maxDiagnosticsBodyBytes {
-		return diagnosticsRequest{}, fmt.Errorf("internalv2/access/node: diagnostics request body too large")
+		return diagnosticsRequest{}, fmt.Errorf("internal/access/node: diagnostics request body too large")
 	}
 	if !isDiagnosticsRequestBinary(body) {
-		return diagnosticsRequest{}, fmt.Errorf("internalv2/access/node: invalid diagnostics request codec")
+		return diagnosticsRequest{}, fmt.Errorf("internal/access/node: invalid diagnostics request codec")
 	}
 	offset := len(diagnosticsRequestMagic)
 	query, next, err := readDiagnosticsQuery(body, offset)
@@ -50,7 +50,7 @@ func decodeDiagnosticsRequest(body []byte) (diagnosticsRequest, error) {
 		return diagnosticsRequest{}, err
 	}
 	if next != len(body) {
-		return diagnosticsRequest{}, fmt.Errorf("internalv2/access/node: trailing diagnostics request bytes")
+		return diagnosticsRequest{}, fmt.Errorf("internal/access/node: trailing diagnostics request bytes")
 	}
 	return diagnosticsRequest{Query: query}, nil
 }
@@ -65,10 +65,10 @@ func encodeDiagnosticsResponse(resp diagnosticsResponse) ([]byte, error) {
 
 func decodeDiagnosticsResponse(body []byte) (diagnosticsResponse, error) {
 	if len(body) > maxDiagnosticsBodyBytes {
-		return diagnosticsResponse{}, fmt.Errorf("internalv2/access/node: diagnostics response body too large")
+		return diagnosticsResponse{}, fmt.Errorf("internal/access/node: diagnostics response body too large")
 	}
 	if !isDiagnosticsResponseBinary(body) {
-		return diagnosticsResponse{}, fmt.Errorf("internalv2/access/node: invalid diagnostics response codec")
+		return diagnosticsResponse{}, fmt.Errorf("internal/access/node: invalid diagnostics response codec")
 	}
 	version := diagnosticsResponseCodecVersion(body)
 	offset := len(diagnosticsResponseMagic)
@@ -81,7 +81,7 @@ func decodeDiagnosticsResponse(body []byte) (diagnosticsResponse, error) {
 		return diagnosticsResponse{}, err
 	}
 	if offset != len(body) {
-		return diagnosticsResponse{}, fmt.Errorf("internalv2/access/node: trailing diagnostics response bytes")
+		return diagnosticsResponse{}, fmt.Errorf("internal/access/node: trailing diagnostics response bytes")
 	}
 	return resp, nil
 }
@@ -267,7 +267,7 @@ func readDiagnosticsEvents(body []byte, offset int, eventCodecVersion int) ([]di
 		return nil, offset, err
 	}
 	if count > maxDiagnosticsEvents {
-		return nil, offset, fmt.Errorf("internalv2/access/node: diagnostics events exceeds limit")
+		return nil, offset, fmt.Errorf("internal/access/node: diagnostics events exceeds limit")
 	}
 	offset = next
 	eventsLen, err := readCollectionLen(count, len(body)-offset, "diagnostics events")
@@ -348,7 +348,7 @@ func readDiagnosticsEvent(body []byte, offset int, eventCodecVersion int) (diagn
 		return diagnostics.Event{}, offset, err
 	}
 	if slotID > uint64(^uint32(0)) {
-		return diagnostics.Event{}, offset, fmt.Errorf("internalv2/access/node: diagnostics slot id overflows uint32")
+		return diagnostics.Event{}, offset, fmt.Errorf("internal/access/node: diagnostics slot id overflows uint32")
 	}
 	if event.ChannelKey, offset, err = readDiagnosticsString(body, offset); err != nil {
 		return diagnostics.Event{}, offset, err
@@ -430,7 +430,7 @@ func readDiagnosticsStringSlice(body []byte, offset int, label string) ([]string
 		return nil, offset, err
 	}
 	if count > maxDiagnosticsNotes {
-		return nil, offset, fmt.Errorf("internalv2/access/node: %s exceeds limit", label)
+		return nil, offset, fmt.Errorf("internal/access/node: %s exceeds limit", label)
 	}
 	offset = next
 	valuesLen, err := readCollectionLen(count, len(body)-offset, label)
@@ -452,12 +452,12 @@ func readDiagnosticsString(body []byte, offset int) (string, int, error) {
 		return "", offset, err
 	}
 	if length > maxDiagnosticsStringBytes {
-		return "", offset, fmt.Errorf("internalv2/access/node: diagnostics string exceeds limit")
+		return "", offset, fmt.Errorf("internal/access/node: diagnostics string exceeds limit")
 	}
 	offset = next
 	end := offset + int(length)
 	if end < offset || end > len(body) {
-		return "", offset, fmt.Errorf("internalv2/access/node: short diagnostics string")
+		return "", offset, fmt.Errorf("internal/access/node: short diagnostics string")
 	}
 	return string(body[offset:end]), end, nil
 }

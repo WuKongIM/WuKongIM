@@ -29,9 +29,9 @@ const (
 
 var (
 	// ErrUserStoreRequired reports that the user metadata store is missing.
-	ErrUserStoreRequired = errors.New("internalv2/usecase/user: user store required")
+	ErrUserStoreRequired = errors.New("internal/usecase/user: user store required")
 	// ErrDeviceStoreRequired reports that the device metadata store is missing.
-	ErrDeviceStoreRequired = errors.New("internalv2/usecase/user: device store required")
+	ErrDeviceStoreRequired = errors.New("internal/usecase/user: device store required")
 )
 
 // UserStore persists UID metadata.

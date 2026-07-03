@@ -8,15 +8,15 @@ import (
 
 var (
 	// ErrInvalidSubscriberCursor reports a non-terminal subscriber page without a usable next cursor.
-	ErrInvalidSubscriberCursor = errors.New("internalv2/channelappend: invalid subscriber cursor")
+	ErrInvalidSubscriberCursor = errors.New("internal/channelappend: invalid subscriber cursor")
 	// ErrCommitEffectFailed reports a post-commit effect failure that will be logged and dropped.
-	ErrCommitEffectFailed = errors.New("internalv2/channelappend: commit effect failed")
+	ErrCommitEffectFailed = errors.New("internal/channelappend: commit effect failed")
 	// ErrDeliveryRetryExhausted reports retryable owner push routes after the final delivery attempt.
-	ErrDeliveryRetryExhausted = errors.New("internalv2/channelappend: delivery retry exhausted")
+	ErrDeliveryRetryExhausted = errors.New("internal/channelappend: delivery retry exhausted")
 	// ErrEffectPanic reports a recovered panic from an asynchronous channel append effect.
-	ErrEffectPanic = errors.New("internalv2/channelappend: effect panic")
+	ErrEffectPanic = errors.New("internal/channelappend: effect panic")
 	// ErrRealtimeDeliveryRequired reports a transient send without a realtime delivery queue.
-	ErrRealtimeDeliveryRequired = errors.New("internalv2/channelappend: realtime delivery required")
+	ErrRealtimeDeliveryRequired = errors.New("internal/channelappend: realtime delivery required")
 )
 
 // RecipientProcessorOptions configures recipient-authority post-commit processing.

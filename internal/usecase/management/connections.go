@@ -13,7 +13,7 @@ import (
 )
 
 // ErrConnectionReaderUnavailable reports that a requested node connection source is not available.
-var ErrConnectionReaderUnavailable = errors.New("internalv2/usecase/management: connection reader unavailable")
+var ErrConnectionReaderUnavailable = errors.New("internal/usecase/management: connection reader unavailable")
 
 // ConnectionReader exposes owner-local gateway session snapshots.
 type ConnectionReader interface {

@@ -21,7 +21,7 @@ func (a *Adapter) HandleManagerPluginRPC(ctx context.Context, payload []byte) ([
 	req, err := decodeManagerPluginRequest(payload)
 	if err != nil {
 		a.rpcLogger().Warn("manager plugin rpc decode failed",
-			wklog.Event("internalv2.access.node.manager_plugin_decode_failed"),
+			wklog.Event("internal.access.node.manager_plugin_decode_failed"),
 			wklog.Int("payloadBytes", len(payload)),
 			wklog.Error(err),
 		)
@@ -80,9 +80,9 @@ func (a *Adapter) HandleManagerPluginRPC(ctx context.Context, payload []byte) ([
 		a.logManagerPluginError(req, status, err)
 		return encodeManagerPluginResponse(managerPluginRPCResponse{Status: status})
 	default:
-		err := fmt.Errorf("internalv2/access/node: unknown manager plugin op %q", req.Op)
+		err := fmt.Errorf("internal/access/node: unknown manager plugin op %q", req.Op)
 		a.rpcLogger().Warn("manager plugin rpc unknown operation",
-			wklog.Event("internalv2.access.node.manager_plugin_unknown_op"),
+			wklog.Event("internal.access.node.manager_plugin_unknown_op"),
 			wklog.String("op", req.Op),
 			wklog.Error(err),
 		)
@@ -177,7 +177,7 @@ func (c *Client) ForwardPluginHTTP(ctx context.Context, nodeID uint64, req *plug
 
 func (c *Client) callManagerPlugin(ctx context.Context, nodeID uint64, req managerPluginRPCRequest) (managerPluginRPCResponse, error) {
 	if c == nil || c.node == nil {
-		return managerPluginRPCResponse{}, fmt.Errorf("internalv2/access/node: manager plugin rpc client not configured")
+		return managerPluginRPCResponse{}, fmt.Errorf("internal/access/node: manager plugin rpc client not configured")
 	}
 	body, err := encodeManagerPluginRequest(req)
 	if err != nil {
@@ -220,7 +220,7 @@ func managerPluginRPCErrorForStatus(status string) error {
 	case rpcStatusRejected:
 		return managementusecase.ErrPluginNodeUnavailable
 	default:
-		return fmt.Errorf("internalv2/access/node: unknown manager plugin rpc status %q", status)
+		return fmt.Errorf("internal/access/node: unknown manager plugin rpc status %q", status)
 	}
 }
 
@@ -229,7 +229,7 @@ func (a *Adapter) logManagerPluginError(req managerPluginRPCRequest, status stri
 		return
 	}
 	a.rpcLogger().Warn("manager plugin rpc rejected",
-		wklog.Event("internalv2.access.node.manager_plugin_rejected"),
+		wklog.Event("internal.access.node.manager_plugin_rejected"),
 		wklog.String("op", req.Op),
 		wklog.String("status", status),
 		wklog.Uint64("nodeID", req.NodeID),

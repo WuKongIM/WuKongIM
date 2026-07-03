@@ -698,7 +698,7 @@ func (o channelV2MetricsObserver) ObserveAppendWaitCanceled(snapshot reactor.App
 
 func channelV2AppendWaitCancelLogLine(snapshot reactor.AppendWaitCancelSnapshot) string {
 	return fmt.Sprintf(
-		"internalv2/app: channelv2 append waiter canceled reactor=%d key=%s channel_id=%s channel_type=%d op=%d commit_mode=%s role=%s leader=%d epoch=%d leader_epoch=%d leo=%d hw=%d target=%d store_submitted=%t store_completed=%t follower_pull_served=%t ack_offset_observed=%t hw_advanced=%t waiters=%d pending_appends=%d pending_append_order=%d append_queue_pending=%d append_queue_records=%d append_queue_bytes=%d append_inflight=%t append_inflight_op=%d append_inflight_waiters=%d append_store_blocked=%t pull_waiters=%d follower_states=%q err=%v",
+		"internal/app: channelv2 append waiter canceled reactor=%d key=%s channel_id=%s channel_type=%d op=%d commit_mode=%s role=%s leader=%d epoch=%d leader_epoch=%d leo=%d hw=%d target=%d store_submitted=%t store_completed=%t follower_pull_served=%t ack_offset_observed=%t hw_advanced=%t waiters=%d pending_appends=%d pending_append_order=%d append_queue_pending=%d append_queue_records=%d append_queue_bytes=%d append_inflight=%t append_inflight_op=%d append_inflight_waiters=%d append_store_blocked=%t pull_waiters=%d follower_states=%q err=%v",
 		snapshot.ReactorID,
 		snapshot.Key,
 		snapshot.ChannelID.ID,
@@ -1238,7 +1238,7 @@ func (o deliveryMetricsObserver) ObserveFanoutTask(event runtimedelivery.FanoutT
 	}
 	if event.ErrorClass != "" && event.ErrorClass != runtimedelivery.DeliveryErrorClassNone {
 		o.loggerOrNop().Warn("delivery fanout task failed",
-			wklog.Event("internalv2.app.delivery.fanout_task_failed"),
+			wklog.Event("internal.app.delivery.fanout_task_failed"),
 			wklog.TargetNodeID(event.TargetNodeID),
 			wklog.Int("partitionID", int(event.PartitionID)),
 			wklog.String("path", event.Path),
@@ -1256,7 +1256,7 @@ func (o deliveryMetricsObserver) ObserveFanoutResolve(event runtimedelivery.Fano
 	}
 	if event.ErrorClass != "" && event.ErrorClass != runtimedelivery.DeliveryErrorClassNone {
 		o.loggerOrNop().Warn("delivery fanout resolve failed",
-			wklog.Event("internalv2.app.delivery.fanout_resolve_failed"),
+			wklog.Event("internal.app.delivery.fanout_resolve_failed"),
 			wklog.ChannelType(int64(event.ChannelType)),
 			wklog.Result(event.Result),
 			wklog.String("errorClass", event.ErrorClass),
@@ -1274,7 +1274,7 @@ func (o deliveryMetricsObserver) ObserveFanoutPush(event runtimedelivery.FanoutP
 	}
 	if event.ErrorClass != "" && event.ErrorClass != runtimedelivery.DeliveryErrorClassNone {
 		o.loggerOrNop().Warn("delivery fanout push failed",
-			wklog.Event("internalv2.app.delivery.fanout_push_failed"),
+			wklog.Event("internal.app.delivery.fanout_push_failed"),
 			wklog.Uint64("ownerNodeID", event.OwnerNodeID),
 			wklog.Result(event.Result),
 			wklog.String("errorClass", event.ErrorClass),
@@ -1298,7 +1298,7 @@ func (o deliveryMetricsObserver) ObserveRetry(event runtimedelivery.RetryEvent) 
 		event.Result == runtimedelivery.DeliveryResultMaxAttempts ||
 		(event.ErrorClass != "" && event.ErrorClass != runtimedelivery.DeliveryErrorClassNone && event.Event == runtimedelivery.DeliveryRetryEventDrop) {
 		o.loggerOrNop().Warn("delivery retry failed",
-			wklog.Event("internalv2.app.delivery.retry_failed"),
+			wklog.Event("internal.app.delivery.retry_failed"),
 			wklog.String("retryEvent", event.Event),
 			wklog.Result(event.Result),
 			wklog.String("errorClass", event.ErrorClass),
@@ -1321,7 +1321,7 @@ func (o deliveryMetricsObserver) ObserveManagerAdmission(event runtimedelivery.M
 	}
 	if event.Result != runtimedelivery.DeliveryResultOK {
 		o.loggerOrNop().Warn("delivery manager admission failed",
-			wklog.Event("internalv2.app.delivery.manager_admission_failed"),
+			wklog.Event("internal.app.delivery.manager_admission_failed"),
 			wklog.Result(event.Result),
 			wklog.Int("queueDepth", event.QueueDepth),
 		)
@@ -1334,7 +1334,7 @@ func (o deliveryMetricsObserver) ObserveManagerTerminal(event runtimedelivery.Ma
 	}
 	if event.ErrorClass != "" && event.ErrorClass != runtimedelivery.DeliveryErrorClassNone {
 		o.loggerOrNop().Warn("delivery manager terminal failed",
-			wklog.Event("internalv2.app.delivery.manager_terminal_failed"),
+			wklog.Event("internal.app.delivery.manager_terminal_failed"),
 			wklog.Result(event.Result),
 			wklog.String("errorClass", event.ErrorClass),
 			wklog.Int("queueDepth", event.QueueDepth),

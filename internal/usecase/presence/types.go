@@ -8,16 +8,16 @@ import (
 )
 
 // ErrLocalRegistryUnavailable reports a missing local registry dependency.
-var ErrLocalRegistryUnavailable = errors.New("internalv2/usecase/presence: local registry unavailable")
+var ErrLocalRegistryUnavailable = errors.New("internal/usecase/presence: local registry unavailable")
 
 // ErrAuthorityUnavailable reports a missing authority client dependency.
-var ErrAuthorityUnavailable = errors.New("internalv2/usecase/presence: authority client unavailable")
+var ErrAuthorityUnavailable = errors.New("internal/usecase/presence: authority client unavailable")
 
 // ErrOwnerActionUnavailable reports a missing owner action client dependency.
-var ErrOwnerActionUnavailable = errors.New("internalv2/usecase/presence: owner action client unavailable")
+var ErrOwnerActionUnavailable = errors.New("internal/usecase/presence: owner action client unavailable")
 
 // ErrSessionNotActive reports that the local session disappeared before activation completed.
-var ErrSessionNotActive = errors.New("internalv2/usecase/presence: session not active")
+var ErrSessionNotActive = errors.New("internal/usecase/presence: session not active")
 
 // RouteState records the owner-local lifecycle stage for a route.
 type RouteState = online.RouteState

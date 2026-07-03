@@ -1,6 +1,6 @@
 # Plugin Benchmark Baseline
 
-This document records the internalv2 plugin migration microbenchmark baseline.
+This document records the internal plugin migration microbenchmark baseline.
 Use it before and after changes that touch plugin dispatch, host RPC mapping,
 PersistAfter, Send hooks, Receive hooks, NoPersist realtime delivery, offline
 recipient detection, or plugin metrics.
@@ -19,13 +19,13 @@ recipient detection, or plugin metrics.
 Run the plugin package group:
 
 ```bash
-go test ./internalv2/usecase/plugin ./internalv2/runtime/pluginhook ./internalv2/contracts/pluginevents ./internalv2/app -run '^$' -bench 'Benchmark(PersistAfter|Receive|SendMessageFromPluginReq|ChannelMessagesFromPluginReq|ClusterConfigFromSnapshot|ClusterChannelsBelongNode|ConversationChannels|HTTPForward|ListPlugins|SendPluginCandidates|BeforeSend|PluginHook|PluginMetricsObserver)' -benchmem -benchtime=3s
+go test ./internal/usecase/plugin ./internal/runtime/pluginhook ./internal/contracts/pluginevents ./internal/app -run '^$' -bench 'Benchmark(PersistAfter|Receive|SendMessageFromPluginReq|ChannelMessagesFromPluginReq|ClusterConfigFromSnapshot|ClusterChannelsBelongNode|ConversationChannels|HTTPForward|ListPlugins|SendPluginCandidates|BeforeSend|PluginHook|PluginMetricsObserver)' -benchmem -benchtime=3s
 ```
 
 Run the channelappend plugin-related subset:
 
 ```bash
-go test ./internalv2/runtime/channelappend -run '^$' -bench 'Benchmark(SubmitLocalNoPersistRealtimeScoped|ChannelAppendPostCommitPlugin|RecipientProcessorOfflineObserver)$' -benchmem -benchtime=3s
+go test ./internal/runtime/channelappend -run '^$' -bench 'Benchmark(SubmitLocalNoPersistRealtimeScoped|ChannelAppendPostCommitPlugin|RecipientProcessorOfflineObserver)$' -benchmem -benchtime=3s
 ```
 
 ## Recorded Numbers

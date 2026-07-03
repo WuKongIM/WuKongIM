@@ -112,7 +112,7 @@ func (a *App) ensureLogger() error {
 			Format:     a.cfg.Log.Format,
 		})
 		if err != nil {
-			return fmt.Errorf("internalv2/app: create logger: %w", err)
+			return fmt.Errorf("internal/app: create logger: %w", err)
 		}
 		a.logger = logger
 	}
@@ -682,7 +682,7 @@ func (a *App) wireChannelAppend(nodeID uint64) error {
 			metadata := a.ensureChannelAppendMetadataCache()
 			messageIDs, err := newNodeMessageIDs(nodeID)
 			if err != nil {
-				return fmt.Errorf("internalv2/app: create message id generator: %w", err)
+				return fmt.Errorf("internal/app: create message id generator: %w", err)
 			}
 			opts := channelappend.Options{
 				LocalNodeID:                           nodeID,

@@ -20,13 +20,13 @@ const (
 
 var (
 	// ErrSlotLeaderTransferUnavailable reports that the control writer is unavailable.
-	ErrSlotLeaderTransferUnavailable = errors.New("internalv2/usecase/management: slot leader transfer unavailable")
+	ErrSlotLeaderTransferUnavailable = errors.New("internal/usecase/management: slot leader transfer unavailable")
 	// ErrSlotRuntimeStatusUnavailable reports that Slot runtime status is unavailable.
-	ErrSlotRuntimeStatusUnavailable = errors.New("internalv2/usecase/management: slot runtime status unavailable")
+	ErrSlotRuntimeStatusUnavailable = errors.New("internal/usecase/management: slot runtime status unavailable")
 	// ErrSlotLeaderTransferSlotNotFound reports that the requested Slot is not assigned.
-	ErrSlotLeaderTransferSlotNotFound = errors.New("internalv2/usecase/management: slot leader transfer slot not found")
+	ErrSlotLeaderTransferSlotNotFound = errors.New("internal/usecase/management: slot leader transfer slot not found")
 	// ErrSlotLeaderTransferConflict reports that a different active task already owns the Slot.
-	ErrSlotLeaderTransferConflict = errors.New("internalv2/usecase/management: slot leader transfer conflict")
+	ErrSlotLeaderTransferConflict = errors.New("internal/usecase/management: slot leader transfer conflict")
 )
 
 // SlotLeaderTransferWriter submits Controller-backed Slot leader-transfer intents.

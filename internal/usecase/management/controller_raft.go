@@ -19,7 +19,7 @@ type ControllerRaftOperator interface {
 }
 
 // ErrControllerRaftOperatorUnavailable reports that Controller Raft operations are not wired.
-var ErrControllerRaftOperatorUnavailable = errors.New("internalv2/usecase/management: controller raft operator unavailable")
+var ErrControllerRaftOperatorUnavailable = errors.New("internal/usecase/management: controller raft operator unavailable")
 
 // ControllerRaftCompaction describes Controller Raft log compaction state on one node.
 type ControllerRaftCompaction struct {

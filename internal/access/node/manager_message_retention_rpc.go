@@ -20,7 +20,7 @@ func (a *Adapter) HandleManagerMessageRetentionRPC(ctx context.Context, payload 
 	req, err := decodeManagerMessageRetentionRequest(payload)
 	if err != nil {
 		a.rpcLogger().Warn("manager message retention rpc decode failed",
-			wklog.Event("internalv2.access.node.manager_message_retention_decode_failed"),
+			wklog.Event("internal.access.node.manager_message_retention_decode_failed"),
 			wklog.Int("payloadBytes", len(payload)),
 			wklog.Error(err),
 		)
@@ -49,7 +49,7 @@ func (c *Client) AdvanceManagerMessageRetention(ctx context.Context, nodeID uint
 
 func (c *Client) callManagerMessageRetention(ctx context.Context, nodeID uint64, req managerMessageRetentionRPCRequest) (managerMessageRetentionRPCResponse, error) {
 	if c == nil || c.node == nil {
-		return managerMessageRetentionRPCResponse{}, fmt.Errorf("internalv2/access/node: manager message retention rpc client not configured")
+		return managerMessageRetentionRPCResponse{}, fmt.Errorf("internal/access/node: manager message retention rpc client not configured")
 	}
 	body, err := encodeManagerMessageRetentionRequest(req)
 	if err != nil {
@@ -106,7 +106,7 @@ func managerMessageRetentionRPCErrorForStatus(status string) error {
 	case rpcStatusRejected:
 		return managementusecase.ErrMessageRetentionUnavailable
 	default:
-		return fmt.Errorf("internalv2/access/node: unknown manager message retention rpc status %q", status)
+		return fmt.Errorf("internal/access/node: unknown manager message retention rpc status %q", status)
 	}
 }
 
@@ -115,7 +115,7 @@ func (a *Adapter) logManagerMessageRetentionError(req managerMessageRetentionRPC
 		return
 	}
 	a.rpcLogger().Warn("manager message retention rpc rejected",
-		wklog.Event("internalv2.access.node.manager_message_retention_rejected"),
+		wklog.Event("internal.access.node.manager_message_retention_rejected"),
 		wklog.String("status", status),
 		wklog.String("channelID", req.Request.ChannelID),
 		wklog.Int64("channelType", req.Request.ChannelType),

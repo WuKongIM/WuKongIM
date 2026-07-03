@@ -121,14 +121,14 @@ func (r *prometheusRuntime) Start(ctx context.Context) error {
 		return nil
 	}
 	if err := os.MkdirAll(r.cfg.DataDir, 0o755); err != nil {
-		return fmt.Errorf("internalv2/app: create prometheus data dir: %w", err)
+		return fmt.Errorf("internal/app: create prometheus data dir: %w", err)
 	}
 	rendered, err := r.renderConfig()
 	if err != nil {
 		return err
 	}
 	if err := os.WriteFile(r.configPath(), rendered, 0o644); err != nil {
-		return fmt.Errorf("internalv2/app: write prometheus config: %w", err)
+		return fmt.Errorf("internal/app: write prometheus config: %w", err)
 	}
 	binaryPath, err := r.resolveBinaryPath()
 	if err != nil {
@@ -136,7 +136,7 @@ func (r *prometheusRuntime) Start(ctx context.Context) error {
 	}
 	cmd := exec.Command(binaryPath, r.commandArgs()...)
 	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("internalv2/app: start prometheus: %w", err)
+		return fmt.Errorf("internal/app: start prometheus: %w", err)
 	}
 	done := make(chan error, 1)
 	go func() {
@@ -217,14 +217,14 @@ func extractEmbeddedPrometheusBinary(fsys fs.FS, goos, goarch, dir string) (stri
 		if errors.Is(err, fs.ErrNotExist) {
 			return "", fmt.Errorf("%w: %s; rebuild wukongim with scripts/start-wukongim-single-node.sh or set WK_PROMETHEUS_BINARY_PATH", errEmbeddedPrometheusMissing, assetName)
 		}
-		return "", fmt.Errorf("internalv2/app: read embedded prometheus binary: %w", err)
+		return "", fmt.Errorf("internal/app: read embedded prometheus binary: %w", err)
 	}
 	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return "", fmt.Errorf("internalv2/app: create prometheus binary dir: %w", err)
+		return "", fmt.Errorf("internal/app: create prometheus binary dir: %w", err)
 	}
 	path := filepath.Join(dir, assetName)
 	if err := os.WriteFile(path, data, 0o755); err != nil {
-		return "", fmt.Errorf("internalv2/app: write embedded prometheus binary: %w", err)
+		return "", fmt.Errorf("internal/app: write embedded prometheus binary: %w", err)
 	}
 	return path, nil
 }
@@ -263,7 +263,7 @@ func (r *prometheusRuntime) renderConfig() ([]byte, error) {
 	}
 	rendered, err := yaml.Marshal(config)
 	if err != nil {
-		return nil, fmt.Errorf("internalv2/app: render prometheus config: %w", err)
+		return nil, fmt.Errorf("internal/app: render prometheus config: %w", err)
 	}
 	return rendered, nil
 }

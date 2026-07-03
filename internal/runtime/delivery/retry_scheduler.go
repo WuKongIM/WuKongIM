@@ -24,7 +24,7 @@ const (
 )
 
 // ErrRetryQueueFull reports that retryable fanout work could not enter the bounded queue.
-var ErrRetryQueueFull = errors.New("internalv2/runtime/delivery: retry queue full")
+var ErrRetryQueueFull = errors.New("internal/runtime/delivery: retry queue full")
 
 // RetryObserver receives bounded retry scheduler observations.
 type RetryObserver interface {

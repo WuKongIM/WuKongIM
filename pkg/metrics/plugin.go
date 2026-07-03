@@ -7,7 +7,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-// PluginMetrics exposes internalv2 plugin hook admission and invocation metrics.
+// PluginMetrics exposes internal plugin hook admission and invocation metrics.
 type PluginMetrics struct {
 	enqueueTotal   *prometheus.CounterVec
 	enqueueWait    *prometheus.HistogramVec
@@ -19,23 +19,23 @@ func newPluginMetrics(registry prometheus.Registerer, labels prometheus.Labels) 
 	m := &PluginMetrics{
 		enqueueTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name:        "wukongim_plugin_hook_enqueue_total",
-			Help:        "Total internalv2 plugin hook enqueue attempts by method and result.",
+			Help:        "Total internal plugin hook enqueue attempts by method and result.",
 			ConstLabels: labels,
 		}, []string{"method", "result"}),
 		enqueueWait: prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Name:        "wukongim_plugin_hook_enqueue_wait_seconds",
-			Help:        "Internalv2 plugin hook enqueue wait time in seconds.",
+			Help:        "Internal plugin hook enqueue wait time in seconds.",
 			ConstLabels: labels,
 			Buckets:     gatewayFrameDurationBuckets,
 		}, []string{"method", "result"}),
 		invokeTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name:        "wukongim_plugin_hook_invoke_total",
-			Help:        "Total internalv2 plugin hook invocation attempts by method and result.",
+			Help:        "Total internal plugin hook invocation attempts by method and result.",
 			ConstLabels: labels,
 		}, []string{"method", "result"}),
 		invokeDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Name:        "wukongim_plugin_hook_invoke_duration_seconds",
-			Help:        "Internalv2 plugin hook invocation latency in seconds.",
+			Help:        "Internal plugin hook invocation latency in seconds.",
 			ConstLabels: labels,
 			Buckets:     gatewayFrameDurationBuckets,
 		}, []string{"method", "result"}),

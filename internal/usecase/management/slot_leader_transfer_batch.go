@@ -76,9 +76,9 @@ const (
 
 var (
 	// ErrSlotLeaderTransferPlanStale reports that execute observed a newer control-state revision.
-	ErrSlotLeaderTransferPlanStale = errors.New("internalv2/usecase/management: slot leader transfer plan stale")
+	ErrSlotLeaderTransferPlanStale = errors.New("internal/usecase/management: slot leader transfer plan stale")
 	// ErrSlotLeaderTransferPlanMismatch reports that execute received a plan that does not match the request.
-	ErrSlotLeaderTransferPlanMismatch = errors.New("internalv2/usecase/management: slot leader transfer plan mismatch")
+	ErrSlotLeaderTransferPlanMismatch = errors.New("internal/usecase/management: slot leader transfer plan mismatch")
 )
 
 // SlotLeaderTransferBatchPlanRequest describes a manager batch planning request.

@@ -19,7 +19,7 @@ func (a *Adapter) HandleManagerConnectionRPC(ctx context.Context, payload []byte
 	req, err := decodeManagerConnectionRequest(payload)
 	if err != nil {
 		a.rpcLogger().Warn("manager connection rpc decode failed",
-			wklog.Event("internalv2.access.node.manager_connection_decode_failed"),
+			wklog.Event("internal.access.node.manager_connection_decode_failed"),
 			wklog.Int("payloadBytes", len(payload)),
 			wklog.Error(err),
 		)
@@ -50,9 +50,9 @@ func (a *Adapter) HandleManagerConnectionRPC(ctx context.Context, payload []byte
 		a.logManagerConnectionError(req, status, err)
 		return encodeManagerConnectionResponse(managerConnectionRPCResponse{Status: status, Summary: managerConnectionDrainSummary(drain)})
 	default:
-		err := fmt.Errorf("internalv2/access/node: unknown manager connection op %q", req.Op)
+		err := fmt.Errorf("internal/access/node: unknown manager connection op %q", req.Op)
 		a.rpcLogger().Warn("manager connection rpc unknown operation",
-			wklog.Event("internalv2.access.node.manager_connection_unknown_op"),
+			wklog.Event("internal.access.node.manager_connection_unknown_op"),
 			wklog.String("op", req.Op),
 			wklog.Error(err),
 		)
@@ -124,7 +124,7 @@ func (c *Client) SetManagerDrainMode(ctx context.Context, nodeID uint64, drainin
 
 func (c *Client) callManagerConnection(ctx context.Context, nodeID uint64, req managerConnectionRPCRequest) (managerConnectionRPCResponse, error) {
 	if c == nil || c.node == nil {
-		return managerConnectionRPCResponse{}, fmt.Errorf("internalv2/access/node: manager connection rpc client not configured")
+		return managerConnectionRPCResponse{}, fmt.Errorf("internal/access/node: manager connection rpc client not configured")
 	}
 	body, err := encodeManagerConnectionRequest(req)
 	if err != nil {
@@ -171,7 +171,7 @@ func managerConnectionRPCErrorForStatus(status string) error {
 	case rpcStatusRejected:
 		return managementusecase.ErrConnectionReaderUnavailable
 	default:
-		return fmt.Errorf("internalv2/access/node: unknown manager connection rpc status %q", status)
+		return fmt.Errorf("internal/access/node: unknown manager connection rpc status %q", status)
 	}
 }
 
@@ -187,7 +187,7 @@ func (a *Adapter) logManagerConnectionError(req managerConnectionRPCRequest, sta
 		return
 	}
 	a.rpcLogger().Warn("manager connection rpc rejected",
-		wklog.Event("internalv2.access.node.manager_connection_rejected"),
+		wklog.Event("internal.access.node.manager_connection_rejected"),
 		wklog.String("op", req.Op),
 		wklog.String("status", status),
 		wklog.Uint64("nodeID", req.NodeID),

@@ -20,7 +20,7 @@ func (a *Adapter) HandleConversationAuthorityRPC(ctx context.Context, payload []
 	req, err := decodeConversationAuthorityRequest(payload)
 	if err != nil {
 		a.rpcLogger().Warn("conversation authority rpc decode failed",
-			wklog.Event("internalv2.access.node.conversation_authority_decode_failed"),
+			wklog.Event("internal.access.node.conversation_authority_decode_failed"),
 			wklog.Int("payloadBytes", len(payload)),
 			wklog.Error(err),
 		)
@@ -43,7 +43,7 @@ func (a *Adapter) HandleConversationAuthorityRPC(ctx context.Context, payload []
 		result, err := a.conversation.DrainAuthority(ctx, req.Target)
 		return encodeConversationAuthorityResponse(conversationAuthorityResponse{Status: conversationRPCStatusForError(err), DrainResult: result})
 	default:
-		return nil, fmt.Errorf("internalv2/access/node: unknown conversation authority op %q", req.Op)
+		return nil, fmt.Errorf("internal/access/node: unknown conversation authority op %q", req.Op)
 	}
 }
 
@@ -135,7 +135,7 @@ func (c *Client) DrainConversationAuthority(ctx context.Context, nodeID uint64, 
 
 func (c *Client) callConversationAuthority(ctx context.Context, nodeID uint64, req conversationAuthorityRequest) (conversationAuthorityResponse, error) {
 	if c == nil || c.node == nil {
-		return conversationAuthorityResponse{}, fmt.Errorf("internalv2/access/node: conversation authority rpc client not configured")
+		return conversationAuthorityResponse{}, fmt.Errorf("internal/access/node: conversation authority rpc client not configured")
 	}
 	body, err := encodeConversationAuthorityRequest(req)
 	if err != nil {
@@ -178,8 +178,8 @@ func conversationRPCErrorForStatus(status string) error {
 	case conversationRPCStatusCachePressure:
 		return conversationusecase.ErrCachePressure
 	case conversationRPCStatusRejected:
-		return fmt.Errorf("internalv2/access/node: conversation authority rpc rejected")
+		return fmt.Errorf("internal/access/node: conversation authority rpc rejected")
 	default:
-		return fmt.Errorf("internalv2/access/node: unknown conversation authority rpc status %q", status)
+		return fmt.Errorf("internal/access/node: unknown conversation authority rpc status %q", status)
 	}
 }

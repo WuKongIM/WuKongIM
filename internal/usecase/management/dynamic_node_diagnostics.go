@@ -26,7 +26,7 @@ const (
 )
 
 // ErrDynamicNodeDiagnosticsNotFound is returned when the requested node is not present in control state.
-var ErrDynamicNodeDiagnosticsNotFound = errors.New("internalv2/usecase/management: dynamic node diagnostics not found")
+var ErrDynamicNodeDiagnosticsNotFound = errors.New("internal/usecase/management: dynamic node diagnostics not found")
 
 // DynamicNodeDiagnosticsRequest selects one node and bounded projection fields for a diagnostics read.
 type DynamicNodeDiagnosticsRequest struct {

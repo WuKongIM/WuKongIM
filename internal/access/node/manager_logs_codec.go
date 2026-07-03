@@ -53,7 +53,7 @@ func encodeManagerLogRequest(req managerLogRPCRequest) ([]byte, error) {
 
 func decodeManagerLogRequest(body []byte) (managerLogRPCRequest, error) {
 	if !hasMagic(body, managerLogRequestMagic[:]) {
-		return managerLogRPCRequest{}, fmt.Errorf("internalv2/access/node: invalid manager log request codec")
+		return managerLogRPCRequest{}, fmt.Errorf("internal/access/node: invalid manager log request codec")
 	}
 	offset := len(managerLogRequestMagic)
 	opID, next, err := readByte(body, offset, "manager log op")
@@ -82,7 +82,7 @@ func decodeManagerLogRequest(body []byte) (managerLogRPCRequest, error) {
 		return managerLogRPCRequest{}, err
 	}
 	if offset != len(body) {
-		return managerLogRPCRequest{}, fmt.Errorf("internalv2/access/node: trailing manager log request bytes")
+		return managerLogRPCRequest{}, fmt.Errorf("internal/access/node: trailing manager log request bytes")
 	}
 	return managerLogRPCRequest{Op: op, NodeID: nodeID, SlotID: uint32(slotID), Limit: int(limit), Cursor: cursor}, nil
 }
@@ -98,7 +98,7 @@ func encodeManagerLogResponse(resp managerLogRPCResponse) ([]byte, error) {
 
 func decodeManagerLogResponse(body []byte) (managerLogRPCResponse, error) {
 	if !hasMagic(body, managerLogResponseMagic[:]) {
-		return managerLogRPCResponse{}, fmt.Errorf("internalv2/access/node: invalid manager log response codec")
+		return managerLogRPCResponse{}, fmt.Errorf("internal/access/node: invalid manager log response codec")
 	}
 	offset := len(managerLogResponseMagic)
 	var resp managerLogRPCResponse
@@ -113,7 +113,7 @@ func decodeManagerLogResponse(body []byte) (managerLogRPCResponse, error) {
 		return managerLogRPCResponse{}, err
 	}
 	if offset != len(body) {
-		return managerLogRPCResponse{}, fmt.Errorf("internalv2/access/node: trailing manager log response bytes")
+		return managerLogRPCResponse{}, fmt.Errorf("internal/access/node: trailing manager log response bytes")
 	}
 	return resp, nil
 }
@@ -230,7 +230,7 @@ func readLogEntries[T ~struct {
 		return nil, offset, err
 	}
 	if n > maxManagerLogRPCCollectionLen {
-		return nil, offset, fmt.Errorf("internalv2/access/node: too many %s: %d", label, n)
+		return nil, offset, fmt.Errorf("internal/access/node: too many %s: %d", label, n)
 	}
 	items := make([]T, 0, n)
 	for i := uint64(0); i < n; i++ {
@@ -288,7 +288,7 @@ func readLogEntry(body []byte, offset int) (managementusecase.LogEntry, int, err
 	}
 	if len(decoded) != 0 && string(decoded) != "null" {
 		if err := json.Unmarshal(decoded, &item.Decoded); err != nil {
-			return item, offset, fmt.Errorf("internalv2/access/node: decode manager log payload: %w", err)
+			return item, offset, fmt.Errorf("internal/access/node: decode manager log payload: %w", err)
 		}
 	}
 	return item, offset, nil
@@ -301,7 +301,7 @@ func managerLogOpID(op string) (byte, error) {
 	case managerLogOpSlot:
 		return managerLogOpSlotID, nil
 	default:
-		return 0, fmt.Errorf("internalv2/access/node: unknown manager log op %q", op)
+		return 0, fmt.Errorf("internal/access/node: unknown manager log op %q", op)
 	}
 }
 
@@ -312,6 +312,6 @@ func managerLogOpFromID(op byte) (string, error) {
 	case managerLogOpSlotID:
 		return managerLogOpSlot, nil
 	default:
-		return "", fmt.Errorf("internalv2/access/node: unknown manager log op id %d", op)
+		return "", fmt.Errorf("internal/access/node: unknown manager log op id %d", op)
 	}
 }

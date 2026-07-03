@@ -43,7 +43,7 @@ func encodeManagerTaskAuditRequest(req managerTaskAuditRPCRequest) ([]byte, erro
 
 func decodeManagerTaskAuditRequest(body []byte) (managerTaskAuditRPCRequest, error) {
 	if !hasMagic(body, managerTaskAuditRequestMagic[:]) {
-		return managerTaskAuditRPCRequest{}, fmt.Errorf("internalv2/access/node: invalid manager task audit request codec")
+		return managerTaskAuditRPCRequest{}, fmt.Errorf("internal/access/node: invalid manager task audit request codec")
 	}
 	var req managerTaskAuditRPCRequest
 	if err := decodeManagerTaskAuditJSON(body[len(managerTaskAuditRequestMagic):], &req); err != nil {
@@ -64,7 +64,7 @@ func encodeManagerTaskAuditResponse(resp managerTaskAuditRPCResponse) ([]byte, e
 
 func decodeManagerTaskAuditResponse(body []byte) (managerTaskAuditRPCResponse, error) {
 	if !hasMagic(body, managerTaskAuditResponseMagic[:]) {
-		return managerTaskAuditRPCResponse{}, fmt.Errorf("internalv2/access/node: invalid manager task audit response codec")
+		return managerTaskAuditRPCResponse{}, fmt.Errorf("internal/access/node: invalid manager task audit response codec")
 	}
 	var resp managerTaskAuditRPCResponse
 	if err := decodeManagerTaskAuditJSON(body[len(managerTaskAuditResponseMagic):], &resp); err != nil {
@@ -81,7 +81,7 @@ func decodeManagerTaskAuditJSON(payload []byte, dst any) error {
 	}
 	var extra struct{}
 	if err := dec.Decode(&extra); err != io.EOF {
-		return fmt.Errorf("internalv2/access/node: trailing manager task audit json")
+		return fmt.Errorf("internal/access/node: trailing manager task audit json")
 	}
 	return nil
 }

@@ -8,7 +8,7 @@ import (
 
 var channelAppendItemBuckets = []float64{1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024}
 
-// ChannelAppendMetrics exposes internalv2 channel authority writer metrics.
+// ChannelAppendMetrics exposes internal channel authority writer metrics.
 type ChannelAppendMetrics struct {
 	routerTotal         *prometheus.CounterVec
 	routerDuration      *prometheus.HistogramVec
@@ -33,18 +33,18 @@ func newChannelAppendMetrics(registry prometheus.Registerer, labels prometheus.L
 	m := &ChannelAppendMetrics{
 		routerTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name:        "wukongim_channelappend_router_total",
-			Help:        "Total internalv2 channel append router groups by path and result.",
+			Help:        "Total internal channel append router groups by path and result.",
 			ConstLabels: labels,
 		}, []string{"path", "result"}),
 		routerDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Name:        "wukongim_channelappend_router_duration_seconds",
-			Help:        "Internalv2 channel append router group latency in seconds.",
+			Help:        "Internal channel append router group latency in seconds.",
 			ConstLabels: labels,
 			Buckets:     channelV2DurationBuckets,
 		}, []string{"path", "result"}),
 		routerItems: prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Name:        "wukongim_channelappend_router_items",
-			Help:        "Number of SEND items in each internalv2 channel append router group.",
+			Help:        "Number of SEND items in each internal channel append router group.",
 			ConstLabels: labels,
 			Buckets:     channelAppendItemBuckets,
 		}, []string{"path", "result"}),
@@ -61,22 +61,22 @@ func newChannelAppendMetrics(registry prometheus.Registerer, labels prometheus.L
 		}, []string{"result"}),
 		writerAdmission: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name:        "wukongim_channelappend_writer_admission_depth",
-			Help:        "Current admitted-but-incomplete internalv2 channel append items.",
+			Help:        "Current admitted-but-incomplete internal channel append items.",
 			ConstLabels: labels,
 		}, nil),
 		writerAdmissionCap: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name:        "wukongim_channelappend_writer_admission_capacity",
-			Help:        "Configured admitted item capacity for the internalv2 channel append group.",
+			Help:        "Configured admitted item capacity for the internal channel append group.",
 			ConstLabels: labels,
 		}, nil),
 		writerPoolRunning: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name:        "wukongim_channelappend_writer_pool_running",
-			Help:        "Current running workers in the internalv2 channel append shared pool.",
+			Help:        "Current running workers in the internal channel append shared pool.",
 			ConstLabels: labels,
 		}, nil),
 		writerPoolCap: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name:        "wukongim_channelappend_writer_pool_capacity",
-			Help:        "Configured internalv2 channel append shared pool capacity.",
+			Help:        "Configured internal channel append shared pool capacity.",
 			ConstLabels: labels,
 		}, nil),
 		writerStateItems: prometheus.NewGaugeVec(prometheus.GaugeOpts{
@@ -86,38 +86,38 @@ func newChannelAppendMetrics(registry prometheus.Registerer, labels prometheus.L
 		}, []string{"kind"}),
 		effectPoolSubmit: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name:        "wukongim_channelappend_effect_pool_submit_total",
-			Help:        "Total internalv2 channel append shared effect pool submit attempts by stage and result.",
+			Help:        "Total internal channel append shared effect pool submit attempts by stage and result.",
 			ConstLabels: labels,
 		}, []string{"stage", "result"}),
 		effectPoolInflight: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name:        "wukongim_channelappend_effect_pool_inflight",
-			Help:        "Current internalv2 channel append shared effect pool inflight workers by stage.",
+			Help:        "Current internal channel append shared effect pool inflight workers by stage.",
 			ConstLabels: labels,
 		}, []string{"stage"}),
 		effectPoolCap: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name:        "wukongim_channelappend_effect_pool_capacity",
-			Help:        "Configured internalv2 channel append shared effect pool capacity by stage.",
+			Help:        "Configured internal channel append shared effect pool capacity by stage.",
 			ConstLabels: labels,
 		}, []string{"stage"}),
 		effectPoolSaturated: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name:        "wukongim_channelappend_effect_pool_saturated",
-			Help:        "Whether the internalv2 channel append shared effect pool is saturated by stage.",
+			Help:        "Whether the internal channel append shared effect pool is saturated by stage.",
 			ConstLabels: labels,
 		}, []string{"stage"}),
 		effectTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name:        "wukongim_channelappend_effect_total",
-			Help:        "Total internalv2 channel append asynchronous effects by stage and result.",
+			Help:        "Total internal channel append asynchronous effects by stage and result.",
 			ConstLabels: labels,
 		}, []string{"stage", "result"}),
 		effectDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Name:        "wukongim_channelappend_effect_duration_seconds",
-			Help:        "Internalv2 channel append asynchronous effect latency in seconds.",
+			Help:        "Internal channel append asynchronous effect latency in seconds.",
 			ConstLabels: labels,
 			Buckets:     channelV2DurationBuckets,
 		}, []string{"stage", "result"}),
 		effectItems: prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Name:        "wukongim_channelappend_effect_items",
-			Help:        "Number of logical items handled by each internalv2 channel append effect.",
+			Help:        "Number of logical items handled by each internal channel append effect.",
 			ConstLabels: labels,
 			Buckets:     channelAppendItemBuckets,
 		}, []string{"stage", "result"}),

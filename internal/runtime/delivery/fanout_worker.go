@@ -12,10 +12,10 @@ const (
 )
 
 // ErrInvalidSubscriberCursor reports a non-terminal page that cannot advance scanning.
-var ErrInvalidSubscriberCursor = errors.New("internalv2/runtime/delivery: invalid subscriber cursor")
+var ErrInvalidSubscriberCursor = errors.New("internal/runtime/delivery: invalid subscriber cursor")
 
 // ErrRetryablePushRoutes reports that at least one pushed route needs retry scheduling.
-var ErrRetryablePushRoutes = errors.New("internalv2/runtime/delivery: retryable push routes")
+var ErrRetryablePushRoutes = errors.New("internal/runtime/delivery: retryable push routes")
 
 // RetryablePushRoutesError carries owner routes that should be retried later.
 type RetryablePushRoutesError struct {

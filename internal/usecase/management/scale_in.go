@@ -12,11 +12,11 @@ import (
 
 var (
 	// ErrNodeScaleInUnavailable reports that scale-in dependencies are unavailable.
-	ErrNodeScaleInUnavailable = errors.New("internalv2/usecase/management: node scale-in unavailable")
+	ErrNodeScaleInUnavailable = errors.New("internal/usecase/management: node scale-in unavailable")
 	// ErrNodeScaleInConflict reports a concurrent control-state change during scale-in writes.
-	ErrNodeScaleInConflict = errors.New("internalv2/usecase/management: node scale-in conflict")
+	ErrNodeScaleInConflict = errors.New("internal/usecase/management: node scale-in conflict")
 	// ErrNodeScaleInUnsafe reports that final removal is blocked by scale-in safety status.
-	ErrNodeScaleInUnsafe = errors.New("internalv2/usecase/management: node scale-in unsafe")
+	ErrNodeScaleInUnsafe = errors.New("internal/usecase/management: node scale-in unsafe")
 )
 
 const (

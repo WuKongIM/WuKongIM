@@ -31,7 +31,7 @@ func encodeManagerMessageRetentionRequest(req managerMessageRetentionRPCRequest)
 
 func decodeManagerMessageRetentionRequest(body []byte) (managerMessageRetentionRPCRequest, error) {
 	if !hasMagic(body, managerMessageRetentionRequestMagic[:]) {
-		return managerMessageRetentionRPCRequest{}, fmt.Errorf("internalv2/access/node: invalid manager message retention request codec")
+		return managerMessageRetentionRPCRequest{}, fmt.Errorf("internal/access/node: invalid manager message retention request codec")
 	}
 	offset := len(managerMessageRetentionRequestMagic)
 	channelID, offset, err := readString(body, offset)
@@ -51,7 +51,7 @@ func decodeManagerMessageRetentionRequest(body []byte) (managerMessageRetentionR
 		return managerMessageRetentionRPCRequest{}, err
 	}
 	if offset != len(body) {
-		return managerMessageRetentionRPCRequest{}, fmt.Errorf("internalv2/access/node: trailing manager message retention request bytes")
+		return managerMessageRetentionRPCRequest{}, fmt.Errorf("internal/access/node: trailing manager message retention request bytes")
 	}
 	return managerMessageRetentionRPCRequest{Request: managementusecase.AdvanceMessageRetentionRequest{
 		ChannelID: channelID, ChannelType: channelType, ThroughSeq: throughSeq, DryRun: dryRun,
@@ -73,7 +73,7 @@ func encodeManagerMessageRetentionResponse(resp managerMessageRetentionRPCRespon
 
 func decodeManagerMessageRetentionResponse(body []byte) (managerMessageRetentionRPCResponse, error) {
 	if !hasMagic(body, managerMessageRetentionResponseMagic[:]) {
-		return managerMessageRetentionRPCResponse{}, fmt.Errorf("internalv2/access/node: invalid manager message retention response codec")
+		return managerMessageRetentionRPCResponse{}, fmt.Errorf("internal/access/node: invalid manager message retention response codec")
 	}
 	offset := len(managerMessageRetentionResponseMagic)
 	status, offset, err := readString(body, offset)
@@ -105,7 +105,7 @@ func decodeManagerMessageRetentionResponse(body []byte) (managerMessageRetention
 		return managerMessageRetentionRPCResponse{}, err
 	}
 	if offset != len(body) {
-		return managerMessageRetentionRPCResponse{}, fmt.Errorf("internalv2/access/node: trailing manager message retention response bytes")
+		return managerMessageRetentionRPCResponse{}, fmt.Errorf("internal/access/node: trailing manager message retention response bytes")
 	}
 	result.Status = managementusecase.MessageRetentionStatus(retentionStatus)
 	result.BlockedReason = managementusecase.MessageRetentionBlockedReason(blockedReason)

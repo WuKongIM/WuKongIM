@@ -264,7 +264,7 @@ func TestChannelAppenderLogsAppendChannelBatchError(t *testing.T) {
 		t.Fatalf("AppendBatch() error = %v, want route not ready", err)
 	}
 
-	entry, ok := logger.find("ERROR", "internalv2.infra.cluster.channel_append_batch_failed")
+	entry, ok := logger.find("ERROR", "internal.infra.cluster.channel_append_batch_failed")
 	if !ok {
 		t.Fatalf("missing append failure log entries=%#v", logger.entries)
 	}

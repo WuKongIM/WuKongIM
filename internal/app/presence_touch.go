@@ -141,7 +141,7 @@ func (w *presenceTouchWorker) watch(ctx context.Context, events <-chan cluster.R
 			if !ok {
 				if ctx.Err() == nil {
 					w.logger().Warn("presence authority watch closed",
-						wklog.Event("internalv2.app.presence_authority_watch_closed"),
+						wklog.Event("internal.app.presence_authority_watch_closed"),
 					)
 				}
 				return
@@ -261,7 +261,7 @@ func (w *presenceTouchWorker) flushOnce(ctx context.Context, now time.Time) {
 		if err != nil {
 			w.opts.Local.RequeueTouched([]online.OwnerRoute{conn})
 			w.logger().Warn("presence touch route target resolve failed",
-				wklog.Event("internalv2.app.presence_touch_resolve_failed"),
+				wklog.Event("internal.app.presence_touch_resolve_failed"),
 				wklog.UID(conn.UID),
 				wklog.Int("hashSlot", int(conn.HashSlot)),
 				wklog.SessionID(conn.SessionID),
@@ -279,7 +279,7 @@ func (w *presenceTouchWorker) flushOnce(ctx context.Context, now time.Time) {
 		if err := w.opts.Authority.TouchRoutesTo(ctx, target, routes); err != nil {
 			w.opts.Local.RequeueTouched(ownerRoutesFromRoutes(routes))
 			w.logger().Warn("presence touch flush failed",
-				wklog.Event("internalv2.app.presence_touch_failed"),
+				wklog.Event("internal.app.presence_touch_failed"),
 				wklog.Int("hashSlot", int(target.HashSlot)),
 				wklog.Uint64("slotID", uint64(target.SlotID)),
 				wklog.LeaderNodeID(target.LeaderNodeID),

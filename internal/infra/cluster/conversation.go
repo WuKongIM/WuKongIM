@@ -219,7 +219,7 @@ send:
 
 func (s *ConversationStore) readLastVisibleMessage(ctx context.Context, req conversationusecase.LastVisibleMessageRequest) (metadb.ConversationKey, conversationusecase.LastMessage, bool, error) {
 	if req.ChannelID == "" || req.ChannelType <= 0 || req.ChannelType > 255 {
-		return metadb.ConversationKey{}, conversationusecase.LastMessage{}, false, fmt.Errorf("internalv2/infra/cluster: invalid conversation message request")
+		return metadb.ConversationKey{}, conversationusecase.LastMessage{}, false, fmt.Errorf("internal/infra/cluster: invalid conversation message request")
 	}
 	key := metadb.ConversationKey{ChannelID: req.ChannelID, ChannelType: req.ChannelType}
 	msg, ok, err := s.node.ReadChannelLastVisible(ctx, channelv2.ChannelID{ID: req.ChannelID, Type: uint8(req.ChannelType)}, req.VisibleAfterSeq)
@@ -299,7 +299,7 @@ func (s *ConversationStore) GetRecentMessages(ctx context.Context, keys []conver
 	}
 	for _, key := range keys {
 		if key.ChannelID == "" || key.ChannelType <= 0 || key.ChannelType > 255 {
-			return nil, fmt.Errorf("internalv2/infra/cluster: invalid conversation recent request")
+			return nil, fmt.Errorf("internal/infra/cluster: invalid conversation recent request")
 		}
 		messages, err := s.readRecentOrdinaryMessages(ctx, key, limit)
 		if err != nil {

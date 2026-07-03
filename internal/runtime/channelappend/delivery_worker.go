@@ -15,7 +15,7 @@ const (
 )
 
 // ErrRecipientDeliveryWorkerClosed reports that the recipient delivery worker is not accepting batches.
-var ErrRecipientDeliveryWorkerClosed = errors.New("internalv2/channelappend: recipient delivery worker closed")
+var ErrRecipientDeliveryWorkerClosed = errors.New("internal/channelappend: recipient delivery worker closed")
 
 type recipientDeliveryWorkerState uint8
 

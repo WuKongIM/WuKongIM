@@ -33,11 +33,11 @@ const (
 
 var (
 	// ErrNodeOnboardingUnavailable reports that node onboarding dependencies are unavailable.
-	ErrNodeOnboardingUnavailable = errors.New("internalv2/usecase/management: node onboarding unavailable")
+	ErrNodeOnboardingUnavailable = errors.New("internal/usecase/management: node onboarding unavailable")
 	// ErrNodeOnboardingTargetNotActive reports that the target is not a schedulable active data node.
-	ErrNodeOnboardingTargetNotActive = errors.New("internalv2/usecase/management: node onboarding target is not schedulable active data node")
+	ErrNodeOnboardingTargetNotActive = errors.New("internal/usecase/management: node onboarding target is not schedulable active data node")
 	// ErrNodeOnboardingConflict reports a concurrent control-state change during onboarding writes.
-	ErrNodeOnboardingConflict = errors.New("internalv2/usecase/management: node onboarding conflict")
+	ErrNodeOnboardingConflict = errors.New("internal/usecase/management: node onboarding conflict")
 )
 
 // SlotReplicaMoveWriter submits Controller-backed staged Slot replica move intents.

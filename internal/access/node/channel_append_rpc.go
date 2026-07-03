@@ -53,7 +53,7 @@ func (a *ChannelAppendAdapter) HandleChannelAppendRPC(ctx context.Context, paylo
 	req, err := decodeChannelAppendRequest(payload)
 	if err != nil {
 		a.channelAppendRPCLogger().Warn("channel append rpc decode failed",
-			wklog.Event("internalv2.access.node.channel_append_decode_failed"),
+			wklog.Event("internal.access.node.channel_append_decode_failed"),
 			wklog.Int("payloadBytes", len(payload)),
 			wklog.Error(err),
 		)
@@ -111,7 +111,7 @@ func (c *Client) ForwardSendBatch(ctx context.Context, target channelappend.Auth
 		return results
 	}
 	if c == nil || c.node == nil {
-		return channelAppendFillActiveErrors(results, activeIndexes, fmt.Errorf("internalv2/access/node: channel append rpc client not configured"))
+		return channelAppendFillActiveErrors(results, activeIndexes, fmt.Errorf("internal/access/node: channel append rpc client not configured"))
 	}
 	body, err := encodeChannelAppendRequest(channelAppendRequest{Target: target, Items: reqItems})
 	if err != nil {
@@ -215,8 +215,8 @@ func channelAppendErrorForStatus(status string) error {
 	case rpcStatusContextDeadlineExceeded:
 		return context.DeadlineExceeded
 	case rpcStatusRejected:
-		return fmt.Errorf("internalv2/access/node: channel append rpc rejected")
+		return fmt.Errorf("internal/access/node: channel append rpc rejected")
 	default:
-		return fmt.Errorf("internalv2/access/node: unknown channel append rpc status %q", status)
+		return fmt.Errorf("internal/access/node: unknown channel append rpc status %q", status)
 	}
 }

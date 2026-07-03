@@ -28,17 +28,17 @@ const (
 
 var (
 	// ErrPluginNodeUnavailable reports that the requested node plugin reader is unavailable.
-	ErrPluginNodeUnavailable = errors.New("internalv2/usecase/management: plugin node unavailable")
+	ErrPluginNodeUnavailable = errors.New("internal/usecase/management: plugin node unavailable")
 	// ErrPluginNodeIDRequired reports that a node-scoped plugin read omitted the node id.
-	ErrPluginNodeIDRequired = errors.New("internalv2/usecase/management: plugin node_id required")
+	ErrPluginNodeIDRequired = errors.New("internal/usecase/management: plugin node_id required")
 	// ErrPluginBindingsUnavailable reports that plugin binding storage is unavailable.
-	ErrPluginBindingsUnavailable = errors.New("internalv2/usecase/management: plugin bindings unavailable")
+	ErrPluginBindingsUnavailable = errors.New("internal/usecase/management: plugin bindings unavailable")
 	// ErrPluginBindingSelectorRequired reports that a binding list request has no selector.
-	ErrPluginBindingSelectorRequired = errors.New("internalv2/usecase/management: plugin binding selector required")
+	ErrPluginBindingSelectorRequired = errors.New("internal/usecase/management: plugin binding selector required")
 	// ErrPluginBindingSelectorAmbiguous reports that a binding list request has multiple selectors.
-	ErrPluginBindingSelectorAmbiguous = errors.New("internalv2/usecase/management: plugin binding selector ambiguous")
+	ErrPluginBindingSelectorAmbiguous = errors.New("internal/usecase/management: plugin binding selector ambiguous")
 	// ErrPluginBindingUIDRequired reports that a binding mutation omitted the UID.
-	ErrPluginBindingUIDRequired = errors.New("internalv2/usecase/management: plugin binding uid required")
+	ErrPluginBindingUIDRequired = errors.New("internal/usecase/management: plugin binding uid required")
 )
 
 // PluginReader exposes node-local plugin lifecycle state.

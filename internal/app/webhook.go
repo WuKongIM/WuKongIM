@@ -60,7 +60,7 @@ func (a *App) wireWebhook() error {
 		FocusEvents:         a.cfg.Webhook.FocusEvents,
 	})
 	if err != nil {
-		return fmt.Errorf("internalv2/app: create webhook runtime: %w", err)
+		return fmt.Errorf("internal/app: create webhook runtime: %w", err)
 	}
 	a.webhook = runtime
 	a.webhookNotify = webhookNotifyEnqueuer{runtime: runtime}

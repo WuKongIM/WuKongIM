@@ -164,7 +164,7 @@ func TestManagerActivateNodeRouteReturnsReadinessDetail(t *testing.T) {
 	if rec.Code != http.StatusConflict {
 		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusConflict, rec.Body.String())
 	}
-	if !jsonEqual(rec.Body.String(), `{"error":"conflict","message":"internalv2/usecase/management: node not ready for activation: transport=false last_error=dial failed"}`) {
+	if !jsonEqual(rec.Body.String(), `{"error":"conflict","message":"internal/usecase/management: node not ready for activation: transport=false last_error=dial failed"}`) {
 		t.Fatalf("body = %s, want readiness detail", rec.Body.String())
 	}
 }

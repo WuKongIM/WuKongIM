@@ -20,7 +20,7 @@ const (
 )
 
 // ErrBusinessChannelReaderUnavailable reports that a requested node channel source is not available.
-var ErrBusinessChannelReaderUnavailable = errors.New("internalv2/usecase/management: business channel reader unavailable")
+var ErrBusinessChannelReaderUnavailable = errors.New("internal/usecase/management: business channel reader unavailable")
 
 // ChannelBusinessReader exposes authoritative channel metadata scans.
 type ChannelBusinessReader interface {

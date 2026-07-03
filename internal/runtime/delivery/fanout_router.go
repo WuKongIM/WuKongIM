@@ -8,10 +8,10 @@ import (
 )
 
 // ErrRouteNotReady reports that delivery fanout routing is not ready.
-var ErrRouteNotReady = errors.New("internalv2/runtime/delivery: route not ready")
+var ErrRouteNotReady = errors.New("internal/runtime/delivery: route not ready")
 
 // ErrRetryableFanoutTask reports that a fanout task should be retried later.
-var ErrRetryableFanoutTask = errors.New("internalv2/runtime/delivery: retryable fanout task")
+var ErrRetryableFanoutTask = errors.New("internal/runtime/delivery: retryable fanout task")
 
 // FanoutTaskRunner executes one planned fanout task.
 type FanoutTaskRunner interface {

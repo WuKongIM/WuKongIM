@@ -20,15 +20,15 @@ import (
 
 var (
 	// ErrUnsupportedFrame reports a gateway frame that internal does not handle.
-	ErrUnsupportedFrame = errors.New("internalv2/access/gateway: unsupported frame")
+	ErrUnsupportedFrame = errors.New("internal/access/gateway: unsupported frame")
 	// ErrUnauthenticatedSession reports a SEND without an authenticated session uid.
-	ErrUnauthenticatedSession = errors.New("internalv2/access/gateway: unauthenticated session")
+	ErrUnauthenticatedSession = errors.New("internal/access/gateway: unauthenticated session")
 	// ErrMissingRequestContext reports a gateway event without a request context.
-	ErrMissingRequestContext = errors.New("internalv2/access/gateway: missing request context")
+	ErrMissingRequestContext = errors.New("internal/access/gateway: missing request context")
 	// ErrSendBatchResultCountMismatch reports non-aligned batch usecase results.
-	ErrSendBatchResultCountMismatch = errors.New("internalv2/access/gateway: send batch result count mismatch")
+	ErrSendBatchResultCountMismatch = errors.New("internal/access/gateway: send batch result count mismatch")
 	// ErrPresenceRequired reports an activation request without a presence usecase.
-	ErrPresenceRequired = errors.New("internalv2/access/gateway: presence usecase required")
+	ErrPresenceRequired = errors.New("internal/access/gateway: presence usecase required")
 )
 
 const defaultSendTimeout = 5 * time.Second
@@ -126,7 +126,7 @@ func (h *Handler) OnListenerError(listener string, err error) {
 		return
 	}
 	h.connLogger().Error("gateway listener error",
-		wklog.Event("internalv2.access.gateway.listener_error"),
+		wklog.Event("internal.access.gateway.listener_error"),
 		wklog.String("listener", listener),
 		wklog.Error(err),
 	)
@@ -155,7 +155,7 @@ func (h *Handler) OnSessionClose(ctx coregateway.Context) error {
 		presenceErr = h.presence.Deactivate(reqCtx, deactivateCommandFromContext(&ctx))
 		if presenceErr != nil {
 			fields := append([]wklog.Field{
-				wklog.Event("internalv2.access.gateway.session_close_presence_failed"),
+				wklog.Event("internal.access.gateway.session_close_presence_failed"),
 				wklog.SourceModule("presence.deactivate"),
 			}, gatewayContextFields(&ctx)...)
 			fields = append(fields, wklog.Error(presenceErr))
@@ -169,7 +169,7 @@ func (h *Handler) OnSessionClose(ctx coregateway.Context) error {
 			deliveryErr = h.delivery.SessionClosed(reqCtx, delivery.SessionClosedCommand{UID: uid, SessionID: ctx.Session.ID()})
 			if deliveryErr != nil {
 				fields := append([]wklog.Field{
-					wklog.Event("internalv2.access.gateway.session_close_delivery_failed"),
+					wklog.Event("internal.access.gateway.session_close_delivery_failed"),
 					wklog.SourceModule("delivery.session_closed"),
 				}, gatewayContextFields(&ctx)...)
 				fields = append(fields, wklog.Error(deliveryErr))
@@ -186,7 +186,7 @@ func (h *Handler) OnSessionActivateRollback(ctx coregateway.Context, _ error) {
 	}
 	if err := h.presence.Deactivate(requestContextFromContext(&ctx), deactivateCommandFromContext(&ctx)); err != nil {
 		fields := append([]wklog.Field{
-			wklog.Event("internalv2.access.gateway.activation_rollback_failed"),
+			wklog.Event("internal.access.gateway.activation_rollback_failed"),
 			wklog.SourceModule("presence.deactivate"),
 		}, gatewayContextFields(&ctx)...)
 		fields = append(fields, wklog.Error(err))
@@ -199,7 +199,7 @@ func (h *Handler) OnSessionError(ctx coregateway.Context, err error) {
 		return
 	}
 	fields := append([]wklog.Field{
-		wklog.Event("internalv2.access.gateway.session_error"),
+		wklog.Event("internal.access.gateway.session_error"),
 	}, gatewayContextFields(&ctx)...)
 	fields = append(fields, wklog.Error(err))
 	h.connLogger().Warn("gateway session error", fields...)
@@ -232,7 +232,7 @@ func (h *Handler) touchPresence(ctx *coregateway.Context, now time.Time) {
 		ActivityUnix: now.Unix(),
 	}); err != nil {
 		fields := append([]wklog.Field{
-			wklog.Event("internalv2.access.gateway.presence_touch_failed"),
+			wklog.Event("internal.access.gateway.presence_touch_failed"),
 			wklog.SourceModule("presence.touch"),
 		}, gatewayContextFields(ctx)...)
 		fields = append(fields, wklog.Error(err))
@@ -281,7 +281,7 @@ func (h *Handler) handleRecvack(ctx *coregateway.Context, pkt *frame.RecvackPack
 	})
 	if err != nil {
 		fields := append([]wklog.Field{
-			wklog.Event("internalv2.access.gateway.recvack_failed"),
+			wklog.Event("internal.access.gateway.recvack_failed"),
 			wklog.SourceModule("delivery.recvack"),
 			wklog.MessageID(pkt.MessageID),
 			wklog.MessageSeq(uint64(pkt.MessageSeq)),
@@ -341,7 +341,7 @@ func (h *Handler) writeSendack(ctx *coregateway.Context, pkt *frame.SendPacket, 
 			recordGatewayWriteSendack(trace, result, err, sendtraceElapsedSince(startedAt))
 		}
 		fields := append([]wklog.Field{
-			wklog.Event("internalv2.access.gateway.sendack_write_failed"),
+			wklog.Event("internal.access.gateway.sendack_write_failed"),
 			wklog.SourceModule("gateway.write_sendack"),
 			wklog.String("source", source),
 			wklog.String("errorClass", class),
@@ -364,7 +364,7 @@ func (h *Handler) logSendFailure(cmd message.SendCommand, source, class string, 
 		return
 	}
 	fields := []wklog.Field{
-		wklog.Event("internalv2.access.gateway.send_failed"),
+		wklog.Event("internal.access.gateway.send_failed"),
 		wklog.SourceModule("message.send"),
 		wklog.String("source", source),
 		wklog.String("errorClass", class),
@@ -384,7 +384,7 @@ func (h *Handler) logSendMappingFailure(ctx *coregateway.Context, pkt *frame.Sen
 		return
 	}
 	fields := append([]wklog.Field{
-		wklog.Event("internalv2.access.gateway.send_rejected"),
+		wklog.Event("internal.access.gateway.send_rejected"),
 		wklog.SourceModule("gateway.map_send"),
 	}, gatewaySendFields(ctx, pkt)...)
 	fields = append(fields, wklog.Error(err))
@@ -393,7 +393,7 @@ func (h *Handler) logSendMappingFailure(ctx *coregateway.Context, pkt *frame.Sen
 
 func (h *Handler) logMissingRequestContext(ctx *coregateway.Context, pkt *frame.SendPacket, source string) {
 	fields := append([]wklog.Field{
-		wklog.Event("internalv2.access.gateway.missing_request_context"),
+		wklog.Event("internal.access.gateway.missing_request_context"),
 		wklog.SourceModule("gateway.request_context"),
 		wklog.String("source", source),
 		wklog.String("errorClass", sendackErrorClassMissingRequestContext),
@@ -404,14 +404,14 @@ func (h *Handler) logMissingRequestContext(ctx *coregateway.Context, pkt *frame.
 
 func (h *Handler) logMessageUsecaseMissing() {
 	h.frameLogger().Error("gateway message usecase missing",
-		wklog.Event("internalv2.access.gateway.message_usecase_missing"),
+		wklog.Event("internal.access.gateway.message_usecase_missing"),
 		wklog.SourceModule("message.send"),
 	)
 }
 
 func (h *Handler) logSendBatchResultCountMismatch(items, validItems, results int) {
 	h.frameLogger().Error("gateway send batch result count mismatch",
-		wklog.Event("internalv2.access.gateway.send_batch_result_count_mismatch"),
+		wklog.Event("internal.access.gateway.send_batch_result_count_mismatch"),
 		wklog.Int("items", items),
 		wklog.Int("validItems", validItems),
 		wklog.Int("results", results),

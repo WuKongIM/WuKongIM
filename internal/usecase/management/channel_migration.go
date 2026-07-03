@@ -13,11 +13,11 @@ import (
 
 var (
 	// ErrChannelMigrationUnavailable reports that ChannelV2 migration storage is not wired.
-	ErrChannelMigrationUnavailable = errors.New("internalv2/usecase/management: channel migration unavailable")
+	ErrChannelMigrationUnavailable = errors.New("internal/usecase/management: channel migration unavailable")
 	// ErrChannelMigrationConflict reports a duplicate or stale ChannelV2 migration request.
-	ErrChannelMigrationConflict = errors.New("internalv2/usecase/management: channel migration conflict")
+	ErrChannelMigrationConflict = errors.New("internal/usecase/management: channel migration conflict")
 	// ErrChannelMigrationNotFound reports that the requested migration task is absent.
-	ErrChannelMigrationNotFound = errors.New("internalv2/usecase/management: channel migration not found")
+	ErrChannelMigrationNotFound = errors.New("internal/usecase/management: channel migration not found")
 )
 
 // ChannelMigrationStore exposes Slot-owned ChannelV2 migration task commands.
