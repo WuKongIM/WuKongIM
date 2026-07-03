@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	channelv2 "github.com/WuKongIM/WuKongIM/pkg/channel"
+	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 )
@@ -21,9 +21,9 @@ func TestPublicAPICompile(t *testing.T) {
 	_, _ = node.RouteKeys([]string{"u1", "u2"})
 	_, _ = node.RouteHashSlot(0)
 	_ = node.Propose(context.Background(), cluster.ProposeRequest{Key: "u1", Command: []byte("cmd")})
-	_, _ = node.AppendChannel(context.Background(), channelv2.AppendRequest{})
-	_, _ = node.AppendChannelBatch(context.Background(), channelv2.AppendBatchRequest{})
-	_, _ = node.ReadChannelCommitted(context.Background(), channelv2.ChannelID{}, channelstore.ReadCommittedRequest{})
+	_, _ = node.AppendChannel(context.Background(), channelruntime.AppendRequest{})
+	_, _ = node.AppendChannelBatch(context.Background(), channelruntime.AppendBatchRequest{})
+	_, _ = node.ReadChannelCommitted(context.Background(), channelruntime.ChannelID{}, channelstore.ReadCommittedRequest{})
 	_ = node.Stop(context.Background())
 }
 

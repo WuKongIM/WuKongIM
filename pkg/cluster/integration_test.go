@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	channelv2 "github.com/WuKongIM/WuKongIM/pkg/channel"
+	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	metafsm "github.com/WuKongIM/WuKongIM/pkg/slot/fsm"
@@ -80,7 +80,7 @@ func TestClusterSingleNodeChannelSubscriberMetadataFacade(t *testing.T) {
 }
 
 func TestClusterThreeNodeDefaultChannelsReplicateQuorumAppend(t *testing.T) {
-	channelID := channelv2.ChannelID{ID: "room-default-quorum", Type: 1}
+	channelID := channelruntime.ChannelID{ID: "room-default-quorum", Type: 1}
 	nodes := newDefaultThreeNodeCluster(t)
 	startNodes(t, nodes...)
 	t.Cleanup(func() { stopNodes(t, nodes...) })
@@ -89,10 +89,10 @@ func TestClusterThreeNodeDefaultChannelsReplicateQuorumAppend(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	res, err := nodes[0].AppendChannel(ctx, channelv2.AppendRequest{
+	res, err := nodes[0].AppendChannel(ctx, channelruntime.AppendRequest{
 		ChannelID:  channelID,
-		CommitMode: channelv2.CommitModeQuorum,
-		Message:    channelv2.Message{MessageID: 1001, Payload: []byte("hello-default")},
+		CommitMode: channelruntime.CommitModeQuorum,
+		Message:    channelruntime.Message{MessageID: 1001, Payload: []byte("hello-default")},
 	})
 	if err != nil {
 		t.Fatalf("AppendChannel(default channels) error = %v", err)
@@ -107,7 +107,7 @@ func TestClusterThreeNodeDefaultChannelsReplicateQuorumAppend(t *testing.T) {
 }
 
 func TestClusterThreeNodeDefaultChannelsReplicateToFollowerStore(t *testing.T) {
-	channelID := channelv2.ChannelID{ID: "room-default-follower-store", Type: 1}
+	channelID := channelruntime.ChannelID{ID: "room-default-follower-store", Type: 1}
 	nodes := newDefaultThreeNodeCluster(t)
 	startNodes(t, nodes...)
 	t.Cleanup(func() { stopNodes(t, nodes...) })
@@ -116,10 +116,10 @@ func TestClusterThreeNodeDefaultChannelsReplicateToFollowerStore(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	res, err := nodes[0].AppendChannel(ctx, channelv2.AppendRequest{
+	res, err := nodes[0].AppendChannel(ctx, channelruntime.AppendRequest{
 		ChannelID:  channelID,
-		CommitMode: channelv2.CommitModeQuorum,
-		Message:    channelv2.Message{MessageID: 1002, Payload: []byte("follower-fetch")},
+		CommitMode: channelruntime.CommitModeQuorum,
+		Message:    channelruntime.Message{MessageID: 1002, Payload: []byte("follower-fetch")},
 	})
 	if err != nil {
 		t.Fatalf("AppendChannel(default channels) error = %v", err)
@@ -248,11 +248,11 @@ func firstNonLeaderNode(t testing.TB, nodes []*Node, leader uint64) *Node {
 	return nil
 }
 
-func requireChannelMessage(t testing.TB, node *Node, id channelv2.ChannelID, seq uint64, messageID uint64, payload []byte) {
+func requireChannelMessage(t testing.TB, node *Node, id channelruntime.ChannelID, seq uint64, messageID uint64, payload []byte) {
 	t.Helper()
 	deadline := time.Now().Add(3 * time.Second)
 	var lastErr error
-	var lastMessages []channelv2.Message
+	var lastMessages []channelruntime.Message
 	for time.Now().Before(deadline) {
 		messages, err := readDefaultChannelStore(node, id, seq)
 		if err == nil && len(messages) > 0 {
@@ -264,18 +264,18 @@ func requireChannelMessage(t testing.TB, node *Node, id channelv2.ChannelID, seq
 		}
 		lastErr = err
 		if err == nil {
-			lastMessages = append([]channelv2.Message(nil), messages...)
+			lastMessages = append([]channelruntime.Message(nil), messages...)
 		}
 		time.Sleep(time.Millisecond)
 	}
 	t.Fatalf("node %d did not replicate channel %v seq %d; lastErr=%v lastMessages=%#v", node.NodeID(), id, seq, lastErr, lastMessages)
 }
 
-func readDefaultChannelStore(node *Node, id channelv2.ChannelID, seq uint64) ([]channelv2.Message, error) {
+func readDefaultChannelStore(node *Node, id channelruntime.ChannelID, seq uint64) ([]channelruntime.Message, error) {
 	if node == nil || node.defaultChannelStore == nil {
 		return nil, ErrNotStarted
 	}
-	cs, err := node.defaultChannelStore.ChannelStore(channelv2.ChannelKeyForID(id), id)
+	cs, err := node.defaultChannelStore.ChannelStore(channelruntime.ChannelKeyForID(id), id)
 	if err != nil {
 		return nil, err
 	}

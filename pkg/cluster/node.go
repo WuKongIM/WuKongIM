@@ -6,7 +6,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	channelv2 "github.com/WuKongIM/WuKongIM/pkg/channel"
+	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/channels"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
@@ -32,16 +32,16 @@ type taskExecutor interface {
 }
 
 type channelService interface {
-	Append(context.Context, channelv2.AppendRequest) (channelv2.AppendResult, error)
-	AppendBatch(context.Context, channelv2.AppendBatchRequest) (channelv2.AppendBatchResult, error)
-	ResolveAppendAuthority(context.Context, channelv2.ChannelID) (channelv2.Meta, error)
-	ReadChannelLastVisible(context.Context, channelv2.ChannelID, uint64) (channelv2.Message, bool, error)
-	RetentionView(context.Context, channelv2.ChannelID) (channelv2.RetentionView, error)
-	ApplyRetentionBoundary(context.Context, channelv2.RetentionApplyRequest) (channelv2.RetentionApplyResult, error)
-	RuntimeSnapshot(context.Context) (channelv2.RuntimeSnapshot, error)
-	RuntimeProbe(context.Context, channelv2.RuntimeSelector) (channelv2.RuntimeProbeResult, error)
-	RuntimeEvict(context.Context, channelv2.RuntimeSelector) (channelv2.RuntimeEvictResult, error)
-	DrainChannel(context.Context, channelv2.DrainChannelRequest) (channelv2.DrainChannelResult, error)
+	Append(context.Context, channelruntime.AppendRequest) (channelruntime.AppendResult, error)
+	AppendBatch(context.Context, channelruntime.AppendBatchRequest) (channelruntime.AppendBatchResult, error)
+	ResolveAppendAuthority(context.Context, channelruntime.ChannelID) (channelruntime.Meta, error)
+	ReadChannelLastVisible(context.Context, channelruntime.ChannelID, uint64) (channelruntime.Message, bool, error)
+	RetentionView(context.Context, channelruntime.ChannelID) (channelruntime.RetentionView, error)
+	ApplyRetentionBoundary(context.Context, channelruntime.RetentionApplyRequest) (channelruntime.RetentionApplyResult, error)
+	RuntimeSnapshot(context.Context) (channelruntime.RuntimeSnapshot, error)
+	RuntimeProbe(context.Context, channelruntime.RuntimeSelector) (channelruntime.RuntimeProbeResult, error)
+	RuntimeEvict(context.Context, channelruntime.RuntimeSelector) (channelruntime.RuntimeEvictResult, error)
+	DrainChannel(context.Context, channelruntime.DrainChannelRequest) (channelruntime.DrainChannelResult, error)
 	Tick(context.Context) error
 	Close() error
 }
@@ -111,7 +111,7 @@ type Node struct {
 	channelRetentionCancel context.CancelFunc
 	channelRetentionWG     sync.WaitGroup
 	channelRetentionGCMu   sync.Mutex
-	channelRetentionCursor channelv2.ChannelKey
+	channelRetentionCursor channelruntime.ChannelKey
 	channelMigrationCancel context.CancelFunc
 	channelMigrationWG     sync.WaitGroup
 	// healthReportCancel stops the low-frequency Controller health reporter.
@@ -470,49 +470,49 @@ func (n *Node) routeWithAuthorityEpoch(route Route, err error) (Route, error) {
 }
 
 // AppendChannel appends one message through the hosted Channel service.
-func (n *Node) AppendChannel(ctx context.Context, req channelv2.AppendRequest) (channelv2.AppendResult, error) {
+func (n *Node) AppendChannel(ctx context.Context, req channelruntime.AppendRequest) (channelruntime.AppendResult, error) {
 	if err := ctxErr(ctx); err != nil {
-		return channelv2.AppendResult{}, err
+		return channelruntime.AppendResult{}, err
 	}
 	if err := n.ensureForeground(); err != nil {
-		return channelv2.AppendResult{}, err
+		return channelruntime.AppendResult{}, err
 	}
 	if n.channels == nil {
-		return channelv2.AppendResult{}, ErrNotStarted
+		return channelruntime.AppendResult{}, ErrNotStarted
 	}
 	return n.channels.Append(ctx, req)
 }
 
 // AppendChannelBatch appends a batch of messages through the hosted Channel service.
-func (n *Node) AppendChannelBatch(ctx context.Context, req channelv2.AppendBatchRequest) (channelv2.AppendBatchResult, error) {
+func (n *Node) AppendChannelBatch(ctx context.Context, req channelruntime.AppendBatchRequest) (channelruntime.AppendBatchResult, error) {
 	if err := ctxErr(ctx); err != nil {
-		return channelv2.AppendBatchResult{}, err
+		return channelruntime.AppendBatchResult{}, err
 	}
 	if err := n.ensureForeground(); err != nil {
-		return channelv2.AppendBatchResult{}, err
+		return channelruntime.AppendBatchResult{}, err
 	}
 	if n.channels == nil {
-		return channelv2.AppendBatchResult{}, ErrNotStarted
+		return channelruntime.AppendBatchResult{}, ErrNotStarted
 	}
 	return n.channels.AppendBatch(ctx, req)
 }
 
 // ResolveChannelAppendAuthority resolves the Channel append authority through the hosted service.
-func (n *Node) ResolveChannelAppendAuthority(ctx context.Context, id channelv2.ChannelID) (channelv2.Meta, error) {
+func (n *Node) ResolveChannelAppendAuthority(ctx context.Context, id channelruntime.ChannelID) (channelruntime.Meta, error) {
 	if err := ctxErr(ctx); err != nil {
-		return channelv2.Meta{}, err
+		return channelruntime.Meta{}, err
 	}
 	if err := n.ensureForeground(); err != nil {
-		return channelv2.Meta{}, err
+		return channelruntime.Meta{}, err
 	}
 	if n.channels == nil {
-		return channelv2.Meta{}, ErrNotStarted
+		return channelruntime.Meta{}, ErrNotStarted
 	}
 	return n.channels.ResolveAppendAuthority(ctx, id)
 }
 
 // ReadChannelCommitted reads locally committed channel messages from the Node-created Channel store.
-func (n *Node) ReadChannelCommitted(ctx context.Context, id channelv2.ChannelID, req channelstore.ReadCommittedRequest) (channelstore.ReadCommittedResult, error) {
+func (n *Node) ReadChannelCommitted(ctx context.Context, id channelruntime.ChannelID, req channelstore.ReadCommittedRequest) (channelstore.ReadCommittedResult, error) {
 	if err := ctxErr(ctx); err != nil {
 		return channelstore.ReadCommittedResult{}, err
 	}
@@ -522,7 +522,7 @@ func (n *Node) ReadChannelCommitted(ctx context.Context, id channelv2.ChannelID,
 	if n.defaultChannelStore == nil {
 		return channelstore.ReadCommittedResult{}, ErrNotStarted
 	}
-	store, err := n.defaultChannelStore.ChannelStore(channelv2.ChannelKeyForID(id), id)
+	store, err := n.defaultChannelStore.ChannelStore(channelruntime.ChannelKeyForID(id), id)
 	if err != nil {
 		return channelstore.ReadCommittedResult{}, err
 	}
@@ -542,7 +542,7 @@ func (n *Node) ReadChannelCommitted(ctx context.Context, id channelv2.ChannelID,
 }
 
 // LookupChannelIdempotency reads one local Channel idempotency index entry.
-func (n *Node) LookupChannelIdempotency(ctx context.Context, id channelv2.ChannelID, fromUID string, clientMsgNo string) (channelstore.IdempotencyHit, bool, error) {
+func (n *Node) LookupChannelIdempotency(ctx context.Context, id channelruntime.ChannelID, fromUID string, clientMsgNo string) (channelstore.IdempotencyHit, bool, error) {
 	if err := ctxErr(ctx); err != nil {
 		return channelstore.IdempotencyHit{}, false, err
 	}
@@ -552,27 +552,27 @@ func (n *Node) LookupChannelIdempotency(ctx context.Context, id channelv2.Channe
 	if n.defaultChannelStore == nil {
 		return channelstore.IdempotencyHit{}, false, ErrNotStarted
 	}
-	store, err := n.defaultChannelStore.ChannelStore(channelv2.ChannelKeyForID(id), id)
+	store, err := n.defaultChannelStore.ChannelStore(channelruntime.ChannelKeyForID(id), id)
 	if err != nil {
 		return channelstore.IdempotencyHit{}, false, err
 	}
 	lookup, ok := store.(channelstore.IdempotencyLookup)
 	if !ok {
-		return channelstore.IdempotencyHit{}, false, channelv2.ErrInvalidConfig
+		return channelstore.IdempotencyHit{}, false, channelruntime.ErrInvalidConfig
 	}
 	return lookup.LookupIdempotency(ctx, fromUID, clientMsgNo)
 }
 
 // ReadChannelLastVisible reads the newest visible message from the authoritative channel leader.
-func (n *Node) ReadChannelLastVisible(ctx context.Context, id channelv2.ChannelID, visibleAfterSeq uint64) (channelv2.Message, bool, error) {
+func (n *Node) ReadChannelLastVisible(ctx context.Context, id channelruntime.ChannelID, visibleAfterSeq uint64) (channelruntime.Message, bool, error) {
 	if err := ctxErr(ctx); err != nil {
-		return channelv2.Message{}, false, err
+		return channelruntime.Message{}, false, err
 	}
 	if err := n.ensureForeground(); err != nil {
-		return channelv2.Message{}, false, err
+		return channelruntime.Message{}, false, err
 	}
 	if n.channels == nil {
-		return channelv2.Message{}, false, ErrNotStarted
+		return channelruntime.Message{}, false, ErrNotStarted
 	}
 	return n.channels.ReadChannelLastVisible(ctx, id, visibleAfterSeq)
 }

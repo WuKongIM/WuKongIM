@@ -5,14 +5,14 @@ import (
 	"errors"
 	"testing"
 
-	channelv2 "github.com/WuKongIM/WuKongIM/pkg/channel"
+	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
 func TestChannelRetentionGCOnceSkipsChannelsWithoutBoundary(t *testing.T) {
 	node, runtime := newChannelRetentionGCNode(t)
-	id := channelv2.ChannelID{ID: "retention-skip", Type: 1}
+	id := channelruntime.ChannelID{ID: "retention-skip", Type: 1}
 	seedChannelRetentionCatalogAndMeta(t, node, id, 3, 0)
 
 	result, err := node.RunChannelRetentionGCOnce(context.Background())
@@ -29,9 +29,9 @@ func TestChannelRetentionGCOnceSkipsChannelsWithoutBoundary(t *testing.T) {
 
 func TestChannelRetentionGCOnceAppliesCommittedBoundary(t *testing.T) {
 	node, runtime := newChannelRetentionGCNode(t)
-	id := channelv2.ChannelID{ID: "retention-apply", Type: 1}
+	id := channelruntime.ChannelID{ID: "retention-apply", Type: 1}
 	seedChannelRetentionCatalogAndMeta(t, node, id, 4, 2)
-	runtime.results = map[channelv2.ChannelID]channelv2.RetentionApplyResult{
+	runtime.results = map[channelruntime.ChannelID]channelruntime.RetentionApplyResult{
 		id: {ChannelID: id, ThroughSeq: 2, LocalRetentionThroughSeq: 2, PhysicalRetentionThroughSeq: 2, DeletedThroughSeq: 2, Deleted: 2},
 	}
 
@@ -53,13 +53,13 @@ func TestChannelRetentionGCOnceAppliesCommittedBoundary(t *testing.T) {
 
 func TestChannelRetentionGCOnceContinuesAfterChannelError(t *testing.T) {
 	node, runtime := newChannelRetentionGCNode(t)
-	first := channelv2.ChannelID{ID: "retention-error-a", Type: 1}
-	second := channelv2.ChannelID{ID: "retention-error-b", Type: 1}
+	first := channelruntime.ChannelID{ID: "retention-error-a", Type: 1}
+	second := channelruntime.ChannelID{ID: "retention-error-b", Type: 1}
 	seedChannelRetentionCatalogAndMeta(t, node, first, 2, 1)
 	seedChannelRetentionCatalogAndMeta(t, node, second, 2, 1)
 	boom := errors.New("apply failed")
-	runtime.applyErrs = map[channelv2.ChannelID]error{first: boom}
-	runtime.results = map[channelv2.ChannelID]channelv2.RetentionApplyResult{
+	runtime.applyErrs = map[channelruntime.ChannelID]error{first: boom}
+	runtime.results = map[channelruntime.ChannelID]channelruntime.RetentionApplyResult{
 		second: {ChannelID: second, ThroughSeq: 1, LocalRetentionThroughSeq: 1, PhysicalRetentionThroughSeq: 1, DeletedThroughSeq: 1, Deleted: 1},
 	}
 
@@ -85,18 +85,18 @@ func newChannelRetentionGCNode(t *testing.T) (*Node, *recordingRetentionChannelS
 	return node, runtime
 }
 
-func seedChannelRetentionCatalogAndMeta(t *testing.T, node *Node, id channelv2.ChannelID, messages int, retentionThroughSeq uint64) {
+func seedChannelRetentionCatalogAndMeta(t *testing.T, node *Node, id channelruntime.ChannelID, messages int, retentionThroughSeq uint64) {
 	t.Helper()
 	if node.defaultChannelStore == nil || node.defaultSlotMetaDB == nil {
 		t.Fatal("node default stores are not initialized")
 	}
-	cs, err := node.defaultChannelStore.ChannelStore(channelv2.ChannelKeyForID(id), id)
+	cs, err := node.defaultChannelStore.ChannelStore(channelruntime.ChannelKeyForID(id), id)
 	if err != nil {
 		t.Fatalf("ChannelStore() error = %v", err)
 	}
-	records := make([]channelv2.Record, 0, messages)
+	records := make([]channelruntime.Record, 0, messages)
 	for i := 1; i <= messages; i++ {
-		records = append(records, channelv2.Record{ID: uint64(i), Payload: []byte{byte(i)}, SizeBytes: 1})
+		records = append(records, channelruntime.Record{ID: uint64(i), Payload: []byte{byte(i)}, SizeBytes: 1})
 	}
 	if _, err := cs.AppendLeader(context.Background(), channelstore.AppendLeaderRequest{Records: records}); err != nil {
 		t.Fatalf("AppendLeader() error = %v", err)
@@ -112,7 +112,7 @@ func seedChannelRetentionCatalogAndMeta(t *testing.T, node *Node, id channelv2.C
 		ISR:                 []uint64{node.NodeID()},
 		Leader:              node.NodeID(),
 		MinISR:              1,
-		Status:              uint8(channelv2.StatusActive),
+		Status:              uint8(channelruntime.StatusActive),
 		RetentionThroughSeq: retentionThroughSeq,
 	})
 	if err != nil {
@@ -121,59 +121,59 @@ func seedChannelRetentionCatalogAndMeta(t *testing.T, node *Node, id channelv2.C
 }
 
 type recordingRetentionChannelService struct {
-	results   map[channelv2.ChannelID]channelv2.RetentionApplyResult
-	applyErrs map[channelv2.ChannelID]error
+	results   map[channelruntime.ChannelID]channelruntime.RetentionApplyResult
+	applyErrs map[channelruntime.ChannelID]error
 
-	lastApply  channelv2.RetentionApplyRequest
+	lastApply  channelruntime.RetentionApplyRequest
 	applyCalls int
 }
 
-func (s *recordingRetentionChannelService) Append(context.Context, channelv2.AppendRequest) (channelv2.AppendResult, error) {
-	return channelv2.AppendResult{}, nil
+func (s *recordingRetentionChannelService) Append(context.Context, channelruntime.AppendRequest) (channelruntime.AppendResult, error) {
+	return channelruntime.AppendResult{}, nil
 }
 
-func (s *recordingRetentionChannelService) AppendBatch(context.Context, channelv2.AppendBatchRequest) (channelv2.AppendBatchResult, error) {
-	return channelv2.AppendBatchResult{}, nil
+func (s *recordingRetentionChannelService) AppendBatch(context.Context, channelruntime.AppendBatchRequest) (channelruntime.AppendBatchResult, error) {
+	return channelruntime.AppendBatchResult{}, nil
 }
 
-func (s *recordingRetentionChannelService) ResolveAppendAuthority(context.Context, channelv2.ChannelID) (channelv2.Meta, error) {
-	return channelv2.Meta{}, nil
+func (s *recordingRetentionChannelService) ResolveAppendAuthority(context.Context, channelruntime.ChannelID) (channelruntime.Meta, error) {
+	return channelruntime.Meta{}, nil
 }
 
-func (s *recordingRetentionChannelService) ReadChannelLastVisible(context.Context, channelv2.ChannelID, uint64) (channelv2.Message, bool, error) {
-	return channelv2.Message{}, false, nil
+func (s *recordingRetentionChannelService) ReadChannelLastVisible(context.Context, channelruntime.ChannelID, uint64) (channelruntime.Message, bool, error) {
+	return channelruntime.Message{}, false, nil
 }
 
-func (s *recordingRetentionChannelService) RuntimeSnapshot(context.Context) (channelv2.RuntimeSnapshot, error) {
-	return channelv2.RuntimeSnapshot{}, nil
+func (s *recordingRetentionChannelService) RuntimeSnapshot(context.Context) (channelruntime.RuntimeSnapshot, error) {
+	return channelruntime.RuntimeSnapshot{}, nil
 }
 
-func (s *recordingRetentionChannelService) RuntimeProbe(context.Context, channelv2.RuntimeSelector) (channelv2.RuntimeProbeResult, error) {
-	return channelv2.RuntimeProbeResult{}, nil
+func (s *recordingRetentionChannelService) RuntimeProbe(context.Context, channelruntime.RuntimeSelector) (channelruntime.RuntimeProbeResult, error) {
+	return channelruntime.RuntimeProbeResult{}, nil
 }
 
-func (s *recordingRetentionChannelService) RuntimeEvict(context.Context, channelv2.RuntimeSelector) (channelv2.RuntimeEvictResult, error) {
-	return channelv2.RuntimeEvictResult{}, nil
+func (s *recordingRetentionChannelService) RuntimeEvict(context.Context, channelruntime.RuntimeSelector) (channelruntime.RuntimeEvictResult, error) {
+	return channelruntime.RuntimeEvictResult{}, nil
 }
 
-func (s *recordingRetentionChannelService) DrainChannel(context.Context, channelv2.DrainChannelRequest) (channelv2.DrainChannelResult, error) {
-	return channelv2.DrainChannelResult{}, nil
+func (s *recordingRetentionChannelService) DrainChannel(context.Context, channelruntime.DrainChannelRequest) (channelruntime.DrainChannelResult, error) {
+	return channelruntime.DrainChannelResult{}, nil
 }
 
-func (s *recordingRetentionChannelService) RetentionView(context.Context, channelv2.ChannelID) (channelv2.RetentionView, error) {
-	return channelv2.RetentionView{}, nil
+func (s *recordingRetentionChannelService) RetentionView(context.Context, channelruntime.ChannelID) (channelruntime.RetentionView, error) {
+	return channelruntime.RetentionView{}, nil
 }
 
-func (s *recordingRetentionChannelService) ApplyRetentionBoundary(_ context.Context, req channelv2.RetentionApplyRequest) (channelv2.RetentionApplyResult, error) {
+func (s *recordingRetentionChannelService) ApplyRetentionBoundary(_ context.Context, req channelruntime.RetentionApplyRequest) (channelruntime.RetentionApplyResult, error) {
 	s.applyCalls++
 	s.lastApply = req
 	if err := s.applyErrs[req.ChannelID]; err != nil {
-		return channelv2.RetentionApplyResult{}, err
+		return channelruntime.RetentionApplyResult{}, err
 	}
 	if result, ok := s.results[req.ChannelID]; ok {
 		return result, nil
 	}
-	return channelv2.RetentionApplyResult{ChannelID: req.ChannelID, ThroughSeq: req.ThroughSeq, LocalRetentionThroughSeq: req.ThroughSeq}, nil
+	return channelruntime.RetentionApplyResult{ChannelID: req.ChannelID, ThroughSeq: req.ThroughSeq, LocalRetentionThroughSeq: req.ThroughSeq}, nil
 }
 
 func (s *recordingRetentionChannelService) Tick(context.Context) error { return nil }

@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	channelv2 "github.com/WuKongIM/WuKongIM/pkg/channel"
+	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
@@ -49,10 +49,10 @@ func TestClusterSingleNodeScanChannelRuntimeMetaSlotPagePaginatesMetadata(t *tes
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	store := defaultChannelRuntimeMetaStore{node: node}
-	if err := store.UpsertChannelRuntimeMeta(ctx, metadb.ChannelRuntimeMeta{ChannelID: "g1", ChannelType: 2, Leader: 1, Replicas: []uint64{1}, ISR: []uint64{1}, MinISR: 1, Status: uint8(channelv2.StatusActive)}); err != nil {
+	if err := store.UpsertChannelRuntimeMeta(ctx, metadb.ChannelRuntimeMeta{ChannelID: "g1", ChannelType: 2, Leader: 1, Replicas: []uint64{1}, ISR: []uint64{1}, MinISR: 1, Status: uint8(channelruntime.StatusActive)}); err != nil {
 		t.Fatalf("UpsertChannelRuntimeMeta(g1) error = %v", err)
 	}
-	if err := store.UpsertChannelRuntimeMeta(ctx, metadb.ChannelRuntimeMeta{ChannelID: "g2", ChannelType: 2, Leader: 1, Replicas: []uint64{1}, ISR: []uint64{1}, MinISR: 1, Status: uint8(channelv2.StatusCreating)}); err != nil {
+	if err := store.UpsertChannelRuntimeMeta(ctx, metadb.ChannelRuntimeMeta{ChannelID: "g2", ChannelType: 2, Leader: 1, Replicas: []uint64{1}, ISR: []uint64{1}, MinISR: 1, Status: uint8(channelruntime.StatusCreating)}); err != nil {
 		t.Fatalf("UpsertChannelRuntimeMeta(g2) error = %v", err)
 	}
 
@@ -74,7 +74,7 @@ func TestClusterSingleNodeScanChannelRuntimeMetaSlotPagePaginatesMetadata(t *tes
 	if err != nil {
 		t.Fatalf("ScanChannelRuntimeMetaSlotPage(page2) error = %v", err)
 	}
-	if len(page) != 1 || page[0].ChannelID != "g2" || page[0].Status != uint8(channelv2.StatusCreating) || !done {
+	if len(page) != 1 || page[0].ChannelID != "g2" || page[0].Status != uint8(channelruntime.StatusCreating) || !done {
 		t.Fatalf("page2 = %#v done=%t, want g2 and done", page, done)
 	}
 }

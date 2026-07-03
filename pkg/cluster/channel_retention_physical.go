@@ -3,7 +3,7 @@ package cluster
 import (
 	"context"
 
-	channelv2 "github.com/WuKongIM/WuKongIM/pkg/channel"
+	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel"
 )
 
 // ChannelRetentionGCResult summarizes one bounded local physical retention pass.
@@ -25,31 +25,31 @@ type ChannelRetentionGCResult struct {
 }
 
 // ChannelRetentionView returns local Channel retention state.
-func (n *Node) ChannelRetentionView(ctx context.Context, id channelv2.ChannelID) (channelv2.RetentionView, error) {
+func (n *Node) ChannelRetentionView(ctx context.Context, id channelruntime.ChannelID) (channelruntime.RetentionView, error) {
 	if err := ctxErr(ctx); err != nil {
-		return channelv2.RetentionView{}, err
+		return channelruntime.RetentionView{}, err
 	}
 	if err := n.ensureForeground(); err != nil {
-		return channelv2.RetentionView{}, err
+		return channelruntime.RetentionView{}, err
 	}
 	if n.channels == nil {
-		return channelv2.RetentionView{}, ErrNotStarted
+		return channelruntime.RetentionView{}, ErrNotStarted
 	}
 	return n.channels.RetentionView(ctx, id)
 }
 
 // ApplyChannelRetentionBoundary adopts a local logical boundary and attempts bounded physical cleanup.
-func (n *Node) ApplyChannelRetentionBoundary(ctx context.Context, id channelv2.ChannelID, throughSeq uint64, opts channelv2.RetentionApplyOptions) (channelv2.RetentionApplyResult, error) {
+func (n *Node) ApplyChannelRetentionBoundary(ctx context.Context, id channelruntime.ChannelID, throughSeq uint64, opts channelruntime.RetentionApplyOptions) (channelruntime.RetentionApplyResult, error) {
 	if err := ctxErr(ctx); err != nil {
-		return channelv2.RetentionApplyResult{}, err
+		return channelruntime.RetentionApplyResult{}, err
 	}
 	if err := n.ensureForeground(); err != nil {
-		return channelv2.RetentionApplyResult{}, err
+		return channelruntime.RetentionApplyResult{}, err
 	}
 	if n.channels == nil {
-		return channelv2.RetentionApplyResult{}, ErrNotStarted
+		return channelruntime.RetentionApplyResult{}, ErrNotStarted
 	}
-	return n.channels.ApplyRetentionBoundary(ctx, channelv2.RetentionApplyRequest{
+	return n.channels.ApplyRetentionBoundary(ctx, channelruntime.RetentionApplyRequest{
 		ChannelID:  id,
 		ThroughSeq: throughSeq,
 		Options:    opts,
@@ -76,7 +76,7 @@ func (n *Node) RunChannelRetentionGCOnce(ctx context.Context) (ChannelRetentionG
 		return ChannelRetentionGCResult{}, err
 	}
 	result := ChannelRetentionGCResult{ScannedChannels: len(entries), More: more}
-	opts := channelv2.RetentionApplyOptions{
+	opts := channelruntime.RetentionApplyOptions{
 		MaxTrimMessages: n.cfg.ChannelRetention.MaxTrimMessages,
 		MaxTrimBytes:    n.cfg.ChannelRetention.MaxTrimBytes,
 	}

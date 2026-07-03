@@ -5,12 +5,12 @@ import (
 	"errors"
 	"testing"
 
-	channelv2 "github.com/WuKongIM/WuKongIM/pkg/channel"
+	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/channels"
 )
 
 func TestNodeChannelRuntimeSnapshotDelegatesToChannels(t *testing.T) {
-	runtime := &nodeChannelRuntime{snapshot: channelv2.RuntimeSnapshot{ActiveTotal: 3}}
+	runtime := &nodeChannelRuntime{snapshot: channelruntime.RuntimeSnapshot{ActiveTotal: 3}}
 	service, err := channels.NewService(channels.Config{Runtime: runtime})
 	if err != nil {
 		t.Fatalf("NewService() error = %v", err)
@@ -28,7 +28,7 @@ func TestNodeChannelRuntimeSnapshotDelegatesToChannels(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ChannelRuntimeSnapshot() error = %v", err)
 	}
-	if got.NodeID != channelv2.NodeID(node.cfg.NodeID) || got.ActiveTotal != 3 {
+	if got.NodeID != channelruntime.NodeID(node.cfg.NodeID) || got.ActiveTotal != 3 {
 		t.Fatalf("ChannelRuntimeSnapshot() = %#v, want delegated snapshot with node fallback", got)
 	}
 	if runtime.snapshotCalls != 1 {
@@ -37,8 +37,8 @@ func TestNodeChannelRuntimeSnapshotDelegatesToChannels(t *testing.T) {
 }
 
 func TestNodeChannelRuntimeProbeDelegatesToChannels(t *testing.T) {
-	channelID := channelv2.ChannelID{ID: "probe", Type: 1}
-	runtime := &nodeChannelRuntime{probe: channelv2.RuntimeProbeResult{Checked: 1, Missing: []channelv2.ChannelID{channelID}}}
+	channelID := channelruntime.ChannelID{ID: "probe", Type: 1}
+	runtime := &nodeChannelRuntime{probe: channelruntime.RuntimeProbeResult{Checked: 1, Missing: []channelruntime.ChannelID{channelID}}}
 	service, err := channels.NewService(channels.Config{Runtime: runtime})
 	if err != nil {
 		t.Fatalf("NewService() error = %v", err)
@@ -52,7 +52,7 @@ func TestNodeChannelRuntimeProbeDelegatesToChannels(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = node.Stop(context.Background()) })
 
-	got, err := node.ChannelRuntimeProbe(context.Background(), channelv2.RuntimeSelector{ChannelIDs: []channelv2.ChannelID{channelID}})
+	got, err := node.ChannelRuntimeProbe(context.Background(), channelruntime.RuntimeSelector{ChannelIDs: []channelruntime.ChannelID{channelID}})
 	if err != nil {
 		t.Fatalf("ChannelRuntimeProbe() error = %v", err)
 	}
@@ -65,8 +65,8 @@ func TestNodeChannelRuntimeProbeDelegatesToChannels(t *testing.T) {
 }
 
 func TestNodeChannelRuntimeEvictDelegatesToChannels(t *testing.T) {
-	channelID := channelv2.ChannelID{ID: "evict", Type: 1}
-	runtime := &nodeChannelRuntime{evict: channelv2.RuntimeEvictResult{Requested: 1, Evicted: 1}}
+	channelID := channelruntime.ChannelID{ID: "evict", Type: 1}
+	runtime := &nodeChannelRuntime{evict: channelruntime.RuntimeEvictResult{Requested: 1, Evicted: 1}}
 	service, err := channels.NewService(channels.Config{Runtime: runtime})
 	if err != nil {
 		t.Fatalf("NewService() error = %v", err)
@@ -80,7 +80,7 @@ func TestNodeChannelRuntimeEvictDelegatesToChannels(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = node.Stop(context.Background()) })
 
-	got, err := node.ChannelRuntimeEvict(context.Background(), channelv2.RuntimeSelector{ChannelIDs: []channelv2.ChannelID{channelID}})
+	got, err := node.ChannelRuntimeEvict(context.Background(), channelruntime.RuntimeSelector{ChannelIDs: []channelruntime.ChannelID{channelID}})
 	if err != nil {
 		t.Fatalf("ChannelRuntimeEvict() error = %v", err)
 	}
@@ -102,10 +102,10 @@ func TestNodeChannelRuntimeRequiresStartedChannels(t *testing.T) {
 	if _, err := node.ChannelRuntimeSnapshot(context.Background()); !errors.Is(err, ErrNotStarted) {
 		t.Fatalf("ChannelRuntimeSnapshot() error = %v, want ErrNotStarted", err)
 	}
-	if _, err := node.ChannelRuntimeProbe(context.Background(), channelv2.RuntimeSelector{}); !errors.Is(err, ErrNotStarted) {
+	if _, err := node.ChannelRuntimeProbe(context.Background(), channelruntime.RuntimeSelector{}); !errors.Is(err, ErrNotStarted) {
 		t.Fatalf("ChannelRuntimeProbe() error = %v, want ErrNotStarted", err)
 	}
-	if _, err := node.ChannelRuntimeEvict(context.Background(), channelv2.RuntimeSelector{}); !errors.Is(err, ErrNotStarted) {
+	if _, err := node.ChannelRuntimeEvict(context.Background(), channelruntime.RuntimeSelector{}); !errors.Is(err, ErrNotStarted) {
 		t.Fatalf("ChannelRuntimeEvict() error = %v, want ErrNotStarted", err)
 	}
 }

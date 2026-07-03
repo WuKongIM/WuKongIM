@@ -4,7 +4,7 @@ import (
 	"context"
 	"path/filepath"
 
-	channelv2 "github.com/WuKongIM/WuKongIM/pkg/channel"
+	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/channels"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
@@ -79,7 +79,7 @@ func (n *Node) ensureDefaultRuntime() (bool, error) {
 			transport = channels.NewTransportClient(n.transportClient)
 		}
 		service, err := channels.NewService(channels.Config{
-			LocalNode:                     channelv2.NodeID(n.cfg.NodeID),
+			LocalNode:                     channelruntime.NodeID(n.cfg.NodeID),
 			ReactorCount:                  n.cfg.Channel.ReactorCount,
 			StoreAppendWorkers:            n.cfg.Channel.StoreAppendWorkers,
 			StoreAppendBatchMaxWait:       n.cfg.Channel.StoreAppendBatchMaxWait,

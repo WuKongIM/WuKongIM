@@ -3,54 +3,54 @@ package cluster
 import (
 	"context"
 
-	channelv2 "github.com/WuKongIM/WuKongIM/pkg/channel"
+	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel"
 )
 
 // ChannelRuntimeSnapshot returns local Channel runtime state for benchmark controllers.
-func (n *Node) ChannelRuntimeSnapshot(ctx context.Context) (channelv2.RuntimeSnapshot, error) {
+func (n *Node) ChannelRuntimeSnapshot(ctx context.Context) (channelruntime.RuntimeSnapshot, error) {
 	if err := ctxErr(ctx); err != nil {
-		return channelv2.RuntimeSnapshot{}, err
+		return channelruntime.RuntimeSnapshot{}, err
 	}
 	if err := n.ensureForeground(); err != nil {
-		return channelv2.RuntimeSnapshot{}, err
+		return channelruntime.RuntimeSnapshot{}, err
 	}
 	if n.channels == nil {
-		return channelv2.RuntimeSnapshot{}, ErrNotStarted
+		return channelruntime.RuntimeSnapshot{}, ErrNotStarted
 	}
 	out, err := n.channels.RuntimeSnapshot(ctx)
 	if err != nil {
-		return channelv2.RuntimeSnapshot{}, err
+		return channelruntime.RuntimeSnapshot{}, err
 	}
 	if out.NodeID == 0 {
-		out.NodeID = channelv2.NodeID(n.cfg.NodeID)
+		out.NodeID = channelruntime.NodeID(n.cfg.NodeID)
 	}
 	return out, nil
 }
 
 // ChannelRuntimeProbe checks selected local Channel runtimes for benchmark controllers.
-func (n *Node) ChannelRuntimeProbe(ctx context.Context, selector channelv2.RuntimeSelector) (channelv2.RuntimeProbeResult, error) {
+func (n *Node) ChannelRuntimeProbe(ctx context.Context, selector channelruntime.RuntimeSelector) (channelruntime.RuntimeProbeResult, error) {
 	if err := ctxErr(ctx); err != nil {
-		return channelv2.RuntimeProbeResult{}, err
+		return channelruntime.RuntimeProbeResult{}, err
 	}
 	if err := n.ensureForeground(); err != nil {
-		return channelv2.RuntimeProbeResult{}, err
+		return channelruntime.RuntimeProbeResult{}, err
 	}
 	if n.channels == nil {
-		return channelv2.RuntimeProbeResult{}, ErrNotStarted
+		return channelruntime.RuntimeProbeResult{}, ErrNotStarted
 	}
 	return n.channels.RuntimeProbe(ctx, selector)
 }
 
 // ChannelRuntimeEvict evicts selected local Channel runtimes for benchmark controllers.
-func (n *Node) ChannelRuntimeEvict(ctx context.Context, selector channelv2.RuntimeSelector) (channelv2.RuntimeEvictResult, error) {
+func (n *Node) ChannelRuntimeEvict(ctx context.Context, selector channelruntime.RuntimeSelector) (channelruntime.RuntimeEvictResult, error) {
 	if err := ctxErr(ctx); err != nil {
-		return channelv2.RuntimeEvictResult{}, err
+		return channelruntime.RuntimeEvictResult{}, err
 	}
 	if err := n.ensureForeground(); err != nil {
-		return channelv2.RuntimeEvictResult{}, err
+		return channelruntime.RuntimeEvictResult{}, err
 	}
 	if n.channels == nil {
-		return channelv2.RuntimeEvictResult{}, ErrNotStarted
+		return channelruntime.RuntimeEvictResult{}, ErrNotStarted
 	}
 	return n.channels.RuntimeEvict(ctx, selector)
 }

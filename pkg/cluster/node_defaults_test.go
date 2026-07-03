@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	channelv2 "github.com/WuKongIM/WuKongIM/pkg/channel"
+	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
 	channelwrapper "github.com/WuKongIM/WuKongIM/pkg/cluster/channels"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
@@ -289,7 +289,7 @@ func TestNodeInitializesDefaultChannelsWhenOptionMissing(t *testing.T) {
 		t.Fatalf("Start() error = %v", err)
 	}
 	t.Cleanup(func() { _ = node.Stop(context.Background()) })
-	_, err = node.AppendChannel(context.Background(), channelv2.AppendRequest{ChannelID: channelv2.ChannelID{ID: "missing", Type: 1}})
+	_, err = node.AppendChannel(context.Background(), channelruntime.AppendRequest{ChannelID: channelruntime.ChannelID{ID: "missing", Type: 1}})
 	if errors.Is(err, ErrNotStarted) {
 		t.Fatalf("AppendChannel() error = %v, want default channel service initialized", err)
 	}
@@ -316,28 +316,28 @@ func TestNodeDefaultChannelsReceiveDataPlaneLeaseGuard(t *testing.T) {
 	if !ok {
 		t.Fatalf("default channels = %T, want *channels.Service", node.channels)
 	}
-	meta := channelv2.Meta{
-		Key:         channelv2.ChannelKey("1:lease-default"),
-		ID:          channelv2.ChannelID{ID: "lease-default", Type: 1},
+	meta := channelruntime.Meta{
+		Key:         channelruntime.ChannelKey("1:lease-default"),
+		ID:          channelruntime.ChannelID{ID: "lease-default", Type: 1},
 		Epoch:       1,
 		LeaderEpoch: 1,
 		Leader:      1,
-		Replicas:    []channelv2.NodeID{1},
-		ISR:         []channelv2.NodeID{1},
+		Replicas:    []channelruntime.NodeID{1},
+		ISR:         []channelruntime.NodeID{1},
 		MinISR:      1,
-		Status:      channelv2.StatusActive,
+		Status:      channelruntime.StatusActive,
 	}
 	if err := service.ApplyMeta(meta); err != nil {
 		t.Fatalf("ApplyMeta() error = %v", err)
 	}
 
-	_, err = service.Runtime().Append(context.Background(), channelv2.AppendRequest{ChannelID: meta.ID, Message: channelv2.Message{MessageID: 1, Payload: []byte("blocked")}, CommitMode: channelv2.CommitModeLocal})
-	if !errors.Is(err, channelv2.ErrNotReady) {
+	_, err = service.Runtime().Append(context.Background(), channelruntime.AppendRequest{ChannelID: meta.ID, Message: channelruntime.Message{MessageID: 1, Payload: []byte("blocked")}, CommitMode: channelruntime.CommitModeLocal})
+	if !errors.Is(err, channelruntime.ErrNotReady) {
 		t.Fatalf("Append() before lease mark error = %v, want ErrNotReady", err)
 	}
 
 	node.channelDataPlaneLease.MarkVisible(time.Now())
-	res, err := service.Runtime().Append(context.Background(), channelv2.AppendRequest{ChannelID: meta.ID, Message: channelv2.Message{MessageID: 2, Payload: []byte("allowed")}, CommitMode: channelv2.CommitModeLocal})
+	res, err := service.Runtime().Append(context.Background(), channelruntime.AppendRequest{ChannelID: meta.ID, Message: channelruntime.Message{MessageID: 2, Payload: []byte("allowed")}, CommitMode: channelruntime.CommitModeLocal})
 	if err != nil {
 		t.Fatalf("Append() after lease mark error = %v", err)
 	}
@@ -982,44 +982,44 @@ func (c *localSnapshotController) Watch() <-chan control.SnapshotEvent { return 
 
 type noopChannelService struct{}
 
-func (noopChannelService) Append(context.Context, channelv2.AppendRequest) (channelv2.AppendResult, error) {
-	return channelv2.AppendResult{}, nil
+func (noopChannelService) Append(context.Context, channelruntime.AppendRequest) (channelruntime.AppendResult, error) {
+	return channelruntime.AppendResult{}, nil
 }
 
-func (noopChannelService) AppendBatch(context.Context, channelv2.AppendBatchRequest) (channelv2.AppendBatchResult, error) {
-	return channelv2.AppendBatchResult{}, nil
+func (noopChannelService) AppendBatch(context.Context, channelruntime.AppendBatchRequest) (channelruntime.AppendBatchResult, error) {
+	return channelruntime.AppendBatchResult{}, nil
 }
 
-func (noopChannelService) ResolveAppendAuthority(context.Context, channelv2.ChannelID) (channelv2.Meta, error) {
-	return channelv2.Meta{}, nil
+func (noopChannelService) ResolveAppendAuthority(context.Context, channelruntime.ChannelID) (channelruntime.Meta, error) {
+	return channelruntime.Meta{}, nil
 }
 
-func (noopChannelService) ReadChannelLastVisible(context.Context, channelv2.ChannelID, uint64) (channelv2.Message, bool, error) {
-	return channelv2.Message{}, false, nil
+func (noopChannelService) ReadChannelLastVisible(context.Context, channelruntime.ChannelID, uint64) (channelruntime.Message, bool, error) {
+	return channelruntime.Message{}, false, nil
 }
 
-func (noopChannelService) RetentionView(context.Context, channelv2.ChannelID) (channelv2.RetentionView, error) {
-	return channelv2.RetentionView{}, nil
+func (noopChannelService) RetentionView(context.Context, channelruntime.ChannelID) (channelruntime.RetentionView, error) {
+	return channelruntime.RetentionView{}, nil
 }
 
-func (noopChannelService) ApplyRetentionBoundary(context.Context, channelv2.RetentionApplyRequest) (channelv2.RetentionApplyResult, error) {
-	return channelv2.RetentionApplyResult{}, nil
+func (noopChannelService) ApplyRetentionBoundary(context.Context, channelruntime.RetentionApplyRequest) (channelruntime.RetentionApplyResult, error) {
+	return channelruntime.RetentionApplyResult{}, nil
 }
 
-func (noopChannelService) RuntimeSnapshot(context.Context) (channelv2.RuntimeSnapshot, error) {
-	return channelv2.RuntimeSnapshot{}, nil
+func (noopChannelService) RuntimeSnapshot(context.Context) (channelruntime.RuntimeSnapshot, error) {
+	return channelruntime.RuntimeSnapshot{}, nil
 }
 
-func (noopChannelService) RuntimeProbe(context.Context, channelv2.RuntimeSelector) (channelv2.RuntimeProbeResult, error) {
-	return channelv2.RuntimeProbeResult{}, nil
+func (noopChannelService) RuntimeProbe(context.Context, channelruntime.RuntimeSelector) (channelruntime.RuntimeProbeResult, error) {
+	return channelruntime.RuntimeProbeResult{}, nil
 }
 
-func (noopChannelService) RuntimeEvict(context.Context, channelv2.RuntimeSelector) (channelv2.RuntimeEvictResult, error) {
-	return channelv2.RuntimeEvictResult{}, nil
+func (noopChannelService) RuntimeEvict(context.Context, channelruntime.RuntimeSelector) (channelruntime.RuntimeEvictResult, error) {
+	return channelruntime.RuntimeEvictResult{}, nil
 }
 
-func (noopChannelService) DrainChannel(context.Context, channelv2.DrainChannelRequest) (channelv2.DrainChannelResult, error) {
-	return channelv2.DrainChannelResult{}, nil
+func (noopChannelService) DrainChannel(context.Context, channelruntime.DrainChannelRequest) (channelruntime.DrainChannelResult, error) {
+	return channelruntime.DrainChannelResult{}, nil
 }
 
 func (noopChannelService) Tick(context.Context) error { return nil }

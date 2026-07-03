@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	channelv2 "github.com/WuKongIM/WuKongIM/pkg/channel"
+	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/channels"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
@@ -84,12 +84,12 @@ func BenchmarkChannelAppendLocal(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err := node.AppendChannel(ctx, channelv2.AppendRequest{
+		_, err := node.AppendChannel(ctx, channelruntime.AppendRequest{
 			ChannelID:            channelID,
-			CommitMode:           channelv2.CommitModeLocal,
+			CommitMode:           channelruntime.CommitModeLocal,
 			ExpectedChannelEpoch: 1,
 			ExpectedLeaderEpoch:  1,
-			Message:              channelv2.Message{MessageID: uint64(i + 1), Payload: clusterBenchPayload},
+			Message:              channelruntime.Message{MessageID: uint64(i + 1), Payload: clusterBenchPayload},
 		})
 		if err != nil {
 			b.Fatal(err)
@@ -106,12 +106,12 @@ func BenchmarkChannelAppendLocalParallel(b *testing.B) {
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
 			messageID := nextMessageID.Add(1)
-			_, err := node.AppendChannel(ctx, channelv2.AppendRequest{
+			_, err := node.AppendChannel(ctx, channelruntime.AppendRequest{
 				ChannelID:            channelID,
-				CommitMode:           channelv2.CommitModeLocal,
+				CommitMode:           channelruntime.CommitModeLocal,
 				ExpectedChannelEpoch: 1,
 				ExpectedLeaderEpoch:  1,
-				Message:              channelv2.Message{MessageID: messageID, Payload: clusterBenchPayload},
+				Message:              channelruntime.Message{MessageID: messageID, Payload: clusterBenchPayload},
 			})
 			if err != nil {
 				b.Fatal(err)
@@ -185,21 +185,21 @@ func waitBenchRouteKeyLeaderReady(b *testing.B, node *Node, key string) {
 	b.Fatalf("route key %q leader not ready: %v", key, lastErr)
 }
 
-func newBenchChannelAppendNode(b *testing.B) (*Node, channelv2.ChannelID) {
+func newBenchChannelAppendNode(b *testing.B) (*Node, channelruntime.ChannelID) {
 	b.Helper()
-	channelID := channelv2.ChannelID{ID: "bench-local", Type: 1}
-	meta := channelv2.Meta{
-		Key:         channelv2.ChannelKeyForID(channelID),
+	channelID := channelruntime.ChannelID{ID: "bench-local", Type: 1}
+	meta := channelruntime.Meta{
+		Key:         channelruntime.ChannelKeyForID(channelID),
 		ID:          channelID,
 		Epoch:       1,
 		LeaderEpoch: 1,
 		Leader:      1,
-		Replicas:    []channelv2.NodeID{1},
-		ISR:         []channelv2.NodeID{1},
+		Replicas:    []channelruntime.NodeID{1},
+		ISR:         []channelruntime.NodeID{1},
 		MinISR:      1,
-		Status:      channelv2.StatusActive,
+		Status:      channelruntime.StatusActive,
 	}
-	service, err := channels.NewService(channels.Config{LocalNode: 1, Store: channelstore.NewMemoryFactory(), MetaSource: channels.NewStaticMetaSource([]channelv2.Meta{meta})})
+	service, err := channels.NewService(channels.Config{LocalNode: 1, Store: channelstore.NewMemoryFactory(), MetaSource: channels.NewStaticMetaSource([]channelruntime.Meta{meta})})
 	if err != nil {
 		b.Fatal(err)
 	}

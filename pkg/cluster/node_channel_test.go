@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	channelv2 "github.com/WuKongIM/WuKongIM/pkg/channel"
+	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
 	channeltransport "github.com/WuKongIM/WuKongIM/pkg/channel/transport"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/channels"
@@ -30,11 +30,11 @@ func TestNodeDefaultChannelsUseDurableMessageDBStore(t *testing.T) {
 	}
 	readyCancel()
 	waitChannelDataNode(t, node, 1)
-	channelID := channelv2.ChannelID{ID: "durable", Type: 1}
+	channelID := channelruntime.ChannelID{ID: "durable", Type: 1}
 	applyDefaultChannelMeta(t, node, channelID)
-	if _, err := node.AppendChannel(context.Background(), channelv2.AppendRequest{
+	if _, err := node.AppendChannel(context.Background(), channelruntime.AppendRequest{
 		ChannelID: channelID,
-		Message:   channelv2.Message{MessageID: 100, Payload: []byte("persisted")},
+		Message:   channelruntime.Message{MessageID: 100, Payload: []byte("persisted")},
 	}); err != nil {
 		t.Fatalf("AppendChannel() error = %v", err)
 	}
@@ -54,9 +54,9 @@ func TestNodeDefaultChannelsUseDurableMessageDBStore(t *testing.T) {
 	restartReadyCancel()
 	waitChannelDataNode(t, node, 1)
 	applyDefaultChannelMeta(t, node, channelID)
-	second, err := node.AppendChannel(context.Background(), channelv2.AppendRequest{
+	second, err := node.AppendChannel(context.Background(), channelruntime.AppendRequest{
 		ChannelID: channelID,
-		Message:   channelv2.Message{MessageID: 101, Payload: []byte("after-restart")},
+		Message:   channelruntime.Message{MessageID: 101, Payload: []byte("after-restart")},
 	})
 	if err != nil {
 		t.Fatalf("restart AppendChannel() error = %v", err)
@@ -84,14 +84,14 @@ func TestNodeReadChannelCommittedHonorsRetentionThroughSeq(t *testing.T) {
 	t.Cleanup(func() { stopNodes(t, node) })
 	waitChannelDataNode(t, node, 1)
 
-	id := channelv2.ChannelID{ID: "retained-read", Type: 1}
+	id := channelruntime.ChannelID{ID: "retained-read", Type: 1}
 	route := waitRouteKeyLeaderReady(t, node, id.ID)
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	for i := 0; i < 4; i++ {
-		_, err := node.AppendChannel(ctx, channelv2.AppendRequest{
+		_, err := node.AppendChannel(ctx, channelruntime.AppendRequest{
 			ChannelID: id,
-			Message:   channelv2.Message{MessageID: uint64(100 + i), Payload: []byte{byte('a' + i)}},
+			Message:   channelruntime.Message{MessageID: uint64(100 + i), Payload: []byte{byte('a' + i)}},
 		})
 		if err != nil {
 			t.Fatalf("AppendChannel(%d) error = %v", i, err)
@@ -131,19 +131,19 @@ func TestNodeReadChannelCommittedHonorsRetentionThroughSeq(t *testing.T) {
 }
 
 func TestNodeWithChannelsOptionOverridesDefault(t *testing.T) {
-	channelID := channelv2.ChannelID{ID: "room", Type: 1}
+	channelID := channelruntime.ChannelID{ID: "room", Type: 1}
 	svc, err := channels.NewService(channels.Config{
 		LocalNode: 1,
 		Store:     channelstore.NewMemoryFactory(),
-		MetaSource: channels.NewStaticMetaSource([]channelv2.Meta{{
+		MetaSource: channels.NewStaticMetaSource([]channelruntime.Meta{{
 			ID:          channelID,
 			Epoch:       1,
 			LeaderEpoch: 1,
 			Leader:      1,
-			Replicas:    []channelv2.NodeID{1},
-			ISR:         []channelv2.NodeID{1},
+			Replicas:    []channelruntime.NodeID{1},
+			ISR:         []channelruntime.NodeID{1},
 			MinISR:      1,
-			Status:      channelv2.StatusActive,
+			Status:      channelruntime.StatusActive,
 		}}),
 	})
 	if err != nil {
@@ -158,12 +158,12 @@ func TestNodeWithChannelsOptionOverridesDefault(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = node.Stop(context.Background()) })
 
-	res, err := node.AppendChannel(context.Background(), channelv2.AppendRequest{
+	res, err := node.AppendChannel(context.Background(), channelruntime.AppendRequest{
 		ChannelID:            channelID,
-		CommitMode:           channelv2.CommitModeLocal,
+		CommitMode:           channelruntime.CommitModeLocal,
 		ExpectedChannelEpoch: 1,
 		ExpectedLeaderEpoch:  1,
-		Message:              channelv2.Message{MessageID: 100, Payload: []byte("hello")},
+		Message:              channelruntime.Message{MessageID: 100, Payload: []byte("hello")},
 	})
 	if err != nil {
 		t.Fatalf("AppendChannel() error = %v", err)
@@ -179,13 +179,13 @@ func TestNodeLookupChannelIdempotencyUsesDefaultStore(t *testing.T) {
 	t.Cleanup(func() { stopNodes(t, node) })
 	waitChannelDataNode(t, node, 1)
 
-	id := channelv2.ChannelID{ID: "idempotency-read", Type: 1}
+	id := channelruntime.ChannelID{ID: "idempotency-read", Type: 1}
 	applyDefaultChannelMeta(t, node, id)
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	if _, err := node.AppendChannel(ctx, channelv2.AppendRequest{
+	if _, err := node.AppendChannel(ctx, channelruntime.AppendRequest{
 		ChannelID: id,
-		Message: channelv2.Message{
+		Message: channelruntime.Message{
 			MessageID:   501,
 			FromUID:     "u1",
 			ClientMsgNo: "client-1",
@@ -210,7 +210,7 @@ func TestNodeLookupChannelIdempotencyUsesDefaultStore(t *testing.T) {
 	}
 }
 
-func nodeMessageSeqs(messages []channelv2.Message) []uint64 {
+func nodeMessageSeqs(messages []channelruntime.Message) []uint64 {
 	out := make([]uint64, 0, len(messages))
 	for _, msg := range messages {
 		out = append(out, msg.MessageSeq)
@@ -244,7 +244,7 @@ func TestNodeAppendChannelDelegatesToService(t *testing.T) {
 		t.Fatalf("Start() error = %v", err)
 	}
 	t.Cleanup(func() { _ = node.Stop(context.Background()) })
-	_, err = node.AppendChannel(context.Background(), channelv2.AppendRequest{ChannelID: channelv2.ChannelID{ID: "room", Type: 1}})
+	_, err = node.AppendChannel(context.Background(), channelruntime.AppendRequest{ChannelID: channelruntime.ChannelID{ID: "room", Type: 1}})
 	if err != nil {
 		t.Fatalf("AppendChannel() error = %v", err)
 	}
@@ -254,17 +254,17 @@ func TestNodeAppendChannelDelegatesToService(t *testing.T) {
 }
 
 func TestNodeResolveChannelAppendAuthorityDelegatesToService(t *testing.T) {
-	channelID := channelv2.ChannelID{ID: "resolve-node-authority", Type: 2}
-	source := &nodeEnsuringMetaSource{meta: channelv2.Meta{
-		Key:         channelv2.ChannelKeyForID(channelID),
+	channelID := channelruntime.ChannelID{ID: "resolve-node-authority", Type: 2}
+	source := &nodeEnsuringMetaSource{meta: channelruntime.Meta{
+		Key:         channelruntime.ChannelKeyForID(channelID),
 		ID:          channelID,
 		Epoch:       12,
 		LeaderEpoch: 4,
 		Leader:      2,
-		Replicas:    []channelv2.NodeID{1, 2},
-		ISR:         []channelv2.NodeID{1, 2},
+		Replicas:    []channelruntime.NodeID{1, 2},
+		ISR:         []channelruntime.NodeID{1, 2},
 		MinISR:      1,
-		Status:      channelv2.StatusActive,
+		Status:      channelruntime.StatusActive,
 	}}
 	svc, err := channels.NewService(channels.Config{Runtime: &nodeChannelRuntime{}, LocalNode: 1, MetaSource: source})
 	if err != nil {
@@ -286,7 +286,7 @@ func TestNodeResolveChannelAppendAuthorityDelegatesToService(t *testing.T) {
 	if source.ensureCalls != 1 || source.resolveCalls != 0 {
 		t.Fatalf("ensure=%d resolve=%d, want Node facade to delegate to service resolver", source.ensureCalls, source.resolveCalls)
 	}
-	if got.ID != channelID || got.Key != channelv2.ChannelKeyForID(channelID) || got.Leader != 2 || got.Epoch != 12 || got.LeaderEpoch != 4 {
+	if got.ID != channelID || got.Key != channelruntime.ChannelKeyForID(channelID) || got.Leader != 2 || got.Epoch != 12 || got.LeaderEpoch != 4 {
 		t.Fatalf("resolved meta = %#v, want hosted service authority meta", got)
 	}
 }
@@ -312,7 +312,7 @@ func TestNodeStopClosesChannelService(t *testing.T) {
 	}
 }
 
-func applyDefaultChannelMeta(t *testing.T, node *Node, channelID channelv2.ChannelID) {
+func applyDefaultChannelMeta(t *testing.T, node *Node, channelID channelruntime.ChannelID) {
 	t.Helper()
 	waitUntil(t, func() bool {
 		route, err := node.RouteKey(channelID.ID)
@@ -322,28 +322,28 @@ func applyDefaultChannelMeta(t *testing.T, node *Node, channelID channelv2.Chann
 	if !ok {
 		t.Fatalf("default channels type = %T, want *channels.Service", node.channels)
 	}
-	if err := svc.ApplyMeta(channelv2.Meta{
-		Key:         channelv2.ChannelKeyForID(channelID),
+	if err := svc.ApplyMeta(channelruntime.Meta{
+		Key:         channelruntime.ChannelKeyForID(channelID),
 		ID:          channelID,
 		Epoch:       1,
 		LeaderEpoch: 1,
 		Leader:      1,
-		Replicas:    []channelv2.NodeID{1},
-		ISR:         []channelv2.NodeID{1},
+		Replicas:    []channelruntime.NodeID{1},
+		ISR:         []channelruntime.NodeID{1},
 		MinISR:      1,
-		Status:      channelv2.StatusActive,
+		Status:      channelruntime.StatusActive,
 	}); err != nil {
 		t.Fatalf("ApplyMeta() error = %v", err)
 	}
 }
 
 type nodeChannelRuntime struct {
-	snapshot channelv2.RuntimeSnapshot
-	probe    channelv2.RuntimeProbeResult
-	evict    channelv2.RuntimeEvictResult
+	snapshot channelruntime.RuntimeSnapshot
+	probe    channelruntime.RuntimeProbeResult
+	evict    channelruntime.RuntimeEvictResult
 
-	lastProbe channelv2.RuntimeSelector
-	lastEvict channelv2.RuntimeSelector
+	lastProbe channelruntime.RuntimeSelector
+	lastEvict channelruntime.RuntimeSelector
 
 	appendCalls   int
 	closeCalls    int
@@ -352,29 +352,29 @@ type nodeChannelRuntime struct {
 	evictCalls    int
 }
 
-func (r *nodeChannelRuntime) ApplyMeta(channelv2.Meta) error { return nil }
-func (r *nodeChannelRuntime) Append(context.Context, channelv2.AppendRequest) (channelv2.AppendResult, error) {
+func (r *nodeChannelRuntime) ApplyMeta(channelruntime.Meta) error { return nil }
+func (r *nodeChannelRuntime) Append(context.Context, channelruntime.AppendRequest) (channelruntime.AppendResult, error) {
 	r.appendCalls++
-	return channelv2.AppendResult{}, nil
+	return channelruntime.AppendResult{}, nil
 }
-func (r *nodeChannelRuntime) AppendBatch(context.Context, channelv2.AppendBatchRequest) (channelv2.AppendBatchResult, error) {
-	return channelv2.AppendBatchResult{}, nil
+func (r *nodeChannelRuntime) AppendBatch(context.Context, channelruntime.AppendBatchRequest) (channelruntime.AppendBatchResult, error) {
+	return channelruntime.AppendBatchResult{}, nil
 }
 func (r *nodeChannelRuntime) Tick(context.Context) error { return nil }
 func (r *nodeChannelRuntime) Close() error {
 	r.closeCalls++
 	return nil
 }
-func (r *nodeChannelRuntime) RuntimeSnapshot(context.Context) (channelv2.RuntimeSnapshot, error) {
+func (r *nodeChannelRuntime) RuntimeSnapshot(context.Context) (channelruntime.RuntimeSnapshot, error) {
 	r.snapshotCalls++
 	return r.snapshot, nil
 }
-func (r *nodeChannelRuntime) RuntimeProbe(_ context.Context, selector channelv2.RuntimeSelector) (channelv2.RuntimeProbeResult, error) {
+func (r *nodeChannelRuntime) RuntimeProbe(_ context.Context, selector channelruntime.RuntimeSelector) (channelruntime.RuntimeProbeResult, error) {
 	r.probeCalls++
 	r.lastProbe = selector
 	return r.probe, nil
 }
-func (r *nodeChannelRuntime) RuntimeEvict(_ context.Context, selector channelv2.RuntimeSelector) (channelv2.RuntimeEvictResult, error) {
+func (r *nodeChannelRuntime) RuntimeEvict(_ context.Context, selector channelruntime.RuntimeSelector) (channelruntime.RuntimeEvictResult, error) {
 	r.evictCalls++
 	r.lastEvict = selector
 	return r.evict, nil
@@ -393,17 +393,17 @@ func (r *nodeChannelRuntime) HandleNotify(context.Context, channeltransport.Noti
 }
 
 type nodeEnsuringMetaSource struct {
-	meta         channelv2.Meta
+	meta         channelruntime.Meta
 	ensureCalls  int
 	resolveCalls int
 }
 
-func (s *nodeEnsuringMetaSource) ResolveChannelMeta(context.Context, channelv2.ChannelID) (channelv2.Meta, error) {
+func (s *nodeEnsuringMetaSource) ResolveChannelMeta(context.Context, channelruntime.ChannelID) (channelruntime.Meta, error) {
 	s.resolveCalls++
 	return s.meta, nil
 }
 
-func (s *nodeEnsuringMetaSource) EnsureChannelMeta(context.Context, channelv2.ChannelID) (channelv2.Meta, error) {
+func (s *nodeEnsuringMetaSource) EnsureChannelMeta(context.Context, channelruntime.ChannelID) (channelruntime.Meta, error) {
 	s.ensureCalls++
 	return s.meta, nil
 }

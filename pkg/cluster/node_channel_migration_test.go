@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	channelv2 "github.com/WuKongIM/WuKongIM/pkg/channel"
+	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelwrapper "github.com/WuKongIM/WuKongIM/pkg/cluster/channels"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/routing"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
@@ -19,7 +19,7 @@ func TestClusterChannelMigrationStoreReadsSlotLeaderState(t *testing.T) {
 	t.Cleanup(func() { stopNodes(t, nodes...) })
 	waitClusterReady(t, nodes...)
 
-	id := channelv2.ChannelID{ID: "migration-remote-read", Type: 1}
+	id := channelruntime.ChannelID{ID: "migration-remote-read", Type: 1}
 	route := waitRouteKeyLeaderReady(t, nodes[0], id.ID)
 	leader := clusterNodeByID(t, nodes, route.Leader)
 	queryNode := firstNonLeaderNode(t, nodes, route.Leader)
@@ -64,7 +64,7 @@ func TestClusterChannelMigrationStoreCreateReadsRemoteRuntimeMeta(t *testing.T) 
 	t.Cleanup(func() { stopNodes(t, nodes...) })
 	waitClusterReady(t, nodes...)
 
-	id := channelv2.ChannelID{ID: "migration-remote-create", Type: 1}
+	id := channelruntime.ChannelID{ID: "migration-remote-create", Type: 1}
 	route := waitRouteKeyLeaderReady(t, nodes[0], id.ID)
 	leader := clusterNodeByID(t, nodes, route.Leader)
 	queryNode := firstNonLeaderNode(t, nodes, route.Leader)
@@ -106,7 +106,7 @@ func TestClusterChannelMigrationLocalReadRequiresActualSlotLeader(t *testing.T) 
 	startNode(t, node)
 	t.Cleanup(func() { stopNodes(t, node) })
 
-	id := channelv2.ChannelID{ID: "migration-stale-local-leader", Type: 1}
+	id := channelruntime.ChannelID{ID: "migration-stale-local-leader", Type: 1}
 	route := waitRouteKeyLeaderReady(t, node, id.ID)
 	meta := migrationNodeTestRuntimeMeta(id)
 
@@ -142,7 +142,7 @@ func TestClusterChannelMigrationReadUsesLocalActualSlotLeaderWhenRouteLeaderStal
 	startNode(t, node)
 	t.Cleanup(func() { stopNodes(t, node) })
 
-	id := channelv2.ChannelID{ID: "migration-stale-route-local-leader", Type: 1}
+	id := channelruntime.ChannelID{ID: "migration-stale-route-local-leader", Type: 1}
 	route := waitRouteKeyLeaderReady(t, node, id.ID)
 	meta := migrationNodeTestRuntimeMeta(id)
 	task := migrationNodeTestTask(id, "task-stale-route-local")
@@ -213,7 +213,7 @@ func TestClusterChannelMigrationStoreDuplicateCreateReturnsStaleMeta(t *testing.
 	startNode(t, node)
 	t.Cleanup(func() { stopNodes(t, node) })
 
-	id := channelv2.ChannelID{ID: "migration-duplicate-stale", Type: 1}
+	id := channelruntime.ChannelID{ID: "migration-duplicate-stale", Type: 1}
 	route := waitRouteKeyLeaderReady(t, node, id.ID)
 	meta := migrationNodeTestRuntimeMeta(id)
 
@@ -267,7 +267,7 @@ func clusterNodeByID(t testing.TB, nodes []*Node, nodeID uint64) *Node {
 	return nil
 }
 
-func migrationNodeTestRuntimeMeta(id channelv2.ChannelID) metadb.ChannelRuntimeMeta {
+func migrationNodeTestRuntimeMeta(id channelruntime.ChannelID) metadb.ChannelRuntimeMeta {
 	return metadb.NormalizeChannelRuntimeMeta(metadb.ChannelRuntimeMeta{
 		ChannelID:       id.ID,
 		ChannelType:     int64(id.Type),
@@ -278,12 +278,12 @@ func migrationNodeTestRuntimeMeta(id channelv2.ChannelID) metadb.ChannelRuntimeM
 		ISR:             []uint64{1, 2, 3},
 		Leader:          1,
 		MinISR:          2,
-		Status:          uint8(channelv2.StatusActive),
+		Status:          uint8(channelruntime.StatusActive),
 		LeaseUntilMS:    1750001000000,
 	})
 }
 
-func migrationNodeTestTask(id channelv2.ChannelID, taskID string) metadb.ChannelMigrationTask {
+func migrationNodeTestTask(id channelruntime.ChannelID, taskID string) metadb.ChannelMigrationTask {
 	return metadb.ChannelMigrationTask{
 		TaskID:           taskID,
 		Kind:             metadb.ChannelMigrationKindReplicaReplace,
