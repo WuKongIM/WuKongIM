@@ -3,28 +3,13 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-env_with_legacy() {
-  local primary="$1"
-  local legacy="$2"
-  local default_value="$3"
-  if [[ -n "${!primary-}" ]]; then
-    printf '%s' "${!primary}"
-    return
-  fi
-  if [[ -n "${!legacy-}" ]]; then
-    printf '%s' "${!legacy}"
-    return
-  fi
-  printf '%s' "$default_value"
-}
-
-CONFIG_PATH="$(env_with_legacy WK_WUKONGIM_SINGLE_NODE_CONFIG WK_WUKONGIMV2_SINGLE_NODE_CONFIG "$ROOT_DIR/scripts/wukongim/wukongim.conf")"
-BIN_PATH="$(env_with_legacy WK_WUKONGIM_SINGLE_NODE_BIN WK_WUKONGIMV2_SINGLE_NODE_BIN "$ROOT_DIR/data/wukongim-single-node/wukongim")"
-LOG_DIR="$(env_with_legacy WK_WUKONGIM_SINGLE_NODE_LOG_DIR WK_WUKONGIMV2_SINGLE_NODE_LOG_DIR "$ROOT_DIR/data/wukongim-single-node-logs")"
-READY_URL="$(env_with_legacy WK_WUKONGIM_SINGLE_NODE_READY_URL WK_WUKONGIMV2_SINGLE_NODE_READY_URL "http://127.0.0.1:5001/readyz")"
-DATA_DIR="$(env_with_legacy WK_WUKONGIM_SINGLE_NODE_DATA_DIR WK_WUKONGIMV2_SINGLE_NODE_DATA_DIR "$ROOT_DIR/data/wukongim-single-node-data")"
-READY_TIMEOUT="$(env_with_legacy WK_WUKONGIM_SINGLE_NODE_READY_TIMEOUT WK_WUKONGIMV2_SINGLE_NODE_READY_TIMEOUT "60")"
-POLL_INTERVAL="$(env_with_legacy WK_WUKONGIM_SINGLE_NODE_POLL_INTERVAL WK_WUKONGIMV2_SINGLE_NODE_POLL_INTERVAL "1")"
+CONFIG_PATH="${WK_WUKONGIM_SINGLE_NODE_CONFIG:-$ROOT_DIR/scripts/wukongim/wukongim.conf}"
+BIN_PATH="${WK_WUKONGIM_SINGLE_NODE_BIN:-$ROOT_DIR/data/wukongim-single-node/wukongim}"
+LOG_DIR="${WK_WUKONGIM_SINGLE_NODE_LOG_DIR:-$ROOT_DIR/data/wukongim-single-node-logs}"
+READY_URL="${WK_WUKONGIM_SINGLE_NODE_READY_URL:-http://127.0.0.1:5001/readyz}"
+DATA_DIR="${WK_WUKONGIM_SINGLE_NODE_DATA_DIR:-$ROOT_DIR/data/wukongim-single-node-data}"
+READY_TIMEOUT="${WK_WUKONGIM_SINGLE_NODE_READY_TIMEOUT:-60}"
+POLL_INTERVAL="${WK_WUKONGIM_SINGLE_NODE_POLL_INTERVAL:-1}"
 PROMETHEUS_SOURCE_REF="${WK_PROMETHEUS_SOURCE_REF:-${WK_PROMETHEUS_EMBED_VERSION:-v3.12.0}}"
 PROMETHEUS_REPO="${WK_PROMETHEUS_REPO:-https://github.com/prometheus/prometheus.git}"
 PROMETHEUS_EMBED_DIR="${WK_PROMETHEUS_EMBED_DIR:-$ROOT_DIR/internal/app/prometheus_embedded}"

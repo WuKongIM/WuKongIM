@@ -30,13 +30,13 @@ func TestWukongIMSingleNodeScriptBuildsStartsAndStopsNode(t *testing.T) {
 	)
 	cmd.Dir = root
 	cmd.Env = append(envWithout("WK_PROMETHEUS_ENABLE", "WK_PROMETHEUS_BINARY_PATH", "WK_PROMETHEUS_EMBED_DIR",
-		"WK_WUKONGIM_SINGLE_NODE_CONFIG", "WK_WUKONGIMV2_SINGLE_NODE_CONFIG",
-		"WK_WUKONGIM_SINGLE_NODE_BIN", "WK_WUKONGIMV2_SINGLE_NODE_BIN",
-		"WK_WUKONGIM_SINGLE_NODE_LOG_DIR", "WK_WUKONGIMV2_SINGLE_NODE_LOG_DIR",
-		"WK_WUKONGIM_SINGLE_NODE_DATA_DIR", "WK_WUKONGIMV2_SINGLE_NODE_DATA_DIR",
-		"WK_WUKONGIM_SINGLE_NODE_READY_URL", "WK_WUKONGIMV2_SINGLE_NODE_READY_URL",
-		"WK_WUKONGIM_SINGLE_NODE_READY_TIMEOUT", "WK_WUKONGIMV2_SINGLE_NODE_READY_TIMEOUT",
-		"WK_WUKONGIM_SINGLE_NODE_POLL_INTERVAL", "WK_WUKONGIMV2_SINGLE_NODE_POLL_INTERVAL"),
+		"WK_WUKONGIM_SINGLE_NODE_CONFIG",
+		"WK_WUKONGIM_SINGLE_NODE_BIN",
+		"WK_WUKONGIM_SINGLE_NODE_LOG_DIR",
+		"WK_WUKONGIM_SINGLE_NODE_DATA_DIR",
+		"WK_WUKONGIM_SINGLE_NODE_READY_URL",
+		"WK_WUKONGIM_SINGLE_NODE_READY_TIMEOUT",
+		"WK_WUKONGIM_SINGLE_NODE_POLL_INTERVAL"),
 		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
 		"WK_PROMETHEUS_EMBED_DIR="+embedDir,
 	)
@@ -107,13 +107,13 @@ func TestWukongIMSingleNodeScriptAllowsPrometheusDisableOverride(t *testing.T) {
 	)
 	cmd.Dir = root
 	cmd.Env = append(envWithout("WK_PROMETHEUS_ENABLE", "WK_PROMETHEUS_BINARY_PATH", "WK_PROMETHEUS_EMBED_DIR",
-		"WK_WUKONGIM_SINGLE_NODE_CONFIG", "WK_WUKONGIMV2_SINGLE_NODE_CONFIG",
-		"WK_WUKONGIM_SINGLE_NODE_BIN", "WK_WUKONGIMV2_SINGLE_NODE_BIN",
-		"WK_WUKONGIM_SINGLE_NODE_LOG_DIR", "WK_WUKONGIMV2_SINGLE_NODE_LOG_DIR",
-		"WK_WUKONGIM_SINGLE_NODE_DATA_DIR", "WK_WUKONGIMV2_SINGLE_NODE_DATA_DIR",
-		"WK_WUKONGIM_SINGLE_NODE_READY_URL", "WK_WUKONGIMV2_SINGLE_NODE_READY_URL",
-		"WK_WUKONGIM_SINGLE_NODE_READY_TIMEOUT", "WK_WUKONGIMV2_SINGLE_NODE_READY_TIMEOUT",
-		"WK_WUKONGIM_SINGLE_NODE_POLL_INTERVAL", "WK_WUKONGIMV2_SINGLE_NODE_POLL_INTERVAL"),
+		"WK_WUKONGIM_SINGLE_NODE_CONFIG",
+		"WK_WUKONGIM_SINGLE_NODE_BIN",
+		"WK_WUKONGIM_SINGLE_NODE_LOG_DIR",
+		"WK_WUKONGIM_SINGLE_NODE_DATA_DIR",
+		"WK_WUKONGIM_SINGLE_NODE_READY_URL",
+		"WK_WUKONGIM_SINGLE_NODE_READY_TIMEOUT",
+		"WK_WUKONGIM_SINGLE_NODE_POLL_INTERVAL"),
 		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
 		"WK_PROMETHEUS_ENABLE=false",
 		"WK_PROMETHEUS_EMBED_DIR="+embedDir,
@@ -211,13 +211,13 @@ func TestWukongIMSingleNodeScriptDryRunPrintsCommand(t *testing.T) {
 	)
 	cmd.Dir = root
 	cmd.Env = envWithout("WK_PROMETHEUS_ENABLE", "WK_PROMETHEUS_BINARY_PATH",
-		"WK_WUKONGIM_SINGLE_NODE_CONFIG", "WK_WUKONGIMV2_SINGLE_NODE_CONFIG",
-		"WK_WUKONGIM_SINGLE_NODE_BIN", "WK_WUKONGIMV2_SINGLE_NODE_BIN",
-		"WK_WUKONGIM_SINGLE_NODE_LOG_DIR", "WK_WUKONGIMV2_SINGLE_NODE_LOG_DIR",
-		"WK_WUKONGIM_SINGLE_NODE_DATA_DIR", "WK_WUKONGIMV2_SINGLE_NODE_DATA_DIR",
-		"WK_WUKONGIM_SINGLE_NODE_READY_URL", "WK_WUKONGIMV2_SINGLE_NODE_READY_URL",
-		"WK_WUKONGIM_SINGLE_NODE_READY_TIMEOUT", "WK_WUKONGIMV2_SINGLE_NODE_READY_TIMEOUT",
-		"WK_WUKONGIM_SINGLE_NODE_POLL_INTERVAL", "WK_WUKONGIMV2_SINGLE_NODE_POLL_INTERVAL")
+		"WK_WUKONGIM_SINGLE_NODE_CONFIG",
+		"WK_WUKONGIM_SINGLE_NODE_BIN",
+		"WK_WUKONGIM_SINGLE_NODE_LOG_DIR",
+		"WK_WUKONGIM_SINGLE_NODE_DATA_DIR",
+		"WK_WUKONGIM_SINGLE_NODE_READY_URL",
+		"WK_WUKONGIM_SINGLE_NODE_READY_TIMEOUT",
+		"WK_WUKONGIM_SINGLE_NODE_POLL_INTERVAL")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("dry-run failed: %v\n%s", err, output)
@@ -241,35 +241,6 @@ func TestWukongIMSingleNodeScriptDryRunPrintsCommand(t *testing.T) {
 	}
 }
 
-func TestWukongIMDeprecatedV2SingleNodeWrapperDelegatesDryRun(t *testing.T) {
-	root := repoRoot(t)
-	outputBin := filepath.Join(t.TempDir(), "wukongim")
-	oldScript := "scripts/start-" + "wukongimv2-single-node.sh"
-
-	cmd := exec.Command("bash", oldScript,
-		"--dry-run",
-		"--bin", outputBin,
-	)
-	cmd.Dir = root
-	cmd.Env = envWithout("WK_PROMETHEUS_ENABLE", "WK_PROMETHEUS_BINARY_PATH",
-		"WK_WUKONGIM_SINGLE_NODE_CONFIG", "WK_WUKONGIMV2_SINGLE_NODE_CONFIG",
-		"WK_WUKONGIM_SINGLE_NODE_BIN", "WK_WUKONGIMV2_SINGLE_NODE_BIN")
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("wrapper dry-run failed: %v\n%s", err, output)
-	}
-	text := string(output)
-	for _, want := range []string{
-		"[deprecated] " + filepath.Base(oldScript) + " moved to scripts/start-wukongim-single-node.sh",
-		"build_cmd=go build -o " + outputBin + " ./cmd/wukongim",
-		"config=" + filepath.Join(root, "scripts/wukongim/wukongim.conf"),
-	} {
-		if !strings.Contains(text, want) {
-			t.Fatalf("wrapper dry-run output missing %q:\n%s", want, text)
-		}
-	}
-}
-
 func TestWukongIMSingleNodeScriptDefaultsUseIsolatedDataDir(t *testing.T) {
 	root := repoRoot(t)
 	singleDataDir := filepath.Join(root, "data/wukongim-single-node-data")
@@ -278,9 +249,9 @@ func TestWukongIMSingleNodeScriptDefaultsUseIsolatedDataDir(t *testing.T) {
 	cmd := exec.Command("bash", "scripts/start-wukongim-single-node.sh", "--dry-run")
 	cmd.Dir = root
 	cmd.Env = envWithout("WK_PROMETHEUS_ENABLE", "WK_PROMETHEUS_BINARY_PATH",
-		"WK_WUKONGIM_SINGLE_NODE_CONFIG", "WK_WUKONGIMV2_SINGLE_NODE_CONFIG",
-		"WK_WUKONGIM_SINGLE_NODE_BIN", "WK_WUKONGIMV2_SINGLE_NODE_BIN",
-		"WK_WUKONGIM_SINGLE_NODE_DATA_DIR", "WK_WUKONGIMV2_SINGLE_NODE_DATA_DIR")
+		"WK_WUKONGIM_SINGLE_NODE_CONFIG",
+		"WK_WUKONGIM_SINGLE_NODE_BIN",
+		"WK_WUKONGIM_SINGLE_NODE_DATA_DIR")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("dry-run failed: %v\n%s", err, output)

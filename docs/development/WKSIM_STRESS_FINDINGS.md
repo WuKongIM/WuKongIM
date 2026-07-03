@@ -2,15 +2,15 @@
 
 ## 2026-06-19 wkcli sim three-node memory growth
 
-- Scenario: `./scripts/smoke-wkcli-sim-wukongimv2-three-nodes.sh --duration 1h --users 1000 --groups 1000 --members 10 --rate 3/s`, where `--rate` is per group and therefore targets about 3000 group messages/s before backpressure.
+- Scenario: `./scripts/smoke-wkcli-sim-wukongim-three-nodes.sh --duration 1h --users 1000 --groups 1000 --members 10 --rate 3/s`, where `--rate` is per group and therefore targets about 3000 group messages/s before backpressure.
 - Evidence: live node pprof during the user run showed multi-GB heap dominated by Slot Raft metadata replication and retention paths: `pkg/cluster.encodeSlotRaftBatch -> encoding/json.Marshal -> bytes.growSlice`, `pkg/raftlog.cloneEntry`, `raftpb.Entry.Unmarshal`, and `pkg/slot/multiraft.cloneEntry/Propose`. Node logs also contained a large `conversation_active` stale-route post-commit error storm.
-- Root cause: the default Slot Raft transport encoded raw Raft messages through JSON, forcing base64 expansion and large transient buffers, while wukongimv2 could not tune the existing Slot Raft log compaction window. The stale-route post-commit path amplified CPU and log volume but was not the primary heap owner.
-- Fix: Slot Raft transport batches now use a versioned binary frame carrying raw `raftpb.Message` bytes; cluster exposes Slot log compaction config to `cmd/wukongimv2`; local v2 script configs use `WK_CLUSTER_SLOT_LOG_COMPACTION_TRIGGER_ENTRIES=1000` and `WK_CLUSTER_SLOT_LOG_COMPACTION_CHECK_INTERVAL=5s`; `ConversationAuthorityClient.AdmitActiveBatch` retries route movement in a small bounded window; expected post-commit route failures log at WARN instead of ERROR.
-- Verification: `go test ./pkg/cluster ./cmd/wukongimv2 ./internalv2/infra/cluster ./internalv2/app` passed. A short three-node smoke with `--duration 1m --users 100 --groups 100 --members 10 --rate 0.1/s` passed with `messages_sent=528` and `send_errors=0`; evidence: `data/wkcli-sim-three-node-smoke-codex-fix/`.
+- Root cause: the default Slot Raft transport encoded raw Raft messages through JSON, forcing base64 expansion and large transient buffers, while wukongim could not tune the existing Slot Raft log compaction window. The stale-route post-commit path amplified CPU and log volume but was not the primary heap owner.
+- Fix: Slot Raft transport batches now use a versioned binary frame carrying raw `raftpb.Message` bytes; cluster exposes Slot log compaction config to `cmd/wukongim`; local wukongim script configs use `WK_CLUSTER_SLOT_LOG_COMPACTION_TRIGGER_ENTRIES=1000` and `WK_CLUSTER_SLOT_LOG_COMPACTION_CHECK_INTERVAL=5s`; `ConversationAuthorityClient.AdmitActiveBatch` retries route movement in a small bounded window; expected post-commit route failures log at WARN instead of ERROR.
+- Verification: the relevant cluster, `cmd/wukongim`, infra, and app tests passed. A short three-node smoke with `--duration 1m --users 100 --groups 100 --members 10 --rate 0.1/s` passed with `messages_sent=528` and `send_errors=0`; evidence: `data/wkcli-sim-three-node-smoke-codex-fix/`.
 
 ## 2026-06-12 transportv2 hot-path surgical refactor follow-up
 
-- Scenario: `GOWORK=off ./scripts/bench-wukongimv2-three-nodes-real-qps.sh --qps 4000`, 1000 group channels, 4096 users, 10 members, 30s measured duration, after the transportv2 scheduler/write/RPC/OwnedBuffer hot-path refactor.
+- Scenario: `GOWORK=off ./scripts/bench-wukongim-three-nodes-real-qps.sh --qps 4000`, 1000 group channels, 4096 users, 10 members, 30s measured duration, after the transportv2 scheduler/write/RPC/OwnedBuffer hot-path refactor.
 - Evidence: `docs/development/perf-runs/20260612-171931-three-node-real-qps/`.
 - Result: 2464.0 actual QPS, 0.616 actual/offered ratio, p99 458.1ms, p95 340.8ms, max 890.0ms, and 1 send error. Server CPU peaked at node1=248.8%, node2=318.1%, node3=261.0%.
 - Pool pressure: ChannelV2 store-apply/store-append remained the main visible saturation point. Node2 reached `channelv2-store-apply` 64/64 and `channelv2-store-append` 62/64; node1/node3 also showed high store apply utilization. `transportv2/service_executor` stayed low at 0.137/0.184/0.141 utilization.
@@ -20,7 +20,7 @@
 
 ## 2026-06-12 three-node real-qps 4000 pprof CPU triage
 
-- Scenario: `./scripts/bench-wukongimv2-three-nodes-real-qps.sh --qps 4000`, 1000 group channels, 4096 users, 10 members, 30s measured duration, current dirty worktree.
+- Scenario: `./scripts/bench-wukongim-three-nodes-real-qps.sh --qps 4000`, 1000 group channels, 4096 users, 10 members, 30s measured duration, current dirty worktree.
 - Baseline evidence: `docs/development/perf-runs/20260612-153217-three-node-real-qps/`.
 - Baseline result: 1945.6 actual QPS, 0.486 actual/offered ratio, p99 5348.4ms, no send errors. Server CPU peaked at node1=375.2%, node2=362.2%, node3=284.9%.
 - Repeat evidence without post-run pprof: `docs/development/perf-runs/20260612-153217-three-node-real-qps-live/`. Result stayed consistent at 1977.4 actual QPS, p99 4010.7ms, and `channelv2/channelv2-rpc` nearly saturated on all nodes.
@@ -34,13 +34,13 @@
 
 ## 2026-06-09 three-node real-qps 5000 channelwrite triage
 
-- Scenario: `./scripts/bench-wukongimv2-three-nodes-real-qps.sh --qps 5000`, 1000 group channels, 4096 users, 10 members, 30s measured duration.
+- Scenario: `./scripts/bench-wukongim-three-nodes-real-qps.sh --qps 5000`, 1000 group channels, 4096 users, 10 members, 30s measured duration.
 - Baseline evidence: `docs/development/perf-runs/20260609-222608-three-node-real-qps/`.
 - Baseline result: 2651.9 actual QPS, p99 2334.2ms, no send errors. `channelwrite` had no router errors/backpressure/channel-busy rejections, but default `WK_DELIVERY_CHANNEL_WRITE_EFFECT_WORKERS=0` resolved to 2 per reactor and capped `channelv2-store-append` inflight at 20 per node.
-- One-variable experiment: `WK_DELIVERY_CHANNEL_WRITE_EFFECT_WORKERS=8 ./scripts/bench-wukongimv2-three-nodes-real-qps.sh --qps 5000`.
+- One-variable experiment: `WK_DELIVERY_CHANNEL_WRITE_EFFECT_WORKERS=8 ./scripts/bench-wukongim-three-nodes-real-qps.sh --qps 5000`.
 - Experiment evidence: `docs/development/perf-runs/20260609-223119-three-node-real-qps/`.
 - Experiment result: 4917.6 actual QPS, p99 977.7ms, no send errors. `channelv2-store-append` and `channelv2-store-apply` reached 64 inflight workers, shifting the bottleneck to storage/replication and exposing `channelwrite` post-commit backlog on node1/node2.
-- Middle experiment: `WK_DELIVERY_CHANNEL_WRITE_EFFECT_WORKERS=4 ./scripts/bench-wukongimv2-three-nodes-real-qps.sh --qps 5000`.
+- Middle experiment: `WK_DELIVERY_CHANNEL_WRITE_EFFECT_WORKERS=4 ./scripts/bench-wukongim-three-nodes-real-qps.sh --qps 5000`.
 - Middle experiment evidence: `docs/development/perf-runs/20260609-223824-three-node-real-qps/`.
 - Middle experiment result: 4338.4 actual QPS, p99 1550.2ms, no send errors, and no post-commit backlog. This confirms that 4 workers reduces the append-effect bottleneck but still does not fully utilize downstream append capacity for the 5000 offered-QPS workload.
 - Fix applied: the default `ChannelWriteEffectWorkers` value was raised from 2 to 8 per reactor while preserving explicit `WK_DELIVERY_CHANNEL_WRITE_EFFECT_WORKERS` overrides.
@@ -50,7 +50,7 @@
 
 ## 2026-06-09 three-node real-qps 10000 channelwrite effect-workers 16
 
-- Scenario: `WK_DELIVERY_CHANNEL_WRITE_EFFECT_WORKERS=16 ./scripts/bench-wukongimv2-three-nodes-real-qps.sh --qps 10000`, 1000 group channels, 4096 users, 10 members, 30s measured duration.
+- Scenario: `WK_DELIVERY_CHANNEL_WRITE_EFFECT_WORKERS=16 ./scripts/bench-wukongim-three-nodes-real-qps.sh --qps 10000`, 1000 group channels, 4096 users, 10 members, 30s measured duration.
 - Evidence: `docs/development/perf-runs/20260609-224830-three-node-real-qps/`.
 - Result: 8068.4 actual QPS, 0.807 actual/offered ratio, p99 769.1ms, p95 584.3ms, max 1339.1ms, and no send errors.
 - `channelwrite` admission stayed open: router errors, router backpressure, channel-busy rejections, route-not-ready router results, timeouts, and local admission rejections were all zero.
@@ -61,7 +61,7 @@
 ## 2026-06-09 channelwrite effect worker instrumentation
 
 - Change: added `channelwrite` effect worker gauges for per-reactor/stage worker inflight, worker capacity, queue depth, and queue capacity. The real-qps parent summary now exposes `cw_wkr` (max effect worker utilization) and `cw_eq` (max effect queue fill).
-- Verification scenario: `WK_DELIVERY_CHANNEL_WRITE_EFFECT_WORKERS=16 ./scripts/bench-wukongimv2-three-nodes-real-qps.sh --qps 10000`.
+- Verification scenario: `WK_DELIVERY_CHANNEL_WRITE_EFFECT_WORKERS=16 ./scripts/bench-wukongim-three-nodes-real-qps.sh --qps 10000`.
 - Verification evidence: `docs/development/perf-runs/20260609-230422-three-node-real-qps/`.
 - Verification result: 6949.5 actual QPS, 0.695 actual/offered ratio, p99 960.5ms, no send errors, `cw_wkr=1.000`, `cw_eq=0.023`, and max post-commit backlog 4830.
 - Finding: node1 and node3 had `post_commit` effect workers at 16/16 across all 10 channelwrite reactors in the after snapshot, while max post-commit effect queue depth was only 24/1024. This confirms worker saturation in the post-commit path, not channelwrite admission backpressure or effect queue capacity exhaustion.
@@ -79,14 +79,14 @@
 ## 2026-06-09 channelwrite best-effort post-commit
 
 - Change: post-commit conversation/push side effects are best-effort. Failed recipient dispatch is logged as `internalv2.app.channelwrite.post_commit_failed`, observed by effect metrics, dropped without retry, and does not checkpoint or replay through the post-commit cursor path.
-- Verification scenario: `WK_DELIVERY_CHANNEL_WRITE_EFFECT_WORKERS=16 WK_DELIVERY_CHANNEL_WRITE_RECIPIENT_DISPATCH_CONCURRENCY=4 ./scripts/bench-wukongimv2-three-nodes-real-qps.sh --qps 10000`.
+- Verification scenario: `WK_DELIVERY_CHANNEL_WRITE_EFFECT_WORKERS=16 WK_DELIVERY_CHANNEL_WRITE_RECIPIENT_DISPATCH_CONCURRENCY=4 ./scripts/bench-wukongim-three-nodes-real-qps.sh --qps 10000`.
 - Verification evidence: `docs/development/perf-runs/20260609-235649-three-node-real-qps/`.
 - Verification result: 7946.8 actual QPS, 0.795 actual/offered ratio, p99 769.6ms, no send errors, `cw_wkr=1.000`, `cw_eq=0.023`, max post-commit backlog 496, and post-commit effect error delta 1548.
 - Log evidence: after-run node logs contain 162, 281, and 2705 `internalv2.app.channelwrite.post_commit_failed` entries for node1, node2, and node3 respectively. The remaining p99 bottleneck is still ChannelV2 store-apply saturation and slot scheduler dirty/requeued admission, not channelwrite admission.
 
 ## 2026-06-10 three-node real-qps 10000 precise post-commit errors
 
-- Scenario: `WK_DELIVERY_CHANNEL_WRITE_EFFECT_WORKERS=16 ./scripts/bench-wukongimv2-three-nodes-real-qps.sh --qps 10000`, 1000 group channels, 4096 users, 10 members, 30s measured duration.
+- Scenario: `WK_DELIVERY_CHANNEL_WRITE_EFFECT_WORKERS=16 ./scripts/bench-wukongim-three-nodes-real-qps.sh --qps 10000`, 1000 group channels, 4096 users, 10 members, 30s measured duration.
 - Evidence: `docs/development/perf-runs/20260610-002516-three-node-real-qps/`.
 - Result: 7241.9 actual QPS, 0.724 actual/offered ratio, p99 1264.5ms, p95 661.4ms, max 2697.4ms, and no send errors.
 - Foreground channelwrite remained clean: router errors, router backpressure, channel-busy rejections, router route-not-ready, router timeouts, and local admission rejections were all zero. No `internalv2.infra.cluster.channel_append_batch_failed` log was emitted.
@@ -100,7 +100,7 @@
 - Change: `ConversationAuthorityClient.AdmitPatches` no longer retries route-not-ready, stale-route, or not-leader admission errors. It resolves current UID authority targets once, admits each target group once, and returns the first error directly.
 - Change: channelwrite's app-level conversation projector logs `internalv2.app.channelwrite.conversation_projection_failed` at ERROR level before returning the failure to the post-commit processor. The outer `internalv2.app.channelwrite.post_commit_failed` observation still carries phase and dispatch context.
 - Rationale: conversation projection is a post-SENDACK best-effort side effect and does not require strong consistency with durable channel append or push delivery.
-- Verification scenario: `WK_DELIVERY_CHANNEL_WRITE_EFFECT_WORKERS=16 ./scripts/bench-wukongimv2-three-nodes-real-qps.sh --qps 10000`.
+- Verification scenario: `WK_DELIVERY_CHANNEL_WRITE_EFFECT_WORKERS=16 ./scripts/bench-wukongim-three-nodes-real-qps.sh --qps 10000`.
 - Verification evidence: `docs/development/perf-runs/20260610-005323-three-node-real-qps/`.
 - Verification result: 7821.4 actual QPS, 0.782 actual/offered ratio, p99 959.9ms, p95 606.6ms, max 2025.3ms, and no send errors.
 - Channelwrite foreground stayed clean: router errors, router backpressure, channel-busy, route-not-ready router results, timeouts, local admission rejects, and `internalv2.infra.cluster.channel_append_batch_failed` logs were all zero.
@@ -113,14 +113,14 @@
 - Why it surfaced mostly in post-commit: foreground channel append stayed clean and fenced by ChannelV2 authority; the failures were best-effort side effects after SENDACK, either before recipient grouping (`recipient_route_resolve`) or while conversation projection resolved each UID (`conversation_projector`).
 - Fix applied: cluster now treats a zero Slot leader observation as unknown and keeps the last known non-zero leader in the foreground router until a new non-zero leader is observed. Route lookup errors now also preserve lower-level key/index/hash-slot context through `mapRouteError`, so future logs can identify the exact failing batch key/hash slot.
 - Remaining expected errors: a real authority movement can still produce `stale_route` or `not_leader`; conversation projection remains best-effort and logs/drops without retry.
-- Verification scenario: `WK_DELIVERY_CHANNEL_WRITE_EFFECT_WORKERS=16 ./scripts/bench-wukongimv2-three-nodes-real-qps.sh --qps 10000`.
+- Verification scenario: `WK_DELIVERY_CHANNEL_WRITE_EFFECT_WORKERS=16 ./scripts/bench-wukongim-three-nodes-real-qps.sh --qps 10000`.
 - Verification evidence: `docs/development/perf-runs/20260610-010649-three-node-real-qps/`.
 - Verification result: actual QPS 7078.6, p99 874.9ms, no send errors, `router_route_not_ready_delta=0`, `post_commit_backlog_max=0`, and post-commit effect errors dropped to 5. Logs contained no `no slot leader`; all 5 post-commit failures were `conversation_projector: stale route`.
 - Remaining bottleneck: the 400ms p99 gate still fails because pressure is outside channelwrite: Slot scheduler inflight reached 1/1 and ChannelV2 store-apply reached 64/64, with slot scheduler dirty/requeued admission pressure.
 
 ## 2026-06-10 channelwrite append ants default tuning
 
-- Scenario: `scripts/bench-wukongimv2-three-nodes-1000ch.sh --qps 5000`, 1000 group channels, three-node local cluster, default channelwrite reactors.
+- Scenario: `scripts/bench-wukongim-three-nodes-1000ch.sh --qps 5000`, 1000 group channels, three-node local cluster, default channelwrite reactors.
 - Baseline default used 8 append workers per reactor and failed quickly: 24.9 actual QPS, p99 67.0ms, 1 send error, 890 channelwrite pool-full submissions, and 5.078 MiB/s peak one-way internal transport.
 - `WK_DELIVERY_CHANNEL_WRITE_APPEND_WORKERS=64` passed with 4793.6 actual QPS, p99 149.7ms, no send errors, and 18.417 MiB/s peak one-way internal transport.
 - `WK_DELIVERY_CHANNEL_WRITE_APPEND_WORKERS=96` produced the best foreground result: 4829.0 actual QPS, p99 80.2ms, no send errors, 110 channelwrite pool-full submissions, and 17.298 MiB/s peak one-way internal transport.
@@ -131,32 +131,32 @@
 
 ## 2026-06-10 three-node 1000ch 10000 QPS sender-key limit
 
-- Scenario: `scripts/bench-wukongimv2-three-nodes-1000ch.sh --qps 10000`, default `sender_pick=first_online`, 1000 group channels, 4096 users, 10 members, 15s measured duration.
+- Scenario: `scripts/bench-wukongim-three-nodes-1000ch.sh --qps 10000`, default `sender_pick=first_online`, 1000 group channels, 4096 users, 10 members, 15s measured duration.
 - Evidence: `docs/development/perf-runs/20260610-123619-three-node-1000ch/`.
 - Result: 6550.6 actual QPS, 0.655 actual/offered ratio, p99 124.2ms, no send errors, no channelwrite router errors, no backpressure, no channel-busy rejections, no local admission rejections, and no channelwrite pool full/errors/saturation.
 - Direct cause of low actual QPS: wkbench planned 150000 run messages but dispatched only 98259; 51741 were dropped as `pending_window_expired`. The group scheduler keys by sender UID, and `first_online` limits each selected sender to one in-flight sendack wait, so max active senders was only 448.
-- One-variable experiment: `scripts/bench-wukongimv2-three-nodes-1000ch.sh --qps 10000 --sender-pick round_robin`.
+- One-variable experiment: `scripts/bench-wukongim-three-nodes-1000ch.sh --qps 10000 --sender-pick round_robin`.
 - Experiment evidence: `docs/development/perf-runs/20260610-123939-three-node-1000ch/`.
 - Experiment result: 9828.8 actual QPS, 0.983 actual/offered ratio, p99 321.7ms, no send errors, max active senders rose to 2103, and pending-window drops fell to 2493.
 - Channelwrite finding: channelwrite admission was not the limiter. Foreground append effects waited on `Appender.AppendBatch`: append effect avg was about 54-56ms in the first run and 92-93ms in the round-robin run, while post-commit avg stayed near zero. Metrics attribution classified the remaining tail as ChannelV2/storage commit and replication wait.
-- Follow-up: `bench-wukongimv2-three-nodes-1000ch.sh` now defaults to `sender_pick=round_robin`; use `--sender-pick first_online` only when intentionally reproducing the sender-key-limit baseline.
+- Follow-up: `bench-wukongim-three-nodes-1000ch.sh` now defaults to `sender_pick=round_robin`; use `--sender-pick first_online` only when intentionally reproducing the sender-key-limit baseline.
 
 ## 2026-06-11 three-node 1000ch 10000 QPS channelwrite backpressure
 
-- Scenario: `scripts/bench-wukongimv2-three-nodes-1000ch.sh --qps 10000`, default round-robin senders, 1000 group channels, 4096 users, 10 members, 15s measured duration.
+- Scenario: `scripts/bench-wukongim-three-nodes-1000ch.sh --qps 10000`, default round-robin senders, 1000 group channels, 4096 users, 10 members, 15s measured duration.
 - Baseline evidence: `docs/development/perf-runs/20260611-115501-three-node-1000ch/`.
 - Baseline result: 1821.1 actual QPS, p99 436.6ms, 1 send error, and `fail_fast` stopped the worker after `ReasonSystemError`.
 - Failure mapping: node1 logged `internalv2.access.gateway.send_failed` for channel 582 with `internalv2/message: backpressured`; metrics showed exactly one `channelwrite` local router backpressure and no local admission rejection.
 - Channelwrite pressure: append pool had no full submissions, but post-commit pool saturated on all nodes (`post_commit full`: node1=107089, node2=132151, node3=126018). Post-commit effects averaged 476-595ms, while append effects averaged 118-126ms.
 - Downstream pressure was concurrent: ChannelV2 store-append/store-apply reached worker saturation, Slot scheduler had dirty/requeued admissions, and storage commit/request p99 stayed high.
-- One-variable experiment: `WK_DELIVERY_CHANNEL_WRITE_POST_COMMIT_WORKERS=32 scripts/bench-wukongimv2-three-nodes-1000ch.sh --qps 10000`.
+- One-variable experiment: `WK_DELIVERY_CHANNEL_WRITE_POST_COMMIT_WORKERS=32 scripts/bench-wukongim-three-nodes-1000ch.sh --qps 10000`.
 - Experiment evidence: `docs/development/perf-runs/20260611-120017-three-node-1000ch/`.
 - Experiment result: 1088.1 actual QPS, p99 403.5ms, still 1 send error, and post-commit pool full remained high at 92539 total. Raising only post-commit workers reduced but did not remove channelwrite post-commit saturation or foreground backpressure.
 - Finding: the current 10000 offered-QPS run fails because the workload overdrives bounded channelwrite/ChannelV2 runtime capacity. The foreground abort is a single channelwrite local `ErrBackpressured` surfaced as `ReasonSystemError`; the dominant sustained pressure is post-commit effect pool saturation plus downstream ChannelV2 storage/replication and Slot scheduler pressure.
 
 ## 2026-06-12 three-node real-qps 4000 channelappend CPU profile
 
-- Scenario: `./scripts/bench-wukongimv2-three-nodes-real-qps.sh --qps 4000`, 1000 group channels, 4096 users, 10 members, 30s measured duration. CPU pprof was captured manually during the load window from API ports 5011/5012/5013.
+- Scenario: `./scripts/bench-wukongim-three-nodes-real-qps.sh --qps 4000`, 1000 group channels, 4096 users, 10 members, 30s measured duration. CPU pprof was captured manually during the load window from API ports 5011/5012/5013.
 - Evidence: `docs/development/perf-runs/20260612-173851-three-node-real-qps-4000-pprof/`.
 - Result: 2626.9 actual QPS, 0.657 actual/offered ratio, p99 3633.9ms, no send errors. Server CPU peaked at node1=350.5%, node2=301.7%, node3=344.4%.
 - Pprof finding: the largest application stack is `internalv2/runtime/channelappend.(*channelWriter).advance`, about 25-40% cumulative per node. Its cost is mostly writer lock/activation churn, post-commit checks, context checks, append/commit scheduling, and runtime copy/zero/scheduler work. `transportv2` write/read and `writev` account for about 12-22%; Prometheus metrics are about 5%; Pebble/storage CPU is only about 4-5%.
