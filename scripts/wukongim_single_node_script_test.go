@@ -8,19 +8,19 @@ import (
 	"testing"
 )
 
-func TestWukongIMV2SingleNodeScriptBuildsStartsAndStopsNode(t *testing.T) {
+func TestWukongIMSingleNodeScriptBuildsStartsAndStopsNode(t *testing.T) {
 	root := repoRoot(t)
 	binDir := t.TempDir()
 	callsDir := t.TempDir()
-	outputBin := filepath.Join(t.TempDir(), "wukongimv2")
+	outputBin := filepath.Join(t.TempDir(), "wukongim")
 	logDir := filepath.Join(t.TempDir(), "logs")
 	dataDir := filepath.Join(t.TempDir(), "data")
 	embedDir := filepath.Join(t.TempDir(), "prometheus-embed")
-	writeFakeGoWukongIMV2Starter(t, filepath.Join(binDir, "go"), callsDir)
+	writeFakeGoWukongIMStarter(t, filepath.Join(binDir, "go"), callsDir)
 	writeFakePrometheusGitClone(t, filepath.Join(binDir, "git"), callsDir)
-	writeFakeWukongIMV2ReadyCurlAfterNodeStart(t, filepath.Join(binDir, "curl"), callsDir)
+	writeFakeWukongIMReadyCurlAfterNodeStart(t, filepath.Join(binDir, "curl"), callsDir)
 
-	cmd := exec.Command("bash", "scripts/start-wukongimv2-single-node.sh",
+	cmd := exec.Command("bash", "scripts/start-wukongim-single-node.sh",
 		"--exit-after-ready",
 		"--ready-timeout", "5",
 		"--poll", "0",
@@ -29,7 +29,14 @@ func TestWukongIMV2SingleNodeScriptBuildsStartsAndStopsNode(t *testing.T) {
 		"--data-dir", dataDir,
 	)
 	cmd.Dir = root
-	cmd.Env = append(envWithout("WK_PROMETHEUS_ENABLE", "WK_PROMETHEUS_BINARY_PATH", "WK_PROMETHEUS_EMBED_DIR"),
+	cmd.Env = append(envWithout("WK_PROMETHEUS_ENABLE", "WK_PROMETHEUS_BINARY_PATH", "WK_PROMETHEUS_EMBED_DIR",
+		"WK_WUKONGIM_SINGLE_NODE_CONFIG", "WK_WUKONGIMV2_SINGLE_NODE_CONFIG",
+		"WK_WUKONGIM_SINGLE_NODE_BIN", "WK_WUKONGIMV2_SINGLE_NODE_BIN",
+		"WK_WUKONGIM_SINGLE_NODE_LOG_DIR", "WK_WUKONGIMV2_SINGLE_NODE_LOG_DIR",
+		"WK_WUKONGIM_SINGLE_NODE_DATA_DIR", "WK_WUKONGIMV2_SINGLE_NODE_DATA_DIR",
+		"WK_WUKONGIM_SINGLE_NODE_READY_URL", "WK_WUKONGIMV2_SINGLE_NODE_READY_URL",
+		"WK_WUKONGIM_SINGLE_NODE_READY_TIMEOUT", "WK_WUKONGIMV2_SINGLE_NODE_READY_TIMEOUT",
+		"WK_WUKONGIM_SINGLE_NODE_POLL_INTERVAL", "WK_WUKONGIMV2_SINGLE_NODE_POLL_INTERVAL"),
 		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
 		"WK_PROMETHEUS_EMBED_DIR="+embedDir,
 	)
@@ -42,21 +49,21 @@ func TestWukongIMV2SingleNodeScriptBuildsStartsAndStopsNode(t *testing.T) {
 	}
 
 	goCalls := readFile(t, filepath.Join(callsDir, "go.calls"))
-	if !strings.Contains(goCalls, "build -o "+outputBin+" ./cmd/wukongimv2") {
+	if !strings.Contains(goCalls, "build -o "+outputBin+" ./cmd/wukongim") {
 		t.Fatalf("expected build command, got:\n%s", goCalls)
 	}
 
-	nodeCalls := readFile(t, filepath.Join(callsDir, "wukongimv2.calls"))
-	wantConfig := "-config " + filepath.Join(root, "scripts/wukongimv2/wukongimv2.conf")
+	nodeCalls := readFile(t, filepath.Join(callsDir, "wukongim.calls"))
+	wantConfig := "-config " + filepath.Join(root, "scripts/wukongim/wukongim.conf")
 	if !strings.Contains(nodeCalls, wantConfig) {
 		t.Fatalf("expected node command %q, got:\n%s", wantConfig, nodeCalls)
 	}
-	nodeEnv := readFile(t, filepath.Join(callsDir, "wukongimv2.env"))
+	nodeEnv := readFile(t, filepath.Join(callsDir, "wukongim.env"))
 	if !strings.Contains(nodeEnv, "WK_PROMETHEUS_ENABLE=true") {
 		t.Fatalf("expected single-node script to enable prometheus by default, got:\n%s", nodeEnv)
 	}
 	if !strings.Contains(nodeEnv, "WK_PROMETHEUS_BINARY_PATH=") || strings.Contains(nodeEnv, "WK_PROMETHEUS_BINARY_PATH=<unset>") {
-		t.Fatalf("expected script to clear binary path so wukongimv2 uses embedded prometheus, got:\n%s", nodeEnv)
+		t.Fatalf("expected script to clear binary path so wukongim uses embedded prometheus, got:\n%s", nodeEnv)
 	}
 	goCalls = readFile(t, filepath.Join(callsDir, "go.calls"))
 	if strings.Contains(goCalls, "install github.com/prometheus/prometheus/cmd/prometheus@") {
@@ -78,19 +85,19 @@ func TestWukongIMV2SingleNodeScriptBuildsStartsAndStopsNode(t *testing.T) {
 	}
 }
 
-func TestWukongIMV2SingleNodeScriptAllowsPrometheusDisableOverride(t *testing.T) {
+func TestWukongIMSingleNodeScriptAllowsPrometheusDisableOverride(t *testing.T) {
 	root := repoRoot(t)
 	binDir := t.TempDir()
 	callsDir := t.TempDir()
-	outputBin := filepath.Join(t.TempDir(), "wukongimv2")
+	outputBin := filepath.Join(t.TempDir(), "wukongim")
 	logDir := filepath.Join(t.TempDir(), "logs")
 	dataDir := filepath.Join(t.TempDir(), "data")
 	embedDir := filepath.Join(t.TempDir(), "prometheus-embed")
-	writeFakeGoWukongIMV2Starter(t, filepath.Join(binDir, "go"), callsDir)
+	writeFakeGoWukongIMStarter(t, filepath.Join(binDir, "go"), callsDir)
 	writeFakePrometheusGitClone(t, filepath.Join(binDir, "git"), callsDir)
-	writeFakeWukongIMV2ReadyCurlAfterNodeStart(t, filepath.Join(binDir, "curl"), callsDir)
+	writeFakeWukongIMReadyCurlAfterNodeStart(t, filepath.Join(binDir, "curl"), callsDir)
 
-	cmd := exec.Command("bash", "scripts/start-wukongimv2-single-node.sh",
+	cmd := exec.Command("bash", "scripts/start-wukongim-single-node.sh",
 		"--exit-after-ready",
 		"--ready-timeout", "5",
 		"--poll", "0",
@@ -99,7 +106,14 @@ func TestWukongIMV2SingleNodeScriptAllowsPrometheusDisableOverride(t *testing.T)
 		"--data-dir", dataDir,
 	)
 	cmd.Dir = root
-	cmd.Env = append(envWithout("WK_PROMETHEUS_ENABLE", "WK_PROMETHEUS_BINARY_PATH", "WK_PROMETHEUS_EMBED_DIR"),
+	cmd.Env = append(envWithout("WK_PROMETHEUS_ENABLE", "WK_PROMETHEUS_BINARY_PATH", "WK_PROMETHEUS_EMBED_DIR",
+		"WK_WUKONGIM_SINGLE_NODE_CONFIG", "WK_WUKONGIMV2_SINGLE_NODE_CONFIG",
+		"WK_WUKONGIM_SINGLE_NODE_BIN", "WK_WUKONGIMV2_SINGLE_NODE_BIN",
+		"WK_WUKONGIM_SINGLE_NODE_LOG_DIR", "WK_WUKONGIMV2_SINGLE_NODE_LOG_DIR",
+		"WK_WUKONGIM_SINGLE_NODE_DATA_DIR", "WK_WUKONGIMV2_SINGLE_NODE_DATA_DIR",
+		"WK_WUKONGIM_SINGLE_NODE_READY_URL", "WK_WUKONGIMV2_SINGLE_NODE_READY_URL",
+		"WK_WUKONGIM_SINGLE_NODE_READY_TIMEOUT", "WK_WUKONGIMV2_SINGLE_NODE_READY_TIMEOUT",
+		"WK_WUKONGIM_SINGLE_NODE_POLL_INTERVAL", "WK_WUKONGIMV2_SINGLE_NODE_POLL_INTERVAL"),
 		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
 		"WK_PROMETHEUS_ENABLE=false",
 		"WK_PROMETHEUS_EMBED_DIR="+embedDir,
@@ -109,7 +123,7 @@ func TestWukongIMV2SingleNodeScriptAllowsPrometheusDisableOverride(t *testing.T)
 		t.Fatalf("script failed: %v\n%s", err, output)
 	}
 
-	nodeEnv := readFile(t, filepath.Join(callsDir, "wukongimv2.env"))
+	nodeEnv := readFile(t, filepath.Join(callsDir, "wukongim.env"))
 	if !strings.Contains(nodeEnv, "WK_PROMETHEUS_ENABLE=false") {
 		t.Fatalf("expected explicit prometheus disable override, got:\n%s", nodeEnv)
 	}
@@ -119,14 +133,14 @@ func TestWukongIMV2SingleNodeScriptAllowsPrometheusDisableOverride(t *testing.T)
 	}
 }
 
-func writeFakeWukongIMV2ReadyCurlAfterNodeStart(t *testing.T, path string, callsDir string) {
+func writeFakeWukongIMReadyCurlAfterNodeStart(t *testing.T, path string, callsDir string) {
 	t.Helper()
 	script := `#!/usr/bin/env bash
 set -euo pipefail
 calls_dir="` + callsDir + `"
 echo "$*" >> "$calls_dir/curl.calls"
 for _ in $(seq 1 50); do
-  if [[ -f "$calls_dir/wukongimv2.calls" ]] && grep -q 'WK_PROMETHEUS_BINARY_PATH=' "$calls_dir/wukongimv2.env" 2>/dev/null; then
+  if [[ -f "$calls_dir/wukongim.calls" ]] && grep -q 'WK_PROMETHEUS_BINARY_PATH=' "$calls_dir/wukongim.env" 2>/dev/null; then
     echo "ok"
     exit 0
   fi
@@ -183,28 +197,35 @@ func envWithout(keys ...string) []string {
 	return out
 }
 
-func TestWukongIMV2SingleNodeScriptDryRunPrintsCommand(t *testing.T) {
+func TestWukongIMSingleNodeScriptDryRunPrintsCommand(t *testing.T) {
 	root := repoRoot(t)
-	outputBin := filepath.Join(t.TempDir(), "wukongimv2")
+	outputBin := filepath.Join(t.TempDir(), "wukongim")
 	logDir := filepath.Join(t.TempDir(), "logs")
 	dataDir := filepath.Join(t.TempDir(), "data")
 
-	cmd := exec.Command("bash", "scripts/start-wukongimv2-single-node.sh",
+	cmd := exec.Command("bash", "scripts/start-wukongim-single-node.sh",
 		"--dry-run",
 		"--bin", outputBin,
 		"--log-dir", logDir,
 		"--data-dir", dataDir,
 	)
 	cmd.Dir = root
-	cmd.Env = envWithout("WK_PROMETHEUS_ENABLE", "WK_PROMETHEUS_BINARY_PATH")
+	cmd.Env = envWithout("WK_PROMETHEUS_ENABLE", "WK_PROMETHEUS_BINARY_PATH",
+		"WK_WUKONGIM_SINGLE_NODE_CONFIG", "WK_WUKONGIMV2_SINGLE_NODE_CONFIG",
+		"WK_WUKONGIM_SINGLE_NODE_BIN", "WK_WUKONGIMV2_SINGLE_NODE_BIN",
+		"WK_WUKONGIM_SINGLE_NODE_LOG_DIR", "WK_WUKONGIMV2_SINGLE_NODE_LOG_DIR",
+		"WK_WUKONGIM_SINGLE_NODE_DATA_DIR", "WK_WUKONGIMV2_SINGLE_NODE_DATA_DIR",
+		"WK_WUKONGIM_SINGLE_NODE_READY_URL", "WK_WUKONGIMV2_SINGLE_NODE_READY_URL",
+		"WK_WUKONGIM_SINGLE_NODE_READY_TIMEOUT", "WK_WUKONGIMV2_SINGLE_NODE_READY_TIMEOUT",
+		"WK_WUKONGIM_SINGLE_NODE_POLL_INTERVAL", "WK_WUKONGIMV2_SINGLE_NODE_POLL_INTERVAL")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("dry-run failed: %v\n%s", err, output)
 	}
 	text := string(output)
 	for _, want := range []string{
-		"build_cmd=go build -o " + outputBin + " ./cmd/wukongimv2",
-		"config=" + filepath.Join(root, "scripts/wukongimv2/wukongimv2.conf"),
+		"build_cmd=go build -o " + outputBin + " ./cmd/wukongim",
+		"config=" + filepath.Join(root, "scripts/wukongim/wukongim.conf"),
 		"ready=http://127.0.0.1:5001/readyz",
 		"prometheus_enable=true",
 		"prometheus_binary_path=<embedded>",
@@ -220,14 +241,46 @@ func TestWukongIMV2SingleNodeScriptDryRunPrintsCommand(t *testing.T) {
 	}
 }
 
-func TestWukongIMV2SingleNodeScriptDefaultsUseIsolatedDataDir(t *testing.T) {
+func TestWukongIMDeprecatedV2SingleNodeWrapperDelegatesDryRun(t *testing.T) {
 	root := repoRoot(t)
-	singleDataDir := filepath.Join(root, "data/wukongimv2-single-node-data")
-	threeNode1DataDir := filepath.Join(root, "data/wukongimv2-node-1")
+	outputBin := filepath.Join(t.TempDir(), "wukongim")
+	oldScript := "scripts/start-" + "wukongimv2-single-node.sh"
 
-	cmd := exec.Command("bash", "scripts/start-wukongimv2-single-node.sh", "--dry-run")
+	cmd := exec.Command("bash", oldScript,
+		"--dry-run",
+		"--bin", outputBin,
+	)
 	cmd.Dir = root
-	cmd.Env = envWithout("WK_PROMETHEUS_ENABLE", "WK_PROMETHEUS_BINARY_PATH")
+	cmd.Env = envWithout("WK_PROMETHEUS_ENABLE", "WK_PROMETHEUS_BINARY_PATH",
+		"WK_WUKONGIM_SINGLE_NODE_CONFIG", "WK_WUKONGIMV2_SINGLE_NODE_CONFIG",
+		"WK_WUKONGIM_SINGLE_NODE_BIN", "WK_WUKONGIMV2_SINGLE_NODE_BIN")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("wrapper dry-run failed: %v\n%s", err, output)
+	}
+	text := string(output)
+	for _, want := range []string{
+		"[deprecated] " + filepath.Base(oldScript) + " moved to scripts/start-wukongim-single-node.sh",
+		"build_cmd=go build -o " + outputBin + " ./cmd/wukongim",
+		"config=" + filepath.Join(root, "scripts/wukongim/wukongim.conf"),
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("wrapper dry-run output missing %q:\n%s", want, text)
+		}
+	}
+}
+
+func TestWukongIMSingleNodeScriptDefaultsUseIsolatedDataDir(t *testing.T) {
+	root := repoRoot(t)
+	singleDataDir := filepath.Join(root, "data/wukongim-single-node-data")
+	threeNode1DataDir := filepath.Join(root, "data/wukongim-node-1")
+
+	cmd := exec.Command("bash", "scripts/start-wukongim-single-node.sh", "--dry-run")
+	cmd.Dir = root
+	cmd.Env = envWithout("WK_PROMETHEUS_ENABLE", "WK_PROMETHEUS_BINARY_PATH",
+		"WK_WUKONGIM_SINGLE_NODE_CONFIG", "WK_WUKONGIMV2_SINGLE_NODE_CONFIG",
+		"WK_WUKONGIM_SINGLE_NODE_BIN", "WK_WUKONGIMV2_SINGLE_NODE_BIN",
+		"WK_WUKONGIM_SINGLE_NODE_DATA_DIR", "WK_WUKONGIMV2_SINGLE_NODE_DATA_DIR")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("dry-run failed: %v\n%s", err, output)
@@ -240,11 +293,11 @@ func TestWukongIMV2SingleNodeScriptDefaultsUseIsolatedDataDir(t *testing.T) {
 		t.Fatalf("dry-run output should not reuse three-node node1 data dir:\n%s", text)
 	}
 
-	config := readFile(t, filepath.Join(root, "scripts/wukongimv2/wukongimv2.conf"))
-	if !strings.Contains(config, "WK_NODE_DATA_DIR=./data/wukongimv2-single-node-data") {
+	config := readFile(t, filepath.Join(root, "scripts/wukongim/wukongim.conf"))
+	if !strings.Contains(config, "WK_NODE_DATA_DIR=./data/wukongim-single-node-data") {
 		t.Fatalf("single-node config should use isolated data dir:\n%s", config)
 	}
-	if strings.Contains(config, "WK_NODE_DATA_DIR=./data/wukongimv2-node-1") {
+	if strings.Contains(config, "WK_NODE_DATA_DIR=./data/wukongim-node-1") {
 		t.Fatalf("single-node config should not reuse three-node node1 data dir:\n%s", config)
 	}
 }

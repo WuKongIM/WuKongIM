@@ -5,7 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TIMESTAMP="${WK_TOP_VALIDATE_TIMESTAMP:-$(date +%Y%m%d-%H%M%S)}"
 OUT_DIR="${WK_TOP_VALIDATE_OUT_DIR:-$ROOT_DIR/docs/development/perf-runs/${TIMESTAMP}-wkcli-top-three-nodes}"
 WKCLI_BIN="${WK_TOP_VALIDATE_WKCLI_BIN:-$ROOT_DIR/data/wkcli-top-validation/wkcli}"
-START_SCRIPT="${WK_TOP_VALIDATE_START_SCRIPT:-$ROOT_DIR/scripts/start-wukongimv2-three-nodes.sh}"
+START_SCRIPT="${WK_TOP_VALIDATE_START_SCRIPT:-$ROOT_DIR/scripts/start-wukongim-three-nodes.sh}"
 READY_TIMEOUT="${WK_TOP_VALIDATE_READY_TIMEOUT:-90}"
 TOP_WINDOW="${WK_TOP_VALIDATE_WINDOW:-10s}"
 TOP_LIMIT="${WK_TOP_VALIDATE_LIMIT:-20}"
@@ -39,7 +39,7 @@ usage() {
   cat <<'USAGE'
 Usage: scripts/validate-wkcli-top-three-nodes.sh [options]
 
-Starts a local cmd/wukongimv2 three-node cluster, runs wkcli bench send, then
+Starts a local cmd/wukongim three-node cluster, runs wkcli bench send, then
 validates wkcli top JSON evidence for readiness, resource fields, and sticky
 alert behavior. Normal benchmark client disconnects must not create
 gateway/session_error alerts.

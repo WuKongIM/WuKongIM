@@ -13,7 +13,7 @@ func TestWkcliSimSmokeScriptDryRunPrintsNodeAndSimulatorCommands(t *testing.T) {
 	root := repoRoot(t)
 	outDir := t.TempDir()
 
-	cmd := exec.Command("bash", "scripts/smoke-wkcli-sim-wukongimv2.sh",
+	cmd := exec.Command("bash", "scripts/smoke-wkcli-sim-wukongim.sh",
 		"--dry-run",
 		"--out-dir", outDir,
 		"--api-addr", "http://127.0.0.1:15001",
@@ -42,7 +42,7 @@ func TestWkcliSimSmokeScriptDryRunPrintsNodeAndSimulatorCommands(t *testing.T) {
 		"snapshot_output=" + filepath.Join(outDir, "bench-snapshot.json"),
 		"node_cmd=env",
 		"WK_BENCH_API_ENABLE=true",
-		"go run ./cmd/wukongimv2",
+		"go run ./cmd/wukongim",
 		"sim_cmd=go run ./cmd/wkcli sim --server http://127.0.0.1:15001 --users 10 --groups 2 --group-members 5 --rate 5/s --max-runtime 5s",
 	} {
 		if !strings.Contains(text, want) {
@@ -56,7 +56,7 @@ func TestWkcliSimThreeNodeSmokeScriptDryRunPrintsClusterAndSimulatorCommands(t *
 	outDir := t.TempDir()
 	startScript := filepath.Join(t.TempDir(), "start-three.sh")
 
-	cmd := exec.Command("bash", "scripts/smoke-wkcli-sim-wukongimv2-three-nodes.sh",
+	cmd := exec.Command("bash", "scripts/smoke-wkcli-sim-wukongim-three-nodes.sh",
 		"--dry-run",
 		"--out-dir", outDir,
 		"--start-script", startScript,
@@ -88,7 +88,7 @@ func TestWkcliSimThreeNodeSmokeScriptDryRunPrintsClusterAndSimulatorCommands(t *
 		"max_handoff_timeout_total=0",
 		"max_goroutines=2000",
 		"max_heap_alloc_bytes=4294967296",
-		"start_cmd=env WK_DEBUG_API_ENABLE=true " + startScript + " --clean --ready-timeout 7 --bin " + filepath.Join(outDir, "wukongimv2") + " --log-dir " + filepath.Join(outDir, "node-logs"),
+		"start_cmd=env WK_DEBUG_API_ENABLE=true " + startScript + " --clean --ready-timeout 7 --bin " + filepath.Join(outDir, "wukongim") + " --log-dir " + filepath.Join(outDir, "node-logs"),
 		"sim_cmd=go run ./cmd/wkcli sim --server http://127.0.0.1:5011 --server http://127.0.0.1:5012 --server http://127.0.0.1:5013 --gateway 127.0.0.1:5111 --gateway 127.0.0.1:5112 --gateway 127.0.0.1:5113 --users 12 --groups 3 --group-members 4 --rate 6/s --max-runtime 4s",
 	} {
 		if !strings.Contains(text, want) {
@@ -102,7 +102,7 @@ func TestWkcliSimThreeNodeSmokeScriptDryRunPrintsFaultKillPlan(t *testing.T) {
 	outDir := t.TempDir()
 	startScript := filepath.Join(t.TempDir(), "start-three.sh")
 
-	cmd := exec.Command("bash", "scripts/smoke-wkcli-sim-wukongimv2-three-nodes.sh",
+	cmd := exec.Command("bash", "scripts/smoke-wkcli-sim-wukongim-three-nodes.sh",
 		"--dry-run",
 		"--out-dir", outDir,
 		"--start-script", startScript,
@@ -127,7 +127,7 @@ func TestWkcliSimThreeNodeSmokeScriptDryRunPrintsFaultKillPlan(t *testing.T) {
 		"fault_pid_dir=" + filepath.Join(outDir, "node-pids"),
 		"fault_event_file=" + filepath.Join(outDir, "fault-node2-kill.env"),
 		"fault_cmd=kill -s KILL $(cat " + filepath.Join(outDir, "node-pids", "node2.pid") + ")",
-		"start_cmd=env WK_DEBUG_API_ENABLE=true " + startScript + " --clean --ready-timeout 90 --bin " + filepath.Join(outDir, "wukongimv2") + " --log-dir " + filepath.Join(outDir, "node-logs") + " --pid-dir " + filepath.Join(outDir, "node-pids") + " --allow-node-exit 2",
+		"start_cmd=env WK_DEBUG_API_ENABLE=true " + startScript + " --clean --ready-timeout 90 --bin " + filepath.Join(outDir, "wukongim") + " --log-dir " + filepath.Join(outDir, "node-logs") + " --pid-dir " + filepath.Join(outDir, "node-pids") + " --allow-node-exit 2",
 	} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("dry-run output missing %q:\n%s", want, text)
@@ -140,7 +140,7 @@ func TestWkcliSimThreeNodeSmokeScriptDryRunPrintsFaultDrillTuning(t *testing.T) 
 	outDir := t.TempDir()
 	startScript := filepath.Join(t.TempDir(), "start-three.sh")
 
-	cmd := exec.Command("bash", "scripts/smoke-wkcli-sim-wukongimv2-three-nodes.sh",
+	cmd := exec.Command("bash", "scripts/smoke-wkcli-sim-wukongim-three-nodes.sh",
 		"--dry-run",
 		"--out-dir", outDir,
 		"--start-script", startScript,
@@ -190,7 +190,7 @@ func TestWkcliSimThreeNodeSmokeScriptDryRunAllowsGatewaySubsetForFaultDrill(t *t
 	outDir := t.TempDir()
 	startScript := filepath.Join(t.TempDir(), "start-three.sh")
 
-	cmd := exec.Command("bash", "scripts/smoke-wkcli-sim-wukongimv2-three-nodes.sh",
+	cmd := exec.Command("bash", "scripts/smoke-wkcli-sim-wukongim-three-nodes.sh",
 		"--dry-run",
 		"--out-dir", outDir,
 		"--start-script", startScript,
@@ -222,7 +222,7 @@ func TestWkcliSimThreeNodeSmokeScriptDryRunPrintsAutoJoinNodePlan(t *testing.T) 
 	outDir := t.TempDir()
 	startScript := filepath.Join(t.TempDir(), "start-three.sh")
 
-	cmd := exec.Command("bash", "scripts/smoke-wkcli-sim-wukongimv2-three-nodes.sh",
+	cmd := exec.Command("bash", "scripts/smoke-wkcli-sim-wukongim-three-nodes.sh",
 		"--dry-run",
 		"--out-dir", outDir,
 		"--start-script", startScript,
@@ -244,10 +244,10 @@ func TestWkcliSimThreeNodeSmokeScriptDryRunPrintsAutoJoinNodePlan(t *testing.T) 
 		"auto_join_gateway=127.0.0.1:5114",
 		"auto_join_cluster=127.0.0.1:7014",
 		"auto_join_seeds=127.0.0.1:7011,127.0.0.1:7012,127.0.0.1:7013",
-		"auto_join_config=" + filepath.Join(outDir, "wukongimv2-node4.conf"),
+		"auto_join_config=" + filepath.Join(outDir, "wukongim-node4.conf"),
 		"auto_join_data_dir=" + filepath.Join(outDir, "node4-data"),
 		"auto_join_log=" + filepath.Join(outDir, "node-logs", "node4.log"),
-		"auto_join_cmd=env WK_DEBUG_API_ENABLE=true " + filepath.Join(outDir, "wukongimv2") + " -config " + filepath.Join(outDir, "wukongimv2-node4.conf"),
+		"auto_join_cmd=env WK_DEBUG_API_ENABLE=true " + filepath.Join(outDir, "wukongim") + " -config " + filepath.Join(outDir, "wukongim-node4.conf"),
 	} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("dry-run output missing %q:\n%s", want, text)
@@ -260,7 +260,7 @@ func TestWkcliSimThreeNodeSmokeScriptDryRunPrintsAutoPromotePlan(t *testing.T) {
 	outDir := t.TempDir()
 	startScript := filepath.Join(t.TempDir(), "start-three.sh")
 
-	cmd := exec.Command("bash", "scripts/smoke-wkcli-sim-wukongimv2-three-nodes.sh",
+	cmd := exec.Command("bash", "scripts/smoke-wkcli-sim-wukongim-three-nodes.sh",
 		"--dry-run",
 		"--out-dir", outDir,
 		"--start-script", startScript,
@@ -307,7 +307,7 @@ func TestWkcliSimThreeNodeSmokeScriptStartsAutoJoinNodeDuringSimulation(t *testi
 	writeFakeThreeNodeSimGo(t, filepath.Join(binDir, "go"), callsDir)
 	writeFakeThreeNodeSimCurl(t, filepath.Join(binDir, "curl"), callsDir)
 	writeFakeThreeNodeSimStartScript(t, startScript, callsDir)
-	writeFakeThreeNodeDynamicBinary(t, filepath.Join(outDir, "wukongimv2"), callsDir)
+	writeFakeThreeNodeDynamicBinary(t, filepath.Join(outDir, "wukongim"), callsDir)
 	if err := os.MkdirAll(staleDataDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -319,7 +319,7 @@ func TestWkcliSimThreeNodeSmokeScriptStartsAutoJoinNodeDuringSimulation(t *testi
 		terminateRecordedProcess(t, filepath.Join(callsDir, "dynamic.pid"))
 	})
 
-	cmd := exec.Command("bash", "scripts/smoke-wkcli-sim-wukongimv2-three-nodes.sh",
+	cmd := exec.Command("bash", "scripts/smoke-wkcli-sim-wukongim-three-nodes.sh",
 		"--out-dir", outDir,
 		"--start-script", startScript,
 		"--auto-join-node",
@@ -345,7 +345,7 @@ func TestWkcliSimThreeNodeSmokeScriptStartsAutoJoinNodeDuringSimulation(t *testi
 		t.Fatalf("script output missing auto join readiness:\n%s", output)
 	}
 	dynamicCalls := readFile(t, filepath.Join(callsDir, "dynamic.calls"))
-	if !strings.Contains(dynamicCalls, "-config "+filepath.Join(outDir, "wukongimv2-node4.conf")) {
+	if !strings.Contains(dynamicCalls, "-config "+filepath.Join(outDir, "wukongim-node4.conf")) {
 		t.Fatalf("dynamic node command missing config path:\n%s", dynamicCalls)
 	}
 	dynamicDebugAPI := strings.TrimSpace(readFile(t, filepath.Join(callsDir, "dynamic.debug_api")))
@@ -360,10 +360,10 @@ func TestWkcliSimThreeNodeSmokeScriptStartsAutoJoinNodeDuringSimulation(t *testi
 	} else if !os.IsNotExist(err) {
 		t.Fatalf("stat stale auto-join data file: %v", err)
 	}
-	config := readFile(t, filepath.Join(outDir, "wukongimv2-node4.conf"))
+	config := readFile(t, filepath.Join(outDir, "wukongim-node4.conf"))
 	for _, want := range []string{
 		"WK_NODE_ID=4",
-		"WK_CLUSTER_ID=wukongimv2-dev-three",
+		"WK_CLUSTER_ID=wukongim-dev-three",
 		`WK_CLUSTER_SEEDS=["127.0.0.1:7011","127.0.0.1:7012","127.0.0.1:7013"]`,
 		"WK_CLUSTER_JOIN_TOKEN=change-me",
 		"WK_CLUSTER_ADVERTISE_ADDR=127.0.0.1:7014",
@@ -404,13 +404,13 @@ func TestWkcliSimThreeNodeSmokeScriptPromotesAutoJoinNodeDuringSimulation(t *tes
 	writeFakeThreeNodeSimGo(t, filepath.Join(binDir, "go"), callsDir)
 	writeFakeThreeNodeSimCurl(t, filepath.Join(binDir, "curl"), callsDir)
 	writeFakeThreeNodeSimStartScript(t, startScript, callsDir)
-	writeFakeThreeNodeDynamicBinary(t, filepath.Join(outDir, "wukongimv2"), callsDir)
+	writeFakeThreeNodeDynamicBinary(t, filepath.Join(outDir, "wukongim"), callsDir)
 	t.Cleanup(func() {
 		terminateRecordedProcess(t, filepath.Join(callsDir, "start.pid"))
 		terminateRecordedProcess(t, filepath.Join(callsDir, "dynamic.pid"))
 	})
 
-	cmd := exec.Command("bash", "scripts/smoke-wkcli-sim-wukongimv2-three-nodes.sh",
+	cmd := exec.Command("bash", "scripts/smoke-wkcli-sim-wukongim-three-nodes.sh",
 		"--out-dir", outDir,
 		"--start-script", startScript,
 		"--auto-join-node",
@@ -498,7 +498,7 @@ func TestWkcliSimThreeNodeSmokeScriptKillsConfiguredNodeDuringSimulation(t *test
 		}
 	})
 
-	cmd := exec.Command("bash", "scripts/smoke-wkcli-sim-wukongimv2-three-nodes.sh",
+	cmd := exec.Command("bash", "scripts/smoke-wkcli-sim-wukongim-three-nodes.sh",
 		"--out-dir", outDir,
 		"--start-script", startScript,
 		"--fault-kill-node",
@@ -576,7 +576,7 @@ func TestWkcliSimThreeNodeSmokeScriptAllowsFollowerSnapshotsWithoutCounts(t *tes
 	writeFakeThreeNodeSimGo(t, filepath.Join(binDir, "go"), callsDir)
 	writeFakeThreeNodeSimCurl(t, filepath.Join(binDir, "curl"), callsDir)
 
-	cmd := exec.Command("bash", "scripts/smoke-wkcli-sim-wukongimv2-three-nodes.sh",
+	cmd := exec.Command("bash", "scripts/smoke-wkcli-sim-wukongim-three-nodes.sh",
 		"--no-start",
 		"--out-dir", outDir,
 		"--api", "http://127.0.0.1:5011,http://127.0.0.1:5012,http://127.0.0.1:5013",
@@ -626,7 +626,7 @@ func TestWkcliSimThreeNodeSmokeScriptWaitsForSimOutputBeforeVerification(t *test
 	writeFakeThreeNodeSimCurl(t, filepath.Join(binDir, "curl"), callsDir)
 	writeFakeDelayedTee(t, filepath.Join(binDir, "tee"))
 
-	cmd := exec.Command("bash", "scripts/smoke-wkcli-sim-wukongimv2-three-nodes.sh",
+	cmd := exec.Command("bash", "scripts/smoke-wkcli-sim-wukongim-three-nodes.sh",
 		"--no-start",
 		"--out-dir", outDir,
 		"--api", "http://127.0.0.1:5011,http://127.0.0.1:5012,http://127.0.0.1:5013",
@@ -658,7 +658,7 @@ func TestWkcliSimThreeNodeSmokeScriptFailsOnConversationActiveMetricGate(t *test
 	writeFakeThreeNodeSimGo(t, filepath.Join(binDir, "go"), callsDir)
 	writeFakeThreeNodeSimCurl(t, filepath.Join(binDir, "curl"), callsDir)
 
-	cmd := exec.Command("bash", "scripts/smoke-wkcli-sim-wukongimv2-three-nodes.sh",
+	cmd := exec.Command("bash", "scripts/smoke-wkcli-sim-wukongim-three-nodes.sh",
 		"--no-start",
 		"--out-dir", outDir,
 		"--api", "http://127.0.0.1:5011,http://127.0.0.1:5012,http://127.0.0.1:5013",
@@ -693,7 +693,7 @@ func TestWkcliSimThreeNodeSmokeScriptCapturesFailureMetricsWhenSimReportsSendErr
 	writeFakeThreeNodeSimGo(t, filepath.Join(binDir, "go"), callsDir)
 	writeFakeThreeNodeSimCurl(t, filepath.Join(binDir, "curl"), callsDir)
 
-	cmd := exec.Command("bash", "scripts/smoke-wkcli-sim-wukongimv2-three-nodes.sh",
+	cmd := exec.Command("bash", "scripts/smoke-wkcli-sim-wukongim-three-nodes.sh",
 		"--no-start",
 		"--out-dir", outDir,
 		"--api", "http://127.0.0.1:5011,http://127.0.0.1:5012,http://127.0.0.1:5013",
@@ -743,7 +743,7 @@ func TestWkcliSimThreeNodeSmokeScriptAllowsConfiguredFaultSendErrors(t *testing.
 	writeFakeThreeNodeSimGo(t, filepath.Join(binDir, "go"), callsDir)
 	writeFakeThreeNodeSimCurl(t, filepath.Join(binDir, "curl"), callsDir)
 
-	cmd := exec.Command("bash", "scripts/smoke-wkcli-sim-wukongimv2-three-nodes.sh",
+	cmd := exec.Command("bash", "scripts/smoke-wkcli-sim-wukongim-three-nodes.sh",
 		"--no-start",
 		"--out-dir", outDir,
 		"--fault-max-send-errors", "1",
@@ -793,7 +793,7 @@ func TestWkcliSimThreeNodeSmokeScriptStopsClusterAndPrintsEvidenceWhenSimFails(t
 		terminateRecordedProcess(t, filepath.Join(callsDir, "start.pid"))
 	})
 
-	cmd := exec.Command("bash", "scripts/smoke-wkcli-sim-wukongimv2-three-nodes.sh",
+	cmd := exec.Command("bash", "scripts/smoke-wkcli-sim-wukongim-three-nodes.sh",
 		"--out-dir", outDir,
 		"--start-script", startScript,
 		"--api", "http://127.0.0.1:5011,http://127.0.0.1:5012,http://127.0.0.1:5013",
@@ -856,7 +856,7 @@ func TestWkcliSimThreeNodeSmokeScriptReportsSimFailureBeforeDelayedAutoJoin(t *t
 		terminateRecordedProcess(t, filepath.Join(callsDir, "start.pid"))
 	})
 
-	cmd := exec.Command("bash", "scripts/smoke-wkcli-sim-wukongimv2-three-nodes.sh",
+	cmd := exec.Command("bash", "scripts/smoke-wkcli-sim-wukongim-three-nodes.sh",
 		"--out-dir", outDir,
 		"--start-script", startScript,
 		"--auto-join-node",

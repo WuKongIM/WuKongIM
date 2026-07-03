@@ -114,13 +114,13 @@ func TestGofailBuildScriptAllowsExtraFailpointPackages(t *testing.T) {
 }
 
 func TestBuildGofailBinaryDryRunSupportsCommandPackageOverride(t *testing.T) {
-	outPath := filepath.Join(t.TempDir(), "wukongimv2-gofail")
+	outPath := filepath.Join(t.TempDir(), "wukongim-gofail")
 	workDir := filepath.Join(t.TempDir(), "src")
 	cmd := exec.Command("bash", "scripts/build-gofail-binary.sh",
 		"--dry-run",
 		"--out", outPath,
 		"--work-dir", workDir,
-		"--cmd", "./cmd/wukongimv2",
+		"--cmd", "./cmd/wukongim",
 		"--package", "pkg/clusterv2/tasks",
 	)
 	cmd.Dir = repoRootForScriptTests(t)
@@ -130,9 +130,9 @@ func TestBuildGofailBinaryDryRunSupportsCommandPackageOverride(t *testing.T) {
 	}
 	text := string(output)
 	for _, want := range []string{
-		"command_package=./cmd/wukongimv2",
+		"command_package=./cmd/wukongim",
 		"failpoint_packages=pkg/transport pkg/clusterv2/tasks",
-		"build_cmd=GOWORK=off go build -o " + outPath + " ./cmd/wukongimv2",
+		"build_cmd=GOWORK=off go build -o " + outPath + " ./cmd/wukongim",
 	} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("dry run output missing %q:\n%s", want, text)

@@ -10,9 +10,9 @@ import (
 	"time"
 )
 
-func TestWukongIMV2ThreeNode10kBenchScriptSetsEvidenceDefaults(t *testing.T) {
+func TestWukongIMThreeNode10kBenchScriptSetsEvidenceDefaults(t *testing.T) {
 	root := repoRoot(t)
-	script := readFile(t, filepath.Join(root, "scripts", "bench-wukongimv2-three-nodes-10kch.sh"))
+	script := readFile(t, filepath.Join(root, "scripts", "bench-wukongim-three-nodes-10kch.sh"))
 
 	for _, want := range []string{
 		`CHANNELS="${WK_BENCH_ACTIVATE_CHANNELS:-10000}"`,
@@ -28,7 +28,7 @@ func TestWukongIMV2ThreeNode10kBenchScriptSetsEvidenceDefaults(t *testing.T) {
 	}
 }
 
-func TestWukongIMV2ThreeNodeActivateScriptRebuildsStaleWkbenchBinary(t *testing.T) {
+func TestWukongIMThreeNodeActivateScriptRebuildsStaleWkbenchBinary(t *testing.T) {
 	root := repoRoot(t)
 	binDir := t.TempDir()
 	callsDir := t.TempDir()
@@ -44,7 +44,7 @@ func TestWukongIMV2ThreeNodeActivateScriptRebuildsStaleWkbenchBinary(t *testing.
 	writeFakeActivatePgrep(t, filepath.Join(binDir, "pgrep"), callsDir)
 	writeFakeActivatePS(t, filepath.Join(binDir, "ps"), callsDir)
 
-	cmd := exec.Command("bash", "scripts/bench-wukongimv2-three-nodes-10kch.sh",
+	cmd := exec.Command("bash", "scripts/bench-wukongim-three-nodes-10kch.sh",
 		"--no-start",
 		"--out-dir", outDir,
 		"--wkbench-bin", wkbenchPath,
@@ -73,7 +73,7 @@ func TestWukongIMV2ThreeNodeActivateScriptRebuildsStaleWkbenchBinary(t *testing.
 	}
 }
 
-func TestWukongIMV2ThreeNodeActivateScriptCollectsServerProcessResources(t *testing.T) {
+func TestWukongIMThreeNodeActivateScriptCollectsServerProcessResources(t *testing.T) {
 	root := repoRoot(t)
 	binDir := t.TempDir()
 	callsDir := t.TempDir()
@@ -83,7 +83,7 @@ func TestWukongIMV2ThreeNodeActivateScriptCollectsServerProcessResources(t *test
 	writeFakeActivatePgrep(t, filepath.Join(binDir, "pgrep"), callsDir)
 	writeFakeActivatePS(t, filepath.Join(binDir, "ps"), callsDir)
 
-	cmd := exec.Command("bash", "scripts/bench-wukongimv2-three-nodes-10kch.sh",
+	cmd := exec.Command("bash", "scripts/bench-wukongim-three-nodes-10kch.sh",
 		"--no-start",
 		"--out-dir", outDir,
 		"--wkbench-bin", filepath.Join(binDir, "wkbench"),
@@ -132,7 +132,7 @@ func TestWukongIMV2ThreeNodeActivateScriptCollectsServerProcessResources(t *test
 	}
 }
 
-func TestWukongIMV2ThreeNodeActivateScriptClassifiesMetricsEvidence(t *testing.T) {
+func TestWukongIMThreeNodeActivateScriptClassifiesMetricsEvidence(t *testing.T) {
 	root := repoRoot(t)
 	binDir := t.TempDir()
 	callsDir := t.TempDir()
@@ -142,7 +142,7 @@ func TestWukongIMV2ThreeNodeActivateScriptClassifiesMetricsEvidence(t *testing.T
 	writeFakeActivatePgrep(t, filepath.Join(binDir, "pgrep"), callsDir)
 	writeFakeActivatePS(t, filepath.Join(binDir, "ps"), callsDir)
 
-	cmd := exec.Command("bash", "scripts/bench-wukongimv2-three-nodes-10kch.sh",
+	cmd := exec.Command("bash", "scripts/bench-wukongim-three-nodes-10kch.sh",
 		"--no-start",
 		"--out-dir", outDir,
 		"--wkbench-bin", filepath.Join(binDir, "wkbench"),
@@ -189,7 +189,7 @@ func TestWukongIMV2ThreeNodeActivateScriptClassifiesMetricsEvidence(t *testing.T
 	}
 }
 
-func TestWukongIMV2ThreeNodeActivateScriptFailsOnMetricsHealthGate(t *testing.T) {
+func TestWukongIMThreeNodeActivateScriptFailsOnMetricsHealthGate(t *testing.T) {
 	root := repoRoot(t)
 	binDir := t.TempDir()
 	callsDir := t.TempDir()
@@ -199,7 +199,7 @@ func TestWukongIMV2ThreeNodeActivateScriptFailsOnMetricsHealthGate(t *testing.T)
 	writeFakeActivatePgrep(t, filepath.Join(binDir, "pgrep"), callsDir)
 	writeFakeActivatePS(t, filepath.Join(binDir, "ps"), callsDir)
 
-	cmd := exec.Command("bash", "scripts/bench-wukongimv2-three-nodes-10kch.sh",
+	cmd := exec.Command("bash", "scripts/bench-wukongim-three-nodes-10kch.sh",
 		"--no-start",
 		"--out-dir", outDir,
 		"--wkbench-bin", filepath.Join(binDir, "wkbench"),
@@ -243,12 +243,12 @@ func TestWukongIMV2ThreeNodeActivateScriptFailsOnMetricsHealthGate(t *testing.T)
 	}
 }
 
-func TestWukongIMV2ThreeNodeBenchScriptCollectsLocalEvidence(t *testing.T) {
+func TestWukongIMThreeNodeBenchScriptCollectsLocalEvidence(t *testing.T) {
 	root := repoRoot(t)
-	script := readFile(t, filepath.Join(root, "scripts", "bench-wukongimv2-three-nodes-1000ch.sh"))
+	script := readFile(t, filepath.Join(root, "scripts", "bench-wukongim-three-nodes-1000ch.sh"))
 
 	for _, want := range []string{
-		"scripts/start-wukongimv2-three-nodes.sh",
+		"scripts/start-wukongim-three-nodes.sh",
 		"collect_node_logs",
 		"capture_node_pprof",
 		"channelv2_metrics_summary",
@@ -321,9 +321,9 @@ func TestWukongIMV2ThreeNodeBenchScriptCollectsLocalEvidence(t *testing.T) {
 	}
 }
 
-func TestWukongIMV2ThreeNodeRealQPSScriptUses15KTunedDefaults(t *testing.T) {
+func TestWukongIMThreeNodeRealQPSScriptUses15KTunedDefaults(t *testing.T) {
 	root := repoRoot(t)
-	script := readFile(t, filepath.Join(root, "scripts", "bench-wukongimv2-three-nodes-real-qps.sh"))
+	script := readFile(t, filepath.Join(root, "scripts", "bench-wukongim-three-nodes-real-qps.sh"))
 
 	for _, want := range []string{
 		`CONCURRENCY="${WK_BENCH_CONCURRENCY:-2800}"`,
@@ -364,14 +364,14 @@ func TestWukongIMV2ThreeNodeRealQPSScriptUses15KTunedDefaults(t *testing.T) {
 	}
 }
 
-func TestWukongIMV2ThreeNodeRealQPSScriptAggregatesRuntimePoolMetrics(t *testing.T) {
+func TestWukongIMThreeNodeRealQPSScriptAggregatesRuntimePoolMetrics(t *testing.T) {
 	root := repoRoot(t)
 	binDir := t.TempDir()
 	outDir := t.TempDir()
 	baseScript := filepath.Join(binDir, "fake-base.sh")
 	writeFakeRealQPSBenchBase(t, baseScript)
 
-	cmd := exec.Command("bash", "scripts/bench-wukongimv2-three-nodes-real-qps.sh",
+	cmd := exec.Command("bash", "scripts/bench-wukongim-three-nodes-real-qps.sh",
 		"--qps", "100",
 		"--out-dir", outDir,
 		"--duration", "1s",
@@ -495,7 +495,7 @@ func TestWukongIMV2ThreeNodeRealQPSScriptAggregatesRuntimePoolMetrics(t *testing
 	}
 }
 
-func TestWukongIMV2RealQPSScriptsForwardDefaultAndExplicitChannelCount(t *testing.T) {
+func TestWukongIMRealQPSScriptsForwardDefaultAndExplicitChannelCount(t *testing.T) {
 	root := repoRoot(t)
 	cases := []struct {
 		name       string
@@ -504,12 +504,12 @@ func TestWukongIMV2RealQPSScriptsForwardDefaultAndExplicitChannelCount(t *testin
 	}{
 		{
 			name:       "single-node",
-			scriptPath: "scripts/bench-wukongimv2-single-node-real-qps.sh",
+			scriptPath: "scripts/bench-wukongim-single-node-real-qps.sh",
 			baseEnv:    "WK_BENCH_SINGLE_REAL_QPS_BASE_SCRIPT",
 		},
 		{
 			name:       "three-node",
-			scriptPath: "scripts/bench-wukongimv2-three-nodes-real-qps.sh",
+			scriptPath: "scripts/bench-wukongim-three-nodes-real-qps.sh",
 			baseEnv:    "WK_BENCH_REAL_QPS_BASE_SCRIPT",
 		},
 	}
@@ -582,7 +582,7 @@ func TestWukongIMV2RealQPSScriptsForwardDefaultAndExplicitChannelCount(t *testin
 	}
 }
 
-func TestWukongIMV2BenchScriptsLogActualChannelCount(t *testing.T) {
+func TestWukongIMBenchScriptsLogActualChannelCount(t *testing.T) {
 	root := repoRoot(t)
 	cases := []struct {
 		name       string
@@ -592,13 +592,13 @@ func TestWukongIMV2BenchScriptsLogActualChannelCount(t *testing.T) {
 	}{
 		{
 			name:       "single-node",
-			scriptPath: "scripts/bench-wukongimv2-single-node-1000ch.sh",
+			scriptPath: "scripts/bench-wukongim-single-node-1000ch.sh",
 			prefix:     "[bench-single-10ch]",
 			oldPrefix:  "[bench-single-1000ch]",
 		},
 		{
 			name:       "three-node",
-			scriptPath: "scripts/bench-wukongimv2-three-nodes-1000ch.sh",
+			scriptPath: "scripts/bench-wukongim-three-nodes-1000ch.sh",
 			prefix:     "[bench-three-10ch]",
 			oldPrefix:  "[bench-three-1000ch]",
 		},
@@ -651,7 +651,7 @@ func TestWukongIMV2BenchScriptsLogActualChannelCount(t *testing.T) {
 	}
 }
 
-func TestWukongIMV2ThreeNodeBenchScriptPrintsAntsPoolUsageByNode(t *testing.T) {
+func TestWukongIMThreeNodeBenchScriptPrintsAntsPoolUsageByNode(t *testing.T) {
 	root := repoRoot(t)
 	binDir := t.TempDir()
 	callsDir := t.TempDir()
@@ -662,7 +662,7 @@ func TestWukongIMV2ThreeNodeBenchScriptPrintsAntsPoolUsageByNode(t *testing.T) {
 	writeFakeActivatePS(t, filepath.Join(binDir, "ps"), callsDir)
 	gatewayAddr := listenLocalTCP(t)
 
-	cmd := exec.Command("bash", "scripts/bench-wukongimv2-three-nodes-1000ch.sh",
+	cmd := exec.Command("bash", "scripts/bench-wukongim-three-nodes-1000ch.sh",
 		"--no-start",
 		"--no-worker",
 		"--out-dir", outDir,
@@ -827,7 +827,7 @@ func TestWukongIMV2ThreeNodeBenchScriptPrintsAntsPoolUsageByNode(t *testing.T) {
 	}
 }
 
-func TestWukongIMV2ThreeNodeBenchScriptPrintsServerResourcePeaks(t *testing.T) {
+func TestWukongIMThreeNodeBenchScriptPrintsServerResourcePeaks(t *testing.T) {
 	root := repoRoot(t)
 	binDir := t.TempDir()
 	callsDir := t.TempDir()
@@ -838,7 +838,7 @@ func TestWukongIMV2ThreeNodeBenchScriptPrintsServerResourcePeaks(t *testing.T) {
 	writeFakeActivatePS(t, filepath.Join(binDir, "ps"), callsDir)
 	gatewayAddr := listenLocalTCP(t)
 
-	cmd := exec.Command("bash", "scripts/bench-wukongimv2-three-nodes-1000ch.sh",
+	cmd := exec.Command("bash", "scripts/bench-wukongim-three-nodes-1000ch.sh",
 		"--no-start",
 		"--no-worker",
 		"--out-dir", outDir,
@@ -956,7 +956,7 @@ func TestWukongIMV2ThreeNodeBenchScriptPrintsServerResourcePeaks(t *testing.T) {
 	}
 }
 
-func TestWukongIMV2ThreeNodeBenchScriptKeepsGateResultWithAntsPoolDisplay(t *testing.T) {
+func TestWukongIMThreeNodeBenchScriptKeepsGateResultWithAntsPoolDisplay(t *testing.T) {
 	root := repoRoot(t)
 	binDir := t.TempDir()
 	callsDir := t.TempDir()
@@ -967,7 +967,7 @@ func TestWukongIMV2ThreeNodeBenchScriptKeepsGateResultWithAntsPoolDisplay(t *tes
 	writeFakeActivatePS(t, filepath.Join(binDir, "ps"), callsDir)
 	gatewayAddr := listenLocalTCP(t)
 
-	cmd := exec.Command("bash", "scripts/bench-wukongimv2-three-nodes-1000ch.sh",
+	cmd := exec.Command("bash", "scripts/bench-wukongim-three-nodes-1000ch.sh",
 		"--no-start",
 		"--no-worker",
 		"--out-dir", outDir,
@@ -1012,7 +1012,7 @@ func TestWukongIMV2ThreeNodeBenchScriptKeepsGateResultWithAntsPoolDisplay(t *tes
 	}
 }
 
-func TestWukongIMV2ThreeNodeBenchScriptRebuildsStaleWkbenchBinary(t *testing.T) {
+func TestWukongIMThreeNodeBenchScriptRebuildsStaleWkbenchBinary(t *testing.T) {
 	root := repoRoot(t)
 	binDir := t.TempDir()
 	callsDir := t.TempDir()
@@ -1029,7 +1029,7 @@ func TestWukongIMV2ThreeNodeBenchScriptRebuildsStaleWkbenchBinary(t *testing.T) 
 	writeFakeActivatePS(t, filepath.Join(binDir, "ps"), callsDir)
 	gatewayAddr := listenLocalTCP(t)
 
-	cmd := exec.Command("bash", "scripts/bench-wukongimv2-three-nodes-1000ch.sh",
+	cmd := exec.Command("bash", "scripts/bench-wukongim-three-nodes-1000ch.sh",
 		"--no-start",
 		"--no-worker",
 		"--out-dir", outDir,
@@ -1073,7 +1073,7 @@ func TestWukongIMV2ThreeNodeBenchScriptRebuildsStaleWkbenchBinary(t *testing.T) 
 	}
 }
 
-func TestWukongIMV2ThreeNodeBenchScriptCanDisableHeartbeat(t *testing.T) {
+func TestWukongIMThreeNodeBenchScriptCanDisableHeartbeat(t *testing.T) {
 	root := repoRoot(t)
 	binDir := t.TempDir()
 	callsDir := t.TempDir()
@@ -1084,7 +1084,7 @@ func TestWukongIMV2ThreeNodeBenchScriptCanDisableHeartbeat(t *testing.T) {
 	writeFakeActivatePS(t, filepath.Join(binDir, "ps"), callsDir)
 	gatewayAddr := listenLocalTCP(t)
 
-	cmd := exec.Command("bash", "scripts/bench-wukongimv2-three-nodes-1000ch.sh",
+	cmd := exec.Command("bash", "scripts/bench-wukongim-three-nodes-1000ch.sh",
 		"--no-start",
 		"--no-worker",
 		"--out-dir", outDir,
@@ -1124,12 +1124,12 @@ func TestWukongIMV2ThreeNodeBenchScriptCanDisableHeartbeat(t *testing.T) {
 	}
 }
 
-func TestWukongIMV2DeliveryBenchScriptIsLocalThreeNodeOnly(t *testing.T) {
+func TestWukongIMDeliveryBenchScriptIsLocalThreeNodeOnly(t *testing.T) {
 	root := repoRoot(t)
-	script := readFile(t, filepath.Join(root, "scripts", "bench-wukongimv2-delivery.sh"))
+	script := readFile(t, filepath.Join(root, "scripts", "bench-wukongim-delivery.sh"))
 
 	for _, want := range []string{
-		"scripts/start-wukongimv2-three-nodes.sh",
+		"scripts/start-wukongim-three-nodes.sh",
 		`SCENARIO="${WK_BENCH_DELIVERY_SCENARIO:-group}"`,
 		`DELIVERY_ENABLE="${WK_DELIVERY_ENABLE:-true}"`,
 		`DELIVERY_EVENT_QUEUE_SIZE="${WK_DELIVERY_EVENT_QUEUE_SIZE:-1024}"`,
@@ -1148,7 +1148,7 @@ func TestWukongIMV2DeliveryBenchScriptIsLocalThreeNodeOnly(t *testing.T) {
 		}
 	}
 	for _, forbidden := range []string{
-		"bench-wukongimv2-three-nodes-real-qps.sh",
+		"bench-wukongim-three-nodes-real-qps.sh",
 		"docker compose",
 		"dev-sim",
 		"--start-script",
@@ -1166,7 +1166,7 @@ func TestWukongIMV2DeliveryBenchScriptIsLocalThreeNodeOnly(t *testing.T) {
 	}
 }
 
-func TestWukongIMV2DeliveryBenchScriptGeneratesGroupScenarioAndSummary(t *testing.T) {
+func TestWukongIMDeliveryBenchScriptGeneratesGroupScenarioAndSummary(t *testing.T) {
 	root := repoRoot(t)
 	binDir := t.TempDir()
 	callsDir := t.TempDir()
@@ -1174,7 +1174,7 @@ func TestWukongIMV2DeliveryBenchScriptGeneratesGroupScenarioAndSummary(t *testin
 	writeFakeDeliveryWkbench(t, filepath.Join(binDir, "wkbench"), callsDir)
 	writeFakeDeliveryCurl(t, filepath.Join(binDir, "curl"), callsDir)
 
-	cmd := exec.Command("bash", "scripts/bench-wukongimv2-delivery.sh",
+	cmd := exec.Command("bash", "scripts/bench-wukongim-delivery.sh",
 		"--no-start",
 		"--no-worker",
 		"--out-dir", outDir,
@@ -1252,9 +1252,9 @@ func TestWukongIMV2DeliveryBenchScriptGeneratesGroupScenarioAndSummary(t *testin
 	}
 }
 
-func TestWukongIMV2DeliveryBenchScriptInjectsDeliveryEnvWhenStartingCluster(t *testing.T) {
+func TestWukongIMDeliveryBenchScriptInjectsDeliveryEnvWhenStartingCluster(t *testing.T) {
 	root := repoRoot(t)
-	script := readFile(t, filepath.Join(root, "scripts", "bench-wukongimv2-delivery.sh"))
+	script := readFile(t, filepath.Join(root, "scripts", "bench-wukongim-delivery.sh"))
 	for _, want := range []string{
 		`WK_DELIVERY_ENABLE="$DELIVERY_ENABLE"`,
 		`WK_DELIVERY_EVENT_QUEUE_SIZE="$DELIVERY_EVENT_QUEUE_SIZE"`,
@@ -1269,7 +1269,7 @@ func TestWukongIMV2DeliveryBenchScriptInjectsDeliveryEnvWhenStartingCluster(t *t
 	}
 }
 
-func TestWukongIMV2DeliveryBenchScriptDefaultOutDirUsesFinalScenario(t *testing.T) {
+func TestWukongIMDeliveryBenchScriptDefaultOutDirUsesFinalScenario(t *testing.T) {
 	root := repoRoot(t)
 	binDir := t.TempDir()
 	callsDir := t.TempDir()
@@ -1285,7 +1285,7 @@ func TestWukongIMV2DeliveryBenchScriptDefaultOutDirUsesFinalScenario(t *testing.
 	writeFakeDeliveryWkbench(t, filepath.Join(binDir, "wkbench"), callsDir)
 	writeFakeDeliveryCurl(t, filepath.Join(binDir, "curl"), callsDir)
 
-	cmd := exec.Command("bash", "scripts/bench-wukongimv2-delivery.sh",
+	cmd := exec.Command("bash", "scripts/bench-wukongim-delivery.sh",
 		"--no-start",
 		"--no-worker",
 		"--wkbench-bin", filepath.Join(binDir, "wkbench"),
@@ -1314,9 +1314,9 @@ func TestWukongIMV2DeliveryBenchScriptDefaultOutDirUsesFinalScenario(t *testing.
 	}
 }
 
-func TestWukongIMV2ThreeNodePresenceScriptSetsPresenceDefaults(t *testing.T) {
+func TestWukongIMThreeNodePresenceScriptSetsPresenceDefaults(t *testing.T) {
 	root := repoRoot(t)
-	script := readFile(t, filepath.Join(root, "scripts", "bench-wukongimv2-three-nodes-presence.sh"))
+	script := readFile(t, filepath.Join(root, "scripts", "bench-wukongim-three-nodes-presence.sh"))
 
 	for _, want := range []string{
 		`USERS="${WK_BENCH_PRESENCE_USERS:-1000}"`,
@@ -1350,7 +1350,7 @@ func TestWukongIMV2ThreeNodePresenceScriptSetsPresenceDefaults(t *testing.T) {
 	}
 }
 
-func TestWukongIMV2ThreeNodePresenceScriptRecordsCleanupToZero(t *testing.T) {
+func TestWukongIMThreeNodePresenceScriptRecordsCleanupToZero(t *testing.T) {
 	root := repoRoot(t)
 	binDir := t.TempDir()
 	callsDir := t.TempDir()
@@ -1360,7 +1360,7 @@ func TestWukongIMV2ThreeNodePresenceScriptRecordsCleanupToZero(t *testing.T) {
 	writeFakeActivatePgrep(t, filepath.Join(binDir, "pgrep"), callsDir)
 	writeFakeActivatePS(t, filepath.Join(binDir, "ps"), callsDir)
 
-	cmd := exec.Command("bash", "scripts/bench-wukongimv2-three-nodes-presence.sh",
+	cmd := exec.Command("bash", "scripts/bench-wukongim-three-nodes-presence.sh",
 		"--no-start",
 		"--no-worker",
 		"--out-dir", outDir,
@@ -1409,7 +1409,7 @@ func TestWukongIMV2ThreeNodePresenceScriptRecordsCleanupToZero(t *testing.T) {
 	}
 }
 
-func TestWukongIMV2ThreeNodePresenceScriptIgnoresCleanupExpiredForLiveGate(t *testing.T) {
+func TestWukongIMThreeNodePresenceScriptIgnoresCleanupExpiredForLiveGate(t *testing.T) {
 	root := repoRoot(t)
 	binDir := t.TempDir()
 	callsDir := t.TempDir()
@@ -1419,7 +1419,7 @@ func TestWukongIMV2ThreeNodePresenceScriptIgnoresCleanupExpiredForLiveGate(t *te
 	writeFakeActivatePgrep(t, filepath.Join(binDir, "pgrep"), callsDir)
 	writeFakeActivatePS(t, filepath.Join(binDir, "ps"), callsDir)
 
-	cmd := exec.Command("bash", "scripts/bench-wukongimv2-three-nodes-presence.sh",
+	cmd := exec.Command("bash", "scripts/bench-wukongim-three-nodes-presence.sh",
 		"--no-start",
 		"--no-worker",
 		"--out-dir", outDir,
@@ -1457,7 +1457,7 @@ func TestWukongIMV2ThreeNodePresenceScriptIgnoresCleanupExpiredForLiveGate(t *te
 	}
 }
 
-func TestWukongIMV2ThreeNodePresenceScriptRebuildsStaleWkbenchBinary(t *testing.T) {
+func TestWukongIMThreeNodePresenceScriptRebuildsStaleWkbenchBinary(t *testing.T) {
 	root := repoRoot(t)
 	binDir := t.TempDir()
 	callsDir := t.TempDir()
@@ -1473,7 +1473,7 @@ func TestWukongIMV2ThreeNodePresenceScriptRebuildsStaleWkbenchBinary(t *testing.
 	writeFakeActivatePgrep(t, filepath.Join(binDir, "pgrep"), callsDir)
 	writeFakeActivatePS(t, filepath.Join(binDir, "ps"), callsDir)
 
-	cmd := exec.Command("bash", "scripts/bench-wukongimv2-three-nodes-presence.sh",
+	cmd := exec.Command("bash", "scripts/bench-wukongim-three-nodes-presence.sh",
 		"--no-start",
 		"--no-worker",
 		"--out-dir", outDir,
@@ -1505,7 +1505,7 @@ func TestWukongIMV2ThreeNodePresenceScriptRebuildsStaleWkbenchBinary(t *testing.
 	}
 }
 
-func TestWukongIMV2ThreeNodePresenceScriptRunsBenchAndValidatesSnapshot(t *testing.T) {
+func TestWukongIMThreeNodePresenceScriptRunsBenchAndValidatesSnapshot(t *testing.T) {
 	root := repoRoot(t)
 	binDir := t.TempDir()
 	callsDir := t.TempDir()
@@ -1515,7 +1515,7 @@ func TestWukongIMV2ThreeNodePresenceScriptRunsBenchAndValidatesSnapshot(t *testi
 	writeFakeActivatePgrep(t, filepath.Join(binDir, "pgrep"), callsDir)
 	writeFakeActivatePS(t, filepath.Join(binDir, "ps"), callsDir)
 
-	cmd := exec.Command("bash", "scripts/bench-wukongimv2-three-nodes-presence.sh",
+	cmd := exec.Command("bash", "scripts/bench-wukongim-three-nodes-presence.sh",
 		"--no-start",
 		"--no-worker",
 		"--out-dir", outDir,
@@ -1632,7 +1632,7 @@ func TestWukongIMV2ThreeNodePresenceScriptRunsBenchAndValidatesSnapshot(t *testi
 	}
 }
 
-func TestWukongIMV2ThreeNodePresenceScriptKeepsValidationWhenEvidenceCurlFails(t *testing.T) {
+func TestWukongIMThreeNodePresenceScriptKeepsValidationWhenEvidenceCurlFails(t *testing.T) {
 	root := repoRoot(t)
 	binDir := t.TempDir()
 	callsDir := t.TempDir()
@@ -1654,7 +1654,7 @@ func TestWukongIMV2ThreeNodePresenceScriptKeepsValidationWhenEvidenceCurlFails(t
 		writeFile(t, path, "stale evidence")
 	}
 
-	cmd := exec.Command("bash", "scripts/bench-wukongimv2-three-nodes-presence.sh",
+	cmd := exec.Command("bash", "scripts/bench-wukongim-three-nodes-presence.sh",
 		"--no-start",
 		"--no-worker",
 		"--out-dir", outDir,
@@ -1709,7 +1709,7 @@ func TestWukongIMV2ThreeNodePresenceScriptKeepsValidationWhenEvidenceCurlFails(t
 	}
 }
 
-func TestWukongIMV2ThreeNodePresenceScriptSamplesServerResourcesPeriodically(t *testing.T) {
+func TestWukongIMThreeNodePresenceScriptSamplesServerResourcesPeriodically(t *testing.T) {
 	root := repoRoot(t)
 	binDir := t.TempDir()
 	callsDir := t.TempDir()
@@ -1719,7 +1719,7 @@ func TestWukongIMV2ThreeNodePresenceScriptSamplesServerResourcesPeriodically(t *
 	writeFakeActivatePgrep(t, filepath.Join(binDir, "pgrep"), callsDir)
 	writeFakeActivatePS(t, filepath.Join(binDir, "ps"), callsDir)
 
-	cmd := exec.Command("bash", "scripts/bench-wukongimv2-three-nodes-presence.sh",
+	cmd := exec.Command("bash", "scripts/bench-wukongim-three-nodes-presence.sh",
 		"--no-start",
 		"--no-worker",
 		"--out-dir", outDir,
@@ -1748,7 +1748,7 @@ func TestWukongIMV2ThreeNodePresenceScriptSamplesServerResourcesPeriodically(t *
 	}
 }
 
-func TestWukongIMV2ThreeNodePresenceScriptKeepsValidationWhenResourceSampleIsInvalid(t *testing.T) {
+func TestWukongIMThreeNodePresenceScriptKeepsValidationWhenResourceSampleIsInvalid(t *testing.T) {
 	root := repoRoot(t)
 	binDir := t.TempDir()
 	callsDir := t.TempDir()
@@ -1758,7 +1758,7 @@ func TestWukongIMV2ThreeNodePresenceScriptKeepsValidationWhenResourceSampleIsInv
 	writeFakeActivatePgrep(t, filepath.Join(binDir, "pgrep"), callsDir)
 	writeFakeActivatePS(t, filepath.Join(binDir, "ps"), callsDir)
 
-	cmd := exec.Command("bash", "scripts/bench-wukongimv2-three-nodes-presence.sh",
+	cmd := exec.Command("bash", "scripts/bench-wukongim-three-nodes-presence.sh",
 		"--no-start",
 		"--no-worker",
 		"--out-dir", outDir,
@@ -1791,7 +1791,7 @@ func TestWukongIMV2ThreeNodePresenceScriptKeepsValidationWhenResourceSampleIsInv
 	}
 }
 
-func TestWukongIMV2ThreeNodePresenceScriptFailsOnTransientPeak(t *testing.T) {
+func TestWukongIMThreeNodePresenceScriptFailsOnTransientPeak(t *testing.T) {
 	root := repoRoot(t)
 	binDir := t.TempDir()
 	callsDir := t.TempDir()
@@ -1801,7 +1801,7 @@ func TestWukongIMV2ThreeNodePresenceScriptFailsOnTransientPeak(t *testing.T) {
 	writeFakeActivatePgrep(t, filepath.Join(binDir, "pgrep"), callsDir)
 	writeFakeActivatePS(t, filepath.Join(binDir, "ps"), callsDir)
 
-	cmd := exec.Command("bash", "scripts/bench-wukongimv2-three-nodes-presence.sh",
+	cmd := exec.Command("bash", "scripts/bench-wukongim-three-nodes-presence.sh",
 		"--no-start",
 		"--no-worker",
 		"--out-dir", outDir,
@@ -2497,9 +2497,9 @@ set -euo pipefail
 mkdir -p "` + callsDir + `"
 echo "$*" >> "` + callsDir + `/pgrep.calls"
 case "$*" in
-  *wukongimv2-node1.conf*) echo 111 ;;
-  *wukongimv2-node2.conf*) echo 222 ;;
-  *wukongimv2-node3.conf*) echo 333 ;;
+  *wukongim-node1.conf*) echo 111 ;;
+  *wukongim-node2.conf*) echo 222 ;;
+  *wukongim-node3.conf*) echo 333 ;;
   *) exit 1 ;;
 esac
 `
@@ -2528,9 +2528,9 @@ if [[ "${WK_FAKE_ACTIVATE_PS_BAD:-0}" == "1" ]]; then
   exit 0
 fi
 case "$pid" in
-  111) echo ' 12.5  1.2 123456 789000 00:10 /tmp/wukongimv2-node1' ;;
-  222) echo ' 25.0  2.3 234567 890000 00:20 /tmp/wukongimv2-node2' ;;
-  333) echo '  3.5  0.7 345678 901000 00:30 /tmp/wukongimv2-node3' ;;
+  111) echo ' 12.5  1.2 123456 789000 00:10 /tmp/wukongim-node1' ;;
+  222) echo ' 25.0  2.3 234567 890000 00:20 /tmp/wukongim-node2' ;;
+  333) echo '  3.5  0.7 345678 901000 00:30 /tmp/wukongim-node3' ;;
   *) exit 1 ;;
 esac
 `

@@ -8,21 +8,21 @@ import (
 	"testing"
 )
 
-func TestWukongIMV2ThreeNodeScriptBuildsStartsAndStopsNodes(t *testing.T) {
+func TestWukongIMThreeNodeScriptBuildsStartsAndStopsNodes(t *testing.T) {
 	root := repoRoot(t)
 	binDir := t.TempDir()
 	callsDir := t.TempDir()
-	outputBin := filepath.Join(t.TempDir(), "wukongimv2")
+	outputBin := filepath.Join(t.TempDir(), "wukongim")
 	logDir := filepath.Join(t.TempDir(), "logs")
 	prometheusEmbedDir := t.TempDir()
 	prometheusAsset := filepath.Join(prometheusEmbedDir, "prometheus-testos-testarch")
 	if err := os.WriteFile(prometheusAsset, []byte("#!/usr/bin/env bash\n"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	writeFakeGoWukongIMV2Starter(t, filepath.Join(binDir, "go"), callsDir)
-	writeFakeWukongIMV2ReadyCurl(t, filepath.Join(binDir, "curl"), callsDir)
+	writeFakeGoWukongIMStarter(t, filepath.Join(binDir, "go"), callsDir)
+	writeFakeWukongIMReadyCurl(t, filepath.Join(binDir, "curl"), callsDir)
 
-	cmd := exec.Command("bash", "scripts/start-wukongimv2-three-nodes.sh",
+	cmd := exec.Command("bash", "scripts/start-wukongim-three-nodes.sh",
 		"--exit-after-ready",
 		"--ready-timeout", "5",
 		"--poll", "0",
@@ -35,9 +35,25 @@ func TestWukongIMV2ThreeNodeScriptBuildsStartsAndStopsNodes(t *testing.T) {
 		"WK_PROMETHEUS_BINARY_PATH",
 		"WK_PROMETHEUS_EMBED_DIR",
 		"WK_PROMETHEUS_LISTEN_ADDR",
+		"WK_WUKONGIM_THREE_NODES_BIN",
+		"WK_WUKONGIM_THREE_NODES_LOG_DIR",
+		"WK_WUKONGIM_THREE_NODES_READY_TIMEOUT",
+		"WK_WUKONGIM_THREE_NODES_POLL_INTERVAL",
+		"WK_WUKONGIM_THREE_NODES_PROMETHEUS_ENABLE",
+		"WK_WUKONGIM_THREE_NODES_PROMETHEUS_LISTEN_ADDR",
+		"WK_WUKONGIM_THREE_NODES_PROMETHEUS_DATA_DIR",
+		"WK_WUKONGIM_THREE_NODES_PROMETHEUS_RETENTION_TIME",
+		"WK_WUKONGIM_THREE_NODES_PROMETHEUS_RETENTION_SIZE",
+		"WK_WUKONGIM_THREE_NODES_PROMETHEUS_SCRAPE_INTERVAL",
+		"WK_WUKONGIMV2_THREE_NODES_BIN",
+		"WK_WUKONGIMV2_THREE_NODES_LOG_DIR",
+		"WK_WUKONGIMV2_THREE_NODES_READY_TIMEOUT",
+		"WK_WUKONGIMV2_THREE_NODES_POLL_INTERVAL",
 		"WK_WUKONGIMV2_THREE_NODES_PROMETHEUS_ENABLE",
 		"WK_WUKONGIMV2_THREE_NODES_PROMETHEUS_LISTEN_ADDR",
 		"WK_WUKONGIMV2_THREE_NODES_PROMETHEUS_DATA_DIR",
+		"WK_WUKONGIMV2_THREE_NODES_PROMETHEUS_RETENTION_TIME",
+		"WK_WUKONGIMV2_THREE_NODES_PROMETHEUS_RETENTION_SIZE",
 		"WK_WUKONGIMV2_THREE_NODES_PROMETHEUS_SCRAPE_INTERVAL",
 	),
 		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
@@ -52,31 +68,31 @@ func TestWukongIMV2ThreeNodeScriptBuildsStartsAndStopsNodes(t *testing.T) {
 	}
 
 	goCalls := readFile(t, filepath.Join(callsDir, "go.calls"))
-	if !strings.Contains(goCalls, "build -o "+outputBin+" ./cmd/wukongimv2") {
+	if !strings.Contains(goCalls, "build -o "+outputBin+" ./cmd/wukongim") {
 		t.Fatalf("expected build command, got:\n%s", goCalls)
 	}
 
-	nodeCalls := readFile(t, filepath.Join(callsDir, "wukongimv2.calls"))
+	nodeCalls := readFile(t, filepath.Join(callsDir, "wukongim.calls"))
 	for _, want := range []string{
-		"-config " + filepath.Join(root, "scripts/wukongimv2/wukongimv2-node1.conf"),
-		"-config " + filepath.Join(root, "scripts/wukongimv2/wukongimv2-node2.conf"),
-		"-config " + filepath.Join(root, "scripts/wukongimv2/wukongimv2-node3.conf"),
+		"-config " + filepath.Join(root, "scripts/wukongim/wukongim-node1.conf"),
+		"-config " + filepath.Join(root, "scripts/wukongim/wukongim-node2.conf"),
+		"-config " + filepath.Join(root, "scripts/wukongim/wukongim-node3.conf"),
 	} {
 		if !strings.Contains(nodeCalls, want) {
 			t.Fatalf("expected node command %q, got:\n%s", want, nodeCalls)
 		}
 	}
 
-	nodeEnv := readFile(t, filepath.Join(callsDir, "wukongimv2.env"))
+	nodeEnv := readFile(t, filepath.Join(callsDir, "wukongim.env"))
 	for _, want := range []string{
-		"wukongimv2-node1.conf WK_METRICS_ENABLE=true",
-		"wukongimv2-node1.conf WK_PROMETHEUS_ENABLE=true",
-		"wukongimv2-node1.conf WK_PROMETHEUS_LISTEN_ADDR=127.0.0.1:9091",
-		"wukongimv2-node1.conf WK_PROMETHEUS_SCRAPE_TARGETS=[\"127.0.0.1:5011\",\"127.0.0.1:5012\",\"127.0.0.1:5013\"]",
-		"wukongimv2-node2.conf WK_METRICS_ENABLE=true",
-		"wukongimv2-node2.conf WK_PROMETHEUS_ENABLE=false",
-		"wukongimv2-node3.conf WK_METRICS_ENABLE=true",
-		"wukongimv2-node3.conf WK_PROMETHEUS_ENABLE=false",
+		"wukongim-node1.conf WK_METRICS_ENABLE=true",
+		"wukongim-node1.conf WK_PROMETHEUS_ENABLE=true",
+		"wukongim-node1.conf WK_PROMETHEUS_LISTEN_ADDR=127.0.0.1:9091",
+		"wukongim-node1.conf WK_PROMETHEUS_SCRAPE_TARGETS=[\"127.0.0.1:5011\",\"127.0.0.1:5012\",\"127.0.0.1:5013\"]",
+		"wukongim-node2.conf WK_METRICS_ENABLE=true",
+		"wukongim-node2.conf WK_PROMETHEUS_ENABLE=false",
+		"wukongim-node3.conf WK_METRICS_ENABLE=true",
+		"wukongim-node3.conf WK_PROMETHEUS_ENABLE=false",
 	} {
 		if !strings.Contains(nodeEnv, want) {
 			t.Fatalf("expected node env %q, got:\n%s", want, nodeEnv)
@@ -101,12 +117,12 @@ func TestWukongIMV2ThreeNodeScriptBuildsStartsAndStopsNodes(t *testing.T) {
 	}
 }
 
-func TestWukongIMV2ThreeNodeScriptDryRunPrintsCommands(t *testing.T) {
+func TestWukongIMThreeNodeScriptDryRunPrintsCommands(t *testing.T) {
 	root := repoRoot(t)
-	outputBin := filepath.Join(t.TempDir(), "wukongimv2")
+	outputBin := filepath.Join(t.TempDir(), "wukongim")
 	logDir := filepath.Join(t.TempDir(), "logs")
 
-	cmd := exec.Command("bash", "scripts/start-wukongimv2-three-nodes.sh",
+	cmd := exec.Command("bash", "scripts/start-wukongim-three-nodes.sh",
 		"--dry-run",
 		"--bin", outputBin,
 		"--log-dir", logDir,
@@ -115,9 +131,25 @@ func TestWukongIMV2ThreeNodeScriptDryRunPrintsCommands(t *testing.T) {
 	cmd.Env = envWithout(
 		"WK_PROMETHEUS_ENABLE",
 		"WK_PROMETHEUS_LISTEN_ADDR",
+		"WK_WUKONGIM_THREE_NODES_BIN",
+		"WK_WUKONGIM_THREE_NODES_LOG_DIR",
+		"WK_WUKONGIM_THREE_NODES_READY_TIMEOUT",
+		"WK_WUKONGIM_THREE_NODES_POLL_INTERVAL",
+		"WK_WUKONGIM_THREE_NODES_PROMETHEUS_ENABLE",
+		"WK_WUKONGIM_THREE_NODES_PROMETHEUS_LISTEN_ADDR",
+		"WK_WUKONGIM_THREE_NODES_PROMETHEUS_DATA_DIR",
+		"WK_WUKONGIM_THREE_NODES_PROMETHEUS_RETENTION_TIME",
+		"WK_WUKONGIM_THREE_NODES_PROMETHEUS_RETENTION_SIZE",
+		"WK_WUKONGIM_THREE_NODES_PROMETHEUS_SCRAPE_INTERVAL",
+		"WK_WUKONGIMV2_THREE_NODES_BIN",
+		"WK_WUKONGIMV2_THREE_NODES_LOG_DIR",
+		"WK_WUKONGIMV2_THREE_NODES_READY_TIMEOUT",
+		"WK_WUKONGIMV2_THREE_NODES_POLL_INTERVAL",
 		"WK_WUKONGIMV2_THREE_NODES_PROMETHEUS_ENABLE",
 		"WK_WUKONGIMV2_THREE_NODES_PROMETHEUS_LISTEN_ADDR",
 		"WK_WUKONGIMV2_THREE_NODES_PROMETHEUS_DATA_DIR",
+		"WK_WUKONGIMV2_THREE_NODES_PROMETHEUS_RETENTION_TIME",
+		"WK_WUKONGIMV2_THREE_NODES_PROMETHEUS_RETENTION_SIZE",
 		"WK_WUKONGIMV2_THREE_NODES_PROMETHEUS_SCRAPE_INTERVAL",
 	)
 	output, err := cmd.CombinedOutput()
@@ -126,11 +158,11 @@ func TestWukongIMV2ThreeNodeScriptDryRunPrintsCommands(t *testing.T) {
 	}
 	text := string(output)
 	for _, want := range []string{
-		"build_cmd=go build -o " + outputBin + " ./cmd/wukongimv2",
+		"build_cmd=go build -o " + outputBin + " ./cmd/wukongim",
 		"prometheus_enable=true",
 		"prometheus_listen_addr=127.0.0.1:9091",
 		"prometheus_scrape_targets=[\"127.0.0.1:5011\",\"127.0.0.1:5012\",\"127.0.0.1:5013\"]",
-		"node1_config=" + filepath.Join(root, "scripts/wukongimv2/wukongimv2-node1.conf"),
+		"node1_config=" + filepath.Join(root, "scripts/wukongim/wukongim-node1.conf"),
 		"node2_ready=http://127.0.0.1:5012/readyz",
 		"node3_log=" + filepath.Join(logDir, "node3.log"),
 	} {
@@ -143,13 +175,13 @@ func TestWukongIMV2ThreeNodeScriptDryRunPrintsCommands(t *testing.T) {
 	}
 }
 
-func TestWukongIMV2ThreeNodeScriptDryRunPrintsPidDirAndAllowedNodeExit(t *testing.T) {
+func TestWukongIMThreeNodeScriptDryRunPrintsPidDirAndAllowedNodeExit(t *testing.T) {
 	root := repoRoot(t)
-	outputBin := filepath.Join(t.TempDir(), "wukongimv2")
+	outputBin := filepath.Join(t.TempDir(), "wukongim")
 	logDir := filepath.Join(t.TempDir(), "logs")
 	pidDir := filepath.Join(t.TempDir(), "pids")
 
-	cmd := exec.Command("bash", "scripts/start-wukongimv2-three-nodes.sh",
+	cmd := exec.Command("bash", "scripts/start-wukongim-three-nodes.sh",
 		"--dry-run",
 		"--bin", outputBin,
 		"--log-dir", logDir,
@@ -160,9 +192,27 @@ func TestWukongIMV2ThreeNodeScriptDryRunPrintsPidDirAndAllowedNodeExit(t *testin
 	cmd.Env = envWithout(
 		"WK_PROMETHEUS_ENABLE",
 		"WK_PROMETHEUS_LISTEN_ADDR",
+		"WK_WUKONGIM_THREE_NODES_BIN",
+		"WK_WUKONGIM_THREE_NODES_LOG_DIR",
+		"WK_WUKONGIM_THREE_NODES_READY_TIMEOUT",
+		"WK_WUKONGIM_THREE_NODES_POLL_INTERVAL",
+		"WK_WUKONGIM_THREE_NODES_PROMETHEUS_ENABLE",
+		"WK_WUKONGIM_THREE_NODES_PROMETHEUS_LISTEN_ADDR",
+		"WK_WUKONGIM_THREE_NODES_PROMETHEUS_DATA_DIR",
+		"WK_WUKONGIM_THREE_NODES_PROMETHEUS_RETENTION_TIME",
+		"WK_WUKONGIM_THREE_NODES_PROMETHEUS_RETENTION_SIZE",
+		"WK_WUKONGIM_THREE_NODES_PROMETHEUS_SCRAPE_INTERVAL",
+		"WK_WUKONGIM_THREE_NODES_PID_DIR",
+		"WK_WUKONGIM_THREE_NODES_ALLOW_NODE_EXIT",
+		"WK_WUKONGIMV2_THREE_NODES_BIN",
+		"WK_WUKONGIMV2_THREE_NODES_LOG_DIR",
+		"WK_WUKONGIMV2_THREE_NODES_READY_TIMEOUT",
+		"WK_WUKONGIMV2_THREE_NODES_POLL_INTERVAL",
 		"WK_WUKONGIMV2_THREE_NODES_PROMETHEUS_ENABLE",
 		"WK_WUKONGIMV2_THREE_NODES_PROMETHEUS_LISTEN_ADDR",
 		"WK_WUKONGIMV2_THREE_NODES_PROMETHEUS_DATA_DIR",
+		"WK_WUKONGIMV2_THREE_NODES_PROMETHEUS_RETENTION_TIME",
+		"WK_WUKONGIMV2_THREE_NODES_PROMETHEUS_RETENTION_SIZE",
 		"WK_WUKONGIMV2_THREE_NODES_PROMETHEUS_SCRAPE_INTERVAL",
 		"WK_WUKONGIMV2_THREE_NODES_PID_DIR",
 		"WK_WUKONGIMV2_THREE_NODES_ALLOW_NODE_EXIT",
@@ -185,7 +235,7 @@ func TestWukongIMV2ThreeNodeScriptDryRunPrintsPidDirAndAllowedNodeExit(t *testin
 	}
 }
 
-func writeFakeGoWukongIMV2Starter(t *testing.T, path string, callsDir string) {
+func writeFakeGoWukongIMStarter(t *testing.T, path string, callsDir string) {
 	t.Helper()
 	script := `#!/usr/bin/env bash
 set -euo pipefail
@@ -201,11 +251,11 @@ case "$1" in
     exit 0
     ;;
   build)
-    if [[ "$2" == "-o" && "$4" == "./cmd/wukongimv2" ]]; then
+    if [[ "$2" == "-o" && "$4" == "./cmd/wukongim" ]]; then
       cat > "$3" <<'BIN'
 #!/usr/bin/env bash
 set -euo pipefail
-echo "$*" >> "` + callsDir + `/wukongimv2.calls"
+echo "$*" >> "` + callsDir + `/wukongim.calls"
 config="<none>"
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -229,7 +279,7 @@ done
   else
     printf '%s WK_PROMETHEUS_BINARY_PATH=<unset>\n' "$config"
   fi
-} >> "` + callsDir + `/wukongimv2.env"
+} >> "` + callsDir + `/wukongim.env"
 trap 'exit 0' TERM INT
 while true; do
   sleep 1
@@ -260,14 +310,14 @@ esac
 	}
 }
 
-func writeFakeWukongIMV2ReadyCurl(t *testing.T, path string, callsDir string) {
+func writeFakeWukongIMReadyCurl(t *testing.T, path string, callsDir string) {
 	t.Helper()
 	script := `#!/usr/bin/env bash
 set -euo pipefail
 calls_dir="` + callsDir + `"
 echo "$*" >> "$calls_dir/curl.calls"
 for _ in $(seq 1 50); do
-  if [[ -f "$calls_dir/wukongimv2.env" ]] && [[ "$(grep -c ' WK_PROMETHEUS_ENABLE=' "$calls_dir/wukongimv2.env" 2>/dev/null || true)" -ge 3 ]]; then
+  if [[ -f "$calls_dir/wukongim.env" ]] && [[ "$(grep -c ' WK_PROMETHEUS_ENABLE=' "$calls_dir/wukongim.env" 2>/dev/null || true)" -ge 3 ]]; then
     echo "ok"
     exit 0
   fi
