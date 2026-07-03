@@ -121,7 +121,7 @@ leadership checks.
 
 ```text
 New(Config)
-  -> validate v2-only config
+  -> validate cluster config
   -> create Router and Discovery
   -> apply optional WithProposer / WithChannels overrides
 

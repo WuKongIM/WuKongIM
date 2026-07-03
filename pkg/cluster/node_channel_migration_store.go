@@ -2,8 +2,8 @@ package cluster
 
 import "github.com/WuKongIM/WuKongIM/pkg/cluster/channels"
 
-// ChannelMigrationStore returns the hosted ChannelV2 migration facade when the
-// ChannelV2 service supports manual migration task management.
+// ChannelMigrationStore returns the hosted Channel migration facade when the
+// Channel service supports manual migration task management.
 func (n *Node) ChannelMigrationStore() *channels.MigrationStore {
 	if n == nil || n.channels == nil {
 		return nil

@@ -17,17 +17,17 @@ type HandlerRegistrar interface {
 	Register(serviceID uint8, handler clusternet.Handler)
 }
 
-// TransportClient implements ChannelV2 transport over cluster typed RPC.
+// TransportClient implements Channel transport over cluster typed RPC.
 type TransportClient struct {
 	caller clusternet.Caller
 }
 
-// NewTransportClient creates a ChannelV2 transport client.
+// NewTransportClient creates a Channel transport client.
 func NewTransportClient(caller clusternet.Caller) *TransportClient {
 	return &TransportClient{caller: caller}
 }
 
-// Pull sends a ChannelV2 pull request to node.
+// Pull sends a Channel pull request to node.
 func (c *TransportClient) Pull(ctx context.Context, node ch.NodeID, req channeltransport.PullRequest) (channeltransport.PullResponse, error) {
 	payload, err := EncodePullRequest(req)
 	if err != nil {
@@ -40,7 +40,7 @@ func (c *TransportClient) Pull(ctx context.Context, node ch.NodeID, req channelt
 	return decodePullResponse(resp)
 }
 
-// PullBatch sends grouped ChannelV2 pull requests to node.
+// PullBatch sends grouped Channel pull requests to node.
 func (c *TransportClient) PullBatch(ctx context.Context, node ch.NodeID, req channeltransport.PullBatchRequest) (channeltransport.PullBatchResponse, error) {
 	payload, err := encodePullBatchRequest(req)
 	if err != nil {
@@ -60,7 +60,7 @@ func (c *TransportClient) PullBatch(ctx context.Context, node ch.NodeID, req cha
 	return decoded, nil
 }
 
-// Ack sends a ChannelV2 acknowledgement to node.
+// Ack sends a Channel acknowledgement to node.
 func (c *TransportClient) Ack(ctx context.Context, node ch.NodeID, req channeltransport.AckRequest) error {
 	payload, err := encodeAckRequest(req)
 	if err != nil {
@@ -73,7 +73,7 @@ func (c *TransportClient) Ack(ctx context.Context, node ch.NodeID, req channeltr
 	return decodeRPCResult(resp, kindAck, nil)
 }
 
-// PullHint sends a ChannelV2 pull hint to node.
+// PullHint sends a Channel pull hint to node.
 func (c *TransportClient) PullHint(ctx context.Context, node ch.NodeID, req channeltransport.PullHintRequest) error {
 	payload, err := encodePullHintRequest(req)
 	if err != nil {
@@ -86,7 +86,7 @@ func (c *TransportClient) PullHint(ctx context.Context, node ch.NodeID, req chan
 	return decodeRPCResult(resp, kindPullHint, nil)
 }
 
-// PullHintBatch sends grouped ChannelV2 pull hints to node.
+// PullHintBatch sends grouped Channel pull hints to node.
 func (c *TransportClient) PullHintBatch(ctx context.Context, node ch.NodeID, req channeltransport.PullHintBatchRequest) (channeltransport.PullHintBatchResponse, error) {
 	payload, err := encodePullHintBatchRequest(req)
 	if err != nil {
@@ -106,7 +106,7 @@ func (c *TransportClient) PullHintBatch(ctx context.Context, node ch.NodeID, req
 	return decoded, nil
 }
 
-// Notify sends a legacy ChannelV2 notify request to node.
+// Notify sends a legacy Channel notify request to node.
 func (c *TransportClient) Notify(ctx context.Context, node ch.NodeID, req channeltransport.NotifyRequest) error {
 	payload, err := encodeNotifyRequest(req)
 	if err != nil {
@@ -173,7 +173,7 @@ func channelForwardShardKey(id ch.ChannelID) uint64 {
 	return h.Sum64()
 }
 
-// RegisterHandlersOn registers ChannelV2 replication handlers on registrar.
+// RegisterHandlersOn registers Channel replication handlers on registrar.
 func RegisterHandlersOn(registrar HandlerRegistrar, server channeltransport.Server) {
 	registrar.Register(clusternet.RPCChannelPull, clusternet.HandlerFunc(func(ctx context.Context, payload []byte) ([]byte, error) {
 		req, err := DecodePullRequest(payload)
@@ -245,12 +245,12 @@ func handlePullHintBatch(ctx context.Context, server channeltransport.Server, re
 	return resp, nil
 }
 
-// RegisterHandlers registers ChannelV2 replication handlers on network for nodeID.
+// RegisterHandlers registers Channel replication handlers on network for nodeID.
 func RegisterHandlers(network *clusternet.LocalNetwork, nodeID uint64, server channeltransport.Server) {
 	RegisterHandlersOn(localNetworkRegistrar{network: network, nodeID: nodeID}, server)
 }
 
-// RegisterServiceHandlersOn registers ChannelV2 replication and append-forward handlers on registrar.
+// RegisterServiceHandlersOn registers Channel replication and append-forward handlers on registrar.
 func RegisterServiceHandlersOn(registrar HandlerRegistrar, service *Service) {
 	RegisterHandlersOn(registrar, service.Server())
 	registrar.Register(clusternet.RPCChannelAppend, clusternet.HandlerFunc(func(ctx context.Context, payload []byte) ([]byte, error) {
@@ -285,7 +285,7 @@ func RegisterServiceHandlersOn(registrar HandlerRegistrar, service *Service) {
 	}))
 }
 
-// RegisterServiceHandlers registers ChannelV2 replication and append-forward handlers on network.
+// RegisterServiceHandlers registers Channel replication and append-forward handlers on network.
 func RegisterServiceHandlers(network *clusternet.LocalNetwork, nodeID uint64, service *Service) {
 	RegisterServiceHandlersOn(localNetworkRegistrar{network: network, nodeID: nodeID}, service)
 }

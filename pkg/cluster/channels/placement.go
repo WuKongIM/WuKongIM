@@ -22,7 +22,7 @@ func NewSlotPlacementResolver(router PlacementRouter, dataNodes DataNodeProvider
 	return &SlotPlacementResolver{router: router, dataNodes: dataNodes, replicaCount: replicaCount}
 }
 
-// ResolveChannelPlacement returns the preferred ChannelV2 leader and peers for id.
+// ResolveChannelPlacement returns the preferred Channel leader and peers for id.
 func (r *SlotPlacementResolver) ResolveChannelPlacement(ctx context.Context, id ch.ChannelID) (ChannelPlacement, error) {
 	if err := ctxErr(ctx); err != nil {
 		return ChannelPlacement{}, err

@@ -18,7 +18,7 @@ const (
 	channelMetaStageFinalRead     = "meta_final_read"
 )
 
-// SlotMetaSource resolves ChannelV2 metadata from Slot authoritative runtime metadata.
+// SlotMetaSource resolves Channel metadata from Slot authoritative runtime metadata.
 type SlotMetaSource struct {
 	reader RuntimeMetaReader
 	writer RuntimeMetaWriter

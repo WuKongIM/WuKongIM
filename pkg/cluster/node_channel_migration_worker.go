@@ -96,7 +96,7 @@ func (n *Node) ControlSnapshot(ctx context.Context) (control.Snapshot, error) {
 	return n.LocalControlSnapshot(ctx)
 }
 
-// ProbeChannel reads one local or remote ChannelV2 runtime proof.
+// ProbeChannel reads one local or remote Channel runtime proof.
 func (n *Node) ProbeChannel(ctx context.Context, nodeID uint64, channelID string, channelType uint8) (ch.RuntimeProbeChannel, error) {
 	if err := ctxErr(ctx); err != nil {
 		return ch.RuntimeProbeChannel{}, err
@@ -121,7 +121,7 @@ func (n *Node) ProbeChannel(ctx context.Context, nodeID uint64, channelID string
 	return *resp.RuntimeProbe, nil
 }
 
-// DrainChannel reads one local or remote ChannelV2 drain proof.
+// DrainChannel reads one local or remote Channel drain proof.
 func (n *Node) DrainChannel(ctx context.Context, nodeID uint64, req ch.DrainChannelRequest) (ch.DrainChannelResult, error) {
 	if err := ctxErr(ctx); err != nil {
 		return ch.DrainChannelResult{}, err
@@ -145,7 +145,7 @@ func (n *Node) DrainChannel(ctx context.Context, nodeID uint64, req ch.DrainChan
 	return *resp.DrainResult, nil
 }
 
-// ApplyChannelMeta applies authoritative runtime metadata to a local or remote ChannelV2 runtime.
+// ApplyChannelMeta applies authoritative runtime metadata to a local or remote Channel runtime.
 func (n *Node) ApplyChannelMeta(ctx context.Context, nodeID uint64, meta metadb.ChannelRuntimeMeta) error {
 	if err := ctxErr(ctx); err != nil {
 		return err

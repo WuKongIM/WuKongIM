@@ -18,7 +18,7 @@ import (
 
 const minDefaultChannelReactorCount = 4
 
-// Config contains v2-only cluster runtime configuration.
+// Config contains cluster runtime configuration.
 type Config struct {
 	// NodeID is the non-zero stable node identity.
 	NodeID uint64
@@ -33,11 +33,11 @@ type Config struct {
 	Join JoinConfig
 	// Slots contains Slot runtime sizing and placement defaults.
 	Slots SlotConfig
-	// Channel contains ChannelV2 service configuration.
+	// Channel contains Channel service configuration.
 	Channel ChannelConfig
-	// ChannelMigration contains bounded ChannelV2 failover and repair worker settings.
+	// ChannelMigration contains bounded Channel failover and repair worker settings.
 	ChannelMigration ChannelMigrationConfig
-	// ChannelRetention contains node-owned ChannelV2 physical retention cleanup settings.
+	// ChannelRetention contains node-owned Channel physical retention cleanup settings.
 	ChannelRetention ChannelRetentionConfig
 	// HealthReport controls low-frequency node health reporting to Controller.
 	HealthReport HealthReportConfig
@@ -137,49 +137,49 @@ type SlotConfig struct {
 	ReplicaMoveObserver SlotReplicaMoveObserver
 }
 
-// ChannelConfig contains ChannelV2 service configuration.
+// ChannelConfig contains Channel service configuration.
 type ChannelConfig struct {
-	// ReplicaCount is the desired ChannelV2 data replica count for newly created channels. Zero defaults to Slots.ReplicaCount.
+	// ReplicaCount is the desired Channel data replica count for newly created channels. Zero defaults to Slots.ReplicaCount.
 	ReplicaCount uint16
-	// ReactorCount is the number of ChannelV2 reactor partitions. Zero derives a CPU-aware default.
+	// ReactorCount is the number of Channel reactor partitions. Zero derives a CPU-aware default.
 	ReactorCount int
-	// StoreAppendWorkers caps blocking leader append store workers. Zero keeps the ChannelV2 runtime default.
+	// StoreAppendWorkers caps blocking leader append store workers. Zero keeps the Channel runtime default.
 	StoreAppendWorkers int
-	// StoreAppendBatchMaxWait overrides store-append worker cross-channel coalescing wait. Zero keeps the ChannelV2 worker default.
+	// StoreAppendBatchMaxWait overrides store-append worker cross-channel coalescing wait. Zero keeps the Channel worker default.
 	StoreAppendBatchMaxWait time.Duration
-	// StoreApplyWorkers caps blocking follower apply store workers. Zero keeps the ChannelV2 runtime default.
+	// StoreApplyWorkers caps blocking follower apply store workers. Zero keeps the Channel runtime default.
 	StoreApplyWorkers int
-	// RPCWorkers caps blocking ChannelV2 replication RPC workers. Zero keeps the ChannelV2 runtime default.
+	// RPCWorkers caps blocking Channel replication RPC workers. Zero keeps the Channel runtime default.
 	RPCWorkers int
-	// MailboxSize bounds each ChannelV2 reactor mailbox.
+	// MailboxSize bounds each Channel reactor mailbox.
 	MailboxSize int
-	// MaxChannels bounds loaded ChannelV2 runtimes on this node. Zero keeps unlimited behavior.
+	// MaxChannels bounds loaded Channel runtimes on this node. Zero keeps unlimited behavior.
 	MaxChannels int
-	// AppendBatchMaxRecords is the queued ChannelV2 record count that triggers a store append flush. Zero keeps the runtime default.
+	// AppendBatchMaxRecords is the queued Channel record count that triggers a store append flush. Zero keeps the runtime default.
 	AppendBatchMaxRecords int
-	// AppendBatchMaxWait is the maximum age of the oldest queued ChannelV2 append before flushing. Zero keeps the runtime default.
+	// AppendBatchMaxWait is the maximum age of the oldest queued Channel append before flushing. Zero keeps the runtime default.
 	AppendBatchMaxWait time.Duration
 	// AppendBatchAdaptiveFlush enables a shorter cold-channel flush delay before the normal append batch window.
 	AppendBatchAdaptiveFlush bool
 	// AppendBatchColdMaxWait is the cold-channel flush delay used when AppendBatchAdaptiveFlush is enabled. Zero keeps the normal batch window.
 	AppendBatchColdMaxWait time.Duration
-	// FollowerRecoveryProbeInterval is the base delay for parked follower recovery probes. Zero keeps the ChannelV2 runtime default.
+	// FollowerRecoveryProbeInterval is the base delay for parked follower recovery probes. Zero keeps the Channel runtime default.
 	FollowerRecoveryProbeInterval time.Duration
-	// FollowerRecoveryProbeJitter spreads parked follower recovery probes across this bounded window. Zero keeps the ChannelV2 runtime default.
+	// FollowerRecoveryProbeJitter spreads parked follower recovery probes across this bounded window. Zero keeps the Channel runtime default.
 	FollowerRecoveryProbeJitter time.Duration
-	// TickInterval controls how often Node-owned loops call ChannelV2 Tick.
+	// TickInterval controls how often Node-owned loops call Channel Tick.
 	TickInterval time.Duration
-	// Observer receives lightweight ChannelV2 reactor and worker metrics.
+	// Observer receives lightweight Channel reactor and worker metrics.
 	Observer reactor.Observer
 }
 
-// ChannelMigrationConfig contains node-owned ChannelV2 migration worker settings.
+// ChannelMigrationConfig contains node-owned Channel migration worker settings.
 type ChannelMigrationConfig struct {
 	// Enabled starts the bounded background worker that advances migration tasks and creates repair work.
 	Enabled bool
 	// EnabledSet records whether Enabled was explicitly configured.
 	EnabledSet bool
-	// ScanInterval controls how often the node scans and advances ChannelV2 migration work.
+	// ScanInterval controls how often the node scans and advances Channel migration work.
 	ScanInterval time.Duration
 	// ScanLimit caps channel runtime metadata rows read from one Slot page per scanner tick.
 	ScanLimit int
@@ -191,7 +191,7 @@ type ChannelMigrationConfig struct {
 	TaskLimit int
 }
 
-// ChannelRetentionConfig contains node-owned ChannelV2 physical cleanup settings.
+// ChannelRetentionConfig contains node-owned Channel physical cleanup settings.
 type ChannelRetentionConfig struct {
 	// PhysicalGCEnabled enables the background local physical retention cleanup loop.
 	PhysicalGCEnabled bool

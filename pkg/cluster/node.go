@@ -59,9 +59,9 @@ type Node struct {
 	slots            slotReconciler
 	tasks            taskExecutor
 	channels         channelService
-	// channelDataNodes tracks health-schedulable data nodes for default ChannelV2 placement.
+	// channelDataNodes tracks health-schedulable data nodes for default Channel placement.
 	channelDataNodes dataNodeView
-	// channelDataPlaneLease gates local ChannelV2 leader appends on fresh control visibility.
+	// channelDataPlaneLease gates local Channel leader appends on fresh control visibility.
 	channelDataPlaneLease *channelDataPlaneLeaseGuard
 	// defaultControl reports whether Node constructed the Controller runtime.
 	defaultControl bool
@@ -159,7 +159,7 @@ func withTaskExecutor(executor taskExecutor) Option {
 	return func(n *Node) { n.tasks = executor }
 }
 
-// WithChannels overrides the default ChannelV2 service hosted by Node.
+// WithChannels overrides the default Channel service hosted by Node.
 func WithChannels(service *channels.Service) Option {
 	return func(n *Node) {
 		n.channels = service
@@ -469,7 +469,7 @@ func (n *Node) routeWithAuthorityEpoch(route Route, err error) (Route, error) {
 	return route, nil
 }
 
-// AppendChannel appends one message through the hosted ChannelV2 service.
+// AppendChannel appends one message through the hosted Channel service.
 func (n *Node) AppendChannel(ctx context.Context, req channelv2.AppendRequest) (channelv2.AppendResult, error) {
 	if err := ctxErr(ctx); err != nil {
 		return channelv2.AppendResult{}, err
@@ -483,7 +483,7 @@ func (n *Node) AppendChannel(ctx context.Context, req channelv2.AppendRequest) (
 	return n.channels.Append(ctx, req)
 }
 
-// AppendChannelBatch appends a batch of messages through the hosted ChannelV2 service.
+// AppendChannelBatch appends a batch of messages through the hosted Channel service.
 func (n *Node) AppendChannelBatch(ctx context.Context, req channelv2.AppendBatchRequest) (channelv2.AppendBatchResult, error) {
 	if err := ctxErr(ctx); err != nil {
 		return channelv2.AppendBatchResult{}, err
@@ -497,7 +497,7 @@ func (n *Node) AppendChannelBatch(ctx context.Context, req channelv2.AppendBatch
 	return n.channels.AppendBatch(ctx, req)
 }
 
-// ResolveChannelAppendAuthority resolves the ChannelV2 append authority through the hosted service.
+// ResolveChannelAppendAuthority resolves the Channel append authority through the hosted service.
 func (n *Node) ResolveChannelAppendAuthority(ctx context.Context, id channelv2.ChannelID) (channelv2.Meta, error) {
 	if err := ctxErr(ctx); err != nil {
 		return channelv2.Meta{}, err
@@ -511,7 +511,7 @@ func (n *Node) ResolveChannelAppendAuthority(ctx context.Context, id channelv2.C
 	return n.channels.ResolveAppendAuthority(ctx, id)
 }
 
-// ReadChannelCommitted reads locally committed channel messages from the Node-created ChannelV2 store.
+// ReadChannelCommitted reads locally committed channel messages from the Node-created Channel store.
 func (n *Node) ReadChannelCommitted(ctx context.Context, id channelv2.ChannelID, req channelstore.ReadCommittedRequest) (channelstore.ReadCommittedResult, error) {
 	if err := ctxErr(ctx); err != nil {
 		return channelstore.ReadCommittedResult{}, err
@@ -541,7 +541,7 @@ func (n *Node) ReadChannelCommitted(ctx context.Context, id channelv2.ChannelID,
 	return store.ReadCommitted(ctx, req)
 }
 
-// LookupChannelIdempotency reads one local ChannelV2 idempotency index entry.
+// LookupChannelIdempotency reads one local Channel idempotency index entry.
 func (n *Node) LookupChannelIdempotency(ctx context.Context, id channelv2.ChannelID, fromUID string, clientMsgNo string) (channelstore.IdempotencyHit, bool, error) {
 	if err := ctxErr(ctx); err != nil {
 		return channelstore.IdempotencyHit{}, false, err

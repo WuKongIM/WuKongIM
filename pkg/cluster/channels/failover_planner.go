@@ -34,7 +34,7 @@ type FailoverDecision struct {
 type FailoverCandidateProbe struct {
 	// NodeID is the candidate node that produced Probe.
 	NodeID uint64
-	// Probe contains the candidate's loaded ChannelV2 runtime proof.
+	// Probe contains the candidate's loaded Channel runtime proof.
 	Probe ch.RuntimeProbeChannel
 	// PendingTruncationBelowSafePrefix blocks candidates with unsafe local truncation.
 	PendingTruncationBelowSafePrefix bool

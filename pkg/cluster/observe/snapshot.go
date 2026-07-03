@@ -8,7 +8,7 @@ type RuntimeSnapshot struct {
 	RoutesReady bool
 	// SlotsReady reports whether local Slot reconciliation completed.
 	SlotsReady bool
-	// ChannelsReady reports whether ChannelV2 is initialized.
+	// ChannelsReady reports whether Channel is initialized.
 	ChannelsReady bool
 }
 

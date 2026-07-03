@@ -10,13 +10,13 @@ const (
 const (
 	// RPCSlotForwardPropose forwards one Slot metadata proposal to the Slot leader.
 	RPCSlotForwardPropose uint8 = 1 + iota
-	// RPCChannelPull serves ChannelV2 follower pull requests.
+	// RPCChannelPull serves Channel follower pull requests.
 	RPCChannelPull
-	// RPCChannelAck serves ChannelV2 follower acknowledgements.
+	// RPCChannelAck serves Channel follower acknowledgements.
 	RPCChannelAck
-	// RPCChannelPullHint serves ChannelV2 pull hints.
+	// RPCChannelPullHint serves Channel pull hints.
 	RPCChannelPullHint
-	// RPCChannelNotify serves legacy ChannelV2 notify requests.
+	// RPCChannelNotify serves legacy Channel notify requests.
 	RPCChannelNotify
 	// RPCControlStateSync serves Controller state sync requests.
 	RPCControlStateSync
@@ -24,9 +24,9 @@ const (
 	RPCControlReportNode
 	// RPCControlReportSlots serves Slot runtime report requests.
 	RPCControlReportSlots
-	// RPCChannelAppend forwards one ChannelV2 append request to the channel leader.
+	// RPCChannelAppend forwards one Channel append request to the channel leader.
 	RPCChannelAppend
-	// RPCChannelAppendBatch forwards one ChannelV2 append batch request to the channel leader.
+	// RPCChannelAppendBatch forwards one Channel append batch request to the channel leader.
 	RPCChannelAppendBatch
 	// RPCControlRaft carries Controller Raft protocol messages.
 	RPCControlRaft
@@ -40,11 +40,11 @@ const (
 	RPCDeliveryPush
 	// RPCDeliveryFanout serves internal authority-node delivery fanout tasks.
 	RPCDeliveryFanout
-	// RPCChannelPullBatch serves grouped ChannelV2 follower pull requests.
+	// RPCChannelPullBatch serves grouped Channel follower pull requests.
 	RPCChannelPullBatch
-	// RPCChannelPullHintBatch serves grouped ChannelV2 pull hints.
+	// RPCChannelPullHintBatch serves grouped Channel pull hints.
 	RPCChannelPullHintBatch
-	// RPCChannelLastVisible serves routed ChannelV2 last-visible message reads.
+	// RPCChannelLastVisible serves routed Channel last-visible message reads.
 	RPCChannelLastVisible
 	// RPCConversationAuthority serves internal UID conversation authority cache requests.
 	RPCConversationAuthority

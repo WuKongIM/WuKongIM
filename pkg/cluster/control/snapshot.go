@@ -12,7 +12,7 @@ type Role string
 const (
 	// RoleController marks a node that can participate in Controller coordination.
 	RoleController Role = "controller"
-	// RoleData marks a node that can host physical Slot replicas and ChannelV2 data replicas.
+	// RoleData marks a node that can host physical Slot replicas and Channel data replicas.
 	RoleData Role = "data"
 )
 
@@ -64,7 +64,7 @@ type NodeHealth struct {
 	ErrorCode string
 }
 
-// ChannelDataPlaneLease describes this node's local ChannelV2 append visibility lease.
+// ChannelDataPlaneLease describes this node's local Channel append visibility lease.
 type ChannelDataPlaneLease struct {
 	// LastVisibleAt is the last successful control visibility timestamp for local append admission.
 	LastVisibleAt time.Time

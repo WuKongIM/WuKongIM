@@ -8,7 +8,7 @@ import (
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
 )
 
-// channelDataPlaneLeaseGuard gates local ChannelV2 leader appends on recent control visibility.
+// channelDataPlaneLeaseGuard gates local Channel leader appends on recent control visibility.
 type channelDataPlaneLeaseGuard struct {
 	// now supplies the current time for freshness checks.
 	now func() time.Time

@@ -8,7 +8,7 @@ import (
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
-// ChannelMetaSource resolves authoritative ChannelV2 metadata.
+// ChannelMetaSource resolves authoritative Channel metadata.
 type ChannelMetaSource interface {
 	// ResolveChannelMeta returns metadata for id.
 	ResolveChannelMeta(context.Context, ch.ChannelID) (ch.Meta, error)
@@ -32,11 +32,11 @@ type RuntimeMetaWriter interface {
 	UpsertChannelRuntimeMeta(context.Context, metadb.ChannelRuntimeMeta) error
 }
 
-// ChannelPlacement describes the initial ChannelV2 data-plane placement.
+// ChannelPlacement describes the initial Channel data-plane placement.
 type ChannelPlacement struct {
-	// Leader is the initial ChannelV2 leader.
+	// Leader is the initial Channel leader.
 	Leader ch.NodeID
-	// Replicas are the initial ChannelV2 replicas.
+	// Replicas are the initial Channel replicas.
 	Replicas []ch.NodeID
 	// MinISR is the initial write quorum size.
 	MinISR int
@@ -54,18 +54,18 @@ type PlacementRouter interface {
 	RouteKey(string) (routing.Route, error)
 }
 
-// DataNodeProvider returns active data-node candidates for initial ChannelV2 placement.
+// DataNodeProvider returns active data-node candidates for initial Channel placement.
 type DataNodeProvider interface {
 	DataNodes() []uint64
 }
 
 // SlotMetaSourceOptions configures first-append metadata creation.
 type SlotMetaSourceOptions struct {
-	// DefaultReplicas are the initial ChannelV2 replicas when metadata is missing.
+	// DefaultReplicas are the initial Channel replicas when metadata is missing.
 	DefaultReplicas []ch.NodeID
 	// DefaultMinISR is the initial write quorum; defaults to 1 when replicas exist.
 	DefaultMinISR int
-	// Placement resolves initial ChannelV2 data replicas after Slot route readiness.
+	// Placement resolves initial Channel data replicas after Slot route readiness.
 	Placement ChannelPlacementResolver
 	// Writer persists missing metadata; when nil, reader is used if it implements RuntimeMetaWriter.
 	Writer RuntimeMetaWriter

@@ -11,7 +11,7 @@ import (
 
 const maxWriteProbePhysicalSlots = 4
 
-// ProbeWriteReady verifies that Slot metadata writes and new ChannelV2 placement can proceed.
+// ProbeWriteReady verifies that Slot metadata writes and new Channel placement can proceed.
 func (n *Node) ProbeWriteReady(ctx context.Context) error {
 	if err := ctxErr(ctx); err != nil {
 		return err

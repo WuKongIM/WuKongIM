@@ -6,7 +6,7 @@ import (
 	channelv2 "github.com/WuKongIM/WuKongIM/pkg/channel"
 )
 
-// ChannelRuntimeSnapshot returns local ChannelV2 runtime state for benchmark controllers.
+// ChannelRuntimeSnapshot returns local Channel runtime state for benchmark controllers.
 func (n *Node) ChannelRuntimeSnapshot(ctx context.Context) (channelv2.RuntimeSnapshot, error) {
 	if err := ctxErr(ctx); err != nil {
 		return channelv2.RuntimeSnapshot{}, err
@@ -27,7 +27,7 @@ func (n *Node) ChannelRuntimeSnapshot(ctx context.Context) (channelv2.RuntimeSna
 	return out, nil
 }
 
-// ChannelRuntimeProbe checks selected local ChannelV2 runtimes for benchmark controllers.
+// ChannelRuntimeProbe checks selected local Channel runtimes for benchmark controllers.
 func (n *Node) ChannelRuntimeProbe(ctx context.Context, selector channelv2.RuntimeSelector) (channelv2.RuntimeProbeResult, error) {
 	if err := ctxErr(ctx); err != nil {
 		return channelv2.RuntimeProbeResult{}, err
@@ -41,7 +41,7 @@ func (n *Node) ChannelRuntimeProbe(ctx context.Context, selector channelv2.Runti
 	return n.channels.RuntimeProbe(ctx, selector)
 }
 
-// ChannelRuntimeEvict evicts selected local ChannelV2 runtimes for benchmark controllers.
+// ChannelRuntimeEvict evicts selected local Channel runtimes for benchmark controllers.
 func (n *Node) ChannelRuntimeEvict(ctx context.Context, selector channelv2.RuntimeSelector) (channelv2.RuntimeEvictResult, error) {
 	if err := ctxErr(ctx); err != nil {
 		return channelv2.RuntimeEvictResult{}, err

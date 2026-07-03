@@ -17,7 +17,7 @@ const (
 	maxMigrationChannelType  = int64(^uint8(0))
 )
 
-// MigrationCommandProposer submits encoded ChannelV2 migration commands to a physical Slot.
+// MigrationCommandProposer submits encoded Channel migration commands to a physical Slot.
 type MigrationCommandProposer interface {
 	// ProposeChannelMigrationCommand proposes command to the physical Slot that owns hashSlot.
 	ProposeChannelMigrationCommand(ctx context.Context, slotID uint32, hashSlot uint16, command []byte) error
@@ -53,7 +53,7 @@ type MigrationStoreConfig struct {
 	FenceTTL time.Duration
 }
 
-// MigrationStore is a typed facade over Slot-owned ChannelV2 migration rows.
+// MigrationStore is a typed facade over Slot-owned Channel migration rows.
 type MigrationStore struct {
 	localNode uint64
 	router    PlacementRouter
@@ -66,7 +66,7 @@ type MigrationStore struct {
 
 // CreateLeaderTransferRequest creates a manual leader-transfer migration task.
 type CreateLeaderTransferRequest struct {
-	// ChannelID identifies the ChannelV2 runtime metadata row.
+	// ChannelID identifies the Channel runtime metadata row.
 	ChannelID ch.ChannelID
 	// TaskID is the durable migration task identity.
 	TaskID string
@@ -76,7 +76,7 @@ type CreateLeaderTransferRequest struct {
 
 // CreateLeaderFailoverRequest creates an automatic dead-leader failover task.
 type CreateLeaderFailoverRequest struct {
-	// ChannelID identifies the ChannelV2 runtime metadata row.
+	// ChannelID identifies the Channel runtime metadata row.
 	ChannelID ch.ChannelID
 	// TaskID is the durable migration task identity.
 	TaskID string
@@ -90,7 +90,7 @@ type CreateLeaderFailoverRequest struct {
 
 // CreateReplicaReplaceRequest creates a manual replica-replacement migration task.
 type CreateReplicaReplaceRequest struct {
-	// ChannelID identifies the ChannelV2 runtime metadata row.
+	// ChannelID identifies the Channel runtime metadata row.
 	ChannelID ch.ChannelID
 	// TaskID is the durable migration task identity.
 	TaskID string
@@ -100,7 +100,7 @@ type CreateReplicaReplaceRequest struct {
 	TargetNode ch.NodeID
 }
 
-// NewMigrationStore creates a Slot-backed ChannelV2 migration facade.
+// NewMigrationStore creates a Slot-backed Channel migration facade.
 func NewMigrationStore(cfg MigrationStoreConfig) *MigrationStore {
 	now := cfg.Now
 	if now == nil {

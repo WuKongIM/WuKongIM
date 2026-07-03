@@ -88,7 +88,7 @@ type Snapshot struct {
 	RoutesReady bool
 	// SlotsReady reports whether local assigned Slots have been opened or bootstrapped.
 	SlotsReady bool
-	// ChannelsReady reports whether the ChannelV2 service is available.
+	// ChannelsReady reports whether the Channel service is available.
 	ChannelsReady bool
 	// SlotCount is the number of physical Slots in the current control view.
 	SlotCount uint32

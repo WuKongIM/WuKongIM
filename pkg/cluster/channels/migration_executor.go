@@ -29,7 +29,7 @@ type MigrationTaskStore interface {
 	ClearWriteFence(ctx context.Context, task metadb.ChannelMigrationTask) error
 }
 
-// MigrationRuntime reads remote/local ChannelV2 runtime proof for migration phases.
+// MigrationRuntime reads remote/local Channel runtime proof for migration phases.
 type MigrationRuntime interface {
 	ProbeChannel(ctx context.Context, nodeID uint64, channelID string, channelType uint8) (ch.RuntimeProbeChannel, error)
 	DrainChannel(ctx context.Context, nodeID uint64, req ch.DrainChannelRequest) (ch.DrainChannelResult, error)
@@ -46,7 +46,7 @@ type MigrationObserver interface {
 	WriteFenceDuration(taskID string, fenceVersion uint64, d time.Duration)
 }
 
-// MigrationExecutorConfig wires a bounded ChannelV2 migration executor.
+// MigrationExecutorConfig wires a bounded Channel migration executor.
 type MigrationExecutorConfig struct {
 	// LocalNode is the owner node id used when claiming tasks.
 	LocalNode uint64
@@ -54,7 +54,7 @@ type MigrationExecutorConfig struct {
 	Source MigrationTaskSource
 	// Store persists phase transitions through Slot-owned guarded commands.
 	Store MigrationTaskStore
-	// Runtime probes and drains ChannelV2 runtimes.
+	// Runtime probes and drains Channel runtimes.
 	Runtime MigrationRuntime
 	// Meta reads authoritative runtime metadata.
 	Meta RuntimeMetaReader
@@ -66,7 +66,7 @@ type MigrationExecutorConfig struct {
 	TaskLimit int
 }
 
-// MigrationExecutor advances bounded ChannelV2 migration tasks one durable phase per tick.
+// MigrationExecutor advances bounded Channel migration tasks one durable phase per tick.
 type MigrationExecutor struct {
 	localNode uint64
 	source    MigrationTaskSource

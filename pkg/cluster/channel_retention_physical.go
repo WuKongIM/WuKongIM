@@ -24,7 +24,7 @@ type ChannelRetentionGCResult struct {
 	Errors int
 }
 
-// ChannelRetentionView returns local ChannelV2 retention state.
+// ChannelRetentionView returns local Channel retention state.
 func (n *Node) ChannelRetentionView(ctx context.Context, id channelv2.ChannelID) (channelv2.RetentionView, error) {
 	if err := ctxErr(ctx); err != nil {
 		return channelv2.RetentionView{}, err

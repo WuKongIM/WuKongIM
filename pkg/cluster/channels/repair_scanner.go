@@ -16,7 +16,7 @@ const (
 	defaultRepairScannerMaxTasksPerTick = 1
 )
 
-// RepairScannerConfig bounds one ChannelV2 repair scanner tick.
+// RepairScannerConfig bounds one Channel repair scanner tick.
 type RepairScannerConfig struct {
 	Enabled         bool
 	PageLimit       int
@@ -28,7 +28,7 @@ type RepairScannerConfig struct {
 	TickInterval time.Duration
 }
 
-// RepairObserver receives low-cardinality ChannelV2 repair scanner observations.
+// RepairObserver receives low-cardinality Channel repair scanner observations.
 type RepairObserver interface {
 	RepairScanPages(pages int)
 	RepairScanBacklog(backlog int)
@@ -40,7 +40,7 @@ type RepairObserver interface {
 type RepairScannerRuntimeMeta struct {
 	// HashSlot is the channel-owned hash slot shard that stored Meta.
 	HashSlot uint16
-	// Meta is the durable ChannelV2 runtime metadata row.
+	// Meta is the durable Channel runtime metadata row.
 	Meta metadb.ChannelRuntimeMeta
 }
 
@@ -86,7 +86,7 @@ type RepairScanner struct {
 	repair  ReplicaRepairPlanner
 }
 
-// NewRepairScanner creates a bounded ChannelV2 repair scanner.
+// NewRepairScanner creates a bounded Channel repair scanner.
 func NewRepairScanner(cfg RepairScannerConfig, source RepairScannerSource, store RepairScannerStore) *RepairScanner {
 	if cfg.PageLimit <= 0 {
 		cfg.PageLimit = defaultRepairScannerPageLimit

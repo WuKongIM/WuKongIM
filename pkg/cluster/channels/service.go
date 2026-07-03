@@ -65,29 +65,29 @@ type LastVisibleResponse struct {
 	Found bool
 }
 
-// Config wires a ChannelV2 service wrapper.
+// Config wires a Channel service wrapper.
 type Config struct {
-	// Runtime optionally supplies an already constructed ChannelV2 runtime.
+	// Runtime optionally supplies an already constructed Channel runtime.
 	Runtime any
-	// LocalNode is this node's ChannelV2 node ID when constructing Runtime.
+	// LocalNode is this node's Channel node ID when constructing Runtime.
 	LocalNode ch.NodeID
-	// ReactorCount is the number of ChannelV2 reactor partitions.
+	// ReactorCount is the number of Channel reactor partitions.
 	ReactorCount int
-	// StoreAppendWorkers caps blocking leader append store workers. Zero keeps the ChannelV2 runtime default.
+	// StoreAppendWorkers caps blocking leader append store workers. Zero keeps the Channel runtime default.
 	StoreAppendWorkers int
-	// StoreAppendBatchMaxWait overrides store-append worker cross-channel coalescing wait. Zero keeps the ChannelV2 worker default.
+	// StoreAppendBatchMaxWait overrides store-append worker cross-channel coalescing wait. Zero keeps the Channel worker default.
 	StoreAppendBatchMaxWait time.Duration
-	// StoreApplyWorkers caps blocking follower apply store workers. Zero keeps the ChannelV2 runtime default.
+	// StoreApplyWorkers caps blocking follower apply store workers. Zero keeps the Channel runtime default.
 	StoreApplyWorkers int
-	// RPCWorkers caps blocking ChannelV2 replication RPC workers. Zero keeps the ChannelV2 runtime default.
+	// RPCWorkers caps blocking Channel replication RPC workers. Zero keeps the Channel runtime default.
 	RPCWorkers int
-	// MailboxSize bounds each ChannelV2 reactor mailbox.
+	// MailboxSize bounds each Channel reactor mailbox.
 	MailboxSize int
-	// MaxChannels bounds loaded ChannelV2 runtimes on this node. Zero keeps unlimited behavior.
+	// MaxChannels bounds loaded Channel runtimes on this node. Zero keeps unlimited behavior.
 	MaxChannels int
-	// AppendBatchMaxRecords is the queued ChannelV2 record count that triggers a store append flush.
+	// AppendBatchMaxRecords is the queued Channel record count that triggers a store append flush.
 	AppendBatchMaxRecords int
-	// AppendBatchMaxWait is the maximum age of the oldest queued ChannelV2 append before flushing.
+	// AppendBatchMaxWait is the maximum age of the oldest queued Channel append before flushing.
 	AppendBatchMaxWait time.Duration
 	// AppendBatchAdaptiveFlush enables a shorter cold-channel flush delay before the normal append batch window.
 	AppendBatchAdaptiveFlush bool
@@ -97,13 +97,13 @@ type Config struct {
 	FollowerRecoveryProbeInterval time.Duration
 	// FollowerRecoveryProbeJitter spreads parked follower recovery probes across this bounded window.
 	FollowerRecoveryProbeJitter time.Duration
-	// Observer receives lightweight ChannelV2 reactor and worker metrics.
+	// Observer receives lightweight Channel reactor and worker metrics.
 	Observer reactor.Observer
-	// AppendAdmissionGuard can reject local leader appends before ChannelV2 reactor admission.
+	// AppendAdmissionGuard can reject local leader appends before Channel reactor admission.
 	AppendAdmissionGuard ch.AppendAdmissionGuard
-	// Store opens ChannelV2 stores when constructing Runtime.
+	// Store opens Channel stores when constructing Runtime.
 	Store channelstore.Factory
-	// Transport sends ChannelV2 replication RPCs when constructing Runtime.
+	// Transport sends Channel replication RPCs when constructing Runtime.
 	Transport channeltransport.Client
 	// MetaSource resolves authoritative channel metadata.
 	MetaSource ChannelMetaSource
@@ -113,7 +113,7 @@ type Config struct {
 	MigrationStore *MigrationStore
 }
 
-// Service wraps ChannelV2 and exposes both client and replication surfaces.
+// Service wraps Channel and exposes both client and replication surfaces.
 type Service struct {
 	runtime    channelRuntime
 	localNode  ch.NodeID
@@ -168,10 +168,10 @@ func NewService(cfg Config) (*Service, error) {
 	return &Service{runtime: combined, localNode: cfg.LocalNode, metaSource: cfg.MetaSource, ensurer: ensurer, forward: cfg.Forward, store: cfg.Store, observer: cfg.Observer, migration: cfg.MigrationStore}, nil
 }
 
-// Runtime returns the ChannelV2 public cluster surface.
+// Runtime returns the Channel public cluster surface.
 func (s *Service) Runtime() ch.Cluster { return s.runtime }
 
-// Server returns the ChannelV2 replication server surface.
+// Server returns the Channel replication server surface.
 func (s *Service) Server() channeltransport.Server { return s.runtime }
 
 // MigrationStore returns the Slot-backed migration facade, when configured.
@@ -182,7 +182,7 @@ func (s *Service) MigrationStore() *MigrationStore {
 	return s.migration
 }
 
-// ApplyMeta applies authoritative metadata to the local ChannelV2 runtime.
+// ApplyMeta applies authoritative metadata to the local Channel runtime.
 func (s *Service) ApplyMeta(meta ch.Meta) error { return s.runtime.ApplyMeta(meta) }
 
 // Append appends one message.
@@ -221,10 +221,10 @@ func (s *Service) ResolveAppendAuthority(ctx context.Context, id ch.ChannelID) (
 	return meta, nil
 }
 
-// Tick advances ChannelV2 background work.
+// Tick advances Channel background work.
 func (s *Service) Tick(ctx context.Context) error { return s.runtime.Tick(ctx) }
 
-// Close closes the ChannelV2 runtime.
+// Close closes the Channel runtime.
 func (s *Service) Close() error { return s.runtime.Close() }
 
 // ReadChannelLastVisible reads the newest visible message from the authoritative channel leader.

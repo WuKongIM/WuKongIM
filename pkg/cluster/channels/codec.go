@@ -34,12 +34,12 @@ const (
 	kindLastVisibleResponse
 )
 
-// EncodePullRequest encodes a ChannelV2 pull request.
+// EncodePullRequest encodes a Channel pull request.
 func EncodePullRequest(req channeltransport.PullRequest) ([]byte, error) {
 	return encodeFrame(kindPull, appendPullRequest(nil, req)), nil
 }
 
-// DecodePullRequest decodes a ChannelV2 pull request.
+// DecodePullRequest decodes a Channel pull request.
 func DecodePullRequest(data []byte) (channeltransport.PullRequest, error) {
 	payload, err := decodeFrame(data, kindPull)
 	if err != nil {
