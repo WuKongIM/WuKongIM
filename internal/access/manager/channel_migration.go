@@ -12,7 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// ChannelMigrationRequest is the common manager JSON body for ChannelV2 migration writes.
+// ChannelMigrationRequest is the common manager JSON body for Channel migration writes.
 type ChannelMigrationRequest struct {
 	// ChannelID is the logical channel identifier.
 	ChannelID string `json:"channel_id"`
@@ -28,7 +28,7 @@ type ChannelMigrationRequest struct {
 	Reason string `json:"reason,omitempty"`
 }
 
-// ChannelMigrationResponse is one manager-facing ChannelV2 migration task.
+// ChannelMigrationResponse is one manager-facing Channel migration task.
 type ChannelMigrationResponse struct {
 	// TaskID is the durable migration task identity.
 	TaskID string `json:"task_id"`

@@ -127,9 +127,9 @@ type Management interface {
 	ListBusinessChannels(ctx context.Context, req managementusecase.ListBusinessChannelsRequest) (managementusecase.ListBusinessChannelsResponse, error)
 	// ListChannelRuntimeMeta returns manager-facing channel runtime metadata rows.
 	ListChannelRuntimeMeta(ctx context.Context, req managementusecase.ListChannelRuntimeMetaRequest) (managementusecase.ListChannelRuntimeMetaResponse, error)
-	// RequestChannelLeaderTransfer submits a manual ChannelV2 leader transfer.
+	// RequestChannelLeaderTransfer submits a manual Channel leader transfer.
 	RequestChannelLeaderTransfer(ctx context.Context, req managementusecase.LeaderTransferInput) (managementusecase.ChannelMigrationSummary, error)
-	// RequestChannelReplicaReplace submits a manual ChannelV2 replica replacement.
+	// RequestChannelReplicaReplace submits a manual Channel replica replacement.
 	RequestChannelReplicaReplace(ctx context.Context, req managementusecase.ReplicaReplaceInput) (managementusecase.ChannelMigrationSummary, error)
 	// ActiveChannelMigration returns the active migration task for one channel.
 	ActiveChannelMigration(ctx context.Context, req managementusecase.ChannelMigrationListInput) (managementusecase.ChannelMigrationSummary, bool, error)

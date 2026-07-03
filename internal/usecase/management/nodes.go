@@ -135,7 +135,7 @@ type Options struct {
 	ControllerRaftStatusObserver ControllerRaftStatusObserver
 	// ChannelRuntimeMeta scans channel runtime metadata for cluster channel pages.
 	ChannelRuntimeMeta ChannelRuntimeMetaReader
-	// ChannelMigration creates and reads ChannelV2 migration tasks.
+	// ChannelMigration creates and reads Channel migration tasks.
 	ChannelMigration ChannelMigrationStore
 	// ChannelBusinessReader scans durable channel metadata for manager channel pages.
 	ChannelBusinessReader ChannelBusinessReader

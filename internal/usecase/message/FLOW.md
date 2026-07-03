@@ -67,7 +67,7 @@ SyncChannelMessages(query)
 
 The sync usecase returns `SyncedMessage` DTOs with the fields needed by legacy
 HTTP responses. Concrete storage adapters may return zero values for fields that
-the current ChannelV2 write path does not persist yet.
+the current Channel write path does not persist yet.
 
 ## Import Boundary
 

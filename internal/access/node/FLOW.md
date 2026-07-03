@@ -237,7 +237,7 @@ remote manager retention operator
 
 Manager Message Retention RPC transports one explicit channel history
 retention request to the channel leader node. The server calls only the
-configured management retention operator; it revalidates local ChannelV2
+configured management retention operator; it revalidates local Channel
 leadership, recomputes the safe boundary from fresh runtime metadata and
 committed messages, and maps retryable not-leader, stale-route, and
 route-not-ready statuses back to typed caller errors. Origin nodes do not send

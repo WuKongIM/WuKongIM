@@ -55,11 +55,11 @@ GET  /manager/diagnostics/tracking-rules (diagnostics tracking rule list; requir
 POST /manager/diagnostics/tracking-rules (create diagnostics tracking rule; requires cluster.diagnostics:w when Auth.On=true)
 DELETE /manager/diagnostics/tracking-rules/:rule_id (delete diagnostics tracking rule; requires cluster.diagnostics:w when Auth.On=true)
 GET  /manager/channel-runtime-meta (read-only channel runtime metadata list; requires cluster.channel:r when Auth.On=true)
-POST /manager/channel-migrations/leader-transfer (manual ChannelV2 leader-transfer task creation; requires cluster.channel:w when Auth.On=true)
-POST /manager/channel-migrations/replica-replace (manual ChannelV2 replica-replacement task creation; requires cluster.channel:w when Auth.On=true)
-GET  /manager/channel-migrations/active (active ChannelV2 migration task list scoped by channel_id/channel_type; requires cluster.channel:r when Auth.On=true)
-GET  /manager/channel-migrations/:task_id (ChannelV2 migration task detail scoped by channel_id/channel_type; requires cluster.channel:r when Auth.On=true)
-POST /manager/channel-migrations/:task_id/abort (abort ChannelV2 migration task scoped by channel_id/channel_type; requires cluster.channel:w when Auth.On=true)
+POST /manager/channel-migrations/leader-transfer (manual Channel leader-transfer task creation; requires cluster.channel:w when Auth.On=true)
+POST /manager/channel-migrations/replica-replace (manual Channel replica-replacement task creation; requires cluster.channel:w when Auth.On=true)
+GET  /manager/channel-migrations/active (active Channel migration task list scoped by channel_id/channel_type; requires cluster.channel:r when Auth.On=true)
+GET  /manager/channel-migrations/:task_id (Channel migration task detail scoped by channel_id/channel_type; requires cluster.channel:r when Auth.On=true)
+POST /manager/channel-migrations/:task_id/abort (abort Channel migration task scoped by channel_id/channel_type; requires cluster.channel:w when Auth.On=true)
 GET  /manager/channels (read-only business channel list; requires cluster.channel:r when Auth.On=true)
 GET  /manager/conversations (recent conversation list; requires cluster.channel:r when Auth.On=true)
 GET  /manager/messages (channel message list; requires cluster.channel:r when Auth.On=true)
@@ -257,11 +257,11 @@ close-reason distribution, auth success/latency, SENDACK error rate, gateway
 traffic, frame handling latency, async SEND batch shape, async auth pressure,
 and transport queue/byte pressure. Internal network cards cover total and
 split TX/RX transport traffic, RPC rate/success/error/inflight/tail latency,
-dial success/latency, and TransportV2 queue/admission pressure. Message cards
+dial success/latency, and Transport queue/admission pressure. Message cards
 cover SEND rate/SENDACK error rate, append commit rate/error and tail latency,
 committed dispatch backlog/enqueue/overflow, online delivery rate/latency/fan-out,
 delivery queue/admission pressure, retry rate/depth, route expiry, and path
-error closure. Channel cards cover ChannelV2 append tail latency, active
+error closure. Channel cards cover Channel append tail latency, active
 runtime count, append batch shape, append error rate, channel writer admission
 pressure, parked followers, activation rejections, reactor mailbox depth,
 worker queue depth, PullHint error rate, and follower replication tail latency.
@@ -280,7 +280,7 @@ per-node series for the global cluster view.
 It is a forced runtime view of the local node only: it does not fan out to peer
 nodes and does not depend on Prometheus. When the collector is not configured or
 has not sampled enough data yet, the route returns `service_unavailable`.
-The manager route preserves provider labels from the top collector; TransportV2
+The manager route preserves provider labels from the top collector; Transport
 service aliases are registered with the service worker pools and resolved before
 the HTTP response layer.
 
@@ -373,12 +373,12 @@ usecase.
 response shape for the web cluster channel page, including `node_id`,
 `node_scope`, `channel_id`, `include_max_message_seq`, `limit`, and `cursor`
 query parameters. It exposes read-only runtime metadata and augments rows with
-the physical `slot_leader`, control-plane `preferred_leader`, ChannelV2
+the physical `slot_leader`, control-plane `preferred_leader`, Channel
 write-fence, degraded, and active migration hints. The existing `leader` field
-continues to mean ChannelV2 data leader. Channel detail, repair, and generic
+continues to mean Channel data leader. Channel detail, repair, and generic
 mutation operation routes remain unmigrated in internal.
 
-`/manager/channel-migrations/*` exposes the narrow manual ChannelV2 migration
+`/manager/channel-migrations/*` exposes the narrow manual Channel migration
 surface. HTTP parses operator intent, requires positive node IDs where
 applicable, maps duplicate active tasks to `409 conflict`, maps missing tasks
 to `404 not_found`, and delegates all runtime metadata validation, fence
@@ -395,7 +395,7 @@ internal conversation sync usecase and remains a read-only display route.
 `/manager/messages` preserves the legacy channel message list response shape
 for the web message page, including `channel_id`, `channel_type`, `limit`,
 `cursor`, `message_id`, and `client_msg_no` query parameters. It reads
-committed ChannelV2 messages through `internal/usecase/management`.
+committed Channel messages through `internal/usecase/management`.
 `/manager/messages/retention` preserves the legacy request/response envelope
 and delegates to an optional retention port; when no v2 retention implementation
 is configured, the route returns `service_unavailable` instead of reporting a

@@ -61,7 +61,7 @@ type ChannelRuntimeMetaDTO struct {
 	WriteFenceVersion uint64 `json:"write_fence_version,omitempty"`
 	// WriteFenceReason is the stable write-fence reason.
 	WriteFenceReason string `json:"write_fence_reason,omitempty"`
-	// ActiveTaskID is the active ChannelV2 migration task when present.
+	// ActiveTaskID is the active Channel migration task when present.
 	ActiveTaskID string `json:"active_task_id,omitempty"`
 	// Degraded reports whether the channel has fewer ISR than replicas.
 	Degraded bool `json:"degraded"`

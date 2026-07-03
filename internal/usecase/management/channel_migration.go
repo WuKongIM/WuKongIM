@@ -12,15 +12,15 @@ import (
 )
 
 var (
-	// ErrChannelMigrationUnavailable reports that ChannelV2 migration storage is not wired.
+	// ErrChannelMigrationUnavailable reports that Channel migration storage is not wired.
 	ErrChannelMigrationUnavailable = errors.New("internal/usecase/management: channel migration unavailable")
-	// ErrChannelMigrationConflict reports a duplicate or stale ChannelV2 migration request.
+	// ErrChannelMigrationConflict reports a duplicate or stale Channel migration request.
 	ErrChannelMigrationConflict = errors.New("internal/usecase/management: channel migration conflict")
 	// ErrChannelMigrationNotFound reports that the requested migration task is absent.
 	ErrChannelMigrationNotFound = errors.New("internal/usecase/management: channel migration not found")
 )
 
-// ChannelMigrationStore exposes Slot-owned ChannelV2 migration task commands.
+// ChannelMigrationStore exposes Slot-owned Channel migration task commands.
 type ChannelMigrationStore interface {
 	// CreateLeaderTransfer creates a runtime-guarded leader-transfer task.
 	CreateLeaderTransfer(context.Context, channelwrapper.CreateLeaderTransferRequest) (metadb.ChannelMigrationTask, error)
@@ -36,7 +36,7 @@ type ChannelMigrationStore interface {
 	Abort(context.Context, metadb.ChannelMigrationTask, string) error
 }
 
-// LeaderTransferInput describes a manager ChannelV2 leader-transfer intent.
+// LeaderTransferInput describes a manager Channel leader-transfer intent.
 type LeaderTransferInput struct {
 	// ChannelID is the logical channel identifier.
 	ChannelID string
@@ -48,7 +48,7 @@ type LeaderTransferInput struct {
 	TaskID string
 }
 
-// ReplicaReplaceInput describes a manager ChannelV2 replica-replacement intent.
+// ReplicaReplaceInput describes a manager Channel replica-replacement intent.
 type ReplicaReplaceInput struct {
 	// ChannelID is the logical channel identifier.
 	ChannelID string
@@ -94,7 +94,7 @@ type ChannelMigrationAbortInput struct {
 	Reason string
 }
 
-// ChannelMigrationSummary is the manager-facing ChannelV2 migration task row.
+// ChannelMigrationSummary is the manager-facing Channel migration task row.
 type ChannelMigrationSummary struct {
 	// TaskID is the durable migration task identity.
 	TaskID string
@@ -126,7 +126,7 @@ type ChannelMigrationListResponse struct {
 	Items []ChannelMigrationSummary
 }
 
-// RequestChannelLeaderTransfer validates and submits a manual ChannelV2 leader transfer.
+// RequestChannelLeaderTransfer validates and submits a manual Channel leader transfer.
 func (a *App) RequestChannelLeaderTransfer(ctx context.Context, input LeaderTransferInput) (ChannelMigrationSummary, error) {
 	if err := ctxErr(ctx); err != nil {
 		return ChannelMigrationSummary{}, err
@@ -152,7 +152,7 @@ func (a *App) RequestChannelLeaderTransfer(ctx context.Context, input LeaderTran
 	return managerChannelMigrationSummary(task), nil
 }
 
-// RequestChannelReplicaReplace validates and submits a manual ChannelV2 replica replacement.
+// RequestChannelReplicaReplace validates and submits a manual Channel replica replacement.
 func (a *App) RequestChannelReplicaReplace(ctx context.Context, input ReplicaReplaceInput) (ChannelMigrationSummary, error) {
 	if err := ctxErr(ctx); err != nil {
 		return ChannelMigrationSummary{}, err
