@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/WuKongIM/WuKongIM/pkg/cluster"
+	"github.com/WuKongIM/WuKongIM/pkg/hashslot"
 )
 
 func TestPlanMetaPointPartitionFromUID(t *testing.T) {
@@ -23,7 +23,7 @@ func TestPlanMetaPointPartitionFromUID(t *testing.T) {
 	if !plan.HashSlotSet {
 		t.Fatal("HashSlotSet = false, want true")
 	}
-	if want := cluster.HashSlotForKey("u1", 16); plan.HashSlot != want {
+	if want := hashslot.HashSlotForKey("u1", 16); plan.HashSlot != want {
 		t.Fatalf("HashSlot = %d, want %d", plan.HashSlot, want)
 	}
 }

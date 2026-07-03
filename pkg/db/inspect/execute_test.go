@@ -5,11 +5,11 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	db "github.com/WuKongIM/WuKongIM/pkg/db"
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/engine"
 	"github.com/WuKongIM/WuKongIM/pkg/db/message"
 	"github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	"github.com/WuKongIM/WuKongIM/pkg/hashslot"
 )
 
 func TestNormalizeLimitDefaultAndMax(t *testing.T) {
@@ -287,7 +287,7 @@ func seedInspectMetaUsers(t *testing.T, hashSlotCount uint16, users []meta.User)
 	}
 	db := meta.NewDB(eng)
 	for _, user := range users {
-		hashSlot := meta.HashSlot(cluster.HashSlotForKey(user.UID, hashSlotCount))
+		hashSlot := meta.HashSlot(hashslot.HashSlotForKey(user.UID, hashSlotCount))
 		if err := db.HashSlot(hashSlot).UpsertUser(context.Background(), user); err != nil {
 			t.Fatalf("UpsertUser(%s) err = %v", user.UID, err)
 		}
@@ -308,7 +308,7 @@ func seedInspectConversations(t *testing.T, hashSlotCount uint16, states []meta.
 	}
 	db := meta.NewDB(eng)
 	for _, state := range states {
-		hashSlot := meta.HashSlot(cluster.HashSlotForKey(state.UID, hashSlotCount))
+		hashSlot := meta.HashSlot(hashslot.HashSlotForKey(state.UID, hashSlotCount))
 		if err := db.HashSlot(hashSlot).UpsertUserConversationState(context.Background(), state); err != nil {
 			t.Fatalf("UpsertUserConversationState(%s/%s) err = %v", state.UID, state.ChannelID, err)
 		}

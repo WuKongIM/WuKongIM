@@ -4,7 +4,7 @@ import (
 	"math"
 	"strings"
 
-	"github.com/WuKongIM/WuKongIM/pkg/cluster"
+	"github.com/WuKongIM/WuKongIM/pkg/hashslot"
 )
 
 const (
@@ -111,7 +111,7 @@ func planMetaQuery(opts Options, p plan) (plan, error) {
 				return plan{}, ErrHashSlotRequired
 			}
 			p.ScanMode = scanModePointPartition
-			p.HashSlot = cluster.HashSlotForKey(value, opts.HashSlotCount)
+			p.HashSlot = hashslot.HashSlotForKey(value, opts.HashSlotCount)
 			p.HashSlotSet = true
 			return p, nil
 		}
