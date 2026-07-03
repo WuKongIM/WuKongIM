@@ -21,16 +21,13 @@ const (
 
 // NodeProcess wraps one real child process used by the e2e suite.
 type NodeProcess struct {
-	Spec         NodeSpec
-	BinaryPath   string
-	StartTimeout time.Duration
-	StopTimeout  time.Duration
-
-	Cmd       *exec.Cmd
-	StdoutLog *os.File
-	StderrLog *os.File
-
-	command *exec.Cmd
+	Spec        NodeSpec
+	BinaryPath  string
+	StopTimeout time.Duration
+	Cmd         *exec.Cmd
+	StdoutLog   *os.File
+	StderrLog   *os.File
+	command     *exec.Cmd
 }
 
 // Start launches the child process and redirects stdout and stderr to files.
@@ -57,13 +54,11 @@ func (p *NodeProcess) Start() error {
 	if cmd == nil {
 		cmd = exec.Command(p.BinaryPath, "-config", p.Spec.ConfigPath)
 	}
-	if len(p.Spec.Env) > 0 {
-		baseEnv := cmd.Env
-		if baseEnv == nil {
-			baseEnv = os.Environ()
-		}
-		cmd.Env = append(baseEnv, p.Spec.Env...)
+	baseEnv := cmd.Env
+	if baseEnv == nil {
+		baseEnv = os.Environ()
 	}
+	cmd.Env = append(baseEnv, p.Spec.Env...)
 	cmd.Stdout = stdoutLog
 	cmd.Stderr = stderrLog
 
@@ -117,7 +112,9 @@ func (p *NodeProcess) Stop() error {
 // DumpDiagnostics returns a small human-readable snapshot of process artifacts.
 func (p *NodeProcess) DumpDiagnostics() string {
 	var b strings.Builder
+	fmt.Fprintf(&b, "process: %s\n", p.processStatus())
 	fmt.Fprintf(&b, "config: %s\n", p.Spec.ConfigPath)
+	appendLogTail(&b, "config", p.Spec.ConfigPath)
 	fmt.Fprintf(&b, "stdout: %s\n", p.Spec.StdoutPath)
 	fmt.Fprintf(&b, "stderr: %s\n", p.Spec.StderrPath)
 	appendLogTail(&b, "stdout", p.Spec.StdoutPath)
@@ -134,6 +131,19 @@ func (p *NodeProcess) DumpDiagnostics() string {
 		appendLogTail(&b, "error-log", filepath.Join(logDir, "error.log"))
 	}
 	return b.String()
+}
+
+func (p *NodeProcess) processStatus() string {
+	if p == nil || p.Cmd == nil || p.Cmd.Process == nil {
+		return "not_started"
+	}
+	if p.Cmd.ProcessState != nil {
+		return fmt.Sprintf("pid=%d exited=%v", p.Cmd.Process.Pid, p.Cmd.ProcessState.Exited())
+	}
+	if err := p.Cmd.Process.Signal(syscall.Signal(0)); err != nil {
+		return fmt.Sprintf("pid=%d signal_error=%v", p.Cmd.Process.Pid, err)
+	}
+	return fmt.Sprintf("pid=%d running", p.Cmd.Process.Pid)
 }
 
 func (p *NodeProcess) closeLogs() {

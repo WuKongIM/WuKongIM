@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"testing"
@@ -31,18 +32,19 @@ type Suite struct {
 	workspace  Workspace
 }
 
-// StartedNode describes one started process and its external addresses.
+// StartedNode describes one started wukongim process and its external addresses.
 type StartedNode struct {
 	Spec    NodeSpec
 	Process *NodeProcess
 }
 
-// StartedCluster describes one started three-node cluster and its last observations.
+// StartedCluster describes one started static cluster and its observations.
 type StartedCluster struct {
-	Nodes          []StartedNode
-	lastReadyz     map[uint64]HTTPObservation
-	lastSlotBodies map[uint32]string
-	workspace      Workspace
+	Nodes      []StartedNode
+	lastReadyz map[uint64]HTTPObservation
+	binaryPath string
+	workspace  Workspace
+	options    suiteOptions
 }
 
 // Option customizes one e2e cluster start.
@@ -59,6 +61,8 @@ func (f optionFunc) apply(options *suiteOptions) {
 type suiteOptions struct {
 	workspaceRootDir    string
 	nodeLogRootDir      string
+	managerHTTP         bool
+	dynamicJoinToken    string
 	nodeConfigOverrides map[uint64]map[string]string
 	nodeEnv             map[uint64][]string
 }
@@ -74,6 +78,20 @@ func WithWorkspaceRootDir(rootDir string) Option {
 func WithNodeLogRootDir(rootDir string) Option {
 	return optionFunc(func(options *suiteOptions) {
 		options.nodeLogRootDir = strings.TrimSpace(rootDir)
+	})
+}
+
+// WithManagerHTTP enables the public manager HTTP listener for started nodes.
+func WithManagerHTTP() Option {
+	return optionFunc(func(options *suiteOptions) {
+		options.managerHTTP = true
+	})
+}
+
+// WithDynamicJoinToken configures static nodes to accept seed JoinNode RPCs.
+func WithDynamicJoinToken(token string) Option {
+	return optionFunc(func(options *suiteOptions) {
+		options.dynamicJoinToken = strings.TrimSpace(token)
 	})
 }
 
@@ -108,7 +126,7 @@ func WithNodeEnv(nodeID uint64, env ...string) Option {
 	})
 }
 
-// NewWorkspace creates a temp workspace with a default node-1 tree for phase 1.
+// NewWorkspace creates a temp workspace with a default node-1 tree.
 func NewWorkspace(t *testing.T, opts ...Option) Workspace {
 	t.Helper()
 
@@ -123,7 +141,7 @@ func NewWorkspace(t *testing.T, opts ...Option) Workspace {
 	return workspace
 }
 
-// New creates a test-scoped suite and resolves the production binary on demand.
+// New creates a test-scoped suite and resolves the wukongim binary on demand.
 func New(t *testing.T) *Suite {
 	t.Helper()
 
@@ -137,7 +155,7 @@ func New(t *testing.T) *Suite {
 	}
 }
 
-// StartSingleNodeCluster starts one real child process and waits for WKProto readiness.
+// StartSingleNodeCluster starts one real wukongim child process and waits for public readiness.
 func (s *Suite) StartSingleNodeCluster(opts ...Option) *StartedNode {
 	s.t.Helper()
 
@@ -145,25 +163,27 @@ func (s *Suite) StartSingleNodeCluster(opts ...Option) *StartedNode {
 	ports := ReserveLoopbackPorts(s.t)
 	spec := buildNodeSpec(1, ports, workspace, options)
 	require.NoError(s.t, workspace.ensureNodeDirs(spec.ID))
-	require.NoError(s.t, os.WriteFile(spec.ConfigPath, []byte(RenderSingleNodeConfig(spec)), 0o644))
+	renderedConfig := RenderSingleNodeConfig(spec)
+	require.NoError(s.t, os.WriteFile(spec.ConfigPath, []byte(renderedConfig), 0o644))
+	spec.Env = append(envFromConfig(renderedConfig), spec.Env...)
 
 	process := &NodeProcess{
 		Spec:       spec,
 		BinaryPath: s.binaryPath,
 	}
 	require.NoError(s.t, process.Start())
-	s.t.Cleanup(func() {
-		require.NoError(s.t, process.Stop())
-	})
+	node := &StartedNode{Spec: spec, Process: process}
+	registerStartedNodeCleanup(s.t, node)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+	require.NoError(s.t, WaitHTTPReady(ctx, spec.APIAddr, "/readyz"), process.DumpDiagnostics())
 	require.NoError(s.t, WaitWKProtoReady(ctx, spec.GatewayAddr), process.DumpDiagnostics())
 
-	return &StartedNode{Spec: spec, Process: process}
+	return node
 }
 
-// StartThreeNodeCluster starts three real child processes and returns a cluster handle.
+// StartThreeNodeCluster starts three static wukongim child processes.
 func (s *Suite) StartThreeNodeCluster(opts ...Option) *StartedCluster {
 	s.t.Helper()
 
@@ -177,19 +197,25 @@ func (s *Suite) StartThreeNodeCluster(opts ...Option) *StartedCluster {
 	for i, portSet := range ports {
 		nodeID := uint64(i + 1)
 		spec := buildNodeSpec(nodeID, portSet, workspace, options)
+		if options.dynamicJoinToken != "" {
+			setSpecConfigOverride(&spec, "WK_CLUSTER_JOIN_TOKEN", options.dynamicJoinToken)
+		}
 		require.NoError(s.t, workspace.ensureNodeDirs(nodeID))
 		specs = append(specs, spec)
 	}
 
-	for _, spec := range specs {
-		require.NoError(s.t, os.WriteFile(spec.ConfigPath, []byte(RenderClusterConfig(spec, specs)), 0o644))
+	for i := range specs {
+		renderedConfig := RenderClusterConfig(specs[i], specs)
+		require.NoError(s.t, os.WriteFile(specs[i].ConfigPath, []byte(renderedConfig), 0o644))
+		specs[i].Env = append(envFromConfig(renderedConfig), specs[i].Env...)
 	}
 
 	cluster := &StartedCluster{
-		Nodes:          make([]StartedNode, 0, len(specs)),
-		lastReadyz:     make(map[uint64]HTTPObservation, len(specs)),
-		lastSlotBodies: make(map[uint32]string),
-		workspace:      workspace,
+		Nodes:      make([]StartedNode, 0, len(specs)),
+		lastReadyz: make(map[uint64]HTTPObservation, len(specs)),
+		binaryPath: s.binaryPath,
+		workspace:  workspace,
+		options:    options,
 	}
 	for _, spec := range specs {
 		process := &NodeProcess{Spec: spec, BinaryPath: s.binaryPath}
@@ -208,70 +234,130 @@ func (s *Suite) StartThreeNodeCluster(opts ...Option) *StartedCluster {
 	return cluster
 }
 
-// StartDynamicJoinNode starts one node using seed-based dynamic join config.
-func (s *Suite) StartDynamicJoinNode(cluster *StartedCluster, nodeID uint64, joinToken string, opts ...Option) *StartedNode {
-	s.t.Helper()
-	require.NotNil(s.t, cluster)
-	require.NotEmpty(s.t, cluster.Nodes)
-
-	options := resolveSuiteOptions(opts...)
-	workspace := cluster.workspace
-	if workspace.RootDir == "" {
-		workspace = s.workspace
-	}
-	if options.workspaceRootDir != "" || options.nodeLogRootDir != "" {
-		workspace = NewWorkspace(s.t, opts...)
-	}
-
-	spec := buildNodeSpec(nodeID, ReserveLoopbackPorts(s.t), workspace, options)
-	require.NoError(s.t, workspace.ensureNodeDirs(spec.ID))
-
-	seeds := make([]NodeSpec, 0, len(cluster.Nodes))
-	for _, node := range cluster.Nodes {
-		seeds = append(seeds, node.Spec)
-	}
-	require.NoError(s.t, os.WriteFile(spec.ConfigPath, []byte(RenderSeedJoinConfig(spec, seeds, joinToken)), 0o644))
-
-	process := &NodeProcess{Spec: spec, BinaryPath: s.binaryPath}
-	require.NoError(s.t, process.Start())
-
-	cluster.Nodes = append(cluster.Nodes, StartedNode{Spec: spec, Process: process})
-	if cluster.lastReadyz == nil {
-		cluster.lastReadyz = make(map[uint64]HTTPObservation)
-	}
-	if cluster.lastSlotBodies == nil {
-		cluster.lastSlotBodies = make(map[uint32]string)
-	}
-	return &cluster.Nodes[len(cluster.Nodes)-1]
+// SeedJoinNodeConfig describes one dynamic data-node seed-join process.
+type SeedJoinNodeConfig struct {
+	// NodeID is the stable non-zero identity requested by the joining node.
+	NodeID uint64
+	// Seeds contains reachable existing cluster RPC addresses.
+	Seeds []string
+	// JoinAddr is the stable cluster RPC address advertised into membership.
+	JoinAddr string
+	// JoinToken authenticates the pre-membership JoinNode RPC.
+	JoinToken string
+	// ClusterID is the expected Controller cluster identity.
+	ClusterID string
 }
 
-// RestartNode starts a stopped node again with its existing config and data directory.
-func (s *Suite) RestartNode(node *StartedNode) {
-	s.t.Helper()
-	require.NotNil(s.t, node)
-	require.Nil(s.t, node.Process, "node %d is already running", node.Spec.ID)
-
-	process := &NodeProcess{Spec: node.Spec, BinaryPath: s.binaryPath}
-	require.NoError(s.t, process.Start())
-	node.Process = process
+// SeedAddrs returns stable seed RPC addresses from the currently started cluster nodes.
+func (c *StartedCluster) SeedAddrs() []string {
+	if c == nil {
+		return nil
+	}
+	nodes := append([]StartedNode(nil), c.Nodes...)
+	sort.Slice(nodes, func(i, j int) bool {
+		return nodes[i].Spec.ID < nodes[j].Spec.ID
+	})
+	addrs := make([]string, 0, len(nodes))
+	for _, node := range nodes {
+		if node.Spec.ClusterAddr != "" {
+			addrs = append(addrs, node.Spec.ClusterAddr)
+		}
+	}
+	return addrs
 }
 
-// WaitClusterReady waits until every node satisfies the node-ready contract.
-func (c *StartedCluster) WaitClusterReady(ctx context.Context) error {
+// NodeAddr returns the cluster RPC address for an already started node.
+func (c *StartedCluster) NodeAddr(nodeID uint64) string {
+	node := c.MustNode(nodeID)
+	return node.Spec.ClusterAddr
+}
+
+// StartSeedJoinNode starts one dynamic data node that joins through configured seeds.
+func (c *StartedCluster) StartSeedJoinNode(t testing.TB, cfg SeedJoinNodeConfig) *StartedNode {
+	t.Helper()
+
+	started := c.StartSeedJoinNodeNoWait(t, cfg)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	observation, err := waitHTTPReadyDetailed(ctx, started.Spec.APIAddr, "/readyz")
+	c.lastReadyz[started.Spec.ID] = observation
+	require.NoError(t, err, c.DumpDiagnostics())
+
+	return started
+}
+
+// StartSeedJoinNodeNoWait starts one dynamic data node without waiting for readiness.
+func (c *StartedCluster) StartSeedJoinNodeNoWait(t testing.TB, cfg SeedJoinNodeConfig) *StartedNode {
+	t.Helper()
+	require.NotNil(t, c, "started cluster is nil")
+	require.NotEmpty(t, c.binaryPath, "started cluster binary path is empty")
+	require.NotZero(t, cfg.NodeID, "seed join node id must be non-zero")
+
+	if len(cfg.Seeds) == 0 {
+		cfg.Seeds = c.SeedAddrs()
+	}
+	if strings.TrimSpace(cfg.JoinToken) == "" {
+		cfg.JoinToken = c.options.dynamicJoinToken
+	}
+	if strings.TrimSpace(cfg.ClusterID) == "" {
+		cfg.ClusterID = staticThreeNodeClusterID
+	}
+	require.NotEmpty(t, cfg.Seeds, "seed join seeds must not be empty")
+	require.NotEmpty(t, strings.TrimSpace(cfg.JoinToken), "seed join token must not be empty")
+
+	ports := ReserveLoopbackPorts(t)
+	spec := buildNodeSpec(cfg.NodeID, ports, c.workspace, c.options)
+	if strings.TrimSpace(cfg.JoinAddr) == "" {
+		cfg.JoinAddr = spec.ClusterAddr
+	}
+
+	require.NoError(t, c.workspace.ensureNodeDirs(spec.ID))
+	renderedConfig := RenderSeedJoinNodeConfig(spec, cfg)
+	require.NoError(t, os.WriteFile(spec.ConfigPath, []byte(renderedConfig), 0o644))
+	spec.Env = append(envFromConfig(renderedConfig), spec.Env...)
+
+	process := &NodeProcess{Spec: spec, BinaryPath: c.binaryPath}
+	require.NoError(t, process.Start())
+	c.Nodes = append(c.Nodes, StartedNode{Spec: spec, Process: process})
+	if c.lastReadyz == nil {
+		c.lastReadyz = make(map[uint64]HTTPObservation)
+	}
+	return &c.Nodes[len(c.Nodes)-1]
+}
+
+// WaitHTTPReady waits until every cluster node satisfies the public HTTP readiness contract.
+func (c *StartedCluster) WaitHTTPReady(ctx context.Context) error {
 	if c == nil {
 		return fmt.Errorf("started cluster is nil")
 	}
+	if c.lastReadyz == nil {
+		c.lastReadyz = make(map[uint64]HTTPObservation, len(c.Nodes))
+	}
 	for _, node := range c.Nodes {
-		observation, err := waitNodeReadyDetailed(ctx, node)
+		observation, err := waitHTTPReadyDetailed(ctx, node.Spec.APIAddr, "/readyz")
 		c.lastReadyz[node.Spec.ID] = observation
 		if err != nil {
-			return fmt.Errorf("node %d not ready: %w", node.Spec.ID, err)
+			return fmt.Errorf("node %d http not ready: %w", node.Spec.ID, err)
 		}
 	}
 	return nil
 }
 
-// DumpDiagnostics returns a cluster-scoped snapshot of the last observations and node artifacts.
+// WaitClusterReady waits until every node satisfies the public readiness contract.
+func (c *StartedCluster) WaitClusterReady(ctx context.Context) error {
+	if err := c.WaitHTTPReady(ctx); err != nil {
+		return err
+	}
+	for _, node := range c.Nodes {
+		if err := WaitWKProtoReady(ctx, node.Spec.GatewayAddr); err != nil {
+			return fmt.Errorf("node %d wkproto not ready: %w", node.Spec.ID, err)
+		}
+	}
+	return nil
+}
+
+// DumpDiagnostics returns a cluster-scoped snapshot of readiness and node artifacts.
 func (c *StartedCluster) DumpDiagnostics() string {
 	if c == nil {
 		return "cluster: <nil>\n"
@@ -283,14 +369,7 @@ func (c *StartedCluster) DumpDiagnostics() string {
 		if observation, ok := c.lastReadyz[node.Spec.ID]; ok {
 			fmt.Fprintf(&b, "readyz: status=%d body=%s\n", observation.StatusCode, observation.Body)
 		}
-		process := node.Process
-		if process == nil {
-			process = &NodeProcess{Spec: node.Spec}
-		}
-		b.WriteString(process.DumpDiagnostics())
-	}
-	for slotID, body := range c.lastSlotBodies {
-		fmt.Fprintf(&b, "slot %d body: %s\n", slotID, body)
+		b.WriteString(node.DumpDiagnostics())
 	}
 	return b.String()
 }
@@ -317,9 +396,63 @@ func (c *StartedCluster) MustNode(nodeID uint64) *StartedNode {
 	return node
 }
 
+// RestartNode restarts one currently running node using the cluster binary path.
+func (c *StartedCluster) RestartNode(nodeID uint64) error {
+	if c == nil {
+		return fmt.Errorf("started cluster is nil")
+	}
+	node, ok := c.Node(nodeID)
+	if !ok {
+		return fmt.Errorf("node %d not found in started cluster", nodeID)
+	}
+	return node.Restart(c.binaryPath)
+}
+
+// StartStoppedNode starts one detached or already exited cluster node with its original spec.
+func (c *StartedCluster) StartStoppedNode(nodeID uint64) error {
+	if c == nil {
+		return fmt.Errorf("started cluster is nil")
+	}
+	if strings.TrimSpace(c.binaryPath) == "" {
+		return fmt.Errorf("cluster binary path is empty")
+	}
+	node, ok := c.Node(nodeID)
+	if !ok {
+		return fmt.Errorf("node %d not found in started cluster", nodeID)
+	}
+	if node.Process != nil && node.Process.Cmd != nil && node.Process.Cmd.Process != nil &&
+		(node.Process.Cmd.ProcessState == nil || !node.Process.Cmd.ProcessState.Exited()) {
+		return fmt.Errorf("node %d is already running", nodeID)
+	}
+	process := &NodeProcess{Spec: node.Spec, BinaryPath: c.binaryPath}
+	if err := process.Start(); err != nil {
+		return fmt.Errorf("start stopped node %d: %w", nodeID, err)
+	}
+	node.Process = process
+	return nil
+}
+
+// APIAddr returns the public HTTP API listen address for the started node.
+func (n StartedNode) APIAddr() string {
+	return n.Spec.APIAddr
+}
+
+// ManagerAddr returns the public manager HTTP listen address for the started node.
+func (n StartedNode) ManagerAddr() string {
+	return n.Spec.ManagerAddr
+}
+
 // GatewayAddr returns the public WKProto listen address for the started node.
-func (n *StartedNode) GatewayAddr() string {
+func (n StartedNode) GatewayAddr() string {
 	return n.Spec.GatewayAddr
+}
+
+// DumpDiagnostics returns diagnostics for the started node process.
+func (n StartedNode) DumpDiagnostics() string {
+	if n.Process != nil {
+		return n.Process.DumpDiagnostics()
+	}
+	return (&NodeProcess{Spec: n.Spec}).DumpDiagnostics()
 }
 
 // Stop terminates the started node process and detaches it from future cleanup.
@@ -334,7 +467,52 @@ func (n *StartedNode) Stop() error {
 	return err
 }
 
+type startedNodeCleanupTB interface {
+	Helper()
+	Cleanup(func())
+	require.TestingT
+}
+
+func registerStartedNodeCleanup(t startedNodeCleanupTB, node *StartedNode) {
+	t.Helper()
+	t.Cleanup(func() {
+		require.NoError(t, node.Stop())
+	})
+}
+
+// Restart stops the current node process and starts it again with the same spec.
+func (n *StartedNode) Restart(binaryPath string) error {
+	if n == nil {
+		return fmt.Errorf("started node is nil")
+	}
+	if strings.TrimSpace(binaryPath) == "" {
+		return fmt.Errorf("node %d restart binary path is empty", n.Spec.ID)
+	}
+	if n.Process == nil || n.Process.Cmd == nil || n.Process.Cmd.Process == nil {
+		return fmt.Errorf("node %d is not running", n.Spec.ID)
+	}
+	if n.Process.Cmd.ProcessState != nil && n.Process.Cmd.ProcessState.Exited() {
+		return fmt.Errorf("node %d is not running", n.Spec.ID)
+	}
+
+	spec := n.Spec
+	if err := n.Process.Stop(); err != nil {
+		return fmt.Errorf("stop node %d before restart: %w", spec.ID, err)
+	}
+
+	process := &NodeProcess{Spec: spec, BinaryPath: binaryPath}
+	if err := process.Start(); err != nil {
+		return fmt.Errorf("start node %d after restart: %w", spec.ID, err)
+	}
+	n.Process = process
+	return nil
+}
+
 func buildNodeSpec(nodeID uint64, ports PortSet, workspace Workspace, options suiteOptions) NodeSpec {
+	managerAddr := ""
+	if options.managerHTTP {
+		managerAddr = ports.ManagerAddr
+	}
 	return NodeSpec{
 		ID:              nodeID,
 		Name:            "node-" + strconv.FormatUint(nodeID, 10),
@@ -346,7 +524,7 @@ func buildNodeSpec(nodeID uint64, ports PortSet, workspace Workspace, options su
 		ClusterAddr:     ports.ClusterAddr,
 		GatewayAddr:     ports.GatewayAddr,
 		APIAddr:         ports.APIAddr,
-		ManagerAddr:     ports.ManagerAddr,
+		ManagerAddr:     managerAddr,
 		LogDir:          workspace.NodeLogDir(nodeID),
 		ConfigOverrides: cloneConfigOverrides(options.nodeConfigOverrides[nodeID]),
 		Env:             cloneEnv(options.nodeEnv[nodeID]),
@@ -394,7 +572,11 @@ func (w Workspace) NodeStderrPath(nodeID uint64) string {
 }
 
 func nodeDirName(nodeID uint64) string {
-	return "node-" + strconv.FormatUint(nodeID, 10)
+	return "node-" + nodeIDString(nodeID)
+}
+
+func nodeIDString(nodeID uint64) string {
+	return strconv.FormatUint(nodeID, 10)
 }
 
 func resolveSuiteOptions(opts ...Option) suiteOptions {
@@ -474,4 +656,11 @@ func cloneEnv(env []string) []string {
 		return nil
 	}
 	return append([]string(nil), env...)
+}
+
+func setSpecConfigOverride(spec *NodeSpec, key, value string) {
+	if spec.ConfigOverrides == nil {
+		spec.ConfigOverrides = make(map[string]string)
+	}
+	spec.ConfigOverrides[key] = value
 }

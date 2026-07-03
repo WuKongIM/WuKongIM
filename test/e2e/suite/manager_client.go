@@ -7,1237 +7,943 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"hash/crc32"
 	"io"
 	"net/http"
-	"net/url"
 	"slices"
+	"sort"
 	"strings"
+	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
-// SlotTopology describes the externally observed slot leader/follower layout.
-type SlotTopology struct {
-	SlotID          uint32
-	LeaderNodeID    uint64
-	FollowerNodeIDs []uint64
-	RawBody         string
+const managerPollInterval = 100 * time.Millisecond
+
+// ManagerClient is a small public-manager HTTP client for e2e scenarios.
+type ManagerClient struct {
+	baseURL string
+	cluster *StartedCluster
+	node    *StartedNode
 }
 
-// ManagerSlotDetail mirrors the subset of the manager slot detail response used by e2e.
-type ManagerSlotDetail struct {
-	SlotID  uint32           `json:"slot_id"`
-	State   managerSlotState `json:"state"`
-	Runtime managerSlotRun   `json:"runtime"`
+// ManagerClient returns a manager HTTP client rooted at one started node.
+func (c *StartedCluster) ManagerClient(t testing.TB, nodeID uint64) *ManagerClient {
+	t.Helper()
+	require.NotNil(t, c, "started cluster is nil")
+	node := c.MustNode(nodeID)
+	require.NotEmpty(t, node.Spec.ManagerAddr, "node %d manager HTTP is not enabled", nodeID)
+	return &ManagerClient{
+		baseURL: "http://" + node.Spec.ManagerAddr,
+		cluster: c,
+		node:    node,
+	}
 }
 
-type managerSlotState struct {
-	Quorum string `json:"quorum"`
-	Sync   string `json:"sync"`
+// MustSlots returns a stable manager Slot inventory after bootstrap tasks clear.
+func (m *ManagerClient) MustSlots(t testing.TB) []SlotDTO {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	ticker := time.NewTicker(managerPollInterval)
+	defer ticker.Stop()
+
+	var (
+		lastResp     managerSlotsResponse
+		lastErr      error
+		lastCheckErr error
+	)
+	for {
+		var resp managerSlotsResponse
+		_, err := GetJSON(ctx, m.baseURL+"/manager/slots", &resp)
+		if err == nil {
+			if checkErr := stableSlotInventory(resp); checkErr == nil {
+				items := append([]SlotDTO(nil), resp.Items...)
+				sort.Slice(items, func(i, j int) bool { return items[i].SlotID < items[j].SlotID })
+				return items
+			} else {
+				lastResp = resp
+				lastErr = checkErr
+				lastCheckErr = checkErr
+			}
+		} else {
+			lastErr = err
+		}
+
+		select {
+		case <-ctx.Done():
+			if lastCheckErr != nil {
+				lastErr = lastCheckErr
+			}
+			t.Fatalf("manager slots did not stabilize: last=%#v lastErr=%v\n%s", lastResp, lastErr, m.cluster.DumpDiagnostics())
+		case <-ticker.C:
+		}
+	}
 }
 
-type managerSlotRun struct {
-	LeaderID     uint64   `json:"leader_id"`
-	CurrentPeers []uint64 `json:"current_peers"`
-	HasQuorum    bool     `json:"has_quorum"`
+// EventuallyNodeJoinState waits until manager node inventory shows the requested lifecycle state.
+func (m *ManagerClient) EventuallyNodeJoinState(t testing.TB, nodeID uint64, state string, timeout time.Duration) {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	ticker := time.NewTicker(managerPollInterval)
+	defer ticker.Stop()
+
+	var (
+		lastResp managerNodesResponse
+		lastErr  error
+	)
+	for {
+		var resp managerNodesResponse
+		_, err := GetJSON(ctx, m.baseURL+"/manager/nodes", &resp)
+		if err == nil {
+			lastResp = resp
+			if node, ok := findManagerNode(resp, nodeID); ok {
+				if node.Membership.JoinState == state {
+					return
+				}
+				lastErr = fmt.Errorf("node %d join_state=%q, want %q", nodeID, node.Membership.JoinState, state)
+			} else {
+				lastErr = fmt.Errorf("node %d missing from manager inventory", nodeID)
+			}
+		} else {
+			lastErr = err
+		}
+
+		select {
+		case <-ctx.Done():
+			t.Fatalf("node %d did not reach join_state=%q: last=%#v lastErr=%v\n%s", nodeID, state, lastResp, lastErr, m.cluster.DumpDiagnostics())
+		case <-ticker.C:
+		}
+	}
 }
 
-type managerConnectionsResponse struct {
-	Items []ManagerConnection `json:"items"`
+// NodeJoinState returns the manager-observed lifecycle state for a node when present.
+func (m *ManagerClient) NodeJoinState(ctx context.Context, nodeID uint64) (string, bool, error) {
+	var resp managerNodesResponse
+	if _, err := GetJSON(ctx, m.baseURL+"/manager/nodes", &resp); err != nil {
+		return "", false, err
+	}
+	node, ok := findManagerNode(resp, nodeID)
+	if !ok {
+		return "", false, nil
+	}
+	return node.Membership.JoinState, true, nil
 }
 
-// ManagerNodesResponse mirrors the manager node list response used by e2e.
-type ManagerNodesResponse struct {
-	Total int           `json:"total"`
-	Items []ManagerNode `json:"items"`
+// ListNodes returns the manager-observed node inventory.
+func (m *ManagerClient) ListNodes(ctx context.Context) (NodeListDTO, error) {
+	var out NodeListDTO
+	if _, err := GetJSON(ctx, m.baseURL+"/manager/nodes", &out); err != nil {
+		return NodeListDTO{}, err
+	}
+	return out, nil
 }
 
-// ManagerNode mirrors the manager node fields used by e2e assertions.
-type ManagerNode struct {
-	NodeID          uint64                `json:"node_id"`
-	Addr            string                `json:"addr"`
-	Status          string                `json:"status"`
-	LastHeartbeatAt time.Time             `json:"last_heartbeat_at"`
-	IsLocal         bool                  `json:"is_local"`
-	CapacityWeight  int                   `json:"capacity_weight"`
-	Controller      ManagerNodeController `json:"controller"`
-	SlotStats       ManagerNodeSlotStats  `json:"slot_stats"`
+// EventuallyNodeReadiness waits until the target node satisfies public app readiness.
+func (m *ManagerClient) EventuallyNodeReadiness(t testing.TB, nodeID uint64, ready bool, timeout time.Duration) {
+	t.Helper()
+
+	node, ok := m.cluster.Node(nodeID)
+	require.True(t, ok, "node %d not found in started cluster", nodeID)
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	if ready {
+		observation, err := waitHTTPReadyDetailed(ctx, node.Spec.APIAddr, "/readyz")
+		m.cluster.lastReadyz[nodeID] = observation
+		require.NoError(t, err, m.cluster.DumpDiagnostics())
+		return
+	}
+
+	if err := WaitHTTPReady(ctx, node.Spec.APIAddr, "/readyz"); err == nil {
+		t.Fatalf("node %d unexpectedly became ready\n%s", nodeID, m.cluster.DumpDiagnostics())
+	}
 }
 
-// ManagerNodeController contains controller role fields from /manager/nodes.
-type ManagerNodeController struct {
-	Role string `json:"role"`
+// MustActivateNode activates a joining node through manager HTTP.
+func (m *ManagerClient) MustActivateNode(t testing.TB, nodeID uint64) {
+	t.Helper()
+
+	deadline := time.Now().Add(20 * time.Second)
+	ticker := time.NewTicker(managerPollInterval)
+	defer ticker.Stop()
+
+	var lastErr error
+	for {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		status, body, err := m.ActivateNodeStatus(ctx, nodeID)
+		cancel()
+		if err == nil && status/100 == 2 {
+			return
+		}
+		if err != nil {
+			lastErr = err
+		} else {
+			lastErr = fmt.Errorf("activate node %d returned %d: %s", nodeID, status, strings.TrimSpace(string(body)))
+			if status == http.StatusConflict {
+				lastErr = fmt.Errorf("%w; local_tcp=%s", lastErr, m.localNodeTCPStatus(nodeID))
+			}
+			if status != http.StatusConflict && status != http.StatusServiceUnavailable {
+				t.Fatalf("%v\n%s", lastErr, m.cluster.DumpDiagnostics())
+			}
+		}
+
+		if time.Now().After(deadline) {
+			t.Fatalf("activate node %d timed out: lastErr=%v\n%s", nodeID, lastErr, m.cluster.DumpDiagnostics())
+		}
+		select {
+		case <-time.After(time.Until(deadline)):
+			t.Fatalf("activate node %d timed out: lastErr=%v\n%s", nodeID, lastErr, m.cluster.DumpDiagnostics())
+		case <-ticker.C:
+		}
+	}
 }
 
-// ManagerNodeSlotStats contains slot hosting counts from /manager/nodes.
-type ManagerNodeSlotStats struct {
-	Count       int `json:"count"`
-	LeaderCount int `json:"leader_count"`
+// ActivateNodeStatus posts a node activation request and returns the raw manager response.
+func (m *ManagerClient) ActivateNodeStatus(ctx context.Context, nodeID uint64) (int, []byte, error) {
+	return postJSONStatus(ctx, fmt.Sprintf("%s/manager/nodes/%d/activate", m.baseURL, nodeID), nil, nil)
 }
 
-// ManagerSlotRaftCompactionResponse mirrors the manager Slot compaction response.
-type ManagerSlotRaftCompactionResponse struct {
-	Total     int                             `json:"total"`
-	Succeeded int                             `json:"succeeded"`
-	Failed    int                             `json:"failed"`
-	Items     []ManagerSlotRaftCompactionItem `json:"items"`
+// PromoteControllerVoter promotes an active data node through manager HTTP and returns the raw response.
+func (m *ManagerClient) PromoteControllerVoter(ctx context.Context, nodeID uint64, expectedRevision uint64) (PromoteControllerVoterDTO, int, []byte, error) {
+	var body any
+	if expectedRevision != 0 {
+		body = map[string]any{"expected_revision": expectedRevision}
+	}
+	var out PromoteControllerVoterDTO
+	status, respBody, err := postJSONStatus(ctx, fmt.Sprintf("%s/manager/nodes/%d/controller-voter/promote", m.baseURL, nodeID), body, &out)
+	return out, status, respBody, err
 }
 
-// ManagerSlotRaftCompactionItem mirrors one node-local Slot compaction result.
-type ManagerSlotRaftCompactionItem struct {
-	NodeID              uint64 `json:"node_id"`
-	SlotID              uint32 `json:"slot_id"`
-	Success             bool   `json:"success"`
-	AppliedIndex        uint64 `json:"applied_index"`
-	BeforeSnapshotIndex uint64 `json:"before_snapshot_index"`
-	AfterSnapshotIndex  uint64 `json:"after_snapshot_index"`
-	Compacted           bool   `json:"compacted"`
-	SkippedReason       string `json:"skipped_reason"`
-	Error               string `json:"error"`
+// ControllerRaftStatus returns one node-scoped Controller Raft status through manager HTTP.
+func (m *ManagerClient) ControllerRaftStatus(ctx context.Context, nodeID uint64) (ControllerRaftStatusDTO, error) {
+	var out ControllerRaftStatusDTO
+	_, err := GetJSON(ctx, fmt.Sprintf("%s/manager/nodes/%d/controller-raft", m.baseURL, nodeID), &out)
+	if err != nil {
+		return ControllerRaftStatusDTO{}, err
+	}
+	return out, nil
 }
 
-// ManagerControllerRaftStatus mirrors the manager Controller Raft status response.
-type ManagerControllerRaftStatus struct {
-	NodeID        uint64                              `json:"node_id"`
-	Role          string                              `json:"role"`
-	LeaderID      uint64                              `json:"leader_id"`
-	Term          uint64                              `json:"term"`
-	Health        string                              `json:"health"`
-	FirstIndex    uint64                              `json:"first_index"`
-	LastIndex     uint64                              `json:"last_index"`
-	CommitIndex   uint64                              `json:"commit_index"`
-	AppliedIndex  uint64                              `json:"applied_index"`
-	SnapshotIndex uint64                              `json:"snapshot_index"`
-	SnapshotTerm  uint64                              `json:"snapshot_term"`
-	Compaction    ManagerControllerRaftCompactionInfo `json:"compaction"`
-	Restore       ManagerControllerRaftRestoreInfo    `json:"restore"`
-	Peers         []ManagerControllerRaftPeer         `json:"peers"`
+// EventuallyControllerRaftVoters waits until the queried node observes the expected Controller voter set.
+func (m *ManagerClient) EventuallyControllerRaftVoters(t testing.TB, nodeID uint64, voters []uint64, timeout time.Duration) ControllerRaftStatusDTO {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	ticker := time.NewTicker(managerPollInterval)
+	defer ticker.Stop()
+
+	var (
+		lastResp ControllerRaftStatusDTO
+		lastErr  error
+	)
+	for {
+		resp, err := m.ControllerRaftStatus(ctx, nodeID)
+		if err == nil {
+			lastResp = resp
+			if sameUint64Set(resp.Voters, voters) {
+				return resp
+			}
+			lastErr = fmt.Errorf("controller raft voters=%v, want %v", resp.Voters, voters)
+		} else {
+			lastErr = err
+		}
+
+		select {
+		case <-ctx.Done():
+			t.Fatalf("node %d Controller Raft voters did not converge: last=%#v lastErr=%v\n%s", nodeID, lastResp, lastErr, m.cluster.DumpDiagnostics())
+		case <-ticker.C:
+		}
+	}
 }
 
-// ManagerControllerRaftCompactionInfo mirrors local Controller Raft compaction status.
-type ManagerControllerRaftCompactionInfo struct {
-	Enabled           bool      `json:"enabled"`
-	TriggerEntries    uint64    `json:"trigger_entries"`
-	CheckIntervalMs   int64     `json:"check_interval_ms"`
-	LastSnapshotIndex uint64    `json:"last_snapshot_index"`
-	LastSnapshotAt    time.Time `json:"last_snapshot_at"`
-	LastCheckAt       time.Time `json:"last_check_at"`
-	LastError         string    `json:"last_error"`
-	LastErrorAt       time.Time `json:"last_error_at"`
-	Degraded          bool      `json:"degraded"`
+// MustPlanOnboarding returns one bounded Slot onboarding preview through manager HTTP.
+func (m *ManagerClient) MustPlanOnboarding(t testing.TB, nodeID uint64, maxSlotMoves uint32) NodeOnboardingPlanDTO {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	var out NodeOnboardingPlanDTO
+	status, body, err := postJSONStatus(ctx, fmt.Sprintf("%s/manager/nodes/%d/onboarding/plan", m.baseURL, nodeID), map[string]any{
+		"max_slot_moves": maxSlotMoves,
+	}, &out)
+	if err != nil || status/100 != 2 {
+		if err == nil {
+			err = fmt.Errorf("plan onboarding node %d returned %d: %s", nodeID, status, strings.TrimSpace(string(body)))
+		}
+		t.Fatalf("%v\n%s", err, m.cluster.DumpDiagnostics())
+	}
+	return out
 }
 
-// ManagerControllerRaftRestoreInfo mirrors local Controller snapshot restore status.
-type ManagerControllerRaftRestoreInfo struct {
-	LastSnapshotIndex uint64    `json:"last_snapshot_index"`
-	LastSnapshotTerm  uint64    `json:"last_snapshot_term"`
-	LastRestoredAt    time.Time `json:"last_restored_at"`
-	LastError         string    `json:"last_error"`
-	LastErrorAt       time.Time `json:"last_error_at"`
-	Failed            bool      `json:"failed"`
+// MustStartOnboarding creates bounded Slot onboarding tasks through manager HTTP.
+func (m *ManagerClient) MustStartOnboarding(t testing.TB, nodeID uint64, maxSlotMoves uint32) NodeOnboardingStartDTO {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	out, status, body, err := m.StartOnboarding(ctx, nodeID, maxSlotMoves)
+	if err != nil || status/100 != 2 {
+		if err == nil {
+			err = fmt.Errorf("start onboarding node %d returned %d: %s", nodeID, status, strings.TrimSpace(string(body)))
+		}
+		t.Fatalf("%v\n%s", err, m.cluster.DumpDiagnostics())
+	}
+	return out
 }
 
-// ManagerControllerRaftPeer mirrors one leader-side Controller follower progress row.
-type ManagerControllerRaftPeer struct {
-	NodeID               uint64 `json:"node_id"`
-	Match                uint64 `json:"match"`
-	Next                 uint64 `json:"next"`
-	State                string `json:"state"`
-	PendingSnapshot      uint64 `json:"pending_snapshot"`
-	RecentActive         bool   `json:"recent_active"`
-	NeedsSnapshot        bool   `json:"needs_snapshot"`
-	SnapshotTransferring bool   `json:"snapshot_transferring"`
+// StartOnboarding creates bounded Slot onboarding tasks and returns the raw manager response.
+func (m *ManagerClient) StartOnboarding(ctx context.Context, nodeID uint64, maxSlotMoves uint32) (NodeOnboardingStartDTO, int, []byte, error) {
+	var out NodeOnboardingStartDTO
+	status, body, err := postJSONStatus(ctx, fmt.Sprintf("%s/manager/nodes/%d/onboarding/start", m.baseURL, nodeID), map[string]any{
+		"max_slot_moves": maxSlotMoves,
+	}, &out)
+	return out, status, body, err
 }
 
-// ManagerControllerRaftCompactionResponse mirrors the manager Controller compaction response.
-type ManagerControllerRaftCompactionResponse struct {
-	Total     int                                   `json:"total"`
-	Succeeded int                                   `json:"succeeded"`
-	Failed    int                                   `json:"failed"`
-	Items     []ManagerControllerRaftCompactionItem `json:"items"`
+// NodeOnboardingStatus returns the target node's active onboarding task status.
+func (m *ManagerClient) NodeOnboardingStatus(ctx context.Context, nodeID uint64) (NodeOnboardingStatusDTO, error) {
+	var out NodeOnboardingStatusDTO
+	_, err := GetJSON(ctx, fmt.Sprintf("%s/manager/nodes/%d/onboarding/status", m.baseURL, nodeID), &out)
+	if err != nil {
+		return NodeOnboardingStatusDTO{}, err
+	}
+	return out, nil
 }
 
-// ManagerControllerRaftCompactionItem mirrors one node-local Controller compaction result.
-type ManagerControllerRaftCompactionItem struct {
-	NodeID              uint64 `json:"node_id"`
-	Success             bool   `json:"success"`
-	AppliedIndex        uint64 `json:"applied_index"`
-	BeforeSnapshotIndex uint64 `json:"before_snapshot_index"`
-	AfterSnapshotIndex  uint64 `json:"after_snapshot_index"`
-	Compacted           bool   `json:"compacted"`
-	SkippedReason       string `json:"skipped_reason"`
-	Error               string `json:"error"`
+// EventuallyOnboardingSafe waits until the target has no active onboarding tasks.
+func (m *ManagerClient) EventuallyOnboardingSafe(t testing.TB, nodeID uint64, timeout time.Duration) {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	ticker := time.NewTicker(managerPollInterval)
+	defer ticker.Stop()
+
+	var (
+		lastResp NodeOnboardingStatusDTO
+		lastErr  error
+	)
+	for {
+		resp, err := m.NodeOnboardingStatus(ctx, nodeID)
+		if err == nil {
+			lastResp = resp
+			if resp.Summary.TotalActive == 0 {
+				return
+			}
+			lastErr = fmt.Errorf("onboarding active=%d pending=%d running=%d failed=%d", resp.Summary.TotalActive, resp.Summary.Pending, resp.Summary.Running, resp.Summary.Failed)
+		} else {
+			lastErr = err
+		}
+
+		select {
+		case <-ctx.Done():
+			t.Fatalf("node %d onboarding did not become safe: last=%#v lastErr=%v\n%s", nodeID, lastResp, lastErr, m.cluster.DumpDiagnostics())
+		case <-ticker.C:
+		}
+	}
 }
 
-// ManagerNodeOnboardingCandidatesResponse mirrors the manager onboarding candidate list.
-type ManagerNodeOnboardingCandidatesResponse struct {
-	Total int                              `json:"total"`
-	Items []ManagerNodeOnboardingCandidate `json:"items"`
+// MustPlanScaleIn returns one bounded Slot scale-in drain preview through manager HTTP.
+func (m *ManagerClient) MustPlanScaleIn(t testing.TB, nodeID uint64, maxSlotMoves uint32) NodeScaleInPlanDTO {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	var out NodeScaleInPlanDTO
+	status, body, err := postJSONStatus(ctx, fmt.Sprintf("%s/manager/nodes/%d/scale-in/plan", m.baseURL, nodeID), map[string]any{
+		"max_slot_moves": maxSlotMoves,
+	}, &out)
+	if err != nil || status/100 != 2 {
+		if err == nil {
+			err = fmt.Errorf("plan scale-in node %d returned %d: %s", nodeID, status, strings.TrimSpace(string(body)))
+		}
+		t.Fatalf("%v\n%s", err, m.cluster.DumpDiagnostics())
+	}
+	return out
 }
 
-// ManagerNodeOnboardingCandidate mirrors the manager onboarding candidate node DTO.
-type ManagerNodeOnboardingCandidate struct {
-	NodeID      uint64 `json:"node_id"`
-	Name        string `json:"name"`
-	Addr        string `json:"addr"`
+// MustStartScaleIn marks a data node leaving through manager HTTP.
+func (m *ManagerClient) MustStartScaleIn(t testing.TB, nodeID uint64) NodeScaleInStartDTO {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	var out NodeScaleInStartDTO
+	status, body, err := postJSONStatus(ctx, fmt.Sprintf("%s/manager/nodes/%d/scale-in/start", m.baseURL, nodeID), nil, &out)
+	if err != nil || status/100 != 2 {
+		if err == nil {
+			err = fmt.Errorf("start scale-in node %d returned %d: %s", nodeID, status, strings.TrimSpace(string(body)))
+		}
+		t.Fatalf("%v\n%s", err, m.cluster.DumpDiagnostics())
+	}
+	return out
+}
+
+// StartScaleInStatus posts a scale-in start request and returns the raw manager response.
+func (m *ManagerClient) StartScaleInStatus(ctx context.Context, nodeID uint64) (int, []byte, error) {
+	return postJSONStatus(ctx, fmt.Sprintf("%s/manager/nodes/%d/scale-in/start", m.baseURL, nodeID), nil, nil)
+}
+
+// MustSetScaleInDrain sets gateway drain mode through manager HTTP.
+func (m *ManagerClient) MustSetScaleInDrain(t testing.TB, nodeID uint64, drain bool) NodeScaleInDrainDTO {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	var out NodeScaleInDrainDTO
+	status, body, err := postJSONStatus(ctx, fmt.Sprintf("%s/manager/nodes/%d/scale-in/drain", m.baseURL, nodeID), map[string]any{
+		"draining": drain,
+	}, &out)
+	if err != nil || status/100 != 2 {
+		if err == nil {
+			err = fmt.Errorf("set scale-in drain node %d returned %d: %s", nodeID, status, strings.TrimSpace(string(body)))
+		}
+		t.Fatalf("%v\n%s", err, m.cluster.DumpDiagnostics())
+	}
+	return out
+}
+
+// SetScaleInDrainStatus posts a drain-mode request and returns the raw manager response.
+func (m *ManagerClient) SetScaleInDrainStatus(ctx context.Context, nodeID uint64, drain bool) (int, []byte, error) {
+	return postJSONStatus(ctx, fmt.Sprintf("%s/manager/nodes/%d/scale-in/drain", m.baseURL, nodeID), map[string]any{
+		"draining": drain,
+	}, nil)
+}
+
+// NodeScaleInStatus returns the target node scale-in status.
+func (m *ManagerClient) NodeScaleInStatus(ctx context.Context, nodeID uint64) (NodeScaleInStatusDTO, error) {
+	var out NodeScaleInStatusDTO
+	_, err := GetJSON(ctx, fmt.Sprintf("%s/manager/nodes/%d/scale-in/status", m.baseURL, nodeID), &out)
+	if err != nil {
+		return NodeScaleInStatusDTO{}, err
+	}
+	return out, nil
+}
+
+// EventuallyScaleInSafeToRemove waits until scale-in status reports final removal safety.
+func (m *ManagerClient) EventuallyScaleInSafeToRemove(t testing.TB, nodeID uint64, timeout time.Duration) NodeScaleInStatusDTO {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	ticker := time.NewTicker(managerPollInterval)
+	defer ticker.Stop()
+
+	var (
+		lastResp NodeScaleInStatusDTO
+		lastErr  error
+	)
+	for {
+		resp, err := m.NodeScaleInStatus(ctx, nodeID)
+		if err == nil {
+			lastResp = resp
+			if resp.SafeToRemove {
+				return resp
+			}
+			lastErr = fmt.Errorf("safe_to_remove=false status=%#v", resp)
+		} else {
+			lastErr = err
+		}
+
+		select {
+		case <-ctx.Done():
+			t.Fatalf("node %d scale-in did not become safe to remove: last=%#v lastErr=%v\n%s", nodeID, lastResp, lastErr, m.cluster.DumpDiagnostics())
+		case <-ticker.C:
+		}
+	}
+}
+
+// MustAdvanceScaleIn creates bounded Slot scale-in drain tasks through manager HTTP.
+func (m *ManagerClient) MustAdvanceScaleIn(t testing.TB, nodeID uint64, maxSlotMoves uint32) NodeScaleInAdvanceDTO {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	out, status, body, err := m.AdvanceScaleIn(ctx, nodeID, maxSlotMoves)
+	if err != nil || status/100 != 2 {
+		if err == nil {
+			err = fmt.Errorf("advance scale-in node %d returned %d: %s", nodeID, status, strings.TrimSpace(string(body)))
+		}
+		t.Fatalf("%v\n%s", err, m.cluster.DumpDiagnostics())
+	}
+	return out
+}
+
+// AdvanceScaleIn creates bounded Slot scale-in drain tasks and returns the raw manager response.
+func (m *ManagerClient) AdvanceScaleIn(ctx context.Context, nodeID uint64, maxSlotMoves uint32) (NodeScaleInAdvanceDTO, int, []byte, error) {
+	var out NodeScaleInAdvanceDTO
+	status, body, err := postJSONStatus(ctx, fmt.Sprintf("%s/manager/nodes/%d/scale-in/advance", m.baseURL, nodeID), map[string]any{
+		"max_slot_moves": maxSlotMoves,
+	}, &out)
+	return out, status, body, err
+}
+
+// MustRemoveScaleInNode marks a fully drained node removed through manager HTTP.
+func (m *ManagerClient) MustRemoveScaleInNode(t testing.TB, nodeID uint64) NodeScaleInRemoveDTO {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	var out NodeScaleInRemoveDTO
+	status, body, err := postJSONStatus(ctx, fmt.Sprintf("%s/manager/nodes/%d/scale-in/remove", m.baseURL, nodeID), nil, &out)
+	if err != nil || status/100 != 2 {
+		if err == nil {
+			err = fmt.Errorf("remove scale-in node %d returned %d: %s", nodeID, status, strings.TrimSpace(string(body)))
+		}
+		t.Fatalf("%v\n%s", err, m.cluster.DumpDiagnostics())
+	}
+	return out
+}
+
+// RemoveScaleInStatus posts a final scale-in removal request and returns the raw manager response.
+func (m *ManagerClient) RemoveScaleInStatus(ctx context.Context, nodeID uint64) (int, []byte, error) {
+	return postJSONStatus(ctx, fmt.Sprintf("%s/manager/nodes/%d/scale-in/remove", m.baseURL, nodeID), nil, nil)
+}
+
+func (m *ManagerClient) localNodeTCPStatus(nodeID uint64) string {
+	node, ok := m.cluster.Node(nodeID)
+	if !ok {
+		return "node_not_found"
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	if err := WaitTCPReady(ctx, node.Spec.ClusterAddr); err != nil {
+		return err.Error()
+	}
+	return "ready"
+}
+
+// SameSlotAssignments reports whether two manager Slot inventories have the same desired assignments.
+func SameSlotAssignments(a, b []SlotDTO) bool {
+	left := append([]SlotDTO(nil), a...)
+	right := append([]SlotDTO(nil), b...)
+	sort.Slice(left, func(i, j int) bool { return left[i].SlotID < left[j].SlotID })
+	sort.Slice(right, func(i, j int) bool { return right[i].SlotID < right[j].SlotID })
+	if len(left) != len(right) {
+		return false
+	}
+	for i := range left {
+		if left[i].SlotID != right[i].SlotID {
+			return false
+		}
+		if left[i].Assignment.PreferredLeaderID != right[i].Assignment.PreferredLeaderID ||
+			left[i].Assignment.ConfigEpoch != right[i].Assignment.ConfigEpoch ||
+			left[i].Assignment.BalanceVersion != right[i].Assignment.BalanceVersion {
+			return false
+		}
+		if !slices.Equal(left[i].Assignment.DesiredPeers, right[i].Assignment.DesiredPeers) {
+			return false
+		}
+	}
+	return true
+}
+
+// SlotDTO is the manager-facing Slot row subset used by e2e scenarios.
+type SlotDTO struct {
+	SlotID     uint32            `json:"slot_id"`
+	HashSlots  *SlotHashSlotsDTO `json:"hash_slots,omitempty"`
+	Assignment SlotAssignmentDTO `json:"assignment"`
+	Task       *SlotTaskDTO      `json:"task,omitempty"`
+	Runtime    SlotRuntimeDTO    `json:"runtime"`
+	NodeLog    *SlotNodeLogDTO   `json:"node_log,omitempty"`
+}
+
+// SlotHashSlotsDTO contains the logical hash-slot IDs owned by one physical Slot.
+type SlotHashSlotsDTO struct {
+	Count int      `json:"count"`
+	Items []uint16 `json:"items"`
+}
+
+// SlotAssignmentDTO contains desired Slot placement fields returned by manager HTTP.
+type SlotAssignmentDTO struct {
+	DesiredPeers      []uint64 `json:"desired_peers"`
+	PreferredLeaderID uint64   `json:"preferred_leader_id"`
+	ConfigEpoch       uint64   `json:"config_epoch"`
+	BalanceVersion    uint64   `json:"balance_version"`
+}
+
+// SlotRuntimeDTO contains the manager-observed Slot runtime subset used by tests.
+type SlotRuntimeDTO struct {
+	CurrentPeers        []uint64 `json:"current_peers"`
+	CurrentVoters       []uint64 `json:"current_voters"`
+	PreferredLeaderID   uint64   `json:"preferred_leader_id"`
+	HealthyVoters       uint32   `json:"healthy_voters"`
+	HasQuorum           bool     `json:"has_quorum"`
+	ObservedConfigEpoch uint64   `json:"observed_config_epoch"`
+}
+
+// SlotNodeLogDTO contains one node's local Slot Raft leader observation.
+type SlotNodeLogDTO struct {
+	NodeID        uint64   `json:"node_id"`
+	LeaderID      uint64   `json:"leader_id"`
+	Role          string   `json:"role"`
+	CurrentVoters []uint64 `json:"current_voters,omitempty"`
+	CommitIndex   uint64   `json:"commit_index"`
+	AppliedIndex  uint64   `json:"applied_index"`
+}
+
+// SlotTaskDTO is the active Slot task subset used only to wait for stable inventory.
+type SlotTaskDTO struct {
+	TaskID           string                   `json:"task_id"`
+	Kind             string                   `json:"kind"`
+	Step             string                   `json:"step"`
+	Status           string                   `json:"status"`
+	CompletionPolicy string                   `json:"completion_policy"`
+	TargetPeers      []uint64                 `json:"target_peers"`
+	Participants     []SlotTaskParticipantDTO `json:"participants,omitempty"`
+}
+
+// SlotTaskParticipantDTO contains one node's task progress in manager Slot reads.
+type SlotTaskParticipantDTO struct {
+	NodeID    uint64 `json:"node_id"`
+	Attempt   uint32 `json:"attempt"`
+	Status    string `json:"status"`
+	LastError string `json:"last_error,omitempty"`
+}
+
+type managerSlotsResponse struct {
+	Total int       `json:"total"`
+	Items []SlotDTO `json:"items"`
+}
+
+type managerNodesResponse struct {
+	Total int       `json:"total"`
+	Items []NodeDTO `json:"items"`
+}
+
+// NodeListDTO is the manager node inventory subset used by e2e scenarios.
+type NodeListDTO struct {
+	Total int       `json:"total"`
+	Items []NodeDTO `json:"items"`
+}
+
+// NodeDTO is the manager-facing node row subset used by e2e scenarios.
+type NodeDTO struct {
+	NodeID     uint64            `json:"node_id"`
+	Membership NodeMembershipDTO `json:"membership"`
+	Health     NodeHealthDTO     `json:"health"`
+	Controller NodeControllerDTO `json:"controller"`
+	Actions    NodeActionsDTO    `json:"actions"`
+}
+
+// NodeMembershipDTO contains manager membership flags relevant to e2e lifecycle tests.
+type NodeMembershipDTO struct {
 	Role        string `json:"role"`
 	JoinState   string `json:"join_state"`
-	Status      string `json:"status"`
-	SlotCount   int    `json:"slot_count"`
-	LeaderCount int    `json:"leader_count"`
-	Recommended bool   `json:"recommended"`
+	Schedulable bool   `json:"schedulable"`
 }
 
-// ManagerNodeOnboardingJob mirrors the manager onboarding job DTO used by e2e.
-type ManagerNodeOnboardingJob struct {
-	JobID        string                      `json:"job_id"`
-	TargetNodeID uint64                      `json:"target_node_id"`
-	Status       string                      `json:"status"`
-	Plan         ManagerNodeOnboardingPlan   `json:"plan"`
-	Moves        []ManagerNodeOnboardingMove `json:"moves"`
-	ResultCounts ManagerNodeOnboardingCounts `json:"result_counts"`
-	LastError    string                      `json:"last_error"`
+// NodeHealthDTO contains manager health evidence relevant to e2e lifecycle tests.
+type NodeHealthDTO struct {
+	Status                  string `json:"status"`
+	LastHeartbeatAt         string `json:"last_heartbeat_at"`
+	Fresh                   bool   `json:"fresh"`
+	Freshness               string `json:"freshness"`
+	RuntimeReady            bool   `json:"runtime_ready"`
+	ReportAgeMS             int64  `json:"report_age_ms"`
+	ReportTTLMS             int64  `json:"report_ttl_ms"`
+	ObservedControlRevision uint64 `json:"observed_control_revision"`
+	ObservedSlotRevision    uint64 `json:"observed_slot_revision"`
+	ErrorCode               string `json:"error_code"`
 }
 
-// ManagerNodeOnboardingPlan mirrors the reviewed onboarding plan.
-type ManagerNodeOnboardingPlan struct {
-	TargetNodeID   uint64                               `json:"target_node_id"`
-	Summary        ManagerNodeOnboardingPlanSummary     `json:"summary"`
-	Moves          []ManagerNodeOnboardingPlanMove      `json:"moves"`
-	BlockedReasons []ManagerNodeOnboardingBlockedReason `json:"blocked_reasons"`
+// NodeControllerDTO contains manager Controller role evidence for one node.
+type NodeControllerDTO struct {
+	Role          string `json:"role"`
+	Voter         bool   `json:"voter"`
+	LeaderID      uint64 `json:"leader_id"`
+	RaftHealth    string `json:"raft_health"`
+	FirstIndex    uint64 `json:"first_index"`
+	AppliedIndex  uint64 `json:"applied_index"`
+	SnapshotIndex uint64 `json:"snapshot_index"`
 }
 
-// ManagerNodeOnboardingPlanSummary mirrors aggregate plan load effects.
-type ManagerNodeOnboardingPlanSummary struct {
-	CurrentTargetSlotCount   int `json:"current_target_slot_count"`
-	PlannedTargetSlotCount   int `json:"planned_target_slot_count"`
-	CurrentTargetLeaderCount int `json:"current_target_leader_count"`
-	PlannedLeaderGain        int `json:"planned_leader_gain"`
+// NodeActionsDTO contains backend action hints used by e2e operator scenarios.
+type NodeActionsDTO struct {
+	CanPromoteControllerVoter bool `json:"can_promote_controller_voter"`
 }
 
-// ManagerNodeOnboardingPlanMove mirrors one planned Slot move.
-type ManagerNodeOnboardingPlanMove struct {
-	SlotID                 uint32   `json:"slot_id"`
-	SourceNodeID           uint64   `json:"source_node_id"`
-	TargetNodeID           uint64   `json:"target_node_id"`
-	DesiredPeersBefore     []uint64 `json:"desired_peers_before"`
-	DesiredPeersAfter      []uint64 `json:"desired_peers_after"`
-	LeaderTransferRequired bool     `json:"leader_transfer_required"`
+// PromoteControllerVoterDTO is the manager promotion response subset used by e2e.
+type PromoteControllerVoterDTO struct {
+	Changed        bool     `json:"changed"`
+	NodeID         uint64   `json:"node_id"`
+	StateRevision  uint64   `json:"state_revision"`
+	PreviousVoters []uint64 `json:"previous_voters"`
+	NextVoters     []uint64 `json:"next_voters"`
+	Warnings       []string `json:"warnings,omitempty"`
 }
 
-// ManagerNodeOnboardingBlockedReason mirrors one planner blocked reason.
-type ManagerNodeOnboardingBlockedReason struct {
-	Code    string `json:"code"`
-	Message string `json:"message"`
+// ControllerRaftStatusDTO is the manager Controller Raft status subset used by e2e.
+type ControllerRaftStatusDTO struct {
+	NodeID       uint64   `json:"node_id"`
+	Role         string   `json:"role"`
+	LeaderID     uint64   `json:"leader_id"`
+	Term         uint64   `json:"term"`
+	Health       string   `json:"health"`
+	CommitIndex  uint64   `json:"commit_index"`
+	AppliedIndex uint64   `json:"applied_index"`
+	Voters       []uint64 `json:"voters"`
+	Learners     []uint64 `json:"learners"`
 }
 
-// ManagerNodeOnboardingMove mirrors one durable execution move.
-type ManagerNodeOnboardingMove struct {
-	SlotID    uint32 `json:"slot_id"`
-	Status    string `json:"status"`
-	LastError string `json:"last_error"`
+// NodeOnboardingPlanDTO is the manager onboarding preview subset used by e2e.
+type NodeOnboardingPlanDTO struct {
+	StateRevision uint64                         `json:"state_revision"`
+	TargetNodeID  uint64                         `json:"target_node_id"`
+	MaxSlotMoves  uint32                         `json:"max_slot_moves"`
+	Candidates    []NodeOnboardingCandidateDTO   `json:"candidates"`
+	Skipped       []NodeOnboardingSkippedSlotDTO `json:"skipped"`
 }
 
-// ManagerNodeOnboardingCounts mirrors job result counters.
-type ManagerNodeOnboardingCounts struct {
-	Pending   int `json:"pending"`
-	Running   int `json:"running"`
-	Completed int `json:"completed"`
-	Failed    int `json:"failed"`
-	Skipped   int `json:"skipped"`
+// NodeOnboardingStartDTO is the manager onboarding start subset used by e2e.
+type NodeOnboardingStartDTO struct {
+	StateRevision uint64                         `json:"state_revision"`
+	TargetNodeID  uint64                         `json:"target_node_id"`
+	MaxSlotMoves  uint32                         `json:"max_slot_moves"`
+	Created       uint32                         `json:"created"`
+	Results       []NodeOnboardingTaskResultDTO  `json:"results"`
+	Skipped       []NodeOnboardingSkippedSlotDTO `json:"skipped"`
 }
 
-// ManagerConnection mirrors the subset of the manager connections response used by e2e.
-type ManagerConnection struct {
-	UID string `json:"uid"`
+// NodeOnboardingStatusDTO is the manager onboarding status subset used by e2e.
+type NodeOnboardingStatusDTO struct {
+	StateRevision uint64                        `json:"state_revision"`
+	TargetNodeID  uint64                        `json:"target_node_id"`
+	Summary       NodeOnboardingStatusSummary   `json:"summary"`
+	Tasks         []NodeOnboardingStatusTaskDTO `json:"tasks"`
 }
 
-// ManagerChannelRuntimeMetaDetail mirrors channel runtime metadata used by channel-cluster E2E assertions.
-type ManagerChannelRuntimeMetaDetail struct {
-	ChannelID     string   `json:"channel_id"`
-	ChannelType   int64    `json:"channel_type"`
-	SlotID        uint32   `json:"slot_id"`
-	HashSlot      uint32   `json:"hash_slot"`
-	ChannelEpoch  uint64   `json:"channel_epoch"`
-	LeaderEpoch   uint64   `json:"leader_epoch"`
-	Leader        uint64   `json:"leader"`
-	Replicas      []uint64 `json:"replicas"`
-	ISR           []uint64 `json:"isr"`
-	MinISR        int      `json:"min_isr"`
-	MaxMessageSeq uint64   `json:"max_message_seq"`
-	Status        string   `json:"status"`
-	Features      uint64   `json:"features"`
-	LeaseUntilMS  int64    `json:"lease_until_ms"`
+// NodeOnboardingCandidateDTO describes one Slot move preview.
+type NodeOnboardingCandidateDTO struct {
+	SlotID       uint32   `json:"slot_id"`
+	SourceNodeID uint64   `json:"source_node_id"`
+	TargetNodeID uint64   `json:"target_node_id"`
+	TargetPeers  []uint64 `json:"target_peers"`
+	ConfigEpoch  uint64   `json:"config_epoch"`
 }
 
-// ManagerChannelClusterReplicaDetail mirrors /manager/channel-cluster/:type/:id/replicas.
-type ManagerChannelClusterReplicaDetail struct {
-	Channel             ManagerChannelRuntimeMetaDetail      `json:"channel"`
-	RuntimeReported     bool                                 `json:"runtime_reported"`
-	CommitSeq           *uint64                              `json:"commit_seq"`
-	MinAvailableSeq     *uint64                              `json:"min_available_seq"`
-	RetentionThroughSeq *uint64                              `json:"retention_through_seq"`
-	Replicas            []ManagerChannelClusterReplicaStatus `json:"replicas"`
-}
-
-// ManagerChannelClusterReplicaStatus mirrors one channel-cluster replica row.
-type ManagerChannelClusterReplicaStatus struct {
-	NodeID       uint64  `json:"node_id"`
-	Role         string  `json:"role"`
-	IsLeader     bool    `json:"is_leader"`
-	InISR        bool    `json:"in_isr"`
-	Reported     bool    `json:"reported"`
-	CommitSeq    *uint64 `json:"commit_seq"`
-	LEO          *uint64 `json:"leo"`
-	CheckpointHW *uint64 `json:"checkpoint_hw"`
-	Lag          *uint64 `json:"lag"`
-}
-
-// ManagerChannelLeaderTransferResponse mirrors the manager leader transfer response.
-type ManagerChannelLeaderTransferResponse struct {
-	Changed bool                            `json:"changed"`
-	Channel ManagerChannelRuntimeMetaDetail `json:"channel"`
-}
-
-// ManagerChannelMigrationDetail mirrors the manager channel migration detail response.
-type ManagerChannelMigrationDetail struct {
-	// TaskID identifies one active channel migration task.
-	TaskID string `json:"task_id"`
-	// Kind is the stable migration kind.
-	Kind string `json:"kind"`
-	// Status is the stable task lifecycle status.
-	Status string `json:"status"`
-	// Phase is the current resumable executor phase.
-	Phase string `json:"phase"`
-	// ChannelID identifies the migrated channel.
-	ChannelID string `json:"channel_id"`
-	// ChannelType identifies the channel namespace.
-	ChannelType int64 `json:"channel_type"`
-	// SourceNode is the leader or replica being drained.
-	SourceNode uint64 `json:"source_node"`
-	// TargetNode is the target leader or replacement replica.
-	TargetNode uint64 `json:"target_node"`
-	// DesiredLeader is the requested leader after migration.
-	DesiredLeader uint64 `json:"desired_leader"`
-	// BaseChannelEpoch is the epoch captured when the task was created.
-	BaseChannelEpoch uint64 `json:"base_channel_epoch"`
-	// BaseLeaderEpoch is the leader epoch captured when the task was created.
-	BaseLeaderEpoch uint64 `json:"base_leader_epoch"`
-	// CurrentChannelEpoch is the latest authoritative channel epoch.
-	CurrentChannelEpoch uint64 `json:"current_channel_epoch"`
-	// CurrentLeaderEpoch is the latest authoritative leader epoch.
-	CurrentLeaderEpoch uint64 `json:"current_leader_epoch"`
-	// LeaderLEO is the latest observed leader log end offset.
-	LeaderLEO uint64 `json:"leader_leo"`
-	// LeaderHW is the latest observed leader high watermark.
-	LeaderHW uint64 `json:"leader_hw"`
-	// TargetLEO is the latest observed target log end offset.
-	TargetLEO uint64 `json:"target_leo"`
-	// TargetCheckpointHW is the latest target checkpoint high watermark.
-	TargetCheckpointHW uint64 `json:"target_checkpoint_hw"`
-	// LagRecords is the latest observed leader-to-target record gap.
-	LagRecords uint64 `json:"lag_records"`
-	// StableSinceMS records when the current catch-up proof became stable.
-	StableSinceMS int64 `json:"stable_since_ms"`
-	// FenceActive reports whether a migration write fence is active.
-	FenceActive bool `json:"fence_active"`
-	// FenceUntilMS is the write-fence lease deadline.
-	FenceUntilMS int64 `json:"fence_until_ms"`
-	// FenceReason is the raw runtime write-fence reason.
-	FenceReason uint8 `json:"fence_reason"`
-	// BlockerCode is a stable blocker code when the task is blocked.
-	BlockerCode string `json:"blocker_code"`
-	// BlockerMessage is the human-readable blocker detail.
-	BlockerMessage string `json:"blocker_message"`
-	// Attempt is the durable retry counter.
-	Attempt uint32 `json:"attempt"`
-	// NextRunAtMS is the next executor wake-up timestamp.
-	NextRunAtMS int64 `json:"next_run_at_ms"`
-	// LastError is the latest retryable or terminal error.
-	LastError string `json:"last_error"`
-	// CreatedAtMS is the task creation timestamp.
-	CreatedAtMS int64 `json:"created_at_ms"`
-	// UpdatedAtMS is the latest task update timestamp.
-	UpdatedAtMS int64 `json:"updated_at_ms"`
-	// CompletedAtMS is set for terminal tasks.
-	CompletedAtMS int64 `json:"completed_at_ms"`
-}
-
-// ManagerNodeScaleInPlanRequest carries operator confirmation for scale-in plan/start APIs.
-type ManagerNodeScaleInPlanRequest struct {
-	// ConfirmStatefulSetTail confirms the target is the external StatefulSet tail node.
-	ConfirmStatefulSetTail bool `json:"confirm_statefulset_tail"`
-	// ExpectedTailNodeID is the node ID the operator expects to remove.
-	ExpectedTailNodeID uint64 `json:"expected_tail_node_id"`
-}
-
-// ManagerAdvanceNodeScaleInRequest controls one bounded manager scale-in advance step.
-type ManagerAdvanceNodeScaleInRequest struct {
-	// MaxLeaderTransfers limits Slot leader transfer attempts in one call.
-	MaxLeaderTransfers int `json:"max_leader_transfers"`
-	// MaxChannelMigrations limits channel migration task creation in one call.
-	MaxChannelMigrations int `json:"max_channel_migrations"`
-	// ForceCloseConnections is reserved for explicit operator-driven session closure.
-	ForceCloseConnections bool `json:"force_close_connections"`
-}
-
-// ManagerNodeScaleInReport mirrors the manager scale-in report used by e2e.
-type ManagerNodeScaleInReport struct {
-	// NodeID is the target data node being evaluated.
-	NodeID uint64 `json:"node_id"`
-	// Status is the manager-computed scale-in phase.
-	Status string `json:"status"`
-	// SafeToRemove is true only when the manager reports ready_to_remove.
-	SafeToRemove bool `json:"safe_to_remove"`
-	// CanStart reports whether the target can enter the draining state.
-	CanStart bool `json:"can_start"`
-	// CanAdvance reports whether a bounded advance call can progress the phase.
-	CanAdvance bool `json:"can_advance"`
-	// CanCancel reports whether the draining target can be resumed.
-	CanCancel bool `json:"can_cancel"`
-	// ConnectionSafetyVerified reports whether runtime session counters are known.
-	ConnectionSafetyVerified bool `json:"connection_safety_verified"`
-	// BlockedReasons lists stable manager blockers for diagnostics.
-	BlockedReasons []ManagerNodeScaleInBlockedReason `json:"blocked_reasons"`
-	// Checks exposes individual scale-in safety checks.
-	Checks ManagerNodeScaleInChecks `json:"checks"`
-	// Progress exposes live drain counters.
-	Progress ManagerNodeScaleInProgress `json:"progress"`
-	// Runtime exposes node-local runtime session counters.
-	Runtime ManagerNodeScaleInRuntimeSummary `json:"runtime"`
-	// NextAction describes the next operator or manager action.
-	NextAction string `json:"next_action"`
-}
-
-// ManagerNodeScaleInChecks mirrors stable safety check booleans from the manager API.
-type ManagerNodeScaleInChecks struct {
-	TargetExists                             bool `json:"target_exists"`
-	TargetIsDataNode                         bool `json:"target_is_data_node"`
-	TargetIsActiveOrDraining                 bool `json:"target_is_active_or_draining"`
-	TargetIsNotControllerVoter               bool `json:"target_is_not_controller_voter"`
-	TailNodeMappingVerified                  bool `json:"tail_node_mapping_verified"`
-	RemainingDataNodesEnough                 bool `json:"remaining_data_nodes_enough"`
-	ControllerLeaderAvailable                bool `json:"controller_leader_available"`
-	SlotReplicaCountKnown                    bool `json:"slot_replica_count_known"`
-	NoOtherDrainingNode                      bool `json:"no_other_draining_node"`
-	NoActiveHashslotMigrations               bool `json:"no_active_hashslot_migrations"`
-	NoRunningOnboarding                      bool `json:"no_running_onboarding"`
-	NoActiveReconcileTasksInvolvingTarget    bool `json:"no_active_reconcile_tasks_involving_target"`
-	NoFailedReconcileTasks                   bool `json:"no_failed_reconcile_tasks"`
-	RuntimeViewsCompleteAndFresh             bool `json:"runtime_views_complete_and_fresh"`
-	AllSlotsHaveQuorum                       bool `json:"all_slots_have_quorum"`
-	TargetNotUniqueHealthyReplica            bool `json:"target_not_unique_healthy_replica"`
-	ChannelInventoryAvailable                bool `json:"channel_inventory_available"`
-	NoActiveChannelMigrationsInvolvingTarget bool `json:"no_active_channel_migrations_involving_target"`
-	NoChannelLeadersOnTarget                 bool `json:"no_channel_leaders_on_target"`
-	NoChannelReplicasOnTarget                bool `json:"no_channel_replicas_on_target"`
-}
-
-// ManagerNodeScaleInProgress mirrors live drain counters from the manager API.
-type ManagerNodeScaleInProgress struct {
-	AssignedSlotReplicas                 int    `json:"assigned_slot_replicas"`
-	ObservedSlotReplicas                 int    `json:"observed_slot_replicas"`
-	SlotLeaders                          int    `json:"slot_leaders"`
-	ActiveTasksInvolvingNode             int    `json:"active_tasks_involving_node"`
-	ActiveMigrationsInvolvingNode        int    `json:"active_migrations_involving_node"`
-	ChannelLeaders                       int    `json:"channel_leaders"`
-	ChannelReplicas                      int    `json:"channel_replicas"`
-	ActiveChannelMigrationsInvolvingNode int    `json:"active_channel_migrations_involving_node"`
-	ActiveConnections                    int    `json:"active_connections"`
-	ClosingConnections                   int    `json:"closing_connections"`
-	GatewaySessions                      int    `json:"gateway_sessions"`
-	ActiveConnectionsUnknown             bool   `json:"active_connections_unknown"`
-	ChannelInventoryScanned              bool   `json:"channel_inventory_scanned"`
-	ChannelInventoryPartial              bool   `json:"channel_inventory_partial"`
-	ChannelInventoryError                string `json:"channel_inventory_error"`
-}
-
-// ManagerNodeScaleInRuntimeSummary mirrors runtime session counters used for scale-in safety.
-type ManagerNodeScaleInRuntimeSummary struct {
-	NodeID               uint64         `json:"node_id"`
-	ActiveOnline         int            `json:"active_online"`
-	ClosingOnline        int            `json:"closing_online"`
-	TotalOnline          int            `json:"total_online"`
-	GatewaySessions      int            `json:"gateway_sessions"`
-	SessionsByListener   map[string]int `json:"sessions_by_listener"`
-	AcceptingNewSessions bool           `json:"accepting_new_sessions"`
-	Draining             bool           `json:"draining"`
-	Unknown              bool           `json:"unknown"`
-}
-
-// ManagerNodeScaleInBlockedReason mirrors one stable scale-in blocker.
-type ManagerNodeScaleInBlockedReason struct {
-	Code    string `json:"code"`
-	Message string `json:"message"`
-	Count   int    `json:"count"`
+// NodeOnboardingSkippedSlotDTO describes one skipped Slot in onboarding responses.
+type NodeOnboardingSkippedSlotDTO struct {
 	SlotID  uint32 `json:"slot_id"`
-	NodeID  uint64 `json:"node_id"`
+	Reason  string `json:"reason"`
+	Message string `json:"message"`
 }
 
-// FetchNodeOnboardingCandidates fetches manager onboarding candidates from the started node.
-func FetchNodeOnboardingCandidates(ctx context.Context, node StartedNode) (ManagerNodeOnboardingCandidatesResponse, []byte, error) {
-	body, err := fetchHTTPBody(ctx, node.Spec.ManagerAddr, "/manager/node-onboarding/candidates")
-	if err != nil {
-		return ManagerNodeOnboardingCandidatesResponse{}, nil, err
-	}
-
-	resp, err := decodeNodeOnboardingCandidatesResponse(body)
-	if err != nil {
-		return ManagerNodeOnboardingCandidatesResponse{}, body, err
-	}
-	return resp, body, nil
+// NodeOnboardingTaskResultDTO describes one submitted onboarding task.
+type NodeOnboardingTaskResultDTO struct {
+	SlotID  uint32                       `json:"slot_id"`
+	Created bool                         `json:"created"`
+	Task    *NodeOnboardingStatusTaskDTO `json:"task,omitempty"`
 }
 
-// CreateNodeOnboardingPlan creates a manager-reviewed onboarding plan for targetNodeID.
-func CreateNodeOnboardingPlan(ctx context.Context, node StartedNode, targetNodeID uint64) (ManagerNodeOnboardingJob, []byte, error) {
-	body, err := postHTTPJSONBody(ctx, node.Spec.ManagerAddr, "/manager/node-onboarding/plan", map[string]uint64{"target_node_id": targetNodeID})
-	if err != nil {
-		return ManagerNodeOnboardingJob{}, nil, err
-	}
-
-	job, err := decodeNodeOnboardingJobResponse(body)
-	if err != nil {
-		return ManagerNodeOnboardingJob{}, body, err
-	}
-	return job, body, nil
+// NodeOnboardingStatusSummary contains aggregate active onboarding task counts.
+type NodeOnboardingStatusSummary struct {
+	TotalActive int `json:"total_active"`
+	Pending     int `json:"pending"`
+	Running     int `json:"running"`
+	Failed      int `json:"failed"`
 }
 
-// StartNodeOnboardingJob starts a planned onboarding job through the manager API.
-func StartNodeOnboardingJob(ctx context.Context, node StartedNode, jobID string) (ManagerNodeOnboardingJob, []byte, error) {
-	body, err := postHTTPJSONBody(ctx, node.Spec.ManagerAddr, fmt.Sprintf("/manager/node-onboarding/jobs/%s/start", jobID), nil)
-	if err != nil {
-		return ManagerNodeOnboardingJob{}, nil, err
-	}
-
-	job, err := decodeNodeOnboardingJobResponse(body)
-	if err != nil {
-		return ManagerNodeOnboardingJob{}, body, err
-	}
-	return job, body, nil
+// NodeOnboardingStatusTaskDTO is an active onboarding task row.
+type NodeOnboardingStatusTaskDTO struct {
+	TaskID      string   `json:"task_id"`
+	SlotID      uint32   `json:"slot_id"`
+	Kind        string   `json:"kind"`
+	Step        string   `json:"step"`
+	Status      string   `json:"status"`
+	SourceNode  uint64   `json:"source_node"`
+	TargetNode  uint64   `json:"target_node"`
+	TargetPeers []uint64 `json:"target_peers"`
+	ConfigEpoch uint64   `json:"config_epoch"`
+	Attempt     uint32   `json:"attempt"`
+	LastError   string   `json:"last_error,omitempty"`
 }
 
-// FetchNodeOnboardingJob fetches one onboarding job through the manager API.
-func FetchNodeOnboardingJob(ctx context.Context, node StartedNode, jobID string) (ManagerNodeOnboardingJob, []byte, error) {
-	body, err := fetchHTTPBody(ctx, node.Spec.ManagerAddr, fmt.Sprintf("/manager/node-onboarding/jobs/%s", jobID))
-	if err != nil {
-		return ManagerNodeOnboardingJob{}, nil, err
-	}
-
-	job, err := decodeNodeOnboardingJobResponse(body)
-	if err != nil {
-		return ManagerNodeOnboardingJob{}, body, err
-	}
-	return job, body, nil
+// NodeScaleInCandidateDTO describes one Slot replica move selected for scale-in drain.
+type NodeScaleInCandidateDTO struct {
+	SlotID       uint32   `json:"slot_id"`
+	SourceNodeID uint64   `json:"source_node_id"`
+	TargetNodeID uint64   `json:"target_node_id"`
+	DesiredPeers []uint64 `json:"desired_peers"`
+	TargetPeers  []uint64 `json:"target_peers"`
+	ConfigEpoch  uint64   `json:"config_epoch"`
 }
 
-// WaitForNodeOnboardingJob waits until a manager onboarding job satisfies accept.
-func WaitForNodeOnboardingJob(ctx context.Context, node StartedNode, jobID string, accept func(ManagerNodeOnboardingJob) bool) (ManagerNodeOnboardingJob, []byte, error) {
-	ticker := time.NewTicker(readyPollInterval)
-	defer ticker.Stop()
+// NodeScaleInPlanDTO is the manager scale-in drain preview subset used by e2e.
+type NodeScaleInPlanDTO struct {
+	GeneratedAt     string                    `json:"generated_at"`
+	StateRevision   uint64                    `json:"state_revision"`
+	NodeID          uint64                    `json:"node_id"`
+	Candidates      []NodeScaleInCandidateDTO `json:"candidates"`
+	BlockedByStatus bool                      `json:"blocked_by_status"`
+}
 
-	var (
-		lastErr  error
-		lastBody []byte
-	)
-	for {
-		job, body, err := FetchNodeOnboardingJob(ctx, node, jobID)
-		if err == nil {
-			lastBody = body
-			if accept == nil || accept(job) {
-				return job, body, nil
-			}
-			lastErr = fmt.Errorf("onboarding job %s did not satisfy expected state", jobID)
-		} else {
-			lastErr = err
+// NodeScaleInAdvanceDTO is the manager scale-in drain submit subset used by e2e.
+type NodeScaleInAdvanceDTO struct {
+	GeneratedAt   string                    `json:"generated_at"`
+	StateRevision uint64                    `json:"state_revision"`
+	NodeID        uint64                    `json:"node_id"`
+	Created       uint32                    `json:"created"`
+	Skipped       uint32                    `json:"skipped"`
+	Candidates    []NodeScaleInCandidateDTO `json:"candidates"`
+}
+
+// NodeScaleInStatusDTO is the manager scale-in status subset used by e2e.
+type NodeScaleInStatusDTO struct {
+	NodeID                   uint64   `json:"node_id"`
+	JoinState                string   `json:"join_state"`
+	GeneratedAt              string   `json:"generated_at"`
+	StateRevision            uint64   `json:"state_revision"`
+	SafeToProceed            bool     `json:"safe_to_proceed"`
+	SafeToRemove             bool     `json:"safe_to_remove"`
+	BlockedByMissingNode     bool     `json:"blocked_by_missing_node"`
+	BlockedByJoinState       bool     `json:"blocked_by_join_state"`
+	BlockedByControlRevision bool     `json:"blocked_by_control_revision"`
+	BlockedByHealth          bool     `json:"blocked_by_health"`
+	BlockedByStaleRevision   bool     `json:"blocked_by_stale_revision"`
+	BlockedByControllerRole  bool     `json:"blocked_by_controller_role"`
+	BlockedBySlots           bool     `json:"blocked_by_slots"`
+	BlockedBySlotLeadership  bool     `json:"blocked_by_slot_leadership"`
+	BlockedBySlotRuntime     bool     `json:"blocked_by_slot_runtime"`
+	BlockedByDataRole        bool     `json:"blocked_by_data_role"`
+	BlockedByTasks           bool     `json:"blocked_by_tasks"`
+	BlockedByChannels        bool     `json:"blocked_by_channels"`
+	BlockedByRuntimeDrain    bool     `json:"blocked_by_runtime_drain"`
+	UnknownRuntime           bool     `json:"unknown_runtime"`
+	RuntimeUnknown           bool     `json:"runtime_unknown"`
+	UnknownControlRevision   bool     `json:"unknown_control_revision"`
+	UnknownChannelInventory  bool     `json:"unknown_channel_inventory"`
+	HealthFresh              bool     `json:"health_fresh"`
+	HealthStatus             string   `json:"health_status"`
+	HealthFreshness          string   `json:"health_freshness"`
+	HealthReportAgeMS        int64    `json:"health_report_age_ms"`
+	HealthReportTTLMS        int64    `json:"health_report_ttl_ms"`
+	ObservedControlRevision  uint64   `json:"observed_control_revision"`
+	RequiredControlRevision  uint64   `json:"required_control_revision"`
+	BlockedReasons           []string `json:"blocked_reasons"`
+	GatewayDraining          bool     `json:"gateway_draining"`
+	AcceptingNewSessions     bool     `json:"accepting_new_sessions"`
+	SlotReplicaCount         int      `json:"slot_replica_count"`
+	SlotLeaderCount          int      `json:"slot_leader_count"`
+	ActiveTaskCount          int      `json:"active_task_count"`
+	FailedTaskCount          int      `json:"failed_task_count"`
+	ChannelLeaderCount       int      `json:"channel_leader_count"`
+	ChannelReplicaCount      int      `json:"channel_replica_count"`
+	ChannelISRCount          int      `json:"channel_isr_count"`
+	GatewaySessions          int      `json:"gateway_sessions"`
+	ActiveOnline             int      `json:"active_online"`
+	ClosingOnline            int      `json:"closing_online"`
+	TotalOnline              int      `json:"total_online"`
+	PendingActivations       int      `json:"pending_activations"`
+}
+
+// NodeScaleInStartDTO is the manager leaving transition subset used by e2e.
+type NodeScaleInStartDTO struct {
+	Changed   bool   `json:"changed"`
+	NodeID    uint64 `json:"node_id"`
+	JoinState string `json:"join_state"`
+	Revision  uint64 `json:"revision"`
+}
+
+// NodeScaleInDrainDTO is the manager gateway drain response subset used by e2e.
+type NodeScaleInDrainDTO struct {
+	NodeID               uint64 `json:"node_id"`
+	Draining             bool   `json:"draining"`
+	AcceptingNewSessions bool   `json:"accepting_new_sessions"`
+	GatewaySessions      int    `json:"gateway_sessions"`
+	ActiveOnline         int    `json:"active_online"`
+	ClosingOnline        int    `json:"closing_online"`
+	TotalOnline          int    `json:"total_online"`
+	PendingActivations   int    `json:"pending_activations"`
+	Unknown              bool   `json:"unknown"`
+}
+
+// NodeScaleInRemoveDTO is the manager removed transition subset used by e2e.
+type NodeScaleInRemoveDTO struct {
+	Changed   bool   `json:"changed"`
+	NodeID    uint64 `json:"node_id"`
+	JoinState string `json:"join_state"`
+	Revision  uint64 `json:"revision"`
+}
+
+func stableSlotInventory(resp managerSlotsResponse) error {
+	if resp.Total == 0 || len(resp.Items) == 0 {
+		return fmt.Errorf("empty slot inventory total=%d items=%d", resp.Total, len(resp.Items))
+	}
+	if resp.Total != len(resp.Items) {
+		return fmt.Errorf("slot inventory total=%d items=%d", resp.Total, len(resp.Items))
+	}
+	for _, item := range resp.Items {
+		if item.Task != nil {
+			return fmt.Errorf("slot %d still has active task %#v runtime=%#v", item.SlotID, item.Task, item.Runtime)
 		}
-
-		select {
-		case <-ctx.Done():
-			if lastErr != nil {
-				return ManagerNodeOnboardingJob{}, lastBody, lastErr
-			}
-			return ManagerNodeOnboardingJob{}, lastBody, ctx.Err()
-		case <-ticker.C:
-		}
-	}
-}
-
-func decodeNodeOnboardingCandidatesResponse(body []byte) (ManagerNodeOnboardingCandidatesResponse, error) {
-	var resp ManagerNodeOnboardingCandidatesResponse
-	if err := json.Unmarshal(body, &resp); err != nil {
-		return ManagerNodeOnboardingCandidatesResponse{}, err
-	}
-	return resp, nil
-}
-
-func decodeNodeOnboardingJobResponse(body []byte) (ManagerNodeOnboardingJob, error) {
-	var job ManagerNodeOnboardingJob
-	if err := json.Unmarshal(body, &job); err != nil {
-		return ManagerNodeOnboardingJob{}, err
-	}
-	return job, nil
-}
-
-// CompactSlotRaftLog triggers node-local Slot Raft compaction through manager API.
-func CompactSlotRaftLog(ctx context.Context, node StartedNode, targetNodeID uint64, slotID uint32) (ManagerSlotRaftCompactionResponse, []byte, error) {
-	body, err := postHTTPJSONBody(ctx, node.Spec.ManagerAddr, fmt.Sprintf("/manager/nodes/%d/slots/%d/compact", targetNodeID, slotID), nil)
-	if err != nil {
-		return ManagerSlotRaftCompactionResponse{}, nil, err
-	}
-
-	resp, err := decodeSlotRaftCompactionResponse(body)
-	if err != nil {
-		return ManagerSlotRaftCompactionResponse{}, body, err
-	}
-	return resp, body, nil
-}
-
-func decodeSlotRaftCompactionResponse(body []byte) (ManagerSlotRaftCompactionResponse, error) {
-	var resp ManagerSlotRaftCompactionResponse
-	if err := json.Unmarshal(body, &resp); err != nil {
-		return ManagerSlotRaftCompactionResponse{}, err
-	}
-	return resp, nil
-}
-
-// FetchControllerRaftStatus fetches one node-local Controller Raft status through manager API.
-func FetchControllerRaftStatus(ctx context.Context, node StartedNode, targetNodeID uint64) (ManagerControllerRaftStatus, []byte, error) {
-	body, err := fetchHTTPBody(ctx, node.Spec.ManagerAddr, fmt.Sprintf("/manager/nodes/%d/controller-raft", targetNodeID))
-	if err != nil {
-		return ManagerControllerRaftStatus{}, nil, err
-	}
-
-	resp, err := decodeControllerRaftStatusResponse(body)
-	if err != nil {
-		return ManagerControllerRaftStatus{}, body, err
-	}
-	return resp, body, nil
-}
-
-func decodeControllerRaftStatusResponse(body []byte) (ManagerControllerRaftStatus, error) {
-	var resp ManagerControllerRaftStatus
-	if err := json.Unmarshal(body, &resp); err != nil {
-		return ManagerControllerRaftStatus{}, err
-	}
-	return resp, nil
-}
-
-// CompactControllerRaftLog triggers node-local Controller Raft compaction through manager API.
-func CompactControllerRaftLog(ctx context.Context, node StartedNode, targetNodeID uint64) (ManagerControllerRaftCompactionResponse, []byte, error) {
-	body, err := postHTTPJSONBody(ctx, node.Spec.ManagerAddr, fmt.Sprintf("/manager/nodes/%d/controller-raft/compact", targetNodeID), nil)
-	if err != nil {
-		return ManagerControllerRaftCompactionResponse{}, nil, err
-	}
-
-	resp, err := decodeControllerRaftCompactionResponse(body)
-	if err != nil {
-		return ManagerControllerRaftCompactionResponse{}, body, err
-	}
-	return resp, body, nil
-}
-
-func decodeControllerRaftCompactionResponse(body []byte) (ManagerControllerRaftCompactionResponse, error) {
-	var resp ManagerControllerRaftCompactionResponse
-	if err := json.Unmarshal(body, &resp); err != nil {
-		return ManagerControllerRaftCompactionResponse{}, err
-	}
-	return resp, nil
-}
-
-// FetchSlotDetail fetches one manager slot detail from the started node.
-func FetchSlotDetail(ctx context.Context, node StartedNode, slotID uint32) (ManagerSlotDetail, []byte, error) {
-	body, err := fetchHTTPBody(ctx, node.Spec.ManagerAddr, fmt.Sprintf("/manager/slots/%d", slotID))
-	if err != nil {
-		return ManagerSlotDetail{}, nil, err
-	}
-
-	var detail ManagerSlotDetail
-	if err := json.Unmarshal(body, &detail); err != nil {
-		return ManagerSlotDetail{}, body, err
-	}
-	return detail, body, nil
-}
-
-// FetchChannelClusterReplicas fetches authoritative channel-cluster replica detail.
-func FetchChannelClusterReplicas(ctx context.Context, node StartedNode, channelType uint8, channelID string) (ManagerChannelClusterReplicaDetail, []byte, error) {
-	body, err := fetchHTTPBody(ctx, node.Spec.ManagerAddr, fmt.Sprintf("/manager/channel-cluster/%d/%s/replicas", channelType, url.PathEscape(channelID)))
-	if err != nil {
-		return ManagerChannelClusterReplicaDetail{}, nil, err
-	}
-
-	detail, err := decodeChannelClusterReplicaDetail(body)
-	if err != nil {
-		return ManagerChannelClusterReplicaDetail{}, body, err
-	}
-	return detail, body, nil
-}
-
-// TransferChannelClusterLeader transfers one channel leader to a requested replica through manager APIs.
-func TransferChannelClusterLeader(ctx context.Context, node StartedNode, channelType uint8, channelID string, targetNodeID uint64) (ManagerChannelLeaderTransferResponse, []byte, error) {
-	body, err := postHTTPJSONBody(
-		ctx,
-		node.Spec.ManagerAddr,
-		fmt.Sprintf("/manager/channel-cluster/%d/%s/leader/transfer", channelType, url.PathEscape(channelID)),
-		map[string]uint64{"target_node_id": targetNodeID},
-	)
-	if err != nil {
-		return ManagerChannelLeaderTransferResponse{}, nil, err
-	}
-
-	result, err := decodeChannelLeaderTransferResponse(body)
-	if err != nil {
-		return ManagerChannelLeaderTransferResponse{}, body, err
-	}
-	return result, body, nil
-}
-
-// FetchChannelMigration fetches active manager migration details for one channel.
-func FetchChannelMigration(ctx context.Context, node StartedNode, channelType uint8, channelID string) (ManagerChannelMigrationDetail, []byte, error) {
-	body, err := fetchHTTPBody(ctx, node.Spec.ManagerAddr, fmt.Sprintf("/manager/channels/%d/%s/migration", channelType, url.PathEscape(channelID)))
-	if err != nil {
-		return ManagerChannelMigrationDetail{}, nil, err
-	}
-
-	detail, err := decodeChannelMigrationDetailResponse(body)
-	if err != nil {
-		return ManagerChannelMigrationDetail{}, body, err
-	}
-	return detail, body, nil
-}
-
-// WaitForChannelClusterReplicas waits until channel-cluster replica detail satisfies accept.
-func WaitForChannelClusterReplicas(ctx context.Context, node StartedNode, channelType uint8, channelID string, accept func(ManagerChannelClusterReplicaDetail) bool) (ManagerChannelClusterReplicaDetail, []byte, error) {
-	ticker := time.NewTicker(readyPollInterval)
-	defer ticker.Stop()
-
-	var (
-		lastDetail ManagerChannelClusterReplicaDetail
-		lastErr    error
-		lastBody   []byte
-	)
-	for {
-		detail, body, err := FetchChannelClusterReplicas(ctx, node, channelType, channelID)
-		if err == nil {
-			lastDetail = detail
-			lastBody = body
-			if accept == nil || accept(detail) {
-				return detail, body, nil
-			}
-			lastErr = fmt.Errorf("channel %d/%s replica detail did not satisfy expected state", channelType, channelID)
-		} else {
-			lastErr = err
-		}
-
-		select {
-		case <-ctx.Done():
-			if lastErr != nil {
-				return lastDetail, lastBody, lastErr
-			}
-			return lastDetail, lastBody, ctx.Err()
-		case <-ticker.C:
+		if len(item.Assignment.DesiredPeers) == 0 {
+			return fmt.Errorf("slot %d has empty desired peers", item.SlotID)
 		}
 	}
+	return nil
 }
 
-func decodeChannelClusterReplicaDetail(body []byte) (ManagerChannelClusterReplicaDetail, error) {
-	var detail ManagerChannelClusterReplicaDetail
-	if err := json.Unmarshal(body, &detail); err != nil {
-		return ManagerChannelClusterReplicaDetail{}, err
-	}
-	return detail, nil
-}
-
-func decodeChannelLeaderTransferResponse(body []byte) (ManagerChannelLeaderTransferResponse, error) {
-	var resp ManagerChannelLeaderTransferResponse
-	if err := json.Unmarshal(body, &resp); err != nil {
-		return ManagerChannelLeaderTransferResponse{}, err
-	}
-	return resp, nil
-}
-
-func decodeChannelMigrationDetailResponse(body []byte) (ManagerChannelMigrationDetail, error) {
-	var detail ManagerChannelMigrationDetail
-	if err := json.Unmarshal(body, &detail); err != nil {
-		return ManagerChannelMigrationDetail{}, err
-	}
-	return detail, nil
-}
-
-// PlanNodeScaleIn fetches a side-effect-free manager scale-in report.
-func PlanNodeScaleIn(ctx context.Context, node StartedNode, nodeID uint64, req ManagerNodeScaleInPlanRequest) (ManagerNodeScaleInReport, []byte, error) {
-	body, err := postHTTPJSONBody(ctx, node.Spec.ManagerAddr, fmt.Sprintf("/manager/nodes/%d/scale-in/plan", nodeID), req)
-	if err != nil {
-		return ManagerNodeScaleInReport{}, nil, err
-	}
-
-	report, err := decodeNodeScaleInReportResponse(body)
-	if err != nil {
-		return ManagerNodeScaleInReport{}, body, err
-	}
-	return report, body, nil
-}
-
-// StartNodeScaleIn marks a preflight-safe manager node as draining.
-func StartNodeScaleIn(ctx context.Context, node StartedNode, nodeID uint64, req ManagerNodeScaleInPlanRequest) (ManagerNodeScaleInReport, []byte, error) {
-	body, err := postHTTPJSONBody(ctx, node.Spec.ManagerAddr, fmt.Sprintf("/manager/nodes/%d/scale-in/start", nodeID), req)
-	if err != nil {
-		return ManagerNodeScaleInReport{}, nil, err
-	}
-
-	report, err := decodeNodeScaleInReportResponse(body)
-	if err != nil {
-		return ManagerNodeScaleInReport{}, body, err
-	}
-	return report, body, nil
-}
-
-// GetNodeScaleInStatus fetches the latest manager scale-in report.
-func GetNodeScaleInStatus(ctx context.Context, node StartedNode, nodeID uint64) (ManagerNodeScaleInReport, []byte, error) {
-	body, err := fetchHTTPBody(ctx, node.Spec.ManagerAddr, fmt.Sprintf("/manager/nodes/%d/scale-in/status", nodeID))
-	if err != nil {
-		return ManagerNodeScaleInReport{}, nil, err
-	}
-
-	report, err := decodeNodeScaleInReportResponse(body)
-	if err != nil {
-		return ManagerNodeScaleInReport{}, body, err
-	}
-	return report, body, nil
-}
-
-// AdvanceNodeScaleIn performs one bounded manager scale-in advance step.
-func AdvanceNodeScaleIn(ctx context.Context, node StartedNode, nodeID uint64, req ManagerAdvanceNodeScaleInRequest) (ManagerNodeScaleInReport, []byte, error) {
-	body, err := postHTTPJSONBody(ctx, node.Spec.ManagerAddr, fmt.Sprintf("/manager/nodes/%d/scale-in/advance", nodeID), req)
-	if err != nil {
-		return ManagerNodeScaleInReport{}, nil, err
-	}
-
-	report, err := decodeNodeScaleInReportResponse(body)
-	if err != nil {
-		return ManagerNodeScaleInReport{}, body, err
-	}
-	return report, body, nil
-}
-
-func decodeNodeScaleInReportResponse(body []byte) (ManagerNodeScaleInReport, error) {
-	var report ManagerNodeScaleInReport
-	if err := json.Unmarshal(body, &report); err != nil {
-		return ManagerNodeScaleInReport{}, err
-	}
-	return report, nil
-}
-
-// FetchConnections fetches local manager connections from the started node.
-func FetchConnections(ctx context.Context, node StartedNode) ([]ManagerConnection, []byte, error) {
-	body, err := fetchHTTPBody(ctx, node.Spec.ManagerAddr, "/manager/connections")
-	if err != nil {
-		return nil, nil, err
-	}
-
-	var resp managerConnectionsResponse
-	if err := json.Unmarshal(body, &resp); err != nil {
-		return nil, body, err
-	}
-	return resp.Items, body, nil
-}
-
-// FetchNodes fetches the manager node list from the started node.
-func FetchNodes(ctx context.Context, node StartedNode) ([]ManagerNode, []byte, error) {
-	body, err := fetchHTTPBody(ctx, node.Spec.ManagerAddr, "/manager/nodes")
-	if err != nil {
-		return nil, nil, err
-	}
-
-	resp, err := decodeManagerNodesResponse(body)
-	if err != nil {
-		return nil, body, err
-	}
-	return resp.Items, body, nil
-}
-
-func decodeManagerNodesResponse(body []byte) (ManagerNodesResponse, error) {
-	var resp ManagerNodesResponse
-	if err := json.Unmarshal(body, &resp); err != nil {
-		return ManagerNodesResponse{}, err
-	}
-	return resp, nil
-}
-
-func managerNodeByID(items []ManagerNode, nodeID uint64) (ManagerNode, bool) {
-	for _, item := range items {
+func findManagerNode(resp managerNodesResponse, nodeID uint64) (NodeDTO, bool) {
+	for _, item := range resp.Items {
 		if item.NodeID == nodeID {
 			return item, true
 		}
 	}
-	return ManagerNode{}, false
+	return NodeDTO{}, false
 }
 
-// WaitForManagerNode waits until /manager/nodes contains a node accepted by the predicate.
-func WaitForManagerNode(ctx context.Context, node StartedNode, nodeID uint64, accept func(ManagerNode) bool) (ManagerNode, []byte, error) {
-	ticker := time.NewTicker(readyPollInterval)
-	defer ticker.Stop()
-
-	var (
-		lastErr  error
-		lastBody []byte
-	)
-	for {
-		items, body, err := FetchNodes(ctx, node)
-		if err == nil {
-			lastBody = body
-			managerNode, ok := managerNodeByID(items, nodeID)
-			if ok && (accept == nil || accept(managerNode)) {
-				return managerNode, body, nil
-			}
-			if ok {
-				lastErr = fmt.Errorf("manager node %d did not satisfy expected state", nodeID)
-			} else {
-				lastErr = fmt.Errorf("manager node %d not present", nodeID)
-			}
-		} else {
-			lastErr = err
-		}
-
-		select {
-		case <-ctx.Done():
-			if lastErr != nil {
-				return ManagerNode{}, lastBody, lastErr
-			}
-			return ManagerNode{}, lastBody, ctx.Err()
-		case <-ticker.C:
+func sameUint64Set(left, right []uint64) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	leftCopy := append([]uint64(nil), left...)
+	rightCopy := append([]uint64(nil), right...)
+	sort.Slice(leftCopy, func(i, j int) bool { return leftCopy[i] < leftCopy[j] })
+	sort.Slice(rightCopy, func(i, j int) bool { return rightCopy[i] < rightCopy[j] })
+	for i := range leftCopy {
+		if leftCopy[i] != rightCopy[i] {
+			return false
 		}
 	}
+	return true
 }
 
-// WaitForControllerRaftLeader waits until one of the target nodes reports itself as Controller Raft leader.
-func WaitForControllerRaftLeader(ctx context.Context, node StartedNode, nodeIDs []uint64) (ManagerControllerRaftStatus, []byte, error) {
-	ticker := time.NewTicker(readyPollInterval)
-	defer ticker.Stop()
-
-	var (
-		lastErr  error
-		lastBody []byte
-	)
-	for {
-		for _, nodeID := range nodeIDs {
-			status, body, err := FetchControllerRaftStatus(ctx, node, nodeID)
-			if err != nil {
-				lastErr = err
-				continue
-			}
-			lastBody = body
-			if status.Role == "leader" && status.NodeID == nodeID && status.LeaderID == nodeID {
-				return status, body, nil
-			}
-			lastErr = fmt.Errorf("controller node %d role=%s leader=%d", nodeID, status.Role, status.LeaderID)
-		}
-
-		select {
-		case <-ctx.Done():
-			if lastErr != nil {
-				return ManagerControllerRaftStatus{}, lastBody, lastErr
-			}
-			return ManagerControllerRaftStatus{}, lastBody, ctx.Err()
-		case <-ticker.C:
-		}
-	}
-}
-
-// WaitForControllerRaftStatus waits until one node-local Controller Raft status satisfies accept.
-func WaitForControllerRaftStatus(ctx context.Context, node StartedNode, targetNodeID uint64, accept func(ManagerControllerRaftStatus) bool) (ManagerControllerRaftStatus, []byte, error) {
-	ticker := time.NewTicker(readyPollInterval)
-	defer ticker.Stop()
-
-	var (
-		lastErr  error
-		lastBody []byte
-	)
-	for {
-		status, body, err := FetchControllerRaftStatus(ctx, node, targetNodeID)
-		if err == nil {
-			lastBody = body
-			if accept == nil || accept(status) {
-				return status, body, nil
-			}
-			lastErr = fmt.Errorf("controller node %d did not satisfy expected state", targetNodeID)
-		} else {
-			lastErr = err
-		}
-
-		select {
-		case <-ctx.Done():
-			if lastErr != nil {
-				return ManagerControllerRaftStatus{}, lastBody, lastErr
-			}
-			return ManagerControllerRaftStatus{}, lastBody, ctx.Err()
-		case <-ticker.C:
-		}
-	}
-}
-
-// ResolveSlotTopology resolves the externally observed slot topology for one managed slot.
-func (c *StartedCluster) ResolveSlotTopology(ctx context.Context, slotID uint32) (SlotTopology, error) {
-	if c == nil {
-		return SlotTopology{}, fmt.Errorf("started cluster is nil")
-	}
-
-	expectedNodeIDs := make([]uint64, 0, len(c.Nodes))
-	for _, node := range c.Nodes {
-		expectedNodeIDs = append(expectedNodeIDs, node.Spec.ID)
-	}
-
-	ticker := time.NewTicker(readyPollInterval)
-	defer ticker.Stop()
-
-	var lastErr error
-	for {
-		for _, node := range c.Nodes {
-			_, body, err := FetchSlotDetail(ctx, node, slotID)
-			if err != nil {
-				lastErr = err
-				continue
-			}
-			c.lastSlotBodies[slotID] = string(body)
-			topology, err := parseSlotTopology(slotID, expectedNodeIDs, body)
-			if err == nil {
-				return topology, nil
-			}
-			lastErr = err
-		}
-
-		select {
-		case <-ctx.Done():
-			if lastErr == nil {
-				lastErr = fmt.Errorf("slot %d topology unavailable", slotID)
-			}
-			return SlotTopology{}, lastErr
-		case <-ticker.C:
-		}
-	}
-}
-
-// WaitForSlotLeaderChange waits until the slot reports a new leader with quorum.
-func (c *StartedCluster) WaitForSlotLeaderChange(ctx context.Context, slotID uint32, previousLeaderID uint64) (SlotTopology, error) {
-	if c == nil {
-		return SlotTopology{}, fmt.Errorf("started cluster is nil")
-	}
-
-	ticker := time.NewTicker(readyPollInterval)
-	defer ticker.Stop()
-
-	var lastErr error
-	for {
-		for _, node := range c.Nodes {
-			if node.Process == nil {
-				continue
-			}
-
-			detail, body, err := FetchSlotDetail(ctx, node, slotID)
-			if err != nil {
-				lastErr = err
-				continue
-			}
-			c.lastSlotBodies[slotID] = string(body)
-			if detail.SlotID != slotID {
-				lastErr = fmt.Errorf("slot %d leader change: got slot %d", slotID, detail.SlotID)
-				continue
-			}
-			if detail.Runtime.LeaderID == 0 {
-				lastErr = fmt.Errorf("slot %d leader change: missing leader", slotID)
-				continue
-			}
-			if detail.Runtime.LeaderID == previousLeaderID {
-				lastErr = fmt.Errorf("slot %d leader change: leader still %d", slotID, previousLeaderID)
-				continue
-			}
-			if !detail.Runtime.HasQuorum {
-				lastErr = fmt.Errorf("slot %d leader change: quorum not ready", slotID)
-				continue
-			}
-
-			followers := make([]uint64, 0, len(detail.Runtime.CurrentPeers))
-			for _, nodeID := range detail.Runtime.CurrentPeers {
-				if nodeID != detail.Runtime.LeaderID {
-					followers = append(followers, nodeID)
-				}
-			}
-			return SlotTopology{
-				SlotID:          detail.SlotID,
-				LeaderNodeID:    detail.Runtime.LeaderID,
-				FollowerNodeIDs: followers,
-				RawBody:         string(body),
-			}, nil
-		}
-
-		select {
-		case <-ctx.Done():
-			if lastErr == nil {
-				lastErr = fmt.Errorf("slot %d leader change unavailable", slotID)
-			}
-			return SlotTopology{}, lastErr
-		case <-ticker.C:
-		}
-	}
-}
-
-func fetchHTTPBody(ctx context.Context, addr, path string) ([]byte, error) {
-	if !strings.HasPrefix(path, "/") {
-		path = "/" + path
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://"+addr+path, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("manager endpoint %s returned %d: %s", path, resp.StatusCode, strings.TrimSpace(string(body)))
-	}
-	return body, nil
-}
-
-func postHTTPJSONBody(ctx context.Context, addr, path string, payload any) ([]byte, error) {
-	if !strings.HasPrefix(path, "/") {
-		path = "/" + path
-	}
-	var body io.Reader
-	if payload != nil {
-		data, err := json.Marshal(payload)
+func postJSONStatus(ctx context.Context, url string, body any, out any) (int, []byte, error) {
+	var reader io.Reader
+	if body != nil {
+		data, err := json.Marshal(body)
 		if err != nil {
-			return nil, err
+			return 0, nil, err
 		}
-		body = bytes.NewReader(data)
+		reader = bytes.NewReader(data)
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://"+addr+path, body)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, reader)
 	if err != nil {
-		return nil, err
+		return 0, nil, err
 	}
-	if payload != nil {
+	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return nil, err
+		return 0, nil, err
 	}
 	defer func() { _ = resp.Body.Close() }()
-
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, err
+		return resp.StatusCode, nil, err
 	}
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("manager endpoint %s returned %d: %s", path, resp.StatusCode, strings.TrimSpace(string(respBody)))
-	}
-	return respBody, nil
-}
-
-func parseSlotTopology(slotID uint32, expectedNodeIDs []uint64, body []byte) (SlotTopology, error) {
-	var detail ManagerSlotDetail
-	if err := json.Unmarshal(body, &detail); err != nil {
-		return SlotTopology{}, err
-	}
-	if detail.SlotID != slotID {
-		return SlotTopology{}, fmt.Errorf("slot topology: got slot %d, want %d", detail.SlotID, slotID)
-	}
-	if detail.State.Quorum != "ready" {
-		return SlotTopology{}, fmt.Errorf("slot topology: quorum=%s", detail.State.Quorum)
-	}
-	if detail.State.Sync != "matched" {
-		return SlotTopology{}, fmt.Errorf("slot topology: sync=%s", detail.State.Sync)
-	}
-	if detail.Runtime.LeaderID == 0 {
-		return SlotTopology{}, fmt.Errorf("slot topology: missing leader")
-	}
-	if !sameNodeSet(detail.Runtime.CurrentPeers, expectedNodeIDs) {
-		return SlotTopology{}, fmt.Errorf("slot topology: peers=%v want=%v", detail.Runtime.CurrentPeers, expectedNodeIDs)
-	}
-	if !slices.Contains(detail.Runtime.CurrentPeers, detail.Runtime.LeaderID) {
-		return SlotTopology{}, fmt.Errorf("slot topology: leader %d not in peers", detail.Runtime.LeaderID)
-	}
-
-	followers := make([]uint64, 0, len(detail.Runtime.CurrentPeers)-1)
-	for _, nodeID := range detail.Runtime.CurrentPeers {
-		if nodeID != detail.Runtime.LeaderID {
-			followers = append(followers, nodeID)
+	if out != nil && resp.StatusCode/100 == 2 {
+		if err := json.Unmarshal(respBody, out); err != nil {
+			return resp.StatusCode, respBody, fmt.Errorf("decode POST %s: %w body=%s", url, err, strings.TrimSpace(string(respBody)))
 		}
 	}
-
-	return SlotTopology{
-		SlotID:          detail.SlotID,
-		LeaderNodeID:    detail.Runtime.LeaderID,
-		FollowerNodeIDs: followers,
-		RawBody:         string(body),
-	}, nil
-}
-
-func connectionsContainUID(items []ManagerConnection, uid string) bool {
-	for _, item := range items {
-		if item.UID == uid {
-			return true
-		}
-	}
-	return false
-}
-
-// ConnectionsContainUID waits until the node reports a local manager connection for the UID.
-func ConnectionsContainUID(ctx context.Context, node StartedNode, uid string) (bool, error) {
-	ticker := time.NewTicker(readyPollInterval)
-	defer ticker.Stop()
-
-	var lastErr error
-	for {
-		items, _, err := FetchConnections(ctx, node)
-		if err == nil {
-			if connectionsContainUID(items, uid) {
-				return true, nil
-			}
-			lastErr = fmt.Errorf("uid %s not present in manager connections", uid)
-		} else {
-			lastErr = err
-		}
-
-		select {
-		case <-ctx.Done():
-			if lastErr != nil {
-				return false, lastErr
-			}
-			return false, ctx.Err()
-		case <-ticker.C:
-		}
-	}
-}
-
-// PersonChannelID returns the canonical runtime channel ID for two person-channel UIDs.
-func PersonChannelID(leftUID, rightUID string) string {
-	leftHash := crc32.ChecksumIEEE([]byte(leftUID))
-	rightHash := crc32.ChecksumIEEE([]byte(rightUID))
-	if leftHash > rightHash {
-		return leftUID + "@" + rightUID
-	}
-	if leftHash == rightHash && leftUID > rightUID {
-		return leftUID + "@" + rightUID
-	}
-	return rightUID + "@" + leftUID
-}
-
-func sameNodeSet(left, right []uint64) bool {
-	if len(left) != len(right) {
-		return false
-	}
-
-	leftCopy := append([]uint64(nil), left...)
-	rightCopy := append([]uint64(nil), right...)
-	slices.Sort(leftCopy)
-	slices.Sort(rightCopy)
-	return slices.Equal(leftCopy, rightCopy)
+	return resp.StatusCode, respBody, nil
 }

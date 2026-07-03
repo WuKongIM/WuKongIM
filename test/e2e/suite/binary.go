@@ -12,7 +12,13 @@ import (
 	"sync"
 )
 
-const e2eBinaryOverrideEnv = "WK_E2E_BINARY"
+const (
+	e2eBinaryOverrideEnv       = "WK_E2E_BINARY"
+	e2eBinaryCacheFileName     = "wukongim-e2e"
+	e2eBinaryCacheDirNameGlob  = "wukongim-e2e-bin-*"
+	e2eBinaryBuildPackage      = "./cmd/wukongim"
+	e2eBinaryBuildCommandLabel = "go build ./cmd/wukongim"
+)
 
 // BinaryCache builds and caches the e2e wukongim binary once per test process.
 type BinaryCache struct {
@@ -37,7 +43,7 @@ func (c *BinaryCache) Path(tempRoot string) (string, error) {
 		if c.err != nil {
 			return
 		}
-		c.path = filepath.Join(tempRoot, "wukongim-e2e")
+		c.path = filepath.Join(tempRoot, e2eBinaryCacheFileName)
 		build := c.build
 		if build == nil {
 			build = buildBinary
@@ -48,11 +54,8 @@ func (c *BinaryCache) Path(tempRoot string) (string, error) {
 }
 
 func resolveBinaryPath() (string, error) {
-	if override := strings.TrimSpace(os.Getenv(e2eBinaryOverrideEnv)); override != "" {
-		if _, err := os.Stat(override); err != nil {
-			return "", fmt.Errorf("%s=%q: %w", e2eBinaryOverrideEnv, override, err)
-		}
-		return override, nil
+	if path, ok, err := resolveBinaryOverride(e2eBinaryOverrideEnv); ok || err != nil {
+		return path, err
 	}
 
 	root, err := defaultBinaryCacheRoot()
@@ -62,17 +65,33 @@ func resolveBinaryPath() (string, error) {
 	return defaultBinaryCache.Path(root)
 }
 
+func resolveBinaryOverride(envName string) (string, bool, error) {
+	override := strings.TrimSpace(os.Getenv(envName))
+	if override == "" {
+		return "", false, nil
+	}
+	if _, err := os.Stat(override); err != nil {
+		return "", true, fmt.Errorf("%s=%q: %w", envName, override, err)
+	}
+	return override, true, nil
+}
+
 func defaultBinaryCacheRoot() (string, error) {
 	defaultBinaryRoot.once.Do(func() {
-		defaultBinaryRoot.path, defaultBinaryRoot.err = os.MkdirTemp("", "wukongim-e2e-bin-*")
+		defaultBinaryRoot.path, defaultBinaryRoot.err = os.MkdirTemp("", e2eBinaryCacheDirNameGlob)
 	})
 	return defaultBinaryRoot.path, defaultBinaryRoot.err
 }
 
 func buildBinary(dst string) error {
-	cmd := exec.Command("go", "build", "-o", dst, "./cmd/wukongim")
+	cmd := exec.Command("go", "build", "-o", dst, e2eBinaryBuildPackage)
 	cmd.Dir = repoRoot()
-	return cmd.Run()
+	cmd.Env = append(os.Environ(), "GOWORK=off")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("%s: %w\n%s", e2eBinaryBuildCommandLabel, err, output)
+	}
+	return nil
 }
 
 func repoRoot() string {

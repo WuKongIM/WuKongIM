@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -55,21 +56,30 @@ func WaitHTTPReady(ctx context.Context, addr, path string) error {
 	return err
 }
 
-// WaitNodeReady waits for both HTTP readiness and a real WKProto handshake.
-func WaitNodeReady(ctx context.Context, node StartedNode) error {
-	_, err := waitNodeReadyDetailed(ctx, node)
-	return err
-}
+// WaitTCPReady waits until a TCP listener accepts a connection on addr.
+func WaitTCPReady(ctx context.Context, addr string) error {
+	ticker := time.NewTicker(readyPollInterval)
+	defer ticker.Stop()
 
-func waitNodeReadyDetailed(ctx context.Context, node StartedNode) (HTTPObservation, error) {
-	observation, err := waitHTTPReadyDetailed(ctx, node.Spec.APIAddr, "/readyz")
-	if err != nil {
-		return observation, err
+	var lastErr error
+	for {
+		dialer := net.Dialer{}
+		conn, err := dialer.DialContext(ctx, "tcp", addr)
+		if err == nil {
+			_ = conn.Close()
+			return nil
+		}
+		lastErr = err
+
+		select {
+		case <-ctx.Done():
+			if lastErr != nil {
+				return lastErr
+			}
+			return ctx.Err()
+		case <-ticker.C:
+		}
 	}
-	if err := WaitWKProtoReady(ctx, node.Spec.GatewayAddr); err != nil {
-		return observation, err
-	}
-	return observation, nil
 }
 
 func waitHTTPReadyDetailed(ctx context.Context, addr, path string) (HTTPObservation, error) {

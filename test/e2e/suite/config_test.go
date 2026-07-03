@@ -3,147 +3,79 @@
 package suite
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
-func TestRenderSingleNodeConfigUsesOfficialWKKeys(t *testing.T) {
+func TestRenderSingleNodeConfigUsesWukongIMKeys(t *testing.T) {
 	spec := NodeSpec{
 		ID:          1,
 		Name:        "node-1",
-		DataDir:     "/tmp/node-1/data",
-		ConfigPath:  "/tmp/node-1/wukongim.conf",
-		ClusterAddr: "127.0.0.1:17000",
-		GatewayAddr: "127.0.0.1:15100",
-		APIAddr:     "127.0.0.1:18080",
+		DataDir:     "/tmp/wukongim/node-1/data",
+		ClusterAddr: "127.0.0.1:11001",
+		GatewayAddr: "127.0.0.1:12001",
+		APIAddr:     "127.0.0.1:13001",
+		LogDir:      "/tmp/wukongim/node-1/logs",
 	}
 
 	cfg := RenderSingleNodeConfig(spec)
-	require.Contains(t, cfg, "WK_NODE_ID=1")
-	require.Contains(t, cfg, "WK_NODE_NAME=node-1")
-	require.Contains(t, cfg, "WK_NODE_DATA_DIR=/tmp/node-1/data")
-	require.Contains(t, cfg, "WK_CLUSTER_LISTEN_ADDR=127.0.0.1:17000")
-	require.Contains(t, cfg, "WK_CLUSTER_SLOT_COUNT=1")
-	require.Contains(t, cfg, `WK_CLUSTER_NODES=[{"id":1,"addr":"127.0.0.1:17000"}]`)
-	require.Contains(t, cfg, `"address":"127.0.0.1:15100"`)
-	require.Contains(t, cfg, `"transport":"gnet"`)
-	require.Contains(t, cfg, "WK_API_LISTEN_ADDR=127.0.0.1:18080")
+
+	require.Contains(t, cfg, "WK_NODE_ID=1\n")
+	require.Contains(t, cfg, "WK_NODE_DATA_DIR=/tmp/wukongim/node-1/data\n")
+	require.Contains(t, cfg, "WK_CLUSTER_LISTEN_ADDR=127.0.0.1:11001\n")
+	require.Contains(t, cfg, "WK_CLUSTER_INITIAL_SLOT_COUNT=1\n")
+	require.Contains(t, cfg, "WK_CLUSTER_HASH_SLOT_COUNT=4\n")
+	require.Contains(t, cfg, "WK_CLUSTER_SLOT_REPLICA_N=1\n")
+	require.Contains(t, cfg, "WK_API_LISTEN_ADDR=127.0.0.1:13001\n")
+	require.Contains(t, cfg, "WK_METRICS_ENABLE=true\n")
+	require.Contains(t, cfg, `WK_GATEWAY_LISTENERS=[{"name":"tcp-wkproto","network":"tcp","address":"127.0.0.1:12001","transport":"gnet","protocol":"wkproto"}]`)
+	require.NotContains(t, cfg, "WK_CLUSTER_SLOT_COUNT")
+	require.NotContains(t, cfg, "WK_MANAGER_")
 }
 
-func TestRenderSingleNodeConfigIncludesManagerLoopbackAndLogDir(t *testing.T) {
+func TestRenderThreeNodeConfigUsesStaticClusterMembership(t *testing.T) {
+	nodes := []NodeSpec{
+		{ID: 1, DataDir: "/tmp/node-1/data", ClusterAddr: "127.0.0.1:11001", GatewayAddr: "127.0.0.1:12001", APIAddr: "127.0.0.1:13001", ManagerAddr: "127.0.0.1:14001"},
+		{ID: 2, DataDir: "/tmp/node-2/data", ClusterAddr: "127.0.0.1:11002", GatewayAddr: "127.0.0.1:12002", APIAddr: "127.0.0.1:13002", ManagerAddr: "127.0.0.1:14002"},
+		{ID: 3, DataDir: "/tmp/node-3/data", ClusterAddr: "127.0.0.1:11003", GatewayAddr: "127.0.0.1:12003", APIAddr: "127.0.0.1:13003", ManagerAddr: "127.0.0.1:14003"},
+	}
+
+	cfg := RenderClusterConfig(nodes[1], nodes)
+
+	require.Contains(t, cfg, "WK_NODE_ID=2\n")
+	require.Contains(t, cfg, "WK_CLUSTER_ID=wukongim-e2e-three\n")
+	require.Contains(t, cfg, `WK_CLUSTER_NODES=[{"id":1,"addr":"127.0.0.1:11001"},{"id":2,"addr":"127.0.0.1:11002"},{"id":3,"addr":"127.0.0.1:11003"}]`)
+	require.Contains(t, cfg, "WK_CLUSTER_INITIAL_SLOT_COUNT=3\n")
+	require.Contains(t, cfg, "WK_CLUSTER_HASH_SLOT_COUNT=16\n")
+	require.Contains(t, cfg, "WK_CLUSTER_SLOT_REPLICA_N=3\n")
+	require.Contains(t, cfg, "WK_MANAGER_LISTEN_ADDR=127.0.0.1:14002\n")
+}
+
+func TestRenderClusterConfigAppliesOverridesDeterministically(t *testing.T) {
 	spec := NodeSpec{
 		ID:          1,
 		Name:        "node-1",
-		DataDir:     "/tmp/node-1/data",
-		ConfigPath:  "/tmp/node-1/wukongim.conf",
-		ClusterAddr: "127.0.0.1:17001",
-		GatewayAddr: "127.0.0.1:15101",
-		APIAddr:     "127.0.0.1:18081",
-		ManagerAddr: "127.0.0.1:19081",
-		LogDir:      "/tmp/node-1/logs",
-	}
-
-	cfg := RenderSingleNodeConfig(spec)
-	require.Contains(t, cfg, "WK_MANAGER_LISTEN_ADDR=127.0.0.1:19081")
-	require.Contains(t, cfg, "WK_MANAGER_AUTH_ON=false")
-	require.Contains(t, cfg, "WK_LOG_DIR=/tmp/node-1/logs")
-}
-
-func TestRenderThreeNodeClusterConfigIncludesAllNodesAndReplicaCounts(t *testing.T) {
-	specs := []NodeSpec{
-		{
-			ID:          1,
-			Name:        "node-1",
-			DataDir:     "/tmp/node-1/data",
-			ClusterAddr: "127.0.0.1:17001",
-			GatewayAddr: "127.0.0.1:15101",
-			APIAddr:     "127.0.0.1:18081",
-			ManagerAddr: "127.0.0.1:19081",
-			LogDir:      "/tmp/node-1/logs",
-		},
-		{
-			ID:          2,
-			Name:        "node-2",
-			DataDir:     "/tmp/node-2/data",
-			ClusterAddr: "127.0.0.1:17002",
-			GatewayAddr: "127.0.0.1:15102",
-			APIAddr:     "127.0.0.1:18082",
-			ManagerAddr: "127.0.0.1:19082",
-			LogDir:      "/tmp/node-2/logs",
-		},
-		{
-			ID:          3,
-			Name:        "node-3",
-			DataDir:     "/tmp/node-3/data",
-			ClusterAddr: "127.0.0.1:17003",
-			GatewayAddr: "127.0.0.1:15103",
-			APIAddr:     "127.0.0.1:18083",
-			ManagerAddr: "127.0.0.1:19083",
-			LogDir:      "/tmp/node-3/logs",
-		},
-	}
-
-	cfg := RenderClusterConfig(specs[0], specs)
-	require.Contains(t, cfg, "WK_CLUSTER_CONTROLLER_REPLICA_N=3")
-	require.Contains(t, cfg, "WK_CLUSTER_SLOT_REPLICA_N=3")
-	require.Contains(t, cfg, "WK_CLUSTER_INITIAL_SLOT_COUNT=1")
-	require.Contains(t, cfg, "WK_MANAGER_LISTEN_ADDR=127.0.0.1:19081")
-	require.Contains(t, cfg, "WK_MANAGER_AUTH_ON=false")
-	require.Contains(t, cfg, "WK_LOG_DIR=/tmp/node-1/logs")
-	require.Contains(t, cfg, `{"id":2,"addr":"127.0.0.1:17002"}`)
-	require.Contains(t, cfg, `{"id":3,"addr":"127.0.0.1:17003"}`)
-}
-
-func TestRenderClusterConfigAppliesConfigOverrides(t *testing.T) {
-	spec := NodeSpec{
-		ID:          1,
-		Name:        "node-1",
-		DataDir:     "/tmp/node-1/data",
-		ClusterAddr: "127.0.0.1:17001",
-		GatewayAddr: "127.0.0.1:15101",
-		ManagerAddr: "127.0.0.1:19081",
+		DataDir:     "/tmp/wukongim/node-1/data",
+		ClusterAddr: "127.0.0.1:11001",
+		GatewayAddr: "127.0.0.1:12001",
+		APIAddr:     "127.0.0.1:13001",
 		ConfigOverrides: map[string]string{
-			"WK_MANAGER_AUTH_ON": "true",
-			"WK_LOG_LEVEL":       "debug",
+			"WK_CLUSTER_HASH_SLOT_COUNT": "8",
+			"WK_GATEWAY_SEND_TIMEOUT":    "7s",
 		},
 	}
 
-	cfg := RenderClusterConfig(spec, []NodeSpec{spec})
-	require.Contains(t, cfg, "WK_MANAGER_AUTH_ON=true")
-	require.NotContains(t, cfg, "WK_MANAGER_AUTH_ON=false")
-	require.Contains(t, cfg, "WK_LOG_LEVEL=debug")
+	cfg := RenderSingleNodeConfig(spec)
+
+	require.Contains(t, cfg, "WK_CLUSTER_HASH_SLOT_COUNT=8\n")
+	require.Contains(t, cfg, "WK_GATEWAY_SEND_TIMEOUT=7s\n")
+	require.Less(t, strings.Index(cfg, "WK_CLUSTER_HASH_SLOT_COUNT=8"), strings.Index(cfg, "WK_GATEWAY_SEND_TIMEOUT=7s"))
 }
 
-func TestRenderSeedJoinConfigUsesSeedsWithoutStaticNodes(t *testing.T) {
-	local := NodeSpec{
-		ID:          4,
-		Name:        "node-4",
-		DataDir:     "/tmp/node-4/data",
-		ClusterAddr: "127.0.0.1:17004",
-		GatewayAddr: "127.0.0.1:15104",
-		APIAddr:     "127.0.0.1:18084",
-		ManagerAddr: "127.0.0.1:19084",
-		LogDir:      "/tmp/node-4/logs",
-	}
-	seeds := []NodeSpec{
-		{ID: 1, ClusterAddr: "127.0.0.1:17001"},
-		{ID: 2, ClusterAddr: "127.0.0.1:17002"},
-		{ID: 3, ClusterAddr: "127.0.0.1:17003"},
-	}
+func TestEnvFromConfigPinsRenderedWKValues(t *testing.T) {
+	env := envFromConfig("WK_NODE_ID=1\n# comment\n\nWK_GATEWAY_SEND_TIMEOUT=5s\n")
 
-	cfg := RenderSeedJoinConfig(local, seeds, "join-secret")
-
-	require.Contains(t, cfg, "WK_NODE_ID=4")
-	require.Contains(t, cfg, "WK_NODE_NAME=node-4")
-	require.Contains(t, cfg, "WK_NODE_DATA_DIR=/tmp/node-4/data")
-	require.Contains(t, cfg, "WK_CLUSTER_LISTEN_ADDR=127.0.0.1:17004")
-	require.Contains(t, cfg, "WK_CLUSTER_ADVERTISE_ADDR=127.0.0.1:17004")
-	require.Contains(t, cfg, `WK_CLUSTER_SEEDS=["127.0.0.1:17001","127.0.0.1:17002","127.0.0.1:17003"]`)
-	require.Contains(t, cfg, "WK_CLUSTER_JOIN_TOKEN=join-secret")
-	require.Contains(t, cfg, "WK_CLUSTER_CONTROLLER_REPLICA_N=3")
-	require.Contains(t, cfg, "WK_CLUSTER_SLOT_REPLICA_N=3")
-	require.NotContains(t, cfg, "WK_CLUSTER_NODES=")
-	require.Contains(t, cfg, "WK_MANAGER_AUTH_ON=false")
-	require.Contains(t, cfg, "WK_LOG_DIR=/tmp/node-4/logs")
+	require.Equal(t, []string{"WK_NODE_ID=1", "WK_GATEWAY_SEND_TIMEOUT=5s"}, env)
 }

@@ -10,11 +10,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestResolveBinaryPathBuildsOncePerProcess(t *testing.T) {
-	var calls int
+func TestBinaryCacheBuildsWukongIMBinaryOnce(t *testing.T) {
+	var builds int
 	cache := BinaryCache{
 		build: func(dst string) error {
-			calls++
+			builds++
+			require.Equal(t, "wukongim-e2e", filepath.Base(dst))
 			return os.WriteFile(dst, []byte("fake-binary"), 0o755)
 		},
 	}
@@ -24,18 +25,25 @@ func TestResolveBinaryPathBuildsOncePerProcess(t *testing.T) {
 	second, err := cache.Path(t.TempDir())
 	require.NoError(t, err)
 
-	require.Equal(t, 1, calls)
 	require.Equal(t, first, second)
-	require.FileExists(t, first)
+	require.Equal(t, 1, builds)
 }
 
-func TestNewResolvesBinaryPathWithoutCallerSuppliedPath(t *testing.T) {
-	fakeBinary := filepath.Join(t.TempDir(), "wukongim-e2e")
+func TestResolveBinaryPathUsesE2EOverride(t *testing.T) {
+	fakeBinary := filepath.Join(t.TempDir(), "wukongim")
 	require.NoError(t, os.WriteFile(fakeBinary, []byte("fake-binary"), 0o755))
 	t.Setenv("WK_E2E_BINARY", fakeBinary)
 
-	suite := New(t)
+	got, err := resolveBinaryPath()
+	require.NoError(t, err)
+	require.Equal(t, fakeBinary, got)
+}
 
-	require.Equal(t, fakeBinary, suite.binaryPath)
-	require.DirExists(t, suite.workspace.RootDir)
+func TestResolveBinaryPathReportsBadE2EOverride(t *testing.T) {
+	missingBinary := filepath.Join(t.TempDir(), "missing-wukongim")
+	t.Setenv("WK_E2E_BINARY", missingBinary)
+
+	_, err := resolveBinaryPath()
+	require.Error(t, err)
+	require.Contains(t, err.Error(), `WK_E2E_BINARY="`+missingBinary+`"`)
 }

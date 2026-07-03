@@ -1,74 +1,42 @@
 # dynamic_node_join AGENTS
 
-This file is for agents working on `test/e2e/cluster/dynamic_node_join`.
+This scenario package proves the Stage 2-6 dynamic data-node lifecycle through
+a real multi-node `cmd/wukongim` cluster.
 
-## Purpose
+## Scenario Contract
 
-Prove a new data node can join an already running three-node cluster with `WK_CLUSTER_SEEDS`, `WK_CLUSTER_ADVERTISE_ADDR`, and `WK_CLUSTER_JOIN_TOKEN`, without `WK_CLUSTER_NODES` in the joining node config. Also prove the manager onboarding flow can explicitly allocate Slot resources to that newly joined data node.
+- Start a static three-node cluster with manager HTTP enabled.
+- Start node 4 in seed-join mode with `WK_CLUSTER_SEEDS`,
+  `WK_CLUSTER_ADVERTISE_ADDR`, and `WK_CLUSTER_JOIN_TOKEN`.
+- Prove seed join and manager activation move node 4 from `joining` to
+  `active` without implicit Slot assignment changes.
+- Prove an activated dynamic node participates in real online WKProto delivery,
+  not only local `SENDACK`.
+- Prove bounded Slot onboarding can run while gateway SEND remains available.
+- Prove leaving, gateway drain, and empty-node removal can complete safely.
+- Prove live-session gateway drain rejects new sessions while existing sessions
+  can finish in-flight sends, and final remove waits for runtime counters.
+- Prove Slot replica scale-in drain uses manager `plan` and `advance` before
+  final removal.
+- Prove unsafe scale-in routes return bounded conflicts and removed-node final
+  remove is idempotent.
+- Prove invalid join tokens and unreachable advertise addresses do not mutate
+  membership or Slot assignments beyond their intended safe state.
+- Prove concurrent onboarding and scale-in task creation create at most one
+  durable task for the same Slot.
 
-## Cluster Shape
+## Rules
 
-One real three-node static cluster that accepts a fourth seed-join data node. Controller voters and existing slot voters remain the original three nodes.
+- Keep tests black-box: do not import `internal/app`, `internal/usecase`,
+  storage internals, or control-plane internals.
+- Dynamic join tests must let node 4 call seed join itself; do not shortcut by
+  calling manager `JoinNode` directly.
+- Keep bounded task requests small, usually `max_slot_moves=1`.
+- Prefer polling public manager status over fixed sleeps.
+- Run this package serially with `-p=1`.
 
-## External Steps
+## Running
 
-### Dynamic Join Message Closure
-
-1. Start a real three-node cluster with a shared join token.
-2. Wait for every static node to satisfy the ready contract.
-3. Start node 4 with seed-join config and no static `WK_CLUSTER_NODES` list.
-4. Wait for node 4 to satisfy the ready contract.
-5. Poll `/manager/nodes` from an existing node until node 4 is visible as alive with its advertised cluster address and no controller role.
-6. Poll `/manager/nodes` from node 4 until it can observe node 1 as alive.
-7. Connect one WKProto client through node 1 and one through node 4.
-8. Send one person-channel message in each direction and observe `Send`, `SendAck`, `Recv`, and `RecvAck`.
-
-### Onboarding Resource Allocation
-
-1. Start a real three-node cluster with a shared join token.
-2. Wait for every static node to satisfy the ready contract and resolve slot `1` runtime topology.
-3. Start node 4 with seed-join config and no static `WK_CLUSTER_NODES` list.
-4. Wait for node 4 to appear in `/manager/nodes` as alive with zero assigned Slots.
-5. Fetch `/manager/node-onboarding/candidates` and verify node 4 appears.
-6. Create a plan with `POST /manager/node-onboarding/plan`.
-7. Start the plan with `POST /manager/node-onboarding/jobs/<job_id>/start`.
-8. Poll `/manager/node-onboarding/jobs/<job_id>` until it completes.
-9. Poll `/manager/nodes` until node 4 has at least one assigned Slot.
-
-### Large Slot Snapshot Onboarding
-
-This opt-in scenario only runs when `WK_E2E_LARGE_SNAPSHOT=1`.
-
-1. Start a real three-node cluster with `WK_TEST_MODE=true` and a shared join token.
-2. Generate deterministic Slot metadata in bounded batches through `POST /testdata/e2e/cluster/slot-snapshot-users`.
-3. Resolve slot `1` topology and trigger `POST /manager/nodes/:node_id/slots/1/compact` for current Slot peers.
-4. Start node 4 with seed-join config and no static `WK_CLUSTER_NODES` list.
-5. Run the manager onboarding plan and wait for completion.
-6. Poll `/manager/nodes` until node 4 has at least one assigned Slot, proving large snapshot catch-up works through the black-box cluster path.
-
-## Observable Outcome
-
-Node 4 appears in manager node membership with the advertised address and `controller.role=none`, both cross-node message closures complete through public WKProto gateways, the normal onboarding job completes with node 4 receiving Slot resources, and the opt-in large snapshot onboarding scenario completes after generating and compacting a payload-heavy Slot snapshot.
-
-## Failure Diagnostics
-
-- generated configs, stdout, stderr, `logs/app.log`, and `logs/error.log`
-- last `/readyz` observations stored by the suite
-- last `/manager/nodes` body observed by membership or allocation polling
-- last `/manager/node-onboarding/**` response body observed by onboarding polling
-- last `/testdata/e2e/**` response body observed by test-data generation
-- last `/manager/nodes/:node_id/slots/:slot_id/compact` response body observed by Slot compaction
-- local `/manager/connections` observations for both connected users
-
-## Run
-
-`go test -tags=e2e ./test/e2e/cluster/dynamic_node_join -count=1`
-
-Opt-in large snapshot run:
-
-`WK_E2E_LARGE_SNAPSHOT=1 WK_E2E_SNAPSHOT_ROWS=1200 WK_E2E_SNAPSHOT_PAYLOAD_BYTES=65536 WK_E2E_SNAPSHOT_BATCH_ROWS=100 go test -timeout=20m -tags=e2e ./test/e2e/cluster/dynamic_node_join -run TestDynamicNodeJoinLargeSlotSnapshotOnboarding -count=1 -v`
-
-## Maintenance Rules
-
-- If seed-join config keys, manager node observations, message proof steps, onboarding proof steps, test-data generation steps, run command, or diagnostics change, update this file in the same change.
-- If this scenario adds local helpers, keep them in this directory and keep them consistent with the behavior described here.
+```bash
+GOWORK=off go test -tags=e2e ./test/e2e/cluster/dynamic_node_join -count=1 -timeout 10m -p=1
+```

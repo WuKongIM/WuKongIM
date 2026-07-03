@@ -153,15 +153,13 @@ scripts/                 仓库辅助脚本
   wukongim/              wukongim 本地启动脚本使用的真实配置文件
 
 test/
-  e2e/                   真实二进制黑盒 e2e 测试与子进程 harness
-    bench/               wkbench 黑盒 CLI e2e 场景
-      wkbench_smoke/     单节点集群 wkbench smoke 与 bench API disabled preflight
-    cluster/             集群拓扑、快照、扩缩容 e2e 场景
-    message/             WKProto 消息投递闭环 e2e 场景
-    suite/               e2e 共享黑盒 harness 与客户端辅助
-  e2ev2/                 真实 cmd/wukongim 黑盒 e2e 测试，覆盖转正后的 internal 行为
+  e2e/                   转正后的真实 cmd/wukongim 黑盒 e2e 测试与子进程 harness
+    cluster/             动态节点、控制面任务、故障注入等黑盒场景
     message/             internal 消息、会话与 recipient authority 黑盒场景
-    suite/               e2ev2 共享黑盒 harness、v2 配置、API 与 metrics 辅助
+    control/             控制面 bootstrap、Slot leader transfer 等黑盒场景
+    plugin/              插件生命周期、HTTP forward 等黑盒场景
+    suite/               e2e 共享黑盒 harness、配置、API 与 metrics 辅助
+  legacy/e2e/            旧 e2e 覆盖保留区，需显式 `legacy_e2e` tag，避免与 canonical e2e 混用
 
 ui/                      内置管理 UI 静态页面
   assets/                前端静态资源

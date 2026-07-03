@@ -13,7 +13,7 @@ func TestDynamicNodeReadinessGateDryRunQuickProfile(t *testing.T) {
 	outDir := t.TempDir()
 	binary := filepath.Join(outDir, "wukongim-gofail")
 
-	cmd := exec.Command("bash", "scripts/e2ev2/dynamic-node-readiness-gate.sh",
+	cmd := exec.Command("bash", "scripts/e2e/dynamic-node-readiness-gate.sh",
 		"--dry-run",
 		"--profile", "quick",
 		"--out-dir", outDir,
@@ -32,9 +32,9 @@ func TestDynamicNodeReadinessGateDryRunQuickProfile(t *testing.T) {
 		"summary=" + filepath.Join(outDir, "summary.md"),
 		"command_log=" + filepath.Join(outDir, "commands.log"),
 		"controller_cmd=GOWORK=off go test ./pkg/controller -count=1",
-		"faults_default_cmd=GOWORK=off go test -tags=e2e ./test/e2ev2/cluster/dynamic_node_faults -count=1 -timeout 2m -p=1",
+		"faults_default_cmd=GOWORK=off go test -tags=e2e ./test/e2e/cluster/dynamic_node_faults -count=1 -timeout 2m -p=1",
 		"build_gofail_cmd=scripts/build-gofail-binary.sh --cmd ./cmd/wukongim --package internal/usecase/management --package pkg/controller --package pkg/cluster/tasks --package pkg/cluster/net --out " + binary,
-		"stage10a_cmd=WK_E2E_BINARY=" + binary + " WK_E2EV2_GOFAIL_DYNAMIC_NODE=1 GOWORK=off go test -tags=e2e ./test/e2ev2/cluster/dynamic_node_faults -run 'TestStage10A|TestGofailDynamicNodeBinaryExposesFailpoints' -count=1 -timeout 15m -p=1",
+		"stage10a_cmd=WK_E2E_BINARY=" + binary + " WK_E2E_GOFAIL_DYNAMIC_NODE=1 GOWORK=off go test -tags=e2e ./test/e2e/cluster/dynamic_node_faults -run 'TestStage10A|TestGofailDynamicNodeBinaryExposesFailpoints' -count=1 -timeout 15m -p=1",
 		"diff_check_cmd=git diff --check",
 	} {
 		if !strings.Contains(text, want) {
@@ -51,7 +51,7 @@ func TestDynamicNodeReadinessGateDryRunFullProfileIncludesStage9D(t *testing.T) 
 	outDir := t.TempDir()
 	binary := filepath.Join(outDir, "wukongim-gofail")
 
-	cmd := exec.Command("bash", "scripts/e2ev2/dynamic-node-readiness-gate.sh",
+	cmd := exec.Command("bash", "scripts/e2e/dynamic-node-readiness-gate.sh",
 		"--dry-run",
 		"--profile", "full",
 		"--out-dir", outDir,
@@ -65,7 +65,7 @@ func TestDynamicNodeReadinessGateDryRunFullProfileIncludesStage9D(t *testing.T) 
 	text := string(output)
 	for _, want := range []string{
 		"profile=full",
-		"stage9d_cmd=GOWORK=off go test -tags=e2e ./test/e2ev2/cluster/dynamic_node_readiness -run TestDynamicNodeLifecycleWithContinuousTraffic -count=1 -timeout 12m -p=1",
+		"stage9d_cmd=GOWORK=off go test -tags=e2e ./test/e2e/cluster/dynamic_node_readiness -run TestDynamicNodeLifecycleWithContinuousTraffic -count=1 -timeout 12m -p=1",
 	} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("dry-run output missing %q:\n%s", want, text)
@@ -78,7 +78,7 @@ func TestDynamicNodeReadinessGateDryRunOpsProfileIncludesStage11(t *testing.T) {
 	outDir := t.TempDir()
 	binary := filepath.Join(outDir, "wukongim-gofail")
 
-	cmd := exec.Command("bash", "scripts/e2ev2/dynamic-node-readiness-gate.sh",
+	cmd := exec.Command("bash", "scripts/e2e/dynamic-node-readiness-gate.sh",
 		"--dry-run",
 		"--profile", "ops",
 		"--out-dir", outDir,
@@ -93,8 +93,8 @@ func TestDynamicNodeReadinessGateDryRunOpsProfileIncludesStage11(t *testing.T) {
 	for _, want := range []string{
 		"profile=ops",
 		"wkcli_cmd=GOWORK=off go test ./cmd/wkcli ./cmd/wkcli/internal/... -count=1",
-		"stage11_ops_cmd=GOWORK=off go test -tags=e2e ./test/e2ev2/cluster/dynamic_node_operations -count=1 -timeout 12m -p=1",
-		"stage9d_cmd=GOWORK=off go test -tags=e2e ./test/e2ev2/cluster/dynamic_node_readiness -run TestDynamicNodeLifecycleWithContinuousTraffic -count=1 -timeout 12m -p=1",
+		"stage11_ops_cmd=GOWORK=off go test -tags=e2e ./test/e2e/cluster/dynamic_node_operations -count=1 -timeout 12m -p=1",
+		"stage9d_cmd=GOWORK=off go test -tags=e2e ./test/e2e/cluster/dynamic_node_readiness -run TestDynamicNodeLifecycleWithContinuousTraffic -count=1 -timeout 12m -p=1",
 	} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("dry-run output missing %q:\n%s", want, text)
@@ -108,7 +108,7 @@ func TestDynamicNodeReadinessGateDryRunNormalizesRelativeOutDirFromAbsoluteScrip
 	relativeOutDir := filepath.Join("data", "manual")
 	normalizedOutDir := filepath.Join(root, relativeOutDir)
 
-	cmd := exec.Command("bash", filepath.Join(root, "scripts/e2ev2/dynamic-node-readiness-gate.sh"),
+	cmd := exec.Command("bash", filepath.Join(root, "scripts/e2e/dynamic-node-readiness-gate.sh"),
 		"--dry-run",
 		"--profile", "quick",
 		"--out-dir", relativeOutDir,
@@ -135,7 +135,7 @@ func TestDynamicNodeReadinessGateDryRunNormalizesRelativeBinaryPath(t *testing.T
 	relativeBinary := filepath.Join("data", "manual", "wukongim-gofail")
 	normalizedBinary := filepath.Join(root, relativeBinary)
 
-	cmd := exec.Command("bash", "scripts/e2ev2/dynamic-node-readiness-gate.sh",
+	cmd := exec.Command("bash", "scripts/e2e/dynamic-node-readiness-gate.sh",
 		"--dry-run",
 		"--profile", "quick",
 		"--binary", relativeBinary,
@@ -165,7 +165,7 @@ func TestDynamicNodeReadinessGateWritesEvidenceWhenStepFails(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cmd := exec.Command("bash", "scripts/e2ev2/dynamic-node-readiness-gate.sh",
+	cmd := exec.Command("bash", "scripts/e2e/dynamic-node-readiness-gate.sh",
 		"--profile", "quick",
 		"--out-dir", outDir,
 		"--binary", filepath.Join(outDir, "wukongim-gofail"),

@@ -18,7 +18,7 @@ type PortSet struct {
 }
 
 // ReserveLoopbackPorts reserves distinct loopback listener addresses for one node.
-func ReserveLoopbackPorts(t *testing.T) PortSet {
+func ReserveLoopbackPorts(t testing.TB) PortSet {
 	t.Helper()
 
 	return PortSet{
@@ -29,7 +29,7 @@ func ReserveLoopbackPorts(t *testing.T) PortSet {
 	}
 }
 
-func reserveLoopbackAddr(t *testing.T) string {
+func reserveLoopbackAddr(t testing.TB) string {
 	t.Helper()
 
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
