@@ -130,10 +130,11 @@ Recommended moves:
 - Move plugin wire contracts from `internal/usecase/plugin/pluginproto` to
   `pkg/plugin/pluginproto`.
   This is an external plugin protocol contract, not an old usecase.
-- Move the plugin process host from `internal/runtime/plugin` into the v2-owned
-  runtime before the `internalv2` rename, for example
-  `internalv2/runtime/pluginhost`.
-  After final internal promotion it becomes `internal/runtime/pluginhost`.
+- Move the plugin process host from `internal/runtime/plugin` into a v2-owned
+  or neutral shared runtime before the `internalv2` rename. While old
+  `internal` still compiles, prefer a neutral path such as
+  `pkg/plugin/pluginhost`; if old `internal` is already retired, the host can
+  live under the promoted `internal/runtime/pluginhost`.
 - Keep `internal/bench` in place for now and mark it as shared black-box
   tooling, not v1 server runtime. It can remain under `internal/bench` after
   `internalv2` is merged into `internal`.
