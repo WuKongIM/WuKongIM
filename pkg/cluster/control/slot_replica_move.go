@@ -14,7 +14,7 @@ type SlotReplicaMoveRequest struct {
 	TargetPeers []uint64 `json:"target_peers"`
 	// ConfigEpoch fences the request to the current Slot assignment epoch.
 	ConfigEpoch uint64 `json:"config_epoch"`
-	// StateRevision is the ControllerV2 cluster-state revision observed by the caller.
+	// StateRevision is the Controller cluster-state revision observed by the caller.
 	StateRevision uint64 `json:"state_revision"`
 }
 

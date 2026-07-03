@@ -7,7 +7,7 @@ import (
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/cluster/net"
 )
 
-// ControlWriteApplier applies generic ControllerV2 writes.
+// ControlWriteApplier applies generic Controller writes.
 type ControlWriteApplier interface {
 	// ReportNode reports low-frequency local node state.
 	ReportNode(context.Context, NodeReport) error
@@ -25,7 +25,7 @@ type ControlWriteApplier interface {
 	PromoteControllerVoter(context.Context, PromoteControllerVoterRequest) (PromoteControllerVoterResult, error)
 }
 
-// ControlWriteClient forwards generic ControllerV2 writes to a remote node.
+// ControlWriteClient forwards generic Controller writes to a remote node.
 type ControlWriteClient struct {
 	caller clusternet.Caller
 }
@@ -51,7 +51,7 @@ func (c *ControlWriteClient) Submit(ctx context.Context, nodeID uint64, req Cont
 	return DecodeControlWriteResponse(resp)
 }
 
-// NewControlWriteHandler creates an RPC handler for generic ControllerV2 writes.
+// NewControlWriteHandler creates an RPC handler for generic Controller writes.
 func NewControlWriteHandler(applier ControlWriteApplier) clusternet.Handler {
 	return clusternet.HandlerFunc(func(ctx context.Context, payload []byte) ([]byte, error) {
 		req, err := DecodeControlWriteRequest(payload)

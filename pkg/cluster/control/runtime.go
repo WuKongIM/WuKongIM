@@ -11,17 +11,17 @@ import (
 	"go.etcd.io/raft/v3/raftpb"
 )
 
-// RuntimeRole declares how the local control runtime participates in ControllerV2.
+// RuntimeRole declares how the local control runtime participates in Controller.
 type RuntimeRole string
 
 const (
-	// RuntimeRoleVoter runs ControllerV2 Raft and serves authoritative state.
+	// RuntimeRoleVoter runs Controller Raft and serves authoritative state.
 	RuntimeRoleVoter RuntimeRole = "voter"
-	// RuntimeRoleMirror mirrors ControllerV2 state from Controller voters.
+	// RuntimeRoleMirror mirrors Controller state from Controller voters.
 	RuntimeRoleMirror RuntimeRole = "mirror"
 )
 
-// RuntimeVoter identifies one ControllerV2 voter endpoint.
+// RuntimeVoter identifies one Controller voter endpoint.
 type RuntimeVoter struct {
 	// NodeID is the stable non-zero node identity of the Controller voter.
 	NodeID uint64
@@ -29,21 +29,21 @@ type RuntimeVoter struct {
 	Addr string
 }
 
-// RuntimeConfig wires a ControllerV2-backed control runtime.
+// RuntimeConfig wires a Controller-backed control runtime.
 type RuntimeConfig struct {
 	// NodeID is the local node identity.
 	NodeID uint64
 	// Addr is the local cluster RPC address.
 	Addr string
-	// StateDir stores ControllerV2 state and Raft files.
+	// StateDir stores Controller state and Raft files.
 	StateDir string
 	// ClusterID is the stable cluster identity.
 	ClusterID string
 	// Role declares voter or mirror behavior.
 	Role RuntimeRole
-	// Voters lists ControllerV2 Raft voters.
+	// Voters lists Controller Raft voters.
 	Voters []RuntimeVoter
-	// AllowBootstrap permits this node to initialize a new ControllerV2 Raft log.
+	// AllowBootstrap permits this node to initialize a new Controller Raft log.
 	AllowBootstrap bool
 	// InitialSlotCount is the number of physical slots created during bootstrap.
 	InitialSlotCount uint32
@@ -51,17 +51,17 @@ type RuntimeConfig struct {
 	HashSlotCount uint16
 	// ReplicaCount is the desired replica count for each physical slot.
 	ReplicaCount uint16
-	// TickInterval controls ControllerV2 Raft ticking.
+	// TickInterval controls Controller Raft ticking.
 	TickInterval time.Duration
-	// RaftTransport sends ControllerV2 Raft messages.
+	// RaftTransport sends Controller Raft messages.
 	RaftTransport cv2.Transport
-	// RaftObserver receives local ControllerV2 Raft queue metrics.
+	// RaftObserver receives local Controller Raft queue metrics.
 	RaftObserver cv2.RaftObserver
 	// TaskTransitionObserver receives task edges after applied metadata is persisted.
 	TaskTransitionObserver cv2.TaskTransitionObserver
-	// SyncClient mirrors ControllerV2 state for non-voter nodes.
+	// SyncClient mirrors Controller state for non-voter nodes.
 	SyncClient *cv2.SyncClient
-	// SyncPeers resolves ControllerV2 state sync endpoints for mirror nodes.
+	// SyncPeers resolves Controller state sync endpoints for mirror nodes.
 	SyncPeers cv2.PeerPicker
 	// TaskClient forwards task writes and creation intents to the current Controller leader.
 	TaskClient *TaskClient
@@ -69,11 +69,11 @@ type RuntimeConfig struct {
 	ControlWriteClient *ControlWriteClient
 	// HealthReportTTL bounds how long adapted node health reports remain fresh.
 	HealthReportTTL time.Duration
-	// Now returns timestamps used for ControllerV2 commands.
+	// Now returns timestamps used for Controller commands.
 	Now func() time.Time
 }
 
-// Runtime adapts the root ControllerV2 runtime facade to control.Controller.
+// Runtime adapts the root Controller runtime facade to control.Controller.
 type Runtime struct {
 	cfg         RuntimeConfig
 	backend     *cv2.Runtime
@@ -89,7 +89,7 @@ type Runtime struct {
 	watchWG     sync.WaitGroup
 }
 
-// NewRuntime creates a ControllerV2-backed control runtime.
+// NewRuntime creates a Controller-backed control runtime.
 func NewRuntime(cfg RuntimeConfig) (*Runtime, error) {
 	backend, err := cv2.NewRuntime(cv2.RuntimeConfig{
 		NodeID:                 cfg.NodeID,
@@ -124,7 +124,7 @@ func NewRuntime(cfg RuntimeConfig) (*Runtime, error) {
 	}, nil
 }
 
-// Start starts the local ControllerV2 runtime.
+// Start starts the local Controller runtime.
 func (r *Runtime) Start(ctx context.Context) error {
 	if err := ctxErr(ctx); err != nil {
 		return err
@@ -140,7 +140,7 @@ func (r *Runtime) Start(ctx context.Context) error {
 		_ = r.backend.Stop(context.Background())
 		return err
 	}
-	if !emptyControllerV2State(st) {
+	if !emptyControllerState(st) {
 		if err := r.publishState(st); err != nil {
 			_ = r.backend.Stop(context.Background())
 			return err
@@ -150,7 +150,7 @@ func (r *Runtime) Start(ctx context.Context) error {
 	return nil
 }
 
-// Stop stops local ControllerV2 resources.
+// Stop stops local Controller resources.
 func (r *Runtime) Stop(ctx context.Context) error {
 	if err := ctxErr(ctx); err != nil {
 		return err
@@ -166,7 +166,7 @@ func (r *Runtime) Stop(ctx context.Context) error {
 	return r.backend.Stop(ctx)
 }
 
-// LocalSnapshot returns the latest adapted ControllerV2 control snapshot.
+// LocalSnapshot returns the latest adapted Controller control snapshot.
 func (r *Runtime) LocalSnapshot(ctx context.Context) (Snapshot, error) {
 	if err := ctxErr(ctx); err != nil {
 		return Snapshot{}, err
@@ -179,8 +179,8 @@ func (r *Runtime) LocalSnapshot(ctx context.Context) (Snapshot, error) {
 		if err != nil && !errors.Is(err, cv2.ErrNotStarted) {
 			return Snapshot{}, err
 		}
-		if err == nil && !emptyControllerV2State(st) {
-			snap, err := SnapshotFromControllerV2WithHealthTTL(st, r.cfg.HealthReportTTL)
+		if err == nil && !emptyControllerState(st) {
+			snap, err := SnapshotFromControllerWithHealthTTL(st, r.cfg.HealthReportTTL)
 			if err != nil {
 				return Snapshot{}, err
 			}
@@ -195,7 +195,7 @@ func (r *Runtime) LocalSnapshot(ctx context.Context) (Snapshot, error) {
 	return r.snapshot.Clone(), nil
 }
 
-// LeaderID returns the best-known ControllerV2 leader ID.
+// LeaderID returns the best-known Controller leader ID.
 func (r *Runtime) LeaderID() uint64 {
 	if r != nil && r.backend != nil {
 		return r.backend.LeaderID()
@@ -205,7 +205,7 @@ func (r *Runtime) LeaderID() uint64 {
 	return r.snapshot.ControllerID
 }
 
-// ProbePropose verifies the hosted ControllerV2 proposal path when this runtime is a voter.
+// ProbePropose verifies the hosted Controller proposal path when this runtime is a voter.
 func (r *Runtime) ProbePropose(ctx context.Context) error {
 	if err := ctxErr(ctx); err != nil {
 		return err
@@ -216,7 +216,7 @@ func (r *Runtime) ProbePropose(ctx context.Context) error {
 	return r.backend.ProbePropose(ctx)
 }
 
-// Step applies an inbound ControllerV2 Raft message to the local Raft service.
+// Step applies an inbound Controller Raft message to the local Raft service.
 func (r *Runtime) Step(ctx context.Context, msg raftpb.Message) error {
 	if r == nil || r.backend == nil {
 		return nil
@@ -224,7 +224,7 @@ func (r *Runtime) Step(ctx context.Context, msg raftpb.Message) error {
 	return r.backend.Step(ctx, msg)
 }
 
-// GetState serves ControllerV2 state sync requests from the local voter state.
+// GetState serves Controller state sync requests from the local voter state.
 func (r *Runtime) GetState(ctx context.Context, req cv2.GetStateRequest) (cv2.GetStateResponse, error) {
 	if r == nil || r.backend == nil {
 		return cv2.GetStateResponse{NotReady: true}, nil
@@ -269,7 +269,7 @@ func (r *Runtime) ReportNode(ctx context.Context, report NodeReport) error {
 	return err
 }
 
-// ReportSlots is currently a best-effort no-op until ControllerV2 exposes report commands.
+// ReportSlots is currently a best-effort no-op until Controller exposes report commands.
 func (r *Runtime) ReportSlots(ctx context.Context, report SlotRuntimeReport) error {
 	return ctxErr(ctx)
 }
@@ -441,12 +441,12 @@ func (r *Runtime) RequestSlotReplicaMove(ctx context.Context, req SlotReplicaMov
 	}
 	task := slotReplicaMoveTaskFromRequest(req)
 	if result.Task != nil {
-		task = reconcileTaskFromControllerV2(*result.Task)
+		task = reconcileTaskFromController(*result.Task)
 	}
 	return SlotReplicaMoveResult{Created: result.Created, Task: &task}, nil
 }
 
-// PromoteControllerVoter promotes one active node into ControllerV2 voting membership.
+// PromoteControllerVoter promotes one active node into Controller voting membership.
 func (r *Runtime) PromoteControllerVoter(ctx context.Context, req PromoteControllerVoterRequest) (PromoteControllerVoterResult, error) {
 	if err := ctxErr(ctx); err != nil {
 		return PromoteControllerVoterResult{}, err
@@ -708,7 +708,7 @@ func (r *Runtime) startWatchLoop() {
 }
 
 func (r *Runtime) publishState(st cv2.ClusterState) error {
-	snap, err := SnapshotFromControllerV2WithHealthTTL(st, r.cfg.HealthReportTTL)
+	snap, err := SnapshotFromControllerWithHealthTTL(st, r.cfg.HealthReportTTL)
 	if err != nil {
 		return err
 	}
@@ -727,7 +727,7 @@ func runtimeFacadeVoters(voters []RuntimeVoter) []cv2.Voter {
 	return out
 }
 
-func emptyControllerV2State(st cv2.ClusterState) bool {
+func emptyControllerState(st cv2.ClusterState) bool {
 	return st.SchemaVersion == 0 &&
 		st.ClusterID == "" &&
 		st.Revision == 0 &&
@@ -741,7 +741,7 @@ func emptyControllerV2State(st cv2.ClusterState) bool {
 		len(st.Tasks) == 0
 }
 
-func reconcileTaskFromControllerV2(task cv2.ReconcileTask) ReconcileTask {
+func reconcileTaskFromController(task cv2.ReconcileTask) ReconcileTask {
 	return ReconcileTask{
 		TaskID:              task.TaskID,
 		SlotID:              task.SlotID,

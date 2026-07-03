@@ -170,7 +170,7 @@ func TestStateSyncClientCallsRemoteEndpoint(t *testing.T) {
 		ClusterID: "cluster-a",
 		LeaderID:  func() uint64 { return 1 },
 		Ready:     func() bool { return true },
-		Snapshot:  func(context.Context) (cv2.ClusterState, error) { return controllerV2State(), nil },
+		Snapshot:  func(context.Context) (cv2.ClusterState, error) { return controllerState(), nil },
 	})
 	network.Register(1, clusternet.RPCControlStateSync, NewStateSyncHandler(server))
 

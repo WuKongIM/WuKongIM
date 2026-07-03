@@ -8,10 +8,10 @@ import (
 	cv2 "github.com/WuKongIM/WuKongIM/pkg/controller"
 )
 
-func TestControllerV2SnapshotMapping(t *testing.T) {
-	snap, err := SnapshotFromControllerV2(controllerV2State())
+func TestControllerSnapshotMapping(t *testing.T) {
+	snap, err := SnapshotFromController(controllerState())
 	if err != nil {
-		t.Fatalf("SnapshotFromControllerV2() error = %v", err)
+		t.Fatalf("SnapshotFromController() error = %v", err)
 	}
 	if snap.Revision != 7 || snap.ControllerID != 1 {
 		t.Fatalf("snapshot revision/controller = %d/%d, want 7/1", snap.Revision, snap.ControllerID)
@@ -40,8 +40,8 @@ func TestControllerV2SnapshotMapping(t *testing.T) {
 	}
 }
 
-func TestControllerV2SnapshotMappingPreservesNonActiveLifecycle(t *testing.T) {
-	st := controllerV2State()
+func TestControllerSnapshotMappingPreservesNonActiveLifecycle(t *testing.T) {
+	st := controllerState()
 	st.Config.ReplicaCount = 1
 	st.Slots[0].DesiredPeers = []uint64{1}
 	st.Tasks = nil
@@ -57,9 +57,9 @@ func TestControllerV2SnapshotMappingPreservesNonActiveLifecycle(t *testing.T) {
 		CapacityWeight: 3,
 	})
 
-	snap, err := SnapshotFromControllerV2(st)
+	snap, err := SnapshotFromController(st)
 	if err != nil {
-		t.Fatalf("SnapshotFromControllerV2() error = %v", err)
+		t.Fatalf("SnapshotFromController() error = %v", err)
 	}
 	if snap.Nodes[1].JoinState != NodeJoinStateJoining || snap.Nodes[1].CapacityWeight != 7 {
 		t.Fatalf("node 2 lifecycle = %q capacity=%d, want joining capacity 7", snap.Nodes[1].JoinState, snap.Nodes[1].CapacityWeight)
@@ -72,7 +72,7 @@ func TestControllerV2SnapshotMappingPreservesNonActiveLifecycle(t *testing.T) {
 	}
 }
 
-func TestControllerV2AdapterMapsNodeHealthFreshness(t *testing.T) {
+func TestControllerAdapterMapsNodeHealthFreshness(t *testing.T) {
 	now := time.Date(2026, 6, 29, 10, 0, 0, 0, time.UTC)
 	st := cv2.ClusterState{
 		Revision: 9,
@@ -92,7 +92,7 @@ func TestControllerV2AdapterMapsNodeHealthFreshness(t *testing.T) {
 	}
 }
 
-func TestControllerV2AdapterMapsMissingNodeHealth(t *testing.T) {
+func TestControllerAdapterMapsMissingNodeHealth(t *testing.T) {
 	now := time.Date(2026, 6, 29, 10, 0, 0, 0, time.UTC)
 	st := cv2.ClusterState{
 		Revision: 9,
@@ -104,7 +104,7 @@ func TestControllerV2AdapterMapsMissingNodeHealth(t *testing.T) {
 	}
 }
 
-func TestControllerV2AdapterMapsStaleNodeHealth(t *testing.T) {
+func TestControllerAdapterMapsStaleNodeHealth(t *testing.T) {
 	now := time.Date(2026, 6, 29, 10, 0, 0, 0, time.UTC)
 	st := cv2.ClusterState{
 		Revision: 9,
@@ -121,7 +121,7 @@ func TestControllerV2AdapterMapsStaleNodeHealth(t *testing.T) {
 	}
 }
 
-func TestControllerV2AdapterMapsFutureNodeHealthAsStale(t *testing.T) {
+func TestControllerAdapterMapsFutureNodeHealthAsStale(t *testing.T) {
 	now := time.Date(2026, 6, 29, 10, 0, 0, 0, time.UTC)
 	st := cv2.ClusterState{
 		Revision: 9,
@@ -138,16 +138,16 @@ func TestControllerV2AdapterMapsFutureNodeHealthAsStale(t *testing.T) {
 	}
 }
 
-func TestControllerV2SnapshotMappingRejectsInvalidState(t *testing.T) {
-	st := controllerV2State()
+func TestControllerSnapshotMappingRejectsInvalidState(t *testing.T) {
+	st := controllerState()
 	st.HashSlots.Ranges = nil
-	if _, err := SnapshotFromControllerV2(st); err == nil {
-		t.Fatal("SnapshotFromControllerV2() error = nil, want invalid state")
+	if _, err := SnapshotFromController(st); err == nil {
+		t.Fatal("SnapshotFromController() error = nil, want invalid state")
 	}
 }
 
-func TestControllerV2AdapterReportsAreExplicitBestEffort(t *testing.T) {
-	adapter := NewControllerV2Adapter(ControllerV2Config{Source: &fakeStateSource{state: controllerV2State()}})
+func TestControllerAdapterReportsAreExplicitBestEffort(t *testing.T) {
+	adapter := NewControllerAdapter(ControllerConfig{Source: &fakeStateSource{state: controllerState()}})
 	if err := adapter.ReportNode(context.Background(), NodeReport{NodeID: 1}); err != nil {
 		t.Fatalf("ReportNode() error = %v", err)
 	}
@@ -156,13 +156,13 @@ func TestControllerV2AdapterReportsAreExplicitBestEffort(t *testing.T) {
 	}
 }
 
-func TestControllerV2AdapterPublishesAfterRefresh(t *testing.T) {
-	source := &fakeStateSource{state: controllerV2State()}
-	adapter := NewControllerV2Adapter(ControllerV2Config{Source: source})
+func TestControllerAdapterPublishesAfterRefresh(t *testing.T) {
+	source := &fakeStateSource{state: controllerState()}
+	adapter := NewControllerAdapter(ControllerConfig{Source: source})
 	if err := adapter.Start(context.Background()); err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
-	next := controllerV2State()
+	next := controllerState()
 	next.Revision = 8
 	source.state = next
 	if err := adapter.Refresh(context.Background()); err != nil {
@@ -178,7 +178,7 @@ func TestControllerV2AdapterPublishesAfterRefresh(t *testing.T) {
 	}
 }
 
-func controllerV2State() cv2.ClusterState {
+func controllerState() cv2.ClusterState {
 	return cv2.ClusterState{
 		SchemaVersion: cv2.CurrentSchemaVersion,
 		ClusterID:     "cluster-a",

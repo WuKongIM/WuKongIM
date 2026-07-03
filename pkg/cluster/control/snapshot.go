@@ -48,7 +48,7 @@ type NodeHealth struct {
 	Freshness NodeHealthFreshness
 	// RuntimeReady reports whether the node can serve foreground cluster traffic.
 	RuntimeReady bool
-	// ObservedControlRevision is the latest ControllerV2 revision observed by the node.
+	// ObservedControlRevision is the latest Controller revision observed by the node.
 	ObservedControlRevision uint64
 	// ObservedSlotRevision is the latest local Slot runtime revision observed by the node.
 	ObservedSlotRevision uint64
@@ -159,7 +159,7 @@ type TaskParticipantProgress = cv2.TaskParticipantProgress
 
 // Snapshot is the cluster control read model consumed by data-plane modules.
 type Snapshot struct {
-	// ClusterID is the stable ControllerV2 cluster identity carried by this snapshot.
+	// ClusterID is the stable Controller cluster identity carried by this snapshot.
 	ClusterID string
 	// Revision is the monotonically increasing control state revision.
 	Revision uint64
@@ -279,7 +279,7 @@ type ReconcileTask struct {
 	ObservedLearners []uint64 `json:"observed_learners,omitempty"`
 }
 
-// BuildNodeHealth maps durable ControllerV2 health evidence into the control snapshot read model.
+// BuildNodeHealth maps durable Controller health evidence into the control snapshot read model.
 func BuildNodeHealth(report cv2.NodeHealthReport, exists bool, now time.Time, ttl time.Duration) NodeHealth {
 	if !exists {
 		return NodeHealth{Freshness: NodeHealthMissing, ReportTTL: ttl}

@@ -11,24 +11,24 @@ import (
 
 const defaultNodeHealthReportTTL = 30 * time.Second
 
-// ControllerV2StateSource provides locally visible ControllerV2 state snapshots.
-type ControllerV2StateSource interface {
-	// Snapshot returns the latest locally visible ControllerV2 cluster state.
+// ControllerStateSource provides locally visible Controller state snapshots.
+type ControllerStateSource interface {
+	// Snapshot returns the latest locally visible Controller cluster state.
 	Snapshot(context.Context) cv2.ClusterState
 }
 
-// ControllerV2Config wires a ControllerV2Adapter.
-type ControllerV2Config struct {
-	// Source returns ControllerV2 state snapshots.
-	Source ControllerV2StateSource
+// ControllerConfig wires a ControllerAdapter.
+type ControllerConfig struct {
+	// Source returns Controller state snapshots.
+	Source ControllerStateSource
 	// HealthReportTTL bounds how long adapted node health reports remain fresh.
 	HealthReportTTL time.Duration
 }
 
-// ControllerV2Adapter adapts ControllerV2 state snapshots to cluster control snapshots.
-type ControllerV2Adapter struct {
+// ControllerAdapter adapts Controller state snapshots to cluster control snapshots.
+type ControllerAdapter struct {
 	mu        sync.RWMutex
-	source    ControllerV2StateSource
+	source    ControllerStateSource
 	healthTTL time.Duration
 	snapshot  Snapshot
 	watch     chan SnapshotEvent
@@ -36,19 +36,19 @@ type ControllerV2Adapter struct {
 	started   bool
 }
 
-// NewControllerV2Adapter creates a ControllerV2Adapter.
-func NewControllerV2Adapter(cfg ControllerV2Config) *ControllerV2Adapter {
+// NewControllerAdapter creates a ControllerAdapter.
+func NewControllerAdapter(cfg ControllerConfig) *ControllerAdapter {
 	watch := make(chan SnapshotEvent, 16)
-	return &ControllerV2Adapter{source: cfg.Source, healthTTL: normalizeNodeHealthReportTTL(cfg.HealthReportTTL), watch: watch, publisher: newSnapshotWatchPublisher(watch)}
+	return &ControllerAdapter{source: cfg.Source, healthTTL: normalizeNodeHealthReportTTL(cfg.HealthReportTTL), watch: watch, publisher: newSnapshotWatchPublisher(watch)}
 }
 
-// SnapshotFromControllerV2 maps ControllerV2 durable state into the cluster control model.
-func SnapshotFromControllerV2(st cv2.ClusterState) (Snapshot, error) {
-	return SnapshotFromControllerV2WithHealthTTL(st, defaultNodeHealthReportTTL)
+// SnapshotFromController maps Controller durable state into the cluster control model.
+func SnapshotFromController(st cv2.ClusterState) (Snapshot, error) {
+	return SnapshotFromControllerWithHealthTTL(st, defaultNodeHealthReportTTL)
 }
 
-// SnapshotFromControllerV2WithHealthTTL maps ControllerV2 state using an explicit node health TTL.
-func SnapshotFromControllerV2WithHealthTTL(st cv2.ClusterState, healthTTL time.Duration) (Snapshot, error) {
+// SnapshotFromControllerWithHealthTTL maps Controller state using an explicit node health TTL.
+func SnapshotFromControllerWithHealthTTL(st cv2.ClusterState, healthTTL time.Duration) (Snapshot, error) {
 	if err := st.Validate(); err != nil {
 		return Snapshot{}, err
 	}
@@ -83,10 +83,10 @@ func snapshotFromControllerState(st cv2.ClusterState, leaderID uint64, now time.
 		snap.Nodes = append(snap.Nodes, Node{
 			NodeID:         node.NodeID,
 			Addr:           node.Addr,
-			Roles:          mapControllerV2Roles(node.Roles),
-			Status:         mapControllerV2Status(node.Status),
+			Roles:          mapControllerRoles(node.Roles),
+			Status:         mapControllerStatus(node.Status),
 			Health:         BuildNodeHealth(health, hasHealth, now, healthTTL),
-			JoinState:      mapControllerV2JoinState(node.JoinState),
+			JoinState:      mapControllerJoinState(node.JoinState),
 			CapacityWeight: node.CapacityWeight,
 		})
 	}
@@ -107,7 +107,7 @@ func snapshotFromControllerState(st cv2.ClusterState, leaderID uint64, now time.
 			TargetNode:          task.TargetNode,
 			TargetPeers:         append([]uint64(nil), task.TargetPeers...),
 			CompletionPolicy:    TaskCompletionPolicy(task.CompletionPolicy),
-			ParticipantProgress: mapControllerV2ParticipantProgress(task.ParticipantProgress),
+			ParticipantProgress: mapControllerParticipantProgress(task.ParticipantProgress),
 			ConfigEpoch:         task.ConfigEpoch,
 			Attempt:             task.Attempt,
 			Status:              TaskStatus(task.Status),
@@ -121,15 +121,15 @@ func snapshotFromControllerState(st cv2.ClusterState, leaderID uint64, now time.
 	return snap
 }
 
-// Start loads the initial ControllerV2 snapshot without emitting a watch event.
-func (a *ControllerV2Adapter) Start(ctx context.Context) error {
+// Start loads the initial Controller snapshot without emitting a watch event.
+func (a *ControllerAdapter) Start(ctx context.Context) error {
 	if err := ctxErr(ctx); err != nil {
 		return err
 	}
 	if a == nil || a.source == nil {
 		return fmt.Errorf("control: controller source is required")
 	}
-	snap, err := SnapshotFromControllerV2WithHealthTTL(a.source.Snapshot(ctx), a.healthTTL)
+	snap, err := SnapshotFromControllerWithHealthTTL(a.source.Snapshot(ctx), a.healthTTL)
 	if err != nil {
 		return err
 	}
@@ -141,7 +141,7 @@ func (a *ControllerV2Adapter) Start(ctx context.Context) error {
 }
 
 // Stop marks the adapter stopped.
-func (a *ControllerV2Adapter) Stop(ctx context.Context) error {
+func (a *ControllerAdapter) Stop(ctx context.Context) error {
 	if err := ctxErr(ctx); err != nil {
 		return err
 	}
@@ -151,12 +151,12 @@ func (a *ControllerV2Adapter) Stop(ctx context.Context) error {
 	return nil
 }
 
-// Refresh loads a ControllerV2 snapshot and publishes an event when valid.
-func (a *ControllerV2Adapter) Refresh(ctx context.Context) error {
+// Refresh loads a Controller snapshot and publishes an event when valid.
+func (a *ControllerAdapter) Refresh(ctx context.Context) error {
 	if err := ctxErr(ctx); err != nil {
 		return err
 	}
-	snap, err := SnapshotFromControllerV2WithHealthTTL(a.source.Snapshot(ctx), a.healthTTL)
+	snap, err := SnapshotFromControllerWithHealthTTL(a.source.Snapshot(ctx), a.healthTTL)
 	if err != nil {
 		return err
 	}
@@ -168,7 +168,7 @@ func (a *ControllerV2Adapter) Refresh(ctx context.Context) error {
 }
 
 // LocalSnapshot returns a deep copy of the latest adapted snapshot.
-func (a *ControllerV2Adapter) LocalSnapshot(ctx context.Context) (Snapshot, error) {
+func (a *ControllerAdapter) LocalSnapshot(ctx context.Context) (Snapshot, error) {
 	if err := ctxErr(ctx); err != nil {
 		return Snapshot{}, err
 	}
@@ -177,73 +177,73 @@ func (a *ControllerV2Adapter) LocalSnapshot(ctx context.Context) (Snapshot, erro
 	return a.snapshot.Clone(), nil
 }
 
-// LeaderID returns the best-known ControllerV2 leader ID from the adapted snapshot.
-func (a *ControllerV2Adapter) LeaderID() uint64 {
+// LeaderID returns the best-known Controller leader ID from the adapted snapshot.
+func (a *ControllerAdapter) LeaderID() uint64 {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 	return a.snapshot.ControllerID
 }
 
 // ReportNode is a best-effort no-op on the read-only snapshot adapter.
-func (a *ControllerV2Adapter) ReportNode(ctx context.Context, report NodeReport) error {
+func (a *ControllerAdapter) ReportNode(ctx context.Context, report NodeReport) error {
 	return ctxErr(ctx)
 }
 
-// ReportSlots is currently a best-effort no-op until ControllerV2 exposes report commands.
-func (a *ControllerV2Adapter) ReportSlots(ctx context.Context, report SlotRuntimeReport) error {
+// ReportSlots is currently a best-effort no-op until Controller exposes report commands.
+func (a *ControllerAdapter) ReportSlots(ctx context.Context, report SlotRuntimeReport) error {
 	return ctxErr(ctx)
 }
 
-// CompleteTask is unsupported on the read-only ControllerV2 snapshot adapter.
-func (a *ControllerV2Adapter) CompleteTask(ctx context.Context, result TaskResult) error {
+// CompleteTask is unsupported on the read-only Controller snapshot adapter.
+func (a *ControllerAdapter) CompleteTask(ctx context.Context, result TaskResult) error {
 	if err := ctxErr(ctx); err != nil {
 		return err
 	}
 	return fmt.Errorf("control: controller adapter cannot write task results")
 }
 
-// FailTask is unsupported on the read-only ControllerV2 snapshot adapter.
-func (a *ControllerV2Adapter) FailTask(ctx context.Context, result TaskResult) error {
+// FailTask is unsupported on the read-only Controller snapshot adapter.
+func (a *ControllerAdapter) FailTask(ctx context.Context, result TaskResult) error {
 	if err := ctxErr(ctx); err != nil {
 		return err
 	}
 	return fmt.Errorf("control: controller adapter cannot write task results")
 }
 
-// ReportTaskProgress is unsupported on the read-only ControllerV2 snapshot adapter.
-func (a *ControllerV2Adapter) ReportTaskProgress(ctx context.Context, progress TaskProgress) error {
+// ReportTaskProgress is unsupported on the read-only Controller snapshot adapter.
+func (a *ControllerAdapter) ReportTaskProgress(ctx context.Context, progress TaskProgress) error {
 	if err := ctxErr(ctx); err != nil {
 		return err
 	}
 	return fmt.Errorf("control: controller adapter cannot write task progress")
 }
 
-// AdvanceSlotReplicaMovePhase is unsupported on the read-only ControllerV2 snapshot adapter.
-func (a *ControllerV2Adapter) AdvanceSlotReplicaMovePhase(ctx context.Context, phase SlotReplicaMovePhaseAdvance) error {
+// AdvanceSlotReplicaMovePhase is unsupported on the read-only Controller snapshot adapter.
+func (a *ControllerAdapter) AdvanceSlotReplicaMovePhase(ctx context.Context, phase SlotReplicaMovePhaseAdvance) error {
 	if err := ctxErr(ctx); err != nil {
 		return err
 	}
 	return fmt.Errorf("control: controller adapter cannot write slot replica move phases")
 }
 
-// CommitSlotReplicaMove is unsupported on the read-only ControllerV2 snapshot adapter.
-func (a *ControllerV2Adapter) CommitSlotReplicaMove(ctx context.Context, commit SlotReplicaMoveCommit) error {
+// CommitSlotReplicaMove is unsupported on the read-only Controller snapshot adapter.
+func (a *ControllerAdapter) CommitSlotReplicaMove(ctx context.Context, commit SlotReplicaMoveCommit) error {
 	if err := ctxErr(ctx); err != nil {
 		return err
 	}
 	return fmt.Errorf("control: controller adapter cannot write slot replica move commits")
 }
 
-// RequestSlotLeaderTransfer is unsupported on the read-only ControllerV2 snapshot adapter.
-func (a *ControllerV2Adapter) RequestSlotLeaderTransfer(ctx context.Context, req SlotLeaderTransferRequest) (SlotLeaderTransferResult, error) {
+// RequestSlotLeaderTransfer is unsupported on the read-only Controller snapshot adapter.
+func (a *ControllerAdapter) RequestSlotLeaderTransfer(ctx context.Context, req SlotLeaderTransferRequest) (SlotLeaderTransferResult, error) {
 	if err := ctxErr(ctx); err != nil {
 		return SlotLeaderTransferResult{}, err
 	}
 	return SlotLeaderTransferResult{}, fmt.Errorf("control: controller adapter cannot write leader transfer intents")
 }
 
-// RequestSlotReplicaMove is unsupported on the read-only ControllerV2 snapshot adapter.
-func (a *ControllerV2Adapter) RequestSlotReplicaMove(ctx context.Context, req SlotReplicaMoveRequest) (SlotReplicaMoveResult, error) {
+// RequestSlotReplicaMove is unsupported on the read-only Controller snapshot adapter.
+func (a *ControllerAdapter) RequestSlotReplicaMove(ctx context.Context, req SlotReplicaMoveRequest) (SlotReplicaMoveResult, error) {
 	if err := ctxErr(ctx); err != nil {
 		return SlotReplicaMoveResult{}, err
 	}
@@ -251,9 +251,9 @@ func (a *ControllerV2Adapter) RequestSlotReplicaMove(ctx context.Context, req Sl
 }
 
 // Watch returns snapshot update events.
-func (a *ControllerV2Adapter) Watch() <-chan SnapshotEvent { return a.watch }
+func (a *ControllerAdapter) Watch() <-chan SnapshotEvent { return a.watch }
 
-func mapControllerV2Roles(in []cv2.NodeRole) []Role {
+func mapControllerRoles(in []cv2.NodeRole) []Role {
 	out := make([]Role, 0, len(in))
 	for _, role := range in {
 		switch role {
@@ -266,7 +266,7 @@ func mapControllerV2Roles(in []cv2.NodeRole) []Role {
 	return out
 }
 
-func mapControllerV2Status(status cv2.NodeStatus) NodeStatus {
+func mapControllerStatus(status cv2.NodeStatus) NodeStatus {
 	switch status {
 	case cv2.NodeStatusAlive:
 		return NodeAlive
@@ -279,7 +279,7 @@ func mapControllerV2Status(status cv2.NodeStatus) NodeStatus {
 	}
 }
 
-func mapControllerV2JoinState(state cv2.NodeJoinState) NodeJoinState {
+func mapControllerJoinState(state cv2.NodeJoinState) NodeJoinState {
 	switch state {
 	case cv2.NodeJoinStateActive:
 		return NodeJoinStateActive
@@ -294,7 +294,7 @@ func mapControllerV2JoinState(state cv2.NodeJoinState) NodeJoinState {
 	}
 }
 
-func mapControllerV2ParticipantProgress(in []cv2.TaskParticipantProgress) []TaskParticipantProgress {
+func mapControllerParticipantProgress(in []cv2.TaskParticipantProgress) []TaskParticipantProgress {
 	out := make([]TaskParticipantProgress, 0, len(in))
 	for _, progress := range in {
 		out = append(out, TaskParticipantProgress{
@@ -307,4 +307,4 @@ func mapControllerV2ParticipantProgress(in []cv2.TaskParticipantProgress) []Task
 	return out
 }
 
-var _ Controller = (*ControllerV2Adapter)(nil)
+var _ Controller = (*ControllerAdapter)(nil)

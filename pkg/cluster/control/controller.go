@@ -71,7 +71,7 @@ type NodeReport struct {
 	Status NodeStatus `json:"status"`
 	// RuntimeReady reports whether the node can serve foreground cluster traffic.
 	RuntimeReady bool `json:"runtime_ready"`
-	// ObservedControlRevision is the latest ControllerV2 revision observed by the node.
+	// ObservedControlRevision is the latest Controller revision observed by the node.
 	ObservedControlRevision uint64 `json:"observed_control_revision"`
 	// ObservedSlotRevision is the latest local Slot runtime revision observed by the node.
 	ObservedSlotRevision uint64 `json:"observed_slot_revision,omitempty"`

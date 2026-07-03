@@ -10,7 +10,7 @@ import (
 	"testing"
 )
 
-func TestProductionImportsOnlyControllerV2Facade(t *testing.T) {
+func TestProductionImportsOnlyControllerFacade(t *testing.T) {
 	disallowed := []string{
 		"github.com/WuKongIM/WuKongIM/pkg/controller/command",
 		"github.com/WuKongIM/WuKongIM/pkg/controller/fsm",

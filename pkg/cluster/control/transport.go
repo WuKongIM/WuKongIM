@@ -17,13 +17,13 @@ type raftStepper interface {
 	Step(context.Context, raftpb.Message) error
 }
 
-// RaftTransport sends ControllerV2 Raft messages over cluster typed messages.
+// RaftTransport sends Controller Raft messages over cluster typed messages.
 type RaftTransport struct {
 	sender  clusternet.Sender
 	timeout time.Duration
 }
 
-// NewRaftTransport creates a ControllerV2 Raft transport backed by sender.
+// NewRaftTransport creates a Controller Raft transport backed by sender.
 func NewRaftTransport(sender clusternet.Sender) *RaftTransport {
 	return &RaftTransport{sender: sender, timeout: defaultControlRPCTimeout}
 }
@@ -58,7 +58,7 @@ func (t *RaftTransport) sendBatch(nodeID uint64, payload []byte) {
 	cancel()
 }
 
-// NewRaftHandler creates an RPC handler that steps decoded ControllerV2 Raft messages.
+// NewRaftHandler creates an RPC handler that steps decoded Controller Raft messages.
 func NewRaftHandler(stepper raftStepper) clusternet.Handler {
 	return newRaftHandler(stepper, defaultControlRPCTimeout)
 }
@@ -103,12 +103,12 @@ type StateSyncEndpoint struct {
 	nodeID uint64
 }
 
-// NewStateSyncEndpoint creates an endpoint for one remote ControllerV2 state peer.
+// NewStateSyncEndpoint creates an endpoint for one remote Controller state peer.
 func NewStateSyncEndpoint(caller clusternet.Caller, nodeID uint64) *StateSyncEndpoint {
 	return &StateSyncEndpoint{caller: caller, nodeID: nodeID}
 }
 
-// GetState sends a ControllerV2 state sync request to the remote node.
+// GetState sends a Controller state sync request to the remote node.
 func (e *StateSyncEndpoint) GetState(ctx context.Context, req cv2.GetStateRequest) (cv2.GetStateResponse, error) {
 	payload, err := EncodeStateSyncRequest(req)
 	if err != nil {
@@ -121,7 +121,7 @@ func (e *StateSyncEndpoint) GetState(ctx context.Context, req cv2.GetStateReques
 	return DecodeStateSyncResponse(resp)
 }
 
-// NewStateSyncHandler creates an RPC handler for a ControllerV2 state sync endpoint.
+// NewStateSyncHandler creates an RPC handler for a Controller state sync endpoint.
 func NewStateSyncHandler(endpoint cv2.Endpoint) clusternet.Handler {
 	return clusternet.HandlerFunc(func(ctx context.Context, payload []byte) ([]byte, error) {
 		req, err := DecodeStateSyncRequest(payload)
@@ -136,7 +136,7 @@ func NewStateSyncHandler(endpoint cv2.Endpoint) clusternet.Handler {
 	})
 }
 
-// TaskApplier applies ControllerV2 task writes.
+// TaskApplier applies Controller task writes.
 type TaskApplier interface {
 	// CompleteTask submits a fenced global task completion result.
 	CompleteTask(context.Context, TaskResult) error
@@ -152,7 +152,7 @@ type TaskApplier interface {
 	CommitSlotReplicaMove(context.Context, SlotReplicaMoveCommit) error
 }
 
-// TaskClient forwards ControllerV2 task writes to a remote node.
+// TaskClient forwards Controller task writes to a remote node.
 type TaskClient struct {
 	caller clusternet.Caller
 }
@@ -172,7 +172,7 @@ func (c *TaskClient) SubmitTask(ctx context.Context, nodeID uint64, req TaskRequ
 	return err
 }
 
-// NewTaskHandler creates an RPC handler for ControllerV2 task writes.
+// NewTaskHandler creates an RPC handler for Controller task writes.
 func NewTaskHandler(applier TaskApplier) clusternet.Handler {
 	return clusternet.HandlerFunc(func(ctx context.Context, payload []byte) ([]byte, error) {
 		req, err := DecodeTaskRequest(payload)
@@ -199,7 +199,7 @@ func NewTaskHandler(applier TaskApplier) clusternet.Handler {
 	})
 }
 
-// StaticPeerPicker resolves a fixed ControllerV2 voter set to cluster sync endpoints.
+// StaticPeerPicker resolves a fixed Controller voter set to cluster sync endpoints.
 type StaticPeerPicker struct {
 	endpoints map[uint64]cv2.Endpoint
 	ids       []uint64
@@ -227,7 +227,7 @@ func (p *StaticPeerPicker) Endpoint(nodeID uint64) (cv2.Endpoint, bool) {
 	return endpoint, ok
 }
 
-// PeerIDs returns the fixed ControllerV2 voter IDs.
+// PeerIDs returns the fixed Controller voter IDs.
 func (p *StaticPeerPicker) PeerIDs() []uint64 {
 	if p == nil {
 		return nil

@@ -22,7 +22,7 @@ const (
 	controlKindWriteResponse
 )
 
-// EncodeRaftBatch encodes ControllerV2 Raft messages for cluster RPC.
+// EncodeRaftBatch encodes Controller Raft messages for cluster RPC.
 func EncodeRaftBatch(messages []raftpb.Message) ([]byte, error) {
 	payload, err := json.Marshal(messages)
 	if err != nil {
@@ -32,7 +32,7 @@ func EncodeRaftBatch(messages []raftpb.Message) ([]byte, error) {
 	return append(out, payload...), nil
 }
 
-// DecodeRaftBatch decodes ControllerV2 Raft messages from cluster RPC.
+// DecodeRaftBatch decodes Controller Raft messages from cluster RPC.
 func DecodeRaftBatch(data []byte) ([]raftpb.Message, error) {
 	payload, err := clusternet.CheckHeader(data, controlRPCVersion, controlKindRaftBatch)
 	if err != nil {
@@ -45,7 +45,7 @@ func DecodeRaftBatch(data []byte) ([]raftpb.Message, error) {
 	return messages, nil
 }
 
-// EncodeStateSyncRequest encodes a ControllerV2 full-file sync request.
+// EncodeStateSyncRequest encodes a Controller full-file sync request.
 func EncodeStateSyncRequest(req cv2.GetStateRequest) ([]byte, error) {
 	payload, err := json.Marshal(req)
 	if err != nil {
@@ -55,7 +55,7 @@ func EncodeStateSyncRequest(req cv2.GetStateRequest) ([]byte, error) {
 	return append(out, payload...), nil
 }
 
-// DecodeStateSyncRequest decodes a ControllerV2 full-file sync request.
+// DecodeStateSyncRequest decodes a Controller full-file sync request.
 func DecodeStateSyncRequest(data []byte) (cv2.GetStateRequest, error) {
 	payload, err := clusternet.CheckHeader(data, controlRPCVersion, controlKindStateSyncRequest)
 	if err != nil {
@@ -68,7 +68,7 @@ func DecodeStateSyncRequest(data []byte) (cv2.GetStateRequest, error) {
 	return req, nil
 }
 
-// EncodeStateSyncResponse encodes a ControllerV2 full-file sync response.
+// EncodeStateSyncResponse encodes a Controller full-file sync response.
 func EncodeStateSyncResponse(resp cv2.GetStateResponse) ([]byte, error) {
 	payload, err := json.Marshal(resp)
 	if err != nil {
@@ -78,7 +78,7 @@ func EncodeStateSyncResponse(resp cv2.GetStateResponse) ([]byte, error) {
 	return append(out, payload...), nil
 }
 
-// DecodeStateSyncResponse decodes a ControllerV2 full-file sync response.
+// DecodeStateSyncResponse decodes a Controller full-file sync response.
 func DecodeStateSyncResponse(data []byte) (cv2.GetStateResponse, error) {
 	payload, err := clusternet.CheckHeader(data, controlRPCVersion, controlKindStateSyncResponse)
 	if err != nil {
@@ -109,7 +109,7 @@ const (
 	TaskActionReplicaMoveCommit TaskAction = "replica_move_commit"
 )
 
-// TaskRequest carries one ControllerV2 task result or progress write.
+// TaskRequest carries one Controller task result or progress write.
 type TaskRequest struct {
 	// Action selects which payload should be applied.
 	Action TaskAction `json:"action"`
@@ -168,7 +168,7 @@ const (
 	ControlWriteActionReportNodeHealth ControlWriteAction = "report_node_health"
 )
 
-// ControlWriteRequest carries one generic ControllerV2 write.
+// ControlWriteRequest carries one generic Controller write.
 type ControlWriteRequest struct {
 	// Action selects which payload should be applied.
 	Action ControlWriteAction `json:"action"`
@@ -221,7 +221,7 @@ func (req ControlWriteRequest) MarshalJSON() ([]byte, error) {
 	return json.Marshal(wire)
 }
 
-// ControlWriteResponse carries the result of one generic ControllerV2 write.
+// ControlWriteResponse carries the result of one generic Controller write.
 type ControlWriteResponse struct {
 	// JoinNode carries the result of a data-node join intent.
 	JoinNode JoinNodeResult `json:"join_node,omitempty"`

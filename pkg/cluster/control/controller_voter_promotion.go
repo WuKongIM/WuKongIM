@@ -24,7 +24,7 @@ type PromoteControllerVoterRequest struct {
 
 // PromoteControllerVoterResult describes the control-state result of promotion.
 type PromoteControllerVoterResult struct {
-	// Changed reports whether durable ControllerV2 state changed.
+	// Changed reports whether durable Controller state changed.
 	Changed bool `json:"changed"`
 	// Node is the promoted node record.
 	Node Node `json:"node"`
@@ -38,7 +38,7 @@ type PromoteControllerVoterResult struct {
 	Warnings []string `json:"warnings,omitempty"`
 }
 
-// PrepareControllerVoter prepares the local ControllerV2 backend for Controller voter promotion.
+// PrepareControllerVoter prepares the local Controller backend for Controller voter promotion.
 func (r *Runtime) PrepareControllerVoter(ctx context.Context, req cv2.PrepareControllerVoterRequest) (cv2.PrepareControllerVoterResult, error) {
 	if err := ctxErr(ctx); err != nil {
 		return cv2.PrepareControllerVoterResult{}, err

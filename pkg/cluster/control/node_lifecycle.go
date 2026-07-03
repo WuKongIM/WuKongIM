@@ -50,11 +50,11 @@ type MarkNodeLeavingRequest struct {
 
 // MarkNodeLeavingResult describes the node record after the transition.
 type MarkNodeLeavingResult struct {
-	// Changed reports whether the request changed ControllerV2 state.
+	// Changed reports whether the request changed Controller state.
 	Changed bool `json:"changed"`
 	// Node is the durable node record after the request.
 	Node Node `json:"node"`
-	// Revision is the observed ControllerV2 state revision after the write.
+	// Revision is the observed Controller state revision after the write.
 	Revision uint64 `json:"revision"`
 }
 
@@ -143,9 +143,9 @@ func controlNodeFromControllerNode(node cv2.Node) Node {
 	return Node{
 		NodeID:         node.NodeID,
 		Addr:           node.Addr,
-		Roles:          mapControllerV2Roles(node.Roles),
-		Status:         mapControllerV2Status(node.Status),
-		JoinState:      mapControllerV2JoinState(node.JoinState),
+		Roles:          mapControllerRoles(node.Roles),
+		Status:         mapControllerStatus(node.Status),
+		JoinState:      mapControllerJoinState(node.JoinState),
 		CapacityWeight: node.CapacityWeight,
 	}
 }

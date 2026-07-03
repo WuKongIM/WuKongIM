@@ -14,7 +14,7 @@ type SlotLeaderTransferRequest struct {
 	TargetPeers []uint64
 	// ConfigEpoch fences the request to the caller's observed assignment epoch.
 	ConfigEpoch uint64
-	// StateRevision is the ControllerV2 cluster-state revision observed by the caller.
+	// StateRevision is the Controller cluster-state revision observed by the caller.
 	StateRevision uint64
 }
 

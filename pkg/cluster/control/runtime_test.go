@@ -217,9 +217,9 @@ func TestRuntimeLocalSnapshotRefreshesFromBackendWhenWatchMissesLifecycleWrite(t
 	if err != nil {
 		t.Fatalf("backend LocalState(active) error = %v", err)
 	}
-	activeSnapshot, err := SnapshotFromControllerV2(activeState)
+	activeSnapshot, err := SnapshotFromController(activeState)
 	if err != nil {
-		t.Fatalf("SnapshotFromControllerV2(active) error = %v", err)
+		t.Fatalf("SnapshotFromController(active) error = %v", err)
 	}
 	if got := snapshotJoinState(activeSnapshot, 4); got != NodeJoinStateActive {
 		t.Fatalf("backend node 4 join_state = %q, want active", got)
@@ -1046,7 +1046,7 @@ func TestRuntimePromoteControllerVoterRejectsExplicitEmptyExpectedVoters(t *test
 
 func TestRuntimePrepareControllerVoterDelegatesToBackend(t *testing.T) {
 	stateDir := t.TempDir()
-	mirrorState := controllerV2State()
+	mirrorState := controllerState()
 	if err := statefile.New(filepath.Join(stateDir, "cluster-state.json")).Save(context.Background(), mirrorState); err != nil {
 		t.Fatalf("Save(mirror state) error = %v", err)
 	}
@@ -1131,7 +1131,7 @@ func TestRuntimeRestartReusesExistingState(t *testing.T) {
 
 func TestRuntimeMirrorSyncsLeaderState(t *testing.T) {
 	network := clusternet.NewLocalNetwork()
-	leaderState := controllerV2State()
+	leaderState := controllerState()
 	syncServer := cv2.NewStateSyncServer(cv2.StateSyncServerConfig{
 		NodeID:    1,
 		ClusterID: leaderState.ClusterID,
@@ -1169,7 +1169,7 @@ func TestRuntimeMirrorSyncsLeaderState(t *testing.T) {
 
 func TestRuntimeMirrorRefreshesLeaderStateAfterStart(t *testing.T) {
 	network := clusternet.NewLocalNetwork()
-	leaderState := controllerV2State()
+	leaderState := controllerState()
 	syncServer := cv2.NewStateSyncServer(cv2.StateSyncServerConfig{
 		NodeID:    1,
 		ClusterID: leaderState.ClusterID,
@@ -1223,7 +1223,7 @@ func TestRuntimeMirrorRefreshesLeaderStateAfterStart(t *testing.T) {
 
 func TestRuntimeMirrorForwardsControlWriteToSyncClientLeader(t *testing.T) {
 	network := clusternet.NewLocalNetwork()
-	leaderState := controllerV2State()
+	leaderState := controllerState()
 	leaderState.Controllers = append(leaderState.Controllers,
 		cv2.ControllerVoter{NodeID: 2, Addr: "127.0.0.1:1002", Role: cv2.ControllerRoleVoter})
 	for i := range leaderState.Nodes {
@@ -1287,7 +1287,7 @@ func TestRuntimeMirrorForwardsControlWriteToSyncClientLeader(t *testing.T) {
 
 func TestRuntimeMirrorForwardsMarkNodeRemovedToSyncClientLeader(t *testing.T) {
 	network := clusternet.NewLocalNetwork()
-	leaderState := controllerV2State()
+	leaderState := controllerState()
 	leaderState.Controllers = append(leaderState.Controllers,
 		cv2.ControllerVoter{NodeID: 2, Addr: "127.0.0.1:1002", Role: cv2.ControllerRoleVoter})
 	for i := range leaderState.Nodes {
@@ -1351,7 +1351,7 @@ func TestRuntimeMirrorForwardsMarkNodeRemovedToSyncClientLeader(t *testing.T) {
 
 func TestRuntimeMirrorForwardsPromoteControllerVoterToSyncClientLeader(t *testing.T) {
 	network := clusternet.NewLocalNetwork()
-	leaderState := controllerV2State()
+	leaderState := controllerState()
 	leaderState.Controllers = append(leaderState.Controllers,
 		cv2.ControllerVoter{NodeID: 2, Addr: "127.0.0.1:1002", Role: cv2.ControllerRoleVoter})
 	for i := range leaderState.Nodes {
@@ -1424,7 +1424,7 @@ func TestRuntimeMirrorForwardsPromoteControllerVoterToSyncClientLeader(t *testin
 
 func TestRuntimePromoteControllerVoterPreservesForwardedSemanticError(t *testing.T) {
 	network := clusternet.NewLocalNetwork()
-	leaderState := controllerV2State()
+	leaderState := controllerState()
 	leaderState.Controllers = append(leaderState.Controllers,
 		cv2.ControllerVoter{NodeID: 2, Addr: "127.0.0.1:1002", Role: cv2.ControllerRoleVoter})
 	for i := range leaderState.Nodes {
