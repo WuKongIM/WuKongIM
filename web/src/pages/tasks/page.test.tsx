@@ -157,7 +157,7 @@ function renderTasksPage() {
   )
 }
 
-test("renders active ControllerV2 tasks and retained audit history", async () => {
+test("renders active Controller tasks and retained audit history", async () => {
   renderTasksPage()
 
   expect(await screen.findByRole("heading", { name: "Controller Tasks" })).toBeInTheDocument()
@@ -166,7 +166,7 @@ test("renders active ControllerV2 tasks and retained audit history", async () =>
   expect(screen.getByText("completed slot_replica_move task for slot 1")).toBeInTheDocument()
 })
 
-test("filters ControllerV2 tasks by kind, status, slot, node, and keyword", async () => {
+test("filters Controller tasks by kind, status, slot, node, and keyword", async () => {
   const user = userEvent.setup()
   renderTasksPage()
 
@@ -217,5 +217,5 @@ test("renders empty state", async () => {
   getControllerTaskAuditsMock.mockResolvedValueOnce({ total: 0, limit: 200, truncated: false, items: [] })
   renderTasksPage()
 
-  expect(await screen.findByText("No ControllerV2 tasks match the current filters.")).toBeInTheDocument()
+  expect(await screen.findByText("No Controller tasks match the current filters.")).toBeInTheDocument()
 })

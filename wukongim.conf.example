@@ -6,13 +6,13 @@
 # Stable non-zero node identity. Message IDs are seeded from this value.
 WK_NODE_ID=1
 
-# Root data directory for clusterv2 controller, slot, and channel data.
+# Root data directory for cluster controller, slot, and channel data.
 WK_NODE_DATA_DIR=./data/wukongim-single-node-data
 
-# Node-to-node clusterv2 RPC listen address. Keep it reachable by this node.
+# Node-to-node cluster RPC listen address. Keep it reachable by this node.
 WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7001
 
-# Stable cluster identity shared by every node in this clusterv2 cluster.
+# Stable cluster identity shared by every node in this cluster.
 WK_CLUSTER_ID=wukongim-single
 
 # Static Controller voter bootstrap. Existing bootstrap nodes keep this full list.
@@ -22,7 +22,7 @@ WK_CLUSTER_NODES=[{"id":1,"addr":"127.0.0.1:7001"}]
 # Shared join secret accepted by seed JoinNode RPC handlers.
 WK_CLUSTER_JOIN_TOKEN=change-me
 
-# Physical Slot count created by the initial ControllerV2 snapshot.
+# Physical Slot count created by the initial Controller snapshot.
 WK_CLUSTER_INITIAL_SLOT_COUNT=1
 
 # Logical hash-slot count used for routing channel keys to physical Slots.
@@ -35,18 +35,18 @@ WK_CLUSTER_SLOT_REPLICA_N=1
 WK_CLUSTER_NODE_HEALTH_REPORT_INTERVAL=5s
 WK_CLUSTER_NODE_HEALTH_REPORT_TTL=30s
 
-# ChannelV2 reactor partitions. 0 derives max(4, GOMAXPROCS).
+# Channel reactor partitions. 0 derives max(4, GOMAXPROCS).
 WK_CLUSTER_CHANNEL_REACTOR_COUNT=0
 
-# Blocking ChannelV2 worker caps. 0 keeps the runtime default.
+# Blocking Channel worker caps. 0 keeps the runtime default.
 WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS=0
 WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS=0
 WK_CLUSTER_CHANNEL_RPC_WORKERS=50
 
-# Maximum loaded ChannelV2 runtimes on this node. 0 keeps unlimited behavior.
+# Maximum loaded Channel runtimes on this node. 0 keeps unlimited behavior.
 WK_CLUSTER_MAX_CHANNELS=0
 
-# ChannelV2 append batch flush controls. 0 keeps the runtime default.
+# Channel append batch flush controls. 0 keeps the runtime default.
 WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS=0
 WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT=0
 
@@ -64,7 +64,7 @@ WK_CHANNEL_MESSAGE_RETENTION_CHANNEL_BATCH_SIZE=128
 WK_CHANNEL_MESSAGE_RETENTION_MAX_TRIM_MESSAGES=1000
 WK_CHANNEL_MESSAGE_RETENTION_MAX_TRIM_BYTES=0
 
-# Maximum time to collect adjacent ChannelV2 append requests before one durable fsync.
+# Maximum time to collect adjacent Channel append requests before one durable fsync.
 WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW=200us
 # Optional caps for one grouped physical commit. 0 keeps the limit unbounded.
 WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS=0
@@ -118,11 +118,11 @@ WK_DIAGNOSTICS_BUFFER_SIZE=50000
 WK_DIAGNOSTICS_SAMPLE_RATE=0.01
 WK_DIAGNOSTICS_SLOW_THRESHOLD_MS=500
 WK_DIAGNOSTICS_ERROR_SAMPLE_RATE=1.0
-# WK_DIAGNOSTICS_DEEP_SAMPLE_RATE controls expensive ChannelV2 reactor/store detail sampling for ordinary successful events; 0 disables ordinary deep detail.
+# WK_DIAGNOSTICS_DEEP_SAMPLE_RATE controls expensive Channel reactor/store detail sampling for ordinary successful events; 0 disables ordinary deep detail.
 WK_DIAGNOSTICS_DEEP_SAMPLE_RATE=0
 # WK_DIAGNOSTICS_DEEP_SLOW_THRESHOLD_MS keeps bounded deep trace detail for slow reactor/store stages; defaults to WK_DIAGNOSTICS_SLOW_THRESHOLD_MS.
 WK_DIAGNOSTICS_DEEP_SLOW_THRESHOLD_MS=500
-# WK_DIAGNOSTICS_DEEP_MAX_ITEMS_PER_BATCH bounds how many traced items one deep ChannelV2 batch expands.
+# WK_DIAGNOSTICS_DEEP_MAX_ITEMS_PER_BATCH bounds how many traced items one deep Channel batch expands.
 WK_DIAGNOSTICS_DEEP_MAX_ITEMS_PER_BATCH=16
 # Optional temporary high-priority sampling rules. List fields use one JSON string value.
 WK_DIAGNOSTICS_DEBUG_MATCHES=[]

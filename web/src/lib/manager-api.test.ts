@@ -1592,7 +1592,7 @@ describe("manager api client", () => {
     expect(fetchMock).toHaveBeenNthCalledWith(3, "/manager/distributed-tasks/slot_reconcile/slot-reconcile%3A1", expect.anything())
   })
 
-  it("fetches ControllerV2 active tasks and retained task audit history", async () => {
+  it("fetches Controller active tasks and retained task audit history", async () => {
     const activeTasks = {
       total: 1,
       items: [{
