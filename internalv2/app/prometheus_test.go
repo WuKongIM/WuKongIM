@@ -29,7 +29,7 @@ func TestPrometheusRuntimeRendersScrapeConfig(t *testing.T) {
 	content := string(rendered)
 	for _, want := range []string{
 		"scrape_interval: 10s",
-		"job_name: wukongimv2",
+		"job_name: wukongim",
 		"metrics_path: /metrics",
 		"- 127.0.0.1:5001",
 		"- 127.0.0.1:5002",

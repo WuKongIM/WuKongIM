@@ -9,21 +9,21 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestRenderSingleNodeConfigUsesWukongIMV2Keys(t *testing.T) {
+func TestRenderSingleNodeConfigUsesWukongIMKeys(t *testing.T) {
 	spec := NodeSpec{
 		ID:          1,
 		Name:        "node-1",
-		DataDir:     "/tmp/wukongimv2/node-1/data",
+		DataDir:     "/tmp/wukongim/node-1/data",
 		ClusterAddr: "127.0.0.1:11001",
 		GatewayAddr: "127.0.0.1:12001",
 		APIAddr:     "127.0.0.1:13001",
-		LogDir:      "/tmp/wukongimv2/node-1/logs",
+		LogDir:      "/tmp/wukongim/node-1/logs",
 	}
 
 	cfg := RenderSingleNodeConfig(spec)
 
 	require.Contains(t, cfg, "WK_NODE_ID=1\n")
-	require.Contains(t, cfg, "WK_NODE_DATA_DIR=/tmp/wukongimv2/node-1/data\n")
+	require.Contains(t, cfg, "WK_NODE_DATA_DIR=/tmp/wukongim/node-1/data\n")
 	require.Contains(t, cfg, "WK_CLUSTER_LISTEN_ADDR=127.0.0.1:11001\n")
 	require.Contains(t, cfg, "WK_CLUSTER_INITIAL_SLOT_COUNT=1\n")
 	require.Contains(t, cfg, "WK_CLUSTER_HASH_SLOT_COUNT=4\n")
@@ -45,7 +45,7 @@ func TestRenderThreeNodeConfigUsesStaticClusterMembership(t *testing.T) {
 	cfg := RenderClusterConfig(nodes[1], nodes)
 
 	require.Contains(t, cfg, "WK_NODE_ID=2\n")
-	require.Contains(t, cfg, "WK_CLUSTER_ID=wukongimv2-e2ev2-three\n")
+	require.Contains(t, cfg, "WK_CLUSTER_ID=wukongim-e2ev2-three\n")
 	require.Contains(t, cfg, `WK_CLUSTER_NODES=[{"id":1,"addr":"127.0.0.1:11001"},{"id":2,"addr":"127.0.0.1:11002"},{"id":3,"addr":"127.0.0.1:11003"}]`)
 	require.Contains(t, cfg, "WK_CLUSTER_INITIAL_SLOT_COUNT=3\n")
 	require.Contains(t, cfg, "WK_CLUSTER_HASH_SLOT_COUNT=16\n")
@@ -57,7 +57,7 @@ func TestRenderClusterConfigAppliesOverridesDeterministically(t *testing.T) {
 	spec := NodeSpec{
 		ID:          1,
 		Name:        "node-1",
-		DataDir:     "/tmp/wukongimv2/node-1/data",
+		DataDir:     "/tmp/wukongim/node-1/data",
 		ClusterAddr: "127.0.0.1:11001",
 		GatewayAddr: "127.0.0.1:12001",
 		APIAddr:     "127.0.0.1:13001",

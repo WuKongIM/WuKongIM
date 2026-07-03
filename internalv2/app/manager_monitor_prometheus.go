@@ -19,7 +19,7 @@ import (
 
 const (
 	managerMonitorPrometheusQueryTimeout = 5 * time.Second
-	managerMonitorPrometheusJobName      = "wukongimv2"
+	managerMonitorPrometheusJobName      = "wukongim"
 )
 
 var managerMonitorPrometheusMetricSelectorRE = regexp.MustCompile(`\b((?:wukongim|go)_[a-zA-Z0-9_:]+)(\{[^{}]*\})?`)

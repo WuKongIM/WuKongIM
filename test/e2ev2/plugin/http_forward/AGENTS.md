@@ -11,7 +11,7 @@ GOWORK=off go test -tags=e2e ./test/e2ev2/plugin/http_forward -count=1 -timeout 
 
 ## Rules
 
-- Start a real three-node `cmd/wukongimv2` cluster.
+- Start a real three-node `cmd/wukongim` cluster.
 - Enable the test plugin only on the nodes needed by the scenario.
 - Validate local `toNodeId=0` routing, positive-node remote routing, and the
   explicit deferred error for `toNodeId=-1`.

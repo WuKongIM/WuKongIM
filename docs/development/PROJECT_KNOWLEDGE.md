@@ -5,9 +5,11 @@
 - `internalv2` phase 1 is a parallel send-to-sendack skeleton: gateway SEND maps to `usecase/message.SendBatch`, appends through `infra/cluster.ChannelAppender`, and returns SENDACK after `pkg/clusterv2` / `pkg/channelv2` append.
 - `internalv2` single-node deployments must use single-node cluster config. Do not add send or storage paths that bypass clusterv2 semantics.
 - `internalv2/app` seeds message IDs from the effective clusterv2 node ID: `Config.Cluster.NodeID` when set, otherwise top-level `Config.NodeID`.
-- New architecture traffic should enter through a standalone `cmd/wukongimv2` binary, not through a runtime config switch inside `cmd/wukongim`.
-- Runnable `wukongimv2` helper-script configs live under `scripts/wukongimv2/` as `.conf`; `.conf.example` files are samples only and should not be script defaults.
-- `wukongimv2` bottleneck attribution uses Prometheus `/metrics` when `WK_METRICS_ENABLE=true`; compare gateway async SEND, ChannelV2 reactor/worker queue plus in-flight peak, and storage commit request-vs-batch metrics split by `leader_append` / `follower_apply` lane. `/bench/v1/snapshot` remains a benchmark setup counter surface.
+- `cmd/wukongim` is the promoted v2 product entrypoint; `internalv2`,
+  `pkg/clusterv2`, `pkg/controllerv2`, and `pkg/channelv2` package paths remain
+  until the package-rename stage.
+- Runnable `wukongim` helper-script configs live under `scripts/wukongim/` as `.conf`; `.conf.example` files are samples only and should not be script defaults.
+- `wukongim` bottleneck attribution uses Prometheus `/metrics` when `WK_METRICS_ENABLE=true`; compare gateway async SEND, ChannelV2 reactor/worker queue plus in-flight peak, and storage commit request-vs-batch metrics split by `leader_append` / `follower_apply` lane. `/bench/v1/snapshot` remains a benchmark setup counter surface.
 - `WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS` and `WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS` cap ChannelV2 blocking store worker concurrency only; use them after worker in-flight peaks and storage lane tails show commit-coordinator pressure, never as a durability shortcut.
 - ChannelV2 ordinary follower progress ACKs are safe only because they are sent after follower durable apply; Pull `AckOffset` remains the fallback, and leader HW still advances through normal quorum checks.
 - `pkg/channelv2` high-channel idle scale depends on parked followers: caught-up followers should wake through PullHint plus send-timeout-bounded recovery probes, not short-interval empty pull polling.
@@ -115,9 +117,9 @@
 - Remote channel append forwarding supports one-channel batch RPC; falling back to per-message forwarding loses the durable/follower batching benefit for clients connected to non-leader nodes.
 - Single SEND/Append entrypoints are compatibility wrappers; durable send and app channel append internals should route through batch-of-one to avoid split correctness/performance paths.
 - `pkg/channelv2` append is local-runtime only: clusterv2 must ensure/apply authoritative ChannelMeta first and forward non-leader appends to the resolved channel leader.
-- In wukongimv2 three-node ChannelV2 activation, `routing.Route.Leader` is the observed Slot Raft leader for metadata proposals; `routing.Route.PreferredLeader` is the control-plane data-plane placement target for initial ChannelV2 leader selection.
-- wukongimv2 single hot-channel SEND stress is sensitive to gateway async SEND shard count: too many default shards shrink per-channel queue headroom and can close sessions with `async_dispatch_queue_full` before channelv2 saturates.
-- wukongimv2 1000-channel three-node real-QPS stress with 4096 online users needs about 2048 gateway async SEND dispatch workers; 1024 workers creates per-shard SEND head-of-line blocking before channelv2 is fully saturated.
+- In wukongim three-node ChannelV2 activation, `routing.Route.Leader` is the observed Slot Raft leader for metadata proposals; `routing.Route.PreferredLeader` is the control-plane data-plane placement target for initial ChannelV2 leader selection.
+- wukongim single hot-channel SEND stress is sensitive to gateway async SEND shard count: too many default shards shrink per-channel queue headroom and can close sessions with `async_dispatch_queue_full` before channelv2 saturates.
+- wukongim 1000-channel three-node real-QPS stress with 4096 online users needs about 2048 gateway async SEND dispatch workers; 1024 workers creates per-shard SEND head-of-line blocking before channelv2 is fully saturated.
 - SENDACK must only follow a crash-safe durable message commit; message append `NoSync` is unsafe for this guarantee and must not be exposed as runtime/user configuration. Durable QPS work should optimize message DB grouped commits, not acknowledge before fsync.
 
 ## Cluster Membership

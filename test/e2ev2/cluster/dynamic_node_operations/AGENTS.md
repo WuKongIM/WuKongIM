@@ -5,7 +5,7 @@ nodes through `wkcli node`.
 
 ## Scenario Contract
 
-- Start a real three-node `cmd/wukongimv2` cluster with manager HTTP, metrics,
+- Start a real three-node `cmd/wukongim` cluster with manager HTTP, metrics,
   bench API, gateway listeners, and short test-only health report intervals.
 - Start node 4 as a real seed-join process; do not shortcut by writing manager
   state from the test.

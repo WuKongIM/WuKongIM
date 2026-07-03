@@ -5,7 +5,7 @@ nodes under real traffic.
 
 ## Scenario Contract
 
-- Start a static three-node `cmd/wukongimv2` cluster with manager HTTP, metrics,
+- Start a static three-node `cmd/wukongim` cluster with manager HTTP, metrics,
   bench API, gateway listeners, and short test-only health report intervals.
 - Keep real WKProto `SEND -> SENDACK` traffic running while membership changes.
 - Start node 4 through seed join and wait for manager-visible `joining` plus

@@ -159,27 +159,27 @@ func newControllerMetrics(registry prometheus.Registerer, labels prometheus.Labe
 			Buckets:     gatewayFrameDurationBuckets,
 		}, []string{"result"}),
 		raftVoters: prometheus.NewGauge(prometheus.GaugeOpts{
-			Name:        "wukongimv2_controller_raft_voters",
+			Name:        "wukongim_controller_raft_voters",
 			Help:        "Current Controller Raft voter count observed from local status collection.",
 			ConstLabels: labels,
 		}),
 		raftLearners: prometheus.NewGauge(prometheus.GaugeOpts{
-			Name:        "wukongimv2_controller_raft_learners",
+			Name:        "wukongim_controller_raft_learners",
 			Help:        "Current Controller Raft learner count observed from local status collection.",
 			ConstLabels: labels,
 		}),
 		voterPromotionAttempts: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Name:        "wukongimv2_controller_voter_promotion_attempts_total",
+			Name:        "wukongim_controller_voter_promotion_attempts_total",
 			Help:        "Total Controller voter promotion attempts grouped by bounded result.",
 			ConstLabels: labels,
 		}, []string{"result"}),
 		voterPromotionBlockers: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Name:        "wukongimv2_controller_voter_promotion_blockers_total",
+			Name:        "wukongim_controller_voter_promotion_blockers_total",
 			Help:        "Total Controller voter promotion safety blockers grouped by bounded reason.",
 			ConstLabels: labels,
 		}, []string{"reason"}),
 		voterPromotionPhase: prometheus.NewHistogramVec(prometheus.HistogramOpts{
-			Name:        "wukongimv2_controller_voter_promotion_phase_seconds",
+			Name:        "wukongim_controller_voter_promotion_phase_seconds",
 			Help:        "Controller voter promotion phase duration in seconds grouped by bounded phase.",
 			ConstLabels: labels,
 			Buckets:     slotReplicaMoveDurationBuckets,

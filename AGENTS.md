@@ -45,8 +45,7 @@
 
 ```text
 cmd/
-  wukongim/              程序入口，负责读取配置并启动应用
-  wukongimv2/            internalv2/app 迁移期独立验证入口，当前验证单节点集群 SEND -> SENDACK 骨架
+  wukongim/              官方产品入口，负责读取配置并启动 internalv2/app
   wkcli/                 可扩展 Cobra 运维 CLI 骨架，预留 top/bench 等子命令入口
   wkbench/               wkbench 黑盒 benchmark CLI，提供 validate/doctor/run/worker/dev-sim/report 入口
   wkdb/                  节点本地只读存储排查 CLI，提供 query/repl 入口
@@ -168,7 +167,7 @@ docker/
   sim/                   可选 wkbench dev-sim 模拟器配置与使用说明
 
 scripts/                 仓库辅助脚本
-  wukongimv2/            wukongimv2 本地启动脚本使用的真实配置文件
+  wukongim/              wukongim 本地启动脚本使用的真实配置文件
 
 test/
   e2e/                   真实二进制黑盒 e2e 测试与子进程 harness
@@ -177,7 +176,7 @@ test/
     cluster/             集群拓扑、快照、扩缩容 e2e 场景
     message/             WKProto 消息投递闭环 e2e 场景
     suite/               e2e 共享黑盒 harness 与客户端辅助
-  e2ev2/                 wukongimv2 真实二进制黑盒 e2e 测试与 v2 专用 harness
+  e2ev2/                 真实 cmd/wukongim 黑盒 e2e 测试，覆盖 internalv2 行为
     message/             internalv2 消息、会话与 recipient authority 黑盒场景
     suite/               e2ev2 共享黑盒 harness、v2 配置、API 与 metrics 辅助
 

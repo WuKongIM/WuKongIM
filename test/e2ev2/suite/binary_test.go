@@ -10,12 +10,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestBinaryCacheBuildsWukongIMV2BinaryOnce(t *testing.T) {
+func TestBinaryCacheBuildsWukongIMBinaryOnce(t *testing.T) {
 	var builds int
 	cache := BinaryCache{
 		build: func(dst string) error {
 			builds++
-			require.Equal(t, "wukongimv2-e2e", filepath.Base(dst))
+			require.Equal(t, "wukongim-e2e", filepath.Base(dst))
 			return os.WriteFile(dst, []byte("fake-v2-binary"), 0o755)
 		},
 	}
@@ -29,12 +29,36 @@ func TestBinaryCacheBuildsWukongIMV2BinaryOnce(t *testing.T) {
 	require.Equal(t, 1, builds)
 }
 
-func TestResolveBinaryPathUsesE2EV2Override(t *testing.T) {
-	fakeBinary := filepath.Join(t.TempDir(), "wukongimv2")
+func TestResolveBinaryPathUsesE2EOverride(t *testing.T) {
+	fakeBinary := filepath.Join(t.TempDir(), "wukongim")
 	require.NoError(t, os.WriteFile(fakeBinary, []byte("fake-v2-binary"), 0o755))
+	t.Setenv("WK_E2E_BINARY", fakeBinary)
+	t.Setenv("WK_E2EV2_BINARY", "")
+
+	got, err := resolveBinaryPath()
+	require.NoError(t, err)
+	require.Equal(t, fakeBinary, got)
+}
+
+func TestResolveBinaryPathUsesLegacyE2EV2OverrideFallback(t *testing.T) {
+	fakeBinary := filepath.Join(t.TempDir(), "wukongim")
+	require.NoError(t, os.WriteFile(fakeBinary, []byte("fake-v2-binary"), 0o755))
+	t.Setenv("WK_E2E_BINARY", "")
 	t.Setenv("WK_E2EV2_BINARY", fakeBinary)
 
 	got, err := resolveBinaryPath()
 	require.NoError(t, err)
 	require.Equal(t, fakeBinary, got)
+}
+
+func TestResolveBinaryPathReportsBadE2EOverride(t *testing.T) {
+	missingBinary := filepath.Join(t.TempDir(), "missing-wukongim")
+	legacyBinary := filepath.Join(t.TempDir(), "legacy-wukongim")
+	require.NoError(t, os.WriteFile(legacyBinary, []byte("fake-v2-binary"), 0o755))
+	t.Setenv("WK_E2E_BINARY", missingBinary)
+	t.Setenv("WK_E2EV2_BINARY", legacyBinary)
+
+	_, err := resolveBinaryPath()
+	require.Error(t, err)
+	require.Contains(t, err.Error(), `WK_E2E_BINARY="`+missingBinary+`"`)
 }

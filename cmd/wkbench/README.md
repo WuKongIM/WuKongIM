@@ -172,8 +172,8 @@ intentionally includes gateway connection pressure. Tighten `--stable-p99`, for
 example to `200ms`, when the run is meant to prove a strict cold-activation
 latency SLA rather than live-channel cardinality.
 
-For local `cmd/wukongimv2` three-node runs, prefer
-`scripts/bench-wukongimv2-three-nodes-10kch.sh`. It wraps this command and
+For local `cmd/wukongim` three-node runs, prefer
+`scripts/bench-wukongim-three-nodes-10kch.sh`. It wraps this command and
 collects node logs, Prometheus snapshots plus per-node classification files,
 pprof, and server process CPU/memory samples under `resources/`. The referenced
 three-node configs use three initial physical Slots so cold channel metadata
@@ -184,7 +184,7 @@ targets, `active_leader_single_node` marks samples where all active leaders
 landed on one node instead of a distributed topology.
 
 For connection-route presence checks, use
-`scripts/bench-wukongimv2-three-nodes-presence.sh`. It starts the same local
+`scripts/bench-wukongim-three-nodes-presence.sh`. It starts the same local
 three-node cluster, runs a connection-only wkbench scenario with heartbeat
 pings, polls `/bench/v1/presence/snapshot` while the run is active, and
 validates the live peak for owner-active count, authority-active count, pending

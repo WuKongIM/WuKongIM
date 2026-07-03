@@ -1,6 +1,6 @@
 # cross_node_delivery AGENTS
 
-This scenario proves `cmd/wukongimv2` can run a static three-node cluster where
+This scenario proves `cmd/wukongim` can run a static three-node cluster where
 two users connect to different nodes and exchange online person-channel
 messages.
 

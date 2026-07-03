@@ -34,7 +34,7 @@ func TestDynamicNodeReadinessGateDryRunQuickProfile(t *testing.T) {
 		"controllerv2_cmd=GOWORK=off go test ./pkg/controllerv2 -count=1",
 		"faults_default_cmd=GOWORK=off go test -tags=e2e ./test/e2ev2/cluster/dynamic_node_faults -count=1 -timeout 2m -p=1",
 		"build_gofail_cmd=scripts/build-gofail-binary.sh --cmd ./cmd/wukongim --package internalv2/usecase/management --package pkg/controllerv2 --package pkg/clusterv2/tasks --package pkg/clusterv2/net --out " + binary,
-		"stage10a_cmd=WK_E2EV2_BINARY=" + binary + " WK_E2EV2_GOFAIL_DYNAMIC_NODE=1 GOWORK=off go test -tags=e2e ./test/e2ev2/cluster/dynamic_node_faults -run 'TestStage10A|TestGofailDynamicNodeBinaryExposesFailpoints' -count=1 -timeout 15m -p=1",
+		"stage10a_cmd=WK_E2E_BINARY=" + binary + " WK_E2EV2_GOFAIL_DYNAMIC_NODE=1 GOWORK=off go test -tags=e2e ./test/e2ev2/cluster/dynamic_node_faults -run 'TestStage10A|TestGofailDynamicNodeBinaryExposesFailpoints' -count=1 -timeout 15m -p=1",
 		"diff_check_cmd=git diff --check",
 	} {
 		if !strings.Contains(text, want) {
@@ -148,7 +148,7 @@ func TestDynamicNodeReadinessGateDryRunNormalizesRelativeBinaryPath(t *testing.T
 	text := string(output)
 	for _, want := range []string{
 		"gofail_binary=" + normalizedBinary,
-		"stage10a_cmd=WK_E2EV2_BINARY=" + normalizedBinary,
+		"stage10a_cmd=WK_E2E_BINARY=" + normalizedBinary,
 	} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("dry-run output missing %q:\n%s", want, text)

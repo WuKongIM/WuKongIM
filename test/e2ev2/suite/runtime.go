@@ -32,7 +32,7 @@ type Suite struct {
 	workspace  Workspace
 }
 
-// StartedNode describes one started wukongimv2 process and its external addresses.
+// StartedNode describes one started wukongim process and its external addresses.
 type StartedNode struct {
 	Spec    NodeSpec
 	Process *NodeProcess
@@ -141,7 +141,7 @@ func NewWorkspace(t *testing.T, opts ...Option) Workspace {
 	return workspace
 }
 
-// New creates a test-scoped suite and resolves the wukongimv2 binary on demand.
+// New creates a test-scoped suite and resolves the wukongim binary on demand.
 func New(t *testing.T) *Suite {
 	t.Helper()
 
@@ -155,7 +155,7 @@ func New(t *testing.T) *Suite {
 	}
 }
 
-// StartSingleNodeCluster starts one real wukongimv2 child process and waits for public readiness.
+// StartSingleNodeCluster starts one real wukongim child process and waits for public readiness.
 func (s *Suite) StartSingleNodeCluster(opts ...Option) *StartedNode {
 	s.t.Helper()
 
@@ -183,7 +183,7 @@ func (s *Suite) StartSingleNodeCluster(opts ...Option) *StartedNode {
 	return node
 }
 
-// StartThreeNodeCluster starts three static wukongimv2 child processes.
+// StartThreeNodeCluster starts three static wukongim child processes.
 func (s *Suite) StartThreeNodeCluster(opts ...Option) *StartedCluster {
 	s.t.Helper()
 

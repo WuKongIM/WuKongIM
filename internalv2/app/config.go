@@ -162,7 +162,7 @@ type ObservabilityConfig struct {
 	diagnosticsErrorSampleRateSet bool
 }
 
-// PrometheusConfig controls the optional child Prometheus process managed by wukongimv2.
+// PrometheusConfig controls the optional child Prometheus process managed by wukongim.
 type PrometheusConfig struct {
 	// Enabled starts the embedded or externally configured Prometheus child process during app startup.
 	Enabled bool
@@ -176,9 +176,9 @@ type PrometheusConfig struct {
 	RetentionTime time.Duration
 	// RetentionSize optionally controls Prometheus TSDB size-based retention.
 	RetentionSize string
-	// ScrapeInterval controls how frequently Prometheus scrapes wukongimv2 metrics.
+	// ScrapeInterval controls how frequently Prometheus scrapes wukongim metrics.
 	ScrapeInterval time.Duration
-	// ScrapeTargets lists host:port targets exposing the wukongimv2 /metrics endpoint.
+	// ScrapeTargets lists host:port targets exposing the wukongim /metrics endpoint.
 	ScrapeTargets []string
 }
 

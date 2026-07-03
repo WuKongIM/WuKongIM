@@ -1,6 +1,6 @@
 # recipient_authority AGENTS
 
-This scenario proves `cmd/wukongimv2` can route committed group messages through
+This scenario proves `cmd/wukongim` can route committed group messages through
 recipient UID authority and update subscriber-owned recent conversations in a
 single-node cluster.
 

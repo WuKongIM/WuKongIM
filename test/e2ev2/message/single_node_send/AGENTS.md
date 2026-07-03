@@ -1,6 +1,6 @@
 # single_node_send AGENTS
 
-This scenario proves `cmd/wukongimv2` can boot a single-node cluster and
+This scenario proves `cmd/wukongim` can boot a single-node cluster and
 complete one real WKProto `SEND -> SENDACK` closure, then expose the sender and
 receiver conversation rows through the public `/conversation/list` HTTP API.
 

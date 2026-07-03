@@ -40,9 +40,9 @@ type prometheusRuntimeConfig struct {
 	RetentionTime time.Duration
 	// RetentionSize optionally controls size-based TSDB retention.
 	RetentionSize string
-	// ScrapeInterval controls how often Prometheus scrapes wukongimv2.
+	// ScrapeInterval controls how often Prometheus scrapes wukongim.
 	ScrapeInterval time.Duration
-	// ScrapeTargets lists wukongimv2 /metrics host:port endpoints.
+	// ScrapeTargets lists wukongim /metrics host:port endpoints.
 	ScrapeTargets []string
 	// Logger records child-process lifecycle failures.
 	Logger wklog.Logger
@@ -215,7 +215,7 @@ func extractEmbeddedPrometheusBinary(fsys fs.FS, goos, goarch, dir string) (stri
 	data, err := fs.ReadFile(fsys, filepath.ToSlash(filepath.Join(embeddedPrometheusDir, assetName)))
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
-			return "", fmt.Errorf("%w: %s; rebuild wukongimv2 with scripts/start-wukongimv2-single-node.sh or set WK_PROMETHEUS_BINARY_PATH", errEmbeddedPrometheusMissing, assetName)
+			return "", fmt.Errorf("%w: %s; rebuild wukongim with scripts/start-wukongim-single-node.sh or set WK_PROMETHEUS_BINARY_PATH", errEmbeddedPrometheusMissing, assetName)
 		}
 		return "", fmt.Errorf("internalv2/app: read embedded prometheus binary: %w", err)
 	}
@@ -251,7 +251,7 @@ func (r *prometheusRuntime) renderConfig() ([]byte, error) {
 		},
 		ScrapeConfigs: []prometheusScrapeConfig{
 			{
-				JobName:     "wukongimv2",
+				JobName:     "wukongim",
 				MetricsPath: "/metrics",
 				StaticConfigs: []prometheusStaticConfig{
 					{

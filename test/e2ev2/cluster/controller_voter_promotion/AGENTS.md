@@ -1,7 +1,7 @@
 # controller_voter_promotion AGENTS
 
 This scenario proves Controller voter promotion through a real multi-node
-`cmd/wukongimv2` cluster.
+`cmd/wukongim` cluster.
 
 ## Scenario Contract
 
@@ -16,7 +16,7 @@ This scenario proves Controller voter promotion through a real multi-node
 
 ## Rules
 
-- Keep tests black-box: use real `cmd/wukongimv2` processes, public manager
+- Keep tests black-box: use real `cmd/wukongim` processes, public manager
   HTTP endpoints, public readiness probes, and WKProto.
 - Do not import `internalv2/app`, `internalv2/usecase`, storage internals, or
   control-plane internals.

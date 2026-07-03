@@ -1,11 +1,11 @@
 # test/e2ev2/cluster AGENTS
 
 This domain owns black-box multi-node cluster lifecycle coverage for
-`cmd/wukongimv2`.
+`cmd/wukongim`.
 
 ## Rules
 
-- Keep scenarios process-level and black-box: use real `cmd/wukongimv2`
+- Keep scenarios process-level and black-box: use real `cmd/wukongim`
   processes, public manager HTTP endpoints, and public readiness probes.
 - Do not import `internalv2/app`, `internalv2/usecase`, or storage internals.
 - Put reusable harness behavior in `test/e2ev2/suite`; scenario tests should
@@ -32,6 +32,6 @@ This domain owns black-box multi-node cluster lifecycle coverage for
   entrypoints.
 
   ```bash
-  scripts/build-gofail-binary.sh --cmd ./cmd/wukongimv2 --package internalv2/usecase/management --package pkg/controllerv2 --package pkg/clusterv2/tasks --package pkg/clusterv2/net --out /tmp/wukongimv2-gofail
-  WK_E2EV2_BINARY=/tmp/wukongimv2-gofail WK_E2EV2_GOFAIL_DYNAMIC_NODE=1 GOWORK=off go test -tags=e2e ./test/e2ev2/cluster/dynamic_node_faults -count=1 -timeout 15m -p=1
+  scripts/build-gofail-binary.sh --cmd ./cmd/wukongim --package internalv2/usecase/management --package pkg/controllerv2 --package pkg/clusterv2/tasks --package pkg/clusterv2/net --out /tmp/wukongim-gofail
+  WK_E2E_BINARY=/tmp/wukongim-gofail WK_E2EV2_GOFAIL_DYNAMIC_NODE=1 GOWORK=off go test -tags=e2e ./test/e2ev2/cluster/dynamic_node_faults -count=1 -timeout 15m -p=1
   ```

@@ -540,23 +540,23 @@ func TestControllerRaftMetricsObserverMapsMembershipAndPromotion(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Gather() error = %v", err)
 	}
-	voters := requireAppMetricFamily(t, families, "wukongimv2_controller_raft_voters")
+	voters := requireAppMetricFamily(t, families, "wukongim_controller_raft_voters")
 	if got := voters.GetMetric()[0].GetGauge().GetValue(); got != 3 {
 		t.Fatalf("controller raft voters = %v, want 3", got)
 	}
-	learners := requireAppMetricFamily(t, families, "wukongimv2_controller_raft_learners")
+	learners := requireAppMetricFamily(t, families, "wukongim_controller_raft_learners")
 	if got := learners.GetMetric()[0].GetGauge().GetValue(); got != 1 {
 		t.Fatalf("controller raft learners = %v, want 1", got)
 	}
-	attempts := requireAppMetricFamily(t, families, "wukongimv2_controller_voter_promotion_attempts_total")
+	attempts := requireAppMetricFamily(t, families, "wukongim_controller_voter_promotion_attempts_total")
 	if got := findAppMetricByLabels(t, attempts, map[string]string{"result": "blocked"}).GetCounter().GetValue(); got != 1 {
 		t.Fatalf("blocked promotion attempts = %v, want 1", got)
 	}
-	blockers := requireAppMetricFamily(t, families, "wukongimv2_controller_voter_promotion_blockers_total")
+	blockers := requireAppMetricFamily(t, families, "wukongim_controller_voter_promotion_blockers_total")
 	if got := findAppMetricByLabels(t, blockers, map[string]string{"reason": "target_revision_stale"}).GetCounter().GetValue(); got != 1 {
 		t.Fatalf("target_revision_stale blockers = %v, want 1", got)
 	}
-	phases := requireAppMetricFamily(t, families, "wukongimv2_controller_voter_promotion_phase_seconds")
+	phases := requireAppMetricFamily(t, families, "wukongim_controller_voter_promotion_phase_seconds")
 	if got := findAppMetricByLabels(t, phases, map[string]string{"phase": "commit_state"}).GetHistogram().GetSampleCount(); got != 1 {
 		t.Fatalf("commit_state phase samples = %v, want 1", got)
 	}

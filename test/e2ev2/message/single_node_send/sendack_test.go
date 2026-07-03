@@ -23,8 +23,8 @@ func TestWukongIMV2SingleNodeClusterSendProjectsConversationList(t *testing.T) {
 
 	const (
 		clientSeq   uint64 = 1
-		clientMsgNo        = "wukongimv2-sendack-e2e-1"
-		payload            = "hello from wukongimv2 e2e"
+		clientMsgNo        = "wukongim-sendack-e2e-1"
+		payload            = "hello from wukongim e2e"
 	)
 	require.NoError(t, client.SendFrame(&frame.SendPacket{
 		ChannelID:   "v2-recipient",

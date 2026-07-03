@@ -1,11 +1,11 @@
 # plugin AGENTS
 
 This domain owns process-level `.wkp` plugin compatibility coverage for
-`cmd/wukongimv2`.
+`cmd/wukongim`.
 
 ## Rules
 
-- Keep scenario assertions black-box through real `cmd/wukongimv2` processes,
+- Keep scenario assertions black-box through real `cmd/wukongim` processes,
   plugin Unix sockets, public HTTP readiness, and files written by plugin
   sandboxes.
 - Do not import `internalv2/app`, `internalv2/usecase`, or storage internals

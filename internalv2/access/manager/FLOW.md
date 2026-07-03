@@ -248,8 +248,8 @@ When Prometheus is disabled or unavailable the route still returns HTTP 200
 with an explicit monitor status so the web UI can show setup guidance instead
 of rendering empty charts. This route does not read from the top collector or
 any in-process dashboard ring buffer. PromQL is scoped to the app-managed
-`wukongimv2` Prometheus job so obsolete `cmd/wukongim` metrics cannot be mixed
-into the realtime cards. Conversation cards include a `conversationSync` stage
+`wukongim` Prometheus job so unrelated Prometheus jobs cannot be mixed into the
+realtime cards. Conversation cards include a `conversationSync` stage
 covering the `/conversation/sync` client experience, active-cache dirty age,
 active flush health, and conversation authority pressure. Gateway cards cover
 client ingress, active connections, async SEND queue usage, connection churn,
@@ -447,6 +447,6 @@ presence joins, token reset, force-offline, and system UID mutations are
 delegated to `internalv2/usecase/management`.
 
 The manager server uses its own listen address from the composition root and is
-separate from `internalv2/access/api`. In `cmd/wukongimv2`, that listener is
+separate from `internalv2/access/api`. In `cmd/wukongim`, that listener is
 configured by `WK_MANAGER_LISTEN_ADDR`; JWT settings and static users are
 configured by the `WK_MANAGER_*` auth keys.

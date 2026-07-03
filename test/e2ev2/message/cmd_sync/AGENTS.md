@@ -1,6 +1,6 @@
 # cmd_sync AGENTS
 
-This scenario proves `cmd/wukongimv2` keeps ordinary conversations and CMD
+This scenario proves `cmd/wukongim` keeps ordinary conversations and CMD
 sync state isolated inside the unified conversation projection in a single-node
 cluster.
 

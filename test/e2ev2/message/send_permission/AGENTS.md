@@ -1,6 +1,6 @@
 # send_permission AGENTS
 
-This scenario proves `cmd/wukongimv2` enforces migrated legacy send-permission
+This scenario proves `cmd/wukongim` enforces migrated legacy send-permission
 decisions in a single-node cluster through public HTTP APIs.
 
 ## Run

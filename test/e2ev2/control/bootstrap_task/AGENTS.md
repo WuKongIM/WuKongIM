@@ -1,7 +1,7 @@
 # test/e2ev2/control/bootstrap_task AGENTS
 
 This scenario verifies ControllerV2 bootstrap Slot tasks through a real
-multi-node `cmd/wukongimv2` cluster.
+multi-node `cmd/wukongim` cluster.
 
 ## Assertions
 

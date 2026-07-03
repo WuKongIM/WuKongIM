@@ -61,7 +61,7 @@ New(Config)
        Prometheus data dir, extracts the embedded Prometheus binary when no
        external binary path is configured, and scrapes the node API /metrics endpoint
      Manager realtime monitor queries use this configured Prometheus HTTP API.
-     They scope PromQL to the generated `wukongimv2` job and can optionally add
+     They scope PromQL to the generated `wukongim` job and can optionally add
      a node-scoped filter; unified realtime monitor snapshots also pass the
      selected node into bounded control snapshot reads. The database monitor
      category is Prometheus-only and uses internalv2 message DB commit request,
@@ -327,7 +327,7 @@ action fans out above the RPC layer by targeting every Controller voter in the
 current control snapshot.
 
 `Delivery.Enabled` remains false for app-level zero-value configs, while the
-`wukongimv2` executable config enables `WK_DELIVERY_ENABLE` by default. With
+`wukongim` executable config enables `WK_DELIVERY_ENABLE` by default. With
 delivery disabled, committed message effects still run inside the channel
 authority writer so recent conversation state is updated, but no online
 delivery is submitted. With delivery enabled, gateway RECVACK and session close

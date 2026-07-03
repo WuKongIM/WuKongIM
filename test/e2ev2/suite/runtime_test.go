@@ -16,8 +16,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestStartThreeNodeClusterWritesWukongIMV2StaticConfigs(t *testing.T) {
-	t.Setenv("WK_E2EV2_BINARY", writeFakeNodeBinary(t))
+func TestStartThreeNodeClusterWritesWukongIMStaticConfigs(t *testing.T) {
+	t.Setenv("WK_E2E_BINARY", writeFakeNodeBinary(t))
 
 	cluster := New(t).StartThreeNodeCluster()
 
@@ -27,7 +27,7 @@ func TestStartThreeNodeClusterWritesWukongIMV2StaticConfigs(t *testing.T) {
 
 		cfg, err := os.ReadFile(node.Spec.ConfigPath)
 		require.NoError(t, err)
-		require.Contains(t, string(cfg), "WK_CLUSTER_ID=wukongimv2-e2ev2-three\n")
+		require.Contains(t, string(cfg), "WK_CLUSTER_ID=wukongim-e2ev2-three\n")
 		require.Contains(t, string(cfg), "WK_CLUSTER_NODES=")
 		require.Contains(t, string(cfg), "WK_CLUSTER_INITIAL_SLOT_COUNT=3\n")
 		require.Contains(t, string(cfg), "WK_CLUSTER_HASH_SLOT_COUNT=16\n")
@@ -40,7 +40,7 @@ func TestStartThreeNodeClusterWritesWukongIMV2StaticConfigs(t *testing.T) {
 }
 
 func TestStartThreeNodeClusterWritesManagerConfigWhenEnabled(t *testing.T) {
-	t.Setenv("WK_E2EV2_BINARY", writeFakeNodeBinary(t))
+	t.Setenv("WK_E2E_BINARY", writeFakeNodeBinary(t))
 
 	cluster := New(t).StartThreeNodeCluster(WithManagerHTTP())
 
@@ -54,7 +54,7 @@ func TestStartThreeNodeClusterWritesManagerConfigWhenEnabled(t *testing.T) {
 }
 
 func TestStartThreeNodeClusterWritesDynamicJoinTokenWhenConfigured(t *testing.T) {
-	t.Setenv("WK_E2EV2_BINARY", writeFakeNodeBinary(t))
+	t.Setenv("WK_E2E_BINARY", writeFakeNodeBinary(t))
 
 	cluster := New(t).StartThreeNodeCluster(WithDynamicJoinToken("join-secret"))
 
@@ -83,7 +83,7 @@ func TestRenderSeedJoinNodeConfigOmitsStaticClusterNodes(t *testing.T) {
 		JoinToken: "join-secret",
 	})
 
-	require.Contains(t, cfg, "WK_CLUSTER_ID=wukongimv2-e2ev2-three\n")
+	require.Contains(t, cfg, "WK_CLUSTER_ID=wukongim-e2ev2-three\n")
 	require.Contains(t, cfg, `WK_CLUSTER_SEEDS=["127.0.0.1:7011","127.0.0.1:7012"]`+"\n")
 	require.Contains(t, cfg, "WK_CLUSTER_ADVERTISE_ADDR=127.0.0.1:7014\n")
 	require.Contains(t, cfg, "WK_CLUSTER_JOIN_TOKEN=join-secret\n")
@@ -247,7 +247,7 @@ func (t *recordedCleanupTB) FailNow() {
 func writeFakeNodeBinary(t *testing.T) string {
 	t.Helper()
 
-	path := filepath.Join(t.TempDir(), "fake-wukongimv2.sh")
+	path := filepath.Join(t.TempDir(), "fake-wukongim.sh")
 	script := "#!/bin/sh\ntrap 'exit 0' TERM\nwhile :; do sleep 1; done\n"
 	require.NoError(t, os.WriteFile(path, []byte(script), 0o755))
 	return path

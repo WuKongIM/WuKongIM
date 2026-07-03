@@ -20,8 +20,8 @@ func requireGofailDynamicNodeEnabled(t *testing.T) {
 	if os.Getenv(gofailDynamicNodeEnv) != "1" {
 		t.Skipf("set %s=1 to run gofail dynamic-node e2ev2 tests", gofailDynamicNodeEnv)
 	}
-	if strings.TrimSpace(os.Getenv("WK_E2EV2_BINARY")) == "" {
-		t.Skip("set WK_E2EV2_BINARY to a gofail-enabled cmd/wukongimv2 binary")
+	if strings.TrimSpace(os.Getenv("WK_E2E_BINARY")) == "" && strings.TrimSpace(os.Getenv("WK_E2EV2_BINARY")) == "" {
+		t.Skip("set WK_E2E_BINARY to a gofail-enabled cmd/wukongim binary; WK_E2EV2_BINARY is a temporary fallback")
 	}
 }
 

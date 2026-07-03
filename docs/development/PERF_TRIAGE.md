@@ -40,14 +40,14 @@ Useful options:
 The script writes evidence first, then exits non-zero if final `/status` is not healthy or reports send/recv errors.
 The sampled `/status` timeline now includes both the configured steady-state online pool (`connected_users`) and the latest live online count (`active_users`), plus reconnect churn (`reconnected_users`) when the simulator repairs sessions.
 
-For `cmd/wukongimv2` local three-node ChannelV2 capacity runs, do not use the
+For `cmd/wukongim` local three-node ChannelV2 capacity runs, do not use the
 Compose dev-sim path. Use the local startup script wrapper:
 
 ```bash
-scripts/bench-wukongimv2-three-nodes-10kch.sh
+scripts/bench-wukongim-three-nodes-10kch.sh
 ```
 
-This wrapper starts nodes through `scripts/start-wukongimv2-three-nodes.sh`,
+This wrapper starts nodes through `scripts/start-wukongim-three-nodes.sh`,
 defaults to a 10,000-group-channel cardinality run, enables metrics and pprof,
 and stores evidence under
 `docs/development/perf-runs/<timestamp>-three-node-activate-10kch/`. It records
@@ -312,7 +312,7 @@ curl -fsS http://127.0.0.1:15003/debug/pprof/heap > pprof/node3-heap.pb.gz
 
 Use Prometheus metrics as the primary evidence source for bottleneck attribution. Keep `/bench/v1/snapshot` limited to benchmark setup counters; it is not a performance attribution surface.
 
-For `cmd/wukongimv2`, enable metrics through the normal API listener:
+For `cmd/wukongim`, enable metrics through the normal API listener:
 
 ```ini
 WK_API_LISTEN_ADDR=127.0.0.1:5001
@@ -322,7 +322,7 @@ WK_METRICS_ENABLE=true
 Then scrape:
 
 ```bash
-curl -fsS http://127.0.0.1:5001/metrics > metrics/wukongimv2.prom
+curl -fsS http://127.0.0.1:5001/metrics > metrics/wukongim.prom
 ```
 
 For lightweight local testing without a Prometheus server, capture one snapshot
@@ -378,7 +378,7 @@ sum by (stage) (wukongim_channelappend_effect_pool_saturated)
 histogram_quantile(0.99, sum by (le, stage, result) (rate(wukongim_channelappend_effect_duration_seconds_bucket[1m])))
 ```
 
-`scripts/bench-wukongimv2-three-nodes-1000ch.sh` writes final pool pressure
+`scripts/bench-wukongim-three-nodes-1000ch.sh` writes final pool pressure
 headlines into `summary.txt` and `summary.md`. `over90_pools` counts node-local
 pool instances whose observed queue or worker/pool utilization reached at
 least 90% capacity during sampling. `peak_internal_mib_s` in

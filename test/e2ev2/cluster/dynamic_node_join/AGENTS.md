@@ -1,7 +1,7 @@
 # dynamic_node_join AGENTS
 
 This scenario package proves the Stage 2-6 dynamic data-node lifecycle through
-a real multi-node `cmd/wukongimv2` cluster.
+a real multi-node `cmd/wukongim` cluster.
 
 ## Scenario Contract
 

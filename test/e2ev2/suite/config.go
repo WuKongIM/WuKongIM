@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-const staticThreeNodeClusterID = "wukongimv2-e2ev2-three"
+const staticThreeNodeClusterID = "wukongim-e2ev2-three"
 
 // NodeSpec describes the external runtime inputs for one e2ev2 node process.
 type NodeSpec struct {

@@ -165,23 +165,23 @@ func TestManagerMonitorPrometheusProviderReturnsGatewayOperatorCards(t *testing.
 
 	joinedQueries := strings.Join(queries, "\n")
 	for _, want := range []string{
-		`wukongim_gateway_async_send_queue_depth{job="wukongimv2"}`,
-		`wukongim_gateway_async_send_queue_capacity{job="wukongimv2"}`,
-		`wukongim_gateway_connections_total{job="wukongimv2",event="open"}[1m]`,
-		`wukongim_gateway_connections_total{job="wukongimv2",event="close"}[1m]`,
-		`sum by (reason) (rate(wukongim_gateway_connection_closes_total{job="wukongimv2"}[1m]))`,
-		`wukongim_gateway_auth_total{job="wukongimv2",status="ok"}[1m]`,
-		`wukongim_gateway_auth_duration_seconds_bucket{job="wukongimv2"}[1m]`,
-		`wukongim_gateway_sendacks_total{job="wukongimv2",reason!="success"}[1m]`,
-		`wukongim_gateway_messages_received_bytes_total{job="wukongimv2"}[1m]`,
-		`wukongim_gateway_messages_delivered_bytes_total{job="wukongimv2"}[1m]`,
-		`sum by (le, frame_type) (rate(wukongim_gateway_frame_handle_duration_seconds_bucket{job="wukongimv2"}[1m]))`,
-		`wukongim_gateway_async_send_batch_wait_duration_seconds_bucket{job="wukongimv2"}[1m]`,
-		`wukongim_gateway_async_send_batch_records_bucket{job="wukongimv2"}[1m]`,
-		`wukongim_gateway_async_send_batch_bytes_bucket{job="wukongimv2"}[1m]`,
-		`wukongim_runtime_pool_queue_depth{job="wukongimv2",component="gateway",pool="async_auth",queue="auth"}`,
-		`wukongim_runtime_pool_queue_depth{job="wukongimv2",component="gateway",pool!~"async_send|async_auth"}`,
-		`wukongim_runtime_pool_queue_bytes{job="wukongimv2",component="gateway",pool!~"async_send|async_auth"}`,
+		`wukongim_gateway_async_send_queue_depth{job="wukongim"}`,
+		`wukongim_gateway_async_send_queue_capacity{job="wukongim"}`,
+		`wukongim_gateway_connections_total{job="wukongim",event="open"}[1m]`,
+		`wukongim_gateway_connections_total{job="wukongim",event="close"}[1m]`,
+		`sum by (reason) (rate(wukongim_gateway_connection_closes_total{job="wukongim"}[1m]))`,
+		`wukongim_gateway_auth_total{job="wukongim",status="ok"}[1m]`,
+		`wukongim_gateway_auth_duration_seconds_bucket{job="wukongim"}[1m]`,
+		`wukongim_gateway_sendacks_total{job="wukongim",reason!="success"}[1m]`,
+		`wukongim_gateway_messages_received_bytes_total{job="wukongim"}[1m]`,
+		`wukongim_gateway_messages_delivered_bytes_total{job="wukongim"}[1m]`,
+		`sum by (le, frame_type) (rate(wukongim_gateway_frame_handle_duration_seconds_bucket{job="wukongim"}[1m]))`,
+		`wukongim_gateway_async_send_batch_wait_duration_seconds_bucket{job="wukongim"}[1m]`,
+		`wukongim_gateway_async_send_batch_records_bucket{job="wukongim"}[1m]`,
+		`wukongim_gateway_async_send_batch_bytes_bucket{job="wukongim"}[1m]`,
+		`wukongim_runtime_pool_queue_depth{job="wukongim",component="gateway",pool="async_auth",queue="auth"}`,
+		`wukongim_runtime_pool_queue_depth{job="wukongim",component="gateway",pool!~"async_send|async_auth"}`,
+		`wukongim_runtime_pool_queue_bytes{job="wukongim",component="gateway",pool!~"async_send|async_auth"}`,
 	} {
 		if !strings.Contains(joinedQueries, want) {
 			t.Fatalf("queries missing %q: %s", want, joinedQueries)
@@ -241,17 +241,17 @@ func TestManagerMonitorPrometheusProviderReturnsMessageOperatorCards(t *testing.
 
 	joinedQueries := strings.Join(queries, "\n")
 	for _, want := range []string{
-		`wukongim_gateway_messages_received_total{job="wukongimv2"}[1m]`,
-		`wukongim_gateway_sendacks_total{job="wukongimv2",reason!="success"}[1m]`,
-		`wukongim_message_append_total{job="wukongimv2",result!="ok"}[1m]`,
-		`wukongim_message_append_duration_seconds_bucket{job="wukongimv2",result="ok"}[1m]`,
-		`wukongim_message_committed_dispatch_enqueue_total{job="wukongimv2",result="ok"}[1m]`,
-		`wukongim_message_committed_dispatch_overflow_total{job="wukongimv2"}[1m]`,
-		`wukongim_delivery_event_queue_total{job="wukongimv2",result="ok"}[1m]`,
-		`wukongim_delivery_recipient_worker_queue_depth{job="wukongimv2"}`,
-		`wukongim_delivery_retry_total{job="wukongimv2",event="enqueue"}[1m]`,
-		`wukongim_delivery_recipient_worker_admission_total{job="wukongimv2",result!="ok"}[1m]`,
-		`wukongim_delivery_route_expired_total{job="wukongimv2"}[1m]`,
+		`wukongim_gateway_messages_received_total{job="wukongim"}[1m]`,
+		`wukongim_gateway_sendacks_total{job="wukongim",reason!="success"}[1m]`,
+		`wukongim_message_append_total{job="wukongim",result!="ok"}[1m]`,
+		`wukongim_message_append_duration_seconds_bucket{job="wukongim",result="ok"}[1m]`,
+		`wukongim_message_committed_dispatch_enqueue_total{job="wukongim",result="ok"}[1m]`,
+		`wukongim_message_committed_dispatch_overflow_total{job="wukongim"}[1m]`,
+		`wukongim_delivery_event_queue_total{job="wukongim",result="ok"}[1m]`,
+		`wukongim_delivery_recipient_worker_queue_depth{job="wukongim"}`,
+		`wukongim_delivery_retry_total{job="wukongim",event="enqueue"}[1m]`,
+		`wukongim_delivery_recipient_worker_admission_total{job="wukongim",result!="ok"}[1m]`,
+		`wukongim_delivery_route_expired_total{job="wukongim"}[1m]`,
 	} {
 		if !strings.Contains(joinedQueries, want) {
 			t.Fatalf("queries missing %q: %s", want, joinedQueries)
@@ -304,18 +304,18 @@ func TestManagerMonitorPrometheusProviderReturnsChannelOperatorCards(t *testing.
 
 	joinedQueries := strings.Join(queries, "\n")
 	for _, want := range []string{
-		`wukongim_channelv2_append_duration_seconds_bucket{job="wukongimv2"}[1m]`,
-		`wukongim_channelv2_active_runtimes{job="wukongimv2"}`,
-		`wukongim_channelv2_append_batch_records_bucket{job="wukongimv2"}[1m]`,
-		`wukongim_channelv2_append_batch_bytes_bucket{job="wukongimv2"}[1m]`,
-		`wukongim_channelv2_append_stage_duration_seconds_count{job="wukongimv2",result!="ok"}[1m]`,
-		`wukongim_channelappend_writer_admission_depth{job="wukongimv2"}`,
-		`wukongim_channelv2_follower_parked{job="wukongimv2"}`,
-		`wukongim_channelv2_activation_rejected_total{job="wukongimv2"}[1m]`,
-		`wukongim_channelv2_reactor_mailbox_depth{job="wukongimv2"}`,
-		`wukongim_channelv2_worker_queue_depth{job="wukongimv2"}`,
-		`wukongim_channelv2_pull_hint_total{job="wukongimv2",result!="ok"}[1m]`,
-		`wukongim_channelv2_replication_stage_duration_seconds_bucket{job="wukongimv2"}[1m]`,
+		`wukongim_channelv2_append_duration_seconds_bucket{job="wukongim"}[1m]`,
+		`wukongim_channelv2_active_runtimes{job="wukongim"}`,
+		`wukongim_channelv2_append_batch_records_bucket{job="wukongim"}[1m]`,
+		`wukongim_channelv2_append_batch_bytes_bucket{job="wukongim"}[1m]`,
+		`wukongim_channelv2_append_stage_duration_seconds_count{job="wukongim",result!="ok"}[1m]`,
+		`wukongim_channelappend_writer_admission_depth{job="wukongim"}`,
+		`wukongim_channelv2_follower_parked{job="wukongim"}`,
+		`wukongim_channelv2_activation_rejected_total{job="wukongim"}[1m]`,
+		`wukongim_channelv2_reactor_mailbox_depth{job="wukongim"}`,
+		`wukongim_channelv2_worker_queue_depth{job="wukongim"}`,
+		`wukongim_channelv2_pull_hint_total{job="wukongim",result!="ok"}[1m]`,
+		`wukongim_channelv2_replication_stage_duration_seconds_bucket{job="wukongim"}[1m]`,
 	} {
 		if !strings.Contains(joinedQueries, want) {
 			t.Fatalf("queries missing %q: %s", want, joinedQueries)
@@ -366,15 +366,15 @@ func TestManagerMonitorPrometheusProviderReturnsSlotOperatorCards(t *testing.T) 
 
 	joinedQueries := strings.Join(queries, "\n")
 	for _, want := range []string{
-		`wukongim_slot_proposals_total{job="wukongimv2"}[1m]`,
-		`wukongim_slot_apply_gap{job="wukongimv2"}`,
-		`wukongim_slot_apply_duration_seconds_bucket{job="wukongimv2"}[1m]`,
-		`wukongim_slot_proposal_admission_total{job="wukongimv2",result!="ok"}[1m]`,
-		`wukongim_slot_leader_changes_total{job="wukongimv2"}[1m]`,
-		`wukongim_slot_replica_lag_seconds{job="wukongimv2"}`,
-		`wukongim_runtime_pool_queue_depth{job="wukongimv2",component="slot",pool="scheduler"}`,
-		`wukongim_runtime_pool_inflight{job="wukongimv2",component="slot",pool="scheduler"}`,
-		`wukongim_runtime_pool_task_duration_seconds_bucket{job="wukongimv2",component="slot",pool="scheduler"}[1m]`,
+		`wukongim_slot_proposals_total{job="wukongim"}[1m]`,
+		`wukongim_slot_apply_gap{job="wukongim"}`,
+		`wukongim_slot_apply_duration_seconds_bucket{job="wukongim"}[1m]`,
+		`wukongim_slot_proposal_admission_total{job="wukongim",result!="ok"}[1m]`,
+		`wukongim_slot_leader_changes_total{job="wukongim"}[1m]`,
+		`wukongim_slot_replica_lag_seconds{job="wukongim"}`,
+		`wukongim_runtime_pool_queue_depth{job="wukongim",component="slot",pool="scheduler"}`,
+		`wukongim_runtime_pool_inflight{job="wukongim",component="slot",pool="scheduler"}`,
+		`wukongim_runtime_pool_task_duration_seconds_bucket{job="wukongim",component="slot",pool="scheduler"}[1m]`,
 	} {
 		if !strings.Contains(joinedQueries, want) {
 			t.Fatalf("queries missing %q: %s", want, joinedQueries)
@@ -388,11 +388,11 @@ func TestPrometheusFilterNodeIDScopesGoRuntimeSelectors(t *testing.T) {
 	got := prometheusFilterNodeID(promQL, 2)
 
 	for _, want := range []string{
-		`go_gc_duration_seconds_sum{job="wukongimv2",node_id="2"}[1m]`,
-		`go_memstats_gc_cpu_fraction{job="wukongimv2",node_id="2"}`,
-		`go_memstats_heap_alloc_bytes{job="wukongimv2",node_id="2"}`,
-		`go_memstats_next_gc_bytes{job="wukongimv2",node_id="2"}`,
-		`wukongim_node_goroutines{job="wukongimv2",node_id="2"}`,
+		`go_gc_duration_seconds_sum{job="wukongim",node_id="2"}[1m]`,
+		`go_memstats_gc_cpu_fraction{job="wukongim",node_id="2"}`,
+		`go_memstats_heap_alloc_bytes{job="wukongim",node_id="2"}`,
+		`go_memstats_next_gc_bytes{job="wukongim",node_id="2"}`,
+		`wukongim_node_goroutines{job="wukongim",node_id="2"}`,
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("prometheusFilterNodeID() = %q, want selector %q", got, want)
@@ -432,10 +432,10 @@ func TestManagerMonitorPrometheusProviderFiltersPromQLByNodeID(t *testing.T) {
 	}
 	var sawBareMetric, sawExistingSelector bool
 	for _, query := range queries {
-		if strings.Contains(query, `wukongim_gateway_messages_received_total{job="wukongimv2",node_id="2"}[`) {
+		if strings.Contains(query, `wukongim_gateway_messages_received_total{job="wukongim",node_id="2"}[`) {
 			sawBareMetric = true
 		}
-		if strings.Contains(query, `wukongim_gateway_sendacks_total{job="wukongimv2",node_id="2",reason="success"}[`) {
+		if strings.Contains(query, `wukongim_gateway_sendacks_total{job="wukongim",node_id="2",reason="success"}[`) {
 			sawExistingSelector = true
 		}
 		if strings.Contains(query, `wukongim_gateway_messages_received_total[`) ||
@@ -759,14 +759,14 @@ func TestManagerMonitorPrometheusProviderConversationHealthyZeroRatesStayAvailab
 		promQL := r.URL.Query().Get("query")
 		switch {
 		case strings.Contains(promQL, "wukongim_conversation_sync_total") && strings.Contains(promQL, `result!="ok"`):
-			if strings.Contains(promQL, "or on()") && strings.Contains(promQL, `wukongim_conversation_sync_total{job="wukongimv2"}[`) {
+			if strings.Contains(promQL, "or on()") && strings.Contains(promQL, `wukongim_conversation_sync_total{job="wukongim"}[`) {
 				writePrometheusRangeForTest(w, "0")
 				return
 			}
 			writePrometheusNoDataForTest(w)
 		case strings.Contains(promQL, "wukongim_conversation_authority_cache_pressure_total") ||
 			(strings.Contains(promQL, "wukongim_conversation_authority_admit_total") && strings.Contains(promQL, `result=~`)):
-			if strings.Contains(promQL, "or on()") && strings.Contains(promQL, `wukongim_conversation_authority_admit_total{job="wukongimv2"}[`) {
+			if strings.Contains(promQL, "or on()") && strings.Contains(promQL, `wukongim_conversation_authority_admit_total{job="wukongim"}[`) {
 				writePrometheusRangeForTest(w, "0")
 				return
 			}
