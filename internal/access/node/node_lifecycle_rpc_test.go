@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
-	cv2 "github.com/WuKongIM/WuKongIM/pkg/controller"
+	controller "github.com/WuKongIM/WuKongIM/pkg/controller"
 )
 
 func TestNodeLifecycleRPCJoinForwardsTokenAndClusterID(t *testing.T) {
@@ -233,7 +233,7 @@ func TestNodeLifecycleRPCPrepareControllerVoterPreservesProofFields(t *testing.T
 func TestNodeLifecycleRPCPrepareControllerVoterConflictMapsToPromotionBlocked(t *testing.T) {
 	for _, errFromProvider := range []error{
 		managementusecase.ErrControllerVoterPromotionBlocked,
-		cv2.ErrExpectedRevisionMismatch,
+		controller.ErrExpectedRevisionMismatch,
 	} {
 		preparer := &fakeControllerVoterPreparer{err: errFromProvider}
 		adapter := New(Options{

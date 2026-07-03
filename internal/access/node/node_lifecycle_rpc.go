@@ -9,7 +9,7 @@ import (
 
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/cluster/net"
-	cv2 "github.com/WuKongIM/WuKongIM/pkg/controller"
+	controller "github.com/WuKongIM/WuKongIM/pkg/controller"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
@@ -416,8 +416,8 @@ func controllerVoterRPCStatusForError(err error) string {
 	case errors.Is(err, metadb.ErrInvalidArgument):
 		return nodeLifecycleStatusInvalidArgument
 	case errors.Is(err, managementusecase.ErrControllerVoterPromotionBlocked),
-		cv2.IsExpectedRevisionMismatch(err),
-		errors.Is(err, cv2.ErrProposalRejected):
+		controller.IsExpectedRevisionMismatch(err),
+		errors.Is(err, controller.ErrProposalRejected):
 		return nodeLifecycleStatusConflict
 	case errors.Is(err, managementusecase.ErrControllerVoterPromotionUnavailable):
 		return rpcStatusRejected
