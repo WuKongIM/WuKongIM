@@ -14,7 +14,6 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
 	cv2 "github.com/WuKongIM/WuKongIM/pkg/controllerv2"
-	"github.com/WuKongIM/WuKongIM/pkg/controllerv2/command"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	obsmetrics "github.com/WuKongIM/WuKongIM/pkg/metrics"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
@@ -281,7 +280,7 @@ func controllerTaskAuditEventForTransition(transition cv2.TaskTransition) (taska
 		eventType = taskaudit.EventCompleted
 	case task.Status == cv2.TaskStatusFailed:
 		eventType = taskaudit.EventFailed
-	case transition.ParticipantNode != 0 || transition.CommandKind == command.KindReportTaskProgress:
+	case transition.ParticipantNode != 0 || transition.CommandKind == cv2.CommandKindReportTaskProgress:
 		eventType = taskaudit.EventParticipantProgress
 	}
 	event := controllerTaskAuditEventBase(task, eventType)

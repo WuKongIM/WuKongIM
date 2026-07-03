@@ -23,7 +23,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
 	clusterv2channels "github.com/WuKongIM/WuKongIM/pkg/clusterv2/channels"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
-	cv2raft "github.com/WuKongIM/WuKongIM/pkg/controllerv2/raft"
+	cv2 "github.com/WuKongIM/WuKongIM/pkg/controllerv2"
 	messagedb "github.com/WuKongIM/WuKongIM/pkg/db/message"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	accessgateway "github.com/WuKongIM/WuKongIM/pkg/gateway"
@@ -99,7 +99,7 @@ type conversationAuthorityMetricsObserver struct {
 type multiChannelV2Observer []reactor.Observer
 type multiSlotObserver []multiraft.SchedulerObserver
 type multiTransportV2Observer []transportv2.Observer
-type multiControllerRaftObserver []cv2raft.Observer
+type multiControllerRaftObserver []cv2.RaftObserver
 type multiControlSnapshotObserver []clusterv2.ControlSnapshotObserver
 type multiSlotReplicaMoveObserver []clusterv2.SlotReplicaMoveObserver
 type multiCommitCoordinatorObserver []messagedb.CommitCoordinatorObserver
@@ -1404,7 +1404,7 @@ func combineTransportV2Observers(first, second transportv2.Observer) transportv2
 	return multiTransportV2Observer{first, second}
 }
 
-func combineControllerRaftObservers(first, second cv2raft.Observer) cv2raft.Observer {
+func combineControllerRaftObservers(first, second cv2.RaftObserver) cv2.RaftObserver {
 	if first == nil {
 		return second
 	}
@@ -1919,7 +1919,7 @@ func (o multiControllerRaftObserver) ObserveStepEnqueue(result string, d time.Du
 
 func (o multiControllerRaftObserver) SetApplyState(commitIndex, appliedIndex uint64) {
 	for _, observer := range o {
-		applyObserver, ok := observer.(cv2raft.ApplyStateObserver)
+		applyObserver, ok := observer.(cv2.ApplyStateObserver)
 		if ok {
 			applyObserver.SetApplyState(commitIndex, appliedIndex)
 		}
@@ -2191,8 +2191,8 @@ var _ multiraft.ProposalObserver = slotMetricsObserver{}
 var _ multiraft.ProposalAdmissionObserver = slotMetricsObserver{}
 var _ multiraft.ApplyStateObserver = slotMetricsObserver{}
 var _ transportv2.Observer = (*transportV2MetricsObserver)(nil)
-var _ cv2raft.Observer = controllerRaftMetricsObserver{}
-var _ cv2raft.ApplyStateObserver = controllerRaftMetricsObserver{}
+var _ cv2.RaftObserver = controllerRaftMetricsObserver{}
+var _ cv2.ApplyStateObserver = controllerRaftMetricsObserver{}
 var _ reactor.Observer = multiChannelV2Observer{}
 var _ reactor.MailboxPressureObserver = multiChannelV2Observer{}
 var _ worker.AntsPoolObserver = multiChannelV2Observer{}
@@ -2216,8 +2216,8 @@ var _ multiraft.SchedulerObserver = multiSlotObserver{}
 var _ multiraft.ProposalObserver = multiSlotObserver{}
 var _ multiraft.ProposalAdmissionObserver = multiSlotObserver{}
 var _ multiraft.ApplyStateObserver = multiSlotObserver{}
-var _ cv2raft.Observer = multiControllerRaftObserver{}
-var _ cv2raft.ApplyStateObserver = multiControllerRaftObserver{}
+var _ cv2.RaftObserver = multiControllerRaftObserver{}
+var _ cv2.ApplyStateObserver = multiControllerRaftObserver{}
 var _ messagedb.CommitCoordinatorObserver = storageCommitMetricsObserver{}
 var _ messagedb.CommitCoordinatorQueueObserver = storageCommitMetricsObserver{}
 var _ messagedb.CommitCoordinatorRequestObserver = storageCommitMetricsObserver{}

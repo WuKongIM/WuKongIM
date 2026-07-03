@@ -62,6 +62,8 @@ type (
 	TaskResult = command.TaskResult
 	// TaskProgress describes one participant's local progress for a barrier task.
 	TaskProgress = command.TaskProgress
+	// CommandKind identifies a durable Controller command replicated through Controller Raft.
+	CommandKind = command.Kind
 	// TaskTransition describes one durable ControllerV2 task state edge.
 	TaskTransition = fsm.TaskTransition
 	// SlotReplicaMovePhaseAdvance records an observed Slot Raft config phase.
@@ -127,11 +129,15 @@ const (
 	TaskParticipantStatusDone = state.TaskParticipantStatusDone
 	// TaskParticipantStatusFailed means the participant's latest local attempt failed.
 	TaskParticipantStatusFailed = state.TaskParticipantStatusFailed
+	// CommandKindReportTaskProgress records one participant's local task progress.
+	CommandKindReportTaskProgress = command.KindReportTaskProgress
 )
 
 type (
 	// RaftObserver receives low-cardinality local ControllerV2 Raft runtime metrics.
 	RaftObserver = raft.Observer
+	// ApplyStateObserver receives volatile Controller Raft commit/applied progress for monitoring.
+	ApplyStateObserver = raft.ApplyStateObserver
 	// TaskTransitionObserver receives ControllerV2 task edges after applied metadata is durable.
 	TaskTransitionObserver = raft.TaskTransitionObserver
 	// TaskTransitionObserverFunc adapts a function to TaskTransitionObserver.
