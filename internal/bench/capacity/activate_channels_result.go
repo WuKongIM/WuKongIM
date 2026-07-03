@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/internal/bench/model"
+	"github.com/WuKongIM/WuKongIM/pkg/bench/model"
 )
 
 const activateChannelsSummarySampleLimit = 32

@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/WuKongIM/WuKongIM/internal/bench/model"
 	"github.com/WuKongIM/WuKongIM/internal/bench/target"
+	"github.com/WuKongIM/WuKongIM/pkg/bench/model"
 )
 
 // DiscoveredTarget contains capacity target discovery output.

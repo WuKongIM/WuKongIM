@@ -18,9 +18,9 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/bench/metrics"
-	"github.com/WuKongIM/WuKongIM/internal/bench/model"
 	"github.com/WuKongIM/WuKongIM/internal/bench/report"
 	benchworkload "github.com/WuKongIM/WuKongIM/internal/bench/workload"
+	"github.com/WuKongIM/WuKongIM/pkg/bench/model"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/stretchr/testify/require"
 )

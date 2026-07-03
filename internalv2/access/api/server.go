@@ -11,13 +11,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/internal/bench/model"
 	obsdiagnostics "github.com/WuKongIM/WuKongIM/internalv2/observability/diagnostics"
 	channelusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/channel"
 	cmdsyncusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/cmdsync"
 	conversationusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/conversation"
 	messageusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/message"
 	userusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/user"
+	"github.com/WuKongIM/WuKongIM/pkg/bench/model"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/gin-gonic/gin"
 )

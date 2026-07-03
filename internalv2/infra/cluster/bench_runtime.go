@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/WuKongIM/WuKongIM/internal/bench/model"
+	"github.com/WuKongIM/WuKongIM/pkg/bench/model"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2"
 )
 

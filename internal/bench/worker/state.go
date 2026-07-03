@@ -9,7 +9,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/WuKongIM/WuKongIM/internal/bench/model"
+	"github.com/WuKongIM/WuKongIM/pkg/bench/model"
 )
 
 var (

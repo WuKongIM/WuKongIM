@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/internal/bench/model"
+	"github.com/WuKongIM/WuKongIM/pkg/bench/model"
 )
 
 const defaultTimeout = 60 * time.Second

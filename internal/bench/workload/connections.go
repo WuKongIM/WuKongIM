@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/bench/metrics"
-	"github.com/WuKongIM/WuKongIM/internal/bench/model"
 	benchwkproto "github.com/WuKongIM/WuKongIM/internal/bench/wkproto"
+	"github.com/WuKongIM/WuKongIM/pkg/bench/model"
 )
 
 const (

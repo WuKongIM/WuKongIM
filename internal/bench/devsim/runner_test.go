@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/bench/metrics"
-	"github.com/WuKongIM/WuKongIM/internal/bench/model"
 	"github.com/WuKongIM/WuKongIM/internal/bench/worker"
+	"github.com/WuKongIM/WuKongIM/pkg/bench/model"
 	"github.com/stretchr/testify/require"
 )
 

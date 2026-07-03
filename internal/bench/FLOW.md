@@ -1,11 +1,11 @@
 # internal/bench Flow
 
 `internal/bench` contains the reusable implementation behind `cmd/wkbench`. It is organized as a black-box benchmark runtime: configuration and planning are local, while target mutation and traffic use HTTP bench APIs and WKProto gateway clients. It must not import WuKongIM server internals.
+Shared wkbench schema, plan, report, and bench/v1 API DTOs live in `pkg/bench/model` so the promoted server entrypoint can expose benchmark-only target APIs without importing legacy `internal/bench` packages.
 
 ## Package Roles
 
 - `config`: strict YAML loading, environment expansion, and early static validation.
-- `model`: shared DTOs for target, worker, scenario, plan, bench API, rates, and reports.
 - `planner`: deterministic worker sharding for person profiles, group profiles, large groups, member ranges, traffic partitions, and channel owners.
 - `coordinator`: top-level run orchestration, preflight, worker assignment, phase polling, failure classification, and report collection.
 - `worker`: HTTP control server plus the default workload runner used by worker processes.
@@ -360,7 +360,7 @@ For split traffic, message indexes are partitioned by `TrafficPartitionCount` an
 - `POST /bench/v1/channels`
 - `POST /bench/v1/channels/subscribers`
 
-The server-side implementation lives outside this package. Keep request/response types in `internal/bench/model` aligned with the bench API surface and avoid depending on internal server usecases from wkbench code.
+The server-side implementation lives outside this package. Keep request/response types in `pkg/bench/model` aligned with the bench API surface and avoid depending on internal server usecases from wkbench code.
 
 ## Failure Handling
 
@@ -377,7 +377,7 @@ When `run.fail_fast` is true, the coordinator stops remaining workers after the 
 ## Code Reading Guide
 
 - CLI behavior: start at `cmd/wkbench/main.go`, then follow into `config`, `planner`, and `coordinator`.
-- Scenario schema or YAML behavior: read `internal/bench/model/config.go` and `internal/bench/config/config.go`.
+- Scenario schema or YAML behavior: read `pkg/bench/model/config.go` and `internal/bench/config/config.go`.
 - Sharding bugs: start with `internal/bench/planner/planner.go`, then inspect `worker/person_runner.go` or `worker/group_runner.go`.
 - Worker phase issues: read `internal/bench/worker/state.go` and `internal/bench/worker/server.go`.
 - Send/recv correctness: read `internal/bench/workload/person.go`, `internal/bench/workload/group.go`, and `internal/bench/wkproto/client.go`.

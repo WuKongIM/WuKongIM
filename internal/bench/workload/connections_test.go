@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/internal/bench/model"
+	"github.com/WuKongIM/WuKongIM/pkg/bench/model"
 )
 
 func TestConnectionManagerConnectsUsersRoundRobinAndTracksActiveSessions(t *testing.T) {

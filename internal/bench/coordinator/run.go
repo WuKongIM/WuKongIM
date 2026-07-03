@@ -13,11 +13,11 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/bench/metrics"
-	"github.com/WuKongIM/WuKongIM/internal/bench/model"
 	"github.com/WuKongIM/WuKongIM/internal/bench/planner"
 	"github.com/WuKongIM/WuKongIM/internal/bench/report"
 	"github.com/WuKongIM/WuKongIM/internal/bench/target"
 	"github.com/WuKongIM/WuKongIM/internal/bench/worker"
+	"github.com/WuKongIM/WuKongIM/pkg/bench/model"
 )
 
 const (

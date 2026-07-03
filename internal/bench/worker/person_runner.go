@@ -12,8 +12,8 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/bench/metrics"
-	"github.com/WuKongIM/WuKongIM/internal/bench/model"
 	benchworkload "github.com/WuKongIM/WuKongIM/internal/bench/workload"
+	"github.com/WuKongIM/WuKongIM/pkg/bench/model"
 )
 
 var errTargetUnavailable = errors.New("target unavailable")

@@ -7,11 +7,11 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/bench/metrics"
-	"github.com/WuKongIM/WuKongIM/internal/bench/model"
 	"github.com/WuKongIM/WuKongIM/internal/bench/target"
 	benchwkproto "github.com/WuKongIM/WuKongIM/internal/bench/wkproto"
 	"github.com/WuKongIM/WuKongIM/internal/bench/worker"
 	benchworkload "github.com/WuKongIM/WuKongIM/internal/bench/workload"
+	"github.com/WuKongIM/WuKongIM/pkg/bench/model"
 )
 
 const devSimOperationTimeout = 30 * time.Second

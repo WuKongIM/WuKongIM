@@ -51,10 +51,9 @@ cmd/
   wkdb/                  节点本地只读存储排查 CLI，提供 query/repl 入口
 
 internal/
-  bench/                 wkbench 黑盒客户端配置、模型、规划与协调预检
+  bench/                 wkbench 黑盒客户端配置、规划、执行与协调预检
     config/              wkbench YAML 加载与严格解码
     devsim/              docker compose 开发模拟器 supervisor、状态 API 与配置派生
-    model/               wkbench spec-shaped 配置、计划与 bench API DTO
     planner/             worker 权重、identity pool 与 channel/member/traffic 分片规划
     target/              target HTTP bench API 黑盒客户端
     coordinator/         coordinator preflight 检查 target、worker 与 gateway placeholder
@@ -120,6 +119,8 @@ internalv2/
     cluster/             clusterv2/channelv2 append、channel/user metadata 与 presence authority/owner-action 路由适配、typed error 映射
 
 pkg/
+  bench/
+    model/               wkbench spec-shaped 配置、计划与 bench/v1 API 共享 DTO
   gateway/               通用客户端网关基础设施，提供 listener、transport、protocol、session、auth、dispatch、testkit
   db/                    节点本地统一存储库；message/meta 共享 engine/key/row/schema/commit/cache 基础设施
     internal/            Pebble engine、key/row codec、schema、commit coordinator、轻量 cache 等内部原语

@@ -3,11 +3,11 @@ package app
 import (
 	"context"
 
-	"github.com/WuKongIM/WuKongIM/internal/bench/model"
 	accessapi "github.com/WuKongIM/WuKongIM/internalv2/access/api"
 	clusterinfra "github.com/WuKongIM/WuKongIM/internalv2/infra/cluster"
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/online"
 	authoritypresence "github.com/WuKongIM/WuKongIM/internalv2/runtime/presence"
+	"github.com/WuKongIM/WuKongIM/pkg/bench/model"
 )
 
 type presenceBenchController struct {

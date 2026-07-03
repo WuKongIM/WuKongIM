@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/WuKongIM/WuKongIM/internal/bench/model"
+	"github.com/WuKongIM/WuKongIM/pkg/bench/model"
 )
 
 func TestServerServesHealthReadyAndBenchTargetSurface(t *testing.T) {

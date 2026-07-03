@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/internal/bench/model"
 	"github.com/WuKongIM/WuKongIM/internal/bench/target"
+	"github.com/WuKongIM/WuKongIM/pkg/bench/model"
 )
 
 const workerInfoTimeout = 10 * time.Second

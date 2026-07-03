@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/WuKongIM/WuKongIM/internal/bench/model"
+	"github.com/WuKongIM/WuKongIM/pkg/bench/model"
 )
 
 // Build validates a wkbench scenario and returns a deterministic per-worker shard plan.

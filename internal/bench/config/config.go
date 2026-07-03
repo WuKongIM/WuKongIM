@@ -7,7 +7,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/WuKongIM/WuKongIM/internal/bench/model"
+	"github.com/WuKongIM/WuKongIM/pkg/bench/model"
 	"gopkg.in/yaml.v3"
 )
 

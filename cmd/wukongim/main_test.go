@@ -5,6 +5,8 @@ import (
 	"errors"
 	"go/parser"
 	"go/token"
+	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -220,6 +222,21 @@ func TestImportBoundaryUsesOnlyInternalV2App(t *testing.T) {
 	}
 	if !foundV2 {
 		t.Fatal("cmd/wukongim production files do not import internalv2/app")
+	}
+}
+
+func TestDependencyBoundaryDoesNotReachLegacyBenchInternal(t *testing.T) {
+	cmd := exec.Command("go", "list", "-deps", "-f", "{{.ImportPath}}", ".")
+	cmd.Env = append(os.Environ(), "GOWORK=off")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("go list deps failed: %v\n%s", err, out)
+	}
+
+	for _, importPath := range strings.Fields(string(out)) {
+		if importPath == "github.com/WuKongIM/WuKongIM/internal/bench/model" {
+			t.Fatalf("cmd/wukongim dependency closure still imports legacy bench model package %q", importPath)
+		}
 	}
 }
 
