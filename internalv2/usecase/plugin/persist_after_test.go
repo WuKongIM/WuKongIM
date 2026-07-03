@@ -7,8 +7,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/WuKongIM/WuKongIM/internal/usecase/plugin/pluginproto"
 	pluginevents "github.com/WuKongIM/WuKongIM/internalv2/contracts/pluginevents"
+	"github.com/WuKongIM/WuKongIM/pkg/plugin/pluginproto"
 	"github.com/stretchr/testify/require"
 )
 

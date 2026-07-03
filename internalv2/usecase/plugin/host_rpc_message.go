@@ -3,7 +3,7 @@ package plugin
 import (
 	"context"
 
-	"github.com/WuKongIM/WuKongIM/internal/usecase/plugin/pluginproto"
+	"github.com/WuKongIM/WuKongIM/pkg/plugin/pluginproto"
 )
 
 // SendMessage handles PDK-compatible /message/send host RPCs through the v2 message usecase.

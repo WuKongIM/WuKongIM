@@ -688,6 +688,7 @@ handleRecvAck(ctx, pkt)
 ### 🔴 插件子系统
 - **默认关闭**: `WK_PLUGIN_ENABLE=false` 时不构建 plugin runtime/usecase/access，也不收集 offline Receive UID；单节点集群也不绕过节点间 owner routing 语义。
 - **本地运行时边界**: Runtime 只扫描节点本地 `*.wkp` 可执行文件，启动时传入 `--socket` 与 `--sandbox`；`StateDir` 只保存节点本地 desired config/enabled，UID 绑定不放在本地文件。
+- **Wire contract 位置**: 插件 protobuf wire contract 位于 `pkg/plugin/pluginproto`，字段号保持与 `github.com/WuKongIM/go-pdk` 兼容；`internal` 只做 runtime/usecase/access 适配。
 - **Phase 1 PDK 兼容面**: 支持 `.wkp`/go-pdk 的 `Send`、`PersistAfter`、`Receive`、`Route`、`ConfigUpdate` 和 `/stop`；host RPC 支持 `/plugin/start`、`/close`、`/message/send`、`/channel/messages`、`/plugin/httpForward`、`/cluster/config`、`/cluster/channels/belongNode`、`/conversation/channels`；`/stream/open|write|close` 稳定返回 unimplemented。
 - **hook 注入点明确**: SendHook 注入 message usecase，按本地 running plugin 的 priority 降序执行；PersistAfter 只在 committed owner 上执行，远端通过 `plugin_committed` RPC 路由；Receive 只对 durable、非 request-scoped、非 SyncOnce、非 NoPersist 的离线收件人执行。
 - **插件发送不绕过消息用例**: 插件发起 `/message/send` 会设置 `SendOriginPlugin` 并进入 `message.App.Send`，仍走权限、hook recursion guard、NoPersist/SyncOnce 和集群 append 分支。

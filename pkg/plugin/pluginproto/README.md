@@ -10,5 +10,5 @@ usecase and access adapters should import this package.
 Regenerate `plugin.pb.go` after schema edits with:
 
 ```sh
-protoc --go_out=. --go_opt=paths=source_relative internal/usecase/plugin/pluginproto/plugin.proto
+PATH="/Users/tt/go/bin:$PATH" /usr/local/include/protoc/bin/protoc --go_out=. --go_opt=paths=source_relative pkg/plugin/pluginproto/plugin.proto
 ```

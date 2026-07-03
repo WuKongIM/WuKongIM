@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/internal/usecase/plugin/pluginproto"
+	"github.com/WuKongIM/WuKongIM/pkg/plugin/pluginproto"
 )
 
 func TestClusterConfigHandlerUsesTimeoutContextAndWritesConfig(t *testing.T) {

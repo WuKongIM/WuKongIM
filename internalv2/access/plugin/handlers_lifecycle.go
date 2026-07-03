@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/WuKongIM/WuKongIM/internal/usecase/plugin/pluginproto"
+	"github.com/WuKongIM/WuKongIM/pkg/plugin/pluginproto"
 	"github.com/WuKongIM/wkrpc"
 )
 

@@ -15,7 +15,7 @@ import (
 	"time"
 
 	runtimeplugin "github.com/WuKongIM/WuKongIM/internal/runtime/plugin"
-	"github.com/WuKongIM/WuKongIM/internal/usecase/plugin/pluginproto"
+	"github.com/WuKongIM/WuKongIM/pkg/plugin/pluginproto"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/wkrpc"
 	wkrpcproto "github.com/WuKongIM/wkrpc/proto"

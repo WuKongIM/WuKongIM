@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/WuKongIM/WuKongIM/internal/usecase/plugin/pluginproto"
+	"github.com/WuKongIM/WuKongIM/pkg/plugin/pluginproto"
 )
 
 const defaultHTTPForwardMaxBodyBytes int64 = 10 << 20

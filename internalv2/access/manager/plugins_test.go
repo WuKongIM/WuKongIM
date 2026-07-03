@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/internal/usecase/plugin/pluginproto"
 	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
 	pluginusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/plugin"
+	"github.com/WuKongIM/WuKongIM/pkg/plugin/pluginproto"
 )
 
 func TestManagerNodePluginsReturnsReadOnlyInventory(t *testing.T) {

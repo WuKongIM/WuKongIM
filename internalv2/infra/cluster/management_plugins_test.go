@@ -6,9 +6,9 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/WuKongIM/WuKongIM/internal/usecase/plugin/pluginproto"
 	accessnode "github.com/WuKongIM/WuKongIM/internalv2/access/node"
 	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
+	"github.com/WuKongIM/WuKongIM/pkg/plugin/pluginproto"
 )
 
 func TestManagementPluginReaderRoutesRemotePluginReads(t *testing.T) {

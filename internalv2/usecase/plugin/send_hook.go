@@ -5,8 +5,8 @@ import (
 	"math"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/internal/usecase/plugin/pluginproto"
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/message"
+	"github.com/WuKongIM/WuKongIM/pkg/plugin/pluginproto"
 )
 
 const (

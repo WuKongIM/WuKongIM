@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/WuKongIM/WuKongIM/internal/usecase/plugin/pluginproto"
+	"github.com/WuKongIM/WuKongIM/pkg/plugin/pluginproto"
 	"github.com/gin-gonic/gin"
 )
 

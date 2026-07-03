@@ -141,6 +141,8 @@ pkg/
     docs/                controllerv2 库用法文档
   observability/         可被 pkg 与 internal 复用的可观测性轻量合约
     sendtrace/           消息发送链路 trace 事件与全局窄 sink
+  plugin/
+    pluginproto/          插件 RPC protobuf wire contract，与 go-pdk 字段号兼容
   protocol/              协议对象、编解码与协议级 helper
     channelid/           个人频道、命令频道、agent 频道、请求级临时频道等 channel id 派生
     codec/               WuKong 二进制协议编解码

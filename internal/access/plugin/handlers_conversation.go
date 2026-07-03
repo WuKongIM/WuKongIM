@@ -1,6 +1,6 @@
 package plugin
 
-import "github.com/WuKongIM/WuKongIM/internal/usecase/plugin/pluginproto"
+import "github.com/WuKongIM/WuKongIM/pkg/plugin/pluginproto"
 
 func (s *Server) handleConversationChannels(c rpcContext) {
 	var req pluginproto.ConversationChannelReq

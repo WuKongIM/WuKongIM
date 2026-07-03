@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	"github.com/WuKongIM/WuKongIM/internal/usecase/plugin/pluginproto"
+	"github.com/WuKongIM/WuKongIM/pkg/plugin/pluginproto"
 )
 
 // ConversationChannels handles PDK-compatible /conversation/channels host RPCs.

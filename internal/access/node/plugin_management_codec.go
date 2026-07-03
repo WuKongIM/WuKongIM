@@ -6,7 +6,7 @@ import (
 	"time"
 
 	pluginusecase "github.com/WuKongIM/WuKongIM/internal/usecase/plugin"
-	"github.com/WuKongIM/WuKongIM/internal/usecase/plugin/pluginproto"
+	"github.com/WuKongIM/WuKongIM/pkg/plugin/pluginproto"
 )
 
 var (

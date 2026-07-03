@@ -16,8 +16,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/internal/usecase/plugin/pluginproto"
 	pluginv2 "github.com/WuKongIM/WuKongIM/internalv2/usecase/plugin"
+	"github.com/WuKongIM/WuKongIM/pkg/plugin/pluginproto"
 	wkrpcproto "github.com/WuKongIM/wkrpc/proto"
 	"google.golang.org/protobuf/proto"
 )

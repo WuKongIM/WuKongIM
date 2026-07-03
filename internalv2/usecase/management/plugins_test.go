@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/internal/usecase/plugin/pluginproto"
 	pluginusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/plugin"
+	"github.com/WuKongIM/WuKongIM/pkg/plugin/pluginproto"
 )
 
 func TestListNodePluginsReadsLocalPluginReader(t *testing.T) {

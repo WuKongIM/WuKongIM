@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/WuKongIM/WuKongIM/internal/usecase/plugin/pluginproto"
+	"github.com/WuKongIM/WuKongIM/pkg/plugin/pluginproto"
 )
 
 func TestHTTPForwardLocalRoutesThroughPluginAndDropsHopByHopHeaders(t *testing.T) {

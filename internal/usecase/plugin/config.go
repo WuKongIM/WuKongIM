@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/WuKongIM/WuKongIM/internal/usecase/plugin/pluginproto"
+	"github.com/WuKongIM/WuKongIM/pkg/plugin/pluginproto"
 )
 
 // UpdateLocalConfig persists desired config and notifies a running ConfigUpdate hook.

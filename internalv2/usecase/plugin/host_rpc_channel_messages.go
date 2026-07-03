@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/WuKongIM/WuKongIM/internal/usecase/plugin/pluginproto"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	"github.com/WuKongIM/WuKongIM/pkg/plugin/pluginproto"
 )
 
 // ChannelMessages handles PDK-compatible /channel/messages host RPCs through the v2 message reader.

@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package pluginproto;
 
-option go_package = "github.com/WuKongIM/WuKongIM/internal/usecase/plugin/pluginproto;pluginproto";
+option go_package = "github.com/WuKongIM/WuKongIM/pkg/plugin/pluginproto;pluginproto";
 
 
 // 插件信息

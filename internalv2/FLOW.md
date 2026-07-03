@@ -185,6 +185,8 @@ single-node cluster.
 
 - `cmd/wukongim` is the promoted product entrypoint and wires
   `internalv2/app` by default.
+- Plugin host RPC protobuf wire contracts live in `pkg/plugin/pluginproto`;
+  keep field numbers compatible with `github.com/WuKongIM/go-pdk`.
 - Do not rename `internalv2`, `pkg/clusterv2`, `pkg/controllerv2`, or
   `pkg/channelv2` package paths in this promotion stage.
 - Do not migrate legacy plugin hooks or remaining management APIs not listed in

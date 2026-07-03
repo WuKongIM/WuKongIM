@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/WuKongIM/WuKongIM/internal/usecase/plugin/pluginproto"
+	"github.com/WuKongIM/WuKongIM/pkg/plugin/pluginproto"
 )
 
 // ClusterConfig handles PDK-compatible /cluster/config host RPCs through the v2 cluster reader.

@@ -8,7 +8,6 @@ import (
 	"time"
 
 	runtimeplugin "github.com/WuKongIM/WuKongIM/internal/runtime/plugin"
-	"github.com/WuKongIM/WuKongIM/internal/usecase/plugin/pluginproto"
 	accessnode "github.com/WuKongIM/WuKongIM/internalv2/access/node"
 	pluginevents "github.com/WuKongIM/WuKongIM/internalv2/contracts/pluginevents"
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/channelappend"
@@ -18,6 +17,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	"github.com/WuKongIM/WuKongIM/pkg/plugin/pluginproto"
 	"github.com/stretchr/testify/require"
 )
 
