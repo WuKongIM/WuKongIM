@@ -1,7 +1,7 @@
-# WuKongIM single-node cluster verification config.
+# WuKongIM single-node cluster example.
 #
-# This file only uses keys currently parsed by cmd/wukongim. It starts one
-# node as a single-node cluster for the phase-1 SEND -> SENDACK path.
+# This file uses the canonical cmd/wukongim config surface. It starts one
+# node as a single-node cluster.
 
 # Stable non-zero node identity. Message IDs are seeded from this value.
 WK_NODE_ID=1
@@ -26,7 +26,7 @@ WK_CLUSTER_JOIN_TOKEN=change-me
 WK_CLUSTER_INITIAL_SLOT_COUNT=1
 
 # Logical hash-slot count used for routing channel keys to physical Slots.
-WK_CLUSTER_HASH_SLOT_COUNT=16
+WK_CLUSTER_HASH_SLOT_COUNT=256
 
 # Desired Slot replica count for this single-node cluster.
 WK_CLUSTER_SLOT_REPLICA_N=1
@@ -85,7 +85,7 @@ WK_MANAGER_JWT_EXPIRE=24h
 WK_MANAGER_USERS=[{"username":"admin","password":"a1234567","permissions":[{"resource":"*","actions":["*"]}]}]
 
 # Benchmark-only HTTP API surface for controlled local or lab environments.
-WK_BENCH_API_ENABLE=true
+WK_BENCH_API_ENABLE=false
 
 # Bench API request limits.
 WK_BENCH_API_MAX_BATCH_SIZE=10000

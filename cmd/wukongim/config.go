@@ -27,6 +27,11 @@ var defaultConfigPaths = []string{
 	"/etc/wukongim/wukongim.conf",
 }
 
+var removedConfigKeyReplacements = map[string]string{
+	"WK_CLUSTER_GROUP_COUNT":     "WK_CLUSTER_INITIAL_SLOT_COUNT",
+	"WK_CLUSTER_GROUP_REPLICA_N": "WK_CLUSTER_SLOT_REPLICA_N",
+}
+
 // supportedConfigKeys lists the WK_ keys accepted by wukongim.
 var supportedConfigKeys = []string{
 	"WK_NODE_ID",
@@ -255,6 +260,9 @@ func readKeyValueFile(path string) (map[string]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("read %s: %w", path, err)
 	}
+	if err := validateConfigKeys(values); err != nil {
+		return nil, fmt.Errorf("read %s: %w", path, err)
+	}
 	return values, nil
 }
 
@@ -278,6 +286,31 @@ func readKeyValues(r io.Reader) (map[string]string, error) {
 		return nil, err
 	}
 	return values, nil
+}
+
+func validateConfigKeys(values map[string]string) error {
+	supported := make(map[string]struct{}, len(supportedConfigKeys))
+	for _, key := range supportedConfigKeys {
+		supported[key] = struct{}{}
+	}
+	unsupported := make([]string, 0)
+	for key := range values {
+		if !strings.HasPrefix(key, "WK_") {
+			continue
+		}
+		if _, ok := supported[key]; ok {
+			continue
+		}
+		if replacement, ok := removedConfigKeyReplacements[key]; ok {
+			return fmt.Errorf("%s is no longer supported; use %s", key, replacement)
+		}
+		unsupported = append(unsupported, key)
+	}
+	if len(unsupported) == 0 {
+		return nil
+	}
+	sort.Strings(unsupported)
+	return fmt.Errorf("unsupported config key(s): %s", strings.Join(unsupported, ", "))
 }
 
 func overlayEnv(values map[string]string) {

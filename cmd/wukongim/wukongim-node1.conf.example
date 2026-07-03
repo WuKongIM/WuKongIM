@@ -26,7 +26,7 @@ WK_CLUSTER_JOIN_TOKEN=change-me
 WK_CLUSTER_INITIAL_SLOT_COUNT=3
 
 # Logical hash-slot count used for routing channel keys to physical Slots.
-WK_CLUSTER_HASH_SLOT_COUNT=16
+WK_CLUSTER_HASH_SLOT_COUNT=256
 
 # Desired Slot replica count. Three replicas require all three listed nodes.
 WK_CLUSTER_SLOT_REPLICA_N=3
@@ -72,7 +72,7 @@ WK_MANAGER_JWT_EXPIRE=24h
 WK_MANAGER_USERS=[{"username":"admin","password":"a1234567","permissions":[{"resource":"*","actions":["*"]}]}]
 
 # Benchmark-only HTTP API surface for controlled local or lab environments.
-WK_BENCH_API_ENABLE=true
+WK_BENCH_API_ENABLE=false
 
 # Bench API request limits.
 WK_BENCH_API_MAX_BATCH_SIZE=10000

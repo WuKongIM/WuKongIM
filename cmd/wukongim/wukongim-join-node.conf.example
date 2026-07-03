@@ -25,7 +25,7 @@ WK_CLUSTER_ADVERTISE_ADDR=127.0.0.1:7014
 WK_CLUSTER_JOIN_TOKEN=change-me
 
 # The joining node must use the same hash-slot count as the existing cluster.
-WK_CLUSTER_HASH_SLOT_COUNT=16
+WK_CLUSTER_HASH_SLOT_COUNT=256
 
 # Replica count is read for local validation and must not exceed existing active data capacity.
 WK_CLUSTER_SLOT_REPLICA_N=3

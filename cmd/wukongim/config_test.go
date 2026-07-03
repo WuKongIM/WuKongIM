@@ -1393,8 +1393,8 @@ func TestLoadConfigExampleFile(t *testing.T) {
 	if cfg.API.ListenAddr != "127.0.0.1:5001" {
 		t.Fatalf("API.ListenAddr = %q", cfg.API.ListenAddr)
 	}
-	if !cfg.Bench.APIEnabled {
-		t.Fatalf("Bench.APIEnabled = false, want true")
+	if cfg.Bench.APIEnabled {
+		t.Fatalf("Bench.APIEnabled = true, want false")
 	}
 	if !cfg.Observability.MetricsEnabled {
 		t.Fatalf("Observability.MetricsEnabled = false, want true")
@@ -1419,7 +1419,44 @@ func TestLoadConfigRootExampleFile(t *testing.T) {
 	if cfg.Cluster.Control.ClusterID != "wukongim-single" {
 		t.Fatalf("Control.ClusterID = %q", cfg.Cluster.Control.ClusterID)
 	}
+	if cfg.Bench.APIEnabled {
+		t.Fatalf("Bench.APIEnabled = true, want false")
+	}
 	assertExampleDiagnostics(t, cfg.Observability.Diagnostics)
+}
+
+func TestLoadConfigRejectsUnsupportedWKKeys(t *testing.T) {
+	unsetLoadConfigEnv(t)
+	dir := t.TempDir()
+	path := filepath.Join(dir, "wukongim.conf")
+	writeConf(t, path, append(requiredConfigLines(dir),
+		"WK_CLUSTER_APPEND_GROUP_COMMIT_MAX_RECORDS=10",
+	)...)
+
+	_, err := loadConfig([]string{"-config", path})
+	if err == nil {
+		t.Fatal("loadConfig() error = nil, want unsupported WK_ key error")
+	}
+	if !strings.Contains(err.Error(), "WK_CLUSTER_APPEND_GROUP_COMMIT_MAX_RECORDS") {
+		t.Fatalf("loadConfig() error = %v, want unsupported key name", err)
+	}
+}
+
+func TestLoadConfigRejectsRemovedV1ConfigKeysWithReplacement(t *testing.T) {
+	unsetLoadConfigEnv(t)
+	dir := t.TempDir()
+	path := filepath.Join(dir, "wukongim.conf")
+	writeConf(t, path, append(requiredConfigLines(dir),
+		"WK_CLUSTER_GROUP_COUNT=16",
+	)...)
+
+	_, err := loadConfig([]string{"-config", path})
+	if err == nil {
+		t.Fatal("loadConfig() error = nil, want removed key error")
+	}
+	if !strings.Contains(err.Error(), "WK_CLUSTER_GROUP_COUNT") || !strings.Contains(err.Error(), "WK_CLUSTER_INITIAL_SLOT_COUNT") {
+		t.Fatalf("loadConfig() error = %v, want removed key and replacement", err)
+	}
 }
 
 func TestLoadConfigMultiNodeExampleFiles(t *testing.T) {
