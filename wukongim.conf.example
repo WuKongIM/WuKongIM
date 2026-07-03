@@ -1,395 +1,209 @@
-# WuKongIM single-node cluster example configuration using automatic managed slots.
+# WuKongIM single-node cluster verification config.
+#
+# This file only uses keys currently parsed by cmd/wukongim. It starts one
+# node as a single-node cluster for the phase-1 SEND -> SENDACK path.
 
+# Stable non-zero node identity. Message IDs are seeded from this value.
 WK_NODE_ID=1
-WK_NODE_NAME=node-1
-WK_NODE_DATA_DIR=./data/node-1
-# Enables e2e-only test mode. Keep false in production; when true, guest
-# callers may use /testdata/e2e routes to generate deterministic test data.
-WK_TEST_MODE=false
-# Optional: override storage paths. Defaults are derived from WK_NODE_DATA_DIR.
-# WK_STORAGE_DB_PATH=./data/node-1/data
-# WK_STORAGE_RAFT_PATH=./data/node-1/raft
-# WK_STORAGE_CHANNEL_LOG_PATH=./data/node-1/channellog
-WK_STORAGE_CONTROLLER_META_PATH=./data/node-1/controller-meta
-WK_STORAGE_CONTROLLER_RAFT_PATH=./data/node-1/controller-raft
-# External Raft snapshot chunk directories store snapshot payload bytes outside Pebble.
-# Keep them separate from DB, Raft log, channel log, controller meta, and controller Raft paths; overlapping paths are rejected.
-WK_STORAGE_RAFT_SNAPSHOT_PATH=./data/node-1/raft-snapshots
-WK_STORAGE_CONTROLLER_RAFT_SNAPSHOT_PATH=./data/node-1/controller-raft-snapshots
-# Snapshot chunk size accepts decimal bytes or B, KiB, MiB, GiB units.
-WK_STORAGE_RAFT_SNAPSHOT_CHUNK_SIZE=8MiB
-# Snapshot GC waits 30m by default; an explicit 0 runs eligible GC immediately.
-WK_STORAGE_RAFT_SNAPSHOT_GC_GRACE=30m
 
-WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7000
-# Optional legacy alias for WK_CLUSTER_INITIAL_SLOT_COUNT; keep equal when both are set.
-# WK_CLUSTER_SLOT_COUNT=1
-WK_CLUSTER_HASH_SLOT_COUNT=256
-# Enables experimental hash-slot migration workflows used by dynamic physical slot add/remove/rebalance APIs.
-# Keep false unless the operator explicitly accepts durable delta forwarding, source fencing, and recoverable cutover semantics.
-WK_CLUSTER_HASH_SLOT_MIGRATION_ENABLED=false
+# Root data directory for clusterv2 controller, slot, and channel data.
+WK_NODE_DATA_DIR=./data/wukongim-single-node-data
+
+# Node-to-node clusterv2 RPC listen address. Keep it reachable by this node.
+WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7001
+
+# Stable cluster identity shared by every node in this clusterv2 cluster.
+WK_CLUSTER_ID=wukongim-single
+
+# Static Controller voter bootstrap. Existing bootstrap nodes keep this full list.
+# New dynamic data nodes must use WK_CLUSTER_SEEDS instead of WK_CLUSTER_NODES.
+WK_CLUSTER_NODES=[{"id":1,"addr":"127.0.0.1:7001"}]
+
+# Shared join secret accepted by seed JoinNode RPC handlers.
+WK_CLUSTER_JOIN_TOKEN=change-me
+
+# Physical Slot count created by the initial ControllerV2 snapshot.
 WK_CLUSTER_INITIAL_SLOT_COUNT=1
-WK_CLUSTER_CHANNEL_BOOTSTRAP_DEFAULT_MIN_ISR=2
-# ChannelV2 reactor partitions used by the wukongimv2 append runtime. 0 derives
-# a CPU-aware default from GOMAXPROCS with a minimum of 4.
-WK_CLUSTER_CHANNEL_REACTOR_COUNT=0
-# Caps blocking ChannelV2 leader append and follower apply store workers. 0 keeps
-# the runtime default derived from the reactor count.
-WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS=0
-# Overrides how long the store-append worker waits to coalesce append tasks from
-# different channels before entering the message DB adapter. 0 keeps the
-# ChannelV2 worker default; lower positive values reduce low-volume append
-# latency at the cost of smaller cross-channel batches.
-WK_CLUSTER_CHANNEL_STORE_APPEND_BATCH_MAX_WAIT=0
-WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS=0
-# Caps blocking ChannelV2 replication RPC workers. 0 keeps the runtime default
-# derived from the reactor count.
-WK_CLUSTER_CHANNEL_RPC_WORKERS=50
-# Limits active local legacy channel runtimes and ChannelV2 runtimes on this node.
-# 0 preserves unlimited behavior; set a positive per-node budget to fail closed
-# before channel runtime goroutines grow unbounded.
-WK_CLUSTER_MAX_CHANNELS=0
-# ChannelV2 append batch flush controls. MAX_RECORDS flushes a channel when enough
-# queued records accumulate, and MAX_WAIT bounds the oldest queued append. 0 keeps
-# the runtime default.
-WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS=0
-WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT=0
-# Optional low-traffic latency mode for ChannelV2 append batching. When enabled,
-# the first append in a cold per-channel queue may flush after COLD_MAX_WAIT if it
-# is shorter than MAX_WAIT; hot queues still use record/byte limits and MAX_WAIT.
-# Keep disabled unless low-volume channel latency is more important than maximizing
-# per-channel batching. COLD_MAX_WAIT=0 keeps the normal MAX_WAIT behavior.
-WK_CLUSTER_CHANNEL_APPEND_BATCH_ADAPTIVE_FLUSH=false
-WK_CLUSTER_CHANNEL_APPEND_BATCH_COLD_MAX_WAIT=0
-# Evicts cold local channel runtimes after this idle duration. 0 disables eviction;
-# enable together with WK_CLUSTER_MAX_CHANNELS to keep long-lived working sets bounded.
-WK_CLUSTER_CHANNEL_IDLE_TIMEOUT=0
-# Controls how often idle channel runtimes are scanned. 0 lets the runtime derive a bounded interval.
-WK_CLUSTER_CHANNEL_IDLE_SCAN_INTERVAL=0
-# Selects local channel replica execution scheduling. The default is pooled; dedicated keeps the
-# legacy per-replica workers and serves as a rollback mode while preserving per-channel single-writer ordering.
-WK_CLUSTER_CHANNEL_EXECUTION_MODE=pooled
-# Shared worker count for pooled channel execution. 0 derives a default from GOMAXPROCS.
-WK_CLUSTER_CHANNEL_EXECUTION_WORKERS=0
-# Per-replica mailbox and shared effect queue size in pooled execution. 0 uses the runtime default.
-WK_CLUSTER_CHANNEL_EXECUTION_QUEUE_SIZE=0
-WK_CLUSTER_LONG_POLL_LANE_COUNT=8
-WK_CLUSTER_LONG_POLL_MAX_WAIT=200ms
-WK_CLUSTER_LONG_POLL_MAX_BYTES=65536
-WK_CLUSTER_LONG_POLL_MAX_CHANNELS=64
-# Coalesces append wakeups per long-poll lane. 0 preserves immediate wakeups.
-WK_CLUSTER_LONG_POLL_DATA_NOTIFY_DELAY=0
-WK_CLUSTER_CONTROLLER_REPLICA_N=1
+
+# Logical hash-slot count used for routing channel keys to physical Slots.
+WK_CLUSTER_HASH_SLOT_COUNT=16
+
+# Desired Slot replica count for this single-node cluster.
 WK_CLUSTER_SLOT_REPLICA_N=1
-# Slot Raft tick interval for physical Slot metadata replication.
-WK_CLUSTER_SLOT_TICK_INTERVAL=10ms
-# Slot Raft election timeout in Slot tick units. The default 50 means about
-# 500ms with WK_CLUSTER_SLOT_TICK_INTERVAL=10ms, leaving room for local IO and
-# GC pauses during high proposal load.
-WK_CLUSTER_SLOT_ELECTION_TICK=50
-# Slot Raft heartbeat interval in Slot tick units. Keep this lower than
-# WK_CLUSTER_SLOT_ELECTION_TICK.
-WK_CLUSTER_SLOT_HEARTBEAT_TICK=1
+
 # Low-frequency durable node health report cadence. TTL must be >= interval.
 WK_CLUSTER_NODE_HEALTH_REPORT_INTERVAL=5s
 WK_CLUSTER_NODE_HEALTH_REPORT_TTL=30s
-WK_CLUSTER_FORWARD_TIMEOUT=2s
-WK_CLUSTER_TICK_INTERVAL=200ms
-WK_CLUSTER_POOL_SIZE=1
-WK_CLUSTER_RAFT_WORKERS=1
-WK_CLUSTER_ELECTION_TICK=10
-WK_CLUSTER_HEARTBEAT_TICK=1
-WK_CLUSTER_DIAL_TIMEOUT=2s
-WK_CLUSTER_DATA_PLANE_RPC_TIMEOUT=1s
-WK_CLUSTER_FOLLOWER_REPLICATION_RETRY_INTERVAL=1s
-WK_CLUSTER_APPEND_GROUP_COMMIT_MAX_WAIT=1ms
-WK_CLUSTER_APPEND_GROUP_COMMIT_MAX_RECORDS=64
-WK_CLUSTER_APPEND_GROUP_COMMIT_MAX_BYTES=65536
-# Cross-channel durable Pebble sync batching; zero max limits mean unlimited until the flush window closes.
+
+# ChannelV2 reactor partitions. 0 derives max(4, GOMAXPROCS).
+WK_CLUSTER_CHANNEL_REACTOR_COUNT=0
+
+# Blocking ChannelV2 worker caps. 0 keeps the runtime default.
+WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS=0
+WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS=0
+WK_CLUSTER_CHANNEL_RPC_WORKERS=50
+
+# Maximum loaded ChannelV2 runtimes on this node. 0 keeps unlimited behavior.
+WK_CLUSTER_MAX_CHANNELS=0
+
+# ChannelV2 append batch flush controls. 0 keeps the runtime default.
+WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS=0
+WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT=0
+
+# Parked follower recovery probe base interval and deterministic jitter.
+# Keep interval+jitter below WK_GATEWAY_SEND_TIMEOUT so lost hints recover before sendack timeout.
+WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_INTERVAL=2s
+WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_JITTER=1s
+
+# Channel message physical cleanup is disabled by default. Manager retention
+# first advances the cluster-authoritative logical boundary; this background
+# loop later removes local message-log prefixes with bounded batches.
+WK_CHANNEL_MESSAGE_RETENTION_PHYSICAL_GC_ENABLE=false
+WK_CHANNEL_MESSAGE_RETENTION_SCAN_INTERVAL=1m
+WK_CHANNEL_MESSAGE_RETENTION_CHANNEL_BATCH_SIZE=128
+WK_CHANNEL_MESSAGE_RETENTION_MAX_TRIM_MESSAGES=1000
+WK_CHANNEL_MESSAGE_RETENTION_MAX_TRIM_BYTES=0
+
+# Maximum time to collect adjacent ChannelV2 append requests before one durable fsync.
 WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW=200us
+# Optional caps for one grouped physical commit. 0 keeps the limit unbounded.
 WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS=0
 WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS=0
 WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES=0
-# Number of message DB commit coordinators. 0 keeps the single-coordinator default.
 WK_CLUSTER_COMMIT_COORDINATOR_SHARDS=0
-WK_CLUSTER_DATA_PLANE_POOL_SIZE=1
-WK_CLUSTER_DATA_PLANE_MAX_FETCH_INFLIGHT=2
-WK_CLUSTER_DATA_PLANE_MAX_PENDING_FETCH=2
-WK_CLUSTER_CONTROLLER_OBSERVATION_INTERVAL=200ms
-WK_CLUSTER_CONTROLLER_REQUEST_TIMEOUT=2s
-WK_CLUSTER_CONTROLLER_LEADER_WAIT_TIMEOUT=10s
-# Startup waits this long for controller-managed physical slots to recover leaders before exiting.
-WK_CLUSTER_MANAGED_SLOTS_READY_TIMEOUT=30s
-# Optional ChannelV2 data replica count for new channel placement. 0 keeps the Slot replica count.
-WK_CLUSTER_CHANNEL_REPLICA_N=0
-# Enables local Controller Raft log snapshot compaction. Enabled by default.
-WK_CLUSTER_CONTROLLER_LOG_COMPACTION_ENABLED=true
-# Number of newly applied Controller Raft entries after the last snapshot before creating a new snapshot.
-WK_CLUSTER_CONTROLLER_LOG_COMPACTION_TRIGGER_ENTRIES=10000
-# Minimum interval between Controller Raft compaction checks.
-WK_CLUSTER_CONTROLLER_LOG_COMPACTION_CHECK_INTERVAL=30s
-# Enables local Slot Raft log snapshot compaction. Enabled by default.
-WK_CLUSTER_SLOT_LOG_COMPACTION_ENABLED=true
-# Number of newly applied Slot Raft entries after the last snapshot before creating a new snapshot.
-WK_CLUSTER_SLOT_LOG_COMPACTION_TRIGGER_ENTRIES=10000
-# Minimum interval between Slot Raft compaction checks.
-WK_CLUSTER_SLOT_LOG_COMPACTION_CHECK_INTERVAL=30s
-WK_CLUSTER_OBSERVATION_HEARTBEAT_INTERVAL=2s
-WK_CLUSTER_OBSERVATION_RUNTIME_SCAN_INTERVAL=1s
-WK_CLUSTER_OBSERVATION_RUNTIME_FLUSH_DEBOUNCE=200ms
-WK_CLUSTER_OBSERVATION_RUNTIME_FULL_SYNC_INTERVAL=60s
-WK_CLUSTER_FORWARD_RETRY_BUDGET=300ms
-WK_CLUSTER_MANAGED_SLOT_LEADER_WAIT_TIMEOUT=5s
-WK_CLUSTER_MANAGED_SLOT_CATCH_UP_TIMEOUT=5s
-WK_CLUSTER_MANAGED_SLOT_LEADER_MOVE_TIMEOUT=5s
-WK_CLUSTER_CONFIG_CHANGE_RETRY_BUDGET=300ms
-WK_CLUSTER_LEADER_TRANSFER_RETRY_BUDGET=300ms
-# For multi-node clusters every address must be unique and reachable from the other nodes.
-# Do not publish 0.0.0.0 or duplicate loopback addresses here; use service DNS or pod/container IPs.
-WK_CLUSTER_NODES=[{"id":1,"addr":"127.0.0.1:7000"}]
-# Optional dynamic join bootstrap. Existing nodes should keep WK_CLUSTER_NODES for first bootstrap.
-# Existing seed nodes set WK_CLUSTER_JOIN_TOKEN to validate JoinNode RPCs.
-# New data nodes can use seeds plus the same join token instead of a full static node list.
-# Dynamic join adds data workers only; Controller voter changes remain an explicit operator action.
-# Startup retries JoinNode before app HTTP/gateway services start; keep a seed reachable during rollout.
-# WK_CLUSTER_SEEDS=["wk-node1:7000"]
-# WK_CLUSTER_ADVERTISE_ADDR=wk-node4:7000
-# WK_CLUSTER_JOIN_TOKEN=change-me
 
-# Channel plane owns durable send route refresh, same-channel append serialization,
-# and remote channel-leader append batching. Zero values use CPU-aware defaults.
-WK_CHANNEL_PLANE_REACTOR_COUNT=0
-WK_CHANNEL_PLANE_PEER_LANE_COUNT=0
-WK_CHANNEL_PLANE_PEER_BATCH_MAX_WAIT=500us
+# Optional HTTP API listener for /healthz, /readyz, metrics, and bench/v1.
+WK_API_LISTEN_ADDR=127.0.0.1:5001
 
-# Channel migration runs on local Slot leaders and advances durable ChannelV2
-# leader failover, leader-transfer, and replica-replacement tasks. Keep per-tick
-# bounds small on large clusters; the SEND hot path never performs these scans.
-WK_CHANNEL_MIGRATION_ENABLE=true
-WK_CHANNEL_MIGRATION_SCAN_INTERVAL=1s
-WK_CHANNEL_MIGRATION_SCAN_LIMIT=64
-WK_CHANNEL_MIGRATION_MAX_PAGES_PER_TICK=1
-WK_CHANNEL_MIGRATION_MAX_TASKS_PER_TICK=1
-WK_CHANNEL_MIGRATION_TASK_LIMIT=1
-
-# Channel message retention is disabled by default. Set a positive TTL to allow
-# the leader-driven retention worker to hide and trim expired channel message prefixes.
-# The scan interval, channel batch size, and max trim messages are only used while TTL retention is enabled.
-WK_CHANNEL_MESSAGE_RETENTION_TTL=0
-WK_CHANNEL_MESSAGE_RETENTION_SCAN_INTERVAL=1h
-WK_CHANNEL_MESSAGE_RETENTION_CHANNEL_BATCH_SIZE=128
-WK_CHANNEL_MESSAGE_RETENTION_MAX_TRIM_MESSAGES=10000
-
-# Enables receiver-side personal allowlist checks for person-channel sends.
-# Disabled by default to preserve legacy WhitelistOffOfPerson=true compatibility.
-WK_MESSAGE_PERSON_WHITELIST_ENABLED=false
-# Trusted gateway sessions with this device ID bypass channel-type-specific send permissions
-# after sender SendBan has passed. Keep the legacy default unless all system senders use another ID.
-WK_MESSAGE_SYSTEM_DEVICE_ID=____device
-# Optional bounded send-permission read cache, including missing-channel reads.
-# Keep 0 for strict authorization freshness; benchmark/static-member deployments may set it positive.
-WK_MESSAGE_PERMISSION_CACHE_TTL=0
-# Enables node-local UID send token buckets before permission reads, plugin hooks, and channel append.
-# Disabled by default to preserve legacy send behavior.
-WK_MESSAGE_USER_RATE_LIMIT_ENABLED=false
-# Sustained sends admitted per UID per second when user rate limiting is enabled.
-WK_MESSAGE_USER_RATE_LIMIT_RATE=100
-# Maximum immediate send burst admitted for one UID.
-WK_MESSAGE_USER_RATE_LIMIT_BURST=200
-# Lock stripes for in-memory UID buckets. 0 uses the application default.
-WK_MESSAGE_USER_RATE_LIMIT_BUCKET_SHARDS=256
-# Idle UID bucket retention before cleanup. Keep positive to bound memory after UID churn.
-WK_MESSAGE_USER_RATE_LIMIT_IDLE_TTL=10m
-# Maximum UID buckets retained in memory. 0 uses the application default.
-WK_MESSAGE_USER_RATE_LIMIT_MAX_BUCKETS=100000
-# Lets trusted system UIDs bypass user send rate limiting.
-WK_MESSAGE_USER_RATE_LIMIT_SYSTEM_UID_BYPASS=true
-# Lets plugin-origin sends bypass user send rate limiting. Keep false unless plugins are trusted and bounded.
-WK_MESSAGE_USER_RATE_LIMIT_PLUGIN_BYPASS=false
-
-# Optional bounded positive presence-route cache used by realtime delivery fanout.
-# Keep 0 for strict presence freshness; benchmark/static-connection deployments may set it positive.
-WK_DELIVERY_PRESENCE_CACHE_TTL=0
-# Optional owner-node delivery acknowledgement coalescing window.
-# Keep 0 for strict immediate ack RPCs; benchmark deployments may set a small value.
-WK_DELIVERY_ACK_BATCH_MAX_WAIT=0
-# Maximum delivery acknowledgements to coalesce per owner node before immediate flush.
-# Zero uses the application default when WK_DELIVERY_ACK_BATCH_MAX_WAIT is enabled.
-WK_DELIVERY_ACK_BATCH_MAX_SIZE=0
-
-# Node-local best-effort webhook delivery is enabled when an HTTP endpoint is configured.
-# Webhook queues are bounded in memory; overload or endpoint failure may drop webhook batches.
-# Webhook failure never changes SENDACK or durable append success.
-# FocusEvents is a JSON array; empty means all supported events: msg.notify, msg.offline, user.onlinestatus.
-# WK_WEBHOOK_HTTP_ADDR=http://127.0.0.1:19090/webhook
-# WK_WEBHOOK_FOCUS_EVENTS=["msg.notify","msg.offline","user.onlinestatus"]
-# WK_WEBHOOK_QUEUE_SIZE=1024
-# WK_WEBHOOK_WORKERS=16
-# WK_WEBHOOK_MSG_NOTIFY_BATCH_MAX_ITEMS=100
-# WK_WEBHOOK_MSG_NOTIFY_BATCH_MAX_WAIT=500ms
-# WK_WEBHOOK_ONLINE_STATUS_BATCH_MAX_ITEMS=512
-# WK_WEBHOOK_ONLINE_STATUS_BATCH_MAX_WAIT=2s
-# WK_WEBHOOK_OFFLINE_UID_BATCH_SIZE=512
-# WK_WEBHOOK_REQUEST_TIMEOUT=5s
-# WK_WEBHOOK_RETRY_MAX_ATTEMPTS=3
-
-# Enables node-local .wkp plugin processes and hooks. Disabled by default for safety.
-WK_PLUGIN_ENABLE=false
-# Directory containing executable .wkp plugin files. Defaults to ${WK_NODE_DATA_DIR}/plugins when enabled.
-WK_PLUGIN_DIR=
-# Unix socket path for plugin host RPC traffic. Defaults to ${WK_NODE_DATA_DIR}/run/plugin.sock; keep it short on Unix-like systems.
-WK_PLUGIN_SOCKET_PATH=
-# Root directory for per-plugin writable sandbox data. Defaults to ${WK_NODE_DATA_DIR}/plugin-sandbox when enabled.
-WK_PLUGIN_SANDBOX_DIR=
-# Directory for node-local desired plugin state files. Defaults to ${WK_NODE_DATA_DIR}/plugin-state when enabled.
-WK_PLUGIN_STATE_DIR=
-# Timeout for plugin host RPCs and graceful process shutdown. Defaults to 5s.
-WK_PLUGIN_TIMEOUT=5s
-# Watches the plugin directory for binary changes when enabled. Defaults to true.
-WK_PLUGIN_HOT_RELOAD=true
-# Retained for future Send hooks; PersistAfter is always fail-open in internalv2 Phase 1.
-WK_PLUGIN_FAIL_OPEN=false
-# Bounds queued PersistAfter events retained in memory.
-WK_PLUGIN_PERSIST_AFTER_QUEUE_SIZE=1024
-# Bounds concurrent PersistAfter hook invocations.
-WK_PLUGIN_PERSIST_AFTER_WORKERS=16
-
-# Conversation ActiveAt is a best-effort working-set hint. Cache updates are
-# batched and may be delayed or dropped without affecting message durability.
-# Keep background flush batches small because each UID hash slot becomes a
-# separate Slot Raft proposal.
-WK_CONVERSATION_ACTIVE_HINT_FLUSH_INTERVAL=10s
-WK_CONVERSATION_ACTIVE_HINT_TTL=30m
-WK_CONVERSATION_ACTIVE_HINT_BARRIER_TTL=30m
-WK_CONVERSATION_ACTIVE_HINT_MAX_HINTS=100000
-WK_CONVERSATION_ACTIVE_HINT_MAX_HINTS_PER_UID=1000
-WK_CONVERSATION_ACTIVE_HINT_FLUSH_BATCH_SIZE=32
-WK_CONVERSATION_GROUP_ACTIVE_FANOUT_INTERVAL=5m
-# Zero disables group subscriber fanout for active hints. Clients still sync
-# active groups through their known conversation set and read-repair paths.
-WK_CONVERSATION_GROUP_ACTIVE_FANOUT_MAX_SUBSCRIBERS=0
-
-WK_API_LISTEN_ADDR=0.0.0.0:5001
-# Enables unauthenticated /bench/v1/* APIs for wkbench-only benchmark environments.
-# Keep false in production and shared environments because these routes intentionally skip auth.
-WK_BENCH_API_ENABLE=false
-# Limits the number of top-level records accepted by one bench API request.
-# This guard only applies after the bench APIs are enabled.
-WK_BENCH_API_MAX_BATCH_SIZE=10000
-# Limits the HTTP request body size accepted by bench APIs, in bytes.
-# The default is 10 MiB; lower it for small-node benchmark runs to bound memory use.
-WK_BENCH_API_MAX_PAYLOAD_BYTES=10485760
-# Manager API uses a dedicated HTTP port for backend administration only.
-WK_MANAGER_LISTEN_ADDR=0.0.0.0:5301
+# Dedicated manager HTTP API listener for /manager/login.
+WK_MANAGER_LISTEN_ADDR=127.0.0.1:5301
 WK_MANAGER_AUTH_ON=true
 # Replace the manager JWT secret and development password before production use.
 WK_MANAGER_JWT_SECRET=wukongim-dev-manager-secret
 WK_MANAGER_JWT_ISSUER=wukongim-manager
 WK_MANAGER_JWT_EXPIRE=24h
 WK_MANAGER_USERS=[{"username":"admin","password":"a1234567","permissions":[{"resource":"*","actions":["*"]}]}]
-# Optional: published by /route and /route/batch only; does not change listener binds.
-# WK_EXTERNAL_TCPADDR=im.example.com:5100
-# WK_EXTERNAL_WSADDR=ws://im.example.com:5200
-# WK_EXTERNAL_WSSADDR=wss://im.example.com:5210
+
+# Benchmark-only HTTP API surface for controlled local or lab environments.
+WK_BENCH_API_ENABLE=true
+
+# Bench API request limits.
+WK_BENCH_API_MAX_BATCH_SIZE=10000
+WK_BENCH_API_MAX_PAYLOAD_BYTES=10485760
+
+# Prometheus metrics and debug API toggles on the API listener.
 WK_METRICS_ENABLE=true
-# Enables per-packet local network observations for manager network snapshots.
-# Disable for pprof throughput runs when network charts are not needed.
-WK_NETWORK_OBSERVABILITY_ENABLE=true
-# Enables the bounded local diagnostics event store for send-path tracing.
-WK_DIAGNOSTICS_ENABLE=true
-# Sets the maximum number of diagnostics events retained in the in-memory ring buffer.
-WK_DIAGNOSTICS_BUFFER_SIZE=50000
-# Sets the baseline keep probability for successful diagnostics events.
-WK_DIAGNOSTICS_SAMPLE_RATE=0.01
-# Retains successful diagnostics events whose duration meets or exceeds this millisecond threshold.
-WK_DIAGNOSTICS_SLOW_THRESHOLD_MS=500
-# Sets the keep probability for diagnostics events with non-ok results.
-WK_DIAGNOSTICS_ERROR_SAMPLE_RATE=1.0
-# Configures temporary high-priority diagnostics sampling matches as a JSON array.
-# channel_key uses channel/<channel_type>/<base64url(channel_id without padding)>; for example g1 group is channel/2/ZzE.
-# Example: WK_DIAGNOSTICS_DEBUG_MATCHES=[{"channel_key":"channel/2/ZzE","ttl_seconds":3600,"sample_rate":1.0}]
-WK_DIAGNOSTICS_DEBUG_MATCHES=[]
-WK_HEALTH_DETAIL_ENABLE=true
-# Controls all /debug endpoints on the API listener, including pprof, config, cluster, and diagnostics query routes.
+# Optional app-managed Prometheus process. It requires WK_METRICS_ENABLE=true and scrapes this node's /metrics endpoint.
+WK_PROMETHEUS_ENABLE=false
+WK_PROMETHEUS_BINARY_PATH=
+WK_PROMETHEUS_LISTEN_ADDR=127.0.0.1:9090
+WK_PROMETHEUS_DATA_DIR=./data/wukongim-single-node-data/prometheus
+WK_PROMETHEUS_RETENTION_TIME=360h
+WK_PROMETHEUS_RETENTION_SIZE=
+WK_PROMETHEUS_SCRAPE_INTERVAL=15s
+# Leave empty to derive one target from WK_API_LISTEN_ADDR, or set a JSON string list of host:port targets.
+WK_PROMETHEUS_SCRAPE_TARGETS=[]
+# WK_DEBUG_API_ENABLE exposes all local /debug endpoints, including pprof, config, cluster, and diagnostics query routes.
 WK_DEBUG_API_ENABLE=false
+# Read-only node-local operations snapshot used by wkcli top. This does not require WK_METRICS_ENABLE.
+WK_TOP_API_ENABLE=true
+# Sampling cadence for the top collector.
+WK_TOP_COLLECT_INTERVAL=1s
+# In-memory history retained for top window queries.
+WK_TOP_HISTORY_WINDOW=5m
 
-# Optional: gateway async runtime controls. Non-positive values use runtime defaults.
-# WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS=128
-# WK_GATEWAY_RUNTIME_ASYNC_SEND_QUEUE_CAPACITY=131072
-# WK_GATEWAY_RUNTIME_ASYNC_AUTH_WORKERS=16
-# WK_GATEWAY_RUNTIME_ASYNC_AUTH_QUEUE_CAPACITY=8192
-# WK_GATEWAY_RUNTIME_ASYNC_POOL_RELEASE_TIMEOUT=100ms
-# Optional: SEND micro-batch collection. Negative wait disables waiting; non-positive bounds use defaults.
-# WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_WAIT=1ms
-# WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_RECORDS=512
-# WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_BYTES=524288
-# Optional: enable token authentication when verifier hooks are available.
-# WK_GATEWAY_TOKEN_AUTH_ON=false
-# Optional: gateway session safety and buffering defaults.
-# WK_GATEWAY_DEFAULT_SESSION_CLOSE_ON_HANDLER_ERROR=true
-# WK_GATEWAY_DEFAULT_SESSION_MAX_INBOUND_BYTES=1048576
-# WK_GATEWAY_DEFAULT_SESSION_MAX_OUTBOUND_BYTES=1048576
-# Optional: gnet transport tuning. wukongimv2 derives a CPU-aware event-loop count when omitted or set to 0.
-# WK_GATEWAY_GNET_MULTICORE=false
-# WK_GATEWAY_GNET_NUM_EVENT_LOOP=0
-# WK_GATEWAY_GNET_REUSE_PORT=false
-# WK_GATEWAY_GNET_READ_BUFFER_CAP=0
-# WK_GATEWAY_GNET_WRITE_BUFFER_CAP=0
-# Optional: bound how long the gateway waits for durable send completion before failing sendack.
-# WK_GATEWAY_SEND_TIMEOUT=20s
-# Optional internalv2 presence route activation, owner touch batching, and authority TTL.
-# WK_PRESENCE_ACTIVATION_TIMEOUT=3s
-# WK_PRESENCE_TOUCH_FLUSH_INTERVAL=1s
-# WK_PRESENCE_TOUCH_BATCH_SIZE=512
-# WK_PRESENCE_ROUTE_TTL=90s
-# Optional internalv2 conversation authority and list-read tuning.
-# WK_CONVERSATION_MAX_LAST_MESSAGE_CONCURRENCY bounds concurrent channel tail reads used to hydrate one /conversation/list page.
-# WK_CONVERSATION_MAX_LAST_MESSAGE_CONCURRENCY=32
-# WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS_PER_UID is retained for config compatibility; the runtime-backed authority currently does not enforce a per-UID cache bound.
-# WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS_PER_UID=4096
-# WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS bounds all unflushed authority cache rows on this node.
-# WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS=100000
-# WK_CONVERSATION_AUTHORITY_LIST_DB_WINDOW_MAX is retained for config compatibility; the runtime-backed authority currently owns its active-view DB window internally.
-# WK_CONVERSATION_AUTHORITY_LIST_DB_WINDOW_MAX=1000
-# WK_CONVERSATION_AUTHORITY_HANDOFF_TIMEOUT bounds how long a new authority waits for old-authority drain before explicit abandon.
-# WK_CONVERSATION_AUTHORITY_HANDOFF_TIMEOUT=3s
-# WK_CONVERSATION_AUTHORITY_ACTIVE_COOLDOWN skips receiver-only active_at flushes newer than the durable row by less than this duration.
-# WK_CONVERSATION_AUTHORITY_ACTIVE_COOLDOWN=2h
-# WK_CONVERSATION_AUTHORITY_FLUSH_INTERVAL controls how often dirty authority active rows are flushed to durable storage.
-# WK_CONVERSATION_AUTHORITY_FLUSH_INTERVAL=1s
-# WK_CONVERSATION_AUTHORITY_FLUSH_TIMEOUT bounds one authority active-row flush attempt.
-# WK_CONVERSATION_AUTHORITY_FLUSH_TIMEOUT=5s
-# WK_CONVERSATION_AUTHORITY_FLUSH_BATCH_ROWS bounds dirty authority active rows flushed in one tick.
-# WK_CONVERSATION_AUTHORITY_FLUSH_BATCH_ROWS=128
-# WK_CONVERSATION_AUTHORITY_ADMIT_BATCH_ROWS limits active rows in one authority admission batch.
-# WK_CONVERSATION_AUTHORITY_ADMIT_BATCH_ROWS=512
-# WK_CONVERSATION_AUTHORITY_ADMIT_CONCURRENCY limits concurrent authority admission batches.
-# WK_CONVERSATION_AUTHORITY_ADMIT_CONCURRENCY=16
-# WK_CHANNEL_LARGE_GROUP_SUBSCRIBER_THRESHOLD marks ordinary group channels large when subscriber count exceeds this threshold.
-# WK_CHANNEL_LARGE_GROUP_SUBSCRIBER_THRESHOLD=500
-# Internalv2 online delivery fanout and owner-local recvack tracking are enabled by default; set false to disable them.
-# WK_DELIVERY_ENABLE=true
-# WK_CHANNEL_APPEND_SHARD_COUNT controls channel-key authority-state lookup shards; zero derives a CPU-aware default.
-# WK_CHANNEL_APPEND_SHARD_COUNT=0
-# WK_CHANNEL_APPEND_ADVANCE_POOL_SIZE controls the direct ants pool capacity used to activate channel append writer state machines; zero derives a CPU-aware default.
-# WK_CHANNEL_APPEND_ADVANCE_POOL_SIZE=0
-# WK_CHANNEL_APPEND_EFFECT_POOL_SIZE controls the direct ants pool capacity shared by blocking append calls and post-append recipient effects; zero derives a CPU-aware default.
-# WK_CHANNEL_APPEND_EFFECT_POOL_SIZE=0
-# WK_CHANNEL_APPEND_RECIPIENT_AUTHORITY_DISPATCH_CONCURRENCY bounds per-message recipient-authority fanout after append; zero uses the bounded default.
-# WK_CHANNEL_APPEND_RECIPIENT_AUTHORITY_DISPATCH_CONCURRENCY=0
-# WK_DELIVERY_FANOUT_PAGE_SIZE=512
-# WK_DELIVERY_PUSH_BATCH_SIZE=512
-# WK_DELIVERY_PENDING_ACK_TTL=30s
-# WK_DELIVERY_PENDING_ACK_MAX_PER_SESSION=1024
-# WK_DELIVERY_EVENT_QUEUE_SIZE=1024
-WK_GATEWAY_DEFAULT_SESSION_IDLE_TIMEOUT=3m
-WK_GATEWAY_LISTENERS=[{"name":"tcp-wkproto","network":"tcp","address":"0.0.0.0:5100","transport":"gnet","protocol":"wkproto"},{"name":"ws-gateway","network":"websocket","address":"0.0.0.0:5200","transport":"gnet","protocol":"wsmux"}]
+# Local SEND diagnostics. Sampling keeps the hot path bounded; disable in ultra-low overhead runs.
+WK_DIAGNOSTICS_ENABLE=true
+WK_DIAGNOSTICS_BUFFER_SIZE=50000
+WK_DIAGNOSTICS_SAMPLE_RATE=0.01
+WK_DIAGNOSTICS_SLOW_THRESHOLD_MS=500
+WK_DIAGNOSTICS_ERROR_SAMPLE_RATE=1.0
+# WK_DIAGNOSTICS_DEEP_SAMPLE_RATE controls expensive ChannelV2 reactor/store detail sampling for ordinary successful events; 0 disables ordinary deep detail.
+WK_DIAGNOSTICS_DEEP_SAMPLE_RATE=0
+# WK_DIAGNOSTICS_DEEP_SLOW_THRESHOLD_MS keeps bounded deep trace detail for slow reactor/store stages; defaults to WK_DIAGNOSTICS_SLOW_THRESHOLD_MS.
+WK_DIAGNOSTICS_DEEP_SLOW_THRESHOLD_MS=500
+# WK_DIAGNOSTICS_DEEP_MAX_ITEMS_PER_BATCH bounds how many traced items one deep ChannelV2 batch expands.
+WK_DIAGNOSTICS_DEEP_MAX_ITEMS_PER_BATCH=16
+# Optional temporary high-priority sampling rules. List fields use one JSON string value.
+WK_DIAGNOSTICS_DEBUG_MATCHES=[]
 
+# Rolling application logs. Console and compression default true when unset.
 WK_LOG_LEVEL=info
-WK_LOG_DIR=./logs
+WK_LOG_DIR=./data/wukongim-single-node-data/logs
 WK_LOG_MAX_SIZE=100
 WK_LOG_MAX_AGE=30
 WK_LOG_MAX_BACKUPS=10
 WK_LOG_COMPRESS=true
 WK_LOG_CONSOLE=true
 WK_LOG_FORMAT=console
+
+# Published gateway addresses returned by bench capacity discovery.
+WK_EXTERNAL_TCPADDR=127.0.0.1:5100
+WK_EXTERNAL_WSADDR=ws://127.0.0.1:5200
+
+# Client-facing gateway listeners. List fields use one JSON string value.
+WK_GATEWAY_LISTENERS=[{"name":"tcp-wkproto","network":"tcp","address":"0.0.0.0:5100","transport":"gnet","protocol":"wkproto"},{"name":"ws-gateway","network":"websocket","address":"0.0.0.0:5200","transport":"gnet","protocol":"wsmux"}]
+
+# Optional gnet event-loop tuning. 0 keeps the CPU-aware cmd/wukongim default.
+WK_GATEWAY_GNET_MULTICORE=true
+WK_GATEWAY_GNET_NUM_EVENT_LOOP=0
+
+# Gateway SEND async sharding and micro-batch collection controls.
+WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS=128
+WK_GATEWAY_RUNTIME_ASYNC_SEND_QUEUE_CAPACITY=131072
+WK_GATEWAY_RUNTIME_ASYNC_AUTH_WORKERS=16
+WK_GATEWAY_RUNTIME_ASYNC_AUTH_QUEUE_CAPACITY=8192
+WK_GATEWAY_RUNTIME_ASYNC_POOL_RELEASE_TIMEOUT=100ms
+WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_WAIT=1ms
+WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_RECORDS=512
+WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_BYTES=524288
+
+# Per-SEND timeout used by the gateway adapter.
+WK_GATEWAY_SEND_TIMEOUT=5s
+
+# Message permission checks.
+# Enables receiver-side personal allowlist enforcement; disabled by default for legacy compatibility.
+WK_MESSAGE_PERSON_WHITELIST_ENABLED=false
+# Trusted device id that bypasses channel-specific send permissions after sender SendBan passes.
+WK_MESSAGE_SYSTEM_DEVICE_ID=____device
+# TTL for the bounded send-permission read cache. Zero disables caching.
+WK_MESSAGE_PERMISSION_CACHE_TTL=0
+
+# Presence route activation, owner touch batching, and authority TTL.
+WK_PRESENCE_ACTIVATION_TIMEOUT=3s
+WK_PRESENCE_TOUCH_FLUSH_INTERVAL=1s
+WK_PRESENCE_TOUCH_BATCH_SIZE=512
+WK_PRESENCE_ROUTE_TTL=90s
+
+# Conversation authority and list-read tuning.
+# Bounds concurrent channel tail reads used to hydrate one /conversation/list page.
+WK_CONVERSATION_MAX_LAST_MESSAGE_CONCURRENCY=32
+# Conversation authority cache, handoff, and admission controls.
+WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS_PER_UID=4096
+WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS=100000
+WK_CONVERSATION_AUTHORITY_LIST_DB_WINDOW_MAX=1000
+WK_CONVERSATION_AUTHORITY_HANDOFF_TIMEOUT=3s
+WK_CONVERSATION_AUTHORITY_FLUSH_INTERVAL=1s
+WK_CONVERSATION_AUTHORITY_FLUSH_TIMEOUT=5s
+WK_CONVERSATION_AUTHORITY_FLUSH_BATCH_ROWS=512
+WK_CONVERSATION_AUTHORITY_ADMIT_BATCH_ROWS=512
+WK_CONVERSATION_AUTHORITY_ADMIT_CONCURRENCY=16
+
+# Channel management marks ordinary group channels large when subscriber count exceeds this threshold.
+WK_CHANNEL_LARGE_GROUP_SUBSCRIBER_THRESHOLD=500
+
+# Online delivery fanout and owner-local recvack tracking are enabled by default; set false to disable them.
+WK_DELIVERY_ENABLE=true
+# Channel append shard count controls channel-key authority-state lookup shards; zero derives a CPU-aware default.
+WK_CHANNEL_APPEND_SHARD_COUNT=0
+# Channel append advance pool size is the direct ants pool capacity used to activate writer state machines; zero derives a CPU-aware default.
+WK_CHANNEL_APPEND_ADVANCE_POOL_SIZE=0
+# Channel append effect pool size is the direct ants pool capacity shared by blocking append calls and post-append recipient effects; zero derives a CPU-aware default.
+WK_CHANNEL_APPEND_EFFECT_POOL_SIZE=0
+# Channel append recipient authority dispatch concurrency bounds per-message recipient-authority fanout after append; zero uses the bounded default.
+WK_CHANNEL_APPEND_RECIPIENT_AUTHORITY_DISPATCH_CONCURRENCY=0
+WK_DELIVERY_FANOUT_PAGE_SIZE=512
+WK_DELIVERY_PUSH_BATCH_SIZE=512
+WK_DELIVERY_PENDING_ACK_TTL=30s
+WK_DELIVERY_PENDING_ACK_MAX_PER_SESSION=1024
+WK_DELIVERY_EVENT_QUEUE_SIZE=1024

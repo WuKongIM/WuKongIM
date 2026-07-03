@@ -1,4 +1,4 @@
-# WuKongIM v2 dynamic data-node join example.
+# WuKongIM dynamic data-node join example.
 #
 # Start the existing static Controller voter cluster first. This joining node
 # uses seed discovery and must not set WK_CLUSTER_NODES.
@@ -7,13 +7,13 @@
 WK_NODE_ID=4
 
 # Root data directory for this joining node.
-WK_NODE_DATA_DIR=./data/wukongimv2-node-4
+WK_NODE_DATA_DIR=./data/wukongim-node-4
 
 # Local node-to-node clusterv2 RPC listen address.
 WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7014
 
 # Stable cluster identity shared with the existing cluster.
-WK_CLUSTER_ID=wukongimv2-dev-three
+WK_CLUSTER_ID=wukongim-dev-three
 
 # Existing reachable nodes used only for startup discovery before membership is synced.
 WK_CLUSTER_SEEDS=["127.0.0.1:7011","127.0.0.1:7012"]

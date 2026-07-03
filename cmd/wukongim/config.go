@@ -1,1014 +1,1579 @@
 package main
 
 import (
+	"bufio"
 	"encoding/json"
+	"flag"
 	"fmt"
+	"io"
+	"math"
 	"os"
+	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/internal/app"
-	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
+	"github.com/WuKongIM/WuKongIM/internalv2/app"
+	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
 	"github.com/WuKongIM/WuKongIM/pkg/gateway"
 	"github.com/WuKongIM/WuKongIM/pkg/gateway/binding"
-	"github.com/spf13/viper"
 )
 
+// defaultConfigPaths preserves the legacy wukongim.conf lookup order.
 var defaultConfigPaths = []string{
 	"./wukongim.conf",
 	"./conf/wukongim.conf",
 	"/etc/wukongim/wukongim.conf",
 }
 
-func loadConfig(path string) (app.Config, error) {
-	cfgv, foundFile, attemptedPaths, err := readConfig(path)
+// supportedConfigKeys lists the WK_ keys accepted by wukongim.
+var supportedConfigKeys = []string{
+	"WK_NODE_ID",
+	"WK_NODE_DATA_DIR",
+	"WK_CLUSTER_LISTEN_ADDR",
+	"WK_CLUSTER_ID",
+	"WK_CLUSTER_SEEDS",
+	"WK_CLUSTER_ADVERTISE_ADDR",
+	"WK_CLUSTER_JOIN_TOKEN",
+	"WK_CLUSTER_NODES",
+	"WK_CLUSTER_INITIAL_SLOT_COUNT",
+	"WK_CLUSTER_HASH_SLOT_COUNT",
+	"WK_CLUSTER_SLOT_REPLICA_N",
+	"WK_CLUSTER_CHANNEL_REPLICA_N",
+	"WK_CLUSTER_SLOT_TICK_INTERVAL",
+	"WK_CLUSTER_SLOT_ELECTION_TICK",
+	"WK_CLUSTER_SLOT_HEARTBEAT_TICK",
+	"WK_CLUSTER_SLOT_LOG_COMPACTION_ENABLED",
+	"WK_CLUSTER_SLOT_LOG_COMPACTION_TRIGGER_ENTRIES",
+	"WK_CLUSTER_SLOT_LOG_COMPACTION_CHECK_INTERVAL",
+	"WK_CLUSTER_CHANNEL_REACTOR_COUNT",
+	"WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS",
+	"WK_CLUSTER_CHANNEL_STORE_APPEND_BATCH_MAX_WAIT",
+	"WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS",
+	"WK_CLUSTER_CHANNEL_RPC_WORKERS",
+	"WK_CLUSTER_MAX_CHANNELS",
+	"WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS",
+	"WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT",
+	"WK_CLUSTER_CHANNEL_APPEND_BATCH_ADAPTIVE_FLUSH",
+	"WK_CLUSTER_CHANNEL_APPEND_BATCH_COLD_MAX_WAIT",
+	"WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_INTERVAL",
+	"WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_JITTER",
+	"WK_CLUSTER_NODE_HEALTH_REPORT_INTERVAL",
+	"WK_CLUSTER_NODE_HEALTH_REPORT_TTL",
+	"WK_CHANNEL_MIGRATION_ENABLE",
+	"WK_CHANNEL_MIGRATION_SCAN_INTERVAL",
+	"WK_CHANNEL_MIGRATION_SCAN_LIMIT",
+	"WK_CHANNEL_MIGRATION_MAX_PAGES_PER_TICK",
+	"WK_CHANNEL_MIGRATION_MAX_TASKS_PER_TICK",
+	"WK_CHANNEL_MIGRATION_TASK_LIMIT",
+	"WK_CHANNEL_MESSAGE_RETENTION_PHYSICAL_GC_ENABLE",
+	"WK_CHANNEL_MESSAGE_RETENTION_SCAN_INTERVAL",
+	"WK_CHANNEL_MESSAGE_RETENTION_CHANNEL_BATCH_SIZE",
+	"WK_CHANNEL_MESSAGE_RETENTION_MAX_TRIM_MESSAGES",
+	"WK_CHANNEL_MESSAGE_RETENTION_MAX_TRIM_BYTES",
+	"WK_CLUSTER_COMMIT_COORDINATOR_SYNC",
+	"WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW",
+	"WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS",
+	"WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS",
+	"WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES",
+	"WK_CLUSTER_COMMIT_COORDINATOR_SHARDS",
+	"WK_API_LISTEN_ADDR",
+	"WK_MANAGER_LISTEN_ADDR",
+	"WK_MANAGER_AUTH_ON",
+	"WK_MANAGER_JWT_SECRET",
+	"WK_MANAGER_JWT_ISSUER",
+	"WK_MANAGER_JWT_EXPIRE",
+	"WK_MANAGER_USERS",
+	"WK_BENCH_API_ENABLE",
+	"WK_BENCH_API_MAX_BATCH_SIZE",
+	"WK_BENCH_API_MAX_PAYLOAD_BYTES",
+	"WK_METRICS_ENABLE",
+	"WK_PROMETHEUS_ENABLE",
+	"WK_PROMETHEUS_BINARY_PATH",
+	"WK_PROMETHEUS_LISTEN_ADDR",
+	"WK_PROMETHEUS_DATA_DIR",
+	"WK_PROMETHEUS_RETENTION_TIME",
+	"WK_PROMETHEUS_RETENTION_SIZE",
+	"WK_PROMETHEUS_SCRAPE_INTERVAL",
+	"WK_PROMETHEUS_SCRAPE_TARGETS",
+	"WK_DEBUG_API_ENABLE",
+	"WK_TOP_API_ENABLE",
+	"WK_TOP_COLLECT_INTERVAL",
+	"WK_TOP_HISTORY_WINDOW",
+	"WK_DIAGNOSTICS_ENABLE",
+	"WK_DIAGNOSTICS_BUFFER_SIZE",
+	"WK_DIAGNOSTICS_SAMPLE_RATE",
+	"WK_DIAGNOSTICS_SLOW_THRESHOLD_MS",
+	"WK_DIAGNOSTICS_ERROR_SAMPLE_RATE",
+	"WK_DIAGNOSTICS_DEEP_SAMPLE_RATE",
+	"WK_DIAGNOSTICS_DEEP_SLOW_THRESHOLD_MS",
+	"WK_DIAGNOSTICS_DEEP_MAX_ITEMS_PER_BATCH",
+	"WK_DIAGNOSTICS_DEBUG_MATCHES",
+	"WK_EXTERNAL_TCPADDR",
+	"WK_EXTERNAL_WSADDR",
+	"WK_EXTERNAL_WSSADDR",
+	"WK_GATEWAY_GNET_MULTICORE",
+	"WK_GATEWAY_GNET_NUM_EVENT_LOOP",
+	"WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS",
+	"WK_GATEWAY_RUNTIME_ASYNC_SEND_QUEUE_CAPACITY",
+	"WK_GATEWAY_RUNTIME_ASYNC_AUTH_WORKERS",
+	"WK_GATEWAY_RUNTIME_ASYNC_AUTH_QUEUE_CAPACITY",
+	"WK_GATEWAY_RUNTIME_ASYNC_POOL_RELEASE_TIMEOUT",
+	"WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_WAIT",
+	"WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_RECORDS",
+	"WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_BYTES",
+	"WK_GATEWAY_LISTENERS",
+	"WK_GATEWAY_SEND_TIMEOUT",
+	"WK_MESSAGE_PERSON_WHITELIST_ENABLED",
+	"WK_MESSAGE_SYSTEM_DEVICE_ID",
+	"WK_MESSAGE_PERMISSION_CACHE_TTL",
+	"WK_PRESENCE_ACTIVATION_TIMEOUT",
+	"WK_PRESENCE_TOUCH_FLUSH_INTERVAL",
+	"WK_PRESENCE_TOUCH_BATCH_SIZE",
+	"WK_PRESENCE_ROUTE_TTL",
+	"WK_CONVERSATION_MAX_LAST_MESSAGE_CONCURRENCY",
+	"WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS_PER_UID",
+	"WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS",
+	"WK_CONVERSATION_AUTHORITY_LIST_DB_WINDOW_MAX",
+	"WK_CONVERSATION_AUTHORITY_HANDOFF_TIMEOUT",
+	"WK_CONVERSATION_AUTHORITY_ACTIVE_COOLDOWN",
+	"WK_CONVERSATION_AUTHORITY_FLUSH_INTERVAL",
+	"WK_CONVERSATION_AUTHORITY_FLUSH_TIMEOUT",
+	"WK_CONVERSATION_AUTHORITY_FLUSH_BATCH_ROWS",
+	"WK_CONVERSATION_AUTHORITY_ADMIT_BATCH_ROWS",
+	"WK_CONVERSATION_AUTHORITY_ADMIT_CONCURRENCY",
+	"WK_CHANNEL_LARGE_GROUP_SUBSCRIBER_THRESHOLD",
+	"WK_CHANNEL_APPEND_SHARD_COUNT",
+	"WK_CHANNEL_APPEND_ADVANCE_POOL_SIZE",
+	"WK_CHANNEL_APPEND_EFFECT_POOL_SIZE",
+	"WK_CHANNEL_APPEND_RECIPIENT_AUTHORITY_DISPATCH_CONCURRENCY",
+	"WK_DELIVERY_ENABLE",
+	"WK_DELIVERY_FANOUT_PAGE_SIZE",
+	"WK_DELIVERY_PUSH_BATCH_SIZE",
+	"WK_DELIVERY_PENDING_ACK_TTL",
+	"WK_DELIVERY_PENDING_ACK_MAX_PER_SESSION",
+	"WK_DELIVERY_EVENT_QUEUE_SIZE",
+	"WK_WEBHOOK_HTTP_ADDR",
+	"WK_WEBHOOK_FOCUS_EVENTS",
+	"WK_WEBHOOK_QUEUE_SIZE",
+	"WK_WEBHOOK_WORKERS",
+	"WK_WEBHOOK_MSG_NOTIFY_BATCH_MAX_ITEMS",
+	"WK_WEBHOOK_MSG_NOTIFY_BATCH_MAX_WAIT",
+	"WK_WEBHOOK_ONLINE_STATUS_BATCH_MAX_ITEMS",
+	"WK_WEBHOOK_ONLINE_STATUS_BATCH_MAX_WAIT",
+	"WK_WEBHOOK_OFFLINE_UID_BATCH_SIZE",
+	"WK_WEBHOOK_REQUEST_TIMEOUT",
+	"WK_WEBHOOK_RETRY_MAX_ATTEMPTS",
+	"WK_PLUGIN_ENABLE",
+	"WK_PLUGIN_DIR",
+	"WK_PLUGIN_SOCKET_PATH",
+	"WK_PLUGIN_SANDBOX_DIR",
+	"WK_PLUGIN_STATE_DIR",
+	"WK_PLUGIN_TIMEOUT",
+	"WK_PLUGIN_HOT_RELOAD",
+	"WK_PLUGIN_FAIL_OPEN",
+	"WK_PLUGIN_PERSIST_AFTER_QUEUE_SIZE",
+	"WK_PLUGIN_PERSIST_AFTER_WORKERS",
+	"WK_LOG_LEVEL",
+	"WK_LOG_DIR",
+	"WK_LOG_MAX_SIZE",
+	"WK_LOG_MAX_AGE",
+	"WK_LOG_MAX_BACKUPS",
+	"WK_LOG_COMPRESS",
+	"WK_LOG_CONSOLE",
+	"WK_LOG_FORMAT",
+}
+
+const (
+	defaultBenchAPIMaxBatchSize    = 10000
+	defaultBenchAPIMaxPayloadBytes = 10 * 1024 * 1024
+)
+
+// clusterNodeConfig describes one static clusterv2 node from WK_CLUSTER_NODES.
+type clusterNodeConfig struct {
+	// ID is the stable cluster node identity.
+	ID uint64 `json:"id"`
+	// Addr is the node-to-node clusterv2 RPC address advertised to peers.
+	Addr string `json:"addr"`
+}
+
+// loadConfig reads the minimal wukongim configuration from args, files, and env.
+func loadConfig(args []string) (app.Config, error) {
+	configPath, err := parseConfigPath(args)
 	if err != nil {
 		return app.Config{}, err
 	}
 
-	cfg, err := buildAppConfig(cfgv)
+	values, err := readConfigValues(configPath)
 	if err != nil {
-		if !foundFile {
-			return app.Config{}, missingDefaultConfigError(attemptedPaths, err)
-		}
-		return app.Config{}, fmt.Errorf("load config: %w", err)
+		return app.Config{}, err
 	}
-	if err := cfg.ApplyDefaultsAndValidate(); err != nil {
-		if !foundFile {
-			return app.Config{}, missingDefaultConfigError(attemptedPaths, err)
-		}
+	overlayEnv(values)
+
+	cfg, err := buildConfig(values)
+	if err != nil {
 		return app.Config{}, fmt.Errorf("load config: %w", err)
 	}
 	return cfg, nil
 }
 
-func readConfig(path string) (*viper.Viper, bool, []string, error) {
-	v := viper.New()
-	v.SetConfigType("env")
-	v.AutomaticEnv()
+func parseConfigPath(args []string) (string, error) {
+	fs := flag.NewFlagSet("wukongim", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	configPath := fs.String("config", "", "path to wukongim.conf file")
+	if err := fs.Parse(args); err != nil {
+		return "", fmt.Errorf("parse flags: %w", err)
+	}
+	return strings.TrimSpace(*configPath), nil
+}
 
-	path = strings.TrimSpace(path)
-	if path != "" {
-		v.SetConfigFile(path)
-		if err := v.ReadInConfig(); err != nil {
-			return nil, false, nil, fmt.Errorf("load config: read %s: %w", path, err)
-		}
-		return v, true, nil, nil
+func readConfigValues(configPath string) (map[string]string, error) {
+	if configPath != "" {
+		return readKeyValueFile(configPath)
 	}
 
-	attemptedPaths := append([]string(nil), defaultConfigPaths...)
-	for _, candidate := range attemptedPaths {
+	for _, candidate := range defaultConfigPaths {
 		if _, err := os.Stat(candidate); err != nil {
 			if os.IsNotExist(err) {
 				continue
 			}
-			return nil, false, attemptedPaths, fmt.Errorf("load config: stat %s: %w", candidate, err)
+			return nil, fmt.Errorf("stat %s: %w", candidate, err)
 		}
-		v.SetConfigFile(candidate)
-		if err := v.ReadInConfig(); err != nil {
-			return nil, false, attemptedPaths, fmt.Errorf("load config: read %s: %w", candidate, err)
-		}
-		return v, true, attemptedPaths, nil
+		return readKeyValueFile(candidate)
 	}
-
-	return v, false, attemptedPaths, nil
+	return map[string]string{}, nil
 }
 
-func buildAppConfig(v *viper.Viper) (app.Config, error) {
-	if raw := strings.TrimSpace(stringValue(v, "WK_CLUSTER_GROUP_COUNT")); raw != "" {
-		return app.Config{}, fmt.Errorf("%w: WK_CLUSTER_GROUP_COUNT is no longer supported; use WK_CLUSTER_INITIAL_SLOT_COUNT", app.ErrInvalidConfig)
-	}
-	if raw := strings.TrimSpace(stringValue(v, "WK_CLUSTER_GROUP_REPLICA_N")); raw != "" {
-		return app.Config{}, fmt.Errorf("%w: WK_CLUSTER_GROUP_REPLICA_N is no longer supported; use WK_CLUSTER_SLOT_REPLICA_N", app.ErrInvalidConfig)
-	}
-	nodeID, err := parseUint64(v, "WK_NODE_ID")
-	if err != nil {
-		return app.Config{}, err
-	}
-	slotCount, err := parseUint32(v, "WK_CLUSTER_SLOT_COUNT")
-	if err != nil {
-		return app.Config{}, err
-	}
-	initialSlotCount, err := parseUint32(v, "WK_CLUSTER_INITIAL_SLOT_COUNT")
-	if err != nil {
-		return app.Config{}, err
-	}
-	longPollLaneCount, err := parseInt(v, "WK_CLUSTER_LONG_POLL_LANE_COUNT")
-	if err != nil {
-		return app.Config{}, err
-	}
-	longPollMaxWait, err := parseDuration(v, "WK_CLUSTER_LONG_POLL_MAX_WAIT")
-	if err != nil {
-		return app.Config{}, err
-	}
-	longPollMaxBytes, err := parseInt(v, "WK_CLUSTER_LONG_POLL_MAX_BYTES")
-	if err != nil {
-		return app.Config{}, err
-	}
-	longPollMaxChannels, err := parseInt(v, "WK_CLUSTER_LONG_POLL_MAX_CHANNELS")
-	if err != nil {
-		return app.Config{}, err
-	}
-	longPollDataNotifyDelay, err := parseDuration(v, "WK_CLUSTER_LONG_POLL_DATA_NOTIFY_DELAY")
-	if err != nil {
-		return app.Config{}, err
-	}
-	maxChannels, err := parseInt(v, "WK_CLUSTER_MAX_CHANNELS")
-	if err != nil {
-		return app.Config{}, err
-	}
-	channelIdleTimeout, err := parseDuration(v, "WK_CLUSTER_CHANNEL_IDLE_TIMEOUT")
-	if err != nil {
-		return app.Config{}, err
-	}
-	channelIdleScanInterval, err := parseDuration(v, "WK_CLUSTER_CHANNEL_IDLE_SCAN_INTERVAL")
-	if err != nil {
-		return app.Config{}, err
-	}
-	channelExecutionWorkers, err := parseInt(v, "WK_CLUSTER_CHANNEL_EXECUTION_WORKERS")
-	if err != nil {
-		return app.Config{}, err
-	}
-	channelExecutionQueueSize, err := parseInt(v, "WK_CLUSTER_CHANNEL_EXECUTION_QUEUE_SIZE")
-	if err != nil {
-		return app.Config{}, err
-	}
-	channelBootstrapDefaultMinISR, err := parseInt(v, "WK_CLUSTER_CHANNEL_BOOTSTRAP_DEFAULT_MIN_ISR")
-	if err != nil {
-		return app.Config{}, err
-	}
-	channelBootstrapDefaultMinISRSet := stringValue(v, "WK_CLUSTER_CHANNEL_BOOTSTRAP_DEFAULT_MIN_ISR") != ""
-	channelPlaneReactorCount, err := parseInt(v, "WK_CHANNEL_PLANE_REACTOR_COUNT")
-	if err != nil {
-		return app.Config{}, err
-	}
-	channelPlanePeerLaneCount, err := parseInt(v, "WK_CHANNEL_PLANE_PEER_LANE_COUNT")
-	if err != nil {
-		return app.Config{}, err
-	}
-	channelPlanePeerBatchMaxWait, err := parseDuration(v, "WK_CHANNEL_PLANE_PEER_BATCH_MAX_WAIT")
-	if err != nil {
-		return app.Config{}, err
-	}
-	hashSlotCount, err := parseUint16(v, "WK_CLUSTER_HASH_SLOT_COUNT")
-	if err != nil {
-		return app.Config{}, err
-	}
-	hashSlotMigrationEnabled, err := parseBool(v, "WK_CLUSTER_HASH_SLOT_MIGRATION_ENABLED")
-	if err != nil {
-		return app.Config{}, err
-	}
-	if initialSlotCount == 0 {
-		initialSlotCount = slotCount
-	}
-	forwardTimeout, err := parseDuration(v, "WK_CLUSTER_FORWARD_TIMEOUT")
-	if err != nil {
-		return app.Config{}, err
-	}
-	poolSize, err := parseInt(v, "WK_CLUSTER_POOL_SIZE")
-	if err != nil {
-		return app.Config{}, err
-	}
-	tickInterval, err := parseDuration(v, "WK_CLUSTER_TICK_INTERVAL")
-	if err != nil {
-		return app.Config{}, err
-	}
-	raftWorkers, err := parseInt(v, "WK_CLUSTER_RAFT_WORKERS")
-	if err != nil {
-		return app.Config{}, err
-	}
-	electionTick, err := parseInt(v, "WK_CLUSTER_ELECTION_TICK")
-	if err != nil {
-		return app.Config{}, err
-	}
-	heartbeatTick, err := parseInt(v, "WK_CLUSTER_HEARTBEAT_TICK")
-	if err != nil {
-		return app.Config{}, err
-	}
-	dialTimeout, err := parseDuration(v, "WK_CLUSTER_DIAL_TIMEOUT")
-	if err != nil {
-		return app.Config{}, err
-	}
-	dataPlaneRPCTimeout, err := parseDuration(v, "WK_CLUSTER_DATA_PLANE_RPC_TIMEOUT")
-	if err != nil {
-		return app.Config{}, err
-	}
-	followerReplicationRetryInterval, err := parseDuration(v, "WK_CLUSTER_FOLLOWER_REPLICATION_RETRY_INTERVAL")
-	if err != nil {
-		return app.Config{}, err
-	}
-	appendGroupCommitMaxWait, err := parseDuration(v, "WK_CLUSTER_APPEND_GROUP_COMMIT_MAX_WAIT")
-	if err != nil {
-		return app.Config{}, err
-	}
-	appendGroupCommitMaxRecords, err := parseInt(v, "WK_CLUSTER_APPEND_GROUP_COMMIT_MAX_RECORDS")
-	if err != nil {
-		return app.Config{}, err
-	}
-	appendGroupCommitMaxBytes, err := parseInt(v, "WK_CLUSTER_APPEND_GROUP_COMMIT_MAX_BYTES")
-	if err != nil {
-		return app.Config{}, err
-	}
-	commitCoordinatorFlushWindow, err := parseDuration(v, "WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW")
-	if err != nil {
-		return app.Config{}, err
-	}
-	commitCoordinatorMaxRequests, err := parseInt(v, "WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS")
-	if err != nil {
-		return app.Config{}, err
-	}
-	commitCoordinatorMaxRecords, err := parseInt(v, "WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS")
-	if err != nil {
-		return app.Config{}, err
-	}
-	commitCoordinatorMaxBytes, err := parseInt(v, "WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES")
-	if err != nil {
-		return app.Config{}, err
-	}
-	dataPlanePoolSize, err := parseInt(v, "WK_CLUSTER_DATA_PLANE_POOL_SIZE")
-	if err != nil {
-		return app.Config{}, err
-	}
-	dataPlaneMaxFetchInflight, err := parseInt(v, "WK_CLUSTER_DATA_PLANE_MAX_FETCH_INFLIGHT")
-	if err != nil {
-		return app.Config{}, err
-	}
-	dataPlaneMaxPendingFetch, err := parseInt(v, "WK_CLUSTER_DATA_PLANE_MAX_PENDING_FETCH")
-	if err != nil {
-		return app.Config{}, err
-	}
-	controllerObservationInterval, err := parseDuration(v, "WK_CLUSTER_CONTROLLER_OBSERVATION_INTERVAL")
-	if err != nil {
-		return app.Config{}, err
-	}
-	controllerRequestTimeout, err := parseDuration(v, "WK_CLUSTER_CONTROLLER_REQUEST_TIMEOUT")
-	if err != nil {
-		return app.Config{}, err
-	}
-	controllerLeaderWaitTimeout, err := parseDuration(v, "WK_CLUSTER_CONTROLLER_LEADER_WAIT_TIMEOUT")
-	if err != nil {
-		return app.Config{}, err
-	}
-	managedSlotsReadyTimeout, err := parseDuration(v, "WK_CLUSTER_MANAGED_SLOTS_READY_TIMEOUT")
-	if err != nil {
-		return app.Config{}, err
-	}
-	controllerLogCompactionEnabled, err := parseBool(v, "WK_CLUSTER_CONTROLLER_LOG_COMPACTION_ENABLED")
-	if err != nil {
-		return app.Config{}, err
-	}
-	controllerLogCompactionTriggerEntries, err := parseUint64(v, "WK_CLUSTER_CONTROLLER_LOG_COMPACTION_TRIGGER_ENTRIES")
-	if err != nil {
-		return app.Config{}, err
-	}
-	controllerLogCompactionCheckInterval, err := parseDuration(v, "WK_CLUSTER_CONTROLLER_LOG_COMPACTION_CHECK_INTERVAL")
-	if err != nil {
-		return app.Config{}, err
-	}
-	slotLogCompactionEnabled, err := parseBool(v, "WK_CLUSTER_SLOT_LOG_COMPACTION_ENABLED")
-	if err != nil {
-		return app.Config{}, err
-	}
-	slotLogCompactionTriggerEntries, err := parseUint64(v, "WK_CLUSTER_SLOT_LOG_COMPACTION_TRIGGER_ENTRIES")
-	if err != nil {
-		return app.Config{}, err
-	}
-	slotLogCompactionCheckInterval, err := parseDuration(v, "WK_CLUSTER_SLOT_LOG_COMPACTION_CHECK_INTERVAL")
-	if err != nil {
-		return app.Config{}, err
-	}
-	raftSnapshotChunkSize, err := parseRaftSnapshotChunkSize(v, "WK_STORAGE_RAFT_SNAPSHOT_CHUNK_SIZE")
-	if err != nil {
-		return app.Config{}, err
-	}
-	raftSnapshotGCGrace, err := parseDuration(v, "WK_STORAGE_RAFT_SNAPSHOT_GC_GRACE")
-	if err != nil {
-		return app.Config{}, err
-	}
-	observationHeartbeatInterval, err := parseDuration(v, "WK_CLUSTER_OBSERVATION_HEARTBEAT_INTERVAL")
-	if err != nil {
-		return app.Config{}, err
-	}
-	observationRuntimeScanInterval, err := parseDuration(v, "WK_CLUSTER_OBSERVATION_RUNTIME_SCAN_INTERVAL")
-	if err != nil {
-		return app.Config{}, err
-	}
-	observationRuntimeFlushDebounce, err := parseDuration(v, "WK_CLUSTER_OBSERVATION_RUNTIME_FLUSH_DEBOUNCE")
-	if err != nil {
-		return app.Config{}, err
-	}
-	observationRuntimeFullSyncInterval, err := parseDuration(v, "WK_CLUSTER_OBSERVATION_RUNTIME_FULL_SYNC_INTERVAL")
-	if err != nil {
-		return app.Config{}, err
-	}
-	forwardRetryBudget, err := parseDuration(v, "WK_CLUSTER_FORWARD_RETRY_BUDGET")
-	if err != nil {
-		return app.Config{}, err
-	}
-	managedSlotLeaderWaitTimeout, err := parseDuration(v, "WK_CLUSTER_MANAGED_SLOT_LEADER_WAIT_TIMEOUT")
-	if err != nil {
-		return app.Config{}, err
-	}
-	managedSlotCatchUpTimeout, err := parseDuration(v, "WK_CLUSTER_MANAGED_SLOT_CATCH_UP_TIMEOUT")
-	if err != nil {
-		return app.Config{}, err
-	}
-	managedSlotLeaderMoveTimeout, err := parseDuration(v, "WK_CLUSTER_MANAGED_SLOT_LEADER_MOVE_TIMEOUT")
-	if err != nil {
-		return app.Config{}, err
-	}
-	configChangeRetryBudget, err := parseDuration(v, "WK_CLUSTER_CONFIG_CHANGE_RETRY_BUDGET")
-	if err != nil {
-		return app.Config{}, err
-	}
-	leaderTransferRetryBudget, err := parseDuration(v, "WK_CLUSTER_LEADER_TRANSFER_RETRY_BUDGET")
-	if err != nil {
-		return app.Config{}, err
-	}
-	controllerReplicaN, err := parseInt(v, "WK_CLUSTER_CONTROLLER_REPLICA_N")
-	if err != nil {
-		return app.Config{}, err
-	}
-	slotReplicaN, err := parseInt(v, "WK_CLUSTER_SLOT_REPLICA_N")
-	if err != nil {
-		return app.Config{}, err
-	}
-	tokenAuthOn, err := parseBool(v, "WK_GATEWAY_TOKEN_AUTH_ON")
-	if err != nil {
-		return app.Config{}, err
-	}
-	testMode, err := parseBool(v, "WK_TEST_MODE")
-	if err != nil {
-		return app.Config{}, err
-	}
-	benchAPIEnable, err := parseBool(v, "WK_BENCH_API_ENABLE")
-	if err != nil {
-		return app.Config{}, err
-	}
-	benchAPIMaxBatchSize, err := parseInt(v, "WK_BENCH_API_MAX_BATCH_SIZE")
-	if err != nil {
-		return app.Config{}, err
-	}
-	benchAPIMaxPayloadBytes, err := parseInt64(v, "WK_BENCH_API_MAX_PAYLOAD_BYTES")
-	if err != nil {
-		return app.Config{}, err
-	}
-	pluginEnable, err := parseBool(v, "WK_PLUGIN_ENABLE")
-	if err != nil {
-		return app.Config{}, err
-	}
-	pluginTimeout, err := parseDuration(v, "WK_PLUGIN_TIMEOUT")
-	if err != nil {
-		return app.Config{}, err
-	}
-	pluginHotReload, err := parseBool(v, "WK_PLUGIN_HOT_RELOAD")
+func readKeyValueFile(path string) (map[string]string, error) {
+	file, err := os.Open(path)
 	if err != nil {
-		return app.Config{}, err
+		return nil, fmt.Errorf("read %s: %w", path, err)
 	}
-	pluginFailOpen, err := parseBool(v, "WK_PLUGIN_FAIL_OPEN")
+	defer file.Close()
+	values, err := readKeyValues(file)
 	if err != nil {
-		return app.Config{}, err
+		return nil, fmt.Errorf("read %s: %w", path, err)
 	}
+	return values, nil
+}
 
-	nodes, err := parseJSONValue[[]app.NodeConfigRef](v, "WK_CLUSTER_NODES")
-	if err != nil {
-		return app.Config{}, err
-	}
-	seeds, err := parseJSONStringList(v, "WK_CLUSTER_SEEDS")
-	if err != nil {
-		return app.Config{}, err
-	}
-	if raw := strings.TrimSpace(stringValue(v, "WK_CLUSTER_GROUPS")); raw != "" {
-		return app.Config{}, fmt.Errorf("%w: WK_CLUSTER_GROUPS is no longer supported; remove static slot peers and keep WK_CLUSTER_INITIAL_SLOT_COUNT only", app.ErrInvalidConfig)
-	}
-	listeners, err := parseListeners(v)
-	if err != nil {
-		return app.Config{}, err
-	}
-	closeOnHandlerError, err := parseOptionalBool(v, "WK_GATEWAY_DEFAULT_SESSION_CLOSE_ON_HANDLER_ERROR")
-	if err != nil {
-		return app.Config{}, err
-	}
-	maxInboundBytes, err := parseInt(v, "WK_GATEWAY_DEFAULT_SESSION_MAX_INBOUND_BYTES")
-	if err != nil {
-		return app.Config{}, err
-	}
-	maxOutboundBytes, err := parseInt(v, "WK_GATEWAY_DEFAULT_SESSION_MAX_OUTBOUND_BYTES")
-	if err != nil {
-		return app.Config{}, err
-	}
-	idleTimeout, err := parseDuration(v, "WK_GATEWAY_DEFAULT_SESSION_IDLE_TIMEOUT")
-	if err != nil {
-		return app.Config{}, err
-	}
-	asyncSendWorkers, err := parseInt(v, "WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS")
-	if err != nil {
-		return app.Config{}, err
-	}
-	asyncSendQueueCapacity, err := parseInt(v, "WK_GATEWAY_RUNTIME_ASYNC_SEND_QUEUE_CAPACITY")
-	if err != nil {
-		return app.Config{}, err
-	}
-	asyncAuthWorkers, err := parseInt(v, "WK_GATEWAY_RUNTIME_ASYNC_AUTH_WORKERS")
-	if err != nil {
-		return app.Config{}, err
-	}
-	asyncAuthQueueCapacity, err := parseInt(v, "WK_GATEWAY_RUNTIME_ASYNC_AUTH_QUEUE_CAPACITY")
-	if err != nil {
-		return app.Config{}, err
-	}
-	asyncPoolReleaseTimeout, err := parseDuration(v, "WK_GATEWAY_RUNTIME_ASYNC_POOL_RELEASE_TIMEOUT")
-	if err != nil {
-		return app.Config{}, err
-	}
-	asyncSendBatchMaxWait, err := parseDuration(v, "WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_WAIT")
-	if err != nil {
-		return app.Config{}, err
-	}
-	asyncSendBatchMaxRecords, err := parseInt(v, "WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_RECORDS")
-	if err != nil {
-		return app.Config{}, err
-	}
-	asyncSendBatchMaxBytes, err := parseInt(v, "WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_BYTES")
-	if err != nil {
-		return app.Config{}, err
-	}
-	gatewayGnetMulticore, err := parseBool(v, "WK_GATEWAY_GNET_MULTICORE")
-	if err != nil {
-		return app.Config{}, err
-	}
-	gatewayGnetNumEventLoop, err := parseInt(v, "WK_GATEWAY_GNET_NUM_EVENT_LOOP")
-	if err != nil {
-		return app.Config{}, err
-	}
-	gatewayGnetReusePort, err := parseBool(v, "WK_GATEWAY_GNET_REUSE_PORT")
-	if err != nil {
-		return app.Config{}, err
-	}
-	gatewayGnetReadBufferCap, err := parseInt(v, "WK_GATEWAY_GNET_READ_BUFFER_CAP")
-	if err != nil {
-		return app.Config{}, err
-	}
-	gatewayGnetWriteBufferCap, err := parseInt(v, "WK_GATEWAY_GNET_WRITE_BUFFER_CAP")
-	if err != nil {
-		return app.Config{}, err
-	}
-	gatewaySendTimeout, err := parseDuration(v, "WK_GATEWAY_SEND_TIMEOUT")
-	if err != nil {
-		return app.Config{}, err
-	}
-	logMaxSize, err := parseInt(v, "WK_LOG_MAX_SIZE")
-	if err != nil {
-		return app.Config{}, err
-	}
-	logMaxAge, err := parseInt(v, "WK_LOG_MAX_AGE")
-	if err != nil {
-		return app.Config{}, err
-	}
-	logMaxBackups, err := parseInt(v, "WK_LOG_MAX_BACKUPS")
-	if err != nil {
-		return app.Config{}, err
-	}
-	logCompress, err := parseBool(v, "WK_LOG_COMPRESS")
-	if err != nil {
-		return app.Config{}, err
-	}
-	logConsole, err := parseBool(v, "WK_LOG_CONSOLE")
-	if err != nil {
-		return app.Config{}, err
-	}
-	metricsEnable, err := parseBool(v, "WK_METRICS_ENABLE")
-	if err != nil {
-		return app.Config{}, err
-	}
-	networkObservabilityEnable, err := parseBool(v, "WK_NETWORK_OBSERVABILITY_ENABLE")
-	if err != nil {
-		return app.Config{}, err
-	}
-	diagnosticsEnable, err := parseBool(v, "WK_DIAGNOSTICS_ENABLE")
-	if err != nil {
-		return app.Config{}, err
-	}
-	diagnosticsBufferSize, err := parseInt(v, "WK_DIAGNOSTICS_BUFFER_SIZE")
-	if err != nil {
-		return app.Config{}, err
-	}
-	diagnosticsSampleRate, err := parseFloat(v, "WK_DIAGNOSTICS_SAMPLE_RATE")
-	if err != nil {
-		return app.Config{}, err
-	}
-	diagnosticsSlowThresholdMS, err := parseInt(v, "WK_DIAGNOSTICS_SLOW_THRESHOLD_MS")
-	if err != nil {
-		return app.Config{}, err
-	}
-	diagnosticsErrorSampleRate, err := parseFloat(v, "WK_DIAGNOSTICS_ERROR_SAMPLE_RATE")
-	if err != nil {
-		return app.Config{}, err
-	}
-	diagnosticsDebugMatches, err := parseJSONValue[[]app.DiagnosticsDebugMatchConfig](v, "WK_DIAGNOSTICS_DEBUG_MATCHES")
-	if err != nil {
-		return app.Config{}, err
-	}
-	healthDetailEnable, err := parseBool(v, "WK_HEALTH_DETAIL_ENABLE")
-	if err != nil {
-		return app.Config{}, err
-	}
-	debugAPIEnable, err := parseBool(v, "WK_DEBUG_API_ENABLE")
-	if err != nil {
-		return app.Config{}, err
-	}
-	managerAuthOn, err := parseBool(v, "WK_MANAGER_AUTH_ON")
-	if err != nil {
-		return app.Config{}, err
-	}
-	managerJWTExpire, err := parseDuration(v, "WK_MANAGER_JWT_EXPIRE")
-	if err != nil {
-		return app.Config{}, err
-	}
-	managerUsers, err := parseJSONValue[[]app.ManagerUserConfig](v, "WK_MANAGER_USERS")
-	if err != nil {
-		return app.Config{}, err
-	}
-	messagePersonWhitelistEnabled, err := parseBool(v, "WK_MESSAGE_PERSON_WHITELIST_ENABLED")
-	if err != nil {
-		return app.Config{}, err
-	}
-	messageSystemDeviceID := stringValue(v, "WK_MESSAGE_SYSTEM_DEVICE_ID")
-	messagePermissionCacheTTL, err := parseDuration(v, "WK_MESSAGE_PERMISSION_CACHE_TTL")
-	if err != nil {
-		return app.Config{}, err
-	}
-	messageUserRateLimitEnabled, err := parseBool(v, "WK_MESSAGE_USER_RATE_LIMIT_ENABLED")
-	if err != nil {
-		return app.Config{}, err
-	}
-	messageUserRateLimitRate, err := parseFloat(v, "WK_MESSAGE_USER_RATE_LIMIT_RATE")
-	if err != nil {
-		return app.Config{}, err
-	}
-	messageUserRateLimitBurst, err := parseInt(v, "WK_MESSAGE_USER_RATE_LIMIT_BURST")
-	if err != nil {
-		return app.Config{}, err
-	}
-	messageUserRateLimitBucketShards, err := parseInt(v, "WK_MESSAGE_USER_RATE_LIMIT_BUCKET_SHARDS")
-	if err != nil {
-		return app.Config{}, err
-	}
-	messageUserRateLimitIdleTTL, err := parseDuration(v, "WK_MESSAGE_USER_RATE_LIMIT_IDLE_TTL")
-	if err != nil {
-		return app.Config{}, err
-	}
-	messageUserRateLimitMaxBuckets, err := parseInt(v, "WK_MESSAGE_USER_RATE_LIMIT_MAX_BUCKETS")
-	if err != nil {
-		return app.Config{}, err
-	}
-	messageUserRateLimitSystemUIDBypass, err := parseBool(v, "WK_MESSAGE_USER_RATE_LIMIT_SYSTEM_UID_BYPASS")
-	if err != nil {
-		return app.Config{}, err
-	}
-	messageUserRateLimitPluginBypass, err := parseBool(v, "WK_MESSAGE_USER_RATE_LIMIT_PLUGIN_BYPASS")
-	if err != nil {
-		return app.Config{}, err
-	}
-	deliveryPresenceCacheTTL, err := parseDuration(v, "WK_DELIVERY_PRESENCE_CACHE_TTL")
-	if err != nil {
-		return app.Config{}, err
-	}
-	deliveryAckBatchMaxWait, err := parseDuration(v, "WK_DELIVERY_ACK_BATCH_MAX_WAIT")
-	if err != nil {
-		return app.Config{}, err
-	}
-	deliveryAckBatchMaxSize, err := parseInt(v, "WK_DELIVERY_ACK_BATCH_MAX_SIZE")
-	if err != nil {
-		return app.Config{}, err
-	}
-	channelMigrationScanInterval, err := parseDuration(v, "WK_CHANNEL_MIGRATION_SCAN_INTERVAL")
-	if err != nil {
-		return app.Config{}, err
-	}
-	channelMigrationScanLimit, err := parseInt(v, "WK_CHANNEL_MIGRATION_SCAN_LIMIT")
-	if err != nil {
-		return app.Config{}, err
-	}
-	channelMigrationOwnerLeaseTTL, err := parseDuration(v, "WK_CHANNEL_MIGRATION_OWNER_LEASE_TTL")
-	if err != nil {
-		return app.Config{}, err
-	}
-	channelMigrationRetryBackoff, err := parseDuration(v, "WK_CHANNEL_MIGRATION_RETRY_BACKOFF")
-	if err != nil {
-		return app.Config{}, err
-	}
-	channelMigrationFenceTTL, err := parseDuration(v, "WK_CHANNEL_MIGRATION_FENCE_TTL")
-	if err != nil {
-		return app.Config{}, err
-	}
-	channelMigrationLeaderLeaseTTL, err := parseDuration(v, "WK_CHANNEL_MIGRATION_LEADER_LEASE_TTL")
-	if err != nil {
-		return app.Config{}, err
-	}
-	channelMigrationCatchUpStableWindow, err := parseDuration(v, "WK_CHANNEL_MIGRATION_CATCH_UP_STABLE_WINDOW")
-	if err != nil {
-		return app.Config{}, err
-	}
-	channelMigrationCatchUpLagThreshold, err := parseInt(v, "WK_CHANNEL_MIGRATION_CATCH_UP_LAG_THRESHOLD")
-	if err != nil {
-		return app.Config{}, err
-	}
-	if channelMigrationCatchUpLagThreshold < 0 {
-		return app.Config{}, fmt.Errorf("%w: channel migration catch-up lag threshold must be >= 0", app.ErrInvalidConfig)
-	}
-	channelMigrationMaxConcurrent, err := parseInt(v, "WK_CHANNEL_MIGRATION_MAX_CONCURRENT")
-	if err != nil {
-		return app.Config{}, err
-	}
-	channelMigrationMaxConcurrentPerSource, err := parseInt(v, "WK_CHANNEL_MIGRATION_MAX_CONCURRENT_PER_SOURCE")
-	if err != nil {
-		return app.Config{}, err
-	}
-	channelMigrationMaxConcurrentPerTarget, err := parseInt(v, "WK_CHANNEL_MIGRATION_MAX_CONCURRENT_PER_TARGET")
-	if err != nil {
-		return app.Config{}, err
-	}
-	channelMigrationCompletedRetentionTTL, err := parseDuration(v, "WK_CHANNEL_MIGRATION_COMPLETED_RETENTION_TTL")
-	if err != nil {
-		return app.Config{}, err
-	}
-	channelMigrationGCLimit, err := parseInt(v, "WK_CHANNEL_MIGRATION_GC_LIMIT")
-	if err != nil {
-		return app.Config{}, err
-	}
-	channelMessageRetentionTTL, err := parseDuration(v, "WK_CHANNEL_MESSAGE_RETENTION_TTL")
-	if err != nil {
-		return app.Config{}, err
-	}
-	channelMessageRetentionScanInterval, err := parseDuration(v, "WK_CHANNEL_MESSAGE_RETENTION_SCAN_INTERVAL")
-	if err != nil {
-		return app.Config{}, err
-	}
-	channelMessageRetentionChannelBatchSize, err := parseInt(v, "WK_CHANNEL_MESSAGE_RETENTION_CHANNEL_BATCH_SIZE")
-	if err != nil {
-		return app.Config{}, err
-	}
-	channelMessageRetentionMaxTrimMessages, err := parseInt(v, "WK_CHANNEL_MESSAGE_RETENTION_MAX_TRIM_MESSAGES")
-	if err != nil {
-		return app.Config{}, err
-	}
-	activeHintFlushInterval, err := parseDuration(v, "WK_CONVERSATION_ACTIVE_HINT_FLUSH_INTERVAL")
-	if err != nil {
-		return app.Config{}, err
-	}
-	activeHintTTL, err := parseDuration(v, "WK_CONVERSATION_ACTIVE_HINT_TTL")
-	if err != nil {
-		return app.Config{}, err
-	}
-	activeHintBarrierTTL, err := parseDuration(v, "WK_CONVERSATION_ACTIVE_HINT_BARRIER_TTL")
-	if err != nil {
-		return app.Config{}, err
-	}
-	activeHintMaxHints, err := parseInt(v, "WK_CONVERSATION_ACTIVE_HINT_MAX_HINTS")
-	if err != nil {
-		return app.Config{}, err
-	}
-	activeHintMaxHintsPerUID, err := parseInt(v, "WK_CONVERSATION_ACTIVE_HINT_MAX_HINTS_PER_UID")
-	if err != nil {
-		return app.Config{}, err
-	}
-	activeHintFlushBatchSize, err := parseInt(v, "WK_CONVERSATION_ACTIVE_HINT_FLUSH_BATCH_SIZE")
-	if err != nil {
-		return app.Config{}, err
-	}
-	groupActiveFanoutInterval, err := parseDuration(v, "WK_CONVERSATION_GROUP_ACTIVE_FANOUT_INTERVAL")
-	if err != nil {
-		return app.Config{}, err
-	}
-	groupActiveFanoutMaxSubscribers, err := parseInt(v, "WK_CONVERSATION_GROUP_ACTIVE_FANOUT_MAX_SUBSCRIBERS")
-	if err != nil {
-		return app.Config{}, err
-	}
+func readKeyValues(r io.Reader) (map[string]string, error) {
+	values := map[string]string{}
+	scanner := bufio.NewScanner(r)
+	lineNo := 0
+	for scanner.Scan() {
+		lineNo++
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		key, value, ok := strings.Cut(line, "=")
+		if !ok {
+			return nil, fmt.Errorf("line %d: expected KEY=value", lineNo)
+		}
+		values[strings.TrimSpace(key)] = strings.TrimSpace(value)
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+	return values, nil
+}
 
+func overlayEnv(values map[string]string) {
+	for _, key := range supportedConfigKeys {
+		if value, ok := os.LookupEnv(key); ok {
+			values[key] = value
+		}
+	}
+}
+
+func buildConfig(values map[string]string) (app.Config, error) {
 	cfg := app.Config{
-		TestMode: testMode,
-		Node: app.NodeConfig{
-			ID:      nodeID,
-			Name:    stringValue(v, "WK_NODE_NAME"),
-			DataDir: stringValue(v, "WK_NODE_DATA_DIR"),
-		},
-		Storage: app.StorageConfig{
-			DBPath:                     stringValue(v, "WK_STORAGE_DB_PATH"),
-			RaftPath:                   stringValue(v, "WK_STORAGE_RAFT_PATH"),
-			ChannelLogPath:             stringValue(v, "WK_STORAGE_CHANNEL_LOG_PATH"),
-			ControllerMetaPath:         stringValue(v, "WK_STORAGE_CONTROLLER_META_PATH"),
-			ControllerRaftPath:         stringValue(v, "WK_STORAGE_CONTROLLER_RAFT_PATH"),
-			RaftSnapshotPath:           stringValue(v, "WK_STORAGE_RAFT_SNAPSHOT_PATH"),
-			ControllerRaftSnapshotPath: stringValue(v, "WK_STORAGE_CONTROLLER_RAFT_SNAPSHOT_PATH"),
-			RaftSnapshotChunkSize:      raftSnapshotChunkSize,
-			RaftSnapshotGCGrace:        raftSnapshotGCGrace,
-		},
-		Cluster: app.ClusterConfig{
-			ListenAddr:                       stringValue(v, "WK_CLUSTER_LISTEN_ADDR"),
-			SlotCount:                        slotCount,
-			HashSlotCount:                    hashSlotCount,
-			EnableHashSlotMigration:          hashSlotMigrationEnabled,
-			InitialSlotCount:                 initialSlotCount,
-			ChannelBootstrapDefaultMinISR:    channelBootstrapDefaultMinISR,
-			MaxChannels:                      maxChannels,
-			ChannelIdleTimeout:               channelIdleTimeout,
-			ChannelIdleScanInterval:          channelIdleScanInterval,
-			ChannelExecutionMode:             stringValue(v, "WK_CLUSTER_CHANNEL_EXECUTION_MODE"),
-			ChannelExecutionWorkers:          channelExecutionWorkers,
-			ChannelExecutionQueueSize:        channelExecutionQueueSize,
-			LongPollLaneCount:                longPollLaneCount,
-			LongPollMaxWait:                  longPollMaxWait,
-			LongPollMaxBytes:                 longPollMaxBytes,
-			LongPollMaxChannels:              longPollMaxChannels,
-			LongPollDataNotifyDelay:          longPollDataNotifyDelay,
-			Nodes:                            nodes,
-			ControllerReplicaN:               controllerReplicaN,
-			SlotReplicaN:                     slotReplicaN,
-			ForwardTimeout:                   forwardTimeout,
-			PoolSize:                         poolSize,
-			DataPlanePoolSize:                dataPlanePoolSize,
-			TickInterval:                     tickInterval,
-			RaftWorkers:                      raftWorkers,
-			ElectionTick:                     electionTick,
-			HeartbeatTick:                    heartbeatTick,
-			DialTimeout:                      dialTimeout,
-			ManagedSlotsReadyTimeout:         managedSlotsReadyTimeout,
-			FollowerReplicationRetryInterval: followerReplicationRetryInterval,
-			AppendGroupCommitMaxWait:         appendGroupCommitMaxWait,
-			AppendGroupCommitMaxRecords:      appendGroupCommitMaxRecords,
-			AppendGroupCommitMaxBytes:        appendGroupCommitMaxBytes,
-			CommitCoordinatorFlushWindow:     commitCoordinatorFlushWindow,
-			CommitCoordinatorMaxRequests:     commitCoordinatorMaxRequests,
-			CommitCoordinatorMaxRecords:      commitCoordinatorMaxRecords,
-			CommitCoordinatorMaxBytes:        commitCoordinatorMaxBytes,
-			Seeds:                            seeds,
-			AdvertiseAddr:                    stringValue(v, "WK_CLUSTER_ADVERTISE_ADDR"),
-			JoinToken:                        stringValue(v, "WK_CLUSTER_JOIN_TOKEN"),
-			ControllerLogCompaction: app.ControllerLogCompactionConfig{
-				Enabled:        controllerLogCompactionEnabled,
-				TriggerEntries: controllerLogCompactionTriggerEntries,
-				CheckInterval:  controllerLogCompactionCheckInterval,
+		Gateway: app.GatewayConfig{
+			Listeners: defaultGatewayListeners(),
+			Session:   gateway.DefaultSessionOptions(),
+			Runtime:   gateway.DefaultRuntimeOptions(),
+			Transport: gateway.TransportOptions{
+				Gnet: defaultGatewayGnetOptions(),
 			},
-			SlotLogCompaction: app.SlotLogCompactionConfig{
-				Enabled:        slotLogCompactionEnabled,
-				TriggerEntries: slotLogCompactionTriggerEntries,
-				CheckInterval:  slotLogCompactionCheckInterval,
-			},
-			Timeouts: raftcluster.Timeouts{
-				ControllerObservation:              controllerObservationInterval,
-				ControllerRequest:                  controllerRequestTimeout,
-				ControllerLeaderWait:               controllerLeaderWaitTimeout,
-				ObservationHeartbeatInterval:       observationHeartbeatInterval,
-				ObservationRuntimeScanInterval:     observationRuntimeScanInterval,
-				ObservationRuntimeFlushDebounce:    observationRuntimeFlushDebounce,
-				ObservationRuntimeFullSyncInterval: observationRuntimeFullSyncInterval,
-				ForwardRetryBudget:                 forwardRetryBudget,
-				ManagedSlotLeaderWait:              managedSlotLeaderWaitTimeout,
-				ManagedSlotCatchUp:                 managedSlotCatchUpTimeout,
-				ManagedSlotLeaderMove:              managedSlotLeaderMoveTimeout,
-				ConfigChangeRetryBudget:            configChangeRetryBudget,
-				LeaderTransferRetryBudget:          leaderTransferRetryBudget,
-			},
-			DataPlaneRPCTimeout:       dataPlaneRPCTimeout,
-			DataPlaneMaxFetchInflight: dataPlaneMaxFetchInflight,
-			DataPlaneMaxPendingFetch:  dataPlaneMaxPendingFetch,
-		},
-		ChannelPlane: app.ChannelPlaneConfig{
-			ReactorCount:     channelPlaneReactorCount,
-			PeerLaneCount:    channelPlanePeerLaneCount,
-			PeerBatchMaxWait: channelPlanePeerBatchMaxWait,
-		},
-		ChannelMigration: app.ChannelMigrationConfig{
-			ScanInterval:           channelMigrationScanInterval,
-			ScanLimit:              channelMigrationScanLimit,
-			OwnerLeaseTTL:          channelMigrationOwnerLeaseTTL,
-			RetryBackoff:           channelMigrationRetryBackoff,
-			FenceTTL:               channelMigrationFenceTTL,
-			LeaderLeaseTTL:         channelMigrationLeaderLeaseTTL,
-			CatchUpStableWindow:    channelMigrationCatchUpStableWindow,
-			CatchUpLagThreshold:    uint64(channelMigrationCatchUpLagThreshold),
-			MaxConcurrent:          channelMigrationMaxConcurrent,
-			MaxConcurrentPerSource: channelMigrationMaxConcurrentPerSource,
-			MaxConcurrentPerTarget: channelMigrationMaxConcurrentPerTarget,
-			CompletedRetentionTTL:  channelMigrationCompletedRetentionTTL,
-			GCLimit:                channelMigrationGCLimit,
-		},
-		ChannelMessageRetention: app.ChannelMessageRetentionConfig{
-			TTL:              channelMessageRetentionTTL,
-			ScanInterval:     channelMessageRetentionScanInterval,
-			ChannelBatchSize: channelMessageRetentionChannelBatchSize,
-			MaxTrimMessages:  channelMessageRetentionMaxTrimMessages,
 		},
 		Bench: app.BenchConfig{
-			APIEnabled:         benchAPIEnable,
-			APIMaxBatchSize:    benchAPIMaxBatchSize,
-			APIMaxPayloadBytes: benchAPIMaxPayloadBytes,
+			APIMaxBatchSize:    defaultBenchAPIMaxBatchSize,
+			APIMaxPayloadBytes: defaultBenchAPIMaxPayloadBytes,
+		},
+		Channel: app.ChannelConfig{
+			LargeGroupSubscriberThreshold: 500,
 		},
 		Message: app.MessageConfig{
-			PersonWhitelistEnabled:       messagePersonWhitelistEnabled,
-			SystemDeviceID:               messageSystemDeviceID,
-			PermissionCacheTTL:           messagePermissionCacheTTL,
-			UserRateLimitEnabled:         messageUserRateLimitEnabled,
-			UserRateLimitRate:            messageUserRateLimitRate,
-			UserRateLimitBurst:           messageUserRateLimitBurst,
-			UserRateLimitBucketShards:    messageUserRateLimitBucketShards,
-			UserRateLimitIdleTTL:         messageUserRateLimitIdleTTL,
-			UserRateLimitMaxBuckets:      messageUserRateLimitMaxBuckets,
-			UserRateLimitSystemUIDBypass: messageUserRateLimitSystemUIDBypass,
-			UserRateLimitPluginBypass:    messageUserRateLimitPluginBypass,
+			SystemDeviceID: "____device",
+		},
+		ChannelMessageRetention: app.ChannelMessageRetentionConfig{
+			ScanInterval:     time.Minute,
+			ChannelBatchSize: 128,
+			MaxTrimMessages:  1000,
 		},
 		Delivery: app.DeliveryConfig{
-			PresenceCacheTTL: deliveryPresenceCacheTTL,
-			AckBatchMaxWait:  deliveryAckBatchMaxWait,
-			AckBatchMaxSize:  deliveryAckBatchMaxSize,
+			Enabled: true,
 		},
-		Plugin: app.PluginConfig{
-			Enable:     pluginEnable,
-			Dir:        stringValue(v, "WK_PLUGIN_DIR"),
-			SocketPath: stringValue(v, "WK_PLUGIN_SOCKET_PATH"),
-			SandboxDir: stringValue(v, "WK_PLUGIN_SANDBOX_DIR"),
-			StateDir:   stringValue(v, "WK_PLUGIN_STATE_DIR"),
-			Timeout:    pluginTimeout,
-			HotReload:  pluginHotReload,
-			FailOpen:   pluginFailOpen,
-		},
-		Conversation: app.ConversationConfig{
-			ActiveHintFlushInterval:         activeHintFlushInterval,
-			ActiveHintTTL:                   activeHintTTL,
-			ActiveHintBarrierTTL:            activeHintBarrierTTL,
-			ActiveHintMaxHints:              activeHintMaxHints,
-			ActiveHintMaxHintsPerUID:        activeHintMaxHintsPerUID,
-			ActiveHintFlushBatchSize:        activeHintFlushBatchSize,
-			GroupActiveFanoutInterval:       groupActiveFanoutInterval,
-			GroupActiveFanoutMaxSubscribers: groupActiveFanoutMaxSubscribers,
-		},
-		API: app.APIConfig{
-			ListenAddr:      defaultAPIListenAddr,
-			ExternalTCPAddr: stringValue(v, "WK_EXTERNAL_TCPADDR"),
-			ExternalWSAddr:  stringValue(v, "WK_EXTERNAL_WSADDR"),
-			ExternalWSSAddr: stringValue(v, "WK_EXTERNAL_WSSADDR"),
-		},
-		Manager: app.ManagerConfig{
-			ListenAddr: stringValue(v, "WK_MANAGER_LISTEN_ADDR"),
-			AuthOn:     managerAuthOn,
-			JWTSecret:  stringValue(v, "WK_MANAGER_JWT_SECRET"),
-			JWTIssuer:  stringValue(v, "WK_MANAGER_JWT_ISSUER"),
-			JWTExpire:  managerJWTExpire,
-			Users:      managerUsers,
-		},
-		Gateway: app.GatewayConfig{
-			TokenAuthOn: tokenAuthOn,
-			SendTimeout: gatewaySendTimeout,
-			DefaultSession: gateway.SessionOptions{
-				MaxInboundBytes:          maxInboundBytes,
-				MaxOutboundBytes:         maxOutboundBytes,
-				IdleTimeout:              idleTimeout,
-				AsyncSendBatchMaxWait:    asyncSendBatchMaxWait,
-				AsyncSendBatchMaxRecords: asyncSendBatchMaxRecords,
-				AsyncSendBatchMaxBytes:   asyncSendBatchMaxBytes,
-				CloseOnHandlerError:      closeOnHandlerError,
+		Cluster: clusterv2.Config{
+			Channel: clusterv2.ChannelConfig{
+				StoreAppendWorkers: 500,
+				StoreApplyWorkers:  500,
+				RPCWorkers:         500,
 			},
-			Runtime: gateway.RuntimeOptions{
-				AsyncSendWorkers:        asyncSendWorkers,
-				AsyncSendQueueCapacity:  asyncSendQueueCapacity,
-				AsyncAuthWorkers:        asyncAuthWorkers,
-				AsyncAuthQueueCapacity:  asyncAuthQueueCapacity,
-				AsyncPoolReleaseTimeout: asyncPoolReleaseTimeout,
-			},
-			Transport: gateway.TransportOptions{
-				Gnet: gateway.GnetTransportOptions{
-					Multicore:      gatewayGnetMulticore,
-					NumEventLoop:   gatewayGnetNumEventLoop,
-					ReusePort:      gatewayGnetReusePort,
-					ReadBufferCap:  gatewayGnetReadBufferCap,
-					WriteBufferCap: gatewayGnetWriteBufferCap,
-				},
-			},
-			Listeners: listeners,
-		},
-		Observability: app.ObservabilityConfig{
-			MetricsEnabled:      metricsEnable,
-			NetworkEnabled:      networkObservabilityEnable,
-			HealthDetailEnabled: healthDetailEnable,
-			DebugAPIEnabled:     debugAPIEnable,
-			Diagnostics: app.DiagnosticsConfig{
-				Enabled:         diagnosticsEnable,
-				BufferSize:      diagnosticsBufferSize,
-				SampleRate:      diagnosticsSampleRate,
-				SlowThreshold:   time.Duration(diagnosticsSlowThresholdMS) * time.Millisecond,
-				ErrorSampleRate: diagnosticsErrorSampleRate,
-				DebugMatches:    diagnosticsDebugMatches,
-			},
-		},
-		Log: app.LogConfig{
-			Level:      stringValue(v, "WK_LOG_LEVEL"),
-			Dir:        stringValue(v, "WK_LOG_DIR"),
-			MaxSize:    logMaxSize,
-			MaxAge:     logMaxAge,
-			MaxBackups: logMaxBackups,
-			Compress:   logCompress,
-			Console:    logConsole,
-			Format:     stringValue(v, "WK_LOG_FORMAT"),
 		},
 	}
-	cfg.Cluster.SetExplicitFlags(
-		channelBootstrapDefaultMinISRSet,
-		stringValue(v, "WK_CLUSTER_FOLLOWER_REPLICATION_RETRY_INTERVAL") != "",
-		stringValue(v, "WK_CLUSTER_APPEND_GROUP_COMMIT_MAX_WAIT") != "",
-		stringValue(v, "WK_CLUSTER_APPEND_GROUP_COMMIT_MAX_RECORDS") != "",
-		stringValue(v, "WK_CLUSTER_APPEND_GROUP_COMMIT_MAX_BYTES") != "",
-	)
-	cfg.Cluster.SetReplicationExplicitFlags(
-		stringValue(v, "WK_CLUSTER_LONG_POLL_LANE_COUNT") != "",
-		stringValue(v, "WK_CLUSTER_LONG_POLL_MAX_WAIT") != "",
-		stringValue(v, "WK_CLUSTER_LONG_POLL_MAX_BYTES") != "",
-		stringValue(v, "WK_CLUSTER_LONG_POLL_MAX_CHANNELS") != "",
-	)
-	cfg.Cluster.SetCommitCoordinatorExplicitFlags(
-		stringValue(v, "WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW") != "",
-		stringValue(v, "WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS") != "",
-		stringValue(v, "WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS") != "",
-		stringValue(v, "WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES") != "",
-	)
-	cfg.Cluster.SetControllerLogCompactionExplicitFlags(
-		stringValue(v, "WK_CLUSTER_CONTROLLER_LOG_COMPACTION_ENABLED") != "",
-		stringValue(v, "WK_CLUSTER_CONTROLLER_LOG_COMPACTION_TRIGGER_ENTRIES") != "",
-		stringValue(v, "WK_CLUSTER_CONTROLLER_LOG_COMPACTION_CHECK_INTERVAL") != "",
-	)
-	cfg.Cluster.SetSlotLogCompactionExplicitFlags(
-		stringValue(v, "WK_CLUSTER_SLOT_LOG_COMPACTION_ENABLED") != "",
-		stringValue(v, "WK_CLUSTER_SLOT_LOG_COMPACTION_TRIGGER_ENTRIES") != "",
-		stringValue(v, "WK_CLUSTER_SLOT_LOG_COMPACTION_CHECK_INTERVAL") != "",
-	)
-	cfg.Storage.SetRaftSnapshotExplicitFlags(
-		stringValue(v, "WK_STORAGE_RAFT_SNAPSHOT_CHUNK_SIZE") != "",
-		stringValue(v, "WK_STORAGE_RAFT_SNAPSHOT_GC_GRACE") != "",
-	)
-	cfg.Plugin.SetExplicitFlags(
-		stringValue(v, "WK_PLUGIN_TIMEOUT") != "",
-		stringValue(v, "WK_PLUGIN_HOT_RELOAD") != "",
-		stringValue(v, "WK_PLUGIN_FAIL_OPEN") != "",
-	)
-	cfg.Message.SetExplicitFlags(
-		stringValue(v, "WK_MESSAGE_USER_RATE_LIMIT_RATE") != "",
-		stringValue(v, "WK_MESSAGE_USER_RATE_LIMIT_BURST") != "",
-		stringValue(v, "WK_MESSAGE_USER_RATE_LIMIT_BUCKET_SHARDS") != "",
-		stringValue(v, "WK_MESSAGE_USER_RATE_LIMIT_IDLE_TTL") != "",
-		stringValue(v, "WK_MESSAGE_USER_RATE_LIMIT_MAX_BUCKETS") != "",
-		stringValue(v, "WK_MESSAGE_USER_RATE_LIMIT_SYSTEM_UID_BYPASS") != "",
-	)
-	cfg.Gateway.SetExplicitFlags(stringValue(v, "WK_GATEWAY_SEND_TIMEOUT") != "")
-	cfg.Log.SetExplicitFlags(stringValue(v, "WK_LOG_COMPRESS") != "", stringValue(v, "WK_LOG_CONSOLE") != "")
-	cfg.Observability.SetExplicitFlags(
-		stringValue(v, "WK_METRICS_ENABLE") != "",
-		stringValue(v, "WK_HEALTH_DETAIL_ENABLE") != "",
-		stringValue(v, "WK_DEBUG_API_ENABLE") != "",
-	)
-	cfg.Observability.SetNetworkExplicitFlag(stringValue(v, "WK_NETWORK_OBSERVABILITY_ENABLE") != "")
-	cfg.Observability.SetDiagnosticsExplicitFlags(
-		stringValue(v, "WK_DIAGNOSTICS_ENABLE") != "",
-		stringValue(v, "WK_DIAGNOSTICS_SAMPLE_RATE") != "",
-		stringValue(v, "WK_DIAGNOSTICS_ERROR_SAMPLE_RATE") != "",
-	)
-	cfg.ChannelMigration.SetExplicitFlags(
-		stringValue(v, "WK_CHANNEL_MIGRATION_SCAN_INTERVAL") != "",
-		stringValue(v, "WK_CHANNEL_MIGRATION_SCAN_LIMIT") != "",
-		stringValue(v, "WK_CHANNEL_MIGRATION_OWNER_LEASE_TTL") != "",
-		stringValue(v, "WK_CHANNEL_MIGRATION_RETRY_BACKOFF") != "",
-		stringValue(v, "WK_CHANNEL_MIGRATION_FENCE_TTL") != "",
-		stringValue(v, "WK_CHANNEL_MIGRATION_LEADER_LEASE_TTL") != "",
-		stringValue(v, "WK_CHANNEL_MIGRATION_CATCH_UP_STABLE_WINDOW") != "",
-		stringValue(v, "WK_CHANNEL_MIGRATION_CATCH_UP_LAG_THRESHOLD") != "",
-		stringValue(v, "WK_CHANNEL_MIGRATION_MAX_CONCURRENT") != "",
-		stringValue(v, "WK_CHANNEL_MIGRATION_MAX_CONCURRENT_PER_SOURCE") != "",
-		stringValue(v, "WK_CHANNEL_MIGRATION_MAX_CONCURRENT_PER_TARGET") != "",
-		stringValue(v, "WK_CHANNEL_MIGRATION_COMPLETED_RETENTION_TTL") != "",
-		stringValue(v, "WK_CHANNEL_MIGRATION_GC_LIMIT") != "",
-	)
-	cfg.ChannelMessageRetention.SetExplicitFlags(
-		stringValue(v, "WK_CHANNEL_MESSAGE_RETENTION_SCAN_INTERVAL") != "",
-		stringValue(v, "WK_CHANNEL_MESSAGE_RETENTION_CHANNEL_BATCH_SIZE") != "",
-		stringValue(v, "WK_CHANNEL_MESSAGE_RETENTION_MAX_TRIM_MESSAGES") != "",
-	)
+	rawNodeID, err := requiredConfigValue(values, "WK_NODE_ID")
+	if err != nil {
+		return app.Config{}, err
+	}
+	nodeID, err := parseUint64("WK_NODE_ID", rawNodeID)
+	if err != nil {
+		return app.Config{}, err
+	}
+	cfg.NodeID = nodeID
+	cfg.Cluster.NodeID = nodeID
 
-	if listenAddr := stringValue(v, "WK_API_LISTEN_ADDR"); listenAddr != "" {
-		cfg.API.ListenAddr = listenAddr
+	dataDir, err := requiredConfigValue(values, "WK_NODE_DATA_DIR")
+	if err != nil {
+		return app.Config{}, err
+	}
+	cfg.DataDir = dataDir
+	cfg.Cluster.DataDir = dataDir
+
+	listenAddr, err := requiredConfigValue(values, "WK_CLUSTER_LISTEN_ADDR")
+	if err != nil {
+		return app.Config{}, err
+	}
+	cfg.Cluster.ListenAddr = listenAddr
+
+	cfg.Cluster.Control.ClusterID = configValue(values, "WK_CLUSTER_ID")
+	if configKeyPresent(values, "WK_CLUSTER_JOIN_TOKEN") {
+		token := configValue(values, "WK_CLUSTER_JOIN_TOKEN")
+		if token == "" {
+			return app.Config{}, fmt.Errorf("load config: WK_CLUSTER_JOIN_TOKEN must not be empty")
+		}
+		cfg.Cluster.Join.Token = token
+	}
+	seedJoinConfigPresent := configKeyPresent(values, "WK_CLUSTER_SEEDS") ||
+		configKeyPresent(values, "WK_CLUSTER_ADVERTISE_ADDR")
+	if seedJoinConfigPresent {
+		cfg.Cluster.Control.Role = clusterv2.ControlRoleMirror
+		cfg.Cluster.Control.AllowBootstrap = false
+		if configKeyPresent(values, "WK_CLUSTER_NODES") {
+			return app.Config{}, fmt.Errorf("load config: WK_CLUSTER_SEEDS cannot be combined with WK_CLUSTER_NODES")
+		}
+
+		seeds, err := parseClusterSeeds(configValue(values, "WK_CLUSTER_SEEDS"))
+		if err != nil {
+			return app.Config{}, err
+		}
+		advertiseAddr := configValue(values, "WK_CLUSTER_ADVERTISE_ADDR")
+		if advertiseAddr == "" {
+			return app.Config{}, fmt.Errorf("load config: WK_CLUSTER_ADVERTISE_ADDR is required when WK_CLUSTER_SEEDS is set")
+		}
+		if cfg.Cluster.Join.Token == "" {
+			return app.Config{}, fmt.Errorf("load config: WK_CLUSTER_JOIN_TOKEN is required when WK_CLUSTER_SEEDS is set")
+		}
+		cfg.Cluster.Join.Seeds = seeds
+		cfg.Cluster.Join.AdvertiseAddr = advertiseAddr
+	}
+	if raw := configValue(values, "WK_CLUSTER_NODES"); raw != "" {
+		nodes, err := parseClusterNodes(raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Cluster.Control.Voters = clusterVoters(nodes)
+		cfg.Cluster.Control.AllowBootstrap = true
+		if cfg.Cluster.Control.ClusterID == "" {
+			cfg.Cluster.Control.ClusterID = deriveStaticClusterID(nodes)
+		}
+	}
+
+	if raw := configValue(values, "WK_CLUSTER_INITIAL_SLOT_COUNT"); raw != "" {
+		initialSlotCount, err := parseUint32("WK_CLUSTER_INITIAL_SLOT_COUNT", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Cluster.Slots.InitialSlotCount = initialSlotCount
+	}
+	if raw := configValue(values, "WK_CLUSTER_HASH_SLOT_COUNT"); raw != "" {
+		hashSlotCount, err := parseUint16("WK_CLUSTER_HASH_SLOT_COUNT", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Cluster.Slots.HashSlotCount = hashSlotCount
+	}
+	if raw := configValue(values, "WK_CLUSTER_SLOT_REPLICA_N"); raw != "" {
+		replicaCount, err := parseUint16("WK_CLUSTER_SLOT_REPLICA_N", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Cluster.Slots.ReplicaCount = replicaCount
+	}
+	if raw := configValue(values, "WK_CLUSTER_CHANNEL_REPLICA_N"); raw != "" {
+		replicaCount, err := parseUint16("WK_CLUSTER_CHANNEL_REPLICA_N", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Cluster.Channel.ReplicaCount = replicaCount
+	}
+	if raw := configValue(values, "WK_CLUSTER_SLOT_TICK_INTERVAL"); raw != "" {
+		tickInterval, err := parseDuration("WK_CLUSTER_SLOT_TICK_INTERVAL", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if tickInterval <= 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CLUSTER_SLOT_TICK_INTERVAL: value must be > 0")
+		}
+		cfg.Cluster.Slots.TickInterval = tickInterval
+	}
+	if raw := configValue(values, "WK_CLUSTER_SLOT_ELECTION_TICK"); raw != "" {
+		electionTick, err := parseInt("WK_CLUSTER_SLOT_ELECTION_TICK", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if electionTick <= 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CLUSTER_SLOT_ELECTION_TICK: value must be > 0")
+		}
+		cfg.Cluster.Slots.ElectionTick = electionTick
+	}
+	if raw := configValue(values, "WK_CLUSTER_SLOT_HEARTBEAT_TICK"); raw != "" {
+		heartbeatTick, err := parseInt("WK_CLUSTER_SLOT_HEARTBEAT_TICK", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if heartbeatTick <= 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CLUSTER_SLOT_HEARTBEAT_TICK: value must be > 0")
+		}
+		cfg.Cluster.Slots.HeartbeatTick = heartbeatTick
+	}
+	if raw := configValue(values, "WK_CLUSTER_SLOT_LOG_COMPACTION_ENABLED"); raw != "" {
+		enabled, err := parseBool("WK_CLUSTER_SLOT_LOG_COMPACTION_ENABLED", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Cluster.Slots.LogCompaction.Enabled = enabled
+		cfg.Cluster.Slots.LogCompaction.EnabledSet = true
+	}
+	if raw := configValue(values, "WK_CLUSTER_SLOT_LOG_COMPACTION_TRIGGER_ENTRIES"); raw != "" {
+		triggerEntries, err := parseUint64("WK_CLUSTER_SLOT_LOG_COMPACTION_TRIGGER_ENTRIES", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if triggerEntries == 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CLUSTER_SLOT_LOG_COMPACTION_TRIGGER_ENTRIES: value must be > 0")
+		}
+		cfg.Cluster.Slots.LogCompaction.TriggerEntries = triggerEntries
+	}
+	if raw := configValue(values, "WK_CLUSTER_SLOT_LOG_COMPACTION_CHECK_INTERVAL"); raw != "" {
+		checkInterval, err := parseDuration("WK_CLUSTER_SLOT_LOG_COMPACTION_CHECK_INTERVAL", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if checkInterval <= 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CLUSTER_SLOT_LOG_COMPACTION_CHECK_INTERVAL: value must be > 0")
+		}
+		cfg.Cluster.Slots.LogCompaction.CheckInterval = checkInterval
+	}
+	if raw := configValue(values, "WK_CLUSTER_CHANNEL_REACTOR_COUNT"); raw != "" {
+		reactorCount, err := parseInt("WK_CLUSTER_CHANNEL_REACTOR_COUNT", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if reactorCount < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CLUSTER_CHANNEL_REACTOR_COUNT: value must be >= 0")
+		}
+		cfg.Cluster.Channel.ReactorCount = reactorCount
+	}
+	if raw := configValue(values, "WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS"); raw != "" {
+		workers, err := parseInt("WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if workers < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS: value must be >= 0")
+		}
+		cfg.Cluster.Channel.StoreAppendWorkers = workers
+	}
+	if raw := configValue(values, "WK_CLUSTER_CHANNEL_STORE_APPEND_BATCH_MAX_WAIT"); raw != "" {
+		maxWait, err := parseDuration("WK_CLUSTER_CHANNEL_STORE_APPEND_BATCH_MAX_WAIT", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if maxWait < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CLUSTER_CHANNEL_STORE_APPEND_BATCH_MAX_WAIT: value must be >= 0")
+		}
+		cfg.Cluster.Channel.StoreAppendBatchMaxWait = maxWait
+	}
+	if raw := configValue(values, "WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS"); raw != "" {
+		workers, err := parseInt("WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if workers < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS: value must be >= 0")
+		}
+		cfg.Cluster.Channel.StoreApplyWorkers = workers
+	}
+	if raw := configValue(values, "WK_CLUSTER_CHANNEL_RPC_WORKERS"); raw != "" {
+		workers, err := parseInt("WK_CLUSTER_CHANNEL_RPC_WORKERS", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if workers < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CLUSTER_CHANNEL_RPC_WORKERS: value must be >= 0")
+		}
+		cfg.Cluster.Channel.RPCWorkers = workers
+	}
+	if raw := configValue(values, "WK_CLUSTER_MAX_CHANNELS"); raw != "" {
+		maxChannels, err := parseInt("WK_CLUSTER_MAX_CHANNELS", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if maxChannels < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CLUSTER_MAX_CHANNELS: value must be >= 0")
+		}
+		cfg.Cluster.Channel.MaxChannels = maxChannels
+	}
+	if raw := configValue(values, "WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS"); raw != "" {
+		maxRecords, err := parseInt("WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if maxRecords < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS: value must be >= 0")
+		}
+		cfg.Cluster.Channel.AppendBatchMaxRecords = maxRecords
+	}
+	if raw := configValue(values, "WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT"); raw != "" {
+		maxWait, err := parseDuration("WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if maxWait < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT: value must be >= 0")
+		}
+		cfg.Cluster.Channel.AppendBatchMaxWait = maxWait
+	}
+	if raw := configValue(values, "WK_CLUSTER_CHANNEL_APPEND_BATCH_ADAPTIVE_FLUSH"); raw != "" {
+		adaptiveFlush, err := parseBool("WK_CLUSTER_CHANNEL_APPEND_BATCH_ADAPTIVE_FLUSH", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Cluster.Channel.AppendBatchAdaptiveFlush = adaptiveFlush
+	}
+	if raw := configValue(values, "WK_CLUSTER_CHANNEL_APPEND_BATCH_COLD_MAX_WAIT"); raw != "" {
+		coldMaxWait, err := parseDuration("WK_CLUSTER_CHANNEL_APPEND_BATCH_COLD_MAX_WAIT", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if coldMaxWait < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CLUSTER_CHANNEL_APPEND_BATCH_COLD_MAX_WAIT: value must be >= 0")
+		}
+		cfg.Cluster.Channel.AppendBatchColdMaxWait = coldMaxWait
+	}
+	if raw := configValue(values, "WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_INTERVAL"); raw != "" {
+		interval, err := parseDuration("WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_INTERVAL", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if interval < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_INTERVAL: value must be >= 0")
+		}
+		cfg.Cluster.Channel.FollowerRecoveryProbeInterval = interval
+	}
+	if raw := configValue(values, "WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_JITTER"); raw != "" {
+		jitter, err := parseDuration("WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_JITTER", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if jitter < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_JITTER: value must be >= 0")
+		}
+		cfg.Cluster.Channel.FollowerRecoveryProbeJitter = jitter
+	}
+	if raw := configValue(values, "WK_CLUSTER_NODE_HEALTH_REPORT_INTERVAL"); raw != "" {
+		interval, err := parseDuration("WK_CLUSTER_NODE_HEALTH_REPORT_INTERVAL", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if interval <= 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CLUSTER_NODE_HEALTH_REPORT_INTERVAL: value must be > 0")
+		}
+		cfg.Cluster.HealthReport.Interval = interval
+	}
+	if raw := configValue(values, "WK_CLUSTER_NODE_HEALTH_REPORT_TTL"); raw != "" {
+		ttl, err := parseDuration("WK_CLUSTER_NODE_HEALTH_REPORT_TTL", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if ttl <= 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CLUSTER_NODE_HEALTH_REPORT_TTL: value must be > 0")
+		}
+		cfg.Cluster.HealthReport.TTL = ttl
+	}
+	if err := validateClusterHealthReportConfig(cfg.Cluster.HealthReport); err != nil {
+		return app.Config{}, err
+	}
+	if raw := configValue(values, "WK_CHANNEL_MIGRATION_ENABLE"); raw != "" {
+		enabled, err := parseBool("WK_CHANNEL_MIGRATION_ENABLE", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Cluster.ChannelMigration.Enabled = enabled
+		cfg.Cluster.ChannelMigration.EnabledSet = true
+	}
+	if raw := configValue(values, "WK_CHANNEL_MIGRATION_SCAN_INTERVAL"); raw != "" {
+		interval, err := parseDuration("WK_CHANNEL_MIGRATION_SCAN_INTERVAL", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if interval <= 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CHANNEL_MIGRATION_SCAN_INTERVAL: value must be > 0")
+		}
+		cfg.Cluster.ChannelMigration.ScanInterval = interval
+	}
+	if raw := configValue(values, "WK_CHANNEL_MIGRATION_SCAN_LIMIT"); raw != "" {
+		limit, err := parseInt("WK_CHANNEL_MIGRATION_SCAN_LIMIT", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if limit <= 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CHANNEL_MIGRATION_SCAN_LIMIT: value must be > 0")
+		}
+		cfg.Cluster.ChannelMigration.ScanLimit = limit
+	}
+	if raw := configValue(values, "WK_CHANNEL_MIGRATION_MAX_PAGES_PER_TICK"); raw != "" {
+		limit, err := parseInt("WK_CHANNEL_MIGRATION_MAX_PAGES_PER_TICK", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if limit <= 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CHANNEL_MIGRATION_MAX_PAGES_PER_TICK: value must be > 0")
+		}
+		cfg.Cluster.ChannelMigration.MaxPagesPerTick = limit
+	}
+	if raw := configValue(values, "WK_CHANNEL_MIGRATION_MAX_TASKS_PER_TICK"); raw != "" {
+		limit, err := parseInt("WK_CHANNEL_MIGRATION_MAX_TASKS_PER_TICK", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if limit <= 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CHANNEL_MIGRATION_MAX_TASKS_PER_TICK: value must be > 0")
+		}
+		cfg.Cluster.ChannelMigration.MaxTasksPerTick = limit
+	}
+	if raw := configValue(values, "WK_CHANNEL_MIGRATION_TASK_LIMIT"); raw != "" {
+		limit, err := parseInt("WK_CHANNEL_MIGRATION_TASK_LIMIT", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if limit <= 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CHANNEL_MIGRATION_TASK_LIMIT: value must be > 0")
+		}
+		cfg.Cluster.ChannelMigration.TaskLimit = limit
+	}
+	if raw := configValue(values, "WK_CHANNEL_MESSAGE_RETENTION_PHYSICAL_GC_ENABLE"); raw != "" {
+		enabled, err := parseBool("WK_CHANNEL_MESSAGE_RETENTION_PHYSICAL_GC_ENABLE", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.ChannelMessageRetention.PhysicalGCEnabled = enabled
+	}
+	if raw := configValue(values, "WK_CHANNEL_MESSAGE_RETENTION_SCAN_INTERVAL"); raw != "" {
+		interval, err := parseDuration("WK_CHANNEL_MESSAGE_RETENTION_SCAN_INTERVAL", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if interval < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CHANNEL_MESSAGE_RETENTION_SCAN_INTERVAL: value must be >= 0")
+		}
+		cfg.ChannelMessageRetention.ScanInterval = interval
+	}
+	if raw := configValue(values, "WK_CHANNEL_MESSAGE_RETENTION_CHANNEL_BATCH_SIZE"); raw != "" {
+		batchSize, err := parseInt("WK_CHANNEL_MESSAGE_RETENTION_CHANNEL_BATCH_SIZE", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if batchSize < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CHANNEL_MESSAGE_RETENTION_CHANNEL_BATCH_SIZE: value must be >= 0")
+		}
+		cfg.ChannelMessageRetention.ChannelBatchSize = batchSize
+	}
+	if raw := configValue(values, "WK_CHANNEL_MESSAGE_RETENTION_MAX_TRIM_MESSAGES"); raw != "" {
+		maxMessages, err := parseInt("WK_CHANNEL_MESSAGE_RETENTION_MAX_TRIM_MESSAGES", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if maxMessages < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CHANNEL_MESSAGE_RETENTION_MAX_TRIM_MESSAGES: value must be >= 0")
+		}
+		cfg.ChannelMessageRetention.MaxTrimMessages = maxMessages
+	}
+	if raw := configValue(values, "WK_CHANNEL_MESSAGE_RETENTION_MAX_TRIM_BYTES"); raw != "" {
+		maxBytes, err := parseInt("WK_CHANNEL_MESSAGE_RETENTION_MAX_TRIM_BYTES", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if maxBytes < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CHANNEL_MESSAGE_RETENTION_MAX_TRIM_BYTES: value must be >= 0")
+		}
+		cfg.ChannelMessageRetention.MaxTrimBytes = maxBytes
+	}
+	if raw := configValue(values, "WK_CLUSTER_COMMIT_COORDINATOR_SYNC"); raw != "" {
+		syncCommit, err := parseBool("WK_CLUSTER_COMMIT_COORDINATOR_SYNC", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if !syncCommit {
+			return app.Config{}, fmt.Errorf("parse WK_CLUSTER_COMMIT_COORDINATOR_SYNC: durable sync is always enabled")
+		}
+	}
+	if raw := configValue(values, "WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW"); raw != "" {
+		flushWindow, err := parseDuration("WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if flushWindow <= 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW: value must be > 0")
+		}
+		cfg.Cluster.Storage.CommitFlushWindow = flushWindow
+	}
+	if raw := configValue(values, "WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS"); raw != "" {
+		maxRequests, err := parseInt("WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if maxRequests < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS: value must be >= 0")
+		}
+		cfg.Cluster.Storage.CommitMaxRequests = maxRequests
+	}
+	if raw := configValue(values, "WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS"); raw != "" {
+		maxRecords, err := parseInt("WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if maxRecords < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS: value must be >= 0")
+		}
+		cfg.Cluster.Storage.CommitMaxRecords = maxRecords
+	}
+	if raw := configValue(values, "WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES"); raw != "" {
+		maxBytes, err := parseInt("WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if maxBytes < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES: value must be >= 0")
+		}
+		cfg.Cluster.Storage.CommitMaxBytes = maxBytes
+	}
+	if raw := configValue(values, "WK_CLUSTER_COMMIT_COORDINATOR_SHARDS"); raw != "" {
+		shards, err := parseInt("WK_CLUSTER_COMMIT_COORDINATOR_SHARDS", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if shards < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CLUSTER_COMMIT_COORDINATOR_SHARDS: value must be >= 0")
+		}
+		cfg.Cluster.Storage.CommitShards = shards
+	}
+	cfg.API.ListenAddr = configValue(values, "WK_API_LISTEN_ADDR")
+	cfg.API.ExternalTCPAddr = configValue(values, "WK_EXTERNAL_TCPADDR")
+	cfg.API.ExternalWSAddr = configValue(values, "WK_EXTERNAL_WSADDR")
+	cfg.API.ExternalWSSAddr = configValue(values, "WK_EXTERNAL_WSSADDR")
+	cfg.Manager.ListenAddr = configValue(values, "WK_MANAGER_LISTEN_ADDR")
+	if raw := configValue(values, "WK_MANAGER_AUTH_ON"); raw != "" {
+		authOn, err := parseBool("WK_MANAGER_AUTH_ON", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Manager.AuthOn = authOn
+	}
+	cfg.Manager.JWTSecret = configValue(values, "WK_MANAGER_JWT_SECRET")
+	cfg.Manager.JWTIssuer = configValue(values, "WK_MANAGER_JWT_ISSUER")
+	if raw := configValue(values, "WK_MANAGER_JWT_EXPIRE"); raw != "" {
+		jwtExpire, err := parseDuration("WK_MANAGER_JWT_EXPIRE", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Manager.JWTExpire = jwtExpire
+	}
+	if raw := configValue(values, "WK_MANAGER_USERS"); raw != "" {
+		users, err := parseManagerUsers(raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Manager.Users = users
+	}
+	if raw := configValue(values, "WK_BENCH_API_ENABLE"); raw != "" {
+		benchAPIEnable, err := parseBool("WK_BENCH_API_ENABLE", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Bench.APIEnabled = benchAPIEnable
+	}
+	if raw := configValue(values, "WK_BENCH_API_MAX_BATCH_SIZE"); raw != "" {
+		maxBatchSize, err := parseInt("WK_BENCH_API_MAX_BATCH_SIZE", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Bench.APIMaxBatchSize = maxBatchSize
+	}
+	if raw := configValue(values, "WK_BENCH_API_MAX_PAYLOAD_BYTES"); raw != "" {
+		maxPayloadBytes, err := parseInt64("WK_BENCH_API_MAX_PAYLOAD_BYTES", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Bench.APIMaxPayloadBytes = maxPayloadBytes
+	}
+	if raw := configValue(values, "WK_METRICS_ENABLE"); raw != "" {
+		metricsEnable, err := parseBool("WK_METRICS_ENABLE", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Observability.MetricsEnabled = metricsEnable
+	}
+	if raw := configValue(values, "WK_PROMETHEUS_ENABLE"); raw != "" {
+		prometheusEnable, err := parseBool("WK_PROMETHEUS_ENABLE", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Observability.Prometheus.Enabled = prometheusEnable
+	}
+	cfg.Observability.Prometheus.BinaryPath = configValue(values, "WK_PROMETHEUS_BINARY_PATH")
+	cfg.Observability.Prometheus.ListenAddr = configValue(values, "WK_PROMETHEUS_LISTEN_ADDR")
+	cfg.Observability.Prometheus.DataDir = configValue(values, "WK_PROMETHEUS_DATA_DIR")
+	if raw := configValue(values, "WK_PROMETHEUS_RETENTION_TIME"); raw != "" {
+		retentionTime, err := parseDuration("WK_PROMETHEUS_RETENTION_TIME", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if retentionTime < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_PROMETHEUS_RETENTION_TIME: value must be >= 0")
+		}
+		cfg.Observability.Prometheus.RetentionTime = retentionTime
+	}
+	cfg.Observability.Prometheus.RetentionSize = configValue(values, "WK_PROMETHEUS_RETENTION_SIZE")
+	if raw := configValue(values, "WK_PROMETHEUS_SCRAPE_INTERVAL"); raw != "" {
+		scrapeInterval, err := parseDuration("WK_PROMETHEUS_SCRAPE_INTERVAL", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if scrapeInterval < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_PROMETHEUS_SCRAPE_INTERVAL: value must be >= 0")
+		}
+		cfg.Observability.Prometheus.ScrapeInterval = scrapeInterval
+	}
+	if raw := configValue(values, "WK_PROMETHEUS_SCRAPE_TARGETS"); raw != "" {
+		scrapeTargets, err := parseStringList("WK_PROMETHEUS_SCRAPE_TARGETS", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Observability.Prometheus.ScrapeTargets = scrapeTargets
+	}
+	if raw := configValue(values, "WK_DEBUG_API_ENABLE"); raw != "" {
+		debugAPIEnable, err := parseBool("WK_DEBUG_API_ENABLE", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Observability.DebugAPIEnabled = debugAPIEnable
+	}
+	if raw := configValue(values, "WK_TOP_API_ENABLE"); raw != "" {
+		topAPIEnable, err := parseBool("WK_TOP_API_ENABLE", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Top.APIEnabled = topAPIEnable
+	}
+	if raw := configValue(values, "WK_TOP_COLLECT_INTERVAL"); raw != "" {
+		collectInterval, err := parseDuration("WK_TOP_COLLECT_INTERVAL", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Top.CollectInterval = collectInterval
+	}
+	if raw := configValue(values, "WK_TOP_HISTORY_WINDOW"); raw != "" {
+		historyWindow, err := parseDuration("WK_TOP_HISTORY_WINDOW", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Top.HistoryWindow = historyWindow
+	}
+	cfg.Top, err = app.NormalizeTopConfig(cfg.Top)
+	if err != nil {
+		return app.Config{}, err
+	}
+	diagnosticsEnabledSet := configValue(values, "WK_DIAGNOSTICS_ENABLE") != ""
+	diagnosticsSampleRateSet := configValue(values, "WK_DIAGNOSTICS_SAMPLE_RATE") != ""
+	diagnosticsErrorSampleRateSet := configValue(values, "WK_DIAGNOSTICS_ERROR_SAMPLE_RATE") != ""
+	if raw := configValue(values, "WK_DIAGNOSTICS_ENABLE"); raw != "" {
+		enabled, err := parseBool("WK_DIAGNOSTICS_ENABLE", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Observability.Diagnostics.Enabled = enabled
+	}
+	if raw := configValue(values, "WK_DIAGNOSTICS_BUFFER_SIZE"); raw != "" {
+		bufferSize, err := parseInt("WK_DIAGNOSTICS_BUFFER_SIZE", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if bufferSize < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_DIAGNOSTICS_BUFFER_SIZE: value must be >= 0")
+		}
+		cfg.Observability.Diagnostics.BufferSize = bufferSize
+	}
+	if raw := configValue(values, "WK_DIAGNOSTICS_SAMPLE_RATE"); raw != "" {
+		sampleRate, err := parseFloat("WK_DIAGNOSTICS_SAMPLE_RATE", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if !validSampleRate(sampleRate) {
+			return app.Config{}, fmt.Errorf("parse WK_DIAGNOSTICS_SAMPLE_RATE: value must be between 0 and 1")
+		}
+		cfg.Observability.Diagnostics.SampleRate = sampleRate
+	}
+	if raw := configValue(values, "WK_DIAGNOSTICS_SLOW_THRESHOLD_MS"); raw != "" {
+		slowThresholdMS, err := parseInt("WK_DIAGNOSTICS_SLOW_THRESHOLD_MS", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if slowThresholdMS < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_DIAGNOSTICS_SLOW_THRESHOLD_MS: value must be >= 0")
+		}
+		cfg.Observability.Diagnostics.SlowThreshold = time.Duration(slowThresholdMS) * time.Millisecond
+	}
+	if raw := configValue(values, "WK_DIAGNOSTICS_ERROR_SAMPLE_RATE"); raw != "" {
+		errorSampleRate, err := parseFloat("WK_DIAGNOSTICS_ERROR_SAMPLE_RATE", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if !validSampleRate(errorSampleRate) {
+			return app.Config{}, fmt.Errorf("parse WK_DIAGNOSTICS_ERROR_SAMPLE_RATE: value must be between 0 and 1")
+		}
+		cfg.Observability.Diagnostics.ErrorSampleRate = errorSampleRate
+	}
+	if raw := configValue(values, "WK_DIAGNOSTICS_DEEP_SAMPLE_RATE"); raw != "" {
+		deepSampleRate, err := parseFloat("WK_DIAGNOSTICS_DEEP_SAMPLE_RATE", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if deepSampleRate < 0 || deepSampleRate > 1 {
+			return app.Config{}, fmt.Errorf("parse WK_DIAGNOSTICS_DEEP_SAMPLE_RATE: value must be between 0 and 1")
+		}
+		cfg.Observability.Diagnostics.DeepSampleRate = deepSampleRate
+	}
+	if raw := configValue(values, "WK_DIAGNOSTICS_DEEP_SLOW_THRESHOLD_MS"); raw != "" {
+		deepSlowThresholdMS, err := parseInt("WK_DIAGNOSTICS_DEEP_SLOW_THRESHOLD_MS", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if deepSlowThresholdMS < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_DIAGNOSTICS_DEEP_SLOW_THRESHOLD_MS: value must be >= 0")
+		}
+		cfg.Observability.Diagnostics.DeepSlowThreshold = time.Duration(deepSlowThresholdMS) * time.Millisecond
+	}
+	if raw := configValue(values, "WK_DIAGNOSTICS_DEEP_MAX_ITEMS_PER_BATCH"); raw != "" {
+		deepMaxItems, err := parseInt("WK_DIAGNOSTICS_DEEP_MAX_ITEMS_PER_BATCH", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if deepMaxItems < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_DIAGNOSTICS_DEEP_MAX_ITEMS_PER_BATCH: value must be >= 0")
+		}
+		cfg.Observability.Diagnostics.DeepMaxItemsPerBatch = deepMaxItems
+	}
+	if raw := configValue(values, "WK_DIAGNOSTICS_DEBUG_MATCHES"); raw != "" {
+		debugMatches, err := parseDiagnosticsDebugMatches(raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Observability.Diagnostics.DebugMatches = debugMatches
+	}
+	cfg.Observability.SetDiagnosticsExplicitFlags(diagnosticsEnabledSet, diagnosticsSampleRateSet, diagnosticsErrorSampleRateSet)
+	if raw := configValue(values, "WK_GATEWAY_LISTENERS"); raw != "" {
+		listeners, err := parseListeners(raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Gateway.Listeners = listeners
+	}
+	if raw := configValue(values, "WK_GATEWAY_GNET_MULTICORE"); raw != "" {
+		multicore, err := parseBool("WK_GATEWAY_GNET_MULTICORE", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Gateway.Transport.Gnet.Multicore = multicore
+	}
+	if raw := configValue(values, "WK_GATEWAY_GNET_NUM_EVENT_LOOP"); raw != "" {
+		numEventLoop, err := parseInt("WK_GATEWAY_GNET_NUM_EVENT_LOOP", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if numEventLoop < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_GATEWAY_GNET_NUM_EVENT_LOOP: value must be >= 0")
+		}
+		if numEventLoop > 0 {
+			cfg.Gateway.Transport.Gnet.NumEventLoop = numEventLoop
+		}
+	}
+	if raw := configValue(values, "WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS"); raw != "" {
+		workers, err := parseInt("WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Gateway.Runtime.AsyncSendWorkers = workers
+	}
+	if raw := configValue(values, "WK_GATEWAY_RUNTIME_ASYNC_SEND_QUEUE_CAPACITY"); raw != "" {
+		capacity, err := parseInt("WK_GATEWAY_RUNTIME_ASYNC_SEND_QUEUE_CAPACITY", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Gateway.Runtime.AsyncSendQueueCapacity = capacity
+	}
+	if raw := configValue(values, "WK_GATEWAY_RUNTIME_ASYNC_AUTH_WORKERS"); raw != "" {
+		workers, err := parseInt("WK_GATEWAY_RUNTIME_ASYNC_AUTH_WORKERS", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Gateway.Runtime.AsyncAuthWorkers = workers
+	}
+	if raw := configValue(values, "WK_GATEWAY_RUNTIME_ASYNC_AUTH_QUEUE_CAPACITY"); raw != "" {
+		capacity, err := parseInt("WK_GATEWAY_RUNTIME_ASYNC_AUTH_QUEUE_CAPACITY", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Gateway.Runtime.AsyncAuthQueueCapacity = capacity
+	}
+	if raw := configValue(values, "WK_GATEWAY_RUNTIME_ASYNC_POOL_RELEASE_TIMEOUT"); raw != "" {
+		timeout, err := parseDuration("WK_GATEWAY_RUNTIME_ASYNC_POOL_RELEASE_TIMEOUT", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Gateway.Runtime.AsyncPoolReleaseTimeout = timeout
+	}
+	if raw := configValue(values, "WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_WAIT"); raw != "" {
+		maxWait, err := parseDuration("WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_WAIT", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Gateway.Session.AsyncSendBatchMaxWait = maxWait
+	}
+	if raw := configValue(values, "WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_RECORDS"); raw != "" {
+		maxRecords, err := parseInt("WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_RECORDS", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if maxRecords < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_RECORDS: value must be >= 0")
+		}
+		cfg.Gateway.Session.AsyncSendBatchMaxRecords = maxRecords
+	}
+	if raw := configValue(values, "WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_BYTES"); raw != "" {
+		maxBytes, err := parseInt("WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_BYTES", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if maxBytes < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_BYTES: value must be >= 0")
+		}
+		cfg.Gateway.Session.AsyncSendBatchMaxBytes = maxBytes
+	}
+	if raw := configValue(values, "WK_GATEWAY_SEND_TIMEOUT"); raw != "" {
+		sendTimeout, err := parseDuration("WK_GATEWAY_SEND_TIMEOUT", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Gateway.SendTimeout = sendTimeout
+	}
+	if raw := configValue(values, "WK_MESSAGE_PERSON_WHITELIST_ENABLED"); raw != "" {
+		enabled, err := parseBool("WK_MESSAGE_PERSON_WHITELIST_ENABLED", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Message.PersonWhitelistEnabled = enabled
+	}
+	if raw := configValue(values, "WK_MESSAGE_SYSTEM_DEVICE_ID"); raw != "" {
+		cfg.Message.SystemDeviceID = raw
+	}
+	if raw := configValue(values, "WK_MESSAGE_PERMISSION_CACHE_TTL"); raw != "" {
+		ttl, err := parseDuration("WK_MESSAGE_PERMISSION_CACHE_TTL", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if ttl < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_MESSAGE_PERMISSION_CACHE_TTL: value must be >= 0")
+		}
+		cfg.Message.PermissionCacheTTL = ttl
+	}
+	cfg.Log.Level = configValue(values, "WK_LOG_LEVEL")
+	cfg.Log.Dir = configValue(values, "WK_LOG_DIR")
+	if raw := configValue(values, "WK_LOG_MAX_SIZE"); raw != "" {
+		maxSize, err := parseInt("WK_LOG_MAX_SIZE", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Log.MaxSize = maxSize
+	}
+	if raw := configValue(values, "WK_LOG_MAX_AGE"); raw != "" {
+		maxAge, err := parseInt("WK_LOG_MAX_AGE", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Log.MaxAge = maxAge
+	}
+	if raw := configValue(values, "WK_LOG_MAX_BACKUPS"); raw != "" {
+		maxBackups, err := parseInt("WK_LOG_MAX_BACKUPS", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Log.MaxBackups = maxBackups
+	}
+	if raw := configValue(values, "WK_LOG_COMPRESS"); raw != "" {
+		compress, err := parseBool("WK_LOG_COMPRESS", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Log.Compress = compress
+	}
+	if raw := configValue(values, "WK_LOG_CONSOLE"); raw != "" {
+		console, err := parseBool("WK_LOG_CONSOLE", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Log.Console = console
+	}
+	cfg.Log.Format = configValue(values, "WK_LOG_FORMAT")
+	cfg.Log.SetExplicitFlags(configValue(values, "WK_LOG_COMPRESS") != "", configValue(values, "WK_LOG_CONSOLE") != "")
+	if raw := configValue(values, "WK_PRESENCE_ACTIVATION_TIMEOUT"); raw != "" {
+		activationTimeout, err := parseDuration("WK_PRESENCE_ACTIVATION_TIMEOUT", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if activationTimeout < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_PRESENCE_ACTIVATION_TIMEOUT: value must be >= 0")
+		}
+		cfg.Presence.ActivationTimeout = activationTimeout
+	}
+	if raw := configValue(values, "WK_PRESENCE_TOUCH_FLUSH_INTERVAL"); raw != "" {
+		interval, err := parseDuration("WK_PRESENCE_TOUCH_FLUSH_INTERVAL", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if interval < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_PRESENCE_TOUCH_FLUSH_INTERVAL: value must be >= 0")
+		}
+		cfg.Presence.TouchFlushInterval = interval
+	}
+	if raw := configValue(values, "WK_PRESENCE_TOUCH_BATCH_SIZE"); raw != "" {
+		batchSize, err := parseInt("WK_PRESENCE_TOUCH_BATCH_SIZE", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if batchSize < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_PRESENCE_TOUCH_BATCH_SIZE: value must be >= 0")
+		}
+		cfg.Presence.TouchBatchSize = batchSize
+	}
+	if raw := configValue(values, "WK_PRESENCE_ROUTE_TTL"); raw != "" {
+		ttl, err := parseDuration("WK_PRESENCE_ROUTE_TTL", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if ttl < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_PRESENCE_ROUTE_TTL: value must be >= 0")
+		}
+		cfg.Presence.RouteTTL = ttl
+	}
+	if raw := configValue(values, "WK_CONVERSATION_MAX_LAST_MESSAGE_CONCURRENCY"); raw != "" {
+		limit, err := parseInt("WK_CONVERSATION_MAX_LAST_MESSAGE_CONCURRENCY", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if limit < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CONVERSATION_MAX_LAST_MESSAGE_CONCURRENCY: value must be >= 0")
+		}
+		cfg.Conversation.MaxLastMessageConcurrency = limit
+	}
+	if raw := configValue(values, "WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS_PER_UID"); raw != "" {
+		limit, err := parseInt("WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS_PER_UID", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if limit <= 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS_PER_UID: value must be > 0")
+		}
+		cfg.Conversation.AuthorityCacheMaxRowsPerUID = limit
+	}
+	if raw := configValue(values, "WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS"); raw != "" {
+		limit, err := parseInt("WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if limit <= 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS: value must be > 0")
+		}
+		cfg.Conversation.AuthorityCacheMaxRows = limit
+	}
+	if raw := configValue(values, "WK_CONVERSATION_AUTHORITY_LIST_DB_WINDOW_MAX"); raw != "" {
+		limit, err := parseInt("WK_CONVERSATION_AUTHORITY_LIST_DB_WINDOW_MAX", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if limit <= 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CONVERSATION_AUTHORITY_LIST_DB_WINDOW_MAX: value must be > 0")
+		}
+		cfg.Conversation.AuthorityListDBWindowMax = limit
+	}
+	if raw := configValue(values, "WK_CONVERSATION_AUTHORITY_HANDOFF_TIMEOUT"); raw != "" {
+		timeout, err := parseDuration("WK_CONVERSATION_AUTHORITY_HANDOFF_TIMEOUT", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if timeout <= 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CONVERSATION_AUTHORITY_HANDOFF_TIMEOUT: value must be > 0")
+		}
+		cfg.Conversation.AuthorityHandoffTimeout = timeout
+	}
+	if raw := configValue(values, "WK_CONVERSATION_AUTHORITY_ACTIVE_COOLDOWN"); raw != "" {
+		cooldown, err := parseDuration("WK_CONVERSATION_AUTHORITY_ACTIVE_COOLDOWN", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if cooldown <= 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CONVERSATION_AUTHORITY_ACTIVE_COOLDOWN: value must be > 0")
+		}
+		cfg.Conversation.AuthorityActiveCooldown = cooldown
+	}
+	if raw := configValue(values, "WK_CONVERSATION_AUTHORITY_FLUSH_INTERVAL"); raw != "" {
+		interval, err := parseDuration("WK_CONVERSATION_AUTHORITY_FLUSH_INTERVAL", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if interval <= 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CONVERSATION_AUTHORITY_FLUSH_INTERVAL: value must be > 0")
+		}
+		cfg.Conversation.AuthorityFlushInterval = interval
+	}
+	if raw := configValue(values, "WK_CONVERSATION_AUTHORITY_FLUSH_TIMEOUT"); raw != "" {
+		timeout, err := parseDuration("WK_CONVERSATION_AUTHORITY_FLUSH_TIMEOUT", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if timeout <= 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CONVERSATION_AUTHORITY_FLUSH_TIMEOUT: value must be > 0")
+		}
+		cfg.Conversation.AuthorityFlushTimeout = timeout
+	}
+	if raw := configValue(values, "WK_CONVERSATION_AUTHORITY_FLUSH_BATCH_ROWS"); raw != "" {
+		rows, err := parseInt("WK_CONVERSATION_AUTHORITY_FLUSH_BATCH_ROWS", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if rows <= 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CONVERSATION_AUTHORITY_FLUSH_BATCH_ROWS: value must be > 0")
+		}
+		cfg.Conversation.AuthorityFlushBatchRows = rows
+	}
+	if raw := configValue(values, "WK_CONVERSATION_AUTHORITY_ADMIT_BATCH_ROWS"); raw != "" {
+		rows, err := parseInt("WK_CONVERSATION_AUTHORITY_ADMIT_BATCH_ROWS", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if rows <= 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CONVERSATION_AUTHORITY_ADMIT_BATCH_ROWS: value must be > 0")
+		}
+		cfg.Conversation.AuthorityAdmitBatchRows = rows
+	}
+	if raw := configValue(values, "WK_CONVERSATION_AUTHORITY_ADMIT_CONCURRENCY"); raw != "" {
+		concurrency, err := parseInt("WK_CONVERSATION_AUTHORITY_ADMIT_CONCURRENCY", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if concurrency <= 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CONVERSATION_AUTHORITY_ADMIT_CONCURRENCY: value must be > 0")
+		}
+		cfg.Conversation.AuthorityAdmitConcurrency = concurrency
+	}
+	if raw := configValue(values, "WK_CHANNEL_LARGE_GROUP_SUBSCRIBER_THRESHOLD"); raw != "" {
+		threshold, err := parseInt("WK_CHANNEL_LARGE_GROUP_SUBSCRIBER_THRESHOLD", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if threshold <= 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CHANNEL_LARGE_GROUP_SUBSCRIBER_THRESHOLD: value must be > 0")
+		}
+		cfg.Channel.LargeGroupSubscriberThreshold = threshold
+	}
+	if raw := configValue(values, "WK_DELIVERY_ENABLE"); raw != "" {
+		enabled, err := parseBool("WK_DELIVERY_ENABLE", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Delivery.Enabled = enabled
+	}
+	if raw := configValue(values, "WK_CHANNEL_APPEND_SHARD_COUNT"); raw != "" {
+		shards, err := parseInt("WK_CHANNEL_APPEND_SHARD_COUNT", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if shards < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CHANNEL_APPEND_SHARD_COUNT: value must be >= 0")
+		}
+		cfg.ChannelAppend.AuthorityShardCount = shards
+	}
+	if raw := configValue(values, "WK_CHANNEL_APPEND_ADVANCE_POOL_SIZE"); raw != "" {
+		size, err := parseInt("WK_CHANNEL_APPEND_ADVANCE_POOL_SIZE", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if size < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CHANNEL_APPEND_ADVANCE_POOL_SIZE: value must be >= 0")
+		}
+		cfg.ChannelAppend.AdvancePoolSize = size
+	}
+	if raw := configValue(values, "WK_CHANNEL_APPEND_EFFECT_POOL_SIZE"); raw != "" {
+		size, err := parseInt("WK_CHANNEL_APPEND_EFFECT_POOL_SIZE", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if size < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CHANNEL_APPEND_EFFECT_POOL_SIZE: value must be >= 0")
+		}
+		cfg.ChannelAppend.EffectPoolSize = size
+	}
+	if raw := configValue(values, "WK_CHANNEL_APPEND_RECIPIENT_AUTHORITY_DISPATCH_CONCURRENCY"); raw != "" {
+		concurrency, err := parseInt("WK_CHANNEL_APPEND_RECIPIENT_AUTHORITY_DISPATCH_CONCURRENCY", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if concurrency < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CHANNEL_APPEND_RECIPIENT_AUTHORITY_DISPATCH_CONCURRENCY: value must be >= 0")
+		}
+		cfg.ChannelAppend.RecipientAuthorityDispatchConcurrency = concurrency
+	}
+	if raw := configValue(values, "WK_DELIVERY_FANOUT_PAGE_SIZE"); raw != "" {
+		pageSize, err := parseInt("WK_DELIVERY_FANOUT_PAGE_SIZE", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if pageSize < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_DELIVERY_FANOUT_PAGE_SIZE: value must be >= 0")
+		}
+		cfg.Delivery.FanoutPageSize = pageSize
+	}
+	if raw := configValue(values, "WK_DELIVERY_PUSH_BATCH_SIZE"); raw != "" {
+		batchSize, err := parseInt("WK_DELIVERY_PUSH_BATCH_SIZE", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if batchSize < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_DELIVERY_PUSH_BATCH_SIZE: value must be >= 0")
+		}
+		cfg.Delivery.PushBatchSize = batchSize
+	}
+	if raw := configValue(values, "WK_DELIVERY_PENDING_ACK_TTL"); raw != "" {
+		ttl, err := parseDuration("WK_DELIVERY_PENDING_ACK_TTL", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if ttl < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_DELIVERY_PENDING_ACK_TTL: value must be >= 0")
+		}
+		cfg.Delivery.PendingAckTTL = ttl
+	}
+	if raw := configValue(values, "WK_DELIVERY_PENDING_ACK_MAX_PER_SESSION"); raw != "" {
+		maxPending, err := parseInt("WK_DELIVERY_PENDING_ACK_MAX_PER_SESSION", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if maxPending < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_DELIVERY_PENDING_ACK_MAX_PER_SESSION: value must be >= 0")
+		}
+		cfg.Delivery.PendingAckMaxPerSession = maxPending
+	}
+	if raw := configValue(values, "WK_DELIVERY_EVENT_QUEUE_SIZE"); raw != "" {
+		queueSize, err := parseInt("WK_DELIVERY_EVENT_QUEUE_SIZE", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if queueSize < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_DELIVERY_EVENT_QUEUE_SIZE: value must be >= 0")
+		}
+		cfg.Delivery.EventQueueSize = queueSize
+	}
+	cfg.Webhook.HTTPAddr = configValue(values, "WK_WEBHOOK_HTTP_ADDR")
+	if raw := configValue(values, "WK_WEBHOOK_FOCUS_EVENTS"); raw != "" {
+		focusEvents, err := parseStringList("WK_WEBHOOK_FOCUS_EVENTS", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Webhook.FocusEvents = focusEvents
+	}
+	if raw := configValue(values, "WK_WEBHOOK_QUEUE_SIZE"); raw != "" {
+		queueSize, err := parseInt("WK_WEBHOOK_QUEUE_SIZE", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if queueSize < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_WEBHOOK_QUEUE_SIZE: value must be >= 0")
+		}
+		cfg.Webhook.QueueSize = queueSize
+	}
+	if raw := configValue(values, "WK_WEBHOOK_WORKERS"); raw != "" {
+		workers, err := parseInt("WK_WEBHOOK_WORKERS", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if workers < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_WEBHOOK_WORKERS: value must be >= 0")
+		}
+		cfg.Webhook.Workers = workers
+	}
+	if raw := configValue(values, "WK_WEBHOOK_MSG_NOTIFY_BATCH_MAX_ITEMS"); raw != "" {
+		maxItems, err := parseInt("WK_WEBHOOK_MSG_NOTIFY_BATCH_MAX_ITEMS", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if maxItems < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_WEBHOOK_MSG_NOTIFY_BATCH_MAX_ITEMS: value must be >= 0")
+		}
+		cfg.Webhook.NotifyBatchMaxItems = maxItems
+	}
+	if raw := configValue(values, "WK_WEBHOOK_MSG_NOTIFY_BATCH_MAX_WAIT"); raw != "" {
+		maxWait, err := parseDuration("WK_WEBHOOK_MSG_NOTIFY_BATCH_MAX_WAIT", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if maxWait < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_WEBHOOK_MSG_NOTIFY_BATCH_MAX_WAIT: value must be >= 0")
+		}
+		cfg.Webhook.NotifyBatchMaxWait = maxWait
+	}
+	if raw := configValue(values, "WK_WEBHOOK_ONLINE_STATUS_BATCH_MAX_ITEMS"); raw != "" {
+		maxItems, err := parseInt("WK_WEBHOOK_ONLINE_STATUS_BATCH_MAX_ITEMS", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if maxItems < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_WEBHOOK_ONLINE_STATUS_BATCH_MAX_ITEMS: value must be >= 0")
+		}
+		cfg.Webhook.OnlineBatchMaxItems = maxItems
+	}
+	if raw := configValue(values, "WK_WEBHOOK_ONLINE_STATUS_BATCH_MAX_WAIT"); raw != "" {
+		maxWait, err := parseDuration("WK_WEBHOOK_ONLINE_STATUS_BATCH_MAX_WAIT", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if maxWait < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_WEBHOOK_ONLINE_STATUS_BATCH_MAX_WAIT: value must be >= 0")
+		}
+		cfg.Webhook.OnlineBatchMaxWait = maxWait
+	}
+	if raw := configValue(values, "WK_WEBHOOK_OFFLINE_UID_BATCH_SIZE"); raw != "" {
+		batchSize, err := parseInt("WK_WEBHOOK_OFFLINE_UID_BATCH_SIZE", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if batchSize < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_WEBHOOK_OFFLINE_UID_BATCH_SIZE: value must be >= 0")
+		}
+		cfg.Webhook.OfflineUIDBatchSize = batchSize
+	}
+	if raw := configValue(values, "WK_WEBHOOK_REQUEST_TIMEOUT"); raw != "" {
+		timeout, err := parseDuration("WK_WEBHOOK_REQUEST_TIMEOUT", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if timeout < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_WEBHOOK_REQUEST_TIMEOUT: value must be >= 0")
+		}
+		cfg.Webhook.RequestTimeout = timeout
+	}
+	if raw := configValue(values, "WK_WEBHOOK_RETRY_MAX_ATTEMPTS"); raw != "" {
+		attempts, err := parseInt("WK_WEBHOOK_RETRY_MAX_ATTEMPTS", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if attempts < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_WEBHOOK_RETRY_MAX_ATTEMPTS: value must be >= 0")
+		}
+		cfg.Webhook.RetryMaxAttempts = attempts
+	}
+	cfg.Webhook, err = app.NormalizeWebhookConfig(cfg.Webhook)
+	if err != nil {
+		return app.Config{}, err
+	}
+	if raw := configValue(values, "WK_PLUGIN_ENABLE"); raw != "" {
+		enabled, err := parseBool("WK_PLUGIN_ENABLE", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Plugin.Enable = enabled
+	}
+	cfg.Plugin.Dir = configValue(values, "WK_PLUGIN_DIR")
+	cfg.Plugin.SocketPath = configValue(values, "WK_PLUGIN_SOCKET_PATH")
+	cfg.Plugin.SandboxDir = configValue(values, "WK_PLUGIN_SANDBOX_DIR")
+	cfg.Plugin.StateDir = configValue(values, "WK_PLUGIN_STATE_DIR")
+	if raw := configValue(values, "WK_PLUGIN_TIMEOUT"); raw != "" {
+		timeout, err := parseDuration("WK_PLUGIN_TIMEOUT", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if timeout < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_PLUGIN_TIMEOUT: value must be >= 0")
+		}
+		cfg.Plugin.Timeout = timeout
+	}
+	if raw := configValue(values, "WK_PLUGIN_HOT_RELOAD"); raw != "" {
+		hotReload, err := parseBool("WK_PLUGIN_HOT_RELOAD", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Plugin.HotReload = hotReload
+	}
+	if raw := configValue(values, "WK_PLUGIN_FAIL_OPEN"); raw != "" {
+		failOpen, err := parseBool("WK_PLUGIN_FAIL_OPEN", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		cfg.Plugin.FailOpen = failOpen
+	}
+	if raw := configValue(values, "WK_PLUGIN_PERSIST_AFTER_QUEUE_SIZE"); raw != "" {
+		queueSize, err := parseInt("WK_PLUGIN_PERSIST_AFTER_QUEUE_SIZE", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if queueSize < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_PLUGIN_PERSIST_AFTER_QUEUE_SIZE: value must be >= 0")
+		}
+		cfg.Plugin.PersistAfterQueueSize = queueSize
+	}
+	if raw := configValue(values, "WK_PLUGIN_PERSIST_AFTER_WORKERS"); raw != "" {
+		workers, err := parseInt("WK_PLUGIN_PERSIST_AFTER_WORKERS", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if workers < 0 {
+			return app.Config{}, fmt.Errorf("parse WK_PLUGIN_PERSIST_AFTER_WORKERS: value must be >= 0")
+		}
+		cfg.Plugin.PersistAfterWorkers = workers
+	}
+	cfg.Plugin.SetExplicitFlags(configValue(values, "WK_PLUGIN_HOT_RELOAD") != "")
+	cfg.Cluster.ChannelRetention = clusterv2.ChannelRetentionConfig{
+		PhysicalGCEnabled: cfg.ChannelMessageRetention.PhysicalGCEnabled,
+		ScanInterval:      cfg.ChannelMessageRetention.ScanInterval,
+		ChannelBatchSize:  cfg.ChannelMessageRetention.ChannelBatchSize,
+		MaxTrimMessages:   cfg.ChannelMessageRetention.MaxTrimMessages,
+		MaxTrimBytes:      cfg.ChannelMessageRetention.MaxTrimBytes,
 	}
 
 	return cfg, nil
 }
-
-func missingDefaultConfigError(attemptedPaths []string, err error) error {
-	return fmt.Errorf(
-		"load config: no config file found in default paths %s: %w",
-		strings.Join(attemptedPaths, ", "),
-		err,
-	)
-}
-
-const defaultAPIListenAddr = "0.0.0.0:5001"
 
 func defaultGatewayListeners() []gateway.ListenerOptions {
 	return []gateway.ListenerOptions{
@@ -1017,57 +1582,121 @@ func defaultGatewayListeners() []gateway.ListenerOptions {
 	}
 }
 
-func parseListeners(v *viper.Viper) ([]gateway.ListenerOptions, error) {
-	raw := stringValue(v, "WK_GATEWAY_LISTENERS")
-	if raw == "" {
-		return defaultGatewayListeners(), nil
+func defaultGatewayGnetOptions() gateway.GnetTransportOptions {
+	loops := adaptiveGatewayGnetEventLoops(runtime.GOMAXPROCS(0))
+	return gateway.GnetTransportOptions{
+		Multicore:    loops > 1,
+		NumEventLoop: loops,
+		ReusePort:    true,
 	}
+}
 
-	listeners, err := parseJSONValue[[]gateway.ListenerOptions](v, "WK_GATEWAY_LISTENERS")
-	if err != nil {
-		return nil, err
+func adaptiveGatewayGnetEventLoops(gomaxprocs int) int {
+	if gomaxprocs <= 2 {
+		return 1
+	}
+	loops := gomaxprocs / 2
+	if loops < 1 {
+		return 1
+	}
+	if loops > 4 {
+		return 4
+	}
+	return loops
+}
+
+func parseListeners(raw string) ([]gateway.ListenerOptions, error) {
+	var listeners []gateway.ListenerOptions
+	if err := json.Unmarshal([]byte(raw), &listeners); err != nil {
+		return nil, fmt.Errorf("parse WK_GATEWAY_LISTENERS as JSON: %w", err)
 	}
 	return listeners, nil
 }
 
-func parseJSONValue[T any](v *viper.Viper, key string) (T, error) {
-	var zero T
-
-	raw := stringValue(v, key)
-	if raw == "" {
-		return zero, nil
+func parseClusterNodes(raw string) ([]clusterNodeConfig, error) {
+	var nodes []clusterNodeConfig
+	if err := json.Unmarshal([]byte(raw), &nodes); err != nil {
+		return nil, fmt.Errorf("parse WK_CLUSTER_NODES as JSON: %w", err)
 	}
-
-	var value T
-	if err := v.UnmarshalKey(key, &value); err == nil {
-		return value, nil
-	}
-
-	if err := jsonUnmarshalString(raw, &value); err != nil {
-		return zero, fmt.Errorf("parse %s as JSON: %w", key, err)
-	}
-	return value, nil
+	return nodes, nil
 }
 
-func parseJSONStringList(v *viper.Viper, key string) ([]string, error) {
-	raw := stringValue(v, key)
-	if raw == "" {
-		return nil, nil
+func parseClusterSeeds(raw string) ([]string, error) {
+	var seeds []string
+	if err := json.Unmarshal([]byte(raw), &seeds); err != nil {
+		return nil, fmt.Errorf("parse WK_CLUSTER_SEEDS as JSON: %w", err)
 	}
+	if len(seeds) == 0 {
+		return nil, fmt.Errorf("parse WK_CLUSTER_SEEDS: seed list must not be empty")
+	}
+	for i, seed := range seeds {
+		seeds[i] = strings.TrimSpace(seed)
+		if seeds[i] == "" {
+			return nil, fmt.Errorf("parse WK_CLUSTER_SEEDS: seed address must not be empty")
+		}
+	}
+	return seeds, nil
+}
 
-	var value []string
-	if err := jsonUnmarshalString(raw, &value); err != nil {
+func parseStringList(key, raw string) ([]string, error) {
+	var values []string
+	if err := json.Unmarshal([]byte(raw), &values); err != nil {
 		return nil, fmt.Errorf("parse %s as JSON: %w", key, err)
 	}
-	return value, nil
+	for i := range values {
+		values[i] = strings.TrimSpace(values[i])
+	}
+	return values, nil
 }
 
-func parseUint64(v *viper.Viper, key string) (uint64, error) {
-	raw := stringValue(v, key)
-	if raw == "" {
-		return 0, nil
+func parseDiagnosticsDebugMatches(raw string) ([]app.DiagnosticsDebugMatchConfig, error) {
+	var matches []app.DiagnosticsDebugMatchConfig
+	if err := json.Unmarshal([]byte(raw), &matches); err != nil {
+		return nil, fmt.Errorf("parse WK_DIAGNOSTICS_DEBUG_MATCHES as JSON: %w", err)
 	}
+	for _, match := range matches {
+		if !validSampleRate(match.SampleRate) {
+			return nil, fmt.Errorf("parse WK_DIAGNOSTICS_DEBUG_MATCHES: sample_rate must be between 0 and 1")
+		}
+		if match.TTLSeconds < 0 {
+			return nil, fmt.Errorf("parse WK_DIAGNOSTICS_DEBUG_MATCHES: ttl_seconds must be >= 0")
+		}
+	}
+	return matches, nil
+}
 
+func parseManagerUsers(raw string) ([]app.ManagerUserConfig, error) {
+	var users []app.ManagerUserConfig
+	if err := json.Unmarshal([]byte(raw), &users); err != nil {
+		return nil, fmt.Errorf("parse WK_MANAGER_USERS as JSON: %w", err)
+	}
+	return users, nil
+}
+
+func clusterVoters(nodes []clusterNodeConfig) []clusterv2.ControlVoter {
+	voters := make([]clusterv2.ControlVoter, 0, len(nodes))
+	for _, node := range nodes {
+		voters = append(voters, clusterv2.ControlVoter{NodeID: node.ID, Addr: strings.TrimSpace(node.Addr)})
+	}
+	return voters
+}
+
+func deriveStaticClusterID(nodes []clusterNodeConfig) string {
+	ids := make([]uint64, 0, len(nodes))
+	for _, node := range nodes {
+		if node.ID != 0 {
+			ids = append(ids, node.ID)
+		}
+	}
+	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+	parts := make([]string, 0, len(ids))
+	for _, id := range ids {
+		parts = append(parts, strconv.FormatUint(id, 10))
+	}
+	return "wk-clusterv2-static-" + strings.Join(parts, "-")
+}
+
+func parseUint64(key, raw string) (uint64, error) {
 	value, err := strconv.ParseUint(raw, 10, 64)
 	if err != nil {
 		return 0, fmt.Errorf("parse %s: %w", key, err)
@@ -1075,12 +1704,7 @@ func parseUint64(v *viper.Viper, key string) (uint64, error) {
 	return value, nil
 }
 
-func parseUint32(v *viper.Viper, key string) (uint32, error) {
-	raw := stringValue(v, key)
-	if raw == "" {
-		return 0, nil
-	}
-
+func parseUint32(key, raw string) (uint32, error) {
 	value, err := strconv.ParseUint(raw, 10, 32)
 	if err != nil {
 		return 0, fmt.Errorf("parse %s: %w", key, err)
@@ -1088,12 +1712,7 @@ func parseUint32(v *viper.Viper, key string) (uint32, error) {
 	return uint32(value), nil
 }
 
-func parseUint16(v *viper.Viper, key string) (uint16, error) {
-	raw := stringValue(v, key)
-	if raw == "" {
-		return 0, nil
-	}
-
+func parseUint16(key, raw string) (uint16, error) {
 	value, err := strconv.ParseUint(raw, 10, 16)
 	if err != nil {
 		return 0, fmt.Errorf("parse %s: %w", key, err)
@@ -1101,51 +1720,7 @@ func parseUint16(v *viper.Viper, key string) (uint16, error) {
 	return uint16(value), nil
 }
 
-func parseInt(v *viper.Viper, key string) (int, error) {
-	raw := stringValue(v, key)
-	if raw == "" {
-		return 0, nil
-	}
-
-	value, err := strconv.Atoi(raw)
-	if err != nil {
-		return 0, fmt.Errorf("parse %s: %w", key, err)
-	}
-	return value, nil
-}
-
-func parseInt64(v *viper.Viper, key string) (int64, error) {
-	raw := stringValue(v, key)
-	if raw == "" {
-		return 0, nil
-	}
-
-	value, err := strconv.ParseInt(raw, 10, 64)
-	if err != nil {
-		return 0, fmt.Errorf("parse %s: %w", key, err)
-	}
-	return value, nil
-}
-
-func parseFloat(v *viper.Viper, key string) (float64, error) {
-	raw := stringValue(v, key)
-	if raw == "" {
-		return 0, nil
-	}
-
-	value, err := strconv.ParseFloat(raw, 64)
-	if err != nil {
-		return 0, fmt.Errorf("parse %s: %w", key, err)
-	}
-	return value, nil
-}
-
-func parseBool(v *viper.Viper, key string) (bool, error) {
-	raw := stringValue(v, key)
-	if raw == "" {
-		return false, nil
-	}
-
+func parseBool(key, raw string) (bool, error) {
 	value, err := strconv.ParseBool(raw)
 	if err != nil {
 		return false, fmt.Errorf("parse %s: %w", key, err)
@@ -1153,25 +1728,38 @@ func parseBool(v *viper.Viper, key string) (bool, error) {
 	return value, nil
 }
 
-func parseOptionalBool(v *viper.Viper, key string) (*bool, error) {
-	raw := stringValue(v, key)
-	if raw == "" {
-		return nil, nil
-	}
-
-	value, err := strconv.ParseBool(raw)
+func parseInt(key, raw string) (int, error) {
+	value, err := strconv.Atoi(raw)
 	if err != nil {
-		return nil, fmt.Errorf("parse %s: %w", key, err)
+		return 0, fmt.Errorf("parse %s: %w", key, err)
 	}
-	return &value, nil
+	return value, nil
 }
 
-func parseDuration(v *viper.Viper, key string) (time.Duration, error) {
-	raw := stringValue(v, key)
-	if raw == "" {
-		return 0, nil
+func parseInt64(key, raw string) (int64, error) {
+	value, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("parse %s: %w", key, err)
 	}
+	return value, nil
+}
 
+func parseFloat(key, raw string) (float64, error) {
+	value, err := strconv.ParseFloat(raw, 64)
+	if err != nil {
+		return 0, fmt.Errorf("parse %s: %w", key, err)
+	}
+	if math.IsNaN(value) || math.IsInf(value, 0) {
+		return 0, fmt.Errorf("parse %s: value must be finite", key)
+	}
+	return value, nil
+}
+
+func validSampleRate(rate float64) bool {
+	return !math.IsNaN(rate) && !math.IsInf(rate, 0) && rate >= 0 && rate <= 1
+}
+
+func parseDuration(key, raw string) (time.Duration, error) {
 	value, err := time.ParseDuration(raw)
 	if err != nil {
 		return 0, fmt.Errorf("parse %s: %w", key, err)
@@ -1179,23 +1767,34 @@ func parseDuration(v *viper.Viper, key string) (time.Duration, error) {
 	return value, nil
 }
 
-func parseRaftSnapshotChunkSize(v *viper.Viper, key string) (uint64, error) {
-	raw := stringValue(v, key)
-	if raw == "" {
-		return 0, nil
+func validateClusterHealthReportConfig(cfg clusterv2.HealthReportConfig) error {
+	interval := cfg.Interval
+	if interval == 0 {
+		interval = 5 * time.Second
 	}
+	ttl := cfg.TTL
+	if ttl == 0 {
+		ttl = 30 * time.Second
+	}
+	if ttl < interval {
+		return fmt.Errorf("parse WK_CLUSTER_NODE_HEALTH_REPORT_TTL: value must be >= WK_CLUSTER_NODE_HEALTH_REPORT_INTERVAL")
+	}
+	return nil
+}
 
-	value, err := app.ParseRaftSnapshotChunkSize(raw)
-	if err != nil {
-		return 0, fmt.Errorf("parse %s: %w", key, err)
+func configValue(values map[string]string, key string) string {
+	return strings.TrimSpace(values[key])
+}
+
+func configKeyPresent(values map[string]string, key string) bool {
+	_, ok := values[key]
+	return ok
+}
+
+func requiredConfigValue(values map[string]string, key string) (string, error) {
+	value := configValue(values, key)
+	if value == "" {
+		return "", fmt.Errorf("missing required config key %s", key)
 	}
 	return value, nil
-}
-
-func stringValue(v *viper.Viper, key string) string {
-	return strings.TrimSpace(v.GetString(key))
-}
-
-func jsonUnmarshalString[T any](raw string, value *T) error {
-	return json.Unmarshal([]byte(raw), value)
 }

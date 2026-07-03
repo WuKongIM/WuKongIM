@@ -1,35 +1,39 @@
-# WuKongIM v2 static three-node cluster example: node 1.
+# WuKongIM single-node cluster verification config.
 #
-# Start node1, node2, and node3 configs in separate terminals from the repo root.
+# This file only uses keys currently parsed by cmd/wukongim. It starts one
+# node as a single-node cluster for the phase-1 SEND -> SENDACK path.
 
-# Stable non-zero node identity. This node must appear in WK_CLUSTER_NODES.
+# Stable non-zero node identity. Message IDs are seeded from this value.
 WK_NODE_ID=1
 
 # Root data directory for clusterv2 controller, slot, and channel data.
-WK_NODE_DATA_DIR=./data/wukongimv2-node-1
+WK_NODE_DATA_DIR=./data/wukongim-single-node-data
 
-# Node-to-node clusterv2 RPC listen address advertised for node 1.
-WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7011
+# Node-to-node clusterv2 RPC listen address. Keep it reachable by this node.
+WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7001
 
-# Stable cluster identity shared by all nodes in this static cluster.
-WK_CLUSTER_ID=wukongimv2-dev-three
+# Stable cluster identity shared by every node in this clusterv2 cluster.
+WK_CLUSTER_ID=wukongim-single
 
 # Static Controller voter bootstrap. Existing bootstrap nodes keep this full list.
 # New dynamic data nodes must use WK_CLUSTER_SEEDS instead of WK_CLUSTER_NODES.
-WK_CLUSTER_NODES=[{"id":1,"addr":"127.0.0.1:7011"},{"id":2,"addr":"127.0.0.1:7012"},{"id":3,"addr":"127.0.0.1:7013"}]
+WK_CLUSTER_NODES=[{"id":1,"addr":"127.0.0.1:7001"}]
 
 # Shared join secret accepted by seed JoinNode RPC handlers.
 WK_CLUSTER_JOIN_TOKEN=change-me
 
 # Physical Slot count created by the initial ControllerV2 snapshot.
-# Three local nodes use one physical Slot per node to avoid a single metadata Raft group bottleneck.
-WK_CLUSTER_INITIAL_SLOT_COUNT=3
+WK_CLUSTER_INITIAL_SLOT_COUNT=1
 
 # Logical hash-slot count used for routing channel keys to physical Slots.
 WK_CLUSTER_HASH_SLOT_COUNT=16
 
-# Desired Slot replica count. Three replicas require all three listed nodes.
-WK_CLUSTER_SLOT_REPLICA_N=3
+# Desired Slot replica count for this single-node cluster.
+WK_CLUSTER_SLOT_REPLICA_N=1
+
+# Low-frequency durable node health report cadence. TTL must be >= interval.
+WK_CLUSTER_NODE_HEALTH_REPORT_INTERVAL=5s
+WK_CLUSTER_NODE_HEALTH_REPORT_TTL=30s
 
 # ChannelV2 reactor partitions. 0 derives max(4, GOMAXPROCS).
 WK_CLUSTER_CHANNEL_REACTOR_COUNT=0
@@ -51,6 +55,15 @@ WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT=0
 WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_INTERVAL=2s
 WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_JITTER=1s
 
+# Channel message physical cleanup is disabled by default. Manager retention
+# first advances the cluster-authoritative logical boundary; this background
+# loop later removes local message-log prefixes with bounded batches.
+WK_CHANNEL_MESSAGE_RETENTION_PHYSICAL_GC_ENABLE=false
+WK_CHANNEL_MESSAGE_RETENTION_SCAN_INTERVAL=1m
+WK_CHANNEL_MESSAGE_RETENTION_CHANNEL_BATCH_SIZE=128
+WK_CHANNEL_MESSAGE_RETENTION_MAX_TRIM_MESSAGES=1000
+WK_CHANNEL_MESSAGE_RETENTION_MAX_TRIM_BYTES=0
+
 # Maximum time to collect adjacent ChannelV2 append requests before one durable fsync.
 WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW=200us
 # Optional caps for one grouped physical commit. 0 keeps the limit unbounded.
@@ -60,10 +73,10 @@ WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES=0
 WK_CLUSTER_COMMIT_COORDINATOR_SHARDS=0
 
 # Optional HTTP API listener for /healthz, /readyz, metrics, and bench/v1.
-WK_API_LISTEN_ADDR=127.0.0.1:5011
+WK_API_LISTEN_ADDR=127.0.0.1:5001
 
 # Dedicated manager HTTP API listener for /manager/login.
-WK_MANAGER_LISTEN_ADDR=127.0.0.1:5311
+WK_MANAGER_LISTEN_ADDR=127.0.0.1:5301
 WK_MANAGER_AUTH_ON=true
 # Replace the manager JWT secret and development password before production use.
 WK_MANAGER_JWT_SECRET=wukongim-dev-manager-secret
@@ -83,8 +96,8 @@ WK_METRICS_ENABLE=true
 # Optional app-managed Prometheus process. It requires WK_METRICS_ENABLE=true and scrapes this node's /metrics endpoint.
 WK_PROMETHEUS_ENABLE=false
 WK_PROMETHEUS_BINARY_PATH=
-WK_PROMETHEUS_LISTEN_ADDR=127.0.0.1:9091
-WK_PROMETHEUS_DATA_DIR=./data/wukongimv2-node-1/prometheus
+WK_PROMETHEUS_LISTEN_ADDR=127.0.0.1:9090
+WK_PROMETHEUS_DATA_DIR=./data/wukongim-single-node-data/prometheus
 WK_PROMETHEUS_RETENTION_TIME=360h
 WK_PROMETHEUS_RETENTION_SIZE=
 WK_PROMETHEUS_SCRAPE_INTERVAL=15s
@@ -116,7 +129,7 @@ WK_DIAGNOSTICS_DEBUG_MATCHES=[]
 
 # Rolling application logs. Console and compression default true when unset.
 WK_LOG_LEVEL=info
-WK_LOG_DIR=./data/wukongimv2-node-1/logs
+WK_LOG_DIR=./data/wukongim-single-node-data/logs
 WK_LOG_MAX_SIZE=100
 WK_LOG_MAX_AGE=30
 WK_LOG_MAX_BACKUPS=10
@@ -125,13 +138,13 @@ WK_LOG_CONSOLE=true
 WK_LOG_FORMAT=console
 
 # Published gateway addresses returned by bench capacity discovery.
-WK_EXTERNAL_TCPADDR=127.0.0.1:5111
-WK_EXTERNAL_WSADDR=ws://127.0.0.1:5211
+WK_EXTERNAL_TCPADDR=127.0.0.1:5100
+WK_EXTERNAL_WSADDR=ws://127.0.0.1:5200
 
 # Client-facing gateway listeners. List fields use one JSON string value.
-WK_GATEWAY_LISTENERS=[{"name":"tcp-wkproto","network":"tcp","address":"127.0.0.1:5111","transport":"gnet","protocol":"wkproto"},{"name":"ws-gateway","network":"websocket","address":"127.0.0.1:5211","transport":"gnet","protocol":"wsmux"}]
+WK_GATEWAY_LISTENERS=[{"name":"tcp-wkproto","network":"tcp","address":"0.0.0.0:5100","transport":"gnet","protocol":"wkproto"},{"name":"ws-gateway","network":"websocket","address":"0.0.0.0:5200","transport":"gnet","protocol":"wsmux"}]
 
-# Optional gnet event-loop tuning. 0 keeps the CPU-aware cmd/wukongimv2 default.
+# Optional gnet event-loop tuning. 0 keeps the CPU-aware cmd/wukongim default.
 WK_GATEWAY_GNET_MULTICORE=true
 WK_GATEWAY_GNET_NUM_EVENT_LOOP=0
 

@@ -1,18 +1,18 @@
-# WuKongIM v2 static three-node cluster example: node 3.
+# WuKongIM static three-node cluster example: node 1.
 #
 # Start node1, node2, and node3 configs in separate terminals from the repo root.
 
 # Stable non-zero node identity. This node must appear in WK_CLUSTER_NODES.
-WK_NODE_ID=3
+WK_NODE_ID=1
 
 # Root data directory for clusterv2 controller, slot, and channel data.
-WK_NODE_DATA_DIR=./data/wukongimv2-node-3
+WK_NODE_DATA_DIR=./data/wukongim-node-1
 
-# Node-to-node clusterv2 RPC listen address advertised for node 3.
-WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7013
+# Node-to-node clusterv2 RPC listen address advertised for node 1.
+WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7011
 
 # Stable cluster identity shared by all nodes in this static cluster.
-WK_CLUSTER_ID=wukongimv2-dev-three
+WK_CLUSTER_ID=wukongim-dev-three
 
 # Static Controller voter bootstrap. Existing bootstrap nodes keep this full list.
 # New dynamic data nodes must use WK_CLUSTER_SEEDS instead of WK_CLUSTER_NODES.
@@ -60,10 +60,10 @@ WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES=0
 WK_CLUSTER_COMMIT_COORDINATOR_SHARDS=0
 
 # Optional HTTP API listener for /healthz, /readyz, metrics, and bench/v1.
-WK_API_LISTEN_ADDR=127.0.0.1:5013
+WK_API_LISTEN_ADDR=127.0.0.1:5011
 
 # Dedicated manager HTTP API listener for /manager/login.
-WK_MANAGER_LISTEN_ADDR=127.0.0.1:5313
+WK_MANAGER_LISTEN_ADDR=127.0.0.1:5311
 WK_MANAGER_AUTH_ON=true
 # Replace the manager JWT secret and development password before production use.
 WK_MANAGER_JWT_SECRET=wukongim-dev-manager-secret
@@ -83,8 +83,8 @@ WK_METRICS_ENABLE=true
 # Optional app-managed Prometheus process. It requires WK_METRICS_ENABLE=true and scrapes this node's /metrics endpoint.
 WK_PROMETHEUS_ENABLE=false
 WK_PROMETHEUS_BINARY_PATH=
-WK_PROMETHEUS_LISTEN_ADDR=127.0.0.1:9093
-WK_PROMETHEUS_DATA_DIR=./data/wukongimv2-node-3/prometheus
+WK_PROMETHEUS_LISTEN_ADDR=127.0.0.1:9091
+WK_PROMETHEUS_DATA_DIR=./data/wukongim-node-1/prometheus
 WK_PROMETHEUS_RETENTION_TIME=360h
 WK_PROMETHEUS_RETENTION_SIZE=
 WK_PROMETHEUS_SCRAPE_INTERVAL=15s
@@ -116,7 +116,7 @@ WK_DIAGNOSTICS_DEBUG_MATCHES=[]
 
 # Rolling application logs. Console and compression default true when unset.
 WK_LOG_LEVEL=info
-WK_LOG_DIR=./data/wukongimv2-node-3/logs
+WK_LOG_DIR=./data/wukongim-node-1/logs
 WK_LOG_MAX_SIZE=100
 WK_LOG_MAX_AGE=30
 WK_LOG_MAX_BACKUPS=10
@@ -125,13 +125,13 @@ WK_LOG_CONSOLE=true
 WK_LOG_FORMAT=console
 
 # Published gateway addresses returned by bench capacity discovery.
-WK_EXTERNAL_TCPADDR=127.0.0.1:5113
-WK_EXTERNAL_WSADDR=ws://127.0.0.1:5213
+WK_EXTERNAL_TCPADDR=127.0.0.1:5111
+WK_EXTERNAL_WSADDR=ws://127.0.0.1:5211
 
 # Client-facing gateway listeners. List fields use one JSON string value.
-WK_GATEWAY_LISTENERS=[{"name":"tcp-wkproto","network":"tcp","address":"127.0.0.1:5113","transport":"gnet","protocol":"wkproto"},{"name":"ws-gateway","network":"websocket","address":"127.0.0.1:5213","transport":"gnet","protocol":"wsmux"}]
+WK_GATEWAY_LISTENERS=[{"name":"tcp-wkproto","network":"tcp","address":"127.0.0.1:5111","transport":"gnet","protocol":"wkproto"},{"name":"ws-gateway","network":"websocket","address":"127.0.0.1:5211","transport":"gnet","protocol":"wsmux"}]
 
-# Optional gnet event-loop tuning. 0 keeps the CPU-aware cmd/wukongimv2 default.
+# Optional gnet event-loop tuning. 0 keeps the CPU-aware cmd/wukongim default.
 WK_GATEWAY_GNET_MULTICORE=true
 WK_GATEWAY_GNET_NUM_EVENT_LOOP=0
 
