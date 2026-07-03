@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	runtimeplugin "github.com/WuKongIM/WuKongIM/internal/runtime/plugin"
 	accessnode "github.com/WuKongIM/WuKongIM/internalv2/access/node"
 	pluginevents "github.com/WuKongIM/WuKongIM/internalv2/contracts/pluginevents"
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/channelappend"
@@ -17,6 +16,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterv2/control"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	pluginhost "github.com/WuKongIM/WuKongIM/pkg/plugin/pluginhost"
 	"github.com/WuKongIM/WuKongIM/pkg/plugin/pluginproto"
 	"github.com/stretchr/testify/require"
 )
@@ -81,8 +81,8 @@ func TestNewWiresPluginUsecaseAsReceiveBindingReader(t *testing.T) {
 
 func TestNewWiresPluginDesiredStoreIntoUsecase(t *testing.T) {
 	dataDir := t.TempDir()
-	store := runtimeplugin.NewStore(filepath.Join(dataDir, "plugin-state"))
-	require.NoError(t, store.Save(runtimeplugin.DesiredState{
+	store := pluginhost.NewStore(filepath.Join(dataDir, "plugin-state"))
+	require.NoError(t, store.Save(pluginhost.DesiredState{
 		No:        "wk.plugin.ai",
 		Config:    json.RawMessage(`{"api_key":"secret"}`),
 		Enabled:   false,
@@ -338,7 +338,7 @@ func TestNewRegistersManagerPluginRPCWhenPluginEnabled(t *testing.T) {
 
 func TestPluginRuntimeAdapterPreservesRuntimeFields(t *testing.T) {
 	lastSeenAt := time.Date(2026, 6, 22, 10, 0, 0, 0, time.UTC)
-	runtime := runtimeplugin.NewRuntime(runtimeplugin.RuntimeOptions{Registry: runtimeplugin.NewRegistry()})
+	runtime := pluginhost.NewRuntime(pluginhost.RuntimeOptions{Registry: pluginhost.NewRegistry()})
 	adapter := pluginRuntimeAdapter{runtime: runtime}
 	err := adapter.RegisterObserved(context.Background(), pluginusecase.ObservedPlugin{
 		No:               "wk.persist",
@@ -501,7 +501,7 @@ func TestPluginReceiveObserverMapsOfflineRecipientEvent(t *testing.T) {
 }
 
 func TestPluginRuntimeAdapterPreservesReceiveMethod(t *testing.T) {
-	runtime := runtimeplugin.NewRuntime(runtimeplugin.RuntimeOptions{Registry: runtimeplugin.NewRegistry()})
+	runtime := pluginhost.NewRuntime(pluginhost.RuntimeOptions{Registry: pluginhost.NewRegistry()})
 	adapter := pluginRuntimeAdapter{runtime: runtime}
 	err := adapter.RegisterObserved(context.Background(), pluginusecase.ObservedPlugin{
 		No:      "wk.receive",

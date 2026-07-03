@@ -18,7 +18,6 @@ import (
 	appretention "github.com/WuKongIM/WuKongIM/internal/runtime/channelretention"
 	deliveryruntime "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
-	runtimeplugin "github.com/WuKongIM/WuKongIM/internal/runtime/plugin"
 	channelusecase "github.com/WuKongIM/WuKongIM/internal/usecase/channel"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/cmdsync"
 	conversationusecase "github.com/WuKongIM/WuKongIM/internal/usecase/conversation"
@@ -37,6 +36,7 @@ import (
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/gateway"
 	obsmetrics "github.com/WuKongIM/WuKongIM/pkg/metrics"
+	pluginhost "github.com/WuKongIM/WuKongIM/pkg/plugin/pluginhost"
 	raftstorage "github.com/WuKongIM/WuKongIM/pkg/raftlog"
 	metastore "github.com/WuKongIM/WuKongIM/pkg/slot/proxy"
 	"github.com/WuKongIM/WuKongIM/pkg/transport"
@@ -74,7 +74,7 @@ type App struct {
 	channelMigrationLifecycle *channelMigrationLifecycle
 	channelRetentionWorker    *appretention.Worker
 	messageApp                *message.App
-	pluginRuntime             *runtimeplugin.Runtime
+	pluginRuntime             *pluginhost.Runtime
 	pluginApp                 *pluginusecase.App
 	pluginReceiveObserver     *pluginReceiveObserver
 	pluginAccess              *accessplugin.Server

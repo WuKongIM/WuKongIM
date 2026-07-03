@@ -183,6 +183,7 @@
 - Plugin sends must go through `message.App.Send`; PersistAfter runs only on the channel owner node.
 - Plugin migration changes should rerun the microbenchmark baseline in `docs/development/PLUGIN_BENCHMARK_BASELINE.md`, especially Send hook selection, host RPC mapping, PersistAfter, HTTP forward, and NoPersist realtime delivery.
 - Plugin wire contracts live in `pkg/plugin/pluginproto`; keep protobuf field numbers compatible with `github.com/WuKongIM/go-pdk` and do not add new imports of old `internal/usecase/plugin/pluginproto`.
+- The node-local plugin process host lives in `pkg/plugin/pluginhost`; v2 app wiring adapts it to `internalv2/usecase/plugin` without depending on old `internal/runtime/plugin`.
 
 ## Development Workflow
 

@@ -1,4 +1,4 @@
-package plugin
+package pluginhost
 
 import (
 	"path/filepath"

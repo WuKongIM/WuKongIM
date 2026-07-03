@@ -105,7 +105,7 @@
 | `channelmeta` | `runtime/channelmeta/` | Channel 元数据：resolver、缓存、lease、repair |
 | `channelplane` | `runtime/channelplane/` | Channel key reactor 平面：durable append 寻址、同频道串行、peer batching 与 typed backpressure |
 | `messageid` | `runtime/messageid/` | Snowflake 分布式 ID 生成 |
-| `plugin.Runtime` | `runtime/plugin/lifecycle.go` | 节点内插件进程、Unix socket、热重载和期望状态运行时 |
+| `pluginhost.Runtime` | `../pkg/plugin/pluginhost/lifecycle.go` | 节点内插件进程、Unix socket、热重载和期望状态运行时 |
 | `userlimit` | `runtime/userlimit/` | 节点内 UID 发送令牌桶限流，保护 message send 热路径 |
 
 #### 事件合约（Contracts）

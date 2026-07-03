@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"path/filepath"
 
-	runtimeplugin "github.com/WuKongIM/WuKongIM/internal/runtime/plugin"
 	accessplugin "github.com/WuKongIM/WuKongIM/internalv2/access/plugin"
 	pluginevents "github.com/WuKongIM/WuKongIM/internalv2/contracts/pluginevents"
 	clusterinfra "github.com/WuKongIM/WuKongIM/internalv2/infra/cluster"
@@ -15,11 +14,12 @@ import (
 	messageusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/message"
 	pluginusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/plugin"
 	userusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/user"
+	pluginhost "github.com/WuKongIM/WuKongIM/pkg/plugin/pluginhost"
 )
 
 // pluginRuntimeAdapter adapts the reusable node-local runtime registry to the v2 plugin usecase port.
 type pluginRuntimeAdapter struct {
-	runtime    *runtimeplugin.Runtime
+	runtime    *pluginhost.Runtime
 	sandboxDir string
 }
 
@@ -59,10 +59,10 @@ func (a *App) wirePluginSubsystem(nodeID uint64) error {
 		return nil
 	}
 
-	socket := runtimeplugin.NewSocketServer(a.cfg.Plugin.SocketPath)
-	invoker := runtimeplugin.NewInvoker(socket, runtimeplugin.WithTimeout(a.cfg.Plugin.Timeout))
-	store := runtimeplugin.NewStore(a.cfg.Plugin.StateDir)
-	runtime := runtimeplugin.NewRuntime(runtimeplugin.RuntimeOptions{
+	socket := pluginhost.NewSocketServer(a.cfg.Plugin.SocketPath)
+	invoker := pluginhost.NewInvoker(socket, pluginhost.WithTimeout(a.cfg.Plugin.Timeout))
+	store := pluginhost.NewStore(a.cfg.Plugin.StateDir)
+	runtime := pluginhost.NewRuntime(pluginhost.RuntimeOptions{
 		Enable:     a.cfg.Plugin.Enable,
 		HotReload:  a.cfg.Plugin.HotReload,
 		Dir:        a.cfg.Plugin.Dir,
@@ -137,7 +137,7 @@ func (a pluginRuntimeAdapter) RegisterObserved(_ context.Context, plugin pluginu
 	if a.runtime == nil || a.runtime.Registry() == nil {
 		return pluginusecase.ErrRuntimeRequired
 	}
-	a.runtime.Registry().Upsert(runtimeplugin.ObservedPlugin{
+	a.runtime.Registry().Upsert(pluginhost.ObservedPlugin{
 		No:                plugin.No,
 		Name:              plugin.Name,
 		Version:           plugin.Version,
@@ -161,9 +161,9 @@ func (a pluginRuntimeAdapter) MarkClosed(_ context.Context, pluginNo string) err
 	}
 	plugin, ok := a.runtime.Registry().Get(pluginNo)
 	if !ok {
-		plugin = runtimeplugin.ObservedPlugin{No: pluginNo}
+		plugin = pluginhost.ObservedPlugin{No: pluginNo}
 	}
-	plugin.Status = runtimeplugin.StatusOffline
+	plugin.Status = pluginhost.StatusOffline
 	a.runtime.Registry().Upsert(plugin)
 	return nil
 }
@@ -194,52 +194,52 @@ func (a pluginRuntimeAdapter) List() []pluginusecase.ObservedPlugin {
 	return out
 }
 
-func runtimeMethodsFromUsecase(methods []pluginusecase.Method) []runtimeplugin.Method {
-	out := make([]runtimeplugin.Method, 0, len(methods))
+func runtimeMethodsFromUsecase(methods []pluginusecase.Method) []pluginhost.Method {
+	out := make([]pluginhost.Method, 0, len(methods))
 	for _, method := range methods {
 		switch method {
 		case pluginusecase.MethodReceive, pluginusecase.MethodSend, pluginusecase.MethodPersistAfter, pluginusecase.MethodConfigUpdate:
-			out = append(out, runtimeplugin.Method(method))
+			out = append(out, pluginhost.Method(method))
 		}
 	}
 	return out
 }
 
-func usecaseMethodsFromRuntime(methods []runtimeplugin.Method) []pluginusecase.Method {
+func usecaseMethodsFromRuntime(methods []pluginhost.Method) []pluginusecase.Method {
 	out := make([]pluginusecase.Method, 0, len(methods))
 	for _, method := range methods {
 		switch method {
-		case runtimeplugin.MethodReceive, runtimeplugin.MethodSend, runtimeplugin.MethodPersistAfter, runtimeplugin.MethodConfigUpdate:
+		case pluginhost.MethodReceive, pluginhost.MethodSend, pluginhost.MethodPersistAfter, pluginhost.MethodConfigUpdate:
 			out = append(out, pluginusecase.Method(method))
 		}
 	}
 	return out
 }
 
-func runtimeStatusFromUsecase(status pluginusecase.Status) runtimeplugin.Status {
+func runtimeStatusFromUsecase(status pluginusecase.Status) pluginhost.Status {
 	switch status {
 	case pluginusecase.StatusStarting:
-		return runtimeplugin.StatusStarting
+		return pluginhost.StatusStarting
 	case pluginusecase.StatusRunning:
-		return runtimeplugin.StatusRunning
+		return pluginhost.StatusRunning
 	case pluginusecase.StatusError:
-		return runtimeplugin.StatusError
+		return pluginhost.StatusError
 	case pluginusecase.StatusDisabled:
-		return runtimeplugin.StatusDisabled
+		return pluginhost.StatusDisabled
 	default:
-		return runtimeplugin.StatusOffline
+		return pluginhost.StatusOffline
 	}
 }
 
-func usecaseStatusFromRuntime(status runtimeplugin.Status) pluginusecase.Status {
+func usecaseStatusFromRuntime(status pluginhost.Status) pluginusecase.Status {
 	switch status {
-	case runtimeplugin.StatusStarting:
+	case pluginhost.StatusStarting:
 		return pluginusecase.StatusStarting
-	case runtimeplugin.StatusRunning:
+	case pluginhost.StatusRunning:
 		return pluginusecase.StatusRunning
-	case runtimeplugin.StatusError:
+	case pluginhost.StatusError:
 		return pluginusecase.StatusError
-	case runtimeplugin.StatusDisabled:
+	case pluginhost.StatusDisabled:
 		return pluginusecase.StatusDisabled
 	default:
 		return pluginusecase.StatusOffline
@@ -268,7 +268,7 @@ func (a pluginRuntimeAdapter) Uninstall(ctx context.Context, no string) error {
 }
 
 type pluginDesiredStoreAdapter struct {
-	store *runtimeplugin.Store
+	store *pluginhost.Store
 }
 
 func (a pluginDesiredStoreAdapter) Get(_ context.Context, no string) (pluginusecase.DesiredPlugin, error) {
@@ -277,7 +277,7 @@ func (a pluginDesiredStoreAdapter) Get(_ context.Context, no string) (pluginusec
 	}
 	state, err := a.store.Load(no)
 	if err != nil {
-		if errors.Is(err, runtimeplugin.ErrDesiredStateNotFound) {
+		if errors.Is(err, pluginhost.ErrDesiredStateNotFound) {
 			return pluginusecase.DesiredPlugin{}, pluginusecase.ErrDesiredPluginNotFound
 		}
 		return pluginusecase.DesiredPlugin{}, err
@@ -295,7 +295,7 @@ func (a pluginDesiredStoreAdapter) Save(_ context.Context, state pluginusecase.D
 	if a.store == nil {
 		return pluginusecase.ErrDesiredStoreRequired
 	}
-	return a.store.Save(runtimeplugin.DesiredState{
+	return a.store.Save(pluginhost.DesiredState{
 		No:        state.No,
 		Config:    append([]byte(nil), state.Config...),
 		Enabled:   state.Enabled,

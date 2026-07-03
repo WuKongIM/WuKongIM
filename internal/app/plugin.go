@@ -9,18 +9,18 @@ import (
 
 	accessnode "github.com/WuKongIM/WuKongIM/internal/access/node"
 	accessplugin "github.com/WuKongIM/WuKongIM/internal/access/plugin"
-	runtimeplugin "github.com/WuKongIM/WuKongIM/internal/runtime/plugin"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	pluginusecase "github.com/WuKongIM/WuKongIM/internal/usecase/plugin"
 	userusecase "github.com/WuKongIM/WuKongIM/internal/usecase/user"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
+	pluginhost "github.com/WuKongIM/WuKongIM/pkg/plugin/pluginhost"
 )
 
 func (a *App) buildPluginSubsystem(cfg Config, systemUIDs pluginusecase.SystemUIDChecker) error {
-	socket := runtimeplugin.NewSocketServer(cfg.Plugin.SocketPath)
-	invoker := runtimeplugin.NewInvoker(socket, runtimeplugin.WithTimeout(cfg.Plugin.Timeout))
-	store := runtimeplugin.NewStore(cfg.Plugin.StateDir)
-	runtime := runtimeplugin.NewRuntime(runtimeplugin.RuntimeOptions{
+	socket := pluginhost.NewSocketServer(cfg.Plugin.SocketPath)
+	invoker := pluginhost.NewInvoker(socket, pluginhost.WithTimeout(cfg.Plugin.Timeout))
+	store := pluginhost.NewStore(cfg.Plugin.StateDir)
+	runtime := pluginhost.NewRuntime(pluginhost.RuntimeOptions{
 		Enable:     cfg.Plugin.Enable,
 		HotReload:  cfg.Plugin.HotReload,
 		Dir:        cfg.Plugin.Dir,
@@ -90,7 +90,7 @@ func pluginMessageReader(a *App) managerMessageReader {
 }
 
 type pluginRuntimeAdapter struct {
-	runtime    *runtimeplugin.Runtime
+	runtime    *pluginhost.Runtime
 	sandboxDir string
 }
 
@@ -150,7 +150,7 @@ func (a pluginRuntimeAdapter) SandboxDir(no string) (string, error) {
 }
 
 type pluginDesiredStoreAdapter struct {
-	store *runtimeplugin.Store
+	store *pluginhost.Store
 }
 
 func (a pluginDesiredStoreAdapter) Get(ctx context.Context, no string) (pluginusecase.DesiredPlugin, error) {
@@ -159,7 +159,7 @@ func (a pluginDesiredStoreAdapter) Get(ctx context.Context, no string) (pluginus
 	}
 	state, err := a.store.Load(no)
 	if err != nil {
-		if errors.Is(err, runtimeplugin.ErrDesiredStateNotFound) {
+		if errors.Is(err, pluginhost.ErrDesiredStateNotFound) {
 			return pluginusecase.DesiredPlugin{}, pluginusecase.ErrDesiredPluginNotFound
 		}
 		return pluginusecase.DesiredPlugin{}, err
@@ -177,7 +177,7 @@ func (a pluginDesiredStoreAdapter) Save(ctx context.Context, state pluginusecase
 	if a.store == nil {
 		return nil
 	}
-	return a.store.Save(runtimeplugin.DesiredState{
+	return a.store.Save(pluginhost.DesiredState{
 		No:        state.No,
 		Config:    append(json.RawMessage(nil), state.Config...),
 		Enabled:   state.Enabled,
@@ -290,8 +290,8 @@ func (r pluginChannelOwnerReader) ChannelOwnerNode(ctx context.Context, id chann
 	return uint64(status.Leader), nil
 }
 
-func runtimeObservedFromUsecase(plugin pluginusecase.ObservedPlugin) runtimeplugin.ObservedPlugin {
-	return runtimeplugin.ObservedPlugin{
+func runtimeObservedFromUsecase(plugin pluginusecase.ObservedPlugin) pluginhost.ObservedPlugin {
+	return pluginhost.ObservedPlugin{
 		No:                plugin.No,
 		Name:              plugin.Name,
 		Version:           plugin.Version,
@@ -308,7 +308,7 @@ func runtimeObservedFromUsecase(plugin pluginusecase.ObservedPlugin) runtimeplug
 	}
 }
 
-func usecaseObservedFromRuntime(plugin runtimeplugin.ObservedPlugin) pluginusecase.ObservedPlugin {
+func usecaseObservedFromRuntime(plugin pluginhost.ObservedPlugin) pluginusecase.ObservedPlugin {
 	return pluginusecase.ObservedPlugin{
 		No:                plugin.No,
 		Name:              plugin.Name,
@@ -326,15 +326,15 @@ func usecaseObservedFromRuntime(plugin runtimeplugin.ObservedPlugin) pluginuseca
 	}
 }
 
-func runtimeMethodsFromUsecase(methods []pluginusecase.Method) []runtimeplugin.Method {
-	out := make([]runtimeplugin.Method, 0, len(methods))
+func runtimeMethodsFromUsecase(methods []pluginusecase.Method) []pluginhost.Method {
+	out := make([]pluginhost.Method, 0, len(methods))
 	for _, method := range methods {
-		out = append(out, runtimeplugin.Method(method))
+		out = append(out, pluginhost.Method(method))
 	}
 	return out
 }
 
-func usecaseMethodsFromRuntime(methods []runtimeplugin.Method) []pluginusecase.Method {
+func usecaseMethodsFromRuntime(methods []pluginhost.Method) []pluginusecase.Method {
 	out := make([]pluginusecase.Method, 0, len(methods))
 	for _, method := range methods {
 		out = append(out, pluginusecase.Method(method))
@@ -342,11 +342,11 @@ func usecaseMethodsFromRuntime(methods []runtimeplugin.Method) []pluginusecase.M
 	return out
 }
 
-func runtimeStatusFromUsecase(status pluginusecase.Status) runtimeplugin.Status {
-	return runtimeplugin.Status(status)
+func runtimeStatusFromUsecase(status pluginusecase.Status) pluginhost.Status {
+	return pluginhost.Status(status)
 }
 
-func usecaseStatusFromRuntime(status runtimeplugin.Status) pluginusecase.Status {
+func usecaseStatusFromRuntime(status pluginhost.Status) pluginusecase.Status {
 	return pluginusecase.Status(status)
 }
 

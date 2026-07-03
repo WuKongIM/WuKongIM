@@ -336,7 +336,7 @@ TLV 格式: `[Version:1][CmdType:1][Tag:1 + Length:4 + Value:N]...`
 - **CMD read cursor 单调推进**: `AdvanceCMDConversationReadSeq` 只在新 `ReadSeq` 更大时推进，旧 syncack 重试不能回退 cursor。
 - **PluginUserBinding UID 路由**: 插件绑定表使用 `(uid, plugin_no)` 主键和 `idx_plugin_no_uid(plugin_no, uid)` 二级索引；写入、解绑、按 UID 查询必须以 UID 作为 hash slot 路由 key，按 plugin_no 扫描是诊断/管理查询，需要按 Slot 权威分页聚合。
 - **PluginUserBinding plugin_no 分页**: plugin_no 维度扫描的公开 cursor 以 `(plugin_no, uid, slot_id, hash_slot)` 做总序断点，避免不同 hash slot 中出现相同 `(plugin_no, uid)` 时翻页跳项；远端扫描请求必须校验 `hash_slot` 属于目标物理 Slot。
-- **PluginUserBinding 只表达集群绑定**: 表内只保存 UID 到 plugin_no 的权威关联，不保存节点本地插件配置、启停状态或进程状态；这些状态属于 `internal/runtime/plugin` 的 node-local desired/observed state。
+- **PluginUserBinding 只表达集群绑定**: 表内只保存 UID 到 plugin_no 的权威关联，不保存节点本地插件配置、启停状态或进程状态；这些状态属于 `pkg/plugin/pluginhost` 的 node-local desired/observed state。
 - **PluginUserBinding Receive 选择边界**: 写入绑定不要求目标插件在所有节点都存在；Receive hook 执行时由 usecase 结合本节点 observed plugins、desired enabled 和方法列表选择最高优先级 running Receive 插件。
 - **ApplyBatch 原子性**: 一个 ApplyBatch 内所有命令要么全部成功，要么全部失败（WriteBatch 未 Commit 就丢弃）。任何一条失败会导致整个 Raft Slot fail。
 - **Subscriber 命令硬上限**: `AddSubscribers` / `RemoveSubscribers` 单条 Raft command 最多 1000 个 UID，编码后的 UID 字节最多 64KB；proxy 在提案前校验，FSM decode 仍兜底拒绝超限命令。

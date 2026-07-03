@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	runtimeplugin "github.com/WuKongIM/WuKongIM/internal/runtime/plugin"
+	pluginhost "github.com/WuKongIM/WuKongIM/pkg/plugin/pluginhost"
 	"github.com/WuKongIM/WuKongIM/pkg/plugin/pluginproto"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/wkrpc"
@@ -72,7 +72,7 @@ func TestRegisterRoutes(t *testing.T) {
 }
 
 func TestRouteRegistrarAcceptsRuntimeSocketServer(t *testing.T) {
-	var _ RouteRegistrar = runtimeplugin.NewSocketServer("/tmp/wukongim-plugin-test.sock")
+	var _ RouteRegistrar = pluginhost.NewSocketServer("/tmp/wukongim-plugin-test.sock")
 }
 
 func TestRouteRegistrarAcceptsDirectWKRPCServer(t *testing.T) {
@@ -97,7 +97,7 @@ func TestRegisterRoutesSupportsWKRPCHandlerRegistrar(t *testing.T) {
 
 func TestRegisteredHandlerDispatchesThroughWKRPCAdapter(t *testing.T) {
 	socketPath := shortAccessSocketPath(t)
-	routes := runtimeplugin.NewSocketServer(socketPath)
+	routes := pluginhost.NewSocketServer(socketPath)
 	uc := &fakeUsecase{startupResp: &pluginproto.StartupResp{NodeId: 9, Success: true}}
 	_, err := NewServer(Options{Routes: routes, Usecase: uc, Timeout: time.Second})
 	if err != nil {
