@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
-	cv2 "github.com/WuKongIM/WuKongIM/pkg/controller"
+	controller "github.com/WuKongIM/WuKongIM/pkg/controller"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
@@ -289,15 +289,15 @@ func nodeActivationReadinessError(readiness NodeReadiness, expectedNodeID uint64
 
 func mapNodeLifecycleError(err error) error {
 	switch {
-	case errors.Is(err, cv2.ErrNotLeader),
-		errors.Is(err, cv2.ErrNotStarted),
-		errors.Is(err, cv2.ErrStopped):
+	case errors.Is(err, controller.ErrNotLeader),
+		errors.Is(err, controller.ErrNotStarted),
+		errors.Is(err, controller.ErrStopped):
 		return fmt.Errorf("%w: %w", ErrNodeLifecycleUnavailable, err)
-	case errors.Is(err, cv2.ErrNodeLifecycleConflict):
+	case errors.Is(err, controller.ErrNodeLifecycleConflict):
 		return fmt.Errorf("%w: %v", ErrNodeLifecycleConflict, err)
-	case errors.Is(err, cv2.ErrNodeLifecycleNotFound):
+	case errors.Is(err, controller.ErrNodeLifecycleNotFound):
 		return fmt.Errorf("%w: %v", ErrNodeLifecycleNotFound, err)
-	case cv2.IsExpectedRevisionMismatch(err):
+	case controller.IsExpectedRevisionMismatch(err):
 		return fmt.Errorf("%w: %v", ErrNodeLifecycleConflict, err)
 	default:
 		return err
@@ -305,7 +305,7 @@ func mapNodeLifecycleError(err error) error {
 }
 
 func mapRetryableNodeLifecycleWriteError(err error) error {
-	if cv2.IsExpectedRevisionMismatch(err) {
+	if controller.IsExpectedRevisionMismatch(err) {
 		return fmt.Errorf("%w: %w", ErrNodeLifecycleUnavailable, err)
 	}
 	return mapNodeLifecycleError(err)

@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
-	cv2 "github.com/WuKongIM/WuKongIM/pkg/controller"
+	controller "github.com/WuKongIM/WuKongIM/pkg/controller"
 	cv2raft "github.com/WuKongIM/WuKongIM/pkg/controller/raft"
 )
 
@@ -184,7 +184,7 @@ func TestStartNodeOnboardingDoesNotRetryNonRevisionProposalRejection(t *testing.
 }
 
 func TestStartNodeOnboardingMapsActiveTaskConflictToControlConflict(t *testing.T) {
-	writer := &fakeSlotReplicaMoveWriter{err: cv2.ErrSlotActiveTaskConflict}
+	writer := &fakeSlotReplicaMoveWriter{err: controller.ErrSlotActiveTaskConflict}
 	app := New(Options{
 		Cluster:         fakeNodeSnapshotReader{snapshot: nodeOnboardingSnapshot()},
 		SlotReplicaMove: writer,

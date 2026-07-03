@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
-	cv2 "github.com/WuKongIM/WuKongIM/pkg/controller"
+	controller "github.com/WuKongIM/WuKongIM/pkg/controller"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
@@ -62,7 +62,7 @@ func TestJoinNodeRejectsInvalidInputAndMissingWriter(t *testing.T) {
 }
 
 func TestJoinNodeMapsControlLifecycleConflict(t *testing.T) {
-	app := New(Options{NodeLifecycle: &nodeLifecycleWriterStub{joinErr: cv2.ErrNodeLifecycleConflict}})
+	app := New(Options{NodeLifecycle: &nodeLifecycleWriterStub{joinErr: controller.ErrNodeLifecycleConflict}})
 
 	_, err := app.JoinNode(context.Background(), JoinNodeRequest{NodeID: 4, Addr: "10.0.0.4:11110"})
 
@@ -76,10 +76,10 @@ func TestJoinNodeMapsControlAvailabilityErrors(t *testing.T) {
 		name string
 		err  error
 	}{
-		{name: "not leader", err: cv2.ErrNotLeader},
-		{name: "not started", err: cv2.ErrNotStarted},
-		{name: "stopped", err: cv2.ErrStopped},
-		{name: "revision mismatch", err: cv2.ErrExpectedRevisionMismatch},
+		{name: "not leader", err: controller.ErrNotLeader},
+		{name: "not started", err: controller.ErrNotStarted},
+		{name: "stopped", err: controller.ErrStopped},
+		{name: "revision mismatch", err: controller.ErrExpectedRevisionMismatch},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -216,8 +216,8 @@ func TestActivateNodeMapsControlLifecycleErrors(t *testing.T) {
 		err  error
 		want error
 	}{
-		{name: "missing", err: cv2.ErrNodeLifecycleNotFound, want: ErrNodeLifecycleNotFound},
-		{name: "conflict", err: cv2.ErrNodeLifecycleConflict, want: ErrNodeLifecycleConflict},
+		{name: "missing", err: controller.ErrNodeLifecycleNotFound, want: ErrNodeLifecycleNotFound},
+		{name: "conflict", err: controller.ErrNodeLifecycleConflict, want: ErrNodeLifecycleConflict},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -241,10 +241,10 @@ func TestActivateNodeMapsControlAvailabilityErrors(t *testing.T) {
 		name string
 		err  error
 	}{
-		{name: "not leader", err: cv2.ErrNotLeader},
-		{name: "not started", err: cv2.ErrNotStarted},
-		{name: "stopped", err: cv2.ErrStopped},
-		{name: "revision mismatch", err: cv2.ErrExpectedRevisionMismatch},
+		{name: "not leader", err: controller.ErrNotLeader},
+		{name: "not started", err: controller.ErrNotStarted},
+		{name: "stopped", err: controller.ErrStopped},
+		{name: "revision mismatch", err: controller.ErrExpectedRevisionMismatch},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -354,8 +354,8 @@ func TestMarkNodeLeavingMapsControlLifecycleErrors(t *testing.T) {
 		err  error
 		want error
 	}{
-		{name: "missing", err: cv2.ErrNodeLifecycleNotFound, want: ErrNodeLifecycleNotFound},
-		{name: "conflict", err: cv2.ErrNodeLifecycleConflict, want: ErrNodeLifecycleConflict},
+		{name: "missing", err: controller.ErrNodeLifecycleNotFound, want: ErrNodeLifecycleNotFound},
+		{name: "conflict", err: controller.ErrNodeLifecycleConflict, want: ErrNodeLifecycleConflict},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -375,10 +375,10 @@ func TestMarkNodeLeavingMapsControlAvailabilityErrors(t *testing.T) {
 		name string
 		err  error
 	}{
-		{name: "not leader", err: cv2.ErrNotLeader},
-		{name: "not started", err: cv2.ErrNotStarted},
-		{name: "stopped", err: cv2.ErrStopped},
-		{name: "revision mismatch", err: cv2.ErrExpectedRevisionMismatch},
+		{name: "not leader", err: controller.ErrNotLeader},
+		{name: "not started", err: controller.ErrNotStarted},
+		{name: "stopped", err: controller.ErrStopped},
+		{name: "revision mismatch", err: controller.ErrExpectedRevisionMismatch},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

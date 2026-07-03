@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
-	cv2 "github.com/WuKongIM/WuKongIM/pkg/controller"
+	controller "github.com/WuKongIM/WuKongIM/pkg/controller"
 )
 
 func TestPromoteControllerVoterHappyPathDelegatesLiveProofToWriter(t *testing.T) {
@@ -243,7 +243,7 @@ func TestPromoteControllerVoterPrepareErrorMapping(t *testing.T) {
 	}{
 		{
 			name:            "expected revision mismatch",
-			err:             cv2.ErrExpectedRevisionMismatch,
+			err:             controller.ErrExpectedRevisionMismatch,
 			wantErr:         ErrControllerVoterPromotionBlocked,
 			wantExpectedRev: true,
 		},
@@ -273,7 +273,7 @@ func TestPromoteControllerVoterPrepareErrorMapping(t *testing.T) {
 			if tt.wantErr == ErrControllerVoterPromotionBlocked && errors.Is(err, ErrControllerVoterPromotionUnavailable) {
 				t.Fatalf("PromoteControllerVoter() error = %v, want blocked without unavailable", err)
 			}
-			if tt.wantExpectedRev && !cv2.IsExpectedRevisionMismatch(err) {
+			if tt.wantExpectedRev && !controller.IsExpectedRevisionMismatch(err) {
 				t.Fatalf("PromoteControllerVoter() error = %v, want expected revision mismatch preserved", err)
 			}
 			if promoter.calls != 0 {

@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
-	cv2 "github.com/WuKongIM/WuKongIM/pkg/controller"
+	controller "github.com/WuKongIM/WuKongIM/pkg/controller"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
@@ -406,7 +406,7 @@ func applyNodeOnboardingActiveTaskProjection(tasks []control.ReconcileTask, coun
 }
 
 func nodeOnboardingRetryableWriteError(err error) bool {
-	return cv2.IsExpectedRevisionMismatch(err) || cv2.IsTaskPhaseMismatch(err) || errors.Is(err, cv2.ErrSlotActiveTaskConflict)
+	return controller.IsExpectedRevisionMismatch(err) || controller.IsTaskPhaseMismatch(err) || errors.Is(err, controller.ErrSlotActiveTaskConflict)
 }
 
 func bestReplaceableNodeOnboardingPeer(peers []uint64, targetNodeID uint64, projectedReplicas map[uint64]int) (uint64, bool) {

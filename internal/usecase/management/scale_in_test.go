@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
-	cv2 "github.com/WuKongIM/WuKongIM/pkg/controller"
+	controller "github.com/WuKongIM/WuKongIM/pkg/controller"
 	"github.com/WuKongIM/WuKongIM/pkg/controller/fsm"
 	cv2raft "github.com/WuKongIM/WuKongIM/pkg/controller/raft"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
@@ -418,7 +418,7 @@ func TestMarkNodeRemovedDelegatesWhenSafe(t *testing.T) {
 
 func TestMarkNodeRemovedMapsRevisionMismatchToConflict(t *testing.T) {
 	snap := scaleInReadyNoSlotReplicaSnapshot()
-	writer := &nodeLifecycleWriterStub{removedErr: cv2.ErrExpectedRevisionMismatch}
+	writer := &nodeLifecycleWriterStub{removedErr: controller.ErrExpectedRevisionMismatch}
 	app := New(Options{
 		Cluster: fakeNodeSnapshotReader{snapshot: snap},
 		RuntimeSummary: fakeNodeRuntimeSummaryReader{summaries: map[uint64]NodeRuntimeSummary{
@@ -724,7 +724,7 @@ func TestAdvanceNodeScaleInAllowsSlotDrainWhenLeavingNodeIsSlotLeader(t *testing
 func TestAdvanceNodeScaleInMapsActiveTaskConflictToScaleInConflict(t *testing.T) {
 	snap := scaleInSnapshot(17)
 	snap.Nodes = append(snap.Nodes, scaleInHealthNode(4, []control.Role{control.RoleData}, control.NodeJoinStateActive, snap.Revision))
-	writer := &fakeSlotReplicaMoveWriter{err: cv2.ErrSlotActiveTaskConflict}
+	writer := &fakeSlotReplicaMoveWriter{err: controller.ErrSlotActiveTaskConflict}
 	app := New(Options{
 		Cluster:         fakeNodeSnapshotReader{snapshot: snap},
 		RuntimeSummary:  fakeNodeRuntimeSummaryReader{summaries: scaleInRuntimeSummariesFor(17, 1, 2, 3, 4)},
@@ -927,7 +927,7 @@ type scaleInRevisionFencedMoveWriter struct {
 func (w *scaleInRevisionFencedMoveWriter) RequestSlotReplicaMove(_ context.Context, req control.SlotReplicaMoveRequest) (control.SlotReplicaMoveResult, error) {
 	w.requests = append(w.requests, req)
 	if req.StateRevision != w.cluster.snapshot.Revision {
-		return control.SlotReplicaMoveResult{}, cv2.ErrExpectedRevisionMismatch
+		return control.SlotReplicaMoveResult{}, controller.ErrExpectedRevisionMismatch
 	}
 	task := control.ReconcileTask{
 		TaskID:      "test-scale-in-move",

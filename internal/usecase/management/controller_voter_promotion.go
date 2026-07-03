@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
-	cv2 "github.com/WuKongIM/WuKongIM/pkg/controller"
+	controller "github.com/WuKongIM/WuKongIM/pkg/controller"
 )
 
 var (
@@ -371,7 +371,7 @@ func controllerVoterPromotionBlockerReason(err error) string {
 	if errors.As(err, &blocked) {
 		return blocked.reason
 	}
-	if cv2.IsExpectedRevisionMismatch(err) {
+	if controller.IsExpectedRevisionMismatch(err) {
 		return "expected_revision_mismatch"
 	}
 	msg := err.Error()
@@ -402,11 +402,11 @@ func mapControllerVoterPromotionPrepareError(err error) error {
 		return err
 	case errors.Is(err, ErrControllerVoterPromotionBlocked):
 		return fmt.Errorf("%w: %w", ErrControllerVoterPromotionBlocked, err)
-	case errors.Is(err, cv2.ErrNotLeader),
-		errors.Is(err, cv2.ErrNotStarted),
-		errors.Is(err, cv2.ErrStopped):
+	case errors.Is(err, controller.ErrNotLeader),
+		errors.Is(err, controller.ErrNotStarted),
+		errors.Is(err, controller.ErrStopped):
 		return fmt.Errorf("%w: %w", ErrControllerVoterPromotionUnavailable, err)
-	case cv2.IsExpectedRevisionMismatch(err), errors.Is(err, cv2.ErrProposalRejected):
+	case controller.IsExpectedRevisionMismatch(err), errors.Is(err, controller.ErrProposalRejected):
 		return fmt.Errorf("%w: %w", ErrControllerVoterPromotionBlocked, err)
 	default:
 		return fmt.Errorf("%w: %w", ErrControllerVoterPromotionUnavailable, err)
@@ -415,15 +415,15 @@ func mapControllerVoterPromotionPrepareError(err error) error {
 
 func mapControllerVoterPromotionWriteError(err error) error {
 	switch {
-	case errors.Is(err, cv2.ErrNotLeader),
-		errors.Is(err, cv2.ErrNotStarted),
-		errors.Is(err, cv2.ErrStopped):
+	case errors.Is(err, controller.ErrNotLeader),
+		errors.Is(err, controller.ErrNotStarted),
+		errors.Is(err, controller.ErrStopped):
 		return fmt.Errorf("%w: %w", ErrControllerVoterPromotionUnavailable, err)
-	case errors.Is(err, cv2.ErrNodeLifecycleNotFound):
+	case errors.Is(err, controller.ErrNodeLifecycleNotFound):
 		return fmt.Errorf("%w: %w", ErrNodeLifecycleNotFound, err)
-	case errors.Is(err, cv2.ErrNodeLifecycleConflict):
+	case errors.Is(err, controller.ErrNodeLifecycleConflict):
 		return fmt.Errorf("%w: %w", ErrControllerVoterPromotionBlocked, err)
-	case cv2.IsExpectedRevisionMismatch(err), errors.Is(err, cv2.ErrProposalRejected):
+	case controller.IsExpectedRevisionMismatch(err), errors.Is(err, controller.ErrProposalRejected):
 		return fmt.Errorf("%w: %w", ErrControllerVoterPromotionBlocked, err)
 	default:
 		return err
