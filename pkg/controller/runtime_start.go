@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/WuKongIM/WuKongIM/pkg/controller/fsm"
-	cv2raft "github.com/WuKongIM/WuKongIM/pkg/controller/raft"
+	controllerraft "github.com/WuKongIM/WuKongIM/pkg/controller/raft"
 	"github.com/WuKongIM/WuKongIM/pkg/controller/server"
 	cv2sync "github.com/WuKongIM/WuKongIM/pkg/controller/sync"
 )
@@ -20,7 +20,7 @@ func (r *Runtime) startVoter(ctx context.Context) error {
 	if transport == nil {
 		transport = noopRaftTransport{}
 	}
-	service, err := cv2raft.NewService(cv2raft.Config{
+	service, err := controllerraft.NewService(controllerraft.Config{
 		NodeID:                 r.cfg.NodeID,
 		Peers:                  r.raftPeers(),
 		AllowBootstrap:         r.cfg.AllowBootstrap,

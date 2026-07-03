@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/controller/fsm"
-	cv2raft "github.com/WuKongIM/WuKongIM/pkg/controller/raft"
+	controllerraft "github.com/WuKongIM/WuKongIM/pkg/controller/raft"
 	"github.com/WuKongIM/WuKongIM/pkg/controller/server"
 	"github.com/WuKongIM/WuKongIM/pkg/controller/statefile"
 	cv2sync "github.com/WuKongIM/WuKongIM/pkg/controller/sync"
@@ -26,7 +26,7 @@ type Runtime struct {
 
 	store  *statefile.Store
 	sm     *fsm.StateMachine
-	raft   *cv2raft.Service
+	raft   *controllerraft.Service
 	server *server.Server
 
 	syncServer *cv2sync.Server

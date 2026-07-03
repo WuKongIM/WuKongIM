@@ -8,7 +8,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 	controller "github.com/WuKongIM/WuKongIM/pkg/controller"
-	cv2raft "github.com/WuKongIM/WuKongIM/pkg/controller/raft"
+	controllerraft "github.com/WuKongIM/WuKongIM/pkg/controller/raft"
 )
 
 func TestPlanNodeOnboardingSelectsBoundedSlotMoves(t *testing.T) {
@@ -138,11 +138,11 @@ func TestStartNodeOnboardingReturnsPartialSuccessWhenConflictPersists(t *testing
 		results: []control.SlotReplicaMoveResult{{Created: true}},
 		errs: []error{
 			nil,
-			cv2raft.ProposalRejectedError{Reason: "expected_revision_mismatch"},
-			cv2raft.ProposalRejectedError{Reason: "expected_revision_mismatch"},
-			cv2raft.ProposalRejectedError{Reason: "expected_revision_mismatch"},
-			cv2raft.ProposalRejectedError{Reason: "expected_revision_mismatch"},
-			cv2raft.ProposalRejectedError{Reason: "expected_revision_mismatch"},
+			controllerraft.ProposalRejectedError{Reason: "expected_revision_mismatch"},
+			controllerraft.ProposalRejectedError{Reason: "expected_revision_mismatch"},
+			controllerraft.ProposalRejectedError{Reason: "expected_revision_mismatch"},
+			controllerraft.ProposalRejectedError{Reason: "expected_revision_mismatch"},
+			controllerraft.ProposalRejectedError{Reason: "expected_revision_mismatch"},
 		},
 	}
 	app := New(Options{
@@ -164,7 +164,7 @@ func TestStartNodeOnboardingReturnsPartialSuccessWhenConflictPersists(t *testing
 }
 
 func TestStartNodeOnboardingDoesNotRetryNonRevisionProposalRejection(t *testing.T) {
-	wantErr := cv2raft.ProposalRejectedError{Reason: "invalid_state"}
+	wantErr := controllerraft.ProposalRejectedError{Reason: "invalid_state"}
 	writer := &sequencedSlotReplicaMoveWriter{errs: []error{wantErr}}
 	app := New(Options{
 		Cluster:         fakeNodeSnapshotReader{snapshot: nodeOnboardingSnapshot()},
@@ -172,7 +172,7 @@ func TestStartNodeOnboardingDoesNotRetryNonRevisionProposalRejection(t *testing.
 	})
 
 	_, err := app.StartNodeOnboarding(context.Background(), NodeOnboardingStartRequest{TargetNodeID: 4, MaxSlotMoves: 1})
-	if !errors.Is(err, cv2raft.ErrProposalRejected) {
+	if !errors.Is(err, controllerraft.ErrProposalRejected) {
 		t.Fatalf("StartNodeOnboarding() error = %v, want proposal rejected", err)
 	}
 	if errors.Is(err, ErrNodeOnboardingConflict) {

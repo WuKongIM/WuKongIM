@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/controller/command"
-	cv2raft "github.com/WuKongIM/WuKongIM/pkg/controller/raft"
+	controllerraft "github.com/WuKongIM/WuKongIM/pkg/controller/raft"
 	"github.com/WuKongIM/WuKongIM/pkg/controller/state"
 )
 
@@ -46,7 +46,7 @@ func (r *Runtime) runBootstrapPlanner(ctx context.Context) error {
 }
 
 func (r *Runtime) isLocalLeader() bool {
-	return r.raft != nil && (r.raft.LeaderID() == r.cfg.NodeID || r.raft.Status().Role == cv2raft.RoleLeader)
+	return r.raft != nil && (r.raft.LeaderID() == r.cfg.NodeID || r.raft.Status().Role == controllerraft.RoleLeader)
 }
 
 func (r *Runtime) waitLocalLeader(ctx context.Context) error {
@@ -95,10 +95,10 @@ func (r *Runtime) initCommand() command.Command {
 	}
 }
 
-func (r *Runtime) raftPeers() []cv2raft.Peer {
-	peers := make([]cv2raft.Peer, 0, len(r.cfg.Voters))
+func (r *Runtime) raftPeers() []controllerraft.Peer {
+	peers := make([]controllerraft.Peer, 0, len(r.cfg.Voters))
 	for _, voter := range r.cfg.Voters {
-		peers = append(peers, cv2raft.Peer{NodeID: voter.NodeID, Addr: voter.Addr})
+		peers = append(peers, controllerraft.Peer{NodeID: voter.NodeID, Addr: voter.Addr})
 	}
 	return peers
 }

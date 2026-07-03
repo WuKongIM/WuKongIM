@@ -9,7 +9,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 	controller "github.com/WuKongIM/WuKongIM/pkg/controller"
 	"github.com/WuKongIM/WuKongIM/pkg/controller/fsm"
-	cv2raft "github.com/WuKongIM/WuKongIM/pkg/controller/raft"
+	controllerraft "github.com/WuKongIM/WuKongIM/pkg/controller/raft"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
@@ -746,7 +746,7 @@ func TestAdvanceNodeScaleInMapsActiveTaskConflictToScaleInConflict(t *testing.T)
 func TestAdvanceNodeScaleInMapsTaskPhaseMismatchToScaleInConflict(t *testing.T) {
 	snap := scaleInSnapshot(17)
 	snap.Nodes = append(snap.Nodes, scaleInHealthNode(4, []control.Role{control.RoleData}, control.NodeJoinStateActive, snap.Revision))
-	writer := &fakeSlotReplicaMoveWriter{err: cv2raft.ProposalRejectedError{Reason: fsm.ReasonTaskPhaseMismatch}}
+	writer := &fakeSlotReplicaMoveWriter{err: controllerraft.ProposalRejectedError{Reason: fsm.ReasonTaskPhaseMismatch}}
 	app := New(Options{
 		Cluster:         fakeNodeSnapshotReader{snapshot: snap},
 		RuntimeSummary:  fakeNodeRuntimeSummaryReader{summaries: scaleInRuntimeSummariesFor(17, 1, 2, 3, 4)},

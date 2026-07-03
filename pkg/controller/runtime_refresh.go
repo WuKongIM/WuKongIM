@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	cv2raft "github.com/WuKongIM/WuKongIM/pkg/controller/raft"
+	controllerraft "github.com/WuKongIM/WuKongIM/pkg/controller/raft"
 	"github.com/WuKongIM/WuKongIM/pkg/goroutine"
 )
 
@@ -48,7 +48,7 @@ func (r *Runtime) controlTick(ctx context.Context) error {
 	st := r.sm.Snapshot(ctx)
 	if st.Revision == 0 {
 		if r.cfg.AllowBootstrap && r.isLocalLeader() {
-			if err := r.raft.Propose(ctx, r.initCommand()); err != nil && !errors.Is(err, cv2raft.ErrNotLeader) {
+			if err := r.raft.Propose(ctx, r.initCommand()); err != nil && !errors.Is(err, controllerraft.ErrNotLeader) {
 				return err
 			}
 		}
@@ -56,7 +56,7 @@ func (r *Runtime) controlTick(ctx context.Context) error {
 	}
 	if len(st.Slots) < int(r.cfg.InitialSlotCount) {
 		if r.isLocalLeader() {
-			if err := r.server.TickPlanner(ctx); err != nil && !errors.Is(err, cv2raft.ErrNotLeader) {
+			if err := r.server.TickPlanner(ctx); err != nil && !errors.Is(err, controllerraft.ErrNotLeader) {
 				return err
 			}
 		}

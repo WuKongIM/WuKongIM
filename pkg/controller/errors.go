@@ -4,7 +4,7 @@ import (
 	"errors"
 
 	"github.com/WuKongIM/WuKongIM/pkg/controller/fsm"
-	cv2raft "github.com/WuKongIM/WuKongIM/pkg/controller/raft"
+	controllerraft "github.com/WuKongIM/WuKongIM/pkg/controller/raft"
 )
 
 var (
@@ -19,12 +19,12 @@ func IsExpectedRevisionMismatch(err error) bool {
 	if errors.Is(err, ErrExpectedRevisionMismatch) {
 		return true
 	}
-	var rejected cv2raft.ProposalRejectedError
+	var rejected controllerraft.ProposalRejectedError
 	return errors.As(err, &rejected) && rejected.Reason == fsm.ReasonExpectedRevisionMismatch
 }
 
 // IsTaskPhaseMismatch reports whether err is an obsolete task phase write rejection.
 func IsTaskPhaseMismatch(err error) bool {
-	var rejected cv2raft.ProposalRejectedError
+	var rejected controllerraft.ProposalRejectedError
 	return errors.As(err, &rejected) && rejected.Reason == fsm.ReasonTaskPhaseMismatch
 }
