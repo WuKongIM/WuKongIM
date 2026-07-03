@@ -5,10 +5,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/db"
 	msgdb "github.com/WuKongIM/WuKongIM/pkg/db/message"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	"github.com/WuKongIM/WuKongIM/pkg/hashslot"
 )
 
 func TestNormalizeImportOptions(t *testing.T) {
@@ -293,5 +293,5 @@ func openImportNodeStore(t *testing.T) *db.NodeStore {
 }
 
 func testHashSlot(key string, count uint16) uint16 {
-	return cluster.HashSlotForKey(key, count)
+	return hashslot.HashSlotForKey(key, count)
 }

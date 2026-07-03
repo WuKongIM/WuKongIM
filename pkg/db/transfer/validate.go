@@ -8,7 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/WuKongIM/WuKongIM/pkg/cluster"
+	"github.com/WuKongIM/WuKongIM/pkg/hashslot"
 )
 
 // ValidateBundle streams an import bundle and validates its semantic invariants without writing storage.
@@ -110,7 +110,7 @@ func (v *bundleValidator) Visit(kind FileKind, record any) error {
 }
 
 func (v *bundleValidator) validateHashSlot(dataset, key string, got uint16) error {
-	want := cluster.HashSlotForKey(key, v.hashSlotCount)
+	want := hashslot.HashSlotForKey(key, v.hashSlotCount)
 	if got != want {
 		return fmt.Errorf("%w: %s hash_slot mismatch key=%q got=%d want=%d", ErrValidation, dataset, key, got, want)
 	}

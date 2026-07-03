@@ -10,13 +10,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/WuKongIM/WuKongIM/pkg/cluster"
+	"github.com/WuKongIM/WuKongIM/pkg/hashslot"
 )
 
 func TestValidateBundleRejectsHashSlotMismatch(t *testing.T) {
 	root := t.TempDir()
 	uid := "u1"
-	wrong := cluster.HashSlotForKey(uid, 16) + 1
+	wrong := hashslot.HashSlotForKey(uid, 16) + 1
 	if wrong >= 16 {
 		wrong = 0
 	}
@@ -32,8 +32,8 @@ func TestValidateBundleRejectsHashSlotMismatch(t *testing.T) {
 func TestValidateBundleRejectsUnsortedSubscribers(t *testing.T) {
 	root := t.TempDir()
 	writeJSONLFile(t, root, "meta/subscribers.jsonl",
-		`{"hash_slot":`+itoa(int(cluster.HashSlotForKey("b", 16)))+`,"channel_id":"b","channel_type":2,"uid":"u1"}`,
-		`{"hash_slot":`+itoa(int(cluster.HashSlotForKey("a", 16)))+`,"channel_id":"a","channel_type":2,"uid":"u2"}`,
+		`{"hash_slot":`+itoa(int(hashslot.HashSlotForKey("b", 16)))+`,"channel_id":"b","channel_type":2,"uid":"u1"}`,
+		`{"hash_slot":`+itoa(int(hashslot.HashSlotForKey("a", 16)))+`,"channel_id":"a","channel_type":2,"uid":"u2"}`,
 	)
 	writeManifestForFiles(t, root, 16, []manifestTestFile{{Path: "meta/subscribers.jsonl", Kind: FileKindMetaSubscribers}})
 
@@ -47,7 +47,7 @@ func TestValidateBundleRejectsSubscriberHashSlotBeforeOrder(t *testing.T) {
 	root := t.TempDir()
 	writeJSONLFile(t, root, "meta/subscribers.jsonl",
 		`{"hash_slot":15,"channel_id":"b","channel_type":2,"uid":"u1"}`,
-		`{"hash_slot":`+itoa(int(cluster.HashSlotForKey("a", 16)))+`,"channel_id":"a","channel_type":2,"uid":"u2"}`,
+		`{"hash_slot":`+itoa(int(hashslot.HashSlotForKey("a", 16)))+`,"channel_id":"a","channel_type":2,"uid":"u2"}`,
 	)
 	writeManifestForFiles(t, root, 16, []manifestTestFile{{Path: "meta/subscribers.jsonl", Kind: FileKindMetaSubscribers}})
 
@@ -155,7 +155,7 @@ func TestValidateBundleRejectsHashSlotCountMismatch(t *testing.T) {
 func TestValidateBundleRejectsManifestRowCountTooFew(t *testing.T) {
 	root := t.TempDir()
 	uid := "u1"
-	writeJSONLFile(t, root, "meta/users.jsonl", `{"hash_slot":`+itoa(int(cluster.HashSlotForKey(uid, 16)))+`,"uid":"`+uid+`"}`)
+	writeJSONLFile(t, root, "meta/users.jsonl", `{"hash_slot":`+itoa(int(hashslot.HashSlotForKey(uid, 16)))+`,"uid":"`+uid+`"}`)
 	writeManifestForFilesWithRows(t, root, 16, []manifestTestFile{
 		{Path: "meta/users.jsonl", Kind: FileKindMetaUsers, Rows: 2},
 	})
@@ -171,8 +171,8 @@ func TestValidateBundleRejectsManifestRowCountTooMany(t *testing.T) {
 	uid1 := "u1"
 	uid2 := "u2"
 	writeJSONLFile(t, root, "meta/users.jsonl",
-		`{"hash_slot":`+itoa(int(cluster.HashSlotForKey(uid1, 16)))+`,"uid":"`+uid1+`"}`,
-		`{"hash_slot":`+itoa(int(cluster.HashSlotForKey(uid2, 16)))+`,"uid":"`+uid2+`"}`,
+		`{"hash_slot":`+itoa(int(hashslot.HashSlotForKey(uid1, 16)))+`,"uid":"`+uid1+`"}`,
+		`{"hash_slot":`+itoa(int(hashslot.HashSlotForKey(uid2, 16)))+`,"uid":"`+uid2+`"}`,
 	)
 	writeManifestForFilesWithRows(t, root, 16, []manifestTestFile{
 		{Path: "meta/users.jsonl", Kind: FileKindMetaUsers, Rows: 1},
@@ -187,7 +187,7 @@ func TestValidateBundleRejectsManifestRowCountTooMany(t *testing.T) {
 func TestValidateBundleReportsStats(t *testing.T) {
 	root := t.TempDir()
 	uid := "u1"
-	writeJSONLFile(t, root, "meta/users.jsonl", `{"hash_slot":`+itoa(int(cluster.HashSlotForKey(uid, 16)))+`,"uid":"`+uid+`"}`)
+	writeJSONLFile(t, root, "meta/users.jsonl", `{"hash_slot":`+itoa(int(hashslot.HashSlotForKey(uid, 16)))+`,"uid":"`+uid+`"}`)
 	writeJSONLFile(t, root, "message/channels.jsonl", `{"channel_key":"g1:2","channel_id":"g1","channel_type":2}`)
 	writeJSONLFile(t, root, "message/messages-000001.jsonl",
 		`{"channel_key":"g1:2","message_seq":1,"message_id":1001,"from_uid":"u1","client_msg_no":"c1","payload_b64":""}`,
