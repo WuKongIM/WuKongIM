@@ -1,7 +1,7 @@
 # message_retention AGENTS
 
 This scenario proves `cmd/wukongim` treats manager message retention as a
-cluster-authoritative logical ChannelV2 compaction boundary and that enabled
+cluster-authoritative logical Channel compaction boundary and that enabled
 physical cleanup removes retained local message-log rows without resurrecting
 them after leader restart.
 

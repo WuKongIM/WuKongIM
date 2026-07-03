@@ -81,7 +81,7 @@ When later submissions carry a newer subscriber mutation version or a changed
 large-channel flag, the writer invalidates only its recipient snapshot cache;
 when they carry a newer authority target for the same channel key, the writer
 also advances the cached leader and epoch fences without downgrading older
-observations. This keeps long-lived local writers aligned with ChannelV2
+observations. This keeps long-lived local writers aligned with Channel
 membership or leader-epoch changes after migration while preserving the same
 single-writer ordering for the channel key.
 

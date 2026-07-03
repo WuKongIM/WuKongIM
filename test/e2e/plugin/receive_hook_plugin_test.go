@@ -18,7 +18,7 @@ import (
 
 	appv2 "github.com/WuKongIM/WuKongIM/internal/app"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
-	channelv2 "github.com/WuKongIM/WuKongIM/pkg/channel"
+	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/channels"
@@ -62,12 +62,12 @@ type receiveHookHarness struct {
 	// node is the public cluster runtime used for metadata seeding and route checks.
 	node *cluster.Node
 	// channelID is the deterministic group channel used for all sends.
-	channelID channelv2.ChannelID
+	channelID channelruntime.ChannelID
 	// sandboxDir is the configured plugin sandbox root.
 	sandboxDir string
 	// managerAddr is the public manager HTTP address used for binding mutation.
 	managerAddr string
-	// storeFactory owns the injected ChannelV2 message store.
+	// storeFactory owns the injected Channel message store.
 	storeFactory *channelstore.MessageDBFactory
 	// recordPath is the JSONL file written by the real plugin process.
 	recordPath string
@@ -90,24 +90,24 @@ func startReceiveHookHarness(tb testing.TB) *receiveHookHarness {
 
 	nodeID := uint64(1)
 	clusterAddr := freeTCPAddr(tb)
-	channelID := channelv2.ChannelID{ID: receiveHookChannelID, Type: frame.ChannelTypeGroup}
+	channelID := channelruntime.ChannelID{ID: receiveHookChannelID, Type: frame.ChannelTypeGroup}
 	storeFactory := channelstore.NewMessageDBFactory(filepath.Join(root, "channellog"))
 	tb.Cleanup(func() { require.NoError(tb, storeFactory.Close()) })
 	channelSvc, err := channels.NewService(channels.Config{
-		LocalNode:    channelv2.NodeID(nodeID),
+		LocalNode:    channelruntime.NodeID(nodeID),
 		ReactorCount: 1,
 		MailboxSize:  16,
 		Store:        storeFactory,
-		MetaSource: channels.NewStaticMetaSource([]channelv2.Meta{{
-			Key:         channelv2.ChannelKeyForID(channelID),
+		MetaSource: channels.NewStaticMetaSource([]channelruntime.Meta{{
+			Key:         channelruntime.ChannelKeyForID(channelID),
 			ID:          channelID,
 			Epoch:       1,
 			LeaderEpoch: 1,
-			Leader:      channelv2.NodeID(nodeID),
-			Replicas:    []channelv2.NodeID{channelv2.NodeID(nodeID)},
-			ISR:         []channelv2.NodeID{channelv2.NodeID(nodeID)},
+			Leader:      channelruntime.NodeID(nodeID),
+			Replicas:    []channelruntime.NodeID{channelruntime.NodeID(nodeID)},
+			ISR:         []channelruntime.NodeID{channelruntime.NodeID(nodeID)},
 			MinISR:      1,
-			Status:      channelv2.StatusActive,
+			Status:      channelruntime.StatusActive,
 		}}),
 	})
 	require.NoError(tb, err)

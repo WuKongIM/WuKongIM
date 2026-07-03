@@ -315,7 +315,7 @@ func (r AppendBatchItemResult) Clone() AppendBatchItemResult {
 type CommittedEnvelope struct {
 	// MessageID is the globally unique durable message identifier.
 	MessageID uint64
-	// MessageSeq is the committed channel sequence assigned by channelv2.
+	// MessageSeq is the committed channel sequence assigned by the channel runtime.
 	MessageSeq uint64
 	// ChannelID is the client-visible channel identifier.
 	ChannelID string

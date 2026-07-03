@@ -15,7 +15,7 @@ const (
 	defaultChannelBacklogHighWatermark = 1024
 	// defaultAppendInflightBatchesPerChannel only bounds how many same-channel
 	// append batches this runtime keeps in flight toward the appender. The
-	// downstream channelv2 reactor serializes and coalesces per-channel appends,
+	// downstream channel reactor serializes and coalesces per-channel appends,
 	// so this value affects submit concurrency and batching efficiency, never
 	// durable ordering or MessageSeq assignment.
 	defaultAppendInflightBatchesPerChannel       = 10
