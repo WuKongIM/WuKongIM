@@ -3,15 +3,16 @@ package management
 import (
 	"context"
 	"crypto/rand"
+	"encoding/base64"
 	"encoding/hex"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internalv2/observability/diagnostics"
-	"github.com/WuKongIM/WuKongIM/pkg/channel"
-	channelhandler "github.com/WuKongIM/WuKongIM/pkg/channel/handler"
+	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
 )
 
 // DiagnosticsTrackingStatus summarizes the fanout result for runtime tracking rules.
@@ -244,7 +245,7 @@ func (a *App) buildDiagnosticsTrackingInput(req DiagnosticsTrackingCreateRequest
 		if channelID == "" || req.ChannelType == 0 {
 			return diagnostics.TrackingRuleInput{}, DiagnosticsTrackingRule{}, diagnostics.ErrInvalidTrackingRule
 		}
-		channelKey := string(channelhandler.KeyFromChannelID(channel.ChannelID{ID: channelID, Type: req.ChannelType}))
+		channelKey := sendtrace.ChannelKeyFromID(channelID, req.ChannelType)
 		input.Target = diagnostics.TrackingTargetChannel
 		input.ChannelKey = channelKey
 		rule.Target = string(diagnostics.TrackingTargetChannel)
@@ -276,13 +277,29 @@ func managerDiagnosticsTrackingRule(rule diagnostics.TrackingRule) DiagnosticsTr
 		ExpiresAt:  rule.ExpiresAt,
 	}
 	if rule.ChannelKey != "" {
-		id, err := channelhandler.ParseChannelKey(channel.ChannelKey(rule.ChannelKey))
+		channelID, channelType, err := parseDiagnosticsChannelKey(rule.ChannelKey)
 		if err == nil {
-			out.ChannelID = id.ID
-			out.ChannelType = id.Type
+			out.ChannelID = channelID
+			out.ChannelType = channelType
 		}
 	}
 	return out
+}
+
+func parseDiagnosticsChannelKey(key string) (string, uint8, error) {
+	parts := strings.SplitN(key, "/", 3)
+	if len(parts) != 3 || parts[0] != "channel" {
+		return "", 0, diagnostics.ErrInvalidTrackingRule
+	}
+	channelType, err := strconv.ParseUint(parts[1], 10, 8)
+	if err != nil || channelType == 0 {
+		return "", 0, diagnostics.ErrInvalidTrackingRule
+	}
+	rawID, err := base64.RawURLEncoding.DecodeString(parts[2])
+	if err != nil || len(rawID) == 0 {
+		return "", 0, diagnostics.ErrInvalidTrackingRule
+	}
+	return string(rawID), uint8(channelType), nil
 }
 
 func mergeDiagnosticsTrackingRule(left, right DiagnosticsTrackingRule) DiagnosticsTrackingRule {

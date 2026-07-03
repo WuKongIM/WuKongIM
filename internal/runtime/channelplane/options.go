@@ -5,7 +5,7 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/channel"
+	"github.com/WuKongIM/WuKongIM/pkg/legacy/channel"
 )
 
 const (

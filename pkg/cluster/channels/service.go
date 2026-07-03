@@ -7,11 +7,11 @@ import (
 	"strings"
 	"time"
 
-	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
-	"github.com/WuKongIM/WuKongIM/pkg/channelv2/reactor"
-	channelservice "github.com/WuKongIM/WuKongIM/pkg/channelv2/service"
-	channelstore "github.com/WuKongIM/WuKongIM/pkg/channelv2/store"
-	channeltransport "github.com/WuKongIM/WuKongIM/pkg/channelv2/transport"
+	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
+	"github.com/WuKongIM/WuKongIM/pkg/channel/reactor"
+	channelservice "github.com/WuKongIM/WuKongIM/pkg/channel/service"
+	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
+	channeltransport "github.com/WuKongIM/WuKongIM/pkg/channel/transport"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 

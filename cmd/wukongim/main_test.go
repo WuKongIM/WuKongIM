@@ -299,6 +299,34 @@ func TestDependencyBoundaryUsesCanonicalCluster(t *testing.T) {
 	}
 }
 
+func TestDependencyBoundaryUsesCanonicalChannel(t *testing.T) {
+	cmd := exec.Command("go", "list", "-deps", "-f", "{{.ImportPath}}", ".")
+	cmd.Env = append(os.Environ(), "GOWORK=off")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("go list deps failed: %v\n%s", err, out)
+	}
+
+	foundCanonicalChannel := false
+	for _, importPath := range strings.Fields(string(out)) {
+		switch {
+		case importPath == "github.com/WuKongIM/WuKongIM/pkg/channel":
+			foundCanonicalChannel = true
+		case strings.HasPrefix(importPath, "github.com/WuKongIM/WuKongIM/pkg/channel/"):
+			foundCanonicalChannel = true
+		case importPath == "github.com/WuKongIM/WuKongIM/pkg/channel" ||
+			strings.HasPrefix(importPath, "github.com/WuKongIM/WuKongIM/pkg/channel/"):
+			t.Fatalf("cmd/wukongim dependency closure still imports v2-suffixed channel package %q", importPath)
+		case importPath == "github.com/WuKongIM/WuKongIM/pkg/legacy/channel" ||
+			strings.HasPrefix(importPath, "github.com/WuKongIM/WuKongIM/pkg/legacy/channel/"):
+			t.Fatalf("cmd/wukongim dependency closure still imports legacy channel package %q", importPath)
+		}
+	}
+	if !foundCanonicalChannel {
+		t.Fatal("cmd/wukongim dependency closure does not import canonical pkg/channel")
+	}
+}
+
 type fakeRuntimeApp struct {
 	startErr   error
 	stopErr    error

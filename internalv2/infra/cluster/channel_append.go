@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/WuKongIM/WuKongIM/internalv2/runtime/channelappend"
-	"github.com/WuKongIM/WuKongIM/pkg/channelv2"
+	channelv2 "github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/propose"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"

@@ -30,7 +30,7 @@ New(Config)
   -> create a root logger from Config.Log unless a test/harness override is supplied
   -> create metrics registry when Observability.MetricsEnabled=true and attach
      runtime observers for metrics/logging
-     (gateway runtime pressure, Slot scheduler/proposal/apply-gap/leader-election pressure, ControllerV2 Raft step queue/apply gap, TransportV2 service RPC totals/latency, ChannelV2 append/replication/PullHint/runtime pressure stages, message DB grouped commit pressure, and delivery fanout)
+     (gateway runtime pressure, Slot scheduler/proposal/apply-gap/leader-election pressure, ControllerV2 Raft step queue/apply gap, TransportV2 service RPC totals/latency, Channel runtime append/replication/PullHint/runtime pressure stages, message DB grouped commit pressure, and delivery fanout)
      plus direct ants/v2 pool occupancy gauges for instrumented runtime pools
      plus conversation list request latency/page-shape metrics, conversation
      authority admit/list/cache-pressure/handoff counters, conversation active
@@ -45,7 +45,7 @@ New(Config)
      when Top.APIEnabled=false this sampler runs only for Prometheus metrics and
      does not expose the Top snapshot provider
   -> create the top collector when Top.APIEnabled=true and attach node-local
-     runtime observers for ChannelV2, storage commit, delivery, Slot scheduler,
+     runtime observers for Channel runtime, storage commit, delivery, Slot scheduler,
      ControllerV2 Raft, and transport pressure independently of Prometheus
      metrics; the collector also samples local process CPU, RSS/VMS memory,
      goroutine count, and thread count via gopsutil; it keeps a bounded
@@ -136,7 +136,7 @@ New(Config)
      scans are available, exposing this node's channel list pages to peer
      manager readers
   -> register the manager message retention RPC handler when node RPC and
-     ChannelV2 retention metadata APIs are available, exposing this node's
+     Channel runtime retention metadata APIs are available, exposing this node's
      channel-leader logical compaction boundary advance path to peer manager
      operators without allowing recursive forwarding on the receiver
   -> create the app-level DB Inspect reader from derived node-local storage
@@ -190,7 +190,7 @@ New(Config)
        plugin-origin /message/send back through the v2 message usecase with the
        default system UID fallback; wire /channel/messages to the cluster
        committed-message reader when available; wire cluster host RPCs to the
-       cluster control snapshot and ChannelV2 append-authority readers when
+       cluster control snapshot and Channel runtime append-authority readers when
        available; wire /conversation/channels to the cluster active
        conversation row reader when available without last-message joins; wire
        positive toNodeId /plugin/httpForward calls through the cluster manager
@@ -213,7 +213,7 @@ New(Config)
        Webhook failures are best-effort side effects and must not affect
        SENDACK, durable append, recipient delivery, or conversation active
        admission.
-  -> when the cluster exposes ChannelV2 append plus channel append authority:
+  -> when the cluster exposes Channel runtime append plus channel append authority:
        create channelappend.Group with hash-sharded per-channel authority writers,
        cluster ChannelAppender, node-scoped message IDs, subscriber source,
        cluster-backed idempotency lookup when the cluster exposes it,
@@ -230,7 +230,7 @@ New(Config)
      permission reads, system UID cache, configured message permission switches,
      the optional plugin Send hook usecase when plugins are enabled, and the
      cluster committed message reader when exposed for channel message sync
-  -> when the cluster exposes unified conversation metadata writes and ChannelV2
+  -> when the cluster exposes unified conversation metadata writes and Channel runtime
      committed reads, create internalv2/usecase/cmdsync with one
      infra/cluster CMDSyncStore over ConversationKindCMD rows
   -> create access/gateway.Handler with the message facade and activation-timeout-wrapped presence usecases
@@ -373,7 +373,7 @@ envelope payload once and reuses that snapshot across recipient packets;
 closed-session and outbound-overflow write errors are terminal drops, while
 unknown write errors remain retryable. The same append observer records
 per-message append success/error latency and classifies append failures with
-low-cardinality labels for benchmark triage, including typed ChannelV2/cluster
+low-cardinality labels for benchmark triage, including typed Channel runtime/cluster
 errors and short append results.
 
 The channel append commit pipeline scopes unscoped person-channel events to the
@@ -410,7 +410,7 @@ by app-level metrics/logging adapters; retry enqueue, attempt, drop, and
 queue-depth observations use the same adapter. The delivery runtime itself stays
 independent from Prometheus and concrete logging backends.
 
-The ChannelV2 metrics observer also logs rare admitted-append cancellation
+The Channel runtime metrics observer also logs rare admitted-append cancellation
 snapshots emitted by the append runtime. These lines include the channel key,
 op id, commit mode, LEO/HW/target offset, queue and in-flight counts, and
 quorum progress flags plus a compact leader-visible follower summary so
@@ -430,7 +430,7 @@ If that runtime also implements the committed channel message read surface,
 message usecase as the gateway send path.
 
 If the runtime also exposes unified conversation projection writes and committed
-ChannelV2 reads, `New` wires `internalv2/usecase/cmdsync` through
+Channel runtime reads, `New` wires `internalv2/usecase/cmdsync` through
 `CMDSyncStore`. `/message/sync` scans only `ConversationKindCMD` rows from the
 UID-owned projection, reads the corresponding command/source SyncOnce channel
 logs, and returns legacy message arrays through the API adapter.
@@ -440,7 +440,7 @@ pending-state updater. Ordinary conversation hydration stays on
 `ConversationKindNormal` rows and skips `SyncOnce`/command-channel log entries
 instead of relying on suffix filtering in conversation storage or list logic.
 
-Bench runtime controls flow from internalv2 HTTP through `internalv2/infra/cluster`, `pkg/cluster.Node`, `pkg/cluster/channels.Service`, and finally the hosted ChannelV2 runtime. These routes are benchmark-only observation/cleanup controls and do not replace the gateway SEND activation path.
+Bench runtime controls flow from internalv2 HTTP through `internalv2/infra/cluster`, `pkg/cluster.Node`, `pkg/cluster/channels.Service`, and finally the hosted Channel runtime runtime. These routes are benchmark-only observation/cleanup controls and do not replace the gateway SEND activation path.
 
 Legacy channel management requests flow from internalv2 HTTP through
 `internalv2/usecase/channel` and the `internalv2/infra/cluster`
@@ -460,7 +460,7 @@ authority surface, the list Store is the routed
 `internalv2/infra/cluster.ConversationAuthorityClient`, which resolves the UID
 hash-slot authority and reads the target-owned active view from the local or
 remote authority cache. The Messages port remains the `ConversationStore`
-adapter so last-message hydration reads committed ChannelV2 tails with
+adapter so last-message hydration reads committed Channel runtime tails with
 `Config.Conversation.MaxLastMessageConcurrency` as a bounded tail-read limit;
 the same adapter remains the StateStore, StateMutationStore, and DeleteStore so
 legacy conversation read/delete mutations still write through UID-owned Slot
@@ -527,7 +527,7 @@ resolves the canonical channel's append authority. Local authority sends are
 admitted to the local `channelappend.Group`; remote authority sends are forwarded
 through access/node Channel Append RPC to the target node, where they enter only
 that node's authority writer group. Channel message sync uses the
-`internalv2/infra/cluster` ChannelMessageReader, which reads committed ChannelV2
+`internalv2/infra/cluster` ChannelMessageReader, which reads committed Channel runtime
 messages through the cluster Node facade and keeps legacy person-channel
 response IDs in the HTTP adapter.
 
@@ -551,7 +551,7 @@ gateway/API send
        access/node Channel Append RPC forwards the batch
        remote node admits it to its local channel writer
   -> authority writer prepares commands, allocates IDs, and calls cluster ChannelAppender
-  -> ChannelV2 persists messages and returns append result
+  -> Channel runtime persists messages and returns append result
   -> SENDACK returns to sender
   -> authority writer post-commit effect:
        scope person recipients or page subscribers
@@ -578,7 +578,7 @@ Start(ctx)
      ControllerV2 task in the local control snapshot; failures are logged and
      do not block service startup
   -> seed join loop Start(ctx): retry JoinNode against stable-order seeds when seed-join config is present
-  -> wait for cluster write routing when the cluster runtime exposes route snapshots; the gate also runs the cluster write probe, which proves Slot metadata writes and ChannelV2 placement data-node candidates before gateway SEND admission
+  -> wait for cluster write routing when the cluster runtime exposes route snapshots; the gate also runs the cluster write probe, which proves Slot metadata writes and Channel runtime placement data-node candidates before gateway SEND admission
   -> conversation authority route lifecycle Start(ctx): watch route authorities and seed current targets
   -> conversation active flush worker Start(ctx): periodically persist dirty active rows
   -> presence touch worker Start(ctx)

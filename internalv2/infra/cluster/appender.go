@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internalv2/contracts/channelappend"
-	"github.com/WuKongIM/WuKongIM/pkg/channelv2"
+	channelv2 "github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )

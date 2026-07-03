@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
+	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
 )
 
 // StaticMetaSource is an immutable in-memory metadata source for tests and smoke runs.

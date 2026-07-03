@@ -7,7 +7,7 @@ import (
 	"hash/fnv"
 	"sort"
 
-	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
+	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
 )
 
 // SlotPlacementResolver derives initial channel placement from Slot-routed data nodes.

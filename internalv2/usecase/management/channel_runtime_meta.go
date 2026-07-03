@@ -4,8 +4,7 @@ import (
 	"context"
 	"strings"
 
-	"github.com/WuKongIM/WuKongIM/pkg/channel"
-	channelv2 "github.com/WuKongIM/WuKongIM/pkg/channelv2"
+	channelv2 "github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
@@ -348,14 +347,14 @@ func containsNodeID(values []uint64, nodeID uint64) bool {
 }
 
 func managerChannelRuntimeStatus(status uint8) string {
-	switch channel.Status(status) {
-	case channel.StatusCreating:
+	switch channelv2.Status(status) {
+	case channelv2.StatusCreating:
 		return "creating"
-	case channel.StatusActive:
+	case channelv2.StatusActive:
 		return "active"
-	case channel.StatusDeleting:
+	case channelv2.StatusDeleting:
 		return "deleting"
-	case channel.StatusDeleted:
+	case channelv2.StatusDeleted:
 		return "deleted"
 	default:
 		return "unknown"

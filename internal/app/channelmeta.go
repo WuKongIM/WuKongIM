@@ -6,11 +6,11 @@ import (
 	"time"
 
 	runtimechannelmeta "github.com/WuKongIM/WuKongIM/internal/runtime/channelmeta"
-	"github.com/WuKongIM/WuKongIM/pkg/channel"
-	channelreplica "github.com/WuKongIM/WuKongIM/pkg/channel/replica"
-	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel/runtime"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/db/message"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	"github.com/WuKongIM/WuKongIM/pkg/legacy/channel"
+	channelreplica "github.com/WuKongIM/WuKongIM/pkg/legacy/channel/replica"
+	channelruntime "github.com/WuKongIM/WuKongIM/pkg/legacy/channel/runtime"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 

@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	deliverytagruntime "github.com/WuKongIM/WuKongIM/internal/runtime/deliverytag"
-	"github.com/WuKongIM/WuKongIM/pkg/channel"
+	"github.com/WuKongIM/WuKongIM/pkg/legacy/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )

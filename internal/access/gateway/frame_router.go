@@ -6,9 +6,9 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/internal/observability/diagnostics/tracectx"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
-	"github.com/WuKongIM/WuKongIM/pkg/channel"
-	channelhandler "github.com/WuKongIM/WuKongIM/pkg/channel/handler"
 	coregateway "github.com/WuKongIM/WuKongIM/pkg/gateway"
+	"github.com/WuKongIM/WuKongIM/pkg/legacy/channel"
+	channelhandler "github.com/WuKongIM/WuKongIM/pkg/legacy/channel/handler"
 	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"

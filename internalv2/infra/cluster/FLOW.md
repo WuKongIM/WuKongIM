@@ -3,14 +3,14 @@
 ## Responsibility
 
 `internalv2/infra/cluster` adapts internalv2 usecase/runtime ports to
-`pkg/cluster` and `pkg/channelv2`. It maps channelappend append DTOs to
-`pkg/channelv2` DTOs, resolves channel append authority through cluster, adapts
+`pkg/cluster` and `pkg/channel`. It maps channelappend append DTOs to
+`pkg/channel` DTOs, resolves channel append authority through cluster, adapts
 legacy-compatible channel metadata usecase calls to cluster Slot metadata
 facades, adapts legacy-compatible user metadata calls and manager user scans to
 UID Slot metadata facades, adapts read-only manager business channel and
 channel runtime metadata scans to cluster Slot metadata reads, adapts conversation reads and read/delete
 mutations to UID-owned conversation rows plus channel-owned committed message
-logs, adapts read-only manager message pages to committed ChannelV2 reads,
+logs, adapts read-only manager message pages to committed Channel runtime reads,
 adapts manager message retention requests to fenced Slot metadata advances, and
 routes manager connection reads over cluster node RPC, routes manager
 distributed log reads to node-local cluster log storage or peer RPC, routes
@@ -49,7 +49,7 @@ durable control-plane tombstone, not a node-local cleanup command.
 Gateway session closure and Slot operations other than explicit node-local Raft
 compaction or staged replica-move task creation stay unmigrated. Channel
 migration manager APIs use the dedicated cluster migration store adapter,
-which only exposes the Slot-owned ChannelV2 migration facade. Gateway drain mode
+which only exposes the Slot-owned Channel runtime migration facade. Gateway drain mode
 itself is routed through the manager connection RPC remote writer below because
 it is a target-node gateway admission toggle, not a control-plane assignment
 write.
@@ -127,25 +127,25 @@ token reset, force-offline, and system UID normalization stay above this layer.
 
 ```text
 channelappend.AppendBatchRequest
-  -> channelv2.AppendBatchRequest
+  -> channel.AppendBatchRequest
      (expected channel/leader epochs fence stale authority writes)
      (trace id, diagnostics channel key, append attempt, and per-message trace metadata stay transient)
   -> ChannelAppendNode.AppendChannelBatch
   -> record sendtrace `channel.append.local` for traced messages after completion
-  -> channelv2.AppendBatchResult
+  -> channel.AppendBatchResult
   -> channelappend.AppendBatchResult
 ```
 
 This adapter is the durable append ownership boundary: outbound message payloads
-are cloned before entering `channelv2`, and inbound result payloads are cloned
+are cloned before entering `channel`, and inbound result payloads are cloned
 unless the channelappend runtime marks them unnecessary for SENDACK-only flows.
 Commit mode, expected authority epoch fences, and typed errors are mapped at
 this boundary so the channelappend runtime stays cluster-agnostic.
-`channelv2.ErrWriteFenced` is treated as a retryable route-not-ready condition:
+`channel.ErrWriteFenced` is treated as a retryable route-not-ready condition:
 the durable control-plane fence owns the decision, and upper send orchestration
 should retry after metadata refresh or migration completion rather than treating
 the write as a permanent append failure.
-ChannelV2 placement candidate shortage is also mapped to route-not-ready, so a
+Channel runtime placement candidate shortage is also mapped to route-not-ready, so a
 node loss that makes new channel replica placement impossible fails closed and
 can be retried after the cluster regains enough schedulable data nodes.
 The adapter records channel append sendtrace events only when tracing is enabled
@@ -156,7 +156,7 @@ adapter logs `internalv2.infra.cluster.channel_append_batch_failed` at ERROR
 level with the channel identity, authority fence, attempt, record count,
 mapped error result, and raw source error before returning the mapped
 channelappend error.
-`ChannelIdempotencyStore` adapts the node-local ChannelV2 idempotency lookup
+`ChannelIdempotencyStore` adapts the node-local Channel runtime idempotency lookup
 facade for the channelappend runtime. It only returns a prior successful send
 when the sender UID, client message number, canonical channel, and raw payload
 hash match the durable index entry; hash mismatches are treated as lookup
@@ -169,13 +169,13 @@ message.ChannelMessageQuery
   -> channelstore.ReadCommittedRequest
      (pull-up reads forward; pull-down/latest reads reverse with limit+1)
   -> ChannelMessageReadNode.ReadChannelCommitted
-  -> channelv2/store committed messages
+  -> channel/store committed messages
   -> message.ChannelMessagePage
 ```
 
 The reader adapter trims `limit+1` results to preserve the legacy `more`
 contract and returns messages to the usecase in ascending sequence order. It
-maps only the fields currently carried by ChannelV2 committed messages; legacy
+maps only the fields currently carried by Channel runtime committed messages; legacy
 HTTP-only field shaping remains in `internalv2/access/api`.
 
 ## CMD Sync Flow
@@ -195,7 +195,7 @@ cmdsync.SyncAck
 sync. It reads CMD rows from the unified UID-owned conversation projection and
 advances read progress by writing CMD-kind `ConversationState` rows back through
 cluster Slot metadata. It does not create a second CMD-specific metadata
-table or a pending overlay. Channel log reads use ChannelV2 committed forward
+table or a pending overlay. Channel log reads use Channel runtime committed forward
 reads, filter out ordinary source-channel messages, and return cloned payloads
 to keep access/usecase layers from aliasing storage-owned memory.
 
@@ -204,11 +204,11 @@ to keep access/usecase layers from aliasing storage-owned memory.
 ```text
 management.MessageReader.QueryMessages
   -> ChannelMessageReadNode.ReadChannelCommitted(reverse, before_seq, limit+1)
-  -> channelv2/store committed messages
+  -> channel/store committed messages
   -> manager message DTO rows
 ```
 
-The manager message adapter reads committed ChannelV2 rows in descending order
+The manager message adapter reads committed Channel runtime rows in descending order
 for the manager message page. It converts timestamps from milliseconds to Unix
 seconds, clones payloads, applies the manager's optional message id and client
 message number filters within the returned page, and leaves cursor encoding and
@@ -217,9 +217,9 @@ HTTP response shaping to `internalv2/access/manager`.
 ```text
 management.MessageRetentionOperator.AdvanceMessageRetention
   -> MessageRetentionNode.GetChannelRuntimeMeta
-  -> if local node is not the ChannelV2 leader, forward once to meta.Leader
+  -> if local node is not the Channel runtime leader, forward once to meta.Leader
   -> leader re-reads ChannelRuntimeMeta and verifies local leadership
-  -> ChannelRetentionView reads local ChannelV2 HW/MinISR safety
+  -> ChannelRetentionView reads local Channel runtime HW/MinISR safety
   -> ReadChannelCommitted(reverse latest, min_seq = RetentionThroughSeq + 1)
   -> AdvanceChannelRetentionThroughSeq(fenced Slot metadata command)
   -> manager retention response
@@ -227,7 +227,7 @@ management.MessageRetentionOperator.AdvanceMessageRetention
 
 The manager retention adapter treats history deletion as logical channel log
 compaction. It never deletes message rows. It computes a safe boundary no higher
-than the requested sequence, latest committed visible message, ChannelV2 HW,
+than the requested sequence, latest committed visible message, Channel runtime HW,
 and leader MinISR match offset. Durable checkpoint HW is deliberately left to the
 physical trim path so the manager request does not wait on local cleanup
 checkpointing. If any logical gate is below the request, the adapter returns a
@@ -447,7 +447,7 @@ node; aggregate target selection, skipped-node notes, tracking-rule fan-out,
 and response DTO shaping stay in `internalv2/usecase/management`. The adapter
 does not query legacy `internal` diagnostics state.
 
-Bench runtime controls flow from internalv2 HTTP through `internalv2/infra/cluster`, `pkg/cluster.Node`, `pkg/cluster/channels.Service`, and finally the hosted ChannelV2 runtime. These routes are benchmark-only observation/cleanup controls and do not replace the gateway SEND activation path.
+Bench runtime controls flow from internalv2 HTTP through `internalv2/infra/cluster`, `pkg/cluster.Node`, `pkg/cluster/channels.Service`, and finally the hosted Channel runtime runtime. These routes are benchmark-only observation/cleanup controls and do not replace the gateway SEND activation path.
 
 ## Channel Metadata Flow
 
@@ -503,7 +503,7 @@ conversation list usecase
   -> GetLastVisibleMessages(current page keys)
        -> ReadChannelLastVisible(channel, visible_after_seq)
        -> if the tail is SyncOnce/CMD, reverse-scan committed rows for the latest ordinary message
-       -> channel-owned route resolves the ChannelV2 leader
+       -> channel-owned route resolves the Channel runtime leader
        -> missing channel or no visible message returns no last message for that row
 
 conversation sync usecase
@@ -534,7 +534,7 @@ adapters can share the same list, sync, and mutation semantics.
 It does own the storage-facing split between ordinary conversation hydration
 and CMD sync hydration: normal conversation last-message/recent reads skip
 `SyncOnce`/command-channel rows, while `CMDSyncStore` returns only those rows.
-`metadb.ErrNotFound` and `channelv2.ErrChannelNotFound` during a single
+`metadb.ErrNotFound` and `channel.ErrChannelNotFound` during a single
 last-message read mean that row has no display message, not that the whole list
 failed. Routing, readiness, and other read errors still fail the request.
 
@@ -606,13 +606,13 @@ conversation route sentinels before retry decisions.
 `ChannelAppendClient` adapts the channelappend router authority ports to
 cluster. It resolves canonical channel append authority through the narrow
 `Node.ResolveChannelAppendAuthority` facade, which delegates to the hosted
-ChannelV2 service so metadata creation policy remains in `pkg/cluster/channels`.
+Channel runtime service so metadata creation policy remains in `pkg/cluster/channels`.
 It attaches the large-channel flag and subscriber mutation version from a shared
 `ChannelAppendMetadataCache` when present; cache misses read durable channel
 metadata once and populate the cache. Subscriber mutation observers refresh the
 same cache, so hot channels avoid a foreground Slot metadata lookup on every
 SEND while still seeing low-churn fanout metadata changes. The adapter maps
-`channelv2.Meta` and recipient fanout metadata to `channelappend.AuthorityTarget`
+`channel.Meta` and recipient fanout metadata to `channelappend.AuthorityTarget`
 with the canonical `ChannelID`, `ChannelKey`, `LeaderNodeID`, `Epoch`,
 `LeaderEpoch`, `Large`, and `SubscriberMutationVersion`.
 
@@ -630,9 +630,9 @@ channelappend.Router
 ```
 
 Route errors are translated at this adapter boundary:
-`channelv2.ErrNotLeader` becomes `channelappend.ErrNotChannelAuthority`,
-`channelv2.ErrStaleMeta` becomes `channelappend.ErrStaleRoute`, and
-`channelv2.ErrNotReady` plus cluster readiness errors become
+`channel.ErrNotLeader` becomes `channelappend.ErrNotChannelAuthority`,
+`channel.ErrStaleMeta` becomes `channelappend.ErrStaleRoute`, and
+`channel.ErrNotReady` plus cluster readiness errors become
 `channelappend.ErrRouteNotReady`. Remote forwarding is supplied by the
 `internalv2/access/node` Channel Append RPC client; remote item results are
 returned item-aligned without interpreting successful payloads.
@@ -656,11 +656,11 @@ the current hash-slot metadata store.
 ## Error Mapping
 
 ```text
-channelv2.ErrNotLeader / cluster.ErrNotLeader      -> channelappend.ErrNotLeader
-channelv2.ErrStaleMeta / channelv2.ErrNotReplica     -> channelappend.ErrStaleRoute
-channelv2.ErrChannelNotFound                         -> channelappend.ErrChannelNotFound
-channelv2.ErrBackpressured                           -> channelappend.ErrBackpressured
-cluster.ErrRouteNotReady / cluster.ErrNoSlotLeader / channelv2.ErrNotReady -> channelappend.ErrRouteNotReady
+channel.ErrNotLeader / cluster.ErrNotLeader      -> channelappend.ErrNotLeader
+channel.ErrStaleMeta / channel.ErrNotReplica     -> channelappend.ErrStaleRoute
+channel.ErrChannelNotFound                         -> channelappend.ErrChannelNotFound
+channel.ErrBackpressured                           -> channelappend.ErrBackpressured
+cluster.ErrRouteNotReady / cluster.ErrNoSlotLeader / channel.ErrNotReady -> channelappend.ErrRouteNotReady
 context cancellation/deadline                        -> unchanged
 other errors                                         -> channelappend.ErrAppendFailed wrapping source
 ```

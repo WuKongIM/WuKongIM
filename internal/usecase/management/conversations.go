@@ -6,8 +6,8 @@ import (
 	"strings"
 
 	conversationusecase "github.com/WuKongIM/WuKongIM/internal/usecase/conversation"
-	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	"github.com/WuKongIM/WuKongIM/pkg/legacy/channel"
 )
 
 // ErrRecentConversationsUnavailable reports that manager conversation reads are not wired.

@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	runtimechannelplane "github.com/WuKongIM/WuKongIM/internal/runtime/channelplane"
-	"github.com/WuKongIM/WuKongIM/pkg/channel"
+	"github.com/WuKongIM/WuKongIM/pkg/legacy/channel"
 	"github.com/stretchr/testify/require"
 )
 

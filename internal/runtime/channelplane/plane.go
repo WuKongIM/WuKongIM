@@ -5,7 +5,7 @@ import (
 	"hash/fnv"
 	"sync"
 
-	"github.com/WuKongIM/WuKongIM/pkg/channel"
+	"github.com/WuKongIM/WuKongIM/pkg/legacy/channel"
 )
 
 // Plane is a synchronous append facade backed by channel-keyed reactors.

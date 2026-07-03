@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	"github.com/WuKongIM/WuKongIM/internal/contracts/messageevents"
-	"github.com/WuKongIM/WuKongIM/pkg/channel"
+	"github.com/WuKongIM/WuKongIM/pkg/legacy/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 

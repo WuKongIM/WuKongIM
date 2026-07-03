@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/db/message"
+	"github.com/WuKongIM/WuKongIM/pkg/legacy/channel"
 	"github.com/stretchr/testify/require"
 )
 

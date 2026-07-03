@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/WuKongIM/WuKongIM/internal/usecase/cmdsync"
-	"github.com/WuKongIM/WuKongIM/pkg/channel"
+	"github.com/WuKongIM/WuKongIM/pkg/legacy/channel"
 	runtimechannelid "github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 )

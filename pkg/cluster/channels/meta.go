@@ -3,7 +3,7 @@ package channels
 import (
 	"context"
 
-	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
+	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/routing"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )

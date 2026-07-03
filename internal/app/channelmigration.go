@@ -7,8 +7,8 @@ import (
 	"time"
 
 	channelmigrationruntime "github.com/WuKongIM/WuKongIM/internal/runtime/channelmigration"
-	"github.com/WuKongIM/WuKongIM/pkg/channel"
-	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel/runtime"
+	"github.com/WuKongIM/WuKongIM/pkg/legacy/channel"
+	channelruntime "github.com/WuKongIM/WuKongIM/pkg/legacy/channel/runtime"
 	raftcluster "github.com/WuKongIM/WuKongIM/pkg/legacy/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 	metastore "github.com/WuKongIM/WuKongIM/pkg/slot/proxy"

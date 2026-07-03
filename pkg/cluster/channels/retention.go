@@ -3,7 +3,7 @@ package channels
 import (
 	"context"
 
-	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
+	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
 )
 
 // RetentionView returns local retention state when the wrapped runtime supports it.

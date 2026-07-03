@@ -5,9 +5,9 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors"
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/rowcodec"
+	channel "github.com/WuKongIM/WuKongIM/pkg/db/message/channelcompat"
 )
 
 func TestMessageHeaderCodecRoundTrip(t *testing.T) {

@@ -3,7 +3,7 @@ package messageid
 import (
 	"fmt"
 
-	"github.com/WuKongIM/WuKongIM/pkg/channel"
+	"github.com/WuKongIM/WuKongIM/pkg/legacy/channel"
 	"github.com/bwmarrin/snowflake"
 )
 

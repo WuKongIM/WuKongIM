@@ -4,7 +4,7 @@ import (
 	"context"
 
 	runtimechannelplane "github.com/WuKongIM/WuKongIM/internal/runtime/channelplane"
-	"github.com/WuKongIM/WuKongIM/pkg/channel"
+	"github.com/WuKongIM/WuKongIM/pkg/legacy/channel"
 )
 
 // appChannelPlaneRouteResolver adapts channelmeta refreshes to channelplane route lookups.

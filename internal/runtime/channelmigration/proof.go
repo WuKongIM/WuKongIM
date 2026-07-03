@@ -1,6 +1,6 @@
 package channelmigration
 
-import "github.com/WuKongIM/WuKongIM/pkg/channel"
+import "github.com/WuKongIM/WuKongIM/pkg/legacy/channel"
 
 // EvaluateFinalTargetProof verifies that a post-drain target can preserve the
 // committed cutover prefix before metadata cutover is allowed.

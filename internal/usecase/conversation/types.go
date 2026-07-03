@@ -1,6 +1,6 @@
 package conversation
 
-import "github.com/WuKongIM/WuKongIM/pkg/channel"
+import "github.com/WuKongIM/WuKongIM/pkg/legacy/channel"
 
 // ConversationKey identifies one channel conversation in usecase APIs.
 type ConversationKey struct {

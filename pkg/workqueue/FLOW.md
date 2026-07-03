@@ -18,7 +18,7 @@ metrics names.
 | `ShardedMailbox[T]` | Hash work into bounded shard queues and run at most one drain per shard at a time. |
 
 Runtime packages should keep typed adapters around these primitives. For
-example, channelv2 can keep its `Task` / `Result` / `Fence` surface, gateway can
+example, channel can keep its `Task` / `Result` / `Fence` surface, gateway can
 keep SEND frame cloning and session-close policy, and channelappend can keep its
 channel-writer state machine.
 

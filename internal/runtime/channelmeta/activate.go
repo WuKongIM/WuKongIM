@@ -1,6 +1,6 @@
 package channelmeta
 
-import "github.com/WuKongIM/WuKongIM/pkg/channel"
+import "github.com/WuKongIM/WuKongIM/pkg/legacy/channel"
 
 type activationCall struct {
 	done       chan struct{}

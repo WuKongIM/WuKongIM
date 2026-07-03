@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	slotmeta "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	"github.com/WuKongIM/WuKongIM/pkg/legacy/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 

@@ -3,7 +3,7 @@ package cluster
 import (
 	"context"
 
-	"github.com/WuKongIM/WuKongIM/pkg/channelv2"
+	channelv2 "github.com/WuKongIM/WuKongIM/pkg/channel"
 )
 
 // ChannelRetentionGCResult summarizes one bounded local physical retention pass.

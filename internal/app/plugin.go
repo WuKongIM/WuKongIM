@@ -12,7 +12,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	pluginusecase "github.com/WuKongIM/WuKongIM/internal/usecase/plugin"
 	userusecase "github.com/WuKongIM/WuKongIM/internal/usecase/user"
-	"github.com/WuKongIM/WuKongIM/pkg/channel"
+	"github.com/WuKongIM/WuKongIM/pkg/legacy/channel"
 	pluginhost "github.com/WuKongIM/WuKongIM/pkg/plugin/pluginhost"
 )
 

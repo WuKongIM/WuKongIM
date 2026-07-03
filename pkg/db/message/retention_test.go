@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/WuKongIM/WuKongIM/pkg/channel"
+	channel "github.com/WuKongIM/WuKongIM/pkg/db/message/channelcompat"
 )
 
 func TestRetentionTrimDeletesIndexesAndPreservesLEO(t *testing.T) {

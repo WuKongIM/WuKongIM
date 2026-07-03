@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
-	channeltransport "github.com/WuKongIM/WuKongIM/pkg/channelv2/transport"
+	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
+	channeltransport "github.com/WuKongIM/WuKongIM/pkg/channel/transport"
 )
 
 const (

@@ -1,6 +1,6 @@
 package messageevents
 
-import "github.com/WuKongIM/WuKongIM/pkg/channel"
+import "github.com/WuKongIM/WuKongIM/pkg/legacy/channel"
 
 // MessageRealtime describes a non-durable message ready for realtime delivery.
 type MessageRealtime struct {

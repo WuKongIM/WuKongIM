@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
+	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
 )
 
 func TestChannelDataPlaneLeaseGuardAllowsFreshAppendAdmission(t *testing.T) {

@@ -2,22 +2,26 @@ package channel
 
 import (
 	"context"
+	"strconv"
 	"time"
-
-	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 )
 
+// NodeID identifies a node in the channel replica set.
 type NodeID uint64
+
+// ChannelKey is the stable runtime key used for reactor routing.
 type ChannelKey string
 
+// ChannelID is the client-visible channel identity.
 type ChannelID struct {
-	ID   string
+	// ID is the channel identifier without the type suffix.
+	ID string
+	// Type is the channel category used by the protocol layer.
 	Type uint8
 }
 
-type Role uint8
+// Status is the authoritative channel lifecycle state.
 type Status uint8
-type MessageSeqFormat uint8
 
 const (
 	StatusCreating Status = iota + 1
@@ -26,183 +30,203 @@ const (
 	StatusDeleted
 )
 
+// Role is the local replica role for a channel.
+type Role uint8
+
 const (
-	MessageSeqFormatLegacyU32 MessageSeqFormat = iota + 1
-	MessageSeqFormatU64
+	RoleFollower Role = iota + 1
+	RoleLeader
 )
 
-type Features struct {
-	MessageSeqFormat MessageSeqFormat
-}
-
-// CommitMode controls when an append request completes.
+// CommitMode controls when append calls complete.
 type CommitMode uint8
 
 const (
-	// CommitModeQuorum waits for the leader to reach quorum commit before completing.
+	// CommitModeQuorum waits for the leader HW to cover the appended records.
 	CommitModeQuorum CommitMode = iota + 1
-	// CommitModeLocal completes after the leader durably appends the record batch.
+	// CommitModeLocal completes after local durable append.
 	CommitModeLocal
 )
 
-type Message struct {
-	MessageID  uint64
-	MessageSeq uint64
-	Framer     frame.Framer
-	Setting    frame.Setting
-	MsgKey     string
-	Expire     uint32
-	ClientSeq  uint64
-
-	ClientMsgNo string
-	StreamNo    string
-	StreamID    uint64
-	StreamFlag  frame.StreamFlag
-	Timestamp   int32
-	ChannelID   string
-	ChannelType uint8
-	Topic       string
-	FromUID     string
-	// ServerTimestampMS is the server append timestamp in Unix milliseconds.
-	ServerTimestampMS int64
-	Payload           []byte
-}
-
-type Meta struct {
-	Key   ChannelKey
-	ID    ChannelID
-	Epoch uint64
-	// RouteGeneration is the authoritative version of the channel routing record.
-	RouteGeneration uint64
-	LeaderEpoch     uint64
-	Leader          NodeID
-	Replicas        []NodeID
-	ISR             []NodeID
-	MinISR          int
-	LeaseUntil      time.Time
-	Status          Status
-	Features        Features
-	// RetentionThroughSeq is the authoritative highest message sequence hidden by retention.
-	RetentionThroughSeq uint64
-	// WriteFence rejects new appends while a migration owns the channel cutover.
-	WriteFence WriteFence
-}
-
-// WriteFenceReason explains why channel writes are currently fenced.
+// WriteFenceReason identifies the control-plane operation that is blocking new writes.
 type WriteFenceReason uint8
 
 const (
-	// WriteFenceReasonMigration indicates writes are fenced by channel migration.
-	WriteFenceReasonMigration WriteFenceReason = 1
+	WriteFenceReasonUnknown WriteFenceReason = iota
+	WriteFenceReasonLeaderTransfer
+	WriteFenceReasonReplicaReplace
+	WriteFenceReasonFailover
 )
 
-// WriteFence is the channel runtime projection of an authoritative write fence.
+// WriteFence is durable control-plane metadata that prevents new leader appends.
 type WriteFence struct {
-	// Token identifies the task that owns the current write fence.
-	Token string
-	// Version is the monotonic fence generation applied from authoritative metadata.
+	Token   string
 	Version uint64
-	// Reason explains why writes are currently fenced.
-	Reason WriteFenceReason
-	// Until is the fence lease deadline from authoritative metadata.
-	Until time.Time
+	Reason  WriteFenceReason
+	Until   time.Time
 }
 
-// Active reports whether the fence currently rejects new writes.
-func (f WriteFence) Active(now time.Time) bool {
-	return f.Token != "" && !now.After(f.Until)
+// Set reports whether the authoritative metadata currently fences writes.
+func (f WriteFence) Set() bool {
+	return f.Token != "" && f.Version != 0
 }
 
-// BlocksAppend reports whether local append admission must fail closed until authoritative metadata clears the fence.
-func (f WriteFence) BlocksAppend() bool {
-	return f.Token != ""
-}
-
-// FenceAndDrainRequest asks the current channel leader to prove a fenced cutover point.
-type FenceAndDrainRequest struct {
-	// ChannelKey identifies the channel runtime to drain.
+// AppendAdmissionRequest describes a leader append admission decision.
+type AppendAdmissionRequest struct {
+	// ChannelID is the client-visible channel identity.
+	ChannelID ChannelID
+	// ChannelKey is the stable runtime key used for reactor routing.
 	ChannelKey ChannelKey
-	// TaskID identifies the migration task requesting the drain.
-	TaskID string
-	// WriteFenceToken identifies the authoritative migration write fence.
-	WriteFenceToken string
-	// WriteFenceVersion is the authoritative migration write fence generation.
-	WriteFenceVersion uint64
-	// ExpectedChannelEpoch fences the drain to the authoritative channel epoch.
-	ExpectedChannelEpoch uint64
-	// ExpectedLeaderEpoch fences the drain to the authoritative leader epoch.
-	ExpectedLeaderEpoch uint64
-	// ExpectedLeader fences the drain to the current local leader.
-	ExpectedLeader NodeID
-}
-
-// DrainResult is a leader-side proof captured after append admission is fail-closed.
-type DrainResult struct {
-	// ChannelKey identifies the drained channel runtime.
-	ChannelKey ChannelKey
-	// LEO is the leader log end offset at the drain point.
-	LEO uint64
-	// HW is the committed high watermark at the drain point.
-	HW uint64
-	// CheckpointHW is the durable checkpoint high watermark at the drain point.
-	CheckpointHW uint64
-	// ChannelEpoch is the applied channel metadata epoch.
-	ChannelEpoch uint64
-	// LeaderEpoch is the applied leader epoch.
+	// Epoch is the current channel membership epoch.
+	Epoch uint64
+	// LeaderEpoch is the current leader epoch within the channel epoch.
 	LeaderEpoch uint64
-	// WriteFenceVersion is the matching fence generation used for the drain proof.
-	WriteFenceVersion uint64
-	// RuntimeGeneration is the node-local runtime generation that produced the proof.
-	RuntimeGeneration uint64
+	// Leader is the authoritative channel leader node.
+	Leader NodeID
 }
 
-// MigrationControlClient sends migration control operations to channel leaders.
-type MigrationControlClient interface {
-	// FenceAndDrain asks the peer to validate the fenced leader state and return a drain proof.
-	FenceAndDrain(ctx context.Context, nodeID NodeID, req FenceAndDrainRequest) (DrainResult, error)
+// AppendAdmissionGuard can fail closed before a leader append enters the reactor.
+type AppendAdmissionGuard interface {
+	AllowChannelAppend(context.Context, AppendAdmissionRequest) error
 }
 
+// AppendAdmissionGuardFunc adapts a function to AppendAdmissionGuard.
+type AppendAdmissionGuardFunc func(context.Context, AppendAdmissionRequest) error
+
+// AllowChannelAppend calls fn for the append admission decision.
+func (fn AppendAdmissionGuardFunc) AllowChannelAppend(ctx context.Context, req AppendAdmissionRequest) error {
+	if fn == nil {
+		return ErrNotReady
+	}
+	return fn(ctx, req)
+}
+
+// Meta is the authoritative control-plane projection for a channel.
+type Meta struct {
+	// Key is the channel runtime key. If empty, service may derive it from ID.
+	Key ChannelKey
+	// ID is the client-visible channel identity.
+	ID ChannelID
+	// Epoch fences channel membership changes.
+	Epoch uint64
+	// LeaderEpoch fences leader changes within an epoch.
+	LeaderEpoch uint64
+	// Leader is the authoritative leader node.
+	Leader NodeID
+	// Replicas are nodes that should receive channel log data.
+	Replicas []NodeID
+	// ISR are replicas that participate in HW quorum calculation.
+	ISR []NodeID
+	// MinISR is the quorum size used for commit.
+	MinISR int
+	// LeaseUntil is reserved for later leader lease enforcement.
+	LeaseUntil time.Time
+	// RetentionThroughSeq is the highest sequence hidden by authoritative compaction.
+	RetentionThroughSeq uint64
+	// WriteFence blocks new leader appends while control-plane migration is active.
+	WriteFence WriteFence
+	// Status controls local serving behavior.
+	Status Status
+}
+
+// Message is the v0 client-visible message model.
+type Message struct {
+	MessageID   uint64
+	MessageSeq  uint64
+	ChannelID   string
+	ChannelType uint8
+	FromUID     string
+	ClientMsgNo string
+	// ServerTimestampMS is the server append timestamp in Unix milliseconds.
+	ServerTimestampMS int64
+	// TraceID correlates diagnostics events for this transient append message.
+	TraceID string
+	// ChannelKey is the diagnostics-safe channel identifier for this transient append message.
+	ChannelKey string
+	// SyncOnce marks one-shot command-sync messages in the durable channel log.
+	SyncOnce bool
+	Payload  []byte
+}
+
+// OpID identifies an asynchronous operation inside one channel generation.
+type OpID uint64
+
+// Fence is copied into async tasks and results to reject stale completions.
+type Fence struct {
+	ChannelKey  ChannelKey
+	Generation  uint64
+	Epoch       uint64
+	LeaderEpoch uint64
+	OpID        OpID
+}
+
+// Record is the durable log representation replicated between nodes.
+type Record struct {
+	// ID is the message id carried by this log entry.
+	ID uint64
+	// Index is the 1-based channel log offset and client message sequence.
+	Index uint64
+	// Epoch is the channel epoch that produced this entry.
+	Epoch uint64
+	// FromUID is the sender user id preserved for conversation display.
+	FromUID string
+	// ClientMsgNo is the client idempotency key preserved for conversation display.
+	ClientMsgNo string
+	// ServerTimestampMS is the server append timestamp in Unix milliseconds.
+	ServerTimestampMS int64
+	// SyncOnce marks one-shot command-sync records in the durable channel log.
+	SyncOnce bool
+	// Payload is the encoded message body in v0 memory and store adapters.
+	Payload []byte
+	// SizeBytes is used by batching and read budgets.
+	SizeBytes int
+}
+
+// Checkpoint records the durable committed frontier.
+type Checkpoint struct {
+	HW uint64
+}
+
+// AppendRequest appends one message to a channel.
 type AppendRequest struct {
-	ChannelID             ChannelID
-	Message               Message
-	SupportsMessageSeqU64 bool
-	// CommitMode defaults to CommitModeQuorum when unset.
+	ChannelID            ChannelID
+	Message              Message
 	CommitMode           CommitMode
 	ExpectedChannelEpoch uint64
 	ExpectedLeaderEpoch  uint64
-	// TraceID is the diagnostics trace identifier propagated with this append request.
-	TraceID string
-	// Attempt records the diagnostics-only append attempt number; it is not persisted or encoded.
-	Attempt int
 }
 
+// AppendResult is the committed result for one append.
 type AppendResult struct {
 	MessageID  uint64
 	MessageSeq uint64
 	Message    Message
 }
 
-// AppendBatchRequest appends multiple messages to one channel in strict request order.
+// AppendBatchRequest appends messages to one channel in request order.
 type AppendBatchRequest struct {
-	ChannelID             ChannelID
-	Messages              []Message
-	SupportsMessageSeqU64 bool
-	// CommitMode defaults to CommitModeQuorum when unset.
+	ChannelID ChannelID
+	Messages  []Message
+
+	// TraceID correlates diagnostics events for this append batch.
+	TraceID string
+	// ChannelKey is the diagnostics-safe channel identifier for this append batch.
+	ChannelKey string
+	// Attempt is the one-based append attempt associated with diagnostics metadata.
+	Attempt int
+
 	CommitMode           CommitMode
 	ExpectedChannelEpoch uint64
 	ExpectedLeaderEpoch  uint64
-	// TraceID is the diagnostics trace identifier propagated with this append request.
-	TraceID string
-	// Attempt records the diagnostics-only append attempt number; it is not persisted or encoded.
-	Attempt int
+	OmitResultPayload    bool
 }
 
-// AppendBatchResult returns per-message append results aligned with the request.
+// AppendBatchResult aligns per-message append results with the request order.
 type AppendBatchResult struct {
 	Items []AppendBatchItemResult
 }
 
-// AppendBatchItemResult is one append result inside a batch.
+// AppendBatchItemResult is one result inside an append batch.
 type AppendBatchItemResult struct {
 	MessageID  uint64
 	MessageSeq uint64
@@ -210,268 +234,7 @@ type AppendBatchItemResult struct {
 	Err        error
 }
 
-type FetchRequest struct {
-	ChannelID            ChannelID
-	FromSeq              uint64
-	Limit                int
-	MaxBytes             int
-	ExpectedChannelEpoch uint64
-	ExpectedLeaderEpoch  uint64
-}
-
-type FetchResult struct {
-	Messages     []Message
-	NextSeq      uint64
-	CommittedSeq uint64
-	// MinAvailableSeq is the first message sequence available to clients.
-	MinAvailableSeq uint64
-	// RetentionThroughSeq is the authoritative highest retained-away sequence.
-	RetentionThroughSeq uint64
-}
-
-type ChannelRuntimeStatus struct {
-	Key          ChannelKey
-	ID           ChannelID
-	Status       Status
-	Leader       NodeID
-	LeaderEpoch  uint64
-	HW           uint64
-	CommittedSeq uint64
-	// MinAvailableSeq is the first message sequence available to clients.
-	MinAvailableSeq uint64
-	// RetentionThroughSeq is the authoritative highest retained-away sequence.
-	RetentionThroughSeq uint64
-}
-
-type Record struct {
-	// ID is the message id carried by this channel log entry.
-	// Append drafts may set ID before the log index is assigned; fetched records
-	// must preserve it so followers can validate and persist the same message id.
-	ID uint64
-	// Index is the 1-based channel log index. For message entries it is exactly
-	// the message sequence exposed to clients.
-	Index uint64
-	// Epoch is the channel epoch that produced this log entry. Existing stores may
-	// leave it zero when epoch ownership is represented by epoch history ranges.
-	Epoch uint64
-	// Payload is the encoded durable message body.
-	Payload []byte
-	// SizeBytes is the encoded entry size used for batching and fetch budgets.
-	SizeBytes int
-}
-
-type Checkpoint struct {
-	Epoch          uint64
-	LogStartOffset uint64
-	HW             uint64
-}
-
-type EpochPoint struct {
-	Epoch       uint64
-	StartOffset uint64
-}
-
-type IdempotencyKey struct {
-	ChannelID   ChannelID
-	FromUID     string
-	ClientMsgNo string
-}
-
-type IdempotencyEntry struct {
-	MessageID  uint64
-	MessageSeq uint64
-	Offset     uint64
-}
-
-type ApplyFetchStoreRequest struct {
-	PreviousCommittedHW uint64
-	Records             []Record
-	Checkpoint          *Checkpoint
-}
-
-type ReplicaRole uint8
-
-const (
-	ReplicaRoleFollower ReplicaRole = iota + 1
-	ReplicaRoleLeader
-	ReplicaRoleFencedLeader
-	ReplicaRoleTombstoned
-)
-
-type ReplicaState struct {
-	ChannelKey     ChannelKey
-	Role           ReplicaRole
-	Epoch          uint64
-	OffsetEpoch    uint64
-	Leader         NodeID
-	LogStartOffset uint64
-	HW             uint64
-	CheckpointHW   uint64
-	CommitReady    bool
-	LEO            uint64
-	// RetentionThroughSeq is the local logical retention fence applied from metadata.
-	RetentionThroughSeq uint64
-	// MinAvailableSeq is the first message sequence that reads may return.
-	MinAvailableSeq uint64
-	// LocalRetentionThroughSeq is the highest authoritative retention boundary durably adopted locally.
-	LocalRetentionThroughSeq uint64
-	// PhysicalRetentionThroughSeq is the highest message sequence physically trimmed locally.
-	PhysicalRetentionThroughSeq uint64
-}
-
-// RetentionState records durable local retention progress for one channel.
-type RetentionState struct {
-	// LocalRetentionThroughSeq is the authoritative boundary adopted locally.
-	LocalRetentionThroughSeq uint64
-	// PhysicalRetentionThroughSeq is the highest adopted sequence physically removed locally.
-	PhysicalRetentionThroughSeq uint64
-	// RetainedMaxSeq is the durable LEO floor preserved after retained rows are removed.
-	RetainedMaxSeq uint64
-}
-
-// RetentionReset tells a follower to adopt the authoritative retention floor
-// before continuing replication from MinAvailableSeq.
-type RetentionReset struct {
-	// RetentionThroughSeq is the authoritative highest sequence hidden by retention.
-	RetentionThroughSeq uint64
-	// RetainedThroughOffset is the highest log offset the follower must treat as unavailable.
-	RetainedThroughOffset uint64
-	// MinAvailableSeq is the first sequence the follower should fetch next.
-	MinAvailableSeq uint64
-}
-
-// RetentionView exposes replica retention progress for retention planning.
-type RetentionView struct {
-	// ChannelKey identifies the channel this view belongs to.
-	ChannelKey ChannelKey
-	// Epoch is the channel epoch of this local replica view.
-	Epoch uint64
-	// LeaderEpoch is the current metadata leader epoch.
-	LeaderEpoch uint64
-	// Leader is the current metadata leader node.
-	Leader NodeID
-	// LeaseUntil is the current leader lease deadline.
-	LeaseUntil time.Time
-	// HW is the runtime committed high watermark.
-	HW uint64
-	// CheckpointHW is the durable committed high watermark.
-	CheckpointHW uint64
-	// LEO is the local log end offset, including any retained LEO floor.
-	LEO uint64
-	// CommitReady reports whether the replica can safely admit leader appends.
-	CommitReady bool
-	// RetentionThroughSeq is the authoritative logical retention boundary applied locally.
-	RetentionThroughSeq uint64
-	// MinAvailableSeq is the first sequence readable after retention and snapshots.
-	MinAvailableSeq uint64
-	// LocalRetentionThroughSeq is the highest retention boundary durably adopted locally.
-	LocalRetentionThroughSeq uint64
-	// PhysicalRetentionThroughSeq is the highest retention boundary physically trimmed locally.
-	PhysicalRetentionThroughSeq uint64
-	// MinISRMatchOffset is the minimum observed retention progress across current ISR members.
-	MinISRMatchOffset uint64
-}
-
-// EffectiveMinAvailableSeq returns the first sequence readable after logical retention and physical trimming.
-func EffectiveMinAvailableSeq(retentionThroughSeq, logStartOffset uint64) uint64 {
-	nextSeq := func(seq uint64) uint64 {
-		if seq == ^uint64(0) {
-			return seq
-		}
-		return seq + 1
-	}
-
-	minSeq := uint64(1)
-	if next := nextSeq(retentionThroughSeq); next > minSeq {
-		minSeq = next
-	}
-	if next := nextSeq(logStartOffset); next > minSeq {
-		minSeq = next
-	}
-	return minSeq
-}
-
-type CommitResult struct {
-	BaseOffset   uint64
-	NextCommitHW uint64
-	RecordCount  int
-}
-
-type Snapshot struct {
-	ChannelKey ChannelKey
-	Epoch      uint64
-	EndOffset  uint64
-	Payload    []byte
-}
-
-type ReplicaFetchRequest struct {
-	ChannelKey  ChannelKey
-	Epoch       uint64
-	ReplicaID   NodeID
-	FetchOffset uint64
-	OffsetEpoch uint64
-	MaxBytes    int
-}
-
-type ReplicaFetchResult struct {
-	Epoch          uint64
-	HW             uint64
-	Records        []Record
-	TruncateTo     *uint64
-	RetentionReset *RetentionReset
-}
-
-type ReplicaApplyFetchRequest struct {
-	ChannelKey ChannelKey
-	Epoch      uint64
-	Leader     NodeID
-	TruncateTo *uint64
-	Records    []Record
-	LeaderHW   uint64
-}
-
-type ReplicaProgressAckRequest struct {
-	ChannelKey  ChannelKey
-	Epoch       uint64
-	ReplicaID   NodeID
-	MatchOffset uint64
-}
-
-type ReplicaFollowerCursorUpdate struct {
-	ChannelKey  ChannelKey
-	Epoch       uint64
-	ReplicaID   NodeID
-	MatchOffset uint64
-	OffsetEpoch uint64
-}
-
-type ReplicaReconcileProof struct {
-	ChannelKey ChannelKey
-	Epoch      uint64
-	// LeaderEpoch fences the proof to the leader meta generation that requested it.
-	LeaderEpoch  uint64
-	ReplicaID    NodeID
-	OffsetEpoch  uint64
-	LogEndOffset uint64
-	CheckpointHW uint64
-}
-
-type commitModeContextKey struct{}
-
-// WithCommitMode returns a context that carries the append commit mode.
-func WithCommitMode(ctx context.Context, mode CommitMode) context.Context {
-	return context.WithValue(ctx, commitModeContextKey{}, normalizeCommitMode(mode))
-}
-
-// CommitModeFromContext reads the append commit mode from ctx.
-func CommitModeFromContext(ctx context.Context) CommitMode {
-	mode, _ := ctx.Value(commitModeContextKey{}).(CommitMode)
-	return normalizeCommitMode(mode)
-}
-
-func normalizeCommitMode(mode CommitMode) CommitMode {
-	if mode == 0 {
-		return CommitModeQuorum
-	}
-	return mode
+// ChannelKeyForID derives the default reactor key for a channel id.
+func ChannelKeyForID(id ChannelID) ChannelKey {
+	return ChannelKey(strconv.Itoa(int(id.Type)) + ":" + id.ID)
 }

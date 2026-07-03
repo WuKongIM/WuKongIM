@@ -1,6 +1,6 @@
 package channelplane
 
-import "github.com/WuKongIM/WuKongIM/pkg/channel"
+import "github.com/WuKongIM/WuKongIM/pkg/legacy/channel"
 
 const (
 	// RemoteAppendStatusOK means the remote owner appended the batch successfully.

@@ -7,8 +7,8 @@ import (
 	"strconv"
 
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
-	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	"github.com/WuKongIM/WuKongIM/pkg/legacy/channel"
 	raftcluster "github.com/WuKongIM/WuKongIM/pkg/legacy/cluster"
 	"github.com/gin-gonic/gin"
 )

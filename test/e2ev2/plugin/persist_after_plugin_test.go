@@ -21,8 +21,8 @@ import (
 
 	appv2 "github.com/WuKongIM/WuKongIM/internalv2/app"
 	"github.com/WuKongIM/WuKongIM/internalv2/usecase/message"
-	"github.com/WuKongIM/WuKongIM/pkg/channelv2"
-	channelstore "github.com/WuKongIM/WuKongIM/pkg/channelv2/store"
+	channelv2 "github.com/WuKongIM/WuKongIM/pkg/channel"
+	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/channels"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"

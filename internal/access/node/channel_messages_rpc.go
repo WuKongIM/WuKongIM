@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/WuKongIM/WuKongIM/pkg/channel"
-	channelhandler "github.com/WuKongIM/WuKongIM/pkg/channel/handler"
+	"github.com/WuKongIM/WuKongIM/pkg/legacy/channel"
+	channelhandler "github.com/WuKongIM/WuKongIM/pkg/legacy/channel/handler"
 	raftcluster "github.com/WuKongIM/WuKongIM/pkg/legacy/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 )

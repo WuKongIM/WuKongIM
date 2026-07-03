@@ -1,7 +1,7 @@
 // Package messageevents defines message usecase event contracts.
 package messageevents
 
-import "github.com/WuKongIM/WuKongIM/pkg/channel"
+import "github.com/WuKongIM/WuKongIM/pkg/legacy/channel"
 
 // MessageCommitted describes a durable channel-log message ready for side effects.
 type MessageCommitted struct {

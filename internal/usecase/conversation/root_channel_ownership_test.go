@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestConversationUsecaseSourcesUseRootChannelTypes(t *testing.T) {
+func TestConversationUsecaseSourcesUseLegacyChannelTypes(t *testing.T) {
 	files := []string{
 		"deps.go",
 		"types.go",
@@ -18,6 +18,7 @@ func TestConversationUsecaseSourcesUseRootChannelTypes(t *testing.T) {
 		body, err := os.ReadFile(path)
 		require.NoError(t, err)
 		require.NotContains(t, string(body), "pkg/channel/log", path)
-		require.Contains(t, string(body), "pkg/channel", path)
+		require.NotContains(t, string(body), "WuKongIM/pkg/channel\"", path)
+		require.Contains(t, string(body), "pkg/legacy/channel", path)
 	}
 }

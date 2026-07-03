@@ -267,6 +267,7 @@ func TestWaitControllerWriteReadyReportsControllerProbeTimeout(t *testing.T) {
 		t.Fatalf("Start() error = %v", err)
 	}
 	t.Cleanup(func() { _ = node.Stop(context.Background()) })
+	node.channelDataPlaneLease.MarkVisible(time.Now())
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond)
 	defer cancel()
@@ -289,6 +290,7 @@ func TestWaitControllerWriteReadyRetriesSlowControllerProbe(t *testing.T) {
 		t.Fatalf("Start() error = %v", err)
 	}
 	t.Cleanup(func() { _ = node.Stop(context.Background()) })
+	node.channelDataPlaneLease.MarkVisible(time.Now())
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2500*time.Millisecond)
 	defer cancel()

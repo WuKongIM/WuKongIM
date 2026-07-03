@@ -6,8 +6,8 @@ import (
 	"fmt"
 
 	channelmeta "github.com/WuKongIM/WuKongIM/internal/runtime/channelmeta"
-	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	"github.com/WuKongIM/WuKongIM/pkg/legacy/channel"
 	raftcluster "github.com/WuKongIM/WuKongIM/pkg/legacy/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 )

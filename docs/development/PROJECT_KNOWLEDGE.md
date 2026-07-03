@@ -2,18 +2,18 @@
 
 ## Internalv2
 
-- `internalv2` phase 1 is a parallel send-to-sendack skeleton: gateway SEND maps to `usecase/message.SendBatch`, appends through `infra/cluster.ChannelAppender`, and returns SENDACK after `pkg/cluster` / `pkg/channelv2` append.
+- `internalv2` phase 1 is a parallel send-to-sendack skeleton: gateway SEND maps to `usecase/message.SendBatch`, appends through `infra/cluster.ChannelAppender`, and returns SENDACK after `pkg/cluster` / `pkg/channel` append.
 - `internalv2` single-node deployments must use single-node cluster config. Do not add send or storage paths that bypass cluster semantics.
 - `internalv2/app` seeds message IDs from the effective cluster node ID: `Config.Cluster.NodeID` when set, otherwise top-level `Config.NodeID`.
-- `cmd/wukongim` is the promoted v2 product entrypoint. ControllerV2 and the
-  new cluster runtime are promoted to canonical `pkg/controller` and
-  `pkg/cluster`; `internalv2` and `pkg/channelv2` remain until their package
-  promotion stages.
+- `cmd/wukongim` is the promoted v2 product entrypoint. ControllerV2, the new
+  cluster runtime, and the multi-reactor channel runtime are promoted to
+  canonical `pkg/controller`, `pkg/cluster`, and `pkg/channel`; `internalv2`
+  remains until the internal package promotion stage.
 - Runnable `wukongim` helper-script configs live under `scripts/wukongim/` as `.conf`; `.conf.example` files are samples only and should not be script defaults.
 - `wukongim` bottleneck attribution uses Prometheus `/metrics` when `WK_METRICS_ENABLE=true`; compare gateway async SEND, ChannelV2 reactor/worker queue plus in-flight peak, and storage commit request-vs-batch metrics split by `leader_append` / `follower_apply` lane. `/bench/v1/snapshot` remains a benchmark setup counter surface.
 - `WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS` and `WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS` cap ChannelV2 blocking store worker concurrency only; use them after worker in-flight peaks and storage lane tails show commit-coordinator pressure, never as a durability shortcut.
 - ChannelV2 ordinary follower progress ACKs are safe only because they are sent after follower durable apply; Pull `AckOffset` remains the fallback, and leader HW still advances through normal quorum checks.
-- `pkg/channelv2` high-channel idle scale depends on parked followers: caught-up followers should wake through PullHint plus send-timeout-bounded recovery probes, not short-interval empty pull polling.
+- `pkg/channel` high-channel idle scale depends on parked followers: caught-up followers should wake through PullHint plus send-timeout-bounded recovery probes, not short-interval empty pull polling.
 - `cluster/channels` caches append ChannelRuntimeMeta with epoch and leader fences; Slot metadata remains authoritative and stale append errors invalidate the cache once before retry.
 - `internalv2` presence stores owner-local `OwnerRoute` projections for authority/touch; concrete gateway session handles must stay out of authority routes and live only in owner-local session records used for conflict close actions.
 - `internalv2/runtime/delivery` is the no-gateway/no-cluster benchmark boundary for online fanout, owner push batching, and recipient-owner recvack tracking.
@@ -117,7 +117,7 @@
 - SEND batching is layered: gateway shards by raw `ChannelID + ChannelType` only to preserve entry ordering and collect micro-batches; message usecase groups adjacent canonical same-channel sends; `pkg/channel.AppendBatch` performs one replica append with contiguous seqs.
 - Remote channel append forwarding supports one-channel batch RPC; falling back to per-message forwarding loses the durable/follower batching benefit for clients connected to non-leader nodes.
 - Single SEND/Append entrypoints are compatibility wrappers; durable send and app channel append internals should route through batch-of-one to avoid split correctness/performance paths.
-- `pkg/channelv2` append is local-runtime only: cluster must ensure/apply authoritative ChannelMeta first and forward non-leader appends to the resolved channel leader.
+- `pkg/channel` append is local-runtime only: cluster must ensure/apply authoritative ChannelMeta first and forward non-leader appends to the resolved channel leader.
 - In wukongim three-node ChannelV2 activation, `routing.Route.Leader` is the observed Slot Raft leader for metadata proposals; `routing.Route.PreferredLeader` is the control-plane data-plane placement target for initial ChannelV2 leader selection.
 - wukongim single hot-channel SEND stress is sensitive to gateway async SEND shard count: too many default shards shrink per-channel queue headroom and can close sessions with `async_dispatch_queue_full` before channelv2 saturates.
 - wukongim 1000-channel three-node real-QPS stress with 4096 online users needs about 2048 gateway async SEND dispatch workers; 1024 workers creates per-shard SEND head-of-line blocking before channelv2 is fully saturated.

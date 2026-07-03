@@ -6,8 +6,8 @@ import (
 
 	channelmeta "github.com/WuKongIM/WuKongIM/internal/runtime/channelmeta"
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
-	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	"github.com/WuKongIM/WuKongIM/pkg/legacy/channel"
 )
 
 type managerChannelReplicaStatusReader struct {

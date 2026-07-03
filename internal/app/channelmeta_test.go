@@ -7,8 +7,8 @@ import (
 	"time"
 
 	runtimechannelmeta "github.com/WuKongIM/WuKongIM/internal/runtime/channelmeta"
-	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	"github.com/WuKongIM/WuKongIM/pkg/legacy/channel"
 	"github.com/stretchr/testify/require"
 )
 

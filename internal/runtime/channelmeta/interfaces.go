@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/channel"
-	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel/runtime"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	"github.com/WuKongIM/WuKongIM/pkg/legacy/channel"
+	channelruntime "github.com/WuKongIM/WuKongIM/pkg/legacy/channel/runtime"
 	controllermeta "github.com/WuKongIM/WuKongIM/pkg/legacy/controller/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 )

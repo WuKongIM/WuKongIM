@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	applifecycle "github.com/WuKongIM/WuKongIM/internal/app/lifecycle"
-	"github.com/WuKongIM/WuKongIM/pkg/channel"
-	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel/runtime"
+	"github.com/WuKongIM/WuKongIM/pkg/legacy/channel"
+	channelruntime "github.com/WuKongIM/WuKongIM/pkg/legacy/channel/runtime"
 	"github.com/stretchr/testify/require"
 )
 

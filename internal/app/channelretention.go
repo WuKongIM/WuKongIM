@@ -7,10 +7,10 @@ import (
 	"time"
 
 	appretention "github.com/WuKongIM/WuKongIM/internal/runtime/channelretention"
-	"github.com/WuKongIM/WuKongIM/pkg/channel"
-	channelhandler "github.com/WuKongIM/WuKongIM/pkg/channel/handler"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/db/message"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	"github.com/WuKongIM/WuKongIM/pkg/legacy/channel"
+	channelhandler "github.com/WuKongIM/WuKongIM/pkg/legacy/channel/handler"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 

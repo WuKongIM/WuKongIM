@@ -11,7 +11,7 @@ import (
 	"time"
 
 	accessapi "github.com/WuKongIM/WuKongIM/internalv2/access/api"
-	"github.com/WuKongIM/WuKongIM/pkg/channelv2"
+	channelv2 "github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"

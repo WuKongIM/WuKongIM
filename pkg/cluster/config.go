@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/channelv2/reactor"
+	"github.com/WuKongIM/WuKongIM/pkg/channel/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 	cv2 "github.com/WuKongIM/WuKongIM/pkg/controller"
 	messagedb "github.com/WuKongIM/WuKongIM/pkg/db/message"

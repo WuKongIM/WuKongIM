@@ -3,7 +3,7 @@ package node
 import (
 	"fmt"
 
-	"github.com/WuKongIM/WuKongIM/pkg/channel"
+	"github.com/WuKongIM/WuKongIM/pkg/legacy/channel"
 )
 
 var (

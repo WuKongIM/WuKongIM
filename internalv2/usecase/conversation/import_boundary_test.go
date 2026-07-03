@@ -13,7 +13,7 @@ func TestConversationUsecaseImportBoundary(t *testing.T) {
 		"github.com/WuKongIM/WuKongIM/pkg/gateway",
 		"github.com/WuKongIM/WuKongIM/pkg/protocol/frame",
 		"github.com/WuKongIM/WuKongIM/pkg/cluster",
-		"github.com/WuKongIM/WuKongIM/pkg/channelv2",
+		"github.com/WuKongIM/WuKongIM/pkg/channel",
 		"github.com/WuKongIM/WuKongIM/internalv2/access",
 		"github.com/WuKongIM/WuKongIM/internalv2/app",
 		"github.com/WuKongIM/WuKongIM/internal/usecase",

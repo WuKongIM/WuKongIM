@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/channelv2"
-	channelstore "github.com/WuKongIM/WuKongIM/pkg/channelv2/store"
+	channelv2 "github.com/WuKongIM/WuKongIM/pkg/channel"
+	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/WuKongIM/WuKongIM/test/e2ev2/suite"
 	"github.com/stretchr/testify/require"

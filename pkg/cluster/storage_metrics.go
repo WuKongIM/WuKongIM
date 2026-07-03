@@ -1,7 +1,7 @@
 package cluster
 
 import (
-	channelstore "github.com/WuKongIM/WuKongIM/pkg/channelv2/store"
+	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/raftlog"
 )

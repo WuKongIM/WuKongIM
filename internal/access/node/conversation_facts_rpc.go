@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/WuKongIM/WuKongIM/pkg/channel"
+	"github.com/WuKongIM/WuKongIM/pkg/legacy/channel"
 )
 
 const (

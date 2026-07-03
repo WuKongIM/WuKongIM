@@ -12,9 +12,9 @@ import (
 	"unsafe"
 
 	conversationusecase "github.com/WuKongIM/WuKongIM/internal/usecase/conversation"
-	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/db/message"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	"github.com/WuKongIM/WuKongIM/pkg/legacy/channel"
 	raftcluster "github.com/WuKongIM/WuKongIM/pkg/legacy/cluster"
 	"github.com/stretchr/testify/require"
 )

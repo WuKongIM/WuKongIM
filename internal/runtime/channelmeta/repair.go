@@ -6,13 +6,13 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/channel"
-	channelhandler "github.com/WuKongIM/WuKongIM/pkg/channel/handler"
-	channelreplica "github.com/WuKongIM/WuKongIM/pkg/channel/replica"
-	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel/runtime"
-	channeltransport "github.com/WuKongIM/WuKongIM/pkg/channel/transport"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/db/message"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	"github.com/WuKongIM/WuKongIM/pkg/legacy/channel"
+	channelhandler "github.com/WuKongIM/WuKongIM/pkg/legacy/channel/handler"
+	channelreplica "github.com/WuKongIM/WuKongIM/pkg/legacy/channel/replica"
+	channelruntime "github.com/WuKongIM/WuKongIM/pkg/legacy/channel/runtime"
+	channeltransport "github.com/WuKongIM/WuKongIM/pkg/legacy/channel/transport"
 	raftcluster "github.com/WuKongIM/WuKongIM/pkg/legacy/cluster"
 	"golang.org/x/sync/singleflight"
 )

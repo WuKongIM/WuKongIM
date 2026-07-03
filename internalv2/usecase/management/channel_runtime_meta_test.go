@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/WuKongIM/WuKongIM/pkg/channel"
+	channelv2 "github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
@@ -24,8 +24,8 @@ func TestListChannelRuntimeMetaFiltersByNodeAndChannelID(t *testing.T) {
 	reader.slotPages[1] = map[metadb.ChannelRuntimeMetaCursor]fakeChannelRuntimeMetaPage{
 		{}: {
 			items: []metadb.ChannelRuntimeMeta{
-				{ChannelID: "alpha", ChannelType: 1, Leader: 1, Replicas: []uint64{1, 2}, ISR: []uint64{1, 2}, MinISR: 2, Status: uint8(channel.StatusActive)},
-				{ChannelID: "beta", ChannelType: 2, Leader: 2, Replicas: []uint64{2, 3}, ISR: []uint64{2}, MinISR: 2, Status: uint8(channel.StatusCreating)},
+				{ChannelID: "alpha", ChannelType: 1, Leader: 1, Replicas: []uint64{1, 2}, ISR: []uint64{1, 2}, MinISR: 2, Status: uint8(channelv2.StatusActive)},
+				{ChannelID: "beta", ChannelType: 2, Leader: 2, Replicas: []uint64{2, 3}, ISR: []uint64{2}, MinISR: 2, Status: uint8(channelv2.StatusCreating)},
 			},
 			done: true,
 		},
@@ -76,8 +76,8 @@ func TestListChannelRuntimeMetaReturnsCursorAfterLastEmittedMatch(t *testing.T) 
 	reader.slotPages[1] = map[metadb.ChannelRuntimeMetaCursor]fakeChannelRuntimeMetaPage{
 		{}: {
 			items: []metadb.ChannelRuntimeMeta{
-				{ChannelID: "a", ChannelType: 1, Leader: 2, Replicas: []uint64{2}, ISR: []uint64{2}, MinISR: 1, Status: uint8(channel.StatusActive)},
-				{ChannelID: "b", ChannelType: 1, Leader: 2, Replicas: []uint64{2}, ISR: []uint64{2}, MinISR: 1, Status: uint8(channel.StatusActive)},
+				{ChannelID: "a", ChannelType: 1, Leader: 2, Replicas: []uint64{2}, ISR: []uint64{2}, MinISR: 1, Status: uint8(channelv2.StatusActive)},
+				{ChannelID: "b", ChannelType: 1, Leader: 2, Replicas: []uint64{2}, ISR: []uint64{2}, MinISR: 1, Status: uint8(channelv2.StatusActive)},
 			},
 			done: true,
 		},

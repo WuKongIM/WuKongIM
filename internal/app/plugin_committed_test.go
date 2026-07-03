@@ -8,8 +8,8 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/contracts/messageevents"
 	deliveryruntime "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	pluginusecase "github.com/WuKongIM/WuKongIM/internal/usecase/plugin"
-	"github.com/WuKongIM/WuKongIM/pkg/channel"
-	channelhandler "github.com/WuKongIM/WuKongIM/pkg/channel/handler"
+	"github.com/WuKongIM/WuKongIM/pkg/legacy/channel"
+	channelhandler "github.com/WuKongIM/WuKongIM/pkg/legacy/channel/handler"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/stretchr/testify/require"
 )

@@ -12,11 +12,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/commit"
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors"
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/engine"
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/keycodec"
+	channel "github.com/WuKongIM/WuKongIM/pkg/db/message/channelcompat"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 )
 

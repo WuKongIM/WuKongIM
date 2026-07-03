@@ -1,6 +1,6 @@
 package channelplane
 
-import "github.com/WuKongIM/WuKongIM/pkg/channel"
+import "github.com/WuKongIM/WuKongIM/pkg/legacy/channel"
 
 type reactorEventKind uint8
 

@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	runtimechannelplane "github.com/WuKongIM/WuKongIM/internal/runtime/channelplane"
-	"github.com/WuKongIM/WuKongIM/pkg/channel"
+	"github.com/WuKongIM/WuKongIM/pkg/legacy/channel"
 )
 
 var (

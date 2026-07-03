@@ -208,8 +208,8 @@ Recommended migration order:
 3. Add a benchmark comparison before and after migration.
 4. Only then remove the old local queue/pool implementation.
 
-For `pkg/channelv2/worker`, keep `Task`, `Result`, `Fence`, batching decisions,
-and completion sink behavior in `pkg/channelv2/worker`; use `BoundedPool` only
+For `pkg/channel/worker`, keep `Task`, `Result`, `Fence`, batching decisions,
+and completion sink behavior in `pkg/channel/worker`; use `BoundedPool` only
 for generic admission and execution mechanics.
 
 For gateway SEND, keep frame cloning, session-close policy, and

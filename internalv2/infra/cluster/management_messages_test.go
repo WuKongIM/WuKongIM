@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	managementusecase "github.com/WuKongIM/WuKongIM/internalv2/usecase/management"
-	"github.com/WuKongIM/WuKongIM/pkg/channelv2"
-	channelstore "github.com/WuKongIM/WuKongIM/pkg/channelv2/store"
+	channelv2 "github.com/WuKongIM/WuKongIM/pkg/channel"
+	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
 )
 
 func TestManagementMessageReaderReadsCommittedMessagesDescending(t *testing.T) {

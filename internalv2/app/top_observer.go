@@ -7,9 +7,9 @@ import (
 
 	accessgateway "github.com/WuKongIM/WuKongIM/internalv2/access/gateway"
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internalv2/runtime/delivery"
-	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
-	"github.com/WuKongIM/WuKongIM/pkg/channelv2/reactor"
-	"github.com/WuKongIM/WuKongIM/pkg/channelv2/worker"
+	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
+	"github.com/WuKongIM/WuKongIM/pkg/channel/reactor"
+	"github.com/WuKongIM/WuKongIM/pkg/channel/worker"
 	clusterchannels "github.com/WuKongIM/WuKongIM/pkg/cluster/channels"
 	cv2 "github.com/WuKongIM/WuKongIM/pkg/controller"
 	messagedb "github.com/WuKongIM/WuKongIM/pkg/db/message"

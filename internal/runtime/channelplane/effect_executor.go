@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/WuKongIM/WuKongIM/pkg/channel"
+	"github.com/WuKongIM/WuKongIM/pkg/legacy/channel"
 )
 
 type effectTask func()

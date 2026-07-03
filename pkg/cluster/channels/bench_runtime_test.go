@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
+	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
 )
 
 func TestServiceRuntimeSnapshotDelegatesToRuntimeBench(t *testing.T) {

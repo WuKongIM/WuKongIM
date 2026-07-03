@@ -116,7 +116,7 @@ internalv2/
     presence/            入口无关连接寻址编排、激活/注销/查询、冲突动作调度
     user/                用户 token、device quit、在线状态与 system UID legacy 兼容用例
   infra/                 新架构外部运行时适配器
-    cluster/             cluster/channelv2 append、channel/user metadata 与 presence authority/owner-action 路由适配、typed error 映射
+    cluster/             cluster/channel append、channel/user metadata 与 presence authority/owner-action 路由适配、typed error 映射
 
 pkg/
   bench/
@@ -127,16 +127,12 @@ pkg/
     message/             Channel 消息日志、索引、checkpoint、epoch history、snapshot、retention、兼容 ChannelStore API
     meta/                Hash-slot 元数据表、批处理、快照、channel runtime meta、conversation、plugin、migration 等存储
   hashslot/              Hash-slot 路由表、迁移状态与再平衡算法
-  cluster/               新版集群组合根：control/routing/net/slots/propose/channels/observe 分层，集成 controller、slot/multiraft、channelv2
-  channel/               Channel 维度复制、日志与节点间数据面
-    handler/             append/fetch/query 入口逻辑与兼容 DurableMessage 编解码
-    replica/             单 channel ISR 副本状态机、reconcile、checkpoint、retention 与 promotion 评估
-    runtime/             channel runtime 生命周期、复制调度、backpressure 与 tombstone 管理
-    transport/           Channel 数据面 RPC transport 适配
-  channelv2/             实验性多 Reactor channel log runtime，用于 v0 append/fetch/replication 验证
+  cluster/               新版集群组合根：control/routing/net/slots/propose/channels/observe 分层，集成 controller、slot/multiraft、channel
+  channel/               多 Reactor channel log runtime，用于 v0 append/fetch/replication、runtime 观测、worker 池与 message DB 适配
   controller/            新版控制面：Raft apply 维护最终 cluster-state.json，含 state/statefile/command/fsm/planner/sync/raft/server
     docs/                controller 库用法文档
   legacy/cluster/        旧集群运行时，仅供 legacy internal 与过渡期工具编译期保留
+  legacy/channel/        旧 ISR channel runtime，仅供 legacy internal 与过渡期工具编译期保留
   legacy/controller/     旧控制面元数据、planner 与单组 Raft 服务，仅供 legacy cluster/internal 编译期保留
   observability/         可被 pkg 与 internal 复用的可观测性轻量合约
     sendtrace/           消息发送链路 trace 事件与全局窄 sink

@@ -7,9 +7,9 @@ import (
 
 	accessnode "github.com/WuKongIM/WuKongIM/internal/access/node"
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
-	"github.com/WuKongIM/WuKongIM/pkg/channel"
-	channelhandler "github.com/WuKongIM/WuKongIM/pkg/channel/handler"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	"github.com/WuKongIM/WuKongIM/pkg/legacy/channel"
+	channelhandler "github.com/WuKongIM/WuKongIM/pkg/legacy/channel/handler"
 	raftcluster "github.com/WuKongIM/WuKongIM/pkg/legacy/cluster"
 	"github.com/stretchr/testify/require"
 )

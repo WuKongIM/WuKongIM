@@ -3,8 +3,8 @@ package management
 import (
 	"context"
 
-	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	"github.com/WuKongIM/WuKongIM/pkg/legacy/channel"
 )
 
 // MessageQueryRequest configures one authoritative channel message page query.

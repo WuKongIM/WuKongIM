@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/pkg/bench/model"
-	"github.com/WuKongIM/WuKongIM/pkg/channelv2"
+	channelv2 "github.com/WuKongIM/WuKongIM/pkg/channel"
 )
 
 func TestChannelRuntimeBenchControllerMapsSnapshot(t *testing.T) {

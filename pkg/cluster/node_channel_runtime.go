@@ -3,7 +3,7 @@ package cluster
 import (
 	"context"
 
-	"github.com/WuKongIM/WuKongIM/pkg/channelv2"
+	channelv2 "github.com/WuKongIM/WuKongIM/pkg/channel"
 )
 
 // ChannelRuntimeSnapshot returns local ChannelV2 runtime state for benchmark controllers.

@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/channelv2"
-	channelstore "github.com/WuKongIM/WuKongIM/pkg/channelv2/store"
-	channeltransport "github.com/WuKongIM/WuKongIM/pkg/channelv2/transport"
+	channelv2 "github.com/WuKongIM/WuKongIM/pkg/channel"
+	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
+	channeltransport "github.com/WuKongIM/WuKongIM/pkg/channel/transport"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/channels"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )

@@ -3,30 +3,24 @@ package channel
 import "errors"
 
 var (
-	ErrInvalidConfig           = errors.New("channel: invalid config")
-	ErrInvalidArgument         = errors.New("channel: invalid argument")
-	ErrInvalidMeta             = errors.New("channel: invalid metadata")
-	ErrConflictingMeta         = errors.New("channel: conflicting metadata")
-	ErrStaleMeta               = errors.New("channel: stale metadata")
-	ErrNotLeader               = errors.New("channel: not leader")
-	ErrNotReady                = errors.New("channel: not ready")
-	ErrLeaseExpired            = errors.New("channel: lease expired")
-	ErrWriteFenced             = errors.New("channel: write fenced")
-	ErrInsufficientISR         = errors.New("channel: insufficient isr")
-	ErrTombstoned              = errors.New("channel: tombstoned")
-	ErrSnapshotRequired        = errors.New("channel: snapshot required")
-	ErrChannelDeleting         = errors.New("channel: channel deleting")
-	ErrChannelNotFound         = errors.New("channel: channel not found")
-	ErrIdempotencyConflict     = errors.New("channel: idempotency conflict")
-	ErrProtocolUpgradeRequired = errors.New("channel: protocol upgrade required")
-	ErrMessageSeqExhausted     = errors.New("channel: legacy message seq exhausted")
-	ErrMessageNotFound         = errors.New("channel: message not found")
-	ErrInvalidFetchArgument    = errors.New("channel: invalid fetch argument")
-	ErrInvalidFetchBudget      = errors.New("channel: invalid fetch budget")
-	ErrNoSafeChannelLeader     = errors.New("channel: no safe leader candidate")
-	ErrCorruptState            = errors.New("channel: corrupt state")
-	ErrEmptyState              = errors.New("channel: empty state")
-	ErrCorruptValue            = errors.New("channel: corrupt value")
-
-	errNotImplemented = errors.New("channel: not implemented")
+	// ErrInvalidConfig reports invalid construction or authoritative metadata.
+	ErrInvalidConfig = errors.New("channelv2: invalid config")
+	// ErrBackpressured reports that a bounded queue rejected new work.
+	ErrBackpressured = errors.New("channelv2: backpressured")
+	// ErrNotLeader reports that a write or leader RPC reached a non-leader node.
+	ErrNotLeader = errors.New("channelv2: not leader")
+	// ErrNotReady reports that a channel is not ready to serve the request.
+	ErrNotReady = errors.New("channelv2: not ready")
+	// ErrStaleMeta reports that a request was fenced by newer channel metadata.
+	ErrStaleMeta = errors.New("channelv2: stale meta")
+	// ErrWriteFenced reports that durable control-plane metadata is blocking new writes.
+	ErrWriteFenced = errors.New("channelv2: write fenced")
+	// ErrChannelNotFound reports that a channel is unknown or deleted locally.
+	ErrChannelNotFound = errors.New("channelv2: channel not found")
+	// ErrNotReplica reports that the local or requesting node is outside the channel replica set.
+	ErrNotReplica = errors.New("channelv2: not replica")
+	// ErrClosed reports that the cluster or one of its bounded workers is closed.
+	ErrClosed = errors.New("channelv2: closed")
+	// ErrTooManyChannels reports that local channel activation hit its limit.
+	ErrTooManyChannels = errors.New("channelv2: too many channels")
 )

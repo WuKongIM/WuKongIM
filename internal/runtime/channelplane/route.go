@@ -3,7 +3,7 @@ package channelplane
 import (
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/channel"
+	"github.com/WuKongIM/WuKongIM/pkg/legacy/channel"
 )
 
 // RouteEpoch identifies one authoritative routing version for a channel.

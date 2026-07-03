@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/channel"
+	"github.com/WuKongIM/WuKongIM/pkg/legacy/channel"
 )
 
 type ChannelKey struct {

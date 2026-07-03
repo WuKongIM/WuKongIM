@@ -1,6 +1,6 @@
 package channelplane
 
-import "github.com/WuKongIM/WuKongIM/pkg/channel"
+import "github.com/WuKongIM/WuKongIM/pkg/legacy/channel"
 
 // scheduler tracks reactor-local channel cells that are ready to advance.
 type scheduler struct {

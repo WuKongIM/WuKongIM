@@ -3,7 +3,7 @@ package channels
 import (
 	"sync"
 
-	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
+	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
 )
 
 // MetaCacheObserver receives append metadata cache observations.

@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/WuKongIM/WuKongIM/internalv2/contracts/channelappend"
-	"github.com/WuKongIM/WuKongIM/pkg/channelv2"
+	channelv2 "github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/propose"
 )

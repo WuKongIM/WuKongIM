@@ -11,7 +11,7 @@ import (
 
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
 	pluginusecase "github.com/WuKongIM/WuKongIM/internal/usecase/plugin"
-	"github.com/WuKongIM/WuKongIM/pkg/channel"
+	"github.com/WuKongIM/WuKongIM/pkg/legacy/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/gin-gonic/gin"
 )

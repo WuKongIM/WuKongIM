@@ -6,8 +6,8 @@ import (
 	"hash/fnv"
 	"time"
 
-	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
-	channeltransport "github.com/WuKongIM/WuKongIM/pkg/channelv2/transport"
+	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
+	channeltransport "github.com/WuKongIM/WuKongIM/pkg/channel/transport"
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/cluster/net"
 )
 

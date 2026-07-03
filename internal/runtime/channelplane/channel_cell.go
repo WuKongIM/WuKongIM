@@ -4,7 +4,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/channel"
+	"github.com/WuKongIM/WuKongIM/pkg/legacy/channel"
 )
 
 const maxRouteInvalidationRetries = 1

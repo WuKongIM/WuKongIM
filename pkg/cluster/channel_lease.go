@@ -5,7 +5,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
+	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
 )
 
 // channelDataPlaneLeaseGuard gates local ChannelV2 leader appends on recent control visibility.

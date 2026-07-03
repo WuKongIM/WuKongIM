@@ -9,8 +9,8 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/engine"
+	channel "github.com/WuKongIM/WuKongIM/pkg/db/message/channelcompat"
 )
 
 func BenchmarkChannelLogAppend(b *testing.B) {

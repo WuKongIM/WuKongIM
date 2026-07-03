@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
+	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/routing"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	metafsm "github.com/WuKongIM/WuKongIM/pkg/slot/fsm"

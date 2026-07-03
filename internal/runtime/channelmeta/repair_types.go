@@ -1,8 +1,8 @@
 package channelmeta
 
 import (
-	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	"github.com/WuKongIM/WuKongIM/pkg/legacy/channel"
 )
 
 // LeaderRepairRequest describes a channel leader repair request independent of RPC transport DTOs.
