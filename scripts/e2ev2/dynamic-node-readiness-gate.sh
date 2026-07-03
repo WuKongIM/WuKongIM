@@ -26,7 +26,7 @@ Options:
   --dry-run               Print resolved commands without executing them.
   --reuse-binary          Reuse an existing gofail binary and skip rebuilding it.
   --out-dir DIR           Evidence output directory.
-  --binary PATH           Gofail-enabled cmd/wukongimv2 binary path.
+  --binary PATH           Gofail-enabled cmd/wukongim binary path.
   -h, --help              Show this help.
 USAGE
 }
@@ -92,7 +92,7 @@ if [[ "$OUT_DIR" != /* ]]; then
 fi
 
 if [[ -z "$BINARY" ]]; then
-  BINARY="$OUT_DIR/wukongimv2-gofail"
+  BINARY="$OUT_DIR/wukongim-gofail"
 elif [[ "$BINARY" != /* ]]; then
   BINARY="$ROOT_DIR/$BINARY"
 fi
@@ -103,7 +103,7 @@ ENVIRONMENT_FILE="$OUT_DIR/environment.md"
 
 CONTROLLERV2_CMD=(env GOWORK=off "$GO_BIN" test ./pkg/controllerv2 -count=1)
 FAULTS_DEFAULT_CMD=(env GOWORK=off "$GO_BIN" test -tags=e2e ./test/e2ev2/cluster/dynamic_node_faults -count=1 -timeout 2m -p=1)
-BUILD_GOFAIL_CMD=("$BUILD_GOFAIL_SCRIPT" --cmd ./cmd/wukongimv2 --package internalv2/usecase/management --package pkg/controllerv2 --package pkg/clusterv2/tasks --package pkg/clusterv2/net --out "$BINARY")
+BUILD_GOFAIL_CMD=("$BUILD_GOFAIL_SCRIPT" --cmd ./cmd/wukongim --package internalv2/usecase/management --package pkg/controllerv2 --package pkg/clusterv2/tasks --package pkg/clusterv2/net --out "$BINARY")
 STAGE10A_CMD=(env WK_E2EV2_BINARY="$BINARY" WK_E2EV2_GOFAIL_DYNAMIC_NODE=1 GOWORK=off "$GO_BIN" test -tags=e2e ./test/e2ev2/cluster/dynamic_node_faults -run "TestStage10A|TestGofailDynamicNodeBinaryExposesFailpoints" -count=1 -timeout 15m -p=1)
 STAGE9D_CMD=(env GOWORK=off "$GO_BIN" test -tags=e2e ./test/e2ev2/cluster/dynamic_node_readiness -run TestDynamicNodeLifecycleWithContinuousTraffic -count=1 -timeout 12m -p=1)
 WKCLI_CMD=(env GOWORK=off "$GO_BIN" test ./cmd/wkcli ./cmd/wkcli/internal/... -count=1)
@@ -112,7 +112,7 @@ DIFF_CHECK_CMD=(git diff --check)
 
 CONTROLLERV2_CMD_TEXT="GOWORK=off $GO_BIN test ./pkg/controllerv2 -count=1"
 FAULTS_DEFAULT_CMD_TEXT="GOWORK=off $GO_BIN test -tags=e2e ./test/e2ev2/cluster/dynamic_node_faults -count=1 -timeout 2m -p=1"
-BUILD_GOFAIL_CMD_TEXT="$BUILD_GOFAIL_SCRIPT --cmd ./cmd/wukongimv2 --package internalv2/usecase/management --package pkg/controllerv2 --package pkg/clusterv2/tasks --package pkg/clusterv2/net --out $BINARY"
+BUILD_GOFAIL_CMD_TEXT="$BUILD_GOFAIL_SCRIPT --cmd ./cmd/wukongim --package internalv2/usecase/management --package pkg/controllerv2 --package pkg/clusterv2/tasks --package pkg/clusterv2/net --out $BINARY"
 STAGE10A_CMD_TEXT="WK_E2EV2_BINARY=$BINARY WK_E2EV2_GOFAIL_DYNAMIC_NODE=1 GOWORK=off $GO_BIN test -tags=e2e ./test/e2ev2/cluster/dynamic_node_faults -run 'TestStage10A|TestGofailDynamicNodeBinaryExposesFailpoints' -count=1 -timeout 15m -p=1"
 STAGE9D_CMD_TEXT="GOWORK=off $GO_BIN test -tags=e2e ./test/e2ev2/cluster/dynamic_node_readiness -run TestDynamicNodeLifecycleWithContinuousTraffic -count=1 -timeout 12m -p=1"
 WKCLI_CMD_TEXT="GOWORK=off $GO_BIN test ./cmd/wkcli ./cmd/wkcli/internal/... -count=1"
