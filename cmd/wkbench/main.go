@@ -77,7 +77,7 @@ func runMetricsClassifyConfig(cfg metricsClassifyConfig, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "read after snapshot failed: %v\n", err)
 		return exitConfig
 	}
-	printWukongIMV2Attribution(stderr, benchmetrics.AnalyzeWukongIMV2Prometheus(before, after))
+	printWukongIMAttribution(stderr, benchmetrics.AnalyzeWukongIMPrometheus(before, after))
 	return 0
 }
 
@@ -90,8 +90,8 @@ func readPrometheusSnapshot(path string) (benchmetrics.PrometheusSnapshot, error
 	return benchmetrics.ParsePrometheusText(file)
 }
 
-func printWukongIMV2Attribution(w io.Writer, report benchmetrics.WukongIMV2Attribution) {
-	fmt.Fprintln(w, "# wukongimv2 metrics attribution")
+func printWukongIMAttribution(w io.Writer, report benchmetrics.WukongIMAttribution) {
+	fmt.Fprintln(w, "# wukongim metrics attribution")
 	fmt.Fprintf(w, "classification: %s\n", report.Classification)
 	fmt.Fprintf(w, "gateway_queue_depth: %.0f\n", report.GatewayQueueDepth)
 	fmt.Fprintf(w, "gateway_queue_capacity: %.0f\n", report.GatewayQueueCapacity)

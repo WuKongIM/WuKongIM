@@ -120,7 +120,7 @@ func TestAggregateBoundsErrorSamplesGlobally(t *testing.T) {
 	}
 }
 
-func TestParsePrometheusTextAndAnalyzeWukongIMV2GatewayPressure(t *testing.T) {
+func TestParsePrometheusTextAndAnalyzeWukongIMGatewayPressure(t *testing.T) {
 	before, err := ParsePrometheusText(strings.NewReader(`
 # HELP wukongim_gateway_async_send_queue_depth queued SEND frames
 wukongim_gateway_async_send_queue_depth{node_id="1",node_name="node-1"} 0
@@ -149,9 +149,9 @@ wukongim_channelv2_worker_queue_depth{node_id="1",node_name="node-1",pool="store
 		t.Fatalf("ParsePrometheusText(after): %v", err)
 	}
 
-	report := AnalyzeWukongIMV2Prometheus(before, after)
-	if report.Classification != WukongIMV2BottleneckGateway {
-		t.Fatalf("classification = %q, want %q: %+v", report.Classification, WukongIMV2BottleneckGateway, report)
+	report := AnalyzeWukongIMPrometheus(before, after)
+	if report.Classification != WukongIMBottleneckGateway {
+		t.Fatalf("classification = %q, want %q: %+v", report.Classification, WukongIMBottleneckGateway, report)
 	}
 	if report.GatewayQueueRatio != 0.7 {
 		t.Fatalf("gateway queue ratio = %v, want 0.7", report.GatewayQueueRatio)
@@ -161,7 +161,7 @@ wukongim_channelv2_worker_queue_depth{node_id="1",node_name="node-1",pool="store
 	}
 }
 
-func TestAnalyzeWukongIMV2PrometheusReportsMessageAppendErrorCounters(t *testing.T) {
+func TestAnalyzeWukongIMPrometheusReportsMessageAppendErrorCounters(t *testing.T) {
 	before, err := ParsePrometheusText(strings.NewReader(`
 wukongim_message_append_errors_total{path="channelplane",class="route_not_ready"} 2
 wukongim_message_append_errors_total{path="channelplane",class="timeout"} 1
@@ -180,7 +180,7 @@ wukongim_message_append_errors_total{path="channelplane",class="invalid_config"}
 		t.Fatalf("ParsePrometheusText(after): %v", err)
 	}
 
-	report := AnalyzeWukongIMV2Prometheus(before, after)
+	report := AnalyzeWukongIMPrometheus(before, after)
 	if report.MessageAppendErrorCount != 12 {
 		t.Fatalf("message append errors = %v, want 12", report.MessageAppendErrorCount)
 	}
@@ -192,7 +192,7 @@ wukongim_message_append_errors_total{path="channelplane",class="invalid_config"}
 	}
 }
 
-func TestAnalyzeWukongIMV2PrometheusReportsGatewaySendackCounters(t *testing.T) {
+func TestAnalyzeWukongIMPrometheusReportsGatewaySendackCounters(t *testing.T) {
 	before, err := ParsePrometheusText(strings.NewReader(`
 wukongim_gateway_sendacks_total{reason="system_error",source="batch_result_error",class="timeout"} 1
 wukongim_gateway_sendacks_total{reason="success",source="batch_result",class="none"} 10
@@ -210,7 +210,7 @@ wukongim_gateway_sendacks_total{reason="success",source="batch_result",class="no
 		t.Fatalf("ParsePrometheusText(after): %v", err)
 	}
 
-	report := AnalyzeWukongIMV2Prometheus(before, after)
+	report := AnalyzeWukongIMPrometheus(before, after)
 	if report.GatewaySendackSystemErrorCount != 7 {
 		t.Fatalf("gateway system sendacks = %v, want 7", report.GatewaySendackSystemErrorCount)
 	}
@@ -225,7 +225,7 @@ wukongim_gateway_sendacks_total{reason="success",source="batch_result",class="no
 	}
 }
 
-func TestAnalyzeWukongIMV2PrometheusReportsChannelV2PullHintCounters(t *testing.T) {
+func TestAnalyzeWukongIMPrometheusReportsChannelV2PullHintCounters(t *testing.T) {
 	before, err := ParsePrometheusText(strings.NewReader(`
 wukongim_channelv2_pull_hint_total{reason="append",result="submitted",error="none"} 1
 wukongim_channelv2_pull_hint_total{reason="resume",result="submitted",error="none"} 2
@@ -289,7 +289,7 @@ wukongim_channelv2_replication_stage_duration_seconds_bucket{stage="follower_nee
 		t.Fatalf("ParsePrometheusText(after): %v", err)
 	}
 
-	report := AnalyzeWukongIMV2Prometheus(before, after)
+	report := AnalyzeWukongIMPrometheus(before, after)
 	if report.ChannelV2PullHintSubmittedCount != 8 {
 		t.Fatalf("submitted = %v, want 8", report.ChannelV2PullHintSubmittedCount)
 	}
@@ -326,12 +326,12 @@ wukongim_channelv2_replication_stage_duration_seconds_bucket{stage="follower_nee
 	if report.ChannelV2NeedMetaPullRPCP99Seconds <= 0 {
 		t.Fatalf("need meta pull RPC p99 = %v, want > 0", report.ChannelV2NeedMetaPullRPCP99Seconds)
 	}
-	if report.Classification != WukongIMV2BottleneckChannelV2 {
-		t.Fatalf("classification = %q, want %q: %+v", report.Classification, WukongIMV2BottleneckChannelV2, report)
+	if report.Classification != WukongIMBottleneckChannelV2 {
+		t.Fatalf("classification = %q, want %q: %+v", report.Classification, WukongIMBottleneckChannelV2, report)
 	}
 }
 
-func TestAnalyzeWukongIMV2PrometheusClassifiesChannelV2Pressure(t *testing.T) {
+func TestAnalyzeWukongIMPrometheusClassifiesChannelV2Pressure(t *testing.T) {
 	before, err := ParsePrometheusText(strings.NewReader(`
 wukongim_gateway_async_send_queue_depth 0
 wukongim_gateway_async_send_queue_capacity 100
@@ -459,9 +459,9 @@ wukongim_channelv2_replication_stage_duration_seconds_bucket{stage="follower_app
 		t.Fatalf("ParsePrometheusText(after): %v", err)
 	}
 
-	report := AnalyzeWukongIMV2Prometheus(before, after)
-	if report.Classification != WukongIMV2BottleneckChannelV2 {
-		t.Fatalf("classification = %q, want %q: %+v", report.Classification, WukongIMV2BottleneckChannelV2, report)
+	report := AnalyzeWukongIMPrometheus(before, after)
+	if report.Classification != WukongIMBottleneckChannelV2 {
+		t.Fatalf("classification = %q, want %q: %+v", report.Classification, WukongIMBottleneckChannelV2, report)
 	}
 	if report.ChannelV2ReactorMailboxDepthMax != 9 {
 		t.Fatalf("reactor mailbox depth = %v, want 9", report.ChannelV2ReactorMailboxDepthMax)
@@ -474,7 +474,7 @@ wukongim_channelv2_replication_stage_duration_seconds_bucket{stage="follower_app
 	}
 }
 
-func TestAnalyzeWukongIMV2PrometheusReportsChannelV2MetaResolveBreakdown(t *testing.T) {
+func TestAnalyzeWukongIMPrometheusReportsChannelV2MetaResolveBreakdown(t *testing.T) {
 	before, err := ParsePrometheusText(strings.NewReader(`
 wukongim_gateway_async_send_queue_depth 0
 wukongim_gateway_async_send_queue_capacity 100
@@ -544,16 +544,16 @@ wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_final_read",
 		t.Fatalf("ParsePrometheusText(after): %v", err)
 	}
 
-	report := AnalyzeWukongIMV2Prometheus(before, after)
-	if report.Classification != WukongIMV2BottleneckChannelV2 {
-		t.Fatalf("classification = %q, want %q: %+v", report.Classification, WukongIMV2BottleneckChannelV2, report)
+	report := AnalyzeWukongIMPrometheus(before, after)
+	if report.Classification != WukongIMBottleneckChannelV2 {
+		t.Fatalf("classification = %q, want %q: %+v", report.Classification, WukongIMBottleneckChannelV2, report)
 	}
 	if report.ChannelV2MetaSlotReadP99Seconds <= 0 || report.ChannelV2MetaCreateBuildP99Seconds <= 0 || report.ChannelV2MetaCreateProposeP99Seconds <= 0 || report.ChannelV2MetaCreateProposeLocalP99Seconds <= 0 || report.ChannelV2MetaCreateProposeForwardP99Seconds <= 0 || report.ChannelV2MetaCreateSlotProposeSubmitP99Seconds <= 0 || report.ChannelV2MetaCreateSlotProposeWaitP99Seconds <= 0 || report.ChannelV2MetaCreateWriteP99Seconds <= 0 || report.ChannelV2MetaFinalReadP99Seconds <= 0 {
 		t.Fatalf("channel meta breakdown p99s not parsed: %+v", report)
 	}
 }
 
-func TestAnalyzeWukongIMV2PrometheusReportsChannelV2SlotFutureBreakdown(t *testing.T) {
+func TestAnalyzeWukongIMPrometheusReportsChannelV2SlotFutureBreakdown(t *testing.T) {
 	before, err := ParsePrometheusText(strings.NewReader(`
 wukongim_gateway_async_send_queue_depth 0
 wukongim_gateway_async_send_queue_capacity 100
@@ -599,16 +599,16 @@ wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_create_slot_
 		t.Fatalf("ParsePrometheusText(after): %v", err)
 	}
 
-	report := AnalyzeWukongIMV2Prometheus(before, after)
-	if report.Classification != WukongIMV2BottleneckChannelV2 {
-		t.Fatalf("classification = %q, want %q: %+v", report.Classification, WukongIMV2BottleneckChannelV2, report)
+	report := AnalyzeWukongIMPrometheus(before, after)
+	if report.Classification != WukongIMBottleneckChannelV2 {
+		t.Fatalf("classification = %q, want %q: %+v", report.Classification, WukongIMBottleneckChannelV2, report)
 	}
 	if report.ChannelV2MetaCreateSlotControlWaitP99Seconds <= 0 || report.ChannelV2MetaCreateSlotRaftCommitWaitP99Seconds <= 0 || report.ChannelV2MetaCreateSlotFSMApplyP99Seconds <= 0 || report.ChannelV2MetaCreateSlotFSMCommitP99Seconds <= 0 || report.ChannelV2MetaCreateSlotMarkAppliedP99Seconds <= 0 {
 		t.Fatalf("channel Slot future breakdown p99s not parsed: %+v", report)
 	}
 }
 
-func TestAnalyzeWukongIMV2PrometheusClassifiesStorageCommitPressure(t *testing.T) {
+func TestAnalyzeWukongIMPrometheusClassifiesStorageCommitPressure(t *testing.T) {
 	before, err := ParsePrometheusText(strings.NewReader(`
 wukongim_gateway_async_send_queue_depth 0
 wukongim_gateway_async_send_queue_capacity 100
@@ -676,9 +676,9 @@ wukongim_storage_commit_request_duration_seconds_bucket{store="message",lane="ap
 		t.Fatalf("ParsePrometheusText(after): %v", err)
 	}
 
-	report := AnalyzeWukongIMV2Prometheus(before, after)
-	if report.Classification != WukongIMV2BottleneckStorageCommit {
-		t.Fatalf("classification = %q, want %q: %+v", report.Classification, WukongIMV2BottleneckStorageCommit, report)
+	report := AnalyzeWukongIMPrometheus(before, after)
+	if report.Classification != WukongIMBottleneckStorageCommit {
+		t.Fatalf("classification = %q, want %q: %+v", report.Classification, WukongIMBottleneckStorageCommit, report)
 	}
 	if report.StorageCommitQueueDepthMax != 5 {
 		t.Fatalf("storage commit queue depth = %v, want 5", report.StorageCommitQueueDepthMax)
@@ -709,7 +709,7 @@ wukongim_storage_commit_request_duration_seconds_bucket{store="message",lane="ap
 	}
 }
 
-func TestAnalyzeWukongIMV2PrometheusClassifiesControllerRaftStepPressure(t *testing.T) {
+func TestAnalyzeWukongIMPrometheusClassifiesControllerRaftStepPressure(t *testing.T) {
 	before, err := ParsePrometheusText(strings.NewReader(`
 wukongim_gateway_async_send_queue_depth 0
 wukongim_gateway_async_send_queue_capacity 100
@@ -745,9 +745,9 @@ wukongim_controller_raft_step_enqueue_duration_seconds_bucket{node_id="1",result
 		t.Fatalf("ParsePrometheusText(after): %v", err)
 	}
 
-	report := AnalyzeWukongIMV2Prometheus(before, after)
-	if report.Classification != WukongIMV2BottleneckControllerRaft {
-		t.Fatalf("classification = %q, want %q: %+v", report.Classification, WukongIMV2BottleneckControllerRaft, report)
+	report := AnalyzeWukongIMPrometheus(before, after)
+	if report.Classification != WukongIMBottleneckControllerRaft {
+		t.Fatalf("classification = %q, want %q: %+v", report.Classification, WukongIMBottleneckControllerRaft, report)
 	}
 	if report.ControllerRaftStepQueueDepth != 900 || report.ControllerRaftStepQueueCapacity != 1024 {
 		t.Fatalf("controller queue = %.0f/%.0f, want 900/1024", report.ControllerRaftStepQueueDepth, report.ControllerRaftStepQueueCapacity)

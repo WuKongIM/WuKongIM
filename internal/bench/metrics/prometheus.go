@@ -11,17 +11,17 @@ import (
 )
 
 const (
-	WukongIMV2BottleneckGateway        = "gateway_dispatch"
-	WukongIMV2BottleneckControllerRaft = "controller_raft_step"
-	WukongIMV2BottleneckChannelV2      = "channelv2_append"
-	WukongIMV2BottleneckStorageCommit  = "storage_commit"
-	WukongIMV2BottleneckMixed          = "mixed_backpressure"
-	WukongIMV2BottleneckUnobserved     = "no_observed_queue_pressure"
+	WukongIMBottleneckGateway        = "gateway_dispatch"
+	WukongIMBottleneckControllerRaft = "controller_raft_step"
+	WukongIMBottleneckChannelV2      = "channelv2_append"
+	WukongIMBottleneckStorageCommit  = "storage_commit"
+	WukongIMBottleneckMixed          = "mixed_backpressure"
+	WukongIMBottleneckUnobserved     = "no_observed_queue_pressure"
 )
 
 const (
-	wukongIMV2GatewayQueuePressureRatio = 0.25
-	wukongIMV2LatencyPressureSeconds    = 0.02
+	wukongIMGatewayQueuePressureRatio = 0.25
+	wukongIMLatencyPressureSeconds    = 0.02
 )
 
 // PrometheusSample is one parsed Prometheus text exposition sample.
@@ -40,8 +40,8 @@ type PrometheusSnapshot struct {
 	Samples []PrometheusSample
 }
 
-// WukongIMV2Attribution summarizes gateway vs ChannelV2 pressure from two snapshots.
-type WukongIMV2Attribution struct {
+// WukongIMAttribution summarizes gateway vs ChannelV2 pressure from two snapshots.
+type WukongIMAttribution struct {
 	// Classification is the coarse bottleneck class inferred from observed pressure.
 	Classification string
 	// Reasons explains the evidence that produced the classification.
@@ -309,10 +309,10 @@ func splitPrometheusLabels(raw string) []string {
 	return parts
 }
 
-// AnalyzeWukongIMV2Prometheus classifies gateway vs ChannelV2 pressure between two snapshots.
-func AnalyzeWukongIMV2Prometheus(before, after PrometheusSnapshot) WukongIMV2Attribution {
-	report := WukongIMV2Attribution{
-		Classification:                         WukongIMV2BottleneckUnobserved,
+// AnalyzeWukongIMPrometheus classifies gateway vs ChannelV2 pressure between two snapshots.
+func AnalyzeWukongIMPrometheus(before, after PrometheusSnapshot) WukongIMAttribution {
+	report := WukongIMAttribution{
+		Classification:                         WukongIMBottleneckUnobserved,
 		ChannelV2WorkerQueueDepthByPool:        map[string]float64{},
 		ChannelV2WorkerInflightByPool:          map[string]float64{},
 		ChannelV2WorkerInflightPeakByPool:      map[string]float64{},
@@ -479,11 +479,11 @@ func AnalyzeWukongIMV2Prometheus(before, after PrometheusSnapshot) WukongIMV2Att
 	}
 
 	gatewayPressure := false
-	if report.GatewayQueueRatio >= wukongIMV2GatewayQueuePressureRatio {
+	if report.GatewayQueueRatio >= wukongIMGatewayQueuePressureRatio {
 		gatewayPressure = true
 		report.Reasons = append(report.Reasons, "gateway async SEND queue ratio is high")
 	}
-	if report.GatewayDispatchWaitP99Seconds >= wukongIMV2LatencyPressureSeconds {
+	if report.GatewayDispatchWaitP99Seconds >= wukongIMLatencyPressureSeconds {
 		gatewayPressure = true
 		report.Reasons = append(report.Reasons, "gateway async SEND dispatch wait p99 is high")
 	}
@@ -540,11 +540,11 @@ func AnalyzeWukongIMV2Prometheus(before, after PrometheusSnapshot) WukongIMV2Att
 	}
 
 	controllerPressure := false
-	if report.ControllerRaftStepQueueRatio >= wukongIMV2GatewayQueuePressureRatio {
+	if report.ControllerRaftStepQueueRatio >= wukongIMGatewayQueuePressureRatio {
 		controllerPressure = true
 		report.Reasons = append(report.Reasons, "ControllerV2 Raft Step queue ratio is high")
 	}
-	if report.ControllerRaftStepEnqueueOKP99Seconds >= wukongIMV2LatencyPressureSeconds {
+	if report.ControllerRaftStepEnqueueOKP99Seconds >= wukongIMLatencyPressureSeconds {
 		controllerPressure = true
 		report.Reasons = append(report.Reasons, "ControllerV2 Raft Step enqueue ok p99 is high")
 	}
@@ -562,135 +562,135 @@ func AnalyzeWukongIMV2Prometheus(before, after PrometheusSnapshot) WukongIMV2Att
 		channelPressure = true
 		report.Reasons = append(report.Reasons, "ChannelV2 worker pool has queued tasks")
 	}
-	if report.ChannelV2AppendP99Seconds >= wukongIMV2LatencyPressureSeconds {
+	if report.ChannelV2AppendP99Seconds >= wukongIMLatencyPressureSeconds {
 		channelPressure = true
 		report.Reasons = append(report.Reasons, "ChannelV2 append p99 is high")
 	}
-	if report.ChannelV2MetaResolveP99Seconds >= wukongIMV2LatencyPressureSeconds {
+	if report.ChannelV2MetaResolveP99Seconds >= wukongIMLatencyPressureSeconds {
 		channelPressure = true
 		report.Reasons = append(report.Reasons, "ChannelV2 meta resolve p99 is high")
 	}
-	if report.ChannelV2MetaSlotReadP99Seconds >= wukongIMV2LatencyPressureSeconds {
+	if report.ChannelV2MetaSlotReadP99Seconds >= wukongIMLatencyPressureSeconds {
 		channelPressure = true
 		report.Reasons = append(report.Reasons, "ChannelV2 meta slot read p99 is high")
 	}
-	if report.ChannelV2MetaCreateBuildP99Seconds >= wukongIMV2LatencyPressureSeconds {
+	if report.ChannelV2MetaCreateBuildP99Seconds >= wukongIMLatencyPressureSeconds {
 		channelPressure = true
 		report.Reasons = append(report.Reasons, "ChannelV2 meta create/build p99 is high")
 	}
-	if report.ChannelV2MetaCreateProposeP99Seconds >= wukongIMV2LatencyPressureSeconds {
+	if report.ChannelV2MetaCreateProposeP99Seconds >= wukongIMLatencyPressureSeconds {
 		channelPressure = true
 		report.Reasons = append(report.Reasons, "ChannelV2 meta create/propose p99 is high")
 	}
-	if report.ChannelV2MetaCreateProposeLocalP99Seconds >= wukongIMV2LatencyPressureSeconds {
+	if report.ChannelV2MetaCreateProposeLocalP99Seconds >= wukongIMLatencyPressureSeconds {
 		channelPressure = true
 		report.Reasons = append(report.Reasons, "ChannelV2 meta create/propose local p99 is high")
 	}
-	if report.ChannelV2MetaCreateProposeForwardP99Seconds >= wukongIMV2LatencyPressureSeconds {
+	if report.ChannelV2MetaCreateProposeForwardP99Seconds >= wukongIMLatencyPressureSeconds {
 		channelPressure = true
 		report.Reasons = append(report.Reasons, "ChannelV2 meta create/propose forward p99 is high")
 	}
-	if report.ChannelV2MetaCreateSlotProposeSubmitP99Seconds >= wukongIMV2LatencyPressureSeconds {
+	if report.ChannelV2MetaCreateSlotProposeSubmitP99Seconds >= wukongIMLatencyPressureSeconds {
 		channelPressure = true
 		report.Reasons = append(report.Reasons, "ChannelV2 meta create Slot propose submit p99 is high")
 	}
-	if report.ChannelV2MetaCreateSlotProposeWaitP99Seconds >= wukongIMV2LatencyPressureSeconds {
+	if report.ChannelV2MetaCreateSlotProposeWaitP99Seconds >= wukongIMLatencyPressureSeconds {
 		channelPressure = true
 		report.Reasons = append(report.Reasons, "ChannelV2 meta create Slot propose wait p99 is high")
 	}
-	if report.ChannelV2MetaCreateSlotControlWaitP99Seconds >= wukongIMV2LatencyPressureSeconds {
+	if report.ChannelV2MetaCreateSlotControlWaitP99Seconds >= wukongIMLatencyPressureSeconds {
 		channelPressure = true
 		report.Reasons = append(report.Reasons, "ChannelV2 meta create Slot control wait p99 is high")
 	}
-	if report.ChannelV2MetaCreateSlotRaftCommitWaitP99Seconds >= wukongIMV2LatencyPressureSeconds {
+	if report.ChannelV2MetaCreateSlotRaftCommitWaitP99Seconds >= wukongIMLatencyPressureSeconds {
 		channelPressure = true
 		report.Reasons = append(report.Reasons, "ChannelV2 meta create Slot Raft commit wait p99 is high")
 	}
-	if report.ChannelV2MetaCreateSlotFSMApplyP99Seconds >= wukongIMV2LatencyPressureSeconds {
+	if report.ChannelV2MetaCreateSlotFSMApplyP99Seconds >= wukongIMLatencyPressureSeconds {
 		channelPressure = true
 		report.Reasons = append(report.Reasons, "ChannelV2 meta create Slot FSM apply p99 is high")
 	}
-	if report.ChannelV2MetaCreateSlotFSMCommitP99Seconds >= wukongIMV2LatencyPressureSeconds {
+	if report.ChannelV2MetaCreateSlotFSMCommitP99Seconds >= wukongIMLatencyPressureSeconds {
 		channelPressure = true
 		report.Reasons = append(report.Reasons, "ChannelV2 meta create Slot FSM commit p99 is high")
 	}
-	if report.ChannelV2MetaCreateSlotMarkAppliedP99Seconds >= wukongIMV2LatencyPressureSeconds {
+	if report.ChannelV2MetaCreateSlotMarkAppliedP99Seconds >= wukongIMLatencyPressureSeconds {
 		channelPressure = true
 		report.Reasons = append(report.Reasons, "ChannelV2 meta create Slot mark-applied p99 is high")
 	}
-	if report.ChannelV2MetaCreateWriteP99Seconds >= wukongIMV2LatencyPressureSeconds {
+	if report.ChannelV2MetaCreateWriteP99Seconds >= wukongIMLatencyPressureSeconds {
 		channelPressure = true
 		report.Reasons = append(report.Reasons, "ChannelV2 meta create/write p99 is high")
 	}
-	if report.ChannelV2MetaFinalReadP99Seconds >= wukongIMV2LatencyPressureSeconds {
+	if report.ChannelV2MetaFinalReadP99Seconds >= wukongIMLatencyPressureSeconds {
 		channelPressure = true
 		report.Reasons = append(report.Reasons, "ChannelV2 meta final read p99 is high")
 	}
-	if report.ChannelV2MetaApplyP99Seconds >= wukongIMV2LatencyPressureSeconds {
+	if report.ChannelV2MetaApplyP99Seconds >= wukongIMLatencyPressureSeconds {
 		channelPressure = true
 		report.Reasons = append(report.Reasons, "ChannelV2 meta apply p99 is high")
 	}
-	if report.ChannelV2RuntimeAppendP99Seconds >= wukongIMV2LatencyPressureSeconds {
+	if report.ChannelV2RuntimeAppendP99Seconds >= wukongIMLatencyPressureSeconds {
 		channelPressure = true
 		report.Reasons = append(report.Reasons, "ChannelV2 runtime append p99 is high")
 	}
-	if report.ChannelV2RuntimeAppendReserveWaitP99Seconds >= wukongIMV2LatencyPressureSeconds {
+	if report.ChannelV2RuntimeAppendReserveWaitP99Seconds >= wukongIMLatencyPressureSeconds {
 		channelPressure = true
 		report.Reasons = append(report.Reasons, "ChannelV2 runtime append reserve wait p99 is high")
 	}
-	if report.ChannelV2RuntimeAppendSubmitP99Seconds >= wukongIMV2LatencyPressureSeconds {
+	if report.ChannelV2RuntimeAppendSubmitP99Seconds >= wukongIMLatencyPressureSeconds {
 		channelPressure = true
 		report.Reasons = append(report.Reasons, "ChannelV2 runtime append submit p99 is high")
 	}
-	if report.ChannelV2RuntimeAppendWaitP99Seconds >= wukongIMV2LatencyPressureSeconds {
+	if report.ChannelV2RuntimeAppendWaitP99Seconds >= wukongIMLatencyPressureSeconds {
 		channelPressure = true
 		report.Reasons = append(report.Reasons, "ChannelV2 runtime append future wait p99 is high")
 	}
-	if report.ChannelV2AppendBatchWaitP99Seconds >= wukongIMV2LatencyPressureSeconds {
+	if report.ChannelV2AppendBatchWaitP99Seconds >= wukongIMLatencyPressureSeconds {
 		channelPressure = true
 		report.Reasons = append(report.Reasons, "ChannelV2 append batch wait p99 is high")
 	}
-	if report.ChannelV2AppendStoreWaitP99Seconds >= wukongIMV2LatencyPressureSeconds {
+	if report.ChannelV2AppendStoreWaitP99Seconds >= wukongIMLatencyPressureSeconds {
 		channelPressure = true
 		report.Reasons = append(report.Reasons, "ChannelV2 append store wait p99 is high")
 	}
-	if report.ChannelV2AppendPostStoreCommitWaitP99Seconds >= wukongIMV2LatencyPressureSeconds {
+	if report.ChannelV2AppendPostStoreCommitWaitP99Seconds >= wukongIMLatencyPressureSeconds {
 		channelPressure = true
 		report.Reasons = append(report.Reasons, "ChannelV2 append post-store commit wait p99 is high")
 	}
-	if report.ChannelV2AppendQuorumFollowerPullWaitP99Seconds >= wukongIMV2LatencyPressureSeconds {
+	if report.ChannelV2AppendQuorumFollowerPullWaitP99Seconds >= wukongIMLatencyPressureSeconds {
 		channelPressure = true
 		report.Reasons = append(report.Reasons, "ChannelV2 quorum follower pull wait p99 is high")
 	}
-	if report.ChannelV2AppendQuorumAckOffsetWaitP99Seconds >= wukongIMV2LatencyPressureSeconds {
+	if report.ChannelV2AppendQuorumAckOffsetWaitP99Seconds >= wukongIMLatencyPressureSeconds {
 		channelPressure = true
 		report.Reasons = append(report.Reasons, "ChannelV2 quorum ack offset wait p99 is high")
 	}
-	if report.ChannelV2AppendQuorumHWAdvanceWaitP99Seconds >= wukongIMV2LatencyPressureSeconds {
+	if report.ChannelV2AppendQuorumHWAdvanceWaitP99Seconds >= wukongIMLatencyPressureSeconds {
 		channelPressure = true
 		report.Reasons = append(report.Reasons, "ChannelV2 quorum HW advance wait p99 is high")
 	}
-	if report.ChannelV2AppendQuorumFinalCompleteP99Seconds >= wukongIMV2LatencyPressureSeconds {
+	if report.ChannelV2AppendQuorumFinalCompleteP99Seconds >= wukongIMLatencyPressureSeconds {
 		channelPressure = true
 		report.Reasons = append(report.Reasons, "ChannelV2 quorum final completion wait p99 is high")
 	}
-	if report.ChannelV2ReplicationPullHintToSubmitP99Seconds >= wukongIMV2LatencyPressureSeconds {
+	if report.ChannelV2ReplicationPullHintToSubmitP99Seconds >= wukongIMLatencyPressureSeconds {
 		channelPressure = true
 		report.Reasons = append(report.Reasons, "ChannelV2 follower PullHint-to-submit p99 is high")
 	}
-	if report.ChannelV2ReplicationPullRPCP99Seconds >= wukongIMV2LatencyPressureSeconds {
+	if report.ChannelV2ReplicationPullRPCP99Seconds >= wukongIMLatencyPressureSeconds {
 		channelPressure = true
 		report.Reasons = append(report.Reasons, "ChannelV2 follower pull RPC p99 is high")
 	}
-	if report.ChannelV2NeedMetaPullRPCP99Seconds >= wukongIMV2LatencyPressureSeconds {
+	if report.ChannelV2NeedMetaPullRPCP99Seconds >= wukongIMLatencyPressureSeconds {
 		channelPressure = true
 		report.Reasons = append(report.Reasons, "ChannelV2 follower NeedMeta pull RPC p99 is high")
 	}
-	if report.ChannelV2ReplicationStoreApplyP99Seconds >= wukongIMV2LatencyPressureSeconds {
+	if report.ChannelV2ReplicationStoreApplyP99Seconds >= wukongIMLatencyPressureSeconds {
 		channelPressure = true
 		report.Reasons = append(report.Reasons, "ChannelV2 follower store apply p99 is high")
 	}
-	if report.ChannelV2ReplicationApplyToAckReturnP99Seconds >= wukongIMV2LatencyPressureSeconds {
+	if report.ChannelV2ReplicationApplyToAckReturnP99Seconds >= wukongIMLatencyPressureSeconds {
 		channelPressure = true
 		report.Reasons = append(report.Reasons, "ChannelV2 follower apply-to-AckOffset-return p99 is high")
 	}
@@ -775,7 +775,7 @@ func AnalyzeWukongIMV2Prometheus(before, after PrometheusSnapshot) WukongIMV2Att
 	if report.ChannelV2PullHintReceiveChannelNotFoundErrCount > 0 {
 		report.Reasons = append(report.Reasons, "ChannelV2 PullHint receive channel_not_found errors were observed")
 	}
-	if report.ChannelV2WorkerTaskP99Seconds >= wukongIMV2LatencyPressureSeconds {
+	if report.ChannelV2WorkerTaskP99Seconds >= wukongIMLatencyPressureSeconds {
 		channelPressure = true
 		report.Reasons = append(report.Reasons, "ChannelV2 worker task p99 is high")
 	}
@@ -785,15 +785,15 @@ func AnalyzeWukongIMV2Prometheus(before, after PrometheusSnapshot) WukongIMV2Att
 		storagePressure = true
 		report.Reasons = append(report.Reasons, "storage commit queue has pending requests")
 	}
-	if report.StorageCommitP99Seconds >= wukongIMV2LatencyPressureSeconds {
+	if report.StorageCommitP99Seconds >= wukongIMLatencyPressureSeconds {
 		storagePressure = true
 		report.Reasons = append(report.Reasons, "storage physical commit p99 is high")
 	}
-	if report.StorageCommitTotalP99Seconds >= wukongIMV2LatencyPressureSeconds {
+	if report.StorageCommitTotalP99Seconds >= wukongIMLatencyPressureSeconds {
 		storagePressure = true
 		report.Reasons = append(report.Reasons, "storage grouped commit total p99 is high")
 	}
-	if report.StorageCommitRequestP99Seconds >= wukongIMV2LatencyPressureSeconds {
+	if report.StorageCommitRequestP99Seconds >= wukongIMLatencyPressureSeconds {
 		storagePressure = true
 		report.Reasons = append(report.Reasons, "storage logical commit request p99 is high")
 	}
@@ -828,17 +828,17 @@ func AnalyzeWukongIMV2Prometheus(before, after PrometheusSnapshot) WukongIMV2Att
 
 	switch {
 	case gatewayPressure && (controllerPressure || channelPressure || storagePressure):
-		report.Classification = WukongIMV2BottleneckMixed
+		report.Classification = WukongIMBottleneckMixed
 	case controllerPressure && (channelPressure || storagePressure):
-		report.Classification = WukongIMV2BottleneckMixed
+		report.Classification = WukongIMBottleneckMixed
 	case gatewayPressure:
-		report.Classification = WukongIMV2BottleneckGateway
+		report.Classification = WukongIMBottleneckGateway
 	case controllerPressure:
-		report.Classification = WukongIMV2BottleneckControllerRaft
+		report.Classification = WukongIMBottleneckControllerRaft
 	case storagePressure:
-		report.Classification = WukongIMV2BottleneckStorageCommit
+		report.Classification = WukongIMBottleneckStorageCommit
 	case channelPressure:
-		report.Classification = WukongIMV2BottleneckChannelV2
+		report.Classification = WukongIMBottleneckChannelV2
 	}
 	return report
 }

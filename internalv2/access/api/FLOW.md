@@ -189,7 +189,7 @@ business handlers run.
 
 The user-token mutation route is intentionally restricted to setup
 acknowledgments for black-box `wkbench` compatibility. The current
-`wukongimv2` gateway does not enable token authentication, so this route does
+`wukongim` gateway does not enable token authentication, so this route does
 not prove user-token persistence.
 
 `/bench/v1/channels` and `/bench/v1/channels/subscribers` require a benchmark

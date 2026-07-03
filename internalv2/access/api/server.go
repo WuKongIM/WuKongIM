@@ -265,7 +265,7 @@ type Options struct {
 	Logger wklog.Logger
 }
 
-// Server exposes health, readiness, and the minimum bench/v1 target surface for wukongimv2.
+// Server exposes health, readiness, and the minimum bench/v1 target surface for wukongim.
 type Server struct {
 	mu                       sync.RWMutex
 	engine                   *gin.Engine
