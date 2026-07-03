@@ -9,7 +9,7 @@ import (
 	"go.etcd.io/raft/v3/raftpb"
 )
 
-// maybeSnapshot snapshots only materialized ControllerV2 state, then compacts WAL entries already covered by catch-up retention.
+// maybeSnapshot snapshots only materialized Controller state, then compacts WAL entries already covered by catch-up retention.
 func (s *Service) maybeSnapshot(ctx context.Context, store *raftstore.Store, applied uint64) error {
 	if s.cfg.SnapshotCount == 0 || applied < s.cfg.SnapshotCount {
 		return nil

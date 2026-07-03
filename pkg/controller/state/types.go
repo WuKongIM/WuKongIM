@@ -3,7 +3,7 @@ package state
 import "time"
 
 const (
-	// CurrentSchemaVersion is the only cluster-state schema version supported by ControllerV2 v1.
+	// CurrentSchemaVersion is the only cluster-state schema version supported by Controller v1.
 	CurrentSchemaVersion uint32 = 1
 	// CurrentHashSlotTableVersion is the hash-slot routing table schema version.
 	CurrentHashSlotTableVersion uint32 = 1
@@ -53,7 +53,7 @@ type NodeHealthReport struct {
 	Status NodeStatus `json:"status"`
 	// RuntimeReady reports whether the node can serve foreground cluster traffic.
 	RuntimeReady bool `json:"runtime_ready"`
-	// ObservedControlRevision is the latest logical ControllerV2 revision observed by the node.
+	// ObservedControlRevision is the latest logical Controller revision observed by the node.
 	ObservedControlRevision uint64 `json:"observed_control_revision"`
 	// ObservedSlotRevision is the latest local Slot runtime revision observed by the node.
 	ObservedSlotRevision uint64 `json:"observed_slot_revision,omitempty"`
@@ -153,7 +153,7 @@ type TaskParticipantProgress struct {
 	LastError string `json:"last_error,omitempty"`
 }
 
-// ClusterState is the canonical durable ControllerV2 cluster-state document.
+// ClusterState is the canonical durable Controller cluster-state document.
 type ClusterState struct {
 	// SchemaVersion selects the durable JSON schema used by this file.
 	SchemaVersion uint32 `json:"schema_version"`

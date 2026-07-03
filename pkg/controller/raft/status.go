@@ -7,13 +7,13 @@ import (
 )
 
 const (
-	// RoleUnknown reports that the local ControllerV2 Raft role is not yet known.
+	// RoleUnknown reports that the local Controller Raft role is not yet known.
 	RoleUnknown = "unknown"
-	// RoleLeader reports that the local ControllerV2 Raft node is leader.
+	// RoleLeader reports that the local Controller Raft node is leader.
 	RoleLeader = "leader"
-	// RoleFollower reports that the local ControllerV2 Raft node is follower.
+	// RoleFollower reports that the local Controller Raft node is follower.
 	RoleFollower = "follower"
-	// RoleCandidate reports that the local ControllerV2 Raft node is campaigning.
+	// RoleCandidate reports that the local Controller Raft node is campaigning.
 	RoleCandidate = "candidate"
 )
 
@@ -35,9 +35,9 @@ const (
 	LogCompactionTriggerAutomatic = "automatic"
 )
 
-// LogCompactionResult describes one local ControllerV2 Raft log compaction attempt.
+// LogCompactionResult describes one local Controller Raft log compaction attempt.
 type LogCompactionResult struct {
-	// NodeID is the local ControllerV2 Raft node ID.
+	// NodeID is the local Controller Raft node ID.
 	NodeID uint64
 	// AppliedIndex is the materialized applied index targeted by this attempt.
 	AppliedIndex uint64
@@ -53,9 +53,9 @@ type LogCompactionResult struct {
 	Error string
 }
 
-// LogCompactionStatus describes the latest local ControllerV2 Raft compaction attempt.
+// LogCompactionStatus describes the latest local Controller Raft compaction attempt.
 type LogCompactionStatus struct {
-	// Enabled reports whether local ControllerV2 Raft snapshot compaction is enabled.
+	// Enabled reports whether local Controller Raft snapshot compaction is enabled.
 	Enabled bool
 	// TriggerEntries is the applied-entry delta required before taking another automatic snapshot.
 	TriggerEntries uint64
@@ -83,9 +83,9 @@ type LogCompactionStatus struct {
 	LastErrorAt time.Time
 }
 
-// Status is a goroutine-safe snapshot of one ControllerV2 Raft service.
+// Status is a goroutine-safe snapshot of one Controller Raft service.
 type Status struct {
-	// NodeID is the local ControllerV2 Raft node ID.
+	// NodeID is the local Controller Raft node ID.
 	NodeID uint64
 	// Role is leader, follower, candidate, or unknown.
 	Role string
@@ -101,19 +101,19 @@ type Status struct {
 	Voters []uint64
 	// Learners is the current Controller Raft learner set observed by the local RawNode.
 	Learners []uint64
-	// FirstIndex is the first available local ControllerV2 Raft log index after snapshot compaction.
+	// FirstIndex is the first available local Controller Raft log index after snapshot compaction.
 	FirstIndex uint64
-	// LastIndex is the last available local ControllerV2 Raft log index or snapshot index.
+	// LastIndex is the last available local Controller Raft log index or snapshot index.
 	LastIndex uint64
-	// SnapshotIndex is the latest persisted local ControllerV2 Raft snapshot index.
+	// SnapshotIndex is the latest persisted local Controller Raft snapshot index.
 	SnapshotIndex uint64
-	// SnapshotTerm is the latest persisted local ControllerV2 Raft snapshot term.
+	// SnapshotTerm is the latest persisted local Controller Raft snapshot term.
 	SnapshotTerm uint64
 	// Degraded reports whether startup or apply processing hit a local durable failure.
 	Degraded bool
 	// ErrorReason describes the latest degradation cause.
 	ErrorReason string
-	// Compaction describes the latest local ControllerV2 Raft log compaction attempt.
+	// Compaction describes the latest local Controller Raft log compaction attempt.
 	Compaction LogCompactionStatus
 }
 

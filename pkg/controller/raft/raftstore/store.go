@@ -9,7 +9,7 @@ import (
 	"go.etcd.io/raft/v3/raftpb"
 )
 
-// Store persists ControllerV2 Raft WAL, snapshots, and applied metadata.
+// Store persists Controller Raft WAL, snapshots, and applied metadata.
 type Store struct {
 	mu sync.RWMutex
 
@@ -23,7 +23,7 @@ type Store struct {
 	entries  []raftpb.Entry
 }
 
-// Open opens or creates a ControllerV2 Raft store rooted at cfg.Dir.
+// Open opens or creates a Controller Raft store rooted at cfg.Dir.
 func Open(ctx context.Context, cfg Config) (*Store, error) {
 	cfg, err := cfg.normalized()
 	if err != nil {
@@ -161,7 +161,7 @@ func (s *Store) MarkAppliedBatch(ctx context.Context, index uint64) error {
 	return saveMetadata(ctx, s.metaPath, s.meta)
 }
 
-// SaveSnapshot persists a ControllerV2 snapshot and records it in the WAL.
+// SaveSnapshot persists a Controller snapshot and records it in the WAL.
 func (s *Store) SaveSnapshot(ctx context.Context, snap raftpb.Snapshot) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

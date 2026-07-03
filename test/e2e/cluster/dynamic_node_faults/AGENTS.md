@@ -14,7 +14,7 @@ This package contains opt-in gofail-backed internal dynamic-node fault tests.
 - Stage 8 scale-in coverage must prove final remove is idempotent when the `removed` commit succeeds but the response is lost.
 - Stage 8 scale-in coverage must prove a leaving node restart during scale-in Slot drain keeps the durable task recoverable and reaches `removed` after drain.
 - Stage 10A coverage must prove health report faults make active nodes fail closed for new placement and recover after reports resume.
-- Stage 10A coverage must prove a dropped ControllerV2 state event does not permanently hide a lifecycle transition after later health/report wakeups.
+- Stage 10A coverage must prove a dropped Controller state event does not permanently hide a lifecycle transition after later health/report wakeups.
 - Stage 10A coverage must prove concurrent scale-in advancement under delayed Slot drain produces at most one task and bounded conflicts, not 500s.
 - Runtime summary faults use `wkClusterNetCallShardFault` with the `manager_connections` alias. The alias is plural because it comes from the manager connection service alias.
 - Restart-during-scale-in proves durable Slot task recovery. Gateway drain admission is runtime state, so the scenario may re-apply drain after restart before final remove.

@@ -119,8 +119,8 @@ func publishLatestStateEvent(ch chan StateEvent, st ClusterState) {
 	if ch == nil {
 		return
 	}
-	// gofail: var wkControllerV2StateEventDrop string
-	// if gofailDropControllerV2StateEvent(wkControllerV2StateEventDrop, st.Revision) { return }
+	// gofail: var wkControllerStateEventDrop string
+	// if gofailDropControllerStateEvent(wkControllerStateEventDrop, st.Revision) { return }
 	event := StateEvent{State: st.Clone()}
 	select {
 	case ch <- event:
@@ -137,7 +137,7 @@ func publishLatestStateEvent(ch chan StateEvent, st ClusterState) {
 	}
 }
 
-func gofailDropControllerV2StateEvent(raw string, revision uint64) bool {
+func gofailDropControllerStateEvent(raw string, revision uint64) bool {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
 		return false

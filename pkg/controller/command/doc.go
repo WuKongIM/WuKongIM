@@ -1,4 +1,4 @@
-// Package command defines versioned ControllerV2 Raft command envelopes.
+// Package command defines versioned Controller Raft command envelopes.
 //
 // Commands use a stable versioned envelope and JSON codec so Raft log entries
 // can remain durable while individual command schemas evolve. The package owns

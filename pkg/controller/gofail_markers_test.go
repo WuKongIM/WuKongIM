@@ -35,8 +35,8 @@ func TestStage10AGofailMarkersArePreserved(t *testing.T) {
 			"// if err := gofailReportNodeHealthFault(wkReportNodeHealthFault, req.NodeID); err != nil { return ReportNodeHealthResult{}, err }",
 		},
 		"runtime_refresh.go": {
-			"// gofail: var wkControllerV2StateEventDrop string",
-			"// if gofailDropControllerV2StateEvent(wkControllerV2StateEventDrop, st.Revision) { return }",
+			"// gofail: var wkControllerStateEventDrop string",
+			"// if gofailDropControllerStateEvent(wkControllerStateEventDrop, st.Revision) { return }",
 		},
 	}
 	for file, wants := range files {
@@ -68,17 +68,17 @@ func TestGofailReportNodeHealthFaultMatchesNode(t *testing.T) {
 	}
 }
 
-func TestGofailDropControllerV2StateEventMatchesRevision(t *testing.T) {
-	if gofailDropControllerV2StateEvent("", 10) {
+func TestGofailDropControllerStateEventMatchesRevision(t *testing.T) {
+	if gofailDropControllerStateEvent("", 10) {
 		t.Fatal("disabled failpoint dropped event")
 	}
-	if !gofailDropControllerV2StateEvent("all", 10) {
+	if !gofailDropControllerStateEvent("all", 10) {
 		t.Fatal("all failpoint did not drop event")
 	}
-	if !gofailDropControllerV2StateEvent("revision:10", 10) {
+	if !gofailDropControllerStateEvent("revision:10", 10) {
 		t.Fatal("revision-specific failpoint did not drop matching event")
 	}
-	if gofailDropControllerV2StateEvent("revision:10", 11) {
+	if gofailDropControllerStateEvent("revision:10", 11) {
 		t.Fatal("revision-specific failpoint dropped non-matching event")
 	}
 }

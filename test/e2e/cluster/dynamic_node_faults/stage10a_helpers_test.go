@@ -13,7 +13,7 @@ import (
 
 const (
 	reportNodeHealthFault        = "wkReportNodeHealthFault"
-	controllerV2StateEventDrop   = "wkControllerV2StateEventDrop"
+	controllerStateEventDrop     = "wkControllerStateEventDrop"
 	stage10AHealthReportInterval = "200ms"
 	stage10AHealthReportTTL      = "2s"
 )

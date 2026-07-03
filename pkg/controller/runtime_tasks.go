@@ -6,7 +6,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/controller/command"
 )
 
-// CompleteTask proposes a fenced task completion result through ControllerV2 Raft.
+// CompleteTask proposes a fenced task completion result through Controller Raft.
 func (r *Runtime) CompleteTask(ctx context.Context, result TaskResult) error {
 	return r.proposeTaskCommand(ctx, command.Command{
 		Kind:       command.KindCompleteTask,
@@ -14,7 +14,7 @@ func (r *Runtime) CompleteTask(ctx context.Context, result TaskResult) error {
 	})
 }
 
-// FailTask proposes a fenced task failure result through ControllerV2 Raft.
+// FailTask proposes a fenced task failure result through Controller Raft.
 func (r *Runtime) FailTask(ctx context.Context, result TaskResult) error {
 	return r.proposeTaskCommand(ctx, command.Command{
 		Kind:       command.KindFailTask,
@@ -22,7 +22,7 @@ func (r *Runtime) FailTask(ctx context.Context, result TaskResult) error {
 	})
 }
 
-// ReportTaskProgress proposes one participant progress update through ControllerV2 Raft.
+// ReportTaskProgress proposes one participant progress update through Controller Raft.
 func (r *Runtime) ReportTaskProgress(ctx context.Context, progress TaskProgress) error {
 	return r.proposeTaskCommand(ctx, command.Command{
 		Kind:         command.KindReportTaskProgress,

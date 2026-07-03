@@ -21,7 +21,7 @@ type GetStateResponse struct {
 	Payload     []byte
 }
 
-// Endpoint is an in-process or RPC adapter that serves ControllerV2 state.
+// Endpoint is an in-process or RPC adapter that serves Controller state.
 type Endpoint interface {
 	GetState(context.Context, GetStateRequest) (GetStateResponse, error)
 }

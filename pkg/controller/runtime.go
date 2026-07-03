@@ -16,7 +16,7 @@ import (
 	"go.etcd.io/raft/v3/raftpb"
 )
 
-// Runtime hosts ControllerV2 Raft or mirror sync behind the public facade.
+// Runtime hosts Controller Raft or mirror sync behind the public facade.
 type Runtime struct {
 	cfg RuntimeConfig
 
@@ -36,7 +36,7 @@ type Runtime struct {
 	refreshWG     sync.WaitGroup
 }
 
-// NewRuntime creates a ControllerV2 runtime facade.
+// NewRuntime creates a Controller runtime facade.
 func NewRuntime(cfg RuntimeConfig) (*Runtime, error) {
 	if cfg.Role == "" {
 		cfg.Role = RuntimeRoleVoter
@@ -53,7 +53,7 @@ func NewRuntime(cfg RuntimeConfig) (*Runtime, error) {
 	return &Runtime{cfg: cfg, watch: make(chan StateEvent, 16)}, nil
 }
 
-// Start starts the local ControllerV2 runtime.
+// Start starts the local Controller runtime.
 func (r *Runtime) Start(ctx context.Context) error {
 	if ctx == nil {
 		ctx = context.Background()
@@ -75,7 +75,7 @@ func (r *Runtime) Start(ctx context.Context) error {
 	}
 }
 
-// Stop stops local ControllerV2 resources.
+// Stop stops local Controller resources.
 func (r *Runtime) Stop(ctx context.Context) error {
 	if err := ctxErr(ctx); err != nil {
 		return err
@@ -97,7 +97,7 @@ func (r *Runtime) LocalState(ctx context.Context) (ClusterState, error) {
 	return r.state.Clone(), nil
 }
 
-// LeaderID returns the best-known ControllerV2 leader ID.
+// LeaderID returns the best-known Controller leader ID.
 func (r *Runtime) LeaderID() uint64 {
 	if r.raft != nil {
 		return r.raft.LeaderID()
@@ -115,7 +115,7 @@ func (r *Runtime) LeaderID() uint64 {
 	return 0
 }
 
-// ProbePropose verifies the hosted ControllerV2 proposal path when this runtime is a voter.
+// ProbePropose verifies the hosted Controller proposal path when this runtime is a voter.
 func (r *Runtime) ProbePropose(ctx context.Context) error {
 	if err := ctxErr(ctx); err != nil {
 		return err
@@ -126,7 +126,7 @@ func (r *Runtime) ProbePropose(ctx context.Context) error {
 	return r.raft.ProbePropose(ctx)
 }
 
-// ControllerRaftStatus returns the local ControllerV2 Raft status snapshot.
+// ControllerRaftStatus returns the local Controller Raft status snapshot.
 func (r *Runtime) ControllerRaftStatus(ctx context.Context) (RaftStatus, error) {
 	if err := ctxErr(ctx); err != nil {
 		return RaftStatus{}, err
@@ -137,7 +137,7 @@ func (r *Runtime) ControllerRaftStatus(ctx context.Context) (RaftStatus, error) 
 	return r.raft.Status(), nil
 }
 
-// CompactControllerRaftLog forces local ControllerV2 Raft log compaction.
+// CompactControllerRaftLog forces local Controller Raft log compaction.
 func (r *Runtime) CompactControllerRaftLog(ctx context.Context) (LogCompactionResult, error) {
 	if err := ctxErr(ctx); err != nil {
 		return LogCompactionResult{}, err
@@ -148,7 +148,7 @@ func (r *Runtime) CompactControllerRaftLog(ctx context.Context) (LogCompactionRe
 	return r.raft.CompactLog(ctx)
 }
 
-// Step applies an inbound ControllerV2 Raft message to the local Raft service.
+// Step applies an inbound Controller Raft message to the local Raft service.
 func (r *Runtime) Step(ctx context.Context, msg raftpb.Message) error {
 	if r == nil || r.raft == nil {
 		return nil
@@ -156,7 +156,7 @@ func (r *Runtime) Step(ctx context.Context, msg raftpb.Message) error {
 	return r.raft.Step(ctx, msg)
 }
 
-// GetState serves ControllerV2 state sync requests from local voter state.
+// GetState serves Controller state sync requests from local voter state.
 func (r *Runtime) GetState(ctx context.Context, req GetStateRequest) (GetStateResponse, error) {
 	if r == nil || r.syncServer == nil {
 		return GetStateResponse{NotReady: true}, nil

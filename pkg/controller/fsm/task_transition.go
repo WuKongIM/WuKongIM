@@ -9,13 +9,13 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/controller/state"
 )
 
-// TaskTransition describes one durable ControllerV2 task state edge.
+// TaskTransition describes one durable Controller task state edge.
 type TaskTransition struct {
 	// AppliedRaftIndex is the Raft log index that produced this task edge.
 	AppliedRaftIndex uint64
 	// AppliedRaftTerm is the Raft term that produced this task edge.
 	AppliedRaftTerm uint64
-	// CommandKind identifies the ControllerV2 command that produced this edge.
+	// CommandKind identifies the Controller command that produced this edge.
 	CommandKind command.Kind
 	// IssuedAt records the command proposer timestamp normalized to UTC.
 	IssuedAt time.Time

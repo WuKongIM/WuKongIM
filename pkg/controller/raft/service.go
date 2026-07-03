@@ -43,7 +43,7 @@ func (e ProposalRejectedError) Error() string {
 
 func (e ProposalRejectedError) Unwrap() error { return ErrProposalRejected }
 
-// ProposalResult describes the FSM outcome for one committed ControllerV2 proposal.
+// ProposalResult describes the FSM outcome for one committed Controller proposal.
 type ProposalResult struct {
 	// Changed is true when the proposal advanced the logical cluster-state revision.
 	Changed bool
@@ -61,7 +61,7 @@ type ProposalResult struct {
 	AppliedRaftIndex uint64
 }
 
-// Service owns one ControllerV2 RawNode and applies committed commands to the state machine.
+// Service owns one Controller RawNode and applies committed commands to the state machine.
 type Service struct {
 	cfg Config
 
@@ -115,7 +115,7 @@ type proposalResponse struct {
 	err        error
 }
 
-// NewService validates cfg and creates a ControllerV2 Raft service. Call Start before use.
+// NewService validates cfg and creates a Controller Raft service. Call Start before use.
 func NewService(cfg Config) (*Service, error) {
 	cfg = cfg.normalized()
 	if err := cfg.validate(); err != nil {
@@ -230,19 +230,19 @@ func (s *Service) Stop() error {
 	return nil
 }
 
-// Propose appends a ControllerV2 command on the leader and waits until it is applied.
+// Propose appends a Controller command on the leader and waits until it is applied.
 func (s *Service) Propose(ctx context.Context, cmd command.Command) error {
 	_, err := s.submitProposal(ctx, proposalRequest{cmd: cmd})
 	return err
 }
 
-// ProposeResult appends a ControllerV2 command and returns its FSM apply outcome.
+// ProposeResult appends a Controller command and returns its FSM apply outcome.
 func (s *Service) ProposeResult(ctx context.Context, cmd command.Command) (ProposalResult, error) {
 	return s.submitProposal(ctx, proposalRequest{cmd: cmd})
 }
 
 // ProbePropose appends an empty Raft entry and waits until it is applied.
-// It verifies the Controller proposal write path without mutating ControllerV2 cluster state.
+// It verifies the Controller proposal write path without mutating Controller cluster state.
 func (s *Service) ProbePropose(ctx context.Context) error {
 	_, err := s.submitProposal(ctx, proposalRequest{probe: true})
 	return err
@@ -256,7 +256,7 @@ func (s *Service) submitMembershipChange(ctx context.Context, cc raftpb.ConfChan
 	return membership, err
 }
 
-// CompactLog forces a local ControllerV2 Raft log compaction attempt.
+// CompactLog forces a local Controller Raft log compaction attempt.
 func (s *Service) CompactLog(ctx context.Context) (LogCompactionResult, error) {
 	if ctx == nil {
 		ctx = context.Background()
@@ -438,7 +438,7 @@ func (s *Service) LeaderID() uint64 {
 	return s.leaderID.Load()
 }
 
-// Status returns a goroutine-safe snapshot of the local ControllerV2 Raft status.
+// Status returns a goroutine-safe snapshot of the local Controller Raft status.
 func (s *Service) Status() Status {
 	if s == nil {
 		return Status{Role: RoleUnknown}

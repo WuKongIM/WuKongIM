@@ -14,7 +14,7 @@ var (
 	ErrSlotActiveTaskConflict = errors.New("controller: slot already has active task")
 )
 
-// IsExpectedRevisionMismatch reports whether err is a ControllerV2 revision-fence rejection.
+// IsExpectedRevisionMismatch reports whether err is a Controller revision-fence rejection.
 func IsExpectedRevisionMismatch(err error) bool {
 	if errors.Is(err, ErrExpectedRevisionMismatch) {
 		return true

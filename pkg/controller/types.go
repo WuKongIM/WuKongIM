@@ -64,7 +64,7 @@ type (
 	TaskProgress = command.TaskProgress
 	// CommandKind identifies a durable Controller command replicated through Controller Raft.
 	CommandKind = command.Kind
-	// TaskTransition describes one durable ControllerV2 task state edge.
+	// TaskTransition describes one durable Controller task state edge.
 	TaskTransition = fsm.TaskTransition
 	// SlotReplicaMovePhaseAdvance records an observed Slot Raft config phase.
 	SlotReplicaMovePhaseAdvance = command.SlotReplicaMovePhaseAdvance
@@ -134,31 +134,31 @@ const (
 )
 
 type (
-	// RaftObserver receives low-cardinality local ControllerV2 Raft runtime metrics.
+	// RaftObserver receives low-cardinality local Controller Raft runtime metrics.
 	RaftObserver = raft.Observer
 	// ApplyStateObserver receives volatile Controller Raft commit/applied progress for monitoring.
 	ApplyStateObserver = raft.ApplyStateObserver
-	// TaskTransitionObserver receives ControllerV2 task edges after applied metadata is durable.
+	// TaskTransitionObserver receives Controller task edges after applied metadata is durable.
 	TaskTransitionObserver = raft.TaskTransitionObserver
 	// TaskTransitionObserverFunc adapts a function to TaskTransitionObserver.
 	TaskTransitionObserverFunc = raft.TaskTransitionObserverFunc
-	// RaftStatus is a goroutine-safe local ControllerV2 Raft status snapshot.
+	// RaftStatus is a goroutine-safe local Controller Raft status snapshot.
 	RaftStatus = raft.Status
-	// LogCompactionResult describes one local ControllerV2 Raft compaction attempt.
+	// LogCompactionResult describes one local Controller Raft compaction attempt.
 	LogCompactionResult = raft.LogCompactionResult
-	// LogCompactionStatus describes the latest local ControllerV2 Raft compaction attempt.
+	// LogCompactionStatus describes the latest local Controller Raft compaction attempt.
 	LogCompactionStatus = raft.LogCompactionStatus
-	// LogEntriesOptions controls a node-local ControllerV2 Raft log entry page.
+	// LogEntriesOptions controls a node-local Controller Raft log entry page.
 	LogEntriesOptions = raft.LogEntriesOptions
-	// LogEntry is a read-only summary of one ControllerV2 Raft log entry.
+	// LogEntry is a read-only summary of one Controller Raft log entry.
 	LogEntry = raft.LogEntry
-	// LogEntries is one node-local page of ControllerV2 Raft log entries.
+	// LogEntries is one node-local page of Controller Raft log entries.
 	LogEntries = raft.LogEntries
 	// GetStateRequest asks a Controller leader for a full cluster-state snapshot.
 	GetStateRequest = cv2sync.GetStateRequest
 	// GetStateResponse carries a full state file payload or sync status.
 	GetStateResponse = cv2sync.GetStateResponse
-	// Endpoint serves ControllerV2 state sync requests.
+	// Endpoint serves Controller state sync requests.
 	Endpoint = cv2sync.Endpoint
 	// PeerPicker resolves Controller peer IDs to sync endpoints.
 	PeerPicker = cv2sync.PeerPicker
@@ -170,7 +170,7 @@ type (
 	StateSyncServer = cv2sync.Server
 )
 
-// PromoteControllerVoterRequest finalizes one proven Controller voter promotion in ControllerV2 state.
+// PromoteControllerVoterRequest finalizes one proven Controller voter promotion in Controller state.
 type PromoteControllerVoterRequest struct {
 	// NodeID is the target node promoted into Controller Raft voting membership.
 	NodeID uint64
@@ -188,11 +188,11 @@ type PromoteControllerVoterRequest struct {
 
 // PromoteControllerVoterResult describes the durable state after final promotion.
 type PromoteControllerVoterResult struct {
-	// Changed reports whether the promotion advanced ControllerV2 state.
+	// Changed reports whether the promotion advanced Controller state.
 	Changed bool
 	// Node is the durable node record after final promotion.
 	Node Node
-	// Revision is the observed ControllerV2 state revision after the write.
+	// Revision is the observed Controller state revision after the write.
 	Revision uint64
 	// PreviousVoters is the durable Controller voter set before the promotion request.
 	PreviousVoters []uint64
@@ -206,7 +206,7 @@ type PrepareControllerVoterRequest struct {
 	NodeID uint64
 	// ClusterID is the stable cluster identity expected in the mirrored state.
 	ClusterID string
-	// ExpectedRevision is the minimum mirrored ControllerV2 revision required before preparing.
+	// ExpectedRevision is the minimum mirrored Controller revision required before preparing.
 	ExpectedRevision uint64
 	// NextVoters is the Controller voter set that includes the preparing node.
 	NextVoters []Voter
@@ -221,9 +221,9 @@ type PrepareControllerVoterResult struct {
 }
 
 var (
-	// ErrNotStarted indicates that the ControllerV2 runtime has not started.
+	// ErrNotStarted indicates that the Controller runtime has not started.
 	ErrNotStarted = raft.ErrNotStarted
-	// ErrStopped indicates that the ControllerV2 runtime has stopped.
+	// ErrStopped indicates that the Controller runtime has stopped.
 	ErrStopped = raft.ErrStopped
 	// ErrNotLeader indicates that proposals must be sent to the current leader.
 	ErrNotLeader = raft.ErrNotLeader
@@ -231,17 +231,17 @@ var (
 	ErrProposalRejected = raft.ErrProposalRejected
 )
 
-// RuntimeRole declares how the local runtime participates in ControllerV2.
+// RuntimeRole declares how the local runtime participates in Controller.
 type RuntimeRole string
 
 const (
-	// RuntimeRoleVoter runs ControllerV2 Raft and serves authoritative state.
+	// RuntimeRoleVoter runs Controller Raft and serves authoritative state.
 	RuntimeRoleVoter RuntimeRole = "voter"
-	// RuntimeRoleMirror mirrors ControllerV2 state from Controller voters.
+	// RuntimeRoleMirror mirrors Controller state from Controller voters.
 	RuntimeRoleMirror RuntimeRole = "mirror"
 )
 
-// Voter identifies one ControllerV2 voter endpoint.
+// Voter identifies one Controller voter endpoint.
 type Voter struct {
 	// NodeID is the stable non-zero node identity of the Controller voter.
 	NodeID uint64
@@ -249,26 +249,26 @@ type Voter struct {
 	Addr string
 }
 
-// Transport sends ControllerV2 Raft messages.
+// Transport sends Controller Raft messages.
 type Transport interface {
 	Send([]raftpb.Message)
 }
 
-// RuntimeConfig wires the ControllerV2 runtime facade.
+// RuntimeConfig wires the Controller runtime facade.
 type RuntimeConfig struct {
 	// NodeID is the local node identity.
 	NodeID uint64
 	// Addr is the local cluster RPC address.
 	Addr string
-	// StateDir stores ControllerV2 state and Raft files.
+	// StateDir stores Controller state and Raft files.
 	StateDir string
 	// ClusterID is the stable cluster identity.
 	ClusterID string
 	// Role declares voter or mirror behavior.
 	Role RuntimeRole
-	// Voters lists ControllerV2 Raft voters.
+	// Voters lists Controller Raft voters.
 	Voters []Voter
-	// AllowBootstrap permits this node to initialize a new ControllerV2 Raft log.
+	// AllowBootstrap permits this node to initialize a new Controller Raft log.
 	AllowBootstrap bool
 	// InitialSlotCount is the number of physical Slots created during bootstrap.
 	InitialSlotCount uint32
@@ -276,19 +276,19 @@ type RuntimeConfig struct {
 	HashSlotCount uint16
 	// ReplicaCount is the desired replica count for each physical Slot.
 	ReplicaCount uint16
-	// TickInterval controls ControllerV2 Raft ticking.
+	// TickInterval controls Controller Raft ticking.
 	TickInterval time.Duration
-	// RaftTransport sends ControllerV2 Raft messages.
+	// RaftTransport sends Controller Raft messages.
 	RaftTransport Transport
-	// RaftObserver receives local ControllerV2 Raft queue metrics.
+	// RaftObserver receives local Controller Raft queue metrics.
 	RaftObserver RaftObserver
 	// TaskTransitionObserver receives task edges after applied metadata is persisted.
 	TaskTransitionObserver TaskTransitionObserver
-	// SyncClient mirrors ControllerV2 state for non-voter nodes.
+	// SyncClient mirrors Controller state for non-voter nodes.
 	SyncClient *SyncClient
-	// SyncPeers resolves ControllerV2 state sync endpoints for mirror nodes.
+	// SyncPeers resolves Controller state sync endpoints for mirror nodes.
 	SyncPeers PeerPicker
-	// Now returns timestamps used for ControllerV2 commands.
+	// Now returns timestamps used for Controller commands.
 	Now func() time.Time
 	// Goroutines is the optional goroutine registry for lifecycle tracking.
 	Goroutines *goroutine.Registry

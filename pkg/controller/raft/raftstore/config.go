@@ -1,4 +1,4 @@
-// Package raftstore persists ControllerV2 Raft state in WAL segments and snapshots.
+// Package raftstore persists Controller Raft state in WAL segments and snapshots.
 package raftstore
 
 import (
@@ -12,11 +12,11 @@ const (
 	snapshotVersion       = 1
 )
 
-// Config controls local ControllerV2 Raft durable storage.
+// Config controls local Controller Raft durable storage.
 type Config struct {
-	// Dir is the ControllerV2 Raft storage root directory.
+	// Dir is the Controller Raft storage root directory.
 	Dir string
-	// NodeID is the local ControllerV2 Raft node ID persisted in WAL segment headers.
+	// NodeID is the local Controller Raft node ID persisted in WAL segment headers.
 	NodeID uint64
 	// SegmentSize controls WAL file rollover size in bytes.
 	SegmentSize uint64

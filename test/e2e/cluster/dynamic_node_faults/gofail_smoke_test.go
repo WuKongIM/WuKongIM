@@ -52,7 +52,7 @@ func TestGofailDynamicNodeBinaryExposesFailpoints(t *testing.T) {
 		"wkClusterNetSendFault",
 		"wkClusterNetSendOwnedFault",
 		"wkReportNodeHealthFault",
-		"wkControllerV2StateEventDrop",
+		"wkControllerStateEventDrop",
 	)
 	require.NoError(t, err, "gofail body:\n%s\n%s", body, cluster.DumpDiagnostics())
 	require.NotEmpty(t, strings.TrimSpace(body), cluster.DumpDiagnostics())

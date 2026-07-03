@@ -31,13 +31,13 @@ type ApplyResult struct {
 	TaskTransitions []TaskTransition
 }
 
-// AppliedCommand binds a decoded ControllerV2 command to its committed Raft position.
+// AppliedCommand binds a decoded Controller command to its committed Raft position.
 type AppliedCommand struct {
 	// Index is the committed Raft log index for Command.
 	Index uint64
 	// Term is the committed Raft term for Command.
 	Term uint64
-	// Command is the deterministic ControllerV2 mutation to apply.
+	// Command is the deterministic Controller mutation to apply.
 	Command command.Command
 }
 
@@ -49,13 +49,13 @@ type BatchApplyResult struct {
 	FinalState state.ClusterState
 }
 
-// Store persists and loads ControllerV2 cluster state snapshots.
+// Store persists and loads Controller cluster state snapshots.
 type Store interface {
 	Load(context.Context) (state.ClusterState, error)
 	Save(context.Context, state.ClusterState) error
 }
 
-// StateMachine applies committed ControllerV2 commands to a durable state file.
+// StateMachine applies committed Controller commands to a durable state file.
 type StateMachine struct {
 	mu       sync.Mutex
 	store    Store
@@ -104,7 +104,7 @@ func (sm *StateMachine) Reset() {
 	sm.degraded = false
 }
 
-// Restore saves and publishes a recovered ControllerV2 state snapshot.
+// Restore saves and publishes a recovered Controller state snapshot.
 func (sm *StateMachine) Restore(ctx context.Context, st state.ClusterState) error {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()

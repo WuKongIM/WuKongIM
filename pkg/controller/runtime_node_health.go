@@ -19,7 +19,7 @@ type ReportNodeHealthRequest struct {
 	Status NodeStatus
 	// RuntimeReady reports whether the node can serve foreground cluster traffic.
 	RuntimeReady bool
-	// ObservedControlRevision is the latest ControllerV2 revision observed by the node.
+	// ObservedControlRevision is the latest Controller revision observed by the node.
 	ObservedControlRevision uint64
 	// ObservedSlotRevision is the latest local Slot runtime revision observed by the node.
 	ObservedSlotRevision uint64

@@ -6,7 +6,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/controller/state"
 )
 
-// Kind identifies a durable ControllerV2 Raft command.
+// Kind identifies a durable Controller Raft command.
 type Kind string
 
 const (

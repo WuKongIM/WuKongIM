@@ -9,7 +9,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/controller/state"
 )
 
-// Store atomically persists and loads one ControllerV2 cluster-state JSON file.
+// Store atomically persists and loads one Controller cluster-state JSON file.
 type Store struct {
 	path           string
 	afterTempWrite func() error

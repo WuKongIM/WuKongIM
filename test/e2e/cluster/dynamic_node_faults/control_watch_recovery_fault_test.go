@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestStage10AControllerV2StateEventDropRecoversAfterHealthWakeup(t *testing.T) {
+func TestStage10AControllerStateEventDropRecoversAfterHealthWakeup(t *testing.T) {
 	requireGofailDynamicNodeEnabled(t)
 
 	const joinToken = "e2e-stage10a-watch-drop-token"
@@ -22,20 +22,20 @@ func TestStage10AControllerV2StateEventDropRecoversAfterHealthWakeup(t *testing.
 
 	staticFailpoints := f.staticFailpoints()
 	for _, endpoint := range staticFailpoints {
-		waitGofailListed(t, f.cluster, endpoint, controllerV2StateEventDrop)
+		waitGofailListed(t, f.cluster, endpoint, controllerStateEventDrop)
 	}
 	for _, endpoint := range staticFailpoints {
-		enableGofail(t, f.cluster, endpoint, controllerV2StateEventDrop, `return("all")`)
-		defer disableGofail(t, endpoint, controllerV2StateEventDrop)
+		enableGofail(t, f.cluster, endpoint, controllerStateEventDrop, `return("all")`)
+		defer disableGofail(t, endpoint, controllerStateEventDrop)
 	}
 
 	start := f.manager.MustStartScaleIn(t, 4)
 	require.Equal(t, "leaving", start.JoinState, "start=%#v\n%s", start, f.cluster.DumpDiagnostics())
 	requiredRevision := start.Revision
 
-	requireAnyGofailCountAtLeast(t, f.cluster, staticFailpoints, controllerV2StateEventDrop, 1)
+	requireAnyGofailCountAtLeast(t, f.cluster, staticFailpoints, controllerStateEventDrop, 1)
 	for _, endpoint := range staticFailpoints {
-		requireDisableGofail(t, endpoint, controllerV2StateEventDrop)
+		requireDisableGofail(t, endpoint, controllerStateEventDrop)
 	}
 
 	staticNodes := waitStaticNodesObservedControlRevision(t, f, requiredRevision, 30*time.Second)

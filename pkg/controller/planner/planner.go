@@ -8,7 +8,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/controller/state"
 )
 
-// Planner produces the next durable ControllerV2 command for a state snapshot.
+// Planner produces the next durable Controller command for a state snapshot.
 type Planner interface {
 	Next(context.Context, View) (Decision, error)
 }

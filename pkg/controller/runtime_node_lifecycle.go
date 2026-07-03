@@ -56,11 +56,11 @@ type MarkNodeLeavingRequest struct {
 
 // MarkNodeLeavingResult describes the node record after the transition.
 type MarkNodeLeavingResult struct {
-	// Changed reports whether the request changed ControllerV2 state.
+	// Changed reports whether the request changed Controller state.
 	Changed bool
 	// Node is the durable node record after the request.
 	Node Node
-	// Revision is the observed ControllerV2 state revision after the write.
+	// Revision is the observed Controller state revision after the write.
 	Revision uint64
 }
 
@@ -74,11 +74,11 @@ type MarkNodeRemovedRequest struct {
 
 // MarkNodeRemovedResult describes the node record after the transition.
 type MarkNodeRemovedResult struct {
-	// Changed reports whether the request changed ControllerV2 state.
+	// Changed reports whether the request changed Controller state.
 	Changed bool
 	// Node is the durable node record after the request.
 	Node Node
-	// Revision is the observed ControllerV2 state revision after the write.
+	// Revision is the observed Controller state revision after the write.
 	Revision uint64
 }
 

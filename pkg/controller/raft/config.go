@@ -25,7 +25,7 @@ const (
 	heartbeatTick               = 1
 )
 
-// Peer identifies one ControllerV2 Raft voter.
+// Peer identifies one Controller Raft voter.
 type Peer struct {
 	// NodeID is the non-zero stable node identity of the voter.
 	NodeID uint64
@@ -33,7 +33,7 @@ type Peer struct {
 	Addr string
 }
 
-// Transport sends outbound ControllerV2 Raft messages to peer nodes.
+// Transport sends outbound Controller Raft messages to peer nodes.
 //
 // Implementations should enqueue messages and return without waiting for network I/O;
 // the service calls Send inline and may call it before local leader persistence.
@@ -41,7 +41,7 @@ type Transport interface {
 	Send([]raftpb.Message)
 }
 
-// Observer receives low-cardinality ControllerV2 Raft runtime metrics.
+// Observer receives low-cardinality Controller Raft runtime metrics.
 type Observer interface {
 	SetStepQueueDepth(depth int, capacity int)
 	ObserveStepEnqueue(result string, d time.Duration)
@@ -52,7 +52,7 @@ type ApplyStateObserver interface {
 	SetApplyState(commitIndex, appliedIndex uint64)
 }
 
-// TaskTransitionObserver receives ControllerV2 task edges after applied metadata is durable.
+// TaskTransitionObserver receives Controller task edges after applied metadata is durable.
 type TaskTransitionObserver interface {
 	ObserveControllerTaskTransitions([]fsm.TaskTransition)
 }
@@ -76,17 +76,17 @@ type stateMachine interface {
 	ApplyBatch(context.Context, []fsm.AppliedCommand) (fsm.BatchApplyResult, error)
 }
 
-// Config configures one ControllerV2 Raft service instance.
+// Config configures one Controller Raft service instance.
 type Config struct {
-	// NodeID is the local ControllerV2 Raft node ID.
+	// NodeID is the local Controller Raft node ID.
 	NodeID uint64
-	// Peers lists the ControllerV2 Raft voters used for bootstrap.
+	// Peers lists the Controller Raft voters used for bootstrap.
 	Peers []Peer
-	// AllowBootstrap permits this node to initialize a brand-new ControllerV2 Raft log.
+	// AllowBootstrap permits this node to initialize a brand-new Controller Raft log.
 	AllowBootstrap bool
-	// RaftDir is the local directory used for ControllerV2 Raft WAL segments, snapshots, and metadata.
+	// RaftDir is the local directory used for Controller Raft WAL segments, snapshots, and metadata.
 	RaftDir string
-	// StateMachine applies committed ControllerV2 commands to cluster-state.json.
+	// StateMachine applies committed Controller commands to cluster-state.json.
 	StateMachine stateMachine
 	// Transport delivers outbound Raft protocol messages to peer services.
 	Transport Transport
@@ -102,9 +102,9 @@ type Config struct {
 	MaxApplyBatchBytes uint64
 	// MaxApplyDelay bounds how long the apply scheduler may wait to coalesce more committed entries.
 	MaxApplyDelay time.Duration
-	// WALSegmentSize controls ControllerV2 WAL segment rollover size in bytes.
+	// WALSegmentSize controls Controller WAL segment rollover size in bytes.
 	WALSegmentSize uint64
-	// SnapshotCount controls how many newly applied entries trigger a ControllerV2 snapshot.
+	// SnapshotCount controls how many newly applied entries trigger a Controller snapshot.
 	SnapshotCount uint64
 	// SnapshotCatchUpEntries controls how many entries after the last snapshot remain available for follower catch-up.
 	SnapshotCatchUpEntries uint64

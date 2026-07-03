@@ -60,7 +60,7 @@ The split-file names below describe the intended layout after this readability p
 
 1. `runtime.go` exposes the public API and holds runtime state.
 2. `runtime_start.go` wires voter or mirror mode.
-3. `runtime_bootstrap.go` creates the initial ControllerV2 state through the same Raft path used by multi-node voters.
+3. `runtime_bootstrap.go` creates the initial Controller state through the same Raft path used by multi-node voters.
 4. `raft/service.go` owns public Raft lifecycle; `raft/service_run.go` owns Ready persistence, message send order, and scheduled apply.
 5. `fsm/mutations.go` dispatches commands; `fsm/mutation_handlers.go` contains the actual state changes.
 6. `sync/server.go` and `sync/client.go` implement full-file sync for mirror nodes.
@@ -71,7 +71,7 @@ The split-file names below describe the intended layout after this readability p
 
 ```text
 RawNode Ready
-  -> persist HardState, new entries, and incoming snapshots to ControllerV2 Raft WAL
+  -> persist HardState, new entries, and incoming snapshots to Controller Raft WAL
   -> send Raft messages in etcd-style leader/follower order
   -> enqueue committed entries to the FIFO apply scheduler
   -> batch normal command entries by count/bytes/delay
@@ -83,7 +83,7 @@ RawNode Ready
 ```
 
 `Revision` is the logical cluster-state version. `AppliedRaftIndex` records the last Raft entry materialized into `cluster-state.json`.
-`cluster-state.json` is the materialized ControllerV2 state snapshot; the ControllerV2 Raft WAL is the authoritative committed log and applied-boundary metadata source.
+`cluster-state.json` is the materialized Controller state snapshot; the Controller Raft WAL is the authoritative committed log and applied-boundary metadata source.
 
 Empty normal Raft entries are also used by `raft.Service.ProbePropose` as non-mutating readiness probes. A probe entry advances Controller Raft applied metadata after it is committed and scheduled, but it is not decoded as a Controller command, does not call the FSM, does not increment logical `Revision`, and does not rewrite `cluster-state.json` business state.
 
@@ -113,7 +113,7 @@ Planner tick: LocalState -> planner.Next -> Raft Propose -> WAL append -> schedu
 Non-controller sync: SyncOnce -> Controller voter GetState -> statefile save -> LocalState update -> StateEvent.
 ```
 
-Task progress and task result writes enter ControllerV2 as Raft commands.
+Task progress and task result writes enter Controller as Raft commands.
 Results are fenced by `task_id`, `slot_id`, task kind, `config_epoch`, and
 global attempt. Barrier-style tasks also accept participant progress fenced by
 participant node and participant attempt. Completed tasks are removed from
@@ -121,13 +121,13 @@ active cluster-state tasks, including `leader_transfer` tasks completed through
 `complete_task`; failed tasks remain active with bounded errors until a
 subsequent successful attempt or operator action.
 
-Node lifecycle writes are also ControllerV2-authoritative Raft commands.
+Node lifecycle writes are also Controller-authoritative Raft commands.
 `JoinNode`, `ActivateNode`, `MarkNodeLeaving`, and `MarkNodeRemoved` update the
 durable node record through `KindUpsertNode`. `MarkNodeRemoved` only tombstones
 an already leaving data node as `removed` and `down`; higher layers must prove
 Slot, Channel, task, gateway, and runtime drain safety before calling it. When
 the caller provides `ExpectedRevision`, a changed remove write is rejected
-unless the current ControllerV2 state still matches the safety-check revision;
+unless the current Controller state still matches the safety-check revision;
 an already-removed tombstone remains idempotent and returns `changed=false`
 even when a retried request carries a stale revision fence.
 
@@ -139,7 +139,7 @@ active mirror state aside, publishes the preserved state, and starts the local
 runtime in voter mode with the requested Controller voter set. The Raft package
 exposes learner-first membership APIs (`AddLearner`, `PromoteLearner`) for
 callers that need to build live membership proof before finalizing durable
-metadata. `KindPromoteControllerVoter` is the atomic ControllerV2 state command:
+metadata. `KindPromoteControllerVoter` is the atomic Controller state command:
 it requires the expected revision/voter fence plus observed Controller Raft
 config index and voter set, then adds the Controller voter role to the node,
 updates the durable Controller voter table, and remains idempotent when the

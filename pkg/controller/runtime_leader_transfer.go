@@ -21,7 +21,7 @@ type SlotLeaderTransferRequest struct {
 	TargetPeers []uint64
 	// ConfigEpoch fences the request to the caller's observed assignment epoch.
 	ConfigEpoch uint64
-	// StateRevision is the ControllerV2 cluster-state revision observed by the caller.
+	// StateRevision is the Controller cluster-state revision observed by the caller.
 	StateRevision uint64
 }
 
@@ -33,7 +33,7 @@ type SlotLeaderTransferResult struct {
 	Task *ReconcileTask
 }
 
-// RequestSlotLeaderTransfer proposes a ControllerV2 task for a Slot Raft leader transfer.
+// RequestSlotLeaderTransfer proposes a Controller task for a Slot Raft leader transfer.
 func (r *Runtime) RequestSlotLeaderTransfer(ctx context.Context, req SlotLeaderTransferRequest) (SlotLeaderTransferResult, error) {
 	expectedRevision := req.StateRevision
 	taskID := fmt.Sprintf("slot-%d-leader-transfer-%d-r%d", req.SlotID, req.ConfigEpoch, req.StateRevision)

@@ -14,7 +14,7 @@ const (
 	maxLogEntryLimit     = 200
 )
 
-// LogEntriesOptions controls a node-local ControllerV2 Raft log entry page.
+// LogEntriesOptions controls a node-local Controller Raft log entry page.
 type LogEntriesOptions struct {
 	// Limit is the maximum number of entries to return. Zero uses the default.
 	Limit int
@@ -22,7 +22,7 @@ type LogEntriesOptions struct {
 	Cursor uint64
 }
 
-// LogEntry is a read-only summary of one ControllerV2 Raft log entry.
+// LogEntry is a read-only summary of one Controller Raft log entry.
 type LogEntry struct {
 	// Index is the Raft log index.
 	Index uint64
@@ -42,7 +42,7 @@ type LogEntry struct {
 	Decoded map[string]any
 }
 
-// LogEntries is one node-local page of ControllerV2 Raft log entries.
+// LogEntries is one node-local page of Controller Raft log entries.
 type LogEntries struct {
 	// FirstIndex is the first available local Raft log index.
 	FirstIndex uint64
@@ -58,7 +58,7 @@ type LogEntries struct {
 	Items []LogEntry
 }
 
-// LogEntries returns one page from the local ControllerV2 Raft log.
+// LogEntries returns one page from the local Controller Raft log.
 func (s *Service) LogEntries(ctx context.Context, opts LogEntriesOptions) (LogEntries, error) {
 	if ctx == nil {
 		ctx = context.Background()
@@ -207,13 +207,13 @@ func logEntriesFromRaft(entries []raftpb.Entry) []LogEntry {
 			Type:     logEntryTypeName(entry.Type),
 			DataSize: len(entry.Data),
 		}
-		inspectControllerV2LogEntryPayload(&item, entry)
+		inspectControllerLogEntryPayload(&item, entry)
 		out = append(out, item)
 	}
 	return out
 }
 
-func inspectControllerV2LogEntryPayload(item *LogEntry, entry raftpb.Entry) {
+func inspectControllerLogEntryPayload(item *LogEntry, entry raftpb.Entry) {
 	if entry.Type != raftpb.EntryNormal {
 		return
 	}
@@ -233,7 +233,7 @@ func inspectControllerV2LogEntryPayload(item *LogEntry, entry raftpb.Entry) {
 	if !cmd.IssuedAt.IsZero() {
 		item.CreatedAtMS = cmd.IssuedAt.UTC().UnixMilli()
 	}
-	payload, err := controllerV2CommandPayload(cmd)
+	payload, err := controllerCommandPayload(cmd)
 	if err != nil {
 		item.DecodeStatus = "corrupt"
 		item.DecodedType = "unknown"
@@ -245,7 +245,7 @@ func inspectControllerV2LogEntryPayload(item *LogEntry, entry raftpb.Entry) {
 	item.Decoded = payload
 }
 
-func controllerV2CommandPayload(cmd command.Command) (map[string]any, error) {
+func controllerCommandPayload(cmd command.Command) (map[string]any, error) {
 	if cmd.Kind == "" {
 		return nil, errors.New("controller/raft: empty command kind")
 	}

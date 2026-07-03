@@ -14,7 +14,7 @@ import (
 // ErrStateSourceRequired indicates that a command-producing planner tick lacks authoritative state.
 var ErrStateSourceRequired = errors.New("controller/server: state source is required for planner command decisions")
 
-// Proposer appends ControllerV2 commands to the current Controller Raft leader.
+// Proposer appends Controller commands to the current Controller Raft leader.
 type Proposer interface {
 	// Propose submits cmd to Controller Raft and waits for local apply semantics.
 	Propose(context.Context, command.Command) error
@@ -22,9 +22,9 @@ type Proposer interface {
 	LeaderID() uint64
 }
 
-// StateSource provides authoritative ControllerV2 snapshots after local apply.
+// StateSource provides authoritative Controller snapshots after local apply.
 type StateSource interface {
-	// Snapshot returns the latest locally visible ControllerV2 cluster state.
+	// Snapshot returns the latest locally visible Controller cluster state.
 	Snapshot(context.Context) state.ClusterState
 }
 
@@ -37,7 +37,7 @@ type SyncClient interface {
 	SyncOnce(context.Context) (state.ClusterState, error)
 }
 
-// Config wires the thin ControllerV2 server facade.
+// Config wires the thin Controller server facade.
 type Config struct {
 	// InitialState seeds the facade's local in-memory state snapshot.
 	InitialState state.ClusterState
@@ -45,7 +45,7 @@ type Config struct {
 	Planner planner.Planner
 	// Proposer submits planner commands to Controller Raft.
 	Proposer Proposer
-	// StateSource reads authoritative local state, for example from the ControllerV2 FSM.
+	// StateSource reads authoritative local state, for example from the Controller FSM.
 	StateSource StateSource
 	// SyncClient fetches and persists leader snapshots for non-controller nodes.
 	SyncClient SyncClient
@@ -67,7 +67,7 @@ type Server struct {
 	now         func() time.Time
 }
 
-// New creates a ControllerV2 server facade from cfg.
+// New creates a Controller server facade from cfg.
 func New(cfg Config) (*Server, error) {
 	pl := cfg.Planner
 	if pl == nil {
@@ -120,7 +120,7 @@ func (s *Server) TickPlanner(ctx context.Context) error {
 	return nil
 }
 
-// LocalState returns a deep copy of the latest local ControllerV2 state snapshot.
+// LocalState returns a deep copy of the latest local Controller state snapshot.
 func (s *Server) LocalState() state.ClusterState {
 	return s.localStateSnapshot(context.Background())
 }

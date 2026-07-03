@@ -6,7 +6,7 @@ import (
 	"sort"
 )
 
-// Validate checks whether the cluster state satisfies durable ControllerV2 invariants.
+// Validate checks whether the cluster state satisfies durable Controller invariants.
 func (s ClusterState) Validate() error {
 	s = s.Clone()
 	s.Normalize()
