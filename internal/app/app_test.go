@@ -37,7 +37,7 @@ import (
 	clusterpkg "github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/routing"
-	cv2 "github.com/WuKongIM/WuKongIM/pkg/controller"
+	controller "github.com/WuKongIM/WuKongIM/pkg/controller"
 	messagedb "github.com/WuKongIM/WuKongIM/pkg/db/message"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/gateway"
@@ -1203,7 +1203,7 @@ func TestManagerServerJoinsNodeFromClusterControl(t *testing.T) {
 func TestManagerServerMapsControllerLifecycleAvailabilityErrors(t *testing.T) {
 	cluster := &fakeManagerCluster{
 		nodeID:      1,
-		joinNodeErr: cv2.ErrNotLeader,
+		joinNodeErr: controller.ErrNotLeader,
 	}
 	app, err := newTestApp(t, Config{
 		Manager: ManagerConfig{

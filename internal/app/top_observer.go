@@ -11,7 +11,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/channel/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/channel/worker"
 	clusterchannels "github.com/WuKongIM/WuKongIM/pkg/cluster/channels"
-	cv2 "github.com/WuKongIM/WuKongIM/pkg/controller"
+	controller "github.com/WuKongIM/WuKongIM/pkg/controller"
 	messagedb "github.com/WuKongIM/WuKongIM/pkg/db/message"
 	gatewaypkg "github.com/WuKongIM/WuKongIM/pkg/gateway"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
@@ -591,7 +591,7 @@ var _ runtimedelivery.RetryObserver = topDeliveryObserver{}
 var _ runtimedelivery.AckObserver = topDeliveryObserver{}
 var _ runtimedelivery.ManagerObserver = topDeliveryObserver{}
 var _ multiraft.SchedulerObserver = topSlotObserver{}
-var _ cv2.RaftObserver = topControllerRaftObserver{}
+var _ controller.RaftObserver = topControllerRaftObserver{}
 var _ transportv2.Observer = (*topTransportV2Observer)(nil)
 
 func nonNegativeInt(value int) int {

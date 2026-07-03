@@ -12,7 +12,7 @@ import (
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
-	cv2 "github.com/WuKongIM/WuKongIM/pkg/controller"
+	controller "github.com/WuKongIM/WuKongIM/pkg/controller"
 	"github.com/WuKongIM/WuKongIM/pkg/controller/command"
 	obsmetrics "github.com/WuKongIM/WuKongIM/pkg/metrics"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
@@ -27,27 +27,27 @@ func TestControllerTaskAuditRuntimeObservesTransitionsAndServesManagementReads(t
 		}
 	})
 
-	task := cv2.ReconcileTask{
+	task := controller.ReconcileTask{
 		TaskID:           "slot-1-replica-move-1-to-4-r12",
 		SlotID:           1,
-		Kind:             cv2.TaskKindSlotReplicaMove,
-		Step:             cv2.TaskStepOpenLearner,
+		Kind:             controller.TaskKindSlotReplicaMove,
+		Step:             controller.TaskStepOpenLearner,
 		SourceNode:       1,
 		TargetNode:       4,
 		TargetPeers:      []uint64{2, 3, 4},
-		CompletionPolicy: cv2.TaskCompletionPolicyAllTargetPeers,
+		CompletionPolicy: controller.TaskCompletionPolicyAllTargetPeers,
 		ConfigEpoch:      7,
-		Status:           cv2.TaskStatusRunning,
-		ParticipantProgress: []cv2.TaskParticipantProgress{{
+		Status:           controller.TaskStatusRunning,
+		ParticipantProgress: []controller.TaskParticipantProgress{{
 			NodeID: 4,
-			Status: cv2.TaskParticipantStatusPending,
+			Status: controller.TaskParticipantStatusPending,
 		}},
 	}
 	progress := task
-	progress.Step = cv2.TaskStepPromoteLearner
-	progress.ParticipantProgress[0].Status = cv2.TaskParticipantStatusDone
+	progress.Step = controller.TaskStepPromoteLearner
+	progress.ParticipantProgress[0].Status = controller.TaskParticipantStatusDone
 
-	audit.ObserveControllerTaskTransitions([]cv2.TaskTransition{{
+	audit.ObserveControllerTaskTransitions([]controller.TaskTransition{{
 		AppliedRaftIndex: 12,
 		AppliedRaftTerm:  3,
 		CommandKind:      command.KindUpsertSlotReplicaMoveTask,
@@ -67,13 +67,13 @@ func TestControllerTaskAuditRuntimeObservesTransitionsAndServesManagementReads(t
 	}})
 
 	list := waitForControllerTaskAuditList(t, audit, managementusecase.ControllerTaskAuditListRequest{
-		Kind:   string(cv2.TaskKindSlotReplicaMove),
+		Kind:   string(controller.TaskKindSlotReplicaMove),
 		NodeID: 4,
 	})
 	if len(list.Items) != 1 {
 		t.Fatalf("list items = %d, want 1", len(list.Items))
 	}
-	if list.Items[0].TaskID != task.TaskID || list.Items[0].Status != string(cv2.TaskStatusRunning) || list.Items[0].Step != string(cv2.TaskStepPromoteLearner) {
+	if list.Items[0].TaskID != task.TaskID || list.Items[0].Status != string(controller.TaskStatusRunning) || list.Items[0].Step != string(controller.TaskStepPromoteLearner) {
 		t.Fatalf("snapshot = %+v, want running task %s at promote_learner", list.Items[0], task.TaskID)
 	}
 
@@ -118,24 +118,24 @@ func TestControllerTaskAuditPathUsesLegacyFileWhenOnlyLegacyExists(t *testing.T)
 }
 
 func TestControllerTaskAuditParticipantFailureEmitsFailedEvent(t *testing.T) {
-	before := cv2.ReconcileTask{
+	before := controller.ReconcileTask{
 		TaskID:     "slot-1-replica-move-2-to-4-r9",
-		Kind:       cv2.TaskKindSlotReplicaMove,
+		Kind:       controller.TaskKindSlotReplicaMove,
 		SlotID:     1,
 		SourceNode: 2,
 		TargetNode: 4,
-		Status:     cv2.TaskStatusRunning,
-		ParticipantProgress: []cv2.TaskParticipantProgress{{
+		Status:     controller.TaskStatusRunning,
+		ParticipantProgress: []controller.TaskParticipantProgress{{
 			NodeID: 4,
-			Status: cv2.TaskParticipantStatusPending,
+			Status: controller.TaskParticipantStatusPending,
 		}},
 	}
 	after := before
-	after.Status = cv2.TaskStatusFailed
-	after.ParticipantProgress[0].Status = cv2.TaskParticipantStatusFailed
+	after.Status = controller.TaskStatusFailed
+	after.ParticipantProgress[0].Status = controller.TaskParticipantStatusFailed
 	after.ParticipantProgress[0].LastError = "learner apply timed out"
 
-	event, ok := controllerTaskAuditEventForTransition(cv2.TaskTransition{
+	event, ok := controllerTaskAuditEventForTransition(controller.TaskTransition{
 		AppliedRaftIndex: 18,
 		AppliedRaftTerm:  3,
 		CommandKind:      command.KindReportTaskProgress,
@@ -152,7 +152,7 @@ func TestControllerTaskAuditParticipantFailureEmitsFailedEvent(t *testing.T) {
 	if event.Type != taskaudit.EventFailed {
 		t.Fatalf("event type = %q, want failed", event.Type)
 	}
-	if event.Status != string(cv2.TaskStatusFailed) || event.ParticipantNode != 4 {
+	if event.Status != string(controller.TaskStatusFailed) || event.ParticipantNode != 4 {
 		t.Fatalf("event = %+v, want failed status from participant node 4", event)
 	}
 	if event.Reason != "learner apply timed out" {

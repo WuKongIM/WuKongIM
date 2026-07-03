@@ -14,7 +14,7 @@ import (
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
-	cv2 "github.com/WuKongIM/WuKongIM/pkg/controller"
+	controller "github.com/WuKongIM/WuKongIM/pkg/controller"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	obsmetrics "github.com/WuKongIM/WuKongIM/pkg/metrics"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
@@ -95,7 +95,7 @@ func fileExists(path string) bool {
 }
 
 // ObserveControllerTaskTransitions records Controller task transitions without blocking Raft apply on file IO.
-func (r *controllerTaskAuditRuntime) ObserveControllerTaskTransitions(transitions []cv2.TaskTransition) {
+func (r *controllerTaskAuditRuntime) ObserveControllerTaskTransitions(transitions []controller.TaskTransition) {
 	events := controllerTaskAuditEventsForTransitions(transitions)
 	if len(events) == 0 || r == nil {
 		return
@@ -276,7 +276,7 @@ func (a *App) closeControllerTaskAudit() error {
 	return a.controllerTaskAudit.Close()
 }
 
-func controllerTaskAuditEventsForTransitions(transitions []cv2.TaskTransition) []taskaudit.Event {
+func controllerTaskAuditEventsForTransitions(transitions []controller.TaskTransition) []taskaudit.Event {
 	events := make([]taskaudit.Event, 0, len(transitions))
 	for _, transition := range transitions {
 		if event, ok := controllerTaskAuditEventForTransition(transition); ok {
@@ -286,7 +286,7 @@ func controllerTaskAuditEventsForTransitions(transitions []cv2.TaskTransition) [
 	return events
 }
 
-func controllerTaskAuditEventForTransition(transition cv2.TaskTransition) (taskaudit.Event, bool) {
+func controllerTaskAuditEventForTransition(transition controller.TaskTransition) (taskaudit.Event, bool) {
 	task, ok := controllerTaskAuditTaskForTransition(transition)
 	if !ok || task.TaskID == "" {
 		return taskaudit.Event{}, false
@@ -297,9 +297,9 @@ func controllerTaskAuditEventForTransition(transition cv2.TaskTransition) (taska
 		eventType = taskaudit.EventCreated
 	case transition.BeforeValid && !transition.AfterValid:
 		eventType = taskaudit.EventCompleted
-	case task.Status == cv2.TaskStatusFailed:
+	case task.Status == controller.TaskStatusFailed:
 		eventType = taskaudit.EventFailed
-	case transition.ParticipantNode != 0 || transition.CommandKind == cv2.CommandKindReportTaskProgress:
+	case transition.ParticipantNode != 0 || transition.CommandKind == controller.CommandKindReportTaskProgress:
 		eventType = taskaudit.EventParticipantProgress
 	}
 	event := controllerTaskAuditEventBase(task, eventType)
@@ -313,26 +313,26 @@ func controllerTaskAuditEventForTransition(transition cv2.TaskTransition) (taska
 	return event, true
 }
 
-func controllerTaskAuditTaskForTransition(transition cv2.TaskTransition) (cv2.ReconcileTask, bool) {
+func controllerTaskAuditTaskForTransition(transition controller.TaskTransition) (controller.ReconcileTask, bool) {
 	if transition.AfterValid {
 		return transition.After, true
 	}
 	if transition.BeforeValid {
 		return transition.Before, true
 	}
-	return cv2.ReconcileTask{}, false
+	return controller.ReconcileTask{}, false
 }
 
 func controllerTaskAuditSnapshotEvent(revision uint64, task control.ReconcileTask) taskaudit.Event {
-	cv2Task := cv2TaskFromControlTask(task)
-	event := controllerTaskAuditEventBase(cv2Task, taskaudit.EventSnapshot)
+	controllerTask := controllerTaskFromControlTask(task)
+	event := controllerTaskAuditEventBase(controllerTask, taskaudit.EventSnapshot)
 	event.EventID = fmt.Sprintf("%s:%d:snapshot", task.TaskID, revision)
 	event.AppliedRaftIndex = revision
-	event.Summary = controllerTaskAuditSummary(taskaudit.EventSnapshot, cv2Task, 0)
+	event.Summary = controllerTaskAuditSummary(taskaudit.EventSnapshot, controllerTask, 0)
 	return event
 }
 
-func controllerTaskAuditEventBase(task cv2.ReconcileTask, eventType taskaudit.EventType) taskaudit.Event {
+func controllerTaskAuditEventBase(task controller.ReconcileTask, eventType taskaudit.EventType) taskaudit.Event {
 	status := string(task.Status)
 	if eventType == taskaudit.EventCompleted {
 		status = "completed"
@@ -350,16 +350,16 @@ func controllerTaskAuditEventBase(task cv2.ReconcileTask, eventType taskaudit.Ev
 	}
 }
 
-func controllerTaskAuditLeaderID(task cv2.ReconcileTask) uint64 {
+func controllerTaskAuditLeaderID(task controller.ReconcileTask) uint64 {
 	switch task.Kind {
-	case cv2.TaskKindBootstrap, cv2.TaskKindLeaderTransfer:
+	case controller.TaskKindBootstrap, controller.TaskKindLeaderTransfer:
 		return task.TargetNode
 	default:
 		return 0
 	}
 }
 
-func controllerTaskAuditDetails(task cv2.ReconcileTask) map[string]any {
+func controllerTaskAuditDetails(task controller.ReconcileTask) map[string]any {
 	details := map[string]any{
 		"step":              string(task.Step),
 		"completion_policy": string(task.CompletionPolicy),
@@ -394,7 +394,7 @@ func controllerTaskAuditDetails(task cv2.ReconcileTask) map[string]any {
 	return details
 }
 
-func controllerTaskAuditSummary(eventType taskaudit.EventType, task cv2.ReconcileTask, participantNode uint64) string {
+func controllerTaskAuditSummary(eventType taskaudit.EventType, task controller.ReconcileTask, participantNode uint64) string {
 	switch eventType {
 	case taskaudit.EventCreated:
 		return fmt.Sprintf("created %s task for slot %d", task.Kind, task.SlotID)
@@ -411,17 +411,17 @@ func controllerTaskAuditSummary(eventType taskaudit.EventType, task cv2.Reconcil
 	}
 }
 
-func controllerTaskAuditReason(eventType taskaudit.EventType, task cv2.ReconcileTask, participantNode uint64) string {
+func controllerTaskAuditReason(eventType taskaudit.EventType, task controller.ReconcileTask, participantNode uint64) string {
 	if progress, ok := controllerTaskAuditParticipant(task, participantNode); ok && progress.LastError != "" {
 		return progress.LastError
 	}
-	if task.Status == cv2.TaskStatusFailed || eventType == taskaudit.EventFailed {
+	if task.Status == controller.TaskStatusFailed || eventType == taskaudit.EventFailed {
 		return task.LastError
 	}
 	return ""
 }
 
-func controllerTaskAuditParticipantStatus(task cv2.ReconcileTask, participantNode uint64) string {
+func controllerTaskAuditParticipantStatus(task controller.ReconcileTask, participantNode uint64) string {
 	if progress, ok := controllerTaskAuditParticipant(task, participantNode); ok {
 		return string(progress.Status)
 	}
@@ -431,20 +431,20 @@ func controllerTaskAuditParticipantStatus(task cv2.ReconcileTask, participantNod
 	return "unknown"
 }
 
-func controllerTaskAuditParticipant(task cv2.ReconcileTask, participantNode uint64) (cv2.TaskParticipantProgress, bool) {
+func controllerTaskAuditParticipant(task controller.ReconcileTask, participantNode uint64) (controller.TaskParticipantProgress, bool) {
 	if participantNode == 0 {
-		return cv2.TaskParticipantProgress{}, false
+		return controller.TaskParticipantProgress{}, false
 	}
 	for _, progress := range task.ParticipantProgress {
 		if progress.NodeID == participantNode {
 			return progress, true
 		}
 	}
-	return cv2.TaskParticipantProgress{}, false
+	return controller.TaskParticipantProgress{}, false
 }
 
-func cv2TaskFromControlTask(task control.ReconcileTask) cv2.ReconcileTask {
-	return cv2.ReconcileTask{
+func controllerTaskFromControlTask(task control.ReconcileTask) controller.ReconcileTask {
+	return controller.ReconcileTask{
 		TaskID:              task.TaskID,
 		SlotID:              task.SlotID,
 		Kind:                task.Kind,
@@ -453,7 +453,7 @@ func cv2TaskFromControlTask(task control.ReconcileTask) cv2.ReconcileTask {
 		TargetNode:          task.TargetNode,
 		TargetPeers:         append([]uint64(nil), task.TargetPeers...),
 		CompletionPolicy:    task.CompletionPolicy,
-		ParticipantProgress: append([]cv2.TaskParticipantProgress(nil), task.ParticipantProgress...),
+		ParticipantProgress: append([]controller.TaskParticipantProgress(nil), task.ParticipantProgress...),
 		ConfigEpoch:         task.ConfigEpoch,
 		Attempt:             task.Attempt,
 		Status:              task.Status,
@@ -594,9 +594,9 @@ func controllerTaskAuditEvent(event taskaudit.Event) managementusecase.Controlle
 	}
 }
 
-type controllerTaskTransitionObservers []cv2.TaskTransitionObserver
+type controllerTaskTransitionObservers []controller.TaskTransitionObserver
 
-func combineControllerTaskTransitionObservers(first cv2.TaskTransitionObserver, rest ...cv2.TaskTransitionObserver) cv2.TaskTransitionObserver {
+func combineControllerTaskTransitionObservers(first controller.TaskTransitionObserver, rest ...controller.TaskTransitionObserver) controller.TaskTransitionObserver {
 	observers := make(controllerTaskTransitionObservers, 0, 1+len(rest))
 	if first != nil {
 		observers = append(observers, first)
@@ -616,7 +616,7 @@ func combineControllerTaskTransitionObservers(first cv2.TaskTransitionObserver, 
 	}
 }
 
-func (o controllerTaskTransitionObservers) ObserveControllerTaskTransitions(transitions []cv2.TaskTransition) {
+func (o controllerTaskTransitionObservers) ObserveControllerTaskTransitions(transitions []controller.TaskTransition) {
 	for _, observer := range o {
 		observer.ObserveControllerTaskTransitions(transitions)
 	}

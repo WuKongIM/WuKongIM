@@ -12,7 +12,7 @@ import (
 	accessnode "github.com/WuKongIM/WuKongIM/internal/access/node"
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
-	cv2 "github.com/WuKongIM/WuKongIM/pkg/controller"
+	controller "github.com/WuKongIM/WuKongIM/pkg/controller"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
@@ -49,7 +49,7 @@ type seedJoinSnapshotReader interface {
 }
 
 type controllerVoterPreparationNode interface {
-	PrepareControllerVoter(context.Context, cv2.PrepareControllerVoterRequest) (cv2.PrepareControllerVoterResult, error)
+	PrepareControllerVoter(context.Context, controller.PrepareControllerVoterRequest) (controller.PrepareControllerVoterResult, error)
 	LocalControllerRaftStatus(context.Context) (control.ControllerRaftStatus, error)
 }
 
@@ -374,7 +374,7 @@ func (a *App) ControllerVoterReadiness(ctx context.Context, req accessnode.Contr
 	}
 	status, err := statusNode.LocalControllerRaftStatus(ctx)
 	if err != nil {
-		if errors.Is(err, cv2.ErrNotStarted) && resp.CanPrepare {
+		if errors.Is(err, controller.ErrNotStarted) && resp.CanPrepare {
 			return resp, nil
 		}
 		resp.ControlReady = false
@@ -399,14 +399,14 @@ func (a *App) PrepareControllerVoter(ctx context.Context, req accessnode.Prepare
 	if !ok || node == nil {
 		return accessnode.PrepareControllerVoterResponse{}, managementusecase.ErrControllerVoterPromotionUnavailable
 	}
-	nextVoters := make([]cv2.Voter, 0, len(req.NextVoters))
+	nextVoters := make([]controller.Voter, 0, len(req.NextVoters))
 	for _, voter := range req.NextVoters {
-		nextVoters = append(nextVoters, cv2.Voter{
+		nextVoters = append(nextVoters, controller.Voter{
 			NodeID: voter.NodeID,
 			Addr:   voter.Addr,
 		})
 	}
-	result, err := node.PrepareControllerVoter(ctx, cv2.PrepareControllerVoterRequest{
+	result, err := node.PrepareControllerVoter(ctx, controller.PrepareControllerVoterRequest{
 		NodeID:           req.NodeID,
 		ClusterID:        req.ClusterID,
 		ExpectedRevision: req.ExpectedRevision,

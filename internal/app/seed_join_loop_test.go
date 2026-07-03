@@ -10,7 +10,7 @@ import (
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
 	clusterpkg "github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
-	cv2 "github.com/WuKongIM/WuKongIM/pkg/controller"
+	controller "github.com/WuKongIM/WuKongIM/pkg/controller"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
@@ -197,7 +197,7 @@ func TestAppControllerVoterReadinessAllowsMirrorBeforePrepare(t *testing.T) {
 					JoinState: control.NodeJoinStateActive,
 				}},
 			},
-			controllerRaftStatusErr: cv2.ErrNotStarted,
+			controllerRaftStatusErr: controller.ErrNotStarted,
 		},
 		snapshot: clusterpkg.Snapshot{
 			RoutesReady:   true,
@@ -248,7 +248,7 @@ func TestAppPrepareControllerVoterReturnsControllerRaftProof(t *testing.T) {
 				Voters:       []uint64{1, 2, 4},
 			},
 		},
-		prepareResult: cv2.PrepareControllerVoterResult{
+		prepareResult: controller.PrepareControllerVoterResult{
 			Prepared:      true,
 			StateRevision: 22,
 		},
@@ -284,7 +284,7 @@ func TestAppPrepareControllerVoterReturnsControllerRaftProof(t *testing.T) {
 	}
 	if cluster.prepareRequest.NodeID != 4 || cluster.prepareRequest.ClusterID != "cluster-a" ||
 		cluster.prepareRequest.ExpectedRevision != 22 ||
-		!sameSeedJoinControllerVoters(cluster.prepareRequest.NextVoters, []cv2.Voter{
+		!sameSeedJoinControllerVoters(cluster.prepareRequest.NextVoters, []controller.Voter{
 			{NodeID: 1, Addr: "10.0.0.1:11110"},
 			{NodeID: 2, Addr: "10.0.0.2:11110"},
 			{NodeID: 4, Addr: "10.0.0.4:11110"},
@@ -305,7 +305,7 @@ func TestAppPrepareControllerVoterAllowsPendingControllerRaftProof(t *testing.T)
 				{NodeID: 4, Role: "follower", LeaderID: 1},
 			},
 		},
-		prepareResult: cv2.PrepareControllerVoterResult{
+		prepareResult: controller.PrepareControllerVoterResult{
 			Prepared:      true,
 			StateRevision: 22,
 		},
@@ -682,17 +682,17 @@ func (f *fakeReadinessCluster) RouteHashSlot(hashSlot uint16) (clusterpkg.Route,
 
 type fakeControllerVoterPreparationCluster struct {
 	fakeManagerCluster
-	prepareRequest cv2.PrepareControllerVoterRequest
-	prepareResult  cv2.PrepareControllerVoterResult
+	prepareRequest controller.PrepareControllerVoterRequest
+	prepareResult  controller.PrepareControllerVoterResult
 	prepareErr     error
 }
 
-func (f *fakeControllerVoterPreparationCluster) PrepareControllerVoter(_ context.Context, req cv2.PrepareControllerVoterRequest) (cv2.PrepareControllerVoterResult, error) {
+func (f *fakeControllerVoterPreparationCluster) PrepareControllerVoter(_ context.Context, req controller.PrepareControllerVoterRequest) (controller.PrepareControllerVoterResult, error) {
 	f.prepareRequest = req
 	return f.prepareResult, f.prepareErr
 }
 
-func sameSeedJoinControllerVoters(left, right []cv2.Voter) bool {
+func sameSeedJoinControllerVoters(left, right []controller.Voter) bool {
 	if len(left) != len(right) {
 		return false
 	}
