@@ -1178,7 +1178,7 @@ func TestChannelAppendWaitCancelLogLineIncludesSnapshotState(t *testing.T) {
 		Err:                   context.DeadlineExceeded,
 	})
 	for _, want := range []string{
-		"internal/app: channelv2 append waiter canceled",
+		"internal/app: channel append waiter canceled",
 		"reactor=2",
 		"key=1:room",
 		"channel_id=room",

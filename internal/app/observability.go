@@ -698,7 +698,7 @@ func (o channelMetricsObserver) ObserveAppendWaitCanceled(snapshot reactor.Appen
 
 func channelAppendWaitCancelLogLine(snapshot reactor.AppendWaitCancelSnapshot) string {
 	return fmt.Sprintf(
-		"internal/app: channelv2 append waiter canceled reactor=%d key=%s channel_id=%s channel_type=%d op=%d commit_mode=%s role=%s leader=%d epoch=%d leader_epoch=%d leo=%d hw=%d target=%d store_submitted=%t store_completed=%t follower_pull_served=%t ack_offset_observed=%t hw_advanced=%t waiters=%d pending_appends=%d pending_append_order=%d append_queue_pending=%d append_queue_records=%d append_queue_bytes=%d append_inflight=%t append_inflight_op=%d append_inflight_waiters=%d append_store_blocked=%t pull_waiters=%d follower_states=%q err=%v",
+		"internal/app: channel append waiter canceled reactor=%d key=%s channel_id=%s channel_type=%d op=%d commit_mode=%s role=%s leader=%d epoch=%d leader_epoch=%d leo=%d hw=%d target=%d store_submitted=%t store_completed=%t follower_pull_served=%t ack_offset_observed=%t hw_advanced=%t waiters=%d pending_appends=%d pending_append_order=%d append_queue_pending=%d append_queue_records=%d append_queue_bytes=%d append_inflight=%t append_inflight_op=%d append_inflight_waiters=%d append_store_blocked=%t pull_waiters=%d follower_states=%q err=%v",
 		snapshot.ReactorID,
 		snapshot.Key,
 		snapshot.ChannelID.ID,
