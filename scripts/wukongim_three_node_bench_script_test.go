@@ -254,7 +254,6 @@ func TestWukongIMThreeNodeBenchScriptCollectsLocalEvidence(t *testing.T) {
 		"channel_metrics_summary",
 		"scripts/channel-metrics-summary.awk",
 		"channel_metrics_summary.tsv",
-		"channelv2_metrics_summary.tsv",
 		"runtime_pool_queue_depth_max",
 		"runtime_pool_admission_full_delta",
 		"- ants_pool_usage: ants_pool_usage_summary.tsv",
@@ -322,6 +321,103 @@ func TestWukongIMThreeNodeBenchScriptCollectsLocalEvidence(t *testing.T) {
 	}
 }
 
+func TestWukongIMBenchDefaultEvidenceAssertionsUsePrimaryChannelSummary(t *testing.T) {
+	root := repoRoot(t)
+	source := readFile(t, filepath.Join(root, "scripts", "wukongim_three_node_bench_script_test.go"))
+	legacySummary := "channelv2" + "_metrics_summary.tsv"
+	for _, testName := range []string{
+		"TestWukongIMThreeNodeBenchScriptCollectsLocalEvidence",
+		"TestWukongIMThreeNodeRealQPSScriptUses15KTunedDefaults",
+	} {
+		start := strings.Index(source, "func "+testName)
+		if start < 0 {
+			t.Fatalf("test %s not found", testName)
+		}
+		end := strings.Index(source[start+1:], "\nfunc ")
+		body := source[start:]
+		if end >= 0 {
+			body = source[start : start+1+end]
+		}
+		if strings.Contains(body, legacySummary) {
+			t.Fatalf("%s should assert channel_metrics_summary.tsv as the default; legacy alias belongs in dedicated compatibility tests", testName)
+		}
+	}
+}
+
+func TestWukongIMBenchScriptsKeepChannelSummaryLegacyAliasCompatibility(t *testing.T) {
+	root := repoRoot(t)
+	legacySummary := "channelv2" + "_metrics_summary.tsv"
+	for _, scriptPath := range []string{
+		"scripts/bench-wukongim-three-nodes-1000ch.sh",
+		"scripts/bench-wukongim-single-node-1000ch.sh",
+	} {
+		t.Run(scriptPath, func(t *testing.T) {
+			script := readFile(t, filepath.Join(root, scriptPath))
+			for _, want := range []string{
+				`local out="$OUT_DIR/channel_metrics_summary.tsv"`,
+				`local legacy_out="$OUT_DIR/` + legacySummary + `"`,
+				`cp "$out" "$legacy_out"`,
+				`cp "$OUT_DIR/channel_metrics_summary.tsv" "$OUT_DIR/` + legacySummary + `"`,
+			} {
+				if !strings.Contains(script, want) {
+					t.Fatalf("bench script missing channel summary legacy alias compatibility %q", want)
+				}
+			}
+		})
+	}
+}
+
+func TestWukongIMRealQPSScriptsFallbackToLegacyChannelSummaryAlias(t *testing.T) {
+	root := repoRoot(t)
+	cases := []struct {
+		name       string
+		scriptPath string
+		baseEnv    string
+	}{
+		{
+			name:       "single-node",
+			scriptPath: "scripts/bench-wukongim-single-node-real-qps.sh",
+			baseEnv:    "WK_BENCH_SINGLE_REAL_QPS_BASE_SCRIPT",
+		},
+		{
+			name:       "three-node",
+			scriptPath: "scripts/bench-wukongim-three-nodes-real-qps.sh",
+			baseEnv:    "WK_BENCH_REAL_QPS_BASE_SCRIPT",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			outDir := t.TempDir()
+			baseScript := filepath.Join(t.TempDir(), "fake-base.sh")
+			writeFakeRealQPSBenchBase(t, baseScript)
+
+			cmd := exec.Command("bash", tc.scriptPath,
+				"--qps", "100",
+				"--out-dir", outDir,
+				"--duration", "1s",
+				"--warmup", "0s",
+				"--cooldown", "0s",
+			)
+			cmd.Dir = root
+			cmd.Env = append(os.Environ(),
+				tc.baseEnv+"="+baseScript,
+				"WK_FAKE_LEGACY_CHANNEL_SUMMARY_ONLY=1",
+				"GOWORK=off",
+			)
+			output, err := cmd.CombinedOutput()
+			if err != nil {
+				t.Fatalf("real-qps script failed: %v\n%s", err, output)
+			}
+
+			summary := readFile(t, filepath.Join(outDir, "summary.tsv"))
+			if !strings.Contains(summary, "\t9\t0.900\t900\t0.800\t18\t0.950\t8\t7\t6\t5\t") {
+				t.Fatalf("real-qps summary should fall back to legacy channel summary alias:\n%s", summary)
+			}
+		})
+	}
+}
+
 func TestWukongIMThreeNodeRealQPSScriptUses15KTunedDefaults(t *testing.T) {
 	root := repoRoot(t)
 	script := readFile(t, filepath.Join(root, "scripts", "bench-wukongim-three-nodes-real-qps.sh"))
@@ -354,7 +450,6 @@ func TestWukongIMThreeNodeRealQPSScriptUses15KTunedDefaults(t *testing.T) {
 		`GATEWAY_SEND_TIMEOUT=${WK_GATEWAY_SEND_TIMEOUT:-14s}`,
 		"runtime_pool_attempt_summary",
 		"channel_metrics_summary.tsv",
-		"channelv2_metrics_summary.tsv",
 		"runtime_pool_queue_fill_max",
 		"runtime_pool_admission_busy_delta",
 		"write_ants_pool_usage_summary",
@@ -2314,6 +2409,13 @@ cat >"$out_dir/channelv2_metrics_summary.tsv" <<'OUT'
 tag	node	runtime_pool_queue_depth_max	runtime_pool_queue_fill_max	runtime_pool_queue_bytes_max	runtime_pool_queue_bytes_fill_max	runtime_pool_inflight_max	runtime_pool_inflight_util_max	runtime_pool_admission_full_delta	runtime_pool_admission_busy_delta	runtime_pool_admission_dirty_delta	runtime_pool_admission_requeued_delta
 000100	node1	1	0.100	100	0.100	1	0.100	1	1	1	1
 OUT
+if [[ "${WK_FAKE_LEGACY_CHANNEL_SUMMARY_ONLY:-0}" == "1" ]]; then
+  rm -f "$out_dir/channel_metrics_summary.tsv"
+  cat >"$out_dir/channelv2_metrics_summary.tsv" <<'OUT'
+tag	node	runtime_pool_queue_depth_max	runtime_pool_queue_fill_max	runtime_pool_queue_bytes_max	runtime_pool_queue_bytes_fill_max	runtime_pool_inflight_max	runtime_pool_inflight_util_max	runtime_pool_admission_full_delta	runtime_pool_admission_busy_delta	runtime_pool_admission_dirty_delta	runtime_pool_admission_requeued_delta
+000100	node1	9	0.900	900	0.800	18	0.950	8	7	6	5
+OUT
+fi
 cat >"$out_dir/runtime_pool_pressure_summary.tsv" <<'OUT'
 tag	node	component	pool	queue	priority	queue_depth_max	queue_capacity	queue_fill_max	queue_bytes_max	queue_bytes_capacity	queue_bytes_fill_max	inflight_max	workers	inflight_util_max	admission_full_delta	admission_busy_delta	admission_dirty_delta	admission_requeued_delta	reason
 000100	node1	gateway	async_send	send	none	7	10	0.700	200	400	0.500	8	16	0.500	3	2	1	5	queue_backlog,admission_full
