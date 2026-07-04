@@ -349,7 +349,22 @@ classify_metrics() {
 metric_classify_value() {
   local file="$1"
   local key="$2"
+  local fallback_key="${3:-}"
   awk -F':' -v key="$key" '
+    $1 == key {
+      value = $2
+      sub(/^[[:space:]]+/, "", value)
+      sub(/[[:space:]]+$/, "", value)
+      print value
+      found = 1
+      exit
+    }
+    END {
+      if (!found) exit 1
+    }
+  ' "$file" && return 0
+  [[ -n "$fallback_key" ]] || return 1
+  awk -F':' -v key="$fallback_key" '
     $1 == key {
       value = $2
       sub(/^[[:space:]]+/, "", value)
@@ -364,6 +379,15 @@ metric_classify_value() {
   ' "$file"
 }
 
+legacy_channel_metric_key() {
+  local key="$1"
+  if [[ "$key" == channel_* ]]; then
+    printf 'channelv2_%s\n' "${key#channel_}"
+    return
+  fi
+  printf '%s\n' "$key"
+}
+
 metric_number_equals() {
   local left="$1"
   local right="$2"
@@ -376,8 +400,10 @@ record_zero_metric_gate() {
   local body="$1"
   local file="$2"
   local key="$3"
+  local legacy_key
   local value
-  if ! value="$(metric_classify_value "$file" "$key")"; then
+  legacy_key="$(legacy_channel_metric_key "$key")"
+  if ! value="$(metric_classify_value "$file" "$key" "$legacy_key")"; then
     printf 'FAIL\t%s\t%s\tmissing\texpected=0\n' "$(basename "$file")" "$key" >>"$body"
     return 1
   fi
@@ -393,12 +419,15 @@ record_equal_metric_gate() {
   local file="$2"
   local left_key="$3"
   local right_key="$4"
+  local left_legacy_key right_legacy_key
   local left right
-  if ! left="$(metric_classify_value "$file" "$left_key")"; then
+  left_legacy_key="$(legacy_channel_metric_key "$left_key")"
+  right_legacy_key="$(legacy_channel_metric_key "$right_key")"
+  if ! left="$(metric_classify_value "$file" "$left_key" "$left_legacy_key")"; then
     printf 'FAIL\t%s\t%s\tmissing\texpected=%s\n' "$(basename "$file")" "$left_key" "$right_key" >>"$body"
     return 1
   fi
-  if ! right="$(metric_classify_value "$file" "$right_key")"; then
+  if ! right="$(metric_classify_value "$file" "$right_key" "$right_legacy_key")"; then
     printf 'FAIL\t%s\t%s\tmissing\texpected=%s\n' "$(basename "$file")" "$right_key" "$left_key" >>"$body"
     return 1
   fi
@@ -433,19 +462,19 @@ evaluate_metrics_health_gates() {
         continue
       fi
       for key in \
-        channelv2_pending_meta_current_max \
-        channelv2_pending_meta_released_count \
-        channelv2_need_meta_pull_retry_count \
-        channelv2_need_meta_pull_err_count \
-        channelv2_pull_hint_err_count \
-        channelv2_pull_hint_receive_err_count; do
+        channel_pending_meta_current_max \
+        channel_pending_meta_released_count \
+        channel_need_meta_pull_retry_count \
+        channel_need_meta_pull_err_count \
+        channel_pull_hint_err_count \
+        channel_pull_hint_receive_err_count; do
         checks=$((checks + 1))
         if ! record_zero_metric_gate "$body" "$file" "$key"; then
           failures=$((failures + 1))
         fi
       done
       checks=$((checks + 1))
-      if ! record_equal_metric_gate "$body" "$file" channelv2_need_meta_pull_submitted_count channelv2_need_meta_pull_ok_count; then
+      if ! record_equal_metric_gate "$body" "$file" channel_need_meta_pull_submitted_count channel_need_meta_pull_ok_count; then
         failures=$((failures + 1))
       fi
     done

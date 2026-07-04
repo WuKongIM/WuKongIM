@@ -193,68 +193,68 @@ count, hash-slot totals, touch count, and TTL expiry count. The final
 
 The per-node classification files include Controller Raft Step queue pressure
 plus Channel runtime cold-activation stage p99s:
-`channelv2_meta_resolve_p99_seconds`, `channelv2_meta_slot_read_p99_seconds`,
-`channelv2_meta_create_build_p99_seconds`,
-`channelv2_meta_create_propose_p99_seconds`,
-`channelv2_meta_create_propose_local_p99_seconds`,
-`channelv2_meta_create_propose_forward_p99_seconds`,
-`channelv2_meta_create_slot_propose_submit_p99_seconds`,
-`channelv2_meta_create_slot_propose_wait_p99_seconds`,
-`channelv2_meta_create_slot_control_wait_p99_seconds`,
-`channelv2_meta_create_slot_raft_commit_wait_p99_seconds`,
-`channelv2_meta_create_slot_fsm_apply_p99_seconds`,
-`channelv2_meta_create_slot_fsm_commit_p99_seconds`,
-`channelv2_meta_create_slot_mark_applied_p99_seconds`,
-`channelv2_meta_create_write_p99_seconds`,
-`channelv2_meta_final_read_p99_seconds`, `channelv2_meta_apply_p99_seconds`,
-`channelv2_runtime_append_p99_seconds`,
-`channelv2_runtime_append_reserve_wait_p99_seconds`,
-`channelv2_runtime_append_submit_p99_seconds`, and
-`channelv2_runtime_append_wait_p99_seconds`,
-`channelv2_append_batch_wait_p99_seconds`, and
-`channelv2_append_batch_records_p50`,
-`channelv2_append_store_wait_p99_seconds`, and
-`channelv2_append_post_store_commit_wait_p99_seconds`. Quorum post-store
+`channel_meta_resolve_p99_seconds`, `channel_meta_slot_read_p99_seconds`,
+`channel_meta_create_build_p99_seconds`,
+`channel_meta_create_propose_p99_seconds`,
+`channel_meta_create_propose_local_p99_seconds`,
+`channel_meta_create_propose_forward_p99_seconds`,
+`channel_meta_create_slot_propose_submit_p99_seconds`,
+`channel_meta_create_slot_propose_wait_p99_seconds`,
+`channel_meta_create_slot_control_wait_p99_seconds`,
+`channel_meta_create_slot_raft_commit_wait_p99_seconds`,
+`channel_meta_create_slot_fsm_apply_p99_seconds`,
+`channel_meta_create_slot_fsm_commit_p99_seconds`,
+`channel_meta_create_slot_mark_applied_p99_seconds`,
+`channel_meta_create_write_p99_seconds`,
+`channel_meta_final_read_p99_seconds`, `channel_meta_apply_p99_seconds`,
+`channel_runtime_append_p99_seconds`,
+`channel_runtime_append_reserve_wait_p99_seconds`,
+`channel_runtime_append_submit_p99_seconds`, and
+`channel_runtime_append_wait_p99_seconds`,
+`channel_append_batch_wait_p99_seconds`, and
+`channel_append_batch_records_p50`,
+`channel_append_store_wait_p99_seconds`, and
+`channel_append_post_store_commit_wait_p99_seconds`. Quorum post-store
 breakdown is reported as
-`channelv2_append_quorum_follower_pull_wait_p99_seconds`,
-`channelv2_append_quorum_ack_offset_wait_p99_seconds`,
-`channelv2_append_quorum_hw_advance_wait_p99_seconds`, and
-`channelv2_append_quorum_final_complete_p99_seconds`. Follower replication
+`channel_append_quorum_follower_pull_wait_p99_seconds`,
+`channel_append_quorum_ack_offset_wait_p99_seconds`,
+`channel_append_quorum_hw_advance_wait_p99_seconds`, and
+`channel_append_quorum_final_complete_p99_seconds`. Follower replication
 breakdown is reported as
-`channelv2_replication_follower_pull_hint_to_submit_p99_seconds`,
-`channelv2_replication_follower_pull_rpc_p99_seconds`,
-`channelv2_need_meta_pull_rpc_p99_seconds`,
-`channelv2_replication_follower_store_apply_p99_seconds`, and
-`channelv2_replication_follower_apply_to_ack_return_p99_seconds`. PendingMeta
+`channel_replication_follower_pull_hint_to_submit_p99_seconds`,
+`channel_replication_follower_pull_rpc_p99_seconds`,
+`channel_need_meta_pull_rpc_p99_seconds`,
+`channel_replication_follower_store_apply_p99_seconds`, and
+`channel_replication_follower_apply_to_ack_return_p99_seconds`. PendingMeta
 bootstrap counters are reported as
-`channelv2_pending_meta_current_max`,
-`channelv2_pending_meta_created_count`,
-`channelv2_pending_meta_converted_count`,
-`channelv2_pending_meta_released_count`, and release-class counters such as
-`channelv2_pending_meta_timeout_release_count`. NeedMeta pull counters are
-reported as `channelv2_need_meta_pull_submitted_count`,
-`channelv2_need_meta_pull_ok_count`, `channelv2_need_meta_pull_retry_count`,
-`channelv2_need_meta_pull_err_count`, and stable error-class counters such as
-`channelv2_need_meta_pull_not_ready_err_count`,
-`channelv2_need_meta_pull_not_replica_err_count`, and
-`channelv2_need_meta_pull_timeout_err_count`. PullHint
-result counters are reported as `channelv2_pull_hint_submitted_count`,
-`channelv2_pull_hint_ok_count`, `channelv2_pull_hint_err_count`, and the stable
-error-class counters such as `channelv2_pull_hint_stale_meta_err_count`,
-`channelv2_pull_hint_channel_not_found_err_count`,
-`channelv2_pull_hint_not_ready_err_count`, and
-`channelv2_pull_hint_canceled_err_count`,
-`channelv2_pull_hint_timeout_err_count`,
-`channelv2_pull_hint_remote_err_count`, and
-`channelv2_pull_hint_other_err_count`. Receiver-side PullHint stage errors are
+`channel_pending_meta_current_max`,
+`channel_pending_meta_created_count`,
+`channel_pending_meta_converted_count`,
+`channel_pending_meta_released_count`, and release-class counters such as
+`channel_pending_meta_timeout_release_count`. NeedMeta pull counters are
+reported as `channel_need_meta_pull_submitted_count`,
+`channel_need_meta_pull_ok_count`, `channel_need_meta_pull_retry_count`,
+`channel_need_meta_pull_err_count`, and stable error-class counters such as
+`channel_need_meta_pull_not_ready_err_count`,
+`channel_need_meta_pull_not_replica_err_count`, and
+`channel_need_meta_pull_timeout_err_count`. PullHint
+result counters are reported as `channel_pull_hint_submitted_count`,
+`channel_pull_hint_ok_count`, `channel_pull_hint_err_count`, and the stable
+error-class counters such as `channel_pull_hint_stale_meta_err_count`,
+`channel_pull_hint_channel_not_found_err_count`,
+`channel_pull_hint_not_ready_err_count`, and
+`channel_pull_hint_canceled_err_count`,
+`channel_pull_hint_timeout_err_count`,
+`channel_pull_hint_remote_err_count`, and
+`channel_pull_hint_other_err_count`. Receiver-side PullHint stage errors are
 reported as counters such as
-`channelv2_pull_hint_receive_meta_resolve_err_count`,
-`channelv2_pull_hint_receive_meta_hint_ok_count`,
-`channelv2_pull_hint_receive_meta_validate_err_count`,
-`channelv2_pull_hint_receive_meta_apply_err_count`,
-`channelv2_pull_hint_receive_submit_err_count`,
-`channelv2_pull_hint_receive_await_err_count`, and
-`channelv2_pull_hint_receive_channel_not_found_err_count`; `meta_hint` means the
+`channel_pull_hint_receive_meta_resolve_err_count`,
+`channel_pull_hint_receive_meta_hint_ok_count`,
+`channel_pull_hint_receive_meta_validate_err_count`,
+`channel_pull_hint_receive_meta_apply_err_count`,
+`channel_pull_hint_receive_submit_err_count`,
+`channel_pull_hint_receive_await_err_count`, and
+`channel_pull_hint_receive_channel_not_found_err_count`; `meta_hint` means the
 follower used leader-carried metadata while its local metadata read path was
 still catching up. Use these counters to separate
 control-plane Step backpressure, Slot metadata reads, missing metadata

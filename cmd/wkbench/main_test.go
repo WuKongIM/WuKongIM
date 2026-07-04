@@ -377,16 +377,16 @@ wukongim_storage_commit_request_duration_seconds_bucket{store="message",lane="ap
 	if !strings.Contains(stderr.String(), "gateway_queue_ratio: 0.700") {
 		t.Fatalf("expected queue ratio in output, got %q", stderr.String())
 	}
-	if !strings.Contains(stderr.String(), "channelv2_meta_apply_p99_seconds:") {
+	if !strings.Contains(stderr.String(), "channel_meta_apply_p99_seconds:") {
 		t.Fatalf("expected channel stage metric in output, got %q", stderr.String())
 	}
-	if !strings.Contains(stderr.String(), "channelv2_runtime_append_wait_p99_seconds:") {
+	if !strings.Contains(stderr.String(), "channel_runtime_append_wait_p99_seconds:") {
 		t.Fatalf("expected channel runtime append wait metric in output, got %q", stderr.String())
 	}
-	if !strings.Contains(stderr.String(), "channelv2_append_batch_wait_p99_seconds:") {
+	if !strings.Contains(stderr.String(), "channel_append_batch_wait_p99_seconds:") {
 		t.Fatalf("expected channel append batch wait metric in output, got %q", stderr.String())
 	}
-	if !strings.Contains(stderr.String(), "channelv2_append_store_wait_p99_seconds:") {
+	if !strings.Contains(stderr.String(), "channel_append_store_wait_p99_seconds:") {
 		t.Fatalf("expected channel append store wait metric in output, got %q", stderr.String())
 	}
 	if !strings.Contains(stderr.String(), "storage_commit_request_p99_seconds:") {
@@ -395,56 +395,93 @@ wukongim_storage_commit_request_duration_seconds_bucket{store="message",lane="ap
 	if !strings.Contains(stderr.String(), "storage_commit_request_over_10s_count:") {
 		t.Fatalf("expected storage commit request tail count in output, got %q", stderr.String())
 	}
-	if !strings.Contains(stderr.String(), "channelv2_worker_inflight{pool=\"store_append\"}: 128") {
+	if !strings.Contains(stderr.String(), "channel_worker_inflight{pool=\"store_append\"}: 128") {
 		t.Fatalf("expected channel worker inflight in output, got %q", stderr.String())
 	}
-	if !strings.Contains(stderr.String(), "channelv2_worker_inflight_peak{pool=\"store_append\"}: 256") {
+	if !strings.Contains(stderr.String(), "channel_worker_inflight_peak{pool=\"store_append\"}: 256") {
 		t.Fatalf("expected channel worker inflight peak in output, got %q", stderr.String())
 	}
 	if !strings.Contains(stderr.String(), "storage_commit_request_over_10s_count{lane=\"append\"}: 0") {
 		t.Fatalf("expected storage commit request lane tail count in output, got %q", stderr.String())
 	}
-	if !strings.Contains(stderr.String(), "channelv2_append_post_store_commit_wait_p99_seconds:") {
+	if !strings.Contains(stderr.String(), "channel_append_post_store_commit_wait_p99_seconds:") {
 		t.Fatalf("expected channel append post-store commit wait metric in output, got %q", stderr.String())
 	}
-	if !strings.Contains(stderr.String(), "channelv2_append_quorum_follower_pull_wait_p99_seconds:") {
+	if !strings.Contains(stderr.String(), "channel_append_quorum_follower_pull_wait_p99_seconds:") {
 		t.Fatalf("expected channel append quorum follower pull wait metric in output, got %q", stderr.String())
 	}
-	if !strings.Contains(stderr.String(), "channelv2_append_quorum_ack_offset_wait_p99_seconds:") {
+	if !strings.Contains(stderr.String(), "channel_append_quorum_ack_offset_wait_p99_seconds:") {
 		t.Fatalf("expected channel append quorum ack offset wait metric in output, got %q", stderr.String())
 	}
-	if !strings.Contains(stderr.String(), "channelv2_append_quorum_hw_advance_wait_p99_seconds:") {
+	if !strings.Contains(stderr.String(), "channel_append_quorum_hw_advance_wait_p99_seconds:") {
 		t.Fatalf("expected channel append quorum HW advance wait metric in output, got %q", stderr.String())
 	}
-	if !strings.Contains(stderr.String(), "channelv2_append_quorum_final_complete_p99_seconds:") {
+	if !strings.Contains(stderr.String(), "channel_append_quorum_final_complete_p99_seconds:") {
 		t.Fatalf("expected channel append quorum final complete metric in output, got %q", stderr.String())
 	}
-	if !strings.Contains(stderr.String(), "channelv2_replication_follower_pull_hint_to_submit_p99_seconds:") {
+	if !strings.Contains(stderr.String(), "channel_replication_follower_pull_hint_to_submit_p99_seconds:") {
 		t.Fatalf("expected follower pull hint to submit metric in output, got %q", stderr.String())
 	}
-	if !strings.Contains(stderr.String(), "channelv2_replication_follower_pull_rpc_p99_seconds:") {
+	if !strings.Contains(stderr.String(), "channel_replication_follower_pull_rpc_p99_seconds:") {
 		t.Fatalf("expected follower pull RPC metric in output, got %q", stderr.String())
 	}
-	if !strings.Contains(stderr.String(), "channelv2_replication_follower_store_apply_p99_seconds:") {
+	if !strings.Contains(stderr.String(), "channel_replication_follower_store_apply_p99_seconds:") {
 		t.Fatalf("expected follower store apply metric in output, got %q", stderr.String())
 	}
-	if !strings.Contains(stderr.String(), "channelv2_replication_follower_apply_to_ack_return_p99_seconds:") {
+	if !strings.Contains(stderr.String(), "channel_replication_follower_apply_to_ack_return_p99_seconds:") {
 		t.Fatalf("expected follower apply to AckOffset return metric in output, got %q", stderr.String())
 	}
-	if !strings.Contains(stderr.String(), "channelv2_meta_slot_read_p99_seconds:") {
+	if !strings.Contains(stderr.String(), "channel_meta_slot_read_p99_seconds:") {
 		t.Fatalf("expected channel meta breakdown metric in output, got %q", stderr.String())
 	}
-	if !strings.Contains(stderr.String(), "channelv2_meta_create_propose_p99_seconds:") {
+	if !strings.Contains(stderr.String(), "channel_meta_create_propose_p99_seconds:") {
 		t.Fatalf("expected channel meta propose metric in output, got %q", stderr.String())
 	}
-	if !strings.Contains(stderr.String(), "channelv2_meta_create_propose_forward_p99_seconds:") {
+	if !strings.Contains(stderr.String(), "channel_meta_create_propose_forward_p99_seconds:") {
 		t.Fatalf("expected channel meta propose forward metric in output, got %q", stderr.String())
 	}
-	if !strings.Contains(stderr.String(), "channelv2_meta_create_slot_propose_wait_p99_seconds:") {
+	if !strings.Contains(stderr.String(), "channel_meta_create_slot_propose_wait_p99_seconds:") {
 		t.Fatalf("expected channel meta Slot propose wait metric in output, got %q", stderr.String())
 	}
-	if !strings.Contains(stderr.String(), "channelv2_meta_create_slot_raft_commit_wait_p99_seconds:") {
+	if !strings.Contains(stderr.String(), "channel_meta_create_slot_raft_commit_wait_p99_seconds:") {
 		t.Fatalf("expected channel meta Slot raft commit wait metric in output, got %q", stderr.String())
+	}
+}
+
+func TestMetricsClassifyPromotesChannelRuntimeOutputKeys(t *testing.T) {
+	dir := t.TempDir()
+	before := filepath.Join(dir, "before.prom")
+	after := filepath.Join(dir, "after.prom")
+	if err := os.WriteFile(before, []byte(`
+wukongim_channelv2_worker_inflight{pool="store_append"} 0
+wukongim_channelv2_worker_inflight_peak{pool="store_append"} 0
+`), 0o600); err != nil {
+		t.Fatalf("write before: %v", err)
+	}
+	if err := os.WriteFile(after, []byte(`
+wukongim_channelv2_worker_inflight{pool="store_append"} 128
+wukongim_channelv2_worker_inflight_peak{pool="store_append"} 256
+`), 0o600); err != nil {
+		t.Fatalf("write after: %v", err)
+	}
+	var stderr bytes.Buffer
+
+	code := runWithStderr([]string{"metrics", "classify", "--before", before, "--after", after}, &stderr)
+
+	if code != 0 {
+		t.Fatalf("expected success, got code %d and stderr %q", code, stderr.String())
+	}
+	output := stderr.String()
+	for _, want := range []string{
+		"channel_worker_inflight{pool=\"store_append\"}: 128",
+		"channel_worker_inflight_peak{pool=\"store_append\"}: 256",
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("expected promoted channel key %q in output, got %q", want, output)
+		}
+	}
+	if strings.Contains(output, "channelv2_worker_inflight") {
+		t.Fatalf("output should not expose legacy channelv2 report keys, got %q", output)
 	}
 }
 
@@ -507,67 +544,67 @@ wukongim_channelv2_replication_stage_duration_seconds_bucket{stage="follower_nee
 	if code != 0 {
 		t.Fatalf("expected success, got code %d and stderr %q", code, stderr.String())
 	}
-	if !strings.Contains(stderr.String(), "channelv2_pull_hint_submitted_count: 3") {
+	if !strings.Contains(stderr.String(), "channel_pull_hint_submitted_count: 3") {
 		t.Fatalf("expected PullHint submitted count in output, got %q", stderr.String())
 	}
-	if !strings.Contains(stderr.String(), "channelv2_pull_hint_ok_count: 2") {
+	if !strings.Contains(stderr.String(), "channel_pull_hint_ok_count: 2") {
 		t.Fatalf("expected PullHint ok count in output, got %q", stderr.String())
 	}
-	if !strings.Contains(stderr.String(), "channelv2_pull_hint_err_count: 17") {
+	if !strings.Contains(stderr.String(), "channel_pull_hint_err_count: 17") {
 		t.Fatalf("expected PullHint err count in output, got %q", stderr.String())
 	}
-	if !strings.Contains(stderr.String(), "channelv2_pull_hint_stale_meta_err_count: 4") {
+	if !strings.Contains(stderr.String(), "channel_pull_hint_stale_meta_err_count: 4") {
 		t.Fatalf("expected PullHint stale meta err count in output, got %q", stderr.String())
 	}
-	if !strings.Contains(stderr.String(), "channelv2_pull_hint_canceled_err_count: 6") {
+	if !strings.Contains(stderr.String(), "channel_pull_hint_canceled_err_count: 6") {
 		t.Fatalf("expected PullHint canceled err count in output, got %q", stderr.String())
 	}
-	if !strings.Contains(stderr.String(), "channelv2_pull_hint_remote_err_count: 7") {
+	if !strings.Contains(stderr.String(), "channel_pull_hint_remote_err_count: 7") {
 		t.Fatalf("expected PullHint remote err count in output, got %q", stderr.String())
 	}
-	if !strings.Contains(stderr.String(), "channelv2_pull_hint_receive_meta_resolve_err_count: 8") {
+	if !strings.Contains(stderr.String(), "channel_pull_hint_receive_meta_resolve_err_count: 8") {
 		t.Fatalf("expected PullHint receive meta resolve err count in output, got %q", stderr.String())
 	}
-	if !strings.Contains(stderr.String(), "channelv2_pull_hint_receive_channel_not_found_err_count: 8") {
+	if !strings.Contains(stderr.String(), "channel_pull_hint_receive_channel_not_found_err_count: 8") {
 		t.Fatalf("expected PullHint receive channel not found err count in output, got %q", stderr.String())
 	}
-	if !strings.Contains(stderr.String(), "channelv2_pull_hint_receive_meta_hint_ok_count: 11") {
+	if !strings.Contains(stderr.String(), "channel_pull_hint_receive_meta_hint_ok_count: 11") {
 		t.Fatalf("expected PullHint receive meta hint ok count in output, got %q", stderr.String())
 	}
-	if !strings.Contains(stderr.String(), "channelv2_pending_meta_current_max: 4") {
+	if !strings.Contains(stderr.String(), "channel_pending_meta_current_max: 4") {
 		t.Fatalf("expected PendingMeta current gauge in output, got %q", stderr.String())
 	}
-	if !strings.Contains(stderr.String(), "channelv2_pending_meta_created_count: 8") {
+	if !strings.Contains(stderr.String(), "channel_pending_meta_created_count: 8") {
 		t.Fatalf("expected PendingMeta created count in output, got %q", stderr.String())
 	}
-	if !strings.Contains(stderr.String(), "channelv2_pending_meta_converted_count: 5") {
+	if !strings.Contains(stderr.String(), "channel_pending_meta_converted_count: 5") {
 		t.Fatalf("expected PendingMeta converted count in output, got %q", stderr.String())
 	}
-	if !strings.Contains(stderr.String(), "channelv2_pending_meta_released_count: 5") {
+	if !strings.Contains(stderr.String(), "channel_pending_meta_released_count: 5") {
 		t.Fatalf("expected PendingMeta released count in output, got %q", stderr.String())
 	}
-	if !strings.Contains(stderr.String(), "channelv2_pending_meta_timeout_release_count: 3") {
+	if !strings.Contains(stderr.String(), "channel_pending_meta_timeout_release_count: 3") {
 		t.Fatalf("expected PendingMeta timeout release count in output, got %q", stderr.String())
 	}
-	if !strings.Contains(stderr.String(), "channelv2_need_meta_pull_submitted_count: 10") {
+	if !strings.Contains(stderr.String(), "channel_need_meta_pull_submitted_count: 10") {
 		t.Fatalf("expected NeedMeta submitted count in output, got %q", stderr.String())
 	}
-	if !strings.Contains(stderr.String(), "channelv2_need_meta_pull_ok_count: 5") {
+	if !strings.Contains(stderr.String(), "channel_need_meta_pull_ok_count: 5") {
 		t.Fatalf("expected NeedMeta ok count in output, got %q", stderr.String())
 	}
-	if !strings.Contains(stderr.String(), "channelv2_need_meta_pull_retry_count: 3") {
+	if !strings.Contains(stderr.String(), "channel_need_meta_pull_retry_count: 3") {
 		t.Fatalf("expected NeedMeta retry count in output, got %q", stderr.String())
 	}
-	if !strings.Contains(stderr.String(), "channelv2_need_meta_pull_err_count: 6") {
+	if !strings.Contains(stderr.String(), "channel_need_meta_pull_err_count: 6") {
 		t.Fatalf("expected NeedMeta err count in output, got %q", stderr.String())
 	}
-	if !strings.Contains(stderr.String(), "channelv2_need_meta_pull_timeout_err_count: 4") {
+	if !strings.Contains(stderr.String(), "channel_need_meta_pull_timeout_err_count: 4") {
 		t.Fatalf("expected NeedMeta timeout err count in output, got %q", stderr.String())
 	}
-	if !strings.Contains(stderr.String(), "channelv2_need_meta_pull_not_ready_err_count: 2") {
+	if !strings.Contains(stderr.String(), "channel_need_meta_pull_not_ready_err_count: 2") {
 		t.Fatalf("expected NeedMeta not ready err count in output, got %q", stderr.String())
 	}
-	if !strings.Contains(stderr.String(), "channelv2_need_meta_pull_rpc_p99_seconds:") {
+	if !strings.Contains(stderr.String(), "channel_need_meta_pull_rpc_p99_seconds:") {
 		t.Fatalf("expected NeedMeta pull RPC p99 in output, got %q", stderr.String())
 	}
 }

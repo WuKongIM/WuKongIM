@@ -2486,27 +2486,27 @@ if [[ "${1:-}" == "metrics" && "${2:-}" == "classify" ]]; then
   if [[ "${WK_FAKE_ACTIVATE_CLASSIFY_BAD:-0}" == "1" ]]; then
     cat <<'OUT'
 classification: fake
-channelv2_pending_meta_current_max: 1
-channelv2_pending_meta_released_count: 0
-channelv2_need_meta_pull_submitted_count: 3
-channelv2_need_meta_pull_ok_count: 2
-channelv2_need_meta_pull_retry_count: 1
-channelv2_need_meta_pull_err_count: 0
-channelv2_pull_hint_err_count: 1
-channelv2_pull_hint_receive_err_count: 0
+channel_pending_meta_current_max: 1
+channel_pending_meta_released_count: 0
+channel_need_meta_pull_submitted_count: 3
+channel_need_meta_pull_ok_count: 2
+channel_need_meta_pull_retry_count: 1
+channel_need_meta_pull_err_count: 0
+channel_pull_hint_err_count: 1
+channel_pull_hint_receive_err_count: 0
 OUT
     exit 0
   fi
   cat <<'OUT'
 classification: fake
-channelv2_pending_meta_current_max: 0
-channelv2_pending_meta_released_count: 0
-channelv2_need_meta_pull_submitted_count: 3
-channelv2_need_meta_pull_ok_count: 3
-channelv2_need_meta_pull_retry_count: 0
-channelv2_need_meta_pull_err_count: 0
-channelv2_pull_hint_err_count: 0
-channelv2_pull_hint_receive_err_count: 0
+channel_pending_meta_current_max: 0
+channel_pending_meta_released_count: 0
+channel_need_meta_pull_submitted_count: 3
+channel_need_meta_pull_ok_count: 3
+channel_need_meta_pull_retry_count: 0
+channel_need_meta_pull_err_count: 0
+channel_pull_hint_err_count: 0
+channel_pull_hint_receive_err_count: 0
 OUT
   exit 0
 fi
@@ -2566,14 +2566,14 @@ printf '%s\n' "$*" >> "` + callsDir + `/wkbench.calls"
 if [[ "${1:-}" == "metrics" && "${2:-}" == "classify" ]]; then
   cat <<'OUT'
 classification: rebuilt
-channelv2_pending_meta_current_max: 0
-channelv2_pending_meta_released_count: 0
-channelv2_need_meta_pull_submitted_count: 3
-channelv2_need_meta_pull_ok_count: 3
-channelv2_need_meta_pull_retry_count: 0
-channelv2_need_meta_pull_err_count: 0
-channelv2_pull_hint_err_count: 0
-channelv2_pull_hint_receive_err_count: 0
+channel_pending_meta_current_max: 0
+channel_pending_meta_released_count: 0
+channel_need_meta_pull_submitted_count: 3
+channel_need_meta_pull_ok_count: 3
+channel_need_meta_pull_retry_count: 0
+channel_need_meta_pull_err_count: 0
+channel_pull_hint_err_count: 0
+channel_pull_hint_receive_err_count: 0
 OUT
   exit 0
 fi
