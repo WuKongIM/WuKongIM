@@ -49,6 +49,14 @@ function runtime_component_label(component) {
   return component
 }
 
+function runtime_pool_label(component, pool) {
+  if (component == "channel" && substr(pool, 1, length("channelv2-")) == "channelv2-") {
+    pool = substr(pool, length("channelv2-") + 1)
+    gsub(/-/, "_", pool)
+  }
+  return pool
+}
+
 function pool_key(component, pool) {
   return component "\034" pool
 }
@@ -64,7 +72,7 @@ function remember_pool(key, component, pool) {
 
 function pool_key_from_labels(labels, component, pool, key) {
   component = runtime_component_label(default_label(label_value(labels, "component")))
-  pool = default_label(label_value(labels, "pool"))
+  pool = runtime_pool_label(component, default_label(label_value(labels, "pool")))
   key = pool_key(component, pool)
   remember_pool(key, component, pool)
   return key

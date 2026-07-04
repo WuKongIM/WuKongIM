@@ -2163,6 +2163,10 @@ wukongim_ants_pool_running{node_id="1",node_name="node-1",component="channelv2",
 wukongim_ants_pool_capacity{node_id="1",node_name="node-1",component="channelv2",pool="store_append"} 64
 wukongim_ants_pool_waiting{node_id="1",node_name="node-1",component="channelv2",pool="store_append"} 0
 wukongim_ants_pool_utilization{node_id="1",node_name="node-1",component="channelv2",pool="store_append"} 0.078
+wukongim_ants_pool_running{node_id="1",node_name="node-1",component="channelv2",pool="channelv2-store-apply"} 6
+wukongim_ants_pool_capacity{node_id="1",node_name="node-1",component="channelv2",pool="channelv2-store-apply"} 10
+wukongim_ants_pool_waiting{node_id="1",node_name="node-1",component="channelv2",pool="channelv2-store-apply"} 1
+wukongim_ants_pool_utilization{node_id="1",node_name="node-1",component="channelv2",pool="channelv2-store-apply"} 0.600
 wukongim_ants_pool_running{node_id="1",node_name="node-1",component="channelappend",pool="advance"} 1
 wukongim_ants_pool_capacity{node_id="1",node_name="node-1",component="channelappend",pool="advance"} 2
 wukongim_ants_pool_waiting{node_id="1",node_name="node-1",component="channelappend",pool="advance"} 0
@@ -2195,6 +2199,8 @@ wukongim_ants_pool_utilization{node_id="1",node_name="node-1",component="transpo
 	summary := string(output)
 	for _, want := range []string{
 		"000100\tnode1\ttransport\tservice_executor\t3\t4\t2\t0.750",
+		"000100\tnode1\tchannel\tstore_append\t5\t64\t0\t0.078",
+		"000100\tnode1\tchannel\tstore_apply\t6\t10\t1\t0.600",
 		"000100\tnode1\tchannelappend\tadvance\t1\t2\t0\t0.500",
 		"000100\tnode1\tchannelappend\teffect\t4\t8\t1\t0.500",
 	} {
@@ -2205,6 +2211,7 @@ wukongim_ants_pool_utilization{node_id="1",node_name="node-1",component="transpo
 	for _, unwanted := range []string{
 		"gateway\tasync_send",
 		"gateway\tasync_auth",
+		"channelv2",
 		"channelappend\twriter",
 		"effect_prepare",
 	} {
