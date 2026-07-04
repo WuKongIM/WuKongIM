@@ -423,7 +423,7 @@ func TestWukongIMThreeNodeRealQPSScriptAggregatesRuntimePoolMetrics(t *testing.T
 		"pools=4",
 		"transportv2/service_executor",
 		"3/4",
-		"channelv2/store_append",
+		"channel/store_append",
 		"5/64",
 		"channelappend/advance",
 		"1/2",
@@ -441,6 +441,7 @@ func TestWukongIMThreeNodeRealQPSScriptAggregatesRuntimePoolMetrics(t *testing.T
 		"entries=1 max_fill",
 		"gateway/async_send",
 		"gateway/async_auth",
+		"channelv2/store_append",
 	} {
 		if strings.Contains(display, unwanted) {
 			t.Fatalf("real-qps display summary should hide runtime/channelwrite pressure, found %q:\n%s", unwanted, display)
@@ -475,7 +476,7 @@ func TestWukongIMThreeNodeRealQPSScriptAggregatesRuntimePoolMetrics(t *testing.T
 		"node=node1",
 		"max_util=0.750",
 		"transportv2/service_executor",
-		"channelv2/store_append",
+		"channel/store_append",
 		"channelappend/advance",
 		"channelappend/effect",
 	} {
@@ -488,6 +489,7 @@ func TestWukongIMThreeNodeRealQPSScriptAggregatesRuntimePoolMetrics(t *testing.T
 		"- runtime_pool_pressure: runtime_pool_pressure_summary.tsv",
 		"admission_full",
 		"gateway/async_send",
+		"channelv2/store_append",
 	} {
 		if strings.Contains(topSummary, unwanted) {
 			t.Fatalf("real-qps markdown summary should hide runtime/channelwrite pressure, found %q:\n%s", unwanted, topSummary)
@@ -752,7 +754,7 @@ func TestWukongIMThreeNodeBenchScriptPrintsAntsPoolUsageByNode(t *testing.T) {
 		"waiting",
 		"transportv2/service_executor",
 		"3/4",
-		"channelv2/store_append",
+		"channel/store_append",
 		"5/64",
 		"channelappend/advance",
 		"2/4",
@@ -769,6 +771,7 @@ func TestWukongIMThreeNodeBenchScriptPrintsAntsPoolUsageByNode(t *testing.T) {
 		"details=channelappend_metrics_summary.tsv",
 		"gateway/async_send",
 		"gateway/async_auth",
+		"channelv2/store_append",
 	} {
 		if strings.Contains(display, unwanted) {
 			t.Fatalf("display summary should hide runtime/channelwrite pressure, found %q:\n%s", unwanted, display)
@@ -807,7 +810,7 @@ func TestWukongIMThreeNodeBenchScriptPrintsAntsPoolUsageByNode(t *testing.T) {
 		"node=127_0_0_1_5011",
 		"max_util=1.000",
 		"transportv2/service_executor",
-		"channelv2/store_append",
+		"channel/store_append",
 		"channelappend/advance",
 		"channelappend/effect",
 	} {
@@ -820,6 +823,7 @@ func TestWukongIMThreeNodeBenchScriptPrintsAntsPoolUsageByNode(t *testing.T) {
 		"## ChannelAppend Pool Pressure",
 		"- runtime_pool_pressure: runtime_pool_pressure_summary.tsv",
 		"details=channelappend_metrics_summary.tsv",
+		"channelv2/store_append",
 	} {
 		if strings.Contains(topSummary, unwanted) {
 			t.Fatalf("markdown summary should hide runtime/channelwrite pressure, found %q:\n%s", unwanted, topSummary)

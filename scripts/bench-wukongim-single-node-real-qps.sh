@@ -563,13 +563,22 @@ append_ants_pool_usage_display() {
         node_order[++node_count] = node
       }
     }
+    function display_component(component) {
+      if (component == "channelv2") {
+        return "channel"
+      }
+      return component
+    }
+    function display_pool(component, pool) {
+      return display_component(component) "/" pool
+    }
     NR == 1 { next }
     {
       entries++
       offered = $1 + 0
       node = $4
       remember_node(node)
-      pool = $5 "/" $6
+      pool = display_pool($5, $6)
       running = $7 + 0
       capacity = $8 + 0
       waiting = $9 + 0
@@ -764,13 +773,22 @@ ants_pool_usage_markdown() {
         node_order[++node_count] = node
       }
     }
+    function display_component(component) {
+      if (component == "channelv2") {
+        return "channel"
+      }
+      return component
+    }
+    function display_pool(component, pool) {
+      return display_component(component) "/" pool
+    }
     NR == 1 { next }
     {
       entries++
       offered = $1 + 0
       node = $4
       remember_node(node)
-      pool = $5 "/" $6
+      pool = display_pool($5, $6)
       running = $7 + 0
       capacity = $8 + 0
       waiting = $9 + 0
