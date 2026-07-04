@@ -354,17 +354,17 @@ export const clusterMonitorMetricConfig: Record<ClusterMonitorMetricKey, Cluster
     stage: "internalNetwork",
     tone: "warning",
   },
-  transportV2QueueUsage: {
-    titleId: "clusterMonitor.metrics.transportV2QueueUsage",
-    helpId: "clusterMonitor.help.transportV2QueueUsage",
+  internalTransportQueueUsage: {
+    titleId: "clusterMonitor.metrics.internalTransportQueueUsage",
+    helpId: "clusterMonitor.help.internalTransportQueueUsage",
     chartColor: "#ea580c",
     precision: 1,
     stage: "runtimePressure",
     tone: "warning",
   },
-  transportV2AdmissionErrorRate: {
-    titleId: "clusterMonitor.metrics.transportV2AdmissionErrorRate",
-    helpId: "clusterMonitor.help.transportV2AdmissionErrorRate",
+  internalTransportAdmissionErrorRate: {
+    titleId: "clusterMonitor.metrics.internalTransportAdmissionErrorRate",
+    helpId: "clusterMonitor.help.internalTransportAdmissionErrorRate",
     chartColor: "#e11d48",
     precision: 2,
     stage: "runtimePressure",

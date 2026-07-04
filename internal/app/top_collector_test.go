@@ -691,8 +691,8 @@ func TestTopCollectorPressureVerdict(t *testing.T) {
 
 func TestTopCollectorPressureSortsPriorityDeterministically(t *testing.T) {
 	collector := newTopCollector(topCollectorOptions{})
-	collector.SetQueue("transportv2", "scheduler", "scheduler", "rpc", 8, 10)
-	collector.SetQueue("transportv2", "scheduler", "scheduler", "bulk", 8, 10)
+	collector.SetQueue("transport", "scheduler", "scheduler", "rpc", 8, 10)
+	collector.SetQueue("transport", "scheduler", "scheduler", "bulk", 8, 10)
 	collector.recordSampleAt(time.Unix(100, 0))
 	collector.recordSampleAt(time.Unix(110, 0))
 
@@ -872,8 +872,8 @@ func TestTopTransportV2ObserverUsesServiceAliasForInflightPool(t *testing.T) {
 		t.Fatalf("Pressure.Top = %#v, want transport service item", snapshot.Pressure)
 	}
 	item := snapshot.Pressure.Top[0]
-	if item.Component != "transportv2" || item.Pool != "slot propose" || item.Queue != "inflight" {
-		t.Fatalf("pressure item identity = %#v, want transportv2 slot propose inflight", item)
+	if item.Component != "transport" || item.Pool != "slot propose" || item.Queue != "inflight" {
+		t.Fatalf("pressure item identity = %#v, want transport slot propose inflight", item)
 	}
 }
 
@@ -883,7 +883,7 @@ func TestTopCollectorUnknownInflightCapacityDoesNotCreateCriticalPressure(t *tes
 			return cluster.Snapshot{RoutesReady: true, SlotsReady: true, ChannelsReady: true}
 		},
 	})
-	collector.SetInflight("transportv2", "rpc", 3, 0)
+	collector.SetInflight("transport", "rpc", 3, 0)
 	collector.recordSampleAt(time.Unix(100, 0))
 	collector.recordSampleAt(time.Unix(110, 0))
 
@@ -896,7 +896,7 @@ func TestTopCollectorUnknownInflightCapacityDoesNotCreateCriticalPressure(t *tes
 		t.Fatalf("SnapshotTop() error = %v", err)
 	}
 	if snapshot.Pressure == nil || len(snapshot.Pressure.Top) == 0 {
-		t.Fatalf("Pressure = %#v, want transportv2 item", snapshot.Pressure)
+		t.Fatalf("Pressure = %#v, want transport item", snapshot.Pressure)
 	}
 	if snapshot.Pressure.OverallLevel != "ok" {
 		t.Fatalf("Pressure.OverallLevel = %q, want ok", snapshot.Pressure.OverallLevel)
@@ -905,8 +905,8 @@ func TestTopCollectorUnknownInflightCapacityDoesNotCreateCriticalPressure(t *tes
 		t.Fatalf("Verdict.Level = %q, want ok", snapshot.Verdict.Level)
 	}
 	item := snapshot.Pressure.Top[0]
-	if item.Component != "transportv2" || item.Pool != "rpc" || item.Inflight != 3 || item.Workers != 0 {
-		t.Fatalf("top pressure item = %#v, want transportv2 rpc inflight=3 workers=0", item)
+	if item.Component != "transport" || item.Pool != "rpc" || item.Inflight != 3 || item.Workers != 0 {
+		t.Fatalf("top pressure item = %#v, want transport rpc inflight=3 workers=0", item)
 	}
 	if item.Score != 0 {
 		t.Fatalf("top pressure score = %v, want 0 for unknown worker capacity", item.Score)

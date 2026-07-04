@@ -1377,6 +1377,9 @@ append_ants_pool_usage_display() {
       if (component == "channelv2") {
         return "channel"
       }
+      if (component == "transportv2") {
+        return "transport"
+      }
       return component
     }
     function display_pool(component, pool) {
@@ -1734,6 +1737,9 @@ ants_pool_usage_markdown() {
     function display_component(component) {
       if (component == "channelv2") {
         return "channel"
+      }
+      if (component == "transportv2") {
+        return "transport"
       }
       return component
     }

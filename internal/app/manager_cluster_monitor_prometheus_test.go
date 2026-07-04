@@ -231,8 +231,8 @@ func TestManagerClusterMonitorProviderReturnsInternalOperatorCards(t *testing.T)
 		"rpcLatencyP99",
 		"dialSuccessRate",
 		"dialLatencyP95",
-		"transportV2QueueUsage",
-		"transportV2AdmissionErrorRate",
+		"internalTransportQueueUsage",
+		"internalTransportAdmissionErrorRate",
 	}
 	requireMonitorCardKeysForTest(t, resp.Cards, wantKeys)
 	if resp.Categories[2].Key != accessmanager.RealtimeMonitorCategoryInternal || resp.Categories[2].Count != len(wantKeys) {
@@ -249,8 +249,8 @@ func TestManagerClusterMonitorProviderReturnsInternalOperatorCards(t *testing.T)
 		`wukongim_transport_rpc_duration_seconds_bucket{job="wukongim"}[1m]`,
 		`wukongim_transport_dial_total{job="wukongim",result="ok"}[1m]`,
 		`wukongim_transport_dial_duration_seconds_bucket{job="wukongim"}[1m]`,
-		`wukongim_runtime_pool_queue_depth{job="wukongim",component="transportv2"}`,
-		`wukongim_runtime_pool_admission_total{job="wukongim",component="transportv2",result!="ok"}[1m]`,
+		`wukongim_runtime_pool_queue_depth{job="wukongim",component="transport"}`,
+		`wukongim_runtime_pool_admission_total{job="wukongim",component="transport",result!="ok"}[1m]`,
 	} {
 		if !strings.Contains(joinedQueries, want) {
 			t.Fatalf("queries missing %q: %s", want, joinedQueries)

@@ -421,7 +421,7 @@ func TestWukongIMThreeNodeRealQPSScriptAggregatesRuntimePoolMetrics(t *testing.T
 		"# ants pool usage",
 		"node=node1",
 		"pools=4",
-		"transportv2/service_executor",
+		"transport/service_executor",
 		"3/4",
 		"channel/store_append",
 		"5/64",
@@ -454,8 +454,8 @@ func TestWukongIMThreeNodeRealQPSScriptAggregatesRuntimePoolMetrics(t *testing.T
 	antsUsage := readFile(t, filepath.Join(outDir, "ants_pool_usage_summary.tsv"))
 	for _, want := range []string{
 		"offered_qps\tattempt_dir\ttag\tnode\tcomponent\tpool\trunning\tcapacity\twaiting\tutilization_max",
-		"100\t" + filepath.Join(outDir, "000100-qps") + "\t000100\tnode1\ttransportv2\tservice_executor\t3\t4\t2\t0.750",
-		"100\t" + filepath.Join(outDir, "000100-qps") + "\t000100\tnode1\tchannelv2\tstore_append\t5\t64\t0\t0.078",
+		"100\t" + filepath.Join(outDir, "000100-qps") + "\t000100\tnode1\ttransport\tservice_executor\t3\t4\t2\t0.750",
+		"100\t" + filepath.Join(outDir, "000100-qps") + "\t000100\tnode1\tchannel\tstore_append\t5\t64\t0\t0.078",
 		"100\t" + filepath.Join(outDir, "000100-qps") + "\t000100\tnode1\tchannelappend\tadvance\t1\t2\t0\t0.500",
 		"100\t" + filepath.Join(outDir, "000100-qps") + "\t000100\tnode1\tchannelappend\teffect\t4\t8\t1\t0.500",
 	} {
@@ -475,7 +475,7 @@ func TestWukongIMThreeNodeRealQPSScriptAggregatesRuntimePoolMetrics(t *testing.T
 		"## Ants Pool Usage",
 		"node=node1",
 		"max_util=0.750",
-		"transportv2/service_executor",
+		"transport/service_executor",
 		"channel/store_append",
 		"channelappend/advance",
 		"channelappend/effect",
@@ -752,7 +752,7 @@ func TestWukongIMThreeNodeBenchScriptPrintsAntsPoolUsageByNode(t *testing.T) {
 		"pool",
 		"used/cap",
 		"waiting",
-		"transportv2/service_executor",
+		"transport/service_executor",
 		"3/4",
 		"channel/store_append",
 		"5/64",
@@ -784,8 +784,8 @@ func TestWukongIMThreeNodeBenchScriptPrintsAntsPoolUsageByNode(t *testing.T) {
 	antsUsage := readFile(t, filepath.Join(outDir, "ants_pool_usage_summary.tsv"))
 	for _, want := range []string{
 		"tag\tnode\tcomponent\tpool\trunning\tcapacity\twaiting\tutilization_max",
-		"000100\t127_0_0_1_5011\ttransportv2\tservice_executor\t3\t4\t2\t0.750",
-		"000100\t127_0_0_1_5011\tchannelv2\tstore_append\t5\t64\t0\t0.078",
+		"000100\t127_0_0_1_5011\ttransport\tservice_executor\t3\t4\t2\t0.750",
+		"000100\t127_0_0_1_5011\tchannel\tstore_append\t5\t64\t0\t0.078",
 		"000100\t127_0_0_1_5011\tchannelappend\tadvance\t2\t4\t0\t0.500",
 		"000100\t127_0_0_1_5011\tchannelappend\teffect\t10\t10\t1\t1.000",
 	} {
@@ -809,7 +809,7 @@ func TestWukongIMThreeNodeBenchScriptPrintsAntsPoolUsageByNode(t *testing.T) {
 		"## Ants Pool Usage",
 		"node=127_0_0_1_5011",
 		"max_util=1.000",
-		"transportv2/service_executor",
+		"transport/service_executor",
 		"channel/store_append",
 		"channelappend/advance",
 		"channelappend/effect",
@@ -2194,7 +2194,7 @@ wukongim_ants_pool_utilization{node_id="1",node_name="node-1",component="transpo
 	}
 	summary := string(output)
 	for _, want := range []string{
-		"000100\tnode1\ttransportv2\tservice_executor\t3\t4\t2\t0.750",
+		"000100\tnode1\ttransport\tservice_executor\t3\t4\t2\t0.750",
 		"000100\tnode1\tchannelappend\tadvance\t1\t2\t0\t0.500",
 		"000100\tnode1\tchannelappend\teffect\t4\t8\t1\t0.500",
 	} {
@@ -2263,8 +2263,8 @@ tag	node	component	pool	queue	priority	queue_depth_max	queue_capacity	queue_fill
 OUT
 cat >"$out_dir/ants_pool_usage_summary.tsv" <<'OUT'
 tag	node	component	pool	running	capacity	waiting	utilization_max
-000100	node1	transportv2	service_executor	3	4	2	0.750
-000100	node1	channelv2	store_append	5	64	0	0.078
+000100	node1	transport	service_executor	3	4	2	0.750
+000100	node1	channel	store_append	5	64	0	0.078
 000100	node1	channelappend	advance	1	2	0	0.500
 000100	node1	channelappend	effect	4	8	1	0.500
 OUT

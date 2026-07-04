@@ -184,7 +184,7 @@ func TestRuntimePressureAdapterMapsGatewayChannelSlotTransportAndDB(t *testing.T
 		t.Fatalf("gateway async send depth = %v, want 5", got)
 	}
 	reactorZero := findAppMetricByLabels(t, queueDepth, map[string]string{
-		"component": "channelv2",
+		"component": "channel",
 		"pool":      "reactor_0",
 		"queue":     "mailbox",
 		"priority":  "high",
@@ -193,7 +193,7 @@ func TestRuntimePressureAdapterMapsGatewayChannelSlotTransportAndDB(t *testing.T
 		t.Fatalf("reactor_0 mailbox depth = %v, want 2", got)
 	}
 	reactorOne := findAppMetricByLabels(t, queueDepth, map[string]string{
-		"component": "channelv2",
+		"component": "channel",
 		"pool":      "reactor_1",
 		"queue":     "mailbox",
 		"priority":  "high",
@@ -233,7 +233,7 @@ func TestRuntimePressureAdapterMapsGatewayChannelSlotTransportAndDB(t *testing.T
 		t.Fatalf("slot apply gap = %v, want 3", got)
 	}
 	transportScheduler := findAppMetricByLabels(t, queueDepth, map[string]string{
-		"component": "transportv2",
+		"component": "transport",
 		"pool":      "scheduler",
 		"queue":     "scheduler",
 		"priority":  "rpc",
@@ -293,7 +293,7 @@ func TestRuntimePressureAdapterMapsGatewayChannelSlotTransportAndDB(t *testing.T
 
 	admissions := requireAppMetricFamily(t, families, "wukongim_runtime_pool_admission_total")
 	findAppMetricByLabels(t, admissions, map[string]string{
-		"component": "channelv2",
+		"component": "channel",
 		"pool":      "reactor_0",
 		"queue":     "mailbox",
 		"priority":  "high",
@@ -323,72 +323,72 @@ func TestRuntimePressureAdapterMapsGatewayChannelSlotTransportAndDB(t *testing.T
 
 	inflight := requireAppMetricFamily(t, families, "wukongim_runtime_pool_inflight")
 	channelWorkerInflight := findAppMetricByLabels(t, inflight, map[string]string{
-		"component": "channelv2",
+		"component": "channel",
 		"pool":      "store_append",
 	})
 	if got := channelWorkerInflight.GetGauge().GetValue(); got != 2 {
-		t.Fatalf("channelv2 worker inflight = %v, want 2", got)
+		t.Fatalf("channel worker inflight = %v, want 2", got)
 	}
 	transportServiceInflight := findAppMetricByLabels(t, inflight, map[string]string{
-		"component": "transportv2",
+		"component": "transport",
 		"pool":      "service_9",
 	})
 	if got := transportServiceInflight.GetGauge().GetValue(); got != 2 {
-		t.Fatalf("transportv2 service inflight = %v, want 2", got)
+		t.Fatalf("transport service inflight = %v, want 2", got)
 	}
 
 	workers := requireAppMetricFamily(t, families, "wukongim_runtime_pool_workers")
 	transportServiceWorkers := findAppMetricByLabels(t, workers, map[string]string{
-		"component": "transportv2",
+		"component": "transport",
 		"pool":      "service_9",
 	})
 	if got := transportServiceWorkers.GetGauge().GetValue(); got != 4 {
-		t.Fatalf("transportv2 service workers = %v, want 4", got)
+		t.Fatalf("transport service workers = %v, want 4", got)
 	}
 	antsRunning := requireAppMetricFamily(t, families, "wukongim_ants_pool_running")
 	transportServiceExecutor := findAppMetricByLabels(t, antsRunning, map[string]string{
-		"component": "transportv2",
+		"component": "transport",
 		"pool":      "service_executor",
 	})
 	if got := transportServiceExecutor.GetGauge().GetValue(); got != 3 {
-		t.Fatalf("transportv2 service executor ants running = %v, want 3", got)
+		t.Fatalf("transport service executor ants running = %v, want 3", got)
 	}
 	channelWorkerExecutor := findAppMetricByLabels(t, antsRunning, map[string]string{
-		"component": "channelv2",
+		"component": "channel",
 		"pool":      "store_append",
 	})
 	if got := channelWorkerExecutor.GetGauge().GetValue(); got != 5 {
-		t.Fatalf("channelv2 store append worker ants running = %v, want 5", got)
+		t.Fatalf("channel store append worker ants running = %v, want 5", got)
 	}
 	antsCapacity := requireAppMetricFamily(t, families, "wukongim_ants_pool_capacity")
 	transportServiceExecutorCapacity := findAppMetricByLabels(t, antsCapacity, map[string]string{
-		"component": "transportv2",
+		"component": "transport",
 		"pool":      "service_executor",
 	})
 	if got := transportServiceExecutorCapacity.GetGauge().GetValue(); got != 8 {
-		t.Fatalf("transportv2 service executor ants capacity = %v, want 8", got)
+		t.Fatalf("transport service executor ants capacity = %v, want 8", got)
 	}
 	channelWorkerExecutorCapacity := findAppMetricByLabels(t, antsCapacity, map[string]string{
-		"component": "channelv2",
+		"component": "channel",
 		"pool":      "store_append",
 	})
 	if got := channelWorkerExecutorCapacity.GetGauge().GetValue(); got != 8 {
-		t.Fatalf("channelv2 store append worker ants capacity = %v, want 8", got)
+		t.Fatalf("channel store append worker ants capacity = %v, want 8", got)
 	}
 	antsWaiting := requireAppMetricFamily(t, families, "wukongim_ants_pool_waiting")
 	transportServiceExecutorWaiting := findAppMetricByLabels(t, antsWaiting, map[string]string{
-		"component": "transportv2",
+		"component": "transport",
 		"pool":      "service_executor",
 	})
 	if got := transportServiceExecutorWaiting.GetGauge().GetValue(); got != 1 {
-		t.Fatalf("transportv2 service executor ants waiting = %v, want 1", got)
+		t.Fatalf("transport service executor ants waiting = %v, want 1", got)
 	}
 	channelWorkerExecutorWaiting := findAppMetricByLabels(t, antsWaiting, map[string]string{
-		"component": "channelv2",
+		"component": "channel",
 		"pool":      "store_append",
 	})
 	if got := channelWorkerExecutorWaiting.GetGauge().GetValue(); got != 1 {
-		t.Fatalf("channelv2 store append worker ants waiting = %v, want 1", got)
+		t.Fatalf("channel store append worker ants waiting = %v, want 1", got)
 	}
 	dbCommitWorkers := findAppMetricByLabels(t, workers, map[string]string{
 		"component": "db",
@@ -818,55 +818,55 @@ func TestTransportV2MetricsObserverAggregatesConnectionLocalGauges(t *testing.T)
 	}
 	inflight := requireAppMetricFamily(t, families, "wukongim_runtime_pool_inflight")
 	rpcInflight := findAppMetricByLabels(t, inflight, map[string]string{
-		"component": "transportv2",
+		"component": "transport",
 		"pool":      "rpc",
 	})
 	if got := rpcInflight.GetGauge().GetValue(); got != 3 {
-		t.Fatalf("transportv2 rpc inflight = %v, want aggregated 3", got)
+		t.Fatalf("transport rpc inflight = %v, want aggregated 3", got)
 	}
 
 	queueDepth := requireAppMetricFamily(t, families, "wukongim_runtime_pool_queue_depth")
 	schedulerDepth := findAppMetricByLabels(t, queueDepth, map[string]string{
-		"component": "transportv2",
+		"component": "transport",
 		"pool":      "scheduler",
 		"queue":     "scheduler",
 		"priority":  "rpc",
 	})
 	if got := schedulerDepth.GetGauge().GetValue(); got != 5 {
-		t.Fatalf("transportv2 scheduler depth = %v, want aggregated 5", got)
+		t.Fatalf("transport scheduler depth = %v, want aggregated 5", got)
 	}
 
 	queueCapacity := requireAppMetricFamily(t, families, "wukongim_runtime_pool_queue_capacity")
 	schedulerCapacity := findAppMetricByLabels(t, queueCapacity, map[string]string{
-		"component": "transportv2",
+		"component": "transport",
 		"pool":      "scheduler",
 		"queue":     "scheduler",
 		"priority":  "rpc",
 	})
 	if got := schedulerCapacity.GetGauge().GetValue(); got != 16 {
-		t.Fatalf("transportv2 scheduler capacity = %v, want aggregated 16", got)
+		t.Fatalf("transport scheduler capacity = %v, want aggregated 16", got)
 	}
 
 	queueBytes := requireAppMetricFamily(t, families, "wukongim_runtime_pool_queue_bytes")
 	schedulerBytes := findAppMetricByLabels(t, queueBytes, map[string]string{
-		"component": "transportv2",
+		"component": "transport",
 		"pool":      "scheduler",
 		"queue":     "scheduler",
 		"priority":  "rpc",
 	})
 	if got := schedulerBytes.GetGauge().GetValue(); got != 40 {
-		t.Fatalf("transportv2 scheduler bytes = %v, want aggregated 40", got)
+		t.Fatalf("transport scheduler bytes = %v, want aggregated 40", got)
 	}
 
 	queueBytesCapacity := requireAppMetricFamily(t, families, "wukongim_runtime_pool_queue_bytes_capacity")
 	schedulerBytesCapacity := findAppMetricByLabels(t, queueBytesCapacity, map[string]string{
-		"component": "transportv2",
+		"component": "transport",
 		"pool":      "scheduler",
 		"queue":     "scheduler",
 		"priority":  "rpc",
 	})
 	if got := schedulerBytesCapacity.GetGauge().GetValue(); got != 160 {
-		t.Fatalf("transportv2 scheduler bytes capacity = %v, want aggregated 160", got)
+		t.Fatalf("transport scheduler bytes capacity = %v, want aggregated 160", got)
 	}
 
 	observer.ObserveTransport(transportv2.Event{
@@ -883,13 +883,13 @@ func TestTransportV2MetricsObserverAggregatesConnectionLocalGauges(t *testing.T)
 	}
 	queueCapacity = requireAppMetricFamily(t, families, "wukongim_runtime_pool_queue_capacity")
 	schedulerCapacity = findAppMetricByLabels(t, queueCapacity, map[string]string{
-		"component": "transportv2",
+		"component": "transport",
 		"pool":      "scheduler",
 		"queue":     "scheduler",
 		"priority":  "rpc",
 	})
 	if got := schedulerCapacity.GetGauge().GetValue(); got != 8 {
-		t.Fatalf("transportv2 scheduler capacity after stopped = %v, want remaining source capacity 8", got)
+		t.Fatalf("transport scheduler capacity after stopped = %v, want remaining source capacity 8", got)
 	}
 }
 

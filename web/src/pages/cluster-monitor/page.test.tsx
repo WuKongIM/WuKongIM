@@ -447,7 +447,7 @@ function gatewayOperatorMonitorResponse(): RealtimeMonitorResponse {
         stats: [],
       },
       {
-        key: "transportV2QueueUsage",
+        key: "internalTransportQueueUsage",
         category: "gateway" as const,
         source: "prometheus" as const,
         stage: "runtimePressure",
@@ -688,7 +688,7 @@ function internalOperatorMonitorResponse(): RealtimeMonitorResponse {
         stats: [],
       },
       {
-        key: "transportV2QueueUsage",
+        key: "internalTransportQueueUsage",
         category: "internal" as const,
         source: "prometheus" as const,
         stage: "runtimePressure",
@@ -704,7 +704,7 @@ function internalOperatorMonitorResponse(): RealtimeMonitorResponse {
         stats: [],
       },
       {
-        key: "transportV2AdmissionErrorRate",
+        key: "internalTransportAdmissionErrorRate",
         category: "internal" as const,
         source: "prometheus" as const,
         stage: "runtimePressure",

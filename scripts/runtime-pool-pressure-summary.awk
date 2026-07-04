@@ -39,6 +39,16 @@ function default_label(value) {
   return value
 }
 
+function runtime_component_label(component) {
+  if (component == "channelv2") {
+    return "channel"
+  }
+  if (component == "transportv2") {
+    return "transport"
+  }
+  return component
+}
+
 function row_key(component, pool, queue, priority) {
   return component "\034" pool "\034" queue "\034" priority
 }
@@ -52,7 +62,7 @@ function remember_row(key, component, pool, queue, priority) {
 }
 
 function key_from_labels(labels, queue, priority, component, pool, key) {
-  component = default_label(label_value(labels, "component"))
+  component = runtime_component_label(default_label(label_value(labels, "component")))
   pool = default_label(label_value(labels, "pool"))
   queue = default_label(label_value(labels, "queue"))
   priority = default_label(label_value(labels, "priority"))
@@ -62,7 +72,7 @@ function key_from_labels(labels, queue, priority, component, pool, key) {
 }
 
 function pool_key_from_labels(labels, component, pool, key) {
-  component = default_label(label_value(labels, "component"))
+  component = runtime_component_label(default_label(label_value(labels, "component")))
   pool = default_label(label_value(labels, "pool"))
   key = row_key(component, pool, "none", "none")
   remember_row(key, component, pool, "none", "none")

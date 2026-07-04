@@ -114,8 +114,8 @@ const (
 	dbRuntimeQueuePriority   = "none"
 	dbMessageCommitWorkerCap = 1
 
-	// channelRuntimePressureComponent preserves the existing Prometheus label for compatibility.
-	channelRuntimePressureComponent = "channelv2"
+	channelRuntimePressureComponent   = "channel"
+	transportRuntimePressureComponent = "transport"
 )
 
 func (o gatewayMetricsObserver) OnConnectionOpen(event accessgateway.ConnectionEvent) {
@@ -838,37 +838,37 @@ func (o *transportV2MetricsObserver) ObserveTransport(event transportv2.Event) {
 	case "received_bytes":
 		o.metrics.Transport.ObserveReceivedBytes(transportV2FrameKindLabel(event.Kind), event.Bytes)
 	case "pending_rpc":
-		o.metrics.RuntimePressure.SetPoolInflight("transportv2", "rpc", o.transportV2PendingRPCInflight(event))
+		o.metrics.RuntimePressure.SetPoolInflight(transportRuntimePressureComponent, "rpc", o.transportV2PendingRPCInflight(event))
 	case "peer_pool":
 		inflight := event.Inflight
 		if inflight == 0 {
 			inflight = event.Items
 		}
-		o.metrics.RuntimePressure.SetPoolWorkers("transportv2", "peer_pool", event.Capacity)
-		o.metrics.RuntimePressure.SetPoolInflight("transportv2", "peer_pool", inflight)
+		o.metrics.RuntimePressure.SetPoolWorkers(transportRuntimePressureComponent, "peer_pool", event.Capacity)
+		o.metrics.RuntimePressure.SetPoolInflight(transportRuntimePressureComponent, "peer_pool", inflight)
 	case "scheduler_queue":
 		priority := transportV2PriorityLabel(event.Priority)
-		o.metrics.RuntimePressure.SetQueue("transportv2", "scheduler", "scheduler", priority, o.transportV2SchedulerQueue(priority, event))
+		o.metrics.RuntimePressure.SetQueue(transportRuntimePressureComponent, "scheduler", "scheduler", priority, o.transportV2SchedulerQueue(priority, event))
 	case "service_queue":
-		o.metrics.RuntimePressure.SetQueue("transportv2", "service", transportV2ServiceEventLabel(event), transportV2PriorityLabel(event.Priority), transportV2QueueObservation(event))
+		o.metrics.RuntimePressure.SetQueue(transportRuntimePressureComponent, "service", transportV2ServiceEventLabel(event), transportV2PriorityLabel(event.Priority), transportV2QueueObservation(event))
 	case "scheduler_admission":
-		o.metrics.RuntimePressure.ObserveAdmission("transportv2", "scheduler", "scheduler", transportV2PriorityLabel(event.Priority), event.Result)
+		o.metrics.RuntimePressure.ObserveAdmission(transportRuntimePressureComponent, "scheduler", "scheduler", transportV2PriorityLabel(event.Priority), event.Result)
 	case "service_admission":
-		o.metrics.RuntimePressure.ObserveAdmission("transportv2", "service", transportV2ServiceEventLabel(event), transportV2PriorityLabel(event.Priority), event.Result)
+		o.metrics.RuntimePressure.ObserveAdmission(transportRuntimePressureComponent, "service", transportV2ServiceEventLabel(event), transportV2PriorityLabel(event.Priority), event.Result)
 	case "scheduler_wait":
-		o.metrics.RuntimePressure.ObserveQueueWait("transportv2", "scheduler", "scheduler", transportV2PriorityLabel(event.Priority), event.Result, event.Duration)
+		o.metrics.RuntimePressure.ObserveQueueWait(transportRuntimePressureComponent, "scheduler", "scheduler", transportV2PriorityLabel(event.Priority), event.Result, event.Duration)
 	case "service_task":
 		queue := transportV2ServiceEventLabel(event)
-		o.metrics.RuntimePressure.ObserveTaskDuration("transportv2", "service", queue, event.Result, event.Duration)
+		o.metrics.RuntimePressure.ObserveTaskDuration(transportRuntimePressureComponent, "service", queue, event.Result, event.Duration)
 		o.metrics.Transport.ObserveRPC(queue, transportV2RPCResultLabel(event.Result), event.Duration)
 	case "service_inflight":
 		pool := transportV2ServiceEventLabel(event)
 		if event.Capacity > 0 {
-			o.metrics.RuntimePressure.SetPoolWorkers("transportv2", pool, event.Capacity)
+			o.metrics.RuntimePressure.SetPoolWorkers(transportRuntimePressureComponent, pool, event.Capacity)
 		}
-		o.metrics.RuntimePressure.SetPoolInflight("transportv2", pool, event.Inflight)
+		o.metrics.RuntimePressure.SetPoolInflight(transportRuntimePressureComponent, pool, event.Inflight)
 		if event.PoolCapacity > 0 {
-			o.metrics.AntsPool.SetUsage("transportv2", "service_executor", event.PoolRunning, event.PoolCapacity, event.PoolWaiting)
+			o.metrics.AntsPool.SetUsage(transportRuntimePressureComponent, "service_executor", event.PoolRunning, event.PoolCapacity, event.PoolWaiting)
 		}
 	}
 }

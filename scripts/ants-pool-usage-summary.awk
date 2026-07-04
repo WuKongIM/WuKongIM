@@ -39,6 +39,16 @@ function default_label(value) {
   return value
 }
 
+function runtime_component_label(component) {
+  if (component == "channelv2") {
+    return "channel"
+  }
+  if (component == "transportv2") {
+    return "transport"
+  }
+  return component
+}
+
 function pool_key(component, pool) {
   return component "\034" pool
 }
@@ -53,7 +63,7 @@ function remember_pool(key, component, pool) {
 }
 
 function pool_key_from_labels(labels, component, pool, key) {
-  component = default_label(label_value(labels, "component"))
+  component = runtime_component_label(default_label(label_value(labels, "component")))
   pool = default_label(label_value(labels, "pool"))
   key = pool_key(component, pool)
   remember_pool(key, component, pool)

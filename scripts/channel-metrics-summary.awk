@@ -78,8 +78,18 @@ function avg_delta(sum_key, count_key, count) {
   return counter_delta(sum_key) / count
 }
 
+function runtime_component_label(component) {
+  if (component == "channelv2") {
+    return "channel"
+  }
+  if (component == "transportv2") {
+    return "transport"
+  }
+  return component
+}
+
 function runtime_pool_key(labels) {
-  return label_value(labels, "component") "\034" label_value(labels, "pool")
+  return runtime_component_label(label_value(labels, "component")) "\034" label_value(labels, "pool")
 }
 
 function runtime_queue_key(labels) {
