@@ -2,8 +2,11 @@ package metrics
 
 import (
 	"net/http"
+	"sort"
 	"strconv"
+	"strings"
 
+	"github.com/golang/protobuf/proto"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -68,7 +71,8 @@ func (r *Registry) Gather() ([]*dto.MetricFamily, error) {
 	if r == nil || r.registry == nil {
 		return nil, nil
 	}
-	return r.registry.Gather()
+	families, err := r.registry.Gather()
+	return appendChannelRuntimePromotedFamilies(families), err
 }
 
 func (r *Registry) PrometheusRegistry() *prometheus.Registry {
@@ -82,7 +86,7 @@ func (r *Registry) Handler() http.Handler {
 	if r == nil || r.registry == nil {
 		return promhttp.Handler()
 	}
-	return promhttp.HandlerFor(r.registry, promhttp.HandlerOpts{})
+	return promhttp.HandlerFor(channelRuntimeAliasGatherer{base: r.registry}, promhttp.HandlerOpts{})
 }
 
 func (r *Registry) ChannelExecutionMetrics() *ChannelMetrics {
@@ -90,4 +94,57 @@ func (r *Registry) ChannelExecutionMetrics() *ChannelMetrics {
 		return nil
 	}
 	return r.Channel
+}
+
+type channelRuntimeAliasGatherer struct {
+	base prometheus.Gatherer
+}
+
+// Gather exposes promoted Channel runtime metric names at scrape time while reusing the legacy collectors.
+func (g channelRuntimeAliasGatherer) Gather() ([]*dto.MetricFamily, error) {
+	if g.base == nil {
+		return nil, nil
+	}
+	families, err := g.base.Gather()
+	return appendChannelRuntimePromotedFamilies(families), err
+}
+
+// appendChannelRuntimePromotedFamilies clones legacy Channel runtime families with promoted names.
+func appendChannelRuntimePromotedFamilies(families []*dto.MetricFamily) []*dto.MetricFamily {
+	if len(families) == 0 {
+		return families
+	}
+	names := make(map[string]struct{}, len(families))
+	for _, family := range families {
+		if family == nil {
+			continue
+		}
+		names[family.GetName()] = struct{}{}
+	}
+	out := make([]*dto.MetricFamily, 0, len(families)*2)
+	out = append(out, families...)
+	for _, family := range families {
+		if family == nil {
+			continue
+		}
+		name := family.GetName()
+		if !strings.HasPrefix(name, "wukongim_channelv2_") {
+			continue
+		}
+		promotedName := "wukongim_channel_" + strings.TrimPrefix(name, "wukongim_channelv2_")
+		if _, exists := names[promotedName]; exists {
+			continue
+		}
+		alias, ok := proto.Clone(family).(*dto.MetricFamily)
+		if !ok || alias == nil {
+			continue
+		}
+		alias.Name = proto.String(promotedName)
+		out = append(out, alias)
+		names[promotedName] = struct{}{}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].GetName() < out[j].GetName()
+	})
+	return out
 }

@@ -590,6 +590,19 @@ func TestChannelRuntimeMetricsTrackReactorAndWorkerRuntime(t *testing.T) {
 	families, err := reg.Gather()
 	require.NoError(t, err)
 
+	promotedMailbox := requireMetricFamily(t, families, "wukongim_channel_reactor_mailbox_depth")
+	require.Len(t, promotedMailbox.GetMetric(), 1)
+	requireMetricLabels(t, promotedMailbox.GetMetric()[0], map[string]string{
+		"node_id":    "8",
+		"node_name":  "node-8",
+		"reactor_id": "2",
+		"priority":   "normal",
+	})
+	require.Equal(t, float64(9), promotedMailbox.GetMetric()[0].GetGauge().GetValue())
+	requireMetricFamily(t, families, "wukongim_channel_append_duration_seconds")
+	requireMetricFamily(t, families, "wukongim_channel_worker_task_error_total")
+	requireMetricFamily(t, families, "wukongim_channel_isr_anomaly_channels")
+
 	mailbox := requireMetricFamily(t, families, "wukongim_channelv2_reactor_mailbox_depth")
 	require.Len(t, mailbox.GetMetric(), 1)
 	requireMetricLabels(t, mailbox.GetMetric()[0], map[string]string{

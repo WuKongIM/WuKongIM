@@ -12,7 +12,7 @@ var channelRuntimeAppendBatchByteBuckets = []float64{64, 256, 1024, 4096, 16384,
 var channelRuntimeDurationBuckets = []float64{0.0005, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5}
 var channelRuntimeISRAnomalyReasons = []string{"isr_insufficient", "no_leader", "replica_gap"}
 
-// ChannelRuntimeMetrics keeps the historical wukongim_channelv2 metric names for dashboard and script compatibility.
+// ChannelRuntimeMetrics keeps legacy collectors and exposes promoted names through Registry gather aliases.
 type ChannelRuntimeMetrics struct {
 	reactorMailboxDepth      *prometheus.GaugeVec
 	workerQueueDepth         *prometheus.GaugeVec
