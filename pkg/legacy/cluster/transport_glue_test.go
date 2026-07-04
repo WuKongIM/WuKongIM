@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/transport"
+	"github.com/WuKongIM/WuKongIM/pkg/legacy/transport"
 )
 
 func TestTransportLayerStartInitializesServerAndClients(t *testing.T) {

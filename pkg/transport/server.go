@@ -2,248 +2,301 @@ package transport
 
 import (
 	"context"
-	"encoding/binary"
 	"fmt"
 	"net"
 	"sync"
-	"sync/atomic"
 
-	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"github.com/WuKongIM/WuKongIM/pkg/transport/internal/conn"
+	"github.com/WuKongIM/WuKongIM/pkg/transport/internal/core"
+	"github.com/WuKongIM/WuKongIM/pkg/transport/internal/rpc"
+	"github.com/WuKongIM/WuKongIM/pkg/transport/wire"
 )
 
-type handlerTable struct {
-	handlers map[uint8]MessageHandler
-}
-
-func newHandlerTable() *handlerTable {
-	return &handlerTable{handlers: make(map[uint8]MessageHandler)}
-}
-
-func (t *handlerTable) clone() *handlerTable {
-	copied := make(map[uint8]MessageHandler, len(t.handlers))
-	for msgType, handler := range t.handlers {
-		copied[msgType] = handler
-	}
-	return &handlerTable{handlers: copied}
-}
-
-func (t *handlerTable) get(msgType uint8) MessageHandler {
-	if t == nil {
-		return nil
-	}
-	return t.handlers[msgType]
-}
-
-type rpcHandlerHolder struct {
-	handler RPCHandler
-}
-
-type ServerConfig struct {
-	ConnConfig ConnConfig
-	Logger     wklog.Logger
-}
-
-// Server accepts inbound connections and dispatches messages by msgType.
+// Server owns inbound connection and service registry state.
 type Server struct {
-	listener   net.Listener
-	handlers   atomic.Pointer[handlerTable]
-	rpcHandler atomic.Pointer[rpcHandlerHolder]
-	conns      sync.Map
-	stopCh     chan struct{}
-	stopOnce   sync.Once
-	wg         sync.WaitGroup
-	cfg        ServerConfig
+	// cfg stores normalized inbound transport settings.
+	cfg ServerConfig
+	// observer drains transport events away from service and connection hot paths.
+	observer *core.ObserverDrain
+
+	// ctx is canceled when Stop begins server shutdown.
+	ctx context.Context
+	// cancel stops server-owned dispatch response goroutines.
+	cancel context.CancelFunc
+
+	// mu protects listener, services, executor, conns, and stopped.
+	mu sync.RWMutex
+	// listener accepts inbound transport connections after ListenAndServe.
+	listener net.Listener
+	// services maps service ids to registered RPC services.
+	services map[uint16]*rpc.Service
+	// executor runs registered service handlers on a shared bounded ants pool.
+	executor *rpc.Executor
+	// serviceConcurrency is the total registered service handler concurrency.
+	serviceConcurrency int
+	// conns tracks active inbound connection actors.
+	conns map[*conn.Conn]struct{}
+	// stopped rejects new listeners, handlers, and tracked connections.
+	stopped bool
+
+	// stopOnce makes Stop idempotent.
+	stopOnce sync.Once
 }
 
-func NewServer() *Server {
-	return NewServerWithConfig(ServerConfig{})
-}
-
-func NewServerWithConfig(cfg ServerConfig) *Server {
-	if cfg.Logger == nil {
-		cfg.Logger = wklog.NewNop()
+// NewServer validates config and builds a minimal server shell.
+func NewServer(cfg ServerConfig) (*Server, error) {
+	normalized, err := normalizeServerConfig(cfg)
+	if err != nil {
+		return nil, err
 	}
-	s := &Server{stopCh: make(chan struct{}), cfg: cfg}
-	s.handlers.Store(newHandlerTable())
-	return s
-}
-
-func (s *Server) Handle(msgType uint8, h MessageHandler) {
-	if msgType == 0 || msgType == MsgTypeRPCNotify || msgType == MsgTypeRPCRequest || msgType == MsgTypeRPCResponse {
-		panic("nodetransport: reserved message type")
+	observer := core.NewObserverDrain(normalized.Observer)
+	if observer != nil {
+		normalized.Observer = observer
 	}
-	for {
-		current := s.handlers.Load()
-		next := current.clone()
-		next.handlers[msgType] = h
-		if s.handlers.CompareAndSwap(current, next) {
-			return
-		}
+	ctx, cancel := context.WithCancel(context.Background())
+	return &Server{
+		cfg:      normalized,
+		observer: observer,
+		ctx:      ctx,
+		cancel:   cancel,
+		services: make(map[uint16]*rpc.Service),
+		conns:    make(map[*conn.Conn]struct{}),
+	}, nil
+}
+
+// Handle registers handler as the service implementation for serviceID.
+func (s *Server) Handle(serviceID uint16, handler Handler, opts ServiceOptions) error {
+	if handler == nil {
+		return fmt.Errorf("%w: service handler is required", ErrInvalidConfig)
 	}
-}
-
-func (s *Server) HandleRPC(h RPCHandler) {
-	s.rpcHandler.Store(&rpcHandlerHolder{handler: h})
-}
-
-func (s *Server) HandleRPCMux(mux *RPCMux) {
-	if mux == nil {
-		panic("nodetransport: nil rpc mux")
+	if opts.MaxPayload == 0 {
+		opts.MaxPayload = s.cfg.Limits.MaxFrameBodyBytes
 	}
-	s.HandleRPC(mux.HandleRPC)
-}
+	if err := opts.Validate(); err != nil {
+		return err
+	}
 
-func (s *Server) Start(addr string) error {
-	ln, err := net.Listen("tcp", addr)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.stopped {
+		return ErrStopped
+	}
+	if _, ok := s.services[serviceID]; ok {
+		return fmt.Errorf("%w: duplicate service id %d", ErrInvalidConfig, serviceID)
+	}
+	executor, err := s.serviceExecutorLocked(opts.Concurrency)
 	if err != nil {
 		return err
 	}
-	s.listener = ln
-	s.wg.Add(1)
-	go s.acceptLoop()
+	s.services[serviceID] = rpc.NewServiceWithExecutor(serviceID, handler, opts, s.cfg.Observer, executor)
 	return nil
 }
 
+func (s *Server) serviceExecutorLocked(concurrency int) (*rpc.Executor, error) {
+	if concurrency <= 0 {
+		concurrency = 1
+	}
+	if s.executor == nil {
+		executor, err := rpc.NewExecutor(concurrency, s.cfg.Observer)
+		if err != nil {
+			return nil, err
+		}
+		s.executor = executor
+		s.serviceConcurrency = concurrency
+		return executor, nil
+	}
+	s.serviceConcurrency += concurrency
+	s.executor.Tune(s.serviceConcurrency)
+	return s.executor, nil
+}
+
+// ListenAndServe starts accepting inbound transport connections on addr.
+func (s *Server) ListenAndServe(addr string) error {
+	listener, err := net.Listen("tcp", addr)
+	if err != nil {
+		return err
+	}
+
+	s.mu.Lock()
+	if s.stopped {
+		s.mu.Unlock()
+		_ = listener.Close()
+		return ErrStopped
+	}
+	if s.listener != nil {
+		s.mu.Unlock()
+		_ = listener.Close()
+		return fmt.Errorf("%w: server already listening", ErrInvalidConfig)
+	}
+	s.listener = listener
+	s.mu.Unlock()
+
+	go s.acceptLoop(listener)
+	return nil
+}
+
+// Addr returns the listener address, or an empty string before ListenAndServe.
+func (s *Server) Addr() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.listener == nil {
+		return ""
+	}
+	return s.listener.Addr().String()
+}
+
+// Stop releases server resources.
 func (s *Server) Stop() {
 	s.stopOnce.Do(func() {
-		close(s.stopCh)
-		if s.listener != nil {
-			_ = s.listener.Close()
+		s.cancel()
+
+		s.mu.Lock()
+		s.stopped = true
+		listener := s.listener
+		services := make([]*rpc.Service, 0, len(s.services))
+		for _, service := range s.services {
+			services = append(services, service)
 		}
-		s.conns.Range(func(key, _ any) bool {
-			key.(*MuxConn).Close()
-			return true
-		})
-		s.wg.Wait()
+		executor := s.executor
+		conns := make([]*conn.Conn, 0, len(s.conns))
+		for c := range s.conns {
+			conns = append(conns, c)
+		}
+		s.conns = make(map[*conn.Conn]struct{})
+		s.mu.Unlock()
+
+		if listener != nil {
+			_ = listener.Close()
+		}
+		for _, c := range conns {
+			c.Close(core.ErrStopped)
+		}
+		for _, service := range services {
+			service.Stop()
+		}
+		if executor != nil {
+			_ = executor.Stop()
+		}
+		s.observer.Stop()
 	})
 }
 
-func (s *Server) Listener() net.Listener {
-	return s.listener
+// Stats returns a point-in-time server stats snapshot.
+func (s *Server) Stats() Stats {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return Stats{Connections: len(s.conns)}
 }
 
-func (s *Server) acceptLoop() {
-	defer s.wg.Done()
+func (s *Server) acceptLoop(listener net.Listener) {
 	for {
-		raw, err := s.listener.Accept()
+		raw, err := listener.Accept()
 		if err != nil {
-			select {
-			case <-s.stopCh:
-				return
-			default:
-				continue
-			}
+			return
 		}
-		setTCPKeepAlive(raw)
-		s.wg.Add(1)
-		go s.serveConn(raw)
+		c := conn.New(raw, conn.Config{
+			Limits:   s.cfg.Limits,
+			Observer: s.cfg.Observer,
+			NodeID:   s.cfg.NodeID,
+		}, conn.DispatchFunc(s.dispatch))
+		if !s.trackConn(c) {
+			continue
+		}
+		c.Start()
+		go s.untrackConnWhenDone(c)
 	}
 }
 
-func (s *Server) serveConn(raw net.Conn) {
-	defer s.wg.Done()
-
-	connCtx, cancelConn := context.WithCancel(context.Background())
-	var mc *MuxConn
-	dispatch := func(msgType uint8, body []byte, release func()) {
-		s.dispatch(connCtx, mc, msgType, body, release)
+func (s *Server) trackConn(c *conn.Conn) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.stopped {
+		c.Close(core.ErrStopped)
+		return false
 	}
-	mc = newMuxConn(raw, dispatch, s.cfg.ConnConfig)
-	s.conns.Store(mc, struct{}{})
-	defer func() {
-		cancelConn()
-		s.conns.Delete(mc)
-		mc.Close()
-	}()
-
-	select {
-	case <-mc.readerDone:
-	case <-s.stopCh:
-	}
+	s.conns[c] = struct{}{}
+	return true
 }
 
-func (s *Server) dispatch(connCtx context.Context, mc *MuxConn, msgType uint8, body []byte, release func()) {
-	switch msgType {
-	case MsgTypeRPCNotify:
-		holder := s.rpcHandler.Load()
-		if holder == nil || holder.handler == nil {
-			release()
+func (s *Server) untrackConnWhenDone(c *conn.Conn) {
+	<-c.Done()
+	s.mu.Lock()
+	delete(s.conns, c)
+	s.mu.Unlock()
+}
+
+func (s *Server) dispatch(ctx context.Context, inbound conn.Inbound) {
+	switch inbound.Kind {
+	case core.FrameKindData, core.FrameKindNotify:
+		service := s.service(inbound.ServiceID)
+		if service == nil {
+			inbound.Payload.Release()
 			return
 		}
-		copied := append([]byte(nil), body...)
-		release()
-		s.wg.Add(1)
-		go s.handleRPCNotify(connCtx, holder.handler, copied)
-	case MsgTypeRPCRequest:
-		holder := s.rpcHandler.Load()
-		if holder == nil || holder.handler == nil {
-			release()
-			return
-		}
-		copied := append([]byte(nil), body...)
-		release()
-		s.wg.Add(1)
-		go s.handleRPCRequest(connCtx, mc, holder.handler, copied)
+		_ = service.Enqueue(rpc.Request{Payload: inbound.Payload})
+	case core.FrameKindRPCRequest:
+		s.dispatchRPCRequest(ctx, inbound)
 	default:
-		h := s.handlers.Load().get(msgType)
-		if h != nil {
-			h(body)
-		}
-		release()
+		inbound.Payload.Release()
 	}
 }
 
-func (s *Server) handleRPCNotify(ctx context.Context, handler RPCHandler, body []byte) {
-	defer s.wg.Done()
-	if _, err := handler(ctx, body); err != nil {
-		s.cfg.Logger.Warn("rpc notify handler failed", wklog.Error(err))
-	}
-}
-
-func (s *Server) handleRPCRequest(ctx context.Context, mc *MuxConn, handler RPCHandler, body []byte) {
-	defer s.wg.Done()
-	if len(body) < 8 {
+func (s *Server) dispatchRPCRequest(ctx context.Context, inbound conn.Inbound) {
+	service := s.service(inbound.ServiceID)
+	if service == nil {
+		inbound.Payload.Release()
+		s.sendRPCError(ctx, inbound, fmt.Errorf("transport: service %d not found", inbound.ServiceID))
 		return
 	}
-	requestID := binary.BigEndian.Uint64(body[0:8])
-	payload := body[8:]
 
-	respData, err := handler(ctx, payload)
-	var errCode uint8
-	if err != nil {
-		errCode = 1
-		respData = []byte(err.Error())
+	respond := func(resp rpc.Response) {
+		select {
+		case <-inbound.Conn.Done():
+			return
+		case <-s.ctx.Done():
+			return
+		default:
+		}
+		status := wire.ResponseOK
+		payload := resp.Payload
+		if resp.Err != nil {
+			status = wire.ResponseErr
+			payload = []byte(resp.Err.Error())
+		}
+		_ = inbound.Conn.Send(ctx, conn.Outbound{
+			Kind:      core.FrameKindRPCResponse,
+			Priority:  inbound.Priority,
+			ServiceID: inbound.ServiceID,
+			RequestID: inbound.RequestID,
+			Payload:   conn.EncodeRPCResponse(status, payload),
+		})
 	}
-	respBody := encodeRPCResponse(requestID, errCode, respData)
-	if sendErr := mc.Send(PriorityRPC, MsgTypeRPCResponse, respBody); sendErr != nil {
-		s.cfg.Logger.Warn("rpc response send failed",
-			wklog.Uint64("requestID", requestID),
-			wklog.Error(sendErr),
-		)
+
+	if err := service.Enqueue(rpc.Request{Payload: inbound.Payload, Respond: respond}); err != nil {
+		s.sendRPCError(ctx, inbound, err)
+		return
 	}
 }
 
-func encodeRPCRequest(requestID uint64, payload []byte) []byte {
-	buf := make([]byte, 8+len(payload))
-	binary.BigEndian.PutUint64(buf[0:8], requestID)
-	copy(buf[8:], payload)
-	return buf
-}
-
-func encodeRPCResponse(requestID uint64, errCode uint8, data []byte) []byte {
-	buf := make([]byte, 9+len(data))
-	binary.BigEndian.PutUint64(buf[0:8], requestID)
-	buf[8] = errCode
-	copy(buf[9:], data)
-	return buf
-}
-
-func decodeRPCResponse(body []byte) (requestID uint64, errCode uint8, data []byte, err error) {
-	if len(body) < 9 {
-		return 0, 0, nil, fmt.Errorf("nodetransport: rpc response body too short: %d", len(body))
+func (s *Server) sendRPCError(ctx context.Context, inbound conn.Inbound, err error) {
+	select {
+	case <-inbound.Conn.Done():
+		return
+	case <-s.ctx.Done():
+		return
+	default:
 	}
-	requestID = binary.BigEndian.Uint64(body[0:8])
-	errCode = body[8]
-	data = body[9:]
-	return requestID, errCode, data, nil
+	_ = inbound.Conn.Send(ctx, conn.Outbound{
+		Kind:      core.FrameKindRPCResponse,
+		Priority:  inbound.Priority,
+		ServiceID: inbound.ServiceID,
+		RequestID: inbound.RequestID,
+		Payload:   conn.EncodeRPCResponse(wire.ResponseErr, []byte(err.Error())),
+	})
+}
+
+func (s *Server) service(serviceID uint16) *rpc.Service {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.services[serviceID]
 }

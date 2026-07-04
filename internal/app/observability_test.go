@@ -22,7 +22,7 @@ import (
 	messageusecase "github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/channel/reactor"
-	"github.com/WuKongIM/WuKongIM/pkg/channel/transport"
+	channeltransport "github.com/WuKongIM/WuKongIM/pkg/channel/transport"
 	"github.com/WuKongIM/WuKongIM/pkg/channel/worker"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
@@ -32,7 +32,7 @@ import (
 	obsmetrics "github.com/WuKongIM/WuKongIM/pkg/metrics"
 	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
-	"github.com/WuKongIM/WuKongIM/pkg/transportv2"
+	"github.com/WuKongIM/WuKongIM/pkg/transport"
 	dto "github.com/prometheus/client_model/go"
 )
 
@@ -96,24 +96,24 @@ func TestRuntimePressureAdapterMapsGatewayChannelSlotTransportAndDB(t *testing.T
 	slotObserver.ObserveSlotProposalAdmission(7, multiraft.ProposalClassBackground, "throttled")
 	slotObserver.SetSlotApplyState(7, 11, 8)
 
-	transportObserver := transportV2MetricsObserver{metrics: reg}
-	transportObserver.ObserveTransport(transportv2.Event{
+	transportObserver := transportMetricsObserver{metrics: reg}
+	transportObserver.ObserveTransport(transport.Event{
 		Name:          "scheduler_queue",
-		Priority:      transportv2.PriorityRPC,
+		Priority:      transport.PriorityRPC,
 		Items:         3,
 		Capacity:      32,
 		Bytes:         128,
 		BytesCapacity: 4096,
 		Result:        "ok",
 	})
-	transportObserver.ObserveTransport(transportv2.Event{
+	transportObserver.ObserveTransport(transport.Event{
 		Name:         "service_task",
 		ServiceID:    9,
 		ServiceAlias: "slot runtime report",
 		Result:       "ok",
 		Duration:     time.Millisecond,
 	})
-	transportObserver.ObserveTransport(transportv2.Event{
+	transportObserver.ObserveTransport(transport.Event{
 		Name:         "service_inflight",
 		ServiceID:    9,
 		Inflight:     2,
@@ -122,14 +122,14 @@ func TestRuntimePressureAdapterMapsGatewayChannelSlotTransportAndDB(t *testing.T
 		PoolCapacity: 8,
 		PoolWaiting:  1,
 	})
-	transportObserver.ObserveTransport(transportv2.Event{
+	transportObserver.ObserveTransport(transport.Event{
 		Name:  "sent_bytes",
-		Kind:  transportv2.FrameKindRPCRequest,
+		Kind:  transport.FrameKindRPCRequest,
 		Bytes: 64,
 	})
-	transportObserver.ObserveTransport(transportv2.Event{
+	transportObserver.ObserveTransport(transport.Event{
 		Name:  "received_bytes",
-		Kind:  transportv2.FrameKindRPCResponse,
+		Kind:  transport.FrameKindRPCResponse,
 		Bytes: 72,
 	})
 
@@ -762,49 +762,49 @@ func TestNodeLifecycleMetricsObserverDeduplicatesScaleInBlockersPerRevision(t *t
 	}
 }
 
-func TestTransportV2MetricsObserverAggregatesConnectionLocalGauges(t *testing.T) {
+func TestTransportMetricsObserverAggregatesConnectionLocalGauges(t *testing.T) {
 	reg := obsmetrics.New(1, "n1")
-	observer := &transportV2MetricsObserver{metrics: reg}
+	observer := &transportMetricsObserver{metrics: reg}
 
-	observer.ObserveTransport(transportv2.Event{
+	observer.ObserveTransport(transport.Event{
 		Name:     "pending_rpc",
 		SourceID: 101,
 		Inflight: 2,
 	})
-	observer.ObserveTransport(transportv2.Event{
+	observer.ObserveTransport(transport.Event{
 		Name:     "pending_rpc",
 		SourceID: 102,
 		Inflight: 3,
 	})
-	observer.ObserveTransport(transportv2.Event{
+	observer.ObserveTransport(transport.Event{
 		Name:     "pending_rpc",
 		SourceID: 101,
 		Inflight: 0,
 	})
-	observer.ObserveTransport(transportv2.Event{
+	observer.ObserveTransport(transport.Event{
 		Name:          "scheduler_queue",
 		SourceID:      101,
-		Priority:      transportv2.PriorityRPC,
+		Priority:      transport.PriorityRPC,
 		Items:         2,
 		Capacity:      8,
 		Bytes:         20,
 		BytesCapacity: 80,
 		Result:        "ok",
 	})
-	observer.ObserveTransport(transportv2.Event{
+	observer.ObserveTransport(transport.Event{
 		Name:          "scheduler_queue",
 		SourceID:      102,
-		Priority:      transportv2.PriorityRPC,
+		Priority:      transport.PriorityRPC,
 		Items:         5,
 		Capacity:      8,
 		Bytes:         40,
 		BytesCapacity: 80,
 		Result:        "ok",
 	})
-	observer.ObserveTransport(transportv2.Event{
+	observer.ObserveTransport(transport.Event{
 		Name:          "scheduler_queue",
 		SourceID:      101,
-		Priority:      transportv2.PriorityRPC,
+		Priority:      transport.PriorityRPC,
 		Items:         0,
 		Capacity:      8,
 		Bytes:         0,
@@ -869,10 +869,10 @@ func TestTransportV2MetricsObserverAggregatesConnectionLocalGauges(t *testing.T)
 		t.Fatalf("transport scheduler bytes capacity = %v, want aggregated 160", got)
 	}
 
-	observer.ObserveTransport(transportv2.Event{
+	observer.ObserveTransport(transport.Event{
 		Name:          "scheduler_queue",
 		SourceID:      101,
-		Priority:      transportv2.PriorityRPC,
+		Priority:      transport.PriorityRPC,
 		Capacity:      8,
 		BytesCapacity: 80,
 		Result:        "stopped",
@@ -1098,12 +1098,12 @@ func findAppMetricByLabels(t *testing.T, family *dto.MetricFamily, want map[stri
 func TestChannelPullHintMetricLabels(t *testing.T) {
 	reasonCases := []struct {
 		name   string
-		reason transport.PullHintReason
+		reason channeltransport.PullHintReason
 		want   string
 	}{
-		{name: "append", reason: transport.PullHintReasonAppend, want: "append"},
-		{name: "resume", reason: transport.PullHintReasonResume, want: "resume"},
-		{name: "unknown", reason: transport.PullHintReason(99), want: "unknown"},
+		{name: "append", reason: channeltransport.PullHintReasonAppend, want: "append"},
+		{name: "resume", reason: channeltransport.PullHintReasonResume, want: "resume"},
+		{name: "unknown", reason: channeltransport.PullHintReason(99), want: "unknown"},
 	}
 	for _, tc := range reasonCases {
 		t.Run("reason_"+tc.name, func(t *testing.T) {

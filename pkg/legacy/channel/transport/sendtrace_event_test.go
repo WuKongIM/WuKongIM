@@ -9,8 +9,8 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/legacy/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/legacy/channel/runtime"
+	baseTransport "github.com/WuKongIM/WuKongIM/pkg/legacy/transport"
 	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
-	baseTransport "github.com/WuKongIM/WuKongIM/pkg/transport"
 	"github.com/stretchr/testify/require"
 )
 

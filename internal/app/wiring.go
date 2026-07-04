@@ -143,14 +143,14 @@ func (a *App) configureObservability(clusterCfg *cluster.Config) {
 			metrics: a.metrics,
 			workers: commitCoordinatorWorkerCount(clusterCfg.Storage.CommitShards),
 		})
-		clusterCfg.Transport.Observer = combineTransportV2Observers(clusterCfg.Transport.Observer, &transportV2MetricsObserver{metrics: a.metrics})
+		clusterCfg.Transport.Observer = combineTransportObservers(clusterCfg.Transport.Observer, &transportMetricsObserver{metrics: a.metrics})
 	}
 	if top != nil && a.cfg.Top.APIEnabled {
 		clusterCfg.Channel.Observer = combineChannelObservers(clusterCfg.Channel.Observer, topChannelObserver{top: top})
 		clusterCfg.Slots.Observer = combineSlotObservers(clusterCfg.Slots.Observer, topSlotObserver{top: top})
 		clusterCfg.Control.RaftObserver = combineControllerRaftObservers(clusterCfg.Control.RaftObserver, topControllerRaftObserver{top: top})
 		clusterCfg.Storage.CommitObserver = combineCommitCoordinatorObservers(clusterCfg.Storage.CommitObserver, topStorageObserver{top: top})
-		clusterCfg.Transport.Observer = combineTransportV2Observers(clusterCfg.Transport.Observer, &topTransportV2Observer{top: top})
+		clusterCfg.Transport.Observer = combineTransportObservers(clusterCfg.Transport.Observer, &topTransportObserver{top: top})
 	}
 	if a.cfg.Observability.Diagnostics.Enabled {
 		a.diagnostics = obsdiagnostics.NewStore(diagnosticsStoreOptions(a.cfg))

@@ -11,7 +11,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/internal/contracts/channelappend"
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/cluster/net"
-	"github.com/WuKongIM/WuKongIM/pkg/transportv2"
+	"github.com/WuKongIM/WuKongIM/pkg/transport"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
@@ -141,9 +141,9 @@ func channelAppendRPCError(err error) error {
 	switch {
 	case err == nil:
 		return nil
-	case errors.Is(err, transportv2.ErrCanceled):
+	case errors.Is(err, transport.ErrCanceled):
 		return context.Canceled
-	case errors.Is(err, transportv2.ErrTimeout):
+	case errors.Is(err, transport.ErrTimeout):
 		return context.DeadlineExceeded
 	case channelAppendTransportUnavailable(err):
 		return fmt.Errorf("%w: %w", channelappend.ErrRouteNotReady, err)
@@ -154,9 +154,9 @@ func channelAppendRPCError(err error) error {
 
 func channelAppendTransportUnavailable(err error) bool {
 	switch {
-	case errors.Is(err, transportv2.ErrDialFailed),
-		errors.Is(err, transportv2.ErrNodeNotFound),
-		errors.Is(err, transportv2.ErrStopped),
+	case errors.Is(err, transport.ErrDialFailed),
+		errors.Is(err, transport.ErrNodeNotFound),
+		errors.Is(err, transport.ErrStopped),
 		errors.Is(err, net.ErrClosed),
 		errors.Is(err, io.EOF),
 		errors.Is(err, io.ErrUnexpectedEOF),

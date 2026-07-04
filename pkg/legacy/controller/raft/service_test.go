@@ -20,7 +20,7 @@ import (
 	slotcontroller "github.com/WuKongIM/WuKongIM/pkg/legacy/controller/plane"
 	raftstorage "github.com/WuKongIM/WuKongIM/pkg/raftlog"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
-	"github.com/WuKongIM/WuKongIM/pkg/transport"
+	"github.com/WuKongIM/WuKongIM/pkg/legacy/transport"
 	raft "go.etcd.io/raft/v3"
 	"go.etcd.io/raft/v3/raftpb"
 )

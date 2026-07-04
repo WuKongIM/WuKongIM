@@ -7,7 +7,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/legacy/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/legacy/channel/runtime"
-	wktransport "github.com/WuKongIM/WuKongIM/pkg/transport"
+	wktransport "github.com/WuKongIM/WuKongIM/pkg/legacy/transport"
 )
 
 // ProbeClientOptions configures the synchronous reconcile proof client.

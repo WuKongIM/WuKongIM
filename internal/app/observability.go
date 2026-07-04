@@ -18,7 +18,7 @@ import (
 	messageusecase "github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/channel/reactor"
-	"github.com/WuKongIM/WuKongIM/pkg/channel/transport"
+	channeltransport "github.com/WuKongIM/WuKongIM/pkg/channel/transport"
 	"github.com/WuKongIM/WuKongIM/pkg/channel/worker"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	clusterchannels "github.com/WuKongIM/WuKongIM/pkg/cluster/channels"
@@ -30,7 +30,7 @@ import (
 	obsmetrics "github.com/WuKongIM/WuKongIM/pkg/metrics"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
-	"github.com/WuKongIM/WuKongIM/pkg/transportv2"
+	"github.com/WuKongIM/WuKongIM/pkg/transport"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
@@ -46,15 +46,15 @@ type slotMetricsObserver struct {
 	metrics *obsmetrics.Registry
 }
 
-type transportV2MetricsObserver struct {
+type transportMetricsObserver struct {
 	metrics *obsmetrics.Registry
 	mu      sync.Mutex
 
 	pendingRPCBySource     map[uint64]int
-	schedulerQueueBySource map[transportV2SchedulerQueueSource]obsmetrics.RuntimePressureQueueObservation
+	schedulerQueueBySource map[transportSchedulerQueueSource]obsmetrics.RuntimePressureQueueObservation
 }
 
-type transportV2SchedulerQueueSource struct {
+type transportSchedulerQueueSource struct {
 	sourceID uint64
 	priority string
 }
@@ -98,7 +98,7 @@ type conversationAuthorityMetricsObserver struct {
 
 type multiChannelObserver []reactor.Observer
 type multiSlotObserver []multiraft.SchedulerObserver
-type multiTransportV2Observer []transportv2.Observer
+type multiTransportObserver []transport.Observer
 type multiControllerRaftObserver []controller.RaftObserver
 type multiControlSnapshotObserver []cluster.ControlSnapshotObserver
 type multiSlotReplicaMoveObserver []cluster.SlotReplicaMoveObserver
@@ -611,14 +611,14 @@ func (o channelMetricsObserver) ObservePull(result string, empty bool) {
 	o.metrics.ChannelRuntime.ObservePull(result, empty)
 }
 
-func (o channelMetricsObserver) ObservePullHintResult(reason transport.PullHintReason, result string, err error) {
+func (o channelMetricsObserver) ObservePullHintResult(reason channeltransport.PullHintReason, result string, err error) {
 	if o.metrics == nil {
 		return
 	}
 	o.metrics.ChannelRuntime.ObservePullHint(channelPullHintReasonLabel(reason), result, channelPullHintErrorLabel(err))
 }
 
-func (o channelMetricsObserver) ObservePullHintReceived(reason transport.PullHintReason, stage string, err error) {
+func (o channelMetricsObserver) ObservePullHintReceived(reason channeltransport.PullHintReason, stage string, err error) {
 	if o.metrics == nil {
 		return
 	}
@@ -828,17 +828,17 @@ func slotApplyGap(commitIndex, appliedIndex uint64) uint64 {
 	return commitIndex - appliedIndex
 }
 
-func (o *transportV2MetricsObserver) ObserveTransport(event transportv2.Event) {
+func (o *transportMetricsObserver) ObserveTransport(event transport.Event) {
 	if o.metrics == nil {
 		return
 	}
 	switch event.Name {
 	case "sent_bytes":
-		o.metrics.Transport.ObserveSentBytes(transportV2FrameKindLabel(event.Kind), event.Bytes)
+		o.metrics.Transport.ObserveSentBytes(transportFrameKindLabel(event.Kind), event.Bytes)
 	case "received_bytes":
-		o.metrics.Transport.ObserveReceivedBytes(transportV2FrameKindLabel(event.Kind), event.Bytes)
+		o.metrics.Transport.ObserveReceivedBytes(transportFrameKindLabel(event.Kind), event.Bytes)
 	case "pending_rpc":
-		o.metrics.RuntimePressure.SetPoolInflight(transportRuntimePressureComponent, "rpc", o.transportV2PendingRPCInflight(event))
+		o.metrics.RuntimePressure.SetPoolInflight(transportRuntimePressureComponent, "rpc", o.transportPendingRPCInflight(event))
 	case "peer_pool":
 		inflight := event.Inflight
 		if inflight == 0 {
@@ -847,22 +847,22 @@ func (o *transportV2MetricsObserver) ObserveTransport(event transportv2.Event) {
 		o.metrics.RuntimePressure.SetPoolWorkers(transportRuntimePressureComponent, "peer_pool", event.Capacity)
 		o.metrics.RuntimePressure.SetPoolInflight(transportRuntimePressureComponent, "peer_pool", inflight)
 	case "scheduler_queue":
-		priority := transportV2PriorityLabel(event.Priority)
-		o.metrics.RuntimePressure.SetQueue(transportRuntimePressureComponent, "scheduler", "scheduler", priority, o.transportV2SchedulerQueue(priority, event))
+		priority := transportPriorityLabel(event.Priority)
+		o.metrics.RuntimePressure.SetQueue(transportRuntimePressureComponent, "scheduler", "scheduler", priority, o.transportSchedulerQueue(priority, event))
 	case "service_queue":
-		o.metrics.RuntimePressure.SetQueue(transportRuntimePressureComponent, "service", transportV2ServiceEventLabel(event), transportV2PriorityLabel(event.Priority), transportV2QueueObservation(event))
+		o.metrics.RuntimePressure.SetQueue(transportRuntimePressureComponent, "service", transportServiceEventLabel(event), transportPriorityLabel(event.Priority), transportQueueObservation(event))
 	case "scheduler_admission":
-		o.metrics.RuntimePressure.ObserveAdmission(transportRuntimePressureComponent, "scheduler", "scheduler", transportV2PriorityLabel(event.Priority), event.Result)
+		o.metrics.RuntimePressure.ObserveAdmission(transportRuntimePressureComponent, "scheduler", "scheduler", transportPriorityLabel(event.Priority), event.Result)
 	case "service_admission":
-		o.metrics.RuntimePressure.ObserveAdmission(transportRuntimePressureComponent, "service", transportV2ServiceEventLabel(event), transportV2PriorityLabel(event.Priority), event.Result)
+		o.metrics.RuntimePressure.ObserveAdmission(transportRuntimePressureComponent, "service", transportServiceEventLabel(event), transportPriorityLabel(event.Priority), event.Result)
 	case "scheduler_wait":
-		o.metrics.RuntimePressure.ObserveQueueWait(transportRuntimePressureComponent, "scheduler", "scheduler", transportV2PriorityLabel(event.Priority), event.Result, event.Duration)
+		o.metrics.RuntimePressure.ObserveQueueWait(transportRuntimePressureComponent, "scheduler", "scheduler", transportPriorityLabel(event.Priority), event.Result, event.Duration)
 	case "service_task":
-		queue := transportV2ServiceEventLabel(event)
+		queue := transportServiceEventLabel(event)
 		o.metrics.RuntimePressure.ObserveTaskDuration(transportRuntimePressureComponent, "service", queue, event.Result, event.Duration)
-		o.metrics.Transport.ObserveRPC(queue, transportV2RPCResultLabel(event.Result), event.Duration)
+		o.metrics.Transport.ObserveRPC(queue, transportRPCResultLabel(event.Result), event.Duration)
 	case "service_inflight":
-		pool := transportV2ServiceEventLabel(event)
+		pool := transportServiceEventLabel(event)
 		if event.Capacity > 0 {
 			o.metrics.RuntimePressure.SetPoolWorkers(transportRuntimePressureComponent, pool, event.Capacity)
 		}
@@ -873,7 +873,7 @@ func (o *transportV2MetricsObserver) ObserveTransport(event transportv2.Event) {
 	}
 }
 
-func (o *transportV2MetricsObserver) transportV2PendingRPCInflight(event transportv2.Event) int {
+func (o *transportMetricsObserver) transportPendingRPCInflight(event transport.Event) int {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 
@@ -892,19 +892,19 @@ func (o *transportV2MetricsObserver) transportV2PendingRPCInflight(event transpo
 	return total
 }
 
-func (o *transportV2MetricsObserver) transportV2SchedulerQueue(priority string, event transportv2.Event) obsmetrics.RuntimePressureQueueObservation {
+func (o *transportMetricsObserver) transportSchedulerQueue(priority string, event transport.Event) obsmetrics.RuntimePressureQueueObservation {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 
 	if o.schedulerQueueBySource == nil {
-		o.schedulerQueueBySource = make(map[transportV2SchedulerQueueSource]obsmetrics.RuntimePressureQueueObservation)
+		o.schedulerQueueBySource = make(map[transportSchedulerQueueSource]obsmetrics.RuntimePressureQueueObservation)
 	}
-	key := transportV2SchedulerQueueSource{sourceID: event.SourceID, priority: priority}
+	key := transportSchedulerQueueSource{sourceID: event.SourceID, priority: priority}
 	switch event.Result {
 	case "closed", "stopped":
 		delete(o.schedulerQueueBySource, key)
 	default:
-		o.schedulerQueueBySource[key] = transportV2QueueObservation(event)
+		o.schedulerQueueBySource[key] = transportQueueObservation(event)
 	}
 
 	var total obsmetrics.RuntimePressureQueueObservation
@@ -1397,14 +1397,14 @@ func combineSlotObservers(first, second multiraft.SchedulerObserver) multiraft.S
 	return multiSlotObserver{first, second}
 }
 
-func combineTransportV2Observers(first, second transportv2.Observer) transportv2.Observer {
+func combineTransportObservers(first, second transport.Observer) transport.Observer {
 	if first == nil {
 		return second
 	}
 	if second == nil {
 		return first
 	}
-	return multiTransportV2Observer{first, second}
+	return multiTransportObserver{first, second}
 }
 
 func combineControllerRaftObservers(first, second controller.RaftObserver) controller.RaftObserver {
@@ -1493,7 +1493,7 @@ func channelReactorPoolLabel(reactorID int) string {
 	return "reactor_" + strconv.Itoa(reactorID)
 }
 
-func transportV2QueueObservation(event transportv2.Event) obsmetrics.RuntimePressureQueueObservation {
+func transportQueueObservation(event transport.Event) obsmetrics.RuntimePressureQueueObservation {
 	return obsmetrics.RuntimePressureQueueObservation{
 		Depth:         event.Items,
 		Capacity:      event.Capacity,
@@ -1502,50 +1502,50 @@ func transportV2QueueObservation(event transportv2.Event) obsmetrics.RuntimePres
 	}
 }
 
-func transportV2ServiceEventLabel(event transportv2.Event) string {
+func transportServiceEventLabel(event transport.Event) string {
 	if alias := strings.TrimSpace(event.ServiceAlias); alias != "" {
 		return alias
 	}
-	return transportV2ServiceQueueLabel(event.ServiceID)
+	return transportServiceQueueLabel(event.ServiceID)
 }
 
-func transportV2ServiceQueueLabel(serviceID uint16) string {
+func transportServiceQueueLabel(serviceID uint16) string {
 	return "service_" + strconv.Itoa(int(serviceID))
 }
 
-func transportV2RPCResultLabel(result string) string {
+func transportRPCResultLabel(result string) string {
 	if result == "" {
 		return "ok"
 	}
 	return result
 }
 
-func transportV2PriorityLabel(priority transportv2.Priority) string {
+func transportPriorityLabel(priority transport.Priority) string {
 	switch priority {
-	case transportv2.PriorityRaft:
+	case transport.PriorityRaft:
 		return "raft"
-	case transportv2.PriorityControl:
+	case transport.PriorityControl:
 		return "control"
-	case transportv2.PriorityRPC:
+	case transport.PriorityRPC:
 		return "rpc"
-	case transportv2.PriorityBulk:
+	case transport.PriorityBulk:
 		return "bulk"
 	default:
 		return "none"
 	}
 }
 
-func transportV2FrameKindLabel(kind transportv2.FrameKind) string {
+func transportFrameKindLabel(kind transport.FrameKind) string {
 	switch kind {
-	case transportv2.FrameKindData:
+	case transport.FrameKindData:
 		return "data"
-	case transportv2.FrameKindNotify:
+	case transport.FrameKindNotify:
 		return "notify"
-	case transportv2.FrameKindRPCRequest:
+	case transport.FrameKindRPCRequest:
 		return "rpc_request"
-	case transportv2.FrameKindRPCResponse:
+	case transport.FrameKindRPCResponse:
 		return "rpc_response"
-	case transportv2.FrameKindControl:
+	case transport.FrameKindControl:
 		return "control"
 	default:
 		return "unknown"
@@ -1717,7 +1717,7 @@ func (o multiChannelObserver) ObservePull(result string, empty bool) {
 	}
 }
 
-func (o multiChannelObserver) ObservePullHintResult(reason transport.PullHintReason, result string, err error) {
+func (o multiChannelObserver) ObservePullHintResult(reason channeltransport.PullHintReason, result string, err error) {
 	for _, observer := range o {
 		pullHintObserver, ok := observer.(reactor.PullHintResultObserver)
 		if ok {
@@ -1726,10 +1726,10 @@ func (o multiChannelObserver) ObservePullHintResult(reason transport.PullHintRea
 	}
 }
 
-func (o multiChannelObserver) ObservePullHintReceived(reason transport.PullHintReason, stage string, err error) {
+func (o multiChannelObserver) ObservePullHintReceived(reason channeltransport.PullHintReason, stage string, err error) {
 	for _, observer := range o {
 		pullHintReceiveObserver, ok := observer.(interface {
-			ObservePullHintReceived(transport.PullHintReason, string, error)
+			ObservePullHintReceived(channeltransport.PullHintReason, string, error)
 		})
 		if ok {
 			pullHintReceiveObserver.ObservePullHintReceived(reason, stage, err)
@@ -1900,7 +1900,7 @@ func (o multiSlotObserver) SetSlotApplyState(slotID multiraft.SlotID, commitInde
 	}
 }
 
-func (o multiTransportV2Observer) ObserveTransport(event transportv2.Event) {
+func (o multiTransportObserver) ObserveTransport(event transport.Event) {
 	for _, observer := range o {
 		if observer != nil {
 			observer.ObserveTransport(event)
@@ -2077,11 +2077,11 @@ func channelRoleLabel(role ch.Role) string {
 	}
 }
 
-func channelPullHintReasonLabel(reason transport.PullHintReason) string {
+func channelPullHintReasonLabel(reason channeltransport.PullHintReason) string {
 	switch reason {
-	case transport.PullHintReasonAppend:
+	case channeltransport.PullHintReasonAppend:
 		return "append"
-	case transport.PullHintReasonResume:
+	case channeltransport.PullHintReasonResume:
 		return "resume"
 	default:
 		return "unknown"
@@ -2193,7 +2193,7 @@ var _ multiraft.SchedulerObserver = slotMetricsObserver{}
 var _ multiraft.ProposalObserver = slotMetricsObserver{}
 var _ multiraft.ProposalAdmissionObserver = slotMetricsObserver{}
 var _ multiraft.ApplyStateObserver = slotMetricsObserver{}
-var _ transportv2.Observer = (*transportV2MetricsObserver)(nil)
+var _ transport.Observer = (*transportMetricsObserver)(nil)
 var _ controller.RaftObserver = controllerRaftMetricsObserver{}
 var _ controller.ApplyStateObserver = controllerRaftMetricsObserver{}
 var _ reactor.Observer = multiChannelObserver{}
@@ -2205,7 +2205,7 @@ var _ reactor.ReplicationObserver = multiChannelObserver{}
 var _ reactor.ReplicationStageObserver = multiChannelObserver{}
 var _ reactor.PullHintResultObserver = multiChannelObserver{}
 var _ reactor.PendingMetaObserver = multiChannelObserver{}
-var _ transportv2.Observer = multiTransportV2Observer{}
+var _ transport.Observer = multiTransportObserver{}
 var _ accessgateway.SessionErrorObserver = multiGatewayObserver{}
 var _ reactor.AppendWaitCancelObserver = multiChannelObserver{}
 var _ worker.InflightObserver = multiChannelObserver{}

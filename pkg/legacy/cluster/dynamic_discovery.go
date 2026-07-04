@@ -4,8 +4,8 @@ import (
 	"sort"
 	"sync"
 
+	"github.com/WuKongIM/WuKongIM/pkg/legacy/transport"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
-	"github.com/WuKongIM/WuKongIM/pkg/transport"
 )
 
 // SeedConfig identifies a bootstrap peer or temporary leader hint.

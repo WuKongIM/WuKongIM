@@ -10,7 +10,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/legacy/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/legacy/channel/runtime"
-	"github.com/WuKongIM/WuKongIM/pkg/transport"
+	"github.com/WuKongIM/WuKongIM/pkg/legacy/transport"
 )
 
 func TestAdapterRoundTripsFetchRequestAndResponse(t *testing.T) {

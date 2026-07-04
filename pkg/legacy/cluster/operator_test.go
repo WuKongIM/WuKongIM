@@ -7,8 +7,8 @@ import (
 
 	controllermeta "github.com/WuKongIM/WuKongIM/pkg/legacy/controller/meta"
 	slotcontroller "github.com/WuKongIM/WuKongIM/pkg/legacy/controller/plane"
+	"github.com/WuKongIM/WuKongIM/pkg/legacy/transport"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
-	"github.com/WuKongIM/WuKongIM/pkg/transport"
 	"github.com/stretchr/testify/require"
 )
 

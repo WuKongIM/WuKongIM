@@ -16,10 +16,10 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/legacy/cluster/slotmigration"
 	controllermeta "github.com/WuKongIM/WuKongIM/pkg/legacy/controller/meta"
 	slotcontroller "github.com/WuKongIM/WuKongIM/pkg/legacy/controller/plane"
+	"github.com/WuKongIM/WuKongIM/pkg/legacy/transport"
 	raftstorage "github.com/WuKongIM/WuKongIM/pkg/raftlog"
 	metafsm "github.com/WuKongIM/WuKongIM/pkg/slot/fsm"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
-	"github.com/WuKongIM/WuKongIM/pkg/transport"
 )
 
 type testClusterStateMachine struct{}

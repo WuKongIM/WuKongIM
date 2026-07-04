@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"sync/atomic"
 
+	"github.com/WuKongIM/WuKongIM/pkg/legacy/transport"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
-	"github.com/WuKongIM/WuKongIM/pkg/transport"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"go.etcd.io/raft/v3/raftpb"
 )

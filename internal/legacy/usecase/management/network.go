@@ -5,7 +5,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/transport"
+	"github.com/WuKongIM/WuKongIM/pkg/legacy/transport"
 )
 
 const (

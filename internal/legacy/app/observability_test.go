@@ -14,10 +14,10 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/legacy/observability/diagnostics"
 	raftcluster "github.com/WuKongIM/WuKongIM/pkg/legacy/cluster"
 	controllermeta "github.com/WuKongIM/WuKongIM/pkg/legacy/controller/meta"
+	"github.com/WuKongIM/WuKongIM/pkg/legacy/transport"
 	obsmetrics "github.com/WuKongIM/WuKongIM/pkg/metrics"
 	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
-	"github.com/WuKongIM/WuKongIM/pkg/transport"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/require"
 )

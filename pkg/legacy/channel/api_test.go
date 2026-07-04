@@ -15,7 +15,7 @@ import (
 	channelreplica "github.com/WuKongIM/WuKongIM/pkg/legacy/channel/replica"
 	channelruntime "github.com/WuKongIM/WuKongIM/pkg/legacy/channel/runtime"
 	channeltransport "github.com/WuKongIM/WuKongIM/pkg/legacy/channel/transport"
-	wktransport "github.com/WuKongIM/WuKongIM/pkg/transport"
+	wktransport "github.com/WuKongIM/WuKongIM/pkg/legacy/transport"
 )
 
 func TestNewBuildsClusterWithRuntimeHandlerAndTransport(t *testing.T) {

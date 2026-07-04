@@ -7,9 +7,9 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/WuKongIM/WuKongIM/pkg/legacy/transport"
 	"github.com/WuKongIM/WuKongIM/pkg/plugin/pluginproto"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
-	"github.com/WuKongIM/WuKongIM/pkg/transport"
 	"github.com/stretchr/testify/require"
 )
 

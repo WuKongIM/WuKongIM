@@ -35,11 +35,11 @@ import (
 	channelruntime "github.com/WuKongIM/WuKongIM/pkg/legacy/channel/runtime"
 	channeltransport "github.com/WuKongIM/WuKongIM/pkg/legacy/channel/transport"
 	raftcluster "github.com/WuKongIM/WuKongIM/pkg/legacy/cluster"
+	"github.com/WuKongIM/WuKongIM/pkg/legacy/transport"
 	obsmetrics "github.com/WuKongIM/WuKongIM/pkg/metrics"
 	pluginhost "github.com/WuKongIM/WuKongIM/pkg/plugin/pluginhost"
 	raftstorage "github.com/WuKongIM/WuKongIM/pkg/raftlog"
 	metastore "github.com/WuKongIM/WuKongIM/pkg/slot/proxy"
-	"github.com/WuKongIM/WuKongIM/pkg/transport"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 

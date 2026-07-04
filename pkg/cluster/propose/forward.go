@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/cluster/net"
-	"github.com/WuKongIM/WuKongIM/pkg/transportv2"
+	"github.com/WuKongIM/WuKongIM/pkg/transport"
 )
 
 // NetworkForwardClient forwards Slot proposals over cluster typed RPC.
@@ -59,7 +59,7 @@ func mapForwardError(err error) error {
 	if err == nil {
 		return nil
 	}
-	var remoteErr transportv2.RemoteError
+	var remoteErr transport.RemoteError
 	if errors.As(err, &remoteErr) && strings.Contains(remoteErr.Message, ErrNotLeader.Error()) {
 		return ErrNotLeader
 	}

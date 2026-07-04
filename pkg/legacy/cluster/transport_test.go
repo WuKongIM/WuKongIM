@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/legacy/transport"
 	raftstorage "github.com/WuKongIM/WuKongIM/pkg/raftlog"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
-	"github.com/WuKongIM/WuKongIM/pkg/transport"
 	"go.etcd.io/raft/v3/raftpb"
 )
 

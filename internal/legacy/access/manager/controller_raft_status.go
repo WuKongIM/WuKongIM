@@ -6,7 +6,7 @@ import (
 	"time"
 
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/legacy/usecase/management"
-	"github.com/WuKongIM/WuKongIM/pkg/transport"
+	"github.com/WuKongIM/WuKongIM/pkg/legacy/transport"
 	"github.com/gin-gonic/gin"
 )
 

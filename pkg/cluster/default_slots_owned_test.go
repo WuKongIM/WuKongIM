@@ -8,7 +8,7 @@ import (
 
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/cluster/net"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
-	"github.com/WuKongIM/WuKongIM/pkg/transportv2"
+	"github.com/WuKongIM/WuKongIM/pkg/transport"
 	"go.etcd.io/raft/v3/raftpb"
 )
 
@@ -97,7 +97,7 @@ func (s *recordingOwnedSlotSender) Send(context.Context, uint64, uint8, []byte) 
 	return errors.New("normal send")
 }
 
-func (s *recordingOwnedSlotSender) SendOwned(_ context.Context, nodeID uint64, serviceID uint8, payload transportv2.OwnedBuffer) error {
+func (s *recordingOwnedSlotSender) SendOwned(_ context.Context, nodeID uint64, serviceID uint8, payload transport.OwnedBuffer) error {
 	s.ownedSendCount++
 	s.nodeID = nodeID
 	s.serviceID = serviceID

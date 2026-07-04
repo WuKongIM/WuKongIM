@@ -15,9 +15,9 @@ import (
 	accessgateway "github.com/WuKongIM/WuKongIM/pkg/gateway"
 	raftcluster "github.com/WuKongIM/WuKongIM/pkg/legacy/cluster"
 	controllermeta "github.com/WuKongIM/WuKongIM/pkg/legacy/controller/meta"
+	"github.com/WuKongIM/WuKongIM/pkg/legacy/transport"
 	obsmetrics "github.com/WuKongIM/WuKongIM/pkg/metrics"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
-	"github.com/WuKongIM/WuKongIM/pkg/transport"
 )
 
 type gatewayMetricsObserver struct {

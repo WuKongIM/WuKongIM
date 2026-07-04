@@ -11,7 +11,7 @@ import (
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/cluster/net"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/routing"
 	controller "github.com/WuKongIM/WuKongIM/pkg/controller"
-	"github.com/WuKongIM/WuKongIM/pkg/transportv2"
+	"github.com/WuKongIM/WuKongIM/pkg/transport"
 )
 
 func (n *Node) initialControlSnapshot(ctx context.Context) (control.Snapshot, error) {
@@ -163,7 +163,7 @@ func retryableTaskReconcileError(err error) bool {
 	if errors.Is(err, controller.ErrNotLeader) || errors.Is(err, controller.ErrNotStarted) {
 		return true
 	}
-	var remoteErr transportv2.RemoteError
+	var remoteErr transport.RemoteError
 	if errors.As(err, &remoteErr) {
 		return strings.Contains(remoteErr.Message, controller.ErrNotLeader.Error()) ||
 			strings.Contains(remoteErr.Message, controller.ErrNotStarted.Error())

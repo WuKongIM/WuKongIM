@@ -11,7 +11,7 @@ import (
 
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/cluster/net"
 	controller "github.com/WuKongIM/WuKongIM/pkg/controller"
-	"github.com/WuKongIM/WuKongIM/pkg/transportv2"
+	"github.com/WuKongIM/WuKongIM/pkg/transport"
 	"go.etcd.io/raft/v3/raftpb"
 )
 
@@ -526,7 +526,7 @@ type recordingOwnedRaftMessenger struct {
 	ownedSent chan sentControlMessage
 }
 
-func (m *recordingOwnedRaftMessenger) SendOwned(_ context.Context, nodeID uint64, serviceID uint8, payload transportv2.OwnedBuffer) error {
+func (m *recordingOwnedRaftMessenger) SendOwned(_ context.Context, nodeID uint64, serviceID uint8, payload transport.OwnedBuffer) error {
 	m.ownedSent <- sentControlMessage{nodeID: nodeID, serviceID: serviceID, payload: append([]byte(nil), payload.Bytes()...)}
 	payload.Release()
 	return nil

@@ -3,7 +3,7 @@ package cluster
 import (
 	"testing"
 
-	"github.com/WuKongIM/WuKongIM/pkg/transport"
+	"github.com/WuKongIM/WuKongIM/pkg/legacy/transport"
 	"github.com/stretchr/testify/require"
 )
 

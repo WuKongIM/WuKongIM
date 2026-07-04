@@ -119,6 +119,7 @@ pkg/
   legacy/cluster/        旧集群运行时，仅供 legacy internal 与过渡期工具编译期保留
   legacy/channel/        旧 ISR channel runtime，仅供 legacy internal 与过渡期工具编译期保留
   legacy/controller/     旧控制面元数据、planner 与单组 Raft 服务，仅供 legacy cluster/internal 编译期保留
+  legacy/transport/      旧节点间 transport / RPC 实现，仅供 legacy cluster/internal 编译期保留
   observability/         可被 pkg 与 internal 复用的可观测性轻量合约
     sendtrace/           消息发送链路 trace 事件与全局窄 sink
   plugin/
@@ -134,8 +135,7 @@ pkg/
     fsm/                 槽位状态机与命令编解码
     multiraft/           Multi-Raft 基础库
     proxy/               基于 cluster 的分布式存储 / RPC facade
-  transport/             节点间 transport / RPC 抽象与实现
-  transportv2/           新版节点间 transport / RPC 基础库，含 wire/conn/peer/rpc/sched/buffer/testkit
+  transport/             新版节点间 transport / RPC 基础库，含 wire/conn/peer/rpc/sched/buffer/testkit
   workqueue/             通用有界 worker pool 与分片 mailbox 底层运行时原语
   wklog/                 通用日志接口与字段封装
 

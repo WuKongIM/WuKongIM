@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/WuKongIM/WuKongIM/pkg/transport"
+	"github.com/WuKongIM/WuKongIM/pkg/legacy/transport"
 )
 
 func TestStaticDiscovery_Resolve(t *testing.T) {

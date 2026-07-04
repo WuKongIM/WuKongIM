@@ -2,125 +2,129 @@ package transport
 
 import (
 	"context"
-	"errors"
-	"strings"
-	"sync"
-	"time"
+	"net"
+
+	"github.com/WuKongIM/WuKongIM/pkg/transport/internal/conn"
+	"github.com/WuKongIM/WuKongIM/pkg/transport/internal/core"
+	"github.com/WuKongIM/WuKongIM/pkg/transport/internal/peer"
 )
 
-// Client is a thin wrapper around Pool.
+// Client owns outbound peer connection state.
 type Client struct {
-	pool       *Pool
-	inflightMu sync.Mutex
-	inflight   map[rpcInflightKey]int
+	cfg      ClientConfig
+	peers    *peer.Manager
+	observer *core.ObserverDrain
 }
 
-type rpcInflightKey struct {
-	nodeID    NodeID
-	serviceID uint8
-}
-
-func NewClient(pool *Pool) *Client {
-	return &Client{
-		pool:     pool,
-		inflight: make(map[rpcInflightKey]int),
+// NewClient validates config and builds a minimal client shell.
+func NewClient(cfg ClientConfig) (*Client, error) {
+	normalized, err := normalizeClientConfig(cfg)
+	if err != nil {
+		return nil, err
 	}
+	observer := core.NewObserverDrain(normalized.Observer)
+	if observer != nil {
+		normalized.Observer = observer
+	}
+	return &Client{
+		cfg:      normalized,
+		observer: observer,
+		peers: peer.NewManager(peer.Config{
+			Discovery: normalized.Discovery,
+			PoolSize:  normalized.PoolSize,
+			Limits:    normalized.Limits,
+			Observer:  normalized.Observer,
+			Dial:      clientDialFunc(normalized),
+		}),
+	}, nil
 }
 
-func (c *Client) Send(nodeID NodeID, shardKey uint64, msgType uint8, body []byte) error {
-	return c.pool.Send(nodeID, shardKey, msgType, body)
+// Send copies payload and sends it as a data frame.
+func (c *Client) Send(ctx context.Context, nodeID NodeID, shardKey uint64, pri Priority, serviceID uint16, payload []byte) error {
+	return c.SendOwned(ctx, nodeID, shardKey, pri, serviceID, CopyOwnedBuffer(payload))
 }
 
-// SendService sends a service-routed one-way message without waiting for a response.
-func (c *Client) SendService(ctx context.Context, nodeID NodeID, shardKey uint64, serviceID uint8, payload []byte) error {
-	return c.pool.SendWithContext(ctx, nodeID, shardKey, MsgTypeRPCNotify, encodeRPCServicePayload(serviceID, payload))
-}
-
-func (c *Client) RPC(ctx context.Context, nodeID NodeID, shardKey uint64, payload []byte) ([]byte, error) {
-	return c.pool.RPC(ctx, nodeID, shardKey, payload)
-}
-
-func (c *Client) RPCService(ctx context.Context, nodeID NodeID, shardKey uint64, serviceID uint8, payload []byte) ([]byte, error) {
-	return c.RPCServiceWithResultClassifier(ctx, nodeID, shardKey, serviceID, payload, nil)
-}
-
-// RPCServiceWithResultClassifier sends a service RPC and allows successful
-// responses to override the observer result label.
-func (c *Client) RPCServiceWithResultClassifier(ctx context.Context, nodeID NodeID, shardKey uint64, serviceID uint8, payload []byte, classifier func([]byte) string) ([]byte, error) {
-	startedAt := time.Now()
-	inflight := c.adjustInflight(nodeID, serviceID, 1)
-	c.observeRPCClient(RPCClientEvent{
-		TargetNode: nodeID,
-		ServiceID:  serviceID,
-		Inflight:   inflight,
+// SendOwned sends payload as a data frame and transfers ownership on success.
+func (c *Client) SendOwned(ctx context.Context, nodeID NodeID, shardKey uint64, pri Priority, serviceID uint16, payload OwnedBuffer) error {
+	peerConn, err := c.peers.Acquire(ctx, nodeID, shardKey)
+	if err != nil {
+		payload.Release()
+		return err
+	}
+	return peerConn.Send(ctx, conn.Outbound{
+		Kind:      FrameKindData,
+		Priority:  pri,
+		ServiceID: serviceID,
+		Payload:   payload,
 	})
+}
 
-	resp, err := c.RPC(ctx, nodeID, shardKey, encodeRPCServicePayload(serviceID, payload))
-	result := rpcClientResult(err)
-	if err == nil && classifier != nil {
-		if classified := classifier(resp); classified != "" {
-			result = classified
+// Notify copies payload and sends it as a notify frame.
+func (c *Client) Notify(ctx context.Context, nodeID NodeID, shardKey uint64, pri Priority, serviceID uint16, payload []byte) error {
+	return c.NotifyOwned(ctx, nodeID, shardKey, pri, serviceID, CopyOwnedBuffer(payload))
+}
+
+// NotifyOwned sends payload as a notify frame and transfers ownership on success.
+func (c *Client) NotifyOwned(ctx context.Context, nodeID NodeID, shardKey uint64, pri Priority, serviceID uint16, payload OwnedBuffer) error {
+	peerConn, err := c.peers.Acquire(ctx, nodeID, shardKey)
+	if err != nil {
+		payload.Release()
+		return err
+	}
+	return peerConn.Send(ctx, conn.Outbound{
+		Kind:      FrameKindNotify,
+		Priority:  pri,
+		ServiceID: serviceID,
+		Payload:   payload,
+	})
+}
+
+// Call copies payload, sends it as an RPC request, and waits for the response.
+func (c *Client) Call(ctx context.Context, nodeID NodeID, shardKey uint64, pri Priority, serviceID uint16, payload []byte) ([]byte, error) {
+	return c.CallOwned(ctx, nodeID, shardKey, pri, serviceID, CopyOwnedBuffer(payload))
+}
+
+// CallOwned sends payload as an RPC request, transfers ownership on successful
+// admission, and waits for the response.
+func (c *Client) CallOwned(ctx context.Context, nodeID NodeID, shardKey uint64, pri Priority, serviceID uint16, payload OwnedBuffer) ([]byte, error) {
+	peerConn, err := c.peers.Acquire(ctx, nodeID, shardKey)
+	if err != nil {
+		payload.Release()
+		return nil, err
+	}
+	return peerConn.Call(ctx, conn.Outbound{
+		Priority:  pri,
+		ServiceID: serviceID,
+		Payload:   payload,
+	})
+}
+
+// ClosePeer closes all outbound connection slots for nodeID.
+func (c *Client) ClosePeer(nodeID NodeID) {
+	c.peers.ClosePeer(nodeID)
+}
+
+// Stop releases client resources.
+func (c *Client) Stop() {
+	c.peers.Stop()
+	c.observer.Stop()
+}
+
+// Stats returns a point-in-time client stats snapshot.
+func (c *Client) Stats() Stats {
+	return c.peers.Stats()
+}
+
+func clientDialFunc(cfg ClientConfig) func(context.Context, string, string) (net.Conn, error) {
+	if cfg.Dialer != nil {
+		return func(_ context.Context, network, addr string) (net.Conn, error) {
+			return cfg.Dialer(network, addr, cfg.DialTimeout)
 		}
 	}
-
-	inflight = c.adjustInflight(nodeID, serviceID, -1)
-	c.observeRPCClient(RPCClientEvent{
-		TargetNode: nodeID,
-		ServiceID:  serviceID,
-		Result:     result,
-		Duration:   time.Since(startedAt),
-		Inflight:   inflight,
-	})
-	return resp, err
-}
-
-func (c *Client) Stop() {
-	if c.pool != nil {
-		c.pool.Close()
-	}
-}
-
-func (c *Client) observeRPCClient(event RPCClientEvent) {
-	if c == nil || c.pool == nil || c.pool.cfg.Observer.OnRPCClient == nil {
-		return
-	}
-	c.pool.cfg.Observer.OnRPCClient(event)
-}
-
-func (c *Client) adjustInflight(nodeID NodeID, serviceID uint8, delta int) int {
-	if c == nil {
-		return 0
-	}
-	key := rpcInflightKey{nodeID: nodeID, serviceID: serviceID}
-	c.inflightMu.Lock()
-	defer c.inflightMu.Unlock()
-	if c.inflight == nil {
-		c.inflight = make(map[rpcInflightKey]int)
-	}
-	next := c.inflight[key] + delta
-	if next <= 0 {
-		delete(c.inflight, key)
-		return 0
-	}
-	c.inflight[key] = next
-	return next
-}
-
-func rpcClientResult(err error) string {
-	switch {
-	case err == nil:
-		return "ok"
-	case errors.Is(err, context.DeadlineExceeded):
-		return "timeout"
-	case errors.Is(err, context.Canceled):
-		return "canceled"
-	case errors.Is(err, ErrQueueFull):
-		return "queue_full"
-	case errors.Is(err, ErrStopped):
-		return "stopped"
-	case strings.Contains(err.Error(), "remote error"):
-		return "remote_error"
-	default:
-		return "other"
+	var dialer net.Dialer
+	return func(ctx context.Context, network, addr string) (net.Conn, error) {
+		dialCtx, cancel := context.WithTimeout(ctx, cfg.DialTimeout)
+		defer cancel()
+		return dialer.DialContext(dialCtx, network, addr)
 	}
 }

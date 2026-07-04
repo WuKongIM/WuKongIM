@@ -10,9 +10,9 @@ import (
 	controllermeta "github.com/WuKongIM/WuKongIM/pkg/legacy/controller/meta"
 	slotcontroller "github.com/WuKongIM/WuKongIM/pkg/legacy/controller/plane"
 	controllerraft "github.com/WuKongIM/WuKongIM/pkg/legacy/controller/raft"
+	"github.com/WuKongIM/WuKongIM/pkg/legacy/transport"
 	raftstorage "github.com/WuKongIM/WuKongIM/pkg/raftlog"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
-	"github.com/WuKongIM/WuKongIM/pkg/transport"
 )
 
 var newControllerRaftService = controllerraft.NewService

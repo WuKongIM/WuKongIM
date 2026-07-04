@@ -14,7 +14,7 @@ import (
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/cluster/net"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/routing"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
-	"github.com/WuKongIM/WuKongIM/pkg/transportv2"
+	"github.com/WuKongIM/WuKongIM/pkg/transport"
 	"github.com/stretchr/testify/require"
 )
 
@@ -2144,7 +2144,7 @@ type recordingOwnedShardCaller struct {
 	lastPayload           []byte
 }
 
-func (c *recordingOwnedShardCaller) CallShardOwned(_ context.Context, _ uint64, serviceID uint8, shardKey uint64, payload transportv2.OwnedBuffer) ([]byte, error) {
+func (c *recordingOwnedShardCaller) CallShardOwned(_ context.Context, _ uint64, serviceID uint8, shardKey uint64, payload transport.OwnedBuffer) ([]byte, error) {
 	c.ownedShardedCallCount++
 	c.lastServiceID = serviceID
 	c.lastShardKey = shardKey

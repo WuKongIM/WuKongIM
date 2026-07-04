@@ -9,7 +9,7 @@ import (
 
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/cluster/net"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/routing"
-	"github.com/WuKongIM/WuKongIM/pkg/transportv2"
+	"github.com/WuKongIM/WuKongIM/pkg/transport"
 )
 
 func TestPayloadCodecRoundTripsHashSlotZero(t *testing.T) {
@@ -99,7 +99,7 @@ func TestNetworkForwardClientUsesOwnedCallerWhenAvailable(t *testing.T) {
 }
 
 func TestNetworkForwardClientMapsRemoteNotLeader(t *testing.T) {
-	caller := &recordingOwnedForwardCaller{err: transportv2.RemoteError{Code: "remote_error", Message: ErrNotLeader.Error()}}
+	caller := &recordingOwnedForwardCaller{err: transport.RemoteError{Code: "remote_error", Message: ErrNotLeader.Error()}}
 	client := NewNetworkForwardClient(caller)
 
 	err := client.ForwardPropose(context.Background(), 2, ForwardRequest{SlotID: 11, HashSlot: 3, Payload: EncodePayload(3, []byte("cmd"))})
@@ -312,7 +312,7 @@ func (c *recordingOwnedForwardCaller) Call(context.Context, uint64, uint8, []byt
 	return nil, errors.New("normal call")
 }
 
-func (c *recordingOwnedForwardCaller) CallOwned(_ context.Context, nodeID uint64, serviceID uint8, payload transportv2.OwnedBuffer) ([]byte, error) {
+func (c *recordingOwnedForwardCaller) CallOwned(_ context.Context, nodeID uint64, serviceID uint8, payload transport.OwnedBuffer) ([]byte, error) {
 	c.callOwnedCount++
 	c.nodeID = nodeID
 	c.serviceID = serviceID

@@ -15,9 +15,9 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/legacy/channel"
 	raftcluster "github.com/WuKongIM/WuKongIM/pkg/legacy/cluster"
 	controllermeta "github.com/WuKongIM/WuKongIM/pkg/legacy/controller/meta"
+	"github.com/WuKongIM/WuKongIM/pkg/legacy/transport"
 	"github.com/WuKongIM/WuKongIM/pkg/metrics"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
-	"github.com/WuKongIM/WuKongIM/pkg/transport"
 )
 
 // ClusterReader exposes the cluster reads needed by manager queries.

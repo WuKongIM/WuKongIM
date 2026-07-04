@@ -13,7 +13,7 @@ import (
 	messagedb "github.com/WuKongIM/WuKongIM/pkg/db/message"
 	gorutine "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
-	"github.com/WuKongIM/WuKongIM/pkg/transportv2"
+	"github.com/WuKongIM/WuKongIM/pkg/transport"
 )
 
 const minDefaultChannelReactorCount = 4
@@ -231,8 +231,8 @@ type StorageConfig struct {
 
 // TransportConfig contains default cluster node-to-node transport observation.
 type TransportConfig struct {
-	// Observer receives transportv2 queue, peer, service, and pending-RPC pressure observations for the default node RPC transport.
-	Observer transportv2.Observer
+	// Observer receives transport queue, peer, service, and pending-RPC pressure observations for the default node RPC transport.
+	Observer transport.Observer
 }
 
 // TimeoutConfig contains lifecycle timeout budgets.

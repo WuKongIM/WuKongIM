@@ -11,7 +11,7 @@ import (
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/cluster/net"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/propose"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
-	"github.com/WuKongIM/WuKongIM/pkg/transportv2"
+	"github.com/WuKongIM/WuKongIM/pkg/transport"
 )
 
 const (
@@ -253,7 +253,7 @@ func mapChannelMigrationRemoteError(err error) error {
 		errors.Is(err, metadb.ErrNotFound):
 		return err
 	}
-	var remoteErr transportv2.RemoteError
+	var remoteErr transport.RemoteError
 	if !errors.As(err, &remoteErr) {
 		return err
 	}

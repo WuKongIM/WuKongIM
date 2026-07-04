@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/transport"
+	"github.com/WuKongIM/WuKongIM/pkg/legacy/transport"
 	"github.com/stretchr/testify/require"
 	"go.etcd.io/raft/v3/raftpb"
 )

@@ -18,10 +18,10 @@ import (
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/db/message"
 	"github.com/WuKongIM/WuKongIM/pkg/legacy/channel"
 	raftcluster "github.com/WuKongIM/WuKongIM/pkg/legacy/cluster"
+	"github.com/WuKongIM/WuKongIM/pkg/legacy/transport"
 	"github.com/WuKongIM/WuKongIM/pkg/plugin/pluginproto"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/codec"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
-	"github.com/WuKongIM/WuKongIM/pkg/transport"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 

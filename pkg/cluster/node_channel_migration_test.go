@@ -10,7 +10,7 @@ import (
 	channelwrapper "github.com/WuKongIM/WuKongIM/pkg/cluster/channels"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/routing"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
-	"github.com/WuKongIM/WuKongIM/pkg/transportv2"
+	"github.com/WuKongIM/WuKongIM/pkg/transport"
 )
 
 func TestClusterChannelMigrationStoreReadsSlotLeaderState(t *testing.T) {
@@ -194,9 +194,9 @@ func TestChannelMigrationRemoteErrorMapping(t *testing.T) {
 		err  error
 		want error
 	}{
-		{name: "stale meta", err: transportv2.RemoteError{Code: "remote_error", Message: metadb.ErrStaleMeta.Error()}, want: metadb.ErrStaleMeta},
-		{name: "not leader", err: transportv2.RemoteError{Code: "remote_error", Message: ErrNotLeader.Error()}, want: ErrNotLeader},
-		{name: "invalid argument", err: transportv2.RemoteError{Code: "remote_error", Message: metadb.ErrInvalidArgument.Error()}, want: metadb.ErrInvalidArgument},
+		{name: "stale meta", err: transport.RemoteError{Code: "remote_error", Message: metadb.ErrStaleMeta.Error()}, want: metadb.ErrStaleMeta},
+		{name: "not leader", err: transport.RemoteError{Code: "remote_error", Message: ErrNotLeader.Error()}, want: ErrNotLeader},
+		{name: "invalid argument", err: transport.RemoteError{Code: "remote_error", Message: metadb.ErrInvalidArgument.Error()}, want: metadb.ErrInvalidArgument},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

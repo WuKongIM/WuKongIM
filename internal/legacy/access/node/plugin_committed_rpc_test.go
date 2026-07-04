@@ -6,9 +6,9 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/internal/legacy/contracts/messageevents"
 	"github.com/WuKongIM/WuKongIM/pkg/legacy/channel"
+	"github.com/WuKongIM/WuKongIM/pkg/legacy/transport"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
-	"github.com/WuKongIM/WuKongIM/pkg/transport"
 	"github.com/stretchr/testify/require"
 )
 

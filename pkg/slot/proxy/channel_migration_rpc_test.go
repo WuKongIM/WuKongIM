@@ -9,9 +9,9 @@ import (
 
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	raftcluster "github.com/WuKongIM/WuKongIM/pkg/legacy/cluster"
+	"github.com/WuKongIM/WuKongIM/pkg/legacy/transport"
 	metafsm "github.com/WuKongIM/WuKongIM/pkg/slot/fsm"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
-	"github.com/WuKongIM/WuKongIM/pkg/transport"
 	"github.com/stretchr/testify/require"
 )
 

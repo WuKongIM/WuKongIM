@@ -18,9 +18,9 @@ import (
 
 	accessnode "github.com/WuKongIM/WuKongIM/internal/legacy/access/node"
 	raftcluster "github.com/WuKongIM/WuKongIM/pkg/legacy/cluster"
+	nodetransport "github.com/WuKongIM/WuKongIM/pkg/legacy/transport"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
-	nodetransport "github.com/WuKongIM/WuKongIM/pkg/transport"
 	"github.com/WuKongIM/WuKongIM/test/legacy/e2e/suite"
 	"github.com/stretchr/testify/require"
 )

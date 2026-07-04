@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/contracts/channelappend"
-	"github.com/WuKongIM/WuKongIM/pkg/transportv2"
+	"github.com/WuKongIM/WuKongIM/pkg/transport"
 )
 
 func TestChannelAppendRPCHandlerSubmitsToLocalAuthority(t *testing.T) {
@@ -181,11 +181,11 @@ func TestChannelAppendClientMapsStatusesAndErrorsToItemAlignedResults(t *testing
 		{name: "context canceled status", node: &fakeChannelAppendRPCNode{response: channelAppendResponse{Status: rpcStatusContextCanceled}}, wantIs: context.Canceled},
 		{name: "deadline status", node: &fakeChannelAppendRPCNode{response: channelAppendResponse{Status: rpcStatusContextDeadlineExceeded}}, wantIs: context.DeadlineExceeded},
 		{name: "rejected status", node: &fakeChannelAppendRPCNode{response: channelAppendResponse{Status: rpcStatusRejected}}, wantString: "internal/access/node: channel append rpc rejected"},
-		{name: "transport canceled", node: &fakeChannelAppendRPCNode{err: transportv2.ErrCanceled}, wantIs: context.Canceled},
-		{name: "transport timeout", node: &fakeChannelAppendRPCNode{err: transportv2.ErrTimeout}, wantIs: context.DeadlineExceeded},
-		{name: "transport dial failed", node: &fakeChannelAppendRPCNode{err: fmt.Errorf("%w: connection refused", transportv2.ErrDialFailed)}, wantIs: channelappend.ErrRouteNotReady},
-		{name: "transport node not found", node: &fakeChannelAppendRPCNode{err: transportv2.ErrNodeNotFound}, wantIs: channelappend.ErrRouteNotReady},
-		{name: "transport stopped", node: &fakeChannelAppendRPCNode{err: transportv2.ErrStopped}, wantIs: channelappend.ErrRouteNotReady},
+		{name: "transport canceled", node: &fakeChannelAppendRPCNode{err: transport.ErrCanceled}, wantIs: context.Canceled},
+		{name: "transport timeout", node: &fakeChannelAppendRPCNode{err: transport.ErrTimeout}, wantIs: context.DeadlineExceeded},
+		{name: "transport dial failed", node: &fakeChannelAppendRPCNode{err: fmt.Errorf("%w: connection refused", transport.ErrDialFailed)}, wantIs: channelappend.ErrRouteNotReady},
+		{name: "transport node not found", node: &fakeChannelAppendRPCNode{err: transport.ErrNodeNotFound}, wantIs: channelappend.ErrRouteNotReady},
+		{name: "transport stopped", node: &fakeChannelAppendRPCNode{err: transport.ErrStopped}, wantIs: channelappend.ErrRouteNotReady},
 		{name: "transport connection reset", node: &fakeChannelAppendRPCNode{err: channelAppendNetOpError(syscall.ECONNRESET)}, wantIs: channelappend.ErrRouteNotReady},
 		{name: "transport connection refused", node: &fakeChannelAppendRPCNode{err: channelAppendNetOpError(syscall.ECONNREFUSED)}, wantIs: channelappend.ErrRouteNotReady},
 		{name: "transport broken pipe", node: &fakeChannelAppendRPCNode{err: channelAppendNetOpError(syscall.EPIPE)}, wantIs: channelappend.ErrRouteNotReady},

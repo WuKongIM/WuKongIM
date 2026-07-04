@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"sync/atomic"
 
-	"github.com/WuKongIM/WuKongIM/pkg/transportv2"
+	"github.com/WuKongIM/WuKongIM/pkg/transport"
 )
 
 // NodeAddress describes one node address visible to cluster RPC discovery.
@@ -53,8 +53,8 @@ func (d *Discovery) Addr(nodeID uint64) (string, bool) {
 	return addr, ok
 }
 
-// Resolve implements transportv2 Discovery.
-func (d *Discovery) Resolve(nodeID transportv2.NodeID) (string, error) {
+// Resolve implements transport Discovery.
+func (d *Discovery) Resolve(nodeID transport.NodeID) (string, error) {
 	addr, ok := d.Addr(uint64(nodeID))
 	if !ok {
 		return "", fmt.Errorf("%w: node %d", ErrNodeNotFound, nodeID)

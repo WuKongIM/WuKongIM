@@ -1,6 +1,6 @@
 package cluster
 
-import "github.com/WuKongIM/WuKongIM/pkg/transport"
+import "github.com/WuKongIM/WuKongIM/pkg/legacy/transport"
 
 type StaticDiscovery struct {
 	nodes map[uint64]NodeInfo

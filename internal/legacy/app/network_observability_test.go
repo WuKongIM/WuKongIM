@@ -7,7 +7,7 @@ import (
 
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/legacy/usecase/management"
 	controllermeta "github.com/WuKongIM/WuKongIM/pkg/legacy/controller/meta"
-	"github.com/WuKongIM/WuKongIM/pkg/transport"
+	"github.com/WuKongIM/WuKongIM/pkg/legacy/transport"
 	"github.com/stretchr/testify/require"
 )
 

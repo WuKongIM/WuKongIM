@@ -13,7 +13,7 @@ import (
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/cluster/net"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/routing"
 	controller "github.com/WuKongIM/WuKongIM/pkg/controller"
-	"github.com/WuKongIM/WuKongIM/pkg/transportv2"
+	"github.com/WuKongIM/WuKongIM/pkg/transport"
 )
 
 func TestNodeStartAppliesControlSnapshot(t *testing.T) {
@@ -488,7 +488,7 @@ func TestTaskReconcileLoopRecordsNonRetryableReconcileError(t *testing.T) {
 }
 
 func TestRetryableTaskReconcileErrorMatchesRemoteControllerNotLeader(t *testing.T) {
-	err := transportv2.RemoteError{Code: "remote_error", Message: controller.ErrNotLeader.Error()}
+	err := transport.RemoteError{Code: "remote_error", Message: controller.ErrNotLeader.Error()}
 	if !retryableTaskReconcileError(err) {
 		t.Fatalf("retryableTaskReconcileError(%v) = false, want true", err)
 	}

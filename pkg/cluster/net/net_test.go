@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/transportv2"
+	"github.com/WuKongIM/WuKongIM/pkg/transport"
 )
 
 func TestDiscoveryUpdatesAtomically(t *testing.T) {
@@ -119,7 +119,7 @@ func TestTransportLoopbackCallOwnedReleasesPayload(t *testing.T) {
 	defer client.Stop()
 
 	released := make(chan []byte, 1)
-	payload := transportv2.NewOwnedBuffer([]byte("ping"), func(data []byte) {
+	payload := transport.NewOwnedBuffer([]byte("ping"), func(data []byte) {
 		released <- append([]byte(nil), data...)
 	})
 	got, err := client.CallOwned(context.Background(), 2, RPCSlotForwardPropose, payload)
@@ -255,7 +255,7 @@ func TestTransportServerUsesLargerForegroundWriteServiceConcurrency(t *testing.T
 		t.Fatalf("Call(channel authority send) error = %v", err)
 	}
 
-	pullEvent := waitTransportEvent(t, observer, func(event transportv2.Event) bool {
+	pullEvent := waitTransportEvent(t, observer, func(event transport.Event) bool {
 		return event.Name == "service_inflight" &&
 			event.ServiceID == uint16(RPCChannelPull) &&
 			event.Inflight == 1
@@ -267,7 +267,7 @@ func TestTransportServerUsesLargerForegroundWriteServiceConcurrency(t *testing.T
 		t.Fatalf("pull service capacity = %d, want default %d", pullEvent.Capacity, defaultTransportServiceConcurrency)
 	}
 
-	appendEvent := waitTransportEvent(t, observer, func(event transportv2.Event) bool {
+	appendEvent := waitTransportEvent(t, observer, func(event transport.Event) bool {
 		return event.Name == "service_inflight" &&
 			event.ServiceID == uint16(RPCChannelAppendBatch) &&
 			event.Inflight == 1
@@ -276,7 +276,7 @@ func TestTransportServerUsesLargerForegroundWriteServiceConcurrency(t *testing.T
 		t.Fatalf("append service capacity = %d, want %d", appendEvent.Capacity, wantWriteConcurrency)
 	}
 
-	writeEvent := waitTransportEvent(t, observer, func(event transportv2.Event) bool {
+	writeEvent := waitTransportEvent(t, observer, func(event transport.Event) bool {
 		return event.Name == "service_inflight" &&
 			event.ServiceID == uint16(RPCChannelAuthoritySend) &&
 			event.Inflight == 1
@@ -295,7 +295,7 @@ func TestTransportServiceAliasesCoverKnownServiceIDs(t *testing.T) {
 	}
 }
 
-func TestTransportLoopbackReportsTransportV2Pressure(t *testing.T) {
+func TestTransportLoopbackReportsTransportPressure(t *testing.T) {
 	observer := &recordingTransportObserver{}
 	server := NewTransportServer(TransportServerConfig{
 		Observer: observer,
@@ -326,16 +326,16 @@ func TestTransportLoopbackReportsTransportV2Pressure(t *testing.T) {
 		t.Fatalf("Call() = %q, want resp:ping", got)
 	}
 
-	waitTransportEvent(t, observer, func(event transportv2.Event) bool {
+	waitTransportEvent(t, observer, func(event transport.Event) bool {
 		return event.Name == "service_admission" && event.ServiceID == uint16(RPCSlotForwardPropose) && event.Result == "ok"
 	})
-	waitTransportEvent(t, observer, func(event transportv2.Event) bool {
+	waitTransportEvent(t, observer, func(event transport.Event) bool {
 		return event.Name == "service_task" && event.ServiceID == uint16(RPCSlotForwardPropose) && event.Result == "ok"
 	})
-	waitTransportEvent(t, observer, func(event transportv2.Event) bool {
+	waitTransportEvent(t, observer, func(event transport.Event) bool {
 		return event.Name == "scheduler_admission" && event.Result == "ok"
 	})
-	waitTransportEvent(t, observer, func(event transportv2.Event) bool {
+	waitTransportEvent(t, observer, func(event transport.Event) bool {
 		return event.Name == "pending_rpc" && event.Result == "ok"
 	})
 }
@@ -394,7 +394,7 @@ func TestTransportLoopbackSendOwnedReleasesPayload(t *testing.T) {
 	defer client.Stop()
 
 	released := make(chan []byte, 1)
-	payload := transportv2.NewOwnedBuffer([]byte("raft"), func(data []byte) {
+	payload := transport.NewOwnedBuffer([]byte("raft"), func(data []byte) {
 		released <- append([]byte(nil), data...)
 	})
 	if err := client.SendOwned(context.Background(), 2, RPCControlRaft, payload); err != nil {
@@ -421,7 +421,7 @@ func TestTransportLoopbackSendOwnedReleasesPayload(t *testing.T) {
 
 type recordingTransportObserver struct {
 	mu     sync.Mutex
-	events []transportv2.Event
+	events []transport.Event
 }
 
 type recordingOwnedNetworkClient struct {
@@ -438,7 +438,7 @@ func (c *recordingOwnedNetworkClient) Call(context.Context, uint64, uint8, []byt
 	return nil, errors.New("normal call")
 }
 
-func (c *recordingOwnedNetworkClient) CallOwned(_ context.Context, _ uint64, _ uint8, payload transportv2.OwnedBuffer) ([]byte, error) {
+func (c *recordingOwnedNetworkClient) CallOwned(_ context.Context, _ uint64, _ uint8, payload transport.OwnedBuffer) ([]byte, error) {
 	c.callOwnedCount++
 	c.lastPayload = append([]byte(nil), payload.Bytes()...)
 	payload.Release()
@@ -450,26 +450,26 @@ func (c *recordingOwnedNetworkClient) Send(context.Context, uint64, uint8, []byt
 	return errors.New("normal send")
 }
 
-func (c *recordingOwnedNetworkClient) SendOwned(_ context.Context, _ uint64, _ uint8, payload transportv2.OwnedBuffer) error {
+func (c *recordingOwnedNetworkClient) SendOwned(_ context.Context, _ uint64, _ uint8, payload transport.OwnedBuffer) error {
 	c.sendOwnedCount++
 	c.lastPayload = append([]byte(nil), payload.Bytes()...)
 	payload.Release()
 	return nil
 }
 
-func (o *recordingTransportObserver) ObserveTransport(event transportv2.Event) {
+func (o *recordingTransportObserver) ObserveTransport(event transport.Event) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	o.events = append(o.events, event)
 }
 
-func (o *recordingTransportObserver) snapshot() []transportv2.Event {
+func (o *recordingTransportObserver) snapshot() []transport.Event {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	return append([]transportv2.Event(nil), o.events...)
+	return append([]transport.Event(nil), o.events...)
 }
 
-func waitTransportEvent(t *testing.T, observer *recordingTransportObserver, match func(transportv2.Event) bool) transportv2.Event {
+func waitTransportEvent(t *testing.T, observer *recordingTransportObserver, match func(transport.Event) bool) transport.Event {
 	t.Helper()
 	deadline := time.After(2 * time.Second)
 	ticker := time.NewTicker(time.Millisecond)

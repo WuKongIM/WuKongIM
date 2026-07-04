@@ -7,7 +7,7 @@ import (
 
 	slotcontroller "github.com/WuKongIM/WuKongIM/pkg/legacy/controller/plane"
 	raftstorage "github.com/WuKongIM/WuKongIM/pkg/raftlog"
-	"github.com/WuKongIM/WuKongIM/pkg/transport"
+	"github.com/WuKongIM/WuKongIM/pkg/legacy/transport"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 

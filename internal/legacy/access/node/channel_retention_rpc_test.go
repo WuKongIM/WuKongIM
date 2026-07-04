@@ -7,8 +7,8 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/legacy/channel"
 	raftcluster "github.com/WuKongIM/WuKongIM/pkg/legacy/cluster"
+	"github.com/WuKongIM/WuKongIM/pkg/legacy/transport"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
-	"github.com/WuKongIM/WuKongIM/pkg/transport"
 	"github.com/stretchr/testify/require"
 )
 

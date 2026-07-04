@@ -17,7 +17,7 @@ import (
 	gatewaypkg "github.com/WuKongIM/WuKongIM/pkg/gateway"
 	obsmetrics "github.com/WuKongIM/WuKongIM/pkg/metrics"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
-	"github.com/WuKongIM/WuKongIM/pkg/transportv2"
+	"github.com/WuKongIM/WuKongIM/pkg/transport"
 	"github.com/shirou/gopsutil/v4/process"
 )
 
@@ -839,7 +839,7 @@ func TestTopCollectorPressureUsesInflightWhenHigherThanQueueDepth(t *testing.T) 
 	}
 }
 
-func TestTopTransportV2ObserverUsesServiceAliasForInflightPool(t *testing.T) {
+func TestTopTransportObserverUsesServiceAliasForInflightPool(t *testing.T) {
 	collector := newTopCollector(topCollectorOptions{
 		NodeID:          1,
 		CollectInterval: time.Second,
@@ -848,9 +848,9 @@ func TestTopTransportV2ObserverUsesServiceAliasForInflightPool(t *testing.T) {
 			return cluster.Snapshot{NodeID: 1, RoutesReady: true, SlotsReady: true, ChannelsReady: true}
 		},
 	})
-	observer := topTransportV2Observer{top: collector}
+	observer := topTransportObserver{top: collector}
 
-	observer.ObserveTransport(transportv2.Event{
+	observer.ObserveTransport(transport.Event{
 		Name:         "service_inflight",
 		ServiceID:    1,
 		ServiceAlias: "slot propose",

@@ -12,8 +12,8 @@ import (
 
 	controllermeta "github.com/WuKongIM/WuKongIM/pkg/legacy/controller/meta"
 	controllerraft "github.com/WuKongIM/WuKongIM/pkg/legacy/controller/raft"
+	"github.com/WuKongIM/WuKongIM/pkg/legacy/transport"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
-	"github.com/WuKongIM/WuKongIM/pkg/transport"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 

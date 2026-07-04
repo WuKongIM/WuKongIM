@@ -15,7 +15,7 @@ import (
 	messagedb "github.com/WuKongIM/WuKongIM/pkg/db/message"
 	gatewaypkg "github.com/WuKongIM/WuKongIM/pkg/gateway"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
-	"github.com/WuKongIM/WuKongIM/pkg/transportv2"
+	"github.com/WuKongIM/WuKongIM/pkg/transport"
 )
 
 type topGatewayObserver struct {
@@ -490,14 +490,14 @@ func (o topControllerRaftObserver) ObserveStepEnqueue(result string, d time.Dura
 	o.top.observeDurationMS("pressure.controller.raft.step.none.wait", d)
 }
 
-type topTransportV2Observer struct {
+type topTransportObserver struct {
 	top *topCollector
 	mu  sync.Mutex
 
 	pendingRPCBySource map[uint64]int
 }
 
-func (o *topTransportV2Observer) ObserveTransport(event transportv2.Event) {
+func (o *topTransportObserver) ObserveTransport(event transport.Event) {
 	if o == nil || o.top == nil {
 		return
 	}
@@ -511,27 +511,27 @@ func (o *topTransportV2Observer) ObserveTransport(event transportv2.Event) {
 		}
 		o.top.SetInflight(transportRuntimePressureComponent, "peer_pool", int64(inflight), int64(event.Capacity))
 	case "scheduler_queue":
-		o.top.SetQueue(transportRuntimePressureComponent, "scheduler", "scheduler", transportV2PriorityLabel(event.Priority), int64(event.Items), int64(event.Capacity))
+		o.top.SetQueue(transportRuntimePressureComponent, "scheduler", "scheduler", transportPriorityLabel(event.Priority), int64(event.Items), int64(event.Capacity))
 	case "service_queue":
-		o.top.SetQueue(transportRuntimePressureComponent, "service", transportV2ServiceEventLabel(event), transportV2PriorityLabel(event.Priority), int64(event.Items), int64(event.Capacity))
+		o.top.SetQueue(transportRuntimePressureComponent, "service", transportServiceEventLabel(event), transportPriorityLabel(event.Priority), int64(event.Items), int64(event.Capacity))
 	case "scheduler_admission":
 		if event.Result != "" && event.Result != "ok" {
-			o.top.addCounter("pressure."+transportRuntimePressureComponent+".scheduler.scheduler."+safeTopLabel(transportV2PriorityLabel(event.Priority))+".admission_error", 1)
+			o.top.addCounter("pressure."+transportRuntimePressureComponent+".scheduler.scheduler."+safeTopLabel(transportPriorityLabel(event.Priority))+".admission_error", 1)
 		}
 	case "service_admission":
 		if event.Result != "" && event.Result != "ok" {
-			o.top.addCounter("pressure."+transportRuntimePressureComponent+".service."+safeTopLabel(transportV2ServiceEventLabel(event))+"."+safeTopLabel(transportV2PriorityLabel(event.Priority))+".admission_error", 1)
+			o.top.addCounter("pressure."+transportRuntimePressureComponent+".service."+safeTopLabel(transportServiceEventLabel(event))+"."+safeTopLabel(transportPriorityLabel(event.Priority))+".admission_error", 1)
 		}
 	case "scheduler_wait":
-		o.top.observeDurationMS("pressure."+transportRuntimePressureComponent+".scheduler.scheduler."+safeTopLabel(transportV2PriorityLabel(event.Priority))+".wait", event.Duration)
+		o.top.observeDurationMS("pressure."+transportRuntimePressureComponent+".scheduler.scheduler."+safeTopLabel(transportPriorityLabel(event.Priority))+".wait", event.Duration)
 	case "service_task":
-		o.top.observeDurationMS("pressure."+transportRuntimePressureComponent+".service."+safeTopLabel(transportV2ServiceEventLabel(event))+"."+safeTopLabel(event.Result)+".task", event.Duration)
+		o.top.observeDurationMS("pressure."+transportRuntimePressureComponent+".service."+safeTopLabel(transportServiceEventLabel(event))+"."+safeTopLabel(event.Result)+".task", event.Duration)
 	case "service_inflight":
-		o.top.SetInflight(transportRuntimePressureComponent, transportV2ServiceEventLabel(event), int64(event.Inflight), int64(event.Capacity))
+		o.top.SetInflight(transportRuntimePressureComponent, transportServiceEventLabel(event), int64(event.Inflight), int64(event.Capacity))
 	}
 }
 
-func (o *topTransportV2Observer) pendingRPCInflight(event transportv2.Event) int {
+func (o *topTransportObserver) pendingRPCInflight(event transport.Event) int {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	if o.pendingRPCBySource == nil {
@@ -592,7 +592,7 @@ var _ runtimedelivery.AckObserver = topDeliveryObserver{}
 var _ runtimedelivery.ManagerObserver = topDeliveryObserver{}
 var _ multiraft.SchedulerObserver = topSlotObserver{}
 var _ controller.RaftObserver = topControllerRaftObserver{}
-var _ transportv2.Observer = (*topTransportV2Observer)(nil)
+var _ transport.Observer = (*topTransportObserver)(nil)
 
 func nonNegativeInt(value int) int {
 	if value < 0 {

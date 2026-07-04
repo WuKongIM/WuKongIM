@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/WuKongIM/WuKongIM/pkg/transport"
+	"github.com/WuKongIM/WuKongIM/pkg/legacy/transport"
 )
 
 type transportLayer struct {

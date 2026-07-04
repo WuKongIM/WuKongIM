@@ -45,13 +45,13 @@ import (
 	raftcluster "github.com/WuKongIM/WuKongIM/pkg/legacy/cluster"
 	controllermeta "github.com/WuKongIM/WuKongIM/pkg/legacy/controller/meta"
 	controllerraft "github.com/WuKongIM/WuKongIM/pkg/legacy/controller/raft"
+	"github.com/WuKongIM/WuKongIM/pkg/legacy/transport"
 	obsmetrics "github.com/WuKongIM/WuKongIM/pkg/metrics"
 	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
 	raftstorage "github.com/WuKongIM/WuKongIM/pkg/raftlog"
 	metafsm "github.com/WuKongIM/WuKongIM/pkg/slot/fsm"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 	metastore "github.com/WuKongIM/WuKongIM/pkg/slot/proxy"
-	"github.com/WuKongIM/WuKongIM/pkg/transport"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
