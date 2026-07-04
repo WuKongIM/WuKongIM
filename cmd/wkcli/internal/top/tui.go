@@ -62,7 +62,7 @@ func buildTUIViewWithAlert(snapshot aggregateSnapshot, cfg config, selectedAlert
 		Header:         header,
 		VerdictLevel:   level,
 		VerdictTitle:   fmt.Sprintf("VERDICT %s ready %d/%d", level, snapshot.ReadyNodes, snapshot.TotalNodes),
-		VerdictSummary: snapshot.Verdict.Summary,
+		VerdictSummary: displayText(snapshot.Verdict.Summary),
 		VerdictPercent: readyPercent(snapshot.ReadyNodes, snapshot.TotalNodes),
 		NodeRows:       buildNodeRows(snapshot),
 		PressureRows:   buildPressureRows(snapshot),
@@ -341,12 +341,12 @@ func buildPressureRows(snapshot aggregateSnapshot) [][]string {
 		for _, item := range node.Pressure.Top {
 			rows = append(rows, []string{
 				nodeName(node),
-				pressureSignal(item.Component, item.Pool, item.Queue, item.Priority),
+				pressureSignal(displayComponent(item.Component), item.Pool, item.Queue, item.Priority),
 				emptyDash(item.Level),
 				formatFloat(item.Score),
 				pressureLoad(item.Depth, item.Capacity, item.Inflight, item.Workers),
 				pressureP99(item.WaitP99MS, item.TaskP99MS),
-				emptyDash(item.Hint),
+				emptyDash(displayText(item.Hint)),
 			})
 		}
 	}
@@ -367,11 +367,11 @@ func buildAlertRows(snapshot aggregateSnapshot, selected int) [][]string {
 			marker,
 			alertNodeName(alert),
 			emptyDash(alert.Severity),
-			emptyDash(alert.Component),
+			emptyDash(displayComponent(alert.Component)),
 			emptyDash(alert.Kind),
 			alertState(alert),
 			formatInt64(int64(alert.Count)),
-			emptyDash(alert.Message),
+			emptyDash(displayText(alert.Message)),
 		})
 	}
 	if len(rows) == 1 {
@@ -396,7 +396,7 @@ func buildAlertDetailRows(snapshot aggregateSnapshot, selected int) []string {
 		"id: " + emptyDash(alert.ID),
 		"node: " + alertNodeName(alert),
 		"severity: " + emptyDash(alert.Severity),
-		"component: " + emptyDash(alert.Component),
+		"component: " + emptyDash(displayComponent(alert.Component)),
 		"kind: " + emptyDash(alert.Kind),
 		"state: " + alertState(alert),
 		"count: " + formatInt64(int64(alert.Count)),
@@ -407,8 +407,8 @@ func buildAlertDetailRows(snapshot aggregateSnapshot, selected int) []string {
 		rows = append(rows, "resolved_at: "+formatAlertTime(*alert.ResolvedAt))
 	}
 	rows = append(rows,
-		"message: "+emptyDash(alert.Message),
-		"hint: "+emptyDash(alert.Hint),
+		"message: "+emptyDash(displayText(alert.Message)),
+		"hint: "+emptyDash(displayText(alert.Hint)),
 	)
 	if len(alert.Evidence) > 0 {
 		rows = append(rows, "evidence:")
@@ -475,10 +475,10 @@ func buildRuntimeRows(snapshot aggregateSnapshot) [][]string {
 func buildStatusRows(snapshot aggregateSnapshot) []string {
 	var rows []string
 	if snapshot.Verdict.Summary != "" {
-		rows = append(rows, "summary: "+snapshot.Verdict.Summary)
+		rows = append(rows, "summary: "+displayText(snapshot.Verdict.Summary))
 	}
 	for _, reason := range snapshot.Verdict.Reasons {
-		rows = append(rows, "reason: "+reason)
+		rows = append(rows, "reason: "+displayText(reason))
 	}
 	rows = append(rows,
 		fmt.Sprintf("ready: %d/%d", snapshot.ReadyNodes, snapshot.TotalNodes),

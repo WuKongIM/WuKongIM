@@ -36,10 +36,13 @@ func TestTopOnceRendersHumanSnapshot(t *testing.T) {
 	if requestedPath != "/top/v1/snapshot" {
 		t.Fatalf("expected snapshot path, got %q", requestedPath)
 	}
-	for _, want := range []string{"WuKongIM top", "VERDICT", "ALERTS", "critical", "append worker queue saturated", "CPU%", "MEM", "node-1", "12.50", "128MiB", "channelv2"} {
+	for _, want := range []string{"WuKongIM top", "VERDICT", "ALERTS", "critical", "append worker queue saturated", "CPU%", "MEM", "node-1", "12.50", "128MiB", "channel"} {
 		if !strings.Contains(stdout.String(), want) {
 			t.Fatalf("expected output to contain %q, got %q", want, stdout.String())
 		}
+	}
+	if strings.Contains(stdout.String(), "channelv2") {
+		t.Fatalf("human output should use promoted channel labels, got %q", stdout.String())
 	}
 }
 
@@ -84,7 +87,7 @@ func TestTopAlertsRendersDetailedAlertEvidence(t *testing.T) {
 		"WuKongIM top alerts",
 		"id: alert-1",
 		"severity: critical",
-		"component: channelv2",
+		"component: channel",
 		"kind: pressure_high",
 		"evidence:",
 		"capacity=100",
@@ -108,7 +111,7 @@ func TestTopAlertFilterRendersOneAlertByComponentKind(t *testing.T) {
 
 	var stdout, stderr bytes.Buffer
 	cmd := NewCommand(command.Deps{Stdout: &stdout, Stderr: &stderr})
-	cmd.SetArgs([]string{"--server", server.URL, "--alert", "channelv2/pressure_high"})
+	cmd.SetArgs([]string{"--server", server.URL, "--alert", "channel/pressure_high"})
 
 	err := cmd.Execute()
 
@@ -119,6 +122,26 @@ func TestTopAlertFilterRendersOneAlertByComponentKind(t *testing.T) {
 		if !strings.Contains(stdout.String(), want) {
 			t.Fatalf("expected filtered alert output to contain %q, got %q", want, stdout.String())
 		}
+	}
+}
+
+func TestTopAlertFilterAcceptsLegacyChannelV2ComponentKind(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(sampleSnapshot())
+	}))
+	defer server.Close()
+
+	var stdout, stderr bytes.Buffer
+	cmd := NewCommand(command.Deps{Stdout: &stdout, Stderr: &stderr})
+	cmd.SetArgs([]string{"--server", server.URL, "--alert", "channelv2/pressure_high"})
+
+	err := cmd.Execute()
+
+	if err != nil {
+		t.Fatalf("expected legacy channelv2 alert filter to run, got %v stderr %q", err, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "message: append worker queue saturated") {
+		t.Fatalf("expected filtered alert output, got %q", stdout.String())
 	}
 }
 
@@ -282,8 +305,8 @@ func TestPressureSummaryBreaksComponentScoreTiesByName(t *testing.T) {
 
 		got := pressureSummary(node)
 
-		if got != "channelv2 degraded 0.91" {
-			t.Fatalf("expected lexical tie-breaker to choose channelv2, got %q", got)
+		if got != "channel degraded 0.91" {
+			t.Fatalf("expected pressure summary to use promoted channel label, got %q", got)
 		}
 	}
 }

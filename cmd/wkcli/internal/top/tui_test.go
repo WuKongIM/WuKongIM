@@ -35,7 +35,7 @@ func TestBuildTUIViewShowsOperationalSignals(t *testing.T) {
 		t.Fatalf("expected node table with data row, got %#v", view.NodeRows)
 	}
 	node := view.NodeRows[1]
-	for _, want := range []string{"node-1", "yes", "42", "12.50", "128MiB", "100.50", "99.50", "45.00ms", "channelv2 degraded 0.91"} {
+	for _, want := range []string{"node-1", "yes", "42", "12.50", "128MiB", "100.50", "99.50", "45.00ms", "channel degraded 0.91"} {
 		if !rowContains(node, want) {
 			t.Fatalf("expected node row to contain %q, got %#v", want, node)
 		}
@@ -44,7 +44,7 @@ func TestBuildTUIViewShowsOperationalSignals(t *testing.T) {
 		t.Fatalf("expected pressure table with data row, got %#v", view.PressureRows)
 	}
 	pressure := view.PressureRows[1]
-	for _, want := range []string{"node-1", "channelv2 append/worker", "degraded", "0.91", "depth 91/100", "wait 77.00ms", "scale append workers"} {
+	for _, want := range []string{"node-1", "channel append/worker", "degraded", "0.91", "depth 91/100", "wait 77.00ms", "scale append workers"} {
 		if !rowContains(pressure, want) {
 			t.Fatalf("expected pressure row to contain %q, got %#v", want, pressure)
 		}
@@ -58,14 +58,14 @@ func TestBuildTUIViewShowsOperationalSignals(t *testing.T) {
 			t.Fatalf("expected runtime row to contain %q, got %#v", want, runtime)
 		}
 	}
-	if !listContains(view.StatusRows, "channelv2 worker queue saturated") {
+	if !listContains(view.StatusRows, "channel worker queue saturated") {
 		t.Fatalf("expected status rows to contain verdict reason, got %#v", view.StatusRows)
 	}
 	if len(view.AlertRows) < 2 {
 		t.Fatalf("expected alerts table with data row, got %#v", view.AlertRows)
 	}
 	alert := view.AlertRows[1]
-	for _, want := range []string{">", "critical", "node-1", "channelv2", "pressure_high", "active", "4", "append worker queue saturated"} {
+	for _, want := range []string{">", "critical", "node-1", "channel", "pressure_high", "active", "4", "append worker queue saturated"} {
 		if !rowContains(alert, want) {
 			t.Fatalf("expected alert row to contain %q, got %#v", want, alert)
 		}
@@ -81,7 +81,7 @@ func TestBuildAlertDetailRowsShowsSelectedAlertDetails(t *testing.T) {
 		"id: alert-1",
 		"node: node-1",
 		"severity: critical",
-		"component: channelv2",
+		"component: channel",
 		"kind: pressure_high",
 		"state: active",
 		"count: 4",

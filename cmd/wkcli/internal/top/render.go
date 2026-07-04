@@ -57,11 +57,11 @@ func renderAlertDetail(w io.Writer, snapshot aggregateSnapshot, alert accessapi.
 	fmt.Fprintf(w, "node: %s\n", alertNodeName(alert))
 	fmt.Fprintf(w, "state: %s\n", alertState(alert))
 	fmt.Fprintf(w, "severity: %s\n", emptyDash(alert.Severity))
-	fmt.Fprintf(w, "component: %s\n", emptyDash(alert.Component))
+	fmt.Fprintf(w, "component: %s\n", emptyDash(displayComponent(alert.Component)))
 	fmt.Fprintf(w, "kind: %s\n", emptyDash(alert.Kind))
-	fmt.Fprintf(w, "message: %s\n", emptyDash(alert.Message))
+	fmt.Fprintf(w, "message: %s\n", emptyDash(displayText(alert.Message)))
 	if alert.Hint != "" {
-		fmt.Fprintf(w, "hint: %s\n", alert.Hint)
+		fmt.Fprintf(w, "hint: %s\n", displayText(alert.Hint))
 	}
 	if alert.Fingerprint != "" {
 		fmt.Fprintf(w, "fingerprint: %s\n", alert.Fingerprint)
@@ -102,10 +102,10 @@ func renderHuman(w io.Writer, snapshot aggregateSnapshot) error {
 	fmt.Fprintln(w, "VERDICT")
 	fmt.Fprintf(w, "level: %s\n", snapshot.Verdict.Level)
 	if snapshot.Verdict.Summary != "" {
-		fmt.Fprintf(w, "summary: %s\n", snapshot.Verdict.Summary)
+		fmt.Fprintf(w, "summary: %s\n", displayText(snapshot.Verdict.Summary))
 	}
 	if len(snapshot.Verdict.Reasons) > 0 {
-		fmt.Fprintf(w, "reasons: %s\n", strings.Join(snapshot.Verdict.Reasons, "; "))
+		fmt.Fprintf(w, "reasons: %s\n", displayText(strings.Join(snapshot.Verdict.Reasons, "; ")))
 	}
 	fmt.Fprintf(w, "ready: %d/%d\n", snapshot.ReadyNodes, snapshot.TotalNodes)
 	fmt.Fprintln(w)
@@ -144,7 +144,7 @@ func renderHuman(w io.Writer, snapshot aggregateSnapshot) error {
 			continue
 		}
 		for _, item := range node.Pressure.Top {
-			parts := []string{nodeName(node), item.Component}
+			parts := []string{nodeName(node), displayComponent(item.Component)}
 			if item.Pool != "" {
 				parts = append(parts, "pool="+item.Pool)
 			}
@@ -170,7 +170,7 @@ func renderHuman(w io.Writer, snapshot aggregateSnapshot) error {
 				parts = append(parts, "admit_err/s="+formatFloat(item.AdmissionErrorPerSec))
 			}
 			if item.Hint != "" {
-				parts = append(parts, "hint="+item.Hint)
+				parts = append(parts, "hint="+displayText(item.Hint))
 			}
 			fmt.Fprintln(w, strings.Join(parts, " "))
 		}
@@ -322,13 +322,14 @@ func pressureSummary(node accessapi.TopSnapshot) string {
 	component := ""
 	score := 0.0
 	for name, value := range node.Pressure.ComponentScores {
-		if value > score || (value == score && (component == "" || name < component)) {
-			component = name
+		label := displayComponent(name)
+		if value > score || (value == score && (component == "" || label < component)) {
+			component = label
 			score = value
 		}
 	}
 	if component == "" && len(node.Pressure.Top) > 0 {
-		component = node.Pressure.Top[0].Component
+		component = displayComponent(node.Pressure.Top[0].Component)
 		score = node.Pressure.Top[0].Score
 	}
 	if component == "" {
@@ -380,8 +381,10 @@ func selectAlerts(snapshot aggregateSnapshot, filter string) ([]accessapi.TopAle
 }
 
 func alertMatchesFilter(alert accessapi.TopAlert, filter string) bool {
+	componentKind := alert.Component + "/" + alert.Kind
+	displayComponentKind := displayComponent(alert.Component) + "/" + alert.Kind
 	switch filter {
-	case alert.ID, alert.Fingerprint, alert.Component + "/" + alert.Kind:
+	case alert.ID, alert.Fingerprint, componentKind, displayComponentKind:
 		return true
 	default:
 		return false
@@ -461,4 +464,21 @@ func formatAlertAge(now, then time.Time) string {
 	default:
 		return strconv.FormatInt(int64(d/time.Hour), 10) + "h"
 	}
+}
+
+func displayComponent(component string) string {
+	switch component {
+	case "channelv2":
+		return "channel"
+	case "transportv2":
+		return "transport"
+	default:
+		return component
+	}
+}
+
+func displayText(text string) string {
+	text = strings.ReplaceAll(text, "channelv2", "channel")
+	text = strings.ReplaceAll(text, "transportv2", "transport")
+	return text
 }
