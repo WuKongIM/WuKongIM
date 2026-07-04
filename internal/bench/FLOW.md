@@ -103,7 +103,7 @@ sendack waits across those senders.
 
 `capacity activate-channels` is a fixed-size evidence run, not a QPS search. It
 discovers an already-running target, verifies every target API node supports the
-ChannelV2 runtime snapshot and probe bench APIs, starts one temporary local
+Channel runtime snapshot and probe bench APIs, starts one temporary local
 worker, builds a group scenario whose run phase schedules exactly one SEND per
 generated channel, captures cold and active runtime snapshots, holds the cluster
 without new sends, probes generated channel ranges through the all-node runtime
@@ -118,7 +118,7 @@ evidence.
 
 The default shape is a channel-cardinality proof: 10,000 generated group
 channels, a reusable online user pool, bounded prepare/connect rates, and a
-longer activation window so the result reflects live ChannelV2 runtime pressure
+longer activation window so the result reflects live channel runtime pressure
 instead of a pure login or burst-ingress test. Increase `--users`,
 `--connect-rate`, `--activation-concurrency`, or shorten `--activation-window`
 only when the experiment intentionally adds those pressure dimensions.
@@ -126,16 +126,16 @@ only when the experiment intentionally adds those pressure dimensions.
 When the three-node helper script captures before/after Prometheus snapshots,
 `wkbench metrics classify` reports gateway dispatch wait, message append error
 classes such as route-not-ready, short-result, invalid-config, and timeout,
-Controller Raft Step queue/enqueue pressure, ChannelV2 append and
+Controller Raft Step queue/enqueue pressure, channel runtime append and
 cold-activation stages, worker queue/current in-flight/peak in-flight by pool,
 and storage commit request p99/tail counts by `leader_append` /
 `follower_apply` lane plus batch p99s. The
 10,000-channel helper also
 fails the run when the
-classification cannot prove a healthy ChannelV2 bootstrap: PendingMeta must
+classification cannot prove a healthy channel runtime bootstrap: PendingMeta must
 drain to zero with no releases, NeedMeta submitted and ok counts must match
 with no retry/error counts, and PullHint send/receive error counts must remain
-zero. ChannelV2 high-level stage labels include `meta_resolve`,
+zero. Channel runtime high-level stage labels include `meta_resolve`,
 `meta_apply`, and `runtime_append`; runtime append sub-stages include
 `runtime_append_reserve_wait`, `runtime_append_submit`, and
 `runtime_append_wait`; append batch metrics include `append_batch_wait` and
@@ -168,7 +168,7 @@ wait, append batching behavior, durable append wait, and post-store local/quorum
 commit wait. The follower replication split localizes quorum tails after a
 leader has already durably stored an append.
 
-The 1,000-channel real-QPS helper overrides ChannelV2 append batching with
+The 1,000-channel real-QPS helper overrides channel runtime append batching with
 `WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS=128` and
 `WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT=250us`, runs with 5,000 send
 concurrency, uses a 15s sendack timeout, gives wkbench worker phases a 30s base

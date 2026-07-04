@@ -9,12 +9,12 @@ import (
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
-// ChannelMigrationStoreNode exposes the ChannelV2 migration store owned by cluster.
+// ChannelMigrationStoreNode exposes the channel runtime migration store owned by cluster.
 type ChannelMigrationStoreNode interface {
 	ChannelMigrationStore() *channels.MigrationStore
 }
 
-// NewChannelMigrationStore adapts the cluster ChannelV2 migration store to manager usecases.
+// NewChannelMigrationStore adapts the cluster channel runtime migration store to manager usecases.
 func NewChannelMigrationStore(node ChannelMigrationStoreNode) managementusecase.ChannelMigrationStore {
 	if node == nil {
 		return nil

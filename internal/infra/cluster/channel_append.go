@@ -16,7 +16,7 @@ import (
 type ChannelAppendAuthorityNode interface {
 	// NodeID returns the local cluster node id.
 	NodeID() uint64
-	// ResolveChannelAppendAuthority resolves the ChannelV2 append authority.
+	// ResolveChannelAppendAuthority resolves the channel append authority.
 	ResolveChannelAppendAuthority(context.Context, channelruntime.ChannelID) (channelruntime.Meta, error)
 	// GetChannelMetadata reads durable channel metadata used by channelappend recipient fanout.
 	GetChannelMetadata(context.Context, string, int64) (metadb.Channel, error)
@@ -43,7 +43,7 @@ func NewChannelAppendClient(node ChannelAppendAuthorityNode, remote ChannelAppen
 	return &ChannelAppendClient{node: node, remote: remote, metadata: metadata}
 }
 
-// ResolveAppendAuthority maps ChannelV2 metadata to a channelappend authority target.
+// ResolveAppendAuthority maps channel runtime metadata to a channelappend authority target.
 func (c *ChannelAppendClient) ResolveAppendAuthority(ctx context.Context, id channelappend.ChannelID) (channelappend.AuthorityTarget, error) {
 	if err := contextError(ctx); err != nil {
 		return channelappend.AuthorityTarget{}, err

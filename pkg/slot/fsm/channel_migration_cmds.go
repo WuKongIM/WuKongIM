@@ -135,7 +135,7 @@ func (c *garbageCollectMigrationTasksCmd) applyResult() []byte {
 	return EncodeGarbageCollectTerminalChannelMigrationTasksResult(c.deleted)
 }
 
-// IsChannelMigrationCommand reports whether data is a ChannelV2 migration FSM command.
+// IsChannelMigrationCommand reports whether data is a channel runtime migration FSM command.
 func IsChannelMigrationCommand(data []byte) bool {
 	if len(data) < headerSize {
 		return false

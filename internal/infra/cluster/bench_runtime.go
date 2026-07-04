@@ -19,7 +19,7 @@ type ChannelRuntimeBenchNode interface {
 	ChannelRuntimeEvict(context.Context, channelruntime.RuntimeSelector) (channelruntime.RuntimeEvictResult, error)
 }
 
-// ChannelRuntimeBenchController adapts ChannelV2 runtime diagnostics to bench/v1 DTOs.
+// ChannelRuntimeBenchController adapts channel runtime diagnostics to bench/v1 DTOs.
 type ChannelRuntimeBenchController struct {
 	node ChannelRuntimeBenchNode
 }
@@ -29,7 +29,7 @@ func NewChannelRuntimeBenchController(node ChannelRuntimeBenchNode) *ChannelRunt
 	return &ChannelRuntimeBenchController{node: node}
 }
 
-// Snapshot returns a bench/v1 snapshot of local ChannelV2 runtime state.
+// Snapshot returns a bench/v1 snapshot of local channel runtime state.
 func (c *ChannelRuntimeBenchController) Snapshot(ctx context.Context, query model.ChannelRuntimeQuery) (model.ChannelRuntimeSnapshot, error) {
 	if c == nil || c.node == nil {
 		return model.ChannelRuntimeSnapshot{}, fmt.Errorf("cluster: channel runtime bench node is required")
@@ -41,7 +41,7 @@ func (c *ChannelRuntimeBenchController) Snapshot(ctx context.Context, query mode
 	return fromRuntimeSnapshot(snapshot, c.node.NodeID(), query), nil
 }
 
-// Probe checks whether generated benchmark channels are loaded in the local ChannelV2 runtime.
+// Probe checks whether generated benchmark channels are loaded in the local channel runtime.
 func (c *ChannelRuntimeBenchController) Probe(ctx context.Context, query model.ChannelRuntimeQuery) (model.ChannelRuntimeProbeResult, error) {
 	if c == nil || c.node == nil {
 		return model.ChannelRuntimeProbeResult{}, fmt.Errorf("cluster: channel runtime bench node is required")
@@ -62,7 +62,7 @@ func (c *ChannelRuntimeBenchController) Probe(ctx context.Context, query model.C
 	}, nil
 }
 
-// Evict unloads selected generated benchmark channels from the local ChannelV2 runtime.
+// Evict unloads selected generated benchmark channels from the local channel runtime.
 func (c *ChannelRuntimeBenchController) Evict(ctx context.Context, query model.ChannelRuntimeQuery) (model.ChannelRuntimeEvictResult, error) {
 	if c == nil || c.node == nil {
 		return model.ChannelRuntimeEvictResult{}, fmt.Errorf("cluster: channel runtime bench node is required")

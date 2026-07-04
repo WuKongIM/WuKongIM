@@ -16,9 +16,9 @@ type PluginClusterNode interface {
 	LocalControlSnapshot(context.Context) (control.Snapshot, error)
 }
 
-// PluginChannelOwnerNode exposes ChannelV2 authority resolution for plugin host RPCs.
+// PluginChannelOwnerNode exposes channel authority resolution for plugin host RPCs.
 type PluginChannelOwnerNode interface {
-	// ResolveChannelAppendAuthority resolves the ChannelV2 append authority.
+	// ResolveChannelAppendAuthority resolves the channel append authority.
 	ResolveChannelAppendAuthority(context.Context, channelruntime.ChannelID) (channelruntime.Meta, error)
 }
 
@@ -44,7 +44,7 @@ func (r *PluginClusterReader) ClusterSnapshot(ctx context.Context) (pluginusecas
 	return pluginClusterSnapshotFromControl(snapshot), nil
 }
 
-// PluginChannelOwnerReader adapts ChannelV2 authority metadata to plugin owner lookups.
+// PluginChannelOwnerReader adapts channel authority metadata to plugin owner lookups.
 type PluginChannelOwnerReader struct {
 	node PluginChannelOwnerNode
 }
@@ -54,7 +54,7 @@ func NewPluginChannelOwnerReader(node PluginChannelOwnerNode) *PluginChannelOwne
 	return &PluginChannelOwnerReader{node: node}
 }
 
-// ChannelOwnerNode returns the ChannelV2 append authority leader.
+// ChannelOwnerNode returns the channel append authority leader.
 func (r *PluginChannelOwnerReader) ChannelOwnerNode(ctx context.Context, id message.ChannelID) (uint64, error) {
 	if r == nil || r.node == nil {
 		return 0, pluginusecase.ErrChannelOwnerReaderRequired

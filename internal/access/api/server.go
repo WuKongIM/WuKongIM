@@ -37,7 +37,7 @@ type GatewayAddresses struct {
 	WSSAddr string `json:"wss_addr"`
 }
 
-// ChannelRuntimeBenchController exposes benchmark-only ChannelV2 runtime controls.
+// ChannelRuntimeBenchController exposes benchmark-only channel runtime controls.
 type ChannelRuntimeBenchController interface {
 	Snapshot(context.Context, model.ChannelRuntimeQuery) (model.ChannelRuntimeSnapshot, error)
 	Probe(context.Context, model.ChannelRuntimeQuery) (model.ChannelRuntimeProbeResult, error)
@@ -221,7 +221,7 @@ type Options struct {
 	BenchMaxPayloadBytes int64
 	// Gateway contains the published gateway addresses returned by /bench/v1/capacity-target.
 	Gateway GatewayAddresses
-	// BenchRuntime controls benchmark-only ChannelV2 runtime diagnostics when configured.
+	// BenchRuntime controls benchmark-only channel runtime diagnostics when configured.
 	BenchRuntime ChannelRuntimeBenchController
 	// BenchPresence controls benchmark-only presence route diagnostics when configured.
 	BenchPresence PresenceBenchController
@@ -562,11 +562,11 @@ type capabilitiesSupports struct {
 	Snapshot                bool `json:"snapshot"`
 	// PresenceSnapshot indicates support for connection-route presence snapshots.
 	PresenceSnapshot bool `json:"presence_snapshot"`
-	// ChannelRuntimeSnapshot indicates support for local ChannelV2 runtime snapshots.
+	// ChannelRuntimeSnapshot indicates support for local channel runtime snapshots.
 	ChannelRuntimeSnapshot bool `json:"channel_runtime_snapshot"`
-	// ChannelRuntimeProbe indicates support for bounded ChannelV2 runtime probes.
+	// ChannelRuntimeProbe indicates support for bounded channel runtime probes.
 	ChannelRuntimeProbe bool `json:"channel_runtime_probe"`
-	// ChannelRuntimeEvict indicates support for bounded ChannelV2 runtime eviction.
+	// ChannelRuntimeEvict indicates support for bounded channel runtime eviction.
 	ChannelRuntimeEvict bool `json:"channel_runtime_evict"`
 	// ChannelRuntimeFaults indicates support for runtime fault injection controls.
 	ChannelRuntimeFaults bool `json:"channel_runtime_faults"`

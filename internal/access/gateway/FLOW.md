@@ -73,7 +73,7 @@ noise.
 
 Known route-authority errors (`ErrRouteNotReady`, stale route, not leader) and
 send deadline expiry are written as `ReasonNodeNotMatch` so WKProto clients can
-retry through a fresher route during ChannelV2 migration or failover windows.
+retry through a fresher route during channel runtime migration or failover windows.
 The sendack observer still records deadline expiry with error class `timeout`
 to keep route-wait and timeout diagnostics separate from durable append
 successes.

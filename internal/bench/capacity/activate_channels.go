@@ -96,7 +96,7 @@ type ActivateChannelsEvaluation struct {
 	ProbeMissingAllNodes []string `json:"probe_missing_all_nodes,omitempty"`
 }
 
-// ActivateChannelsNodeRuntime summarizes one node's active ChannelV2 runtime distribution.
+// ActivateChannelsNodeRuntime summarizes one node's active channel runtime distribution.
 type ActivateChannelsNodeRuntime struct {
 	// NodeID identifies the target node that produced the runtime snapshot.
 	NodeID uint64 `json:"node_id"`
