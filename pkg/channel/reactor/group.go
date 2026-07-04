@@ -18,6 +18,12 @@ const (
 	defaultStoreApplyWorkerMultiplier  = 2
 	defaultStoreWorkerCap              = 128
 	defaultReplicationIdlePollInterval = 100 * time.Millisecond
+
+	// Default worker pool names preserve legacy observer labels for compatibility.
+	defaultStoreAppendPoolName = "channelv2-store-append"
+	defaultStoreReadPoolName   = "channelv2-store-read"
+	defaultStoreApplyPoolName  = "channelv2-store-apply"
+	defaultRPCPoolName         = "channelv2-rpc"
 )
 
 // Config wires a group of channel-keyed reactors.
@@ -409,10 +415,10 @@ func defaultWorkerPools(cfg Config) worker.PoolsConfig {
 	if cfg.StoreAppendBatchMaxWait > 0 {
 		pools.StoreAppend.BatchMaxWait = cfg.StoreAppendBatchMaxWait
 	}
-	pools.StoreAppend = defaultPoolConfig(pools.StoreAppend, "channelv2-store-append", storeAppendWorkers, queueSize)
-	pools.StoreRead = defaultPoolConfig(pools.StoreRead, "channelv2-store-read", workers, queueSize)
-	pools.StoreApply = defaultPoolConfig(pools.StoreApply, "channelv2-store-apply", storeApplyWorkers, queueSize)
-	pools.RPC = defaultPoolConfig(pools.RPC, "channelv2-rpc", workers, queueSize)
+	pools.StoreAppend = defaultPoolConfig(pools.StoreAppend, defaultStoreAppendPoolName, storeAppendWorkers, queueSize)
+	pools.StoreRead = defaultPoolConfig(pools.StoreRead, defaultStoreReadPoolName, workers, queueSize)
+	pools.StoreApply = defaultPoolConfig(pools.StoreApply, defaultStoreApplyPoolName, storeApplyWorkers, queueSize)
+	pools.RPC = defaultPoolConfig(pools.RPC, defaultRPCPoolName, workers, queueSize)
 	return pools
 }
 
