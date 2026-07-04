@@ -130,6 +130,7 @@ func printWukongIMAttribution(w io.Writer, report benchmetrics.WukongIMAttributi
 	fmt.Fprintf(w, "controller_raft_step_enqueue_ok_p99_seconds: %.6f\n", report.ControllerRaftStepEnqueueOKP99Seconds)
 	fmt.Fprintf(w, "controller_raft_step_enqueue_err_p99_seconds: %.6f\n", report.ControllerRaftStepEnqueueErrP99Seconds)
 	fmt.Fprintf(w, "controller_raft_step_enqueue_err_count: %.0f\n", report.ControllerRaftStepEnqueueErrCount)
+	// Channel runtime report keys keep the channelv2 prefix for existing parser compatibility.
 	fmt.Fprintf(w, "channelv2_reactor_mailbox_depth_max: %.0f\n", report.ChannelRuntimeReactorMailboxDepthMax)
 	fmt.Fprintf(w, "channelv2_worker_queue_depth_max: %.0f\n", report.ChannelRuntimeWorkerQueueDepthMax)
 	printLabeledFloatMap(w, "channelv2_worker_queue_depth", "pool", report.ChannelRuntimeWorkerQueueDepthByPool, "%.0f")
