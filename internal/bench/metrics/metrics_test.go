@@ -474,6 +474,49 @@ wukongim_channelv2_replication_stage_duration_seconds_bucket{stage="follower_app
 	}
 }
 
+func TestAnalyzeWukongIMPrometheusAcceptsPromotedChannelRuntimeMetricNames(t *testing.T) {
+	before, err := ParsePrometheusText(strings.NewReader(`
+wukongim_gateway_async_send_queue_depth 0
+wukongim_gateway_async_send_queue_capacity 100
+wukongim_channel_reactor_mailbox_depth{reactor_id="0",priority="normal"} 0
+wukongim_channel_worker_queue_depth{pool="store_append"} 0
+wukongim_channel_append_duration_seconds_bucket{commit_mode="local",le="0.01"} 0
+wukongim_channel_append_duration_seconds_bucket{commit_mode="local",le="0.05"} 0
+wukongim_channel_append_duration_seconds_bucket{commit_mode="local",le="+Inf"} 0
+wukongim_channel_pull_hint_total{reason="append",result="submitted",error="none"} 1
+`))
+	if err != nil {
+		t.Fatalf("ParsePrometheusText(before): %v", err)
+	}
+	after, err := ParsePrometheusText(strings.NewReader(`
+wukongim_gateway_async_send_queue_depth 0
+wukongim_gateway_async_send_queue_capacity 100
+wukongim_channel_reactor_mailbox_depth{reactor_id="0",priority="normal"} 7
+wukongim_channel_worker_queue_depth{pool="store_append"} 4
+wukongim_channel_append_duration_seconds_bucket{commit_mode="local",le="0.01"} 10
+wukongim_channel_append_duration_seconds_bucket{commit_mode="local",le="0.05"} 100
+wukongim_channel_append_duration_seconds_bucket{commit_mode="local",le="+Inf"} 100
+wukongim_channel_pull_hint_total{reason="append",result="submitted",error="none"} 6
+`))
+	if err != nil {
+		t.Fatalf("ParsePrometheusText(after): %v", err)
+	}
+
+	report := AnalyzeWukongIMPrometheus(before, after)
+	if report.Classification != WukongIMBottleneckChannelRuntime {
+		t.Fatalf("classification = %q, want %q: %+v", report.Classification, WukongIMBottleneckChannelRuntime, report)
+	}
+	if report.ChannelRuntimeReactorMailboxDepthMax != 7 || report.ChannelRuntimeWorkerQueueDepthMax != 4 {
+		t.Fatalf("channel runtime gauges not parsed: mailbox=%v queue=%v", report.ChannelRuntimeReactorMailboxDepthMax, report.ChannelRuntimeWorkerQueueDepthMax)
+	}
+	if report.ChannelRuntimeAppendP99Seconds <= 0 {
+		t.Fatalf("channel append p99 = %v, want > 0", report.ChannelRuntimeAppendP99Seconds)
+	}
+	if report.ChannelRuntimePullHintSubmittedCount != 5 {
+		t.Fatalf("pull hint submitted delta = %v, want 5", report.ChannelRuntimePullHintSubmittedCount)
+	}
+}
+
 func TestAnalyzeWukongIMPrometheusReportsChannelRuntimeMetaResolveBreakdown(t *testing.T) {
 	before, err := ParsePrometheusText(strings.NewReader(`
 wukongim_gateway_async_send_queue_depth 0

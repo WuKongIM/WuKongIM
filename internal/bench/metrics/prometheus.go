@@ -25,6 +25,11 @@ const (
 	wukongIMLatencyPressureSeconds    = 0.02
 )
 
+const (
+	channelRuntimePromotedMetricPrefix = "wukongim_channel_"
+	channelRuntimeLegacyMetricPrefix   = "wukongim_channelv2_"
+)
+
 // PrometheusSample is one parsed Prometheus text exposition sample.
 type PrometheusSample struct {
 	// Name is the metric family or sample name.
@@ -848,7 +853,7 @@ func (s PrometheusSnapshot) maxGauge(name string) (float64, bool) {
 	found := false
 	var maxValue float64
 	for _, sample := range s.Samples {
-		if sample.Name != name {
+		if !metricFamilyMatches(sample.Name, name) {
 			continue
 		}
 		if !found || sample.Value > maxValue {
@@ -862,7 +867,7 @@ func (s PrometheusSnapshot) maxGauge(name string) (float64, bool) {
 func (s PrometheusSnapshot) maxGaugeByLabel(name string, label string) map[string]float64 {
 	out := map[string]float64{}
 	for _, sample := range s.Samples {
-		if sample.Name != name {
+		if !metricFamilyMatches(sample.Name, name) {
 			continue
 		}
 		value := sample.Labels[label]
@@ -910,9 +915,8 @@ func histogramLabelValues(before, after PrometheusSnapshot, family string, label
 }
 
 func (s PrometheusSnapshot) collectHistogramLabelValues(family string, label string, values map[string]struct{}) {
-	bucketName := family + "_bucket"
 	for _, sample := range s.Samples {
-		if sample.Name != bucketName {
+		if !metricFamilyMatches(sample.Name, family+"_bucket") {
 			continue
 		}
 		value := sample.Labels[label]
@@ -995,19 +999,24 @@ func counterDeltaMatching(before, after PrometheusSnapshot, family string, label
 }
 
 func (s PrometheusSnapshot) counterValueMatching(family string, labels map[string]string) (float64, bool) {
-	found := false
-	var total float64
-	for _, sample := range s.Samples {
-		if sample.Name != family {
-			continue
+	for _, candidate := range metricFamilyAliases(family) {
+		found := false
+		var total float64
+		for _, sample := range s.Samples {
+			if sample.Name != candidate {
+				continue
+			}
+			if !prometheusLabelsMatch(sample.Labels, labels) {
+				continue
+			}
+			total += sample.Value
+			found = true
 		}
-		if !prometheusLabelsMatch(sample.Labels, labels) {
-			continue
+		if found {
+			return total, true
 		}
-		total += sample.Value
-		found = true
 	}
-	return total, found
+	return 0, false
 }
 
 func histogramQuantileDeltaMatching(q float64, before, after PrometheusSnapshot, family string, labels map[string]string) (float64, bool) {
@@ -1029,23 +1038,47 @@ func histogramQuantileDeltaMatching(q float64, before, after PrometheusSnapshot,
 }
 
 func (s PrometheusSnapshot) histogramBucketsMatching(family string, labels map[string]string) map[float64]float64 {
-	out := map[float64]float64{}
-	bucketName := family + "_bucket"
-	for _, sample := range s.Samples {
-		if sample.Name != bucketName {
-			continue
+	for _, candidate := range metricFamilyAliases(family) {
+		out := map[float64]float64{}
+		bucketName := candidate + "_bucket"
+		for _, sample := range s.Samples {
+			if sample.Name != bucketName {
+				continue
+			}
+			if !prometheusLabelsMatch(sample.Labels, labels) {
+				continue
+			}
+			rawLE := sample.Labels["le"]
+			le, err := parsePrometheusLE(rawLE)
+			if err != nil {
+				continue
+			}
+			out[le] += sample.Value
 		}
-		if !prometheusLabelsMatch(sample.Labels, labels) {
-			continue
+		if len(out) > 0 {
+			return out
 		}
-		rawLE := sample.Labels["le"]
-		le, err := parsePrometheusLE(rawLE)
-		if err != nil {
-			continue
-		}
-		out[le] += sample.Value
 	}
-	return out
+	return map[float64]float64{}
+}
+
+func metricFamilyMatches(sampleName string, requestedName string) bool {
+	for _, candidate := range metricFamilyAliases(requestedName) {
+		if sampleName == candidate {
+			return true
+		}
+	}
+	return false
+}
+
+func metricFamilyAliases(family string) []string {
+	if strings.HasPrefix(family, channelRuntimeLegacyMetricPrefix) {
+		return []string{
+			channelRuntimePromotedMetricPrefix + strings.TrimPrefix(family, channelRuntimeLegacyMetricPrefix),
+			family,
+		}
+	}
+	return []string{family}
 }
 
 func prometheusLabelsMatch(got map[string]string, want map[string]string) bool {

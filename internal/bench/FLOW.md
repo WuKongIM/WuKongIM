@@ -130,6 +130,10 @@ Controller Raft Step queue/enqueue pressure, channel runtime append and
 cold-activation stages, worker queue/current in-flight/peak in-flight by pool,
 and storage commit request p99/tail counts by `leader_append` /
 `follower_apply` lane plus batch p99s. The
+Prometheus attribution reader accepts promoted `wukongim_channel_*` Channel
+runtime metric families and falls back to the legacy `wukongim_channelv2_*`
+families at read time, so the runtime hot path does not need compatibility
+double-write during package promotion. The
 10,000-channel helper also
 fails the run when the
 classification cannot prove a healthy channel runtime bootstrap: PendingMeta must
