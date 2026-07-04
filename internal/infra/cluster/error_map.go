@@ -35,7 +35,7 @@ func mapAppendError(err error) error {
 }
 
 func appendErrorMatches(err error, sentinel error) bool {
-	return errors.Is(err, sentinel) || (err != nil && sentinel != nil && strings.Contains(err.Error(), sentinel.Error()))
+	return channelruntime.ErrorMatches(err, sentinel)
 }
 
 func appendErrorIsChannelPlacementUnavailable(err error) bool {

@@ -263,11 +263,11 @@ func mapChannelMigrationRemoteError(err error) error {
 		return ErrNotLeader
 	case strings.Contains(msg, ErrNotStarted.Error()):
 		return ErrNotStarted
-	case strings.Contains(msg, ch.ErrChannelNotFound.Error()):
+	case ch.ErrorMessageMatches(msg, ch.ErrChannelNotFound):
 		return ch.ErrChannelNotFound
-	case strings.Contains(msg, ch.ErrNotReady.Error()):
+	case ch.ErrorMessageMatches(msg, ch.ErrNotReady):
 		return ch.ErrNotReady
-	case strings.Contains(msg, ch.ErrInvalidConfig.Error()):
+	case ch.ErrorMessageMatches(msg, ch.ErrInvalidConfig):
 		return ch.ErrInvalidConfig
 	case strings.Contains(msg, metadb.ErrStaleMeta.Error()):
 		return metadb.ErrStaleMeta

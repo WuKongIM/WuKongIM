@@ -536,7 +536,7 @@ func retryableMetaCacheError(err error) bool {
 }
 
 func channelErrorMatches(err error, sentinel error) bool {
-	return errors.Is(err, sentinel) || (err != nil && sentinel != nil && strings.Contains(err.Error(), sentinel.Error()))
+	return ch.ErrorMatches(err, sentinel)
 }
 
 func (s *Service) observeMetaCache(result string) {

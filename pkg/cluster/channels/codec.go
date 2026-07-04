@@ -4,7 +4,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
@@ -1349,10 +1348,13 @@ func decodeRPCApplicationError(err rpcApplicationError) error {
 }
 
 func wrapRPCApplicationError(sentinel error, message string) error {
-	if message == "" || message == sentinel.Error() {
+	if message == "" {
 		return sentinel
 	}
-	detail := strings.TrimPrefix(message, sentinel.Error()+": ")
+	detail := ch.TrimErrorMessagePrefix(message, sentinel)
+	if detail == "" {
+		return sentinel
+	}
 	return fmt.Errorf("%w: %s", sentinel, detail)
 }
 

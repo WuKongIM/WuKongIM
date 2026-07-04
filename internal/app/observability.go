@@ -2093,21 +2093,21 @@ func channelPullHintErrorLabel(err error) string {
 	switch {
 	case err == nil:
 		return "none"
-	case errors.Is(err, ch.ErrNotReady) || strings.Contains(message, ch.ErrNotReady.Error()):
+	case ch.ErrorMatches(err, ch.ErrNotReady):
 		return "not_ready"
-	case errors.Is(err, ch.ErrStaleMeta) || strings.Contains(message, ch.ErrStaleMeta.Error()):
+	case ch.ErrorMatches(err, ch.ErrStaleMeta):
 		return "stale_meta"
-	case errors.Is(err, ch.ErrChannelNotFound) || strings.Contains(message, ch.ErrChannelNotFound.Error()):
+	case ch.ErrorMatches(err, ch.ErrChannelNotFound):
 		return "channel_not_found"
-	case errors.Is(err, ch.ErrNotLeader) || strings.Contains(message, ch.ErrNotLeader.Error()):
+	case ch.ErrorMatches(err, ch.ErrNotLeader):
 		return "not_leader"
-	case errors.Is(err, ch.ErrNotReplica) || strings.Contains(message, ch.ErrNotReplica.Error()):
+	case ch.ErrorMatches(err, ch.ErrNotReplica):
 		return "not_replica"
-	case errors.Is(err, ch.ErrBackpressured) || strings.Contains(message, ch.ErrBackpressured.Error()):
+	case ch.ErrorMatches(err, ch.ErrBackpressured):
 		return "backpressured"
-	case errors.Is(err, ch.ErrInvalidConfig) || strings.Contains(message, ch.ErrInvalidConfig.Error()):
+	case ch.ErrorMatches(err, ch.ErrInvalidConfig):
 		return "invalid_config"
-	case errors.Is(err, ch.ErrClosed) || strings.Contains(message, ch.ErrClosed.Error()):
+	case ch.ErrorMatches(err, ch.ErrClosed):
 		return "closed"
 	case errors.Is(err, context.Canceled) || strings.Contains(message, "context canceled"):
 		return "canceled"
@@ -2128,23 +2128,23 @@ func messageAppendErrorLabel(err error) string {
 	switch {
 	case err == nil:
 		return "none"
-	case errors.Is(err, messageusecase.ErrBackpressured) || strings.Contains(message, messageusecase.ErrBackpressured.Error()) || strings.Contains(message, ch.ErrBackpressured.Error()):
+	case errors.Is(err, messageusecase.ErrBackpressured) || strings.Contains(message, messageusecase.ErrBackpressured.Error()) || ch.ErrorMessageMatches(message, ch.ErrBackpressured):
 		return "backpressured"
-	case errors.Is(err, messageusecase.ErrRouteNotReady) || strings.Contains(message, messageusecase.ErrRouteNotReady.Error()) || strings.Contains(message, ch.ErrNotReady.Error()):
+	case errors.Is(err, messageusecase.ErrRouteNotReady) || strings.Contains(message, messageusecase.ErrRouteNotReady.Error()) || ch.ErrorMessageMatches(message, ch.ErrNotReady):
 		return "route_not_ready"
-	case errors.Is(err, messageusecase.ErrStaleRoute) || strings.Contains(message, messageusecase.ErrStaleRoute.Error()) || strings.Contains(message, ch.ErrStaleMeta.Error()):
+	case errors.Is(err, messageusecase.ErrStaleRoute) || strings.Contains(message, messageusecase.ErrStaleRoute.Error()) || ch.ErrorMessageMatches(message, ch.ErrStaleMeta):
 		return "stale_route"
-	case errors.Is(err, messageusecase.ErrNotLeader) || strings.Contains(message, messageusecase.ErrNotLeader.Error()) || strings.Contains(message, ch.ErrNotLeader.Error()):
+	case errors.Is(err, messageusecase.ErrNotLeader) || strings.Contains(message, messageusecase.ErrNotLeader.Error()) || ch.ErrorMessageMatches(message, ch.ErrNotLeader):
 		return "not_leader"
-	case errors.Is(err, messageusecase.ErrChannelNotFound) || strings.Contains(message, messageusecase.ErrChannelNotFound.Error()) || strings.Contains(message, ch.ErrChannelNotFound.Error()):
+	case errors.Is(err, messageusecase.ErrChannelNotFound) || strings.Contains(message, messageusecase.ErrChannelNotFound.Error()) || ch.ErrorMessageMatches(message, ch.ErrChannelNotFound):
 		return "channel_not_found"
 	case errors.Is(err, messageusecase.ErrAppendResultMissing) || strings.Contains(message, messageusecase.ErrAppendResultMissing.Error()):
 		return "short_result"
-	case errors.Is(err, ch.ErrInvalidConfig) || errors.Is(err, cluster.ErrInvalidConfig) || strings.Contains(message, ch.ErrInvalidConfig.Error()) || strings.Contains(message, cluster.ErrInvalidConfig.Error()):
+	case ch.ErrorMatches(err, ch.ErrInvalidConfig) || errors.Is(err, cluster.ErrInvalidConfig) || strings.Contains(message, cluster.ErrInvalidConfig.Error()):
 		return "invalid_config"
-	case errors.Is(err, ch.ErrClosed) || errors.Is(err, cluster.ErrStopping) || strings.Contains(message, ch.ErrClosed.Error()) || strings.Contains(message, cluster.ErrStopping.Error()):
+	case ch.ErrorMatches(err, ch.ErrClosed) || errors.Is(err, cluster.ErrStopping) || strings.Contains(message, cluster.ErrStopping.Error()):
 		return "closed"
-	case errors.Is(err, ch.ErrTooManyChannels) || strings.Contains(message, ch.ErrTooManyChannels.Error()):
+	case ch.ErrorMatches(err, ch.ErrTooManyChannels):
 		return "too_many_channels"
 	case errors.Is(err, cluster.ErrNotStarted) || strings.Contains(message, cluster.ErrNotStarted.Error()):
 		return "not_started"
