@@ -91,7 +91,7 @@
           "refId": "G"
         }
       ],
-      "title": "ChannelV2 Runtime Gauges",
+      "title": "Channel Runtime Gauges",
       "type": "timeseries"
     },
     {
@@ -173,7 +173,7 @@
           "refId": "I"
         }
       ],
-      "title": "ChannelV2 Replication Counters",
+      "title": "Channel Runtime Replication Counters",
       "type": "timeseries"
     },
     {
@@ -240,7 +240,7 @@
           "refId": "F"
         }
       ],
-      "title": "ChannelV2 Latency Histograms",
+      "title": "Channel Runtime Latency Histograms",
       "type": "timeseries"
     },
     {
@@ -292,7 +292,7 @@
           "refId": "C"
         }
       ],
-      "title": "ChannelV2 Batch Sizes",
+      "title": "Channel Runtime Batch Sizes",
       "type": "timeseries"
     },
     {

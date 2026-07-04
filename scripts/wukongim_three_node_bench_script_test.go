@@ -1839,7 +1839,7 @@ func TestWukongIMThreeNodePresenceScriptFailsOnTransientPeak(t *testing.T) {
 	}
 }
 
-func TestChannelV2MetricsSummaryAwkSummarizesBeforeAfterPrometheus(t *testing.T) {
+func TestChannelRuntimeMetricsSummaryAwkSummarizesBeforeAfterPrometheus(t *testing.T) {
 	root := repoRoot(t)
 	before := filepath.Join(t.TempDir(), "before.prom")
 	after := filepath.Join(t.TempDir(), "after.prom")
