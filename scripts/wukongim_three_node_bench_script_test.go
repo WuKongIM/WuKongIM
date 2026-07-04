@@ -1950,7 +1950,7 @@ wukongim_runtime_pool_admission_total{node_id="1",node_name="node-1",component="
 		"-v", "tag=qps_1000",
 		"-v", "node=node1",
 		"-v", "duration=10",
-		"-f", filepath.Join(root, "scripts", "channelv2-metrics-summary.awk"),
+		"-f", filepath.Join(root, "scripts", "channel-metrics-summary.awk"),
 		before,
 		after,
 	)
@@ -1962,6 +1962,15 @@ wukongim_runtime_pool_admission_total{node_id="1",node_name="node-1",component="
 	want := "qps_1000\tnode1\t17\t8\t9\t4\t12\t6\t7\t0.700\t200\t0.500\t8\t0.750\t3\t2\t1\t5\t2\t5\t5\t1\t15\t2\t3\t10\t1\t1.100\t60\t10\t3\t10\t6.000\t3\t4.000\t200.000\t4.000\t15\t8.000\t4\t18\t4.500\t2\t8\t4.000\t10\t46\t4.600\t5\t21\t4.200\n"
 	if string(output) != want {
 		t.Fatalf("unexpected summary row:\nwant %q\n got %q", want, output)
+	}
+}
+
+func TestChannelRuntimeMetricsSummaryAwkTestsUsePromotedEntrypointByDefault(t *testing.T) {
+	root := repoRoot(t)
+	source := readFile(t, filepath.Join(root, "scripts", "wukongim_three_node_bench_script_test.go"))
+	legacyEntrypoint := "channelv2" + "-metrics-summary.awk"
+	if strings.Contains(source, legacyEntrypoint) {
+		t.Fatalf("channel runtime summary tests should use scripts/channel-metrics-summary.awk by default")
 	}
 }
 
@@ -2021,7 +2030,7 @@ wukongim_channel_worker_task_duration_seconds_sum{kind="store_append",result="ok
 		"-v", "tag=qps_1000",
 		"-v", "node=node1",
 		"-v", "duration=5",
-		"-f", filepath.Join(root, "scripts", "channelv2-metrics-summary.awk"),
+		"-f", filepath.Join(root, "scripts", "channel-metrics-summary.awk"),
 		before,
 		after,
 	)
@@ -2095,6 +2104,47 @@ func TestChannelRuntimeMetricsSummaryAwkPromotedEntrypoint(t *testing.T) {
 		if fields[index] != want {
 			t.Fatalf("field[%d] = %q, want %q; row=%q", index, fields[index], want, output)
 		}
+	}
+}
+
+func TestChannelRuntimeMetricsSummaryAwkLegacyEntrypointMatchesPromotedEntrypoint(t *testing.T) {
+	root := repoRoot(t)
+	dir := t.TempDir()
+	before := filepath.Join(dir, "before.prom")
+	after := filepath.Join(dir, "after.prom")
+	writeFile(t, before, "")
+	writeFile(t, after, `wukongim_channel_active_runtimes{role="leader"} 1
+wukongim_channel_worker_queue_depth{pool="store_append"} 3
+`)
+
+	promotedCmd := exec.Command("awk",
+		"-v", "tag=qps_1000",
+		"-v", "node=node1",
+		"-v", "duration=5",
+		"-f", filepath.Join(root, "scripts", "channel-metrics-summary.awk"),
+		before,
+		after,
+	)
+	promotedOutput, err := promotedCmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("promoted summary awk failed: %v\n%s", err, promotedOutput)
+	}
+
+	legacyEntrypoint := "channelv2" + "-metrics-summary.awk"
+	legacyCmd := exec.Command("awk",
+		"-v", "tag=qps_1000",
+		"-v", "node=node1",
+		"-v", "duration=5",
+		"-f", filepath.Join(root, "scripts", legacyEntrypoint),
+		before,
+		after,
+	)
+	legacyOutput, err := legacyCmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("legacy summary awk failed: %v\n%s", err, legacyOutput)
+	}
+	if string(legacyOutput) != string(promotedOutput) {
+		t.Fatalf("legacy entrypoint output differs from promoted entrypoint:\npromoted=%q\nlegacy=%q", promotedOutput, legacyOutput)
 	}
 }
 

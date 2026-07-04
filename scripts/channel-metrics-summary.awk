@@ -1,3 +1,5 @@
+# Promoted Channel runtime summary entrypoint. The channelv2-named script is a
+# compatibility symlink for pre-promotion callers.
 function metric_name(series, brace) {
   brace = index(series, "{")
   if (brace == 0) {
