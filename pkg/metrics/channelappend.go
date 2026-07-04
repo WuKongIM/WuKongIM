@@ -40,7 +40,7 @@ func newChannelAppendMetrics(registry prometheus.Registerer, labels prometheus.L
 			Name:        "wukongim_channelappend_router_duration_seconds",
 			Help:        "Internal channel append router group latency in seconds.",
 			ConstLabels: labels,
-			Buckets:     channelV2DurationBuckets,
+			Buckets:     channelRuntimeDurationBuckets,
 		}, []string{"path", "result"}),
 		routerItems: prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Name:        "wukongim_channelappend_router_items",
@@ -113,7 +113,7 @@ func newChannelAppendMetrics(registry prometheus.Registerer, labels prometheus.L
 			Name:        "wukongim_channelappend_effect_duration_seconds",
 			Help:        "Internal channel append asynchronous effect latency in seconds.",
 			ConstLabels: labels,
-			Buckets:     channelV2DurationBuckets,
+			Buckets:     channelRuntimeDurationBuckets,
 		}, []string{"stage", "result"}),
 		effectItems: prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Name:        "wukongim_channelappend_effect_items",

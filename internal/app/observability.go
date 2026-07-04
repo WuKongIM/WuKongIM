@@ -463,7 +463,7 @@ func (o channelMetricsObserver) SetReactorMailboxDepth(reactorID int, priority s
 	if o.metrics == nil {
 		return
 	}
-	o.metrics.ChannelV2.SetReactorMailboxDepth(reactorID, priority, depth)
+	o.metrics.ChannelRuntime.SetReactorMailboxDepth(reactorID, priority, depth)
 	o.metrics.RuntimePressure.SetQueueDepth("channelv2", channelReactorPoolLabel(reactorID), "mailbox", priority, depth)
 }
 
@@ -497,7 +497,7 @@ func (o channelMetricsObserver) SetWorkerQueueDepth(pool string, depth int) {
 	if o.metrics == nil {
 		return
 	}
-	o.metrics.ChannelV2.SetWorkerQueueDepth(pool, depth)
+	o.metrics.ChannelRuntime.SetWorkerQueueDepth(pool, depth)
 	o.metrics.RuntimePressure.SetQueueDepth("channelv2", pool, "worker", "none", depth)
 }
 
@@ -548,14 +548,14 @@ func (o channelMetricsObserver) ObserveWorkerBatch(pool string, kind worker.Task
 	if err != nil {
 		result = "err"
 	}
-	o.metrics.ChannelV2.ObserveWorkerBatch(channelWorkerKindLabel(kind), result, items)
+	o.metrics.ChannelRuntime.ObserveWorkerBatch(channelWorkerKindLabel(kind), result, items)
 }
 
 func (o channelMetricsObserver) SetWorkerInflight(pool string, inflight int) {
 	if o.metrics == nil {
 		return
 	}
-	o.metrics.ChannelV2.SetWorkerInflight(pool, inflight)
+	o.metrics.ChannelRuntime.SetWorkerInflight(pool, inflight)
 	o.metrics.RuntimePressure.SetPoolInflight("channelv2", pool, inflight)
 }
 
@@ -563,7 +563,7 @@ func (o channelMetricsObserver) SetWorkerInflightPeak(pool string, peak int) {
 	if o.metrics == nil {
 		return
 	}
-	o.metrics.ChannelV2.SetWorkerInflightPeak(pool, peak)
+	o.metrics.ChannelRuntime.SetWorkerInflightPeak(pool, peak)
 }
 
 func (o channelMetricsObserver) SetWorkerAntsPoolUsage(pool string, running int, capacity int, waiting int) {
@@ -577,42 +577,42 @@ func (o channelMetricsObserver) SetChannelRuntimeCount(reactorID int, role ch.Ro
 	if o.metrics == nil {
 		return
 	}
-	o.metrics.ChannelV2.SetChannelRuntimeCount(reactorID, channelRoleLabel(role), count)
+	o.metrics.ChannelRuntime.SetChannelRuntimeCount(reactorID, channelRoleLabel(role), count)
 }
 
 func (o channelMetricsObserver) ObserveChannelActivationRejected(reason string) {
 	if o.metrics == nil {
 		return
 	}
-	o.metrics.ChannelV2.ObserveChannelActivationRejected(reason)
+	o.metrics.ChannelRuntime.ObserveChannelActivationRejected(reason)
 }
 
 func (o channelMetricsObserver) SetFollowerParkedCount(reactorID int, count int) {
 	if o.metrics == nil {
 		return
 	}
-	o.metrics.ChannelV2.SetFollowerParkedCount(reactorID, count)
+	o.metrics.ChannelRuntime.SetFollowerParkedCount(reactorID, count)
 }
 
 func (o channelMetricsObserver) ObserveFollowerRecoveryProbe(result string) {
 	if o.metrics == nil {
 		return
 	}
-	o.metrics.ChannelV2.ObserveFollowerRecoveryProbe(result)
+	o.metrics.ChannelRuntime.ObserveFollowerRecoveryProbe(result)
 }
 
 func (o channelMetricsObserver) ObservePull(result string, empty bool) {
 	if o.metrics == nil {
 		return
 	}
-	o.metrics.ChannelV2.ObservePull(result, empty)
+	o.metrics.ChannelRuntime.ObservePull(result, empty)
 }
 
 func (o channelMetricsObserver) ObservePullHintResult(reason transport.PullHintReason, result string, err error) {
 	if o.metrics == nil {
 		return
 	}
-	o.metrics.ChannelV2.ObservePullHint(channelPullHintReasonLabel(reason), result, channelPullHintErrorLabel(err))
+	o.metrics.ChannelRuntime.ObservePullHint(channelPullHintReasonLabel(reason), result, channelPullHintErrorLabel(err))
 }
 
 func (o channelMetricsObserver) ObservePullHintReceived(reason transport.PullHintReason, stage string, err error) {
@@ -623,70 +623,70 @@ func (o channelMetricsObserver) ObservePullHintReceived(reason transport.PullHin
 	if err != nil {
 		result = "err"
 	}
-	o.metrics.ChannelV2.ObservePullHintReceived(channelPullHintReasonLabel(reason), stage, result, channelPullHintErrorLabel(err))
+	o.metrics.ChannelRuntime.ObservePullHintReceived(channelPullHintReasonLabel(reason), stage, result, channelPullHintErrorLabel(err))
 }
 
 func (o channelMetricsObserver) SetPendingMetaCount(reactorID int, count int) {
 	if o.metrics == nil {
 		return
 	}
-	o.metrics.ChannelV2.SetPendingMetaCount(reactorID, count)
+	o.metrics.ChannelRuntime.SetPendingMetaCount(reactorID, count)
 }
 
 func (o channelMetricsObserver) ObservePendingMeta(event string, err error) {
 	if o.metrics == nil {
 		return
 	}
-	o.metrics.ChannelV2.ObservePendingMeta(event, channelPullHintErrorLabel(err))
+	o.metrics.ChannelRuntime.ObservePendingMeta(event, channelPullHintErrorLabel(err))
 }
 
 func (o channelMetricsObserver) ObserveNeedMetaPull(result string, err error) {
 	if o.metrics == nil {
 		return
 	}
-	o.metrics.ChannelV2.ObserveNeedMetaPull(result, channelPullHintErrorLabel(err))
+	o.metrics.ChannelRuntime.ObserveNeedMetaPull(result, channelPullHintErrorLabel(err))
 }
 
 func (o channelMetricsObserver) ObserveReplicationStage(stage string, result string, d time.Duration) {
 	if o.metrics == nil {
 		return
 	}
-	o.metrics.ChannelV2.ObserveReplicationStage(stage, result, d)
+	o.metrics.ChannelRuntime.ObserveReplicationStage(stage, result, d)
 }
 
 func (o channelMetricsObserver) ObserveChannelMetaCache(result string) {
 	if o.metrics == nil {
 		return
 	}
-	o.metrics.ChannelV2.ObserveMetaCache(result)
+	o.metrics.ChannelRuntime.ObserveMetaCache(result)
 }
 
 func (o channelMetricsObserver) ObserveAppendBatch(records int, bytes int, wait time.Duration) {
 	if o.metrics == nil {
 		return
 	}
-	o.metrics.ChannelV2.ObserveAppendBatch(records, bytes, wait)
+	o.metrics.ChannelRuntime.ObserveAppendBatch(records, bytes, wait)
 }
 
 func (o channelMetricsObserver) ObserveAppendLatency(mode ch.CommitMode, d time.Duration) {
 	if o.metrics == nil {
 		return
 	}
-	o.metrics.ChannelV2.ObserveAppendLatency(channelCommitModeLabel(mode), d)
+	o.metrics.ChannelRuntime.ObserveAppendLatency(channelCommitModeLabel(mode), d)
 }
 
 func (o channelMetricsObserver) ObserveChannelAppendStage(stage string, result string, d time.Duration) {
 	if o.metrics == nil {
 		return
 	}
-	o.metrics.ChannelV2.ObserveAppendStage(stage, result, d)
+	o.metrics.ChannelRuntime.ObserveAppendStage(stage, result, d)
 }
 
 func (o channelMetricsObserver) ObserveAppendWaitStage(stage string, mode ch.CommitMode, result string, d time.Duration) {
 	if o.metrics == nil {
 		return
 	}
-	o.metrics.ChannelV2.ObserveAppendWaitStage(stage, channelCommitModeLabel(mode), result, d)
+	o.metrics.ChannelRuntime.ObserveAppendWaitStage(stage, channelCommitModeLabel(mode), result, d)
 }
 
 func (o channelMetricsObserver) ObserveAppendWaitCanceled(snapshot reactor.AppendWaitCancelSnapshot) {
@@ -741,7 +741,7 @@ func (o channelMetricsObserver) ObserveWorkerResult(kind worker.TaskKind, err er
 	if err != nil {
 		result = "err"
 	}
-	o.metrics.ChannelV2.ObserveWorkerResult(channelWorkerKindLabel(kind), result, d, channelPullHintErrorLabel(err))
+	o.metrics.ChannelRuntime.ObserveWorkerResult(channelWorkerKindLabel(kind), result, d, channelPullHintErrorLabel(err))
 }
 
 func (o slotMetricsObserver) SetSchedulerWorkers(workers int) {
