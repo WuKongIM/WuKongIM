@@ -41,7 +41,7 @@ func TestTopCollectorSnapshotDoesNotRequireMetrics(t *testing.T) {
 	collector.recordSampleAt(time.Unix(100, 0))
 	collector.ObserveGatewaySend("wkproto", 128)
 	collector.ObserveGatewaySendack("success", "gateway", "send")
-	collector.ObserveMessageAppend("channelv2", "ok", 10*time.Millisecond)
+	collector.ObserveMessageAppend("channel", "ok", 10*time.Millisecond)
 	collector.recordSampleAt(time.Unix(110, 0))
 
 	snapshot, err := collector.SnapshotTop(context.Background(), accessapi.TopSnapshotQuery{
@@ -268,7 +268,7 @@ func TestTopCollectorPressureAlertIncludesEvidence(t *testing.T) {
 		},
 	})
 	collector.recordSampleAt(time.Unix(100, 0))
-	collector.SetQueue("channelv2", "append", "worker", "none", 91, 100)
+	collector.SetQueue("channel", "append", "worker", "none", 91, 100)
 	collector.recordSampleAt(time.Unix(110, 0))
 
 	snapshot, err := collector.SnapshotTop(context.Background(), accessapi.TopSnapshotQuery{
@@ -284,7 +284,7 @@ func TestTopCollectorPressureAlertIncludesEvidence(t *testing.T) {
 	}
 	alert := snapshot.Alerts.Active[0]
 	for key, want := range map[string]string{
-		"component":          "channelv2",
+		"component":          "channel",
 		"pool":               "append",
 		"queue":              "worker",
 		"level":              "degraded",
@@ -660,7 +660,7 @@ func TestTopCollectorPressureVerdict(t *testing.T) {
 			}
 		},
 	})
-	collector.SetQueue("channelv2", "store_append", "write", "none", 86, 100)
+	collector.SetQueue("channel", "store_append", "write", "none", 86, 100)
 	collector.recordSampleAt(time.Unix(100, 0))
 	collector.recordSampleAt(time.Unix(110, 0))
 
@@ -681,11 +681,11 @@ func TestTopCollectorPressureVerdict(t *testing.T) {
 	if snapshot.Pressure == nil || len(snapshot.Pressure.Top) == 0 {
 		t.Fatalf("Pressure = %#v, want top pressure item", snapshot.Pressure)
 	}
-	if snapshot.Pressure.Top[0].Component != "channelv2" {
-		t.Fatalf("top pressure component = %q, want channelv2", snapshot.Pressure.Top[0].Component)
+	if snapshot.Pressure.Top[0].Component != "channel" {
+		t.Fatalf("top pressure component = %q, want channel", snapshot.Pressure.Top[0].Component)
 	}
-	if len(snapshot.Verdict.Reasons) == 0 || snapshot.Verdict.Reasons[0] != "channelv2/store_append pressure" {
-		t.Fatalf("Verdict.Reasons = %#v, want channelv2/store_append pressure", snapshot.Verdict.Reasons)
+	if len(snapshot.Verdict.Reasons) == 0 || snapshot.Verdict.Reasons[0] != "channel/store_append pressure" {
+		t.Fatalf("Verdict.Reasons = %#v, want channel/store_append pressure", snapshot.Verdict.Reasons)
 	}
 }
 
@@ -815,11 +815,11 @@ func TestTopCollectorPressureUsesInflightWhenHigherThanQueueDepth(t *testing.T) 
 		},
 	})
 
-	collector.SetQueue("channelv2", "store_append", "worker", "none", 1, 10)
-	collector.SetInflight("channelv2", "store_append", 9, 10)
+	collector.SetQueue("channel", "store_append", "worker", "none", 1, 10)
+	collector.SetInflight("channel", "store_append", 9, 10)
 	collector.recordSampleAt(time.Unix(100, 0))
-	collector.SetQueue("channelv2", "store_append", "worker", "none", 1, 10)
-	collector.SetInflight("channelv2", "store_append", 9, 10)
+	collector.SetQueue("channel", "store_append", "worker", "none", 1, 10)
+	collector.SetInflight("channel", "store_append", 9, 10)
 	collector.recordSampleAt(time.Unix(110, 0))
 
 	snapshot, err := collector.SnapshotTop(context.Background(), accessapi.TopSnapshotQuery{
@@ -938,8 +938,8 @@ func TestTopCollectorVerdictStrings(t *testing.T) {
 	if notReady.Summary != "cluster runtime is not ready" {
 		t.Fatalf("not-ready summary = %q, want cluster runtime is not ready", notReady.Summary)
 	}
-	if len(notReady.Reasons) != 1 || notReady.Reasons[0] != "channelv2 not ready" {
-		t.Fatalf("not-ready reasons = %#v, want channelv2 not ready", notReady.Reasons)
+	if len(notReady.Reasons) != 1 || notReady.Reasons[0] != "channel not ready" {
+		t.Fatalf("not-ready reasons = %#v, want channel not ready", notReady.Reasons)
 	}
 	sendack := buildTopVerdict(
 		cluster.Snapshot{RoutesReady: true, SlotsReady: true, ChannelsReady: true},

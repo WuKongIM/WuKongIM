@@ -106,9 +106,9 @@ func (o topChannelObserver) SetReactorMailboxDepth(reactorID int, priority strin
 		return
 	}
 	pool := channelReactorPoolLabel(reactorID)
-	key := "channelv2.reactor_mailbox." + safeTopLabel(pool) + "." + safeTopLabel(priority)
+	key := "channel.reactor_mailbox." + safeTopLabel(pool) + "." + safeTopLabel(priority)
 	o.top.setGauge(key+".depth", int64(depth))
-	o.top.setGauge(topPressureKey("channelv2", pool, "mailbox", priority)+".depth", int64(depth))
+	o.top.setGauge(topPressureKey("channel", pool, "mailbox", priority)+".depth", int64(depth))
 }
 
 func (o topChannelObserver) SetReactorMailboxCapacity(reactorID int, priority string, capacity int) {
@@ -116,64 +116,64 @@ func (o topChannelObserver) SetReactorMailboxCapacity(reactorID int, priority st
 		return
 	}
 	pool := channelReactorPoolLabel(reactorID)
-	key := "channelv2.reactor_mailbox." + safeTopLabel(pool) + "." + safeTopLabel(priority)
+	key := "channel.reactor_mailbox." + safeTopLabel(pool) + "." + safeTopLabel(priority)
 	o.top.setGauge(key+".capacity", int64(capacity))
-	o.top.setGauge(topPressureKey("channelv2", pool, "mailbox", priority)+".capacity", int64(capacity))
+	o.top.setGauge(topPressureKey("channel", pool, "mailbox", priority)+".capacity", int64(capacity))
 }
 
 func (o topChannelObserver) ObserveReactorMailboxAdmission(reactorID int, priority string, result string) {
 	if o.top == nil || strings.EqualFold(strings.TrimSpace(result), "ok") {
 		return
 	}
-	o.top.addCounter("pressure.channelv2."+safeTopLabel(channelReactorPoolLabel(reactorID))+".mailbox."+safeTopLabel(priority)+".admission_error", 1)
+	o.top.addCounter("pressure.channel."+safeTopLabel(channelReactorPoolLabel(reactorID))+".mailbox."+safeTopLabel(priority)+".admission_error", 1)
 }
 
 func (o topChannelObserver) SetAppendQueuePressure(event reactor.AppendQueuePressureEvent) {
 	if o.top == nil {
 		return
 	}
-	o.top.SetQueue("channelv2", channelReactorPoolLabel(event.ReactorID), "append", "none", int64(event.Depth), int64(event.Capacity))
+	o.top.SetQueue("channel", channelReactorPoolLabel(event.ReactorID), "append", "none", int64(event.Depth), int64(event.Capacity))
 }
 
 func (o topChannelObserver) SetWorkerQueueDepth(pool string, depth int) {
 	if o.top == nil {
 		return
 	}
-	key := "channelv2.worker." + safeTopLabel(pool)
+	key := "channel.worker." + safeTopLabel(pool)
 	o.top.setGauge(key+".queue_depth", int64(depth))
-	o.top.setGauge(topPressureKey("channelv2", pool, "worker", "none")+".depth", int64(depth))
+	o.top.setGauge(topPressureKey("channel", pool, "worker", "none")+".depth", int64(depth))
 }
 
 func (o topChannelObserver) SetWorkerQueueCapacity(pool string, capacity int) {
 	if o.top == nil {
 		return
 	}
-	key := "channelv2.worker." + safeTopLabel(pool)
+	key := "channel.worker." + safeTopLabel(pool)
 	o.top.setGauge(key+".queue_capacity", int64(capacity))
-	o.top.setGauge(topPressureKey("channelv2", pool, "worker", "none")+".capacity", int64(capacity))
+	o.top.setGauge(topPressureKey("channel", pool, "worker", "none")+".capacity", int64(capacity))
 }
 
 func (o topChannelObserver) SetWorkerWorkers(pool string, workers int) {
 	if o.top == nil {
 		return
 	}
-	key := "channelv2.worker." + safeTopLabel(pool)
+	key := "channel.worker." + safeTopLabel(pool)
 	o.top.setGauge(key+".workers", int64(workers))
-	o.top.setGauge(topPressureKey("channelv2", pool, "inflight", "none")+".workers", int64(workers))
+	o.top.setGauge(topPressureKey("channel", pool, "inflight", "none")+".workers", int64(workers))
 }
 
 func (o topChannelObserver) ObserveWorkerAdmission(pool string, result string) {
 	if o.top == nil || strings.EqualFold(strings.TrimSpace(result), "ok") {
 		return
 	}
-	o.top.addCounter("pressure.channelv2."+safeTopLabel(pool)+".worker.none.admission_error", 1)
+	o.top.addCounter("pressure.channel."+safeTopLabel(pool)+".worker.none.admission_error", 1)
 }
 
 func (o topChannelObserver) ObserveWorkerWait(pool string, kind worker.TaskKind, d time.Duration) {
 	if o.top == nil {
 		return
 	}
-	o.top.observeDurationMS("pressure.channelv2."+safeTopLabel(pool)+".worker.none.wait", d)
+	o.top.observeDurationMS("pressure.channel."+safeTopLabel(pool)+".worker.none.wait", d)
 	_ = kind
 }
 
@@ -185,7 +185,7 @@ func (o topChannelObserver) ObserveWorkerTask(pool string, kind worker.TaskKind,
 	if err != nil {
 		result = "err"
 	}
-	o.top.observeDurationMS("pressure.channelv2."+safeTopLabel(pool)+"."+safeTopLabel(channelWorkerKindLabel(kind))+"."+result+".task", d)
+	o.top.observeDurationMS("pressure.channel."+safeTopLabel(pool)+"."+safeTopLabel(channelWorkerKindLabel(kind))+"."+result+".task", d)
 }
 
 func (o topChannelObserver) ObserveWorkerBatch(pool string, kind worker.TaskKind, items int, err error) {
@@ -196,23 +196,23 @@ func (o topChannelObserver) ObserveWorkerBatch(pool string, kind worker.TaskKind
 	if err != nil {
 		result = "err"
 	}
-	o.top.addCounter("channelv2.worker_batch."+safeTopLabel(pool)+"."+safeTopLabel(channelWorkerKindLabel(kind))+"."+result, uint64(nonNegativeInt(items)))
+	o.top.addCounter("channel.worker_batch."+safeTopLabel(pool)+"."+safeTopLabel(channelWorkerKindLabel(kind))+"."+result, uint64(nonNegativeInt(items)))
 }
 
 func (o topChannelObserver) SetWorkerInflight(pool string, inflight int) {
 	if o.top == nil {
 		return
 	}
-	key := "channelv2.worker." + safeTopLabel(pool)
+	key := "channel.worker." + safeTopLabel(pool)
 	o.top.setGauge(key+".inflight", int64(inflight))
-	o.top.setGauge(topPressureKey("channelv2", pool, "inflight", "none")+".inflight", int64(inflight))
+	o.top.setGauge(topPressureKey("channel", pool, "inflight", "none")+".inflight", int64(inflight))
 }
 
 func (o topChannelObserver) SetWorkerInflightPeak(pool string, peak int) {
 	if o.top == nil {
 		return
 	}
-	o.top.setGauge("channelv2.worker."+safeTopLabel(pool)+".inflight_peak", int64(peak))
+	o.top.setGauge("channel.worker."+safeTopLabel(pool)+".inflight_peak", int64(peak))
 }
 
 func (o topChannelObserver) SetWorkerAntsPoolUsage(pool string, running int, capacity int, waiting int) {
@@ -221,7 +221,7 @@ func (o topChannelObserver) SetWorkerAntsPoolUsage(pool string, running int, cap
 	}
 	o.SetWorkerInflight(pool, running)
 	o.SetWorkerWorkers(pool, capacity)
-	o.top.setGauge("channelv2.worker."+safeTopLabel(pool)+".waiting", int64(waiting))
+	o.top.setGauge("channel.worker."+safeTopLabel(pool)+".waiting", int64(waiting))
 }
 
 func (o topChannelObserver) SetChannelRuntimeCount(reactorID int, role ch.Role, count int) {
@@ -235,7 +235,7 @@ func (o topChannelObserver) ObserveChannelActivationRejected(reason string) {
 	if o.top == nil {
 		return
 	}
-	o.top.addCounter("channelv2.activation_rejected."+safeTopLabel(reason), 1)
+	o.top.addCounter("channel.activation_rejected."+safeTopLabel(reason), 1)
 }
 
 func (o topChannelObserver) SetFollowerParkedCount(reactorID int, count int) {
@@ -249,7 +249,7 @@ func (o topChannelObserver) ObserveFollowerRecoveryProbe(result string) {
 	if o.top == nil {
 		return
 	}
-	o.top.addCounter("channelv2.follower_recovery."+safeTopLabel(result), 1)
+	o.top.addCounter("channel.follower_recovery."+safeTopLabel(result), 1)
 }
 
 func (o topChannelObserver) ObservePull(result string, empty bool) {
@@ -260,29 +260,29 @@ func (o topChannelObserver) ObservePull(result string, empty bool) {
 	if empty {
 		label += ".empty"
 	}
-	o.top.addCounter("channelv2.pull."+label, 1)
+	o.top.addCounter("channel.pull."+label, 1)
 }
 
 func (o topChannelObserver) ObserveReplicationStage(stage string, result string, d time.Duration) {
 	if o.top == nil || !strings.EqualFold(strings.TrimSpace(result), "ok") {
 		return
 	}
-	o.top.observeDurationMS("channelv2.replication."+safeTopLabel(stage), d)
+	o.top.observeDurationMS("channel.replication."+safeTopLabel(stage), d)
 }
 
 func (o topChannelObserver) ObserveChannelMetaCache(result string) {
 	if o.top == nil {
 		return
 	}
-	o.top.addCounter("channelv2.meta_cache."+safeTopLabel(result), 1)
+	o.top.addCounter("channel.meta_cache."+safeTopLabel(result), 1)
 }
 
 func (o topChannelObserver) ObserveAppendBatch(records int, bytes int, wait time.Duration) {
 	if o.top == nil {
 		return
 	}
-	o.top.observeValue("channelv2.append.batch.records", float64(nonNegativeInt(records)))
-	o.top.observeDurationMS("channelv2.append.batch.wait", wait)
+	o.top.observeValue("channel.append.batch.records", float64(nonNegativeInt(records)))
+	o.top.observeDurationMS("channel.append.batch.wait", wait)
 	_ = bytes
 }
 
@@ -315,7 +315,7 @@ func (o topChannelObserver) ObserveWorkerResult(kind worker.TaskKind, err error,
 	if err != nil {
 		result = "err"
 	}
-	o.top.observeDurationMS("channelv2.worker_result."+safeTopLabel(channelWorkerKindLabel(kind))+"."+result, d)
+	o.top.observeDurationMS("channel.worker_result."+safeTopLabel(channelWorkerKindLabel(kind))+"."+result, d)
 }
 
 type topStorageObserver struct {

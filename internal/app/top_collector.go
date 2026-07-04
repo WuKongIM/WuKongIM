@@ -35,7 +35,7 @@ const (
 	topGaugeDeliveryAckBindings        = "delivery.ack.bindings"
 	topGaugeDeliveryRecipientQueue     = "delivery.recipient.queue.depth"
 	topGaugeDeliveryRecipientQueueCap  = "delivery.recipient.queue.capacity"
-	topHistogramChannelAppend          = "channelv2.append"
+	topHistogramChannelAppend          = "channel.append"
 	topHistogramStorageCommitBatchRows = "storage.commit.batch.records"
 	topHistogramStorageCommitBatchMS   = "storage.commit.batch.commit"
 	topHistogramDeliveryPush           = "delivery.push"
@@ -313,14 +313,14 @@ func (c *topCollector) SetChannelRuntimeCount(reactorID int, role string, count 
 	if c == nil {
 		return
 	}
-	c.setGauge("channelv2.runtime."+safeTopLabel(channelReactorPoolLabel(reactorID))+"."+safeTopLabel(role), count)
+	c.setGauge("channel.runtime."+safeTopLabel(channelReactorPoolLabel(reactorID))+"."+safeTopLabel(role), count)
 }
 
 func (c *topCollector) SetChannelFollowerParked(reactorID int, count int64) {
 	if c == nil {
 		return
 	}
-	c.setGauge("channelv2.follower_parked."+safeTopLabel(channelReactorPoolLabel(reactorID)), count)
+	c.setGauge("channel.follower_parked."+safeTopLabel(channelReactorPoolLabel(reactorID)), count)
 }
 
 func (c *topCollector) SetChannelReactorMailbox(reactorID int, priority string, depth, capacity int64) {
@@ -328,30 +328,30 @@ func (c *topCollector) SetChannelReactorMailbox(reactorID int, priority string, 
 		return
 	}
 	pool := channelReactorPoolLabel(reactorID)
-	key := "channelv2.reactor_mailbox." + safeTopLabel(pool) + "." + safeTopLabel(priority)
+	key := "channel.reactor_mailbox." + safeTopLabel(pool) + "." + safeTopLabel(priority)
 	c.setGauge(key+".depth", depth)
 	c.setGauge(key+".capacity", capacity)
-	c.SetQueue("channelv2", pool, "mailbox", priority, depth, capacity)
+	c.SetQueue("channel", pool, "mailbox", priority, depth, capacity)
 }
 
 func (c *topCollector) SetChannelWorkerQueue(pool string, depth, capacity int64) {
 	if c == nil {
 		return
 	}
-	key := "channelv2.worker." + safeTopLabel(pool)
+	key := "channel.worker." + safeTopLabel(pool)
 	c.setGauge(key+".queue_depth", depth)
 	c.setGauge(key+".queue_capacity", capacity)
-	c.SetQueue("channelv2", pool, "worker", "none", depth, capacity)
+	c.SetQueue("channel", pool, "worker", "none", depth, capacity)
 }
 
 func (c *topCollector) SetChannelWorkerInflight(pool string, inflight, workers int64) {
 	if c == nil {
 		return
 	}
-	key := "channelv2.worker." + safeTopLabel(pool)
+	key := "channel.worker." + safeTopLabel(pool)
 	c.setGauge(key+".inflight", inflight)
 	c.setGauge(key+".workers", workers)
-	c.SetInflight("channelv2", pool, inflight, workers)
+	c.SetInflight("channel", pool, inflight, workers)
 }
 
 func (c *topCollector) ObserveChannelAppendLatency(mode string, d time.Duration) {
@@ -359,14 +359,14 @@ func (c *topCollector) ObserveChannelAppendLatency(mode string, d time.Duration)
 		return
 	}
 	c.observeDurationMS(topHistogramChannelAppend, d)
-	c.observeDurationMS("channelv2.append.mode."+safeTopLabel(mode), d)
+	c.observeDurationMS("channel.append.mode."+safeTopLabel(mode), d)
 }
 
 func (c *topCollector) ObserveChannelAppendStage(stage, result string, d time.Duration) {
 	if c == nil || !strings.EqualFold(strings.TrimSpace(result), "ok") {
 		return
 	}
-	c.observeDurationMS("channelv2.stage."+safeTopLabel(stage), d)
+	c.observeDurationMS("channel.stage."+safeTopLabel(stage), d)
 }
 
 func (c *topCollector) SetStorageCommitQueue(depth, capacity int64) {
@@ -894,7 +894,7 @@ func buildChannel(window []topSample) *accessapi.TopChannelRuntime {
 	}
 	for key, value := range last.gauges {
 		switch {
-		case strings.HasPrefix(key, "channelv2.runtime."):
+		case strings.HasPrefix(key, "channel.runtime."):
 			parts := strings.Split(key, ".")
 			if len(parts) == 4 {
 				switch parts[3] {
@@ -904,34 +904,34 @@ func buildChannel(window []topSample) *accessapi.TopChannelRuntime {
 					out.ActiveFollower += value
 				}
 			}
-		case strings.HasPrefix(key, "channelv2.follower_parked."):
+		case strings.HasPrefix(key, "channel.follower_parked."):
 			out.FollowerParked += value
-		case strings.HasPrefix(key, "channelv2.reactor_mailbox.") && strings.HasSuffix(key, ".depth"):
+		case strings.HasPrefix(key, "channel.reactor_mailbox.") && strings.HasSuffix(key, ".depth"):
 			if value > out.ReactorMailboxDepthMax {
 				out.ReactorMailboxDepthMax = value
 			}
-		case strings.HasPrefix(key, "channelv2.reactor_mailbox.") && strings.HasSuffix(key, ".capacity"):
+		case strings.HasPrefix(key, "channel.reactor_mailbox.") && strings.HasSuffix(key, ".capacity"):
 			if value > out.ReactorMailboxCapacityMax {
 				out.ReactorMailboxCapacityMax = value
 			}
-		case strings.HasPrefix(key, "channelv2.worker.") && strings.HasSuffix(key, ".queue_depth"):
-			pool := strings.TrimSuffix(strings.TrimPrefix(key, "channelv2.worker."), ".queue_depth")
+		case strings.HasPrefix(key, "channel.worker.") && strings.HasSuffix(key, ".queue_depth"):
+			pool := strings.TrimSuffix(strings.TrimPrefix(key, "channel.worker."), ".queue_depth")
 			out.WorkerQueueDepthByPool[pool] = value
-		case strings.HasPrefix(key, "channelv2.worker.") && strings.HasSuffix(key, ".queue_capacity"):
-			pool := strings.TrimSuffix(strings.TrimPrefix(key, "channelv2.worker."), ".queue_capacity")
+		case strings.HasPrefix(key, "channel.worker.") && strings.HasSuffix(key, ".queue_capacity"):
+			pool := strings.TrimSuffix(strings.TrimPrefix(key, "channel.worker."), ".queue_capacity")
 			out.WorkerQueueCapacityByPool[pool] = value
-		case strings.HasPrefix(key, "channelv2.worker.") && strings.HasSuffix(key, ".inflight"):
-			pool := strings.TrimSuffix(strings.TrimPrefix(key, "channelv2.worker."), ".inflight")
+		case strings.HasPrefix(key, "channel.worker.") && strings.HasSuffix(key, ".inflight"):
+			pool := strings.TrimSuffix(strings.TrimPrefix(key, "channel.worker."), ".inflight")
 			out.WorkerInflightByPool[pool] = value
-		case strings.HasPrefix(key, "channelv2.worker.") && strings.HasSuffix(key, ".workers"):
-			pool := strings.TrimSuffix(strings.TrimPrefix(key, "channelv2.worker."), ".workers")
+		case strings.HasPrefix(key, "channel.worker.") && strings.HasSuffix(key, ".workers"):
+			pool := strings.TrimSuffix(strings.TrimPrefix(key, "channel.worker."), ".workers")
 			out.WorkerCapacityByPool[pool] = value
 		}
 	}
 	out.ActiveTotal = out.ActiveLeader + out.ActiveFollower
-	stageKeys := histogramKeys(window, "channelv2.stage.")
+	stageKeys := histogramKeys(window, "channel.stage.")
 	for _, key := range stageKeys {
-		stage := strings.TrimPrefix(key, "channelv2.stage.")
+		stage := strings.TrimPrefix(key, "channel.stage.")
 		p99 := percentile(histogramValues(window, key), 0.99)
 		out.StageP99MS[stage] = p99
 		if p99 > out.StageP99MS[out.HotStage] || out.HotStage == "" {
@@ -1285,7 +1285,7 @@ func readinessReasons(snapshot cluster.Snapshot) []string {
 		reasons = append(reasons, "slots not ready")
 	}
 	if !snapshot.ChannelsReady {
-		reasons = append(reasons, "channelv2 not ready")
+		reasons = append(reasons, "channel not ready")
 	}
 	return reasons
 }
@@ -1423,9 +1423,9 @@ func readinessAlertSignals(snapshot cluster.Snapshot) []topAlertSignal {
 	if !snapshot.ChannelsReady {
 		signals = append(signals, topAlertSignal{
 			severity:  "critical",
-			component: "channelv2",
+			component: "channel",
 			kind:      "ready_part_down",
-			message:   "channelv2 not ready",
+			message:   "channel not ready",
 			hint:      "check channel runtime bootstrap and replication readiness",
 			evidence:  map[string]string{"ready_part": "channels", "ready": "false"},
 		})
