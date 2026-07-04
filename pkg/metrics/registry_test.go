@@ -554,7 +554,7 @@ func TestChannelMetricsTrackAppendFetchAndActiveChannels(t *testing.T) {
 
 func TestChannelRuntimeMetricsTrackReactorAndWorkerRuntime(t *testing.T) {
 	reg := New(8, "node-8")
-	require.Same(t, reg.ChannelRuntime, reg.ChannelV2)
+	require.NotNil(t, reg.ChannelRuntime)
 
 	reg.ChannelRuntime.SetReactorMailboxDepth(2, "normal", 9)
 	reg.ChannelRuntime.SetWorkerQueueDepth("store_append", 4)

@@ -13,12 +13,10 @@ import (
 type Registry struct {
 	registry *prometheus.Registry
 
-	Gateway        *GatewayMetrics
-	Channel        *ChannelMetrics
-	ChannelAppend  *ChannelAppendMetrics
-	ChannelRuntime *ChannelRuntimeMetrics
-	// ChannelV2 is a compatibility alias for ChannelRuntime while callers migrate.
-	ChannelV2       *ChannelRuntimeMetrics
+	Gateway         *GatewayMetrics
+	Channel         *ChannelMetrics
+	ChannelAppend   *ChannelAppendMetrics
+	ChannelRuntime  *ChannelRuntimeMetrics
 	Slot            *SlotMetrics
 	Controller      *ControllerMetrics
 	Transport       *TransportMetrics
@@ -44,15 +42,12 @@ func New(nodeID uint64, nodeName string) *Registry {
 		"node_name": nodeName,
 	}
 
-	channelRuntime := newChannelRuntimeMetrics(registry, labels)
-
 	return &Registry{
 		registry:        registry,
 		Gateway:         newGatewayMetrics(registry, labels),
 		Channel:         newChannelMetrics(registry, labels),
 		ChannelAppend:   newChannelAppendMetrics(registry, labels),
-		ChannelRuntime:  channelRuntime,
-		ChannelV2:       channelRuntime,
+		ChannelRuntime:  newChannelRuntimeMetrics(registry, labels),
 		Slot:            newSlotMetrics(registry, labels),
 		Controller:      newControllerMetrics(registry, labels),
 		Transport:       newTransportMetrics(registry, labels),

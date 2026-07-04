@@ -42,9 +42,6 @@ type ChannelRuntimeMetrics struct {
 	rpcPullTotal             *prometheus.CounterVec
 }
 
-// ChannelV2Metrics is a compatibility alias for the promoted Channel runtime metrics type.
-type ChannelV2Metrics = ChannelRuntimeMetrics
-
 func newChannelRuntimeMetrics(registry prometheus.Registerer, labels prometheus.Labels) *ChannelRuntimeMetrics {
 	m := &ChannelRuntimeMetrics{
 		reactorMailboxDepth: prometheus.NewGaugeVec(prometheus.GaugeOpts{
