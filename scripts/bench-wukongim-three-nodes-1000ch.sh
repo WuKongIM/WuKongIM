@@ -977,12 +977,13 @@ rpc_pull_qps_summary() {
   done
 }
 
-channelv2_metrics_summary() {
+channel_metrics_summary() {
   local tag="$1"
   local duration="$2"
   local metrics_dir="$OUT_DIR/metrics/$tag"
-  local out="$OUT_DIR/channelv2_metrics_summary.tsv"
-  local summarizer="$ROOT_DIR/scripts/channelv2-metrics-summary.awk"
+  local out="$OUT_DIR/channel_metrics_summary.tsv"
+  local legacy_out="$OUT_DIR/channelv2_metrics_summary.tsv"
+  local summarizer="$ROOT_DIR/scripts/channel-metrics-summary.awk"
   local addr id before after
   for addr in "${METRICS_VALUES[@]}"; do
     id="$(metric_file_id "$addr")"
@@ -991,6 +992,9 @@ channelv2_metrics_summary() {
     [[ -f "$before" && -f "$after" ]] || continue
     awk -v tag="$tag" -v node="$id" -v duration="$duration" -f "$summarizer" "$before" "$after" >>"$out" || true
   done
+  if [[ -f "$out" ]]; then
+    cp "$out" "$legacy_out"
+  fi
 }
 
 channelappend_metrics_summary() {
@@ -1101,7 +1105,7 @@ run_attempt() {
   scrape_metrics "$tag" after
   classify_metrics "$tag"
   rpc_pull_qps_summary "$tag" "$duration"
-  channelv2_metrics_summary "$tag" "$duration"
+  channel_metrics_summary "$tag" "$duration"
   channelappend_metrics_summary "$tag"
   runtime_pool_pressure_summary "$tag"
   ants_pool_usage_summary "$tag"
@@ -2106,9 +2110,10 @@ EOF
   cat >"$OUT_DIR/rpc_pull_qps.tsv" <<'EOF'
 tag	node	rpc_pull_delta	rpc_pull_qps
 EOF
-  cat >"$OUT_DIR/channelv2_metrics_summary.tsv" <<'EOF'
+  cat >"$OUT_DIR/channel_metrics_summary.tsv" <<'EOF'
 tag	node	active_total	active_leader	active_follower	follower_parked	mailbox_depth_max	worker_queue_depth_max	runtime_pool_queue_depth_max	runtime_pool_queue_fill_max	runtime_pool_queue_bytes_max	runtime_pool_queue_bytes_fill_max	runtime_pool_inflight_max	runtime_pool_inflight_util_max	runtime_pool_admission_full_delta	runtime_pool_admission_busy_delta	runtime_pool_admission_dirty_delta	runtime_pool_admission_requeued_delta	activation_rejected_delta	recovery_probe_submitted_delta	recovery_probe_ok_delta	recovery_probe_err_delta	pull_ok_nonempty_delta	pull_ok_empty_delta	pull_err_delta	rpc_pull_ok_delta	rpc_pull_err_delta	rpc_pull_qps	meta_cache_hit_delta	meta_cache_miss_delta	meta_cache_invalidate_delta	append_count_delta	append_avg_ms	append_batch_count_delta	append_batch_avg_records	append_batch_avg_bytes	append_batch_wait_avg_ms	worker_task_count_delta	worker_task_avg_ms	rpc_pull_batch_calls_delta	rpc_pull_batch_items_delta	rpc_pull_batch_avg_items	rpc_pull_hint_batch_calls_delta	rpc_pull_hint_batch_items_delta	rpc_pull_hint_batch_avg_items	store_append_batch_calls_delta	store_append_batch_items_delta	store_append_batch_avg_items	store_apply_batch_calls_delta	store_apply_batch_items_delta	store_apply_batch_avg_items
 EOF
+  cp "$OUT_DIR/channel_metrics_summary.tsv" "$OUT_DIR/channelv2_metrics_summary.tsv"
   cat >"$OUT_DIR/channelappend_metrics_summary.tsv" <<'EOF'
 tag	node	router_total_delta	router_local_delta	router_remote_delta	router_error_delta	router_backpressured_delta	router_channel_busy_delta	router_route_not_ready_delta	router_timeout_delta	local_admission_total_delta	local_admission_rejected_delta	router_avg_ms	mailbox_depth_max	mailbox_capacity_max	mailbox_fill_max	effect_slots_max	effect_slots_capacity_max	pending_append_max	append_inflight_max	post_commit_backlog_max	effect_total_delta	effect_error_delta	append_effect_delta	post_commit_effect_delta	effect_avg_ms	effect_worker_inflight_max	effect_worker_capacity_max	effect_worker_util_max	effect_queue_depth_max	effect_queue_capacity_max	effect_queue_fill_max	effect_pool_submit_delta	effect_pool_full_delta	effect_pool_error_delta	effect_pool_inflight_max	effect_pool_capacity_max	effect_pool_util_max	effect_pool_saturated_max	effect_pool_over90_count
 EOF

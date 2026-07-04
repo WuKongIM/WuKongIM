@@ -251,8 +251,9 @@ func TestWukongIMThreeNodeBenchScriptCollectsLocalEvidence(t *testing.T) {
 		"scripts/start-wukongim-three-nodes.sh",
 		"collect_node_logs",
 		"capture_node_pprof",
-		"channelv2_metrics_summary",
-		"scripts/channelv2-metrics-summary.awk",
+		"channel_metrics_summary",
+		"scripts/channel-metrics-summary.awk",
+		"channel_metrics_summary.tsv",
 		"channelv2_metrics_summary.tsv",
 		"runtime_pool_queue_depth_max",
 		"runtime_pool_admission_full_delta",
@@ -352,6 +353,8 @@ func TestWukongIMThreeNodeRealQPSScriptUses15KTunedDefaults(t *testing.T) {
 		`GATEWAY_ASYNC_SEND_BATCH_MAX_WAIT=${WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_WAIT:-500us}`,
 		`GATEWAY_SEND_TIMEOUT=${WK_GATEWAY_SEND_TIMEOUT:-14s}`,
 		"runtime_pool_attempt_summary",
+		"channel_metrics_summary.tsv",
+		"channelv2_metrics_summary.tsv",
 		"runtime_pool_queue_fill_max",
 		"runtime_pool_admission_busy_delta",
 		"write_ants_pool_usage_summary",
@@ -2054,6 +2057,43 @@ wukongim_channel_worker_task_duration_seconds_sum{kind="store_append",result="ok
 	}
 }
 
+func TestChannelRuntimeMetricsSummaryAwkPromotedEntrypoint(t *testing.T) {
+	root := repoRoot(t)
+	dir := t.TempDir()
+	before := filepath.Join(dir, "before.prom")
+	after := filepath.Join(dir, "after.prom")
+	writeFile(t, before, "")
+	writeFile(t, after, `wukongim_channel_active_runtimes{role="leader"} 1
+`)
+
+	cmd := exec.Command("awk",
+		"-v", "tag=qps_1000",
+		"-v", "node=node1",
+		"-v", "duration=5",
+		"-f", filepath.Join(root, "scripts", "channel-metrics-summary.awk"),
+		before,
+		after,
+	)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("summary awk failed: %v\n%s", err, output)
+	}
+
+	fields := strings.Split(strings.TrimSpace(string(output)), "\t")
+	if len(fields) < 5 {
+		t.Fatalf("summary fields = %d, want at least 5: %q", len(fields), output)
+	}
+	for index, want := range map[int]string{
+		2: "1",
+		3: "1",
+		4: "0",
+	} {
+		if fields[index] != want {
+			t.Fatalf("field[%d] = %q, want %q; row=%q", index, fields[index], want, output)
+		}
+	}
+}
+
 func writeFakeBenchBase(t *testing.T, path string, callsDir string) {
 	t.Helper()
 	script := `#!/usr/bin/env bash
@@ -2204,10 +2244,14 @@ cat >"$out_dir/summary.tsv" <<'OUT'
 tag	offered_qps	status	exit_status	actual_qps	send_success	send_errors	connect_error_rate	sendack_error_rate	p50_seconds	p95_seconds	p99_seconds	max_seconds
 000100	100	passed	0	99	99	0	0	0	0.001	0.002	0.003	0.004
 OUT
-cat >"$out_dir/channelv2_metrics_summary.tsv" <<'OUT'
+cat >"$out_dir/channel_metrics_summary.tsv" <<'OUT'
 tag	node	runtime_pool_queue_depth_max	runtime_pool_queue_fill_max	runtime_pool_queue_bytes_max	runtime_pool_queue_bytes_fill_max	runtime_pool_inflight_max	runtime_pool_inflight_util_max	runtime_pool_admission_full_delta	runtime_pool_admission_busy_delta	runtime_pool_admission_dirty_delta	runtime_pool_admission_requeued_delta
 000100	node1	7	0.700	200	0.500	8	0.750	3	2	1	5
 000100	node2	4	0.400	300	0.250	12	0.600	2	1	0	1
+OUT
+cat >"$out_dir/channelv2_metrics_summary.tsv" <<'OUT'
+tag	node	runtime_pool_queue_depth_max	runtime_pool_queue_fill_max	runtime_pool_queue_bytes_max	runtime_pool_queue_bytes_fill_max	runtime_pool_inflight_max	runtime_pool_inflight_util_max	runtime_pool_admission_full_delta	runtime_pool_admission_busy_delta	runtime_pool_admission_dirty_delta	runtime_pool_admission_requeued_delta
+000100	node1	1	0.100	100	0.100	1	0.100	1	1	1	1
 OUT
 cat >"$out_dir/runtime_pool_pressure_summary.tsv" <<'OUT'
 tag	node	component	pool	queue	priority	queue_depth_max	queue_capacity	queue_fill_max	queue_bytes_max	queue_bytes_capacity	queue_bytes_fill_max	inflight_max	workers	inflight_util_max	admission_full_delta	admission_busy_delta	admission_dirty_delta	admission_requeued_delta	reason

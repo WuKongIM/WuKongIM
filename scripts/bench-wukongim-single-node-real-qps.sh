@@ -889,9 +889,14 @@ append_attempt_summary() {
   local summary="$attempt_dir/summary.tsv"
   local p99_limit
   local runtime_pool
+  local runtime_pool_file
   local channelappend
   p99_limit="$(duration_seconds "$STABLE_P99")"
-  runtime_pool="$(runtime_pool_attempt_summary "$attempt_dir/channelv2_metrics_summary.tsv")"
+  runtime_pool_file="$attempt_dir/channel_metrics_summary.tsv"
+  if [[ ! -f "$runtime_pool_file" ]]; then
+    runtime_pool_file="$attempt_dir/channelv2_metrics_summary.tsv"
+  fi
+  runtime_pool="$(runtime_pool_attempt_summary "$runtime_pool_file")"
   channelappend="$(channelappend_attempt_summary "$attempt_dir/channelappend_metrics_summary.tsv")"
   if [[ ! -f "$summary" ]]; then
     printf '%s\t%s\t%s\t%s\tmissing_summary\t0\t0\t0\t0\t0\t0\t0\t0\t0\t0\t%s\t%s\tFAIL\tmissing_summary\t%s\n' \
