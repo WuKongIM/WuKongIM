@@ -26,7 +26,7 @@ type TopSnapshot struct {
 	Alerts *TopAlerts `json:"alerts,omitempty"`
 	// Pressure contains scored runtime bottlenecks when available.
 	Pressure *TopPressure `json:"pressure,omitempty"`
-	// ChannelV2 contains channel runtime gauges and latency summaries.
+	// ChannelV2 is the compatibility JSON field for channel runtime gauges and latency summaries.
 	ChannelV2 *TopChannelV2 `json:"channelv2,omitempty"`
 	// Storage contains local storage commit queue summaries.
 	Storage *TopStorage `json:"storage,omitempty"`
@@ -214,9 +214,9 @@ type TopPressureItem struct {
 	Hint string `json:"hint,omitempty"`
 }
 
-// TopChannelV2 contains ChannelV2 runtime gauges and latency summaries.
+// TopChannelV2 is the compatibility DTO for channel runtime gauges and latency summaries.
 type TopChannelV2 struct {
-	// ActiveTotal is the number of active ChannelV2 runtimes.
+	// ActiveTotal is the number of active Channel runtimes.
 	ActiveTotal int64 `json:"active_total"`
 	// ActiveLeader is the number of active leader runtimes.
 	ActiveLeader int64 `json:"active_leader"`
@@ -228,15 +228,15 @@ type TopChannelV2 struct {
 	ReactorMailboxDepthMax int64 `json:"reactor_mailbox_depth_max"`
 	// ReactorMailboxCapacityMax is the maximum configured reactor mailbox capacity.
 	ReactorMailboxCapacityMax int64 `json:"reactor_mailbox_capacity_max"`
-	// WorkerQueueDepthByPool reports queue depth by ChannelV2 worker pool.
+	// WorkerQueueDepthByPool reports queue depth by Channel worker pool.
 	WorkerQueueDepthByPool map[string]int64 `json:"worker_queue_depth_by_pool,omitempty"`
-	// WorkerQueueCapacityByPool reports queue capacity by ChannelV2 worker pool.
+	// WorkerQueueCapacityByPool reports queue capacity by Channel worker pool.
 	WorkerQueueCapacityByPool map[string]int64 `json:"worker_queue_capacity_by_pool,omitempty"`
-	// WorkerInflightByPool reports in-flight tasks by ChannelV2 worker pool.
+	// WorkerInflightByPool reports in-flight tasks by Channel worker pool.
 	WorkerInflightByPool map[string]int64 `json:"worker_inflight_by_pool,omitempty"`
-	// WorkerCapacityByPool reports worker capacity by ChannelV2 worker pool.
+	// WorkerCapacityByPool reports worker capacity by Channel worker pool.
 	WorkerCapacityByPool map[string]int64 `json:"worker_capacity_by_pool,omitempty"`
-	// AppendP99MS is p99 ChannelV2 append latency in milliseconds.
+	// AppendP99MS is p99 Channel append latency in milliseconds.
 	AppendP99MS float64 `json:"append_p99_ms"`
 	// HotStage is the append stage with the largest p99 latency.
 	HotStage string `json:"hot_stage,omitempty"`

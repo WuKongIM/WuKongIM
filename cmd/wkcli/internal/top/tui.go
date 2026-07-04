@@ -30,7 +30,7 @@ type topTUIView struct {
 	PressureRows [][]string
 	// AlertRows contains sticky warnings and errors, including the header row.
 	AlertRows [][]string
-	// RuntimeRows contains ChannelV2 runtime gauges, including the header row.
+	// RuntimeRows contains Channel runtime gauges, including the header row.
 	RuntimeRows [][]string
 	// StatusRows contains verdict reasons, source status, and operator hints.
 	StatusRows []string
@@ -163,7 +163,7 @@ func newTopDashboard(cfg config) *topDashboard {
 	alerts.BorderStyle = ui.NewStyle(ui.ColorCyan)
 
 	runtime := widgets.NewTable()
-	runtime.Title = " ChannelV2 runtime "
+	runtime.Title = " Channel runtime "
 	runtime.RowSeparator = false
 	runtime.TextStyle = ui.NewStyle(ui.ColorWhite)
 	runtime.RowStyles = map[int]ui.Style{0: ui.NewStyle(ui.ColorCyan)}
@@ -467,7 +467,7 @@ func buildRuntimeRows(snapshot aggregateSnapshot) [][]string {
 		})
 	}
 	if len(rows) == 1 {
-		rows = append(rows, []string{"-", "-", "-", "-", "-", "-", "no channelv2 data"})
+		rows = append(rows, []string{"-", "-", "-", "-", "-", "-", "no channel data"})
 	}
 	return rows
 }
