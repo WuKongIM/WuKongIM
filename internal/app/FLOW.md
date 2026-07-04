@@ -62,9 +62,12 @@ New(Config)
        external binary path is configured, and scrapes the node API /metrics endpoint
      Manager realtime monitor queries use this configured Prometheus HTTP API.
      They scope PromQL to the generated `wukongim` job and can optionally add
-     a node-scoped filter; unified realtime monitor snapshots also pass the
-     selected node into bounded control snapshot reads. The database monitor
-     category is Prometheus-only and uses internal message DB commit request,
+     a node-scoped filter; Channel runtime monitor PromQL prefers promoted
+     `wukongim_channel_*` metric families and falls back to legacy
+     `wukongim_channelv2_*` families at the query boundary; unified realtime
+     monitor snapshots also pass the selected node into bounded control
+     snapshot reads. The database monitor category is Prometheus-only and uses
+     internal message DB commit request,
      grouped commit stage, commit runtime queue, and Pebble engine snapshot
      metrics. The node monitor category keeps per-node Prometheus series for
      process CPU, RSS memory, goroutines, and Go GC pause/rate/CPU/heap-goal

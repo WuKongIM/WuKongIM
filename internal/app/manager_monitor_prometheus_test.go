@@ -321,6 +321,23 @@ func TestManagerMonitorPrometheusProviderReturnsChannelOperatorCards(t *testing.
 			t.Fatalf("queries missing %q: %s", want, joinedQueries)
 		}
 	}
+	for _, want := range []string{
+		`wukongim_channel_append_duration_seconds_bucket{job="wukongim"}[1m]`,
+		`wukongim_channel_active_runtimes{job="wukongim"}`,
+		`wukongim_channel_append_batch_records_bucket{job="wukongim"}[1m]`,
+		`wukongim_channel_append_batch_bytes_bucket{job="wukongim"}[1m]`,
+		`wukongim_channel_append_stage_duration_seconds_count{job="wukongim",result!="ok"}[1m]`,
+		`wukongim_channel_follower_parked{job="wukongim"}`,
+		`wukongim_channel_activation_rejected_total{job="wukongim"}[1m]`,
+		`wukongim_channel_reactor_mailbox_depth{job="wukongim"}`,
+		`wukongim_channel_worker_queue_depth{job="wukongim"}`,
+		`wukongim_channel_pull_hint_total{job="wukongim",result!="ok"}[1m]`,
+		`wukongim_channel_replication_stage_duration_seconds_bucket{job="wukongim"}[1m]`,
+	} {
+		if !strings.Contains(joinedQueries, want) {
+			t.Fatalf("queries missing promoted channel metric %q: %s", want, joinedQueries)
+		}
+	}
 }
 
 func TestManagerMonitorPrometheusProviderReturnsSlotOperatorCards(t *testing.T) {

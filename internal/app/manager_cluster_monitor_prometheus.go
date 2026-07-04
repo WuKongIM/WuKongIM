@@ -195,18 +195,18 @@ func managerClusterMonitorMetricDefinitions() []clusterMonitorMetricDefinition {
 		clusterMetric(accessmanager.RealtimeMonitorCategorySlot, "slotSchedulerQueueUsage", accessmanager.RealtimeMonitorStageRuntimePressure, accessmanager.RealtimeMonitorToneWarning, "%", prometheusZeroFallback("(sum(wukongim_runtime_pool_queue_depth{component=\"slot\",pool=\"scheduler\"}) / clamp_min(sum(wukongim_runtime_pool_queue_capacity{component=\"slot\",pool=\"scheduler\"}), 1)) * 100")),
 		clusterMetric(accessmanager.RealtimeMonitorCategorySlot, "slotSchedulerInflightUsage", accessmanager.RealtimeMonitorStageRuntimePressure, accessmanager.RealtimeMonitorToneWarning, "%", prometheusZeroFallback("(sum(wukongim_runtime_pool_inflight{component=\"slot\",pool=\"scheduler\"}) / clamp_min(sum(wukongim_runtime_pool_workers{component=\"slot\",pool=\"scheduler\"}), 1)) * 100")),
 		clusterMetric(accessmanager.RealtimeMonitorCategorySlot, "slotSchedulerTaskLatencyP99", accessmanager.RealtimeMonitorStageRuntimePressure, accessmanager.RealtimeMonitorToneWarning, "ms", "histogram_quantile(0.99, sum(rate(wukongim_runtime_pool_task_duration_seconds_bucket{component=\"slot\",pool=\"scheduler\"}[%s])) by (le)) * 1000"),
-		clusterMetric(accessmanager.RealtimeMonitorCategoryChannel, "channelAppendLatencyP99", accessmanager.RealtimeMonitorStageChannelReplication, accessmanager.RealtimeMonitorToneWarning, "ms", "histogram_quantile(0.99, sum(rate(wukongim_channelv2_append_duration_seconds_bucket[%s])) by (le)) * 1000"),
-		clusterMetric(accessmanager.RealtimeMonitorCategoryChannel, "activeChannels", accessmanager.RealtimeMonitorStageChannelReplication, accessmanager.RealtimeMonitorToneNormal, "", prometheusZeroFallback("sum(wukongim_channelv2_active_runtimes)")),
-		clusterMetric(accessmanager.RealtimeMonitorCategoryChannel, "channelAppendBatchRecordsP95", accessmanager.RealtimeMonitorStageChannelReplication, accessmanager.RealtimeMonitorToneNormal, "records", "histogram_quantile(0.95, sum(rate(wukongim_channelv2_append_batch_records_bucket[%s])) by (le))"),
-		clusterMetric(accessmanager.RealtimeMonitorCategoryChannel, "channelAppendBatchBytesP95", accessmanager.RealtimeMonitorStageChannelReplication, accessmanager.RealtimeMonitorToneNormal, "B", "histogram_quantile(0.95, sum(rate(wukongim_channelv2_append_batch_bytes_bucket[%s])) by (le))"),
-		clusterMetric(accessmanager.RealtimeMonitorCategoryChannel, "channelAppendErrorRate", accessmanager.RealtimeMonitorStageChannelReplication, accessmanager.RealtimeMonitorToneCritical, "%", prometheusZeroFallback("(sum(rate(wukongim_channelv2_append_stage_duration_seconds_count{result!=\"ok\"}[%s])) / clamp_min(sum(rate(wukongim_channelv2_append_stage_duration_seconds_count[%s])), 1)) * 100")),
+		clusterMetric(accessmanager.RealtimeMonitorCategoryChannel, "channelAppendLatencyP99", accessmanager.RealtimeMonitorStageChannelReplication, accessmanager.RealtimeMonitorToneWarning, "ms", channelRuntimePrometheusFallback("histogram_quantile(0.99, sum(rate(wukongim_channelv2_append_duration_seconds_bucket[%s])) by (le)) * 1000")),
+		clusterMetric(accessmanager.RealtimeMonitorCategoryChannel, "activeChannels", accessmanager.RealtimeMonitorStageChannelReplication, accessmanager.RealtimeMonitorToneNormal, "", channelRuntimePrometheusZeroFallback("sum(wukongim_channelv2_active_runtimes)")),
+		clusterMetric(accessmanager.RealtimeMonitorCategoryChannel, "channelAppendBatchRecordsP95", accessmanager.RealtimeMonitorStageChannelReplication, accessmanager.RealtimeMonitorToneNormal, "records", channelRuntimePrometheusFallback("histogram_quantile(0.95, sum(rate(wukongim_channelv2_append_batch_records_bucket[%s])) by (le))")),
+		clusterMetric(accessmanager.RealtimeMonitorCategoryChannel, "channelAppendBatchBytesP95", accessmanager.RealtimeMonitorStageChannelReplication, accessmanager.RealtimeMonitorToneNormal, "B", channelRuntimePrometheusFallback("histogram_quantile(0.95, sum(rate(wukongim_channelv2_append_batch_bytes_bucket[%s])) by (le))")),
+		clusterMetric(accessmanager.RealtimeMonitorCategoryChannel, "channelAppendErrorRate", accessmanager.RealtimeMonitorStageChannelReplication, accessmanager.RealtimeMonitorToneCritical, "%", channelRuntimePrometheusZeroFallback("(sum(rate(wukongim_channelv2_append_stage_duration_seconds_count{result!=\"ok\"}[%s])) / clamp_min(sum(rate(wukongim_channelv2_append_stage_duration_seconds_count[%s])), 1)) * 100")),
 		clusterMetric(accessmanager.RealtimeMonitorCategoryChannel, "channelWriterAdmissionUsage", accessmanager.RealtimeMonitorStageRuntimePressure, accessmanager.RealtimeMonitorToneWarning, "%", prometheusZeroFallback("(sum(wukongim_channelappend_writer_admission_depth) / clamp_min(sum(wukongim_channelappend_writer_admission_capacity), 1)) * 100")),
-		clusterMetric(accessmanager.RealtimeMonitorCategoryChannel, "channelRuntimeFollowersParked", accessmanager.RealtimeMonitorStageChannelReplication, accessmanager.RealtimeMonitorToneWarning, "", prometheusZeroFallback("sum(wukongim_channelv2_follower_parked)")),
-		clusterMetric(accessmanager.RealtimeMonitorCategoryChannel, "channelActivationRejectRate", accessmanager.RealtimeMonitorStageChannelReplication, accessmanager.RealtimeMonitorToneCritical, "events/s", prometheusZeroFallback("sum(rate(wukongim_channelv2_activation_rejected_total[%s]))")),
-		clusterMetric(accessmanager.RealtimeMonitorCategoryChannel, "channelReactorMailboxDepth", accessmanager.RealtimeMonitorStageRuntimePressure, accessmanager.RealtimeMonitorToneWarning, "", prometheusZeroFallback("max(wukongim_channelv2_reactor_mailbox_depth)")),
-		clusterMetric(accessmanager.RealtimeMonitorCategoryChannel, "channelWorkerQueueDepth", accessmanager.RealtimeMonitorStageRuntimePressure, accessmanager.RealtimeMonitorToneWarning, "", prometheusZeroFallback("sum(wukongim_channelv2_worker_queue_depth)")),
-		clusterMetric(accessmanager.RealtimeMonitorCategoryChannel, "channelPullHintErrorRate", accessmanager.RealtimeMonitorStageChannelReplication, accessmanager.RealtimeMonitorToneCritical, "%", prometheusZeroFallback("(sum(rate(wukongim_channelv2_pull_hint_total{result!=\"ok\"}[%s])) / clamp_min(sum(rate(wukongim_channelv2_pull_hint_total[%s])), 1)) * 100")),
-		clusterMetric(accessmanager.RealtimeMonitorCategoryChannel, "channelReplicationLatencyP99", accessmanager.RealtimeMonitorStageChannelReplication, accessmanager.RealtimeMonitorToneWarning, "ms", "histogram_quantile(0.99, sum(rate(wukongim_channelv2_replication_stage_duration_seconds_bucket[%s])) by (le)) * 1000"),
+		clusterMetric(accessmanager.RealtimeMonitorCategoryChannel, "channelRuntimeFollowersParked", accessmanager.RealtimeMonitorStageChannelReplication, accessmanager.RealtimeMonitorToneWarning, "", channelRuntimePrometheusZeroFallback("sum(wukongim_channelv2_follower_parked)")),
+		clusterMetric(accessmanager.RealtimeMonitorCategoryChannel, "channelActivationRejectRate", accessmanager.RealtimeMonitorStageChannelReplication, accessmanager.RealtimeMonitorToneCritical, "events/s", channelRuntimePrometheusZeroFallback("sum(rate(wukongim_channelv2_activation_rejected_total[%s]))")),
+		clusterMetric(accessmanager.RealtimeMonitorCategoryChannel, "channelReactorMailboxDepth", accessmanager.RealtimeMonitorStageRuntimePressure, accessmanager.RealtimeMonitorToneWarning, "", channelRuntimePrometheusZeroFallback("max(wukongim_channelv2_reactor_mailbox_depth)")),
+		clusterMetric(accessmanager.RealtimeMonitorCategoryChannel, "channelWorkerQueueDepth", accessmanager.RealtimeMonitorStageRuntimePressure, accessmanager.RealtimeMonitorToneWarning, "", channelRuntimePrometheusZeroFallback("sum(wukongim_channelv2_worker_queue_depth)")),
+		clusterMetric(accessmanager.RealtimeMonitorCategoryChannel, "channelPullHintErrorRate", accessmanager.RealtimeMonitorStageChannelReplication, accessmanager.RealtimeMonitorToneCritical, "%", channelRuntimePrometheusZeroFallback("(sum(rate(wukongim_channelv2_pull_hint_total{result!=\"ok\"}[%s])) / clamp_min(sum(rate(wukongim_channelv2_pull_hint_total[%s])), 1)) * 100")),
+		clusterMetric(accessmanager.RealtimeMonitorCategoryChannel, "channelReplicationLatencyP99", accessmanager.RealtimeMonitorStageChannelReplication, accessmanager.RealtimeMonitorToneWarning, "ms", channelRuntimePrometheusFallback("histogram_quantile(0.99, sum(rate(wukongim_channelv2_replication_stage_duration_seconds_bucket[%s])) by (le)) * 1000")),
 		clusterMetric(accessmanager.RealtimeMonitorCategoryDatabase, "storageWriteP99", accessmanager.RealtimeMonitorStageRuntimePressure, accessmanager.RealtimeMonitorToneWarning, "ms", "histogram_quantile(0.99, sum(rate(wukongim_storage_commit_request_duration_seconds_bucket[%s])) by (le)) * 1000"),
 		clusterMetric(accessmanager.RealtimeMonitorCategoryDatabase, "storageCommitErrorRate", accessmanager.RealtimeMonitorStageIncidentClosure, accessmanager.RealtimeMonitorToneCritical, "%", prometheusZeroFallback("(sum(rate(wukongim_storage_commit_request_duration_seconds_count{result!=\"ok\"}[%s])) / clamp_min(sum(rate(wukongim_storage_commit_request_duration_seconds_count[%s])), 1)) * 100")),
 		clusterMetric(accessmanager.RealtimeMonitorCategoryDatabase, "storageCommitQueueUsage", accessmanager.RealtimeMonitorStageRuntimePressure, accessmanager.RealtimeMonitorToneWarning, "%", prometheusZeroFallback("(sum(wukongim_runtime_pool_queue_depth{component=\"db\",pool=\"message_commit\",queue=\"commit\"}) / clamp_min(sum(wukongim_runtime_pool_queue_capacity{component=\"db\",pool=\"message_commit\",queue=\"commit\"}), 1)) * 100")),
@@ -240,6 +240,18 @@ func managerClusterMonitorMetricDefinitions() []clusterMonitorMetricDefinition {
 	}
 }
 
+func channelRuntimePrometheusFallback(legacyExpr string) string {
+	promotedExpr := strings.ReplaceAll(legacyExpr, "wukongim_channelv2_", "wukongim_channel_")
+	if promotedExpr == legacyExpr {
+		return legacyExpr
+	}
+	return prometheusFirstAvailable(promotedExpr, legacyExpr)
+}
+
+func channelRuntimePrometheusZeroFallback(legacyExpr string) string {
+	return prometheusZeroFallback(channelRuntimePrometheusFallback(legacyExpr))
+}
+
 func clusterMetricWithTransform(category, key, stage, tone, unit, pattern string, transform func(float64) float64) clusterMonitorMetricDefinition {
 	def := clusterMetric(category, key, stage, tone, unit, pattern)
 	def.transform = transform
@@ -260,14 +272,15 @@ func clusterMetric(category, key, stage, tone, unit, pattern string) clusterMoni
 		tone:     tone,
 		unit:     unit,
 		query: func(rateWindow string) string {
-			switch strings.Count(pattern, "%s") {
-			case 2:
-				return fmt.Sprintf(pattern, rateWindow, rateWindow)
-			case 1:
-				return fmt.Sprintf(pattern, rateWindow)
-			default:
+			count := strings.Count(pattern, "%s")
+			if count == 0 {
 				return pattern
 			}
+			args := make([]any, count)
+			for i := range args {
+				args[i] = rateWindow
+			}
+			return fmt.Sprintf(pattern, args...)
 		},
 	}
 }
