@@ -69,27 +69,27 @@ Treat `active_leader_single_node` as an invalid topology sample first: inspect
 the activation report's per-node active runtime distribution before using that
 run as capacity evidence.
 For cold Channel runtime activation attribution, first compare the per-node
-`channelv2_meta_resolve_p99_seconds`,
-`channelv2_meta_create_build_p99_seconds`,
-`channelv2_meta_create_propose_p99_seconds`,
-`channelv2_meta_create_propose_local_p99_seconds`,
-`channelv2_meta_create_propose_forward_p99_seconds`,
-`channelv2_meta_create_slot_propose_submit_p99_seconds`,
-`channelv2_meta_create_slot_propose_wait_p99_seconds`,
-`channelv2_meta_create_slot_control_wait_p99_seconds`,
-`channelv2_meta_create_slot_raft_commit_wait_p99_seconds`,
-`channelv2_meta_create_slot_fsm_apply_p99_seconds`,
-`channelv2_meta_create_slot_fsm_commit_p99_seconds`,
-`channelv2_meta_create_slot_mark_applied_p99_seconds`,
-`channelv2_meta_apply_p99_seconds`, and
-`channelv2_runtime_append_p99_seconds`,
-`channelv2_runtime_append_reserve_wait_p99_seconds`,
-`channelv2_runtime_append_submit_p99_seconds`, and
-`channelv2_runtime_append_wait_p99_seconds`,
-`channelv2_append_batch_wait_p99_seconds`, and
-`channelv2_append_batch_records_p50`,
-`channelv2_append_store_wait_p99_seconds`, and
-`channelv2_append_post_store_commit_wait_p99_seconds` values before using pprof to inspect
+`channel_meta_resolve_p99_seconds`,
+`channel_meta_create_build_p99_seconds`,
+`channel_meta_create_propose_p99_seconds`,
+`channel_meta_create_propose_local_p99_seconds`,
+`channel_meta_create_propose_forward_p99_seconds`,
+`channel_meta_create_slot_propose_submit_p99_seconds`,
+`channel_meta_create_slot_propose_wait_p99_seconds`,
+`channel_meta_create_slot_control_wait_p99_seconds`,
+`channel_meta_create_slot_raft_commit_wait_p99_seconds`,
+`channel_meta_create_slot_fsm_apply_p99_seconds`,
+`channel_meta_create_slot_fsm_commit_p99_seconds`,
+`channel_meta_create_slot_mark_applied_p99_seconds`,
+`channel_meta_apply_p99_seconds`, and
+`channel_runtime_append_p99_seconds`,
+`channel_runtime_append_reserve_wait_p99_seconds`,
+`channel_runtime_append_submit_p99_seconds`, and
+`channel_runtime_append_wait_p99_seconds`,
+`channel_append_batch_wait_p99_seconds`, and
+`channel_append_batch_records_p50`,
+`channel_append_store_wait_p99_seconds`, and
+`channel_append_post_store_commit_wait_p99_seconds` values before using pprof to inspect
 the hot path. In the default Slot-backed writer, `meta_create_propose` includes the
 Slot proposal and wait-for-apply path; the Slot submit/wait sub-stages split
 that default path at the Multi-Raft future boundary, then split future wait into
@@ -110,55 +110,55 @@ or `follower_apply` lane, also compare
 confirm whether Channel runtime worker-level store batching is active.
 When
 post-store quorum wait rises, use
-`channelv2_append_quorum_follower_pull_wait_p99_seconds`,
-`channelv2_append_quorum_ack_offset_wait_p99_seconds`,
-`channelv2_append_quorum_hw_advance_wait_p99_seconds`, and
-`channelv2_append_quorum_final_complete_p99_seconds` to separate follower pull,
+`channel_append_quorum_follower_pull_wait_p99_seconds`,
+`channel_append_quorum_ack_offset_wait_p99_seconds`,
+`channel_append_quorum_hw_advance_wait_p99_seconds`, and
+`channel_append_quorum_final_complete_p99_seconds` to separate follower pull,
 leader progress-ACK/AckOffset processing, HW advancement, and final waiter
 completion. Then
-use `channelv2_replication_follower_pull_hint_to_submit_p99_seconds`,
-`channelv2_replication_follower_pull_rpc_p99_seconds`,
-`channelv2_need_meta_pull_rpc_p99_seconds`,
-`channelv2_replication_follower_store_apply_p99_seconds`, and
-`channelv2_replication_follower_apply_to_ack_return_p99_seconds` to localize
+use `channel_replication_follower_pull_hint_to_submit_p99_seconds`,
+`channel_replication_follower_pull_rpc_p99_seconds`,
+`channel_need_meta_pull_rpc_p99_seconds`,
+`channel_replication_follower_store_apply_p99_seconds`, and
+`channel_replication_follower_apply_to_ack_return_p99_seconds` to localize
 the follower-side step that delayed quorum coverage. Ordinary follower progress
 ACKs are sent only after follower store apply succeeds; Pull `AckOffset` remains
 the fallback progress return and leader HW still advances only through normal
 quorum checks. During cold activation,
-also check `channelv2_pending_meta_current_max`,
-`channelv2_pending_meta_created_count`,
-`channelv2_pending_meta_converted_count`,
-`channelv2_pending_meta_released_count`,
-`channelv2_need_meta_pull_submitted_count`,
-`channelv2_need_meta_pull_ok_count`,
-`channelv2_need_meta_pull_retry_count`,
-`channelv2_need_meta_pull_err_count`, and stable NeedMeta error-class counters
-such as `channelv2_need_meta_pull_not_ready_err_count`,
-`channelv2_need_meta_pull_not_replica_err_count`, and
-`channelv2_need_meta_pull_timeout_err_count` before treating follower recovery
+also check `channel_pending_meta_current_max`,
+`channel_pending_meta_created_count`,
+`channel_pending_meta_converted_count`,
+`channel_pending_meta_released_count`,
+`channel_need_meta_pull_submitted_count`,
+`channel_need_meta_pull_ok_count`,
+`channel_need_meta_pull_retry_count`,
+`channel_need_meta_pull_err_count`, and stable NeedMeta error-class counters
+such as `channel_need_meta_pull_not_ready_err_count`,
+`channel_need_meta_pull_not_replica_err_count`, and
+`channel_need_meta_pull_timeout_err_count` before treating follower recovery
 probes as the primary wakeup path. If those accepted PullHint
 stage counts are much lower than follower apply counts, check
-`channelv2_pull_hint_submitted_count`, `channelv2_pull_hint_ok_count`,
-`channelv2_pull_hint_err_count`, and the stable error-class counters such as
-`channelv2_pull_hint_stale_meta_err_count`,
-`channelv2_pull_hint_channel_not_found_err_count`,
-`channelv2_pull_hint_not_ready_err_count`, and
-`channelv2_pull_hint_canceled_err_count`,
-`channelv2_pull_hint_timeout_err_count`,
-`channelv2_pull_hint_remote_err_count`, and
-`channelv2_pull_hint_other_err_count` before assuming the accepted PullHint hot
+`channel_pull_hint_submitted_count`, `channel_pull_hint_ok_count`,
+`channel_pull_hint_err_count`, and the stable error-class counters such as
+`channel_pull_hint_stale_meta_err_count`,
+`channel_pull_hint_channel_not_found_err_count`,
+`channel_pull_hint_not_ready_err_count`, and
+`channel_pull_hint_canceled_err_count`,
+`channel_pull_hint_timeout_err_count`,
+`channel_pull_hint_remote_err_count`, and
+`channel_pull_hint_other_err_count` before assuming the accepted PullHint hot
 path is slow. If leader-side PullHint errors are present, compare them with
 receiver-side stage counters such as
-`channelv2_pull_hint_receive_meta_resolve_err_count`,
-`channelv2_pull_hint_receive_meta_hint_ok_count`,
-`channelv2_pull_hint_receive_meta_validate_err_count`,
-`channelv2_pull_hint_receive_meta_apply_err_count`,
-`channelv2_pull_hint_receive_submit_err_count`,
-`channelv2_pull_hint_receive_await_err_count`, and
-`channelv2_pull_hint_receive_channel_not_found_err_count` to separate remote
+`channel_pull_hint_receive_meta_resolve_err_count`,
+`channel_pull_hint_receive_meta_hint_ok_count`,
+`channel_pull_hint_receive_meta_validate_err_count`,
+`channel_pull_hint_receive_meta_apply_err_count`,
+`channel_pull_hint_receive_submit_err_count`,
+`channel_pull_hint_receive_await_err_count`, and
+`channel_pull_hint_receive_channel_not_found_err_count` to separate remote
 transport failures from follower metadata propagation, lazy activation, reactor
 admission, and follower future wait failures. A non-zero
-`channelv2_pull_hint_receive_meta_hint_ok_count` means followers successfully
+`channel_pull_hint_receive_meta_hint_ok_count` means followers successfully
 used leader-carried metadata while local metadata reads were still catching up.
 
 Node logs are collected from `internal/log` output under `docker/dev-cluster/node*/logs`:
@@ -406,44 +406,44 @@ Interpretation matrix:
 | --- | --- | --- |
 | Gateway queue ratio is high and gateway async dispatch wait p99 rises, while Channel runtime queues are low | gateway dispatch bottleneck | gnet event loops, async SEND worker count, handler CPU, pprof |
 | Gateway async dispatch wait is low, but Channel runtime reactor mailbox or worker queues grow | Channel runtime bottleneck | append p99, worker kind p99, store/RPC pprof |
-| Channel runtime worker queue is low but `channelv2_worker_inflight_peak{pool=...}` reaches the configured worker count | blocking worker saturation | compare store append/apply worker task p99, storage commit request lane tails, goroutine pprof |
+| Channel runtime worker queue is low but `channel_worker_inflight_peak{pool=...}` reaches the configured worker count | blocking worker saturation | compare store append/apply worker task p99, storage commit request lane tails, goroutine pprof |
 | `channelappend_effect_pool_submit_total{result="full"}` rises or `channelappend_effect_pool_saturated` stays high | channelappend ants stage pool saturation | compare stage-specific worker count, `channelappend_effect_duration_seconds`, appender pprof, recipient post-commit fanout |
 | ChannelAppend effect queue grows while pool saturation is low | reactor scheduling or downstream channel-state drain issue | inspect reactor mailbox, append in-flight limit, channel busy counts, goroutine pprof |
-| `channelv2_meta_resolve_p99_seconds` rises | metadata control path bottleneck | slot/controller metadata read or create path, meta cache behavior |
-| `channelv2_meta_create_build_p99_seconds` rises | metadata placement/build bottleneck | channel placement resolver and route snapshot reads |
-| `channelv2_meta_create_propose_p99_seconds` rises | Slot metadata propose/apply bottleneck | Slot proposal wait, Multi-Raft apply, metadata FSM commit |
-| `channelv2_meta_create_propose_local_p99_seconds` rises | local Slot proposal bottleneck at origin | local Slot submit/wait split |
-| `channelv2_meta_create_propose_forward_p99_seconds` rises | remote Slot leader forwarding bottleneck at origin | node RPC forward path and leader-side Slot wait |
-| `channelv2_meta_create_slot_propose_submit_p99_seconds` rises | Slot runtime submit bottleneck | Multi-Raft proposal enqueue/scheduler pressure |
-| `channelv2_meta_create_slot_propose_wait_p99_seconds` rises | Slot proposal wait bottleneck | Raft commit, apply, metadata FSM batch, Pebble commit |
-| `channelv2_meta_create_slot_control_wait_p99_seconds` rises | Slot worker scheduling/control queue bottleneck | Multi-Raft worker scheduling, Slot control backlog |
-| `channelv2_meta_create_slot_raft_commit_wait_p99_seconds` rises | Raft commit wait bottleneck | Slot Raft append/replication/leader loop, follower ack latency |
-| `channelv2_meta_create_slot_fsm_apply_p99_seconds` rises | Slot FSM apply bottleneck | command decode/apply batch cost and nested FSM commit |
-| `channelv2_meta_create_slot_fsm_commit_p99_seconds` rises | metadata Pebble commit bottleneck | meta DB write batch, fsync/storage latency |
-| `channelv2_meta_create_slot_mark_applied_p99_seconds` rises | Slot applied-index persistence bottleneck | Raft log MarkApplied write path |
-| `channelv2_meta_apply_p99_seconds` rises | cold runtime create/apply bottleneck | Channel runtime ensure/load, store open, mailbox/worker pressure |
-| `channelv2_runtime_append_p99_seconds` rises | append wait bottleneck | reactor append p99, worker kind p99, storage commit p99 |
-| `channelv2_runtime_append_reserve_wait_p99_seconds` rises | per-channel append admission bottleneck | same-channel append reservation contention |
-| `channelv2_runtime_append_submit_p99_seconds` rises | reactor mailbox admission bottleneck | mailbox capacity, reactor scheduling, event queue pressure |
-| `channelv2_runtime_append_wait_p99_seconds` rises | admitted append future bottleneck | append batching wait, store append, quorum replication, worker result handling |
-| `channelv2_append_batch_wait_p99_seconds` rises | append batching delay | append batch max wait, batch formation, per-reactor channel distribution |
-| `channelv2_append_store_wait_p99_seconds` rises | durable append wait | store append worker queue/run time, message DB group commit, fsync/storage latency |
+| `channel_meta_resolve_p99_seconds` rises | metadata control path bottleneck | slot/controller metadata read or create path, meta cache behavior |
+| `channel_meta_create_build_p99_seconds` rises | metadata placement/build bottleneck | channel placement resolver and route snapshot reads |
+| `channel_meta_create_propose_p99_seconds` rises | Slot metadata propose/apply bottleneck | Slot proposal wait, Multi-Raft apply, metadata FSM commit |
+| `channel_meta_create_propose_local_p99_seconds` rises | local Slot proposal bottleneck at origin | local Slot submit/wait split |
+| `channel_meta_create_propose_forward_p99_seconds` rises | remote Slot leader forwarding bottleneck at origin | node RPC forward path and leader-side Slot wait |
+| `channel_meta_create_slot_propose_submit_p99_seconds` rises | Slot runtime submit bottleneck | Multi-Raft proposal enqueue/scheduler pressure |
+| `channel_meta_create_slot_propose_wait_p99_seconds` rises | Slot proposal wait bottleneck | Raft commit, apply, metadata FSM batch, Pebble commit |
+| `channel_meta_create_slot_control_wait_p99_seconds` rises | Slot worker scheduling/control queue bottleneck | Multi-Raft worker scheduling, Slot control backlog |
+| `channel_meta_create_slot_raft_commit_wait_p99_seconds` rises | Raft commit wait bottleneck | Slot Raft append/replication/leader loop, follower ack latency |
+| `channel_meta_create_slot_fsm_apply_p99_seconds` rises | Slot FSM apply bottleneck | command decode/apply batch cost and nested FSM commit |
+| `channel_meta_create_slot_fsm_commit_p99_seconds` rises | metadata Pebble commit bottleneck | meta DB write batch, fsync/storage latency |
+| `channel_meta_create_slot_mark_applied_p99_seconds` rises | Slot applied-index persistence bottleneck | Raft log MarkApplied write path |
+| `channel_meta_apply_p99_seconds` rises | cold runtime create/apply bottleneck | Channel runtime ensure/load, store open, mailbox/worker pressure |
+| `channel_runtime_append_p99_seconds` rises | append wait bottleneck | reactor append p99, worker kind p99, storage commit p99 |
+| `channel_runtime_append_reserve_wait_p99_seconds` rises | per-channel append admission bottleneck | same-channel append reservation contention |
+| `channel_runtime_append_submit_p99_seconds` rises | reactor mailbox admission bottleneck | mailbox capacity, reactor scheduling, event queue pressure |
+| `channel_runtime_append_wait_p99_seconds` rises | admitted append future bottleneck | append batching wait, store append, quorum replication, worker result handling |
+| `channel_append_batch_wait_p99_seconds` rises | append batching delay | append batch max wait, batch formation, per-reactor channel distribution |
+| `channel_append_store_wait_p99_seconds` rises | durable append wait | store append worker queue/run time, message DB group commit, fsync/storage latency |
 | `storage_commit_request_p99_seconds` rises while `storage_commit_total_p99_seconds` stays low | commit queue/admission wait | commit queue depth, lane-specific `leader_append` / `follower_apply` request tails, caller context budget, submit goroutine pprof |
-| `storage_commit_request_over_10s_count{lane="leader_append"}` or `{lane="follower_apply"}` rises | rare caller-visible storage tail | match lane to `channelv2_worker_inflight_peak`, worker task p99, and blocked goroutine stacks |
+| `storage_commit_request_over_10s_count{lane="leader_append"}` or `{lane="follower_apply"}` rises | rare caller-visible storage tail | match lane to `channel_worker_inflight_peak`, worker task p99, and blocked goroutine stacks |
 | `storage_commit_request_p99_seconds` and `storage_commit_total_p99_seconds` both rise | grouped commit path bottleneck | batch collect/build/publish split, Pebble sync/fsync, storage device latency |
-| `channelv2_append_post_store_commit_wait_p99_seconds` rises | post-store commit wait | follower pull/apply cadence, AckOffset handling, HW advancement, quorum completion |
-| `channelv2_append_quorum_follower_pull_wait_p99_seconds` rises | follower pull service wait | pull hints, follower parking/recovery probe, leader recent cache/store-read path |
-| `channelv2_append_quorum_ack_offset_wait_p99_seconds` rises | follower apply or ack return wait | follower store apply, progress ACK RPC, fallback next-pull AckOffset path |
-| `channelv2_append_quorum_hw_advance_wait_p99_seconds` rises | leader HW advancement wait | follower match progress, ISR/MinISR rules, leader ack processing |
-| `channelv2_append_quorum_final_complete_p99_seconds` rises | waiter completion wait | reactor reply completion, future wakeup, caller-side blocked receive |
-| `channelv2_replication_follower_pull_hint_to_submit_p99_seconds` rises | follower wakeup/scheduling wait | PullHint delivery, parked follower state, inflight pull suppression, due scheduler |
-| `channelv2_replication_follower_pull_rpc_p99_seconds` rises | follower pull RPC wait | leader pull handling, recent cache/store read path, transport RPC latency |
-| `channelv2_need_meta_pull_rpc_p99_seconds` rises | follower bootstrap metadata pull wait | NeedMeta leader pull handling, metadata clone path, transport RPC latency |
-| `channelv2_replication_follower_store_apply_p99_seconds` rises | follower durable apply wait | store-apply worker queue/run time, `store_apply` worker batch size, follower message DB commit latency |
-| `channelv2_replication_follower_apply_to_ack_return_p99_seconds` rises | follower progress return wait | progress ACK RPC, fallback next-pull AckOffset path, leader ack response path |
-| `channelv2_pending_meta_current_max` remains non-zero or releases rise | follower bootstrap leak or rejection | NeedMeta ok/retry/err counters, error classes, local replica membership |
-| `channelv2_need_meta_pull_retry_count` or `channelv2_need_meta_pull_err_count` rises | NeedMeta bootstrap instability | stable NeedMeta error-class counters, leader pull path, transport errors |
-| `channelv2_pull_hint_err_count` rises or PullHint submitted/ok counts are far below follower apply counts | PullHint wakeup loss or rejection | stable PullHint error-class counters, follower recovery probe counts, route/meta readiness |
+| `channel_append_post_store_commit_wait_p99_seconds` rises | post-store commit wait | follower pull/apply cadence, AckOffset handling, HW advancement, quorum completion |
+| `channel_append_quorum_follower_pull_wait_p99_seconds` rises | follower pull service wait | pull hints, follower parking/recovery probe, leader recent cache/store-read path |
+| `channel_append_quorum_ack_offset_wait_p99_seconds` rises | follower apply or ack return wait | follower store apply, progress ACK RPC, fallback next-pull AckOffset path |
+| `channel_append_quorum_hw_advance_wait_p99_seconds` rises | leader HW advancement wait | follower match progress, ISR/MinISR rules, leader ack processing |
+| `channel_append_quorum_final_complete_p99_seconds` rises | waiter completion wait | reactor reply completion, future wakeup, caller-side blocked receive |
+| `channel_replication_follower_pull_hint_to_submit_p99_seconds` rises | follower wakeup/scheduling wait | PullHint delivery, parked follower state, inflight pull suppression, due scheduler |
+| `channel_replication_follower_pull_rpc_p99_seconds` rises | follower pull RPC wait | leader pull handling, recent cache/store read path, transport RPC latency |
+| `channel_need_meta_pull_rpc_p99_seconds` rises | follower bootstrap metadata pull wait | NeedMeta leader pull handling, metadata clone path, transport RPC latency |
+| `channel_replication_follower_store_apply_p99_seconds` rises | follower durable apply wait | store-apply worker queue/run time, `store_apply` worker batch size, follower message DB commit latency |
+| `channel_replication_follower_apply_to_ack_return_p99_seconds` rises | follower progress return wait | progress ACK RPC, fallback next-pull AckOffset path, leader ack response path |
+| `channel_pending_meta_current_max` remains non-zero or releases rise | follower bootstrap leak or rejection | NeedMeta ok/retry/err counters, error classes, local replica membership |
+| `channel_need_meta_pull_retry_count` or `channel_need_meta_pull_err_count` rises | NeedMeta bootstrap instability | stable NeedMeta error-class counters, leader pull path, transport errors |
+| `channel_pull_hint_err_count` rises or PullHint submitted/ok counts are far below follower apply counts | PullHint wakeup loss or rejection | stable PullHint error-class counters, follower recovery probe counts, route/meta readiness |
 | Gateway wait and Channel runtime queues both rise | downstream backpressure visible at gateway | determine whether Channel runtime or host CPU saturates first |
 | Queues stay low but SENDACK latency is high | synchronous path outside observed queues | message usecase, metadata ensure/apply, routing, pprof |
 | Batch records p50/p99 stay near 1 while queue wait is high | batching is not forming under load | shard distribution, workload channel cardinality, batch wait/record limits |
@@ -475,7 +475,7 @@ Change one variable per run.
 
 Use `WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS` and
 `WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS` only as a bounded-concurrency
-experiment when `channelv2_worker_inflight_peak` reaches the store pool limit
+experiment when `channel_worker_inflight_peak` reaches the store pool limit
 and storage request tails show `leader_append` / `follower_apply` pressure. The
 caps do not change durable commit, sync, quorum, or ACK semantics; they only
 control how many blocking store calls enter the shared message DB commit

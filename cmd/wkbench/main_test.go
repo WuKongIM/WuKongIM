@@ -455,12 +455,14 @@ func TestMetricsClassifyPromotesChannelRuntimeOutputKeys(t *testing.T) {
 	if err := os.WriteFile(before, []byte(`
 wukongim_channelv2_worker_inflight{pool="store_append"} 0
 wukongim_channelv2_worker_inflight_peak{pool="store_append"} 0
+wukongim_channelv2_worker_queue_depth{pool="store_append"} 0
 `), 0o600); err != nil {
 		t.Fatalf("write before: %v", err)
 	}
 	if err := os.WriteFile(after, []byte(`
 wukongim_channelv2_worker_inflight{pool="store_append"} 128
 wukongim_channelv2_worker_inflight_peak{pool="store_append"} 256
+wukongim_channelv2_worker_queue_depth{pool="store_append"} 1
 `), 0o600); err != nil {
 		t.Fatalf("write after: %v", err)
 	}
@@ -473,6 +475,7 @@ wukongim_channelv2_worker_inflight_peak{pool="store_append"} 256
 	}
 	output := stderr.String()
 	for _, want := range []string{
+		"classification: channel_append",
 		"channel_worker_inflight{pool=\"store_append\"}: 128",
 		"channel_worker_inflight_peak{pool=\"store_append\"}: 256",
 	} {
@@ -480,8 +483,13 @@ wukongim_channelv2_worker_inflight_peak{pool="store_append"} 256
 			t.Fatalf("expected promoted channel key %q in output, got %q", want, output)
 		}
 	}
-	if strings.Contains(output, "channelv2_worker_inflight") {
-		t.Fatalf("output should not expose legacy channelv2 report keys, got %q", output)
+	for _, unwanted := range []string{
+		"classification: channelv2_append",
+		"channelv2_worker_inflight",
+	} {
+		if strings.Contains(output, unwanted) {
+			t.Fatalf("output should not expose legacy channelv2 report key %q, got %q", unwanted, output)
+		}
 	}
 }
 

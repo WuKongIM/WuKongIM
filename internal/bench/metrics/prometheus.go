@@ -13,8 +13,7 @@ import (
 const (
 	WukongIMBottleneckGateway        = "gateway_dispatch"
 	WukongIMBottleneckControllerRaft = "controller_raft_step"
-	// WukongIMBottleneckChannelRuntime keeps the historical bench result key for compatibility.
-	WukongIMBottleneckChannelRuntime = "channelv2_append"
+	WukongIMBottleneckChannelRuntime = "channel_append"
 	WukongIMBottleneckStorageCommit  = "storage_commit"
 	WukongIMBottleneckMixed          = "mixed_backpressure"
 	WukongIMBottleneckUnobserved     = "no_observed_queue_pressure"
