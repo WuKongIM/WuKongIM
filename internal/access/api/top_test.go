@@ -32,7 +32,7 @@ func TestTopSnapshotRouteReturnsProviderSnapshot(t *testing.T) {
 		WindowSeconds: 10,
 		Node:          TopNodeSnapshot{ID: 2, Name: "node-2", Ready: true},
 		Verdict:       TopVerdict{Level: "ok", Summary: "ok"},
-		ChannelV2: &TopChannelV2{
+		ChannelRuntime: &TopChannelRuntime{
 			ReactorMailboxCapacityMax: 10,
 			WorkerQueueCapacityByPool: map[string]int64{"store_append": 8},
 			WorkerCapacityByPool:      map[string]int64{"store_append": 6},

@@ -86,8 +86,8 @@ type TopSnapshot struct {
 	Alerts *TopAlerts `json:"alerts,omitempty"`
 	// Pressure contains scored runtime bottlenecks when available.
 	Pressure *TopPressure `json:"pressure,omitempty"`
-	// ChannelV2 is the compatibility JSON field for channel runtime gauges and latency summaries.
-	ChannelV2 *TopChannelV2 `json:"channelv2,omitempty"`
+	// ChannelRuntime contains channel runtime gauges and latency summaries; its JSON field remains channelv2 for compatibility.
+	ChannelRuntime *TopChannelRuntime `json:"channelv2,omitempty"`
 	// Storage contains local storage commit queue summaries.
 	Storage *TopStorage `json:"storage,omitempty"`
 	// Delivery contains delivery runtime rates, queues, and errors.
@@ -274,8 +274,8 @@ type TopPressureItem struct {
 	Hint string `json:"hint,omitempty"`
 }
 
-// TopChannelV2 is the compatibility DTO for channel runtime gauges and latency summaries.
-type TopChannelV2 struct {
+// TopChannelRuntime contains channel runtime gauges and latency summaries.
+type TopChannelRuntime struct {
 	// ActiveTotal is the number of active Channel runtimes.
 	ActiveTotal int64 `json:"active_total"`
 	// ActiveLeader is the number of active leader runtimes.

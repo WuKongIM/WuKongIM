@@ -555,28 +555,28 @@ func TestTopCollectorAllViewIncludesRuntimeSections(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SnapshotTop() error = %v", err)
 	}
-	if snapshot.ChannelV2 == nil {
+	if snapshot.ChannelRuntime == nil {
 		t.Fatal("channel runtime section is nil")
 	}
-	if snapshot.ChannelV2.ActiveLeader != 2 || snapshot.ChannelV2.ActiveFollower != 3 || snapshot.ChannelV2.ActiveTotal != 5 {
-		t.Fatalf("channel runtime active counts = %#v, want leader 2 follower 3 total 5", snapshot.ChannelV2)
+	if snapshot.ChannelRuntime.ActiveLeader != 2 || snapshot.ChannelRuntime.ActiveFollower != 3 || snapshot.ChannelRuntime.ActiveTotal != 5 {
+		t.Fatalf("channel runtime active counts = %#v, want leader 2 follower 3 total 5", snapshot.ChannelRuntime)
 	}
-	if snapshot.ChannelV2.FollowerParked != 1 || snapshot.ChannelV2.ReactorMailboxDepthMax != 7 || snapshot.ChannelV2.ReactorMailboxCapacityMax != 10 {
-		t.Fatalf("channel runtime pressure gauges = %#v, want parked 1 mailbox 7 capacity 10", snapshot.ChannelV2)
+	if snapshot.ChannelRuntime.FollowerParked != 1 || snapshot.ChannelRuntime.ReactorMailboxDepthMax != 7 || snapshot.ChannelRuntime.ReactorMailboxCapacityMax != 10 {
+		t.Fatalf("channel runtime pressure gauges = %#v, want parked 1 mailbox 7 capacity 10", snapshot.ChannelRuntime)
 	}
-	if snapshot.ChannelV2.WorkerQueueDepthByPool["store_append"] != 4 ||
-		snapshot.ChannelV2.WorkerQueueCapacityByPool["store_append"] != 8 ||
-		snapshot.ChannelV2.WorkerInflightByPool["store_append"] != 3 ||
-		snapshot.ChannelV2.WorkerCapacityByPool["store_append"] != 6 {
+	if snapshot.ChannelRuntime.WorkerQueueDepthByPool["store_append"] != 4 ||
+		snapshot.ChannelRuntime.WorkerQueueCapacityByPool["store_append"] != 8 ||
+		snapshot.ChannelRuntime.WorkerInflightByPool["store_append"] != 3 ||
+		snapshot.ChannelRuntime.WorkerCapacityByPool["store_append"] != 6 {
 		t.Fatalf("channel runtime worker maps = queue:%#v queueCap:%#v inflight:%#v workerCap:%#v",
-			snapshot.ChannelV2.WorkerQueueDepthByPool,
-			snapshot.ChannelV2.WorkerQueueCapacityByPool,
-			snapshot.ChannelV2.WorkerInflightByPool,
-			snapshot.ChannelV2.WorkerCapacityByPool,
+			snapshot.ChannelRuntime.WorkerQueueDepthByPool,
+			snapshot.ChannelRuntime.WorkerQueueCapacityByPool,
+			snapshot.ChannelRuntime.WorkerInflightByPool,
+			snapshot.ChannelRuntime.WorkerCapacityByPool,
 		)
 	}
-	if snapshot.ChannelV2.AppendP99MS != 12 || snapshot.ChannelV2.HotStage != "store_append" || snapshot.ChannelV2.StageP99MS["store_append"] != 15 {
-		t.Fatalf("channel runtime latency section = %#v", snapshot.ChannelV2)
+	if snapshot.ChannelRuntime.AppendP99MS != 12 || snapshot.ChannelRuntime.HotStage != "store_append" || snapshot.ChannelRuntime.StageP99MS["store_append"] != 15 {
+		t.Fatalf("channel runtime latency section = %#v", snapshot.ChannelRuntime)
 	}
 
 	if snapshot.Storage == nil || len(snapshot.Storage.CommitQueues) != 1 {
@@ -614,24 +614,24 @@ func TestTopCollectorSpecificViewsIncludeOnlyRequestedRuntimeSection(t *testing.
 	if err != nil {
 		t.Fatalf("channel SnapshotTop() error = %v", err)
 	}
-	if channelSnapshot.ChannelV2 == nil || channelSnapshot.Storage != nil || channelSnapshot.Delivery != nil {
-		t.Fatalf("channel view sections = channel:%#v storage:%#v delivery:%#v", channelSnapshot.ChannelV2, channelSnapshot.Storage, channelSnapshot.Delivery)
+	if channelSnapshot.ChannelRuntime == nil || channelSnapshot.Storage != nil || channelSnapshot.Delivery != nil {
+		t.Fatalf("channel view sections = channel:%#v storage:%#v delivery:%#v", channelSnapshot.ChannelRuntime, channelSnapshot.Storage, channelSnapshot.Delivery)
 	}
 
 	storageSnapshot, err := collector.SnapshotTop(context.Background(), accessapi.TopSnapshotQuery{Window: 10 * time.Second, View: accessapi.TopViewStorage})
 	if err != nil {
 		t.Fatalf("storage SnapshotTop() error = %v", err)
 	}
-	if storageSnapshot.Storage == nil || storageSnapshot.ChannelV2 != nil || storageSnapshot.Delivery != nil {
-		t.Fatalf("storage view sections = channel:%#v storage:%#v delivery:%#v", storageSnapshot.ChannelV2, storageSnapshot.Storage, storageSnapshot.Delivery)
+	if storageSnapshot.Storage == nil || storageSnapshot.ChannelRuntime != nil || storageSnapshot.Delivery != nil {
+		t.Fatalf("storage view sections = channel:%#v storage:%#v delivery:%#v", storageSnapshot.ChannelRuntime, storageSnapshot.Storage, storageSnapshot.Delivery)
 	}
 
 	deliverySnapshot, err := collector.SnapshotTop(context.Background(), accessapi.TopSnapshotQuery{Window: 10 * time.Second, View: accessapi.TopViewDelivery})
 	if err != nil {
 		t.Fatalf("delivery SnapshotTop() error = %v", err)
 	}
-	if deliverySnapshot.Delivery == nil || deliverySnapshot.ChannelV2 != nil || deliverySnapshot.Storage != nil {
-		t.Fatalf("delivery view sections = channel:%#v storage:%#v delivery:%#v", deliverySnapshot.ChannelV2, deliverySnapshot.Storage, deliverySnapshot.Delivery)
+	if deliverySnapshot.Delivery == nil || deliverySnapshot.ChannelRuntime != nil || deliverySnapshot.Storage != nil {
+		t.Fatalf("delivery view sections = channel:%#v storage:%#v delivery:%#v", deliverySnapshot.ChannelRuntime, deliverySnapshot.Storage, deliverySnapshot.Delivery)
 	}
 }
 

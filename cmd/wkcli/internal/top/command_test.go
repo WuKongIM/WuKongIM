@@ -396,7 +396,7 @@ func sampleSnapshot() accessapi.TopSnapshot {
 				Active:    true,
 			}},
 		},
-		ChannelV2: &accessapi.TopChannelV2{
+		ChannelRuntime: &accessapi.TopChannelRuntime{
 			ActiveTotal:            9,
 			ActiveLeader:           5,
 			ActiveFollower:         4,

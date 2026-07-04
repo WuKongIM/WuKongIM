@@ -668,7 +668,7 @@ func (c *topCollector) SnapshotTop(_ context.Context, query accessapi.TopSnapsho
 		snapshot.Pressure = pressure
 	}
 	if includeChannel(query.View) {
-		snapshot.ChannelV2 = buildChannel(window)
+		snapshot.ChannelRuntime = buildChannel(window)
 	}
 	if includeStorage(query.View) {
 		snapshot.Storage = buildStorage(window)
@@ -882,9 +882,9 @@ func connectionProtocols(counters map[string]uint64, prefixes ...string) []strin
 	return protocols
 }
 
-func buildChannel(window []topSample) *accessapi.TopChannelV2 {
+func buildChannel(window []topSample) *accessapi.TopChannelRuntime {
 	last := window[len(window)-1]
-	out := &accessapi.TopChannelV2{
+	out := &accessapi.TopChannelRuntime{
 		WorkerQueueDepthByPool:    make(map[string]int64),
 		WorkerQueueCapacityByPool: make(map[string]int64),
 		WorkerInflightByPool:      make(map[string]int64),

@@ -452,10 +452,10 @@ func alertBadge(snapshot aggregateSnapshot) string {
 func buildRuntimeRows(snapshot aggregateSnapshot) [][]string {
 	rows := [][]string{{"NODE", "ACTIVE", "L/F", "MAILBOX", "WORKER_Q", "INFLIGHT", "HOT_STAGE"}}
 	for _, node := range snapshot.Nodes {
-		if node.ChannelV2 == nil {
+		if node.ChannelRuntime == nil {
 			continue
 		}
-		ch := node.ChannelV2
+		ch := node.ChannelRuntime
 		rows = append(rows, []string{
 			nodeName(node),
 			formatInt64(ch.ActiveTotal),
