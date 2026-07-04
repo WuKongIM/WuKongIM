@@ -13,7 +13,7 @@ import (
 const (
 	WukongIMBottleneckGateway        = "gateway_dispatch"
 	WukongIMBottleneckControllerRaft = "controller_raft_step"
-	WukongIMBottleneckChannelV2      = "channelv2_append"
+	WukongIMBottleneckChannelRuntime = "channelv2_append"
 	WukongIMBottleneckStorageCommit  = "storage_commit"
 	WukongIMBottleneckMixed          = "mixed_backpressure"
 	WukongIMBottleneckUnobserved     = "no_observed_queue_pressure"
@@ -40,159 +40,159 @@ type PrometheusSnapshot struct {
 	Samples []PrometheusSample
 }
 
-// WukongIMAttribution summarizes gateway vs ChannelV2 pressure from two snapshots.
+// WukongIMAttribution summarizes gateway vs Channel runtime pressure from two snapshots.
 type WukongIMAttribution struct {
 	// Classification is the coarse bottleneck class inferred from observed pressure.
 	Classification string
 	// Reasons explains the evidence that produced the classification.
 	Reasons []string
 
-	GatewayQueueDepth                               float64
-	GatewayQueueCapacity                            float64
-	GatewayQueueRatio                               float64
-	GatewayDispatchWaitP99Seconds                   float64
-	GatewayBatchRecordsP50                          float64
-	GatewaySendackSystemErrorCount                  float64
-	GatewaySendackSingleErrorCount                  float64
-	GatewaySendackSingleMissingRequestContextCount  float64
-	GatewaySendackBatchPrecheckCount                float64
-	GatewaySendackBatchMissingRequestContextCount   float64
-	GatewaySendackBatchResultErrorCount             float64
-	GatewaySendackBatchResultTimeoutCount           float64
-	GatewaySendackBatchResultCanceledCount          float64
-	GatewaySendackBatchResultOtherCount             float64
-	GatewaySendackBatchFallbackErrorCount           float64
-	MessageAppendErrorCount                         float64
-	MessageAppendBackpressuredErrCount              float64
-	MessageAppendRouteNotReadyErrCount              float64
-	MessageAppendStaleRouteErrCount                 float64
-	MessageAppendNotLeaderErrCount                  float64
-	MessageAppendChannelNotFoundErrCount            float64
-	MessageAppendShortResultErrCount                float64
-	MessageAppendInvalidConfigErrCount              float64
-	MessageAppendClosedErrCount                     float64
-	MessageAppendTooManyChannelsErrCount            float64
-	MessageAppendNotStartedErrCount                 float64
-	MessageAppendCanceledErrCount                   float64
-	MessageAppendTimeoutErrCount                    float64
-	MessageAppendAppendFailedErrCount               float64
-	MessageAppendRemoteErrCount                     float64
-	MessageAppendOtherErrCount                      float64
-	ControllerRaftStepQueueDepth                    float64
-	ControllerRaftStepQueueCapacity                 float64
-	ControllerRaftStepQueueRatio                    float64
-	ControllerRaftStepEnqueueOKP99Seconds           float64
-	ControllerRaftStepEnqueueErrP99Seconds          float64
-	ControllerRaftStepEnqueueErrCount               float64
-	ChannelV2ReactorMailboxDepthMax                 float64
-	ChannelV2WorkerQueueDepthMax                    float64
-	ChannelV2WorkerQueueDepthByPool                 map[string]float64
-	ChannelV2WorkerInflightByPool                   map[string]float64
-	ChannelV2WorkerInflightPeakByPool               map[string]float64
-	ChannelV2AppendP99Seconds                       float64
-	ChannelV2MetaResolveP99Seconds                  float64
-	ChannelV2MetaSlotReadP99Seconds                 float64
-	ChannelV2MetaCreateBuildP99Seconds              float64
-	ChannelV2MetaCreateProposeP99Seconds            float64
-	ChannelV2MetaCreateProposeLocalP99Seconds       float64
-	ChannelV2MetaCreateProposeForwardP99Seconds     float64
-	ChannelV2MetaCreateSlotProposeSubmitP99Seconds  float64
-	ChannelV2MetaCreateSlotProposeWaitP99Seconds    float64
-	ChannelV2MetaCreateSlotControlWaitP99Seconds    float64
-	ChannelV2MetaCreateSlotRaftCommitWaitP99Seconds float64
-	ChannelV2MetaCreateSlotFSMApplyP99Seconds       float64
-	ChannelV2MetaCreateSlotFSMCommitP99Seconds      float64
-	ChannelV2MetaCreateSlotMarkAppliedP99Seconds    float64
-	ChannelV2MetaCreateWriteP99Seconds              float64
-	ChannelV2MetaFinalReadP99Seconds                float64
-	ChannelV2MetaApplyP99Seconds                    float64
-	ChannelV2RuntimeAppendP99Seconds                float64
-	ChannelV2RuntimeAppendReserveWaitP99Seconds     float64
-	ChannelV2RuntimeAppendSubmitP99Seconds          float64
-	ChannelV2RuntimeAppendWaitP99Seconds            float64
-	ChannelV2AppendBatchWaitP99Seconds              float64
-	ChannelV2AppendStoreWaitP99Seconds              float64
-	ChannelV2AppendPostStoreCommitWaitP99Seconds    float64
-	ChannelV2AppendQuorumFollowerPullWaitP99Seconds float64
-	ChannelV2AppendQuorumAckOffsetWaitP99Seconds    float64
-	ChannelV2AppendQuorumHWAdvanceWaitP99Seconds    float64
-	ChannelV2AppendQuorumFinalCompleteP99Seconds    float64
-	ChannelV2ReplicationPullHintToSubmitP99Seconds  float64
-	ChannelV2ReplicationPullRPCP99Seconds           float64
-	ChannelV2NeedMetaPullRPCP99Seconds              float64
-	ChannelV2ReplicationStoreApplyP99Seconds        float64
-	ChannelV2ReplicationApplyToAckReturnP99Seconds  float64
-	ChannelV2PendingMetaCurrentMax                  float64
-	ChannelV2PendingMetaCreatedCount                float64
-	ChannelV2PendingMetaConvertedCount              float64
-	ChannelV2PendingMetaReleasedCount               float64
-	ChannelV2PendingMetaTimeoutReleaseCount         float64
-	ChannelV2PendingMetaNotReadyReleaseCount        float64
-	ChannelV2PullHintSubmittedCount                 float64
-	ChannelV2PullHintOKCount                        float64
-	ChannelV2PullHintErrCount                       float64
-	ChannelV2PullHintStaleMetaErrCount              float64
-	ChannelV2PullHintChannelNotFoundErrCount        float64
-	ChannelV2PullHintNotReadyErrCount               float64
-	ChannelV2PullHintNotLeaderErrCount              float64
-	ChannelV2PullHintInvalidConfigErrCount          float64
-	ChannelV2PullHintClosedErrCount                 float64
-	ChannelV2PullHintCanceledErrCount               float64
-	ChannelV2PullHintTimeoutErrCount                float64
-	ChannelV2PullHintRemoteErrCount                 float64
-	ChannelV2PullHintOtherErrCount                  float64
-	ChannelV2PullHintReceiveOKCount                 float64
-	ChannelV2PullHintReceiveErrCount                float64
-	ChannelV2PullHintReceiveStateCheckErrCount      float64
-	ChannelV2PullHintReceiveMetaResolveErrCount     float64
-	ChannelV2PullHintReceiveMetaHintOKCount         float64
-	ChannelV2PullHintReceiveMetaValidateErrCount    float64
-	ChannelV2PullHintReceiveMetaApplyErrCount       float64
-	ChannelV2PullHintReceiveSubmitErrCount          float64
-	ChannelV2PullHintReceiveAwaitErrCount           float64
-	ChannelV2PullHintReceiveStaleMetaErrCount       float64
-	ChannelV2PullHintReceiveChannelNotFoundErrCount float64
-	ChannelV2PullHintReceiveNotReadyErrCount        float64
-	ChannelV2PullHintReceiveCanceledErrCount        float64
-	ChannelV2PullHintReceiveTimeoutErrCount         float64
-	ChannelV2PullHintReceiveOtherErrCount           float64
-	ChannelV2NeedMetaPullSubmittedCount             float64
-	ChannelV2NeedMetaPullOKCount                    float64
-	ChannelV2NeedMetaPullRetryCount                 float64
-	ChannelV2NeedMetaPullErrCount                   float64
-	ChannelV2NeedMetaPullStaleMetaErrCount          float64
-	ChannelV2NeedMetaPullChannelNotFoundErrCount    float64
-	ChannelV2NeedMetaPullNotReadyErrCount           float64
-	ChannelV2NeedMetaPullNotLeaderErrCount          float64
-	ChannelV2NeedMetaPullNotReplicaErrCount         float64
-	ChannelV2NeedMetaPullBackpressuredErrCount      float64
-	ChannelV2NeedMetaPullInvalidConfigErrCount      float64
-	ChannelV2NeedMetaPullClosedErrCount             float64
-	ChannelV2NeedMetaPullCanceledErrCount           float64
-	ChannelV2NeedMetaPullTimeoutErrCount            float64
-	ChannelV2NeedMetaPullRemoteErrCount             float64
-	ChannelV2NeedMetaPullOtherErrCount              float64
-	ChannelV2WorkerTaskP99Seconds                   float64
-	ChannelV2WorkerTaskP99SecondsByKind             map[string]float64
-	ChannelV2AppendBatchRecordsP50                  float64
-	StorageCommitQueueDepthMax                      float64
-	StorageCommitBatchRequestsP50                   float64
-	StorageCommitBatchRecordsP50                    float64
-	StorageCommitP99Seconds                         float64
-	StorageCommitTotalP99Seconds                    float64
-	StorageCommitRequestP99Seconds                  float64
-	StorageCommitRequestOKP99Seconds                float64
-	StorageCommitRequestTimeoutCount                float64
-	StorageCommitRequestCanceledCount               float64
-	StorageCommitRequestClosedCount                 float64
-	StorageCommitRequestErrCount                    float64
-	StorageCommitRequestOver1sCount                 float64
-	StorageCommitRequestOver5sCount                 float64
-	StorageCommitRequestOver10sCount                float64
-	StorageCommitRequestP99SecondsByLane            map[string]float64
-	StorageCommitRequestOver1sCountByLane           map[string]float64
-	StorageCommitRequestOver5sCountByLane           map[string]float64
-	StorageCommitRequestOver10sCountByLane          map[string]float64
+	GatewayQueueDepth                                    float64
+	GatewayQueueCapacity                                 float64
+	GatewayQueueRatio                                    float64
+	GatewayDispatchWaitP99Seconds                        float64
+	GatewayBatchRecordsP50                               float64
+	GatewaySendackSystemErrorCount                       float64
+	GatewaySendackSingleErrorCount                       float64
+	GatewaySendackSingleMissingRequestContextCount       float64
+	GatewaySendackBatchPrecheckCount                     float64
+	GatewaySendackBatchMissingRequestContextCount        float64
+	GatewaySendackBatchResultErrorCount                  float64
+	GatewaySendackBatchResultTimeoutCount                float64
+	GatewaySendackBatchResultCanceledCount               float64
+	GatewaySendackBatchResultOtherCount                  float64
+	GatewaySendackBatchFallbackErrorCount                float64
+	MessageAppendErrorCount                              float64
+	MessageAppendBackpressuredErrCount                   float64
+	MessageAppendRouteNotReadyErrCount                   float64
+	MessageAppendStaleRouteErrCount                      float64
+	MessageAppendNotLeaderErrCount                       float64
+	MessageAppendChannelNotFoundErrCount                 float64
+	MessageAppendShortResultErrCount                     float64
+	MessageAppendInvalidConfigErrCount                   float64
+	MessageAppendClosedErrCount                          float64
+	MessageAppendTooManyChannelsErrCount                 float64
+	MessageAppendNotStartedErrCount                      float64
+	MessageAppendCanceledErrCount                        float64
+	MessageAppendTimeoutErrCount                         float64
+	MessageAppendAppendFailedErrCount                    float64
+	MessageAppendRemoteErrCount                          float64
+	MessageAppendOtherErrCount                           float64
+	ControllerRaftStepQueueDepth                         float64
+	ControllerRaftStepQueueCapacity                      float64
+	ControllerRaftStepQueueRatio                         float64
+	ControllerRaftStepEnqueueOKP99Seconds                float64
+	ControllerRaftStepEnqueueErrP99Seconds               float64
+	ControllerRaftStepEnqueueErrCount                    float64
+	ChannelRuntimeReactorMailboxDepthMax                 float64
+	ChannelRuntimeWorkerQueueDepthMax                    float64
+	ChannelRuntimeWorkerQueueDepthByPool                 map[string]float64
+	ChannelRuntimeWorkerInflightByPool                   map[string]float64
+	ChannelRuntimeWorkerInflightPeakByPool               map[string]float64
+	ChannelRuntimeAppendP99Seconds                       float64
+	ChannelRuntimeMetaResolveP99Seconds                  float64
+	ChannelRuntimeMetaSlotReadP99Seconds                 float64
+	ChannelRuntimeMetaCreateBuildP99Seconds              float64
+	ChannelRuntimeMetaCreateProposeP99Seconds            float64
+	ChannelRuntimeMetaCreateProposeLocalP99Seconds       float64
+	ChannelRuntimeMetaCreateProposeForwardP99Seconds     float64
+	ChannelRuntimeMetaCreateSlotProposeSubmitP99Seconds  float64
+	ChannelRuntimeMetaCreateSlotProposeWaitP99Seconds    float64
+	ChannelRuntimeMetaCreateSlotControlWaitP99Seconds    float64
+	ChannelRuntimeMetaCreateSlotRaftCommitWaitP99Seconds float64
+	ChannelRuntimeMetaCreateSlotFSMApplyP99Seconds       float64
+	ChannelRuntimeMetaCreateSlotFSMCommitP99Seconds      float64
+	ChannelRuntimeMetaCreateSlotMarkAppliedP99Seconds    float64
+	ChannelRuntimeMetaCreateWriteP99Seconds              float64
+	ChannelRuntimeMetaFinalReadP99Seconds                float64
+	ChannelRuntimeMetaApplyP99Seconds                    float64
+	ChannelRuntimeFacadeAppendP99Seconds                 float64
+	ChannelRuntimeFacadeAppendReserveWaitP99Seconds      float64
+	ChannelRuntimeFacadeAppendSubmitP99Seconds           float64
+	ChannelRuntimeFacadeAppendWaitP99Seconds             float64
+	ChannelRuntimeAppendBatchWaitP99Seconds              float64
+	ChannelRuntimeAppendStoreWaitP99Seconds              float64
+	ChannelRuntimeAppendPostStoreCommitWaitP99Seconds    float64
+	ChannelRuntimeAppendQuorumFollowerPullWaitP99Seconds float64
+	ChannelRuntimeAppendQuorumAckOffsetWaitP99Seconds    float64
+	ChannelRuntimeAppendQuorumHWAdvanceWaitP99Seconds    float64
+	ChannelRuntimeAppendQuorumFinalCompleteP99Seconds    float64
+	ChannelRuntimeReplicationPullHintToSubmitP99Seconds  float64
+	ChannelRuntimeReplicationPullRPCP99Seconds           float64
+	ChannelRuntimeNeedMetaPullRPCP99Seconds              float64
+	ChannelRuntimeReplicationStoreApplyP99Seconds        float64
+	ChannelRuntimeReplicationApplyToAckReturnP99Seconds  float64
+	ChannelRuntimePendingMetaCurrentMax                  float64
+	ChannelRuntimePendingMetaCreatedCount                float64
+	ChannelRuntimePendingMetaConvertedCount              float64
+	ChannelRuntimePendingMetaReleasedCount               float64
+	ChannelRuntimePendingMetaTimeoutReleaseCount         float64
+	ChannelRuntimePendingMetaNotReadyReleaseCount        float64
+	ChannelRuntimePullHintSubmittedCount                 float64
+	ChannelRuntimePullHintOKCount                        float64
+	ChannelRuntimePullHintErrCount                       float64
+	ChannelRuntimePullHintStaleMetaErrCount              float64
+	ChannelRuntimePullHintChannelNotFoundErrCount        float64
+	ChannelRuntimePullHintNotReadyErrCount               float64
+	ChannelRuntimePullHintNotLeaderErrCount              float64
+	ChannelRuntimePullHintInvalidConfigErrCount          float64
+	ChannelRuntimePullHintClosedErrCount                 float64
+	ChannelRuntimePullHintCanceledErrCount               float64
+	ChannelRuntimePullHintTimeoutErrCount                float64
+	ChannelRuntimePullHintRemoteErrCount                 float64
+	ChannelRuntimePullHintOtherErrCount                  float64
+	ChannelRuntimePullHintReceiveOKCount                 float64
+	ChannelRuntimePullHintReceiveErrCount                float64
+	ChannelRuntimePullHintReceiveStateCheckErrCount      float64
+	ChannelRuntimePullHintReceiveMetaResolveErrCount     float64
+	ChannelRuntimePullHintReceiveMetaHintOKCount         float64
+	ChannelRuntimePullHintReceiveMetaValidateErrCount    float64
+	ChannelRuntimePullHintReceiveMetaApplyErrCount       float64
+	ChannelRuntimePullHintReceiveSubmitErrCount          float64
+	ChannelRuntimePullHintReceiveAwaitErrCount           float64
+	ChannelRuntimePullHintReceiveStaleMetaErrCount       float64
+	ChannelRuntimePullHintReceiveChannelNotFoundErrCount float64
+	ChannelRuntimePullHintReceiveNotReadyErrCount        float64
+	ChannelRuntimePullHintReceiveCanceledErrCount        float64
+	ChannelRuntimePullHintReceiveTimeoutErrCount         float64
+	ChannelRuntimePullHintReceiveOtherErrCount           float64
+	ChannelRuntimeNeedMetaPullSubmittedCount             float64
+	ChannelRuntimeNeedMetaPullOKCount                    float64
+	ChannelRuntimeNeedMetaPullRetryCount                 float64
+	ChannelRuntimeNeedMetaPullErrCount                   float64
+	ChannelRuntimeNeedMetaPullStaleMetaErrCount          float64
+	ChannelRuntimeNeedMetaPullChannelNotFoundErrCount    float64
+	ChannelRuntimeNeedMetaPullNotReadyErrCount           float64
+	ChannelRuntimeNeedMetaPullNotLeaderErrCount          float64
+	ChannelRuntimeNeedMetaPullNotReplicaErrCount         float64
+	ChannelRuntimeNeedMetaPullBackpressuredErrCount      float64
+	ChannelRuntimeNeedMetaPullInvalidConfigErrCount      float64
+	ChannelRuntimeNeedMetaPullClosedErrCount             float64
+	ChannelRuntimeNeedMetaPullCanceledErrCount           float64
+	ChannelRuntimeNeedMetaPullTimeoutErrCount            float64
+	ChannelRuntimeNeedMetaPullRemoteErrCount             float64
+	ChannelRuntimeNeedMetaPullOtherErrCount              float64
+	ChannelRuntimeWorkerTaskP99Seconds                   float64
+	ChannelRuntimeWorkerTaskP99SecondsByKind             map[string]float64
+	ChannelRuntimeAppendBatchRecordsP50                  float64
+	StorageCommitQueueDepthMax                           float64
+	StorageCommitBatchRequestsP50                        float64
+	StorageCommitBatchRecordsP50                         float64
+	StorageCommitP99Seconds                              float64
+	StorageCommitTotalP99Seconds                         float64
+	StorageCommitRequestP99Seconds                       float64
+	StorageCommitRequestOKP99Seconds                     float64
+	StorageCommitRequestTimeoutCount                     float64
+	StorageCommitRequestCanceledCount                    float64
+	StorageCommitRequestClosedCount                      float64
+	StorageCommitRequestErrCount                         float64
+	StorageCommitRequestOver1sCount                      float64
+	StorageCommitRequestOver5sCount                      float64
+	StorageCommitRequestOver10sCount                     float64
+	StorageCommitRequestP99SecondsByLane                 map[string]float64
+	StorageCommitRequestOver1sCountByLane                map[string]float64
+	StorageCommitRequestOver5sCountByLane                map[string]float64
+	StorageCommitRequestOver10sCountByLane               map[string]float64
 }
 
 // ParsePrometheusText parses the simple Prometheus text exposition emitted by WuKongIM.
@@ -309,18 +309,18 @@ func splitPrometheusLabels(raw string) []string {
 	return parts
 }
 
-// AnalyzeWukongIMPrometheus classifies gateway vs ChannelV2 pressure between two snapshots.
+// AnalyzeWukongIMPrometheus classifies gateway vs Channel runtime pressure between two snapshots.
 func AnalyzeWukongIMPrometheus(before, after PrometheusSnapshot) WukongIMAttribution {
 	report := WukongIMAttribution{
-		Classification:                         WukongIMBottleneckUnobserved,
-		ChannelV2WorkerQueueDepthByPool:        map[string]float64{},
-		ChannelV2WorkerInflightByPool:          map[string]float64{},
-		ChannelV2WorkerInflightPeakByPool:      map[string]float64{},
-		ChannelV2WorkerTaskP99SecondsByKind:    map[string]float64{},
-		StorageCommitRequestP99SecondsByLane:   map[string]float64{},
-		StorageCommitRequestOver1sCountByLane:  map[string]float64{},
-		StorageCommitRequestOver5sCountByLane:  map[string]float64{},
-		StorageCommitRequestOver10sCountByLane: map[string]float64{},
+		Classification:                           WukongIMBottleneckUnobserved,
+		ChannelRuntimeWorkerQueueDepthByPool:     map[string]float64{},
+		ChannelRuntimeWorkerInflightByPool:       map[string]float64{},
+		ChannelRuntimeWorkerInflightPeakByPool:   map[string]float64{},
+		ChannelRuntimeWorkerTaskP99SecondsByKind: map[string]float64{},
+		StorageCommitRequestP99SecondsByLane:     map[string]float64{},
+		StorageCommitRequestOver1sCountByLane:    map[string]float64{},
+		StorageCommitRequestOver5sCountByLane:    map[string]float64{},
+		StorageCommitRequestOver10sCountByLane:   map[string]float64{},
 	}
 	report.GatewayQueueDepth, _ = after.maxGauge("wukongim_gateway_async_send_queue_depth")
 	report.GatewayQueueCapacity, _ = after.maxGauge("wukongim_gateway_async_send_queue_capacity")
@@ -365,97 +365,97 @@ func AnalyzeWukongIMPrometheus(before, after PrometheusSnapshot) WukongIMAttribu
 	report.ControllerRaftStepEnqueueErrP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_controller_raft_step_enqueue_duration_seconds", map[string]string{"result": "err"})
 	report.ControllerRaftStepEnqueueErrCount, _ = histogramCountDeltaMatching(before, after, "wukongim_controller_raft_step_enqueue_duration_seconds", map[string]string{"result": "err"})
 
-	report.ChannelV2ReactorMailboxDepthMax, _ = after.maxGauge("wukongim_channelv2_reactor_mailbox_depth")
-	report.ChannelV2WorkerQueueDepthMax, _ = after.maxGauge("wukongim_channelv2_worker_queue_depth")
-	report.ChannelV2WorkerQueueDepthByPool = after.maxGaugeByLabel("wukongim_channelv2_worker_queue_depth", "pool")
-	report.ChannelV2WorkerInflightByPool = after.maxGaugeByLabel("wukongim_channelv2_worker_inflight", "pool")
-	report.ChannelV2WorkerInflightPeakByPool = after.maxGaugeByLabel("wukongim_channelv2_worker_inflight_peak", "pool")
-	report.ChannelV2AppendP99Seconds, _ = histogramQuantileDelta(0.99, before, after, "wukongim_channelv2_append_duration_seconds")
-	report.ChannelV2MetaResolveP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_stage_duration_seconds", map[string]string{"stage": "meta_resolve"})
-	report.ChannelV2MetaSlotReadP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_stage_duration_seconds", map[string]string{"stage": "meta_slot_read"})
-	report.ChannelV2MetaCreateBuildP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_stage_duration_seconds", map[string]string{"stage": "meta_create_build"})
-	report.ChannelV2MetaCreateProposeP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_stage_duration_seconds", map[string]string{"stage": "meta_create_propose"})
-	report.ChannelV2MetaCreateProposeLocalP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_stage_duration_seconds", map[string]string{"stage": "meta_create_propose_local"})
-	report.ChannelV2MetaCreateProposeForwardP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_stage_duration_seconds", map[string]string{"stage": "meta_create_propose_forward"})
-	report.ChannelV2MetaCreateSlotProposeSubmitP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_stage_duration_seconds", map[string]string{"stage": "meta_create_slot_propose_submit"})
-	report.ChannelV2MetaCreateSlotProposeWaitP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_stage_duration_seconds", map[string]string{"stage": "meta_create_slot_propose_wait"})
-	report.ChannelV2MetaCreateSlotControlWaitP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_stage_duration_seconds", map[string]string{"stage": "meta_create_slot_control_wait"})
-	report.ChannelV2MetaCreateSlotRaftCommitWaitP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_stage_duration_seconds", map[string]string{"stage": "meta_create_slot_raft_commit_wait"})
-	report.ChannelV2MetaCreateSlotFSMApplyP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_stage_duration_seconds", map[string]string{"stage": "meta_create_slot_fsm_apply"})
-	report.ChannelV2MetaCreateSlotFSMCommitP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_stage_duration_seconds", map[string]string{"stage": "meta_create_slot_fsm_commit"})
-	report.ChannelV2MetaCreateSlotMarkAppliedP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_stage_duration_seconds", map[string]string{"stage": "meta_create_slot_mark_applied"})
-	report.ChannelV2MetaCreateWriteP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_stage_duration_seconds", map[string]string{"stage": "meta_create_write"})
-	report.ChannelV2MetaFinalReadP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_stage_duration_seconds", map[string]string{"stage": "meta_final_read"})
-	report.ChannelV2MetaApplyP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_stage_duration_seconds", map[string]string{"stage": "meta_apply"})
-	report.ChannelV2RuntimeAppendP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_stage_duration_seconds", map[string]string{"stage": "runtime_append"})
-	report.ChannelV2RuntimeAppendReserveWaitP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_stage_duration_seconds", map[string]string{"stage": "runtime_append_reserve_wait"})
-	report.ChannelV2RuntimeAppendSubmitP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_stage_duration_seconds", map[string]string{"stage": "runtime_append_submit"})
-	report.ChannelV2RuntimeAppendWaitP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_stage_duration_seconds", map[string]string{"stage": "runtime_append_wait"})
-	report.ChannelV2AppendBatchWaitP99Seconds, _ = histogramQuantileDelta(0.99, before, after, "wukongim_channelv2_append_batch_wait_duration_seconds")
-	report.ChannelV2AppendStoreWaitP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_wait_stage_duration_seconds", map[string]string{"stage": "store_append_wait"})
-	report.ChannelV2AppendPostStoreCommitWaitP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_wait_stage_duration_seconds", map[string]string{"stage": "post_store_commit_wait"})
-	report.ChannelV2AppendQuorumFollowerPullWaitP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_wait_stage_duration_seconds", map[string]string{"stage": "quorum_follower_pull_wait"})
-	report.ChannelV2AppendQuorumAckOffsetWaitP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_wait_stage_duration_seconds", map[string]string{"stage": "quorum_ack_offset_wait"})
-	report.ChannelV2AppendQuorumHWAdvanceWaitP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_wait_stage_duration_seconds", map[string]string{"stage": "quorum_hw_advance_wait"})
-	report.ChannelV2AppendQuorumFinalCompleteP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_wait_stage_duration_seconds", map[string]string{"stage": "quorum_final_complete_wait"})
-	report.ChannelV2ReplicationPullHintToSubmitP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_replication_stage_duration_seconds", map[string]string{"stage": "follower_pull_hint_to_submit"})
-	report.ChannelV2ReplicationPullRPCP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_replication_stage_duration_seconds", map[string]string{"stage": "follower_pull_rpc"})
-	report.ChannelV2NeedMetaPullRPCP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_replication_stage_duration_seconds", map[string]string{"stage": "follower_need_meta_pull_rpc"})
-	report.ChannelV2ReplicationStoreApplyP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_replication_stage_duration_seconds", map[string]string{"stage": "follower_store_apply"})
-	report.ChannelV2ReplicationApplyToAckReturnP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_replication_stage_duration_seconds", map[string]string{"stage": "follower_apply_to_ack_return"})
-	report.ChannelV2PendingMetaCurrentMax, _ = after.maxGauge("wukongim_channelv2_pending_meta_current")
-	report.ChannelV2PendingMetaCreatedCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pending_meta_total", map[string]string{"event": "created"})
-	report.ChannelV2PendingMetaConvertedCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pending_meta_total", map[string]string{"event": "converted"})
-	report.ChannelV2PendingMetaReleasedCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pending_meta_total", map[string]string{"event": "released"})
-	report.ChannelV2PendingMetaTimeoutReleaseCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pending_meta_total", map[string]string{"event": "released", "error": "timeout"})
-	report.ChannelV2PendingMetaNotReadyReleaseCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pending_meta_total", map[string]string{"event": "released", "error": "not_ready"})
-	report.ChannelV2PullHintSubmittedCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_total", map[string]string{"result": "submitted"})
-	report.ChannelV2PullHintOKCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_total", map[string]string{"result": "ok"})
-	report.ChannelV2PullHintErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_total", map[string]string{"result": "err"})
-	report.ChannelV2PullHintStaleMetaErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_total", map[string]string{"result": "err", "error": "stale_meta"})
-	report.ChannelV2PullHintChannelNotFoundErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_total", map[string]string{"result": "err", "error": "channel_not_found"})
-	report.ChannelV2PullHintNotReadyErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_total", map[string]string{"result": "err", "error": "not_ready"})
-	report.ChannelV2PullHintNotLeaderErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_total", map[string]string{"result": "err", "error": "not_leader"})
-	report.ChannelV2PullHintInvalidConfigErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_total", map[string]string{"result": "err", "error": "invalid_config"})
-	report.ChannelV2PullHintClosedErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_total", map[string]string{"result": "err", "error": "closed"})
-	report.ChannelV2PullHintCanceledErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_total", map[string]string{"result": "err", "error": "canceled"})
-	report.ChannelV2PullHintTimeoutErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_total", map[string]string{"result": "err", "error": "timeout"})
-	report.ChannelV2PullHintRemoteErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_total", map[string]string{"result": "err", "error": "remote_error"})
-	report.ChannelV2PullHintOtherErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_total", map[string]string{"result": "err", "error": "other"})
-	report.ChannelV2PullHintReceiveOKCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_receive_total", map[string]string{"result": "ok"})
-	report.ChannelV2PullHintReceiveErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_receive_total", map[string]string{"result": "err"})
-	report.ChannelV2PullHintReceiveStateCheckErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_receive_total", map[string]string{"stage": "state_check", "result": "err"})
-	report.ChannelV2PullHintReceiveMetaResolveErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_receive_total", map[string]string{"stage": "meta_resolve", "result": "err"})
-	report.ChannelV2PullHintReceiveMetaHintOKCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_receive_total", map[string]string{"stage": "meta_hint", "result": "ok"})
-	report.ChannelV2PullHintReceiveMetaValidateErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_receive_total", map[string]string{"stage": "meta_validate", "result": "err"})
-	report.ChannelV2PullHintReceiveMetaApplyErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_receive_total", map[string]string{"stage": "meta_apply", "result": "err"})
-	report.ChannelV2PullHintReceiveSubmitErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_receive_total", map[string]string{"stage": "submit", "result": "err"})
-	report.ChannelV2PullHintReceiveAwaitErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_receive_total", map[string]string{"stage": "await", "result": "err"})
-	report.ChannelV2PullHintReceiveStaleMetaErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_receive_total", map[string]string{"result": "err", "error": "stale_meta"})
-	report.ChannelV2PullHintReceiveChannelNotFoundErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_receive_total", map[string]string{"result": "err", "error": "channel_not_found"})
-	report.ChannelV2PullHintReceiveNotReadyErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_receive_total", map[string]string{"result": "err", "error": "not_ready"})
-	report.ChannelV2PullHintReceiveCanceledErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_receive_total", map[string]string{"result": "err", "error": "canceled"})
-	report.ChannelV2PullHintReceiveTimeoutErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_receive_total", map[string]string{"result": "err", "error": "timeout"})
-	report.ChannelV2PullHintReceiveOtherErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_receive_total", map[string]string{"result": "err", "error": "other"})
-	report.ChannelV2NeedMetaPullSubmittedCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_need_meta_pull_total", map[string]string{"result": "submitted"})
-	report.ChannelV2NeedMetaPullOKCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_need_meta_pull_total", map[string]string{"result": "ok"})
-	report.ChannelV2NeedMetaPullRetryCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_need_meta_pull_total", map[string]string{"result": "retry"})
-	report.ChannelV2NeedMetaPullErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_need_meta_pull_total", map[string]string{"result": "err"})
-	report.ChannelV2NeedMetaPullStaleMetaErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_need_meta_pull_total", map[string]string{"result": "err", "error": "stale_meta"})
-	report.ChannelV2NeedMetaPullChannelNotFoundErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_need_meta_pull_total", map[string]string{"result": "err", "error": "channel_not_found"})
-	report.ChannelV2NeedMetaPullNotReadyErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_need_meta_pull_total", map[string]string{"result": "err", "error": "not_ready"})
-	report.ChannelV2NeedMetaPullNotLeaderErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_need_meta_pull_total", map[string]string{"result": "err", "error": "not_leader"})
-	report.ChannelV2NeedMetaPullNotReplicaErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_need_meta_pull_total", map[string]string{"result": "err", "error": "not_replica"})
-	report.ChannelV2NeedMetaPullBackpressuredErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_need_meta_pull_total", map[string]string{"result": "err", "error": "backpressured"})
-	report.ChannelV2NeedMetaPullInvalidConfigErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_need_meta_pull_total", map[string]string{"result": "err", "error": "invalid_config"})
-	report.ChannelV2NeedMetaPullClosedErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_need_meta_pull_total", map[string]string{"result": "err", "error": "closed"})
-	report.ChannelV2NeedMetaPullCanceledErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_need_meta_pull_total", map[string]string{"result": "err", "error": "canceled"})
-	report.ChannelV2NeedMetaPullTimeoutErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_need_meta_pull_total", map[string]string{"result": "err", "error": "timeout"})
-	report.ChannelV2NeedMetaPullRemoteErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_need_meta_pull_total", map[string]string{"result": "err", "error": "remote_error"})
-	report.ChannelV2NeedMetaPullOtherErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_need_meta_pull_total", map[string]string{"result": "err", "error": "other"})
-	report.ChannelV2WorkerTaskP99Seconds, _ = histogramQuantileDelta(0.99, before, after, "wukongim_channelv2_worker_task_duration_seconds")
-	report.ChannelV2WorkerTaskP99SecondsByKind = histogramQuantileDeltaByLabel(0.99, before, after, "wukongim_channelv2_worker_task_duration_seconds", "kind")
-	report.ChannelV2AppendBatchRecordsP50, _ = histogramQuantileDelta(0.50, before, after, "wukongim_channelv2_append_batch_records")
+	report.ChannelRuntimeReactorMailboxDepthMax, _ = after.maxGauge("wukongim_channelv2_reactor_mailbox_depth")
+	report.ChannelRuntimeWorkerQueueDepthMax, _ = after.maxGauge("wukongim_channelv2_worker_queue_depth")
+	report.ChannelRuntimeWorkerQueueDepthByPool = after.maxGaugeByLabel("wukongim_channelv2_worker_queue_depth", "pool")
+	report.ChannelRuntimeWorkerInflightByPool = after.maxGaugeByLabel("wukongim_channelv2_worker_inflight", "pool")
+	report.ChannelRuntimeWorkerInflightPeakByPool = after.maxGaugeByLabel("wukongim_channelv2_worker_inflight_peak", "pool")
+	report.ChannelRuntimeAppendP99Seconds, _ = histogramQuantileDelta(0.99, before, after, "wukongim_channelv2_append_duration_seconds")
+	report.ChannelRuntimeMetaResolveP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_stage_duration_seconds", map[string]string{"stage": "meta_resolve"})
+	report.ChannelRuntimeMetaSlotReadP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_stage_duration_seconds", map[string]string{"stage": "meta_slot_read"})
+	report.ChannelRuntimeMetaCreateBuildP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_stage_duration_seconds", map[string]string{"stage": "meta_create_build"})
+	report.ChannelRuntimeMetaCreateProposeP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_stage_duration_seconds", map[string]string{"stage": "meta_create_propose"})
+	report.ChannelRuntimeMetaCreateProposeLocalP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_stage_duration_seconds", map[string]string{"stage": "meta_create_propose_local"})
+	report.ChannelRuntimeMetaCreateProposeForwardP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_stage_duration_seconds", map[string]string{"stage": "meta_create_propose_forward"})
+	report.ChannelRuntimeMetaCreateSlotProposeSubmitP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_stage_duration_seconds", map[string]string{"stage": "meta_create_slot_propose_submit"})
+	report.ChannelRuntimeMetaCreateSlotProposeWaitP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_stage_duration_seconds", map[string]string{"stage": "meta_create_slot_propose_wait"})
+	report.ChannelRuntimeMetaCreateSlotControlWaitP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_stage_duration_seconds", map[string]string{"stage": "meta_create_slot_control_wait"})
+	report.ChannelRuntimeMetaCreateSlotRaftCommitWaitP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_stage_duration_seconds", map[string]string{"stage": "meta_create_slot_raft_commit_wait"})
+	report.ChannelRuntimeMetaCreateSlotFSMApplyP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_stage_duration_seconds", map[string]string{"stage": "meta_create_slot_fsm_apply"})
+	report.ChannelRuntimeMetaCreateSlotFSMCommitP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_stage_duration_seconds", map[string]string{"stage": "meta_create_slot_fsm_commit"})
+	report.ChannelRuntimeMetaCreateSlotMarkAppliedP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_stage_duration_seconds", map[string]string{"stage": "meta_create_slot_mark_applied"})
+	report.ChannelRuntimeMetaCreateWriteP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_stage_duration_seconds", map[string]string{"stage": "meta_create_write"})
+	report.ChannelRuntimeMetaFinalReadP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_stage_duration_seconds", map[string]string{"stage": "meta_final_read"})
+	report.ChannelRuntimeMetaApplyP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_stage_duration_seconds", map[string]string{"stage": "meta_apply"})
+	report.ChannelRuntimeFacadeAppendP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_stage_duration_seconds", map[string]string{"stage": "runtime_append"})
+	report.ChannelRuntimeFacadeAppendReserveWaitP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_stage_duration_seconds", map[string]string{"stage": "runtime_append_reserve_wait"})
+	report.ChannelRuntimeFacadeAppendSubmitP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_stage_duration_seconds", map[string]string{"stage": "runtime_append_submit"})
+	report.ChannelRuntimeFacadeAppendWaitP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_stage_duration_seconds", map[string]string{"stage": "runtime_append_wait"})
+	report.ChannelRuntimeAppendBatchWaitP99Seconds, _ = histogramQuantileDelta(0.99, before, after, "wukongim_channelv2_append_batch_wait_duration_seconds")
+	report.ChannelRuntimeAppendStoreWaitP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_wait_stage_duration_seconds", map[string]string{"stage": "store_append_wait"})
+	report.ChannelRuntimeAppendPostStoreCommitWaitP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_wait_stage_duration_seconds", map[string]string{"stage": "post_store_commit_wait"})
+	report.ChannelRuntimeAppendQuorumFollowerPullWaitP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_wait_stage_duration_seconds", map[string]string{"stage": "quorum_follower_pull_wait"})
+	report.ChannelRuntimeAppendQuorumAckOffsetWaitP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_wait_stage_duration_seconds", map[string]string{"stage": "quorum_ack_offset_wait"})
+	report.ChannelRuntimeAppendQuorumHWAdvanceWaitP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_wait_stage_duration_seconds", map[string]string{"stage": "quorum_hw_advance_wait"})
+	report.ChannelRuntimeAppendQuorumFinalCompleteP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_wait_stage_duration_seconds", map[string]string{"stage": "quorum_final_complete_wait"})
+	report.ChannelRuntimeReplicationPullHintToSubmitP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_replication_stage_duration_seconds", map[string]string{"stage": "follower_pull_hint_to_submit"})
+	report.ChannelRuntimeReplicationPullRPCP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_replication_stage_duration_seconds", map[string]string{"stage": "follower_pull_rpc"})
+	report.ChannelRuntimeNeedMetaPullRPCP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_replication_stage_duration_seconds", map[string]string{"stage": "follower_need_meta_pull_rpc"})
+	report.ChannelRuntimeReplicationStoreApplyP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_replication_stage_duration_seconds", map[string]string{"stage": "follower_store_apply"})
+	report.ChannelRuntimeReplicationApplyToAckReturnP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_replication_stage_duration_seconds", map[string]string{"stage": "follower_apply_to_ack_return"})
+	report.ChannelRuntimePendingMetaCurrentMax, _ = after.maxGauge("wukongim_channelv2_pending_meta_current")
+	report.ChannelRuntimePendingMetaCreatedCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pending_meta_total", map[string]string{"event": "created"})
+	report.ChannelRuntimePendingMetaConvertedCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pending_meta_total", map[string]string{"event": "converted"})
+	report.ChannelRuntimePendingMetaReleasedCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pending_meta_total", map[string]string{"event": "released"})
+	report.ChannelRuntimePendingMetaTimeoutReleaseCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pending_meta_total", map[string]string{"event": "released", "error": "timeout"})
+	report.ChannelRuntimePendingMetaNotReadyReleaseCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pending_meta_total", map[string]string{"event": "released", "error": "not_ready"})
+	report.ChannelRuntimePullHintSubmittedCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_total", map[string]string{"result": "submitted"})
+	report.ChannelRuntimePullHintOKCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_total", map[string]string{"result": "ok"})
+	report.ChannelRuntimePullHintErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_total", map[string]string{"result": "err"})
+	report.ChannelRuntimePullHintStaleMetaErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_total", map[string]string{"result": "err", "error": "stale_meta"})
+	report.ChannelRuntimePullHintChannelNotFoundErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_total", map[string]string{"result": "err", "error": "channel_not_found"})
+	report.ChannelRuntimePullHintNotReadyErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_total", map[string]string{"result": "err", "error": "not_ready"})
+	report.ChannelRuntimePullHintNotLeaderErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_total", map[string]string{"result": "err", "error": "not_leader"})
+	report.ChannelRuntimePullHintInvalidConfigErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_total", map[string]string{"result": "err", "error": "invalid_config"})
+	report.ChannelRuntimePullHintClosedErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_total", map[string]string{"result": "err", "error": "closed"})
+	report.ChannelRuntimePullHintCanceledErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_total", map[string]string{"result": "err", "error": "canceled"})
+	report.ChannelRuntimePullHintTimeoutErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_total", map[string]string{"result": "err", "error": "timeout"})
+	report.ChannelRuntimePullHintRemoteErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_total", map[string]string{"result": "err", "error": "remote_error"})
+	report.ChannelRuntimePullHintOtherErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_total", map[string]string{"result": "err", "error": "other"})
+	report.ChannelRuntimePullHintReceiveOKCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_receive_total", map[string]string{"result": "ok"})
+	report.ChannelRuntimePullHintReceiveErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_receive_total", map[string]string{"result": "err"})
+	report.ChannelRuntimePullHintReceiveStateCheckErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_receive_total", map[string]string{"stage": "state_check", "result": "err"})
+	report.ChannelRuntimePullHintReceiveMetaResolveErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_receive_total", map[string]string{"stage": "meta_resolve", "result": "err"})
+	report.ChannelRuntimePullHintReceiveMetaHintOKCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_receive_total", map[string]string{"stage": "meta_hint", "result": "ok"})
+	report.ChannelRuntimePullHintReceiveMetaValidateErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_receive_total", map[string]string{"stage": "meta_validate", "result": "err"})
+	report.ChannelRuntimePullHintReceiveMetaApplyErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_receive_total", map[string]string{"stage": "meta_apply", "result": "err"})
+	report.ChannelRuntimePullHintReceiveSubmitErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_receive_total", map[string]string{"stage": "submit", "result": "err"})
+	report.ChannelRuntimePullHintReceiveAwaitErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_receive_total", map[string]string{"stage": "await", "result": "err"})
+	report.ChannelRuntimePullHintReceiveStaleMetaErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_receive_total", map[string]string{"result": "err", "error": "stale_meta"})
+	report.ChannelRuntimePullHintReceiveChannelNotFoundErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_receive_total", map[string]string{"result": "err", "error": "channel_not_found"})
+	report.ChannelRuntimePullHintReceiveNotReadyErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_receive_total", map[string]string{"result": "err", "error": "not_ready"})
+	report.ChannelRuntimePullHintReceiveCanceledErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_receive_total", map[string]string{"result": "err", "error": "canceled"})
+	report.ChannelRuntimePullHintReceiveTimeoutErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_receive_total", map[string]string{"result": "err", "error": "timeout"})
+	report.ChannelRuntimePullHintReceiveOtherErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_pull_hint_receive_total", map[string]string{"result": "err", "error": "other"})
+	report.ChannelRuntimeNeedMetaPullSubmittedCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_need_meta_pull_total", map[string]string{"result": "submitted"})
+	report.ChannelRuntimeNeedMetaPullOKCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_need_meta_pull_total", map[string]string{"result": "ok"})
+	report.ChannelRuntimeNeedMetaPullRetryCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_need_meta_pull_total", map[string]string{"result": "retry"})
+	report.ChannelRuntimeNeedMetaPullErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_need_meta_pull_total", map[string]string{"result": "err"})
+	report.ChannelRuntimeNeedMetaPullStaleMetaErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_need_meta_pull_total", map[string]string{"result": "err", "error": "stale_meta"})
+	report.ChannelRuntimeNeedMetaPullChannelNotFoundErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_need_meta_pull_total", map[string]string{"result": "err", "error": "channel_not_found"})
+	report.ChannelRuntimeNeedMetaPullNotReadyErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_need_meta_pull_total", map[string]string{"result": "err", "error": "not_ready"})
+	report.ChannelRuntimeNeedMetaPullNotLeaderErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_need_meta_pull_total", map[string]string{"result": "err", "error": "not_leader"})
+	report.ChannelRuntimeNeedMetaPullNotReplicaErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_need_meta_pull_total", map[string]string{"result": "err", "error": "not_replica"})
+	report.ChannelRuntimeNeedMetaPullBackpressuredErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_need_meta_pull_total", map[string]string{"result": "err", "error": "backpressured"})
+	report.ChannelRuntimeNeedMetaPullInvalidConfigErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_need_meta_pull_total", map[string]string{"result": "err", "error": "invalid_config"})
+	report.ChannelRuntimeNeedMetaPullClosedErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_need_meta_pull_total", map[string]string{"result": "err", "error": "closed"})
+	report.ChannelRuntimeNeedMetaPullCanceledErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_need_meta_pull_total", map[string]string{"result": "err", "error": "canceled"})
+	report.ChannelRuntimeNeedMetaPullTimeoutErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_need_meta_pull_total", map[string]string{"result": "err", "error": "timeout"})
+	report.ChannelRuntimeNeedMetaPullRemoteErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_need_meta_pull_total", map[string]string{"result": "err", "error": "remote_error"})
+	report.ChannelRuntimeNeedMetaPullOtherErrCount, _ = counterDeltaMatching(before, after, "wukongim_channelv2_need_meta_pull_total", map[string]string{"result": "err", "error": "other"})
+	report.ChannelRuntimeWorkerTaskP99Seconds, _ = histogramQuantileDelta(0.99, before, after, "wukongim_channelv2_worker_task_duration_seconds")
+	report.ChannelRuntimeWorkerTaskP99SecondsByKind = histogramQuantileDeltaByLabel(0.99, before, after, "wukongim_channelv2_worker_task_duration_seconds", "kind")
+	report.ChannelRuntimeAppendBatchRecordsP50, _ = histogramQuantileDelta(0.50, before, after, "wukongim_channelv2_append_batch_records")
 	report.StorageCommitQueueDepthMax, _ = after.maxGauge("wukongim_storage_commit_queue_depth")
 	report.StorageCommitBatchRequestsP50, _ = histogramQuantileDelta(0.50, before, after, "wukongim_storage_commit_batch_requests")
 	report.StorageCommitBatchRecordsP50, _ = histogramQuantileDelta(0.50, before, after, "wukongim_storage_commit_batch_records")
@@ -554,230 +554,230 @@ func AnalyzeWukongIMPrometheus(before, after PrometheusSnapshot) WukongIMAttribu
 	}
 
 	channelPressure := false
-	if report.ChannelV2ReactorMailboxDepthMax > 0 {
+	if report.ChannelRuntimeReactorMailboxDepthMax > 0 {
 		channelPressure = true
-		report.Reasons = append(report.Reasons, "ChannelV2 reactor mailbox has queued events")
+		report.Reasons = append(report.Reasons, "Channel runtime reactor mailbox has queued events")
 	}
-	if report.ChannelV2WorkerQueueDepthMax > 0 {
+	if report.ChannelRuntimeWorkerQueueDepthMax > 0 {
 		channelPressure = true
-		report.Reasons = append(report.Reasons, "ChannelV2 worker pool has queued tasks")
+		report.Reasons = append(report.Reasons, "Channel runtime worker pool has queued tasks")
 	}
-	if report.ChannelV2AppendP99Seconds >= wukongIMLatencyPressureSeconds {
+	if report.ChannelRuntimeAppendP99Seconds >= wukongIMLatencyPressureSeconds {
 		channelPressure = true
-		report.Reasons = append(report.Reasons, "ChannelV2 append p99 is high")
+		report.Reasons = append(report.Reasons, "Channel runtime append p99 is high")
 	}
-	if report.ChannelV2MetaResolveP99Seconds >= wukongIMLatencyPressureSeconds {
+	if report.ChannelRuntimeMetaResolveP99Seconds >= wukongIMLatencyPressureSeconds {
 		channelPressure = true
-		report.Reasons = append(report.Reasons, "ChannelV2 meta resolve p99 is high")
+		report.Reasons = append(report.Reasons, "Channel runtime meta resolve p99 is high")
 	}
-	if report.ChannelV2MetaSlotReadP99Seconds >= wukongIMLatencyPressureSeconds {
+	if report.ChannelRuntimeMetaSlotReadP99Seconds >= wukongIMLatencyPressureSeconds {
 		channelPressure = true
-		report.Reasons = append(report.Reasons, "ChannelV2 meta slot read p99 is high")
+		report.Reasons = append(report.Reasons, "Channel runtime meta slot read p99 is high")
 	}
-	if report.ChannelV2MetaCreateBuildP99Seconds >= wukongIMLatencyPressureSeconds {
+	if report.ChannelRuntimeMetaCreateBuildP99Seconds >= wukongIMLatencyPressureSeconds {
 		channelPressure = true
-		report.Reasons = append(report.Reasons, "ChannelV2 meta create/build p99 is high")
+		report.Reasons = append(report.Reasons, "Channel runtime meta create/build p99 is high")
 	}
-	if report.ChannelV2MetaCreateProposeP99Seconds >= wukongIMLatencyPressureSeconds {
+	if report.ChannelRuntimeMetaCreateProposeP99Seconds >= wukongIMLatencyPressureSeconds {
 		channelPressure = true
-		report.Reasons = append(report.Reasons, "ChannelV2 meta create/propose p99 is high")
+		report.Reasons = append(report.Reasons, "Channel runtime meta create/propose p99 is high")
 	}
-	if report.ChannelV2MetaCreateProposeLocalP99Seconds >= wukongIMLatencyPressureSeconds {
+	if report.ChannelRuntimeMetaCreateProposeLocalP99Seconds >= wukongIMLatencyPressureSeconds {
 		channelPressure = true
-		report.Reasons = append(report.Reasons, "ChannelV2 meta create/propose local p99 is high")
+		report.Reasons = append(report.Reasons, "Channel runtime meta create/propose local p99 is high")
 	}
-	if report.ChannelV2MetaCreateProposeForwardP99Seconds >= wukongIMLatencyPressureSeconds {
+	if report.ChannelRuntimeMetaCreateProposeForwardP99Seconds >= wukongIMLatencyPressureSeconds {
 		channelPressure = true
-		report.Reasons = append(report.Reasons, "ChannelV2 meta create/propose forward p99 is high")
+		report.Reasons = append(report.Reasons, "Channel runtime meta create/propose forward p99 is high")
 	}
-	if report.ChannelV2MetaCreateSlotProposeSubmitP99Seconds >= wukongIMLatencyPressureSeconds {
+	if report.ChannelRuntimeMetaCreateSlotProposeSubmitP99Seconds >= wukongIMLatencyPressureSeconds {
 		channelPressure = true
-		report.Reasons = append(report.Reasons, "ChannelV2 meta create Slot propose submit p99 is high")
+		report.Reasons = append(report.Reasons, "Channel runtime meta create Slot propose submit p99 is high")
 	}
-	if report.ChannelV2MetaCreateSlotProposeWaitP99Seconds >= wukongIMLatencyPressureSeconds {
+	if report.ChannelRuntimeMetaCreateSlotProposeWaitP99Seconds >= wukongIMLatencyPressureSeconds {
 		channelPressure = true
-		report.Reasons = append(report.Reasons, "ChannelV2 meta create Slot propose wait p99 is high")
+		report.Reasons = append(report.Reasons, "Channel runtime meta create Slot propose wait p99 is high")
 	}
-	if report.ChannelV2MetaCreateSlotControlWaitP99Seconds >= wukongIMLatencyPressureSeconds {
+	if report.ChannelRuntimeMetaCreateSlotControlWaitP99Seconds >= wukongIMLatencyPressureSeconds {
 		channelPressure = true
-		report.Reasons = append(report.Reasons, "ChannelV2 meta create Slot control wait p99 is high")
+		report.Reasons = append(report.Reasons, "Channel runtime meta create Slot control wait p99 is high")
 	}
-	if report.ChannelV2MetaCreateSlotRaftCommitWaitP99Seconds >= wukongIMLatencyPressureSeconds {
+	if report.ChannelRuntimeMetaCreateSlotRaftCommitWaitP99Seconds >= wukongIMLatencyPressureSeconds {
 		channelPressure = true
-		report.Reasons = append(report.Reasons, "ChannelV2 meta create Slot Raft commit wait p99 is high")
+		report.Reasons = append(report.Reasons, "Channel runtime meta create Slot Raft commit wait p99 is high")
 	}
-	if report.ChannelV2MetaCreateSlotFSMApplyP99Seconds >= wukongIMLatencyPressureSeconds {
+	if report.ChannelRuntimeMetaCreateSlotFSMApplyP99Seconds >= wukongIMLatencyPressureSeconds {
 		channelPressure = true
-		report.Reasons = append(report.Reasons, "ChannelV2 meta create Slot FSM apply p99 is high")
+		report.Reasons = append(report.Reasons, "Channel runtime meta create Slot FSM apply p99 is high")
 	}
-	if report.ChannelV2MetaCreateSlotFSMCommitP99Seconds >= wukongIMLatencyPressureSeconds {
+	if report.ChannelRuntimeMetaCreateSlotFSMCommitP99Seconds >= wukongIMLatencyPressureSeconds {
 		channelPressure = true
-		report.Reasons = append(report.Reasons, "ChannelV2 meta create Slot FSM commit p99 is high")
+		report.Reasons = append(report.Reasons, "Channel runtime meta create Slot FSM commit p99 is high")
 	}
-	if report.ChannelV2MetaCreateSlotMarkAppliedP99Seconds >= wukongIMLatencyPressureSeconds {
+	if report.ChannelRuntimeMetaCreateSlotMarkAppliedP99Seconds >= wukongIMLatencyPressureSeconds {
 		channelPressure = true
-		report.Reasons = append(report.Reasons, "ChannelV2 meta create Slot mark-applied p99 is high")
+		report.Reasons = append(report.Reasons, "Channel runtime meta create Slot mark-applied p99 is high")
 	}
-	if report.ChannelV2MetaCreateWriteP99Seconds >= wukongIMLatencyPressureSeconds {
+	if report.ChannelRuntimeMetaCreateWriteP99Seconds >= wukongIMLatencyPressureSeconds {
 		channelPressure = true
-		report.Reasons = append(report.Reasons, "ChannelV2 meta create/write p99 is high")
+		report.Reasons = append(report.Reasons, "Channel runtime meta create/write p99 is high")
 	}
-	if report.ChannelV2MetaFinalReadP99Seconds >= wukongIMLatencyPressureSeconds {
+	if report.ChannelRuntimeMetaFinalReadP99Seconds >= wukongIMLatencyPressureSeconds {
 		channelPressure = true
-		report.Reasons = append(report.Reasons, "ChannelV2 meta final read p99 is high")
+		report.Reasons = append(report.Reasons, "Channel runtime meta final read p99 is high")
 	}
-	if report.ChannelV2MetaApplyP99Seconds >= wukongIMLatencyPressureSeconds {
+	if report.ChannelRuntimeMetaApplyP99Seconds >= wukongIMLatencyPressureSeconds {
 		channelPressure = true
-		report.Reasons = append(report.Reasons, "ChannelV2 meta apply p99 is high")
+		report.Reasons = append(report.Reasons, "Channel runtime meta apply p99 is high")
 	}
-	if report.ChannelV2RuntimeAppendP99Seconds >= wukongIMLatencyPressureSeconds {
+	if report.ChannelRuntimeFacadeAppendP99Seconds >= wukongIMLatencyPressureSeconds {
 		channelPressure = true
-		report.Reasons = append(report.Reasons, "ChannelV2 runtime append p99 is high")
+		report.Reasons = append(report.Reasons, "Channel runtime append p99 is high")
 	}
-	if report.ChannelV2RuntimeAppendReserveWaitP99Seconds >= wukongIMLatencyPressureSeconds {
+	if report.ChannelRuntimeFacadeAppendReserveWaitP99Seconds >= wukongIMLatencyPressureSeconds {
 		channelPressure = true
-		report.Reasons = append(report.Reasons, "ChannelV2 runtime append reserve wait p99 is high")
+		report.Reasons = append(report.Reasons, "Channel runtime append reserve wait p99 is high")
 	}
-	if report.ChannelV2RuntimeAppendSubmitP99Seconds >= wukongIMLatencyPressureSeconds {
+	if report.ChannelRuntimeFacadeAppendSubmitP99Seconds >= wukongIMLatencyPressureSeconds {
 		channelPressure = true
-		report.Reasons = append(report.Reasons, "ChannelV2 runtime append submit p99 is high")
+		report.Reasons = append(report.Reasons, "Channel runtime append submit p99 is high")
 	}
-	if report.ChannelV2RuntimeAppendWaitP99Seconds >= wukongIMLatencyPressureSeconds {
+	if report.ChannelRuntimeFacadeAppendWaitP99Seconds >= wukongIMLatencyPressureSeconds {
 		channelPressure = true
-		report.Reasons = append(report.Reasons, "ChannelV2 runtime append future wait p99 is high")
+		report.Reasons = append(report.Reasons, "Channel runtime append future wait p99 is high")
 	}
-	if report.ChannelV2AppendBatchWaitP99Seconds >= wukongIMLatencyPressureSeconds {
+	if report.ChannelRuntimeAppendBatchWaitP99Seconds >= wukongIMLatencyPressureSeconds {
 		channelPressure = true
-		report.Reasons = append(report.Reasons, "ChannelV2 append batch wait p99 is high")
+		report.Reasons = append(report.Reasons, "Channel runtime append batch wait p99 is high")
 	}
-	if report.ChannelV2AppendStoreWaitP99Seconds >= wukongIMLatencyPressureSeconds {
+	if report.ChannelRuntimeAppendStoreWaitP99Seconds >= wukongIMLatencyPressureSeconds {
 		channelPressure = true
-		report.Reasons = append(report.Reasons, "ChannelV2 append store wait p99 is high")
+		report.Reasons = append(report.Reasons, "Channel runtime append store wait p99 is high")
 	}
-	if report.ChannelV2AppendPostStoreCommitWaitP99Seconds >= wukongIMLatencyPressureSeconds {
+	if report.ChannelRuntimeAppendPostStoreCommitWaitP99Seconds >= wukongIMLatencyPressureSeconds {
 		channelPressure = true
-		report.Reasons = append(report.Reasons, "ChannelV2 append post-store commit wait p99 is high")
+		report.Reasons = append(report.Reasons, "Channel runtime append post-store commit wait p99 is high")
 	}
-	if report.ChannelV2AppendQuorumFollowerPullWaitP99Seconds >= wukongIMLatencyPressureSeconds {
+	if report.ChannelRuntimeAppendQuorumFollowerPullWaitP99Seconds >= wukongIMLatencyPressureSeconds {
 		channelPressure = true
-		report.Reasons = append(report.Reasons, "ChannelV2 quorum follower pull wait p99 is high")
+		report.Reasons = append(report.Reasons, "Channel runtime quorum follower pull wait p99 is high")
 	}
-	if report.ChannelV2AppendQuorumAckOffsetWaitP99Seconds >= wukongIMLatencyPressureSeconds {
+	if report.ChannelRuntimeAppendQuorumAckOffsetWaitP99Seconds >= wukongIMLatencyPressureSeconds {
 		channelPressure = true
-		report.Reasons = append(report.Reasons, "ChannelV2 quorum ack offset wait p99 is high")
+		report.Reasons = append(report.Reasons, "Channel runtime quorum ack offset wait p99 is high")
 	}
-	if report.ChannelV2AppendQuorumHWAdvanceWaitP99Seconds >= wukongIMLatencyPressureSeconds {
+	if report.ChannelRuntimeAppendQuorumHWAdvanceWaitP99Seconds >= wukongIMLatencyPressureSeconds {
 		channelPressure = true
-		report.Reasons = append(report.Reasons, "ChannelV2 quorum HW advance wait p99 is high")
+		report.Reasons = append(report.Reasons, "Channel runtime quorum HW advance wait p99 is high")
 	}
-	if report.ChannelV2AppendQuorumFinalCompleteP99Seconds >= wukongIMLatencyPressureSeconds {
+	if report.ChannelRuntimeAppendQuorumFinalCompleteP99Seconds >= wukongIMLatencyPressureSeconds {
 		channelPressure = true
-		report.Reasons = append(report.Reasons, "ChannelV2 quorum final completion wait p99 is high")
+		report.Reasons = append(report.Reasons, "Channel runtime quorum final completion wait p99 is high")
 	}
-	if report.ChannelV2ReplicationPullHintToSubmitP99Seconds >= wukongIMLatencyPressureSeconds {
+	if report.ChannelRuntimeReplicationPullHintToSubmitP99Seconds >= wukongIMLatencyPressureSeconds {
 		channelPressure = true
-		report.Reasons = append(report.Reasons, "ChannelV2 follower PullHint-to-submit p99 is high")
+		report.Reasons = append(report.Reasons, "Channel runtime follower PullHint-to-submit p99 is high")
 	}
-	if report.ChannelV2ReplicationPullRPCP99Seconds >= wukongIMLatencyPressureSeconds {
+	if report.ChannelRuntimeReplicationPullRPCP99Seconds >= wukongIMLatencyPressureSeconds {
 		channelPressure = true
-		report.Reasons = append(report.Reasons, "ChannelV2 follower pull RPC p99 is high")
+		report.Reasons = append(report.Reasons, "Channel runtime follower pull RPC p99 is high")
 	}
-	if report.ChannelV2NeedMetaPullRPCP99Seconds >= wukongIMLatencyPressureSeconds {
+	if report.ChannelRuntimeNeedMetaPullRPCP99Seconds >= wukongIMLatencyPressureSeconds {
 		channelPressure = true
-		report.Reasons = append(report.Reasons, "ChannelV2 follower NeedMeta pull RPC p99 is high")
+		report.Reasons = append(report.Reasons, "Channel runtime follower NeedMeta pull RPC p99 is high")
 	}
-	if report.ChannelV2ReplicationStoreApplyP99Seconds >= wukongIMLatencyPressureSeconds {
+	if report.ChannelRuntimeReplicationStoreApplyP99Seconds >= wukongIMLatencyPressureSeconds {
 		channelPressure = true
-		report.Reasons = append(report.Reasons, "ChannelV2 follower store apply p99 is high")
+		report.Reasons = append(report.Reasons, "Channel runtime follower store apply p99 is high")
 	}
-	if report.ChannelV2ReplicationApplyToAckReturnP99Seconds >= wukongIMLatencyPressureSeconds {
+	if report.ChannelRuntimeReplicationApplyToAckReturnP99Seconds >= wukongIMLatencyPressureSeconds {
 		channelPressure = true
-		report.Reasons = append(report.Reasons, "ChannelV2 follower apply-to-AckOffset-return p99 is high")
+		report.Reasons = append(report.Reasons, "Channel runtime follower apply-to-AckOffset-return p99 is high")
 	}
-	if report.ChannelV2PendingMetaCurrentMax > 0 {
+	if report.ChannelRuntimePendingMetaCurrentMax > 0 {
 		channelPressure = true
-		report.Reasons = append(report.Reasons, "ChannelV2 PendingMeta shells remain active")
+		report.Reasons = append(report.Reasons, "Channel runtime PendingMeta shells remain active")
 	}
-	if report.ChannelV2PendingMetaReleasedCount > 0 {
+	if report.ChannelRuntimePendingMetaReleasedCount > 0 {
 		channelPressure = true
-		report.Reasons = append(report.Reasons, "ChannelV2 PendingMeta shells were released before conversion")
+		report.Reasons = append(report.Reasons, "Channel runtime PendingMeta shells were released before conversion")
 	}
-	if report.ChannelV2NeedMetaPullRetryCount > 0 {
+	if report.ChannelRuntimeNeedMetaPullRetryCount > 0 {
 		channelPressure = true
-		report.Reasons = append(report.Reasons, "ChannelV2 NeedMeta pull retries were observed")
+		report.Reasons = append(report.Reasons, "Channel runtime NeedMeta pull retries were observed")
 	}
-	if report.ChannelV2NeedMetaPullErrCount > 0 {
+	if report.ChannelRuntimeNeedMetaPullErrCount > 0 {
 		channelPressure = true
-		report.Reasons = append(report.Reasons, "ChannelV2 NeedMeta pull errors were observed")
+		report.Reasons = append(report.Reasons, "Channel runtime NeedMeta pull errors were observed")
 	}
-	if report.ChannelV2NeedMetaPullTimeoutErrCount > 0 {
-		report.Reasons = append(report.Reasons, "ChannelV2 NeedMeta pull timeout errors were observed")
+	if report.ChannelRuntimeNeedMetaPullTimeoutErrCount > 0 {
+		report.Reasons = append(report.Reasons, "Channel runtime NeedMeta pull timeout errors were observed")
 	}
-	if report.ChannelV2NeedMetaPullNotReadyErrCount > 0 {
-		report.Reasons = append(report.Reasons, "ChannelV2 NeedMeta pull not_ready errors were observed")
+	if report.ChannelRuntimeNeedMetaPullNotReadyErrCount > 0 {
+		report.Reasons = append(report.Reasons, "Channel runtime NeedMeta pull not_ready errors were observed")
 	}
-	if report.ChannelV2NeedMetaPullNotReplicaErrCount > 0 {
-		report.Reasons = append(report.Reasons, "ChannelV2 NeedMeta pull not_replica errors were observed")
+	if report.ChannelRuntimeNeedMetaPullNotReplicaErrCount > 0 {
+		report.Reasons = append(report.Reasons, "Channel runtime NeedMeta pull not_replica errors were observed")
 	}
-	if report.ChannelV2NeedMetaPullBackpressuredErrCount > 0 {
-		report.Reasons = append(report.Reasons, "ChannelV2 NeedMeta pull backpressured errors were observed")
+	if report.ChannelRuntimeNeedMetaPullBackpressuredErrCount > 0 {
+		report.Reasons = append(report.Reasons, "Channel runtime NeedMeta pull backpressured errors were observed")
 	}
-	if report.ChannelV2PullHintErrCount > 0 {
+	if report.ChannelRuntimePullHintErrCount > 0 {
 		channelPressure = true
-		report.Reasons = append(report.Reasons, "ChannelV2 PullHint errors were observed")
+		report.Reasons = append(report.Reasons, "Channel runtime PullHint errors were observed")
 	}
-	if report.ChannelV2PullHintStaleMetaErrCount > 0 {
-		report.Reasons = append(report.Reasons, "ChannelV2 PullHint stale_meta errors were observed")
+	if report.ChannelRuntimePullHintStaleMetaErrCount > 0 {
+		report.Reasons = append(report.Reasons, "Channel runtime PullHint stale_meta errors were observed")
 	}
-	if report.ChannelV2PullHintChannelNotFoundErrCount > 0 {
-		report.Reasons = append(report.Reasons, "ChannelV2 PullHint channel_not_found errors were observed")
+	if report.ChannelRuntimePullHintChannelNotFoundErrCount > 0 {
+		report.Reasons = append(report.Reasons, "Channel runtime PullHint channel_not_found errors were observed")
 	}
-	if report.ChannelV2PullHintNotReadyErrCount > 0 {
-		report.Reasons = append(report.Reasons, "ChannelV2 PullHint not_ready errors were observed")
+	if report.ChannelRuntimePullHintNotReadyErrCount > 0 {
+		report.Reasons = append(report.Reasons, "Channel runtime PullHint not_ready errors were observed")
 	}
-	if report.ChannelV2PullHintNotLeaderErrCount > 0 {
-		report.Reasons = append(report.Reasons, "ChannelV2 PullHint not_leader errors were observed")
+	if report.ChannelRuntimePullHintNotLeaderErrCount > 0 {
+		report.Reasons = append(report.Reasons, "Channel runtime PullHint not_leader errors were observed")
 	}
-	if report.ChannelV2PullHintInvalidConfigErrCount > 0 {
-		report.Reasons = append(report.Reasons, "ChannelV2 PullHint invalid_config errors were observed")
+	if report.ChannelRuntimePullHintInvalidConfigErrCount > 0 {
+		report.Reasons = append(report.Reasons, "Channel runtime PullHint invalid_config errors were observed")
 	}
-	if report.ChannelV2PullHintClosedErrCount > 0 {
-		report.Reasons = append(report.Reasons, "ChannelV2 PullHint closed errors were observed")
+	if report.ChannelRuntimePullHintClosedErrCount > 0 {
+		report.Reasons = append(report.Reasons, "Channel runtime PullHint closed errors were observed")
 	}
-	if report.ChannelV2PullHintCanceledErrCount > 0 {
-		report.Reasons = append(report.Reasons, "ChannelV2 PullHint canceled errors were observed")
+	if report.ChannelRuntimePullHintCanceledErrCount > 0 {
+		report.Reasons = append(report.Reasons, "Channel runtime PullHint canceled errors were observed")
 	}
-	if report.ChannelV2PullHintTimeoutErrCount > 0 {
-		report.Reasons = append(report.Reasons, "ChannelV2 PullHint timeout errors were observed")
+	if report.ChannelRuntimePullHintTimeoutErrCount > 0 {
+		report.Reasons = append(report.Reasons, "Channel runtime PullHint timeout errors were observed")
 	}
-	if report.ChannelV2PullHintRemoteErrCount > 0 {
-		report.Reasons = append(report.Reasons, "ChannelV2 PullHint remote errors were observed")
+	if report.ChannelRuntimePullHintRemoteErrCount > 0 {
+		report.Reasons = append(report.Reasons, "Channel runtime PullHint remote errors were observed")
 	}
-	if report.ChannelV2PullHintOtherErrCount > 0 {
-		report.Reasons = append(report.Reasons, "ChannelV2 PullHint other errors were observed")
+	if report.ChannelRuntimePullHintOtherErrCount > 0 {
+		report.Reasons = append(report.Reasons, "Channel runtime PullHint other errors were observed")
 	}
-	if report.ChannelV2PullHintReceiveErrCount > 0 {
+	if report.ChannelRuntimePullHintReceiveErrCount > 0 {
 		channelPressure = true
-		report.Reasons = append(report.Reasons, "ChannelV2 PullHint receive errors were observed")
+		report.Reasons = append(report.Reasons, "Channel runtime PullHint receive errors were observed")
 	}
-	if report.ChannelV2PullHintReceiveMetaResolveErrCount > 0 {
-		report.Reasons = append(report.Reasons, "ChannelV2 PullHint receive meta_resolve errors were observed")
+	if report.ChannelRuntimePullHintReceiveMetaResolveErrCount > 0 {
+		report.Reasons = append(report.Reasons, "Channel runtime PullHint receive meta_resolve errors were observed")
 	}
-	if report.ChannelV2PullHintReceiveMetaValidateErrCount > 0 {
-		report.Reasons = append(report.Reasons, "ChannelV2 PullHint receive meta_validate errors were observed")
+	if report.ChannelRuntimePullHintReceiveMetaValidateErrCount > 0 {
+		report.Reasons = append(report.Reasons, "Channel runtime PullHint receive meta_validate errors were observed")
 	}
-	if report.ChannelV2PullHintReceiveSubmitErrCount > 0 {
-		report.Reasons = append(report.Reasons, "ChannelV2 PullHint receive submit errors were observed")
+	if report.ChannelRuntimePullHintReceiveSubmitErrCount > 0 {
+		report.Reasons = append(report.Reasons, "Channel runtime PullHint receive submit errors were observed")
 	}
-	if report.ChannelV2PullHintReceiveAwaitErrCount > 0 {
-		report.Reasons = append(report.Reasons, "ChannelV2 PullHint receive await errors were observed")
+	if report.ChannelRuntimePullHintReceiveAwaitErrCount > 0 {
+		report.Reasons = append(report.Reasons, "Channel runtime PullHint receive await errors were observed")
 	}
-	if report.ChannelV2PullHintReceiveChannelNotFoundErrCount > 0 {
-		report.Reasons = append(report.Reasons, "ChannelV2 PullHint receive channel_not_found errors were observed")
+	if report.ChannelRuntimePullHintReceiveChannelNotFoundErrCount > 0 {
+		report.Reasons = append(report.Reasons, "Channel runtime PullHint receive channel_not_found errors were observed")
 	}
-	if report.ChannelV2WorkerTaskP99Seconds >= wukongIMLatencyPressureSeconds {
+	if report.ChannelRuntimeWorkerTaskP99Seconds >= wukongIMLatencyPressureSeconds {
 		channelPressure = true
-		report.Reasons = append(report.Reasons, "ChannelV2 worker task p99 is high")
+		report.Reasons = append(report.Reasons, "Channel runtime worker task p99 is high")
 	}
 
 	storagePressure := false
@@ -838,7 +838,7 @@ func AnalyzeWukongIMPrometheus(before, after PrometheusSnapshot) WukongIMAttribu
 	case storagePressure:
 		report.Classification = WukongIMBottleneckStorageCommit
 	case channelPressure:
-		report.Classification = WukongIMBottleneckChannelV2
+		report.Classification = WukongIMBottleneckChannelRuntime
 	}
 	return report
 }

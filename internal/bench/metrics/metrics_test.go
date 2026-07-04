@@ -225,7 +225,7 @@ wukongim_gateway_sendacks_total{reason="success",source="batch_result",class="no
 	}
 }
 
-func TestAnalyzeWukongIMPrometheusReportsChannelV2PullHintCounters(t *testing.T) {
+func TestAnalyzeWukongIMPrometheusReportsChannelRuntimePullHintCounters(t *testing.T) {
 	before, err := ParsePrometheusText(strings.NewReader(`
 wukongim_channelv2_pull_hint_total{reason="append",result="submitted",error="none"} 1
 wukongim_channelv2_pull_hint_total{reason="resume",result="submitted",error="none"} 2
@@ -290,48 +290,48 @@ wukongim_channelv2_replication_stage_duration_seconds_bucket{stage="follower_nee
 	}
 
 	report := AnalyzeWukongIMPrometheus(before, after)
-	if report.ChannelV2PullHintSubmittedCount != 8 {
-		t.Fatalf("submitted = %v, want 8", report.ChannelV2PullHintSubmittedCount)
+	if report.ChannelRuntimePullHintSubmittedCount != 8 {
+		t.Fatalf("submitted = %v, want 8", report.ChannelRuntimePullHintSubmittedCount)
 	}
-	if report.ChannelV2PullHintOKCount != 7 {
-		t.Fatalf("ok = %v, want 7", report.ChannelV2PullHintOKCount)
+	if report.ChannelRuntimePullHintOKCount != 7 {
+		t.Fatalf("ok = %v, want 7", report.ChannelRuntimePullHintOKCount)
 	}
-	if report.ChannelV2PullHintErrCount != 38 {
-		t.Fatalf("err = %v, want 38", report.ChannelV2PullHintErrCount)
+	if report.ChannelRuntimePullHintErrCount != 38 {
+		t.Fatalf("err = %v, want 38", report.ChannelRuntimePullHintErrCount)
 	}
-	if report.ChannelV2PullHintStaleMetaErrCount != 2 || report.ChannelV2PullHintNotReadyErrCount != 4 || report.ChannelV2PullHintChannelNotFoundErrCount != 5 || report.ChannelV2PullHintCanceledErrCount != 6 || report.ChannelV2PullHintTimeoutErrCount != 7 || report.ChannelV2PullHintRemoteErrCount != 8 || report.ChannelV2PullHintOtherErrCount != 6 {
+	if report.ChannelRuntimePullHintStaleMetaErrCount != 2 || report.ChannelRuntimePullHintNotReadyErrCount != 4 || report.ChannelRuntimePullHintChannelNotFoundErrCount != 5 || report.ChannelRuntimePullHintCanceledErrCount != 6 || report.ChannelRuntimePullHintTimeoutErrCount != 7 || report.ChannelRuntimePullHintRemoteErrCount != 8 || report.ChannelRuntimePullHintOtherErrCount != 6 {
 		t.Fatalf("error breakdown not parsed: %+v", report)
 	}
-	if report.ChannelV2PullHintReceiveOKCount != 21 || report.ChannelV2PullHintReceiveErrCount != 9 || report.ChannelV2PullHintReceiveMetaResolveErrCount != 9 || report.ChannelV2PullHintReceiveChannelNotFoundErrCount != 9 {
+	if report.ChannelRuntimePullHintReceiveOKCount != 21 || report.ChannelRuntimePullHintReceiveErrCount != 9 || report.ChannelRuntimePullHintReceiveMetaResolveErrCount != 9 || report.ChannelRuntimePullHintReceiveChannelNotFoundErrCount != 9 {
 		t.Fatalf("receive breakdown not parsed: %+v", report)
 	}
-	if report.ChannelV2PullHintReceiveMetaHintOKCount != 11 {
-		t.Fatalf("receive meta hint ok = %v, want 11", report.ChannelV2PullHintReceiveMetaHintOKCount)
+	if report.ChannelRuntimePullHintReceiveMetaHintOKCount != 11 {
+		t.Fatalf("receive meta hint ok = %v, want 11", report.ChannelRuntimePullHintReceiveMetaHintOKCount)
 	}
-	if report.ChannelV2PendingMetaCurrentMax != 4 ||
-		report.ChannelV2PendingMetaCreatedCount != 8 ||
-		report.ChannelV2PendingMetaConvertedCount != 5 ||
-		report.ChannelV2PendingMetaReleasedCount != 5 ||
-		report.ChannelV2PendingMetaTimeoutReleaseCount != 3 {
+	if report.ChannelRuntimePendingMetaCurrentMax != 4 ||
+		report.ChannelRuntimePendingMetaCreatedCount != 8 ||
+		report.ChannelRuntimePendingMetaConvertedCount != 5 ||
+		report.ChannelRuntimePendingMetaReleasedCount != 5 ||
+		report.ChannelRuntimePendingMetaTimeoutReleaseCount != 3 {
 		t.Fatalf("pending meta breakdown not parsed: %+v", report)
 	}
-	if report.ChannelV2NeedMetaPullSubmittedCount != 10 ||
-		report.ChannelV2NeedMetaPullOKCount != 5 ||
-		report.ChannelV2NeedMetaPullRetryCount != 3 ||
-		report.ChannelV2NeedMetaPullErrCount != 6 ||
-		report.ChannelV2NeedMetaPullTimeoutErrCount != 4 ||
-		report.ChannelV2NeedMetaPullNotReadyErrCount != 2 {
+	if report.ChannelRuntimeNeedMetaPullSubmittedCount != 10 ||
+		report.ChannelRuntimeNeedMetaPullOKCount != 5 ||
+		report.ChannelRuntimeNeedMetaPullRetryCount != 3 ||
+		report.ChannelRuntimeNeedMetaPullErrCount != 6 ||
+		report.ChannelRuntimeNeedMetaPullTimeoutErrCount != 4 ||
+		report.ChannelRuntimeNeedMetaPullNotReadyErrCount != 2 {
 		t.Fatalf("need meta pull breakdown not parsed: %+v", report)
 	}
-	if report.ChannelV2NeedMetaPullRPCP99Seconds <= 0 {
-		t.Fatalf("need meta pull RPC p99 = %v, want > 0", report.ChannelV2NeedMetaPullRPCP99Seconds)
+	if report.ChannelRuntimeNeedMetaPullRPCP99Seconds <= 0 {
+		t.Fatalf("need meta pull RPC p99 = %v, want > 0", report.ChannelRuntimeNeedMetaPullRPCP99Seconds)
 	}
-	if report.Classification != WukongIMBottleneckChannelV2 {
-		t.Fatalf("classification = %q, want %q: %+v", report.Classification, WukongIMBottleneckChannelV2, report)
+	if report.Classification != WukongIMBottleneckChannelRuntime {
+		t.Fatalf("classification = %q, want %q: %+v", report.Classification, WukongIMBottleneckChannelRuntime, report)
 	}
 }
 
-func TestAnalyzeWukongIMPrometheusClassifiesChannelV2Pressure(t *testing.T) {
+func TestAnalyzeWukongIMPrometheusClassifiesChannelRuntimePressure(t *testing.T) {
 	before, err := ParsePrometheusText(strings.NewReader(`
 wukongim_gateway_async_send_queue_depth 0
 wukongim_gateway_async_send_queue_capacity 100
@@ -460,21 +460,21 @@ wukongim_channelv2_replication_stage_duration_seconds_bucket{stage="follower_app
 	}
 
 	report := AnalyzeWukongIMPrometheus(before, after)
-	if report.Classification != WukongIMBottleneckChannelV2 {
-		t.Fatalf("classification = %q, want %q: %+v", report.Classification, WukongIMBottleneckChannelV2, report)
+	if report.Classification != WukongIMBottleneckChannelRuntime {
+		t.Fatalf("classification = %q, want %q: %+v", report.Classification, WukongIMBottleneckChannelRuntime, report)
 	}
-	if report.ChannelV2ReactorMailboxDepthMax != 9 {
-		t.Fatalf("reactor mailbox depth = %v, want 9", report.ChannelV2ReactorMailboxDepthMax)
+	if report.ChannelRuntimeReactorMailboxDepthMax != 9 {
+		t.Fatalf("reactor mailbox depth = %v, want 9", report.ChannelRuntimeReactorMailboxDepthMax)
 	}
-	if report.ChannelV2WorkerQueueDepthMax != 3 {
-		t.Fatalf("worker queue depth = %v, want 3", report.ChannelV2WorkerQueueDepthMax)
+	if report.ChannelRuntimeWorkerQueueDepthMax != 3 {
+		t.Fatalf("worker queue depth = %v, want 3", report.ChannelRuntimeWorkerQueueDepthMax)
 	}
-	if report.ChannelV2MetaResolveP99Seconds <= 0 || report.ChannelV2MetaApplyP99Seconds <= 0 || report.ChannelV2RuntimeAppendP99Seconds <= 0 || report.ChannelV2RuntimeAppendReserveWaitP99Seconds <= 0 || report.ChannelV2RuntimeAppendSubmitP99Seconds <= 0 || report.ChannelV2RuntimeAppendWaitP99Seconds <= 0 || report.ChannelV2AppendBatchWaitP99Seconds <= 0 || report.ChannelV2AppendStoreWaitP99Seconds <= 0 || report.ChannelV2AppendPostStoreCommitWaitP99Seconds <= 0 || report.ChannelV2AppendQuorumFollowerPullWaitP99Seconds <= 0 || report.ChannelV2AppendQuorumAckOffsetWaitP99Seconds <= 0 || report.ChannelV2AppendQuorumHWAdvanceWaitP99Seconds <= 0 || report.ChannelV2AppendQuorumFinalCompleteP99Seconds <= 0 || report.ChannelV2ReplicationPullHintToSubmitP99Seconds <= 0 || report.ChannelV2ReplicationPullRPCP99Seconds <= 0 || report.ChannelV2ReplicationStoreApplyP99Seconds <= 0 || report.ChannelV2ReplicationApplyToAckReturnP99Seconds <= 0 {
+	if report.ChannelRuntimeMetaResolveP99Seconds <= 0 || report.ChannelRuntimeMetaApplyP99Seconds <= 0 || report.ChannelRuntimeFacadeAppendP99Seconds <= 0 || report.ChannelRuntimeFacadeAppendReserveWaitP99Seconds <= 0 || report.ChannelRuntimeFacadeAppendSubmitP99Seconds <= 0 || report.ChannelRuntimeFacadeAppendWaitP99Seconds <= 0 || report.ChannelRuntimeAppendBatchWaitP99Seconds <= 0 || report.ChannelRuntimeAppendStoreWaitP99Seconds <= 0 || report.ChannelRuntimeAppendPostStoreCommitWaitP99Seconds <= 0 || report.ChannelRuntimeAppendQuorumFollowerPullWaitP99Seconds <= 0 || report.ChannelRuntimeAppendQuorumAckOffsetWaitP99Seconds <= 0 || report.ChannelRuntimeAppendQuorumHWAdvanceWaitP99Seconds <= 0 || report.ChannelRuntimeAppendQuorumFinalCompleteP99Seconds <= 0 || report.ChannelRuntimeReplicationPullHintToSubmitP99Seconds <= 0 || report.ChannelRuntimeReplicationPullRPCP99Seconds <= 0 || report.ChannelRuntimeReplicationStoreApplyP99Seconds <= 0 || report.ChannelRuntimeReplicationApplyToAckReturnP99Seconds <= 0 {
 		t.Fatalf("channel stage p99s not parsed: %+v", report)
 	}
 }
 
-func TestAnalyzeWukongIMPrometheusReportsChannelV2MetaResolveBreakdown(t *testing.T) {
+func TestAnalyzeWukongIMPrometheusReportsChannelRuntimeMetaResolveBreakdown(t *testing.T) {
 	before, err := ParsePrometheusText(strings.NewReader(`
 wukongim_gateway_async_send_queue_depth 0
 wukongim_gateway_async_send_queue_capacity 100
@@ -545,15 +545,15 @@ wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_final_read",
 	}
 
 	report := AnalyzeWukongIMPrometheus(before, after)
-	if report.Classification != WukongIMBottleneckChannelV2 {
-		t.Fatalf("classification = %q, want %q: %+v", report.Classification, WukongIMBottleneckChannelV2, report)
+	if report.Classification != WukongIMBottleneckChannelRuntime {
+		t.Fatalf("classification = %q, want %q: %+v", report.Classification, WukongIMBottleneckChannelRuntime, report)
 	}
-	if report.ChannelV2MetaSlotReadP99Seconds <= 0 || report.ChannelV2MetaCreateBuildP99Seconds <= 0 || report.ChannelV2MetaCreateProposeP99Seconds <= 0 || report.ChannelV2MetaCreateProposeLocalP99Seconds <= 0 || report.ChannelV2MetaCreateProposeForwardP99Seconds <= 0 || report.ChannelV2MetaCreateSlotProposeSubmitP99Seconds <= 0 || report.ChannelV2MetaCreateSlotProposeWaitP99Seconds <= 0 || report.ChannelV2MetaCreateWriteP99Seconds <= 0 || report.ChannelV2MetaFinalReadP99Seconds <= 0 {
+	if report.ChannelRuntimeMetaSlotReadP99Seconds <= 0 || report.ChannelRuntimeMetaCreateBuildP99Seconds <= 0 || report.ChannelRuntimeMetaCreateProposeP99Seconds <= 0 || report.ChannelRuntimeMetaCreateProposeLocalP99Seconds <= 0 || report.ChannelRuntimeMetaCreateProposeForwardP99Seconds <= 0 || report.ChannelRuntimeMetaCreateSlotProposeSubmitP99Seconds <= 0 || report.ChannelRuntimeMetaCreateSlotProposeWaitP99Seconds <= 0 || report.ChannelRuntimeMetaCreateWriteP99Seconds <= 0 || report.ChannelRuntimeMetaFinalReadP99Seconds <= 0 {
 		t.Fatalf("channel meta breakdown p99s not parsed: %+v", report)
 	}
 }
 
-func TestAnalyzeWukongIMPrometheusReportsChannelV2SlotFutureBreakdown(t *testing.T) {
+func TestAnalyzeWukongIMPrometheusReportsChannelRuntimeSlotFutureBreakdown(t *testing.T) {
 	before, err := ParsePrometheusText(strings.NewReader(`
 wukongim_gateway_async_send_queue_depth 0
 wukongim_gateway_async_send_queue_capacity 100
@@ -600,10 +600,10 @@ wukongim_channelv2_append_stage_duration_seconds_bucket{stage="meta_create_slot_
 	}
 
 	report := AnalyzeWukongIMPrometheus(before, after)
-	if report.Classification != WukongIMBottleneckChannelV2 {
-		t.Fatalf("classification = %q, want %q: %+v", report.Classification, WukongIMBottleneckChannelV2, report)
+	if report.Classification != WukongIMBottleneckChannelRuntime {
+		t.Fatalf("classification = %q, want %q: %+v", report.Classification, WukongIMBottleneckChannelRuntime, report)
 	}
-	if report.ChannelV2MetaCreateSlotControlWaitP99Seconds <= 0 || report.ChannelV2MetaCreateSlotRaftCommitWaitP99Seconds <= 0 || report.ChannelV2MetaCreateSlotFSMApplyP99Seconds <= 0 || report.ChannelV2MetaCreateSlotFSMCommitP99Seconds <= 0 || report.ChannelV2MetaCreateSlotMarkAppliedP99Seconds <= 0 {
+	if report.ChannelRuntimeMetaCreateSlotControlWaitP99Seconds <= 0 || report.ChannelRuntimeMetaCreateSlotRaftCommitWaitP99Seconds <= 0 || report.ChannelRuntimeMetaCreateSlotFSMApplyP99Seconds <= 0 || report.ChannelRuntimeMetaCreateSlotFSMCommitP99Seconds <= 0 || report.ChannelRuntimeMetaCreateSlotMarkAppliedP99Seconds <= 0 {
 		t.Fatalf("channel Slot future breakdown p99s not parsed: %+v", report)
 	}
 }
@@ -692,11 +692,11 @@ wukongim_storage_commit_request_duration_seconds_bucket{store="message",lane="ap
 	if report.StorageCommitRequestP99Seconds <= 0 || report.StorageCommitRequestOKP99Seconds <= 0 {
 		t.Fatalf("storage commit request p99s not parsed: %+v", report)
 	}
-	if report.ChannelV2WorkerInflightByPool["store_append"] != 256 || report.ChannelV2WorkerInflightByPool["store_apply"] != 256 {
-		t.Fatalf("worker inflight by pool not parsed: %+v", report.ChannelV2WorkerInflightByPool)
+	if report.ChannelRuntimeWorkerInflightByPool["store_append"] != 256 || report.ChannelRuntimeWorkerInflightByPool["store_apply"] != 256 {
+		t.Fatalf("worker inflight by pool not parsed: %+v", report.ChannelRuntimeWorkerInflightByPool)
 	}
-	if report.ChannelV2WorkerInflightPeakByPool["store_append"] != 256 || report.ChannelV2WorkerInflightPeakByPool["store_apply"] != 256 {
-		t.Fatalf("worker inflight peak by pool not parsed: %+v", report.ChannelV2WorkerInflightPeakByPool)
+	if report.ChannelRuntimeWorkerInflightPeakByPool["store_append"] != 256 || report.ChannelRuntimeWorkerInflightPeakByPool["store_apply"] != 256 {
+		t.Fatalf("worker inflight peak by pool not parsed: %+v", report.ChannelRuntimeWorkerInflightPeakByPool)
 	}
 	if report.StorageCommitRequestOver1sCount != 8 || report.StorageCommitRequestOver5sCount != 4 || report.StorageCommitRequestOver10sCount != 3 {
 		t.Fatalf("storage commit request tail counts not parsed: %+v", report)

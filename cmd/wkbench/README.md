@@ -17,8 +17,8 @@ go run ./cmd/wkbench <command> [flags]
 | `dev-sim` | Runs a long-lived development simulator that keeps users online and emits low-rate person/group messages. |
 | `capacity send` | Searches maximum stable ingress send QPS against already-running target APIs. |
 | `capacity hot-channel` | Searches maximum stable ingress QPS for one fixed group channel with configurable sender fan-in. |
-| `capacity activate-channels` | Activates a fixed number of group channels through real SEND traffic, holds them live, and probes ChannelV2 runtime state. |
-| `metrics classify` | Compares before/after Prometheus snapshots and prints gateway, Controller Raft, ChannelV2, and storage attribution hints. |
+| `capacity activate-channels` | Activates a fixed number of group channels through real SEND traffic, holds them live, and probes Channel runtime state. |
+| `metrics classify` | Compares before/after Prometheus snapshots and prints gateway, Controller Raft, Channel runtime, and storage attribution hints. |
 | `report` | Reserved for future standalone report rendering. It is not implemented yet. |
 
 Exit codes are stable: `0` success, `1` config validation failure, `2` preflight failure, `3` hard limit failure, `4` worker failure, `5` target unavailable, and `6` internal failure.
@@ -148,7 +148,7 @@ measured run to drain the whole offered schedule.
 ## Capacity Activate Channels
 
 `capacity activate-channels` is the preferred proof for simultaneous live
-ChannelV2 channel cardinality. It prepares group metadata through the bench API,
+Channel runtime channel cardinality. It prepares group metadata through the bench API,
 opens a bounded online user pool, sends exactly one WKProto group SEND per
 generated channel during the activation window, holds the cluster, then probes
 runtime state on every target API node.
@@ -192,7 +192,7 @@ count, hash-slot totals, touch count, and TTL expiry count. The final
 `report.json` is still used for workload status and error-rate gates.
 
 The per-node classification files include Controller Raft Step queue pressure
-plus ChannelV2 cold-activation stage p99s:
+plus Channel runtime cold-activation stage p99s:
 `channelv2_meta_resolve_p99_seconds`, `channelv2_meta_slot_read_p99_seconds`,
 `channelv2_meta_create_build_p99_seconds`,
 `channelv2_meta_create_propose_p99_seconds`,

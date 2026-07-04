@@ -448,7 +448,7 @@ wukongim_storage_commit_request_duration_seconds_bucket{store="message",lane="ap
 	}
 }
 
-func TestMetricsClassifyReportsChannelV2PullHintCounters(t *testing.T) {
+func TestMetricsClassifyReportsChannelRuntimePullHintCounters(t *testing.T) {
 	dir := t.TempDir()
 	before := filepath.Join(dir, "before.prom")
 	after := filepath.Join(dir, "after.prom")
