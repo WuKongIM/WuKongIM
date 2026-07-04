@@ -77,6 +77,6 @@ adapters. The import-boundary test rejects imports of:
 - `pkg/gateway`
 - `pkg/protocol/frame`
 - `pkg/cluster`
-- `pkg/channelv2`
+- `pkg/channel`
 - `internal/access`
 - `internal/app`
