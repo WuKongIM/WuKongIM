@@ -113,6 +113,9 @@ const (
 	dbMessageCommitQueue     = "commit"
 	dbRuntimeQueuePriority   = "none"
 	dbMessageCommitWorkerCap = 1
+
+	// channelRuntimePressureComponent preserves the existing Prometheus label for compatibility.
+	channelRuntimePressureComponent = "channelv2"
 )
 
 func (o gatewayMetricsObserver) OnConnectionOpen(event accessgateway.ConnectionEvent) {
@@ -464,28 +467,28 @@ func (o channelMetricsObserver) SetReactorMailboxDepth(reactorID int, priority s
 		return
 	}
 	o.metrics.ChannelRuntime.SetReactorMailboxDepth(reactorID, priority, depth)
-	o.metrics.RuntimePressure.SetQueueDepth("channelv2", channelReactorPoolLabel(reactorID), "mailbox", priority, depth)
+	o.metrics.RuntimePressure.SetQueueDepth(channelRuntimePressureComponent, channelReactorPoolLabel(reactorID), "mailbox", priority, depth)
 }
 
 func (o channelMetricsObserver) SetReactorMailboxCapacity(reactorID int, priority string, capacity int) {
 	if o.metrics == nil {
 		return
 	}
-	o.metrics.RuntimePressure.SetQueueCapacity("channelv2", channelReactorPoolLabel(reactorID), "mailbox", priority, capacity)
+	o.metrics.RuntimePressure.SetQueueCapacity(channelRuntimePressureComponent, channelReactorPoolLabel(reactorID), "mailbox", priority, capacity)
 }
 
 func (o channelMetricsObserver) ObserveReactorMailboxAdmission(reactorID int, priority string, result string) {
 	if o.metrics == nil {
 		return
 	}
-	o.metrics.RuntimePressure.ObserveAdmission("channelv2", channelReactorPoolLabel(reactorID), "mailbox", priority, result)
+	o.metrics.RuntimePressure.ObserveAdmission(channelRuntimePressureComponent, channelReactorPoolLabel(reactorID), "mailbox", priority, result)
 }
 
 func (o channelMetricsObserver) SetAppendQueuePressure(event reactor.AppendQueuePressureEvent) {
 	if o.metrics == nil {
 		return
 	}
-	o.metrics.RuntimePressure.SetQueue("channelv2", channelReactorPoolLabel(event.ReactorID), "append", "none", obsmetrics.RuntimePressureQueueObservation{
+	o.metrics.RuntimePressure.SetQueue(channelRuntimePressureComponent, channelReactorPoolLabel(event.ReactorID), "append", "none", obsmetrics.RuntimePressureQueueObservation{
 		Depth:         event.Depth,
 		Capacity:      event.Capacity,
 		Bytes:         int64(event.Bytes),
@@ -498,35 +501,35 @@ func (o channelMetricsObserver) SetWorkerQueueDepth(pool string, depth int) {
 		return
 	}
 	o.metrics.ChannelRuntime.SetWorkerQueueDepth(pool, depth)
-	o.metrics.RuntimePressure.SetQueueDepth("channelv2", pool, "worker", "none", depth)
+	o.metrics.RuntimePressure.SetQueueDepth(channelRuntimePressureComponent, pool, "worker", "none", depth)
 }
 
 func (o channelMetricsObserver) SetWorkerQueueCapacity(pool string, capacity int) {
 	if o.metrics == nil {
 		return
 	}
-	o.metrics.RuntimePressure.SetQueueCapacity("channelv2", pool, "worker", "none", capacity)
+	o.metrics.RuntimePressure.SetQueueCapacity(channelRuntimePressureComponent, pool, "worker", "none", capacity)
 }
 
 func (o channelMetricsObserver) SetWorkerWorkers(pool string, workers int) {
 	if o.metrics == nil {
 		return
 	}
-	o.metrics.RuntimePressure.SetPoolWorkers("channelv2", pool, workers)
+	o.metrics.RuntimePressure.SetPoolWorkers(channelRuntimePressureComponent, pool, workers)
 }
 
 func (o channelMetricsObserver) ObserveWorkerAdmission(pool string, result string) {
 	if o.metrics == nil {
 		return
 	}
-	o.metrics.RuntimePressure.ObserveAdmission("channelv2", pool, "worker", "none", result)
+	o.metrics.RuntimePressure.ObserveAdmission(channelRuntimePressureComponent, pool, "worker", "none", result)
 }
 
 func (o channelMetricsObserver) ObserveWorkerWait(pool string, kind worker.TaskKind, d time.Duration) {
 	if o.metrics == nil {
 		return
 	}
-	o.metrics.RuntimePressure.ObserveQueueWait("channelv2", pool, "worker", "none", "ok", d)
+	o.metrics.RuntimePressure.ObserveQueueWait(channelRuntimePressureComponent, pool, "worker", "none", "ok", d)
 }
 
 func (o channelMetricsObserver) ObserveWorkerTask(pool string, kind worker.TaskKind, err error, d time.Duration) {
@@ -537,7 +540,7 @@ func (o channelMetricsObserver) ObserveWorkerTask(pool string, kind worker.TaskK
 	if err != nil {
 		result = "err"
 	}
-	o.metrics.RuntimePressure.ObserveTaskDuration("channelv2", pool, channelWorkerKindLabel(kind), result, d)
+	o.metrics.RuntimePressure.ObserveTaskDuration(channelRuntimePressureComponent, pool, channelWorkerKindLabel(kind), result, d)
 }
 
 func (o channelMetricsObserver) ObserveWorkerBatch(pool string, kind worker.TaskKind, items int, err error) {
@@ -556,7 +559,7 @@ func (o channelMetricsObserver) SetWorkerInflight(pool string, inflight int) {
 		return
 	}
 	o.metrics.ChannelRuntime.SetWorkerInflight(pool, inflight)
-	o.metrics.RuntimePressure.SetPoolInflight("channelv2", pool, inflight)
+	o.metrics.RuntimePressure.SetPoolInflight(channelRuntimePressureComponent, pool, inflight)
 }
 
 func (o channelMetricsObserver) SetWorkerInflightPeak(pool string, peak int) {
@@ -570,7 +573,7 @@ func (o channelMetricsObserver) SetWorkerAntsPoolUsage(pool string, running int,
 	if o.metrics == nil {
 		return
 	}
-	o.metrics.AntsPool.SetUsage("channelv2", pool, running, capacity, waiting)
+	o.metrics.AntsPool.SetUsage(channelRuntimePressureComponent, pool, running, capacity, waiting)
 }
 
 func (o channelMetricsObserver) SetChannelRuntimeCount(reactorID int, role ch.Role, count int) {
