@@ -145,7 +145,7 @@ Start(ctx)
   -> start the bounded Channel runtime migration executor/repair scanner loop when enabled
 ```
 
-`Start` requires cluster semantics even for one node. A single-node cluster uses a Controller-backed single-voter control runtime instead of a bypass path. Multi-voter default startup uses `pkg/transportv2` one-way service messages for Controller Raft traffic and RPC responses only for state-sync requests. The Controller Raft receive handler bounds local `Step` enqueue time and may drop messages when the local Step queue is saturated; Raft retransmission is relied on instead of allowing one-way notify goroutines to accumulate indefinitely.
+`Start` requires cluster semantics even for one node. A single-node cluster uses a Controller-backed single-voter control runtime instead of a bypass path. Multi-voter default startup uses `pkg/transport` one-way service messages for Controller Raft traffic and RPC responses only for state-sync requests. The Controller Raft receive handler bounds local `Step` enqueue time and may drop messages when the local Step queue is saturated; Raft retransmission is relied on instead of allowing one-way notify goroutines to accumulate indefinitely.
 
 `Node.Start` only establishes local-node readiness: the node has a valid local control snapshot, installed routes, reconciled local Slot runtime state, and started local Channel runtime resources. Package tests use `WaitClusterReady` for converged local control snapshots, and tests that specifically require distributed Controller write readiness should add the separate Controller proposal probe gate. Slot and Channel append tests should add their own Slot leader or Channel metadata gates when those paths are part of the assertion. `ProbeWriteReady` is the foreground app gate: it verifies all hash slots have leaders, refreshes health-only control snapshots when Channel runtime placement candidates are stale, verifies Channel runtime has enough health-schedulable data nodes to create new channel placement, runs a bounded representative Slot metadata write probe, and refreshes the node-local Channel runtime data-plane lease after the probe succeeds.
 
@@ -384,7 +384,7 @@ Node.AppendChannel / AppendChannelBatch
 ```
 
 Append forwarding uses a channel-key shard on the typed node RPC transport, and
-the default transportv2 wiring gives append, follower pull, and pull-hint
+the default transport wiring gives append, follower pull, and pull-hint
 traffic separate service queues plus weighted priorities. Foreground channel
 mutation services also use a larger default service concurrency: Channel runtime
 append-forward handlers mostly wait on Channel runtime append/quorum futures, and
@@ -499,7 +499,7 @@ When `Config.Channel.ReactorCount` is left at zero, cluster derives a CPU-aware 
 
 ## V1 Limitations
 
-- Controller integration supports Controller-backed runtime startup, single-node cluster bootstrap, static multi-voter bootstrap, mirror sync, and multi-voter Raft transport wiring through `pkg/transportv2`. Dynamic production operator workflows remain outside this package-level slice.
+- Controller integration supports Controller-backed runtime startup, single-node cluster bootstrap, static multi-voter bootstrap, mirror sync, and multi-voter Raft transport wiring through `pkg/transport`. Dynamic production operator workflows remain outside this package-level slice.
 - Slot coverage now uses the real default Slot runtime for default propose in single-node clusters and static multi-node clusters. Destructive Slot cleanup remains disabled.
 - Channel runtime append forwarding and first-append metadata creation require a configured Slot-backed ChannelMetaSource and Forward client; without them, pre-applied local runtime state is required and non-leader appends return Channel runtime typed errors.
 - Channel RPC codecs use a version byte plus JSON payload as a temporary v1 format; replace with binary codecs before optimizing this data path.

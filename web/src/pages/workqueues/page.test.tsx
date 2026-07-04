@@ -163,14 +163,14 @@ test("renders API-provided operator-facing service labels", async () => {
     items: [
       {
         ...workqueueResponse.items[0],
-        component: "transportv2",
+        component: "transport",
         pool: "slot propose",
         queue: "inflight",
         priority: "none",
       },
       {
         ...workqueueResponse.items[1],
-        component: "transportv2",
+        component: "transport",
         pool: "service",
         queue: "controller raft",
         priority: "rpc",

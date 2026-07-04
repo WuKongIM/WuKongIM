@@ -368,7 +368,7 @@ func TestManagerRuntimeWorkqueuesPreservesProviderLabels(t *testing.T) {
 			OverallLevel: "busy",
 			Top: []accessapi.TopPressureItem{
 				{
-					Component: "transportv2",
+					Component: "transport",
 					Pool:      "slot propose",
 					Queue:     "inflight",
 					Priority:  "none",
