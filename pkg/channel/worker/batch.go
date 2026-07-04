@@ -191,7 +191,7 @@ func (p *Pool) runQueuedGroupSafely(ctx context.Context, group []queuedTask) (re
 	defer func() {
 		if value := recover(); value != nil {
 			recovered = true
-			err := fmt.Errorf("channelv2 worker panic: %v", value)
+			err := fmt.Errorf("channel worker panic: %v", value)
 			results = make([]Result, 0, len(group))
 			for _, queued := range group {
 				results = append(results, Result{Kind: queued.task.Kind, Fence: queued.task.Fence, Err: err})
