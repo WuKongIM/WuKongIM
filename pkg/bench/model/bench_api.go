@@ -24,11 +24,11 @@ type BenchCapabilitiesSupports struct {
 	Snapshot bool `json:"snapshot"`
 	// PresenceSnapshot indicates support for connection-route presence snapshots.
 	PresenceSnapshot bool `json:"presence_snapshot"`
-	// ChannelRuntimeSnapshot indicates support for local ChannelV2 runtime snapshots.
+	// ChannelRuntimeSnapshot indicates support for local Channel runtime snapshots.
 	ChannelRuntimeSnapshot bool `json:"channel_runtime_snapshot"`
-	// ChannelRuntimeProbe indicates support for bounded ChannelV2 runtime probes.
+	// ChannelRuntimeProbe indicates support for bounded Channel runtime probes.
 	ChannelRuntimeProbe bool `json:"channel_runtime_probe"`
-	// ChannelRuntimeEvict indicates support for bounded ChannelV2 runtime eviction.
+	// ChannelRuntimeEvict indicates support for bounded Channel runtime eviction.
 	ChannelRuntimeEvict bool `json:"channel_runtime_evict"`
 	// ChannelRuntimeFaults indicates support for runtime fault injection controls.
 	ChannelRuntimeFaults bool `json:"channel_runtime_faults"`
@@ -96,7 +96,7 @@ type ChannelRuntimeQuery struct {
 	Range ChannelRuntimeRange `json:"range"`
 }
 
-// ChannelRuntimeSnapshot describes local ChannelV2 runtime state for diagnostics.
+// ChannelRuntimeSnapshot describes local Channel runtime state for diagnostics.
 type ChannelRuntimeSnapshot struct {
 	// Version is the target bench API version that produced the snapshot.
 	Version string `json:"version"`
@@ -122,7 +122,7 @@ type ChannelRuntimeSnapshot struct {
 	WorkerQueues []ChannelRuntimeWorkerQueue `json:"worker_queues,omitempty"`
 }
 
-// ChannelRuntimeReactorSnapshot describes one ChannelV2 reactor's runtime state.
+// ChannelRuntimeReactorSnapshot describes one Channel reactor's runtime state.
 type ChannelRuntimeReactorSnapshot struct {
 	// ReactorID identifies the reactor within the target node.
 	ReactorID int `json:"reactor_id"`
@@ -136,7 +136,7 @@ type ChannelRuntimeReactorSnapshot struct {
 	MailboxDepth int `json:"mailbox_depth"`
 }
 
-// ChannelRuntimeWorkerQueue describes one ChannelV2 worker queue depth.
+// ChannelRuntimeWorkerQueue describes one Channel runtime worker queue depth.
 type ChannelRuntimeWorkerQueue struct {
 	// Pool identifies the worker queue pool.
 	Pool string `json:"pool"`
