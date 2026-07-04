@@ -56,7 +56,7 @@ func TestRuntimePressureAdapterMapsGatewayChannelSlotTransportAndDB(t *testing.T
 		Result:        "ok",
 	})
 
-	channelObserver := channelV2MetricsObserver{metrics: reg}
+	channelObserver := channelMetricsObserver{metrics: reg}
 	channelObserver.SetWorkerQueueDepth("store_append", 1)
 	channelObserver.SetWorkerQueueCapacity("store_append", 64)
 	channelObserver.SetWorkerWorkers("store_append", 4)
@@ -1095,7 +1095,7 @@ func findAppMetricByLabels(t *testing.T, family *dto.MetricFamily, want map[stri
 	return nil
 }
 
-func TestChannelV2PullHintMetricLabels(t *testing.T) {
+func TestChannelPullHintMetricLabels(t *testing.T) {
 	reasonCases := []struct {
 		name   string
 		reason transport.PullHintReason
@@ -1107,8 +1107,8 @@ func TestChannelV2PullHintMetricLabels(t *testing.T) {
 	}
 	for _, tc := range reasonCases {
 		t.Run("reason_"+tc.name, func(t *testing.T) {
-			if got := channelV2PullHintReasonLabel(tc.reason); got != tc.want {
-				t.Fatalf("channelV2PullHintReasonLabel() = %q, want %q", got, tc.want)
+			if got := channelPullHintReasonLabel(tc.reason); got != tc.want {
+				t.Fatalf("channelPullHintReasonLabel() = %q, want %q", got, tc.want)
 			}
 		})
 	}
@@ -1137,15 +1137,15 @@ func TestChannelV2PullHintMetricLabels(t *testing.T) {
 	}
 	for _, tc := range errorCases {
 		t.Run("error_"+tc.name, func(t *testing.T) {
-			if got := channelV2PullHintErrorLabel(tc.err); got != tc.want {
-				t.Fatalf("channelV2PullHintErrorLabel() = %q, want %q", got, tc.want)
+			if got := channelPullHintErrorLabel(tc.err); got != tc.want {
+				t.Fatalf("channelPullHintErrorLabel() = %q, want %q", got, tc.want)
 			}
 		})
 	}
 }
 
-func TestChannelV2AppendWaitCancelLogLineIncludesSnapshotState(t *testing.T) {
-	line := channelV2AppendWaitCancelLogLine(reactor.AppendWaitCancelSnapshot{
+func TestChannelAppendWaitCancelLogLineIncludesSnapshotState(t *testing.T) {
+	line := channelAppendWaitCancelLogLine(reactor.AppendWaitCancelSnapshot{
 		ReactorID:             2,
 		Key:                   ch.ChannelKey("1:room"),
 		ChannelID:             ch.ChannelID{ID: "room", Type: 1},

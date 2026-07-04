@@ -35,7 +35,7 @@ const (
 	topGaugeDeliveryAckBindings        = "delivery.ack.bindings"
 	topGaugeDeliveryRecipientQueue     = "delivery.recipient.queue.depth"
 	topGaugeDeliveryRecipientQueueCap  = "delivery.recipient.queue.capacity"
-	topHistogramChannelV2Append        = "channelv2.append"
+	topHistogramChannelAppend          = "channelv2.append"
 	topHistogramStorageCommitBatchRows = "storage.commit.batch.records"
 	topHistogramStorageCommitBatchMS   = "storage.commit.batch.commit"
 	topHistogramDeliveryPush           = "delivery.push"
@@ -309,32 +309,32 @@ func (c *topCollector) SetInflight(component, pool string, inflight, workers int
 	c.setGauge(key+".workers", workers)
 }
 
-func (c *topCollector) SetChannelV2RuntimeCount(reactorID int, role string, count int64) {
+func (c *topCollector) SetChannelRuntimeCount(reactorID int, role string, count int64) {
 	if c == nil {
 		return
 	}
-	c.setGauge("channelv2.runtime."+safeTopLabel(channelV2ReactorPoolLabel(reactorID))+"."+safeTopLabel(role), count)
+	c.setGauge("channelv2.runtime."+safeTopLabel(channelReactorPoolLabel(reactorID))+"."+safeTopLabel(role), count)
 }
 
-func (c *topCollector) SetChannelV2FollowerParked(reactorID int, count int64) {
+func (c *topCollector) SetChannelFollowerParked(reactorID int, count int64) {
 	if c == nil {
 		return
 	}
-	c.setGauge("channelv2.follower_parked."+safeTopLabel(channelV2ReactorPoolLabel(reactorID)), count)
+	c.setGauge("channelv2.follower_parked."+safeTopLabel(channelReactorPoolLabel(reactorID)), count)
 }
 
-func (c *topCollector) SetChannelV2ReactorMailbox(reactorID int, priority string, depth, capacity int64) {
+func (c *topCollector) SetChannelReactorMailbox(reactorID int, priority string, depth, capacity int64) {
 	if c == nil {
 		return
 	}
-	pool := channelV2ReactorPoolLabel(reactorID)
+	pool := channelReactorPoolLabel(reactorID)
 	key := "channelv2.reactor_mailbox." + safeTopLabel(pool) + "." + safeTopLabel(priority)
 	c.setGauge(key+".depth", depth)
 	c.setGauge(key+".capacity", capacity)
 	c.SetQueue("channelv2", pool, "mailbox", priority, depth, capacity)
 }
 
-func (c *topCollector) SetChannelV2WorkerQueue(pool string, depth, capacity int64) {
+func (c *topCollector) SetChannelWorkerQueue(pool string, depth, capacity int64) {
 	if c == nil {
 		return
 	}
@@ -344,7 +344,7 @@ func (c *topCollector) SetChannelV2WorkerQueue(pool string, depth, capacity int6
 	c.SetQueue("channelv2", pool, "worker", "none", depth, capacity)
 }
 
-func (c *topCollector) SetChannelV2WorkerInflight(pool string, inflight, workers int64) {
+func (c *topCollector) SetChannelWorkerInflight(pool string, inflight, workers int64) {
 	if c == nil {
 		return
 	}
@@ -354,15 +354,15 @@ func (c *topCollector) SetChannelV2WorkerInflight(pool string, inflight, workers
 	c.SetInflight("channelv2", pool, inflight, workers)
 }
 
-func (c *topCollector) ObserveChannelV2AppendLatency(mode string, d time.Duration) {
+func (c *topCollector) ObserveChannelAppendLatency(mode string, d time.Duration) {
 	if c == nil {
 		return
 	}
-	c.observeDurationMS(topHistogramChannelV2Append, d)
+	c.observeDurationMS(topHistogramChannelAppend, d)
 	c.observeDurationMS("channelv2.append.mode."+safeTopLabel(mode), d)
 }
 
-func (c *topCollector) ObserveChannelV2AppendStage(stage, result string, d time.Duration) {
+func (c *topCollector) ObserveChannelAppendStage(stage, result string, d time.Duration) {
 	if c == nil || !strings.EqualFold(strings.TrimSpace(result), "ok") {
 		return
 	}
@@ -667,8 +667,8 @@ func (c *topCollector) SnapshotTop(_ context.Context, query accessapi.TopSnapsho
 	if includePressure(query.View) {
 		snapshot.Pressure = pressure
 	}
-	if includeChannelV2(query.View) {
-		snapshot.ChannelV2 = buildChannelV2(window)
+	if includeChannel(query.View) {
+		snapshot.ChannelV2 = buildChannel(window)
 	}
 	if includeStorage(query.View) {
 		snapshot.Storage = buildStorage(window)
@@ -882,7 +882,7 @@ func connectionProtocols(counters map[string]uint64, prefixes ...string) []strin
 	return protocols
 }
 
-func buildChannelV2(window []topSample) *accessapi.TopChannelV2 {
+func buildChannel(window []topSample) *accessapi.TopChannelV2 {
 	last := window[len(window)-1]
 	out := &accessapi.TopChannelV2{
 		WorkerQueueDepthByPool:    make(map[string]int64),
@@ -890,7 +890,7 @@ func buildChannelV2(window []topSample) *accessapi.TopChannelV2 {
 		WorkerInflightByPool:      make(map[string]int64),
 		WorkerCapacityByPool:      make(map[string]int64),
 		StageP99MS:                make(map[string]float64),
-		AppendP99MS:               percentile(histogramValues(window, topHistogramChannelV2Append), 0.99),
+		AppendP99MS:               percentile(histogramValues(window, topHistogramChannelAppend), 0.99),
 	}
 	for key, value := range last.gauges {
 		switch {
@@ -1728,7 +1728,7 @@ func includePressure(view accessapi.TopView) bool {
 	return view == accessapi.TopViewOverview || view == accessapi.TopViewRuntime || view == accessapi.TopViewAll
 }
 
-func includeChannelV2(view accessapi.TopView) bool {
+func includeChannel(view accessapi.TopView) bool {
 	return view == accessapi.TopViewChannel || view == accessapi.TopViewAll
 }
 

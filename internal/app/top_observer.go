@@ -97,45 +97,45 @@ func (o topGatewayObserver) OnAsyncAuthWait(gatewaypkg.AsyncAuthWaitEvent) {}
 
 func (o topGatewayObserver) OnTransportPressure(gatewaypkg.TransportPressureEvent) {}
 
-type topChannelV2Observer struct {
+type topChannelObserver struct {
 	top *topCollector
 }
 
-func (o topChannelV2Observer) SetReactorMailboxDepth(reactorID int, priority string, depth int) {
+func (o topChannelObserver) SetReactorMailboxDepth(reactorID int, priority string, depth int) {
 	if o.top == nil {
 		return
 	}
-	pool := channelV2ReactorPoolLabel(reactorID)
+	pool := channelReactorPoolLabel(reactorID)
 	key := "channelv2.reactor_mailbox." + safeTopLabel(pool) + "." + safeTopLabel(priority)
 	o.top.setGauge(key+".depth", int64(depth))
 	o.top.setGauge(topPressureKey("channelv2", pool, "mailbox", priority)+".depth", int64(depth))
 }
 
-func (o topChannelV2Observer) SetReactorMailboxCapacity(reactorID int, priority string, capacity int) {
+func (o topChannelObserver) SetReactorMailboxCapacity(reactorID int, priority string, capacity int) {
 	if o.top == nil {
 		return
 	}
-	pool := channelV2ReactorPoolLabel(reactorID)
+	pool := channelReactorPoolLabel(reactorID)
 	key := "channelv2.reactor_mailbox." + safeTopLabel(pool) + "." + safeTopLabel(priority)
 	o.top.setGauge(key+".capacity", int64(capacity))
 	o.top.setGauge(topPressureKey("channelv2", pool, "mailbox", priority)+".capacity", int64(capacity))
 }
 
-func (o topChannelV2Observer) ObserveReactorMailboxAdmission(reactorID int, priority string, result string) {
+func (o topChannelObserver) ObserveReactorMailboxAdmission(reactorID int, priority string, result string) {
 	if o.top == nil || strings.EqualFold(strings.TrimSpace(result), "ok") {
 		return
 	}
-	o.top.addCounter("pressure.channelv2."+safeTopLabel(channelV2ReactorPoolLabel(reactorID))+".mailbox."+safeTopLabel(priority)+".admission_error", 1)
+	o.top.addCounter("pressure.channelv2."+safeTopLabel(channelReactorPoolLabel(reactorID))+".mailbox."+safeTopLabel(priority)+".admission_error", 1)
 }
 
-func (o topChannelV2Observer) SetAppendQueuePressure(event reactor.AppendQueuePressureEvent) {
+func (o topChannelObserver) SetAppendQueuePressure(event reactor.AppendQueuePressureEvent) {
 	if o.top == nil {
 		return
 	}
-	o.top.SetQueue("channelv2", channelV2ReactorPoolLabel(event.ReactorID), "append", "none", int64(event.Depth), int64(event.Capacity))
+	o.top.SetQueue("channelv2", channelReactorPoolLabel(event.ReactorID), "append", "none", int64(event.Depth), int64(event.Capacity))
 }
 
-func (o topChannelV2Observer) SetWorkerQueueDepth(pool string, depth int) {
+func (o topChannelObserver) SetWorkerQueueDepth(pool string, depth int) {
 	if o.top == nil {
 		return
 	}
@@ -144,7 +144,7 @@ func (o topChannelV2Observer) SetWorkerQueueDepth(pool string, depth int) {
 	o.top.setGauge(topPressureKey("channelv2", pool, "worker", "none")+".depth", int64(depth))
 }
 
-func (o topChannelV2Observer) SetWorkerQueueCapacity(pool string, capacity int) {
+func (o topChannelObserver) SetWorkerQueueCapacity(pool string, capacity int) {
 	if o.top == nil {
 		return
 	}
@@ -153,7 +153,7 @@ func (o topChannelV2Observer) SetWorkerQueueCapacity(pool string, capacity int) 
 	o.top.setGauge(topPressureKey("channelv2", pool, "worker", "none")+".capacity", int64(capacity))
 }
 
-func (o topChannelV2Observer) SetWorkerWorkers(pool string, workers int) {
+func (o topChannelObserver) SetWorkerWorkers(pool string, workers int) {
 	if o.top == nil {
 		return
 	}
@@ -162,14 +162,14 @@ func (o topChannelV2Observer) SetWorkerWorkers(pool string, workers int) {
 	o.top.setGauge(topPressureKey("channelv2", pool, "inflight", "none")+".workers", int64(workers))
 }
 
-func (o topChannelV2Observer) ObserveWorkerAdmission(pool string, result string) {
+func (o topChannelObserver) ObserveWorkerAdmission(pool string, result string) {
 	if o.top == nil || strings.EqualFold(strings.TrimSpace(result), "ok") {
 		return
 	}
 	o.top.addCounter("pressure.channelv2."+safeTopLabel(pool)+".worker.none.admission_error", 1)
 }
 
-func (o topChannelV2Observer) ObserveWorkerWait(pool string, kind worker.TaskKind, d time.Duration) {
+func (o topChannelObserver) ObserveWorkerWait(pool string, kind worker.TaskKind, d time.Duration) {
 	if o.top == nil {
 		return
 	}
@@ -177,7 +177,7 @@ func (o topChannelV2Observer) ObserveWorkerWait(pool string, kind worker.TaskKin
 	_ = kind
 }
 
-func (o topChannelV2Observer) ObserveWorkerTask(pool string, kind worker.TaskKind, err error, d time.Duration) {
+func (o topChannelObserver) ObserveWorkerTask(pool string, kind worker.TaskKind, err error, d time.Duration) {
 	if o.top == nil {
 		return
 	}
@@ -185,10 +185,10 @@ func (o topChannelV2Observer) ObserveWorkerTask(pool string, kind worker.TaskKin
 	if err != nil {
 		result = "err"
 	}
-	o.top.observeDurationMS("pressure.channelv2."+safeTopLabel(pool)+"."+safeTopLabel(channelV2WorkerKindLabel(kind))+"."+result+".task", d)
+	o.top.observeDurationMS("pressure.channelv2."+safeTopLabel(pool)+"."+safeTopLabel(channelWorkerKindLabel(kind))+"."+result+".task", d)
 }
 
-func (o topChannelV2Observer) ObserveWorkerBatch(pool string, kind worker.TaskKind, items int, err error) {
+func (o topChannelObserver) ObserveWorkerBatch(pool string, kind worker.TaskKind, items int, err error) {
 	if o.top == nil {
 		return
 	}
@@ -196,10 +196,10 @@ func (o topChannelV2Observer) ObserveWorkerBatch(pool string, kind worker.TaskKi
 	if err != nil {
 		result = "err"
 	}
-	o.top.addCounter("channelv2.worker_batch."+safeTopLabel(pool)+"."+safeTopLabel(channelV2WorkerKindLabel(kind))+"."+result, uint64(nonNegativeInt(items)))
+	o.top.addCounter("channelv2.worker_batch."+safeTopLabel(pool)+"."+safeTopLabel(channelWorkerKindLabel(kind))+"."+result, uint64(nonNegativeInt(items)))
 }
 
-func (o topChannelV2Observer) SetWorkerInflight(pool string, inflight int) {
+func (o topChannelObserver) SetWorkerInflight(pool string, inflight int) {
 	if o.top == nil {
 		return
 	}
@@ -208,14 +208,14 @@ func (o topChannelV2Observer) SetWorkerInflight(pool string, inflight int) {
 	o.top.setGauge(topPressureKey("channelv2", pool, "inflight", "none")+".inflight", int64(inflight))
 }
 
-func (o topChannelV2Observer) SetWorkerInflightPeak(pool string, peak int) {
+func (o topChannelObserver) SetWorkerInflightPeak(pool string, peak int) {
 	if o.top == nil {
 		return
 	}
 	o.top.setGauge("channelv2.worker."+safeTopLabel(pool)+".inflight_peak", int64(peak))
 }
 
-func (o topChannelV2Observer) SetWorkerAntsPoolUsage(pool string, running int, capacity int, waiting int) {
+func (o topChannelObserver) SetWorkerAntsPoolUsage(pool string, running int, capacity int, waiting int) {
 	if o.top == nil {
 		return
 	}
@@ -224,35 +224,35 @@ func (o topChannelV2Observer) SetWorkerAntsPoolUsage(pool string, running int, c
 	o.top.setGauge("channelv2.worker."+safeTopLabel(pool)+".waiting", int64(waiting))
 }
 
-func (o topChannelV2Observer) SetChannelRuntimeCount(reactorID int, role ch.Role, count int) {
+func (o topChannelObserver) SetChannelRuntimeCount(reactorID int, role ch.Role, count int) {
 	if o.top == nil {
 		return
 	}
-	o.top.SetChannelV2RuntimeCount(reactorID, channelV2RoleLabel(role), int64(count))
+	o.top.SetChannelRuntimeCount(reactorID, channelRoleLabel(role), int64(count))
 }
 
-func (o topChannelV2Observer) ObserveChannelActivationRejected(reason string) {
+func (o topChannelObserver) ObserveChannelActivationRejected(reason string) {
 	if o.top == nil {
 		return
 	}
 	o.top.addCounter("channelv2.activation_rejected."+safeTopLabel(reason), 1)
 }
 
-func (o topChannelV2Observer) SetFollowerParkedCount(reactorID int, count int) {
+func (o topChannelObserver) SetFollowerParkedCount(reactorID int, count int) {
 	if o.top == nil {
 		return
 	}
-	o.top.SetChannelV2FollowerParked(reactorID, int64(count))
+	o.top.SetChannelFollowerParked(reactorID, int64(count))
 }
 
-func (o topChannelV2Observer) ObserveFollowerRecoveryProbe(result string) {
+func (o topChannelObserver) ObserveFollowerRecoveryProbe(result string) {
 	if o.top == nil {
 		return
 	}
 	o.top.addCounter("channelv2.follower_recovery."+safeTopLabel(result), 1)
 }
 
-func (o topChannelV2Observer) ObservePull(result string, empty bool) {
+func (o topChannelObserver) ObservePull(result string, empty bool) {
 	if o.top == nil {
 		return
 	}
@@ -263,21 +263,21 @@ func (o topChannelV2Observer) ObservePull(result string, empty bool) {
 	o.top.addCounter("channelv2.pull."+label, 1)
 }
 
-func (o topChannelV2Observer) ObserveReplicationStage(stage string, result string, d time.Duration) {
+func (o topChannelObserver) ObserveReplicationStage(stage string, result string, d time.Duration) {
 	if o.top == nil || !strings.EqualFold(strings.TrimSpace(result), "ok") {
 		return
 	}
 	o.top.observeDurationMS("channelv2.replication."+safeTopLabel(stage), d)
 }
 
-func (o topChannelV2Observer) ObserveChannelMetaCache(result string) {
+func (o topChannelObserver) ObserveChannelMetaCache(result string) {
 	if o.top == nil {
 		return
 	}
 	o.top.addCounter("channelv2.meta_cache."+safeTopLabel(result), 1)
 }
 
-func (o topChannelV2Observer) ObserveAppendBatch(records int, bytes int, wait time.Duration) {
+func (o topChannelObserver) ObserveAppendBatch(records int, bytes int, wait time.Duration) {
 	if o.top == nil {
 		return
 	}
@@ -286,28 +286,28 @@ func (o topChannelV2Observer) ObserveAppendBatch(records int, bytes int, wait ti
 	_ = bytes
 }
 
-func (o topChannelV2Observer) ObserveAppendLatency(mode ch.CommitMode, d time.Duration) {
+func (o topChannelObserver) ObserveAppendLatency(mode ch.CommitMode, d time.Duration) {
 	if o.top == nil {
 		return
 	}
-	o.top.ObserveChannelV2AppendLatency(channelV2CommitModeLabel(mode), d)
+	o.top.ObserveChannelAppendLatency(channelCommitModeLabel(mode), d)
 }
 
-func (o topChannelV2Observer) ObserveChannelAppendStage(stage string, result string, d time.Duration) {
+func (o topChannelObserver) ObserveChannelAppendStage(stage string, result string, d time.Duration) {
 	if o.top == nil {
 		return
 	}
-	o.top.ObserveChannelV2AppendStage(stage, result, d)
+	o.top.ObserveChannelAppendStage(stage, result, d)
 }
 
-func (o topChannelV2Observer) ObserveAppendWaitStage(stage string, mode ch.CommitMode, result string, d time.Duration) {
+func (o topChannelObserver) ObserveAppendWaitStage(stage string, mode ch.CommitMode, result string, d time.Duration) {
 	if o.top == nil {
 		return
 	}
-	o.top.ObserveChannelV2AppendStage(stage+"_"+channelV2CommitModeLabel(mode), result, d)
+	o.top.ObserveChannelAppendStage(stage+"_"+channelCommitModeLabel(mode), result, d)
 }
 
-func (o topChannelV2Observer) ObserveWorkerResult(kind worker.TaskKind, err error, d time.Duration) {
+func (o topChannelObserver) ObserveWorkerResult(kind worker.TaskKind, err error, d time.Duration) {
 	if o.top == nil {
 		return
 	}
@@ -315,7 +315,7 @@ func (o topChannelV2Observer) ObserveWorkerResult(kind worker.TaskKind, err erro
 	if err != nil {
 		result = "err"
 	}
-	o.top.observeDurationMS("channelv2.worker_result."+safeTopLabel(channelV2WorkerKindLabel(kind))+"."+result, d)
+	o.top.observeDurationMS("channelv2.worker_result."+safeTopLabel(channelWorkerKindLabel(kind))+"."+result, d)
 }
 
 type topStorageObserver struct {
@@ -567,22 +567,22 @@ var _ gatewaypkg.AsyncSendAdmissionObserver = topGatewayObserver{}
 var _ gatewaypkg.AsyncAuthObserver = topGatewayObserver{}
 var _ gatewaypkg.TransportPressureObserver = topGatewayObserver{}
 var _ accessgateway.SendackObserver = topSendackObserver{}
-var _ reactor.Observer = topChannelV2Observer{}
-var _ reactor.MailboxPressureObserver = topChannelV2Observer{}
-var _ reactor.AppendQueuePressureObserver = topChannelV2Observer{}
-var _ reactor.RuntimeObserver = topChannelV2Observer{}
-var _ reactor.ReplicationObserver = topChannelV2Observer{}
-var _ reactor.ReplicationStageObserver = topChannelV2Observer{}
-var _ reactor.AppendWaitStageObserver = topChannelV2Observer{}
-var _ worker.InflightObserver = topChannelV2Observer{}
-var _ worker.QueueCapacityObserver = topChannelV2Observer{}
-var _ worker.AdmissionObserver = topChannelV2Observer{}
-var _ worker.WaitObserver = topChannelV2Observer{}
-var _ worker.TaskObserver = topChannelV2Observer{}
-var _ worker.BatchObserver = topChannelV2Observer{}
-var _ worker.AntsPoolObserver = topChannelV2Observer{}
-var _ clusterchannels.MetaCacheObserver = topChannelV2Observer{}
-var _ clusterchannels.AppendStageObserver = topChannelV2Observer{}
+var _ reactor.Observer = topChannelObserver{}
+var _ reactor.MailboxPressureObserver = topChannelObserver{}
+var _ reactor.AppendQueuePressureObserver = topChannelObserver{}
+var _ reactor.RuntimeObserver = topChannelObserver{}
+var _ reactor.ReplicationObserver = topChannelObserver{}
+var _ reactor.ReplicationStageObserver = topChannelObserver{}
+var _ reactor.AppendWaitStageObserver = topChannelObserver{}
+var _ worker.InflightObserver = topChannelObserver{}
+var _ worker.QueueCapacityObserver = topChannelObserver{}
+var _ worker.AdmissionObserver = topChannelObserver{}
+var _ worker.WaitObserver = topChannelObserver{}
+var _ worker.TaskObserver = topChannelObserver{}
+var _ worker.BatchObserver = topChannelObserver{}
+var _ worker.AntsPoolObserver = topChannelObserver{}
+var _ clusterchannels.MetaCacheObserver = topChannelObserver{}
+var _ clusterchannels.AppendStageObserver = topChannelObserver{}
 var _ messagedb.CommitCoordinatorObserver = topStorageObserver{}
 var _ messagedb.CommitCoordinatorQueueObserver = topStorageObserver{}
 var _ messagedb.CommitCoordinatorRequestObserver = topStorageObserver{}

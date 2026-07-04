@@ -500,7 +500,7 @@ func TestTopCollectorAllViewIncludesRuntimeSections(t *testing.T) {
 			return cluster.Snapshot{NodeID: 1, RoutesReady: true, SlotsReady: true, ChannelsReady: true}
 		},
 	})
-	observer := topChannelV2Observer{top: collector}
+	observer := topChannelObserver{top: collector}
 	storage := topStorageObserver{top: collector}
 	delivery := topDeliveryObserver{top: collector}
 
@@ -556,19 +556,19 @@ func TestTopCollectorAllViewIncludesRuntimeSections(t *testing.T) {
 		t.Fatalf("SnapshotTop() error = %v", err)
 	}
 	if snapshot.ChannelV2 == nil {
-		t.Fatal("ChannelV2 section is nil")
+		t.Fatal("channel runtime section is nil")
 	}
 	if snapshot.ChannelV2.ActiveLeader != 2 || snapshot.ChannelV2.ActiveFollower != 3 || snapshot.ChannelV2.ActiveTotal != 5 {
-		t.Fatalf("ChannelV2 active counts = %#v, want leader 2 follower 3 total 5", snapshot.ChannelV2)
+		t.Fatalf("channel runtime active counts = %#v, want leader 2 follower 3 total 5", snapshot.ChannelV2)
 	}
 	if snapshot.ChannelV2.FollowerParked != 1 || snapshot.ChannelV2.ReactorMailboxDepthMax != 7 || snapshot.ChannelV2.ReactorMailboxCapacityMax != 10 {
-		t.Fatalf("ChannelV2 pressure gauges = %#v, want parked 1 mailbox 7 capacity 10", snapshot.ChannelV2)
+		t.Fatalf("channel runtime pressure gauges = %#v, want parked 1 mailbox 7 capacity 10", snapshot.ChannelV2)
 	}
 	if snapshot.ChannelV2.WorkerQueueDepthByPool["store_append"] != 4 ||
 		snapshot.ChannelV2.WorkerQueueCapacityByPool["store_append"] != 8 ||
 		snapshot.ChannelV2.WorkerInflightByPool["store_append"] != 3 ||
 		snapshot.ChannelV2.WorkerCapacityByPool["store_append"] != 6 {
-		t.Fatalf("ChannelV2 worker maps = queue:%#v queueCap:%#v inflight:%#v workerCap:%#v",
+		t.Fatalf("channel runtime worker maps = queue:%#v queueCap:%#v inflight:%#v workerCap:%#v",
 			snapshot.ChannelV2.WorkerQueueDepthByPool,
 			snapshot.ChannelV2.WorkerQueueCapacityByPool,
 			snapshot.ChannelV2.WorkerInflightByPool,
@@ -576,7 +576,7 @@ func TestTopCollectorAllViewIncludesRuntimeSections(t *testing.T) {
 		)
 	}
 	if snapshot.ChannelV2.AppendP99MS != 12 || snapshot.ChannelV2.HotStage != "store_append" || snapshot.ChannelV2.StageP99MS["store_append"] != 15 {
-		t.Fatalf("ChannelV2 latency section = %#v", snapshot.ChannelV2)
+		t.Fatalf("channel runtime latency section = %#v", snapshot.ChannelV2)
 	}
 
 	if snapshot.Storage == nil || len(snapshot.Storage.CommitQueues) != 1 {
@@ -605,7 +605,7 @@ func TestTopCollectorSpecificViewsIncludeOnlyRequestedRuntimeSection(t *testing.
 		},
 	})
 	collector.recordSampleAt(time.Unix(100, 0))
-	collector.SetChannelV2WorkerQueue("store_append", 1, 2)
+	collector.SetChannelWorkerQueue("store_append", 1, 2)
 	collector.SetStorageCommitQueue(1, 2)
 	collector.SetDeliveryRetryQueueDepth(1)
 	collector.recordSampleAt(time.Unix(110, 0))

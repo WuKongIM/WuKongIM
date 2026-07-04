@@ -134,7 +134,7 @@ func (a *App) configureObservability(clusterCfg *cluster.Config) {
 		}
 		top.setResourceMetrics(a.metrics.NodeResource)
 		top.setStorageMetrics(a.metrics.Storage)
-		clusterCfg.Channel.Observer = combineChannelV2Observers(clusterCfg.Channel.Observer, channelV2MetricsObserver{metrics: a.metrics})
+		clusterCfg.Channel.Observer = combineChannelObservers(clusterCfg.Channel.Observer, channelMetricsObserver{metrics: a.metrics})
 		clusterCfg.Slots.Observer = combineSlotObservers(clusterCfg.Slots.Observer, slotMetricsObserver{metrics: a.metrics})
 		clusterCfg.Slots.ReplicaMoveObserver = combineSlotReplicaMoveObservers(clusterCfg.Slots.ReplicaMoveObserver, a.metrics.NodeLifecycle)
 		clusterCfg.Control.RaftObserver = combineControllerRaftObservers(clusterCfg.Control.RaftObserver, controllerRaftMetricsObserver{metrics: a.metrics})
@@ -146,7 +146,7 @@ func (a *App) configureObservability(clusterCfg *cluster.Config) {
 		clusterCfg.Transport.Observer = combineTransportV2Observers(clusterCfg.Transport.Observer, &transportV2MetricsObserver{metrics: a.metrics})
 	}
 	if top != nil && a.cfg.Top.APIEnabled {
-		clusterCfg.Channel.Observer = combineChannelV2Observers(clusterCfg.Channel.Observer, topChannelV2Observer{top: top})
+		clusterCfg.Channel.Observer = combineChannelObservers(clusterCfg.Channel.Observer, topChannelObserver{top: top})
 		clusterCfg.Slots.Observer = combineSlotObservers(clusterCfg.Slots.Observer, topSlotObserver{top: top})
 		clusterCfg.Control.RaftObserver = combineControllerRaftObservers(clusterCfg.Control.RaftObserver, topControllerRaftObserver{top: top})
 		clusterCfg.Storage.CommitObserver = combineCommitCoordinatorObservers(clusterCfg.Storage.CommitObserver, topStorageObserver{top: top})

@@ -48,7 +48,7 @@ type Config struct {
 	Log LogConfig
 	// Message configures message send behavior.
 	Message MessageConfig
-	// ChannelMessageRetention configures asynchronous ChannelV2 message-log physical cleanup.
+	// ChannelMessageRetention configures asynchronous Channel runtime message-log physical cleanup.
 	ChannelMessageRetention ChannelMessageRetentionConfig
 	// Channel configures channel management behavior.
 	Channel ChannelConfig
