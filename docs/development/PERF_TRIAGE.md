@@ -40,7 +40,7 @@ Useful options:
 The script writes evidence first, then exits non-zero if final `/status` is not healthy or reports send/recv errors.
 The sampled `/status` timeline now includes both the configured steady-state online pool (`connected_users`) and the latest live online count (`active_users`), plus reconnect churn (`reconnected_users`) when the simulator repairs sessions.
 
-For `cmd/wukongim` local three-node ChannelV2 capacity runs, do not use the
+For `cmd/wukongim` local three-node Channel runtime capacity runs, do not use the
 Compose dev-sim path. Use the local startup script wrapper:
 
 ```bash
@@ -68,7 +68,7 @@ Raft group.
 Treat `active_leader_single_node` as an invalid topology sample first: inspect
 the activation report's per-node active runtime distribution before using that
 run as capacity evidence.
-For cold ChannelV2 activation attribution, first compare the per-node
+For cold Channel runtime activation attribution, first compare the per-node
 `channelv2_meta_resolve_p99_seconds`,
 `channelv2_meta_create_build_p99_seconds`,
 `channelv2_meta_create_propose_p99_seconds`,
@@ -94,7 +94,7 @@ the hot path. In the default Slot-backed writer, `meta_create_propose` includes 
 Slot proposal and wait-for-apply path; the Slot submit/wait sub-stages split
 that default path at the Multi-Raft future boundary, then split future wait into
 local scheduler/control wait, Raft commit wait, FSM apply, FSM Pebble commit,
-and MarkApplied persistence. `runtime_append` remains the aggregate ChannelV2
+and MarkApplied persistence. `runtime_append` remains the aggregate Channel runtime
 append facade time; its sub-stages split append reservation, reactor mailbox
 submit, and admitted future wait. Append batch wait and record metrics show
 whether that admitted future wait is mostly batching delay; append store and
@@ -107,7 +107,7 @@ the physical batch path. If the caller-visible tail is on the `leader_append`
 or `follower_apply` lane, also compare
 `wukongim_channelv2_worker_batch_items{kind="store_append"}` and
 `wukongim_channelv2_worker_batch_items{kind="store_apply"}` count/sum deltas to
-confirm whether ChannelV2 worker-level store batching is active.
+confirm whether Channel runtime worker-level store batching is active.
 When
 post-store quorum wait rises, use
 `channelv2_append_quorum_follower_pull_wait_p99_seconds`,
@@ -350,7 +350,7 @@ histogram_quantile(0.99, rate(wukongim_gateway_async_send_batch_wait_duration_se
 histogram_quantile(0.50, rate(wukongim_gateway_async_send_batch_records_bucket[1m]))
 ```
 
-ChannelV2 append pressure:
+Channel runtime append pressure:
 
 ```promql
 sum by (reactor_id, priority) (wukongim_channelv2_reactor_mailbox_depth)
@@ -404,9 +404,9 @@ Interpretation matrix:
 
 | Evidence | Classification | Next check |
 | --- | --- | --- |
-| Gateway queue ratio is high and gateway async dispatch wait p99 rises, while ChannelV2 queues are low | gateway dispatch bottleneck | gnet event loops, async SEND worker count, handler CPU, pprof |
-| Gateway async dispatch wait is low, but ChannelV2 reactor mailbox or worker queues grow | channelv2 bottleneck | append p99, worker kind p99, store/RPC pprof |
-| ChannelV2 worker queue is low but `channelv2_worker_inflight_peak{pool=...}` reaches the configured worker count | blocking worker saturation | compare store append/apply worker task p99, storage commit request lane tails, goroutine pprof |
+| Gateway queue ratio is high and gateway async dispatch wait p99 rises, while Channel runtime queues are low | gateway dispatch bottleneck | gnet event loops, async SEND worker count, handler CPU, pprof |
+| Gateway async dispatch wait is low, but Channel runtime reactor mailbox or worker queues grow | Channel runtime bottleneck | append p99, worker kind p99, store/RPC pprof |
+| Channel runtime worker queue is low but `channelv2_worker_inflight_peak{pool=...}` reaches the configured worker count | blocking worker saturation | compare store append/apply worker task p99, storage commit request lane tails, goroutine pprof |
 | `channelappend_effect_pool_submit_total{result="full"}` rises or `channelappend_effect_pool_saturated` stays high | channelappend ants stage pool saturation | compare stage-specific worker count, `channelappend_effect_duration_seconds`, appender pprof, recipient post-commit fanout |
 | ChannelAppend effect queue grows while pool saturation is low | reactor scheduling or downstream channel-state drain issue | inspect reactor mailbox, append in-flight limit, channel busy counts, goroutine pprof |
 | `channelv2_meta_resolve_p99_seconds` rises | metadata control path bottleneck | slot/controller metadata read or create path, meta cache behavior |
@@ -421,7 +421,7 @@ Interpretation matrix:
 | `channelv2_meta_create_slot_fsm_apply_p99_seconds` rises | Slot FSM apply bottleneck | command decode/apply batch cost and nested FSM commit |
 | `channelv2_meta_create_slot_fsm_commit_p99_seconds` rises | metadata Pebble commit bottleneck | meta DB write batch, fsync/storage latency |
 | `channelv2_meta_create_slot_mark_applied_p99_seconds` rises | Slot applied-index persistence bottleneck | Raft log MarkApplied write path |
-| `channelv2_meta_apply_p99_seconds` rises | cold runtime create/apply bottleneck | ChannelV2 runtime ensure/load, store open, mailbox/worker pressure |
+| `channelv2_meta_apply_p99_seconds` rises | cold runtime create/apply bottleneck | Channel runtime ensure/load, store open, mailbox/worker pressure |
 | `channelv2_runtime_append_p99_seconds` rises | append wait bottleneck | reactor append p99, worker kind p99, storage commit p99 |
 | `channelv2_runtime_append_reserve_wait_p99_seconds` rises | per-channel append admission bottleneck | same-channel append reservation contention |
 | `channelv2_runtime_append_submit_p99_seconds` rises | reactor mailbox admission bottleneck | mailbox capacity, reactor scheduling, event queue pressure |
@@ -444,7 +444,7 @@ Interpretation matrix:
 | `channelv2_pending_meta_current_max` remains non-zero or releases rise | follower bootstrap leak or rejection | NeedMeta ok/retry/err counters, error classes, local replica membership |
 | `channelv2_need_meta_pull_retry_count` or `channelv2_need_meta_pull_err_count` rises | NeedMeta bootstrap instability | stable NeedMeta error-class counters, leader pull path, transport errors |
 | `channelv2_pull_hint_err_count` rises or PullHint submitted/ok counts are far below follower apply counts | PullHint wakeup loss or rejection | stable PullHint error-class counters, follower recovery probe counts, route/meta readiness |
-| Gateway wait and ChannelV2 queues both rise | downstream backpressure visible at gateway | determine whether ChannelV2 or host CPU saturates first |
+| Gateway wait and Channel runtime queues both rise | downstream backpressure visible at gateway | determine whether Channel runtime or host CPU saturates first |
 | Queues stay low but SENDACK latency is high | synchronous path outside observed queues | message usecase, metadata ensure/apply, routing, pprof |
 | Batch records p50/p99 stay near 1 while queue wait is high | batching is not forming under load | shard distribution, workload channel cardinality, batch wait/record limits |
 
@@ -471,7 +471,7 @@ Change one variable per run.
 
 - Workload variables: `WK_SIM_RATE`, `WK_SIM_TRAFFIC_CONCURRENCY`, `WK_SIM_WARMUP`, `WK_SIM_VERIFY_RECV`, person/group channel counts, group members.
 - Environment variables: clean vs accumulated data, build freshness, concurrent host load, metrics/diagnostics enabled.
-- Service config: data-plane pool, gateway event loops, append batching, ChannelV2 store append/apply worker caps, delivery ack batching, cache TTLs.
+- Service config: data-plane pool, gateway event loops, append batching, Channel runtime store append/apply worker caps, delivery ack batching, cache TTLs.
 
 Use `WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS` and
 `WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS` only as a bounded-concurrency

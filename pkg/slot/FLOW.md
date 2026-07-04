@@ -169,7 +169,7 @@ Worker 循环:
 
 `Runtime.Propose` 会把 ctx 中的 `ProposalStageObserver` 复制到 Future 上，保证异步
 control queue、Raft commit、FSM apply、FSM commit 和 MarkApplied 阶段仍能归属到同一次上游
-ChannelV2 cold activation 观测。`meta_create_slot_fsm_apply` 是 Apply/ApplyBatch 总耗时，
+Channel runtime cold activation 观测。`meta_create_slot_fsm_apply` 是 Apply/ApplyBatch 总耗时，
 其中包含 `meta_create_slot_fsm_commit` 子阶段。
 
 ### 5.4 Slot 生命周期

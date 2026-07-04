@@ -10,9 +10,9 @@
   kernel are canonical under `pkg/controller`, `pkg/cluster`, `pkg/channel`,
   and `internal`; the former v1 server runtime lives under `internal/legacy`.
 - Runnable `wukongim` helper-script configs live under `scripts/wukongim/` as `.conf`; `.conf.example` files are samples only and should not be script defaults.
-- `wukongim` bottleneck attribution uses Prometheus `/metrics` when `WK_METRICS_ENABLE=true`; compare gateway async SEND, ChannelV2 reactor/worker queue plus in-flight peak, and storage commit request-vs-batch metrics split by `leader_append` / `follower_apply` lane. `/bench/v1/snapshot` remains a benchmark setup counter surface.
-- `WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS` and `WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS` cap ChannelV2 blocking store worker concurrency only; use them after worker in-flight peaks and storage lane tails show commit-coordinator pressure, never as a durability shortcut.
-- ChannelV2 ordinary follower progress ACKs are safe only because they are sent after follower durable apply; Pull `AckOffset` remains the fallback, and leader HW still advances through normal quorum checks.
+- `wukongim` bottleneck attribution uses Prometheus `/metrics` when `WK_METRICS_ENABLE=true`; compare gateway async SEND, Channel runtime reactor/worker queue plus in-flight peak, and storage commit request-vs-batch metrics split by `leader_append` / `follower_apply` lane. `/bench/v1/snapshot` remains a benchmark setup counter surface.
+- `WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS` and `WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS` cap Channel runtime blocking store worker concurrency only; use them after worker in-flight peaks and storage lane tails show commit-coordinator pressure, never as a durability shortcut.
+- Channel runtime ordinary follower progress ACKs are safe only because they are sent after follower durable apply; Pull `AckOffset` remains the fallback, and leader HW still advances through normal quorum checks.
 - `pkg/channel` high-channel idle scale depends on parked followers: caught-up followers should wake through PullHint plus send-timeout-bounded recovery probes, not short-interval empty pull polling.
 - `cluster/channels` caches append ChannelRuntimeMeta with epoch and leader fences; Slot metadata remains authoritative and stale append errors invalidate the cache once before retry.
 - `internal` presence stores owner-local `OwnerRoute` projections for authority/touch; concrete gateway session handles must stay out of authority routes and live only in owner-local session records used for conflict close actions.
@@ -25,7 +25,7 @@
 
 ## Channel Runtime
 
-- ChannelV2 data replicas are selected by Channel placement, not by Slot metadata peers; Slot route peers describe metadata ownership only.
+- Channel runtime data replicas are selected by Channel placement, not by Slot metadata peers; Slot route peers describe metadata ownership only.
 
 ### Conversation working set
 - Recent conversation sync is allowed to be working-set based; it does not need `version` to discover every historical conversation update.
@@ -48,7 +48,7 @@
 - `RouteGeneration` is the authoritative route identity for channel runtime metadata and peer RPC fencing; stale route records must be treated as a different append route even if the channel ID is unchanged.
 - Channel status permissions currently include group `Ban`/`Disband` and sender person-channel `SendBan`.
 - `NoPersist` sends still pass validation and send permissions, then skip durable append/committed events and return success with zero message ID/seq.
-- In internal, channel-scoped `SyncOnce` sends keep the source channel log, persist the `SyncOnce` marker in ChannelV2 records, project `ConversationKindCMD`, and are skipped by ordinary conversation hydration.
+- In internal, channel-scoped `SyncOnce` sends keep the source channel log, persist the `SyncOnce` marker in Channel runtime records, project `ConversationKindCMD`, and are skipped by ordinary conversation hydration.
 - `/message/send` request-scoped `subscribers` 要求 `sync_once=1` 且 `channel_id` 为空；`channel_type` 被忽略，内部派生 temp `____cmd` channel。
 - Durable request-scoped subscriber sends write the derived temp cmd channel and carry exact `MessageScopedUIDs`; NoPersist request-scoped sends use a transient message ID and realtime delivery.
 - Message-scoped delivery tags are ephemeral: they must not replace reusable channel-level delivery tag refs, and their exact subscriber snapshot is not recoverable from durable log replay alone.
@@ -118,9 +118,9 @@
 - Remote channel append forwarding supports one-channel batch RPC; falling back to per-message forwarding loses the durable/follower batching benefit for clients connected to non-leader nodes.
 - Single SEND/Append entrypoints are compatibility wrappers; durable send and app channel append internals should route through batch-of-one to avoid split correctness/performance paths.
 - `pkg/channel` append is local-runtime only: cluster must ensure/apply authoritative ChannelMeta first and forward non-leader appends to the resolved channel leader.
-- In wukongim three-node ChannelV2 activation, `routing.Route.Leader` is the observed Slot Raft leader for metadata proposals; `routing.Route.PreferredLeader` is the control-plane data-plane placement target for initial ChannelV2 leader selection.
-- wukongim single hot-channel SEND stress is sensitive to gateway async SEND shard count: too many default shards shrink per-channel queue headroom and can close sessions with `async_dispatch_queue_full` before channelv2 saturates.
-- wukongim 1000-channel three-node real-QPS stress with 4096 online users needs about 2048 gateway async SEND dispatch workers; 1024 workers creates per-shard SEND head-of-line blocking before channelv2 is fully saturated.
+- In wukongim three-node Channel runtime activation, `routing.Route.Leader` is the observed Slot Raft leader for metadata proposals; `routing.Route.PreferredLeader` is the control-plane data-plane placement target for initial Channel runtime leader selection.
+- wukongim single hot-channel SEND stress is sensitive to gateway async SEND shard count: too many default shards shrink per-channel queue headroom and can close sessions with `async_dispatch_queue_full` before Channel runtime saturates.
+- wukongim 1000-channel three-node real-QPS stress with 4096 online users needs about 2048 gateway async SEND dispatch workers; 1024 workers creates per-shard SEND head-of-line blocking before Channel runtime is fully saturated.
 - SENDACK must only follow a crash-safe durable message commit; message append `NoSync` is unsafe for this guarantee and must not be exposed as runtime/user configuration. Durable QPS work should optimize message DB grouped commits, not acknowledge before fsync.
 
 ## Cluster Membership
@@ -204,6 +204,6 @@
 - Committed delivery routing treats transient channel status errors such as `channel: not ready` as retry signals; warn only after retries are exhausted.
 - `wkbench dev-sim` must run warmup after prepare/connect and before measured run windows; warmup must touch every assigned channel at least once, and warmup counters are a baseline that must not be counted in `/status` measured traffic.
 - `wkbench dev-sim` `/status` distinguishes the configured steady-state online pool (`connected_users`) from the latest sampled live count (`active_users`) and reconnect churn (`reconnected_users`) so online flapping is visible during triage.
-- In three-node real-QPS v2 SEND benchmarks, `transportv2` channel append RPCs need a larger service pool than generic RPCs; ChannelV2 store append/apply defaults should stay capped near the shared message DB commit coordinator instead of scaling unbounded with CPU count.
+- In three-node real-QPS v2 SEND benchmarks, `transportv2` channel append RPCs need a larger service pool than generic RPCs; Channel runtime store append/apply defaults should stay capped near the shared message DB commit coordinator instead of scaling unbounded with CPU count.
 - In local three-node real-QPS 16k runs, message DB commit shards are an experimental default-off knob: shards reduced queue fill but increased physical commit count and sync tail; prefer single coordinator with bounded store append/apply workers unless new evidence shows storage parallelism helps.
 - Stage 2 package promotion extracted protocol-facing channel ID helpers to `pkg/protocol/channelid`; v1 and v2 server packages must not add new imports of old `internal/runtime/channelid`.
