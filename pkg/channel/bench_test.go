@@ -19,28 +19,46 @@ import (
 	messagedb "github.com/WuKongIM/WuKongIM/pkg/db/message"
 )
 
-var benchPayload = []byte("hello-channelv2")
+var benchPayload = []byte("hello-channel-runtime")
 
-const channelv2HeavyBenchEnv = "WK_CHANNELV2_HEAVY_BENCH"
+const (
+	channelHeavyBenchEnv       = "WK_CHANNEL_HEAVY_BENCH"
+	channelLegacyHeavyBenchEnv = "WK_CHANNELV2_HEAVY_BENCH"
+)
 
-func TestChannelV2HeavyBenchmarkEnabledReadsEnvironment(t *testing.T) {
-	t.Setenv(channelv2HeavyBenchEnv, "")
-	if channelv2HeavyBenchmarkEnabled() {
+func TestChannelHeavyBenchmarkEnabledReadsEnvironment(t *testing.T) {
+	t.Setenv(channelHeavyBenchEnv, "")
+	t.Setenv(channelLegacyHeavyBenchEnv, "")
+	if channelHeavyBenchmarkEnabled() {
 		t.Fatal("heavy benchmarks should be disabled by default")
 	}
 
 	for _, value := range []string{"1", "true", "TRUE", "yes", "on"} {
 		t.Run(value, func(t *testing.T) {
-			t.Setenv(channelv2HeavyBenchEnv, value)
-			if !channelv2HeavyBenchmarkEnabled() {
+			t.Setenv(channelHeavyBenchEnv, value)
+			t.Setenv(channelLegacyHeavyBenchEnv, "")
+			if !channelHeavyBenchmarkEnabled() {
 				t.Fatalf("heavy benchmarks should be enabled for %q", value)
 			}
 		})
 	}
 
-	t.Setenv(channelv2HeavyBenchEnv, "0")
-	if channelv2HeavyBenchmarkEnabled() {
+	t.Setenv(channelHeavyBenchEnv, "0")
+	t.Setenv(channelLegacyHeavyBenchEnv, "")
+	if channelHeavyBenchmarkEnabled() {
 		t.Fatal("heavy benchmarks should reject non-enabled values")
+	}
+
+	t.Setenv(channelHeavyBenchEnv, "")
+	t.Setenv(channelLegacyHeavyBenchEnv, "1")
+	if !channelHeavyBenchmarkEnabled() {
+		t.Fatal("heavy benchmarks should accept the legacy channelv2 env alias")
+	}
+
+	t.Setenv(channelHeavyBenchEnv, "0")
+	t.Setenv(channelLegacyHeavyBenchEnv, "1")
+	if channelHeavyBenchmarkEnabled() {
+		t.Fatal("new heavy benchmark env should override the legacy alias")
 	}
 }
 
@@ -214,7 +232,7 @@ func BenchmarkThreeNodeThousandChannelsIdle(b *testing.B) {
 }
 
 func BenchmarkThreeNodeTenThousandChannelsIdle(b *testing.B) {
-	skipUnlessChannelV2HeavyBenchmark(b)
+	skipUnlessChannelHeavyBenchmark(b)
 	runThreeNodeIdleBenchmark(b, 10000, "live-10k")
 }
 
@@ -260,7 +278,7 @@ func runThreeNodeIdleBenchmark(b *testing.B, channelCount int, namePrefix string
 }
 
 func BenchmarkThreeNodeTenThousandChannelsSparseTraffic(b *testing.B) {
-	skipUnlessChannelV2HeavyBenchmark(b)
+	skipUnlessChannelHeavyBenchmark(b)
 	h := testkit.NewClusterHarness(b, []ch.NodeID{1, 2, 3})
 	defer h.Close()
 	const channelCount = 10000
@@ -314,15 +332,22 @@ func BenchmarkThreeNodeTenThousandChannelsSparseTraffic(b *testing.B) {
 	}
 }
 
-func skipUnlessChannelV2HeavyBenchmark(b *testing.B) {
+func skipUnlessChannelHeavyBenchmark(b *testing.B) {
 	b.Helper()
-	if !channelv2HeavyBenchmarkEnabled() {
-		b.Skipf("set %s=1 to run 10k channelv2 benchmark scenarios", channelv2HeavyBenchEnv)
+	if !channelHeavyBenchmarkEnabled() {
+		b.Skipf("set %s=1 to run 10k channel benchmark scenarios; %s remains supported as a legacy alias", channelHeavyBenchEnv, channelLegacyHeavyBenchEnv)
 	}
 }
 
-func channelv2HeavyBenchmarkEnabled() bool {
-	switch strings.ToLower(strings.TrimSpace(os.Getenv(channelv2HeavyBenchEnv))) {
+func channelHeavyBenchmarkEnabled() bool {
+	if value := strings.TrimSpace(os.Getenv(channelHeavyBenchEnv)); value != "" {
+		return channelHeavyBenchmarkEnvEnabled(value)
+	}
+	return channelHeavyBenchmarkEnvEnabled(os.Getenv(channelLegacyHeavyBenchEnv))
+}
+
+func channelHeavyBenchmarkEnvEnabled(value string) bool {
+	switch strings.ToLower(strings.TrimSpace(value)) {
 	case "1", "true", "yes", "on":
 		return true
 	default:
