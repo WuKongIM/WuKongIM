@@ -6,6 +6,13 @@ function metric_name(series, brace) {
   return substr(series, 1, brace - 1)
 }
 
+function channel_runtime_metric_name(name) {
+  if (substr(name, 1, length("wukongim_channel_")) == "wukongim_channel_") {
+    return "wukongim_channelv2_" substr(name, length("wukongim_channel_") + 1)
+  }
+  return name
+}
+
 function metric_labels(series, brace, last) {
   brace = index(series, "{")
   if (brace == 0) {
@@ -103,8 +110,15 @@ BEGIN {
   if (FILENAME == ARGV[1]) {
     phase = "before"
   }
-  name = metric_name(series)
+  raw_name = metric_name(series)
+  name = channel_runtime_metric_name(raw_name)
   labels = metric_labels(series)
+  if (raw_name != name || substr(raw_name, 1, length("wukongim_channelv2_")) == "wukongim_channelv2_") {
+    canonical_series = phase "\034" name "\034" labels
+    if (seen_channel_runtime_series[canonical_series]++) {
+      next
+    }
+  }
 
   if (phase == "after") {
     if (name == "wukongim_channelv2_active_runtimes") {

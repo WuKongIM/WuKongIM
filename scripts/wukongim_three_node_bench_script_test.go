@@ -1958,6 +1958,102 @@ wukongim_runtime_pool_admission_total{node_id="1",node_name="node-1",component="
 	}
 }
 
+func TestChannelRuntimeMetricsSummaryAwkAcceptsPromotedPrometheusNamesAndDedupesLegacyAliases(t *testing.T) {
+	root := repoRoot(t)
+	dir := t.TempDir()
+	before := filepath.Join(dir, "before.prom")
+	after := filepath.Join(dir, "after.prom")
+	writeFile(t, before, `wukongim_channel_active_runtimes{role="leader"} 1
+wukongim_channel_active_runtimes{role="follower"} 1
+wukongim_channelv2_active_runtimes{role="leader"} 1
+wukongim_channel_activation_rejected_total{reason="max_channels"} 1
+wukongim_channel_recovery_probe_total{result="submitted"} 1
+wukongim_channel_pull_total{result="ok",empty="false"} 1
+wukongim_channel_rpc_pull_total{result="ok"} 1
+wukongim_channel_meta_cache_total{result="hit"} 1
+wukongim_channel_append_duration_seconds_count{commit_mode="local"} 10
+wukongim_channelv2_append_duration_seconds_count{commit_mode="local"} 10
+wukongim_channel_append_duration_seconds_sum{commit_mode="local"} 0.010
+wukongim_channel_append_batch_records_count 2
+wukongim_channel_append_batch_records_sum 8
+wukongim_channel_append_batch_bytes_sum 200
+wukongim_channel_append_batch_wait_duration_seconds_sum 0.002
+wukongim_channel_worker_task_duration_seconds_count{kind="store_append",result="ok"} 4
+wukongim_channel_worker_task_duration_seconds_sum{kind="store_append",result="ok"} 0.020
+`)
+	writeFile(t, after, `wukongim_channel_active_runtimes{role="leader"} 2
+wukongim_channel_active_runtimes{role="follower"} 3
+wukongim_channelv2_active_runtimes{role="leader"} 2
+wukongim_channel_follower_parked{reactor_id="0"} 1
+wukongim_channel_reactor_mailbox_depth{reactor_id="0",priority="normal"} 4
+wukongim_channel_worker_queue_depth{pool="store_append"} 6
+wukongim_channel_activation_rejected_total{reason="max_channels"} 2
+wukongim_channel_recovery_probe_total{result="submitted"} 3
+wukongim_channel_recovery_probe_total{result="ok"} 1
+wukongim_channel_recovery_probe_total{result="err"} 1
+wukongim_channel_pull_total{result="ok",empty="false"} 4
+wukongim_channel_pull_total{result="ok",empty="true"} 2
+wukongim_channel_pull_total{result="err",empty="false"} 1
+wukongim_channel_rpc_pull_total{result="ok"} 5
+wukongim_channel_rpc_pull_total{result="err"} 1
+wukongim_channel_meta_cache_total{result="hit"} 4
+wukongim_channel_meta_cache_total{result="miss"} 2
+wukongim_channel_meta_cache_total{result="invalidate"} 1
+wukongim_channel_append_duration_seconds_count{commit_mode="local"} 15
+wukongim_channelv2_append_duration_seconds_count{commit_mode="local"} 15
+wukongim_channel_append_duration_seconds_sum{commit_mode="local"} 0.035
+wukongim_channel_append_batch_records_count 4
+wukongim_channel_append_batch_records_sum 20
+wukongim_channel_append_batch_bytes_sum 600
+wukongim_channel_append_batch_wait_duration_seconds_sum 0.008
+wukongim_channel_worker_task_duration_seconds_count{kind="store_append",result="ok"} 9
+wukongim_channel_worker_task_duration_seconds_sum{kind="store_append",result="ok"} 0.070
+`)
+
+	cmd := exec.Command("awk",
+		"-v", "tag=qps_1000",
+		"-v", "node=node1",
+		"-v", "duration=5",
+		"-f", filepath.Join(root, "scripts", "channelv2-metrics-summary.awk"),
+		before,
+		after,
+	)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("summary awk failed: %v\n%s", err, output)
+	}
+
+	fields := strings.Split(strings.TrimSpace(string(output)), "\t")
+	if len(fields) < 39 {
+		t.Fatalf("summary fields = %d, want at least 39: %q", len(fields), output)
+	}
+	for index, want := range map[int]string{
+		2:  "5",
+		3:  "2",
+		4:  "3",
+		5:  "1",
+		6:  "4",
+		7:  "6",
+		18: "1",
+		19: "2",
+		22: "3",
+		25: "4",
+		27: "1.000",
+		31: "5",
+		32: "5.000",
+		33: "2",
+		34: "6.000",
+		35: "200.000",
+		36: "3.000",
+		37: "5",
+		38: "10.000",
+	} {
+		if fields[index] != want {
+			t.Fatalf("field[%d] = %q, want %q; row=%q", index, fields[index], want, output)
+		}
+	}
+}
+
 func writeFakeBenchBase(t *testing.T, path string, callsDir string) {
 	t.Helper()
 	script := `#!/usr/bin/env bash
