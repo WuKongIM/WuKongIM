@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
-	raftcluster "github.com/WuKongIM/WuKongIM/pkg/legacy/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 )
 
@@ -90,7 +89,7 @@ func (s *Store) listChannelRuntimeMetaAuthoritative(ctx context.Context, slotID 
 		// Managed slots are opened lazily. If a slot has not been bootstrapped
 		// yet, treat it as currently having no runtime metadata and let the next
 		// refresh pick it up once the controller brings the slot online.
-		if errors.Is(err, raftcluster.ErrSlotNotFound) {
+		if isSlotNotFound(err) {
 			return nil, nil
 		}
 		return nil, err
@@ -281,7 +280,7 @@ func (s *Store) batchGetChannelRuntimeMetaAuthoritative(ctx context.Context, slo
 	return out, nil
 }
 
-func filterChannelRuntimeMetaBySlot(cluster raftcluster.API, slotID multiraft.SlotID, metas []metadb.ChannelRuntimeMeta) []metadb.ChannelRuntimeMeta {
+func filterChannelRuntimeMetaBySlot(cluster Cluster, slotID multiraft.SlotID, metas []metadb.ChannelRuntimeMeta) []metadb.ChannelRuntimeMeta {
 	filtered := make([]metadb.ChannelRuntimeMeta, 0, len(metas))
 	for _, meta := range metas {
 		if cluster.SlotForKey(meta.ChannelID) != slotID {
@@ -302,7 +301,7 @@ func (s *Store) scanChannelRuntimeMetaSlotPageLocal(ctx context.Context, slotID 
 
 	hashSlots := s.cluster.HashSlotsOf(slotID)
 	if len(hashSlots) == 0 {
-		return nil, metadb.ChannelRuntimeMetaCursor{}, false, raftcluster.ErrSlotNotFound
+		return nil, metadb.ChannelRuntimeMetaCursor{}, false, errSlotNotFound
 	}
 
 	queue := make(runtimeMetaMergeHeap, 0, len(hashSlots))

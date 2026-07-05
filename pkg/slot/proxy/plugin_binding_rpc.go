@@ -9,7 +9,6 @@ import (
 	"time"
 
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
-	raftcluster "github.com/WuKongIM/WuKongIM/pkg/legacy/cluster"
 	metafsm "github.com/WuKongIM/WuKongIM/pkg/slot/fsm"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 )
@@ -498,7 +497,7 @@ func callPluginBindingRPCPreserveUnsupported(ctx context.Context, s *Store, slot
 
 	peers := s.cluster.PeersForSlot(slotID)
 	if len(peers) == 0 {
-		return pluginBindingRPCResponse{}, raftcluster.ErrSlotNotFound
+		return pluginBindingRPCResponse{}, errSlotNotFound
 	}
 
 	tried := make(map[multiraft.NodeID]struct{}, len(peers))
@@ -542,10 +541,10 @@ func callPluginBindingRPCPreserveUnsupported(ctx context.Context, s *Store, slot
 				continue
 			}
 		case rpcStatusNoLeader:
-			lastErr = raftcluster.ErrNoLeader
+			lastErr = errNoLeader
 			continue
 		case rpcStatusNoSlot:
-			lastErr = raftcluster.ErrSlotNotFound
+			lastErr = errSlotNotFound
 			continue
 		default:
 			return pluginBindingRPCResponse{}, fmt.Errorf("metastore: unexpected rpc status %q", resp.rpcStatus())
@@ -557,7 +556,7 @@ func callPluginBindingRPCPreserveUnsupported(ctx context.Context, s *Store, slot
 	if lastErr != nil {
 		return pluginBindingRPCResponse{}, lastErr
 	}
-	return pluginBindingRPCResponse{}, raftcluster.ErrNoLeader
+	return pluginBindingRPCResponse{}, errNoLeader
 }
 
 func (s *Store) getPluginBindingLocalHashSlot(ctx context.Context, hashSlot uint16, uid, pluginNo string) (metadb.PluginUserBinding, bool, error) {

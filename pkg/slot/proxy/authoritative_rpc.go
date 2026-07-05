@@ -2,10 +2,8 @@ package proxy
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
-	raftcluster "github.com/WuKongIM/WuKongIM/pkg/legacy/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 )
 
@@ -66,7 +64,7 @@ func callAuthoritativeRPCWithStatuses[T authoritativeRPCResponse](
 
 	peers := s.cluster.PeersForSlot(slotID)
 	if len(peers) == 0 {
-		return zero, raftcluster.ErrSlotNotFound
+		return zero, errSlotNotFound
 	}
 
 	tried := make(map[multiraft.NodeID]struct{}, len(peers))
@@ -107,10 +105,10 @@ func callAuthoritativeRPCWithStatuses[T authoritativeRPCResponse](
 				continue
 			}
 		case rpcStatusNoLeader:
-			lastErr = raftcluster.ErrNoLeader
+			lastErr = errNoLeader
 			continue
 		case rpcStatusNoSlot:
-			lastErr = raftcluster.ErrSlotNotFound
+			lastErr = errSlotNotFound
 			continue
 		default:
 			return zero, fmt.Errorf("metastore: unexpected rpc status %q", resp.rpcStatus())
@@ -120,13 +118,13 @@ func callAuthoritativeRPCWithStatuses[T authoritativeRPCResponse](
 	if lastErr != nil {
 		return zero, lastErr
 	}
-	return zero, raftcluster.ErrNoLeader
+	return zero, errNoLeader
 }
 
 func (s *Store) handleAuthoritativeRPC(slotID multiraft.SlotID, encode rpcStatusEncoder) ([]byte, bool, error) {
 	leaderID, err := s.cluster.LeaderOf(slotID)
 	switch {
-	case errors.Is(err, raftcluster.ErrSlotNotFound):
+	case isSlotNotFound(err):
 		body, encodeErr := encode(rpcStatusNoSlot, 0)
 		return body, true, encodeErr
 	case err != nil:

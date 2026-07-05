@@ -266,6 +266,14 @@ revalidates that its local Slot runtime is still the actual Slot leader before
 serving migration state. When the local Slot runtime already reports actual
 leadership for the routed Slot, migration metadata reads use the local shard
 even if the foreground control route has not yet observed that Slot leader.
+`node_slot_proxy_port.go` exposes the promoted Slot proxy compatibility port
+used by `pkg/slot/proxy`: `SlotForKey`, `HashSlotForKey`, `HashSlotsOf`,
+`LeaderOf`, `PeersForSlot`, `RPCService`, `ProposeWithHashSlot`, and
+`ProposeLocalWithHashSlot` all delegate to the same foreground routing,
+typed RPC, and Slot propose services as the rest of `Node`. This is a
+transition bridge for moving Slot metadata proxy callers off
+`pkg/legacy/cluster`; it must not introduce a second routing table or a
+cluster-bypass path.
 Automatic dead-leader recovery uses `channels.RepairScanner` as a bounded
 RunOnce scheduler primitive over Slot-leader-owned runtime metadata pages. It
 detects stale or unschedulable Channel runtime leaders from the control snapshot,

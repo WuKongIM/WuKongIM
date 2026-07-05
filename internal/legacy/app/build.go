@@ -392,6 +392,7 @@ func build(cfg Config) (_ *App, err error) {
 	}
 
 	app.store = metastore.New(app.cluster, app.db)
+	registerLegacySlotProxyRPCHandlers(app.store, app.cluster.RPCMux())
 	app.channelApp = channelusecase.New(channelusecase.Options{Store: app.store})
 	app.channelRetentionWorker = newAppChannelRetentionWorker(
 		resolveAppChannelRetentionConfig(cfg),

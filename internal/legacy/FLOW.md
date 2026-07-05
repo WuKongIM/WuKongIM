@@ -75,6 +75,7 @@
 | 组件 | 文件 | 职责 |
 |------|------|------|
 | `app.App` | `app/app.go` | 主入口：聚合所有子系统、构建依赖图、管理启停生命周期 |
+| Slot proxy legacy RPC fallback | `internal/legacy/app/slot_proxy_rpc.go` | 将 `pkg/slot/proxy.Store.RegisterRPCHandlers` 显式接入 legacy `RPCMux`，并把 promoted proxy 的中立路由错误映射回 legacy cluster 错误语义 |
 
 #### 接入层（Access）
 | 组件 | 文件 | 职责 |

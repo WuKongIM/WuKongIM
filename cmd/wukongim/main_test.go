@@ -310,14 +310,15 @@ func TestDependencyBoundaryUsesCanonicalChannel(t *testing.T) {
 	}
 
 	foundCanonicalChannel := false
+	forbiddenV2ChannelPrefix := "github.com/WuKongIM/WuKongIM/pkg/" + "channel" + "v2"
 	for _, importPath := range strings.Fields(string(out)) {
 		switch {
 		case importPath == "github.com/WuKongIM/WuKongIM/pkg/channel":
 			foundCanonicalChannel = true
 		case strings.HasPrefix(importPath, "github.com/WuKongIM/WuKongIM/pkg/channel/"):
 			foundCanonicalChannel = true
-		case importPath == "github.com/WuKongIM/WuKongIM/pkg/channel" ||
-			strings.HasPrefix(importPath, "github.com/WuKongIM/WuKongIM/pkg/channel/"):
+		case importPath == forbiddenV2ChannelPrefix ||
+			strings.HasPrefix(importPath, forbiddenV2ChannelPrefix+"/"):
 			t.Fatalf("cmd/wukongim dependency closure still imports v2-suffixed channel package %q", importPath)
 		case importPath == "github.com/WuKongIM/WuKongIM/pkg/legacy/channel" ||
 			strings.HasPrefix(importPath, "github.com/WuKongIM/WuKongIM/pkg/legacy/channel/"):
@@ -326,6 +327,35 @@ func TestDependencyBoundaryUsesCanonicalChannel(t *testing.T) {
 	}
 	if !foundCanonicalChannel {
 		t.Fatal("cmd/wukongim dependency closure does not import canonical pkg/channel")
+	}
+}
+
+func TestDependencyBoundaryUsesCanonicalTransport(t *testing.T) {
+	cmd := exec.Command("go", "list", "-deps", "-f", "{{.ImportPath}}", ".")
+	cmd.Env = append(os.Environ(), "GOWORK=off")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("go list deps failed: %v\n%s", err, out)
+	}
+
+	foundCanonicalTransport := false
+	forbiddenV2TransportPrefix := "github.com/WuKongIM/WuKongIM/pkg/" + "transport" + "v2"
+	for _, importPath := range strings.Fields(string(out)) {
+		switch {
+		case importPath == "github.com/WuKongIM/WuKongIM/pkg/transport":
+			foundCanonicalTransport = true
+		case strings.HasPrefix(importPath, "github.com/WuKongIM/WuKongIM/pkg/transport/"):
+			foundCanonicalTransport = true
+		case importPath == forbiddenV2TransportPrefix ||
+			strings.HasPrefix(importPath, forbiddenV2TransportPrefix+"/"):
+			t.Fatalf("cmd/wukongim dependency closure still imports v2-suffixed transport package %q", importPath)
+		case importPath == "github.com/WuKongIM/WuKongIM/pkg/legacy/transport" ||
+			strings.HasPrefix(importPath, "github.com/WuKongIM/WuKongIM/pkg/legacy/transport/"):
+			t.Fatalf("cmd/wukongim dependency closure still imports legacy transport package %q", importPath)
+		}
+	}
+	if !foundCanonicalTransport {
+		t.Fatal("cmd/wukongim dependency closure does not import canonical pkg/transport")
 	}
 }
 

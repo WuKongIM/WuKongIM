@@ -5,15 +5,14 @@ import (
 	"errors"
 
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
-	raftcluster "github.com/WuKongIM/WuKongIM/pkg/legacy/cluster"
 	metafsm "github.com/WuKongIM/WuKongIM/pkg/slot/fsm"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 )
 
 // Store provides business-level distributed storage APIs
-// built on top of raftcluster's generic Propose mechanism.
+// built on top of the cluster metadata proposal port.
 type Store struct {
-	cluster                       raftcluster.API
+	cluster                       Cluster
 	db                            *metadb.DB
 	userConversationActiveOverlay UserConversationActiveOverlay
 }
@@ -29,18 +28,9 @@ type UserConversationActiveOverlay interface {
 }
 
 // New creates a Store.
-func New(cluster raftcluster.API, db *metadb.DB) *Store {
+func New(cluster Cluster, db *metadb.DB) *Store {
 	store := &Store{cluster: cluster, db: db}
-	if cluster != nil && cluster.RPCMux() != nil {
-		cluster.RPCMux().Handle(runtimeMetaRPCServiceID, store.handleRuntimeMetaRPC)
-		cluster.RPCMux().Handle(identityRPCServiceID, store.handleIdentityRPC)
-		cluster.RPCMux().Handle(subscriberRPCServiceID, store.handleSubscriberRPC)
-		cluster.RPCMux().Handle(channelRPCServiceID, store.handleChannelRPC)
-		cluster.RPCMux().Handle(userConversationStateRPCServiceID, store.handleUserConversationStateRPC)
-		cluster.RPCMux().Handle(channelMigrationRPCServiceID, store.handleChannelMigrationRPC)
-		cluster.RPCMux().Handle(cmdConversationStateRPCServiceID, store.handleCMDConversationStateRPC)
-		cluster.RPCMux().Handle(pluginBindingRPCServiceID, store.handlePluginBindingRPC)
-	}
+	registerStoreRPCHandlers(cluster, store)
 	return store
 }
 

@@ -792,11 +792,21 @@ func TestWukongIMThreeNodeBenchScriptPrintsAntsPoolUsageByNode(t *testing.T) {
 	for _, want := range []string{
 		"component\tpool\tqueue\tpriority",
 		"gateway\tasync_send\tsend\tnone",
+		"channel\tstore_apply\tapply\tnormal",
 		"queue_backlog",
 		"admission_full",
 	} {
 		if !strings.Contains(pressure, want) {
 			t.Fatalf("runtime pool pressure summary missing %q:\n%s", want, pressure)
+		}
+	}
+	for _, unwanted := range []string{
+		"channelv2",
+		"channelv2-store-apply",
+		"transportv2",
+	} {
+		if strings.Contains(pressure, unwanted) {
+			t.Fatalf("runtime pool pressure summary should not expose legacy label %q:\n%s", unwanted, pressure)
 		}
 	}
 
@@ -2288,6 +2298,55 @@ func TestRuntimePoolPressureSummaryAwkReportsTimeoutAdmissions(t *testing.T) {
 	}
 }
 
+func TestRuntimePoolPressureSummaryAwkPromotesLegacyRuntimePoolLabels(t *testing.T) {
+	root := repoRoot(t)
+	before := filepath.Join(t.TempDir(), "before.prom")
+	after := filepath.Join(t.TempDir(), "after.prom")
+	writeFile(t, before, `wukongim_runtime_pool_admission_total{node_id="1",node_name="node-1",component="channelv2",pool="channelv2-store-apply",queue="apply",priority="normal",result="full"} 1
+wukongim_runtime_pool_admission_total{node_id="1",node_name="node-1",component="transportv2",pool="service",queue="service_9",priority="rpc",result="busy"} 1
+`)
+	writeFile(t, after, `wukongim_runtime_pool_queue_depth{node_id="1",node_name="node-1",component="channelv2",pool="channelv2-store-apply",queue="apply",priority="normal"} 9
+wukongim_runtime_pool_queue_capacity{node_id="1",node_name="node-1",component="channelv2",pool="channelv2-store-apply",queue="apply",priority="normal"} 10
+wukongim_runtime_pool_inflight{node_id="1",node_name="node-1",component="channelv2",pool="channelv2-store-apply"} 8
+wukongim_runtime_pool_workers{node_id="1",node_name="node-1",component="channelv2",pool="channelv2-store-apply"} 8
+wukongim_runtime_pool_admission_total{node_id="1",node_name="node-1",component="channelv2",pool="channelv2-store-apply",queue="apply",priority="normal",result="full"} 3
+wukongim_runtime_pool_queue_depth{node_id="1",node_name="node-1",component="transportv2",pool="service",queue="service_9",priority="rpc"} 2
+wukongim_runtime_pool_queue_capacity{node_id="1",node_name="node-1",component="transportv2",pool="service",queue="service_9",priority="rpc"} 8
+wukongim_runtime_pool_admission_total{node_id="1",node_name="node-1",component="transportv2",pool="service",queue="service_9",priority="rpc",result="busy"} 4
+`)
+
+	cmd := exec.Command("awk",
+		"-v", "tag=000100",
+		"-v", "node=node1",
+		"-f", filepath.Join(root, "scripts", "runtime-pool-pressure-summary.awk"),
+		before,
+		after,
+	)
+	cmd.Dir = root
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("runtime pool pressure awk failed: %v\n%s", err, output)
+	}
+	summary := string(output)
+	for _, want := range []string{
+		"000100\tnode1\tchannel\tstore_apply\tapply\tnormal",
+		"000100\tnode1\ttransport\tservice\tservice_9\trpc",
+	} {
+		if !strings.Contains(summary, want) {
+			t.Fatalf("runtime pool pressure awk missing promoted label %q:\n%s", want, summary)
+		}
+	}
+	for _, unwanted := range []string{
+		"channelv2",
+		"channelv2-store-apply",
+		"transportv2",
+	} {
+		if strings.Contains(summary, unwanted) {
+			t.Fatalf("runtime pool pressure awk should not expose legacy label %q:\n%s", unwanted, summary)
+		}
+	}
+}
+
 func TestAntsPoolUsageSummaryAwkReportsDedicatedAntsPoolsOnly(t *testing.T) {
 	root := repoRoot(t)
 	before := filepath.Join(t.TempDir(), "before.prom")
@@ -2583,6 +2642,11 @@ wukongim_runtime_pool_inflight{node_id="1",node_name="node-1",component="transpo
 wukongim_runtime_pool_workers{node_id="1",node_name="node-1",component="transportv2",pool="service_9"} 4
 wukongim_runtime_pool_admission_total{node_id="1",node_name="node-1",component="gateway",pool="async_send",queue="send",priority="none",result="full"} $count
 wukongim_runtime_pool_admission_total{node_id="1",node_name="node-1",component="transportv2",pool="service",queue="service_9",priority="rpc",result="full"} $count
+wukongim_runtime_pool_queue_depth{node_id="1",node_name="node-1",component="channelv2",pool="channelv2-store-apply",queue="apply",priority="normal"} 9
+wukongim_runtime_pool_queue_capacity{node_id="1",node_name="node-1",component="channelv2",pool="channelv2-store-apply",queue="apply",priority="normal"} 10
+wukongim_runtime_pool_inflight{node_id="1",node_name="node-1",component="channelv2",pool="channelv2-store-apply"} 8
+wukongim_runtime_pool_workers{node_id="1",node_name="node-1",component="channelv2",pool="channelv2-store-apply"} 8
+wukongim_runtime_pool_admission_total{node_id="1",node_name="node-1",component="channelv2",pool="channelv2-store-apply",queue="apply",priority="normal",result="full"} $count
 wukongim_channelappend_writer_pool_running{node_id="1",node_name="node-1"} 6
 wukongim_channelappend_writer_pool_capacity{node_id="1",node_name="node-1"} 12
 wukongim_channelappend_effect_pool_submit_total{node_id="1",node_name="node-1",stage="prepare",result="submitted"} $((count * 2))

@@ -7,7 +7,6 @@ import (
 	"fmt"
 
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
-	raftcluster "github.com/WuKongIM/WuKongIM/pkg/legacy/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 )
 
@@ -151,7 +150,7 @@ func (s *Store) scanChannelsSlotPageLocal(ctx context.Context, slotID multiraft.
 
 	hashSlots := s.cluster.HashSlotsOf(slotID)
 	if len(hashSlots) == 0 {
-		return nil, metadb.ChannelCursor{}, false, raftcluster.ErrSlotNotFound
+		return nil, metadb.ChannelCursor{}, false, errSlotNotFound
 	}
 
 	queue := make(channelMergeHeap, 0, len(hashSlots))

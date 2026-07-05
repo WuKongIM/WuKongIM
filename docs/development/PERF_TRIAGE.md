@@ -40,6 +40,23 @@ Useful options:
 The script writes evidence first, then exits non-zero if final `/status` is not healthy or reports send/recv errors.
 The sampled `/status` timeline now includes both the configured steady-state online pool (`connected_users`) and the latest live online count (`active_users`), plus reconnect churn (`reconnected_users`) when the simulator repairs sessions.
 
+## Package Promotion Naming
+
+Default evidence files and human-readable summaries use promoted runtime names.
+Raw Prometheus inputs and old file aliases remain compatible so existing
+dashboards and archived scripts can still be compared.
+
+| Surface | Default output | Legacy input or alias |
+| --- | --- | --- |
+| Channel runtime report keys | `channel_*`, `channel/...` | `wukongim_channelv2_*`, `component="channelv2"`, `channelv2-*` pool prefixes |
+| Transport runtime report labels | `transport/...` | `component="transportv2"` |
+| Channel metrics summary file | `channel_metrics_summary.tsv` | `channelv2_metrics_summary.tsv` |
+| wkcli top display | `channel`, `transport` | `channelv2`, `transportv2` API payload fields or alert fingerprints |
+
+Do not rename raw Prometheus metric families in a small report cleanup. If the
+server metric families are promoted later, keep a dedicated compatibility plan
+with dual publish or reader fallback.
+
 For `cmd/wukongim` local three-node Channel runtime capacity runs, do not use the
 Compose dev-sim path. Use the local startup script wrapper:
 

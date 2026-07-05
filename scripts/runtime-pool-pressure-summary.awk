@@ -49,6 +49,14 @@ function runtime_component_label(component) {
   return component
 }
 
+function runtime_pool_label(component, pool) {
+  if (component == "channel" && substr(pool, 1, length("channelv2-")) == "channelv2-") {
+    pool = substr(pool, length("channelv2-") + 1)
+    gsub(/-/, "_", pool)
+  }
+  return pool
+}
+
 function row_key(component, pool, queue, priority) {
   return component "\034" pool "\034" queue "\034" priority
 }
@@ -63,7 +71,7 @@ function remember_row(key, component, pool, queue, priority) {
 
 function key_from_labels(labels, queue, priority, component, pool, key) {
   component = runtime_component_label(default_label(label_value(labels, "component")))
-  pool = default_label(label_value(labels, "pool"))
+  pool = runtime_pool_label(component, default_label(label_value(labels, "pool")))
   queue = default_label(label_value(labels, "queue"))
   priority = default_label(label_value(labels, "priority"))
   key = row_key(component, pool, queue, priority)
@@ -73,7 +81,7 @@ function key_from_labels(labels, queue, priority, component, pool, key) {
 
 function pool_key_from_labels(labels, component, pool, key) {
   component = runtime_component_label(default_label(label_value(labels, "component")))
-  pool = default_label(label_value(labels, "pool"))
+  pool = runtime_pool_label(component, default_label(label_value(labels, "pool")))
   key = row_key(component, pool, "none", "none")
   remember_row(key, component, pool, "none", "none")
   return key

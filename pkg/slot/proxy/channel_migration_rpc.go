@@ -7,7 +7,6 @@ import (
 	"sort"
 
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
-	raftcluster "github.com/WuKongIM/WuKongIM/pkg/legacy/cluster"
 	metafsm "github.com/WuKongIM/WuKongIM/pkg/slot/fsm"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 )
@@ -100,12 +99,12 @@ func (s *Store) ListRunnableChannelMigrationTasksForLocalLeaderSlots(ctx context
 		return nil, nil
 	}
 
-	localNodeID := uint64(s.cluster.NodeID())
+	localNodeID := clusterNodeID(s.cluster)
 	out := make([]metadb.ChannelMigrationTask, 0, limit)
 	for _, slotID := range s.cluster.SlotIDs() {
 		leaderID, err := s.cluster.LeaderOf(slotID)
 		if err != nil {
-			if errors.Is(err, raftcluster.ErrSlotNotFound) || errors.Is(err, raftcluster.ErrNoLeader) {
+			if isSlotNotFound(err) || isNoLeader(err) {
 				continue
 			}
 			return nil, err
@@ -203,13 +202,13 @@ func (s *Store) ClaimChannelMigrationTask(ctx context.Context, req metadb.Channe
 	hashSlot := hashSlotForKey(s.cluster, req.Guard.ChannelID)
 	leaderID, err := s.cluster.LeaderOf(slotID)
 	if err != nil {
-		if errors.Is(err, raftcluster.ErrNoLeader) {
-			return raftcluster.ErrNotLeader
+		if isNoLeader(err) {
+			return errNotLeader
 		}
 		return err
 	}
 	if !s.cluster.IsLocal(leaderID) {
-		return raftcluster.ErrNotLeader
+		return errNotLeader
 	}
 	req.OwnerNodeID = uint64(leaderID)
 	cmd := metafsm.EncodeClaimChannelMigrationTaskCommand(req)
@@ -269,7 +268,7 @@ func (s *Store) GarbageCollectTerminalChannelMigrationTasks(ctx context.Context,
 	for _, slotID := range s.cluster.SlotIDs() {
 		leaderID, err := s.cluster.LeaderOf(slotID)
 		if err != nil {
-			if errors.Is(err, raftcluster.ErrSlotNotFound) || errors.Is(err, raftcluster.ErrNoLeader) {
+			if isSlotNotFound(err) || isNoLeader(err) {
 				continue
 			}
 			return deleted, err

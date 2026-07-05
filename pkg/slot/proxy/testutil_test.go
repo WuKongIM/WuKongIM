@@ -11,6 +11,7 @@ import (
 
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	raftcluster "github.com/WuKongIM/WuKongIM/pkg/legacy/cluster"
+	legacytransport "github.com/WuKongIM/WuKongIM/pkg/legacy/transport"
 	raftstorage "github.com/WuKongIM/WuKongIM/pkg/raftlog"
 	metafsm "github.com/WuKongIM/WuKongIM/pkg/slot/fsm"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
@@ -205,7 +206,7 @@ func startTwoNodeShardedStores(t testing.TB) []*testStoreNode {
 
 		out[i] = &testStoreNode{
 			cluster: cluster,
-			store:   New(cluster, db),
+			store:   newLegacyTestStore(cluster, db),
 			db:      db,
 			raftDB:  raftDB,
 			nodeID:  multiraft.NodeID(i + 1),
@@ -275,7 +276,7 @@ func startTwoNodeHashSlotStores(t testing.TB, hashSlotCount uint16) []*testStore
 
 		out[i] = &testStoreNode{
 			cluster: cluster,
-			store:   New(cluster, db),
+			store:   newLegacyTestStore(cluster, db),
 			db:      db,
 			raftDB:  raftDB,
 			nodeID:  multiraft.NodeID(i + 1),
@@ -287,6 +288,23 @@ func startTwoNodeHashSlotStores(t testing.TB, hashSlotCount uint16) []*testStore
 	}
 
 	return out
+}
+
+func newLegacyTestStore(cluster *raftcluster.Cluster, db *metadb.DB) *Store {
+	store := New(cluster, db)
+	if cluster != nil {
+		registerLegacyTestRPCHandlers(store, cluster.RPCMux())
+	}
+	return store
+}
+
+func registerLegacyTestRPCHandlers(store *Store, mux *legacytransport.RPCMux) {
+	if store == nil || mux == nil {
+		return
+	}
+	store.RegisterRPCHandlers(func(serviceID uint8, handler func(context.Context, []byte) ([]byte, error)) {
+		mux.Handle(serviceID, legacytransport.RPCHandler(handler))
+	})
 }
 
 func waitForExpectedSlotLeader(t testing.TB, nodes []*testStoreNode, slotID multiraft.SlotID, want multiraft.NodeID) {

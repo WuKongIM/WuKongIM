@@ -12,7 +12,7 @@
 | `multiraft/` | `multiraft.New()` → `Runtime` | Multi-Raft 运行时：Worker 池 + Ticker + Scheduler，管理多个独立 Raft Group |
 | `fsm/` | `fsm.NewStateMachine()` | 状态机：TLV 命令解码 + BatchStateMachine 批量应用（均摊 fsync） |
 | 元数据存储 | `pkg/db/meta.Open()` → `DB` | 统一 Pebble 元数据库：hash-slot 分区表、WriteBatch、快照；`pkg/slot/fsm` 与 `pkg/slot/proxy` 继续使用 `metadb` 别名 |
-| `proxy/` | `proxy.New()` → `Store` | 分布式代理：写入路由到 Propose，读取路由到 Leader 的权威 RPC |
+| `proxy/` | `proxy.New()` → `Store` | 分布式代理：写入路由到 Propose，读取路由到 Leader 的权威 RPC；`pkg/cluster.Node` 已满足 `Cluster` 路由/RPC 调用端口和 optional hash-slot 提案端口，RPC handler 注册优先走 `pkg/slot/proxy/promoted_cluster.go` 的 `Node.RegisterRPC` bridge；legacy app 如需旧 mux 兼容，必须在 `internal/legacy/app/slot_proxy_rpc.go` 通过 `Store.RegisterRPCHandlers` 显式注册 |
 
 ## 3. 对外接口
 

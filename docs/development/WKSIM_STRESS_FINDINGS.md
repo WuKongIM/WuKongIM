@@ -8,25 +8,25 @@
 - Fix: Slot Raft transport batches now use a versioned binary frame carrying raw `raftpb.Message` bytes; cluster exposes Slot log compaction config to `cmd/wukongim`; local wukongim script configs use `WK_CLUSTER_SLOT_LOG_COMPACTION_TRIGGER_ENTRIES=1000` and `WK_CLUSTER_SLOT_LOG_COMPACTION_CHECK_INTERVAL=5s`; `ConversationAuthorityClient.AdmitActiveBatch` retries route movement in a small bounded window; expected post-commit route failures log at WARN instead of ERROR.
 - Verification: the relevant cluster, `cmd/wukongim`, infra, and app tests passed. A short three-node smoke with `--duration 1m --users 100 --groups 100 --members 10 --rate 0.1/s` passed with `messages_sent=528` and `send_errors=0`; evidence: `data/wkcli-sim-three-node-smoke-codex-fix/`.
 
-## 2026-06-12 transportv2 hot-path surgical refactor follow-up
+## 2026-06-12 transport runtime hot-path surgical refactor follow-up
 
-- Scenario: `GOWORK=off ./scripts/bench-wukongim-three-nodes-real-qps.sh --qps 4000`, 1000 group channels, 4096 users, 10 members, 30s measured duration, after the transportv2 scheduler/write/RPC/OwnedBuffer hot-path refactor.
+- Scenario: `GOWORK=off ./scripts/bench-wukongim-three-nodes-real-qps.sh --qps 4000`, 1000 group channels, 4096 users, 10 members, 30s measured duration, after the transport runtime scheduler/write/RPC/OwnedBuffer hot-path refactor.
 - Evidence: `docs/development/perf-runs/20260612-171931-three-node-real-qps/`.
 - Result: 2464.0 actual QPS, 0.616 actual/offered ratio, p99 458.1ms, p95 340.8ms, max 890.0ms, and 1 send error. Server CPU peaked at node1=248.8%, node2=318.1%, node3=261.0%.
-- Pool pressure: channel runtime store-apply/store-append remained the main visible saturation point. Node2 reached `channelv2-store-apply` 64/64 and `channelv2-store-append` 62/64; node1/node3 also showed high store apply utilization. `transportv2/service_executor` stayed low at 0.137/0.184/0.141 utilization.
+- Pool pressure: channel runtime store-apply/store-append remained the main visible saturation point. Node2 reached `channel/store_apply` 64/64 and `channel/store_append` 62/64; node1/node3 also showed high store apply utilization. `transport/service_executor` stayed low at 0.137/0.184/0.141 utilization.
 - Live pprof evidence: `docs/development/perf-runs/20260612-171931-three-node-real-qps-live15/004000-qps/pprof/live/`. The live sampling perturbed latency and should be used only for attribution; that run produced 3714.0 actual QPS, p99 2351.6ms, and no send errors.
-- Live pprof attribution: `transportv2/internal/conn.(*Conn).writeLoop -> writeOutboundBatch -> wire.WriteFramesInto -> net.Buffers.WriteTo -> syscall.writev` remained visible at roughly 18-20% cumulative CPU per sampled node, down from the earlier ~1/3 write-loop share but still material. `Scheduler` observation was not a top hot path.
-- Finding: the transportv2 hot-path refactor improved local microbenchmarks and removed scheduler observation scanning, but this three-node 4000 QPS scenario is still bounded primarily by channel runtime store append/apply/RPC pressure. Remaining transport write syscall cost is lower than the baseline but still worth a later protocol/write aggregation pass if channel runtime pressure is relieved.
+- Live pprof attribution: `pkg/transport/internal/conn.(*Conn).writeLoop -> writeOutboundBatch -> wire.WriteFramesInto -> net.Buffers.WriteTo -> syscall.writev` remained visible at roughly 18-20% cumulative CPU per sampled node, down from the earlier ~1/3 write-loop share but still material. `Scheduler` observation was not a top hot path.
+- Finding: the transport runtime hot-path refactor improved local microbenchmarks and removed scheduler observation scanning, but this three-node 4000 QPS scenario is still bounded primarily by channel runtime store append/apply/RPC pressure. Remaining transport write syscall cost is lower than the baseline but still worth a later protocol/write aggregation pass if channel runtime pressure is relieved.
 
 ## 2026-06-12 three-node real-qps 4000 pprof CPU triage
 
 - Scenario: `./scripts/bench-wukongim-three-nodes-real-qps.sh --qps 4000`, 1000 group channels, 4096 users, 10 members, 30s measured duration, current dirty worktree.
 - Baseline evidence: `docs/development/perf-runs/20260612-153217-three-node-real-qps/`.
 - Baseline result: 1945.6 actual QPS, 0.486 actual/offered ratio, p99 5348.4ms, no send errors. Server CPU peaked at node1=375.2%, node2=362.2%, node3=284.9%.
-- Repeat evidence without post-run pprof: `docs/development/perf-runs/20260612-153217-three-node-real-qps-live/`. Result stayed consistent at 1977.4 actual QPS, p99 4010.7ms, and `channelv2/channelv2-rpc` nearly saturated on all nodes.
+- Repeat evidence without post-run pprof: `docs/development/perf-runs/20260612-153217-three-node-real-qps-live/`. Result stayed consistent at 1977.4 actual QPS, p99 4010.7ms, and `channel/rpc` nearly saturated on all nodes.
 - The script's built-in `--profile-seconds 30` captures CPU after the benchmark run, so its profiles mostly show idle/runtime wait (`kevent`, `pthread_cond_wait`, `usleep`) and are not representative of the high-CPU window.
 - Live 15s pprof evidence: `docs/development/perf-runs/20260612-153217-three-node-real-qps-live15/004000-qps/pprof/live/`. The live sampling perturbed throughput, so use it only for hot-path attribution.
-- Live pprof root cause: about one third of sampled CPU per node is `transportv2/internal/conn.(*Conn).writeLoop -> writeOutbound -> wire.WriteFrame -> net.Buffers.WriteTo -> syscall.writev`. `Conn.writeLoop` receives scheduler batches but writes each outbound frame separately, producing a high syscall/writev rate under group fanout and conversation-active RPC traffic.
+- Live pprof root cause: about one third of sampled CPU per node is `pkg/transport/internal/conn.(*Conn).writeLoop -> writeOutbound -> wire.WriteFrame -> net.Buffers.WriteTo -> syscall.writev`. `Conn.writeLoop` receives scheduler batches but writes each outbound frame separately, producing a high syscall/writev rate under group fanout and conversation-active RPC traffic.
 - Secondary CPU source: `conversationactive.Manager.MarkActive -> observeCache -> cacheObservation` accounts for about 10-13% cumulative CPU during live sampling. `cacheObservation` scans the whole UID conversation active cache after each admission batch.
 - Amplifier: baseline node logs contain 15010/13417/14002 `channelappend post-commit failed` entries on node1/node2/node3, all matching `conversation_active: internal/usecase/conversation: stale route`. These are best-effort post-commit failures, not SENDACK errors, but they add RPC/logging pressure and coincide with high `channelappend_effect_error_delta` and post-commit backlog.
 - Finding: the high CPU is primarily transport write syscall overhead driven by many small internal RPC/response frames, with additional conversation-active cache observation scans and post-commit stale-route failure amplification. The throughput failure is classified as mixed channel runtime/storage/replication backpressure rather than gateway queue exhaustion.
@@ -36,10 +36,10 @@
 
 - Scenario: `./scripts/bench-wukongim-three-nodes-real-qps.sh --qps 5000`, 1000 group channels, 4096 users, 10 members, 30s measured duration.
 - Baseline evidence: `docs/development/perf-runs/20260609-222608-three-node-real-qps/`.
-- Baseline result: 2651.9 actual QPS, p99 2334.2ms, no send errors. `channelwrite` had no router errors/backpressure/channel-busy rejections, but default `WK_DELIVERY_CHANNEL_WRITE_EFFECT_WORKERS=0` resolved to 2 per reactor and capped `channelv2-store-append` inflight at 20 per node.
+- Baseline result: 2651.9 actual QPS, p99 2334.2ms, no send errors. `channelwrite` had no router errors/backpressure/channel-busy rejections, but default `WK_DELIVERY_CHANNEL_WRITE_EFFECT_WORKERS=0` resolved to 2 per reactor and capped `channel/store_append` inflight at 20 per node.
 - One-variable experiment: `WK_DELIVERY_CHANNEL_WRITE_EFFECT_WORKERS=8 ./scripts/bench-wukongim-three-nodes-real-qps.sh --qps 5000`.
 - Experiment evidence: `docs/development/perf-runs/20260609-223119-three-node-real-qps/`.
-- Experiment result: 4917.6 actual QPS, p99 977.7ms, no send errors. `channelv2-store-append` and `channelv2-store-apply` reached 64 inflight workers, shifting the bottleneck to storage/replication and exposing `channelwrite` post-commit backlog on node1/node2.
+- Experiment result: 4917.6 actual QPS, p99 977.7ms, no send errors. `channel/store_append` and `channel/store_apply` reached 64 inflight workers, shifting the bottleneck to storage/replication and exposing `channelwrite` post-commit backlog on node1/node2.
 - Middle experiment: `WK_DELIVERY_CHANNEL_WRITE_EFFECT_WORKERS=4 ./scripts/bench-wukongim-three-nodes-real-qps.sh --qps 5000`.
 - Middle experiment evidence: `docs/development/perf-runs/20260609-223824-three-node-real-qps/`.
 - Middle experiment result: 4338.4 actual QPS, p99 1550.2ms, no send errors, and no post-commit backlog. This confirms that 4 workers reduces the append-effect bottleneck but still does not fully utilize downstream append capacity for the 5000 offered-QPS workload.
@@ -55,7 +55,7 @@
 - Result: 8068.4 actual QPS, 0.807 actual/offered ratio, p99 769.1ms, p95 584.3ms, max 1339.1ms, and no send errors.
 - `channelwrite` admission stayed open: router errors, router backpressure, channel-busy rejections, route-not-ready router results, timeouts, and local admission rejections were all zero.
 - `channelwrite` post-commit pressure appeared at this offered rate: max post-commit backlog was 5275 and effect error delta was 91329, mostly post-commit `route_not_ready`/`other` results.
-- Downstream pressure was visible outside `channelwrite`: `channelv2-store-append`, `channelv2-store-apply`, and `channelv2-rpc` reached worker saturation; slot scheduler showed dirty/requeued admission pressure.
+- Downstream pressure was visible outside `channelwrite`: `channel/store_append`, `channel/store_apply`, and `channel/rpc` reached worker saturation; slot scheduler showed dirty/requeued admission pressure.
 - Finding: increasing effect workers to 16 does not make 10000 offered QPS pass. It removes `channelwrite` admission as the limiter, but overdrives post-commit/downstream channel runtime, storage/apply, replication, and slot scheduling stages.
 
 ## 2026-06-09 channelwrite effect worker instrumentation
@@ -159,7 +159,7 @@
 - Scenario: `./scripts/bench-wukongim-three-nodes-real-qps.sh --qps 4000`, 1000 group channels, 4096 users, 10 members, 30s measured duration. CPU pprof was captured manually during the load window from API ports 5011/5012/5013.
 - Evidence: `docs/development/perf-runs/20260612-173851-three-node-real-qps-4000-pprof/`.
 - Result: 2626.9 actual QPS, 0.657 actual/offered ratio, p99 3633.9ms, no send errors. Server CPU peaked at node1=350.5%, node2=301.7%, node3=344.4%.
-- Pprof finding: the largest application stack is `internal/runtime/channelappend.(*channelWriter).advance`, about 25-40% cumulative per node. Its cost is mostly writer lock/activation churn, post-commit checks, context checks, append/commit scheduling, and runtime copy/zero/scheduler work. `transportv2` write/read and `writev` account for about 12-22%; Prometheus metrics are about 5%; Pebble/storage CPU is only about 4-5%.
+- Pprof finding: the largest application stack is `internal/runtime/channelappend.(*channelWriter).advance`, about 25-40% cumulative per node. Its cost is mostly writer lock/activation churn, post-commit checks, context checks, append/commit scheduling, and runtime copy/zero/scheduler work. Transport runtime write/read and `writev` account for about 12-22%; Prometheus metrics are about 5%; Pebble/storage CPU is only about 4-5%.
 - Runtime evidence: each node had about 5.3k goroutines, dominated by gateway async send collectors, channel runtime append future waiters, and ants workers. Channel runtime store-apply/store-append/RPC pools and transport service workers hit saturation on at least one node.
 - Post-commit evidence: `channelappend_effect_error_delta=32452`, and all sampled after-run post-commit errors were `phase=conversation_active` with `internal/usecase/conversation: stale route` (node1=7258, node2=15599, node3=9595). This amplifies channelappend post-commit work and logging but is not the foreground SEND failure source.
 - Finding: the high CPU is not caused by raw Pebble writes. It is mostly channelappend post-commit state-machine scheduling and transport fanout under excessive concurrency, with channel runtime replication/quorum wait causing the long p99 tail (`append_post_store_commit_wait_p99` about 2.38-2.45s).
