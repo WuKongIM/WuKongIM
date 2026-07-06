@@ -23,6 +23,10 @@ import (
 // Option customizes Node construction.
 type Option func(*Node)
 
+type resultProposer interface {
+	ProposeResult(context.Context, propose.Request) ([]byte, error)
+}
+
 type slotReconciler interface {
 	Reconcile(context.Context, control.Snapshot) error
 }
@@ -235,20 +239,30 @@ func (n *Node) RouteHashSlot(hashSlot uint16) (Route, error) {
 
 // Propose submits a Slot metadata command through cluster routing.
 func (n *Node) Propose(ctx context.Context, req ProposeRequest) error {
+	_, err := n.ProposeResult(ctx, req)
+	return err
+}
+
+// ProposeResult submits a Slot metadata command and returns FSM apply bytes when supported.
+func (n *Node) ProposeResult(ctx context.Context, req ProposeRequest) ([]byte, error) {
 	if err := ctxErr(ctx); err != nil {
-		return err
+		return nil, err
 	}
 	if err := n.ensureForeground(); err != nil {
-		return err
+		return nil, err
 	}
 	if n.proposer == nil {
-		return ErrNotStarted
+		return nil, ErrNotStarted
 	}
-	return n.proposer.Propose(ctx, propose.Request{
+	proposeReq := propose.Request{
 		Key:     req.Key,
 		Command: req.Command,
 		Target:  propose.Target{HashSlot: req.Target.HashSlot, HasHashSlot: req.Target.HasHashSlot, SlotID: req.Target.SlotID, HasSlotID: req.Target.HasSlotID},
-	})
+	}
+	if proposer, ok := n.proposer.(resultProposer); ok {
+		return proposer.ProposeResult(ctx, proposeReq)
+	}
+	return nil, n.proposer.Propose(ctx, proposeReq)
 }
 
 // RegisterRPC registers a node RPC handler on the default cluster transport.

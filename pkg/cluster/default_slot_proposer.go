@@ -41,15 +41,21 @@ func (p defaultSlotProposer) IsLocalLeader(slotID uint32) bool {
 
 // Propose submits one decoded cluster Slot command to the local Multi-Raft runtime.
 func (p defaultSlotProposer) Propose(ctx context.Context, slotID uint32, payload []byte) error {
+	_, err := p.ProposeResult(ctx, slotID, payload)
+	return err
+}
+
+// ProposeResult submits one decoded cluster Slot command and returns FSM apply bytes.
+func (p defaultSlotProposer) ProposeResult(ctx context.Context, slotID uint32, payload []byte) ([]byte, error) {
 	if p.runtime == nil {
-		return propose.ErrInvalidRequest
+		return nil, propose.ErrInvalidRequest
 	}
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	hashSlot, command, err := propose.DecodePayload(payload)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if observer := propose.StageObserverFromContext(ctx); observer != nil {
 		ctx = multiraft.WithProposalStageObserver(ctx, defaultSlotProposalStageObserver{observer: observer})
@@ -61,17 +67,20 @@ func (p defaultSlotProposer) Propose(ctx context.Context, slotID uint32, payload
 	future, err := p.runtime.Propose(ctx, multiraft.SlotID(slotID), multiraftPayload(hashSlot, command))
 	propose.ObserveStage(ctx, defaultSlotStageMetaCreateSubmit, err, time.Since(started))
 	if err != nil {
-		return mapMultiraftProposeError(err)
+		return nil, mapMultiraftProposeError(err)
 	}
 	started = time.Now()
 	result, err := future.Wait(ctx)
 	propose.ObserveStage(ctx, defaultSlotStageMetaCreateWait, err, time.Since(started))
 	if err == nil {
 		if applyErr := mapSlotApplyResult(command, result.Data); applyErr != nil {
-			return applyErr
+			return nil, applyErr
 		}
 	}
-	return mapMultiraftProposeError(err)
+	if err != nil {
+		return nil, mapMultiraftProposeError(err)
+	}
+	return append([]byte(nil), result.Data...), nil
 }
 
 // multiraftPayload converts cluster's propose envelope into Multi-Raft's hash-slot envelope.
@@ -114,6 +123,7 @@ func mapSlotApplyResult(command []byte, result []byte) error {
 }
 
 var _ propose.SlotRuntime = defaultSlotProposer{}
+var _ propose.ResultSlotRuntime = defaultSlotProposer{}
 
 type defaultSlotProposalStageObserver struct {
 	observer propose.StageObserver

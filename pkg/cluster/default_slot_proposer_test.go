@@ -40,6 +40,21 @@ func TestDefaultSlotProposerObservesMetaCreateSubmitAndWait(t *testing.T) {
 	requireRecordedAppendStage(t, observer.events, "meta_create_slot_raft_commit_wait", "ok")
 }
 
+func TestDefaultSlotProposerProposeResultReturnsApplyData(t *testing.T) {
+	runtime := &recordingSlotRuntime{future: recordingSlotFuture{data: []byte("apply-result")}}
+
+	got, err := defaultSlotProposer{runtime: runtime}.ProposeResult(context.Background(), 7, propose.EncodePayload(11, []byte("cmd")))
+	if err != nil {
+		t.Fatalf("ProposeResult() error = %v", err)
+	}
+	if string(got) != "apply-result" {
+		t.Fatalf("result = %q, want apply-result", got)
+	}
+	if runtime.proposeCalls != 1 || runtime.slotID != 7 {
+		t.Fatalf("runtime propose = %d slot=%d, want one call to slot 7", runtime.proposeCalls, runtime.slotID)
+	}
+}
+
 func TestDefaultSlotProposerPassesBackgroundProposalClass(t *testing.T) {
 	runtime := &recordingSlotRuntime{future: recordingSlotFuture{}}
 	ctx := propose.WithProposalClass(context.Background(), propose.ProposalClassBackground)
@@ -75,11 +90,12 @@ func (r *recordingSlotRuntime) Status(multiraft.SlotID) (multiraft.Status, error
 }
 
 type recordingSlotFuture struct {
-	err error
+	data []byte
+	err  error
 }
 
 func (f recordingSlotFuture) Wait(context.Context) (multiraft.Result, error) {
-	return multiraft.Result{}, f.err
+	return multiraft.Result{Data: append([]byte(nil), f.data...)}, f.err
 }
 
 type recordingAppendStageObserver struct {

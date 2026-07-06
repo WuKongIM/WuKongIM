@@ -21,12 +21,21 @@ func NewNetworkForwardClient(caller clusternet.Caller) *NetworkForwardClient {
 
 // ForwardPropose encodes req and sends it to nodeID.
 func (c *NetworkForwardClient) ForwardPropose(ctx context.Context, nodeID uint64, req ForwardRequest) error {
+	_, err := c.ForwardProposeResult(ctx, nodeID, req)
+	return err
+}
+
+// ForwardProposeResult encodes req, sends it to nodeID, and returns remote apply bytes.
+func (c *NetworkForwardClient) ForwardProposeResult(ctx context.Context, nodeID uint64, req ForwardRequest) ([]byte, error) {
 	payload, err := EncodeForwardRequest(req)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	_, err = clusternet.CallOwnedPayload(ctx, c.caller, nodeID, clusternet.RPCSlotForwardPropose, payload)
-	return mapForwardError(err)
+	result, err := clusternet.CallOwnedPayload(ctx, c.caller, nodeID, clusternet.RPCSlotForwardPropose, payload)
+	if err != nil {
+		return nil, mapForwardError(err)
+	}
+	return result, nil
 }
 
 // ForwardHandler handles remote Slot proposal requests on the target node.
@@ -47,6 +56,9 @@ func (h *ForwardHandler) HandleRPC(ctx context.Context, payload []byte) ([]byte,
 		return nil, ErrNotLeader
 	}
 	ctx = WithProposalClass(ctx, req.Class)
+	if slots, ok := h.slots.(ResultSlotRuntime); ok {
+		return slots.ProposeResult(ctx, req.SlotID, req.Payload)
+	}
 	if err := h.slots.Propose(ctx, req.SlotID, req.Payload); err != nil {
 		return nil, err
 	}
@@ -54,6 +66,7 @@ func (h *ForwardHandler) HandleRPC(ctx context.Context, payload []byte) ([]byte,
 }
 
 var _ ForwardClient = (*NetworkForwardClient)(nil)
+var _ ResultForwardClient = (*NetworkForwardClient)(nil)
 
 func mapForwardError(err error) error {
 	if err == nil {

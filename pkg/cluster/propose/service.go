@@ -43,71 +43,101 @@ func NewService(cfg Config) *Service {
 
 // Propose submits req to the current Slot leader.
 func (s *Service) Propose(ctx context.Context, req Request) error {
+	_, err := s.ProposeResult(ctx, req)
+	return err
+}
+
+// ProposeResult submits req to the current Slot leader and returns apply bytes when supported.
+func (s *Service) ProposeResult(ctx context.Context, req Request) ([]byte, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	if err := validateRequest(req); err != nil {
-		return err
+		return nil, err
 	}
 	if s == nil || s.router == nil || s.slots == nil {
-		return ErrInvalidRequest
+		return nil, ErrInvalidRequest
 	}
 	var lastErr error
 	for attempt := 0; attempt < leaderChangeRetryAttempts; attempt++ {
-		err := s.proposeOnce(ctx, req)
+		result, err := s.proposeOnceResult(ctx, req)
 		if !isLeaderChangeRetryable(err) {
-			return err
+			return result, err
 		}
 		lastErr = err
 		if attempt == leaderChangeRetryAttempts-1 {
 			break
 		}
 		if err := waitLeaderChangeRetry(ctx); err != nil {
-			return err
+			return nil, err
 		}
 	}
-	return lastErr
+	return nil, lastErr
 }
 
 func (s *Service) proposeOnce(ctx context.Context, req Request) error {
+	_, err := s.proposeOnceResult(ctx, req)
+	return err
+}
+
+func (s *Service) proposeOnceResult(ctx context.Context, req Request) ([]byte, error) {
 	route, err := s.route(req)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	payload := EncodePayload(route.HashSlot, req.Command)
 	var lastNotLeader error
 	for _, leader := range routeLeaderCandidates(route) {
-		err = s.proposeToLeader(ctx, route, leader, payload)
+		var result []byte
+		result, err = s.proposeToLeaderResult(ctx, route, leader, payload)
 		if !errors.Is(err, ErrNotLeader) {
-			return err
+			return result, err
 		}
 		lastNotLeader = err
 	}
 	if lastNotLeader != nil {
-		return lastNotLeader
+		return nil, lastNotLeader
 	}
-	return ErrNotLeader
+	return nil, ErrNotLeader
 }
 
 func (s *Service) proposeToLeader(ctx context.Context, route routing.Route, leader uint64, payload []byte) error {
+	_, err := s.proposeToLeaderResult(ctx, route, leader, payload)
+	return err
+}
+
+func (s *Service) proposeToLeaderResult(ctx context.Context, route routing.Route, leader uint64, payload []byte) ([]byte, error) {
 	if leader == s.localNode || s.slots.IsLocalLeader(route.SlotID) {
 		started := time.Now()
-		err := s.slots.Propose(ctx, route.SlotID, payload)
+		var result []byte
+		var err error
+		if slots, ok := s.slots.(ResultSlotRuntime); ok {
+			result, err = slots.ProposeResult(ctx, route.SlotID, payload)
+		} else {
+			err = s.slots.Propose(ctx, route.SlotID, payload)
+		}
 		ObserveStage(ctx, stageMetaCreateProposeLocal, err, time.Since(started))
-		return err
+		return result, err
 	}
 	if s.forward == nil {
-		return fmt.Errorf("%w: missing forward client", ErrInvalidRequest)
+		return nil, fmt.Errorf("%w: missing forward client", ErrInvalidRequest)
 	}
 	started := time.Now()
-	err := s.forward.ForwardPropose(ctx, leader, ForwardRequest{
+	req := ForwardRequest{
 		SlotID:   route.SlotID,
 		HashSlot: route.HashSlot,
 		Class:    ProposalClassFromContext(ctx),
 		Payload:  payload,
-	})
+	}
+	var result []byte
+	var err error
+	if forward, ok := s.forward.(ResultForwardClient); ok {
+		result, err = forward.ForwardProposeResult(ctx, leader, req)
+	} else {
+		err = s.forward.ForwardPropose(ctx, leader, req)
+	}
 	ObserveStage(ctx, stageMetaCreateProposeForward, err, time.Since(started))
-	return err
+	return result, err
 }
 
 func routeLeaderCandidates(route routing.Route) []uint64 {

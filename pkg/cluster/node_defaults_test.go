@@ -41,6 +41,29 @@ func TestNodeProposeDelegatesToService(t *testing.T) {
 	}
 }
 
+func TestNodeProposeResultDelegatesWhenAvailable(t *testing.T) {
+	proposer := &recordingResultProposer{result: []byte("applied")}
+	node, err := New(validNodeConfig(t), WithProposer(proposer))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	if err := node.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	t.Cleanup(func() { _ = node.Stop(context.Background()) })
+
+	got, err := node.ProposeResult(context.Background(), ProposeRequest{Key: "u1", Command: []byte("cmd")})
+	if err != nil {
+		t.Fatalf("ProposeResult() error = %v", err)
+	}
+	if string(got) != "applied" {
+		t.Fatalf("result = %q, want applied", got)
+	}
+	if proposer.resultCalls != 1 || proposer.calls != 0 || proposer.last.Key != "u1" {
+		t.Fatalf("proposer calls=%d resultCalls=%d last=%#v, want result delegate for key u1", proposer.calls, proposer.resultCalls, proposer.last)
+	}
+}
+
 func TestNodeProbeWriteReadyProposesOneNoopPerPhysicalSlot(t *testing.T) {
 	proposer := &recordingProposer{}
 	node, err := New(validNodeConfig(t), WithProposer(proposer))
@@ -914,6 +937,20 @@ func (p *recordingProposer) Propose(ctx context.Context, req propose.Request) er
 	p.last = req
 	p.requests = append(p.requests, req)
 	return nil
+}
+
+type recordingResultProposer struct {
+	recordingProposer
+	result      []byte
+	resultCalls int
+}
+
+func (p *recordingResultProposer) ProposeResult(ctx context.Context, req propose.Request) ([]byte, error) {
+	p.resultCalls++
+	p.ctx = ctx
+	p.last = req
+	p.requests = append(p.requests, req)
+	return append([]byte(nil), p.result...), nil
 }
 
 type localSnapshotController struct {

@@ -38,6 +38,38 @@ func TestServiceProposeLocalLeader(t *testing.T) {
 	}
 }
 
+func TestServiceProposeResultReturnsLocalApplyData(t *testing.T) {
+	slots := &fakeResultSlots{fakeSlots: fakeSlots{local: true}, result: []byte("seq=7")}
+	svc := NewService(Config{LocalNode: 1, Router: fakeRouter{route: routing.Route{HashSlot: 3, SlotID: 11, Leader: 1}}, Slots: slots})
+
+	got, err := svc.ProposeResult(context.Background(), Request{Key: "g1", Command: []byte("cmd")})
+	if err != nil {
+		t.Fatalf("ProposeResult() error = %v", err)
+	}
+	if string(got) != "seq=7" {
+		t.Fatalf("result = %q, want seq=7", got)
+	}
+	if slots.resultCalls != 1 || slots.calls != 0 {
+		t.Fatalf("slot calls=%d resultCalls=%d, want result path only", slots.calls, slots.resultCalls)
+	}
+}
+
+func TestServiceProposeResultFallsBackToLocalErrorOnlyRuntime(t *testing.T) {
+	slots := &fakeSlots{local: true}
+	svc := NewService(Config{LocalNode: 1, Router: fakeRouter{route: routing.Route{HashSlot: 3, SlotID: 11, Leader: 1}}, Slots: slots})
+
+	got, err := svc.ProposeResult(context.Background(), Request{Key: "g1", Command: []byte("cmd")})
+	if err != nil {
+		t.Fatalf("ProposeResult() error = %v", err)
+	}
+	if got != nil {
+		t.Fatalf("result = %q, want nil fallback result", got)
+	}
+	if slots.calls != 1 {
+		t.Fatalf("slot calls=%d, want old Propose fallback", slots.calls)
+	}
+}
+
 func TestServiceProposeLocalLeaderObservesStage(t *testing.T) {
 	observer := &recordingStageObserver{}
 	slots := &fakeSlots{local: true}
@@ -58,6 +90,38 @@ func TestServiceProposeRemoteLeader(t *testing.T) {
 	}
 	if forward.calls != 1 || forward.nodeID != 2 || forward.req.SlotID != 11 || forward.req.HashSlot != 3 {
 		t.Fatalf("forward = %#v, want one call to node 2 slot 11 hash 3", forward)
+	}
+}
+
+func TestServiceProposeResultReturnsForwardedApplyData(t *testing.T) {
+	forward := &fakeResultForward{result: []byte("remote-seq=9")}
+	svc := NewService(Config{LocalNode: 1, Router: fakeRouter{route: routing.Route{HashSlot: 3, SlotID: 11, Leader: 2}}, Slots: &fakeSlots{}, Forward: forward})
+
+	got, err := svc.ProposeResult(context.Background(), Request{Key: "g1", Command: []byte("cmd")})
+	if err != nil {
+		t.Fatalf("ProposeResult() error = %v", err)
+	}
+	if string(got) != "remote-seq=9" {
+		t.Fatalf("result = %q, want remote-seq=9", got)
+	}
+	if forward.resultCalls != 1 || forward.calls != 0 {
+		t.Fatalf("forward calls=%d resultCalls=%d, want result path only", forward.calls, forward.resultCalls)
+	}
+}
+
+func TestServiceProposeResultFallsBackToForwardPropose(t *testing.T) {
+	forward := &fakeForward{}
+	svc := NewService(Config{LocalNode: 1, Router: fakeRouter{route: routing.Route{HashSlot: 3, SlotID: 11, Leader: 2}}, Slots: &fakeSlots{}, Forward: forward})
+
+	got, err := svc.ProposeResult(context.Background(), Request{Key: "g1", Command: []byte("cmd")})
+	if err != nil {
+		t.Fatalf("ProposeResult() error = %v", err)
+	}
+	if got != nil {
+		t.Fatalf("result = %q, want nil fallback result", got)
+	}
+	if forward.calls != 1 || forward.nodeID != 2 {
+		t.Fatalf("forward calls=%d node=%d, want old ForwardPropose fallback to node 2", forward.calls, forward.nodeID)
 	}
 }
 
@@ -95,6 +159,22 @@ func TestNetworkForwardClientUsesOwnedCallerWhenAvailable(t *testing.T) {
 	}
 	if req.SlotID != 11 || req.HashSlot != 3 {
 		t.Fatalf("decoded request = %#v, want slot=11 hash=3", req)
+	}
+}
+
+func TestNetworkForwardClientForwardProposeResultReturnsPayload(t *testing.T) {
+	caller := &recordingOwnedForwardCaller{result: []byte("applied")}
+	client := NewNetworkForwardClient(caller)
+
+	got, err := client.ForwardProposeResult(context.Background(), 2, ForwardRequest{SlotID: 11, HashSlot: 3, Payload: EncodePayload(3, []byte("cmd"))})
+	if err != nil {
+		t.Fatalf("ForwardProposeResult() error = %v", err)
+	}
+	if string(got) != "applied" {
+		t.Fatalf("result = %q, want applied", got)
+	}
+	if caller.callOwnedCount != 1 || caller.nodeID != 2 {
+		t.Fatalf("call count=%d node=%d, want owned call to node 2", caller.callOwnedCount, caller.nodeID)
 	}
 }
 
@@ -201,6 +281,25 @@ func TestForwardHandlerChecksLocalLeader(t *testing.T) {
 	}
 }
 
+func TestForwardHandlerReturnsResultWhenAvailable(t *testing.T) {
+	slots := &fakeResultSlots{fakeSlots: fakeSlots{local: true}, result: []byte("applied")}
+	handler := NewForwardHandler(slots)
+	payload, err := EncodeForwardRequest(ForwardRequest{SlotID: 1, HashSlot: 0, Payload: EncodePayload(0, []byte("cmd"))})
+	if err != nil {
+		t.Fatalf("EncodeForwardRequest() error = %v", err)
+	}
+	got, err := handler.HandleRPC(context.Background(), payload)
+	if err != nil {
+		t.Fatalf("HandleRPC() error = %v", err)
+	}
+	if string(got) != "applied" {
+		t.Fatalf("result = %q, want applied", got)
+	}
+	if slots.resultCalls != 1 || slots.calls != 0 {
+		t.Fatalf("slot calls=%d resultCalls=%d, want result path only", slots.calls, slots.resultCalls)
+	}
+}
+
 func TestForwardHandlerPassesProposalClassToSlots(t *testing.T) {
 	slots := &fakeSlots{local: true}
 	handler := NewForwardHandler(slots)
@@ -273,6 +372,21 @@ func (s *fakeSlots) Propose(ctx context.Context, slotID uint32, payload []byte) 
 	return s.err
 }
 
+type fakeResultSlots struct {
+	fakeSlots
+	result      []byte
+	resultCalls int
+}
+
+func (s *fakeResultSlots) IsLocalLeader(uint32) bool { return s.local }
+func (s *fakeResultSlots) ProposeResult(ctx context.Context, slotID uint32, payload []byte) ([]byte, error) {
+	s.resultCalls++
+	s.ctx = ctx
+	s.slotID = slotID
+	s.payload = append([]byte(nil), payload...)
+	return append([]byte(nil), s.result...), s.err
+}
+
 type fakeForward struct {
 	calls  int
 	nodeID uint64
@@ -295,6 +409,26 @@ func (f *fakeForward) ForwardPropose(_ context.Context, nodeID uint64, req Forwa
 	return f.err
 }
 
+type fakeResultForward struct {
+	fakeForward
+	result      []byte
+	resultCalls int
+}
+
+func (f *fakeResultForward) ForwardProposeResult(_ context.Context, nodeID uint64, req ForwardRequest) ([]byte, error) {
+	f.resultCalls++
+	f.nodeID = nodeID
+	f.req = req
+	if len(f.errs) > 0 {
+		idx := f.resultCalls - 1
+		if idx >= len(f.errs) {
+			idx = len(f.errs) - 1
+		}
+		return nil, f.errs[idx]
+	}
+	return append([]byte(nil), f.result...), f.err
+}
+
 type recordingOwnedForwardCaller struct {
 	nodeID         uint64
 	serviceID      uint8
@@ -302,6 +436,7 @@ type recordingOwnedForwardCaller struct {
 	callCount      int
 	callOwnedCount int
 	err            error
+	result         []byte
 }
 
 func (c *recordingOwnedForwardCaller) Call(context.Context, uint64, uint8, []byte) ([]byte, error) {
@@ -321,7 +456,7 @@ func (c *recordingOwnedForwardCaller) CallOwned(_ context.Context, nodeID uint64
 	if c.err != nil {
 		return nil, c.err
 	}
-	return nil, nil
+	return append([]byte(nil), c.result...), nil
 }
 
 type recordingStageObserver struct {

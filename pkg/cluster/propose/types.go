@@ -89,10 +89,24 @@ type SlotRuntime interface {
 	Propose(context.Context, uint32, []byte) error
 }
 
+// ResultSlotRuntime proposes payloads to local Slot leaders and returns apply bytes.
+type ResultSlotRuntime interface {
+	// IsLocalLeader reports whether this node is leader for slotID.
+	IsLocalLeader(slotID uint32) bool
+	// ProposeResult submits payload and returns the Slot FSM apply result bytes.
+	ProposeResult(context.Context, uint32, []byte) ([]byte, error)
+}
+
 // ForwardClient forwards proposals to remote Slot leaders.
 type ForwardClient interface {
 	// ForwardPropose forwards req to nodeID.
 	ForwardPropose(context.Context, uint64, ForwardRequest) error
+}
+
+// ResultForwardClient forwards proposals and returns remote apply bytes.
+type ResultForwardClient interface {
+	// ForwardProposeResult forwards req to nodeID and returns the Slot FSM apply result bytes.
+	ForwardProposeResult(context.Context, uint64, ForwardRequest) ([]byte, error)
 }
 
 // ForwardRequest is the wire-level Slot proposal request.
