@@ -93,6 +93,150 @@ func TestSyncChannelMessagesPropagatesReaderError(t *testing.T) {
 	}
 }
 
+func TestSyncChannelMessagesEnrichesFullEventMeta(t *testing.T) {
+	key := MessageEventMessageKey{ChannelID: "g1", ChannelType: 2, ClientMsgNo: "cmn-1"}
+	store := &recordingMessageEventStore{stateRows: map[MessageEventMessageKey][]MessageEventState{
+		key: {
+			{
+				ChannelID:       "g1",
+				ChannelType:     2,
+				ClientMsgNo:     "cmn-1",
+				EventKey:        EventKeyDefault,
+				Status:          EventStatusClosed,
+				LastMsgEventSeq: 2,
+				SnapshotPayload: []byte(`{"kind":"text","text":"hello"}`),
+				EndReason:       3,
+			},
+			{
+				ChannelID:       "g1",
+				ChannelType:     2,
+				ClientMsgNo:     "cmn-1",
+				EventKey:        "tool",
+				Status:          EventStatusOpen,
+				LastMsgEventSeq: 3,
+				SnapshotPayload: []byte(`{"kind":"text","text":"tool"}`),
+			},
+			{
+				ChannelID:       "g1",
+				ChannelType:     2,
+				ClientMsgNo:     "cmn-1",
+				EventKey:        EventKeyFinish,
+				Status:          EventStatusClosed,
+				LastMsgEventSeq: 4,
+			},
+		},
+	}}
+	reader := &recordingChannelMessageReader{page: ChannelMessagePage{Messages: []SyncedMessage{
+		{ChannelID: "g1", ChannelType: 2, ClientMsgNo: "cmn-1", MessageID: 9, Payload: []byte("base")},
+	}}}
+	app := New(Options{Reader: reader, EventStore: store})
+
+	result, err := app.SyncChannelMessages(context.Background(), SyncChannelMessagesQuery{
+		LoginUID:         "u1",
+		ChannelID:        "g1",
+		ChannelType:      2,
+		EventSummaryMode: "full",
+	})
+
+	if err != nil {
+		t.Fatalf("SyncChannelMessages() error = %v", err)
+	}
+	if len(store.stateCalls) != 1 {
+		t.Fatalf("state calls = %#v, want one call", store.stateCalls)
+	}
+	if store.stateCalls[0].limit != maxMessageEventSummaryLanes || len(store.stateCalls[0].keys) != 1 || store.stateCalls[0].keys[0] != key {
+		t.Fatalf("state call = %#v, want message event key with lane cap", store.stateCalls[0])
+	}
+	if len(result.Messages) != 1 {
+		t.Fatalf("messages = %#v, want one message", result.Messages)
+	}
+	msg := result.Messages[0]
+	if string(msg.Payload) != "base" || string(msg.StreamData) != "hello" || msg.End != 1 || msg.EndReason != 3 || msg.Error != "" {
+		t.Fatalf("stream fields = payload %q stream %q end %d reason %d error %q", msg.Payload, msg.StreamData, msg.End, msg.EndReason, msg.Error)
+	}
+	if msg.EventHint == nil || msg.EventHint.ClientMsgNo != "cmn-1" || msg.EventHint.FromMsgEventSeq != 0 {
+		t.Fatalf("event hint = %#v, want cmn-1/0", msg.EventHint)
+	}
+	if msg.EventMeta == nil {
+		t.Fatal("EventMeta = nil, want event summary")
+	}
+	if !msg.EventMeta.HasEvents || !msg.EventMeta.Completed || msg.EventMeta.EventVersion != 3 || msg.EventMeta.LastMsgEventSeq != 3 || msg.EventMeta.EventCount != 2 || msg.EventMeta.OpenEventCount != 1 {
+		t.Fatalf("event meta = %#v, want completed two-lane summary", msg.EventMeta)
+	}
+	if len(msg.EventMeta.Events) != 2 || msg.EventMeta.Events[0].EventKey != EventKeyDefault || msg.EventMeta.Events[1].EventKey != "tool" {
+		t.Fatalf("event lanes = %#v, want main/tool order", msg.EventMeta.Events)
+	}
+	if msg.EventMeta.Events[0].Snapshot == nil || msg.EventMeta.Events[1].Snapshot == nil {
+		t.Fatalf("snapshots = %#v, want decoded snapshots in full mode", msg.EventMeta.Events)
+	}
+}
+
+func TestSyncChannelMessagesBasicEventMetaOmitsSnapshots(t *testing.T) {
+	key := MessageEventMessageKey{ChannelID: "g1", ChannelType: 2, ClientMsgNo: "cmn-1"}
+	store := &recordingMessageEventStore{stateRows: map[MessageEventMessageKey][]MessageEventState{
+		key: {{EventKey: EventKeyDefault, Status: EventStatusOpen, LastMsgEventSeq: 1, SnapshotPayload: []byte(`{"kind":"text","text":"hello"}`)}},
+	}}
+	reader := &recordingChannelMessageReader{page: ChannelMessagePage{Messages: []SyncedMessage{
+		{ChannelID: "g1", ChannelType: 2, ClientMsgNo: "cmn-1"},
+	}}}
+	app := New(Options{Reader: reader, EventStore: store})
+
+	result, err := app.SyncChannelMessages(context.Background(), SyncChannelMessagesQuery{
+		LoginUID:         "u1",
+		ChannelID:        "g1",
+		ChannelType:      2,
+		EventSummaryMode: "basic",
+	})
+
+	if err != nil {
+		t.Fatalf("SyncChannelMessages() error = %v", err)
+	}
+	if got := result.Messages[0].EventMeta.Events[0].Snapshot; got != nil {
+		t.Fatalf("snapshot = %#v, want nil in basic mode", got)
+	}
+}
+
+func TestSyncChannelMessagesSkipsEventStoreWhenSummaryModeEmpty(t *testing.T) {
+	store := &recordingMessageEventStore{}
+	reader := &recordingChannelMessageReader{page: ChannelMessagePage{Messages: []SyncedMessage{
+		{ChannelID: "g1", ChannelType: 2, ClientMsgNo: "cmn-1"},
+	}}}
+	app := New(Options{Reader: reader, EventStore: store})
+
+	_, err := app.SyncChannelMessages(context.Background(), SyncChannelMessagesQuery{
+		LoginUID:    "u1",
+		ChannelID:   "g1",
+		ChannelType: 2,
+	})
+
+	if err != nil {
+		t.Fatalf("SyncChannelMessages() error = %v", err)
+	}
+	if len(store.stateCalls) != 0 {
+		t.Fatalf("state calls = %#v, want none", store.stateCalls)
+	}
+}
+
+func TestSyncChannelMessagesPropagatesEventStoreError(t *testing.T) {
+	storeErr := errors.New("event store failed")
+	store := &recordingMessageEventStore{stateErr: storeErr}
+	reader := &recordingChannelMessageReader{page: ChannelMessagePage{Messages: []SyncedMessage{
+		{ChannelID: "g1", ChannelType: 2, ClientMsgNo: "cmn-1"},
+	}}}
+	app := New(Options{Reader: reader, EventStore: store})
+
+	_, err := app.SyncChannelMessages(context.Background(), SyncChannelMessagesQuery{
+		LoginUID:         "u1",
+		ChannelID:        "g1",
+		ChannelType:      2,
+		EventSummaryMode: "basic",
+	})
+
+	if !errors.Is(err, storeErr) {
+		t.Fatalf("error = %v, want event store error", err)
+	}
+}
+
 type recordingChannelMessageReader struct {
 	queries []ChannelMessageQuery
 	page    ChannelMessagePage

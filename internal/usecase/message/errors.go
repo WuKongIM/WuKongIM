@@ -19,6 +19,16 @@ var (
 	ErrMessageReaderRequired = errors.New("internal/message: message reader required")
 	// ErrMessageEventStoreRequired reports that message event projection storage is not configured.
 	ErrMessageEventStoreRequired = errors.New("internal/message: message event store required")
+	// ErrMessageEventChannelIDRequired reports that a message event append has no channel ID.
+	ErrMessageEventChannelIDRequired = errors.New("channel_id不能为空！")
+	// ErrMessageEventChannelTypeRequired reports that a message event append has no channel type.
+	ErrMessageEventChannelTypeRequired = errors.New("channel_type不能为空！")
+	// ErrMessageEventClientMsgNoRequired reports that a message event append has no client message number.
+	ErrMessageEventClientMsgNoRequired = errors.New("client_msg_no不能为空！")
+	// ErrMessageEventIDRequired reports that a message event append has no event idempotency key.
+	ErrMessageEventIDRequired = errors.New("event_id不能为空！")
+	// ErrMessageEventTypeRequired reports that a message event append has no event type.
+	ErrMessageEventTypeRequired = errors.New("event_type不能为空！")
 	// ErrSendHookDepthExceeded reports that a plugin-origin send exceeded hook recursion limits.
 	ErrSendHookDepthExceeded = errors.New("internal/message: send hook depth exceeded")
 	// ErrRequestSubscribersRequireSyncOnce reports that request-scoped sends must be sync_once.

@@ -64,11 +64,34 @@ SyncChannelMessages(query)
   -> call ChannelMessageReader.SyncMessages with a normalized ChannelID
   -> treat missing channel runtime/storage as an empty page
   -> clone payloads before returning SyncedMessage values to access adapters
+  -> when event_summary_mode is set, batch-read MessageEventStore states by
+     (channel_id, channel_type, client_msg_no) and attach compact event_meta
 ```
 
 The sync usecase returns `SyncedMessage` DTOs with the fields needed by legacy
 HTTP responses. Concrete storage adapters may return zero values for fields that
-the current Channel write path does not persist yet.
+the current Channel write path does not persist yet. Message event enrichment is
+page-batched and capped per message so a high-limit sync request does not issue
+per-message storage reads or return unbounded lane state.
+
+## AppendMessageEvent Flow
+
+```text
+AppendMessageEvent(event)
+  -> validate required channel_id, channel_type, client_msg_no, event_id, event_type
+  -> trim fields, lower-case event_type, default empty event_key to "main"
+  -> force stream.finish onto the reserved finish event key
+  -> canonicalize person-channel and agent-channel IDs using from_uid
+  -> stamp updated_at when absent
+  -> call MessageEventStore.AppendMessageEvent
+  -> return the store-assigned msg_event_seq and projected lane status
+```
+
+`AppendMessageEvent` intentionally writes `stream.delta` through the same durable
+projection store as terminal events in this architecture. This keeps the Slot
+leader/meta reducer as the single source of truth for offline sync and later
+fine-grained event replay, rather than relying on a separate cross-node in-memory
+delta cache.
 
 ## Message Event Projection Ports
 

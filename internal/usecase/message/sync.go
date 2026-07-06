@@ -2,7 +2,9 @@ package message
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"sort"
 	"strings"
 
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
@@ -60,6 +62,18 @@ type SyncedMessage struct {
 	Timestamp int32
 	// Payload is the immutable message payload.
 	Payload []byte
+	// End reports the legacy stream terminal marker.
+	End uint8
+	// EndReason stores the stream terminal reason when present.
+	EndReason uint8
+	// Error stores the stream terminal error when present.
+	Error string
+	// StreamData stores the legacy compact stream payload derived from the main event lane.
+	StreamData []byte
+	// EventMeta is the compact event lane summary for compatible clients.
+	EventMeta *MessageEventMeta
+	// EventHint points to the message-level event sync cursor for compatible clients.
+	EventHint *MessageEventSyncHint
 }
 
 // SyncChannelMessagesQuery describes a compatible channel message sync request.
@@ -148,8 +162,12 @@ func (a *App) SyncChannelMessages(ctx context.Context, query SyncChannelMessages
 	if err != nil {
 		return SyncChannelMessagesResult{}, err
 	}
+	messages := cloneSyncedMessages(page.Messages)
+	if err := a.enrichSyncedMessagesWithEvents(ctx, strings.TrimSpace(query.EventSummaryMode), messages); err != nil {
+		return SyncChannelMessagesResult{}, err
+	}
 	return SyncChannelMessagesResult{
-		Messages: cloneSyncedMessages(page.Messages),
+		Messages: messages,
 		More:     page.HasMore,
 	}, nil
 }
@@ -169,6 +187,168 @@ func cloneSyncedMessages(in []SyncedMessage) []SyncedMessage {
 	copy(out, in)
 	for i := range out {
 		out[i].Payload = cloneBytes(out[i].Payload)
+		out[i].StreamData = cloneBytes(out[i].StreamData)
+		out[i].EventMeta = cloneMessageEventMeta(out[i].EventMeta)
+		if out[i].EventHint != nil {
+			hint := *out[i].EventHint
+			out[i].EventHint = &hint
+		}
+	}
+	return out
+}
+
+func (a *App) enrichSyncedMessagesWithEvents(ctx context.Context, mode string, messages []SyncedMessage) error {
+	if mode == "" || len(messages) == 0 {
+		return nil
+	}
+	if a == nil || a.eventStore == nil {
+		return nil
+	}
+	keys := make([]MessageEventMessageKey, 0, len(messages))
+	seen := make(map[MessageEventMessageKey]struct{}, len(messages))
+	for _, msg := range messages {
+		if strings.TrimSpace(msg.ClientMsgNo) == "" || strings.TrimSpace(msg.ChannelID) == "" || msg.ChannelType == 0 {
+			continue
+		}
+		key := MessageEventMessageKey{ChannelID: msg.ChannelID, ChannelType: int64(msg.ChannelType), ClientMsgNo: msg.ClientMsgNo}
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		keys = append(keys, key)
+	}
+	if len(keys) == 0 {
+		return nil
+	}
+	stateMap, err := a.eventStore.GetMessageEventStatesBatch(ctx, keys, maxMessageEventSummaryLanes)
+	if err != nil {
+		return err
+	}
+	full := strings.EqualFold(mode, "full")
+	for i := range messages {
+		key := MessageEventMessageKey{ChannelID: messages[i].ChannelID, ChannelType: int64(messages[i].ChannelType), ClientMsgNo: messages[i].ClientMsgNo}
+		states := stateMap[key]
+		if len(states) == 0 {
+			continue
+		}
+		applyMessageEventSummary(&messages[i], states, full)
+	}
+	return nil
+}
+
+const maxMessageEventSummaryLanes = 32
+
+func applyMessageEventSummary(msg *SyncedMessage, states []MessageEventState, full bool) {
+	if msg == nil || len(states) == 0 {
+		return
+	}
+	states = cloneMessageEventStates(states)
+	sort.Slice(states, func(i, j int) bool { return states[i].EventKey < states[j].EventKey })
+	meta := &MessageEventMeta{
+		HasEvents: true,
+		Events:    make([]MessageEventKeyMeta, 0, len(states)),
+	}
+	for _, state := range states {
+		if state.EventKey == EventKeyFinish {
+			meta.Completed = true
+			continue
+		}
+		keyMeta := MessageEventKeyMeta{
+			EventKey:        state.EventKey,
+			Status:          state.Status,
+			LastMsgEventSeq: state.LastMsgEventSeq,
+			EndReason:       state.EndReason,
+			Error:           state.Error,
+		}
+		if state.LastMsgEventSeq > meta.LastMsgEventSeq {
+			meta.LastMsgEventSeq = state.LastMsgEventSeq
+		}
+		if state.Status == EventStatusOpen {
+			meta.OpenEventCount++
+		}
+		if full && len(state.SnapshotPayload) > 0 {
+			keyMeta.Snapshot = decodeMessageEventSnapshot(state.SnapshotPayload)
+		}
+		meta.Events = append(meta.Events, keyMeta)
+	}
+	meta.EventCount = len(meta.Events)
+	if meta.EventCount == 0 && !meta.Completed {
+		return
+	}
+	meta.EventVersion = meta.LastMsgEventSeq
+	msg.EventMeta = meta
+	msg.EventHint = &MessageEventSyncHint{ClientMsgNo: msg.ClientMsgNo, FromMsgEventSeq: 0}
+	if mainState := findMainEventState(states); mainState != nil {
+		msg.StreamData = toLegacyStreamData(mainState.SnapshotPayload)
+		msg.End = toLegacyEnd(mainState.Status)
+		msg.EndReason = mainState.EndReason
+		msg.Error = mainState.Error
+	}
+}
+
+func findMainEventState(states []MessageEventState) *MessageEventState {
+	for _, state := range states {
+		if state.EventKey == EventKeyDefault {
+			cp := state
+			return &cp
+		}
+	}
+	return nil
+}
+
+func toLegacyEnd(status string) uint8 {
+	switch status {
+	case EventStatusClosed, EventStatusError, EventStatusCancelled:
+		return 1
+	default:
+		return 0
+	}
+}
+
+func toLegacyStreamData(snapshotPayload []byte) []byte {
+	if len(snapshotPayload) == 0 {
+		return nil
+	}
+	var raw map[string]any
+	if err := json.Unmarshal(snapshotPayload, &raw); err != nil {
+		return cloneBytes(snapshotPayload)
+	}
+	kind, _ := raw["kind"].(string)
+	switch kind {
+	case metadb.SnapshotKindText:
+		text, _ := raw["text"].(string)
+		return []byte(text)
+	case "binary":
+		data, _ := raw["data"].(string)
+		if data != "" {
+			return []byte(data)
+		}
+	}
+	return cloneBytes(snapshotPayload)
+}
+
+func decodeMessageEventSnapshot(snapshotPayload []byte) any {
+	var snapshot any
+	if err := json.Unmarshal(snapshotPayload, &snapshot); err != nil {
+		return string(snapshotPayload)
+	}
+	return snapshot
+}
+
+func cloneMessageEventMeta(meta *MessageEventMeta) *MessageEventMeta {
+	if meta == nil {
+		return nil
+	}
+	cp := *meta
+	cp.Events = append([]MessageEventKeyMeta(nil), meta.Events...)
+	return &cp
+}
+
+func cloneMessageEventStates(states []MessageEventState) []MessageEventState {
+	out := make([]MessageEventState, len(states))
+	copy(out, states)
+	for i := range out {
+		out[i].SnapshotPayload = cloneBytes(out[i].SnapshotPayload)
 	}
 	return out
 }
