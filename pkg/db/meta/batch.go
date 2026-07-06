@@ -30,14 +30,16 @@ type ChannelRuntimeMetaGuard struct {
 
 // Batch stages metadata mutations across one or more hash slots.
 type Batch struct {
-	db              *MetaDB
-	ops             []metaBatchOp
-	hashSlots       []HashSlot
-	hashSlotSeen    map[HashSlot]struct{}
-	channelOverlay  map[string]Channel
-	migrationActive map[string]struct{}
-	closed          bool
-	lastLocked      []HashSlot
+	db                  *MetaDB
+	ops                 []metaBatchOp
+	hashSlots           []HashSlot
+	hashSlotSeen        map[HashSlot]struct{}
+	channelOverlay      map[string]Channel
+	migrationActive     map[string]struct{}
+	messageEventStates  map[string]MessageEventState
+	messageEventCursors map[string]MessageEventCursor
+	closed              bool
+	lastLocked          []HashSlot
 }
 
 type metaBatchOp struct {
@@ -87,6 +89,8 @@ func (b *Batch) Close() error {
 	b.hashSlotSeen = nil
 	b.channelOverlay = nil
 	b.migrationActive = nil
+	b.messageEventStates = nil
+	b.messageEventCursors = nil
 	return nil
 }
 

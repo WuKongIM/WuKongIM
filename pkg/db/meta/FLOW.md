@@ -35,11 +35,16 @@ Current flow:
     `(channel_id, channel_type)`. Upserts only advance when the incoming
     `last_message_seq` is newer, making committed-message retries and
     out-of-order projection delivery idempotent.
-12. Channel runtime metadata stores routing, leadership, retention, and write
+12. Message event projections are hash-slot scoped meta rows replicated by Slot
+   Raft and snapshotted with other meta rows. State rows are keyed by
+   `(channel_id, channel_type, client_msg_no, event_key)`, cursor rows are keyed
+   by `(channel_id, channel_type, client_msg_no)`, and storage keeps only the
+   reduced projection state without raw event rows.
+13. Channel runtime metadata stores routing, leadership, retention, and write
    fence state with a runtime-backed primary row and key-aware rowcodec value;
    typed methods keep monotonic upserts, guards, and retention semantics, while
    page scans use runtime primary-key order and cursor bounds.
-13. Conversation state uses one kind-aware table for ordinary and CMD logical
+14. Conversation state uses one kind-aware table for ordinary and CMD logical
    views. Rows are keyed by `(uid, kind, channel_id, channel_type)`, active scans
    use `(uid, kind, active_at desc, channel_id, channel_type)`, and `kind` stays
    out of the encoded row value. Storage never infers ordinary versus CMD
@@ -49,7 +54,7 @@ Current flow:
    low-frequency ordering anchor, and active patches can carry monotonic
    read/delete floors so activity advancement, sparse-active changes,
    delete-barrier checks, and floor merges happen in one shard-locked mutation.
-14. Channel migration tasks use the table runtime for primary rows and terminal
+15. Channel migration tasks use the table runtime for primary rows and terminal
    indexes while keeping the active-task index custom because its legacy value
    stores the active `task_id`; slot-scoped active-task reads page through that
    active index instead of scanning the primary table. Guarded
@@ -57,27 +62,27 @@ Current flow:
    both records atomically, and task owner claims are fenced so only the same
    owner, an unowned task, or a task whose previous owner lease has expired at
    the claim request's `now_ms` can take ownership.
-15. Hash-slot migration state uses the table runtime with a legacy primary key
+16. Hash-slot migration state uses the table runtime with a legacy primary key
    that omits the family suffix; applied-delta dedup rows and outbox rows stay
    as custom records under the same hash-slot partition, and typed values repeat
    the hash slot only for self-description.
-16. `Batch` stages typed operations, locks all touched hash slots in sorted
+17. `Batch` stages typed operations, locks all touched hash slots in sorted
    order, uses table overlays for ordinary runtime tables, validates guards
    against read-your-writes overlays for runtime metadata and channel migration
    tasks, commits once, then publishes or invalidates channel cache entries.
-17. Hash-slot snapshots export row, index, and system spans for selected hash
+18. Hash-slot snapshots export row, index, and system spans for selected hash
     slots into a checksummed payload; imports validate the payload, lock slots
     in sorted order, replace existing spans, write entries in one sync commit,
     and clear the channel cache.
-18. Preserving snapshot imports keep local hash-slot migration rows when they
+19. Preserving snapshot imports keep local hash-slot migration rows when they
     already exist, while still importing incoming migration rows that are not
     present locally.
-19. `DeleteHashSlotData` removes all row, index, and system spans for one hash
+20. `DeleteHashSlotData` removes all row, index, and system spans for one hash
     slot and clears the channel cache.
-20. Read-only inspect APIs expose stable diagnostic rows for known metadata
+21. Read-only inspect APIs expose stable diagnostic rows for known metadata
     tables, supporting explicit hash-slot scans and bounded local scans across
     hash slots without mutating storage.
-21. Slot FSM, proxy, cluster, runtime, access, and usecase callers use this
+22. Slot FSM, proxy, cluster, runtime, access, and usecase callers use this
     package through the compatibility `DB`, `ShardStore`, and `WriteBatch`
     surface while the typed `MetaDB`/`Shard` APIs remain the new storage core.
     Legacy `UserConversation*` compatibility methods map to

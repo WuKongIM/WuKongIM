@@ -24,6 +24,8 @@ func TestMetaSchemaValidateAllTables(t *testing.T) {
 	subscriberPrimaryRegistered := false
 	userChannelMembershipPrimaryRegistered := false
 	channelLatestPrimaryRegistered := false
+	messageEventStatePrimaryRegistered := false
+	messageEventCursorPrimaryRegistered := false
 	conversationPrimaryRegistered := false
 	conversationKindColumnRegistered := false
 	conversationActiveIndexRegistered := false
@@ -89,6 +91,18 @@ func TestMetaSchemaValidateAllTables(t *testing.T) {
 			len(table.Primary.Columns) == 2 {
 			channelLatestPrimaryRegistered = true
 		}
+		if table.ID == TableIDMessageEventState &&
+			table.Primary.ID == messageEventStatePrimaryIndexID &&
+			table.Primary.Name == "pk_message_event_state" &&
+			len(table.Primary.Columns) == 4 {
+			messageEventStatePrimaryRegistered = true
+		}
+		if table.ID == TableIDMessageEventCursor &&
+			table.Primary.ID == messageEventCursorPrimaryIndexID &&
+			table.Primary.Name == "pk_message_event_cursor" &&
+			len(table.Primary.Columns) == 3 {
+			messageEventCursorPrimaryRegistered = true
+		}
 		if table.ID == TableIDConversation {
 			if table.Primary.ID == conversationPrimaryIndexID &&
 				table.Primary.Name == "pk_conversation" &&
@@ -137,6 +151,12 @@ func TestMetaSchemaValidateAllTables(t *testing.T) {
 	if !channelLatestPrimaryRegistered {
 		t.Fatalf("channel latest table missing typed primary index %d", channelLatestPrimaryIndexID)
 	}
+	if !messageEventStatePrimaryRegistered {
+		t.Fatalf("message event state table missing typed primary index %d", messageEventStatePrimaryIndexID)
+	}
+	if !messageEventCursorPrimaryRegistered {
+		t.Fatalf("message event cursor table missing typed primary index %d", messageEventCursorPrimaryIndexID)
+	}
 	if !conversationPrimaryRegistered {
 		t.Fatalf("conversation table missing kind-aware typed primary index")
 	}
@@ -161,6 +181,8 @@ func TestMetaSchemaValidateAllTables(t *testing.T) {
 		TableIDHashSlotMigration,
 		TableIDUserChannelMembership,
 		TableIDChannelLatest,
+		TableIDMessageEventState,
+		TableIDMessageEventCursor,
 	} {
 		if _, ok := seen[tableID]; !ok {
 			t.Fatalf("table id %d missing from Tables()", tableID)

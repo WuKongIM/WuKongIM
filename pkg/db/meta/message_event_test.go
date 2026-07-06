@@ -1,0 +1,242 @@
+package meta
+
+import (
+	"context"
+	"encoding/json"
+	"reflect"
+	"testing"
+)
+
+func TestMessageEventAppendTextLifecycle(t *testing.T) {
+	store := openTestMetaStore(t)
+	defer store.close(t)
+	ctx := context.Background()
+	shard := store.db.ForHashSlot(4)
+
+	first, err := shard.AppendMessageEvent(ctx, MessageEventAppend{
+		ChannelID: "g1", ChannelType: 2, ClientMsgNo: "cmn-text",
+		EventID: "evt-1", EventKey: "main", EventType: EventTypeStreamDelta,
+		Payload: []byte(`{"kind":"text","delta":"hello"}`), OccurredAt: 10, UpdatedAt: 11,
+	})
+	if err != nil {
+		t.Fatalf("AppendMessageEvent(first): %v", err)
+	}
+	if first.MsgEventSeq != 1 || first.Status != EventStatusOpen {
+		t.Fatalf("first result = %#v, want seq=1 status=open", first)
+	}
+
+	second, err := shard.AppendMessageEvent(ctx, MessageEventAppend{
+		ChannelID: "g1", ChannelType: 2, ClientMsgNo: "cmn-text",
+		EventID: "evt-2", EventKey: "main", EventType: EventTypeStreamDelta,
+		Payload: []byte(`{"kind":"text","delta":" world"}`), OccurredAt: 12, UpdatedAt: 13,
+	})
+	if err != nil {
+		t.Fatalf("AppendMessageEvent(second): %v", err)
+	}
+	if second.MsgEventSeq != 2 {
+		t.Fatalf("second seq = %d, want 2", second.MsgEventSeq)
+	}
+
+	closed, err := shard.AppendMessageEvent(ctx, MessageEventAppend{
+		ChannelID: "g1", ChannelType: 2, ClientMsgNo: "cmn-text",
+		EventID: "evt-3", EventKey: "main", EventType: EventTypeStreamClose,
+		Payload: []byte(`{"end_reason":2}`), OccurredAt: 14, UpdatedAt: 15,
+	})
+	if err != nil {
+		t.Fatalf("AppendMessageEvent(close): %v", err)
+	}
+	if closed.MsgEventSeq != 3 || closed.State.EndReason != 2 {
+		t.Fatalf("closed result = %#v, want seq=3 end_reason=2", closed)
+	}
+
+	state, err := shard.GetMessageEventState(ctx, "g1", 2, "cmn-text", "main")
+	if err != nil {
+		t.Fatalf("GetMessageEventState(): %v", err)
+	}
+	if state.Status != EventStatusClosed || state.LastMsgEventSeq != 3 {
+		t.Fatalf("state = %#v, want closed seq=3", state)
+	}
+	if got, want := string(state.SnapshotPayload), `{"kind":"text","text":"hello world"}`; !jsonEqualForTest(got, want) {
+		t.Fatalf("snapshot = %s, want %s", got, want)
+	}
+}
+
+func TestMessageEventAppendIdempotentByLastEventID(t *testing.T) {
+	store := openTestMetaStore(t)
+	defer store.close(t)
+	ctx := context.Background()
+	shard := store.db.ForHashSlot(4)
+
+	first, err := shard.AppendMessageEvent(ctx, MessageEventAppend{
+		ChannelID: "g1", ChannelType: 2, ClientMsgNo: "cmn-idem",
+		EventID: "evt-1", EventKey: "main", EventType: EventTypeStreamDelta,
+		Payload: []byte(`{"kind":"text","delta":"A"}`), OccurredAt: 10, UpdatedAt: 11,
+	})
+	if err != nil {
+		t.Fatalf("AppendMessageEvent(first): %v", err)
+	}
+	duplicate, err := shard.AppendMessageEvent(ctx, MessageEventAppend{
+		ChannelID: "g1", ChannelType: 2, ClientMsgNo: "cmn-idem",
+		EventID: "evt-1", EventKey: "main", EventType: EventTypeStreamDelta,
+		Payload: []byte(`{"kind":"text","delta":"B"}`), OccurredAt: 12, UpdatedAt: 13,
+	})
+	if err != nil {
+		t.Fatalf("AppendMessageEvent(duplicate): %v", err)
+	}
+	if duplicate.MsgEventSeq != first.MsgEventSeq {
+		t.Fatalf("duplicate seq = %d, want %d", duplicate.MsgEventSeq, first.MsgEventSeq)
+	}
+	if got, want := string(duplicate.State.SnapshotPayload), `{"kind":"text","text":"A"}`; !jsonEqualForTest(got, want) {
+		t.Fatalf("duplicate snapshot = %s, want %s", got, want)
+	}
+}
+
+func TestMessageEventAppendTerminalDoesNotAdvanceSeq(t *testing.T) {
+	store := openTestMetaStore(t)
+	defer store.close(t)
+	ctx := context.Background()
+	shard := store.db.ForHashSlot(4)
+
+	closed, err := shard.AppendMessageEvent(ctx, MessageEventAppend{
+		ChannelID: "g1", ChannelType: 2, ClientMsgNo: "cmn-terminal",
+		EventID: "evt-close", EventKey: "main", EventType: EventTypeStreamClose,
+		Payload: []byte(`{"end_reason":2}`), OccurredAt: 10, UpdatedAt: 11,
+	})
+	if err != nil {
+		t.Fatalf("AppendMessageEvent(close): %v", err)
+	}
+	delta, err := shard.AppendMessageEvent(ctx, MessageEventAppend{
+		ChannelID: "g1", ChannelType: 2, ClientMsgNo: "cmn-terminal",
+		EventID: "evt-after-close", EventKey: "main", EventType: EventTypeStreamDelta,
+		Payload: []byte(`{"kind":"text","delta":"late"}`), OccurredAt: 12, UpdatedAt: 13,
+	})
+	if err != nil {
+		t.Fatalf("AppendMessageEvent(delta): %v", err)
+	}
+	if delta.MsgEventSeq != closed.MsgEventSeq || delta.Status != EventStatusClosed {
+		t.Fatalf("delta result = %#v, want close seq/status", delta)
+	}
+}
+
+func TestMessageEventAppendNormalizesEmptyEventKey(t *testing.T) {
+	store := openTestMetaStore(t)
+	defer store.close(t)
+	ctx := context.Background()
+	shard := store.db.ForHashSlot(4)
+
+	result, err := shard.AppendMessageEvent(ctx, MessageEventAppend{
+		ChannelID: "g1", ChannelType: 2, ClientMsgNo: "cmn-key",
+		EventID: "evt-1", EventKey: "  ", EventType: EventTypeStreamDelta,
+		Payload: []byte(`{"kind":"text","delta":"A"}`), OccurredAt: 10, UpdatedAt: 11,
+	})
+	if err != nil {
+		t.Fatalf("AppendMessageEvent(): %v", err)
+	}
+	if result.EventKey != EventKeyDefault {
+		t.Fatalf("event key = %q, want %q", result.EventKey, EventKeyDefault)
+	}
+	if _, err := shard.GetMessageEventState(ctx, "g1", 2, "cmn-key", EventKeyDefault); err != nil {
+		t.Fatalf("GetMessageEventState(default): %v", err)
+	}
+}
+
+func TestMessageEventAppendFinishUsesFinishKey(t *testing.T) {
+	store := openTestMetaStore(t)
+	defer store.close(t)
+	ctx := context.Background()
+	shard := store.db.ForHashSlot(4)
+
+	result, err := shard.AppendMessageEvent(ctx, MessageEventAppend{
+		ChannelID: "g1", ChannelType: 2, ClientMsgNo: "cmn-finish",
+		EventID: "evt-finish", EventKey: "main", EventType: EventTypeStreamFinish,
+		Payload: []byte(`{"ok":true}`), OccurredAt: 10, UpdatedAt: 11,
+	})
+	if err != nil {
+		t.Fatalf("AppendMessageEvent(finish): %v", err)
+	}
+	if result.EventKey != EventKeyFinish || result.Status != EventStatusClosed {
+		t.Fatalf("finish result = %#v, want finish key and closed status", result)
+	}
+	state, err := shard.GetMessageEventState(ctx, "g1", 2, "cmn-finish", EventKeyFinish)
+	if err != nil {
+		t.Fatalf("GetMessageEventState(finish): %v", err)
+	}
+	if state.EventKey != EventKeyFinish || state.Status != EventStatusClosed {
+		t.Fatalf("finish state = %#v, want finish key and closed status", state)
+	}
+}
+
+func TestMessageEventAppendBatchOverlayAllocatesDistinctSeq(t *testing.T) {
+	store := openTestMetaStore(t)
+	defer store.close(t)
+	ctx := context.Background()
+
+	batch := store.db.NewBatch()
+	first, err := batch.AppendMessageEvent(4, MessageEventAppend{
+		ChannelID: "g1", ChannelType: 2, ClientMsgNo: "cmn-batch",
+		EventID: "evt-1", EventKey: "left", EventType: EventTypeStreamDelta,
+		Payload: []byte(`{"kind":"text","delta":"A"}`), OccurredAt: 10, UpdatedAt: 11,
+	})
+	if err != nil {
+		t.Fatalf("AppendMessageEvent(first): %v", err)
+	}
+	second, err := batch.AppendMessageEvent(4, MessageEventAppend{
+		ChannelID: "g1", ChannelType: 2, ClientMsgNo: "cmn-batch",
+		EventID: "evt-2", EventKey: "right", EventType: EventTypeStreamDelta,
+		Payload: []byte(`{"kind":"text","delta":"B"}`), OccurredAt: 12, UpdatedAt: 13,
+	})
+	if err != nil {
+		t.Fatalf("AppendMessageEvent(second): %v", err)
+	}
+	if first.MsgEventSeq != 1 || second.MsgEventSeq != 2 {
+		t.Fatalf("batch seqs = %d,%d want 1,2", first.MsgEventSeq, second.MsgEventSeq)
+	}
+	if err := batch.Commit(ctx); err != nil {
+		t.Fatalf("Commit(): %v", err)
+	}
+	states, err := store.db.ForHashSlot(4).ListMessageEventStates(ctx, "g1", 2, "cmn-batch", 10)
+	if err != nil {
+		t.Fatalf("ListMessageEventStates(): %v", err)
+	}
+	if len(states) != 2 || states[0].EventKey != "left" || states[1].EventKey != "right" {
+		t.Fatalf("states = %#v, want left/right", states)
+	}
+}
+
+func TestMessageEventListStatesByClientMsgNo(t *testing.T) {
+	store := openTestMetaStore(t)
+	defer store.close(t)
+	ctx := context.Background()
+	shard := store.db.ForHashSlot(4)
+
+	events := []MessageEventAppend{
+		{ChannelID: "g1", ChannelType: 2, ClientMsgNo: "cmn-list", EventID: "evt-a", EventKey: "a", EventType: EventTypeStreamDelta, Payload: []byte(`{"kind":"text","delta":"A"}`)},
+		{ChannelID: "g1", ChannelType: 2, ClientMsgNo: "cmn-list", EventID: "evt-b", EventKey: "b", EventType: EventTypeStreamDelta, Payload: []byte(`{"kind":"text","delta":"B"}`)},
+		{ChannelID: "g1", ChannelType: 2, ClientMsgNo: "cmn-other", EventID: "evt-c", EventKey: "c", EventType: EventTypeStreamDelta, Payload: []byte(`{"kind":"text","delta":"C"}`)},
+	}
+	for _, event := range events {
+		if _, err := shard.AppendMessageEvent(ctx, event); err != nil {
+			t.Fatalf("AppendMessageEvent(%s): %v", event.EventID, err)
+		}
+	}
+
+	states, err := shard.ListMessageEventStates(ctx, "g1", 2, "cmn-list", 10)
+	if err != nil {
+		t.Fatalf("ListMessageEventStates(): %v", err)
+	}
+	if len(states) != 2 || states[0].EventKey != "a" || states[1].EventKey != "b" {
+		t.Fatalf("states = %#v, want a/b only", states)
+	}
+}
+
+func jsonEqualForTest(left, right string) bool {
+	var leftValue any
+	var rightValue any
+	if err := json.Unmarshal([]byte(left), &leftValue); err != nil {
+		return false
+	}
+	if err := json.Unmarshal([]byte(right), &rightValue); err != nil {
+		return false
+	}
+	return reflect.DeepEqual(leftValue, rightValue)
+}

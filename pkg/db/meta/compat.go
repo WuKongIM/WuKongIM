@@ -660,6 +660,28 @@ func (s *ShardStore) UpsertChannelLatest(ctx context.Context, latest ChannelLate
 	return s.shard.UpsertChannelLatest(ctx, latest)
 }
 
+func (s *ShardStore) AppendMessageEvent(ctx context.Context, event MessageEventAppend) (MessageEventAppendResult, error) {
+	if err := s.validate(); err != nil {
+		return MessageEventAppendResult{}, err
+	}
+	return s.shard.AppendMessageEvent(ctx, event)
+}
+
+func (s *ShardStore) GetMessageEventState(ctx context.Context, channelID string, channelType int64, clientMsgNo string, eventKey string) (MessageEventState, error) {
+	if err := s.validate(); err != nil {
+		return MessageEventState{}, err
+	}
+	state, ok, err := s.shard.GetMessageEventState(ctx, channelID, channelType, clientMsgNo, eventKey)
+	return state, foundError(ok, err)
+}
+
+func (s *ShardStore) ListMessageEventStates(ctx context.Context, channelID string, channelType int64, clientMsgNo string, limit int) ([]MessageEventState, error) {
+	if err := s.validate(); err != nil {
+		return nil, err
+	}
+	return s.shard.ListMessageEventStates(ctx, channelID, channelType, clientMsgNo, limit)
+}
+
 // GetUserConversationState returns a legacy ordinary conversation row.
 func (s *Shard) GetUserConversationState(ctx context.Context, uid, channelID string, channelType int64) (UserConversationState, error) {
 	state, ok, err := s.GetConversationState(ctx, ConversationKindNormal, uid, channelID, channelType)
@@ -1469,6 +1491,13 @@ func (b *WriteBatch) UpsertChannelLatest(hashSlot uint16, latest ChannelLatest) 
 		return err
 	}
 	return b.batch.UpsertChannelLatest(HashSlot(hashSlot), latest)
+}
+
+func (b *WriteBatch) AppendMessageEvent(hashSlot uint16, event MessageEventAppend) (MessageEventAppendResult, error) {
+	if err := b.ensure(); err != nil {
+		return MessageEventAppendResult{}, err
+	}
+	return b.batch.AppendMessageEvent(HashSlot(hashSlot), event)
 }
 
 func (b *WriteBatch) stageSubscribers(hashSlot uint16, channelID string, channelType int64, uids []string, mutationVersion uint64, add bool) error {
