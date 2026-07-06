@@ -1,6 +1,7 @@
 package meta
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"strings"
@@ -262,6 +263,8 @@ func (b *Batch) AppendMessageEvent(hashSlot HashSlot, event MessageEventAppend) 
 	if err != nil {
 		return MessageEventAppendResult{}, err
 	}
+	baseState := cloneMessageEventState(state)
+	baseCursor := cursor
 	nextState, nextCursor, applied, result := reduceMessageEventAppend(state, stateExists, cursor, cursorExists, event)
 	if !applied {
 		return result, nil
@@ -278,6 +281,20 @@ func (b *Batch) AppendMessageEvent(hashSlot HashSlot, event MessageEventAppend) 
 	stateValue := encodeMessageEventStateValue(nextState)
 	cursorValue := encodeMessageEventCursorValue(nextCursor)
 	b.addOp(hashSlot, func(ctx context.Context, state *batchCommitState, batch *engine.Batch) error {
+		currentState, currentStateExists, err := messageEventStateTable.loadBatchRow(state, hashSlot, messageEventStatePrimaryKey(event.ChannelID, event.ChannelType, event.ClientMsgNo, event.EventKey), stateKey)
+		if err != nil {
+			return err
+		}
+		if !messageEventStateEqual(currentState, currentStateExists, baseState, stateExists) {
+			return dberrors.ErrConflict
+		}
+		currentCursor, currentCursorExists, err := messageEventCursorTable.loadBatchRow(state, hashSlot, messageEventCursorPrimaryKey(event.ChannelID, event.ChannelType, event.ClientMsgNo), cursorKey)
+		if err != nil {
+			return err
+		}
+		if !messageEventCursorEqual(currentCursor, currentCursorExists, baseCursor, cursorExists) {
+			return dberrors.ErrConflict
+		}
 		if err := batch.Set(stateKey, stateValue); err != nil {
 			return err
 		}
@@ -633,4 +650,37 @@ func cloneBytes(value []byte) []byte {
 		return nil
 	}
 	return append([]byte(nil), value...)
+}
+
+func messageEventStateEqual(left MessageEventState, leftExists bool, right MessageEventState, rightExists bool) bool {
+	if leftExists != rightExists {
+		return false
+	}
+	if !leftExists {
+		return true
+	}
+	return left.ChannelID == right.ChannelID &&
+		left.ChannelType == right.ChannelType &&
+		left.ClientMsgNo == right.ClientMsgNo &&
+		left.EventKey == right.EventKey &&
+		left.Status == right.Status &&
+		left.LastMsgEventSeq == right.LastMsgEventSeq &&
+		left.LastEventID == right.LastEventID &&
+		left.LastEventType == right.LastEventType &&
+		left.LastVisibility == right.LastVisibility &&
+		left.LastOccurredAt == right.LastOccurredAt &&
+		bytes.Equal(left.SnapshotPayload, right.SnapshotPayload) &&
+		left.EndReason == right.EndReason &&
+		left.Error == right.Error &&
+		left.UpdatedAt == right.UpdatedAt
+}
+
+func messageEventCursorEqual(left MessageEventCursor, leftExists bool, right MessageEventCursor, rightExists bool) bool {
+	if leftExists != rightExists {
+		return false
+	}
+	if !leftExists {
+		return true
+	}
+	return left == right
 }

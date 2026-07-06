@@ -3,6 +3,7 @@ package meta
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"reflect"
 	"testing"
 )
@@ -221,6 +222,72 @@ func TestMessageEventAppendBatchOverlayAllocatesDistinctSeq(t *testing.T) {
 	}
 	if len(states) != 2 || states[0].EventKey != "left" || states[1].EventKey != "right" {
 		t.Fatalf("states = %#v, want left/right", states)
+	}
+}
+
+func TestMessageEventAppendBatchDetectsExternalCursorDrift(t *testing.T) {
+	store := openTestMetaStore(t)
+	defer store.close(t)
+	ctx := context.Background()
+
+	batch := store.db.NewBatch()
+	if _, err := batch.AppendMessageEvent(4, MessageEventAppend{
+		ChannelID: "g1", ChannelType: 2, ClientMsgNo: "cmn-drift",
+		EventID: "evt-batch", EventKey: "main", EventType: EventTypeStreamDelta,
+		Payload: []byte(`{"kind":"text","delta":"batch"}`), UpdatedAt: 10,
+	}); err != nil {
+		t.Fatalf("AppendMessageEvent(batch): %v", err)
+	}
+	if _, err := store.db.HashSlot(4).AppendMessageEvent(ctx, MessageEventAppend{
+		ChannelID: "g1", ChannelType: 2, ClientMsgNo: "cmn-drift",
+		EventID: "evt-direct", EventKey: "main", EventType: EventTypeStreamDelta,
+		Payload: []byte(`{"kind":"text","delta":"direct"}`), UpdatedAt: 11,
+	}); err != nil {
+		t.Fatalf("AppendMessageEvent(direct): %v", err)
+	}
+	if err := batch.Commit(ctx); !errors.Is(err, ErrStaleMeta) {
+		t.Fatalf("Commit() error = %v, want ErrStaleMeta", err)
+	}
+	state, ok, err := store.db.HashSlot(4).GetMessageEventState(ctx, "g1", 2, "cmn-drift", "main")
+	if err != nil {
+		t.Fatalf("GetMessageEventState(): %v", err)
+	}
+	if !ok {
+		t.Fatal("GetMessageEventState(): missing state")
+	}
+	if state.LastMsgEventSeq != 1 || state.LastEventID != "evt-direct" {
+		t.Fatalf("state after conflict = %#v, want direct seq=1", state)
+	}
+}
+
+func TestMessageEventAppendClonesPayloadAndReturnedState(t *testing.T) {
+	store := openTestMetaStore(t)
+	defer store.close(t)
+	ctx := context.Background()
+	shard := store.db.HashSlot(4)
+
+	payload := []byte(`{"kind":"text","delta":"A"}`)
+	result, err := shard.AppendMessageEvent(ctx, MessageEventAppend{
+		ChannelID: "g1", ChannelType: 2, ClientMsgNo: "cmn-clone",
+		EventID: "evt-1", EventKey: "main", EventType: EventTypeStreamDelta,
+		Payload: payload, UpdatedAt: 10,
+	})
+	if err != nil {
+		t.Fatalf("AppendMessageEvent(): %v", err)
+	}
+	copy(payload, []byte(`{"kind":"text","delta":"B"}`))
+	if len(result.State.SnapshotPayload) > 0 {
+		result.State.SnapshotPayload[0] = 'X'
+	}
+	state, ok, err := shard.GetMessageEventState(ctx, "g1", 2, "cmn-clone", "main")
+	if err != nil {
+		t.Fatalf("GetMessageEventState(): %v", err)
+	}
+	if !ok {
+		t.Fatal("GetMessageEventState(): missing state")
+	}
+	if got, want := string(state.SnapshotPayload), `{"kind":"text","text":"A"}`; !jsonEqualForTest(got, want) {
+		t.Fatalf("snapshot = %s, want %s", got, want)
 	}
 }
 

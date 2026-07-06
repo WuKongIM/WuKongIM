@@ -24,6 +24,8 @@ func TestInspectTablesIncludesRegisteredSchemas(t *testing.T) {
 		"plugin_binding",
 		"channel_migration",
 		"hashslot_migration",
+		"message_event_state",
+		"message_event_cursor",
 	} {
 		if !names[name] {
 			t.Fatalf("InspectTables() missing %q; got %+v", name, got)
@@ -491,6 +493,47 @@ func TestInspectScanRemainingTablesSmoke(t *testing.T) {
 				t.Helper()
 				if row["channel_id"] != "latest" || row["last_message_seq"] != uint64(9) || string(row["payload"].([]byte)) != "payload" {
 					t.Fatalf("channel latest row = %+v", row)
+				}
+			},
+		},
+		{
+			name:  "message_event_state",
+			table: "message_event_state",
+			slot:  19,
+			seed: func(ctx context.Context, shard *Shard) error {
+				_, err := shard.AppendMessageEvent(ctx, MessageEventAppend{
+					ChannelID: "event", ChannelType: 2, ClientMsgNo: "cmn-1",
+					EventID: "evt-1", EventKey: "main", EventType: EventTypeStreamDelta,
+					Payload: []byte(`{"kind":"text","delta":"hi"}`), OccurredAt: 10, UpdatedAt: 11,
+				})
+				return err
+			},
+			assert: func(t *testing.T, row InspectRow) {
+				t.Helper()
+				if row["channel_id"] != "event" || row["client_msg_no"] != "cmn-1" || row["event_key"] != EventKeyDefault || row["last_msg_event_seq"] != uint64(1) {
+					t.Fatalf("message event state row = %+v", row)
+				}
+				if got, want := string(row["snapshot_payload"].([]byte)), `{"kind":"text","text":"hi"}`; !jsonEqualForTest(got, want) {
+					t.Fatalf("message event snapshot = %s, want %s", got, want)
+				}
+			},
+		},
+		{
+			name:  "message_event_cursor",
+			table: "message_event_cursor",
+			slot:  20,
+			seed: func(ctx context.Context, shard *Shard) error {
+				_, err := shard.AppendMessageEvent(ctx, MessageEventAppend{
+					ChannelID: "event", ChannelType: 2, ClientMsgNo: "cmn-1",
+					EventID: "evt-1", EventType: EventTypeStreamDelta,
+					Payload: []byte(`{"kind":"text","delta":"hi"}`), UpdatedAt: 11,
+				})
+				return err
+			},
+			assert: func(t *testing.T, row InspectRow) {
+				t.Helper()
+				if row["channel_id"] != "event" || row["client_msg_no"] != "cmn-1" || row["last_msg_event_seq"] != uint64(1) || row["updated_at"] != int64(11) {
+					t.Fatalf("message event cursor row = %+v", row)
 				}
 			},
 		},

@@ -95,6 +95,10 @@ func InspectScan(ctx context.Context, db *MetaDB, req InspectScanRequest) (Inspe
 		return inspectScanTable(ctx, db, req, slots, userChannelMembershipTable, inspectUserChannelMembershipRow)
 	case "channel_latest":
 		return inspectScanTable(ctx, db, req, slots, channelLatestTable, inspectChannelLatestRow)
+	case "message_event_state":
+		return inspectScanTable(ctx, db, req, slots, messageEventStateTable, inspectMessageEventStateRow)
+	case "message_event_cursor":
+		return inspectScanTable(ctx, db, req, slots, messageEventCursorTable, inspectMessageEventCursorRow)
 	case "conversation":
 		return inspectScanTable(ctx, db, req, slots, conversationTable, inspectConversationRow)
 	case "plugin_binding":
@@ -515,6 +519,35 @@ func inspectChannelLatestRow(latest ChannelLatest) InspectRow {
 		"client_msg_no":    latest.ClientMsgNo,
 		"payload":          latest.Payload,
 		"updated_at":       latest.UpdatedAt,
+	}
+}
+
+func inspectMessageEventStateRow(state MessageEventState) InspectRow {
+	return InspectRow{
+		"channel_id":         state.ChannelID,
+		"channel_type":       state.ChannelType,
+		"client_msg_no":      state.ClientMsgNo,
+		"event_key":          state.EventKey,
+		"status":             state.Status,
+		"last_msg_event_seq": state.LastMsgEventSeq,
+		"last_event_id":      state.LastEventID,
+		"last_event_type":    state.LastEventType,
+		"last_visibility":    state.LastVisibility,
+		"last_occurred_at":   state.LastOccurredAt,
+		"snapshot_payload":   state.SnapshotPayload,
+		"end_reason":         state.EndReason,
+		"error":              state.Error,
+		"updated_at":         state.UpdatedAt,
+	}
+}
+
+func inspectMessageEventCursorRow(cursor MessageEventCursor) InspectRow {
+	return InspectRow{
+		"channel_id":         cursor.ChannelID,
+		"channel_type":       cursor.ChannelType,
+		"client_msg_no":      cursor.ClientMsgNo,
+		"last_msg_event_seq": cursor.LastMsgEventSeq,
+		"updated_at":         cursor.UpdatedAt,
 	}
 }
 
