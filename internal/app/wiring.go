@@ -804,6 +804,9 @@ func (a *App) wireMessages() {
 		if readNode, ok := a.cluster.(clusterinfra.ChannelMessageReadNode); ok {
 			messageOpts.Reader = clusterinfra.NewChannelMessageReader(readNode)
 		}
+		if eventNode, ok := a.cluster.(clusterinfra.MessageEventNode); ok {
+			messageOpts.EventStore = clusterinfra.NewMessageEventStore(eventNode)
+		}
 		a.messages = message.New(messageOpts)
 	}
 }

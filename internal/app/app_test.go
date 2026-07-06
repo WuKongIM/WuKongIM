@@ -5067,6 +5067,43 @@ func TestAppWiresMessageSyncRouteToCMDSyncUsecase(t *testing.T) {
 	}
 }
 
+func TestAppWiresMessageEventRouteToClusterStore(t *testing.T) {
+	cluster := newFakePresenceCluster(1, nil)
+	cluster.snapshot = readyFakeClusterSnapshot(1, 16)
+	app, err := newTestApp(t, Config{
+		API: APIConfig{ListenAddr: "127.0.0.1:0"},
+	}, WithCluster(cluster))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	apiSrv, ok := app.api.(*accessapi.Server)
+	if !ok {
+		t.Fatalf("api runtime = %T, want *accessapi.Server", app.api)
+	}
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/message/event", strings.NewReader(`{"channel_id":"g1","channel_type":2,"from_uid":"u1","client_msg_no":"cmn-1","event_id":"evt-1","event_type":"stream.open","payload":{"kind":"text"}}`))
+	req.Header.Set("Content-Type", "application/json")
+	apiSrv.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s, want 200", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), `"msg_event_seq":1`) || !strings.Contains(rec.Body.String(), `"stream_status":"open"`) {
+		t.Fatalf("body = %s, want event append data", rec.Body.String())
+	}
+	if len(cluster.messageEventAppends) != 1 {
+		t.Fatalf("message event appends = %#v, want one append", cluster.messageEventAppends)
+	}
+	event := cluster.messageEventAppends[0]
+	if event.ChannelID != "g1" || event.ChannelType != 2 || event.ClientMsgNo != "cmn-1" || event.EventID != "evt-1" || event.EventType != metadb.EventTypeStreamOpen {
+		t.Fatalf("message event append = %#v, want mapped event", event)
+	}
+	if string(event.Payload) != `{"kind":"text"}` {
+		t.Fatalf("payload = %q, want raw event payload", event.Payload)
+	}
+}
+
 func TestAppWiresConversationListMetrics(t *testing.T) {
 	cluster := newFakePresenceCluster(1, nil)
 	cluster.snapshot = readyFakeClusterSnapshot(1, 16)
@@ -6088,6 +6125,8 @@ type fakePresenceCluster struct {
 	conversationStateBatches  [][]metadb.ConversationState
 	conversationDeleteBatches [][]metadb.ConversationDelete
 	conversationPatchBatches  [][]metadb.ConversationActivePatch
+	messageEventAppends       []metadb.MessageEventAppend
+	messageEventStates        map[metadb.MessageEventMessageKey][]metadb.MessageEventState
 	subscribers               map[string][]string
 	channels                  map[metadb.ConversationKey]metadb.Channel
 }
@@ -6677,6 +6716,67 @@ func (f *fakePresenceCluster) ReadChannelLastVisible(_ context.Context, id chann
 
 func (f *fakePresenceCluster) ReadChannelCommitted(context.Context, channelruntime.ChannelID, channelstore.ReadCommittedRequest) (channelstore.ReadCommittedResult, error) {
 	return channelstore.ReadCommittedResult{}, nil
+}
+
+func (f *fakePresenceCluster) AppendMessageEvent(_ context.Context, event metadb.MessageEventAppend) (metadb.MessageEventAppendResult, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	event.Payload = append([]byte(nil), event.Payload...)
+	f.messageEventAppends = append(f.messageEventAppends, event)
+	eventKey := event.EventKey
+	if eventKey == "" {
+		eventKey = metadb.EventKeyDefault
+	}
+	if event.EventType == metadb.EventTypeStreamFinish {
+		eventKey = metadb.EventKeyFinish
+	}
+	state := metadb.MessageEventState{
+		ChannelID:       event.ChannelID,
+		ChannelType:     event.ChannelType,
+		ClientMsgNo:     event.ClientMsgNo,
+		EventKey:        eventKey,
+		Status:          metadb.EventStatusOpen,
+		LastMsgEventSeq: 1,
+		LastEventID:     event.EventID,
+		LastEventType:   event.EventType,
+		LastVisibility:  event.Visibility,
+		LastOccurredAt:  event.OccurredAt,
+		UpdatedAt:       event.UpdatedAt,
+	}
+	key := metadb.MessageEventMessageKey{ChannelID: event.ChannelID, ChannelType: event.ChannelType, ClientMsgNo: event.ClientMsgNo}
+	if f.messageEventStates == nil {
+		f.messageEventStates = make(map[metadb.MessageEventMessageKey][]metadb.MessageEventState)
+	}
+	f.messageEventStates[key] = []metadb.MessageEventState{state}
+	return metadb.MessageEventAppendResult{
+		ChannelID:   event.ChannelID,
+		ChannelType: event.ChannelType,
+		ClientMsgNo: event.ClientMsgNo,
+		EventID:     event.EventID,
+		EventKey:    eventKey,
+		MsgEventSeq: state.LastMsgEventSeq,
+		Status:      state.Status,
+		State:       state,
+	}, nil
+}
+
+func (f *fakePresenceCluster) GetMessageEventStatesBatch(_ context.Context, keys []metadb.MessageEventMessageKey, _ int) (map[metadb.MessageEventMessageKey][]metadb.MessageEventState, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	out := make(map[metadb.MessageEventMessageKey][]metadb.MessageEventState, len(keys))
+	for _, key := range keys {
+		rows := f.messageEventStates[key]
+		if len(rows) == 0 {
+			continue
+		}
+		cp := make([]metadb.MessageEventState, len(rows))
+		copy(cp, rows)
+		for i := range cp {
+			cp[i].SnapshotPayload = append([]byte(nil), cp[i].SnapshotPayload...)
+		}
+		out[key] = cp
+	}
+	return out, nil
 }
 
 func (f *fakePresenceCluster) WatchRouteAuthorities() <-chan clusterpkg.RouteAuthorityEvent {

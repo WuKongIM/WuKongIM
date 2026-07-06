@@ -231,8 +231,10 @@ New(Config)
        authority writer group
   -> create message.App with channelappend.Router, cluster channel metadata
      permission reads, system UID cache, configured message permission switches,
-     the optional plugin Send hook usecase when plugins are enabled, and the
-     cluster committed message reader when exposed for channel message sync
+     the optional plugin Send hook usecase when plugins are enabled, the
+     cluster committed message reader when exposed for channel message sync, and
+     the cluster message event projection store when exposed for `/message/event`
+     and `/channel/messagesync` event metadata enrichment
   -> when the cluster exposes unified conversation metadata writes and Channel runtime
      committed reads, create internal/usecase/cmdsync with one
      infra/cluster CMDSyncStore over ConversationKindCMD rows
@@ -431,6 +433,10 @@ send path available.
 If that runtime also implements the committed channel message read surface,
 `New` wires a `ChannelMessageReader` so `/channel/messagesync` can use the same
 message usecase as the gateway send path.
+If that runtime also implements the message event projection surface, `New`
+wires `MessageEventStore` so `/message/event` appends and `/channel/messagesync`
+event summaries share the same Slot/meta reducer as other cluster-owned message
+metadata. `/message/eventsync` remains outside the app surface in this phase.
 
 If the runtime also exposes unified conversation projection writes and committed
 Channel runtime reads, `New` wires `internal/usecase/cmdsync` through
