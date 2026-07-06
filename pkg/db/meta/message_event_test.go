@@ -11,7 +11,7 @@ func TestMessageEventAppendTextLifecycle(t *testing.T) {
 	store := openTestMetaStore(t)
 	defer store.close(t)
 	ctx := context.Background()
-	shard := store.db.ForHashSlot(4)
+	shard := store.db.HashSlot(4)
 
 	first, err := shard.AppendMessageEvent(ctx, MessageEventAppend{
 		ChannelID: "g1", ChannelType: 2, ClientMsgNo: "cmn-text",
@@ -49,9 +49,12 @@ func TestMessageEventAppendTextLifecycle(t *testing.T) {
 		t.Fatalf("closed result = %#v, want seq=3 end_reason=2", closed)
 	}
 
-	state, err := shard.GetMessageEventState(ctx, "g1", 2, "cmn-text", "main")
+	state, ok, err := shard.GetMessageEventState(ctx, "g1", 2, "cmn-text", "main")
 	if err != nil {
 		t.Fatalf("GetMessageEventState(): %v", err)
+	}
+	if !ok {
+		t.Fatal("GetMessageEventState(): missing state")
 	}
 	if state.Status != EventStatusClosed || state.LastMsgEventSeq != 3 {
 		t.Fatalf("state = %#v, want closed seq=3", state)
@@ -65,7 +68,7 @@ func TestMessageEventAppendIdempotentByLastEventID(t *testing.T) {
 	store := openTestMetaStore(t)
 	defer store.close(t)
 	ctx := context.Background()
-	shard := store.db.ForHashSlot(4)
+	shard := store.db.HashSlot(4)
 
 	first, err := shard.AppendMessageEvent(ctx, MessageEventAppend{
 		ChannelID: "g1", ChannelType: 2, ClientMsgNo: "cmn-idem",
@@ -95,7 +98,7 @@ func TestMessageEventAppendTerminalDoesNotAdvanceSeq(t *testing.T) {
 	store := openTestMetaStore(t)
 	defer store.close(t)
 	ctx := context.Background()
-	shard := store.db.ForHashSlot(4)
+	shard := store.db.HashSlot(4)
 
 	closed, err := shard.AppendMessageEvent(ctx, MessageEventAppend{
 		ChannelID: "g1", ChannelType: 2, ClientMsgNo: "cmn-terminal",
@@ -122,7 +125,7 @@ func TestMessageEventAppendNormalizesEmptyEventKey(t *testing.T) {
 	store := openTestMetaStore(t)
 	defer store.close(t)
 	ctx := context.Background()
-	shard := store.db.ForHashSlot(4)
+	shard := store.db.HashSlot(4)
 
 	result, err := shard.AppendMessageEvent(ctx, MessageEventAppend{
 		ChannelID: "g1", ChannelType: 2, ClientMsgNo: "cmn-key",
@@ -135,8 +138,10 @@ func TestMessageEventAppendNormalizesEmptyEventKey(t *testing.T) {
 	if result.EventKey != EventKeyDefault {
 		t.Fatalf("event key = %q, want %q", result.EventKey, EventKeyDefault)
 	}
-	if _, err := shard.GetMessageEventState(ctx, "g1", 2, "cmn-key", EventKeyDefault); err != nil {
+	if _, ok, err := shard.GetMessageEventState(ctx, "g1", 2, "cmn-key", EventKeyDefault); err != nil {
 		t.Fatalf("GetMessageEventState(default): %v", err)
+	} else if !ok {
+		t.Fatal("GetMessageEventState(default): missing state")
 	}
 }
 
@@ -144,7 +149,7 @@ func TestMessageEventAppendFinishUsesFinishKey(t *testing.T) {
 	store := openTestMetaStore(t)
 	defer store.close(t)
 	ctx := context.Background()
-	shard := store.db.ForHashSlot(4)
+	shard := store.db.HashSlot(4)
 
 	result, err := shard.AppendMessageEvent(ctx, MessageEventAppend{
 		ChannelID: "g1", ChannelType: 2, ClientMsgNo: "cmn-finish",
@@ -157,9 +162,12 @@ func TestMessageEventAppendFinishUsesFinishKey(t *testing.T) {
 	if result.EventKey != EventKeyFinish || result.Status != EventStatusClosed {
 		t.Fatalf("finish result = %#v, want finish key and closed status", result)
 	}
-	state, err := shard.GetMessageEventState(ctx, "g1", 2, "cmn-finish", EventKeyFinish)
+	state, ok, err := shard.GetMessageEventState(ctx, "g1", 2, "cmn-finish", EventKeyFinish)
 	if err != nil {
 		t.Fatalf("GetMessageEventState(finish): %v", err)
+	}
+	if !ok {
+		t.Fatal("GetMessageEventState(finish): missing state")
 	}
 	if state.EventKey != EventKeyFinish || state.Status != EventStatusClosed {
 		t.Fatalf("finish state = %#v, want finish key and closed status", state)
@@ -194,7 +202,7 @@ func TestMessageEventAppendBatchOverlayAllocatesDistinctSeq(t *testing.T) {
 	if err := batch.Commit(ctx); err != nil {
 		t.Fatalf("Commit(): %v", err)
 	}
-	states, err := store.db.ForHashSlot(4).ListMessageEventStates(ctx, "g1", 2, "cmn-batch", 10)
+	states, err := store.db.HashSlot(4).ListMessageEventStates(ctx, "g1", 2, "cmn-batch", 10)
 	if err != nil {
 		t.Fatalf("ListMessageEventStates(): %v", err)
 	}
@@ -207,7 +215,7 @@ func TestMessageEventListStatesByClientMsgNo(t *testing.T) {
 	store := openTestMetaStore(t)
 	defer store.close(t)
 	ctx := context.Background()
-	shard := store.db.ForHashSlot(4)
+	shard := store.db.HashSlot(4)
 
 	events := []MessageEventAppend{
 		{ChannelID: "g1", ChannelType: 2, ClientMsgNo: "cmn-list", EventID: "evt-a", EventKey: "a", EventType: EventTypeStreamDelta, Payload: []byte(`{"kind":"text","delta":"A"}`)},

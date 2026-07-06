@@ -154,41 +154,6 @@ var MessageEventStateTable = messageEventStateTable.Schema()
 // MessageEventCursorTable describes the message event cursor table schema.
 var MessageEventCursorTable = messageEventCursorTable.Schema()
 
-// MetaShardStore is a lightweight MetaDB hash-slot compatibility wrapper.
-type MetaShardStore struct {
-	shard *Shard
-}
-
-// ForHashSlot returns a compatibility wrapper for one hash slot.
-func (db *MetaDB) ForHashSlot(hashSlot uint16) *MetaShardStore {
-	return &MetaShardStore{shard: db.HashSlot(HashSlot(hashSlot))}
-}
-
-// AppendMessageEvent applies one message event projection update.
-func (s *MetaShardStore) AppendMessageEvent(ctx context.Context, event MessageEventAppend) (MessageEventAppendResult, error) {
-	if s == nil || s.shard == nil {
-		return MessageEventAppendResult{}, dberrors.ErrClosed
-	}
-	return s.shard.AppendMessageEvent(ctx, event)
-}
-
-// GetMessageEventState returns one projected message event lane.
-func (s *MetaShardStore) GetMessageEventState(ctx context.Context, channelID string, channelType int64, clientMsgNo string, eventKey string) (MessageEventState, error) {
-	if s == nil || s.shard == nil {
-		return MessageEventState{}, dberrors.ErrClosed
-	}
-	state, ok, err := s.shard.GetMessageEventState(ctx, channelID, channelType, clientMsgNo, eventKey)
-	return state, foundError(ok, err)
-}
-
-// ListMessageEventStates returns projected lanes for one message.
-func (s *MetaShardStore) ListMessageEventStates(ctx context.Context, channelID string, channelType int64, clientMsgNo string, limit int) ([]MessageEventState, error) {
-	if s == nil || s.shard == nil {
-		return nil, dberrors.ErrClosed
-	}
-	return s.shard.ListMessageEventStates(ctx, channelID, channelType, clientMsgNo, limit)
-}
-
 // GetMessageEventState returns one projected message event lane.
 func (s *Shard) GetMessageEventState(ctx context.Context, channelID string, channelType int64, clientMsgNo string, eventKey string) (MessageEventState, bool, error) {
 	if err := s.check(ctx); err != nil {
