@@ -145,6 +145,19 @@ func TestMessageEventAppendNormalizesEmptyEventKey(t *testing.T) {
 	}
 }
 
+func TestMessageEventAppendRejectsInvalidChannelType(t *testing.T) {
+	store := openTestMetaStore(t)
+	defer store.close(t)
+
+	_, err := store.db.HashSlot(4).AppendMessageEvent(context.Background(), MessageEventAppend{
+		ChannelID: "g1", ChannelType: -1, ClientMsgNo: "cmn-invalid",
+		EventID: "evt-1", EventType: EventTypeStreamDelta,
+	})
+	if err == nil {
+		t.Fatal("AppendMessageEvent() error = nil, want invalid argument")
+	}
+}
+
 func TestMessageEventAppendFinishUsesFinishKey(t *testing.T) {
 	store := openTestMetaStore(t)
 	defer store.close(t)

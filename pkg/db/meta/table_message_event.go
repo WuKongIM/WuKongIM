@@ -393,7 +393,7 @@ func normalizeMessageEventAppend(event MessageEventAppend) (MessageEventAppend, 
 	event.EventType = strings.ToLower(strings.TrimSpace(event.EventType))
 	event.Visibility = strings.TrimSpace(event.Visibility)
 	event.Payload = cloneBytes(event.Payload)
-	if event.ChannelID == "" || event.ChannelType == 0 || event.ClientMsgNo == "" || event.EventID == "" || event.EventType == "" {
+	if event.ChannelID == "" || event.ChannelType <= 0 || event.ClientMsgNo == "" || event.EventID == "" || event.EventType == "" {
 		return MessageEventAppend{}, dberrors.ErrInvalidArgument
 	}
 	if event.EventKey == "" {
@@ -431,7 +431,7 @@ func normalizeMessageEventStateKey(channelID string, channelType int64, clientMs
 func normalizeMessageEventMessageKey(channelID string, channelType int64, clientMsgNo string) (string, string, error) {
 	channelID = strings.TrimSpace(channelID)
 	clientMsgNo = strings.TrimSpace(clientMsgNo)
-	if channelType == 0 {
+	if channelType <= 0 {
 		return "", "", dberrors.ErrInvalidArgument
 	}
 	if err := validateKeyString(channelID); err != nil {
