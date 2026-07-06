@@ -178,6 +178,27 @@ contract and returns messages to the usecase in ascending sequence order. It
 maps only the fields currently carried by Channel runtime committed messages; legacy
 HTTP-only field shaping remains in `internal/access/api`.
 
+## Message Event Projection Flow
+
+```text
+message.MessageEventAppend
+  -> metadb.MessageEventAppend
+  -> cluster Node.AppendMessageEvent
+  -> Slot FSM message event reducer
+  -> message.MessageEventAppendResult
+
+message event summary keys
+  -> cluster Node.GetMessageEventStatesBatch
+  -> compact message event lane states
+```
+
+`MessageEventStore` adapts the message usecase event projection port to the
+cluster Slot metadata facade. It clones inbound payloads, maps compact reducer
+results back to usecase DTOs, and keeps route/not-leader/backpressure errors in
+the same typed family used by channel append. It does not validate HTTP request
+semantics, decide stream policy, emit realtime event packets, or implement
+`/message/eventsync`; those remain in access/usecase layers or later phases.
+
 ## CMD Sync Flow
 
 ```text

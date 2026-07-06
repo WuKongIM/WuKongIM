@@ -17,6 +17,8 @@ var (
 	ErrSyncChannelTypeRequired = errors.New("channel_type不能为空！")
 	// ErrMessageReaderRequired reports that channel message sync is not configured.
 	ErrMessageReaderRequired = errors.New("internal/message: message reader required")
+	// ErrMessageEventStoreRequired reports that message event projection storage is not configured.
+	ErrMessageEventStoreRequired = errors.New("internal/message: message event store required")
 	// ErrSendHookDepthExceeded reports that a plugin-origin send exceeded hook recursion limits.
 	ErrSendHookDepthExceeded = errors.New("internal/message: send hook depth exceeded")
 	// ErrRequestSubscribersRequireSyncOnce reports that request-scoped sends must be sync_once.

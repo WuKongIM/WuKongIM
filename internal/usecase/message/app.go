@@ -13,6 +13,8 @@ type Options struct {
 	Submitter Submitter
 	// Reader owns compatible channel message sync reads.
 	Reader ChannelMessageReader
+	// EventStore owns durable message event projection reads and writes.
+	EventStore MessageEventStore
 	// PermissionStore provides authoritative membership and channel reads for send authorization.
 	PermissionStore PermissionStore
 	// SendHook optionally mutates or rejects permission-accepted sends before append admission.
@@ -33,6 +35,7 @@ type Options struct {
 type App struct {
 	submitter              Submitter
 	reader                 ChannelMessageReader
+	eventStore             MessageEventStore
 	permissions            PermissionStore
 	sendHook               SendHook
 	systemUIDs             SystemUIDChecker
@@ -50,6 +53,7 @@ func New(opts Options) *App {
 	return &App{
 		submitter:              opts.Submitter,
 		reader:                 opts.Reader,
+		eventStore:             opts.EventStore,
 		permissions:            permissions,
 		sendHook:               opts.SendHook,
 		systemUIDs:             opts.SystemUIDs,

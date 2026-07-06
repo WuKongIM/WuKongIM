@@ -7,8 +7,9 @@ legacy-compatible send permission checks, and compatible channel message sync.
 Allowed SEND work is delegated to a configured `channelappend.Submitter`; this
 package does not own channel authority routing, durable append, message ID
 allocation, or post-commit delivery effects. It knows about permission metadata
-ports and the channel message read port for sync, but not gateway frames, wire
-protocols, HTTP JSON, or concrete cluster runtimes.
+ports, the channel message read port for sync, and the message event projection
+store port, but not gateway frames, wire protocols, HTTP JSON, or concrete
+cluster runtimes.
 
 ## SendBatch Flow
 
@@ -68,6 +69,16 @@ SyncChannelMessages(query)
 The sync usecase returns `SyncedMessage` DTOs with the fields needed by legacy
 HTTP responses. Concrete storage adapters may return zero values for fields that
 the current Channel write path does not persist yet.
+
+## Message Event Projection Ports
+
+`MessageEventStore` is the usecase boundary for message-scoped event
+projections. It appends one event update and returns the assigned
+message-level `msg_event_seq`, and it reads compact event lane states in batch
+for `/channel/messagesync` enrichment. The usecase DTOs are independent from
+the concrete Slot/metadb storage types; cluster adapters perform mapping and
+payload cloning. Fine-grained `/message/eventsync` replay is intentionally not
+part of this port in this phase.
 
 ## Import Boundary
 

@@ -20,3 +20,11 @@ type ChannelMessageReader interface {
 	// SyncMessages returns one authoritative channel message page.
 	SyncMessages(context.Context, ChannelMessageQuery) (ChannelMessagePage, error)
 }
+
+// MessageEventStore owns durable message event projection reads and writes.
+type MessageEventStore interface {
+	// AppendMessageEvent persists one message event projection update.
+	AppendMessageEvent(context.Context, MessageEventAppend) (MessageEventAppendResult, error)
+	// GetMessageEventStatesBatch reads compact event lane states for message keys.
+	GetMessageEventStatesBatch(context.Context, []MessageEventMessageKey, int) (map[MessageEventMessageKey][]MessageEventState, error)
+}
