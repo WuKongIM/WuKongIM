@@ -41,6 +41,25 @@ func TestNodeProposeDelegatesToService(t *testing.T) {
 	}
 }
 
+func TestNodeProposeUsesResultlessDelegateWhenAvailable(t *testing.T) {
+	proposer := &recordingResultProposer{result: []byte("applied")}
+	node, err := New(validNodeConfig(t), WithProposer(proposer))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	if err := node.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	t.Cleanup(func() { _ = node.Stop(context.Background()) })
+
+	if err := node.Propose(context.Background(), ProposeRequest{Key: "u1", Command: []byte("cmd")}); err != nil {
+		t.Fatalf("Propose() error = %v", err)
+	}
+	if proposer.calls != 1 || proposer.resultCalls != 0 || proposer.last.Key != "u1" {
+		t.Fatalf("proposer calls=%d resultCalls=%d last=%#v, want resultless delegate for key u1", proposer.calls, proposer.resultCalls, proposer.last)
+	}
+}
+
 func TestNodeProposeResultDelegatesWhenAvailable(t *testing.T) {
 	proposer := &recordingResultProposer{result: []byte("applied")}
 	node, err := New(validNodeConfig(t), WithProposer(proposer))

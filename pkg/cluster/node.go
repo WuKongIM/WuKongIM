@@ -239,8 +239,20 @@ func (n *Node) RouteHashSlot(hashSlot uint16) (Route, error) {
 
 // Propose submits a Slot metadata command through cluster routing.
 func (n *Node) Propose(ctx context.Context, req ProposeRequest) error {
-	_, err := n.ProposeResult(ctx, req)
-	return err
+	if err := ctxErr(ctx); err != nil {
+		return err
+	}
+	if err := n.ensureForeground(); err != nil {
+		return err
+	}
+	if n.proposer == nil {
+		return ErrNotStarted
+	}
+	return n.proposer.Propose(ctx, propose.Request{
+		Key:     req.Key,
+		Command: req.Command,
+		Target:  propose.Target{HashSlot: req.Target.HashSlot, HasHashSlot: req.Target.HasHashSlot, SlotID: req.Target.SlotID, HasSlotID: req.Target.HasSlotID},
+	})
 }
 
 // ProposeResult submits a Slot metadata command and returns FSM apply bytes when supported.
