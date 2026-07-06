@@ -404,6 +404,16 @@
           "expr": "histogram_quantile(0.95, sum(rate(wukongim_conversation_active_flush_rows_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, result))",
           "legendFormat": "flush rows p95 {{result}}",
           "refId": "F"
+        },
+        {
+          "expr": "sum by (kind) (wukongim_conversation_active_cache_kind_rows{node_name=~\"$node_name\"})",
+          "legendFormat": "cache rows {{kind}}",
+          "refId": "G"
+        },
+        {
+          "expr": "sum by (kind) (wukongim_conversation_active_cache_kind_dirty_rows{node_name=~\"$node_name\"})",
+          "legendFormat": "dirty rows {{kind}}",
+          "refId": "H"
         }
       ],
       "title": "Conversation Active Cache And Flush",

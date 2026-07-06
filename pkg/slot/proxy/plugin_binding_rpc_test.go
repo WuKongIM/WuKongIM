@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
-	raftcluster "github.com/WuKongIM/WuKongIM/pkg/legacy/cluster"
+	"github.com/WuKongIM/WuKongIM/pkg/hashslot"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 	"github.com/stretchr/testify/require"
 )
@@ -107,10 +107,10 @@ func TestPluginBindingStoreRoutesBindUnbindAndUIDQueriesToUIDOwner(t *testing.T)
 func TestPluginBindingStoreUsesUIDHashSlotForProposal(t *testing.T) {
 	ctx := context.Background()
 	const uid = "u-proposal"
-	hashSlot := raftcluster.HashSlotForKey(uid, 8)
+	hashSlot := hashslot.HashSlotForKey(uid, 8)
 	cluster := &proxyPluginBindingTestCluster{
 		slotForKeyFunc:     func(key string) multiraft.SlotID { return 1 },
-		hashSlotForKeyFunc: func(key string) uint16 { return raftcluster.HashSlotForKey(key, 8) },
+		hashSlotForKeyFunc: func(key string) uint16 { return hashslot.HashSlotForKey(key, 8) },
 		leaders:            map[multiraft.SlotID]multiraft.NodeID{1: 1},
 		peers:              map[multiraft.SlotID][]multiraft.NodeID{1: {1}},
 		localNodeID:        1,
@@ -777,7 +777,6 @@ func pluginBindingUIDs(bindings []metadb.PluginUserBinding) []string {
 }
 
 type proxyPluginBindingTestCluster struct {
-	raftcluster.API
 	slotForKeyFunc     func(string) multiraft.SlotID
 	hashSlotForKeyFunc func(string) uint16
 	slotIDs            []multiraft.SlotID
@@ -805,6 +804,10 @@ func (c *proxyPluginBindingTestCluster) HashSlotForKey(key string) uint16 {
 	return 0
 }
 
+func (c *proxyPluginBindingTestCluster) HashSlotTableVersion() uint64 {
+	return 1
+}
+
 func (c *proxyPluginBindingTestCluster) HashSlotsOf(slotID multiraft.SlotID) []uint16 {
 	return append([]uint16(nil), c.hashSlots[slotID]...)
 }
@@ -816,7 +819,7 @@ func (c *proxyPluginBindingTestCluster) SlotIDs() []multiraft.SlotID {
 func (c *proxyPluginBindingTestCluster) LeaderOf(slotID multiraft.SlotID) (multiraft.NodeID, error) {
 	leaderID, ok := c.leaders[slotID]
 	if !ok {
-		return 0, raftcluster.ErrNoLeader
+		return 0, ErrNoLeader
 	}
 	return leaderID, nil
 }

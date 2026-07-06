@@ -8,7 +8,7 @@
 - `cmd/wukongim` is the promoted product entrypoint. Controller, the new
   cluster runtime, the multi-reactor channel runtime, and the new business
   kernel are canonical under `pkg/controller`, `pkg/cluster`, `pkg/channel`,
-  and `internal`; the former v1 server runtime lives under `internal/legacy`.
+  and `internal`; the former v1 server runtime tree has been removed.
 - Runnable `wukongim` helper-script configs live under `scripts/wukongim/` as `.conf`; `.conf.example` files are samples only and should not be script defaults.
 - `wukongim` bottleneck attribution uses Prometheus `/metrics` when `WK_METRICS_ENABLE=true`; compare gateway async SEND, Channel runtime reactor/worker queue plus in-flight peak, and storage commit request-vs-batch metrics split by `leader_append` / `follower_apply` lane. `/bench/v1/snapshot` remains a benchmark setup counter surface.
 - `WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS` and `WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS` cap Channel runtime blocking store worker concurrency only; use them after worker in-flight peaks and storage lane tails show commit-coordinator pressure, never as a durability shortcut.
@@ -184,7 +184,7 @@
 - Plugin sends must go through `message.App.Send`; PersistAfter runs only on the channel owner node.
 - Plugin migration changes should rerun the microbenchmark baseline in `docs/development/PLUGIN_BENCHMARK_BASELINE.md`, especially Send hook selection, host RPC mapping, PersistAfter, HTTP forward, and NoPersist realtime delivery.
 - Plugin wire contracts live in `pkg/plugin/pluginproto`; keep protobuf field numbers compatible with `github.com/WuKongIM/go-pdk` and do not add new imports of old `internal/usecase/plugin/pluginproto`.
-- The node-local plugin process host lives in `pkg/plugin/pluginhost`; internal app wiring adapts it to `internal/usecase/plugin` without depending on old `internal/legacy/runtime/plugin`.
+- The node-local plugin process host lives in `pkg/plugin/pluginhost`; internal app wiring adapts it to `internal/usecase/plugin` without depending on old plugin runtime code.
 
 ## Development Workflow
 
@@ -206,8 +206,8 @@
 - `wkbench dev-sim` `/status` distinguishes the configured steady-state online pool (`connected_users`) from the latest sampled live count (`active_users`) and reconnect churn (`reconnected_users`) so online flapping is visible during triage.
 - In three-node real-QPS SEND benchmarks, the promoted transport runtime's channel append RPCs need a larger service pool than generic RPCs; Channel runtime store append/apply defaults should stay capped near the shared message DB commit coordinator instead of scaling unbounded with CPU count.
 - Stage 2 package promotion uses promoted names in default evidence and human-readable output (`channel`, `transport`) while keeping raw Prometheus inputs and legacy aliases such as `wukongim_channelv2_*`, `component="channelv2"`, and `channelv2_metrics_summary.tsv` compatible.
-- Stage 2 package promotion has physically moved the canonical runtimes to `pkg/channel`, `pkg/cluster`, `pkg/controller`, and `pkg/transport`; old implementations live under `pkg/legacy/*`, and new imports must not target `pkg/*v2`.
-- Promoted production roots must not import `internal/legacy` or `pkg/legacy/*`; `pkg/slot/proxy` has no legacy imports, and legacy app compatibility lives under `internal/legacy/app/slot_proxy_rpc.go`.
-- `pkg/cluster.Node` satisfies `pkg/slot/proxy.Cluster` plus the optional hash-slot proposer port; Slot proxy RPC handler registration should prefer `pkg/cluster.Node.RegisterRPC`, with legacy RPC mux registration done explicitly by legacy composition roots through `Store.RegisterRPCHandlers`.
+- Stage 2 package promotion has physically moved the canonical runtimes to `pkg/channel`, `pkg/cluster`, `pkg/controller`, and `pkg/transport`; the old implementations have been removed, and new imports must not target `pkg/*v2`.
+- Promoted production roots must not import old runtime paths; `pkg/slot/proxy` has no legacy imports.
+- `pkg/cluster.Node` satisfies `pkg/slot/proxy.Cluster` plus the optional hash-slot proposer port; Slot proxy RPC handler registration goes through `pkg/cluster.Node.RegisterRPC`.
 - In local three-node real-QPS 16k runs, message DB commit shards are an experimental default-off knob: shards reduced queue fill but increased physical commit count and sync tail; prefer single coordinator with bounded store append/apply workers unless new evidence shows storage parallelism helps.
 - Stage 2 package promotion extracted protocol-facing channel ID helpers to `pkg/protocol/channelid`; v1 and v2 server packages must not add new imports of old `internal/runtime/channelid`.

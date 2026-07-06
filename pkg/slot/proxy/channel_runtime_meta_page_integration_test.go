@@ -10,7 +10,6 @@ import (
 	"testing"
 
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
-	raftcluster "github.com/WuKongIM/WuKongIM/pkg/legacy/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 	"github.com/stretchr/testify/require"
 )
@@ -43,7 +42,7 @@ func TestStoreScanChannelRuntimeMetaSlotPageReadsAuthoritativeSlot(t *testing.T)
 	page, cursor, done, err := store.ScanChannelRuntimeMetaSlotPage(ctx, 2, metadb.ChannelRuntimeMetaCursor{}, 10)
 	require.NoError(t, err)
 	require.True(t, done)
-	require.Equal(t, []metadb.ChannelRuntimeMeta{meta}, page)
+	require.Equal(t, []metadb.ChannelRuntimeMeta{metadb.NormalizeChannelRuntimeMeta(meta)}, page)
 	require.Equal(t, metadb.ChannelRuntimeMetaCursor{ChannelID: channelID, ChannelType: 1}, cursor)
 }
 
@@ -108,17 +107,20 @@ func TestStoreScanChannelRuntimeMetaSlotPageMergesHashSlotsInChannelOrder(t *tes
 	page1, cursor, done, err := store.ScanChannelRuntimeMetaSlotPage(ctx, 2, metadb.ChannelRuntimeMetaCursor{}, 2)
 	require.NoError(t, err)
 	require.False(t, done)
-	require.Equal(t, []metadb.ChannelRuntimeMeta{metas[1], metas[2]}, page1)
+	require.Equal(t, []metadb.ChannelRuntimeMeta{
+		metadb.NormalizeChannelRuntimeMeta(metas[1]),
+		metadb.NormalizeChannelRuntimeMeta(metas[2]),
+	}, page1)
 	require.Equal(t, metadb.ChannelRuntimeMetaCursor{ChannelID: secondID, ChannelType: 1}, cursor)
 
 	page2, cursor, done, err := store.ScanChannelRuntimeMetaSlotPage(ctx, 2, cursor, 2)
 	require.NoError(t, err)
 	require.True(t, done)
-	require.Equal(t, []metadb.ChannelRuntimeMeta{metas[0]}, page2)
+	require.Equal(t, []metadb.ChannelRuntimeMeta{metadb.NormalizeChannelRuntimeMeta(metas[0])}, page2)
 	require.Equal(t, metadb.ChannelRuntimeMetaCursor{ChannelID: secondID, ChannelType: 2}, cursor)
 }
 
-func findChannelIDsForSlotAcrossHashSlots(t testing.TB, cluster *raftcluster.Cluster, slot uint64, count int, prefix string) []string {
+func findChannelIDsForSlotAcrossHashSlots(t testing.TB, cluster *proxyTestCluster, slot uint64, count int, prefix string) []string {
 	t.Helper()
 
 	idsByHashSlot := make(map[uint16]string, count)

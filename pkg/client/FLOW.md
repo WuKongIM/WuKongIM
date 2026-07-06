@@ -84,4 +84,4 @@ NewPool(PoolConfig)
 
 `internal/bench/wkproto` wraps `pkg/client` to preserve the historical `ReadFrame` API. It converts `SendFuture` results back into local `SendackPacket` frames and forwards decrypted RECV packets. Its bounded adapter queue keeps SENDACK/error results ahead of RECV bursts so successful sends are not hidden by receive backlog.
 
-`test/e2e/suite` and `test/legacy/e2e` use the same package for CONNECT, crypto, SENDACK matching, and RECV decryption while keeping their old helper methods.
+`test/e2e/suite` uses the same package for CONNECT, crypto, SENDACK matching, and RECV decryption while keeping black-box helper methods outside the client package.

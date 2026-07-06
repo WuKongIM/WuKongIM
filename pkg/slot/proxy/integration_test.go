@@ -14,7 +14,6 @@ import (
 	"testing"
 
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
-	raftcluster "github.com/WuKongIM/WuKongIM/pkg/legacy/cluster"
 	raftstorage "github.com/WuKongIM/WuKongIM/pkg/raftlog"
 	metafsm "github.com/WuKongIM/WuKongIM/pkg/slot/fsm"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
@@ -22,9 +21,9 @@ import (
 )
 
 func proposalPayload(data []byte) []byte {
-	payload := make([]byte, 2+len(data))
+	payload := make([]byte, 10+len(data))
 	binary.BigEndian.PutUint16(payload[:2], 0)
-	copy(payload[2:], data)
+	copy(payload[10:], data)
 	return payload
 }
 
@@ -292,39 +291,7 @@ func TestStoreUpsertAndGetChannelRuntimeMeta(t *testing.T) {
 	ctx := context.Background()
 	root := t.TempDir()
 	bizDB := openTestDBAt(t, filepath.Join(root, "biz"))
-	raftDB := openTestRaftDBAt(t, filepath.Join(root, "raft"))
-
-	cluster, err := raftcluster.NewCluster(raftcluster.Config{
-		NodeID:             1,
-		ListenAddr:         "127.0.0.1:0",
-		SlotCount:          1,
-		ControllerReplicaN: 1,
-		SlotReplicaN:       1,
-		NewStorage: func(slotID multiraft.SlotID) (multiraft.Storage, error) {
-			return raftDB.ForSlot(uint64(slotID)), nil
-		},
-		NewStateMachine:              metafsm.NewStateMachineFactory(bizDB),
-		NewStateMachineWithHashSlots: metafsm.NewHashSlotStateMachineFactory(bizDB),
-		Nodes:                        []raftcluster.NodeConfig{{NodeID: 1, Addr: "127.0.0.1:0"}},
-		Slots: []raftcluster.SlotConfig{{
-			SlotID: 1,
-			Peers:  []multiraft.NodeID{1},
-		}},
-	})
-	if err != nil {
-		t.Fatalf("NewCluster() error = %v", err)
-	}
-	t.Cleanup(cluster.Stop)
-	if err := cluster.Start(); err != nil {
-		t.Fatalf("cluster.Start() error = %v", err)
-	}
-
-	waitForCondition(t, func() bool {
-		_, err := cluster.LeaderOf(1)
-		return err == nil
-	}, "cluster leader elected")
-
-	store := New(cluster, bizDB)
+	_, store := newSingleNodeProxyTestStore(t, bizDB, 1)
 	meta := metadb.ChannelRuntimeMeta{
 		ChannelID:    "store-meta",
 		ChannelType:  9,
@@ -348,9 +315,7 @@ func TestStoreUpsertAndGetChannelRuntimeMeta(t *testing.T) {
 		t.Fatalf("GetChannelRuntimeMeta() error = %v", err)
 	}
 
-	want := meta
-	want.Replicas = []uint64{1, 2, 3}
-	want.ISR = []uint64{1, 2}
+	want := metadb.NormalizeChannelRuntimeMeta(meta)
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("stored runtime meta = %#v, want %#v", got, want)
 	}
@@ -360,35 +325,7 @@ func TestStoreAdvanceChannelRetentionThroughSeqPreservesTopology(t *testing.T) {
 	ctx := context.Background()
 	root := t.TempDir()
 	bizDB := openTestDBAt(t, filepath.Join(root, "biz"))
-	raftDB := openTestRaftDBAt(t, filepath.Join(root, "raft"))
-
-	cluster, err := raftcluster.NewCluster(raftcluster.Config{
-		NodeID:             1,
-		ListenAddr:         "127.0.0.1:0",
-		SlotCount:          1,
-		ControllerReplicaN: 1,
-		SlotReplicaN:       1,
-		NewStorage: func(slotID multiraft.SlotID) (multiraft.Storage, error) {
-			return raftDB.ForSlot(uint64(slotID)), nil
-		},
-		NewStateMachine:              metafsm.NewStateMachineFactory(bizDB),
-		NewStateMachineWithHashSlots: metafsm.NewHashSlotStateMachineFactory(bizDB),
-		Nodes:                        []raftcluster.NodeConfig{{NodeID: 1, Addr: "127.0.0.1:0"}},
-		Slots: []raftcluster.SlotConfig{{
-			SlotID: 1,
-			Peers:  []multiraft.NodeID{1},
-		}},
-	})
-	require.NoError(t, err)
-	t.Cleanup(cluster.Stop)
-	require.NoError(t, cluster.Start())
-
-	waitForCondition(t, func() bool {
-		_, err := cluster.LeaderOf(1)
-		return err == nil
-	}, "cluster leader elected")
-
-	store := New(cluster, bizDB)
+	_, store := newSingleNodeProxyTestStore(t, bizDB, 1)
 	base := metadb.ChannelRuntimeMeta{
 		ChannelID:    "store-retention-advance",
 		ChannelType:  9,
@@ -417,9 +354,8 @@ func TestStoreAdvanceChannelRetentionThroughSeqPreservesTopology(t *testing.T) {
 
 	got, err := store.GetChannelRuntimeMeta(ctx, base.ChannelID, base.ChannelType)
 	require.NoError(t, err)
-	want := base
-	want.Replicas = []uint64{1, 2, 3}
-	want.ISR = []uint64{1, 2}
+	want := metadb.NormalizeChannelRuntimeMeta(base)
+	want.RouteGeneration++
 	want.RetentionThroughSeq = 42
 	want.RetentionUpdatedAtMS = 1700000005000
 	require.Equal(t, want, got)
@@ -429,35 +365,7 @@ func TestStoreStaleAdvanceChannelRetentionThroughSeqReturnsStaleMetaAndSlotStays
 	ctx := context.Background()
 	root := t.TempDir()
 	bizDB := openTestDBAt(t, filepath.Join(root, "biz"))
-	raftDB := openTestRaftDBAt(t, filepath.Join(root, "raft"))
-
-	cluster, err := raftcluster.NewCluster(raftcluster.Config{
-		NodeID:             1,
-		ListenAddr:         "127.0.0.1:0",
-		SlotCount:          1,
-		ControllerReplicaN: 1,
-		SlotReplicaN:       1,
-		NewStorage: func(slotID multiraft.SlotID) (multiraft.Storage, error) {
-			return raftDB.ForSlot(uint64(slotID)), nil
-		},
-		NewStateMachine:              metafsm.NewStateMachineFactory(bizDB),
-		NewStateMachineWithHashSlots: metafsm.NewHashSlotStateMachineFactory(bizDB),
-		Nodes:                        []raftcluster.NodeConfig{{NodeID: 1, Addr: "127.0.0.1:0"}},
-		Slots: []raftcluster.SlotConfig{{
-			SlotID: 1,
-			Peers:  []multiraft.NodeID{1},
-		}},
-	})
-	require.NoError(t, err)
-	t.Cleanup(cluster.Stop)
-	require.NoError(t, cluster.Start())
-
-	waitForCondition(t, func() bool {
-		_, err := cluster.LeaderOf(1)
-		return err == nil
-	}, "cluster leader elected")
-
-	store := New(cluster, bizDB)
+	_, store := newSingleNodeProxyTestStore(t, bizDB, 1)
 	base := metadb.ChannelRuntimeMeta{
 		ChannelID:    "store-stale-retention-advance",
 		ChannelType:  9,
@@ -476,6 +384,8 @@ func TestStoreStaleAdvanceChannelRetentionThroughSeqReturnsStaleMetaAndSlotStays
 	current.LeaderEpoch++
 	current.LeaseUntilMS += 1000
 	require.NoError(t, store.UpsertChannelRuntimeMeta(ctx, current))
+	storedCurrent, err := store.GetChannelRuntimeMeta(ctx, current.ChannelID, current.ChannelType)
+	require.NoError(t, err)
 
 	err = store.AdvanceChannelRetentionThroughSeq(ctx, metadb.ChannelRetentionAdvance{
 		ChannelID:            base.ChannelID,
@@ -502,44 +412,18 @@ func TestStoreStaleAdvanceChannelRetentionThroughSeqReturnsStaleMetaAndSlotStays
 
 	got, err := store.GetChannelRuntimeMeta(ctx, current.ChannelID, current.ChannelType)
 	require.NoError(t, err)
-	current.RetentionThroughSeq = 43
-	current.RetentionUpdatedAtMS = 1700000006000
-	require.Equal(t, current, got)
+	want := storedCurrent
+	want.RouteGeneration++
+	want.RetentionThroughSeq = 43
+	want.RetentionUpdatedAtMS = 1700000006000
+	require.Equal(t, want, got)
 }
 
 func TestStoreCreateUserAndUpsertDevice(t *testing.T) {
 	ctx := context.Background()
 	root := t.TempDir()
 	bizDB := openTestDBAt(t, filepath.Join(root, "biz"))
-	raftDB := openTestRaftDBAt(t, filepath.Join(root, "raft"))
-
-	cluster, err := raftcluster.NewCluster(raftcluster.Config{
-		NodeID:             1,
-		ListenAddr:         "127.0.0.1:0",
-		SlotCount:          1,
-		ControllerReplicaN: 1,
-		SlotReplicaN:       1,
-		NewStorage: func(slotID multiraft.SlotID) (multiraft.Storage, error) {
-			return raftDB.ForSlot(uint64(slotID)), nil
-		},
-		NewStateMachine:              metafsm.NewStateMachineFactory(bizDB),
-		NewStateMachineWithHashSlots: metafsm.NewHashSlotStateMachineFactory(bizDB),
-		Nodes:                        []raftcluster.NodeConfig{{NodeID: 1, Addr: "127.0.0.1:0"}},
-		Slots: []raftcluster.SlotConfig{{
-			SlotID: 1,
-			Peers:  []multiraft.NodeID{1},
-		}},
-	})
-	require.NoError(t, err)
-	t.Cleanup(cluster.Stop)
-	require.NoError(t, cluster.Start())
-
-	waitForCondition(t, func() bool {
-		_, err := cluster.LeaderOf(1)
-		return err == nil
-	}, "cluster leader elected")
-
-	store := New(cluster, bizDB)
+	_, store := newSingleNodeProxyTestStore(t, bizDB, 1)
 	require.NoError(t, store.CreateUser(ctx, metadb.User{UID: "u1"}))
 
 	gotUser, err := store.GetUser(ctx, "u1")
@@ -594,36 +478,7 @@ func TestStoreListChannelRuntimeMeta(t *testing.T) {
 	ctx := context.Background()
 	root := t.TempDir()
 	bizDB := openTestDBAt(t, filepath.Join(root, "biz"))
-	raftDB := openTestRaftDBAt(t, filepath.Join(root, "raft"))
-
-	cluster, err := raftcluster.NewCluster(raftcluster.Config{
-		NodeID:             1,
-		ListenAddr:         "127.0.0.1:0",
-		SlotCount:          2,
-		ControllerReplicaN: 1,
-		SlotReplicaN:       1,
-		NewStorage: func(slotID multiraft.SlotID) (multiraft.Storage, error) {
-			return raftDB.ForSlot(uint64(slotID)), nil
-		},
-		NewStateMachine:              metafsm.NewStateMachineFactory(bizDB),
-		NewStateMachineWithHashSlots: metafsm.NewHashSlotStateMachineFactory(bizDB),
-		Nodes:                        []raftcluster.NodeConfig{{NodeID: 1, Addr: "127.0.0.1:0"}},
-		Slots: []raftcluster.SlotConfig{
-			{SlotID: 1, Peers: []multiraft.NodeID{1}},
-			{SlotID: 2, Peers: []multiraft.NodeID{1}},
-		},
-	})
-	require.NoError(t, err)
-	t.Cleanup(cluster.Stop)
-	require.NoError(t, cluster.Start())
-
-	waitForCondition(t, func() bool {
-		_, err1 := cluster.LeaderOf(1)
-		_, err2 := cluster.LeaderOf(2)
-		return err1 == nil && err2 == nil
-	}, "cluster leader elected")
-
-	store := New(cluster, bizDB)
+	_, store := newSingleNodeProxyTestStore(t, bizDB, 2)
 	first := metadb.ChannelRuntimeMeta{
 		ChannelID:    "store-list-1",
 		ChannelType:  1,
@@ -656,7 +511,10 @@ func TestStoreListChannelRuntimeMeta(t *testing.T) {
 
 	got, err := store.ListChannelRuntimeMeta(ctx)
 	require.NoError(t, err)
-	require.ElementsMatch(t, []metadb.ChannelRuntimeMeta{first, second}, got)
+	require.ElementsMatch(t, []metadb.ChannelRuntimeMeta{
+		metadb.NormalizeChannelRuntimeMeta(first),
+		metadb.NormalizeChannelRuntimeMeta(second),
+	}, got)
 }
 
 func TestStoreGetChannelRuntimeMetaReadsAuthoritativeRemoteSlot(t *testing.T) {
@@ -681,7 +539,7 @@ func TestStoreGetChannelRuntimeMetaReadsAuthoritativeRemoteSlot(t *testing.T) {
 
 	got, err := nodes[0].store.GetChannelRuntimeMeta(ctx, meta.ChannelID, meta.ChannelType)
 	require.NoError(t, err)
-	require.Equal(t, meta, got)
+	require.Equal(t, metadb.NormalizeChannelRuntimeMeta(meta), got)
 }
 
 func TestStoreGetChannelForPermissionReadsAuthoritativeSlot(t *testing.T) {
@@ -723,7 +581,7 @@ func TestStoreListChannelSubscribersReadsAuthoritativeSlot(t *testing.T) {
 	page2, cursor, done, err := store.ListChannelSubscribers(ctx, channelID, 2, cursor, 2)
 	require.NoError(t, err)
 	require.Equal(t, []string{"u3"}, page2)
-	require.Equal(t, "u3", cursor)
+	require.Empty(t, cursor)
 	require.True(t, done)
 }
 
@@ -881,7 +739,10 @@ func TestStoreListChannelRuntimeMetaReadsAuthoritativeAllSlots(t *testing.T) {
 
 	got, err := nodes[0].store.ListChannelRuntimeMeta(ctx)
 	require.NoError(t, err)
-	require.ElementsMatch(t, []metadb.ChannelRuntimeMeta{first, second}, got)
+	require.ElementsMatch(t, []metadb.ChannelRuntimeMeta{
+		metadb.NormalizeChannelRuntimeMeta(first),
+		metadb.NormalizeChannelRuntimeMeta(second),
+	}, got)
 }
 
 func TestStoreListUserConversationActiveReadsAuthoritativeSlot(t *testing.T) {

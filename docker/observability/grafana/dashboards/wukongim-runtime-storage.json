@@ -2003,6 +2003,666 @@
           "refId": "A"
         }
       ]
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 108
+      },
+      "id": 39,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "expr": "max(wukongim_controller_leader_present{node_name=~\"$node_name\"})",
+          "legendFormat": "leader present",
+          "refId": "A"
+        },
+        {
+          "expr": "max(wukongim_controller_raft_voters{node_name=~\"$node_name\"})",
+          "legendFormat": "raft voters",
+          "refId": "B"
+        },
+        {
+          "expr": "max(wukongim_controller_raft_learners{node_name=~\"$node_name\"})",
+          "legendFormat": "raft learners",
+          "refId": "C"
+        },
+        {
+          "expr": "max(wukongim_controller_state_revision{node_name=~\"$node_name\"})",
+          "legendFormat": "state revision",
+          "refId": "D"
+        }
+      ],
+      "title": "Controller Raft Health",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 108
+      },
+      "id": 40,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (type) (wukongim_controller_tasks_failed{node_name=~\"$node_name\"})",
+          "legendFormat": "failed {{type}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (result) (rate(wukongim_controller_voter_promotion_attempts_total{node_name=~\"$node_name\"}[$__rate_interval]))",
+          "legendFormat": "promotion {{result}}",
+          "refId": "B"
+        },
+        {
+          "expr": "sum by (reason) (rate(wukongim_controller_voter_promotion_blockers_total{node_name=~\"$node_name\"}[$__rate_interval]))",
+          "legendFormat": "blocker {{reason}}",
+          "refId": "C"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wukongim_controller_voter_promotion_phase_seconds_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, phase))",
+          "legendFormat": "phase p95 {{phase}}",
+          "refId": "D"
+        }
+      ],
+      "title": "Controller Task Failures And Promotions",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 116
+      },
+      "id": 41,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (join_state, status) (wukongim_node_lifecycle_nodes{node_name=~\"$node_name\"})",
+          "legendFormat": "nodes {{join_state}} {{status}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (freshness, status) (wukongim_node_health_freshness_nodes{node_name=~\"$node_name\"})",
+          "legendFormat": "health {{freshness}} {{status}}",
+          "refId": "B"
+        },
+        {
+          "expr": "max by (freshness, status) (wukongim_node_health_report_age_seconds{node_name=~\"$node_name\"})",
+          "legendFormat": "health age {{freshness}} {{status}}",
+          "refId": "C"
+        },
+        {
+          "expr": "sum by (operation, result) (rate(wukongim_node_lifecycle_attempts_total{node_name=~\"$node_name\"}[$__rate_interval]))",
+          "legendFormat": "attempt {{operation}} {{result}}",
+          "refId": "D"
+        },
+        {
+          "expr": "sum by (state) (wukongim_node_onboarding_tasks{node_name=~\"$node_name\"})",
+          "legendFormat": "onboarding {{state}}",
+          "refId": "E"
+        },
+        {
+          "expr": "sum by (reason) (rate(wukongim_node_scale_in_blockers_total{node_name=~\"$node_name\"}[$__rate_interval]))",
+          "legendFormat": "scale-in blocker {{reason}}",
+          "refId": "F"
+        },
+        {
+          "expr": "max(wukongim_discovery_membership_revision{node_name=~\"$node_name\"})",
+          "legendFormat": "membership revision",
+          "refId": "G"
+        }
+      ],
+      "title": "Dynamic Node Lifecycle",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 116
+      },
+      "id": 42,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (slot_id, cause) (rate(wukongim_slot_leader_changes_total{node_name=~\"$node_name\"}[$__rate_interval]))",
+          "legendFormat": "leader change {{slot_id}} {{cause}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (class, result) (rate(wukongim_slot_proposal_admission_total{node_name=~\"$node_name\"}[$__rate_interval]))",
+          "legendFormat": "admission {{class}} {{result}}",
+          "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wukongim_slot_replica_move_duration_seconds_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, result))",
+          "legendFormat": "move p95 {{result}}",
+          "refId": "C"
+        },
+        {
+          "expr": "sum by (reason) (rate(wukongim_slot_replica_move_failures_total{node_name=~\"$node_name\"}[$__rate_interval]))",
+          "legendFormat": "move failure {{reason}}",
+          "refId": "D"
+        },
+        {
+          "expr": "sum by (step, result) (rate(wukongim_slot_replica_move_phase_observed_total{node_name=~\"$node_name\"}[$__rate_interval]))",
+          "legendFormat": "phase {{step}} {{result}}",
+          "refId": "E"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wukongim_slot_replica_move_phase_duration_seconds_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, step, result))",
+          "legendFormat": "phase p95 {{step}} {{result}}",
+          "refId": "F"
+        }
+      ],
+      "title": "Slot Replica Movement",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 124
+      },
+      "id": 43,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (store) (wukongim_storage_pebble_disk_usage_bytes{node_name=~\"$node_name\", store=~\"$store\"})",
+          "legendFormat": "disk {{store}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (store) (wukongim_storage_pebble_memtable_size_bytes{node_name=~\"$node_name\", store=~\"$store\"})",
+          "legendFormat": "memtable {{store}}",
+          "refId": "B"
+        },
+        {
+          "expr": "sum by (store) (wukongim_storage_pebble_wal_size_bytes{node_name=~\"$node_name\", store=~\"$store\"})",
+          "legendFormat": "wal logical {{store}}",
+          "refId": "C"
+        },
+        {
+          "expr": "sum by (store) (wukongim_storage_pebble_wal_physical_size_bytes{node_name=~\"$node_name\", store=~\"$store\"})",
+          "legendFormat": "wal physical {{store}}",
+          "refId": "D"
+        },
+        {
+          "expr": "sum by (store) (wukongim_storage_pebble_compaction_estimated_debt_bytes{node_name=~\"$node_name\", store=~\"$store\"})",
+          "legendFormat": "compaction debt {{store}}",
+          "refId": "E"
+        },
+        {
+          "expr": "sum by (store) (wukongim_storage_pebble_compaction_in_progress_bytes{node_name=~\"$node_name\", store=~\"$store\"})",
+          "legendFormat": "compaction active bytes {{store}}",
+          "refId": "F"
+        }
+      ],
+      "title": "Pebble Storage Footprint",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 124
+      },
+      "id": 44,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "expr": "max by (store) (wukongim_storage_pebble_read_amplification{node_name=~\"$node_name\", store=~\"$store\"})",
+          "legendFormat": "read amp {{store}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (store) (wukongim_storage_pebble_memtable_count{node_name=~\"$node_name\", store=~\"$store\"})",
+          "legendFormat": "memtables {{store}}",
+          "refId": "B"
+        },
+        {
+          "expr": "sum by (store) (wukongim_storage_pebble_wal_files{node_name=~\"$node_name\", store=~\"$store\"})",
+          "legendFormat": "wal files {{store}}",
+          "refId": "C"
+        },
+        {
+          "expr": "sum by (store) (rate(wukongim_storage_pebble_wal_bytes_in{node_name=~\"$node_name\", store=~\"$store\"}[$__rate_interval]))",
+          "legendFormat": "wal bytes in {{store}}",
+          "refId": "D"
+        },
+        {
+          "expr": "sum by (store) (rate(wukongim_storage_pebble_wal_bytes_written{node_name=~\"$node_name\", store=~\"$store\"}[$__rate_interval]))",
+          "legendFormat": "wal bytes written {{store}}",
+          "refId": "E"
+        },
+        {
+          "expr": "sum by (store) (rate(wukongim_storage_pebble_flush_count{node_name=~\"$node_name\", store=~\"$store\"}[$__rate_interval]))",
+          "legendFormat": "flushes {{store}}",
+          "refId": "F"
+        },
+        {
+          "expr": "sum by (store) (wukongim_storage_pebble_flushes_in_progress{node_name=~\"$node_name\", store=~\"$store\"})",
+          "legendFormat": "flush active {{store}}",
+          "refId": "G"
+        },
+        {
+          "expr": "sum by (store) (rate(wukongim_storage_pebble_compaction_count{node_name=~\"$node_name\", store=~\"$store\"}[$__rate_interval]))",
+          "legendFormat": "compactions {{store}}",
+          "refId": "H"
+        },
+        {
+          "expr": "sum by (store) (wukongim_storage_pebble_compactions_in_progress{node_name=~\"$node_name\", store=~\"$store\"})",
+          "legendFormat": "compaction active {{store}}",
+          "refId": "I"
+        }
+      ],
+      "title": "Pebble Storage Activity",
+      "type": "timeseries"
     }
   ],
   "refresh": "30s",

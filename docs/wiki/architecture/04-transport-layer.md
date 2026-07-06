@@ -288,7 +288,7 @@ func (m *RPCMux) HandleRPC(ctx, body) ([]byte, error) {
 ### 8.1 注册总览
 
 ```go
-// raftcluster/cluster.go:87-93
+// pkg/cluster node composition
 server := nodetransport.NewServer()
 
 // 单向消息
@@ -397,7 +397,7 @@ Node A (Non-Leader for G5)                 Node B (Leader for G5)
 Raft 消息（msgType=1,2）使用单向发送，失败时**静默忽略**：
 
 ```go
-// raftcluster/transport.go:25-27
+// pkg/cluster transport integration
 // Raft 协议自身通过心跳机制保证消息最终送达
 // 瞬时发送失败不需要重试，Raft 会在下一轮心跳重传
 _ = t.client.Send(nodeID, shardKey, msgTypeRaft, body)
@@ -439,7 +439,7 @@ type Discovery interface {
 ### 12.2 静态发现
 
 ```go
-// raftcluster/discovery.go
+// pkg/cluster discovery
 type StaticDiscovery struct {
     nodes map[NodeID]string   // nodeID → "host:port"
 }
@@ -451,8 +451,8 @@ type StaticDiscovery struct {
 
 | 参数           | 类型           | 默认值 | 说明                   | 代码位置           |
 | -------------- | -------------- | ------ | ---------------------- | ------------------ |
-| ListenAddr     | string         | 必填   | TCP 监听地址           | `raftcluster/config.go` |
-| PoolSize       | int            | 4      | 每节点连接池大小       | `raftcluster/config.go` |
+| ListenAddr     | string         | 必填   | TCP 监听地址           | `pkg/cluster` 配置 |
+| PoolSize       | int            | 4      | 每节点连接池大小       | `pkg/transport` 配置 |
 | DialTimeout    | time.Duration  | 5s     | TCP 拨号超时           | `pool.go`          |
 | TCP Keep-Alive | -              | 30s    | TCP 心跳周期           | `pool.go:9`        |
 | MaxMsgSize     | -              | 64MB   | 单帧最大消息大小       | `codec.go`         |

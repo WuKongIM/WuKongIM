@@ -270,10 +270,9 @@ even if the foreground control route has not yet observed that Slot leader.
 used by `pkg/slot/proxy`: `SlotForKey`, `HashSlotForKey`, `HashSlotsOf`,
 `LeaderOf`, `PeersForSlot`, `RPCService`, `ProposeWithHashSlot`, and
 `ProposeLocalWithHashSlot` all delegate to the same foreground routing,
-typed RPC, and Slot propose services as the rest of `Node`. This is a
-transition bridge for moving Slot metadata proxy callers off
-`pkg/legacy/cluster`; it must not introduce a second routing table or a
-cluster-bypass path.
+typed RPC, and Slot propose services as the rest of `Node`. This is the
+canonical compatibility port used by `pkg/slot/proxy`; it must not introduce a
+second routing table or a cluster-bypass path.
 Automatic dead-leader recovery uses `channels.RepairScanner` as a bounded
 RunOnce scheduler primitive over Slot-leader-owned runtime metadata pages. It
 detects stale or unschedulable Channel runtime leaders from the control snapshot,
@@ -499,8 +498,8 @@ When `Config.Channel.ReactorCount` is left at zero, cluster derives a CPU-aware 
 
 ## Non-Goals
 
-- Do not reintroduce old `pkg/legacy/cluster` runtime semantics under the
-  canonical package path.
+- Do not reintroduce old legacy cluster runtime semantics under the canonical
+  package path.
 - Do not add compatibility with old cluster data or old cluster config.
 - Do not add hash-slot migration, onboarding, drain, scale-in, or full operator APIs.
 - Do not add bypass branches that treat a single-node cluster as anything other than a cluster.

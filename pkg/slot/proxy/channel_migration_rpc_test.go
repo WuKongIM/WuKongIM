@@ -8,8 +8,6 @@ import (
 	"testing"
 
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
-	raftcluster "github.com/WuKongIM/WuKongIM/pkg/legacy/cluster"
-	"github.com/WuKongIM/WuKongIM/pkg/legacy/transport"
 	metafsm "github.com/WuKongIM/WuKongIM/pkg/slot/fsm"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 	"github.com/stretchr/testify/require"
@@ -272,7 +270,7 @@ func TestChannelMigrationListActiveTasksForNodeReturnsNoLeaderBeforeLocalScan(t 
 
 	got, hasMore, err := store.ListActiveChannelMigrationTasksForNode(ctx, 3, 10)
 
-	require.ErrorIs(t, err, raftcluster.ErrNoLeader)
+	require.ErrorIs(t, err, ErrNoLeader)
 	require.Nil(t, got)
 	require.False(t, hasMore)
 }
@@ -410,7 +408,7 @@ func TestChannelMigrationClaimRejectsNonLocalSlotLeader(t *testing.T) {
 	require.NoError(t, nodes[1].db.ForHashSlot(hashSlot).CreateChannelMigrationTask(ctx, task))
 
 	err := nodes[0].store.ClaimChannelMigrationTask(ctx, proxyTestChannelMigrationClaim(task, 1, 1750000005000, 1750000001000))
-	require.ErrorIs(t, err, raftcluster.ErrNotLeader)
+	require.ErrorIs(t, err, ErrNotLeader)
 
 	got, err := nodes[1].db.ForHashSlot(hashSlot).GetChannelMigrationTask(ctx, task.ChannelID, task.ChannelType, task.TaskID)
 	require.NoError(t, err)
@@ -921,7 +919,7 @@ func proxyTestCompletedChannelMigrationTask(taskID, channelID string, completedA
 	return task
 }
 
-func proxyWaitForClusterLeader(t testing.TB, cluster *raftcluster.Cluster, slotID, want uint64) {
+func proxyWaitForClusterLeader(t testing.TB, cluster *proxyTestCluster, slotID, want uint64) {
 	t.Helper()
 	waitForCondition(t, func() bool {
 		leaderID, err := cluster.LeaderOf(multiraft.SlotID(slotID))
@@ -1018,7 +1016,6 @@ func proxyTestSetDrainProof(task *metadb.ChannelMigrationTask, fenceVersion uint
 }
 
 type proxyTestMigrationCluster struct {
-	raftcluster.API
 	nodeID         multiraft.NodeID
 	localNodeID    multiraft.NodeID
 	slotForKey     multiraft.SlotID
@@ -1037,16 +1034,16 @@ func (c *proxyTestMigrationCluster) NodeID() multiraft.NodeID {
 	return c.nodeID
 }
 
-func (c *proxyTestMigrationCluster) RPCMux() *transport.RPCMux {
-	return nil
-}
-
 func (c *proxyTestMigrationCluster) SlotForKey(string) multiraft.SlotID {
 	return c.slotForKey
 }
 
 func (c *proxyTestMigrationCluster) HashSlotForKey(string) uint16 {
 	return c.hashSlotForKey
+}
+
+func (c *proxyTestMigrationCluster) HashSlotTableVersion() uint64 {
+	return 1
 }
 
 func (c *proxyTestMigrationCluster) HashSlotsOf(slotID multiraft.SlotID) []uint16 {
@@ -1060,7 +1057,7 @@ func (c *proxyTestMigrationCluster) SlotIDs() []multiraft.SlotID {
 func (c *proxyTestMigrationCluster) LeaderOf(slotID multiraft.SlotID) (multiraft.NodeID, error) {
 	leaderID, ok := c.leaders[slotID]
 	if !ok {
-		return 0, raftcluster.ErrNoLeader
+		return 0, ErrNoLeader
 	}
 	return leaderID, nil
 }

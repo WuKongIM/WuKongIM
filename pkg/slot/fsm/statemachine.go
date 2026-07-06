@@ -844,7 +844,7 @@ func (m *stateMachine) markAppliedDeltas(keys []deltaReplayKey) {
 	}
 }
 
-// NewStateMachineFactory returns a factory function suitable for raftcluster.Config.NewStateMachine.
+// NewStateMachineFactory returns a factory function suitable for Slot runtime composition.
 func NewStateMachineFactory(db *metadb.DB) func(slotID multiraft.SlotID) (multiraft.StateMachine, error) {
 	return func(slotID multiraft.SlotID) (multiraft.StateMachine, error) {
 		return NewStateMachine(db, uint64(slotID))

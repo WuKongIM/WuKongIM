@@ -5,8 +5,8 @@
 `internal` is the promoted business kernel for the new architecture. It owns
 the product entry adapters, entry-agnostic usecases, node-local runtimes,
 infrastructure adapters, and the single composition root used by
-`cmd/wukongim`. The former v1 server implementation is kept under
-`internal/legacy` only for transition-time compilation and comparison.
+`cmd/wukongim`. The former v1 server runtime has been removed; new internal
+work must stay on the promoted access/usecase/runtime/infra/app boundaries.
 
 The promoted runtime proves the client `SEND -> SENDACK` write path through
 `pkg/cluster` and `pkg/channel`. It also exposes legacy-compatible channel,
@@ -194,8 +194,8 @@ single-node cluster.
   keep field numbers compatible with `github.com/WuKongIM/go-pdk`.
 - Plugin host runtime is shared under `pkg/plugin/pluginhost`; `internal/app`
   adapts it to `internal/usecase/plugin`.
-- The old v1 server runtime remains under `internal/legacy` for transition-time
-  compilation and should not receive new product features.
+- The old v1 server runtime has been removed; do not recreate an
+  `internal/legacy` implementation path.
 - Controller, the new cluster runtime, and the multi-reactor channel runtime
   are canonical under `pkg/controller`, `pkg/cluster`, and `pkg/channel`.
 - Do not implement realtime `NoPersist` delivery yet; return a stable

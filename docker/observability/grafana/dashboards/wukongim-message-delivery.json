@@ -975,6 +975,106 @@
       ],
       "title": "Conversation authority",
       "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 24,
+        "x": 0,
+        "y": 50
+      },
+      "id": 23,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (method, result) (rate(wukongim_plugin_hook_enqueue_total{node_name=~\"$node_name\"}[$__rate_interval]))",
+          "legendFormat": "enqueue {{method}} {{result}}",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wukongim_plugin_hook_enqueue_wait_seconds_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, method, result))",
+          "legendFormat": "enqueue wait p95 {{method}} {{result}}",
+          "refId": "B"
+        },
+        {
+          "expr": "sum by (method, result) (rate(wukongim_plugin_hook_invoke_total{node_name=~\"$node_name\"}[$__rate_interval]))",
+          "legendFormat": "invoke {{method}} {{result}}",
+          "refId": "C"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wukongim_plugin_hook_invoke_duration_seconds_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, method, result))",
+          "legendFormat": "invoke p95 {{method}} {{result}}",
+          "refId": "D"
+        }
+      ],
+      "title": "Plugin Hook Runtime",
+      "type": "timeseries"
     }
   ],
   "refresh": "10s",

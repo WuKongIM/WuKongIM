@@ -7,7 +7,6 @@ var (
 	ErrNoLeader = &routeError{
 		message: "slot/proxy: no leader",
 		aliases: []string{
-			"raftcluster: no leader for slot",
 			"cluster: no slot leader",
 			"cluster/routing: no slot leader",
 		},
@@ -16,7 +15,6 @@ var (
 	ErrNotLeader = &routeError{
 		message: "slot/proxy: not leader",
 		aliases: []string{
-			"raftcluster: not leader",
 			"cluster: not leader",
 			"cluster/propose: not leader",
 		},
@@ -25,7 +23,6 @@ var (
 	ErrSlotNotFound = &routeError{
 		message: "slot/proxy: slot not found",
 		aliases: []string{
-			"raftcluster: slot not found",
 			"cluster: slot not found",
 		},
 	}

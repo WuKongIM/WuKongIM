@@ -3,19 +3,17 @@ package proxy
 import (
 	"context"
 	"fmt"
-	"net"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
-	raftcluster "github.com/WuKongIM/WuKongIM/pkg/legacy/cluster"
-	legacytransport "github.com/WuKongIM/WuKongIM/pkg/legacy/transport"
+	"github.com/WuKongIM/WuKongIM/pkg/hashslot"
 	raftstorage "github.com/WuKongIM/WuKongIM/pkg/raftlog"
 	metafsm "github.com/WuKongIM/WuKongIM/pkg/slot/fsm"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
-	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -145,141 +143,44 @@ func waitForCondition(t testing.TB, fn func() bool, msg string) {
 }
 
 type testStoreNode struct {
-	cluster *raftcluster.Cluster
+	cluster *proxyTestCluster
 	store   *Store
 	db      *metadb.DB
-	raftDB  *raftstorage.DB
 	nodeID  multiraft.NodeID
 }
 
 func startTwoNodeShardedStores(t testing.TB) []*testStoreNode {
 	t.Helper()
 
-	listeners := make([]net.Listener, 2)
-	for i := range 2 {
-		ln, err := net.Listen("tcp", "127.0.0.1:0")
-		if err != nil {
-			t.Fatalf("listen %d: %v", i+1, err)
-		}
-		listeners[i] = ln
-	}
-
-	nodes := make([]raftcluster.NodeConfig, 2)
-	for i := range 2 {
-		nodes[i] = raftcluster.NodeConfig{
-			NodeID: multiraft.NodeID(i + 1),
-			Addr:   listeners[i].Addr().String(),
-		}
-		_ = listeners[i].Close()
-	}
-
-	slots := []raftcluster.SlotConfig{
-		{SlotID: 1, Peers: []multiraft.NodeID{1}},
-		{SlotID: 2, Peers: []multiraft.NodeID{2}},
-	}
-
-	out := make([]*testStoreNode, 2)
-	for i := range 2 {
-		dir := filepath.Join(t.TempDir(), fmt.Sprintf("n%d", i+1))
-		db := openTestDBAt(t, filepath.Join(dir, "biz"))
-		raftDB := openTestRaftDBAt(t, filepath.Join(dir, "raft"))
-
-		cluster, err := raftcluster.NewCluster(raftcluster.Config{
-			NodeID:             multiraft.NodeID(i + 1),
-			ListenAddr:         nodes[i].Addr,
-			SlotCount:          2,
-			ControllerReplicaN: len(nodes),
-			SlotReplicaN:       len(nodes),
-			NewStorage: func(slotID multiraft.SlotID) (multiraft.Storage, error) {
-				return raftDB.ForSlot(uint64(slotID)), nil
-			},
-			NewStateMachine:              metafsm.NewStateMachineFactory(db),
-			NewStateMachineWithHashSlots: metafsm.NewHashSlotStateMachineFactory(db),
-			Nodes:                        nodes,
-			Slots:                        slots,
-		})
-		if err != nil {
-			t.Fatalf("NewCluster(node=%d) error = %v", i+1, err)
-		}
-		require.NoError(t, cluster.Start())
-		t.Cleanup(cluster.Stop)
-
-		out[i] = &testStoreNode{
-			cluster: cluster,
-			store:   newLegacyTestStore(cluster, db),
-			db:      db,
-			raftDB:  raftDB,
-			nodeID:  multiraft.NodeID(i + 1),
-		}
-	}
-
-	for slotID := uint64(1); slotID <= 2; slotID++ {
-		waitForExpectedSlotLeader(t, out, multiraft.SlotID(slotID), multiraft.NodeID(slotID))
-	}
-
-	return out
+	return startTwoNodeHashSlotStores(t, 2)
 }
 
 func startTwoNodeHashSlotStores(t testing.TB, hashSlotCount uint16) []*testStoreNode {
 	t.Helper()
 
-	listeners := make([]net.Listener, 2)
-	for i := range 2 {
-		ln, err := net.Listen("tcp", "127.0.0.1:0")
-		if err != nil {
-			t.Fatalf("listen %d: %v", i+1, err)
-		}
-		listeners[i] = ln
+	layout := newProxyTestLayout(2, hashSlotCount)
+	leaders := map[multiraft.SlotID]multiraft.NodeID{
+		1: 1,
+		2: 2,
 	}
-
-	nodes := make([]raftcluster.NodeConfig, 2)
-	for i := range 2 {
-		nodes[i] = raftcluster.NodeConfig{
-			NodeID: multiraft.NodeID(i + 1),
-			Addr:   listeners[i].Addr().String(),
-		}
-		_ = listeners[i].Close()
+	peers := map[multiraft.SlotID][]multiraft.NodeID{
+		1: {1},
+		2: {2},
 	}
-
-	slots := []raftcluster.SlotConfig{
-		{SlotID: 1, Peers: []multiraft.NodeID{1}},
-		{SlotID: 2, Peers: []multiraft.NodeID{2}},
-	}
-
+	registry := make(map[multiraft.NodeID]*proxyTestCluster, 2)
 	out := make([]*testStoreNode, 2)
 	for i := range 2 {
 		dir := filepath.Join(t.TempDir(), fmt.Sprintf("hs-n%d", i+1))
 		db := openTestDBAt(t, filepath.Join(dir, "biz"))
-		raftDB := openTestRaftDBAt(t, filepath.Join(dir, "raft"))
-
-		cluster, err := raftcluster.NewCluster(raftcluster.Config{
-			NodeID:             multiraft.NodeID(i + 1),
-			ListenAddr:         nodes[i].Addr,
-			SlotCount:          2,
-			HashSlotCount:      hashSlotCount,
-			InitialSlotCount:   2,
-			ControllerReplicaN: len(nodes),
-			SlotReplicaN:       len(nodes),
-			NewStorage: func(slotID multiraft.SlotID) (multiraft.Storage, error) {
-				return raftDB.ForSlot(uint64(slotID)), nil
-			},
-			NewStateMachine:              metafsm.NewStateMachineFactory(db),
-			NewStateMachineWithHashSlots: metafsm.NewHashSlotStateMachineFactory(db),
-			Nodes:                        nodes,
-			Slots:                        slots,
-		})
-		if err != nil {
-			t.Fatalf("NewCluster(node=%d) error = %v", i+1, err)
-		}
-		require.NoError(t, cluster.Start())
-		t.Cleanup(cluster.Stop)
+		nodeID := multiraft.NodeID(i + 1)
+		cluster := newProxyTestCluster(t, db, nodeID, layout, leaders, peers, registry)
+		registry[nodeID] = cluster
 
 		out[i] = &testStoreNode{
 			cluster: cluster,
-			store:   newLegacyTestStore(cluster, db),
+			store:   newProxyTestStore(cluster, db),
 			db:      db,
-			raftDB:  raftDB,
-			nodeID:  multiraft.NodeID(i + 1),
+			nodeID:  nodeID,
 		}
 	}
 
@@ -290,21 +191,42 @@ func startTwoNodeHashSlotStores(t testing.TB, hashSlotCount uint16) []*testStore
 	return out
 }
 
-func newLegacyTestStore(cluster *raftcluster.Cluster, db *metadb.DB) *Store {
-	store := New(cluster, db)
-	if cluster != nil {
-		registerLegacyTestRPCHandlers(store, cluster.RPCMux())
+func newSingleNodeProxyTestStore(t testing.TB, db *metadb.DB, slotCount int) (*proxyTestCluster, *Store) {
+	t.Helper()
+
+	layout := newProxyTestLayout(slotCount, uint16(slotCount))
+	leaders := make(map[multiraft.SlotID]multiraft.NodeID, slotCount)
+	peers := make(map[multiraft.SlotID][]multiraft.NodeID, slotCount)
+	for _, slotID := range layout.slots {
+		leaders[slotID] = 1
+		peers[slotID] = []multiraft.NodeID{1}
 	}
-	return store
+	registry := make(map[multiraft.NodeID]*proxyTestCluster, 1)
+	cluster := newProxyTestCluster(t, db, 1, layout, leaders, peers, registry)
+	registry[1] = cluster
+	return cluster, newProxyTestStore(cluster, db)
 }
 
-func registerLegacyTestRPCHandlers(store *Store, mux *legacytransport.RPCMux) {
-	if store == nil || mux == nil {
-		return
+func newSingleNodeNoLeaderProxyTestStore(t testing.TB, db *metadb.DB, slotCount int) (*proxyTestCluster, *Store) {
+	t.Helper()
+
+	layout := newProxyTestLayout(slotCount, uint16(slotCount))
+	peers := make(map[multiraft.SlotID][]multiraft.NodeID, slotCount)
+	for _, slotID := range layout.slots {
+		peers[slotID] = []multiraft.NodeID{1}
 	}
-	store.RegisterRPCHandlers(func(serviceID uint8, handler func(context.Context, []byte) ([]byte, error)) {
-		mux.Handle(serviceID, legacytransport.RPCHandler(handler))
-	})
+	registry := make(map[multiraft.NodeID]*proxyTestCluster, 1)
+	cluster := newProxyTestCluster(t, db, 1, layout, nil, peers, registry)
+	registry[1] = cluster
+	return cluster, newProxyTestStore(cluster, db)
+}
+
+func newProxyTestStore(cluster *proxyTestCluster, db *metadb.DB) *Store {
+	store := New(cluster, db)
+	if cluster != nil {
+		store.RegisterRPCHandlers(cluster.registerRPCHandler)
+	}
+	return store
 }
 
 func waitForExpectedSlotLeader(t testing.TB, nodes []*testStoreNode, slotID multiraft.SlotID, want multiraft.NodeID) {
@@ -324,7 +246,7 @@ func waitForExpectedSlotLeader(t testing.TB, nodes []*testStoreNode, slotID mult
 	}, fmt.Sprintf("slot %d leader elected on expected node", slotID))
 }
 
-func findChannelIDForSlot(t testing.TB, cluster *raftcluster.Cluster, slot uint64, prefix string) string {
+func findChannelIDForSlot(t testing.TB, cluster *proxyTestCluster, slot uint64, prefix string) string {
 	t.Helper()
 
 	for i := 0; i < 10_000; i++ {
@@ -337,7 +259,7 @@ func findChannelIDForSlot(t testing.TB, cluster *raftcluster.Cluster, slot uint6
 	return ""
 }
 
-func findChannelIDForSlotWithDifferentHashSlot(t testing.TB, cluster *raftcluster.Cluster, slot uint64, hashSlot uint16, prefix string) string {
+func findChannelIDForSlotWithDifferentHashSlot(t testing.TB, cluster *proxyTestCluster, slot uint64, hashSlot uint16, prefix string) string {
 	t.Helper()
 
 	for i := 0; i < 10_000; i++ {
@@ -354,7 +276,7 @@ func findChannelIDForSlotWithDifferentHashSlot(t testing.TB, cluster *raftcluste
 	return ""
 }
 
-func findUIDForSlot(t testing.TB, cluster *raftcluster.Cluster, slot uint64, prefix string) string {
+func findUIDForSlot(t testing.TB, cluster *proxyTestCluster, slot uint64, prefix string) string {
 	t.Helper()
 
 	for i := 0; i < 10_000; i++ {
@@ -367,7 +289,7 @@ func findUIDForSlot(t testing.TB, cluster *raftcluster.Cluster, slot uint64, pre
 	return ""
 }
 
-func findUIDForSlotWithDifferentHashSlot(t testing.TB, cluster *raftcluster.Cluster, slot uint64, hashSlot uint16, prefix string) string {
+func findUIDForSlotWithDifferentHashSlot(t testing.TB, cluster *proxyTestCluster, slot uint64, hashSlot uint16, prefix string) string {
 	t.Helper()
 
 	for i := 0; i < 10_000; i++ {
@@ -384,7 +306,251 @@ func findUIDForSlotWithDifferentHashSlot(t testing.TB, cluster *raftcluster.Clus
 	return ""
 }
 
-func mustHashSlotForKey(t testing.TB, cluster *raftcluster.Cluster, key string) uint16 {
+func mustHashSlotForKey(t testing.TB, cluster *proxyTestCluster, key string) uint16 {
 	t.Helper()
 	return hashSlotForKey(cluster, key)
+}
+
+type proxyTestLayout struct {
+	slots          []multiraft.SlotID
+	hashSlotCount  uint16
+	hashSlotToSlot map[uint16]multiraft.SlotID
+	slotHashSlots  map[multiraft.SlotID][]uint16
+	version        uint64
+}
+
+func newProxyTestLayout(slotCount int, hashSlotCount uint16) proxyTestLayout {
+	if slotCount <= 0 {
+		slotCount = 1
+	}
+	if hashSlotCount == 0 {
+		hashSlotCount = uint16(slotCount)
+	}
+	table := hashslot.NewHashSlotTable(hashSlotCount, slotCount)
+	layout := proxyTestLayout{
+		slots:          make([]multiraft.SlotID, 0, slotCount),
+		hashSlotCount:  table.HashSlotCount(),
+		hashSlotToSlot: make(map[uint16]multiraft.SlotID, hashSlotCount),
+		slotHashSlots:  make(map[multiraft.SlotID][]uint16, slotCount),
+		version:        table.Version(),
+	}
+	for slotID := 1; slotID <= slotCount; slotID++ {
+		id := multiraft.SlotID(slotID)
+		layout.slots = append(layout.slots, id)
+		layout.slotHashSlots[id] = append([]uint16(nil), table.HashSlotsOf(id)...)
+		for _, hashSlot := range layout.slotHashSlots[id] {
+			layout.hashSlotToSlot[hashSlot] = id
+		}
+	}
+	return layout
+}
+
+type proxyTestCluster struct {
+	mu            sync.RWMutex
+	applyMu       sync.Mutex
+	nodeID        multiraft.NodeID
+	layout        proxyTestLayout
+	leaders       map[multiraft.SlotID]multiraft.NodeID
+	peers         map[multiraft.SlotID][]multiraft.NodeID
+	nodes         map[multiraft.NodeID]*proxyTestCluster
+	stateMachines map[multiraft.SlotID]multiraft.StateMachine
+	nextIndex     map[multiraft.SlotID]uint64
+	handlers      map[uint8]func(context.Context, []byte) ([]byte, error)
+}
+
+func newProxyTestCluster(t testing.TB, db *metadb.DB, nodeID multiraft.NodeID, layout proxyTestLayout, leaders map[multiraft.SlotID]multiraft.NodeID, peers map[multiraft.SlotID][]multiraft.NodeID, registry map[multiraft.NodeID]*proxyTestCluster) *proxyTestCluster {
+	t.Helper()
+
+	cluster := &proxyTestCluster{
+		nodeID:        nodeID,
+		layout:        layout,
+		leaders:       cloneLeaderMap(leaders),
+		peers:         clonePeerMap(peers),
+		nodes:         registry,
+		stateMachines: make(map[multiraft.SlotID]multiraft.StateMachine, len(layout.slots)),
+		nextIndex:     make(map[multiraft.SlotID]uint64, len(layout.slots)),
+		handlers:      make(map[uint8]func(context.Context, []byte) ([]byte, error)),
+	}
+	for _, slotID := range layout.slots {
+		sm, err := metafsm.NewStateMachineWithHashSlots(db, uint64(slotID), layout.slotHashSlots[slotID])
+		if err != nil {
+			t.Fatalf("NewStateMachineWithHashSlots(slot=%d) error = %v", slotID, err)
+		}
+		cluster.stateMachines[slotID] = sm
+	}
+	return cluster
+}
+
+func cloneLeaderMap(in map[multiraft.SlotID]multiraft.NodeID) map[multiraft.SlotID]multiraft.NodeID {
+	out := make(map[multiraft.SlotID]multiraft.NodeID, len(in))
+	for slotID, leaderID := range in {
+		out[slotID] = leaderID
+	}
+	return out
+}
+
+func clonePeerMap(in map[multiraft.SlotID][]multiraft.NodeID) map[multiraft.SlotID][]multiraft.NodeID {
+	out := make(map[multiraft.SlotID][]multiraft.NodeID, len(in))
+	for slotID, peers := range in {
+		out[slotID] = append([]multiraft.NodeID(nil), peers...)
+	}
+	return out
+}
+
+func (c *proxyTestCluster) NodeID() multiraft.NodeID {
+	if c == nil {
+		return 0
+	}
+	return c.nodeID
+}
+
+func (c *proxyTestCluster) SlotIDs() []multiraft.SlotID {
+	if c == nil {
+		return nil
+	}
+	return append([]multiraft.SlotID(nil), c.layout.slots...)
+}
+
+func (c *proxyTestCluster) SlotForKey(key string) multiraft.SlotID {
+	if c == nil {
+		return 0
+	}
+	return c.layout.hashSlotToSlot[c.HashSlotForKey(key)]
+}
+
+func (c *proxyTestCluster) HashSlotForKey(key string) uint16 {
+	if c == nil {
+		return 0
+	}
+	return hashslot.HashSlotForKey(key, c.layout.hashSlotCount)
+}
+
+func (c *proxyTestCluster) HashSlotsOf(slotID multiraft.SlotID) []uint16 {
+	if c == nil {
+		return nil
+	}
+	return append([]uint16(nil), c.layout.slotHashSlots[slotID]...)
+}
+
+func (c *proxyTestCluster) HashSlotTableVersion() uint64 {
+	if c == nil {
+		return 0
+	}
+	return c.layout.version
+}
+
+func (c *proxyTestCluster) LeaderOf(slotID multiraft.SlotID) (multiraft.NodeID, error) {
+	if c == nil {
+		return 0, ErrSlotNotFound
+	}
+	if _, ok := c.layout.slotHashSlots[slotID]; !ok {
+		return 0, ErrSlotNotFound
+	}
+	c.mu.RLock()
+	leaderID, ok := c.leaders[slotID]
+	c.mu.RUnlock()
+	if !ok || leaderID == 0 {
+		return 0, ErrNoLeader
+	}
+	return leaderID, nil
+}
+
+func (c *proxyTestCluster) IsLocal(nodeID multiraft.NodeID) bool {
+	return c != nil && nodeID == c.nodeID
+}
+
+func (c *proxyTestCluster) PeersForSlot(slotID multiraft.SlotID) []multiraft.NodeID {
+	if c == nil {
+		return nil
+	}
+	c.mu.RLock()
+	peers := append([]multiraft.NodeID(nil), c.peers[slotID]...)
+	c.mu.RUnlock()
+	return peers
+}
+
+func (c *proxyTestCluster) RPCService(ctx context.Context, nodeID multiraft.NodeID, slotID multiraft.SlotID, serviceID uint8, payload []byte) ([]byte, error) {
+	if c == nil {
+		return nil, ErrSlotNotFound
+	}
+	if _, ok := c.layout.slotHashSlots[slotID]; !ok {
+		return nil, ErrSlotNotFound
+	}
+	c.mu.RLock()
+	target := c.nodes[nodeID]
+	c.mu.RUnlock()
+	if target == nil {
+		return nil, ErrNoLeader
+	}
+	target.mu.RLock()
+	handler := target.handlers[serviceID]
+	target.mu.RUnlock()
+	if handler == nil {
+		return nil, fmt.Errorf("missing rpc handler %d", serviceID)
+	}
+	return handler(ctx, append([]byte(nil), payload...))
+}
+
+func (c *proxyTestCluster) ProposeWithHashSlot(ctx context.Context, slotID multiraft.SlotID, hashSlot uint16, cmd []byte) error {
+	result, err := c.ProposeWithHashSlotResult(ctx, slotID, hashSlot, cmd)
+	if err != nil {
+		return err
+	}
+	return proxyTestApplyResultError(cmd, result)
+}
+
+func (c *proxyTestCluster) ProposeLocalWithHashSlot(ctx context.Context, slotID multiraft.SlotID, hashSlot uint16, cmd []byte) error {
+	leaderID, err := c.LeaderOf(slotID)
+	if err != nil {
+		return err
+	}
+	if !c.IsLocal(leaderID) {
+		return ErrNotLeader
+	}
+	return c.ProposeWithHashSlot(ctx, slotID, hashSlot, cmd)
+}
+
+func (c *proxyTestCluster) ProposeWithHashSlotResult(ctx context.Context, slotID multiraft.SlotID, hashSlot uint16, cmd []byte) ([]byte, error) {
+	leaderID, err := c.LeaderOf(slotID)
+	if err != nil {
+		return nil, err
+	}
+	c.mu.RLock()
+	leader := c.nodes[leaderID]
+	c.mu.RUnlock()
+	if leader == nil {
+		return nil, ErrNoLeader
+	}
+	sm := leader.stateMachines[slotID]
+	if sm == nil {
+		return nil, ErrSlotNotFound
+	}
+
+	leader.applyMu.Lock()
+	defer leader.applyMu.Unlock()
+	leader.nextIndex[slotID]++
+	return sm.Apply(ctx, multiraft.Command{
+		SlotID:   slotID,
+		HashSlot: hashSlot,
+		Index:    leader.nextIndex[slotID],
+		Term:     1,
+		Data:     append([]byte(nil), cmd...),
+	})
+}
+
+func (c *proxyTestCluster) registerRPCHandler(serviceID uint8, handler func(context.Context, []byte) ([]byte, error)) {
+	if c == nil || handler == nil {
+		return
+	}
+	c.mu.Lock()
+	c.handlers[serviceID] = handler
+	c.mu.Unlock()
+}
+
+func proxyTestApplyResultError(command []byte, result []byte) error {
+	switch string(result) {
+	case metafsm.ApplyResultStaleMeta:
+		return metadb.ErrStaleMeta
+	}
+	return nil
 }

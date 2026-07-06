@@ -3,39 +3,16 @@ package proxy
 import (
 	"context"
 	"errors"
-	"path/filepath"
 	"testing"
 
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
-	raftcluster "github.com/WuKongIM/WuKongIM/pkg/legacy/cluster"
-	metafsm "github.com/WuKongIM/WuKongIM/pkg/slot/fsm"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 	"github.com/stretchr/testify/require"
 )
 
 func TestHandleRuntimeMetaRPCBeforeClusterStartReturnsNoLeader(t *testing.T) {
 	db := openTestDB(t)
-	raftDB := openTestRaftDBAt(t, filepath.Join(t.TempDir(), "raft"))
-
-	cluster, err := raftcluster.NewCluster(raftcluster.Config{
-		NodeID:             1,
-		ListenAddr:         "127.0.0.1:9090",
-		SlotCount:          1,
-		ControllerReplicaN: 1,
-		SlotReplicaN:       1,
-		NewStorage: func(slotID multiraft.SlotID) (multiraft.Storage, error) {
-			return raftDB.ForSlot(uint64(slotID)), nil
-		},
-		NewStateMachine:              metafsm.NewStateMachineFactory(db),
-		NewStateMachineWithHashSlots: metafsm.NewHashSlotStateMachineFactory(db),
-		Nodes: []raftcluster.NodeConfig{{
-			NodeID: 1,
-			Addr:   "127.0.0.1:9090",
-		}},
-	})
-	require.NoError(t, err)
-
-	store := New(cluster, db)
+	_, store := newSingleNodeNoLeaderProxyTestStore(t, db, 1)
 	body, err := encodeRuntimeMetaRPCRequestBinary(runtimeMetaRPCRequest{
 		Op:     runtimeMetaRPCList,
 		SlotID: 1,
@@ -56,27 +33,7 @@ func TestHandleRuntimeMetaRPCBeforeClusterStartReturnsNoLeader(t *testing.T) {
 
 func TestHandleRuntimeMetaRPCLegacyRequestEmitsLegacyResponse(t *testing.T) {
 	db := openTestDB(t)
-	raftDB := openTestRaftDBAt(t, filepath.Join(t.TempDir(), "raft"))
-
-	cluster, err := raftcluster.NewCluster(raftcluster.Config{
-		NodeID:             1,
-		ListenAddr:         "127.0.0.1:9090",
-		SlotCount:          1,
-		ControllerReplicaN: 1,
-		SlotReplicaN:       1,
-		NewStorage: func(slotID multiraft.SlotID) (multiraft.Storage, error) {
-			return raftDB.ForSlot(uint64(slotID)), nil
-		},
-		NewStateMachine:              metafsm.NewStateMachineFactory(db),
-		NewStateMachineWithHashSlots: metafsm.NewHashSlotStateMachineFactory(db),
-		Nodes: []raftcluster.NodeConfig{{
-			NodeID: 1,
-			Addr:   "127.0.0.1:9090",
-		}},
-	})
-	require.NoError(t, err)
-
-	store := New(cluster, db)
+	_, store := newSingleNodeNoLeaderProxyTestStore(t, db, 1)
 	body, err := encodeRuntimeMetaRPCRequestBinary(runtimeMetaRPCRequest{
 		Op:           runtimeMetaRPCList,
 		SlotID:       1,

@@ -115,6 +115,7 @@ func readExportedMetricNames(t *testing.T, dir string) map[string]struct{} {
 func collectDashboardMetricNames(raw string) map[string]struct{} {
 	out := make(map[string]struct{})
 	for _, token := range metricTokenPattern.FindAllString(raw, -1) {
+		out[token] = struct{}{}
 		normalized := normalizeDashboardMetricName(token)
 		out[normalized] = struct{}{}
 	}

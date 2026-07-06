@@ -69,13 +69,18 @@ func TestAgentsDirectoryStructureUsesPromotedPackages(t *testing.T) {
 		"pkg/cluster",
 		"pkg/controller",
 		"pkg/transport",
-		"pkg/legacy/channel",
-		"pkg/legacy/cluster",
-		"pkg/legacy/controller",
-		"pkg/legacy/transport",
 	} {
 		if _, err := os.Stat(filepath.Join(root, dir)); err != nil {
 			t.Fatalf("expected promoted directory %s to exist: %v", dir, err)
+		}
+	}
+	for _, staleDir := range []string{
+		"internal/legacy",
+		"pkg/legacy",
+		"test/legacy",
+	} {
+		if _, err := os.Stat(filepath.Join(root, staleDir)); err == nil {
+			t.Fatalf("stale legacy directory %q should not exist", staleDir)
 		}
 	}
 	for _, stale := range []string{
@@ -95,19 +100,17 @@ func TestAgentsDirectoryStructureUsesPromotedPackages(t *testing.T) {
 	}
 }
 
-func TestSlotProxyLegacyFallbackIsDocumented(t *testing.T) {
+func TestSlotProxyPromotedRPCRegistrationIsDocumented(t *testing.T) {
 	root := repoRoot(t)
 	for _, path := range []string{
 		filepath.Join(root, "docs", "development", "PROJECT_KNOWLEDGE.md"),
 		filepath.Join(root, "pkg", "slot", "FLOW.md"),
-		filepath.Join(root, "internal", "legacy", "FLOW.md"),
 	} {
 		text := readFile(t, path)
-		for _, want := range []string{"internal/legacy/app/slot_proxy_rpc.go", "Store.RegisterRPCHandlers"} {
-			if !strings.Contains(text, want) {
-				rel, _ := filepath.Rel(root, path)
-				t.Fatalf("%s should document %s as the legacy fallback registration point", rel, want)
-			}
+		const want = "pkg/cluster.Node.RegisterRPC"
+		if !strings.Contains(text, want) {
+			rel, _ := filepath.Rel(root, path)
+			t.Fatalf("%s should document %s as the Slot proxy RPC registration path", rel, want)
 		}
 	}
 }

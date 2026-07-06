@@ -16,7 +16,7 @@ import (
 	msgdb "github.com/WuKongIM/WuKongIM/pkg/db/message"
 	"github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/db/transfer"
-	"github.com/WuKongIM/WuKongIM/pkg/legacy/cluster"
+	"github.com/WuKongIM/WuKongIM/pkg/hashslot"
 )
 
 func TestRunRejectsUnknownCommand(t *testing.T) {
@@ -126,7 +126,7 @@ func TestRunImportWritesTempNodeStore(t *testing.T) {
 	defer store.Close()
 
 	ctx := context.Background()
-	userSlot := cluster.HashSlotForKey("u1", 16)
+	userSlot := hashslot.HashSlotForKey("u1", 16)
 	user, ok, err := store.Meta().HashSlot(userSlot).GetUser(ctx, "u1")
 	if err != nil || !ok {
 		t.Fatalf("GetUser() ok=%v err=%v, want ok", ok, err)
@@ -328,8 +328,8 @@ func writeMinimalImportBundle(t *testing.T) string {
 func writeMinimalImportBundleWithUserToken(t *testing.T, userToken string) string {
 	t.Helper()
 	root := t.TempDir()
-	userSlot := cluster.HashSlotForKey("u1", 16)
-	channelSlot := cluster.HashSlotForKey("g1", 16)
+	userSlot := hashslot.HashSlotForKey("u1", 16)
+	channelSlot := hashslot.HashSlotForKey("g1", 16)
 	writeWKDBBundle(t, root, 16, []wkdbBundleFile{
 		{
 			path: "meta/users.jsonl",

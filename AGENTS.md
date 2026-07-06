@@ -72,14 +72,6 @@ internal/
     pluginevents/        插件生命周期与 hook 事件合约
   infra/                 新架构外部运行时适配器
     cluster/             cluster/channel append、channel/user metadata 与 presence authority/owner-action 路由适配、typed error 映射
-  legacy/                旧 v1 server runtime，仅供过渡期编译和差异对照；新增能力不要落到这里
-    access/              旧入口适配
-    app/                 旧组合根
-    contracts/           旧事件合约
-    log/                 旧日志装配
-    observability/       旧可观测性辅助
-    runtime/             旧节点内运行时
-    usecase/             旧业务用例
   log/                   新架构应用日志配置与 zap/lumberjack 封装
   observability/         新架构节点内诊断事件、追踪采样与 sendtrace 辅助
     diagnostics/         节点内有界诊断事件、采样、索引与查询
@@ -116,10 +108,6 @@ pkg/
   channel/               多 Reactor channel log runtime，用于 v0 append/fetch/replication、runtime 观测、worker 池与 message DB 适配
   controller/            新版控制面：Raft apply 维护最终 cluster-state.json，含 state/statefile/command/fsm/planner/sync/raft/server
     docs/                controller 库用法文档
-  legacy/cluster/        旧集群运行时，仅供 legacy internal 与过渡期工具编译期保留
-  legacy/channel/        旧 ISR channel runtime，仅供 legacy internal 与过渡期工具编译期保留
-  legacy/controller/     旧控制面元数据、planner 与单组 Raft 服务，仅供 legacy cluster/internal 编译期保留
-  legacy/transport/      旧节点间 transport / RPC 实现，仅供 legacy cluster/internal 编译期保留
   observability/         可被 pkg 与 internal 复用的可观测性轻量合约
     sendtrace/           消息发送链路 trace 事件与全局窄 sink
   plugin/
@@ -159,7 +147,6 @@ test/
     control/             控制面 bootstrap、Slot leader transfer 等黑盒场景
     plugin/              插件生命周期、HTTP forward 等黑盒场景
     suite/               e2e 共享黑盒 harness、配置、API 与 metrics 辅助
-  legacy/e2e/            旧 e2e 覆盖保留区，需显式 `legacy_e2e` tag，避免与 canonical e2e 混用
 
 ui/                      内置管理 UI 静态页面
   assets/                前端静态资源
@@ -182,7 +169,7 @@ learn_project/           调研/实验代码，非主执行路径
 - `internal/runtime/*` 放节点内可复用运行时能力，不放入口逻辑。
 - `internal/infra/*` 只做新架构到 pkg 运行时或外部基础设施的适配。
 - `internal/app/*` 是 internal 唯一组合根；依赖装配只放这里。
-- `internal/legacy/*` 是旧 v1 server runtime 保留区；新增或迁移能力不要依赖 legacy。
+- 旧 v1 runtime 已删除；新增代码不得重新引入 `internal/legacy` 或 `pkg/legacy/*`。
 - `pkg/gateway/*` 放可复用网关通用基础设施，不放面向具体业务的用例编排。
 
 ## 变更规则
