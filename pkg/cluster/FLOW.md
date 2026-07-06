@@ -251,6 +251,13 @@ The propose path returns typed not-ready/no-leader/not-leader errors and does no
 Channel metadata, subscriber rows, and legacy `channel_latest` rows route by
 channel ID. Subscriber point lookups and subscriber-set non-emptiness reads use
 the same channel-owned Slot metadata route for message permission checks.
+Message event projection appends also route by channel ID, submit an encoded
+Slot FSM command through the result proposal path, and decode the returned
+`MessageEventAppendResult` so callers can expose the assigned message-level
+event sequence without issuing a second read. `GetMessageEventStatesBatch`
+routes each `(channel_id, channel_type, client_msg_no)` key to the current
+channel hash slot and returns compact lane states for messagesync-style
+summaries only; it does not implement `/message/eventsync`.
 `GetChannelRuntimeMeta` reads authoritative channel runtime metadata from the
 channel's current hash-slot route, and `AdvanceChannelRetentionThroughSeq`
 proposes a fenced Slot FSM command that only advances the channel message

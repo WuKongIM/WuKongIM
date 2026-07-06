@@ -268,6 +268,39 @@ func TestDecodeCommandInspectionIncludesHideConversationKind(t *testing.T) {
 	}, got)
 }
 
+func TestDecodeCommandInspectionIncludesMessageEventWithoutPayload(t *testing.T) {
+	got, err := DecodeCommandInspection(EncodeAppendMessageEventCommand(metadb.MessageEventAppend{
+		ChannelID:   "g1",
+		ChannelType: 2,
+		ClientMsgNo: "cmn-1",
+		EventID:     "evt-1",
+		EventKey:    "main",
+		EventType:   metadb.EventTypeStreamDelta,
+		Visibility:  metadb.VisibilityPublic,
+		OccurredAt:  10,
+		Payload:     []byte(`{"kind":"text","delta":"secret"}`),
+		UpdatedAt:   11,
+	}))
+	require.NoError(t, err)
+
+	require.Equal(t, CommandInspection{
+		Type: "append_message_event",
+		Payload: map[string]any{
+			"command":       "append_message_event",
+			"channel_id":    "g1",
+			"channel_type":  int64(2),
+			"client_msg_no": "cmn-1",
+			"event_id":      "evt-1",
+			"event_key":     "main",
+			"event_type":    metadb.EventTypeStreamDelta,
+			"visibility":    metadb.VisibilityPublic,
+			"occurred_at":   int64(10),
+			"updated_at":    int64(11),
+			"payload_bytes": len([]byte(`{"kind":"text","delta":"secret"}`)),
+		},
+	}, got)
+}
+
 func TestDecodeCommandInspectionIncludesCMDKindConversationCommands(t *testing.T) {
 	got, err := DecodeCommandInspection(EncodeUpsertConversationStatesCommand([]metadb.ConversationState{{
 		UID:          "u1",

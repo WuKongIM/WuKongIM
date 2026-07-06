@@ -12,6 +12,7 @@ import (
 )
 
 const (
+	EventTypeStreamOpen     = "stream.open"
 	EventTypeStreamDelta    = "stream.delta"
 	EventTypeStreamClose    = "stream.close"
 	EventTypeStreamError    = "stream.error"
@@ -423,7 +424,7 @@ func normalizeMessageEventAppend(event MessageEventAppend) (MessageEventAppend, 
 		event.Visibility = VisibilityPublic
 	}
 	switch event.EventType {
-	case EventTypeStreamDelta, EventTypeStreamClose, EventTypeStreamError, EventTypeStreamCancel, EventTypeStreamSnapshot, EventTypeStreamFinish:
+	case EventTypeStreamOpen, EventTypeStreamDelta, EventTypeStreamClose, EventTypeStreamError, EventTypeStreamCancel, EventTypeStreamSnapshot, EventTypeStreamFinish:
 	default:
 		return MessageEventAppend{}, dberrors.ErrInvalidArgument
 	}

@@ -404,6 +404,71 @@ func (n *Node) GetChannelLatestBatch(ctx context.Context, keys []metadb.Conversa
 	return out, nil
 }
 
+// AppendMessageEvent persists one channel-owned message event projection and returns the reducer result.
+func (n *Node) AppendMessageEvent(ctx context.Context, event metadb.MessageEventAppend) (metadb.MessageEventAppendResult, error) {
+	if err := ctxErr(ctx); err != nil {
+		return metadb.MessageEventAppendResult{}, err
+	}
+	if n == nil {
+		return metadb.MessageEventAppendResult{}, ErrNotStarted
+	}
+	command, err := metafsm.EncodeAppendMessageEventCommandChecked(event)
+	if err != nil {
+		return metadb.MessageEventAppendResult{}, err
+	}
+	resultBytes, err := n.ProposeResult(ctx, ProposeRequest{Key: event.ChannelID, Command: command})
+	if err != nil {
+		return metadb.MessageEventAppendResult{}, err
+	}
+	result, err := metafsm.DecodeAppendMessageEventResult(resultBytes)
+	if err != nil {
+		if string(resultBytes) == metafsm.ApplyResultStaleMeta {
+			return metadb.MessageEventAppendResult{}, metadb.ErrStaleMeta
+		}
+		return metadb.MessageEventAppendResult{}, err
+	}
+	return result, nil
+}
+
+// GetMessageEventStatesBatch reads projected event lanes for message keys through each channel route.
+func (n *Node) GetMessageEventStatesBatch(ctx context.Context, keys []metadb.MessageEventMessageKey, limit int) (map[metadb.MessageEventMessageKey][]metadb.MessageEventState, error) {
+	if err := ctxErr(ctx); err != nil {
+		return nil, err
+	}
+	if len(keys) == 0 {
+		return map[metadb.MessageEventMessageKey][]metadb.MessageEventState{}, nil
+	}
+	if err := n.ensureForeground(); err != nil {
+		return nil, err
+	}
+	if n.defaultSlotMetaDB == nil {
+		return nil, ErrNotStarted
+	}
+	out := make(map[metadb.MessageEventMessageKey][]metadb.MessageEventState, len(keys))
+	seen := make(map[metadb.MessageEventMessageKey]struct{}, len(keys))
+	for _, key := range keys {
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		route, err := n.RouteKey(key.ChannelID)
+		if err != nil {
+			return nil, err
+		}
+		states, err := n.defaultSlotMetaDB.ForHashSlot(route.HashSlot).ListMessageEventStates(ctx, key.ChannelID, key.ChannelType, key.ClientMsgNo, limit)
+		if err != nil {
+			if errors.Is(err, metadb.ErrNotFound) {
+				continue
+			}
+			return nil, err
+		}
+		if len(states) > 0 {
+			out[key] = states
+		}
+	}
+	return out, nil
+}
+
 // UpsertUserChannelMemberships persists UID-owned channel memberships through hash-slot ownership.
 func (n *Node) UpsertUserChannelMemberships(ctx context.Context, channelID string, channelType int64, uids []string, joinSeq uint64, updatedAt int64) error {
 	if err := ctxErr(ctx); err != nil {

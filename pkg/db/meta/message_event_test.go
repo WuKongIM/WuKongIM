@@ -65,6 +65,28 @@ func TestMessageEventAppendTextLifecycle(t *testing.T) {
 	}
 }
 
+func TestMessageEventAppendStreamOpenStartsDefaultLane(t *testing.T) {
+	store := openTestMetaStore(t)
+	defer store.close(t)
+	ctx := context.Background()
+	shard := store.db.HashSlot(4)
+
+	result, err := shard.AppendMessageEvent(ctx, MessageEventAppend{
+		ChannelID: "g1", ChannelType: 2, ClientMsgNo: "cmn-open",
+		EventID: "evt-open", EventType: EventTypeStreamOpen,
+		OccurredAt: 10, UpdatedAt: 11,
+	})
+	if err != nil {
+		t.Fatalf("AppendMessageEvent(open): %v", err)
+	}
+	if result.MsgEventSeq != 1 || result.EventKey != EventKeyDefault || result.Status != EventStatusOpen {
+		t.Fatalf("open result = %#v, want seq=1 default open", result)
+	}
+	if result.State.LastVisibility != VisibilityPublic {
+		t.Fatalf("open visibility = %q, want public default", result.State.LastVisibility)
+	}
+}
+
 func TestMessageEventAppendIdempotentByLastEventID(t *testing.T) {
 	store := openTestMetaStore(t)
 	defer store.close(t)

@@ -78,6 +78,19 @@ func inspectCommand(cmd command) (CommandInspection, error) {
 		return simpleInspection("hide_conversations", map[string]any{
 			"deletes": conversationDeletesPayload(typed.deletes()),
 		}), nil
+	case *appendMessageEventCmd:
+		return simpleInspection("append_message_event", map[string]any{
+			"channel_id":    typed.event.ChannelID,
+			"channel_type":  typed.event.ChannelType,
+			"client_msg_no": typed.event.ClientMsgNo,
+			"event_id":      typed.event.EventID,
+			"event_key":     typed.event.EventKey,
+			"event_type":    typed.event.EventType,
+			"visibility":    typed.event.Visibility,
+			"occurred_at":   typed.event.OccurredAt,
+			"updated_at":    typed.event.UpdatedAt,
+			"payload_bytes": len(typed.event.Payload),
+		}), nil
 	case *bindPluginUserCmd:
 		return pluginBindingInspection("bind_plugin_user", typed.binding), nil
 	case *unbindPluginUserCmd:

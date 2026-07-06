@@ -47,6 +47,7 @@ const (
 	cmdTypeDeleteUserChannelMemberships         uint8 = 45
 	cmdTypeUpsertChannelLatest                  uint8 = 46
 	cmdTypeUpsertChannelLatestBatch             uint8 = 47
+	cmdTypeAppendMessageEvent                   uint8 = 48
 	cmdTypeBindPluginUser                       uint8 = 42
 	cmdTypeUnbindPluginUser                     uint8 = 43
 
@@ -249,6 +250,7 @@ var commandDecoders = map[uint8]commandDecoder{
 	cmdTypeDeleteUserChannelMemberships:         decodeDeleteUserChannelMemberships,
 	cmdTypeUpsertChannelLatest:                  decodeUpsertChannelLatest,
 	cmdTypeUpsertChannelLatestBatch:             decodeUpsertChannelLatestBatch,
+	cmdTypeAppendMessageEvent:                   decodeAppendMessageEvent,
 	cmdTypeBindPluginUser:                       decodeBindPluginUser,
 	cmdTypeUnbindPluginUser:                     decodeUnbindPluginUser,
 	cmdTypeApplyDelta:                           decodeApplyDelta,
