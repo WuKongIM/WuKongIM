@@ -301,7 +301,7 @@ type ChannelAppendConfig struct {
 	AuthorityShardCount int
 	// AdvancePoolSize is the direct ants pool size used to activate channel append writer state machines. Zero derives a CPU-aware default.
 	AdvancePoolSize int
-	// EffectPoolSize is the direct ants pool size shared by blocking append calls and post-append recipient effects. Zero derives a CPU-aware default.
+	// EffectPoolSize is the direct ants pool size used separately by blocking append calls and post-append recipient effects. Zero derives a CPU-aware default.
 	EffectPoolSize int
 	// RecipientAuthorityDispatchConcurrency bounds per-message recipient authority fanout after append. Zero uses a bounded default.
 	RecipientAuthorityDispatchConcurrency int

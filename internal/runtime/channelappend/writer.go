@@ -47,14 +47,15 @@ type realtimeDispatch struct {
 
 // writerPorts are the dependencies a writer needs to advance its state machine.
 type writerPorts struct {
-	prepare    preparePorts
-	append     appendPorts
-	commit     commitPorts
-	pool       *workerPool
-	schedule   func(*channelWriter)
-	runtimeCtx context.Context
-	stopped    *atomic.Bool
-	metrics    *groupMetrics
+	prepare        preparePorts
+	append         appendPorts
+	commit         commitPorts
+	appendPool     *workerPool
+	postCommitPool *workerPool
+	schedule       func(*channelWriter)
+	runtimeCtx     context.Context
+	stopped        *atomic.Bool
+	metrics        *groupMetrics
 
 	inboxCoalesceWindow   time.Duration
 	inboxCoalesceMaxItems int
@@ -189,7 +190,7 @@ func (w *channelWriter) idleExpired(now time.Time, idleRetention time.Duration) 
 }
 
 // advance pushes the writer's state machine forward as far as it can without
-// blocking, submitting blocking append/commit effects to the shared pool.
+// blocking, submitting blocking append and post-commit effects to isolated pools.
 // Exactly one goroutine runs advance for a given writer at a time.
 func (w *channelWriter) advance() {
 	if !w.ports.commit.hasPostCommitWork() {
@@ -366,7 +367,7 @@ func (w *channelWriter) nextAppendLocked(out *appendEffect) bool {
 
 func (w *channelWriter) runAppend(effect *appendEffect) {
 	snapshot := *effect
-	_ = w.ports.pool.submit(func() {
+	_ = w.ports.appendPool.submit(func() {
 		completion := snapshot.run(w.ports.runtimeCtx, w.ports.append)
 		w.applyAppendCompletion(completion)
 		w.rescheduleIfNeeded()
@@ -384,7 +385,7 @@ func (w *channelWriter) runRealtimeDispatch(dispatch realtimeDispatch) {
 		return
 	}
 	effect := realtimeEffect{target: dispatch.target, items: dispatch.items}
-	if err := w.ports.pool.submit(func() {
+	if err := w.ports.postCommitPool.submit(func() {
 		for _, completion := range effect.run(w.ports.runtimeCtx, w.ports.commit) {
 			completion.item.future.completeItem(completion.item.Index, completion.result)
 		}
@@ -449,7 +450,7 @@ func (w *channelWriter) nextCommitLocked(out *commitEffect) bool {
 
 func (w *channelWriter) runCommit(effect *commitEffect) {
 	snapshot := *effect
-	_ = w.ports.pool.submit(func() {
+	_ = w.ports.postCommitPool.submit(func() {
 		completion := snapshot.run(w.ports.runtimeCtx, w.ports.commit)
 		w.applyCommitCompletion(completion)
 		w.rescheduleIfNeeded()

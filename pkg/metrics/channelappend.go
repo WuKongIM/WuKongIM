@@ -71,12 +71,12 @@ func newChannelAppendMetrics(registry prometheus.Registerer, labels prometheus.L
 		}, nil),
 		writerPoolRunning: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name:        "wukongim_channelappend_writer_pool_running",
-			Help:        "Current running workers in the internal channel append shared pool.",
+			Help:        "Current running workers in the internal channel append foreground append pool.",
 			ConstLabels: labels,
 		}, nil),
 		writerPoolCap: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name:        "wukongim_channelappend_writer_pool_capacity",
-			Help:        "Configured internal channel append shared pool capacity.",
+			Help:        "Configured internal channel append foreground append pool capacity.",
 			ConstLabels: labels,
 		}, nil),
 		writerStateItems: prometheus.NewGaugeVec(prometheus.GaugeOpts{
@@ -86,22 +86,22 @@ func newChannelAppendMetrics(registry prometheus.Registerer, labels prometheus.L
 		}, []string{"kind"}),
 		effectPoolSubmit: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name:        "wukongim_channelappend_effect_pool_submit_total",
-			Help:        "Total internal channel append shared effect pool submit attempts by stage and result.",
+			Help:        "Total internal channel append effect pool submit attempts by stage and result.",
 			ConstLabels: labels,
 		}, []string{"stage", "result"}),
 		effectPoolInflight: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name:        "wukongim_channelappend_effect_pool_inflight",
-			Help:        "Current internal channel append shared effect pool inflight workers by stage.",
+			Help:        "Current internal channel append effect pool inflight workers by stage.",
 			ConstLabels: labels,
 		}, []string{"stage"}),
 		effectPoolCap: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name:        "wukongim_channelappend_effect_pool_capacity",
-			Help:        "Configured internal channel append shared effect pool capacity by stage.",
+			Help:        "Configured internal channel append effect pool capacity by stage.",
 			ConstLabels: labels,
 		}, []string{"stage"}),
 		effectPoolSaturated: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name:        "wukongim_channelappend_effect_pool_saturated",
-			Help:        "Whether the internal channel append shared effect pool is saturated by stage.",
+			Help:        "Whether the internal channel append effect pool is saturated by stage.",
 			ConstLabels: labels,
 		}, []string{"stage"}),
 		effectTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
@@ -185,7 +185,7 @@ func (m *ChannelAppendMetrics) SetWriterPressure(admissionDepth int, admissionCa
 	m.writerStateItems.WithLabelValues("post_commit_backlog").Set(float64(postCommitBacklog))
 }
 
-// ObserveEffectPool records shared effect pool admission and pressure.
+// ObserveEffectPool records effect pool admission and pressure.
 func (m *ChannelAppendMetrics) ObserveEffectPool(stage, result string, inflight int, capacity int, saturated bool) {
 	if m == nil {
 		return

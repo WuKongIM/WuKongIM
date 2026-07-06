@@ -111,9 +111,9 @@ type WriterPressureObservation struct {
 	AdmissionDepth int
 	// AdmissionCapacity is the configured admitted item capacity.
 	AdmissionCapacity int
-	// WorkerRunning is the current shared worker pool running count.
+	// WorkerRunning is the current foreground append worker pool running count.
 	WorkerRunning int
-	// WorkerCapacity is the shared worker pool capacity.
+	// WorkerCapacity is the foreground append worker pool capacity.
 	WorkerCapacity int
 	// PendingAppendItems is the total prepared-but-not-appended item count.
 	PendingAppendItems int
@@ -129,7 +129,7 @@ type WriterPressureObserver interface {
 	SetChannelAppendWriterPressure(WriterPressureObservation)
 }
 
-// EffectPoolObservation describes shared ants pool admission and pressure.
+// EffectPoolObservation describes effect-stage ants pool admission and pressure.
 type EffectPoolObservation struct {
 	// Stage is prepare, append, or post_commit.
 	Stage string
@@ -137,15 +137,15 @@ type EffectPoolObservation struct {
 	Result string
 	// Inflight is the current number of pool tokens in use.
 	Inflight int
-	// Capacity is the shared stage pool worker capacity.
+	// Capacity is the stage pool worker capacity.
 	Capacity int
 	// Saturated is true when Inflight is at or above Capacity.
 	Saturated bool
 }
 
-// EffectPoolObserver receives shared ants pool admission and pressure gauges.
+// EffectPoolObserver receives effect-stage ants pool admission and pressure gauges.
 type EffectPoolObserver interface {
-	// ObserveChannelAppendEffectPool records one shared effect pool observation.
+	// ObserveChannelAppendEffectPool records one effect pool observation.
 	ObserveChannelAppendEffectPool(EffectPoolObservation)
 }
 
@@ -364,7 +364,7 @@ type Options struct {
 	InboxCoalesceMaxItems int
 	// WriterIdleRetention keeps drained channel writers available for reuse before shard cleanup may reclaim them. Values <= 0 use a conservative default.
 	WriterIdleRetention time.Duration
-	// EffectPoolSize is the direct ants pool size shared by blocking append calls and post-append recipient effects. Values <= 0 use a conservative default.
+	// EffectPoolSize is the direct ants pool size used separately for blocking append calls and post-append recipient effects. Values <= 0 use a conservative default.
 	EffectPoolSize int
 	// Observer receives non-fatal append observations.
 	Observer AppendObserver

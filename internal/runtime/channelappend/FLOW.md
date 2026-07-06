@@ -87,7 +87,7 @@ single-writer ordering for the channel key.
 
 ## Lifecycle
 
-`Group.Start` opens local admission and prepares shared worker pools. Writers
+`Group.Start` opens local admission and prepares isolated worker pools. Writers
 are created lazily on accepted local submissions and reclaimed opportunistically
 after they have stayed fully idle past `WriterIdleRetention`. `Group.Stop`
 closes admission, cancels the runtime context used by append and post-commit
@@ -145,7 +145,7 @@ reporting a success that cannot be delivered.
 
 The writer builds channel-aligned append batches from prepared pending items
 and keeps up to `AppendInflightBatchesPerChannel` append batches in flight per channel.
-Blocking `Appender.AppendBatch` calls run on the shared worker pool and wake the
+Blocking `Appender.AppendBatch` calls run on the foreground append pool and wake the
 same writer when they complete. Completion events are drained by append sequence
 before mutating `channelState`, so SENDACK and post-commit handoff remain in
 submission order even when same-channel append calls finish out of order. The
@@ -285,13 +285,14 @@ Writer pressure observations are produced from aggregate counters maintained on
 state transitions; they do not scan shard writer maps. Admission depth is the
 sum of shard-local accepted items that have not yet completed their futures.
 Pending append, append in-flight, and post-commit backlog counters are updated
-by the writer as items move between queues. Shared pool observations report
-submit results and current running/capacity gauges for append and post-commit
-tasks. The writer pressure observer reports the local writer group aggregate
-rather than a per-channel event loop. When the observer supports ants pool
-samples, the group also emits direct ants/v2 running/capacity/waiting
-observations for the advance pool and the effect pool; benchmark scripts use
-these samples for the per-node peak `used/cap` ants pool summary.
+by the writer as items move between queues. Append effects run on a foreground
+append pool, while post-commit and realtime recipient effects run on an
+isolated post-commit pool so best-effort side effects cannot occupy durable
+append workers. The writer pressure observer reports the local writer group
+aggregate rather than a per-channel event loop. When the observer supports ants
+pool samples, the group also emits direct ants/v2 running/capacity/waiting
+observations for the advance, append_effect, and post_commit pools; benchmark
+scripts use these samples for the per-node peak `used/cap` ants pool summary.
 
 `Stop` cancels the runtime context passed to append and post-commit effects
 before waiting for writers to drain. Once cancellation is observed, writers do

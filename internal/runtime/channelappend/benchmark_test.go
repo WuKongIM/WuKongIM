@@ -317,7 +317,7 @@ func BenchmarkGroupMetricsTransitionEnabled(b *testing.B) {
 		observer:          &benchmarkWriterPressureObserver{},
 		admissionShards:   []*shard{metricShard},
 		admissionCapacity: 4096,
-		pool:              pool,
+		appendPool:        pool,
 	}
 
 	b.ReportAllocs()

@@ -8,7 +8,8 @@ type groupMetrics struct {
 
 	admissionShards   []*shard
 	admissionCapacity int64
-	pool              *workerPool
+	appendPool        *workerPool
+	postCommitPool    *workerPool
 	advancePool       *workerPool
 
 	pendingAppendItems  atomic.Int64
@@ -46,9 +47,9 @@ func (m *groupMetrics) observePressure() {
 	}
 	admissionUsed := m.admissionDepth()
 	workerUsed, workerCapacity := 0, 0
-	if m.pool != nil {
-		workerUsed = m.pool.running()
-		workerCapacity = m.pool.capacity()
+	if m.appendPool != nil {
+		workerUsed = m.appendPool.running()
+		workerCapacity = m.appendPool.capacity()
 	}
 	m.observer.SetChannelAppendWriterPressure(WriterPressureObservation{
 		AdmissionDepth:      admissionUsed,
@@ -64,7 +65,8 @@ func (m *groupMetrics) observePressure() {
 		return
 	}
 	observeWorkerPool(antsObserver, "advance", m.advancePool)
-	observeWorkerPool(antsObserver, "effect", m.pool)
+	observeWorkerPool(antsObserver, "append_effect", m.appendPool)
+	observeWorkerPool(antsObserver, "post_commit", m.postCommitPool)
 }
 
 func (m *groupMetrics) admissionDepth() int {

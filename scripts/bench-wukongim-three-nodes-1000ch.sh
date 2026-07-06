@@ -358,6 +358,7 @@ start_cluster() {
   # Preserve synchronous commits; the wider window only improves durable group-commit batching.
   # Keep server send timeout below the 15s client ACK wait so recovery can still write SENDACK.
   WK_DEBUG_API_ENABLE="${WK_DEBUG_API_ENABLE:-true}" \
+  WK_TOP_API_ENABLE="${WK_TOP_API_ENABLE:-false}" \
   WK_CLUSTER_INITIAL_SLOT_COUNT="${WK_CLUSTER_INITIAL_SLOT_COUNT:-3}" \
   WK_CLUSTER_HASH_SLOT_COUNT="${WK_CLUSTER_HASH_SLOT_COUNT:-96}" \
   WK_CLUSTER_CHANNEL_REACTOR_COUNT="${WK_CLUSTER_CHANNEL_REACTOR_COUNT:-128}" \
@@ -370,11 +371,11 @@ start_cluster() {
   WK_CHANNEL_APPEND_ADVANCE_POOL_SIZE="${WK_CHANNEL_APPEND_ADVANCE_POOL_SIZE:-0}" \
   WK_CHANNEL_APPEND_EFFECT_POOL_SIZE="${WK_CHANNEL_APPEND_EFFECT_POOL_SIZE:-0}" \
   WK_CHANNEL_APPEND_RECIPIENT_AUTHORITY_DISPATCH_CONCURRENCY="${WK_CHANNEL_APPEND_RECIPIENT_AUTHORITY_DISPATCH_CONCURRENCY:-0}" \
-  WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW="${WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW:-2ms}" \
+  WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW="${WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW:-1ms}" \
   WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS="${WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS:-0}" \
   WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS="${WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS:-0}" \
   WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES="${WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES:-131072}" \
-  WK_CLUSTER_COMMIT_COORDINATOR_SHARDS="${WK_CLUSTER_COMMIT_COORDINATOR_SHARDS:-0}" \
+  WK_CLUSTER_COMMIT_COORDINATOR_SHARDS="${WK_CLUSTER_COMMIT_COORDINATOR_SHARDS:-8}" \
   WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS="${WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS:-2048}" \
   WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_WAIT="${WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_WAIT:-500us}" \
   WK_GATEWAY_SEND_TIMEOUT="${WK_GATEWAY_SEND_TIMEOUT:-14s}" \
@@ -672,14 +673,21 @@ capture_node_pprof() {
   local phase="$1"
   local pprof_dir="$OUT_DIR/pprof/$phase"
   mkdir -p "$pprof_dir"
-  local addr id
+  local addr id pid
+  local pids=()
   for addr in "${API_VALUES[@]}"; do
     id="$(metric_file_id "$addr")"
-    curl -fsS "${addr%/}/debug/pprof/goroutine?debug=2" >"$pprof_dir/${id}-goroutine.txt" || true
-    curl -fsS "${addr%/}/debug/pprof/heap" >"$pprof_dir/${id}-heap.pb.gz" || true
-    if (( PROFILE_SECONDS > 0 )); then
-      curl -fsS "${addr%/}/debug/pprof/profile?seconds=${PROFILE_SECONDS}" >"$pprof_dir/${id}-cpu.pb.gz" || true
-    fi
+    (
+      curl -fsS "${addr%/}/debug/pprof/goroutine?debug=2" >"$pprof_dir/${id}-goroutine.txt" || true
+      curl -fsS "${addr%/}/debug/pprof/heap" >"$pprof_dir/${id}-heap.pb.gz" || true
+      if (( PROFILE_SECONDS > 0 )); then
+        curl -fsS "${addr%/}/debug/pprof/profile?seconds=${PROFILE_SECONDS}" >"$pprof_dir/${id}-cpu.pb.gz" || true
+      fi
+    ) &
+    pids+=("$!")
+  done
+  for pid in "${pids[@]}"; do
+    wait "$pid" 2>/dev/null || true
   done
 }
 
@@ -952,6 +960,20 @@ stop_runtime_pool_sampler() {
   wait "$pid" 2>/dev/null || true
 }
 
+start_run_pprof_sampler() {
+  if (( PROFILE_SECONDS <= 0 )); then
+    return 0
+  fi
+  capture_node_pprof run >/dev/null 2>&1 &
+  printf '%s\n' "$!"
+}
+
+wait_run_pprof_sampler() {
+  local pid="$1"
+  [[ -n "$pid" ]] || return 0
+  wait "$pid" 2>/dev/null || true
+}
+
 rpc_pull_qps_summary() {
   local tag="$1"
   local metrics_dir="$OUT_DIR/metrics/$tag"
@@ -1082,7 +1104,7 @@ cluster_transport_peak_summary() {
 
 run_attempt() {
   local qps="$1"
-  local tag report_dir exit_status duration sampler_pid
+  local tag report_dir exit_status duration sampler_pid pprof_pid
   tag="$(qps_tag "$qps")"
   report_dir="$OUT_DIR/reports/${tag}-qps"
   duration="$(duration_seconds "$DURATION")"
@@ -1094,6 +1116,7 @@ run_attempt() {
   log "running qps=$qps tag=$tag"
   scrape_metrics "$tag" before
   sampler_pid="$(start_runtime_pool_sampler "$tag")"
+  pprof_pid="$(start_run_pprof_sampler)"
   exit_status=0
   "$WK_BENCH_BIN" run \
     --target "$OUT_DIR/target.yaml" \
@@ -1101,6 +1124,7 @@ run_attempt() {
     --workers "$OUT_DIR/workers.yaml" \
     --phase-poll-timeout "$PHASE_POLL_TIMEOUT" \
     >"$report_dir/wkbench-console.txt" 2>&1 || exit_status=$?
+  wait_run_pprof_sampler "$pprof_pid"
   stop_runtime_pool_sampler "$tag" "$sampler_pid"
   scrape_metrics "$tag" after
   classify_metrics "$tag"
@@ -1177,11 +1201,12 @@ CLUSTER_CHANNEL_STORE_APPLY_WORKERS=${WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS:-50
 CLUSTER_CHANNEL_RPC_WORKERS=${WK_CLUSTER_CHANNEL_RPC_WORKERS:-500}
 CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS=${WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS:-128}
 CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT=${WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT:-250us}
-CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW=${WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW:-2ms}
+TOP_API_ENABLE=${WK_TOP_API_ENABLE:-false}
+CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW=${WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW:-1ms}
 CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS=${WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS:-0}
 CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS=${WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS:-0}
 CLUSTER_COMMIT_COORDINATOR_MAX_BYTES=${WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES:-131072}
-CLUSTER_COMMIT_COORDINATOR_SHARDS=${WK_CLUSTER_COMMIT_COORDINATOR_SHARDS:-0}
+CLUSTER_COMMIT_COORDINATOR_SHARDS=${WK_CLUSTER_COMMIT_COORDINATOR_SHARDS:-8}
 CLUSTER_COMMIT_COORDINATOR_SYNC=${WK_CLUSTER_COMMIT_COORDINATOR_SYNC:-true}
 GATEWAY_ASYNC_SEND_WORKERS=${WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS:-2048}
 GATEWAY_ASYNC_SEND_BATCH_MAX_WAIT=${WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_WAIT:-500us}

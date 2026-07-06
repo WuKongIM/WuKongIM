@@ -39,7 +39,7 @@ func (c *capturePressureObserver) SetChannelAppendWriterPressure(event WriterPre
 func (c *capturePressureObserver) ObserveChannelAppendAntsPool(event AntsPoolObservation) {
 	c.mu.Lock()
 	c.antsSeen[event.Pool] = event
-	if len(c.antsSeen) >= 2 {
+	if len(c.antsSeen) >= 3 {
 		select {
 		case <-c.antsReady:
 		default:
@@ -104,11 +104,50 @@ func TestGroupEmitsAggregatePressure(t *testing.T) {
 	}
 	observer.mu.Lock()
 	advance := observer.antsSeen["advance"]
-	effect := observer.antsSeen["effect"]
+	appendEffect := observer.antsSeen["append_effect"]
+	postCommit := observer.antsSeen["post_commit"]
 	observer.mu.Unlock()
-	if advance.Capacity == 0 || effect.Capacity != 5 {
-		t.Fatalf("ants pool observations = advance %#v effect %#v, want advance and effect pools", advance, effect)
+	if advance.Capacity == 0 || appendEffect.Capacity != 5 || postCommit.Capacity != 5 {
+		t.Fatalf("ants pool observations = advance %#v append_effect %#v post_commit %#v, want advance, append_effect, and post_commit pools", advance, appendEffect, postCommit)
 	}
+}
+
+func TestPostCommitEffectDoesNotBlockDurableAppendPool(t *testing.T) {
+	appender := newPostCommitIsolationAppenderForPressureTest("append")
+	delivery := newBlockingRecipientDeliveryEnqueuerForCommitTest()
+	group := newStartedTestGroup(t, Options{
+		LocalNodeID:                1,
+		MessageID:                  newSequenceIDsForPrepare(1),
+		Appender:                   appender,
+		EffectPoolSize:             1,
+		RecipientAuthorityResolver: staticRecipientAuthorityResolverForCommitTest{nodeID: 1},
+		RecipientDeliveryEnqueuer:  delivery,
+		RecipientBatchSize:         16,
+	})
+	t.Cleanup(delivery.release)
+
+	postCommitTarget := localTargetForAppendTest("post-commit")
+	postCommitItem := appendSendItemForTest("u1", postCommitTarget.ChannelID.ID, "post-commit")
+	postCommitItem.Command.MessageScopedUIDs = []string{"u2"}
+	future, err := group.SubmitLocal(context.Background(), postCommitTarget, []SendBatchItem{postCommitItem})
+	if err != nil {
+		t.Fatalf("SubmitLocal(post-commit) error = %v", err)
+	}
+	requireAppendSuccess(t, waitFutureForTest(t, future), 0, 1, 1)
+	delivery.waitStarted(t)
+
+	appendTarget := localTargetForAppendTest("append")
+	appendC := submitNoWaitForAppendTest(group, appendTarget, appendSendItemForTest("u1", appendTarget.ChannelID.ID, "append"))
+	appendStarted := appender.waitBlockedAppendStarted(t)
+	appendStarted.Release()
+
+	appendResult := receiveSubmitResult(t, appendC)
+	if appendResult.err != nil {
+		t.Fatalf("SubmitLocal(append) error = %v", appendResult.err)
+	}
+	requireAppendSuccess(t, waitFutureForTest(t, appendResult.future), 0, 2, 1)
+	delivery.release()
+	waitCommitBacklogForTest(t, group, postCommitTarget.ChannelID, 0)
 }
 
 func TestGroupDisablesWriterPressureMetricsWithoutObserver(t *testing.T) {
@@ -125,6 +164,32 @@ func TestGroupDisablesWriterPressureMetricsWithoutObserver(t *testing.T) {
 			t.Fatalf("writer pressure metrics = %p, want nil without pressure observer", shard.ports.metrics)
 		}
 	}
+}
+
+type postCommitIsolationAppenderForPressureTest struct {
+	blockedChannel string
+	blocked        *blockingAppenderForAppendTest
+	recording      *recordingAppenderForAppendTest
+}
+
+func newPostCommitIsolationAppenderForPressureTest(blockedChannel string) *postCommitIsolationAppenderForPressureTest {
+	return &postCommitIsolationAppenderForPressureTest{
+		blockedChannel: blockedChannel,
+		blocked:        newBlockingAppenderForAppendTest(),
+		recording:      newRecordingAppenderForAppendTest(),
+	}
+}
+
+func (a *postCommitIsolationAppenderForPressureTest) AppendBatch(ctx context.Context, req AppendBatchRequest) (AppendBatchResult, error) {
+	if req.ChannelID.ID == a.blockedChannel {
+		return a.blocked.AppendBatch(ctx, req)
+	}
+	return a.recording.AppendBatch(ctx, req)
+}
+
+func (a *postCommitIsolationAppenderForPressureTest) waitBlockedAppendStarted(t *testing.T) appendStartedForAppendTest {
+	t.Helper()
+	return a.blocked.waitStarted(t)
 }
 
 func TestGroupEnablesWriterPressureMetricsWithObserver(t *testing.T) {

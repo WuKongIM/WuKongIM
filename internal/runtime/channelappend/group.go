@@ -14,8 +14,10 @@ type Group struct {
 	shards []*shard
 	// advancePool runs non-blocking writer state-machine activation.
 	advancePool *workerPool
-	// pool runs blocking append and post-commit effects.
-	pool *workerPool
+	// appendPool runs foreground blocking durable append effects.
+	appendPool *workerPool
+	// postCommitPool runs best-effort post-commit and realtime recipient effects.
+	postCommitPool *workerPool
 
 	runtimeCtx    context.Context
 	runtimeCancel context.CancelFunc
@@ -34,15 +36,17 @@ func New(opts Options) *Group {
 	opts = applyDefaults(opts)
 	limits := stateLimitsFromOptions(opts)
 	advancePool := newWorkerPool(opts.AdvancePoolSize)
-	pool := newWorkerPool(opts.EffectPoolSize)
+	appendPool := newWorkerPool(opts.EffectPoolSize)
+	postCommitPool := newWorkerPool(opts.EffectPoolSize)
 	runtimeCtx, runtimeCancel := context.WithCancel(context.Background())
 	group := &Group{
-		opts:          opts,
-		advancePool:   advancePool,
-		pool:          pool,
-		shards:        make([]*shard, opts.AuthorityShardCount),
-		runtimeCtx:    runtimeCtx,
-		runtimeCancel: runtimeCancel,
+		opts:           opts,
+		advancePool:    advancePool,
+		appendPool:     appendPool,
+		postCommitPool: postCommitPool,
+		shards:         make([]*shard, opts.AuthorityShardCount),
+		runtimeCtx:     runtimeCtx,
+		runtimeCancel:  runtimeCancel,
 	}
 	for i := range group.shards {
 		group.shards[i] = newShard(limits, int64(opts.AdmissionCapacityPerShard), opts.WriterIdleRetention)
@@ -53,20 +57,22 @@ func New(opts Options) *Group {
 			observer:          observer,
 			admissionShards:   group.shards,
 			admissionCapacity: int64(opts.AdmissionCapacityPerShard * opts.AuthorityShardCount),
-			pool:              pool,
+			appendPool:        appendPool,
+			postCommitPool:    postCommitPool,
 			advancePool:       advancePool,
 		}
 		metrics = &group.metrics
 	}
 	ports := writerPorts{
-		prepare:    preparePortsFromOptions(opts),
-		append:     appendPortsFromOptions(opts),
-		commit:     commitPortsFromOptions(opts),
-		pool:       pool,
-		schedule:   group.schedule,
-		runtimeCtx: runtimeCtx,
-		stopped:    &group.runtimeStopped,
-		metrics:    metrics,
+		prepare:        preparePortsFromOptions(opts),
+		append:         appendPortsFromOptions(opts),
+		commit:         commitPortsFromOptions(opts),
+		appendPool:     appendPool,
+		postCommitPool: postCommitPool,
+		schedule:       group.schedule,
+		runtimeCtx:     runtimeCtx,
+		stopped:        &group.runtimeStopped,
+		metrics:        metrics,
 
 		inboxCoalesceWindow:   opts.InboxCoalesceWindow,
 		inboxCoalesceMaxItems: opts.InboxCoalesceMaxItems,
@@ -124,7 +130,10 @@ func (g *Group) Stop(ctx context.Context) error {
 	if err := g.advancePool.stop(ctx); err != nil {
 		return err
 	}
-	if err := g.pool.stop(ctx); err != nil {
+	if err := g.appendPool.stop(ctx); err != nil {
+		return err
+	}
+	if err := g.postCommitPool.stop(ctx); err != nil {
 		return err
 	}
 

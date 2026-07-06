@@ -339,17 +339,17 @@ enqueue recipient-authority delivery batches into the recipient delivery worker.
 `Config.ChannelAppend.AuthorityShardCount` defaults to a CPU-aware lookup-shard
 count with a minimum of four. `ChannelAppend.AdvancePoolSize` is the direct ants
 pool capacity used to activate channelappend writer state machines.
-`ChannelAppend.EffectPoolSize` is the direct ants pool capacity shared by
-blocking channelappend append calls and post-append recipient effects. Prepare
-runs inline on the writer advance path; append remains the foreground durable
-path that determines SEND/SENDACK throughput.
+`ChannelAppend.EffectPoolSize` is the direct ants pool capacity used separately
+by foreground channelappend append effects and post-append recipient effects.
+Prepare runs inline on the writer advance path; append remains the foreground
+durable path that determines SEND/SENDACK throughput.
 `ChannelAppend.RecipientAuthorityDispatchConcurrency` defaults to a bounded
 recipient-authority target fanout per post-commit envelope. The lookup-shard count controls writer map
-sharding; shared workers run only blocking effects and never write channel
+sharding; effect workers run only blocking effects and never write channel
 state concurrently with another advance for the same channel. The delivery
-observer maps aggregate writer pressure and shared pool submit/full/saturation observations into
+observer maps aggregate writer pressure and effect pool observations into
 Prometheus, and also records direct ants/v2 occupancy for the channelappend
-advance/effect pools in the generic ants pool metrics. The three-node bench
+advance/append_effect/post_commit pools in the generic ants pool metrics. The three-node bench
 script summarizes these in `channelappend_metrics_summary.tsv` and
 `ants_pool_usage_summary.tsv`. Per-channel append ordering remains capped
 by the single-writer invariant even when different channels run through
