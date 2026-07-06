@@ -54,6 +54,18 @@ func TestServiceProposeResultReturnsLocalApplyData(t *testing.T) {
 	}
 }
 
+func TestServiceProposeUsesResultlessLocalPathWhenAvailable(t *testing.T) {
+	slots := &fakeResultSlots{fakeSlots: fakeSlots{local: true}, result: []byte("seq=7")}
+	svc := NewService(Config{LocalNode: 1, Router: fakeRouter{route: routing.Route{HashSlot: 3, SlotID: 11, Leader: 1}}, Slots: slots})
+
+	if err := svc.Propose(context.Background(), Request{Key: "g1", Command: []byte("cmd")}); err != nil {
+		t.Fatalf("Propose() error = %v", err)
+	}
+	if slots.calls != 1 || slots.resultCalls != 0 {
+		t.Fatalf("slot calls=%d resultCalls=%d, want resultless path only", slots.calls, slots.resultCalls)
+	}
+}
+
 func TestServiceProposeResultFallsBackToLocalErrorOnlyRuntime(t *testing.T) {
 	slots := &fakeSlots{local: true}
 	svc := NewService(Config{LocalNode: 1, Router: fakeRouter{route: routing.Route{HashSlot: 3, SlotID: 11, Leader: 1}}, Slots: slots})
@@ -109,6 +121,21 @@ func TestServiceProposeResultReturnsForwardedApplyData(t *testing.T) {
 	}
 }
 
+func TestServiceProposeUsesResultlessForwardPathWhenAvailable(t *testing.T) {
+	forward := &fakeResultForward{result: []byte("remote-seq=9")}
+	svc := NewService(Config{LocalNode: 1, Router: fakeRouter{route: routing.Route{HashSlot: 3, SlotID: 11, Leader: 2}}, Slots: &fakeSlots{}, Forward: forward})
+
+	if err := svc.Propose(context.Background(), Request{Key: "g1", Command: []byte("cmd")}); err != nil {
+		t.Fatalf("Propose() error = %v", err)
+	}
+	if forward.calls != 1 || forward.resultCalls != 0 {
+		t.Fatalf("forward calls=%d resultCalls=%d, want resultless path only", forward.calls, forward.resultCalls)
+	}
+	if forward.req.WantResult {
+		t.Fatalf("forward WantResult = true, want false")
+	}
+}
+
 func TestServiceProposeResultFallsBackToForwardPropose(t *testing.T) {
 	forward := &fakeForward{}
 	svc := NewService(Config{LocalNode: 1, Router: fakeRouter{route: routing.Route{HashSlot: 3, SlotID: 11, Leader: 2}}, Slots: &fakeSlots{}, Forward: forward})
@@ -122,6 +149,32 @@ func TestServiceProposeResultFallsBackToForwardPropose(t *testing.T) {
 	}
 	if forward.calls != 1 || forward.nodeID != 2 {
 		t.Fatalf("forward calls=%d node=%d, want old ForwardPropose fallback to node 2", forward.calls, forward.nodeID)
+	}
+}
+
+func TestServiceProposeResultReroutesAfterRemoteNotLeader(t *testing.T) {
+	router := &sequenceRouter{routes: []routing.Route{
+		{HashSlot: 3, SlotID: 11, Leader: 2},
+		{HashSlot: 3, SlotID: 11, Leader: 3},
+	}}
+	forward := &fakeResultForward{
+		fakeForward: fakeForward{errs: []error{ErrNotLeader, nil}},
+		results:     [][]byte{nil, []byte("leader-3")},
+	}
+	svc := NewService(Config{LocalNode: 1, Router: router, Slots: &fakeSlots{}, Forward: forward})
+
+	got, err := svc.ProposeResult(context.Background(), Request{Key: "u1", Command: []byte("cmd")})
+	if err != nil {
+		t.Fatalf("ProposeResult() error = %v", err)
+	}
+	if string(got) != "leader-3" {
+		t.Fatalf("result = %q, want leader-3", got)
+	}
+	if router.calls != 2 {
+		t.Fatalf("route calls = %d, want 2", router.calls)
+	}
+	if forward.resultCalls != 2 || forward.nodeID != 3 {
+		t.Fatalf("forward resultCalls=%d node=%d, want retry to node 3", forward.resultCalls, forward.nodeID)
 	}
 }
 
@@ -160,6 +213,9 @@ func TestNetworkForwardClientUsesOwnedCallerWhenAvailable(t *testing.T) {
 	if req.SlotID != 11 || req.HashSlot != 3 {
 		t.Fatalf("decoded request = %#v, want slot=11 hash=3", req)
 	}
+	if req.WantResult {
+		t.Fatalf("decoded WantResult = true, want false")
+	}
 }
 
 func TestNetworkForwardClientForwardProposeResultReturnsPayload(t *testing.T) {
@@ -176,6 +232,13 @@ func TestNetworkForwardClientForwardProposeResultReturnsPayload(t *testing.T) {
 	if caller.callOwnedCount != 1 || caller.nodeID != 2 {
 		t.Fatalf("call count=%d node=%d, want owned call to node 2", caller.callOwnedCount, caller.nodeID)
 	}
+	req, err := DecodeForwardRequest(caller.payload)
+	if err != nil {
+		t.Fatalf("DecodeForwardRequest() error = %v", err)
+	}
+	if !req.WantResult {
+		t.Fatalf("decoded WantResult = false, want true")
+	}
 }
 
 func TestNetworkForwardClientMapsRemoteNotLeader(t *testing.T) {
@@ -186,6 +249,17 @@ func TestNetworkForwardClientMapsRemoteNotLeader(t *testing.T) {
 
 	if !errors.Is(err, ErrNotLeader) {
 		t.Fatalf("ForwardPropose() error = %v, want ErrNotLeader", err)
+	}
+}
+
+func TestNetworkForwardClientForwardProposeResultMapsRemoteNotLeader(t *testing.T) {
+	caller := &recordingOwnedForwardCaller{err: transport.RemoteError{Code: "remote_error", Message: ErrNotLeader.Error()}}
+	client := NewNetworkForwardClient(caller)
+
+	_, err := client.ForwardProposeResult(context.Background(), 2, ForwardRequest{SlotID: 11, HashSlot: 3, Payload: EncodePayload(3, []byte("cmd"))})
+
+	if !errors.Is(err, ErrNotLeader) {
+		t.Fatalf("ForwardProposeResult() error = %v, want ErrNotLeader", err)
 	}
 }
 
@@ -202,6 +276,32 @@ func TestForwardCodecRoundTripsProposalClass(t *testing.T) {
 	req, err := DecodeForwardRequest(payload)
 	if err != nil {
 		t.Fatalf("DecodeForwardRequest() error = %v", err)
+	}
+	if req.Class != ProposalClassBackground {
+		t.Fatalf("decoded proposal class = %q, want %q", req.Class, ProposalClassBackground)
+	}
+	if req.WantResult {
+		t.Fatalf("decoded WantResult = true, want false")
+	}
+}
+
+func TestForwardCodecRoundTripsWantResult(t *testing.T) {
+	payload, err := EncodeForwardRequest(ForwardRequest{
+		SlotID:     11,
+		HashSlot:   3,
+		Payload:    EncodePayload(3, []byte("cmd")),
+		Class:      ProposalClassBackground,
+		WantResult: true,
+	})
+	if err != nil {
+		t.Fatalf("EncodeForwardRequest() error = %v", err)
+	}
+	req, err := DecodeForwardRequest(payload)
+	if err != nil {
+		t.Fatalf("DecodeForwardRequest() error = %v", err)
+	}
+	if !req.WantResult {
+		t.Fatalf("decoded WantResult = false, want true")
 	}
 	if req.Class != ProposalClassBackground {
 		t.Fatalf("decoded proposal class = %q, want %q", req.Class, ProposalClassBackground)
@@ -284,7 +384,7 @@ func TestForwardHandlerChecksLocalLeader(t *testing.T) {
 func TestForwardHandlerReturnsResultWhenAvailable(t *testing.T) {
 	slots := &fakeResultSlots{fakeSlots: fakeSlots{local: true}, result: []byte("applied")}
 	handler := NewForwardHandler(slots)
-	payload, err := EncodeForwardRequest(ForwardRequest{SlotID: 1, HashSlot: 0, Payload: EncodePayload(0, []byte("cmd"))})
+	payload, err := EncodeForwardRequest(ForwardRequest{SlotID: 1, HashSlot: 0, WantResult: true, Payload: EncodePayload(0, []byte("cmd"))})
 	if err != nil {
 		t.Fatalf("EncodeForwardRequest() error = %v", err)
 	}
@@ -297,6 +397,25 @@ func TestForwardHandlerReturnsResultWhenAvailable(t *testing.T) {
 	}
 	if slots.resultCalls != 1 || slots.calls != 0 {
 		t.Fatalf("slot calls=%d resultCalls=%d, want result path only", slots.calls, slots.resultCalls)
+	}
+}
+
+func TestForwardHandlerDoesNotReturnResultUnlessRequested(t *testing.T) {
+	slots := &fakeResultSlots{fakeSlots: fakeSlots{local: true}, result: []byte("applied")}
+	handler := NewForwardHandler(slots)
+	payload, err := EncodeForwardRequest(ForwardRequest{SlotID: 1, HashSlot: 0, Payload: EncodePayload(0, []byte("cmd"))})
+	if err != nil {
+		t.Fatalf("EncodeForwardRequest() error = %v", err)
+	}
+	got, err := handler.HandleRPC(context.Background(), payload)
+	if err != nil {
+		t.Fatalf("HandleRPC() error = %v", err)
+	}
+	if got != nil {
+		t.Fatalf("result = %q, want nil", got)
+	}
+	if slots.calls != 1 || slots.resultCalls != 0 {
+		t.Fatalf("slot calls=%d resultCalls=%d, want resultless path only", slots.calls, slots.resultCalls)
 	}
 }
 
@@ -412,6 +531,7 @@ func (f *fakeForward) ForwardPropose(_ context.Context, nodeID uint64, req Forwa
 type fakeResultForward struct {
 	fakeForward
 	result      []byte
+	results     [][]byte
 	resultCalls int
 }
 
@@ -424,7 +544,16 @@ func (f *fakeResultForward) ForwardProposeResult(_ context.Context, nodeID uint6
 		if idx >= len(f.errs) {
 			idx = len(f.errs) - 1
 		}
-		return nil, f.errs[idx]
+		if f.errs[idx] != nil {
+			return nil, f.errs[idx]
+		}
+	}
+	if len(f.results) > 0 {
+		idx := f.resultCalls - 1
+		if idx >= len(f.results) {
+			idx = len(f.results) - 1
+		}
+		return append([]byte(nil), f.results[idx]...), nil
 	}
 	return append([]byte(nil), f.result...), f.err
 }

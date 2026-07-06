@@ -117,6 +117,8 @@ type ForwardRequest struct {
 	HashSlot uint16
 	// Class is the proposal admission class for the target Slot runtime.
 	Class ProposalClass
+	// WantResult requests the remote handler to return Slot FSM apply bytes.
+	WantResult bool
 	// Payload is the encoded Slot proposal payload.
 	Payload []byte
 }

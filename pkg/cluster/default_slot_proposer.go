@@ -41,12 +41,16 @@ func (p defaultSlotProposer) IsLocalLeader(slotID uint32) bool {
 
 // Propose submits one decoded cluster Slot command to the local Multi-Raft runtime.
 func (p defaultSlotProposer) Propose(ctx context.Context, slotID uint32, payload []byte) error {
-	_, err := p.ProposeResult(ctx, slotID, payload)
+	_, err := p.propose(ctx, slotID, payload, false)
 	return err
 }
 
 // ProposeResult submits one decoded cluster Slot command and returns FSM apply bytes.
 func (p defaultSlotProposer) ProposeResult(ctx context.Context, slotID uint32, payload []byte) ([]byte, error) {
+	return p.propose(ctx, slotID, payload, true)
+}
+
+func (p defaultSlotProposer) propose(ctx context.Context, slotID uint32, payload []byte, wantResult bool) ([]byte, error) {
 	if p.runtime == nil {
 		return nil, propose.ErrInvalidRequest
 	}
@@ -79,6 +83,9 @@ func (p defaultSlotProposer) ProposeResult(ctx context.Context, slotID uint32, p
 	}
 	if err != nil {
 		return nil, mapMultiraftProposeError(err)
+	}
+	if !wantResult {
+		return nil, nil
 	}
 	return append([]byte(nil), result.Data...), nil
 }

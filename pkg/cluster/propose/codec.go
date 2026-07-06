@@ -6,9 +6,11 @@ import (
 )
 
 const (
-	payloadVersion       = uint8(1)
-	forwardVersionLegacy = uint8(1)
-	forwardVersion       = uint8(2)
+	payloadVersion        = uint8(1)
+	forwardVersionLegacy  = uint8(1)
+	forwardVersionClass   = uint8(2)
+	forwardVersion        = uint8(3)
+	forwardFlagWantResult = uint8(1)
 )
 
 // EncodePayload prefixes command with the cluster Slot propose envelope.
@@ -34,13 +36,16 @@ func EncodeForwardRequest(req ForwardRequest) ([]byte, error) {
 		return nil, ErrInvalidRequest
 	}
 	req.Class = normalizeProposalClass(req.Class)
-	out := make([]byte, 12+len(req.Payload))
+	out := make([]byte, 13+len(req.Payload))
 	out[0] = forwardVersion
 	out[1] = byte(req.Class)
-	binary.BigEndian.PutUint32(out[2:6], req.SlotID)
-	binary.BigEndian.PutUint16(out[6:8], req.HashSlot)
-	binary.BigEndian.PutUint32(out[8:12], uint32(len(req.Payload)))
-	copy(out[12:], req.Payload)
+	if req.WantResult {
+		out[2] = forwardFlagWantResult
+	}
+	binary.BigEndian.PutUint32(out[3:7], req.SlotID)
+	binary.BigEndian.PutUint16(out[7:9], req.HashSlot)
+	binary.BigEndian.PutUint32(out[9:13], uint32(len(req.Payload)))
+	copy(out[13:], req.Payload)
 	return out, nil
 }
 
@@ -61,7 +66,7 @@ func DecodeForwardRequest(data []byte) (ForwardRequest, error) {
 			Class:    ProposalClassForeground,
 			Payload:  append([]byte(nil), data[11:]...),
 		}, nil
-	case forwardVersion:
+	case forwardVersionClass:
 		if len(data) < 12 {
 			return ForwardRequest{}, fmt.Errorf("%w: forward payload", ErrInvalidPayload)
 		}
@@ -74,6 +79,21 @@ func DecodeForwardRequest(data []byte) (ForwardRequest, error) {
 			HashSlot: binary.BigEndian.Uint16(data[6:8]),
 			Class:    normalizeProposalClass(ProposalClass(data[1])),
 			Payload:  append([]byte(nil), data[12:]...),
+		}, nil
+	case forwardVersion:
+		if len(data) < 13 {
+			return ForwardRequest{}, fmt.Errorf("%w: forward payload", ErrInvalidPayload)
+		}
+		payloadLen := binary.BigEndian.Uint32(data[9:13])
+		if int(payloadLen) != len(data)-13 {
+			return ForwardRequest{}, fmt.Errorf("%w: forward payload length", ErrInvalidPayload)
+		}
+		return ForwardRequest{
+			SlotID:     binary.BigEndian.Uint32(data[3:7]),
+			HashSlot:   binary.BigEndian.Uint16(data[7:9]),
+			Class:      normalizeProposalClass(ProposalClass(data[1])),
+			WantResult: data[2]&forwardFlagWantResult != 0,
+			Payload:    append([]byte(nil), data[13:]...),
 		}, nil
 	default:
 		return ForwardRequest{}, fmt.Errorf("%w: forward payload", ErrInvalidPayload)

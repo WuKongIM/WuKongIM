@@ -43,12 +43,16 @@ func NewService(cfg Config) *Service {
 
 // Propose submits req to the current Slot leader.
 func (s *Service) Propose(ctx context.Context, req Request) error {
-	_, err := s.ProposeResult(ctx, req)
+	_, err := s.propose(ctx, req, false)
 	return err
 }
 
 // ProposeResult submits req to the current Slot leader and returns apply bytes when supported.
 func (s *Service) ProposeResult(ctx context.Context, req Request) ([]byte, error) {
+	return s.propose(ctx, req, true)
+}
+
+func (s *Service) propose(ctx context.Context, req Request, wantResult bool) ([]byte, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -60,7 +64,7 @@ func (s *Service) ProposeResult(ctx context.Context, req Request) ([]byte, error
 	}
 	var lastErr error
 	for attempt := 0; attempt < leaderChangeRetryAttempts; attempt++ {
-		result, err := s.proposeOnceResult(ctx, req)
+		result, err := s.proposeOnceInternal(ctx, req, wantResult)
 		if !isLeaderChangeRetryable(err) {
 			return result, err
 		}
@@ -75,12 +79,7 @@ func (s *Service) ProposeResult(ctx context.Context, req Request) ([]byte, error
 	return nil, lastErr
 }
 
-func (s *Service) proposeOnce(ctx context.Context, req Request) error {
-	_, err := s.proposeOnceResult(ctx, req)
-	return err
-}
-
-func (s *Service) proposeOnceResult(ctx context.Context, req Request) ([]byte, error) {
+func (s *Service) proposeOnceInternal(ctx context.Context, req Request, wantResult bool) ([]byte, error) {
 	route, err := s.route(req)
 	if err != nil {
 		return nil, err
@@ -89,7 +88,7 @@ func (s *Service) proposeOnceResult(ctx context.Context, req Request) ([]byte, e
 	var lastNotLeader error
 	for _, leader := range routeLeaderCandidates(route) {
 		var result []byte
-		result, err = s.proposeToLeaderResult(ctx, route, leader, payload)
+		result, err = s.proposeToLeaderInternal(ctx, route, leader, payload, wantResult)
 		if !errors.Is(err, ErrNotLeader) {
 			return result, err
 		}
@@ -101,18 +100,17 @@ func (s *Service) proposeOnceResult(ctx context.Context, req Request) ([]byte, e
 	return nil, ErrNotLeader
 }
 
-func (s *Service) proposeToLeader(ctx context.Context, route routing.Route, leader uint64, payload []byte) error {
-	_, err := s.proposeToLeaderResult(ctx, route, leader, payload)
-	return err
-}
-
-func (s *Service) proposeToLeaderResult(ctx context.Context, route routing.Route, leader uint64, payload []byte) ([]byte, error) {
+func (s *Service) proposeToLeaderInternal(ctx context.Context, route routing.Route, leader uint64, payload []byte, wantResult bool) ([]byte, error) {
 	if leader == s.localNode || s.slots.IsLocalLeader(route.SlotID) {
 		started := time.Now()
 		var result []byte
 		var err error
-		if slots, ok := s.slots.(ResultSlotRuntime); ok {
-			result, err = slots.ProposeResult(ctx, route.SlotID, payload)
+		if wantResult {
+			if slots, ok := s.slots.(ResultSlotRuntime); ok {
+				result, err = slots.ProposeResult(ctx, route.SlotID, payload)
+			} else {
+				err = s.slots.Propose(ctx, route.SlotID, payload)
+			}
 		} else {
 			err = s.slots.Propose(ctx, route.SlotID, payload)
 		}
@@ -124,15 +122,20 @@ func (s *Service) proposeToLeaderResult(ctx context.Context, route routing.Route
 	}
 	started := time.Now()
 	req := ForwardRequest{
-		SlotID:   route.SlotID,
-		HashSlot: route.HashSlot,
-		Class:    ProposalClassFromContext(ctx),
-		Payload:  payload,
+		SlotID:     route.SlotID,
+		HashSlot:   route.HashSlot,
+		Class:      ProposalClassFromContext(ctx),
+		WantResult: wantResult,
+		Payload:    payload,
 	}
 	var result []byte
 	var err error
-	if forward, ok := s.forward.(ResultForwardClient); ok {
-		result, err = forward.ForwardProposeResult(ctx, leader, req)
+	if wantResult {
+		if forward, ok := s.forward.(ResultForwardClient); ok {
+			result, err = forward.ForwardProposeResult(ctx, leader, req)
+		} else {
+			err = s.forward.ForwardPropose(ctx, leader, req)
+		}
 	} else {
 		err = s.forward.ForwardPropose(ctx, leader, req)
 	}
