@@ -86,9 +86,25 @@ func routeErrorMatches(err error, sentinel *routeError) bool {
 		return true
 	}
 	for _, alias := range sentinel.aliases {
-		if msg == alias || strings.Contains(msg, alias) {
+		if msg == alias || containsRouteAlias(msg, alias) {
 			return true
 		}
 	}
 	return false
+}
+
+func containsRouteAlias(msg, alias string) bool {
+	idx := strings.Index(msg, alias)
+	if idx < 0 {
+		return false
+	}
+	if idx == 0 {
+		return true
+	}
+	switch msg[idx-1] {
+	case ' ', ':', '\t', '\n':
+		return true
+	default:
+		return false
+	}
 }
