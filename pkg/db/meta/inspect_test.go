@@ -537,6 +537,25 @@ func TestInspectScanRemainingTablesSmoke(t *testing.T) {
 				}
 			},
 		},
+		{
+			name:  "message_event_applied",
+			table: "message_event_applied",
+			slot:  21,
+			seed: func(ctx context.Context, shard *Shard) error {
+				_, err := shard.AppendMessageEvent(ctx, MessageEventAppend{
+					ChannelID: "event", ChannelType: 2, ClientMsgNo: "cmn-1",
+					EventID: "evt-1", EventType: EventTypeStreamDelta,
+					Payload: []byte(`{"kind":"text","delta":"hi"}`), UpdatedAt: 11,
+				})
+				return err
+			},
+			assert: func(t *testing.T, row InspectRow) {
+				t.Helper()
+				if row["channel_id"] != "event" || row["client_msg_no"] != "cmn-1" || row["event_id"] != "evt-1" || row["msg_event_seq"] != uint64(1) {
+					t.Fatalf("message event applied row = %+v", row)
+				}
+			},
+		},
 	}
 
 	for _, tt := range tests {

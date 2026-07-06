@@ -38,10 +38,13 @@ Current flow:
 12. Message event projections are hash-slot scoped meta rows replicated by Slot
    Raft and snapshotted with other meta rows. State rows are keyed by
    `(channel_id, channel_type, client_msg_no, event_key)`, cursor rows are keyed
-   by `(channel_id, channel_type, client_msg_no)`, and storage keeps only the
-   reduced projection state without raw event rows. `stream.open` starts the
-   default open lane, `stream.delta`/`stream.snapshot` update compact payload
-   state, and terminal event types leave an idempotent terminal projection.
+   by `(channel_id, channel_type, client_msg_no)`, and applied-event rows are
+   keyed by `(channel_id, channel_type, client_msg_no, event_id)` so retries of
+   older events cannot advance the cursor or reapply reducer payloads. Storage
+   keeps reduced projection state and lean event idempotency records without raw
+   replay rows. `stream.open` starts the default open lane,
+   `stream.delta`/`stream.snapshot` update compact payload state, and terminal
+   event types leave an idempotent terminal projection.
 13. Channel runtime metadata stores routing, leadership, retention, and write
    fence state with a runtime-backed primary row and key-aware rowcodec value;
    typed methods keep monotonic upserts, guards, and retention semantics, while

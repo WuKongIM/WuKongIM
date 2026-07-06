@@ -117,6 +117,60 @@ func TestMessageEventAppendIdempotentByLastEventID(t *testing.T) {
 	}
 }
 
+func TestMessageEventAppendIdempotentAfterNewerEvent(t *testing.T) {
+	store := openTestMetaStore(t)
+	defer store.close(t)
+	ctx := context.Background()
+	shard := store.db.HashSlot(4)
+
+	first, err := shard.AppendMessageEvent(ctx, MessageEventAppend{
+		ChannelID: "g1", ChannelType: 2, ClientMsgNo: "cmn-idem-old",
+		EventID: "evt-1", EventKey: "main", EventType: EventTypeStreamDelta,
+		Payload: []byte(`{"kind":"text","delta":"A"}`), UpdatedAt: 11,
+	})
+	if err != nil {
+		t.Fatalf("AppendMessageEvent(first): %v", err)
+	}
+	second, err := shard.AppendMessageEvent(ctx, MessageEventAppend{
+		ChannelID: "g1", ChannelType: 2, ClientMsgNo: "cmn-idem-old",
+		EventID: "evt-2", EventKey: "main", EventType: EventTypeStreamDelta,
+		Payload: []byte(`{"kind":"text","delta":"B"}`), UpdatedAt: 12,
+	})
+	if err != nil {
+		t.Fatalf("AppendMessageEvent(second): %v", err)
+	}
+	if second.MsgEventSeq != 2 {
+		t.Fatalf("second seq = %d, want 2", second.MsgEventSeq)
+	}
+	duplicate, err := shard.AppendMessageEvent(ctx, MessageEventAppend{
+		ChannelID: "g1", ChannelType: 2, ClientMsgNo: "cmn-idem-old",
+		EventID: "evt-1", EventKey: "main", EventType: EventTypeStreamDelta,
+		Payload: []byte(`{"kind":"text","delta":"A"}`), UpdatedAt: 13,
+	})
+	if err != nil {
+		t.Fatalf("AppendMessageEvent(duplicate old): %v", err)
+	}
+	if duplicate.MsgEventSeq != first.MsgEventSeq {
+		t.Fatalf("duplicate old seq = %d, want original %d", duplicate.MsgEventSeq, first.MsgEventSeq)
+	}
+	if duplicate.State.LastMsgEventSeq != duplicate.MsgEventSeq || duplicate.State.Status != duplicate.Status {
+		t.Fatalf("duplicate old result state = %#v, want seq/status consistent with result %#v", duplicate.State, duplicate)
+	}
+	state, ok, err := shard.GetMessageEventState(ctx, "g1", 2, "cmn-idem-old", "main")
+	if err != nil {
+		t.Fatalf("GetMessageEventState(): %v", err)
+	}
+	if !ok {
+		t.Fatal("GetMessageEventState(): missing state")
+	}
+	if state.LastMsgEventSeq != 2 {
+		t.Fatalf("state seq = %d, want 2", state.LastMsgEventSeq)
+	}
+	if got, want := string(state.SnapshotPayload), `{"kind":"text","text":"AB"}`; !jsonEqualForTest(got, want) {
+		t.Fatalf("snapshot = %s, want %s", got, want)
+	}
+}
+
 func TestMessageEventAppendTerminalDoesNotAdvanceSeq(t *testing.T) {
 	store := openTestMetaStore(t)
 	defer store.close(t)

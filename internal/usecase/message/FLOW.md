@@ -64,15 +64,17 @@ SyncChannelMessages(query)
   -> call ChannelMessageReader.SyncMessages with a normalized ChannelID
   -> treat missing channel runtime/storage as an empty page
   -> clone payloads before returning SyncedMessage values to access adapters
-  -> when event_summary_mode is set, batch-read MessageEventStore states by
+  -> when event_summary_mode is set, or include_event_meta asks for default
+     full metadata, batch-read MessageEventStore states for stream messages by
      (channel_id, channel_type, client_msg_no) and attach compact event_meta
 ```
 
 The sync usecase returns `SyncedMessage` DTOs with the fields needed by legacy
 HTTP responses. Concrete storage adapters may return zero values for fields that
 the current Channel write path does not persist yet. Message event enrichment is
-page-batched and capped per message so a high-limit sync request does not issue
-per-message storage reads or return unbounded lane state.
+page-batched for messages carrying the legacy stream setting bit and capped per
+message so a high-limit sync request does not issue event-state reads for
+ordinary messages or return unbounded lane state.
 
 ## AppendMessageEvent Flow
 
@@ -92,6 +94,14 @@ projection store as terminal events in this architecture. This keeps the Slot
 leader/meta reducer as the single source of truth for offline sync and later
 fine-grained event replay, rather than relying on a separate cross-node in-memory
 delta cache.
+
+This phase treats `(channel_id, channel_type, client_msg_no)` as the projection
+anchor and does not perform a routed base-message existence check before
+appending event state. A future anchor policy should use a cluster-routed
+message lookup rather than a node-local idempotency index so `/message/event`
+does not depend on which node accepted the request. Empty `from_uid` is also
+kept as an ordinary empty sender at this usecase boundary; any system-UID
+defaulting must be owned by the access/app configuration layer.
 
 ## Message Event Projection Ports
 

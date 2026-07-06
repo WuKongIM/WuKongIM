@@ -38,6 +38,7 @@ type Batch struct {
 	migrationActive     map[string]struct{}
 	messageEventStates  map[string]MessageEventState
 	messageEventCursors map[string]MessageEventCursor
+	messageEventApplied map[string]MessageEventApplied
 	closed              bool
 	lastLocked          []HashSlot
 }
@@ -91,6 +92,7 @@ func (b *Batch) Close() error {
 	b.migrationActive = nil
 	b.messageEventStates = nil
 	b.messageEventCursors = nil
+	b.messageEventApplied = nil
 	return nil
 }
 

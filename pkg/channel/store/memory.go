@@ -377,6 +377,7 @@ func messageFromRecord(id ch.ChannelID, record ch.Record) ch.Message {
 		MessageSeq:        record.Index,
 		ChannelID:         id.ID,
 		ChannelType:       id.Type,
+		Setting:           record.Setting,
 		FromUID:           record.FromUID,
 		ClientMsgNo:       record.ClientMsgNo,
 		Payload:           cloneBytes(record.Payload),

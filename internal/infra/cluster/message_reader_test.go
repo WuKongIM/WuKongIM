@@ -12,7 +12,7 @@ import (
 func TestChannelMessageReaderMapsPullUpRequestAndTrimsHasMore(t *testing.T) {
 	node := &recordingReadNode{
 		result: channelstore.ReadCommittedResult{Messages: []channelruntime.Message{
-			{MessageID: 10, MessageSeq: 2, ChannelID: "g1", ChannelType: 2, FromUID: "u1", ClientMsgNo: "c1", Payload: []byte("a")},
+			{MessageID: 10, MessageSeq: 2, ChannelID: "g1", ChannelType: 2, Setting: 2, FromUID: "u1", ClientMsgNo: "c1", Payload: []byte("a")},
 			{MessageID: 11, MessageSeq: 3, ChannelID: "g1", ChannelType: 2, FromUID: "u1", ClientMsgNo: "c2", Payload: []byte("b")},
 			{MessageID: 12, MessageSeq: 4, ChannelID: "g1", ChannelType: 2, FromUID: "u1", ClientMsgNo: "c3", Payload: []byte("c")},
 		}},
@@ -41,6 +41,9 @@ func TestChannelMessageReaderMapsPullUpRequestAndTrimsHasMore(t *testing.T) {
 	}
 	if page.Messages[0].MessageID != 10 || page.Messages[1].MessageID != 11 || string(page.Messages[0].Payload) != "a" {
 		t.Fatalf("messages = %#v, want mapped first two messages", page.Messages)
+	}
+	if page.Messages[0].Setting != 2 {
+		t.Fatalf("message setting = %d, want 2", page.Messages[0].Setting)
 	}
 }
 

@@ -99,6 +99,8 @@ func InspectScan(ctx context.Context, db *MetaDB, req InspectScanRequest) (Inspe
 		return inspectScanTable(ctx, db, req, slots, messageEventStateTable, inspectMessageEventStateRow)
 	case "message_event_cursor":
 		return inspectScanTable(ctx, db, req, slots, messageEventCursorTable, inspectMessageEventCursorRow)
+	case "message_event_applied":
+		return inspectScanTable(ctx, db, req, slots, messageEventAppliedTable, inspectMessageEventAppliedRow)
 	case "conversation":
 		return inspectScanTable(ctx, db, req, slots, conversationTable, inspectConversationRow)
 	case "plugin_binding":
@@ -548,6 +550,19 @@ func inspectMessageEventCursorRow(cursor MessageEventCursor) InspectRow {
 		"client_msg_no":      cursor.ClientMsgNo,
 		"last_msg_event_seq": cursor.LastMsgEventSeq,
 		"updated_at":         cursor.UpdatedAt,
+	}
+}
+
+func inspectMessageEventAppliedRow(applied MessageEventApplied) InspectRow {
+	return InspectRow{
+		"channel_id":    applied.ChannelID,
+		"channel_type":  applied.ChannelType,
+		"client_msg_no": applied.ClientMsgNo,
+		"event_id":      applied.EventID,
+		"event_key":     applied.EventKey,
+		"msg_event_seq": applied.MsgEventSeq,
+		"status":        applied.Status,
+		"updated_at":    applied.UpdatedAt,
 	}
 }
 

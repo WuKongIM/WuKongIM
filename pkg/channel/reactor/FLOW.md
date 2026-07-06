@@ -22,8 +22,9 @@ The package keeps single-node deployments under the same cluster semantics: a
 single node is a single-node cluster, not a bypass around replication logic.
 Append admission converts client-visible `Message` values into durable
 `Record` values while preserving conversation display fields:
-`FromUID`, `ClientMsgNo`, payload, and `ServerTimestampMS`. Direct channel
-append callers that omit `ServerTimestampMS` receive the reactor admission time.
+`FromUID`, `ClientMsgNo`, payload, `ServerTimestampMS`, and the legacy setting
+bitset. Direct channel append callers that omit `ServerTimestampMS` receive the
+reactor admission time.
 
 ## Event Domains
 

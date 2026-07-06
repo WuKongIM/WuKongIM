@@ -87,6 +87,7 @@ func syncedMessagesFromChannel(in []channelruntime.Message) []message.SyncedMess
 			MessageSeq:  msg.MessageSeq,
 			ChannelID:   msg.ChannelID,
 			ChannelType: msg.ChannelType,
+			Setting:     msg.Setting,
 			FromUID:     msg.FromUID,
 			ClientMsgNo: msg.ClientMsgNo,
 			Payload:     append([]byte(nil), msg.Payload...),

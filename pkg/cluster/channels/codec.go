@@ -12,7 +12,8 @@ import (
 
 const (
 	legacyCodecVersionV3 = uint8(3)
-	codecVersion         = uint8(4)
+	legacyCodecVersionV4 = uint8(4)
+	codecVersion         = uint8(5)
 )
 
 const (
@@ -329,7 +330,7 @@ func decodeFrameWithVersion(data []byte, wantKind uint8) (uint8, []byte, error) 
 		return 0, nil, fmt.Errorf("channels: invalid frame")
 	}
 	version := data[0]
-	if version != legacyCodecVersionV3 && version != codecVersion {
+	if version != legacyCodecVersionV3 && version != legacyCodecVersionV4 && version != codecVersion {
 		return 0, nil, fmt.Errorf("channels: invalid frame")
 	}
 	return version, data[2:], nil
@@ -951,6 +952,7 @@ func appendMessage(dst []byte, msg ch.Message) []byte {
 	dst = appendString(dst, msg.FromUID)
 	dst = appendString(dst, msg.ClientMsgNo)
 	dst = appendVarint(dst, msg.ServerTimestampMS)
+	dst = append(dst, msg.Setting)
 	dst = appendString(dst, msg.TraceID)
 	dst = appendChannelKey(dst, ch.ChannelKey(msg.ChannelKey))
 	dst = appendOptionalBytes(dst, msg.Payload)
@@ -981,11 +983,27 @@ func readMessage(body []byte, offset int, version uint8) (ch.Message, int, error
 	switch version {
 	case legacyCodecVersionV3:
 		return readMessageV3LegacyRemainder(body, offset, msg)
-	case codecVersion:
+	case legacyCodecVersionV4:
 		return readMessageV4Remainder(body, offset, msg)
+	case codecVersion:
+		return readMessageV5Remainder(body, offset, msg)
 	default:
 		return ch.Message{}, offset, fmt.Errorf("channels: unsupported message codec version %d", version)
 	}
+}
+
+func readMessageV5Remainder(body []byte, offset int, msg ch.Message) (ch.Message, int, error) {
+	var err error
+	if msg.ServerTimestampMS, offset, err = readInt64(body, offset, "message server timestamp ms"); err != nil {
+		return ch.Message{}, offset, err
+	}
+	if msg.Setting, offset, err = readByte(body, offset, "message setting"); err != nil {
+		return ch.Message{}, offset, err
+	}
+	if msg.TraceID, offset, err = readString(body, offset); err != nil {
+		return ch.Message{}, offset, err
+	}
+	return readMessageV3AfterTrace(body, offset, msg)
 }
 
 func readMessageV4Remainder(body []byte, offset int, msg ch.Message) (ch.Message, int, error) {
@@ -1191,6 +1209,7 @@ func appendRecord(dst []byte, record ch.Record) []byte {
 	dst = appendString(dst, record.FromUID)
 	dst = appendString(dst, record.ClientMsgNo)
 	dst = appendVarint(dst, record.ServerTimestampMS)
+	dst = append(dst, record.Setting)
 	dst = appendOptionalBytes(dst, record.Payload)
 	dst = appendVarint(dst, int64(record.SizeBytes))
 	return dst
@@ -1211,11 +1230,30 @@ func readRecord(body []byte, offset int, version uint8) (ch.Record, int, error) 
 	switch version {
 	case legacyCodecVersionV3:
 		return readRecordV3LegacyRemainder(body, offset, record)
-	case codecVersion:
+	case legacyCodecVersionV4:
 		return readRecordV4Remainder(body, offset, record)
+	case codecVersion:
+		return readRecordV5Remainder(body, offset, record)
 	default:
 		return ch.Record{}, offset, fmt.Errorf("channels: unsupported record codec version %d", version)
 	}
+}
+
+func readRecordV5Remainder(body []byte, offset int, record ch.Record) (ch.Record, int, error) {
+	var err error
+	if record.FromUID, offset, err = readString(body, offset); err != nil {
+		return ch.Record{}, offset, err
+	}
+	if record.ClientMsgNo, offset, err = readString(body, offset); err != nil {
+		return ch.Record{}, offset, err
+	}
+	if record.ServerTimestampMS, offset, err = readInt64(body, offset, "record server timestamp ms"); err != nil {
+		return ch.Record{}, offset, err
+	}
+	if record.Setting, offset, err = readByte(body, offset, "record setting"); err != nil {
+		return ch.Record{}, offset, err
+	}
+	return readRecordV3PayloadAndSize(body, offset, record)
 }
 
 func readRecordV4Remainder(body []byte, offset int, record ch.Record) (ch.Record, int, error) {

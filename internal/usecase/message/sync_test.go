@@ -127,7 +127,7 @@ func TestSyncChannelMessagesEnrichesFullEventMeta(t *testing.T) {
 		},
 	}}
 	reader := &recordingChannelMessageReader{page: ChannelMessagePage{Messages: []SyncedMessage{
-		{ChannelID: "g1", ChannelType: 2, ClientMsgNo: "cmn-1", MessageID: 9, Payload: []byte("base")},
+		{Setting: legacySettingStream, ChannelID: "g1", ChannelType: 2, ClientMsgNo: "cmn-1", MessageID: 9, Payload: []byte("base")},
 	}}}
 	app := New(Options{Reader: reader, EventStore: store})
 
@@ -177,7 +177,7 @@ func TestSyncChannelMessagesBasicEventMetaOmitsSnapshots(t *testing.T) {
 		key: {{EventKey: EventKeyDefault, Status: EventStatusOpen, LastMsgEventSeq: 1, SnapshotPayload: []byte(`{"kind":"text","text":"hello"}`)}},
 	}}
 	reader := &recordingChannelMessageReader{page: ChannelMessagePage{Messages: []SyncedMessage{
-		{ChannelID: "g1", ChannelType: 2, ClientMsgNo: "cmn-1"},
+		{Setting: legacySettingStream, ChannelID: "g1", ChannelType: 2, ClientMsgNo: "cmn-1"},
 	}}}
 	app := New(Options{Reader: reader, EventStore: store})
 
@@ -196,10 +196,60 @@ func TestSyncChannelMessagesBasicEventMetaOmitsSnapshots(t *testing.T) {
 	}
 }
 
+func TestSyncChannelMessagesIncludeEventMetaDefaultsToFull(t *testing.T) {
+	key := MessageEventMessageKey{ChannelID: "g1", ChannelType: 2, ClientMsgNo: "cmn-1"}
+	store := &recordingMessageEventStore{stateRows: map[MessageEventMessageKey][]MessageEventState{
+		key: {{EventKey: EventKeyDefault, Status: EventStatusOpen, LastMsgEventSeq: 1, SnapshotPayload: []byte(`{"kind":"text","text":"hello"}`)}},
+	}}
+	reader := &recordingChannelMessageReader{page: ChannelMessagePage{Messages: []SyncedMessage{
+		{Setting: legacySettingStream, ChannelID: "g1", ChannelType: 2, ClientMsgNo: "cmn-1"},
+	}}}
+	app := New(Options{Reader: reader, EventStore: store})
+
+	result, err := app.SyncChannelMessages(context.Background(), SyncChannelMessagesQuery{
+		LoginUID:         "u1",
+		ChannelID:        "g1",
+		ChannelType:      2,
+		IncludeEventMeta: true,
+	})
+
+	if err != nil {
+		t.Fatalf("SyncChannelMessages() error = %v", err)
+	}
+	if len(store.stateCalls) != 1 {
+		t.Fatalf("state calls = %#v, want one call", store.stateCalls)
+	}
+	if got := result.Messages[0].EventMeta.Events[0].Snapshot; got == nil {
+		t.Fatalf("snapshot = nil, want full-mode snapshot from include_event_meta")
+	}
+}
+
+func TestSyncChannelMessagesSkipsNonStreamMessagesDuringEventEnrichment(t *testing.T) {
+	store := &recordingMessageEventStore{}
+	reader := &recordingChannelMessageReader{page: ChannelMessagePage{Messages: []SyncedMessage{
+		{ChannelID: "g1", ChannelType: 2, ClientMsgNo: "cmn-ordinary"},
+	}}}
+	app := New(Options{Reader: reader, EventStore: store})
+
+	_, err := app.SyncChannelMessages(context.Background(), SyncChannelMessagesQuery{
+		LoginUID:         "u1",
+		ChannelID:        "g1",
+		ChannelType:      2,
+		EventSummaryMode: "full",
+	})
+
+	if err != nil {
+		t.Fatalf("SyncChannelMessages() error = %v", err)
+	}
+	if len(store.stateCalls) != 0 {
+		t.Fatalf("state calls = %#v, want none for ordinary messages", store.stateCalls)
+	}
+}
+
 func TestSyncChannelMessagesSkipsEventStoreWhenSummaryModeEmpty(t *testing.T) {
 	store := &recordingMessageEventStore{}
 	reader := &recordingChannelMessageReader{page: ChannelMessagePage{Messages: []SyncedMessage{
-		{ChannelID: "g1", ChannelType: 2, ClientMsgNo: "cmn-1"},
+		{Setting: legacySettingStream, ChannelID: "g1", ChannelType: 2, ClientMsgNo: "cmn-1"},
 	}}}
 	app := New(Options{Reader: reader, EventStore: store})
 
@@ -221,7 +271,7 @@ func TestSyncChannelMessagesPropagatesEventStoreError(t *testing.T) {
 	storeErr := errors.New("event store failed")
 	store := &recordingMessageEventStore{stateErr: storeErr}
 	reader := &recordingChannelMessageReader{page: ChannelMessagePage{Messages: []SyncedMessage{
-		{ChannelID: "g1", ChannelType: 2, ClientMsgNo: "cmn-1"},
+		{Setting: legacySettingStream, ChannelID: "g1", ChannelType: 2, ClientMsgNo: "cmn-1"},
 	}}}
 	app := New(Options{Reader: reader, EventStore: store})
 

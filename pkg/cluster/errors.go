@@ -13,6 +13,8 @@ var (
 	ErrRouteNotReady = errors.New("cluster: route not ready")
 	// ErrNoSlotLeader indicates that a route exists but the Slot leader is unknown.
 	ErrNoSlotLeader = errors.New("cluster: no slot leader")
+	// ErrProposalResultUnsupported indicates that the configured proposer cannot return apply results.
+	ErrProposalResultUnsupported = errors.New("cluster: proposal result unsupported")
 	// ErrNotLeader indicates that the target node is not the leader for the requested operation.
 	ErrNotLeader = errors.New("cluster: not leader")
 	// ErrSlotNotFound indicates that the requested physical Slot is not available locally.

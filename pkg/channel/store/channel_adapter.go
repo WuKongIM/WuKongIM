@@ -433,6 +433,7 @@ func encodeRecordsForMessageDB(id ch.ChannelID, records []ch.Record) []channel.R
 			MessageID:         record.ID,
 			MessageSeq:        record.Index,
 			Framer:            frame.Framer{SyncOnce: record.SyncOnce},
+			Setting:           frame.Setting(record.Setting),
 			ChannelID:         id.ID,
 			ChannelType:       id.Type,
 			FromUID:           record.FromUID,
@@ -470,6 +471,7 @@ func fromDBRecord(record channel.Record) ch.Record {
 			Epoch:             record.Epoch,
 			FromUID:           msg.FromUID,
 			ClientMsgNo:       msg.ClientMsgNo,
+			Setting:           uint8(msg.Setting),
 			Payload:           cloneBytes(msg.Payload),
 			SizeBytes:         len(msg.Payload),
 			ServerTimestampMS: msg.ServerTimestampMS,
@@ -480,7 +482,7 @@ func fromDBRecord(record channel.Record) ch.Record {
 }
 
 func fromDBMessage(msg channel.Message) ch.Message {
-	return ch.Message{MessageID: msg.MessageID, MessageSeq: msg.MessageSeq, ChannelID: msg.ChannelID, ChannelType: msg.ChannelType, FromUID: msg.FromUID, ClientMsgNo: msg.ClientMsgNo, Payload: cloneBytes(msg.Payload), ServerTimestampMS: msg.ServerTimestampMS, SyncOnce: msg.Framer.SyncOnce}
+	return ch.Message{MessageID: msg.MessageID, MessageSeq: msg.MessageSeq, ChannelID: msg.ChannelID, ChannelType: msg.ChannelType, Setting: uint8(msg.Setting), FromUID: msg.FromUID, ClientMsgNo: msg.ClientMsgNo, Payload: cloneBytes(msg.Payload), ServerTimestampMS: msg.ServerTimestampMS, SyncOnce: msg.Framer.SyncOnce}
 }
 
 const durableMessageHeaderSize = 45

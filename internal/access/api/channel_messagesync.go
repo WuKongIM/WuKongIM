@@ -15,6 +15,7 @@ type syncChannelMessagesRequest struct {
 	EndMessageSeq    uint64                  `json:"end_message_seq"`
 	Limit            int                     `json:"limit"`
 	PullMode         messageusecase.PullMode `json:"pull_mode"`
+	IncludeEventMeta int                     `json:"include_event_meta"`
 	EventSummaryMode string                  `json:"event_summary_mode"`
 }
 
@@ -43,6 +44,7 @@ func (s *Server) handleChannelMessageSync(c *gin.Context) {
 		EndMessageSeq:    req.EndMessageSeq,
 		Limit:            req.Limit,
 		PullMode:         req.PullMode,
+		IncludeEventMeta: req.IncludeEventMeta != 0,
 		EventSummaryMode: req.EventSummaryMode,
 	})
 	if err != nil {

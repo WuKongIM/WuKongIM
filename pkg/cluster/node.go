@@ -274,7 +274,7 @@ func (n *Node) ProposeResult(ctx context.Context, req ProposeRequest) ([]byte, e
 	if proposer, ok := n.proposer.(resultProposer); ok {
 		return proposer.ProposeResult(ctx, proposeReq)
 	}
-	return nil, n.proposer.Propose(ctx, proposeReq)
+	return nil, ErrProposalResultUnsupported
 }
 
 // RegisterRPC registers a node RPC handler on the default cluster transport.

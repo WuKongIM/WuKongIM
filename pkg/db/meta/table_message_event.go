@@ -56,6 +56,15 @@ const (
 	messageEventCursorColumnClientMsgNo uint16 = 3
 	messageEventCursorColumnLastSeq     uint16 = 4
 	messageEventCursorColumnUpdatedAt   uint16 = 5
+
+	messageEventAppliedColumnChannelID   uint16 = 1
+	messageEventAppliedColumnChannelType uint16 = 2
+	messageEventAppliedColumnClientMsgNo uint16 = 3
+	messageEventAppliedColumnEventID     uint16 = 4
+	messageEventAppliedColumnEventKey    uint16 = 5
+	messageEventAppliedColumnMsgSeq      uint16 = 6
+	messageEventAppliedColumnStatus      uint16 = 7
+	messageEventAppliedColumnUpdatedAt   uint16 = 8
 )
 
 var messageEventStateTable = registerMetaTable(TableSpec[MessageEventState]{
@@ -150,11 +159,57 @@ var messageEventCursorTable = registerMetaTable(TableSpec[MessageEventCursor]{
 	},
 })
 
+var messageEventAppliedTable = registerMetaTable(TableSpec[MessageEventApplied]{
+	ID:   TableIDMessageEventApplied,
+	Name: "message_event_applied",
+	Columns: []schema.Column{
+		{ID: messageEventAppliedColumnChannelID, Name: "channel_id", Type: schema.TypeString, Required: true},
+		{ID: messageEventAppliedColumnChannelType, Name: "channel_type", Type: schema.TypeInt64, Required: true},
+		{ID: messageEventAppliedColumnClientMsgNo, Name: "client_msg_no", Type: schema.TypeString, Required: true},
+		{ID: messageEventAppliedColumnEventID, Name: "event_id", Type: schema.TypeString, Required: true},
+		{ID: messageEventAppliedColumnEventKey, Name: "event_key", Type: schema.TypeString},
+		{ID: messageEventAppliedColumnMsgSeq, Name: "msg_event_seq", Type: schema.TypeUint64},
+		{ID: messageEventAppliedColumnStatus, Name: "status", Type: schema.TypeString},
+		{ID: messageEventAppliedColumnUpdatedAt, Name: "updated_at", Type: schema.TypeInt64},
+	},
+	Families: []schema.Family{{ID: messageEventAppliedPrimaryFamilyID, Name: "primary", Columns: []uint16{
+		messageEventAppliedColumnEventKey,
+		messageEventAppliedColumnMsgSeq,
+		messageEventAppliedColumnStatus,
+		messageEventAppliedColumnUpdatedAt,
+	}}},
+	Primary: PrimarySpec[MessageEventApplied]{
+		IndexID:  messageEventAppliedPrimaryIndexID,
+		FamilyID: messageEventAppliedPrimaryFamilyID,
+		Name:     "pk_message_event_applied",
+		Columns: []uint16{
+			messageEventAppliedColumnChannelID,
+			messageEventAppliedColumnChannelType,
+			messageEventAppliedColumnClientMsgNo,
+			messageEventAppliedColumnEventID,
+		},
+		Layout: KeyLayout{KeyString, KeyInt64Ordered, KeyString, KeyString},
+		Key: func(applied MessageEventApplied) KeyParts {
+			return messageEventAppliedPrimaryKey(applied.ChannelID, applied.ChannelType, applied.ClientMsgNo, applied.EventID)
+		},
+	},
+	Validate: validateMessageEventApplied,
+	EncodeValue: func(applied MessageEventApplied) ([]byte, error) {
+		return encodeMessageEventAppliedValue(applied), nil
+	},
+	DecodeValue: func(primary KeyParts, value []byte) (MessageEventApplied, error) {
+		return decodeMessageEventAppliedValue(primary[0].S, primary[1].I64, primary[2].S, primary[3].S, value)
+	},
+})
+
 // MessageEventStateTable describes the message event state table schema.
 var MessageEventStateTable = messageEventStateTable.Schema()
 
 // MessageEventCursorTable describes the message event cursor table schema.
 var MessageEventCursorTable = messageEventCursorTable.Schema()
+
+// MessageEventAppliedTable describes the message event idempotency table schema.
+var MessageEventAppliedTable = messageEventAppliedTable.Schema()
 
 // GetMessageEventState returns one projected message event lane.
 func (s *Shard) GetMessageEventState(ctx context.Context, channelID string, channelType int64, clientMsgNo string, eventKey string) (MessageEventState, bool, error) {
@@ -204,6 +259,13 @@ func (s *Shard) AppendMessageEvent(ctx context.Context, event MessageEventAppend
 	unlock := s.lock()
 	defer unlock()
 
+	appliedEvent, appliedExists, err := messageEventAppliedTable.getByPrimaryKey(s.db, s.hashSlot, messageEventAppliedPrimaryKey(event.ChannelID, event.ChannelType, event.ClientMsgNo, event.EventID))
+	if err != nil {
+		return MessageEventAppendResult{}, err
+	}
+	if appliedExists {
+		return s.messageEventAppendResultFromApplied(event, appliedEvent)
+	}
 	state, stateExists, err := messageEventStateTable.getByPrimaryKey(s.db, s.hashSlot, messageEventStatePrimaryKey(event.ChannelID, event.ChannelType, event.ClientMsgNo, event.EventKey))
 	if err != nil {
 		return MessageEventAppendResult{}, err
@@ -212,8 +274,8 @@ func (s *Shard) AppendMessageEvent(ctx context.Context, event MessageEventAppend
 	if err != nil {
 		return MessageEventAppendResult{}, err
 	}
-	nextState, nextCursor, applied, result := reduceMessageEventAppend(state, stateExists, cursor, cursorExists, event)
-	if !applied {
+	nextState, nextCursor, didApply, result := reduceMessageEventAppend(state, stateExists, cursor, cursorExists, event)
+	if !didApply {
 		return result, nil
 	}
 
@@ -225,12 +287,20 @@ func (s *Shard) AppendMessageEvent(ctx context.Context, event MessageEventAppend
 	if err != nil {
 		return MessageEventAppendResult{}, err
 	}
+	nextApplied := messageEventAppliedFromResult(event, result)
+	appliedKey, err := messageEventAppliedRowKey(s.hashSlot, nextApplied.ChannelID, nextApplied.ChannelType, nextApplied.ClientMsgNo, nextApplied.EventID)
+	if err != nil {
+		return MessageEventAppendResult{}, err
+	}
 	batch := s.db.engine.NewBatch()
 	defer batch.Close()
 	if err := batch.Set(stateKey, encodeMessageEventStateValue(nextState)); err != nil {
 		return MessageEventAppendResult{}, err
 	}
 	if err := batch.Set(cursorKey, encodeMessageEventCursorValue(nextCursor)); err != nil {
+		return MessageEventAppendResult{}, err
+	}
+	if err := batch.Set(appliedKey, encodeMessageEventAppliedValue(nextApplied)); err != nil {
 		return MessageEventAppendResult{}, err
 	}
 	if err := batch.Commit(true); err != nil {
@@ -256,6 +326,17 @@ func (b *Batch) AppendMessageEvent(hashSlot HashSlot, event MessageEventAppend) 
 	if err != nil {
 		return MessageEventAppendResult{}, err
 	}
+	appliedKey, err := messageEventAppliedRowKey(hashSlot, event.ChannelID, event.ChannelType, event.ClientMsgNo, event.EventID)
+	if err != nil {
+		return MessageEventAppendResult{}, err
+	}
+	appliedEvent, appliedExists, err := b.loadMessageEventAppliedForAppend(hashSlot, appliedKey, event)
+	if err != nil {
+		return MessageEventAppendResult{}, err
+	}
+	if appliedExists {
+		return b.messageEventAppendResultFromApplied(hashSlot, event, appliedEvent)
+	}
 	state, stateExists, err := b.loadMessageEventStateForAppend(hashSlot, stateKey, event)
 	if err != nil {
 		return MessageEventAppendResult{}, err
@@ -266,8 +347,10 @@ func (b *Batch) AppendMessageEvent(hashSlot HashSlot, event MessageEventAppend) 
 	}
 	baseState := cloneMessageEventState(state)
 	baseCursor := cursor
-	nextState, nextCursor, applied, result := reduceMessageEventAppend(state, stateExists, cursor, cursorExists, event)
-	if !applied {
+	baseApplied := appliedEvent
+	baseAppliedExists := appliedExists
+	nextState, nextCursor, didApply, result := reduceMessageEventAppend(state, stateExists, cursor, cursorExists, event)
+	if !didApply {
 		return result, nil
 	}
 	if b.messageEventStates == nil {
@@ -276,12 +359,25 @@ func (b *Batch) AppendMessageEvent(hashSlot HashSlot, event MessageEventAppend) 
 	if b.messageEventCursors == nil {
 		b.messageEventCursors = make(map[string]MessageEventCursor)
 	}
+	if b.messageEventApplied == nil {
+		b.messageEventApplied = make(map[string]MessageEventApplied)
+	}
 	b.messageEventStates[string(stateKey)] = cloneMessageEventState(nextState)
 	b.messageEventCursors[string(cursorKey)] = nextCursor
+	nextApplied := messageEventAppliedFromResult(event, result)
+	b.messageEventApplied[string(appliedKey)] = nextApplied
 
 	stateValue := encodeMessageEventStateValue(nextState)
 	cursorValue := encodeMessageEventCursorValue(nextCursor)
+	appliedValue := encodeMessageEventAppliedValue(nextApplied)
 	b.addOp(hashSlot, func(ctx context.Context, state *batchCommitState, batch *engine.Batch) error {
+		currentApplied, currentAppliedExists, err := messageEventAppliedTable.loadBatchRow(state, hashSlot, messageEventAppliedPrimaryKey(event.ChannelID, event.ChannelType, event.ClientMsgNo, event.EventID), appliedKey)
+		if err != nil {
+			return err
+		}
+		if !messageEventAppliedEqual(currentApplied, currentAppliedExists, baseApplied, baseAppliedExists) {
+			return dberrors.ErrConflict
+		}
 		currentState, currentStateExists, err := messageEventStateTable.loadBatchRow(state, hashSlot, messageEventStatePrimaryKey(event.ChannelID, event.ChannelType, event.ClientMsgNo, event.EventKey), stateKey)
 		if err != nil {
 			return err
@@ -302,11 +398,37 @@ func (b *Batch) AppendMessageEvent(hashSlot HashSlot, event MessageEventAppend) 
 		if err := batch.Set(cursorKey, cursorValue); err != nil {
 			return err
 		}
+		if err := batch.Set(appliedKey, appliedValue); err != nil {
+			return err
+		}
 		state.tableRows[string(stateKey)] = tableRowOverlay{value: append([]byte(nil), stateValue...), exists: true}
 		state.tableRows[string(cursorKey)] = tableRowOverlay{value: append([]byte(nil), cursorValue...), exists: true}
+		state.tableRows[string(appliedKey)] = tableRowOverlay{value: append([]byte(nil), appliedValue...), exists: true}
 		return nil
 	})
 	return result, nil
+}
+
+func (s *Shard) messageEventAppendResultFromApplied(event MessageEventAppend, applied MessageEventApplied) (MessageEventAppendResult, error) {
+	state, stateExists, err := messageEventStateTable.getByPrimaryKey(s.db, s.hashSlot, messageEventStatePrimaryKey(event.ChannelID, event.ChannelType, event.ClientMsgNo, applied.EventKey))
+	if err != nil {
+		return MessageEventAppendResult{}, err
+	}
+	return messageEventAppendResultFromApplied(event, applied, state, stateExists), nil
+}
+
+func (b *Batch) messageEventAppendResultFromApplied(hashSlot HashSlot, event MessageEventAppend, applied MessageEventApplied) (MessageEventAppendResult, error) {
+	stateKey, err := messageEventStateRowKey(hashSlot, event.ChannelID, event.ChannelType, event.ClientMsgNo, applied.EventKey)
+	if err != nil {
+		return MessageEventAppendResult{}, err
+	}
+	stateEvent := event
+	stateEvent.EventKey = applied.EventKey
+	state, stateExists, err := b.loadMessageEventStateForAppend(hashSlot, stateKey, stateEvent)
+	if err != nil {
+		return MessageEventAppendResult{}, err
+	}
+	return messageEventAppendResultFromApplied(event, applied, state, stateExists), nil
 }
 
 func (b *Batch) loadMessageEventStateForAppend(hashSlot HashSlot, stateKey []byte, event MessageEventAppend) (MessageEventState, bool, error) {
@@ -325,6 +447,15 @@ func (b *Batch) loadMessageEventCursorForAppend(hashSlot HashSlot, cursorKey []b
 		}
 	}
 	return messageEventCursorTable.getByPrimaryKey(b.db, hashSlot, messageEventCursorPrimaryKey(event.ChannelID, event.ChannelType, event.ClientMsgNo))
+}
+
+func (b *Batch) loadMessageEventAppliedForAppend(hashSlot HashSlot, appliedKey []byte, event MessageEventAppend) (MessageEventApplied, bool, error) {
+	if b.messageEventApplied != nil {
+		if applied, ok := b.messageEventApplied[string(appliedKey)]; ok {
+			return applied, true, nil
+		}
+	}
+	return messageEventAppliedTable.getByPrimaryKey(b.db, hashSlot, messageEventAppliedPrimaryKey(event.ChannelID, event.ChannelType, event.ClientMsgNo, event.EventID))
 }
 
 func reduceMessageEventAppend(state MessageEventState, stateExists bool, cursor MessageEventCursor, cursorExists bool, event MessageEventAppend) (MessageEventState, MessageEventCursor, bool, MessageEventAppendResult) {
@@ -387,6 +518,45 @@ func reduceMessageEventAppend(state MessageEventState, stateExists bool, cursor 
 	cursor.LastMsgEventSeq = nextSeq
 	cursor.UpdatedAt = event.UpdatedAt
 	return state, cursor, true, messageEventAppendResult(event, state)
+}
+
+func messageEventAppliedFromResult(event MessageEventAppend, result MessageEventAppendResult) MessageEventApplied {
+	return MessageEventApplied{
+		ChannelID:   event.ChannelID,
+		ChannelType: event.ChannelType,
+		ClientMsgNo: event.ClientMsgNo,
+		EventID:     event.EventID,
+		EventKey:    result.EventKey,
+		MsgEventSeq: result.MsgEventSeq,
+		Status:      result.Status,
+		UpdatedAt:   event.UpdatedAt,
+	}
+}
+
+func messageEventAppendResultFromApplied(event MessageEventAppend, applied MessageEventApplied, state MessageEventState, stateExists bool) MessageEventAppendResult {
+	appliedState := MessageEventState{
+		ChannelID:       event.ChannelID,
+		ChannelType:     event.ChannelType,
+		ClientMsgNo:     event.ClientMsgNo,
+		EventKey:        applied.EventKey,
+		Status:          applied.Status,
+		LastMsgEventSeq: applied.MsgEventSeq,
+		LastEventID:     event.EventID,
+		UpdatedAt:       applied.UpdatedAt,
+	}
+	if stateExists && state.LastEventID == event.EventID && state.LastMsgEventSeq == applied.MsgEventSeq {
+		appliedState = cloneMessageEventState(state)
+	}
+	return MessageEventAppendResult{
+		ChannelID:   event.ChannelID,
+		ChannelType: event.ChannelType,
+		ClientMsgNo: event.ClientMsgNo,
+		EventID:     event.EventID,
+		EventKey:    applied.EventKey,
+		MsgEventSeq: applied.MsgEventSeq,
+		Status:      applied.Status,
+		State:       appliedState,
+	}
 }
 
 func messageEventAppendResult(event MessageEventAppend, state MessageEventState) MessageEventAppendResult {
@@ -471,6 +641,23 @@ func validateMessageEventCursor(cursor MessageEventCursor) error {
 	return err
 }
 
+func validateMessageEventApplied(applied MessageEventApplied) error {
+	channelID, clientMsgNo, err := normalizeMessageEventMessageKey(applied.ChannelID, applied.ChannelType, applied.ClientMsgNo)
+	if err != nil {
+		return err
+	}
+	if channelID != applied.ChannelID || clientMsgNo != applied.ClientMsgNo {
+		return dberrors.ErrInvalidArgument
+	}
+	if err := validateKeyString(applied.EventID); err != nil {
+		return err
+	}
+	if err := validateKeyString(applied.EventKey); err != nil {
+		return err
+	}
+	return nil
+}
+
 func isMessageEventTerminal(status string) bool {
 	return status == EventStatusClosed || status == EventStatusError || status == EventStatusCancelled
 }
@@ -531,12 +718,20 @@ func messageEventCursorPrimaryKey(channelID string, channelType int64, clientMsg
 	return KeyParts{String(channelID), Int64Ordered(channelType), String(clientMsgNo)}
 }
 
+func messageEventAppliedPrimaryKey(channelID string, channelType int64, clientMsgNo string, eventID string) KeyParts {
+	return KeyParts{String(channelID), Int64Ordered(channelType), String(clientMsgNo), String(eventID)}
+}
+
 func messageEventStateRowKey(hashSlot HashSlot, channelID string, channelType int64, clientMsgNo string, eventKey string) ([]byte, error) {
 	return messageEventStateTable.primaryRowKey(hashSlot, messageEventStatePrimaryKey(channelID, channelType, clientMsgNo, eventKey))
 }
 
 func messageEventCursorRowKey(hashSlot HashSlot, channelID string, channelType int64, clientMsgNo string) ([]byte, error) {
 	return messageEventCursorTable.primaryRowKey(hashSlot, messageEventCursorPrimaryKey(channelID, channelType, clientMsgNo))
+}
+
+func messageEventAppliedRowKey(hashSlot HashSlot, channelID string, channelType int64, clientMsgNo string, eventID string) ([]byte, error) {
+	return messageEventAppliedTable.primaryRowKey(hashSlot, messageEventAppliedPrimaryKey(channelID, channelType, clientMsgNo, eventID))
 }
 
 func encodeMessageEventStateValue(state MessageEventState) []byte {
@@ -615,6 +810,45 @@ func decodeMessageEventStateValue(channelID string, channelType int64, clientMsg
 	}, nil
 }
 
+func encodeMessageEventAppliedValue(applied MessageEventApplied) []byte {
+	value := appendValueString(nil, applied.EventKey)
+	value = appendValueUint64(value, applied.MsgEventSeq)
+	value = appendValueString(value, applied.Status)
+	return appendValueInt64(value, applied.UpdatedAt)
+}
+
+func decodeMessageEventAppliedValue(channelID string, channelType int64, clientMsgNo string, eventID string, value []byte) (MessageEventApplied, error) {
+	eventKey, rest, err := readValueString(value)
+	if err != nil {
+		return MessageEventApplied{}, err
+	}
+	msgEventSeq, rest, err := readValueUint64(rest)
+	if err != nil {
+		return MessageEventApplied{}, err
+	}
+	status, rest, err := readValueString(rest)
+	if err != nil {
+		return MessageEventApplied{}, err
+	}
+	updatedAt, rest, err := readValueInt64(rest)
+	if err != nil {
+		return MessageEventApplied{}, err
+	}
+	if len(rest) != 0 {
+		return MessageEventApplied{}, dberrors.ErrCorruptValue
+	}
+	return MessageEventApplied{
+		ChannelID:   channelID,
+		ChannelType: channelType,
+		ClientMsgNo: clientMsgNo,
+		EventID:     eventID,
+		EventKey:    eventKey,
+		MsgEventSeq: msgEventSeq,
+		Status:      status,
+		UpdatedAt:   updatedAt,
+	}, nil
+}
+
 func encodeMessageEventCursorValue(cursor MessageEventCursor) []byte {
 	value := appendValueUint64(nil, cursor.LastMsgEventSeq)
 	return appendValueInt64(value, cursor.UpdatedAt)
@@ -677,6 +911,16 @@ func messageEventStateEqual(left MessageEventState, leftExists bool, right Messa
 }
 
 func messageEventCursorEqual(left MessageEventCursor, leftExists bool, right MessageEventCursor, rightExists bool) bool {
+	if leftExists != rightExists {
+		return false
+	}
+	if !leftExists {
+		return true
+	}
+	return left == right
+}
+
+func messageEventAppliedEqual(left MessageEventApplied, leftExists bool, right MessageEventApplied, rightExists bool) bool {
 	if leftExists != rightExists {
 		return false
 	}

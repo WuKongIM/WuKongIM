@@ -14,6 +14,7 @@ import (
 const (
 	defaultSyncMessagesLimit = 100
 	maxSyncMessagesLimit     = 10000
+	legacySettingStream      = 1 << 1
 )
 
 // PullMode selects the compatible /channel/messagesync direction.
@@ -92,6 +93,8 @@ type SyncChannelMessagesQuery struct {
 	Limit int
 	// PullMode selects whether to pull older or newer messages.
 	PullMode PullMode
+	// IncludeEventMeta asks sync to include compact event metadata when available.
+	IncludeEventMeta bool
 	// EventSummaryMode is accepted for compatibility with older stream-message clients.
 	EventSummaryMode string
 }
@@ -163,7 +166,7 @@ func (a *App) SyncChannelMessages(ctx context.Context, query SyncChannelMessages
 		return SyncChannelMessagesResult{}, err
 	}
 	messages := cloneSyncedMessages(page.Messages)
-	if err := a.enrichSyncedMessagesWithEvents(ctx, strings.TrimSpace(query.EventSummaryMode), messages); err != nil {
+	if err := a.enrichSyncedMessagesWithEvents(ctx, normalizeEventSummaryMode(query), messages); err != nil {
 		return SyncChannelMessagesResult{}, err
 	}
 	return SyncChannelMessagesResult{
@@ -197,6 +200,14 @@ func cloneSyncedMessages(in []SyncedMessage) []SyncedMessage {
 	return out
 }
 
+func normalizeEventSummaryMode(query SyncChannelMessagesQuery) string {
+	mode := strings.ToLower(strings.TrimSpace(query.EventSummaryMode))
+	if mode == "" && query.IncludeEventMeta {
+		return "full"
+	}
+	return mode
+}
+
 func (a *App) enrichSyncedMessagesWithEvents(ctx context.Context, mode string, messages []SyncedMessage) error {
 	if mode == "" || len(messages) == 0 {
 		return nil
@@ -207,6 +218,9 @@ func (a *App) enrichSyncedMessagesWithEvents(ctx context.Context, mode string, m
 	keys := make([]MessageEventMessageKey, 0, len(messages))
 	seen := make(map[MessageEventMessageKey]struct{}, len(messages))
 	for _, msg := range messages {
+		if !isLegacyStreamMessage(msg.Setting) {
+			continue
+		}
 		if strings.TrimSpace(msg.ClientMsgNo) == "" || strings.TrimSpace(msg.ChannelID) == "" || msg.ChannelType == 0 {
 			continue
 		}
@@ -237,6 +251,10 @@ func (a *App) enrichSyncedMessagesWithEvents(ctx context.Context, mode string, m
 }
 
 const maxMessageEventSummaryLanes = 32
+
+func isLegacyStreamMessage(setting uint8) bool {
+	return setting&legacySettingStream != 0
+}
 
 func applyMessageEventSummary(msg *SyncedMessage, states []MessageEventState, full bool) {
 	if msg == nil || len(states) == 0 {

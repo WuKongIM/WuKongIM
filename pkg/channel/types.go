@@ -135,6 +135,8 @@ type Message struct {
 	MessageSeq  uint64
 	ChannelID   string
 	ChannelType uint8
+	// Setting carries legacy message setting bits needed by compatible readers.
+	Setting     uint8
 	FromUID     string
 	ClientMsgNo string
 	// ServerTimestampMS is the server append timestamp in Unix milliseconds.
@@ -168,6 +170,8 @@ type Record struct {
 	Index uint64
 	// Epoch is the channel epoch that produced this entry.
 	Epoch uint64
+	// Setting carries legacy message setting bits for durable compatibility.
+	Setting uint8
 	// FromUID is the sender user id preserved for conversation display.
 	FromUID string
 	// ClientMsgNo is the client idempotency key preserved for conversation display.

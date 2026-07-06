@@ -131,7 +131,7 @@ func TestChannelMessageSyncMapsCompatibleRequestToUsecase(t *testing.T) {
 	srv := New(Options{Messages: messages})
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/channel/messagesync", bytes.NewBufferString(`{"login_uid":"u1","channel_id":"u2","channel_type":1,"start_message_seq":2,"end_message_seq":5,"limit":10,"pull_mode":1,"event_summary_mode":"compat"}`))
+	req := httptest.NewRequest(http.MethodPost, "/channel/messagesync", bytes.NewBufferString(`{"login_uid":"u1","channel_id":"u2","channel_type":1,"start_message_seq":2,"end_message_seq":5,"limit":10,"pull_mode":1,"include_event_meta":1,"event_summary_mode":"compat"}`))
 	req.Header.Set("Content-Type", "application/json")
 
 	srv.Handler().ServeHTTP(rec, req)
@@ -146,7 +146,7 @@ func TestChannelMessageSyncMapsCompatibleRequestToUsecase(t *testing.T) {
 		t.Fatalf("sync queries = %#v, want one query", messages.syncQueries)
 	}
 	got := messages.syncQueries[0]
-	if got.LoginUID != "u1" || got.ChannelID != "u2" || got.ChannelType != frame.ChannelTypePerson || got.StartMessageSeq != 2 || got.EndMessageSeq != 5 || got.Limit != 10 || got.PullMode != messageusecase.PullModeUp || got.EventSummaryMode != "compat" {
+	if got.LoginUID != "u1" || got.ChannelID != "u2" || got.ChannelType != frame.ChannelTypePerson || got.StartMessageSeq != 2 || got.EndMessageSeq != 5 || got.Limit != 10 || got.PullMode != messageusecase.PullModeUp || !got.IncludeEventMeta || got.EventSummaryMode != "compat" {
 		t.Fatalf("sync query = %#v, want mapped request", got)
 	}
 }
@@ -202,6 +202,7 @@ func TestMessageEventAppendReturnsCompatibleErrors(t *testing.T) {
 	}{
 		{name: "invalid json", messages: &recordingMessageUsecase{}, body: `{"channel_id":`, want: `{"msg":"数据格式有误！","status":400}`},
 		{name: "missing usecase", body: `{"channel_id":"g1","channel_type":2,"client_msg_no":"cmn","event_id":"evt","event_type":"stream.open"}`, want: `{"msg":"message usecase not configured","status":400}`},
+		{name: "unsupported headers", messages: &recordingMessageUsecase{}, body: `{"channel_id":"g1","channel_type":2,"client_msg_no":"cmn","event_id":"evt","event_type":"stream.open","headers":{"x":"y"}}`, want: `{"msg":"message event headers are not supported","status":400}`},
 		{name: "usecase error", messages: &recordingMessageUsecase{appendErr: messageusecase.ErrMessageEventClientMsgNoRequired}, body: `{"channel_id":"g1","channel_type":2,"event_id":"evt","event_type":"stream.open"}`, want: `{"msg":"client_msg_no不能为空！","status":400}`},
 	} {
 		t.Run(tt.name, func(t *testing.T) {

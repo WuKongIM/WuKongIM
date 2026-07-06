@@ -94,6 +94,7 @@ func appendRecordsFromMessages(messages []ch.Message, admittedAt time.Time) []ch
 		}
 		records[i] = ch.Record{
 			ID:                msg.MessageID,
+			Setting:           msg.Setting,
 			FromUID:           msg.FromUID,
 			ClientMsgNo:       msg.ClientMsgNo,
 			Payload:           append([]byte(nil), msg.Payload...),

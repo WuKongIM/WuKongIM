@@ -519,12 +519,13 @@ func TestCodecEncodesAllFramesWithBinaryPayload(t *testing.T) {
 		LeaseUntil:  time.Unix(1700000000, 123),
 		Status:      ch.StatusActive,
 	}
-	sampleRecord := ch.Record{ID: 10, Index: 11, Epoch: 12, FromUID: "u1", ClientMsgNo: "record-client", Payload: []byte("record-payload"), SizeBytes: 14, ServerTimestampMS: 1700000000123}
+	sampleRecord := ch.Record{ID: 10, Index: 11, Epoch: 12, Setting: 2, FromUID: "u1", ClientMsgNo: "record-client", Payload: []byte("record-payload"), SizeBytes: 14, ServerTimestampMS: 1700000000123}
 	sampleMessage := ch.Message{
 		MessageID:         21,
 		MessageSeq:        22,
 		ChannelID:         "room",
 		ChannelType:       1,
+		Setting:           2,
 		FromUID:           "u1",
 		ClientMsgNo:       "m1",
 		ServerTimestampMS: 1700000000456,
@@ -775,12 +776,13 @@ func TestCodecLastVisibleResponsePreservesApplicationError(t *testing.T) {
 	require.ErrorIs(t, err, ch.ErrStaleMeta)
 }
 
-func TestCodecCurrentEncoderEmitsV4Frames(t *testing.T) {
+func TestCodecCurrentEncoderEmitsV5Frames(t *testing.T) {
 	msg := ch.Message{
 		MessageID:         21,
 		MessageSeq:        22,
 		ChannelID:         "room",
 		ChannelType:       1,
+		Setting:           2,
 		FromUID:           "u1",
 		ClientMsgNo:       "m1",
 		ServerTimestampMS: 1700000000456,
@@ -821,6 +823,7 @@ func TestCodecDecodesLegacyV3AppendRequestMessageLayout(t *testing.T) {
 	require.Equal(t, ch.ChannelID{ID: "room", Type: 1}, got.ChannelID)
 	require.Equal(t, want, got.Message)
 	require.Zero(t, got.Message.ServerTimestampMS)
+	require.Zero(t, got.Message.Setting)
 	require.Equal(t, ch.CommitModeQuorum, got.CommitMode)
 	require.Equal(t, uint64(1), got.ExpectedChannelEpoch)
 	require.Equal(t, uint64(2), got.ExpectedLeaderEpoch)
@@ -860,7 +863,37 @@ func TestCodecDecodesLegacyV3PullResponseRecordLayout(t *testing.T) {
 		require.Empty(t, record.FromUID)
 		require.Empty(t, record.ClientMsgNo)
 		require.Zero(t, record.ServerTimestampMS)
+		require.Zero(t, record.Setting)
 	}
+}
+
+func TestCodecDecodesLegacyV4MessageAndRecordLayout(t *testing.T) {
+	wantMessage := ch.Message{
+		MessageID:         21,
+		MessageSeq:        22,
+		ChannelID:         "room",
+		ChannelType:       1,
+		FromUID:           "u1",
+		ClientMsgNo:       "m1",
+		ServerTimestampMS: 1700000000456,
+		TraceID:           "trace-message",
+		ChannelKey:        "channel/key-message",
+		Payload:           []byte("message-payload"),
+	}
+	messageBody := appendLegacyV4Message(nil, wantMessage)
+	gotMessage, offset, err := readMessage(messageBody, 0, legacyCodecVersionV4)
+	require.NoError(t, err)
+	require.Equal(t, len(messageBody), offset)
+	require.Equal(t, wantMessage, gotMessage)
+	require.Zero(t, gotMessage.Setting)
+
+	wantRecord := ch.Record{ID: 10, Index: 11, Epoch: 12, FromUID: "u1", ClientMsgNo: "client-1", ServerTimestampMS: 1700000000123, Payload: []byte("record-payload"), SizeBytes: 14}
+	recordBody := appendLegacyV4Record(nil, wantRecord)
+	gotRecord, offset, err := readRecord(recordBody, 0, legacyCodecVersionV4)
+	require.NoError(t, err)
+	require.Equal(t, len(recordBody), offset)
+	require.Equal(t, wantRecord, gotRecord)
+	require.Zero(t, gotRecord.Setting)
 }
 
 func TestCodecDecodesLegacyV3MessageLayout(t *testing.T) {
@@ -882,6 +915,7 @@ func TestCodecDecodesLegacyV3MessageLayout(t *testing.T) {
 	require.Equal(t, len(body), offset)
 	require.Equal(t, want, got)
 	require.Zero(t, got.ServerTimestampMS)
+	require.Zero(t, got.Setting)
 }
 
 func TestCodecDecodesLegacyV3RecordLayoutInSlices(t *testing.T) {
@@ -902,6 +936,7 @@ func TestCodecDecodesLegacyV3RecordLayoutInSlices(t *testing.T) {
 		require.Empty(t, record.FromUID)
 		require.Empty(t, record.ClientMsgNo)
 		require.Zero(t, record.ServerTimestampMS)
+		require.Zero(t, record.Setting)
 	}
 }
 
@@ -2178,6 +2213,20 @@ func appendLegacyV3Message(dst []byte, msg ch.Message) []byte {
 	return dst
 }
 
+func appendLegacyV4Message(dst []byte, msg ch.Message) []byte {
+	dst = appendUvarint(dst, msg.MessageID)
+	dst = appendUvarint(dst, msg.MessageSeq)
+	dst = appendString(dst, msg.ChannelID)
+	dst = append(dst, msg.ChannelType)
+	dst = appendString(dst, msg.FromUID)
+	dst = appendString(dst, msg.ClientMsgNo)
+	dst = appendVarint(dst, msg.ServerTimestampMS)
+	dst = appendString(dst, msg.TraceID)
+	dst = appendChannelKey(dst, ch.ChannelKey(msg.ChannelKey))
+	dst = appendOptionalBytes(dst, msg.Payload)
+	return dst
+}
+
 func appendLegacyV3PullResponse(dst []byte, resp channeltransport.PullResponse, records []ch.Record) []byte {
 	dst = appendChannelKey(dst, resp.ChannelKey)
 	dst = appendUvarint(dst, resp.Epoch)
@@ -2199,6 +2248,18 @@ func appendLegacyV3Record(dst []byte, record ch.Record) []byte {
 	dst = appendUvarint(dst, record.ID)
 	dst = appendUvarint(dst, record.Index)
 	dst = appendUvarint(dst, record.Epoch)
+	dst = appendOptionalBytes(dst, record.Payload)
+	dst = appendVarint(dst, int64(record.SizeBytes))
+	return dst
+}
+
+func appendLegacyV4Record(dst []byte, record ch.Record) []byte {
+	dst = appendUvarint(dst, record.ID)
+	dst = appendUvarint(dst, record.Index)
+	dst = appendUvarint(dst, record.Epoch)
+	dst = appendString(dst, record.FromUID)
+	dst = appendString(dst, record.ClientMsgNo)
+	dst = appendVarint(dst, record.ServerTimestampMS)
 	dst = appendOptionalBytes(dst, record.Payload)
 	dst = appendVarint(dst, int64(record.SizeBytes))
 	return dst

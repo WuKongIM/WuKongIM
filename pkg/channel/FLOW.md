@@ -160,8 +160,9 @@ Append callers may also carry `TraceID`, diagnostics `ChannelKey`, per-message
 trace metadata, and `Attempt` through `AppendBatchRequest`. These fields are
 transient diagnostics data for sendtrace and RPC forwarding only. The reactor
 still converts messages to durable records using message id, payload, display
-fields, and the `SyncOnce` command-sync marker, so trace metadata is not part
-of channel log storage, idempotency, or DB semantics.
+fields, the legacy setting bitset, and the `SyncOnce` command-sync marker, so
+trace metadata is not part of channel log storage, idempotency, or DB
+semantics.
 
 Leader-side deep sendtrace detail is gated by the active diagnostics detail
 sampler. The reactor builds bounded transient sidecars only for selected traced

@@ -101,6 +101,26 @@ type MessageEventCursor struct {
 	UpdatedAt int64
 }
 
+// MessageEventApplied stores one applied event idempotency record for a message.
+type MessageEventApplied struct {
+	// ChannelID identifies the channel that owns the message.
+	ChannelID string
+	// ChannelType identifies the channel namespace.
+	ChannelType int64
+	// ClientMsgNo identifies the message inside the channel.
+	ClientMsgNo string
+	// EventID is the idempotency key observed for the message.
+	EventID string
+	// EventKey identifies the lane the event was applied to.
+	EventKey string
+	// MsgEventSeq is the message-level sequence assigned to the event.
+	MsgEventSeq uint64
+	// Status is the lane status immediately after the event was applied.
+	Status string
+	// UpdatedAt records when this idempotency row was created.
+	UpdatedAt int64
+}
+
 // MessageEventMessageKey identifies all event lanes for one message.
 type MessageEventMessageKey struct {
 	// ChannelID identifies the channel that owns the message.
@@ -150,6 +170,8 @@ const (
 	TableIDMessageEventState uint32 = 13
 	// TableIDMessageEventCursor stores the latest event sequence per message.
 	TableIDMessageEventCursor uint32 = 14
+	// TableIDMessageEventApplied stores applied event idempotency records.
+	TableIDMessageEventApplied uint32 = 15
 )
 
 const (
@@ -177,6 +199,9 @@ const (
 
 	messageEventCursorPrimaryFamilyID uint16 = 0
 	messageEventCursorPrimaryIndexID  uint16 = 1
+
+	messageEventAppliedPrimaryFamilyID uint16 = 0
+	messageEventAppliedPrimaryIndexID  uint16 = 1
 
 	conversationPrimaryIndexID uint16 = 1
 	conversationActiveIndexID  uint16 = 2

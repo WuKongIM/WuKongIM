@@ -83,6 +83,29 @@ func TestNodeProposeResultDelegatesWhenAvailable(t *testing.T) {
 	}
 }
 
+func TestNodeProposeResultRequiresResultDelegate(t *testing.T) {
+	proposer := &recordingProposer{}
+	node, err := New(validNodeConfig(t), WithProposer(proposer))
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	if err := node.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	t.Cleanup(func() { _ = node.Stop(context.Background()) })
+
+	got, err := node.ProposeResult(context.Background(), ProposeRequest{Key: "u1", Command: []byte("cmd")})
+	if !errors.Is(err, ErrProposalResultUnsupported) {
+		t.Fatalf("ProposeResult() error = %v, want ErrProposalResultUnsupported", err)
+	}
+	if got != nil {
+		t.Fatalf("ProposeResult() result = %q, want nil", got)
+	}
+	if proposer.calls != 0 {
+		t.Fatalf("resultless proposer calls=%d, want 0", proposer.calls)
+	}
+}
+
 func TestNodeProbeWriteReadyProposesOneNoopPerPhysicalSlot(t *testing.T) {
 	proposer := &recordingProposer{}
 	node, err := New(validNodeConfig(t), WithProposer(proposer))

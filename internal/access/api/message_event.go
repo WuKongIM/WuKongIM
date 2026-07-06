@@ -9,18 +9,18 @@ import (
 )
 
 type appendMessageEventRequest struct {
-	ChannelID   string            `json:"channel_id"`
-	ChannelType uint8             `json:"channel_type"`
-	FromUID     string            `json:"from_uid"`
-	MessageID   int64             `json:"message_id"`
-	ClientMsgNo string            `json:"client_msg_no"`
-	EventID     string            `json:"event_id"`
-	EventType   string            `json:"event_type"`
-	EventKey    string            `json:"event_key"`
-	Visibility  string            `json:"visibility"`
-	OccurredAt  int64             `json:"occurred_at"`
-	Payload     json.RawMessage   `json:"payload"`
-	Headers     map[string]string `json:"headers"`
+	ChannelID   string           `json:"channel_id"`
+	ChannelType uint8            `json:"channel_type"`
+	FromUID     string           `json:"from_uid"`
+	MessageID   int64            `json:"message_id"`
+	ClientMsgNo string           `json:"client_msg_no"`
+	EventID     string           `json:"event_id"`
+	EventType   string           `json:"event_type"`
+	EventKey    string           `json:"event_key"`
+	Visibility  string           `json:"visibility"`
+	OccurredAt  int64            `json:"occurred_at"`
+	Payload     json.RawMessage  `json:"payload"`
+	Headers     *json.RawMessage `json:"headers"`
 }
 
 type appendMessageEventResponse struct {
@@ -42,6 +42,10 @@ func (s *Server) handleMessageEventAppend(c *gin.Context) {
 	}
 	if s == nil || s.messages == nil {
 		writeJSONError(c, "message usecase not configured")
+		return
+	}
+	if req.Headers != nil {
+		writeJSONError(c, "message event headers are not supported")
 		return
 	}
 	var messageID uint64

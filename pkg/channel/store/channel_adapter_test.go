@@ -78,6 +78,7 @@ func TestMessageDBStoreAdapterPreservesConversationDisplayFields(t *testing.T) {
 	_, err = cs.AppendLeader(ctx, AppendLeaderRequest{
 		Records: []ch.Record{{
 			ID:                10,
+			Setting:           2,
 			FromUID:           "u1",
 			ClientMsgNo:       "client-1",
 			Payload:           []byte("payload"),
@@ -93,6 +94,7 @@ func TestMessageDBStoreAdapterPreservesConversationDisplayFields(t *testing.T) {
 	require.Len(t, committed.Messages, 1)
 	require.Equal(t, "u1", committed.Messages[0].FromUID)
 	require.Equal(t, "client-1", committed.Messages[0].ClientMsgNo)
+	require.Equal(t, uint8(2), committed.Messages[0].Setting)
 	require.Equal(t, []byte("payload"), committed.Messages[0].Payload)
 	require.Equal(t, int64(1234), committed.Messages[0].ServerTimestampMS)
 
@@ -103,6 +105,7 @@ func TestMessageDBStoreAdapterPreservesConversationDisplayFields(t *testing.T) {
 	require.True(t, found)
 	require.Equal(t, "u1", msg.FromUID)
 	require.Equal(t, "client-1", msg.ClientMsgNo)
+	require.Equal(t, uint8(2), msg.Setting)
 	require.Equal(t, []byte("payload"), msg.Payload)
 	require.Equal(t, int64(1234), msg.ServerTimestampMS)
 }
