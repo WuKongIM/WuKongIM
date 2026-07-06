@@ -21,12 +21,12 @@ type legacyMessageResp struct {
 	MessageIDStr string              `json:"message_idstr"`
 	ClientMsgNo  string              `json:"client_msg_no"`
 
-	End           uint8  `json:"end,omitempty"`
-	EndReason     uint8  `json:"end_reason,omitempty"`
-	Error         string `json:"error,omitempty"`
-	StreamData    []byte `json:"stream_data,omitempty"`
-	EventMeta     any    `json:"event_meta,omitempty"`
-	EventSyncHint any    `json:"event_sync_hint,omitempty"`
+	End           uint8                       `json:"end,omitempty"`
+	EndReason     uint8                       `json:"end_reason,omitempty"`
+	Error         string                      `json:"error,omitempty"`
+	StreamData    []byte                      `json:"stream_data,omitempty"`
+	EventMeta     *legacyMessageEventMeta     `json:"event_meta,omitempty"`
+	EventSyncHint *legacyMessageEventSyncHint `json:"event_sync_hint,omitempty"`
 
 	MessageSeq  uint64 `json:"message_seq"`
 	FromUID     string `json:"from_uid"`
@@ -45,18 +45,84 @@ func newLegacyMessageResp(uid string, msg messageusecase.SyncedMessage) legacyMe
 			RedDot:    boolToInt(msg.Flags.RedDot),
 			SyncOnce:  boolToInt(msg.Flags.SyncOnce),
 		},
-		Setting:      msg.Setting,
-		MessageID:    int64(msg.MessageID),
-		MessageIDStr: strconv.FormatUint(msg.MessageID, 10),
-		ClientMsgNo:  msg.ClientMsgNo,
-		MessageSeq:   msg.MessageSeq,
-		FromUID:      msg.FromUID,
-		ChannelID:    legacyMessageChannelID(uid, msg.ChannelID, msg.ChannelType),
-		ChannelType:  msg.ChannelType,
-		Topic:        msg.Topic,
-		Expire:       msg.Expire,
-		Timestamp:    msg.Timestamp,
-		Payload:      append([]byte(nil), msg.Payload...),
+		Setting:       msg.Setting,
+		MessageID:     int64(msg.MessageID),
+		MessageIDStr:  strconv.FormatUint(msg.MessageID, 10),
+		ClientMsgNo:   msg.ClientMsgNo,
+		MessageSeq:    msg.MessageSeq,
+		FromUID:       msg.FromUID,
+		ChannelID:     legacyMessageChannelID(uid, msg.ChannelID, msg.ChannelType),
+		ChannelType:   msg.ChannelType,
+		Topic:         msg.Topic,
+		Expire:        msg.Expire,
+		Timestamp:     msg.Timestamp,
+		Payload:       append([]byte(nil), msg.Payload...),
+		End:           msg.End,
+		EndReason:     msg.EndReason,
+		Error:         msg.Error,
+		StreamData:    append([]byte(nil), msg.StreamData...),
+		EventMeta:     newLegacyMessageEventMeta(msg.EventMeta),
+		EventSyncHint: newLegacyMessageEventSyncHint(msg.EventHint),
+	}
+}
+
+type legacyMessageEventMeta struct {
+	HasEvents       bool                        `json:"has_events"`
+	Completed       bool                        `json:"completed"`
+	EventVersion    uint64                      `json:"event_version,omitempty"`
+	LastMsgEventSeq uint64                      `json:"last_msg_event_seq,omitempty"`
+	EventCount      int                         `json:"event_count,omitempty"`
+	OpenEventCount  int                         `json:"open_event_count,omitempty"`
+	Events          []legacyMessageEventKeyMeta `json:"events,omitempty"`
+}
+
+type legacyMessageEventKeyMeta struct {
+	EventKey        string `json:"event_key"`
+	Status          string `json:"status"`
+	LastMsgEventSeq uint64 `json:"last_msg_event_seq,omitempty"`
+	Snapshot        any    `json:"snapshot,omitempty"`
+	EndReason       uint8  `json:"end_reason,omitempty"`
+	Error           string `json:"error,omitempty"`
+}
+
+type legacyMessageEventSyncHint struct {
+	ClientMsgNo     string `json:"client_msg_no"`
+	FromMsgEventSeq uint64 `json:"from_msg_event_seq"`
+}
+
+func newLegacyMessageEventMeta(meta *messageusecase.MessageEventMeta) *legacyMessageEventMeta {
+	if meta == nil {
+		return nil
+	}
+	out := &legacyMessageEventMeta{
+		HasEvents:       meta.HasEvents,
+		Completed:       meta.Completed,
+		EventVersion:    meta.EventVersion,
+		LastMsgEventSeq: meta.LastMsgEventSeq,
+		EventCount:      meta.EventCount,
+		OpenEventCount:  meta.OpenEventCount,
+		Events:          make([]legacyMessageEventKeyMeta, 0, len(meta.Events)),
+	}
+	for _, event := range meta.Events {
+		out.Events = append(out.Events, legacyMessageEventKeyMeta{
+			EventKey:        event.EventKey,
+			Status:          event.Status,
+			LastMsgEventSeq: event.LastMsgEventSeq,
+			Snapshot:        event.Snapshot,
+			EndReason:       event.EndReason,
+			Error:           event.Error,
+		})
+	}
+	return out
+}
+
+func newLegacyMessageEventSyncHint(hint *messageusecase.MessageEventSyncHint) *legacyMessageEventSyncHint {
+	if hint == nil {
+		return nil
+	}
+	return &legacyMessageEventSyncHint{
+		ClientMsgNo:     hint.ClientMsgNo,
+		FromMsgEventSeq: hint.FromMsgEventSeq,
 	}
 }
 

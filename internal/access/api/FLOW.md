@@ -46,6 +46,7 @@ POST /bench/v1/users/tokens
 POST /bench/v1/channels
 POST /bench/v1/channels/subscribers
 POST /message/send
+POST /message/event
 POST /message/sync
 POST /message/syncack
 POST /conversation/list
@@ -130,15 +131,21 @@ The compatible message routes are registered regardless of bench mode.
 `/message/send` accepts the legacy base64 payload request, maps `sender_uid` to
 `from_uid`, forwards `subscribers` as an explicit request-scoped command, and
 returns the legacy `{"message_id","message_seq","reason"}` response with
-protocol reason codes. `/message/sync` and `/message/syncack` forward durable
-CMD message sync and ack requests to `internal/usecase/cmdsync`, preserving
-legacy validation messages and response envelopes while keeping CMD projection
-reads and read-cursor writes out of the HTTP layer. They operate on
-`ConversationKindCMD` rows from the shared UID-owned conversation projection and
-return only durable command messages, stripping one command-channel suffix from
-client-facing channel IDs when present. `/channel/messagesync` keeps the legacy
-response shape and converts canonical person-channel IDs back to the peer UID
-for the logged-in user. If the composition root does not provide the
+protocol reason codes. `/message/event` accepts the legacy message-scoped event
+append request, forwards raw JSON payload bytes to `internal/usecase/message`,
+and returns the legacy `{"status":200,"data":...}` envelope with the assigned
+`msg_event_seq` and projected stream status. `/message/sync` and
+`/message/syncack` forward durable CMD message sync and ack requests to
+`internal/usecase/cmdsync`, preserving legacy validation messages and response
+envelopes while keeping CMD projection reads and read-cursor writes out of the
+HTTP layer. They operate on `ConversationKindCMD` rows from the shared UID-owned
+conversation projection and return only durable command messages, stripping one
+command-channel suffix from client-facing channel IDs when present.
+`/channel/messagesync` keeps the legacy response shape, converts canonical
+person-channel IDs back to the peer UID for the logged-in user, and maps message
+event summaries to the legacy `event_meta`, `event_sync_hint`, and stream fields
+when the usecase provides them. Fine-grained `/message/eventsync` is intentionally
+not registered in this phase. If the composition root does not provide the
 corresponding message or CMD sync usecase, these routes fail closed using their
 legacy envelopes.
 

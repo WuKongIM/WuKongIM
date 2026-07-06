@@ -81,6 +81,7 @@ type LegacyRouteNodeAddresses struct {
 // MessageUsecase coordinates compatible message send and channel sync routes.
 type MessageUsecase interface {
 	Send(context.Context, messageusecase.SendCommand) (messageusecase.SendResult, error)
+	AppendMessageEvent(context.Context, messageusecase.MessageEventAppend) (messageusecase.MessageEventAppendResult, error)
 	SyncChannelMessages(context.Context, messageusecase.SyncChannelMessagesQuery) (messageusecase.SyncChannelMessagesResult, error)
 }
 

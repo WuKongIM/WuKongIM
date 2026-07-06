@@ -151,6 +151,126 @@ func TestChannelMessageSyncMapsCompatibleRequestToUsecase(t *testing.T) {
 	}
 }
 
+func TestMessageEventAppendMapsCompatibleRequestToUsecase(t *testing.T) {
+	messages := &recordingMessageUsecase{
+		appendResult: messageusecase.MessageEventAppendResult{
+			ChannelID:   "u2@u1",
+			ChannelType: int64(frame.ChannelTypePerson),
+			FromUID:     "u1",
+			ClientMsgNo: "cmn-1",
+			EventID:     "evt-1",
+			EventKey:    messageusecase.EventKeyDefault,
+			MsgEventSeq: 12,
+			Status:      messageusecase.EventStatusOpen,
+		},
+	}
+	srv := New(Options{Messages: messages})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/message/event", bytes.NewBufferString(`{"channel_id":"u2","channel_type":1,"from_uid":"u1","message_id":99,"client_msg_no":"cmn-1","event_id":"evt-1","event_type":"stream.delta","event_key":"main","visibility":"public","occurred_at":1700000000000,"payload":{"kind":"text","delta":"hi"}}`))
+	req.Header.Set("Content-Type", "application/json")
+
+	srv.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s, want 200", rec.Code, rec.Body.String())
+	}
+	if !jsonEqual(rec.Body.String(), `{"status":200,"data":{"client_msg_no":"cmn-1","event_key":"main","event_id":"evt-1","msg_event_seq":12,"stream_status":"open","channel_id":"u2","channel_type":1,"from_uid":"u1"}}`) {
+		t.Fatalf("body = %q, want compatible event append response", rec.Body.String())
+	}
+	if len(messages.appendCalls) != 1 {
+		t.Fatalf("append calls = %#v, want one call", messages.appendCalls)
+	}
+	call := messages.appendCalls[0]
+	if call.ChannelID != "u2" || call.ChannelType != int64(frame.ChannelTypePerson) || call.FromUID != "u1" || call.MessageID != 99 {
+		t.Fatalf("append command channel/sender = %#v, want mapped request", call)
+	}
+	if call.ClientMsgNo != "cmn-1" || call.EventID != "evt-1" || call.EventKey != "main" || call.EventType != "stream.delta" || call.Visibility != "public" || call.OccurredAt != 1700000000000 {
+		t.Fatalf("append command event fields = %#v, want mapped request", call)
+	}
+	if string(call.Payload) != `{"kind":"text","delta":"hi"}` {
+		t.Fatalf("payload = %q, want raw JSON payload", call.Payload)
+	}
+}
+
+func TestMessageEventAppendReturnsCompatibleErrors(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		messages MessageUsecase
+		body     string
+		want     string
+	}{
+		{name: "invalid json", messages: &recordingMessageUsecase{}, body: `{"channel_id":`, want: `{"msg":"数据格式有误！","status":400}`},
+		{name: "missing usecase", body: `{"channel_id":"g1","channel_type":2,"client_msg_no":"cmn","event_id":"evt","event_type":"stream.open"}`, want: `{"msg":"message usecase not configured","status":400}`},
+		{name: "usecase error", messages: &recordingMessageUsecase{appendErr: messageusecase.ErrMessageEventClientMsgNoRequired}, body: `{"channel_id":"g1","channel_type":2,"event_id":"evt","event_type":"stream.open"}`, want: `{"msg":"client_msg_no不能为空！","status":400}`},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := New(Options{Messages: tt.messages})
+
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodPost, "/message/event", bytes.NewBufferString(tt.body))
+			req.Header.Set("Content-Type", "application/json")
+
+			srv.Handler().ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusBadRequest {
+				t.Fatalf("status = %d body = %s, want 400", rec.Code, rec.Body.String())
+			}
+			if !jsonEqual(rec.Body.String(), tt.want) {
+				t.Fatalf("body = %q, want JSON %s", rec.Body.String(), tt.want)
+			}
+		})
+	}
+}
+
+func TestChannelMessageSyncIncludesEventFields(t *testing.T) {
+	messages := &recordingMessageUsecase{
+		syncResult: messageusecase.SyncChannelMessagesResult{
+			Messages: []messageusecase.SyncedMessage{{
+				MessageID:   88,
+				MessageSeq:  2,
+				ClientMsgNo: "c1",
+				FromUID:     "u2",
+				ChannelID:   "g1",
+				ChannelType: frame.ChannelTypeGroup,
+				Payload:     []byte("base"),
+				End:         1,
+				EndReason:   3,
+				StreamData:  []byte("hello"),
+				EventMeta: &messageusecase.MessageEventMeta{
+					HasEvents:       true,
+					Completed:       true,
+					EventVersion:    2,
+					LastMsgEventSeq: 2,
+					EventCount:      1,
+					Events: []messageusecase.MessageEventKeyMeta{{
+						EventKey:        messageusecase.EventKeyDefault,
+						Status:          messageusecase.EventStatusClosed,
+						LastMsgEventSeq: 2,
+						Snapshot:        map[string]any{"text": "hello"},
+						EndReason:       3,
+					}},
+				},
+				EventHint: &messageusecase.MessageEventSyncHint{ClientMsgNo: "c1"},
+			}},
+		},
+	}
+	srv := New(Options{Messages: messages})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/channel/messagesync", bytes.NewBufferString(`{"login_uid":"u1","channel_id":"g1","channel_type":2,"event_summary_mode":"full"}`))
+	req.Header.Set("Content-Type", "application/json")
+
+	srv.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s, want 200", rec.Code, rec.Body.String())
+	}
+	if !jsonEqual(rec.Body.String(), `{"start_message_seq":0,"end_message_seq":0,"more":0,"messages":[{"header":{"no_persist":0,"red_dot":0,"sync_once":0},"setting":0,"message_id":88,"message_idstr":"88","client_msg_no":"c1","end":1,"end_reason":3,"stream_data":"aGVsbG8=","event_meta":{"has_events":true,"completed":true,"event_version":2,"last_msg_event_seq":2,"event_count":1,"events":[{"event_key":"main","status":"closed","last_msg_event_seq":2,"snapshot":{"text":"hello"},"end_reason":3}]},"event_sync_hint":{"client_msg_no":"c1","from_msg_event_seq":0},"message_seq":2,"from_uid":"u2","channel_id":"g1","channel_type":2,"expire":0,"timestamp":0,"payload":"YmFzZQ=="}]}`) {
+		t.Fatalf("body = %q, want event-enriched messagesync response", rec.Body.String())
+	}
+}
+
 func TestChannelMessageSyncReturnsCompatibleErrorEnvelope(t *testing.T) {
 	srv := New(Options{Messages: &recordingMessageUsecase{syncErr: errors.New("login_uid不能为空！")}})
 
@@ -169,17 +289,25 @@ func TestChannelMessageSyncReturnsCompatibleErrorEnvelope(t *testing.T) {
 }
 
 type recordingMessageUsecase struct {
-	sendCalls   []messageusecase.SendCommand
-	sendResult  messageusecase.SendResult
-	sendErr     error
-	syncQueries []messageusecase.SyncChannelMessagesQuery
-	syncResult  messageusecase.SyncChannelMessagesResult
-	syncErr     error
+	sendCalls    []messageusecase.SendCommand
+	sendResult   messageusecase.SendResult
+	sendErr      error
+	appendCalls  []messageusecase.MessageEventAppend
+	appendResult messageusecase.MessageEventAppendResult
+	appendErr    error
+	syncQueries  []messageusecase.SyncChannelMessagesQuery
+	syncResult   messageusecase.SyncChannelMessagesResult
+	syncErr      error
 }
 
 func (r *recordingMessageUsecase) Send(_ context.Context, cmd messageusecase.SendCommand) (messageusecase.SendResult, error) {
 	r.sendCalls = append(r.sendCalls, cmd)
 	return r.sendResult, r.sendErr
+}
+
+func (r *recordingMessageUsecase) AppendMessageEvent(_ context.Context, event messageusecase.MessageEventAppend) (messageusecase.MessageEventAppendResult, error) {
+	r.appendCalls = append(r.appendCalls, event)
+	return r.appendResult, r.appendErr
 }
 
 func (r *recordingMessageUsecase) SyncChannelMessages(_ context.Context, query messageusecase.SyncChannelMessagesQuery) (messageusecase.SyncChannelMessagesResult, error) {
