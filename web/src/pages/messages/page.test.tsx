@@ -96,6 +96,40 @@ test("uses compact message page chrome without summary cards", async () => {
   expect(screen.queryByText("Newest matched messages ordered by committed sequence.")).not.toBeInTheDocument()
 })
 
+test("uses an editorial message query toolbar and named inventory table", async () => {
+  getMessagesMock.mockResolvedValueOnce({
+    items: [{
+      message_id: 101,
+      message_seq: 9,
+      client_msg_no: "c-101",
+      channel_id: "room-1",
+      channel_type: 2,
+      from_uid: "u1",
+      timestamp: 1713859200,
+      payload: "aGVsbG8=",
+    }],
+    has_more: false,
+  })
+
+  renderMessagesPage("/messages?channel_id=room-1&channel_type=2")
+
+  const querySurface = screen.getByTestId("messages-query-surface")
+  expect(querySurface).toHaveClass("rounded-lg", "border", "border-border", "bg-card", "p-3")
+  expect(querySurface).not.toHaveClass("rounded-xl")
+
+  const queryToolbar = screen.getByTestId("messages-query-toolbar")
+  expect(queryToolbar).toHaveClass("grid", "gap-3")
+  expect(within(queryToolbar).getByLabelText("Channel ID")).toHaveValue("room-1")
+  expect(within(queryToolbar).getByLabelText("Channel type")).toHaveValue(2)
+  expect(within(queryToolbar).getByRole("button", { name: "Search" })).toBeInTheDocument()
+
+  const table = await screen.findByRole("table", { name: "Messages" })
+  const inventorySurface = table.closest("[data-messages-surface='inventory']")
+  expect(inventorySurface).toHaveClass("rounded-lg", "border", "border-border", "bg-card", "p-3")
+  expect(inventorySurface).not.toHaveClass("rounded-xl")
+  expect(table).toHaveClass("table-fixed", "text-sm")
+})
+
 test("auto-runs a message query from URL channel params", async () => {
   getMessagesMock.mockResolvedValueOnce({
     items: [{

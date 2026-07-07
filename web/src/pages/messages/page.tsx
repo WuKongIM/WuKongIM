@@ -413,8 +413,15 @@ export function MessagesPage() {
         ) : null}
       </div>
 
-      <div className="rounded-xl border border-border bg-card p-3 shadow-none">
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(0,1.2fr)_10rem_10rem_minmax(0,1fr)_auto] xl:items-end">
+      <div
+        className="rounded-lg border border-border bg-card p-3 shadow-none"
+        data-messages-surface="query"
+        data-testid="messages-query-surface"
+      >
+        <div
+          className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(0,1.2fr)_10rem_10rem_minmax(0,1fr)_auto] xl:items-end"
+          data-testid="messages-query-toolbar"
+        >
           <label className="relative grid gap-2 text-sm text-foreground">
             <span>{intl.formatMessage({ id: "messages.form.channelId" })}</span>
             <input
@@ -539,9 +546,9 @@ export function MessagesPage() {
         {validationError ? <p className="mt-3 text-sm text-destructive">{validationError}</p> : null}
       </div>
 
-      <div className="rounded-xl border border-border bg-card p-3 shadow-none">
+      <div className="rounded-lg border border-border bg-card p-3 shadow-none" data-messages-surface="inventory">
         {retention.result && retention.result.status !== "blocked" ? (
-          <div className="mb-3 rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm text-foreground">
+          <div className="mb-3 rounded-md border border-border bg-muted/30 px-3 py-2 text-sm text-foreground">
             {intl.formatMessage(
               { id: "messages.retentionSuccess" },
               { seq: retention.result.min_available_seq },
@@ -564,8 +571,11 @@ export function MessagesPage() {
         {!state.loading && !state.error && state.messages ? (
           state.messages.items.length > 0 ? (
             <>
-              <div className="overflow-x-auto rounded-lg border border-border">
-                <table className="w-full min-w-[1080px] table-fixed border-collapse">
+              <div className="overflow-x-auto rounded-md border border-border">
+                <table
+                  aria-label={intl.formatMessage({ id: "nav.messages.title" })}
+                  className="w-full min-w-[1080px] table-fixed border-collapse text-sm"
+                >
                   <colgroup>
                     <col className="w-[4.5rem]" />
                     <col className="w-[12rem]" />
@@ -701,7 +711,7 @@ export function MessagesPage() {
               ]}
             />
 
-            <section className="rounded-lg border border-border bg-card">
+            <section className="rounded-md border border-border bg-card">
               <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border px-4 py-4">
                 <div>
                   <h3 className="text-sm font-medium text-foreground">
