@@ -192,17 +192,16 @@ export function ConversationsPage() {
   return (
     <PageContainer>
       <PageHeader
-        actions={submitted ? (
-          <Button onClick={refresh} size="sm" variant="outline">
-            {state.refreshing ? intl.formatMessage({ id: "common.refreshing" }) : intl.formatMessage({ id: "common.refresh" })}
-          </Button>
-        ) : null}
         description={intl.formatMessage({ id: "conversations.description" })}
         title={intl.formatMessage({ id: "conversations.title" })}
       />
 
-      <SectionCard description={summary} title={intl.formatMessage({ id: "conversations.title" })}>
-        <form className="mb-4 grid gap-3 md:grid-cols-[minmax(0,1fr)_8rem_10rem_10rem_auto] md:items-end" onSubmit={submitSearch}>
+      <SectionCard className="overflow-hidden" description={summary} title={intl.formatMessage({ id: "conversations.title" })}>
+        <form
+          className="grid gap-3 border-b border-border pb-4 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_8rem_8rem_auto_auto] xl:items-end"
+          data-testid="conversations-query-toolbar"
+          onSubmit={submitSearch}
+        >
           <label className="grid gap-2 text-sm text-foreground">
             <span>{intl.formatMessage({ id: "conversations.form.uid" })}</span>
             <input
@@ -240,14 +239,28 @@ export function ConversationsPage() {
             />
             {intl.formatMessage({ id: "conversations.form.onlyUnread" })}
           </label>
-          <Button size="sm" type="submit">{intl.formatMessage({ id: "common.search" })}</Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button disabled={state.loading || state.refreshing} type="submit">
+              {state.loading ? intl.formatMessage({ id: "common.loading" }) : intl.formatMessage({ id: "common.search" })}
+            </Button>
+            {submitted ? (
+              <Button disabled={state.loading || state.refreshing} onClick={refresh} type="button" variant="outline">
+                {state.refreshing ? intl.formatMessage({ id: "common.refreshing" }) : intl.formatMessage({ id: "common.refresh" })}
+              </Button>
+            ) : null}
+          </div>
         </form>
 
         {validationError ? <p className="mb-3 text-sm text-destructive">{validationError}</p> : null}
         {state.data ? (
-          <div className="mb-3 flex flex-wrap gap-3 text-sm text-muted-foreground">
+          <div
+            className="flex flex-wrap items-center justify-between gap-2 border-b border-border pb-3 text-sm text-muted-foreground"
+            data-testid="conversations-metadata-row"
+          >
             <span>{intl.formatMessage({ id: "conversations.summary.loadedValue" }, { count: state.data.items.length })}</span>
-            {state.data.truncated ? <span>{intl.formatMessage({ id: "conversations.summary.truncated" })}</span> : null}
+            {state.data.truncated ? (
+              <span>{intl.formatMessage({ id: "conversations.summary.truncated" })}</span>
+            ) : null}
           </div>
         ) : null}
 
@@ -260,8 +273,11 @@ export function ConversationsPage() {
         ) : null}
         {!state.loading && !state.error && state.data ? (
           state.data.items.length > 0 ? (
-            <div className="overflow-x-auto rounded-lg border border-border">
-              <table className="w-full border-collapse">
+            <div className="overflow-x-auto rounded-md border border-border" data-conversations-surface="results">
+              <table
+                aria-label={intl.formatMessage({ id: "conversations.title" })}
+                className="w-full min-w-[760px] border-collapse text-sm"
+              >
                 <thead className="bg-muted/40 text-left text-xs uppercase tracking-[0.14em] text-muted-foreground">
                   <tr>
                     <th className="px-3 py-3">{intl.formatMessage({ id: "conversations.table.channel" })}</th>
