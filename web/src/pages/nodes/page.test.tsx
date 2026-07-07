@@ -321,6 +321,8 @@ test("renders layered node inventory fields and slot move row actions", async ()
   renderNodesPage()
 
   expect(await screen.findByText("127.0.0.1:7000")).toBeInTheDocument()
+  expect(screen.getByTestId("nodes-summary-strip")).toBeInTheDocument()
+  expect(screen.getByRole("table", { name: /nodes/i })).toHaveClass("w-full")
   expect(screen.getByText("data")).toBeInTheDocument()
   expect(screen.getByText("active")).toBeInTheDocument()
   expect(screen.getByText("schedulable")).toBeInTheDocument()

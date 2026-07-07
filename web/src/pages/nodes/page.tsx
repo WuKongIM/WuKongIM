@@ -270,6 +270,15 @@ function nodeRuntimeTotals(nodes: ManagerNode[]) {
   )
 }
 
+function NodeSummaryCell({ label, value }: { label: string; value: number | string }) {
+  return (
+    <div className="border-b border-border px-1 py-3 sm:px-3">
+      <div className="text-xs text-muted-foreground">{label}</div>
+      <div className="mt-1 font-mono text-2xl font-medium tabular-nums text-foreground">{value}</div>
+    </div>
+  )
+}
+
 function controllerRaftPath(nodeId: number) {
   return `/cluster/diagnostics?tab=controller-logs&node_id=${nodeId}`
 }
@@ -376,6 +385,12 @@ export function NodeClusterListPanel() {
   const [promoteTarget, setPromoteTarget] = useState<ManagerNode | null>(null)
   const [promotePending, setPromotePending] = useState(false)
   const [promoteError, setPromoteError] = useState<string | undefined>(undefined)
+  const nodes = state.nodes?.items ?? []
+  const aliveCount = nodes.filter((node) => nodeHealthStatus(node) === "alive").length
+  const unhealthyCount = nodes.filter(isUnhealthyNode).length
+  const drainingCount = nodes.filter((node) => node.runtime?.draining === true || nodeHealthStatus(node) === "draining").length
+  const schedulableCount = nodes.filter((node) => node.membership?.schedulable).length
+  const controllerVoterCount = nodes.filter((node) => node.controller.voter).length
 
   const loadOnboardingStatuses = useCallback(async (nodes: ManagerNode[]) => {
     const requestSeq = onboardingStatusRequestSeq.current + 1
@@ -641,24 +656,36 @@ export function NodeClusterListPanel() {
         </div>
       ) : null}
       {!state.loading && !state.error && state.nodes ? (
-        <div className="rounded-xl border border-border bg-card p-3 shadow-none">
-          {state.nodes.items.length > 0 ? (
-            <div className="overflow-x-auto rounded-lg border border-border">
-              <table className="w-full border-collapse">
-                <thead className="bg-muted/40 text-left text-xs uppercase tracking-[0.14em] text-muted-foreground">
-                  <tr>
-                    <th className="px-3 py-3">{intl.formatMessage({ id: "nodes.table.node" })}</th>
-                    <th className="px-3 py-3">{intl.formatMessage({ id: "nodes.table.address" })}</th>
-                    <th className="px-3 py-3">{intl.formatMessage({ id: "nodes.table.membership" })}</th>
-                    <th className="px-3 py-3">{intl.formatMessage({ id: "nodes.table.health" })}</th>
-                    <th className="px-3 py-3">{intl.formatMessage({ id: "nodes.table.controller" })}</th>
-                    <th className="px-3 py-3">{intl.formatMessage({ id: "nodes.table.slots" })}</th>
-                    <th className="px-3 py-3">{intl.formatMessage({ id: "nodes.table.runtime" })}</th>
-                    <th className="px-3 py-3">{intl.formatMessage({ id: "nodes.table.actions" })}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {state.nodes.items.map((node) => {
+        <>
+          <div
+            className="grid gap-0 border-y border-border sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6"
+            data-testid="nodes-summary-strip"
+          >
+            <NodeSummaryCell label={intl.formatMessage({ id: "nodes.metric.total" })} value={nodes.length} />
+            <NodeSummaryCell label={intl.formatMessage({ id: "nodes.metric.alive" })} value={aliveCount} />
+            <NodeSummaryCell label={intl.formatMessage({ id: "nodes.metric.unhealthy" })} value={unhealthyCount} />
+            <NodeSummaryCell label={intl.formatMessage({ id: "nodes.metric.draining" })} value={drainingCount} />
+            <NodeSummaryCell label={intl.formatMessage({ id: "nodes.metric.schedulable" })} value={schedulableCount} />
+            <NodeSummaryCell label={intl.formatMessage({ id: "nodes.metric.controllerVoters" })} value={controllerVoterCount} />
+          </div>
+          <div className="border border-border bg-card">
+            {state.nodes.items.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table aria-label={intl.formatMessage({ id: "nav.nodes.title" })} className="w-full border-collapse">
+                  <thead className="border-b border-border bg-background text-left text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                    <tr>
+                      <th className="px-3 py-3">{intl.formatMessage({ id: "nodes.table.node" })}</th>
+                      <th className="px-3 py-3">{intl.formatMessage({ id: "nodes.table.address" })}</th>
+                      <th className="px-3 py-3">{intl.formatMessage({ id: "nodes.table.membership" })}</th>
+                      <th className="px-3 py-3">{intl.formatMessage({ id: "nodes.table.health" })}</th>
+                      <th className="px-3 py-3">{intl.formatMessage({ id: "nodes.table.controller" })}</th>
+                      <th className="px-3 py-3">{intl.formatMessage({ id: "nodes.table.slots" })}</th>
+                      <th className="px-3 py-3">{intl.formatMessage({ id: "nodes.table.runtime" })}</th>
+                      <th className="px-3 py-3">{intl.formatMessage({ id: "nodes.table.actions" })}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {state.nodes.items.map((node) => {
                     const healthStatus = nodeHealthStatus(node)
                     const healthEvidence = nodeHealthEvidenceText(intl, node)
                     const currentJoinState = nodeJoinState(node)
@@ -675,7 +702,7 @@ export function NodeClusterListPanel() {
                     const onboardingInProgress = (onboardingStatus?.totalActive ?? 0) > 0
                     const onboardingStatusLoading = onboardingStatus?.loading === true
                     return (
-                      <tr className="border-t border-border" key={node.node_id}>
+                      <tr className="border-t border-border align-top hover:bg-muted/45" key={node.node_id}>
                         <td className="px-3 py-3 text-sm font-medium text-foreground">
                           <div>{node.node_id}</div>
                           {node.name ? (
@@ -885,7 +912,8 @@ export function NodeClusterListPanel() {
           ) : (
             <ResourceState kind="empty" title={intl.formatMessage({ id: "nodes.inventoryTitle" })} />
           )}
-        </div>
+          </div>
+        </>
       ) : null}
 
 
@@ -1135,26 +1163,17 @@ export function NodeClusterOverviewPanel() {
       ) : null}
       {!state.loading && !state.error && state.nodes ? (
         <>
-          <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
-            <SectionCard title={intl.formatMessage({ id: "nodes.metric.total" })}>
-              <div className="text-3xl font-semibold text-foreground">{state.nodes.total}</div>
-            </SectionCard>
-            <SectionCard title={intl.formatMessage({ id: "nodes.metric.alive" })}>
-              <div className="text-3xl font-semibold text-foreground">{aliveCount}</div>
-            </SectionCard>
-            <SectionCard title={intl.formatMessage({ id: "nodes.metric.unhealthy" })}>
-              <div className="text-3xl font-semibold text-foreground">{unhealthyCount}</div>
-            </SectionCard>
-            <SectionCard title={intl.formatMessage({ id: "nodes.metric.draining" })}>
-              <div className="text-3xl font-semibold text-foreground">{drainingCount}</div>
-            </SectionCard>
-            <SectionCard title={intl.formatMessage({ id: "nodes.metric.schedulable" })}>
-              <div className="text-3xl font-semibold text-foreground">{schedulableCount}</div>
-            </SectionCard>
-            <SectionCard title={intl.formatMessage({ id: "nodes.metric.controllerVoters" })}>
-              <div className="text-3xl font-semibold text-foreground">{controllerVoterCount}</div>
-            </SectionCard>
-          </section>
+          <div
+            className="grid gap-0 border-y border-border sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6"
+            data-testid="nodes-summary-strip"
+          >
+            <NodeSummaryCell label={intl.formatMessage({ id: "nodes.metric.total" })} value={nodes.length} />
+            <NodeSummaryCell label={intl.formatMessage({ id: "nodes.metric.alive" })} value={aliveCount} />
+            <NodeSummaryCell label={intl.formatMessage({ id: "nodes.metric.unhealthy" })} value={unhealthyCount} />
+            <NodeSummaryCell label={intl.formatMessage({ id: "nodes.metric.draining" })} value={drainingCount} />
+            <NodeSummaryCell label={intl.formatMessage({ id: "nodes.metric.schedulable" })} value={schedulableCount} />
+            <NodeSummaryCell label={intl.formatMessage({ id: "nodes.metric.controllerVoters" })} value={controllerVoterCount} />
+          </div>
 
           <section className="grid gap-4 xl:grid-cols-[0.8fr_1.2fr]">
             <SectionCard
