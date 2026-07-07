@@ -532,7 +532,10 @@ export function PluginsPage() {
         title={intl.formatMessage({ id: "plugins.title" })}
       />
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div
+        className="grid gap-0 border-y border-border sm:grid-cols-2 xl:grid-cols-4"
+        data-testid="plugins-summary-strip"
+      >
         <SummaryPill label={intl.formatMessage({ id: "plugins.totalValue" }, { count: summary.total })} />
         <SummaryPill label={intl.formatMessage({ id: "plugins.runningValue" }, { count: summary.running })} />
         <SummaryPill label={intl.formatMessage({ id: "plugins.failedValue" }, { count: summary.failed })} />
@@ -562,9 +565,12 @@ export function PluginsPage() {
         {!state.loading && !state.error ? (
           state.page && state.page.items.length > 0 ? (
             filteredPlugins.length > 0 ? (
-              <div className="overflow-x-auto rounded-lg border border-border">
-                <table className="w-full border-collapse">
-                  <thead className="bg-muted/40 text-left text-xs uppercase tracking-[0.14em] text-muted-foreground">
+              <div className="overflow-x-auto border border-border">
+                <table
+                  aria-label={intl.formatMessage({ id: "plugins.inventory.title" })}
+                  className="w-full border-collapse"
+                >
+                  <thead className="border-b border-border bg-background text-left text-xs uppercase tracking-[0.14em] text-muted-foreground">
                     <tr>
                       <th className="px-3 py-3">{intl.formatMessage({ id: "plugins.table.plugin" })}</th>
                       <th className="px-3 py-3">{intl.formatMessage({ id: "plugins.table.status" })}</th>
@@ -575,7 +581,7 @@ export function PluginsPage() {
                   </thead>
                   <tbody>
                     {filteredPlugins.map((plugin) => (
-                      <tr className="border-t border-border" key={plugin.plugin_no}>
+                      <tr className="border-t border-border align-top hover:bg-muted/45" key={plugin.plugin_no}>
                         <td className="px-3 py-3 text-sm">
                           <div className="font-medium text-foreground">{plugin.plugin_no}</div>
                           <div className="text-xs text-muted-foreground">{plugin.name} · {plugin.version}</div>
@@ -657,9 +663,13 @@ export function PluginsPage() {
         description={intl.formatMessage({ id: "plugins.bindings.description" })}
         title={intl.formatMessage({ id: "plugins.bindings.title" })}
       >
-        <form className="flex flex-col gap-3 lg:flex-row lg:items-end" onSubmit={(event) => {
-          void submitBindingSearch(event)
-        }}>
+        <form
+          aria-label={intl.formatMessage({ id: "plugins.bindings.title" })}
+          className="flex flex-col gap-3 lg:flex-row lg:items-end"
+          onSubmit={(event) => {
+            void submitBindingSearch(event)
+          }}
+        >
           <label className="flex flex-col gap-1 text-xs font-medium text-muted-foreground" htmlFor="plugin-binding-selector">
             {intl.formatMessage({ id: "plugins.bindings.selector" })}
             <select
@@ -712,9 +722,9 @@ export function PluginsPage() {
         {!bindingState.loading && !bindingState.error && bindingState.page ? (
           bindingState.page.items.length > 0 ? (
             <div className="space-y-3">
-              <div className="overflow-x-auto rounded-lg border border-border">
+              <div className="overflow-x-auto border border-border">
                 <table className="w-full border-collapse">
-                  <thead className="bg-muted/40 text-left text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                  <thead className="border-b border-border bg-background text-left text-xs uppercase tracking-[0.14em] text-muted-foreground">
                     <tr>
                       <th className="px-3 py-3">{intl.formatMessage({ id: "plugins.bindings.table.uid" })}</th>
                       <th className="px-3 py-3">{intl.formatMessage({ id: "plugins.bindings.table.pluginNo" })}</th>
@@ -725,7 +735,7 @@ export function PluginsPage() {
                   </thead>
                   <tbody>
                     {bindingState.page.items.map((binding) => (
-                      <tr className="border-t border-border" key={`${binding.uid}:${binding.plugin_no}`}>
+                      <tr className="border-t border-border align-top hover:bg-muted/45" key={`${binding.uid}:${binding.plugin_no}`}>
                         <td className="px-3 py-3 text-sm font-medium text-foreground">{binding.uid}</td>
                         <td className="px-3 py-3 text-sm text-muted-foreground">{binding.plugin_no}</td>
                         <td className="px-3 py-3 text-sm text-muted-foreground">
@@ -960,7 +970,7 @@ function PluginInventoryFiltersBar({
 
 function SummaryPill({ label }: { label: string }) {
   return (
-    <div className="rounded-xl border border-border bg-card px-4 py-3 text-sm font-medium text-foreground">
+    <div className="border-b border-border px-1 py-3 text-sm text-foreground sm:px-3">
       {label}
     </div>
   )
