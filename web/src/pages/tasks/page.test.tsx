@@ -166,6 +166,20 @@ test("renders active Controller tasks and retained audit history", async () => {
   expect(screen.getByText("completed slot_replica_move task for slot 1")).toBeInTheDocument()
 })
 
+test("uses a compact task-center summary strip and filter toolbar", async () => {
+  renderTasksPage()
+
+  expect(await screen.findByRole("heading", { name: "Controller Tasks" })).toBeInTheDocument()
+
+  const summaryStrip = screen.getByTestId("tasks-summary-strip")
+  expect(summaryStrip).toHaveClass("overflow-hidden", "rounded-lg", "border", "border-border", "bg-card")
+  expect(summaryStrip.querySelectorAll("[data-task-summary-cell]")).toHaveLength(5)
+  expect(summaryStrip.querySelector("[data-task-summary-cell]")).not.toHaveClass("rounded-lg")
+
+  const filterToolbar = screen.getByTestId("tasks-filter-toolbar")
+  expect(filterToolbar).toHaveClass("grid", "gap-3", "border-b", "border-border", "pb-4")
+})
+
 test("filters Controller tasks by kind, status, slot, node, and keyword", async () => {
   const user = userEvent.setup()
   renderTasksPage()

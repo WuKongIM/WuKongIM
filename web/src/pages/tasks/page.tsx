@@ -223,17 +223,27 @@ export function TasksPage() {
         />
       ) : (
         <>
-          <div className="grid gap-3 md:grid-cols-5">
-            {summaryCards.map((card) => (
-              <div className="rounded-lg border border-border bg-card px-4 py-3" key={card.label}>
-                <div className="text-xs font-medium text-muted-foreground">{card.label}</div>
-                <div className="mt-2 text-2xl font-semibold text-foreground">{formatCount(card.value)}</div>
+          <div
+            className="grid overflow-hidden rounded-lg border border-border bg-card md:grid-cols-5"
+            data-testid="tasks-summary-strip"
+          >
+            {summaryCards.map((card, index) => (
+              <div
+                className="border-b border-border px-4 py-3 last:border-b-0 md:border-r md:border-b-0 md:last:border-r-0"
+                data-task-summary-cell=""
+                key={card.label}
+              >
+                <div className="font-mono text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                  {card.label}
+                </div>
+                <div className="mt-2 font-mono text-2xl font-semibold text-foreground">{formatCount(card.value)}</div>
+                <span className="sr-only">{index + 1}</span>
               </div>
             ))}
           </div>
 
           {state.audits?.truncated ? (
-            <div className="rounded-lg border border-border bg-secondary/40 px-4 py-3 text-sm text-foreground">
+            <div className="rounded-md border border-border bg-muted/30 px-4 py-3 text-sm text-foreground">
               {intl.formatMessage({ id: "tasks.auditTruncated" })}
             </div>
           ) : null}
@@ -247,7 +257,7 @@ export function TasksPage() {
             description={intl.formatMessage({ id: "tasks.listDescription" })}
             title={intl.formatMessage({ id: "tasks.listTitle" })}
           >
-            <div className="mb-4 grid gap-3 md:grid-cols-5">
+            <div className="mb-4 grid gap-3 border-b border-border pb-4 md:grid-cols-5" data-testid="tasks-filter-toolbar">
               <label className="text-sm font-medium text-foreground">
                 {intl.formatMessage({ id: "tasks.filters.kind" })}
                 <select className="mt-1 h-8 w-full rounded-md border border-border bg-background px-2 text-sm" onChange={(event) => setKind(event.target.value as ControllerTaskKind | "")} value={kind}>
@@ -409,7 +419,7 @@ export function TasksPage() {
             />
             <div className="space-y-3">
               {timeline.events.map((event) => (
-                <div className="rounded-lg border border-border bg-muted/30 p-3" key={event.event_id}>
+                <div className="rounded-md border border-border bg-background p-3" data-task-timeline-event="" key={event.event_id}>
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="font-mono text-xs text-foreground">{event.event_id}</div>
                     <StatusBadge value={event.type} />
