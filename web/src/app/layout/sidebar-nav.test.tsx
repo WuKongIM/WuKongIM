@@ -66,6 +66,7 @@ test("keeps the primary menu outside the scrollable content area", async () => {
   expect(contentFrame).toHaveClass("min-h-0", "flex-1")
   expect(main).toHaveClass("min-h-0", "overflow-y-auto")
   expect(screen.getByRole("navigation", { name: "Primary navigation" }).parentElement).toBe(contentFrame)
+  expect(document.querySelector("[class*='radial-gradient']")).not.toBeInTheDocument()
 })
 
 test("shows the cockpit health context in the topbar", async () => {
